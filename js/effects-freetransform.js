@@ -61,6 +61,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
 import { homography, cornerMatrix3d, normalizeCorners, boxFromCorners } from './fx/homography.js';
+import { ALIGN_SELF_OF } from './props/prop-text-wireup-align.js';   /* t7-03 — 가로 정렬 → align-self 사상표 한 자리 */
 
 /** ★정본 키 — ★하나다. ✕ = 이 키를 지움 ⇒ 켜기 전 바이트(반사·글로우와 같은 규약). */
 export const FX_FT_KEYS = ['tfCorners', 'tfTouched', 'tfSchema'];
@@ -217,6 +218,7 @@ export function ftMeasure(tb, force) {
   const kw = tb.style.width, kmh = tb.style.minHeight, kce = ce.style.transform, ktf = tf ? tf.style.width : null;
   tb.style.width = ''; tb.style.minHeight = '';
   ce.style.transform = 'none';
+  ce.style.width = '';   /* ★119 ㉡ — 아래에서 글자 폭으로 다시 박는다 · 재는 동안은 비운다(줄바꿈은 «재는 폭»에서) */
   /* ★★★2026-10-24 — ★★«재는 폭»과 ★«✕ 로 되돌릴 폭»을 ★★갈랐다. ★이름 = `FT-TFW0-TWO-USES-01`
      ★★까닭(★실측) : ★`tfW0` 하나가 ★두 일을 하고 있었다 —
        ⒜ `ftMeasure` 가 ★글자를 ★«어느 폭에서» 재나      ⒝ `_strip`(✕)이 ★«어느 폭으로» 되돌리나
@@ -249,6 +251,30 @@ export function ftMeasure(tb, force) {
      ⛔음수를 그대로 더하면 박스가 모자란다 ⇒ `boxFromCorners` 의 ★하한 둘이 그것을 막는다. */
   st.W = b.width / z; st.H = b.height / z;
   st.OX = (b.left - gb.left) / z; st.OY = (b.top - gb.top) / z;
+  /* ★119 ㉡ FT-BOX-RESERVES-ALIGN-GUTTER-01(현빈 확정 · 저장본 영향 감수) — 상자가 글자를 «딱» 감싼다.
+     ★잰 값(실앱 8608bb13 ×3 · h1 「짧은 글」 가운데): 글자 285.51 · 상자 501 · 글자 좌우 빈 띠 107.75 / 107.75.
+     ★뿌리: 위 OX 는 «재는 폭»(섹션 100%)에서 가운데 정렬이 만든 들여쓰기다 — 그것이 상자 폭(boxFromCorners W+OX)·
+       원점·손잡이 자리(effects-ft-handles OX)에 그대로 들어갔다. 다시 열면 재는 폭이 저장된 px 라 OX 가 달라져
+       상자 폭도 바뀌었다((27) 134 실측 527.17 → 432.62).
+     ★처방: 줄바꿈은 «재는 폭»에서 정한 채로, 글자칸 폭을 글자 폭으로 박고(올림 1px 안) 그 자리에서 OX 를 다시 잰다
+       ⇒ OX ≈ 글자칸 제 여백뿐 · 상자 = 글자. 줄바꿈이 바뀌면(W 가 달라지면) 박지 않는다(옛 동작).
+     ★저장 필드: 글자칸 style.width 하나가 는다(✕ 는 _strip 이 걷는다). */
+  {
+    const cs = getComputedStyle(ce);
+    const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
+               + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
+    ce.style.width = (Math.ceil(st.W) + (cs.boxSizing === 'border-box' ? padX : 0)) + 'px';
+    const r2 = document.createRange();
+    r2.selectNodeContents(ce);
+    const b2 = r2.getBoundingClientRect();
+    r2.detach?.();
+    const gb2 = ce.getBoundingClientRect();
+    if (Math.abs(b2.width / z - st.W) < 0.5 && Math.abs(b2.height / z - st.H) < 0.5) {
+      st.OX = (b2.left - gb2.left) / z; st.OY = (b2.top - gb2.top) / z;
+    } else {
+      ce.style.width = '';
+    }
+  }
   st.measured = true;
   /* ★★★2026-10-24 ⅲ) — ★⒜ ★«재는 폭»의 ★출처를 ★★`tf.dataset.width` 로 ★고른다.
      ★이름 = `FT-MEASURE-WIDTH-DESIGN-UNDECIDED-01` ★★닫힘(★측정이 ★한 방향을 가리킨다).
@@ -332,7 +358,7 @@ export function applyFxFreeTransform(tb) {
     tb.dataset.tfCorners = _cornersToStr(C);
   }
 
-  const { D } = normalizeCorners(C);       /* ★⒞ — 왼·위로 나간 것도 감싸게 0,0 으로 당긴다 */
+  const { D, mnx } = normalizeCorners(C);  /* ★⒞ — 왼·위로 나간 것도 감싸게 0,0 으로 당긴다 */
   const h = homography(_baseRect(st.W, st.H), D);
   if (!h) return false;                    /* ★네 점이 한 줄·겹침 ⇒ 못 푼다 — ★그리지 않는다(가드가 산다) */
 
@@ -345,11 +371,58 @@ export function applyFxFreeTransform(tb) {
   tb.style.width = box.w + 'px';
   tb.style.minHeight = box.h + 'px';
   const tf = _tfOf(tb);
-  if (tf) tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  if (tf) {
+    /* ★t7-03(2026-10-26 S3 · 지디 처방 ⒝) — 폭이 «100% → px» 로 갈아타는 ★그 전이에서만 정렬을 같이 옮긴다.
+       ★잰 값(실앱 ca702d40 · 배율 40%·100% 같음): 가운데 정렬 글상자에 켜기만 해도 글자중심 0.00 → −107.68(왼쪽) ·
+         패널 정렬 단추 셋 다 꺼짐 — 세로 flex 안 «폭 박힌» 자식이 alignSelf 없이 왼쪽에 서기 때문이다.
+       ⛔상태가 아니라 «전이»에 건다: 직전 인라인 폭이 '100%'·'' 일 때만. 복원 경로는 저장본 폭이 이미 px 라 전이가 없다
+         ⇒ 옛 저장본을 안 건드린다(자가치유 금지와 양립 · tests/dom/t7-03-ft-align A4).
+       ⛔tf.style.alignSelf 가 이미 있으면 손대지 않는다 — 패널·사용자가 임자다(A3).
+       값 = 글자칸 textAlign 의 사상(ALIGN_SELF_OF 한 자리) · 왼쪽(빈 값)이면 안 쓴다(옛 바이트).
+       box 식(boxFromCorners)은 그대로다 — 119 ㉡(FT-BOX-RESERVES-ALIGN-GUTTER-01)은 ftMeasure 의 OX 쪽에서 풀었다(글자칸 폭을 글자에 박음). */
+    const prevW = tf.style.width;
+    if ((prevW === '' || prevW === '100%') && !tf.style.alignSelf) {
+      const as = ALIGN_SELF_OF[ce.style.textAlign];
+      if (as && as !== 'flex-start') { tf.style.alignSelf = as; st.alignSetByFt = as; }
+    }
+    tf.style.width = box.w + 'px';   /* ★㉣ — 「너비 항상 동일」 */
+  }
+  /* ★FT-3b `FT-LEFT-DRAG-ANCHORS-AT-TB-LEFT-01` — 위 정규화가 왼쪽으로 나간 몫(mnx<0)을 0 으로 당겨,
+     흐름 글상자에서 nw 를 왼쪽으로 끌면 손잡이는 제자리고 그림이 «오른쪽»으로 자랐다(미카사 261025 실측: 데이터 x −1998 · 손잡이 cx 573.8 고정).
+     ⇒ 당긴 몫만큼 상자째 왼쪽으로 «그려서» 되돌린다 — CSS `translate`(레이아웃 무영향 · 손잡이 층도 같이 간다).
+     ⛔정규화는 그대로 둔다(박스 하한·ft-maxwidth-cap·D_floor_keeps_base 가 그 자리를 잠근다).
+     ⛔`margin-left` 로 하지 마라 — 글자 프레임의 margin-left 는 프레임 안 X 자리(prop-frame.js)라 겹친다.
+     ★세로(mny)는 이 처방 밖이다 — 위로 나간 몫은 섹션이 아래로 자라 손잡이가 안 나간다(FT3-VERTICAL 실측) · 별건. */
+  tb.style.translate = mnx < 0 ? `${mnx}px 0px` : '';
   /* ★U3 — 그린 뒤 손잡이를 ★그 자리로. ⛔import 하지 않는다(순환) — 이 파일이 이미 쓰는
      `window.pushHistory?.()`·`window.scheduleAutoSave?.()` 와 ★같은 관용구다. 없으면 아무 일도 안 난다. */
   window.ftHandlesSync?.(tb);
   return true;
+}
+
+/* ★★t7-05 「오버레이 모드 리사이즈 시 텍스트만 확대되고 아웃라인·격자는 변경되지 않는 오류」(2026-10-26 S3)
+   ★잰 값(시트): 글꼴 36→118.7px · tf 124→409 인데 .tfh-edge 49.8×17.2 불변. ★S3 실측(d772f49e 하네스): 테두리 114×49.6 그대로 ·
+     글자는 tb 폭(옛 box 폭)에 묶여 «글자마다 줄바꿈»(73×294) — 같은 뿌리다.
+   ★뿌리: 오버레이 리사이즈(js/overlay-handles.js _onTextOverlayResizeMouseDown)는 폭·글자 크기만 k 배로 바꾸고,
+     네 점(옛 글자 크기 단위)·재는 폭(tfMeasW)·그린 상자·손잡이는 아무도 다시 맞추지 않는다.
+   ★처방: 시작 때 네 점과 재는 폭을 떠 두고(ftScaleBase) · 매 이동 «같은 k» 로 곱해 그리기 문 하나(applyFxFreeTransform —
+     다시 재고 · 상자 · 손잡이·테두리·격자까지)를 부른다(ftScaleTo). ⛔매 프레임 «누적 곱» 금지 — 시작 값에 k 를 곱한다
+     (overlay-handles.js 의 글자·아이콘 스냅샷과 같은 규약). box 식은 그대로(119 ㉡ 은 ftMeasure 의 OX 쪽). */
+export function ftScaleBase(tb) {
+  const C = ftCornersOf(tb);
+  if (!C) return null;
+  const st = _tfState.get(tb) || ftMeasure(tb);
+  return { C, measW: st ? st.tfMeasW : null };
+}
+export function ftScaleTo(tb, base, k) {
+  if (!tb || !base || !(k > 0) || !tb.dataset) return false;
+  tb.dataset.tfCorners = _cornersToStr(base.C.map(([x, y]) => [x * k, y * k]));
+  const st = _tfState.get(tb);
+  /* 재는 폭이 px 이면 같이 곱한다 — 안 그러면 큰 글자를 옛 폭에서 재어 줄이 꺾이고 W·H 가 갈린다. '100%' 등은 그대로.
+     ★«정수 px» 로 올린다 — 이 파일의 배율 자 `_scaleOf` 는 정수 offsetWidth 로 나눈다 ⇒ 소수 폭(실측 1492.29px)에서 재면
+       배율이 0.4001 로 어긋나 W 가 0.115px 작게 잡히고, 그 폭에 박힌 상자 안에서 줄이 꺾였다(실앱 261026 · 216.8px 「짧은 글」 2줄). */
+  if (st && typeof base.measW === 'string' && /px$/.test(base.measW)) st.tfMeasW = Math.ceil(parseFloat(base.measW) * k) + 'px';
+  return applyFxFreeTransform(tb);
 }
 
 /** 우리가 걷어서 style 이 «빈 속성»만 남으면 속성째 지운다 — ✕ 뒤 outerHTML 이 켜기 전과 바이트 같게. */
@@ -361,9 +434,14 @@ function _strip(tb) {
   const ce = _contentOf(tb);
   const st = _tfState.get(tb);
   const tf = _tfOf(tb);
-  if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; _dropEmptyStyle(ce); }
-  tb.style.width = ''; tb.style.minHeight = '';
-  if (tf) { tf.style.width = st && st.tfW0 != null ? st.tfW0 : ''; _dropEmptyStyle(tf); }
+  if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; ce.style.width = ''; _dropEmptyStyle(ce); }
+  tb.style.width = ''; tb.style.minHeight = ''; tb.style.translate = '';
+  if (tf) {
+    tf.style.width = st && st.tfW0 != null ? st.tfW0 : '';
+    /* ★t7-03 — 켤 때 «내가» 쓴 alignSelf 만 걷는다(그 뒤 패널·사용자가 바꿨으면 그대로) ⇒ ✕ 뒤 켜기 전 바이트. */
+    if (st && st.alignSetByFt && tf.style.alignSelf === st.alignSetByFt) tf.style.alignSelf = '';
+    _dropEmptyStyle(tf);
+  }
   /* ★U3 — ✕ 면 손잡이·격자도 같이 걷는다(안 걷으면 ★효과를 끈 뒤에도 남는다). */
   window.ftHandlesClear?.(tb);
   _dropEmptyStyle(tb);
@@ -491,6 +569,7 @@ function _ftCardHtml(tb, P) {
         </div>
         <div class="prop-cell-card-body" id="${P}-fxft-body"${open ? '' : ' hidden'}>
           <button class="prop-btn-full" id="${P}-fxft-reset" title="네 모서리를 처음(변형 없음)으로">원래대로</button>
+          <button class="prop-btn-full" id="${P}-fxft-pullin" title="섹션 밖으로 나가 안 보이는 모서리만 섹션 안 가장자리로 데려온다(나머지는 그대로)" style="margin-top:4px;">밖 모서리 데려오기</button>
         </div>
       </div>`;
 }
@@ -499,6 +578,12 @@ function _wireFtCard(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
   $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); again(); });
   $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); again(); });
+  /* ★FT-3a — 섹션 밖으로 나가 잘린 손잡이 «되찾기». 몸통은 effects-ft-handles.js(손잡이 자리를 아는 쪽) · window 다리(순환 import 회피 · 이 파일의 관용구). */
+  $('fxft-pullin')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const n = window.ftPullCornersIntoSection?.(tb) || 0;
+    window.showToast?.(n ? `모서리 ${n}개를 섹션 안으로 데려왔습니다 — ⌘Z 로 되돌릴 수 있습니다` : '섹션 밖으로 나간 모서리가 없습니다');
+  });
   /* ★U3 — ★이 함수가 ★«고른 순간»에 돈다(명부가 패널을 다시 그릴 때 배선한다)
      ⇒ ★여기서 ★전수 동기화하면 ★고른 블럭엔 붙고 ★놓인 블럭에선 걷힌다(`_shouldShow` 가 가른다). */
   window.ftHandlesSyncAll?.(document);
@@ -533,6 +618,7 @@ if (typeof window !== 'undefined') {
   Object.assign(window, {
     ftCornersOf, ftStateOf, ftMeasure,
     applyFxFreeTransform, setFxFreeTransform, resetFxFreeTransform, watchAllFxFreeTransform,
+    ftScaleBase, ftScaleTo,
     FX_FT_KEYS,
   });
 }

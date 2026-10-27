@@ -382,7 +382,13 @@
     return edges;
   }
 
+  /* ★132 ⓧ(2026-10-26 · 지디 GO) — 먼저 «이미 있는 색인»(window._scratchItemById → 아이템.el · js/scratch-pad.js)으로 찾는다.
+   *   까닭(실측 · 수지 저장본 · 그리드 행 끌기): 연결선 rAF(_edgeLoop)가 매 프레임 아이템마다 이 querySelector 를 불러
+   *   이동 몫 1.7~2.3s(eac99ecd ×3). 색인 el === querySelector 결과 134/134 · 다름 0(d0a6b6fa 앱 실측).
+   *   ⛔새 캐시를 만들지 않는다(같은 정보가 이미 있다). 색인이 없거나(이 파일 단독 하네스) el 이 끊겼으면 «옛 길» 그대로. */
   function _scEl(scratchId) {
+    const it = _item(scratchId);
+    if (it && it.el && it.el.isConnected) return it.el;
     return document.querySelector('.scratch-item[data-scratch-id="' + (window.CSS && CSS.escape ? CSS.escape(scratchId) : scratchId) + '"]');
   }
 

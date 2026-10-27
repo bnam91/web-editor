@@ -599,14 +599,28 @@ test('C-LOAD ★dataset 이 진실이다 — HTML 만 되살리고 재렌더하�
   expect(r.fill).toBe('#0000ff');        // 색도 dataset 에서
   expect(r.slots).toBe(3);
   /* ★★위까지는 「재렌더하면 돌아온다」는 ★성질이다. ★그런데 ★로드 경로가 ★그 재렌더를 ★부르나?
-     ⇒ 그건 이 하네스에서 못 돈다(save-load 는 앱 전역을 끌고 온다). ★소스에서 ★그 한 줄을 잰다.
-     ⛔「낱말이 있나」가 아니라 ★「rebindAll 의 그 루프 안에 있나」로 ★자리까지 본다.
-     ★음성대조를 ★같이 돌린다 — 그 줄을 지운 사본에서 ★거짓이 되는지. 안 되면 이 칸은 아무것도 안 잠근다. */
+     ⇒ 그건 이 하네스에서 못 돈다(save-load 는 앱 전역을 끌고 온다). ★소스에서 ★잰다(글로 읽기 · 실행 0).
+     ★163(2026-10-27) — 제품이 인라인 «if (…coupon-block) renderCouponBlock» 줄에서 ★로스터 꼴로 바뀌었다(CLONE-RERENDER-01):
+       RERENDER_KINDS 표의 ['coupon-block', fn] 줄 · rerenderBlock 이 그 표를 돈다 · 로드 루프가 rerenderBlock(b) 를 부른다.
+       ⛔창(slice 길이)을 늘려 옛 줄을 찾지 마라 — 꼴이 다르다. 세 고리를 ★선언 줄 앵커로 따로 잰다(167 꼴).
+     ★음성대조를 ★같이 돌린다 — 각 고리를 지운 사본에서 ★거짓이 되는지. 안 되면 이 칸은 아무것도 안 잠근다. */
   const src = fs.readFileSync(path.join(REPO, 'js/io/save-load.js'), 'utf8');
-  const loop = src.slice(src.indexOf("canvasEl.querySelectorAll('.text-block, .asset-block"));
-  const RE = /if \(b\.classList\.contains\('coupon-block'\)\) window\.renderCouponBlock\?\.\(b\);/;
-  expect(RE.test(loop.slice(0, 6000)), '★save-load 의 로드 루프가 renderCouponBlock 을 안 부른다 — 로드 뒤 그림이 빈다').toBe(true);
-  expect(RE.test(loop.slice(0, 6000).replace(RE, '')), '★자가 죽었다 — 줄을 지운 사본도 통과한다').toBe(false);
+  const block = (s, head, tail) => { const i = s.indexOf(head); if (i < 0) return null; const j = s.indexOf(tail, i + head.length); return j < 0 ? null : s.slice(i, j + tail.length); };
+  /* ⑴ 표 — RERENDER_KINDS 선언(«const RERENDER_KINDS = [» ~ 첫 «\n];») 안에 coupon 열쇠가 있고 그 fn 이 renderCouponBlock 을 부른다 */
+  const KINDS_ROW = /\['coupon-block',\s*\(b\)\s*=>\s*\{\s*window\.renderCouponBlock\?\.\(b\);\s*\}\]/;
+  const kindsOk = (s) => { const k = block(s, 'const RERENDER_KINDS = [', '\n];'); return !!k && KINDS_ROW.test(k); };
+  /* ⑵ 한 블럭 그리기 — rerenderBlock 몸통이 그 표를 돌며 클래스가 맞으면 fn(b) */
+  const RB_LOOP = /for \(const \[cls, fn\] of RERENDER_KINDS\) \{ if \(b\.classList\.contains\(cls\)\) fn\(b\); \}/;
+  const rbOk = (s) => { const f = block(s, 'function rerenderBlock(b) {', '\n}'); return !!f && RB_LOOP.test(f); };
+  /* ⑶ 로드 루프 — rebindAll 의 그 querySelectorAll(… .coupon-block …).forEach 몸통(« // bind-list:REBIND_ALL» ~ 첫 «\n  });») 안에서 rerenderBlock(b) */
+  const loopOk = (s) => { const i = s.indexOf("canvasEl.querySelectorAll('.text-block, .asset-block"); if (i < 0) return false;
+    const head = s.slice(i, s.indexOf('\n', i)); const body = block(s.slice(i), '// bind-list:REBIND_ALL', '\n  });');
+    return /\.coupon-block\b/.test(head) && !!body && /\n\s+rerenderBlock\(b\);/.test(body); };
+  expect({ kinds: kindsOk(src), rerender: rbOk(src), loop: loopOk(src) }, '★save-load 로드 길이 쿠폰을 다시 그린다 — 표 열쇠 · 표 도는 몸통 · 로드 루프 부름').toEqual({ kinds: true, rerender: true, loop: true });
+  /* 자기 전제 — 고리 하나씩 지운 사본에서 ★거짓이 된다 */
+  expect(kindsOk(src.replace(KINDS_ROW, '')), '★자가 죽었다 — 표에서 coupon 줄을 지운 사본도 통과한다').toBe(false);
+  expect(rbOk(src.replace(RB_LOOP, '')), '★자가 죽었다 — rerenderBlock 의 표 돌기를 지운 사본도 통과한다').toBe(false);
+  expect(loopOk(src.replace(/(\/\/ bind-list:REBIND_ALL[\s\S]*?)\n\s+rerenderBlock\(b\);/, '$1')), '★자가 죽었다 — 로드 루프의 rerenderBlock(b) 를 지운 사본도 통과한다').toBe(false);
   /* ★접두도 같은 자리에서 — genId('cpn') 과 ★갈리면 id 가 둘이 된다. */
   expect(/contains\('coupon-block'\) \? 'cpn'/.test(src), "★save-load 의 id 접두가 'cpn' 이 아니다").toBe(true);
   expect(errs).toEqual([]);

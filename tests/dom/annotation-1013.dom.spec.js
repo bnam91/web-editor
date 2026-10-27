@@ -86,7 +86,7 @@ test('AN2 레이어 행을 누르면 어노테이션 패널 + 점 핸들이 뜬�
   await clickAt(page, rr.cx, rr.cy, { sel: rowSel }, { label: '레이어 행' });
   await expect.poll(() => page.evaluate((id) => {
     const b = document.getElementById(id);
-    return { sel: b.classList.contains('selected'), handles: b.querySelectorAll('.annot-handle').length,
+    return { sel: b.classList.contains('selected'), handles: b.querySelectorAll('.annot-handle[data-point-idx]').length,
       panel: !!document.querySelector('#panel-right [data-prop-panel="annotation"]') };
   }, id), '선택 + 핸들 2 + 어노테이션 패널').toEqual({ sel: true, handles: 2, panel: true });
   expect((await rowOf(page, id)).active, '그 행이 켜졌다').toBe(true);

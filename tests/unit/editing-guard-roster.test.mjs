@@ -71,7 +71,11 @@ function census() {
    ★늘었으면 ★★«그 자리를 무엇이 받치나»를 ★아래 BACKED_BY 에 적고 ★수를 올려라.
    ★줄었으면 ★수를 내려라 — ★그게 이 자의 래칫이다. */
 const KNOWN = {
-  sites: 44,                 // `.X-block.editing` 토큰이 든 «줄» 수(js+css 전수 · 주석 포함)
+  sites: 45,                 // `.X-block.editing` 토큰이 든 «줄» 수(js+css 전수 · 주석 포함)
+                             /* ★44 → 45 (261026 · 지디) — 1020t2d2/1012t1C1 묶음(e0bb4581)이 ★js/editor.js 의 ★⌘F 핸들러에
+                                `if (document.querySelector('.text-block.editing')) return;` ★한 줄을 더했다.
+                                ★files 는 ★9 그대로다(★그 줄이 ★이미 명부에 있는 파일 안이다 — 내가 재서 확인).
+                                ★받침은 ★아래 `js/editor.js` 칸의 ★「⌘ 조합 자리는 각자 다음 줄/같은 줄에 일반검사」가 ★그대로 받는다. */
   files: 9,
   union: ['asset', 'grid', 'icon-text', 'label-group', 'liner', 'modal', 'quote', 'text'],
 };
@@ -82,7 +86,10 @@ const KNOWN_GAPS = {
     빠진것: 'grid · comparison · laurel · quote · liner · asset (합집합 중 이 파일에 없는 것)',
     받침: '★`:2403`(그 keydown 핸들러 ★첫 문장) = activeElement.isContentEditable && !meta && !ctrl → return. '
         + '⌘ 없는 ★모든 키를 ★블럭 종류와 무관하게 막는다 ⇒ 타입 명부는 그 키들에 ★도달 불가. '
-        + '＋⌘ 조합 자리는 ★각자 ★다음 줄/같은 줄에 target·activeElement 일반검사가 붙어 있다.',
+        + '＋⌘ 조합 자리는 ★각자 ★다음 줄/같은 줄에 target·activeElement 일반검사가 붙어 있다.'
+        + ' ★261026 추가(지디) — ★`:2599` ⌘F(섹션 검색 팔레트)의 `.text-block.editing` 줄도 ★그 꼴이다:'
+        + ' ★바로 ★다음 줄이 `INPUT|TEXTAREA|SELECT|isContentEditable` ★일반검사다(내가 소스로 재서 확인)'
+        + ' ⇒ ★타입 이름(`.text-block`)이 ★빠져도 ★그 다음 줄이 ★받는다. ⛔이름 명부로 ★닫는 자리가 ★아니다.',
   },
   'js/alt-click-layer-select.js': {
     빠진것: 'text·icon-text·label-group 셋만 적혀 있고 나머지 전부',

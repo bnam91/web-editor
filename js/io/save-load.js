@@ -431,6 +431,11 @@ const THUMB_MIN_GAP_MS = 180000;
 let _thumbTimer = null;
 let _thumbDirty = false;
 let _lastThumbAt = 0;
+/* ★165 ㉡(지디 21:21) — 캡처가 «도는 중». 실측(fa57bed6 · 수지 사본 · ✕ → ⌘Z): 첫 캡처가 끝나기 전(57.6s)에 둘째가 38.3s 에
+     시작해 둘이 겹쳤다 — _lastThumbAt 은 «찍은 뒤»에 적으므로(아래) 도는 동안엔 3분 문이 아직 열려 있다.
+   ⛔_lastThumbAt 을 «시작»에 적는 꼴은 안 고른다 — 실패 출구가 셋(null · 탭 바뀜 · IPC 던짐)이라 셋 다 되돌려야 하고,
+     «찍은 뒤에 기록한다»(아래 주석)의 까닭을 거스른다. 칸 하나 + finally 가 출구 수와 무관하다. */
+let _thumbRunning = false;
 
 /** 편집이 멈추면 썸네일을 한 장 찍어 _meta.json 에 넣는다. 편집이 이어지면 계속 미뤄진다. */
 function scheduleIdleThumbnail() {
@@ -440,14 +445,30 @@ function scheduleIdleThumbnail() {
   const fire = () => {
     _thumbTimer = null;
     if (!_thumbDirty) return;                       // ⑶ 편집이 없었으면 찍을 것이 없다
+    /* ★165 ㉠ — «지금 바쁨»이면 찍지 않고 미룬다(⑵ 와 같은 «버리지 않고 미룬다» 꼴). 실측(fa57bed6): 끌기 «전»에 걸린 8초
+       타이머가 끌기 «안»에서 터져 html2canvas 가 마우스 눌린 채 시작됐다 — deferAutoSave 는 autoSaveTimer 만 지우고, 제스처 중
+       scheduleAutoSave 는 이 함수 «앞»에서 돌아가 타이머를 밀지도 않는다. 바쁨 = 이미 있는 칸 둘(제스처 유예 · 억제 창) + ㉡ 진행 중. */
+    if (_autoSaveDeferred || state._suppressAutoSave || _thumbRunning) {
+      _thumbTimer = setTimeout(fire, THUMB_IDLE_MS);
+      return;
+    }
     const since = Date.now() - _lastThumbAt;
     if (since < THUMB_MIN_GAP_MS) {                 // ⑵ 아직 이르다 — 버리지 않고 미룬다
       _thumbTimer = setTimeout(fire, THUMB_MIN_GAP_MS - since);
       return;
     }
     /* ★requestIdleCallback 으로 시작한다 — 이 캡처는 수 초 CPU 를 먹어서, 사용자가 다시
-       입력을 시작한 순간에 걸치면 그대로 버벅임이 된다. 유휴를 못 잡으면 3초 뒤 강행. */
-    const go = () => { _runIdleThumbnail().catch(() => {}); };
+       입력을 시작한 순간에 걸치면 그대로 버벅임이 된다. 유휴를 못 잡으면 3초 뒤 강행.
+       ★165 — 위 바쁨을 «여기서 한 번 더» 본다: fire 와 go 사이(최대 3초)에 제스처가 시작될 수 있다 · 이미 걸린 rIC 는
+       clearTimeout 으로 못 지워서 둘이 겹쳐 올 수도 있다. */
+    const go = () => {
+      if (_autoSaveDeferred || state._suppressAutoSave || _thumbRunning) {
+        clearTimeout(_thumbTimer);
+        _thumbTimer = setTimeout(fire, THUMB_IDLE_MS);
+        return;
+      }
+      _runIdleThumbnail().catch(() => {});
+    };
     if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 });
     else go();
   };
@@ -457,6 +478,8 @@ function scheduleIdleThumbnail() {
 async function _runIdleThumbnail() {
   const targetId = activeProjectId;
   if (!targetId) return;
+  _thumbRunning = true;   // ★165 ㉡ — 출구가 몇 개든 finally 가 내린다
+  try {
   const thumbnail = await captureThumbnail();
   /* ⛔캡처는 «몇 초» 걸린다 — 그 사이 탭이 바뀌었으면 남의 프로젝트 카드에 내 그림을 박게
      된다. 자동저장이 _saveTargetId 로 같은 사고를 막는 것과 «같은 자»다. */
@@ -467,6 +490,7 @@ async function _runIdleThumbnail() {
   /* ★찍은 «뒤»에 기록한다 — 앞에 두면 실패했는데도 3분을 쉬어 그림이 영영 안 는다. */
   _lastThumbAt = Date.now();
   _thumbDirty = false;
+  } finally { _thumbRunning = false; }
 }
 window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
@@ -633,6 +657,7 @@ function getSerializedCanvas() {
      ★이미 import 하고 있어(:14) ★거꾸로 걸면 ★순환이다. ⇒ ★잎 모듈로 뺐다.
    ★여기선 ★그대로 ★이어 부른다 — ★이 파일을 import 하던 자리는 ★전과 ★같이 돈다. */
 import { NON_CONTENT_UI_SELECTOR } from './editor-ui-roster.js';
+import { NON_EDIT_ATTRS, NON_EDIT_CSSVARS, CHROME_SEL } from '../non-edit-roster.js';   // ★167 — 비교(history.js)와 «같은 이름»으로 세대를 본다
 export { NON_CONTENT_UI_SELECTOR };
 if (typeof window !== 'undefined') window.NON_CONTENT_UI_SELECTOR = NON_CONTENT_UI_SELECTOR;   // ★E148 — ⌘C 글자 뽑기(editor.js)가 «같은 목록»으로 UI 를 걷는다
 
@@ -2136,7 +2161,49 @@ function _isParticleMotionMutation(m) {
       && m.target.hasAttribute('data-fxp');
 }
 
-const autoSaveObserver = new MutationObserver(mutations => {
+/* ★130 싼 게이트 — 캔버스 «세대»(js/history.js pushHistory 가 직렬화 «앞»에서 읽는다). ⛔새 감시자 없음 — 이 감시자 «하나»에 한 칸.
+ *   세대가 오르는 변이 = 직렬화를 바꿀 «수 있는» 변이 전부 — 아래 자동저장 판정과 같은 제외(UI 장식·파티클 움직임·lazy 패스·툴바·#canvas 자기 속성)만 뺀다.
+ *   ⚠️class 는 자동저장 판정과 «다르게» 본다: 바뀐 토큰이 «전부» 세척이 벗기는 런타임 마커(section-serialize.js isRuntimeMarker)일 때만 뺀다
+ *     — 그 밖 class(has-image 등 콘텐츠)는 센다. ⛔모르면 센다(거짓으로 «안 바뀜»이면 이력이 사라진다 · 거짓으로 «바뀜»이면 그냥 느리다). */
+let _canvasGen = 0;
+let _canvasGenLive = false;
+function _classDiffIsRuntimeOnly(m) {
+  const rm = window.runtimeMarkers?.isRuntimeMarker; if (typeof rm !== 'function') return false;
+  const a = new Set(String(m.oldValue || '').split(/\s+/).filter(Boolean));
+  const b = new Set(String(m.target?.getAttribute?.('class') || '').split(/\s+/).filter(Boolean));
+  for (const t of a) if (!b.has(t) && !rm(t)) return false;
+  for (const t of b) if (!a.has(t) && !rm(t)) return false;
+  return true;
+}
+/* ★167(2026-10-26 · 지디 처방 · F4-GATE-NEVER-FIRES-IN-APP-01) — «비교»(history.js _NON_EDIT_ATTR_RE · _CHROME_RE)가 이미 벗기는 차이는
+ *   세대도 안 올린다. ★이름은 js/non-edit-roster.js 한 집 — 정규식 글자와는 tests/unit/non-edit-roster-167.test.mjs 가 바이트째 묶는다.
+ *   ⛔문자열(직렬본) 작업 0 — MutationRecord 의 값 둘(oldValue · 지금 값)만 본다. ⛔모르면 센다(정규식보다 넓게 빼지 않는다).
+ *   실측 근거: 오버레이 켜기 push 뒤 늦게 오는 style 한 묶음(--sec-clip 45px→111px)이 세대를 +1 → 끌기 시작 표본 게이트 0/7(fa57bed6 ×4). */
+const _NON_EDIT_BOOL = new Set([null, 'true', 'false']);   // history.js `draggable="(?:true|false)"` — 값 둘 다 이 안일 때만
+function _attrDiffIsNonEdit(m) {
+  return NON_EDIT_ATTRS.includes(m.attributeName)
+      && _NON_EDIT_BOOL.has(m.oldValue) && _NON_EDIT_BOOL.has(m.target.getAttribute(m.attributeName));
+}
+/* style 선언 중 NON_EDIT_CSSVARS 를 뺀 나머지가 같으면 «그 변수만» 바뀐 것 */
+function _styleDiffIsNonEditOnly(m) {
+  /* 선언을 «이름:값»으로 접어 비교 — CSSOM 이 다시 쓴 꼴(`height:120px` → `height: 120px;`)의 공백 차이는 차이가 아니다 */
+  const rest = (s) => String(s || '').split(';').map(d => { const i = d.indexOf(':'); return i < 0 ? d.trim() : d.slice(0, i).trim() + ':' + d.slice(i + 1).trim(); })
+    .filter(d => d && !NON_EDIT_CSSVARS.some(v => d.startsWith(v + ':'))).join(';');
+  return rest(m.oldValue) === rest(m.target.getAttribute('style'));
+}
+function _isGenNeutral(m) {
+  if (m.type === 'attributes' && m.attributeName === 'class') return _classDiffIsRuntimeOnly(m);
+  if (_isNonContentUiMutation(m)) return true;
+  if (_isParticleMotionMutation(m)) return true;
+  if (state._lazyRenderPass && m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'data-lazy-bg')) return true;
+  if (m.type === 'attributes' && m.target.nodeType === 1 && (_attrDiffIsNonEdit(m) || (m.attributeName === 'style' && _styleDiffIsNonEditOnly(m)))) return true;
+  const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+  if (el && el.closest(CHROME_SEL)) return true;
+  if (m.type === 'attributes' && el && el.id === 'canvas') return true;
+  return false;
+}
+function _autoSaveObserverHandle(mutations) {
+  for (const m of mutations) if (!_isGenNeutral(m)) { _canvasGen++; break; }   // 같은 꼭대기냐만 본다 — 수가 아니라 «올랐나»
   const meaningful = mutations.some(m => {
     if (m.type === 'attributes' && m.attributeName === 'class') return false;
     // [P-A1″] 저장에서 지워지는 «UI 장식»의 생성/제거는 편집이 아니다 — 같은 목록을 본다.
@@ -2160,7 +2227,10 @@ const autoSaveObserver = new MutationObserver(mutations => {
   });
   if (!meaningful) return;
   scheduleAutoSave();
-});
+}
+const autoSaveObserver = new MutationObserver(_autoSaveObserverHandle);
+/** ★130 — 세대를 «지금» 값으로(대기 중인 변이 기록을 먼저 같은 처리기로 흘린다 — 자동저장 판정도 그대로 받는다). 감시 전이면 null(= 게이트 안 씀). */
+window.__canvasGen = () => { if (!_canvasGenLive) return null; const recs = autoSaveObserver.takeRecords(); if (recs.length) _autoSaveObserverHandle(recs); return _canvasGen; };
 
 /* ── Init (called from editor.js after all scripts loaded) ── */
 function initApp() {
@@ -2424,7 +2494,8 @@ function initApp() {
   });
 
   // class 변경은 콜백에서 필터링, data-* 등 실제 속성 변경은 감지 (DBG-11 해소)
-  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true });
+  autoSaveObserver.observe(canvasEl, { childList: true, subtree: true, characterData: true, attributes: true, attributeOldValue: true });   // ★130 attributeOldValue — class 토큰 차이(런타임 마커만인가)를 보려고
+  _canvasGenLive = true;
 
   // 스크래치패드 초기화
   window.initScratchPad?.(activeProjectId, state.currentPageId);

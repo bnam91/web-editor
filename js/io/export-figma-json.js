@@ -1035,6 +1035,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` A1 · A5 */
       el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label').forEach(t => {
         if (!_notKid(t)) return;
+        /* ★1012t1H5 — 인용구 줄(.tb-qt-line) «안»의 효과 span(tb-dot 글자마다 · tb-hl · tb-glow)은 줄이 이미 실은 글자다.
+           안 거르면 점을 켠 순간 글자가 한 자씩 또 실린다. ⛔줄 자신과 줄 밖(.tb-qt-body·부호)은 그대로(옛 JSON 바이트 동일). */
+        if (t.parentElement && t.parentElement.closest('.tb-qt-line')) return;
         const tx = (t.innerText || '').trim();
         if (tx) { const cs = (typeof window.getComputedStyle === 'function') ? window.getComputedStyle(t) : {};
           texts.push({ t: tx, fs: parseInt(cs.fontSize) || 24, color: cs.color || '#111111',

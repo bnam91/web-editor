@@ -26,6 +26,8 @@
  *   P7 캡처 클론에서는 메모와 함께 그림 주소도 떼인다
  *   P8 두 장을 붙이면 붙인 차례대로 둘
  *   P9 20MB 를 넘는 파일은 거절한다
+ *   P12 (1017t1b2 «크기 조절이 가능했으면 좋겠다») 그림을 누르면 모서리 손잡이가 뜨고, 끌면 너비가 바뀌어
+ *       `![w=N]` 로 저장되며 다시 열어도 그 너비다 · 편집 칸 너비에서 멈춘다 · 옛 `![]()` 는 손대지 않으면 그대로
  *
  * 이벨류에이터 실측 결함(2026-10-12)을 잠그는 칸:
  *   D1a~e 캐럿 «뒤에 글자가 있어도» 체크박스·그림은 정확히 하나(글 가운데 · 줄 맨 앞 · 한글 사이 · 둘째 줄 · 붙여넣기)
@@ -1404,4 +1406,123 @@ test('P11b 확대가 열린 동안 Esc 는 메모 팝오버를 안 닫고 전역
   expect(await page.evaluate(() => document.querySelectorAll('.smp-img-zoom-backdrop').length), 'Esc 는 확대부터 닫는다').toBe(0);
   expect(await page.locator('.section-memo-popover').count(), 'Esc 가 모달까지 새면 메모가 날아간다 — 안 닫혔다').toBe(1);
   expect(await page.evaluate(() => window.__escBubbled), 'Esc 는 document·bubble 까지 안 샌다(stopPropagation)').toBe(0);
+});
+
+/* ══ 1017t1b2 — 참고 이미지 크기 조절(손잡이) ══════════════════════════════════════ */
+
+test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 저장되며 다시 열어도 그 너비다', async ({ page }) => {
+  await armA2(page);
+  /* 현빈이 붙인 꼴 — 세로로 긴 그림(400x1200). 스텁 2x2 로는 «상한 320px 이 풀리는가»를 못 잰다 */
+  const tall = await page.evaluate(() => {
+    const cv = document.createElement('canvas'); cv.width = 400; cv.height = 1200;
+    cv.getContext('2d').fillRect(0, 0, 400, 1200);
+    return cv.toDataURL('image/png').split(',')[1];
+  });
+  await page.route('goya-asset://**', (route) => route.fulfill({ contentType: 'image/png', body: Buffer.from(tall, 'base64') }));
+  const OLD = `가![](${A2_URLS[0]})나`;
+  await openMemo(page, OLD);
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth === 400);
+  /* 크기는 «레이아웃» 값으로 잰다 — 팝오버는 열릴 때 scale 로 커지며 들어와(css .section-memo-popover transition)
+     그 사이 getBoundingClientRect 는 줄어든 값을 준다. 손잡이를 «끌» 때는 화면 좌표라 다 열린 뒤에 쥔다(settled). */
+  const rectOf = () => page.evaluate(() => {
+    const im = document.querySelector('.smp-editor img.smp-img');
+    const cs = getComputedStyle(im);
+    const bx = parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    const by = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    return { w: im.offsetWidth, h: im.offsetHeight, cw: im.offsetWidth - bx, ch: im.offsetHeight - by };
+  });
+  const settled = () => page.waitForFunction(() => {
+    const pop = document.querySelector('.section-memo-popover');
+    return !!pop && Math.abs(pop.getBoundingClientRect().width - pop.offsetWidth) < 0.01;
+  });
+  /* 세로로 긴 그림은 모서리가 편집 칸 아래로 나간다 — 그때 손잡이는 숨는다(쥘 수 없는 자리) ⇒ 모서리가 보이게 내린다 */
+  const revealCorner = () => page.evaluate(() => {
+    const ed = document.querySelector('.smp-editor');
+    const im = ed.querySelector('img.smp-img');
+    ed.scrollTop += im.getBoundingClientRect().bottom - ed.getBoundingClientRect().bottom + 24;
+  });
+  await settled();
+  const r0 = await rectOf();
+  expect(r0.h, '전제: 크기를 안 정한 그림은 고정 상한(320px) 안이다').toBeLessThanOrEqual(320);
+  await expect(page.locator('.smp-img-grip'), '전제: 고르기 전엔 손잡이가 없다').toHaveCount(0);
+
+  await page.locator('.smp-editor img.smp-img').click();
+  await expect(page.locator('.smp-img-grip')).toHaveCount(1);
+  await revealCorner();
+  await expect(page.locator('.smp-img-grip'), '모서리가 보이면 손잡이가 보인다').toBeVisible();
+  const g = await page.evaluate(() => {
+    const im = document.querySelector('.smp-editor img.smp-img').getBoundingClientRect();
+    const gr = document.querySelector('.smp-img-grip').getBoundingClientRect();
+    const cx = gr.left + gr.width / 2;
+    const cy = gr.top + gr.height / 2;
+    return { cx, cy, dx: gr.left - im.right, dy: gr.top - im.bottom, top: document.elementFromPoint(cx, cy)?.className };
+  });
+  expect(g.dx >= 0 && g.dx <= 3 && g.dy >= 0 && g.dy <= 3, `손잡이는 그림 오른쪽 아래 모서리 바로 바깥에 선다(Δ ${g.dx.toFixed(1)},${g.dy.toFixed(1)})`).toBe(true);
+  expect(g.top, '그 자리에서 손잡이가 맨 위다(쥘 수 있다)').toBe('smp-img-grip');
+  /* 클릭으로 고른 «선택»은 그대로다(P6·P11b 무회귀) */
+  expect(await page.evaluate(() => {
+    const s = window.getSelection();
+    return !!s.rangeCount && s.getRangeAt(0).intersectsNode(document.querySelector('.smp-editor img.smp-img'));
+  })).toBe(true);
+
+  await page.mouse.move(g.cx, g.cy);
+  await page.mouse.down();
+  await page.mouse.move(g.cx + 60, g.cy, { steps: 4 });
+  await page.mouse.move(g.cx + 100, g.cy, { steps: 4 });
+  await page.mouse.up();
+  const r1 = await rectOf();
+  expect(Math.abs(r1.w - (r0.w + 100)) <= 1, `너비가 끈 만큼 늘었다(${r0.w} → ${r1.w})`).toBe(true);
+  expect(Math.abs(r1.ch - r1.cw * 3) <= 2, `비율 그대로(1:3) — 그림 칸 ${r1.cw}×${r1.ch}`).toBe(true);
+  expect(r1.h, '너비를 정한 그림엔 고정 상한이 안 걸린다').toBeGreaterThan(320);
+  const W = r1.w;
+  await expect.poll(() => memoOf(page)).toBe(`가![w=${W}](${A2_URLS[0]})나`);
+
+  await closeMemo(page);
+  await openMemo(page, await memoOf(page));
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth === 400);
+  await settled();
+  expect((await rectOf()).w, '다시 열어도 그 너비다').toBe(W);
+
+  /* 편집 칸 글 너비에서 멈춘다 — 그 이상은 max-width:100% 가 보이는 값을 자르므로, 저장 값도 거기서 자른다 */
+  await page.locator('.smp-editor img.smp-img').click();
+  await revealCorner();
+  await expect(page.locator('.smp-img-grip'), '★전제: 모서리를 내려 보이니 손잡이도 보인다').toBeVisible();
+  const g2 = await page.evaluate(() => {
+    const gr = document.querySelector('.smp-img-grip').getBoundingClientRect();
+    const ed = document.querySelector('.smp-editor');
+    const cs = getComputedStyle(ed);
+    return { cx: gr.left + gr.width / 2, cy: gr.top + gr.height / 2, max: Math.floor(ed.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
+  });
+  await page.mouse.move(g2.cx, g2.cy);
+  await page.mouse.down();
+  await page.mouse.move(g2.cx + 3000, g2.cy, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => memoOf(page)).toBe(`가![w=${g2.max}](${A2_URLS[0]})나`);
+  expect((await rectOf()).w, '보이는 너비 = 저장 너비').toBe(g2.max);
+  await closeMemo(page);
+
+  /* 옛 저장본 — 손대지 않고 열고 닫으면 한 글자도 안 바뀐다(크기 칸이 끼어들지 않는다) */
+  await openMemo(page, OLD);
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth === 400);
+  await closeMemo(page);
+  expect(await memoOf(page)).toBe(OLD);
+  expect(await page.evaluate(() => window.__saves), '옛 메모를 열고 닫기만 하면 저장을 안 부른다').toBe(0);
+});
+
+test('P12b 손잡이는 그림 밖을 누르거나 글을 치면 거둔다 — 직렬화·글자에 안 섞인다', async ({ page }) => {
+  await armA2(page);
+  await openMemo(page, `가![](${A2_URLS[0]})나`);
+  await page.waitForFunction(() => document.querySelector('.smp-editor img.smp-img').naturalWidth > 0);
+  await page.locator('.smp-editor img.smp-img').click();
+  await expect(page.locator('.smp-img-grip')).toHaveCount(1);
+  expect(await page.evaluate(() => !!document.querySelector('.smp-editor .smp-img-grip')), '손잡이는 편집 칸 «밖»에 산다').toBe(false);
+  const ed = await page.evaluate(() => { const r = document.querySelector('.smp-editor').getBoundingClientRect(); return { x: r.right - 20, y: r.bottom - 20 }; });
+  await page.mouse.click(ed.x, ed.y);
+  await expect(page.locator('.smp-img-grip')).toHaveCount(0);
+  await page.locator('.smp-editor img.smp-img').click();
+  await expect(page.locator('.smp-img-grip')).toHaveCount(1);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.type('다');
+  await expect(page.locator('.smp-img-grip')).toHaveCount(0);
+  await expect.poll(() => memoOf(page)).toBe(`가![](${A2_URLS[0]})다나`);
 });

@@ -8,7 +8,6 @@ import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js'
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
 import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
-import { redactSectionHTML, wireRedactSection, readRedact } from '../effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
 /* ★1013t2A2 로고 «콜라보» — 모델 수(1~3·간격·× 크기)는 logo-collab-model.js 한 자리, DOM 조작은 logo-collab.js */
 import { COLLAB_MIN, COLLAB_MAX, COLLAB_GAP_MIN, COLLAB_GAP_MAX, COLLAB_X_MIN, COLLAB_X_MAX } from '../blocks/logo-collab-model.js';
 import { isLogoBlock, collabParams, collabSlotSrc, setCollabCount, setCollabStyle, disableCollab,
@@ -312,8 +311,7 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
       </div>
     </div>` : ''}
-    ${hasImage ? redactSectionHTML({ idPrefix: 'asset', value: readRedact(ab) }) : ''}<!-- ★1012t1 C1 블러(Redact) — 그레인 바로 아래 -->
-    ${window.fxSectionHtml?.(ab, 'asset') || ''}<!-- ★E1 Effects — 그레인 아래(지디 승인) -->
+    ${window.fxSectionHtml?.(ab, 'asset') || ''}<!-- ★E1 Effects — 그레인 아래(지디 승인) · ★블러(Redact)는 이 절의 드롭다운 「블러」로 옮겼다(1012t1C1 · js/effects-blur.js — 옛 따로 절은 지움) -->
     <div class="prop-section">
       <div class="prop-section-title">Text Overlay</div>
       <!-- ★2026-09-20 픽스라운드(low④) — 같은 패널에 「오버레이」가 두 뜻으로 보인다:
@@ -826,8 +824,7 @@ ${blockHeaderHTML({
       window.pushHistory?.();
     });
   }
-  // ── 블러(Redact) 이벤트 바인딩 (1012t1 C1) — 상태는 ab 자신의 data-redact·--redact-blur ──
-  if (hasImage) wireRedactSection({ idPrefix: 'asset', getHost: () => ab });
+  // ── 블러(Redact) 배선은 Effects 카드가 한다(js/effects-blur.js · 위 wireFxSection) — 옛 따로 절 배선은 지웠다(1012t1C1) ──
 
   /* 오버레이(플로팅) 토글 — 텍스트·도형 패널과 «같은 함수»(js/overlay-float.js). */
   wireFloatToggle({

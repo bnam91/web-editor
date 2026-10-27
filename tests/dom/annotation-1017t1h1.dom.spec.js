@@ -93,7 +93,7 @@ test('SN2 점 손잡이를 40° 자리로 끌어도 같은 규칙 — 45.0±0.2'
   const sel = `[id="${id}"] .annot-label`;
   const lr = await waitStableRect(page, sel);
   await clickAt(page, lr.cx, lr.cy, { sel }, { label: '라벨(선택)' });
-  await expect.poll(() => page.evaluate((id) => document.getElementById(id).querySelectorAll('.annot-handle').length, id), '★전제: 핸들 2개').toBe(2);
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).querySelectorAll('.annot-handle[data-point-idx]').length, id), '★전제: 점 핸들 2개').toBe(2);
 
   const r = await waitStableRect(page, SEC);
   const zoom = await page.evaluate(() => (window.currentZoom || 40) / 100);

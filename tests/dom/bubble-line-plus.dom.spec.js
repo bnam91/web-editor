@@ -8,6 +8,11 @@
  * ★고침: 말풍선이 «혼자» 골라지면 그리드 아래 ＋ 와 같은 꼴의 ＋ 를 몸통 가운데 · 블럭 아래 끝에 띄운다
  *   (js/blocks/line-host.js 「말풍선 캔버스 ＋」 절 · 층 = #grd-plus-layer).
  * ⛔고정 대기 없음 — waitForFunction / expect.poll 로 «무엇을» 기다리나를 쓴다.
+ *
+ * ★★1017t1m3 ㉡(현빈 · 261026 GO) — 「그리고 해당버튼은 없어도 돼. 줄추가하는건데 왜 이게 있는거야.?」 ⇒ 말풍선 캔버스 ＋ 를 ★없앴다
+ *   (js/blocks/line-host.js BUBBLE_CANVAS_PLUS = false · 말풍선만 — 로렐·그리드 ＋ 무접촉).
+ *   ⇒ LP0 은 «＋ 0» 으로 뒤집었다(뒤집은 것이 고친 증거) · LP1~LP6 은 ＋ 가 있어야 성립하는 칸이라 SKIP(까닭 아래 SKIP_WHY · 칸마다 옮겨 간 자리는 커밋 메시지 표).
+ *   ★줄 추가 입구 = 우클릭 «아래에 줄 추가 (T)» — 그 손짓·⌘Z 는 tests/dom/t1017m3-bubble-no-plus R1·R2 가 잰다.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -53,8 +58,7 @@ async function setup(page, zoom = 100) {
     return b.id;
   });
   expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${zoom}%`).toBe(zoom);
-  await waitFor(page, (id) => document.querySelectorAll(`#grd-plus-layer > .ln-add-btn[data-ln-for="${id}"]`).length === 1,
-    id, '말풍선을 골랐는데 캔버스 ＋(.ln-add-btn)가 안 떴다');
+  /* ~~＋ 가 뜰 때까지 기다린다~~ ⇒ 1017t1m3 ㉡ 뒤 ＋ 는 안 뜬다(LP0 이 그것을 잰다) */
   return { errs, id };
 }
 
@@ -81,7 +85,9 @@ async function clickPlus(page, id) {
   await page.mouse.click(p.x, p.y);
 }
 
-test('LP0 전제 — 줄 없는 말풍선을 고르면 ＋ 하나가 뜨고, 블럭 DOM 안엔 없다', async ({ page }) => {
+const SKIP_WHY = '1017t1m3 ㉡ — 말풍선 캔버스 ＋ 를 없앴다(현빈). 줄 추가 = 우클릭 «아래에 줄 추가» → t1017m3-bubble-no-plus R1·R2';
+/* ~~LP0 전제 — 줄 없는 말풍선을 고르면 ＋ 하나가 뜨고, 블럭 DOM 안엔 없다~~ ⇒ 1017t1m3 ㉡: ＋ 0 */
+test('LP0 ★1017t1m3 ㉡ — 줄 없는 말풍선을 골라도 ＋ 0 · 블럭 DOM 에도 0', async ({ page }) => {
   const { errs, id } = await setup(page);
   const s = await page.evaluate((id) => {
     const b = document.getElementById(id);
@@ -96,15 +102,13 @@ test('LP0 전제 — 줄 없는 말풍선을 고르면 ＋ 하나가 뜨고, 블
   console.log('    LP0 ' + JSON.stringify(s));
   expect(s.lines, '전제 — 새 말풍선은 줄이 없다').toBeNull();
   expect(s.sel).toBe(true);
-  expect(s.inLayer).toBe(1);
+  expect(s.inLayer, '★말풍선 ＋ 가 붙었다(1017t1m3 ㉡ 로 없앰)').toBe(0);   /* 옛: 1 */
   expect(s.inCanvas, '＋ 가 #canvas 안(블럭 DOM)에 들어갔다 — 저장·PNG 로 샌다').toBe(0);
   expect(s.gridCls, '＋ 가 그리드 클래스(.grd-add-btn)를 달았다 — 그리드 ＋ 개수 시험이 깨진다').toBe(0);
-  const p = await plusPoint(page, id);
-  expect(p.onBtn, '＋ 원 가운데의 맨 위 요소가 ＋ 가 아니다').toBe(true);
   expect(errs).toEqual([]);
 });
 
-test('LP1 손짓 수 — 고른 상태에서 ＋ 1클릭 = 줄 2개(구운 본문 + 새 본문) · 그리드 아래 ＋ 1클릭(행 +1)과 같은 수', async ({ page }) => {
+test.skip('[SKIP 1017t1m3 ㉡ — 위 SKIP_WHY] LP1 손짓 수 — 고른 상태에서 ＋ 1클릭 = 줄 2개(구운 본문 + 새 본문) · 그리드 아래 ＋ 1클릭(행 +1)과 같은 수', async ({ page }) => {
   const { errs, id } = await setup(page);
   let bubbleClicks = 0;
   await clickPlus(page, id); bubbleClicks++;
@@ -141,7 +145,7 @@ test('LP1 손짓 수 — 고른 상태에서 ＋ 1클릭 = 줄 2개(구운 본�
   expect(errs).toEqual([]);
 });
 
-test('LP2 고른 줄 다음 — 줄 3개 중 0번을 고르고 ＋ → 새 줄이 1번 자리', async ({ page }) => {
+test.skip('[SKIP 1017t1m3 ㉡ — 위 SKIP_WHY] LP2 고른 줄 다음 — 줄 3개 중 0번을 고르고 ＋ → 새 줄이 1번 자리', async ({ page }) => {
   const { errs, id } = await setup(page);
   await page.evaluate((id) => window.updateSpeechBubbleBlock(id, {
     lines: [{ type: 'body', text: 'A' }, { type: 'body', text: 'B' }, { type: 'body', text: 'C' }],
@@ -170,7 +174,7 @@ test('LP2 고른 줄 다음 — 줄 3개 중 0번을 고르고 ＋ → 새 줄�
   expect(errs).toEqual([]);
 });
 
-test('LP3 새지 않음 — ＋ 클릭 뒤 선택 유지 · 블럭 수 불변 · 저장 문자열에 ＋ 없음', async ({ page }) => {
+test.skip('[SKIP 1017t1m3 ㉡ — 위 SKIP_WHY] LP3 새지 않음 — ＋ 클릭 뒤 선택 유지 · 블럭 수 불변 · 저장 문자열에 ＋ 없음', async ({ page }) => {
   const { errs, id } = await setup(page);
   const count = () => page.evaluate(() => document.querySelectorAll('#canvas .section-inner > *').length);
   const n0 = await count();
@@ -193,7 +197,7 @@ test('LP3 새지 않음 — ＋ 클릭 뒤 선택 유지 · 블럭 수 불변 ·
   expect(errs).toEqual([]);
 });
 
-test('LP4 ⌘Z 한 걸음 — ＋ 한 번 → ⌘Z 한 번 → 줄 없음으로 복원', async ({ page }) => {
+test.skip('[SKIP 1017t1m3 ㉡ — 위 SKIP_WHY] LP4 ⌘Z 한 걸음 — ＋ 한 번 → ⌘Z 한 번 → 줄 없음으로 복원', async ({ page }) => {
   const { errs, id } = await setup(page);
   await clickPlus(page, id);
   await waitFor(page, (id) => !!document.getElementById(id)?.dataset.lines, id, '＋ 를 눌렀는데 줄이 안 생겼다');
@@ -205,7 +209,7 @@ test('LP4 ⌘Z 한 걸음 — ＋ 한 번 → ⌘Z 한 번 → 줄 없음으로 
   expect(errs).toEqual([]);
 });
 
-test('LP5 걷힘 — 선택 해제·블럭 삭제 → ＋ 0개', async ({ page }) => {
+test.skip('[SKIP 1017t1m3 ㉡ — 위 SKIP_WHY] LP5 걷힘 — 선택 해제·블럭 삭제 → ＋ 0개', async ({ page }) => {
   const { errs, id } = await setup(page);
   await page.evaluate(() => window.deselectAll?.());
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('.ln-add-btn').length),
@@ -220,7 +224,7 @@ test('LP5 걷힘 — 선택 해제·블럭 삭제 → ＋ 0개', async ({ page }
 });
 
 for (const z of [40, 100]) {
-  test(`LP6 배율 ${z}% — ＋ 원 중심 = (몸통 가로 가운데, 블럭 아래 끝) ± 2 화면px`, async ({ page }) => {
+  test.skip(`[SKIP 1017t1m3 ㉡ — 위 SKIP_WHY] LP6 배율 ${z}% — ＋ 원 중심 = (몸통 가로 가운데, 블럭 아래 끝) ± 2 화면px`, async ({ page }) => {
     const { errs, id } = await setup(page, z);
     expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${z}`).toBe(z);
     await expect.poll(() => page.evaluate((id) => {

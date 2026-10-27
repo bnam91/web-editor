@@ -25,9 +25,11 @@
   /* 내장 실루엣 — 원·둥근 사각·단순 path 로 «직접 그린» 것(외부 아이콘 0). viewBox 는 잉크에 딱 맞는다(여백이 있으면 채움 %가 모양과 어긋난다). */
   var _svg = function (w, h, inner) { return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' + inner + '</svg>'; };
   var GRAPH_SHAPE_PRESETS = Object.freeze({
+    /* 사람 — 1012t1G2(10-25 현빈 「화장실픽토그램 같아 짜쳐 보인다 → 이쁜 걸로」): 직각 어깨·떨어진 팔·곧은 다리를 걷고
+       둥근 머리(목 틈 6) + 둥근 어깨에서 발목까지 부드럽게 좁아지는 몸통 한 path + 아래쪽 가는 다리 틈. 키 person · viewBox 76×240 은 그대로(옛 저장 · 상자 비). */
     person: Object.freeze({ label: '사람', svg: _svg(76, 240,
-      '<circle cx="38" cy="22" r="22"/>'
-      + '<path d="M16 52H60Q76 52 76 68V132Q76 140 68 140Q60 140 60 132V84H56V232Q56 240 48 240Q40 240 40 232V150H36V232Q36 240 28 240Q20 240 20 232V84H16V132Q16 140 8 140Q0 140 0 132V68Q0 52 16 52Z"/>') }),
+      '<circle cx="38" cy="20" r="20"/>'
+      + '<path d="M22 46H54C68 46 76 56 76 70C76 120 66 158 63 226C63 234 58 240 51 240H46C43 240 41 238 41 235V164C41 160 35 160 35 164V235C35 238 33 240 30 240H25C18 240 13 234 13 226C10 158 0 120 0 70C0 56 8 46 22 46Z"/>') }),
     bottle: Object.freeze({ label: '약통', svg: _svg(120, 200,
       '<path d="M29 0H91Q98 0 98 7V40H22V7Q22 0 29 0Z"/>'   // 뚜껑 — 위 모서리만 둥글다(아래가 둥글면 마디 경계가 그 근처일 때 아래 색이 실처럼 비친다) · 높이 = 전체의 1/5
       + '<rect x="30" y="38" width="60" height="22"/>'
@@ -157,6 +159,10 @@
     PIE_ITEM_INT_KEYS.forEach(function (k) { var v = _piePct(incoming[k]); if (v === null) v = _piePct(prev[k]); if (v > 0) out[k] = v; else delete out[k]; });
     // ★1017t1f5 — 값 라벨 오프셋도 같은 자리에서 옮긴다(MCP partial update 가 items 를 통째로 다시 지어도 드래그로 옮긴 자리를 잃지 않게). 한도(±600)는 여기서 안 자른다(「꼴만 본다」 — 위와 같은 규약).
     VLABEL_OFFSET_KEYS.forEach(function (k) { var v = _vOffsetNum(incoming[k]); if (v === null) v = _vOffsetNum(prev[k]); if (v) out[k] = v; else delete out[k]; });
+    /* ★1017t1f5 👉 뒤(2026-10-26) — 값 라벨 «하나»의 글자 크기(vFs · 양의 정수)와 덮어쓴 글(vText · 비어 있지 않은 글자)도 같은 자리에서 옮긴다. 한도는 렌더가 자른다(위와 같은 규약). */
+    var _fs = _vOffsetNum(incoming.vFs); if (!(_fs > 0)) _fs = _vOffsetNum(prev.vFs); if (_fs > 0) out.vFs = _fs; else delete out.vFs;
+    var _vt = (typeof incoming.vText === 'string' && incoming.vText.trim()) ? incoming.vText : ((typeof prev.vText === 'string' && prev.vText.trim()) ? prev.vText : '');
+    if (_vt) out.vText = _vt; else delete out.vText;
     var _tag = _pieTagOk(incoming.pieTag) ? incoming.pieTag : (_pieTagOk(prev.pieTag) ? prev.pieTag : '');
     if (_tag) out.pieTag = _tag; else delete out.pieTag;
     if (Array.isArray(incoming.segments)) {
@@ -204,8 +210,29 @@
     });
   }
 
+  /* ★1020t2g1ⓑ 마디 경계 물결 — 마디 하나(.grb-seg-ink)의 mask 글자. 곡선 = 라이너 물결 식(root.buildLinerPathD 'wave' · 한 주기 · ⛔여기 사본 없음).
+   *   띠 높이 a(px) · viewBox 0 0 100 a(preserveAspectRatio none = 가로는 마디 폭에 늘고 세로는 a px 그대로).
+   *   hasTop = 위에 보이는 마디가 있다(그 경계의 «아래» 쪽 = 곡선 아래만 남긴다) · hasBottom = 아래에 있다(곡선 위만 남긴다).
+   *   식이 없으면(라이너 스크립트가 안 실린 하네스·유닛) '' — 직선 경계(옛 그림) 그대로다. */
+  function segWaveMaskCss(hasTop, hasBottom, a) {
+    var build = root && root.buildLinerPathD;
+    if (typeof build !== 'function' || !(a > 0) || (!hasTop && !hasBottom)) return '';
+    var d = build('wave', 100, 100, a, 0, a / 2, a);
+    var svg = function (closeY) {
+      var x = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 " + a + "' preserveAspectRatio='none'><path d='" + d + ' L 100,' + closeY + ' L 0,' + closeY + " Z' fill='%23000'/></svg>";
+      return 'url(data:image/svg+xml,' + x.replace(/ /g, '%20').replace(/'/g, '%27').replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/,/g, '%2C') + ')';
+    };
+    var imgs = [], pos = [], size = [];
+    if (hasTop) { imgs.push(svg(a)); pos.push('0 0'); size.push('100% ' + a + 'px'); }          // 위 띠: 곡선 «아래»만
+    if (hasBottom) { imgs.push(svg(0)); pos.push('0 100%'); size.push('100% ' + a + 'px'); }   // 아래 띠: 곡선 «위»만
+    var t = hasTop ? a : 0, b = hasBottom ? a : 0;
+    imgs.push('linear-gradient(%23000,%23000)'.replace(/%23/g, '#')); pos.push('0 ' + t + 'px'); size.push('100% calc(100% - ' + (t + b) + 'px)');
+    var v = 'mask-image:' + imgs.join(',') + ';mask-position:' + pos.join(',') + ';mask-size:' + size.join(',') + ';mask-repeat:no-repeat;';
+    return v + v.replace(/mask-/g, '-webkit-mask-');
+  }
+
   /* ── 그리기(HTML 글자만 만든다 — DOM 을 안 만진다) ─────────────────────────
-   * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, labelSize, vSize, vCss, xCss, xInk, lhCss, colMin, fillW }
+   * o = { esc, color, blockShape, blockSvg, boxFrac, ratioOf, blockBar, trackColor, segGap, segWave, labelSize, vSize, vCss, xCss, xInk, lhCss, colMin, fillW }
    *   esc·color 는 drag-utils 의 _escGraphHtml · _safeGraphColor(사용자 글자·색은 반드시 그 둘을 지난다 · E152).
    *   ratioOf(value) 는 «상자 안» 채움 비율(0~1) · boxFrac 는 상자 높이 / 플롯 높이(눈금 상한이 분모보다 클 때 < 1). */
   function shapeColsHTML(items, o) {
@@ -229,10 +256,14 @@
       if (segs) {
         var rs = segRatios(segs).ratios;
         if (asp && pct < 100) layers += '<div class="grb-bar-fill grb-shape-track" style="bottom:auto;height:' + +(100 - pct).toFixed(2) + '%;' + (trackSolid ? 'background:' + trackSolid + ';' : bg + 'opacity:' + L.SHAPE_TRACK_OPACITY + ';') + '"></div>';
+        /* 1020t2g1ⓑ — 물결이면 «보이는» 마디끼리의 경계만 물결친다(display:none 마디는 건너뛴다 · 0번이 맨 아래 = column-reverse) */
+        var waveA = o.segWave ? L.SEG_WAVE_AMP : 0;
+        var vis = rs.map(function (r) { return r > 0; });
         layers += '<div class="grb-seg-stack grb-shape-fill"' + fillAttr + ' style="height:' + pct + '%;gap:' + gap + 'px">'
           + segs.map(function (s, j) {
             var sc = o.color(s && s.color);
             var ink = sc ? 'background:' + sc + ';' : bg + 'opacity:' + segAlpha(j) + ';';
+            if (waveA && vis[j]) ink += segWaveMaskCss(vis.slice(j + 1).some(Boolean), vis.slice(0, j).some(Boolean), waveA);
             return '<div class="grb-seg" style="' + (rs[j] > 0 ? 'flex-grow:' + +(rs[j] * 100).toFixed(4) : 'display:none') + '"><div class="grb-bar-fill grb-seg-ink" style="' + ink + '"></div></div>';
           }).join('') + '</div>';
         /* 사각 쌓기(모양 없음)의 라벨은 막대 바깥 글자 — 카테고리 라벨과 같은 색 길(o.xInk = 소독을 지난 xlabelColor || labelColor)을 탄다 · 글자는 말줄임 칸(.grb-seg-text)에 싼다.

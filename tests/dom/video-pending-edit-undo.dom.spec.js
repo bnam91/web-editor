@@ -46,21 +46,52 @@ const HISTORY_JS = read('js/history.js');
 const SERIALIZE_JS = read('js/io/section-serialize.js');
 
 /* ── 음성대조본 ① — 사이드카를 «안 재던» dev 모양 ────────────────────────────
-   두 차단에서 _videoPendingKey 비교만 걷는다. 다른 줄은 그대로다. */
+   ★_videoPendingKey «본문»을 return ''; 로 갈아끼운다(2026-10-26 지디 처방 ⒝) — 호출 자리가 몇이든 한 번에 꺼진다.
+     장부(f7b04daf · grep -c '_videoPendingKey(' js/history.js = 4 = 정의 1 + 호출 3): :284 「===」(130 게이트) · :317 「===」(pushHistory 차단)
+     · :701 「!==」(ensureHistoryCheckpoint) — 열쇠가 늘 '' 면 === 는 늘 참 · !== 는 늘 거짓 = 옛 «비교 줄 지우기»와 같은 뜻(셋 다).
+   ⛔옛 꼴(비교 «줄»을 글자 그대로 찾아 지우기)은 버렸다 — 130 이 세 번째 호출 자리를 만들자 «남았다» 단언으로 N1 이 빨강(f7b04daf).
+     호출 줄을 replace 목록에 더하는 길도 기각 — 네 번째 자리가 생기면 또 깨진다.
+   찾기는 «함수 머리 한 줄 + 짝 맞는 닫는 괄호» — ⛔본문 글자에 묶지 마라(그게 «늙었다»의 원인). 못 찾으면 던진다. */
 /* ⛔«게으르게» 만든다 — 파일 최상단에서 던지면 고침을 되돌렸을 때 Playwright 가 수집
    단계에서 죽어 P 검사들이 «안 돌고», 로그가 「No tests found」로만 남는다. 그러면
    «빨개지는 것»과 «안 도는 것»을 못 가린다. 변형은 그 검사 «안»에서 만든다. */
-const HISTORY_N1 = () => {
-  let s = HISTORY_JS;
-  const a = '      && _videoPendingKey(_top.videoPendingSidecar) === _videoPendingKey(_videoPendingSidecar)\n';
-  if (!s.includes(a)) throw new Error('N1 변환이 늙었다 — pushHistory 의 사이드카 비교 줄을 못 찾았다');
-  s = s.replace(a, '');
-  const b = '\n      || _videoPendingKey(historyStack[historyPos]?.videoPendingSidecar) !== _videoPendingKey(_sidecar)';
-  if (!s.includes(b)) throw new Error('N1 변환이 늙었다 — ensureHistoryCheckpoint 의 사이드카 비교 줄을 못 찾았다');
-  s = s.replace(b, '');
-  if (/&&\s*_videoPendingKey|\|\|\s*_videoPendingKey/.test(s)) {
-    throw new Error('N1 변환본에 사이드카 비교가 남았다');
+const VP_KEY_HEAD = /^function _videoPendingKey\([^)]*\)\s*\{/m;
+/* 머리의 «{» 위치에서 짝 맞는 «}» 까지 — 문자열·주석 안의 괄호는 안 센다 */
+function closeBraceAt(s, open) {
+  let depth = 0;
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (c === '/' && s[i + 1] === '/') { i = s.indexOf('\n', i); if (i < 0) break; continue; }
+    if (c === '/' && s[i + 1] === '*') { i = s.indexOf('*/', i + 2) + 1; if (i <= 0) break; continue; }
+    if (c === "'" || c === '"' || c === '`') { for (i++; i < s.length && s[i] !== c; i++) if (s[i] === '\\') i++; continue; }
+    if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return i;
   }
+  return -1;
+}
+function vpKeyFn(s) {
+  const m = VP_KEY_HEAD.exec(s);
+  if (!m) throw new Error('N1 변환이 늙었다 — function _videoPendingKey 머리를 못 찾았다');
+  const open = m.index + m[0].length - 1;
+  const close = closeBraceAt(s, open);
+  if (close < 0) throw new Error('N1 변환이 늙었다 — _videoPendingKey 의 닫는 괄호를 못 찾았다');
+  return { start: m.index, open, close };
+}
+/* 그 함수만 떼어 돌린다 — 본문이 읽는 _VP_* 상수 줄도 같이 싣는다 */
+function evalVpKey(s) {
+  const { start, close } = vpKeyFn(s);
+  const consts = (s.match(/^const _VP_\w+ = .*;$/gm) || []).join('\n');
+  return new Function(`${consts}\n${s.slice(start, close + 1)}\nreturn _videoPendingKey;`)();
+}
+const HISTORY_N1 = () => {
+  const { open, close } = vpKeyFn(HISTORY_JS);
+  const s = HISTORY_JS.slice(0, open + 1) + "\n  return '';\n" + HISTORY_JS.slice(close);
+  /* 자기 단언 — 변환본의 열쇠가 상수인가 · 양성대조: 원본은 같은 두 입력에 다른 열쇠를 낸다(자가 0 꼴이 아니다) */
+  const sc = { a: { imgSrc: 'data:video/mp4;base64,AAAA' } };
+  const orig = evalVpKey(HISTORY_JS);
+  if (orig(sc) === orig(null)) throw new Error('N1 양성대조 실패 — 원본 _videoPendingKey 가 사이드카 유무를 못 가린다');
+  const k = evalVpKey(s);
+  if (k(sc) !== k(null)) throw new Error('N1 변환본의 _videoPendingKey 가 상수가 아니다');
   return s;
 };
 

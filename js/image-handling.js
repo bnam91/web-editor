@@ -845,6 +845,7 @@ function clearAssetImage(ab) {
   /* ★블러(Redact)도 그림과 같이 걷는다(그레인이 innerHTML 재작성으로 사라지는 것과 같은 동작, 1012t1 C1).
      안 걷으면 빈 칸에 속성이 남아 «다음에 넣는 그림이 말없이 흐려진다». */
   applyRedact(ab, 0);
+  delete ab.dataset.redactOff;   /* ★눈 끈 블러(js/effects-blur.js)도 같이 — 남기면 다음 그림에 «끈 블러 카드»가 말없이 붙는다 */
   const prevOverlayEl2 = ab.querySelector('.asset-overlay');
   const prevOverlayHTML2 = prevOverlayEl2 ? prevOverlayEl2.innerHTML : '';
   const prevOverlayStyle2 = prevOverlayEl2 ? prevOverlayEl2.getAttribute('style') || '' : '';
@@ -1258,6 +1259,23 @@ const BG_EDIT_HOSTS = {
       return () => { el.style.position = had; };
     },
   },
+  /* ★★2026-10-25 신설 (현빈 10171a5 「섹션의 배경이미지 편집기능이 있듯이 같은 기능으로」 · S3) —
+     ★모달도 ★같은 본문을 탄다(이식 · ⛔사본 아님). 모달만 다른 것 ★셋뿐이다:
+       ⑴ 그리는 자 = `renderModalBlock` ★한 자리(cssText 가 정본 · js/blocks/modal-block.js _bgImageStyles)
+          ⇒ commit 은 ★다시 그리기 하나다(회전·색보정이 있으면 그 렌더가 레이어를 세운다 — 같은 파일).
+       ⑵ 색·그림이 «두 배경 레이어»가 ★아니다(`background:${bg}` 뒤에 longhand 셋) ⇒ twoLayer ★false.
+       ⑶ 모달 cssText 는 ★늘 `position:relative` 다(실측 · renderModalBlock 머리) ⇒ prepare ★없음. */
+  modal: {
+    historyLabel: '모달 배경 위치/크기',
+    boxClass: 'prop-modal',
+    doneId: 'mdl-bg-pos-done',
+    twoLayer: () => false,
+    writeLive: (el, which, v) => {
+      if (which === 'size') el.style.backgroundSize = v; else el.style.backgroundPosition = v;
+    },
+    commit: (el) => window.renderModalBlock?.(el),
+    panel:  (el) => window.showModalProperties?.(el),
+  },
 };
 
 function _enterBgEditMode(host, ad) {
@@ -1373,10 +1391,16 @@ function _enterBgEditMode(host, ad) {
       ghost.style.top    = gy + 'px';
       ghost.style.width  = gw + 'px';
       ghost.style.height = gh + 'px';
-      // 고스트 로컬좌표에서 «프레임 사각형»을 뚫는다 → 안쪽은 진짜 배경(선명)이 그대로 보인다
-      const fx = (aR.left - oR.left - wx) - gx, fy = (aR.top - oR.top - wy) - gy;
-      const clip = _punchOutPolygon(gw, gh, fx, fy, aR.width, aR.height);
-      if (clip !== _lastClip) { ghost.style.clipPath = clip; _lastClip = clip; }  // 긴 문자열 재파싱 회피
+      /* ★1017t1k1 👉「로테이트는 됐는데 크롭되서? 프레임안에서만 보임」(2026-10-25 S3) — 고스트도 ★같은 각으로 돈다.
+         축 = 그림 중심(고스트 상자 = 그림 상자 ⇒ 'center') — 손잡이·경계선(syncHandles)과 레이어(js/bg-layer.js paintBgLayer)와 ★같은 점.
+         ★구멍(프레임 사각형)은 그래서 고스트가 아니라 ★래퍼에 뚫는다 — 고스트에 뚫으면 구멍까지 같이 돈다.
+           래퍼 좌표 = 캔버스 뷰포트 · 구멍 = 프레임 사각형(돌지 않는다). clip-path 는 자식의 히트테스트도 도려내므로
+           프레임 «안»은 그대로 프록시가 받는다(옛 꼴과 같은 역할 나눔). */
+      ghost.style.transformOrigin = 'center center';
+      ghost.style.transform = deg ? `rotate(${deg}deg)` : '';
+      const hx = aR.left - oR.left - wx, hy = aR.top - oR.top - wy;
+      const clip = _punchOutPolygon(cR.width, cR.height, hx, hy, aR.width, aR.height);
+      if (clip !== _lastClip) { ghostWrap.style.clipPath = clip; _lastClip = clip; }  // 긴 문자열 재파싱 회피
     }
     let _bgRaf = requestAnimationFrame(function loop() { syncBg(); _bgRaf = requestAnimationFrame(loop); });
     host._secBgSyncStop = () => { if (_bgRaf) { cancelAnimationFrame(_bgRaf); _bgRaf = null; } };
@@ -1417,7 +1441,10 @@ function _enterBgEditMode(host, ad) {
         const h  = w * ratio;
         // 안 움직였으면 원래 표기(cover/center 등)를 그대로 되돌린다 — 열었다 닫은 것만으로
         // 사이즈 표기가 px 로 바뀌면 우측 패널이 «직접 조절» 로 보이는 부작용이 생긴다.
-        const changed = Math.abs(w - dw) > 0.25 || Math.abs(x - x0) > 0.25 || Math.abs(y - y0) > 0.25;
+        // ★1017t1k1 — 회전이 남으면 px 꼴을 ★지킨다: 레이어는 그 px 로 «그림 상자»를 세워 그 중심을 축으로 돈다
+        //   (js/bg-layer.js paintBgLayer). 키워드(cover/center)로 되돌리면 축이 프레임 중심으로 돌아가 손잡이와 갈린다.
+        const rot = parseFloat(proxy.dataset.imgRotate || 0);
+        const changed = Math.abs(w - dw) > 0.25 || Math.abs(x - x0) > 0.25 || Math.abs(y - y0) > 0.25 || Math.abs(rot) > 0.01;
         if (changed) {
           host.dataset.bgSize = `${_r1(w)}px ${_r1(h)}px`;
           host.dataset.bgPos  = `${_r1(x)}px ${_r1(y)}px`;
@@ -1425,8 +1452,7 @@ function _enterBgEditMode(host, ad) {
           if (origSize) host.dataset.bgSize = origSize; else delete host.dataset.bgSize;
           if (origPos)  host.dataset.bgPos  = origPos;  else delete host.dataset.bgPos;
         }
-        // ★1017t1k1 — 회전값을 되옮긴다. 0(또는 거의 0)이면 키를 지운다(옛 저장본 바이트 보존).
-        const rot = parseFloat(proxy.dataset.imgRotate || 0);
+        // ★1017t1k1 — 회전값을 되옮긴다. 0(또는 거의 0)이면 키를 지운다(옛 저장본 바이트 보존). (rot 은 위에서 읽었다)
         if (Math.abs(rot) > 0.01) host.dataset.bgRotate = String(_r1(rot));
         else delete host.dataset.bgRotate;
         _teardownBgEdit(host, _restore);         // ★pushHistory 전에 임시 DOM 을 0 으로
@@ -1488,10 +1514,40 @@ function exitSectionBgEditMode(sec)  { return _exitBgEditMode(sec, BG_EDIT_HOSTS
 function enterFrameBgEditMode(fr) { return _enterBgEditMode(fr, BG_EDIT_HOSTS.frame); }
 function exitFrameBgEditMode(fr)  { return _exitBgEditMode(fr, BG_EDIT_HOSTS.frame, null); }
 
+/* ★★2026-10-25 (10171a5) — ★모달도 ★같은 본문. */
+function enterModalBgEditMode(m) { return _enterBgEditMode(m, BG_EDIT_HOSTS.modal); }
+function exitModalBgEditMode(m)  { return _exitBgEditMode(m, BG_EDIT_HOSTS.modal, null); }
+
 window.enterSectionBgEditMode = enterSectionBgEditMode;
+window.enterModalBgEditMode   = enterModalBgEditMode;
+window.exitModalBgEditMode    = exitModalBgEditMode;
 window.exitSectionBgEditMode  = exitSectionBgEditMode;
 window.enterFrameBgEditMode   = enterFrameBgEditMode;
 window.exitFrameBgEditMode    = exitFrameBgEditMode;
+
+/* ★t5-06 현빈 「섹션에서 패딩영역을 더블클릭하면 배경이미지 편집모드로 들어가게 해줘.」 — 입구 하나를 더한다(모드는 그대로).
+   바닥(ca702d40·d772f49e) 실측: 진입 호출자 = 섹션 패널 「배경이미지 편집」 단추 하나뿐 · 패딩 더블클릭 → _secBgEditing false.
+   ★«패딩 영역» = section-inner «자신»을 누른 점이 그 좌우 padding 띠 안일 때(아래 정밀 주석).
+     블럭·빈 칸(gap) 위 더블클릭은 그 블럭 것이다(⛔가로채지 않는다) — 그래서 target 이 섹션/inner 자신일 때만 본다.
+   ★배경 그림이 없으면 아무것도 안 한다(편집할 그림이 없다 · 패널 단추도 그때는 안 뜬다).
+   ★한 곳에 위임(document · capture 아님) — 섹션 바인딩 자리가 여럿(editor.js 시작 루프 · block-factory 새 섹션)이라 거기마다 달지 않는다. */
+/* ★지디 정밀(261026) — «좌우 패딩 띠»만이다. ⛔위아래 패딩·섹션 자체(hitzone 밖 여백)는 안 탄다 — 그것을 같이할지는 현빈 물음
+     (9dbe6185 첫 판은 네 변 + 섹션 자체까지 받았다 — 이 판이 좁혔다). 배경 그림 없는 섹션은 무동작 그대로(권고 · 파일 고르개는 현빈 물음). */
+document.addEventListener('dblclick', (e) => {
+  const t = e.target;
+  if (!t || !t.classList || !t.classList.contains('section-inner')) return;
+  const sec = t.closest('.section-block');
+  if (!sec || !sec.dataset.bgImg || sec._secBgEditing) return;
+  if (document.body.classList.contains('pen-mode') || document.body.classList.contains('preview-mode')) return;
+  const r = t.getBoundingClientRect();
+  const cs = getComputedStyle(t);
+  const k = t.offsetWidth ? r.width / t.offsetWidth : 1;   // 캔버스 줌
+  const L = r.left + (parseFloat(cs.paddingLeft) || 0) * k, R = r.right - (parseFloat(cs.paddingRight) || 0) * k;
+  if (!(e.clientX < L || e.clientX > R)) return;   // 좌우 패딩 띠 밖(내용 폭 안 · 위아래 패딩 포함)은 안 탄다
+  e.preventDefault();
+  e.stopPropagation();
+  enterSectionBgEditMode(sec);
+});
 
 /* ══════════════════════════════════════════════════════════════════════════
    그리드 칸 이미지 «프레임 안 크롭» — 에셋 더블클릭 편집기를 그대로 빌려 쓴다.
@@ -1739,7 +1795,7 @@ window.setAssetImageFromSrc = setAssetImageFromSrc;
  * ★되얹는 순서가 중요하다 — setAssetImageFromSrc 는 ⓐ오버레이·그레인은 «앞서 있던 것»을 보존하고 ⓑ크롭 키(imgW/X/Y/
  *   imgPosition)는 «지우고» ⓒ그림 요소를 새로 만든다. ⇒ ④⑤는 «넣기 전»에, ①②③은 «넣은 뒤»에 얹는다.
  *   (HTML 을 통째로 갈아 끼우면 이 함수가 단 지우기·GIF 단추 리스너가 사라져서 그 길은 안 쓴다.) */
-const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact'];   /* ★redact = 1012t1 C1 블러 */
+const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact', 'redactOff'];   /* ★redact = 1012t1 C1 블러 · redactOff = 블러 카드 «눈 끔»에 맡겨 둔 강도(js/effects-blur.js) */
 function captureAssetFx(ab) {
   if (!ab?.classList?.contains('asset-block')) return null;
   const ds = {};

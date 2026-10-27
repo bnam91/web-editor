@@ -8,13 +8,14 @@ import { parseRatio, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHead
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
 import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, GRID_COLOR_RE, GRID_FONT_RE,
          MIN_COLS, MAX_COLS, MIN_ROWS, MAX_ROWS, GRID_CELL_DEFAULT_TEXT, MAX_CELL_LINES,
-         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
+         gridGaps, GRID_GAP_MAX, GRID_ROW_GAP_MIN, GRID_COL_GAP_MIN, GRID_IMG_CIRCLE_D, GRID_IMG_EMPTY_RADIUS, GRID_BADGE_RADIUS, GRID_IMG_MAX_BYTES, gridCellsToDataset,
          gridCellBorder, GRID_BORDER_W_MAX, GRID_BORDER_STYLES, gridBlockOutline, GRID_OUTLINE_SIDES,
          GRID_BORDER_EDGES, GRID_IFG_PRESET_KEYS,   /* ★1013t2F — 칸 테두리 «선 자리» · 인포그래픽 프리셋 표식 명부 */
          GRID_DIVIDER_H_MIN, GRID_DIVIDER_H_MAX, GRID_DIVIDER_DEFAULT_COLOR,
          gridRules, GRID_RULE_W_MAX, GRID_RULE_INSET_MAX, GRID_RULE_DEFAULT_COLOR, GRID_RULE_AXES,
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
          gridCollapseToColumns,   /* ★T12 — 2×2 → 독립 칼럼 */
+         gridNumOr, GRID_NESTED_GAP, GRID_GAP_LINE_H,   /* ★t6-04b — 0 을 살려 읽는 문 · 기본값 정본 */
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
@@ -1082,13 +1083,45 @@ export function grdAddLineToSelectedCell(type) {
   const blocks = document.querySelectorAll('.grid-block.selected');
   if (blocks.length !== 1) return false;
   const block = blocks[0];
-  const hit = _grdResolveAnyAddr(block, grdGetActiveLine(block));
+  return grdAddLineAt(block, grdGetActiveLine(block), type);
+}
+if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
+
+/* ★1012t1G1 — 주소를 «받는» 그리드 줄 추가: T(위)와 우클릭 「아래에 줄 추가 (T)」(line-host.js lnAddLineAt 의 그리드 갈래)가 같이 쓴다.
+ *  addr = {r,c,li|null} — li 가 숫자면 그 줄 다음, null 이면 칸 끝. ⛔중첩(np)은 _grdResolveAnyAddr 가 null(T 와 같은 바일아웃). */
+export function grdAddLineAt(block, addr, type) {
+  const hit = _grdResolveAnyAddr(block, addr);
   if (!hit) return false;
   const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
   const res = grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, lineSpec);
   return !!(res && res.ok);
 }
-if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
+/* ★1012t1G1 — 우클릭한 점(누른 노드) → 그리드 줄 주소. 메뉴 「아래에 줄 추가 (T)」를 띄울지의 판정(카드 lnCtxAddAddr 의 그리드 짝).
+ *  · 줄 위 = 그 줄(이미지·여백·구분선 줄도 — [data-line] 범용)
+ *  · 칸 여백 = 그 칸의 고른 줄(같은 칸일 때) 아니면 칸 끝(li:null)
+ *  · 칸 밖(왼쪽 손잡이 .grd-line-grip 위 등 — #ss-handles-overlay 소속이라 블럭 밖) = 이 그리드 하나만 골라졌을 때의 고른 줄
+ *  · 거터(.grd-gutter — 역시 오버레이 소속) 위 = elementsFromPoint 가 그 «밑»의 칸/줄을 주므로 그 칸 기준이다(설계대로 · 검수 ⒟).
+ *  ⛔중첩(duo) «안»은 null(항목 숨김) — T(grdAddLineToSelectedCell → _grdResolveAnyAddr np 바일아웃)가 거기서 무동작이므로
+ *    메뉴도 같은 판정으로 숨긴다(검수 ⒞). 누른 점이 중첩 안이거나, 칸 여백·블럭 밖인데 고른 줄이 중첩 안이면 둘 다 null.
+ *  ⛔안쪽 그리드(.grd-children 의 다른 그리드)의 줄·칸은 안 집는다(closest('.grid-block') === block). */
+export function grdCtxAddAddr(block, node) {
+  if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
+  const own = (el) => !!el && block.contains(el) && el.closest('.grid-block') === block;
+  const nestEl = node && node.closest ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
+  if (own(nestEl)) return null;
+  const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
+  const cellEl = node && node.closest ? node.closest('.grd-cell[data-r][data-c]') : null;
+  const act = grdIsSoleSelected(block) ? grdGetActiveLine(block) : null;
+  let addr;
+  if (own(lineEl)) addr = { r: Number(lineEl.dataset.r), c: Number(lineEl.dataset.c), li: Number(lineEl.dataset.line) };
+  else if (own(cellEl)) {
+    const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+    addr = (act && act.r === r && act.c === c) ? act : { r, c, li: null };
+  } else addr = act;
+  const hit = _grdResolveAnyAddr(block, addr);   // ★np 가 실린 주소(고른 중첩 줄)는 여기서 null — T 와 같은 문
+  return hit ? { r: hit.r, c: hit.c, li: hit.li } : null;
+}
+if (typeof window !== 'undefined') { window.grdAddLineAt = grdAddLineAt; window.grdCtxAddAddr = grdCtxAddAddr; }
 
 /* K 단축키(아이콘) — 위와 같은 게이트이지만 피커가 비동기다. 반환은 「게이트를 통과해
  * 피커를 열었나」다(삽입 성공 여부가 아니다) — 호출부는 이 값으로 전역 흐름 여부만 정한다. */
@@ -1546,11 +1579,39 @@ function _grdWireLineBar(block, addr, host = null) {
  *   tests/dom/bt2-safety T6 골든(tests/dom/fixtures/bt2-grid-panel-golden.json)이 증인.
  *   남의 주인(foreign)에서 다른 것: 폭(%)·「이미지 표시/내용 자르기」 절 숨김(크기 = 높이 하나 · 결정 B2-4) · 높이 잠금 없음
  *   (laurel 렌더가 높이를 «읽는다» — grid 의 E157 무시 규칙이 아니다) · 원 줄(채움·글자) 없음(그 손잡이는 grid 렌더 전용). */
+/* ══ ★t5-13ⓐ 원형 이미지 «효과» (2026-10-26 S3 · 현빈 「원형이미지의 그림자 효과는 어떻게 주는지? (원형이미지 뿐아니라, 에셋들에 효과를 주고 싶음)」) ══
+ * ★에셋 Effects 절을 ★그대로 부른다 — js/effects-registry.js fxSectionHtml / wireFxSection(⛔같은 그리개를 두 벌로 만들지 않는다).
+ * ★그런데 그리드 원은 «블럭»이 아니라 그리드 모델의 «줄»이다 ⇒ 다시 그릴 때마다 요소가 새로 난다.
+ *   ⇒ 카드에는 ★패널이 쥐는 «대리»(줄마다 하나 · 블럭·주소로 재사용 — 카드 열림 상태가 산다)를 넘긴다.
+ *   ★대리의 dataset = 그 줄의 그림자 키 여섯(에셋과 같은 이름) — 패널을 그릴 때마다 «줄 → 대리»로 맞추고,
+ *     카드가 대리를 고치면 감시자가 «대리 → 줄»(gridPreviewLine · 원 화면도 다시 그림)로 옮긴다.
+ *   ★그리기는 grid-block.js 원 갈래가 그 키를 읽어 effects-shadow 의 같은 식으로 단다. 이력은 카드 쪽 규약 그대로(setFxShadow 의 push-before). */
+const _GRD_FX_KEYS = ['fxShadow', 'fxShadowX', 'fxShadowY', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp'];
+const _grdFxProxies = new WeakMap();   // block → Map(주소 → 대리)
+function _grdFxProxyOf(block, r, c, li, np, line) {
+  let m = _grdFxProxies.get(block);
+  if (!m) { m = new Map(); _grdFxProxies.set(block, m); }
+  const key = [r, c, li, np || ''].join(':');
+  let px = m.get(key);
+  if (!px) { px = document.createElement('div'); px.className = 'grd-img-circle'; m.set(key, px); }
+  /* ★카드의 「추가」는 대리를 고친 «바로 그 자리»에서 패널을 다시 그린다(wireFxSection 의 again) — 감시자의 기록이
+     아직 안 돌았다. ⛔그대로 끊으면 기록이 버려져 방금 켠 효과가 줄에 안 옮겨지고 아래 맞추기가 지운다.
+     ⇒ 밀린 기록이 있으면 먼저 옮겨 적고, 그때는 대리가 참값이라 옛 줄 값으로 덮지 않는다. */
+  const pending = px._grdFxObs?.takeRecords?.() || [];
+  px._grdFxObs?.disconnect();
+  if (pending.length && typeof px._grdFxSync === 'function') { px._grdFxSync(); return px; }
+  _GRD_FX_KEYS.forEach((k) => {
+    const v = line ? line[k] : undefined;
+    if (v === undefined || v === null || v === '') delete px.dataset[k]; else px.dataset[k] = String(v);
+  });
+  return px;
+}
+
 function _grdImageSectionHtml(anyHit, block, host = null) {
   if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
   const foreign = !!host && host.kind !== 'grid';
   const { r, c, line } = anyHit;
-  const h = Number(line.height) || '';
+  const h = gridNumOr(line.height, '');   // ★t6-04b 이웃 — ⛔`|| ''` 는 저장된 0 을 빈 칸(auto)으로 보였다
   const rad = Number(line.radius) || '';
   /* ★panel-height-disable — «크롭 없음» = 렌더러(grid-block.js _gridLineHtml 의 `cropped`)와 같은 판정: 세 값 중 하나라도 수면 크롭. 원은 따로(지름). */
   const hLocked = !foreign && line.imgShape !== 'circle' && ![line.imgSizePct, line.imgPosX, line.imgPosY].some(v => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)));
@@ -1600,8 +1661,15 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
         ${window.colorFieldHTML({ idPrefix: 'grd-img-cbg', hex: swatchHex(cBgRaw, '#e8e8e8'), alpha: parseAlphaFromColor(cBgRaw) })}
       </div>
       <div class="prop-row">
-        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다">글자</span>
-        <input type="text" class="prop-input" id="grd-img-ctext" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+        <span class="prop-label" title="원 «안» 가운데에 들어갑니다. 넘치면 원 모양으로 잘립니다 · 여러 줄 가능(t5-12)">글자</span>
+        <textarea class="prop-input" id="grd-img-ctext" rows="2" placeholder="원 안에 넣을 글자" style="flex:1 1 0;min-width:0;font-size:11px;min-height:36px;resize:vertical;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:4px 8px;"></textarea>
+      </div>
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <select class="prop-select" id="grd-circle-kid-add" style="flex:1 1 0;min-width:0;width:auto;"
+                title="원 «위»에 블럭을 얹는다(여러 개 · 여러 줄) — 글자는 캔버스에서 고친다 · t5-12ⓑ">
+          <option value="">＋ 블럭 넣기 (원 위)…</option>
+          ${(window.ICB_CHILD_KIND_LABELS || []).map(([k, ko]) => `<option value="${k}">+ ${ko}</option>`).join('')}   <!-- ⛔import 안 함: 단위 하네스가 이 파일을 tmp 로 옮겨 import 를 글자로 바꾼다 -->
+        </select>
       </div>${cTxtRaw === '' ? '' : `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
@@ -1653,7 +1721,7 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
              (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
-    </div>${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
+    </div>${(circle && !foreign) ? (window.fxSectionHtml?.(_grdFxProxyOf(block, r, c, anyHit.li, anyHit.np, line), 'grdc') || '') : ''}${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
 }
 
 /* ══ ★1012t1 B1 「내용 자르기」 (현빈 1010t1c2 ㈁ — 그리드 이미지줄) ═══════════════════════
@@ -1784,6 +1852,14 @@ function _grdWireImageSection(block, addr, host = null) {
       onApply: (col) => _cLive({ bg: col }),
       onCommit: () => window.pushHistory?.(),
     });
+    /* ★t5-12ⓑ 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(G14 서클 패널과 같은 꼴 · 넣는 길은 addGridCircleChild 한 벌). */
+    const _kidAdd = document.getElementById('grd-circle-kid-add');
+    _kidAdd?.addEventListener('change', () => {
+      const kind = _kidAdd.value;
+      _kidAdd.value = '';
+      if (!kind) return;
+      window.addGridCircleChild?.(block, { r, c, li }, kind);
+    });
     const tIn = document.getElementById('grd-img-ctext');
     if (tIn) {
       tIn.value = typeof hit.line.text === 'string' ? hit.line.text : '';   // ⛔value= 속성으로 안 싣는다(따옴표가 속성을 깬다)
@@ -1816,6 +1892,19 @@ function _grdWireImageSection(block, addr, host = null) {
         onCommit: () => window.pushHistory?.(),
       });
       numWire('grd-img-ctsize', 'fontSize', 6, 200);
+    }
+    /* ★t5-13ⓐ — 원 «효과»(그림자). 카드 배선은 에셋과 같은 함수 · 대리 → 줄 옮겨 적기는 감시자 하나. */
+    if (!foreign) {
+      const px = _grdFxProxyOf(block, r, c, li, addr.np, hit.line);
+      window.wireFxSection?.(px, 'grdc', () => window.showGridProperties?.(block));
+      const attrs = _GRD_FX_KEYS.map((k) => 'data-' + k.replace(/[A-Z]/g, (ch) => '-' + ch.toLowerCase()));
+      px._grdFxSync = () => {
+        const fields = {};
+        _GRD_FX_KEYS.forEach((k) => { fields[k] = px.dataset[k] !== undefined ? px.dataset[k] : undefined; });
+        _cLive(fields);
+      };
+      px._grdFxObs = new MutationObserver(() => px._grdFxSync());
+      px._grdFxObs.observe(px, { attributes: true, attributeFilter: attrs });
     }
   }
 }
@@ -2377,8 +2466,8 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
     html += `
       <div class="prop-row">
         <span class="prop-label">열 간격</span>
-        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="0" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
-        <input type="number" class="prop-number" id="grd-col-gap-number" min="0" max="${GRID_GAP_MAX}" value="${colGap}">
+        <input type="range" class="prop-slider" id="grd-col-gap-slider" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
+        <input type="number" class="prop-number" id="grd-col-gap-number" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" value="${colGap}">
       </div>`;
   }
   if (rows.length >= 2) {
@@ -3345,8 +3434,8 @@ ${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, 
 ${_grdKindSelectHtml(line, H.kinds)}
         </div>
         ${(line.type || 'body') === 'gap' ? `<div class="prop-row">
-          <span class="prop-label" title="이 여백 줄의 높이(px). 비우면 기본 16">높이(px)</span>
-          <input type="number" class="prop-number" id="grd-line-gap-h" min="${GAP_MIN}" max="${GAP_MAX}" placeholder="16" value="${Number(line.height) || ''}">
+          <span class="prop-label" title="이 여백 줄의 높이(px). 비우면 기본 ${GRID_GAP_LINE_H}">높이(px)</span>
+          <input type="number" class="prop-number" id="grd-line-gap-h" min="${GAP_MIN}" max="${GAP_MAX}" placeholder="${GRID_GAP_LINE_H}" value="${gridNumOr(line.height, '')}">
         </div>` : ''}
         ${isDivider ? `<div class="prop-row">
           <span class="prop-label" title="구분선의 굵기(px). 비우면 기본 ${GRID_DIVIDER_H_MIN}">굵기(px)</span>
@@ -3809,7 +3898,7 @@ ${_flattenRowHtml(rows, cols)}
       block.dataset.colGap = String(v);
       window.renderGridBlock?.(block);
       window._grdSyncLineMark?.(block, grdGetActiveLine(block));
-    }, { min: 0, max: GRID_GAP_MAX });
+    }, { min: GRID_COL_GAP_MIN, max: GRID_GAP_MAX });   // ★t6-02 열도 음수(겹치기) — GRID_COL_GAP_MIN 주석(grid-block.js)
   }
   const rowGapSlider = document.getElementById('grd-row-gap-slider');
   const rowGapNumber = document.getElementById('grd-row-gap-number');
@@ -4035,3 +4124,56 @@ export const grdLineUi = {
   imageSectionHtml: _grdImageSectionHtml, wireImageSection: _grdWireImageSection, svgToDataUri: _grdSvgToDataUri,
 };
 if (typeof window !== 'undefined') window.grdLineUi = grdLineUi;
+
+/* ═══ ★t6-04㉡ 「칸 사이 간격…」 입력 팝오버 — block-factory.js 우클릭 항목(#bcm-grid-nested-gap)이 부른다 ═══
+ * 까닭·꼴·문은 그 항목 머리말. 여기 사는 까닭 = 그리드 숫자칸이 사는 파일(숫자칸 규약 센서스 N9 의 선언 파일). */
+export function grdOpenNestGapPopover(block, nest) {
+  if (!block || !nest) return;
+  let model; try { model = getGridModel(block); } catch (_) { return; }
+  const line = model.cells?.[nest.r]?.[nest.c]?.lines?.[nest.li];
+  if (!line || line.type !== GRID_NESTED_LINE_TYPE) return;
+  const cur = gridNumOr(line.gap, GRID_NESTED_GAP.missing);   // ← 그리는 쪽과 «같은 함수»(⛔`|| 24` 는 0 을 삼킨다 · t6-04b)
+  const pop = document.createElement('div');
+  pop.className = 'section-memo-popover';
+  pop.innerHTML = `
+    <div class="smp-head">
+      <span class="smp-title">칸 사이 간격</span>
+      <button class="smp-close" type="button" title="닫기 (Esc)">✕</button>
+    </div>
+    <div class="prop-row" style="margin:0;">
+      <span class="prop-label">간격(px)</span>
+      <input type="number" class="prop-number" id="grd-nest-gap-input" min="0" max="${GRID_GAP_MAX}" step="1" value="${cur}" data-empty="restore">
+    </div>
+    <div class="smp-foot"><span class="smp-status">Enter 로 적용 · 0 ~ ${GRID_GAP_MAX}</span></div>`;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'section-memo-backdrop';
+  backdrop.appendChild(pop);
+  document.body.appendChild(backdrop);
+  const input = pop.querySelector('#grd-nest-gap-input');
+  let closed = false;
+  const close = () => {
+    if (closed) return; closed = true;
+    document.removeEventListener('keydown', onKey, true);
+    /* ★범위·빈 칸은 «숫자칸 규약» 한 자리(prop-number-commit-guard.js)가 한다 — 칸의 min/max · data-empty="restore".
+     *  ⛔여기서 Math.min/max 로 또 자르지 않는다(t6-04b ⑶ · 사본 금지). 바깥 클릭으로 닫을 때도 규약을 지나가게 blur 먼저.
+     *  남는 범위 밖(규약을 안 지난 길)은 모델 문(_gridValueViolations)이 거절한다. */
+    if (document.activeElement === input) input.blur();
+    const raw = String(input.value).trim();
+    const v = !raw ? cur : Math.round(Number(raw));
+    if (Number.isFinite(v) && v !== cur) {
+      const res = window.updateGridBlock?.(block.id, { patchCell: { r: nest.r, c: nest.c, lineIndex: nest.li, gap: v } });
+      grdToastImgFail(res);
+      window.scheduleAutoSave?.();
+    }
+    backdrop.classList.remove('open');
+    setTimeout(() => backdrop.remove(), 220);   // ← 메모와 같은 꼴(CSS 200ms 전환 뒤 걷기)
+  };
+  const onKey = (ev) => {
+    if (ev.key === 'Escape' || ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); close(); }
+  };
+  pop.querySelector('.smp-close').addEventListener('click', (ev) => { ev.stopPropagation(); close(); });
+  pop.addEventListener('mousedown', (ev) => ev.stopPropagation());
+  backdrop.addEventListener('mousedown', (ev) => { if (ev.target === backdrop) close(); });
+  document.addEventListener('keydown', onKey, true);
+  requestAnimationFrame(() => { backdrop.classList.add('open'); input.focus(); input.select(); });
+}

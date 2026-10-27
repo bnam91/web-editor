@@ -175,7 +175,29 @@
         dh.dataset.dimEnd = end;
         svg.appendChild(dh);
       });
+      /* ★★t3-01 ⑸(현빈 ㉠ GO · 261026) 「치수선 가운데 조절점」 — ★셋째 갈래. 자리 = 치수선 가운데 c(= a·b 의 중점 ·
+           annot-dim-geometry.js annotDimPlaceAt 의 c 와 같은 뜻 — dimA = c − u·len/2 · dimB = c + u·len/2).
+         ★끌면 a·b 를 ★같은 만큼 평행이동(길이·각도 그대로 · 설계 ⓐ) — 아래 _startDimMidDrag.
+         ⛔`annot-handle` 클래스를 ★같이 단다(철거·저장 제외 목록이 그 이름으로 덮는다 — 위 a·b 와 같은 까닭).
+         ⛔`dataset.pointIdx` 를 ★주지 않는다 — _updateBlockGeometry 가 pointIdx 있는 손잡이를 «점 자리»로 옮긴다(주면 끄는 동안 튄다). */
+      if (g) {
+        const mh = document.createElementNS(SVG_NS, 'circle');
+        mh.setAttribute('class', 'annot-handle annot-dim-mid');   /* ⛔annot-dim-handle 는 안 단다 — 그 이름은 «a·b 끝 둘»의 명부다(t3-01 T3 «끝 손잡이 둘») */
+        /* ★㉯′(지디 261026) 자리 = 중점에서 라벨 «맞은편» 같은 거리: mid − n·lift·lsgn(라벨은 mid + n·lift·lsgn · annot-dim-geometry.js 가 넷 다 돌려줌)
+           — 라벨 상자(모델 65×25 · 반높이 12.5 > lift 11)가 중점을 덮어 «가운데 그 점»은 못 누른다(S3 실측: 한가운데 임자 = annot-label).
+           길이 방향은 정확히 중점 · 조건 갈래 0. 크기는 CSS(.annot-dim-mid r = 5px × --inv-zoom · 회전 손잡이 선례). */
+        const lift = Number(g.lift) || 0, ls = Number(g.lsgn) || 1;
+        mh.setAttribute('cx', String(g.mid[0] - g.n[0] * lift * ls));
+        mh.setAttribute('cy', String(g.mid[1] - g.n[1] * lift * ls));
+        mh.setAttribute('fill', '#ffffff');       /* ★a·b(파랑 속)와 d·c(흰 속 · r 5)와 눈으로 갈린다 — 작고 흰 속 · 굵은 파랑 테 */
+        mh.setAttribute('stroke', '#1592fe');
+        mh.setAttribute('stroke-width', '2');
+        mh.dataset.dimEnd = 'M';
+        svg.appendChild(mh);
+      }
     }
+
+    _addLabelBoxHandles(block);   // ★1013t2C6 — 라벨 상자 좌·우 손잡이(너비)
 
     const shape = block.dataset.anchorShape;
     if (shape === 'triangle' || shape === 'arrowhead') {
@@ -189,6 +211,95 @@
       svg.appendChild(rh);
     }
   }
+  /* ★1013t2C6 「라벨 너비도 조절이 되면 좋겠다 · 라벨박스에도 핸들이 있으면 좋겠고」 — 라벨 상자 좌·우 가운데에 손잡이 둘.
+     끌면 라벨 너비(dataset.labelWidth)가 바뀐다. 점 손잡이(SVG)와 달리 HTML 이다 — 라벨(div)이 SVG «위»에 그려져
+     SVG 손잡이는 라벨에 반쯤 덮인다. 클래스에 annot-handle 을 같이 단다 = 철거·저장 제외 목록(save-load ·
+     section-serialize · editor-ui-roster)이 그 이름으로 덮는다(회전 손잡이 선례). 이미지 모드는 상자 = 그림 크기라 안 단다. */
+  function _addLabelBoxHandles(block) {
+    const label = block.querySelector('.annot-label');
+    if (!label || block.dataset.labelMode === 'image') return;
+    ['w', 'e'].forEach((edge) => {
+      const h = document.createElement('div');
+      h.className = 'annot-handle annot-lw-handle';
+      h.dataset.edge = edge;
+      h.title = '끌어서 라벨 너비 조절';
+      h.addEventListener('mousedown', (e) => {
+        if (document.body.classList.contains('pen-mode') || e.button !== 0) return;
+        _startLabelWidthDrag(block, h, e);
+      }, true);
+      block.appendChild(h);
+    });
+    _placeLabelBoxHandles(block);
+  }
+  /* 손잡이 자리 = 라벨의 «보이는» 상자(transform·translate 다 먹은 뒤) 좌·우 가운데 — 블럭(= 섹션) 좌표 */
+  function _placeLabelBoxHandles(block) {
+    const hs = block.querySelectorAll('.annot-lw-handle');
+    if (!hs.length) return;
+    const label = block.querySelector('.annot-label');
+    const br = block.getBoundingClientRect();
+    const k = block.offsetWidth ? br.width / block.offsetWidth : _zoom();
+    if (!label || !k) return;
+    const lr = label.getBoundingClientRect();
+    const y = (lr.top + lr.height / 2 - br.top) / k;
+    hs.forEach((h) => {
+      const x = ((h.dataset.edge === 'w' ? lr.left : lr.right) - br.left) / k;
+      h.style.left = x + 'px';
+      h.style.top = y + 'px';
+    });
+  }
+  window.annotPlaceLabelBoxHandles = _placeLabelBoxHandles;
+  /* 라벨이 «어느 쪽»에 붙었나(transform 의 가로 몫) — 0 = 왼쪽 끝이 점 · 0.5 = 가운데 · 1 = 오른쪽 끝이 점.
+     너비가 바뀌면 붙은 쪽이 제자리이고 반대쪽이 움직인다 ⇒ 끄는 쪽 모서리가 손을 따라가게 개별 위치(labelDx)로 맞춘다. */
+  function _labelAnchorFrac(label) {
+    const m = /translate\(\s*(-?[\d.]+)%/.exec(label.style.transform || '');
+    return m ? Math.min(1, Math.max(0, -parseFloat(m[1]) / 100)) : 0;
+  }
+  function _startLabelWidthDrag(block, handle, e) {
+    e.stopImmediatePropagation();
+    e.stopPropagation();
+    e.preventDefault();
+    const label = block.querySelector('.annot-label');
+    const L = window.ANNOT_LIMITS?.labelWidth;
+    if (!label || !L) return;
+    const br = block.getBoundingClientRect();
+    const k = block.offsetWidth ? br.width / block.offsetWidth : _zoom();
+    const edge = handle.dataset.edge;
+    const startX = e.clientX;
+    const w0 = label.offsetWidth;
+    const off0 = window.annotLabelOffsetOf?.(block) || { dx: 0, dy: 0 };
+    const ax = _labelAnchorFrac(label);
+    let moved = false;
+    const _hist = window.beginDragHistory?.('라벨 너비');
+    const onMove = (ev) => {
+      const d = (ev.clientX - startX) / k;
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < 2) return;
+        moved = true;
+        _hist?.arm(d, 0);
+      }
+      const w = Math.min(L.max, Math.max(L.min, Math.round(w0 + (edge === 'e' ? d : -d))));
+      const dw = w - w0;
+      block.dataset.labelWidth = String(w);
+      window.annotSetLabelOffset?.(block, off0.dx + (edge === 'e' ? ax * dw : -(1 - ax) * dw), off0.dy);
+      window.annotApplyLabelBox?.(block);
+      _placeLabelBoxHandles(block);
+      ev.preventDefault();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (!moved) return;
+      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', eat, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.showAnnotationProperties?.(block);
+      if (typeof window.pushHistory === 'function') window.pushHistory('라벨 너비');
+      window.scheduleAutoSave?.();
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
   /* 모양을 바꾼 뒤(패널) 손잡이를 다시 세운다 — 고른 블럭만. */
   window.annotRefreshHandles = (block) => { if (block?.classList.contains('selected')) _ensureHandles(block); };
   function _removeHandles(block) {
@@ -250,6 +361,7 @@
         h.setAttribute('cy', points[idx][1]);
       }
     });
+    _placeLabelBoxHandles(block);   // ★1013t2C6 — 라벨이 움직이면 상자 손잡이도
   }
   window._updateAnnotBlockGeometry = _updateBlockGeometry;
 
@@ -350,6 +462,7 @@
       }
       cur = { dx: clamp(off0.dx + ddx, 'labelDx'), dy: clamp(off0.dy + ddy, 'labelDy') };
       label.style.translate = `${cur.dx}px ${cur.dy}px`;
+      _placeLabelBoxHandles(block);   // ★1013t2C6
       ev.preventDefault();
     };
     const onUp = () => {
@@ -572,6 +685,7 @@
         // ★1013t2C7 — 회전 손잡이는 점 번호가 없다 → 점 끌기 판정보다 «먼저» 가른다
         if (h.classList.contains('annot-rot-handle')) { _startAnchorRotateDrag(block, e); return; }
         /* ★t3-01 — 치수선 양끝 손잡이도 ★점 번호가 ★없다 ⇒ ★점 끌기 판정보다 ★먼저 가른다 */
+        if (h.classList.contains('annot-dim-mid')) { _startDimMidDrag(block, e); return; }   // ★t3-01 ⑸ 가운데
         if (h.classList.contains('annot-dim-handle')) { _startDimEndDrag(block, h, e); return; }
         e.stopPropagation();
         e.preventDefault();
@@ -604,7 +718,17 @@
           const raw = { x: startPoint[0] + dx, y: startPoint[1] + dy };
           const snapped = refArr ? window._snapVecToStep(raw, { x: refArr[0], y: refArr[1] }, { tolDeg: ev.shiftKey ? null : window.ANNOT_SNAP_TOL_DEG }) : raw;
           points[idx] = [snapped.x, snapped.y];
-          _updateBlockGeometry(block, points);
+          /* ★t4-21 — 치수선의 흰 점(d·c)은 «일반 어노테이션 꼴»(_updateBlockGeometry: 라벨 = points[last])로 그리면 안 된다 —
+             라벨이 치수선을 떠나 점 c 로 옮겨졌다(05eefbd5 실측: 라벨−중점 (0,−11) → (212.2, 55)).
+             ⇒ a·b 끌기(_startDimEndDrag)와 «같은 한 자리»(annotRedrawDim)로 그린다 — 라벨은 labelAt(치수선 중점 + lift). */
+          if (block.dataset.annotKind === 'dim' && typeof window.annotRedrawDim === 'function') {
+            _writePoints(block, points);
+            const st = window.annotPropsFromDataset?.(block);
+            if (st) window.annotRedrawDim(block, st);
+            window.annotRefreshHandles?.(block);
+          } else {
+            _updateBlockGeometry(block, points);
+          }
           if (refArr) _showPointAngleLabel(block, refArr, points[idx]);
         };
         const onUp = () => {
@@ -668,6 +792,50 @@
     document.addEventListener('mouseup',   onUp,   true);
   }
 
+  /* ★★t3-01 ⑸ — 치수선 ★가운데 끌기 = a·b ★둘 다 같은 만큼(설계 ⓐ · 길이·각도 유지).
+     ★시작값은 mousedown 때 «숫자로» 뜬다 — 손잡이는 매 프레임 _ensureHandles 가 철거·재생성(DOM 노드가 죽는다) ⇒ ⛔onMove 안에서 손잡이를 다시 읽지 않는다.
+     ⛔각도 자석을 ★안 탄다(위 a·b 와 같은 까닭 · 현빈 2차 설계).
+     ★저장 자리 = 이미 있는 dimA·dimB 두 키(새 키 0) · 이력 = a·b 끌기와 같은 beginDragHistory 한 걸음. */
+  function _startDimMidDrag(block, e) {
+    e.stopPropagation(); e.preventDefault();
+    const st0 = window.annotPropsFromDataset?.(block);
+    const g0 = st0 && window.annotDimGeometry?.(st0.points, {
+      dimAxis: st0.dimAxis, dimOffset: st0.dimOffset, dimSlide: st0.dimSlide,
+      dimGap: st0.dimGap, dimOver: st0.dimOver, dimLabelLift: st0.dimLabelLift,
+      dimA: st0.dimA, dimB: st0.dimB,
+    });
+    if (!g0) return;
+    const fromA = [Number(g0.line[0][0]), Number(g0.line[0][1])], fromB = [Number(g0.line[1][0]), Number(g0.line[1][1])];
+    if (![...fromA, ...fromB].every(Number.isFinite)) return;
+    const startX = e.clientX, startY = e.clientY;
+    let dragging = false;
+    const _hist = window.beginDragHistory?.('치수선 이동');
+    const r1 = (v) => Math.round(v * 10) / 10;
+    const onMove = (ev) => {
+      const dx = (ev.clientX - startX) / _zoom();
+      const dy = (ev.clientY - startY) / _zoom();
+      if (!dragging) {
+        if (Math.abs(ev.clientX - startX) < 2 && Math.abs(ev.clientY - startY) < 2) return;
+        dragging = true; _hist?.arm(dx, dy);
+      }
+      block.dataset.dimA = JSON.stringify([r1(fromA[0] + dx), r1(fromA[1] + dy)]);
+      block.dataset.dimB = JSON.stringify([r1(fromB[0] + dx), r1(fromB[1] + dy)]);
+      const st = window.annotPropsFromDataset?.(block);
+      if (st) window.annotRedrawDim?.(block, st);
+      window.annotRefreshHandles?.(block);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseup',   onUp,   true);
+      if (dragging) {
+        window.pushHistory?.('치수선 이동');
+        window.scheduleAutoSave?.();
+      }
+    };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseup',   onUp,   true);
+  }
+
   window.bindAnnotationSelect = bindAnnotationSelect;
 
   // ── 라벨 편집 진입 (★1013t2C6 — 한 벌: 더블클릭 · 펜으로 만든 직후 둘 다 여기로) ──────────
@@ -705,12 +873,40 @@
       const t = ev.clipboardData?.getData('text/plain') || '';
       if (t) document.execCommand('insertText', false, t);
     };
+    /* ★FIX5 1017t1h2 · 1017t1h3 — 편집 중 라벨 «안»에서 누른 누름의 click 은 ★라벨 것이다(캐럿 놓기 · 글자 끌어 고르기).
+       ⛔옛 판: 위 라벨 click 캡처가 편집 중이면 그냥 return ⇒ click 이 섹션 click(editor.js selectSectionWithModifier)으로
+         거품 올라가 deselectAll 이 어노테이션 선택·손잡이·패널을 걷었다
+         (실측 ca702d40: 끌어 고른 mouseup 순간 selected false · 크기·색 칸 사라짐 / 줄 넣을 자리를 눌러도 같은 일).
+       ★끌기가 라벨 밖에서 끝나면 click 표적이 라벨의 «조상»(섹션·캔버스)이 된다 ⇒ 라벨 click 만 막아서는 모자란다.
+       ⇒ mouseup 뒤 click 한 번을 window 캡처에서 삼킨다(라벨 손잡이·핸들 끌기 onUp 의 eat 와 같은 꼴). 편집 밖에선 이 리스너가 없다. */
+    /* ★검수 F1 — 걸어 둔 mouseup 은 ★들고 있다가 finish 에서 같이 뗀다.
+       ⛔안 떼면 mouseup 을 잃은 누름(창 밖에서 놓음 · 합성 mousedown)이 편집이 끝난 «뒤»의 ★첫 진짜 클릭을 삼킨다
+         (검수 탐침 C4b: 라벨 mousedown 만 → Esc → 펜 단추 첫 클릭이 안 먹었다). */
+    let pendingUp = null;
+    const dropPendingUp = () => {
+      if (pendingUp) document.removeEventListener('mouseup', pendingUp, true);
+      pendingUp = null;
+    };
+    const onDown = (ev) => {
+      if (ev.button !== 0) return;
+      dropPendingUp();
+      const eat = (ce) => { ce.stopPropagation(); };
+      const onUp = () => {
+        dropPendingUp();
+        window.addEventListener('click', eat, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      };
+      pendingUp = onUp;
+      document.addEventListener('mouseup', onUp, true);
+    };
     const finish = () => {
       if (done) return;
       done = true;
       label.removeEventListener('keydown', onKey);
       label.removeEventListener('paste',   onPaste);
       label.removeEventListener('blur',    finish);
+      label.removeEventListener('mousedown', onDown);
+      dropPendingUp();   // ★검수 F1
       const raw = label.innerText ?? label.textContent ?? '';
       /* ★1017t1h3 — 부분 서식을 ★같이 싣는다(line-host lnBeginEdit finish 와 ★같은 규약).
          ★읽기는 contenteditable 을 ★끄기 «전»에 — 끄고 나면 브라우저가 편집 잔재를 ★정리할 수 있다.
@@ -727,11 +923,13 @@
       if (nextHtml) block.dataset.labelHtml = nextHtml;
       else delete block.dataset.labelHtml;
       if (val !== before || nextHtml !== beforeHtml) window.pushHistory?.('어노테이션 글');
+      _placeLabelBoxHandles(block);   // ★1013t2C6 — 글이 바뀌면 상자 크기도 바뀐다
       window.scheduleAutoSave?.();
     };
     label.addEventListener('keydown', onKey);
     label.addEventListener('paste',   onPaste);
     label.addEventListener('blur',    finish);
+    label.addEventListener('mousedown', onDown);
     setTimeout(() => {
       label.focus();
       try {
@@ -744,4 +942,49 @@
     }, 0);
   }
   window.annotBeginLabelEdit = annotBeginLabelEdit;
+
+  /* ── ★f5(1020t2f5 · 현빈 261026 답) 어노테이션 ⌘] / ⌘[ 레이어 순서 ─────────────────────────────
+   *   현빈 원문: 「ant_ts0he_qqnwl1p ⌘] 했는데 레이어 순서가 안 바뀌고 zmb_wuy8kv 아래」 · 261026 답: ⑴ 주석이 확대블럭 위로 갈 수 있게
+   *     (z 조절 허용) ⑵ ⌘[ / ⌘] 로 순서 조절. ⇒ 지디 갈래 ㉡(그 주석 하나만 · ⌘] 로).
+   *   ★잰 층(S3 · 현빈 사본 ×3): 주석·확대블럭은 같은 섹션의 형제 · 주석 z 50(css .annotation-block) · 확대 z 60(.zoom-block) ⇒ 그림 위는
+   *     z 가 정한다(DOM 순서 무관) — 선례(스티커·그라데이션 «같은 z 끼리만 DOM 앞뒤»)로는 층을 못 넘는다.
+   *   ★꼴: 섹션 직계 «블럭»(id 가 있는 positioned 형제 — 섹션 UI 인 hitzone·toolbar 는 id 없음)을 (z, 문서 순서)로 늘어놓고
+   *     ⌘] = 바로 위 블럭의 z 를 받고 그 «뒤»에 놓는다(같은 z · 문서 뒤 = 위) / ⌘[ = 바로 아래 블럭의 z 를 받고 그 «앞»에.
+   *     블럭별 z 는 인라인 style.zIndex — 선례 js/blocks/buzz-frame.js:268·:390(카드마다 row.style.zIndex · 저장본에 실림).
+   *     클래스 기본(50)과 같아지면 인라인을 걷는다(옛 바이트로).
+   *   ★키 받기 = 스티커(sticker-select.js:1024)·그라데이션(gradient-select.js:448)의 capture 꼴 그대로 · 이력 이름도 그 글자 그대로.
+   *   ⛔editor.js ⌘[/⌘] 갈래에 한 줄을 넣지 않았다 — W1(갈래 머리→moveSelectedBlocks 400자 창)이 351/354 → 425/430 으로 넘는다(S3 실측).
+   *   ⛔SECTION_BLOCK_TYPE_SEL 에 .annotation-block 을 더하지 않는다(정본 · 파생 명부 여럿 — 단위 검사가 값 문자열로 잠근다). */
+  const _ANNOT_DEFAULT_Z = () => { const t = document.createElement('div'); t.className = 'annotation-block'; t.style.display = 'none'; document.body.appendChild(t);   /* ⛔#canvas 에 붙이지 않는다 — 캔버스 변화 관찰(자동저장)이 깨어난다 · 규칙은 전역 .annotation-block */ const z = parseInt(getComputedStyle(t).zIndex, 10); t.remove(); return Number.isFinite(z) ? z : 50; };
+  function annotLayerOrder(direction) {
+    const sel = [...document.querySelectorAll('.section-block > .annotation-block.selected')];
+    if (!sel.length) return false;
+    const sec = sel[0].parentElement;
+    if (sel.length > 1 || !sel.every((a) => a.parentElement === sec)) return true;   // 여럿·섞임은 키만 먹고 아무것도 안 한다(스티커 선례와 같은 꼴)
+    const a = sel[0];
+    const zOf = (el) => { const z = parseInt(getComputedStyle(el).zIndex, 10); return Number.isFinite(z) ? z : 0; };
+    const stack = [...sec.children].filter((c) => c.id && getComputedStyle(c).position !== 'static')
+      .map((el, i) => ({ el, z: zOf(el), i })).sort((p, q) => p.z - q.z || p.i - q.i).map((x) => x.el);
+    const k = stack.indexOf(a);
+    const nb = direction === 'down' ? stack[k + 1] : stack[k - 1];
+    if (!nb) return true;                                                // 이미 맨 위/맨 아래 — 키는 가져간다
+    window.ensureHistoryCheckpoint?.('이동 전');
+    const z = zOf(nb);
+    if (z === _ANNOT_DEFAULT_Z()) a.style.removeProperty('z-index'); else a.style.zIndex = String(z);
+    if (direction === 'down') nb.after(a); else nb.before(a);
+    window.pushHistory?.(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
+    window.buildLayerPanel?.();
+    a.classList.add('selected');
+    window.scheduleAutoSave?.();
+    return true;
+  }
+  window.annotLayerOrder = annotLayerOrder;
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || (e.code !== 'BracketLeft' && e.code !== 'BracketRight')) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) return;
+    if (!annotLayerOrder(e.code === 'BracketLeft' ? 'up' : 'down')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
 })();

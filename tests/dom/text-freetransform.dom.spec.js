@@ -798,7 +798,7 @@ test('QA-1 ★불필요한 프롭힌트 0 — 진입 전/후 패널 행 id 를 �
   expect(addedPanelHints, `★우리 진입이 패널 전체에 프롭힌트를 ${addedPanelHints.length}개 더했다`).toEqual([]);
   /* ★늘어난 행은 ★우리 카드의 것 ★뿐이다 — ⛔「0개」로 두지 않고 ★이름으로 잰다 */
   expect(added.sort(), '★늘어난 패널 행이 우리 카드의 것만이 아니다').toEqual(
-    ['txt-fx-list', 'txt-fxft-body', 'txt-fxft-card', 'txt-fxft-del', 'txt-fxft-head', 'txt-fxft-reset'].sort());
+    ['txt-fx-list', 'txt-fxft-body', 'txt-fxft-card', 'txt-fxft-del', 'txt-fxft-head', 'txt-fxft-reset', 'txt-fxft-pullin'].sort());   /* ★FT-3a 「밖 모서리 데려오기」 — 우리 카드의 단추(프롭힌트 아님) */
   expect(errs, `★앱이 오류를 냈다: ${errs.join(' | ')}`).toEqual([]);
 });
 

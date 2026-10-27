@@ -15,6 +15,11 @@
  *        (gridResizeTo 는 호출부에도 같은 가드가 있어 이중 방어 — 그래서 호출부만 비틀면 안 샌다, R5 가 그 증거)
  *   R5  ★이중 가드 확인 — 표식을 지운 같은 블럭에 +열 → 옛 기본값(body 자리표시) 그대로(호출부 가드가 혼자서도 막는다)
  *   N-R3 ★음성대조 — window.ifgNewShape 를 지우면(?. 폴백) 옛 기본값으로 정확히 떨어진다(진짜 폴백인지)
+ *
+ * ★t5-15(현빈 2026-10-26 「'+'를 눌러서 열추가시에, 직전 로우와 칼럼이 복사되도록」)로 «폴백»이 바뀌었다:
+ *   ~~표식 없음 ⇒ 옛 기본값(body 자리표시 한 줄)~~ ⇒ 표식 없음 ⇒ ★직전 열·행을 글자째 베낀다(grid-block.js gridResizeTo).
+ *   그래서 R5·N-R3 의 기대값을 «직전 열 그대로»로 뒤집었고, N-R1 은 꼴(줄 수·높이·align·fontSize)만으로는
+ *   ifg 와 베끼기가 구별되지 않아 ★글자로 가른다 — ifg = 자리표시 「제목」 · 베끼기 = 사용자 글 「USER」.
  */
 'use strict';
 const { test } = require('node:test');
@@ -96,8 +101,9 @@ test('R5 ★이중 가드 — 표식을 지운 같은 블럭에 +열 → 옛 기
   delete block.dataset.ifgPreset;
   assert.equal(G.gridResizeTo(block, 3, 2), true);
   const m = G.getGridModel(block);
-  assert.deepEqual(m.cols[2], { width: 1, lines: [{ type: 'body', text: '내용을 입력하세요.' }] },
-    '★표식을 지웠는데 ifg 꼴이 샜다 — 호출부 게이트가 안 먹는다');
+  /* ~~옛 기대: { width: 1, lines: [{ type: 'body', text: '내용을 입력하세요.' }] }~~ ⇒ t5-15: 직전 열을 글자째(자리표시 「제목」이 아니다) */
+  assert.deepEqual(m.cols[2], m.cols[1], '★표식 없는 +열이 직전 열 베끼기가 아니다(t5-15)');
+  assert.notEqual(m.cols[2].lines.find(l => l.type === 'h3')?.text, '제목', '★표식을 지웠는데 ifg 꼴(자리표시)이 샜다 — 호출부 게이트가 안 먹는다');
 });
 
 test('N-R1 ★음성대조 — ifgNewShape 본문을 null 로 죽이면 R1~R4 가 전부 빨개진다(≥4벌)', async () => {
@@ -110,30 +116,38 @@ test('N-R1 ★음성대조 — ifgNewShape 본문을 null 로 죽이면 R1~R4 �
     return out;
   };
   const { G, I } = await loadGrid({ withIfg: true, mutate: M });
+  /* ★t5-15 — 베끼기 폴백은 꼴을 그대로 옮기므로, 크기 바꾸기 전에 제목 글을 모두 'USER' 로 바꿔 두고
+   *   «새 제목이 ifg 자리표시 「제목」이 아니면» 빨강으로 센다(죽인 ifg 대신 베끼기가 들어온 증거). */
+  const userize = (b) => {
+    const cols = JSON.parse(b.dataset.cols); cols.forEach(c => (c.lines || []).forEach(l => { if (l.type === 'h3') l.text = 'USER'; }));
+    b.dataset.cols = JSON.stringify(cols);
+    if (b.dataset.cells) { const cells = JSON.parse(b.dataset.cells); cells.forEach(r => r.forEach(c => (c?.lines || []).forEach(l => { if (l.type === 'h3') l.text = 'USER'; }))); b.dataset.cells = JSON.stringify(cells); }
+  };
+  const notPh = (lines) => (lines || []).find(l => l.type === 'h3')?.text !== '제목';
   let redCount = 0;
   // R1
-  { const b = await linesGrid2x2(G, I); G.gridResizeTo(b, 3, 2);
+  { const b = await linesGrid2x2(G, I); userize(b); G.gridResizeTo(b, 3, 2);
     const m = G.getGridModel(b);
-    if (m.cols[2].lines.length !== 3) redCount++; }
+    if (m.cols[2].lines.length !== 3 || notPh(m.cols[2].lines)) redCount++; }
   // R2
-  { const b = await linesGrid2x2(G, I); G.gridResizeTo(b, 2, 3);
+  { const b = await linesGrid2x2(G, I); userize(b); G.gridResizeTo(b, 2, 3);
     const m = G.getGridModel(b);
-    if (m.rows[2].height !== 400) redCount++; }
+    if (m.rows[2].height !== 400 || notPh(m.cells[2][0].lines)) redCount++; }
   // R3
   { const { block: b } = G.makeGridBlock(I.ifgBuildOpts([{ title: 'A', desc: 'B' }], 3, 3, 'basic'));
     window.pushHistory = () => {};
-    G.gridResizeTo(b, 4, 3);
+    userize(b); G.gridResizeTo(b, 4, 3);
     const m = G.getGridModel(b);
-    if (m.cols[3].align !== 'center') redCount++; }
+    if (m.cols[3].align !== 'center' || notPh(m.cols[3].lines)) redCount++; }
   // R4
   { const { block: b } = G.makeGridBlock(I.ifgBuildOpts([{ title: 'T1', desc: 'D1' }], 1, 1, 'lines'));
     window.pushHistory = () => {};
     const cols = JSON.parse(b.dataset.cols); cols[0].lines.find(l => l.type === 'h3').fontSize = 60;
     b.dataset.cols = JSON.stringify(cols);
-    G.gridResizeTo(b, 2, 1);
+    userize(b); G.gridResizeTo(b, 2, 1);
     const m = G.getGridModel(b);
     const title = m.cols[1].lines.find(l => l.type === 'h3');
-    if (!title || title.fontSize !== 60) redCount++; }
+    if (!title || title.fontSize !== 60 || notPh(m.cols[1].lines)) redCount++; }
   assert.ok(redCount >= 4, `★ifgNewShape 를 죽였는데 ${redCount}벌만 빨개졌다 — 뿌리가 하나가 아니다`);
 });
 
@@ -160,6 +174,6 @@ test('N-R3 ★음성대조 — window.ifgNewShape 를 지우면(?. 폴백) 옛 �
   delete window.ifgNewShape;
   assert.equal(G.gridResizeTo(block, 3, 2), true);
   const m = G.getGridModel(block);
-  assert.deepEqual(m.cols[2], { width: 1, lines: [{ type: 'body', text: '내용을 입력하세요.' }] },
-    '★window.ifgNewShape 가 없을 때 폴백이 옛 기본값과 다르다');
+  /* ~~옛 기대: 옛 기본값(body 자리표시 한 줄)~~ ⇒ t5-15: 폴백 = 직전 열 베끼기 */
+  assert.deepEqual(m.cols[2], m.cols[1], '★window.ifgNewShape 가 없을 때 폴백이 직전 열 베끼기(t5-15)와 다르다');
 });

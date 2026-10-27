@@ -6,7 +6,7 @@
  *   U2 applyRedact 멱등 · 0 이면 흔적 0(속성·변수 둘 다) — D4 컴패리전이 매 렌더 부르는 계약
  *   U3 redactSectionHTML 꼴(그레인 절과 같은 클래스 · 인라인 style 0)
  *   U4 wireRedactSection — input=라이브, change=적용 «뒤» pushHistory(push-after), onCommit 문
- *   U5 배선 자리(소스): prop-asset 절 위치 · clearAssetImage 끔 · ASSET_FX_DS_KEYS · capture-safety 명부 · CSS 규칙 · Figma 덮개
+ *   U5 배선 자리(소스): prop-asset 에 옛 절 0 · Effects 식구 「블러」(js/effects-blur.js · index.html) · clearAssetImage 끔 · ASSET_FX_DS_KEYS · capture-safety 명부 · CSS 규칙 · Figma 덮개
  * ★음성대조(쓴 이가 정한 것 · 안 돌렸다): REDACT_MAX_PX 20 → 21 ⇒ U1 「100 → 20」 빨강.
  */
 import test from 'node:test';
@@ -119,18 +119,29 @@ test('U4 wireRedactSection — input 라이브 · change 는 적용 «뒤» push
 });
 
 test('U5 배선 자리 — 패널·제거·스크래치·h2c·CSS·Figma', () => {
+  /* ★2026-10-26 1012t1C1(이동) — 에셋 블러의 입구는 따로 절이 아니라 «Effects 드롭다운의 「블러」»다(js/effects-blur.js).
+     ⇒ 옛 기대(「그레인 아래 · Effects 위」 따로 절 + prop-asset 의 wireRedactSection)를 «옛 절 0 + 명부 식구»로 바꿨다.
+     ⛔약하게 만든 것이 아니다 — 같은 자리(prop-asset)를 «없어야 한다»로 재고, 새 입구를 따로 잰다. */
   const asset = readSrc(ROOT, 'js', 'props', 'prop-asset.js');
   const iGrain = asset.indexOf('id="asset-grain-number"');
-  const iRedact = asset.indexOf("redactSectionHTML({ idPrefix: 'asset'");
   const iFx = asset.indexOf("window.fxSectionHtml?.(ab, 'asset')");
-  assert.ok(iGrain > 0 && iRedact > 0 && iFx > 0, `하네스가 늙었다 — 자리를 못 찾았다 grain ${iGrain} redact ${iRedact} fx ${iFx}`);
-  assert.ok(iGrain < iRedact && iRedact < iFx, '블러 절이 «그레인 아래 · Effects 위»가 아니다');
-  assert.match(asset, /if \(hasImage\) wireRedactSection\(\{ idPrefix: 'asset', getHost: \(\) => ab \}\)/);
+  assert.ok(iGrain > 0 && iFx > 0, `하네스가 늙었다 — 자리를 못 찾았다 grain ${iGrain} fx ${iFx}`);
+  assert.ok(iGrain < iFx, 'Effects 절이 그레인 아래가 아니다');
+  assert.doesNotMatch(asset, /redactSectionHTML|wireRedactSection/, '옛 «블러 (Redact)» 따로 절이 prop-asset 에 남았다(두 곳)');
+  const fxb = readSrc(ROOT, 'js', 'effects-blur.js');
+  assert.match(fxb, /registerFxType\(\{\s*key: 'blur',\s*label: '블러',/, '명부 식구 「블러」 가 없다');
+  assert.match(fxb, /import \{ applyRedact, readRedact, normalizeRedact \} from '\.\/effects\/image-redact\.js'/, '블러 카드가 공용 모듈(같은 저장 키)을 안 쓴다');
+  assert.match(fxb, /supports: \(el\) => !!\(el && el\.classList && el\.classList\.contains\('asset-block'\) && el\.classList\.contains\('has-image'\)\)/, '대상이 «그림 든 에셋»이 아니다');
+  const idx = readSrc(ROOT, 'index.html');
+  const iReg = idx.indexOf('<script type="module" src="js/effects-registry.js">');
+  const iBlur = idx.indexOf('<script type="module" src="js/effects-blur.js">');
+  assert.ok(iReg > 0 && iBlur > iReg, 'index.html 이 effects-blur.js 를 명부 뒤에 안 싣는다');
 
   const ih = readSrc(ROOT, 'js', 'image-handling.js');
   const clr = ih.slice(ih.indexOf('function clearAssetImage(ab)'), ih.indexOf('ab.innerHTML = `', ih.indexOf('function clearAssetImage(ab)')));
   assert.ok(clr.length > 50, '하네스가 늙었다 — clearAssetImage 를 못 찾았다');
   assert.match(clr, /applyRedact\(ab, 0\)/, '이미지 제거가 블러를 안 걷는다 — 다음 그림이 말없이 흐려진다');
+  assert.match(clr, /delete ab\.dataset\.redactOff;/, '이미지 제거가 «눈 끈 블러»(redactOff)를 안 걷는다 — 다음 그림에 끈 블러 카드가 붙는다(1012t1C1 이동)');
   assert.match(ih, /const ASSET_FX_DS_KEYS = \[[^\]]*'redact'[^\]]*\]/, '스크래치 이동이 블러를 안 담는다');
   assert.match(ih, /if \(ds\.redact != null\) applyRedact\(ab, ds\.redact\)/, '되얹을 때 변수까지 쓰지 않는다');
 

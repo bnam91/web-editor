@@ -86,6 +86,13 @@ const _rgba = ({ color, op }) => {
 const _css = (fx) => `drop-shadow(${fx.x}px ${fx.y}px ${fx.blur}px ${_rgba(fx)})`;
 
 /** 우리가 걷어서 style 이 «빈 속성»만 남으면 속성째 지운다 — ✕ 뒤 outerHTML 이 켜기 전과 바이트 같게. */
+/** ★t5-13ⓐ(2026-10-26 S3) — 키 묶음(dataset 꼴 · 그리드 원 «줄»의 같은 이름 필드) → filter 값. 켜져 있지 않으면 ''.
+ *  ★그리드 렌더러(js/blocks/grid-block.js 원 갈래)가 window 창구로 «이 식»을 빌린다 — ⛔식을 거기 다시 적지 않는다(두 벌 금지). */
+export function fxShadowFilterOf(keys) {
+  const fx = fxShadowOf({ dataset: keys || {} });
+  return fx.state === 'on' ? _css(fx) : '';
+}
+
 function _dropEmptyStyle(el) { if (el && el.getAttribute && el.getAttribute('style') === '') el.removeAttribute('style'); }
 
 /** 데이터 → 화면. ★키 없음·흔적 없음 = 아무것도 안 만진다(옛 문서 바이트 동일). */
@@ -179,7 +186,8 @@ registerFxType({
   key: 'shadow',
   label: '그림자',
   /* ★도형·에셋·프레임만 — 텍스트는 제 「Shadow」 절이 있다(위 머리말). ⛔허용 목록으로 적는다(막는 목록은 블럭이 늘면 샌다). */
-  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block'))),
+  /* ★t5-13ⓐ — 그리드 칸 «원형 이미지»(.grd-img-circle)도 받는다. 패널(js/props/prop-grid.js)이 그 줄의 키를 담은 대리를 넘긴다. */
+  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block') || el.classList.contains('grd-img-circle'))),
   has:  (el) => fxShadowOf(el).state !== 'none',
   add:  (el) => setFxShadow(el, { state: 'on' }),
   card: _shadowCardHtml,
@@ -187,5 +195,5 @@ registerFxType({
 });
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { fxShadowOf, applyFxShadow, setFxShadow, FX_SHADOW_KEYS, FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES });
+  Object.assign(window, { fxShadowOf, applyFxShadow, setFxShadow, fxShadowFilterOf, FX_SHADOW_KEYS, FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES });
 }

@@ -140,6 +140,9 @@
 .layer-eye-btn svg { width: 12px; height: 12px; }
 .layer-eye-btn:hover { color: var(--ui-text-sub); }
 .layer-section-header:hover .layer-eye-btn { display: flex; }
+/* t3-06 ㉱ 메모가 있는 섹션 행의 📝 (js/section-memo-view.js syncLayerHeader · 눈 단추 앞) */
+.layer-memo-ico { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; color: #f59e0b; }
+.layer-memo-ico svg { width: 11px; height: 11px; }
 .layer-section-hidden .layer-eye-btn { display: flex; color: var(--ui-border-strong); }
 .layer-section-hidden .layer-section-name { color: var(--ui-text-dim); text-decoration: line-through; }
 

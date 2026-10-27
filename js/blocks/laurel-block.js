@@ -309,6 +309,10 @@ function renderLaurelBlock(block) {
   block.style.gridTemplateRows     = `repeat(${rows}, auto)`;
   block.style.columnGap            = (parseInt(block.dataset.gridColGap) || 32) + 'px';
   block.style.rowGap               = (parseInt(block.dataset.gridRowGap) || 24) + 'px';
+  /* ★t5-10 「월계수 블럭도 패딩제외 옵션 넣어줄 것」(2026-10-26 S3) — 「패딩 제외」(dataset.fullBleed) 이식.
+     ★본 = 배너2 렌더의 같은 한 줄(js/blocks/banner02-block.js) · 부품 = js/drag-utils.js applyBlockFullBleed.
+     매 렌더 다시 씌운다(패널에서만 씌우면 다음 렌더·로드에 조용히 풀린다 — chat-block 이 같은 자리에 둔 까닭). 키 없으면 no-op. */
+  window.applyBlockFullBleed?.(block);
   // 이스터에그 텍스트 효과 재적용 — dataset.textEffect가 있으면 신규생성/프로젝트로드
   // (rebindAll에서 renderLaurelBlock 호출)/update 모든 리렌더 경로에서 자동 유지된다.
   // renderLaurelBlock이 단일 진입점이라 text-block의 MutationObserver(ensureTextEffect) 불필요.

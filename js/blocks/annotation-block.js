@@ -34,6 +34,17 @@ const ANNOT_DEFAULTS = {
   labelBorderStyle: 'solid',     // 'solid' | 'dashed' | 'dotted'
   labelBorderWidth: 1,           // border 두께 (px)
   labelPad:        null,         // ★1017t1h5 — 라벨 여백(px, 0..24, 사방 동일). null = CSS 기본(4px 8px) 유지 — 안 건드리면 키를 안 단다.
+  /* ★1013t2C6 「라벨 너비도 조절이 되면 좋겠다 · 라벨박스에도 핸들 · 첨에는 모서리 라운드를 주지말 것」 — labelPad 와 같은 꼴.
+     labelWidth  = 라벨 상자 너비(px · 테두리 포함 · ANNOT_LIMITS.labelWidth). null = 글 길이만큼(옛 동작 · 키 없음).
+                   정하면 그 너비에서 글이 접힌다(white-space: pre-wrap — 명시한 줄바꿈은 그대로).
+     labelRadius = 라벨 모서리(px · 0..50). null = CSS 기본(4px) — 키가 없는 «옛 저장본»은 그대로 4px 다.
+                   ★택일5(f2ab25cc · 261022 현빈 msg5223 ⒝ 「기본값은 지금처럼 유지(0 으로 안 돌림)」)의 «치수선 라벨 모서리» 칸과
+                   ★같은 키 하나다(합침 261026) — 폭은 그쪽 0..50(라벨그룹 «모서리»와 같은 꼴), 기본 null(4px) 도 그쪽 그대로.
+                   치수선은 만들 때 이 키를 안 넘긴다 ⇒ 치수선 라벨은 4px 로 태어난다(택일5) · 펜 어노테이션만 0(1013t2C6 ⓒ).
+                   ⛔여기 기본값을 0 으로 두지 마라 — rebindAll 이 키 없는 옛 저장본을 이 기본으로 다시 그린다.
+                   «새로 만든» 라벨의 0 은 펜툴(js/annotation-tool.js)이 만들 때 넘긴다. */
+  labelWidth:      null,
+  labelRadius:     null,
 
   /* ★★t3-01 사이즈 스티커(치수선) — ★`annotKind: 'dim'` 일 때만 쓰인다.
      ⛔그 표식이 없으면 ★이 칸들은 ★한 번도 읽히지 않고 ★기존 어노테이션은 ★한 글자도 안 달라진다.
@@ -108,7 +119,9 @@ window.annotLabelHtmlToStore = annotLabelHtmlToStore;
    ⛔style 에서 translate 는 «맨 끝»이다 — makeAnnotationBlock 도, 라이브 쓰기(annotApplyLabelOffset)도.
      순서가 갈리면 다시 그린 라벨과 라이브 라벨의 style 문자열이 달라 ⌘Z 유령 칸이 난다(아래 F2 주석과 같은 병). */
 const ANNOT_LIMITS = { labelDx: { min: -600, max: 600 }, labelDy: { min: -600, max: 600 },
-  anchorRot: { min: -180, max: 180 } };   // ★1013t2C7 — 시작점 회전(°) · −180..180 으로 감는다
+  anchorRot: { min: -180, max: 180 },   // ★1013t2C7 — 시작점 회전(°) · −180..180 으로 감는다
+  labelWidth: { min: 24, max: 1200 },   // ★1013t2C6 — 라벨 너비(px)
+  labelRadius: { min: 0, max: 50 } };   // ★1013t2C6 · 택일5 — 라벨 모서리(px · 택일5 «모서리» 칸 0~50 과 같은 폭)
 window.ANNOT_LIMITS = ANNOT_LIMITS;
 function _annClampOff(v, key) {
   const n = Math.round(Number(v));
@@ -147,6 +160,36 @@ function annotResetLabelOffset(block) {
   return annotSetLabelOffset(block, 0, 0);
 }
 Object.assign(window, { annotLabelOffsetOf, annotLabelIsManual, annotApplyLabelOffset, annotSetLabelOffset, annotResetLabelOffset });
+
+/* ★1013t2C6 — 라벨 너비·모서리 «값 한 벌». null(키 없음) = 옛 동작. 범위 밖은 범위로 자른다. */
+function annotClampLabelBox(v, key) {
+  if (v == null || v === '') return null;
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return null;
+  return Math.min(ANNOT_LIMITS[key].max, Math.max(ANNOT_LIMITS[key].min, n));
+}
+/* 라벨 상자 꾸밈(너비·모서리)을 라이브 라벨에 칠한다 — 팩토리 인라인과 «같은 값»(패널·손잡이 끌기가 부른다).
+   이미지 모드는 상자 = 그림 크기(labelImageSize)·라운드(labelImageRadius)라 여기선 안 만진다. */
+function annotApplyLabelBox(block) {
+  const label = block?.querySelector?.('.annot-label');
+  if (!label || block.dataset.labelMode === 'image') return;
+  const w = annotClampLabelBox(block.dataset.labelWidth, 'labelWidth');
+  const r = annotClampLabelBox(block.dataset.labelRadius, 'labelRadius');
+  /* ★순서를 팩토리와 맞춘다(F2 — 다시 그린 라벨과 라이브 라벨의 style 문자열이 같아야 ⌘Z 유령 칸이 안 난다):
+     … padding · width · box-sizing · white-space · border-radius · translate. 나중에 붙은 padding 이 뒤로 밀려 있을 수 있어
+     padding 부터 떼고 다시 붙인다(값은 그대로). */
+  const pad = label.style.padding;
+  ['padding', 'width', 'box-sizing', 'white-space', 'border-radius'].forEach((k) => label.style.removeProperty(k));
+  if (pad) label.style.padding = pad;
+  if (w != null) {
+    label.style.width = w + 'px';
+    label.style.boxSizing = 'border-box';
+    label.style.whiteSpace = 'pre-wrap';
+  }
+  if (r != null) label.style.borderRadius = r + 'px';
+  annotApplyLabelOffset(block);   // translate 는 «맨 끝»(위 머리말)
+}
+Object.assign(window, { annotClampLabelBox, annotApplyLabelBox });
 
 /* ★1013t2C7 — 시작점(삼각형·화살촉) «회전». A3 라벨 위치와 같은 길이다.
    뜻: 자동 방향(첫 선분의 각 · _calcAnchorAngle)에 «더하는» 각(°). 선을 움직이면 화살촉이 따라 돈다.
@@ -416,6 +459,8 @@ function makeAnnotationBlock(opts = {}) {
   const labelBorderStyle = opts.labelBorderStyle ?? ANNOT_DEFAULTS.labelBorderStyle;
   const labelBorderWidth = _dimLabelDefault('labelBorderWidth', 0);
   const labelPad         = opts.labelPad         ?? ANNOT_DEFAULTS.labelPad;   // ★1017t1h5
+  const labelWidth       = annotClampLabelBox(opts.labelWidth  ?? ANNOT_DEFAULTS.labelWidth,  'labelWidth');    // ★1013t2C6
+  const labelRadius      = annotClampLabelBox(opts.labelRadius ?? ANNOT_DEFAULTS.labelRadius, 'labelRadius');
   const labelDx          = _annClampOff(opts.labelDx ?? 0, 'labelDx');   // ★1013t1A3
   const labelDy          = _annClampOff(opts.labelDy ?? 0, 'labelDy');
   const anchorRot        = _annWrapRot(opts.anchorRot ?? 0);           // ★1013t2C7
@@ -465,6 +510,8 @@ function makeAnnotationBlock(opts = {}) {
   if (labelDy !== 0) block.dataset.labelDy = String(labelDy);
   if (anchorRot !== 0) block.dataset.anchorRot = String(anchorRot);   // ★1013t2C7 — 0 이면 키 없음(= 자동 방향)
   if (labelPad != null) block.dataset.labelPad = String(labelPad);   // ★1017t1h5 — null 이면 키 없음(= CSS 기본 4px 8px 유지)
+  if (labelMode !== 'image' && labelWidth != null) block.dataset.labelWidth = String(labelWidth);     // ★1013t2C6 — null 이면 키 없음(= 글 길이)
+  if (labelMode !== 'image' && labelRadius != null) block.dataset.labelRadius = String(labelRadius);  // ★1013t2C6 — null 이면 키 없음(= CSS 4px)
   /* ★1017t1h3 — 서식이 ★없으면 키를 ★안 단다(= 옛 저장본과 ★같은 바이트). 이미지 모드엔 ★글이 없다.
      ⛔순서는 ANNOT_DATA_KEYS 의 ★마지막과 ★같아야 한다(위 F2 주석 — 직렬화 문자열이 갈리면 ⌘Z 유령 칸이 난다). */
   /* ★★t3-01 — ★표식이 ★있을 때만 ★다른 그림을 낸다. ⛔없으면 ★아래가 ★예전 그대로다(회귀 0 · 검사가 그 축을 잰다). */
@@ -543,6 +590,9 @@ function makeAnnotationBlock(opts = {}) {
     // ★1017t1h5 — 사용자가 「여백」을 건드렸을 때만 사방 동일 padding 으로 CSS 기본(4px 8px)을 이긴다.
     labelStyle += `padding:${labelPad}px;`;
   }
+  /* ★1013t2C6 — 너비·모서리. 순서 = annotApplyLabelBox 가 쓰는 순서(width · box-sizing · white-space · border-radius) */
+  if (labelMode !== 'image' && labelWidth != null) labelStyle += `width:${labelWidth}px;box-sizing:border-box;white-space:pre-wrap;`;
+  if (labelMode !== 'image' && labelRadius != null) labelStyle += `border-radius:${labelRadius}px;`;
   // ★1013t1A3 — 개별 위치는 «맨 끝»(annotApplyLabelOffset 과 같은 자리)
   if (labelDx !== 0 || labelDy !== 0) labelStyle += `translate:${labelDx}px ${labelDy}px;`;
   const labelInner = _renderAnnotLabelInner(labelMode, { text, labelImageSrc, labelImageSize, labelImageRadius });
@@ -617,6 +667,8 @@ function annotPropsFromDataset(block) {
     labelBorderStyle: ds.labelBorderStyle || D.labelBorderStyle,
     labelBorderWidth: _annNum(ds.labelBorderWidth, D.labelBorderWidth),
     labelPad:         (ds.labelPad != null && ds.labelPad !== '') ? _annNum(ds.labelPad, D.labelPad) : D.labelPad,   // ★1017t1h5 — 키 없으면 null(CSS 기본)
+    labelWidth:       annotClampLabelBox(ds.labelWidth, 'labelWidth'),     // ★1013t2C6 — 키 없으면 null(글 길이)
+    labelRadius:      annotClampLabelBox(ds.labelRadius, 'labelRadius'),   // ★1013t2C6 — 키 없으면 null(CSS 4px · 옛 저장본)
     labelDx:          annotLabelOffsetOf(block).dx,   // ★1013t1A3 — 안 읽으면 리로드·⌘Z 복원 때 오프셋이 화면에서 사라진다
     labelDy:          annotLabelOffsetOf(block).dy,
     anchorRot:        annotAnchorRotOf(block),        // ★1013t2C7 — 안 읽으면 리로드·⌘Z 복원 때 회전이 사라진다
@@ -645,7 +697,7 @@ window.annotPropsFromDataset = annotPropsFromDataset;
      ★JSON.parse 로 읽는다(2026-10-21 에 ★그 함정을 밟아 ★두 벌이 SyntaxError 로 빨개졌다). */
 const ANNOT_DATA_KEYS = ['points', 'anchorX', 'anchorY', 'labelX', 'labelY', 'text', 'strokeColor', 'strokeWidth',
   'anchorShape', 'anchorSize', 'labelFontSize', 'labelColor', 'labelBg', 'labelBorderColor', 'labelMode',
-  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad',
+  'labelBorderStyle', 'labelBorderWidth', 'labelImageSrc', 'labelImageSize', 'labelImageRadius', 'labelDx', 'labelDy', 'anchorRot', 'labelPad', 'labelWidth', 'labelRadius',
   'annotKind', 'dimAxis', 'dimOffset', 'dimSlide', 'dimGap', 'dimOver', 'dimShowExt', 'dimLabelLift', 'dimUnit', 'dimExtStyle', 'dimA', 'dimB',
   'labelHtml'];   // ★1017t1h3 — 팩토리가 «맨 끝»에 쓴다(순서 = 팩토리 순서)
 window.ANNOT_DATA_KEYS = ANNOT_DATA_KEYS;

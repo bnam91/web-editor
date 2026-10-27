@@ -17,7 +17,7 @@ import { resizeColBoundary, resizeRowHeight, resizeGridImage,
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
 import { getGridModel, gridCols, gridRows, gridPreviewLine,
-         moveGridRow, moveGridCol, gridColLabel, gridRowLabel } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
+         moveGridRow, moveGridCol, gridColLabel, gridRowLabel, getGridCellPadY } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
@@ -32,6 +32,7 @@ import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZON
    핸들은 100 에서 막아, 60px 블럭을 1px 만 끌어도 다시 100 으로 올라앉는다(T-075 ㉠).
    asset-width-limits.js 는 import 가 없는 «잎» 모듈이라 순환 걱정도 없다. */
 import { ASSET_W_MIN } from './blocks/asset-width-limits.js';
+import { CVB_H_MIN, CVB_H_MAX } from './blocks/card-limits.js';   // t5-16 카드 행 끌기 clamp = updateCanvasBlock 의 자(⛔그리드 행 높이와 다른 물건)
 
 /* ═══════════════════════════════════
    FRAME RESIZE HANDLE OVERLAY
@@ -2192,6 +2193,11 @@ function _onGridColMouseDown(e, block, i) {
   const startX = e.clientX;
   // ★드래그 «시작 직전» 1회만(mousedown) — mousemove 마다 쌓이면 undo 가 픽셀 단위로 끊긴다.
   window.pushHistory?.();
+  /* ★165 ㉮(지디 22:43 · 156 꼴 overlay-float.js deferAutoSave) — 끄는 동안 자동저장·유휴 썸네일을 «미룬다».
+     실측(fa57bed6 · 수지 사본 · 행 거터 30s 끌기 ×6): 썸네일 html2canvas 가 마우스 눌린 채 시작 · 그때 _autoSaveDeferred·_suppressAutoSave 둘 다 false
+     ⇒ save-load.js scheduleIdleThumbnail 의 «바쁨» 칸이 이 제스처를 몰랐다. 재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js — 그 뒤엔 찍힐 수 있다 = 설계). */
+  window.deferAutoSave?.();
+  let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
     const scale = _canvasScaleNow(); // 드래그 중 줌이 바뀌는 경우까지 방어(매 move 재조회)
@@ -2201,7 +2207,9 @@ function _onGridColMouseDown(e, block, i) {
     cols[i].width = r.leftWeight;
     cols[i + 1].width = r.rightWeight;
     block.dataset.cols = JSON.stringify(cols);
-    window.renderGridBlock?.(block);
+    /* ★132 — 행 끌기와 같은 길(같은 previewGridTracks): 끄는 동안 트랙 글자만 · 칸 다시 짓기는 onUp 에서 한 번 */
+    if (window.previewGridTracks?.(block)) moved = true;
+    else window.renderGridBlock?.(block);
     _updateGridGutterPositions();
     // 패널이 열려 있으면 비율 입력값만 갱신 — 패널 재렌더 금지(포커스/드래그 중단 방지,
     // prop-grid.js 의 «드래그 중 패널 재렌더 금지» 규약과 동일, PLAN §4 끝줄).
@@ -2218,10 +2226,13 @@ function _onGridColMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★132 — 끄는 동안 미리보기만 했으면 정본 렌더 «한 번»(끝 표본보다 앞 — 표본이 정본 DOM 을 찍는다). */
+    if (moved) { window.renderGridBlock?.(block); _updateGridGutterPositions(); }
     /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
        표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
        그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
     window.pushHistory?.();
+    window.resumeAutoSave?.();   // ★165 ㉮ — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2241,9 +2252,17 @@ function _onGridRowMouseDown(e, block, i) {
   const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
 
   const scale0 = _canvasScaleNow();
-  const startH0 = elA.getBoundingClientRect().height / scale0; // 'auto' 행도 «지금 렌더된» 높이에서 시작
+  /* 'auto' 행도 «지금 렌더된» 높이에서 시작 — ★t4-13 「쾌적하지 않음」: 렌더된 칸 높이엔 칸 위아래 여백(cellPadY ×2)이 들어 있는데
+     행 높이 값은 그 여백을 «뺀» 몫이다(트랙 최소 = H + 2×cellPadY · grid-block.js gridTrackMin 한 식). 빼지 않으면 첫 움직임에
+     여백 ×2 만큼 튀었다(같은 꼴 실측: cellPadY 40 · 3px 끌기 → 칸 115→203 · 수지 원 블럭 441→584). ⇒ 같은 식의 거꾸로로 시작값을 잡는다. */
+  const startH0 = Math.max(0, elA.getBoundingClientRect().height / scale0 - 2 * (getGridCellPadY(block) || 0));
   const startY = e.clientY;
   window.pushHistory?.(); // ★드래그 «시작 직전» 1회만
+  /* ★165 ㉮(지디 22:43 · 156 꼴 overlay-float.js deferAutoSave) — 끄는 동안 자동저장·유휴 썸네일을 «미룬다».
+     실측(fa57bed6 · 수지 사본 · 행 거터 30s 끌기 ×6): 썸네일 html2canvas 가 마우스 눌린 채 시작 · 그때 _autoSaveDeferred·_suppressAutoSave 둘 다 false
+     ⇒ save-load.js scheduleIdleThumbnail 의 «바쁨» 칸이 이 제스처를 몰랐다. 재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js — 그 뒤엔 찍힐 수 있다 = 설계). */
+  window.deferAutoSave?.();
+  let moved = false;   // ★132 — 미리보기로만 바꾼 틱이 있었나(있으면 onUp 에서 정본 렌더 한 번)
 
   function onMove(ev) {
     const scale = _canvasScaleNow();
@@ -2251,7 +2270,9 @@ function _onGridRowMouseDown(e, block, i) {
     const h = resizeRowHeight(startH0, delta);   // ★min/max 는 모듈 기본값(ROW_H_MIN/ROW_H_MAX) — 여기 리터럴 2000 이 상한을 «혼자» 절반으로 깎고 있었다
     rows[i] = { height: h };
     block.dataset.rows = JSON.stringify(rows);
-    window.renderGridBlock?.(block);
+    /* ★132 — 끄는 동안은 트랙 글자만(previewGridTracks) · 칸 다시 짓기는 onUp 에서 한 번. 미리보기가 못 하는 판(배경 그림 칸)은 옛 길 그대로. */
+    if (window.previewGridTracks?.(block)) moved = true;
+    else window.renderGridBlock?.(block);
     _updateGridGutterPositions();
     // 패널이 열려 있으면 그 행의 입력값만 갱신 — 패널 재렌더 금지(열 경계와 동일 원칙).
     const rowInput = document.querySelector(`.grd-row-h-item[data-ri="${i}"]`);
@@ -2262,10 +2283,13 @@ function _onGridRowMouseDown(e, block, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    /* ★132 — 끄는 동안 미리보기만 했으면 정본 렌더 «한 번»(끝 표본보다 앞 — 표본이 정본 DOM 을 찍는다). */
+    if (moved) { window.renderGridBlock?.(block); _updateGridGutterPositions(); }
     /* ★끝 상태도 찍는다 — 시작(mousedown)만 찍으면 «다음»이 push-after 동작일 때 그 사이의
        표본이 없어 ⌘Z 한 번이 둘을 같이 먹는다(js/drag-history.js). 안 움직였으면 캔버스가
        그대로라 history.js 의 무변화 차단이 버린다 = 맨클릭 중복 항목도 같이 사라진다. */
     window.pushHistory?.();
+    window.resumeAutoSave?.();   // ★165 ㉮ — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -2865,6 +2889,114 @@ function _onCmpRowMouseDown(e, block, ci, ri) {
 
 window.showCmpGutters = showCmpGutters;
 window.hideCmpGutters = hideCmpGutters;
+
+/* ═══ ★t5-16 카드블럭 «행 경계 드래그» (2026-10-26 · S7) ═══════════════════════════════════════════════
+ * 현빈 원문: 「카드블럭이 결국 그리드블럭과 구조가 같은거 아닌가? 그렇다면 카드블럭도 로우 경계에 마우스로 칸 높이 조절 가능하게 해줘.」
+ * ★꼴 = 비교 블록 행 경계 거터(showCmpGutters · _onCmpRowMouseDown) 그대로: 고른 동안만 사는 .cvb-gutter(#ss-handles-overlay · 8px ·
+ *   cursor row-resize · z 97) · rAF 로 자리 따라감 · 해제는 editor.js deselectAll · 이력 = 시작 직전 1회 + 끝 1회.
+ * ★무엇을 바꾸나 = 카드 높이 «하나»(dataset.canvasH · 패널 「높이」 칸 #cvb-h 와 같은 값 · CVB_H_MIN~CVB_H_MAX(js/blocks/card-limits.js) = updateCanvasBlock 의 자).
+ *   ⛔그리드처럼 «위 행만»을 하지 않았다 — 카드 블럭은 모든 카드가 한 크기(canvasH)인 모델이라(renderCanvas: cellY = r × (designH + GAP))
+ *   행마다 다른 높이는 «새 자료 꼴»이다(rowHeights 류) ⇒ 그 길은 현빈 결정으로 남긴다(보고서 · CARD-PER-ROW-HEIGHT-NOT-MODELED-01).
+ *   ⇒ 경계 r|r+1 을 끌면 모든 행이 같이 자라고, «끄는 그 경계»가 손을 따라가게 Δ높이 = Δ화면 ÷ ((r+1) × 배율).
+ * ★단순 카드(cardMode=simple)만 — 레이어 모드(Figma 들여온 자유배치)는 행이 없다. 행이 하나면 경계가 없다(거터 0). */
+let _cvbGutterBlock = null;
+let _cvbGutterRafId = null;
+const _cvbGeom = (block) => {
+  const rows = parseInt(block.dataset.gridRows) || 1;
+  const H = parseInt(block.dataset.canvasH) || 400;
+  const GAP = parseInt(block.dataset.cardGap ?? '12');
+  const totalH = H * rows + GAP * (rows - 1);
+  const br = block.getBoundingClientRect();
+  return { rows, H, GAP, br, s: totalH > 0 ? br.height / totalH : 0 };   // s = 디자인 px → 화면 px
+};
+function showCvbGutters(block) {
+  if (!block || block.dataset.cardMode !== 'simple') { hideCvbGutters(); return; }
+  const { rows } = _cvbGeom(block);
+  const need = Math.max(0, rows - 1);
+  if (_cvbGutterBlock === block) {
+    const ovl = _getOverlay();
+    if ((ovl ? ovl.querySelectorAll('.cvb-gutter').length : 0) === need) { _updateCvbGutterPositions(); return; }
+  }
+  hideCvbGutters();
+  if (!need) return;
+  _cvbGutterBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  for (let r = 0; r < need; r++) {
+    const g = document.createElement('div');
+    g.className = 'cvb-gutter';
+    g.dataset.axis = 'row';
+    g.dataset.i = String(r);
+    g.style.cssText = 'position:absolute;height:8px;cursor:row-resize;z-index:97;pointer-events:auto;';
+    overlay.appendChild(g);
+    g.addEventListener('mousedown', e => _onCvbRowMouseDown(e, block, r));
+    _wireGutterContextMenu(g, block);
+  }
+  _updateCvbGutterPositions();
+  _startCvbGutterRaf();
+}
+function hideCvbGutters() {
+  if (_cvbGutterRafId) { cancelAnimationFrame(_cvbGutterRafId); _cvbGutterRafId = null; }
+  _cvbGutterBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.cvb-gutter').forEach(g => g.remove());
+}
+function _startCvbGutterRaf() {
+  function loop() {
+    if (!_cvbGutterBlock) return;
+    if (!_cvbGutterBlock.isConnected || !_cvbGutterBlock.classList.contains('selected')) { hideCvbGutters(); return; }
+    _updateCvbGutterPositions();
+    _cvbGutterRafId = requestAnimationFrame(loop);
+  }
+  _cvbGutterRafId = requestAnimationFrame(loop);
+}
+function _updateCvbGutterPositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_cvbGutterBlock) return;
+  const { H, GAP, br, s } = _cvbGeom(_cvbGutterBlock);
+  overlay.querySelectorAll('.cvb-gutter').forEach(g => {
+    const r = Number(g.dataset.i);
+    const cy = br.top + ((r + 1) * H + r * GAP + GAP / 2) * s;   // 두 행 사이 gap 의 중앙
+    const t = Math.max(GUT_MIN_TOTAL, Math.min(8, GAP * s));
+    g.style.top = (cy - t / 2) + 'px';
+    g.style.height = t + 'px';
+    g.style.left = br.left + 'px';
+    g.style.width = br.width + 'px';
+  });
+}
+function _onCvbRowMouseDown(e, block, r) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const g0 = _cvbGeom(block);
+  if (!(g0.s > 0)) return;
+  const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
+  const startY = e.clientY;
+  const H0 = g0.H;
+  window.pushHistory?.();   // ★드래그 «시작 직전» 1회만(비교 거터와 같은 규약)
+  function onMove(ev) {
+    const { s } = _cvbGeom(block);   // 배율은 폭이 정한다(높이와 무관) — 줌이 바뀌는 경우까지 매 move 재조회
+    if (!(s > 0)) return;
+    const h = Math.round(Math.max(CVB_H_MIN, Math.min(CVB_H_MAX, H0 + (ev.clientY - startY) / ((r + 1) * s))));
+    if (String(h) === block.dataset.canvasH) return;
+    block.dataset.canvasH = String(h);
+    window.renderCanvas?.(block);
+    _updateCvbGutterPositions();
+    const inp = document.getElementById('cvb-h');   // 패널이 열려 있으면 그 칸만 되쓴다(⛔패널 재렌더 금지)
+    if (inp) inp.value = String(h);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    restoreDrag();
+    window.pushHistory?.();   // ★끝 상태 — 안 움직였으면 무변화 차단이 버린다
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showCvbGutters = showCvbGutters;
+window.hideCvbGutters = hideCvbGutters;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GRID 이미지/아이콘 줄 — 코너 리사이즈 핸들 (T-C, 2026-09-16)
@@ -3996,6 +4128,9 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   const sec = posEl.closest('.section-block');
   const snap = _tfoFontSnapshot(posEl);
   const iconSnap = _tfoIconSnapshot(posEl);
+  /* ★t7-05 — 자유변형이 걸린 글상자면 네 점·재는 폭을 «시작 값»으로 떠 둔다(아래 onMove 가 같은 k 로 곱한다 · js/effects-freetransform.js ftScaleBase). */
+  const _ftTb = posEl.matches?.('.text-block[data-tf-corners]') ? posEl : posEl.querySelector?.('.text-block[data-tf-corners]');
+  const _ftBase = _ftTb ? window.ftScaleBase?.(_ftTb) : null;
   /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
      ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
        `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
@@ -4080,6 +4215,8 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
     posEl.style.maxWidth = 'none';
     posEl.dataset.overlayFreeWidth = 'true';
     snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
+    /* ★t7-05 — 글자와 «같은 k» 로 자유변형(네 점·상자·보라 테두리·격자)을 다시 맞춘다. 높이를 «재기 전»에 둔다(상자가 글자를 감싼 뒤 잰다). */
+    if (_ftBase) window.ftScaleTo?.(_ftTb, _ftBase, k);
     /* ★아이콘 칸도 «같은 k» — 현빈 2026-09-21 결정. 글자와 한 줄 차이로 붙여 두는 이유는
        배율이 갈라지지 않게 하기 위해서다(회귀: 글자·아이콘 배율 오차 <1%).
        ⚠️하한 — k 가 아주 작아도 0px 이나 음수가 되면 칸이 사라진다(줄이기 드래그).

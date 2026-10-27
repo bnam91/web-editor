@@ -82,13 +82,31 @@ export function needsBgLayer(host) {
  *  ★`rot` — 편집 중 회전의 한 자리(proxy.dataset.imgRotate)를 ★인자로 받는다(b1a).
  *  ⛔dataset.bgRotate 에 베끼지 않는다(명부 셋 금지) — 저장 키는 beforeCommit 한 자리가 쓴다.
  *  생략하면 저장 키(dataset.bgRotate)를 읽는다(영구 자리 셋은 그대로). */
+/* ★1017t1k1 👉「로테이트는 됐는데 크롭되서? 프레임안에서만 보임」(2026-10-25 S3) —
+   ★옛 꼴은 레이어가 «프레임 크기 상자»(inset:0)째 «프레임 중심»을 축으로 돌았다:
+     ⑴ 손잡이·경계선(enterImageEditMode syncHandles)은 «그림 중심»을 축으로 돈다 ⇒ 그림을 옮긴 뒤 돌리면 둘이 어긋났다
+        (실측: 옮긴 (+80,+40) 만큼 축이 갈렸다 · tests/dom/t0-bg-rotate-ghost-1017t1k1 G3·G4).
+     ⑵ 그림 중 «프레임 상자 밖»에 있던 부분은 돌아 들어와도 안 그려졌다(상자가 그림을 먼저 자른다).
+   ⇒ 회전이 있고 크기·위치가 px 꼴이면 레이어 상자를 ★그림 상자 그대로(left/top/width/height) 두고 ★그 중심을 축으로 돌린다.
+     잘림은 바깥 .sec-bg-clip(프레임 · overflow:hidden) 한 자리가 맡는다. 회전이 없거나 키워드 꼴이면 ★옛 꼴 그대로(바이트 동일). */
+const _PX2 = (v) => { const m = String(v || '').trim().match(/^(-?[\d.]+)px\s+(-?[\d.]+)px$/); return m ? [parseFloat(m[1]), parseFloat(m[2])] : null; };
 function paintBgLayer(host, img, rot) {
   const src = host.dataset.bgImg || '';
   img.style.backgroundImage = src ? `url(${src})` : 'none';
-  img.style.backgroundSize = host.dataset.bgSize || 'cover';
-  img.style.backgroundPosition = host.dataset.bgPos || 'center';
   img.style.backgroundRepeat = 'no-repeat';
   const r = parseFloat(rot ?? host.dataset.bgRotate ?? 0) || 0;
+  const sz = _PX2(host.dataset.bgSize), ps = _PX2(host.dataset.bgPos);
+  if (r && sz && ps) {
+    img.style.inset = 'auto';
+    img.style.left = ps[0] + 'px'; img.style.top = ps[1] + 'px';
+    img.style.width = sz[0] + 'px'; img.style.height = sz[1] + 'px';
+    img.style.backgroundSize = '100% 100%';
+    img.style.backgroundPosition = '0px 0px';
+  } else {
+    img.style.inset = ''; img.style.left = ''; img.style.top = ''; img.style.width = ''; img.style.height = '';
+    img.style.backgroundSize = host.dataset.bgSize || 'cover';
+    img.style.backgroundPosition = host.dataset.bgPos || 'center';
+  }
   img.style.transform = r ? `rotate(${r}deg)` : '';
 }
 

@@ -1220,3 +1220,17 @@
 }
 .tpl-reco-chip:hover { border-color: #555; color: #ddd; }
 .tpl-reco-chip.on { background: var(--ui-accent-primary, #3a6ea5); border-color: transparent; color: #fff; }
+
+/* ★1013t2E2ⓑ2 섹션 메시 — 모서리별 스톱 막대. 막대·손잡이·× 는 컬러피커 그라데이션 탭의 것을 그대로 쓴다
+   (css/color-picker.css .goya-cp-gradient-bar · .goya-cp-grad-thumb · .goya-cp-grad-stop-del). 여기는 패널 줄 배치만. */
+.sec-mesh-stops {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  margin: 2px 0 4px;
+}
+.sec-mesh-stops .sec-mesh-bar {
+  flex: 1 1 auto;
+  margin: 0;
+  height: 18px;
+}

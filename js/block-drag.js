@@ -16,6 +16,7 @@ import {
   selectAllEditableContents,
   mdlReadText,
   placeCaretAtClickPoint,
+  bindGraphEdits,
 } from './drag-utils.js';
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 /* ★1020t1d — 화면 Δ → «담은 상자의 로컬» Δ. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다.
@@ -91,6 +92,40 @@ function _isInsideUnselectedFrame(block) {
   // text-frame은 선택 투명 — 클릭 시 바로 text-block 선택
   if (ss.dataset.textFrame === 'true') return false;
   return !(ss.classList.contains('selected') && window._activeFrame === ss);
+}
+
+/* ★113 ITB-PHOTO-UPLOAD-DOOR-01 — 아이콘 텍스트 블럭 «사진 올리기» 한 문(회귀 복구 · 현빈 GO ㉡).
+   본문은 옛 `.itb-icon` 클릭 업로드 블록을 «그대로» 뗀 것이다(3c676f79 가 `if (pop) return;` 으로 막아 폴백으로만 살았다).
+   ⛔새 문을 만들지 마라 — 부르는 곳 둘: ⑴ 아이콘 팝오버의 「사진 올리기」(openIfgIconPopover 넷째 인자) ⑵ 팝오버를 못 띄운 폴백.
+   ★이력 = «양쪽 끝»(시작·끝 표본 · js/CLAUDE.md 히스토리 규약). 113 B-3 실측: 삽입 직후처럼 꼭대기 == 라이브면
+     시작 표본은 무변화 중복 차단에 버려져 «올리기 뒤 상태»가 스택에 0칸이었다(⌘Z 는 undo 첫머리 구제로만 섰다)
+     ⇒ 끝 표본을 더해 올리기 한 번 = 이력 +1. · ⚠️파일창은 사용자 클릭 «안에서» 동기로 열어야 뜬다(input.click).
+   ★113 B-1 — 그림만 받는다: accept="image/*" 는 «권고»일 뿐(창에서 「모든 파일」로 바꿀 수 있다) ⇒ 읽은 뒤 data:image/ 가 아니면
+     ★버린다(토스트 · 이력 0 · imgSrc 무변). 전엔 text/plain 이 dataset.imgSrc 에 박혀 깨진 그림이 남았다.
+   ⬜ ITB-PHOTO-SIZE-UNCAPPED-01(지디/현빈) — 크기 상한은 «안» 건다. MCP 길(updateIconTextBlock 200000자)과 같은 상한이면
+     보통 사진이 막힌다. 그래서 6MB 도 그대로 들어간다 — 상한을 얼마로 둘지는 정해지지 않았다.
+   ★B-2 — 박는 꼴(img draggable=false · .has-image · 테두리 끔 · dataset.imgSrc)은 block-factory.js `itbApplyImgSrc` 한 곳(아이콘 길과 같은 함수). */
+function _itbPickPhoto(block) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const src = typeof ev.target.result === 'string' ? ev.target.result : '';
+      const iconEl = block.querySelector('.itb-icon');
+      if (!/^data:image\//i.test(src)) { window.showToast?.('그림 파일만 올릴 수 있습니다'); return; }
+      if (!iconEl || !window.itbApplyImgSrc) { window.showToast?.('사진을 넣지 못했습니다 — 잠시 뒤 다시 시도해 주세요'); return; }
+      window.pushHistory?.();                       // 시작 표본(옛 길 그대로)
+      window.itbApplyImgSrc(block, iconEl, src);
+      window.pushHistory?.();                       // ★끝 표본(B-3) — 양쪽 끝(js/CLAUDE.md 히스토리 규약)
+      window.triggerAutoSave?.();
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
 }
 
 /* D3 — 폭 100% 글자 프레임을 «내용 폭 px» 로 바꾸고 left 를 정렬만큼 옮긴다(보이는 글자 자리 불변). 옮긴 px 를 돌려준다.
@@ -399,8 +434,9 @@ function _zoomEndEdit(block, host) {
 
 /* ★t5-14 원형 이미지 줄 «안 글자» 캔버스 편집 — 진입·끝 한 쌍.
    ★저장 자리는 패널 «글자»(prop-grid.js #grd-img-ctext)와 같은 키 하나 — 그 줄의 `text`. 빈 글자 = 키 지움(그 칸과 같은 계약).
-   ★확정 = blur · Enter / 취소 = Esc(무변) — 선례 drag-utils.js _graphLabelBeginEdit 「Esc · 같은 글자 = 무변」.
-     Enter 는 줄바꿈이 아니라 확정이다 — 패널 칸이 한 줄(input)이고, 원 글자 여러 줄은 t5-12 몫이라 여기서 안 연다.
+   ★확정 = blur · ⌘/Ctrl+Enter / 취소 = Esc(무변) — 선례 drag-utils.js _graphLabelBeginEdit 「Esc · 같은 글자 = 무변」.
+   ★t5-12(현빈 「원형이미지에 글자는 … 현재는 우측패널에서만 한줄만 가능」) — Enter·⇧Enter = 줄바꿈(어노 라벨 annotation-select.js 와 같은 꼴).
+     줄은 그 줄 `text` 안의 \n 으로 산다(렌더러는 이미 white-space:pre-wrap) · 패널 「글자」 칸도 여러 줄(textarea).
    ★커밋은 _gridEndEdit 와 같은 꼴 — DOM 을 편집 «전»으로 되돌린 뒤 updateGridBlock(그 안의 pushHistory 가 직렬화를 찍는다 ⇒ ⌘Z 한 걸음).
    ★편집 테는 따로 안 그린다 — `#canvas .grid-block [contenteditable="true"]`(css/editor-blocks.css) 가 그리드 글자 줄과 같은 테를 준다. */
 function _gridCircleTextEndEdit(block, host, addr, commit, opts = {}) {
@@ -409,7 +445,7 @@ function _gridCircleTextEndEdit(block, host, addr, commit, opts = {}) {
   host.removeAttribute('draggable');
   block.classList.remove('editing');
   const before = host._gctBefore;
-  const text = mdlReadText(host).replace(/\n+/g, ' ');
+  const text = mdlReadText(host).replace(/\r\n?/g, '\n').replace(/\n+$/, '');   /* ★t5-12 — 줄바꿈을 살린다(꼬리 줄바꿈만 턴다) */
   if (before == null || !commit || text === before) {
     host.textContent = before == null ? host.textContent : before;   // 취소·무변 — 편집 흔적 0
     return;
@@ -440,7 +476,11 @@ function _gridCircleTextBeginEdit(block, host, addr, e) {
     });
     host.addEventListener('keydown', ev => {
       if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
-      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); host.blur(); }
+      if (ev.key === 'Enter') {
+        ev.preventDefault(); ev.stopPropagation();
+        if (ev.metaKey || ev.ctrlKey) { host.blur(); return; }       // ⌘Enter = 확정
+        document.execCommand('insertText', false, '\n');               // ★t5-12 Enter·⇧Enter = 줄바꿈
+      }
       else if (ev.key === 'Escape') {
         ev.preventDefault(); ev.stopPropagation();   // 전역 deselectAll 차단
         _gridCircleTextEndEdit(block, host, addr, false);
@@ -1385,9 +1425,13 @@ function bindBlock(block) {
       if (block.classList.contains('editing')) return;
       /* ★BT2 — 말풍선 «줄» 2단 선택(그리드와 같은 규칙): 이미 «이것 하나»가 선택돼 있을 때 줄을 누르면 그 줄.
          ⛔deselectAll «전»에 잰다 — deselectAll 이 선택·활성줄을 지운다. */
-      const _lnAt = block.classList.contains('speech-bubble-block')
-        ? window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block))
-        : null;
+      /* ★1012t1G1 — 줄 «없는» 말풍선은 그리드와 같은 «드릴다운 걸쇠»(prop-grid.js grdMarkCanvasDrill · T-058)도 본다:
+         삽입·레이어 패널로 골라진 직후의 «사람에겐 첫» 캔버스 클릭 = 블럭(현빈 「첫클릭은 … 블럭이 선택」), 그 다음 = 본문 줄.
+         ⛔줄 «있는» 말풍선은 옛 규칙 그대로(이미 하나만 골라져 있으면 줄) — 바꾸면 bt2·ln-* 의 2단 선택 계약이 갈린다. */
+      const _isBubble = block.classList.contains('speech-bubble-block');
+      const _lnSole = block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block)
+        && (!_isBubble || !!window.lnBubbleLines?.(block) || !!window.grdWasCanvasDrilled?.(block));
+      const _lnAt = _isBubble ? window.lnClickAddr?.(block, e.target, _lnSole) : null;
       const sec = block.closest('.section-block');
       if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
@@ -1412,6 +1456,8 @@ function bindBlock(block) {
       window.setBlockAnchor?.(block);
       if (_lnAt) window.grdSetActiveLine?.(block, _lnAt);   // ★BT2 — 줄 선택(없으면 deselectAll 이 이미 풀었다)
       window.showTextProperties(block);
+      /* ★1012t1G1 — 걸쇠는 «패널을 연 뒤» 건다(그리드 :2581 과 같은 순서). 푸는 자리 = deselectAll → line-host.js lnClearAllActive(말풍선을 가리킬 때만). */
+      if (_isBubble) window.grdMarkCanvasDrill?.(block);
       /* ★모서리 리사이즈 핸들 — 이 경로엔 호출이 «아예 없었다»(zoom 은 1551행, modal 은
          1912행에 같은 입구가 있다). 그래서 오버레이를 켜도 테두리만 보이고 «모서리 점»이
          안 나왔다. showHandlesFor 가 오버레이 여부를 스스로 가른다 ⇒ 흐름 텍스트는 no-op. */
@@ -1801,31 +1847,10 @@ function bindBlock(block) {
     };
     // hydrate: 기존 :img row(저장된 HTML에서 복원된)에 더블클릭/x 버튼 핸들러 재바인딩
     block.querySelectorAll('tr[data-row-img="true"]').forEach(tr => window.__bindTableRowImg?.(tr));
-    block.addEventListener('click', e => {
-      e.stopPropagation();
-      const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
-      if (_isInsideUnselectedFrame(block)) {
-        e.stopPropagation();
-        const ss = _getParentFrame(block);
-        window.deselectAll?.();
-        const parentSec = ss.closest('.section-block');
-        if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-        ss.classList.add('selected');
-        window._activeFrame = ss;
-        window.highlightBlock?.(ss, ss._layerItem);
-        window.showFrameProperties?.(ss);
-        return;
-      }
-      window.deselectAll();
-      _restoreParentFrameSelected(block);
-      block.classList.add('selected');
-      window.syncSection(sec);
-      window.highlightBlock(block, block._layerItem);
-      window.setBlockAnchor?.(block);
-      window.showTableProperties(block);
-    });
+    /* ★140(2026-10-26 · 지디 GO ㉢) — 표의 «클릭 → 선택» 은 제 핸들러를 두지 않고 아래 공용 루프(grid·infocard·… 줄)에 얹었다.
+       옛 제 핸들러에는 공용 루프의 「인라인 편집 중이면 선택/패널 재생성 안 함」 가드가 없어 — 칸 편집 중 칸 안 클릭이
+       deselectAll·showTableProperties 를 다시 돌려 편집을 끝냈다(TH·TD 둘 다 · 앱 실측 ×3). 그 주석이 경고한 «조용히 갈라진» 실례.
+       ⇒ 편집 표식은 공용 규약 그대로: 칸 편집 진입에 block.editing · blur 에 걷기(아래 dblclick). */
     // 셀 더블클릭 → contenteditable 활성화
     block.addEventListener('dblclick', e => {
       e.stopPropagation();
@@ -1837,6 +1862,7 @@ function bindBlock(block) {
         // 편집 시작 전 원본 텍스트 스냅샷 (dirty 비교용)
         cell._editBefore = cell.textContent;
         cell.setAttribute('contenteditable','true');
+        block.classList.add('editing');   // ★140 — 공용 클릭 루프의 「편집 중이면 재선택 안 함」 가드가 이걸 본다(그리드 :502 와 같은 규약)
         cell.focus();
         _tblBindCellPh(cell);
         // placeholder 면 전체선택, 실데이터면 커서를 끝으로 (focus 직후 «동기» 실행 필수)
@@ -1846,6 +1872,7 @@ function bindBlock(block) {
           cell._editBound = true;
           cell.addEventListener('blur', () => {
             cell.setAttribute('contenteditable', 'false');
+            if (!block.querySelector('[contenteditable="true"]')) block.classList.remove('editing');   // ★140 — 다른 칸으로 옮겨 가는 중(Tab)이면 남긴다
             const _dirty = cell.textContent !== (cell._editBefore ?? cell.textContent);
             if (_dirty) window.pushHistory('셀 텍스트 변경');
             // :img 이스터에그 — row 전체를 이미지 placeholder row로 변환
@@ -1999,6 +2026,9 @@ function bindBlock(block) {
 
 
   if (isGraph) {
+    /* ★t4-17 ⓐ — 캔버스 편집 위임(라벨·축 눈금 더블클릭 · 값 라벨 끌기)을 «다시 안 그린» 블럭에도 건다.
+       불러오기·붙여넣기·템플릿·A/B 사본은 그래프를 안 그리고 여기만 지난다(그리기는 방사형만 — save-load.js RERENDER_KINDS). 한 자리 = drag-utils.js bindGraphEdits. */
+    bindGraphEdits(block);
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -2404,30 +2434,28 @@ function bindBlock(block) {
     block.addEventListener('focusout', onItbBlur);
     block.querySelectorAll('[contenteditable], .itb-text, .itb-icon').forEach(el => el.setAttribute('draggable', 'false'));
 
-    // itb-icon 클릭 → 이미지 업로드
+    /* ★1017t1m2 — itb-icon 클릭 → 인포그래픽 칸과 «같은» 아이콘 팝오버(#grd-ifg-iconpop).
+       현빈 「👉 해결안된듯? grd-ifg-iconpop 해당 패널이 뜨게 하란거였는데」 — 전엔 바로 파일 선택창이 떴다.
+       ★여는 자·커밋 꼴은 인포그래픽 것을 그대로 쓴다(window 다리 · 이 파일의 기존 관례):
+         openIfgIconPopover(앵커, 고른 것 받는 자) · ifgSvgToIconSrc(svg → data URI) · updateIconTextBlock({imgSrc}).
+       ★팝오버를 못 띄우면(모듈 미적재) ★옛 길(파일 선택창)로 그대로 간다 — 「눌렀는데 아무 일도 없다」가 제일 나쁘다.
+       ★이력 = push-before 한 칸(옛 업로드 길과 같은 자리에서).
+       ★113 — 막혔던 사진 문을 팝오버 «안» 「사진 올리기」로 다시 연다: 넷째 인자 { onUpload } 는 «이 부르는 쪽만» 켠다
+         (인포그래픽 칸 팝오버는 안 넘기므로 그 항목 0 — 현빈 「인포그라피 블럭에서는 이미지 넣을 일이 없어」).
+         셋째 인자 look 은 인포그래픽 룩({set, variant})이라 여긴 undefined(기본 룩). */
     block.querySelector('.itb-icon')?.addEventListener('click', e => {
       e.stopPropagation();
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = async () => {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-          window.pushHistory?.();
-          const iconEl = block.querySelector('.itb-icon');
-          let img = iconEl.querySelector('img');
-          if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
-          img.src = ev.target.result;
-          img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
-          block.dataset.imgSrc = ev.target.result;
-          iconEl.style.border = 'none';
-          window.triggerAutoSave?.();
-        };
-        reader.readAsDataURL(file);
-      };
-      input.click();
+      const iconEl = block.querySelector('.itb-icon');
+      const pop = window.openIfgIconPopover && iconEl
+        ? window.openIfgIconPopover(iconEl, (picked) => {
+            const src = window.ifgSvgToIconSrc?.(picked && picked.svg, '');
+            if (!src) { window.showToast?.('아이콘을 못 받았습니다 — 잠시 뒤 다시 시도해 주세요'); return; }
+            window.pushHistory?.();
+            window.updateIconTextBlock?.(block.id, { imgSrc: src });   /* 팝오버는 고른 순간 제가 닫는다(grid-ifg-icon-pick.js) */
+          }, undefined, { onUpload: () => _itbPickPhoto(block) })
+        : null;
+      if (pop) return;
+      _itbPickPhoto(block);   // 폴백 — 팝오버 모듈 미적재 때 옛 길 그대로
     });
   }
 
@@ -2492,7 +2520,7 @@ function bindBlock(block) {
   /* grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
      ★쿠폰도 ★여기에 얹는다(2026-10-07) — ⛔제 핸들러를 새로 만들지 않는다. 그러면 프레임 안 선택·
        ⌘/⇧ 다중선택·레이어 하이라이트·showHandlesFor 가 ★한 벌 더 생겨 조용히 갈라진다. */
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties'], [isRadial, 'showRadialProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties'], [isRadial, 'showRadialProperties'], [isTableB, 'showTableProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -2501,6 +2529,9 @@ function bindBlock(block) {
       if (showFn === 'showGridProperties') {
         const _kb = e.target && e.target.closest ? e.target.closest('.grd-children') : null;
         if (_kb && _kb.parentElement === block && e.target !== _kb) return;
+        /* ★t5-12ⓑ — 원 줄 «위» 블럭(.grd-circle-kids 안)도 같다 — 그 블럭의 클릭이다(그릇은 셸 «안» 원에 산다). */
+        const _ck = e.target && e.target.closest ? e.target.closest('.grd-circle-kids') : null;
+        if (_ck && block.contains(_ck) && e.target !== _ck) return;
       }
       /* 인라인 편집 중이면 선택/패널 재생성을 하지 않는다 — 캐럿 이동·글자 선택이 우선
          (텍스트/아이콘텍스트 블록과 같은 규약. .editing 은 grid 만 붙으므로 infocard/innercard 무영향)
@@ -2598,6 +2629,9 @@ function bindBlock(block) {
          텍스트 블록의 dblclick 도 같은 이유로 elementFromPoint 로 대상을 고른다(이 파일 isText 분기). */
       const atPoint = document.elementFromPoint(e.clientX, e.clientY);
       const node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
+      /* ★t5-12ⓑ — 원 줄 «위» 블럭(.grd-circle-kids 안) 더블클릭은 그 블럭의 것(제 처리기가 편집을 연다) — 그리드는 손 뗀다. */
+      { const _ck = node && node.closest ? node.closest('.grd-circle-kids') : null;
+        if (_ck && block.contains(_ck) && node !== _ck) return; }
       /* ★t5-14 — 원형 이미지 줄 «안 글자»(.grd-img-circle-text) 위 더블클릭 → 그 글자를 캔버스에서 고친다.
          현빈 원문: 「grd_yb8d4_0z2o2u9에서 텍스트 추가한 뒤에, 원형을 클릭하면 왜 gui가 뜨는지?, 그리고 캔버스에서 텍스트 바로 수정할 수 있게 해줘」
          ★맨 앞이어야 한다 — 글자칸은 .grd-img-frame[data-line] «안»에 산다 ⇒ 아래 세 가지(인포그래픽·빈 슬롯·크롭)가 먼저 집는다.

@@ -1,4 +1,5 @@
 import { propPanel } from '../globals.js';
+import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
@@ -72,7 +73,7 @@ ${blockHeaderHTML({
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
         <span class="prop-label" style="margin-left:8px">H</span>
-        <input type="number" class="prop-number" id="cvb-h" value="${h}" min="40" max="2000">
+        <input type="number" class="prop-number" id="cvb-h" value="${h}" min="${CVB_H_MIN}" max="${CVB_H_MAX}">
       </div>
       <div class="prop-row">
         <span class="prop-label">사진 영역</span>

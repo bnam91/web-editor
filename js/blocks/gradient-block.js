@@ -28,6 +28,8 @@ const genId = (p) => (typeof window.genId === 'function'
   ? window.genId(p)
   : p + '_' + Math.random().toString(36).slice(2, 9));
 
+/* 높이 하한 — 패널 칸(prop-gradient.js:96 min=50)과 같은 값 */
+const GRAD_MIN_H = 50;
 const GRADIENT_DEFAULTS = {
   style:       'linear',
   direction:   'to bottom',
@@ -306,6 +308,19 @@ function addGradientBlock(opts = {}) {
        되클램프한다 — ★x 오프셋은 «일부러» 죽는다. 보이는 분리는 y 뿐이다.
      ⛔x 를 살리려 clamp 를 빼지 마라(fill clipPath 가 좌측에 빈 띠를 만든다).
      회귀: tests/dom/grad-g1g7-cascade-stop.dom.spec.js G1-a/G1-n. */
+  /* ★1017t1h9ⓐ — 짧은 섹션(높이 < 오프셋 + 기본 높이 300)이면 아래 clamp 가 y 를 0 으로 되돌려
+     둘이 «완전히» 겹쳤다(미카사 261025 실측: 새 빈 섹션 283 에서 두 개 다 0,0,860×300).
+     ⇒ 높이를 안 받았을 때만 «섹션 안에 오프셋이 남을 만큼» 줄인다(패널 최소 50 · prop-gradient.js:96).
+     ⛔y 를 clamp 밖으로 빼지 마라 — 그건 아래로 삐져 잘리는 그림이 된다(:194 clipBottom).
+     회귀: tests/dom/grad-h9a-short-section.dom.spec.js */
+  if (opts.x == null && opts.y == null && opts.height == null) {
+    const n0 = sec.querySelectorAll('.gradient-block').length;
+    const cy0 = 40 + (n0 % 8) * 24;
+    const secH = sec.clientHeight || 0;
+    if (secH > 0 && cy0 + GRADIENT_DEFAULTS.height > secH) {
+      opts = { ...opts, height: Math.max(GRAD_MIN_H, secH - cy0) };
+    }
+  }
   if (opts.x == null && opts.y == null) {
     const n = sec.querySelectorAll('.gradient-block').length;
     const cx = 40 + (n % 8) * 24, cy = 40 + (n % 8) * 24;

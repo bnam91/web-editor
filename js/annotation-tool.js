@@ -354,7 +354,9 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset 
   const block = asDim
     ? window.makeAnnotationBlock(Object.assign({ points, text: '수치입력', annotKind: 'dim' },
         dimOffset != null ? { dimOffset } : {}, dimA ? { dimA } : {}, dimB ? { dimB } : {}))
-    : window.makeAnnotationBlock({ points, text: '텍스트' });
+    /* ★1013t2C6 「첨에는 모서리 라운드를 주지말 것」 — 새로 그린 라벨은 모서리 0 으로 태어난다.
+       ⛔팩토리 기본값이 아니라 «여기서» 넘긴다 — 키 없는 옛 저장본은 rebindAll 이 팩토리 기본(= CSS 4px)으로 다시 그린다. */
+    : window.makeAnnotationBlock({ points, text: '텍스트', labelRadius: 0 });
   sec.appendChild(block);
 
   // 라벨 즉시 편집 진입 — ★1013t2C6 더블클릭과 «같은 한 벌»(annotation-select.js annotBeginLabelEdit)

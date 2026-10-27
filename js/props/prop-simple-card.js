@@ -6,6 +6,7 @@ import { blockHeaderHTML, disclosureChevronHtml, discSecOpen, wireDisclosureSect
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
+import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 
 // ② 카드 텍스트 입력칸 펼침 상태 — 블록별 «펼친 카드 인덱스» 집합.
 //   ★캔버스에서 더블클릭으로 바로 고칠 수 있게 됐으니(canvas-block.js _bindCvbDblEdit) 우측
@@ -299,7 +300,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
         <span class="prop-label" style="margin-left:8px">H</span>
-        <input type="number" class="prop-number" id="cvb-h" value="${h}" min="40" max="2000">
+        <input type="number" class="prop-number" id="cvb-h" value="${h}" min="${CVB_H_MIN}" max="${CVB_H_MAX}">
       </div>
       <div class="prop-row">
         <span class="prop-label">이미지 비율</span>
@@ -1425,6 +1426,9 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
   /* ★1017t1d1 — 고른 카드/줄이 있으면 헤더 바로 아래에 공용 줄 절(줄바 「+ 줄 추가▾」·줄 꾸미기·Typography)을
      얹는다(laurel·비교와 같은 자리 — prop-laurel.js:414). */
   window.lnAugmentCardPanel?.(block);
+  /* ★t5-16 — 캔버스 «행 경계 드래그» 거터(js/overlay-handles.js showCvbGutters). 비교 블록 패널 꼬리의 showCmpGutters 와
+     같은 자리·같은 까닭(패널이 뜨는 자리마다 같이 띄운다 · 해제는 editor.js deselectAll 의 hideCvbGutters). */
+  window.showCvbGutters?.(block);
 }
 
 // HTML 특수문자 이스케이프 (textarea/input value 안전 삽입)

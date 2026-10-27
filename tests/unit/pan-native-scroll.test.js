@@ -470,10 +470,25 @@ test('★P-A1″ 계약: 필터는 «childList» 이고 «전부» UI 장식일 
 });
 
 test('★P-A1″ 계약: 자동저장 감시가 그 필터를 실제로 «쓴다»', () => {
+  /* ★261026 — 콜백을 «구조에 안 묶고» 찾는다(지디 처방 ⒝). ⚰️옛 꼴은 선언부터 1400글자 창 — «콜백이 선언에
+     인라인»을 가정했고, 130(f7b04daf)이 콜백을 이름 있는 함수(_autoSaveObserverHandle)로 뽑자 창에 본문이 없어 빨강.
+     ⇒ new MutationObserver( 다음이 ⑴ 식별자면 그 이름의 function 본문(extractFn) ⑵ 아니면 인라인 — 짝 괄호까지.
+     ⛔창을 넓히는 길(1400→4000)은 기각 — 같은 가정이 남는다. */
   const i = SL.indexOf('const autoSaveObserver');
   assert.notEqual(i, -1);
-  const body = stripComments(SL.slice(i, i + 1400));
-  assert.ok(/_isNonContentUiMutation\(m\)/.test(body), '감시 콜백이 필터를 호출해야 한다');
+  const head = 'new MutationObserver(';
+  const open = SL.indexOf(head, i) + head.length - 1;
+  assert.ok(open > i, 'autoSaveObserver 의 new MutationObserver( 를 못 찾음');
+  const named = /^\s*([A-Za-z_$][\w$]*)\s*\)/.exec(SL.slice(open + 1));
+  let cb;
+  if (named) cb = extractFn(SL, named[1]);
+  else {
+    let d = 0, k = open;
+    for (; k < SL.length; k++) { if (SL[k] === '(') d++; else if (SL[k] === ')' && --d === 0) break; }
+    assert.ok(k < SL.length, 'new MutationObserver( 의 닫는 괄호를 못 찾음');
+    cb = SL.slice(open + 1, k);
+  }
+  assert.ok(/_isNonContentUiMutation\(m\)/.test(stripComments(cb)), '감시 콜백이 필터를 호출해야 한다');
 });
 
 

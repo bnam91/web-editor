@@ -1275,9 +1275,17 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *     ★이미지 바이트(20만 자 넘는 imgSrc 길이·sha256) · window 다리 · ★변이 넷(M-cells · M-height · M-img · M-1row — 주입 단언 있음).
  *   ★더한 14 는 독립으로 셌다: `grep -cE '^\s*test\(' tests/unit/grid-reorder.test.mjs` = 16 (skip·todo 0) = 래칫 증가분.
  *   ⛔등호 그대로(>= 금지 — 줄어드는 쪽이 조용히 통과한다). 양성대조: 그 파일 test 하나 지운 사본에서 이 래칫이 빨개졌다(S6-GRID.md ㉣).
- *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다. */
-const GRID_BASELINE_TOTAL = 493;
-const GRID_BASELINE_PASS = 492;   // ★493 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
+ *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다.
+ * ★2026-10-26 0922 (m0) 자기 양성대조(지디 · 94a89336) — ★493 ＋ 1 = 494 (pass 492 ＋ 1 = 493)
+ *   ★왜 더했나 : 0922 (m) 걸쇠 순서 가드가 `indexOf` 로 «파일 첫 출현»을 집어, 1012t1G1 이 말풍선 갈래에
+ *     «두 번째» grdMarkCanvasDrill 호출을 더하자 ★«말풍선의 mark» 와 ★«그리드의 show» 를 섞어 견줘 ★거짓 빨강을 냈다.
+ *     ⇒ 짝을 갈래로 못박고(showFn === 'showGridProperties'), 전제(nShow/nMark 각 1곳)를 단언하고,
+ *       ★자기 양성대조 `0922 (m0)` 를 더했다 — ★합성 표본이다(⛔제품 파일을 건드려 대조하지 않는다).
+ *   ★더한 1 은 독립으로 셌다: `grep -cE '^\\s*test\\(' tests/unit/grid-active-line-reset.test.mjs`
+ *     = 되돌린 판 28ef3d0e 에서 ★22 → 지금 ★23 (skip·todo 0) ⇒ 래칫 증가분 ★＋1. 델타는 ★전부 그 파일 하나다.
+ *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다. ⛔등호 그대로. */
+const GRID_BASELINE_TOTAL = 494;
+const GRID_BASELINE_PASS = 493;   // ★494 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {

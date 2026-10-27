@@ -63,6 +63,12 @@ const openPanel = async (page, id) => {
   await page.evaluate((i) => window.showTextProperties(document.getElementById(i)), id);
   await page.waitForSelector('#txt-style-group', { state: 'attached' });
   await page.waitForSelector('#txt-hl-code', { state: 'attached' });
+  /* ★1020t2d1(261026) — 번호 줄 셋은 이제 한 머리(#txt-code-fold-toggle) 밑에 «기본 접힘»이다(현빈 「일괄로 토글로 접어둘수 있게」).
+     ⇒ 사람이 하듯 머리를 진짜 클릭해 편다(펼침은 세션 동안 남는다 — 이미 펴져 있으면 안 누른다). 이 칸들이 재는 붙여넣기 몸은 무변. */
+  if (await page.evaluate(() => document.getElementById('txt-code-fold-toggle')?.getAttribute('aria-expanded') === 'false')) {
+    await clickSel(page, '#txt-code-fold-toggle');
+    await page.waitForFunction(() => document.getElementById('txt-hl-code-row')?.offsetParent !== null);
+  }
 };
 async function clickSel(page, sel) {
   const loc = page.locator(sel).first();

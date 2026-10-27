@@ -95,10 +95,19 @@ const ROSTER_HOW = [
 
 const ROSTER = {
   'coupon-presets.dom.spec.js:157': 'risky',
+  /* ★t3-06(S6 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다(사람 판정 · 261026 14:15): ★risky.
+     C2 는 «섹션 위 − 캔버스 창 위»(두 rect 의 차 · 화면 px)를 ★절대 숫자 40 과 견준다 ⇒ 줌 40% 에서 같은 거리는 화면 16px — risky 정의 그대로.
+     (S6 는 처음 'safe' 로 적었다: 제품 selectSection 이 CANVAS_TAIL_GAP 40 을 화면 px 로 빼고 실측 40%=40.12 · 100%=39.80 이라서.
+      ⇒ 지디 판정으로 바꿨다 — «제품이 화면 px 로 정의했다»가 «자를 배율 무관하게 만든다»는 아니다.)
+     ⚠️명부 열쇠가 «파일:줄» 이라 spec 이 위에서 밀리면 또 빨개진다(138 과 같은 병 · 다음 릴리스 몫 · 지금 안 고침). */
+  'fix5-section-memo-t306.dom.spec.js:325': 'risky',
   'graph-gr1-gradient.dom.spec.js:93': 'risky',
   'graph-u26-u27.dom.spec.js:80': 'risky',
   'graph-u26-u27.dom.spec.js:85': 'risky',
-  'grid-plus-g15.dom.spec.js:301': 'risky',
+  /* ★261026 — ★줄이 ★움직였다(:301 → :304 · :300 → :303). ★미카사 0c929f2f(t5-15 가 ★남의 검사 기대값을 고침)이
+     ★그 파일을 ★＋6 −3 했다 ⇒ ★순 ＋3. ★★두 줄의 ★글자는 ★★바이트까지 ★같다(내가 c278bc39 와 ★견줬다)
+     ⇒ ★★태그는 ★그대로 ★옮긴다. ⛔판정을 ★다시 지어내지 ★않는다 — ★같은 자리다. */
+  'grid-plus-g15.dom.spec.js:304': 'risky',
   'k2-grid-sel-box.dom.spec.js:47': 'risky',
   'k2-grid-sel-box.dom.spec.js:48': 'risky',
   'k5-grid-8x8.dom.spec.js:41': 'risky',
@@ -107,6 +116,9 @@ const ROSTER = {
   'graph-colorfield.dom.spec.js:30': 'loop',
   'graph-e152-escape.dom.spec.js:47': 'loop',
   'graph-panel-defaults.dom.spec.js:24': 'loop',
+  /* ★150(S3 · 261026) — ★지디 사람 triage(17:51): ★loop. tickPt 의 `n > 120` 은 rAF «횟수 상한»(문턱 아님) · rect 는 «누를 좌표»만 · 단언은
+     p.stable(불린) 하나 ⇒ 배율 무관. :41 = rect 를 재는 줄 · :43 = 그 상한·되돌림 줄. */
+  'graph-old-axis-tick-edit-150.dom.spec.js:41': 'loop',
   'asset-to-scratch-move.dom.spec.js:50': 'safe',
   'asset-to-scratch-move.dom.spec.js:102': 'safe',
   /* ★1017t1c5(태양) — r0·r1 둘 다 같은 줌에서 getBoundingClientRect, 비교는 ★차(r1.left-r0.left) —
@@ -117,7 +129,14 @@ const ROSTER = {
   'free-frame-fullwidth-drag.dom.spec.js:185': 'safe',
   'free-frame-grid-width-roundtrip.dom.spec.js:58': 'safe',
   'gradient-canvas-bar.dom.spec.js:534': 'safe',
-  'grid-plus-g15.dom.spec.js:300': 'safe',
+  /* ★t5-08(S7 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다. B4 는 ★화면 폭(getBoundingClientRect)을
+     ★모델 px 상수 717(=860−144+1)과 견준다 ⇒ ★배율이 1 이 아니면 거짓 판정이 난다. ⇒ ★그 spec 에
+     ★«전제 단언»을 박았다: |rect.width − offsetWidth| < 1.5 (화면 px = 레이아웃 px).
+     ★★양성대조(261026 실측): 그 spec 사본의 #sec1 에 scale(0.4) ⇒ 그 칸이 ★빨강(516 vs <1.5).
+     ★★음성대조: 진짜 spec 15/15 초록. ⇒ ★배율이 흔들리면 ★이제 ★먼저 빨개진다 ⇒ 'safe'.
+     ⛔「이 spec 은 배율을 안 건드린다」가 까닭이 ★아니다 — ★재는 자가 섰다는 것이 까닭이다. */
+  'gradient-group-t507.dom.spec.js:195': 'safe',
+  'grid-plus-g15.dom.spec.js:303': 'safe',
   'modal-resize.dom.spec.js:282': 'safe',
   'overlay-drag-rotation.dom.spec.js:224': 'safe',
   'scratch-drop-grid-image.dom.spec.js:57': 'safe',

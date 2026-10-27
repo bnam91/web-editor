@@ -15,7 +15,7 @@
  *
  * ⛔대역(stub)은 ★잎 셋뿐이다 — `_edgeEnds` · `_pullDest` · `_scaler`. ★그 셋의 동작은 ★이 파일이
  *   재는 것이 ★아니다(각자 제 검사가 있다: scratch-link-edges · scratch-pull-near-section DOM 스펙).
- *   ★나머지(_units·_unitOf·_unitBox·_unitMoveIds·_groupMembers·_groupOf·_scEl·allLinks·_parse)는 ★실물이다.
+ *   ★나머지(_units·_unitOf·_unitBox·_unitMoveIds·_groupMembers·_groupOf·_scEl·_item·allLinks·_parse)는 ★실물이다.
  * ⛔이 파일의 초록을 «증거»로 쓰지 마라 — 변이 목록이 보고에 같이 있어야 한다.
  * ⛔★닻에 ★매개변수 목록을 적지 마라(`'function f('` 까지만) — 누가 인자 하나만 더해도 이 파일이
  *   ★조용히 눈이 먼다. ★집행 = tests/unit/anchor-signature-ratchet.test.mjs R1/R4.
@@ -46,6 +46,7 @@ const REAL = [
   sliceBlock(SRC, 'function _allSecs('),
   sliceBlock(SRC, 'function allLinks('),
   sliceBlock(SRC, 'function _scEl('),
+  sliceBlock(SRC, 'function _item('),   // ★132 ⓧ(261027) — _scEl 이 먼저 색인(_item → window._scratchItemById)을 본다 · 이 하네스 window 엔 색인이 없어 옛 길 그대로
   sliceBlock(SRC, 'function _groupOf('),
   sliceBlock(SRC, 'function _units('),
   sliceBlock(SRC, 'function _unitOf('),

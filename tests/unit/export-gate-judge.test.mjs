@@ -147,6 +147,9 @@ test('PIL 루마식 — «채널 최대»가 아니라 (R*19595+G*38470+B*7471+0
 test('★파랑만 다른 그림은 TOTAL 0 — 색상축은 이 검사가 못 본다(정직하게 테스트로 박는다)', () => {
   const a = img(40, 40, [0, 0, 0]);
   const b = img(40, 40, [0, 0, 0]);
+  /* ★125 ㉮ 뒤 — 두 그림 다 «잉크 0»(검정 바탕 + 루마 29 파랑)이면 이제 «백지 둘»이라 noInk(못 잼)다.
+     이 칸이 재려는 것(파랑 축은 TOTAL 0)을 그대로 두려고 ★양쪽에 같은 흰 띠(잉크)를 깐다. */
+  put(a, 0, 30, 40, 4, [255, 255, 255]); put(b, 0, 30, 40, 4, [255, 255, 255]);
   put(b, 5, 5, 20, 20, [0, 0, 255]);
   const m = compareRGBA(a, b);
   assert.equal(m.total, 0);
@@ -184,4 +187,34 @@ test('★크기 불일치는 P0 의 «유일한» 확인 필요 축이다 — �
   const big = M({ total: 999999, maxCell: 256, blobPx: 100000, bandMismatch: true, maxDx: 12 });
   assert.equal(judgeExportDiff(big, OK).tier, 'minor');
   assert.equal(judgeExportDiff(M({ sizeMismatch: true, total: null }), OK).tier, 'mismatch');
+});
+
+/* ── ★125 ㉮ — 비교 «전» 전제: 둘 다 백지면 «같다»가 아니라 «못 쟀다» ─────────────────────
+ * FALSE-PASS-CHECKER-SAID-OK-WHILE-ANNOT-MISSING-01: 어노가 export·truth 에서 «같이» 빠진 판(8d10b079)에서
+ * 게이트가 3/3 'same' 이었다. 그중 «둘 다 백지»는 잴 게 없는 판이다 ⇒ 기존 문 7(noInk)로 간다(새 문 없음).
+ * 양성대조 = 아래 B1 을 고치기 전 판(68ba1f1b) 소스에 대면 'same' 으로 빨강(커밋 메시지·보고에 값). */
+test('B1 ★125 ㉮ — 둘 다 백지(한 색) ⇒ same 이 아니라 unmeasured · noInk', () => {
+  const m = compareRGBA(img(40, 40, [255, 255, 255]), img(40, 40, [255, 255, 255]));
+  assert.equal(m.total, 0, '전제: 다른 점 0');
+  assert.deepEqual(judgeExportDiff(m, OK), { tier: 'unmeasured', reasons: ['noInk'] }, '★둘 다 백지인데 판정이 «같다»다 — 거짓 통과');
+});
+test('B2 ★125 ㉮ — 바탕색이 흰색이 아니어도 백지는 백지(최빈 밝기 기준 · 어두운 섹션)', () => {
+  const m = compareRGBA(img(40, 40, [40, 30, 20]), img(40, 40, [40, 30, 20]));
+  assert.deepEqual(judgeExportDiff(m, OK), { tier: 'unmeasured', reasons: ['noInk'] });
+});
+test('B3 ★125 ㉮ 음성 — 같은 «잉크 있는» 그림 둘은 여전히 same (내용 있는 섹션의 정상 통과를 안 바꾼다)', () => {
+  const a = img(40, 40, [255, 255, 255]); put(a, 4, 10, 30, 6, [10, 10, 10]);
+  assert.equal(judgeExportDiff(compareRGBA(a, a), OK).tier, 'same');
+});
+test('B4 ★125 ㉮ 음성 — 한쪽만 백지면 N/A 로 덮지 않는다(그건 «차이»다 · 옛 길 그대로)', () => {
+  const a = img(40, 40, [255, 255, 255]); const b = img(40, 40, [255, 255, 255]); put(b, 4, 10, 30, 6, [10, 10, 10]);
+  const m = compareRGBA(a, b);
+  assert.notEqual(m.struct, 'N/A');
+  assert.notEqual(judgeExportDiff(m, OK).tier, 'same');
+});
+test('B5 ★125 ㉮ — 전제 칸 blank 가 metrics 에 실린다(로그·신고가 «왜 못 쟀나»를 말할 수 있게)', () => {
+  const w = img(40, 40, [255, 255, 255]); const k = img(40, 40, [255, 255, 255]); put(k, 4, 10, 30, 6, [10, 10, 10]);
+  assert.deepEqual(compareRGBA(w, w).blank, { exp: true, truth: true });
+  assert.deepEqual(compareRGBA(w, k).blank, { exp: true, truth: false });
+  assert.deepEqual(compareRGBA(k, k).blank, { exp: false, truth: false });
 });

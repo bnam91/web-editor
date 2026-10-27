@@ -79,6 +79,19 @@ function _pairRow(id, label, val, lim, step = 1) {
         <input type="number" class="prop-number" id="${id}-number" min="${lim.min}" max="${lim.max}" step="${step}" value="${val}">
       </div>`;
 }
+/* ★t4-09 — 범위가 넓은 한 칸(원 중심 X)은 슬라이더를 «다음 줄 전폭»으로 — 같은 범위를 두 배 남짓 긴 자로 잰다(한 px 당 단위가 준다).
+   id 짝(-slider · -number)은 _pairRow 와 같다 ⇒ wireNum 이 그대로 묶는다. */
+function _pairRowWide(id, label, val, lim, step = 1) {
+  return `
+      <div class="prop-row">
+        <span class="prop-label">${_esc(label)}</span>
+        <span style="flex:1"></span>
+        <input type="number" class="prop-number" id="${id}-number" min="${lim.min}" max="${lim.max}" step="${step}" value="${val}">
+      </div>
+      <div class="prop-row">
+        <input type="range" class="prop-slider" id="${id}-slider" min="${lim.min}" max="${lim.max}" step="${step}" value="${val}">
+      </div>`;
+}
 function _numRow(id, label, val, lim, step = 1) {
   return `
       <div class="prop-row">
@@ -147,6 +160,9 @@ export function showRadialProperties(block, idx) {
   const anyManual = st.items.some(radialItemIsManual);
   const autoDeg = sel >= 0 ? Math.round(radialAutoDegs(st)[sel] * 10) / 10 : 0;
 
+  /* ★t7-01 「패딩 제외」 — 배너2 패널(js/props/prop-banner02.js _bn2CanFullBleed)과 같은 판정:
+     ⛔뚫을 수 없는 자리(자르는 프레임 안 등)에선 토글을 안 보인다(켜도 아무 일 없는 스위치는 「고장」으로 읽힌다). 이미 켜져 있으면 보인다. */
+  const _rdlCanFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({
@@ -185,11 +201,20 @@ ${blockHeaderHTML({
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
+      ${_rdlCanFB ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="rdl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>` : ''}
+      ${_pairRow('rdl-padx', '좌우 패딩', st.padX, L.padX, L.padX.step)}
       ${_pairRow('rdl-radius', '반지름', st.radius, L.radius)}
       ${_pairRow('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
       ${isArc ? `
       ${_pairRow('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
-      ${_pairRow('rdl-cx', '원 중심 X', st.centerX, L.centerX)}
+      ${_pairRowWide('rdl-cx', '원 중심 X', st.centerX, L.centerX, L.centerX.step)}
       <button class="prop-btn-full" id="rdl-angle-reset" style="margin-top:4px">각도 처음으로 되돌리기</button>
 ` : ''}
       <div class="prop-row">
@@ -289,6 +314,13 @@ ${blockHeaderHTML({
   /* push-after — 쓰고 그린 «뒤»에 한 번. */
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
   const reopen = (i) => showRadialProperties(block, Number.isInteger(i) ? i : (block._rdlSel ?? -1));
+  /* ★t7-01 패딩 제외 — 켜기는 renderRadialBlock 맨 앞의 applyBlockFullBleed 가 «매 렌더» 씌운다 ⇒ 여기선 표식만 세우고 다시 그린다.
+     ★끄기는 «흔적 지우기»가 먼저(배너2·프레임과 같은 규약 — 안 지우면 calc 폭·음수 마진이 남은 채 굳는다). 이력 = 이 패널의 push-after. */
+  $('rdl-fullbleed-toggle')?.addEventListener('change', (e) => {
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
+    rerender(); commit();
+  });
   const setItems = (items) => { block.dataset.items = JSON.stringify(items); };
   const curItems = () => radialStateOf(block).items;
 
@@ -297,15 +329,18 @@ ${blockHeaderHTML({
     const s = $(`${id}-slider`), n = $(`${id}-number`);
     if (!s || !n) return;
     const lim = L[key];
+    /* ★t4-09 — 한도에 step 이 있으면 그 걸음으로 맞춘다(소수 step 이 parseInt 에 잘려 먹지 않던 자리). step 없으면 옛 정수 그대로. */
+    const stp = lim.step || 1;
+    const snap = (v) => Math.round(Math.round(v / stp) * stp * 100) / 100;
     const apply = (val) => {
-      const x = G.clamp(val, lim.min, lim.max, RADIAL_DEFAULTS[key]);
+      const x = G.clamp(Number.isFinite(val) ? snap(val) : val, lim.min, lim.max, RADIAL_DEFAULTS[key]);
       block.dataset[key] = String(x);
       rerender();
       s.value = x; n.value = x;
     };
-    s.addEventListener('input', () => apply(parseInt(s.value, 10)));
+    s.addEventListener('input', () => apply(parseFloat(s.value)));
     s.addEventListener('change', commit);
-    n.addEventListener('change', () => { apply(parseInt(n.value, 10)); commit(); });
+    n.addEventListener('change', () => { apply(parseFloat(n.value)); commit(); });
   };
   const wireOnlyNum = (id, key) => {
     const n = $(id);
@@ -385,6 +420,7 @@ ${blockHeaderHTML({
 
   // ── Layout ──
   wireNum('rdl-radius', 'radius');
+  wireNum('rdl-padx', 'padX');   /* ★t4-07 좌우 패딩 — 다른 슬라이더와 같은 쌍 · push-after */
   wireNum('rdl-start', 'startDeg');
   wireNum('rdl-end', 'endDeg');
   wireNum('rdl-cx', 'centerX');

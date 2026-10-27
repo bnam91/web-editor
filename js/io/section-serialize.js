@@ -143,11 +143,11 @@
   /** 지우기 «직전»에 원본을 «이번 sweep 전용» 사이드카에 남긴다(serializeCleanRoot 가
    *  호출 때마다 새로 연다 — 전역이 아니다). ab 는 (라이브가 아니라) 클론일 수 있지만
    *  cloneNode(true) 가 dataset 을 그대로 복사하므로 값은 동일하다. */
-  function captureVideoPendingState(ab) {
-    if (!_lastSweepSidecar || !ab || !ab.id) return;
+  function captureVideoPendingState(ab, into = _lastSweepSidecar) {
+    if (!into || !ab || !ab.id) return;
     const imgSrc = ab.dataset.imgSrc;
     if (!imgSrc) return; // 아직 업로드 전(진짜 빈 상태) — 캐시할 게 없다
-    _lastSweepSidecar[ab.id] = {
+    into[ab.id] = {
       imgSrc,
       fit: ab.dataset.fit || 'cover',
       trimIn: ab.dataset.trimIn,
@@ -489,6 +489,13 @@
   window.serializeSectionClone = serializeSectionClone;
   window.reattachVideoPendingBlocks = reattachVideoPendingBlocks;
   window.getLastVideoPendingSidecar = getLastVideoPendingSidecar;
+  /* ★130 싼 게이트(js/history.js pushHistory 머리) — 직렬화 «없이» 라이브 캔버스의 미확정 영상 사이드카를 만든다.
+     ★같은 함수(captureVideoPendingState)로 채운다 — 필드 목록 두 벌 금지. 세척(serializeCleanRoot)과 같은 고르개. */
+  window.liveVideoPendingSidecar = function liveVideoPendingSidecar() {
+    const out = {};
+    document.querySelectorAll('#canvas .asset-block[data-asset-type="video-pending"]').forEach(ab => captureVideoPendingState(ab, out));
+    return out;
+  };
   /* ★비교 채널(js/market-merge.js · js/version-diff.js)이 «같은 자»를 쓰게 내준다.
      그쪽은 결과물이 아니라 «비교 키»를 만들지만, 마커가 남으면 「줄을 골랐을 뿐인데 변경됨」
      오탐이 난다. 목록이 두 벌이면 한쪽만 고쳐지는 날이 온다 — 그래서 여기가 유일한 원본이다. */

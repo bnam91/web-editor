@@ -161,8 +161,9 @@ async function exportHTMLFile() {
   /* ★.sec-bg-empty 가 다섯째다 (2026-09-28, 섹션 «체크 배경»). 현빈 주문으로 섹션 배경을
      이미지 없이 자리만 잡아 둘 수 있게 되면서 같은 성격의 자리가 또 하나 늘었다.
      ⛔여기 안 넣으면 배송본 섹션 바탕에 체크무늬가 «그대로» 실린다 — 위 넷과 같은 병이다. */
-  clone.querySelectorAll('.cvb-img-empty, .cvb-img-empty-plain, .bn2-img-empty, .grd-img-empty, .sec-bg-empty')
-       .forEach(el => el.classList.remove('cvb-img-empty', 'cvb-img-empty-plain', 'bn2-img-empty', 'grd-img-empty', 'sec-bg-empty'));
+  /* ★t5-01 — .mdl-profile-empty(버즈 카드 프로필 빈 원 자리)가 여섯째다. 상자는 남고 무늬만 빠진다(위 넷과 같은 뜻). */
+  clone.querySelectorAll('.cvb-img-empty, .cvb-img-empty-plain, .bn2-img-empty, .grd-img-empty, .sec-bg-empty, .mdl-profile-empty')
+       .forEach(el => el.classList.remove('cvb-img-empty', 'cvb-img-empty-plain', 'bn2-img-empty', 'grd-img-empty', 'sec-bg-empty', 'mdl-profile-empty'));
   /* «인라인»으로 박힌 빈 칸 체커 — 클래스가 아니라 벗길 대상이 없다(목업의 안전망 레이어,
      옛 저장본이 품고 온 인라인 체커 등). PNG·썸네일과 «같은 서명»으로 레이어 단위로 걷는다.
      ⚠️이 클론은 문서에 «안» 붙는다 — computed 가 비어 클래스 체커는 여기서 안 잡힌다.

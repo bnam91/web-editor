@@ -7,7 +7,7 @@ import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 �
 import '../graph-radial.js';   // 프로토 Z6-B — 「방사형」 유형의 렌더 · 패널 절(window.renderGraphRadial · graphRadialSectionHTML · wireGraphRadialSection)
 import { FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES } from '../effects-shadow.js';   // 1017t1f4 — 그림자 x/y/blur 값·범위의 임자(⛔새 수 0 — 그 쪽을 그대로 읽는다)
 
-const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
+const { BAR_THICKNESS_MIN, BAR_THICKNESS_MAX, BAR_THICKNESS_DEFAULT, BAR_THICKNESS_V_MAX, LABEL_SIZE_DEFAULT, LABEL_SIZE_MIN, LINE_PADX_DEFAULT, PCT_SIZE_FACTOR, PIE_HOLE_MIN, PIE_HOLE_MAX, PIE_HOLE_DEFAULT, PIE_GAP, PIE_GAP_MIN, PIE_GAP_MAX, PIE_START_MIN, PIE_START_MAX, PIE_GROW_MAX, PIE_PULL_MAX, PIE_LEG_GAP_MIN, PIE_LEG_GAP_MAX, PIE_LEG_GAP_DEFAULT, SHAPE_SVG_MAX, SHAPE_FILL_MAX_DEFAULT, SHAPE_TRACK_OPACITY, SEG_GAP_DEFAULT, SEG_GAP_MIN, SEG_GAP_MAX } = window.GRAPH_LIMITS;   // js/graph-limits.js — 두께 한계의 한 자리
 
 /* Bar Settings 절 — bar-h·bar-v·bar-pair 가 «한 마크업»을 공유한다(사본 금지, B7).
  * bar-pair 는 «바 색상» 줄을 뺀다 — Pair Settings 의 «색상 A»가 이미 id grb-bar 를 쓴다(중복 id 방지). */
@@ -45,7 +45,7 @@ function gridColorRowHTML(block) {
 }
 
 /* 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
-function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false }) {
+function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false, segGap = null, segWave = false }) {
   return `
     <div class="prop-section">
       <div class="prop-section-title">Bar Settings</div>${hideThickness ? '' : `
@@ -63,7 +63,19 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
         <span class="prop-label">항목 간격</span>
         <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
         <input type="number" class="prop-number" id="grb-item-gap-number" min="8" max="80" value="${itemGap}">
+      </div>${segGap == null ? '' : `
+      <div class="prop-row" title="마디(비율별 조각) 사이 흰 틈(px)">
+        <span class="prop-label">마디 간격</span>
+        <input type="range" class="prop-slider" id="grb-seg-gap-slider" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" step="1" value="${segGap}">
+        <input type="number" class="prop-number" id="grb-seg-gap-number" min="${SEG_GAP_MIN}" max="${SEG_GAP_MAX}" value="${segGap}">
       </div>
+      <div class="prop-row" title="마디 경계를 물결 모양으로(흰 틈이 같은 두께로 물결친다)">
+        <span class="prop-label">경계 물결</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-seg-wave-toggle" ${segWave ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>`}
       <div class="prop-row">
         <span class="prop-label">숫자 크기</span>
         <input type="range" class="prop-slider" id="grb-pct-size-slider" min="${pctMin}" max="120" step="2" value="${pctSize}">
@@ -326,8 +338,88 @@ function _syncPieNameHint(block) {
 }
 if (typeof document !== 'undefined') document.addEventListener('grb-pie-fit', (e) => {
   const b = _pieHintBlock, t = e.target;
-  if (b && t && (t === b || (b.id && t.id === b.id))) _syncPieNameHint(t);
+  if (b && t && (t === b || (b.id && t.id === b.id))) { _syncPieNameHint(t); _syncPieTagPhSoon(t); }   // ★t4-17 X1 — 다시 잰 뒤 «좁아서 n» 도 고친다(한 프레임 한 번)
 });
+/* ★t4-17 ⓑ — 조각 안 순위·이름의 «글자» 줄(크기 · 굵기 · 기울임). 키·한계 읽기는 drag-utils.js grbPieTagTypo «한 자리»(렌더와 같은 함수).
+ *   키가 없으면 기본(배지 = 라벨 크기 × --grb-pie-rank-em · 이름 = 라벨 크기 — css/editor-graph.css)이고 그 값을 placeholder 로 보인다(아래 _pieTagFsShown).
+ *   빈 칸 = 키 삭제 = 기본 복귀(placeholder 가 그 뜻을 선언한다 — numfield 규약). 좁은 조각은 그 기본이 줄어 그려진다(설계) ⇒ placeholder 가 「20(좁아서 8)」로 알린다.
+ *   ★t4-17 X7 — 오타(「1e」 = type=number 가 '' 로 준다)는 거절하고 이전 값으로: 공용 가드의 badInput 갈래(prop-number-commit-guard.js isBadInput)가 한다.
+ *     옛: placeholder 가 «빈 값 = 뜻»으로 읽혀 오타도 커밋 → 키 삭제(30 → 20 조용히).
+ *     ⛔이 핸들러에 빈 값·무효 처리를 따로 적지 마라(규약 사본).
+ *   굵기 「기본」 = 키 없음(덧층의 semibold 그대로). 그 표시 토글이 꺼져 있으면 줄을 숨긴다(정할 것이 없다 — 토글 배선이 같이 켜고 끈다). */
+const PIE_TAG_TYPO_LABEL = { rank: '순위', name: '이름' };
+const PIE_TAG_FW = [['', '기본'], ['400', 'Regular'], ['500', 'Medium'], ['600', 'Semibold'], ['700', 'Bold'], ['800', 'Extrabold'], ['900', 'Black']];
+/* ★t4-17 X1·X4 — 크기 칸 placeholder 의 «한 자리»(HTML 을 그릴 때 · 라벨 크기를 바꿀 때 · 다시 잰 뒤(grb-pie-fit) 모두 이 함수).
+ *   X4 옛: 라벨 크기 배선(applyLabelSize)이 이 줄을 다시 안 달아 28 로 바꿔도 20/14 로 남았다(다시 그린 패널은 맞았다) ⇒ 배선에서 부른다.
+ *   기본 = 키가 없을 때의 크기: 이름 = 라벨 크기(덧층 글자 1em) · 배지 = 그 × css 의 --grb-pie-rank-em(배지 font-size 가 읽는 그 변수 — ⛔0.7 을 여기 다시 적지 마라).
+ *   X1 — 좁은 조각은 grbPieFitTags(drag-utils.js)가 덧층 글자를 단계로 줄인다(--grb-pie-tag-fs · 끝 단계 8 = 라벨 20 × 0.4) — 설계다.
+ *     그런데 placeholder 가 «20» 만 보이면 칸을 비운 뒤 좁은 조각이 8 로 그려질 때 칸이 거짓말을 한다 ⇒ 보이는 조각 중 가장 작게 적용된 값(min)을 같이 낸다.
+ *   배지가 안 그려진 판(순위 표시 끔)은 비를 못 잰다 ⇒ '' (그 줄은 숨어 있고, 켜면 토글 배선이 다시 부른다). */
+function _pieTagFsShown(block, part) {
+  const ls = parseInt(block.dataset.labelSize) || LABEL_SIZE_DEFAULT;   // 렌더러·패널(showGraphProperties labelSize)과 같은 식
+  let em = 1;
+  if (part === 'rank') {
+    const r = block.querySelector('.grb-pie-rank');
+    em = r ? parseFloat(getComputedStyle(r).getPropertyValue('--grb-pie-rank-em')) : NaN;
+    if (!Number.isFinite(em)) return null;
+  }
+  const base = Math.round(ls * em);
+  let min = base;
+  /* ★3라운드(틱 비용) — 조각마다 getComputedStyle ×3(레이아웃 강제)을 걷고 «재는 쪽이 이미 적은 값»을 읽는다:
+       grbPieFitTags(drag-utils.js)가 쓰는 인라인 변수 = 그림의 출처 그 자체(css: font-size var(--grb-pie-tag-fs, inherit) · inherit = 라벨 크기).
+       숨김 = 렌더의 display:none(사용자 숨김·자리 없음) · --grb-pie-tag-d:none(재서 숨김) · 이름 --grb-pie-name-d:none · 빈 배지(:empty).
+       변수 이름은 canvas-contrast.js GRAPH_PIE_FIT_VARS 한 벌에서 읽는다(재는 쪽과 같은 자리). 재는 자 = fix5-t417-x X1d(그려진 computedStyle 과 대조). */
+  const V = window.__gdTextTone?.GRAPH_PIE_FIT_VARS || [];
+  const [, , VD, VND, , VFS] = V;
+  const off = (st, v) => !!v && st.getPropertyValue(v).trim() === 'none';
+  for (const tag of block.querySelectorAll('.grb-pie-tag')) {   // 보이는 조각 라벨만(숨긴 라벨 · 좁아서 숨긴 이름 · 빈 배지는 안 센다)
+    const el = tag.querySelector(part === 'rank' ? '.grb-pie-rank' : '.grb-pie-name');
+    if (!el || tag.style.display === 'none' || off(tag.style, VD)) continue;
+    if (part === 'rank' ? !el.textContent : off(el.style, VND)) continue;
+    const f = VFS ? parseFloat(tag.style.getPropertyValue(VFS)) : NaN;
+    min = Math.min(min, Math.round((f > 0 ? f : ls) * em));
+  }
+  return { base, min };
+}
+/* 보이는 글자 — 지디 갈래 ㉡ «줄었음을 알린다»(권고). ㉠ «지금 적용될 값»으로 바꾸려면 이 한 줄을 `String(v.min)` 으로. */
+const _pieTagPhText = (v) => !v ? '' : (v.min < v.base ? `${v.base}(좁아서 ${v.min})` : String(v.base));
+function _pieTagFsPh(block, part) { return _pieTagPhText(_pieTagFsShown(block, part)); }
+/** 패널이 열린 채 라벨 크기·순위 표시가 바뀌거나 다시 재면 placeholder 를 다시 단다(다시 그리기 없이) — 같은 함수 하나. */
+function _syncPieTagPh(block) {
+  for (const part of (window.GRB_PIE_TAG_PARTS || [])) {
+    const el = document.getElementById(`grb-pie-${part}-fs`);
+    if (el) { const t = _pieTagFsPh(block, part); if (el.placeholder !== t) el.placeholder = t; }
+  }
+}
+/* ★3라운드(틱 비용 · 앱 실측 슬라이더 8틱) — 틱마다 sync 가 «두 번» 돌았다(applyLabelSize + grb-pie-fit 듣개).
+   ⇒ 부르는 자리(배선 셋)는 전부 이것 하나를 부르고, 실제 계산은 한 프레임에 한 번(rAF). 패널 HTML 을 그릴 때만 바로 계산한다.
+   그 프레임에 패널이 다른 블럭으로 바뀌었으면 안 쓴다(칸 id 가 같아 남의 칸에 쓴다). */
+let _pieTagPhRaf = 0, _pieTagPhFor = null;
+function _syncPieTagPhSoon(block) {
+  _pieTagPhFor = block;
+  if (_pieTagPhRaf) return;
+  _pieTagPhRaf = requestAnimationFrame(() => {
+    _pieTagPhRaf = 0;
+    const b = _pieTagPhFor; _pieTagPhFor = null;
+    if (b && b === _pieHintBlock && b.isConnected) _syncPieTagPh(b);
+  });
+}
+function pieTagTypoRowsHTML(block) {
+  if (!window.grbPieTagTypo) return '';   // 렌더러(drag-utils.js)가 안 실린 판(패널만 싣는 하네스) — 줄이 없다
+  const { VLABEL_FS_MIN, VLABEL_FS_MAX } = window.GRAPH_LIMITS;
+  const d = block.dataset;
+  return window.GRB_PIE_TAG_PARTS.map((part) => {
+    const t = window.grbPieTagTypo(d, part);
+    const ph = _pieTagFsPh(block, part);
+    return `      <div class="prop-row" id="grb-pie-${part}-typo-row" title="조각 안 ${PIE_TAG_TYPO_LABEL[part]} 글자 — 크기(px · 비우면 기본) · 굵기 · 기울임. 좁은 조각은 같은 비로 줄어든다"${d[t.key] === '1' ? '' : ' style="display:none"'}>
+        <span class="prop-label">${PIE_TAG_TYPO_LABEL[part]} 글자</span>
+        <input type="number" class="prop-number" id="grb-pie-${part}-fs" min="${VLABEL_FS_MIN}" max="${VLABEL_FS_MAX}" value="${t.fs ?? ''}" placeholder="${ph}" data-empty="auto" style="flex:1;min-width:0" aria-label="${PIE_TAG_TYPO_LABEL[part]} 글자 크기">
+        <select class="prop-select" id="grb-pie-${part}-fw" style="flex:1;min-width:0" aria-label="${PIE_TAG_TYPO_LABEL[part]} 굵기">${PIE_TAG_FW.map(([v, n]) => `<option value="${v}"${t.fw === v ? ' selected' : ''}>${n}</option>`).join('')}</select>
+        <div class="prop-style-group"><button type="button" class="prop-style-btn${t.it ? ' active' : ''}" id="grb-pie-${part}-it" title="기울임"><i>I</i></button></div>
+      </div>
+`;
+  }).join('');
+}
 export function showGraphProperties(block) {
   const _vKey = (hKey, vKey) => (block.dataset.chartType === 'bar-v' || block.dataset.chartType === 'bar-pair') ? vKey : hKey;
   const chartType    = block.dataset.chartType    || 'bar-v';
@@ -578,6 +670,7 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
+${pieTagTypoRowsHTML(block)}
       <div class="prop-row" title="원형 아래의 범례(색 칩 + 이름 + %)를 보일지. 끄면 조각만 남는다 — 조각 안 순위·이름 표시와 따로 산다">
         <span class="prop-label">범례 표시</span>
         <label class="prop-toggle">
@@ -587,7 +680,10 @@ ${blockHeaderHTML({
       </div>
     </div>${pieSliceSectionHTML(items, _sliceSel)}${pieShadowSectionHTML(block.dataset)}` : ''}
     ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn }) : ''}
+    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn,
+      /* 1020t2g1ⓐ — 마디는 세로 막대에서만 산다(_segOn) ⇒ 그때만 «마디 간격» 줄 */
+      segGap: _segOn ? (g => Number.isFinite(g) ? Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, g)) : SEG_GAP_DEFAULT)(parseInt(block.dataset.segGap)) : null,
+      segWave: block.dataset.segWave === '1' }) : ''}
     <div class="prop-section">
       <div class="prop-section-title">Data</div>
       <div class="grb-data-list" id="grb-data-list">
@@ -909,6 +1005,29 @@ ${blockHeaderHTML({
     igSlider.addEventListener('change', () => window.pushHistory());
   }
 
+  // 1020t2g1ⓐ — 마디 간격(세로 막대). 기본값(SEG_GAP_DEFAULT)과 같으면 키를 지운다(범례 간격 1017t1f1 과 같은 «없음 = 키 없음» — 옛 저장본 바이트 그대로).
+  {
+    const sl = document.getElementById('grb-seg-gap-slider'), nu = document.getElementById('grb-seg-gap-number');
+    if (sl && nu) {
+      const apply = v => {
+        v = Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, Number.isFinite(v) ? v : SEG_GAP_DEFAULT));
+        if (v === SEG_GAP_DEFAULT) delete block.dataset.segGap; else block.dataset.segGap = v;
+        window.renderGraph(block);
+        sl.value = v; nu.value = v;
+      };
+      sl.addEventListener('input',  () => apply(parseInt(sl.value)));
+      nu.addEventListener('change', () => { apply(parseInt(nu.value)); window.pushHistory(); });
+      sl.addEventListener('change', () => window.pushHistory());
+    }
+  }
+
+  // 1020t2g1ⓑ — 마디 경계 물결(세로 막대). 끄면 키를 지운다(옛 저장본과 같은 바이트 · 직선 경계).
+  document.getElementById('grb-seg-wave-toggle')?.addEventListener('change', e => {
+    if (e.target.checked) block.dataset.segWave = '1'; else delete block.dataset.segWave;
+    window.renderGraph(block);
+    window.pushHistory();
+  });
+
   // 숫자 크기 (bar-h·bar-v·bar-pair)
   const psSlider = document.getElementById('grb-pct-size-slider');
   const psNumber = document.getElementById('grb-pct-size-number');
@@ -1070,10 +1189,37 @@ ${blockHeaderHTML({
     const tg = document.getElementById(tid);
     if (tg) tg.addEventListener('change', () => {
       if (tg.checked !== !!inv) block.dataset[key] = '1'; else delete block.dataset[key];
+      const _typoRow = document.getElementById(tid.replace('-toggle', '-typo-row'));   // ★t4-17 ⓑ — 그 표시의 «글자» 줄(범례엔 없다)
+      if (_typoRow) _typoRow.style.display = block.dataset[key] === '1' ? '' : 'none';
       window.renderGraph(block);
+      _syncPieTagPhSoon(block);  // ★t4-17 X4 — 순위를 켜면 그제야 배지가 그려져 배지 기본값을 잰다
       _syncPieNameHint(block);   // 덧층이 사라지면(둘 다 끔) 재는 쪽이 안 돈다 ⇒ 여기서 한 번 걷는다
       window.pushHistory();
     });
+  }
+  /* ★t4-17 ⓑ — 조각 안 순위·이름 글자. 값 = 블럭 dataset(저장) · 바꾸면 다시 그리고 pushHistory 한 번(패널 push-after 규약 ⇒ ⌘Z 한 번).
+     같은 값이면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 그림자 줄과 같다). */
+  for (const part of ((_isPie && window.grbPieTagTypo) ? window.GRB_PIE_TAG_PARTS : [])) {
+    const { key } = window.grbPieTagTypo(block.dataset, part);
+    const put = (k, v) => {
+      if ((block.dataset[k] ?? '') === v) return;
+      if (v) block.dataset[k] = v; else delete block.dataset[k];
+      window.renderGraph(block);
+      window.pushHistory('그래프 원형 라벨 글자');
+      window.scheduleAutoSave?.();
+    };
+    const fs = document.getElementById(`grb-pie-${part}-fs`), fw = document.getElementById(`grb-pie-${part}-fw`), it = document.getElementById(`grb-pie-${part}-it`);
+    /* 크기 — Number 로 읽는다(parseInt 는 '1e3' 을 1 로 읽는다) · 한계는 grbPieTagTypo 가 거는 그 한 자리 · 칸엔 «저장된 값»을 되쓴다(표시 = 실제).
+       빈 값 = '' → 키 삭제(기본 복귀 · 칸의 data-empty="auto" — placeholder 가 '' 가 되는 판(배지 0개)에도 «빈 값 = 기본»이 안 바뀐다) ·
+       오타는 공용 가드 badInput 갈래가 되돌린다(X7) — ⚠️편집 키 없이 들어온 글자(NUMFIELD-SESSION-NO-EDITKEY-01)는 가드 밖이라 여기 '' 로 와 키를 지운다. */
+    fs?.addEventListener('change', () => {
+      const raw = fs.value.trim(), n = Number(raw);
+      const v = (raw !== '' && Number.isFinite(n)) ? String(window.grbPieTagTypo({ [key + 'Fs']: String(Math.round(n)) }, part).fs) : '';
+      put(key + 'Fs', v);
+      fs.value = block.dataset[key + 'Fs'] ?? '';
+    });
+    fw?.addEventListener('change', () => put(key + 'Fw', /^[1-9]00$/.test(fw.value) ? fw.value : ''));   // 렌더와 같은 화이트리스트 — 그 밖은 「기본」(키 삭제)
+    it?.addEventListener('click', () => { it.classList.toggle('active'); put(key + 'It', it.classList.contains('active') ? '1' : ''); });
   }
   // 1013t1C7 — 그림자. 값이 같으면 아무 것도 안 한다(히스토리에 빈 칸을 안 쌓는다 — 모달·확대블럭과 같다).
   propPanel.querySelectorAll('#grb-drop-group .prop-align-btn').forEach(btn => btn.addEventListener('click', () => {
@@ -1199,6 +1345,7 @@ ${blockHeaderHTML({
     block.dataset.labelSize = v;
     window.renderGraph(block);
     lSlider.value = v; lNumber.value = v;
+    _syncPieTagPhSoon(block);   // ★t4-17 X4 — 원형 순위·이름 크기 칸의 기본값(placeholder)이 라벨 크기를 따른다(한 프레임 한 번)
   };
   lSlider.addEventListener('input',  () => applyLabelSize(parseInt(lSlider.value)));
   lNumber.addEventListener('change', () => { applyLabelSize(parseInt(lNumber.value)); window.pushHistory(); });

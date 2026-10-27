@@ -11,6 +11,9 @@
  *     ★⌘⇧G             → 그룹 ★[g,g,g] → ★[null,null,null] (★통째로 풀림)
  *   ⇒ ★★«없던 것»은 ★«빼는 길» ★하나다. ★이 파일이 그것을 잰다.
  *
+ * ★★261026 현빈 답으로 바꿈(현빈 3 · 지디 배정) — 진입 중 ★Delete/Backspace = 그 한 장 ★진짜 삭제.
+ *   «빼기»는 ⊘(진입 중 ✕ 단추 · G4)와 우클릭 「그룹에서 빼기」(S6 abbc769f)에 남는다.
+ *   ⇒ G3·G10·G13 은 «지운다»로 고쳐 적었고(⚰️ 옛 단언은 그 칸 주석에) · G9(1장 남으면 풀기)는 «빼기» 길을 재야 하므로 ⊘ 로 옮겼다.
  * ★꼴은 `_sliceMode` 를 본떴다 — ⛔두 모드를 ★따로 고치지 마라(같은 관용구다).
  * ★G1 은 ★«모드 밖 무변»의 증인이다 — ★고치기 전에도 ★초록이라야 한다.
  * ★양성대조·변이 명부는 파일 끝 주석.
@@ -26,8 +29,17 @@ async function clickItem(page, id, { shift = false, dbl = false } = {}) {
   const el = page.locator('.scratch-item[data-scratch-id="' + id + '"]');
   if (dbl) await el.dblclick({ modifiers: shift ? ['Shift'] : [] });
   else await el.click({ modifiers: shift ? ['Shift'] : [] });
-  await page.waitForTimeout(140);
+  /* ★162 — 고정 140ms → 조건: 그 장이 골라졌다(더블클릭이면 ＋그룹 모드가 섰다) · 그다음 태스크 한 바퀴 양보
+     (진입이 setTimeout(0) 로 거는 «밖 클릭 나가기» 듣개가 걸린 뒤에 다음 손 — fix5-t419 yieldTask 와 같은 꼴). */
+  await page.waitForFunction(([s, d]) => !!document.querySelector('.scratch-item.scratch-selected[data-scratch-id="' + s + '"]')
+    && (!d || window._scratchGroupMode?.() != null), [id, dbl], { timeout: 15000 });
+  await yieldTask(page);
 }
+const yieldTask = (page) => page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+/* ★162 — 조건 대기 한 벌: 장 수 · 그룹 든 장 수 · 모드 */
+const padsIs = (page, n) => page.waitForFunction((n) => document.querySelectorAll('.scratch-item').length === n, n, { timeout: 15000 });
+const groupedIs = (page, n) => page.waitForFunction((n) => [...document.querySelectorAll('.scratch-item')].filter((e) => e.dataset.scratchGroup).length === n, n, { timeout: 15000 });
+const modeOff = (page) => page.waitForFunction(() => window._scratchGroupMode?.() == null, null, { timeout: 15000 });
 /* ★«사람이 하는 순서»로 장면을 세운다 — 셋을 골라 ★진짜 묶는 길로 묶는다.
    ⛔`_scratchAddAndSave(...,g,...)` 로 바로 만들지 않는다(그 꼴이 앱에서 생기나부터). */
 async function scene(page) {
@@ -41,7 +53,8 @@ async function scene(page) {
   await page.waitForFunction((n) => document.querySelectorAll('.scratch-item').length === n, IDS.length, { timeout: 15000 });
   for (let i = 0; i < IDS.length; i++) await clickItem(page, IDS[i], { shift: i > 0 });
   const r = await page.evaluate(() => ({ grouped: window._scratchGroupAndAlign?.(), zoom: window.currentZoom }));
-  await page.mouse.click(300, 900); await page.waitForTimeout(150);   // 선택 비우기
+  await page.mouse.click(300, 900);   // 선택 비우기
+  await page.waitForFunction(() => !document.querySelector('.scratch-item.scratch-selected'), null, { timeout: 15000 });   // ★162 고정 150 → 선택 0
   return r;
 }
 const st = (page) => page.evaluate(() => ({
@@ -90,7 +103,8 @@ test('G1 ⚰️★모드 «밖»은 ★한 글자도 안 바뀐다 — 고치기
   expect(s.sel, '★그냥 클릭 → 선택 3 (⚰️고치기 전 값)').toBe(3);
   expect(s.mode, '★클릭만으로는 모드가 안 선다').toBeNull();
   await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete'); await page.waitForTimeout(280);
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item').length !== 3, null, { timeout: 15000 });   // ★162 고정 280 → 장 수가 바뀜
   s = await st(page);
   expect(s.pads, '★Delete → 3장이 0장 (⚰️고치기 전 값 · 전원 삭제)').toBe(0);
 });
@@ -125,25 +139,27 @@ test('G2 ★★더블클릭 → 그룹 진입 ＋ 그 멤버 ★단독 선택 �
   expect(s.outline.colorsSame, '★★두 꼴이 ★같은 색 토큰을 쓴다(⛔리터럴로 안 잠근다)').toBe(true);
 });
 
-test('G3 ★★본 단언 — 진입 중 ★Delete 는 ★그 한 장만 ★뺀다(⛔지우지 않는다)', async ({ page }) => {
+test('G3 ★★본 단언 — 진입 중 ★Delete 는 ★그 한 장만 ★지운다(261026 현빈 답 · ⚰️10-10 「뺀다(⛔지우지 않는다)」)', async ({ page }) => {
   await scene(page);
   await clickItem(page, 'sp_c', { dbl: true });
   const b = await st(page);
   expect(b.mode, '전제 — 진입했다').toBeTruthy();
   await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item').length !== 3, null, { timeout: 15000 });   // ★162 고정 300 → 장 수가 바뀜
   const a = await st(page);
+  const ids = await page.evaluate(() => [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId));
   console.log('[G3] 전 ' + JSON.stringify(b.groups) + ' → 후 ' + JSON.stringify(a.groups) + ' pads ' + b.pads + '→' + a.pads);
-  expect(a.pads, '★★장 수는 ★그대로 3 (⚰️고치기 전엔 0 이 됐다)').toBe(3);
-  expect(a.groups.filter((g) => g).length, '★그룹에 남은 장 = 2').toBe(2);
-  expect(a.groups[2], '★뺀 장(sp_c)은 그룹이 없다').toBeNull();
+  expect(a.pads, '★★그 한 장만 지워져 2 (⚰️10-10 판 = 3 그대로 · ⚰️그 전 = 0)').toBe(2);
+  expect(ids, '★지운 장 = 누른 sp_c').toEqual(['sp_a', 'sp_b']);
+  expect(a.groups.filter((g) => g).length, '★남은 두 장은 그룹 그대로').toBe(2);
 });
 
 test('G4 ★진입 중 ★✕ 도 ★빼기 — 현빈 「삭제버튼 누르면 그 한 장만 빼게」', async ({ page }) => {
   await scene(page);
   await clickItem(page, 'sp_c', { dbl: true });
   await page.locator('.scratch-item[data-scratch-id="sp_c"] .scratch-close').click();
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => [...document.querySelectorAll('.scratch-item')].filter((e) => e.dataset.scratchGroup).length !== 3, null, { timeout: 15000 });   // ★162 고정 300 → 그룹 든 장 수가 바뀜
   const a = await st(page);
   console.log('[G4] ' + JSON.stringify(a.groups) + ' pads=' + a.pads);
   expect(a.pads, '★안 지워졌다').toBe(3);
@@ -158,7 +174,8 @@ test('G5 ★진입 중 ✕ 는 ★모양이 바뀐다(⊘) — ★같은 손잡�
   s = await st(page);
   console.log('[G5] ' + JSON.stringify(s.closeGlyphs));
   expect(s.closeGlyphs.filter((g) => g === '⊘').length, '★그룹 3장이 ⊘').toBe(3);
-  await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape');
+  await modeOff(page);   // ★162 고정 200 → 모드 내려감(⊘ → ✕ 는 같은 _markGroupMode 안에서 동기)
   s = await st(page);
   expect(s.closeGlyphs.every((g) => g === '✕'), '★나가면 ✕ 로 돌아온다').toBe(true);
 });
@@ -167,11 +184,13 @@ test('G6 ★나가기 — ★Esc · ★그룹 밖 클릭', async ({ page }) => {
   await scene(page);
   await clickItem(page, 'sp_c', { dbl: true });
   expect((await st(page)).mode, '전제 — 진입').toBeTruthy();
-  await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await st(page)).mode, { timeout: 15000 }).toBeNull();   // ★162 고정 200 → 조건 · 단언이 곧 조건
   expect((await st(page)).mode, '★Esc 로 나간다').toBeNull();
   await clickItem(page, 'sp_c', { dbl: true });
   expect((await st(page)).mode, '전제 — 다시 진입').toBeTruthy();
-  await page.mouse.click(300, 900); await page.waitForTimeout(250);
+  await page.mouse.click(300, 900);
+  await expect.poll(async () => (await st(page)).mode, { timeout: 15000 }).toBeNull();   // ★162 고정 250 → 조건
   expect((await st(page)).mode, '★그룹 밖을 누르면 나간다').toBeNull();
 });
 
@@ -181,7 +200,8 @@ test('G7 ★★진입 배타 — 두 모드가 ★동시에 못 선다(✂ 를 �
   expect((await st(page)).mode, '전제 — 그룹 모드').toBeTruthy();
   const btn = page.locator('.scratch-item[data-scratch-id="sp_c"] .scratch-slice-btn');
   expect(await btn.count(), '전제 — ✂ 손잡이가 있다').toBe(1);
-  await btn.click({ force: true }); await page.waitForTimeout(250);
+  await btn.click({ force: true });
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item.scratch-slice-mode').length === 1, null, { timeout: 15000 });   // ★162 고정 250 → ✂ 모드 섬
   const s = await page.evaluate(() => ({ group: window._scratchGroupMode?.() ?? null,
     slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length }));
   console.log('[G7] ' + JSON.stringify(s));
@@ -202,13 +222,17 @@ test('G7b ★★진입 배타 ★★«반대 방향» — ✂ 가 선 채로 그
   await scene(page);
   const btn = page.locator('.scratch-item[data-scratch-id="sp_c"] .scratch-slice-btn');
   expect(await btn.count(), '전제 — ✂ 손잡이가 있다').toBe(1);
-  await btn.click({ force: true }); await page.waitForTimeout(250);
+  await btn.click({ force: true });
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item.scratch-slice-mode').length === 1, null, { timeout: 15000 });   // ★162 고정 250 → ✂ 모드 섬
   const p0 = await page.evaluate(() => ({ group: window._scratchGroupMode?.() ?? null,
     slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length,
     pads: document.querySelectorAll('.scratch-item').length }));
   console.log('[G7b 전제] ' + JSON.stringify(p0));
   expect(p0.slice, '★전제 — ✂ 모드가 ★먼저 섰다').toBe(1);
   expect(p0.group, '★전제 — 그룹 모드는 ★아직 아니다').toBeNull();
+  /* ★162 triage — ⛔조건 대기로 바꾸지 마라: 이 250ms 는 «부재를 재는 창»이다. 아래 전제 「장 수 무변」은 ✂ 가 선 채 더블클릭이
+     슬라이스를 «늦게» 확정해 장을 늘리지 «않았나»를 잰다(자르기 = 그림 읽기 뒤 새 장 · 늦게 올 수 있다).
+     조건(모드 섬)으로 바꾸면 그 늦은 장이 오기 전에 세어 «딴 장면»을 초록으로 통과시킨다. clickItem 의 조건 대기는 «있음»(모드 섬)까지만 기다린다. */
   await clickItem(page, 'sp_a', { dbl: true }); await page.waitForTimeout(250);
   const s1 = await page.evaluate(() => ({ group: window._scratchGroupMode?.() ?? null,
     slice: document.querySelectorAll('.scratch-item.scratch-slice-mode').length,
@@ -241,7 +265,8 @@ test('G8 ★모드에서 ★그룹 밖을 ★끌면 — ★모드가 ★풀리�
     mode: window._scratchGroupMode?.() ?? null,
     marked: document.querySelectorAll('.scratch-item.scratch-group-mode').length,
   }));
-  await page.mouse.up(); await page.waitForTimeout(150);
+  await page.mouse.up();
+  await page.waitForFunction(() => !document.querySelector('.scratch-marquee'), null, { timeout: 15000 });   // ★162 고정 150 → 마퀴 걷힘(단언은 위 mid 값 · 다음 칸 전에 끌기가 끝났나만)
   console.log('[G8] 끄는 중 = ' + JSON.stringify(mid));
   /* ⒜ ★모드가 ★풀렸다 — ★이것이 ★안전의 ★참 근거다(capture 가 ★선택보다 먼저 돈다) */
   expect(mid.mode, '★★모드가 ★풀렸다 — ★빈 영역 mousedown 이 capture 로 ★먼저 내린다').toBeNull();
@@ -250,16 +275,17 @@ test('G8 ★모드에서 ★그룹 밖을 ★끌면 — ★모드가 ★풀리�
   expect(mid.marquee, '★마퀴가 ★뜬다(모드는 이미 끝났다)').toBeGreaterThan(0);
 });
 
-test('G9 ★1장만 남으면 그룹이 ★자동으로 풀린다 (★지디 기본값 · 현빈 미정)', async ({ page }) => {
+test('G9 ★1장만 남으면 그룹이 ★자동으로 풀린다 (★지디 기본값 · 현빈 미정) — «빼기» 길 = ⊘', async ({ page }) => {
+  /* ★261026 — Delete 가 «지우기»가 되어 «빼기» 길을 ⊘(진입 중 ✕ 단추)로 옮겼다. 재는 것(1장 남으면 풀기)은 그대로. */
   await scene(page);
   await clickItem(page, 'sp_c', { dbl: true });
-  await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+  await page.locator('.scratch-item[data-scratch-id="sp_c"] .scratch-close').click();
+  await groupedIs(page, 2);   // ★162 고정 300 → 그룹 든 장 2
   let s = await st(page);
   expect(s.groups.filter((g) => g).length, '★한 장 뺀 뒤 2장').toBe(2);
   await clickItem(page, 'sp_b', { dbl: true });
-  await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
+  await page.locator('.scratch-item[data-scratch-id="sp_b"] .scratch-close').click();
+  await groupedIs(page, 0);   // ★162 고정 300 → 그룹 든 장 0(1장 남아 풀림)
   s = await st(page);
   console.log('[G9] ' + JSON.stringify(s.groups) + ' mode=' + s.mode);
   expect(s.groups.filter((g) => g).length, '★★1장 남자 ★그룹이 통째로 풀렸다').toBe(0);
@@ -267,16 +293,93 @@ test('G9 ★1장만 남으면 그룹이 ★자동으로 풀린다 (★지디 기
   expect(s.mode, '★모드도 같이 나갔다').toBeNull();
 });
 
-test('G10 ★⌘Z ★한 걸음 — 뺀 것이 되돌아온다', async ({ page }) => {
+test('G10 ★⌘Z ★한 걸음 — 지운 것이 되돌아온다(그룹째 · 261026 · ⚰️10-10 판 = 뺀 것)', async ({ page }) => {
   await scene(page);
   await clickItem(page, 'sp_c', { dbl: true });
   await page.evaluate(() => document.activeElement?.blur?.());
-  await page.keyboard.press('Delete'); await page.waitForTimeout(300);
-  expect((await st(page)).groups.filter((g) => g).length, '전제 — 2장').toBe(2);
-  await page.keyboard.press('Meta+z'); await page.waitForTimeout(400);
+  await page.keyboard.press('Delete');
+  await padsIs(page, 2);   // ★162 고정 300 → 장 2
+  expect((await st(page)).pads, '전제 — 지워서 2장').toBe(2);
+  await page.keyboard.press('Meta+z');
+  await padsIs(page, 3);   // ★162 고정 400 → 장 3
+  await expect.poll(async () => (await st(page)).groups.filter((g) => g).length, { timeout: 15000 }).toBe(3);   // 되살린 장의 그룹 표시까지(onUndo 비동기)
   const s = await st(page);
-  console.log('[G10] ' + JSON.stringify(s.groups));
-  expect(s.groups.filter((g) => g).length, '★★⌘Z 한 번에 3장이 다시 그룹').toBe(3);
+  console.log('[G10] ' + JSON.stringify(s.groups) + ' pads=' + s.pads);
+  expect(s.pads, '★⌘Z 한 번에 3장').toBe(3);
+  expect(s.groups.filter((g) => g).length, '★★되살린 장도 그 그룹(3장이 다시 그룹)').toBe(3);
+});
+
+/* ══ 128 — 진입 중 ★«다른 장»을 누르면 ★그 장만 (현빈 t4-19 「그룹안에서의 스크래치패드 순서나 특정 스크래치 패드 삭제」) ══
+ * ★부모 실앱 실측(68ba1f1b · 원 그룹 7장 ×6): 더블클릭 → 선택 1 · ★다른 장 클릭 → ★★선택 7 · ⌘] → 7장 통째 이동 · Delete → 7장 전부 삭제.
+ * ⚠️G3·G4 는 둘 다 «더블클릭한 그 장»에 손을 대서 ★이 길(다른 장 mousedown → 그룹 공동 선택 블록)을 ★안 지난다.
+ * ★장면 = 그룹 3장 + ★그룹 밖 1장(sp_z · DOM 맨 뒤) — 그룹이 통째로 움직이면 ★sp_z 와의 자리가 바뀌어 ★드러난다. */
+async function sceneLoose(page) {
+  await scene(page);
+  await page.evaluate(async (px) => { await window._scratchAddAndSave(px, 1150, 420, 140, undefined, 'sp_z'); }, PX);
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item').length === 4, null, { timeout: 15000 });
+  await page.mouse.click(300, 900);
+  await page.waitForFunction(() => !document.querySelector('.scratch-item.scratch-selected'), null, { timeout: 15000 });   // 빈 곳 클릭 = 선택 0 (고정 대기 대신)
+}
+const domOrder = (page) => page.evaluate(() => [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId));
+const selIds = (page) => page.evaluate(() => [...document.querySelectorAll('.scratch-item.scratch-selected')].map((e) => e.dataset.scratchId));
+/* ★사람 길: sp_c 더블클릭(진입) → ★sp_a 한 번 클릭 */
+async function enterThenPickOther(page) {
+  await sceneLoose(page);
+  expect(await domOrder(page), '★전제 — DOM 순서').toEqual(['sp_a', 'sp_b', 'sp_c', 'sp_z']);
+  await clickItem(page, 'sp_c', { dbl: true });
+  expect((await st(page)).mode, '★전제 — 진입했다').toBeTruthy();
+  await page.waitForFunction(() => document.querySelectorAll('.scratch-item.scratch-selected').length === 1, null, { timeout: 15000 });   // 진입 = 단독 선택이 선 뒤에 다음 클릭(CDP 클릭은 clickCount 를 따로 실어 겹쳐 세지지 않는다)
+  await clickItem(page, 'sp_a');
+}
+
+test('G11 ★★진입 중 ★다른 장 클릭 → ★그 장만 선택(⚰️고치기 전 = 그룹 전원)', async ({ page }) => {
+  await enterThenPickOther(page);
+  const s = await st(page);
+  const ids = await selIds(page);
+  console.log('[G11] sel=' + JSON.stringify(ids) + ' mode=' + s.mode);
+  expect(s.mode, '★모드는 그대로(같은 그룹 장이라 안 나간다)').toBe(s.groups[0]);
+  expect(ids, '★★선택 = 누른 그 장 하나').toEqual(['sp_a']);
+});
+
+test('G12 ★★그 뒤 ⌘] 는 ★그 한 장에만 — 그룹 안 순서(t4-19 ⓑ)', async ({ page }) => {
+  await enterThenPickOther(page);
+  await page.keyboard.press('Meta+]');
+  await page.waitForFunction(() => [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId).join() !== 'sp_a,sp_b,sp_c,sp_z', null, { timeout: 15000 });   // 순서가 움직일 때까지(어느 쪽으로든 — 판정은 아래 단언)
+  const order = await domOrder(page);
+  const s = await st(page);
+  console.log('[G12] order=' + JSON.stringify(order));
+  expect(order, '★★sp_a 만 한 칸 앞으로 — b·c·z 상대 자리 불변(⚰️고치기 전 = 그룹 셋이 통째로 z 뒤로)').toEqual(['sp_b', 'sp_a', 'sp_c', 'sp_z']);
+  expect(order.filter((x) => x !== 'sp_a'), '★다른 장들의 상대 순서 불변').toEqual(['sp_b', 'sp_c', 'sp_z']);
+  expect(s.groups.filter((g) => g).length, '★그룹은 그대로 3장').toBe(3);
+});
+
+test('G13 ★★그 뒤 Delete 는 ★그 한 장에만 — G3 설계대로 ★지우기(t4-19 ⓒ · 261026 · ⚰️10-10 판 = 빼기)', async ({ page }) => {
+  await enterThenPickOther(page);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => !document.querySelector('.scratch-item[data-scratch-id="sp_a"]'), null, { timeout: 15000 });   // sp_a 가 사라질 때까지
+  const s = await st(page);
+  const byId = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.scratch-item')]
+    .map((e) => [e.dataset.scratchId, e.dataset.scratchGroup ?? null])));
+  console.log('[G13] pads=' + s.pads + ' groups=' + JSON.stringify(byId));
+  expect(s.pads, '★★누른 한 장만 지워져 3 (⚰️10-10 판 = 4 그대로 · ⚰️그 전 = 그룹 셋 삭제 → 1)').toBe(3);
+  expect('sp_a' in byId, '★누른 장(sp_a)만 사라졌다').toBe(false);
+  expect(byId.sp_b && byId.sp_b === byId.sp_c, '★★다른 두 장은 ★같은 그룹 그대로').toBe(true);
+  expect(byId.sp_z, '★그룹 밖 장은 무변').toBeNull();
+});
+
+test('G14 ★지우는 손이 됐으므로 — 진입 중 «입력칸에 글 쓰는 중» Backspace 는 장을 안 지운다(261026)', async ({ page }) => {
+  await scene(page);
+  await clickItem(page, 'sp_c', { dbl: true });
+  expect((await st(page)).mode, '전제 — 진입했다').toBeTruthy();
+  await page.evaluate(() => { const i = document.createElement('input'); i.id = '__g14'; i.value = 'ab'; document.body.appendChild(i); i.focus(); });
+  await page.keyboard.press('Backspace');
+  /* ★조건 대기(⛔고정 300ms) — «글자가 지워졌다»(있음)를 기다린다. 스크래치 Delete 갈래는 같은 keydown 안에서 동기로 지우므로
+     글자가 바뀐 뒤면 장이 지워졌을지 여부도 이미 정해져 있다(⛔장 수 3 을 폴링하면 키보다 먼저 참이 돼 아무것도 안 잰다).
+     ★왜 이 한 줄만인가 — 고정 대기 census W3 가 이 줄(G14 · 261026 새로 더함)만 잡았다 · 이 파일의 나머지 300ms 대기들은 기준선 안에 이미 있다 · 그쪽은 별건(지디가 이름 세움 · 다음 릴리스) ⛔여기서 손대지 않는다. */
+  await expect.poll(() => page.evaluate(() => document.getElementById('__g14').value), { timeout: 5000 }).toBe('a');
+  const s = await st(page);
+  expect({ pads: s.pads, val: await page.evaluate(() => document.getElementById('__g14').value) }, '★장 3 그대로 · 글자만 지워짐').toEqual({ pads: 3, val: 'a' });
 });
 
 /* ══ 양성대조·변이 명부 — ★실측은 ★창에서 채운다 ═══════════════════════════════════ */

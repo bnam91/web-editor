@@ -5,7 +5,7 @@
  *   U2 주소를 받는 줄 추가(lnAddLineAt) — 공용 grdAddLine(host) 에 «누른 줄 다음»으로 넘긴다
  *   U3 ★한 길 — T(lnAddLineToSelected)가 lnAddLineAt 을 부르고, 새 줄 spec·grdAddLine 부르는 자리가 늘지 않았다(두 벌 금지)
  *   U4 메뉴 배선 — index.html #bcm-ln-add · block-factory.js openMenu 표시 조건 · 클릭 → window.lnAddLineAt
- *   U5 주인 명부 LN_CTX_ADD_OWNERS = 카드만
+ *   U5 주인 명부 LN_CTX_ADD_OWNERS = 카드 ＋ 말풍선(★1012t1G1 이 넓혔다 — 현빈 「버블텍스트 블럭도 같은 동작」 · 챗·비교·laurel 은 여전히 밖)
  * ★실제 소스를 import 한다(cvb-card-add-slot.test.mjs 의 스텁 사본 꼴) — import 줄이 바뀌면 치환 «못 찾음»으로 빨개진다.
  * ★기대값은 손으로 박았다(피검 소스에서 뽑지 않는다).
  * [양성대조] 바닥 a42d76d5 판에서 U1~U5 전부 빨강 — gen/ 기록(GEN.md).
@@ -228,10 +228,10 @@ test('U4 메뉴 배선: index #bcm-ln-add · openMenu 표시 조건 · 클릭 �
 });
 
 /* ══ U5 — 주인 명부 ══ */
-test('U5 LN_CTX_ADD_OWNERS = 카드만', () => {
+test('U5 LN_CTX_ADD_OWNERS = 카드 ＋ 말풍선(1012t1G1)', () => {
   const m = /^const LN_CTX_ADD_OWNERS = (\[[^\]]*\]);/m.exec(LH_SRC);
   assert.ok(m, 'LN_CTX_ADD_OWNERS 정의');
-  assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), ['canvas-block']);
+  assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), ['canvas-block', 'speech-bubble-block']);
 });
 
 /* ══ U6 — «합친 것을 재는 자» (지디 ⑷) ══

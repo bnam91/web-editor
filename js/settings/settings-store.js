@@ -197,6 +197,7 @@
     'Meta+KeyZ', 'Meta+Shift+KeyZ',
     'Meta+KeyC', 'Meta+KeyV', 'Meta+KeyX',
     'Meta+KeyD', 'Meta+KeyA',
+    'Meta+Alt+KeyC', 'Meta+Alt+KeyV', // ★1020t2d2 스타일 복사/붙여넣기(editor.js) — 맥 관례 자리
     'Meta+Comma', // Cmd+, 는 환경설정 열기 전용
   ]);
 })();

@@ -171,7 +171,9 @@ test('P1 ★오른쪽 ＋ 진짜 클릭 → 열이 «끝에» 하나 · 데이�
   expect(m1.domCells, '★DOM 칸 3').toBe(3);
   const cols = JSON.parse(m1.cols);
   expect(JSON.stringify(cols.slice(0, 2)), '★기존 두 열은 그대로(앞에 안 끼었다)').toBe(JSON.stringify(JSON.parse(m0.cols)));
-  expect(cols[2], '★새 열은 «끝»에 · 피커 기본값').toEqual({ width: 1, lines: [{ type: 'body', text: '내용을 입력하세요.' }] });
+  /* ~~옛: 새 열 = 피커 기본값 { width: 1, lines: [body 「내용을 입력하세요.」] }~~
+     ⇒ ★t5-15(현빈 2026-10-26 「'+'로 열추가시 직전 로우와 칼럼이 복사」): 새 열 = ★직전 열 통째(tests/dom/t5-15-grid-plus-copy) */
+  expect(cols[2], '★새 열은 «끝»에 · 직전 열 베끼기(t5-15)').toEqual(cols[1]);
   // 피커 결과와 같다
   expect(await pickViaPanel(page, b, 3, 1)).toBe(true);
   const mb = await model(page, b);
@@ -199,8 +201,9 @@ test('P2 ★아래 ＋ 진짜 클릭 → 행이 «끝에» 하나 · 데이터·
   expect(m1.lastRowCells, '★마지막 행(r=1)에 칸 2').toBe(2);
   expect(m1.cols, '★행 0(cols)은 그대로').toBe(m0.cols);
   const cells = JSON.parse(m1.cells);
-  expect(cells[1], '★새 행은 «끝»(r=1) · 기본 줄').toEqual([
-    { lines: [{ type: 'body', text: '내용을 입력하세요.' }] }, { lines: [{ type: 'body', text: '내용을 입력하세요.' }] }]);
+  /* ~~옛: 새 행 = 기본 줄 [body 「내용을 입력하세요.」] ×2~~ ⇒ ★t5-15: 새 행 = ★직전 행(1행 그리드면 행 0 = cols[c].lines) 베끼기 */
+  const cols1 = JSON.parse(m1.cols);
+  expect(cells[1], '★새 행은 «끝»(r=1) · 직전 행(행 0) 베끼기(t5-15)').toEqual(cols1.map(c => ({ lines: c.lines })));
   expect(await pickViaPanel(page, b, 2, 2)).toBe(true);
   const mb = await model(page, b);
   expect({ cols: mb.cols, rows: mb.rows, cells: mb.cells }, '★패널 피커 결과 == ＋ 결과').toEqual({ cols: m1.cols, rows: m1.rows, cells: m1.cells });

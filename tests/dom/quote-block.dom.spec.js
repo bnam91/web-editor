@@ -1396,10 +1396,10 @@ test('Q17 ★★캔버스에서 ★글을 ★바로 고친다 — ★더블클�
          ㉢ ★그때의 ★인용구 — Typography/Fill 절이 ★★0(절 제목 전수 = ["인용구(쉼표)","글"]) · «글» 절 ★5칸
    ★★기준판 = ★㉡ 모달이다 — ㉠의 ★숨은 23칸은 ★부분 서식(선택한 글자만)을 ★전제하고, ★이 블럭의 글은
      ★`textContent` ★평문으로 dataset 에 살아 ★원리적으로 ★부분 서식이 ★안 된다(모달과 ★같은 한계).
-   ★★모달 11 중 ★★하나(★형광펜 H)를 ★★일부러 ★안 켰다 — ★까닭을 ★이름으로:
-     ★형광펜 ★색의 명부가 ★이미 ★둘(`modal-block.js:326` ＋ `modal-frameify.js:42`)이고
-     `tests/unit/modal-frameify-gates.test.mjs` ★G1 이 ★그 둘만 대조한다 ⇒ ★세 번째 사본은 ★그 게이트 ★밖이다.
-     ⇒ ★그래서 ★★«10 ＋ 안 켠 1»을 ★이 칸이 ★그대로 ★잠근다(⛔「전부」라 적지 않는다). */
+   ⚰️(1012t1H5 로 뒤집힘) 옛 판은 모달 11 중 형광펜 H 를 일부러 안 켜 «10 ＋ 안 켠 1»을 잠갔다
+     (까닭: 모달 형광펜 색 명부의 셋째 사본). 현빈 「[B I S] 이것도 왜이리 적니?」 ⇒ 이제 단추는 텍스트블럭과 같은 7
+     (B I U S H 점 글로우 · 블럭 전체) · 형광펜은 텍스트블럭 .tb-hl 을 그대로 써 명부 사본이 없다.
+     ⇒ 이 칸은 ★«10 ＋ U·H·점·글로우 4 = 14»를 잠근다. 「누르면 먹는다」는 fix5-quote-panel.dom.spec.js F4. */
 test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★닿고 ★눌러서 ★모델과 ★그림을 움직인다 (현빈 1010t2c1-②)', async ({ page }) => {
   const errs = await setup(page, { text: '안녕' });
   await openPanel(page);
@@ -1431,11 +1431,13 @@ test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★
     'qt-typo-strike-btn', 'qt-typo-lh-number', 'qt-typo-ls-number']) {
     expect(cen.ids.includes(id), `★조종칸 ★${id} 가 ★있어야 한다. 잰 전수 ${JSON.stringify(cen.ids)}`).toBe(true);
   }
-  expect(cen.ids.length, `★조종칸 ★10개(모달 11 − ★안 켠 형광펜 1). 잰 값 ${cen.ids.length} · ${JSON.stringify(cen.ids)}`).toBe(10);
-  /* ★★안 켠 것도 ★이름으로 잠근다 — ⛔「눌러도 조용히 아무 일 없음」을 ★만들지 않는다 */
-  expect(cen.hlBtn, '★형광펜(H)은 ★안 켠다 — 색 명부가 이미 둘이다(G1 이 그 둘만 대조)').toBe(0);
-  expect(cen.ulBtn, '★밑줄(U)도 ★안 켠다 — 부분 서식 전제').toBe(0);
-  expect(cen.dotBtn, '★점도 ★안 켠다 — 부분 서식 전제').toBe(0);
+  /* ⚰️1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 — 옛 단언 «10개 · U·H·점 0개»를 뒤집었다.
+     이제 단추는 텍스트블럭과 같은 7(B I U S H 점 글로우) ⇒ 조종칸 10 ＋ 4(U·H·점·글로우) = 14.
+     «누르면 인용구 글자에 먹는다»는 tests/dom/fix5-quote-panel.dom.spec.js F4 가 잰다. */
+  expect(cen.ids.length, `★조종칸 ★14개(옛 10 ＋ U·H·점·글로우). 잰 값 ${cen.ids.length} · ${JSON.stringify(cen.ids)}`).toBe(14);
+  expect(cen.hlBtn, '★형광펜(H) 단추 1 (1012t1H5)').toBe(1);
+  expect(cen.ulBtn, '★밑줄(U) 단추 1 (1012t1H5)').toBe(1);
+  expect(cen.dotBtn, '★점 단추 1 (1012t1H5)').toBe(1);
   expect(cen.oldFsSlider, `★옛 «글자 크기» 쌍은 ★치웠다(한 값에 칸 둘 금지). 잰 값 ${cen.oldFsSlider}`).toBe(0);
   /* ★범위가 ★QUOTE_LIMITS ★한 표에서 왔나 — ⛔리터럴이면 여기서 갈린다 */
   const lim = await page.evaluate(() => window.QUOTE_LIMITS.fontSize);
@@ -1862,7 +1864,10 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」 하나, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
     .toEqual({ labels: ['글자색'], hasColor: true, colorRow: true });
   expect(pn.titles.includes('글'), `★H5 — 「글」 절은 0 이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe(false);
-  /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 이 Typography 바로 다음, 라벨 글자색)를 만족한다 */
+  /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 절 안 라벨 = 인용구와 같은 「글자색」 하나 · .prop-color-row)를 만족한다.
+     ★173(261027 · 지디) — 텍스트블럭 쪽 «위치» 단언(Fill 이 Typography 바로 다음)을 «내용»으로 좁혔다.
+       떼기 전: 텍스트블럭 패널에 전용 절이 하나 늘어도(1020t2d1 d2ea9ebd 「스타일 번호」 접기 절) 빨강 — 요구(1012t1H5 「텍스트 블럭처럼」 = 글자색이 Fill 절 안)와 무관한 «그때 순서»를 잡았다.
+       뗀 뒤: 텍스트블럭 Fill 절이 없거나 · 그 안 라벨이 인용구와 다르거나(더하거나 빠지거나) · 색 줄이 없으면 빨강 — 인용구 쪽 위치 단언(:1863)은 그대로 둔다. */
   await page.evaluate(() => {
     window.deselectAll && window.deselectAll();
     window.selectSection(document.getElementById('sQ'));
@@ -1878,11 +1883,11 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
     const p = document.getElementById('panel-right');
     const titles = [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
     const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
-    return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null };
+    return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null, colorRow: !!(f && f.querySelector('.prop-color-row')) };
   });
-  const it = tx.titles.indexOf('Typography');
-  expect(tx.titles[it + 1], `★H5 기준 — 텍스트블럭도 Fill 이 Typography 바로 다음이다. 잰 제목 ${JSON.stringify(tx.titles)}`).toBe('Fill');
-  expect(tx.fillLabels, `★H5 기준 — 텍스트블럭 Fill 절에 「글자색」 라벨이 있다. 잰 값 ${JSON.stringify(tx.fillLabels)}`).toContain('글자색');
+  expect(tx.fillLabels, `★H5 기준 — 텍스트블럭에 Fill 절이 있다. 잰 제목 ${JSON.stringify(tx.titles)}`).not.toBeNull();
+  expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구와 같은 라벨(「글자색」 하나) · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
+    .toEqual({ labels: pn.fill.labels, colorRow: true });
   /* ⑶ H4 — 「정렬」 아이콘 셋이 「세로 정렬」 아이콘 셋과 같은 꼴(viewBox·크기·칠 그림 · 선 0) */
   expect({ nh: pn.al.h.length, nv: pn.al.v.length }, `★전제 — 정렬 3 · 세로 정렬 3 아이콘이 있다(inline). 잰 값 ${JSON.stringify(pn.al)}`).toEqual({ nh: 3, nv: 3 });
   const ref = pn.al.v[0];

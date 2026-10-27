@@ -9,6 +9,26 @@
  *   ⒞ 「★격자가 ★안 ★보인다」          ⇒ ★★3×3 ★분할선을 ★★아예 ★안 ★만들었다
  *   ★★★나는 ★그 ★시안을 ★★안 ★보고 ★지었다. ★그것이 ★흠이다.
  *
+ * ★★★★★261025 — ★★현빈이 ⒜ 를 ★★«다시» 신고했다. ⛔위 261024 줄을 ★지우지 ★않는다(★그때 참이었다).
+ *   ★현빈 261025 원문 : 「★보라색 ★아웃라인의 ★두께가 ★왜 ★모서리 핸들가지고 ★움직일때마다
+ *     ★두께가 ★달라지는지?」
+ *   ★★★무엇이 ★어긋났나 : ★261024 는 ⒜ 를 ★★«손잡이»의 ★두께로 ★읽고 ★손잡이를 ⅲ) 으로 ★옮겼다.
+ *     ★그런데 ★현빈이 ★가리킨 것은 ★★«아웃라인»(= ★`.tfh-edge`)이고, ★그것은 ★★ⅱ) 에 ★그대로 ★남아
+ *     ★원근 ★행렬 ★«안»에서 ★계속 ★두께가 ★갈렸다.
+ *     ⇒ ★★★「★맞는 고침」이었지만 ★★「★지목된 고침」이 ★아니었다.
+ *     ★★실측(미카사 261025 · 판 `b6c5f87d`) : ★끌기 전 ★1.401px ★균일
+ *       → ne 끈 뒤 ★0.53~2.29 → sw 더 끈 뒤 ★★0.28~3.20px
+ *   ★★처방 : ★`.tfh-edge` 를 ★★ⅲ) `.tfh-layer`(★변형 ★«밖») 의 ★★svg quad 로 ★옮겼다.
+ *     ★★★휨은 ★남긴다 — ★현빈이 ★「★휨 ★자체는 ★설계대로」라 ★하셨다(261025).
+ *     ★사영변환은 ★직선을 ★직선으로 ★보내므로 ★네 꼭짓점을 ★잇는 quad 는 ★옛 border 의 ★중심선과
+ *     ★★같은 ★도형이다 ⇒ ★모양은 ★한 치도 ★안 바뀌고 ★★두께만 ★균일해진다.
+ *   ★★격자(`.tfh-grid`)는 ★★이 범위가 ★아니다 — ★같은 층에 있어 ★같은 병을 ★앓지만, ★현빈은
+ *     ★「아웃라인」을 ★가리켰다. ⇒ ★이름을 ★붙여 ★명부로 ★올린다 :
+ *     ★`FT-GRID-THICKNESS-VARIES-UNDER-MATRIX-01` (★범위 밖 ⇒ ★★SKIP · ⛔FAIL 아니다)
+ *   ★★★⛔이 고침을 ★잠근 자가 ★없었다 — ★`u3-purple-outline-geometry` 는 ★`.tfh-edge` 의
+ *     ★★rect 와 ★파란 선과의 ★차만 ★잠갔고, ★★«두께»를 ★잰 ★단언은 ★★0건이었다.
+ *     ⇒ ★그래서 ★이 결함이 ★★하루를 ★살아남았다. ★두께 ★단언을 ★★같은 커밋에 ★같이 ★넣는다.
+ *
  * ★★시안이 ★정한 ★구조 — ★★★«세 층»이고 ★★각 층이 ★★다른 ★축에 ★선다:
  *   ⒤ ★`.text-block`(★파란 아웃라인)  ⇒ ★★★`transform` 을 ★★영영 ★안 ★건다. ★직사각형 ★유지.
  *      ★★크기만 ★글자를 ★따라간다(★현빈 msg5416 ⒞ 「★박스가 ★항상 ★글자를 ★감싼다」).
@@ -43,6 +63,7 @@ const EDGEPTS = [
   ['s1', 's', 1 / 3], ['s2', 's', 2 / 3], ['w1', 'w', 1 / 3], ['w2', 'w', 2 / 3],
 ];
 const CURSOR = { nw: 'nwse-resize', ne: 'nesw-resize', se: 'nwse-resize', sw: 'nesw-resize' };
+const SVGNS = 'http://www.w3.org/2000/svg';
 
 /** 캔버스 실제 배율 — ⛔`window.currentZoom` 을 ★가정하지 않고 ★잰다(정본 `_scaleOf` 와 ★같은 자). */
 function _scaleOf(el) {
@@ -79,16 +100,35 @@ function _ensureLayers(tb) {
   if (!fx) {
     fx = document.createElement('div');
     fx.className = 'tfh-fx';
-    /* ★격자 = ★3×3 — ★시안 `:193~197` 그대로(★v 둘 · ★h 둘 · ★33.333%·66.666%) */
-    fx.innerHTML = '<div class="tfh-edge"></div><div class="tfh-grid">'
-      + '<i class="v" style="left:33.333%"></i><i class="v" style="left:66.666%"></i>'
-      + '<i class="h" style="top:33.333%"></i><i class="h" style="top:66.666%"></i>'
-      + '</div>';
+    /* ★★`.tfh-edge` 는 ★261025 에 ★`.tfh-layer`(변형 «밖») 로 ★옮겼다 — ★아래 `_ensureEdge` 참고.
+       ~~★여기 ★남는 것은 ★격자뿐이다(★격자의 ★휨은 ★그 자체가 ★맞는 표현이다).~~
+       ★★261026(118 FT-GRID-THICKNESS · 현빈 GO ㉠) — ★격자도 ★같은 병(원근 행렬 안 ⇒ 분할선 두께가 자리마다 갈림)이라
+         ★★같은 처방으로 ★변형 «밖» svg 로 옮겼다(아래 `.tfh-grid`). ★이 층은 ★글자와 같은 행렬만 들고 ★비어 있다
+         (⛔지우지 않는다 — 층 수·청소(ftHandlesClear)·검사들이 이 층을 센다). */
     tb.appendChild(fx);
   }
   let layer = tb.querySelector(':scope > .tfh-layer');
   if (!layer) { layer = document.createElement('div'); layer.className = 'tfh-layer'; tb.appendChild(layer); }
-  return { fx, layer };
+  /* ★★보라 테두리 — ★★변형 «밖»의 ★svg quad. ★★손잡이 ★«앞»에 끼운다(★손잡이가 ★위에 그려져야 ★잡힌다).
+     ⛔`className` 으로 ★주지 ★마라 — ★SVG 에서는 ★읽기 전용이다(`SVGAnimatedString`). */
+  let edge = layer.querySelector(':scope > .tfh-edge');
+  if (!edge) {
+    edge = document.createElementNS(SVGNS, 'svg');
+    edge.setAttribute('class', 'tfh-edge');
+    edge.appendChild(document.createElementNS(SVGNS, 'path'));
+    layer.insertBefore(edge, layer.firstChild);
+  }
+  /* ★★118 — ★격자 3×3 도 ★변형 «밖»의 svg — ★테두리(`.tfh-edge`) 바로 뒤 · 손잡이 앞(손잡이가 위에 그려져야 잡힌다).
+     ★선 넷 = ★시안 `:193~197` 그대로(v 둘 · h 둘 · 1/3·2/3) · 끝점은 ★손잡이·테두리와 ★같은 호모그래피(ftHandlesSync).
+     ★사영변환은 직선을 직선으로 보낸다 ⇒ 옛 판(행렬 안 div)의 중심선과 ★같은 선 ⇒ ★휨 그대로 · 두께만 균일. */
+  let grid = layer.querySelector(':scope > .tfh-grid');
+  if (!grid) {
+    grid = document.createElementNS(SVGNS, 'svg');
+    grid.setAttribute('class', 'tfh-grid');
+    for (const k of ['v', 'v', 'h', 'h']) { const l = document.createElementNS(SVGNS, 'line'); l.setAttribute('class', k); grid.appendChild(l); }
+    edge.after(grid);
+  }
+  return { fx, layer, edge, grid };
 }
 
 /** 손잡이·격자를 ★놓는다(멱등). 돌려주는 것 = 놓은 손잡이 수(안 떠야 하면 0). */
@@ -103,7 +143,7 @@ export function ftHandlesSync(tb) {
   const h = homography([[0, 0], [st.W, 0], [st.W, st.H], [0, st.H]], D);
   if (!h) return 0;                       /* ★한 줄·겹침 ⇒ 못 푼다 — ★정본도 그리지 않는다 */
 
-  const { fx, layer } = _ensureLayers(tb);
+  const { fx, layer, edge, grid } = _ensureLayers(tb);
   /* ★★⒤ 꾸밈 층 — ★글자와 ★«같은 행렬». ★시안 `:570~571` 그대로(origin `0 0`). */
   fx.style.width = st.W + 'px'; fx.style.height = st.H + 'px';
   fx.style.left = st.OX + 'px'; fx.style.top = st.OY + 'px';
@@ -113,6 +153,38 @@ export function ftHandlesSync(tb) {
   /* ★★ⅱ) 손잡이 층 — ★★변형 ★«밖». ⇒ ★★두께가 ★균일하다(★현빈 ⒜ 의 ★처방). */
   const scale = _scaleOf(tb);
   const toLocal = ([x, y]) => [st.OX + x, st.OY + y];      /* ★모델 px · ★블럭 좌표 */
+
+  /* ★★★보라 테두리 — ★★손잡이와 ★«같은 네 점»(`toLocal(D[i])`)을 ★잇는 quad.
+     ★★왜 이렇게 두는가 : ★사영변환은 ★직선을 ★직선으로 ★보내므로 ★이 quad 는 ★옛 판(★변형 «안»의
+       `border`)의 ★중심선과 ★★같은 도형이다 ⇒ ★★휨은 ★그대로 ★두고 ★두께만 ★균일해진다.
+     ★★상자(= `getBoundingClientRect`)가 ★옛 `.tfh-fx` bbox 와 ★★같아야 한다 —
+       ★`u3-purple-outline-geometry` 의 ★U1(= 글자 bbox)·★U2(= 파란 선 안)가 ★그 값을 ★잠근다.
+       ★`.tfh-fx` 는 ★`W×H @ OX,OY` 에 ★그 행렬이 걸린 것이라 ★제 bbox 가 ★바로 ★이 네 점의 bbox 다.
+     ⛔선 두께의 ★절반은 ★상자 ★밖에 그려진다 — ★CSS `overflow: visible` 이 ★그것을 ★살린다. */
+  {
+    const P = [0, 1, 2, 3].map((i) => toLocal(D[i]));
+    const xs = P.map((p) => p[0]); const ys = P.map((p) => p[1]);
+    const bx = Math.min(...xs); const by = Math.min(...ys);
+    const bw = Math.max(Math.max(...xs) - bx, 0.001);     /* ★0 이면 viewBox 가 죽는다 */
+    const bh = Math.max(Math.max(...ys) - by, 0.001);
+    edge.style.left = bx + 'px'; edge.style.top = by + 'px';
+    edge.style.width = bw + 'px'; edge.style.height = bh + 'px';
+    edge.setAttribute('viewBox', `0 0 ${bw} ${bh}`);
+    edge.firstChild.setAttribute('d',
+      'M' + P.map((p) => `${(p[0] - bx).toFixed(3)},${(p[1] - by).toFixed(3)}`).join('L') + 'Z');
+    /* ★★118 격자 — ★테두리와 ★같은 상자·같은 viewBox(분할선은 네 점 안에 있다) · 끝점 = 원 W×H 의 1/3·2/3 를 ★같은 h 로 */
+    const mapPt = ([x, y]) => { const w = h[6] * x + h[7] * y + 1; return toLocal([(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]); };
+    const segs = [[[st.W / 3, 0], [st.W / 3, st.H]], [[st.W * 2 / 3, 0], [st.W * 2 / 3, st.H]],
+                  [[0, st.H / 3], [st.W, st.H / 3]], [[0, st.H * 2 / 3], [st.W, st.H * 2 / 3]]];
+    grid.style.left = bx + 'px'; grid.style.top = by + 'px';
+    grid.style.width = bw + 'px'; grid.style.height = bh + 'px';
+    grid.setAttribute('viewBox', `0 0 ${bw} ${bh}`);
+    [...grid.children].forEach((l, i) => {
+      const a = mapPt(segs[i][0]), b = mapPt(segs[i][1]);
+      l.setAttribute('x1', (a[0] - bx).toFixed(3)); l.setAttribute('y1', (a[1] - by).toFixed(3));
+      l.setAttribute('x2', (b[0] - bx).toFixed(3)); l.setAttribute('y2', (b[1] - by).toFixed(3));
+    });
+  }
   const put = (name, pt, kind) => {
     let el = layer.querySelector(`:scope > [data-tfh="${name}"]`);
     if (!el) {
@@ -187,11 +259,66 @@ function _bind(el, tb, name, kind) {
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      /* ★★★끈 뒤 ★click 한 번을 ★삼킨다 — `FT-DRAG-RELEASE-DESELECTS-01`(★현빈 261025 자유변형).
+         ⛔안 삼키면 : ★`mouseup` 뒤 ★브라우저가 ★합성 `click` 을 ★공통 조상에서 ★내고,
+           ★`block-drag` 의 ★click 핸들러가 ★`deselectAll()` 을 ★불러 ★방금 끌던 블럭이 ★풀린다
+           ⇒ ★`_shouldShow` 가 ★`.selected` 를 ★요구하므로(:81) ★★손잡이가 ★통째로 ★사라진다.
+         ★꼴은 ★★레포 선례 ★그대로 — ★capture ＋ 120ms :
+           `js/block-drag.js:684` · `js/blocks/mockup-block.js:221` · `js/overlay-float.js:712`
+           (＋함수 꼴 둘 : `js/table-cell-select.js:85` `armClickSwallow` ·
+             `js/overlay-handles.js:2578` `_grdRangeArmClickSwallow`)
+         ★★⇒ ★이것이 ★★«여섯째 사본»이다. ★`block-drag.js:681` 이 ★「선례 그대로」라 ★적어 뒀다.
+           ★경고 주석으로는 ★못 막는다 — ★공용 하나로 ★파생시킬 자리다.
+           ⇒ ★이름 : ★`CLICK-SWALLOW-IDIOM-COPIED-SIX-TIMES-01` (★범위 밖 ⇒ ★★따로)
+         ★`!first` = ★끌림이 ★실제로 ★있었다 — ⛔안 움직인 ★제자리 클릭은 ★삼키지 ★않는다
+           (★삼키면 ★손잡이를 ★그냥 ★누른 것도 ★먹혀 ★다른 것이 ★깨진다). */
+      if (!first) {
+        const killClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+        document.addEventListener('click', killClick, true);
+        setTimeout(() => document.removeEventListener('click', killClick, true), 120);
+      }
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
 }
+
+/** ★FT-3a 「되찾기」 — 섹션 밖으로 나가 잘린 모서리 손잡이를 «섹션 안 가장자리»로 데려온다. 데려온 수를 돌려준다.
+ *  ★왜 필요한가(미카사 261025 실측 · ca702d40): ne 를 섹션 오른 경계 밖 60px 로 끌면 그 점의 임자가 `canvas-wrap`
+ *    (`.section-inner` overflow clip 이 자른다) ⇒ 그 손잡이를 다시 못 잡는다. ⌘Z 는 «바로 다음»에만 되고,
+ *    「원래대로」는 네 모서리를 «전부» 버린다.
+ *  ★손잡이의 «화면 자리»로 판정한다 — 손잡이 층은 변형 «밖»이라 그 중심이 곧 화면 꼭짓점이다(ftHandlesSync).
+ *    밖이면 섹션 상자 안쪽 EDGE_IN px 지점으로 그 모서리만 옮긴다(화면 차 ÷ 배율 = 모델 차) · 나머지 셋은 그대로.
+ *  ⛔끌기 자체는 막지 않는다(손잡이를 경계에 묶으면 «밖으로 늘리기» 의도가 막힌다 — 발주 ㉣ 부작용).
+ *  ★이력 = 한 걸음(바꾸는 문 하나 · history:true). */
+const EDGE_IN = 8;   /* 화면 px — 손잡이(7px)가 통째로 보이고 잡히는 여유 */
+export function ftPullCornersIntoSection(tb) {
+  const C0 = ftCornersOf(tb);
+  const sec = tb && tb.closest ? tb.closest('.section-block') : null;
+  const layer = tb && tb.querySelector ? tb.querySelector(':scope > .tfh-layer') : null;
+  if (!C0 || !sec || !layer) return 0;
+  const box = (sec.querySelector(':scope > .section-inner') || sec).getBoundingClientRect();
+  const scale = _scaleOf(tb);
+  if (!(scale > 0)) return 0;
+  const C = C0.map((p) => p.slice());
+  let n = 0;
+  CORNERS.forEach(([name, i]) => {
+    const h = layer.querySelector(`:scope > [data-tfh="${name}"]`);
+    if (!h) return;
+    const r = h.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const tx = Math.min(Math.max(x, box.left + EDGE_IN), box.right - EDGE_IN);
+    const ty = Math.min(Math.max(y, box.top + EDGE_IN), box.bottom - EDGE_IN);
+    if (tx === x && ty === y) return;
+    C[i] = [C0[i][0] + (tx - x) / scale, C0[i][1] + (ty - y) / scale];
+    n++;
+  });
+  if (!n) return 0;
+  const res = setFxFreeTransform(tb, C, { history: true, touched: true });
+  if (res && res.ok) ftHandlesSync(tb);
+  return res && res.ok ? n : 0;
+}
+if (typeof window !== 'undefined') window.ftPullCornersIntoSection = ftPullCornersIntoSection;
 
 /** 문서를 연 뒤·고른 것이 바뀐 뒤 — 걸린 블럭의 손잡이를 ★다시 놓는다(멱등). */
 export function ftHandlesSyncAll(root = document) {

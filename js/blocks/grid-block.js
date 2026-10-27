@@ -200,6 +200,10 @@ export const GRID_GAP_MAX = 200;
  *   CSS row-gap 은 음수를 «무효»로 버리므로 그리기에선 row-gap:0 + 둘째 줄부터 칸마다 margin-top:<음수> 로 당긴다.
  *   ⛔열 간격·옛 통합 gap 은 그대로 0~ — 열이 겹치는 요청은 없었다. */
 export const GRID_ROW_GAP_MIN = -50;
+/* ★t6-02 — 열 간격도 «음수»(현빈 「그리드 블럭의 열간격 역시 -50까지 되게 해줄 것 (현재는 로우 간격만 됨)」).
+ *   행과 같은 수법: CSS column-gap 은 음수가 무효라 column-gap:0 + 둘째 칸부터 margin-left:<음수> 로 왼쪽 칸에 당긴다.
+ *   값도 행과 같은 −50(사람이 고르는 두 칸의 하한이 같아야 헷갈리지 않는다). */
+export const GRID_COL_GAP_MIN = -50;
 /* 원형 이미지 줄의 기본 지름(px) — height 가 없을 때. 우클릭 「원형 이미지 추가」도 이 값으로 넣는다. */
 export const GRID_IMG_CIRCLE_D = 120;
 /* ★T4④-⒝ (현빈 2026-10-07 「설정 안 했는데 모서리 코너가 들어가 있다 — 왜?」 · 지디 판정 ⒝)
@@ -955,11 +959,20 @@ function fitKeylessFreeFrameGridsOnOpen(root) {
   return n;
 }
 
-/** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 만 GRID_ROW_GAP_MIN). 통과면 정수, 아니면 null. */
+/** gap/rowGap/colGap 공용 검증 — min~GRID_GAP_MAX(min 기본 0, rowGap 은 GRID_ROW_GAP_MIN · colGap 은 GRID_COL_GAP_MIN). 통과면 정수, 아니면 null. */
 function _gridValidateGap(v, min = 0) {
   const n = Number(v);
   if (!Number.isFinite(n) || n < min || n > GRID_GAP_MAX) return null;
   return Math.round(n);
+}
+
+/* ★t6-04b — 줄의 px 값을 «0 을 살려» 읽는 문 하나(그리는 쪽 · 패널이 같이 쓴다 · 인자 = 값, 기본값).
+ *  쓰는 자리: 중첩 줄 gap(t6-04 요구) · 여백 줄 height · 그림 줄 height 패널 표시(이웃 둘 · 지디 16:21).
+ *  ⛔`Number(line.gap) || 24` 금지 — 0 이 유효값인데 `||` 가 0 을 삼켜 24 로 그렸고, 팝오버가 24 를 «지금 값»으로
+ *    띄워 0 → 24 로 «조용히 되써» 저장본을 바꿨다(아이맥 ⓐ). :717 블럭 gap 과 같은 함정 · 같은 판정(Number.isFinite).
+ *  ★없음(null·undefined·'')·무효 = 부른 쪽이 준 기본값(그 기본값의 정본 자리는 따로 하나씩 — GRID_NESTED_GAP · GRID_GAP_LINE_H). 범위 밖 저장본은 «그대로» 그린다 — 거르는 자리는 들어오는 문(_gridValueViolations). */
+function _gridNumOr(g, dflt) {   // ★값을 받는다(줄이 아니라) — `line.gap` 글자가 부르는 자리에 남아야 P6(명부 도출 · 소스 파싱)이 읽는다
+  return g !== null && g !== undefined && g !== '' && Number.isFinite(Number(g)) ? Number(g) : dflt;
 }
 
 // 컬럼 스케일 텍스트 롤 기본값 (풀폭 h1 104px는 다단에선 과대 — 컬럼용 축소 기준)
@@ -1054,6 +1067,15 @@ const GRID_NESTED_MAX_DEPTH = 2;
  *   같은 판정을 한 번 더 해야 해서, 리터럴을 둘로 늘리는 대신 «이름»으로 옮겼다.
  *   ⇒ 리터럴 수는 그대로 하나다. S1 의 허용 목록 ⑷ 도 이 줄을 가리키게 같이 옮겼다. */
 const GRID_NESTED_LINE_TYPE = 'duo';
+/* ★t6-04b ⑴ — 중첩 줄 «칸 사이 간격» 기본값의 정본 자리 «하나». 수가 둘인 것은 뜻이 둘이라서다:
+ *   create  = 「나란히 두 칸으로 나누기」가 «새 줄»에 넣는 값(block-factory.js · 현빈 0927 「깨져 보인다」로 24→8)
+ *   missing = 저장본에 `gap` 키가 «없을 때» 그리는 값(T-221 이전 옛 줄 · innercard 경로 — 옛 그림 그대로)
+ *   ⛔두 소비자가 수를 «각자» 적지 않는다(전엔 8 과 `|| 24` 가 따로 있어 착지점이 갈렸다 · 지디 16:09 ⑴).
+ *   ⚠️둘을 «한 수»로 합치면 키 없는 옛 저장본의 그림이 바뀐다 — 그 결정은 현빈 몫이라 안 했다. */
+const GRID_NESTED_GAP = Object.freeze({ create: 8, missing: 24 });
+/* ★t6-04b 이웃 — 여백 줄(type 'gap') 높이 기본값의 정본 자리. 그리는 쪽(_gridLineHtml)과 패널 placeholder 가 같이 읽는다
+ *   (전엔 렌더러 `|| 16` · 패널 placeholder="16" · 안내문 「비우면 기본 16」 세 군데에 손으로 적혀 있었다). */
+const GRID_GAP_LINE_H = 16;
 /* ═══ patchCell 이 «실제로 그려지는 필드»만 받게 하는 명부 ═══════════════════
    ★왜 있나 — 2026-09-09. `update_block{patchCell}` 은 `rest` 의 «아무 키나» 받아
      `applied.patchCell` 에 그대로 되돌려줬다. 렌더러가 안 읽는 이름을 줘도 `ok:true` 다.
@@ -1070,7 +1092,8 @@ const GRID_NESTED_LINE_TYPE = 'duo';
 /** `_gridLineHtml` 이 읽는 `line.*` — patchCell{lineIndex} 로 줄 수 있는 필드. */
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'clipContent', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
-  'gap', 'height', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
+  'fxShadow', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp', 'fxShadowX', 'fxShadowY',
+  'gap', 'height', 'id', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'textHtml', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
   'weight', 'widthPct',
@@ -1586,6 +1609,12 @@ function _gridValueViolations(node, where) {
           ? ' (it would have fallen back to the block default without a word)'
           : ' (it would have gone straight into the style attribute and the browser would have ignored it)'),
     });
+  }
+  /* ★t6-04b ⓑ — 줄의 `gap`(중첩 줄 칸 사이 간격) 범위. 전엔 이 문에 «한 줄도» 없어 -5 · 900 이 ok:true 로 앉았다.
+   *  ⛔새 자를 안 짓는다 — 블럭 gap 과 «같은» _gridValidateGap(0~GRID_GAP_MAX). null·undefined = 「그 키를 지움」(→ 24) 이라 안 잰다. */
+  if ('gap' in node && node.gap !== null && node.gap !== undefined && _gridValidateGap(node.gap) === null) {
+    out.push({ path: `${where}.gap`,
+      why: `${JSON.stringify(node.gap)} is not a gap the grid accepts — use a number 0~${GRID_GAP_MAX} (px)` });
   }
   return out;
 }
@@ -2251,7 +2280,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     ? ` data-r="${addr.r}" data-c="${addr.c}" data-line="${addr.li}"`
     : (naddr ? ` data-r="${naddr.r}" data-c="${naddr.c}" data-nroot="${naddr.root}" data-npath="${naddr.path}"` : '');
   if (line.type === 'gap') {
-    const h = Number(line.height) || 16;
+    const h = _gridNumOr(line.height, GRID_GAP_LINE_H);   // ★t6-04b 이웃 — ⛔`|| 16` 은 0 을 삼킨다
     return `<div${addrAttr} class="grd-gap" style="height:${h}px;${mtCss}"></div>`;
   }
   /* ★구분선 줄 (그리드 티켓 ② · 2026-09-28) — 칸 «안»에 가로선을 긋는다.
@@ -2344,15 +2373,28 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
           + `font-size:${tSize}px;font-weight:${tRole.weight};line-height:${tRole.lh};color:${tColor};`
           + `white-space:pre-wrap;word-break:keep-all;">${_esc(cText)}</div>`;
       }
-      const posCss = cTextHtml ? 'position:relative;' : '';   // ⛔글자가 있을 때만 — 없으면 바이트 동일
+      /* ★t5-12ⓑ ㉮(현빈 「원형이미지에 … 블럭추가가 필요함」) — 원 줄의 «변하지 않는 이름» line.id(블럭을 처음 얹을 때 매김 · 그 전엔 없음 ⇒ 바이트 동일).
+         원 위에 얹힌 블럭 그릇(.grd-circle-kids)이 이 이름으로 다시 그리기 뒤 제 원을 찾아 붙는다(renderGridBlock). */
+      const lid = (typeof line.id === 'string' && line.id) ? line.id : '';
+      const lidAttr = lid ? ` data-line-id="${_esc(lid)}"` : '';
+      const posCss = (cTextHtml || lid) ? 'position:relative;' : '';   // ⛔글자·이름이 없을 때 — 바이트 동일
       /* ★T4② — 원도 같은 규칙: 지름 ★미설정이면 칸을 채운다(높이 100% ＋ 바닥 · aspect-ratio 가 정원을 지킨다).
          ⚠️다만 ★새로 만드는 원은 ★언제나 height 를 ★박고 태어난다(js/block-factory.js:5797·:5808 이
            GRID_IMG_CIRCLE_D 를 명시로 넣는다) ⇒ ★이 가지는 «그 키를 지운 원»에서만 보인다.
            ⇒ ★「원도 100% 가 디폴트」를 ★눈에 보이게 하려면 ★그 두 자리가 ★안 박아야 한다 — ★별건·현빈 자리. */
       const dCss = h > 0 ? `width:${d}px;` : `height:100%;min-height:${GRID_IMG_CIRCLE_D}px;`;
-      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}`;
-      if (!line.imgSrc) return `<div${addrAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}">${cTextHtml}</div>`;
-      return `<div${addrAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
+      /* ★t5-13ⓐ(2026-10-26 S3 · 현빈 「원형이미지의 그림자 효과는 어떻게 주는지? … 에셋들에 효과를 주고 싶음」) —
+         원 줄의 그림자 키 여섯(에셋 Effects 「그림자」와 같은 이름)을 읽어 ★에셋과 같은 식(js/effects-shadow.js fxShadowFilterOf)으로 filter 를 단다.
+         ⛔식은 여기 다시 적지 않는다 — window 창구로 빌린다(이 파일은 효과 모듈을 import 하지 않는다 · 단위 하네스가 import 를 하나씩 바꿔 끼운다).
+         키가 없거나 꺼져 있으면 '' ⇒ 바이트 동일. */
+      const _fxF = (typeof window !== 'undefined' && typeof window.fxShadowFilterOf === 'function')
+        ? window.fxShadowFilterOf({ fxShadow: line.fxShadow, fxShadowX: line.fxShadowX, fxShadowY: line.fxShadowY,
+            fxShadowBlur: line.fxShadowBlur, fxShadowColor: line.fxShadowColor, fxShadowOp: line.fxShadowOp })
+        : '';
+      const fxCss = _fxF ? `filter:${_fxF};` : '';
+      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
+      if (!line.imgSrc) return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}${lid ? 'overflow:hidden;' : ''}">${cTextHtml}</div>`;
+      return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
         + cTextHtml
         + `</div>`;
@@ -2530,7 +2572,7 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     //   중첩까지 넓히면 innercard 렌더 회귀 범위가 커진다(PLAN §P1 회귀위험).
     const cols = Array.isArray(line.cols) ? line.cols.slice(0, GRID_NESTED_MAX_COLS) : [];
     if (!cols.length) return '';
-    const gap = Number(line.gap) || 24;
+    const gap = _gridNumOr(line.gap, GRID_NESTED_GAP.missing);
     const valign = _gridEnum(_GRID_VALIGN, line.valign) || 'flex-start';
     const colsHtml = cols.map((c, ci) => {
       const w = Number(c.width) || 1;
@@ -2763,6 +2805,31 @@ export async function whenGridRatiosSettled({ capMs = GRID_RATIO_WAIT_CAP_MS } =
   return { status: 'cap', pending: left, ms: Date.now() - t0 };
 }
 
+/* ★트랙 글자 — 렌더(grid-template-rows/columns)와 끌기 미리보기(previewGridTracks)가 «같은 식»을 쓴다(두 벌 금지). */
+function _gridRowTemplate(rows, cellPadY) {
+  return rows.map(r => _gridTrack(r.height === 'auto' ? null : r.height, null, cellPadY)).join(' ');
+}
+function _gridColTemplate(cols) {
+  return cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
+}
+
+/* ★132 GRID-ROW-DRAG-MOVE(2026-10-26 · 현빈 GO (48)) — 행·열 경계를 «끄는 동안»은 칸을 다시 짓지 않고 트랙 글자(CSS)만 바꾼다 = «싸게 그린다».
+ *   왜: renderGridBlock 은 껍데기(.grd-inner)를 통째로 갈아끼운다(:「⛔DOM 노드로 칸을 들지 않는다 — renderGridBlock 이 innerHTML 을 갈아끼운다」) —
+ *     끄는 동안 바뀌는 것은 dataset.rows 의 높이 / dataset.cols 의 폭 = grid-template-rows / -columns 뿐이다.
+ *     같은 드래그가 이미 지키는 규약(pushHistory = mousedown 한 번 · 패널 = 재렌더 없이 입력값만)을 «본문»에도 잇는다.
+ *   ⇒ 끝(onUp)에서 renderGridBlock 을 «한 번» 불러 정본으로 맞춘다(overlay-handles.js _onGridRowMouseDown · _onGridColMouseDown).
+ *   ⛔배경 그림 칸이 있으면(행 트랙이 칸 폭 × 그림 비율로 정착 — _gridSettleBgTracks · 열 폭이 바뀌면 행 높이도 바뀐다) false = 부르는 쪽이 옛 길(매 틱 렌더) 그대로.
+ *   ⛔껍데기가 없으면(아직 안 그려짐) false. 반환 true = 트랙만 바꿨다. */
+function previewGridTracks(block) {
+  const inner = block && block.querySelector(':scope > .grd-inner');
+  if (!inner) return false;
+  if (inner.querySelector(':scope > .grd-cell[style*="background-image"]')) return false;
+  const { cols, rows } = getGridModel(block);
+  inner.style.gridTemplateColumns = _gridColTemplate(cols);
+  inner.style.gridTemplateRows = _gridRowTemplate(rows, getGridCellPadY(block));
+  return true;
+}
+
 function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
@@ -2802,11 +2869,11 @@ function renderGridBlock(block) {
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
   if (!floating && ownW === null) window.applyBlockFullBleed?.(block);
 
-  const colTemplate = cols.map(c => `${Number(c.width) > 0 ? Number(c.width) : 1}fr`).join(' ');
+  const colTemplate = _gridColTemplate(cols);   // ★한 식 — 끌기 미리보기(previewGridTracks)와 한 자리
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
   const rules = _gridRules(block, cols.length, rows.length);
   // ★행 높이는 «가중치»가 아니라 px 최소높이(minmax) — 3-A U5a 의미론. 'auto' 행은 내용 높이 그대로.
-  const rowTemplate = rows.map(r => _gridTrack(r.height === 'auto' ? null : r.height, null, cellPadY)).join(' ');   // ★한 식(gridTrackMin) — 키 없으면 옛 산출 그대로
+  const rowTemplate = _gridRowTemplate(rows, cellPadY);   // ★한 식(gridTrackMin) — 키 없으면 옛 산출 그대로 · 끌기 미리보기(previewGridRowTracks)와 한 자리
   const bgRows = {};   // ★E157 — 높이 키 있는 행의 배경 칸 { r: [{c, src}] } · 렌더 뒤 _gridSettleBgTracks 가 쓴다
 
   /* ★G5 글자 톤 — 블럭 자리의 실제 배경(섹션/프레임, computed)을 한 번 재고, 칸 배경이 있으면 그 위에 합성해 칸마다 가른다.
@@ -2921,9 +2988,10 @@ function renderGridBlock(block) {
          `position:relative` 도 줄이 있을 때만 붙는다(있으면 절대배치 자식의 기준이 된다).
          ⛔줄 div 는 «줄(line)들보다 앞»에 둔다 — 흐름에 안 끼는 absolute 라 자리는 안 먹고,
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
-      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), colGapPx);
+      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx));
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}">
+      const pullLeft = colGapPx < 0 && c > 0 ? `margin-left:${colGapPx}px;` : '';   // ★t6-02 음수 열 간격 = 왼 칸으로 당긴다(GRID_COL_GAP_MIN 주석)
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
         ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? 'hex' : _cellTone(bg))).join('')}
       </div>`);
     }
@@ -2934,9 +3002,20 @@ function renderGridBlock(block) {
      ⛔html 문자열은 «옛 줄 그대로»다 — 자식이 없으면 replaceShellKeepChildren 이 옛 줄과 «같은 대입»을 한다
        ⇒ 기존 그리드 렌더 바이트 동일(지키는 시험: grid-block-width-model W0 · grid-children-shell-bytes). */
   /* ★G12 — 배경 층은 셸 «맨 앞»(꺼지면 '' ⇒ 옛 줄과 바이트 동일). 셸이라 매 렌더 «데이터에서» 다시 선다. */
-  replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${colGapPx}px;width:100%;">
+  /* ★t5-12ⓑ ㉮ — 원 위 블럭 그릇(.grd-circle-kids)은 셸 «안»(원 안)에 산다 ⇒ 셸을 갈기 전에 떼어 두고, 다시 그린 뒤 같은 이름(data-line-id)의
+     원에 다시 붙인다. 줄을 옮기면(행·열 옮기기·줄 이동) 이름이 따라가 그릇도 따라간다 · 줄이 사라지면 그릇도 사라진다(자식째).
+     ⛔그릇이 없으면 아무것도 안 한다(바이트 동일). 같은 이름이 둘이면(줄 복제) 첫 원만 받는다. */
+  const _circleKids = typeof block.querySelectorAll === 'function'   // ⛔단위 하네스의 가짜 블럭엔 없다 — 그릇 0 = 옛 길
+    ? [...block.querySelectorAll(':scope > .grd-inner .grd-circle-kids[data-line-id]')] : [];
+  _circleKids.forEach((k) => k.remove());
+  replaceShellKeepChildren(block, `${_gridBlockBgHtml(block)}<div class="grd-inner" style="display:grid;grid-template-columns:${colTemplate};grid-template-rows:${rowTemplate};row-gap:${Math.max(0, rowGapPx)}px;column-gap:${Math.max(0, colGapPx)}px;width:100%;">
     ${cellsHtml.join('')}
   </div>`, GRID_CHILDREN_CLASS);
+  for (const k of _circleKids) {
+    if (!k.childElementCount) continue;
+    const host = [...block.querySelectorAll(':scope > .grd-inner .grd-img-circle[data-line-id]')].find((e) => e.dataset.lineId === k.dataset.lineId);
+    if (host && !host.querySelector(':scope > .grd-circle-kids')) host.appendChild(k);
+  }
   _syncGridAddBtns(block);   // ★G15 — ＋ 흐림·자리 맞추기(＋ 는 블럭 밖 층 — 블럭 DOM 은 안 건드린다 ⇒ 렌더 바이트 불변)
   _gridSettleBgTracks(block, bgRows, rows, cellPadY);   // ★E157 — 배경 행 트랙 = 칸 폭 × 원 비율 + 2Y(배경 행 없으면 아무것도 안 함)
 }
@@ -3051,7 +3130,7 @@ function makeGridBlock(opts = {}, drops = []) {
   // ★rowGap/colGap 은 «주어졌을 때만» dataset 에 쓴다 — 안 주면 옛 파일과 완전히 같은 모양(legacy gap 폴백).
   for (const k of ['rowGap', 'colGap']) {
     if (opts[k] === undefined) continue;
-    const lo = k === 'rowGap' ? GRID_ROW_GAP_MIN : 0;
+    const lo = k === 'rowGap' ? GRID_ROW_GAP_MIN : GRID_COL_GAP_MIN;
     const v = _gridValidateGap(opts[k], lo);
     if (v !== null) block.dataset[k] = String(v);
     else drops.push({ path: k, why: `${JSON.stringify(opts[k])} is outside ${lo}~${GRID_GAP_MAX} — it was not written, so this axis falls back to gap` });
@@ -3431,8 +3510,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     applied.rowGap = v;
   }
   if (partial.colGap !== undefined) {
-    const v = _gridValidateGap(partial.colGap);
-    if (v === null) return { ok: false, code: 'INVALID', message: `colGap must be 0~${GRID_GAP_MAX}` };
+    const v = _gridValidateGap(partial.colGap, GRID_COL_GAP_MIN);
+    if (v === null) return { ok: false, code: 'INVALID', message: `colGap must be ${GRID_COL_GAP_MIN}~${GRID_GAP_MAX}` };
     next.colGap = String(v);
     applied.colGap = v;
   }
@@ -3903,12 +3982,30 @@ function gridResizeTo(block, nCols, nRows) {
    * ⛔import 금지 — grid-infographic.js 가 이 파일을 import 하므로 반대 방향은 순환이고,
    *   loadGrid({withIfg:false}) 가 grid-block.js «한 파일»만 얹는 유닛 하네스 10곳을 깨뜨린다. */
   const ifg = block.dataset.ifgPreset ? window.ifgNewShape?.(block, nCols, nRows) : null;
+  /* ★t5-15(현빈 2026-10-26) — 「'+'를 눌러서 열추가시에, 직전 로우와 칼럼이 복사되도록」.
+   *   새 열 = ★직전(마지막) 열 통째(폭·열 값·줄 + 행마다 그 칸) · 새 행 = ★직전(마지막) 행 통째(높이 + 칸마다 꾸밈·줄).
+   *   ＋ 와 피커가 «같은 길»(G15)이라 피커로 늘려도 같다. 인포그래픽(ifg)은 1017t1i1 「이웃 칸의 꼴」이 먼저다.
+   *   ⇒ 기본 줄(GRID_CELL_DEFAULT_TEXT)은 ★베낄 것이 없을 때만 쓴다. ⛔얕은 복사 금지 — 새 칸을 고치면 직전 칸이 같이 바뀐다. */
+  const dup = (v) => JSON.parse(JSON.stringify(v));
+  const lastC = curCols.length - 1, lastR = curRows.length - 1;
+  let curCells = [];
+  try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
+  const cellAt = (r, c) => { const cell = Array.isArray(curCells[r]) ? curCells[r][c] : null; return (cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : null; };
+  /* 직전 칸(sr, sc)을 새 칸 꼴로 — 행 0 의 줄은 cols[sc].lines 에 산다(T-178). 새 칸이 행 0 이면 꾸밈만. */
+  const copyCell = (sr, sc, toRow0) => {
+    const src = cellAt(sr, sc) || {};
+    const { lines, ...deco } = dup(src);
+    if (toRow0) return deco;
+    const srcLines = sr === 0 ? curCols[sc]?.lines : lines;
+    return { ...deco, lines: Array.isArray(srcLines) && srcLines.length ? dup(srcLines) : [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] };
+  };
 
   const nextCols = [];
   for (let i = 0; i < nCols; i++) {
     /* ★[M41] 열을 늘릴 때의 기본값도 «정본 한 줄»을 쓴다 — 여긴 h2:'제목' 을 얹고 있어서
      * 블록 생성(grid-block.js)·열 추가(여기)·행 추가(아래)가 서로 «다른» 기본값이었다. */
-    nextCols.push(curCols[i] || (ifg ? { ...ifg.col, lines: ifg.col.lines.map(l => ({ ...l })) } : { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
+    nextCols.push(curCols[i] || (ifg ? { ...ifg.col, lines: ifg.col.lines.map(l => ({ ...l })) }
+      : lastC >= 0 ? dup(curCols[lastC]) : { width: 1, lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] }));
   }
   // ⛔줄일 때 잘린 칸의 내용은 «버려진다» — undo 로 되돌아온다(pushHistory 를 먼저 부른 이유).
   block.dataset.cols = JSON.stringify(nextCols);
@@ -3923,26 +4020,29 @@ function gridResizeTo(block, nCols, nRows) {
     const keep = [];
     for (let c = 0; c < nCols; c++) {
       const cell = row0[c];
-      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell : (ifg ? { ...ifg.cellDecoOnly } : {}));
+      keep.push((cell && typeof cell === 'object' && !Array.isArray(cell)) ? cell
+        : (ifg ? { ...ifg.cellDecoOnly } : (c > lastC && lastC >= 0 ? copyCell(0, lastC, true) : {})));
     }
     if (keep.some(cell => Object.keys(cell).length)) block.dataset.cells = _gridCellsToDataset([keep]);
     else delete block.dataset.cells;
   } else {
     const nextRows = [];
-    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || (ifg ? { height: ifg.rowHeight } : { height: 'auto' }));
+    for (let i = 0; i < nRows; i++) nextRows.push(curRows[i] || (ifg ? { height: ifg.rowHeight } : lastR >= 0 && curRows[lastR] ? dup(curRows[lastR]) : { height: 'auto' }));
     block.dataset.rows = JSON.stringify(nextRows);
     /* ★새로 생긴 행에 «기본 내용»을 넣는다(안 넣으면 높이 0 — 무슨 일이 났는지 안 보인다).
      * ⚠️옛 내용을 보존하지 않는다 — 잘린 행/열의 내용은 사라지고 undo 로만 돌아온다.
      * ★T-178 — 행 0 에는 기본 줄을 «안» 넣는다: 행 0 의 줄은 cols[].lines 가 갖는다. */
-    let curCells = [];
-    try { curCells = JSON.parse(block.dataset.cells || '[]'); } catch (_) { curCells = []; }
     const nextCells = [];
     for (let r = 0; r < nRows; r++) {
       const row = Array.isArray(curCells[r]) ? curCells[r] : [];
       const outRow = [];
       for (let c = 0; c < nCols; c++) {
-        outRow.push(row[c] || (r === 0 ? (ifg ? { ...ifg.cellDecoOnly } : {})
-          : (ifg ? { ...ifg.cellDecoOnly, lines: ifg.cell.lines.map(l => ({ ...l })) } : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] })));
+        /* ★t5-15 — 베낄 자리: 새 행이면 직전 행 · 새 열이면 직전 열(둘 다 새 칸이면 직전 행의 직전 열) */
+        const isNew = r > lastR || c > lastC;
+        const src = isNew && lastR >= 0 && lastC >= 0 ? [Math.min(r, lastR), Math.min(c, lastC)] : null;
+        outRow.push(row[c] || (r === 0 ? (ifg ? { ...ifg.cellDecoOnly } : src ? copyCell(src[0], src[1], true) : {})
+          : (ifg ? { ...ifg.cellDecoOnly, lines: ifg.cell.lines.map(l => ({ ...l })) }
+            : src ? copyCell(src[0], src[1], false) : { lines: [{ type: 'body', text: GRID_CELL_DEFAULT_TEXT }] })));
       }
       nextCells.push(outRow);
     }
@@ -4388,6 +4488,7 @@ function _makeGridAddBtn(block, axis) {
 window.gridAddAtEnd = gridAddAtEnd;
 
 window.renderGridBlock = renderGridBlock;
+window.previewGridTracks = previewGridTracks;   // ★132 — 행·열 끌기 미리보기(overlay-handles.js 가 window 로 부른다 · import 안 늘림)
 window.gridCollapseToColumns = gridCollapseToColumns;
 /* ★t3-04(S6 U1) — 행·열 순서 바꾸기 ＋ 칸 범위 복붙. 머리띠·키(U2 · overlay-handles.js / editor.js / prop-grid.js)는
    이 파일을 import 하지 않으므로 같은 window 다리로 부른다(위 renderGridBlock 과 같은 관례). 순수 셈 넷도 같이 건다(CDP·진단용). */
@@ -4450,7 +4551,10 @@ export {
      ★실제로 grid-rename-residue.test.mjs S1 이 「코드에 옛 이름을 손으로 적었나」를 재는데,
        이 주석의 첫 판이 «그 이름을 예시로 적는» 바람에 그 그물에 걸렸다. 적지 않는다. */
   GRID_NESTED_LINE_TYPE,
+  GRID_NESTED_GAP,   /* ★t6-04b ⑴ — 새 줄(block-factory)·키 없음(_gridNumOr) 기본값 «한 자리» */
   gridCollapseToColumns,
+  _gridNumOr as gridNumOr,   /* ★t6-04b — 패널이 «같은 읽는 문»을 쓴다(두 벌 금지) */
+  GRID_GAP_LINE_H,
   GRID_CONVERT_DROPPED_CELL_FIELDS, GRID_CONVERT_NOT_MOVED_FIELDS,
   gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
   /* ★t3-04(S6 U1) — 순서 바꾸기·범위 복붙: 순수 셈(유닛이 DOM 없이 잰다) ＋ 직접 쓰기 문 */

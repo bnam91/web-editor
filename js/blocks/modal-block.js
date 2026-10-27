@@ -13,6 +13,7 @@ import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-ri
 /* ★1017a5 — 배경이미지 값·이름의 정본은 js/frame-bg.js «하나»다(⛔사본 금지 · 그 머리말 :22).
    ★읽는 자만 빌린다(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT) — 그리는 자는 이 파일(cssText)이다. */
 import { frameBgSize, frameBgPos, FRAME_BG_SIZE_DEFAULT } from '../frame-bg.js';
+import { needsBgLayer, ensureBgLayer, removeBgLayer } from '../bg-layer.js';
 
 // ★텍스트 요소 클래스가 `tb-mdl-*` 인 이유 = «내보내기 보험».
 //   export-figma-json 의 generic 폴백이 [class^="tb-"] 만 텍스트로 수집한다.
@@ -204,9 +205,12 @@ function _glassStyles(block) {
  *   ⛔★이 함수는 ★★«background:${bg} 뒤»에만 끼워야 한다 — background 단축 속성이 뒤에 오면
  *     background-image 를 ★되돌린다(renderModalBlock cssText 조립 쪽 주석 참조 · 순서가 계약이다).
  *   ★값은 js/frame-bg.js 가 정본(frameBgSize/frameBgPos) — ⛔문자열 'cover' 를 여기 다시 적지 않는다. */
-function _bgImageStyles(block) {
+function _bgImageStyles(block, { layer = false } = {}) {
   const img = block.dataset && block.dataset.bgImg;
   if (!img) return '';
+  /* ★10171a5 — 회전·색보정이 있으면 그림은 ★레이어(js/bg-layer.js)가 그린다 ⇒ 모달 자신은 ★안 그린다(이중 그림 0).
+     ★섹션·프레임과 ★같은 규약(js/image-handling.js syncBg 「레이어가 그리는 동안 host 자신의 그림은 비운다」). */
+  if (layer) return '';
   return `background-image:url("${img}");background-size:${frameBgSize(block)};background-position:${frameBgPos(block)};`;
 }
 
@@ -276,6 +280,15 @@ const MODAL_PROFILE_SIZE_LIMIT = { min: 24, max: 400, step: 2 };
 const MODAL_PROFILE_SRC_MAX = 200000;
 /* 프로필·아이콘이 글자와 나란히 설 때의 사이. ★한 자리다 — 가로 래퍼 둘이 같이 읽는다. */
 const MODAL_ROW_GAP = 11;
+/* ★t5-03ⓐ(현빈 · 수지 재측 ◑ 「간격 11 고정 · 칸 0개」) — ★프로필 행만 사용자 값(dataset.profileGap)을 받는다.
+   기본 = 위 상수 그대로(안 적은 모달은 한 글자도 안 바뀐다). ⛔아이콘 행(.mdl-iconrow)은 상수 그대로 — 바꾸면 아이콘이 같이 움직인다.
+   범위 = 0~400(선례 js/blocks/chat-bounds.js profileGap). ★음수(오버레이를 더 붙이기)는 현빈 답 뒤 — 지금은 0 에서 멈춘다. */
+const MODAL_PROFILE_GAP_LIMIT = { min: 0, max: 400, step: 1 };
+function _profileGap(ds) {
+  const raw = parseFloat(ds.profileGap);
+  if (!Number.isFinite(raw)) return MODAL_ROW_GAP;
+  return Math.round(Math.max(MODAL_PROFILE_GAP_LIMIT.min, Math.min(MODAL_PROFILE_GAP_LIMIT.max, raw)));
+}
 
 function _profileSide(ds) {
   return MODAL_PROFILE_SIDES.includes(ds.profileSide) ? ds.profileSide : MODAL_PROFILE_SIDES[0];
@@ -291,10 +304,13 @@ function _profileSize(ds, fontSize) {
 function _profileSrcOk(v) {
   return typeof v === 'string' && v.length > 0 && v.length <= MODAL_PROFILE_SRC_MAX && !/[\n\r]/.test(v);
 }
-/** 사진·이모지 중 ★무엇을 그리나. 둘 다 없으면 null(= 칸 자체가 안 난다 ⇒ 글이 당겨진다). */
+/** 사진·이모지 중 ★무엇을 그리나. 둘 다 없으면 null(= 칸 자체가 안 난다 ⇒ 글이 당겨진다).
+ *  ★t5-01(현빈 「일괄넣기 하면 원형 이미지(체크패턴) 먼저 온오프로 보이게」) — 켬 표식(profileOn='1')만 있고
+ *    사진·이모지가 없으면 'blank' = ★체크무늬 원 자리. 사진·이모지가 들어오면 그것이 이긴다(채워진다). */
 function _profileKind(ds) {
   if (_profileSrcOk(ds.profileImg)) return 'img';
   if (String(ds.profileEmoji ?? '').trim() !== '') return 'emoji';
+  if (ds.profileOn === '1') return 'blank';
   return null;
 }
 
@@ -307,19 +323,69 @@ function _profileKind(ds) {
  * ★× 단추는 ★에디터 크롬이다 — 생김새·호버 규칙은 css/editor-blocks.css 에 있고 여기선 자리만 낸다
  *   (⛔인라인으로 못 그린다: 호버는 인라인 style 로 표현할 수 없다. 장식과 달리 ★내보내는 그림이 아니다).
  */
+/* ★t5-02㉡ — 오버레이 프로필의 «옮긴 자리» 한계(모델 px). 꺾은선 값 라벨·어노테이션 라벨 오프셋과 같은 범위. */
+const MODAL_PROFILE_OFFSET_LIMIT = 600;
+function _profileOffsetOf(ds) {
+  const f = (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.max(-MODAL_PROFILE_OFFSET_LIMIT, Math.min(MODAL_PROFILE_OFFSET_LIMIT, n)) : 0; };
+  return { dx: f(ds.profileDx), dy: f(ds.profileDy) };
+}
+/* ★t5-02㉡ — 얼굴 끌기. 끄는 동안은 style.translate 만, 놓을 때 dataset 에 쓰고 다시 그린다(⌘Z 한 걸음 — 양 끝 표본). */
+function _startProfileDrag(block, face, e) {
+  const sx = e.clientX, sy = e.clientY;
+  const z = (block.getBoundingClientRect().width / (block.offsetWidth || 1)) || 1;
+  const o0 = _profileOffsetOf(block.dataset);
+  const L = MODAL_PROFILE_OFFSET_LIMIT;
+  const clamp = (v) => Math.max(-L, Math.min(L, Math.round(v)));
+  const hist = window.beginDragHistory?.('버즈 프로필 위치');
+  let cur = null;
+  const onMove = (ev) => {
+    const ddx = (ev.clientX - sx) / z, ddy = (ev.clientY - sy) / z;
+    if (cur === null && Math.abs(ev.clientX - sx) < 3 && Math.abs(ev.clientY - sy) < 3) return;
+    hist?.arm(ddx, ddy);
+    cur = { dx: clamp(o0.dx + ddx), dy: clamp(o0.dy + ddy) };
+    face.style.translate = `${cur.dx}px ${cur.dy}px`;
+    ev.preventDefault();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup', onUp, true);
+    if (!cur) return;
+    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+    window.addEventListener('click', eat, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    if (cur.dx) block.dataset.profileDx = String(cur.dx); else delete block.dataset.profileDx;
+    if (cur.dy) block.dataset.profileDy = String(cur.dy); else delete block.dataset.profileDy;
+    renderModalBlock(block);
+    window.pushHistory?.('버즈 프로필 위치');
+    window.scheduleAutoSave?.();
+    if (block.classList?.contains('selected')) window.showModalProperties?.(block);
+  };
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+}
+
 function _profileHtml(block, fontSize) {
   const ds = block.dataset;
   const kind = _profileKind(ds);
   if (!kind) return '';
   const size = _profileSize(ds, fontSize);
   const box = `width:${size}px;height:${size}px;`;
-  const face = kind === 'img'
+  /* ★t5-01 'blank' = 빈 원 자리 — 무늬는 CSS 한 자리(css/editor-blocks.css 빈 이미지 칸 규칙 · ⛔인라인으로 박지 않는다:
+       인라인이면 저장본·단독 HTML 에 편집용 무늬가 실린다 — 그 파일 .grd-img-empty 머리말). 상자·둥글기만 여기서 준다. */
+  const face = kind === 'blank'
+    ? `<span class="mdl-profile-empty" style="display:block;${box}border-radius:${MODAL_PROFILE_RADIUS};"></span>`
+    : kind === 'img'
     ? `<img class="mdl-profile-img" src="${_esc(ds.profileImg)}" alt="" draggable="false" style="display:block;${box}object-fit:cover;border-radius:${MODAL_PROFILE_RADIUS};">`
     : `<span class="mdl-profile-emoji" style="display:flex;align-items:center;justify-content:center;${box}font-size:${Math.round(size * MODAL_PROFILE_EMOJI_RATIO)}px;line-height:1;">${_esc(String(ds.profileEmoji).trim())}</span>`;
   const outerH = ds.profileOverlay === '1' ? 0 : size;
+  /* ★t5-02㉡(2026-10-26 S3 · 현빈 「오버레이 되면 캔버스에서 선택 후 드래그로 위치 이동도 되게 해줄것」) —
+     오버레이일 때만 얼굴을 끌어 옮긴 자리(profileDx/Dy · 모델 px)를 «translate» 로 건다(transform 의 가운데 맞춤과 따로 논다 —
+     꺾은선 값 라벨 vDx/vDy 와 같은 길). 키가 없거나 오버레이가 아니면 한 글자도 안 바뀐다. */
+  const _pOff = ds.profileOverlay === '1' ? _profileOffsetOf(ds) : { dx: 0, dy: 0 };
+  const _pOffCss = (_pOff.dx || _pOff.dy) ? `translate:${_pOff.dx}px ${_pOff.dy}px;` : '';
   return `<span class="mdl-profile" data-side="${_profileSide(ds)}"`
        + ` style="position:relative;flex:0 0 auto;width:${size}px;height:${outerH}px;">`
-       + `<span class="mdl-profile-face" style="position:absolute;left:0;top:50%;transform:translateY(-50%);${box}">`
+       + `<span class="mdl-profile-face" style="position:absolute;left:0;top:50%;transform:translateY(-50%);${box}${_pOffCss}">`
        + face
        + `<button type="button" class="mdl-profile-x" title="프로필 제거" aria-label="프로필 제거">✕</button>`
        + `</span></span>`;
@@ -684,11 +750,18 @@ function renderModalBlock(block) {
      ★렌더는 그 키를 «읽기만» 한다 — ⛔없는 표식을 새로 심지 않는다(grid-block.js:781 · 해제 때 치울 주인은 overlay-float.js).
      ⚠️재면(2026-10-21 · w2c-frzW3): 이 값이 없으면 ⌘Z·패널 변경 뒤 width:796px → 100% (섹션 폭으로 늘어난다). */
   const _frozenW = (block.dataset.overlayBlock === 'true' && block.dataset.overlayFrozenWidth) || '';
+  /* ★10171a5 — 배경 레이어(회전·색보정 · js/bg-layer.js)는 ★innerHTML 갈아끼우기에 ★같이 지워진다.
+     ⇒ 판정(needsBgLayer — 그 판정의 ★한 자리)은 ★지우기 «전»에 하고, 옛 레이어(색보정 filter 의 ★유일한 소지자)를
+       ★들고 있다가 ★다시 꽂는다. 키가 없으면 레이어도 없다 ⇒ 기존 모달의 cssText·innerHTML 은 한 글자도 안 달라진다. */
+  const _bgLayerOld = block.querySelector?.(':scope > .sec-bg-clip') || null;
+  /* ★판정은 needsBgLayer «한 자리»(js/bg-layer.js) — ⛔제 벌 조건(bgImg·회전)을 따로 붙이지 마라.
+     ★이 자리는 «영구 자리»다(tests/unit/bg-layer-guard.test.mjs 부류 표 · needs ? ensure : remove 짝). */
+  const _bgLayerOn = needsBgLayer(block);
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + (wMode === 'fixed' ? `width:${_frozenW || _num(block, 'width', MODAL_DEFAULTS.width) + 'px'};max-width:100%;margin-left:auto;margin-right:auto;` : `width:${_frozenW || '100%'};`)
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
     + `background:${bg};color:${textColor};font-size:${fontSize}px;text-align:${align};`
-    + _bgImageStyles(block)   /* ★★background 단축 «바로 뒤» — 안 그러면 단축이 이미지를 되돌린다 */
+    + _bgImageStyles(block, { layer: _bgLayerOn })   /* ★★background 단축 «바로 뒤» — 안 그러면 단축이 이미지를 되돌린다 */
     + _typoStyles(block)
     + (radius > 0 ? `border-radius:${radius}px;` : '')
     + `padding:${rootPad};`
@@ -814,7 +887,7 @@ function renderModalBlock(block) {
       _highlightCss(block.dataset) + (_pf ? 'flex:1 1 auto;min-width:0;' : ''), block.dataset.textHtml);
     html = _pf
       ? `<div class="mdl-profilerow" style="display:flex;flex-direction:row;align-items:center;`
-        + `justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${MODAL_ROW_GAP}px;">`
+        + `justify-content:${_MDL_JUSTIFY_H[align] || _MDL_JUSTIFY_H.left};gap:${_profileGap(block.dataset)}px;">`   // ★t5-03ⓐ 프로필 행만
         + (_profileSide(block.dataset) === 'right' ? `${_ptxt}${_pf}` : `${_pf}${_ptxt}`)
         + `</div>`
       : _ptxt;
@@ -823,6 +896,13 @@ function renderModalBlock(block) {
   /* 장식(꼬리 · 테이프)은 슬롯 «뒤»에 붙인다 — 첫 [class^="tb-"] 를 글 슬롯으로 찾는 자리들이 그대로다. */
   const _deco = _decoHtml(block, bg);
   if (_deco) block.insertAdjacentHTML('beforeend', _deco);
+  /* ★10171a5 — 레이어를 첫 자식으로 되꽂고(있던 것 · filter 보존) 다시 칠한다. ensureBgLayer 가 멱등이다. */
+  if (_bgLayerOn) {
+    if (_bgLayerOld) block.insertBefore(_bgLayerOld, block.firstChild);
+    ensureBgLayer(block);
+  } else {
+    removeBgLayer(block);   /* innerHTML 이 이미 지웠다 — 짝(불변식 「레이어 있음 ⇔ needsBgLayer」)을 글자로 남긴다 · 멱등 */
+  }
 
   /* ⑵ 아이콘 슬롯의 클릭 위임 — ★재렌더가 innerHTML 을 통째 갈아끼우므로 «여기서» 다시 건다
      (슬롯 인라인 편집이 block-drag 에서 위임으로 사는 것과 같은 이유).
@@ -845,6 +925,19 @@ function renderModalBlock(block) {
      ★히스토리는 push-after — 우측 패널 다수·버즈 패널의 그 관례다(js/CLAUDE.md · js/props/prop-frame-buzz.js:13).
      ⚠mousedown 까지 세운 까닭 = 버즈 낱개는 «끌 수 있는 .row» 안에 산다 — 단추에서 누른 채 미끄러지면
        끌기가 시작되고 click 이 안 온다(에셋의 지우기 단추는 .row 안이 아니라 그 칸이 없었다). */
+  /* ⑷ t5-02㉡ — 오버레이 프로필 얼굴 끌기. ★× 단추와 같은 자리·같은 까닭(재렌더가 innerHTML 을 갈아끼운다 · 버즈 낱개는 끌 수 있는 .row 안 —
+       mousedown 을 세우지 않으면 row 끌기가 시작된다). 카드가 골라져 있을 때만 · × 위 누름은 × 에게 · 편집 중엔 비켜준다. */
+  const _pFace = block.querySelector?.('.mdl-profile-face');
+  if (_pFace?.addEventListener && block.dataset.profileOverlay === '1') {
+    _pFace.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      if (!block.classList?.contains('selected') || block.classList?.contains('editing')) return;
+      if (e.target?.closest?.('.mdl-profile-x')) return;
+      e.stopPropagation(); e.preventDefault();
+      _startProfileDrag(block, _pFace, e);
+    });
+  }
+
   const _pxBtn = block.querySelector?.('.mdl-profile-x');
   if (_pxBtn?.addEventListener) {
     _pxBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
@@ -854,6 +947,7 @@ function renderModalBlock(block) {
       if (block.classList?.contains('editing')) return;   // 글자 편집 중이면 비켜준다(아이콘 슬롯과 같은 규약)
       delete block.dataset.profileImg;
       delete block.dataset.profileEmoji;
+      delete block.dataset.profileOn;   // ★t5-01 — 빈 원 자리도 같이 걷는다(× = 프로필 통째 제거)
       renderModalBlock(block);
       window.refitBuzzRowWidth?.(block);
       window.pushHistory?.();
@@ -1003,7 +1097,26 @@ function commitModalSlot(block, slot, text, html = '') {
   return true;
 }
 
+/* ★1017t1l2 ② (현빈 「캔버스에서 어떻게 추가하는지?」 · 2026-10-25 S3) — 프로필을 «붙이는» 문 하나.
+   ★패널(js/props/prop-modal.js Profile 절)과 캔버스 칩(같은 파일 _syncProfileAddChip)이 ★같이 부른다
+     ⇒ 붙이는 규칙(사진·이모지 둘 중 하나 · 그리기 → 버즈 row 폭 → 이력 push-after)이 한 벌이다.
+   ★지우는 쪽은 위 × 단추가 맡는다(그 자리의 규약 그대로). 돌려주는 값 = 붙였으면 true. */
+function setModalProfile(block, { img, emoji } = {}) {
+  if (!block || !block.dataset) return false;
+  const e = String(emoji ?? '').trim();
+  if (typeof img === 'string' && img) { block.dataset.profileImg = img; delete block.dataset.profileEmoji; }
+  else if (e) { block.dataset.profileEmoji = e; delete block.dataset.profileImg; }
+  else return false;
+  renderModalBlock(block);
+  window.refitBuzzRowWidth?.(block);
+  window.pushHistory?.();
+  window.scheduleAutoSave?.();
+  if (block.classList?.contains('selected')) window.showModalProperties?.(block);
+  return true;
+}
+
 window.makeModalBlock   = makeModalBlock;
+window.setModalProfile  = setModalProfile;
 window.addModalBlock    = addModalBlock;
 window.renderModalBlock = renderModalBlock;
 window.commitModalSlot  = commitModalSlot;
@@ -1034,6 +1147,8 @@ window.iconBlockNewColor      = iconBlockNewColor;
 /* ── 프로필 «지금 값» 창구 — 패널·버즈가 읽는다. ⛔패널이 제 식·제 표를 갖지 않게
    (그리는 자와 보여 주는 자가 갈라지면 «화면이 거짓말하는» 자리가 된다 — 이 파일 그림자·장식 주석의 그 까닭). */
 /** 그 모달의 «지금 프로필 한 변»(px) — dataset 에 없으면 글자에서 파생된 값. */
+/** 그 모달의 «지금 프로필 ↔ 글 간격»(px) — 표 밖·없음은 그리는 쪽과 같은 착지점(기본 MODAL_ROW_GAP). ★t5-03ⓐ */
+function modalProfileGap(block) { return _profileGap(block?.dataset || {}); }
 function modalProfileSize(block) {
   return _profileSize(block?.dataset || {}, _num(block, 'fontSize', MODAL_DEFAULTS.fontSize));
 }
@@ -1073,4 +1188,5 @@ export { makeModalBlock, addModalBlock, renderModalBlock, commitModalSlot, apply
          MODAL_DECO_TAILS, MODAL_DECO_TAPES, MODAL_TAPE_SHAPE, MODAL_TAPE_POS, _glassStyles, _decoHtml, _tapeHtml,
          _bgImageStyles,
          MODAL_PROFILE_SIDES, MODAL_PROFILE_SIZE_LIMIT, modalProfileSize, modalProfileSide, modalProfileKind,
-         syncModalIconFirstLineOffset };
+         MODAL_PROFILE_GAP_LIMIT, modalProfileGap,
+         setModalProfile, syncModalIconFirstLineOffset };

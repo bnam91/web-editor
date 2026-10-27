@@ -211,22 +211,83 @@ function _meshBase(cols) {
 }
 /** 네 색 명부 → 저장 꼴 한 줄. */
 export function meshSpecOf(cols) { return cols.join('|'); }
-/** 저장 꼴 한 줄 → 네 색 명부. 꼴이 ★안 맞으면 `null`(= 메시 아님 · ⛔부분 수용 금지). */
-export function meshColorsOf(spec) {
-  const parts = String(spec || '').split('|').map(x => x.trim());
+/* ★★1013t2E2ⓑ2 (t7-02) 「각 모서리 별로 스톱을 추가할 수 있도록 해줄래? 멀티 그라데이션처럼 말야」 — 모서리마다 N 스톱.
+   ★선례 = 컬러피커 그라데이션 탭(js/props/color-picker.js 「Gradient — N-stop bar」) 그대로 따른다(⛔새 꼴 발명 금지):
+     자료 = stops[{ color:#rrggbb, pct:0..100, opacity:0..1 }] (피커의 offset 0..1 을 «저장 글자와 같은» % 로 든다)
+     저장 = CSS 정지점 글자 «색 위치%» 를 «, » 로 — 피커가 dataset.bg 에 쓰는 글자와 같은 꼴(투명도 < 1 이면 rgba)
+     UI   = 막대 하나 + 손잡이(드래그 이동) · 막대 더블클릭 = 이웃 보간색으로 추가 · × = 고른 스톱 삭제(최소 2) — 아래 패널 칸.
+   ★한 모서리 한 칸 = 그 모서리 겹의 정지점 목록이고, 네 칸을 «|» 로 잇는 저장 키(dataset.bgMesh)는 그대로다.
+   ★★옛 저장본 호환 — 옛 칸은 `#rrggbb` 하나다 = «그 색 0% → 같은 색 알파 0 MESH_STOP%»(_meshFade · 지금까지 그린 그대로).
+     ⇒ 옛 칸을 읽으면 그 두 스톱이 되고, 두 스톱이 «그 꼴 그대로»면 다시 `#rrggbb` 로 쓴다(meshSpecOfCorners)
+       ⇒ 스톱을 안 건드린 섹션은 저장 바이트도 그리는 CSS 도 한 글자도 안 바뀐다(검사 = section-mesh-gradient-v1 M5·M8 · mesh-stops).
+   ★값은 style 에 그대로 실린다 — ⛔꼴 검사를 넓히지 마라(isSectionGradient 머리말 1013t2E1 중-1 과 같은 까닭): 색은 #hex6 · rgba(정수, 정수, 정수, 알파) 만. */
+const MESH_STOP_RE = /^(?:(#[0-9a-f]{6})|rgba\((\d{1,3}), (\d{1,3}), (\d{1,3}), (0|1|0?\.\d{1,3})\)) (\d{1,3}(?:\.\d{1,2})?)%$/i;
+const _hex2 = (n) => Math.max(0, Math.min(255, n | 0)).toString(16).padStart(2, '0');
+const _meshPct = (v) => Math.round(Math.max(0, Math.min(100, Number(v) || 0)) * 100) / 100;
+const _meshAlpha = (v) => Math.round(Math.max(0, Math.min(1, Number(v))) * 1000) / 1000;
+/** 옛 칸(`#rrggbb`)의 두 스톱 — 지금까지 그려 온 그 겹. */
+function _meshLegacyStops(hex) {
+  return [{ color: hex, pct: 0, opacity: 1 }, { color: hex, pct: MESH_STOP, opacity: 0 }];
+}
+/** 한 칸 글자 → 스톱 목록(위치 오름차순). 꼴이 안 맞으면 `null`. */
+function _meshCornerStopsOf(part) {
+  const t = String(part || '').trim();
+  if (MESH_HEX_RE.test(t)) return _meshLegacyStops(t.toLowerCase());
+  const items = t.split(/,\s*(?![^()]*\))/);
+  if (items.length < 2) return null;
+  const stops = [];
+  for (const it of items) {
+    const m = MESH_STOP_RE.exec(it.trim());
+    if (!m) return null;
+    let color, opacity;
+    if (m[1]) { color = m[1].toLowerCase(); opacity = 1; }
+    else {
+      if (+m[2] > 255 || +m[3] > 255 || +m[4] > 255) return null;
+      color = '#' + _hex2(+m[2]) + _hex2(+m[3]) + _hex2(+m[4]);
+      opacity = _meshAlpha(m[5]);
+    }
+    const pct = Number(m[6]);
+    if (!(pct >= 0 && pct <= 100)) return null;
+    stops.push({ color, pct, opacity });
+  }
+  return stops.sort((x, y) => x.pct - y.pct);
+}
+/** 스톱 하나 → CSS 정지점 글자. 알파 1 = #hex · 그 밖 = rgba(옛 _meshFade 와 같은 띄어쓰기). */
+function _meshStopCss(st) {
+  const a = _meshAlpha(st.opacity);
+  const col = a >= 1 ? st.color : _meshFade(st.color).replace(/, 0\)$/, ', ' + a + ')');
+  return col + ' ' + _meshPct(st.pct) + '%';
+}
+/** 스톱 목록 → 한 칸 글자. «옛 꼴 그대로»면 `#rrggbb` (옛 저장본과 같은 바이트). */
+function _meshCornerToken(stops) {
+  const [a, b] = stops;
+  if (stops.length === 2 && a.color === b.color && a.pct === 0 && _meshAlpha(a.opacity) === 1
+      && b.pct === MESH_STOP && _meshAlpha(b.opacity) === 0) return a.color;
+  return stops.slice().sort((x, y) => x.pct - y.pct).map(_meshStopCss).join(', ');
+}
+/** 저장 꼴 한 줄 → 네 모서리 스톱 목록. 꼴이 ★안 맞으면 `null`(= 메시 아님 · ⛔부분 수용 금지). */
+export function meshCornersOf(spec) {
+  const parts = String(spec || '').split('|');
   if (parts.length !== MESH_CORNERS.length) return null;
-  if (!parts.every(x => MESH_HEX_RE.test(x))) return null;
-  return parts.map(x => x.toLowerCase());
+  const corners = parts.map(_meshCornerStopsOf);
+  return corners.every(Boolean) ? corners : null;
+}
+/** 네 모서리 스톱 목록 → 저장 꼴 한 줄. */
+export function meshSpecOfCorners(corners) { return corners.map(_meshCornerToken).join('|'); }
+/** 저장 꼴 한 줄 → 네 «모서리 색»(각 모서리 첫 스톱 = 그 모서리에 서는 색). 꼴이 ★안 맞으면 `null`. */
+export function meshColorsOf(spec) {
+  const corners = meshCornersOf(spec);
+  return corners ? corners.map((st) => st[0].color) : null;
 }
 /** 저장 꼴 → 그릴 CSS. 꼴이 안 맞으면 `null`. */
 export function sectionMeshCss(spec) {
-  const cols = meshColorsOf(spec);
-  if (!cols) return null;
+  const corners = meshCornersOf(spec);
+  if (!corners) return null;
+  const cols = corners.map((st) => st[0].color);
   const image = MESH_CORNERS
-    .map((k, i) => 'radial-gradient(' + MESH_SHAPE + ' at ' + MESH_AT[k] + ', ' + cols[i]
-      + ' 0%, ' + _meshFade(cols[i]) + ' ' + MESH_STOP + '%)')
+    .map((k, i) => 'radial-gradient(' + MESH_SHAPE + ' at ' + MESH_AT[k] + ', ' + corners[i].map(_meshStopCss).join(', ') + ')')
     .join(', ');
-  return { image, blend: MESH_CORNERS.map(() => MESH_BLEND).join(', '), base: _meshBase(cols), colors: cols };
+  return { image, blend: MESH_CORNERS.map(() => MESH_BLEND).join(', '), base: _meshBase(cols), colors: cols, corners };
 }
 window.sectionMeshCss = sectionMeshCss;
 
@@ -366,6 +427,7 @@ async function showSectionProperties(sec) {
   // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
   const meshCols = meshColorsOf(sec.dataset.bgMesh);
   const meshOn   = !!meshCols;
+  const meshCorners = meshOn ? meshCornersOf(sec.dataset.bgMesh) : null;   /* ★1013t2E2ⓑ2 — 모서리마다 스톱 */
   /* ★★prev-06 — ★메시가 켜져 있으면 ★인라인 `backgroundColor` 를 ★읽지 ★않는다.
      ★왜 — 그 값은 ★제품이 ★메시의 ★바닥으로 ★깐 ★«네 색 평균»이지 ★★사용자가 ★고른 값이 ★아니다.
        ★예전(=이 줄 넣기 전)엔 ★「배경색 B19DBF」처럼 ★고른 적 없는 ★hex 가 ★칸에 떴다(261025 ★캡처로 잡았다).
@@ -416,8 +478,13 @@ async function showSectionProperties(sec) {
     ${meshOn ? MESH_CORNERS.map((k, i) => `
     <div class="prop-color-row" style="margin-top:4px;">
       <span class="prop-label">${MESH_LABEL[k]}</span>
-      ${colorFieldHTML({ idPrefix: `sec-mesh-${k}`, hex: meshCols[i], alpha: 100 })}
-    </div>`).join('') : ''}
+      ${colorFieldHTML({ idPrefix: `sec-mesh-${k}`, hex: meshCols[i], alpha: Math.round(meshCorners[i][0].opacity * 100) })}
+    </div>
+    <div class="sec-mesh-stops" data-corner="${k}">
+      <div class="goya-cp-gradient-bar sec-mesh-bar" id="sec-mesh-${k}-bar" title="더블클릭으로 스톱 추가"><div class="goya-cp-gradient-fill"></div></div>
+      <button type="button" class="goya-cp-grad-stop-del" id="sec-mesh-${k}-del" title="스톱 삭제(최소 2개)">×</button>
+    </div>`).join('') + `
+    <div class="goya-cp-grad-hint">모서리마다 · 더블클릭으로 스톱 추가 · 드래그로 위치 이동 · 위 색 칸 = 고른 스톱</div>` : ''}
   `;
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
@@ -695,12 +762,13 @@ ${blockHeaderHTML({
        (★「피커가 먹통」으로 보인다 · tests/dom/section-mesh-gradient-v1 ★M9 가 잰다).
      ★이것은 ★새 규약이 ★아니다 — ★그라데이션도 ★「단색을 주면 걷는다」가 ★이미 규약이다
        (tests/dom/section-bg-gradient ★G10 · `block-factory.js setSectionBg` 머리말). */
-  const _setSecBg = (v) => { delete sec.dataset.bgMesh; sec.dataset.bg = v; _applySectionBg(sec); };
+  const _setSecBg = (v) => { delete sec.dataset.bgMesh; sec.dataset.bg = v; _applySectionBg(sec); _syncSecGradLine(sec); };
   wireColorField('sec-bg', {
     initialAlpha: secBgAlpha,
     gradientValue: bgGradCss,   // 재선택 뒤에도 그라데이션 탭·정지점으로 열린다(T-059 2라운드 규약)
     onApply: (c) => _setSecBg(c),
     onGradient: (css, commit) => {
+      if (_applyingSecGradExternal) return;   // 캔버스 바가 쓴 값의 메아리 — 이미 칠했다(루프 방지)
       _setSecBg(css);
       if (commit) pushHistory();
     },
@@ -714,23 +782,163 @@ ${blockHeaderHTML({
     if (meshColorsOf(sec.dataset.bgMesh)) delete sec.dataset.bgMesh;
     else sec.dataset.bgMesh = meshSpecOf(MESH_DEFAULT);
     _applySectionBg(sec);
+    _syncSecGradLine(sec);
     pushHistory();
     showSectionProperties(sec);
+  });
+  /* ★★1013t2E2ⓑ2 — 모서리별 스톱 막대. 동작은 컬러피커 그라데이션 막대(color-picker.js _bindStopThumbDrag ·
+     바 dblclick · gradStopDel)와 같다 — 손잡이를 누르면 그 스톱을 고르고(위 색 칸이 그 스톱을 보인다) 끌면 위치,
+     막대 빈 데를 더블클릭하면 그 자리에 이웃 보간색 스톱, × 는 고른 스톱을 지운다(최소 2).
+     ★저장은 매번 «지금 값에서 다시 읽어» 쓴다 — 네 칸이 같은 한 줄(dataset.bgMesh)을 공유한다(아래 onApply 머리말과 같은 까닭).
+     ★기록: 끌기 한 번·추가·삭제 = ⌘Z 한 걸음(움직이지 않은 클릭은 기록 0 — 피커 썸과 같은 규칙). */
+  const _meshSel = {};   // 모서리 → 고른 스톱 번호(위치 오름차순 기준)
+  const _meshWrite = (corners) => { sec.dataset.bgMesh = meshSpecOfCorners(corners); _applySectionBg(sec); };
+  const _meshLerpHex = (h1, h2, t) => '#' + [1, 3, 5].map((o) => _hex2(Math.round(parseInt(h1.slice(o, o + 2), 16) * (1 - t) + parseInt(h2.slice(o, o + 2), 16) * t))).join('');
+  const _meshField = (k, st) => {
+    if (!st) return;
+    const picker = document.getElementById(`sec-mesh-${k}-color`);
+    const hexEl = document.getElementById(`sec-mesh-${k}-hex`);
+    const alphaEl = document.getElementById(`sec-mesh-${k}-alpha`);
+    if (picker) picker.value = st.color;
+    if (hexEl) hexEl.value = st.color.slice(1).toUpperCase();
+    if (alphaEl) alphaEl.value = String(Math.round(_meshAlpha(st.opacity) * 100));
+    const sw = picker?.closest('.prop-color-swatch');
+    if (sw) sw.style.background = st.color;
+  };
+  const _meshRenderBar = (k, i) => {
+    const bar = document.getElementById(`sec-mesh-${k}-bar`);
+    const corners = meshCornersOf(sec.dataset.bgMesh);
+    if (!bar || !corners) return;
+    const st = corners[i];
+    const sel = Math.max(0, Math.min(st.length - 1, _meshSel[k] | 0));
+    _meshSel[k] = sel;
+    bar.querySelector('.goya-cp-gradient-fill').style.background = 'linear-gradient(90deg, ' + st.map(_meshStopCss).join(', ') + ')';
+    bar.querySelectorAll('.goya-cp-grad-thumb').forEach((t) => t.remove());
+    st.forEach((stop, j) => {
+      const t = document.createElement('div');
+      t.className = 'goya-cp-grad-thumb' + (j === sel ? ' is-active' : '');
+      t.style.left = _meshPct(stop.pct) + '%';
+      t.style.background = stop.color;
+      t.title = _meshPct(stop.pct) + '%';
+      t.dataset.stopIdx = String(j);
+      t.addEventListener('mousedown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        _meshSel[k] = j;
+        const work = meshCornersOf(sec.dataset.bgMesh);
+        if (!work) return;
+        const me = work[i][j];
+        const p0 = me.pct;
+        _meshRenderBar(k, i);
+        _meshField(k, me);
+        /* 끌기 한 번 = ⌘Z 한 걸음 — 시작 표본은 첫 움직임의 arm(), 끝 표본은 onUp 의 pushHistory(js/CLAUDE.md 「드래그는 양쪽 끝」) */
+        const _hist = window.beginDragHistory?.('메시 스톱 위치');
+        const x0 = e.clientX;
+        let armed = false;
+        const onMove = (ev) => {
+          if (!armed) {
+            if (Math.abs(ev.clientX - x0) < 2) return;
+            armed = true;
+            _hist?.arm(ev.clientX - x0, 0);
+          }
+          const r = bar.getBoundingClientRect();
+          me.pct = _meshPct(((ev.clientX - r.left) / (r.width || 1)) * 100);
+          _meshWrite(work);
+          bar.querySelector(`.goya-cp-grad-thumb[data-stop-idx="${j}"]`)?.style.setProperty('left', me.pct + '%');
+          bar.querySelector('.goya-cp-gradient-fill').style.background = 'linear-gradient(90deg, ' + work[i].slice().sort((x, y) => x.pct - y.pct).map(_meshStopCss).join(', ') + ')';
+        };
+        const onUp = () => {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          const now = meshCornersOf(sec.dataset.bgMesh);
+          if (now) _meshSel[k] = Math.max(0, now[i].findIndex((x) => x.pct === me.pct && x.color === me.color && _meshAlpha(x.opacity) === _meshAlpha(me.opacity)));
+          _meshRenderBar(k, i);
+          if (armed && me.pct !== p0) pushHistory('메시 스톱 위치');
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+      bar.appendChild(t);
+    });
+    const del = document.getElementById(`sec-mesh-${k}-del`);
+    if (del) del.disabled = st.length <= 2;
+  };
+  MESH_CORNERS.forEach((k, i) => {
+    const bar = document.getElementById(`sec-mesh-${k}-bar`);
+    if (!bar) return;
+    _meshSel[k] = 0;
+    _meshRenderBar(k, i);
+    bar.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.goya-cp-grad-thumb')) return;
+      const corners = meshCornersOf(sec.dataset.bgMesh);
+      if (!corners) return;
+      const r = bar.getBoundingClientRect();
+      const pct = _meshPct(((e.clientX - r.left) / (r.width || 1)) * 100);
+      const st = corners[i];
+      /* 이웃 둘을 보간한 색·투명도(피커 바 dblclick 과 같은 식) — 범위 밖이면 가까운 끝 스톱 */
+      let color = st[0].color, opacity = st[0].opacity;
+      if (pct >= st[st.length - 1].pct) ({ color, opacity } = st[st.length - 1]);
+      for (let q = 0; q < st.length - 1; q++) {
+        if (pct >= st[q].pct && pct <= st[q + 1].pct) {
+          const span = st[q + 1].pct - st[q].pct;
+          const t = span > 1e-6 ? (pct - st[q].pct) / span : 0;
+          color = _meshLerpHex(st[q].color, st[q + 1].color, t);
+          opacity = _meshAlpha(st[q].opacity + (st[q + 1].opacity - st[q].opacity) * t);
+          break;
+        }
+      }
+      const added = { color, pct, opacity };
+      st.push(added);
+      st.sort((x, y) => x.pct - y.pct);
+      _meshSel[k] = st.indexOf(added);
+      _meshWrite(corners);
+      _meshRenderBar(k, i);
+      _meshField(k, added);
+      pushHistory();
+    });
+    document.getElementById(`sec-mesh-${k}-del`)?.addEventListener('click', () => {
+      const corners = meshCornersOf(sec.dataset.bgMesh);
+      if (!corners || corners[i].length <= 2) return;
+      corners[i].splice(_meshSel[k] | 0, 1);
+      _meshSel[k] = Math.min(_meshSel[k] | 0, corners[i].length - 1);
+      _meshWrite(corners);
+      _meshRenderBar(k, i);
+      _meshField(k, corners[i][_meshSel[k]]);
+      pushHistory();
+    });
   });
   MESH_CORNERS.forEach((k, i) => {
     wireColorField(`sec-mesh-${k}`, {
       onApply: (c) => {
         /* ★지금 값에서 ★다시 읽는다 — ⛔패널 그릴 때의 `meshCols` 를 ★닫아 쓰면 ★다른 모서리의
-           ★먼저 고친 값을 ★되돌린다(★네 칸이 ★같은 한 줄을 공유한다). */
-        const cur = meshColorsOf(sec.dataset.bgMesh);
-        if (!cur) return;
-        cur[i] = c;
-        sec.dataset.bgMesh = meshSpecOf(cur);
-        _applySectionBg(sec);
+           ★먼저 고친 값을 ★되돌린다(★네 칸이 ★같은 한 줄을 공유한다).
+           ★1013t2E2ⓑ2 — 이 칸은 그 모서리의 «고른 스톱»을 고친다(기본 = 첫 스톱 = 예전의 «모서리 색»).
+             옛 꼴(두 스톱 · 바깥이 같은 색 알파 0)인 채 첫 스톱 색만 바꾸면 바깥 스톱도 같은 색으로 따라간다
+             = 예전 동작 그대로(저장도 `#rrggbb` 한 칸 그대로). 투명도 칸도 그 스톱의 투명도다. */
+        const corners = meshCornersOf(sec.dataset.bgMesh);
+        if (!corners) return;
+        const m = /^#([0-9a-f]{6})$/i.exec(c) || null;
+        const r = m ? null : /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})(?:,\s*([\d.]+))?\)$/i.exec(String(c));
+        if (!m && !r) return;
+        const color = m ? '#' + m[1].toLowerCase() : '#' + _hex2(+r[1]) + _hex2(+r[2]) + _hex2(+r[3]);
+        /* hex 만 오면(색·hex 칸) 투명도는 «그 칸에 지금 보이는 값»이다 — 고른 스톱을 바꾸면 _meshField 가 그 칸을
+           그 스톱의 투명도로 채운다(색 칸이 기억하는 첫 값이 아니라). */
+        const aIn = parseFloat(document.getElementById(`sec-mesh-${k}-alpha`)?.value);
+        const opacity = m ? (Number.isFinite(aIn) ? _meshAlpha(aIn / 100) : 1) : (r[4] == null ? 1 : _meshAlpha(r[4]));
+        const st = corners[i];
+        const j = Math.max(0, Math.min(st.length - 1, _meshSel[k] | 0));
+        const legacy = _meshCornerToken(st) === st[0].color;
+        st[j].color = color;
+        st[j].opacity = opacity;
+        if (legacy && j === 0 && opacity === 1) st[1].color = color;
+        _meshWrite(corners);
+        _meshRenderBar(k, i);
       },
       onCommit: () => pushHistory(),
     });
   });
+
+  /* ★1013t2E1 — 고르면(패널이 서면) 배경 그라데이션의 캔버스 바를 띄운다(배너02 showBanner02Properties 끝 두 줄과 같은 자리 · 같은 일) */
+  _syncSecGradLine(sec);
 
   // 배경 이미지 이벤트
   const bgImgBtn    = document.getElementById('sec-bg-img-btn');
@@ -1014,6 +1222,30 @@ function _bindSectionTemplate(sec) {
     }, 1500);
   });
 }
+
+/* ★1013t2E1 — 섹션 배경 그라데이션의 캔버스 바(js/gradient-line-overlay.js · 어댑터 = gradient-model.js section-block).
+   그라데이션이면 띄우고(배너02·비교·도형과 같은 showGradientLine + bindGradientLinePicker 두 줄), 아니면 거둔다
+   (단색·메시로 바꾼 뒤 옛 바가 남으면 «끌어도 안 바뀌는» 바가 된다 — prop-shape.js 가 같은 이유로 hideGradientLine 을 부른다). */
+let _applyingSecGradExternal = false;
+function _syncSecGradLine(sec) {
+  if (window.getGradientTarget?.(sec)) {
+    window.showGradientLine?.(sec);
+    window.bindGradientLinePicker?.(sec, document.getElementById('sec-bg-color'));
+  } else {
+    window.hideGradientLine?.(sec);
+  }
+}
+/* 캔버스에서 바를 끌면(source==='canvas') 패널 스와치만 따라간다 — 쓰기·칠하기는 어댑터 set() 이 이미 했다(배너02 와 같은 규약). */
+document.addEventListener('gradient-line:change', (e) => {
+  if (e.detail?.source !== 'canvas') return;
+  const sec = e.target?.closest?.('.section-block');
+  if (!sec || e.target !== sec || !e.detail?.css) return;
+  _applyingSecGradExternal = true;
+  try {
+    const sw = document.getElementById('sec-bg-color')?.closest('.prop-color-swatch');
+    if (sw) sw.style.background = e.detail.css;
+  } finally { _applyingSecGradExternal = false; }
+});
 
 /* 블록이 선택된 상태에서 소속 섹션만 하이라이트 (deselectAll 없이) */
 function syncSection(sec) {

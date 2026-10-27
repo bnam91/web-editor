@@ -100,7 +100,8 @@ export function recomposeHost(host) {
   host.querySelectorAll(_ASSET_MEDIA_SEL).forEach(composeImgFilter);
 }
 
-/** 패널 절 — 그레인 절과 같은 꼴(prop-section > prop-section-title + prop-row > prop-label·prop-slider·prop-number). */
+/** 패널 절 — 그레인 절과 같은 꼴(prop-section > prop-section-title + prop-row > prop-label·prop-slider·prop-number).
+ *  ★지금 쓰는 곳 = D4 비교 칸뿐. 에셋은 2026-10-26(1012t1C1 이동)부터 Effects 드롭다운의 「블러」 카드다(js/effects-blur.js · 같은 상태·같은 applyRedact). */
 export function redactSectionHTML({ idPrefix, value = 0, title = '블러 (Redact)' } = {}) {
   const v = normalizeRedact(value);
   return `

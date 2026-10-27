@@ -47,8 +47,10 @@ const EXPECTED = {
   'js/props/prop-section.js': { kind: 'perm', n: 1 },
   'js/frame-bg.js':           { kind: 'perm', n: 2 },
   'js/image-handling.js':     { kind: 'edit', n: 2 },
+  /* ★10171a5(2026-10-26 S3) — 모달 배경도 회전·색보정 레이어를 갖는다(renderModalBlock 이 innerHTML 을 갈아끼워도 지킨다). */
+  'js/blocks/modal-block.js': { kind: 'perm', n: 1 },
 };
-const EXPECTED_TOTAL = 5;
+const EXPECTED_TOTAL = 6;
 
 function listJs() {
   const out = [];
@@ -297,7 +299,7 @@ test('G8b ★영구 자리는 needs ? ensure : remove 짝 · 편집 자리는 te
 });
 
 /* ══ G8c ════════════════════════════════════════════════════════════════ */
-test('G8c ★부르는 자리 수 = 5(부류 표와 같다)', () => {
+test('G8c ★부르는 자리 수 = 6(부류 표와 같다)', () => {
   const rows = censusAll();
   const perFile = {};
   rows.forEach(r => { perFile[r.file] = (perFile[r.file] || 0) + 1; });

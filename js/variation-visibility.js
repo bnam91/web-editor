@@ -24,6 +24,10 @@
 /** 숨은 시안 표식 — css/editor-panels.css 의 숨김 규칙과 «같은» 셀렉터. */
 export const HIDDEN_VARIATION_SEL = '[data-variation-active="0"]';
 
+/** 시안 활성 표식 «속성 이름» — 관찰자(attributeFilter)용. 위 셀렉터·아래 술어와 같은 이름(이 파일 안).
+ *  ⚠️위 셀렉터 줄은 그 글자 그대로 둔다 — tests/unit/variant-ship-leak V3-b 가 그 줄에 변이를 주입한다. */
+export const VARIATION_ACTIVE_ATTR = 'data-variation-active';
+
 /** 숨은 시안 «섹션» — 클론에서 통째로 들어낼 때 쓴다. */
 export const HIDDEN_VARIATION_SECTION_SEL = `.section-block${HIDDEN_VARIATION_SEL}`;
 
@@ -47,4 +51,12 @@ export function isInHiddenVariation(el) {
  *  ⚠️isConnected 는 «명시적 false»만 거른다 — 속성이 없는 판(테스트 스텁)을 죽이지 않는다. */
 export function isJumpTarget(el) {
   return !!el && el.isConnected !== false && !isInHiddenVariation(el);
+}
+
+/* ★classic 스크립트(<script src> · import 를 못 쓰는 IIFE)가 «같은 술어»를 부르는 다리 — 선례 js/editor.js:431 window.getRestingScroll.
+ *   ⛔classic 쪽에서 조건을 베껴 적지 마라(tests/unit/variant-ship-leak V4 · js/inspector.js:363 주석). 부르는 쪽은 이 다리만 본다.
+ *   ★이 모듈은 js/inspector.js(type=module · index.html)가 import 하므로 «defer» 로 돈다 ⇒ DOMContentLoaded 앞에 걸린다
+ *     (classic 쪽 init 은 DOMContentLoaded 뒤라 다리가 이미 있다). 소비자: js/section-memo-view.js(t3-06 메모 보기 · «표시»). */
+if (typeof window !== 'undefined') {
+  window.VariationVisibility = Object.freeze({ isHiddenVariationSection, ATTR: VARIATION_ACTIVE_ATTR });
 }

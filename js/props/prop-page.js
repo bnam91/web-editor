@@ -227,6 +227,10 @@ function applyPadXToSection(inner, padX) {
   });
   // gradient-block은 항상 패딩 제외 (usePadx='true' 고정) — 섹션/row 내부 모두 처리
   inner.querySelectorAll('.gradient-block').forEach(gb => {
+    /* ★t5-08 — 자유배치 프레임(그룹) «안»의 그라데이션은 좌표로 산다(absolute · dataset.x) ⇒ full-bleed 가 뜻이 없다
+       (js/blocks/outer-pad.js 머리말의 같은 가드 · 에셋 applyExcludePadX 와 같은 규약). 안 거르면 복원(⌘Z·리로드)마다
+       margin −padX 가 x 위에 «한 번 더» 얹혀 그룹 안 그라데이션이 padX 만큼 왼쪽으로 튄다(실측 −72 → 화면 −29 @40%). */
+    if (gb.parentElement?.closest('.frame-block[data-free-layout]')) return;
     if (padX > 0) {
       gb.style.marginLeft  = -padX + 'px';
       gb.style.marginRight = -padX + 'px';

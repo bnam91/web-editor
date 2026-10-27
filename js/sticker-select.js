@@ -983,3 +983,49 @@ document.addEventListener('keydown', (e) => {
   window.pushHistory?.('스티커 삭제');
   window.scheduleAutoSave?.();
 });
+
+/* ═══ t3-03ⓑ — ⌘[ / ⌘] 레이어 순서 (현빈 t3-03 · S3 실측 68ba1f1b·ca702d40 ×3: 오버레이 글은 되는데 스티커는 순서·z 55 변화 0)
+ * ★까닭: editor.js moveSelectedBlocks 의 섹션 직속 갈래는 data-overlay-block="true" 만 받는다 ⇒ 스티커(섹션 직속 · 인라인 z)는 «해당 없음».
+ * ★층: 스티커는 인라인 z 를 가진다(보통 55 · 형광펜 1). 같은 z 끼리는 DOM 뒤가 위 ⇒ ★같은 섹션 · 같은 z 의 섹션 직속 스티커들 사이에서만 앞뒤를 바꾼다.
+ *   다른 z(형광펜 ↔ 보통 · 오버레이 글 80)는 층이 달라 DOM 순서를 바꿔도 겹침이 안 바뀐다 ⇒ 세지도 옮기지도 않는다.
+ *   방향 규약은 캔버스와 같다: ⌘[ = 뒤로 보내기(형제 중 앞으로) · ⌘] = 앞으로 가져오기 · ⇧ 는 무시(한 칸).
+ * ★editor.js 무접촉 — 선례 js/gradient-select.js gradientLayerOrder(t3-05): moveSelectedBlocks 바이트 무변(scratch-layer-order U0) ·
+ *   .remove() 래칫(D14) · 편집 차단 명부(editing-guard-roster A1) ⇒ 이 파일(스티커 고르기 · 키 손잡이가 사는 자리)이 제 키를 capture 로 «먼저» 받는다.
+ *   ⚠아래 기존 keydown 둘(Escape/v · Delete/Backspace)은 capture 가 아니다 — 이것만 , true(editor.js metaKey 블록보다 먼저).
+ *   ⛔오버레이(z 80 · [data-overlay-block]) 위로는 못 간다 — 층이 다르다(GRAD-BELOW-OVERLAY-LAYER-01 과 같은 꼴).
+ *   스크래치가 골라져 있으면 그쪽 몫(양보) · 스티커 글 편집 중이면 포커스가 contentEditable 이라 돌려보낸다. */
+function stickerLayerOrder(direction) {
+  const sel = [...document.querySelectorAll('.section-block > .sticker-block.selected')];
+  if (!sel.length) return false;
+  const sec = sel[0].parentElement;
+  const zOf = (el) => getComputedStyle(el).zIndex;
+  const z = zOf(sel[0]);
+  if (!sel.every((s) => s.parentElement === sec && zOf(s) === z)) return true;   // 섹션·층이 섞였으면 키만 먹고 아무것도 안 한다
+  const sibs = [...sec.children].filter((c) => c.classList.contains('sticker-block') && zOf(c) === z);
+  sel.sort((a, b) => sibs.indexOf(a) - sibs.indexOf(b));
+  if (direction === 'up') {
+    const i0 = sibs.indexOf(sel[0]);
+    if (i0 <= 0) return true;                                          // 이미 맨 뒤 — 키는 가져간다
+    window.ensureHistoryCheckpoint?.('이동 전');
+    sibs[i0 - 1].before(...sel);
+  } else {
+    const i1 = sibs.indexOf(sel[sel.length - 1]);
+    if (i1 >= sibs.length - 1) return true;                            // 이미 맨 앞
+    window.ensureHistoryCheckpoint?.('이동 전');
+    sibs[i1 + 1].after(...sel);
+  }
+  window.pushHistory?.(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
+  window.buildLayerPanel?.();
+  sel.forEach((s) => s.classList.add('selected'));
+  window.scheduleAutoSave?.();
+  return true;
+}
+window.stickerLayerOrder = stickerLayerOrder;
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || (e.code !== 'BracketLeft' && e.code !== 'BracketRight')) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (typeof window._scratchHasSelection === 'function' && window._scratchHasSelection()) return;
+  if (!stickerLayerOrder(e.code === 'BracketLeft' ? 'up' : 'down')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);

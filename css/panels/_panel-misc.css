@@ -581,3 +581,102 @@
 }
 .ds-section-label.ds-section-toggle.collapsed::before { transform: rotate(-90deg); }
 .ds-section-label.ds-section-toggle:hover { color: var(--ui-text, #ddd); }
+
+/* ══ t3-06 메모 있는 섹션 구분해 보기 (js/section-memo-view.js · 시안 sian-11-section-memo-t306-v1) ══
+   색 = 할 일 핀 주황 #f59e0b (위 .todo-pin-num 과 같은 값). */
+
+/* ㉯ 덧층 — #canvas 밖 형제(선례 #todo-pin-overlay · index.html). 저장·내보내기·PNG 클론에 안 들어간다. */
+#section-memo-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 50;
+}
+/* 바깥 탭 — 섹션 왼쪽 위 모서리 바깥. 좌표는 캔버스 좌표(JS), «크기»는 --inv-zoom 으로 화면 크기 고정. */
+.smemo-tab {
+  position: absolute;
+  width: calc(24px * var(--inv-zoom, 1)); height: calc(24px * var(--inv-zoom, 1));
+  margin-left: calc(-30px * var(--inv-zoom, 1));
+  border-radius: calc(var(--ui-radius-md) * var(--inv-zoom, 1)) 0 0 calc(var(--ui-radius-md) * var(--inv-zoom, 1));
+  background: #f59e0b; color: #000;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: calc(-2px * var(--inv-zoom, 1)) calc(2px * var(--inv-zoom, 1)) calc(6px * var(--inv-zoom, 1)) rgba(0, 0, 0, 0.25);
+  pointer-events: auto; cursor: pointer;
+}
+.smemo-tab svg { width: calc(13px * var(--inv-zoom, 1)); height: calc(13px * var(--inv-zoom, 1)); }
+.smemo-tab:hover { background: #ffb020; }
+.smemo-tab.is-hidden-sec { opacity: 0.45; }
+/* 도착 표시 — 섹션에 class 를 안 달고 덧층 사각형을 번쩍인다(선례 css/editor-canvas.css .section-merge-flash) */
+.smemo-flash {
+  position: absolute; pointer-events: none;
+  animation: smemoFlash 0.9s ease-out forwards;
+}
+@keyframes smemoFlash {
+  0%, 40% { box-shadow: inset 0 0 0 calc(3px * var(--inv-zoom, 1)) #f59e0b; }
+  100%    { box-shadow: inset 0 0 0 calc(3px * var(--inv-zoom, 1)) transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .smemo-flash { animation-duration: 0.01ms; } }
+/* 미리보기 — 마우스를 따라다니는 쪽지 */
+.smemo-tip {
+  position: fixed; z-index: 9000; max-width: 260px; pointer-events: none;
+  background: var(--ui-bg-card); border: 1px solid var(--ui-border-mid); border-radius: var(--ui-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 8px 10px; font-size: var(--ui-fs-base); color: var(--ui-text);
+  white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5;
+}
+.smemo-tip-name { display: block; margin-bottom: 3px; color: #f59e0b; font-weight: var(--ui-fw-semibold); font-size: var(--ui-fs-10); }
+
+/* ㉰ 체크리스트 탭 맨 위 묶음 — 머리는 .ck-section-header 꼴 그대로, 줄은 .ck-item 과 같은 값(클래스는 따로) */
+.smemo-group { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; max-height: 45%; overflow-y: auto; }
+.smemo-group-badge {
+  flex-shrink: 0; font-size: var(--ui-fs-9); font-weight: var(--ui-fw-bold); color: #000;
+  background: #f59e0b; border-radius: 7px; padding: 0 5px; line-height: 13px; font-variant-numeric: tabular-nums;
+}
+.smemo-ctrls { display: flex; gap: var(--ui-row-gap); padding: 2px 0 4px; }
+.smemo-seg { display: inline-flex; border: 1px solid var(--ui-border-mid); border-radius: var(--ui-radius-sm); overflow: hidden; }
+.smemo-seg button {
+  background: var(--ui-bg-hover); border: none; border-left: 1px solid var(--ui-border-mid);
+  color: var(--ui-text-dim); font-size: var(--ui-fs-10); padding: 3px 7px; cursor: pointer;
+}
+.smemo-seg button:first-child { border-left: none; }
+.smemo-seg button:hover { color: var(--ui-text); }
+.smemo-seg button.on { background: rgba(37, 99, 235, 0.2); color: var(--ui-accent-text); }
+.smemo-list { display: flex; flex-direction: column; gap: 2px; }
+.smemo-item {
+  display: flex; align-items: flex-start; gap: 5px;
+  padding: 5px 4px 5px 6px; border-radius: var(--ui-radius-sm);
+  position: relative; cursor: pointer; transition: background 0.1s;
+}
+.smemo-item:hover { background: var(--ui-bg-hover); }
+.smemo-item--on { background: rgba(153, 102, 255, 0.12); }
+.smemo-item--on::before {
+  content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px;
+  background: var(--ui-sel-overlay); border-radius: 2px;
+}
+.smemo-item.is-hidden-sec { opacity: 0.45; }
+.smemo-num {
+  flex-shrink: 0; min-width: 20px; height: 16px; padding: 0 4px; margin-top: 1px; border-radius: 8px;
+  background: #f59e0b; color: #000; font-size: var(--ui-fs-9); font-weight: var(--ui-fw-bold);
+  display: flex; align-items: center; justify-content: center; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.smemo-body { flex: 1; min-width: 0; }
+.smemo-name { font-size: var(--ui-fs-base); color: var(--ui-text-base); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.smemo-preview {
+  margin-top: 1px; font-size: var(--ui-fs-10); color: var(--ui-text-muted); line-height: 1.45;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.smemo-chk {
+  flex-shrink: 0; margin-top: 1px; padding: 0 4px; line-height: 14px;
+  font-size: var(--ui-fs-9); color: var(--ui-text-dim); font-variant-numeric: tabular-nums;
+  border: 1px solid var(--ui-border-mid); border-radius: 3px;
+}
+.smemo-chk.all-done { color: #4ade80; border-color: rgba(74, 222, 128, 0.4); }
+.smemo-open {
+  flex-shrink: 0; width: 18px; height: 18px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 3px; cursor: pointer;
+  color: var(--ui-text-dim); opacity: 0;
+}
+.smemo-item:hover .smemo-open, .smemo-item--on .smemo-open { opacity: 1; }
+.smemo-open:hover { color: #f59e0b; background: var(--ui-bg-input); }
+.smemo-empty { font-size: var(--ui-fs-base); color: var(--ui-text-dim); padding: 8px 4px; line-height: 1.6; }
+.smemo-divider { height: 1px; background: var(--ui-bg-hover); margin: 6px 0 2px; flex-shrink: 0; }

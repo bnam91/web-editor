@@ -97,6 +97,8 @@ before(async () => {
       "import { effSectionPadX as _effSectionPadX } from './outer-pad.js';",
       'const _effSectionPadX = () => 0;   // ⒜-2 — 이 시험은 full-bleed 를 안 잰다',
     ],
+    /* t5-16(261026) — canvas-block 이 카드 높이 자 card-limits.js 를 import 한다. 잎 모듈(값만)이라 스텁 대신 «진짜 파일»의 글을 그 자리에 싣는다(export 만 뗀다 · 값 사본 0 · .js 는 CJS 로 읽혀 URL import 가 안 된다). */
+    ["import { CVB_H_MIN, CVB_H_MAX } from './card-limits.js';", fs.readFileSync(path.join(__dirname, '../../js/blocks/card-limits.js'), 'utf8').replace(/^export /gm, '')],
     /* ★1017t1d1 — canvas-block.js 가 line-host.js 를 import 하기 시작했다(심플카드 「줄」). ⒜-2 주석의
        그 규약대로 — import 가 늘면 이 명부를 센다. 이 시험은 카드 인라인 편집(옛 title/desc 길)만 보고
        어느 카드도 .lines 를 안 쓴다 ⇒ lnHasLines 는 항상 false 로 충분하다. */
@@ -110,6 +112,8 @@ before(async () => {
     'js/props/prop-simple-card.js',
     [
       ["import { propPanel } from '../globals.js';", 'const propPanel = null;'],
+      /* t5-16(261026) — #cvb-h min/max 가 card-limits.js 에서 온다 — 진짜 파일의 글을 그 자리에(값 사본 0). */
+      ["import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';", fs.readFileSync(path.join(__dirname, '../../js/blocks/card-limits.js'), 'utf8').replace(/^export /gm, '')],
       /* ★T-049(2026-09-22) — `.prop-block-label` 헤더가 _helpers.js 의 blockHeaderHTML 한 자리로 모였다.
          이 검사는 «카드 접기/인라인 편집»만 본다(패널 마크업을 안 잰다) → 빈 문자열 더블로 끊는다.
          ★★[2026-09-27 T-234] ⛔이름을 «손으로» 적었더니 `_helpers.js` 에 export 가 하나 늘자

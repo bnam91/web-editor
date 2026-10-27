@@ -100,8 +100,8 @@
   }
 
   /** 섹션 하나의 배지 — 멱등(없으면 만들고, 있으면 ★값(data-h)만 고친다). */
-  function renderOne(sec) {
-    const h = ruler(sec);                     // ★공용 자
+  function renderOne(sec, hKnown) {
+    const h = hKnown !== undefined ? hKnown : ruler(sec);   // ★공용 자(이미 잰 값이 오면 그대로 — renderSectionHeights 의 «먼저 다 읽기»)
     if (h == null) return null;
     const hz = sec.querySelector(':scope > .section-hitzone');
     if (!hz) return h;                                  // hitzone 이 아직 없다 — ⒜ 래퍼가 곧 다시 부른다
@@ -174,12 +174,15 @@
   /* ══ 한 번에 다 그린다 — (다)와 (라)가 ★같은 순회·★같은 자에서 나온다 ══════════ */
   function renderSectionHeights() {
     const secs = listSections();
+    /* ★172 ㉮(지디 2026-10-27) — ★먼저 «다 읽고» 그다음 «다 쓴다». 섹션마다 «읽기(offsetHeight) → 배지 쓰기»를 번갈아 하면
+       읽기마다 스타일 재계산·레이아웃이 다시 돈다(앱 실측 · 원 저장본 섹션 82: 강제 Layout 84 · 스타일 재계산 84 · ⌘Z 의 ≈815ms). */
+    const hs = secs.map(s => ruler(s));        // ★공용 자 — 읽기만
     let total = 0;
-    for (const s of secs) {
-      const h = renderOne(s);                 // (다) 캔버스
+    secs.forEach((s, i) => {
+      const h = renderOne(s, hs[i]);          // (다) 캔버스 — 쓰기만
       if (h != null) total += h;              // (라) 는 ★그 수를 그대로 더한 것
       observeSection(s);
-    }
+    });
     renderPanel(secs, total);                 // (다) 패널 칸 ＋ (라) 합계
     return { count: secs.length, total };
   }
@@ -230,8 +233,12 @@
            의 분모가 js/ 파일을 «주석까지 포함해» 그 낱말로 훑는다(일부러 거친 그물이다). 이 파일은
            캔버스를 ★복제하지 않으므로 그 명부에 들어갈 채널이 아니다. 글자를 적으면 거짓 양성으로
            빨강이 나고, 그걸 끄려고 명부에 «채널 아닌 것»을 손으로 올리게 된다(그 파일 머리말의 ⛔). */
-      try { renderOne(sec); } catch (_) {}
-      _schedule();                             // 합계는 섹션 수가 바뀌었을 수 있으니 한 번 더
+      /* ★172 ㉮(지디 2026-10-27) — 여기서 «바로» 재지 않는다 · 아래 _schedule() 하나가 «모아» 그린다(래퍼 «안» coalesce · 길은 그대로 하나).
+         까닭(앱 실측 · 원 저장본 섹션 82 · dev eac99ecd · 쉬는 창 ×3): rebindAll 이 섹션마다 이 래퍼를 지나며 «히트존 갈아끼움(쓰기) → offsetHeight(읽기)»를
+           82 번 번갈아 했다 = 강제 Layout 84 · 스타일 재계산 84 · ⌘Z 3061~3109ms 중 ≈815ms. 읽기 한 줄을 뺀 판 = 2775~2802ms(Δ −259~−327 · 172 의 ≈10%).
+         ⛔«rebindAll 때만 미룬다» 예외를 두지 않는다(위 머리말 «언제 다시 그리나 — 구조로») — 삽입·템플릿·로드·undo/redo·협업이 다 같은 길로 «한 태스크 뒤» 그린다.
+         ⚠️그 한 태스크 동안 배지는 복제된 히트존이 가져온 «옛 값»이다(갈아끼움이 배지를 복제로 살린다) — setTimeout 0 뒤 바로 잡힌다(U4 가 120ms 뒤 잰다). */
+      _schedule();                             // 배지 + 합계 — 섹션 수가 바뀌었을 수 있으니 통째로 한 번
       return r;
     };
     window.__secHeightHookInstalled = true;

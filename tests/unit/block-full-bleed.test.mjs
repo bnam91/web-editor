@@ -502,11 +502,15 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
     'js/blocks/canvas-block.js',     // 카드  — renderCanvas 가 통합 처리
     'js/blocks/chat-block.js',       // 채팅  — renderChatBlock 안에서 적용
     'js/blocks/grid-block.js',       // 그리드 — renderGridBlock 안에서 적용 (2026-10-01 — 렌더가 width=100% 를 다시 박아 배너2 와 같은 병이 났다, grd_ts0he_lvy913j)
+    'js/blocks/laurel-block.js',     // 월계수 — renderLaurelBlock 안에서 적용 (2026-10-26 t5-10 S3 · ⑴렌더 안 ⑵패널 끄기 = clearBlockFullBleed 후 다시 그림 ⑶키 없으면 no-op)
+    'js/blocks/radial-block.js',     // 라디알 — renderRadialBlock «맨 앞»에서 적용(호 배치가 블럭 폭을 잰다) (2026-10-26 t7-01 S3 · ⑴⑵⑶ 월계수와 같다)
     'js/props/prop-banner02.js',     // 배너2 패널 (2026-09-10 신규)
     'js/props/prop-chat.js',         // 채팅 패널
     'js/props/prop-frame.js',        // 프레임 — 패널이 «직접» 적용(렌더 함수가 없다) (2026-09-10 신규)
     'js/props/prop-grid.js',         // 그리드 — 티켓 ⑥ (2026-09-28 신규 · 0929 에 자체 구현에서 이 한 벌로 합쳤다)
+    'js/props/prop-laurel.js',       // 월계수 패널 — Grid 절 토글 (2026-10-26 t5-10)
     'js/props/prop-page.js',         // padX 일괄 적용 — 표식 쓸이
+    'js/props/prop-radial.js',       // 라디알 패널 — Layout 절 토글 (2026-10-26 t7-01)
     'js/props/prop-simple-card.js',  // 카드 패널
   ];
   assert.deepEqual(users, expected,

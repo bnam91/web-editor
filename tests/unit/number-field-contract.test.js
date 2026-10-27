@@ -270,6 +270,14 @@ test('N9 ★센서스 — «빈 값을 값으로 다루는» 패널은 모두 �
     'js/props/_typo-section.js',
     /* ⛔prop-multisel.js msp-font-size 는 placeholder="px" 가 «장식»이라 data-empty="invalid" 로
        껐다. 여기 «없는» 것이 정답이다 — 다시 들어오면 그 칸의 빈 값이 커밋으로 샌다. */
+    /* ★261026 추가 — 1013t2C6(라벨 너비 조절)이 `annot-label-w` 를 들여왔다(S7 · f2103e33).
+       ★선언이 «참»임을 ★배선으로 쟀다 — js/props/prop-annotation.js:797 :
+         `lw.value.trim() === '' ? null : annotClampLabelBox(...)` ⇒ ★빈 값 → labelWidth: null
+       ⇒ ★그 null 이 「자동 = 글 길이만큼」이다(그 칸의 title 글자 그대로) ＋ 「자동」 단추도 같은 null 을 쓴다
+       ⛔그래서 data-empty="invalid" 가 ★아니다 — ★빈 값에 ★뜻이 있다.
+       ★이 줄을 더한 까닭 : 머지 c48c8cbc 로 N9 가 ★빨개졌고(선언 7 → 실측 8),
+         ⛔기준선을 흉내 내 끄지 않고 ★배선을 재서 ★참인 쪽으로 선언했다. */
+    'js/props/prop-annotation.js',   // annot-label-w — :797 value.trim()==='' → labelWidth null = 자동(글 길이)
     'js/props/prop-banner02.js',     // bn2-h/tx/tw/ty — bindAutoNum: 비우면 플래그를 걷고 프리셋/자동
     'js/props/prop-comparison.js',   // .cmp-row-h    — :251 raw==='' → arr[ri]=null
     'js/props/prop-graph.js',        // grb-fillmax-number — 1012t1G3: 비우면 dataset.fillMax 를 지운다 = 기본 분모 100(placeholder 가 그 값)

@@ -25,8 +25,8 @@ import {
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
          growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
-import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
-import { grdAddLine, grdToastImgFail, grdImageFileOk } from './props/prop-grid.js';
+import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_NESTED_GAP, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
+import { grdAddLine, grdToastImgFail, grdImageFileOk, grdOpenNestGapPopover } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
 import { isImageMemoHost, getImageMemo, setImageMemo, openImageMemoEditor } from './image-memo.js';
 import { isShapeFrame, shapeFrameOf, resolveInsertFrame, topLevelBlocksOf, isEmptyShell } from './shape-frame.js';
@@ -1961,7 +1961,15 @@ window.addGridChild = addGridChild;
  * @param {'body'|'h2'|'icon'} kind */
 function addCircleChild(circle, kind = 'body') {
   const c = typeof circle === 'string' ? document.getElementById(circle) : circle;
-  if (!c || !c.classList?.contains('icon-circle-block') || !(window.ICB_CHILD_KINDS || []).includes(kind)) return null;
+  if (!c || !c.classList?.contains('icon-circle-block')) return null;
+  return _addCircleKid(() => window.ensureIcbKidsBox(c), kind);
+}
+
+/* ★원 위에 블럭 하나를 «담는 몫» 한 벌 — G14 서클 에셋(addCircleChild)·t5-12ⓑ 그리드 원(addGridCircleChild) 공용.
+ * ★종류 = ICB_CHILD_KINDS(body·h2·icon) · 글자는 가운데 정렬 · 아이콘은 row 없이 맨몸(그릇이 가운데 flex) — G14 그대로.
+ * ★넣는 길 = _insertToFlowFrame(opts.into) 하나(⛔새 길 금지) · 그릇은 into 가 «넣기 직전»에 만든다. */
+function _addCircleKid(ensureBox, kind = 'body') {
+  if (!(window.ICB_CHILD_KINDS || []).includes(kind)) return null;
   let made = null;
   _insertToFlowFrame(() => {
     if (kind === 'icon') {
@@ -1975,9 +1983,40 @@ function addCircleChild(circle, kind = 'body') {
     tf.appendChild(block);
     made = block;
     return { row: tf, block };
-  }, { into: () => window.ensureIcbKidsBox(c) });
+  }, { into: ensureBox });
   return made ? { block: made } : null;
 }
+
+/* ═══ ★t5-12ⓑ ㉮ 「＋ 블럭 넣기 ▾」 — 그리드 «원 줄» 위(.grd-img-circle > .grd-circle-kids)에 블럭 하나 ═══════════════
+ * ★현빈 원문: 「원형이미지에 글자는 어떻게 추가 삽입하는지? 현재는 우측패널에서만 한줄만 가능한데 블럭추가가 필요함」.
+ * ★원은 DOM 블럭이 아니라 «모델 줄»이고 renderGridBlock 이 칸을 다시 그린다 ⇒ 그릇은 줄의 «변하지 않는 이름» line.id 로 제 원을 찾는다.
+ *   이름은 «처음 얹을 때» 매긴다(그 전 줄·옛 저장본은 키 0 ⇒ 바이트 동일). 이미 있고 하나뿐이면 그대로 · 겹치면(줄 복제) 새로.
+ * ★담는 몫은 _addCircleKid 한 벌(G14 와 같은 것).
+ * @param {string|Element} grid  그리드 블럭(또는 id) · @param {{r:number,c:number,li:number}} addr  원 줄 주소
+ * @param {'body'|'h2'|'icon'} kind */
+function addGridCircleChild(grid, addr, kind = 'body') {
+  const g = typeof grid === 'string' ? document.getElementById(grid) : grid;
+  if (!g || !g.classList?.contains('grid-block') || !addr) return null;
+  const R = Number(addr.r), C = Number(addr.c), LI = Number(addr.li);
+  const m = getGridModel(g);
+  const line = m?.cells?.[R]?.[C]?.lines?.[LI];
+  if (!line || line.type !== 'image' || line.imgShape !== 'circle') return null;
+  let id = typeof line.id === 'string' ? line.id : '';
+  const dup = id && g.querySelectorAll(`.grd-img-circle[data-line-id="${CSS.escape(id)}"]`).length > 1;
+  if (!id || dup) {
+    id = 'gl_' + Math.random().toString(36).slice(2, 10);
+    if (!gridPreviewLine(g, R, C, LI, { id })) return null;
+  }
+  const hostOf = () => [...g.querySelectorAll('.grd-img-circle[data-line-id]')].find((e) => e.dataset.lineId === id) || null;
+  if (!hostOf()) return null;
+  return _addCircleKid(() => {
+    const host = hostOf();
+    let box = host.querySelector(':scope > .grd-circle-kids');
+    if (!box) { box = document.createElement('div'); box.className = 'grd-circle-kids'; box.dataset.lineId = id; host.appendChild(box); }
+    return box;
+  }, kind);
+}
+window.addGridCircleChild = addGridCircleChild;
 window.addCircleChild = addCircleChild;
 
 /* ═══ ★`1011t1C` 「＋ 블럭 넣기 ▾」 — ★인용구 «밑»(.qt-children)에 ★블럭 하나를 넣는다 ═══════════════
@@ -2374,6 +2413,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
    *   · 떠 있는 쪽이 프레임 안에서 제대로 끌리는 종류가 아니면 → 넣으면 끌 때 튄다.
    *     지금 되는 종류 = 오버레이 블럭(표식 내려놓으면 일반 자유배치 자식) · 줌블럭(끌기가 부모 프레임 기준).
    * ⛔최상위 도우미 금지(이 함수만 잘라 도는 DOM 하네스) — 전부 이 안에서, 바깥은 window.* 로. */
+  /* ★t5-08 — 흐름 쪽이 «자유배치 프레임 하나»가 아닐 때(예: row 안 에셋 + 떠 있는 그라데이션) 떠 있는 것을
+     아래 흐름 갈래가 «새로 만든 그룹» 안으로 넣는다(그 명부). ∅ = 해당 없음. */
+  let _floatIntoNew = null;
   {
     const _sticky = b => b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
     const units = [...new Set(selected.map(_sticky))];
@@ -2393,15 +2435,42 @@ function wrapSelectedBlocksInFrame(opts = {}) {
                     && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
       // ★t5-07 — 이름(zoom-block) 대신 성질: 제 방식 떠 있는 블럭(줌 · 그라데이션 · 스티커) 또는 오버레이
       const _canNest = u => _ownFloat(u) || u.dataset.overlayBlock === 'true';
-      if (!host) {
-        window.showToast?.('떠 있는 블럭은 «자유배치 프레임 하나»와만 묶을 수 있어요 — 그 프레임 안으로 들어갑니다.');
-        return;
-      }
       const bad = floaters.filter(u => !_canNest(u));
       if (bad.length) {
         window.showToast?.('이 떠 있는 블럭은 아직 프레임 안에 넣을 수 없어요 (넣으면 끌 때 자리가 튑니다).');
         return;
       }
+      /* ★t5-08 (현빈 「일반블럭과 오버레이된 블럭을 그룹설정하면 일반블럭처럼 움직여져야됨 , 그룹더블클릭해서
+         그룹안으로 진입하면 그안에서 오버레이 블럭은 여전히 오버레이되어야함」) — 예전엔 여기서 거절 토스트로 멈췄다
+         (흐름 쪽이 자유배치 프레임이 아니면 «넣을 곳이 없다»). ⇒ 넣을 곳을 «만든다»: 흐름 블럭들은 아래 흐름 갈래가
+         평소처럼 새 그룹(흐름 안 자유배치 프레임 = 일반 블럭처럼 움직인다)으로 묶고, 떠 있는 것은 그 그룹 «안»에
+         지금 자리 그대로 넣는다(아래 _nestFloat 과 «같은» 옮기기 — 그룹 안에선 좌표로 사는 자유 자리 = 오버레이처럼). */
+      if (!host) {
+        _floatIntoNew = floaters;
+        selected = selected.filter(b => !floaters.includes(_sticky(b)));
+      }
+    }
+    if (_floatIntoNew === null && floaters.length && hosts.length) {
+      const host = hosts[0];
+      _nestFloat(host, floaters);
+      window.bindFrameDropZone?.(host);
+      window.deselectAll?.();
+      sec.classList.add('selected');
+      window.syncLayerActive?.(sec);
+      host.classList.add('selected');
+      window._activeFrame = host;
+      window.showFrameProperties?.(host);
+      window.showFrameHandles?.(host);
+      window.buildLayerPanel();
+      window.scheduleAutoSave?.();
+      window.showToast?.(`${floaters.length}개를 프레임 안으로 묶었어요 (자리 그대로)`);
+      return;
+    }
+  }
+
+  /* 떠 있는 블럭을 자유배치 프레임 host «안»으로 — 화면 자리 그대로(좌표를 host 기준으로 바꾼다).
+     ⛔최상위 도우미 금지(이 함수만 잘라 도는 DOM 하네스) — 이 함수 안의 지역 함수다. */
+  function _nestFloat(host, floaters) {
       const hr = host.getBoundingClientRect();
       const scale = host.offsetWidth ? (hr.width / host.offsetWidth) || 1 : 1;   // 캔버스 줌
       floaters.forEach(u => {
@@ -2431,19 +2500,6 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         }
         u.classList.remove('selected');
       });
-      window.bindFrameDropZone?.(host);
-      window.deselectAll?.();
-      sec.classList.add('selected');
-      window.syncLayerActive?.(sec);
-      host.classList.add('selected');
-      window._activeFrame = host;
-      window.showFrameProperties?.(host);
-      window.showFrameHandles?.(host);
-      window.buildLayerPanel();
-      window.scheduleAutoSave?.();
-      window.showToast?.(`${floaters.length}개를 프레임 안으로 묶었어요 (자리 그대로)`);
-      return;
-    }
   }
 
   const rows = [];
@@ -2489,9 +2545,31 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   // ★기준 = 새 프레임 ss 의 «패딩 상자»(absolute 자식의 원점). ss 를 넣은 «뒤», 블록을 옮기기 «전»에 잰다.
   //   section-inner 테두리 상자 기준으로 재면 섹션 좌우여백(인라인 padding, 예: 72px)·합쳐진 파트 패딩만큼
   //   한 번 더 밀린다(T-057 2라운드). ss 삽입으로 스크롤바가 생겨 가로 위치가 바뀌는 경우도 이 순서로 흡수.
+  /* ★t5-08(원 블럭 실측) — «패딩 제외»(full-bleed) 에셋은 margin −padX 로 섹션 가장자리까지 나가 있다. 아래가 그 블럭을
+     width:100% 로 프레임에 넣으면 margin 은 남고 폭만 프레임(=내용 폭)이 돼 «그림이 줄었다»(ab_yb8d4_m57ju7d 860→716 ·
+     에셋 하나만 ⌘G 해도 같았다 — GROUP-FLOW-ASSET-WIDTH-SHRINK-01). 프레임은 overflow:hidden 이라 margin 째 넣어도 잘린다.
+     ⇒ 묶을 블럭이 내용 폭 밖으로 나가 있으면 ⑴ 새 프레임을 패딩 제외로(프레임의 정본 스위치 dataset.fullBleed —
+       prop-frame.js · drag-utils applyBlockFullBleed 한 벌) ⑵ 그 블럭은 «보이는 상자»(left·width px · margin 0)로 넣는다
+       (아래 도형 래퍼가 보이는 가로 위치를 지키는 것과 같은 뜻). ⇒ 묶기 전후 화면 자리·폭이 같다. */
+  /* 블럭 단위로 본다 — row 는 내용 폭 그대로이고, 그 안의 에셋이 margin 으로 나간다 */
+  const _bleedRects = new Map();
+  rows.forEach(row => {
+    const units = shells.has(row) ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row)) : [row];
+    units.forEach(b => {
+      if (isShapeFrame(b)) return;
+      const cs = getComputedStyle(b);
+      if ((parseFloat(cs.marginLeft) || 0) < 0 || (parseFloat(cs.marginRight) || 0) < 0) _bleedRects.set(b, b.getBoundingClientRect());
+    });
+  });
+  if (_bleedRects.size && window.applyBlockFullBleed) {
+    ss.dataset.fullBleed = 'true';
+    window.applyBlockFullBleed(ss);
+  }
   const _ssRect = ss.getBoundingClientRect();
   const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
   const _originX = _ssRect.left + ss.clientLeft * _scale;
+  const _bleedBox = new Map();   // 내용 폭 밖으로 나간 블럭 → 프레임 기준 { left, width } (캔버스 px)
+  _bleedRects.forEach((r, b) => _bleedBox.set(b, { left: Math.round((r.left - _originX) / _scale), width: Math.round(r.width / _scale) }));
   const _shapeLeft = new Map();
   rows.forEach(row => {
     const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
@@ -2529,8 +2607,17 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         ss.appendChild(block);
         return;
       }
-      block.style.left = '0px';
-      block.style.width = '100%';
+      const _bb = _bleedBox.get(block);
+      if (_bb) {
+        // ★t5-08 — 패딩 제외 블럭: 보이는 상자 그대로(위 머리말)
+        block.style.marginLeft = '0px';
+        block.style.marginRight = '0px';
+        block.style.left = _bb.left + 'px';
+        block.style.width = _bb.width + 'px';
+      } else {
+        block.style.left = '0px';
+        block.style.width = '100%';
+      }
       block.style.transform = '';
       block.classList.remove('selected');
       block.setAttribute('draggable', 'false');
@@ -2546,11 +2633,42 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   });
   if (leftBehind && window.showToast) {
     window.showToast('그룹에 못 넣은 블록이 있어 원래 자리에 남겼어요.');
-  } else if (window.showToast && rows.length > 0) {
+  } else if (window.showToast && rows.length > 0 && !_floatIntoNew) {   // ★t5-08 — 떠 있던 것까지 넣는 경우엔 아래 한 줄이 말한다(성공 한 줄)
     /* 성공했다고 말해 준다 — 근거는 위 자유배치 갈래의 머리말.
        ⚠️못 넣고 남긴 블록이 있는 갈래는 그쪽 말이 더 중요하다 ⇒ «덮지 않는다».
          #editor-toast 는 재사용 노드라 나중 말이 앞말을 지운다(js/drag-utils.js showToast). */
     window.showToast(`${rows.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요`);
+  }
+
+  /* ★t5-08 — 떠 있던 블럭을 방금 만든 그룹 안으로(자리 그대로). 프레임은 overflow:hidden 이라(위 :2050 머리말)
+     그룹 상자가 그 블럭까지 덮어야 «값은 있는데 안 보이는» 쪽이 안 된다:
+       아래로 나가면 = growFrameToFitChildren(자유배치 드롭과 같은 것) · 위로 나가면 = 자식 전부를 그만큼 내리고
+       프레임을 margin-top 음수로 같은 만큼 올린다 ⇒ 화면 자리도, 그룹 아래 흐름도 안 변한다. */
+  if (_floatIntoNew && _floatIntoNew.length) {
+    _nestFloat(ss, _floatIntoNew);
+    const kids = [...ss.children].filter(c => c.style && getComputedStyle(c).position === 'absolute');   // 인라인이 없어도(CSS 가 주는 absolute) 센다
+    const minTop = Math.min(0, ...kids.map(c => parseInt(c.style.top, 10) || 0));
+    if (minTop < 0) {
+      const dy = -minTop;
+      kids.forEach(c => {
+        if (_xyCanon(c)) { _shiftXY(c, 0, dy); return; }
+        const t = (parseInt(c.style.top, 10) || 0) + dy;
+        c.style.top = t + 'px';
+        if (c.dataset.offsetY != null) c.dataset.offsetY = String(t);
+      });
+      ss.style.marginTop = (-dy) + 'px';
+      const h = (parseInt(ss.dataset.height, 10) || frameH) + dy;
+      ss.style.height = h + 'px'; ss.style.minHeight = h + 'px';
+      ss.dataset.height = String(h);
+    }
+    growFrameToFitChildren(ss);
+    /* growFrameToFitChildren 은 «인라인» absolute 자식만 센다(frame-geometry.js) — 같은 자식 명부(kids)로 밑변을 한 번 더 본다 */
+    const maxBottom = Math.max(0, ...kids.map(c => (parseInt(c.style.top, 10) || 0) + (c.offsetHeight || 0)));
+    if (maxBottom > ss.offsetHeight) {
+      ss.style.height = maxBottom + 'px'; ss.style.minHeight = maxBottom + 'px';
+      ss.dataset.height = String(maxBottom);
+    }
+    window.showToast?.(`${rows.length + _floatIntoNew.length}개를 ${asGroup ? '그룹으로' : '프레임으로'} 묶었어요 (떠 있던 ${_floatIntoNew.length}개는 그 안에 자리 그대로)`);
   }
 
   window.bindFrameDropZone?.(ss);
@@ -5356,6 +5474,21 @@ window.applyIconTextAlign = applyIconTextAlign;
 window.setIconTextDirection = setIconTextDirection;
 
 // ── 수정: icon-text 블록 partial update ──────────────────────────────────
+/* ★아이콘 텍스트 블럭 «그림 박기» 한 곳 — img(draggable=false) · .has-image · 테두리 끔 · dataset.imgSrc.
+   부르는 곳 둘: ⑴ updateIconTextBlock(아이콘 고르기·MCP) ⑵ block-drag.js `_itbPickPhoto`(사진 올리기 · window 다리).
+   ⛔두 벌로 만들지 마라(113 B-2 — 사진 길이 has-image·draggable 을 빠뜨려 꼴이 갈렸다).
+   ⚠️검사·이력·자동저장은 부르는 쪽 몫이다 — 여긴 DOM 만 쓴다. */
+function _itbApplyImgSrc(block, iconEl, newSrc) {
+  let img = iconEl.querySelector('img');
+  if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
+  img.src = newSrc;
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
+  img.setAttribute('draggable', 'false');
+  iconEl.classList.add('has-image');
+  iconEl.style.border = 'none';
+  block.dataset.imgSrc = newSrc;
+}
+
 function updateIconTextBlock(blockId, partial = {}) {
   if (!blockId) return { ok: false, code: 'NOT_FOUND', message: 'blockId required' };
   const block = document.getElementById(String(blockId));
@@ -5436,14 +5569,7 @@ function updateIconTextBlock(blockId, partial = {}) {
         iconEl.style.border = '';
         delete block.dataset.imgSrc;
       } else {
-        let img = iconEl.querySelector('img');
-        if (!img) { img = document.createElement('img'); iconEl.appendChild(img); }
-        img.src = newSrc;
-        img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;';
-        img.setAttribute('draggable', 'false');
-        iconEl.classList.add('has-image');
-        iconEl.style.border = 'none';
-        block.dataset.imgSrc = newSrc;
+        _itbApplyImgSrc(block, iconEl, newSrc);
       }
     }
     applied.imgSrc = newSrc;
@@ -5538,6 +5664,7 @@ window.updateSpeechBubbleBlockRaw = updateSpeechBubbleBlock;
 window.updateLabelGroupBlock  = updateLabelGroupBlock;
 window.updateShapeBlock       = updateShapeBlock;
 window.updateIconTextBlock    = updateIconTextBlock;
+window.itbApplyImgSrc         = _itbApplyImgSrc;   // ★113 B-2 — block-drag.js 사진 올리기 길이 «부를 때» 읽는다
 window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType swap 시 참조
 
 
@@ -5546,11 +5673,30 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   const menu = document.getElementById('block-context-menu');
   if (!menu) return;
 
+  /* ★1020t2d2 「스타일 복사 / 스타일 붙여넣기」 — 텍스트 블럭에서만 보인다(보임 판정 = openMenu · 동작 = js/props/text-style-copy.js).
+     ⛔index.html 정적 마크업이 아니라 여기서 만든다(그 파일은 같은 레인 다른 단위가 고치는 중) — 꼴은 이웃 .bcm-item 그대로.
+     자리 = 「바로 아래에 여백 넣기」 다음(블럭 하나를 향한 일끼리). */
+  (function _ensureStyleCopyItems() {
+    if (document.getElementById('bcm-style-copy')) return;
+    const mk = (id, svgInner, label) => {
+      const it = document.createElement('div');
+      it.className = 'bcm-item'; it.id = id; it.style.display = 'none';
+      it.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">${svgInner}</svg>${label}`;
+      return it;
+    };
+    const copyIt  = mk('bcm-style-copy',  '<path d="M3 2.5h6M6 2.5v7"/><path d="M8.5 9.5h2.5M8.5 7.5h2.5"/>', '스타일 복사 (⌥⌘C)');
+    const pasteIt = mk('bcm-style-paste', '<path d="M3 2.5h6M6 2.5v7"/><path d="M8 8.5l1.5 1.5 2-2.5"/>', '스타일 붙여넣기 (⌥⌘V)');
+    const anchor = document.getElementById('bcm-insert-gap');
+    if (anchor && anchor.parentElement === menu) { anchor.after(copyIt); copyIt.after(pasteIt); }
+    else { menu.prepend(pasteIt); menu.prepend(copyIt); }
+  })();
+
   let _targetBlock = null;
   let _targetCell = null; // #5-b: 우클릭한 테이블 바디셀 (병합/해제 대상)
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
   let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
   let _targetLnAddr = null;   // ★1020t2i1 line-host 주인(카드): 우클릭한 줄 {r,c,li|null} — 판정 = window.lnCtxAddAddr
+  let _targetGridNest = null; // ★t6-04㉡ 그리드: 우클릭한 자리를 품은 «나란히 두 칸» 줄 {r,c,li} — 칸의 바깥 줄만(중첩 안 중첩은 null)
 
   // 메뉴 닫기
   function closeMenu() {
@@ -5560,6 +5706,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetGridAddr = null;
     _targetCmpAddr = null;
     _targetLnAddr = null;
+    _targetGridNest = null;
   }
 
   /* 비교 블록 우클릭 → 「어느 ★행 셀인가」. 헤더(.cmp-hd)·카드 여백·캡션이면 null.
@@ -5699,6 +5846,22 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       gapItem.style.display = (unit && unit.parentElement?.dataset?.freeLayout !== 'true') ? 'flex' : 'none';
     }
 
+    /* ★1020t2d2 스타일 복사/붙여넣기 — 텍스트 블럭(곡선 제외 · 판정 = isStyleCopyTextBlock 한 자리)에서만.
+       붙여넣기는 담아 둔 스타일이 없으면 «흐리게» 보인다(맥 메뉴 관례 — 있는데 못 누름). */
+    {
+      const isTs = !!window.isStyleCopyTextBlock?.(block);
+      const cp = document.getElementById('bcm-style-copy');
+      const ps = document.getElementById('bcm-style-paste');
+      if (cp) cp.style.display = isTs ? 'flex' : 'none';
+      if (ps) {
+        ps.style.display = isTs ? 'flex' : 'none';
+        const has = !!window.hasTextStyleClipboard?.();
+        ps.setAttribute('aria-disabled', has ? 'false' : 'true');
+        ps.style.opacity = has ? '' : '0.4';
+        ps.style.cursor = has ? '' : 'default';
+      }
+    }
+
     // 에셋 블록일 때만 "스크래치로 보내기" 노출
     const sendItem = document.getElementById('bcm-send-to-scratch');
     if (sendItem) {
@@ -5777,6 +5940,18 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (gridNestedItem) {
       gridNestedItem.style.display = _targetGridAddr ? 'flex' : 'none';
     }
+    /* ★t6-04㉡ 「칸 사이 간격…」 — 우클릭한 점이 «나란히 두 칸» 줄(.grd-nested[data-line] · 그 칸의 바깥 줄) 안일 때만.
+       ★DOM 이 주소를 들고 있다(렌더러가 data-r/c/line 을 찍는다 · overlay-handles.js _gridNestedLines 와 같은 판정). */
+    _targetGridNest = null;
+    if (_targetGridAddr) {
+      const nest = e.target?.closest?.('.grd-nested[data-line]');
+      const cell = nest?.closest('.grd-cell');
+      if (nest && cell && block.contains(nest) && nest.dataset.r === cell.dataset.r && nest.dataset.c === cell.dataset.c) {
+        _targetGridNest = { r: Number(nest.dataset.r), c: Number(nest.dataset.c), li: Number(nest.dataset.line) };
+      }
+    }
+    const gridNestGapItem = document.getElementById('bcm-grid-nested-gap');
+    if (gridNestGapItem) gridNestGapItem.style.display = _targetGridNest ? 'flex' : 'none';
     /* 원형 이미지 — 같은 판정. 누른 자리가 «이미지 줄»이면 그 줄의 모양을 바꾸는 손잡이가 된다(패널엔 두지 않는다 —
        prop-grid.js _grdImageSectionHtml 의 ⛔주석: 2026-09-25 현빈 결정으로 그 절의 단추는 하나뿐). */
     const gridImgCircleItem = document.getElementById('bcm-grid-img-circle');
@@ -5808,7 +5983,8 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     }
 
     /* ★1020t2i1 카드 «아래에 줄 추가 (T)» — 판정은 line-host.js lnCtxAddAddr ★하나(2단 선택의 lnClickAddr 를 그대로 쓴다).
-       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다. */
+       ⛔기존 항목은 안 건드린다(표시 조건 하나를 더할 뿐). 그룹 프레임이 대상이면 lnCtxAddAddr 가 null 이라 숨는다.
+       ★1012t1G1 — 말풍선·그리드도 같은 항목·같은 판정 문(lnCtxAddAddr 가 그리드는 prop-grid.js grdCtxAddAddr 로 넘긴다). */
     _targetLnAddr = window.lnCtxAddAddr?.(block, e) || null;
     { const lnAddItem = document.getElementById('bcm-ln-add'); if (lnAddItem) lnAddItem.style.display = _targetLnAddr ? 'flex' : 'none'; }
 
@@ -5844,6 +6020,23 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
        ⌘Z 한 번이 «갭 + 그 앞 동작»을 같이 되돌린다 → 넣기 «전» 라이브를 먼저 찍는다(삭제 길 「삭제 전」과 같은 관용구). */
     window.ensureHistoryCheckpoint?.('여백 넣기 전');
     window.insertGapAfterBlock?.(unit);
+  });
+
+  /* ★1020t2d2 — 복사 = «누른 그 블럭»에서. 붙여넣기 = 누른 블럭이 골라진 다중선택의 하나면 «골라 둔 텍스트 블럭 전부»,
+     아니면 누른 그 블럭 하나(⌥⌘V 와 같은 함수 · 이력도 그쪽이 한 번 찍는다). */
+  document.getElementById('bcm-style-copy')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (block && block.isConnected) window.copyTextBlockStyle?.(block);
+  });
+  document.getElementById('bcm-style-paste')?.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!window.hasTextStyleClipboard?.()) return;   // 흐린 항목 — 메뉴를 닫지도 않는다
+    const block = _targetBlock;
+    closeMenu();
+    if (!block || !block.isConnected) return;
+    window.pasteTextBlockStyle?.(block.classList.contains('selected') ? undefined : [block]);
   });
 
   // 저장 버튼 → 인라인 이름 입력 표시
@@ -6005,12 +6198,28 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
          박은 수인데, 중첩은 칸을 «반»으로 나누므로 같은 24 가 훨씬 크게 먹는다.
          ★실측: 칸 149px 에서 gap 24 ⇒ 각 열 67px · gap 8 ⇒ 각 열 70.5px.
          ⚠️정직하게 — 이 고침만으로는 «거의 안 낫는다»(3.5px). 진짜 고침은 css/editor-blocks.css 의
-           «중첩 안 짧은 안내문»이다. 여기서는 공간을 돌려줄 뿐이다. */
-      gap: 8,
+           «중첩 안 짧은 안내문»이다. 여기서는 공간을 돌려줄 뿐이다.
+         ★t6-04b ⑴ — 수는 grid-block.js GRID_NESTED_GAP.create «한 자리»에서 온다(⛔여기 다시 적지 않는다). */
+      gap: GRID_NESTED_GAP.create,
       cols: [{ width: 1, lines: [{ type: 'body', text: '' }] },
              { width: 1, lines: [{ type: 'body', text: '' }] }],
     });
     window.grdToastImgFail?.(res);
+  });
+
+  /* ★t6-04㉡ 「칸 사이 간격…」 — 현빈 원문 「📍그리드 블럭 나란히 두칸으로 나누기 줄을 추가할 수 있는데 해당 추가한 줄의 경우,
+   *   캔버스에서 추가한 두칸(칼럼)의 간격 조절 가능하게 해줄래?」 · 지디 GO ㈐(우클릭 입력).
+   * ★값 = 그 줄의 `line.gap`(모델·그리기 이미 있음 — grid-block.js `_gridNumOr(line.gap, GRID_NESTED_GAP.missing)` · 키 없음 = GRID_NESTED_GAP.missing · t6-04b) · 쓰는 문 = `patchCell{r,c,lineIndex,gap}`
+   *   (updateGridBlock — 한 번 고침 = 이력 한 칸 · 패널 다시 그림 · 입구 검증을 건너뛰지 않는다).
+   * ★입력 = ⛔prompt() 금지(Electron) ⇒ ★섹션 메모 팝오버 «꼴»을 빌린다(section-memo.js · css/editor-layout.css 의
+   *   .section-memo-backdrop / .section-memo-popover / .smp-head·.smp-close·.smp-foot 그대로 · 숫자칸은 패널의 .prop-number).
+   *   닫기 = ✕ · 바깥 누름 · Esc · Enter — 메모처럼 «닫을 때 바뀌었으면 저장». 범위 0~GRID_GAP_MAX(음수 없음).
+   * ⛔잠긴 결정 둘 무접촉 — T-200 «문 둘»(중첩 주소면 패널이 빠짐) · 현빈 S11 비율 거터(overlay-handles.js). */
+  document.getElementById('bcm-grid-nested-gap')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock, nest = _targetGridNest;
+    closeMenu();
+    grdOpenNestGapPopover(block, nest);   // 입력 팝오버는 prop-grid.js(그리드 숫자칸이 사는 자리 · 숫자칸 규약 센서스의 선언 파일)
   });
 
   /* ★1020t2i1 「아래에 줄 추가 (T)」 — T 단축키와 ★한 길(line-host.js lnAddLineAt → prop-grid.js grdAddLine(host)).
