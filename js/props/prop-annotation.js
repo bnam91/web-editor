@@ -566,7 +566,23 @@ ${blockHeaderHTML({
       b.addEventListener('click', () => {
         dimAxisGrp.querySelectorAll('.prop-align-btn').forEach((x) => x.classList.remove('active'));
         b.classList.add('active');
-        _writeProps(block, { dimAxis: b.dataset.axis });
+        /* ★136 DIM-AXIS-BTN-NO-EFFECT-01(현빈 GO 261027) — 그리는 자리는 하나(annotDimGeometry)인데 «선 방향»을 정하는 값이 둘이다:
+             dimAxis(잰 구간 방향) 와 저장된 dimA·dimB(치수선 양끝 · ③클릭·양끝 끌기가 채운다). a·b 가 있으면 기하가 그대로 써서
+             dimAxis 만 바꾸면 그려진 선의 각도·길이가 안 바뀌었다(dataset 만 바뀜).
+           ⇒ 방향을 «고른» 이 손짓에서만 a·b 를 그 방향으로 다시 놓는다 — 지금 치수선의 가운데를 그대로 두고 ③클릭과 같은 함수
+             (annotDimPlaceAt: 잰 구간 길이·방향 · 축 고정 포함)로. ⛔기하 함수는 안 바꾼다(끌어 둔 a·b 를 존중하는 계약 그대로) ·
+             이력 = 아래 pushHistory 한 칸에 dimAxis·dimA·dimB 같이 실린다. */
+        const axis = b.dataset.axis;
+        const st0 = _readState(block);
+        /* ⛔이미 고른 방향을 «다시» 누르면 아무것도 안 한다(고치기 전과 같음) — 끝을 끌어 비뚤게 둔 선을 펴 버리면 그건 새 동작이다(이 판 밖). */
+        const g0 = axis !== st0.dimAxis && st0.dimA && st0.dimB && window.annotDimGeometry?.(st0.points, { ...st0 });
+        const place = g0 && window.annotDimPlaceAt?.(st0.points, g0.mid, { dimAxis: axis });
+        if (place) {
+          const r1 = (v) => Math.round(v * 10) / 10;
+          block.dataset.dimA = JSON.stringify([r1(place.dimA[0]), r1(place.dimA[1])]);
+          block.dataset.dimB = JSON.stringify([r1(place.dimB[0]), r1(place.dimB[1])]);
+        }
+        _writeProps(block, { dimAxis: axis });
         window.pushHistory?.('치수선 방향');
       });
     });
