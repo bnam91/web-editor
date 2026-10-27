@@ -13,7 +13,7 @@ const { bootApp } = require('./_root-harness.js');
 const SEC = '<div class="section-block" data-section="1" id="sL"><div class="section-hitzone"></div><div class="section-inner"><div class="gap-block" data-type="gap" style="height:40px"></div></div></div>';
 const CELL = (o) => ({ lines: [{ text: '1위', fontSize: 40 }], leafColor: '#1a1a1a', gap: 24, height: 140, ...o });
 
-/* laurel 하나(2칸) — cells·dataset 을 준 값으로 두고 렌더 · 패널 열기 · 읽은 값 돌려줌 */
+/* laurel 하나(2×2 — ★행 1 이면 패널이 «셀 세로 간격» 줄을 안 그린다(prop-laurel `rows > 1 ?`) ⇒ P164·P165 가 null 이던 검사 결함 · 4c4c42ec 런) — cells·dataset 을 준 값으로 두고 렌더 · 패널 열기 · 읽은 값 돌려줌 */
 async function look(page, { cell = {}, ds = {}, legacy = null } = {}) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
@@ -21,7 +21,7 @@ async function look(page, { cell = {}, ds = {}, legacy = null } = {}) {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     c.insertAdjacentHTML('beforeend', sec); window.rebindAll?.(); window.applyZoom?.(100);
     window.deselectAll?.(); window.selectSection(document.getElementById('sL'));
-    window.addLaurelBlock({ gridCols: 2, gridRows: 1, cells });
+    window.addLaurelBlock({ gridCols: 2, gridRows: 2, cells });
     const b = [...document.querySelectorAll('#sL .laurel-block')].pop(); b.id = 'lB';
     for (const [k, v] of Object.entries(ds)) b.dataset[k] = v;
     let legacyCell = null;
@@ -42,7 +42,7 @@ async function look(page, { cell = {}, ds = {}, legacy = null } = {}) {
       pColS: v('#lrl-grid-col-gap'), pColN: v('#lrl-grid-col-gap-num'), pRowS: v('#lrl-grid-row-gap'), pRowN: v('#lrl-grid-row-gap-num'),
       legacyCell,
     };
-  }, [SEC, [CELL(cell), CELL(cell)], ds, legacy]);
+  }, [SEC, [CELL(cell), CELL(cell), CELL(cell), CELL(cell)], ds, legacy]);
   return { ...r, errs };
 }
 const ZERO = { cell: { gap: 0 }, ds: { gridColGap: '0', gridRowGap: '0' } };
