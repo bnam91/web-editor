@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { sliceBlock, sliceCall } from './_slice-block.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const src = (rel) => readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
@@ -46,7 +47,11 @@ test('G4 가로 형태 까닭 — 「아직 안 됩니다」 단독이 아니라
 test('G5 처리기 순서 — 「프레임화」 갈래가 applyModalVariant·commit «앞»에서 빠져나간다', () => {
   const at = PM.indexOf("sel?.addEventListener('change'");
   assert.ok(at > 0);
-  const body = PM.slice(at, at + 1200);
+  /* ★163 — 고정 창 대신 등록 호출을 짝 괄호까지(sliceCall) · 콜백이 이름이면 그 function 본문(febeb65c 꼴 · ⛔창 넓히기). */
+  const CH = "sel?.addEventListener('change'";
+  const chCall = sliceCall(PM, CH);
+  const chNamed = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(chCall.slice(CH.length));
+  const body = chNamed ? sliceBlock(PM, `function ${chNamed[1]}(`) : chCall;
   const fz = body.indexOf('__frameify'), av = body.indexOf('applyModalVariant(');
   assert.ok(fz > 0 && av > 0 && fz < av, '프레임화 갈래가 변형 적용보다 뒤다 — 가짜 «변형 바꿈» 칸이 생긴다');
 });

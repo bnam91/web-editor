@@ -38,6 +38,18 @@ function extractFn(src, name) {
   assert.fail(`${name} 의 끝 중괄호를 못 찾음`);
 }
 
+/* ★163 — 리스너 콜백을 «구조로» 뜬다(febeb65c P-A1″ J 와 같은 꼴 · SOURCE-GATE-ASSUMES-INLINE-CALLBACK-01).
+   ⚰️옛 꼴은 `SRC.slice(i, i + N)` 고정 창 — «콜백이 등록에 인라인이고 N 글자 안에 끝난다»를 가정했다
+   (실측 7f3c6de2: mouseup 콜백 907 글자 ↔ 창 900 — 이미 끝 7 글자를 잘라 먹고 있었다).
+   ⇒ 등록 호출을 짝 괄호까지(sliceCall · 공용 부품) · 둘째 인자가 이름이면 그 function 본문(extractFn).
+   ⛔창 넓히기 금지(같은 가정이 남는다 · febeb65c 기각). */
+const { sliceCall } = require('./_slice-block.js');
+function listenerCb(src, head) {
+  const call = sliceCall(src, head);
+  const named = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(call.slice(head.length));
+  return named ? extractFn(src, named[1]) : call;
+}
+
 /** 가짜 DOM 으로 getRestingScroll/getPanPosition 을 «실제 소스 그대로» 돌린다. */
 function makeEnv({ scalerH, clientH, clientW, scrollH, scrollW, zoom, panX, panY, scrollTop, scrollLeft, canvasTailY = 0 }) {
   const wrap = { clientHeight: clientH, clientWidth: clientW, scrollHeight: scrollH, scrollWidth: scrollW, scrollTop, scrollLeft };
@@ -199,7 +211,7 @@ test('★S2 계약: 가로 여지가 성립하려면 flex-shrink:0 이 있어야
 test('★P-R2 계약: 팬 mouseup 이 «다음 click 한 번»을 삼키도록 표시한다', () => {
   const i = SRC.indexOf("window.addEventListener('mouseup'");
   assert.notEqual(i, -1);
-  const body = stripComments(SRC.slice(i, i + 900));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('mouseup'"));
   assert.ok(/_swallowPanClick\s*=\s*true/.test(body),
     '팬으로 끝난 제스처는 뒤따르는 click 을 삼켜야 한다(현빈: 「선택은 의도 아님」)');
   assert.ok(/setTimeout\(/.test(body),
@@ -209,11 +221,12 @@ test('★P-R2 계약: 팬 mouseup 이 «다음 click 한 번»을 삼키도록 �
 test('★P-R2 계약: click 삼키기는 «한 번»만이고 캔버스 안에서만', () => {
   const i = SRC.indexOf("window.addEventListener('click'");
   assert.notEqual(i, -1, '팬용 click 캡처 리스너를 못 찾음');
-  const body = stripComments(SRC.slice(i, i + 700));
+  const body = stripComments(listenerCb(SRC, "window.addEventListener('click'"));
   assert.ok(/_swallowPanClick\s*=\s*false/.test(body), '한 번 쓰면 즉시 내려야 한다');
   assert.ok(/canvasWrap\.contains\(/.test(body), '캔버스 밖 클릭까지 삼키면 안 된다');
   assert.ok(/stopPropagation\(\)/.test(body) && /preventDefault\(\)/.test(body));
-  assert.ok(/,\s*true\s*\)\s*;?\s*$/m.test(SRC.slice(i, i + 800)) || /}, true\)/.test(SRC.slice(i, i + 800)),
+  const reg = sliceCall(SRC, "window.addEventListener('click'");   // ★163 — 캡처 인자는 «등록 호출»의 꼬리(콜백이 이름이어도 같다)
+  assert.ok(/,\s*true\s*\)\s*;?\s*$/m.test(reg) || /}, true\)/.test(reg),
     '캡처 단계여야 앱의 다른 click 핸들러보다 «먼저» 본다');
 });
 
@@ -353,8 +366,7 @@ test('★P-A2 계약: 고착 방지 — 재개 경로가 «여럿»이다 (고�
     '창 포커스를 잃는 경로에서도 재개돼야 한다');
   const ed = stripComments(SRC);
   assert.ok(/resumeAutoSave\?\.\(\)/.test(ed), '팬 종료 경로가 재개를 불러야 한다');
-  const upIdx = ed.indexOf("window.addEventListener('mouseup'");
-  assert.ok(/resumeAutoSave/.test(ed.slice(upIdx, upIdx + 900)), 'mouseup 에서 재개해야 한다');
+  assert.ok(/resumeAutoSave/.test(listenerCb(ed, "window.addEventListener('mouseup'")), 'mouseup 에서 재개해야 한다');
   // ★keyup 리스너가 여럿이라 «스페이스를 보는» 블록을 찾아야 한다(첫 번째를 집으면 오탐).
   // ★앵커는 «그 블록에만» 있는 문장이어야 한다 — `panMode = false;` 는 선언부에도 있어
   //   첫 일치가 엉뚱한 데를 가리켰다(이 테스트가 그렇게 한 번 헛돌았다).
@@ -366,8 +378,7 @@ test('★P-A2 계약: 고착 방지 — 재개 경로가 «여럿»이다 (고�
 
 test('★P-A2 계약: 유예를 «스페이스»와 «mousedown» «둘 다»에서 건다', () => {
   const ed = stripComments(SRC);
-  const dnIdx = ed.indexOf("canvasWrap.addEventListener('mousedown'");
-  assert.ok(/deferAutoSave\?\.\(\)/.test(ed.slice(dnIdx, dnIdx + 700)),
+  assert.ok(/deferAutoSave\?\.\(\)/.test(listenerCb(ed, "canvasWrap.addEventListener('mousedown'")),
     '팬 mousedown 이 유예를 걸어야 90MB 직렬화가 팬 도중에 안 터진다');
   // ★mousedown «만» 걸면, 스페이스와 클릭이 거의 동시일 때 mousedown 이 panMode=false 로
   //   early return 해 유예가 안 걸린다(실측: 유효 회차인데 defer 0회 → 1983ms 정지).

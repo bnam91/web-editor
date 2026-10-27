@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { readSrc } = require('./_srcread.js');
-const { sliceBlock } = require('./_slice-block.js');
+const { sliceBlock, sliceCall } = require('./_slice-block.js');
 const { mkTmpRoot } = require('./_tmproot.js');
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -1412,7 +1412,11 @@ test('ⓑ-27 ★⑲원인 — 일반 절대드래그가 확대블럭에서 «비
   const d = SRC.drag;
   const i = d.indexOf("block.addEventListener('mousedown'");
   assert.notEqual(i, -1, '일반 드래그 핸들러를 못 찾음 — 검사가 대상을 놓쳤다');
-  const head = d.slice(i, i + 2500);
+  /* ★163 — 고정 창 대신 등록 호출을 짝 괄호까지(sliceCall) · 콜백이 이름이면 그 function 본문(febeb65c 꼴 · ⛔창 넓히기) — 실측 7f3c6de2: 단언 둘이 2500 창의 2281·2444 글자째(끝에서 56). */
+  const MD = "block.addEventListener('mousedown'";
+  const mdCall = sliceCall(d, MD);
+  const mdNamed = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(mdCall.slice(MD.length));
+  const head = mdNamed ? sliceBlock(d, `function ${mdNamed[1]}(`) : mdCall;
 
   const gz = head.indexOf('if (isZoom) return;');
   assert.notEqual(gz, -1, '확대블럭이 일반 절대드래그에서 «안» 비킨다 — 두 드래그가 같이 돌아 좌표가 갈린다');

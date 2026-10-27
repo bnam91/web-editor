@@ -24,6 +24,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const { sliceBlock, sliceCall } = require('./_slice-block.js');
 /* ★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` ★한 자리다 — ⛔제 mkdtempSync 를 만들지 마라
    (★잠그는 자 = ★`tests/unit/tmproot-sole-owner.test.mjs`). */
 const { mkTmpRoot } = require('./_tmproot.js');
@@ -219,7 +220,11 @@ test('Z12 ★편집 배선이 실제로 걸려 있다 — dblclick · blur · Es
   const d = read('js/block-drag.js');
   const at = d.indexOf('if (isZoom) {\n    block.addEventListener(\'dblclick\'');
   assert.ok(at > 0, '확대블럭 dblclick 핸들러가 없다 — 글자를 넣을 길이 없다');
-  const seg = d.slice(at, at + 2200);
+  /* ★163 — 고정 창 대신 등록 호출을 짝 괄호까지(sliceCall) · 콜백이 이름이면 그 function 본문(febeb65c 꼴 · ⛔창 넓히기). 닻(if (isZoom) { …)은 «그 자리»를 고르는 데만 쓴다. */
+  const DC = "block.addEventListener('dblclick'";
+  const dcCall = sliceCall(d.slice(at), DC);
+  const dcNamed = /^\s*,\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(dcCall.slice(DC.length));
+  const seg = dcNamed ? sliceBlock(d, `function ${dcNamed[1]}(`) : dcCall;
   assert.match(seg, /\.zoom-text/, '글자 층을 안 찾는다');
   assert.match(seg, /contenteditable', 'true'/, '편집을 안 연다');
   assert.match(seg, /classList\.add\('editing'\)/, '.editing 을 안 붙인다 — 이동 드래그가 글자를 삼킨다');
