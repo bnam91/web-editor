@@ -29,5 +29,11 @@ if (patterns.length === 0) {
   process.stderr.write('[run-unit] 검사 패턴이 0개다 — package.json "test" 줄에서 패턴을 넘겨라\n');
   process.exit(2);
 }
-const r = spawnSync(process.execPath, ['--test', `--test-concurrency=${n}`, ...patterns], { stdio: 'inherit' });
+/* ★196 ⑴ — 유닛 파일 시간 래칫의 «재료». GOYA_TEST_JUNIT=<경로> 일 때만 JUnit 보고를 그 파일에 «덧» 쓴다(화면 spec 보고는 그대로).
+ *   JUnit testcase 마다 file·time 이 있어 파일별 합을 낼 수 있다(spec·tap 보고엔 파일 묶음이 없다 — 261028 실측 Node 25.8).
+ *   ⚠️동기 몸(spawnSync 등)도 time 에 든다 ⇒ --test-timeout 이 못 잡는 «느려짐»도 이 재료로 잡힌다(tests/unit-time.gate.js).
+ *   변수가 없으면 아무것도 안 바뀐다(보고 꼴·rc 그대로 — run-unit-wrapper.test.mjs). */
+const junit = process.env.GOYA_TEST_JUNIT;
+const rep = junit ? ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=junit', `--test-reporter-destination=${junit}`] : [];
+const r = spawnSync(process.execPath, ['--test', `--test-concurrency=${n}`, ...rep, ...patterns], { stdio: 'inherit' });
 process.exit(r.status ?? 1);
