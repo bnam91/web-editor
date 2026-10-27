@@ -148,3 +148,24 @@ test('T6 ★★전 제품 — 「min 0 인데 || 비0」 입력칸이 ★한 곳
   }
   assert.deepEqual(found, [], '⛔0 을 고를 수 있다고 해 놓고 기본값으로 되살리는 칸: ' + found.join(' · '));
 });
+
+test('T7 ★내보내기 축(197) — export-figma-json 좌우 padding 이 «사용자가 둔 0» 을 padX 로 되살리지 않는다 ＋ 자가 눈멀지 않았다', () => {
+  /* ★병(186 에서 쪼갬): `parseFloat(el.style.paddingRight) || padX` — 빈 값('' → NaN)은 페이지 padX 가 맞지만 «0px» 도 padX 로 갔다
+     ⇒ padX ≠ 0 판에서 좌우 0 으로 둔 블럭의 내보낸 여백이 달라졌다. 읽는 문 = grid-block.js gridNumOr(빈 값만 기본 · 0 은 0).
+     자: 명부를 손으로 안 적는다 — 그 파일의 «좌우 padding 읽기» 전부를 세고, 그 전부가 gridNumOr 를 지나야 한다.
+     ⛔위·아래 `|| 0` 은 0 을 0 으로 먹어 같다 ⇒ 안 잡는다(음성 미끼). */
+  const eats = (s) => [...stripComments(s).matchAll(/(?:parseFloat|parseInt|Number)\(\s*\w+\.style\.padding(?:Left|Right)\s*\)\s*\|\|\s*(?!0\b)[\w.$]+/g)].map((m) => m[0]);
+  const reads = (s) => (stripComments(s).match(/\w+\.style\.padding(?:Left|Right)\b/g) || []).length;
+  const saved = (s) => (stripComments(s).match(/gridNumOr\(\s*(?:parseFloat|parseInt|Number)\(\s*\w+\.style\.padding(?:Left|Right)\s*\)/g) || []).length;
+  const bait = 'const p = { right: parseFloat(el.style.paddingRight) || padX, left: gridNumOr(parseFloat(el.style.paddingLeft), padX), top: parseFloat(el.style.paddingTop) || 0 };';
+  assert.equal(eats(bait).length, 1, '★양성 미끼: `|| padX` 를 못 잡는다 — 자가 눈멀었다');
+  assert.equal(eats(bait.replace('|| padX', '|| 0')).length, 0, '⛔음성 미끼: `|| 0` 을 거짓으로 잡는다');
+  assert.equal(saved(bait), 1, '★양성 미끼: gridNumOr 읽기를 못 센다');
+  assert.equal(eats(bait.replace('parseFloat(el.style.paddingRight) || padX', 'parseInt(el.style.paddingRight) || 20')).length, 1, '★양성 미끼: parseInt 꼴(label-group :484 꼴)을 못 잡는다');
+  const src = rd('js/io/export-figma-json.js');
+  const r = reads(src), sv = saved(src), e = eats(src);
+  console.log(`[T7] export-figma-json 좌우 padding 읽기 ${r} · gridNumOr 지남 ${sv} · 0 먹는 꼴 ${e.length}`);
+  assert.ok(r >= 1, '전제: 좌우 padding 읽는 자리를 못 찾았다(자가 빈 순회)');
+  assert.deepEqual(e, [], '0 을 padX 로 되살리는 읽기가 남았다');
+  assert.equal(sv, r, '좌우 padding 읽기 전부가 gridNumOr 를 지나야 한다');
+});
