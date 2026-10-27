@@ -6,6 +6,7 @@ import { parseGradient } from '../props/gradient-model.js';
 import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 import { collabParams, collabSlotSrc } from '../blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 */
 import { COLLAB_GLYPH } from '../blocks/logo-collab-model.js';
+import { gridNumOr } from '../blocks/grid-block.js';   /* ★197 내보내기 축 — 0 을 살리는 문 하나(빈 값만 기본 · 두 벌 금지) */
 
 const CANVAS_W = 860;
 
@@ -157,13 +158,13 @@ async function exportFigmaJSON() {
         if (!isNaN(lsVal)) letterSpacing = lsVal;
       }
 
-      // padding (pageSettings.padX fallback)
+      // padding (pageSettings.padX fallback) — ★197: 좌우는 «빈 값만» padX(⛔`|| padX` 는 사용자가 둔 0 을 padX 로 되살렸다 · 152·181 가족)
       const padX = ps ? (ps.padX || 0) : 0;
       const padding = {
         top:    parseFloat(el.style.paddingTop)    || 0,
-        right:  parseFloat(el.style.paddingRight)  || padX,
+        right:  gridNumOr(parseFloat(el.style.paddingRight), padX),
         bottom: parseFloat(el.style.paddingBottom) || 0,
-        left:   parseFloat(el.style.paddingLeft)   || padX,
+        left:   gridNumOr(parseFloat(el.style.paddingLeft), padX),
       };
 
       const base = {
@@ -187,9 +188,9 @@ async function exportFigmaJSON() {
       const padX = ps ? (ps.padX || 0) : 0;
       const padding = {
         top:    parseFloat(el.style.paddingTop)    || 0,
-        right:  parseFloat(el.style.paddingRight)  || padX,
+        right:  gridNumOr(parseFloat(el.style.paddingRight), padX),
         bottom: parseFloat(el.style.paddingBottom) || 0,
-        left:   parseFloat(el.style.paddingLeft)   || padX,
+        left:   gridNumOr(parseFloat(el.style.paddingLeft), padX),
       };
       // col width는 parseCol에서 주입
       const redact = _imageRedactField(el);
@@ -422,9 +423,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         },
         padding: {
           top:    parseFloat(el.style.paddingTop)    || 0,
-          right:  parseFloat(el.style.paddingRight)  || padX,
+          right:  gridNumOr(parseFloat(el.style.paddingRight), padX),
           bottom: parseFloat(el.style.paddingBottom) || 0,
-          left:   parseFloat(el.style.paddingLeft)   || padX,
+          left:   gridNumOr(parseFloat(el.style.paddingLeft), padX),
         },
       };
 
@@ -480,7 +481,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         id:     el.id || ('lg_' + Math.random().toString(36).slice(2, 8)),
         items,
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
-        style:  { gap, rowGap, align, paddingX: parseInt(el.style.paddingLeft) || 20 },
+        style:  { gap, rowGap, align, paddingX: gridNumOr(parseInt(el.style.paddingLeft), 20) }   /* ★197 — 둔 0 은 0(T7 «읽기 전부» 자가 찾은 일곱째 자리) */,
       };
     }
     if (el.classList.contains('asset-block')) {
