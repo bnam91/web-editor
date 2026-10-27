@@ -88,7 +88,7 @@ const ALL_SEEN = [
 const KNOWN_GAPS = {
   /* ★t5-07(S3 · 261023) — 'js/block-factory.js BLOCK_SEL#1' 칸을 지웠다: ⌘G 명부가 SECTION_BLOCK_TYPE_SEL 에서 «파생»돼 꼴(문자열 선언)로 안 잡힌다 ⇒ 명부 11 → 10. */
   'js/editor.js CANVAS_SEL_BLOCKS#1': ['frame-block', 'shape-block'],
-  'js/editor.js BLOCK_MULTI_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  /* 비석 — 'js/editor.js BLOCK_MULTI_SEL#1' 칸을 지웠다(명부 10 → 9): BLOCK_MULTI_SEL 죽은 상수(261027) · 두 자로 섰다: ⑴ 정적(지디) git grep -w 선언 걷고 읽는 자 0 ⑵ 행위(S7) 선언 지워도 새 빨강 0(41 파일 475 검사 · o1 98 · c1 95 · o2 99 · c2 95 번갈아) ⑶ 동적 참조(S7 ①⒜) 문자열 조립 · window[…] · eval 0건. ⛔살아있는 9칸(59 종-자리)은 그대로 · 그 표엔 ㉠영구/㉡조건부 구분 0건(별건 175 본체) */
   'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': ['joker-block', 'shape-block'],
   'js/editor.js _ALL_BLOCK_SEL#1': ['frame-block', 'joker-block', 'sticker-block'],
   'js/editor.js MULTI_SEL#1': ['frame-block'],
@@ -98,9 +98,9 @@ const KNOWN_GAPS = {
   'js/block-drag.js CHILD_BLOCK_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
   'js/block-drag.js BLOCK_SEL#1': ['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'],
 };
-const EXPECT_ROSTERS = 10;   // 11 → 10 (t5-07 · block-factory BLOCK_SEL#1 파생)
+const EXPECT_ROSTERS = 9;   // 11 → 10 (t5-07 · block-factory BLOCK_SEL#1 파생) → 9 (175① · editor.js BLOCK_MULTI_SEL#1 죽은 상수 걷음)
 
-test('A1 ★전제 — ★명부를 ★꼴로 ★10곳 찾고, ★합집합이 ★손으로 박은 명부와 ★같다', () => {
+test('A1 ★전제 — ★명부를 ★꼴로 ★9곳 찾고, ★합집합이 ★손으로 박은 명부와 ★같다', () => {
   const R = rosters();
   /* ★이 단언이 ★먼저 서야 ★아래가 뜻을 갖는다 — ⛔찾은 것이 0곳이면 ★A2 는 ★빈 순회로 ★초록이 된다. */
   assert.equal(R.size, EXPECT_ROSTERS,
