@@ -262,7 +262,7 @@ Section (섹션)
 
 **anchor 규칙**: `setBlockAnchor(block)` — 단순 클릭 시 anchor 설정. `rangeSelectBlocks`는 anchor~target 구간을 `deselectAll()` 후 재선택. `deselectAll()` 내부에서 `_lastClickedBlock = null` 초기화되므로 anchor를 로컬 변수에 저장 후 복원.
 
-**여러 블록 선택이 닿는 곳**: 각 블록 종의 click 핸들러가 `window.rangeSelectBlocks?.(…)` 를 부른다(`js/block-drag.js` · 23곳). anchor 는 `setBlockAnchor`(`js/editor.js:1305`) / 토글은 `toggleBlockSelect`(`js/editor.js:1182`). ⛔종 목록을 여기 적지 마라 — 정본은 코드다. (옛 `BLOCK_MULTI_SEL` 상수는 2026-10-27 죽은 상수로 걷었다 · 티켓 175)
+**여러 블록 선택이 닿는 곳**: 각 블록 종의 click 핸들러가 `window.rangeSelectBlocks?.(…)` 를 부른다(`js/block-drag.js`). anchor 는 `setBlockAnchor` / 토글은 `toggleBlockSelect`(`js/editor.js`). ⛔종 목록도 줄 번호도 여기 적지 마라 — 정본은 코드다(이름으로 git grep -w). (옛 `BLOCK_MULTI_SEL` 상수는 2026-10-27 죽은 상수로 걷었다·티켓 175)
 
 ### 4-4. 드래그앤드롭 (레이어 내)
 
