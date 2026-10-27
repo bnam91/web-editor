@@ -165,9 +165,9 @@ const CHANNELS = [
     why: '협업 머지의 섹션 정규화 키. 2026-09-09 까지 자기 _RUNTIME_CLS 명단으로 걷었고 그 명단에 ' +
          '두 줄 마커가 «없어» 줄을 고른 것만으로 「변경됨」 오탐이 났다(백로그 F2). ' +
          '이제 window.runtimeMarkers(section-serialize) 를 읽는다' },
-  { file: 'js/version-diff.js', kind: 'compare', axes: ['marker'], strips: 'runtimeMarkers',
-    why: '버전 비교의 섹션 정규화 키. market-merge 와 «같은» window.runtimeMarkers 를 읽는다 ' +
-         '— 두 벌 명단이면 한쪽만 고쳐지는 날이 온다(백로그 F2)' },
+  { file: 'js/version-diff.js', kind: 'compare', axes: ['marker'], strips: NORM_FN,
+    why: '버전 비교의 섹션 정규화 키. ★194(261028) 뒤 market-merge.normSection·hash 에 ★위임한다(로컬 사본 걷음 · 없으면 던짐) ' +
+         '— 두 벌 정규화면 「바뀌었다」 판정이 갈린다(백로그 F2 와 같은 병)' },
 
   // ── transient — 라이브/일시. 결과물이 아니다 ───────────────────────────
   { file: 'js/io/save-load.js', kind: 'artifact', axes: ['marker', 'drop'], strips: 'inline',

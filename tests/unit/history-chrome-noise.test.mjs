@@ -87,12 +87,9 @@ test('CN-3 ★툴바 안에 <div> 가 생기면 이 방식이 깨진다 — 지�
 
 test('CN-4 ★이 레포가 이미 툴바를 «내용 아님»으로 다룬다는 전제가 살아 있나', () => {
   /* 이 고침의 근거가 「다른 셋이 이미 같은 일을 한다」이다. 그 셋이 사라지면 근거가 사라진다. */
-  const sites = [
-    ['js', 'market-merge.js'],
-    ['js', 'version-diff.js'],
-  ];
-  for (const s of sites) {
-    assert.match(read(...s), /section-toolbar/,
-      `★${s.join('/')} 가 더는 툴바를 안 벗긴다 — 이 고침의 근거(「셋이 이미 그렇게 한다」)가 늙었다`);
-  }
+  assert.match(read('js', 'market-merge.js'), /section-toolbar/,
+    '★js/market-merge.js 가 더는 툴바를 안 벗긴다 — 이 고침의 근거(「셋이 이미 그렇게 한다」)가 늙었다');
+  /* ★194(261028) — version-diff 는 제 사본을 걷고 market-merge.normSection 에 ★위임한다 ⇒ «같은 일»의 근거 = 그 위임 */
+  assert.match(read('js', 'version-diff.js'), /\.normSection\(/,
+    '★js/version-diff.js 가 market-merge.normSection 을 안 부른다 — 툴바를 벗기는 근거가 끊겼다');
 });

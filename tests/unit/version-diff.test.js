@@ -152,9 +152,13 @@ const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'version-diff
    ⛔안 실으면 normSection 이 마커를 못 걷고, 「줄을 골랐을 뿐인데 변경됨」이 초록으로 통과한다. */
 const SER_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'io', 'section-serialize.js'), 'utf8');
 
-function load(windowExtras) {
+/* ★194(261028) — version-diff 는 정규화·해시를 market-merge 에 ★위임만 한다(로컬 사본 걷음 · 없으면 던짐).
+   index.html 이 market-merge 를 version-diff «앞»에서 싣는다 ⇒ 하네스도 같이 싣는다({ mm: false } 면 안 싣는다 — CD10). */
+const MM_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'market-merge.js'), 'utf8');
+function load(windowExtras, { mm = true } = {}) {
   const win = Object.assign({}, windowExtras || {});
   new Function('window', SER_SRC)(win);
+  if (mm && !win.marketMerge) new Function('window', MM_SRC)(win);
   new Function('window', SRC)(win);
   return { vd: win.versionDiff, win };
 }
@@ -417,11 +421,11 @@ test('CD9 window.marketMerge 가 있으면 «그것»을 쓴다 — 마켓머지
   assert.equal(r.summary.same, 1);
 });
 
-test('CD10 marketMerge 가 없어도 단독으로 돈다 — 로컬 사본 폴백(테스트/부분 로드 컨텍스트)', () => {
-  const { win } = load();
-  assert.equal(win.marketMerge, undefined);
-  const r = VD.changeDiff({ p: sec('s1', 'S', '<p>a</p>') }, { p: sec('s1', 'S', '<p>b</p>') }, P);
-  assert.deepEqual(keys(r.changed), ['p::s1']);
+test('CD10 ★marketMerge 가 없으면 «다른 정규화로 조용히» 돌지 않고 던진다 — 사본 없음(194 · P-1)', () => {
+  /* ★옛 칸 = 「없어도 로컬 사본으로 돈다」. 194 에서 사본을 걷었다 ⇒ 없으면 던지는 것이 계약이다. */
+  const { vd, win } = load({}, { mm: false });
+  assert.equal(win.marketMerge, undefined, '[전제] market-merge 를 안 실었다');
+  assert.throws(() => vd.changeDiff({ p: sec('s1', 'S', '<p>a</p>') }, { p: sec('s1', 'S', '<p>b</p>') }, P), /marketMerge/);
 });
 
 test('CD11 DOMParser 가 없으면 «조용한 변경 0» 대신 던진다 — 「달라진 게 없다」는 거짓말이 제일 위험하다', () => {
@@ -466,7 +470,7 @@ test('CD15 lossDiff 와 changeDiff 가 같은 사고에 «같은 답»을 낸다
   assert.equal(VD.formatLossSummary(l), '지금은 없는 섹션 1');
 });
 
-test('SY1 ★로컬 사본이 market-merge.normSection 과 «같은 답»을 낸다 — 표준(js/market-merge.js:12)이 바뀌었는데 여기 사본이 안 따라오면 이 테스트가 빨강이 된다', () => {
+test('SY1 ★정규화는 market-merge.normSection «하나» — 표준 쌍이 같음/다름을 그대로 · 사본은 없다(194 · 옛 칸 = 사본·표준 같은 답)', () => {
   // market-merge.js 도 같은 방식(IIFE + window)이라 같은 realm 에서 로드된다.
   const mmWin = {};
   new Function('window', SER_SRC)(mmWin);   // ★market-merge 도 같은 명단을 읽는다(index.html:990/993)
@@ -511,17 +515,16 @@ test('SY1 ★로컬 사본이 market-merge.normSection 과 «같은 답»을 낸
      '<div class="section-block" id="s1" style="padding:20px"><p>본문</p></div>'],
   ];
 
-  const local = load().vd;                              // window.marketMerge 없음 → 로컬 사본
+  const bare = load({}, { mm: false }).vd;              // window.marketMerge 없음 → ★던져야 한다(사본 없음)
   const viaMM = load({ marketMerge: mmWin.marketMerge }).vd;  // 표준 주입
   const verdict = (vd, a, b) => vd.changeDiff({ p: a }, { p: b }, P).summary.changed;
 
   for (const [a, b] of SAME_PAIRS) {
     assert.equal(verdict(viaMM, a, b), 0, `표준이 「같음」이라야 한다: ${b.slice(0, 60)}`);
-    assert.equal(verdict(local, a, b), 0, `로컬 사본이 표준과 갈렸다: ${b.slice(0, 60)}`);
+    assert.throws(() => verdict(bare, a, b), /marketMerge/, `market-merge 없이 답을 냈다 — 사본이 되살아났다: ${b.slice(0, 60)}`);
   }
   for (const [a, b] of DIFF_PAIRS) {
     assert.equal(verdict(viaMM, a, b), 1, `표준이 「변경」이라야 한다: ${b.slice(0, 60)}`);
-    assert.equal(verdict(local, a, b), 1, `로컬 사본이 표준과 갈렸다: ${b.slice(0, 60)}`);
   }
 });
 

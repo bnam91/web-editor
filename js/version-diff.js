@@ -19,64 +19,28 @@
        (렌더러에서 40MB base64 를 해싱할 수는 없다). 대신 어긋났을 때 changeDiff 가
        `mixedEncoding:true` 로 «가짜 변경의 벽»을 UI 에 경고한다.
 
-   ★단독 동작 보장 — window.marketMerge 가 있으면 «그걸 쓰고», 없으면 로컬 사본으로 돈다.
-     정규화·해시의 표준은 어디까지나 js/market-merge.js:12/23 이다. 저쪽이 바뀌면 여기 사본도
-     같이 바꿔라 — 두 곳이 「바뀌었다」를 다르게 판정하면 diff 를 믿을 수 없게 된다.
+   ★정규화·해시는 ★js/market-merge.js 의 normSection · hash ★하나만 쓴다(194 · 2026-10-28 · 지디 ④).
+     옛 판은 «단독 동작»용 로컬 사본(_localNormSection · _localHash)을 들고 「저쪽이 바뀌면 여기도 같이
+     바꿔라」를 주석으로 빌었다 — 명부가 둘이면 경고 주석으로 못 막는다 ⇒ 사본을 걷었다.
+     ⇒ market-merge 가 안 실린 맥락에서 부르면 ★던진다(아래 P-1 과 같은 규약 — 조용히 다른 정규화로 돌면
+       「바뀌었다」 판정이 갈려 diff 를 믿을 수 없다).
 ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
-  /* ── market-merge.js 의 «정규화 절차» 사본(표준은 저쪽). 마켓 머지가 로드되지 않은
-   *    컨텍스트에서도 이 모듈이 «혼자» 돌게 하려고만 둔다. ────────────────────── */
   /* ══ 런타임 마커 — 명단은 «여기 없다» ═══════════════════════════════════════
-     ★정본은 js/io/section-serialize.js 의 window.runtimeMarkers 하나다(index.html:993).
-       옛 판은 여기 _RUNTIME_CLS 명단을 «따로» 들고 있었고, 그 명단에 줄 선택 마커
-       (.bn2-line-selected · .grd-line-selected)가 «둘 다» 없었다.
-       ⇒ 줄을 «고르기만» 해도 정규화 키가 달라져 「변경됨」 오탐이 났다(백로그 F2).
+     ★마커 걷기도 market-merge.normSection 이 한다(window.runtimeMarkers 를 거기서 읽는다 · 194 이후 위임).
      ⛔여기에 명단을 다시 적지 마라 — 두 벌이면 한쪽만 고쳐지는 날이 온다. 그게 F2 였다.
-       (tests/unit/export-channel-roster.test.mjs U6-e 가 이 줄을 지킨다)
-     ★로드 순서: 이 파일이 section-serialize 보다 «먼저» 실행될 수 있으므로 «부를 때» 찾는다.
-       없으면 (세척 스크립트가 안 실린 컨텍스트) 마커를 못 걷는 대신 «양쪽에 똑같이» 못 걷으므로
-       비교 자체는 성립한다 — 오탐은 나도 오답은 안 난다. */
-  function _stripRuntime(el) {
-    const rm = (typeof window !== 'undefined' && window.runtimeMarkers) || null;
-    if (!rm) return;
-    rm.stripRuntimeMarkers(el);
-    el.querySelectorAll('[class]').forEach(n => rm.stripRuntimeMarkers(n));
-  }
-
-  function _localNormSection(secEl) {
-    const el = secEl.cloneNode(true);
-    /* ★★★2026-10-24 — ★`.annotation-block` 을 ★★★뺐다(★`.annot-preview` 는 ★남긴다). ★★현빈 ★결정.
-       ★`market-merge.js:29` 와 ★★한 쌍이다 — ★같은 식이 ★두 자리에 ★산다.
-       ★★★내가 ★처음 ★센 ★분모는 ★«둘»이었고(★figma skip · ★market-merge) ★★이 자리를 ★놓쳤다.
-         ⇒ ★`.annotation-block` 을 ★지우는 ★제품 ★줄을 ★★전수(`querySelectorAll(.*annotation-block`)해서 ★찾았다.
-       ★★⇒ ★버전 비교에서도 ★어노테이션·치수선이 ★바뀌면 ★★«바뀜»으로 ★읽힌다 — ★다른 블록과 ★같게.
-       ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` (★이 자리와 ★market-merge ★둘 다 잰다) */
-    el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annot-preview').forEach(n => n.remove());
-    _stripRuntime(el);
-    el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
-    return el.outerHTML.replace(/\s+/g, ' ').trim();
-  }
-
-  // 32-bit FNV 해시(빠른 비교용; 보안 무관) — market-merge.js:23 과 동일.
-  function _localHash(s) {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
-    return h.toString(16);
-  }
-
+       (tests/unit/export-channel-roster.test.mjs U6-e 위임 갈래가 «normSection 을 부르나»를 잰다) */
   function _mm() {
-    return (typeof window !== 'undefined' && window.marketMerge) ? window.marketMerge : null;
+    const M = (typeof window !== 'undefined' && window.marketMerge) || null;
+    if (!M || typeof M.normSection !== 'function' || typeof M.hash !== 'function') {
+      throw new Error('version-diff: window.marketMerge(normSection·hash)가 없다 — js/market-merge.js 를 먼저 실어라(194 · 사본 없음)');
+    }
+    return M;
   }
-  function _norm(secEl) {
-    const M = _mm();
-    return (M && typeof M.normSection === 'function') ? M.normSection(secEl) : _localNormSection(secEl);
-  }
-  function _hash(s) {
-    const M = _mm();
-    return (M && typeof M.hash === 'function') ? M.hash(s) : _localHash(s);
-  }
+  function _norm(secEl) { return _mm().normSection(secEl); }
+  function _hash(s) { return _mm().hash(s); }
 
   const NO_NAME = '(이름 없음)';
 
