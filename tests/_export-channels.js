@@ -364,7 +364,12 @@ function editorNodeCanon(root) {
       const strip = makeStripper();
       const body = fnBody(src.split('\n').map(l => strip(l)).join('\n'), s.name);
       if (!body) throw new Error('★정본 ' + s.name + ' 함수를 ' + s.file + ' 에서 못 찾았다');
-      const r = removedSelectors(body);
+      /* ★154 ⑴(261028 · 지디 «두 커밋» 첫째) — 지우기 줄이 ★정본 상수를 부르면(`X` · `window.X`) ★이미 읽은 const 출처로 푼다.
+         ⛔안 풀면 `$X` 한 줄이 되어 ★정본이 깨진다(pan-native-scroll :434 경고) · 모르는 이름은 그대로 `$이름`(capture-derive-roster RESOLVE 와 같은 꼴). */
+      const r = removedSelectors(body, (arg) => {
+        const hit = Object.keys(by).find(k => k.endsWith('#' + arg.replace(/^window\./, '')));
+        return hit ? by[hit] : null;
+      });
       if (r.covered !== r.total) throw new Error('★' + s.name + ' 에 파서가 못 읽는 지우기 꼴이 ' + (r.total - r.covered) + ' 곳');
       list = r.sels;
     }
