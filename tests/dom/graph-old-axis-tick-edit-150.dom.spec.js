@@ -1,7 +1,7 @@
 /* graph-old-axis-tick-edit-150.dom.spec.js — 150 GRAPH-SAVED-TICK-OLD-MARKUP-UNCLICKABLE-01 ㉡(지디 판정 «블럭보다 위 위임»)
  *
  * ★원문(시트 150): 「저장본의 축 눈금이 옛 마크업(data-grb-tick · pointer-events:auto 없음)이라 위임이 걸려도 못 누른다 ⇒ 축 눈금 캔버스 편집이 저장본에서 안 된다」
- * ★잰 값(S3 실앱 5e4256d1 ×3 · 현빈 저장본 사본 proj_1792549411283 sha 22d1bbcce7bd · 읽기만): 눈금 6/6 옛 꼴 · 「20」 눈금 더블클릭 → 편집 0 · 점 밑 임자 = 프레임.
+ * ★잰 값(S3 실앱 5e4256d1 ×3 · 미닉스-수지 저장본 사본 sha 22d1bbcce7bd · 읽기만): 눈금 6/6 옛 꼴 · 「20」 눈금 더블클릭 → 편집 0 · 점 밑 임자 = 프레임.
  * ★처방 — js/drag-utils.js OLD_AXIS_TICK_SEL(옛 꼴만 · 술어 한 자리) · document capture dblclick 이 «점이 옛 눈금 상자 안»일 때만
  *   그 그래프를 renderGraph 로 새 꼴로 다시 그리고 같은 순번 눈금 편집(_graphAxisTickBeginEdit)을 연다.
  *
