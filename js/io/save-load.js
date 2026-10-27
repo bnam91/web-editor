@@ -431,6 +431,11 @@ const THUMB_MIN_GAP_MS = 180000;
 let _thumbTimer = null;
 let _thumbDirty = false;
 let _lastThumbAt = 0;
+/* ★165 ㉡(지디 21:21) — 캡처가 «도는 중». 실측(fa57bed6 · 수지 사본 · ✕ → ⌘Z): 첫 캡처가 끝나기 전(57.6s)에 둘째가 38.3s 에
+     시작해 둘이 겹쳤다 — _lastThumbAt 은 «찍은 뒤»에 적으므로(아래) 도는 동안엔 3분 문이 아직 열려 있다.
+   ⛔_lastThumbAt 을 «시작»에 적는 꼴은 안 고른다 — 실패 출구가 셋(null · 탭 바뀜 · IPC 던짐)이라 셋 다 되돌려야 하고,
+     «찍은 뒤에 기록한다»(아래 주석)의 까닭을 거스른다. 칸 하나 + finally 가 출구 수와 무관하다. */
+let _thumbRunning = false;
 
 /** 편집이 멈추면 썸네일을 한 장 찍어 _meta.json 에 넣는다. 편집이 이어지면 계속 미뤄진다. */
 function scheduleIdleThumbnail() {
@@ -440,14 +445,30 @@ function scheduleIdleThumbnail() {
   const fire = () => {
     _thumbTimer = null;
     if (!_thumbDirty) return;                       // ⑶ 편집이 없었으면 찍을 것이 없다
+    /* ★165 ㉠ — «지금 바쁨»이면 찍지 않고 미룬다(⑵ 와 같은 «버리지 않고 미룬다» 꼴). 실측(fa57bed6): 끌기 «전»에 걸린 8초
+       타이머가 끌기 «안»에서 터져 html2canvas 가 마우스 눌린 채 시작됐다 — deferAutoSave 는 autoSaveTimer 만 지우고, 제스처 중
+       scheduleAutoSave 는 이 함수 «앞»에서 돌아가 타이머를 밀지도 않는다. 바쁨 = 이미 있는 칸 둘(제스처 유예 · 억제 창) + ㉡ 진행 중. */
+    if (_autoSaveDeferred || state._suppressAutoSave || _thumbRunning) {
+      _thumbTimer = setTimeout(fire, THUMB_IDLE_MS);
+      return;
+    }
     const since = Date.now() - _lastThumbAt;
     if (since < THUMB_MIN_GAP_MS) {                 // ⑵ 아직 이르다 — 버리지 않고 미룬다
       _thumbTimer = setTimeout(fire, THUMB_MIN_GAP_MS - since);
       return;
     }
     /* ★requestIdleCallback 으로 시작한다 — 이 캡처는 수 초 CPU 를 먹어서, 사용자가 다시
-       입력을 시작한 순간에 걸치면 그대로 버벅임이 된다. 유휴를 못 잡으면 3초 뒤 강행. */
-    const go = () => { _runIdleThumbnail().catch(() => {}); };
+       입력을 시작한 순간에 걸치면 그대로 버벅임이 된다. 유휴를 못 잡으면 3초 뒤 강행.
+       ★165 — 위 바쁨을 «여기서 한 번 더» 본다: fire 와 go 사이(최대 3초)에 제스처가 시작될 수 있다 · 이미 걸린 rIC 는
+       clearTimeout 으로 못 지워서 둘이 겹쳐 올 수도 있다. */
+    const go = () => {
+      if (_autoSaveDeferred || state._suppressAutoSave || _thumbRunning) {
+        clearTimeout(_thumbTimer);
+        _thumbTimer = setTimeout(fire, THUMB_IDLE_MS);
+        return;
+      }
+      _runIdleThumbnail().catch(() => {});
+    };
     if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 3000 });
     else go();
   };
@@ -457,6 +478,8 @@ function scheduleIdleThumbnail() {
 async function _runIdleThumbnail() {
   const targetId = activeProjectId;
   if (!targetId) return;
+  _thumbRunning = true;   // ★165 ㉡ — 출구가 몇 개든 finally 가 내린다
+  try {
   const thumbnail = await captureThumbnail();
   /* ⛔캡처는 «몇 초» 걸린다 — 그 사이 탭이 바뀌었으면 남의 프로젝트 카드에 내 그림을 박게
      된다. 자동저장이 _saveTargetId 로 같은 사고를 막는 것과 «같은 자»다. */
@@ -467,6 +490,7 @@ async function _runIdleThumbnail() {
   /* ★찍은 «뒤»에 기록한다 — 앞에 두면 실패했는데도 3분을 쉬어 그림이 영영 안 는다. */
   _lastThumbAt = Date.now();
   _thumbDirty = false;
+  } finally { _thumbRunning = false; }
 }
 window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
