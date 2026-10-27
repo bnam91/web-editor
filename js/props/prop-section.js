@@ -642,12 +642,11 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
       </div>
       <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;" title="기본은 섹션 경계 밖이 잘립니다. 켜면 미리보기에서 경계 밖 요소도 보입니다. (내보내기 PNG는 항상 섹션 크기로 잘림)">
           <input type="checkbox" id="sec-overflow-visible" ${sec.dataset.overflowVisible === 'true' ? 'checked' : ''}>
           섹션 밖 보이기 (미리보기)
         </label>
       </div>
-      <div class="prop-hint" style="font-size:11px;color:#888;">기본은 섹션 경계 밖이 잘립니다. 켜면 미리보기에서 경계 밖 요소도 보입니다. (내보내기 PNG는 항상 섹션 크기로 잘림)</div>
     </div>
     <!-- Memo: section-toolbar의 📝 버튼으로 popover 표시 (prop 패널 X) -->
     <div class="prop-section">

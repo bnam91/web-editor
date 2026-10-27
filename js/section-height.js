@@ -208,7 +208,12 @@
 
   function _initObservers() {
     if (typeof ResizeObserver === 'function' && !_ro) {
-      _ro = new ResizeObserver(() => _schedule());
+      /* ★1020t2h2 — 섹션 높이가 바뀌면 그 섹션 스티커(마킹)의 섹션 밖 크롭을 다시 낸다(그라데이션 _gradSecRO 와 같은 병).
+         ⛔없으면 섹션이 줄어도 옛 --sec-clip 이 남아 «섹션 밖 보이기» 꺼짐인데도 밖이 보인다. */
+      _ro = new ResizeObserver((entries) => {
+        for (const en of entries) en.target.querySelectorAll(':scope > .sticker-block').forEach(b => window._updateStickerSecClip?.(b));
+        _schedule();
+      });
     }
     const canvasEl = document.getElementById('canvas');
     if (canvasEl && !canvasEl.__secHeightMo) {
