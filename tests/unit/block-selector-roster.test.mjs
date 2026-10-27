@@ -162,3 +162,69 @@ test('A4 ★★키가 «줄 번호»에 ★안 묶였다 — ★줄이 밀려도
   assert.deepEqual(moved, base,
     '★모든 파일을 ★7줄 밀었더니 ★키가 달라졌다 — ★키가 ★줄 번호에 ★묶여 있다(⛔KNOWN_GAPS 가 ★한 줄씩 밀린다)');
 });
+
+/* ★★발주 G(지디 261027 · 175⒝) — ★살아 있는 면제 칸마다 ★㉠영구 / ㉡조건부(＋해제 조건).
+   ⛔「면제」만 있고 ★떼는 조건이 없으면 ★영원히 산다 · ⛔까닭 없는 영구는 ★다음 사람이 못 뗀다.
+   ★㉠ 은 ★근거 [파일, 글자] 를 쥔다 — ★그 글자가 ★소스에서 ★사라지면 A5 가 운다(⛔줄 번호로 가리키지 않는다 · A4 의 흠).
+   ★㉡ 은 ★해제 조건을 쥔다 — ★풀리면 A2 가 「채워졌다 — 지워라」로 ★먼저 알린다.
+   ★판정 = S7 소스 읽기(판 9e676f51) · ㉡ 중 «현빈 뜻» 은 ★앞사람이 이 파일 머리말에 적은 대로(«일부만» 명부 · radial) — 행위는 안 쟀다. */
+const 영구 = (까닭, 파일, 글자) => ({ 구분: '㉠', 까닭, 근거: [파일, 글자] });
+const 조건 = (해제) => ({ 구분: '㉡', 해제 });
+const 같이 = (slots, kind) => Object.fromEntries(slots.map((b) => [b, kind]));
+const FRAME_NO_BINDBLOCK = 영구('프레임은 bindBlock 을 안 탄다(bindFrameDropZone 이 따로 묶는다) ⇒ bindBlock 명부에 넣으면 안 된다',
+  'js/block-drag.js', '프레임은 bindBlock 을 안 탄다');
+const STICKER_NO_BINDBLOCK = 영구('스티커는 bindBlock 을 안 탄다(bindStickerSelect 전용) ⇒ bindBlock 명부에 넣으면 안 된다',
+  'js/block-drag.js', '스티커는 bindBlock 을 아예 안 탄다(bindStickerSelect 전용)');
+const JOKER_DRIFT = 조건('bindBlock 은 조커를 다룬다(const isJoker) — 빠진 것은 표류다. ⒉ 파생(SECTION_BLOCK_TYPE_SEL 에서)이 돌거나 joker 를 넣는 날 풀린다(복제·붙여넣기한 조커가 끌리나는 안 쟀다)');
+const HB = (뜻) => 조건(`현빈 뜻 — ${뜻}에 넣을지 정해지면 넣고 이 칸을 지운다(머리말 261020 · «일부만» 명부)`);
+const GAP_KIND = {
+  'js/editor.js CANVAS_SEL_BLOCKS#1': {
+    'frame-block': 영구('삭제는 프레임 전용 길(allSelFrames)이 따로 지운다 ⇒ 넣으면 두 길이 겹친다', 'js/editor.js', "const allSelFrames = [...document.querySelectorAll('.frame-block.selected')]"),
+    'shape-block': 영구('도형은 ss/row 단위 별도 삭제 길(allSelShapes)', 'js/editor.js', '// shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.'),
+  },
+  'js/editor.js FLOW_BLOCK_SEL_SELECTED#1': {
+    'joker-block': 조건('176 JOKER-CLICK-NO-SHIFT-BRANCH-01 — 조커 click 처리기에 ⇧/⌘ 갈래가 생기는 날 이 «세는 목록»에 넣는다'),
+    'shape-block': 영구('도형은 래퍼(프레임)가 «단위»로 세진다 · 정렬 쪽은 + shape 로 따로 붙인다', 'js/editor.js', "const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected';"),
+  },
+  'js/editor.js _ALL_BLOCK_SEL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'joker-block': JOKER_DRIFT, 'sticker-block': STICKER_NO_BINDBLOCK },
+  'js/editor.js MULTI_SEL#1': {
+    'frame-block': 영구('복사 단위가 «프레임 안의 블록»이다', 'js/editor.js', '⚠️.frame-block 은 여기 없다 — 복사 단위가 «프레임 안의 블록»이라 그대로 둔다.'),
+  },
+  'js/editor.js BLOCK_SEL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'sticker-block': STICKER_NO_BINDBLOCK },
+  'js/editor.js _ALL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'joker-block': JOKER_DRIFT, 'sticker-block': STICKER_NO_BINDBLOCK },
+  'js/editor.js BLOCK_SEL#2': {
+    'frame-block': 영구('프레임은 위 selFrame 갈래가 따로 옮긴다(⌘[ ⌘])', 'js/editor.js', "pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');"),
+    ...같이(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'], HB('⌘[ ⌘] 줄 이동 대상')),
+  },
+  'js/block-drag.js CHILD_BLOCK_SEL#1': {
+    'frame-block': FRAME_NO_BINDBLOCK,      // 이 명부 = «selected 자식만 bindBlock 에 위임»
+    'sticker-block': STICKER_NO_BINDBLOCK,
+    ...같이(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'vector-block', 'zoom-block'], HB('절대배치 프레임 안 «자식 위임»')),
+  },
+  'js/block-drag.js BLOCK_SEL#1': {
+    ...같이(['chat-block', 'coupon-block', 'frame-block', 'gradient-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'sticker-block', 'zoom-block'], HB('프레임에 «끌어 넣기» 받는 블럭')),
+  },
+};
+
+test('A5 ★면제 칸마다 ★㉠(까닭 ＋ 소스에 산 근거) / ㉡(해제 조건) — ★KNOWN_GAPS 와 ★칸 단위 양방향', () => {
+  const problems = [];
+  const keys = new Set([...Object.keys(KNOWN_GAPS), ...Object.keys(GAP_KIND)]);
+  for (const k of keys) {
+    const gaps = KNOWN_GAPS[k] ?? [];
+    const kinds = GAP_KIND[k] ?? {};
+    for (const b of gaps) if (!(b in kinds)) problems.push(`★${k} ${b} — ★구분이 없다(㉠ 까닭·근거 / ㉡ 해제 를 적어라)`);
+    for (const b of Object.keys(kinds)) if (!gaps.includes(b)) problems.push(`★${k} ${b} — ★KNOWN_GAPS 에 없는 칸의 구분이다(풀렸으면 ★여기서도 지워라)`);
+    for (const [b, v] of Object.entries(kinds)) {
+      if (v.구분 === '㉠') {
+        if (!(v.까닭 && v.까닭.length >= 10)) problems.push(`★${k} ${b} — ㉠ 인데 ★까닭이 없다`);
+        const [f, s] = v.근거 ?? [];
+        if (!f || !s || !readFileSync(path.join(ROOT, f), 'utf8').includes(s)) problems.push(`★${k} ${b} — ㉠ 의 ★근거 글자가 ${f} 에 ★없다 — 까닭이 죽었다(다시 재라)`);
+      } else if (v.구분 === '㉡') {
+        if (!(v.해제 && v.해제.length >= 10)) problems.push(`★${k} ${b} — ㉡ 인데 ★해제 조건이 없다`);
+      } else problems.push(`★${k} ${b} — 구분이 ㉠/㉡ 이 아니다: ${v.구분}`);
+    }
+  }
+  const n = Object.values(KNOWN_GAPS).reduce((a, v) => a + v.length, 0);
+  assert.ok(n > 0, '★전제 — KNOWN_GAPS 칸이 0 이면 ★이 검사는 빈 순회다');
+  assert.deepEqual(problems, [], `\n  ${problems.join('\n  ')}\n`);
+});

@@ -90,20 +90,27 @@ const KNOWN_GAPS = {
         + ' ★261026 추가(지디) — ★`:2599` ⌘F(섹션 검색 팔레트)의 `.text-block.editing` 줄도 ★그 꼴이다:'
         + ' ★바로 ★다음 줄이 `INPUT|TEXTAREA|SELECT|isContentEditable` ★일반검사다(내가 소스로 재서 확인)'
         + ' ⇒ ★타입 이름(`.text-block`)이 ★빠져도 ★그 다음 줄이 ★받는다. ⛔이름 명부로 ★닫는 자리가 ★아니다.',
+    구분: '㉠', 까닭: 'B1 일반 관문(keydown 첫 문장)이 타입 명부보다 먼저 막는다 ⇒ 이름을 더해도 그 키들에 닿지 않는다 — B1 이 사는 동안 영구',
+    근거: ['js/editor.js', 'if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;'],
   },
   'js/alt-click-layer-select.js': {
     빠진것: 'text·icon-text·label-group 셋만 적혀 있고 나머지 전부',
     받침: '★그 세 줄 ★다음 줄의 `closest(\'[contenteditable="true"]\')` ★포괄 catch-all.',
+    구분: '㉠', 까닭: 'B2 포괄 catch-all 이 세 이름 다음 줄에서 나머지 편집을 전부 받는다 — B2 가 사는 동안 영구',
+    근거: ['js/alt-click-layer-select.js', `if (t.closest('[contenteditable="true"]')) return null;`],
   },
   'css/editor-blocks.css': {
     빠진것: 'comparison 은 1020t1a-⑤ 로 들어왔고 · coupon·infocard·innercard 는 ★일부러 뺐다(그 자리 주석에 실측 근거)',
     받침: '⛔★없다 — ★CSS 는 `isContentEditable` 을 ★못 묻는다. ★★여기가 ★«이름이 구조적으로 필요한» ★유일한 명부다. '
         + '(⇒ `:has([contenteditable="true"])` 로 없앨 수 있을지는 ★안 쟀다 — ★별 카드)',
+    구분: '㉡', 해제: '`:has([contenteditable="true"])` 전환 카드(별 카드 · 안 쟀다)가 들어오는 날 — B4 가 그날 빨개진다 ⇒ 이 칸을 지운다',
   },
   'js/blocks/line-host.js(줄 글자 편집)': {
     빠진것: '이 파일엔 타입 명부가 ★없다 — 그리드·비교·laurel·버블·챗이 ★한 함수를 공유한다',
     받침: '★`pushHistory` 를 ★편집 ★«시작»에 1회 쌓는다(push-before) ⇒ ⌘Z 가 ★편집 전으로 돌아간다. '
         + '끝낼 때는 dataset 만 쓰고 `scheduleAutoSave` 를 부른다 ⇒ ★이력·저장 둘 다 선다.',
+    구분: '㉠', 까닭: '타입 명부가 없는 자리다(한 함수를 공유) — 채울 이름이 없다 · 받침 = 편집 시작 push-before(B3)',
+    근거: ['js/blocks/line-host.js', "window.pushHistory?.('줄 글자 편집');"],
   },
 };
 
@@ -138,6 +145,23 @@ test('A2 ★KNOWN_GAPS 가 ★장식이 아니다 — ★네 칸이 ★전부 �
     assert.ok(g.받침 && g.받침.length > 20,
       `★${k} 의 「받침」이 비었다 — ★★«무엇이 받치나»를 적지 않으면 ★다음 사람이 「구멍이다」로 읽는다`);
   }
+});
+
+test('A3 ★면제 칸마다 ★㉠(까닭 ＋ 소스에 산 근거) / ㉡(해제 조건) — 발주 G(지디 261027 · 175⒝)', () => {
+  /* ⛔「면제」만 있고 떼는 조건이 없으면 영원히 산다 · ⛔까닭 없는 영구는 다음 사람이 못 뗀다.
+     ★㉠ 의 근거 글자가 소스에서 사라지면 여기가 운다(⛔줄 번호로 가리키지 않는다). */
+  const problems = [];
+  for (const [k, g] of Object.entries(KNOWN_GAPS)) {
+    if (g.구분 === '㉠') {
+      if (!(g.까닭 && g.까닭.length >= 10)) problems.push(`★${k} — ㉠ 인데 ★까닭이 없다`);
+      const [f, s] = g.근거 ?? [];
+      if (!f || !s || !readSrc(ROOT, f).includes(s)) problems.push(`★${k} — ㉠ 의 ★근거 글자가 ${f} 에 ★없다 — 까닭이 죽었다(다시 재라)`);
+    } else if (g.구분 === '㉡') {
+      if (!(g.해제 && g.해제.length >= 10)) problems.push(`★${k} — ㉡ 인데 ★해제 조건이 없다`);
+    } else problems.push(`★${k} — 구분이 ㉠/㉡ 이 아니다: ${g.구분}`);
+  }
+  assert.ok(Object.keys(KNOWN_GAPS).length > 0, '★전제 — 칸이 0 이면 빈 순회다');
+  assert.deepEqual(problems, [], `\n  ${problems.join('\n  ')}\n`);
 });
 
 /* ── ⒝⒞ ★받치는 자 넷 — ★살아 있나 ＋ ★자체 양성대조 ────────────────────── */
