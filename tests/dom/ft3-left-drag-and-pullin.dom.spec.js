@@ -38,8 +38,19 @@ async function setup(page) {
   await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
   await page.selectOption('#txt-fx-add', 'freetransform');
   await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12);
+  /* ★141 ㉮(지디 07:1x) — setup 끝에서 손잡이 자리가 «연속 두 rAF 같음»으로 멈출 때까지 기다린다(Hs 재사용 · H() 무접촉).
+     까닭: applyZoom(40) 이 #canvas-scaler transition 0.15s 로 보간되는 동안 시험 첫 H()(예: R 의 nw0)가 낡은 기준을 잡았다
+     (7e98dd1e 240칸 실측 R «nw 제자리» ✘ 4 · nw 움직임 7.3·238.8·61.8·17.9px). nw → ne → nw 다시(첫 nw 와 같은 자리)까지 · 상한 넘으면 FAIL. */
+  for (let k = 0; ; k++) {
+    const t0 = Date.now();
+    const a = await Hs(page, 'nw'), b = await Hs(page, 'ne'), a2 = await Hs(page, 'nw');
+    const ok = a?.stable && b?.stable && a2?.stable && Math.abs(a2.x - a.x) < 0.01 && Math.abs(a2.y - a.y) < 0.01;
+    if (ok) { if (k || a.frames > 2 || b.frames > 2) console.log(`SETUP-SETTLE rounds=${k + 1} nwFrames=${a.frames} neFrames=${b.frames} ms=${Date.now() - t0}`); break; }
+    if (k >= SETTLE_ROUNDS_MAX) throw new Error(`SETUP-NOT-SETTLED — ${SETTLE_ROUNDS_MAX + 1}번 재도 손잡이 자리가 안 멈춤 · nw ${a ? `(${a.x.toFixed(1)},${a.y.toFixed(1)}) stable=${a.stable}` : 'null'} · ne ${b ? `(${b.x.toFixed(1)},${b.y.toFixed(1)}) stable=${b.stable}` : 'null'} · nw 다시 ${a2 ? `(${a2.x.toFixed(1)},${a2.y.toFixed(1)})` : 'null'}`);
+  }
   return errs;
 }
+const SETTLE_ROUNDS_MAX = 4;
 const H = (page, name) => page.evaluate((n) => {
   const h = window.__tb.querySelector(`.tfh-handle[data-tfh="${n}"]`);
   if (!h) return null;
@@ -48,9 +59,48 @@ const H = (page, name) => page.evaluate((n) => {
   const inner = (window.__sec.querySelector(':scope > .section-inner') || window.__sec).getBoundingClientRect();
   return { x, y, mine: !!(at && at.dataset && at.dataset.tfh === n), innerL: inner.left, innerR: inner.right };
 }, name);
+/* ★141(지디 04:50 · 06:0x 확정 · 검사 쪽 · 제품 0) — 누르기 «직전»에 손잡이 자리가 «멈췄고» 그 점의 임자가 그 손잡이인지 보고 누른다.
+   까닭(미카사 찾음 · 지디 확정): css/editor-canvas.css #canvas-scaler { transition: transform 0.15s } — setup 의 applyZoom(40) 이 0.15s 보간되는 동안
+   H() 가 잰 자리가 낡는다(probe141z · eac99ecd 사본 · 240 누름 중 빗맞힘 15 = 전부 «ⓐ 하네스 조준» · 덮임 0). 옛 drag() 는 H() 의 mine 을 읽고 무시했다.
+   ★주 조건 = «rect 두 번 같음»(연속 두 rAF 읽기가 같은 값) — transitionend 는 안 쓴다(안 올 수 있음 · 이미 끝남 · 가려진 창).
+   ⛔조용히 통과시키지 않는다 — 상한(PRESS_RETRY_MAX)을 넘으면 HANDLE-MOVED-BEFORE-PRESS 로 이름을 남기고 FAIL.
+   ⚠️안 닫힌 칸: 빗맞힘이 ne 에만(15/0) 난 비대칭은 transition(nw·ne 같이 움직임)으로 설명 안 된다 — 재시도를 런마다 PRESS-RETRY 줄로 남긴다. */
+const PRESS_RETRY_MAX = 5;
+/* 손잡이 rect 가 연속 두 rAF 에서 같을 때까지(최대 60 프레임) 기다렸다가 H() 와 같은 꼴을 돌려준다 · 못 멈추면 stable:false */
+const Hs = (page, name) => page.evaluate((n) => new Promise((res) => {
+  let last = null, k = 0;
+  const tick = () => {
+    const h = window.__tb.querySelector(`.tfh-handle[data-tfh="${n}"]`);
+    if (!h) { res(null); return; }
+    const r = h.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const same = last && Math.abs(last.x - x) < 0.01 && Math.abs(last.y - y) < 0.01;
+    last = { x, y }; k++;
+    if (same || k > 60) {
+      const at = document.elementFromPoint(x, y);
+      const inner = (window.__sec.querySelector(':scope > .section-inner') || window.__sec).getBoundingClientRect();
+      res({ x, y, mine: !!(at && at.dataset && at.dataset.tfh === n), innerL: inner.left, innerR: inner.right, stable: !!same, frames: k });
+    } else requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}), name);
 async function drag(page, name, dx, dy) {
-  const h = await H(page, name);
-  await page.mouse.move(h.x, h.y);
+  const t0 = Date.now();
+  let h = await Hs(page, name), tries = 0; const first = h;
+  for (;;) {
+    if (h && h.stable && h.mine) {
+      await page.mouse.move(h.x, h.y);
+      const now = await Hs(page, name);   /* 누르기 직전 — 다시 멈춤 + 임자 + 같은 자리 */
+      if (now && now.stable && now.mine && Math.abs(now.x - h.x) < 0.5 && Math.abs(now.y - h.y) < 0.5) break;
+      h = now || h;
+    } else {
+      h = (await Hs(page, name)) || h;
+    }
+    tries++;
+    if (tries > PRESS_RETRY_MAX) {
+      throw new Error(`HANDLE-MOVED-BEFORE-PRESS ${name} — ${PRESS_RETRY_MAX}번 다시 재도 누르기 직전 «멈춤·임자·같은 자리»가 안 맞음 · 처음 ${first ? `(${first.x.toFixed(1)},${first.y.toFixed(1)}) stable=${first.stable} mine=${first.mine}` : 'null'} · 마지막 ${h ? `(${h.x.toFixed(1)},${h.y.toFixed(1)}) stable=${h.stable} mine=${h.mine}` : 'null'}`);
+    }
+  }
+  if (tries || first.frames > 2) console.log(`PRESS-RETRY ${name} tries=${tries} firstFrames=${first.frames} ms=${Date.now() - t0} first=(${first.x.toFixed(1)},${first.y.toFixed(1)}) pressed=(${h.x.toFixed(1)},${h.y.toFixed(1)})`);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) await page.mouse.move(h.x + dx * i / 10, h.y + dy * i / 10);
   await page.mouse.up();
