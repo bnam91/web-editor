@@ -1031,9 +1031,7 @@ let clipboard = null;
    - Cmd+click  : toggle individual block
    - Shift+click: range select from last clicked
 ═══════════════════════════════════ */
-const BLOCK_MULTI_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
-  '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
-  '.icon-text-block, .shape-block, .qa-block';
+/* 비석 — BLOCK_MULTI_SEL 죽은 상수(261027) · 두 자로 섰다: ⑴ 정적(지디) git grep -w 선언 걷고 읽는 자 0 ⑵ 행위(S7) 선언 지워도 새 빨강 0(41 파일 475 검사 · o1 98 · c1 95 · o2 99 · c2 95 번갈아) ⑶ 동적 참조(S7 ①⒜) 문자열 조립 · window[…] · eval 0건. ⛔살아있는 9칸(59 종-자리)은 그대로 · 그 표엔 ㉠영구/㉡조건부 구분 0건(별건 175 본체) */
 
 let _lastClickedBlock = null;
 
