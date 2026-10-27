@@ -141,12 +141,14 @@ const FT_CLICK_SWALLOW_CLEAR_MS = 150;
 async function clickPullIn(page) {
   await page.waitForFunction((ms) => window.__ftUpT == null || performance.now() - window.__ftUpT >= ms, FT_CLICK_SWALLOW_CLEAR_MS);
   await page.evaluate(() => document.getElementById('txt-fxft-body')?.removeAttribute('hidden'));
-  await page.waitForFunction(() => new Promise((res) => {
-    const b = document.getElementById('txt-fxft-pullin');
-    if (!b) return res(false);
-    b.__s5mk = (b.__s5mk || 0) + 1;
-    requestAnimationFrame(() => requestAnimationFrame(() => res(document.getElementById('txt-fxft-pullin') === b && b.__s5mk >= 2)));
-  }));
+  /* ★182(CLICKPULLIN-GUARD-PROMISE-PREDICATE-NEVER-WAITS-01) — Promise 를 돌려주는 술어는 «한 번 부르고 끝»이었다(거짓으로 풀려도 다시 안 부름 ⇒ 가드가 안 기다렸다).
+     ⇒ 동기 술어를 rAF 마다 부르고 «같은 요소가 연속 3 프레임»일 때 참(바뀌면 셈을 0 부터 다시). */
+  await page.waitForFunction((id) => {
+    const e = document.getElementById(id);
+    if (!e) return false;
+    if (window.__sameElSeen !== e) { window.__sameElSeen = e; window.__sameElN = 0; }
+    return ++window.__sameElN >= 3;
+  }, 'txt-fxft-pullin', { polling: 'raf' });
   await page.click('#txt-fxft-pullin');
 }
 

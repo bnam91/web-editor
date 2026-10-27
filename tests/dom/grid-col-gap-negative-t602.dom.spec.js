@@ -35,12 +35,14 @@ async function openPanel(page) {
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('gG').getBoundingClientRect(); return [r.left + 4, r.top + 4]; });
   await page.mouse.click(x, y);
   /* 패널은 고른 뒤 한 번 더 다시 그려질 수 있다 — «같은 입력칸이 두 프레임 산다»를 조건으로 기다린다(⛔고정 대기 아님) */
-  await page.waitForFunction(() => new Promise((res) => {
-    const n = document.getElementById('grd-col-gap-number');
-    if (!n) return res(false);
-    n.__s5mk = (n.__s5mk || 0) + 1;
-    requestAnimationFrame(() => requestAnimationFrame(() => res(document.getElementById('grd-col-gap-number') === n && n.__s5mk >= 2)));
-  }));
+  /* ★182(CLICKPULLIN-GUARD-PROMISE-PREDICATE-NEVER-WAITS-01) — Promise 를 돌려주는 술어는 «한 번 부르고 끝»이었다(거짓으로 풀려도 다시 안 부름 ⇒ 가드가 안 기다렸다).
+     ⇒ 동기 술어를 rAF 마다 부르고 «같은 요소가 연속 3 프레임»일 때 참(바뀌면 셈을 0 부터 다시). */
+  await page.waitForFunction((id) => {
+    const e = document.getElementById(id);
+    if (!e) return false;
+    if (window.__sameElSeen !== e) { window.__sameElSeen = e; window.__sameElN = 0; }
+    return ++window.__sameElN >= 3;
+  }, 'grd-col-gap-number', { polling: 'raf' });
 }
 async function typeColGap(page, v) {
   await page.fill('#grd-col-gap-number', String(v));
