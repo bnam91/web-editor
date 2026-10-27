@@ -39,7 +39,7 @@ export const OWN_BINDER = Object.freeze(['gradient-block', 'sticker-block', 'ann
 const C = 'covered', U = 'unconfirmed';
 const W2D02 = 'W2D-02 별건 — 제 바인더(bindGradientSelect) 종류가 bindBlock 손 명부에 들어 있다 · 이번에 뜻을 안 바꾼다(바꾸면 R2 가 표를 고치라고 빨개진다)';
 
-// LISTS — 명부 8곳. mustContain: 'K_BIND' = 위 K_BIND 전부. mustNot: 들면 안 되는 종류(allowedExtra 에 까닭과 함께 적힌 것만 예외).
+// LISTS — 명부 6곳(191 DUP_ABS · 216 PASTE_FREE_FRAME 걷음 — 그 전 8). mustContain: 'K_BIND' = 위 K_BIND 전부. mustNot: 들면 안 되는 종류(allowedExtra 에 까닭과 함께 적힌 것만 예외).
 export const LISTS = Object.freeze([
   {
     name: 'CANON',
@@ -65,30 +65,8 @@ export const LISTS = Object.freeze([
     knownGaps: {},
     allowedExtra: { 'gradient-block': W2D02 },
   },
-  {
-    name: 'PASTE_FREE_FRAME',
-    file: 'js/editor.js',
-    anchor: "const _ALL = '",
-    lineAtBase: 2135,
-    event: '자유배치 프레임 안 붙여넣기',
-    meaning: '프레임 안에 붙인 사본과 그 안 블럭을 다시 묶는다',
-    mustContain: 'K_BIND',
-    mustNot: OWN_BINDER,
-    knownGaps: { 'joker-block': U },
-    allowedExtra: { 'gradient-block': W2D02 },
-  },
-  {
-    name: 'DUP_ABS',
-    file: 'js/editor.js',
-    anchor: "const _ALL_BLOCK_SEL = '",
-    lineAtBase: 1487,
-    event: '⌘D 절대 위치(absolute) 갈래 — 잠금 시험 FROZEN 에 처음부터 없다',
-    meaning: '부모 프레임 안 절대 위치 사본과 그 안 블럭을 다시 묶는다',
-    mustContain: 'K_BIND',
-    mustNot: OWN_BINDER,
-    knownGaps: { 'joker-block': U },
-    allowedExtra: { 'gradient-block': W2D02 },
-  },
+  /* 비석 — PASTE_FREE_FRAME(⌘V 자유배치 프레임 갈래 · editor.js _ALL · knownGaps{joker-block}) 걷음: ★216(261028 S3) 그 갈래도 공용 _bindPastedEl 을 지나
+     손 명부가 사라졌다(joker 빠짐 닫힘). 191(DUP_ABS) 과 둘이 닫혀 ⌘D·⌘V 자유배치 갈래의 joker 구멍이 «진짜» 닫힘. 명부 7 → 6. */
   {
     name: 'REBIND_ALL',
     file: 'js/io/save-load.js',

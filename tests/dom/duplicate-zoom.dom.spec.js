@@ -92,6 +92,9 @@ async function runDuplicate(page) {
       resolveInsertFrame: window.ShapeFrame.resolveInsertFrame,
       // t4-12(C1): duplicateSelected 자유배치 갈래가 같은 모듈의 _panelFollowsPasted 를 부른다 — 떠낸 판에는 정의가 없어 스텁.
       _panelFollowsPasted: () => {},
+      // ★191 — 자유배치 갈래가 공용 _bindPastedEl(clone) 을 부른다(id 재발급 포함 · 손 절반 걷음). 떠낸 판엔 정의가 없어 스텁:
+      //   id 재발급만(genId · 같은 접두사) — DZ2 «id 는 다름»이 그대로 뜻을 갖게. 묶기·다시 그리기는 이 spec 범위 밖(dup-abs-bindpasted-191 이 잰다).
+      _bindPastedEl: (el) => { [el, ...el.querySelectorAll('[id]')].forEach((e) => { if (e.id) e.id = window.genId(e.id.split('_')[0] || 'el'); }); },
     };
     window.pushHistory = (t) => calls.pushHistory.push(t);
     window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 9);

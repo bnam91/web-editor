@@ -283,7 +283,7 @@ test('R0 정의표 무결 — 이름 하나씩 · 칸 다 있음 · K_BIND 와 O
   assert.deepEqual(K_BIND.filter((k) => OWN_BINDER.includes(k)), [], 'K_BIND ∩ OWN_BINDER ≠ ∅');
   const names = LISTS.map((l) => l.name);
   assert.equal(new Set(names).size, names.length, `명부 이름 겹침 ${JSON.stringify(names)}`);
-  assert.equal(LISTS.length, 8, `명부 ${LISTS.length} 곳(8 이어야)`);
+  assert.equal(LISTS.length, 6, `명부 ${LISTS.length} 곳(6 이어야 — 191 DUP_ABS · 216 PASTE_FREE_FRAME 걷어 8 → 6)`);
   const FIELDS = ['name', 'file', 'anchor', 'event', 'meaning', 'mustContain', 'mustNot', 'knownGaps', 'allowedExtra'];
   for (const l of LISTS) {
     for (const f of FIELDS) assert.ok(l[f] !== undefined && l[f] !== null && l[f] !== '', `${l.name}: 칸 ${f} 비었음`);
@@ -355,36 +355,39 @@ test('R6 음성대조 4 — 글자를 일부러 깨면 자 함수가 그 자리�
   assert.notEqual(canonMut, canonSrc, '⒜ 변이가 안 꽂혔다');
   assert.deepEqual(minus(canonDiff(canonMut).missing, canonDiff(canonSrc).missing), ['text-block'], '⒜ R1 함수가 text-block 빠짐을 못 짚었다');
 
-  // ⒝ 정의표 사본에서 DUP_ABS 를 뺀다 → R3 함수가 그 자리(js/editor.js:<그 줄>)를 «표에 없는 후보»로 짚는다.
-  const dup = HANDS.find((l) => l.name === 'DUP_ABS');
+  // ⒝ 정의표 사본에서 표본 명부를 뺀다 → R3 함수가 그 자리(js/editor.js:<그 줄>)를 «표에 없는 후보»로 짚는다.
+  //   ★191 — 표본을 DUP_ABS 에서 PASTE_FREE_FRAME 으로 · ★216 — 다시 PASTE(_bindPastedEl BLOCK_SEL)로(둘 다 _bindPastedEl 로 옮겨 명부째 사라짐 · 같은 파일 · 줄이 .text-block, 로 시작).
+  const SAMPLE = 'PASTE';
+  const dup = HANDS.find((l) => l.name === SAMPLE);
   const dupAt = locate(SOURCES.get(dup.file), dup.anchor);
-  assert.ok(dupAt, '⒝ DUP_ABS 닻을 못 찾았다');
-  const entriesMut = ENTRIES.filter((e) => e.label !== 'DUP_ABS');
+  assert.ok(dupAt, `⒝ ${SAMPLE} 닻을 못 찾았다`);
+  const entriesMut = ENTRIES.filter((e) => e.label !== SAMPLE);
   assert.equal(entriesMut.length, ENTRIES.length - 1, '⒝ 변이가 안 꽂혔다');
   const { candidates } = inventory(SOURCES);
   assert.deepEqual(minus(reconcile(candidates, entriesMut, SOURCES).unaccounted, reconcile(candidates, ENTRIES, SOURCES).unaccounted),
     [`${dup.file}:${dupAt.line}`], `⒝ R3 함수가 ${dup.file}:${dupAt.line} 을 못 짚었다\n${fmtCands(candidates)}`);
 
-  // ⒞ DUP_ABS 줄에서 .text-block, 을 뺀다 → R2 함수가 text-block «새로 빠짐»을 짚는다.
+  // ⒞ 표본 명부 줄에서 .gap-block, 을 뺀다 → R2 함수가 gap-block «새로 빠짐»을 짚는다.
+  //   ★216 — 남은 손 명부는 닻이 다 '.text-block, .asset-block' 를 품어 .text-block 을 빼면 닻이 깨진다 ⇒ 닻 «뒤» 토막(.gap-block)으로.
   const edSrc = SOURCES.get(dup.file);
   const lineEnd = edSrc.indexOf('\n', dupAt.idx);
-  const edMut = edSrc.slice(0, dupAt.idx) + edSrc.slice(dupAt.idx, lineEnd).replace('.text-block, ', '') + edSrc.slice(lineEnd);
+  const edMut = edSrc.slice(0, dupAt.idx) + edSrc.slice(dupAt.idx, lineEnd).replace('.gap-block, ', '') + edSrc.slice(lineEnd);
   assert.notEqual(edMut, edSrc, '⒞ 변이가 안 꽂혔다');
-  assert.deepEqual(minus(handDiff(edMut, dup).newMissing, handDiff(edSrc, dup).newMissing), ['text-block'], '⒞ R2 함수가 text-block 새로 빠짐을 못 짚었다');
+  assert.deepEqual(minus(handDiff(edMut, dup).newMissing, handDiff(edSrc, dup).newMissing), ['gap-block'], '⒞ R2 함수가 gap-block 새로 빠짐을 못 짚었다');
 
-  // ⒟ 잠금 시험 글자에서 DUP_ABS 닻을 뺀다 → R4 함수가 DUP_ABS 를 짚는다.
-  //   바닥에는 FROZEN 에 DUP_ABS 가 없으므로 먼저 합성 칸을 하나 꽂아 «덮임»을 만든 뒤(양성 확인), DUP_ABS 로 풀리는 칸을 전부 걷는다.
+  // ⒟ 잠금 시험 글자에서 표본 닻을 뺀다 → R4 함수가 표본을 짚는다.
+  //   합성 칸을 하나 꽂아 «덮임»을 만든 뒤(양성 확인), 그 자리로 풀리는 칸(진짜 FROZEN 칸 포함)을 전부 걷는다.
   const at = LOCK.indexOf('const FROZEN = {\n');
   assert.ok(at >= 0, '⒟ FROZEN 머리를 못 찾았다');
   const head = at + 'const FROZEN = {\n'.length;
-  const synth = `  'synthetic DUP_ABS': { file: '${dup.file}', anchor: ${JSON.stringify(dup.anchor)}, gaps: {} },\n`;
+  const synth = `  'synthetic ${SAMPLE}': { file: '${dup.file}', anchor: ${JSON.stringify(dup.anchor)}, gaps: {} },\n`;
   const lockWith = LOCK.slice(0, head) + synth + LOCK.slice(head);
-  assert.ok(!lockUncovered(lockWith, SOURCES, HANDS).includes('DUP_ABS'), '⒟ 합성 칸을 꽂았는데도 DUP_ABS 가 안 덮였다(R4 함수가 칸을 못 읽는다)');
+  assert.ok(!lockUncovered(lockWith, SOURCES, HANDS).includes(SAMPLE), `⒟ 합성 칸을 꽂았는데도 ${SAMPLE} 가 안 덮였다(R4 함수가 칸을 못 읽는다)`);
   const drop = parseFrozen(lockWith).filter((f) => { const a = locate(SOURCES.get(f.file), f.anchor, f.occurrence); return f.file === dup.file && a && a.line === dupAt.line; });
   let lockMut = lockWith;
   // C1b: FROZEN 은 한 줄 한 칸 꼴 — 칸이 든 «줄 통째»를 걷는다(줄 일부만 걷으면 여는 괄호만 남아 sliceBlock 이 짝을 못 찾는다)
   const lineSpan = (t, f) => { const s0 = t.lastIndexOf('\n', f.start) + 1; const e0 = t.indexOf('\n', f.end); return [s0, e0 < 0 ? t.length : e0 + 1]; };
   for (const f of [...drop].sort((x, y) => y.start - x.start)) { const [s0, e0] = lineSpan(lockMut, f); lockMut = lockMut.slice(0, s0) + lockMut.slice(e0); }
   assert.notEqual(lockMut, lockWith, '⒟ 변이가 안 꽂혔다');
-  assert.ok(lockUncovered(lockMut, SOURCES, HANDS).includes('DUP_ABS'), '⒟ R4 함수가 DUP_ABS 를 못 짚었다');
+  assert.ok(lockUncovered(lockMut, SOURCES, HANDS).includes(SAMPLE), `⒟ R4 함수가 ${SAMPLE} 를 못 짚었다`);
 });

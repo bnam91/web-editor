@@ -1483,19 +1483,7 @@ function duplicateSelected() {
     if (absWrapper && parentFrame) {
       window.pushHistory('복제');
       const clone = absWrapper.cloneNode(true);
-      // 새 id 생성
-      // fix(frame-p0#4): absWrapper는 text/shape 프레임뿐 아니라 «맨몸 절대배치 블록»
-      // (예: asset-block)일 수도 있다 — 항상 'ss_'로 찍으면 id 접두사가 실제 타입과
-      // 어긋난다(bindFrameDropZone 이식·MCP 게이트 불일치). 원래 prefix를 보존하고
-      // genId(actorId 포함)를 쓴다(붙여넣기 경로와 동일 관례).
-      const _gid = (p) => (typeof window.genId === 'function'
-        ? window.genId(p)
-        : p + '_' + Math.random().toString(36).slice(2, 9));
-      clone.id = _gid(absWrapper.id.split('_')[0] || 'ss');
-      clone.querySelectorAll('[id]').forEach(el => {
-        const prefix = el.id.split('_')[0] || 'el';
-        el.id = _gid(prefix);
-      });
+      /* ★191 — id 재발급·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(clone) 한 문이 한다(손 절반 걷음 · genId·actorId 는 그 문 안 — 215). */
       // 오프셋 +20px
       const origLeft = parseInt(absWrapper.style.left || '0');
       const origTop  = parseInt(absWrapper.style.top  || '0');
@@ -1504,27 +1492,11 @@ function duplicateSelected() {
       clone.dataset.offsetX = String(origLeft + 20);
       clone.dataset.offsetY = String(origTop  + 20);
       parentFrame.appendChild(clone);
-      // 이벤트 재바인딩
-      const _ALL_BLOCK_SEL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block, .radial-block'; /* bind-list:DUP_ABS */
-      clone.querySelectorAll(_ALL_BLOCK_SEL).forEach(b => {
-        delete b._blockBound;
-        window.bindBlock?.(b);
-        // chat-block: 편집 위임은 renderChatBlock에서 바인딩되는데 bindBlock은 드래그만 처리.
-        // 복사본은 renderChatBlock가 재호출되지 않아 더블클릭 편집이 안 됨 → 명시적 재렌더.
-        if (b.classList.contains('chat-block')) { delete b._chatEditBound; window.renderChatBlock?.(b); }
-      });
-      // 복제본 자신이 블록인 경우(absWrapper=selBlock, 즉 position:absolute 블록을 직접 복제):
-      // 위 querySelectorAll은 루트(clone)를 포함하지 않아 본인 드래그 바인딩이 누락된다.
-      // text-block은 프레임 위임 드래그가 편집(contenteditable)에 양보하므로 자체 bindBlock이 없으면 못 움직임.
-      if (clone.matches?.(_ALL_BLOCK_SEL)) {
-        delete clone._blockBound;
-        window.bindBlock?.(clone);
-        if (clone.matches('.chat-block')) { delete clone._chatEditBound; window.renderChatBlock?.(clone); }
-      }
+      /* ★191(CLONE-RERENDER-01 · bind-list:DUP_ABS 걷음) — 공용 붙여넣기 문을 지난다: id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock ·
+         rerenderTree(다시 그리기 · chat 포함) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
+         ⚰️옛 꼴은 그 절반(id + _ALL_BLOCK_SEL bindBlock 손 명부 + chat 특례 + 자기 bindBlock + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다. */
+      _bindPastedEl(clone);
       clone._dragBound = false;
-      clone._subSecBound = false;
-      // fix(frame-p0#4): clone이 실제로는 프레임이 아닌 맨몸 블록일 수 있다 — 호출부도 명시 가드.
-      if (clone.classList.contains('frame-block')) window.bindFrameDropZone?.(clone);
       // 기존 선택 해제 후 복제본 선택
       deselectAll();
       const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
@@ -1779,13 +1751,17 @@ function _bindPastedEl(el) {
   const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block, .radial-block'; /* bind-list:PASTE */
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
+  // ★215(BINDPASTED-ISSUES-IDS-WITHOUT-ACTORID-01) — 붙여넣기·복제도 «새 블록»이다 ⇒ 전역 genId(prefix_<actorId>_<rand> · drag-utils.js)로
+  //   actorId 조각을 붙인다. 옛 꼴 `${prefix}_${rand()}` 는 actorId 를 뺐다 — 아래 자유배치 갈래 주석(«전역 genId 를 써야 actorId 조각이 붙는다»)이
+  //   이 문에서는 거짓이었다(소비자 10 자리 전부). gradient-block-genid 규약과 같다. genId 가 없을 때만 옛 꼴.
+  const _newId = (p) => (typeof window.genId === 'function' ? window.genId(p) : `${p}_${rand()}`);
   el.querySelectorAll('[id]').forEach(child => {
     const prefix = child.id.split('_')[0] || 'el';
-    child.id = `${prefix}_${rand()}`;
+    child.id = _newId(prefix);
   });
   if (el.id) {
     const prefix = el.id.split('_')[0] || 'el';
-    el.id = `${prefix}_${rand()}`;
+    el.id = _newId(prefix);
   }
 
   /* 스티커는 그림 안의 id 를 «제 블럭 id»에서 짓는다(코인 gradient·clipPath 'coin-<id>…' · 글로우 필터 'fxg-<id>' · 마커 필터).
@@ -2196,28 +2172,18 @@ function pasteClipboard() {
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
     } else {
-      // ★붙여넣기도 «새 블록»이다 — 전역 genId 를 써야 actorId 조각이 붙는다.
-      const _gid = (p) => (typeof window.genId === 'function'
-        ? window.genId(p)
-        : p + '_' + Math.random().toString(36).slice(2, 9));
-      // fix(frame-p0#4): 항상 'ss'로 찍으면 실제로는 asset-block 등인 요소가
-      // ss_ 접두사를 얻어 프레임으로 오판된다(bindFrameDropZone 이식·MCP 게이트 불일치의 원인) —
-      // 원래 id의 접두사(요소 실제 타입)를 보존한다.
-      el.id = _gid(el.id.split('_')[0] || 'ss');
-      el.querySelectorAll('[id]').forEach(c => { const p = c.id.split('_')[0] || 'el'; c.id = _gid(p); });
+      /* ★216 — id 재발급(genId · actorId · 접두사 보존)·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(el) 한 문이 한다(손 절반 걷음). */
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
       // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
       const vp = _viewportCenterInContainerLocal(frame);
       // ★자리는 «붙인 뒤» — 사본의 실제 크기를 재야 (중앙 − 크기/2)를 구하고 프레임 안으로 넣을 수 있다(F2). 여기는 임시 자리.
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       frame.appendChild(el);
-      const _ALL = '.text-block, .shape-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block, .radial-block'; /* bind-list:PASTE_FREE_FRAME */
-      el.querySelectorAll(_ALL).forEach(b => { delete b._blockBound; window.bindBlock?.(b); });
-      if (el.matches?.(_ALL)) { delete el._blockBound; window.bindBlock?.(el); }
-      el._dragBound = false; el._subSecBound = false;
-      // fix(frame-p0#4): el이 실제로는 프레임이 아닌 맨몸 블록(예: asset-block)일 수 있다 —
-      // bindFrameDropZone은 함수 내부에서도 게이트하지만 호출부도 명시적으로 가드한다.
-      if (el.classList.contains('frame-block')) window.bindFrameDropZone?.(el);
+      /* ★216(PASTE-FREE-FRAME-SKIPS-SHARED-BINDPASTED-01 · bind-list:PASTE_FREE_FRAME 걷음) — 공용 붙여넣기 문을 지난다:
+         id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock · rerenderTree(다시 그리기) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
+         ⚰️옛 꼴은 그 절반(genId id + _ALL bindBlock 손 명부(joker 빠짐) + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다(191 ⌘D 갈래와 같은 병). */
+      _bindPastedEl(el);
+      el._dragBound = false;
       /* ★F2 (현빈 proj_1790917712926 · 그리드 ⌘C⌘V) — 옛 판은 «화면 가운데»를 사본의 왼쪽 위 모서리로 썼다(크기 절반을 안 빼고 · 클램프 없음)
        *   ⇒ 764 폭 그리드가 프레임 밖 +382 로 넘쳤다. 이제 (중앙 − 크기/2) → clampChildIntoFrame(드래그 클램프와 같은 함수) → 같은 자리면 20px 계단. */
       const _fw = el.offsetWidth || 0, _fh = el.offsetHeight || 0;
