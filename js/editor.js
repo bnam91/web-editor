@@ -680,13 +680,35 @@ window.shrinkPanRoom = shrinkPanRoom;   // 하네스 검증용(정상 위치 복
 /* C20: transform:scale은 레이아웃 박스 높이를 안 바꿔 #canvas-wrap.scrollHeight가 미축소 원본 기준으로 잡힘
  *      → 줌아웃 시 마지막 섹션 아래로 빈 회색이 과도하게 스크롤됨. scaler 레이아웃 높이를
  *      (미축소 자연높이 × scale)로 명시해 스크롤 영역을 줌과 동기화(top 고정 유지). */
+/* ★132 ⓨ(2026-10-27 · 지디 GO) — 자연(미축소) 높이를 «비우고 다시 재지» 않고 #canvas 의 offsetTop + offsetHeight 로 읽는다(zoomFit 꼴).
+ *   까닭(실측 · 수지 저장본 · 그리드 행 끌기): 비우기+reflow 1회 174.6~225.5ms 를 RO 가 울릴 때마다 치렀다(그리고 되써서 또 한 번).
+ *   ★두 값이 같으려면 전제 둘: ⑴ scaler 의 «흐름» 자식은 #canvas 하나(나머지는 absolute/fixed/숨김 — 연결선·스크래치·＋층·메모 덧층 전부 absolute)
+ *     ⑵ scaler 위아래 padding·border 0 · #canvas margin-bottom 0(offsetHeight 밖에 붙는 몫). #canvas 는 flex 라 자식 margin 이 새지 않는다.
+ *   ⛔전제를 «단언»만 하지 않는다 — 매번 보고, 하나라도 깨지면 옛 길(비우고 잰다)로 간다. 자: tests/dom/scaler-natural-height-132y.dom.spec.js. */
+function _scalerFlowIsCanvasOnly(cv) {
+  if (!cv || cv.parentElement !== scaler) return false;
+  const s = getComputedStyle(scaler);
+  if (parseFloat(s.paddingTop) || parseFloat(s.paddingBottom) || parseFloat(s.borderTopWidth) || parseFloat(s.borderBottomWidth)) return false;
+  if (parseFloat(getComputedStyle(cv).marginBottom)) return false;
+  for (const c of scaler.children) {
+    if (c === cv) continue;
+    const p = getComputedStyle(c);
+    if (p.display !== 'none' && p.position !== 'absolute' && p.position !== 'fixed') return false;
+  }
+  return true;
+}
+function _scalerFlowHeight() {
+  const cv = document.getElementById('canvas');
+  if (_scalerFlowIsCanvasOnly(cv)) return cv.offsetTop + cv.offsetHeight;
+  scaler.style.height = '';            // 옛 길 — 전제가 깨진 판(호출자가 곧 되쓴다)
+  void scaler.offsetHeight;            // reflow → 자연(미축소) 높이 측정
+  return scaler.offsetHeight;
+}
 function _syncScalerHeight() {
   if (!scaler) return;
   const scale = currentZoom / 100;
   const prev = scaler.style.height;
-  scaler.style.height = '';
-  void scaler.offsetHeight;            // reflow → 자연(미축소) 높이 측정
-  let naturalH = scaler.offsetHeight;  // flow 콘텐츠(#canvas) 기준 (abs 자식 미포함)
+  let naturalH = _scalerFlowHeight();  // flow 콘텐츠(#canvas) 기준 (abs 자식 미포함)
   for (const c of scaler.children) {   // canvas 아래로 배치된 absolute 자식(scratch-item 등) 커버
     if (c.style && c.style.position === 'absolute') {
       const b = c.offsetTop + c.offsetHeight;
