@@ -9,6 +9,7 @@
  *     X3 ★auto 로 되돌리면 다시 잰 구간과 평행 · 길이 = |DC|
  *     X4 ★⌘Z 한 번 = 바로 앞 방향의 선(이력 한 칸에 dimAxis·dimA·dimB 같이)
  *     X5 저장 문자열 왕복(섹션 HTML 다시 들여도) 같은 선
+ *     X6 [음성대조] 끝을 끌어 비뚤게 둔 선에서 «이미 고른» 방향(auto)을 다시 눌러도 선 그대로 · 이력 칸 안 늘어남(고치기 전과 같은 동작)
  *   양성대조: 고치기 전(eac99ecd) ⇒ X1·X2·X4 빨강(선이 안 바뀜) · X0·X3·X5 초록(X3·X5 는 «고친 뒤 무너지지 않나» 지키는 칸 — 옛 판은 선이 안 움직여 거저 초록).
  *   ⛔고정 대기 0 — 조건 대기만. 고르기 = 라벨 실클릭 · 방향 = 패널 단추 실클릭.
  */
@@ -113,5 +114,23 @@ test('X5 저장 문자열 왕복 — v 로 바꾼 선이 섹션 HTML 을 다시 
   const l2 = await line(page);
   expect({ axis: l2.axis, x1: near(l2.x1, l1.x1), y1: near(l2.y1, l1.y1), x2: near(l2.x2, l1.x2), y2: near(l2.y2, l1.y2) }, `★왕복 뒤 ${JSON.stringify(l2)} · 앞 ${JSON.stringify(l1)}`)
     .toEqual({ axis: 'v', x1: true, y1: true, x2: true, y2: true });
+  expect(errs).toEqual([]);
+});
+
+test('X6 [음성대조] 이미 고른 방향을 다시 누르면 선 그대로 — 끌어 둔 비뚠 a·b 를 펴지 않는다 · 이력 칸 안 늘어남', async ({ page }) => {
+  const errs = await placeDim(page);
+  /* 끝 끌기(annotation-select.js 의 손)가 남기는 꼴 — a 만 옮겨 선을 비뚤게 · 그 손처럼 이력 한 칸 */
+  await page.evaluate(() => { const b = document.querySelector('#secA .annotation-block'); const a = JSON.parse(b.dataset.dimA);
+    b.dataset.dimA = JSON.stringify([a[0] - 20, a[1] + 40]); window.annotRedrawDim(b, window.annotPropsFromDataset(b)); window.pushHistory?.('치수선 끝 끌기'); });
+  expect((await line(page)).y1 !== (await line(page)).y2, '전제: 끌어 둔 선이 그려졌다(비뚤다)').toBe(true);
+  const l0 = await line(page);
+  const h0 = await page.evaluate(() => window.getHistoryTip?.().pos ?? null);
+  const b = await waitStableRect(page, '#annot-dim-axis .prop-align-btn[data-axis="auto"]');
+  await page.mouse.click(b.cx, b.cy);
+  await expect.poll(() => page.evaluate(() => document.querySelector('#annot-dim-axis .prop-align-btn[data-axis="auto"]')?.classList.contains('active')), '전제: auto 단추 눌림').toBe(true);
+  const l1 = await line(page);
+  const h1 = await page.evaluate(() => window.getHistoryTip?.().pos ?? null);
+  expect({ x1: near(l1.x1, l0.x1), y1: near(l1.y1, l0.y1), x2: near(l1.x2, l0.x2), y2: near(l1.y2, l0.y2), hist: h1 === h0 }, `★다시 누른 뒤 ${JSON.stringify(l1)} · 앞 ${JSON.stringify(l0)} · 이력 ${h0}→${h1}`)
+    .toEqual({ x1: true, y1: true, x2: true, y2: true, hist: true });
   expect(errs).toEqual([]);
 });

@@ -574,7 +574,8 @@ ${blockHeaderHTML({
              이력 = 아래 pushHistory 한 칸에 dimAxis·dimA·dimB 같이 실린다. */
         const axis = b.dataset.axis;
         const st0 = _readState(block);
-        const g0 = st0.dimA && st0.dimB && window.annotDimGeometry?.(st0.points, { ...st0 });
+        /* ⛔이미 고른 방향을 «다시» 누르면 아무것도 안 한다(고치기 전과 같음) — 끝을 끌어 비뚤게 둔 선을 펴 버리면 그건 새 동작이다(이 판 밖). */
+        const g0 = axis !== st0.dimAxis && st0.dimA && st0.dimB && window.annotDimGeometry?.(st0.points, { ...st0 });
         const place = g0 && window.annotDimPlaceAt?.(st0.points, g0.mid, { dimAxis: axis });
         if (place) {
           const r1 = (v) => Math.round(v * 10) / 10;
