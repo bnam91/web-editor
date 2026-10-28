@@ -373,7 +373,9 @@
   top: 88px; right: calc(var(--panel-right-inset, 240px) + 12px); /* panel-right 폭 + 12 gap (접히면 0 + 12) */
   width: 280px;
   max-height: calc(100vh - 120px);
-  background: #1f1f1f;
+  /* 배경만 비친다 — AI Generate 패널(#ai-prompt-panel)과 같은 값(현빈 261028) */
+  background: color-mix(in srgb, #1f1f1f 85%, transparent);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg);
   z-index: 9000;

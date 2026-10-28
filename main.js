@@ -182,9 +182,9 @@ function _notifyGoditorUse(sessionToken) {
 const entitlement = require('./services/entitlement');
 /* 배포판 운영자(admin) 판정 — 서명 operator.allow. ⛔entitlement 키(k1)와 «다른» 키(op1)다. */
 const _operatorAllow = require('./services/operator-allow');
-const { fillSectionTexts: geminiFill } = require('./services/geminiService');
-const { fillSectionTexts: openaiFill } = require('./services/openaiService');
-const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
+const { fillSectionTexts: geminiFill, ocrImage: geminiOcr } = require('./services/geminiService');
+const { fillSectionTexts: openaiFill, ocrImage: openaiOcr } = require('./services/openaiService');
+const { fillSectionTexts: anthropicFill, ocrImage: anthropicOcr } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
@@ -477,6 +477,12 @@ function createWindow() {
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
+  ipcMain.handle('ai:ocrImage', (_e, payload) => {
+    const model = String(payload?.model || '').toLowerCase();   // 공급자 가르기는 aiFillSectionTexts 와 같다
+    if (model.startsWith('gpt-')) return openaiOcr({ ...payload, apiKey: getApiKey('openai') });
+    if (model.startsWith('claude-')) return anthropicOcr({ ...payload, apiKey: getApiKey('anthropic') });
+    return geminiOcr({ ...payload, apiKey: getApiKey('gemini') });
+  });
 
   // 사용자별 Preferences (settings.json: API 키 + 단축키)
   ipcMain.handle('settings:get',      () => readSettings());
@@ -2147,6 +2153,22 @@ ipcMain.handle('ai:saveImage', (_e, { projectId, b64, mime } = {}) => {
     return { ok: true, id, blobPath: `images/${filename}`, mime: mime || 'image/png' };
   } catch (e) {
     return { ok: false, error: e.message };
+  }
+});
+
+// 글자 추출(OCR) 대상 — 사용자가 적은 «로컬 이미지 경로»를 dataURL 로. 이미지 확장자·20MB 이하만(시트 33).
+const OCR_IMG_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+ipcMain.handle('ai:readLocalImage', (_e, filePath) => {
+  try {
+    const full = path.resolve(String(filePath || '').replace(/^~(?=\/)/, require('os').homedir()));
+    const mime = OCR_IMG_MIME[path.extname(full).toLowerCase()];
+    if (!mime) return { ok: false, error: '이미지 파일(png·jpg·webp·gif)만 됩니다' };
+    const st = fs.statSync(full);
+    if (!st.isFile()) return { ok: false, error: '파일이 아닙니다' };
+    if (st.size > 20 * 1024 * 1024) return { ok: false, error: '20MB 이하 이미지만 됩니다' };
+    return { ok: true, dataUrl: `data:${mime};base64,${fs.readFileSync(full).toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.code === 'ENOENT' ? '파일을 찾지 못했습니다' : e.message };
   }
 });
 

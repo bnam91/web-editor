@@ -328,4 +328,38 @@ async function fillSectionTexts(payload) {
   }
 }
 
-module.exports = { fillSectionTexts };
+/* 스크래치 이미지 OCR(시트 33 1020t2a1 · 시안 v3) — 섹션 채우기와 달리 블록이 없다. 이미지 한 장 → 글 한 덩이.
+ * mode: 'text' = 글자만 / 'layout' = 줄·표까지(줄바꿈·표는 마크다운 표로) */
+const { ocrPrompt, parseOcr } = require('./ocrPrompt');
+
+async function ocrImage(payload) {
+  const apiKey = (payload && payload.apiKey) || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return { ok: false, error: 'Gemini API 키가 없습니다. 환경설정에서 등록하거나 GEMINI_API_KEY 환경변수를 설정하세요.' };
+  }
+  const m = /^data:([^;]+);base64,(.+)$/.exec(String(payload?.imageDataUrl || ''));
+  if (!m) return { ok: false, error: '이미지 dataURL 형식 오류' };
+  const prompt = ocrPrompt(payload.mode);
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
+    generationConfig: { temperature: 0, responseMimeType: 'application/json' },
+  };
+  try {
+    const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      return { ok: false, error: `Gemini ${res.status}: ${errText.slice(0, 300)}` };
+    }
+    const json = await res.json();
+    const raw = (json?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    return { ok: true, ...parseOcr(raw), model: MODEL };
+  } catch (e) {
+    return { ok: false, error: `네트워크 오류: ${e.message}` };
+  }
+}
+
+module.exports = { fillSectionTexts, ocrImage };

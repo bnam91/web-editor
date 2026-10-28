@@ -1313,16 +1313,23 @@
   <div id="ai-prompt-panel">
     <div class="ai-panel-header">
       <span class="ai-panel-title">✨ AI Generate</span>
-      <button class="ai-close-btn" onclick="closeAiPrompt()" title="닫기">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-        </svg>
-      </button>
+      <div class="ai-panel-head-btns">
+        <!-- 최소화 = 머리만 남긴다(현빈 261028) · 닫으면 풀린다(closeAiPrompt) -->
+        <button class="ai-close-btn ai-min-btn" type="button" onclick="document.getElementById('ai-prompt-panel').classList.toggle('ai-panel-min')" title="최소화 / 펼치기">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="1" y1="5" x2="9" y2="5"/></svg>
+        </button>
+        <button class="ai-close-btn" onclick="closeAiPrompt()" title="닫기">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+            <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <!-- Mode tabs: text | image -->
     <div class="aig-mode-tabs" id="aig-mode-tabs">
       <button class="aig-mode-tab active" data-mode-tab="text" type="button">텍스트 생성</button>
       <button class="aig-mode-tab" data-mode-tab="image" type="button">이미지 생성</button>
+      <button class="aig-mode-tab" data-mode-tab="ocr" type="button">글자 추출 (OCR)</button>
     </div>
     <!-- 텍스트 모드 패널 (기존 유지) -->
     <div id="aig-text-panel">
@@ -1399,6 +1406,47 @@
       <div class="aig-cost" id="aig-cost">예상 비용: ~₩54 × 1장 = ₩54</div>
       <div class="aig-preview" id="aig-preview" style="display:none;"></div>
     </div>
+    <!-- 글자 추출(OCR) 패널 — 스크래치 ✨ 또는 OCR 탭으로 연다 (시트 33 1020t2a1 · 시안 v3 · js/scratch-ocr.js) -->
+    <div id="aig-ocr-panel" class="aig-ocr-panel" style="display:none;">
+      <div class="ocr-target">
+        <img id="ocr-target-thumb" alt="">
+        <!-- 대상 표시 = 입력란 하나 — 값은 지금 대상(#sp_…), 눌러서 바꾼다(현빈 261028 둘을 하나로) -->
+        <input type="text" id="ocr-src-input" class="ocr-src-input" placeholder="이미지 붙여넣기 · 끌어다 놓기 · 스크래치 ID · 파일 경로">
+        <button type="button" class="ocr-line-copy" id="ocr-target-clear" title="비우기"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></button>
+      </div>
+      <div class="aig-row">
+        <label class="aig-row-label" for="ocr-model-select">Model</label>
+        <!-- 목록은 AI 텍스트 채우기(js/ai-section-fill.js #ai-fill-panel-model)와 같다 — 하나를 고치면 같이 -->
+        <select class="ai-fill-panel-model-select" id="ocr-model-select">
+          <optgroup label="Google">
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash · 무료티어</option>
+          </optgroup>
+          <optgroup label="OpenAI">
+            <option value="gpt-5.4-mini">GPT-5.4 Mini · 추천</option>
+            <option value="gpt-5.4-nano">GPT-5.4 Nano · 빠름</option>
+          </optgroup>
+          <optgroup label="Anthropic">
+            <option value="claude-haiku-4-5">Claude Haiku 4.5 · 빠름</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 · 균형</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="aig-row">
+        <span class="aig-row-label">Mode</span>
+        <div class="aig-mode-radios">
+          <label><input type="radio" name="ocr-mode" value="text" checked> 글자만</label>
+          <label><input type="radio" name="ocr-mode" value="layout"> 줄·표까지</label>
+        </div>
+      </div>
+      <div class="ocr-actions">
+        <button type="button" class="ai-submit-btn" id="ocr-run-btn">글자 추출</button>
+      </div>
+      <div class="ocr-log-head">
+        <span><b id="ocr-log-id"></b> 의 history <b id="ocr-log-count">0</b>건</span>
+        <button type="button" class="ocr-fold-btn" id="ocr-collapse-all" title="전부 접기" aria-label="전부 접기·펴기"><svg width="12" height="12" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 5.5l3-3 3 3"/></svg></button>
+      </div>
+      <div id="ocr-log" class="ocr-log"></div>
+    </div>
     <div class="ai-panel-footer">
       <button class="ai-cancel-btn" onclick="closeAiPrompt()">취소</button>
       <button class="ai-outpaint-export-btn" id="aig-outpaint-export-btn" style="display:none;" onclick="window._aigExportOutpaintPng?.()">⬇ 확장 PNG 내보내기</button>
@@ -1410,6 +1458,7 @@
 <script type="module" src="js/ai-prompt.js"></script>
 <script src="js/outpaint-overlay.js"></script>
 <script type="module" src="js/ai-image-gen.js"></script>
+<script src="js/scratch-ocr.js"></script>
 <!-- ⛔⛔★이 줄을 ★지우지 ★마라 — ★★`_tpl-sort.js` 가 ★`byCreatedAtDesc` 를 ★받는다.
      ★★★그런데 ★★기본 열쇠(`default`)는 ★`cmp:null` 이라 ★★이 자를 ★안 부른다 ⇒ ★★★기본 화면만 보면 ★«안 쓰는 줄»로 보인다.
      ★★난다면 ★«사람이 ★최근추가순·이름순을 ★고를 때»뿐. ★잠그는 자 = ★tests/unit/tpl-two-windows-scripts.test.mjs ★S3 -->

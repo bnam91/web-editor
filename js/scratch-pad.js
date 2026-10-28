@@ -14,8 +14,10 @@ const SCRATCH_STORE   = 'scratch';
  *   손으로 따로 적혀 있었다. 칸 하나(효과 fx)를 더하려면 일곱 곳을 다 고쳐야 했고, 하나라도 빠지면
  *   «그 길로만» 효과가 조용히 사라진다(명부가 둘이면 한쪽이 조용히 늙는다 — 경고 주석으로는 못 막는다).
  *   ⇒ 칸을 늘릴 땐 여기만 고친다. 일부러 «빼는» 자리는 _pickScratch 의 omit 으로 «그 자리에서» 까닭과 함께 적는다.
- *   fx = 에셋에서 빼 온 이미지 효과(image-handling.js captureAssetFx). 없으면 undefined. */
-const SCRATCH_ITEM_KEYS = ['src', 'x', 'y', 'w', 'id', 'g', 'linkDy', 'fx'];
+ *   fx = 에셋에서 빼 온 이미지 효과(image-handling.js captureAssetFx). 없으면 undefined.
+ *   ocr = AI OCR 기록(시트 33 1020t2a1 · v3 «항목 밑에 딸린 칸»). 없으면 undefined. ⚠️로드 길(_loadScratch 의 _createItem)은 명부 밖
+ *     «위치 인자»라 칸을 더하면 거기도 실어 나른다 — 빠지면 저장은 되나 다음 로드가 버린다(33 실측 · tests/dom/scratch-ocr-key-33). */
+const SCRATCH_ITEM_KEYS = ['src', 'x', 'y', 'w', 'id', 'g', 'linkDy', 'fx', 'ocr'];
 function _pickScratch(o, omit = []) {
   const out = {};
   for (const k of SCRATCH_ITEM_KEYS) if (!omit.includes(k)) out[k] = o ? o[k] : undefined;
@@ -227,6 +229,7 @@ function _selectItem(item, shiftKey) {
     _selectedItems.add(item);
     item.el.classList.add('scratch-selected');
     _setIdChipVisible(item, true);
+    window._scratchOcrRetarget?.(item.id);
   }
 }
 
@@ -315,6 +318,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
     _scratchItems = _scratchItems.filter(i => i !== s);
     _selectedItems.delete(s);
   });
+  window._scratchOcrRetarget?.();   // 열린 OCR 패널이 지운 이미지를 보고 있으면 그 기록도 같이 사라진 것을 보인다(Q9)
 
   /* ★★⑧ — ★1장만 남은 그룹은 ★푼다 — 규칙·결정 출처는 `_dissolveLoneGroup` 머리 «한 곳»(128 F1 ㉠ ⒜)
    *   ★★왜 ★여기도 ★필요한가 — ★★«두 길»이 있다(지디 ⒞ 「두 길이 ★같이 서야 한다」):
@@ -340,7 +344,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
       onUndo: async () => {
         /* ★만들기(동기 · _createItem)는 바로 · 저장은 «표시·순서를 맞춘 뒤» 기다린다 — 옛: 장마다 저장을 기다린 뒤에 맞춰
            148장 판에서 되살린 장이 ✕「제거」로 0.85s 보였다(앱 실측 r8diag · ⑱). */
-        const saving = snapshots.map(s => { try { return window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx); } catch (_) { return null; } });
+        const saving = snapshots.map(s => { try { return window._scratchAddAndSaveFx?.(s.src, s.x, s.y, s.w, s.g, s.id, s.fx, s.ocr); } catch (_) { return null; } });
         if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
         // ★이미지를 되살렸으면 «연결»도 되살린다 — 안 하면 ⌘Z 가 그림만 돌려주고 선은 영영 안 돌아온다
         try { _restoreLinks(severed); } catch (_) {}
@@ -491,7 +495,7 @@ async function _sliceItem(item, ratio, vert) {
         // 두 조각 제거 + 원본 복원 (원본 id 유지)
         if (topId) { try { await window._scratchRemoveById?.(topId); } catch (_) {} }
         if (botId) { try { await window._scratchRemoveById?.(botId); } catch (_) {} }
-        try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id, restoreInfo.fx); } catch (_) {}
+        try { await window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, undefined, restoreInfo.id, restoreInfo.fx, restoreInfo.ocr); } catch (_) {}
       },
       onRedo: async () => {
         // 복원된 원본 제거 + 두 조각 재생성 (조각 id도 최초 슬라이스 때 id 유지, 가로/세로 배치 동일 재현)
@@ -803,7 +807,7 @@ async function _srcToPngDataUrl(src) {
   });
 }
 
-function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
+function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
 
@@ -834,22 +838,27 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   });
   el.appendChild(closeBtn);
 
-  // ✨ AI 버튼 — 이 이미지를 베이스로 AI 모달 오픈 (사용자 요청으로 일시 숨김)
+  /* ✨ AI 버튼 — 시트 33 1020t2a1 · 시안 v3(현빈 261026 「ai버튼 나오면 텍스트 추출 기능만, 나머지는 기능대기」).
+   * 2026-06-09(03f9a14a) 숨겼던 버튼을 되살리되 ★옛 「이미지 생성」 길(openImageGenModal({mode:'image'}) + _aigPrePickScratch)은
+   * ★안 연다 — 그 길은 숨긴 뒤 검사 0 이다. 여기서는 AI 패널의 「글자 추출 (OCR)」 탭만 열린다(js/scratch-ocr.js). */
   const aiBtn = document.createElement('button');
   aiBtn.className = 'scratch-ai-btn';
   aiBtn.type = 'button';
   aiBtn.innerHTML = '✨';
-  aiBtn.title = 'AI 이미지 생성 (이 이미지 기반)';
-  aiBtn.style.display = 'none';
+  aiBtn.title = '글자 추출 (OCR)';
   aiBtn.addEventListener('mousedown', e => e.stopPropagation());
   aiBtn.addEventListener('click', e => {
     e.stopPropagation();
-    if (window.openImageGenModal) {
-      window.openImageGenModal({ mode: 'image' });
-      window._aigPrePickScratch?.(id, item.src);
-    }
+    if (_selectedItems.size > 1) _clearSelection();
+    _selectItem(item, false);
+    window._scratchOcrOpen?.(id);
   });
   el.appendChild(aiBtn);
+
+  // 「글 N」 뱃지 — 이 이미지에 붙은 OCR 기록 수(0 이면 숨김). 갱신은 _scratchOcrBadge(id).
+  const ocrBadge = document.createElement('span');
+  ocrBadge.className = 'scratch-ocr-badge';
+  el.appendChild(ocrBadge);
 
   // ✂ 슬라이스 버튼 — 클릭하면 슬라이스 모드 진입
   const sliceBtn = document.createElement('button');
@@ -1341,7 +1350,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
           window.pushHistory?.('스크래치→섹션 변환', {
             onUndo: async () => {
               let saving = null;   // 만들기는 동기 · 저장은 표시·순서를 맞춘 뒤 기다린다(지우기 undo 와 같은 까닭)
-              try { saving = window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx); } catch (_) {}
+              try { saving = window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx, restoreInfo.ocr); } catch (_) {}
               /* ★128 F1 ⒞ — 풀렸던 짝의 소속을 되돌리고, 맨 뒤에 붙은 되살린 장을 원래 순서 자리로 앉힌다. */
               if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
               try { _applyScratchOrder(orderBefore); } catch (_) {}
@@ -1391,8 +1400,10 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg) {
   //   (refLinks dataset 포맷은 «건드리지 않는다» — 오프셋은 스크래치 아이템 레코드에만 둔다.)
   const item = { el, src, x, y, w, id, g: gArg || undefined,
                  linkDy: (typeof linkDyArg === 'number' && isFinite(linkDyArg)) ? linkDyArg : undefined,
-                 fx: (fxArg && typeof fxArg === 'object') ? fxArg : undefined };
+                 fx: (fxArg && typeof fxArg === 'object') ? fxArg : undefined,
+                 ocr: Array.isArray(ocrArg) ? ocrArg : undefined };
   _scratchItems.push(item);
+  _ocrBadge(item);
 
   // native HTML5 DnD 사용 안 함 — mousedown/move/up 흐름 안에서 모두 처리 (canvas-scratch-drop.js의 export API 호출)
   el.draggable = false;
@@ -1434,9 +1445,9 @@ async function _loadScratch(projectId, pageId) {
       }
     }
     let migrated = false;
-    items.forEach(({ src, x, y, w, id, g, linkDy, fx }) => {
+    items.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
-      _createItem(src, x, y, w, id, g, linkDy, fx);
+      _createItem(src, x, y, w, id, g, linkDy, fx, ocr);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
     if (migrated || hydrated) _saveScratch(); // 하이드레이션분을 로컬 IndexedDB에 영속
@@ -2200,8 +2211,8 @@ window._moveAssetToScratch = _moveAssetToScratch;
 
 /* C1 — 효과(fx)째 되살리는 저장 입구. ⛔_scratchAddAndSave(아래)는 «동결»이다(tests/unit/scratch-paste-dup T-U1-3b ·
    그 함수의 linkDy 누락은 별건 BL-SPL-01). 그래서 인자를 늘리지 않고 이 입구를 따로 둔다 — fx 를 실어야 하는 복원만 이걸 쓴다. */
-window._scratchAddAndSaveFx = async (src, x, y, w, g, id, fx) => {
-  _createItem(src, x, y, w, id, g, undefined, fx);
+window._scratchAddAndSaveFx = async (src, x, y, w, g, id, fx, ocr) => {
+  _createItem(src, x, y, w, id, g, undefined, fx, ocr);
   await _saveScratch();
 };
 
@@ -2262,6 +2273,20 @@ window._scratchGetItemById = id => {
 //   추종 «로직»은 scratchpad-link.js 소관. 여기선 모델 접근 + 디바운스 저장만 내준다.
 //   ★프레임마다 _saveScratch()를 부르면 IndexedDB가 폭주 → 반드시 디바운스 경유.
 window._scratchItemById = id => _scratchItems.find(s => s.id === id) || null;
+
+// OCR(js/scratch-ocr.js) 용 — 뱃지 갱신 · 모델에 보낼 PNG/JPEG dataURL
+function _ocrBadge(item) {
+  const b = item?.el?.querySelector(':scope > .scratch-ocr-badge');
+  if (!b) return;
+  const n = Array.isArray(item.ocr) ? item.ocr.length : 0;
+  b.textContent = '글 ' + n;
+  b.style.display = n ? '' : 'none';
+}
+window._scratchOcrBadge = id => _ocrBadge(_scratchItems.find(s => s.id === id));
+window._scratchPngDataUrlById = async id => {
+  const it = _scratchItems.find(s => s.id === id);
+  return it ? _srcToPngDataUrl(it.src) : null;
+};
 
 let _saveSoonTimer = null;
 window._scratchSaveSoon = (delay = 400) => {
@@ -2763,6 +2788,7 @@ window._scratchRemoveById = async (id, { keepLone = false } = {}) => {   // keep
   _selectedItems.delete(it);
   it.el.remove();
   _scratchItems = _scratchItems.filter(s => s !== it);
+  window._scratchOcrRetarget?.();
   if (it.g) _dissolveLoneGroup(it.g, { exitMode: true, keepLone });
   await _saveScratch();
   return true;

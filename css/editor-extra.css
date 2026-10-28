@@ -563,10 +563,12 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 
 /* 비모달 플로팅 패널 (뒤쪽 인터랙션 가능) */
 #ai-prompt-panel {
-  width: 480px;
+  width: 400px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
-  background: var(--ui-bg-base);
+  /* 배경만 비친다(글자는 그대로 진하게) — 현빈 261028 */
+  background: color-mix(in srgb, var(--ui-bg-base) 85%, transparent);
+  backdrop-filter: blur(8px);
   border: 1px solid #383838;
   border-radius: 12px;
   padding: 20px;
@@ -599,6 +601,10 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   justify-content: center;
 }
 .ai-close-btn:hover { background: var(--ui-bg-hover); color: #ccc; }
+.ai-panel-head-btns { display: flex; gap: 2px; }
+/* 최소화 — 머리줄만 남긴다 */
+#ai-prompt-panel.ai-panel-min > :not(.ai-panel-header) { display: none !important; }
+#ai-prompt-panel.ai-panel-min { gap: 0; }
 
 /* 텍스트에어리어 */
 .ai-textarea {
