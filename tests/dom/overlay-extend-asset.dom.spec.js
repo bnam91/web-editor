@@ -14,21 +14,16 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js overlay-extend-asset
  */
 const { test, expect } = require('@playwright/test');
-const { dragUtilsDep } = require('./_drag-utils-deps.js');   // E99 후속 — drag-utils 의 side-effect import(graph-limits.js)를 진짜로
 const fs = require('fs');
 const path = require('path');
 
 const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
-const OVERLAY_FLOAT_JS = fs.readFileSync(path.join(REPO, 'js/overlay-float.js'), 'utf8');
-const FRAME_GEOMETRY_JS = fs.readFileSync(path.join(REPO, 'js/frame-geometry.js'), 'utf8');
-const SHAPE_FRAME_JS = fs.readFileSync(path.join(REPO, 'js/shape-frame.js'), 'utf8');
 /* ★[0929] drag-utils.js 를 «진짜로» 먹인다 — prop-page.js 의 assetFullBleedWidth 가
    그 안의 effectiveSectionPadX 로 padX 를 구한다(0929 에 계산을 한 곳으로 합쳤다).
    ⛔안 실으면 window.effectiveSectionPadX 가 undefined 라 폭이 «조용히 빈 문자열»이 되고,
      A4-b·A7 이 「옛 패딩이 되살아났다」로 빨개진다(실측 2026-09-29 — 이 주석이 그 사고다).
    의존은 globals·shape-frame 뿐이고 둘 다 이 하네스에 이미 있다. */
-const DRAG_UTILS_JS = fs.readFileSync(path.join(REPO, 'js/drag-utils.js'), 'utf8');
 const LAYOUT_CSS = fs.readFileSync(path.join(REPO, 'css/editor-layout.css'), 'utf8');
 /* z-index 판정(A5)은 «실제 규칙끼리의 특이도 싸움»을 재는 것이라 editor-blocks.css 가 필요하다. */
 const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'utf8');
@@ -36,16 +31,23 @@ const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'ut
    그래서 stub 이 아니라 진짜 js/props/prop-page.js 를 먹인다(그 안의 assetFullBleedWidth /
    applyAssetFullBleed 가 SSOT). 그 파일이 import 하는 globals.js · canvas-contrast.js 만
    최소 stub 으로 대신한다 — 이 검사가 보는 것은 폭 계산이지 패널 렌더가 아니다. */
-const PROP_PAGE_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-page.js'), 'utf8');
 /* ★★★261012 — ★`prop-page.js` 가 ★★`./prop-text-wireup-align.js` 를 ★★최상위에서 ★import 한다.
    ★★그게 ★route 에 ★없어 ★★404(net::ERR_ABORTED) 였고 ⇒ ★★`prop-page.js` 가 ★★평가되지 ★못해
    ★★`window.applyAssetFullBleed` 가 ★★안 생겼다 ⇒ ★★`boot()` 의 ★대기가 ★★영영 ★안 참 ⇒ ★★15칸 ★타임아웃.
    ★★★`pageerror` 엔 ★안 걸렸다 — ★★모듈 ★404 는 ★★네트워크 ★오류이고 ★예외가 ★아니다. ★★그래서 ★안 보였다.
    ★★판별 실측: ★그 import 는 ★★`v0.9.6` 에 ★★0건 · ★★`734ec138` 부터 ★★1건.
    ★★선례 = ★위 ★S1 의 ★`checker-tokens.js` ★꼴(★★진짜 파일을 ★그대로 ★준다). */
-const PROP_TEXT_WIREUP_ALIGN_JS = fs.readFileSync(path.join(REPO, 'js/props/prop-text-wireup-align.js'), 'utf8');
 /* S1(2026-10-04): prop-page.js 가 ../checker-tokens.js 를 import 한다(체커 어둡게 단추) — 진짜 파일을 그대로 준다(부작용 = html 속성 하나, localStorage 비면 끔). */
-const CHECKER_TOKENS_JS = fs.readFileSync(path.join(REPO, 'js/checker-tokens.js'), 'utf8');
+/* ★198 ⒣(지디 261029 14:5x · 15:1x ③) — 제품 파일을 ★레포와 같은 경로(/js/…)로 싣는다. 옛 길은 /overlay-float.js · /props/prop-page.js 처럼
+   «가짜 나무» 를 꾸며 상대 import 가 그 가짜 자리로 풀렸고, 줄이 늘 때마다 route 한 줄을 더하는 국소 완화를 세 번 했다(위 261012 · S1 2026-10-04 · 0929 주석).
+   그래도 남은 404 하나 = prop-page.js 의 ../io/export-formats.js → /io/export-formats.js(S3 261029 · route 표 따라가기 정적 셈).
+   ⇒ /js/ 아래는 «스텁 명부에 있으면 스텁 · 아니면 디스크의 진짜 파일» 한 갈래로 준다 — 상대 import 가 저절로 레포 자리로 풀린다.
+   ★스텁 명부(바꾸기 «전» 이 spec 이 스스로 갈음하던 것 · 이 셋만):
+     /js/globals.js            ← GLOBALS_STUB(state.pageSettings.padX 72 · window.__state)
+     /js/canvas-contrast.js    ← CANVAS_CONTRAST_STUB(applyCanvasBackground 빈 함수)
+     /js/props/color-picker.js ← COLOR_PICKER_STUB(색칸 배선 더블)
+   ⛔스텁은 디스크보다 «먼저» 본다 — 안 그러면 진짜 파일이 스텁을 조용히 이긴다(_drag-utils-deps.js:11~15 의 except 규약과 같은 까닭).
+     그래서 route 가 «무엇을 무엇으로 줬나» 를 장부(errs.served)에 남기고 A10 이 «스텁 셋이 스텁으로 갔다 · 404 0» 을 잰다. */
 const GLOBALS_STUB = `
   export const propPanel = document.createElement('div');
   export const canvasEl  = document.createElement('div');
@@ -63,6 +65,8 @@ const COLOR_PICKER_STUB = `
   export const parseHex6 = () => null;
   export const formatHex6 = (v) => String(v ?? '');
 `;
+
+const STUBS = { '/js/globals.js': GLOBALS_STUB, '/js/canvas-contrast.js': CANVAS_CONTRAST_STUB, '/js/props/color-picker.js': COLOR_PICKER_STUB };
 
 /* 섹션 800 · 본문(.section-inner) 716 — 실제 앱의 「캔버스 860, 좌우 패딩」 구도와 같은 꼴.
    % 폭이 기준을 바꾸면 눈에 띄게 커진다(93.02% → 666 vs 744). */
@@ -120,34 +124,28 @@ function harness({ oldZIndex = false } = {}) {
       window._findSectionAt = () => null;
       window.genId = (p) => p + '_' + Math.random().toString(36).slice(2, 8);
     </script>
-    <script type="module" src="/overlay-float.js"></script>
-    <script type="module" src="/drag-utils.js"></script>
-    <script type="module" src="/props/prop-page.js"></script>
+    <script type="module" src="/js/overlay-float.js"></script>
+    <script type="module" src="/js/drag-utils.js"></script>
+    <script type="module" src="/js/props/prop-page.js"></script>
     </body></html>`;
 }
 
 async function boot(page, opts = {}) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
-  const served = {};   // pathname → 'html' | 'stub' | 'disk' | 404 — A10 이 읽는다(★198 ⒣ · 검사 먼저: 옛 가짜 경로 판에서 빨강이어야)
+  const served = {};   // pathname → 'html' | 'stub' | 'disk' | 404 — A10 이 읽는다(스텁이 이기나 · 404 0)
   errs.served = served;
-  const STUB_BODIES = new Set([GLOBALS_STUB, CANVAS_CONTRAST_STUB, COLOR_PICKER_STUB]);
-  const ful = (route, p, arg) => { served[p] = arg.status === 404 ? 404 : p === '/__harness.html' ? 'html' : STUB_BODIES.has(arg.body) ? 'stub' : 'disk'; return route.fulfill(arg); };
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/__harness.html') return ful(route, url.pathname, { contentType: 'text/html', body: harness(opts) });
-    if (url.pathname === '/overlay-float.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
-    if (url.pathname === '/frame-geometry.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
-    if (url.pathname === '/shape-frame.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: SHAPE_FRAME_JS });
-    { const d = dragUtilsDep(url.pathname, '/', ['globals.js', 'shape-frame.js']); if (d) return ful(route, url.pathname, d); }
-    if (url.pathname === '/drag-utils.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: DRAG_UTILS_JS });
-    if (url.pathname === '/props/prop-page.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: PROP_PAGE_JS });
-    if (url.pathname === '/props/prop-text-wireup-align.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: PROP_TEXT_WIREUP_ALIGN_JS });
-    if (url.pathname === '/globals.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: GLOBALS_STUB });
-    if (url.pathname === '/canvas-contrast.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
-    if (url.pathname === '/props/color-picker.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: COLOR_PICKER_STUB });
-    if (url.pathname === '/checker-tokens.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: CHECKER_TOKENS_JS });
-    return ful(route, url.pathname, { status: 404, body: '' });
+    const p = url.pathname;
+    if (p === '/__harness.html') { served[p] = 'html'; return route.fulfill({ contentType: 'text/html', body: harness(opts) }); }
+    if (Object.prototype.hasOwnProperty.call(STUBS, p)) { served[p] = 'stub'; return route.fulfill({ contentType: 'application/javascript', body: STUBS[p] }); }
+    if (p.startsWith('/js/') && p.endsWith('.js')) {
+      const f = path.join(REPO, p.slice(1));
+      if (f.startsWith(path.join(REPO, 'js') + path.sep) && fs.existsSync(f)) { served[p] = 'disk'; return route.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(f, 'utf8') }); }
+    }
+    served[p] = 404;
+    return route.fulfill({ status: 404, body: '' });
   });
   await page.goto(`${ORIGIN}/__harness.html`);
   await page.waitForFunction(() => !!window.OverlayFloat && !!window.applyAssetFullBleed);
