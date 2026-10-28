@@ -45,7 +45,7 @@ test('T ✨ → 글자 추출만 켜짐 · 나머지 기능 대기 · 닫으면 
   expect(await page.evaluate(() => ({
     panel: document.getElementById('aig-ocr-panel').style.display,
     footer: document.querySelector('#ai-prompt-panel .ai-panel-footer').style.display,
-    target: document.getElementById('ocr-target-id').textContent,
+    target: document.getElementById('ocr-src-input').value,
   })), 'T 패널').toEqual({ panel: '', footer: 'none', target: '#sA' });
   await page.evaluate(() => window.closeAiPrompt());
   expect((await tabState(page)).map(t => ({ tab: t.tab, disabled: t.disabled, shown: t.shown })), 'T 닫은 뒤').toEqual([
@@ -86,7 +86,7 @@ test('Q9 이미지를 지우면 기록도 같이 · ⌘Z 면 같이 돌아온다
   await expect.poll(() => page.evaluate(async () => !!(await window.__rawScratch('scratch-pad-pO-pg1')).find(x => x.id === 'sA')), { message: 'Q9 저장본에서 이미지(＝기록) 사라짐' }).toBe(false);
   expect(await page.evaluate(() => ({
     mem: !!window._scratchItemById('sA'),
-    target: document.getElementById('ocr-target-id').textContent,
+    target: document.getElementById('ocr-src-input').value,
     count: document.getElementById('ocr-log-count').textContent,
     runDisabled: document.getElementById('ocr-run-btn').disabled,
     otherKept: !!window._scratchItemById('sB'),

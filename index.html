@@ -1409,9 +1409,9 @@
     <div id="aig-ocr-panel" class="aig-ocr-panel" style="display:none;">
       <div class="ocr-target">
         <img id="ocr-target-thumb" alt="">
-        <div><div class="ocr-target-sub">이 이미지에서 글자를 읽습니다</div><b id="ocr-target-id"></b></div>
+        <!-- 대상 표시 = 입력란 하나 — 값은 지금 대상(#sp_…), 눌러서 바꾼다(현빈 261028 둘을 하나로) -->
+        <input type="text" id="ocr-src-input" class="ocr-src-input" placeholder="이미지 붙여넣기 · 끌어다 놓기 · 스크래치 ID · 파일 경로">
       </div>
-      <input type="text" id="ocr-src-input" class="ocr-src-input" placeholder="이미지 붙여넣기 · 끌어다 놓기 · 스크래치 ID(sp_…) · 파일 경로 + Enter">
       <div class="aig-row">
         <label class="aig-row-label" for="ocr-model-select">Model</label>
         <!-- 목록은 AI 텍스트 채우기(js/ai-section-fill.js #ai-fill-panel-model)와 같다 — 하나를 고치면 같이 -->

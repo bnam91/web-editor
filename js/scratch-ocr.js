@@ -149,7 +149,8 @@
   function render() {
     const item = _item();
     const idTxt = _targetId ? '#' + _targetId : '';
-    $('ocr-target-id').textContent = !_targetId ? '스크래치 이미지를 고르세요' : item ? idTxt : idTxt + ' (지워진 이미지)';
+    const inp = $('ocr-src-input');
+    if (document.activeElement !== inp) inp.value = !_targetId ? '' : item ? idTxt : idTxt + ' (지워진 이미지)';   // 치는 중엔 안 덮는다
     $('ocr-log-id').textContent = idTxt;
     $('aig-ocr-panel').classList.toggle('ocr-empty', !_targetId);   // 대상 없음 — 썸네일·안내·기록 머리를 숨긴다(CSS)
     const thumb = $('ocr-target-thumb');
@@ -229,7 +230,7 @@
   window._scratchOcrReset = () => { _targetId = null; _open.clear(); _lockTabs(false); };
 
   // 대상 넣기 — 스크래치 ID 면 그 이미지로, 아니면 그 이미지를 스크래치에 «새로 올려» 대상으로(기록은 스크래치 이미지에 붙는다)
-  function _target(id) { _targetId = id; _open.clear(); render(); }
+  function _target(id) { _targetId = id; _open.clear(); $('ocr-src-input')?.blur(); render(); }
   async function _addImage(dataUrl) {
     const r = await window._scratchAddForMcp?.(dataUrl, { width: 400 });
     if (!r?.ok) { window.showToast?.('❌ 스크래치에 올리지 못했습니다' + (r?.message ? ': ' + r.message : '')); return; }
@@ -260,8 +261,10 @@
     const inp = $('ocr-src-input'), panel = $('aig-ocr-panel');
     inp?.addEventListener('keydown', e => {
       e.stopPropagation();   // 에디터 단축키가 입력을 가로채지 않게
-      if (e.key === 'Enter') { e.preventDefault(); _fromText(inp.value).then(() => { inp.value = ''; }); }
+      if (e.key === 'Enter') { e.preventDefault(); _fromText(inp.value); }
     });
+    inp?.addEventListener('focus', () => inp.select());   // 누르고 바로 치면 바뀐다
+    inp?.addEventListener('blur', () => render());        // 안 바꾸고 나가면 지금 대상으로 되돌린다
     inp?.addEventListener('paste', async e => {
       if (await _addFiles(e.clipboardData?.files)) e.preventDefault();   // 글이면 그대로 입력란에 붙는다
     });
