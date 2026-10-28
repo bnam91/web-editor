@@ -83,8 +83,8 @@ test('S3 120ms·300ms 명부 = 실측 (양방향 · 이름)', () => {
   for (const f of FLAG_300) assert.match(fs.readFileSync(path.join(ROOT, f), 'utf8'), /_swallowPanClick/);
 });
 
-test('S4 부르는 자리 13 — 파일별 수(양방향)', () => {
-  const want = { 'js/annotation-select.js': 4, 'js/blocks/modal-block.js': 1, 'js/blocks/radial-block.js': 1, 'js/drag-utils.js': 2, 'js/overlay-handles.js': 1,
+test('S4 부르는 자리 12 — 파일별 수(양방향 · 244 가 modal-block 하나를 걷었다 — 근거·지킴 tests/unit/modal-profile-drag-render-guard)', () => {
+  const want = { 'js/annotation-select.js': 4, 'js/blocks/radial-block.js': 1, 'js/drag-utils.js': 2, 'js/overlay-handles.js': 1,
     'js/scratch-pad.js': 1, 'js/section-bottom-handle.js': 1, 'js/sticker-select.js': 1, 'js/table-cell-select.js': 1 };
   const got = {};
   for (const f of jsFiles(path.join(ROOT, 'js'))) {

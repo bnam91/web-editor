@@ -55,3 +55,9 @@ test('R1 _startProfileDrag onUp 이 renderModalBlock(block) 을 조건 없이 �
   assert.equal(u.err, undefined, u.err);
   assert.ok(topStatements(u.body).includes('renderModalBlock(block)'), '렌더가 빠지거나 조건 안으로 들어갔다 — 끈 뒤 click 이 다시 온다(244) · 삼키개를 되살리거나 그 click 을 따로 막아라');
 });
+
+test('R2 onUp 에 삼키개가 없다 — 걷은 자리(js/blocks/modal-block.js 비석)와 짝', () => {
+  const u = onUpBody(stripComments(fs.readFileSync(path.join(ROOT, FILE), 'utf8')));
+  assert.equal(u.err, undefined, u.err);
+  assert.ok(!/swallowNextClick\(/.test(u.body), '삼키개가 돌아왔다면 비석과 R1 을 같이 고쳐라(둘 중 하나만 있으면 근거가 갈린다)');
+});
