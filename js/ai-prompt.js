@@ -10,7 +10,8 @@ const QUICK_PROMPTS = [
 function openAiPrompt() {
   // 모달 마운트는 ai-image-gen.js의 openImageGenModal이 담당 (모드 탭/picker 초기화 포함)
   if (window.openImageGenModal) {
-    window.openImageGenModal();
+    // 툴바 ✨·⌘K = 글자 추출만 — 텍스트·이미지 생성은 «기능 대기»(현빈 261028 「열 때부터 OCR만」)
+    window.openImageGenModal({ mode: 'ocr' });
     return;
   }
   document.getElementById('ai-prompt-overlay').style.display = 'flex';
