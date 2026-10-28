@@ -188,6 +188,55 @@ test('D1N ★자가 산다 — oneToOne 은 1:1 만 참 · 일부러 2:1 은 거
   expect([oneToOne(32, 32), oneToOne(37, 32), oneToOne(64, 32), oneToOne(16, 32), oneToOne(-16, 32)]).toEqual([true, true, false, false, false]);
 });
 
+/* ★263 ⒜ 탐침(지디 261029 · GRAD-HARNESS-CANNOT-DRIVE-THREE-FACES-01) — «끌기가 안 먹음» 의 까닭 후보 ①: 누르는 점의 임자가 그 블럭이 아니다.
+   이동 길 = 블럭 capture mousedown(js/gradient-select.js bindGradientSelect) → document mousemove 첫 번부터 dataset.x/y · ⛔_GRD_CLICK_SLOP 은 click 가름에만(이동 길 아님).
+   한 쌍: P263a 옛 길(장면 때 잰 중심 · D2 와 같은 꼴) · P263b 새 길(누르기 직전 scrollIntoView · D1 꼴) — 둘 다 «임자 = 블럭 ⇔ dataset 바뀜» 이어야. b 는 임자 = 블럭이 전제. */
+async function pressProbe(page, s, { recenter }) {
+  if (recenter) {
+    const c = await page.evaluate(async () => {
+      const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]');
+      a.scrollIntoView({ block: 'center', inline: 'center' });
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const r = a.getBoundingClientRect(); return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+    });
+    s = { ...s, cx: Math.round(c.cx), cy: Math.round(c.cy) };
+  }
+  const pre = await page.evaluate(({ cx, cy }) => {
+    const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]'), hit = document.elementFromPoint(cx, cy);
+    return { owner: !!hit && hit.closest('.gradient-block') === a, hit: hit ? (hit.id || hit.className || hit.tagName).toString().slice(0, 40) : null,
+      bound: a._gradientBound === true, x: a.dataset.x, y: a.dataset.y, sl: document.getElementById('canvas-wrap')?.scrollTop ?? null };
+  }, s);
+  await page.mouse.move(s.cx, s.cy);
+  await page.mouse.down();
+  await page.mouse.move(s.cx + 16, s.cy + 16, { steps: 4 });
+  await page.mouse.move(s.cx + 32, s.cy + 32, { steps: 4 });
+  await page.mouse.up();
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const post = await page.evaluate(() => { const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]'); return { x: a.dataset.x, y: a.dataset.y }; });
+  return { ...pre, moved: post.x !== pre.x || post.y !== pre.y, after: post, at: [s.cx, s.cy] };
+}
+test('P263a ⒜ 옛 길(장면 때 중심) — 임자 = 블럭 ⇔ dataset 바뀜', async ({ page }) => {
+  await bootApp(page);
+  const s = await scene(page, false);
+  expect(s.fail).toBeUndefined();
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  const r = await pressProbe(page, s, { recenter: false });
+  console.log('[P263a]', JSON.stringify(r));
+  expect(r.bound, `★전제: 블럭이 bind 안 됨(_gradientBound) · ${JSON.stringify(r)}`).toBe(true);
+  expect(r.moved, `★임자 ${r.owner} 인데 dataset 바뀜 ${r.moved} — 임자 후보로 못 가른다 · ${JSON.stringify(r)}`).toBe(r.owner);
+});
+test('P263b ⒜ 새 길(누르기 직전 가운데로) — 임자 = 블럭 ∧ dataset 바뀜', async ({ page }) => {
+  await bootApp(page);
+  const s = await scene(page, false);
+  expect(s.fail).toBeUndefined();
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  const r = await pressProbe(page, s, { recenter: true });
+  console.log('[P263b]', JSON.stringify(r));
+  expect(r.bound, `★전제: 블럭이 bind 안 됨(_gradientBound) · ${JSON.stringify(r)}`).toBe(true);
+  expect(r.owner, `★전제: 누르는 점의 임자가 블럭이 아니다(${r.hit}) · ${JSON.stringify(r)}`).toBe(true);
+  expect(r.moved, `GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01 — 임자가 블럭인데 dataset 0 = 후보 ① 아님 · ${JSON.stringify(r)}`).toBe(true);
+});
+
 test('D2 ★★★수를 박는다 — ★그룹 ★안 그라데는 ★★더 움직인다 (★가지 실측 32 → 73·63·58)', async ({ page }) => {
   await bootApp(page);
   const s = await scene(page, true);
