@@ -15,7 +15,9 @@ const { bootApp, waitStableRect } = require('./_root-harness.js');
 const LT = require('./_longtask.js');
 
 const SEC_N = 300, SEC_K = 20;
-/* ★명부(래칫) — 809d7cf5 하네스 ×3 실측(LT_FLOOR_MS 100): 누름 1·1·1 · 끄는 5 걸음 5·5·5 · 놓음 1·1·1 */
+/* ★명부 — 두 수를 나란히(지디 261028) · ⛔둘을 섞어 견주지 마라
+ *   ← 래칫(이 spec 이 단언): 합성 장면 섹션 300 × 글 블록 20 · 3.9MB · 노드 24,916 · 809d7cf5 하네스 ×3(LT_FLOOR_MS 100) = 누름 1 · 끄는 5 걸음 5 · 놓음 1
+ *   ← 사용자 수(단언 안 함): 앱 · 수지 저장본 · 지디 261028 = 끄는 5 걸음 longtask 10 (누름 1.24s · 놓음 1.09s) */
 const LT_BASE = { down: 1, move: 5, up: 1 };
 
 async function setup(page) {
