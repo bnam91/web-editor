@@ -566,7 +566,9 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   width: 400px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
-  background: var(--ui-bg-base);
+  /* 배경만 비친다(글자는 그대로 진하게) — 현빈 261028 */
+  background: color-mix(in srgb, var(--ui-bg-base) 85%, transparent);
+  backdrop-filter: blur(8px);
   border: 1px solid #383838;
   border-radius: 12px;
   padding: 20px;
