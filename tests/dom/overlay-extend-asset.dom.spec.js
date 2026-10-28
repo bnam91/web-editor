@@ -129,21 +129,25 @@ function harness({ oldZIndex = false } = {}) {
 async function boot(page, opts = {}) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
+  const served = {};   // pathname → 'html' | 'stub' | 'disk' | 404 — A10 이 읽는다(★198 ⒣ · 검사 먼저: 옛 가짜 경로 판에서 빨강이어야)
+  errs.served = served;
+  const STUB_BODIES = new Set([GLOBALS_STUB, CANVAS_CONTRAST_STUB, COLOR_PICKER_STUB]);
+  const ful = (route, p, arg) => { served[p] = arg.status === 404 ? 404 : p === '/__harness.html' ? 'html' : STUB_BODIES.has(arg.body) ? 'stub' : 'disk'; return route.fulfill(arg); };
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: harness(opts) });
-    if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
-    if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
-    if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
-    { const d = dragUtilsDep(url.pathname, '/', ['globals.js', 'shape-frame.js']); if (d) return route.fulfill(d); }
-    if (url.pathname === '/drag-utils.js') return route.fulfill({ contentType: 'application/javascript', body: DRAG_UTILS_JS });
-    if (url.pathname === '/props/prop-page.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_PAGE_JS });
-    if (url.pathname === '/props/prop-text-wireup-align.js') return route.fulfill({ contentType: 'application/javascript', body: PROP_TEXT_WIREUP_ALIGN_JS });
-    if (url.pathname === '/globals.js') return route.fulfill({ contentType: 'application/javascript', body: GLOBALS_STUB });
-    if (url.pathname === '/canvas-contrast.js') return route.fulfill({ contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
-    if (url.pathname === '/props/color-picker.js') return route.fulfill({ contentType: 'application/javascript', body: COLOR_PICKER_STUB });
-    if (url.pathname === '/checker-tokens.js') return route.fulfill({ contentType: 'application/javascript', body: CHECKER_TOKENS_JS });
-    return route.fulfill({ status: 404, body: '' });
+    if (url.pathname === '/__harness.html') return ful(route, url.pathname, { contentType: 'text/html', body: harness(opts) });
+    if (url.pathname === '/overlay-float.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
+    if (url.pathname === '/frame-geometry.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
+    if (url.pathname === '/shape-frame.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: SHAPE_FRAME_JS });
+    { const d = dragUtilsDep(url.pathname, '/', ['globals.js', 'shape-frame.js']); if (d) return ful(route, url.pathname, d); }
+    if (url.pathname === '/drag-utils.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: DRAG_UTILS_JS });
+    if (url.pathname === '/props/prop-page.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: PROP_PAGE_JS });
+    if (url.pathname === '/props/prop-text-wireup-align.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: PROP_TEXT_WIREUP_ALIGN_JS });
+    if (url.pathname === '/globals.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: GLOBALS_STUB });
+    if (url.pathname === '/canvas-contrast.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: CANVAS_CONTRAST_STUB });
+    if (url.pathname === '/props/color-picker.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: COLOR_PICKER_STUB });
+    if (url.pathname === '/checker-tokens.js') return ful(route, url.pathname, { contentType: 'application/javascript', body: CHECKER_TOKENS_JS });
+    return ful(route, url.pathname, { status: 404, body: '' });
   });
   await page.goto(`${ORIGIN}/__harness.html`);
   await page.waitForFunction(() => !!window.OverlayFloat && !!window.applyAssetFullBleed);
@@ -452,4 +456,18 @@ test('A9 ★떠 있을 때만 패널에 X/Y 두 칸이 나오고, 그 칸이 좌
   expect(r.afterErase.ox, '빈 칸을 0 으로 커밋했다 — 입력 도중 블록이 튄다').toBe('123');
   expect(r.afterErase.left).toBe('123px');
   expect(r.restored, '확정할 때 빈 칸을 현재 값으로 안 되살렸다').toBe('123');
+});
+
+/* ★198 ⒣(지디 15:1x ③) — A10 · 레포 경로로 옮긴 뒤에도 ★스텁 셋이 «스텁으로» 갔나(진짜 파일이 조용히 이기지 않았나) · 404 가 0 인가.
+   장부(errs.served)는 route 가 «무엇을 무엇으로 줬나» 를 적는다 — 이 칸은 그 장부만 읽는다.
+   한 쌍(변이 사본 · 슬롯): ⑴ route 에서 스텁 갈래를 디스크 갈래 «뒤» 로 옮긴 사본 → 이 칸 빨강(stub 이 disk) ⑵ 옛 가짜 경로(/props/prop-page.js) 사본 → 404 칸 빨강. */
+test('A10 ★경로 — 스텁 셋은 스텁으로 · 404 0 · /js/ 밖 JS 요청 0', async ({ page }) => {
+  const errs = await boot(page);
+  const s = errs.served;
+  expect([s['/js/globals.js'], s['/js/canvas-contrast.js'], s['/js/props/color-picker.js']],
+    `★스텁이 안 이겼다(진짜 파일이 갔다) · ${JSON.stringify(s)}`).toEqual(['stub', 'stub', 'stub']);
+  expect(Object.keys(s).filter((k) => s[k] === 404), `★404 가 남았다 · ${JSON.stringify(s)}`).toEqual([]);
+  expect(Object.keys(s).filter((k) => k.endsWith('.js') && !k.startsWith('/js/')), `★레포 밖 경로로 JS 를 불렀다(가짜 나무) · ${JSON.stringify(s)}`).toEqual([]);
+  expect(s['/js/io/export-formats.js'], `★prop-page.js 의 ../io/export-formats.js 가 레포 자리로 안 풀렸다 · ${JSON.stringify(s)}`).toBe('disk');
+  expect(errs, `페이지 에러: ${errs.join(' | ')}`).toEqual([]);
 });
