@@ -168,7 +168,7 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 .scratch-ai-btn {
   position: absolute;
   top: 4px;
-  right: calc(4px + 48px * var(--scratch-inv-zoom, 1)); /* close(20) + gap(4) + slice(20) + gap(4) */
+  right: calc(4px + 72px * var(--scratch-inv-zoom, 1)); /* close·slice(48) + 🔗(.spl-btns 20) + gap(4) — 48 자리는 .spl-btns 가 쓴다 */
   transform: scale(var(--scratch-inv-zoom, 1));
   transform-origin: top right;
   width: 20px; height: 20px;
@@ -185,6 +185,8 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   line-height: 1;
   padding: 0;
 }
+/* 연결된 이미지는 .spl-btns 가 둘(접기·끊기 = 44)이라 한 칸 더 왼쪽 */
+.scratch-item:has(> .spl-btns[data-state^="L"]) .scratch-ai-btn { right: calc(4px + 96px * var(--scratch-inv-zoom, 1)); }
 .scratch-item:hover .scratch-ai-btn { opacity: 1; }
 .scratch-ai-btn:hover { background: #a855f7; border-color: #a855f7; }
 
