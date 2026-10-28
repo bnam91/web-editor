@@ -211,7 +211,10 @@ function _captureSelection() {
   try {
     if (typeof document === 'undefined') return null;
     const canvas = document.getElementById('canvas');
-    const sel = (typeof window !== 'undefined' && window.CANVAS_SEL_BLOCKS_AND_SHAPE) || '';
+    /* ★222 — 어노테이션(치수선·펜)도 잡는다. «이 함수 안에서만» 넓힌다 — ⛔CANVAS_SEL_BLOCKS 에 넣지 마라
+       (Delete·복사·getSelectedSection 공용이고 어노테이션은 자기 Delete 길이 있다 · js/editor.js :10-14 · annotation-select.js keydown). */
+    const base = (typeof window !== 'undefined' && window.CANVAS_SEL_BLOCKS_AND_SHAPE) || '';
+    const sel = base ? base + ', .annotation-block.selected' : '';
     if (!canvas || !sel) return null;
     if (canvas.querySelector('.editing')) return null;       // 편집 중 캐럿 상태는 복원 대상 아님
     const els = canvas.querySelectorAll(sel);
@@ -257,6 +260,7 @@ function _restoreSelection(snapSel) {
        (그라데이션 4모서리 핸들·스티커 핸들은 showHandlesFor 가 모르는 자기 것이다) */
     if (el.classList.contains('gradient-block') && window._selectGradient) { window._selectGradient(el); return; }
     if (el.classList.contains('sticker-block')  && window._selectSticker)  { window._selectSticker(el);  return; }
+    if (el.classList.contains('annotation-block') && window._selectAnnotation) { window._selectAnnotation(el); return; }   // ★222 — 손잡이·패널·레이어 강조를 한 벌로(일반 갈래는 어노테이션 손잡이를 안 단다)
     el.classList.add('selected');
     window.syncSection?.(el.closest('.section-block'));
     window.highlightBlock?.(el, el._layerItem);
