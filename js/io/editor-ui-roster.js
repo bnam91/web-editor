@@ -40,7 +40,13 @@
    ⇒ 1500ms 뒤 `serializeProject()`(90MB) 가 메인스레드를 811ms 멈춘다 = 팬 도중의 「탁」.
    ⇒ 그런데 그 회전존은 «저장 직전에 지워지는» 것이었다. 편집일 수가 없다. */
 export const NON_CONTENT_UI_SELECTOR =
-  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle, .shape-handle, .gradient-corner-handle, .section-bottom-handle';
+  '.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .ab-rotate-zone, .shape-rotate-zone, .sticker-rotate-zone, .tb-rotate-zone, .icn-rotate-zone, .mkp-rotate-zone, .cvb-rotate-zone, .icb-rotate-zone, .vb-rotate-zone, .mdl-rotate-zone, .mdl-profile-x, .sec-bg-proxy, .grd-add-btn, .section-height-badge, .annot-handle, .annot-selbox, .tfh-handle, .tfh-grid, .tfh-fx, .tfh-edge, .tfh-layer, .sticker-corner-handle, .hlb-handle, .annot-point-angle, .shape-handle, .gradient-corner-handle, .section-bottom-handle, .drop-indicator, .vpen-preview';
+/* ★K-154 `.drop-indicator` · `.vpen-preview` (2026-10-29 · S6 · 지디 처방) — ★#canvas «안»에 생겼다 사라지는데 이 명부 밖이라 자동저장을 헛 울렸다.
+   ★계약 먼저 ㉠: 저장은 이미 둘 다 지운다(section-serialize.js serializeCleanRoot · `.drop-indicator` :392 · `.vpen-preview` :356).
+   ★행위 실측(앱 · b267c6f2 · proj.json mtime · ~/taeyang-098/reports/S6-154/p154app.js ×3):
+     끌어 섹션 안에 머묾(.drop-indicator 생김) → Esc = 저장 3/3 · 펜으로 점 둘(.vpen-preview 생김) → Esc = 저장 3/3
+     같은 손에서 장식만 뺀 대조(섹션 안 안 거친 끌기 · 펜 켰다 끔) = 0/3 · 내용 블록 더함·지움 = 3/3.
+   ⛔section-serialize.js 의 둘째 명부와 «합치지» 마라 — 목적이 다르다(저장 = 지울 것 · 이것 = 감시자가 «편집 아님»으로 볼 것). */
 /* `.section-bottom-handle` (2026-10-27 · t8-03 · srv-t803) — 섹션 바닥 높이 손잡이(js/section-bottom-handle.js) · 섹션의 자식.
    등록 전 실측: 캔버스·프로젝트·섹션 저장본에 각 1건씩 실렸다 ⇒ section-serialize.js serializeCleanRoot 에도 같이 올렸다. */
 /* ★★★`.shape-handle` · `.gradient-corner-handle` (2026-10-25 · 지디 · ★`CAPTURE-ROSTER-NOT-DERIVED-FROM-SAVE-01` 의 ★남은 몫)
@@ -51,12 +57,12 @@ export const NON_CONTENT_UI_SELECTOR =
        `.shape-handle`           라이브 4 · ★섹션 저장본 ★0 · ★프로젝트 저장본 ★0 · ★★캡처 클론 ★★4
        `.gradient-corner-handle` 라이브 4 · ★섹션 저장본 ★0 · ★프로젝트 저장본 ★0 · ★★캡처 클론 ★★4
      ⇒ ★저장은 ★이미 지운다 ⇒ ★★데이터 손실 위험 ★없다. ★★그런데 ★캡처는 ★안 지웠다.
-   ★★⛔같이 쟀으나 ★★넣지 ★않은 것 ★다섯 (★그 까닭이 ★여기 있다) :
+   ★★⛔같이 쟀으나 ★★넣지 ★않은 것 ★다섯 (★그 까닭이 ★여기 있다 · ★261029 `.vpen-preview` 는 뒤에 넣음 ⇒ 남은 넷) :
      `.grad-line-overlay`  — ★`portal` → `host`(`#canvas-scaler`)에 붙는다 ⇒ ★★저장 창(`#canvas`) ★밖
      `.vpen-edit-overlay`  — ★`#ss-handles-overlay` ⇒ ★★같은 이유로 ★창 밖
        ⇒ ★★창 밖인 것은 ★★「저장이 지운다」를 ★★증명할 길이 ★없다 ⇒ ★★이 계약을 ★충족할 수 ★없다
      `.block-resize-handle` · `.ci-handle` — ★★만드는 자가 ★0(★죽은 이름 · `W5` 실측) ⇒ ★★못 잰다
-     `.vpen-preview`       — ★`sec` 자식(창 ★안)이지만 ★★행위로 ★안 쟀다
+     `.vpen-preview`       — ★`sec` 자식(창 ★안)이지만 ★★행위로 ★안 쟀다 ⇒ ★K-154(261029)에서 재고 ★넣었다(위 줄)
        = `PLUS7-OVERLAYS-NOT-MADE-BY-BEHAVIOR-01`
    ⇒ ★★그래서 ★파생이 ★「저장 줄 ★그대로」가 ★아니라 ★★「★저장 창 ★안의 것만」이다. */
 /* ★★★.tfh-handle · .tfh-grid (2026-10-24 · U3 자유변형 손잡이 · 지디 · 현빈 GO) — ★글상자 ★자유변형의
