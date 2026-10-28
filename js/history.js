@@ -246,9 +246,18 @@ function _captureSelection() {
  *   ⚠️핸들은 여전히 «이 자리»에서 붙인다 — selectBlock 은 예전에도 핸들을 안 붙였고,
  *     공용 진입점으로 끌어오면 zoom·asset·canvas 등에서 2회 호출이 되는데 그 멱등성을 아직 안 쟀다.
  */
+/* ★228 — ⌘Z/⌘⇧Z 를 누른 순간의 고름(복원 «전»에 undo/redo 첫머리가 뜬다 · 쓰면 바로 비운다).
+ *   왜: 패널 칸은 바꾼 «뒤» 쌓는다(push-after) ⇒ 고른 뒤 «첫» 바꿈의 ⌘Z 가 돌아가는 칸은 «고르기 전» 칸이라 selection 이 비어 있다
+ *     ⇒ 값은 돌아오는데 고름이 풀렸다(일반 블록 공통 · tests/dom/undo-first-edit-selection-228 P1).
+ *   ⇒ 돌아가는 칸 selection 이 «비었을 때만» 이것을 쓴다. 그 블록이 복원된 캔버스에 없으면(⌘Z 가 그 블록을 지웠다) 아래 contains 가 안 고른다.
+ *   ⛔돌아가는 칸에 고름이 있으면 그것이 이긴다(0920b — 지운 블록 ⌘Z 는 «지운 그 블록»을 고른다). */
+let _leavingSelection = null;
+
 function _restoreSelection(snapSel) {
   try {
-    const ids = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
+    const fallback = _leavingSelection; _leavingSelection = null;
+    const own = snapSel && Array.isArray(snapSel.blockIds) ? snapSel.blockIds : null;
+    const ids = own || (fallback && Array.isArray(fallback.blockIds) ? fallback.blockIds : null);
     if (!ids || ids.length !== 1) return;
     const canvas = document.getElementById('canvas');
     const el = document.getElementById(ids[0]);
@@ -551,6 +560,7 @@ function undo() {
        ⛔F2 를 되돌리면 여기가 T-035 ① · T-059 ⑤ · T-073 ⌘⇧Z 축을 한꺼번에 깬다. */
   const _liveIsTop = ensureHistoryCheckpoint('현재 상태') === 'same';   // ★159 — 아래 «캔버스 복원 건너뛰기»가 쓴다
   if (historyPos <= 0) return;
+  _leavingSelection = _captureSelection();   // ★228 — 누른 순간의 고름(복원이 deselectAll 하기 전)
   // ★0919 QA: 열린 색 피커는 «떨어져 나갈» 블럭 DOM 을 붙잡고 있다 — 복원 전에 닫는다.
   //   (안 닫으면 undo 뒤 탭 클릭이 떨어진 노드에 적용되고 기록만 하나 쌓여 redo 스택이 잘렸다)
   try { window.closeGoyaColorPicker?.(); } catch (_) {}
@@ -636,6 +646,7 @@ function _restampRestored() {
 
 function redo() {
   if (historyPos >= historyStack.length - 1) return;
+  _leavingSelection = _captureSelection();   // ★228 — undo 와 대칭
   try { window.closeGoyaColorPicker?.(); } catch (_) {}   // undo 와 같은 이유(0919 QA)
   const currentSnap = historyStack[historyPos];
   historyPos++;
