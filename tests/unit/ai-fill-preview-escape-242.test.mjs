@@ -5,17 +5,17 @@
  *   한 쌍: 고치기 전 판(333aa3d9)에서 T1 빨강 · 고친 판에서 초록. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSrc } from './_srcread.js';
+import { createRequire } from 'node:module';
+const { sliceBlock } = createRequire(import.meta.url)('./_slice-block.js');
 
 const ROOT = process.env.GD1001_ROOT || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SRC = fs.readFileSync(path.join(ROOT, 'js/ai-section-fill.js'), 'utf8');
-/* 제품 이스케이프(js/props/_helpers.js 의 escHtml)를 «그 글 그대로» 떠서 쓴다 — 그 파일은 .js ESM 이라 node 가 바로 못 읽는다 */
-const HSRC = fs.readFileSync(path.join(ROOT, 'js/props/_helpers.js'), 'utf8');
-const HA = HSRC.indexOf('export function escHtml(');
-const HE = HA < 0 ? -1 : HSRC.indexOf('\n}\n', HA);
-const escHtml = HA >= 0 && HE > HA ? new Function(`${HSRC.slice(HA, HE + 2).replace('export ', '')}; return escHtml;`)() : null;
+const SRC = readSrc(ROOT, 'js/ai-section-fill.js');   // ★읽기는 readSrc 한 문(CRLF 정규화 · win-portability ①-3)
+/* 제품 이스케이프(js/props/_helpers.js 의 escHtml)를 «그 글 그대로» 떠서 쓴다 — 그 파일은 .js ESM 이라 node 가 바로 못 import 한다.
+   ★자르기는 공용 sliceBlock(짝 괄호 · 이름꼴 닻 — slice-block-shared SB-16 · 닻 래칫). */
+const escHtml = new Function(`${sliceBlock(readSrc(ROOT, 'js/props/_helpers.js'), 'export function escHtml(').replace('export ', '')}; return escHtml;`)();
 
 /* 미리보기 덩이 = 첫 닻에서 «preview.innerHTML = …;» 줄 끝까지(고정 창 아님 · 두 닻 사이) */
 const A = SRC.indexOf('const byId = new Map(');
