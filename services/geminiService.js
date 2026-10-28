@@ -337,12 +337,16 @@ async function ocrImage(payload) {
   }
   const m = /^data:([^;]+);base64,(.+)$/.exec(String(payload?.imageDataUrl || ''));
   if (!m) return { ok: false, error: '이미지 dataURL 형식 오류' };
-  const prompt = payload.mode === 'layout'
-    ? '이 이미지에 이미 적혀 있는 글자를 그대로 읽어 옮겨라. 줄바꿈을 지키고, 표는 마크다운 표로 옮겨라. 고치거나 지어내지 말고 설명도 붙이지 마라. 글자가 없으면 빈 문자열.'
-    : '이 이미지에 이미 적혀 있는 글자만 그대로 읽어 옮겨라. 덩어리마다 줄을 바꿔라. 고치거나 지어내지 말고 설명도 붙이지 마라. 글자가 없으면 빈 문자열.';
+  const how = payload.mode === 'layout'
+    ? '원래 줄바꿈을 지켜 한 줄을 한 항목으로. 표는 행마다 한 항목, 칸은 " | " 로 잇는다.'
+    : '글 덩어리마다 한 항목.';
+  const prompt = '이 이미지에 이미 적혀 있는 글자만 그대로 읽어 옮겨라. ' + how
+    + ' 고치거나 지어내지 말고 설명도 붙이지 마라. 위에서 아래 순서로.'
+    + ' 각 항목의 style 은 이미지 속 글자 크기·굵기로 고른다: h1(가장 큰 제목) · h2(소제목) · h3 · body(본문) · caption(작은 설명) · label(짧은 꼬리표).'
+    + ' JSON 배열로만 답하라: [{"style":"h2","text":"..."}]. 글자가 없으면 [].';
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
-    generationConfig: { temperature: 0 },
+    generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   };
   try {
     const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
@@ -355,8 +359,11 @@ async function ocrImage(payload) {
       return { ok: false, error: `Gemini ${res.status}: ${errText.slice(0, 300)}` };
     }
     const json = await res.json();
-    const text = (json?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
-    return { ok: true, text, model: MODEL };
+    const raw = (json?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+    let lines = null;
+    try { const v = JSON.parse(raw); if (Array.isArray(v)) lines = v; } catch (_) { /* JSON 이 아니면 글 그대로 */ }
+    const text = lines ? lines.map(l => (l && l.text) || '').filter(Boolean).join('\n') : raw;
+    return { ok: true, text, lines, model: MODEL };
   } catch (e) {
     return { ok: false, error: `네트워크 오류: ${e.message}` };
   }

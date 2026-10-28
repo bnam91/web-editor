@@ -18,6 +18,23 @@
   const _hhmm = t => { const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const _title = r => '#' + r.n + ' · ' + ((r.text || '').split('\n').find(l => l.trim()) || '(빈 글)').slice(0, 40);
 
+  const STYLES = ['h1', 'h2', 'h3', 'body', 'caption', 'label'];   // addTextBlock 이 받는 유형(js/ai-section-fill.js VALID_STYLES 와 같다)
+  const COPY_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="4" y="4" width="6.5" height="6.5" rx="1"/><path d="M8 4V2.5a1 1 0 0 0-1-1H2.5a1 1 0 0 0-1 1V7a1 1 0 0 0 1 1H4"/></svg>';
+  // 유형이 없는 옛 기록(text 만)은 줄마다 body 로 읽는다
+  const _lines = r => (Array.isArray(r.lines) ? r.lines : (r.text || '').split('\n').map(t => t.trim()).filter(Boolean).map(t => ({ style: 'body', text: t })));
+  async function _copy(t) {
+    try { await navigator.clipboard.writeText(t); window.showToast?.('📋 복사했습니다'); }
+    catch (_) { window.showToast?.('❌ 복사 실패'); }
+  }
+
+  // 모델이 준 줄 목록을 믿을 수 있는 꼴로만 받는다 — 아니면 undefined(그러면 text 를 body 줄로 읽는다)
+  function _cleanLines(v) {
+    if (!Array.isArray(v)) return undefined;
+    const out = v.filter(l => l && typeof l.text === 'string' && l.text.trim())
+      .map(l => ({ style: STYLES.includes(l.style) ? l.style : 'body', text: l.text.trim() }));
+    return out.length ? out : undefined;
+  }
+
   function _saved(item) {
     window._scratchOcrBadge?.(item.id);
     window._scratchSaveSoon?.();
@@ -50,34 +67,42 @@
 
     const body = document.createElement('div');
     body.className = 'ocr-rec-body';
-    const text = document.createElement('div');
-    text.className = 'ocr-rec-text';
-    text.contentEditable = 'plaintext-only';
-    text.textContent = r.text || '';
-    text.addEventListener('keydown', e => e.stopPropagation());   // 에디터 단축키(Delete 등)가 글 고치기를 가로채지 않게
-    text.addEventListener('input', () => { r.text = text.innerText; title.textContent = _title(r); _saved(item); });
+    // 줄마다 [유형 | 글 | 복사] — 유형은 OCR 이 고른 것, 눌러서 바꾼다. 글은 그 자리에서 고친다.
+    const rows = document.createElement('div');
+    rows.className = 'ocr-lines';
+    const lines = _lines(r);
+    const sync = () => { r.lines = lines; r.text = lines.map(l => l.text).join('\n'); title.textContent = _title(r); _saved(item); };
+    lines.forEach(l => {
+      const row = document.createElement('div');
+      row.className = 'ai-fill-panel-preview-row ocr-line';
+      const st = document.createElement('button');
+      st.type = 'button'; st.className = 'ai-fill-panel-preview-style ocr-line-style'; st.textContent = l.style; st.title = '눌러서 유형 바꾸기';
+      st.addEventListener('click', () => { l.style = STYLES[(STYLES.indexOf(l.style) + 1) % STYLES.length]; st.textContent = l.style; sync(); });
+      const tx = document.createElement('div');
+      tx.className = 'ai-fill-panel-preview-text ocr-line-text';
+      tx.contentEditable = 'plaintext-only';
+      tx.textContent = l.text;
+      tx.addEventListener('keydown', e => e.stopPropagation());   // 에디터 단축키(Delete 등)가 글 고치기를 가로채지 않게
+      tx.addEventListener('input', () => { l.text = tx.innerText.trim(); sync(); });
+      const cp = document.createElement('button');
+      cp.type = 'button'; cp.className = 'ocr-line-copy'; cp.title = '이 줄 복사';
+      cp.innerHTML = COPY_SVG;
+      cp.addEventListener('click', () => _copy(l.text));
+      row.append(st, tx, cp);
+      rows.appendChild(row);
+    });
 
     const btns = document.createElement('div');
     btns.className = 'ocr-rec-btns';
-    // 버튼 mousedown 이 글 선택을 안 풀게 막는다 — 그래야 «고른 줄만» 복사·넣기가 된다
-    const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ocr-mini-btn'; b.textContent = label; b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('click', fn); btns.appendChild(b); };
-    // 이 기록 글 안에서 고른 부분이 있으면 그것만, 없으면 전부
-    const picked = () => {
-      const sel = window.getSelection();
-      const s = sel && !sel.isCollapsed && text.contains(sel.anchorNode) && text.contains(sel.focusNode) ? sel.toString() : '';
-      return s.trim() ? s : (r.text || '');
-    };
-    mk('복사', async () => {
-      try { await navigator.clipboard.writeText(picked()); window.showToast?.('📋 복사했습니다'); }
-      catch (_) { window.showToast?.('❌ 복사 실패'); }
-    });
-    mk('섹션으로', () => _insertLines(picked()));
+    const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ocr-mini-btn'; b.textContent = label; b.addEventListener('click', fn); btns.appendChild(b); };
+    mk('전체 복사', () => _copy(lines.map(l => l.text).join('\n')));
+    mk('섹션으로', () => _insertLines(lines));
     const linkedSec = window.SPLink?.sectionIdOf?.(item.id);
     if (linkedSec) mk('연결 섹션으로', () => {
       const sec = document.getElementById(linkedSec);
       if (!sec) { window.showToast?.('⚠️ 연결된 섹션을 찾지 못했습니다'); return; }
       window.selectSection?.(sec);
-      _insertLines(picked());
+      _insertLines(lines);
     });
     mk('지우기', () => {
       // 전제: 지금 보는 이미지의 기록 목록 안에 «그 한 건»이 있을 때만 지운다
@@ -95,22 +120,22 @@
     meta.className = 'ocr-rec-meta';
     meta.textContent = (r.model || '') + ' · ' + _modeLabel(r.mode);
 
-    body.append(text, btns, meta);
+    body.append(rows, btns, meta);
     wrap.append(head, body);
     return wrap;
   }
 
-  // 한 줄 = 블록 하나(글자만 모드는 덩어리마다 줄을 바꾼다). ⌘Z 한 번에 다 빠지게 앞뒤 표본만 찍는다.
-  function _insertLines(src) {
+  // 줄 하나 = 그 유형의 블록 하나. ⌘Z 한 번에 다 빠지게 앞뒤 표본만 찍는다.
+  function _insertLines(all) {
     if (typeof window.addTextBlock !== 'function') { window.showToast?.('❌ 텍스트 블록을 넣을 수 없습니다'); return; }
-    const lines = src.split('\n').map(s => s.trim()).filter(Boolean);
+    const lines = all.filter(l => l.text);
     if (!lines.length) return;
     const count = () => document.querySelectorAll('.text-block').length;
     const c0 = count();
     window.pushHistory?.();
     const origPush = window.pushHistory;
     window.pushHistory = () => {};
-    try { lines.forEach(line => window.addTextBlock('body', { content: line })); }
+    try { lines.forEach(l => window.addTextBlock(l.style, { content: l.text })); }
     finally { window.pushHistory = origPush; }
     const added = count() - c0;   // 섹션을 안 골랐으면 addTextBlock 이 안내만 띄우고 안 넣는다
     if (!added) return;
@@ -161,7 +186,7 @@
       if (!window._scratchItemById?.(item.id)) return;   // 읽는 사이 이미지가 지워졌다 — 붙일 자리가 없다
       const list = Array.isArray(item.ocr) ? item.ocr : (item.ocr = []);
       const n = list.reduce((m, r) => Math.max(m, r.n || 0), 0) + 1;
-      const rec = { id: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), n, text: res.text, at: Date.now(), model: res.model || model, mode };
+      const rec = { id: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), n, text: res.text, lines: _cleanLines(res.lines), at: Date.now(), model: res.model || model, mode };
       list.push(rec);
       _open.clear(); _open.add(rec.id);   // 새 기록만 펴고 나머지는 접는다(Q2 기본)
       _saved(item);
@@ -200,7 +225,7 @@
   // Esc = 닫기. ai-prompt.js 의 Esc 는 textarea 안에서만 듣는데 OCR 패널엔 textarea 가 없다.
   // capture 라 editor.js 의 Esc(선택 풀기)보다 먼저 받고 소진한다. 기록 글 고치는 중엔 안 닫는다.
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || !_targetId || !_isShown() || e.target.closest?.('.ocr-rec-text')) return;
+    if (e.key !== 'Escape' || !_targetId || !_isShown() || e.target.closest?.('.ocr-line-text')) return;
     e.stopPropagation();
     window.closeAiPrompt?.();
   }, true);

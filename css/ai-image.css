@@ -54,8 +54,14 @@
 .ocr-rec-time, .ocr-caret { color: var(--ui-text-sub, #aaa); font-weight: 400; font-family: ui-monospace, Menlo, monospace; font-size: var(--ui-fs-base); }
 .ocr-rec-body { display: none; padding: 0 10px 10px; flex-direction: column; gap: 6px; }
 .ocr-rec.open .ocr-rec-body { display: flex; }
-.ocr-rec-text { white-space: pre-wrap; max-height: 188px; overflow-y: auto; background: var(--ui-bg-card, #252525); border: 1px solid var(--ui-border-mid, #333); border-radius: var(--ui-radius-sm); padding: 8px; color: var(--ui-text-base, #f0f0f0); outline: none; }
-.ocr-rec-text:focus { border-color: #a78bfa; }
+.ocr-lines { max-height: 220px; overflow-y: auto; background: var(--ui-bg-card, #252525); border: 1px solid var(--ui-border-mid, #333); border-radius: var(--ui-radius-sm); padding: 2px 8px; }
+.ocr-line { align-items: flex-start; }
+.ocr-line-style { background: none; border: 0; text-align: left; cursor: pointer; font-family: inherit; }
+.ocr-line-style:hover { text-decoration: underline; }
+.ocr-line-text { white-space: pre-wrap; outline: none; border-radius: var(--ui-radius-sm); }
+.ocr-line-text:focus { box-shadow: 0 0 0 1px #a78bfa; }
+.ocr-line-copy { background: none; border: 0; color: var(--ui-text-sub, #aaa); padding: 2px; cursor: pointer; flex-shrink: 0; display: flex; border-radius: var(--ui-radius-sm); }
+.ocr-line-copy:hover { color: var(--ui-text-base, #f0f0f0); background: var(--ui-bg-input, #2a2a2a); }
 .ocr-rec-btns { display: flex; gap: var(--ui-row-gap); }
 .ocr-rec-meta { font-family: ui-monospace, Menlo, monospace; font-size: var(--ui-fs-base); color: var(--ui-text-sub, #aaa); }
 
