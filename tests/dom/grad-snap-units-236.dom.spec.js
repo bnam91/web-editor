@@ -96,11 +96,23 @@ async function moveTo(page, gap, { alt = false } = {}) {
 }
 /* br 손잡이로 폭을 «섹션 폭 − short 화면 px» 까지 끈다(왼변 x = 0 에서) */
 async function widenTo(page, short) {
-  await page.evaluate(() => { window.__g.dataset.x = '0'; window.renderGradientBlock(window.__g); window._selectGradient(window.__g); });
+  await page.evaluate(() => { window.__g.dataset.x = '0'; window.renderGradientBlock(window.__g); if (!window.__g.classList.contains('selected')) window._selectGradient(window.__g); });
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const h = await page.evaluate(() => { const e = window.__g.querySelector(':scope > .gradient-corner-handle[data-corner="br"]'); if (!e) return null;
-    const r = e.getBoundingClientRect(), m = getComputedStyle(document.getElementById('canvas-scaler')).transform, z = m === 'none' ? 1 : new DOMMatrix(m).a; return { x: r.left + r.width / 2, y: r.top + r.height / 2, z, w0: +window.__g.dataset.gradWidth, secW: window.__sec.offsetWidth }; });
-  expect(h, '★br 손잡이가 없다(골라짐이 풀렸나)').not.toBeNull();
+  /* ★골라진 그라데의 모서리 손잡이는 js/overlay-handles.js HANDLE_ESCAPE_SPECS 가 #ss-handles-overlay(고정층)로 옮긴다 ⇒ 블럭 자식이 아니라 거기서 찾는다(지디 09:5x 236 처방)
+     ★임자 전제: 골라진 그라데 = 그 블럭 하나 · 그 블럭이 탈출했다(__handlesEscaped) · 고정층 br 손잡이 = 하나 · 그 가운데가 블럭 오른아래 모서리(±6 화면 px) */
+  const h = await page.evaluate(() => {
+    const g = window.__g, ov = document.getElementById('ss-handles-overlay');
+    const sel = [...document.querySelectorAll('#canvas .gradient-block.selected')];
+    const brs = ov ? [...ov.querySelectorAll('.gradient-corner-handle[data-corner="br"]')] : [];
+    const inBlock = g.querySelectorAll(':scope > .gradient-corner-handle').length;
+    const e = brs[0], gr = g.getBoundingClientRect(), m = getComputedStyle(document.getElementById('canvas-scaler')).transform, z = m === 'none' ? 1 : new DOMMatrix(m).a;
+    const r = e ? e.getBoundingClientRect() : null;
+    return { overlay: !!ov, selOnlyG: sel.length === 1 && sel[0] === g, escaped: g.__handlesEscaped === true, brs: brs.length, inBlock,
+      x: r ? r.left + r.width / 2 : null, y: r ? r.top + r.height / 2 : null, cornerOff: r ? [Math.round(r.left + r.width / 2 - gr.right), Math.round(r.top + r.height / 2 - gr.bottom)] : null,
+      z, w0: +g.dataset.gradWidth, secW: window.__sec.offsetWidth };
+  });
+  expect([h.overlay, h.selOnlyG, h.escaped, h.brs], `★전제: 고정층 · 골라진 그라데 = 그 블럭 하나 · 탈출함 · br 손잡이 하나 ${JSON.stringify(h)}`).toEqual([true, true, true, 1]);
+  expect(Math.abs(h.cornerOff[0]) <= 6 && Math.abs(h.cornerOff[1]) <= 6, `★전제: br 손잡이가 그 블럭 오른아래 모서리에 있지 않다(임자) ${JSON.stringify(h)}`).toBe(true);
   const dx = (h.secW - h.w0) * h.z - short;
   await page.mouse.move(h.x, h.y); await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(h.x + dx * i / 8, h.y);
