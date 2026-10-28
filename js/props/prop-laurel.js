@@ -149,8 +149,8 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-row">
         <span class="prop-label">잎 크기</span>
-        <input type="range" class="prop-slider" id="lrl-all-height" min="40" max="320" step="4" value="${cells[0]?.height ?? 140}">
-        <input type="number" class="prop-number" id="lrl-all-height-num" min="20" max="600" value="${cells[0]?.height ?? 140}">
+        <input type="range" class="prop-slider" id="lrl-all-height" min="40" max="320" step="4" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
+        <input type="number" class="prop-number" id="lrl-all-height-num" min="20" max="600" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
       </div>
       ${cols > 1 ? `
       <div class="prop-row">
