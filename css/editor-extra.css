@@ -563,7 +563,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 
 /* 비모달 플로팅 패널 (뒤쪽 인터랙션 가능) */
 #ai-prompt-panel {
-  width: 480px;
+  width: 400px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   background: var(--ui-bg-base);

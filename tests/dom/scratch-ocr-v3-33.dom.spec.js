@@ -51,7 +51,7 @@ test('T ✨ → 글자 추출만 켜짐 · 나머지 기능 대기 · 닫으면 
   expect((await tabState(page)).map(t => ({ tab: t.tab, disabled: t.disabled, shown: t.shown })), 'T 닫은 뒤').toEqual([
     { tab: 'text', disabled: false, shown: true },
     { tab: 'image', disabled: false, shown: true },
-    { tab: 'ocr', disabled: false, shown: false },
+    { tab: 'ocr', disabled: false, shown: true },   // 현빈 261028 — 툴바 ✨ 에서도 OCR 탭이 보인다
   ]);
   expect(errs).toEqual([]);
 });

@@ -51,7 +51,6 @@
     tabs.querySelectorAll('.aig-mode-tab').forEach(t => {
       const isOcr = t.dataset.modeTab === 'ocr';
       t.disabled = on && !isOcr;
-      if (isOcr) t.style.display = on ? '' : 'none';
     });
   }
 
@@ -150,7 +149,7 @@
   function render() {
     const item = _item();
     const idTxt = _targetId ? '#' + _targetId : '';
-    $('ocr-target-id').textContent = item ? idTxt : idTxt + ' (지워진 이미지)';
+    $('ocr-target-id').textContent = !_targetId ? '스크래치 이미지를 고르세요' : item ? idTxt : idTxt + ' (지워진 이미지)';
     $('ocr-log-id').textContent = idTxt;
     const thumb = $('ocr-target-thumb');
     if (item) thumb.src = item.src; else thumb.removeAttribute('src');
@@ -164,7 +163,9 @@
     fold.title = anyOpen ? '전부 접기' : '전부 펴기';
     const log = $('ocr-log');
     log.innerHTML = '';
-    if (!item) {
+    if (!_targetId) {
+      log.textContent = '';
+    } else if (!item) {
       log.textContent = '이미지가 지워져 그 기록도 같이 사라졌습니다.';
     } else if (!recs.length) {
       log.textContent = '추출한 글이 없습니다.';
@@ -212,8 +213,16 @@
   };
   // 다른 이미지를 고르면 그 이미지의 기록으로 · 인자 없이 부르면 다시 그리기(지운 뒤)
   window._scratchOcrRetarget = (id) => {
-    if (!_targetId || !_isShown()) return;
-    if (id && id !== _targetId) { _targetId = id; _open.clear(); }
+    if (!_isShown()) return;
+    if (id && id !== _targetId && window._scratchItemById?.(id)) { _targetId = id; _open.clear(); }
+    render();
+  };
+  // 툴바 ✨ 등에서 OCR 탭을 눌러 들어올 때 — 대상이 없으면 지금 골라 둔 스크래치 이미지(하나)를 쓴다
+  window._scratchOcrEnter = () => {
+    if (!_targetId) {
+      const sel = [...document.querySelectorAll('.scratch-item.scratch-selected')];
+      _targetId = sel.length === 1 ? sel[0].dataset.scratchId : null;
+    }
     render();
   };
   window._scratchOcrReset = () => { _targetId = null; _open.clear(); _lockTabs(false); };
@@ -229,7 +238,7 @@
   // Esc = 닫기. ai-prompt.js 의 Esc 는 textarea 안에서만 듣는데 OCR 패널엔 textarea 가 없다.
   // capture 라 editor.js 의 Esc(선택 풀기)보다 먼저 받고 소진한다. 기록 글 고치는 중엔 안 닫는다.
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || !_targetId || !_isShown() || e.target.closest?.('.ocr-line-text')) return;
+    if (e.key !== 'Escape' || !_isShown() || e.target.closest?.('.ocr-line-text')) return;
     e.stopPropagation();
     window.closeAiPrompt?.();
   }, true);
