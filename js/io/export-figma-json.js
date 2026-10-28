@@ -61,6 +61,27 @@ function _assetCollabFigmaFrame(el, slot1) {
   }
   return { type: 'frame', id: (el.id || slot1.id) + '__collab', width: Math.round(p.geo.width), height: H, bg: '', radius: 0, free: true, children };
 }
+/* ★245 — 섹션 배경 그림의 «원문»(url(…) 꼴) 한 자리. 읽는 차례: 레이어 → 인라인 style → style 속성 글자 → data-bg-img.
+ *   ★1017t1k1·k2 — rotate·색보정이 걸린 섹션은 레이어(.sec-bg-img, js/bg-layer.js)가 그림을 들고 본체 backgroundImage 는 'none' ⇒ 레이어 먼저.
+ *   ★245 — 저장(serializeCleanRoot)이 섹션 style 의 같은 url() 을 뺀다(정본 = data-bg-img · 열 때 save-load.js 가 다시 칠함).
+ *     이 빌더는 «저장 문자열»(flushCurrentPage → page.canvas)을 읽으므로 style 이 비면 속성을 읽어야 그림이 산다
+ *     (S5 앱 ×3: 고친 serialize 에서 이 줄 없이 무거운 7 섹션 bgImage 7 → 0). */
+function _sectionBgImgRaw(secEl) {
+  const _bgLayerEl = secEl.querySelector?.(':scope > .sec-bg-clip > .sec-bg-img') || null;
+  const _bgLayerImg = _bgLayerEl ? (_bgLayerEl.style.backgroundImage || '') : '';
+  if (_bgLayerImg && _bgLayerImg !== 'none') return _bgLayerImg;
+  const styleAttr = (secEl.getAttribute && secEl.getAttribute('style')) || '';
+  const inline = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
+  if (inline && inline !== 'none') return inline;
+  const attr = secEl.dataset && secEl.dataset.bgImg;
+  return attr ? `url("${attr}")` : inline;
+}
+/* ★186 — 섹션의 «아래 여백»(sec.style.paddingBottom · prop-section applyPadB)과 «바닥»(sec.style.minHeight · section-bottom-handle)을 싣는다.
+ *   전엔 빌더가 둘 다 안 실어 Figma 에서 섹션 아래 빈 공간이 사라졌다(v0.9.8 에도 있던 흠). 값 없음 = 0. */
+function _sectionBox(secEl) {
+  return { paddingBottom: parseFloat(secEl.style.paddingBottom) || 0, minHeight: parseFloat(secEl.style.minHeight) || 0 };
+}
+
 function _shapeFigmaBlock(el) {
   const live = (el.id && document.getElementById(el.id)) || el;
   const frame = live.parentElement && live.parentElement.classList?.contains('frame-block') ? live.parentElement : null;
@@ -1427,14 +1448,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       });
 
     const bgColor = secEl.style.backgroundColor || '';
-    const styleAttr = secEl.getAttribute('style') || '';
-    /* ★1017t1k1·k2 — rotate·색보정이 ★걸린 섹션은 ★레이어(.sec-bg-img, js/bg-layer.js)가 그림을
-       들고 있고 본체(secEl)의 backgroundImage 는 'none' 이다 — ★레이어를 ★먼저 본다. */
-    const _bgLayerEl = secEl.querySelector?.(':scope > .sec-bg-clip > .sec-bg-img') || null;
-    const _bgLayerImg = _bgLayerEl ? (_bgLayerEl.style.backgroundImage || '') : '';
-    const bgImgRaw = (_bgLayerImg && _bgLayerImg !== 'none')
-      ? _bgLayerImg
-      : (secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '');
+    const bgImgRaw = _sectionBgImgRaw(secEl);   // ★245 — 레이어 → style → data-bg-img(정본) 한 자리
     // 섹션 배경: 이미지(data URI 또는 goya-asset://) / 그라디언트 / 솔리드 분기
     // ★goya-asset URL은 buildFigmaExportJSONInlined 후처리에서 data URI로 치환된다.
     let bgImage = '';
@@ -1454,7 +1468,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const name = secEl.dataset.name
       || secEl.querySelector('.section-label')?.textContent?.trim()
       || 'Section';
-    return { id: secEl.id || '', name, background, bgImage, blocks };
+    return { id: secEl.id || '', name, background, bgImage, ..._sectionBox(secEl), blocks };   // ★186 — 아래 여백·바닥(min-height)
   }
 
   const parser = new DOMParser();
