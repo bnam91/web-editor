@@ -59,27 +59,25 @@
 
     const btns = document.createElement('div');
     btns.className = 'ocr-rec-btns';
-    const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ocr-mini-btn'; b.textContent = label; b.addEventListener('click', fn); btns.appendChild(b); };
+    // 버튼 mousedown 이 글 선택을 안 풀게 막는다 — 그래야 «고른 줄만» 복사·넣기가 된다
+    const mk = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ocr-mini-btn'; b.textContent = label; b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('click', fn); btns.appendChild(b); };
+    // 이 기록 글 안에서 고른 부분이 있으면 그것만, 없으면 전부
+    const picked = () => {
+      const sel = window.getSelection();
+      const s = sel && !sel.isCollapsed && text.contains(sel.anchorNode) && text.contains(sel.focusNode) ? sel.toString() : '';
+      return s.trim() ? s : (r.text || '');
+    };
     mk('복사', async () => {
-      try { await navigator.clipboard.writeText(r.text || ''); window.showToast?.('📋 복사했습니다'); }
+      try { await navigator.clipboard.writeText(picked()); window.showToast?.('📋 복사했습니다'); }
       catch (_) { window.showToast?.('❌ 복사 실패'); }
     });
-    mk('섹션으로', () => {
-      if (typeof window.addTextBlock !== 'function') { window.showToast?.('❌ 텍스트 블록을 넣을 수 없습니다'); return; }
-      // 한 줄 = 블록 하나(글자만 모드는 덩어리마다 줄을 바꾼다). ⌘Z 한 번에 다 빠지게 앞뒤 표본만 찍는다.
-      const lines = (r.text || '').split('\n').map(s => s.trim()).filter(Boolean);
-      if (!lines.length) return;
-      const count = () => document.querySelectorAll('.text-block').length;
-      const c0 = count();
-      window.pushHistory?.();
-      const origPush = window.pushHistory;
-      window.pushHistory = () => {};
-      try { lines.forEach(line => window.addTextBlock('body', { content: line })); }
-      finally { window.pushHistory = origPush; }
-      const added = count() - c0;   // 섹션을 안 골랐으면 addTextBlock 이 안내만 띄우고 안 넣는다
-      if (!added) return;
-      window.pushHistory?.();
-      window.showToast?.(`✅ 텍스트 블록 ${added}개를 넣었습니다`);
+    mk('섹션으로', () => _insertLines(picked()));
+    const linkedSec = window.SPLink?.sectionIdOf?.(item.id);
+    if (linkedSec) mk('연결 섹션으로', () => {
+      const sec = document.getElementById(linkedSec);
+      if (!sec) { window.showToast?.('⚠️ 연결된 섹션을 찾지 못했습니다'); return; }
+      window.selectSection?.(sec);
+      _insertLines(picked());
     });
     mk('지우기', () => {
       // 전제: 지금 보는 이미지의 기록 목록 안에 «그 한 건»이 있을 때만 지운다
@@ -100,6 +98,24 @@
     body.append(text, btns, meta);
     wrap.append(head, body);
     return wrap;
+  }
+
+  // 한 줄 = 블록 하나(글자만 모드는 덩어리마다 줄을 바꾼다). ⌘Z 한 번에 다 빠지게 앞뒤 표본만 찍는다.
+  function _insertLines(src) {
+    if (typeof window.addTextBlock !== 'function') { window.showToast?.('❌ 텍스트 블록을 넣을 수 없습니다'); return; }
+    const lines = src.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const count = () => document.querySelectorAll('.text-block').length;
+    const c0 = count();
+    window.pushHistory?.();
+    const origPush = window.pushHistory;
+    window.pushHistory = () => {};
+    try { lines.forEach(line => window.addTextBlock('body', { content: line })); }
+    finally { window.pushHistory = origPush; }
+    const added = count() - c0;   // 섹션을 안 골랐으면 addTextBlock 이 안내만 띄우고 안 넣는다
+    if (!added) return;
+    window.pushHistory?.();
+    window.showToast?.(`✅ 텍스트 블록 ${added}개를 넣었습니다`);
   }
 
   function render() {
