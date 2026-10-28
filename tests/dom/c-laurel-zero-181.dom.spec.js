@@ -41,6 +41,7 @@ async function look(page, { cell = {}, ds = {}, legacy = null } = {}) {
       leafLeft: left?.style.left ?? null, minH: inner?.style.minHeight ?? null,
       colGap: b.style.columnGap, rowGap: b.style.rowGap,
       pCellGap: v('.lrl-cell-gap-num[data-cell="0"]'), pCellH: v('.lrl-cell-height-num[data-cell="0"]'),
+      pAllH: v('#lrl-all-height-num'), pAllHS: v('#lrl-all-height'),   /* ★219 — «일괄» 잎 크기 두 칸(prop-laurel.js :152-153) · 셀 칸만 보면 이 결함을 못 본다(S6 261029 ⒜: 고치기 전·후 셋 다 초록) */
       pColS: v('#lrl-grid-col-gap'), pColN: v('#lrl-grid-col-gap-num'), pRowS: v('#lrl-grid-row-gap'), pRowN: v('#lrl-grid-row-gap-num'),
       legacyCell,
     };
@@ -89,7 +90,7 @@ test('P165 패널 칸 사이(행) 숫자 = 0', async ({ page }) => {
 test('H ★height 0 = 뜻 없음(계약 [20,600]) → 렌더러·패널·이주 다 기본 140', async ({ page }) => {
   const r = await look(page, { cell: { height: 0 }, legacy: { gap: '24', height: '0' } });
   expect(r.model.height, '전제: 모델 height 0').toBe(0);
-  expect({ minH: r.minH, panel: r.pCellH, legacy: r.legacyCell?.height }, 'H 0 = 기본').toEqual({ minH: '140px', panel: '140', legacy: 140 });
+  expect({ minH: r.minH, panel: r.pCellH, all: r.pAllH, allSlider: r.pAllHS, legacy: r.legacyCell?.height }, 'H 0 = 기본(셀 칸 · ★일괄 칸 둘 · 이주)').toEqual({ minH: '140px', panel: '140', all: '140', allSlider: '140', legacy: 140 });
   expect(r.errs).toEqual([]);
 });
 test('N (음성대조) 0 아닌 값은 그대로 · 키 없으면 기본(24·32·24)', async ({ page }) => {
