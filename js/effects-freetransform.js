@@ -134,7 +134,12 @@ export const ftStateOf = (tb) => _tfState.get(tb) || null;
 function _scaleOf(el) {
   const ow = el && el.offsetWidth;
   if (!ow) return 1;
-  const z = el.getBoundingClientRect().width / ow;
+  /* ★114(S6 261029) — 분모는 «소수» 레이아웃 폭: offsetWidth 는 정수라 338.344px 에서 z = 1.00102(배율 100 인데) ⇒ W·H 가 같이 작게 잡혀
+     복원 refit(applyFxFreeTransform 바탕 네모 갈래)이 338.34×43 을 338×42.96 으로 덮었다. computed width(전역 border-box)가 offsetWidth 와 1px 안일 때만 쓴다(아니면 옛 자).
+     ⛔effects-ft-handles.js 의 사본도 같이 고친다 — 재는 자 tests/dom/ft-scaleof-fractional-width(S1 = 여기). */
+  const cw = parseFloat(getComputedStyle(el).width);
+  const lw = cw > 0 && Math.abs(cw - ow) < 1 ? cw : ow;
+  const z = el.getBoundingClientRect().width / lw;
   return Number.isFinite(z) && z > 0.01 ? z : 1;
 }
 
@@ -420,7 +425,9 @@ export function ftScaleTo(tb, base, k) {
   const st = _tfState.get(tb);
   /* 재는 폭이 px 이면 같이 곱한다 — 안 그러면 큰 글자를 옛 폭에서 재어 줄이 꺾이고 W·H 가 갈린다. '100%' 등은 그대로.
      ★«정수 px» 로 올린다 — 이 파일의 배율 자 `_scaleOf` 는 정수 offsetWidth 로 나눈다 ⇒ 소수 폭(실측 1492.29px)에서 재면
-       배율이 0.4001 로 어긋나 W 가 0.115px 작게 잡히고, 그 폭에 박힌 상자 안에서 줄이 꺾였다(실앱 261026 · 216.8px 「짧은 글」 2줄). */
+       배율이 0.4001 로 어긋나 W 가 0.115px 작게 잡히고, 그 폭에 박힌 상자 안에서 줄이 꺾였다(실앱 261026 · 216.8px 「짧은 글」 2줄).
+     ★114(S6 261029) — 그 뿌리(_scaleOf 정수 분모)를 고쳤다(두 정의 다). 이 길 하나의 완화가 뿌리를 가려 복원 refit 에서 다시 터졌었다.
+       배율 쪽 까닭으로는 아래 올림이 이제 중복이다 — ⛔지우지 않는다(위 문장은 역사 기록 · 지디 13:2x ⑷). */
   if (st && typeof base.measW === 'string' && /px$/.test(base.measW)) st.tfMeasW = Math.ceil(parseFloat(base.measW) * k) + 'px';
   return applyFxFreeTransform(tb);
 }

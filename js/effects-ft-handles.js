@@ -69,7 +69,10 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 function _scaleOf(el) {
   const ow = el && el.offsetWidth;
   if (!ow) return 1;
-  const z = el.getBoundingClientRect().width / ow;
+  /* ★114 — 정본과 같은 고침(소수 레이아웃 폭 분모 · 그 주석). 재는 자 tests/dom/ft-scaleof-fractional-width H1(_bind 끌기)·H2(ftPullCornersIntoSection). */
+  const cw = parseFloat(getComputedStyle(el).width);
+  const lw = cw > 0 && Math.abs(cw - ow) < 1 ? cw : ow;
+  const z = el.getBoundingClientRect().width / lw;
   return Number.isFinite(z) && z > 0.01 ? z : 1;
 }
 
