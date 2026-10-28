@@ -1650,9 +1650,7 @@ async function initScratchPad(projectId, pageId) {
       if (active) {
         /* ⛔mouseup 바로 뒤에 오는 «빈 바닥 click» 을 편집기가 받아 전부 해제한다(실측: 상자는 두 섹션을 잡았는데 놓으면
            선택 0). 상자를 «실제로 끌었을 때만» 그 click 하나를 삼킨다 — 단순 클릭(임계 미만)은 지금처럼 해제로 간다. */
-        const _eatClick = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-        document.addEventListener('click', _eatClick, { capture: true, once: true });
-        setTimeout(() => document.removeEventListener('click', _eatClick, { capture: true }), 0);
+        window.swallowNextClick({ on: document });   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
         const secHits = hitList.filter(b => b.kind === 'section').map(b => b.sec);
         hitList.filter(b => b.kind === 'block').forEach(b => {
           if (!b.el.classList.contains('selected')) window.toggleBlockSelect?.(b.el, b.sec);

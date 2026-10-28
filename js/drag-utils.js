@@ -1022,9 +1022,7 @@ function _vlOnHandleDown(e) {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mouseup', onUp, true);
     if (cur === null) return;
-    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-    window.addEventListener('click', eat, { capture: true, once: true });
-    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
     const its = JSON.parse(block.dataset.items || '[]');
     if (!its[idx]) return;
     its[idx].vFs = cur;
@@ -1191,9 +1189,7 @@ function _startVLabelOffsetDrag(block, el, idx, e) {
     document.removeEventListener('mouseup',   onUp,   true);
     if (!moved || !cur) return;
     // 끌기 끝의 click 은 삼킨다 — 라벨 밖에서 놓으면 그 click 이 고르기/선택을 풀어 버린다(annotation-select.js 와 같은 처방).
-    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-    window.addEventListener('click', eat, { capture: true, once: true });
-    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
     const its = JSON.parse(block.dataset.items || '[]');
     if (!its[idx]) return;
     if (cur.dx === 0) delete its[idx].vDx; else its[idx].vDx = cur.dx;

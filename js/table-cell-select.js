@@ -82,16 +82,7 @@
 
   // 셀 선택을 유발한 마우스 상호작용 직후의 click 이벤트를 1회 삼킴 —
   // block-drag click 핸들러(→ deselectAll → 셀 선택 소거)로 전파되는 것을 막는다.
-  function armClickSwallow() {
-    const swallow = (ev) => {
-      ev.stopPropagation();
-      ev.preventDefault();
-      document.removeEventListener('click', swallow, true);
-    };
-    document.addEventListener('click', swallow, true);
-    // 안전장치: click이 안 오는 경우 다음 tick에 해제
-    setTimeout(() => document.removeEventListener('click', swallow, true), 0);
-  }
+  function armClickSwallow() { window.swallowNextClick({ on: document }); }   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
 
   function clearMarks() {
     document.querySelectorAll('td.cell-selected, th.cell-selected').forEach(c => c.classList.remove('cell-selected'));
