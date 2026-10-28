@@ -13,9 +13,9 @@
   "testcases": 4782,
   "files_seen": 459,
   "sum_ms": 542081,
-  "note": "tol·floor_ms = S3 제안 «청»(지디) · 명부 = 파일 합 >2000ms 23 벌"
+  "note": "tol 1.0 = 지디 판정 261028(⑴ · 거짓 빨강 멈춤) · floor_ms 2000 그대로(⑵ ⛔5000) · 명부 = 파일 합 >2000ms 23 벌"
  },
- "tol": 0.5,
+ "tol": 1.0,
  "floor_ms": 2000,
  "files": {
   "tests/unit/css-token-lint.test.mjs": 228297,
