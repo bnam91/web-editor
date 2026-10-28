@@ -175,7 +175,6 @@ const FRAME_NO_BINDBLOCK = 영구('프레임은 bindBlock 을 안 탄다(bindFra
   'js/block-drag.js', '프레임은 bindBlock 을 안 탄다');
 const STICKER_NO_BINDBLOCK = 영구('스티커는 bindBlock 을 안 탄다(bindStickerSelect 전용) ⇒ bindBlock 명부에 넣으면 안 된다',
   'js/block-drag.js', '스티커는 bindBlock 을 아예 안 탄다(bindStickerSelect 전용)');
-const JOKER_DRIFT = 조건('bindBlock 은 조커를 다룬다(const isJoker) — 빠진 것은 표류다. ⒉ 파생(SECTION_BLOCK_TYPE_SEL 에서)이 돌거나 joker 를 넣는 날 풀린다(복제·붙여넣기한 조커가 끌리나는 안 쟀다)');
 const HB = (뜻) => 조건(`현빈 뜻 — ${뜻}에 넣을지 정해지면 넣고 이 칸을 지운다(머리말 261020 · «일부만» 명부)`);
 const GAP_KIND = {
   'js/editor.js CANVAS_SEL_BLOCKS#1': {
@@ -186,12 +185,10 @@ const GAP_KIND = {
     'joker-block': 조건('176 JOKER-CLICK-NO-SHIFT-BRANCH-01 — 조커 click 처리기에 ⇧/⌘ 갈래가 생기는 날 이 «세는 목록»에 넣는다'),
     'shape-block': 영구('도형은 래퍼(프레임)가 «단위»로 세진다 · 정렬 쪽은 + shape 로 따로 붙인다', 'js/editor.js', "const ALIGN_SEL = FLOW_BLOCK_SEL_SELECTED + ', .shape-block.selected';"),
   },
-  'js/editor.js _ALL_BLOCK_SEL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'joker-block': JOKER_DRIFT, 'sticker-block': STICKER_NO_BINDBLOCK },
   'js/editor.js MULTI_SEL#1': {
     'frame-block': 영구('복사 단위가 «프레임 안의 블록»이다', 'js/editor.js', '⚠️.frame-block 은 여기 없다 — 복사 단위가 «프레임 안의 블록»이라 그대로 둔다.'),
   },
   'js/editor.js BLOCK_SEL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'sticker-block': STICKER_NO_BINDBLOCK },
-  'js/editor.js _ALL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'joker-block': JOKER_DRIFT, 'sticker-block': STICKER_NO_BINDBLOCK },
   'js/editor.js BLOCK_SEL#2': {
     'frame-block': 영구('프레임은 위 selFrame 갈래가 따로 옮긴다(⌘[ ⌘])', 'js/editor.js', "pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');"),
     ...같이(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'], HB('⌘[ ⌘] 줄 이동 대상')),
