@@ -40,6 +40,8 @@ async function setup(page) {
     tb.scrollIntoView({ block: 'center' });
     window.selectBlock(tb.id);
   }, TF_W);
+  /* 장면 전제 S1 용 — 켜기 «전» 재는 폭(tf)을 떠 둔다. ⛔켠 뒤 tf 폭은 상자 폭으로 다시 써져 결과에 매인다(첫 판이 그 자를 읽어 고친 판에서 전제가 빨갰다). */
+  await page.evaluate(() => { const tf = window.__tb.closest('.frame-block[data-text-frame]'); window.__preTf = { rw: tf.getBoundingClientRect().width, ow: tf.offsetWidth }; });
   await waitZoomSettled(page, 100);
   await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
   await page.selectOption('#txt-fx-add', 'freetransform');
@@ -61,7 +63,7 @@ async function premiseZoom(page) {
 }
 
 /* 장면 전제 — 이 상자 폭이 소수인가(정수 분모를 밟는 장면인가) */
-const fracOf = (page, sel) => page.evaluate((sel) => { const el = sel === 'tb' ? window.__tb : window.__tb.closest('.frame-block[data-text-frame]'); return { rw: el.getBoundingClientRect().width, ow: el.offsetWidth }; }, sel);
+const fracOf = (page) => page.evaluate(() => { const el = window.__tb; return { rw: el.getBoundingClientRect().width, ow: el.offsetWidth }; });
 
 const handle = (page, name) => page.evaluate((name) => {
   const h = window.__tb.querySelector(`:scope > .tfh-layer > [data-tfh="${name}"]`); const r = h.getBoundingClientRect();
@@ -72,8 +74,8 @@ const corners = (page) => page.evaluate(() => window.__tb.dataset.tfCorners.spli
 test('S1 ㉮ ftMeasure — 소수 재는 폭에서 W·H 가 글자 날값과 같고 바탕 네모가 그 값으로 선다', async ({ page }) => {
   const errs = await setup(page);
   const a = await premiseZoom(page);
-  const f = await fracOf(page, 'tf');
-  expect(Math.abs(f.rw - f.ow), `장면 전제: 재는 폭(tf)이 소수가 아니다 (${f.rw} vs ${f.ow})`).toBeGreaterThanOrEqual(0.25);
+  const f = await page.evaluate(() => window.__preTf);
+  expect(Math.abs(f.rw - f.ow), `장면 전제: 켜기 전 재는 폭(tf)이 소수가 아니다 (${f.rw} vs ${f.ow})`).toBeGreaterThanOrEqual(0.25);
   const r = await page.evaluate(async () => {
     const ft = await import('/js/effects-freetransform.js');
     const tb = window.__tb;
@@ -99,7 +101,7 @@ test('H1 ㉯ :225 손잡이 끌기 — 소수 폭 상자에서 모서리 이동�
   const errs = await setup(page);
   const a = await premiseZoom(page);
   await page.evaluate(() => { const tb = window.__tb; tb.style.width = (Math.floor(tb.getBoundingClientRect().width) + 0.5) + 'px'; });
-  const f = await fracOf(page, 'tb');
+  const f = await fracOf(page);
   expect(Math.abs(f.rw - f.ow), `장면 전제: 글상자 폭이 소수가 아니다 (${f.rw} vs ${f.ow})`).toBeGreaterThanOrEqual(0.25);
   const C0 = await corners(page);
   const [sx, sy] = await handle(page, 'se');
@@ -131,7 +133,7 @@ test('H2 ㉯ :301 섹션 안으로 되찾기 — 소수 폭 상자에서 되찾�
   }, a);
   const left0 = await page.evaluate(() => window.__tb.getBoundingClientRect().left);
   await page.evaluate(() => { const tb = window.__tb; tb.style.width = (Math.floor(tb.getBoundingClientRect().width) + 0.5) + 'px'; });
-  const f = await fracOf(page, 'tb');
+  const f = await fracOf(page);
   expect(Math.abs(f.rw - f.ow), `장면 전제: 글상자 폭이 소수가 아니다 (${f.rw} vs ${f.ow})`).toBeGreaterThanOrEqual(0.25);
   expect(Math.abs(await page.evaluate(() => window.__tb.getBoundingClientRect().left) - left0), '장면 전제: 폭을 바꾸니 글상자 왼쪽이 움직였다').toBeLessThan(0.01);
   const boxR = await page.evaluate(() => { const sec = window.__sec; return (sec.querySelector(':scope > .section-inner') || sec).getBoundingClientRect().right; });
