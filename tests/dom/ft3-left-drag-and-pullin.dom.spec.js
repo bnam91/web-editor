@@ -19,6 +19,7 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
 async function setup(page) {
+  const setupT0 = Date.now();
   await page.setViewportSize({ width: 1700, height: 1200 });
   const errs = await bootApp(page);
   await page.evaluate(() => {
@@ -43,16 +44,22 @@ async function setup(page) {
   /* ★141 ㉮(지디 07:1x) — setup 끝에서 손잡이 자리가 «연속 두 rAF 같음»으로 멈출 때까지 기다린다(Hs 재사용 · H() 무접촉).
      까닭: applyZoom(40) 이 #canvas-scaler transition 0.15s 로 보간되는 동안 시험 첫 H()(예: R 의 nw0)가 낡은 기준을 잡았다
      (7e98dd1e 240칸 실측 R «nw 제자리» ✘ 4 · nw 움직임 7.3·238.8·61.8·17.9px). nw → ne → nw 다시(첫 nw 와 같은 자리)까지 · 상한 넘으면 FAIL. */
+  /* ★141 ㉠(S5 · 지디 GO) — 상한은 «바퀴 수»가 아니라 «시간»이다: 옛 상한(5 바퀴 × Hs 3번 × 최대 60 프레임)은 정착을 깨면 30s 를 넘겨
+     이름(SETUP-NOT-SETTLED) 대신 «Test timeout» 으로 찍혔다(깸 ×5 중 3 · fbcdb677 판). 안쪽 상한 < 바깥 상한(시험 타임아웃)을 «여기서 잰다». */
+  const settleT0 = Date.now();
+  const room = test.info().timeout - (settleT0 - setupT0);
+  if (SETTLE_BUDGET_MS + SETTLE_ROUND_WORST_MS >= room) throw new Error(`SETTLE-BUDGET-EXCEEDS-TEST-TIMEOUT — 상한 ${SETTLE_BUDGET_MS}+${SETTLE_ROUND_WORST_MS}ms ≥ 남은 시험 시간 ${room}ms`);
   for (let k = 0; ; k++) {
     const t0 = Date.now();
     const a = await Hs(page, 'nw'), b = await Hs(page, 'ne'), a2 = await Hs(page, 'nw');
     const ok = a?.stable && b?.stable && a2?.stable && Math.abs(a2.x - a.x) < 0.01 && Math.abs(a2.y - a.y) < 0.01;
     if (ok) { if (k || a.frames > 2 || b.frames > 2) console.log(`SETUP-SETTLE rounds=${k + 1} nwFrames=${a.frames} neFrames=${b.frames} ms=${Date.now() - t0}`); break; }
-    if (k >= SETTLE_ROUNDS_MAX) throw new Error(`SETUP-NOT-SETTLED — ${SETTLE_ROUNDS_MAX + 1}번 재도 손잡이 자리가 안 멈춤 · nw ${a ? `(${a.x.toFixed(1)},${a.y.toFixed(1)}) stable=${a.stable}` : 'null'} · ne ${b ? `(${b.x.toFixed(1)},${b.y.toFixed(1)}) stable=${b.stable}` : 'null'} · nw 다시 ${a2 ? `(${a2.x.toFixed(1)},${a2.y.toFixed(1)})` : 'null'}`);
+    if (Date.now() - settleT0 > SETTLE_BUDGET_MS) throw new Error(`SETUP-NOT-SETTLED — ${Date.now() - settleT0}ms(상한 ${SETTLE_BUDGET_MS}) · ${k + 1}바퀴 재도 손잡이 자리가 안 멈춤 · nw ${a ? `(${a.x.toFixed(1)},${a.y.toFixed(1)}) stable=${a.stable}` : 'null'} · ne ${b ? `(${b.x.toFixed(1)},${b.y.toFixed(1)}) stable=${b.stable}` : 'null'} · nw 다시 ${a2 ? `(${a2.x.toFixed(1)},${a2.y.toFixed(1)})` : 'null'}`);
   }
   return errs;
 }
-const SETTLE_ROUNDS_MAX = 4;
+const SETTLE_BUDGET_MS = 10000;      // setup 정착 기다림 상한(시간) — 바깥 상한(test.info().timeout)보다 짧아야 이름이 선다
+const SETTLE_ROUND_WORST_MS = 9000;  // 한 바퀴(Hs 3번 · 각 최대 61 프레임) 의 넘침 여유 — 상한 판정이 바퀴 끝에서만 돌기 때문 · 잰 넘침 최대 6673ms(S5 깸 ×15 · 809d7cf5) + 여유
 const H = (page, name) => page.evaluate((n) => {
   const h = window.__tb.querySelector(`.tfh-handle[data-tfh="${n}"]`);
   if (!h) return null;
