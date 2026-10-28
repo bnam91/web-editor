@@ -1,8 +1,8 @@
 /* scratch-ocr-v3-33.dom.spec.js — 시트 33 1020t2a1 AI OCR · 시안 v3(sian-14) 의 화면과 «이미지를 지우면 기록도»(현빈 Q9 261027)
  *
  * ★칸
- *   T  ✨ → AI 패널 「글자 뽑기 (OCR)」만 켜짐 · 텍스트 생성·이미지 생성 disabled · 닫으면 탭이 풀린다
- *   O  글자 뽑기 → 기록이 «그 이미지» 항목 ocr 칸에 붙음 · 뱃지 「글 1」 · 다른 이미지를 고르면 0건
+ *   T  ✨ → AI 패널 「글자 추출 (OCR)」만 켜짐 · 텍스트 생성·이미지 생성 disabled · 닫으면 탭이 풀린다
+ *   O  글자 추출 → 기록이 «그 이미지» 항목 ocr 칸에 붙음 · 뱃지 「글 1」 · 다른 이미지를 고르면 0건
  *   Q9 기록 둘인 이미지를 ✕ → 메모리·IndexedDB 에서 이미지와 기록이 같이 사라짐 · 열린 패널이 「지워진 이미지」를 보인다
  *      ⌘Z(undo) → 이미지와 기록 둘이 같이 돌아온다(_scratchAddAndSaveFx 가 ocr 를 실어 나른다)
  * ★OCR 호출은 가짜로 바꿔 낀다(하네스엔 Electron 이 없다 · 외부 요청 0) — 모델 품질은 이 검사 밖이다.
@@ -34,7 +34,7 @@ async function setup(page) {
 const tabState = (page) => page.evaluate(() => [...document.querySelectorAll('#aig-mode-tabs .aig-mode-tab')]
   .map(t => ({ tab: t.dataset.modeTab, disabled: t.disabled, active: t.classList.contains('active'), shown: getComputedStyle(t).display !== 'none' })));
 
-test('T ✨ → 글자 뽑기만 켜짐 · 나머지 기능 대기 · 닫으면 풀림', async ({ page }) => {
+test('T ✨ → 글자 추출만 켜짐 · 나머지 기능 대기 · 닫으면 풀림', async ({ page }) => {
   const errs = await setup(page);
   await page.evaluate(() => document.querySelector('.scratch-item[data-scratch-id="sA"] .scratch-ai-btn').click());
   expect(await tabState(page), 'T 열림').toEqual([
@@ -56,7 +56,7 @@ test('T ✨ → 글자 뽑기만 켜짐 · 나머지 기능 대기 · 닫으면 
   expect(errs).toEqual([]);
 });
 
-test('O 글자 뽑기 → 그 이미지에 기록 · 뱃지 · 다른 이미지는 0건', async ({ page }) => {
+test('O 글자 추출 → 그 이미지에 기록 · 뱃지 · 다른 이미지는 0건', async ({ page }) => {
   const errs = await setup(page);
   await page.evaluate(() => window._scratchOcrOpen('sA'));
   await page.evaluate(() => document.getElementById('ocr-run-btn').click());

@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════
-   Scratch OCR — 스크래치 ✨ → AI 패널 「글자 뽑기 (OCR)」 (시트 33 1020t2a1 · 시안 v3 sian-14)
-   - ✨ 로 열면 「글자 뽑기」 탭만 켜지고 텍스트 생성·이미지 생성은 «기능 대기»(disabled)
+   Scratch OCR — 스크래치 ✨ → AI 패널 「글자 추출 (OCR)」 (시트 33 1020t2a1 · 시안 v3 sian-14)
+   - ✨ 로 열면 「글자 추출」 탭만 켜지고 텍스트 생성·이미지 생성은 «기능 대기»(disabled)
    - 기록은 그 이미지 항목의 `ocr` 칸(js/scratch-pad.js SCRATCH_ITEM_KEYS)에 붙는다
      ⇒ 이미지를 바꿔 고르면 그 이미지의 기록만 · 이미지를 지우면 기록도 같이 사라진다(현빈 Q9 261027)
    - 기록 한 건: { id, n, text, at, model, mode } — 그 자리에서 고칠 수 있다
@@ -105,7 +105,7 @@
     if (!item) {
       log.textContent = '이미지가 지워져 그 기록도 같이 사라졌습니다.';
     } else if (!recs.length) {
-      log.textContent = '이 이미지에서 뽑은 글은 아직 없습니다 — 「글자 뽑기」를 누르면 여기 쌓입니다.';
+      log.textContent = '이 이미지에서 추출한 글은 아직 없습니다 — 「글자 추출」를 누르면 여기 쌓입니다.';
     } else {
       [...recs].reverse().forEach(r => log.appendChild(_recEl(item, r)));   // 새것이 위(Q8 기본)
     }
@@ -123,7 +123,7 @@
     try {
       const imageDataUrl = await window._scratchPngDataUrlById(item.id);
       const res = await window.electronAPI.aiOcrImage({ imageDataUrl, mode, model });
-      if (!res?.ok) { window.showToast?.('❌ 글자 뽑기 실패: ' + (res?.error || '알 수 없음')); return; }
+      if (!res?.ok) { window.showToast?.('❌ 글자 추출 실패: ' + (res?.error || '알 수 없음')); return; }
       if (!res.text) { window.showToast?.('이 이미지에서 글자를 찾지 못했습니다'); return; }
       if (!window._scratchItemById?.(item.id)) return;   // 읽는 사이 이미지가 지워졌다 — 붙일 자리가 없다
       const list = Array.isArray(item.ocr) ? item.ocr : (item.ocr = []);
@@ -133,9 +133,9 @@
       _open.clear(); _open.add(rec.id);   // 새 기록만 펴고 나머지는 접는다(Q2 기본)
       _saved(item);
     } catch (e) {
-      window.showToast?.('❌ 글자 뽑기 실패: ' + e.message);
+      window.showToast?.('❌ 글자 추출 실패: ' + e.message);
     } finally {
-      btn.textContent = '글자 뽑기';
+      btn.textContent = '글자 추출';
       if (_targetId === item.id) render(); else btn.disabled = !_item();
     }
   }

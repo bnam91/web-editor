@@ -836,12 +836,12 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
 
   /* ✨ AI 버튼 — 시트 33 1020t2a1 · 시안 v3(현빈 261026 「ai버튼 나오면 텍스트 추출 기능만, 나머지는 기능대기」).
    * 2026-06-09(03f9a14a) 숨겼던 버튼을 되살리되 ★옛 「이미지 생성」 길(openImageGenModal({mode:'image'}) + _aigPrePickScratch)은
-   * ★안 연다 — 그 길은 숨긴 뒤 검사 0 이다. 여기서는 AI 패널의 「글자 뽑기 (OCR)」 탭만 열린다(js/scratch-ocr.js). */
+   * ★안 연다 — 그 길은 숨긴 뒤 검사 0 이다. 여기서는 AI 패널의 「글자 추출 (OCR)」 탭만 열린다(js/scratch-ocr.js). */
   const aiBtn = document.createElement('button');
   aiBtn.className = 'scratch-ai-btn';
   aiBtn.type = 'button';
   aiBtn.innerHTML = '✨';
-  aiBtn.title = '글자 뽑기 (OCR)';
+  aiBtn.title = '글자 추출 (OCR)';
   aiBtn.addEventListener('mousedown', e => e.stopPropagation());
   aiBtn.addEventListener('click', e => {
     e.stopPropagation();

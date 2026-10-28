@@ -173,7 +173,7 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     els.modeTabs.forEach(t => t.classList.toggle('active', t.dataset.modeTab === mode));
     if (els.textPanel)  els.textPanel.style.display  = mode === 'text'  ? '' : 'none';
     if (els.imagePanel) els.imagePanel.style.display = mode === 'image' ? '' : 'none';
-    // 'ocr' = 스크래치 ✨ 에서만 여는 「글자 뽑기」(js/scratch-ocr.js) — 자기 닫기·실행 단추가 있어 공용 발판을 숨긴다.
+    // 'ocr' = 스크래치 ✨ 에서만 여는 「글자 추출」(js/scratch-ocr.js) — 자기 닫기·실행 단추가 있어 공용 발판을 숨긴다.
     //   ⛔마지막 모드로 기억하지 않는다 — 툴바에서 열면 대상 이미지가 없다.
     const ocrPanel = document.getElementById('aig-ocr-panel');
     if (ocrPanel) ocrPanel.style.display = mode === 'ocr' ? '' : 'none';
