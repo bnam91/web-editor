@@ -350,7 +350,10 @@ function _startProfileDrag(block, face, e) {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mouseup', onUp, true);
     if (!cur) return;
-    window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
+    /* ★244 — 여기 있던 window.swallowNextClick() 을 걷었다(원 64e22902 · 까닭 글 0). 아래 renderModalBlock 이 얼굴 노드를 갈아
+       끈 뒤 click 이 «오지 않는다»: S5 DOM ×5 두 판(그대로·삼키개 무력화) click 0 · 20/20 — 이 줄만 뺀 사본은 click 이 와서
+       카드 고름이 풀리거나(다른 블럭 위에 놓기) 패널이 두 번 열렸다(10/10). ⇒ 이 길의 안전은 «렌더가 있다»에 걸려 있다.
+       ⛔그 렌더를 빼거나 조건을 달면 삼키개를 되살려라. 지키는 자: tests/unit/modal-profile-drag-render-guard.test.mjs */
     if (cur.dx) block.dataset.profileDx = String(cur.dx); else delete block.dataset.profileDx;
     if (cur.dy) block.dataset.profileDy = String(cur.dy); else delete block.dataset.profileDy;
     renderModalBlock(block);
