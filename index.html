@@ -1312,11 +1312,17 @@
   <div id="ai-prompt-panel">
     <div class="ai-panel-header">
       <span class="ai-panel-title">✨ AI Generate</span>
-      <button class="ai-close-btn" onclick="closeAiPrompt()" title="닫기">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-          <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
-        </svg>
-      </button>
+      <div class="ai-panel-head-btns">
+        <!-- 최소화 = 머리만 남긴다(현빈 261028) · 닫으면 풀린다(closeAiPrompt) -->
+        <button class="ai-close-btn ai-min-btn" type="button" onclick="document.getElementById('ai-prompt-panel').classList.toggle('ai-panel-min')" title="최소화 / 펼치기">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="1" y1="5" x2="9" y2="5"/></svg>
+        </button>
+        <button class="ai-close-btn" onclick="closeAiPrompt()" title="닫기">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+            <line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <!-- Mode tabs: text | image -->
     <div class="aig-mode-tabs" id="aig-mode-tabs">
@@ -1434,7 +1440,7 @@
         <button type="button" class="ai-submit-btn" id="ocr-run-btn">글자 추출</button>
       </div>
       <div class="ocr-log-head">
-        <span><b id="ocr-log-id"></b> 의 전사 기록 <b id="ocr-log-count">0</b>건</span>
+        <span><b id="ocr-log-id"></b> 의 history <b id="ocr-log-count">0</b>건</span>
         <button type="button" class="ocr-fold-btn" id="ocr-collapse-all" title="전부 접기" aria-label="전부 접기·펴기"><svg width="12" height="12" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 5.5l3-3 3 3"/></svg></button>
       </div>
       <div id="ocr-log" class="ocr-log"></div>

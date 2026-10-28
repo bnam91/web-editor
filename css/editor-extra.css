@@ -601,6 +601,10 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   justify-content: center;
 }
 .ai-close-btn:hover { background: var(--ui-bg-hover); color: #ccc; }
+.ai-panel-head-btns { display: flex; gap: 2px; }
+/* 최소화 — 머리줄만 남긴다 */
+#ai-prompt-panel.ai-panel-min > :not(.ai-panel-header) { display: none !important; }
+#ai-prompt-panel.ai-panel-min { gap: 0; }
 
 /* 텍스트에어리어 */
 .ai-textarea {

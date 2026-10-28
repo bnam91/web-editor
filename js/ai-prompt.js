@@ -26,6 +26,7 @@ function closeAiPrompt() {
   }
   const ta = document.getElementById('ai-prompt-textarea');
   if (ta) ta.value = '';
+  document.getElementById('ai-prompt-panel')?.classList.remove('ai-panel-min');   // 다음에 열면 펼친 채로
   _setLoading(false);
 }
 
