@@ -151,6 +151,7 @@
     const idTxt = _targetId ? '#' + _targetId : '';
     $('ocr-target-id').textContent = !_targetId ? '스크래치 이미지를 고르세요' : item ? idTxt : idTxt + ' (지워진 이미지)';
     $('ocr-log-id').textContent = idTxt;
+    $('aig-ocr-panel').classList.toggle('ocr-empty', !_targetId);   // 대상 없음 — 썸네일·안내·기록 머리를 숨긴다(CSS)
     const thumb = $('ocr-target-thumb');
     if (item) thumb.src = item.src; else thumb.removeAttribute('src');
     $('ocr-run-btn').disabled = !item;
