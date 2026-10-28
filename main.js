@@ -183,8 +183,8 @@ const entitlement = require('./services/entitlement');
 /* 배포판 운영자(admin) 판정 — 서명 operator.allow. ⛔entitlement 키(k1)와 «다른» 키(op1)다. */
 const _operatorAllow = require('./services/operator-allow');
 const { fillSectionTexts: geminiFill, ocrImage: geminiOcr } = require('./services/geminiService');
-const { fillSectionTexts: openaiFill } = require('./services/openaiService');
-const { fillSectionTexts: anthropicFill } = require('./services/anthropicService');
+const { fillSectionTexts: openaiFill, ocrImage: openaiOcr } = require('./services/openaiService');
+const { fillSectionTexts: anthropicFill, ocrImage: anthropicOcr } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
@@ -477,7 +477,12 @@ function createWindow() {
 
   // AI 섹션 텍스트 채우기 (Gemini)
   ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
-  ipcMain.handle('ai:ocrImage', (_e, payload) => geminiOcr({ ...payload, apiKey: getApiKey('gemini') }));
+  ipcMain.handle('ai:ocrImage', (_e, payload) => {
+    const model = String(payload?.model || '').toLowerCase();   // 공급자 가르기는 aiFillSectionTexts 와 같다
+    if (model.startsWith('gpt-')) return openaiOcr({ ...payload, apiKey: getApiKey('openai') });
+    if (model.startsWith('claude-')) return anthropicOcr({ ...payload, apiKey: getApiKey('anthropic') });
+    return geminiOcr({ ...payload, apiKey: getApiKey('gemini') });
+  });
 
   // 사용자별 Preferences (settings.json: API 키 + 단축키)
   ipcMain.handle('settings:get',      () => readSettings());

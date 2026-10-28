@@ -320,4 +320,34 @@ async function fillSectionTexts(payload) {
   }
 }
 
-module.exports = { fillSectionTexts };
+const { ocrPrompt, parseOcr } = require('./ocrPrompt');
+
+async function ocrImage(payload) {
+  const apiKey = (payload && payload.apiKey) || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ok: false, error: 'Anthropic API 키가 없습니다. 환경설정에서 등록하거나 ANTHROPIC_API_KEY 환경변수를 설정하세요.' };
+  const m = /^data:([^;]+);base64,(.+)$/.exec(String(payload?.imageDataUrl || ''));
+  if (!m) return { ok: false, error: '이미지 dataURL 형식 오류' };
+  const model = payload.model || DEFAULT_MODEL;
+  const body = {
+    model,
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
+      { type: 'text', text: ocrPrompt(payload.mode) },
+    ] }],
+  };
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return { ok: false, error: `Anthropic ${res.status}: ${(await res.text()).slice(0, 300)}` };
+    const json = await res.json();
+    return { ok: true, ...parseOcr((json.content || []).filter(c => c.type === 'text').map(c => c.text).join('')), model };
+  } catch (e) {
+    return { ok: false, error: `네트워크 오류: ${e.message}` };
+  }
+}
+
+module.exports = { fillSectionTexts, ocrImage };

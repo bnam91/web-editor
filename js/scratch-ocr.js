@@ -22,9 +22,13 @@
   const COPY_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="4" y="4" width="6.5" height="6.5" rx="1"/><path d="M8 4V2.5a1 1 0 0 0-1-1H2.5a1 1 0 0 0-1 1V7a1 1 0 0 0 1 1H4"/></svg>';
   // 유형이 없는 옛 기록(text 만)은 줄마다 body 로 읽는다
   const _lines = r => (Array.isArray(r.lines) ? r.lines : (r.text || '').split('\n').map(t => t.trim()).filter(Boolean).map(t => ({ style: 'body', text: t })));
+  // 렌더러의 navigator.clipboard 는 main.js 가 거절한다 — 앱의 다리(clipboardWriteText)를 쓴다(ai-image-gen.js 와 같은 꼴)
   async function _copy(t) {
-    try { await navigator.clipboard.writeText(t); window.showToast?.('📋 복사했습니다'); }
-    catch (_) { window.showToast?.('❌ 복사 실패'); }
+    try {
+      const r = await window.electronAPI?.clipboardWriteText?.(t);
+      if (!r?.ok) throw new Error(r?.error || 'IPC 실패');
+      window.showToast?.('📋 복사했습니다');
+    } catch (_) { window.showToast?.('❌ 복사 실패'); }
   }
 
   // 모델이 준 줄 목록을 믿을 수 있는 꼴로만 받는다 — 아니면 undefined(그러면 text 를 body 줄로 읽는다)

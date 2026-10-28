@@ -330,6 +330,8 @@ async function fillSectionTexts(payload) {
 
 /* 스크래치 이미지 OCR(시트 33 1020t2a1 · 시안 v3) — 섹션 채우기와 달리 블록이 없다. 이미지 한 장 → 글 한 덩이.
  * mode: 'text' = 글자만 / 'layout' = 줄·표까지(줄바꿈·표는 마크다운 표로) */
+const { ocrPrompt, parseOcr } = require('./ocrPrompt');
+
 async function ocrImage(payload) {
   const apiKey = (payload && payload.apiKey) || process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -337,13 +339,7 @@ async function ocrImage(payload) {
   }
   const m = /^data:([^;]+);base64,(.+)$/.exec(String(payload?.imageDataUrl || ''));
   if (!m) return { ok: false, error: '이미지 dataURL 형식 오류' };
-  const how = payload.mode === 'layout'
-    ? '원래 줄바꿈을 지켜 한 줄을 한 항목으로. 표는 행마다 한 항목, 칸은 " | " 로 잇는다.'
-    : '글 덩어리마다 한 항목.';
-  const prompt = '이 이미지에 이미 적혀 있는 글자만 그대로 읽어 옮겨라. ' + how
-    + ' 고치거나 지어내지 말고 설명도 붙이지 마라. 위에서 아래 순서로.'
-    + ' 각 항목의 style 은 이미지 속 글자 크기·굵기로 고른다: h1(가장 큰 제목) · h2(소제목) · h3 · body(본문) · caption(작은 설명) · label(짧은 꼬리표).'
-    + ' JSON 배열로만 답하라: [{"style":"h2","text":"..."}]. 글자가 없으면 [].';
+  const prompt = ocrPrompt(payload.mode);
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }, { inline_data: { mime_type: m[1], data: m[2] } }] }],
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
@@ -359,11 +355,8 @@ async function ocrImage(payload) {
       return { ok: false, error: `Gemini ${res.status}: ${errText.slice(0, 300)}` };
     }
     const json = await res.json();
-    const raw = (json?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
-    let lines = null;
-    try { const v = JSON.parse(raw); if (Array.isArray(v)) lines = v; } catch (_) { /* JSON 이 아니면 글 그대로 */ }
-    const text = lines ? lines.map(l => (l && l.text) || '').filter(Boolean).join('\n') : raw;
-    return { ok: true, text, lines, model: MODEL };
+    const raw = (json?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    return { ok: true, ...parseOcr(raw), model: MODEL };
   } catch (e) {
     return { ok: false, error: `네트워크 오류: ${e.message}` };
   }

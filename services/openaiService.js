@@ -379,4 +379,31 @@ async function fillSectionTexts(payload) {
   }
 }
 
-module.exports = { fillSectionTexts };
+const { ocrPrompt, parseOcr } = require('./ocrPrompt');
+
+async function ocrImage(payload) {
+  const apiKey = (payload && payload.apiKey) || process.env.OPENAI_API_KEY_GODITOR || process.env.OPENAI_API_KEY;
+  if (!apiKey) return { ok: false, error: 'OpenAI API 키가 없습니다. 환경설정에서 등록하거나 OPENAI_API_KEY 환경변수를 설정하세요.' };
+  const url = String(payload?.imageDataUrl || '');
+  if (!/^data:image\//.test(url)) return { ok: false, error: '이미지 dataURL 형식 오류' };
+  const model = payload.model || DEFAULT_MODEL;
+  const body = {
+    model,
+    messages: [{ role: 'user', content: [{ type: 'text', text: ocrPrompt(payload.mode) }, { type: 'image_url', image_url: { url } }] }],
+    response_format: { type: 'json_object' },
+  };
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return { ok: false, error: `OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}` };
+    const json = await res.json();
+    return { ok: true, ...parseOcr(json?.choices?.[0]?.message?.content), model };
+  } catch (e) {
+    return { ok: false, error: `네트워크 오류: ${e.message}` };
+  }
+}
+
+module.exports = { fillSectionTexts, ocrImage };
