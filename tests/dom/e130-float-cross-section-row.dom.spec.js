@@ -5,7 +5,7 @@
  * 고침 = overlay-float.js exitFloat «다른 섹션» 갈래에서 옛 overlayReturnParent 가 .row 이고 요소 자식이 없으면 지운다.
  * 길: 블럭 클릭(clickAt) → 패널 띄우기 토글 클릭 → 진짜 마우스로 끌어 다른 섹션 위 → 다시 골라 토글 클릭. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 const KINDS = [
@@ -30,6 +30,8 @@ async function setup(page, kind, { withSibling = false } = {}) {
     document.getElementById('sA').scrollIntoView({ block: 'start' });
     return { block: block.id, row: row.id };
   }, [kind.make, withSibling]);
+  /* ★180·210 — 배율 전제: scaler 행렬이 그 배율이고 멎었다(_root-harness waitZoomSettled · 맨 applyZoom 은 0.15s 보간) */
+  await waitZoomSettled(page, 100);
   expect(ids, `[전제] ${kind.name} 를 만들었다`).toBeTruthy();
   await page.waitForTimeout(300);
   return { errs, ...ids };

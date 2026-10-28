@@ -23,7 +23,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/fix5-section-memo-t306.dom.spec.js --workers=1 --retries=0
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 const ORANGE_BG = 'rgba(245, 158, 11, 0.14)';
@@ -48,6 +48,8 @@ async function setup(page) {
     window.deselectAll && window.deselectAll();
     window.buildLayerPanel && window.buildLayerPanel();
   }, MEMO1);
+  /* ★180·210 — 배율 전제: scaler 행렬이 그 배율이고 멎었다(_root-harness waitZoomSettled · 맨 applyZoom 은 0.15s 보간) */
+  await waitZoomSettled(page, 50);
   return errs;
 }
 
@@ -170,6 +172,7 @@ test('B1 ㉯ 바깥 탭 — 수 = 메모 섹션 수 · 섹션 왼쪽 바깥 · �
 
   for (const z of [100, 30]) {
     await page.evaluate((zz) => window.applyZoom(zz), z);
+    await waitZoomSettled(page, z);   // ★180·210 배율 전제
     await expect.poll(() => tabPlacementErrors(page), `배율 ${z}% 자리`).toEqual([]);
   }
   // 높이 변화 — sM1 을 키우면 아래 탭이 따라 내려간다

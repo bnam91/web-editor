@@ -16,7 +16,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js ft3-left-drag-and-pullin
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page) {
   await page.setViewportSize({ width: 1700, height: 1200 });
@@ -37,6 +37,8 @@ async function setup(page) {
     window.__tb.scrollIntoView({ block: 'center' });
     window.selectBlock(window.__tb.id);
   });
+  /* ★180·210 — 배율 전제: scaler 행렬이 그 배율이고 멎었다(_root-harness waitZoomSettled · 맨 applyZoom 은 0.15s 보간) */
+  await waitZoomSettled(page, 40);
   await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
   await page.selectOption('#txt-fx-add', 'freetransform');
   await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12);

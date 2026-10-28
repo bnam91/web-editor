@@ -6,7 +6,7 @@
  * 재는 것: 선 사각형(.ss-sel-path getBoundingClientRect) vs 목표 상자 — 4변 차 ≤ 1.5 화면px(선은 상자 «안»으로 스냅 + 반굵기).
  * 고르기 = clickAt(맞힌 요소 단언) · 띄우기 = 패널 토글 진짜 클릭 · 배경 켜기 = updateGridBlock{blockBg}(전제 — 패널과 같은 고치는 문). */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 async function setup(page, zoom) {
@@ -21,6 +21,8 @@ async function setup(page, zoom) {
     window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.(); window.applyZoom?.(zoom);
     g.scrollIntoView({ block: 'center' });
   }, zoom);
+  /* ★180·210 — 배율 전제: scaler 행렬이 그 배율이고 멎었다(_root-harness waitZoomSettled · 맨 applyZoom 은 0.15s 보간) */
+  await waitZoomSettled(page, zoom);
   await page.waitForTimeout(300);
   return errs;
 }

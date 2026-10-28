@@ -100,7 +100,7 @@ const ROSTER = {
      (S6 는 처음 'safe' 로 적었다: 제품 selectSection 이 CANVAS_TAIL_GAP 40 을 화면 px 로 빼고 실측 40%=40.12 · 100%=39.80 이라서.
       ⇒ 지디 판정으로 바꿨다 — «제품이 화면 px 로 정의했다»가 «자를 배율 무관하게 만든다»는 아니다.)
      ⚠️명부 열쇠가 «파일:줄» 이라 spec 이 위에서 밀리면 또 빨개진다(138 과 같은 병 · 다음 릴리스 몫 · 지금 안 고침). */
-  'fix5-section-memo-t306.dom.spec.js:325': 'risky',
+  'fix5-section-memo-t306.dom.spec.js:328': 'risky',
   'graph-gr1-gradient.dom.spec.js:93': 'risky',
   'graph-u26-u27.dom.spec.js:80': 'risky',
   'graph-u26-u27.dom.spec.js:85': 'risky',
@@ -108,8 +108,8 @@ const ROSTER = {
      ★그 파일을 ★＋6 −3 했다 ⇒ ★순 ＋3. ★★두 줄의 ★글자는 ★★바이트까지 ★같다(내가 c278bc39 와 ★견줬다)
      ⇒ ★★태그는 ★그대로 ★옮긴다. ⛔판정을 ★다시 지어내지 ★않는다 — ★같은 자리다. */
   'grid-plus-g15.dom.spec.js:304': 'risky',
-  'k2-grid-sel-box.dom.spec.js:47': 'risky',
-  'k2-grid-sel-box.dom.spec.js:48': 'risky',
+  'k2-grid-sel-box.dom.spec.js:49': 'risky',
+  'k2-grid-sel-box.dom.spec.js:50': 'risky',
   'k5-grid-8x8.dom.spec.js:41': 'risky',
   'text-selection-panel.dom.spec.js:360': 'risky',
   'text-selection-panel.dom.spec.js:394': 'risky',
@@ -125,7 +125,7 @@ const ROSTER = {
      overlay-drag-rotation.dom.spec.js:224 와 같은 꼴(마우스 드래그 거리 ＋ 결과 rect 차). 배율이 상쇄된다. */
   'cmp-overlay.dom.spec.js:142': 'safe',
   'drag-move-autosave.dom.spec.js:82': 'safe',
-  'e130-float-cross-section-row.dom.spec.js:53': 'safe',
+  'e130-float-cross-section-row.dom.spec.js:55': 'safe',
   'free-frame-fullwidth-drag.dom.spec.js:185': 'safe',
   'free-frame-grid-width-roundtrip.dom.spec.js:58': 'safe',
   'gradient-canvas-bar.dom.spec.js:534': 'safe',
@@ -140,7 +140,7 @@ const ROSTER = {
   'modal-resize.dom.spec.js:282': 'safe',
   'overlay-drag-rotation.dom.spec.js:224': 'safe',
   'scratch-drop-grid-image.dom.spec.js:57': 'safe',
-  'e130-float-cross-section-row.dom.spec.js:80': 'offset',
+  'e130-float-cross-section-row.dom.spec.js:82': 'offset',
 };
 
 test('Z1 ★★자가 ★살아있다 — ★합성 표본으로 ★양성·음성 ★셋 (⛔이게 없으면 아래 수는 «안 쟀다»다)', () => {

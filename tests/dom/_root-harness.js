@@ -108,3 +108,27 @@ async function waitStableRect(page, selector, { interval = 150, tries = 40, inde
   throw new Error(`waitStableRect: ${selector}[${index}] 가 ${tries * interval}ms 안에 멈추지 않았다(또는 없다) — 옛 좌표로 누르지 않는다`);
 }
 module.exports.waitStableRect = waitStableRect;
+
+/* ★배율 전제(180·210 · 지디 261028) — «#canvas-scaler 행렬이 그 배율과 같고 멎었다» 까지 기다린다.
+ *   ⛔`currentZoom === zoom` 만으로는 모자라다 — 맨 applyZoom(탭 복원·첫 배율·검사 setup)은 currentZoom 을 «바로» 세우고
+ *     transform 은 css/editor-canvas.css 의 transition 0.15s 로 보간한다(S5 실측 ×3: zoomStep·⌘0 은 보간 0 · 맨 applyZoom 은 1).
+ *     그 사이 잰 화면 px 는 낡은 배율이다(141 ㉮ · 180).
+ *   멎음 = 행렬 축척 ≈ zoom/100 · transform 전이 0 · 연속 두 rAF 같은 행렬. 동기 술어 + polling raf(Promise 술어는 한 번만 불린다 — 182).
+ *   상한을 넘으면 «ZOOM-NOT-SETTLED» 이름으로 던진다(조용히 넘기지 않는다). */
+async function waitZoomSettled(page, zoom, { timeout = 3000 } = {}) {
+  try {
+    await page.waitForFunction((z) => {
+      const sc = document.getElementById('canvas-scaler');
+      if (!sc || window.currentZoom !== z) return false;
+      const m = getComputedStyle(sc).transform;
+      const a = m === 'none' ? 1 : new DOMMatrix(m).a;
+      const moving = sc.getAnimations().some((x) => x.transitionProperty === 'transform');
+      const same = window.__zsLast === m; window.__zsLast = m;
+      return Math.abs(a - z / 100) < 1e-3 && !moving && same;
+    }, zoom, { polling: 'raf', timeout });
+  } catch (e) {
+    const s = await page.evaluate(() => { const sc = document.getElementById('canvas-scaler'); return { currentZoom: window.currentZoom, transform: sc && getComputedStyle(sc).transform, moving: sc ? sc.getAnimations().length : null }; }).catch(() => null);
+    throw new Error(`ZOOM-NOT-SETTLED — ${zoom}% 로 ${timeout}ms 안에 안 멎었다 · ${JSON.stringify(s)} · ${String(e && e.message).slice(0, 120)}`);
+  }
+}
+module.exports.waitZoomSettled = waitZoomSettled;
