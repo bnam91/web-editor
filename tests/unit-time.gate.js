@@ -55,7 +55,21 @@ function judge(xml, roster, root) {
   return { ok: true, files: out.size, cases: n, slower, newSlow, faster, over: over.sort(), red, once };
 }
 
-module.exports = { fileTimes, judge };
+/** ★196 ⑷ ⒞(지디 13:2x) — 명부의 «낡음» 한 줄. meta.sha 앞 16진 낱말을 판으로 읽고 git 으로 HEAD 와 견준다.
+ *  git(args) → { status, stdout } 주입(검사는 가짜 · 실행은 spawnSync git). ⛔rc 를 바꾸지 않는다 — 말만 한다(rc 3 여부는 ⑸ 부르는 자 정해진 뒤).
+ *  @returns {{ state: 'ancestor'|'diverged'|'absent'|'unreadable', sha: string|null, behind: number|null, line: string }} */
+function staleness(meta, git) {
+  const m = /^([0-9a-f]{7,40})\b/.exec(String((meta && meta.sha) || ''));
+  if (!m) return { state: 'unreadable', sha: null, behind: null, line: '명부 meta.sha 를 판으로 못 읽는다 — 이 명부가 얼마나 낡았는지 모른다' };
+  const sha = m[1];
+  if (git(['cat-file', '-e', `${sha}^{commit}`]).status !== 0) return { state: 'absent', sha, behind: null, line: `명부 기준판 ${sha} 가 이 나무에 없다 — 낡음을 못 잰다` };
+  if (git(['merge-base', '--is-ancestor', sha, 'HEAD']).status !== 0) return { state: 'diverged', sha, behind: null, line: `명부 기준판 ${sha} 는 HEAD 조상 아님(다른 줄기) — 이 판의 기준값이 아니다` };
+  const r = git(['rev-list', '--count', `${sha}..HEAD`]);
+  const n = r.status === 0 ? Number(String(r.stdout).trim()) : NaN;
+  return { state: 'ancestor', sha, behind: Number.isInteger(n) ? n : null, line: `명부 기준판 ${sha} = HEAD 조상 · ${Number.isInteger(n) ? n : '?'} 커밋 뒤` };
+}
+
+module.exports = { fileTimes, judge, staleness };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
@@ -66,6 +80,9 @@ if (require.main === module) {
   if (!fs.existsSync(xmlPath)) { console.error(`⛔JUnit 이 없다: ${xmlPath} — 못 잰다(통과 아님)`); process.exit(3); }
   if (!fs.existsSync(rosterPath)) { console.error(`⛔명부가 없다: ${rosterPath} — 못 잰다(통과 아님 · 무거운 슬롯 전수로 처음 세운다)`); process.exit(3); }
   const roster = JSON.parse(fs.readFileSync(rosterPath, 'utf8'));
+  { const { spawnSync } = require('child_process');
+    const git = (args) => { const r = spawnSync('git', args, { cwd: path.join(__dirname, '..'), encoding: 'utf8' }); return { status: r.status, stdout: r.stdout || '' }; };
+    console.log(`── unit-time.gate ── 명부 낡음: ${staleness(roster.meta, git).line}`); }   // ★⑷ ⒞ 자의 한계는 자가 말한다 · rc 무관
   const v = judge(fs.readFileSync(xmlPath, 'utf8'), roster, path.join(__dirname, '..'));
   if (!v.ok) { console.error(`⛔${v.why} — 못 잰다(통과 아님)`); process.exit(3); }
   console.log(`── unit-time.gate ── 파일 ${v.files} · testcase ${v.cases} · 넘음 ${v.over.length}(연속 두 회차 ${v.red.length} · 이번만 ${v.once.length}) · 빨라짐 ${v.faster.length} · 지난 넘음 ${(roster.last_over || []).length}`);
