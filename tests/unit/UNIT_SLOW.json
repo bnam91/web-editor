@@ -13,7 +13,8 @@
   "testcases": 4782,
   "files_seen": 459,
   "sum_ms": 542081,
-  "note": "tol 1.0 = 지디 판정 261028(⑴ · 거짓 빨강 멈춤) · floor_ms 2000 그대로(⑵ ⛔5000) · 명부 = 파일 합 >2000ms 23 벌"
+  "note": "tol 1.0 = 지디 판정 261028(⑴ · 거짓 빨강 멈춤) · floor_ms 2000 그대로(⑵ ⛔5000) · 명부 = 파일 합 >2000ms 23 벌",
+  "noise": "흔들림 기준(같은 맥 인텔 · 판 f1f6f90c 계열 5c5b94f5 ↔ e5e677f0 두 전수 · 파일 합 >0.5s 61 벌 · 둘째/첫째): 중앙 1.00 · 10% 0.93 · 90% 1.68 · 최대 1.80 · 파일 합 542→577s · load 1.70→2.26(입구) — tol 1.0 의 근거(최대 1.80 위) · ⑶ 연속 두 회차 규칙과 함께 tol 0.5 로 다시 낮출지는 회차 더 쌓인 뒤"
  },
  "tol": 1.0,
  "floor_ms": 2000,
@@ -41,5 +42,6 @@
   "tests/unit/edge-contrast.test.js": 2830,
   "tests/unit/win-portability.test.mjs": 2378,
   "tests/unit/frame-bg-edit-wiring.test.mjs": 2236
- }
+ },
+ "last_over": []
 }
