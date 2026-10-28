@@ -277,6 +277,8 @@
       e.preventDefault(); e.stopPropagation();
       if (!(await _addFiles(e.dataTransfer.files))) window.showToast?.('⚠️ 이미지 파일만 됩니다');
     });
+    // 비우기 — 대상만 놓는다(이미지·기록은 스크래치에 그대로)
+    $('ocr-target-clear')?.addEventListener('click', () => { _targetId = null; _open.clear(); render(); $('ocr-src-input')?.focus(); });
     $('ocr-run-btn')?.addEventListener('click', _run);
     $('ocr-collapse-all')?.addEventListener('click', () => {
       const recs = _item()?.ocr || [];
