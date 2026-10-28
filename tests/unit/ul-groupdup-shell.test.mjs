@@ -93,7 +93,20 @@ test('⑥ 핀 — 단위 해석에 `|| b` 폴백이 «없다»(블록 자신이 
   assert.equal(/closest\('\.row'\) \|\| b\)/.test(WRAP), false,
     '`b.closest(".row") || b` 가 되살아나면 복제본 소실이 그대로 돌아온다');
   assert.match(WRAP, /const unit = shell \|\| b;/);
-  assert.match(WRAP, /if \(shell\) shells\.add\(shell\);/);
+  /* ★142 ㉮ — 글자째 핀(`if (shell) shells.add(shell);`)을 «뜻» 핀으로: shells.add 는 «shell 이 있을 때만»(조건 덧붙임 허용 · || b 폴백 금지는 위 두 줄). */
+  assert.match(WRAP, /if \(shell\b[^\n]*\) shells\.add\(shell\);/);
+  assert.equal(/shells\.add\(shell \|\| b\)|shells\.add\(b\)/.test(WRAP), false, '블록 자신을 껍데기로 넣는다');
+});
+
+test('⑧ ★142 ㉮ 한 쌍 — ⌘G 는 텍스트 프레임을 껍데기로 안 넣고 · isEmptyShell 은 «알맹이 든 TF» 를 안 걷고 «퍼낸 TF» 는 걷는다', () => {
+  // 소스 핀: ⌘G(asGroup)에서 텍스트 프레임은 shells 에 안 들어간다(래퍼째 옮김)
+  assert.match(WRAP, /if \(shell && !\(asGroup && shell\.dataset\.textFrame === 'true'\)\) shells\.add\(shell\);/, '⌘G 의 TF 껍데기 제외 판정이 없다');
+  // ⑴ TF 째 그룹에 넣은 뒤 — 그 TF(알맹이 든)는 «빈 껍데기» 가 아니다(안 걷음)
+  const tf = el('frame-block', [el('text-block')]);
+  el('frame-block', [tf]);   // 그룹 안에 든 꼴(술어는 부모를 안 본다 — 같은 판정)
+  assert.equal(isEmptyShell(tf), false, '⑴ 알맹이 든 텍스트 프레임을 빈 껍데기로 본다 — 그룹 안 TF 가 지워진다');
+  // ⑵ 음성 — 알맹이를 퍼낸 TF 는 여전히 걷는다(:79 «알맹이를 퍼낸 텍스트프레임» 참)
+  assert.equal(isEmptyShell(el('frame-block', [])), true, '⑵ 퍼낸 텍스트 프레임을 안 걷는다 — 빈 래퍼가 남는다');
 });
 
 test('⑦ 핀 — 알맹이 퍼내기가 명부(BLOCK_SEL)를 쓰지 않는다', () => {

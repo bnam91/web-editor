@@ -129,7 +129,7 @@ async function wrapWithNet(page, opts) {
  * 섹션 레벨 텍스트는 .frame-block[data-text-frame] > .text-block 으로 태어나는데,
  * ⌘D 는 copySelected 가 그 래퍼를 잃어 «맨몸 text-block» 을 .section-inner 직속에 붙인다.
  * 그 복제본이 tf 도 row 도 없어 «단위 = 자기 자신»이 됐고, 그대로 삭제됐다. */
-test('G1 ★원본 tf + 맨몸 복제 text-block → ⌘G: 텍스트 2개가 모두 새 그룹 안에 «살아서» 들어간다', async ({ page }) => {
+test('G1 ★원본 tf + 맨몸 복제 text-block → ⌘G: 텍스트 2개가 모두 새 그룹 안에 «살아서» 들어간다 · 원본은 TF 째(142 ㉮)', async ({ page }) => {
   const errs = await boot(page, `
 <div class="section-block selected" id="sec"><div class="section-inner" id="inner">
   <div class="frame-block" id="tf_1" data-text-frame="true"><div class="text-block selected" id="tb_1">원본</div></div>
@@ -138,23 +138,31 @@ test('G1 ★원본 tf + 맨몸 복제 text-block → ⌘G: 텍스트 2개가 모
   const net = await wrapWithNet(page, { asGroup: true });
   const out = await page.evaluate(() => {
     const a = document.getElementById('tb_1'), b = document.getElementById('tb_2');
+    const ua = a && a.closest('.frame-block[data-text-frame]');   // ★142 ㉮ — 원본 글의 «단위» = 텍스트 프레임째
     return {
       count: document.querySelectorAll('.text-block').length,
-      pa: a && a.parentElement.id, pb: b && b.parentElement.id,
-      topA: a && a.style.top, topB: b && b.style.top,
-      posB: b && b.style.position,
-      group: a && a.parentElement.dataset.group,
+      wrapA: a && a.parentElement.id, wrapA_isTF: !!(a && a.parentElement.dataset.textFrame === 'true'),
+      pa: ua && ua.parentElement.id, pb: b && b.parentElement.id,
+      topA: ua && ua.style.top, topB: b && b.style.top,
+      posA: ua && ua.style.position, posB: b && b.style.position,
+      group: ua && ua.parentElement.dataset.group,
       innerKids: [...document.getElementById('inner').children].map((c) => c.id),
+      emptyTF: [...document.querySelectorAll('.frame-block[data-text-frame]')].filter((f) => !f.querySelector('.text-block')).map((f) => f.id),
     };
   });
+  /* ★142 ㉮(지디 판정 261028) — ⌘G 는 텍스트 프레임을 «래퍼째» 그룹에 넣는다(js-structure «텍스트 = TF > text-block · 분리 금지»).
+     ⚰️옛 기대는 «텍스트 2 개가 새 그룹 직속 · 빈 TF 래퍼는 남기지 않는다»(= 벗김)였다 — 다시 열면 로드 이주가 TF 를 «하나 더» 씌웠다(142).
+     맨몸 복제(tb_2)는 원래 TF 가 없으니 그대로 그룹 직속(⚠️이것도 규약 밖 — 이번 판정 밖 · 따로 적음). */
   expect(net.lostKernel, '복제본이 사라지면 안 된다(데이터 손실)').toEqual([]);
   expect(out.count, '.text-block 2개 유지').toBe(2);
-  expect(out.pa).toMatch(/^ss_new/);
-  expect(out.pb, '둘 다 «같은» 새 그룹 직속').toBe(out.pa);
+  expect([out.wrapA, out.wrapA_isTF], '원본 글은 제 텍스트 프레임(tf_1) 안 그대로').toEqual(['tf_1', true]);
+  expect(out.pa, '그 텍스트 프레임이 새 그룹 직속').toMatch(/^ss_new/);
+  expect(out.pb, '둘 다 «같은» 새 그룹 안').toBe(out.pa);
   expect(out.group).toBe('true');
-  expect(out.posB).toBe('absolute');
+  expect([out.posA, out.posB]).toEqual(['absolute', 'absolute']);
   expect(out.topA).not.toBe(out.topB);          // 겹쳐 쌓이지 않는다
-  expect(out.innerKids, '빈 텍스트프레임 래퍼는 남기지 않는다').toEqual([out.pa]);
+  expect(out.innerKids, '섹션엔 새 그룹 하나만(옮겨진 단위가 밖에 안 남음)').toEqual([out.pa]);
+  expect(out.emptyTF, '빈 텍스트 프레임 껍데기 0').toEqual([]);
   expect(errs).toEqual([]);
 });
 

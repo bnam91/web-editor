@@ -2511,7 +2511,12 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ? null
       : (b.closest('.frame-block[data-text-frame]') || b.closest('.row'));
     const unit = shell || b;
-    if (shell) shells.add(shell);
+    /* ★142(SAVE-REOPEN-WRAPS-GROUP-TEXT-ONE-MORE-FRAME-01) — 텍스트 프레임은 «껍데기»가 아니라 «한 단위»다(js-structure.md:
+       텍스트 = frame-block[data-text-frame] > text-block · 투명 래퍼 · 한몸 이동 · 분리 금지). 옛 꼴은 그것을 shells 에 넣어
+       아래에서 «알맹이(text-block)만» 그룹으로 옮기고 빈 래퍼를 지웠다 ⇒ 그룹 안 맨 text-block → 다시 열면 로드 이주
+       (save-load.js migrateColsFromDOM · 자유배치 직속 text-block → text-frame)가 래퍼를 «하나 더» 씌웠다.
+       ⇒ ⌘G 에서 텍스트 프레임은 래퍼째 옮긴다(자유배치 갈래 :2202 와 같은 판정) · .row 껍데기는 그대로 껍데기. */
+    if (shell && !(asGroup && shell.dataset.textFrame === 'true')) shells.add(shell);   // ★142 — ⌘G(그룹)만. ⌘⌥G(프레임 묶기)는 «텍스트가 새 프레임 직속»이 잠겨 있다(shape-frame-wrap-group N1 · ul-groupdup G6) — 판정 «청»
     if (unit && !rows.includes(unit)) rows.push(unit);
   });
   // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
