@@ -105,7 +105,7 @@
     if (!item) {
       log.textContent = '이미지가 지워져 그 기록도 같이 사라졌습니다.';
     } else if (!recs.length) {
-      log.textContent = '이 이미지에서 추출한 글은 아직 없습니다 — 「글자 추출」를 누르면 여기 쌓입니다.';
+      log.textContent = '추출한 글이 없습니다.';
     } else {
       [...recs].reverse().forEach(r => log.appendChild(_recEl(item, r)));   // 새것이 위(Q8 기본)
     }

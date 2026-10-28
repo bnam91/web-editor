@@ -54,7 +54,6 @@
 .ocr-rec-text:focus { border-color: #a78bfa; }
 .ocr-rec-btns { display: flex; gap: var(--ui-row-gap); }
 .ocr-rec-meta { font-family: ui-monospace, Menlo, monospace; font-size: var(--ui-fs-base); color: var(--ui-text-sub, #aaa); }
-.ocr-foot { font-size: var(--ui-fs-base); color: var(--ui-text-sub, #aaa); line-height: 1.5; }
 
 /* ── 이미지 모드 패널 ── */
 .aig-image-panel { display: flex; flex-direction: column; gap: 10px; }
