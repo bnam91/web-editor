@@ -40,6 +40,6 @@ test('S0 자가 산다 — 섹션 한정은 잡고 · 넓힌 것도 잡고 · da
 });
 
 test('S1 serializeCleanRoot 의 245 자리 = 정확히 하나 · 선택자 .section-block[data-bg-img](프레임·캔버스 무접촉)', () => {
-  const body = stripComments(sliceBlock(SRC, '  function serializeCleanRoot(root) {'));
+  const body = stripComments(sliceBlock(SRC, '  function serializeCleanRoot('));
   assert.deepEqual(clearSites(body), ['.section-block[data-bg-img]'], '섹션 밖(프레임·캔버스)의 style 배경을 빼면 열 때 다시 칠하는 자리가 없어 그림이 죽는다(245)');
 });

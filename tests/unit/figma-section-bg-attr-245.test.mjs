@@ -17,7 +17,7 @@ const { stripComments } = require('./_strip-comments.js');
 
 const ROOT = process.env.GD1001_ROOT || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXP = fs.readFileSync(path.join(ROOT, 'js/io/export-figma-json.js'), 'utf8');
-const fn = (head, name) => new Function(`${sliceBlock(EXP, head)}; return ${name};`)();
+const fn = (src, name) => new Function(`${src}; return ${name};`)();   // ★닻은 부르는 자리에 «글자로»(anchor-signature-ratchet 변수닻 칸 · 261)
 
 /** 가짜 섹션 — style 은 인라인 longhand · dataset · 레이어(있으면) */
 function sec({ style = {}, attr = '', ds = {}, layer = '' } = {}) {
@@ -27,11 +27,11 @@ function sec({ style = {}, attr = '', ds = {}, layer = '' } = {}) {
 }
 
 test('F1 style 이 비고 data-bg-img 가 있으면 그 속성을 url() 로 읽는다(245 · 고치기 전엔 이 함수가 없다)', () => {
-  const raw = fn('function _sectionBgImgRaw(', '_sectionBgImgRaw');
+  const raw = fn(sliceBlock(EXP, 'function _sectionBgImgRaw('), '_sectionBgImgRaw');
   assert.equal(raw(sec({ ds: { bgImg: 'data:image/png;base64,AAA' } })), 'url("data:image/png;base64,AAA")');
 });
 test('F2 읽는 차례 — 레이어 > 인라인 style > style 속성 글자 > data-bg-img · 아무것도 없으면 빈 값', () => {
-  const raw = fn('function _sectionBgImgRaw(', '_sectionBgImgRaw');
+  const raw = fn(sliceBlock(EXP, 'function _sectionBgImgRaw('), '_sectionBgImgRaw');
   const A = 'data:image/png;base64,A', B = 'data:image/png;base64,B';
   assert.deepEqual([
     raw(sec({ layer: `url("${A}")`, style: { backgroundImage: 'none' }, ds: { bgImg: B } })),
@@ -42,11 +42,11 @@ test('F2 읽는 차례 — 레이어 > 인라인 style > style 속성 글자 > d
   ], [`url("${A}")`, `url("${A}")`, 'url("goya-asset://p/a.png")', `url("${B}")`, '']);
 });
 test('F3 186 — 섹션 아래 여백·바닥을 싣는다(없으면 0)', () => {
-  const box = fn('function _sectionBox(', '_sectionBox');
+  const box = fn(sliceBlock(EXP, 'function _sectionBox('), '_sectionBox');
   assert.deepEqual([box(sec({ style: { paddingBottom: '48px', minHeight: '900px' } })), box(sec({}))], [{ paddingBottom: 48, minHeight: 900 }, { paddingBottom: 0, minHeight: 0 }]);
 });
 test('F4 빌더 _section 이 두 함수를 «실제로» 쓴다(구조 — 함수만 있고 안 부르면 빨강)', () => {
-  const body = stripComments(sliceBlock(EXP, '  function _section(secEl, ps) {'));
+  const body = stripComments(sliceBlock(EXP, '  function _section('));
   assert.match(body, /const\s+bgImgRaw\s*=\s*_sectionBgImgRaw\(secEl\)/, '_section 의 배경 원문 = _sectionBgImgRaw(secEl)');
   assert.match(body, /return\s*\{[^}]*\.\.\._sectionBox\(secEl\)/, '_section 의 반환 칸에 ..._sectionBox(secEl)');
 });
