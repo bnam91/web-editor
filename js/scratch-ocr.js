@@ -66,8 +66,20 @@
     });
     mk('섹션으로', () => {
       if (typeof window.addTextBlock !== 'function') { window.showToast?.('❌ 텍스트 블록을 넣을 수 없습니다'); return; }
-      window.addTextBlock('body', { content: r.text || '' });
-      window.showToast?.('✅ 섹션에 텍스트 블록으로 넣었습니다');
+      // 한 줄 = 블록 하나(글자만 모드는 덩어리마다 줄을 바꾼다). ⌘Z 한 번에 다 빠지게 앞뒤 표본만 찍는다.
+      const lines = (r.text || '').split('\n').map(s => s.trim()).filter(Boolean);
+      if (!lines.length) return;
+      const count = () => document.querySelectorAll('.text-block').length;
+      const c0 = count();
+      window.pushHistory?.();
+      const origPush = window.pushHistory;
+      window.pushHistory = () => {};
+      try { lines.forEach(line => window.addTextBlock('body', { content: line })); }
+      finally { window.pushHistory = origPush; }
+      const added = count() - c0;   // 섹션을 안 골랐으면 addTextBlock 이 안내만 띄우고 안 넣는다
+      if (!added) return;
+      window.pushHistory?.();
+      window.showToast?.(`✅ 텍스트 블록 ${added}개를 넣었습니다`);
     });
     mk('지우기', () => {
       // 전제: 지금 보는 이미지의 기록 목록 안에 «그 한 건»이 있을 때만 지운다
@@ -100,6 +112,11 @@
     $('ocr-run-btn').disabled = !item;
     const recs = (item && Array.isArray(item.ocr)) ? item.ocr : [];
     $('ocr-log-count').textContent = String(recs.length);
+    const fold = $('ocr-collapse-all');
+    const anyOpen = recs.some(r => _open.has(r.id));
+    fold.style.display = recs.length ? '' : 'none';
+    fold.classList.toggle('is-folded', !anyOpen);
+    fold.title = anyOpen ? '전부 접기' : '전부 펴기';
     const log = $('ocr-log');
     log.innerHTML = '';
     if (!item) {
@@ -158,7 +175,11 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     $('ocr-run-btn')?.addEventListener('click', _run);
-    $('ocr-collapse-all')?.addEventListener('click', () => { _open.clear(); render(); });
+    $('ocr-collapse-all')?.addEventListener('click', () => {
+      const recs = _item()?.ocr || [];
+      if (recs.some(r => _open.has(r.id))) _open.clear(); else recs.forEach(r => _open.add(r.id));
+      render();
+    });
   });
   // Esc = 닫기. ai-prompt.js 의 Esc 는 textarea 안에서만 듣는데 OCR 패널엔 textarea 가 없다.
   // capture 라 editor.js 의 Esc(선택 풀기)보다 먼저 받고 소진한다. 기록 글 고치는 중엔 안 닫는다.

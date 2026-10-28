@@ -1419,12 +1419,11 @@
         </div>
       </div>
       <div class="ocr-actions">
-        <button type="button" class="ai-cancel-btn" onclick="closeAiPrompt()">닫기</button>
         <button type="button" class="ai-submit-btn" id="ocr-run-btn">글자 추출</button>
       </div>
       <div class="ocr-log-head">
         <span><b id="ocr-log-id"></b> 의 전사 기록 <b id="ocr-log-count">0</b>건</span>
-        <button type="button" class="ocr-mini-btn" id="ocr-collapse-all">전부 접기</button>
+        <button type="button" class="ocr-fold-btn" id="ocr-collapse-all" title="전부 접기" aria-label="전부 접기·펴기"><svg width="12" height="12" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 5.5l3-3 3 3"/></svg></button>
       </div>
       <div id="ocr-log" class="ocr-log"></div>
     </div>

@@ -43,6 +43,10 @@
 .ocr-log-head b { color: var(--ui-text-base, #f0f0f0); }
 .ocr-mini-btn { background: var(--ui-bg-card, #252525); color: var(--ui-text-base, #f0f0f0); border: 1px solid var(--ui-border-mid, #333); border-radius: var(--ui-radius-sm); padding: 3px 8px; font-size: var(--ui-fs-base); cursor: pointer; }
 .ocr-mini-btn:hover { border-color: #a78bfa; }
+.ocr-fold-btn { background: none; border: none; color: var(--ui-text-sub, #aaa); padding: 4px; cursor: pointer; display: flex; border-radius: var(--ui-radius-sm); }
+.ocr-fold-btn:hover { color: var(--ui-text-base, #f0f0f0); background: var(--ui-bg-card, #252525); }
+.ocr-fold-btn svg { transition: transform .15s; }
+.ocr-fold-btn.is-folded svg { transform: rotate(180deg); }
 .ocr-log { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; font-size: var(--ui-fs-12); color: var(--ui-text-sub, #aaa); }
 .ocr-rec { border: 1px solid var(--ui-border-mid, #333); border-left: 3px solid #7c3aed; border-radius: var(--ui-radius-md); }
 .ocr-rec-head { width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: 0; color: var(--ui-text-base, #f0f0f0); padding: 8px 10px; font-size: var(--ui-fs-12); font-weight: 600; cursor: pointer; text-align: left; }
