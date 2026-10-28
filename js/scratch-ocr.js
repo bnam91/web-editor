@@ -160,4 +160,11 @@
     $('ocr-run-btn')?.addEventListener('click', _run);
     $('ocr-collapse-all')?.addEventListener('click', () => { _open.clear(); render(); });
   });
+  // Esc = 닫기. ai-prompt.js 의 Esc 는 textarea 안에서만 듣는데 OCR 패널엔 textarea 가 없다.
+  // capture 라 editor.js 의 Esc(선택 풀기)보다 먼저 받고 소진한다. 기록 글 고치는 중엔 안 닫는다.
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !_targetId || !_isShown() || e.target.closest?.('.ocr-rec-text')) return;
+    e.stopPropagation();
+    window.closeAiPrompt?.();
+  }, true);
 })();
