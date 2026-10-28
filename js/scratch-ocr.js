@@ -225,6 +225,7 @@
       const sel = [...document.querySelectorAll('.scratch-item.scratch-selected')];
       _targetId = sel.length === 1 ? sel[0].dataset.scratchId : null;
     }
+    _lockTabs(true);   // 어느 입구로 들어와도 OCR 탭이면 나머지는 «기능 대기»(현빈 261028) · 닫으면 풀린다
     render();
   };
   window._scratchOcrReset = () => { _targetId = null; _open.clear(); _lockTabs(false); };
