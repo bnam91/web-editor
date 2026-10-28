@@ -71,7 +71,8 @@ function _sectionBgImgRaw(secEl) {
   const _bgLayerImg = _bgLayerEl ? (_bgLayerEl.style.backgroundImage || '') : '';
   if (_bgLayerImg && _bgLayerImg !== 'none') return _bgLayerImg;
   const styleAttr = (secEl.getAttribute && secEl.getAttribute('style')) || '';
-  const inline = secEl.style.backgroundImage || (/background(-image)?:\s*([^;]+)/.exec(styleAttr) || [])[2] || '';
+  /* ★258 — 값 안의 url(...) 은 통째로 잡는다(data URI 의 «;base64» 에서 끊기지 않게) · 그 밖은 옛 꼴대로 ; 까지. */
+  const inline = secEl.style.backgroundImage || (/background(-image)?:\s*((?:url\([^)]*\)|[^;])+)/.exec(styleAttr) || [])[2] || '';
   if (inline && inline !== 'none') return inline;
   const attr = secEl.dataset && secEl.dataset.bgImg;
   return attr ? `url("${attr}")` : inline;
