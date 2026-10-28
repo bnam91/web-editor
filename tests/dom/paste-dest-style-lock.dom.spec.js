@@ -301,6 +301,7 @@ const blockCount = (page) => page.evaluate(() => document.querySelectorAll('#can
 // ───────────────────────── P0 판 정체 ─────────────────────────
 test.describe('S6 [10] ⑴ 붙여넣기 = 목적지 서식 잠금', () => {
   test('P0 판 정체 — HEAD = EXPECT_SHA · 페이지가 받은 ID_FILES 바이트 sha1 = 디스크 = EXPECT_FILES_SHA1 @pds @pds-id', async ({ page }) => {
+    test.skip(!process.env.EXPECT_SHA && !process.env.CR_REQUIRE_BOARD, 'ENV-IDENTITY-NEEDS-LANE-ENV-169 — 판 정체 «전용 칸» · 레인 env(EXPECT_SHA)가 없는 일반 런은 건너뜀(radial-t4-a P0 꼴 · 제품 칸은 그대로 돈다)');
     const want = process.env.EXPECT_SHA || '';
     expect(/^[0-9a-f]{40}$/.test(want), `EXPECT_SHA 는 40 hex — 받은 값 «${want}»`).toBe(true);
     let wantMap = null;
