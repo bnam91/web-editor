@@ -168,6 +168,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   aiGenerateImage: (payload)                  => ipcRenderer.invoke('ai:generateImage', payload),
   aiSaveImage:     ({ projectId, b64, mime }) => ipcRenderer.invoke('ai:saveImage',   { projectId, b64, mime }),
   aiReadImage:     ({ projectId, blobPath })  => ipcRenderer.invoke('ai:readImage',   { projectId, blobPath }),
+  aiReadLocalImage: (filePath)                => ipcRenderer.invoke('ai:readLocalImage', filePath),
   aiDeleteImage:   ({ projectId, blobPath })  => ipcRenderer.invoke('ai:deleteImage', { projectId, blobPath }),
 
   // Assets 트리 — 디스크 분리 (project/<id>/assets/ast_xxx.<ext>)

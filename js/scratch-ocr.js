@@ -228,7 +228,51 @@
   };
   window._scratchOcrReset = () => { _targetId = null; _open.clear(); _lockTabs(false); };
 
+  // 대상 넣기 — 스크래치 ID 면 그 이미지로, 아니면 그 이미지를 스크래치에 «새로 올려» 대상으로(기록은 스크래치 이미지에 붙는다)
+  function _target(id) { _targetId = id; _open.clear(); render(); }
+  async function _addImage(dataUrl) {
+    const r = await window._scratchAddForMcp?.(dataUrl, { width: 400 });
+    if (!r?.ok) { window.showToast?.('❌ 스크래치에 올리지 못했습니다' + (r?.message ? ': ' + r.message : '')); return; }
+    _target(r.scratchId);
+    window.showToast?.(`✅ 스크래치에 올렸습니다 (#${r.scratchId})`);
+  }
+  const _readFile = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsDataURL(f); });
+  async function _addFiles(files) {
+    const f = [...(files || [])].find(x => x.type.startsWith('image/'));
+    if (!f) return false;
+    if (f.size > 20 * 1024 * 1024) { window.showToast?.('⚠️ 20MB 이하 이미지만 됩니다'); return true; }
+    await _addImage(await _readFile(f));
+    return true;
+  }
+  async function _fromText(raw) {
+    const t = raw.trim().replace(/^#/, '');
+    if (!t) return;
+    if (/^sp_[a-z0-9]+$/i.test(t)) {
+      if (window._scratchItemById?.(t)) _target(t); else window.showToast?.(`⚠️ 스크래치에 #${t} 가 없습니다`);
+      return;
+    }
+    const r = await window.electronAPI?.aiReadLocalImage?.(t.replace(/^file:\/\//, ''));
+    if (!r?.ok) { window.showToast?.('❌ ' + (r?.error || '이미지를 읽지 못했습니다')); return; }
+    await _addImage(r.dataUrl);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    const inp = $('ocr-src-input'), panel = $('aig-ocr-panel');
+    inp?.addEventListener('keydown', e => {
+      e.stopPropagation();   // 에디터 단축키가 입력을 가로채지 않게
+      if (e.key === 'Enter') { e.preventDefault(); _fromText(inp.value).then(() => { inp.value = ''; }); }
+    });
+    inp?.addEventListener('paste', async e => {
+      if (await _addFiles(e.clipboardData?.files)) e.preventDefault();   // 글이면 그대로 입력란에 붙는다
+    });
+    panel?.addEventListener('dragover', e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); panel.classList.add('ocr-drop'); } });
+    panel?.addEventListener('dragleave', e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('ocr-drop'); });
+    panel?.addEventListener('drop', async e => {
+      panel.classList.remove('ocr-drop');
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault(); e.stopPropagation();
+      if (!(await _addFiles(e.dataTransfer.files))) window.showToast?.('⚠️ 이미지 파일만 됩니다');
+    });
     $('ocr-run-btn')?.addEventListener('click', _run);
     $('ocr-collapse-all')?.addEventListener('click', () => {
       const recs = _item()?.ocr || [];

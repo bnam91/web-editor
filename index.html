@@ -1405,10 +1405,11 @@
         <img id="ocr-target-thumb" alt="">
         <div><div class="ocr-target-sub">이 이미지에서 글자를 읽습니다</div><b id="ocr-target-id"></b></div>
       </div>
+      <input type="text" id="ocr-src-input" class="ocr-src-input" placeholder="이미지 붙여넣기 · 끌어다 놓기 · 스크래치 ID(sp_…) · 파일 경로 + Enter">
       <div class="aig-row">
         <label class="aig-row-label" for="ocr-model-select">Model</label>
         <!-- 목록은 AI 텍스트 채우기(js/ai-section-fill.js #ai-fill-panel-model)와 같다 — 하나를 고치면 같이 -->
-        <select class="aig-select" id="ocr-model-select">
+        <select class="ai-fill-panel-model-select" id="ocr-model-select">
           <optgroup label="Google">
             <option value="gemini-2.5-flash">Gemini 2.5 Flash · 무료티어</option>
           </optgroup>

@@ -2156,6 +2156,22 @@ ipcMain.handle('ai:saveImage', (_e, { projectId, b64, mime } = {}) => {
   }
 });
 
+// 글자 추출(OCR) 대상 — 사용자가 적은 «로컬 이미지 경로»를 dataURL 로. 이미지 확장자·20MB 이하만(시트 33).
+const OCR_IMG_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+ipcMain.handle('ai:readLocalImage', (_e, filePath) => {
+  try {
+    const full = path.resolve(String(filePath || '').replace(/^~(?=\/)/, require('os').homedir()));
+    const mime = OCR_IMG_MIME[path.extname(full).toLowerCase()];
+    if (!mime) return { ok: false, error: '이미지 파일(png·jpg·webp·gif)만 됩니다' };
+    const st = fs.statSync(full);
+    if (!st.isFile()) return { ok: false, error: '파일이 아닙니다' };
+    if (st.size > 20 * 1024 * 1024) return { ok: false, error: '20MB 이하 이미지만 됩니다' };
+    return { ok: true, dataUrl: `data:${mime};base64,${fs.readFileSync(full).toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.code === 'ENOENT' ? '파일을 찾지 못했습니다' : e.message };
+  }
+});
+
 ipcMain.handle('ai:readImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
