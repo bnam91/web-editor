@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-const { fileTimes, judge } = createRequire(import.meta.url)('../unit-time.gate.js');
+const { fileTimes, judge, staleness } = createRequire(import.meta.url)('../unit-time.gate.js');
 const ROOT = '/r';
 const X = (...c) => `<?xml version="1.0"?><testsuites>${c.map(([f, t]) => `<testcase name="x" time="${t}" classname="test" file="${path.join(ROOT, f)}"/>`).join('')}</testsuites>`;
 const R = { tol: 0.5, floor_ms: 1000, files: { 'tests/unit/slow.test.mjs': 2000 } };
@@ -32,4 +32,22 @@ test('U3 음성 — 허용 안이면 0 · 빨라지면 «줄여라» 알림만(�
 test('U4 ★못 잰다를 통과로 접지 않는다 — 명부 꼴 깨짐 · testcase 0', () => {
   assert.equal(judge(X(['tests/unit/a.test.mjs', '1']), { files: {} }, ROOT).ok, false, 'tol·floor 없는 명부를 받았다');
   assert.equal(judge('<testsuites></testsuites>', R, ROOT).ok, false, 'testcase 0 을 ok 로 받았다');
+});
+
+/* ★196 ⑷ ⒞(지디 13:2x) — 게이트가 제 «낡음» 을 한 줄로 말한다: 명부 meta.sha 가 HEAD 조상인가 · 몇 커밋 뒤인가. ⛔rc 는 안 바꾼다(rc 3 여부는 ⑸ 부르는 자가 정해진 뒤).
+   git 은 주입(가짜) — 칸마다 git 이 받은 argv 와 돌려준 값으로만 판정한다(파일·저장소 0). */
+const fakeGit = (tbl) => (args) => tbl[args.join(' ')] ?? { status: 128, stdout: '' };
+test('U6 ★⒞ 낡음 한 줄 — 조상이면 «N 커밋 뒤» · 다른 줄기 · 이 나무에 없음 · meta.sha 못 읽음 — 넷이 갈린다', () => {
+  const S = '5c5b94f5';
+  const meta = { sha: `${S} (뿌리 7f3c6de2 + 196 래퍼·게이트)` };
+  const anc = staleness(meta, fakeGit({ [`cat-file -e ${S}^{commit}`]: { status: 0, stdout: '' }, [`merge-base --is-ancestor ${S} HEAD`]: { status: 0, stdout: '' }, [`rev-list --count ${S}..HEAD`]: { status: 0, stdout: '7\n' } }));
+  assert.deepEqual([anc.state, anc.behind], ['ancestor', 7]);
+  assert.match(anc.line, new RegExp(`${S}.*HEAD 조상.*7 커밋 뒤`));
+  const div = staleness(meta, fakeGit({ [`cat-file -e ${S}^{commit}`]: { status: 0, stdout: '' }, [`merge-base --is-ancestor ${S} HEAD`]: { status: 1, stdout: '' } }));
+  assert.deepEqual([div.state, div.behind], ['diverged', null]);
+  assert.match(div.line, /HEAD 조상 아님/);
+  const abs = staleness(meta, fakeGit({}));
+  assert.equal(abs.state, 'absent');
+  assert.match(abs.line, /이 나무에 없다/);
+  for (const m of [{}, { sha: '' }, { sha: '옛 판' }, null]) assert.equal(staleness(m, fakeGit({})).state, 'unreadable', `meta ${JSON.stringify(m)} 를 읽었다고 했다`);
 });
