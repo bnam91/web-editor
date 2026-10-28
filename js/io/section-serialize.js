@@ -312,6 +312,16 @@
       el.removeAttribute('data-lazy-bg');
     });
     root.querySelectorAll('.section-block.lazy-unloaded').forEach(el => el.classList.remove('lazy-unloaded'));
+    /* ★245 — 섹션 배경 그림은 «속성(data-bg-img) 하나»로 싣는다. 인라인 style 의 같은 url() 은 뺀다.
+       왜: 저장본이 같은 그림을 두 번 들었다(속성 + style · 무거운 섹션 7 = 각 18.37M 문자 · 172·245 정적 셈) ·
+         ⌘Z 복원이 그 style 7 개를 한꺼번에 세워 본체 재계산이 ~550ms(속성은 몫 0 · style 을 단색으로 바꾼 사본 52~57ms — 172 ㉠㉡).
+       속성만 있어도 앱이 열 때 style 을 다시 칠한다(S5 앱 ×3: style 뺀 사본 7/7 보임 · 둘 다 뺀 음성 0/7) ⇒ 저장본엔 style 이 없어도 된다.
+       ⚠️«누가 칠하나»(열림 뒤 ~5.4s · 섹션마다 순차)는 아직 이름 없음 — ⌘Z 뒤에도 보이나는 이 고침의 검사가 잰다.
+       ⛔style 이 속성과 «같은 그림 한 겹» 일 때만 뺀다 — 물들임(색 + url 두 겹 · prop-section _applySectionBg)·메시·레이어(none)는 그대로. */
+    root.querySelectorAll('.section-block[data-bg-img]').forEach(el => {
+      const m = /^url\(\s*(["']?)(.*)\1\s*\)$/.exec(el.style.backgroundImage || '');
+      if (m && m[2] === el.dataset.bgImg) el.style.backgroundImage = '';
+    });
     restParticleMotion(root);
     /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
        setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
