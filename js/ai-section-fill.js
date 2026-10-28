@@ -8,6 +8,8 @@ import { isGoyaAssetUrl, parseGoyaAssetUrl, makeElectronAssetReader } from './io
 /* ★텍스트 블록의 «글자 자리»는 ai-text-slots.js 한 곳에서 정한다 — 읽기(collect)·쓰기(apply)가 같은 정본을 쓴다.
    (2026-10-03 AI 묶음 A: 두 벌이던 셀렉터 명부가 어긋나 말풍선·불릿·라이너 구조가 래퍼째 지워졌다.) */
 import { findTextSlot, readTextSlot, writeTextSlot, writeFilledText as _writeFilledText } from './ai-text-slots.js';
+/* ★242(+243) — 미리보기에 모델 글을 심을 때 쓰는 이스케이프. ⛔새로 짓지 않는다 — 패널들이 이미 쓰는 정본(js/props/_helpers.js · 다섯 글자 & < > " ') */
+import { escHtml } from './props/_helpers.js';
 
 /* ── 스크래치 토큰(#sp_xxxxxx) 첨부 시 goya-asset:// → base64 data URL 재인라인 ──
  * 왜 필요한가 — 「저장 전엔 되고 저장 후엔 안 됐다」:
@@ -831,14 +833,16 @@ function _ensureAIFillPanel() {
     const repRows = (res.replacements || []).map(rep => {
       const b = byId.get(rep.id);
       const styleLbl = (b?.style || '').replace('tb-', '');
+      /* ★242(+243) — rep.text 는 모델이 도구 호출로 채운 글(그림을 붙이면 OCR 로 «남이 준» 글)이다 ⇒ innerHTML 에 «글자로» 심는다.
+         styleLbl 은 문서 블럭 style 에서 오지만 같은 innerHTML 로 가니 같이 막는다. */
       return `<div class="ai-fill-panel-preview-row">
-        <span class="ai-fill-panel-preview-style">${styleLbl}</span>
-        <span class="ai-fill-panel-preview-text">${rep.text}</span>
+        <span class="ai-fill-panel-preview-style">${escHtml(styleLbl)}</span>
+        <span class="ai-fill-panel-preview-text">${escHtml(rep.text)}</span>
       </div>`;
     }).join('');
     const addRows = additions.map(add => `<div class="ai-fill-panel-preview-row">
-      <span class="ai-fill-panel-preview-style">+${add.style || 'body'}</span>
-      <span class="ai-fill-panel-preview-text">${add.text || ''}</span>
+      <span class="ai-fill-panel-preview-style">+${escHtml(add.style || 'body')}</span>
+      <span class="ai-fill-panel-preview-text">${escHtml(add.text || '')}</span>
     </div>`).join('');
     const expandedNote = additions.length > 0 ? ` (블록 ${additions.length}개 추가)` : '';
     const extNote = extApplied > 0 ? ` (컴포넌트 ${extApplied}개 구조 변경)` : '';
