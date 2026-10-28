@@ -522,9 +522,7 @@ function _startItemDrag(block, itemEl, idx, e) {
     block._rdlDragging = false;
     if (!moved || !cur) return;
     // 끌기 끝의 click 은 삼킨다 — 블럭 밖에서 놓으면 그 click 이 선택을 풀어 버린다.
-    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-    window.addEventListener('click', eat, { capture: true, once: true });
-    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
     const items = radialStateOf(block).items;
     if (!items[idx]) return;
     Object.assign(items[idx], cur);

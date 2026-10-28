@@ -526,16 +526,7 @@ function _stkMoved(block, e) {
    editor.js 의 「빈 캔버스 클릭 = deselectAll」이 방금 고른 것을 지웠다(선택 0). C1 전엔 mousedown 에서 이미 골라
    clip 이 풀려 있었다. ⇒ 드래그 끝 mouseup 에서 고른 뒤 «바로 다음 click 한 번»을 삼킨다.
    (click 이 안 오면 다음 mousedown 이나 다음 틱에 걷는다 — 남은 삼킴이 엉뚱한 클릭을 먹지 않게) */
-function _stkSwallowNextClick() {
-  const done = () => {
-    window.removeEventListener('click', swallow, true);
-    window.removeEventListener('mousedown', done, true);
-  };
-  const swallow = (ce) => { ce.stopPropagation(); ce.stopImmediatePropagation(); ce.preventDefault(); done(); };
-  window.addEventListener('click', swallow, true);
-  window.addEventListener('mousedown', done, true);
-  setTimeout(done, 0);
-}
+function _stkSwallowNextClick() { window.swallowNextClick({ immediate: true, untilMousedown: true }); }   // 220 — 0ms 꼴 한 벌(js/click-swallow.js) · 옛 꼴 그대로
 function _stickerModifierClick(block, e) {
   const moved = _stkMoved(block, e);
   block._stkDown = null;

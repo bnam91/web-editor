@@ -2608,13 +2608,7 @@ function _grdRangeCellAt(block, x, y) {
 }
 
 function _grdRangeArmClickSwallow() {
-  const swallow = (ev) => {
-    ev.stopPropagation();
-    ev.preventDefault();
-    document.removeEventListener('click', swallow, true);
-  };
-  document.addEventListener('click', swallow, true);
-  setTimeout(() => document.removeEventListener('click', swallow, true), 0);   // click 이 안 오면 다음 틱에 걷는다(table 선례)
+  window.swallowNextClick({ on: document });   // 220 — 0ms 꼴 한 벌(js/click-swallow.js · 다음 틱에 걷음 포함)
 }
 
 function _onGridRangeMouseDown(e) {

@@ -289,9 +289,7 @@
       document.removeEventListener('mousemove', onMove, true);
       document.removeEventListener('mouseup',   onUp,   true);
       if (!moved) return;
-      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-      window.addEventListener('click', eat, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
       window.showAnnotationProperties?.(block);
       if (typeof window.pushHistory === 'function') window.pushHistory('라벨 너비');
       window.scheduleAutoSave?.();
@@ -470,9 +468,7 @@
       document.removeEventListener('mouseup',   onUp,   true);
       if (!moved || !cur) return;
       // 끌기 끝의 click 은 삼킨다 — 라벨 밖에서 놓으면 그 click 이 선택을 풀어 버린다(radial 과 같은 처방).
-      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-      window.addEventListener('click', eat, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
       window.annotSetLabelOffset?.(block, cur.dx, cur.dy);
       window.showAnnotationProperties?.(block);
       if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 라벨 위치');
@@ -518,9 +514,7 @@
       document.removeEventListener('mousemove', onMove, true);
       document.removeEventListener('mouseup',   onUp,   true);
       if (!moved) return;
-      const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-      window.addEventListener('click', eat, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener('click', eat, true), 0);
+      window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
       window.showAnnotationProperties?.(block);
       if (typeof window.pushHistory === 'function') window.pushHistory('어노테이션 시작점 회전');
       window.scheduleAutoSave?.();
@@ -890,11 +884,9 @@
     const onDown = (ev) => {
       if (ev.button !== 0) return;
       dropPendingUp();
-      const eat = (ce) => { ce.stopPropagation(); };
       const onUp = () => {
         dropPendingUp();
-        window.addEventListener('click', eat, { capture: true, once: true });
-        setTimeout(() => window.removeEventListener('click', eat, true), 0);
+        window.swallowNextClick({ preventDefault: false });   // 220 — 옛 꼴 그대로 stopPropagation 만
       };
       pendingUp = onUp;
       document.addEventListener('mouseup', onUp, true);

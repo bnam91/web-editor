@@ -58,15 +58,7 @@
   }
 
   /** 끌기 뒤 따라오는 click 하나를 삼킨다 — 레포 선례 armClickSwallow 와 같은 꼴. */
-  function armClickSwallow() {
-    const swallow = (ev) => {
-      ev.stopPropagation();
-      ev.preventDefault();
-      document.removeEventListener('click', swallow, true);
-    };
-    document.addEventListener('click', swallow, true);
-    setTimeout(() => document.removeEventListener('click', swallow, true), 0);   // click 이 안 오면 다음 틱에 걷는다(table 선례)
-  }
+  function armClickSwallow() { window.swallowNextClick({ on: document }); }   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
 
   function onDown(ev) {
     if (ev.button !== 0) return;    /* ⛔오른쪽·가운데 버튼으로는 안 끈다(261027 괴롭히기 : 오른쪽 끌기로 바닥이 생겼다) */

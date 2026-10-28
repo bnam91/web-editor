@@ -350,9 +350,7 @@ function _startProfileDrag(block, face, e) {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mouseup', onUp, true);
     if (!cur) return;
-    const eat = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-    window.addEventListener('click', eat, { capture: true, once: true });
-    setTimeout(() => window.removeEventListener('click', eat, true), 0);
+    window.swallowNextClick();   // 220 — 0ms 꼴 한 벌(js/click-swallow.js)
     if (cur.dx) block.dataset.profileDx = String(cur.dx); else delete block.dataset.profileDx;
     if (cur.dy) block.dataset.profileDy = String(cur.dy); else delete block.dataset.profileDy;
     renderModalBlock(block);
