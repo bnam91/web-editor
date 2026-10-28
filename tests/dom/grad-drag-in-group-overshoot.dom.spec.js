@@ -240,6 +240,32 @@ test('P263b ⒜ 새 길(누르기 직전 가운데로) — 임자 = 블럭 ∧ d
   expect(r.moved, `GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01 — 임자가 블럭인데 dataset 0 = 후보 ① 아님 · ${JSON.stringify(r)}`).toBe(true);
 });
 
+/* ★263 ⒜ 다음 탐침(P263c · 지디 판정 뒤에만 돌림) — P263a 표본 a: 임자 = 블럭인데 안 먹음 ⇒ «점검 때 임자» ↔ «실제 mousedown» 사이를 찍는다.
+   window capture(가장 먼저 듣는 자리)로 실제 mousedown target · 그 때 elementFromPoint · 블럭 리스너가 돌았나(block._grdDown 이 섰나 — :251 이 쓰고 click 이 null 로 지우므로 «첫 mousemove 때» 읽는다) · mousemove 수. 옛 길(장면 때 중심) ×1. */
+test('P263c ⒜ 실제 mousedown target · 블럭 리스너 돎(_grdDown) — 옛 길', async ({ page }) => {
+  await bootApp(page);
+  const s = await scene(page, false);
+  expect(s.fail).toBeUndefined();
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  await page.evaluate(() => {
+    const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]'); a._grdDown = null;
+    window.__p263c = { down: null, moves: 0 };
+    window.addEventListener('mousedown', (e) => {
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      window.__p263c.down = { target: (e.target.id || e.target.className || e.target.tagName).toString().slice(0, 40), inBlock: !!e.target.closest?.('.gradient-block') && e.target.closest('.gradient-block') === a,
+        hitInBlock: !!hit && hit.closest('.gradient-block') === a, at: [e.clientX, e.clientY], st: document.getElementById('canvas-wrap')?.scrollTop ?? null };
+    }, { capture: true, once: true });
+    window.addEventListener('mousemove', () => { if (window.__p263c.moves++ === 0) window.__p263c.grdAtMove = !!a._grdDown; }, true);
+  });
+  const r = await pressProbe(page, s, { recenter: false });
+  const c = await page.evaluate(() => ({ ...window.__p263c, grdDown: window.__p263c.grdAtMove === true }));
+  console.log('[P263c]', JSON.stringify({ ...r, ...c }));
+  expect(c.down, '★window capture mousedown 이 안 왔다').not.toBeNull();
+  /* 판정 자: 블럭 리스너가 돌았다(_grdDown) ⇔ 실제 target 이 블럭 안 · 돌았는데 안 바뀜이면 이동 길(onMove) 쪽 */
+  expect(c.grdDown, `★실제 target 블럭 안 ${c.down && c.down.inBlock} 인데 블럭 리스너 돎 ${c.grdDown} · ${JSON.stringify({ ...r, ...c })}`).toBe(!!(c.down && c.down.inBlock));
+  expect(r.moved, `★블럭 리스너 돎 ${c.grdDown} 인데 dataset 바뀜 ${r.moved} · ${JSON.stringify({ ...r, ...c })}`).toBe(c.grdDown);
+});
+
 test('D2 ★★★수를 박는다 — ★그룹 ★안 그라데는 ★★더 움직인다 (★가지 실측 32 → 73·63·58)', async ({ page }) => {
   await bootApp(page);
   const s = await scene(page, true);
