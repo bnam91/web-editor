@@ -404,7 +404,8 @@ test('W5 ★★이 파일 ★자신이 ★제 자의 ★입력이 ★아닌가 (
 
 /* ═══ ★231 FIXED-WAIT-CENSUS-BLIND-TO-SHARED-HARNESS-01 (S3 · 261028 · 지디 새 줄 · 판정 두 번) ═══════════════════════
  *   ★구멍: 위 census 는 `*.spec.js` 만 센다 — spec 이 부르는 «공용 하네스»에 고정 대기 한 줄을 넣으면 수백 벌이 다 그 대기를 쓰는데 위 수는 그대로
- *     (실측: _root-harness.js(424 벌) bootApp 머리에 한 줄 넣은 사본 → W1~W6 6/6 초록 · 판 df2ebf2a).
+ *     (실측: _root-harness.js(★수백 벌이 씀 — 수는 자마다 다르다: `git grep -lE "require\(['\"]\./_root-harness(\.js)?['\"]\)" -- 'tests/dom/*.spec.js'` = 423 ·
+ *      지디 require 426 · bootApp 꺼냄 407 · 글자 431 · 판 df2ebf2a) bootApp 머리에 한 줄 넣은 사본 → W1~W6 6/6 초록).
  *   ★덮는 축(지디 ⑵ «대상 넓히기가 아니라 어느 축을 전부 덮나»): «DOM spec 이 require/import 하는 테스트 쪽 파일 전부» — ★이름(`_*.js`)이 아니라 «부르는 자리»로 뽑는다.
  *     잰 값(판 df2ebf2a · 주석 뗌): 대상 25 중 테스트 쪽 = tests/dom/_*.js 14(전부 spec 이 부름) + tests/unit/_ 넷(_slice-block ×11 · _strip-comments ×4 · _srcread ×2 · _tmproot ×2)
  *     · `_` 없는 대상 6 은 제품 파일(js/io/…) 또는 페이지 안 경로 ⇒ 테스트 쪽 «_ 없는 공용» 0.
