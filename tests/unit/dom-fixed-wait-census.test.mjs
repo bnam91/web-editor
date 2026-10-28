@@ -402,51 +402,81 @@ test('W5 ★★이 파일 ★자신이 ★제 자의 ★입력이 ★아닌가 (
     '★이 파일이 ★`tests/dom` 안에 있다 — ★★그러면 ★제 자가 ★자기를 ★센다');
 });
 
-/* ═══ ★231 FIXED-WAIT-CENSUS-BLIND-TO-SHARED-HARNESS-01 (S3 · 261028 · 지디 새 줄) ═══════════════════════
- *   ★구멍: 위 census 는 `*.spec.js` 만 센다 — ★공용 하네스(tests/dom/_*.js · 예 _root-harness.js 를 424 벌이 씀)에
- *     고정 대기 한 줄을 넣으면 ★수백 벌이 다 고정 대기를 쓰는데 ★위 수는 그대로다(실측: _root-harness bootApp 머리에 한 줄 넣은 사본 → W1~W6 6/6 초록).
- *   ★처방(지디 제안 꼴): 대상에 tests/dom/_*.js 를 «따로» 더한다 — ⛔위 BASE_SITES·BASE_MS·BASE_VAR 에 섞지 않는다(그 수의 장부 BASE_AT 이 뜻을 잃는다).
- *   ★명부 = 파일 → { 숫자꼴 · 변수꼴 } (줄 번호는 편집마다 밀려 명부가 썩는다 — 넘을 때 «파일:줄» 로 찍는다) · 합 ms(숫자꼴) 따로.
- *   잰 값(판 df2ebf2a · 주석 뗌): 14 벌 중 3 벌 · 5 곳 = _graph-gr-harness 숫자 2(200·50) · _history-step 변수 2(settleMs) · _root-harness 변수 1(interval). */
+/* ═══ ★231 FIXED-WAIT-CENSUS-BLIND-TO-SHARED-HARNESS-01 (S3 · 261028 · 지디 새 줄 · 판정 두 번) ═══════════════════════
+ *   ★구멍: 위 census 는 `*.spec.js` 만 센다 — spec 이 부르는 «공용 하네스»에 고정 대기 한 줄을 넣으면 수백 벌이 다 그 대기를 쓰는데 위 수는 그대로
+ *     (실측: _root-harness.js(424 벌) bootApp 머리에 한 줄 넣은 사본 → W1~W6 6/6 초록 · 판 df2ebf2a).
+ *   ★덮는 축(지디 ⑵ «대상 넓히기가 아니라 어느 축을 전부 덮나»): «DOM spec 이 require/import 하는 테스트 쪽 파일 전부» — ★이름(`_*.js`)이 아니라 «부르는 자리»로 뽑는다.
+ *     잰 값(판 df2ebf2a · 주석 뗌): 대상 25 중 테스트 쪽 = tests/dom/_*.js 14(전부 spec 이 부름) + tests/unit/_ 넷(_slice-block ×11 · _strip-comments ×4 · _srcread ×2 · _tmproot ×2)
+ *     · `_` 없는 대상 6 은 제품 파일(js/io/…) 또는 페이지 안 경로 ⇒ 테스트 쪽 «_ 없는 공용» 0.
+ *   ⛔이 자가 안 덮는 축(이름으로): tests/unit 시험 자체의 고정 잠(setTimeout(r,N) 약속·sleep(N)) — 실측 21 곳 / 10 파일 · 재는 자 0(196 시간 명부는 «느려짐»만) ⇒ «청».
+ *   ⛔옛 BASE_SITES·BASE_MS·BASE_VAR 에 섞지 않는다(장부 BASE_AT 뜻 지킴) — 따로 명부(파일 → 숫자·변수꼴) · 넘을 때 «파일:줄».
+ *   ★켜기 전 결정(지디 ⑴): _graph-gr-harness 숫자꼴 둘 — :93 waitForTimeout(200)(렌더 뒤 맨 대기 · 까닭 없음) ⇒ ★고침(조건 대기 · 같은 커밋) /
+ *     :136 waitForTimeout(50)(«두 번 읽어 같을 때까지» 고리의 폴링 간격 · 최대 ~1s · 끝에 전제 단언) ⇒ ★면제 + 그 조건이 아직 참인지 재는 H3(고리 안 · break 있음).
+ *     합친 뒤 수(참고 · 섞지 않음): spec 1305 곳·379950ms·변수 9 + 하네스 숫자 1(50ms) · 변수 3 = 1306 · 380000 · 12. */
 const HARNESS_BASE = {
-  '_graph-gr-harness.js': { lit: 2, var: 0 },
-  '_history-step.js': { lit: 0, var: 2 },
-  '_root-harness.js': { lit: 0, var: 1 },
+  'tests/dom/_graph-gr-harness.js': { lit: 1, var: 0 },
+  'tests/dom/_history-step.js': { lit: 0, var: 2 },
+  'tests/dom/_root-harness.js': { lit: 0, var: 1 },
 };
-const HARNESS_BASE_MS = 250;
-function harnessCensus(dir) {
-  const out = { read: 0, by: {}, ms: 0, at: [] };
-  if (!fs.existsSync(dir)) return out;
-  for (const f of fs.readdirSync(dir).sort()) {
-    if (!/^_.*\.js$/.test(f)) continue;
-    out.read += 1;
-    const body = stripComments(fs.readFileSync(path.join(dir, f), 'utf8'));
+const HARNESS_BASE_MS = 50;
+const HARNESS_EXEMPT = { 'tests/dom/_graph-gr-harness.js': '폴링 간격 — «두 번 읽어 같을 때까지» 고리 안(break) · 최대 ~1s · 끝에 전제 단언' };
+/** DOM spec 이 require/import 하는 «테스트 쪽» 파일(저장소 기준 posix) — 이름이 아니라 부르는 자리로 */
+function sharedOf(domDir, root) {
+  const out = new Set();
+  for (const f of fs.readdirSync(domDir).filter((n) => n.endsWith('.spec.js'))) {
+    const s = stripComments(fs.readFileSync(path.join(domDir, f), 'utf8'));
+    for (const m of s.matchAll(/(?:require\(\s*|from\s+|import\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      let t = path.join(domDir, m[1]); if (!/\.(m?js|cjs)$/.test(t)) t += '.js';
+      const rel = path.relative(root, t).split(path.sep).join('/');
+      if (rel.startsWith('tests/') && fs.existsSync(t) && !rel.endsWith('.spec.js')) out.add(rel);
+    }
+  }
+  return [...out].sort();
+}
+function harnessCensus(domDir, root) {
+  const out = { read: 0, files: [], by: {}, ms: 0, at: [], lits: {} };
+  for (const rel of sharedOf(domDir, root)) {
+    out.read += 1; out.files.push(rel);
+    const body = stripComments(fs.readFileSync(path.join(root, rel), 'utf8'));
     const hits = [...body.matchAll(ANY_RE())];
     if (!hits.length) continue;
     const lit = hits.filter((m) => IS_LIT(m[1])), vr = hits.filter((m) => !IS_LIT(m[1]));
-    out.by[f] = { lit: lit.length, var: vr.length };
+    out.by[rel] = { lit: lit.length, var: vr.length };
+    out.lits[rel] = lit.map((m) => m.index);
     out.ms += lit.reduce((a, m) => a + Number(m[1].trim()), 0);
-    for (const m of hits) out.at.push(`${f}:${body.slice(0, m.index).split('\n').length} (${m[1].trim()})`);
+    for (const m of hits) out.at.push(`${rel}:${body.slice(0, m.index).split('\n').length} (${m[1].trim()})`);
   }
   return out;
 }
-test('H1 ★231 자가 산다 — 공용 하네스(_*.js)의 고정 대기를 센다 · spec 은 안 센다 · 주석은 안 센다', () => {
+const { findBlockEnd } = createRequire(import.meta.url)('./_slice-block.js');
+/** 면제 조건: 그 숫자꼴 대기가 for/while 고리 «안» 이고 그 고리 몸에 break 가 있다(폴링) */
+function insidePollLoop(body, idx) {
+  for (const m of [...body.slice(0, idx).matchAll(/\b(?:for|while)\s*\(/g)].reverse()) {
+    const open = body.indexOf('{', m.index);
+    if (open < 0 || open > idx) continue;
+    const end = findBlockEnd(body, open, 'poll');
+    if (end > idx) return /\bbreak\b/.test(body.slice(open, end));
+  }
+  return false;
+}
+test('H1 ★231 자가 산다 — spec 이 부르는 테스트 쪽 파일만 센다(이름 아님) · 주석은 안 센다 · «파일:줄»', () => {
   const FIX = 'waitFor' + 'Timeout';
-  const dir = mkTmpRoot('census-harness-');
-  fs.writeFileSync(path.join(dir, '_root-like.js'), `async function bootApp(page) {\n  await page.${FIX}(1);\n  await page.${FIX}(ms);\n}\n`);
-  fs.writeFileSync(path.join(dir, '_clean.js'), 'await page.waitForFunction(() => true);\n');
-  fs.writeFileSync(path.join(dir, '_commented.js'), `/* await page.${FIX}(999); */\n`);
-  fs.writeFileSync(path.join(dir, 'x.dom.spec.js'), `await page.${FIX}(250);\n`);
-  const h = harnessCensus(dir);
-  assert.equal(h.read, 3, `_*.js 만 읽어야(spec 제외) — 읽음 ${h.read}`);
-  assert.deepEqual(h.by, { '_root-like.js': { lit: 1, var: 1 } }, '★양성(_root-like 숫자 1 · 변수 1) · 음성(_clean · _commented 0) 가 갈려야');
-  assert.equal(h.ms, 1);
-  assert.deepEqual(h.at, ['_root-like.js:2 (1)', '_root-like.js:3 (ms)'], '«파일:줄» 로 찍어야');
+  const root = mkTmpRoot('census-harness-');
+  const dom = path.join(root, 'tests', 'dom'); fs.mkdirSync(dom, { recursive: true }); fs.mkdirSync(path.join(root, 'tests', 'unit'), { recursive: true });
+  fs.writeFileSync(path.join(dom, 'a.dom.spec.js'), "const h = require('./_root-like.js'); const k = require('./shared-no-underscore.js'); const u = require('../unit/_u.js');\n");
+  fs.writeFileSync(path.join(dom, '_root-like.js'), `async function bootApp(page) {\n  await page.${FIX}(1);\n  await page.${FIX}(ms);\n}\n`);
+  fs.writeFileSync(path.join(dom, 'shared-no-underscore.js'), `await page.${FIX}(7);\n`);
+  fs.writeFileSync(path.join(dom, '_not-imported.js'), `await page.${FIX}(9);\n`);
+  fs.writeFileSync(path.join(root, 'tests', 'unit', '_u.js'), `/* await page.${FIX}(999); */\n`);
+  const h = harnessCensus(dom, root);
+  assert.deepEqual(h.files, ['tests/dom/_root-like.js', 'tests/dom/shared-no-underscore.js', 'tests/unit/_u.js'], '부르는 자리로 뽑아야(_ 없는 공용 포함 · 안 부르는 _ 제외 · unit 쪽 포함)');
+  assert.deepEqual(h.by, { 'tests/dom/_root-like.js': { lit: 1, var: 1 }, 'tests/dom/shared-no-underscore.js': { lit: 1, var: 0 } });
+  assert.deepEqual(h.at, ['tests/dom/_root-like.js:2 (1)', 'tests/dom/_root-like.js:3 (ms)', 'tests/dom/shared-no-underscore.js:1 (7)']);
 });
 test('H2 ★231 공용 하네스의 고정 대기가 «늘지 않는다» · 줄었으면 명부를 줄여라(썩은 면제 0)', () => {
-  const h = harnessCensus(DOM);
-  console.log(`    [H2] tests/dom/_*.js 읽음 ${h.read} · 고정 대기 든 파일 ${Object.keys(h.by).length} · 곳 ${h.at.length} · 숫자꼴 합 ${h.ms}ms (기준 ${HARNESS_BASE_MS})`);
-  assert.ok(h.read > 0, '전제: tests/dom/_*.js 를 하나도 못 읽었다(안 쟀다)');
+  const h = harnessCensus(DOM, ROOT);
+  console.log(`    [H2] spec 이 부르는 테스트 쪽 파일 ${h.read} · 고정 대기 든 파일 ${Object.keys(h.by).length} · 곳 ${h.at.length} · 숫자꼴 합 ${h.ms}ms (기준 ${HARNESS_BASE_MS})`);
+  assert.ok(h.read > 0, '전제: spec 이 부르는 테스트 쪽 파일을 하나도 못 찾았다(안 쟀다)');
   const grew = [], shrank = [];
   for (const f of new Set([...Object.keys(HARNESS_BASE), ...Object.keys(h.by)])) {
     const b = HARNESS_BASE[f] || { lit: 0, var: 0 }, n = h.by[f] || { lit: 0, var: 0 };
@@ -456,4 +486,17 @@ test('H2 ★231 공용 하네스의 고정 대기가 «늘지 않는다» · 줄
   assert.deepEqual(grew, [], '★공용 하네스에 고정 대기가 늘었다 — 그 하네스를 쓰는 spec 전부가 그 대기를 쓴다(조건 대기로)');
   assert.ok(h.ms <= HARNESS_BASE_MS, `★공용 하네스 숫자꼴 합 ms 가 늘었다: ${HARNESS_BASE_MS} → ${h.ms}`);
   assert.deepEqual(shrank, [], '줄었다 — 고맙다 · HARNESS_BASE 를 그 수로 줄여라(⛔썩은 면제)');
+});
+test('H3 ★231 면제의 조건이 아직 참인가 — 면제 파일의 숫자꼴 대기는 전부 «폴링 고리(break) 안» · 한 쌍', () => {
+  const FIX = 'waitFor' + 'Timeout';
+  assert.equal(insidePollLoop(`for (let i = 0; i < 20; i++) {\n  b = read();\n  if (b === a) break;\n  await page.${FIX}(50);\n}`, 60), true, '양성: 폴링 고리 안을 못 본다');
+  const bare = `await page.${FIX}(50);\n`;
+  assert.equal(insidePollLoop(bare, bare.indexOf(FIX)), false, '음성: 맨 대기를 면제로 읽는다');
+  const h = harnessCensus(DOM, ROOT);
+  const bad = [];
+  for (const [f, why] of Object.entries(HARNESS_EXEMPT)) {
+    const body = stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+    for (const idx of h.lits[f] || []) if (!insidePollLoop(body, idx)) bad.push(`${f}:${body.slice(0, idx).split('\n').length} — 면제 까닭(${why})이 더는 참이 아니다`);
+  }
+  assert.deepEqual(bad, [], '면제 파일에 폴링 고리 밖 숫자꼴 대기 — 면제를 걷고 고쳐라');
 });

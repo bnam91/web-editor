@@ -90,7 +90,10 @@ async function setup(page, { type = 'bar-v', extra = {}, items = ITEMS, padX = 3
     window.renderGraph(block);
     window.rebindAll?.(); window.deselectAll?.();
   }, { type, extra, items, padX });
-  await page.waitForTimeout(200);
+  /* ★231 ⑴ ⒜(S3 · 261028) — 옛 `waitForTimeout(200)` 고정 대기를 «조건»으로: renderGraph 는 동기라 기다릴 것은 «그려진 블럭이 자리를 잡고
+     화면이 두 프레임 지났나» 뿐이다 ⇒ 블럭에 내용·높이가 있을 때까지 + rAF 두 번(시간이 아니라 프레임). 부하가 올라도 늦게 터지지 않는다. */
+  await page.waitForFunction(() => { const b = document.getElementById('grG'); return !!b && b.children.length > 0 && b.getBoundingClientRect().height > 0; }, null, { timeout: 5000 });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   return errs;
 }
 /* ★가라앉기는 «단언하는 그 값»으로 재라 — ★261021 GR3-zoom 100% 가 아이맥 전수에서
