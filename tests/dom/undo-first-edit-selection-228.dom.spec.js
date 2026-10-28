@@ -112,14 +112,44 @@ test('N3 [음성대조] 지운 블록 ⌘Z — 돌아가는 칸의 고름(지운
 
 test('N4 [음성대조] 고른 블록을 ⌘Z 가 지우면(만들기 되돌림) — 아무것도 안 고른다', async ({ page }) => {
   const errs = await setup(page);
-  await page.evaluate(() => { window.pushHistory?.('갭 추가'); document.querySelector('#uS .section-inner').insertAdjacentHTML('beforeend', '<div class="gap-block" data-type="gap" id="uG3" style="height:60px"></div>'); window.rebindAll?.(); });
-  const r3 = await waitStableRect(page, '#uG3');
+  /* 갭 추가 = 앱 입구 addGapBlock(만들기 «전» 한 칸을 쌓는다) — 코드로 끼운 블록은 ⌘Z 첫머리 체크포인트가 못 잡았다(하네스 ×1 · len 1 그대로) */
+  const id = await page.evaluate(() => { window.selectSection?.(document.getElementById('uS')); const before = new Set([...document.querySelectorAll('#uS .gap-block')].map(e => e.id));
+    window.addGapBlock(60); const g = [...document.querySelectorAll('#uS .gap-block')].find(e => !before.has(e.id)); return g ? g.id : null; });
+  expect(id, '[전제] 갭이 하나 더 생겼다').not.toBe(null);
+  const r3 = await waitStableRect(page, '#' + id);
   await page.mouse.click(r3.cx, r3.cy);
-  await expect.poll(() => page.evaluate(() => document.getElementById('uG3')?.classList.contains('selected')), '[전제] 새 블록을 골랐다').toBe(true);
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id)?.classList.contains('selected'), id), '[전제] 새 블록을 골랐다').toBe(true);
   await undo(page);
-  await expect.poll(() => page.evaluate(() => !!document.getElementById('uG3')), '[전제] ⌘Z 로 새 블록 사라짐').toBe(false);
+  await expect.poll(() => page.evaluate((id) => !!document.getElementById(id), id), '[전제] ⌘Z 로 새 블록 사라짐').toBe(false);
   const n = await page.evaluate(() => document.querySelectorAll('#canvas .selected').length);
-  console.log('[N4] ' + JSON.stringify({ selected: n }));
+  console.log('[N4] ' + JSON.stringify({ id, selected: n }));
   expect(n).toBe(0);
   expect(errs).toEqual([]);
 });
+
+/* ★블록 종 더(지디 «싸게 둘셋») — 만들기 = 앱 입구 · 고르기 = 실클릭 · 첫 바꿈 = 패널 숫자 칸 change · ⌘Z ⇒ 고름·칸 남음 + 값이 처음 값(한 쌍) */
+/*   잰 값(6f30a34d ×3): 아이콘 서클 = 고치기 전 빨강 ×3(228 꼴) · 구분선 = 고치기 전에도 초록 ×3 — 이 장면에선 돌아가는 칸이 이미 고른 채 쌓인다(까닭 안 잼) ⇒ 구분선 칸은 «지킴» 몫 */
+for (const K of [
+  { name: '구분선', add: 'addDividerBlock', sel: '.divider-block', field: '#dvd-weight-number', v: 7 },
+  { name: '아이콘 서클', add: 'addIconCircleBlock', sel: '.icon-circle-block', field: '#icb-size-number', v: 300 },
+]) {
+  test(`P2-${K.name} ★고른 뒤 첫 바꿈 → ⌘Z — 고름·패널 남음 · 값은 처음 값`, async ({ page }) => {
+    const errs = await setup(page);
+    const id = await page.evaluate((K) => { window.selectSection?.(document.getElementById('uS')); const before = new Set([...document.querySelectorAll(K.sel)].map(e => e.id));
+      window[K.add](); const b = [...document.querySelectorAll(K.sel)].find(e => !before.has(e.id)); window.deselectAll?.(); return b ? b.id : null; }, K);
+    expect(id, `[전제] ${K.name} 생김`).not.toBe(null);
+    const r = await waitStableRect(page, '#' + id);
+    await page.mouse.click(r.cx, r.cy);
+    await expect.poll(() => page.evaluate(([id, f]) => document.getElementById(id)?.classList.contains('selected') && !!document.querySelector(f), [id, K.field]), '[전제] 골랐고 칸이 섰다').toBe(true);
+    const v0 = await page.inputValue(K.field);
+    await page.fill(K.field, String(K.v));
+    await page.dispatchEvent(K.field, 'change');
+    await expect.poll(() => page.evaluate(() => window.getHistoryTip().pos), '[전제] 바꿈이 쌓였다').toBeGreaterThan(0);
+    await undo(page);
+    await expect.poll(async () => (await page.$(K.field)) ? page.inputValue(K.field) : null, '★⌘Z 뒤 칸이 남고 값은 처음 값').toBe(v0);
+    const sel = await page.evaluate((id) => document.getElementById(id)?.classList.contains('selected'), id);
+    console.log(`[P2-${K.name}] ` + JSON.stringify({ id, v0, sel }));
+    expect(sel, '★고름 남음').toBe(true);
+    expect(errs).toEqual([]);
+  });
+}
