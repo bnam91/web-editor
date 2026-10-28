@@ -5,7 +5,7 @@
  *   index.html #fp-pen-menu 의 «주석 밖» button.fp-menu-item onclick 을 뽑아 가른다:
  *     · addStickerBlock( 를 부른다 → 스티커 입구(shape 는 인자 shape:'…' · 없으면 sticker-block.js STICKER_DEFAULTS.shape)
  *     · count-sticker-tool.js 가 window 에 내놓는 toggle* 함수 → 카운트 입구(enter* → 실제 클릭 1번 → exit*)
- *     · 비스티커 분류표(NON_STICKER) → 따로
+ *     · 비스티커 → 입구 함수를 내놓는 제품 파일로 가른다(NON_STICKER_FILE · ★232) → 따로
  *     · ★그 밖 = «분류 안 된 메뉴» → R0 빨강(새 입구가 생겼는데 명부가 조용히 안 느는 병을 막는다 · S6 개명 때도 여기서 운다)
  *   + 메뉴 밖 변형: sticker-block.js `_SHAPES` 중 메뉴 명부에 없는 shape(square·highlight 등)를 덧붙인다.
  * ★규약(다른 블럭과 같다 — js/editor.js): ⌘/Ctrl = toggleBlockSelect(넣고 빼기) · ⇧ = rangeSelectBlocks(앵커~대상 범위).
@@ -23,7 +23,24 @@ const REPO = path.resolve(__dirname, '..', '..');
 const read = (...p) => fs.readFileSync(path.join(REPO, ...p), 'utf8');
 
 /* ── 명부: 정의에서 읽기 ─────────────────────────────────────────── */
-const NON_STICKER = { togglePenMode: 'annotation', addGradientBlock: 'gradient', addZoomBlock: 'zoom' };
+/* ★232(지디 · 261028) — 비스티커 갈래를 «함수 이름 손 표»(옛 NON_STICKER = togglePenMode·addGradientBlock·addZoomBlock)로 적지 않는다.
+ *   그 표는 10-21 5d11c2a3 이 메뉴에 «Dimension (toggleDimMode)» 를 넣은 날부터 R0 를 결정적 빨강으로 만들었다 — 같은 어노테이션 «변형»인데 표가 몰랐다.
+ *   ⇒ 갈래 = 입구 함수를 `window.<fn> =` 으로 «내놓는» 제품 파일(js/** 훑기). 같은 파일의 새 입구는 손 안 대고 그 갈래에 든다.
+ *   정의가 없거나(가짜 onclick) 이 표에 없는 파일이면 unclassified — «새 종류» 경보는 그대로 산다. */
+const NON_STICKER_FILE = { 'js/annotation-tool.js': 'annotation', 'js/blocks/gradient-block.js': 'gradient', 'js/blocks/zoom-block.js': 'zoom' };
+let _jsFiles = null;
+function definingFiles(fn) {   // 제품에서 `window.<fn> =` 을 내놓는 파일(REPO 기준 상대 경로)
+  if (!_jsFiles) {
+    _jsFiles = [];
+    const walk = (d) => { for (const e of fs.readdirSync(path.join(REPO, d), { withFileTypes: true })) {
+      const rel = `${d}/${e.name}`;
+      if (e.isDirectory()) walk(rel); else if (e.name.endsWith('.js')) _jsFiles.push(rel);
+    } };
+    walk('js');
+  }
+  const re = new RegExp(`window\\.${fn}\\s*=`);
+  return _jsFiles.filter(f => re.test(read(f)));
+}
 function readRoster(htmlOverride) {   // htmlOverride = R0 자기검사 쌍(가짜 메뉴 항목을 넣은 index.html)만 쓴다
   const html = htmlOverride ?? read('index.html');
   const i = html.indexOf('id="fp-pen-menu"');
@@ -48,8 +65,8 @@ function readRoster(htmlOverride) {   // htmlOverride = R0 자기검사 쌍(가�
       roster.push({ label: it.label, kind: 'sticker', shape: (it.onclick.match(/shape:\s*'(\w+)'/) || [])[1] || defShape });
     } else if (cnt.toggle && fn === cnt.toggle) {
       roster.push({ label: it.label, kind: 'count', shape: null });
-    } else if (NON_STICKER[fn]) {
-      nonSticker.push({ label: it.label, kind: NON_STICKER[fn] });
+    } else if (fn && (() => { const f = definingFiles(fn); return f.length === 1 && NON_STICKER_FILE[f[0]]; })()) {
+      nonSticker.push({ label: it.label, kind: NON_STICKER_FILE[definingFiles(fn)[0]] });
     } else {
       unclassified.push(`${it.label} (${fn})`);
     }
