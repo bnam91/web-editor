@@ -1,12 +1,13 @@
 /* ft-scaleof-fractional-width.dom.spec.js
  *   ★114 — 자유변형 배율 자 `_scaleOf`(화면 폭 ÷ offsetWidth)의 ★분모가 정수다 ⇒ 소수 폭에서 배율 100 인데 z ≠ 1.
  *   ★앱 실측(S6 261029 · 판 333aa3d9 · p114snap ×1): ⌘Z 셋째 복원에서 tf 폭 338.344px · offsetWidth 338
- *     ⇒ z = 338.34375/338 = 1.0010170 ⇒ ftMeasure W·H 가 «같은 나눗셈 하나»로 338 × 42.956 ⇒ :356~359 refit 이
+ *     ⇒ z = 338.34375/338 = 1.0010170 ⇒ ftMeasure W·H 가 «같은 나눗셈 하나»로 338 × 42.956 ⇒ applyFxFreeTransform 의 바탕 네모 refit 이
  *     338.34 × 43 칸을 338 × 42.96 으로 덮고 _restampRestored 가 그 칸에 구웠다(스냅샷은 338.34 × 43 이었다 = ㉣).
- *   ★정의가 둘이다 — ㉮ effects-freetransform.js `_scaleOf`(부름 :242 ftMeasure) · ㉯ effects-ft-handles.js 사본(부름 :154 · :225 · :301).
+ *   ★정의가 둘이다 — ㉮ effects-freetransform.js `_scaleOf`(부름 = ftMeasure 안 하나) · ㉯ effects-ft-handles.js 사본(부름 = ftHandlesSync · _bind 끌기 · ftPullCornersIntoSection 셋).
  *     ⇒ 한 쌍은 «1 ＋ 2» 로 갈라 건다(지디 13:2x ⑶ «1 ＋ 3» 에서 하나 뺌):
- *       ㉯ :154(ftHandlesSync)는 읽고 안 쓴다(:212 `void scale;`) ⇒ 그 부름은 무력화해도 바뀌는 출력이 없다 — ⛔빨강을 만들 수 없는 칸.
- *     S1 = ㉮ 소비자(ftMeasure → 바탕 네모 refit) · H1 = ㉯ :225(손잡이 끌기) · H2 = ㉯ :301(섹션 안으로 되찾기).
+ *       ㉯ ftHandlesSync 의 scale 은 읽고 안 쓴다(함수 끝 `void scale;` 뿐) ⇒ 그 부름은 무력화해도 바뀌는 출력이 없다 — ⛔빨강을 만들 수 없는 칸.
+ *     S1 = ㉮ 소비자(ftMeasure → 바탕 네모 refit) · H1 = ㉯ _bind(손잡이 끌기) · H2 = ㉯ ftPullCornersIntoSection(섹션 안으로 되찾기).
+ *   ⛔줄 번호로 적지 않는다 — 첫 판 머리말이 줄 번호였고 제품 커밋(69e0fcaf)이 그 줄을 밀었다(앵커 = 함수 이름).
  *   ★전제(시험은 제 전제를 단언한다 · 지디 13:2x ⑤): ① currentZoom 100 ② #canvas-scaler 계산 배율 == currentZoom/100 · 멎음
  *     (waitZoomSettled — 맨 applyZoom 은 0.15s 보간 · fx-add 의 z 0.9157 은 그 보간으로 읽힌다 ㉡) ③ S1: 안 끌었다(tfTouched 없음) ∧ 네 점 = 바탕 네모
  *     ＋ 장면 전제: 재는 상자 폭이 소수다(|화면 폭 − offsetWidth| ≥ 0.25) — 이게 안 서면 이 장면은 정수 분모를 안 밟는다.
@@ -97,7 +98,7 @@ test('S1 ㉮ ftMeasure — 소수 재는 폭에서 W·H 가 글자 날값과 같
   expect(errs, `앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('H1 ㉯ :225 손잡이 끌기 — 소수 폭 상자에서 모서리 이동량 == 마우스 이동량 ÷ 참 배율', async ({ page }) => {
+test('H1 ㉯ _bind 손잡이 끌기 — 소수 폭 상자에서 모서리 이동량 == 마우스 이동량 ÷ 참 배율', async ({ page }) => {
   const errs = await setup(page);
   const a = await premiseZoom(page);
   await page.evaluate(() => { const tb = window.__tb; tb.style.width = (Math.floor(tb.getBoundingClientRect().width) + 0.5) + 'px'; });
@@ -114,7 +115,7 @@ test('H1 ㉯ :225 손잡이 끌기 — 소수 폭 상자에서 모서리 이동�
   expect(errs, `앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('H2 ㉯ :301 섹션 안으로 되찾기 — 소수 폭 상자에서 되찾은 손잡이가 정확히 안쪽 EDGE_IN 자리에 선다', async ({ page }) => {
+test('H2 ㉯ ftPullCornersIntoSection 섹션 안으로 되찾기 — 소수 폭 상자에서 되찾은 손잡이가 정확히 안쪽 EDGE_IN 자리에 선다', async ({ page }) => {
   const src = fs.readFileSync(path.join(ROOT, 'js', 'effects-ft-handles.js'), 'utf8');
   expect(src.includes(`const EDGE_IN = ${EDGE_IN};`), '전제: 소스의 EDGE_IN 이 이 시험의 값과 다르다').toBe(true);
   const errs = await setup(page);
