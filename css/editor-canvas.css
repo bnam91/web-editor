@@ -180,6 +180,10 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0;
+  /* ★안 보일 때는 «자리도 비켜야» 한다 — opacity 0 은 히트 테스트를 막지 않아
+     ✨ 가 right 72/96 만큼 옆으로 나가 «다른» 아이템 가운데를 덮었다(scratch-cut C3).
+     옆의 .scratch-ocr-badge 와 같은 꼴로 막는다. */
+  pointer-events: none;
   transition: opacity 0.15s;
   z-index: 10;
   line-height: 1;
@@ -187,7 +191,7 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 }
 /* 연결된 이미지는 .spl-btns 가 둘(접기·끊기 = 44)이라 한 칸 더 왼쪽 */
 .scratch-item:has(> .spl-btns[data-state^="L"]) .scratch-ai-btn { right: calc(4px + 96px * var(--scratch-inv-zoom, 1)); }
-.scratch-item:hover .scratch-ai-btn { opacity: 1; }
+.scratch-item:hover .scratch-ai-btn { opacity: 1; pointer-events: auto; }
 .scratch-ai-btn:hover { background: #a855f7; border-color: #a855f7; }
 
 /* 「글 N」 — 이 이미지에 붙은 OCR 기록 수(시트 33 · 시안 v3). 0 이면 JS 가 숨긴다. 내보내기·캔버스 밖 UI 다. */
