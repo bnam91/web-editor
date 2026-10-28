@@ -82,6 +82,9 @@ const scene = async (page, group) => page.evaluate(async (group) => {
     /* ★★전제 — ★그라데가 ★섹션보다 ★작아야 ★움직일 자리가 있다 */
     smaller: r.width < secR.width - 20 && r.height < secR.height - 20,
     cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2),
+    /* ★263 ⒝⒞ — 같은 자로 함께 찍는다: 모델 폭(dataset · offsetWidth) ↔ 화면 폭(rect) · currentZoom ↔ 렌더 배율(transform) */
+    gradWidth: a.dataset.gradWidth, offW: a.offsetWidth, secOffW: sec.offsetWidth,
+    zoom: window.currentZoom, scale: (() => { const m = getComputedStyle(document.getElementById('canvas-scaler')).transform; return m === 'none' ? 1 : new DOMMatrix(m).a; })(),
   };
 }, group);
 
@@ -124,7 +127,7 @@ test('D0 ★전제 — ★`updateGradientBlock` 으로 ★그라데를 ★★섹
   /* ⚠️★`updateGradientBlock({width:220})` 이 ★안 먹었다(실측 88) — ★수만 박는다
      = `GRAD-UPDATE-WIDTH-NOT-APPLIED-IN-HARNESS-01` · ⛔이 칸을 빨강으로 두지 않는다
      (★대조의 ★조건인 ★「섹션보다 작다」는 ★이미 섰으므로 ★그 몫은 ★채워졌다) */
-  console.log('[D0-width]', JSON.stringify({ asked: 220, got: s.w }));
+  console.log('[D0-width]', JSON.stringify({ asked: 220, got: s.w, gradWidth: s.gradWidth, offW: s.offW, secOffW: s.secOffW, secW: s.secW, zoom: s.zoom, scale: s.scale }));   // ★263 ⒝ «88» 이 화면 px(= 220 × 배율)인가 · ⒞ 배율이 회차마다 다른가
 });
 
 /* ★233 GRAD-DRAG-D1-COMPARES-MIXED-COORD-SYSTEMS-01(지디 · S3 261028) — 옛 D1 은 세 자를 섞었다: dataset(모델 px) · 포인터(화면 px) ·
