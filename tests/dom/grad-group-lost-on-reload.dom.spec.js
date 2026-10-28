@@ -110,10 +110,9 @@ const parentsOf = async (page) => page.evaluate(() => {
 
 test('G0 ★전제 — ★앱 길로 ★그라데 둘을 ★⌘G 로 ★묶을 수 있다', async ({ page }) => {
   await bootApp(page);
-  if (!(await _canGroupGradients(page))) {
-    test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
-      + ' = GRAD-GROUP-GRADE-BLOCKED-BY-T5-07-NOT-MERGED-01 (⛔FAIL 아니라 SKIP)');
-  }
+  /* ★142 ⒜(지디 GO 261028) — 옛 SKIP 문(«t5-07 머지 전» · 43749cd6 ⊂ 7f3c6de2 로 그 까닭은 죽음)을 «전제 단언(빨강)» 으로.
+     SKIP 이면 ⌘G·그라데 만들기·고르기가 깨져도 이 칸이 «안 재고» 조용히 넘어갔다(groupSelectedBlocks 무력화 판에서 SKIP 4 실측). */
+  expect(await _canGroupGradients(page), '★전제: 앱 길로 그라데 둘을 ⌘G 로 묶을 수 있어야 한다(만들기·고르기·⌘G 중 하나가 깨짐)').toBe(true);
   const r = await makeGroup(page);
   expect(r.fail, `★전제: ${r.fail}`).toBeUndefined();
   console.log('[G0]', JSON.stringify(r));
@@ -130,10 +129,9 @@ test('G0 ★전제 — ★앱 길로 ★그라데 둘을 ★⌘G 로 ★묶을 �
 
 test('G1 ★★★고침 — ★`rebindAll()` 뒤에도 ★그룹이 ★★산다 (★261025 ★뒤집었다)', async ({ page }) => {
   await bootApp(page);
-  if (!(await _canGroupGradients(page))) {
-    test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
-      + ' = GRAD-GROUP-GRADE-BLOCKED-BY-T5-07-NOT-MERGED-01 (⛔FAIL 아니라 SKIP)');
-  }
+  /* ★142 ⒜(지디 GO 261028) — 옛 SKIP 문(«t5-07 머지 전» · 43749cd6 ⊂ 7f3c6de2 로 그 까닭은 죽음)을 «전제 단언(빨강)» 으로.
+     SKIP 이면 ⌘G·그라데 만들기·고르기가 깨져도 이 칸이 «안 재고» 조용히 넘어갔다(groupSelectedBlocks 무력화 판에서 SKIP 4 실측). */
+  expect(await _canGroupGradients(page), '★전제: 앱 길로 그라데 둘을 ⌘G 로 묶을 수 있어야 한다(만들기·고르기·⌘G 중 하나가 깨짐)').toBe(true);
   const s = await makeGroup(page);
   expect(s.fail).toBeUndefined();
   expect(s.grouped, '★전제: 그룹이 안 생겼다').toBe(true);
@@ -157,10 +155,9 @@ test('G1 ★★★고침 — ★`rebindAll()` 뒤에도 ★그룹이 ★★산�
 
 test('G2 ★★★고침 — ★저장본에서도 ★그룹 ★안의 그라데가 ★★산다 (★261025 ★뒤집었다)', async ({ page }) => {
   await bootApp(page);
-  if (!(await _canGroupGradients(page))) {
-    test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
-      + ' = GRAD-GROUP-GRADE-BLOCKED-BY-T5-07-NOT-MERGED-01 (⛔FAIL 아니라 SKIP)');
-  }
+  /* ★142 ⒜(지디 GO 261028) — 옛 SKIP 문(«t5-07 머지 전» · 43749cd6 ⊂ 7f3c6de2 로 그 까닭은 죽음)을 «전제 단언(빨강)» 으로.
+     SKIP 이면 ⌘G·그라데 만들기·고르기가 깨져도 이 칸이 «안 재고» 조용히 넘어갔다(groupSelectedBlocks 무력화 판에서 SKIP 4 실측). */
+  expect(await _canGroupGradients(page), '★전제: 앱 길로 그라데 둘을 ⌘G 로 묶을 수 있어야 한다(만들기·고르기·⌘G 중 하나가 깨짐)').toBe(true);
   const s = await makeGroup(page);
   expect(s.fail).toBeUndefined();
   expect(s.grouped, '★전제: 그룹이 안 생겼다').toBe(true);
@@ -230,10 +227,9 @@ test('G3 ★★음성대조 — ★★섹션 ★직속 그라데는 ★`rebindAl
 
 test('G4 ★★★처방의 ★자 — ★`.frame-block` 이 ★맞는 ★자인가 (★행위로 · ★그룹 ＋ ★프레임 ★둘)', async ({ page }) => {
   await bootApp(page);
-  if (!(await _canGroupGradients(page))) {
-    test.skip(true, '★★⌘G 가 그라데를 안 묶는다 — `t5-07`(43749cd6) 머지 전이다'
-      + ' = GRAD-GROUP-GRADE-BLOCKED-BY-T5-07-NOT-MERGED-01 (⛔FAIL 아니라 SKIP)');
-  }
+  /* ★142 ⒜(지디 GO 261028) — 옛 SKIP 문(«t5-07 머지 전» · 43749cd6 ⊂ 7f3c6de2 로 그 까닭은 죽음)을 «전제 단언(빨강)» 으로.
+     SKIP 이면 ⌘G·그라데 만들기·고르기가 깨져도 이 칸이 «안 재고» 조용히 넘어갔다(groupSelectedBlocks 무력화 판에서 SKIP 4 실측). */
+  expect(await _canGroupGradients(page), '★전제: 앱 길로 그라데 둘을 ⌘G 로 묶을 수 있어야 한다(만들기·고르기·⌘G 중 하나가 깨짐)').toBe(true);
   /* ★★처방 후보는 ★`if (block.closest('.frame-block')) return;` ★한 줄이다.
      ⛔그 ★선택자가 ★맞는 ★자인지 ★★«행위로» 먼저 잰다 — ★내가 ★소스로 읽은 것 :
        `wrapSelectedBlocksInFrame` 은 ★`asGroup` 이면 ★`ss.dataset.group='true'` 만 ★더하고
