@@ -1,0 +1,24 @@
+{
+ "meta": {
+  "what": "제품 파일을 레포와 다른 URL 경로로 싣는 줄(⑴ module+src · ⑵ 인라인 module 절대 import · ⑶ 고전 src) · 합성 제외",
+  "by": "node tests/harness-fake-paths.js --record"
+ },
+ "entries": [
+  "tests/dom/gradient-shape-rotation-box.dom.spec.js ⑴ /gradient-model.js",
+  "tests/dom/group-child-drag-clip.dom.spec.js ⑵ /frame-geometry.js",
+  "tests/dom/group-drop-clip.dom.spec.js ⑵ /frame-geometry.js",
+  "tests/dom/overlay-drag-elastic-resist.dom.spec.js ⑴ /props/overlay-wireup.js",
+  "tests/dom/overlay-drag-mouseup-selection.dom.spec.js ⑵ /overlay-float.js",
+  "tests/dom/overlay-drag-reparent-continuity.dom.spec.js ⑴ /props/overlay-wireup.js",
+  "tests/dom/overlay-drag-reparent-continuity.dom.spec.js ⑶ /sticker-select.js",
+  "tests/dom/overlay-drag-rotation.dom.spec.js ⑴ /props/overlay-wireup.js",
+  "tests/dom/overlay-drag-rotation.dom.spec.js ⑶ /sticker-select.js",
+  "tests/dom/overlay-exit-drop-height.dom.spec.js ⑵ /props/overlay-wireup.js",
+  "tests/dom/overlay-exit-return-section.dom.spec.js ⑵ /props/overlay-wireup.js",
+  "tests/dom/overlay-exit-return-section.dom.spec.js ⑵ /props/overlay-wireup.js",
+  "tests/dom/overlay-extend-drag.dom.spec.js ⑴ /overlay-float.js",
+  "tests/dom/overlay-extend-shape.dom.spec.js ⑴ /overlay-float.js",
+  "tests/dom/overlay-float-frame-drag-conflict.dom.spec.js ⑴ /overlay-float.js",
+  "tests/dom/video-pending-edit-undo.dom.spec.js ⑶ /section-serialize.js"
+ ]
+}
