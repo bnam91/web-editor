@@ -13,6 +13,9 @@
  *   rc 0 = flaky 로 찍힌 spec 이 전부 FLAKY.md 에 이름으로 있다(또는 flaky 0) · rc 1 = 명부에 없는 이름 · rc 2 = 쓰는 법 · rc 3 = 못 잰다(통과 아님)
  *
  * ★★이 자가 ★재는 것 — flaky 블럭의 ★spec 파일 이름 ⊆ FLAKY.md 에 적힌 spec 파일 이름.
+ * ★같은 이름을 쓰는 «다른 자» 와 갈라 적는다(지디 261029 14:5x ⒜ · ⛔합치지 마라 — 분모가 다르다):
+ *   이 자(레포 안 · tests/dom/flaky-roster.gate.js · 209)  = «전수 로그의 N flaky 블럭(retries 뒤 통과) ↔ FLAKY.md 명부» 견줌
+ *   지디 자(레포 밖 · ~/.claude/skills/지디/tools/flaky-roster-gate.py) = «FLAKY.md 명부 ↔ 지디가 발주한 건» 견줌
  * ⛔이 자가 ★안 재는 것: 「그 흔들림이 참 빨강인가」(FLAKY.md ⒞ — 사람 몫) · failed(run-complete.gate.js·137 몫) ·
  *   명부의 «원인 라벨» 유무 · 칸(시험) 단위 — ★spec 파일 단위로 잰다(지디 «이름 없는 spec»).
  * ★못 찾았다를 0 으로 접지 않는다: 「Running N tests」 머리줄이 없으면 rc 3. flaky 요약 줄이 «없으면» flaky 0(Playwright 는 0 이면 안 찍는다).
