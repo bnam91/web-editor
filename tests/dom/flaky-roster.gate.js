@@ -49,11 +49,12 @@ function readFlaky(log) {
 function rosterSpecs(md) {
   return new Set([...measureOnlyCut(md).matchAll(SPEC_RE())].map((m) => m[1]));
 }
-/** ★«## ⛔측정 가지 전용» 절(그 머리줄부터 다음 «## » 머리줄 앞까지)을 뗀 본문 — 그 절의 이름은 레포 바닥에 없어 명부로 안 센다(지디 261029 14:5x ⒞) */
+/** ★«## ⛔측정 가지 전용» 절(그 머리줄부터 다음 «## » 머리줄 앞까지)을 뗀 본문 — 그 절의 이름은 레포 바닥에 없어 명부로 안 센다(지디 261029 14:5x ⒞)
+ *  ＋ 머리줄이 «⛔이 명부에 올리지 마라» 로 끝나는 절(209 · 261029 «늘 빨강» 절) — 그 이름은 흔들림이 아니라 늘 빨강이라 명부로 세면 거짓 «명부 안» */
 function measureOnlyCut(md) {
   const L = String(md).split('\n'); let skip = false; const out = [];
   for (const l of L) {
-    if (/^## /.test(l)) skip = /^## ⛔측정 가지 전용/.test(l);
+    if (/^## /.test(l)) skip = /^## ⛔측정 가지 전용/.test(l) || /⛔이 명부에 올리지 마라\s*$/.test(l);
     if (!skip) out.push(l);
   }
   return out.join('\n');

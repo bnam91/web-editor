@@ -55,3 +55,11 @@ test('G7 음성 — 실 FLAKY.md «명부» 안 이름은 «미등재» 로 안 
   const v = unlisted(SUM(FL(['s3v-icon-text'])), REAL_MD);
   assert.deepEqual([v.ok, v.missing], [true, []]);
 });
+/* ★209 · 261029 — «늘 빨강» 절(⛔이 명부에 올리지 마라)의 이름도 명부로 안 센다(G6 과 같은 길 · 음성 짝 = G7). */
+test('G8 ★양성 — 실 FLAKY.md «늘 빨강» 절의 spec 이 흔들리면 «미등재» 로 짚는다(명부로 안 셌다)', () => {
+  assert.ok(/^## .*⛔이 명부에 올리지 마라\s*$/m.test(REAL_MD) && REAL_MD.includes('section-variation-bind.dom.spec.js'), '★전제: 실 FLAKY.md 에 그 절과 그 이름이 있다');
+  for (const n of ['bt2-safety', 'overlay-extend-asset', 'section-variation-bind', 'dim-label-radius-t5', 'coin-sticker'])
+    assert.equal(rosterSpecs(REAL_MD).has(`${n}.dom.spec.js`), false, `«늘 빨강» 절의 ${n} 을 명부로 셌다(거짓 «명부 안»)`);
+  const v = unlisted(SUM(FL(['section-variation-bind'])), REAL_MD);
+  assert.deepEqual(v.missing, ['section-variation-bind.dom.spec.js']);
+});
