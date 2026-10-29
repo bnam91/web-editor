@@ -1567,10 +1567,15 @@ function _internalClipboardTextOf() {
   const sel = [...document.querySelectorAll('#canvas .selected')];
   const tops = sel.filter(el => !sel.some(o => o !== el && o.contains(el)));
   /* ★E148(2026-10-06) — 편집 UI 글자가 OS 클립보드로 새던 것(실측 기록: 섹션이 골라진 채 ⌘C → 「✕ 드래그: 위치 · 모서리: 크기 · Esc: 완료」).
-     사본에서 UI 를 걷고 읽는다 — 목록은 저장이 쓰는 그것(save-load.js NON_CONTENT_UI_SELECTOR) + 섹션 껍데기(라벨·툴바·히트존 = export-css-collect.js:37 과 같은 셋).
+     사본에서 UI 를 걷고 읽는다 — 목록은 저장이 쓰는 그것(save-load.js NON_CONTENT_UI_SELECTOR) + 섹션 껍데기(라벨·툴바·히트존·A/B 배지).
+     ★194 R1 = 195(2026-10-29 지디 18:3x) — 옛 글은 «export-css-collect.js:37 과 같은 셋»이라 적고 셋만 베꼈다. 그 판의 그 줄은 ★넷
+       (A/B 배지 포함 · 0180c542 2026-09-21 부터)이었다 ⇒ ⌘C 글자에 «A» 한 줄이 섞였다(앱 실측 3/3).
+       배지는 섹션에 «바로» 붙어(section-variation.js _addVariationBadge) 히트존째 걷기로 안 걷힌다 ⇒ 여기 한 칸.
+       ⛔NON_CONTENT_UI_SELECTOR 에 넣지 마라 — 저장이 배지를 안 지운다(editor-ui-roster 계약 · 넣으면 데이터 손실).
+       ⛔«다른 파일과 같은 셋» 이라 적지 마라 — 그 말이 이 사고를 냈다. 재는 자 = tests/dom/small-fixes-e148-e38-e28 E148-C3.
      사본은 #canvas «밖» 화면 밖 그릇에 잠깐 붙여 읽는다(innerText 의 줄바꿈은 배치가 있어야 산다 · ⛔visibility:hidden 이면 innerText 가 비므로 투명도로 숨김 ·
      #canvas 밖이라 자동저장 관찰자 무관). */
-  const _strip = [window.NON_CONTENT_UI_SELECTOR, '.section-label', '.section-toolbar', '.section-hitzone'].filter(Boolean).join(', ');
+  const _strip = [window.NON_CONTENT_UI_SELECTOR, '.section-label', '.section-toolbar', '.section-hitzone', '.variation-badge'].filter(Boolean).join(', ');
   const _box = document.createElement('div');
   _box.style.cssText = 'position:fixed;left:-100000px;top:0;width:1200px;opacity:0;pointer-events:none;';
   document.body.appendChild(_box);
