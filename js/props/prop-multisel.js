@@ -4,6 +4,7 @@ import { alignBtn } from './_helpers.js';
    ★선례: ★`prop-text-wireup-align.js:50`(★단일선택) · ★`prop-page.js:683`(★페이지 일괄) ★둘이 ★이미 ★이렇게 ★쓴다. */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { detectMix } from './prop-text-mix-detect.js';
+import { isStickerUnit as _isStickerUnit, overlayUnitOf as _overlayUnitOf } from '../overlay-unit.js';   /* 248 — 단위 명부 한 벌 */
 
 /* ═══════════════════════════════════
    FREELAYOUT MULTI-SELECT PANEL
@@ -344,16 +345,7 @@ window.hasFreeLayoutMultiSel = hasFreeLayoutMultiSel;
  * 표준 8개: 좌/가로중앙/우 · 상/세로중앙/하 · 가로 균등 · 세로 균등. 계산은 alignPositions/distributePositions 한 곳.
  * ⚠️이 갈래가 없을 때: 오버레이 글자는 «흐름 패널»로 가서 정렬이 text-align 만 바꿨다(editor.js _isFlowMultiSelUnit).
  * 좌표 정본: 오버레이 = dataset.offsetX/Y(overlay-float.js _applyOverlayPos 와 같은 두 칸 + style) · 줌 = dataset.x/y(zoom-block.js _applyZoomPos). */
-const _isStickerUnit = (u) => !!u?.classList?.contains('sticker-block');
-const _isSectionHost = (el) => !!el && (el.classList?.contains('section-block') || el.classList?.contains('section-merged-part'));
-function _overlayUnitOf(el) {
-  const w = el.closest?.('[data-overlay-block="true"]');
-  if (w && _isSectionHost(w.parentElement)) return w;
-  if (el.classList?.contains('zoom-block') && _isSectionHost(el.parentElement)) return el;
-  // ★1013t2C1 — 섹션 직속 스티커도 «떠 있는 블럭» 단위(줌과 같은 꼴) — ⌘/⇧ 로 여럿 고르면 「서로 맞춤」
-  if (_isStickerUnit(el) && _isSectionHost(el.parentElement)) return el;
-  return null;
-}
+/* 단위 판정은 js/overlay-unit.js 한 벌(248 — 선택상자와 같은 명부 · ⛔여기에 다시 적지 마라) */
 /** 고른 것이 «전부» 같은 섹션에 떠 있는 블럭이면 그 단위들(2개 이상), 아니면 null. */
 export function getSelectedOverlayUnits() {
   const sel = [...document.querySelectorAll('#canvas .selected')]
