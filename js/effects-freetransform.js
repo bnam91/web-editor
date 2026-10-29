@@ -490,9 +490,13 @@ export function setFxFreeTransform(tb, C, { history = true, touched = true } = {
 
 /** 「원래대로」 — ★항등 네 점으로(⛔효과를 끄는 것이 아니다 · ⒞ 는 「계속 감쌈」이라 박스는 글자를 감싼 채다). */
 export function resetFxFreeTransform(tb, { history = true } = {}) {
+  /* ★270(S6 261029 · 지디 처방 ㈏) — 이력은 재기 «앞»에 쌓는다: ftMeasure(:271 글칸 폭 박기 · 119 ㉡ · ⛔손 0)가 먼저 돌면
+     setFx 의 push-before 칸에 «효과 없이 글칸 폭(339px)» 이 찍혀, ⌘Z 로 그 칸에 내리면 효과는 빠지고 폭만 좁게 남았다(칸 원문 ×3).
+     ⇒ 여기서 한 번 쌓고 setFx 는 history:false(한 제스처 한 칸) · 재는 자 tests/dom/ft-undo-fxadd-270(U1·U2) · tests/unit/ft-reset-push-order-270. */
+  if (history) window.pushHistory?.('효과');
   const st = ftMeasure(tb, true);
   if (!st) return { ok: false, code: 'NOT_FOUND' };
-  return setFxFreeTransform(tb, _baseRect(st.W, st.H), { history, touched: false });
+  return setFxFreeTransform(tb, _baseRect(st.W, st.H), { history: false, touched: false });
 }
 
 /** 문서를 연 뒤·붙여넣은 뒤 — ★걸린 블럭을 ★다시 그린다(멱등). 돌려주는 수 = 다시 그린 블럭 수.
