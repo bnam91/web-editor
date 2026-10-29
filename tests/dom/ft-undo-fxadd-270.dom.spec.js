@@ -77,7 +77,7 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
       functionDeclaration: `function (pos, id) { const e = this[pos];   /* push-before = 켤 때 칸이 «꼭대기» 다(첫 판은 pos-1 = 텍스트 추가 칸을 읽어 고치기 전 판에서도 초록 · 시험 흠) */ const c = e && typeof e.canvas === 'string' ? e.canvas : '';
         const k = c.indexOf('id="' + id + '"'); if (k < 0) return { pos, has: false, action: e && e.action };
         const s = c.lastIndexOf('<', k); const tbTag = c.slice(s, c.indexOf('>', k) + 1);
-        const m = c.slice(k, k + 3000).match(/<div[^>]*class="[^"]*tb-body[^"]*"[^>]*>/);
+        const re = /<div[^>]*class="[^"]*tb-body[^"]*"[^>]*>/g; re.lastIndex = k; const m = re.exec(c);   /* 고정 창 ⛔(fixed-window-census W1) — 그 글상자 id 뒤 첫 .tb-body 를 구조로 */
         return { pos, has: true, action: e.action, tbTag, bodyTag: m ? m[0] : null }; }` });
     slot = r.result.value; break;
   }
