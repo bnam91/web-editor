@@ -191,7 +191,7 @@ const CHANNELS = [
   { file: 'js/io/capture-safety.js', kind: 'artifact', axes: ['marker', 'drop'], strips: 'inline',
     dropFns: ['stripEditorOnlyForCapture'], guard: 'tests/unit/capture-drop-axis.test.mjs',
     dropDenominator: DROP_DENOM,
-    dropWhy: '★공용 겹 — PNG·썸네일·단독 HTML ★세 소비자가 ★같이 부른다 ⇒ ★여기서 지우는 선택자 한 줄이 ★세 산출물에서 ★같이 빠진다. ' +
+    dropWhy: '★공용 겹 — PNG·썸네일·단독 HTML·★목업 찍기(captureSectionImage · 194 R3 261029) ★네 소비자가 ★같이 부른다 ⇒ ★여기서 지우는 선택자 한 줄이 ★네 산출물에서 ★같이 빠진다. ' +
              '★사라지면 안 되는 것 = ★콘텐츠 블럭 전부 · ★지워도 되는 것 = ★DROP_STRIP_ROSTER 의 이 칸(편집 chrome·설계 제외·현빈 칸)뿐',
     why: '★2026-10-10 에 transient → artifact 로 고쳤다. 옛 why 는 「목업 이미지 클론을 body 에 붙여 찍으니 ' +
          '마커 CSS 가 #canvas 스코프라 안 그려진다」였고 ★그 문장은 지금도 참이다 — 그러나 ★이 파일은 ' +
