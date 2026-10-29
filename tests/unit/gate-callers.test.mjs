@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const { toPosix } = createRequire(import.meta.url)('./_srcread.js');   // ★검사 키는 posix 한 자(win-portability ④-2 · 레포 규약)
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SLOTS = path.join(ROOT, 'tools', 'slots');
@@ -17,7 +19,7 @@ function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p, out); }
-    else if (/\.gate\.(js|mjs)$/.test(e.name)) out.push(path.relative(ROOT, p).split(path.sep).join('/'));
+    else if (/\.gate\.(js|mjs)$/.test(e.name)) out.push(toPosix(path.relative(ROOT, p)));
   }
   return out;
 }
