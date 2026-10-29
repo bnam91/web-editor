@@ -50,6 +50,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   window.electronAPI = { loadTemplateCanvas: async () => window.__tplHtml };
 </script>
 <script type="module">
+  import '/js/io/save-load.js';
   import '/js/block-drag.js';
   import '/js/panels/template-system.js';
   window.__ready = true;

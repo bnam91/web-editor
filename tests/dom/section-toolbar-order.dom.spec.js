@@ -64,6 +64,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"></head><body>
 </div>
 <script src="/js/section-memo.js"></script>
 <script type="module">
+  import '/js/io/save-load.js';
   import '/js/section-variation.js';
   /* ── 모형 둘 ──────────────────────────────────────────────────────────
      ai-fill : js/ai-section-fill.js:938 tb.appendChild(btn) — 「항상 마지막으로 이동」.
