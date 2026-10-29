@@ -13,6 +13,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSrc } from './_srcread.js';
+import { createRequire } from 'node:module';
+const { mkTmpRoot } = createRequire(import.meta.url)('./_tmproot.js');
+const { sliceBlock } = createRequire(import.meta.url)('./_slice-block.js');   /* 구간 끝은 균형 괄호로(꼬리 문자열 ⛔ · slice-block-shared SB-16) */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MOD = path.join(ROOT, 'js', 'overlay-unit.js');
@@ -36,7 +39,9 @@ test('O1 ★공용 술어가 있다 — js/overlay-unit.js 의 overlayUnitOf', (
 
 test('O2 ★행위 — 섹션 직속 스티커(보통·마킹)·줌·오버레이 래퍼는 단위 · 어노테이션·프레임 안 스티커는 아니다', async () => {
   if (!fs.existsSync(MOD)) assert.fail('공용 술어 파일이 없어 행위를 못 잰다 — 248 고치기 전');
-  const { overlayUnitOf } = await import(pathToFileURL(MOD).href);
+  /* 레포 js/*.js 는 node 에서 CommonJS 로 읽힌다 ⇒ zoom-block.test.js 와 같은 꼴로 .mjs 사본을 임시 루트에 두고 읽는다 */
+  const mjs = path.join(mkTmpRoot('overlay-unit-'), 'overlay-unit.mjs'); fs.copyFileSync(MOD, mjs);
+  const { overlayUnitOf } = await import(pathToFileURL(mjs).href);
   const sec = el({ cls: ['section-block'] });
   const merged = el({ cls: ['section-merged-part'] });
   const sticker = el({ cls: ['sticker-block'], parent: sec });
@@ -64,9 +69,8 @@ test('O3 ★명부 하나 — 소비자 둘이 공용 술어를 부르고 제 �
   const ms = readSrc(path.join(ROOT, 'js/props/prop-multisel.js'));
   assert.doesNotMatch(ms, /function _overlayUnitOf\(/, 'prop-multisel.js 가 제 _overlayUnitOf 를 아직 든다(명부 둘)');
   const sp = readSrc(path.join(ROOT, 'js/scratch-pad.js'));
-  const i = sp.indexOf('function _marqueeCanvasTargets(');
-  assert.ok(i >= 0, '전제: _marqueeCanvasTargets 정의가 없다');
-  const body = sp.slice(i, sp.indexOf('\n}\n', i));
+  assert.ok(sp.includes('function _marqueeCanvasTargets('), '전제: _marqueeCanvasTargets 정의가 없다');
+  const body = sliceBlock(sp, 'function _marqueeCanvasTargets(', 'scratch-pad.js 선택상자 캔버스 대상');
   assert.match(body, /\boverlayUnitOf\(/, '선택상자가 공용 술어를 안 부른다');
   assert.doesNotMatch(body, /\[data-overlay-block="true"\], \.zoom-block/, '선택상자가 제 «오버레이·줌» 선택자를 아직 든다(명부 둘)');
 });
