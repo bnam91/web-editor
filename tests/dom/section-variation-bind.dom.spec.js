@@ -59,6 +59,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   window.bindAnnotationSelect = (b) => window.__own.push('annotation:' + b.id);
 </script>
 <script type="module">
+  import '/js/io/save-load.js';
   import '/js/block-drag.js';
   import '/js/section-variation.js';
   window.__ready = true;
