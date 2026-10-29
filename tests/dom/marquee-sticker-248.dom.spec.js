@@ -2,7 +2,10 @@
  *   뿌리: 선택상자 명부(scratch-pad.js _marqueeCanvasTargets)와 «서로 맞춤» 명부(prop-multisel.js _overlayUnitOf)가 둘이었고
  *     1013t2C1(ac343b47)이 스티커를 한쪽에만 더했다. 처방 = js/overlay-unit.js 한 벌 · 두 소비자가 부름(tests/unit/overlay-unit-248).
  *   한 쌍(지디 처방 발주): ⑴ M1 — 상자로 마킹·보통 스티커가 잡히나(고치기 전 판 빨강) ⑵ M2 — 공용 술어의 «다른» 소비자(⌘ 로 둘 고른 뒤
- *     getSelectedOverlayUnits = 2)도 산다 ⇒ 술어를 무력화하면 M1·M2 둘(소비자 수)이 빨강 ⑶ M3 — 어노테이션은 여전히 안 잡힌다(음성).
+ *     getSelectedOverlayUnits = 2)도 산다 ⇒ 술어를 무력화하면 M1·M2 둘(소비자 수)이 빨강 ⑶ M3 — 어노테이션은 단위가 아니다(음성 · «명부 수준»).
+ *   ⚠️M3 를 «선택상자로» 재지 않는 까닭(261029 S6 · 양성 변이 m3-pos1): 상자는 대상마다 «제 상자»의 반 이상을 덮어야 잡는데
+ *     .annotation-block 상자 = 섹션 전체 층(css/editor-blocks.css .annotation-block width/height 100%) ⇒ «어노테이션도 단위» 변이에서도
+ *     상자 음성이 초록이었다(못 덮어서 · 제외라서가 아님) ⇒ ★선택상자 덮음 비율로는 «제외» 를 못 가른다 ⇒ 앱 DOM 실물에서 공용 술어를 직접 부른다.
  *   장면: bootApp · 섹션 하나(빈 몸 640) · 스티커 둘(addStickerBlock · 보통 / count=1 마킹) · 어노테이션 하나(makeAnnotationBlock → 섹션 직속).
  *   상자: 캔버스 왼쪽 바닥에서 시작해 셋을 다 덮고 섹션은 반 밑만 덮게(섹션이 잡히면 안의 것은 안 잡는다 — A1 규칙).
  *   ⚠️배율 전제: waitZoomSettled(100) — 맨 applyZoom 은 0.15s 보간.
@@ -98,12 +101,15 @@ test('M2 공용 술어의 다른 소비자 — ⌘ 로 고른 스티커 둘 = «
   expect(errs, `앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('M3 음성 — 어노테이션은 상자에 안 잡힌다(ac343b47 «제외» 결정)', async ({ page }) => {
+test('M3 음성 — 섹션 직속 어노테이션은 «떠 있는 블럭» 단위가 아니다(명부 수준 · ac343b47 «제외» 결정)', async ({ page }) => {
   const { errs, ids } = await setup(page);
   await premise(page, ids);
-  const m = await marquee(page);
-  expect(m.during.box, '전제: 상자가 안 떴다').toBe(1);
-  expect(m.during.hit, '★어노테이션이 상자에 걸렸다').not.toContain(ids.annot);
-  expect(m.after, '★어노테이션이 골라졌다').not.toContain(ids.annot);
+  const r = await page.evaluate(async (ids) => {
+    const m = await import('/js/overlay-unit.js');
+    const g = (id) => document.getElementById(id);
+    return { plain: m.overlayUnitOf(g(ids.plain))?.id ?? null, annot: m.overlayUnitOf(g(ids.annot))?.id ?? null };
+  }, ids);
+  expect(r.plain, '전제(자 산다): 섹션 직속 스티커가 단위로 안 나온다 — 술어를 못 부르고 있다').toBe(ids.plain);
+  expect(r.annot, '★섹션 직속 어노테이션이 «떠 있는 블럭» 단위가 됐다 — ac343b47 «제외» 결정을 어겼다').toBeNull();
   expect(errs, `앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
