@@ -28,12 +28,16 @@ const fs = require('fs');
 
 /* ★전제 실패 = ★판 정체 가족. 머리말이 ★셋 꼴로 쓰인다(소스 실측 · tests/dom/_cr-harness.js · w2d06-sticker-paste-clamp 등):
      «판 정체: …» · «P0 판 정체: …» · «판 정체 ⑴: …»/«P0 판 정체 ⑵a: …» */
-const PRECOND = /^(?:P0\s+)?판 정체(?:\s*[⑴-⑽][a-z]?)?\s*:/;
+const PRECOND = /^(?:P0\s+)?판 정체(?:\s*[⑴-⑽][a-z]?)?\s*:|^장면 미성립\s*[:—]\s*(?:판 정체|.*EXPECT_SHA|ROOT HEAD|서빙 .*sha1)/;
+/*   ＋ «장면 미성립: …» 머리 중 ★판 정체 낱말이 든 것(소스 실측 넷 · 293 머지 전 지디 물음):
+     t4-16-mix-font-bulk:213 «장면 미성립: 판 정체: EXPECT_SHA 가 풀 sha 40자» · w2d08-text-edit-checkpoint:167 «장면 미성립: EXPECT_SHA 없음»
+     · :178 «장면 미성립: ROOT HEAD === EXPECT_SHA» · :179 «장면 미성립: 서빙 <f> sha1 === git <sha>:<f>»
+     ⛔그 밖 «장면 미성립: …»(범례가 안 꺼졌다 등 장면 전제)은 ★전제 실패가 아니라 ★«장면 전제» 칸으로만 찍는다. */
 /* ★이름 채널(지디 293 보탬) — 판 정체 «검사»는 ★제목이 «P0 판 정체 — …»·«B0 판 정체 — …» 꼴이다(소스 실측 다섯:
      inspector-assetclear:117 · inspector-row-ctx:132 · paste-dest-style-lock:303 · radial-t4-b-canvas-edit:234 · w2d08-text-edit-checkpoint:164).
    ★그 검사가 ★맨 expect 로 빨개지면(사용자 글 없음) ★글 채널은 ★못 본다 ⇒ ★제목 마디 머리도 본다. */
 const PRECOND_TITLE = /(?:^|›\s*)(?:[A-Z]{1,2}\d*\s+)?판 정체(?=\s*(?:—|:|[⑴-⑽]|$))/;
-const SCENE = /^\[전제\]/;   // 장면 전제 — 따로 찍기만
+const SCENE = /^\[전제\]|^장면 미성립\s*[:—]/;   // 장면 전제 — 따로 찍기만(판 정체 낱말 든 것은 위 PRECOND 가 먼저 가져간다)
 
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\r/g, '\n');
 const HEAD = /^\s+\d+\)\s+(tests\/dom\/\S+?:\d+:\d+)\s+›\s+(.*)$/;
@@ -103,6 +107,12 @@ function selfTest() {
     ['음성 참 빨강(bt2-safety:197 꼴)', blk(1, K(1), 'expect(received).toEqual(expected) // deep equality'), '그 밖'],
     ['음성 글 속 «판 정체» (머리 아님)', blk(1, K(1), 'T3 card — 판 정체: 아님'), '그 밖'],
     ['음성 장면 전제', blk(1, K(1), '[전제] 무거운 장면이 섰다'), '장면 전제'],
+    ['양성 «판 정체: EXPECT_SHA 40 hex»(dim-label-radius-t5:30)', blk(1, K(1), '판 정체: EXPECT_SHA 40 hex'), '전제 실패'],
+    ['양성 «장면 미성립: EXPECT_SHA 없음»(w2d08:167 · 이름 채널 없이)', blk(1, K(1), '장면 미성립: EXPECT_SHA 없음'), '전제 실패'],
+    ['양성 «장면 미성립: 판 정체: …»(t4-16:213)', blk(1, K(1), '장면 미성립: 판 정체: EXPECT_SHA 가 풀 sha 40자'), '전제 실패'],
+    ['양성 «장면 미성립: ROOT HEAD === EXPECT_SHA»(w2d08:178)', blk(1, K(1), '장면 미성립: ROOT HEAD === EXPECT_SHA'), '전제 실패'],
+    ['양성 «판 정체 ⑴:»(_cr-harness:49 꼴)', blk(1, K(1), '판 정체 ⑴: ROOT 의 HEAD === EXPECT_SHA'), '전제 실패'],
+    ['음성 «장면 미성립: 범례가 안 꺼졌다»(graph-label-edit:335)', blk(1, K(1), '장면 미성립: 범례가 안 꺼졌다'), '장면 전제'],
     ['양성 이름만(맨 expect · inspector-assetclear:117 제목)', blk(1, K(1), 'expect(received).toBe(expected) // Object.is equality', null, 'T4-ASSETCLEAR 인스펙터 «이미지» 비우기 › P0 판 정체 — HEAD = EXPECT_SHA · 페이지가 받은 ID_FILES sha1'), '전제 실패'],
     ['양성 이름만(맨 expect · w2d08:164 «B0» 제목)', blk(1, K(1), 'expect(received).toBe(expected) // Object.is equality', null, 'B0 판 정체 — HEAD 와 서빙 파일이 EXPECT_SHA'), '전제 실패'],
     ['음성 제목 속 «판 정체 아님»', blk(1, K(1), 'expect(received).toBe(expected)', null, 'T9 판 정체 아님을 확인한다'), '그 밖'],
