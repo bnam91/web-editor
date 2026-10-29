@@ -39,6 +39,10 @@ const TOKENS = [
   { name: 'FONT', re: /font-family:'Pretendard', sans-serif;/g, to: () => '' },
   { name: 'FONT', re: /,&quot;fontFamily&quot;:&quot;'Pretendard', sans-serif&quot;/g, to: () => '' },
   { name: 'FONT', re: /,"fontFamily":"'Pretendard', sans-serif"/g, to: () => '' },
+  /* ⑶ CVB (01b63a81 CLONE-RERENDER-01 · 253 이분 2026-10-29) — 넣은 템플릿의 canvas-block 이 rerenderTree 로 다시 그려져
+     applyScale(canvas-block.js renderCanvas)이 인라인 두 줄을 «덧붙인다». 핀 판엔 없다 ⇒ 덧붙은 것을 지운다. */
+  { name: 'CVB_H', re: /(<div class="canvas-block"[^>]*? style="[^"]*?) height: [0-9.]+px;(")/g, to: (_, a, b) => a + b },
+  { name: 'CVB_SCALE', re: /(<div class="cvb-inner" style="[^"]*?) transform: scale\([0-9.]+\);(")/g, to: (_, a, b) => a + b },
 ];
 
 /** 토큰을 옛 꼴로 되돌린다.
