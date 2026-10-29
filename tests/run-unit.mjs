@@ -29,21 +29,5 @@ if (patterns.length === 0) {
   process.stderr.write('[run-unit] 검사 패턴이 0개다 — package.json "test" 줄에서 패턴을 넘겨라\n');
   process.exit(2);
 }
-/* ★196 ⑴ — 유닛 파일 시간 래칫의 «재료». GOYA_TEST_JUNIT=<경로> 일 때만 JUnit 보고를 그 파일에 «덧» 쓴다(화면 spec 보고는 그대로).
- *   JUnit testcase 마다 file·time 이 있어 파일별 합을 낼 수 있다(spec·tap 보고엔 파일 묶음이 없다 — 261028 실측 Node 25.8).
- *   ⚠️동기 몸(spawnSync 등)도 time 에 든다 ⇒ --test-timeout 이 못 잡는 «느려짐»도 이 재료로 잡힌다(tests/unit-time.gate.js).
- *   변수가 없으면 아무것도 안 바뀐다(보고 꼴·rc 그대로 — run-unit-wrapper.test.mjs). */
-const junit = process.env.GOYA_TEST_JUNIT;
-const rep = junit ? ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=junit', `--test-reporter-destination=${junit}`] : [];
-/* ★196 ⑴(지디 판정 261028) — 비동기 시험 상한 60s. 근거(첫 전수 5c5b94f5 JUnit): 시험 하나 >60s 는 둘뿐이고 둘 다 «동기 몸»
- *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync) ⇒ 이 상한이 못 드는 꼴(196 ⒜ 실측: 동기 몸엔 안 듦) ·
- *   60s 넘는 «비동기» 0 ⇒ 오늘 판에서 빨강 0 이 «전제». ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
- *   동기 몸의 느려짐은 이 상한이 아니라 tests/unit-time.gate.js(파일 시간 명부)가 잡는다. 덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
-const rawT = process.env.GOYA_TEST_TIMEOUT_MS;
-const tmo = rawT === undefined ? 60000 : Number(rawT);
-if (!Number.isInteger(tmo) || tmo < 1) {
-  process.stderr.write(`[run-unit] GOYA_TEST_TIMEOUT_MS 는 양의 정수여야 한다 — 받은 값 ${JSON.stringify(rawT)}\n`);
-  process.exit(2);
-}
-const r = spawnSync(process.execPath, ['--test', `--test-concurrency=${n}`, `--test-timeout=${tmo}`, ...rep, ...patterns], { stdio: 'inherit' });
+const r = spawnSync(process.execPath, ['--test', `--test-concurrency=${n}`, ...patterns], { stdio: 'inherit' });
 process.exit(r.status ?? 1);
