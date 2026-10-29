@@ -489,8 +489,7 @@ export function isStillPlaceholderText(el) {
  * ⇒ 명부를 «두 벌»로 두면 한쪽만 늙는다. 한 벌로 모아 두 경로가 같이 늙게 한다.
  *   ⛔여기 담는 것은 «편집 chrome 걷기»뿐 — 경로마다 다른 것(클론 위치·isolation·
  *     inset shorthand 변환·컴포넌트 재렌더)은 부르는 쪽에 남는다.
- * 부르는 곳(앵커 · 261029 194 R3 에서 다시 셈): js/io/export-image.js prepareCloneForCapture(PNG) · js/io/save-load.js captureThumbnail(썸네일)
- *   · js/io/export-html.js exportHTMLFile(단독 HTML) · 이 파일 captureSectionImage(목업 찍기 · 194 R3 에서 더함) */
+ * 부르는 곳: js/io/export-image.js prepareCloneForCapture · js/io/save-load.js captureThumbnail */
 export function stripEditorOnlyForCapture(clone) {
   if (!clone) return;
   /* ★★★R1 261023 — ★«편집 전용 UI»는 ★★저장 정본에서 ★파생한다. ⛔아래 제 손 줄들에 ★베껴 쓰지 마라.
@@ -679,13 +678,6 @@ export async function captureSectionImage(sec) {
   try {
     // 클론 후 오프스크린에 배치 (ignoreElements 없이 깔끔하게 찍기)
     clone = sec.cloneNode(true);
-    /* ★194 R3(2026-10-29 지디 18:3x) — ★공용 겹을 부른다(PNG·썸네일·단독 HTML 과 같은 «편집 chrome 걷기» 한 벌).
-       ★까닭(앱 실측 3/3): 이 함수는 16a0798c «동작 무변 리팩터»로 옛 목업 줄(아래 둘)만 옮겨 왔고, 공용 겹이 그 뒤에 자랐는데
-         안 따라갔다 ⇒ A/B 배지(섹션에 바로 붙음)가 목업 그림에 찍혔다(배지 자리 픽셀 ≈ 배지색).
-       ⛔아래 두 줄에 이름을 더하지 마라(제 손 명부를 늘리는 것이 이 사고의 뿌리다) — 늘릴 것은 공용 겹에.
-         아래 두 줄은 그대로 둔다: 히트존은 공용 겹이 안 걷는다(194 R2 · PNG 칸 선 뒤 판정).
-       재는 자 = tests/dom/capture-section-image.dom.spec.js B5(픽셀 음성대조 포함) · 한 쌍 MX3 = 이 줄 뺀 사본 → B5 빨강. */
-    stripEditorOnlyForCapture(clone);
     clone.querySelector?.('.section-hitzone')?.remove();
     clone.querySelector?.('.section-toolbar')?.remove();
     clone.classList.remove('selected');
