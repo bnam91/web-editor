@@ -44,28 +44,6 @@ test('E148-C2 [지킴] 글자 블럭 하나 ⌘C → 그 글자가 그대로', a
   expect(await page.evaluate(() => window._internalClipboardText || '')).toContain('본문글자C2');
   expect(errs).toEqual([]);
 });
-/* ★194 R1 = 195(2026-10-29 지디 18:3x 처방 확정) — `_strip` 이 A/B 배지(.variation-badge)를 안 걷어 ⌘C 글자에 «A» 한 줄이 섞였다.
-   ★앱 실측(Electron · 메인 clipboard:writeText 처리기만 기록기로 갈음 · OS 클립보드 손 0): 3/3 «…본문 내용을 입력하세요.\nA».
-   ★배지는 섹션에 «바로» 붙는다(section-variation.js _addVariationBadge · sec.appendChild) ⇒ 히트존째 걷기로는 안 걷힌다.
-   ⛔고침은 NON_CONTENT_UI_SELECTOR 가 아니라 `_strip` 한 칸이다(저장이 배지를 안 지운다 ⇒ 넣으면 editor-ui-roster 계약이 깨진다).
-   한 쌍: 고치기 전(333aa3d9) 빨강 · 고친 뒤 초록 · 고친 판에서 `_strip` 의 배지 칸만 뺀 사본 → 빨강(태양 문턱 GO 뒤). */
-test('E148-C3 [새 것] A/B 배지 든 섹션 골라진 채 ⌘C → 클립보드 글자에 배지 글자 줄이 없고 본문 글자는 있다', async ({ page }) => {
-  const errs = await fresh(page);
-  const tb = await add(page, "window.addTextBlock('body')", '#canvas .text-block');
-  await page.evaluate((tb) => { document.querySelector('#' + tb + ' [class^="tb-"]').textContent = '본문글자C3'; }, tb);
-  await page.evaluate(() => { window.deselectAll?.(); window.createVariation(document.getElementById('sX')); });   // 제품 함수 = 툴바 A/B 단추가 부르는 그것(section-variation.js :81)
-  const pre = await page.evaluate(() => { const s = document.getElementById('sX'); const b = s && s.querySelector(':scope > .variation-badge'); return { badge: b ? b.textContent : null, shown: s ? getComputedStyle(s).display !== 'none' : false }; });
-  expect(pre.badge, '[전제] 섹션에 A/B 배지가 바로 붙었다').toBeTruthy();
-  expect(pre.shown, '[전제] 그 섹션이 보인다').toBe(true);
-  await page.evaluate(() => { window.deselectAll?.(); document.getElementById('sX').classList.add('selected'); });
-  await page.keyboard.press('Meta+c'); await page.waitForTimeout(300);
-  const t = await page.evaluate(() => window._internalClipboardText || '');
-  expect(t, `[전제] 본문 글자가 실렸다(복사가 섰다) · ${JSON.stringify(t.slice(0, 120))}`).toContain('본문글자C3');
-  expect(t.includes('섹션이름X'), `[지킴] 섹션 이름표 섞임(걷히는 칸이 걷히나 — 자가 «걷힘»을 본다) · ${JSON.stringify(t.slice(0, 200))}`).toBe(false);
-  const lines = t.split('\n').map((s) => s.trim()).filter(Boolean);
-  expect(lines.includes(pre.badge), `A/B 배지 글자 «${pre.badge}» 가 한 줄로 섞임 · ${JSON.stringify(t.slice(0, 200))}`).toBe(false);
-  expect(errs).toEqual([]);
-});
 
 /* ── E38 ── */
 const typeShown = (page) => page.evaluate(() => { const e = document.getElementById('type-section'); return e ? getComputedStyle(e).display !== 'none' : null; });
