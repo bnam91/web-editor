@@ -98,13 +98,19 @@ test('B4 html2canvas 가 없으면 ok:false · no-h2c', async ({ page }) => {
    한 쌍: 고치기 전(333aa3d9) 빨강 · 고친 뒤 초록 · 고친 판에서 captureSectionImage 의 공용 겹 부름 한 줄 뺀 사본(MX3) → 빨강(태양 문턱 GO 뒤). */
 test('B5 [새 것] A/B 배지 든 섹션을 찍으면 클론에 배지 0 · 그림의 배지 자리가 배지색이 아니다(음성대조 자리도 아님)', async ({ page }) => {
   const errs = await setup(page);
-  const pre = await page.evaluate(() => {
-    window.deselectAll?.(); window.createVariation(document.getElementById('cS'));   // 제품 함수 = 툴바 A/B 단추가 부르는 그것(section-variation.js :81)
-    const s = document.getElementById('cS'); const b = s.querySelector(':scope > .variation-badge');
-    if (!b) return { badge: false };
+  /* ★섹션은 ★제품 addSection 으로 만든다 — setup 의 손 꼴(cS)엔 `.section-toolbar` 가 없어 bindVariationToolbarBtn 이
+     «툴바 없음»으로 돌아가 배지를 안 붙인다(261029 첫 실행 [전제] 빨강 · 실앱 섹션엔 늘 툴바가 있다). */
+  const pre = await page.evaluate(async () => {
+    const before = new Set([...document.querySelectorAll('#canvas .section-block')].map((s) => s.id));
+    window.deselectAll?.(); await window.addSection();
+    const sid = [...document.querySelectorAll('#canvas .section-block')].map((s) => s.id).find((id) => !before.has(id));
+    if (!sid) return { badge: false, sid: null };
+    window.deselectAll?.(); window.createVariation(document.getElementById(sid));   // 제품 함수 = 툴바 A/B 단추가 부르는 그것(section-variation.js :81)
+    const s = document.getElementById(sid); const b = s.querySelector(':scope > .variation-badge');
+    if (!b) return { badge: false, sid };
     const S = s.getBoundingClientRect(), R = b.getBoundingClientRect(), cs = getComputedStyle(b);
     const rgb = (cs.backgroundColor.match(/\d+/g) || []).slice(0, 3).map(Number);
-    return { badge: true, shown: getComputedStyle(s).display !== 'none', rgb, secBg: getComputedStyle(s).backgroundColor,
+    return { badge: true, sid, shown: getComputedStyle(s).display !== 'none', rgb, secBg: getComputedStyle(s).backgroundColor,
       rel: { x: R.left - S.left, y: R.top - S.top, w: R.width, h: R.height }, secW: S.width };
   });
   expect(pre.badge, '[전제] 섹션에 A/B 배지가 바로 붙었다').toBe(true);
@@ -120,7 +126,7 @@ test('B5 [새 것] A/B 배지 든 섹션을 찍으면 클론에 배지 0 · 그�
       rec.atBadge = mean(pre.rel.x, pre.rel.y, pre.rel.w, pre.rel.h);
       rec.atControl = mean(rec.w - pre.rel.x - pre.rel.w, pre.rel.y, pre.rel.w, pre.rel.h);   // 오른쪽 위 · 같은 크기 · 배지 없는 자리
       seen.push(rec); return c; };
-    try { const res = await m.captureSectionImage(document.getElementById('cS')); return { ok: res.ok, seen }; } finally { window.html2canvas = real; }
+    try { const res = await m.captureSectionImage(document.getElementById(pre.sid)); return { ok: res.ok, seen }; } finally { window.html2canvas = real; }
   }, pre);
   expect(r.ok, '[전제] 찍기가 섰다').toBe(true);
   expect(r.seen.length, '[전제] 감싼 html2canvas 를 지났다(자가 산 판)').toBe(1);
