@@ -6,7 +6,8 @@
  *   — 앱이 쓰는 «같은 모듈»을 부른다 · 제품 쪽 window 노출 없음.
  * ⛔B1 은 그림 sha 를 «안» 본다 — 하네스 html2canvas 가 실앱과 같은 픽셀을 내는지는 안 쟀다(미측정 · 태양 · 10-05).
  *   그래서 «ok · PNG · 판정기 참 · 크기 · 남은 클론 0» 만 본다. 픽셀 같음(바이트)은 실앱 cap.mjs(G11-C1) 몫.
- * 양성대조(이름으로 · dom-lock 아래): MX0(본문 무력화) → B1 · MX1(클론 display:block 뺌) → B2 · MX2(빈 그림 가드 뺌) → B3 빨강.
+ * 양성대조(이름으로 · dom-lock 아래): MX0(본문 무력화) → B1 · MX1(클론 display:block 뺌) → B2 · MX2(빈 그림 가드 뺌) → B3 빨강
+ *   · MX3(공용 겹 stripEditorOnlyForCapture 부름 한 줄 뺌 · 194 R3) → B5 빨강.
  * 머리표: [전제] = 재기 위한 조건. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -86,5 +87,47 @@ test('B4 html2canvas 가 없으면 ok:false · no-h2c', async ({ page }) => {
     try { return await m.captureSectionImage(document.getElementById('cS')); } finally { window.html2canvas = keep; }
   });
   expect([r.ok, r.reason]).toEqual([false, 'no-h2c']);
+  expect(errs).toEqual([]);
+});
+
+/* ★194 R3(2026-10-29 지디 18:3x 처방 확정) — 목업 찍기가 공용 겹(stripEditorOnlyForCapture)을 안 불러 A/B 배지가 그림에 찍혔다.
+   ★앱 실측(Electron · html2canvas 감쌈): 3/3 클론에 배지 1 · 결과 캔버스 그 자리 평균 픽셀 [63,123,234] ≈ 배지 배경 rgb(45,111,232).
+   ★뿌리: 16a0798c «동작 무변 리팩터»가 옛 목업 줄을 옮겼고 공용 겹이 그 뒤에 자랐는데 안 따라갔다 ⇒ ⛔제 손 명부를 늘리지 말고 공용 겹을 부른다.
+   자 = window.html2canvas 를 감싸(제품이 넘긴 클론·돌려받은 캔버스를 그대로 본다) ⑴ 클론의 배지 수 ⑵ 캔버스의 «배지 자리» 픽셀이 배지색인가
+     ⑶ ★음성대조 = 같은 크기 «배지 없는 자리»(오른쪽 위 모서리)가 배지색으로 안 읽힌다 — 픽셀 자가 «아무 데나 맞다»고 하지 않는다.
+   한 쌍: 고치기 전(333aa3d9) 빨강 · 고친 뒤 초록 · 고친 판에서 captureSectionImage 의 공용 겹 부름 한 줄 뺀 사본(MX3) → 빨강(태양 문턱 GO 뒤). */
+test('B5 [새 것] A/B 배지 든 섹션을 찍으면 클론에 배지 0 · 그림의 배지 자리가 배지색이 아니다(음성대조 자리도 아님)', async ({ page }) => {
+  const errs = await setup(page);
+  const pre = await page.evaluate(() => {
+    window.deselectAll?.(); window.createVariation(document.getElementById('cS'));   // 제품 함수 = 툴바 A/B 단추가 부르는 그것(section-variation.js :81)
+    const s = document.getElementById('cS'); const b = s.querySelector(':scope > .variation-badge');
+    if (!b) return { badge: false };
+    const S = s.getBoundingClientRect(), R = b.getBoundingClientRect(), cs = getComputedStyle(b);
+    const rgb = (cs.backgroundColor.match(/\d+/g) || []).slice(0, 3).map(Number);
+    return { badge: true, shown: getComputedStyle(s).display !== 'none', rgb, secBg: getComputedStyle(s).backgroundColor,
+      rel: { x: R.left - S.left, y: R.top - S.top, w: R.width, h: R.height }, secW: S.width };
+  });
+  expect(pre.badge, '[전제] 섹션에 A/B 배지가 바로 붙었다').toBe(true);
+  expect(pre.shown, '[전제] 그 섹션이 보인다').toBe(true);
+  expect(pre.rel.w > 4 && pre.rel.h > 4, `[전제] 배지가 자리를 차지한다 ${JSON.stringify(pre.rel)}`).toBe(true);
+  const r = await page.evaluate(async (pre) => {
+    const m = await import('/js/io/capture-safety.js'); const real = window.html2canvas; const seen = [];
+    window.html2canvas = async function (el, opt) {
+      const rec = { badges: el.querySelectorAll('.variation-badge').length, w: el.getBoundingClientRect().width };
+      const c = await real.apply(this, arguments);
+      const k = c.width / rec.w, g = c.getContext('2d');
+      const mean = (x, y, w, h) => { const d = g.getImageData(Math.floor(x * k), Math.floor(y * k), Math.max(1, Math.floor(w * k)), Math.max(1, Math.floor(h * k))).data; const s = [0, 0, 0]; for (let i = 0; i < d.length; i += 4) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; } const n = d.length / 4; return s.map((v) => Math.round(v / n)); };
+      rec.atBadge = mean(pre.rel.x, pre.rel.y, pre.rel.w, pre.rel.h);
+      rec.atControl = mean(rec.w - pre.rel.x - pre.rel.w, pre.rel.y, pre.rel.w, pre.rel.h);   // 오른쪽 위 · 같은 크기 · 배지 없는 자리
+      seen.push(rec); return c; };
+    try { const res = await m.captureSectionImage(document.getElementById('cS')); return { ok: res.ok, seen }; } finally { window.html2canvas = real; }
+  }, pre);
+  expect(r.ok, '[전제] 찍기가 섰다').toBe(true);
+  expect(r.seen.length, '[전제] 감싼 html2canvas 를 지났다(자가 산 판)').toBe(1);
+  const dist = (a) => Math.hypot(a[0] - pre.rgb[0], a[1] - pre.rgb[1], a[2] - pre.rgb[2]);
+  const [s] = r.seen;
+  expect(dist(s.atControl), `[음성대조] 배지 없는 자리가 배지색으로 읽힌다 — 픽셀 자가 죽었다 ${JSON.stringify(s)} · 배지 ${pre.rgb}`).toBeGreaterThan(60);
+  expect(s.badges, `클론에 A/B 배지가 남았다(공용 겹을 안 불렀나) ${JSON.stringify(s)}`).toBe(0);
+  expect(dist(s.atBadge), `그림의 배지 자리가 배지색이다 = 배지가 찍혔다 ${JSON.stringify(s)} · 배지 ${pre.rgb}`).toBeGreaterThan(60);
   expect(errs).toEqual([]);
 });
