@@ -5,6 +5,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const { readFlaky, rosterSpecs, unlisted } = createRequire(import.meta.url)('../dom/flaky-roster.gate.js');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const REAL_MD = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dom', 'FLAKY.md'), 'utf8');
 
 const HEAD = 'Running 40 tests using 4 workers\n\n';
 const SUM = (flakyBlock) => `${HEAD}  2 failed\n    tests/dom/a.dom.spec.js:1:1 › x\n${flakyBlock}  30 passed (1.0m)\n`;
@@ -37,4 +41,17 @@ test('G4 음성 — 명부에 있는 spec 만 흔들리면 통과 · 명부 글�
 test('G5 flaky 블럭 뒤 줄(passed 요약)을 이름으로 안 먹는다', () => {
   const r = readFlaky(SUM(FL(['known-one'])));
   assert.deepEqual(r.lines.map((x) => x.spec), ['known-one.dom.spec.js']);
+});
+
+/* ★지디 261029 14:5x ⒝⒞ — 실 FLAKY.md 로: «측정 가지 전용» 절(명부 밖)의 이름은 명부로 안 센다 · 명부 안 이름은 그대로 «명부 안». */
+test('G6 ★양성 — 실 FLAKY.md «측정 가지 전용» 절의 spec 이 흔들리면 «미등재» 로 짚는다(분모에서 뺐다)', () => {
+  assert.ok(REAL_MD.includes('## ⛔측정 가지 전용') && REAL_MD.includes('q2274-handle-leak-userpath.dom.spec.js'), '★전제: 실 FLAKY.md 에 그 절과 그 이름이 있다');
+  assert.equal(rosterSpecs(REAL_MD).has('q2274-handle-leak-userpath.dom.spec.js'), false, '측정 가지 전용 절의 이름을 명부로 셌다(거짓 «명부 안»)');
+  const v = unlisted(SUM(FL(['q2274-handle-leak-userpath'])), REAL_MD);
+  assert.deepEqual([v.ok, v.missing], [true, ['q2274-handle-leak-userpath.dom.spec.js']]);
+});
+test('G7 음성 — 실 FLAKY.md «명부» 안 이름은 «미등재» 로 안 찍힌다(양성만이면 «전부 미등재» 항등식일 수)', () => {
+  assert.ok(rosterSpecs(REAL_MD).has('s3v-icon-text.dom.spec.js'), '★전제: 명부 첫 줄 이름이 명부로 읽힌다');
+  const v = unlisted(SUM(FL(['s3v-icon-text'])), REAL_MD);
+  assert.deepEqual([v.ok, v.missing], [true, []]);
 });
