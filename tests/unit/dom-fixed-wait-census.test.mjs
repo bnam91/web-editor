@@ -155,6 +155,11 @@ const BASE_HOW = [
  *   ★`grid-nested-ratio.dom.spec.js` (★4곳) — ★S2 의 ★배율 지렛대를 ★조건 대기로 ★바꿨다(★고정 대기 ★4 → ★3)
  *   ⇒ ★★이제 ★둘 중 ★하나라도 ★되돌리면 ★★W4 의 ★«명부 밖 0» 이 ★★그 이름으로 ★빨개진다(★래칫이 ★조인다).
  *   ★그 회차 수: ★곳 ★1318 → ★1317 · ★합ms ★376820 → ★376570 · ★조건 0 파일 ★103 → ★101벌 */
+/* ★★2026-10-29 (194 · 아이맥 L2 · 지디 발주) — ★`small-fixes-e148-e38-e28.dom.spec.js` (★6곳) ★한 벌만 ★뺐다.
+ *   ★0f416fda 가 ★E148-C3 의 ★고정 300ms 를 ★조건 대기로 ★바꿔(★조건 0 → 1) ★W4 가 ★«고쳐졌다»로 ★찍던 파일이다.
+ *   ⚠️★숫자 고정대기 ★6곳은 ★그대로 ★남았다 — ★«조건 0» 에서 ★나간 것이지 ★고정대기가 ★없어진 게 ★아니다(★W3 곳 수엔 ★그대로 ★든다).
+ *   ⛔같이 찍힌 ★`e80-fix` · `grid-circle-text` 는 ★손대지 ★않았다(★이전부터의 빚 — ★지디가 ★따로 줄로 세운다).
+ *   ★그 회차 수: ★곳 ★1305 (★기준 그대로) · ★조건 0 파일 ★98벌 · ★명부 ★101 → ★100벌 */
 const BARE = {
   'text-selection-panel.dom.spec.js': 53,
   'grid-children.dom.spec.js': 33,
@@ -208,7 +213,6 @@ const BARE = {
   'marquee-sections-blocks.dom.spec.js': 6,
   'multisel-fontsize-mix.dom.spec.js': 6,
   'save-load-roundtrip-1001.dom.spec.js': 6,
-  'small-fixes-e148-e38-e28.dom.spec.js': 6,
   'tpl-pagepad-e81.dom.spec.js': 6,
   'asset-drop-position.dom.spec.js': 5,
   'asset-preview.dom.spec.js': 5,
