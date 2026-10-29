@@ -17,6 +17,7 @@
  *   ㉰ `fileURLToPath(import.meta.url)` 를 `new URL(import.meta.url).pathname` 로  → ②-5 빨강
  *   ㉱ `toPosix(path.relative(...))` 에서 toPosix 를 벗긴다                        → ④-1 빨강
  *   ㉲ `_tmproot.freeBytes` 에서 statfsSync 분기를 지운다                          → ③-1 빨강(윈도우에서만)
+ *   ㉳ `tests/_name-sink-scan.js` sourceFiles 의 toPosix 를 벗긴다                → ④-2 빨강(`…:out`)
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -503,12 +504,31 @@ test('④-1 [양성대조] 소스 스캔 키는 posix 로 정규화된다 — �
     '★스캔 키가 다시 «날 것»이 됐다 — 윈도우에서 허용목록이 통째로 안 맞는다');
 });
 
+/* ★`path.relative(` 의 여는 괄호 다음부터 짝 닫는 괄호 바로 뒤 위치를 돌려준다(따옴표 안 괄호는 안 센다). */
+function afterCall(code, i) {
+  let depth = 1, q = null;
+  for (; i < code.length && depth > 0; i++) {
+    const c = code[i];
+    if (q) { if (c === '\\') i++; else if (c === q) q = null; continue; }
+    if (c === '"' || c === "'" || c === '`') q = c;
+    else if (c === '(') depth++;
+    else if (c === ')') depth--;
+  }
+  return i;
+}
+/* ★정규화로 치는 꼴 둘 — `toPosix(path.relative(…))` · `path.relative(…).split(path.sep).join('/')`.
+   ⛔파일 이름으로 빼지 않는다 — 꼴로만 가른다(멀쩡한 자리는 꼴이 멀쩡해서 빠진다). */
+const POSIX_TAIL = /^\s*\.split\(\s*path\.sep\s*\)\s*\.join\(\s*(?:'\/'|"\/"|path\.posix\.sep)\s*\)/;
+
 test('④-2 ★검사 키로 쓰는 path.relative 가 posix 정규화 없이 남은 자리가 0건이다', () => {
   const bad = [];
   for (const f of SCANNED) {
-    if (!/\.test\.(mjs|js)$/.test(f)) continue;
     const code = codeOnly(fs.readFileSync(f, 'utf8'));
-    for (const m of code.matchAll(/(\w+)\.push\(\s*path\.relative\(/g)) bad.push(`${rel(f)}:${m[1]}`);
+    for (const m of code.matchAll(/(\w+)\.push\(\s*(toPosix\(\s*)?path\.relative\(/g)) {
+      if (m[2]) continue;
+      if (POSIX_TAIL.test(code.slice(afterCall(code, m.index + m[0].length)))) continue;
+      bad.push(`${rel(f)}:${m[1]}`);
+    }
   }
   assert.deepEqual(bad, [],
     `★path.relative 결과를 키로 모으면 윈도우에서 \`js\\a.js\` 가 된다 — toPosix 를 씌워라 (${SCANNED.length}개 파일을 셌다)`);

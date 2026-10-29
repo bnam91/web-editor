@@ -41,6 +41,7 @@ const path = require('path');
  *    ⛔한 segment 만 걷으면 ★offset 이 밀려 ★엉뚱한 줄을 가리킨다(글자 수는 ★안 보존된다).
  *  ⛔`templateBalanced` 를 ★«전제»로 걸어라 — 쓰는 쪽(name-axes-to-markup.test.mjs X0)이 건다. */
 const { stripCommentsTA, templateBalanced } = require('./unit/_strip-comments.js');
+const { toPosix } = require('./unit/_srcread.js');   /* ★키는 posix — 아래 SOURCE_FILES_EXTRA 와 같은 꼴(윈도우 `js\a.js` 금지 · win-portability ④-2) */
 
 const SOURCE_ROOTS = ['js', 'pages'];
 const SOURCE_FILES_EXTRA = ['index.html'];
@@ -62,7 +63,7 @@ function sourceFiles(repo) {
       if (e.name.startsWith('.') || e.name === 'node_modules') continue;
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p);
-      else if (EXTS.has(path.extname(e.name))) out.push(path.relative(repo, p));
+      else if (EXTS.has(path.extname(e.name))) out.push(toPosix(path.relative(repo, p)));
     }
   };
   for (const r of SOURCE_ROOTS) { const d = path.join(repo, r); if (fs.existsSync(d)) walk(d); }
