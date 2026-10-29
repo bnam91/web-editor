@@ -33,14 +33,18 @@
         ⛔subtree:true 로 두면 ★내 배지 삽입이 자신을 다시 부른다(무한). 섹션은 #canvas 의 ★직속 자식이다.
    ★배율 변경에는 다시 안 그린다 — offsetHeight 가 안 변하니 그릴 것이 없다. 그 «안 함»이 자의 증거다.
 
-   ★이 배지는 «편집이 아니다»(저장에서 지워진다). 그래서 명부 넷에 이름이 올라가 있다:
-     ① js/io/save-load.js      NON_CONTENT_UI_SELECTOR  — 로드 후 걷기 ＋ dirty 필터
+   ★이 배지는 «편집이 아니다»(저장에서 지워진다). 그래서 이 명부들에 이름이 올라가 있다(★자리는 앵커로 — 줄번호는 썩는다):
+     ① js/io/editor-ui-roster.js NON_CONTENT_UI_SELECTOR — 로드 후 걷기 ＋ dirty 필터(save-load.js 가 읽는다 · 261023 잎 모듈로 옮김)
      ② js/io/section-serialize.js serializeCleanRoot    — 저장·히스토리·템플릿·협업 세척(①의 계약 짝)
-     ③ js/version-diff.js      _localNormSection        — 버전 비교 키
-     ④ js/market-merge.js      normSection              — 병합 비교 키
+     ③ js/market-merge.js      normSection              — 병합·버전 비교 키(js/version-diff.js 는 194 ④(261028) 뒤 이것에 위임 · 제 사본 없음)
      ＋ js/io/export-css-collect.js EDITOR_ONLY_SEL      — 단독 HTML 로 CSS 누수 금지
-   (PNG·단독 HTML 은 `.section-hitzone` 째 걷으므로 따로 적을 것이 없다 —
-    js/io/export-html.js:116 · js/io/capture-safety.js:515. ⌘C 글자는 ①에서 ★파생된다 — js/editor.js:1572.)
+     ＋ js/io/capture-safety.js stripEditorOnlyForCapture — PNG·썸네일·단독 HTML 공용 겹(①을 읽고 ＋ 제 손 «편집 장식» 줄에도 이 배지 이름)
+   ⚠️★히트존째 걷는 것은 ★단독 HTML(js/io/export-html.js exportHTMLFile 의 제 손 지우기)과 ★목업 찍기(capture-safety.js captureSectionImage)뿐이다.
+     ★공용 겹(stripEditorOnlyForCapture)은 히트존을 ★안 걷는다 — 194 차이 표 R2 · 261029 앱 실측: 썸네일 클론에 빈 히트존 1(안의 라벨·이 배지는
+     따로 걷힘 · 투명 · 클론 밖 y −65 ⇒ 그림엔 안 닿음) · PNG 길은 ★안 잼.
+     ⛔옛 글 「PNG·단독 HTML 은 히트존째 걷으므로 따로 적을 것이 없다 — export-html.js:116 · capture-safety.js:515」는 ★틀렸다:
+       그 판의 capture-safety.js:515 는 ★목업 찍기(captureSectionImage) 줄이었고 PNG·썸네일은 그 함수를 안 부른다. ★이 거짓이 R2 를 낳았다.
+   ⌘C 글자는 ①에서 ★파생된다 — js/editor.js _internalClipboardTextOf 의 `_strip`.)
 
    ⛔배지를 `.section-label` ★안에 넣지 마라 — 그 textContent 는 ★섹션 «이름»이다(10 자리가 읽는다:
      branch-system.js ×4 · version-diff · market-merge · ai-section-fill · section-search · editor.js ×2 · main.js:5221).
