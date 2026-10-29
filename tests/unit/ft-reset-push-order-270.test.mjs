@@ -14,10 +14,12 @@ const { sliceBlock } = createRequire(import.meta.url)('./_slice-block.js');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = readSrc(path.join(ROOT, 'js', 'effects-freetransform.js'));
+/* 주석을 떼고 잰다 — 고친 자리 주석에 «ftMeasure(:271» 같은 낱말이 들어가 첫 판 R1 이 주석을 잡았다(시험 흠 · 261029 S6) */
+const code = (b) => b.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 test('R1 ★resetFxFreeTransform 은 재기(ftMeasure) «앞»에 이력을 쌓는다(효과 켤 때 칸 = 켜기 전 바이트)', () => {
   assert.ok(SRC.includes('export function resetFxFreeTransform('), '전제: resetFxFreeTransform 정의가 없다');
-  const body = sliceBlock(SRC, 'export function resetFxFreeTransform(', 'effects-freetransform.js resetFxFreeTransform');
+  const body = code(sliceBlock(SRC, 'export function resetFxFreeTransform(', 'effects-freetransform.js resetFxFreeTransform'));
   const iPush = body.indexOf('pushHistory');
   const iMeasure = body.indexOf('ftMeasure(');
   assert.ok(iMeasure >= 0, '전제: resetFxFreeTransform 이 ftMeasure 를 안 부른다(꼴이 바뀌었다 — 이 검사를 다시 읽어라)');
@@ -26,6 +28,9 @@ test('R1 ★resetFxFreeTransform 은 재기(ftMeasure) «앞»에 이력을 쌓�
 });
 
 test('R2 setFxFreeTransform 은 history:false 로 — 한 제스처 한 칸(두 번 쌓지 않는다)', () => {
-  const body = sliceBlock(SRC, 'export function resetFxFreeTransform(', 'effects-freetransform.js resetFxFreeTransform');
-  assert.match(body, /setFxFreeTransform\([^)]*\{\s*history:\s*false\b/, '★reset 이 setFx 에 history:false 를 안 넘긴다 — 칸이 둘 쌓인다');
+  const body = code(sliceBlock(SRC, 'export function resetFxFreeTransform(', 'effects-freetransform.js resetFxFreeTransform'));
+  const i = body.search(/\bsetFxFreeTransform\(/);   /* 낱말 경계 — «resetFxFreeTransform(» 머리를 잡지 않게(첫 판 흠) */
+  assert.ok(i >= 0, '전제: reset 이 setFxFreeTransform 을 안 부른다');
+  const stmt = body.slice(i, body.indexOf(';', i));   /* 그 부름 한 문장(인자 안에 괄호가 있어 [^)] 로는 못 끊는다 — 첫 판 흠) */
+  assert.match(stmt, /\{\s*history:\s*false\b/, '★reset 이 setFx 에 history:false 를 안 넘긴다 — 칸이 둘 쌓인다');
 });
