@@ -65,11 +65,12 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script src="/js/design-system.js"></script>
 <script src="/js/io/section-serialize.js"></script>
 <script type="module">
-  import { makeGridBlock, getGridModel, updateGridBlock, renderGridBlock } from '/js/blocks/grid-block.js';
+  import { makeGridBlock, getGridModel, updateGridBlock, renderGridBlock, GRID_NESTED_GAP } from '/js/blocks/grid-block.js';
   import { showGridProperties } from '/js/props/prop-grid.js';
   window.__mk = makeGridBlock; window.__model = getGridModel;
   window.__upd = updateGridBlock; window.__render = renderGridBlock;
   window.__open = showGridProperties;
+  window.__NESTED_GAP = GRID_NESTED_GAP;   /* 배선(block-factory.js)이 읽는 이름 — 제품 모듈의 export 그대로(지어내지 않는다 · a78196de t6-04b 이 배선에 더했다) */
   window.pushHistory = () => {}; window.buildLayerPanel = () => {}; window.triggerAutoSave = () => {};
   window.__toasts = []; window.showToast = (m) => window.__toasts.push(m);
   window.__ready = true;
@@ -131,6 +132,7 @@ const clickNestedMenu = (page, addr) => page.evaluate(({ itemHtml, wireSrc, addr
     _targetGridAddr: addr,
     closeMenu: () => { menu.style.display = 'none'; },
     GRID_NESTED_LINE_TYPE: window.__NESTED_TYPE,
+    GRID_NESTED_GAP: window.__NESTED_GAP,
   };
   const names = Object.keys(scope);
   new Function(...names, wireSrc)(...names.map(n => scope[n]));
@@ -231,7 +233,7 @@ test.describe('T-221 — 칸 «안»을 열로 나누는 줄을 «사람 손»�
       const menu = document.getElementById('block-context-menu');
       menu.innerHTML = itemHtml;
         const scope = { _targetBlock: window.__block, _targetGridAddr: addr, closeMenu: () => {},
-                      GRID_NESTED_LINE_TYPE: window.__NESTED_TYPE };
+                      GRID_NESTED_LINE_TYPE: window.__NESTED_TYPE, GRID_NESTED_GAP: window.__NESTED_GAP };
       const names = Object.keys(scope);
       new Function(...names, wireSrc)(...names.map(n => scope[n]));
       document.getElementById('bcm-grid-nested').dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -325,7 +327,7 @@ test.describe('T-221 — 칸 «안»을 열로 나누는 줄을 «사람 손»�
       menu.innerHTML = itemHtml;
       const run = (a) => {
         const scope = { _targetBlock: window.__block, _targetGridAddr: a, closeMenu: () => {},
-                        GRID_NESTED_LINE_TYPE: window.__NESTED_TYPE };
+                        GRID_NESTED_LINE_TYPE: window.__NESTED_TYPE, GRID_NESTED_GAP: window.__NESTED_GAP };
         const names = Object.keys(scope);
         menu.innerHTML = itemHtml;
         new Function(...names, wireSrc)(...names.map(n => scope[n]));
