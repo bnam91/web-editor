@@ -10,8 +10,16 @@
  *   P5 lines 가 배열 아님 · lines 키 없음 ⇒ JSON 이어도 lines null · text = 원문(JSON 글자째)
  *   P6 JSON 객체 둘이 한 글에 ⇒ 첫 { ~ 끝 } 가 JSON 이 아니라 던짐 ⇒ 원문(S5 가 더한 경계)
  *   P7 <img onerror> 꼴 글은 글자 그대로 돌려준다 — ★돌려줌 자체는 결함 아님(242 의 결함 자리는 innerHTML 쪽)
- * ★양성대조: GD1001_ROOT 로 «JSON.parse 줄을 무력화한 사본»을 가리키면 P1·P4·P7 이 빨강(S5 261029 ×3 실측 · P2·P3·P5·P6 은
- *   JSON 이 안 서는 길이라 무력화해도 같은 값 — 경계 자리로 둔다). */
+ * ★양성대조 — GD1001_ROOT 로 services/ocrPrompt.js 한 줄만 바꾼 사본을 가리킨다(S5 261029 · 변이마다 ×3 · 3/3 같음):
+ *   | 변이(사본 diff 1 줄)                               | 그 변이가 빨갛게 하는 P |
+ *   | mut1 JSON.parse( → 던지는 함수                     | P1 · P4 · P7           |
+ *   | mut2 s.indexOf('{') → 0                            | P1                     |
+ *   | mut3 catch (_) { 삼킴 } → throw _                  | P2 · P3 · P6 · P7      |
+ *   | mut4 Array.isArray(v?.lines) 판정 뺌               | P5                     |
+ *   ⇒ P1~P7 모두 빨갛게 하는 변이가 하나 이상.
+ *   mut2 는 P1 만 가른다 — 까닭 : { 없는 글(P2 전부 · P3 «끝 } 만» · P7 맨글)은 시작이 −1 이든 0 이든 JSON.parse 가 던져
+ *     같은 원문으로 가고, { 로 시작하는 글(P3 «{ 열기만» · P4~P6 · P7 JSON 글 · P1 코드펜스 뒤 첫 칸)은 펜스 말고는 indexOf('{') 가
+ *     원래 0 이거나 앞 글이 JSON 을 안 깨서 값이 같다 — 앞에 «말»이 붙은 P1 «여기 결과입니다: {…}» 만 갈린다. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
