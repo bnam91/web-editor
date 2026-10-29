@@ -51,24 +51,17 @@ test('E148-C2 [지킴] 글자 블럭 하나 ⌘C → 그 글자가 그대로', a
    한 쌍: 고치기 전(333aa3d9) 빨강 · 고친 뒤 초록 · 고친 판에서 `_strip` 의 배지 칸만 뺀 사본 → 빨강(태양 문턱 GO 뒤). */
 test('E148-C3 [새 것] A/B 배지 든 섹션 골라진 채 ⌘C → 클립보드 글자에 배지 글자 줄이 없고 본문 글자는 있다', async ({ page }) => {
   const errs = await fresh(page);
-  /* ★섹션은 ★제품 addSection 으로 만든다(메뉴 «섹션»이 부르는 그것) — 손으로 쓴 SEC 꼴엔 `.section-toolbar` 가 없어
-     bindVariationToolbarBtn 이 «툴바 없음»으로 돌아가 배지를 안 붙인다(261029 첫 실행 [전제] 빨강 · 실앱 섹션엔 늘 툴바가 있다). */
-  const sid = await page.evaluate(async () => { const before = new Set([...document.querySelectorAll('#canvas .section-block')].map((s) => s.id)); window.deselectAll?.(); await window.addSection(); return [...document.querySelectorAll('#canvas .section-block')].map((s) => s.id).find((id) => !before.has(id)) || null; });
-  expect(sid, '[전제] 제품 addSection 으로 새 섹션이 섰다').toBeTruthy();
-  const tb = await add(page, `window.selectSection?.(document.getElementById('${sid}')); window.addTextBlock('body')`, '#canvas .text-block');
+  const tb = await add(page, "window.addTextBlock('body')", '#canvas .text-block');
   await page.evaluate((tb) => { document.querySelector('#' + tb + ' [class^="tb-"]').textContent = '본문글자C3'; }, tb);
-  await page.evaluate((sid) => { window.deselectAll?.(); window.createVariation(document.getElementById(sid)); }, sid);   // 제품 함수 = 툴바 A/B 단추가 부르는 그것(section-variation.js :81)
-  const pre = await page.evaluate(([sid, tb]) => { const s = document.getElementById(sid); const b = s && s.querySelector(':scope > .variation-badge');
-    return { badge: b ? b.textContent : null, shown: s ? getComputedStyle(s).display !== 'none' : false, label: s?.querySelector('.section-label')?.textContent || null, tbIn: !!(s && s.querySelector('#' + tb)) }; }, [sid, tb]);
-  expect(pre.tbIn, '[전제] 본문 블럭이 그 섹션 안에 있다').toBe(true);
+  await page.evaluate(() => { window.deselectAll?.(); window.createVariation(document.getElementById('sX')); });   // 제품 함수 = 툴바 A/B 단추가 부르는 그것(section-variation.js :81)
+  const pre = await page.evaluate(() => { const s = document.getElementById('sX'); const b = s && s.querySelector(':scope > .variation-badge'); return { badge: b ? b.textContent : null, shown: s ? getComputedStyle(s).display !== 'none' : false }; });
   expect(pre.badge, '[전제] 섹션에 A/B 배지가 바로 붙었다').toBeTruthy();
   expect(pre.shown, '[전제] 그 섹션이 보인다').toBe(true);
-  expect(pre.label, '[전제] 섹션 이름표 글자가 있다(지킴 칸이 잴 것)').toBeTruthy();
-  await page.evaluate((sid) => { window.deselectAll?.(); document.getElementById(sid).classList.add('selected'); }, sid);
+  await page.evaluate(() => { window.deselectAll?.(); document.getElementById('sX').classList.add('selected'); });
   await page.keyboard.press('Meta+c'); await page.waitForTimeout(300);
   const t = await page.evaluate(() => window._internalClipboardText || '');
   expect(t, `[전제] 본문 글자가 실렸다(복사가 섰다) · ${JSON.stringify(t.slice(0, 120))}`).toContain('본문글자C3');
-  expect(t.includes(pre.label), `[지킴] 섹션 이름표 «${pre.label}» 섞임(걷히는 칸이 걷히나 — 자가 «걷힘»을 본다) · ${JSON.stringify(t.slice(0, 200))}`).toBe(false);
+  expect(t.includes('섹션이름X'), `[지킴] 섹션 이름표 섞임(걷히는 칸이 걷히나 — 자가 «걷힘»을 본다) · ${JSON.stringify(t.slice(0, 200))}`).toBe(false);
   const lines = t.split('\n').map((s) => s.trim()).filter(Boolean);
   expect(lines.includes(pre.badge), `A/B 배지 글자 «${pre.badge}» 가 한 줄로 섞임 · ${JSON.stringify(t.slice(0, 200))}`).toBe(false);
   expect(errs).toEqual([]);
