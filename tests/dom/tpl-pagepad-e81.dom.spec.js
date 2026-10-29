@@ -158,7 +158,7 @@ test('T3 전폭 아님 8 — 블럭 길로 넣은 블럭 outerHTML 이 핀(4df20
   const gold = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
   /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js.
      ⛔골든을 갱신하지 마라: 핀 4df20f78 과 견주는 것이 이 검사의 뜻이다(2026-10-08 에 내가 한 번 갱신했다가 되돌렸다). */
-  const WANT = ['FONT'];
+  const WANT = ['FONT', 'CVB_H', 'CVB_SCALE'];
   const rc = {};
   for (const k of PLAIN) {
     const bk = tokensBack(out[k], WANT);
