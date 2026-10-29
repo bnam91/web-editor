@@ -64,3 +64,26 @@ test('H3 274 ⑵ 음성 — Esc · Delete 로 나가면 손잡이 0(그대로)',
     expect(a.handles, `★${key} 로 나갔는데 손잡이가 남았다 ${JSON.stringify(a)}`).toBe(0);
   }
 });
+
+/* ★274 ⬜(지디 ②) — 옛 요소의 손잡이 자리 맞춤 고리(image-handling.js _syncLoop · requestAnimationFrame)가 갈린 뒤에도 «도나».
+ *   자: 편집 들어가기 전에 window.requestAnimationFrame 을 감싸 «함수 이름이 _syncLoop 인 콜백» 이 걸린 수를 센다 · ⌘Z 뒤 몇 프레임 동안 센 수가 0 이어야(정리가 cancelAnimationFrame 을 불렀다).
+ *   ★전제: 편집 중에는 그 수가 늘어야 한다(자가 산다 — 안 늘면 이 칸은 «안 쟀다»). */
+test('H4 ★274 ⌘Z 뒤 옛 요소의 _syncLoop 고리가 멈춘다(rAF 다시 걸림 0)', async ({ page }) => {
+  await page.addInitScript(() => {
+    const raf = window.requestAnimationFrame.bind(window);
+    window.__syncLoopRafs = 0;
+    window.requestAnimationFrame = (cb) => { if (cb && cb.name === '_syncLoop') window.__syncLoopRafs++; return raf(cb); };
+  });
+  const s = await scene(page);
+  const n0 = await page.evaluate(() => window.__syncLoopRafs);
+  await settle(page); await settle(page);
+  const n1 = await page.evaluate(() => window.__syncLoopRafs);
+  expect(n1 - n0, `★전제: 편집 중인데 _syncLoop rAF 가 안 늘었다(자가 못 본다) ${n0}→${n1}`).toBeGreaterThan(0);
+  await page.keyboard.press('Meta+z'); await settle(page);
+  const m0 = await page.evaluate(() => window.__syncLoopRafs);
+  await settle(page); await settle(page); await settle(page);
+  const m1 = await page.evaluate(() => window.__syncLoopRafs);
+  console.log(`[274] H4 ${JSON.stringify({ editing: [n0, n1], afterUndo: [m0, m1] })}`);
+  expect(m1 - m0, `★⌘Z 뒤에도 옛 요소의 _syncLoop 가 돈다(rAF ${m0}→${m1})`).toBe(0);
+  expect(s.errs).toEqual([]);
+});
