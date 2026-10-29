@@ -35,6 +35,13 @@
          ★`tests/_export-channels.js` 가 ★「★저장만 · ★설계 ★제외」로 ★★판정해 ★뒀고
          ★`capture-safety` 도 ★그것만 ★걷는다 ⇒ ★★비교 키에 ★넣으면 ★★그리는 ★중에 ★«바뀜»이 ★뜬다.
        ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` */
+    /* ★히트존(section-hitzone)은 ★일부러 안 걷는다(194 차이 표 R5 · 2026-10-29 지디 16:1x·16:4x·18:0x).
+       ★양쪽 섹션에 똑같이 남는 빈 틀이라 «가짜 바뀜»을 안 낸다 — 그 안의 라벨·높이 배지는
+         아래 줄이 따로 걷는다(라벨은 bindSectionHitzone 가, 높이 배지는 section-height.js 가 히트존 안에 둔다).
+       ⛔더하면 비교 해시 값이 바뀐다 = 기능 변화. 바꿀 땐 «양쪽 같음»이 깨지는 장면부터 재라.
+       ⚠️이 까닭은 자가 못 잠근다 — 이 주석을 지워도 빨강이 안 선다(사람이 읽는 자리).
+       ⛔이 주석엔 «점 붙은 클래스 이름»을 쓰지 않는다 — 파일 전체를 글로 재는 검사(section-height-display 의 배지 이름 닻)가
+         이 산문을 «제거 목록»으로 읽어 판별력을 잃는다(figma-export-coverage :376~381 이 261024 에 밟은 그 꼴). */
     el.querySelectorAll('.section-label, .section-toolbar, .variation-badge, .section-height-badge, .annot-preview').forEach(n => n.remove());
     _stripRuntime(el);
     el.querySelectorAll('[contenteditable]').forEach(n => n.removeAttribute('contenteditable'));
