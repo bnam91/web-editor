@@ -83,7 +83,8 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
   }
   expect(slot, '전제: historyStack 을 못 찾았다').toBeTruthy();
   expect(slot.has, `전제: 켤 때 칸에 그 글상자가 없다(${JSON.stringify(slot)})`).toBe(true);
-  expect(slot.action, `전제: 꼭대기 칸이 «효과» 칸이 아니다(${slot.action})`).toBe('효과');
+  /* ⛔꼭대기 action 을 «효과» 로 걸지 않는다 — 고친 판에선 재기 «앞» push 가 꼭대기와 같아 무변화 차단에 먹혀 칸이 안 생기고, ⌘Z 가 내릴 칸은
+     그 앞 칸(텍스트 추가)이다(u-fix1 · 둘째 흠). 단언 대상 = «⌘Z 한 번이 내릴 칸» = 꼭대기(pos) — 이름과 무관하게 그 바이트. */
   expect(slot.tbTag, '전제: 켤 때 칸에 벌써 효과 키가 있다(push-before 가 아니다)').not.toMatch(/data-tf-corners/);
   expect(slot.bodyTag, '전제: 칸에서 .tb-body 를 못 찾았다').toBeTruthy();
   expect(slot.bodyTag, `★켤 때 칸의 글칸에 박은 폭이 찍혔다 — ${slot.bodyTag}`).not.toMatch(/width\s*:/);
