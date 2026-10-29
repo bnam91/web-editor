@@ -6,6 +6,7 @@
 
 import { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides } from './canvas-scratch-drop.js';
 import { parseGoyaAssetUrl, makeElectronAssetReader } from './io/goya-asset-inline.js';
+import { overlayUnitOf } from './overlay-unit.js';   /* 248 — 선택상자 «떠 있는 것» 명부 한 벌 */
 
 const SCRATCH_DB_NAME = 'ScratchPadDB';
 const SCRATCH_STORE   = 'scratch';
@@ -2162,9 +2163,10 @@ function _marqueeCanvasTargets() {
       } else if (ch.matches?.('.frame-block[data-text-frame="true"]')) add(ch.querySelector(':scope > .text-block'), ch);
       else if (ch.classList.contains('frame-block') || window.hasPanelForBlock?.(ch)) add(ch);
     });
-    [...sec.children].forEach(ch => {      // 섹션에 떠 있는 것(오버레이·줌)
-      if (ch.matches?.('[data-overlay-block="true"][data-text-frame="true"]')) add(ch.querySelector(':scope > .text-block'), ch);
-      else if (ch.matches?.('[data-overlay-block="true"], .zoom-block')) add(ch);
+    [...sec.children].forEach(ch => {      // 섹션에 떠 있는 것 — 단위 판정은 js/overlay-unit.js 한 벌(248 · «서로 맞춤» 과 같은 명부)
+      if (overlayUnitOf(ch) !== ch) return;
+      if (ch.matches?.('[data-text-frame="true"]')) add(ch.querySelector(':scope > .text-block'), ch);
+      else add(ch);
     });
   });
   return out;
