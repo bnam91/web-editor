@@ -53,11 +53,12 @@ async function marquee(page) {
   const pts = await page.evaluate(() => {
     const sec = document.getElementById('mS').getBoundingClientRect(); const c = document.getElementById('canvas').getBoundingClientRect();
     const box = (id) => document.getElementById(id).getBoundingClientRect();
-    const all = [...document.querySelectorAll('#mS > .sticker-block, #mS > .annotation-block')].map(e => e.getBoundingClientRect());
+    /* ★어노테이션 블럭은 섹션 전체를 덮는 층(css/editor-blocks.css .annotation-block width/height 100%) ⇒ 상자 크기는 라벨로 잰다(첫 판 흠: 블럭 상자로 재 섹션 전부를 덮었다) */
+    const all = [...document.querySelectorAll('#mS > .sticker-block, #mS > .annotation-block .annot-label')].map(e => e.getBoundingClientRect());
     const top = Math.min(...all.map(r => r.top)) - 20, bot = Math.max(...all.map(r => r.bottom)) + 20, right = Math.max(...all.map(r => r.right)) + 20;
     return { x0: c.left - 60, y0: top, x1: right, y1: bot, secH: sec.height, secW: sec.width, cover: ((bot - top) * (right - c.left)) / (sec.height * sec.width) };
   });
-  expect(pts.cover, `전제: 상자가 섹션을 반 이상 덮는다(${pts.cover.toFixed(2)}) — 섹션이 잡혀 안의 것을 안 잡는다`).toBeLessThan(0.5);
+  expect(pts.cover, `전제: 상자가 섹션을 반 이상 덮는다(${pts.cover.toFixed(2)} · 상자 y ${pts.y0.toFixed(0)}~${pts.y1.toFixed(0)} x ~${pts.x1.toFixed(0)} · 섹션 ${pts.secW.toFixed(0)}×${pts.secH.toFixed(0)}) — 섹션이 잡혀 안의 것을 안 잡는다`).toBeLessThan(0.5);
   await page.mouse.move(pts.x0, pts.y0); await page.mouse.down();
   for (let i = 1; i <= 10; i++) await page.mouse.move(pts.x0 + (pts.x1 - pts.x0) * i / 10, pts.y0 + (pts.y1 - pts.y0) * i / 10);
   const during = await page.evaluate(() => ({ box: document.querySelectorAll('.scratch-marquee').length, hit: [...document.querySelectorAll('#canvas .marquee-hit')].map(e => e.id) }));
