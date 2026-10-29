@@ -46,7 +46,26 @@ function _pairChanged(del, add) {
   }
   return { del: left, add: add.filter((_, i) => !used.has(i)), changed };
 }
+/* ★292 ⒠ — 이 가드가 «읽을 수 있는 꼴»은 상태마다 «<태그> 를 품은 문자열» 하나뿐이다.
+ *   그 밖(Buffer · 수 · 객체 · 배열 안 객체 · 태그 없는 글자)을 넣으면 ⒤PNG=모든 바뀜을 지움으로 셈 · ⒥수=metrics 안이 안 보임 ·
+ *   ⒦섞인 객체=배열 원소 개수만 봄 ⇒ 조용한 통과도 조용한 거절도 아니게 «무엇이 · 왜»를 대고 던진다.
+ *   ★배열 골든(잎이 전부 HTML)은 읽는다 — 다만 키가 자리(0,1,…)라 첫 원소를 빼거나 앞에 끼우면 뒤가 다 밀려
+ *     dels 가 원소 수만큼 뜬다(s3v-icon-text 5 → 5) · 그 수는 «실제 지움»이 아니라 «자리 밀림»이다. */
+const _READABLE = /<[a-zA-Z][\w-]*[\s>]/;
+function _assertReadable(name, side, obj) {
+  if (obj === null || typeof obj !== 'object' || Buffer.isBuffer(obj)) {
+    throw new Error(`★_golden-guard(${name}): ${side} 골든 통째가 «상태 → HTML 문자열» 묶음이 아니다(꼴 ${Buffer.isBuffer(obj) ? 'Buffer' : obj === null ? 'null' : typeof obj}) — 이 가드는 이 꼴을 못 잰다`);
+  }
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (typeof v === 'string' && _READABLE.test(v)) continue;
+    const kind = Buffer.isBuffer(v) ? 'Buffer' : Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v === 'string' ? 'string(태그 없음)' : typeof v;
+    throw new Error(`★_golden-guard(${name}): ${side} 상태 «${k}» 는 이 가드가 못 잰다 — 값이 «<태그> 를 품은 문자열»이 아니다(꼴 ${kind})`);
+  }
+}
 function _guardNoDeletes(name, oldObj, got) {
+  _assertReadable(name, '옛', oldObj || {});
+  _assertReadable(name, '새', got);
   const report = [];
   for (const k of new Set([...Object.keys(oldObj || {}), ...Object.keys(got)])) {
     if (!(k in got)) { report.push({ state: k, del: ['(상태 통째로 사라짐)'], add: [] }); continue; }
