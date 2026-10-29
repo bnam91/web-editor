@@ -2,7 +2,7 @@
  *   병(S6 앱 실측 ×3 · 칸 원문 ×3): 효과 켤 때 이력 칸(push-before)에 ftMeasure :271 의 글칸 style.width(339px)가 «효과 없이» 찍혀
  *     ⌘Z 로 그 칸에 내리면 효과는 빠지고 글칸 폭만 좁게 남았다.
  *   U1 ⑴ 거울 — 켜기 → ⌘Z 한 번 ⇒ 효과 키 없음 ∧ 글칸 박은 폭 없음 ∧ 글칸 화면 폭 = 켜기 전(push 순서를 바꾸니 가장 먼저 깨질 자리).
- *   U2 ⑵ 칸 바이트 — 켠 직후 «꼭대기 바로 아래 칸»(켤 때 push-before) 문자열의 그 글상자 .tb-body 에 width 가 없다(고치기 전 = 339px).
+ *   U2 ⑵ 칸 바이트 — 켠 직후 «꼭대기 칸»(켤 때 push-before · action «효과») 문자열의 그 글상자 .tb-body 에 width 가 없다(고치기 전 = 339px).
  *     칸 읽기 = CDP Runtime.getProperties 로 window.getHistoryTip 의 [[Scopes]] → 모듈 let historyStack(읽기만 · S6 p114snap 꼴).
  *   ⚠️배율 전제: waitZoomSettled(100).
  */
@@ -74,7 +74,7 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
     const hs = vars.result.find((v) => v.name === 'historyStack'); const hp = vars.result.find((v) => v.name === 'historyPos');
     if (!hs?.value?.objectId) continue;
     const r = await cdp.send('Runtime.callFunctionOn', { objectId: hs.value.objectId, returnByValue: true, arguments: [{ value: hp.value.value }, { value: id }],
-      functionDeclaration: `function (pos, id) { const e = this[pos - 1]; const c = e && typeof e.canvas === 'string' ? e.canvas : '';
+      functionDeclaration: `function (pos, id) { const e = this[pos];   /* push-before = 켤 때 칸이 «꼭대기» 다(첫 판은 pos-1 = 텍스트 추가 칸을 읽어 고치기 전 판에서도 초록 · 시험 흠) */ const c = e && typeof e.canvas === 'string' ? e.canvas : '';
         const k = c.indexOf('id="' + id + '"'); if (k < 0) return { pos, has: false, action: e && e.action };
         const s = c.lastIndexOf('<', k); const tbTag = c.slice(s, c.indexOf('>', k) + 1);
         const m = c.slice(k, k + 3000).match(/<div[^>]*class="[^"]*tb-body[^"]*"[^>]*>/);
@@ -83,6 +83,7 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
   }
   expect(slot, '전제: historyStack 을 못 찾았다').toBeTruthy();
   expect(slot.has, `전제: 켤 때 칸에 그 글상자가 없다(${JSON.stringify(slot)})`).toBe(true);
+  expect(slot.action, `전제: 꼭대기 칸이 «효과» 칸이 아니다(${slot.action})`).toBe('효과');
   expect(slot.tbTag, '전제: 켤 때 칸에 벌써 효과 키가 있다(push-before 가 아니다)').not.toMatch(/data-tf-corners/);
   expect(slot.bodyTag, '전제: 칸에서 .tb-body 를 못 찾았다').toBeTruthy();
   expect(slot.bodyTag, `★켤 때 칸의 글칸에 박은 폭이 찍혔다 — ${slot.bodyTag}`).not.toMatch(/width\s*:/);
