@@ -363,6 +363,19 @@ function _updateUndoRedoBtns() {
 /* ★[H6] 이 파일의 억제 두 자리는 «직접 대입»으로 둔다(허용목록 — tests/unit/autosave-suppress.test.js):
  *   이미 try/finally + rAF 해제(C2-A9)라 고칠 결함이 없다. 새 자리를 만들 땐 손으로 쓰지 말고
  *   window.AutoSaveSuppress.begin/end 를 써라(js/autosave-suppress.js). */
+/* ★274 IMG-EDIT-UNDO-LEAVES-FOUR-HANDLES-IN-FIXED-LAYER-01(S3 · 261029 · 지디 ④ «치우는 쪽이 아니라 되살리는 쪽») —
+ *   복원은 블럭을 «같은 id 의 새 요소» 로 갈아끼운다(innerHTML · outerHTML). 이미지 편집 모드의 손잡이는 블럭 «밖»
+ *   #ss-handles-overlay 에 붙어 있어(image-handling.js enterImageEditMode) 블럭과 함께 떨어지지 않고, 갈린 뒤 deselectAll 이
+ *   부르는 exitImageEditMode 는 «새» 요소(_imgEditing 없음)라 바로 돌아간다 ⇒ 옛 요소의 정리(_imgEditCleanup · 2중 휩쓸기)가 안 돈다.
+ *   ⇒ DOM 을 갈기 «전», 지금 편집 중인 블럭을 제 정리 길(exitImageEditMode)로 닫는다. 위 «색 피커는 복원 전에 닫는다»(undo :0919 QA)와 같은 까닭.
+ *   ★두 복원 함수가 «같이» 부른다(W5/W6 — 두 복원 경로는 대칭) · _historyPaused 안이라 그 안의 pushHistory 는 칸을 안 만든다.
+ *   ⛔되살림 꼴(새 요소)은 안 바꾼다 — tests/dom/img-edit-undo-handles-274.dom.spec.js H2 가 잠근다. */
+function _closeTransientEditModesBeforeRestore() {
+  try {
+    document.querySelectorAll('#canvas .asset-block.img-editing').forEach((ab) => window.exitImageEditMode?.(ab));
+  } catch (err) { console.warn('[history] 복원 전 편집 모드 닫기 실패', err); }
+}
+
 function restoreSnapshot(snap) {
   _historyPaused = true;
   // innerHTML 교체가 autoSaveObserver(MutationObserver→scheduleAutoSave)를 발화시켜
@@ -384,6 +397,7 @@ function restoreSnapshot(snap) {
     }
     Object.assign(state.pageSettings, snap.settings);
     const canvasEl = document.getElementById('canvas');
+    _closeTransientEditModesBeforeRestore();   // ★274 — 갈기 «전»
     canvasEl.innerHTML = snap.canvas;
     // ★T-031: video-pending(트림 확정 전 영상)은 스냅샷에 "빈 업로드대기"로 찍힌다
     //   (js/io/section-serialize.js T-012 안전장치) — rebindAll 이 «이 snap 자신의»
@@ -516,6 +530,7 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
   let skipped = 0;
   try {
     Object.assign(state.pageSettings, toSnap.settings || {});
+    _closeTransientEditModesBeforeRestore();   // ★274 — 갈기 «전»(restoreSnapshot 과 대칭)
     skipped = _applyScopedDiff(fromSnap, toSnap, laterSnap);
     // ★T-031: toSnap 자신의 videoPendingSidecar만 쓴다 — 스코프 diff가 손 안 댄 다른 섹션의
     //   블록은 sidecar에 없어(그 블록은 toSnap 생성 시 video-pending이 아니었을 것이므로)
