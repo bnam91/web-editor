@@ -18,7 +18,8 @@ test('docs/TEMPLATE_SYSTEM.md — 적힌 경로·API·type 이 코드에 실재�
   let out = '';
   let failed = false;
   try {
-    out = execFileSync('node', ['tools/docs-sync-check.mjs'], {
+    /* ★281(261029 · TESTS-SPAWN-NODE-VIA-PATH-NOT-EXECPATH-01) — 자식 node 는 ★process.execPath(나를 띄운 node)로 띄운다. 이름 «node» 는 셸 PATH 에 매여 /usr/local/bin 없는 셸에서 «안 떠» 빨갰다(이웃 all-js-parses·env-collab-pin 꼴). */
+    out = execFileSync(process.execPath, ['tools/docs-sync-check.mjs'], {
       cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (e) {

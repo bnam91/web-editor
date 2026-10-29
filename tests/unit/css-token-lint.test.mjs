@@ -347,7 +347,8 @@ test('★게이트 — 바뀐 CSS 줄에 «토큰이 있는» 하드코딩이 0�
     t.skip(`안 쟀다: ${pre.reason}`);
     return;
   }
-  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')],   // ⛔--base 안 준다 — ★자가 ★스스로 파생하는지도 같이 잰다
+  /* ★281(261029 · TESTS-SPAWN-NODE-VIA-PATH-NOT-EXECPATH-01) — 자식 node 는 ★process.execPath(나를 띄운 node)로 띄운다. 이름 «node» 는 셸 PATH 에 매여 /usr/local/bin 없는 셸에서 «안 떠» 빨갰다(이웃 all-js-parses·env-collab-pin 꼴). */
+  const r = cp.spawnSync(process.execPath, [path.join(REPO, 'tools/css-token-lint.mjs')],   // ⛔--base 안 준다 — ★자가 ★스스로 파생하는지도 같이 잰다
     { encoding: 'utf8', cwd: REPO });
   // ⛔3(HARNESS_ERROR)을 1 이나 0 으로 접지 마라 — 전제는 위에서 이미 봤으니 3 은 ★자가 고장난 것이다
   assert.notEqual(r.status, 3, `자가 고장났다(HARNESS_ERROR) — 전제는 섰는데 3 이 났다\n${r.stdout}${r.stderr}`);
@@ -466,7 +467,7 @@ test('기준판 ⒞ — 못 뽑는 세 갈래가 ★전부 {ok:false} ＋ ★까
 });
 
 test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 「0건」으로 접지 않는다', (t) => {
-  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'HEAD'],
+  const r = cp.spawnSync(process.execPath, [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'HEAD'],
     { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `--rev HEAD 가 HARNESS_ERROR 를 냈다\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /잰 것=HEAD/, '무엇을 쟀는지 출력에 안 적힌다');
@@ -490,7 +491,7 @@ test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 �
    *   ★내 교훈: 「★검사는 ★자기 전제를 ★단언해야 한다」·「★기대값은 ★«움직이는 판»에 ★매달지 마라」. */
   const PRE_FIX = '417d220e133f';
   const ANCHOR_BASE = 'v0.9.6';          // ★★손으로 고정 — ⛔파생에 ★맡기지 않는다
-  const L2 = (rev) => cp.spawnSync('node',
+  const L2 = (rev) => cp.spawnSync(process.execPath,
     [path.join(REPO, 'tools/css-token-lint.mjs'), '--base', ANCHOR_BASE, '--rev', rev],
     { encoding: 'utf8', cwd: REPO });
   const atRef = L2(PRE_FIX);
@@ -526,7 +527,7 @@ test('② --rev — ★체크아웃 없이 ref 를 잰다 · ⛔빈 블롭을 �
   }
   assert.match(r.stdout, /토큰 명부 :root \d+건/, 'ref 에서 토큰 명부를 못 읽었다');
   // ★없는 ref 는 ★조용히 0 이 아니라 ★3 이어야 한다
-  const bad = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'nope-ref-1009t3'],
+  const bad = cp.spawnSync(process.execPath, [path.join(REPO, 'tools/css-token-lint.mjs'), '--rev', 'nope-ref-1009t3'],
     { encoding: 'utf8', cwd: REPO });
   assert.equal(bad.status, 3, `없는 ref 에 rc=${bad.status} — ⛔0 으로 접으면 「0건」이 거짓이 된다`);
 
@@ -620,7 +621,7 @@ test('Ⓐ 정합 ⑶ — ★CLI 출력에 「거르개 정합」 줄이 ★늘 �
     process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): ${pre.ok ? `범위 안 CSS 줄이 0줄이다(base=${pre.base})` : pre.reason}\n`);
     t.skip(`안 쟀다: ${pre.ok ? '범위 0줄' : pre.reason}`); return;
   }
-  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
+  const r = cp.spawnSync(process.execPath, [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /거르개 정합 \d+\/\d+/, '★정합 줄이 출력에서 ★빠졌다 — 사람이 실명을 ★못 본다');
   // ★지금 이 레포는 ★실명이 있다 ⇒ ⛔로 찍히고 ★까닭(색인 어긋남/짝없는 괄호)이 같이 나온다.
@@ -734,7 +735,7 @@ test('⒊-① 배선 — ★CLI 가 var() 이름 명부를 ★실제로 만든�
     process.stdout.write(`\n⚠️ ★SKIP — ★안 쟀다(통과가 ★아니다): ${pre.ok ? `범위 안 CSS 줄이 0줄이다(base=${pre.base})` : pre.reason}\n`);
     t.skip(`안 쟀다: ${pre.ok ? '범위 0줄' : pre.reason}`); return;
   }
-  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
+  const r = cp.spawnSync(process.execPath, [path.join(REPO, 'tools/css-token-lint.mjs')], { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /var\(\) 이름 명부 \d+종/, '★명부 줄이 없다 — 배선이 끊겼다(그러면 대체값 검사가 off 다)');
   assert.doesNotMatch(r.stdout, /이름 명부를 ★못 만들었다/, '★명부를 못 만들었다 — 대체값 검사가 off 로 돈다');
@@ -779,7 +780,7 @@ test('발견 잠금 ② — css/report-modal.css 에 `--ui-fs-11` 사용이 ★0
 });
 
 test('발견 잠금 ③ — ★자가 그 파일에서 «없는 토큰 이름» ★0건이라 한다 (★계측기로)', () => {
-  const r = cp.spawnSync('node', [path.join(REPO, 'tools/css-token-lint.mjs'), '--all'],
+  const r = cp.spawnSync(process.execPath, [path.join(REPO, 'tools/css-token-lint.mjs'), '--all'],
     { encoding: 'utf8', cwd: REPO });
   assert.notEqual(r.status, 3, `HARNESS_ERROR\n${r.stdout}${r.stderr}`);
   const bad = r.stdout.split('\n').filter((l) => /없는 토큰 이름/.test(l) && /report-modal\.css/.test(l));
