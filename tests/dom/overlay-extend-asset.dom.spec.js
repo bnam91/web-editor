@@ -47,7 +47,7 @@ const BLOCKS_CSS = fs.readFileSync(path.join(REPO, 'css/editor-blocks.css'), 'ut
      /js/canvas-contrast.js    ← CANVAS_CONTRAST_STUB(applyCanvasBackground 빈 함수)
      /js/props/color-picker.js ← COLOR_PICKER_STUB(색칸 배선 더블)
    ⛔스텁은 디스크보다 «먼저» 본다 — 안 그러면 진짜 파일이 스텁을 조용히 이긴다(_drag-utils-deps.js:11~15 의 except 규약과 같은 까닭).
-     그래서 route 가 «무엇을 무엇으로 줬나» 를 장부(errs.served)에 남기고 A10 이 «스텁 셋이 스텁으로 갔다 · 404 0» 을 잰다. */
+     그래서 route 가 «무엇을 무엇으로 줬나» 를 장부(page.__served)에 남기고 A10 이 «스텁 셋이 스텁으로 갔다 · 404 0» 을 잰다. */
 const GLOBALS_STUB = `
   export const propPanel = document.createElement('div');
   export const canvasEl  = document.createElement('div');
@@ -134,7 +134,7 @@ async function boot(page, opts = {}) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   const served = {};   // pathname → 'html' | 'stub' | 'disk' | 404 — A10 이 읽는다(스텁이 이기나 · 404 0)
-  errs.served = served;
+  page.__served = served;   // ⛔errs 배열에 붙이지 않는다 — 붙이면 expect(errs).toEqual([]) 가 덧 속성으로 빨개진다(S3 261029 08:52 런 · A1·A6·A7·A9·A10)
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     const p = url.pathname;
@@ -457,11 +457,11 @@ test('A9 ★떠 있을 때만 패널에 X/Y 두 칸이 나오고, 그 칸이 좌
 });
 
 /* ★198 ⒣(지디 15:1x ③) — A10 · 레포 경로로 옮긴 뒤에도 ★스텁 셋이 «스텁으로» 갔나(진짜 파일이 조용히 이기지 않았나) · 404 가 0 인가.
-   장부(errs.served)는 route 가 «무엇을 무엇으로 줬나» 를 적는다 — 이 칸은 그 장부만 읽는다.
+   장부(page.__served)는 route 가 «무엇을 무엇으로 줬나» 를 적는다 — 이 칸은 그 장부만 읽는다.
    한 쌍(변이 사본 · 슬롯): ⑴ route 에서 스텁 갈래를 디스크 갈래 «뒤» 로 옮긴 사본 → 이 칸 빨강(stub 이 disk) ⑵ 옛 가짜 경로(/props/prop-page.js) 사본 → 404 칸 빨강. */
 test('A10 ★경로 — 스텁 셋은 스텁으로 · 404 0 · /js/ 밖 JS 요청 0', async ({ page }) => {
   const errs = await boot(page);
-  const s = errs.served;
+  const s = page.__served;
   expect([s['/js/globals.js'], s['/js/canvas-contrast.js'], s['/js/props/color-picker.js']],
     `★스텁이 안 이겼다(진짜 파일이 갔다) · ${JSON.stringify(s)}`).toEqual(['stub', 'stub', 'stub']);
   expect(Object.keys(s).filter((k) => s[k] === 404), `★404 가 남았다 · ${JSON.stringify(s)}`).toEqual([]);
