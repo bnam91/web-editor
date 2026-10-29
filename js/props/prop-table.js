@@ -686,17 +686,29 @@ ${blockHeaderHTML({
   /* 헤더 병합 (mergedHeaderCols) — 입력 형식 "start:span,start:span"
      - 빈 값 / 지우기 버튼 → dataset 제거 + thead 단순 재구성
      - 정상 입력 → window.updateTableBlock(id, { mergedHeaderCols: arr }) 호출 (검증/렌더 통합) */
+  /* ★264(261029 지디 12:2x 처방) — «꼴 틀린 토큰»과 «빈 입력»을 가른다.
+     전에는 꼴 틀린 토큰(abc)을 말없이 버려 [] 를 만들었고, 그 [] 가 updateTableBlock 의 «explicit clear» 로 가서
+     있던 머리 병합이 지워졌다(abc 가 «지우기»로 둔갑 · 앱 ×3).
+     ⇒ 토큰 하나라도 꼴이 틀리면 null(= 적용 안 함). ★«0:2,abc» 같은 부분 실패도 전부 거절한다 — 맞는 것만 살리면
+       «말없이 바꾼다» 꼴이 남는다(⑷ 판정). 빈 값 / 지우기 단추는 그대로 [] = explicit clear(설계 · ⛔죽이지 마라).
+     재는 자 = tests/unit/table-merge-parse-264.test.mjs */
   const _parseMergesStr = (str) => {
     const out = [];
-    String(str || '').split(',').map(s => s.trim()).filter(Boolean).forEach(tok => {
+    for (const tok of String(str || '').split(',').map(s => s.trim()).filter(Boolean)) {
       const m = tok.match(/^(\d+)\s*:\s*(\d+)$/);
       if (!m) return null;
       out.push([parseInt(m[1], 10), parseInt(m[2], 10)]);
-    });
+    }
     return out;
   };
   const _applyMergeInput = (raw) => {
     const arr = _parseMergesStr(raw);
+    if (arr === null) {
+      /* 꼴 틀린 입력 — 적용하지 않는다. 알림·원복은 아래 «범위 밖» 실패 길과 같은 꼴(콘솔 + 패널 재렌더 · 토스트 0). */
+      console.warn('[table-merge] 꼴 틀린 입력 — 적용 안 함(기존 병합 그대로):', JSON.stringify(String(raw ?? '')).slice(0, 80));
+      try { showTableProperties(block); } catch (_) {}
+      return;
+    }
     if (typeof window.updateTableBlock !== 'function') return;
     const res = window.updateTableBlock(block.id, { mergedHeaderCols: arr });
     if (res && res.ok === false) {
