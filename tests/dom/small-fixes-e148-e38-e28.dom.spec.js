@@ -65,7 +65,10 @@ test('E148-C3 [새 것] A/B 배지 든 섹션 골라진 채 ⌘C → 클립보�
   expect(pre.shown, '[전제] 그 섹션이 보인다').toBe(true);
   expect(pre.label, '[전제] 섹션 이름표 글자가 있다(지킴 칸이 잴 것)').toBeTruthy();
   await page.evaluate((sid) => { window.deselectAll?.(); document.getElementById(sid).classList.add('selected'); }, sid);
-  await page.keyboard.press('Meta+c'); await page.waitForTimeout(300);
+  await page.keyboard.press('Meta+c');
+  /* ★조건 대기(고정 대기 금지 — tests/unit/dom-fixed-wait-census W3·W4 · 261029 지디 21:2x 가 이 줄의 옛 «고정 300ms 대기» 로 일곱을 되돌림 · ⛔이 주석에 그 함수 이름을 글로 쓰지 않는다 — 날 grep 이 세게 된다).
+     «복사가 끝났다» = 클립보드 글자에 본문 글자가 실렸다. 안 실리면 시간초과로 빨강(= 아래 [전제] 와 같은 뜻 · 숨기지 않음). */
+  await page.waitForFunction(() => (window._internalClipboardText || '').includes('본문글자C3'), null, { timeout: 5000 }).catch(() => {});
   const t = await page.evaluate(() => window._internalClipboardText || '');
   expect(t, `[전제] 본문 글자가 실렸다(복사가 섰다) · ${JSON.stringify(t.slice(0, 120))}`).toContain('본문글자C3');
   expect(t.includes(pre.label), `[지킴] 섹션 이름표 «${pre.label}» 섞임(걷히는 칸이 걷히나 — 자가 «걷힘»을 본다) · ${JSON.stringify(t.slice(0, 200))}`).toBe(false);
