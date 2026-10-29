@@ -44,7 +44,16 @@ function readFlaky(log) {
 
 /** FLAKY.md 본문 → 그 안에 «이름으로» 적힌 spec 파일 이름 집합 */
 function rosterSpecs(md) {
-  return new Set([...md.matchAll(SPEC_RE())].map((m) => m[1]));
+  return new Set([...measureOnlyCut(md).matchAll(SPEC_RE())].map((m) => m[1]));
+}
+/** ★«## ⛔측정 가지 전용» 절(그 머리줄부터 다음 «## » 머리줄 앞까지)을 뗀 본문 — 그 절의 이름은 레포 바닥에 없어 명부로 안 센다(지디 261029 14:5x ⒞) */
+function measureOnlyCut(md) {
+  const L = String(md).split('\n'); let skip = false; const out = [];
+  for (const l of L) {
+    if (/^## /.test(l)) skip = /^## ⛔측정 가지 전용/.test(l);
+    if (!skip) out.push(l);
+  }
+  return out.join('\n');
 }
 
 /** 판정 — 명부에 없는 spec 이름 목록 */
@@ -55,7 +64,7 @@ function unlisted(log, md) {
   return { ok: true, flakyN: r.flakyN, specs: r.specs, missing: r.specs.filter((s) => !roster.has(s)), lines: r.lines, rosterN: roster.size };
 }
 
-module.exports = { readFlaky, rosterSpecs, unlisted };
+module.exports = { readFlaky, rosterSpecs, unlisted, measureOnlyCut };
 
 if (require.main === module) {
   const file = process.argv[2];
