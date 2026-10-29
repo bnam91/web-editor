@@ -14,6 +14,7 @@
  *   파일 합 542 → 577s · load(입구) 1.70 → 2.26 ⇒ tol 0.5 는 열에 하나를 흔들림으로 빨갛게 했다(edge-contrast 2830→4848 · frame-bg-edit-wiring 2236→3823 · 코드 무변)
  *   ⇒ tol 1.0(⑴) · floor 2000 그대로(⑵ — 명부를 줄이면 2~5s 의 참 느려짐을 못 잡음) · ★⑶ «연속 두 회차 모두 넘으면 빨강»(명부 last_over · --record).
  *   쌍(실 JUnit 두 벌 · tol 0.5 사본 명부): run1 기록 rc 0 → run2 기록(이번만 2 · 지켜봄) rc 0 → run2 다시(연속 두 회차 2) rc 1.
+ * ★부르는 자 = tools/slots/unit-time-slot.sh(레포 안 · 266 · tests/unit/gate-callers.test.mjs 가 잰다) · ⛔CI 한 줄로 갈음 금지(--record 의 last_over 를 커밋 못 하면 «연속 두 회차» 가 안 선다 — 그 슬롯 머리말)
  * ⛔이 자가 안 재는 것: 시험 «하나»의 시간(파일 합만) · 부하 보정(meta 와 견주는 건 사람 몫) · 빨라진 파일(줄이라는 «알림» 줄만 · rc 안 바꿈).
  */
 'use strict';
