@@ -93,7 +93,8 @@ for (const [kind, who, depth, mode] of CELLS) {
     const inSub = (list, rootId) => { const ids = new Set([rootId]); let grew = true; while (grew) { grew = false; for (const f of list) if (!ids.has(f.id) && ids.has(f.parent)) { ids.add(f.id); grew = true; } } return list.filter((f) => ids.has(f.id)); };
     expect(fresh.map((f) => f.depth - top.depth).sort(), '⑷ 새 부분나무 깊이 꼴 = 원본').toEqual(inSub(before, tgt).map((f) => f.depth - t0.depth).sort());
     expect(new Set(after.map((f) => f.id)).size, '⑸ id 겹침 0').toBe(after.length);
-    const anc = new Set(); for (let p = t0.parent; p; p = before.find((f) => f.id === p)?.parent) anc.add(p);   // ★고친 칸(둘째 벌 흠): 조상의 안 프레임 수는 사본만큼 느는 게 맞다 ⇒ kids 는 조상 밖에서만
+    const anc = new Set(); for (let p = t0.parent; p; p = before.find((f) => f.id === p)?.parent) anc.add(p);
+    if (intoTarget) anc.add(tgt);   // ★C3 설계 꼴: 사본이 G «안» 이면 G 의 안 프레임 수도 느는 게 맞다(3b3d25d8 DOM 한 벌 ⑹ 빨강 고침)   // ★고친 칸(둘째 벌 흠): 조상의 안 프레임 수는 사본만큼 느는 게 맞다 ⇒ kids 는 조상 밖에서만
     for (const b of before) expect(after.find((f) => f.id === b.id), `⑹ 원본 ${b.id} 그대로`).toMatchObject(anc.has(b.id) ? { parent: b.parent, depth: b.depth } : { parent: b.parent, depth: b.depth, kids: b.kids });
     await page.keyboard.press('Meta+z');
     await page.waitForFunction(({ secId, n }) => document.getElementById(secId).querySelectorAll('.frame-block:not([data-text-frame])').length === n, { secId: s.secId, n: before.length }, { timeout: 4000 }).catch(() => {});
