@@ -21,6 +21,21 @@ const SRC = /\bsrc=(["'`])(.*?)\1/;
 const MOD = /type\s*=\s*["']module/;
 const ABS_IMP = /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)(["'])(\/[^"']+)\1/gm;
 
+/** `if (… pathname === 'P'` 의 닻 뒤 — 조건 괄호를 닫고, 몸이 `{` 면 그 짝 `}` 까지 · 아니면 그 줄 끝까지(한 문장).
+ *  ⛔글자 수 창을 쓰지 않는다 — 몸이 길어져도 단언 대상이 밖으로 밀리지 않게(tests/unit/fixed-window-census.test.mjs 의 까닭). */
+function sliceRouteStmt(text, at) {
+  let i = at, d = 1;
+  for (; i < text.length && d > 0; i++) { if (text[i] === '(') d++; else if (text[i] === ')') d--; }
+  while (i < text.length && (text[i] === ' ' || text[i] === '\t')) i++;
+  if (text[i] === '{') {
+    let j = i, b = 0;
+    for (; j < text.length; j++) { if (text[j] === '{') b++; else if (text[j] === '}' && --b === 0) break; }
+    return text.substring(i, j + 1);
+  }
+  const e = text.indexOf('\n', i);
+  return text.substring(i, e < 0 ? text.length : e);
+}
+
 /** spec 한 벌 글자 → [{ form, line, url, product }] (product = 그 url 로 주는 레포 파일)
  *  @param {string} text  spec 원문 @param {(rel:string)=>boolean} isRepoFile 레포 파일인가(앞 '/' 뗀 상대경로) */
 function scanSpec(text, isRepoFile) {
@@ -31,7 +46,7 @@ function scanSpec(text, isRepoFile) {
   /* 꼴 셋(261029 333aa3d9 에서 열어 본 것): ① pathname === 'P' 뒤 300 자 안에 레포 const 이름(body: NAME · js(NAME) 등)
      ② 같은 창 안에 readFileSync(path.join(X, 'js/….js')) 인라인 ③ 명부 객체 { 'P': 'js/….js' } */
   for (const m of text.matchAll(/pathname\s*===\s*['"](\/[^'"]+)['"]/g)) {
-    const win = text.slice(m.index, m.index + 300).split(/pathname\s*===/)[1] || '';
+    const win = sliceRouteStmt(text, m.index + m[0].length);   // ★구조로 뜬다(그 if 의 몸 한 문장/한 블럭) — ⛔고정 창 금지(218 fixed-window-census)
     const inl = /readFileSync\(\s*path\.join\(\s*\w+\s*,\s*['"]([^'"]+\.js)['"]/.exec(win);
     if (inl) { routes.set(m[1], inl[1]); continue; }
     for (const [name, rel] of consts) if (new RegExp(`\\b${name}\\b`).test(win)) { routes.set(m[1], rel); break; }
@@ -76,7 +91,7 @@ function compare(rows, roster) {
   for (const [k, n] of was) if (n > (now.get(k) || 0)) shrank.push(`${k} ×${n - (now.get(k) || 0)}`);
   return { now: rows.length, was: (roster.entries || []).length, grew, shrank };
 }
-module.exports = { scanSpec, scanRepo, compare, keyOf };
+module.exports = { scanSpec, scanRepo, compare, keyOf, sliceRouteStmt };
 
 if (require.main === module) {
   const root = path.join(__dirname, '..'), rosterPath = path.join(__dirname, 'unit', 'HARNESS_FAKE_PATHS.json');
