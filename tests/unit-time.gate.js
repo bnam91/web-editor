@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /* unit-time.gate.js — ★196 ⑴ 유닛 «파일별 시간» 래칫 (S3 · 261028 · 지디 08:1x)
  *
- * ★왜: npm test 엔 시간 제한이 «없다»(run-unit.mjs 가 --test-timeout 을 안 넘김 · 196 ⒜ 실측). 손으로 준 --test-timeout 도
+ * ★왜: npm test 의 비동기 시험엔 상한 60s 가 «있다»(run-unit.mjs:42~48 · 196 ⑵ 실측). 그러나 --test-timeout 은
  *   동기 몸(spawnSync·바쁜 대기)에는 안 든다(마감 뒤 타이머로 돌아갈 때만 집행). ⛔N 을 «지금 최대» 로 박으면 항등식(늘 통과).
- *   ⇒ ★느린 유닛 파일 «명부»(이름 → ms)를 두고, 회차 출력(JUnit)에서 파일별 합을 내 «명부보다 느려지면» 빨강 · 명부는 줄어드는 쪽으로만.
+ *   ⇒ ★그래서 이 파일(파일별 시간 명부)이 그 꼴을 잡는다: 느린 유닛 파일 «명부»(이름 → ms)를 두고, 회차 출력(JUnit)에서 파일별 합을 내 «명부보다 느려지면» 빨강 · 명부는 줄어드는 쪽으로만.
  * ★쓰는 법(유닛 전수와 같은 명령 묶음):
  *   GOYA_TEST_JUNIT=/tmp/u.xml npm test; node tests/unit-time.gate.js /tmp/u.xml
  *   rc 0 통과 · 1 느려짐(명부 안 파일이 ms×(1+tol) 넘음 · 명부 밖 파일이 floor 넘음) · 2 쓰는 법 · 3 못 잰다(명부·XML 없음/꼴 깨짐 — 통과 아님)
