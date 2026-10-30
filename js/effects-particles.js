@@ -126,7 +126,7 @@ export function applySectionParticles(sec) {
        ⇒ ★높이를 ★600 으로 «때워» 그리면, 섹션이 올라와 ★진짜 높이(예: 300)로 다시 그릴 때
          ★같은 seed 인데 ★모습이 ★바뀐다 — ★★그것이 「★같은 시드 = 같은 그림」을 깨는 길이다
          (지디 설계 전제 ⑶ · js/fx/seeded-random.js:7 「모습의 흔들림은 ★저장된 seed 에서만」).
-     ★언제 0 이 되나: ★`js/io/lazy-sections.js:81` 이 뷰포트 밖 섹션에 `lazy-unloaded` 를 붙여 ★내린다.
+     ★언제 0 이 되나: ★`js/io/lazy-sections.js` `_unloadSection` 이 뷰포트 밖 섹션에 `lazy-unloaded` 를 붙여 ★내린다.
        `watchAllParticles` 는 문서를 연 뒤 ★전 섹션을 도므로 ★아래쪽은 ★이미 내려가 있을 수 있다.
        (저장 경로는 안전하다 — `js/io/section-serialize.js:180` 이 저장 때 그 클래스를 ★벗긴다. ★문제는 «화면»이다.)
      ★⛔층을 ★지우지도 않는다: 저장본에 실린 층이 이미 있으면 ★저장 당시 그림이라도 보이는 쪽이 낫고,
