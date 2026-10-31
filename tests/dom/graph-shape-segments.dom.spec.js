@@ -5,7 +5,7 @@
  * 기하는 offsetHeight/offsetTop(레이아웃 px — 배율과 무관). 기다림은 전부 조건 — 고정 대기 0.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/graph-shape-segments.dom.spec.js */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const raf2 = (page) => page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
 const SEG4 = [{ label: '제품원가', value: 40 }, { label: '영업비', value: 30 }, { label: '광고비', value: 20 }, { label: '마진', value: 10 }];
@@ -486,6 +486,7 @@ test('G4-10 (1020t2g1ⓐ) 마디 간격 칸 — 세로 막대 패널에 «마디
 
 /* 마디 둘 사이 경계를 찍어 열마다 «흰 틈의 첫 줄·두께»를 잰다(화면 그림 — mask 는 레이아웃에 안 잡히니 픽셀로 본다) */
 const seamPix = async (page, id) => {
+  await waitStableRect(page, `[id="${id}"] .grb-seg-stack`);   // ★쌓기 폭이 setup 직후 11→24px 로 늦게 선다(실측 J323X ×9 · 2/6) — 멈춘 뒤에 찍는다
   const r = await page.evaluate((id) => { const st = document.getElementById(id).querySelector('.grb-seg-stack'); const s = [...st.querySelectorAll('.grb-seg')].filter(x => getComputedStyle(x).display !== 'none').map(x => x.getBoundingClientRect()).sort((a, b) => a.top - b.top); const sr = st.getBoundingClientRect(); return { x: sr.left + 2, y: s[0].bottom - 14, width: sr.width - 4, height: 28 + (s[1].top - s[0].bottom) }; }, id);
   const buf = await page.screenshot({ clip: r });
   return page.evaluate(async (b64) => {
@@ -505,7 +506,8 @@ test('G4-11 (1020t2g1ⓑ) 경계 물결 — 켜면 마디 경계가 물결(흰 �
   expect(await masks(), '★전제: 옛 저장본(키 없음) = 마스크 없음').toEqual([0, 0]);
   const off = await seamPix(page, id);
   const vOff = off.first.filter(f => f >= 0);
-  expect(vOff.length >= 10 && Math.max(...vOff) - Math.min(...vOff) <= 1, `★전제: 곧은 경계(윗줄 고름 ${Math.min(...vOff)}~${Math.max(...vOff)})`).toBe(true);
+  expect(vOff.length, `★전제: 찍은 폭 ≥10 열(흰 틈을 본 열 ${vOff.length} / 찍은 열 ${off.first.length})`).toBeGreaterThanOrEqual(10);
+  expect(Math.max(...vOff) - Math.min(...vOff), `★전제: 곧은 경계(윗줄 고름 ${Math.min(...vOff)}~${Math.max(...vOff)})`).toBeLessThanOrEqual(1);
   await openPanel(page, id);
   await expect.poll(() => page.evaluate(() => !!document.querySelector('#panel-right #grb-seg-wave-toggle'))).toBe(true);
   await page.click('#panel-right label:has(#grb-seg-wave-toggle)');

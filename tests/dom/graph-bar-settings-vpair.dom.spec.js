@@ -7,7 +7,7 @@
  *   B7-0 키 없으면 «고치기 전 판(36cbe872)이 낸 innerHTML» 과 바이트까지 같다 — 골든 fixtures/graph-vpair-pin-golden.json(핀에서 뽑음)
  *        ★E99 U26 ⒜(2026-10-05 지디): 두께 키가 없어도 막대 24px — 골든을 새 판에서 다시 뽑았다. 옛 골든과의 차이는 «추가뿐»
  *        (막대 `width:24px;max-width:100%;margin:0 auto;` · 칸 ` style="min-width:0;"`) — 판정기 tests/dom/_u26-delta.js 로 단언(손눈 대조 아님).
- *   B7-1 절·줄: «Bar Settings» 절 하나 · 줄 4(두께·좌우 패딩·항목 간격·숫자 크기) · 바 색상은 bar-v 에만 / pair 는 #grb-bar-color «하나»(Pair Settings 것)
+ *   B7-1 절·줄: «Bar Settings» 절 하나 · 늘 있는 줄 넷(두께·좌우 패딩·항목 간격·숫자 크기) · 조건부 줄 둘(마디 간격·경계 물결 — 세로 막대에서만 · 02feabc5 · prop-graph.js barSettingsHTML segGap != null) · 바 색상은 bar-v 에만 / pair 는 #grb-bar-color «하나»(Pair Settings 것)
  *   B7-2 computed — gap·padding·fill 폭·값 글자 크기가 입력대로 (세로·비교 둘)
  *   B7-3 저장 왕복 — 직렬화→복원 뒤에도 dataset·computed 유지
  *   B7-4 PNG 픽셀 — 제품 캡처 파이프라인을 지나 바 색 화소 수가 두께대로 는다(선례 grid-export-nested-depth2 exportPixels)
@@ -91,7 +91,10 @@ for (const type of TYPES) {
       };
     });
     expect(r.n, 'Bar Settings 절이 하나여야 한다').toBe(1);
-    expect(r.labels.slice(0, 4)).toEqual(['두께', '좌우 패딩', '항목 간격', '숫자 크기']);
+    /* ★늘 있는 줄과 조건부 줄을 갈라 잰다 — 조건부 둘은 세로 막대(_segOn)에서만 뜬다 · 비교 막대엔 0 이 음성대조. */
+    const SEG_ROWS = ['마디 간격', '경계 물결'];
+    expect(r.labels.filter(l => !SEG_ROWS.includes(l)).slice(0, 4), '늘 있는 줄 넷').toEqual(['두께', '좌우 패딩', '항목 간격', '숫자 크기']);
+    expect(r.labels.filter(l => SEG_ROWS.includes(l)), type === 'bar-v' ? '세로: 조건부 줄 둘' : '비교: 조건부 줄 0').toEqual(type === 'bar-v' ? SEG_ROWS : []);
     expect(r.sliders).toEqual([true, true, true, true]);
     expect(r.dupIds, '중복 id').toEqual([]);
     expect(r.colorAll, '#grb-bar-color 는 패널 전체에서 하나').toBe(1);

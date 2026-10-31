@@ -19,13 +19,14 @@ const { test, expect } = require('@playwright/test');
      읽는다 — 여기에 손으로 목록을 적으면 ★둘째 명부가 된다.
    ★시험의 힘은 안 줄었다 — 저장되는 ★콘텐츠가 한 글자라도 바뀌면 여전히 빨강이다. 걷는 것은
      「저장에도 안 실리는 것」뿐이다.
-   ⚠️핀 판(옛 판)에는 이 상수가 없을 수도 있다 — 그러면 안 걷는다. 그래도 맞다: 그 판엔 걷을
-     장식 자체가 없다(양쪽 다 배지 없는 꼴로 만나 비교가 성립한다). */
+   ⚰️(옛) «핀 판에 이 상수가 없으면 안 걷는다 · 그 판엔 걷을 장식 자체가 없다» — 이 전제는 깨졌다: 핀 6119145c 엔 상수가 없고(노출 719593cb 10-06)
+     cf7235f0(10-25)이 이 명부에 .shape-handle 을 넣자 ★지금 쪽만 걷혀 R2 가 비대칭으로 빨개졌다(핀 쪽 HTML 에만 손잡이 넷 · 제품 회귀 아님 · J323).
+   ⇒ R2 는 ★지금 판의 상수 하나를 두 쪽에 똑같이 넘긴다(sel 인자). */
 async function installStripUi(pg) {
   await pg.addInitScript(() => {
-    window.__fxStripUi = (el) => {
+    window.__fxStripUi = (el, given) => {
       if (!el) return '';
-      const sel = window.NON_CONTENT_UI_SELECTOR;
+      const sel = given || window.NON_CONTENT_UI_SELECTOR;
       if (!sel) return el.outerHTML;
       const c = el.cloneNode(true);
       c.querySelectorAll(sel).forEach(n => n.remove());
@@ -33,10 +34,9 @@ async function installStripUi(pg) {
     };
   });
 }
-const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { bootApp, ROOT, ORIGIN } = require('./_root-harness.js');
+const { bootApp, pinnedBoot, ROOT, waitZoomSettled } = require('./_root-harness.js');
 
 const PIN = '6119145c';
 /* ★길이·불투명도 = 시안(지디 goditor-effects-reflection.html) 슬라이더 값 «그대로». 흐림은 뺐다.
@@ -62,6 +62,7 @@ async function setup(page, boot = bootApp) {
   await page.setViewportSize({ width: 1500, height: 1400 });
   await installStripUi(page);          // ★goto «전»이라야 addInitScript 가 걸린다(위 머리말)
   const errs = await boot(page);
+  await page.waitForFunction(() => typeof window.rebindAll === 'function', null, { timeout: 20000 });   // ★전제: 앱이 섰다(옛 R2 덮개가 들던 조건 대기 · pinnedBoot 로 옮기며 여기로)
   await page.evaluate(() => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="eS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="eI">
@@ -84,6 +85,9 @@ async function setup(page, boot = bootApp) {
     window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
   });
   await page.waitForTimeout(300);
+  /* ★배율 전이가 멎은 뒤에 돌려준다 — 맨 applyZoom(100) 은 scaler 를 0.15s 보간한다. 그 사이 잰 섹션 높이는 낡은 배율이다
+     (J323 실측 R3 : h0 623.096 ↔ 평소 1400 · 1399.9998 · 고정 300ms 로는 가끔 못 넘었다). */
+  await waitZoomSettled(page, 100);
   return errs;
 }
 const rect = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); const q = e.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom, h: q.height, oh: e.offsetHeight }; }, id);
@@ -162,35 +166,19 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
 });
 
 test('R2 ★옛 문서 바이트 동일 — 같은 장면을 «핀 6119145c 파일»과 지금 파일로 각각 띄워 패널 셋을 열고 직렬화 → 같다', async ({ page }) => {
-  /* 핀 파일 덮개 — ROOT 가 git 나무가 아닐 수도 있어(양성대조·변이 사본) 핀 «내용»을 원 레포 git 에서 꺼내 «내용이 다른» 파일만 덮는다. */
-  // ⛔ 현빈 라이브 트리로 떨어지지 않는다(2026-10-06 지디) — `.git` 없는 사본(pin-tree · 변이)에서는 이 시험을 «무효»로 멈춘다.
-  if (!fs.existsSync(path.join(ROOT, '.git'))) throw new Error(`INVALID: ${ROOT} 에 .git 이 없다 — 핀 내용을 꺼낼 git 나무가 없어 이 시험은 돌 수 없다(라이브 트리로 대체 금지)`);
-  const GIT = ROOT;
-  const overlay = new Map();
-  const pinFiles = execFileSync('git', ['-C', GIT, 'ls-tree', '-r', '--name-only', PIN, '--', 'js', 'css', 'index.html'], { encoding: 'utf8' }).split('\n').filter(Boolean);
-  const pinSet = new Set(pinFiles);
-  for (const f of pinFiles) { const pinBuf = execFileSync('git', ['-C', GIT, 'show', `${PIN}:${f}`], { maxBuffer: 64 * 1024 * 1024 }); const p = path.join(ROOT, f);
-    if (!fs.existsSync(p) || !fs.readFileSync(p).equals(pinBuf)) overlay.set('/' + f, pinBuf); }
-  const walk = (d) => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
-  for (const f of [...walk('js'), ...walk('css')]) if (!pinSet.has(f)) overlay.set('/' + f, null);   // 핀에 없는 새 파일 = 404
-  const MIME = { '.js': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png' };
-  const pinned = async (pg) => { const errs = []; pg.on('pageerror', e => errs.push(String(e)));
-    await pg.addInitScript(() => { window.electronAPI = new Proxy({}, { get: () => (() => Promise.resolve(null)) }); });
-    await pg.route(`${ORIGIN}/**`, async (r) => { const u = decodeURIComponent(new URL(r.request().url()).pathname); const ct = MIME[path.extname(u)] || 'application/octet-stream';
-      if (overlay.has(u)) { const b = overlay.get(u); return b === null ? r.fulfill({ status: 404, body: '' }) : r.fulfill({ contentType: ct, body: b }); }
-      const f = path.join(ROOT, u); if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
-      return r.fulfill({ contentType: ct, body: fs.readFileSync(f) }); });
-    await pg.goto(`${ORIGIN}/index.html`); await pg.waitForFunction(() => typeof window.rebindAll === 'function', null, { timeout: 20000 }); return errs; };
-  const shot = async (pg) => pg.evaluate(() => {
+  const pinned = pinnedBoot(PIN);   // 핀 «내용»을 원 레포 git 에서 꺼내 «내용이 다른» 파일만 덮는다(_root-harness.js)
+  const shot = async (pg, sel) => pg.evaluate((sel) => {
     for (const [id, fn] of [['eT', 'showTextProperties'], ['eSh', 'showShapeProperties'], ['eA', 'showAssetProperties']]) { try { window[fn]?.(document.getElementById(id)); } catch (_) {} }
     const s = document.getElementById('eS'); s.querySelectorAll('[id]').forEach(e => { if (!/^e/.test(e.id)) e.removeAttribute('id'); });
-    return window.__fxStripUi(s); });
+    return window.__fxStripUi(s, sel); }, sel);
+  await setup(page);
+  const sel = await page.evaluate(() => window.NON_CONTENT_UI_SELECTOR);
+  expect(sel, '전제 — 지금 판의 걷기 명부를 읽었다(두 쪽에 같이 쓴다)').toBeTruthy();
   const p2 = await page.context().newPage();
   await setup(p2, pinned);
-  const pinHtml = await shot(p2); await p2.close();
-  await setup(page);
-  const nowHtml = await shot(page);
-  expect(overlay.size, '전제 — 바꾼 파일이 있다(같은 판끼리 비교가 아니다)').toBeGreaterThan(0);
+  const pinHtml = await shot(p2, sel); await p2.close();
+  const nowHtml = await shot(page, sel);
+  expect(pinned.overlaySize, '전제 — 바꾼 파일이 있다(같은 판끼리 비교가 아니다)').toBeGreaterThan(0);
   expect(nowHtml, '★효과 없는 장면 + 패널 셋을 연 뒤 — 지금 판 바이트 = 핀 바이트').toBe(pinHtml);
 });
 
