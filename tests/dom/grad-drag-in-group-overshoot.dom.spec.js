@@ -71,6 +71,15 @@ const scene = async (page, group) => page.evaluate(async (group) => {
     if (sec.querySelectorAll('.gradient-block.selected').length !== 2) return { fail: '둘이 안 골렸다' };
     window.groupSelectedBlocks?.();
   }
+  /* ★누를 좌표를 재기 전에 scrollTop 이 연속 10 프레임 같을 때까지 기다린다(⛔고정 대기 아님 · 지디 MINTEL ②).
+     까닭(S3 · 263-1225): addSection 의 부드러운 스크롤이 도는 동안 잰 at 은 낡는다 — 잰 뒤 차 0~23 맞음·바뀜 · 24~26 빗나감(h 48 ⇒ h/2 · ×5).
+     ⛔«두 번 연속» 은 스크롤이 시작되기 전에 이미 참이다(후보 428f7034 · at 전부 124 · moved T 0/10). 10 의 출처 = 측정 탐침 settled 55/55. */
+  const wrap = document.getElementById('canvas-wrap');
+  await new Promise((res) => {
+    let last = wrap.scrollTop, same = 0;
+    const step = () => { if (wrap.scrollTop === last) same++; else { same = 0; last = wrap.scrollTop; } if (same >= 10) res(); else requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
   const a = made[0];
   const r = a.getBoundingClientRect();
   const secR = sec.getBoundingClientRect();
@@ -227,6 +236,7 @@ test('P263a ⒜ 옛 길(장면 때 중심) — 임자 = 블럭 ⇔ dataset 바�
   console.log('[P263a]', JSON.stringify(r));
   expect(r.bound, `★전제: 블럭이 bind 안 됨(_gradientBound) · ${JSON.stringify(r)}`).toBe(true);
   expect(r.moved, `★임자 ${r.owner} 인데 dataset 바뀜 ${r.moved} — 임자 후보로 못 가른다 · ${JSON.stringify(r)}`).toBe(r.owner);
+  expect(r.moved, `★끌기가 안 먹었다(moved false) — «안 움직여서 안 틀린» 초록 금지 · ${JSON.stringify(r)}`).toBe(true);
 });
 test('P263b ⒜ 새 길(누르기 직전 가운데로) — 임자 = 블럭 ∧ dataset 바뀜', async ({ page }) => {
   await bootApp(page);
@@ -264,6 +274,7 @@ test('P263c ⒜ 실제 mousedown target · 블럭 리스너 돎(_grdDown) — �
   /* 판정 자: 블럭 리스너가 돌았다(_grdDown) ⇔ 실제 target 이 블럭 안 · 돌았는데 안 바뀜이면 이동 길(onMove) 쪽 */
   expect(c.grdDown, `★실제 target 블럭 안 ${c.down && c.down.inBlock} 인데 블럭 리스너 돎 ${c.grdDown} · ${JSON.stringify({ ...r, ...c })}`).toBe(!!(c.down && c.down.inBlock));
   expect(r.moved, `★블럭 리스너 돎 ${c.grdDown} 인데 dataset 바뀜 ${r.moved} · ${JSON.stringify({ ...r, ...c })}`).toBe(c.grdDown);
+  expect(r.moved, `★끌기가 안 먹었다(moved false) — «안 움직여서 안 틀린» 초록 금지 · ${JSON.stringify({ ...r, ...c })}`).toBe(true);
 });
 
 test('D2 ★★★수를 박는다 — ★그룹 ★안 그라데는 ★★더 움직인다 (★가지 실측 32 → 73·63·58)', async ({ page }) => {
