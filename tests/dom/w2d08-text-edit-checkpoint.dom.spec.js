@@ -52,9 +52,24 @@ async function boot(page) {
 async function pollTrue(page, fn, arg, timeout = 6000) {
   try { await page.waitForFunction(fn, arg, { timeout, polling: 100 }); return true; } catch { return false; }
 }
-async function settle(page, timeout = 8000) {
+/* ★235(지디 · ft3-left-drag-and-pullin 선례 꼴) — 정착 상한을 «고정 수»(옛 8000)로 두지 않는다.
+     마감 = 이 시험에 남은 시간(test.info().timeout − 지난 시간) × SETTLE_ROOM_SHARE(역산 · T_MS 가 바뀌면 따라온다).
+     줄 시간이 SETTLE_MIN_MS 보다 적으면 재지 않고 이름으로 던진다 · 이 시험에서 잰 «가장 느린 정착» 이 남은 몫보다 크면 그 «앞»에서 던진다
+     (안 그러면 부하에서 «Test timeout» 으로만 찍혀 무엇이 모자랐는지 이름이 사라진다 — 141 이 그 꼴). */
+const SETTLE_ROOM_SHARE = 0.6;   // 나머지 0.4 = 시험 몸·다른 기다림의 몫
+const SETTLE_MIN_MS = 3000;      // ⚠️3000 은 미측정 · 선례(ft3)에서 옮김 — 실측으로 읽지 마라 · 유닛 전수 816a57f2(Intel · node v25.8.0): 총 302s · 가장 느린 시험 css-token-lint ② --rev 167s · cancelled 0
+let _w08T0 = 0, _w08Worst = 0;
+test.beforeEach(() => { _w08T0 = Date.now(); _w08Worst = 0; });
+async function settle(page) {
+  const room = test.info().timeout - (Date.now() - _w08T0);
+  const budget = Math.floor(room * SETTLE_ROOM_SHARE);
+  if (budget < SETTLE_MIN_MS) throw new Error(`SETTLE-BUDGET-EXCEEDS-TEST-TIMEOUT — 정착에 줄 시간 ${budget}ms(남은 시험 시간 ${room}ms × ${SETTLE_ROOM_SHARE}) < ${SETTLE_MIN_MS}ms`);
+  if (_w08Worst > budget) throw new Error(`SETTLE-WOULD-OVERRUN — 이 시험의 가장 느린 정착 ${_w08Worst}ms > 남은 몫 ${budget}ms(남은 ${room}ms × ${SETTLE_ROOM_SHARE})`);
   await page.evaluate(() => { window.__w08last = null; });
-  return pollTrue(page, () => { const s = window.__w08norm(); const ok = s === window.__w08last; window.__w08last = s; return ok; }, null, timeout);
+  const t0 = Date.now();
+  const ok = await pollTrue(page, () => { const s = window.__w08norm(); const ok = s === window.__w08last; window.__w08last = s; return ok; }, null, budget);
+  _w08Worst = Math.max(_w08Worst, Date.now() - t0);
+  return ok;
 }
 async function stableTwice(page, sel) {
   const a = await waitStableRect(page, sel); const b = await waitStableRect(page, sel);

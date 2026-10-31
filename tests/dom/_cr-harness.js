@@ -84,6 +84,7 @@ async function stub(page) {
   });
 }
 async function boot(page) {
+  _crMark();   // 부팅 시간도 «지난 시간»에 든다(235)
   const B = { errs: [], cerr: [], dialogs: [], aborted: [], reqFailed: [] };
   page.on('pageerror', e => B.errs.push(String(e).slice(0, 300)));
   page.on('console', m => { if (m.type() === 'error') B.cerr.push(m.text().slice(0, 300)); });
@@ -123,9 +124,25 @@ async function gotoApp(page, B) {
 }
 function errsOf(B) { return { errs: B.errs.slice(0, 20), cerr: B.cerr.slice(0, 20), dialogs: B.dialogs.slice(0, 10), abortedN: B.aborted.length, aborted: B.aborted.slice(0, 5), reqFailed: B.reqFailed.slice(0, 5) }; }
 async function pollTrue(page, fn, arg, timeout = 6000) { try { await page.waitForFunction(fn, arg, { timeout, polling: 100 }); return true; } catch { return false; } }
-async function settleNorm(page, timeout = 8000) {
+/* ★235(지디 · ft3-left-drag-and-pullin 선례 꼴 · w2d08 settle 과 같은 꼴) — 정착 상한을 «고정 수»(옛 8000)로 두지 않는다.
+     마감 = 이 시험에 남은 시간(test.info().timeout − 지난 시간) × SETTLE_ROOM_SHARE(역산 · T_MS 가 바뀌면 따라온다).
+     줄 시간이 SETTLE_MIN_MS 보다 적으면 재지 않고 이름으로 던지고 · 이 시험에서 잰 «가장 느린 정착» 이 남은 몫보다 크면 그 «앞»에서 던진다.
+     ⛔test.beforeEach 로 시작 시각을 되놓지 않는다 — 이 파일은 공용부라 require 캐시 탓에 한 워커의 첫 spec 에만 걸린다 ⇒ test.info() 로 시험이 바뀌었나를 본다. */
+const SETTLE_ROOM_SHARE = 0.6;   // 나머지 0.4 = 시험 몸·다른 기다림의 몫
+const SETTLE_MIN_MS = 3000;      // ⚠️3000 은 미측정 · 선례(ft3)에서 옮김 — 실측으로 읽지 마라 · 유닛 전수 816a57f2(Intel · node v25.8.0): 총 302s · 가장 느린 시험 css-token-lint ② --rev 167s · cancelled 0
+let _crInfo = null, _crT0 = 0, _crWorst = 0;
+function _crMark() { const ti = test.info(); if (ti !== _crInfo) { _crInfo = ti; _crT0 = Date.now(); _crWorst = 0; } }
+async function settleNorm(page) {
+  _crMark();
+  const room = test.info().timeout - (Date.now() - _crT0);
+  const budget = Math.floor(room * SETTLE_ROOM_SHARE);
+  if (budget < SETTLE_MIN_MS) throw new Error(`SETTLE-BUDGET-EXCEEDS-TEST-TIMEOUT — 정착에 줄 시간 ${budget}ms(남은 시험 시간 ${room}ms × ${SETTLE_ROOM_SHARE}) < ${SETTLE_MIN_MS}ms`);
+  if (_crWorst > budget) throw new Error(`SETTLE-WOULD-OVERRUN — 이 시험의 가장 느린 정착 ${_crWorst}ms > 남은 몫 ${budget}ms(남은 ${room}ms × ${SETTLE_ROOM_SHARE})`);
   await page.evaluate(() => { window.__lastNorm = null; });
-  return pollTrue(page, () => { const s = window.__norm(); const ok = s === window.__lastNorm; window.__lastNorm = s; return ok; }, null, timeout);
+  const t0 = Date.now();
+  const ok = await pollTrue(page, () => { const s = window.__norm(); const ok = s === window.__lastNorm; window.__lastNorm = s; return ok; }, null, budget);
+  _crWorst = Math.max(_crWorst, Date.now() - t0);
+  return ok;
 }
 async function stableTwice(page, sel) {
   const a = await waitStableRect(page, sel); const b = await waitStableRect(page, sel);
