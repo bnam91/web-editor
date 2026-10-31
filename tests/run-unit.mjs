@@ -36,9 +36,9 @@ if (patterns.length === 0) {
 const junit = process.env.GOYA_TEST_JUNIT;
 const rep = junit ? ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=junit', `--test-reporter-destination=${junit}`] : [];
 /* ★196 ⑴(지디 판정 261028) — 비동기 시험 상한 60s. 근거(첫 전수 5c5b94f5 JUnit): 시험 하나 >60s 는 둘뿐이고 둘 다 «동기 몸»
- *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync) ⇒ 이 상한이 못 드는 꼴(196 ⒜ 실측: 동기 몸엔 안 듦) ·
- *   60s 넘는 «비동기» 0 ⇒ 오늘 판에서 빨강 0 이 «전제». ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
- *   동기 몸의 느려짐은 이 상한이 아니라 tests/unit-time.gate.js(파일 시간 명부)가 잡는다. 덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
+ *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync). ★★★그 상한이 ★무엇을 잡나는 ★★Node 판에 ★달렸다 — ★실측 : ★Node v22.22.3(아이맥) = ★동기 `spawnSync` 몸도 ★잡힌다(rc 1 · cancelled 1) · ★Node v24.11.1(srv) = ★안 잡힌다(rc 0). ⇒ ★★그러므로 ★«동기 몸의 느려짐»을 ★이 상한에 ★맡기지 ★마라 — ★그것이 tests/unit-time.gate.js(파일별 시간 명부)가 ★있는 까닭이다.
+ *   60s 넘는 «비동기» 0 ⇒ 빨강 0 은 동기 몸을 안 잡는 판에서만 «전제»(Node v22.22.3 아이맥은 맨판도 css-token-lint 가 잘려 rc 1). ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
+ *   덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
 const rawT = process.env.GOYA_TEST_TIMEOUT_MS;
 const tmo = rawT === undefined ? 60000 : Number(rawT);
 if (!Number.isInteger(tmo) || tmo < 1) {
