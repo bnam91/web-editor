@@ -130,7 +130,7 @@ test('⒟ 패턴 0개 → rc 2 ＋ stderr 한 줄 (래퍼 안에 기본 패턴�
 });
 
 const SLOW = "import test from 'node:test';\ntest('느린', async () => { await new Promise((r) => setTimeout(r, 1200)); });\n";
-/* ★취소 이름은 판마다 다르다(261031 실측 · ⛔한 판만 보는 꼴로 두지 마라): v22.22.3 = 파일째 취소 ⇒ JUnit name = 파일 경로 / v24.10.0·v24.11.1 = 시험째 취소 ⇒ name = 시험 제목 */
+/* ★취소 이름은 판마다 다르다(⛔한 판만 보는 꼴로 두지 마라) — 판별 값의 정본 = tests/unit-time.gate.js 머리말 «★왜» 줄 */
 const CANCEL_NAME = /\[run-unit\] 취소 1 · (tests\/unit\/slow\.test\.mjs|느린)\n/;
 test('⒡ 변수 없을 때 화면 보고 꼴이 맨 node --test 와 같다', () => {
   withTmp({ 'g.test.mjs': GREEN }, (dir) => {
