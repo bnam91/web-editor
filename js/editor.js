@@ -710,7 +710,9 @@ function _syncScalerHeight() {
   const prev = scaler.style.height;
   let naturalH = _scalerFlowHeight();  // flow 콘텐츠(#canvas) 기준 (abs 자식 미포함)
   for (const c of scaler.children) {   // canvas 아래로 배치된 absolute 자식(scratch-item 등) 커버
-    if (c.style && c.style.position === 'absolute') {
+    /* ★320 — #todo-pin-overlay 는 height:100% 라 제 높이가 곧 scaler 높이다. 입력에 넣으면 여기서 쓴 값이 다음 번 입력으로 돌아와
+       배율 >1 에서 2^24 까지 자란다(재는 자: tests/dom/scaler-zoom-roundtrip-320). 핀은 제 자리로 스크롤 범위를 넓히므로 안 잘린다. */
+    if (c.id !== 'todo-pin-overlay' && c.style && c.style.position === 'absolute') {
       const b = c.offsetTop + c.offsetHeight;
       if (b > naturalH) naturalH = b;
     }
