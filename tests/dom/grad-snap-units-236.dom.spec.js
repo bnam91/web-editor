@@ -15,6 +15,9 @@
  *   MA  이동 ⌥(mousedown «뒤» 에 · D1 꼴) — 12 화면 px 이어도 안 붙는다
  *   W12 리사이즈 — 폭이 섹션 폭에서 12 화면 px 모자라게 끌면 폭 = 섹션 폭
  *   W22 리사이즈 음성 — 22 화면 px 이면 안 붙는다
+ *   W309Z 리사이즈 도중 ⌘+ — 차가 «잡은 배율 문턱 안 · 새 배율 문턱 밖» 이어도 붙는다(이동량과 문턱이 같은 잡은 배율) ⇒ 폭 = 섹션 폭
+ *   W309N 음성 — 같은 차 · ⌘+ 없음 ⇒ 폭 = 섹션 폭(배율이 안 바뀌면 고치기 전 판과 같다)
+ *     ★309 한 쌍(GD1001_ROOT = 고치기 전 45a148d0): W309Z 만 빨강(폭 = 섹션 폭 − 차) · W309N 초록
  * 한 쌍(사본 변이 · GD1001_ROOT): _gradScreenToLocal 몸을 `return px;` 로 ⇒ M12·W12 빨강 · 나머지 초록. 사본은 «바뀐 줄 1» 을 세어 단언 ＋ 그 판 로그에 «양성대조 모드 — <사본>» 줄이 있나 단언(슬롯 스크립트 · 236 ④).
  * ⛔고정 대기 없음 · 끌기·⌥ 는 진짜 입력(page.mouse · page.keyboard).
  */
@@ -95,7 +98,7 @@ async function moveTo(page, gap, { alt = false } = {}) {
   return x;
 }
 /* br 손잡이로 폭을 «섹션 폭 − short 화면 px» 까지 끈다(왼변 x = 0 에서) */
-async function widenTo(page, short) {
+async function widenTo(page, short, { midZoom = false } = {}) {
   await page.evaluate(() => { window.__g.dataset.x = '0'; window.renderGradientBlock(window.__g); if (!window.__g.classList.contains('selected')) window._selectGradient(window.__g); });
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   /* ★골라진 그라데의 모서리 손잡이는 js/overlay-handles.js HANDLE_ESCAPE_SPECS 가 #ss-handles-overlay(고정층)로 옮긴다 ⇒ 블럭 자식이 아니라 거기서 찾는다(지디 09:5x 236 처방)
@@ -116,10 +119,18 @@ async function widenTo(page, short) {
   const dx = (h.secW - h.w0) * h.z - short;
   await page.mouse.move(h.x, h.y); await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(h.x + dx * i / 8, h.y);
+  let zAfter = await page.evaluate(() => window.currentZoom);
+  if (midZoom) {   // ★309 mousedown…mouseup 안에서 진짜 ⌘+ · 문턱은 다음 mousemove 가 다시 잰다
+    const z0 = zAfter;
+    await page.keyboard.press('Meta+Equal');
+    await page.waitForFunction((z) => window.currentZoom !== z, z0);
+    zAfter = await page.evaluate(() => window.currentZoom);
+    await page.mouse.move(h.x + dx, h.y + 1); await page.mouse.move(h.x + dx, h.y);
+  }
   await page.mouse.up();
   const w = +(await page.evaluate(() => window.__g.dataset.gradWidth));
   expect(w, `★리사이즈가 안 먹었다(폭 ${w} 그대로)`).not.toBe(h.w0);
-  return { w, secW: h.secW, z: h.z };
+  return { w, secW: h.secW, z: h.z, zAfter };
 }
 
 test('M12 이동 — 섹션 왼끝 12 화면 px 안이면 x = 0', async ({ page }) => {
@@ -149,5 +160,21 @@ test('W22 리사이즈 음성 — 22 화면 px 이면 안 붙는다', async ({ p
   const { errs } = await setup(page);
   const r = await widenTo(page, FAR);
   expect(near(r.w, r.secW - FAR / r.z), `★22 화면 px 인데 ${JSON.stringify(r)}`).toBe(true);
+  expect(errs).toEqual([]);
+});
+/* ★309 — 차를 «잡은 배율 문턱(16/z0) 과 새 배율 문턱(16/z1) 사이»로 고른다 · z1 = z0 + 0.1(⌘+ 한 칸) · 그래야 두 자가 갈리는 자리다 */
+const between = (z) => (SNAP / z + SNAP / (z + 0.1)) / 2 * z;   // 화면 px
+test('W309Z 리사이즈 도중 ⌘+ — 이동량과 문턱이 같은 잡은 배율이면 붙는다(최종 폭 = 섹션 폭)', async ({ page }) => {
+  const { errs, z } = await setup(page);
+  const r = await widenTo(page, between(z), { midZoom: true });
+  expect(r.zAfter, `★전제: ⌘+ 한 칸이 안 먹었다 ${JSON.stringify(r)}`).toBeCloseTo((z + 0.1) * 100, 3);
+  expect(r.w, `★도중 ⌘+ 로 문턱만 새 배율이 됐다 ${JSON.stringify(r)}`).toBe(r.secW);
+  expect(errs).toEqual([]);
+});
+test('W309N 음성 — 같은 차 · ⌘+ 없음 ⇒ 최종 폭 = 섹션 폭', async ({ page }) => {
+  const { errs, z } = await setup(page);
+  const r = await widenTo(page, between(z));
+  expect(r.zAfter, '★전제: 배율이 그대로').toBeCloseTo(z * 100, 3);
+  expect(r.w, `★${JSON.stringify(r)}`).toBe(r.secW);
   expect(errs).toEqual([]);
 });
