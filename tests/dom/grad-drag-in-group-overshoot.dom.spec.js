@@ -44,7 +44,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grad-drag-in-group-overshoot
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 /** ★섹션 ＋ ★작은 그라데(들)을 ★앱 길로 만든다. `n`=1 이면 섹션 직속, 2 면 ⌘G 로 묶는다. */
 const scene = async (page, group) => page.evaluate(async (group) => {
@@ -127,26 +127,65 @@ test('D0 ★전제 — ★`updateGradientBlock` 으로 ★그라데를 ★★섹
   console.log('[D0-width]', JSON.stringify({ asked: 220, got: s.w }));
 });
 
-test('D1 ★★대조 — ★섹션 ★직속 그라데는 ★★포인터만큼 ★움직인다 (★1:1)', async ({ page }) => {
+/* ★233 GRAD-DRAG-D1-COMPARES-MIXED-COORD-SYSTEMS-01(지디 · S3 261028) — 옛 D1 은 세 자를 섞었다: dataset(모델 px) · 포인터(화면 px) ·
+   rect(렌더 px + 스크롤) ⇒ «1:1» 을 안 쟀고 흔들렸다(두 dev ×5 = 4 failed · 1 skip). ⇒ ★한 좌표계(화면 px)로만 견준다:
+   화면 이동 = rect 차 + #canvas-wrap 스크롤 차(⑵) · 배율 멎은 뒤(waitZoomSettled ⑶) · 모델 이동(dataset)은 «× 배율» 로 화면에 옮겨 맞대기만(⑴ 섞지 않음).
+   «끌기가 안 먹음» 은 SKIP 이 아니라 이름 있는 실패(⑸). 1:1 판정은 순수 함수 oneToOne — D1N 이 «일부러 2:1 → 아니다» 를 잰다(⑷ · 행위 2:1 은 제품 사본 변이로 DOM 쌍). */
+const oneToOne = (moved, pointer, tol = 6) => Math.abs(moved - pointer) <= tol;
+async function dragMeasure(page, s, dx, dy, { alt = false } = {}) {
+  const read = () => page.evaluate(() => {
+    const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]');
+    const r = a.getBoundingClientRect(), w = document.getElementById('canvas-wrap');
+    const m = getComputedStyle(document.getElementById('canvas-scaler')).transform;
+    return { left: r.left, top: r.top, sl: w ? w.scrollLeft : 0, st: w ? w.scrollTop : 0, x: Number(a.dataset.x), y: Number(a.dataset.y), scale: m === 'none' ? 1 : new DOMMatrix(m).a };
+  });
+  /* ★233 실측(×5): 장면을 잡은 뒤 화면이 스크롤돼(scrolled 0·15·36) 옛 중심(s.cx·cy)이 블럭 밖 → 4/5 «안 먹음».
+     ⇒ 누르기 «직전» 에 블럭을 화면 가운데로 · 두 프레임 · 그때의 중심을 잡는다(장면 때 잰 좌표 안 씀). */
+  const c = await page.evaluate(async () => {
+    const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]');
+    a.scrollIntoView({ block: 'center', inline: 'center' });
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const r = a.getBoundingClientRect(); return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+  });
+  s = { ...s, cx: Math.round(c.cx), cy: Math.round(c.cy) };
+  const b = await read();
+  await page.mouse.move(s.cx, s.cy);
+  await page.mouse.down();
+  /* ★제품의 스냅 우회(⌥ · gradient-select.js «⌥ 누른 동안(매 mousemove 의 ev.altKey) 스냅 건너뜀» · 120 H9-SNAP) — ★누른 «뒤» 에 건다:
+     ⌥ 를 누른 채 mousedown 하면 끌기가 아예 안 섰다(×5 실측 · ⌥+클릭은 다른 몸짓) */
+  if (alt) await page.keyboard.down('Alt');
+  await page.mouse.move(s.cx + dx / 2, s.cy + dy / 2, { steps: 4 });
+  await page.mouse.move(s.cx + dx, s.cy + dy, { steps: 4 });
+  await page.mouse.up();
+  if (alt) await page.keyboard.up('Alt');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const a = await read();
+  return {
+    screenX: Math.round((a.left - b.left) + (a.sl - b.sl)), screenY: Math.round((a.top - b.top) + (a.st - b.st)),   // ★화면 px(스크롤 뺀 렌더 이동)
+    modelX: a.x - b.x, modelY: a.y - b.y, scale: a.scale,                                                          // 모델 px · 배율
+    scrolled: [a.sl - b.sl, a.st - b.st],
+  };
+}
+test('D1 ★★대조 — ★섹션 ★직속 그라데는 ★★포인터만큼 ★움직인다 (★1:1 · 화면 px 한 좌표계)', async ({ page }) => {
   await bootApp(page);
   const s = await scene(page, false);
   expect(s.fail).toBeUndefined();
   expect(s.smaller, '★전제: 그라데가 섹션보다 작지 않다').toBe(true);
-  const r = await dragBy(page, s, 32, 32);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // ⑶ 배율 멎은 뒤에 잰다
+  const s2 = await scene(page, false);   // 멎은 배율에서 자리를 다시 잡는다(중심 좌표가 화면 px)
+  /* ★233 실측(×5 · probe): ⌥ 없이 끌면 y 가 «가장자리 맞닿기 스냅»(16 화면 px · 의도된 제품 꼴)으로 당겨져 24/32 · dy 0 에도 +23 모델 px ⇒
+     «1:1» 은 스냅을 «끈» 끌기의 계약 ⇒ 제품의 우회(⌥)를 누른 채 잰다(스냅 자체는 이 칸의 몫 아님). */
+  const r = await dragMeasure(page, s2, 32, 32, { alt: true });
   console.log('[D1]', JSON.stringify(r));
-  /* ★★★전제 — ★★«끌기가 ★먹었나»는 ★`dataset.x/y` ★변화로만 ★안다.
-     ⛔`getBoundingClientRect` 차이에는 ★★스크롤이 ★섞인다(실측 `movedY -40` 인데 dataset 0). */
-  if (r.datasetX[0] === r.datasetX[1] && r.datasetY[0] === r.datasetY[1]) {
-    test.skip(true, '★★끌기가 ★안 먹었다(dataset 변화 0) = GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01'
-      + ' — ⛔FAIL 아니라 SKIP · ' + JSON.stringify(r));
-  }
-  /* ★★★대조 — ★포인터 ★32 px 에 ★32 px (★±6 여유: 줌 환산·클램프) */
-  expect(Math.abs(r.movedX - 32),
-    `★x 가 ★포인터보다 ★더/덜 움직였다 — ★★이것이 ★대조다 (moved ${r.movedX} vs pointer 32 · dataset ${JSON.stringify(r.datasetX)})`
-  ).toBeLessThanOrEqual(6);
-  expect(Math.abs(r.movedY - 32),
-    `★y 가 ★포인터보다 ★더/덜 움직였다 (moved ${r.movedY} vs 32 · dataset ${JSON.stringify(r.datasetY)})`
-  ).toBeLessThanOrEqual(6);
+  expect(r.modelX !== 0 || r.modelY !== 0,
+    `GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01 — 끌기가 안 먹었다(모델 이동 0) · ${JSON.stringify(r)}`).toBe(true);   // ⑸ SKIP 아님
+  expect(oneToOne(r.screenX, 32), `★x 화면 이동 ${r.screenX} ≠ 포인터 32(±6) — 1:1 아님 · ${JSON.stringify(r)}`).toBe(true);
+  expect(oneToOne(r.screenY, 32), `★y 화면 이동 ${r.screenY} ≠ 포인터 32(±6) — 1:1 아님 · ${JSON.stringify(r)}`).toBe(true);
+  /* 맞대기(같은 좌표계로 옮겨): 모델 이동 × 배율 = 화면 이동 — 다르면 렌더가 모델을 안 따른다 */
+  expect([Math.abs(r.modelX * r.scale - r.screenX) <= 6, Math.abs(r.modelY * r.scale - r.screenY) <= 6], `모델×배율 ≠ 화면 · ${JSON.stringify(r)}`).toEqual([true, true]);
+});
+test('D1N ★자가 산다 — oneToOne 은 1:1 만 참 · 일부러 2:1 은 거짓(⑷ 음성 · 자 자체)', () => {
+  expect([oneToOne(32, 32), oneToOne(37, 32), oneToOne(64, 32), oneToOne(16, 32), oneToOne(-16, 32)]).toEqual([true, true, false, false, false]);
 });
 
 test('D2 ★★★수를 박는다 — ★그룹 ★안 그라데는 ★★더 움직인다 (★가지 실측 32 → 73·63·58)', async ({ page }) => {
