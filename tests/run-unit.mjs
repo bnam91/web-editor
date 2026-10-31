@@ -39,7 +39,7 @@ if (patterns.length === 0) {
 }
 /* ★196 ⑴ — 유닛 파일 시간 래칫의 «재료». GOYA_TEST_JUNIT=<경로> 일 때만 JUnit 보고를 그 파일에 «덧» 쓴다(화면 spec 보고는 그대로).
  *   JUnit testcase 마다 file·time 이 있어 파일별 합을 낼 수 있다(spec·tap 보고엔 파일 묶음이 없다 — 261028 실측 Node 25.8).
- *   ⚠️동기 몸(spawnSync 등)도 time 에 든다 ⇒ --test-timeout 이 못 잡는 판(판별로 다르다 · 아래 ★196 ⑴)의 «느려짐»도 이 재료로 잡힌다(tests/unit-time.gate.js).
+ *   ⚠️동기 몸(spawnSync 등)도 time 에 든다 ⇒ «느려짐»도 이 재료로 잡힌다(tests/unit-time.gate.js). --test-timeout 이 무엇을 잡나는 판별로 다르다 — 판별 값의 정본 = tests/unit-time.gate.js 머리말 «★왜» 줄.
  *   변수가 없으면 아무것도 안 바뀐다(보고 꼴·rc 그대로 — run-unit-wrapper.test.mjs). */
 const junit = process.env.GOYA_TEST_JUNIT || path.join(mkTmpRoot('run-unit-'), 'u.xml');
 /* 변수가 없을 때도 취소 수를 읽으려 JUnit 을 임시 파일에 덧쓴다 · 화면 보고는 node 기본 꼴 그대로(TTY = spec · 아니면 tap · node 23+ = spec — ⒡ 가 맨 node --test 와 견준다). */
@@ -48,7 +48,7 @@ const rep = [`--test-reporter=${dflt}`, '--test-reporter-destination=stdout', '-
 /* ★196 ⑴(지디 판정 261028 · 값은 ★303 ⑵ 가 아래 명부로 갈음) — 그때 비동기 시험 상한 60s. 근거(첫 전수 5c5b94f5 JUnit): 시험 하나 >60s 는 둘뿐이고 둘 다 «동기 몸»
  *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync). ★판별로 다르다 — 판별 값의 정본 = tests/unit-time.gate.js 머리말 «★왜» 줄. 여기 남긴 것은 ★v25.8.0 실측(261031 S6 2×2 · 양성 섰다) 하나뿐: 동기 몸엔 ★안 듦 · ★비동기는 든다.
  *   60s 넘는 «비동기» 0 ⇒ v25.8.0 에서 빨강 0 이 «전제». ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
- *   동기 몸의 느려짐은 이 상한이 아니라 tests/unit-time.gate.js(파일 시간 명부)가 잡는다. 덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
+ *   «동기 몸의 느려짐»은 이 상한에 맡기지 않고 tests/unit-time.gate.js(파일 시간 명부)가 잰다 — 판별 값의 정본 = tests/unit-time.gate.js 머리말 «★왜» 줄. 덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
 const rawT = process.env.GOYA_TEST_TIMEOUT_MS;
 /* ★303 ⑵ — 기본 상한 = 명부에서 끈다: 가장 느린 «파일 한 벌의 벽시계»(모듈 로드 포함) × (1+tol). ⛔여기 수를 손으로 박지 않는다(박아 두면 썩는다).
  *   상한은 «안 끝남» 을 잡고 «느림» 은 unit-time.gate.js 래칫이 잡는다. ⛔쪼개기(그 파일만 가르기)는 첫 처방이 아니다 — 모듈 로드가 조각마다 다시 든다.
