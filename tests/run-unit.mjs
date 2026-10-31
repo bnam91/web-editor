@@ -44,12 +44,28 @@ const junit = process.env.GOYA_TEST_JUNIT || path.join(mkTmpRoot('run-unit-'), '
 /* 변수가 없을 때도 취소 수를 읽으려 JUnit 을 임시 파일에 덧쓴다 · 화면 보고는 node 기본 꼴 그대로(TTY = spec · 아니면 tap · node 23+ = spec — ⒡ 가 맨 node --test 와 견준다). */
 const dflt = process.env.GOYA_TEST_JUNIT || process.stdout.isTTY || Number(process.versions.node.split('.')[0]) >= 23 ? 'spec' : 'tap';
 const rep = [`--test-reporter=${dflt}`, '--test-reporter-destination=stdout', '--test-reporter=junit', `--test-reporter-destination=${junit}`];
-/* ★196 ⑴(지디 판정 261028) — 비동기 시험 상한 60s. 근거(첫 전수 5c5b94f5 JUnit): 시험 하나 >60s 는 둘뿐이고 둘 다 «동기 몸»
+/* ★196 ⑴(지디 판정 261028 · 값은 ★303 ⑵ 가 아래 명부로 갈음) — 그때 비동기 시험 상한 60s. 근거(첫 전수 5c5b94f5 JUnit): 시험 하나 >60s 는 둘뿐이고 둘 다 «동기 몸»
  *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync). ★판별로 다르다 — 판별 값의 정본 = tests/unit-time.gate.js 머리말 «★왜» 줄. 여기 남긴 것은 ★v25.8.0 실측(261031 S6 2×2 · 양성 섰다) 하나뿐: 동기 몸엔 ★안 듦 · ★비동기는 든다.
  *   60s 넘는 «비동기» 0 ⇒ v25.8.0 에서 빨강 0 이 «전제». ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
  *   동기 몸의 느려짐은 이 상한이 아니라 tests/unit-time.gate.js(파일 시간 명부)가 잡는다. 덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
 const rawT = process.env.GOYA_TEST_TIMEOUT_MS;
-const tmo = rawT === undefined ? 60000 : Number(rawT);
+/* ★303 ⑵ — 기본 상한 = 명부에서 끈다: 가장 느린 «파일 한 벌의 벽시계»(모듈 로드 포함) × (1+tol). ⛔여기 수를 손으로 박지 않는다(박아 두면 썩는다).
+ *   상한은 «안 끝남» 을 잡고 «느림» 은 unit-time.gate.js 래칫이 잡는다. ⛔쪼개기(그 파일만 가르기)는 첫 처방이 아니다 — 모듈 로드가 조각마다 다시 든다.
+ *   명부를 못 읽으면 rc 3(못 잰다 ≠ 기본값으로 통과). */
+function capFromRoster() {
+  try {
+    const { files, tol } = JSON.parse(fs.readFileSync(new URL('./unit/UNIT_SLOW.json', import.meta.url), 'utf8'));
+    return Math.ceil(Math.max(...Object.values(files)) * (1 + tol));
+  } catch (e) {
+    process.stderr.write(`[run-unit] ⛔상한 명부(tests/unit/UNIT_SLOW.json)를 못 읽었다 — ${e.message}\n`);
+    process.exit(3);
+  }
+}
+const tmo = rawT === undefined ? capFromRoster() : Number(rawT);
+if (rawT === undefined && (!Number.isInteger(tmo) || tmo < 1)) {
+  process.stderr.write(`[run-unit] ⛔상한 명부(tests/unit/UNIT_SLOW.json)에서 낸 값이 양의 정수가 아니다 — ${tmo}\n`);
+  process.exit(3);
+}
 if (!Number.isInteger(tmo) || tmo < 1) {
   process.stderr.write(`[run-unit] GOYA_TEST_TIMEOUT_MS 는 양의 정수여야 한다 — 받은 값 ${JSON.stringify(rawT)}\n`);
   process.exit(2);

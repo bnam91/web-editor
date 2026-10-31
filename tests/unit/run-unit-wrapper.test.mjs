@@ -19,6 +19,7 @@
  *   ⒟ 패턴 0개 → rc 2   (변이 대조: argv 0 거름 줄을 지운 사본에서 빨강)
  *   ⒠ 빨간 임시 검사 «경로»를 argv 로 → rc ≠ 0   (⒜ 와 거의 같은 칸 · 변이 대조: `process.exit(0)` 사본에서 빨강)
  *   ⒡ 화면 보고 꼴 = 맨 node --test 와 같다(변수 없을 때) ⒢ 취소 한 쌍 — 낮은 상한 = 취소 N>0·이름·rc 1 / 높은 상한 = 취소 0·rc 0 ⒣ 자식이 rc 0 인데 취소 1 ⇒ rc 1 · JUnit 없음 ⇒ rc 3(사본에서 자식을 바꿔 잰다)
+ *   ⒤ 상한 = 명부 — 명부 수를 낮추면 그 시험이 취소 / 높으면 취소 0 / tol 이 여유로 든다 / 명부 깨짐 ⇒ rc 3(사본에 임시 명부)
  *   ⚠️Windows cmd 에서 package.json 따옴표가 어떻게 넘어가는지는 ★안 잰다(지금 줄과 같은 처지 · 새 위험 아님). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -128,7 +129,7 @@ test('⒟ 패턴 0개 → rc 2 ＋ stderr 한 줄 (래퍼 안에 기본 패턴�
   });
 });
 
-const SLOW = "import test from 'node:test';\ntest('느린', async () => { await new Promise((r) => setTimeout(r, 3000)); });\n";
+const SLOW = "import test from 'node:test';\ntest('느린', async () => { await new Promise((r) => setTimeout(r, 1200)); });\n";
 test('⒡ 변수 없을 때 화면 보고 꼴이 맨 node --test 와 같다', () => {
   withTmp({ 'g.test.mjs': GREEN }, (dir) => {
     const env = { ...process.env };
@@ -161,6 +162,7 @@ test('⒣ 자식 rc 0 이어도 취소 1 ⇒ rc 1 · JUnit 끝 줄 없음 ⇒ rc
     const go = () => {
       const env = { ...process.env };
       delete env.NODE_TEST_CONTEXT;
+      env.GOYA_TEST_TIMEOUT_MS = '1000';   // 이 칸은 상한 명부를 안 잰다(⒤ 가 잰다)
       return spawnSync(process.execPath, [copy, 'x'], { cwd: dir, env, encoding: 'utf8' });
     };
     fs.writeFileSync(path.join(dir, 'stub.cjs'), stub('<!-- cancelled 1 -->'));
@@ -171,5 +173,33 @@ test('⒣ 자식 rc 0 이어도 취소 1 ⇒ rc 1 · JUnit 끝 줄 없음 ⇒ rc
     assert.equal(go().status, 3);
     fs.writeFileSync(path.join(dir, 'stub.cjs'), stub('<!-- cancelled 0 -->'));
     assert.equal(go().status, 0);
+  });
+});
+test('⒤ ★상한 = 명부 — 낮추면 취소 · 높이면 취소 0 · tol 이 여유 · 깨지면 rc 3', () => {
+  const src = fs.readFileSync(WRAPPER, 'utf8').replace('./unit/_tmproot.js', fileURLToPath(new URL('./_tmproot.js', import.meta.url)).replaceAll('\\', '/'));
+  withTmp({ 'slow.test.mjs': SLOW }, (dir) => {
+    const copy = path.join(dir, 'tests', 'run-unit.mjs');
+    fs.writeFileSync(copy, src);
+    const go = (roster) => {
+      fs.writeFileSync(path.join(dir, 'tests', 'unit', 'UNIT_SLOW.json'), roster);
+      const env = { ...process.env };
+      delete env.NODE_TEST_CONTEXT;
+      delete env.GOYA_TEST_TIMEOUT_MS;
+      return spawnSync(process.execPath, [copy, 'tests/unit/slow.test.mjs'], { cwd: dir, env, encoding: 'utf8' });
+    };
+    const roster = (ms, tol) => JSON.stringify({ tol, files: { small: 1, 'tests/unit/slow.test.mjs': ms } });
+    const low = go(roster(300, 0));
+    assert.match(low.stdout, /\[run-unit\] 취소 1 · .*slow\.test\.mjs/, `명부를 낮췄는데 취소가 안 섰다\n${low.stdout}`);
+    assert.equal(low.status, 1);
+    const high = go(roster(30000, 0));
+    assert.match(high.stdout, /\[run-unit\] 취소 0\n/, high.stdout);
+    assert.equal(high.status, 0);
+    const tol = go(roster(300, 99));
+    assert.match(tol.stdout, /\[run-unit\] 취소 0\n/, `tol 이 여유로 안 들었다\n${tol.stdout}`);
+    for (const bad of ['깨짐', JSON.stringify({ tol: 1, files: {} })]) {
+      const b = go(bad);
+      assert.equal(b.status, 3, `명부 ${bad} 인데 rc ${b.status}\n${b.stderr}`);
+      assert.match(b.stderr, /상한 명부/);
+    }
   });
 });
