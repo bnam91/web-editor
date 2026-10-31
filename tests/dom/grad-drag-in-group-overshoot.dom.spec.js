@@ -265,7 +265,8 @@ test('P263c ⒜ 실제 mousedown target · 블럭 리스너 돎(_grdDown) — �
       window.__p263c.down = { target: (e.target.id || e.target.className || e.target.tagName).toString().slice(0, 40), inBlock: !!e.target.closest?.('.gradient-block') && e.target.closest('.gradient-block') === a,
         hitInBlock: !!hit && hit.closest('.gradient-block') === a, at: [e.clientX, e.clientY], st: document.getElementById('canvas-wrap')?.scrollTop ?? null };
     }, { capture: true, once: true });
-    window.addEventListener('mousemove', () => { if (window.__p263c.moves++ === 0) window.__p263c.grdAtMove = !!a._grdDown; }, true);
+    /* ★찍는 때 = mousedown «뒤» 첫 mousemove — pressProbe 가 누르기 전에 move 하므로 그 첫 move 는 늘 false 였다(㉮ · 5c5dc70b 표본: 끌기 먹음 · grdAtMove false) */
+    window.addEventListener('mousemove', () => { if (!window.__p263c.down) return; if (window.__p263c.moves++ === 0) window.__p263c.grdAtMove = !!a._grdDown; }, true);
   });
   const r = await pressProbe(page, s, { recenter: false });
   const c = await page.evaluate(() => ({ ...window.__p263c, grdDown: window.__p263c.grdAtMove === true }));
