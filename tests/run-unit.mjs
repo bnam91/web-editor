@@ -22,6 +22,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 const { mkTmpRoot } = createRequire(import.meta.url)('./unit/_tmproot.js');   // 치우기는 공용 자가 쥔다(tmproot-sole-owner)
 
 const raw = process.env.GOYA_TEST_CONCURRENCY;
@@ -70,7 +71,26 @@ if (!Number.isInteger(tmo) || tmo < 1) {
   process.stderr.write(`[run-unit] GOYA_TEST_TIMEOUT_MS 는 양의 정수여야 한다 — 받은 값 ${JSON.stringify(rawT)}\n`);
   process.exit(2);
 }
-const r = spawnSync(process.execPath, ['--test', `--test-concurrency=${n}`, `--test-timeout=${tmo}`, ...rep, ...patterns], { stdio: 'inherit' });
+/* ★314 CANON-GATE-ONLY-IN-FULL-RUN-MISSES-THE-CLOSER-01 — «정본 한 자리» 게이트는 레포를 훑어야 잰다 ⇒ 제 파일만 돌리면 안 깨어난다.
+ *   ⇒ 파일을 집어 부를 때(패턴에 * 없음) 명부 tests/unit/CANON_GATES.json 을 같이 돌린다. 전수(패턴에 *)엔 이미 든다 · 레포 뿌리 밖 cwd(사본·임시 나무)엔 안 얹는다.
+ *   명부를 못 읽거나 든 파일이 없으면 rc 3(못 잰다 ≠ 통과). ★평소 꼴 = node tests/run-unit.mjs <파일> 하나(⛔맨 node --test 금지 · 지디 261031). ⚠️자 한계: 맨 node --test <파일> 은 이 줄을 안 지난다 · 명부는 손으로 세웠다(분모 미확정 · 그 파일 note).
+ *   잠그는 자리: tests/unit/canon-gates-wake.test.mjs */
+function canonGates() {
+  const repo = fs.realpathSync(fileURLToPath(new URL('..', import.meta.url)));
+  if (patterns.some((x) => x.includes('*')) || fs.realpathSync(process.cwd()) !== repo) return [];
+  try {
+    const { gates } = JSON.parse(fs.readFileSync(new URL('./unit/CANON_GATES.json', import.meta.url), 'utf8'));
+    for (const g of gates) fs.accessSync(path.join(repo, g));
+    const named = new Set(patterns.map((x) => path.relative(repo, path.resolve(x))));
+    return gates.filter((g) => !named.has(g));
+  } catch (e) {
+    process.stderr.write(`[run-unit] ⛔정본 게이트 명부(tests/unit/CANON_GATES.json)를 못 읽었다 — ${e.message}\n`);
+    process.exit(3);
+  }
+}
+const gates = canonGates();
+if (gates.length) process.stdout.write(`[run-unit] 정본 게이트 ${gates.length} 벌을 같이 돈다 (tests/unit/CANON_GATES.json)\n`);
+const r = spawnSync(process.execPath, ['--test', `--test-concurrency=${n}`, `--test-timeout=${tmo}`, ...rep, ...patterns, ...gates], { stdio: 'inherit' });
 let xml = '';
 try { xml = fs.readFileSync(junit, 'utf8'); } catch { /* 없음 = 못 잼 — 아래에서 가른다 */ }
 const c = /<!-- cancelled (\d+) -->/.exec(xml);

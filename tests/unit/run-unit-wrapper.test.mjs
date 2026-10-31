@@ -182,6 +182,7 @@ test('⒤ ★상한 = 명부 — 낮추면 취소 · 높이면 취소 0 · tol �
   withTmp({ 'slow.test.mjs': SLOW }, (dir) => {
     const copy = path.join(dir, 'tests', 'run-unit.mjs');
     fs.writeFileSync(copy, src);
+    fs.writeFileSync(path.join(dir, 'tests', 'unit', 'CANON_GATES.json'), '{"gates":[]}');   // 사본 뿌리엔 게이트가 없다(314 · 명부 없으면 rc 3)
     const go = (roster) => {
       fs.writeFileSync(path.join(dir, 'tests', 'unit', 'UNIT_SLOW.json'), roster);
       const env = { ...process.env };
