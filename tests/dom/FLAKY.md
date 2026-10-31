@@ -345,12 +345,15 @@
   위 «2026-10-13 · 코인 스티커(1012t1I1)» 절은 이 파일 이름을 적지 않는다(그 절의 셋 = bubble-line-plus · cmp-cell-rclick · tpl-pagepad-e81) ⇒ 그 절과 어긋나지는 않는다.
   ⇒ 흔들림도 늘 빨강도 수가 없다 = ⬜ **안 잰 것.** 올리지도 «늘 빨강»으로 닫지도 않는다 — 재는 이가 ×5 를 대면 그때 이 절이나 명부로.
 
-## 2026-10-31 · 212 런에서 흔들린 이름 둘 (이름 ＋ 수만 · ⛔까닭 안 붙임 · ×N 별도 · imac-gd-L1)
+## 2026-10-31 · 212 런에서 흔들린 이름 셋 (이름 ＋ 수 ＋ 분모 · ⛔까닭 안 붙임 · ×N 별도 · imac-gd-L1)
+
+분모 = 그 판에서 그 spec 을 실은 playwright 호출 수 · 아이맥 · w1 · retries 0.
 
 ```
-grid-cellpady.dom.spec.js:93 Y2      4 회 / 11 호출 (판 d163b6ce · 아이맥 · w1 · retries 0 · 4 spec 묶음 호출 · 안 심음 1 · 심음 2 · 갱신 둘 연달아의 첫째 1 · 평소 0)
-grid-cellpady.dom.spec.js:83 Y1-3행  1 회 / 같은 11 호출 (평소)
-같은 파일 앞 기록: :83 Y1-2행 1 회 / 3 호출(판 c3ed7da8 · 2026-10-29 평소)
+grid-cellpady.dom.spec.js:93 Y2         7/11 (판 6b239a24 · 5 spec 묶음) · 4/11 (판 d163b6ce · 4 spec 묶음)
+grid-cellpady.dom.spec.js:83 Y1-3행     1/11 (판 6b239a24) · 1/11 (판 d163b6ce)
+tpl-pagepad-e81.dom.spec.js:215 T6      1/11 (판 6b239a24) · 0/11 (판 d163b6ce)
+같은 파일 앞 기록: grid-cellpady:83 Y1-2행 1/3 (판 c3ed7da8 · 2026-10-29 평소)
 ⛔«머지 판이 초록이다» 로 읽지 마라 — 아직 세는 중이다
 ```
 
