@@ -96,9 +96,29 @@ async function syncClaudePmTitle(projectsDir, projectId, name) {
   }
 }
 
-let MCP_PORT = 9345; // EADDRINUSE fallback 시 main.js가 setActualMcpPort()로 갱신
+/* ★317 ㉠ 초기값은 «없음» — 시작이 실패해도 9345 가 남으면 뱃지가 안 붙은 주소를 보여 주고 ping 이 그 포트로 나간다.
+     성공했을 때만 채운다. (㉡ 은 «200 이어도 누구냐»를 본다 · 이 줄은 «잴 포트가 있나»를 본다 — 다른 칸이다)
+   ★창이 서버보다 먼저 뜬다(createWindow → startMcpServer) ⇒ 「아직」과 「실패」를 _mcpOutcome 으로 가른다. */
+let MCP_PORT = null;
+const MCP_DEFAULT_PORT = 9345; // .mcp.json 에 적을 자리 전용 — «지금 붙었다»는 뜻이 아니다
+const MCP_OUTCOME_WAIT_MS = 10000;
+let _mcpFailure = null;
+let _mcpSettle;
+const _mcpOutcome = new Promise((resolve) => { _mcpSettle = resolve; });
 function setActualMcpPort(p) {
-  if (typeof p === 'number' && p > 0) MCP_PORT = p;
+  if (typeof p === 'number' && p > 0) { MCP_PORT = p; _mcpFailure = null; _mcpSettle(); }
+}
+// startMcpServer 뒤 배선이 던져도 서버는 듣는 중이다 — 포트가 있으면 실패로 안 적는다
+function setMcpStartFailed(reason) {
+  if (MCP_PORT != null) return;
+  _mcpFailure = String(reason || '알 수 없는 오류');
+  _mcpSettle();
+}
+function _mcpNoServer() {
+  return { failed: _mcpFailure != null, error: _mcpFailure || 'MCP 서버 시작 전' };
+}
+function _mcpConfigUrl() {
+  return `http://localhost:${MCP_PORT == null ? MCP_DEFAULT_PORT : MCP_PORT}`;
 }
 function _mcpHealthUrl() {
   return `http://localhost:${MCP_PORT}/health`;
@@ -106,7 +126,7 @@ function _mcpHealthUrl() {
 // renderer 표시용 MCP 엔드포인트 — 목표 문구가 127.0.0.1 표기를 명시.
 // health는 localhost지만 동일 루프백이라 기능 무관.
 function _mcpUrl() {
-  return `http://127.0.0.1:${MCP_PORT}/mcp`;
+  return MCP_PORT == null ? null : `http://127.0.0.1:${MCP_PORT}/mcp`;
 }
 
 // ── 경로 헬퍼 ────────────────────────────────
@@ -240,7 +260,7 @@ async function handleCreateFolder(_e, { basePath, projectName, projectId } = {})
           mcpServers: {
             'goditor-pm': {
               type: 'http',
-              url: `http://localhost:${MCP_PORT}`,
+              url: _mcpConfigUrl(),
             },
           },
         };
@@ -386,7 +406,7 @@ function _repairFolder(folder, projectId, safeName) {
       repaired.push('NOTES.md');
     }
     if (!fs.existsSync(mcpP)) {
-      fs.writeFileSync(mcpP, JSON.stringify({ mcpServers: { 'goditor-pm': { type: 'http', url: `http://localhost:${MCP_PORT}` } } }, null, 2), 'utf8');
+      fs.writeFileSync(mcpP, JSON.stringify({ mcpServers: { 'goditor-pm': { type: 'http', url: _mcpConfigUrl() } } }, null, 2), 'utf8');
       repaired.push('.mcp.json');
     }
   } catch (_) {}
@@ -586,7 +606,7 @@ async function _generateNewPmFolder(folderPath, safePid, safeName, projectId, ex
     fs.writeFileSync(
       path.join(folderPath, '.mcp.json'),
       JSON.stringify({
-        mcpServers: { 'goditor-pm': { type: 'http', url: `http://localhost:${MCP_PORT}` } },
+        mcpServers: { 'goditor-pm': { type: 'http', url: _mcpConfigUrl() } },
       }, null, 2),
       'utf8'
     );
@@ -617,6 +637,7 @@ function _isOwnMcpHealth(body) {
 }
 
 async function handlePingMcp(_e) {
+  if (MCP_PORT == null) return { ok: true, connected: false, ..._mcpNoServer() };
   try {
     // Node 18+ global fetch (Electron 26+에 포함됨). 짧은 timeout.
     const ctl = new AbortController();
@@ -640,6 +661,8 @@ async function handlePingMcp(_e) {
 // Unit B-2 — 「환경설정 → 개발자」 탭이 한 번에 쓰도록 토큰 파일/브리지 경로도 같이 준다.
 //   ⛔토큰 «값»은 여기 안 넣는다 — 값은 app:mcp-token 한 곳에서만 나간다.
 async function handleGetMcpInfo() {
+  await Promise.race([_mcpOutcome, new Promise((r) => setTimeout(r, MCP_OUTCOME_WAIT_MS))]);
+  if (MCP_PORT == null) return { ok: false, port: null, url: null, ..._mcpNoServer() };
   let tokenFile = null, bridgePath = null, bridgeError = null;
   try {
     const m = require('./mcp-server');
@@ -675,6 +698,7 @@ function registerClaudePMIPC(ipcMain, isAllowed) {
 module.exports = {
   registerClaudePMIPC,
   setActualMcpPort,
+  setMcpStartFailed,
   setPmProjectsRoot,
   syncClaudePmTitle,
   // MCP create_project(main.js _createProjectImpl)가 갤러리와 동일하게 PM 폴더를 보장할 때 직접 호출.
@@ -688,5 +712,7 @@ module.exports = {
     _projectsRootPath,
     get MCP_PORT() { return MCP_PORT; },
     handlePingMcp,
+    handleGetMcpInfo,
+    _mcpConfigUrl,
   },
 };
