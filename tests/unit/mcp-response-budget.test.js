@@ -7,7 +7,7 @@
  * ⑴ 금지 문자열 `base64,` 가 응답에 «0건»                     ← 새는 경로가 생기면 즉시 빨강
  * ⑵ 크기 예산(바이트)                                          ← 기준선은 «커밋과 같이» 적는다
  * ⑶ 자동 summary 폴백이 살아 있다(큰 페이지가 통째로 안 나온다)
- * ⑷ ★«거절» 경로도 잰다(F4-8) — 아래 「두 경로」 참고
+ * ⑷ ★칸마다 «어느 경로인가»(r.result.ok)를 먼저 세운다 — 성공은 BUDGET · 거절은 REFUSAL_BUDGET 으로만(F4-6r · F4-8) — 아래 「두 경로」 참고
  *
  * ── ★왜 «두 경로»를 따로 재나 (2026-09-07, 프로젝트 게이트 caf8045 병합 뒤) ──
  *   게이트가 들어오면서 쓰기 도구 71개가 「대상 확정 전」엔 «거절 페이로드»를 돌려준다.
@@ -16,7 +16,7 @@
  *      안 잡히고, 빡빡하게 잡으면 «설계대로 동작하는» 거절이 빨강이 된다.
  *   ⇒ 예산을 «둘로» 나눈다. 그리고 ★거절 경로에도 base64 금지를 건다 —
  *      put_image 의 거절문이 인자로 받은 dataURL 을 되읊으면 그게 제일 큰 유출구다.
- *      (F4-7 은 «성공» 경로만 훑는다 — 그 구멍을 F4-8 이 막는다.)
+ *      (F4-7 은 계약 케이스 인자로 확정을 깨기 «전에» 훑는다 — 거절 경로는 F4-6r · F4-8 이 막는다.)
  *
  * ★검사가 «자극 있는» 검사인 근거: F6 픽스처는 사진 3장 중 2장이 «인라인 dataURL» 이다
  *   (small-b 3,400B · big 400,000B). DOM 쪽엔 base64 가 실제로 «있는데» 응답엔 0건이어야 참이다.
@@ -29,8 +29,8 @@
  *     read_section(sec_fixt_1)        818 B
  *     read_project(기본=목차)         442 B   ← 프로젝트 원본엔 base64 20,000자가 있다
  *     update_block                     11 B   ← ★«성공» 경로
- *     put_image                        78 B   ← 입력 dataURL 50,022자, «성공» 경로
- *   ★거절 경로는 «따로» 잰다(F4-8) — 게이트 도구 70개, 709~867 B @ caf8045
+ *     put_image                        78 B   ← ⚠️그때 값 · 그 입력(dataURL 50,022자)은 지금 IMAGE_INVALID 거절 397 B @8dd83281 ⇒ 성공은 참 PNG(F4-6s) · 거절은 F4-6r
+ *   ★거절 경로는 «따로» 잰다(F4-6r 입력 검증 · F4-8 게이트) — 게이트 도구 70개, 709~867 B @ caf8045
  *     (확정이 «깨진» 거절은 previouslyConfirmed/note 가 더 붙어 조금 더 길다)
  *   상한은 기준선의 «2배 + 여유»로 둔다 — 조금씩 붓는 것을 잡되 사소한 문구 변경엔 안 터진다.
  */
@@ -76,6 +76,7 @@ test('F4-0 픽스처에 base64 가 «실제로» 있다 (자극 없는 초록 �
 
 test('F4-1 get_canvas_state(blocks) — base64 0건 + 예산 안 + ★블록이 «하나도» 안 빠진다', async () => {
   const r = await H.call('get_canvas_state', {});
+  assert.strictEqual(r.result && r.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + r.rawText);
   assertNoBase64('get_canvas_state', r.rawText);
   assert.ok(r.bytes <= BUDGET.get_canvas_state_blocks,
     `${r.bytes}B > 예산 ${BUDGET.get_canvas_state_blocks}B — 응답이 부었다`);
@@ -96,6 +97,8 @@ test('F4-1 get_canvas_state(blocks) — base64 0건 + 예산 안 + ★블록이 
 test('F4-2 get_canvas_state(summary) 는 «더 싸다»', async () => {
   const s = await H.call('get_canvas_state', { detail: 'summary' });
   const b = await H.call('get_canvas_state', {});
+  assert.strictEqual(s.result && s.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + s.rawText);
+  assert.strictEqual(b.result && b.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + b.rawText);
   assertNoBase64('get_canvas_state(summary)', s.rawText);
   assert.ok(s.bytes < b.bytes, `summary(${s.bytes}B) 가 blocks(${b.bytes}B) 보다 안 싸다 — 폴백의 뜻이 없다`);
   assert.ok(s.bytes <= BUDGET.get_canvas_state_summary, `${s.bytes}B > 예산 ${BUDGET.get_canvas_state_summary}B`);
@@ -132,27 +135,34 @@ test('F4-5 read_project 기본은 «목차»다 — 캔버스 원문(그리고 b
   H.seedProject('proj_1', { id: 'proj_1', name: 'fixture',
     pages: [{ id: 'pg_1', name: 'p1', canvas: `<div id="canvas"><img src="${dataUrl}"></div>` }] });
   const r = await H.call('read_project', {});
+  assert.strictEqual(r.result && r.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + r.rawText);
   assertNoBase64('read_project', r.rawText);
   assert.strictEqual(r.result.truncated, true, '기본이 «목차»가 아니다 — 캔버스 원문이 나간다');
   assert.ok(r.bytes <= BUDGET.read_project, `${r.bytes}B > 예산 ${BUDGET.read_project}B`);
   console.error(`  [실측] read_project ${r.bytes}B (프로젝트 원본엔 base64 20,000자가 있다)`);
 });
 
-test('F4-6 update_block · put_image 응답이 작고 base64 를 안 되돌린다', async () => {
+test('F4-6 update_block «성공» 응답이 작고 base64 를 안 되돌린다', async () => {
   const u = await H.call('update_block', { blockId: 'tb_fx_h1', props: { text: '새 제목' } });
+  assert.strictEqual(u.result && u.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + u.rawText);
   assertNoBase64('update_block', u.rawText);
   assert.ok(u.bytes <= BUDGET.update_block, `update_block ${u.bytes}B > ${BUDGET.update_block}B`);
-
-  /* ★put_image 는 «인자로» dataURL 을 받는 도구다 — 되돌려 주기 제일 쉬운 자리다. */
-  const img = 'data:image/png;base64,' + 'B'.repeat(50000);
-  const p = await H.call('put_image', { image: img });
-  assertNoBase64('put_image', p.rawText);
-  assert.ok(p.bytes <= BUDGET.put_image, `put_image ${p.bytes}B > ${BUDGET.put_image}B — 인자를 되돌려 주고 있다`);
-  console.error(`  [실측] update_block ${u.bytes}B · put_image ${p.bytes}B (입력 dataURL 은 50,022자)`);
+  console.error(`  [실측] update_block ${u.bytes}B`);
 });
 
-test('F4-6s ★put_image «성공» 경로 예산 — 계약 케이스의 참 PNG 로 잰다(F4-6 의 입력은 거절된다)', async () => {
-  /* ★299: F4-6 의 'B'×50000 은 PNG 가 아니라 IMAGE_INVALID 로 거절된다 — 그 응답(397 B)은 성공 경로가 아니다.
+test('F4-6r ★put_image «거절» 경로 — 입력 검증 거절도 거절 예산 안이고 dataURL 을 되읊지 않는다', async () => {
+  /* ★put_image 는 «인자로» dataURL 을 받는 도구다 — 되돌려 주기 제일 쉬운 자리다.
+     'B'×50000 은 PNG 가 아니라 IMAGE_INVALID 로 거절된다(308). F4-8 은 게이트 거절이고 계약 케이스 인자라 이 자극이 없다. */
+  const img = 'data:image/png;base64,' + 'B'.repeat(50000);
+  const p = await H.call('put_image', { image: img });
+  assert.strictEqual(p.result && p.result.ok, false, '★전제: 거절 경로에 안 닿았다 — ' + p.rawText);
+  assertNoBase64('put_image(거절)', p.rawText);
+  assert.ok(p.bytes <= REFUSAL_BUDGET, `put_image 거절 ${p.bytes}B > 거절 예산 ${REFUSAL_BUDGET}B — 거절문이 길어졌다(인자 되읊음은 위 base64 단언이 따로 잰다)`);
+  console.error(`  [실측] put_image 거절 ${p.bytes}B (입력 dataURL 은 50,022자)`);
+});
+
+test('F4-6s ★put_image «성공» 경로 예산 — 계약 케이스의 참 PNG 로 잰다(F4-6r 의 입력은 거절된다)', async () => {
+  /* ★299: F4-6r 의 'B'×50000 은 PNG 가 아니라 IMAGE_INVALID 로 거절된다 — 그 응답(397 B)은 성공 경로가 아니다.
      기준선 @refs/gd/DEVPIN-261031-1225: 참 PNG 196 B(하네스라 sectionId·blockId 가 null). 거절 예산(REFUSAL_BUDGET)과 다른 자다. */
   const { CASES } = require('../contract/mcp-cases');
   const p = await H.call('put_image', CASES.put_image.args);
