@@ -606,6 +606,16 @@ async function handleSetActiveProject(_e, { projectId } = {}) {
   }
 }
 
+/* ★317 — 200 은 «누가 듣고 있다» 일 뿐 «내 서버다» 가 아니다. 신원을 본다: name 이 내 서버 이름이고,
+   내 토큰 파일이 있으면 /health 의 tokenFile 도 그것이어야 한다(같은 앱의 다른 인스턴스는 경로가 다르다). */
+function _isOwnMcpHealth(body) {
+  if (!body || typeof body !== 'object') return false;
+  const m = require('./mcp-server');
+  if (body.name !== m.SERVER_NAME) return false;
+  const mine = m.getTokenFilePath && m.getTokenFilePath();
+  return !mine || body.tokenFile === mine;
+}
+
 async function handlePingMcp(_e) {
   try {
     // Node 18+ global fetch (Electron 26+에 포함됨). 짧은 timeout.
@@ -613,8 +623,9 @@ async function handlePingMcp(_e) {
     const t = setTimeout(() => ctl.abort(), 1500);
     try {
       const r = await fetch(_mcpHealthUrl(), { signal: ctl.signal });
+      const body = r.ok ? await r.json().catch(() => null) : null;
       clearTimeout(t);
-      return { ok: true, connected: r.ok, status: r.status };
+      return { ok: true, connected: r.ok && _isOwnMcpHealth(body), status: r.status };
     } catch (e) {
       clearTimeout(t);
       return { ok: true, connected: false, error: e.message };
@@ -676,5 +687,6 @@ module.exports = {
        IPC 경유로는 못 닿아서(핸들러가 오류를 감싼다) 검사가 장식이 된다. */
     _projectsRootPath,
     get MCP_PORT() { return MCP_PORT; },
+    handlePingMcp,
   },
 };
