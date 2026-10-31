@@ -77,24 +77,33 @@ async function buildTree(page, r) {
 }
 /* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
 async function select(page, id, depth, { enter = false } = {}) {
-  await page.keyboard.press('Escape');
-  await page.evaluate(() => { window.deselectAll?.(); window._activeFrame = null; window._enteredFrame = null; document.activeElement?.blur?.(); });
-  const q = await page.evaluate((id) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id); if (!o) return { ok: false }; o.scrollIntoView({ block: 'center' }); const r = o.getBoundingClientRect();
-    const others = [...document.querySelectorAll('#canvas ' + FR + ', #canvas .text-block')].filter((f) => f !== o && !f.contains(o)).map((f) => f.getBoundingClientRect());
-    const inR = (x, y, b) => x > b.left && x < b.right && y > b.top && y < b.bottom;
-    for (const [x, y] of [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]])
-      if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
-    return { ok: false }; }, id);
-  if (!q.ok) return { sel: false, why: '집을 점 없음' };
-  if (depth === 0) await page.mouse.click(q.x, q.y);
-  else if (depth === 1) await page.mouse.dblclick(q.x, q.y);
-  else {
-    for (let i = 0; i < depth - 1; i++) { await page.mouse.dblclick(q.x, q.y); await page.waitForFunction(() => !!document.querySelector('#canvas .frame-block.selected'), null, { timeout: 2000 }).catch(() => {}); }
-    if (enter) await page.mouse.dblclick(q.x, q.y); else await page.mouse.click(q.x, q.y);
-    if (enter) await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && window._enteredFrame?.id === id, id, { timeout: 2000 }).catch(() => {});
+  let last = { sel: false, why: '안 함' };
+  for (let tries = 1; tries <= 3; tries++) {   // 고르기 흔들림은 판정 밖 전제다 — 조건을 재서 다시(t902 C3 도 같은 흔들림) · 시도 수는 기록에 남는다
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => { window.deselectAll?.(); window._activeFrame = null; window._enteredFrame = null; document.activeElement?.blur?.(); });
+    await page.evaluate((id) => document.getElementById(id)?.scrollIntoView({ block: 'center' }), id);
+    await settle(page);
+    const q = await page.evaluate((id) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id); if (!o) return { ok: false }; const r = o.getBoundingClientRect();
+      const others = [...document.querySelectorAll('#canvas ' + FR + ', #canvas .text-block, #canvas .gap-block')].filter((f) => f !== o && !f.contains(o)).map((f) => f.getBoundingClientRect());
+      const inR = (x, y, b) => x > b.left && x < b.right && y > b.top && y < b.bottom;
+      for (const [x, y] of [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]])
+        if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
+      return { ok: false }; }, id);
+    if (!q.ok) return { sel: false, why: '집을 점 없음', tries };
+    if (depth === 0) await page.mouse.click(q.x, q.y);
+    else if (depth === 1) await page.mouse.dblclick(q.x, q.y);
+    else {
+      for (let i = 0; i < depth - 1; i++) { await page.mouse.dblclick(q.x, q.y); await page.waitForFunction(() => !!document.querySelector('#canvas .frame-block.selected'), null, { timeout: 2000 }).catch(() => {}); }
+      if (enter) await page.mouse.dblclick(q.x, q.y); else await page.mouse.click(q.x, q.y);
+      if (enter) await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && window._enteredFrame?.id === id, id, { timeout: 2000 }).catch(() => {});
+    }
+    await settle(page);
+    last = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
+    last.tries = tries;
+    if (last.sel && (!enter || last.entered === id)) return last;
+    if (last.selected?.length && !last.sel) last.why = '다른 것이 골라짐';
   }
-  await settle(page);
-  return page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
+  return last;
 }
 const depthOf = (st, id) => { let d = 0; for (let p = st.frames[id]?.parent; p; p = st.frames[p]?.parent) d++; return d; };
 const live = (page) => page.evaluate(() => window.__live());
@@ -144,7 +153,7 @@ async function runSeed(page, seed, { maxOps = LIM.ops } = {}) {
     }
     if (kind === 'dup') {
       await page.keyboard.press('Meta+d'); await settle(page);
-      if (INJECT === 'd') await page.evaluate((id) => { const fs = [...window.__secEl().querySelectorAll('.text-block')]; const t = fs[fs.length - 1]; if (t) (t.querySelector('.tb-body') || t).textContent = 'INJECT'; }, tgt);
+      if (INJECT === 'd') await page.evaluate((old) => { const fresh = [...window.__secEl().querySelectorAll('.text-block')].find((t) => !old.includes(t.id)); if (fresh) (fresh.querySelector('.tb-body') || fresh).textContent = 'INJECT'; }, Object.keys(cur.texts));
       const st = await live(page); const fresh = Object.keys(st.frames).filter((k) => !cur.frames[k]);
       const sub = subtree(cur, tgt);
       rec.fresh = fresh.length; rec.expect = sub.length;
@@ -204,7 +213,7 @@ async function runSeed(page, seed, { maxOps = LIM.ops } = {}) {
     if (INJECT) {
       const bad = await page.evaluate((k) => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const fs = [...sec.querySelectorAll(FR)];
         const f = fs[fs.length - 1]; if (!f) return false;
-        if (k === 'a' && fs.length > 1) { const row = fs[0].parentElement; (f.parentElement === row ? sec.querySelector('.section-inner') : row).appendChild(f); return true; }
+        if (k === 'a' && fs.length > 1) { const inner = fs.find((x) => x.parentElement.closest(FR)); if (inner) sec.querySelector('.section-inner').appendChild(inner); else fs[0].appendChild(fs[1]); return true; }
         if (k === 'b') { const c = f.cloneNode(false); c.id = f.id; const kid = document.createElement('div'); kid.className = 'frame-block'; kid.id = f.id; f.appendChild(kid); return true; }
         if (k === 'c') { f.remove(); return true; }
         if (k === 'f') { window.__origSer = window.__origSer || window.getSerializedCanvas; window.getSerializedCanvas = () => window.__origSer().replace(/data-width="[^"]*"/, 'data-width="999"').replace('T0', 'TX'); return true; }
