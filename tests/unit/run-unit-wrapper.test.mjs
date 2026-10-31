@@ -130,6 +130,8 @@ test('⒟ 패턴 0개 → rc 2 ＋ stderr 한 줄 (래퍼 안에 기본 패턴�
 });
 
 const SLOW = "import test from 'node:test';\ntest('느린', async () => { await new Promise((r) => setTimeout(r, 1200)); });\n";
+/* ★취소 이름은 판마다 다르다(261031 실측 · ⛔한 판만 보는 꼴로 두지 마라): v22.22.3 = 파일째 취소 ⇒ JUnit name = 파일 경로 / v24.10.0·v24.11.1 = 시험째 취소 ⇒ name = 시험 제목 */
+const CANCEL_NAME = /\[run-unit\] 취소 1 · (tests\/unit\/slow\.test\.mjs|느린)\n/;
 test('⒡ 변수 없을 때 화면 보고 꼴이 맨 node --test 와 같다', () => {
   withTmp({ 'g.test.mjs': GREEN }, (dir) => {
     const env = { ...process.env };
@@ -143,7 +145,7 @@ test('⒢ 취소 한 쌍 — 양성(낮은 상한) 취소 N>0·이름·rc 1 / �
   withTmp({ 'slow.test.mjs': SLOW }, (dir) => {
     const args = ['tests/unit/slow.test.mjs'];
     const pos = runWrapper(dir, { args, extraEnv: { GOYA_TEST_TIMEOUT_MS: '500' } });
-    assert.match(pos.out, /\[run-unit\] 취소 [1-9]\d* · .*slow\.test\.mjs/, `취소·이름이 안 찍혔다\n${pos.out}`);
+    assert.match(pos.out, CANCEL_NAME, `취소·이름이 안 찍혔다\n${pos.out}`);
     assert.equal(pos.rc, 1);
     const neg = runWrapper(dir, { args, extraEnv: { GOYA_TEST_TIMEOUT_MS: '30000' } });
     assert.match(neg.out, /\[run-unit\] 취소 0\n/, `취소 0 이 안 찍혔다\n${neg.out}`);
@@ -189,7 +191,7 @@ test('⒤ ★상한 = 명부 — 낮추면 취소 · 높이면 취소 0 · tol �
     };
     const roster = (ms, tol) => JSON.stringify({ tol, files: { small: 1, 'tests/unit/slow.test.mjs': ms } });
     const low = go(roster(300, 0));
-    assert.match(low.stdout, /\[run-unit\] 취소 1 · .*slow\.test\.mjs/, `명부를 낮췄는데 취소가 안 섰다\n${low.stdout}`);
+    assert.match(low.stdout, CANCEL_NAME, `명부를 낮췄는데 취소가 안 섰다\n${low.stdout}`);
     assert.equal(low.status, 1);
     const high = go(roster(30000, 0));
     assert.match(high.stdout, /\[run-unit\] 취소 0\n/, high.stdout);
