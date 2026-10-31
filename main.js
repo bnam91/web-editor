@@ -186,7 +186,7 @@ const { fillSectionTexts: geminiFill, ocrImage: geminiOcr } = require('./service
 const { fillSectionTexts: openaiFill, ocrImage: openaiOcr } = require('./services/openaiService');
 const { fillSectionTexts: anthropicFill, ocrImage: anthropicOcr } = require('./services/anthropicService');
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
-const { registerClaudePMIPC, setActualMcpPort, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
+const { registerClaudePMIPC, setActualMcpPort, setMcpStartFailed, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
 const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, setProjectsRoot: setMcpProjectsRoot, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
@@ -4747,6 +4747,7 @@ app.whenReady().then(async () => {
     }
   } catch (e) {
     console.warn('[claudePM MCP] start failed:', e.message);
+    setMcpStartFailed(e.message);
   }
 });
 

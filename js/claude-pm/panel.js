@@ -273,10 +273,11 @@
       dot.classList.toggle('connected', connected);
       dot.classList.toggle('disconnected', !connected);
     }
-    if (txt) txt.textContent = connected ? 'MCP 연결됨' : 'MCP 연결 안 됨';
+    const failure = window._claudePMState.mcpFailure;
+    if (txt) txt.textContent = connected ? 'MCP 연결됨' : (failure ? 'MCP 서버 시작 실패' : 'MCP 연결 안 됨');
     if (hint) hint.textContent = connected
       ? 'Claude Code가 이 프로젝트를 인식 중입니다.'
-      : 'Claude Code에서 .mcp.json을 추가하면 연결됩니다.';
+      : (failure ? `앱을 다시 켜 보세요 — ${failure}` : 'Claude Code에서 .mcp.json을 추가하면 연결됩니다.');
     // ensure 성공으로 PM 폴더가 이미 자동 생성된 프로젝트에선 "만들기" 버튼 숨김.
     // 판단: claudePM:folderMap[activeProjectId]에 경로가 기록되어 있으면 ensure 성공한 것.
     const createBtn = _panelEl.querySelector('[data-cpm-action="create-folder"]');
@@ -301,8 +302,10 @@
     try {
       const res = await window.electronAPI?.pingClaudePM?.();
       const connected = !!(res && res.ok && res.connected);
-      if (window._claudePMState.mcpConnected !== connected) {
+      const failure = res && res.failed ? res.error : null;   // ★317 시작 실패 사유
+      if (window._claudePMState.mcpConnected !== connected || window._claudePMState.mcpFailure !== failure) {
         window._claudePMState.mcpConnected = connected;
+        window._claudePMState.mcpFailure = failure;
         _refreshClaudePMStatus();
       }
     } catch (_) {
