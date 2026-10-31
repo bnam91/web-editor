@@ -12,9 +12,9 @@
  *
  * ⛔포트 규약: 테스트 서버는 9345~9365 «밖»이어야 한다. 그 대역은 고디터 앱/클로드앱 커넥터가
  *   스캔하는 대역이라, 안에서 띄우면 «현빈의 클로드앱이 우리 테스트 서버에 붙는다».
- *   기본 [9370,9395] 에서 고르고, 모듈의 EADDRINUSE 폴백(+20)까지 계산해도 ≤9415 로 대역 밖이다.
+ *   기본 [9370,9395] 에서 고르고, 모듈의 EADDRINUSE 폴백(+21 · 261031 실측)까지 계산해도 ≤9416 으로 대역 밖이다.
  *   ★그 대역 안에도 남의 자리가 있다 — tests/e2e/run-app.sh OWN_FORBID 를 읽어 거른다(301 · test-port-forbid.test.js 가 잰다).
- *   그래도 «믿지 않고» 기동 뒤 실제 포트를 assertOutsideBand() 로 다시 잰다.
+ *   그래도 «믿지 않고» 기동 뒤 실제 포트를 assertOutsideBand() 로 다시 잰다 — 걸리면 서버를 닫고 던진다(_acceptPortOrStop · 그 자리는 알리는 겹이지 막는 겹이 아니다).
  *
  * ⚠️ mcp-server.js 는 모듈 싱글턴(server/tools/_callChain 이 모듈 변수)이다.
  *   node --test 는 파일마다 프로세스를 나누므로 «테스트 파일 하나당 하네스 하나»가 원칙이다.
@@ -46,6 +46,13 @@ function assertOutsideBand(port) {
   }
   if (OWN_FORBID.has(port)) throw new Error(`[mcp-harness] 테스트 서버가 OWN_FORBID(tests/e2e/run-app.sh)의 포트 ${port} 를 잡았다. 중단한다.`);
   return port;
+}
+
+/** 기동 결과를 받는다 — 금지 포트에 앉았으면 ★닫고 던진다(던지기만 하면 남의 포트를 문 채 빨강이 된다 · 301 imac-gd-L2 실측).
+ *   alreadyRunning 은 내가 띄운 서버가 아니라 안 닫는다(싱글턴 — 닫으면 첫 번째 하네스가 죽는다). */
+async function _acceptPortOrStop(started, stopFn) {
+  try { return assertOutsideBand(started.port); }
+  catch (e) { if (!started.alreadyRunning) await stopFn(); throw e; }
 }
 
 /* ★«비어 있는» 포트를 먼저 찾는다 — 남의 세션이 이 대역에 앉아 있다.
@@ -238,7 +245,7 @@ async function startHarness(opts = {}) {
   const base = opts.basePort || await _freePortIn(BASE_LO, BASE_HI);
   if ((base >= FORBIDDEN_LO && base <= FORBIDDEN_HI) || OWN_FORBID.has(base)) throw new Error(`[mcp-harness] basePort ${base} 가 금지 대역이다.`);
   const started = await mod.startMcpServer({ port: base, onActiveProject: () => activeProjectOf() });
-  const port = assertOutsideBand(started.port);
+  const port = await _acceptPortOrStop(started, () => mod.stopMcpServer());
   const token = mod.getToken();
 
   const post = (body, { token: tk = token, headers } = {}) => new Promise((res, rej) => {
@@ -325,4 +332,4 @@ async function startHarness(opts = {}) {
 
 const stubRef = { current: null };
 
-module.exports = { startHarness, assertOutsideBand, FORBIDDEN_LO, FORBIDDEN_HI, OWN_FORBID, defaultCanned, _freePortIn };
+module.exports = { startHarness, assertOutsideBand, FORBIDDEN_LO, FORBIDDEN_HI, OWN_FORBID, defaultCanned, _freePortIn, _acceptPortOrStop };

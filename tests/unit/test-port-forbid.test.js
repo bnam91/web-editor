@@ -2,13 +2,14 @@
  *   ★병: 유닛이 9390·9392·9411 을 박아 잡았다 — 전부 tests/e2e/run-app.sh OWN_FORBID 에 있는 남의 자리다.
  *     주석은 「9345~9365 밖」만 말했다(명부가 둘이었다) · 하네스 고르는 대역 [9370,9395] 도 그 명부와 겹쳤다.
  *   ★처방: 명부는 OWN_FORBID 한 벌(_mcp-harness.js 가 읽는다) · 검사가 잡는 포트를 그 명부에 대어 겹치면 빨강.
- *   한 쌍: G1 = 지금 레포 겹침 0 / G2 = 같은 자에 박은 줄을 주면 잡는다. */
+ *   한 쌍: G1 = 지금 레포 겹침 0 / G2 = 같은 자에 박은 줄을 주면 잡는다.
+ *   ★G4 = 금지 포트에 앉으면 닫고 던진다(거절만 하면 점유가 남는다 · 301 imac-gd-L2). */
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { OWN_FORBID, assertOutsideBand, _freePortIn } = require('./_mcp-harness.js');
+const { OWN_FORBID, assertOutsideBand, _freePortIn, _acceptPortOrStop } = require('./_mcp-harness.js');
 
 // shortcut: 숫자를 그 자리에 박은 꼴만 본다(상수를 거쳐 listen 하면 못 잡는다) · 그 꼴이 나오면 정규식을 넓혀라
 const GRAB = /(?:startMcpServer\(\{\s*port:\s*|\bbasePort:\s*|\bPORT\s*=\s*|\?\?\s*|\.listen\()(\d{4,5})\b/g;
@@ -40,4 +41,13 @@ test('G3 ★하네스가 명부를 거른다 — 고르지도 · 받아 주지�
   assert.throws(() => assertOutsideBand(9390), /OWN_FORBID/);
   assert.equal(assertOutsideBand(9412), 9412);
   assert.ok(!OWN_FORBID.has(await _freePortIn()));
+});
+test('G4 ★금지 포트에 앉으면 닫고 던진다 · 내 서버가 아니면 안 닫는다', async () => {
+  let stops = 0; const stop = async () => { stops++; };
+  await assert.rejects(_acceptPortOrStop({ port: 9390 }, stop), /OWN_FORBID/);
+  assert.equal(stops, 1, '던지기 전에 안 닫았다 — 남의 포트를 문 채 빨강이 된다');
+  await assert.rejects(_acceptPortOrStop({ port: 9390, alreadyRunning: true }, stop), /OWN_FORBID/);
+  assert.equal(stops, 1, 'alreadyRunning 을 닫았다 — 첫 번째 하네스가 죽는다');
+  assert.equal(await _acceptPortOrStop({ port: 9412 }, stop), 9412);
+  assert.equal(stops, 1, '밖 포트인데 닫았다');
 });
