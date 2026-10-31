@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const { ROOT, waitStableRect } = require('./_root-harness.js');
+const { ROOT, waitStableRect, SETTLE_MIN_MS, SETTLE_ROOM_SHARE } = require('./_root-harness.js');
 
 test.describe.configure({ retries: 0 });
 const ORIGIN = 'http://goditor.dom.test';
@@ -56,8 +56,6 @@ async function pollTrue(page, fn, arg, timeout = 6000) {
      마감 = 이 시험에 남은 시간(test.info().timeout − 지난 시간) × SETTLE_ROOM_SHARE(역산 · T_MS 가 바뀌면 따라온다).
      줄 시간이 SETTLE_MIN_MS 보다 적으면 재지 않고 이름으로 던진다 · 이 시험에서 잰 «가장 느린 정착» 이 남은 몫보다 크면 그 «앞»에서 던진다
      (안 그러면 부하에서 «Test timeout» 으로만 찍혀 무엇이 모자랐는지 이름이 사라진다 — 141 이 그 꼴). */
-const SETTLE_ROOM_SHARE = 0.6;   // 나머지 0.4 = 시험 몸·다른 기다림의 몫
-const SETTLE_MIN_MS = 3000;      // ⚠️3000 은 미측정 · 선례(ft3)에서 옮김 — 실측으로 읽지 마라 · 유닛 전수 816a57f2(Intel · node v25.8.0): 총 302s · 가장 느린 시험 css-token-lint ② --rev 167s · cancelled 0
 let _w08T0 = 0, _w08Worst = 0;
 test.beforeEach(() => { _w08T0 = Date.now(); _w08Worst = 0; });
 async function settle(page) {

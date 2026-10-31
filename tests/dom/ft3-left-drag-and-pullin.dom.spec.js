@@ -16,7 +16,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js ft3-left-drag-and-pullin
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitZoomSettled } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled, SETTLE_MIN_MS, SETTLE_ROOM_SHARE } = require('./_root-harness.js');
 
 async function setup(page) {
   const setupT0 = Date.now();
@@ -65,8 +65,6 @@ async function setup(page) {
   }
   return errs;
 }
-const SETTLE_ROOM_SHARE = 0.6;   // 정착 마감 = 남은 시험 시간의 이 몫 — 나머지 0.4 는 «잰 가장 느린 바퀴»보다 더 느린 한 바퀴와 시험 몸의 몫
-const SETTLE_MIN_MS = 3000;      // 정착에 이보다 적게 줄 수밖에 없으면(시험 타임아웃이 너무 짧음) 재지 않고 이름으로 던진다 · ⚠️3000 은 잰 값이 아니다(정상 정착 ms 는 한 바퀴면 안 찍혀 아직 모름 ㉡ · 다음 판에서 잰다)
 const H = (page, name) => page.evaluate((n) => {
   const h = window.__tb.querySelector(`.tfh-handle[data-tfh="${n}"]`);
   if (!h) return null;

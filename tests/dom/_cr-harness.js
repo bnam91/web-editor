@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-const { ROOT, waitStableRect } = require('./_root-harness.js');
+const { ROOT, waitStableRect, SETTLE_MIN_MS, SETTLE_ROOM_SHARE } = require('./_root-harness.js');
 
 const ORIGIN = 'http://goditor.dom.test';
 const RUN = process.env.CR_RUN || 'r0';
@@ -128,8 +128,6 @@ async function pollTrue(page, fn, arg, timeout = 6000) { try { await page.waitFo
      마감 = 이 시험에 남은 시간(test.info().timeout − 지난 시간) × SETTLE_ROOM_SHARE(역산 · T_MS 가 바뀌면 따라온다).
      줄 시간이 SETTLE_MIN_MS 보다 적으면 재지 않고 이름으로 던지고 · 이 시험에서 잰 «가장 느린 정착» 이 남은 몫보다 크면 그 «앞»에서 던진다.
      ⛔test.beforeEach 로 시작 시각을 되놓지 않는다 — 이 파일은 공용부라 require 캐시 탓에 한 워커의 첫 spec 에만 걸린다 ⇒ test.info() 로 시험이 바뀌었나를 본다. */
-const SETTLE_ROOM_SHARE = 0.6;   // 나머지 0.4 = 시험 몸·다른 기다림의 몫
-const SETTLE_MIN_MS = 3000;      // ⚠️3000 은 미측정 · 선례(ft3)에서 옮김 — 실측으로 읽지 마라 · 유닛 전수 816a57f2(Intel · node v25.8.0): 총 302s · 가장 느린 시험 css-token-lint ② --rev 167s · cancelled 0
 let _crInfo = null, _crT0 = 0, _crWorst = 0;
 function _crMark() { const ti = test.info(); if (ti !== _crInfo) { _crInfo = ti; _crT0 = Date.now(); _crWorst = 0; } }
 async function settleNorm(page) {
