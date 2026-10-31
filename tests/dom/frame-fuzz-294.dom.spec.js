@@ -1,21 +1,25 @@
 /* frame-fuzz-294.dom.spec.js — 294 t9-03 첫 조각: 프레임 중첩 복사 «적대적 QA» 하네스(④) ＋ 판정부(⑤) (S6 · 261031 · 지디 ORDER-294)
  * ★왜: 현빈 원문 «무작위 조작을 실행하는 것 자체는 검증이 아니다» ⇒ 매 조작 뒤 판정 여섯 칸이 모델과 맞대어 본다. 판정 없는 회차는 «안 잰 회차»(measured 로 센다).
  * ★입구: 프레임·글자는 addFrameBlock·addTextBlock(_activeFrame) · 고르기 진짜 마우스 · 조작 = 진짜 키(⌘D ⌘Z ⌘⇧Z Delete) ＋ moveBlock·updateFrameBlock·groupSelectedBlocks. ⛔DOM 손 짜기 0.
- * ★크기(이번 조각): 깊이 ≤3 · 프레임 ≤6 · 조작 ≤8 · 시드 5 — ⑥ 극한은 이 조각 밖.
+ * ★크기: 깊이 ≤3 · 프레임 ≤6 · 조작 ≤8(urun 은 한 조작에 ⌘Z·⌘⇧Z 3~10 번) · 시드 5 ＋ undo·redo 연달아 5 — ⑥ 극한은 밖.
  * ★판정 여섯(모델 = 조작마다 기대를 세운 표):
  *   ⒜ 부모: 프레임마다 실제 부모 프레임 id = 모델 ⒝ 순환: 부모 사슬을 올라가 같은 id 를 두 번 안 만나고 섹션에 닿는다(DOM 이 나무라 ★같은 id 겹침만 본다)
  *   ⒞ 중복·유실: 프레임·글자 id 집합 = 모델 · 겹침 0 ⒟ 복사본: 새 부분나무의 꼴·글자·크기 = 원본(그 복사 순간 값)
  *   ⒠ ⌘Z/⌘⇧Z: 뒤 상태 = 모델 되돌림 칸 ⒡ 저장: getSerializedCanvas 를 DOMParser 로 읽은 상태 = 지금 · 끝에 ★innerHTML+rebindAll 재로드 뒤 같은 꼴
+ * ★못 집은 회차: 후보 점마다 hitAt 으로 맨 위 임자를 rec.owners 에(시트 328 재료) · 고르기 시도 수는 옆 파일 *.tries.json.
  * ★재현: 시드·초기 구조·조작 순서·칸별 판정을 FUZZ_OUT(기본 test-results/frame-fuzz-294)/<RUN_TAG>-<시드>.json · id 는 F0·T0 이름으로 정규화 ⇒ 같은 시드 ×3 은 파일 내용이 같아야 한다.
  * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · 평소 끔). V265 = 값만.
+ * ⚠️⌘Z 칸 trace 번호: urun 안 빨강은 그 앞까지 끝난 조작 수로 적힌다.
  * ⚠️자 한계: 모델은 그룹을 «부모만 새 그룹으로 옮겨도 된다» 로 너그럽게 본다 · 좌표·겹침 안 봄 · 진입 상태는 시드에서 안 뽑음(P287 만) · 재로드 = 열기 경로 두 줄(파일 왕복 아님).
  * ⌘Z 앞 부름 = evaluate · getSerializedCanvas · DOMParser · 스크린샷 0(JNOTE). */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
+const { hitAt } = require('./_click-at.js');
 
 const SEEDS = [294001, 294002, 294003, 294004, 294005];
+const SEEDS_UR = [294101, 294102, 294103, 294104, 294105];   // ㉡ undo·redo 를 연달아 3~5 번 쌓는 회차(지디 J294B)
 const LIM = { depth: 3, frames: 6, ops: 8 };
 const TAG = process.env.FUZZ_TAG || 'run';
 const OUT = process.env.FUZZ_OUT || path.join(__dirname, '..', '..', 'test-results', 'frame-fuzz-294');
@@ -86,10 +90,10 @@ async function select(page, id, depth, { enter = false } = {}) {
     const q = await page.evaluate((id) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id); if (!o) return { ok: false }; const r = o.getBoundingClientRect();
       const others = [...document.querySelectorAll('#canvas ' + FR + ', #canvas .text-block, #canvas .gap-block')].filter((f) => f !== o && !f.contains(o)).map((f) => f.getBoundingClientRect());
       const inR = (x, y, b) => x > b.left && x < b.right && y > b.top && y < b.bottom;
-      for (const [x, y] of [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]])
-        if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
-      return { ok: false }; }, id);
-    if (!q.ok) return { sel: false, why: '집을 점 없음', tries };
+      const pts = [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]];
+      for (const [x, y] of pts) if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
+      return { ok: false, pts }; }, id);
+    if (!q.ok) return { sel: false, why: '집을 점 없음', tries, pts: q.pts || [] };
     if (depth === 0) await page.mouse.click(q.x, q.y);
     else if (depth === 1) await page.mouse.dblclick(q.x, q.y);
     else {
@@ -129,8 +133,8 @@ async function judge(page, st, want, extra = []) {
 function norm(names, id) { return names[id] || id; }
 
 /* ⑵ 조작 생성기 + 모델 */
-async function runSeed(page, seed, { maxOps = LIM.ops } = {}) {
-  const r = rng(seed); const trace = { seed, plan: null, ops: [], fails: [], measured: 0, refused: 0, skipped: 0 };
+async function runSeed(page, seed, { maxOps = LIM.ops, ur = false } = {}) {
+  const r = rng(seed); const trace = { seed, plan: null, ops: [], fails: [], measured: 0, refused: 0, skipped: 0 }; const tries = [];
   const { plan, ids } = await buildTree(page, r); trace.plan = plan;
   const names = {}; let nF = 0; const nameAll = (st) => { Object.keys(st.frames).sort().forEach((k) => { if (!names[k]) names[k] = 'F' + (nF++); }); };
   ids.forEach((k) => { names[k] = 'F' + (nF++); });
@@ -138,18 +142,37 @@ async function runSeed(page, seed, { maxOps = LIM.ops } = {}) {
   const undo = []; const redo = [];
   const n = 3 + Math.floor(r() * (maxOps - 2));
   const push = (s) => { undo.push(s); redo.length = 0; };
+  const pressZ = async (kind, rec) => {
+    const isUndo = kind === 'undo'; const i0 = trace.ops.length; const extra = [];
+    await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
+    await page.keyboard.press(isUndo ? 'Meta+z' : 'Meta+Shift+z'); await settle(page);
+    if (INJECT === 'e') await page.evaluate(() => { const f = window.__secEl().querySelector('.frame-block:not([data-text-frame])'); if (f) f.dataset.width = '777'; });
+    const st = await live(page); const stack = isUndo ? undo : redo; const other = isUndo ? redo : undo;
+    const exp = stack.length ? stack[stack.length - 1] : cur;
+    if (rec) rec.stack = stack.length;
+    if (canon(st) !== canon(exp)) extra.push(['e', `${kind} 뒤 상태 ≠ 모델(쌓임 ${stack.length})`]);
+    nameAll(st);
+    trace.fails.push(...(await judge(page, st, null, extra)).map((x) => [i0, ...x]));
+    if (stack.length) { other.push(cur); stack.pop(); }
+    cur = st;
+  };
   for (let i = 0; i < n; i++) {
     const frames = Object.keys(cur.frames).sort((a, b) => (names[a] < names[b] ? -1 : 1));
-    const kinds = ['dup', 'dup', 'move', 'size', 'group', 'del', 'undo', 'undo', 'redo'];
+    const kinds = ur ? ['dup', 'size', 'del', 'move', 'urun', 'urun'] : ['dup', 'dup', 'move', 'size', 'group', 'del', 'undo', 'undo', 'redo'];
     let kind = kinds[Math.floor(r() * kinds.length)];
-    if (!frames.length && kind !== 'undo' && kind !== 'redo') kind = 'undo';
+    if (!frames.length && kind !== 'undo' && kind !== 'redo' && kind !== 'urun') kind = 'undo';
     const tgt = frames[Math.floor(r() * frames.length)] || null;
     const rec = { i, kind, tgt: tgt && norm(names, tgt) };
     let want = null; let extra = [];
     if (kind === 'dup' || kind === 'del' || kind === 'size' || kind === 'move' || kind === 'group') {
       const s = await select(page, tgt, depthOf(cur, tgt));
       rec.entered = s.entered ? norm(names, s.entered) : null;
-      if (!s.sel) { rec.skip = s.why || '고르기 안 섬'; trace.skipped++; trace.ops.push(rec); continue; }
+      tries.push({ i, kind, tgt: norm(names, tgt), tries: s.tries ?? null, sel: !!s.sel });
+      if (!s.sel) {
+        rec.skip = s.why || '고르기 안 섬';
+        if (s.pts?.length) rec.owners = await Promise.all(s.pts.map(async ([x, y]) => { const h = await hitAt(page, x, y); return h ? (names[h.id] || (h.id ? h.id.split('_')[0] : '') || h.cls.split(' ')[0] || h.tag) : null; }));
+        trace.skipped++; trace.ops.push(rec); continue;
+      }
     }
     if (kind === 'dup') {
       await page.keyboard.press('Meta+d'); await settle(page);
@@ -196,19 +219,11 @@ async function runSeed(page, seed, { maxOps = LIM.ops } = {}) {
       if (missing.length || lost.length) extra.push(['c', `그룹 뒤 유실 ${missing.length + lost.length}`]);
       nameAll(st);
       trace.fails.push(...(await judge(page, st, null, extra)).map((x) => [i, ...x])); if (canon(st) !== canon(cur)) push(cur); else trace.refused++; cur = st;
+    } else if (kind === 'urun') {
+      const k = 3 + Math.floor(r() * 3); const m = Math.floor(r() * (k + 1)); rec.presses = [];   // undo k 번 · 이어서 redo m 번 — 누를 때마다 판정
+      for (const key of [...Array(k).fill('undo'), ...Array(m).fill('redo')]) { rec.presses.push(key + ':' + (key === 'undo' ? undo : redo).length); await pressZ(key); if (trace.fails.length) break; }
     } else {
-      const isUndo = kind === 'undo';
-      await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
-      await page.keyboard.press(isUndo ? 'Meta+z' : 'Meta+Shift+z'); await settle(page);
-      if (INJECT === 'e') await page.evaluate(() => { const f = window.__secEl().querySelector('.frame-block:not([data-text-frame])'); if (f) f.dataset.width = '777'; });
-      const st = await live(page); const stack = isUndo ? undo : redo; const other = isUndo ? redo : undo;
-      const exp = stack.length ? stack[stack.length - 1] : cur;
-      rec.stack = stack.length;
-      if (canon(st) !== canon(exp)) extra.push(['e', `${kind} 뒤 상태 ≠ 모델(쌓임 ${stack.length})`]);
-      nameAll(st);
-      trace.fails.push(...(await judge(page, st, null, extra)).map((x) => [i, ...x]));
-      if (stack.length) { other.push(cur); stack.pop(); }
-      cur = st;
+      await pressZ(kind, rec);
     }
     if (INJECT) {
       const bad = await page.evaluate((k) => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const fs = [...sec.querySelectorAll(FR)];
@@ -233,15 +248,17 @@ async function runSeed(page, seed, { maxOps = LIM.ops } = {}) {
     trace.reload = canon(st) === canon(before);
   }
   const clean = JSON.parse(JSON.stringify(trace).replace(/[a-z]+_[A-Za-z0-9_]{4,}/g, (m) => names[m] || m));
+  clean.__tries = tries;
   return clean;
 }
-function save(name, trace) { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, `${TAG}-${name}.json`), JSON.stringify(trace, null, 1) + '\n'); }
+/* 고르기 시도 수는 옆 파일로 — 흔들림을 나중에 세려고 남긴다(지디 J294B) · 본 기록은 ×3 대조가 그대로 서게 뺀다 */
+function save(name, trace) { fs.mkdirSync(OUT, { recursive: true }); const { __tries, ...t } = trace; fs.writeFileSync(path.join(OUT, `${TAG}-${name}.json`), JSON.stringify(t, null, 1) + '\n'); fs.writeFileSync(path.join(OUT, `${TAG}-${name}.tries.json`), JSON.stringify(__tries ?? [], null, 0) + '\n'); }
 
-for (const seed of SEEDS) {
-  test(`F${seed} ★시드 — 매 조작 뒤 판정 여섯(깊이≤3 · 프레임≤6 · 조작≤8)`, async ({ page }) => {
-    test.setTimeout(120000);
+for (const [seed, ur] of [...SEEDS.map((x) => [x, false]), ...SEEDS_UR.map((x) => [x, true])]) {
+  test(`F${seed} ★시드${ur ? ' undo·redo 연달아' : ''} — 매 조작 뒤 판정 여섯(깊이≤3 · 프레임≤6 · 조작≤8)`, async ({ page }) => {
+    test.setTimeout(180000);
     const errs = await setup(page);
-    const t = await runSeed(page, seed);
+    const t = await runSeed(page, seed, { ur });
     save(String(seed), t);
     console.log(`F294 ${JSON.stringify({ seed, measured: t.measured, refused: t.refused, skipped: t.skipped, fails: t.fails, ops: t.ops.map((o) => o.kind + (o.skip ? '!' : '')) })}`);
     expect(t.measured, '안 잰 회차: 판정이 하나도 안 돌았다').toBeGreaterThan(0);
@@ -274,6 +291,26 @@ for (const [name, enter, red] of [['P287 ★양성 — 들어가 고른 ⌘D 는
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+/* ㉢ 곁값 닫기(지디 J294B · 값만 · 판정 지디): 한 프레임을 고르고 ⌘G 세 번 → ⌘Z 세 번 — 프레임 수·깊이·상태가 어디로 가나. +3 이고 돌아오면 «감싸기» · 안 돌아오면 그때 지디가 부른다. */
+test('G3 값 — 프레임 하나 고르고 ⌘G ×3 · ⌘Z ×3(프레임 수)', async ({ page }) => {
+  const errs = await setup(page);
+  const id = await page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); window.deselectAll?.(); window.selectSection(sec); window._activeFrame = null; window.addFrameBlock(); const f = sec.querySelector(FR); window.deselectAll?.(); window.clearHistory?.(); return f.id; });
+  const before = await live(page);
+  const s = await select(page, id, 0);
+  expect(s.sel, '[전제] 프레임이 골라졌다').toBe(true);
+  const view = async () => { const st = await live(page); const d = (k) => { let n = 0; for (let p = st.frames[k]?.parent; p; p = st.frames[p]?.parent) n++; return n; };
+    const sel = await page.evaluate(() => [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')].length);
+    const tip = await page.evaluate(() => { const h = window.getHistoryTip(); return [h.pos, h.len]; });
+    return { n: Object.keys(st.frames).length, maxDepth: Math.max(0, ...Object.keys(st.frames).map(d)), selFrames: sel, tip, same: canon(st) === canon(before), idAlive: !!st.frames[id] }; };
+  const seq = [{ step: '시작', ...(await view()) }];
+  for (let i = 1; i <= 3; i++) { await page.keyboard.press('Meta+g'); await settle(page); seq.push({ step: '⌘G' + i, ...(await view()) }); }
+  await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
+  for (let i = 1; i <= 3; i++) { await page.keyboard.press('Meta+z'); await settle(page); seq.push({ step: '⌘Z' + i, ...(await view()) }); }
+  console.log(`G3 ${JSON.stringify(seq)}`);
+  save('G3', { seq, __tries: [] });
+  expect(seq[0].n, '[전제] 시작 프레임 하나').toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 /* 값 칸 265(단언은 전제만 · 판정 안 함): 거절 입력 앞뒤 이력 칸 수 · ⌘Z 한 번 뒤 값 */
 test('V265 값 — 거절 입력 앞뒤 이력·⌘Z 한 번(판정 0 · 지디 칸)', async ({ page }) => {
   const errs = await setup(page);
