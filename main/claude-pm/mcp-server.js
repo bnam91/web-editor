@@ -8928,7 +8928,7 @@ function _createServer() {
        *   토큰은 못 훔치지만(파일을 못 읽으니) 신원·작업 내용은 새어 나간다.
        * ⇒ Origin 헤더가 «있는» 요청(=브라우저) 에만 그 둘을 뺀다.
        *   로컬 호출자는 Origin 을 안 보낸다 — 실측으로 센 소비자 둘 다 Node 쪽이다:
-       *     ⑴ mcp-stdio-bridge.cjs (http.get)  ⑵ main/claude-pm/ipc.js handlePingMcp (fetch, 본문 안 읽음)
+       *     ⑴ mcp-stdio-bridge.cjs (http.get)  ⑵ main/claude-pm/ipc.js handlePingMcp (fetch · 317 부터 name·tokenFile 을 읽는다)
        *   렌더러에서 /health 를 직접 부르는 곳은 «0개»다(상단 MCP 배지는 IPC 로 간다).
        * ⚠️이건 «브라우저 경계»용이지 오늘(09-07) 사고의 처방이 아니다. 그 사고는 같은 사용자의
        *   권한 있는 CLI 세션 9개가 실사용 인스턴스에 붙은 «조율» 실패였고, 이걸로는 안 막힌다.
@@ -9123,6 +9123,7 @@ module.exports = {
   getToken,
   regenerateToken,
   getTokenFilePath,
+  SERVER_NAME: SERVER_INFO.name,
   getBridgePath,
   getBridgeError,
   // 검사 로직은 «한 곳»이고, 그 한 곳을 테스트가 직접 부른다.
