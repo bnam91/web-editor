@@ -8,13 +8,14 @@
  * ★양성대조 판 37ab1c65: GD1001_ROOT=<핀 체크아웃> — D1·D3·D4b·D4c 빨강 / D4a·D5·D6 초록(지키는 시험). 계측기 대조 = 서클 에셋 블럭(B) + 「선 안쪽 20px」(없음) 은 양쪽 판 동일.
  * 미측정 · 태양 · 2026-10-03: 칸 «전체»가 원인 경우는 없다(원형은 줄 단위뿐) · 실앱 Electron 창에서의 사람 눈 확인. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, pinnedBoot } = require('./_root-harness.js');
 const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const EDGE = [45, 111, 232];   // --sel-color
+const D5_PIN = 'e548c211';
 
-async function mount(page, kind, zoom, { empty = false, square = false } = {}) {
+async function mount(page, kind, zoom, { empty = false, square = false, boot = bootApp } = {}) {
   await page.setViewportSize({ width: 1500, height: 1000 });
-  await bootApp(page);
+  await boot(page);
   await page.evaluate(([PX, kind, empty, square]) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="gS" data-section="1"><div class="section-hitzone"></div><div class="section-inner">
@@ -153,21 +154,27 @@ test('D5 지키는 시험 — 사각 이미지 줄: 고르면 왼쪽 막대·가
   const cs = await page.evaluate((sel) => { const f = document.querySelector(sel); const s = getComputedStyle(f);
     return { bs: s.boxShadow, pos: s.position, ov: s.overflow, bc: getComputedStyle(f, '::before').content, ac: getComputedStyle(f, '::after').content, radius: s.borderTopLeftRadius, imgRadius: getComputedStyle(f.querySelector('img') || f).borderTopLeftRadius }; }, sel);
   expect(cs).toEqual({ bs: 'rgb(45, 111, 232) 2px 0px 0px 0px inset', pos: 'static', ov: 'visible', bc: 'none', ac: 'none', radius: '0px', imgRadius: '0px' });
-  /* 사진 해시 — 사각 줄 상자 영역(글자 없음)의 픽셀. 값은 핀 37ab1c65 에서 잰 것(같은 크로미움) */
-  const r = await rectOf(page, sel);
-  /* 10-05 K3 ⒜ — 흐름 그리드에도 모서리 «폭» 손잡이가 서서(오버레이 고정층) 해시 범위(그림 ±4px)에 nw 손잡이가 들어온다(탐침 F-GRID probe-d5).
-     요구 = «그림이 안 바뀐다» 그대로 ⇒ 해시 찍는 동안만 장면에서 손잡이를 숨긴다(제품 손 안 댐) · 찍은 뒤 되돌림. */
-  await page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.dataset.d5Vis = h.style.visibility; h.style.visibility = 'hidden'; }));
-  const hash = await (async () => { const b = (await page.screenshot({ clip: { x: Math.floor(r.left) - 4, y: Math.floor(r.top) - 4, width: Math.ceil(r.w) + 8, height: Math.ceil(r.h) + 8 } })).toString('base64');
-    return page.evaluate(async (b) => { const i = new Image(); i.src = 'data:image/png;base64,' + b; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const k = c.getContext('2d'); k.drawImage(i, 0, 0);
-      const d = k.getImageData(0, 0, i.width, i.height).data; let h = 2166136261; for (let t = 0; t < d.length; t++) { h ^= d[t]; h = Math.imul(h, 16777619) >>> 0; } return h + ':' + i.width + 'x' + i.height; }, b); })();
-  await page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.visibility = h.dataset.d5Vis || ''; delete h.dataset.d5Vis; }));
-  /* ★⑵ 다시 핀(2026-10-06 · 주인 R1 E157 a497e201 · 통 ⒝ · APPROVED_BY: 태양 integ25-pins) — 옛 값 '2383551274:217x128'(핀 37ab1c65).
-     까닭(잰 것): R1(E157) 되돌림 판에서 이 빨강이 사라짐(fix25 7b017a98 위 07:34:50) — E157 뒤 크롭 없는 1×1 사각 줄은 높이 120 을 안 쓰고
-       폭 × 비율로 정사각(209×120 → 209×209)이 된다. 다른 점은 고른 상태의 «선»뿐 — 고르지 않으면 핀 장면과 0 px 차이(그림 내용 같음 · 08:01:15).
-       보통 크롭 줄의 틀 오른변은 dev 0f572e2a 와 같다(줌 100 · 40 · 07:57). 새 값 = 병합 판 e548c211 의 렌더(×2 같음 08:06:35).
-     무엇이 여전히 잠그나: 위 모양 단언(cs — 왼쪽 막대 inset · 가상요소 둘 다 없음 · position static · overflow visible · 반경 0 · 그림 반경 0) 전부 그대로 + 이 새 해시(사각 줄 그림의 픽셀).
-     측정 판 = fix25 7b017a98 · e548c211 과 차이는 e127-fix(글자색)뿐 ⇒ 고르지 않은 열·z100 은 다시 안 잼 (태양 ㉢).
-     D5 의 «평범한 크롭» 장면은 심은 것이다. 앱이 그 4 키를 쓰는 것은 정의 자리(image-handling.js :1461-1464 · overlay-handles.js :2159-2167)에서 확인했다. 에디터를 주행해 만든 측정은 안 했다 — 다음 판 후보 */
-  expect(hash, '사각 줄 사진 해시 = 병합 판 e548c211 에서 잰 값(E157 R1 — 크롭 없는 1×1 사각 줄 = 정사각)').toBe('2755476141:217x217');
+  /* ★사진 비교 — 같은 런·같은 크로미움에서 «핀 판 파일»로 같은 장면을 띄워 픽셀로 견준다(J323X · 지디 판정).
+     ⚰️(옛) 리터럴 해시: 맥마다 값이 달랐다 — 아이맥 3952362091 · 수지 2755476141 ×15 · 4116504563 ×3 · 아이맥에선 그 값을 잰 판 e548c211 도 130943565 = 한 환경에서만 참.
+     허용 : 채널 차 2 이상 = 0 화소 · 채널 차 1 = 64 화소 이하. 까닭 : 판 사이 실측 18 화소(217×217 · 각 채널 1 · 선택 선·모서리 · 3adc7a91↔2a6f28d9) — 눈에 안 보이는 안티에일리어스 몫.
+     D5_PIN 은 옛 리터럴을 잰 병합 판이다(E157 R1 뒤 · 크롭 없는 1×1 사각 줄 = 정사각 · 옛 ⑵ 다시 핀 2026-10-06 a497e201 APPROVED_BY: 태양 integ25-pins). ⛔값을 다시 박지 마라. */
+  const png = async (pg, sl) => { const r = await rectOf(pg, sl);
+    /* 10-05 K3 ⒜ — 흐름 그리드에도 모서리 «폭» 손잡이가 서서(오버레이 고정층) 범위(그림 ±4px)에 nw 손잡이가 들어온다(탐침 F-GRID probe-d5)
+       요구 = «그림이 안 바뀐다» 그대로 ⇒ 찍는 동안만 장면에서 손잡이를 숨긴다(제품 손 안 댐) · 찍은 뒤 되돌림. */
+    await pg.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.dataset.d5Vis = h.style.visibility; h.style.visibility = 'hidden'; }));
+    const b = (await pg.screenshot({ clip: { x: Math.floor(r.left) - 4, y: Math.floor(r.top) - 4, width: Math.ceil(r.w) + 8, height: Math.ceil(r.h) + 8 } })).toString('base64');
+    await pg.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.visibility = h.dataset.d5Vis || ''; delete h.dataset.d5Vis; }));
+    return b; };
+  const nowB = await png(page, sel);
+  const p2 = await page.context().newPage();
+  const pinSel = await mount(p2, 'grid', 100, { square: true, boot: pinnedBoot(D5_PIN) });
+  const pinB = await png(p2, pinSel); await p2.close();
+  const diff = await page.evaluate(async ([a, b]) => { const rd = async (s) => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const k = c.getContext('2d'); k.drawImage(i, 0, 0); return { w: i.width, h: i.height, d: k.getImageData(0, 0, i.width, i.height).data }; };
+    const A = await rd(a), B = await rd(b); if (A.w !== B.w || A.h !== B.h) return { size: `${A.w}x${A.h} ≠ ${B.w}x${B.h}` };
+    let one = 0, big = 0; for (let t = 0; t < A.d.length; t += 4) { const m = Math.max(Math.abs(A.d[t] - B.d[t]), Math.abs(A.d[t + 1] - B.d[t + 1]), Math.abs(A.d[t + 2] - B.d[t + 2])); if (m > 1) big++; else if (m === 1) one++; }
+    return { size: `${A.w}x${A.h}`, one, big }; }, [nowB, pinB]);
+  console.log('[D5] ' + JSON.stringify(diff));
+  expect(diff.size, '사진 크기 = 핀과 같다(E157 R1 — 크롭 없는 1×1 사각 줄 = 정사각)').toBe('217x217');
+  expect(diff.big, `★채널 차 2 이상 화소 0 — 눈에 보이는 차 (${JSON.stringify(diff)})`).toBe(0);
+  expect(diff.one, `채널 차 1 화소 ≤64 — 안티에일리어스 몫(실측 18) (${JSON.stringify(diff)})`).toBeLessThanOrEqual(64);
 });

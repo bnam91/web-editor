@@ -140,3 +140,28 @@ async function waitZoomSettled(page, zoom, { timeout = 3000 } = {}) {
   }
 }
 module.exports.waitZoomSettled = waitZoomSettled;
+
+/* ★같은 런·같은 브라우저에서 «핀 판 파일»로 띄운다(R2 에서 옮김 · 212 J323X) — 핀과 내용이 다른 파일만 덮고, 핀에 없는 새 파일은 404.
+ *   ⇒ 두 판을 같은 맥·같은 크로미움으로 찍으니 «한 환경에서만 참인 리터럴»이 필요 없다.
+ *   ⛔.git 없는 사본(pin-tree · 변이)에서는 무효로 멈춘다 — 핀 내용을 꺼낼 나무가 없다(라이브 트리로 안 떨어진다 · 2026-10-06 지디). */
+function pinnedBoot(pin) {
+  if (!fs.existsSync(path.join(ROOT, '.git'))) throw new Error(`INVALID: ${ROOT} 에 .git 이 없다 — 핀 내용을 꺼낼 git 나무가 없어 이 시험은 돌 수 없다`);
+  const { execFileSync } = require('child_process');
+  const overlay = new Map();
+  const pinFiles = execFileSync('git', ['-C', ROOT, 'ls-tree', '-r', '--name-only', pin, '--', 'js', 'css', 'index.html'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+  const pinSet = new Set(pinFiles);
+  for (const f of pinFiles) { const pinBuf = execFileSync('git', ['-C', ROOT, 'show', `${pin}:${f}`], { maxBuffer: 64 * 1024 * 1024 }); const p = path.join(ROOT, f);
+    if (!fs.existsSync(p) || !fs.readFileSync(p).equals(pinBuf)) overlay.set('/' + f, pinBuf); }
+  const walk = (d) => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  for (const f of [...walk('js'), ...walk('css')]) if (!pinSet.has(f)) overlay.set('/' + f, null);
+  const boot = async (pg) => { const errs = []; pg.on('pageerror', e => errs.push(String(e)));
+    await pg.addInitScript(() => { window.electronAPI = new Proxy({}, { get: () => (() => Promise.resolve(null)) }); });
+    await pg.route(`${ORIGIN}/**`, async (r) => { const u = decodeURIComponent(new URL(r.request().url()).pathname); const ct = MIME[path.extname(u)] || 'application/octet-stream';
+      if (overlay.has(u)) { const b = overlay.get(u); return b === null ? r.fulfill({ status: 404, body: '' }) : r.fulfill({ contentType: ct, body: b }); }
+      const f = path.join(ROOT, u); if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return r.fulfill({ status: 404, body: '' });
+      return r.fulfill({ contentType: ct, body: fs.readFileSync(f) }); });
+    await pg.goto(`${ORIGIN}/index.html`); await pg.waitForFunction(() => typeof window.rebindAll === 'function', null, { timeout: 20000 }); return errs; };
+  boot.overlaySize = overlay.size;
+  return boot;
+}
+module.exports.pinnedBoot = pinnedBoot;
