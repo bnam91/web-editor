@@ -3,7 +3,7 @@
  *   ★정본 = tests/unit-time.gate.js 머리말 «★왜» 줄. 다른 자리는 이름으로 가리킨다(가리킴 자체는 기계가 못 잰다 ⇒ 이 자가 그 빈칸을 잰다).
  *   ★예외 하나 = tests/run-unit.mjs 의 v25.8.0 실측(역사 문장 · 지디 판정 ⑶). 그 밖의 판은 거기도 빨강.
  *   ★자 = 한 줄에 Node 판(v2N.N.N)과 판별 낱말이 같이 있으면 판별 줄이다.
- *   ⚠️자 한계: 같은 줄만 본다 · 낱말 안의 말만 본다 · tests/ tools/ docs/ 의 js·mjs·cjs·sh·md 만 본다 ⇒ 판을 뺀 채 적은 주장·다른 낱말은 못 잡는다(≥).
+ *   ⚠️자 한계: 같은 줄만 · 낱말 안만 · v2N 만 · 판을 뺀 주장은 못 잡는다 · 루트 *.md 안 봄(tests/ tools/ docs/ 의 js·mjs·cjs·sh·md 만 본다) ⇒ ≥ · 자 밖은 자가 안 지킨다.
  *   한 쌍: V1 = 지금 레포에 정본·예외 밖 판별 줄 0 / V2 = 판별 줄을 먹이면 걸린다(양성) · V3 = 가리키는 줄은 안 걸린다(음성). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
