@@ -329,7 +329,9 @@ function _initCanvasClickListener() {
   const wrap = document.getElementById('canvas-wrap');
   if (!wrap || wrap._ckBound) return;
   wrap._ckBound = true;
-  wrap.addEventListener('click', _onCanvasClickForPin);
+  /* ★329 — 캡처로 듣는다. 블럭·섹션 click 처리기가 모두 stopPropagation 해서 버블로는 블럭 위 click 이 여기 못 닿았다(빈 자리만 찍혔다 · 2026-04-11 부터).
+     핀 모드가 아니면 처리기 첫 줄이 그냥 돌아가므로 평소 클릭은 그대로다. ⛔그쪽 stopPropagation 을 끄지 마라 — 막던 듣는 자가 13 이다. */
+  wrap.addEventListener('click', _onCanvasClickForPin, true);
 }
 
 // ── 드래그앤드랍 상태 ─────────────────────────────────────────────────────────
