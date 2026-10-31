@@ -1,0 +1,11 @@
+{
+  "note": "★314 정본 게이트 명부 — 레포를 실제로 훑는 자만. 지디의 처음 «8» 은 이름·신호 grep(느슨한 자)의 수였다: 돌려 재 보니 ai-text-slots-ssot · typo-section-ssot 는 고정 목록만 읽어 뺐다(S7 261031). 분모는 아직 미확정 — 117 파일 중 43 만 쟀다.",
+  "gates": [
+    "tests/unit/align-btn-ssot.test.mjs",
+    "tests/unit/color-hex-wiring-ssot.test.mjs",
+    "tests/unit/disclosure-chevron-ssot.test.mjs",
+    "tests/unit/placeholder-default-text-ssot.test.mjs",
+    "tests/unit/prop-select-single-rule.test.mjs",
+    "tests/unit/timeout-verdict-one-place.test.mjs"
+  ]
+}
