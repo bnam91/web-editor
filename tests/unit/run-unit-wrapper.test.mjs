@@ -18,6 +18,7 @@
  *      (변이 대조: 기본 2→1 사본 k=1 빨강 · 2→4 사본 k=4 빨강. 앞 판 «시간 비 0.75» 자는 2→4 사본을 못 잡았다 — 실측 초록.)
  *   ⒟ 패턴 0개 → rc 2   (변이 대조: argv 0 거름 줄을 지운 사본에서 빨강)
  *   ⒠ 빨간 임시 검사 «경로»를 argv 로 → rc ≠ 0   (⒜ 와 거의 같은 칸 · 변이 대조: `process.exit(0)` 사본에서 빨강)
+ *   ⒡ 화면 보고 꼴 = 맨 node --test 와 같다(변수 없을 때) ⒢ 취소 한 쌍 — 낮은 상한 = 취소 N>0·이름·rc 1 / 높은 상한 = 취소 0·rc 0 ⒣ 자식이 rc 0 인데 취소 1 ⇒ rc 1 · JUnit 없음 ⇒ rc 3(사본에서 자식을 바꿔 잰다)
  *   ⚠️Windows cmd 에서 package.json 따옴표가 어떻게 넘어가는지는 ★안 잰다(지금 줄과 같은 처지 · 새 위험 아님). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -124,5 +125,51 @@ test('⒟ 패턴 0개 → rc 2 ＋ stderr 한 줄 (래퍼 안에 기본 패턴�
     const r = runWrapper(dir, { args: [] });
     assert.equal(r.rc, 2, `패턴 0개 → rc ${r.rc} (2 여야)\n${r.out}\n${r.err}`);
     assert.match(r.err, /\[run-unit\]/, '패턴 0개 → stderr 에 까닭 한 줄이 없다');
+  });
+});
+
+const SLOW = "import test from 'node:test';\ntest('느린', async () => { await new Promise((r) => setTimeout(r, 3000)); });\n";
+test('⒡ 변수 없을 때 화면 보고 꼴이 맨 node --test 와 같다', () => {
+  withTmp({ 'g.test.mjs': GREEN }, (dir) => {
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT;
+    const bare = spawnSync(process.execPath, ['--test', 'tests/unit/g.test.mjs'], { cwd: dir, env, encoding: 'utf8' });
+    const r = runWrapper(dir, { args: ['tests/unit/g.test.mjs'] });
+    assert.equal(r.out.split('\n')[0].startsWith('TAP version'), bare.stdout.split('\n')[0].startsWith('TAP version'), `꼴이 갈렸다\n맨: ${bare.stdout.slice(0, 80)}\n래퍼: ${r.out.slice(0, 80)}`);
+  });
+});
+test('⒢ 취소 한 쌍 — 양성(낮은 상한) 취소 N>0·이름·rc 1 / 음성(높은 상한) 취소 0·rc 0', () => {
+  withTmp({ 'slow.test.mjs': SLOW }, (dir) => {
+    const args = ['tests/unit/slow.test.mjs'];
+    const pos = runWrapper(dir, { args, extraEnv: { GOYA_TEST_TIMEOUT_MS: '500' } });
+    assert.match(pos.out, /\[run-unit\] 취소 [1-9]\d* · .*slow\.test\.mjs/, `취소·이름이 안 찍혔다\n${pos.out}`);
+    assert.equal(pos.rc, 1);
+    const neg = runWrapper(dir, { args, extraEnv: { GOYA_TEST_TIMEOUT_MS: '30000' } });
+    assert.match(neg.out, /\[run-unit\] 취소 0\n/, `취소 0 이 안 찍혔다\n${neg.out}`);
+    assert.equal(neg.rc, 0);
+  });
+});
+test('⒣ 자식 rc 0 이어도 취소 1 ⇒ rc 1 · JUnit 끝 줄 없음 ⇒ rc 3 (자식 rc 전달만으로는 안 서는 칸)', () => {
+  const src = fs.readFileSync(WRAPPER, 'utf8');
+  const call = "spawnSync(process.execPath, ['--test',";
+  assert.ok(src.includes(call), '★전제: 사본에서 바꿀 자식 호출 줄이 그대로다');
+  const stub = (body) => "const a = process.argv.find((x) => x.startsWith('--test-reporter-destination=') && !x.endsWith('=stdout')).split('=')[1];\n"
+    + `require('node:fs').writeFileSync(a, ${JSON.stringify(body)}); process.exit(0);\n`;
+  withTmp({}, (dir) => {
+    const copy = path.join(dir, 'wrap.mjs');
+    fs.writeFileSync(copy, src.replace(call, `spawnSync(process.execPath, [${JSON.stringify(path.join(dir, 'stub.cjs'))}, '--test',`).replace('./unit/_tmproot.js', fileURLToPath(new URL('./_tmproot.js', import.meta.url)).replaceAll('\\', '/')));
+    const go = () => {
+      const env = { ...process.env };
+      delete env.NODE_TEST_CONTEXT;
+      return spawnSync(process.execPath, [copy, 'x'], { cwd: dir, env, encoding: 'utf8' });
+    };
+    fs.writeFileSync(path.join(dir, 'stub.cjs'), stub('<!-- cancelled 1 -->'));
+    const one = go();
+    assert.equal(one.status, 1, one.stdout + one.stderr);
+    assert.match(one.stdout, /\[run-unit\] 취소 1/);
+    fs.writeFileSync(path.join(dir, 'stub.cjs'), stub('잘린 보고'));
+    assert.equal(go().status, 3);
+    fs.writeFileSync(path.join(dir, 'stub.cjs'), stub('<!-- cancelled 0 -->'));
+    assert.equal(go().status, 0);
   });
 });
