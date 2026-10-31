@@ -39,6 +39,7 @@
   'use strict';
 
   const CLS = 'section-bottom-handle';
+  const OUT_CLS = 'sbh-out';
 
   function ensureHandle(sec) {
     if (!sec || sec.querySelector(':scope > .' + CLS)) return;
@@ -124,6 +125,20 @@
     document.querySelectorAll('#canvas .section-block:not([data-ghost])').forEach(ensureHandle);
   }
 
+  /* ★326 — 글자 칸·스티커 바닥이 띠 안이면 손잡이를 섹션 아래로 비킨다. 띠(10px×배율)가 글자 끝·선 스티커를 먹었다
+     (text-selection-panel R7 · w2d06d O5 — 그 자리 클릭이 편집·선택으로 안 갔다). 앱 ×3 값은 시트 326.
+     shortcut: x 겹침은 안 본다(닿는 블럭이 하나라도 있으면 띠 전체를 비킨다) · 띠 폭 일부만 비킬 일이 생기면 그때 나눠라
+     shortcut: 눌러 보기 «전» 마우스가 움직여야 비킨다 — 사람은 늘 움직인다 · 안 움직이고 임자를 읽는 시험은 손잡이를 본다
+     ⚠️아래 섹션 hitzone 과 겹치는 간격(화면 약 26~36px)에서는 비킨 손잡이를 못 잡는다(시트 326 표). */
+  document.addEventListener('pointermove', (ev) => {
+    const sec = ev.target.closest && ev.target.closest('#canvas .section-block:not([data-ghost])');
+    if (!sec || sec.classList.contains('section-bottom-dragging')) return;
+    const h = sec.querySelector(':scope > .' + CLS);
+    if (!h) return;
+    const r = sec.getBoundingClientRect();
+    const band = 10 * (r.width / (sec.offsetWidth || 1) || 1);
+    h.classList.toggle(OUT_CLS, [...sec.querySelectorAll('.text-block, .sticker-block')].some((t) => t.getBoundingClientRect().bottom > r.bottom - band));
+  }, true);
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('dblclick', onDblClick, true);
   document.addEventListener('DOMContentLoaded', sweep);
