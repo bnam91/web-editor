@@ -58,13 +58,16 @@ hits_of() { sed -n 's/^forbidden_hits=\([0-9]*\).*/\1/p' <<<"$1"; }
 load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
 left_udata() { ps -axo args= | UDPAT="--user-data-dir=$1" awk 'index($0, ENVIRON["UDPAT"])' | wc -l | tr -d ' '; }   # ★env 는 awk 에 준다(ps 에 주면 패턴이 비어 전부 센다 · 261025 스모크 791 실측)
 left_port() { local p n=0; for p in 9614 9615 9616 9617; do lsof -nP -iTCP:$p -sTCP:LISTEN >/dev/null 2>&1 && n=$((n+1)); done; echo $n; }
+# 내 소유에서 args 에 글자가 든 프로세스 pid — ⛔pgrep -f(미끼 셸까지 센다 · 시트 300) · 첫 낱말이 셸·검색 도구면 뺀다 · 내 pid 뺀다
+# shortcut: 첫 낱말만 본다(vim playwright.txt · node -e "…글자…" 는 센다), 그것이 수를 흔들면 실행 파일로 좁혀라
+procs_like() { ps -u "$(id -un)" -o pid=,args= | PAT="$1" ME=$$ awk '$1!=ENVIRON["ME"] && $2!~/(^|\/)-?(sh|bash|zsh|dash|grep|egrep|pgrep|awk|sed|tail|ps)$/ && index($0,ENVIRON["PAT"]) {print $1}'; }
 left_pw() {      # 이 레인 cwd 로 남은 playwright 프로세스 수(남의 세션 것은 cwd 가 달라 안 센다)
   local pid n=0
-  for pid in $(pgrep -f playwright 2>/dev/null); do
+  for pid in $(procs_like playwright); do
     [ "$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" = "$TREE" ] && n=$((n+1))
   done; echo $n
 }
-hshell() { pgrep -f headless_shell 2>/dev/null | wc -l | tr -d ' '; }
+hshell() { procs_like headless_shell | wc -l | tr -d ' '; }
 
 # ⚠️관문은 «권고»다 — 자물쇠를 잡지 않으므로 본 뒤 띄우기 사이에 남이 들어올 수 있다(TOCTOU). up 의 2벌 상한·OOM 가드가 뒷문.
 gate_wait() {    # $1=NN $2=deadline(epoch) · 넘으면 rc 1
