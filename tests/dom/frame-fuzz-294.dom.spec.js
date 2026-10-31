@@ -78,7 +78,7 @@ async function buildTree(page, r) {
 /* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
 async function select(page, id, depth, { enter = false } = {}) {
   let last = { sel: false, why: '안 함' };
-  for (let tries = 1; tries <= 3; tries++) {   // 고르기 흔들림은 판정 밖 전제다 — 조건을 재서 다시(t902 C3 도 같은 흔들림) · 시도 수는 기록에 남는다
+  for (let tries = 1; tries <= 3; tries++) {   // 고르기 흔들림은 판정 밖 전제다 — 조건을 재서 다시(t902 C3 도 같은 흔들림) · ⚠️시도 수는 기록에 안 남긴다(남기면 같은 시드 ×3 비교가 흔들린다)
     await page.keyboard.press('Escape');
     await page.evaluate(() => { window.deselectAll?.(); window._activeFrame = null; window._enteredFrame = null; document.activeElement?.blur?.(); });
     await page.evaluate((id) => document.getElementById(id)?.scrollIntoView({ block: 'center' }), id);
