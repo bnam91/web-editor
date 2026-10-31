@@ -7,13 +7,13 @@
  *   스크래치패드의 옛 movewin.js 는 응답을 «출력만» 하고 확인을 안 해서 「됐다」로 보였다.
  *   ⇒ CDP 를 먼저 시도하고, 실패하면 OS 창 관리자로 내려간다(맥=osascript, 윈도우=user32).
  *
- * 사용: node tools/perf/move-window.mjs --port=9390 [--left=-2400] */
+ * 사용: node tools/perf/move-window.mjs --port=<포트> [--left=-2400] */
 import { execFileSync } from 'node:child_process';
 import { connect, moveWindowOffscreen, sleep } from './cdp-lite.mjs';
 
 const A = Object.fromEntries(process.argv.slice(2).map(s => { const m = /^--([^=]+)(?:=(.*))?$/.exec(s); return m ? [m[1], m[2] ?? true] : [s, true]; }));
 const PORT = A.port; const LEFT = +(A.left ?? -2400); const MATCH = A.match || '';
-if (!PORT) { console.error('usage: move-window.mjs --port=9390 [--left=-2400] [--match=index.html]'); process.exit(1); }
+if (!PORT) { console.error('usage: move-window.mjs --port=<포트> [--left=-2400] [--match=index.html]'); process.exit(1); }
 
 function pidForPort(port) {
   if (process.platform === 'win32') {

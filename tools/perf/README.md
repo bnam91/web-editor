@@ -19,10 +19,10 @@
 
 ## 한 줄 사용법 (맥·윈도우 동일)
 ```
-node tools/perf/launch-goditor.mjs --port=9390 --ud=<격리경로> --flags=on \
-  && node tools/perf/move-window.mjs --port=9390 \
-  && node tools/perf/open-editor.mjs  --port=9390 \
-  && node tools/perf/comfort-bench.mjs --port=9390 --label="win flags-ON" --out=<결과>.json
+node tools/perf/launch-goditor.mjs --port=<포트> --ud=<격리경로> --flags=on \
+  && node tools/perf/move-window.mjs --port=<포트> \
+  && node tools/perf/open-editor.mjs  --port=<포트> \
+  && node tools/perf/comfort-bench.mjs --port=<포트> --label="win flags-ON" --out=<결과>.json
 ```
 `--flags=off` 로 한 번 더 돌려 대조한다(포트·격리경로도 바꿀 것).
 윈도우는 경로만 `C:\Temp\goditor-perf-on` 식으로 바꾸면 그대로 돈다.
@@ -63,7 +63,8 @@ node tools/perf/launch-goditor.mjs --port=9390 --ud=<격리경로> --flags=on \
   `move-window.mjs` 는 CDP 를 먼저 시도하고 실패하면 OS 창 관리자로 내려간다
   (맥 = `osascript`/System Events, 윈도우 = `user32.MoveWindow`). 반환값의 `offscreen` 을 **반드시** 확인할 것.
 - **내장 MCP 포트** — 인스턴스마다 claude-pm MCP 가 9345 부터 «비어 있는 첫 포트»를 문다.
-  디버그 포트를 9390 대역으로 격리해도 MCP 는 대역 밖(9348 등)을 물 수 있다.
+  디버그 포트를 그 대역 밖으로 격리해도 MCP 는 대역 안(9348 등)을 물 수 있다.
+- **`<포트>`** — `tests/e2e/run-app.sh` 의 `OWN_FORBID` 전수 밖에서 골라라(이 문서가 예로 들던 9390 도 그 명부 안이었다 · 시트 301).
 
 ## 옵션
 `--repeats` `--warmup` `--zooms=40,100,200` `--docs=light,heavy` `--light=3` `--heavy=14`

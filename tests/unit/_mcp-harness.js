@@ -13,6 +13,7 @@
  * ⛔포트 규약: 테스트 서버는 9345~9365 «밖»이어야 한다. 그 대역은 고디터 앱/클로드앱 커넥터가
  *   스캔하는 대역이라, 안에서 띄우면 «현빈의 클로드앱이 우리 테스트 서버에 붙는다».
  *   기본 [9370,9395] 에서 고르고, 모듈의 EADDRINUSE 폴백(+20)까지 계산해도 ≤9415 로 대역 밖이다.
+ *   ★그 대역 안에도 남의 자리가 있다 — tests/e2e/run-app.sh OWN_FORBID 를 읽어 거른다(301 · test-port-forbid.test.js 가 잰다).
  *   그래도 «믿지 않고» 기동 뒤 실제 포트를 assertOutsideBand() 로 다시 잰다.
  *
  * ⚠️ mcp-server.js 는 모듈 싱글턴(server/tools/_callChain 이 모듈 변수)이다.
@@ -29,6 +30,12 @@ const path = require('path');
 
 const FORBIDDEN_LO = 9345, FORBIDDEN_HI = 9365;   // ⛔브리지/커넥터 스캔 대역
 const BASE_LO = 9370, BASE_HI = 9395;
+/* ★명부는 run-app.sh 한 벌이다(301) — 여기 베끼지 않는다. 못 읽으면 던진다(빈 명부 = 전부 통과). */
+const OWN_FORBID = (() => {
+  const m = fs.readFileSync(path.join(__dirname, '..', 'e2e', 'run-app.sh'), 'utf8').match(/^OWN_FORBID="([\d ]+)"/m);
+  if (!m) throw new Error('[mcp-harness] tests/e2e/run-app.sh 에서 OWN_FORBID 를 못 읽었다.');
+  return new Set(m[1].trim().split(/\s+/).map(Number));
+})();
 
 /** 이 포트가 금지 대역 밖인가. 「밖일 것이다」가 아니라 «실제 포트»로 잰다. */
 function assertOutsideBand(port) {
@@ -37,6 +44,7 @@ function assertOutsideBand(port) {
       `[mcp-harness] 테스트 서버가 금지 대역(${FORBIDDEN_LO}~${FORBIDDEN_HI})의 포트 ${port} 를 잡았다. ` +
       '이 대역은 클로드앱 커넥터가 스캔한다 — 사용자의 클로드앱이 테스트 서버에 붙는다. 중단한다.');
   }
+  if (OWN_FORBID.has(port)) throw new Error(`[mcp-harness] 테스트 서버가 OWN_FORBID(tests/e2e/run-app.sh)의 포트 ${port} 를 잡았다. 중단한다.`);
   return port;
 }
 
@@ -45,7 +53,7 @@ function assertOutsideBand(port) {
  *   모듈의 EADDRINUSE 폴백(+1)이 흡수해서 검사는 통과했지만, 「폴백이 받아줬다」에 기대면
  *   ⑴남의 포트를 두드리고 ⑵폴백 20칸을 다 쓰면 조용히 실패한다.
  *   ⇒ 바인딩 «전에» 직접 열어 보고 비어 있는 것만 고른다. 못 찾으면 «시작을 거부»한다. */
-async function _freePortIn(lo, hi) {
+async function _freePortIn(lo = BASE_LO, hi = BASE_HI) {
   const tryOne = (p) => new Promise((res) => {
     const s = net.createServer();
     s.once('error', () => res(false));
@@ -55,7 +63,7 @@ async function _freePortIn(lo, hi) {
   const start = lo + Math.floor(Math.random() * (hi - lo + 1));
   for (let i = 0; i <= hi - lo; i++) {
     const p = lo + ((start - lo + i) % (hi - lo + 1));
-    if (await tryOne(p)) return p;
+    if (!OWN_FORBID.has(p) && await tryOne(p)) return p;
   }
   throw new Error(`[mcp-harness] ${lo}~${hi} 에 빈 포트가 «하나도» 없다 — 남의 인스턴스가 대역을 다 물고 있다. ` +
     'lsof -nP -iTCP -sTCP:LISTEN 으로 확인해라. ⛔9345~9365 로는 내려가지 않는다.');
@@ -228,7 +236,7 @@ async function startHarness(opts = {}) {
   }, opts.projectOps || {})));
 
   const base = opts.basePort || await _freePortIn(BASE_LO, BASE_HI);
-  if (base >= FORBIDDEN_LO && base <= FORBIDDEN_HI) throw new Error(`[mcp-harness] basePort ${base} 가 금지 대역이다.`);
+  if ((base >= FORBIDDEN_LO && base <= FORBIDDEN_HI) || OWN_FORBID.has(base)) throw new Error(`[mcp-harness] basePort ${base} 가 금지 대역이다.`);
   const started = await mod.startMcpServer({ port: base, onActiveProject: () => activeProjectOf() });
   const port = assertOutsideBand(started.port);
   const token = mod.getToken();
@@ -317,4 +325,4 @@ async function startHarness(opts = {}) {
 
 const stubRef = { current: null };
 
-module.exports = { startHarness, assertOutsideBand, FORBIDDEN_LO, FORBIDDEN_HI, defaultCanned, _freePortIn };
+module.exports = { startHarness, assertOutsideBand, FORBIDDEN_LO, FORBIDDEN_HI, OWN_FORBID, defaultCanned, _freePortIn };

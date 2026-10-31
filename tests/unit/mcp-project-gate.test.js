@@ -15,6 +15,7 @@ const assert = require('node:assert/strict');
 const http = require('http');
 
 const srv = require('../../main/claude-pm/mcp-server.js');
+const { _freePortIn, assertOutsideBand } = require('./_mcp-harness.js');
 /* ★로그인 프로브를 «꽂는다» — 2026-09-07 부터 인증 게이트가 fail-closed 다(못 재면 거절).
    예전엔 미주입이 «통과»라 안 꽂아도 돌았는데, 그 관대함이 곧 「게이트가 증발하는 경로」였다
    (프로브와 게이트는 «같은 바이너리»라 「버전이 낡아 주입이 없다」는 논거가 성립하지 않는다).
@@ -28,8 +29,7 @@ srv.setAuthProbe(() => ({ authed: true }));
    ⛔이 레포엔 이미 그 규칙을 못박은 검사가 있다 —
      google-login-loopback.test.mjs:121 「U-GLOGIN-4 ★포트는 «매번» 새로 받는다(listen(0) — 고정하면 부딪힌다)」
      규칙이 «옆 파일»에 있는데 이 파일이 안 따랐다.
-   ⇒ 0 을 주고 «받은 포트»를 쓴다. 요청 쪽은 이미 started.port 를 쓰고 있었다(:40). */
-const PORT = 9411;                    // ⛔9345~9365 밖 — «시작 힌트»다. 차 있으면 서버가 옆으로 옮긴다
+   ⇒ 빈 포트를 골라 주고(_freePortIn · OWN_FORBID 를 거른다 — 301) «받은 포트»를 쓴다. 요청 쪽은 이미 started.port 를 쓰고 있었다(:40). */
 let ACTIVE = null;                    // 「편집기에 열려 있는 프로젝트」 — 테스트가 사람 역할을 한다
 let started = null;
 let CALLS = 0;                        // 왕복 비용 측정용
@@ -85,11 +85,12 @@ test.before(async () => {
     getCanvasState: async () => ({ ok: true, sections: [{ sectionId: 'sec_test', blocks: [] }] }),
     listMemories: async () => ({ ok: true, items: [] }),
   });
-  started = await srv.startMcpServer({ port: PORT, onActiveProject: () => ACTIVE });
+  started = await srv.startMcpServer({ port: await _freePortIn(), onActiveProject: () => ACTIVE }); // OWN_FORBID(tests/e2e/run-app.sh) 전수 밖 — 그 명부를 보라(_freePortIn 이 읽어 거른다)
   /* ★단언을 «지우지» 않는다 — 포트를 못 받았는데 계속 돌면 검사가 «아무 데도 안 붙은 채» 돈다.
        재는 것을 「9411 인가」에서 「진짜 포트를 받았나」로 바꾼다. */
   assert.ok(Number.isInteger(started.port) && started.port > 0,
     `서버가 포트를 못 받았다: ${started.port} — 이 상태로는 아래 검사가 «아무것도» 못 잰다`);
+  assertOutsideBand(started.port);
 });
 
 test.after(async () => { await srv.stopMcpServer(); });

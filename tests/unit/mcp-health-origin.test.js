@@ -12,13 +12,13 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const mcp = require('../../main/claude-pm/mcp-server.js');
+const { _freePortIn, assertOutsideBand } = require('./_mcp-harness.js');
 
 let PORT;
 before(async () => {
   mcp.setRendererInvoker({ scratchAdd: async () => ({ ok: true }) });
-  const r = await mcp.startMcpServer({ port: 9392 }); // 브리지 스캔 대역 9345~9365 «밖»
-  PORT = r.port ?? 9392;
-  assert.ok(PORT < 9345 || PORT > 9365, `테스트 포트가 스캔 대역 안이다: ${PORT}`);
+  const r = await mcp.startMcpServer({ port: await _freePortIn() }); // OWN_FORBID(tests/e2e/run-app.sh) 전수 밖 — 그 명부를 보라(_freePortIn 이 읽어 거른다)
+  PORT = assertOutsideBand(r.port);
 });
 after(async () => { await mcp.stopMcpServer(); });
 
