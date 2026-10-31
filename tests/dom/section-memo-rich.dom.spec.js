@@ -1439,6 +1439,7 @@ test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 �
   /* 세로로 긴 그림은 모서리가 편집 칸 아래로 나간다 — 그때 손잡이는 숨는다(쥘 수 없는 자리) ⇒ 모서리가 보이게 내린다 */
   /* J324 — 누르기 바로 앞에 손잡이의 «실제 자리»를 다시 뜬다. placeGrip 이 옮기거나 감추므로(js/section-memo.js) 앞서 잰 좌표로 누르지 않는다 */
   const gripNow = async (which) => {
+    /* 이 대기는 시트 330(스크롤 직후 한 프레임 동안 smp-img-grip 이 옛 자리 · revealCorner → placeGrip 순서)을 피한다. 330 이 닫히면 이 줄을 빼라. 값: 이 줄 없이 ×12 에서 3/12 빨강(261031 수지). */
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));   // scroll 이벤트(placeGrip)가 지나간 뒤에 뜬다 — 그 전엔 scrollTop 만 새 값이고 손잡이는 옛 자리다(J324 ×12 실측 3/12)
     const p = await page.evaluate(() => {
       const el = document.querySelector('.smp-img-grip');
