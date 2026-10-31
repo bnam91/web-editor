@@ -23,6 +23,8 @@
 //   C1 캡처(내부 8): 앱 캡처 길(js/io/capture-safety.js captureSectionImage · html2canvas 클론)로 찍은 그림에서 프레임 왼쪽 경계 밖 스트로크 열 = 0
 //      (클론은 내부 외곽선을 가운데 획으로 근사해 인라인에 쓴다 — 규칙이 «인라인 획»을 잡으면 내보내기에서만 샌다 · 지디 판정)
 //   C2 캡처(외부 8): 같은 자로 경계 밖 스트로크 열 > 0 (캔버스와 같아진다 — 바닥에선 0)
+//   C1·C2 장면 = 타이핑한 실제 글자 · 전제 = 캡처 그림 프레임 안 잉크 > 0. ⛔자리표시 글은 캡처에서 숨겨진다(js/io/capture-safety.js hidePlaceholderTextForCapture)
+//      — 옛 장면은 빈 그림을 재서 C1 은 늘 초록 · C2 는 늘 빨강이었다(시트 331 · 261031 수지 ×12: C2 24/24 · 프레임 안 잉크 0).
 //   L0 외부 API window.goditor._addBlock({type:'text', strokeWidth, align:'left'}) 가 만든 옛 꼴 글자(인라인 획 ○ · data-stroke-on ✗ — 고스트 넘버럴 길)도
 //      선택 푼 뒤 프레임 overflow visible · 왼쪽 경계 밖 스트로크 열 > 0  (v7 의 L0 기록은 선택을 안 풀어 :has(.text-block.selected) 로 바닥에서도 visible — 무효)
 //
@@ -248,7 +250,7 @@ test('T401 inside-8 — 기록 칸(내부 = SVG 필터 · 번짐 기대 0)', asy
 // 캡처 자 — 앱 캡처 길로 섹션을 찍어(scale 2) 프레임 왼쪽 경계 밖 띠를 같은 색 규칙으로 센다 · 자른 띠 PNG 를 남긴다
 async function captureBand(page, secId, frId, name) {
   const geo = await page.evaluate(([s, f]) => { const a = document.getElementById(s).getBoundingClientRect(); const b = document.getElementById(f).getBoundingClientRect();
-    return { secLeft: a.left, frameLeft: b.left, frameTop: b.top - a.top, frameH: b.height, zoom: (window.currentZoom ?? 100) / 100 }; }, [secId, frId]);
+    return { secLeft: a.left, frameLeft: b.left, frameTop: b.top - a.top, frameW: b.width, frameH: b.height, zoom: (window.currentZoom ?? 100) / 100 }; }, [secId, frId]);
   const out = await page.evaluate(async ([s, g, BAND]) => {
     const m = await import('/js/io/capture-safety.js');
     const r = await m.captureSectionImage(document.getElementById(s));
@@ -262,7 +264,11 @@ async function captureBand(page, secId, frId, name) {
     const ctx = c.getContext('2d'); ctx.drawImage(i, x0, top, c.width, h, 0, 0, c.width, h);
     const d = ctx.getImageData(0, 0, c.width, h).data; const cols = [];
     for (let x = 0; x < edge - x0; x++) { let n = 0; for (let y = 0; y < h; y++) { const q = (y * c.width + x) * 4; const mx = Math.max(d[q], d[q + 1], d[q + 2]), mn = Math.min(d[q], d[q + 1], d[q + 2]); if (mx - mn < 16 && mx < 200) n++; } cols.push(n); }
-    return { ok: true, w: i.width, h: i.height, scale: k, edge, crop: { x: x0, y: top, width: c.width, height: h }, cols, R: cols.filter(n => n > 0).length, png: c.toDataURL('image/png').split(',')[1] };
+    /* 프레임 안 잉크 픽셀 수 — 같은 색 규칙. 0 이면 캡처 그림에 글자가 없다 */
+    const fw = Math.max(1, Math.round(g.frameW / g.zoom * k)); const fc = document.createElement('canvas'); fc.width = fw; fc.height = h;
+    const fx = fc.getContext('2d'); fx.drawImage(i, edge, top, fw, h, 0, 0, fw, h); const fd = fx.getImageData(0, 0, fw, h).data; let ink = 0;
+    for (let q = 0; q < fd.length; q += 4) { const mx = Math.max(fd[q], fd[q + 1], fd[q + 2]), mn = Math.min(fd[q], fd[q + 1], fd[q + 2]); if (mx - mn < 16 && mx < 200) ink++; }
+    return { ok: true, w: i.width, h: i.height, scale: k, edge, crop: { x: x0, y: top, width: c.width, height: h }, cols, R: cols.filter(n => n > 0).length, ink, png: c.toDataURL('image/png').split(',')[1] };
   }, [secId, geo, BAND]);
   if (out.ok) {
     fs.mkdirSync(PNG_DIR, { recursive: true });
@@ -274,16 +280,29 @@ async function captureBand(page, secId, frId, name) {
   return out;
 }
 
+/* 실제 글자를 사람 길로 넣는다 — 글자 더블클릭 · 전체 고름 · 타이핑 · Esc. 자리표시 표식이 풀렸는지 단언한다 */
+async function typeRealText(page, tbId, text) {
+  const S = `[id="${tbId}"]`; const r = await stableTwice(page, S);
+  await page.mouse.dblclick(r.cx, r.cy);
+  expect(await pollTrue(page, (i) => !!document.getElementById(i).querySelector('[contenteditable="true"]'), tbId), '전제: 글자가 편집 상태다').toBe(true);
+  await page.keyboard.press('Meta+a'); await page.keyboard.type(text);
+  await page.keyboard.press('Escape');
+  const t = await page.evaluate((i) => { const c = document.getElementById(i).querySelector('[class^="tb-"]'); return { txt: c.textContent.trim(), ph: c.dataset.isPlaceholder ?? null }; }, tbId);
+  expect(t, '전제: 타이핑한 글자가 들어가고 자리표시 표식이 풀렸다').toEqual({ txt: text, ph: null });
+}
 for (const c of [{ name: 'C1-inside-8', align: 'inside' }, { name: 'C2-outside-8', align: 'outside' }]) {
   test(`T401 ${c.name} — 캡처 길(내보내기 클론)`, async ({ page }) => {
     test.setTimeout(120000);
     const errs = await boot(page);
     const s = await scene(page);
+    await typeRealText(page, s.tbId, '가나다');
+    await selectText(page, s.tbId);
     await setStroke(page, { w: 8, align: c.align });
     expect(await deselect(page), '전제: 선택이 다 풀렸다').toBe(true);
     const cap = await captureBand(page, s.secId, s.frId, c.name);
     expect(errs, '페이지 에러 0').toEqual([]);
     expect(cap.ok, `전제: 캡처가 그림을 냈다(${cap.reason || ''})`).toBe(true);
+    expect(cap.ink, '전제: 캡처 그림에 글자가 없다 — 아래 수는 뜻이 없다').toBeGreaterThan(0);
     if (c.align === 'inside') expect.soft(cap.R, `C1 ${c.name}: 캡처에서 프레임 왼쪽 경계 밖 스트로크 열 0 (캔버스와 같다)`).toBe(0);
     else expect.soft(cap.R, `C2 ${c.name}: 캡처에서 프레임 왼쪽 경계 밖 스트로크 열 > 0`).toBeGreaterThan(0);
   });
