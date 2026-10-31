@@ -18,6 +18,9 @@
  *   W309Z 리사이즈 도중 ⌘+ — 차가 «잡은 배율 문턱 안 · 새 배율 문턱 밖» 이어도 붙는다(이동량과 문턱이 같은 잡은 배율) ⇒ 폭 = 섹션 폭
  *   W309N 음성 — 같은 차 · ⌘+ 없음 ⇒ 폭 = 섹션 폭(배율이 안 바뀌면 고치기 전 판과 같다)
  *     ★309 한 쌍(GD1001_ROOT = 고치기 전 45a148d0): W309Z 만 빨강(폭 = 섹션 폭 − 차) · W309N 초록
+ *   M319Z 이동 도중 ⌘+ — 왼변 차가 «잡은 배율 문턱 안 · 새 배율 문턱 밖» 이어도 붙는다 ⇒ x = 0
+ *   M319N 음성 — 같은 차 · ⌘+ 없음 ⇒ x = 0 · M319F 음성 — 두 문턱 밖 차 + ⌘+ ⇒ 안 붙는다
+ *     ★319 한 쌍(GD1001_ROOT = 고치기 전 0418417c): M319Z 만 빨강(x ≈ 차) · M319N·M319F 초록
  * 한 쌍(사본 변이 · GD1001_ROOT): _gradScreenToLocal 몸을 `return px;` 로 ⇒ M12·W12 빨강 · 나머지 초록. 사본은 «바뀐 줄 1» 을 세어 단언 ＋ 그 판 로그에 «양성대조 모드 — <사본>» 줄이 있나 단언(슬롯 스크립트 · 236 ④).
  * ⛔고정 대기 없음 · 끌기·⌥ 는 진짜 입력(page.mouse · page.keyboard).
  */
@@ -83,13 +86,19 @@ async function setup(page) {
   return { errs, z };
 }
 /* 그라데 가운데를 눌러 왼변이 섹션 왼끝에서 «gap 화면 px» 가 되게 끈다 · alt = mousedown «뒤» 에 ⌥(D1 꼴) */
-async function moveTo(page, gap, { alt = false } = {}) {
+async function moveTo(page, gap, { alt = false, midZoom = false } = {}) {
   const s = await page.evaluate(() => { const r = window.__g.getBoundingClientRect(), q = window.__sec.getBoundingClientRect();
     return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, gl: r.left - q.left }; });   // 제품 식과 같은 자: (clientX − secRect.left)/zoom
   const dx = gap - s.gl, x0 = +(await page.evaluate(() => window.__g.dataset.x));
   await page.mouse.move(s.cx, s.cy); await page.mouse.down();
   if (alt) await page.keyboard.down('Alt');
   for (let i = 1; i <= 8; i++) await page.mouse.move(s.cx + dx * i / 8, s.cy);
+  if (midZoom) {   // ★319 mousedown…mouseup 안에서 진짜 ⌘+ · 문턱은 다음 mousemove 가 다시 잰다
+    const z0 = await page.evaluate(() => window.currentZoom);
+    await page.keyboard.press('Meta+Equal');
+    await page.waitForFunction((z) => window.currentZoom !== z, z0);
+    await page.mouse.move(s.cx + dx, s.cy + 1); await page.mouse.move(s.cx + dx, s.cy);
+  }
   await page.mouse.up();
   if (alt) await page.keyboard.up('Alt');
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -176,5 +185,23 @@ test('W309N 음성 — 같은 차 · ⌘+ 없음 ⇒ 최종 폭 = 섹션 폭', a
   const r = await widenTo(page, between(z));
   expect(r.zAfter, '★전제: 배율이 그대로').toBeCloseTo(z * 100, 3);
   expect(r.w, `★${JSON.stringify(r)}`).toBe(r.secW);
+  expect(errs).toEqual([]);
+});
+test('M319Z 이동 도중 ⌘+ — 이동량과 문턱이 같은 잡은 배율이면 붙는다(x = 0)', async ({ page }) => {
+  const { errs, z } = await setup(page);
+  expect(await moveTo(page, between(z), { midZoom: true }), '★도중 ⌘+ 로 문턱만 새 배율이 됐다').toBe(0);
+  expect(await page.evaluate(() => window.currentZoom), '★전제: ⌘+ 한 칸').toBeCloseTo((z + 0.1) * 100, 3);
+  expect(errs).toEqual([]);
+});
+test('M319N 음성 — 같은 차 · ⌘+ 없음 ⇒ x = 0', async ({ page }) => {
+  const { errs, z } = await setup(page);
+  expect(await moveTo(page, between(z))).toBe(0);
+  expect(await page.evaluate(() => window.currentZoom), '★전제: 배율이 그대로').toBeCloseTo(z * 100, 3);
+  expect(errs).toEqual([]);
+});
+test('M319F 음성 — 두 문턱 밖 차 + ⌘+ ⇒ 안 붙는다', async ({ page }) => {
+  const { errs, z } = await setup(page);
+  const x = await moveTo(page, FAR, { midZoom: true });
+  expect(near(x, FAR / z), `★22 화면 px 인데 x=${x} (기대 ≈${(FAR / z).toFixed(1)})`).toBe(true);
   expect(errs).toEqual([]);
 });

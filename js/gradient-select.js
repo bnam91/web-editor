@@ -156,11 +156,13 @@ function _showGradSnapEdge(el, side) {
 // 섹션 로컬 좌표(x,y)에서 형제 블록 변에 맞닿기 스냅. 적용된 좌표 + 하이라이트할 변 반환.
 // bw/bh/secRect: 호출자가 드래그 시작 시 캐싱한 값(블록 크기·섹션 박스는 move 드래그 중 불변) —
 // 넘기지 않으면 직접 읽는다(리사이즈 등 드래그 루프 밖 호출 대비 하위호환).
-function _gradEdgeSnap(block, sec, x, y, bw, bh, secRect) {
+function _gradEdgeSnap(block, sec, x, y, bw, bh, secRect, grabZoom) {
   if (bw == null) bw = block.offsetWidth;
   if (bh == null) bh = block.offsetHeight;
   const zoom = (window.currentZoom || 40) / 100;
-  const GRAD_SNAP_TH = _gradScreenToLocal(GRAD_SNAP_SCREEN, zoom); // 화면 px → 섹션 로컬 px 환산 (줌 무관 체감 · 환산 한 자리)
+  /* ★319 문턱은 x·y 를 잰 자(부르는 자의 잡은 배율)로 — 드래그 도중 ⌘± 뒤 이것만 새 배율이면 붙어 있던 것이 떨어진다(실측 차 36 · 40→50 : x 0 → 35).
+     ⛔아래 toLocal 은 지금 rect 라 지금 배율이 맞다(한 함수 안에 자가 둘인 것이 맞는 자리). */
+  const GRAD_SNAP_TH = _gradScreenToLocal(GRAD_SNAP_SCREEN, grabZoom); // 화면 px → 섹션 로컬 px 환산 (줌 무관 체감 · 환산 한 자리)
   if (!secRect) secRect = sec.getBoundingClientRect();
   const toLocal = r => ({
     L: (r.left  - secRect.left) / zoom, R: (r.right  - secRect.left) / zoom,
@@ -328,7 +330,7 @@ function bindGradientSelect(block) {
          매 mousemove 의 ev.altKey 로 본다 ⇒ 끄는 도중 눌렀다 떼면 바로 따라온다. ⛔세기(GRAD_SNAP_SCREEN)·clamp 무접촉 ·
          ⛔리사이즈(위 onMove)의 ⌥ = 가운데 기준은 다른 처리기라 무관. */
       if (!_host && !ev.altKey) {
-        const snapped = _gradEdgeSnap(block, sec, newX, newY);
+        const snapped = _gradEdgeSnap(block, sec, newX, newY, undefined, undefined, undefined, zoom);
         newX = snapped.x; newY = snapped.y;
         if (snapped.edgeX) _showGradSnapEdge(snapped.edgeX.el, snapped.edgeX.side);
         if (snapped.edgeY) _showGradSnapEdge(snapped.edgeY.el, snapped.edgeY.side);
