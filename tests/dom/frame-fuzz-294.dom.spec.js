@@ -1,12 +1,12 @@
 /* frame-fuzz-294.dom.spec.js — 294 t9-03 첫 조각: 프레임 중첩 복사 «적대적 QA» 하네스(④) ＋ 판정부(⑤) (S6 · 261031 · 지디 ORDER-294)
  * ★왜: 현빈 원문 «무작위 조작을 실행하는 것 자체는 검증이 아니다» ⇒ 매 조작 뒤 판정 여섯 칸이 모델과 맞대어 본다. 판정 없는 회차는 «안 잰 회차»(measured 로 센다).
  * ★입구: 프레임·글자는 addFrameBlock·addTextBlock(_activeFrame) · 고르기 진짜 마우스 · 조작 = 진짜 키(⌘D ⌘Z ⌘⇧Z Delete) ＋ moveBlock·updateFrameBlock·groupSelectedBlocks. ⛔DOM 손 짜기 0.
- * ★크기: 깊이 ≤3 · 프레임 ≤6 · 조작 ≤8(urun 은 한 조작에 ⌘Z·⌘⇧Z 3~10 번) · 시드 5 ＋ undo·redo 연달아 5 — ⑥ 극한은 밖.
+ * ★크기: 깊이 ≤3 · 프레임 ≤6 · 조작 ≤8(urun·zdeep 은 한 조작에 ⌘Z·⌘⇧Z 여러 번) · 시드 5 ＋ undo·redo 연달아 5 ＋ 쌓임≥2 보장 5 — ⑥ 극한은 밖.
  * ★판정 여섯(모델 = 조작마다 기대를 세운 표):
  *   ⒜ 부모: 프레임마다 실제 부모 프레임 id = 모델 ⒝ 순환: 부모 사슬을 올라가 같은 id 를 두 번 안 만나고 섹션에 닿는다(DOM 이 나무라 ★같은 id 겹침만 본다)
  *   ⒞ 중복·유실: 프레임·글자 id 집합 = 모델 · 겹침 0 ⒟ 복사본: 새 부분나무의 꼴·글자·크기 = 원본(그 복사 순간 값)
  *   ⒠ ⌘Z/⌘⇧Z: 뒤 상태 = 모델 되돌림 칸 ⒡ 저장: getSerializedCanvas 를 DOMParser 로 읽은 상태 = 지금 · 끝에 ★innerHTML+rebindAll 재로드 뒤 같은 꼴
- * ★못 집은 회차: 후보 점마다 hitAt 으로 맨 위 임자를 rec.owners 에(시트 328 재료) · 고르기 시도 수는 옆 파일 *.tries.json.
+ * ★못 집은 회차: 조상에 들어가 다시 집기(via descend) · 그래도 못 집으면 후보 점마다 hitAt 으로 맨 위 임자를 rec.owners 에(시트 328 재료) · 고르기 시도 수는 옆 파일 *.tries.json.
  * ★재현: 시드·초기 구조·조작 순서·칸별 판정을 FUZZ_OUT(기본 test-results/frame-fuzz-294)/<RUN_TAG>-<시드>.json · id 는 F0·T0 이름으로 정규화 ⇒ 같은 시드 ×3 은 파일 내용이 같아야 한다.
  * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · 평소 끔). V265 = 값만.
  * ⚠️⌘Z 칸 trace 번호: urun 안 빨강은 그 앞까지 끝난 조작 수로 적힌다.
@@ -20,6 +20,7 @@ const { hitAt } = require('./_click-at.js');
 
 const SEEDS = [294001, 294002, 294003, 294004, 294005];
 const SEEDS_UR = [294101, 294102, 294103, 294104, 294105];   // ㉡ undo·redo 를 연달아 3~5 번 쌓는 회차(지디 J294B)
+const SEEDS_DEEP = [294201, 294202, 294203, 294204, 294205];   // 쌓임 ≥2 를 보장하는 회차(지디 J294C ㉠) — 조작 둘 이상 뒤에만 ⌘Z
 const LIM = { depth: 3, frames: 6, ops: 8 };
 const TAG = process.env.FUZZ_TAG || 'run';
 const OUT = process.env.FUZZ_OUT || path.join(__dirname, '..', '..', 'test-results', 'frame-fuzz-294');
@@ -80,7 +81,7 @@ async function buildTree(page, r) {
   return { plan, ids };
 }
 /* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
-async function select(page, id, depth, { enter = false } = {}) {
+async function select(page, id, depth, { enter = false, chain = null } = {}) {
   let last = { sel: false, why: '안 함' };
   for (let tries = 1; tries <= 3; tries++) {   // 고르기 흔들림은 판정 밖 전제다 — 조건을 재서 다시(t902 C3 도 같은 흔들림) · ⚠️시도 수는 기록에 안 남긴다(남기면 같은 시드 ×3 비교가 흔들린다)
     await page.keyboard.press('Escape');
@@ -93,7 +94,24 @@ async function select(page, id, depth, { enter = false } = {}) {
       const pts = [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]];
       for (const [x, y] of pts) if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
       return { ok: false, pts }; }, id);
-    if (!q.ok) return { sel: false, why: '집을 점 없음', tries, pts: q.pts || [] };
+    if (!q.ok) {
+      if (!depth || !chain?.length) return { sel: false, why: '집을 점 없음', tries, pts: q.pts || [] };
+      /* 조상이 잡히면 그 조상에 들어간 뒤 다시 집는다(지디 J294C ㉢ · 사람 순서) — 한 겹씩 더블클릭 · 그 뒤 맨 위가 대상이면 누른다 */
+      const pts = q.pts; const ptOf = () => page.evaluate(([id, pts]) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id);
+        for (const [x, y] of pts) { const e = document.elementFromPoint(x, y); if (e && e.closest(FR) === o) return [x, y]; } return null; }, [id, pts]);
+      for (const anc of chain) {
+        const ap = await page.evaluate(([a, pts]) => { const r = document.getElementById(a)?.getBoundingClientRect(); return r ? (pts.find(([x, y]) => x > r.left && x < r.right && y > r.top && y < r.bottom) || null) : null; }, [anc, pts]);
+        if (ap) { await page.mouse.dblclick(ap[0], ap[1]); await settle(page); }
+      }
+      const hit = await ptOf();
+      if (!hit) { last = { sel: false, why: '들어가도 못 집음', tries, pts, via: 'descend' }; continue; }
+      await page.mouse.click(hit[0], hit[1]); await settle(page);
+      last = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
+      last.tries = tries; last.via = 'descend';
+      if (last.sel) return last;
+      last.why = '들어가 눌렀어도 안 골라짐'; last.pts = pts;
+      continue;
+    }
     if (depth === 0) await page.mouse.click(q.x, q.y);
     else if (depth === 1) await page.mouse.dblclick(q.x, q.y);
     else {
@@ -110,6 +128,7 @@ async function select(page, id, depth, { enter = false } = {}) {
   return last;
 }
 const depthOf = (st, id) => { let d = 0; for (let p = st.frames[id]?.parent; p; p = st.frames[p]?.parent) d++; return d; };
+const tipOf = (page) => page.evaluate(() => { const h = window.getHistoryTip(); return [h.pos, h.len]; });
 const live = (page) => page.evaluate(() => window.__live());
 const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const kids = (st, id) => Object.keys(st.frames).filter((k) => st.frames[k].parent === id);
@@ -133,7 +152,7 @@ async function judge(page, st, want, extra = []) {
 function norm(names, id) { return names[id] || id; }
 
 /* ⑵ 조작 생성기 + 모델 */
-async function runSeed(page, seed, { maxOps = LIM.ops, ur = false } = {}) {
+async function runSeed(page, seed, { maxOps = LIM.ops, ur = false, deep = false } = {}) {
   const r = rng(seed); const trace = { seed, plan: null, ops: [], fails: [], measured: 0, refused: 0, skipped: 0 }; const tries = [];
   const { plan, ids } = await buildTree(page, r); trace.plan = plan;
   const names = {}; let nF = 0; const nameAll = (st) => { Object.keys(st.frames).sort().forEach((k) => { if (!names[k]) names[k] = 'F' + (nF++); }); };
@@ -160,12 +179,15 @@ async function runSeed(page, seed, { maxOps = LIM.ops, ur = false } = {}) {
     const frames = Object.keys(cur.frames).sort((a, b) => (names[a] < names[b] ? -1 : 1));
     const kinds = ur ? ['dup', 'size', 'del', 'move', 'urun', 'urun'] : ['dup', 'dup', 'move', 'size', 'group', 'del', 'undo', 'undo', 'redo'];
     let kind = kinds[Math.floor(r() * kinds.length)];
-    if (!frames.length && kind !== 'undo' && kind !== 'redo' && kind !== 'urun') kind = 'undo';
+    if (deep) { const ed = ['dup', 'dup', 'size', 'del', 'move']; kind = undo.length >= 2 ? 'zdeep' : ed[Math.floor(r() * ed.length)]; }
+    if (!frames.length && kind !== 'undo' && kind !== 'redo' && kind !== 'urun' && kind !== 'zdeep') kind = 'undo';
     const tgt = frames[Math.floor(r() * frames.length)] || null;
     const rec = { i, kind, tgt: tgt && norm(names, tgt) };
     let want = null; let extra = [];
     if (kind === 'dup' || kind === 'del' || kind === 'size' || kind === 'move' || kind === 'group') {
-      const s = await select(page, tgt, depthOf(cur, tgt));
+      const chainOf = (st, k) => { const c = []; for (let p = st.frames[k]?.parent; p; p = st.frames[p]?.parent) c.unshift(p); return c; };
+      const s = await select(page, tgt, depthOf(cur, tgt), { chain: chainOf(cur, tgt) });
+      if (s.via) rec.via = s.via;
       rec.entered = s.entered ? norm(names, s.entered) : null;
       tries.push({ i, kind, tgt: norm(names, tgt), tries: s.tries ?? null, sel: !!s.sel });
       if (!s.sel) {
@@ -222,6 +244,11 @@ async function runSeed(page, seed, { maxOps = LIM.ops, ur = false } = {}) {
     } else if (kind === 'urun') {
       const k = 3 + Math.floor(r() * 3); const m = Math.floor(r() * (k + 1)); rec.presses = [];   // undo k 번 · 이어서 redo m 번 — 누를 때마다 판정
       for (const key of [...Array(k).fill('undo'), ...Array(m).fill('redo')]) { rec.presses.push(key + ':' + (key === 'undo' ? undo : redo).length); await pressZ(key); if (trace.fails.length) break; }
+    } else if (kind === 'zdeep') {
+      /* 쌓임 안에서만 — 빈 스택을 안 누른다 */
+      const k = Math.min(undo.length, 2 + Math.floor(r() * 3)); const m = Math.floor(r() * (k + 1)); rec.presses = [];
+      rec.tips = [await tipOf(page)];   // 지디 J294D — 재는 시점 탓인지 스택 꼴인지: 누르기 전·뒤 tip
+      for (const key of [...Array(k).fill('undo'), ...Array(m).fill('redo')]) { rec.presses.push(key + ':' + (key === 'undo' ? undo : redo).length); await pressZ(key); rec.tips.push(await tipOf(page)); if (trace.fails.length) break; }
     } else {
       await pressZ(kind, rec);
     }
@@ -236,6 +263,7 @@ async function runSeed(page, seed, { maxOps = LIM.ops, ur = false } = {}) {
       if (bad) { rec.injected = INJECT; const st = await live(page); const want2 = INJECT === 'f' ? { frames: st.frames, texts: st.texts } : { frames: cur.frames, texts: cur.texts }; trace.fails.push(...(await judge(page, st, want2)).map((x) => [i, ...x])); }
     }
     rec.after = Object.keys(cur.frames).length;
+    if (deep) rec.tip = await tipOf(page);
     trace.measured++; trace.ops.push(rec);
     if (trace.fails.length) { rec.stopped = true; break; }
   }
@@ -254,11 +282,11 @@ async function runSeed(page, seed, { maxOps = LIM.ops, ur = false } = {}) {
 /* 고르기 시도 수는 옆 파일로 — 흔들림을 나중에 세려고 남긴다(지디 J294B) · 본 기록은 ×3 대조가 그대로 서게 뺀다 */
 function save(name, trace) { fs.mkdirSync(OUT, { recursive: true }); const { __tries, ...t } = trace; fs.writeFileSync(path.join(OUT, `${TAG}-${name}.json`), JSON.stringify(t, null, 1) + '\n'); fs.writeFileSync(path.join(OUT, `${TAG}-${name}.tries.json`), JSON.stringify(__tries ?? [], null, 0) + '\n'); }
 
-for (const [seed, ur] of [...SEEDS.map((x) => [x, false]), ...SEEDS_UR.map((x) => [x, true])]) {
-  test(`F${seed} ★시드${ur ? ' undo·redo 연달아' : ''} — 매 조작 뒤 판정 여섯(깊이≤3 · 프레임≤6 · 조작≤8)`, async ({ page }) => {
+for (const [seed, ur, deep] of [...SEEDS.map((x) => [x, false, false]), ...SEEDS_UR.map((x) => [x, true, false]), ...SEEDS_DEEP.map((x) => [x, false, true])]) {
+  test(`F${seed} ★시드${ur ? ' undo·redo 연달아' : deep ? ' 쌓임≥2 보장' : ''} — 매 조작 뒤 판정 여섯(깊이≤3 · 프레임≤6 · 조작≤8)`, async ({ page }) => {
     test.setTimeout(180000);
     const errs = await setup(page);
-    const t = await runSeed(page, seed, { ur });
+    const t = await runSeed(page, seed, { ur, deep });
     save(String(seed), t);
     console.log(`F294 ${JSON.stringify({ seed, measured: t.measured, refused: t.refused, skipped: t.skipped, fails: t.fails, ops: t.ops.map((o) => o.kind + (o.skip ? '!' : '')) })}`);
     expect(t.measured, '안 잰 회차: 판정이 하나도 안 돌았다').toBeGreaterThan(0);
@@ -309,6 +337,28 @@ test('G3 값 — 프레임 하나 고르고 ⌘G ×3 · ⌘Z ×3(프레임 수)'
   console.log(`G3 ${JSON.stringify(seq)}`);
   save('G3', { seq, __tries: [] });
   expect(seq[0].n, '[전제] 시작 프레임 하나').toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+/* 들어간 뒤 맨 위 임자(지디 J294C ㉡ · 값만 · 시트 328 판정 지디): P⊃K1,K2 에서 P 에 들어간 상태로 자식마다 다섯 점의 맨 위와 elementsFromPoint 위 넷. 들어가기 전 값도 같이 — 그 차가 재는 것이다. */
+test('E1 값 — 들어간 뒤 자식 자리의 맨 위 임자', async ({ page }) => {
+  const errs = await setup(page);
+  const ids = await page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const out = [];
+    for (const parent of [null, 0, 0]) { window.deselectAll?.(); window.selectSection(sec); window._activeFrame = parent === null ? null : document.getElementById(out[parent]); const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); out.push([...sec.querySelectorAll(FR)].find((x) => !b.has(x)).id); }
+    window.deselectAll?.(); window._activeFrame = null; window.clearHistory?.(); return out; });
+  const [P, K1, K2] = ids; const name = { [P]: 'P', [K1]: 'K1', [K2]: 'K2' };
+  const label = (h) => (h ? (name[h.id] || (h.id ? h.id.split('_')[0] : '') || (h.cls || '').split(' ')[0] || h.tag) : null);
+  const probe = () => page.evaluate(([ids]) => { const out = {}; for (const id of ids) { const o = document.getElementById(id); const r = o.getBoundingClientRect();
+      out[id] = { rect: [r.left, r.top, r.width, r.height].map(Math.round), pts: [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]].map(([x, y]) => ({ x, y, stack: document.elementsFromPoint(x, y).slice(0, 4).map((e) => ({ id: e.id || '', cls: typeof e.className === 'string' ? e.className : '', tag: e.tagName })) })) }; } return out; }, [ids]);
+  const show = async (st) => { const v = await probe(); const o = {}; for (const id of ids) o[name[id]] = { rect: v[id].rect, top: await Promise.all(v[id].pts.map(async (q) => label(await hitAt(page, q.x, q.y)))), stack0: v[id].pts[0].stack.map(label) }; return { st, ...o }; };
+  await page.evaluate((P) => document.getElementById(P).scrollIntoView({ block: 'center' }), P); await settle(page);
+  const a = await show('들어가기 전');
+  const r = await page.evaluate((P) => { const q = document.getElementById(P).getBoundingClientRect(); return [q.right - 6, q.bottom - 6]; }, P);
+  await page.mouse.dblclick(r[0], r[1]); await settle(page);
+  const entered = await page.evaluate(() => ({ entered: window._enteredFrame?.id || null, sel: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }));
+  const b = await show('더블클릭 뒤');
+  const out = { entered: { entered: name[entered.entered] || entered.entered, sel: entered.sel.map((x) => name[x] || x.split('_')[0]) }, a, b };
+  console.log(`E1 ${JSON.stringify(out)}`);
+  save('E1', { ...out, __tries: [] });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 /* 값 칸 265(단언은 전제만 · 판정 안 함): 거절 입력 앞뒤 이력 칸 수 · ⌘Z 한 번 뒤 값 */
