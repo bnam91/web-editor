@@ -56,12 +56,14 @@ test('S2 dom-run-complete — 게이트를 부르고 rc 가 따라온다', { ski
   assert.equal(ok.rc, 0, ok.out); assert.deepEqual(ok.calls, ['run-complete.gate.js out/run.log']);
   assert.equal(go('dom-run-complete-slot.sh', G, { env: { RC_run_complete: '1' } }).rc, 1);
 });
-test('S3 dom-precondition-split — 둘 다 부르고 rc 는 하나라도 ≠0 이면 ≠0', { skip: NO_BASH }, () => {
+test('S3 dom-precondition-split — 둘 다 부른다 · run-complete 빨강만 = 4 · precondition 빨강 = 그 값 · 둘 다 초록 = 0', { skip: NO_BASH }, () => {
   const G = ['tests/dom/run-complete.gate.js', 'tests/dom/precondition-split.gate.js'], args = ['in.log'];
   const ok = go('dom-precondition-split-slot.sh', G, { args });
   assert.equal(ok.rc, 0, ok.out); assert.deepEqual(ok.calls, ['run-complete.gate.js in.log', 'precondition-split.gate.js in.log']);
   assert.equal(go('dom-precondition-split-slot.sh', G, { args, env: { RC_precondition_split: '1' } }).rc, 1);
-  assert.equal(go('dom-precondition-split-slot.sh', G, { args, env: { RC_run_complete: '1' } }).rc, 1, 'run-complete 빨강이 rc 에 안 든다');
+  assert.equal(go('dom-precondition-split-slot.sh', G, { args, env: { RC_run_complete: '1' } }).rc, 4, 'run-complete 빨강이 코드 4 로 안 갈린다');
+  assert.equal(go('dom-precondition-split-slot.sh', G, { args, env: { RC_run_complete: '3' } }).rc, 3, 'run-complete 못 쟀다는 3 그대로');
+  assert.equal(go('dom-precondition-split-slot.sh', G, { args, env: { RC_precondition_split: '3', RC_run_complete: '1' } }).rc, 3, '갈림을 못 쟀으면 그 값이 먼저');
 });
 test('S4 unit-time — 두 회차를 부르고(첫째 --record) rc 는 둘째를 따라온다', { skip: NO_BASH }, () => {
   const G = ['tests/unit-time.gate.js'];
