@@ -155,7 +155,7 @@ function norm(names, id) { return names[id] || id; }
 async function runSeed(page, seed, { maxOps = LIM.ops, ur = false, deep = false } = {}) {
   const r = rng(seed); const trace = { seed, plan: null, ops: [], fails: [], measured: 0, refused: 0, skipped: 0 }; const tries = [];
   const { plan, ids } = await buildTree(page, r); trace.plan = plan;
-  const names = {}; let nF = 0; const nameAll = (st) => { Object.keys(st.frames).sort().forEach((k) => { if (!names[k]) names[k] = 'F' + (nF++); }); };
+  const names = {}; let nF = 0; const nameAll = (st) => { Object.keys(st.frames).sort((a, b) => st.frames[a].order - st.frames[b].order).forEach((k) => { if (!names[k]) names[k] = 'F' + (nF++); }); };
   ids.forEach((k) => { names[k] = 'F' + (nF++); });
   let cur = await live(page); nameAll(cur);
   const undo = []; const redo = [];
@@ -351,6 +351,7 @@ test('E1 값 — 들어간 뒤 자식 자리의 맨 위 임자', async ({ page }
       out[id] = { rect: [r.left, r.top, r.width, r.height].map(Math.round), pts: [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]].map(([x, y]) => ({ x, y, stack: document.elementsFromPoint(x, y).slice(0, 4).map((e) => ({ id: e.id || '', cls: typeof e.className === 'string' ? e.className : '', tag: e.tagName })) })) }; } return out; }, [ids]);
   const show = async (st) => { const v = await probe(); const o = {}; for (const id of ids) o[name[id]] = { rect: v[id].rect, top: await Promise.all(v[id].pts.map(async (q) => label(await hitAt(page, q.x, q.y)))), stack0: v[id].pts[0].stack.map(label) }; return { st, ...o }; };
   await page.evaluate((P) => document.getElementById(P).scrollIntoView({ block: 'center' }), P); await settle(page);
+  await page.waitForFunction((P) => { const r = document.getElementById(P).getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }, P, { timeout: 4000 });
   const a = await show('들어가기 전');
   const r = await page.evaluate((P) => { const q = document.getElementById(P).getBoundingClientRect(); return [q.right - 6, q.bottom - 6]; }, P);
   await page.mouse.dblclick(r[0], r[1]); await settle(page);
@@ -359,6 +360,22 @@ test('E1 값 — 들어간 뒤 자식 자리의 맨 위 임자', async ({ page }
   const out = { entered: { entered: name[entered.entered] || entered.entered, sel: entered.sel.map((x) => name[x] || x.split('_')[0]) }, a, b };
   console.log(`E1 ${JSON.stringify(out)}`);
   save('E1', { ...out, __tries: [] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+/* tip 시점 값(지디 J294D · 값만): 맨 위 프레임 둘에서 move · 대조 size — 조작 직후 · 두 프레임 뒤 · 1 초 뒤 tip. 늦게 읽어 바뀌면 시점 탓 · 그대로면 스택 꼴 쪽. */
+test('M1 값 — move·size 뒤 tip 을 세 시점에(단언 없음)', async ({ page }) => {
+  const errs = await setup(page);
+  const ids = await page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const out = [];
+    for (let i = 0; i < 2; i++) { window.deselectAll?.(); window.selectSection(sec); window._activeFrame = null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); out.push([...sec.querySelectorAll(FR)].find((x) => !b.has(x)).id); }
+    window.deselectAll?.(); window.clearHistory?.(); return out; });
+  const later = async () => { const t0 = await page.evaluate(() => performance.now()); await page.waitForFunction((t) => performance.now() > t + 1000, t0); };
+  const three = async (label, act) => { const start = await tipOf(page); await page.evaluate(act, ids); const now = await tipOf(page); await settle(page); const raf = await tipOf(page); await later(); const sec1 = await tipOf(page);
+    return { label, start, now, raf, sec1, order: await page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; return [...window.__secEl().querySelectorAll(FR)].map((f) => f.id); }) }; };
+  const m = await three('move', ([a, b]) => { window.moveBlock(a, { afterId: b }); });
+  const z = await three('size', ([a]) => { window.updateFrameBlock(a, { width: 333 }); });
+  const out = { seq: [m, z].map(({ order, ...x }) => ({ ...x, moved: order[0] === ids[1] })), __tries: [] };
+  console.log(`M1 ${JSON.stringify(out.seq)}`);
+  save('M1', out);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 /* 값 칸 265(단언은 전제만 · 판정 안 함): 거절 입력 앞뒤 이력 칸 수 · ⌘Z 한 번 뒤 값 */
