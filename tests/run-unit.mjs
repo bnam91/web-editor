@@ -36,8 +36,8 @@ if (patterns.length === 0) {
 const junit = process.env.GOYA_TEST_JUNIT;
 const rep = junit ? ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=junit', `--test-reporter-destination=${junit}`] : [];
 /* ★196 ⑴(지디 판정 261028) — 비동기 시험 상한 60s. 근거(첫 전수 5c5b94f5 JUnit): 시험 하나 >60s 는 둘뿐이고 둘 다 «동기 몸»
- *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync). ★판별로 다르다 — ★v25.8.0 실측(261031 S6 2×2 · 양성 섰다): 동기 몸엔 ★안 듦 · ★비동기는 든다.
- *   ★v22.22.3 에서는 같은 네 칸을 ★안 쟀다 — 아이맥에서 ★파일째 취소가 상한 60s 런 10/10 났고 ★그 임자는 ★미정(시트 303). 60s 넘는 «비동기» 0 ⇒ v25.8.0 에서 빨강 0 이 «전제». ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
+ *   (css-token-lint ② --rev 218.7s spawnSync · renderer-js-parses P1 72.5s execFileSync). ★판별로 다르다 — 판별 값의 정본 = tests/unit-time.gate.js 머리말 «★왜» 줄. 여기 남긴 것은 ★v25.8.0 실측(261031 S6 2×2 · 양성 섰다) 하나뿐: 동기 몸엔 ★안 듦 · ★비동기는 든다.
+ *   60s 넘는 «비동기» 0 ⇒ v25.8.0 에서 빨강 0 이 «전제». ⛔N 을 «지금 최대»(218.7s)로 두지 않는다(항등식).
  *   동기 몸의 느려짐은 이 상한이 아니라 tests/unit-time.gate.js(파일 시간 명부)가 잡는다. 덮어쓰기 = GOYA_TEST_TIMEOUT_MS(양의 정수). */
 const rawT = process.env.GOYA_TEST_TIMEOUT_MS;
 const tmo = rawT === undefined ? 60000 : Number(rawT);
