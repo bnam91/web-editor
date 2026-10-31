@@ -36,7 +36,7 @@ async function installStripUi(pg) {
 }
 const fs = require('fs');
 const path = require('path');
-const { bootApp, pinnedBoot, ROOT } = require('./_root-harness.js');
+const { bootApp, pinnedBoot, ROOT, waitZoomSettled } = require('./_root-harness.js');
 
 const PIN = '6119145c';
 /* ★길이·불투명도 = 시안(지디 goditor-effects-reflection.html) 슬라이더 값 «그대로». 흐림은 뺐다.
@@ -85,6 +85,9 @@ async function setup(page, boot = bootApp) {
     window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
   });
   await page.waitForTimeout(300);
+  /* ★배율 전이가 멎은 뒤에 돌려준다 — 맨 applyZoom(100) 은 scaler 를 0.15s 보간한다. 그 사이 잰 섹션 높이는 낡은 배율이다
+     (J323 실측 R3 : h0 623.096 ↔ 평소 1400 · 1399.9998 · 고정 300ms 로는 가끔 못 넘었다). */
+  await waitZoomSettled(page, 100);
   return errs;
 }
 const rect = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); const q = e.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom, h: q.height, oh: e.offsetHeight }; }, id);
