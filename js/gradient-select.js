@@ -83,7 +83,7 @@ function _bindGradientCornerDrag(handle, block, corner) {
       newW = Math.max(MIN, Math.round(newW));
       newH = Math.max(MIN, Math.round(newH));
       // ── 섹션 너비 스냅 (width only) ──────────────────────────────────────
-      const snapTh = GRAD_SNAP_SCREEN / zoom; // 화면 px → 섹션 로컬 px
+      const snapTh = _gradScreenToLocal(GRAD_SNAP_SCREEN, zoom); // 화면 px → 섹션 로컬 px(환산 한 자리) · ★이동량 dx 와 같은 «잡은 배율»(309)
       if (secW > 0 && Math.abs(newW - secW) <= snapTh) {
         newW = secW;
         _showGradSnapEdge(sec, 'left');
@@ -126,6 +126,11 @@ function _bindGradientCornerDrag(handle, block, corner) {
 
 // ── 엣지 맞닿기 스냅 (그라데이션 오버레이를 다른 블록 변에 약하게 끌어 붙임) ──
 const GRAD_SNAP_SCREEN = 16; // 화면상 자석 끌림 거리(px) — 줌과 무관하게 일정한 체감
+/* ★236 «화면 px → 섹션 로컬 px» 환산은 이 한 자리 — 읽는 이 둘: 리사이즈의 섹션 너비 스냅(_bindGradientCornerDrag)과
+   이동의 형제 변 스냅(_gradEdgeSnap). ⛔두 스냅 규칙은 합치지 않는다(맞추는 대상이 다르다: 섹션 너비 ↔ 형제 블록 변).
+   ★309 배율은 «부르는 자의 것»을 받는다 — 여기서 currentZoom 을 다시 읽으면 드래그 도중 ⌘± 뒤 문턱만 새 배율로 재어
+     이동량(잡은 배율)과 갈린다(실측 860 섹션 · 차 35 · 40→50 : 붙어 있던 것이 825 로 떨어졌다). */
+function _gradScreenToLocal(px, zoom) { return px / zoom; }
 const _GRAD_TARGET_SEL = '.text-block,.asset-block,.card-block,.canvas-block,.banner02-block, .comparison-block,.table-block,.graph-block,.divider-block,.icon-circle-block,.label-group-block,.icon-text-block,.step-block,.chat-block,.laurel-block,.mockup-block,.shape-block,.sticker-block,.gradient-block';
 let _gradSnapEls = [];
 
@@ -155,7 +160,7 @@ function _gradEdgeSnap(block, sec, x, y, bw, bh, secRect) {
   if (bw == null) bw = block.offsetWidth;
   if (bh == null) bh = block.offsetHeight;
   const zoom = (window.currentZoom || 40) / 100;
-  const GRAD_SNAP_TH = GRAD_SNAP_SCREEN / zoom; // 화면 px → 섹션 로컬 px 환산 (줌 무관 체감)
+  const GRAD_SNAP_TH = _gradScreenToLocal(GRAD_SNAP_SCREEN, zoom); // 화면 px → 섹션 로컬 px 환산 (줌 무관 체감 · 환산 한 자리)
   if (!secRect) secRect = sec.getBoundingClientRect();
   const toLocal = r => ({
     L: (r.left  - secRect.left) / zoom, R: (r.right  - secRect.left) / zoom,
