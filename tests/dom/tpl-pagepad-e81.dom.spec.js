@@ -17,7 +17,8 @@ const { bootApp } = require('./_root-harness.js');
 
 /* ★시험 커밋에는 고침이 없다 — 고침을 재는 시험은 «빨강이 정상»(test.fail). 고침 커밋에서 false. */
 const FIX = false;
-const GOLD = path.join(__dirname, 'fixtures', 'tpl-pagepad-e81-golden.json');
+const { _goldDir, _mutForWrite, _expectNoDeletes } = require('./_golden-guard.js');   // ★212 ⑵ — 갱신 길의 지움 가드(공용)
+const GOLD = path.join(_goldDir(__dirname), 'tpl-pagepad-e81-golden.json');
 const { tokensBack } = require('./_golden-tokens.js');
 const UPDATE = process.env.E81_GOLDEN === 'update';
 /* ★gradient 는 T1 에서 «뺀다»: 섹션 길에선 gradient-block 이 .section-block «직속»(section-inner 밖)에 서고, 블럭 길에선 row 안에 선다
@@ -154,11 +155,11 @@ test('T3 전폭 아님 8 — 블럭 길로 넣은 블럭 outerHTML 이 핀(4df20
       c.querySelectorAll('.selected').forEach(x => x.classList.remove('selected'));
       return c.outerHTML.replace(/(id|data-[a-z-]*id|for|aria-labelledby)="[^"]*"/g, '$1="#"').replace(/\b(sec|row|ss|tb|grd|cvb|chb|tbl|dvd|itb|ab|gb|icn|mkp|ln)_[A-Za-z0-9_]+/g, '$1_#'); }, k);
   }
-  if (UPDATE) { fs.mkdirSync(path.dirname(GOLD), { recursive: true }); fs.writeFileSync(GOLD, JSON.stringify(out, null, 1) + '\n'); return; }
+  const WANT = ['FONT', 'CVB_H', 'CVB_SCALE'];   // ★뜻한 바뀜 토큰 — 갱신 가드도 «고른 바이트»를 본다(212 ㉠⒝ · 지디)
+  if (UPDATE) { const w = _mutForWrite(out); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 'tpl-pagepad-e81', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w, { norm: (h) => tokensBack(h, WANT).s }); fs.mkdirSync(path.dirname(GOLD), { recursive: true }); fs.writeFileSync(GOLD, JSON.stringify(w, null, 1) + '\n'); return; }
   const gold = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
   /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js.
      ⛔골든을 갱신하지 마라: 핀 4df20f78 과 견주는 것이 이 검사의 뜻이다(2026-10-08 에 내가 한 번 갱신했다가 되돌렸다). */
-  const WANT = ['FONT', 'CVB_H', 'CVB_SCALE'];
   const rc = {};
   for (const k of PLAIN) {
     const bk = tokensBack(out[k], WANT);
