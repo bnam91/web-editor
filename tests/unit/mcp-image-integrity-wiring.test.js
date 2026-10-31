@@ -22,6 +22,7 @@ const fs = require('node:fs');
 const zlib = require('node:zlib');
 
 const mcp = require('../../main/claude-pm/mcp-server.js');
+const { _freePortIn, assertOutsideBand } = require('./_mcp-harness.js');
 /* ★로그인 프로브를 «꽂는다» — 2026-09-07 부터 인증 게이트가 fail-closed 다(못 재면 거절).
    예전엔 미주입이 «통과»라 안 꽂아도 돌았는데, 그 관대함이 곧 「게이트가 증발하는 경로」였다
    (프로브와 게이트는 «같은 바이너리»라 「버전이 낡아 주입이 없다」는 논거가 성립하지 않는다).
@@ -72,9 +73,8 @@ before(async () => {
      합쳐지면 쓰기 도구는 「대상을 정한 적 없다」로 «먼저» 거절한다. 그러면 이 파일은
      ⑴거절은 나는데 사유가 IMAGE_TRUNCATED 가 아니고 ⑵대조군은 렌더러가 안 불려서
      «둘 다» 깨진다. 실측: 병합본에서 이 파일만 17개 빨강(2026-09-07). */
-  const r = await mcp.startMcpServer({ port: 9390, onActiveProject: () => PROJECT }); // 9345~9365 «밖»
-  PORT = r.port ?? 9390;
-  assert.ok(PORT < 9345 || PORT > 9365, `테스트 포트가 브리지 스캔 대역 안이다: ${PORT}`);
+  const r = await mcp.startMcpServer({ port: await _freePortIn(), onActiveProject: () => PROJECT });
+  PORT = assertOutsideBand(r.port);
   TOKEN = mcp.getToken();
   /* 게이트 확정은 sticky 다 — 한 번 `expectedProject` 로 지목하면 이후 호출은 인자 없이 통과한다.
      ⛔게이트가 «없는» 트리(이 브랜치 단독)에서는 이 인자가 그냥 무시된다 ⇒ 양쪽에서 같은 파일이 돈다.
