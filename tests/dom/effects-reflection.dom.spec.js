@@ -62,6 +62,7 @@ async function setup(page, boot = bootApp) {
   await page.setViewportSize({ width: 1500, height: 1400 });
   await installStripUi(page);          // ★goto «전»이라야 addInitScript 가 걸린다(위 머리말)
   const errs = await boot(page);
+  await page.waitForFunction(() => typeof window.rebindAll === 'function', null, { timeout: 20000 });   // ★전제: 앱이 섰다(옛 R2 덮개가 들던 조건 대기 · pinnedBoot 로 옮기며 여기로)
   await page.evaluate(() => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="eS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="eI">
