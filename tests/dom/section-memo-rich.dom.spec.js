@@ -1437,6 +1437,19 @@ test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 �
     return !!pop && Math.abs(pop.getBoundingClientRect().width - pop.offsetWidth) < 0.01;
   });
   /* 세로로 긴 그림은 모서리가 편집 칸 아래로 나간다 — 그때 손잡이는 숨는다(쥘 수 없는 자리) ⇒ 모서리가 보이게 내린다 */
+  /* J324 — 누르기 바로 앞에 손잡이의 «실제 자리»를 다시 뜬다. placeGrip 이 옮기거나 감추므로(js/section-memo.js) 앞서 잰 좌표로 누르지 않는다 */
+  const gripNow = async (which) => {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));   // scroll 이벤트(placeGrip)가 지나간 뒤에 뜬다 — 그 전엔 scrollTop 만 새 값이고 손잡이는 옛 자리다(J324 ×12 실측 3/12)
+    const p = await page.evaluate(() => {
+      const el = document.querySelector('.smp-img-grip');
+      if (!el) return { connected: false };
+      const r = el.getBoundingClientRect();
+      return { connected: el.isConnected, display: getComputedStyle(el).display, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+    });
+    expect(p.connected, `장면 미성립: ${which} — 손잡이가 문서에 없다`).toBe(true);
+    expect(p.display, `장면 미성립: ${which} — 손잡이가 감춰져 있다`).not.toBe('none');
+    return p;
+  };
   const revealCorner = () => page.evaluate(() => {
     const ed = document.querySelector('.smp-editor');
     const im = ed.querySelector('img.smp-img');
@@ -1466,11 +1479,12 @@ test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 �
     return !!s.rangeCount && s.getRangeAt(0).intersectsNode(document.querySelector('.smp-editor img.smp-img'));
   })).toBe(true);
 
-  await page.mouse.move(g.cx, g.cy);
-  expect((await hitAt(page, g.cx, g.cy))?.cls, '장면 미성립: 첫 끌기 — 누른 점의 임자가 손잡이가 아니다(263 꼴)').toBe('smp-img-grip');
+  const p1 = await gripNow('첫 끌기');
+  await page.mouse.move(p1.cx, p1.cy);
+  expect((await hitAt(page, p1.cx, p1.cy))?.cls, '장면 미성립: 첫 끌기 — 누른 점의 임자가 손잡이가 아니다(263 꼴)').toBe('smp-img-grip');
   await page.mouse.down();
-  await page.mouse.move(g.cx + 60, g.cy, { steps: 4 });
-  await page.mouse.move(g.cx + 100, g.cy, { steps: 4 });
+  await page.mouse.move(p1.cx + 60, p1.cy, { steps: 4 });
+  await page.mouse.move(p1.cx + 100, p1.cy, { steps: 4 });
   await page.mouse.up();
   const r1 = await rectOf();
   expect(Math.abs(r1.w - (r0.w + 100)) <= 1, `너비가 끈 만큼 늘었다(${r0.w} → ${r1.w})`).toBe(true);
@@ -1490,15 +1504,15 @@ test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 �
   await revealCorner();
   await expect(page.locator('.smp-img-grip'), '★전제: 모서리를 내려 보이니 손잡이도 보인다').toBeVisible();
   const g2 = await page.evaluate(() => {
-    const gr = document.querySelector('.smp-img-grip').getBoundingClientRect();
     const ed = document.querySelector('.smp-editor');
     const cs = getComputedStyle(ed);
-    return { cx: gr.left + gr.width / 2, cy: gr.top + gr.height / 2, max: Math.floor(ed.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
+    return { max: Math.floor(ed.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
   });
-  await page.mouse.move(g2.cx, g2.cy);
-  expect((await hitAt(page, g2.cx, g2.cy))?.cls, '장면 미성립: 둘째 끌기 — 누른 점의 임자가 손잡이가 아니다(263 꼴)').toBe('smp-img-grip');
+  const p2 = await gripNow('둘째 끌기');
+  await page.mouse.move(p2.cx, p2.cy);
+  expect((await hitAt(page, p2.cx, p2.cy))?.cls, '장면 미성립: 둘째 끌기 — 누른 점의 임자가 손잡이가 아니다(263 꼴)').toBe('smp-img-grip');
   await page.mouse.down();
-  await page.mouse.move(g2.cx + 3000, g2.cy, { steps: 4 });
+  await page.mouse.move(p2.cx + 3000, p2.cy, { steps: 4 });
   await page.mouse.up();
   await expect.poll(() => memoOf(page)).toBe(`가![w=${g2.max}](${A2_URLS[0]})나`);
   expect((await rectOf()).w, '보이는 너비 = 저장 너비').toBe(g2.max);
