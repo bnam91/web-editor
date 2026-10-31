@@ -18,7 +18,7 @@ cd "$(dirname "$0")/../.." || exit 3
 OUT=${SLOT_OUT:-.slot-out/flaky-$(date +%H%M%S)}; mkdir -p "$OUT"
 LOG=${SLOT_LOG:-}
 if [ -z "$LOG" ]; then
-  RUNNER=${SLOT_RUNNER:-npx playwright test --config=tests/dom/playwright.dom.config.js}
+  RUNNER=${SLOT_RUNNER:-node node_modules/.bin/playwright test --config=tests/dom/playwright.dom.config.js}
   if [ -n "${SLOT_GATE:-}" ]; then eval "$SLOT_GATE" | tee -a "$OUT/hdr.log"; [ ${PIPESTATUS[0]} -eq 0 ] || { echo "문턱 미달 — 안 돎" | tee -a "$OUT/hdr.log"; exit 5; }; fi
   LOG="$OUT/run.log"
   echo "# $(git rev-parse HEAD) · dom-flaky-roster-slot · $(date '+%F %T')" > "$LOG"

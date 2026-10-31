@@ -14,7 +14,7 @@
 set -u
 cd "$(dirname "$0")/../.." || exit 3
 OUT=${SLOT_OUT:-.slot-out/dom-$(date +%H%M%S)}; mkdir -p "$OUT"
-RUNNER=${SLOT_RUNNER:-npx playwright test --config=tests/dom/playwright.dom.config.js}
+RUNNER=${SLOT_RUNNER:-node node_modules/.bin/playwright test --config=tests/dom/playwright.dom.config.js}
 if [ -n "${SLOT_GATE:-}" ]; then eval "$SLOT_GATE" | tee -a "$OUT/hdr.log"; [ ${PIPESTATUS[0]} -eq 0 ] || { echo "문턱 미달 — 안 돎" | tee -a "$OUT/hdr.log"; exit 5; }; fi
 echo "# $(git rev-parse HEAD) · dom-run-complete-slot · $(date '+%F %T')" > "$OUT/run.log"
 eval "$RUNNER" --workers=1 --reporter=list >> "$OUT/run.log" 2>&1; echo "# 러너 rc $?" >> "$OUT/run.log"
