@@ -151,6 +151,17 @@ test('F4-6 update_block · put_image 응답이 작고 base64 를 안 되돌린�
   console.error(`  [실측] update_block ${u.bytes}B · put_image ${p.bytes}B (입력 dataURL 은 50,022자)`);
 });
 
+test('F4-6s ★put_image «성공» 경로 예산 — 계약 케이스의 참 PNG 로 잰다(F4-6 의 입력은 거절된다)', async () => {
+  /* ★299: F4-6 의 'B'×50000 은 PNG 가 아니라 IMAGE_INVALID 로 거절된다 — 그 응답(397 B)은 성공 경로가 아니다.
+     기준선 @refs/gd/DEVPIN-261031-1225: 참 PNG 196 B(하네스라 sectionId·blockId 가 null). 거절 예산(REFUSAL_BUDGET)과 다른 자다. */
+  const { CASES } = require('../contract/mcp-cases');
+  const p = await H.call('put_image', CASES.put_image.args);
+  assert.strictEqual(p.result && p.result.ok, true, `전제: 성공 경로에 안 닿았다(자극 없는 초록) — ${p.rawText}`);
+  assertNoBase64('put_image(성공)', p.rawText);
+  assert.ok(p.bytes <= BUDGET.put_image, `put_image 성공 ${p.bytes}B > ${BUDGET.put_image}B — 응답이 부었다`);
+  console.error(`  [실측] put_image 성공 ${p.bytes}B`);
+});
+
 test('F4-7 ★도구 «전수» 응답에 base64 가 0건이다', async () => {
   const { CASES } = require('../contract/mcp-cases');
   const leaks = [];
