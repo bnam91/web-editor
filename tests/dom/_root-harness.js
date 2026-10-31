@@ -47,7 +47,8 @@ const src = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 module.exports = { ROOT, ORIGIN, boot, src };
 
 /* ★311 SETTLE-MIN-MS-3000-LOCKS-NOTHING-01 — 정착 역산 꼴(ft3 · w2d08 · _cr-harness)의 두 수 한 자리. 세 벌을 파생으로 하나로 모았다.
- * ⚠️두 수 다 미측정 · 선례 ft3 에서 옮김 · 이 수는 아직 아무것도 잠그지 않는다. 배수는 표본이 생긴 뒤다(지금 고르지 않는다).
+ * ★SETTLE_MIN_MS 3000 출처: 관측 최대 574ms(w2d08 64 · _cr 14 · ft3 5 표본 · 낮은 부하 · 261031 S7 · 판 8dd83281 사본 ×1) · 3000 = 그 최대의 약 5.2 배 · 이 수는 «정착 시간»이 아니라 «예산 온전함»의 바닥이다 · 처음 값은 선례 ft3 에서 옮김 · ⬜ 높은 부하 판 표본 없다.
+ * ★SETTLE_ROOM_SHARE 0.6 출처: 미측 — 선례 ft3 에서 옮김 · 잰 값 없음.
  * 뜻: 마감 = 남은 시험 시간 × SETTLE_ROOM_SHARE · 그 몫이 SETTLE_MIN_MS 보다 적으면 재지 않고 이름(SETTLE-BUDGET-EXCEEDS-TEST-TIMEOUT)으로 던진다.
  * 옮겨 온 값(이 수를 정한 값 아님): 유닛 전수 2026-10-31 13:00:48~13:06:52 · 판 816a57f2 · Intel · node v25.8.0 — 총 302s · 가장 느린 시험 css-token-lint ② --rev 167s · cancelled 0. */
 module.exports.SETTLE_ROOM_SHARE = 0.6;
