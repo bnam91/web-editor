@@ -393,3 +393,23 @@ test('V265 값 — 거절 입력 앞뒤 이력·⌘Z 한 번(판정 0 · 지디 
   console.log(`V265 ${JSON.stringify({ ...r, afterZ: c })}`);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+/* V265 의 음성대조(JQ-RULER-A ⑶ · imac-gd-L3): 같은 장면에서 거절만 뺀다 ⇒ 이력 꼭대기가 안 움직인다. 이것이 서야 V265 의 «거절 뒤 tip 이 움직였다» 가 뜻을 갖는다.
+ *   양성(사본에서 잼): 이 칸에 진짜 편집 + pushHistory 를 넣으면 빨강(자가 움직임을 본다) · ⚠️거절 줄을 넣어도 초록이다(이 문으론 거절이 꼭대기를 안 움직인다 · 261031 실측) · ⛔이 칸이 안 재는 것: 거절이 tip 을 움직이는 것이 옳은가(판정은 지디) · 값 복원 · 표 밖 다른 거절 · 패널 길(MCP 문으로 부른다). */
+test('V265N 음성대조 — 거절 없는 같은 장면은 이력 꼭대기가 안 움직인다', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => { const sec = window.__secEl(); window.selectSection(sec); window.addTableBlock(); const t = sec.querySelector('.table-block'); if (!t) return { fail: '표 안 섬' };
+    window.clearHistory?.(); const tip = () => { const h = window.getHistoryTip(); return [h.pos, h.len]; };
+    const t0 = tip(); const ok = window.updateTableBlock(t.id, { mergedHeaderCols: [[0, 2]] }); const t1 = tip(); const a = t.dataset.mergedHeaderCols ?? null;
+    const t2 = tip(); window.deselectAll?.(); document.activeElement?.blur?.();
+    return { id: t.id, ok: ok?.ok, a, t0, t1, t2 }; });
+  expect(r.fail, '전제: 표').toBeUndefined();
+  expect(r.ok, '전제: 앞 성공').toBe(true);
+  await settle(page);
+  const after = await page.evaluate(() => { const h = window.getHistoryTip(); return [h.pos, h.len]; });
+  await page.keyboard.press('Meta+z'); await settle(page);
+  const c = await page.evaluate((id) => { const h = window.getHistoryTip(); return { v: document.getElementById(id)?.dataset.mergedHeaderCols ?? null, tip: [h.pos, h.len] }; }, r.id);
+  console.log(`V265N ${JSON.stringify({ ...r, after, afterZ: c })}`);
+  expect(r.t2, '거절 없이 꼭대기가 움직였다').toEqual(r.t1);
+  expect(after, '다음 프레임에도 그대로').toEqual(r.t1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
