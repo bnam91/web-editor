@@ -73,7 +73,7 @@ before(async () => {
      합쳐지면 쓰기 도구는 「대상을 정한 적 없다」로 «먼저» 거절한다. 그러면 이 파일은
      ⑴거절은 나는데 사유가 IMAGE_TRUNCATED 가 아니고 ⑵대조군은 렌더러가 안 불려서
      «둘 다» 깨진다. 실측: 병합본에서 이 파일만 17개 빨강(2026-09-07). */
-  const r = await mcp.startMcpServer({ port: await _freePortIn(), onActiveProject: () => PROJECT });
+  const r = await mcp.startMcpServer({ port: await _freePortIn(), onActiveProject: () => PROJECT }); // OWN_FORBID(tests/e2e/run-app.sh) 전수 밖 — 그 명부를 보라(_freePortIn 이 읽어 거른다)
   PORT = assertOutsideBand(r.port);
   TOKEN = mcp.getToken();
   /* 게이트 확정은 sticky 다 — 한 번 `expectedProject` 로 지목하면 이후 호출은 인자 없이 통과한다.

@@ -5,11 +5,11 @@
  *                          여기 걸렸으면 계측 불가 → 사람이 판단할 일이므로 그냥 실패시킨다.
  *   pages/projects.html — 프로젝트 목록. 계측용 «빈 프로젝트»를 하나 만든다.
  *   index.html?project= — 이미 에디터. 그대로 통과.
- * 사용: node tools/perf/open-editor.mjs --port=9390 */
+ * 사용: node tools/perf/open-editor.mjs --port=<포트> */
 import { connect, sleep } from './cdp-lite.mjs';
 const A = Object.fromEntries(process.argv.slice(2).map(s => { const m = /^--([^=]+)(?:=(.*))?$/.exec(s); return m ? [m[1], m[2] ?? true] : [s, true]; }));
 const PORT = A.port;
-if (!PORT) { console.error('usage: open-editor.mjs --port=9390'); process.exit(1); }
+if (!PORT) { console.error('usage: open-editor.mjs --port=<포트>'); process.exit(1); }
 
 const url = async () => (await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json()).filter(p => p.type === 'page').map(p => p.url);
 let u = await url();

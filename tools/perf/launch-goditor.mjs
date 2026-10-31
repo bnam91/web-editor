@@ -12,7 +12,7 @@
  *   현빈의 실제 프로젝트를 계측이 건드린다.
  *
  * 사용:
- *   node tools/perf/launch-goditor.mjs --port=9390 --ud=/tmp/goditor-perf-on  --flags=on
+ *   node tools/perf/launch-goditor.mjs --port=<포트> --ud=/tmp/goditor-perf-on  --flags=on
  *   node tools/perf/launch-goditor.mjs --port=9391 --ud=/tmp/goditor-perf-off --flags=off
  */
 import { spawn } from 'node:child_process';
@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 const A = Object.fromEntries(process.argv.slice(2).map(s => { const m = /^--([^=]+)(?:=(.*))?$/.exec(s); return m ? [m[1], m[2] ?? true] : [s, true]; }));
 const PORT = A.port, UD = A.ud, FLAGS = String(A.flags || 'on') === 'on';
-if (!PORT || !UD) { console.error('usage: launch-goditor.mjs --port=9390 --ud=<격리경로> --flags=on|off [--log=path]'); process.exit(1); }
+if (!PORT || !UD) { console.error('usage: launch-goditor.mjs --port=<포트> --ud=<격리경로> --flags=on|off [--log=path]'); process.exit(1); }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require = createRequire(import.meta.url);

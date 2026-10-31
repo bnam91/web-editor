@@ -23,7 +23,7 @@
      · 좌표가 실제로 안 바뀐 회차는 «무효»로 표시한다(입력이 먹히지 않은 것을 통과시키지 않는다).
 
    사용:
-     node tools/perf/comfort-bench.mjs --port=9390 --label="mac flags-on" --out=/tmp/mac.json
+     node tools/perf/comfort-bench.mjs --port=<포트> --label="mac flags-on" --out=/tmp/mac.json
    ═══════════════════════════════════════════════════════════════════ */
 
 import fs from 'node:fs';
@@ -40,7 +40,7 @@ const A = Object.fromEntries(process.argv.slice(2).map(s => {
   return m ? [m[1], m[2] === undefined ? true : m[2]] : [s, true];
 }));
 const PORT = A.port;
-if (!PORT) { console.error('usage: comfort-bench.mjs --port=9390 [--label=..] [--out=x.json] [--repeats=3] [--warmup=1]'); process.exit(1); }
+if (!PORT) { console.error('usage: comfort-bench.mjs --port=<포트> [--label=..] [--out=x.json] [--repeats=3] [--warmup=1]'); process.exit(1); }
 const MATCH    = A.match || 'index.html';
 const LABEL    = A.label || `port${PORT}`;
 const REPEATS  = +(A.repeats || 3);

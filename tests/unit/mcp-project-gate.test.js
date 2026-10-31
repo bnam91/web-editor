@@ -85,7 +85,7 @@ test.before(async () => {
     getCanvasState: async () => ({ ok: true, sections: [{ sectionId: 'sec_test', blocks: [] }] }),
     listMemories: async () => ({ ok: true, items: [] }),
   });
-  started = await srv.startMcpServer({ port: await _freePortIn(), onActiveProject: () => ACTIVE });
+  started = await srv.startMcpServer({ port: await _freePortIn(), onActiveProject: () => ACTIVE }); // OWN_FORBID(tests/e2e/run-app.sh) 전수 밖 — 그 명부를 보라(_freePortIn 이 읽어 거른다)
   /* ★단언을 «지우지» 않는다 — 포트를 못 받았는데 계속 돌면 검사가 «아무 데도 안 붙은 채» 돈다.
        재는 것을 「9411 인가」에서 「진짜 포트를 받았나」로 바꾼다. */
   assert.ok(Number.isInteger(started.port) && started.port > 0,

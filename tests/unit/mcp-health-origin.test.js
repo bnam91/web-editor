@@ -17,7 +17,7 @@ const { _freePortIn, assertOutsideBand } = require('./_mcp-harness.js');
 let PORT;
 before(async () => {
   mcp.setRendererInvoker({ scratchAdd: async () => ({ ok: true }) });
-  const r = await mcp.startMcpServer({ port: await _freePortIn() });
+  const r = await mcp.startMcpServer({ port: await _freePortIn() }); // OWN_FORBID(tests/e2e/run-app.sh) 전수 밖 — 그 명부를 보라(_freePortIn 이 읽어 거른다)
   PORT = assertOutsideBand(r.port);
 });
 after(async () => { await mcp.stopMcpServer(); });
