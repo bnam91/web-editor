@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import cp from 'node:child_process';
+import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -33,14 +34,14 @@ const procsLike = (shell, rel, mark) => {
   return r.stdout.split('\n').filter(Boolean);
 };
 const pgrepF = (mark) => cp.spawnSync('pgrep', ['-f', mark], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
-/** 뜰 때까지 기다린 뒤 fn — 그룹째 죽인다(미끼 셸의 sleep 까지) */
+/** 첫 줄을 찍을 때까지(=떴다) 기다린 뒤 fn — 그룹째 죽인다(미끼 셸의 sleep 까지) */
 async function withProc(cmd, args, mark, fn) {
-  const ch = cp.spawn(cmd, args, { detached: true, stdio: 'ignore' });
+  const ch = cp.spawn(cmd, args, { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
   try {
-    for (let i = 0; i < 100 && !pgrepF(mark).includes(String(ch.pid)); i++) await new Promise((r) => setTimeout(r, 20));
+    await once(ch.stdout, 'data');
     assert.ok(pgrepF(mark).includes(String(ch.pid)), `★전제: ${mark} 프로세스가 안 떴다(이게 빨강이면 아래는 「안 쟀다」)`);
     return fn(ch.pid);
-  } finally { process.kill(-ch.pid); }
+  } finally { process.kill(-ch.pid); ch.stdout.destroy(); }
 }
 
 test('P1 ★레포 *.sh 에 pgrep -f 호출 0 — 양성: 그 꼴 글자는 걸린다 · 주석은 안 걸린다', () => {
@@ -55,14 +56,14 @@ test('P1 ★레포 *.sh 에 pgrep -f 호출 0 — 양성: 그 꼴 글자는 걸�
 for (const [shell, rel] of SCRIPTS) {
   test(`P2 ★미끼 셸에 0 · 같은 미끼에 pgrep -f 는 걸린다 — ${rel}`, { skip }, async () => {
     const mark = `gd300bait${process.pid}`;
-    await withProc('bash', ['-c', `sleep 20; : ${mark}`], mark, (pid) => {
+    await withProc('bash', ['-c', `echo up; sleep 20; : ${mark}`], mark, (pid) => {
       assert.ok(pgrepF(mark).includes(String(pid)), '★옛 자가 미끼를 안 세면 이 시험은 아무것도 못 가른다');
       assert.deepEqual(procsLike(shell, rel, mark), [], '글자만 든 셸을 프로세스로 셌다');
     });
   });
   test(`P3 ★진짜 프로세스에 ≥1(그 pid) — ${rel}`, { skip }, async () => {
     const mark = `gd300real${process.pid}`;
-    await withProc(process.execPath, ['-e', 'setTimeout(()=>{},20000)', mark], mark, (pid) => {
+    await withProc(process.execPath, ['-e', 'console.log(1);setInterval(()=>{},1000)', mark], mark, (pid) => {
       assert.deepEqual(procsLike(shell, rel, mark), [String(pid)], '진짜 프로세스를 못 셌다');
     });
   });
