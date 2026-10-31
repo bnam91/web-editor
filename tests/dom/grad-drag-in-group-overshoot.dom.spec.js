@@ -103,7 +103,7 @@ async function dragBy(page, s, dx, dy, probe = 'A') {
     const a = document.querySelector(`#gdoSec .gradient-block[data-probe="${probe}"]`);
     const r = a.getBoundingClientRect();
     window.__pressed = null;
-    window.addEventListener('mousedown', (e) => { window.__pressed = e.target.closest?.('.gradient-block')?.dataset.probe ?? null; }, { capture: true, once: true });
+    window.addEventListener('mousedown', (e) => { window.__pressed = e.target.closest?.('.gradient-block')?.id ?? null; }, { capture: true, once: true });
     return { left: r.left, top: r.top, dx: a.dataset.x, dy: a.dataset.y };
   }, probe);
   await page.mouse.move(s.cx, s.cy);
@@ -116,10 +116,10 @@ async function dragBy(page, s, dx, dy, probe = 'A') {
   const after = await page.evaluate((probe) => {
     const a = document.querySelector(`#gdoSec .gradient-block[data-probe="${probe}"]`);
     const r = a.getBoundingClientRect();
-    return { left: r.left, top: r.top, dx: a.dataset.x, dy: a.dataset.y, pressed: window.__pressed };
+    return { left: r.left, top: r.top, dx: a.dataset.x, dy: a.dataset.y, pressed: window.__pressed, watched: a.id };
   }, probe);
   return {
-    pressed: after.pressed,
+    pressedId: after.pressed, watchedId: after.watched,
     movedX: Math.round(after.left - before.left),
     movedY: Math.round(after.top - before.top),
     datasetX: [before.dx, after.dx], datasetY: [before.dy, after.dy],
@@ -293,7 +293,8 @@ test('D2 ★그룹 안 눌린 블럭(B)이 포인터만큼 움직인다 — data
   expect(s.smaller, '★전제: 그라데가 섹션보다 작지 않다').toBe(true);
   const r = await dragBy(page, s, 32, 32, 'B');
   console.log('[D2]', JSON.stringify(r));
-  expect(r.pressed, `★전제: 눌린 블럭이 B 가 아니다 · ${JSON.stringify(r)}`).toBe('B');
+  /* ★«내가 본 블럭» = «눌린 블럭» 을 id 로 단언 — 없으면 다음 사람이 또 다른 블럭을 보며 «끌기가 안 먹었다» 로 읽는다(지디 D2INTEL) */
+  expect(r.pressedId, `★전제: 눌린 블럭 ${r.pressedId} ≠ 본 블럭 ${r.watchedId} — 이 값으로 «끌기가 안 먹었다» 라 읽지 마라 · ${JSON.stringify(r)}`).toBe(r.watchedId);
   expect(r.datasetX[0] !== r.datasetX[1] || r.datasetY[0] !== r.datasetY[1],
     `GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01 — 눌린 블럭의 dataset 이 안 바뀌었다(moved false) · ${JSON.stringify(r)}`).toBe(true);
   expect(oneToOne(r.movedX, 32), `★x 화면 이동 ${r.movedX} ≠ 포인터 32(±6) · ${JSON.stringify(r)}`).toBe(true);
