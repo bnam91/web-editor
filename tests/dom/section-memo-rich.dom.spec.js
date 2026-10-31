@@ -49,6 +49,7 @@
  * ⛔앱을 «안» 띄운다. 실행: npm run test:dom -- section-memo-rich
  */
 const { test, expect } = require('@playwright/test');
+const { hitAt } = require('./_click-at.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -1466,6 +1467,7 @@ test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 �
   })).toBe(true);
 
   await page.mouse.move(g.cx, g.cy);
+  expect((await hitAt(page, g.cx, g.cy))?.cls, '장면 미성립: 첫 끌기 — 누른 점의 임자가 손잡이가 아니다(263 꼴)').toBe('smp-img-grip');
   await page.mouse.down();
   await page.mouse.move(g.cx + 60, g.cy, { steps: 4 });
   await page.mouse.move(g.cx + 100, g.cy, { steps: 4 });
@@ -1494,6 +1496,7 @@ test('P12 그림을 누르면 손잡이가 뜨고, 끌면 너비가 바뀌어 �
     return { cx: gr.left + gr.width / 2, cy: gr.top + gr.height / 2, max: Math.floor(ed.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
   });
   await page.mouse.move(g2.cx, g2.cy);
+  expect((await hitAt(page, g2.cx, g2.cy))?.cls, '장면 미성립: 둘째 끌기 — 누른 점의 임자가 손잡이가 아니다(263 꼴)').toBe('smp-img-grip');
   await page.mouse.down();
   await page.mouse.move(g2.cx + 3000, g2.cy, { steps: 4 });
   await page.mouse.up();
