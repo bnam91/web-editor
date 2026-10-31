@@ -32,6 +32,9 @@ THRESH=$(cat $D/thresh.mb); echo "지킴 상한(파일 $D/thresh.mb) = ${THRESH}
 bash ${APPLANE:-$HOME/taeyang-098/applane.sh} up $TREE $LANE_CDP $LANE_MCP $TAG 2>&1 | grep -E "CENSUS|UP |SELFTEST|⛔" | tee -a $O/applane.log
 THRESH_MB=$THRESH SWAP_UP_MB=1000 PFREE_MIN=${PFREE_MIN:-30} PAT=udata-$TAG TAG=$TAG LOG=$O/guard.log PHASE=$PH STOPFILE=$STOP zsh $D/rss-guard.sh &
 GPID=$!
+# 내 소유에서 args 에 글자가 든 프로세스 pid — ⛔pgrep -f(미끼 셸까지 센다 · 시트 300) · 첫 낱말이 셸·검색 도구면 뺀다 · 내 pid 뺀다
+# shortcut: 첫 낱말만 본다(vim playwright.txt · node -e "…글자…" 는 센다), 그것이 수를 흔들면 실행 파일로 좁혀라
+procs_like() { ps -u "$(id -un)" -o pid=,args= | PAT="$1" ME=$$ awk '$1!=ENVIRON["ME"] && $2!~/(^|\/)-?(sh|bash|zsh|dash|grep|egrep|pgrep|awk|sed|tail|ps)$/ && index($0,ENVIRON["PAT"]) {print $1}'; }
 alive() { kill -0 $GPID 2>/dev/null; }
 run() { local tag=$1; shift
   alive || { echo "지킴 멈춤(앱 내려감) — $tag 안 돎" | tee -a $O/hdr.log; return 9; }
@@ -42,7 +45,7 @@ run() { local tag=$1; shift
   grep -E '^\{|^flat|^void|^ERR|^prof' $O/$tag.log | cut -c1-400 | tee -a $O/hdr.log
   return $rc; }
 heap() { alive || return 9; echo "⑸ heap 스냅샷(D 판 · 낮은 깊이)" >> $PH; node $D/heap.cjs $O/heap-D.json >> $O/heap.log 2>&1; local rc=$?; grep -E '^heap|^ERR' $O/heap.log | cut -c1-400 | tee -a $O/hdr.log; return $rc; }
-if [ "${FIRE:-0}" = "1" ]; then node $D/fresh.cjs >> $O/fire.log 2>&1; for i in $(seq 1 90); do alive || break; sleep 1; done; if alive; then echo "발동 시험: 90s 안에 안 멈춤 ⇒ 실패" | tee -a $O/hdr.log; touch $STOP; wait $GPID; bash ${APPLANE:-$HOME/taeyang-098/applane.sh} down $TAG >> $O/applane.log 2>&1; exit 7; fi; wait $GPID; echo "발동 시험: 지킴 rc $? · $(grep -E 'STOP' $O/guard.log | tail -1)" | tee -a $O/hdr.log; echo "앱 프로세스 $(pgrep -f udata-$TAG | wc -l | tr -d ' ') · 띠 LISTEN $(lsof -nP -iTCP:$LANE_CDP-$LANE_MCP -sTCP:LISTEN 2>/dev/null | grep -c LISTEN)" | tee -a $O/hdr.log; exit 0; fi
+if [ "${FIRE:-0}" = "1" ]; then node $D/fresh.cjs >> $O/fire.log 2>&1; for i in $(seq 1 90); do alive || break; sleep 1; done; if alive; then echo "발동 시험: 90s 안에 안 멈춤 ⇒ 실패" | tee -a $O/hdr.log; touch $STOP; wait $GPID; bash ${APPLANE:-$HOME/taeyang-098/applane.sh} down $TAG >> $O/applane.log 2>&1; exit 7; fi; wait $GPID; echo "발동 시험: 지킴 rc $? · $(grep -E 'STOP' $O/guard.log | tail -1)" | tee -a $O/hdr.log; echo "앱 프로세스 $(procs_like udata-$TAG | wc -l | tr -d ' ') · 띠 LISTEN $(lsof -nP -iTCP:$LANE_CDP-$LANE_MCP -sTCP:LISTEN 2>/dev/null | grep -c LISTEN)" | tee -a $O/hdr.log; exit 0; fi
 echo "이 사본은 GATE_ONLY=1 · FIRE=1 만 — 런은 guard-run.sh 로(250 성능 런은 Intel S7 몫)" | tee -a $O/hdr.log; touch $STOP; wait $GPID 2>/dev/null; bash ${APPLANE:-$HOME/taeyang-098/applane.sh} down $TAG >/dev/null 2>&1; exit 2
 run D FLAT=128 DEPTHS=1 REPS=10 PROFILE_DEPTH=1 && heap && run C DEPTHS=128,64,32,16,8,4,2,1 REPS=10 PROFILE_DEPTH=16
 touch $STOP; wait $GPID 2>/dev/null; GRC=$?
