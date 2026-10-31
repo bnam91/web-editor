@@ -9,23 +9,13 @@ import { canvasEl, state } from '../globals.js';
    ★ 직렬화 안전성(serialization-safety) 계약 ★
    getSerializedCanvas(save-load.js)는 라이브 DOM을 cloneNode한다. 직렬화의
    "진실 소스"는 data-* 속성(data-bg-img / data-img-src) + <img>의 src 속성이다.
-   본 모듈은 *렌더링 레이어*만 건드린다:
-     - element.style.backgroundImage  (인라인 배경)
-     - <img>.src                       (속성이 아니라 라이브 src 프로퍼티)
-   언로드 시 위 둘만 비우고, 복원용 원본 값은 data-lazy-bg / data-lazy-src에
-   별도 보관한다. data-bg-img / data-img-src / (저장 HTML에 들어가는 img src
-   속성) 같은 직렬화 진실 소스는 절대 건드리지 않는다.
-
-   NOTE: <img>의 경우 setAttribute('src')는 직렬화 HTML에 박히므로,
-   언로드는 src '속성'은 그대로 두고 라이브 src를 1x1 placeholder로 덮어쓴다.
-   하지만 clone.innerHTML은 '속성'을 직렬화하므로, 속성을 건드리지 않기 위해
-   여기서는 img.src 프로퍼티(=속성 동기화) 대신, 원본 src를 data-lazy-src에
-   백업한 뒤 src 속성을 placeholder로 교체하고 복원 시 되돌린다. 단 직렬화는
-   언로드 상태에서도 정확해야 하므로, img는 data-img-src(있으면)를 진실 소스로
-   쓰는 블록만 안전하게 언로드하고, 그렇지 않은 img는 언로드 대상에서 제외한다.
+   본 모듈은 *렌더링 레이어*의 인라인 배경(element.style.backgroundImage)만 건드린다:
+   언로드 시 그것만 비우고, 복원용 원본 값은 data-lazy-bg에 별도 보관한다.
+   data-bg-img / data-img-src 같은 직렬화 진실 소스는 절대 건드리지 않는다.
    → 가장 안전한 구현: img src 속성은 절대 건드리지 않고, background-image 인라인
      스타일만 언로드/복원한다(배경 이미지가 메모리 대부분을 차지). <img> src는
      건드리지 않아 직렬화/표시 모두 항상 정확.
+   옛 계획(버렸다): <img>도 src를 백업하고 placeholder로 바꿔 언로드 — 직렬화가 그 속성을 그대로 박는다.
 ══════════════════════════════════════════════════════════════════════════ */
 
 let _io = null;            // 단일 IntersectionObserver

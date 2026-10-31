@@ -179,7 +179,7 @@ test('㉣-1 ★병합 — source 의 층이 «상자» 안에 살고 mergedOuter
 
 /* ── ㉲ ★R3 — ★«높이 0» 에서 거짓 크기로 안 그린다 ＋ ★★누가 다시 그리나 (2026-10-07) ─────
    ★★★내 첫 가정이 ★틀렸다 — ★정정해 적는다:
-     처음엔 「`js/io/lazy-sections.js:81` 이 `lazy-unloaded` 를 붙여 ★높이를 0 으로 만든다」로 올렸다.
+     처음엔 「`js/io/lazy-sections.js` `_unloadSection` 이 `lazy-unloaded` 를 붙여 ★높이를 0 으로 만든다」로 올렸다.
      ★★재 보니 ★그 클래스는 ★CSS 에 ★0건이고(`grep -rn lazy-unloaded css/` = 0),
        JS 도 ★height·display·contentVisibility 를 ★안 건드린다 — 하는 일은 ★`data-lazy-bg` 로
        ★배경 이미지를 ★내려놓는 것뿐이다(`_restoreSection` 전문이 그게 전부다).
