@@ -14,7 +14,8 @@ const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const SEC = `<div class="section-block" data-section="1" id="sI"><div class="section-hitzone"></div>
   <div class="section-inner" style="padding-left: 60px; padding-right: 60px;" data-padding-x="60"></div></div>`;
-const GOLD = path.join(__dirname, 'fixtures', 's3v-icon-text-golden.json');
+const { _goldDir, _mutForWrite, _expectNoDeletes } = require('./_golden-guard.js');   // ★212 ⑵ — 갱신 길의 지움 가드(공용)
+const GOLD = path.join(_goldDir(__dirname), 's3v-icon-text-golden.json');
 const UPDATE = process.env.S3V_GOLDEN === 'update';
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAAABJRU5ErkJggg==';
 /* ★C0 에는 기능이 없다 — 기능을 재는 시험은 «빨강이 정상»(test.fail). 기능 커밋에서 이 줄을 false 로 바꾼다(걷지 않으면 «예상 밖 통과»로 빨강). */
@@ -91,7 +92,8 @@ test('S1 손대지 않은(=가로) Icon Text 여러 꼴의 outerHTML 이 핀(611
   const reloaded = await snap();
   const canon = (arr) => page.evaluate(({ arr, f }) => { const C = eval(f); return arr.map(C); }, { arr, f: CANON.toString() });
   expect(await canon(reloaded), '저장→불러오기 왕복 뒤 같다(속성 순서 무시)').toEqual(await canon(live));
-  if (UPDATE) { fs.mkdirSync(path.dirname(GOLD), { recursive: true }); fs.writeFileSync(GOLD, JSON.stringify(live, null, 2) + '\n'); return; }
+  /* ★배열 골든은 «자리 밀림»에 민감하다 — 첫 원소를 빼거나 앞에 끼우면 dels 가 원소 수만큼(여기 5) 뜬다 · 실제 지움이 아니다(212 실측). */
+  if (UPDATE) { const w = _mutForWrite(live); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 's3v-icon-text', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w); fs.mkdirSync(path.dirname(GOLD), { recursive: true }); fs.writeFileSync(GOLD, JSON.stringify(w, null, 2) + '\n'); return; }
   expect(fs.existsSync(GOLD), '골든이 있다').toBe(true);
   expect(live).toEqual(JSON.parse(fs.readFileSync(GOLD, 'utf8')));
   expect(errs).toEqual([]);

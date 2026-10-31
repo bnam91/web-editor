@@ -80,4 +80,33 @@ function _guardNoDeletes(name, oldObj, got) {
   return { dels, addedIds, changedIds, report };
 }
 
-module.exports = { _tok, _diffTokens, _pairChanged, _guardNoDeletes };
+/* ★212 ⑵ — HTML 골든 spec 들이 «갱신 길»에서 같은 자리로 부른다(⛔spec 마다 제 판정을 쓰지 않는다).
+ *   GOLDEN_DIR  = 골든 사본 폴더(시험용 · 레포 골든을 안 덮게) · GOLDEN_MUT=del = 첫 상태에서 id 없는 토막 하나를 뺀 값을 쓴다(양성대조 주입).
+ *   ⛔GOLDEN_MUT 는 GOLDEN_DIR 없이 안 받는다 — 주입 값이 레포 골든에 써지는 길을 막는다. */
+const _goldDir = (specDir) => process.env.GOLDEN_DIR || require('path').join(specDir, 'fixtures');
+function _mutForWrite(got) {
+  if (!process.env.GOLDEN_MUT) return got;
+  if (!process.env.GOLDEN_DIR) throw new Error('★GOLDEN_MUT 는 GOLDEN_DIR(사본 폴더) 와 같이만 — 레포 골든에 주입 값을 쓰지 않는다');
+  if (process.env.GOLDEN_MUT !== 'del') throw new Error(`★GOLDEN_MUT=${process.env.GOLDEN_MUT} 은 모르는 주입이다(del 만)`);
+  const out = Array.isArray(got) ? got.slice() : { ...got };
+  const k = Object.keys(out)[0];
+  const t = String(out[k]).split(/(?<=>)/);
+  const i = t.findIndex(x => /^\s*<[a-zA-Z]/.test(x) && !/\sid="/.test(x));
+  if (i < 0) throw new Error(`★GOLDEN_MUT=del — 상태 «${k}» 에 id 없는 토막이 없다(주입이 안 꽂힌다)`);
+  out[k] = t.filter((_, x) => x !== i).join('');
+  return out;
+}
+/** ★핀 골든의 정본 꼴은 «핀 꼴»이다 — 견주는 값 = 쓰는 값이 되게 상태마다 norm(그 spec 의 tokensBack(WANT))을 씌운다.
+ *    ⚰️(옛) 새 값만 씌워 견주고 파일엔 안 씌운 채 썼다 ⇒ 갱신을 두 번 하면 둘째가 거짓 거절(212 ④ 실측 3 · 지디 처방).
+ *    뜻한 바뀜 «밖» 차이는 그대로 지움으로 남는다(그것이 이 가드가 잡을 몫). */
+const _normAll = (got, norm) => (Array.isArray(got) ? got.map(norm) : Object.fromEntries(Object.entries(got).map(([k, v]) => [k, norm(v)])));
+/** 갱신 모드에서 «쓰기 전»에 부른다 — 옛 골든이 있으면 지움이 0 이어야 한다(아니면 그 자리에서 빨강). */
+function _expectNoDeletes(expect, name, oldObj, got) {
+  const { dels, addedIds, changedIds } = _guardNoDeletes(name, oldObj, got);
+  expect(dels.map(r => `${r.state}: −${r.del.length} (${r.del.slice(0, 3).join(' | ').slice(0, 300)})`),
+    `★갱신 거절(${name}) — 옛 골든에서 «지워지는» 토막이 있다(지워진 줄 0 이어야 한다). 더해진 id: ${addedIds.join(', ') || '없음'}`).toEqual([]);
+  console.log(`[GOLDEN-GUARD] ${name}: 지워진 토막 0 · 더해진 id = ${addedIds.join(', ') || '없음'} · 바뀐 id(속성) = ${changedIds.join(', ') || '없음'}`);
+  return { addedIds, changedIds };
+}
+
+module.exports = { _tok, _diffTokens, _pairChanged, _guardNoDeletes, _goldDir, _mutForWrite, _normAll, _expectNoDeletes };
