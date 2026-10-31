@@ -27,7 +27,7 @@
  *   `D1`  ①회차 `movedX 28 · movedY ★-40` · ★`dataset` ★변화 ★★0 ⇒ ★★끌기가 ★★안 먹었다
  *         (★움직임은 ★스크롤·레이아웃 탓) / ②회차 `movedX 32 · movedY -14` · `dataset ["0","80"]`
  *         ⇒ ★★회차마다 ★다르다
- *   `D2`  `dataset` 변화 ★★0 ⇒ ★★끌기가 ★안 먹었다
+ *   `D2`  `dataset` 변화 ★★0 ⇒ ★★끌기가 ★안 먹었다  ⚠️261031: 그 D2 는 A 를 봤다 — 눌린 것은 겹친 B 였다(아래 D2 머리말)
  *   ⇒ ★★★⛔이 수로는 ★「덧움직임이 ★있다/없다」를 ★★단언할 수 ★없다.
  *     ★★`movedY` 에 ★스크롤이 ★섞이고, ★`page.mouse` 가 ★`_GRD_CLICK_SLOP`·핸들러를 ★못 깨운다.
  *   ⇒ ★★이름 = `GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01`
@@ -98,12 +98,14 @@ const scene = async (page, group) => page.evaluate(async (group) => {
 }, group);
 
 /** ★실마우스로 ★(dx, dy) 화면 px 끌고 ★★«실제로 움직인 화면 px»를 돌려준다. */
-async function dragBy(page, s, dx, dy) {
-  const before = await page.evaluate(() => {
-    const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]');
+async function dragBy(page, s, dx, dy, probe = 'A') {
+  const before = await page.evaluate((probe) => {
+    const a = document.querySelector(`#gdoSec .gradient-block[data-probe="${probe}"]`);
     const r = a.getBoundingClientRect();
+    window.__pressed = null;
+    window.addEventListener('mousedown', (e) => { window.__pressed = e.target.closest?.('.gradient-block')?.dataset.probe ?? null; }, { capture: true, once: true });
     return { left: r.left, top: r.top, dx: a.dataset.x, dy: a.dataset.y };
-  });
+  }, probe);
   await page.mouse.move(s.cx, s.cy);
   await page.mouse.down();
   /* ★여러 걸음으로 — ★한 번에 뛰면 `_GRD_CLICK_SLOP` 을 ★안 넘길 수 있다 */
@@ -111,12 +113,13 @@ async function dragBy(page, s, dx, dy) {
   await page.mouse.move(s.cx + dx, s.cy + dy, { steps: 4 });
   await page.mouse.up();
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const after = await page.evaluate(() => {
-    const a = document.querySelector('#gdoSec .gradient-block[data-probe="A"]');
+  const after = await page.evaluate((probe) => {
+    const a = document.querySelector(`#gdoSec .gradient-block[data-probe="${probe}"]`);
     const r = a.getBoundingClientRect();
-    return { left: r.left, top: r.top, dx: a.dataset.x, dy: a.dataset.y };
-  });
+    return { left: r.left, top: r.top, dx: a.dataset.x, dy: a.dataset.y, pressed: window.__pressed };
+  }, probe);
   return {
+    pressed: after.pressed,
     movedX: Math.round(after.left - before.left),
     movedY: Math.round(after.top - before.top),
     datasetX: [before.dx, after.dx], datasetY: [before.dy, after.dy],
@@ -278,28 +281,21 @@ test('P263c ⒜ 실제 mousedown target · 블럭 리스너 돎(_grdDown) — �
   expect(r.moved, `★끌기가 안 먹었다(moved false) — «안 움직여서 안 틀린» 초록 금지 · ${JSON.stringify({ ...r, ...c })}`).toBe(true);
 });
 
-test('D2 ★★★수를 박는다 — ★그룹 ★안 그라데는 ★★더 움직인다 (★가지 실측 32 → 73·63·58)', async ({ page }) => {
+/* ★261031 D2 재세움(지디 J263 ㉰ · S3) — ⌘G 장면은 B 가 A 위에 겹친다: A 중심을 누르면 B 가 눌린다(×5 target B · B 0,24→80,104 · A 0,0 그대로).
+   옛 칸은 A 만 봐서 «끌기가 안 먹었다» 로 SKIP 했다 · 끌기는 먹었다. ⇒ 눌린 블럭을 본다. 안 먹으면 SKIP 아니라 빨강.
+   ⛔옛 단언 «덧움직임 |moved−32|>6» 과 수 73·63·58 은 앱(가지 43749cd6) 값 — 이 장면 값은 1:1(덧움직임 0)이라 잠그는 것이 없어 뺐다 · 그 물음은 그 판(앱 축)으로 돌려보낸다. */
+test('D2 ★그룹 안 눌린 블럭(B)이 포인터만큼 움직인다 — dataset 바뀜 · 1:1 (이 장면 값)', async ({ page }) => {
   await bootApp(page);
   const s = await scene(page, true);
   expect(s.fail, `★전제: ${s.fail}`).toBeUndefined();
   console.log('[D2-scene]', JSON.stringify(s));
-  /* ★★전제 ★둘 — ★그룹 안이고 ★작다 */
-  expect(s.inFrame, '★그룹 안이 아니다 — ⌘G 가 안 묶였나(t5-07 가 dev 에 있나)').toBe(true);
+  expect(s.inFrame, '★전제: 그룹 안이 아니다 — ⌘G 가 안 묶였나').toBe(true);
   expect(s.smaller, '★전제: 그라데가 섹션보다 작지 않다').toBe(true);
-  const r = await dragBy(page, s, 32, 32);
+  const r = await dragBy(page, s, 32, 32, 'B');
   console.log('[D2]', JSON.stringify(r));
-  if (r.datasetX[0] === r.datasetX[1] && r.datasetY[0] === r.datasetY[1]) {
-    test.skip(true, '★★끌기가 ★안 먹었다(dataset 변화 0) = GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01'
-      + ' — ⛔FAIL 아니라 SKIP · ' + JSON.stringify(r));
-  }
-  /* ★★★수 — ★★«얼마나 더»를 ★찍는다. ⛔한 쪽을 ★단언하지 않고 ★★D1 과 ★견주는 것이 ★몫이다.
-     ★가지 실측(앱 · 40% 줌)은 ★73·63·58 이었다 — ★이 하네스 수가 ★다를 수 있다(★줌·배치) */
-  console.log('[D2-overshoot]', JSON.stringify({
-    pointer: 32, movedX: r.movedX, movedY: r.movedY,
-    overX: r.movedX - 32, overY: r.movedY - 32,
-  }));
-  /* ★★이 칸이 ★빨개지면 = ★★덧움직임이 ★사라졌다(★고쳐졌다) ⇒ ★그때 ★뒤집어라 */
-  expect(Math.abs(r.movedX - 32) > 6 || Math.abs(r.movedY - 32) > 6,
-    `★★덧움직임이 ★없다 — ★고쳐졌다면 ★이 칸을 ★뒤집어라 (moved ${r.movedX},${r.movedY} vs pointer 32,32)`
-  ).toBe(true);
+  expect(r.pressed, `★전제: 눌린 블럭이 B 가 아니다 · ${JSON.stringify(r)}`).toBe('B');
+  expect(r.datasetX[0] !== r.datasetX[1] || r.datasetY[0] !== r.datasetY[1],
+    `GRAD-DRAG-HARNESS-CANNOT-DRIVE-DRAG-01 — 눌린 블럭의 dataset 이 안 바뀌었다(moved false) · ${JSON.stringify(r)}`).toBe(true);
+  expect(oneToOne(r.movedX, 32), `★x 화면 이동 ${r.movedX} ≠ 포인터 32(±6) · ${JSON.stringify(r)}`).toBe(true);
+  expect(oneToOne(r.movedY, 32), `★y 화면 이동 ${r.movedY} ≠ 포인터 32(±6) · ${JSON.stringify(r)}`).toBe(true);
 });
