@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
-const { _goldDir, _mutForWrite, _expectNoDeletes } = require('./_golden-guard.js');   // ★212 ⑵ — 갱신 길의 지움 가드(공용)
+const { _goldDir, _mutForWrite, _normAll, _expectNoDeletes } = require('./_golden-guard.js');   // ★212 ⑵ — 갱신 길의 지움 가드(공용)
 const GOLD = path.join(_goldDir(__dirname), 'grid-cellpady-y0-golden.json');
 const { tokensBack, TOKEN_NAMES } = require('./_golden-tokens.js');
 
@@ -52,8 +52,8 @@ test('Y0 [회귀 지킴] 키 없는 그리드 여섯 꼴 = 기준 판(0f572e2a) 
     }
     return out;
   });
-  const WANT = ['FONT'];   // ★뜻한 바뀜 토큰 — 갱신 가드도 «고른 바이트»를 본다(212 ㉠⒝ · 지디)
-  if (process.env.GRID_CPY_GOLDEN === 'update') { const w = _mutForWrite(got); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 'grid-cellpady', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w, { norm: (h) => tokensBack(h, WANT).s }); fs.writeFileSync(GOLD, JSON.stringify(w, null, 1)); test.info().annotations.push({ type: 'golden', description: 'written' }); return; }
+  const WANT = ['FONT'];   // ★뜻한 바뀜 토큰 — 갱신은 «고른 바이트»를 견주고 그대로 쓴다(212 ㉠⒝·④ · 지디)
+  if (process.env.GRID_CPY_GOLDEN === 'update') { const w = _normAll(_mutForWrite(got), (h) => tokensBack(h, WANT).s); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 'grid-cellpady', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w); fs.writeFileSync(GOLD, JSON.stringify(w, null, 1)); test.info().annotations.push({ type: 'golden', description: 'written' }); return; }
   const want = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
   /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js (까닭·명부는 거기).
      ⛔골든을 «갱신»하지 마라: 이 검사의 이름이 「기준 판(0f572e2a) 그대로」다 — HEAD 에서 뜨면 핀의 뜻이 사라진다

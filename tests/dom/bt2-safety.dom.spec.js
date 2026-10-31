@@ -49,7 +49,7 @@ async function freshCanvas(page) {
  *      ★여전히 «갱신 거절 빨강»인지 매번 확인하라. 2026-10-07 실측: del=거절(rc 1) · 평소=통과(rc 0). */
 const { _guardNoDeletes } = require('./_golden-guard.js');   // ★224 — 순수 함수는 그 파일(유닛이 잰다)
 
-function golden(name, got, { guardDeletes = false } = {}) {
+function golden(name, got, { guardDeletes = true } = {}) {
   const f = GOLD(name);
   if (UPDATE && guardDeletes && fs.existsSync(f)) {
     const { dels, addedIds, changedIds } = _guardNoDeletes(name, JSON.parse(fs.readFileSync(f, 'utf8')), got);
@@ -110,7 +110,7 @@ test('T1 챗 차등 골든 — lines 없는 챗 N=8 설정의 렌더(innerHTML·
   }, CHAT_CONFIGS);
   expect(Object.keys(got).length, '전제: 설정 8개를 다 그렸다').toBe(8);
   expect(Object.values(got).every(g => g.html.includes('chb-btext')), '전제: 모든 설정에 본문 칸이 있다').toBe(true);
-  golden('chat-render', got);
+  golden('chat-render', got, { guardDeletes: false });   // ★예외(212 §2) — 값이 객체 꼴이라 _golden-guard 가 못 읽는다(던진다 · 292) · 결함 아님
 });
 
 // ─────────── T1b 옛 버블 왕복 ───────────

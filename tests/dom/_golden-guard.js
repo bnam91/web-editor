@@ -96,11 +96,12 @@ function _mutForWrite(got) {
   out[k] = t.filter((_, x) => x !== i).join('');
   return out;
 }
-/** 갱신 모드에서 «쓰기 전»에 부른다 — 옛 골든이 있으면 지움이 0 이어야 한다(아니면 그 자리에서 빨강).
- *  norm = 견주기 전에 «새 값» 상태마다 씌우는 것(핀 골든이면 그 spec 의 tokensBack(WANT) — 뜻한 바뀜을 고른 뒤 지움을 본다).
- *    ⛔쓰는 값에는 안 씌운다 · 뜻한 바뀜 «밖» 차이는 그대로 지움으로 남는다(그것이 이 가드가 잡을 몫). */
-function _expectNoDeletes(expect, name, oldObj, got, { norm } = {}) {
-  if (norm) got = Array.isArray(got) ? got.map(norm) : Object.fromEntries(Object.entries(got).map(([k, v]) => [k, norm(v)]));
+/** ★핀 골든의 정본 꼴은 «핀 꼴»이다 — 견주는 값 = 쓰는 값이 되게 상태마다 norm(그 spec 의 tokensBack(WANT))을 씌운다.
+ *    ⚰️(옛) 새 값만 씌워 견주고 파일엔 안 씌운 채 썼다 ⇒ 갱신을 두 번 하면 둘째가 거짓 거절(212 ④ 실측 3 · 지디 처방).
+ *    뜻한 바뀜 «밖» 차이는 그대로 지움으로 남는다(그것이 이 가드가 잡을 몫). */
+const _normAll = (got, norm) => (Array.isArray(got) ? got.map(norm) : Object.fromEntries(Object.entries(got).map(([k, v]) => [k, norm(v)])));
+/** 갱신 모드에서 «쓰기 전»에 부른다 — 옛 골든이 있으면 지움이 0 이어야 한다(아니면 그 자리에서 빨강). */
+function _expectNoDeletes(expect, name, oldObj, got) {
   const { dels, addedIds, changedIds } = _guardNoDeletes(name, oldObj, got);
   expect(dels.map(r => `${r.state}: −${r.del.length} (${r.del.slice(0, 3).join(' | ').slice(0, 300)})`),
     `★갱신 거절(${name}) — 옛 골든에서 «지워지는» 토막이 있다(지워진 줄 0 이어야 한다). 더해진 id: ${addedIds.join(', ') || '없음'}`).toEqual([]);
@@ -108,4 +109,4 @@ function _expectNoDeletes(expect, name, oldObj, got, { norm } = {}) {
   return { addedIds, changedIds };
 }
 
-module.exports = { _tok, _diffTokens, _pairChanged, _guardNoDeletes, _goldDir, _mutForWrite, _expectNoDeletes };
+module.exports = { _tok, _diffTokens, _pairChanged, _guardNoDeletes, _goldDir, _mutForWrite, _normAll, _expectNoDeletes };

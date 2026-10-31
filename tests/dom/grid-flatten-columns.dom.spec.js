@@ -321,7 +321,7 @@ test('F7 [새 것] the flatten button appears only at rows>=2, and opening the p
  *     그 자리에서 읽어라(여기 꼴 여섯은 전부 ★펴기를 안 부르는 꼴이다). */
 const fs = require('fs');
 const path = require('path');
-const { _goldDir, _mutForWrite, _expectNoDeletes } = require('./_golden-guard.js');   // ★212 ⑵ — 갱신 길의 지움 가드(공용)
+const { _goldDir, _mutForWrite, _normAll, _expectNoDeletes } = require('./_golden-guard.js');   // ★212 ⑵ — 갱신 길의 지움 가드(공용)
 const GOLD = path.join(_goldDir(__dirname), 'grid-flatten-y0-golden.json');
 const { tokensBack } = require('./_golden-tokens.js');
 
@@ -349,12 +349,12 @@ test('F8 [회귀 지킴] grids that never flatten render byte-identical to the p
     }
     return out;
   });
-  const WANT = ['FONT'];   // ★뜻한 바뀜 토큰 — 갱신 가드도 «고른 바이트»를 본다(212 ㉠⒝ · 지디)
+  const WANT = ['FONT'];   // ★뜻한 바뀜 토큰 — 갱신은 «고른 바이트»를 견주고 그대로 쓴다(212 ㉠⒝·④ · 지디)
   if (process.env.GRID_FLATTEN_GOLDEN === 'update') {
     /* ★이 가드가 원래 막던 것 = 머리 판에서 골든을 뜨는 사고(그러면 무엇과도 같아진다). GOLDEN_DIR 이면 사본에만 쓰므로 그 위험이 없다 — 그래서 그때만 푼다(212 ㉢). */
     if (!process.env.GD1001_ROOT && !process.env.GOLDEN_DIR) throw new Error('⛔골든은 핀 판에서만 뜬다 — GD1001_ROOT 를 걸어라(HEAD 에서 뜨면 무엇과도 같아진다)');
     fs.mkdirSync(path.dirname(GOLD), { recursive: true });
-    const w = _mutForWrite(got); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 'grid-flatten-columns', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w, { norm: (h) => tokensBack(h, WANT).s });
+    const w = _normAll(_mutForWrite(got), (h) => tokensBack(h, WANT).s); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 'grid-flatten-columns', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w);
     fs.writeFileSync(GOLD, JSON.stringify(w, null, 1));
     test.info().annotations.push({ type: 'golden', description: 'written from ' + (process.env.GD1001_ROOT || 'GOLDEN_DIR ' + process.env.GOLDEN_DIR) });
     return;
