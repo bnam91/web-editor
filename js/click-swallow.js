@@ -4,7 +4,9 @@
    ★왜 있나 (220 CLICK-SWALLOW-IDIOM-COPIED-SIX-TIMES-01 · S5 261028 세기 · 지디 판정)
      끈 뒤 합성 click 을 삼키는 꼴이 19 자리 14 파일에 사본으로 있었다. 창이 셋(0 · 120 · 300ms)이다.
      ⛔창을 하나로 고르지 않는다 — 179 뿌리가 «120ms 창이 다른 대상 click 까지 먹음» 이었다.
-     ⇒ 0ms 꼴 13 자리만 여기로 모은다. 120ms 4 · 300ms 2 는 제자리(tests/unit/click-swallow-roster 가 이름으로 센다).
+     ⇒ 0ms 꼴 12 자리만 여기로 모은다. 120ms 4 · 300ms 2 는 제자리(tests/unit/click-swallow-roster 가 이름으로 센다).
+     244 ②(655359f9)가 js/blocks/modal-block.js:353 의 한 자리를 걷었다 ⇒ 13 → 12(261031 미카사 실측 · 탄생 판 4c2a45c7 에서 양성 13).
+     ⚠️이 수는 호출 줄 수다 — 감싸개(armClickSwallow · _stkSwallowNextClick)를 지나 실제로 부르는 자리는 더 많다.
    ★뜻: capture 로 click 한 번을 먹고, 안 오면 다음 틱(setTimeout 0)에 걷는다 — 같은 태스크의 합성 click 만 먹는다.
    ★옵션 = 옛 사본들의 «다름» 그대로(합칠 때 동작을 바꾸지 않으려고 · 걷는 손 셋 = 첫 click · 다음 틱 · 다음 mousedown):
      on              window | document — 어디에 거나(window capture 는 document capture 보다 먼저 돈다)
