@@ -1,16 +1,16 @@
 /* frame-fuzz-294.dom.spec.js — 294 t9-03 첫 조각: 프레임 중첩 복사 «적대적 QA» 하네스(④) ＋ 판정부(⑤) (S6 · 261031 · 지디 ORDER-294)
  * ★왜: 현빈 원문 «무작위 조작을 실행하는 것 자체는 검증이 아니다» ⇒ 매 조작 뒤 판정 여섯 칸이 모델과 맞대어 본다. 판정 없는 회차는 «안 잰 회차»(measured 로 센다).
  * ★입구: 프레임·글자는 addFrameBlock·addTextBlock(_activeFrame) · 고르기 진짜 마우스 · 조작 = 진짜 키(⌘D ⌘Z ⌘⇧Z Delete) ＋ moveBlock·updateFrameBlock·groupSelectedBlocks. ⛔DOM 손 짜기 0.
- * ★크기: 깊이 ≤3 · 프레임 ≤6 · 조작 ≤8(urun·zdeep 은 한 조작에 ⌘Z·⌘⇧Z 여러 번) · 시드 5 ＋ undo·redo 연달아 5 ＋ 쌓임≥2 보장 5 — ⑥ 극한은 밖.
+ * ★크기: 깊이 ≤3 · 프레임 ≤6 · 조작 ≤8(urun·zdeep 은 한 조작에 ⌘Z·⌘⇧Z 여러 번) · 시드 5 ＋ undo·redo 연달아 5 ＋ 쌓임≥2 보장 5 ＋ J294F 넓은 나무 5(프레임 24 · 깊이 ≤2) ＋ 깊은 나무 5(프레임 16 · 깊이 ≤12) — ⑥ 극한은 밖.
  * ★판정 여섯(모델 = 조작마다 기대를 세운 표):
  *   ⒜ 부모: 프레임마다 실제 부모 프레임 id = 모델 ⒝ 순환: 부모 사슬을 올라가 같은 id 를 두 번 안 만나고 섹션에 닿는다(DOM 이 나무라 ★같은 id 겹침만 본다)
  *   ⒞ 중복·유실: 프레임·글자 id 집합 = 모델 · 겹침 0 ⒟ 복사본: 새 부분나무의 꼴·글자·크기 = 원본(그 복사 순간 값)
  *   ⒠ ⌘Z/⌘⇧Z: 뒤 상태 = 모델 되돌림 칸 ⒡ 저장: getSerializedCanvas 를 DOMParser 로 읽은 상태 = 지금 · 끝에 ★innerHTML+rebindAll 재로드 뒤 같은 꼴
  * ★못 집은 회차: 조상에 들어가 다시 집기(via descend) · 그래도 못 집으면 후보 점마다 hitAt 으로 맨 위 임자를 rec.owners 에(시트 328 재료) · 고르기 시도 수는 옆 파일 *.tries.json.
  * ★재현: 시드·초기 구조·조작 순서·칸별 판정을 FUZZ_OUT(기본 test-results/frame-fuzz-294)/<RUN_TAG>-<시드>.json · id 는 F0·T0 이름으로 정규화 ⇒ 같은 시드 ×3 은 파일 내용이 같아야 한다.
- * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · 평소 끔). V265 = 값만.
+ * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f|s(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · s = 저장 파일 축 · 평소 끔). V265 = 값만.
  * ⚠️⌘Z 칸 trace 번호: urun 안 빨강은 그 앞까지 끝난 조작 수로 적힌다.
- * ⚠️자 한계: 모델은 그룹을 «부모만 새 그룹으로 옮겨도 된다» 로 너그럽게 본다 · 좌표·겹침 안 봄 · 진입 상태는 시드에서 안 뽑음(P287 만) · 재로드 = 열기 경로 두 줄(파일 왕복 아님).
+ * ⚠️자 한계: 모델은 그룹을 «부모만 새 그룹으로 옮겨도 된다» 로 너그럽게 본다 · 좌표·겹침 안 봄 · 진입 상태는 시드에서 안 뽑음(P287 만) · 재로드 = 열기 경로 두 줄 · 저장 파일 축 = serializeProject → 파일 → applyProjectData(IPC·main.js 저장 코어는 안 지남).
  * ⌘Z 앞 부름 = evaluate · getSerializedCanvas · DOMParser · 스크린샷 0(JNOTE). */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -21,7 +21,11 @@ const { hitAt } = require('./_click-at.js');
 const SEEDS = [294001, 294002, 294003, 294004, 294005];
 const SEEDS_UR = [294101, 294102, 294103, 294104, 294105];   // ㉡ undo·redo 를 연달아 3~5 번 쌓는 회차(지디 J294B)
 const SEEDS_DEEP = [294201, 294202, 294203, 294204, 294205];   // 쌓임 ≥2 를 보장하는 회차(지디 J294C ㉠) — 조작 둘 이상 뒤에만 ⌘Z
+const SEEDS_BROAD = [294301, 294302, 294303, 294304, 294305];   // J294F ① 넓은 나무 — 프레임 24 · 깊이 ≤2
+const SEEDS_TALL = [294401, 294402, 294403, 294404, 294405];   // J294F ① 깊은 나무 — 프레임 16 · 깊이 ≤12 · 곁가지 조금
 const LIM = { depth: 3, frames: 6, ops: 8 };
+const LIM_BROAD = { depth: 2, frames: 24, ops: 8, exact: true };
+const LIM_TALL = { depth: 12, frames: 16, ops: 8, exact: true, chain: 0.9 };
 const TAG = process.env.FUZZ_TAG || 'run';
 const OUT = process.env.FUZZ_OUT || path.join(__dirname, '..', '..', 'test-results', 'frame-fuzz-294');
 const INJECT = process.env.FUZZ_INJECT || '';
@@ -57,12 +61,13 @@ async function setup(page) {
   return errs;
 }
 /* ⑴ 구조 생성기 — 앱 입구로 나무를 짓는다 */
-async function buildTree(page, r) {
-  const n = 3 + Math.floor(r() * (LIM.frames - 2));   // 3~6
+async function buildTree(page, r, lim = LIM) {
+  const n = lim.exact ? lim.frames : 3 + Math.floor(r() * (lim.frames - 2));   // 기본 3~6 · exact 는 r 을 안 뽑는다(앞 시드들의 난수 순서 그대로)
   const plan = []; const depth = [];
   for (let i = 0; i < n; i++) {
-    const cand = depth.map((d, j) => (d + 1 < LIM.depth ? j : -1)).filter((j) => j >= 0);
-    const parent = i === 0 || r() < 0.3 || !cand.length ? -1 : cand[Math.floor(r() * cand.length)];
+    const cand = depth.map((d, j) => (d + 1 < lim.depth ? j : -1)).filter((j) => j >= 0);
+    const onChain = lim.chain && i > 0 && depth[i - 1] + 1 < lim.depth && r() < lim.chain;
+    const parent = onChain ? i - 1 : i === 0 || r() < 0.3 || !cand.length ? -1 : cand[Math.floor(r() * cand.length)];
     plan.push(parent); depth.push(parent < 0 ? 0 : depth[parent] + 1);
   }
   const ids = await page.evaluate((plan) => {
@@ -78,7 +83,23 @@ async function buildTree(page, r) {
     window.deselectAll?.(); window._activeFrame = null; window.clearHistory?.();
     return out;
   }, plan);
-  return { plan, ids };
+  return { plan, ids, built: { frames: n, depth: Math.max(...depth) + 1 } };
+}
+/* J294F ② 저장 파일 축 — serializeProject 문자열을 진짜 파일로 썼다 읽어 applyProjectData(열기·탭 전환이 쓰는 입구)로 되살린 뒤 앞 상태와 맞댄다.
+ * 캔버스를 먼저 비운다 — 안 비우면 되살리기가 안 돌아도 옛 나무로 초록이 된다. 양성 = FUZZ_INJECT=s(파일 내용을 망가뜨리면 이 칸이 빨개지나).
+ * shortcut: 파일은 이 시험이 쓴다(IPC·main.js 저장 코어는 안 지난다 — electronAPI 가 가짜) · 진짜 앱 왕복은 J294E 다시 열기 19 회가 잰 몫. */
+async function fileRoundtrip(page, seed, before) {
+  const snap = await page.evaluate(() => window.serializeProject());
+  fs.mkdirSync(OUT, { recursive: true });
+  const f = path.join(OUT, `${TAG}-${seed}.proj.json`);
+  fs.writeFileSync(f, snap);
+  const read = fs.readFileSync(f, 'utf8');
+  const data = JSON.parse(INJECT === 's' ? read.replace(/id=\\"(ss_[^\\"]+)\\"/, 'id=\\"INJECT\\"') : read);
+  const st = await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); return document.getElementById(window.__sec) ? window.__live() : null; }, data);
+  await settle(page);
+  if (!st) return { same: false, why: '되살린 뒤 섹션 없음', fails: [] };
+  const after = await live(page);
+  return { same: canon(after) === canon(before), frames: Object.keys(after.frames).length, texts: Object.keys(after.texts).length, fails: await judge(page, after, null) };
 }
 /* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
 async function select(page, id, depth, { enter = false, chain = null } = {}) {
@@ -152,9 +173,9 @@ async function judge(page, st, want, extra = []) {
 function norm(names, id) { return names[id] || id; }
 
 /* ⑵ 조작 생성기 + 모델 */
-async function runSeed(page, seed, { maxOps = LIM.ops, ur = false, deep = false } = {}) {
+async function runSeed(page, seed, { lim = LIM, maxOps = lim.ops, ur = false, deep = false } = {}) {
   const r = rng(seed); const trace = { seed, plan: null, ops: [], fails: [], measured: 0, refused: 0, skipped: 0 }; const tries = [];
-  const { plan, ids } = await buildTree(page, r); trace.plan = plan;
+  const { plan, ids, built } = await buildTree(page, r, lim); trace.plan = plan; trace.built = built;
   const names = {}; let nF = 0; const nameAll = (st) => { Object.keys(st.frames).sort((a, b) => st.frames[a].order - st.frames[b].order).forEach((k) => { if (!names[k]) names[k] = 'F' + (nF++); }); };
   ids.forEach((k) => { names[k] = 'F' + (nF++); });
   let cur = await live(page); nameAll(cur);
@@ -275,6 +296,12 @@ async function runSeed(page, seed, { maxOps = LIM.ops, ur = false, deep = false 
     if (canon(st) !== canon(before)) trace.fails.push(['end', 'f', '재로드 뒤 상태 ≠ 재로드 앞']);
     trace.reload = canon(st) === canon(before);
   }
+  if (!trace.fails.length && (!INJECT || INJECT === 's')) {
+    const rt = await fileRoundtrip(page, seed, await live(page));
+    trace.file = { same: rt.same, frames: rt.frames ?? null, texts: rt.texts ?? null };
+    if (!rt.same) trace.fails.push(['end', 'f', `저장 파일 왕복 뒤 상태 ≠ 앞${rt.why ? ' · ' + rt.why : ''}`]);
+    trace.fails.push(...rt.fails.map((x) => ['end', ...x]));
+  }
   const clean = JSON.parse(JSON.stringify(trace).replace(/[a-z]+_[A-Za-z0-9_]{4,}/g, (m) => names[m] || m));
   clean.__tries = tries;
   return clean;
@@ -282,13 +309,14 @@ async function runSeed(page, seed, { maxOps = LIM.ops, ur = false, deep = false 
 /* 고르기 시도 수는 옆 파일로 — 흔들림을 나중에 세려고 남긴다(지디 J294B) · 본 기록은 ×3 대조가 그대로 서게 뺀다 */
 function save(name, trace) { fs.mkdirSync(OUT, { recursive: true }); const { __tries, ...t } = trace; fs.writeFileSync(path.join(OUT, `${TAG}-${name}.json`), JSON.stringify(t, null, 1) + '\n'); fs.writeFileSync(path.join(OUT, `${TAG}-${name}.tries.json`), JSON.stringify(__tries ?? [], null, 0) + '\n'); }
 
-for (const [seed, ur, deep] of [...SEEDS.map((x) => [x, false, false]), ...SEEDS_UR.map((x) => [x, true, false]), ...SEEDS_DEEP.map((x) => [x, false, true])]) {
-  test(`F${seed} ★시드${ur ? ' undo·redo 연달아' : deep ? ' 쌓임≥2 보장' : ''} — 매 조작 뒤 판정 여섯(깊이≤3 · 프레임≤6 · 조작≤8)`, async ({ page }) => {
-    test.setTimeout(180000);
+for (const [seed, ur, deep, lim] of [...SEEDS.map((x) => [x, false, false, LIM]), ...SEEDS_UR.map((x) => [x, true, false, LIM]), ...SEEDS_DEEP.map((x) => [x, false, true, LIM]), ...SEEDS_BROAD.map((x) => [x, false, false, LIM_BROAD]), ...SEEDS_TALL.map((x) => [x, false, false, LIM_TALL])]) {
+  test(`F${seed} ★시드${ur ? ' undo·redo 연달아' : deep ? ' 쌓임≥2 보장' : lim === LIM_BROAD ? ' 넓은 나무' : lim === LIM_TALL ? ' 깊은 나무' : ''} — 매 조작 뒤 판정 여섯(깊이≤${lim.depth} · 프레임≤${lim.frames} · 조작≤${lim.ops})`, async ({ page }) => {
+    test.setTimeout(lim === LIM ? 180000 : 300000);
     const errs = await setup(page);
-    const t = await runSeed(page, seed, { ur, deep });
+    const t = await runSeed(page, seed, { ur, deep, lim });
     save(String(seed), t);
-    console.log(`F294 ${JSON.stringify({ seed, measured: t.measured, refused: t.refused, skipped: t.skipped, fails: t.fails, ops: t.ops.map((o) => o.kind + (o.skip ? '!' : '')) })}`);
+    console.log(`F294 ${JSON.stringify({ seed, built: t.built, file: t.file, measured: t.measured, refused: t.refused, skipped: t.skipped, fails: t.fails, ops: t.ops.map((o) => o.kind + (o.skip ? '!' : '')) })}`);
+    if (lim !== LIM) expect(t.built.frames > LIM.frames || t.built.depth > LIM.depth, `[전제] 옛 상한 위 구조 ${JSON.stringify(t.built)}`).toBe(true);
     expect(t.measured, '안 잰 회차: 판정이 하나도 안 돌았다').toBeGreaterThan(0);
     expect(t.fails, `판정 빨강(시드 ${seed} · 파일 ${TAG}-${seed}.json)`).toEqual([]);
     expect(errs, errs.join(' | ')).toEqual([]);
