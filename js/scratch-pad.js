@@ -1302,7 +1302,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
       /* ★128 F1 ㉠ ⒞ — g 를 담는다(linkDy 만 뺀다 · fx 는 담는다). 옛 판은 g 를 빼 와 ⌘Z 로 되살린 장이 그룹 소속을 잃었다
          (128 적대 검수 실측: ⌘Z 뒤 sp_p:null). 변환이 `_scratchRemoveById` → `_dissolveLoneGroup` 으로 «풀어 버린 짝»도
          ⌘Z 한 번에 다시 묶어야 하므로 짝들의 소속(groupMatesBefore)과 장 순서(orderBefore)도 끌기 전에 떠 둔다. */
-      const restoreInfo = _pickScratch(item, ['linkDy']);
+      const restoreInfo = _pickScratch(item);
       const groupMatesBefore = item.g ? _scratchGeomSnapshot(_groupMembers(item.g).filter(s => s !== item)) : [];
       const orderBefore = _scratchLayerOrderNow().map(s => s.id);
       /* ★E95(U11) — 되살릴 «자리»는 끌기 «시작» 자리다. 위 item.x/y 는 onMove 가 이미 «끌린 자리»로 바꿔 놓아
@@ -1310,7 +1310,9 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
          (2026-10-05 실측 · 772ccadc). 평소 이동 갈래와 같은 원본 geomBefore(onMove 가 바꾸기 «전» 캡처)에서 뜬다.
          ⚠️geomBefore 에 그 id 가 없으면(일어나선 안 됨) 지금 값으로 떨어지되 «조용히» 넘기지 않는다 — 경고를 남기고 시험이 이 경고 0 을 단언한다. */
       const _geo0 = geomBefore.find(g => g.id === item.id);
-      if (_geo0) { restoreInfo.x = _geo0.x; restoreInfo.y = _geo0.y; }
+      /* ★J190B — linkDy 도 끌기 «시작» 값이다. 끄는 동안 추종이 놓는 자리로 앵커를 다시 잡으므로 item.linkDy 는 이미 틀렸다.
+         안 나르면 ⌘Z 뒤 지금 자리에서 새로 유도돼 겹쳐 밀린 장의 앵커가 어긋난다(앱 d176→298 3/3). */
+      if (_geo0) { restoreInfo.x = _geo0.x; restoreInfo.y = _geo0.y; restoreInfo.linkDy = _geo0.linkDy; }
       else console.warn('[scratch] E95 restore fallback — geomBefore 에 id 없음, 지금 자리로 되살림:', item.id);
       // 이미지 자연 비율 (insert/append 케이스용)
       const imgEl = item.el.querySelector('img');
@@ -1352,10 +1354,12 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
           window.pushHistory?.('스크래치→섹션 변환', {
             onUndo: async () => {
               let saving = null;   // 만들기는 동기 · 저장은 표시·순서를 맞춘 뒤 기다린다(지우기 undo 와 같은 까닭)
-              try { saving = window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx, restoreInfo.ocr); } catch (_) {}
+              try { saving = window._scratchAddAndSaveFx?.(restoreInfo.src, restoreInfo.x, restoreInfo.y, restoreInfo.w, restoreInfo.g, restoreInfo.id, restoreInfo.fx, restoreInfo.ocr, restoreInfo.linkDy); } catch (_) {}
               /* ★128 F1 ⒞ — 풀렸던 짝의 소속을 되돌리고, 맨 뒤에 붙은 되살린 장을 원래 순서 자리로 앉힌다. */
               if (groupMatesBefore.length) { try { _applyScratchGeomSnapshot(groupMatesBefore); } catch (_) {} }
               try { _applyScratchOrder(orderBefore); } catch (_) {}
+              /* ★J190B — 링크가 안 끊기는 길이라 추종 기준선(lastY)이 놓은 자리에 남아 있다. 안 맞추면 다음 프레임이 «사용자 이동»으로 읽어 앵커를 다시 잡는다. */
+              try { window.SPLink?.resyncFollow?.(); } catch (_) {}
               if (_groupMode) _markGroupMode(true);      // 모드 중이면 되살린 장에도 표시(⊘) — 지우기 undo 와 같게(적대 검수 3)
               try { await saving; } catch (_) {}
             },
