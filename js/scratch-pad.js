@@ -336,6 +336,9 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
   const touchedGroups = [...new Set(items.map(s => s.g).filter(Boolean))];
   for (const gid of touchedGroups) _dissolveLoneGroup(gid, { exitMode: true, keepLone: inGroupMode });
   _saveScratch();
+  /* ★J214 — 지우기는 캔버스를 안 건드려 파일 저장이 안 잡힌다 ⇒ proj.json 매니페스트(pages[].scratchpad)에 지운 장이 남는다.
+     그 채로 앱이 비정상 종료되면 다시 열 때(IndexedDB 빔) · 다른 맥에서 매니페스트로 되살아난다(앱 3/3). 저장을 예약한다. */
+  window.triggerAutoSave?.();
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
   // restoreSnapshot은 캔버스에 영향을 주지 않고 onUndo가 스크래치만 복원
@@ -355,6 +358,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
           if (_groupMode) _markGroupMode(true);
         }
         await Promise.allSettled(saving);
+        window.triggerAutoSave?.();   // ★J214 — 되살린 장도 매니페스트에 싣는다
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
@@ -363,6 +367,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
           try { await window._scratchRemoveById?.(s.id, { keepLone: inGroupMode }); } catch (_) {}
         }
         try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
+        window.triggerAutoSave?.();   // ★J214
       },
     });
   } catch (_) {}
