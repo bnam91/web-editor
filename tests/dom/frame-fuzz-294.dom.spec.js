@@ -8,7 +8,7 @@
  *   ⒠ ⌘Z/⌘⇧Z: 뒤 상태 = 모델 되돌림 칸 ⒡ 저장: getSerializedCanvas 를 DOMParser 로 읽은 상태 = 지금 · 끝에 ★innerHTML+rebindAll 재로드 뒤 같은 꼴
  * ★못 집은 회차: 조상에 들어가 다시 집기(via descend) · 그래도 못 집으면 후보 점마다 hitAt 으로 맨 위 임자를 rec.owners 에(시트 328 재료) · 고르기 시도 수는 옆 파일 *.tries.json.
  * ★재현: 시드·초기 구조·조작 순서·칸별 판정을 FUZZ_OUT(기본 test-results/frame-fuzz-294)/<RUN_TAG>-<시드>.json · id 는 F0·T0 이름으로 정규화 ⇒ 같은 시드 ×3 은 파일 내용이 같아야 한다.
- * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f|s(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · s = 저장 파일 축 · 평소 끔). V265 = 값만.
+ * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f|s|sp|so|st(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · s* = 저장 파일 축: id·부모·순서·글자 · 평소 끔) · FS294 = 같은 넷을 늘 도는 양성. V265 = 값만.
  * ⚠️⌘Z 칸 trace 번호: urun 안 빨강은 그 앞까지 끝난 조작 수로 적힌다.
  * ⚠️자 한계: 모델은 그룹을 «부모만 새 그룹으로 옮겨도 된다» 로 너그럽게 본다 · 좌표·겹침 안 봄 · 진입 상태는 시드에서 안 뽑음(P287 만) · 재로드 = 열기 경로 두 줄 · 저장 파일 축 = serializeProject → 파일 → applyProjectData(IPC·main.js 저장 코어는 안 지남).
  * ⌘Z 앞 부름 = evaluate · getSerializedCanvas · DOMParser · 스크린샷 0(JNOTE). */
@@ -45,6 +45,15 @@ const PAGE_LIB = () => {
     return { frames, texts, dupes };
   };
   window.__live = () => window.__readState(document.getElementById(window.__sec));
+  /* J294G ① 파일 망가뜨리기 — 첫 ss_ 는 섹션 기본 글자의 data-text-frame 이라 canon 밖이었다(실측 · 옛 양성이 초록인 까닭) ⇒ canon 이 읽는 진짜 프레임에만 닿는다. 닿았는지를 돌려준다(안 닿으면 빨강이 안 나도 «안 잰 것»). */
+  window.__mangleFile = (d, kind) => { const page = d.pages.find((x) => x.id === d.currentPageId) || d.pages[0]; const doc = new DOMParser().parseFromString('<div id="r">' + page.canvas + '</div>', 'text/html'); const sec = doc.getElementById(window.__sec); if (!sec) return false;
+    const fs = [...sec.querySelectorAll(FR)]; let done = false;
+    if (kind === 's' && fs[0]) { fs[0].id = 'INJECT'; done = true; }
+    if (kind === 'sp') { const inner = fs.find((f) => f.parentElement.closest(FR)); const top = fs.find((f) => !f.parentElement.closest(FR)); const other = fs.find((f) => f !== top && !top?.contains(f));
+      if (inner) { inner.parentElement.closest(FR).parentElement.appendChild(inner); done = true; } else if (top && other) { top.appendChild(other); done = true; } }
+    if (kind === 'so') { const a = fs.find((f) => fs.some((g) => g !== f && g.parentElement === f.parentElement)); if (a) { const b = fs.filter((g) => g !== a && g.parentElement === a.parentElement).pop(); b.after(a); done = true; } }
+    if (kind === 'st') { const t = sec.querySelector(FR + ' .text-block'); if (t) { (t.querySelector('.tb-body') || t).textContent = 'INJECT'; done = true; } }
+    if (done) page.canvas = doc.getElementById('r').innerHTML; return done; };
   window.__saved = () => { const d = new DOMParser().parseFromString('<div id="r">' + window.getSerializedCanvas() + '</div>', 'text/html'); return window.__readState(d.getElementById('r').querySelector('#' + CSS.escape(window.__sec))); };
 };
 const canon = (s) => JSON.stringify({ f: Object.keys(s.frames).sort().map((k) => [k, s.frames[k].parent, s.frames[k].order, s.frames[k].w, s.frames[k].h]), t: Object.keys(s.texts).sort().map((k) => [k, s.texts[k].frame, s.texts[k].text]) });
@@ -88,18 +97,17 @@ async function buildTree(page, r, lim = LIM) {
 /* J294F ② 저장 파일 축 — serializeProject 문자열을 진짜 파일로 썼다 읽어 applyProjectData(열기·탭 전환이 쓰는 입구)로 되살린 뒤 앞 상태와 맞댄다.
  * 캔버스를 먼저 비운다 — 안 비우면 되살리기가 안 돌아도 옛 나무로 초록이 된다. 양성 = FUZZ_INJECT=s(파일 내용을 망가뜨리면 이 칸이 빨개지나).
  * shortcut: 파일은 이 시험이 쓴다(IPC·main.js 저장 코어는 안 지난다 — electronAPI 가 가짜) · 진짜 앱 왕복은 J294E 다시 열기 19 회가 잰 몫. */
-async function fileRoundtrip(page, seed, before) {
+async function fileRoundtrip(page, seed, before, inject = INJECT) {
   const snap = await page.evaluate(() => window.serializeProject());
   fs.mkdirSync(OUT, { recursive: true });
   const f = path.join(OUT, `${TAG}-${seed}.proj.json`);
   fs.writeFileSync(f, snap);
-  const read = fs.readFileSync(f, 'utf8');
-  const data = JSON.parse(INJECT === 's' ? read.replace(/id=\\"(ss_[^\\"]+)\\"/, 'id=\\"INJECT\\"') : read);
-  const st = await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); return document.getElementById(window.__sec) ? window.__live() : null; }, data);
+  const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const st = await page.evaluate(([d, k]) => { const injected = k ? window.__mangleFile(d, k) : null; document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); return { injected, ok: !!document.getElementById(window.__sec) }; }, [data, /^s/.test(inject) ? inject : '']);
   await settle(page);
-  if (!st) return { same: false, why: '되살린 뒤 섹션 없음', fails: [] };
+  if (!st.ok) return { same: false, why: '되살린 뒤 섹션 없음', injected: st.injected, fails: [] };
   const after = await live(page);
-  return { same: canon(after) === canon(before), frames: Object.keys(after.frames).length, texts: Object.keys(after.texts).length, fails: await judge(page, after, null) };
+  return { same: canon(after) === canon(before), injected: st.injected, frames: Object.keys(after.frames).length, texts: Object.keys(after.texts).length, fails: await judge(page, after, null) };
 }
 /* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
 async function select(page, id, depth, { enter = false, chain = null } = {}) {
@@ -213,6 +221,7 @@ async function runSeed(page, seed, { lim = LIM, maxOps = lim.ops, ur = false, de
       tries.push({ i, kind, tgt: norm(names, tgt), tries: s.tries ?? null, sel: !!s.sel });
       if (!s.sel) {
         rec.skip = s.why || '고르기 안 섬';
+        if (s.selected) rec.selected = s.selected;   // J294G ② «고르기 안 섬»의 임자 — 누른 뒤 무엇이 골라졌나(이름 정규화는 끝에 clean 이 한다)
         if (s.pts?.length) rec.owners = await Promise.all(s.pts.map(async ([x, y]) => { const h = await hitAt(page, x, y); return h ? (names[h.id] || (h.id ? h.id.split('_')[0] : '') || h.cls.split(' ')[0] || h.tag) : null; }));
         trace.skipped++; trace.ops.push(rec); continue;
       }
@@ -296,9 +305,9 @@ async function runSeed(page, seed, { lim = LIM, maxOps = lim.ops, ur = false, de
     if (canon(st) !== canon(before)) trace.fails.push(['end', 'f', '재로드 뒤 상태 ≠ 재로드 앞']);
     trace.reload = canon(st) === canon(before);
   }
-  if (!trace.fails.length && (!INJECT || INJECT === 's')) {
+  if (!trace.fails.length && (!INJECT || /^s/.test(INJECT))) {
     const rt = await fileRoundtrip(page, seed, await live(page));
-    trace.file = { same: rt.same, frames: rt.frames ?? null, texts: rt.texts ?? null };
+    trace.file = { same: rt.same, frames: rt.frames ?? null, texts: rt.texts ?? null, ...(rt.injected === null ? {} : { injected: rt.injected }) };
     if (!rt.same) trace.fails.push(['end', 'f', `저장 파일 왕복 뒤 상태 ≠ 앞${rt.why ? ' · ' + rt.why : ''}`]);
     trace.fails.push(...rt.fails.map((x) => ['end', ...x]));
   }
@@ -322,6 +331,24 @@ for (const [seed, ur, deep, lim] of [...SEEDS.map((x) => [x, false, false, LIM])
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+/* J294G ① 저장 파일 축 양성·음성 — 같은 장면에서 안 망가뜨리면 same true · 넷 다 same false 여야 시드 25 의 same true 가 뜻을 갖는다. injected false 면 자가 안 닿은 것이라 빨강. */
+test('FS294 ★파일 왕복 양성·음성 — id·부모·순서·글자를 망가뜨리면 빨강 · 안 망가뜨리면 초록', async ({ page }) => {
+  const errs = await setup(page);
+  await buildTree(page, rng(294900), { depth: 3, frames: 6, ops: 0, exact: true });
+  const before = await live(page); const out = {};
+  const clean = await fileRoundtrip(page, 'FS-clean', before, ''); out.clean = clean.same;
+  for (const k of ['s', 'sp', 'so', 'st']) {
+    const again = await fileRoundtrip(page, 'FS-base', before, '');   // 앞 칸이 캔버스를 망가뜨렸으니 깨끗한 파일로 돌아온 판을 먼저 만든다
+    expect(again.same, `[전제] ${k} 앞 판`).toBe(true);
+    await page.evaluate((html) => { window.applyProjectData(JSON.parse(html)); }, fs.readFileSync(path.join(OUT, `${TAG}-FS-clean.proj.json`), 'utf8')); await settle(page);
+    const rt = await fileRoundtrip(page, 'FS-' + k, before, k); out[k] = { same: rt.same, injected: rt.injected };
+    await page.evaluate((html) => { window.applyProjectData(JSON.parse(html)); }, fs.readFileSync(path.join(OUT, `${TAG}-FS-clean.proj.json`), 'utf8')); await settle(page);
+  }
+  console.log(`FS294 ${JSON.stringify(out)}`);
+  expect(out.clean, '음성: 안 망가뜨리면 같다').toBe(true);
+  for (const k of ['s', 'sp', 'so', 'st']) expect(out[k], `양성 ${k}`).toEqual({ same: false, injected: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 /* ⑸ 양성 — 알려진 결함 꼴(287 · ⌘D 가 안 보이는 진입 상태로 갈린다): 자손을 «들어가» 고르면 사본이 그 안으로 간다. 모델(원본 부모)과 맞대면 판정 ⒜ 가 빨개져야 자가 산다 · 같은 장면 «안 들어감» 은 초록(음성). 287 의 그 꼴이 설계인지 결함인지는 이 시험이 안 가른다(R1 · 지디 줄). */
 async function tree3(page) {
   return page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const out = [];
