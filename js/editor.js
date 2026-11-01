@@ -1617,6 +1617,39 @@ function claimInternalClipboard(text) {
 }
 window.claimInternalClipboard = claimInternalClipboard;
 
+/* ★294 t9-03(미카사 J294G) — 프레임 여럿을 고르면 복사·삭제 단위가 «첫 프레임 하나»였다(document.querySelector). 자유 프레임 안 자식을 ⇧로 더 고르면 부모도 .selected 라
+   «부모»가 첫째가 되어, 고른 자식 대신 부모 통째가 자기 안에 복사되거나(앱 실측 3/3: 4→8) 부모째 지워졌다. 맨 위 프레임 둘은 첫째만 복사됐다.
+   ⇒ 같은 부모 아래 프레임이 둘 이상 골라졌으면(자손을 품은 조상은 맥락이라 뺀다) 그 묶음을 돌려준다 · 아니면 null(여태 길).
+   ⛔부모가 다른 조합·오버레이는 어디에 붙일지 설계 물음이라 null. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
+function _pickedSiblingFrames() {
+  const frs = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')];
+  const picked = frs.filter(f => !frs.some(o => o !== f && f.contains(o)));
+  if (picked.length < 2 || picked.some(f => f.parentElement !== picked[0].parentElement || f.dataset.overlayBlock === 'true')) return null;
+  return picked;
+}
+
+/* ⌫·⌘X 묶음 삭제 — 지웠으면 true. 묶음을 지워 비는 그룹은 일반 갈래처럼 걷는다. */
+function _deletePickedFrames() {
+  if (canvasEl.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED)) return false;
+  const picked = _pickedSiblingFrames();
+  if (!picked) return false;
+  if (window.isSectionProtected?.(picked[0].closest('.section-block'))) {   // A13 과 같은 막음
+    window.showToast?.('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요');
+    deselectAll();
+    return true;
+  }
+  window.ensureHistoryCheckpoint?.('삭제 전');
+  const par = picked[0].parentElement;
+  picked.forEach(f => f.remove());
+  if (par.dataset?.group === 'true' && !par.children.length) par.remove();
+  window._activeFrame = null;
+  deselectAll();
+  window.buildLayerPanel();
+  pushHistory('서브섹션 삭제');
+  return true;
+}
+window._deletePickedFrames = _deletePickedFrames;
+
 function copySelected() {
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
@@ -1638,6 +1671,14 @@ function copySelected() {
     const secTops = secAll.filter(s => !secAll.some(o => o !== s && o.contains(s)));
     if (secTops.length > 1) {
       clipboard = { type: 'multi-section', items: secTops.map(s => ({ html: window.serializeSectionClone(s) })) };
+      return;
+    }
+  }
+
+  if (allSel.length === 0) {
+    const _picked = _pickedSiblingFrames();
+    if (_picked) {
+      clipboard = { type: 'multi-block', afterId: _picked[_picked.length - 1].id, parentId: _picked[0].parentElement.id || null, items: _picked.map(f => ({ html: f.outerHTML, absAt: f.style.position === 'absolute' ? [parseInt(f.style.left) || 0, parseInt(f.style.top) || 0] : null })) };
       return;
     }
   }
@@ -2086,6 +2127,10 @@ function pasteClipboard() {
         if (!anchor.parentElement) anchor = null;   // 떨어져 나간 노드면 폴백
       }
     }
+    /* ★294 — 프레임 묶음: 원본 묶음 뒤(같은 부모). 원본이 지워졌으면(⌘X) 그 부모 안. ⛔다른 섹션을 골랐으면 그 섹션이 이긴다. */
+    const _afterFrame = clipboard.afterId ? document.getElementById(clipboard.afterId) : null;
+    const _srcParent = !_afterFrame && clipboard.parentId ? document.getElementById(clipboard.parentId) : null;
+    if (!anchor && _afterFrame?.closest('.section-block') === sec) anchor = _afterFrame;
     let lastEl = null;
     const _pastedRoots = [];
     clipboard.items.forEach(item => {
@@ -2111,10 +2156,14 @@ function pasteClipboard() {
         const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
         const savedActiveSS = window._activeFrame;
         if (pasteHasSS) window._activeFrame = null;
-        if (anchor) anchor.after(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
+        if (anchor) anchor.after(el); else if (_srcParent?.closest('.section-block') === sec) _srcParent.appendChild(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       window.followHostFrameHAlign?.(el);   // ★E135 — 정렬을 준 스택 프레임 안에 붙었으면 그 정렬(frame-geometry.js ⑤)
+      if (item.absAt) {   // ★294 — 끌기 처리기가 position 으로 갈리니 바인드 «앞»에 자리를 정한다: 자유 프레임 안이면 ⌘D 단건처럼 +20 · 흐름이면 흐름 꼴로
+        if (el.parentElement?.closest('.frame-block[data-free-layout]')) { el.style.position = 'absolute'; el.style.left = (item.absAt[0] + 20) + 'px'; el.style.top = (item.absAt[1] + 20) + 'px'; el.dataset.offsetX = String(item.absAt[0] + 20); el.dataset.offsetY = String(item.absAt[1] + 20); item.absAt = [item.absAt[0] + 20, item.absAt[1] + 20]; }   // 다시 ⌘V 면 한 칸 더
+        else { _normalizePastedAbsolute(el); delete el.dataset.offsetX; delete el.dataset.offsetY; el.removeAttribute('draggable'); }
+      }
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       lastEl = el;
@@ -3643,6 +3692,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
 
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
+    if (window._deletePickedFrames?.()) { consumed = true; return consumed; }   // ★294 — 자식 둘 ⌫ 가 부모째 지우던 것(_pickedSiblingFrames)
     const selSS = document.querySelector('.frame-block.selected');
     if (selSS) {
       /* ★`.shape-block.selected` 가 빠져 있었다(2026-09-20 QA 실측) — 도형은 자기 래퍼
