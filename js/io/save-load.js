@@ -87,6 +87,8 @@ function getSaveTsKey() {
   return getSaveKey() + '_ts';
 }
 let autoSaveTimer = null;
+const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
+let _autoSaveBurstAt = 0;
 let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 저장 전)
 
 /* ── 프로젝트 관리 ── */
@@ -1937,6 +1939,10 @@ function scheduleAutoSave() {
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;
+  /* ★J354 — 부를 때마다 타이머를 되걸어, 1.5초보다 촘촘한 연속 편집 중에는 저장이 한 번도 안 났다(앱 0.8·1.2초 간격 40초 쓰기 0 · 비정상 종료 시 40초 전부 잃음).
+     연속 편집 중에도 AUTOSAVE_MAX_WAIT_MS 안에 한 번은 쓴다. 기다림의 시작 = 타이머가 비어 있을 때 온 첫 편집. */
+  if (!autoSaveTimer) _autoSaveBurstAt = Date.now();
+  const _autoSaveDelay = Math.max(0, Math.min(1500, AUTOSAVE_MAX_WAIT_MS - (Date.now() - _autoSaveBurstAt)));
   clearTimeout(autoSaveTimer);
   _holdBackground(true);   // ★S1 — 타이머를 걸기 «전에» 푼다(숨은 창에서 이 1.5초가 분 단위로 밀리지 않게)
   _setAutosaveIndicator('saving');
@@ -1989,7 +1995,7 @@ function scheduleAutoSave() {
     } finally {
       if (!_handed && !autoSaveTimer) _holdBackground(false);   // ★S1 — 건너뜀(탭 전환·빈 캔버스)·예외도 되돌린다
     }
-  }, 1500);
+  }, _autoSaveDelay);
 }
 
 // 새로고침/탭 닫기 시 항상 localStorage에 flush (autoSaveTimer 여부 무관)
