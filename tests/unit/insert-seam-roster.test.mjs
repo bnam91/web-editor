@@ -263,3 +263,15 @@ test('B3-c ★SETTLE_KNOWN(addStickerBlock) 의 «이유»가 실제로 성립�
   assert.deepEqual(inline, ['cursor', 'userSelect'],
     `_enterStickerEdit 가 쓰는 인라인 스타일이 바뀌었다(${inline.join(',')}) — 세척 목록도 같이 고쳐라`);
 });
+
+/* ★행 229 — 로스터(window.add*)가 못 보는 입구: 펜·치수선 도구는 캔버스 클릭·키로 들어온다(js/annotation-tool.js _finalizeAnnotation).
+   window 에 없어 감쌀 수 없으니 그 몸 안에 끝 표본이 있어야 한다. 없으면 두 점+Esc·V 로 만든 블럭이 패널 첫 바꿈의 ⌘Z 에 통째로 사라진다. */
+test('C1 ★도구 길 _finalizeAnnotation 은 붙이기 «전»에 찍고, 라벨 편집 없는 길은 미리보기를 치운 «뒤» 끝 표본을 찍는다', () => {
+  const body = stripComments(sliceBlock(readSrc(REPO, 'js/annotation-tool.js'), 'function _finalizeAnnotation'));
+  const at = body.indexOf('sec.appendChild(block)'), cancel = body.indexOf('_cancelPending();', at);
+  assert.ok(at > 0 && cancel > at, '붙이는 자리·미리보기 치우는 자리를 못 찾았다 — 입구가 바뀌었으면 이 검사를 그 꼴로 고쳐라');
+  assert.match(body.slice(0, at), /window\.pushHistory\(/, '시작 표본(push-before)이 없다 — ⛔옮기지 마라(js/CLAUDE.md 2026-09-20 회귀)');
+  assert.match(body.slice(at, cancel), /annotBeginLabelEdit/, '라벨 편집 길의 체크포인트(끝 표본 몫)가 사라졌다');
+  assert.doesNotMatch(body.slice(at, cancel), /window\.pushHistory\(/, '미리보기를 치우기 전에 찍으면 ⌘Z 먹통 한 칸이 생긴다');
+  assert.match(body.slice(cancel), /!enterLabelEdit\s*&&[^\n]*window\.pushHistory\(/, '끝 표본이 없다 — 두 점+Esc·V 길에서 블럭이 든 칸이 안 남는다(행 229)');
+});

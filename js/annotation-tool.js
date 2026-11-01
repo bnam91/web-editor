@@ -369,6 +369,11 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset 
      만든 자리에서 buildLayerPanel 을 부르는데 여기만 빠져, 어노테이션은 다른 이유로 패널이 다시 그려질
      때까지 레이어에 안 나타났다(2026-10-13 실측: 생성 직후 행 3 → 3). */
   window.buildLayerPanel?.();
+  /* ★행 229 — 끝 표본. 맨 위 push 는 만들기 «전»만 찍는다. 라벨 편집 길은 annotBeginLabelEdit 의 체크포인트가 블럭 든 칸을 남기지만
+     두 점+Esc·V(enterLabelEdit:false)는 그 칸이 없어 패널 첫 바꿈의 ⌘Z 가 블럭을 통째로 지웠다(그 뒤 새 편집이면 redo 도 끊겨 영구 손실 · 앱 ×3).
+     ⛔맨 위 push 를 옮기지 마라(js/CLAUDE.md 2026-09-20 회귀) — «더하기»다. 선례 js/editor.js duplicateSelected 의 '복제 완료'.
+     ⛔_cancelPending 앞에 두지 마라 — 미리보기가 찍혀 라이브와 어긋나 ⌘Z 먹통 한 칸이 생긴다(실측). 게이트 tests/unit/insert-seam-roster.test.mjs C1 */
+  if (!enterLabelEdit && typeof window.pushHistory === 'function') window.pushHistory(asDim ? '치수선 추가 완료' : '어노테이션 추가 완료');
   window.scheduleAutoSave?.();
   if (!silent) window.showToast?.(asDim ? '📐 치수선 생성 — 다음 것도 바로 찍을 수 있다 · ESC로 종료' : '✏️ 펜 모드 유지 중 — ESC로 종료');
 }
