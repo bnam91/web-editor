@@ -390,6 +390,10 @@ async function switchTab(id) {
       // 프로젝트 없으면 캔버스 초기화
       if (canvasEl) canvasEl.innerHTML = '';
       if (window.buildLayerPanel) window.buildLayerPanel();
+      /* ★J336C — 위 applyProjectData 길(save-load.js)과 같게 이력도 지운다. 안 지우면 ⌘Z 가 앞 탭의 글을
+         빈 화면에 되살리고 ⌘S 가 그 글을 이 프로젝트 자리에 쓴다(폴더를 앱 밖에서 지운 탭 · 앱 실측 3/3). */
+      window.resetAllPageHistory?.();
+      window.clearHistory?.();
     }
     window.AutoSaveSuppress.end(_asTok);     // 파일 분기: 예전 `= false` 와 «같은 자리»
     window.initBranchStore();
