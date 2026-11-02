@@ -15,9 +15,11 @@ async function scene(page) {
   await page.evaluate((P) => document.getElementById(P).scrollIntoView({ block: 'center' }), ids.P); await raf(page); return { errs, ...ids };
 }
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; }, id);
+/* ⌘V 는 paste 이벤트에 양보하느라 setTimeout 30ms 뒤에 붙는다 — 프레임 수가 늘 때까지 기다린다(raf 만이면 18건 중 1건 흔들림). */
+const pasteKey = async (p) => { const n = await p.evaluate((FR) => document.querySelectorAll('#canvas ' + FR).length, FR); await p.keyboard.press('Meta+v'); await p.waitForFunction(([FR, n]) => document.querySelectorAll('#canvas ' + FR).length > n, [FR, n], { timeout: 3000 }); await raf(p); };
 const clk = async (page, x, y, mod) => { if (mod) await page.keyboard.down(mod); await page.mouse.click(x, y); if (mod) await page.keyboard.up(mod); await raf(page); };
 async function pickKids(page, { P, A, B }) { const p = await box(page, P); await clk(page, (p.l + p.r) / 2, p.b - 12); const a = await box(page, A); await clk(page, (a.l + a.r) / 2, (a.t + a.b) / 2 + 10); const b = await box(page, B); await clk(page, (b.l + b.r) / 2, (b.t + b.b) / 2, 'Shift'); const sel = await page.evaluate(([A, B]) => [A, B].map((i) => document.getElementById(i).classList.contains('selected')), [A, B]); expect(sel, '[전제] 자식 둘 고름').toEqual([true, true]); }
-for (const [name, act] of [['⌘D', (p) => p.keyboard.press('Meta+d')], ['⌘C⌘V', async (p) => { await p.keyboard.press('Meta+c'); await p.keyboard.press('Meta+v'); }]]) {
+for (const [name, act] of [['⌘D', (p) => p.keyboard.press('Meta+d')], ['⌘C⌘V', async (p) => { await p.keyboard.press('Meta+c'); await pasteKey(p); }]]) {
   test(`자식 둘 ${name} — 고른 둘만 같은 부모 안에 +20 · 부모는 복사 안 됨 · ⌘Z 한 번에 처음`, async ({ page }) => {
     const { errs, P, A, G, B } = await scene(page); const s0 = await read(page);
     await pickKids(page, { P, A, B }); await act(page); await raf(page);
@@ -49,7 +51,7 @@ test('보호 섹션에서 자식 둘 Delete — 아무것도 안 지워진다', 
 });
 test('자식 둘 ⌘C ⌘V ⌘V — 사본이 안 겹친다', async ({ page }) => {
   const { errs, P, A, B } = await scene(page); const s0 = await read(page);
-  await pickKids(page, { P, A, B }); await page.keyboard.press('Meta+c'); await page.keyboard.press('Meta+v'); await raf(page); await page.keyboard.press('Meta+v'); await raf(page);
+  await pickKids(page, { P, A, B }); await page.keyboard.press('Meta+c'); await pasteKey(page); await raf(page); await pasteKey(page); await raf(page);
   const s1 = await read(page); const roots = s1.ids.filter((i) => !s0.ids.includes(i) && s1.par[i] === P); const at = roots.map((i) => s1.pos[i].join());
   expect(new Set(at).size, '자리 넷').toBe(4); expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -67,7 +69,7 @@ test('자식 둘 ⌘X⌘V — 부모가 안 사라지고 둘이 그 부모 안 +
   const { errs, P, A, B, C } = await scene(page);
   await pickKids(page, { P, A, B }); await page.keyboard.press('Meta+x'); await raf(page);
   const s1 = await read(page); expect(s1.ids.includes(P), '잘라도 부모 남음').toBe(true); expect(s1.ids.includes(A), 'A 잘림').toBe(false);
-  await page.keyboard.press('Meta+v'); await raf(page);
+  await pasteKey(page); await raf(page);
   const s2 = await read(page); const fresh = s2.ids.filter((i) => !s1.ids.includes(i)); const roots = fresh.filter((i) => !fresh.includes(s2.par[i]));
   expect(roots.map((i) => s2.par[i]), '부모 안').toEqual([P, P]); expect(roots.map((i) => s2.pos[i][0]), 'absolute').toEqual(['absolute', 'absolute']);
   expect(C).toBeTruthy(); expect(errs, errs.join(' | ')).toEqual([]);
@@ -77,7 +79,7 @@ test('프레임 둘 ⌘C → 다른 섹션 클릭 → ⌘V — 고른 섹션에 
   await page.evaluate((X) => document.getElementById(X).scrollIntoView({ block: 'center' }), X); await raf(page);
   const x = await box(page, X); await clk(page, (x.l + x.r) / 2, (x.t + x.b) / 2); const y = await box(page, Y); await clk(page, (y.l + y.r) / 2, (y.t + y.b) / 2, 'Meta'); await page.keyboard.press('Meta+c');
   const secId = await page.evaluate(async () => { await window.addSection(); const s = [...document.querySelectorAll('#canvas .section-block')].pop(); window.deselectAll(); window.selectSection(s); window._activeFrame = null; return s.id; }); await raf(page); await page.waitForTimeout(100);
-  await page.keyboard.press('Meta+v'); await raf(page);
+  await pasteKey(page); await raf(page);
   const n = await page.evaluate(([id, FR]) => document.getElementById(id).querySelectorAll(FR).length, [secId, FR]); expect(n, '고른 섹션에 둘').toBe(2);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
