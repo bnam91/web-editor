@@ -15,7 +15,7 @@
  * ⛔이 스펙이 ★안 재는 축(이름으로): 중첩 ★2단계 깊이의 비율 · 중첩 안 ★행 · 터치/펜 입력 ·
  *   실앱(Electron) 저장·불러오기 왕복 · HTML/Figma 내보내기에서의 중첩 비율. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 const SCENE = '<div class="section-block" id="cS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="cI"><div class="gap-block" data-type="gap" style="height:40px"></div><div class="row" id="cR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:400px"></div></div></div>';
 
@@ -27,6 +27,7 @@ async function scene(page) {
     c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', S);
   }, SCENE);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 보간 중에 재면 옛 배율 자리를 누른다(7차 ×6 값)
   return errs;
 }
 
