@@ -1456,12 +1456,14 @@ async function _loadScratch(projectId, pageId) {
       }
     }
     let migrated = false;
+    // ★읽는 사이 들어온 장 — 그때 _saveScratch 는 «로드 미완료»로 건너뛴다 ⇒ 다 읽은 뒤 저장하지 않으면 다시 열 때 없다
+    const addedDuringLoad = _scratchItems.length > 0;
     items.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => {
       if (!id) migrated = true; // 구 데이터엔 id 없음 — 자동 생성 후 재저장 트리거
       _createItem(src, x, y, w, id, g, linkDy, fx, ocr);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
-    if (migrated || hydrated) _saveScratch(); // 하이드레이션분을 로컬 IndexedDB에 영속
+    if (migrated || hydrated || addedDuringLoad) _saveScratch(); // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
