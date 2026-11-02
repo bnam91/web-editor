@@ -12,7 +12,7 @@
  * 양성대조: GD1001_ROOT=<5e4256d1 사본> ⇒ GH·IH 빨강.
  * 줄 고르기·입력은 진짜 마우스·키(grid-gap-line-height.dom.spec.js 와 같은 손). */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const frames = (page, n = 2) => page.evaluate((n) => new Promise((r) => { let i = 0; const f = () => (++i >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
@@ -27,6 +27,7 @@ async function setup(page, lines) {
     g.id = 'gG'; document.getElementById('gR').appendChild(g); window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.();
   }, lines);
   await frames(page, 3);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 보간 중에 재면 옛 배율 자리를 눌러 앞 spec·부하 따라 빨강이 났다(C 10/24 ↔ 대기 0/24)
   return errs;
 }
 const lineOf = (page, li) => page.evaluate((li) => window.getGridModel(document.getElementById('gG')).cells[0][0].lines[li], li);
