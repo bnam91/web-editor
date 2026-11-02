@@ -827,12 +827,7 @@ function bindBlock(block) {
            (2026-09-15, 오버레이를 다른 섹션으로 끌면 배경 밑에 깔리던 버그의 근본 수정). */
       if (tf?.dataset.overlayBlock === 'true') return;
       if (tf && tf.style.position === 'absolute') {
-        // TF가 절대배치 B 안에 있는 경우: B가 selected이면 B drag handler에 위임
-        // (Fix3로 C가 selected된 상태에서 드래그 → TF가 아닌 B가 움직여야 함)
-        const _parentAbsFrame = tf.closest('.frame-block[data-free-layout]');
-        if (_parentAbsFrame?.style.position === 'absolute') {
-          return; // stopProp 없이 return → 이벤트가 B(bindFrameDropZone)까지 bubble됨
-        }
+        /* 고른 글자는 중첩 프레임 안에서도 제 글자 프레임을 끈다(S3 B-8 · 앱 비율 0). 옛 갈래는 바깥 프레임(B)에 넘겼는데, B 는 contenteditable 위 누름을 안 받아 아무도 안 끌었다. 고르지 않은 글자는 위 게이트에서 이미 돌아가 B 끌기로 간다. 시험: tests/dom/nested-text-drag.dom.spec.js */
         dragEl = tf;
       } else if (block.style.position !== 'absolute') {
         return; // flow 배치 text-block은 HTML5 DnD에 위임
