@@ -1,5 +1,5 @@
 /* multi-frame-copy-294 — 프레임 여럿을 골라 ⌘D·⌘C⌘V 하면 고른 것들이 복사된다(294 t9-03 · J294G).
- * 음성: 프레임 하나 ⌘D 는 +부분나무 하나 · 부모가 다른 조합은 값만(설계 물음 · 회신). */
+ * 음성: 프레임 하나 ⌘D 는 +부분나무 하나. 자리 규칙 = 현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const FR = '.frame-block:not([data-text-frame])';
@@ -92,14 +92,12 @@ test('맨 위 프레임 둘 ⌘D — 둘 다 복사된다 · 흐름', async ({ p
   expect(fresh.length, '둘').toBe(2); expect(fresh.map((i) => s1.par[i]), '맨 위').toEqual([null, null]); expect(fresh.map((i) => s1.pos[i][0]), '흐름').toEqual(['', '']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
-test('음성 — 프레임 하나 ⌘D 는 하나(부분나무) · 부모가 다른 조합은 값만', async ({ page }) => {
+test('음성 — 프레임 하나 ⌘D 는 하나(부분나무)', async ({ page }) => {
   const { errs, P, A, B, X } = await scene(page); const s0 = await read(page);
   const p = await box(page, P); await clk(page, (p.l + p.r) / 2, p.b - 12); const a = await box(page, B); await clk(page, (a.l + a.r) / 2, (a.t + a.b) / 2);
   await page.keyboard.press('Meta+d'); await raf(page); const s1 = await read(page); const f1 = s1.ids.filter((i) => !s0.ids.includes(i)); expect(f1.length, '하나').toBe(1); expect(s1.par[f1[0]], '같은 부모').toBe(P);
   await page.evaluate(() => window.deselectAll()); await page.keyboard.press('Meta+z'); await raf(page);
-  const p2 = await box(page, P); await clk(page, (p2.l + p2.r) / 2, p2.b - 12); const a2 = await box(page, A); await clk(page, (a2.l + a2.r) / 2, (a2.t + a2.b) / 2 + 10); await page.evaluate((X) => document.getElementById(X).scrollIntoView({ block: 'center' }), X); await raf(page); const x = await box(page, X); await clk(page, (x.l + x.r) / 2, (x.t + x.b) / 2, 'Meta');
-  const n0 = (await read(page)).ids.length; await page.keyboard.press('Meta+d'); await raf(page); const s3 = await read(page); console.log('V3 다른 부모 ⌘D 새 프레임 ' + (s3.ids.length - n0));
-  expect(new Set(s3.ids).size, 'id 겹침 없음').toBe(s3.ids.length); expect(errs, errs.join(' | ')).toEqual([]);
+  expect(new Set(s1.ids).size, 'id 겹침 없음').toBe(s1.ids.length); expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('한 줄(.row)의 프레임 둘을 지우면 빈 줄이 안 남고, 하나 남으면 줄도 남는다', async ({ page }) => {
   const { errs, X, Y } = await scene(page);
@@ -108,5 +106,55 @@ test('한 줄(.row)의 프레임 둘을 지우면 빈 줄이 안 남고, 하나 
   await page.keyboard.press('Meta+z'); await raf(page);
   const k = await page.evaluate(([X, Y]) => { const row = document.getElementById('rowT'); const third = document.createElement('div'); third.className = 'frame-block'; row.appendChild(third); [X, Y].forEach((i) => document.getElementById(i).classList.add('selected')); const did = window._deletePickedFrames(); return { did, row: !!document.getElementById('rowT') }; }, [X, Y]);
   expect(k, '음성').toEqual({ did: true, row: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── FRAME-GROUP-PASTE-TARGET-RULE-01 ── */
+const fresh = (s, s0) => s.ids.filter((i) => !s0.ids.includes(i));
+const rootsOf = (s, s0) => { const f = fresh(s, s0); return f.filter((i) => !f.includes(s.par[i])); };
+async function pickMixed(page, { P, A, X }) { const p = await box(page, P); await clk(page, (p.l + p.r) / 2, p.b - 12); const a = await box(page, A); await clk(page, (a.l + a.r) / 2, (a.t + a.b) / 2 + 10); await page.evaluate((X) => document.getElementById(X).scrollIntoView({ block: 'center' }), X); await raf(page); const x = await box(page, X); await clk(page, (x.l + x.r) / 2, (x.t + x.b) / 2, 'Meta'); expect(await page.evaluate(([A, X]) => [A, X].map((i) => document.getElementById(i).classList.contains('selected')), [A, X]), '[전제] 부모가 다른 둘 고름').toEqual([true, true]); }
+for (const [name, act] of [['⌘D', (p) => p.keyboard.press('Meta+d')], ['⌘C⌘V', async (p) => { await p.keyboard.press('Meta+c'); await pasteKey(p); }]]) {
+  test(`부모가 다른 둘 ${name} — 고른 만큼 전부 · 각자 원래 부모 안 원본 옆 · ⌘Z 처음`, async ({ page }) => {
+    const { errs, P, A, X } = await scene(page); const s0 = await read(page);
+    await pickMixed(page, { P, A, X }); await act(page); await raf(page);
+    const s1 = await read(page); const r = rootsOf(s1, s0);
+    expect(r.length, '고른 만큼').toBe(2); expect(r.map((i) => s1.par[i]).sort(), '각자 부모').toEqual([P, null].sort()); expect(fresh(s1, s0).length, 'A 부분나무 2 + X 1').toBe(3);
+    const a1 = r.find((i) => s1.par[i] === P); expect(s1.pos[a1], 'A 사본 +20').toEqual(['absolute', '40px', '40px']);
+    expect(await page.evaluate(([X, id]) => document.getElementById(X).nextElementSibling?.id === id, [X, r.find((i) => s1.par[i] === null)]), 'X 사본은 X 바로 다음').toBe(true);
+    await page.evaluate(() => window.deselectAll()); await page.keyboard.press('Meta+z'); await raf(page);
+    expect((await read(page)).ids, '⌘Z 처음').toEqual(s0.ids); expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+test('자식 둘 ⌘C → 맨 위 다른 프레임 클릭 → ⌘V — 그 프레임 다음 자리 · 흐름 · 순서 유지', async ({ page }) => {
+  const { errs, P, A, B, Y } = await scene(page); const s0 = await read(page);
+  await pickKids(page, { P, A, B }); await page.keyboard.press('Meta+c');
+  await page.evaluate((Y) => document.getElementById(Y).scrollIntoView({ block: 'center' }), Y); await raf(page); const y = await box(page, Y); await clk(page, (y.l + y.r) / 2, (y.t + y.b) / 2);
+  await pasteKey(page);
+  const s1 = await read(page); const r = rootsOf(s1, s0);
+  expect(r.map((i) => s1.par[i]), '맨 위로').toEqual([null, null]); expect(r.map((i) => s1.pos[i][0]), '흐름').toEqual(['', '']);
+  expect(await page.evaluate(([Y, r]) => { const a = document.getElementById(Y).nextElementSibling; return [a?.id, a?.nextElementSibling?.id].join() === r.join(); }, [Y, r]), 'Y 다음 순서대로').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('자식 둘 ⌘C → 같은 부모의 다른 자식 클릭 → ⌘V — 그 옆 · 묶음 상대 배치 유지', async ({ page }) => {
+  const { errs, P, A, B, C } = await scene(page); const s0 = await read(page);
+  await pickKids(page, { P, A, B }); await page.keyboard.press('Meta+c');
+  const c = await box(page, C); await clk(page, (c.l + c.r) / 2, (c.t + c.b) / 2); expect(await page.evaluate((C) => document.getElementById(C).classList.contains('selected'), C), '[전제] C 고름').toBe(true);
+  await pasteKey(page);
+  const s1 = await read(page); const r = rootsOf(s1, s0);
+  expect(r.map((i) => s1.par[i]), '같은 부모').toEqual([P, P]);
+  expect(parseInt(s1.pos[r[1]][1]) - parseInt(s1.pos[r[0]][1]), '가로 간격 = 원본 300-20').toBe(280); expect(parseInt(s1.pos[r[1]][2]) - parseInt(s1.pos[r[0]][2]), '세로 간격 0').toBe(0);
+  expect(await page.evaluate(([C, f]) => document.getElementById(C).nextElementSibling?.id === f, [C, r[0]]), 'C 다음 자리').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('부모가 다른 둘 ⌘X⌘V — 부모·형제 남고 각자 부모로 돌아온다 · ⌘X → 다른 프레임 → ⌘V 는 거기', async ({ page }) => {
+  const { errs, P, A, B, X, Y } = await scene(page);
+  await pickMixed(page, { P, A, X }); await page.keyboard.press('Meta+x'); await raf(page);
+  const s1 = await read(page); expect([P, B, Y].every((i) => s1.ids.includes(i)), '부모·형제 남음').toBe(true); expect([A, X].some((i) => s1.ids.includes(i)), '둘 다 잘림').toBe(false);
+  await pasteKey(page); const s2 = await read(page); const r = rootsOf(s2, s1);
+  expect(r.map((i) => s2.par[i]).sort(), '각자 부모').toEqual([P, null].sort());
+  await page.keyboard.press('Meta+z'); await raf(page);
+  await page.evaluate((Y) => document.getElementById(Y).scrollIntoView({ block: 'center' }), Y); await raf(page); const y = await box(page, Y); await clk(page, (y.l + y.r) / 2, (y.t + y.b) / 2);
+  const s3 = await read(page); await pasteKey(page); const s4 = await read(page); const r2 = rootsOf(s4, s3);
+  expect(r2.map((i) => s4.par[i]), 'Y 쪽으로').toEqual([null, null]); expect(await page.evaluate(([Y, f]) => document.getElementById(Y).nextElementSibling?.id === f, [Y, r2[0]]), 'Y 다음').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
