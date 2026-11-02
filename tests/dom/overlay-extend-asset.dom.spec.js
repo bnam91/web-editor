@@ -64,6 +64,8 @@ const COLOR_PICKER_STUB = `
   export const wireHexText = () => null;
   export const parseHex6 = () => null;
   export const formatHex6 = (v) => String(v ?? '');
+  export const alphaFromText = () => null;
+  export const noticeAlphaText = () => {};
 `;
 
 const STUBS = { '/js/globals.js': GLOBALS_STUB, '/js/canvas-contrast.js': CANVAS_CONTRAST_STUB, '/js/props/color-picker.js': COLOR_PICKER_STUB };
