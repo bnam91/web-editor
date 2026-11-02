@@ -254,7 +254,7 @@ async function enterScene(page, kind, zoom, touched) {
   const box = await page.locator('#u4tb').boundingBox();
   await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForFunction(() => document.getElementById('u4tb').classList.contains('editing'));
-  await page.keyboard.press('End');
+  await page.evaluate(() => { const sel = getSelection(); sel.selectAllChildren(document.querySelector('#u4tb [contenteditable]')); sel.collapseToEnd(); });
 }
 const read2 = async (page) => {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -278,7 +278,9 @@ for (const [kind, zoom] of [['body', 100], ['h1', 100], ['body', 40], ['h1', 40]
     await page.keyboard.type('셋째');
     const b = await read2(page);
     console.log(`[U4:${kind}:${zoom}]`, JSON.stringify({ H: [a.H, b.H], edgeB: [a.edge.b, b.edge.b], gridB: [a.grid.b, b.grid.b], glyphB: [a.glyph.b, b.glyph.b] }));
-    expect(b.text, '전제: 글이 이어 쳐졌다(caret 안 잃음)').toContain('셋째');
+    expect(b.text, '전제: 글이 이어 쳐졌다(caret 안 잃음)').toMatch(/첫 줄[\s\S]*둘째[\s\S]*셋째/);
+    /* ★핀 재현 없음 · 고침 1판의 결함 — Enter 뒤 W 가 블록 폭(796)으로 부풀었다. 이 글의 가장 긴 줄은 «첫 줄»이다 */
+    expect(Math.abs(b.W - a.W), `★상자 폭이 글자보다 부풀었다 (W ${a.W} → ${b.W})`).toBeLessThan(1);
     expect(b.H, '★다시 안 쟀다 — H 그대로').toBeGreaterThan(a.H * 1.5);
     for (const k of ['l', 't', 'r', 'b']) {
       expect(Math.abs(b.edge[k] - b.glyph[k]), `★보라 ${k} 가 글자 상자와 어긋난다`).toBeLessThan(1.5);
