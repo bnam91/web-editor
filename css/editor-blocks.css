@@ -2811,6 +2811,9 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1))); /* 이미지가 가장자리까지 차므로 안쪽 대신 바깥으로 빼서 겹침 방지 */
 }
+/* 회전 핫존은 모서리 «바깥»인데 renderCanvas 의 인라인 overflow:hidden 이 잘라 네 모서리 모두 안 눌렸다(앱 0/36 · 시트 328 둘째 꼴).
+   고른 동안만 푼다 — 셀이 각자 자르므로 그림은 그대로(.frame-block[data-text-frame]:has(.text-block.selected) 와 같은 정책). */
+.canvas-block.selected { overflow: visible !important; }
 .canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 
 /* banner02 — 컴포넌트 선택 표준 (배경이 가장자리까지 차므로 outline 바깥으로) */

@@ -92,7 +92,9 @@ test('S3 복사 직후 대상 삭제 — ⌘D 뒤 사본 Delete · ⌘C 뒤 원�
   /* ⌘C → 원본 Delete → ⌘V */
   await pick(page, [P1]); await page.keyboard.press('Meta+c'); await press(page, 'Delete');
   const gone = await read(page); expect(gone.frames[P1], '지워짐').toBeUndefined(); clean(gone);
-  await press(page, 'Meta+v'); const pasted = await read(page); clean(pasted);
+  await press(page, 'Meta+v');
+  await page.waitForFunction(([FR, n]) => document.querySelectorAll('#canvas ' + FR).length > n, [FR, Object.keys(gone.frames).length], { timeout: 5000 });   // S2 와 같은 까닭(setTimeout 30)
+  const pasted = await read(page); clean(pasted);
   const n = Object.keys(pasted.frames).length - Object.keys(gone.frames).length;
   console.log('S3 V ' + JSON.stringify({ '⌘C·Delete·⌘V 새 프레임': n, 원본부분나무: 3 + 1 }));
   /* ⌘V 가 붙었든 안 붙었든 ⌘Z 를 거듭하면 처음으로 돌아와야 한다 */
