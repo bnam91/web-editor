@@ -379,6 +379,14 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset 
 }
 
 // ESC / V 공통 — 그리던 선(≥2점)은 확정해 보존하고 펜 모드 종료 (1점 이하는 폐기)
+/* 시트 223 — 라벨 초점은 annotBeginLabelEdit 의 setTimeout 0 뒤라, 그 틈의 Esc·V 는 activeElement 로 못 본다 ⇒ ce 로 찾는다.
+   finish 는 blur 에 걸려 있어 초점이 없으면 blur 가 안 난다 ⇒ 먼저 준다. */
+function _commitOpenLabel() {
+  const label = document.querySelector('.annot-label[contenteditable="true"]');
+  if (!label) return;
+  try { label.focus(); label.blur(); } catch (_) {}
+}
+
 function _commitAndExitPenMode() {
   const hadLine = _pendingPoints && _pendingPoints.points.length >= 2;
   if (hadLine) _finalizeAnnotation({ enterLabelEdit: false, silent: true });
@@ -411,7 +419,7 @@ function _onKeydown(e) {
     // 안내 토스트("ESC로 종료")와 일치: 한 번의 ESC로 종료. 라벨 편집 중이면
     // 먼저 blur로 텍스트 커밋(IME 한글 포함) 후 펜 종료 — V키와 동일 출구.
     e.stopPropagation();
-    if (editingLabel) { try { active.blur(); } catch (_) {} }
+    _commitOpenLabel();
     _commitAndExitPenMode();
     return;
   }
@@ -427,7 +435,7 @@ function _onKeydown(e) {
     e.stopPropagation();
     e.preventDefault();           // 라벨에 'v'가 끼어드는 것 방지
     // 라벨 편집 중이면 먼저 blur로 텍스트 커밋(IME로 입력된 한글 포함) 후 펜 종료
-    if (editingLabel) { try { active.blur(); } catch (_) {} }
+    _commitOpenLabel();
     _commitAndExitPenMode();
     return;
   }
