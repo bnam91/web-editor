@@ -9,11 +9,14 @@ const { bootApp } = require('./_root-harness.js');
 
 async function scene(page) {
   await bootApp(page);
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
     const c = document.getElementById('canvas');
     while (c.querySelectorAll('.section-block').length < 2) window.addSection();
     window.buildLayerPanel?.();
     window.pushHistory('장면');
+    // 삽입의 끝 표본(restampHistoryTop · rAF 둘 + 틱)이 먼저 끝나야 한다 — 그 창 안에 옮기면 꼭대기를 덮어 ⌘Z 가 삽입까지 되돌린다(재면 3/3 · 334 회신)
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    for (let i = 0; i < 2; i++) await new Promise((r) => setTimeout(r, 0));
     return [...c.querySelectorAll('.section-block')].slice(0, 2).map((s) => s.id);
   });
 }
