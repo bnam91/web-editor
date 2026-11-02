@@ -6,7 +6,7 @@
 ═══════════════════════════════════ */
 
 import { state, BLOCK_DELEGATE_SEL } from './globals.js';
-import { isShapeFrame as _isShapeFrameEl, toFlowUnit } from './shape-frame.js';
+import { isShapeFrame as _isShapeFrameEl, toFlowUnit, isEmptyShell } from './shape-frame.js';
 import { posElOf as _floatPosElOf, bindFloatMoveDrag as _bindFloatMoveDrag } from './overlay-float.js';
 import {
   clearDropIndicators,
@@ -3306,7 +3306,8 @@ function bindFrameDropZone(ss) {
 
     // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
     const isFreeLayout = ss.dataset.freeLayout === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
+    /* ★365 — 정본에서 받는다. 손 사본이 33종 중 23종만 알아, 빠진 row 째 끌리는 6종(chat·coupon·quote·radial·laurel·qa)이 아래 row 경로에서 옮겨지지 못한 채 row 와 함께 지워졌다. */
+    const BLOCK_SEL = window.SECTION_BLOCK_TYPE_SEL;
     const SS_W = 860; // 캔버스 기준 너비
 
     if (!isFreeLayout) {
@@ -3397,7 +3398,8 @@ function bindFrameDropZone(ss) {
           inner.appendChild(block);
           nextY += (block.offsetHeight || 60) + 16;
         });
-        dragState.dragSrc.remove();
+        // ★365 — 옮긴 것이 없거나 명부 밖 알맹이가 남았으면 row 를 지우지 않는다(제자리). 지우면 저장본에서도 사라진다.
+        if (blocks.length && isEmptyShell(dragState.dragSrc)) dragState.dragSrc.remove();
         }
       } else {
         // dragSrc가 inner의 조상인 경우 삽입 금지 (HierarchyRequestError 방지)
