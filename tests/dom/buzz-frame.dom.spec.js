@@ -897,13 +897,21 @@ test('BZ-19 개수 − 가 지운 말풍선은 ⌘Z 로 글째 돌아온다 · �
 test('BZ-20 ★⑵ 패널 높이 칸으로 줄인 «직후» 말풍선이 프레임 안 · 키울 때는 자리 불변 · 높이 변경과 히스토리 한 칸', async ({ page }) => {
   const { errs } = await setup(page);
   const fid = await insertBuzz(page);
+  /* 번호를 박는다 — 안 박으면 번호마다 자리가 달라 오른쪽에 붙은 줄을 +24 끌면 프레임 밖으로 나가 아래 전제가 빨갛다(1~40 중 15 · 35 · 38 · ×20 에 3 번).
+     15 는 그 빨강이 나는 번호다 ⇒ 왼쪽으로 끈다(끄는 쪽을 되돌리면 언제나 빨강). */
+  await pickFrame(page, fid);
+  await page.locator('#bzf-seed').click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('15');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate((fid) => document.getElementById(fid).dataset.buzzSeed, fid), { message: '전제: 무늬번호가 15 가 됐다' }).toBe('15');
   const s0 = await stateOf(page, fid);
   /* 한 개를 손으로 옮긴 뒤 높이를 «키운다» → 아무 자리도 안 변한다 */
   await pickModal(page, s0.rows[0].mid);
   const p = await pointOn(page, s0.rows[0].mid);
   await page.mouse.move(p.x, p.y);
   await page.mouse.down();
-  await page.mouse.move(p.x + 24, p.y + 14, { steps: 6 });
+  await page.mouse.move(p.x - 24, p.y + 14, { steps: 6 });
   await page.mouse.up();
   await pickFrame(page, fid);
   const moved = await stateOf(page, fid);
