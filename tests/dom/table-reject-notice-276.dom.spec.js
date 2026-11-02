@@ -55,6 +55,24 @@ test('C1 ★갈림 — 같은 패널의 죔 칸(글자 크기 12~60)에 9999 ⇒
   expect(await page.locator('#tbl-size-number').inputValue()).toBe('60');
   expect(errs).toEqual([]);
 });
+test('B1 ★오타 — 같은 패널의 숫자 칸에 1e ⇒ 말이 뜬다 · 칸은 이전 값(공용 가드 restorePrev)', async ({ page }) => {
+  const errs = await setup(page);
+  const prev = await page.locator('#tbl-pad-number').inputValue();
+  await put(page, '#tbl-pad-number', '1e');
+  await expect.poll(() => toast(page), { message: '오타를 거절했는데 말이 없다', timeout: 2500 }).toMatch(/숫자가 아니라/);
+  expect(await page.locator('#tbl-pad-number').inputValue(), '칸 = 이전 값').toBe(prev);
+  expect(errs).toEqual([]);
+});
+test('B2 [음성] 숫자 칸의 범위 안 값 · 빈 칸엔 오타 말이 안 뜬다(빈 칸은 지우는 중일 수 있다)', async ({ page }) => {
+  const errs = await setup(page);
+  await put(page, '#tbl-pad-number', '12');
+  await expect.poll(() => page.evaluate(() => getComputedStyle(window.__t.querySelector('td,th')).paddingTop), { message: '[전제] 먹었다' }).toBe('12px');
+  expect(await toast(page)).toBeNull();
+  const i = page.locator('#tbl-pad-number'); await i.click(); await i.press('ControlOrMeta+a'); await page.keyboard.press('Backspace'); await page.keyboard.press('Tab');
+  await expect.poll(() => i.inputValue(), { message: '[전제] 빈 칸이 되돌았다' }).toBe('12');
+  expect(await toast(page)).toBeNull();
+  expect(errs).toEqual([]);
+});
 test('N [음성] 받아들여지는 입력(0:2)엔 말이 안 뜬다', async ({ page }) => {
   const errs = await setup(page);
   await put(page, '#tbl-merge-headers', '0:2');

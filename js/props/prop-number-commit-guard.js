@@ -22,7 +22,7 @@
  *       — 그 칸에서 빈 값은 「지우는 중」이 아니라 «명시적 값»(auto·역할 기본)이다
  *   ★2026-10-26 t4-17 갈래 C(지디) 로 더해진 줄:
  *   - 오타(validity.badInput — 「1e」·「12e」·「-」 …) + blur/Enter/스피너·휠 선커밋 → «커밋 없음» + 이전 표시값 복원
- *     ★칸이 무엇을 선언했든 같다(빈 값의 뜻과 «따로» 본다 — 아래 세 번째 축 끝 문단)
+ *     ★칸이 무엇을 선언했든 같다(빈 값의 뜻과 «따로» 본다 — 아래 세 번째 축 끝 문단) · ★되돌리며 토스트로 말한다(276)
  *   - min/max 밖 + blur/Enter → 클램프한 값을 «칸에 되쓴 뒤» 커밋 (표시 = 실제)
  *   - 「0」 은 유한수라 빈 칸과 갈린다 — min≤0 이면 0 이 그대로 적용된다
  *   - Enter 커밋 뒤 포커스를 칸에 되돌린다 (BODY 로 두면 다음 Backspace 가 «블럭»을 지운다)
@@ -172,8 +172,12 @@ function noticeClamped(el, typed, clamped) {
 
 /** 값 없음 — 이전 «표시값»을 되돌린다(0 과 갈린다: '0' 은 유한수라 여기 안 온다). */
 function restorePrev(el) {
+  const bad = isBadInput(el);   // ★값을 되쓰기 «전»에 읽는다 — 되쓰면 badInput 이 풀린다
   el._pnTyping = false;
   if (el._pnPrev != null) el.value = el._pnPrev;
+  /* ★276 — 죔은 말하고 오타는 말이 없었다(같은 패널에서 9999 는 토스트 · 1e 는 무말 ×3).
+     오타만 말한다: 빈 칸은 «지우는 중»일 수 있어 그대로 둔다(249 ⑶ · 지디 물음). 글자는 number 칸이 안 준다(value '') ⇒ 문구에 못 넣는다. */
+  if (bad) { try { window.showToast?.('⚠️ 숫자가 아니라 적용하지 않았어요 — 이전 값으로 되돌렸어요'); } catch (_) {} }
 }
 
 /** 유예 중인 타이핑 값을 즉시 커밋 — 합성 input(untrusted)으로 기존 clamp/apply 핸들러 실행 */
