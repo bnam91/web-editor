@@ -1,7 +1,7 @@
 /* frame-stack-to-free-296 — 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01: stack → free (피그마 Remove auto layout). 자식이 지금 자리·크기 그대로 좌표로 고정된다.
  * 칸: F1 자리·크기·프레임·이웃 불변 · 투명 간격 블럭 걷힘 · 패널 줄 F1b 소수 자리 그대로 F2 ⌘Z 한 번·⌘⇧Z F3 안쪽 프레임 모드 그대로(깊이 3) F4 줌 40 도 같다
  *     F5 끌기가 좌표로 된다 F6 free→stack→free 왕복 — 옛 free 좌표 안 되살림 · 자리 유지 F7 다시 묶어도(rebindAll) 유지 N1 [음성] 이웃·버즈 Layout 무접촉
- * 양성대조: _convertStackToFree 를 걷으면(free 단추 없음) F1~F7 빨강 · N1 초록. 장면 준비만 evaluate — 고르기·단추·끌기·키는 진짜. 자리는 offset(레이아웃 px)으로 재 줌을 안 탄다. */
+ * 양성대조: _convertStackToFree 를 걷으면(free 단추 없음) F1~F7 빨강 · N1 초록. F8 은 그리드 폭 줄을, F9·F10 은 transform 푸는 줄을 걷으면 빨강. 장면 준비만 evaluate — 고르기·단추·끌기·키는 진짜. 자리는 offset(레이아웃 px)으로 재 줌을 안 탄다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -103,6 +103,30 @@ test('F8 그리드 든 stack — 그리드가 프레임의 80% 로 안 줄고 �
   await expect.poll(() => snap(page, root).then((s) => s.mode), '⌘Z').toBe('stack'); sameSpots(s0, await snap(page, root));
   await page.keyboard.press('Meta+Shift+z'); await expect.poll(() => snap(page, root).then((s) => s.mode), '⌘⇧Z').toBe('true');
   await page.evaluate(() => window.rebindAll?.()); await raf(page); expect((await snap(page, root)).it[grid][2], '다시 묶은 뒤').toBe(s0.it[grid][2]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+/* 회전 상자의 자리 — 회전은 중심축이라 bbox 가 안 변해야 안 튄 것이다. 프레임 기준이 아니라 캔버스 기준으로 잰다. */
+const boxes = (page, ids) => page.evaluate((ids) => { const c = document.getElementById('canvas').getBoundingClientRect(); return ids.map((i) => { const q = document.getElementById(i).getBoundingClientRect(); return [q.left - c.left, q.top - c.top, q.width, q.height]; }); }, ids);
+const sameBoxes = (a, b) => a.forEach((x, i) => x.forEach((v, j) => expect(Math.abs(b[i][j] - v), `상자${i} 칸${j} ${v}→${b[i][j]}`).toBeLessThan(0.02)));
+test('F9 회전한 stack — 줄 폭이 안 줄고 자식 상자가 안 튄다 · 회전 그대로 · ⌘Z', async ({ page }) => {
+  const { errs, root, text, row } = await scene(page); await pickRoot(page, root);
+  const deg = page.locator('#ss-rotate-deg'); await deg.fill('15'); await deg.press('Tab');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).style.transform, root), '[전제] 회전').toContain('rotate(15deg)');
+  const ids = [root, text, row]; const s0 = await snap(page, root), b0 = await boxes(page, ids);
+  await toFree(page); sameSpots(s0, await snap(page, root)); sameBoxes(b0, await boxes(page, ids));
+  expect(await page.evaluate((id) => document.getElementById(id).style.transform, root)).toContain('rotate(15deg)');
+  await page.evaluate(() => window.deselectAll()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => snap(page, root).then((s) => s.mode), '⌘Z').toBe('stack'); sameBoxes(b0, await boxes(page, ids));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('F10 회전한 자식 — 그 자식 상자가 소수까지 안 튄다 · 회전 그대로', async ({ page }) => {
+  const { errs, root, chain } = await scene(page, { depth: 2 }); const f = chain[0];
+  await page.evaluate((id) => { const e = document.getElementById(id); e.classList.add('selected'); window.showFrameProperties(e); }, f);
+  const deg = page.locator('#ss-rotate-deg'); await deg.fill('15'); await deg.press('Tab');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).style.transform, f), '[전제] 회전').toContain('rotate(15deg)');
+  await page.evaluate(() => window.deselectAll()); await pickRoot(page, root);
+  const b0 = await boxes(page, [f]); await toFree(page); sameBoxes(b0, await boxes(page, [f]));
+  expect(await page.evaluate((id) => document.getElementById(id).style.transform, f)).toContain('rotate(15deg)');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('N1 [음성] free 프레임은 stack 단추 그대로 · free 단추 없음', async ({ page }) => {

@@ -314,11 +314,17 @@ function _convertFreeLayoutToStack(ss) {
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
 
 /* 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01 — 피그마 Remove auto layout: 자식이 지금 자리·크기 그대로 좌표로 고정된다. 이 프레임 한 층만, 옛 free 좌표는 안 되살린다.
-   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다) — 회전이 끼어 rect 를 못 믿으면 offset(정수).
+   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다).
    투명한 간격 블럭은 걷는다 — 흐름에서 자리를 벌리는 일만 하고, 좌표에선 할 일이 없으며 남기면 다시 stack 으로 갈 때 자식으로 세어진다.
    시험: tests/dom/frame-stack-to-free-296.dom.spec.js */
 function _convertStackToFree(ss) {
   window.pushHistory?.('free 로 전환 전');
+  /* 회전이 끼면 rect 가 회전 상자라 배율·폭·소수 자리를 못 믿는다(줄 폭 716→660 · 0.41px 튐) — 재는 동안만 이 프레임·조상·자식의 transform 을 풀고 끝에서 그대로 돌린다. 칠하기 전이라 화면엔 안 나온다. */
+  const flowKids = [...ss.children].filter(c => c.style.position !== 'absolute');
+  const bare = [...flowKids, ...flowKids.flatMap(c => c.classList.contains('row') ? [...c.children] : [])];
+  for (let e = ss; e && !e.classList.contains('section-block'); e = e.parentElement) bare.push(e);
+  const transforms = bare.map(e => [e, e.style.transform]);
+  bare.forEach(e => { e.style.transform = 'none'; });
   const fr = ss.getBoundingClientRect(), k = (fr.width / ss.offsetWidth) || 1;
   const offsetIn = (el) => {
     let x = 0, y = 0; for (let e = el; e && e !== ss; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
@@ -349,6 +355,7 @@ function _convertStackToFree(ss) {
     if (c.dataset.textFrame === 'true') c.dataset.width = String(Math.round(parseFloat(c.style.width)));
     if (c.hasAttribute('draggable')) c.setAttribute('draggable', 'false');
   }
+  transforms.forEach(([e, t]) => { e.style.transform = t; });
   window.pushHistory?.('free 로 전환');
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
