@@ -238,6 +238,7 @@ test('픽스① 회귀 ★프레임만 «혼자» 골랐으면 그 프레임 줄
       multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
       clearMultiSel: () => {},
       canvasEl: document.getElementById('canvas'),
+      _splReleaseSections: () => null,
       pushHistory: (a) => actions.push(a),
       ensureHistoryCheckpoint: () => {},
     };

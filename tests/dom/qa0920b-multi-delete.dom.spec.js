@@ -99,6 +99,7 @@ async function runDelete(page) {
     const SECTION_BLOCK_TYPE_SEL_SELECTED =
       new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SECTION_BLOCK_TYPE_SEL);
     const scope = {
+      SECTION_BLOCK_TYPE_SEL,
       SECTION_BLOCK_TYPE_SEL_SELECTED,
       clearAssetImage: () => {},
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
