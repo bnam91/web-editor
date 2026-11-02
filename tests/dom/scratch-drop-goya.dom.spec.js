@@ -11,10 +11,12 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 async function setup(page, saved) {
   await page.setViewportSize({ width: 1500, height: 1200 });
   await bootApp(page);
+  await page.evaluate(() => { const c = window.confirm; window.confirm = () => true; window.unlockMainBranch(); window.confirm = c; });   // 하네스 브랜치가 main 이라 판에 따라 잠금이 걸려 캔버스 pointer-events 가 꺼진다(실측)
   await page.route('**/__asset/**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));   // bootApp 뒤 — 나중 route 가 먼저 받는다
   await page.evaluate(async (saved) => {
     window.activeProjectId = 'p1'; window.__saves = 0;
-    window.electronAPI = { ...(window.electronAPI || {}), assetsSaveCanvasImage: async () => { window.__saves++; return saved ? { ok: true, url: `${location.origin}/__asset/h${window.__saves}.png` } : { ok: false }; } };
+    const save = async () => { window.__saves++; return saved ? { ok: true, url: `${location.origin}/__asset/h${window.__saves}.png` } : { ok: false }; };
+    window.electronAPI = new Proxy(window.electronAPI, { get: (t, k) => (k === 'assetsSaveCanvasImage' ? save : t[k]) });   // ⛔{...} 로 펼치지 마라 — 하네스 가짜는 Proxy 라 다른 API 가 다 사라져 main 잠금으로 빠진다(실측)
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     await window.addSection(); window.selectSection([...c.querySelectorAll('.section-block')].pop()); await window.addTextBlock(); window.deselectAll?.(); window.applyZoom?.(50);
   }, saved);
