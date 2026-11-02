@@ -143,6 +143,27 @@ test('K5 ⑷ 저장→다시 열기 — id·블럭 그대로', async ({ page }) 
   expect(errs).toEqual([]);
 });
 
+/* ★151 T512-SAVE-SHELL-HASH-DIFFERS-01 — 저장·다시 열기의 차이는 라이브 DOM 의 속성 순서뿐이고 저장 바이트는 안 움직인다(앱 실측 3/3 · 표본 5 종).
+ *   까닭 = section-serialize «편집 상태 속성 제거» 뒤 save-load 되붙임이 contenteditable 을 맨 끝에 단다. 이 칸은 그 값을 잠근다. */
+test('K5b (151) 다시 열기 ⇒ 저장 바이트 같음 · 라이브 차이는 속성 순서뿐', async ({ page }) => {
+  const { errs } = await setup(page);
+  await addKid(page, 'body');
+  await addKid(page, 'h2');
+  const r = await page.evaluate(() => {
+    window.deselectAll?.();   // 고른 줄 표시(패널 쪽 임시 표식)는 재는 양이 아니다
+    const live = () => document.querySelector('#gG .grd-inner').innerHTML;
+    const sortAttrs = (h) => { const t = document.createElement('template'); t.innerHTML = h; t.content.querySelectorAll('.tb-rotate-zone').forEach((z) => z.remove());   /* 회전 손잡이 = 편집 UI · 저장 안 됨 */ t.content.querySelectorAll('*').forEach((e) => { const a = [...e.attributes].sort((x, y) => (x.name < y.name ? -1 : 1)); a.forEach((x) => e.removeAttribute(x.name)); a.forEach((x) => e.setAttribute(x.name, x.value)); }); return t.innerHTML; };
+    const A = live(); const sA = window.getSerializedCanvas();
+    document.getElementById('canvas').innerHTML = sA; window.rebindAll?.(); window.renderGridBlock(document.getElementById('gG'));
+    const B = live(); const sB = window.getSerializedCanvas();
+    const [sa, sb] = [sortAttrs(A), sortAttrs(B)];
+    return { len: [sa.length, sb.length], liveSame: A === B, sortedSame: sa === sb, savedSame: sA === sB };
+  });
+  expect(r.len[0], 'K5b 전제: 표본이 있다').toBeGreaterThan(0);
+  expect({ liveSame: r.liveSame, savedSame: r.savedSame, sortedSame: r.sortedSame, lenSame: r.len[0] === r.len[1] }, 'K5b').toEqual({ liveSame: false, savedSame: true, sortedSame: true, lenSame: true });
+  expect(errs).toEqual([]);
+});
+
 test('K6 원 위 글 블럭 지우기 ⇒ 그 블럭만 · 그리드 남음', async ({ page }) => {
   const { errs } = await setup(page);
   await addKid(page, 'body');
