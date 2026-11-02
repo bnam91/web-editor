@@ -3,7 +3,7 @@
  * Persist via inline text-shadow + data-shadow-* dataset on contentEl
  */
 
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { wireHexText, parseHex6, formatHex6, alphaFromText, noticeAlphaText } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export const SHADOW_DEFAULTS = {
   enabled: false,
@@ -182,11 +182,11 @@ export function wireShadowSection({ ctx, initial }) {
     onCommit: () => window.pushHistory?.(),
   });
   cAlpha?.addEventListener('input', () => {
-    const m = cAlpha.value.match(/(\d+)/);
-    if (!m) return;
-    s.alpha = Math.max(0, Math.min(100, parseInt(m[1], 10)));
+    const p = alphaFromText(cAlpha.value);
+    if (p === null) return;
+    s.alpha = p;
     _apply();
   });
   cAlpha?.addEventListener('blur', () => { if (cAlpha) cAlpha.value = String(s.alpha); });
-  cAlpha?.addEventListener('change', () => window.pushHistory?.());
+  cAlpha?.addEventListener('change', () => { noticeAlphaText(cAlpha.value, s.alpha); window.pushHistory?.(); });
 }

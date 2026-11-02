@@ -5,7 +5,7 @@ import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap �
 import { exportFormatOptionsHTML } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { wireHexText, parseHex6, formatHex6, alphaFromText, noticeAlphaText } from './color-picker.js';
 /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
 
 /* ── 헬퍼: ab의 effective usePadx 결정 ──
@@ -979,13 +979,13 @@ export function wireCanvasBgControl() {
     onCommit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
   });
   bgAlphaInp.addEventListener('input', () => {
-    const m = bgAlphaInp.value.match(/(\d+)/);
-    if (!m) return;
-    const p = Math.max(0, Math.min(100, parseInt(m[1])));
+    const p = alphaFromText(bgAlphaInp.value);
+    if (p === null) return;
     state.pageSettings.bgAlpha = p;
     _applyBg();
   });
   bgAlphaInp.addEventListener('change', () => {
+    noticeAlphaText(bgAlphaInp.value, state.pageSettings.bgAlpha ?? 100);
     window.pushHistory?.();
     window.scheduleAutoSave?.();
   });

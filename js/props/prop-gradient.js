@@ -12,7 +12,7 @@
 
 import { propPanel } from '../globals.js';
 import { bindSlider, blockHeaderHTML } from './_helpers.js';
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { wireHexText, parseHex6, formatHex6, noticeAlphaText } from './color-picker.js';
 
 const DIRS = [
   { v: 'to bottom',       label: '↓ 위→아래' },
@@ -320,7 +320,7 @@ ${blockHeaderHTML({
       };
       const _resync = (el, key) => { const a = STOP()[_modelIdxFor(i, row)]; if (a && el) el.value = String(Math.round(a[key] * 100)); };
       alphaIn.addEventListener('input',  () => { const v=_pct(alphaIn.value); if (v!==null) mutate(s=>s.alpha=v/100, false); });
-      alphaIn.addEventListener('change', () => { const v=_pct(alphaIn.value); if (v===null) { _resync(alphaIn,'alpha'); return; } mutate(s=>s.alpha=v/100, true); });
+      alphaIn.addEventListener('change', () => { const v=_pct(alphaIn.value); noticeAlphaText(alphaIn.value, v); if (v===null) { _resync(alphaIn,'alpha'); return; } mutate(s=>s.alpha=v/100, true); });
       offIn.addEventListener('input',  () => { const v=_pct(offIn.value); if (v!==null) mutate(s=>s.offset=v/100, false); });
       offIn.addEventListener('change', () => { const v=_pct(offIn.value); if (v===null) { _resync(offIn,'offset'); return; } mutate(s=>s.offset=v/100, true); });
       delBtn.addEventListener('click', () => { const arr=STOP(); if (arr.length<=2) return; arr.splice(_modelIdxFor(i, row),1); setStops(arr, true); });
