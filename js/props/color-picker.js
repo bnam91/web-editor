@@ -451,14 +451,14 @@ function _wireEvents(pop) {
   /* Alpha input (숫자만, %는 suffix label) */
   const alphaInp = _els.alphaVal;
   alphaInp.addEventListener('input', () => {
-    const m = alphaInp.value.match(/(\d+)/);
-    if (!m) return;
-    const p = Math.max(0, Math.min(100, parseInt(m[1])));
+    const p = alphaFromText(alphaInp.value);
+    if (p === null) return;
     _state.transparentHidden = false;
     _state.a = p / 100;
     _syncSolidUI();
   });
   alphaInp.addEventListener('change', () => {
+    if (_state) noticeAlphaText(alphaInp.value, Math.round(_state.a * 100));
     if (_state) _applySolidAndEmit({ commit: true });
   });
   alphaInp.addEventListener('blur', () => {
@@ -1242,6 +1242,25 @@ export function isCssBackgroundValue(v) {
   return _cssProbe.style.background !== '';
 }
 
+/* ★불투명도 글자 칸 — 칸 «전체»가 숫자일 때만 읽는다. 옛 파서 /(\d+)/ 는 부호를 버려 -1 을 1% 로 먹었다(-50 → 50 · 1.5 → 1 · 무말).
+   «값 없음»은 null(적용 안 함 · blur 가 칸을 되돌린다). 범위 밖은 숫자칸 규약대로 죈다. */
+const _alphaNum = (raw) => {
+  const t = String(raw ?? '').trim();
+  return /^[+-]?(\d+\.?\d*|\.\d+)\s*%?$/.test(t) ? parseFloat(t.replace('+', '')) : null;
+};
+export function alphaFromText(raw) {
+  const n = _alphaNum(raw);
+  return n === null ? null : Math.max(0, Math.min(100, Math.round(n)));
+}
+/** 확정(change) 때 — 넣은 글자와 적용 값이 다르면 말한다(239·276 꼴). 빈 칸은 지우는 중일 수 있어 말 없음. */
+export function noticeAlphaText(raw, value) {
+  const t = String(raw ?? '').trim();
+  if (!t) return;
+  const n = _alphaNum(t);
+  if (n === null || value == null) window.showToast?.(`⚠️ 「${t.slice(0, 20)}」 는 쓸 수 없어요 — 0~100 숫자로 적어 주세요 · 이전 값으로 되돌렸어요`);
+  else if (n !== value) window.showToast?.(`⚠️ 0~100 까지 쓸 수 있어요 — ${t} 를 ${value} 로 맞췄어요`);
+}
+
 export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', gradientCss = '' }) {
   // gradientCss가 있으면 swatch 배경을 그라데이션으로, picker/hex는 첫 stop 색
   const h = _hex6(hex);
@@ -1394,9 +1413,9 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
   });
   alpha.addEventListener('input', () => {
     _userTouchedAlpha = true;
-    const m = alpha.value.match(/(\d+)/);
-    if (!m) return;
-    _a = Math.max(0, Math.min(100, parseInt(m[1])));
+    const p = alphaFromText(alpha.value);
+    if (p === null) return;
+    _a = p;
     apply();
   });
   /* ★Enter = 확정하고 포커스를 뺀다 (현빈 2026-09-30 「투명으로 했는데 ⌘Z 가 안 된다」).
@@ -1404,7 +1423,7 @@ export function wireColorField(idPrefix, { initialAlpha = 100, onApply, onCommit
      blur 가 change(=onCommit·pushHistory)를 낸다 — Enter 에 change 가 이미 났으면 값이 같아 다시 안 난다. */
   alpha.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); alpha.blur(); } });
   alpha.addEventListener('blur', () => { alpha.value = String(_a); });
-  alpha.addEventListener('change', () => onCommit?.());
+  alpha.addEventListener('change', () => { noticeAlphaText(alpha.value, _a); onCommit?.(); });
 
   return { getColor: build, getAlpha: () => _a, setHex: v => { picker.value = v; hex.value = v.replace('#','').toUpperCase(); apply(); } };
 }
