@@ -758,7 +758,7 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   const prevGrainSnap = captureAssetGrain(ab);
   const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — ⛔빠지면 로고1 을 넣는 순간 ×·로고2·3 이 사라진다 */
   ab.innerHTML = `
-    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
+    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.classList.add('asset-img-failed');this.alt='이미지 로드 실패'"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
