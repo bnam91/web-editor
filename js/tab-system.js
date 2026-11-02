@@ -544,6 +544,8 @@ window.startRenameProject   = startRenameProject;
 window.finishRenameProject  = finishRenameProject;
 window.cancelRenameProject  = cancelRenameProject;
 window.switchTab            = switchTab;
+/* ★361 — 이 탭이 «아직 안 읽혔나»(첫 로드 중 · 로드 실패 뒤). 그동안 캔버스는 비었고 state 는 앞 프로젝트라, 직렬화하면 앞 프로젝트 내용이 이 id 로 나간다. */
+window.isTabFirstLoading   = (id) => !!id && id === _firstLoadingTabId;
 window.closeTab             = closeTab;
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
