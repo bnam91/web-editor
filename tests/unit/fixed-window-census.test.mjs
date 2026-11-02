@@ -12,6 +12,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { margin, WHAT_NOW } from './_margin.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -138,6 +139,7 @@ test('W2 ★명부 안 파일의 창 수가 늘지 않았다 · 줄었으면 명
     if (now > n) grew.push(`${f} ${n} → ${now}`);
     if (now < n) shrank.push(`${f} ${n} → ${now}`);
   }
-  assert.deepEqual(grew, [], '고정 창이 늘었다');
+  margin('fixed-window W2 명부 창', Object.keys(BASE).reduce((a, f) => a + (c.by[f] || 0), 0), Object.values(BASE).reduce((a, n) => a + n, 0));
+  assert.deepEqual(grew, [], '고정 창이 늘었다' + WHAT_NOW);
   assert.deepEqual(shrank, [], '고정 창이 줄었다 — 고맙다 · BASE 를 그 수로 줄여라(⛔썩은 면제)');
 });
