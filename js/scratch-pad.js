@@ -1326,6 +1326,12 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
 
       if (isSingleDrag && hasMoved) {
         try {
+          /* 캔버스에 data URL 을 넣으면 표본·저장 직렬화마다 그림이 실려 렌더러가 죽는다(BIG-IMAGE-INSERT-RENDERER-OOM-01) — 칸 입구(loadImageToAsset)와 같은 몸통.
+             ⌘Z 로 되살릴 장도 같은 주소를 쥔다(이력에 data URL 을 안 남긴다). 스크래치 안 이동은 안 탄다(파일을 안 만든다). */
+          if (typeof item.src === 'string' && item.src.startsWith('data:') && previewScratchDropAt(lastClientX, lastClientY) !== 'none') {
+            const got = await window.grdAssetSrcOf?.(item.src);
+            if (got?.asset) { item.src = got.src; restoreInfo.src = got.src; }
+          }
           committed = commitScratchDropAt(lastClientX, lastClientY, item.src, {
             fx: item.fx,   // C1 — 에셋에서 빼 온 항목이면 효과째 되돌아간다
             naturalWidth: natW,
