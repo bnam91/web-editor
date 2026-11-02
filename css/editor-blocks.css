@@ -1015,8 +1015,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .drop-indicator {
   height: 5px; background: var(--ui-accent-primary);
   border-radius: 3px; flex-shrink: 0;
-  pointer-events: none; margin: 2px 0;
-  position: relative;
+  /* 351 — 흐름 높이 0(5 − 2.5×2): 끌기 중 섹션이 자라면 놓을 자리가 밀린다. 겹치므로 이웃 위에 그린다 */
+  pointer-events: none; margin: -2.5px 0;
+  position: relative; z-index: 1;
   box-shadow: 0 0 8px var(--color-selection-glow);
 }
 .drop-indicator::before {
@@ -3805,8 +3806,8 @@ textarea.cvb-card-input {
   border-radius: 3px;
   flex-shrink: 0;
   pointer-events: none;
-  margin: 2px 0;
-  position: relative;
+  margin: -2.5px 0;   /* 351 — .drop-indicator 와 같은 까닭 */
+  position: relative; z-index: 1;
   box-shadow: 0 0 8px var(--color-selection-glow);
 }
 .sp2c-insert-indicator::before {
