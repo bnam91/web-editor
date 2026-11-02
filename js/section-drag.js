@@ -199,6 +199,8 @@ function ungroupBlock(groupEl) {
       if (fresh.matches(window.SECTION_BLOCK_TYPE_SEL)) blocks.unshift(fresh);
       blocks.forEach(b => window.bindBlock?.(b));
       window.rerenderTree?.(fresh);
+      fresh.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));   // bindBlock 을 안 타는 제 바인더 — _bindPastedEl 과 같다
+      fresh.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
     });
     window.deselectAll?.();
     window._activeFrame = (parent && parent.dataset?.freeLayout === 'true') ? parent : null;

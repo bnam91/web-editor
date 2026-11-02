@@ -101,3 +101,21 @@ test('음성 — 자유 프레임 안에서 묶었다 풀면 absolute 그대로 
   expect(Math.abs(after[0] - before[0]) + Math.abs(after[1] - before[1]), '자리 유지').toBeLessThan(2);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+test('프레임 안 스티커·그라데이션은 풀린 뒤에도 제 바인더가 있고 눌러 고를 수 있다', async ({ page }) => {
+  const errs = await boot(page);
+  const a = await add(page); const b = await add(page);
+  const { stk, gr } = await page.evaluate((a) => { const sec = document.querySelector('#canvas .section-block'); const A = document.getElementById(a); const put = (sel, make, left) => { window.deselectAll(); window.selectSection(sec); make(); const e = [...sec.querySelectorAll(sel)].pop(); e.style.left = left + 'px'; e.style.top = '60px'; e.dataset.x = left; e.dataset.y = 60; e.dataset.offsetX = left; e.dataset.offsetY = 60; A.appendChild(e); return e.id; };   // 다시 그리기가 dataset 에서 자리를 읽는다 · 귀퉁이는 둥글기 핸들 자리
+    const stk = put('.sticker-block', () => window.addStickerBlock(), 60); const gr = put('.gradient-block', () => window.addGradientBlock(), 200); window.deselectAll(); window.clearHistory?.(); return { stk, gr }; }, a);
+  await settleZoom(page);
+  const pickA = async () => { const q = await page.evaluate((a) => { document.getElementById(a).scrollIntoView({ block: 'center' }); const r = document.getElementById(a).getBoundingClientRect(); return [r.left + r.width / 2, r.bottom - 8]; }, a); await page.mouse.click(q[0], q[1]); await raf(page); expect(await page.evaluate((a) => document.getElementById(a).classList.contains('selected'), a), '[전제] 프레임 고름').toBe(true); };
+  await pickA(); await clickAt(page, stk); expect(await page.evaluate((stk) => document.getElementById(stk).classList.contains('selected'), stk), '[양성] 묶기 전에도 골라진다').toBe(true); await page.evaluate(() => window.deselectAll());
+  await pickA(); await clickAt(page, b, 'Meta');
+  await page.keyboard.press('Meta+g'); await raf(page);
+  expect(await page.evaluate((a) => document.getElementById(a).parentElement.dataset.group, a), '[전제] 묶임').toBe('true');
+  await page.keyboard.press('Meta+Shift+g'); await raf(page);
+  expect(await page.evaluate((a) => document.getElementById(a).parentElement.dataset.group, a), '[전제] 풀림').toBeUndefined();
+  expect(await page.evaluate(([stk, gr]) => [!!document.getElementById(stk)._stickerBound, !!document.getElementById(gr)._gradientBound], [stk, gr]), '바인더').toEqual([true, true]);
+  await pickA(); await clickAt(page, stk); await raf(page);
+  expect(await page.evaluate((stk) => document.getElementById(stk).classList.contains('selected'), stk), '스티커가 눌러 골라진다').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
