@@ -40,8 +40,8 @@ test('F1 표시선이 위쪽에 낡아 있어도 끝 갭에 놓으면 그 자리
 test('F2 표시선이 아래에 낡아 있어도 위쪽에 놓으면 그 자리로 간다', async ({ page }) => {
   await setup(page);
   await fire(page, ['dragstart'], '#r1'); await raf2(page);
-  await fire(page, ['dragover'], '#gE'); await raf2(page);
-  expect(await indBefore(page), '전제: 표시선이 끝 갭 언저리에 낡아 있다').toBe('gE');
+  await fire(page, ['dragover'], '#gE', 'top'); await raf2(page);   // 정중앙은 «앞/뒤» 경계라 전제가 흔들렸다
+  expect(await indBefore(page), '전제: 표시선이 끝 갭 앞에 낡아 있다').toBe('gE');
   await fire(page, ['dragover', 'drop', 'dragend'], '#r2', 'top');
   expect(await rows(page)).toEqual(['r1', 'r2', 'r3']);
 });
