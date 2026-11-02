@@ -64,3 +64,17 @@ test.describe('에셋 패널', () => {
   });
 });
 
+test.describe('AI 갤러리', () => {
+  const put = (page) => page.evaluate((d) => { window._aiImgCache.set('g1', d); window.state.imageGallery = [{ id: 'g1', name: 'g.png', blobPath: 'ai/g1.png' }]; window.selectSection(window.__sec); return window.galleryInsertToCanvas('g1'); }, DATA);
+  test('자산 URL 로 들어가 직렬화에 base64 가 없다', async ({ page }) => {
+    await setup(page); await put(page);
+    const v = await look(page);
+    expect(v.src).toMatch(/\/__asset\/h1\.png$/);
+    expect(v.inline).toBe(false);
+  });
+  test('[음성] 자산 저장이 실패하면 data URL 로 넣어 그림을 잃지 않는다', async ({ page }) => {
+    await setup(page, false); await put(page);
+    expect((await look(page)).src).toBe(DATA);
+  });
+});
+
