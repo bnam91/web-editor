@@ -92,7 +92,7 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
 });
 
 /* 효과 켜기(push-before) → 패널 크기(push-after) 이음매 — 끝 표본이 없으면 ⌘Z 한 번이 켜기까지 같이 푼다(js/effects-registry.js wireFxSection). */
-for (const fx of ['freetransform', 'glow']) {
+for (const fx of ['freetransform', 'glow', 'reflect']) {   /* reflect = 높이로 여백을 한 프레임 뒤에 쓰는 효과 — ⌘Z 가 묶이던 자리(settleFxReflect) */
   test(`U3 ★${fx} 켜기 → 패널 크기 → ⌘Z 한 번 = 크기만 되돌린다 · 한 번 더 = 켜기 전`, async ({ page }) => {
     const errs = await setup(page);
     const key = () => page.evaluate(() => { const tb = document.getElementById(window.__tbId); return { fs: parseFloat(getComputedStyle(tb.querySelector('.tb-body') || tb.querySelector('[contenteditable]')).fontSize), keys: Object.keys(tb.dataset).sort().join() }; });

@@ -237,6 +237,7 @@ test('F6 undo — flatten costs the same history slots as its sibling door, and 
    *     `gridResizeTo` 와 같은 «직접 쓰기 + pushHistory 1회» 문이다(★실측 1칸).
    *     ⇒ 대조군을 updateGridBlock 으로 잡으면 1≠2 로 ★거짓 빨강이 난다. ★gridResizeTo 로 잡는다.
    *     ★세 문을 나란히 재 둔 수(2026-10-07): gridResizeTo 1 · gridCollapseToColumns 1 · updateGridBlock 2.
+   *     ★2026-11-03: gridResizeTo·gridCollapseToColumns 도 끝 표본을 찍는다 ⇒ 셋 다 2 일 것(이음매 · undo-entry-seam). 대조는 그대로 gridResizeTo.
    *       그리고 ★셋 다 ⌘Z ★한 번에 2×2 가 돌아온다. */
   const r = await page.evaluate((MARKS) => {
     const see = () => {

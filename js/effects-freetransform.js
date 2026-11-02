@@ -604,8 +604,8 @@ function _ftCardHtml(tb, P) {
 
 function _wireFtCard(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); again(); });
-  $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); again(); });
+  $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); window.pushHistory?.('효과 끔'); again(); });
+  $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); window.pushHistory?.('효과 원래대로'); again(); });
   /* ★FT-3a — 섹션 밖으로 나가 잘린 손잡이 «되찾기». 몸통은 effects-ft-handles.js(손잡이 자리를 아는 쪽) · window 다리(순환 import 회피 · 이 파일의 관용구). */
   $('fxft-pullin')?.addEventListener('click', (e) => {
     e.stopPropagation();
