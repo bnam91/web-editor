@@ -3485,8 +3485,9 @@ function bindFrameDropZone(ss) {
   // FIX(T5): .mockup-block 누락 시 mockup pointerdown → deselectAll 후 frame 재선택되어
   // 직후 mousedown drag 핸들러의 selected 체크에 걸려 드래그 시작이 막힘 (asset 등 다른 블록은 정상)
   ss.addEventListener('pointerdown', e => {
-    // I4-F1: .icon-block 누락 → free-layout 아이콘이 pointerdown drag-disable에서 빠져 이동 막힘. drop/multi 셀렉터(BLOCK_SEL)와 정합.
-    const isInnerBlock = e.target.closest('.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block');
+    /* 손으로 적은 목록이 chat·coupon·quote·radial·laurel·qa 를 빠뜨려, 프레임 안 그 블럭을 끌면 그릇 프레임의 HTML5 끌기가 시작됐다
+       (FREE-FRAME-BLOCK-DRAG-GRABS-CONTAINER-01 · 앞서 I4-F1 의 .icon-block · FIX(T5) 의 .mockup-block 도 같은 병). ⛔다시 손으로 적지 마라 — 정본에서 읽는다. 시험: tests/dom/frame-block-drag-container.dom.spec.js */
+    const isInnerBlock = e.target.closest(window.SECTION_BLOCK_TYPE_SEL);
     /* ★D1(2026-10-05 현빈 · lane-drag) — «흐름에 놓인 도형 래퍼»(섹션에 바로 넣은 도형 = addShapeBlock 섹션 레벨 꼴)는
        래퍼 «자신»이 흐름 단위다. 여기서 draggable 을 끄면 그 «자식 드래그»(bindBlock isShape 갈래)가 래퍼가 absolute 가
        아니라 return 하므로 두 길이 서로 미루고 아무도 안 끈다(실앱 실측: 두 순서 다 Δ0 · dragstart 0).
@@ -3507,7 +3508,7 @@ function bindFrameDropZone(ss) {
     if (isInnerBlock && !_flowShapeWrapper) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
-      document.addEventListener('pointerup', () => ss.setAttribute('draggable', 'true'), { once: true });
+      document.addEventListener('pointerup', () => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'), { once: true });   // 위 갈래와 같다 — absolute 부모는 HTML5 끌기를 안 쓴다
       return;
     }
     /* ★보조키(⇧/⌘/^)는 «다중선택» 제스처다 — pointerdown 이 손대면 안 된다 (2026-09-21 T-091).
