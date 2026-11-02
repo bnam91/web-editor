@@ -53,6 +53,8 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
     applyFn(v);
     number.value = v;
   });
+  /* 끝 표본(mousedown 은 시작 표본 · js/CLAUDE.md «양쪽 끝») — 없으면 다음 패널 편집의 ⌘Z 한 번이 슬라이더까지 같이 푼다 */
+  if (history) slider.addEventListener('change', () => window.pushHistory?.());
   if (autosave) slider.addEventListener('change', () => window.scheduleAutoSave?.());
 
   number.addEventListener('input', () => {
