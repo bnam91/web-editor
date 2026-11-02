@@ -305,6 +305,7 @@ async function restoreCommit(id) {
 async function saveProjectFile() {
   // Electron: IPC 직접 호출로 즉시 파일 저장 (flushSave 모듈 클로저 우회)
   if (window.IS_ELECTRON && window.activeProjectId) {
+    if (window.isTabFirstLoading?.(window.activeProjectId)) { window.showToast?.('⚠️ 프로젝트를 읽는 중이라 저장하지 않았습니다.'); return; }   // ★361 — save-load.js saveProjectToFile 머리말
     try {
       const snap = window.serializeProject();
       const data = JSON.parse(snap);

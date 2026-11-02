@@ -140,6 +140,21 @@ async function pickModal(page, mid) {
   await expect.poll(() => isSelected(page, mid), { message: `전제: 모달 ${mid} 이 골라졌다` }).toBe(true);
   await expect(page.locator('#panel-right .prop-block-name'), '전제: 패널이 Modal 이다').toHaveText('Modal');
 }
+/** 무늬번호를 패널에서 친다 — 메뉴로 만든 버즈는 만들 때마다 새 번호(js/blocks/buzz-frame.js newSeed)라 번호가 곧 자리 · 회전이다. 그 값을 재는 시험은 먼저 박는다(시트 350). */
+async function pinSeed(page, fid, seed) {
+  await pickFrame(page, fid);
+  await page.locator('#bzf-seed').click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type(String(seed));
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate((fid) => document.getElementById(fid).dataset.buzzSeed, fid), { message: `전제: 무늬번호가 ${seed} 이 됐다` }).toBe(String(seed));
+}
+/* 시트 350 — 꼬리의 두 자. box = 화면 상자끼리(회전 · 배율을 탄다) · local = 모달 좌표(회전 · 배율과 무관 · js/blocks/modal-block.js 「밑변 아래로 21px」). */
+const tailBelow = (page, id) => page.evaluate((id) => {
+  const m = document.getElementById(id), t = m.querySelector('.mdl-deco-tail');
+  return { rot: m.dataset.rotation || '0', box: t.getBoundingClientRect().bottom - m.getBoundingClientRect().bottom,
+    local: t.parentElement.offsetTop + t.offsetTop + t.offsetHeight - m.clientHeight, k: m.getBoundingClientRect().width / m.offsetWidth };
+}, id);
 /** 프레임 패널 Size › 높이 숫자 칸에 값을 친다(사용자가 높이를 바꾸는 길). */
 async function setFrameHeight(page, fid, h) {
   const num = page.locator('#ss-height-num');
@@ -509,6 +524,7 @@ test('BZ-10 깊이 — 뒤쪽 말풍선을 작고 흐리게(자리 불변) · �
 test('BZ-11 낱개 모달 패널의 Decoration — 꼬리 · 테이프가 «실제 요소»로 붙고 ⌘Z 로 돌아온다 · 버즈 밖 모달도 같다', async ({ page }) => {
   const { errs, secId } = await setup(page);
   const fid = await insertBuzz(page);
+  await pinSeed(page, fid, 1);   /* 회전 0 — 번호를 안 박으면 회전이 런마다 달라 아래 상자 값이 8.40 ~ −1.67 로 갈린다(시트 350) */
   const mid = (await stateOf(page, fid)).rows[0].mid;
   await pickModal(page, mid);
   const titles = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section-title')].map((e) => e.textContent.trim()));
@@ -528,6 +544,9 @@ test('BZ-11 낱개 모달 패널의 Decoration — 꼬리 · 테이프가 «실�
   const a = await deco();
   expect([a.tail, a.tailEls, a.side], '꼬리 왼쪽 — 속성 · 요소 하나 · 방향').toEqual(['left', 1, 'left']);
   expect(a.below > 0 && a.tailW > 0, `꼬리가 모달 밑변 아래로 나온다(${a.below})`).toBe(true);
+  const tb = await tailBelow(page, mid);
+  expect([tb.rot, tb.local], '회전 0 · 모달 좌표로 밑변 아래 21').toEqual(['0', 21]);
+  expect(Math.abs(tb.box - 21 * tb.k), `회전 0 이면 상자 값도 21 × 배율이다(${tb.box} · ${tb.k})`).toBeLessThan(0.01);
   expect(a.before, '장식은 의사요소가 아니다').toBe('none');
   expect(a.slotFirst.startsWith('tb-mdl-'), `글 슬롯이 여전히 첫 자식이다(${a.slotFirst})`).toBe(true);
   await expect(page.locator('#mdl-deco-tail-group .active')).toHaveText('왼쪽');
@@ -551,6 +570,23 @@ test('BZ-11 낱개 모달 패널의 Decoration — 꼬리 · 테이프가 «실�
   await pickModal(page, plain);
   await page.locator('#mdl-deco-tail-group [data-tail="right"]').click();
   expect(await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.mdl-deco-tail')].map((e) => e.dataset.side), plain), '버즈 밖 모달에도 꼬리가 붙는다').toEqual(['right']);
+  expect(errs).toEqual([]);
+});
+
+test('BZ-11b 꼬리는 회전과 무관하게 밑변 아래 21 — 회전 +4 는 화면 상자로는 음수라 상자 값으로 재면 안 된다(시트 350)', async ({ page }) => {
+  const { errs } = await setup(page);
+  const fid = await insertBuzz(page);
+  const mid = (await stateOf(page, fid)).rows[0].mid;
+  const seen = [];
+  for (const seed of [5, 39]) {
+    await pinSeed(page, fid, seed);
+    await pickModal(page, mid);
+    await page.locator('#mdl-deco-tail-group [data-tail="left"]').click();
+    seen.push(await tailBelow(page, mid));
+    await page.locator('#mdl-deco-tail-group [data-tail="none"]').click();
+  }
+  expect(seen.map((v) => [v.rot, v.local]), '번호가 회전을 정하고 모달 좌표는 그대로다').toEqual([['3', 21], ['4', 21]]);
+  expect(seen[0].box > 0 && seen[1].box < 0, `상자 값은 회전을 탄다 — +3 양수 · +4 음수(${seen[0].box} · ${seen[1].box})`).toBe(true);
   expect(errs).toEqual([]);
 });
 
@@ -861,13 +897,21 @@ test('BZ-19 개수 − 가 지운 말풍선은 ⌘Z 로 글째 돌아온다 · �
 test('BZ-20 ★⑵ 패널 높이 칸으로 줄인 «직후» 말풍선이 프레임 안 · 키울 때는 자리 불변 · 높이 변경과 히스토리 한 칸', async ({ page }) => {
   const { errs } = await setup(page);
   const fid = await insertBuzz(page);
+  /* 번호를 박는다 — 안 박으면 번호마다 자리가 달라 오른쪽에 붙은 줄을 +24 끌면 프레임 밖으로 나가 아래 전제가 빨갛다(1~40 중 15 · 35 · 38 · ×20 에 3 번).
+     15 는 그 빨강이 나는 번호다 ⇒ 왼쪽으로 끈다(끄는 쪽을 되돌리면 언제나 빨강). */
+  await pickFrame(page, fid);
+  await page.locator('#bzf-seed').click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('15');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate((fid) => document.getElementById(fid).dataset.buzzSeed, fid), { message: '전제: 무늬번호가 15 가 됐다' }).toBe('15');
   const s0 = await stateOf(page, fid);
   /* 한 개를 손으로 옮긴 뒤 높이를 «키운다» → 아무 자리도 안 변한다 */
   await pickModal(page, s0.rows[0].mid);
   const p = await pointOn(page, s0.rows[0].mid);
   await page.mouse.move(p.x, p.y);
   await page.mouse.down();
-  await page.mouse.move(p.x + 24, p.y + 14, { steps: 6 });
+  await page.mouse.move(p.x - 24, p.y + 14, { steps: 6 });
   await page.mouse.up();
   await pickFrame(page, fid);
   const moved = await stateOf(page, fid);

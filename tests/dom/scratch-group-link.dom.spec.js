@@ -111,7 +111,10 @@ async function selectItem(page, sid) {
 async function clickBtn(page, sid, cls) {
   await scrollTo(page, sid);
   const card = `.scratch-item[data-scratch-id="${sid}"]`;
-  await waitStableRect(page, card);
+  const c = await waitStableRect(page, card);
+  // 사람 손은 카드에 먼저 올라간다 — 안 보일 때 단추는 클릭을 안 받는다(tests/dom/scratch-hidden-btn-hit)
+  await page.mouse.move(c.cx, c.cy);
+  await page.waitForFunction((s) => document.querySelector(s)?.matches(':hover'), card);
   const btn = page.locator(`${card} .${cls}`);
   await expect(btn, `전제 — ${sid} 에 .${cls} 손잡이가 있다`).toHaveCount(1);
   const r = await waitStableRect(page, `${card} .${cls}`);

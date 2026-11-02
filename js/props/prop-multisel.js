@@ -196,7 +196,8 @@ function _applyDimension(wrappers, field, value) {
       wrapper.dataset.width = String(num);
     } else if (field === 'h') {
       wrapper.style.height = num + 'px';
-      wrapper.dataset.height = String(num);
+      // ★260 — 월계수 높이 정본은 cells[].height 라 이 키를 쓰면 두 자리가 어긋난다(겉 상자 입력은 style.height 로 산다)
+      if (!wrapper.classList.contains('laurel-block')) wrapper.dataset.height = String(num);
     }
   });
 

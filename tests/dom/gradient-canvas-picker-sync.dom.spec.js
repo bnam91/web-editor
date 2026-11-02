@@ -19,6 +19,7 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const read = (p) => fs.readFileSync(path.join(REPO, p), 'utf8');
 const FILES = {
+  '/js/click-swallow.js': read('js/click-swallow.js'),
   '/js/gradient-line-overlay.js': read('js/gradient-line-overlay.js'),
   '/js/props/gradient-model.js': read('js/props/gradient-model.js'),
   '/js/props/color-picker.js': read('js/props/color-picker.js'),
@@ -43,6 +44,7 @@ async function boot(page, { bind = true } = {}) {
             window.scheduleAutoSave = () => {};
             window.__emits = 0;
           </script>
+          <script src="/js/click-swallow.js"></script>
           <script type="module">
             import './js/props/color-picker.js';
             import './js/gradient-line-overlay.js';

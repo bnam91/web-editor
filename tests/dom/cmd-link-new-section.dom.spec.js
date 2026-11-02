@@ -103,6 +103,7 @@ async function clickLinkBtn(page, sid, { meta = false } = {}) {
     .scrollIntoView({ block: 'center', inline: 'center' }), sid);
   const btn = page.locator('.scratch-item[data-scratch-id="' + sid + '"] .spl-btn-link');
   await expect(btn, `전제 — ${sid} 에 🔗 손잡이가 있다(미연결 항목)`).toHaveCount(1);
+  await page.locator('.scratch-item[data-scratch-id="' + sid + '"]').hover();   // 사람 손은 카드에 먼저 올라간다 — 안 보일 때 단추는 클릭을 안 받는다(tests/dom/scratch-hidden-btn-hit)
   await btn.click(meta ? { modifiers: ['Meta'] } : {});
   await page.waitForTimeout(250);
 }

@@ -16,7 +16,7 @@ import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { captureTextStyle, applyTextStyleVars } from './text-style-kinds.js';   /* ★«한 벌이 무슨 값인가»의 명부 하나 */
 import { wireAllTextStyleChips } from './text-style-chips.js';                     /* ★「최근 효과」 줄 — 컬러의 최근 줄 꼴 그대로 */
 import { wireTextStyleCodeFields } from './text-style-code-field.js';            /* ★스타일 번호 칸(1012t1E5) — 칩과 같은 입히기 길 */
-import { wireHexText, parseHex6, formatHex6, wireColorField } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
+import { wireHexText, parseHex6, formatHex6, wireColorField, alphaFromText, noticeAlphaText } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { _stripInlineResidue } from './prop-text-utils.js';   // 부분서식 잔재 걷기 한 벌(t4-16 에서 이 파일 클로저를 옮김)
 import { detectMix, mixKeyOf, paintMixFields } from './prop-text-mix-detect.js';
@@ -596,15 +596,15 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     onCommit: (v) => { if (v) window.pushHistory?.(); },
   });
   colorAlpha.addEventListener('input', () => {
-    const m = colorAlpha.value.match(/(\d+)/);
-    if (!m) return;
-    _txtAlpha = Math.max(0, Math.min(100, parseInt(m[1])));
+    const p = alphaFromText(colorAlpha.value);
+    if (p === null) return;
+    _txtAlpha = p;
     const c = _buildColor();
     applyColorToSel(c);
     colorSwatch.style.background = c;
   });
   colorAlpha.addEventListener('blur', () => { colorAlpha.value = String(_txtAlpha); });
-  colorAlpha.addEventListener('change', () => { window.pushHistory?.(); });
+  colorAlpha.addEventListener('change', () => { noticeAlphaText(colorAlpha.value, _txtAlpha); window.pushHistory?.(); });
 
   /* ── ⑨ 인라인 서식 버튼 (굵게 / 기울임 / 형광펜) ──
    * 규약은 취소선 버튼과 동일: 부분 선택이 있으면 그 영역만(execCommand), 없으면 블록 전체 토글.

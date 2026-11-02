@@ -544,6 +544,11 @@ window.startRenameProject   = startRenameProject;
 window.finishRenameProject  = finishRenameProject;
 window.cancelRenameProject  = cancelRenameProject;
 window.switchTab            = switchTab;
+/* ★361 — 이 탭이 «아직 안 읽혔나»(첫 로드 중 · 로드 실패 뒤). 그동안 캔버스는 비었고 state 는 앞 프로젝트라, 직렬화하면 앞 프로젝트 내용이 이 id 로 나간다. */
+window.isTabFirstLoading   = (id) => !!id && id === _firstLoadingTabId;
+/* ★342 — 앱 시작 때 첫 로드(initLoad · save-load.js)도 같은 창이다. ⛔풀 때는 제 id 일 때만 — 그사이 다른 탭으로 갔으면 그 탭의 것이다. */
+window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
+window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
 window.closeTab             = closeTab;
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;

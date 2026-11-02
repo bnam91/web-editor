@@ -3244,6 +3244,17 @@ function bindFrameDropZone(ss) {
 
   // (click 핸들러는 함수 상단 공통 핸들러로 이동)
 
+  const _placeIndicator = (clientX, clientY) => {
+    clearDropIndicators();
+    /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
+    if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
+    const after = getDragAfterElement(inner, clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    if (after) inner.insertBefore(indicator, after);
+    else inner.appendChild(indicator);
+  };
+
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragState.dragSrc) return;
@@ -3258,13 +3269,7 @@ function bindFrameDropZone(ss) {
       if (!dragState.dragSrc) return;
       clearDropIndicators();
       ss.classList.add('ss-drag-over');
-      /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
-      if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
-      const after = getDragAfterElement(inner, clientY);
-      const indicator = document.createElement('div');
-      indicator.className = 'drop-indicator';
-      if (after) inner.insertBefore(indicator, after);
-      else inner.appendChild(indicator);
+      _placeIndicator(clientX, clientY);
     });
   });
 
@@ -3283,6 +3288,8 @@ function bindFrameDropZone(ss) {
     ss.classList.remove('ss-drag-over');
     if (!dragState.dragSrc) return;
     if (isShapeFrame()) return; // shape frame drop 차단
+    /* 177 과 같은 꼴 — 표시선은 rAF 로 늦게 따라온다. 낡은 자리에 넣지 않게 «놓은 좌표»로 다시 잡는다. */
+    _placeIndicator(e.clientX, e.clientY);
     /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
     if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
     /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */

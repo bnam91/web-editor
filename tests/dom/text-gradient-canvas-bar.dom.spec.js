@@ -43,6 +43,7 @@ async function boot(page, { zoom = 100, gradient = GRAD } = {}) {
             window.__save = 0; window.scheduleAutoSave = () => { window.__save++; };
           </script>
           <script type="module" src="/js/props/text-block-color.js"></script>
+          <script src="/js/click-swallow.js"></script>
           <script type="module" src="/js/gradient-line-overlay.js"></script>
           </head><body>
           <div id="canvas-wrap"><div id="canvas-scaler">
