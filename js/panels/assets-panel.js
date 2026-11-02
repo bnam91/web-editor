@@ -271,7 +271,8 @@ function assetsRenameNode(id, newName) {
 async function _assetsRemoveNodeRecursive(node) {
   if (node.type === 'image' && node.blobPath) {
     const projectId = _assetsProjectId();
-    if (projectId && window.electronAPI?.assetsDeleteFile) {
+    /* usedOnCanvas — 캔버스·이력·버전이 이 파일 주소를 쥔다. 지우면 그림이 깨진다(_assetsCanvasSrc). 항목만 뺀다. */
+    if (!node.usedOnCanvas && projectId && window.electronAPI?.assetsDeleteFile) {
       try { await window.electronAPI.assetsDeleteFile({ projectId, blobPath: node.blobPath }); } catch (_) {}
     }
     window._assetsImgCache?.delete(node.id);
@@ -521,6 +522,22 @@ async function assetsOpenPreview(id) {
 }
 window.assetsOpenPreview = assetsOpenPreview;
 
+/* 캔버스에 넣을 주소 — 프로젝트 파일이 있는 항목은 다시 읽지 않고 그 주소(자산 파일 중복 0 · BIG-IMAGE-INSERT-RENDERER-OOM-01).
+   동봉·인라인 항목은 파일이 없어 data URL 을 자산으로 뺀다. null = 못 읽음. */
+async function _assetsCanvasSrc(node, id) {
+  const projectId = _assetsProjectId();
+  if (projectId && window.electronAPI && /^assets\/[^/]+$/.test(node.blobPath || '')) {
+    const url = `goya-asset://${projectId}/${node.blobPath.slice('assets/'.length)}`;
+    const ok = await new Promise((res) => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
+    if (!ok) return null;
+    node.usedOnCanvas = true;
+    return url;
+  }
+  const dataUrl = await assetsGetDataUrl(id);
+  if (!dataUrl) return null;
+  return (await window.grdAssetSrcOf?.(dataUrl))?.src || dataUrl;
+}
+
 /* ── 캔버스로 보내기 (선택 섹션 끝에) ── */
 async function assetsSendToCanvas(id) {
   const f = assetsFindNode(id);
@@ -530,13 +547,13 @@ async function assetsSendToCanvas(id) {
   }
   const sec = window.getSelectedSection?.();
   if (!sec) { window.showToast?.('⚠️ 캔버스에서 섹션을 먼저 선택해주세요.'); return false; }
-  const dataUrl = await assetsGetDataUrl(id);
-  if (!dataUrl) { window.showToast?.('❌ 이미지 로드 실패'); return false; }
+  const src = await _assetsCanvasSrc(f.node, id);
+  if (!src) { window.showToast?.('❌ 이미지 로드 실패'); return false; }
   window.addAssetBlock?.();
   const blocks = sec.querySelectorAll('.asset-block');
   const ab = blocks[blocks.length - 1];
   if (!ab) { window.showToast?.('❌ 에셋 블록 생성 실패'); return false; }
-  window.setAssetImageFromSrc?.(ab, dataUrl);
+  window.setAssetImageFromSrc?.(ab, src);
   window.triggerAutoSave?.();
   window.showToast?.('✨ 캔버스에 삽입됨');
   return true;
@@ -1194,7 +1211,7 @@ function _assetsBeginRowDrag(id, mouseEvent) {
       try {
         /* ★판정은 scratch-pad.js dropAssetImageAt «한 곳»(현빈 2026-10-02 결정 ⓒ) — 섹션 안 = 그 자리 삽입, 밖 = 스크래치 그 자리.
            ⛔옛 판은 섹션 밖이면 커서 좌표를 안 쓰고 addSection() → «맨 끝 새 섹션»에 넣었다 — 그 갈래를 지웠다(섹션은 ＋단추로). */
-        const kind = await window.dropAssetImageAt?.(ev.clientX, ev.clientY, dataUrl, { naturalWidth: natW, naturalHeight: natH });
+        const kind = await window.dropAssetImageAt?.(ev.clientX, ev.clientY, (await _assetsCanvasSrc(f.node, id)) || dataUrl, { naturalWidth: natW, naturalHeight: natH });
         if (kind) dropOk = true;
       } catch (e) {
         console.warn('[assets-panel] canvas drop 실패:', e);
