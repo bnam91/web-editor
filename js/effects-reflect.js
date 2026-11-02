@@ -199,6 +199,7 @@ function _wireReflectCard(el, P, again) {
     const sl = $(`fx-${key}-slider`), n = $(`fx-${key}-num`);
     if (!sl || !n) continue;
     sl.addEventListener('mousedown', () => window.pushHistory?.('효과'));
+    sl.addEventListener('change', () => window.pushHistory?.('효과'));   /* 끝 표본 — 없으면 다음 패널 편집의 ⌘Z 가 슬라이더까지 푼다 */
     sl.addEventListener('input', () => { setFxReflect(el, { [key]: sl.value }, { history: false }); n.value = fxReflectOf(el)[key]; });
     n.addEventListener('change', () => { setFxReflect(el, { [key]: n.value }); const v = fxReflectOf(el)[key]; n.value = v; sl.value = v; });
   }

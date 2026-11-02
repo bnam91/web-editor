@@ -9,7 +9,7 @@
  * 양성대조: GD1001_ROOT=<핀 d772f49e 사본> ⇒ M·C·U 빨강 · P0 초록.
  * ⛔고정 대기 없음 — waitForFunction 만. ⛔앱 무접촉(_root-harness.bootApp). */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1000 });
@@ -23,6 +23,7 @@ async function setup(page) {
     g.id = 'gG'; document.getElementById('gR').appendChild(g); window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.();
   });
   await page.waitForFunction(() => !!document.querySelector('#gG .grd-cell[data-c="1"]'));
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 보간 중에 재면 옛 배율 자리를 눌러 앞 spec·부하 따라 빨강이 났다(C 10/24 ↔ 대기 0/24)
   return errs;
 }
 /* 0열 칸 오른끝 ~ 1열 칸 왼끝 (모델 px). 음수면 겹친 것. */

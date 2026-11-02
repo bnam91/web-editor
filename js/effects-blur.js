@@ -94,6 +94,7 @@ function _wireBlurCard(el, P, again) {
   /* ⚠️FX-CARD-SLIDER-KEYBOARD-NO-HISTORY-01 — 시작 표본을 mousedown 에서만 찍는다 ⇒ 키보드(←/→)로 슬라이더를 움직이면
      ⌘Z 칸이 안 생긴다. 반사·그림자·글로우 카드도 같은 규약이라 «이번엔 안 고쳤다»(C1 적대 검수 MINOR-2 · 이름만 남김). */
   sl.addEventListener('mousedown', () => window.pushHistory?.('효과'));
+  sl.addEventListener('change', () => window.pushHistory?.('효과'));   /* 끝 표본 — 없으면 다음 패널 편집의 ⌘Z 가 슬라이더까지 푼다 */
   sl.addEventListener('input', () => {
     const v = normalizeRedact(sl.value);
     if (v > 0) setFxBlur(el, { state: keep(), v }, { history: false });
