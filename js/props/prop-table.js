@@ -730,8 +730,12 @@ ${blockHeaderHTML({
   /* 컬럼 비율 */
   const ratioInput = document.getElementById('tbl-col-ratio');
   ratioInput?.addEventListener('change', e => {
+    const raw = String(e.target.value).trim();
+    const typed = raw.split(/[:,\s]+/).filter(Boolean).map(Number).join(':');
     _applyColRatio(block, e.target.value);
     e.target.value = block.dataset.colWidths || '';
+    /* ★239 — parseRatio 는 못 읽는 조각을 버리고 1 로 채운다(abc → 1:1 · -1:2 → 2:1). 칸만 바뀌고 말이 없었다 ⇒ 바꿨으면 말한다. 빈 칸은 균등으로 돌리는 뜻이라 말 없음. */
+    if (typed && typed !== e.target.value) window.showToast?.(`⚠️ 비율은 열 수만큼 0 보다 큰 숫자로 적어요 — 「${raw.slice(0, 20)}」 를 「${e.target.value}」 로 맞췄어요`);
     window.pushHistory();
     window.scheduleAutoSave?.();
   });
