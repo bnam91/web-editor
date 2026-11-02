@@ -4752,16 +4752,11 @@ window.deleteBlock = deleteBlock;
 function moveSection(sectionId, { beforeId, afterId } = {}) {
   const sec = document.getElementById(sectionId);
   if (!sec || !sec.classList.contains('section-block')) return false;
-  let placed = false;
-  if (beforeId) {
-    const ref = document.getElementById(beforeId);
-    if (ref && ref.classList.contains('section-block') && ref !== sec) { ref.before(sec); placed = true; }
-  } else if (afterId) {
-    const ref = document.getElementById(afterId);
-    if (ref && ref.classList.contains('section-block') && ref !== sec) { ref.after(sec); placed = true; }
-  }
-  if (!placed) return false;
+  const ref = document.getElementById(beforeId || afterId);
+  if (!ref || !ref.classList.contains('section-block') || ref === sec) return false;
+  // ★334 — mutate «전»에 push(moveBlock 과 같은 꼴). 옮긴 «뒤» push 는 다음 buildLayerPanel 의 data-section 번호와 어긋나 ⌘Z 첫 번이 빈 칸이었다.
   pushHistory('섹션 이동 전');
+  if (beforeId) ref.before(sec); else ref.after(sec);
   window.buildLayerPanel?.();
   window.triggerAutoSave?.();
   return true;
