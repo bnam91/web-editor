@@ -5,6 +5,7 @@
 ═══════════════════════════════════ */
 
 import { state } from './globals.js';
+import { toFlowUnit } from './shape-frame.js';
 import {
   clearDropIndicators,
   clearSectionIndicators,
@@ -133,6 +134,13 @@ function ungroupBlock(groupEl) {
     const kids = [...groupEl.children].filter(c =>
       !c.classList.contains('frame-resize-handle') &&
       getComputedStyle(c).position === 'absolute');
+    /* ★294 t9-03(미카사 J294G) — 흐름 자리에서 만든 그룹(⌘G 가 자식을 absolute 로 쌓는다 · block-factory.js)을 풀면 자식도 흐름으로 돌아온다.
+       안 그러면 absolute 인 채 흐름 부모에 남아 위로 튀고 섹션이 자식을 못 담았다(앱 실측 3/3: 섹션 높이 1323→283 · 저장본에도 absolute). 자유 프레임 부모는 좌표가 맞고, 섹션 직속은 아래 오버레이 갈래 ⇒ 둘 다 그대로.
+       시험: tests/dom/flow-ungroup-294.dom.spec.js
+       shortcut: 세로로만 쌓는다(그룹 안에서 나란히 옮긴 자식 · 도형 래퍼의 가로 자리 · 패딩 밖 여백은 못 되살린다), 나란한 배치를 흐름으로 옮기는 규칙이 서면 여기서 고친다. */
+    const _toFlow = parent && parent.dataset?.freeLayout !== 'true' && !parent.classList?.contains('section-block');
+    if (_toFlow) kids.sort((a, b) => (parseInt(a.style.top) || 0) - (parseInt(b.style.top) || 0));   // 화면 위아래 순서대로 돌아온다
+    const _flowed = [];
     kids.forEach(c => {
       const cl = (parseInt(c.style.left) || 0) + gx;
       const ct = (parseInt(c.style.top) || 0) + gy;
@@ -147,6 +155,14 @@ function ungroupBlock(groupEl) {
         c.style.transformOrigin = 'center center';
       }
       groupEl.before(c);
+      /* 떠 있는 것(그라데이션·스티커·오버레이)은 흐름 단위가 아니다 — 자리·묶기가 제 길이라 그대로 둔다. */
+      if (_toFlow && !c.matches('.gradient-block, .sticker-block, .chat-block, .laurel-block, .joker-block') && c.dataset.overlayBlock !== 'true') {
+        c.style.position = ''; c.style.left = ''; c.style.top = '';
+        delete c.dataset.offsetX; delete c.dataset.offsetY;
+        if (c.style.width === '100%') c.style.width = c.dataset.width ? c.dataset.width + 'px' : '';
+        c.removeAttribute('draggable');
+        _flowed.push(c);
+      }
       window.syncAutoGridWidth?.(c);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       /* ★오버레이 그룹을 풀면 자식은 «다시 섹션 직속 오버레이»가 된다 (현빈 2026-09-30).
        * 부모가 섹션 «자신»이라는 것이 곧 그 뜻이다 — 흐름 블록은 .section-inner 안에 산다.
@@ -172,6 +188,20 @@ function ungroupBlock(groupEl) {
       }
     });
     groupEl.remove();
+    /* 끌기 처리기는 바인드 때의 position 으로 갈린다(absolute 면 좌표 끌기 · 흐름이면 HTML5) ⇒ 푼 자식만 새로 태어나게 해 다시 묶는다. 맨몸 블록은 끌어내기처럼 줄로 감싼다.
+       ⛔rebindAll 금지 — 안 바꾼 프레임까지 _subSecBound 를 풀어 리스너가 겹치고(⌘클릭이 두 번 돌아 선택이 안 된다) 옵션 없이는 이력도 지운다. */
+    _flowed.forEach(c => {
+      const unit = (c.classList.contains('frame-block') || c.classList.contains('row')) ? c : toFlowUnit(c);
+      const fresh = unit.cloneNode(true);
+      unit.replaceWith(fresh);
+      [fresh, ...fresh.querySelectorAll('.frame-block')].filter(f => f.classList.contains('frame-block')).forEach(f => window.bindFrameDropZone?.(f));
+      const blocks = [...fresh.querySelectorAll(window.SECTION_BLOCK_TYPE_SEL)].filter(b => !b.classList.contains('sticker-block'));   // 스티커는 bindBlock 을 안 탄다(bindStickerSelect 전용)
+      if (fresh.matches(window.SECTION_BLOCK_TYPE_SEL)) blocks.unshift(fresh);
+      blocks.forEach(b => window.bindBlock?.(b));
+      window.rerenderTree?.(fresh);
+      fresh.querySelectorAll('.sticker-block').forEach(b => window.bindStickerSelect?.(b));   // bindBlock 을 안 타는 제 바인더 — _bindPastedEl 과 같다
+      fresh.querySelectorAll('.gradient-block').forEach(b => window.bindGradientSelect?.(b));
+    });
     window.deselectAll?.();
     window._activeFrame = (parent && parent.dataset?.freeLayout === 'true') ? parent : null;
     window.buildLayerPanel();

@@ -3049,6 +3049,7 @@ function bindFrameDropZone(ss) {
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
   if (ss.style.position === 'absolute') {
     ss.setAttribute('draggable', 'false');
+    ss._absCellDrag = true;   // 아래 mousedown 좌표 끌기가 걸렸다는 표식 — 부모 pointerdown 이 본다
     /* ★D2(2026-10-05 현빈 · lane-drag) — 오버레이 «프레임»(스티커 그룹 · 도형 래퍼)의 전용 이동 드래그는 이 자리에서도 «건다».
        프레임은 bindBlock 을 안 탄다 ⇒ 표식을 «쓰는» 세 자리(enterFloat · 오버레이 묶기 · 그룹 풀기)는 그 자리에서 걸지만,
        HTML 에서 «다시 태어난» 오버레이 프레임(로드 · ⌘Z/⌘⇧Z · 붙여넣기 · 템플릿 …)은 여기만 지나서 받아줄 드래그가 없었다
@@ -3487,6 +3488,15 @@ function bindFrameDropZone(ss) {
        판정은 매 누름 live(래퍼가 끌어내기·붙여넣기로 흐름↔absolute 를 오갈 수 있다). */
     const _flowShapeWrapper = isInnerBlock?.classList.contains('shape-block') && isInnerBlock.parentElement === ss
       && isShapeFrame() && ss.style.position !== 'absolute';
+    /* ★294 t9-03(미카사 J294G) — 자유 프레임 안 «자기 좌표 끌기가 걸린» 자식 프레임을 누른 동안은 부모 HTML5 끌기를 끈다.
+       자식은 draggable=false 지만 브라우저는 draggable 조상을 찾아 올라간다 ⇒ mousemove 가 끊기고(자식은 첫 틱만) 놓는 자리로 «부모가» 옮겨 갔다
+       (앱 실측 3/3: 부모가 다른 프레임 안으로 들어감). ⛔표식(_absCellDrag) 없는 자식(같은 세션에 ⌘G·드롭으로 absolute 가 된 것)은 좌표 끌기가 없어 여태처럼 부모·그룹이 끌린다. 시험: tests/dom/child-frame-drag-294.dom.spec.js */
+    const _pressedFrame = e.target.closest('.frame-block');
+    if (!isInnerBlock && _pressedFrame && _pressedFrame !== ss && _pressedFrame._absCellDrag && _pressedFrame.style.position === 'absolute' && _pressedFrame.dataset.overlayBlock !== 'true' && ss.dataset.group !== 'true') {   // 그룹은 빼다 — 그룹 자식 위 끌기는 그룹을 옮긴다
+      ss.setAttribute('draggable', 'false');
+      document.addEventListener('pointerup', () => { if (ss.style.position === 'absolute') ss.setAttribute('draggable', 'false'); else ss.setAttribute('draggable', 'true'); }, { once: true });   // absolute 부모는 HTML5 끌기를 안 쓴다(js/CLAUDE.md)
+      return;
+    }
     if (isInnerBlock && !_flowShapeWrapper) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
