@@ -6,11 +6,12 @@
  * 변이: 고침만 되돌리면 X1·X2·X3 빨강 · X4 초록.
  * ★처음 실행 기록: 2026-11-01 17:2x · 아이맥 · 판 2b7aec4d · w1 · retries 0 · repeat-each 3 · 고친 판 12/12 · 되돌린 판 X1·X2·X3 각 3/3 빨강 · X4 초록. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
 const settle = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)))));
 const count = (page) => page.evaluate(() => window.__saves);
+const present = (page) => page.evaluate(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]'));
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
@@ -20,41 +21,41 @@ async function setup(page) {
     await window._scratchAddAndSave(src, 700, 200, 120, undefined, 'sp_x');
     window.clearHistory?.();
   }, PNG);
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]')); await settle(page);
   await page.evaluate(() => { const o = window.triggerAutoSave; window.__saves = 0; window.triggerAutoSave = function (...a) { window.__saves++; return o.apply(this, a); }; });
   return errs;
 }
 async function pick(page) {
   const c = await page.evaluate(() => { const el = document.querySelector('.scratch-item[data-scratch-id="sp_x"]'); el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 6 }; });
-  await page.waitForTimeout(250); await page.mouse.click(c.x, c.y); await settle(page);
+  await waitStableRect(page, '.scratch-item[data-scratch-id="sp_x"]'); await page.mouse.click(c.x, c.y); await settle(page);
 }
 async function pressX(page) {
   const b = await page.evaluate(() => { const r = document.querySelector('.scratch-item[data-scratch-id="sp_x"] .scratch-close').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-  await page.mouse.move(b.x, b.y); await page.mouse.click(b.x, b.y); await page.waitForTimeout(250);
-  expect(await page.evaluate(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]')), '[전제] 지워졌다').toBe(false);
+  await page.mouse.move(b.x, b.y); await page.mouse.click(b.x, b.y);
+  await expect.poll(() => present(page), { message: '[전제] 지워졌다' }).toBe(false);
 }
 
 test('X1 ✕ 가 저장을 예약한다', async ({ page }) => {
   const errs = await setup(page); await pick(page);
   const n0 = await count(page); await pressX(page);
-  expect(await count(page), '★✕ 뒤 저장 예약 없음').toBeGreaterThan(n0);
+  await expect.poll(() => count(page), { message: '★✕ 뒤 저장 예약 없음' }).toBeGreaterThan(n0);
   expect(errs).toEqual([]);
 });
 test('X2 ⌘Z 가 저장을 예약한다', async ({ page }) => {
   const errs = await setup(page); await pick(page); await pressX(page);
   const n0 = await count(page);
-  await page.keyboard.press('Meta+z'); await page.waitForTimeout(400);
-  expect(await page.evaluate(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]')), '[전제] 되살아났다').toBe(true);
-  expect(await count(page), '★⌘Z 뒤 저장 예약 없음').toBeGreaterThan(n0);
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => present(page), { message: '[전제] 되살아났다' }).toBe(true);
+  await expect.poll(() => count(page), { message: '★⌘Z 뒤 저장 예약 없음' }).toBeGreaterThan(n0);
   expect(errs).toEqual([]);
 });
 test('X3 ⌘⇧Z 가 저장을 예약한다', async ({ page }) => {
   const errs = await setup(page); await pick(page); await pressX(page);
-  await page.keyboard.press('Meta+z'); await page.waitForTimeout(400);
+  const before = await count(page); await page.keyboard.press('Meta+z'); await expect.poll(() => present(page)).toBe(true); await expect.poll(() => count(page)).toBeGreaterThan(before);
   const n0 = await count(page);
-  await page.keyboard.press('Meta+Shift+z'); await page.waitForTimeout(400);
-  expect(await page.evaluate(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]')), '[전제] 다시 지워졌다').toBe(false);
-  expect(await count(page), '★⌘⇧Z 뒤 저장 예약 없음').toBeGreaterThan(n0);
+  await page.keyboard.press('Meta+Shift+z');
+  await expect.poll(() => present(page), { message: '[전제] 다시 지워졌다' }).toBe(false);
+  await expect.poll(() => count(page), { message: '★⌘⇧Z 뒤 저장 예약 없음' }).toBeGreaterThan(n0);
   expect(errs).toEqual([]);
 });
 test('X4 [음성] 고르기만은 예약 안 함', async ({ page }) => {

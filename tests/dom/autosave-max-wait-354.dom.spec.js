@@ -14,12 +14,12 @@ async function setup(page) {
   const errs = await bootApp(page);
   await page.goto(`${ORIGIN}/index.html?project=${PID}`);   // 프로젝트 id 가 있어야 자동저장이 돈다
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.addSection === 'function', null, { timeout: 20000 });
-  await page.waitForTimeout(1000);
+  await page.waitForFunction(() => document.readyState === 'complete');
   await page.evaluate((KEY) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     window.addSection(); window.selectSection?.(c.querySelector('.section-block'));
   }, KEY);
-  await page.waitForTimeout(2500);   // 장면을 만든 타이머가 끝나기를 기다린다
+  await page.waitForFunction(() => !window.hasUnsavedChanges(), null, { timeout: 10000 });   // 장면을 만든 저장이 끝나기를 기다린다
   await page.evaluate((KEY) => {
     window.__w = []; const o = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) { if (this === localStorage && String(k).startsWith(KEY) && !/ts/i.test(String(k))) window.__w.push(Date.now()); return o.call(this, k, v); };
@@ -44,7 +44,7 @@ test('W1 0.8초 간격 — 5초 언저리에 한 번은 쓴다', async ({ page }
 test('W2 [음성] 편집 하나 — 1.5초 언저리', async ({ page }) => {
   const errs = await setup(page);
   const t0 = await edit(page);
-  await page.waitForTimeout(2600);
+  await page.waitForFunction(() => window.__w.length > 0, null, { timeout: 5000 }); await page.waitForFunction(() => !window.hasUnsavedChanges());
   const w = await writes(page);
   expect(w.length).toBe(1);
   expect(w[0] - t0).toBeGreaterThan(1300);
@@ -54,7 +54,7 @@ test('W2 [음성] 편집 하나 — 1.5초 언저리', async ({ page }) => {
 
 test('W3 [음성] 2초 간격 — 편집마다 1.5초 뒤', async ({ page }) => {
   const errs = await setup(page);
-  const ts = []; for (let i = 0; i < 3; i++) { ts.push(await edit(page)); await page.waitForTimeout(2000); }
+  const ts = []; for (let i = 0; i < 3; i++) { ts.push(await edit(page)); await page.waitForFunction((n) => window.__w.length >= n, i + 1, { timeout: 5000 }); }
   const w = await writes(page);
   expect(w.length).toBe(3);
   w.forEach((x, i) => { expect(x - ts[i], `칸 ${i}`).toBeGreaterThan(1300); expect(x - ts[i]).toBeLessThan(2000); });

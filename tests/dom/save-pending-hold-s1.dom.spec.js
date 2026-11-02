@@ -56,8 +56,8 @@ test('S3 건너뜀(타이머 사이 탭 전환) 길에서도 되돌린다', asyn
 test('S4 직렬화 예외 길에서도 되돌린다', async ({ page }) => {
   await setup(page, 'ok');
   // 저장 직전 동기 구간의 localStorage.setItem 이 던지게 주입(용량 초과 꼴) — 저장 약속에 «넘기기 전» 예외
-  await page.evaluate(() => { const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (String(k).includes('proj_s1test')) throw new Error('주입 QuotaExceeded'); return o.call(this, k, v); }; window.scheduleAutoSave(); });
-  await page.waitForTimeout(2200);
+  await page.evaluate(() => { const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (String(k).includes('proj_s1test')) throw (window.__thrown = true, new Error('주입 QuotaExceeded')); return o.call(this, k, v); }; window.scheduleAutoSave(); });
+  await page.waitForFunction(() => window.__thrown, null, { timeout: 5000 }); await settle(page);
   const hold = await page.evaluate(() => window._holdBackgroundForTest());
   expect(hold, '★직렬화가 던지면 풀린 채 남는다').toBe(false);
 });
