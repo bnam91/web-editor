@@ -183,13 +183,14 @@ function _glowCardHtml(tb, P) {
 
 function _wireGlowCard(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fxgl-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxGlow(tb, { state: 'none' }); again(); });
+  $('fxgl-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxGlow(tb, { state: 'none' }); window.pushHistory?.('효과 끔'); again(); });
   $('fxgl-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxGlowOf(tb).state; setFxGlow(tb, { state: cur === 'off' ? 'on' : 'off' }); again(); });
   $('fxgl-head')?.addEventListener('click', () => { const b = $('fxgl-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(tb, 'glow', open); $('fxgl-card')?.classList.toggle('expanded', open); });
   for (const key of ['blur', 'op']) {
     const sl = $(`fxgl-${key}-slider`), n = $(`fxgl-${key}-num`);
     if (!sl || !n) continue;
     sl.addEventListener('mousedown', () => window.pushHistory?.('효과'));
+    sl.addEventListener('change', () => window.pushHistory?.('효과'));   /* 끝 표본 — 없으면 다음 패널 편집의 ⌘Z 가 슬라이더까지 푼다 */
     sl.addEventListener('input', () => { setFxGlow(tb, { [key]: sl.value }, { history: false }); n.value = fxGlowOf(tb)[key]; });
     n.addEventListener('change', () => { setFxGlow(tb, { [key]: n.value }); const v = fxGlowOf(tb)[key]; n.value = v; sl.value = v; });
   }

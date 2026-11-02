@@ -284,6 +284,7 @@ let _undoRestoreSkips = 0;   // ★159 자(읽기만) — undo 가 캔버스 복
 let _lastUndoGate = null;    // ★159 자(읽기만) — 마지막 ⌘Z 의 판정 칸들(어느 것이 옛 길로 보냈나)
 function pushHistory(action = '작업', sideEffects = null) {
   if (_historyPaused) return;
+  window.settleFxReflect?.();   // 한 프레임 뒤에 쓰는 파생값을 칸에 찍기 전에 맞춘다(effects-reflect.js)
   /* ★130 싼 게이트(2026-10-26 · 지디 처방) — 아래 «무변화 차단»(_sameEdit · _videoPendingKey · settings)이 버릴 게 «확실»하면 직렬화 «앞»에서 돌아간다.
      까닭(실측 · 21943f57 · 수지 저장본): 끌기 «시작 표본»은 꼭대기와 같은 상태라 늘 버려지는데, 버리려고 프로젝트 통째 직렬화(첫 틱 2.3~2.5s).
      ★셋 다 잰다(하나라도 빠지면 거짓 통과 = 이력 사라짐): ㉠ 캔버스 세대(save-load.js 기존 감시자 한 칸 — 꼭대기를 찍은 뒤 직렬화를 바꿀 변이 0)
@@ -738,6 +739,7 @@ function resetAllPageHistory() {
  */
 function ensureHistoryCheckpoint(action = 'checkpoint') {
   if (_historyPaused) return;
+  window.settleFxReflect?.();
   const current = window.getSerializedCanvas?.();
   // ★T-031 3차(a1-a3 지적 — 치명): pushHistory/clearHistory와 «같은 동기 구간»에서
   //   sidecar를 같이 잡아야 한다. 이게 없으면 ensure가 선적재하는 항목엔 sidecar가

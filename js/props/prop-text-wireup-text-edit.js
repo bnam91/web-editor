@@ -405,6 +405,9 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
     if (!range) {
       // selection 없으면 전체 일괄 적용 — mix 상태 부분 span들 정리
       if (ctx.contentEl) {
+        /* ★325 — 자유변형이 걸린 글상자: 글자와 «같은 k» 로 네 점·재는 폭을 곱한다(오버레이 끌기가 쓰던 그 문). 안 그러면 테두리·격자는 옛 크기로 남고 옛 폭에서 줄이 꺾인다. */
+        const ftBase = window.ftScaleBase?.(tb);
+        const fs0 = parseFloat(getComputedStyle(ctx.contentEl).fontSize);
         ctx.contentEl.querySelectorAll('span[style*="font-size"]').forEach(s => {
           s.style.fontSize = '';
           const styleStr = s.getAttribute('style') || '';
@@ -415,6 +418,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
           }
         });
         ctx.contentEl.style.fontSize = v + 'px';
+        if (ftBase && fs0 > 0) window.ftScaleTo?.(tb, ftBase, v / fs0);
       }
       return null;
     }

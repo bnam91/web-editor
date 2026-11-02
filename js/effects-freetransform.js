@@ -212,6 +212,28 @@ function _isBaseRectOfLegacy(C, W, H) {
          (★M11 ⇒ 그 칸 ★빨강 · ⚠️발주 §3 의 15 ★밖이라 ★보고에 적었다).
      ⇒ ★★이 두 줄은 ★★«중복 방어»로 ★남긴다 — ★박스 식이 뒤에 바뀌어 하한이 사라지면 ★그때 값을 한다.
        ⛔「이 줄이 `PRE-IDENTITY` 를 잠근다」로 ★적지 않는다(★그것이 ★거짓이었다). */
+/* ★147 — Enter 뒤 글칸은 `<div>` 줄로 갈린다 ⇒ Range 상자가 블록 폭(재는 폭 796)을 잡아 상자가 글자보다 크게 부푼다(핀 재현: 잉크 62 · W 796).
+   ⇒ 안 만진 글상자(inkW)만 가로를 글자 노드로 잰다 — 바탕 네모라 매번 다시 맞춰 그림이 안 변한다.
+   ⛔만진 글상자·옛 파일은 옛 자 그대로 — 저장된 네 점이 그 W 기준이라 바꾸면 그림이 변한다. 세로는 빈 줄까지 담는 Range 그대로. */
+function _glyphBox(ce, inkW) {
+  const r = document.createRange();
+  r.selectNodeContents(ce);
+  const q = r.getBoundingClientRect();
+  const box = { left: q.left, top: q.top, width: q.width, height: q.height };
+  if (inkW && ce.children.length) {
+    let lo = Infinity, hi = -Infinity;
+    const walk = document.createTreeWalker(ce, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      r.selectNodeContents(n);
+      const t = r.getBoundingClientRect();
+      if (t.width > 0) { lo = Math.min(lo, t.left); hi = Math.max(hi, t.right); }
+    }
+    if (hi > lo) { box.left = lo; box.width = hi - lo; }
+  }
+  r.detach?.();
+  return box;
+}
+
 /** 글자 상자를 잰다 — `{W,H,OX,OY}`(모델 px). 못 재면 null. */
 export function ftMeasure(tb, force) {
   const ce = _contentOf(tb);
@@ -245,10 +267,8 @@ export function ftMeasure(tb, force) {
   if (tf) tf.style.width = st.tfMeasW == null ? ktf : st.tfMeasW;   /* ★재는 폭 — ⛔'' 로 비우면 사용자 폭을 잃는다 */
 
   const z = _scaleOf(tb);
-  const r = document.createRange();
-  r.selectNodeContents(ce);
-  const b = r.getBoundingClientRect();
-  r.detach?.();
+  const inkW = tb.dataset.tfSchema === '1' && tb.dataset.tfTouched !== '1';
+  const b = _glyphBox(ce, inkW);
   const gb = ce.getBoundingClientRect();
 
   /* ★★OX·OY 는 ★음수일 수 있다 — 글꼴의 ascender 가 `line-height` box 를 넘는다
@@ -269,10 +289,7 @@ export function ftMeasure(tb, force) {
     const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
                + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
     ce.style.width = (Math.ceil(st.W) + (cs.boxSizing === 'border-box' ? padX : 0)) + 'px';
-    const r2 = document.createRange();
-    r2.selectNodeContents(ce);
-    const b2 = r2.getBoundingClientRect();
-    r2.detach?.();
+    const b2 = _glyphBox(ce, inkW);
     const gb2 = ce.getBoundingClientRect();
     if (Math.abs(b2.width / z - st.W) < 0.5 && Math.abs(b2.height / z - st.H) < 0.5) {
       st.OX = (b2.left - gb2.left) / z; st.OY = (b2.top - gb2.top) / z;
@@ -587,8 +604,8 @@ function _ftCardHtml(tb, P) {
 
 function _wireFtCard(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); again(); });
-  $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); again(); });
+  $('fxft-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxFreeTransform(tb, null); window.pushHistory?.('효과 끔'); again(); });
+  $('fxft-reset')?.addEventListener('click', (e) => { e.stopPropagation(); resetFxFreeTransform(tb); window.pushHistory?.('효과 원래대로'); again(); });
   /* ★FT-3a — 섹션 밖으로 나가 잘린 손잡이 «되찾기». 몸통은 effects-ft-handles.js(손잡이 자리를 아는 쪽) · window 다리(순환 import 회피 · 이 파일의 관용구). */
   $('fxft-pullin')?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -624,6 +641,17 @@ registerFxType({
   wire: _wireFtCard,
   watchAll: watchAllFxFreeTransform,
 });
+
+/* ★147(t8-02) — 글을 치면(Enter 포함) 보라·격자가 따라온다. ★뿌리: 글 입력 길이 아무 데도 안 다시 잰다(ftHandlesSync 는 캐시 W·H 로 그린다 · 시트 ⒝).
+   ⇒ 안 만진 글상자만 그리기 문 하나(applyFxFreeTransform — 다시 재고 · 바탕 네모 맞추고 · 손잡이·테두리·격자)를 부른다.
+   ⛔만진 사다리꼴(touched)은 안 건드린다 — 「모양을 지키나 글을 지키나」는 현빈 결정이다(시안 브랜치 l5/j146a-sian). 재는 자 tests/dom/u3-purple-outline-geometry U4. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', (e) => {
+    const tb = e.target?.closest?.('.text-block[data-tf-corners]');
+    const st = tb && _tfState.get(tb);
+    if (st && !st.touched) applyFxFreeTransform(tb);
+  });
+}
 
 if (typeof window !== 'undefined') {
   Object.assign(window, {

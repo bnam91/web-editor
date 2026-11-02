@@ -139,6 +139,12 @@
     const band = 10 * (r.width / (sec.offsetWidth || 1) || 1);
     h.classList.toggle(OUT_CLS, [...sec.querySelectorAll('.text-block, .sticker-block')].some((t) => t.getBoundingClientRect().bottom > r.bottom - band));
   }, true);
+  /* 337 — 끌기 중에는 띠가 놓는 자리를 먹지 않게 비킨다(그 자리에서 dragover 가 inner 로 안 가 drop 이 안 났다).
+     행·블럭 dragstart 가 stopPropagation 하니 capture 로 받는다. 원본이 놓는 중 사라지면 dragend 가 안 오고,
+     dragstart 가 취소되면 끌기가 없으니 drop·포인터로도 푼다. */
+  const clearDragYield = () => document.body.classList.remove('sbh-html5-drag');
+  document.addEventListener('dragstart', () => document.body.classList.add('sbh-html5-drag'), true);
+  for (const t of ['dragend', 'drop', 'pointerup']) document.addEventListener(t, clearDragYield, true);
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('dblclick', onDblClick, true);
   document.addEventListener('DOMContentLoaded', sweep);

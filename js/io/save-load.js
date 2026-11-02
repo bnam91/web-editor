@@ -245,6 +245,9 @@ function _lastSaveFailed(projectId) {
 
 async function saveProjectToFile(snapshot, opts = {}) {
   const _targetId = opts.projectId || activeProjectId;
+  /* ★361 — 안 읽힌 탭으로 나가는 저장은 쓰지 않는다: 그 스냅샷은 앞 프로젝트 내용이다(앱 실측 · ~/gd-lane/imac-gd-L1/361: 첫 로드 중 홈·종료 · 로드 실패 뒤 편집).
+     저장 대상 id 와 캔버스가 어긋나면 안 쓰는 쪽이 잃지 않는다. ⛔큐에서 나오는 저장은 통과 — 그 탭이 읽히기 전에 찍은 진짜 스냅샷이다(_fromQueue). */
+  if (!opts._fromQueue && window.isTabFirstLoading?.(_targetId)) return { ok: false, skipped: true, reason: 'tab-not-loaded' };
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
@@ -276,7 +279,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (_pendingSaves.size) {
       const [nextId, nextSave] = _pendingSaves.entries().next().value;
       _pendingSaves.delete(nextId);
-      await saveProjectToFile(nextSave.snapshot, nextSave.opts);
+      await saveProjectToFile(nextSave.snapshot, { ...nextSave.opts, _fromQueue: true });
     }
   }
   return _result; // GAP-005: 저장 결과 전파(인디케이터 정직성)
@@ -511,7 +514,7 @@ window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
 async function goHome() {
   const curTab = openTabs.find(t => t.id === activeProjectId);
-  if (curTab) curTab._cache = serializeProject();
+  if (curTab && !window.isTabFirstLoading?.(activeProjectId)) curTab._cache = serializeProject();
   // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
   // (section-serialize.js — 원본을 영구저장하는 쪽보다 안전하다는 게 결정 사항). 막지는
   // 않되, 사라진다는 사실은 알려준다 — 토스트가 실제로 보이도록 이동을 살짝 늦춘다.
@@ -612,9 +615,11 @@ function addPage() {
   switchPage(id);
 }
 
-function deletePage(pageId) {
+let _pageDeleteBusy = false;   // ★await 중 ✕ 를 또 눌러도 한 번만 지운다
+async function deletePage(pageId) {
+  if (_pageDeleteBusy) return;
   if (state.pages.length <= 1) { window.showToast('⚠️ 페이지가 1개 이상이어야 합니다.'); return; }
-  const idx = state.pages.findIndex(p => p.id === pageId);
+  let idx = state.pages.findIndex(p => p.id === pageId);
   if (idx === -1) return;
   const page = state.pages[idx];
   // 파괴적 액션 가드 (Adobe/Figma 표준): 내용 있는 페이지 삭제는 되돌릴 수 없으므로 확인받는다.
@@ -624,6 +629,24 @@ function deletePage(pageId) {
   const canvasHtmlForCheck = isActivePage ? getSerializedCanvas() : (page && page.canvas) || '';
   const hasContent = canvasHtmlForCheck.includes('section-block');
   if (hasContent && !window.confirm(`'${(page && page.name) || '이 페이지'}'를 삭제하시겠습니까?\n페이지의 모든 내용이 영구 삭제되며 되돌릴 수 없습니다.`)) return;
+  /* ★PAGE-DELETE-SCRATCH-STAYS-ON-DELETED-PAGE-01 — 스크래치 층도 남을 페이지로 옮긴다(switchPage 와 같은 자리 · 같은 억제).
+     안 옮기면 층이 지운 페이지 키에 남아, 그 뒤 넣은 이미지가 지운 키로 저장돼 다시 열면 없다.
+     ★상태를 바꾸기 «전»에 기다린다 — 거부되는 곳은 떠나는 쪽 _saveScratch 뿐(_loadScratch 는 스스로 삼킨다)이라,
+       거부되면 층도 페이지도 그대로 두고 알린다(아무것도 안 잃는다). */
+  if (isActivePage) {
+    const target = state.pages[idx + 1] || state.pages[idx - 1];
+    const _scratchTok = window.AutoSaveSuppress.begin('page-delete-scratch');
+    _pageDeleteBusy = true;
+    try {
+      await window.switchScratchPage?.(target.id);
+    } catch (e) {
+      console.warn('[deletePage] 스크래치 저장 실패 — 삭제 취소:', e);
+      window.showToast('⚠️ 스크래치 저장에 실패해 페이지를 지우지 않았습니다.');
+      return;
+    } finally { _pageDeleteBusy = false; window.AutoSaveSuppress.end(_scratchTok); }
+    idx = state.pages.findIndex(p => p.id === pageId);   // 기다리는 사이 프로젝트가 바뀌었으면 그 페이지는 없다
+    if (idx === -1) return;
+  }
   const wasActive = pageId === state.currentPageId;
   state.pages.splice(idx, 1);
   // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지)
@@ -765,6 +788,7 @@ function applyProjectData(data) {
     ? _AS_open.begin('applyProjectData')
     : null;
   if (!_suppressTok) state._suppressAutoSave = true;
+  _loadWindowHistPos = null;
   try {
     if (data.version === 2 && Array.isArray(data.pages)) {
       // S8: pages 빈 배열 방어 — 최소 1페이지 보장
@@ -893,6 +917,8 @@ function applyProjectData(data) {
          (빗장은 호출마다 새로 생기는데 억제 플래그는 하나라서다. 지디가 그 구멍을 확인했다).
        ⇒ 정본을 «쓴다». 없으면(고전 스크립트 로드 실패 등) 옛 동작으로 떨어지되 안전망은 유지한다. */
     const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
+    _loadWindowHistPos = window.historyPos;   // ★여기부터 스택이 앞으로 가면 편집이다
+    _loadWindowInput = false;
     if (AS && typeof AS.endNextFrame === 'function' && _suppressTok) {
       AS.endNextFrame(_suppressTok);
     } else {
@@ -1917,6 +1943,14 @@ window._holdBackgroundForTest = () => _bgHold;   // 시험 전용 읽기(쓰기 
    분모 = 끌기 억제 이유 둘 ↔ 여는 길 6(block-drag.js 블럭 단위·프레임 · section-drag.js 라벨·그룹·빈 row → 'section-drag' / 레이어 → 'layer-drag').
    시험: tests/dom/drag-move-autosave.dom.spec.js (깃발을 빼면 D1·D5·D6 빨강). */
 const _DRAG_SUPPRESS_REASONS = new Set(['section-drag', 'layer-drag']);
+/* ★로드 뒤 창 — applyProjectData 가 끝나도 억제는 한 프레임 뒤에 풀린다(큰 판 0.1~0.8초). 그 창에 넣은 섹션은 화면에 있는데 저장 예약이 안 돼
+   5초를 기다려도 디스크에 없었고 ⌘R·창 닫기로 사라졌다(앱 ×3). 창 안 변경에는 로드 자신의 잔여 변이도 섞여 온다(무편집이 다시 쓰이면 안 된다 — DEF-03·345)
+   ⇒ «적용이 끝난 뒤 ⌘Z 스택이 앞으로 갔나»로 편집을 가른다. 적용 전(phase loading · 363)은 여기 안 든다.
+   글자 치기는 스택을 안 올린다 ⇒ input 이벤트도 편집으로 친다(로드는 input 을 안 낸다).
+   shortcut: 스택도 input 도 안 내는 편집은 못 본다, 그런 입력이 이 창에 닿는 값이 나오면 넓혀라. */
+let _loadWindowHistPos = null;
+let _loadWindowInput = false;
+if (typeof document !== 'undefined') document.addEventListener('input', () => { _loadWindowInput = true; }, true);
 let _dragEditPending = false;
 let _dragEditTimer = null;
 let _dragEditTicks = 0;   // 한 에피소드(창 열림 → 닫힘 → 저장)의 폴 횟수 — 시험이 «한정»을 단언한다(S7)
@@ -1925,7 +1959,17 @@ let _dragEditTicks = 0;   // 한 에피소드(창 열림 → 닫힘 → 저장)�
 function _noteEditDuringDrag() {
   const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
   const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
+  // pushHistory 가 변이 기록을 먼저 비워 여기가 스택이 오르기 «전»에 불린다 ⇒ 그 일이 끝난 뒤(microtask)에 가른다
+  // 창 안 끌기는 끌기 창이 겹쳐 열린다(이유 둘) ⇒ 그 조합도 이 창이다
+  if (_loadWindowHistPos !== null && holders.some(h => h.reason === 'applyProjectData')
+      && holders.every(h => h.reason === 'applyProjectData' || _DRAG_SUPPRESS_REASONS.has(h.reason))) {
+    queueMicrotask(() => { if (_loadWindowHistPos !== null && (_loadWindowInput || window.historyPos !== _loadWindowHistPos)) _keepEditForAutoSave(); });
+    return;
+  }
   if (!holders.length || !holders.every(h => _DRAG_SUPPRESS_REASONS.has(h.reason))) return;
+  _keepEditForAutoSave();
+}
+function _keepEditForAutoSave() {
   _dirtySinceSave = true;
   _dirtyOwnerId = activeProjectId;
   _dragEditPending = true;
@@ -1976,6 +2020,12 @@ function scheduleAutoSave() {
       _setAutosaveIndicator('saved');
       return;
     }
+    // ★361 — 안 읽힌 탭(로드 실패 뒤)의 편집은 안 쓴다(saveProjectToFile 머리말 · 여기선 localStorage 도 안 쓴다). «저장됨»이라고 말하지 않는다.
+    if (window.isTabFirstLoading?.(_saveTargetId)) {
+      window.showToast?.('⚠️ 이 프로젝트를 읽지 못해 저장하지 않았습니다 — 탭을 다시 열어 주세요.');
+      _setAutosaveIndicator('error');
+      return;
+    }
     const snap = serializeProject();
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
@@ -2024,6 +2074,7 @@ window.addEventListener('beforeunload', () => {
      ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
      ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
   if (!_hasOwnUnsaved() && !_lastSaveFailed(activeProjectId)) return;
+  if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -2112,6 +2163,7 @@ if (IS_ELECTRON) {
     let snap = null;
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
       snap = serializeProject();
@@ -2313,6 +2365,10 @@ function initApp() {
     // 이어지는 autosave가 그 DOM을 새 프로젝트 파일에 저장해 덮어쓴다(무결성 사고).
     // → 진입 시점 id를 캡처하고, await 이후의 모든 apply/initEmpty는 불일치 시 중단한다.
     const _bootProjectId = activeProjectId;
+    /* ★342 — 읽히기 전 캔버스는 비었다. 탭 전환이 빈 캐시를 남기고, 편집이 빈 화면을 파일로 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/342d).
+       읽히면 풀고, 못 읽었으면 쥔 채 둔다(_bootUnread) — 그 편집은 안 남지만 파일이 남는다(saveProjectToFile 머리말과 같은 판정). */
+    let _bootUnread = false;
+    if (_bootProjectId) window.holdTabFirstLoading?.(_bootProjectId);
     const _bootStale = () => {
       if (activeProjectId === _bootProjectId) return false;
       console.warn(`[initLoad] 부트 대상 변경 감지 (boot=${_bootProjectId} now=${activeProjectId}) — 늦은 apply 중단`);
@@ -2333,8 +2389,10 @@ function initApp() {
         window.initScratchPad?.(activeProjectId, state.currentPageId);
       } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
+        _bootUnread = true;
         initEmpty('apply-error');
       } finally {
+        if (!_bootUnread) window.releaseTabFirstLoading?.(_bootProjectId);
         _endLoadingOverlay();
         // ★확정 — 이 시점의 DOM 이 «그 프로젝트»다. 여기 전에 들어온 편집은 방금 교체돼 사라졌다.
         window.gdtProjectReady?.settle(_loadSeq, 'ready', _settleDetail || 'applied');
@@ -2345,6 +2403,7 @@ function initApp() {
       if (_bootStale()) return; // 다른 프로젝트가 이미 활성 — 그 상태를 빈 페이지로 리셋하면 안 됨
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
       state.currentPageId = 'page_1';
+      if (!_bootUnread) window.releaseTabFirstLoading?.(_bootProjectId);
       window.buildLayerPanel();
       window.showPageProperties();
       // 빈 프로젝트/폴백도 «편집 가능»한 terminal 상태다 — 확정한다(무엇으로 닫혔는지는 detail 에).
@@ -2386,6 +2445,7 @@ function initApp() {
         let proj = null;
         try { proj = await loadProjectForOpen(activeProjectId); } catch(e) { // {open:true}: 열 때 외부화 정책 대상 · ★E170 복구 알림도 그 안
           console.error('[initLoad] loadProject 실패:', e);
+          _bootUnread = true;
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
         // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
@@ -2473,6 +2533,7 @@ function initApp() {
               return;
             } catch (e) {
               console.error('[initLoad] v1 snapshot 파싱 실패, localStorage fallback:', e);
+              _bootUnread = true;
             }
           }
         }
@@ -2658,6 +2719,7 @@ window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-l
 // 즉시 저장 (디바운스 없이 flush) — commit-system.js 저장하기 버튼 전용
 // saveProjectToFile 경로를 우회하고 IPC를 직접 호출해 _isSavingToFile 락 문제 방지
 window.flushSave = async function() {
+  if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();

@@ -2,7 +2,7 @@
  *   ★병: js/checklist-panel.js 의 핀 듣는 자가 #canvas-wrap «버블» 이라 블럭·섹션 click 처리기의 stopPropagation 에 막혔다 ⇒ 블럭 위 0/3 · 빈 자리만 3/3.
  *   ★처방: 듣는 자를 캡처로. stopPropagation 은 안 건드린다.
  *   한 쌍: P* = 블럭 위 핀 입력창이 뜨고 임시 핀이 누른 자리에 선다(캡처를 버블로 되돌리면 빨강 · 회신에 실측) · F = 빈 자리 그대로 뜬다(있던 것을 안 껐나) ·
- *   O* = 핀 모드를 켰다 끈 뒤(듣는 자는 걸린 채) 평소 클릭은 블럭을 고르고 입력창이 안 뜬다 · D = 평소 끌기가 된다(빈칸 — 끌기 자가 선 칸만).
+ *   O* = 핀 모드를 켰다 끈 뒤(듣는 자는 걸린 채) 평소 클릭은 블럭을 고르고 입력창이 안 뜬다 · D = 평소 끌기가 된다(빈칸 — 사건 수·형제 순서·부모로 잰다 · D0 제자리).
  *   ⚠️자 한계: 하네스 · 줌 40 · addSection 으로 만든 섹션 · 사람 클릭 안 잼 · 저장본 로드 길 안 잼. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
@@ -68,17 +68,32 @@ test('F 빈 자리(캔버스 바닥) — 그대로 뜬다', async ({ page }) => 
   await page.waitForSelector('.todo-pin-input', { timeout: 5000 });
 });
 /* ⚠️끌기 칸은 빈칸 하나다 — 프레임은 ×3 에 1 번 안 끌렸고 고치기 전 판도 같았다(329 · 까닭 안 쟀다) ⇒ 흔들리는 칸을 넣지 않았다. */
-for (const [name, sel, add] of [['빈칸', '.gap-block', null]]) {
-  test(`D ${name} — 핀 모드를 켰다 끈 뒤 끌기가 된다`, async ({ page }) => {
-    await scene(page, add);
-    await page.keyboard.press('Escape');
-    const rel = () => page.evaluate((sel) => { const s = [...document.querySelectorAll('.section-block')].pop(), e = s.querySelector(sel); const a = e.getBoundingClientRect(), b = s.getBoundingClientRect(); return { top: a.top - b.top, x: a.left + a.width / 2, y: a.top + a.height / 2 }; }, sel);
-    const r0 = await rel();
-    await page.mouse.move(r0.x, r0.y); await page.mouse.down();
-    await page.mouse.move(r0.x + 20, r0.y + 15, { steps: 4 }); await page.mouse.move(r0.x + 40, r0.y + 30, { steps: 4 });
-    await page.mouse.up();
-    await page.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
-    const r1 = await rel();
-    expect(r1.top, '안 끌렸다').not.toBe(r0.top);
-  });
-}
+/* 349 — D 의 자는 «.gap-block top 변화» 였고 놓는 점이 다음 블럭 위 절반이라 제자리다. 초록은 177 전 낡은 표시선 자리로 들어간 우연이었다(168e87bb 뒤 단독 5/5 빨강).
+ *   ⇒ 사건 수 · 형제 순서 · 부모로 잰다. 놓는 점은 다음 블럭 아래쪽 ⇒ 옮겨짐 / 위 절반 ⇒ 제자리(drop 은 나고 순서는 그대로). */
+const dragGap = async (page, frac) => {
+  await page.addInitScript(() => { window.__ev = { dragstart: 0, drop: 0 }; for (const k of Object.keys(window.__ev)) document.addEventListener(k, () => { window.__ev[k]++; }, true); });
+  await scene(page, null);
+  await page.keyboard.press('Escape');
+  const st = (id) => page.evaluate((id) => {
+    const s = [...document.querySelectorAll('.section-block')].pop(), e = id ? document.getElementById(id) : s.querySelector('.gap-block'), n = e.nextElementSibling, a = e.getBoundingClientRect(), f = n?.getBoundingClientRect();
+    return { id: e.id, par: e.parentElement.id || e.parentElement.className, order: [...e.parentElement.children].map((c) => c.id), x: a.left + a.width / 2, y: a.top + a.height / 2, ny: f ? f.top : 0, nh: f ? f.height : 0 };
+  }, id);
+  const r0 = await st();
+  expect(r0.nh, '★전제: 빈칸 다음에 블럭이 있다').toBeGreaterThan(0);
+  await page.mouse.move(r0.x, r0.y); await page.mouse.down();
+  await page.mouse.move(r0.x + 20, r0.y + 15, { steps: 4 }); await page.mouse.move(r0.x + 40, r0.ny + r0.nh * frac, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
+  return { r0, r1: await st(r0.id), ev: await page.evaluate(() => window.__ev) };
+};
+test('D 빈칸 — 핀 모드를 켰다 끈 뒤 끌면 다음 블럭 뒤로 옮겨진다', async ({ page }) => {
+  const { r0, r1, ev } = await dragGap(page, 0.8);
+  expect(ev, '끌기가 났다').toEqual({ dragstart: 1, drop: 1 });
+  expect(r1.par, '품지 않았다 — 부모 그대로').toBe(r0.par);
+  expect(r1.order, '안 끌렸다 — 형제 순서가 바뀐다').toEqual([r0.order[1], r0.order[0], ...r0.order.slice(2)]);
+});
+test('D0 빈칸 — 다음 블럭 위 절반에 놓으면 제자리다(끌기는 난다)', async ({ page }) => {
+  const { r0, r1, ev } = await dragGap(page, 0.2);
+  expect(ev, '끌기가 났다').toEqual({ dragstart: 1, drop: 1 });
+  expect([r1.par, r1.order], '제자리').toEqual([r0.par, r0.order]);
+});

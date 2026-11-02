@@ -37,13 +37,13 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js u3-purple-outline-geometry
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 const AXIS = [[0, 0], [400, 0], [400, 120], [0, 120]];
 const TRAP = [[40, 0], [360, 0], [400, 140], [0, 140]];
 
-async function scene(page, corners) {
-  return await page.evaluate(async (corners) => {
+async function scene(page, corners, kind = 'body', lineHeight = '') {
+  return await page.evaluate(async ([corners, kind, lineHeight]) => {
     for (const k of ['pushHistory', 'markDirty', 'scheduleAutoSave', 'updateLayerPanel', 'buildLayerPanel', 'showToast', 'deselectAll'])
       if (typeof window[k] !== 'function') window[k] = () => {};
     const ft = await import('/js/effects-freetransform.js');
@@ -52,9 +52,10 @@ async function scene(page, corners) {
     await window.addSection();
     const sec = [...canvas.querySelectorAll('.section-block')].pop();
     window.getSelectedSection = () => sec; window._activeFrame = null;
-    await window.addTextBlock('body');
+    await window.addTextBlock(kind);
     const tb = [...sec.querySelectorAll('.text-block')].pop();
     tb.id = 'u3tb';
+    if (lineHeight) (tb.querySelector('[contenteditable]') || tb.querySelector('.tb-' + kind)).style.lineHeight = lineHeight;
     ft.setFxFreeTransform(tb, corners, { history: false });
     window.selectBlock?.(tb.id);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -80,8 +81,13 @@ async function scene(page, corners) {
       const q = h.getBoundingClientRect();
       return [+((q.left + q.right) / 2).toFixed(1), +((q.top + q.bottom) / 2).toFixed(1)];
     });
+    const st = ft.ftStateOf(tb);
+    const measured = { W: st.W, H: st.H, OX: st.OX, OY: st.OY };
+    const again = ft.ftMeasure(tb, true);
     return {
-      glyph, blue, edge,
+      glyph, blue, edge, measured, remeasuredOY: again.OY,
+      kind: tb.querySelector('.tb-h1') ? 'h1' : 'other',
+      zoom: window.currentZoom,
       handles: tb.querySelectorAll('.tfh-handle').length,
       topEdgeLen: hs.length === 4 ? +Math.hypot(hs[1][0] - hs[0][0], hs[1][1] - hs[0][1]).toFixed(1) : null,
       botEdgeLen: hs.length === 4 ? +Math.hypot(hs[2][0] - hs[3][0], hs[2][1] - hs[3][1]).toFixed(1) : null,
@@ -91,7 +97,7 @@ async function scene(page, corners) {
         right: +(edge.r - blue.r).toFixed(1), bottom: +(edge.b - blue.b).toFixed(1),
       } : null,
     };
-  }, corners);
+  }, [corners, kind, lineHeight]);
 }
 
 test('U0 ★전제 — ★장면이 선다(손잡이 12 · 파란 path 를 ★제 이름으로 찾았다)', async ({ page }) => {
@@ -151,4 +157,148 @@ test('U3h ★손잡이는 ★사다리꼴을 ★따라간다 ＋★음성대조(
   /* ★★음성대조 — ★축정렬이면 ★두 변이 ★같다. ⛔없으면 「손잡이가 ★늘 사다리꼴」과 구분이 안 된다 */
   expect(Math.abs(a.topEdgeLen - a.botEdgeLen),
     `★축정렬인데 두 변이 다르다 (${a.topEdgeLen} vs ${a.botEdgeLen}) — 자가 헛돈다`).toBeLessThan(1);
+});
+
+/* ★★146(t8-01 · 현빈 신고의 참 장면) — 제목(h1)에서 윗면이 밖이다(판 b267c6f2 줌 100 +5.2). ⛔U2 는 body 라 못 봤다.
+   ★줌 셋 = 현빈 실사용 40 ＋ 60·100 · 전제로 배율을 단언한다(시트 210). */
+for (const zoom of [40, 60, 100]) {
+  test(`U2h ★★h1 — 보라가 파란 안이다(줌 ${zoom} · 축정렬·사다리꼴)`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    await page.evaluate((z) => window.applyZoom(z), zoom);
+    await waitZoomSettled(page, zoom);
+    for (const [name, C] of [['axis', AXIS], ['trap', TRAP]]) {
+      const r = await scene(page, C, 'h1');
+      console.log(`[U2h:${zoom}:${name}]`, JSON.stringify({ out: r.purpleOutside, OY: r.measured.OY, edge: r.edge, blue: r.blue }));
+      expect(r.kind, '전제: 제목 블럭이 섰다').toBe('h1');
+      expect(r.zoom, '전제: 배율이 실제로 걸렸다').toBe(zoom);
+      expect(r.measured.OY, '전제: 이 장면은 «글꼴 상자가 줄 상자 위로 넘치는» h1 이다').toBeLessThan(0);
+      for (const k of ['top', 'left', 'right', 'bottom'])
+        expect(r.purpleOutside[k], `★${zoom}%·${name}: 보라 ${k} 가 파란 밖이다 (${r.purpleOutside[k]} 화면 px)`).toBeLessThan(0.5);
+    }
+  });
+}
+
+test('U2n ★음성대조 — 파란 윗변은 «걸린 h1» 에서만 오른다: 안 건 h1·body·✕ 뒤는 글상자 윗변 그대로', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await page.evaluate(async () => {
+    const ft = await import('/js/effects-freetransform.js');
+    const frames = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const gap = async (kind, on) => {
+      const canvas = document.getElementById('canvas');
+      canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+      await window.addSection();
+      const sec = [...canvas.querySelectorAll('.section-block')].pop();
+      window.getSelectedSection = () => sec; window._activeFrame = null;
+      await window.addTextBlock(kind);
+      const tb = [...sec.querySelectorAll('.text-block')].pop();
+      tb.id = 'u3n';
+      if (on) ft.setFxFreeTransform(tb, [[40, 0], [360, 0], [400, 140], [0, 140]], { history: false });
+      window.selectBlock?.(tb.id);
+      await frames();
+      const blueTop = () => document.querySelector('#ss-handles-overlay svg.ss-sel-layer path.ss-sel-path').getBoundingClientRect().top;
+      const out = { gap: blueTop() - tb.getBoundingClientRect().top };
+      if (on) { ft.setFxFreeTransform(tb, null, { history: false }); await frames(); out.afterX = blueTop() - tb.getBoundingClientRect().top; }
+      return out;
+    };
+    return { h1On: await gap('h1', true), h1Off: await gap('h1', false), bodyOn: await gap('body', true) };
+  });
+  console.log('[U2n]', JSON.stringify(r));
+  expect(r.h1On.gap, '★양성: 걸린 h1 은 파란 윗변이 글상자 위로 오른다').toBeLessThan(-2);
+  expect(Math.abs(r.h1On.afterX), '✕ 뒤엔 글상자 윗변으로 돌아온다').toBeLessThan(1.5);
+  expect(Math.abs(r.h1Off.gap), '안 건 h1 은 글상자 윗변 그대로').toBeLessThan(1.5);
+  expect(Math.abs(r.bodyOn.gap), '걸린 body(OY 양수) 는 글상자 윗변 그대로').toBeLessThan(1.5);
+});
+
+test('U2c ★뿌리 — h1 OY 음수는 줄간격이 만든다(캐시 아님): 다시 재도 같고 · 줄간격을 넓히면 양수', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const tight = await scene(page, TRAP, 'h1');
+  const loose = await scene(page, TRAP, 'h1', '1.6');
+  console.log('[U2c]', JSON.stringify({ tight: tight.measured, again: tight.remeasuredOY, loose: loose.measured }));
+  expect(Math.abs(tight.remeasuredOY - tight.measured.OY), '★force 로 다시 재면 달라진다 — 캐시가 뿌리다').toBeLessThan(0.01);
+  expect(tight.measured.OY).toBeLessThan(0);
+  expect(loose.measured.OY, '★줄간격 1.6 에서도 음수다 — 줄간격이 뿌리가 아니다').toBeGreaterThan(0);
+});
+
+/* ★★147(t8-02) — 자유변형 중 Enter: 보라·격자가 따라오나. ★두 값을 나란히(전·후) · 전제 단언 · 조건 대기(rAF 두 번). */
+async function enterScene(page, kind, zoom, touched) {
+  await page.evaluate((z) => window.applyZoom(z), zoom);
+  await waitZoomSettled(page, zoom);
+  await page.evaluate(async ([kind, touched, TRAP]) => {
+    for (const k of ['showToast']) if (typeof window[k] !== 'function') window[k] = () => {};
+    const ft = await import('/js/effects-freetransform.js');
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection();
+    const sec = [...canvas.querySelectorAll('.section-block')].pop();
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock(kind);
+    const tb = [...sec.querySelectorAll('.text-block')].pop();
+    tb.id = 'u4tb';
+    tb.querySelector('[contenteditable]').textContent = '첫 줄';
+    if (touched) ft.setFxFreeTransform(tb, TRAP, { history: false, touched: true });
+    else ft.resetFxFreeTransform(tb, { history: false });
+    window.selectBlock?.(tb.id);
+    tb.scrollIntoView({ block: 'center' });
+    window.__u4read = () => {
+      const R = (el) => { const q = el.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom }; };
+      const ce = tb.querySelector('[contenteditable]');
+      const rng = document.createRange(); rng.selectNodeContents(ce);
+      const st = ft.ftStateOf(tb);
+      return { edge: R(tb.querySelector('.tfh-edge')), grid: R(tb.querySelector('.tfh-grid')), glyph: R(rng), H: st.H, W: st.W, corners: tb.dataset.tfCorners, touched: st.touched, editing: tb.classList.contains('editing'), text: ce.innerText };
+    };
+  }, [kind, touched, TRAP]);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const box = await page.locator('#u4tb').boundingBox();
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForFunction(() => document.getElementById('u4tb').classList.contains('editing'));
+  await page.evaluate(() => { const sel = getSelection(); sel.selectAllChildren(document.querySelector('#u4tb [contenteditable]')); sel.collapseToEnd(); });
+}
+const read2 = async (page) => {
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return page.evaluate(() => window.__u4read());
+};
+
+for (const [kind, zoom] of [['body', 100], ['h1', 100], ['body', 40], ['h1', 40]]) {
+  test(`U4 ★★안 만진 글상자 Enter — 보라·격자가 새 줄을 덮는다(${kind} · 줌 ${zoom})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    await enterScene(page, kind, zoom, false);
+    const a = await read2(page);
+    expect(a.editing, '전제: 편집 중이다').toBe(true);
+    expect(a.touched, '전제: 안 만진 글상자다').toBe(false);
+    /* ★음성 — Enter 전엔 다시 읽어도 안 변한다 */
+    const a2 = await read2(page);
+    expect(Math.abs((a2.edge.b - a2.edge.t) - (a.edge.b - a.edge.t)), '★음성: Enter 를 안 눌렀는데 보라 높이가 변했다').toBeLessThan(0.1);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('둘째');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('셋째');
+    const b = await read2(page);
+    console.log(`[U4:${kind}:${zoom}]`, JSON.stringify({ H: [a.H, b.H], edgeB: [a.edge.b, b.edge.b], gridB: [a.grid.b, b.grid.b], glyphB: [a.glyph.b, b.glyph.b] }));
+    expect(b.text, '전제: 글이 이어 쳐졌다(caret 안 잃음)').toMatch(/첫 줄[\s\S]*둘째[\s\S]*셋째/);
+    /* ★핀 재현 없음 · 고침 1판의 결함 — Enter 뒤 W 가 블록 폭(796)으로 부풀었다. 이 글의 가장 긴 줄은 «첫 줄»이다 */
+    expect(Math.abs(b.W - a.W), `★상자 폭이 글자보다 부풀었다 (W ${a.W} → ${b.W})`).toBeLessThan(1);
+    expect(b.H, '★다시 안 쟀다 — H 그대로').toBeGreaterThan(a.H * 1.5);
+    for (const k of ['l', 't', 'r', 'b']) {
+      expect(Math.abs(b.edge[k] - b.glyph[k]), `★보라 ${k} 가 글자 상자와 어긋난다`).toBeLessThan(1.5);
+      expect(Math.abs(b.grid[k] - b.edge[k]), `★격자 ${k} 가 보라와 어긋난다`).toBeLessThan(0.1);
+    }
+  });
+}
+
+test('U4t ★음성대조 — 만진 사다리꼴은 Enter 에 네 점·잰 값을 안 건드린다(모양·글 결정은 현빈 몫 · dev 기본 동작)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  await enterScene(page, 'body', 100, true);
+  const a = await read2(page);
+  expect(a.touched, '전제: 만진 글상자다').toBe(true);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('둘째');
+  const b = await read2(page);
+  console.log('[U4t]', JSON.stringify({ H: [a.H, b.H], corners: [a.corners, b.corners] }));
+  expect(b.corners).toBe(a.corners);
+  expect(b.H).toBe(a.H);
 });
