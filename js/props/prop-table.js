@@ -704,16 +704,18 @@ ${blockHeaderHTML({
   const _applyMergeInput = (raw) => {
     const arr = _parseMergesStr(raw);
     if (arr === null) {
-      /* 꼴 틀린 입력 — 적용하지 않는다. 알림·원복은 아래 «범위 밖» 실패 길과 같은 꼴(콘솔 + 패널 재렌더 · 토스트 0). */
+      /* 꼴 틀린 입력 — 적용하지 않는다. 알림·원복은 아래 «범위 밖» 실패 길과 같은 꼴(토스트 + 패널 재렌더 · 238·276). */
       console.warn('[table-merge] 꼴 틀린 입력 — 적용 안 함(기존 병합 그대로):', JSON.stringify(String(raw ?? '')).slice(0, 80));
+      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 쓸 수 없어요 — 「시작:칸수」 꼴로 적어 주세요(예: 0:2) · 이전 값으로 되돌렸어요`);
       try { showTableProperties(block); } catch (_) {}
       return;
     }
     if (typeof window.updateTableBlock !== 'function') return;
     const res = window.updateTableBlock(block.id, { mergedHeaderCols: arr });
     if (res && res.ok === false) {
-      // 사용자에게 가볍게 알림 (콘솔만) + 패널 재렌더로 입력값 원복
+      // 사용자에게 알림(토스트 · 238·276) + 패널 재렌더로 입력값 원복
       console.warn('[table-merge] update failed:', res.code, res.message);
+      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 적용할 수 없어요(이 표는 ${_tblLogicalColCount(table)}열) · 이전 값으로 되돌렸어요`);
     }
     // 패널 재렌더 (입력값 정규형 반영)
     try { showTableProperties(block); } catch (_) {}
@@ -728,8 +730,12 @@ ${blockHeaderHTML({
   /* 컬럼 비율 */
   const ratioInput = document.getElementById('tbl-col-ratio');
   ratioInput?.addEventListener('change', e => {
+    const raw = String(e.target.value).trim();
+    const typed = raw.split(/[:,\s]+/).filter(Boolean).map(Number).join(':');
     _applyColRatio(block, e.target.value);
     e.target.value = block.dataset.colWidths || '';
+    /* ★239 — parseRatio 는 못 읽는 조각을 버리고 1 로 채운다(abc → 1:1 · -1:2 → 2:1). 칸만 바뀌고 말이 없었다 ⇒ 바꿨으면 말한다. 빈 칸은 균등으로 돌리는 뜻이라 말 없음. */
+    if (typed && typed !== e.target.value) window.showToast?.(`⚠️ 비율은 열 수만큼 0 보다 큰 숫자로 적어요 — 「${raw.slice(0, 20)}」 를 「${e.target.value}」 로 맞췄어요`);
     window.pushHistory();
     window.scheduleAutoSave?.();
   });
