@@ -15,7 +15,7 @@
  * ⛔고정 대기 없음 — waitForFunction 만. 하네스 = _root-harness.bootApp · 고르기·토글·끌기는 진짜 마우스.
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page, { ft = true } = {}) {
   await page.setViewportSize({ width: 1700, height: 1200 });
@@ -32,6 +32,7 @@ async function setup(page, { ft = true } = {}) {
     window.deselectAll?.();
     window.__tb.scrollIntoView({ block: 'center' });
   });
+  await waitZoomSettled(page, 40);   // 보간 중에 재면 옛 배율 자리를 누른다(7차 ×6 값)
   const mid = () => page.evaluate(() => { const r = window.__tb.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   let p = await mid(); await page.mouse.click(p[0], p[1]);
   await page.waitForFunction(() => window.__tb.classList.contains('selected') && !!document.getElementById('txt-overlay-toggle'));
