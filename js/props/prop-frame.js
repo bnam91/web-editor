@@ -314,11 +314,17 @@ function _convertFreeLayoutToStack(ss) {
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
 
 /* 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01 — 피그마 Remove auto layout: 자식이 지금 자리·크기 그대로 좌표로 고정된다. 이 프레임 한 층만, 옛 free 좌표는 안 되살린다.
-   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다) — 회전이 끼어 rect 를 못 믿으면 offset(정수).
+   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다).
    투명한 간격 블럭은 걷는다 — 흐름에서 자리를 벌리는 일만 하고, 좌표에선 할 일이 없으며 남기면 다시 stack 으로 갈 때 자식으로 세어진다.
    시험: tests/dom/frame-stack-to-free-296.dom.spec.js */
 function _convertStackToFree(ss) {
   window.pushHistory?.('free 로 전환 전');
+  /* 회전이 끼면 rect 가 회전 상자라 배율·폭·소수 자리를 못 믿는다(줄 폭 716→660 · 0.41px 튐) — 재는 동안만 이 프레임·조상·자식의 transform 을 풀고 끝에서 그대로 돌린다. 칠하기 전이라 화면엔 안 나온다. */
+  const flowKids = [...ss.children].filter(c => c.style.position !== 'absolute');
+  const bare = [...flowKids, ...flowKids.flatMap(c => c.classList.contains('row') ? [...c.children] : [])];
+  for (let e = ss; e && !e.classList.contains('section-block'); e = e.parentElement) bare.push(e);
+  const transforms = bare.map(e => [e, e.style.transform]);
+  bare.forEach(e => { e.style.transform = 'none'; });
   const fr = ss.getBoundingClientRect(), k = (fr.width / ss.offsetWidth) || 1;
   const offsetIn = (el) => {
     let x = 0, y = 0; for (let e = el; e && e !== ss; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
@@ -330,7 +336,8 @@ function _convertStackToFree(ss) {
   const spots = flow.filter(c => !isSpacer(c)).map(c => {
     const kids = c.classList.contains('row') ? [...c.children].filter(k => !k.classList.contains('drop-indicator')) : [];
     const [x, y] = offsetIn(c);
-    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width };
+    const grids = [c, ...kids].filter(g => g.classList.contains('grid-block')).map(g => [g, Math.round(parseFloat(getComputedStyle(g).width))]);
+    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width, grids };
   });
   const { width: frameW, height: frameH } = getComputedStyle(ss);   // 소수 그대로 — 반올림하면 아래 이웃이 1px 밀린다
   ss.dataset.freeLayout = 'true';
@@ -338,8 +345,9 @@ function _convertStackToFree(ss) {
   ss.dataset.width = String(Math.round(parseFloat(frameW))); ss.dataset.height = String(Math.round(parseFloat(frameH)));
   ss.style.width = frameW; ss.style.height = frameH; ss.style.minHeight = frameH;
   flow.filter(isSpacer).forEach(c => c.remove());
-  for (const { c, x, y, w } of spots) {
+  for (const { c, x, y, w, grids } of spots) {
     delete c.dataset.stackW;
+    grids.forEach(([g, gw]) => window.fitGridWidthToFreeFrame?.(g, ss, gw));   // 지금 폭을 키에 — 안 적으면 settleRowInFreeFrame 이 프레임의 80% 로 줄인다(716→573)
     c.style.alignSelf = ''; c.style.flexShrink = ''; c.style.margin = '0';
     if (!window.settleRowInFreeFrame?.(ss, c, 'inplace') && !/px$/.test(c.style.width)) c.style.width = w;   // 줄·패널 블럭의 폭은 그 문이 정한다
     c.style.position = 'absolute'; c.style.left = x + 'px'; c.style.top = y + 'px';
@@ -347,6 +355,7 @@ function _convertStackToFree(ss) {
     if (c.dataset.textFrame === 'true') c.dataset.width = String(Math.round(parseFloat(c.style.width)));
     if (c.hasAttribute('draggable')) c.setAttribute('draggable', 'false');
   }
+  transforms.forEach(([e, t]) => { e.style.transform = t; });
   window.pushHistory?.('free 로 전환');
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
