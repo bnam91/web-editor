@@ -15,7 +15,7 @@
  * ⛔고정 대기 없음 — waitForFunction 만. ⛔앱 무접촉(_root-harness.bootApp).
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 const C = [[152.91, 39.3], [387.25, -37.17], [392.4, 489.77], [67.93, 271.54]];
 /** P0·A0 전제의 바닥 — 글자칸 화면 상자 넓이 / .text-block 상자 넓이(까닭은 P0 주석) */
 const T706_RATIO_FLOOR = 1.3;
@@ -38,6 +38,7 @@ async function setup(page) {
     window.__tb.scrollIntoView({ block: 'center' });
   }, C);
   await page.waitForFunction(() => getComputedStyle(window.__tb.querySelector('[class^="tb-"]')).transform.startsWith('matrix3d'));
+  await waitStableRect(page, '.section-block .text-block');   // 부팅 배율 전환이 끝나기 전 좌표로 누르지 않는다
   return errs;
 }
 const boxes = (page) => page.evaluate(() => {
@@ -86,6 +87,7 @@ async function setupOrig(page) {
     document.getElementById('ab_ts0he_cvtvnr1').scrollIntoView({ block: 'center' });
   }, SEC_HTML);
   await page.waitForFunction(() => { const ce = document.querySelector('#tb_ts0he_qg5wypv [class^="tb-"]'); return !!ce && getComputedStyle(ce).transform.startsWith('matrix3d'); });
+  await waitStableRect(page, '#ab_ts0he_cvtvnr1');   // 부팅 배율 전환이 끝나기 전 좌표로 누르지 않는다
   return errs;
 }
 const owner = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); const r = e.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return h ? (h.closest('.text-block,.asset-block')?.id || h.id || h.className.toString().slice(0, 20)) : null; }, id);
