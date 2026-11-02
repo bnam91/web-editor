@@ -612,9 +612,11 @@ function addPage() {
   switchPage(id);
 }
 
-function deletePage(pageId) {
+let _pageDeleteBusy = false;   // ★await 중 ✕ 를 또 눌러도 한 번만 지운다
+async function deletePage(pageId) {
+  if (_pageDeleteBusy) return;
   if (state.pages.length <= 1) { window.showToast('⚠️ 페이지가 1개 이상이어야 합니다.'); return; }
-  const idx = state.pages.findIndex(p => p.id === pageId);
+  let idx = state.pages.findIndex(p => p.id === pageId);
   if (idx === -1) return;
   const page = state.pages[idx];
   // 파괴적 액션 가드 (Adobe/Figma 표준): 내용 있는 페이지 삭제는 되돌릴 수 없으므로 확인받는다.
@@ -624,6 +626,24 @@ function deletePage(pageId) {
   const canvasHtmlForCheck = isActivePage ? getSerializedCanvas() : (page && page.canvas) || '';
   const hasContent = canvasHtmlForCheck.includes('section-block');
   if (hasContent && !window.confirm(`'${(page && page.name) || '이 페이지'}'를 삭제하시겠습니까?\n페이지의 모든 내용이 영구 삭제되며 되돌릴 수 없습니다.`)) return;
+  /* ★PAGE-DELETE-SCRATCH-STAYS-ON-DELETED-PAGE-01 — 스크래치 층도 남을 페이지로 옮긴다(switchPage 와 같은 자리 · 같은 억제).
+     안 옮기면 층이 지운 페이지 키에 남아, 그 뒤 넣은 이미지가 지운 키로 저장돼 다시 열면 없다.
+     ★상태를 바꾸기 «전»에 기다린다 — 거부되는 곳은 떠나는 쪽 _saveScratch 뿐(_loadScratch 는 스스로 삼킨다)이라,
+       거부되면 층도 페이지도 그대로 두고 알린다(아무것도 안 잃는다). */
+  if (isActivePage) {
+    const target = state.pages[idx + 1] || state.pages[idx - 1];
+    const _scratchTok = window.AutoSaveSuppress.begin('page-delete-scratch');
+    _pageDeleteBusy = true;
+    try {
+      await window.switchScratchPage?.(target.id);
+    } catch (e) {
+      console.warn('[deletePage] 스크래치 저장 실패 — 삭제 취소:', e);
+      window.showToast('⚠️ 스크래치 저장에 실패해 페이지를 지우지 않았습니다.');
+      return;
+    } finally { _pageDeleteBusy = false; window.AutoSaveSuppress.end(_scratchTok); }
+    idx = state.pages.findIndex(p => p.id === pageId);   // 기다리는 사이 프로젝트가 바뀌었으면 그 페이지는 없다
+    if (idx === -1) return;
+  }
   const wasActive = pageId === state.currentPageId;
   state.pages.splice(idx, 1);
   // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지)
