@@ -32,7 +32,9 @@ function extractFn(src, name) {
   }
   return src.slice(m.index, i);
 }
-const DEL_SRC = extractFn(EDITOR_SRC, 'deleteSelectedFromCanvas');
+/* ★198 잘라 넣은 함수가 읽는 선택자 상수 둘도 소스에서 같이 뜬다 — 하네스가 editor.js 를 안 싣는다(그 갈래를 지나면 ReferenceError) */
+const SEL_DECLS = ['SECTION_BLOCK_TYPE_SEL', 'SECTION_BLOCK_TYPE_SEL_SELECTED'].map((n) => EDITOR_SRC.match(new RegExp(`^const ${n}\\b[\\s\\S]*?;\\r?$`, 'm'))[0]).join('\n');
+const DEL_SRC = `${SEL_DECLS}\n${extractFn(EDITOR_SRC, 'deleteSelectedFromCanvas')}`;
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-base.css">
@@ -105,6 +107,8 @@ async function runDelete(page) {
     const calls = { showToast: [] };
     window.showToast = (msg) => calls.showToast.push(msg);
     const scope = {
+      canvasEl: document.getElementById('canvas'),
+      _splReleaseSections: () => null,
       clearAssetImage: () => {},
       deselectAll: window.deselectAll,
       multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },
