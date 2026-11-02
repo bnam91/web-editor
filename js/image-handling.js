@@ -587,6 +587,8 @@ function loadImageToAsset(ab, file) {
   reader.onload = async ev => {
     const src = ev.target.result;
     const isGif = file.type === 'image/gif' || /^data:image\/gif[;,]/i.test(src);
+    /* data URL 을 DOM 에 넣으면 표본·저장 직렬화마다 그림 두 벌(src·dataset)이 실려 렌더러가 죽는다(BIG-IMAGE-INSERT-RENDERER-OOM-01). */
+    const toAsset = async (u) => (await window.grdAssetSrcOf?.(u))?.src || u;
     if (isGif) {
       // 애니메이션 GIF 직접 업로드 — 기본 표시는 정지 프레임(첫 프레임), 재생은 토글로.
       // 1차: export-image.js의 decodeGifFrames(ImageDecoder 기반, 있으면 정확).
@@ -603,11 +605,13 @@ function loadImageToAsset(ab, file) {
         try { stillSrc = await captureDetachedFirstFrame(src); }
         catch (err2) { console.warn('[gif] 정지 프레임 추출 실패(2차) — 원본을 그대로 사용', err2); }
       }
+      const [stillOut, motionOut] = [await toAsset(stillSrc), await toAsset(src)];
       hideAssetLoading(ab);
-      setAssetImageFromSrc(ab, stillSrc, src);
+      setAssetImageFromSrc(ab, stillOut, motionOut);
     } else {
+      const out = await toAsset(src);
       hideAssetLoading(ab);
-      setAssetImageFromSrc(ab, src);
+      setAssetImageFromSrc(ab, out);
     }
     /* ★[R3 · 2026-09-22] «끝 표본» — loadVideoToAsset 과 같은 병, 같은 고침.
        위 pushHistory() 는 FileReader 가 돌기 «전»에 찍히고 실제 반영은 여기(비동기)다.
