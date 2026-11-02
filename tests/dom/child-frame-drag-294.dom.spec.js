@@ -63,3 +63,21 @@ test('음성 — 부모를 빈 자리에서 끌면 HTML5 끌기가 그대로 시
   expect(await page.evaluate(() => window.__dragstarts), '부모 끌기').toContain(P);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+/* 검수 추정(놓을 때 draggable=true 로 돌아가 자식 끌기가 다시 깨진다)의 음성 — 고침 없이도 false 로 남아 통과한다(앱 trace: inner 갈래를 타고도 뗀 뒤 false). */
+test('음성 — 자식 안 글자를 누른 뒤에도 자식 끌기가 좌표 끌기로 산다(다시 연 판)', async ({ page }) => {
+  const { errs, P, B } = await scene(page);
+  await page.evaluate(async ([B]) => { const sec = document.querySelector('#canvas .section-block'); window.deselectAll(); window.selectSection(sec); window._activeFrame = document.getElementById(B); await window.addTextBlock('body'); window.deselectAll(); }, [B]);
+  await reopen(page); await raf(page); await page.evaluate((P) => document.getElementById(P).scrollIntoView({ block: 'center' }), P); await raf(page);
+  const p = await box(page, P); await page.mouse.click(p.l + 300, p.b - 10); await raf(page);
+  const a = await box(page, B); await page.mouse.click(a.r - 6, a.b - 6); await raf(page);
+  const t = await page.evaluate((B) => { const r = document.getElementById(B).querySelector('.text-block').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, B);
+  await page.mouse.click(t[0], t[1]); await raf(page);
+  expect(await page.evaluate((B) => document.getElementById(B).getAttribute('draggable'), B), '자식 draggable').toBe('false');
+  await page.mouse.click(p.l + 300, p.b - 10); await raf(page);
+  const [l0, t0] = await pos(page, B); await page.evaluate(() => { window.__dragstarts.length = 0; });
+  await drag(page, a.r - 6, a.b - 6, -40, 60);
+  const [l1, t1, par] = await pos(page, B);
+  expect(await page.evaluate(() => window.__dragstarts), 'HTML5 끌기 없음').toEqual([]);
+  expect(par).toBe(P); expect(l1, 'left 움직임').toBeLessThan(l0 - 10); expect(t1, 'top 움직임').toBeGreaterThan(t0 + 10);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
