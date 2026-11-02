@@ -289,7 +289,12 @@ function _geomOf(el, variant, scale, outset = false) {
              pts: [P(nw, q, q), P(ne, -q, q), P(se, -q, -q), P(sw_, q, -q)] };
   }
 
-  const raw = { l: nw.x, t: nw.y, r: se.x, b: se.y };
+  /* ★146(t8-01) — 자유변형 글상자는 보라(글꼴 상자 · OY 부터)가 줄 상자 위로 넘칠 수 있다: h1 줄간격 1.1 이면 글꼴 상자 124 > 줄 상자 114.4 ⇒ OY −5.
+     아래·오른쪽은 박스 하한(boxFromCorners)이 이미 감싼다 — 윗변만 안 감싸 파란 선 밖에 보였다(판 0541078b 화면 1.9·3.3·5.2px @ 줌 40·60·100).
+     ⇒ 파란 선 윗변만 그만큼 올린다 — ⛔글상자·저장본·배치는 그대로(선만 그린다). 재는 자 tests/dom/u3-purple-outline-geometry U2h·U2n. */
+  const ftTb = el.closest?.('.text-block[data-tf-corners]') || el.querySelector?.(':scope > .text-block[data-tf-corners]');
+  const ftUp = ftTb ? Math.min(window.ftStateOf?.(ftTb)?.OY || 0, 0) * scale : 0;
+  const raw = { l: nw.x, t: nw.y + ftUp, r: se.x, b: se.y };
   const k = _dpr();
   let L = (osOf('l') ? _snapLoOut : _snapLo)(raw.l, k, h),
       T = (osOf('t') ? _snapLoOut : _snapLo)(raw.t, k, h),
