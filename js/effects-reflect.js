@@ -190,7 +190,7 @@ function _reflectCardHtml(el, P) {
 
 function _wireReflectCard(el, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fx-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxReflect(el, { state: 'none' }); again(); });
+  $('fx-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxReflect(el, { state: 'none' }); window.pushHistory?.('효과 끔'); again(); });
   $('fx-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxReflectOf(el).state; setFxReflect(el, { state: cur === 'off' ? 'on' : 'off' }); again(); });
   $('fx-head')?.addEventListener('click', () => { const b = $('fx-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(el, 'reflect', open); $('fx-card')?.classList.toggle('expanded', open); });
   /* ★간격을 ★같은 고리에 넣었다(2026-10-07) — 옛 판은 `change` ★하나뿐이라

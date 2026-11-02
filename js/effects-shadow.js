@@ -164,7 +164,7 @@ function _shadowCardHtml(el, P) {
 
 function _wireShadowCard(el, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fxsh-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxShadow(el, { state: 'none' }); again(); });
+  $('fxsh-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxShadow(el, { state: 'none' }); window.pushHistory?.('효과 끔'); again(); });
   $('fxsh-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxShadowOf(el).state; setFxShadow(el, { state: cur === 'off' ? 'on' : 'off' }); again(); });
   $('fxsh-head')?.addEventListener('click', () => { const b = $('fxsh-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(el, 'shadow', open); $('fxsh-card')?.classList.toggle('expanded', open); });
   for (const key of ['x', 'y', 'blur', 'op']) {

@@ -83,7 +83,7 @@ function _blurCardHtml(el, P) {
 
 function _wireBlurCard(el, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  $('fxbl-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxBlur(el, { state: 'none' }); again(); });
+  $('fxbl-del')?.addEventListener('click', (e) => { e.stopPropagation(); setFxBlur(el, { state: 'none' }); window.pushHistory?.('효과 끔'); again(); });
   $('fxbl-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const cur = fxBlurOf(el).state; setFxBlur(el, { state: cur === 'off' ? 'on' : 'off' }); again(); });
   $('fxbl-head')?.addEventListener('click', () => { const b = $('fxbl-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(el, 'blur', open); $('fxbl-card')?.classList.toggle('expanded', open); });
   const sl = $('redact-slider'), n = $('redact-number');

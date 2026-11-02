@@ -43,10 +43,12 @@ test('U2 공용 길 updateGridBlock(앞 표본) — 날 변화 뒤 patchCell →
   expect(r.dPos, '앞+끝 = 두 칸').toBe(2);
 });
 
-test('R1 G15 ＋ 열 더하기(앞 표본만) — 날 변화 뒤 gridAddAtEnd → ⌘Z 가 날 변화 «뒤»에서 멈춘다(구제 한 번)', async ({ page }) => {
+/* ★앞 표본만이던 문이 끝 표본까지 찍는다(tests/dom/undo-entry-seam G) — Q 칸(updateGridBlock)과 같은 앞+끝 꼴로 잰다. */
+test('R1 G15 ＋ 열 더하기(앞+끝) — 날 변화 뒤 gridAddAtEnd → ⌘Z 가 날 변화 «뒤»에서 멈춘다', async ({ page }) => {
   await setup(page);
   await raw(page, 63);
-  await expectOneUndoStep(page, async () => { await page.evaluate(() => window.gridAddAtEnd(document.getElementById('pGrid'), 'col')); }, 'G15 ＋ 열', { beforeOnly: true });
+  const r = await expectOneUndoStep(page, async () => { await page.evaluate(() => window.gridAddAtEnd(document.getElementById('pGrid'), 'col')); }, 'G15 ＋ 열');
+  expect(r.dPos, '앞+끝 = 두 칸').toBe(2);
 });
 
 test('S1 G12 배경 여백 슬라이더(앞 표본만 · bindSlider mousedown) — 날 변화 뒤 끌기 → ⌘Z 가 날 변화 «뒤»에서 멈춘다', async ({ page }) => {

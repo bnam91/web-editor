@@ -4050,6 +4050,7 @@ function gridResizeTo(block, nCols, nRows) {
     else delete block.dataset.cells;
   }
   renderGridBlock(block);
+  window.pushHistory?.();   // 끝 표본(js/insert-history.js T-131 과 같은 이음매) — 없으면 다음 패널 편집의 ⌘Z 한 번이 칸 추가까지 같이 푼다
   window.scheduleAutoSave?.();
   return true;
 }
@@ -4177,6 +4178,7 @@ function gridCollapseToColumns(block) {
   block.dataset.rowRuleOn = _gridTrimRuleOn(block.dataset.rowRuleOn, 0);
 
   renderGridBlock(block);
+  window.pushHistory?.();   // 끝 표본 — gridResizeTo 와 같은 이음매·같은 처방
   window.scheduleAutoSave?.();
   return { ok: true, converted: { cols: C, rows: R }, notice, hint: notice.message };
 }
