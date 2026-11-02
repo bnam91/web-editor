@@ -2344,6 +2344,10 @@ function initApp() {
     // 이어지는 autosave가 그 DOM을 새 프로젝트 파일에 저장해 덮어쓴다(무결성 사고).
     // → 진입 시점 id를 캡처하고, await 이후의 모든 apply/initEmpty는 불일치 시 중단한다.
     const _bootProjectId = activeProjectId;
+    /* ★342 — 읽히기 전 캔버스는 비었다. 탭 전환이 빈 캐시를 남기고, 편집이 빈 화면을 파일로 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/342d).
+       읽히면 풀고, 못 읽었으면 쥔 채 둔다(_bootUnread) — 그 편집은 안 남지만 파일이 남는다(saveProjectToFile 머리말과 같은 판정). */
+    let _bootUnread = false;
+    if (_bootProjectId) window.holdTabFirstLoading?.(_bootProjectId);
     const _bootStale = () => {
       if (activeProjectId === _bootProjectId) return false;
       console.warn(`[initLoad] 부트 대상 변경 감지 (boot=${_bootProjectId} now=${activeProjectId}) — 늦은 apply 중단`);
@@ -2364,8 +2368,10 @@ function initApp() {
         window.initScratchPad?.(activeProjectId, state.currentPageId);
       } catch(e) {
         console.error('[initApp] applyProjectData 실패, initEmpty fallback:', e);
+        _bootUnread = true;
         initEmpty('apply-error');
       } finally {
+        if (!_bootUnread) window.releaseTabFirstLoading?.(_bootProjectId);
         _endLoadingOverlay();
         // ★확정 — 이 시점의 DOM 이 «그 프로젝트»다. 여기 전에 들어온 편집은 방금 교체돼 사라졌다.
         window.gdtProjectReady?.settle(_loadSeq, 'ready', _settleDetail || 'applied');
@@ -2376,6 +2382,7 @@ function initApp() {
       if (_bootStale()) return; // 다른 프로젝트가 이미 활성 — 그 상태를 빈 페이지로 리셋하면 안 됨
       state.pages = [{ id: 'page_1', name: 'Page 1', label: '', pageSettings: { ...state.pageSettings }, canvas: '' }];
       state.currentPageId = 'page_1';
+      if (!_bootUnread) window.releaseTabFirstLoading?.(_bootProjectId);
       window.buildLayerPanel();
       window.showPageProperties();
       // 빈 프로젝트/폴백도 «편집 가능»한 terminal 상태다 — 확정한다(무엇으로 닫혔는지는 detail 에).
@@ -2417,6 +2424,7 @@ function initApp() {
         let proj = null;
         try { proj = await loadProjectForOpen(activeProjectId); } catch(e) { // {open:true}: 열 때 외부화 정책 대상 · ★E170 복구 알림도 그 안
           console.error('[initLoad] loadProject 실패:', e);
+          _bootUnread = true;
         }
         const meta = await window.electronAPI.loadProjectMeta(activeProjectId).catch(() => null);
         // 시맨틱 컬러 변수 복원 (meta.colorVars → localStorage + :root). 비차단.
@@ -2504,6 +2512,7 @@ function initApp() {
               return;
             } catch (e) {
               console.error('[initLoad] v1 snapshot 파싱 실패, localStorage fallback:', e);
+              _bootUnread = true;
             }
           }
         }
