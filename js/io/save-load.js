@@ -245,6 +245,9 @@ function _lastSaveFailed(projectId) {
 
 async function saveProjectToFile(snapshot, opts = {}) {
   const _targetId = opts.projectId || activeProjectId;
+  /* ★361 — 안 읽힌 탭으로 나가는 저장은 쓰지 않는다: 그 스냅샷은 앞 프로젝트 내용이다(앱 실측 · ~/gd-lane/imac-gd-L1/361: 첫 로드 중 홈·종료 · 로드 실패 뒤 편집).
+     저장 대상 id 와 캔버스가 어긋나면 안 쓰는 쪽이 잃지 않는다. ⛔큐에서 나오는 저장은 통과 — 그 탭이 읽히기 전에 찍은 진짜 스냅샷이다(_fromQueue). */
+  if (!opts._fromQueue && window.isTabFirstLoading?.(_targetId)) return { ok: false, skipped: true, reason: 'tab-not-loaded' };
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
@@ -276,7 +279,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (_pendingSaves.size) {
       const [nextId, nextSave] = _pendingSaves.entries().next().value;
       _pendingSaves.delete(nextId);
-      await saveProjectToFile(nextSave.snapshot, nextSave.opts);
+      await saveProjectToFile(nextSave.snapshot, { ...nextSave.opts, _fromQueue: true });
     }
   }
   return _result; // GAP-005: 저장 결과 전파(인디케이터 정직성)
@@ -511,7 +514,7 @@ window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
 async function goHome() {
   const curTab = openTabs.find(t => t.id === activeProjectId);
-  if (curTab) curTab._cache = serializeProject();
+  if (curTab && !window.isTabFirstLoading?.(activeProjectId)) curTab._cache = serializeProject();
   // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
   // (section-serialize.js — 원본을 영구저장하는 쪽보다 안전하다는 게 결정 사항). 막지는
   // 않되, 사라진다는 사실은 알려준다 — 토스트가 실제로 보이도록 이동을 살짝 늦춘다.
@@ -1996,6 +1999,12 @@ function scheduleAutoSave() {
       _setAutosaveIndicator('saved');
       return;
     }
+    // ★361 — 안 읽힌 탭(로드 실패 뒤)의 편집은 안 쓴다(saveProjectToFile 머리말 · 여기선 localStorage 도 안 쓴다). «저장됨»이라고 말하지 않는다.
+    if (window.isTabFirstLoading?.(_saveTargetId)) {
+      window.showToast?.('⚠️ 이 프로젝트를 읽지 못해 저장하지 않았습니다 — 탭을 다시 열어 주세요.');
+      _setAutosaveIndicator('error');
+      return;
+    }
     const snap = serializeProject();
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
@@ -2044,6 +2053,7 @@ window.addEventListener('beforeunload', () => {
      ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
      ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
   if (!_hasOwnUnsaved() && !_lastSaveFailed(activeProjectId)) return;
+  if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -2132,6 +2142,7 @@ if (IS_ELECTRON) {
     let snap = null;
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
       snap = serializeProject();
@@ -2678,6 +2689,7 @@ window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-l
 // 즉시 저장 (디바운스 없이 flush) — commit-system.js 저장하기 버튼 전용
 // saveProjectToFile 경로를 우회하고 IPC를 직접 호출해 _isSavingToFile 락 문제 방지
 window.flushSave = async function() {
+  if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
