@@ -20,7 +20,8 @@ const scene = (page, kinds, host) => page.evaluate(async ({ kinds, host, FR }) =
   return { ids, free: F.id, stack: S?.id || null };
 }, { kinds, host, FR });
 const center = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
-async function dragTo(page, from, to) { await page.mouse.move(from[0], from[1]); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(from[0] + (to[0] - from[0]) * i / 12, from[1] + (to[1] - from[1]) * i / 12); await raf(page); } await page.mouse.up(); await raf(page); }
+const STEPS = 12;
+async function dragTo(page, from, to) { await page.mouse.move(from[0], from[1]); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(from[0] + (to[0] - from[0]) * i / STEPS, from[1] + (to[1] - from[1]) * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 async function dropOnFree(page, s, id) {
   const fromStack = s.stack && await page.evaluate(([a, b]) => document.getElementById(a).contains(document.getElementById(b)), [s.stack, id]);
   if (fromStack) { const r = await page.evaluate((a) => { const b = document.getElementById(a).getBoundingClientRect(); return [b.left + 6, b.top + 6]; }, s.stack); await page.mouse.click(r[0], r[1]); await raf(page); }
