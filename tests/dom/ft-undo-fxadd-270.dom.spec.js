@@ -74,7 +74,7 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
     const hs = vars.result.find((v) => v.name === 'historyStack'); const hp = vars.result.find((v) => v.name === 'historyPos');
     if (!hs?.value?.objectId) continue;
     const r = await cdp.send('Runtime.callFunctionOn', { objectId: hs.value.objectId, returnByValue: true, arguments: [{ value: hp.value.value }, { value: id }],
-      functionDeclaration: `function (pos, id) { const e = this[pos];   /* push-before = 켤 때 칸이 «꼭대기» 다(첫 판은 pos-1 = 텍스트 추가 칸을 읽어 고치기 전 판에서도 초록 · 시험 흠) */ const c = e && typeof e.canvas === 'string' ? e.canvas : '';
+      functionDeclaration: `function (pos, id) { if (this[pos] && this[pos].action !== '효과 켬') return { pos, has: false, action: this[pos] && this[pos].action }; const e = this[pos - 1];   /* 꼭대기 = 켠 뒤 끝 표본(효과 켬 · js/effects-registry.js) ⇒ ⌘Z 한 번이 내릴 칸은 그 앞 칸(옛 판은 끝 표본이 없어 꼭대기였다) */ const c = e && typeof e.canvas === 'string' ? e.canvas : '';
         const k = c.indexOf('id="' + id + '"'); if (k < 0) return { pos, has: false, action: e && e.action };
         const s = c.lastIndexOf('<', k); const tbTag = c.slice(s, c.indexOf('>', k) + 1);
         const re = /<div[^>]*class="[^"]*tb-body[^"]*"[^>]*>/g; re.lastIndex = k; const m = re.exec(c);   /* 고정 창 ⛔(fixed-window-census W1) — 그 글상자 id 뒤 첫 .tb-body 를 구조로 */
@@ -84,9 +84,32 @@ test('U2 ★⑵ 칸 바이트 — 켤 때 push-before 칸의 글칸에 박은 �
   expect(slot, '전제: historyStack 을 못 찾았다').toBeTruthy();
   expect(slot.has, `전제: 켤 때 칸에 그 글상자가 없다(${JSON.stringify(slot)})`).toBe(true);
   /* ⛔꼭대기 action 을 «효과» 로 걸지 않는다 — 고친 판에선 재기 «앞» push 가 꼭대기와 같아 무변화 차단에 먹혀 칸이 안 생기고, ⌘Z 가 내릴 칸은
-     그 앞 칸(텍스트 추가)이다(u-fix1 · 둘째 흠). 단언 대상 = «⌘Z 한 번이 내릴 칸» = 꼭대기(pos) — 이름과 무관하게 그 바이트. */
+     그 앞 칸(텍스트 추가)이다(u-fix1 · 둘째 흠). 단언 대상 = «⌘Z 한 번이 내릴 칸» = 끝 표본 바로 앞(pos-1) — 그 칸 이름과 무관하게 그 바이트. 끝 표본이 꼭대기인지는 위 함수가 먼저 본다. */
   expect(slot.tbTag, '전제: 켤 때 칸에 벌써 효과 키가 있다(push-before 가 아니다)').not.toMatch(/data-tf-corners/);
   expect(slot.bodyTag, '전제: 칸에서 .tb-body 를 못 찾았다').toBeTruthy();
   expect(slot.bodyTag, `★켤 때 칸의 글칸에 박은 폭이 찍혔다 — ${slot.bodyTag}`).not.toMatch(/width\s*:/);
   expect(errs, `앱 오류: ${errs.join(' | ')}`).toEqual([]);
 });
+
+/* 효과 켜기(push-before) → 패널 크기(push-after) 이음매 — 끝 표본이 없으면 ⌘Z 한 번이 켜기까지 같이 푼다(js/effects-registry.js wireFxSection). */
+for (const fx of ['freetransform', 'glow']) {
+  test(`U3 ★${fx} 켜기 → 패널 크기 → ⌘Z 한 번 = 크기만 되돌린다 · 한 번 더 = 켜기 전`, async ({ page }) => {
+    const errs = await setup(page);
+    const key = () => page.evaluate(() => { const tb = document.getElementById(window.__tbId); return { fs: parseFloat(getComputedStyle(tb.querySelector('.tb-body') || tb.querySelector('[contenteditable]')).fontSize), keys: Object.keys(tb.dataset).sort().join() }; });
+    const k0 = await key();
+    await page.selectOption('#txt-fx-add', fx);
+    await page.waitForFunction((k) => Object.keys(document.getElementById(window.__tbId).dataset).sort().join() !== k, k0.keys);
+    const k1 = await key();
+    await page.click('#txt-size-number', { clickCount: 3 });
+    await page.keyboard.type(String(Math.round(k1.fs * 2)));
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((f) => { const tb = document.getElementById(window.__tbId); return parseFloat(getComputedStyle(tb.querySelector('.tb-body') || tb.querySelector('[contenteditable]')).fontSize) > f + 1; }, k1.fs);
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Meta+z');
+    await page.waitForFunction((f) => { const tb = document.getElementById(window.__tbId); return tb && Math.abs(parseFloat(getComputedStyle(tb.querySelector('.tb-body') || tb.querySelector('[contenteditable]')).fontSize) - f) < 0.2; }, k1.fs);
+    expect((await key()).keys, '★⌘Z 한 번에 효과 켜기까지 풀렸다').toBe(k1.keys);
+    await page.keyboard.press('Meta+z');
+    await page.waitForFunction((k) => { const tb = document.getElementById(window.__tbId); return tb && Object.keys(tb.dataset).sort().join() === k; }, k0.keys);
+    expect(errs, `앱 오류: ${errs.join(' | ')}`).toEqual([]);
+  });
+}
