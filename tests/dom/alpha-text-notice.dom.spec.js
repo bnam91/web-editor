@@ -15,10 +15,8 @@ async function boot(page, add, cls) {
   await page.evaluate(async ({ add, cls }) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     await window.addSection(); const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec); await window[add]();
-    window.__b = sec.querySelector('.' + cls); window.__b.scrollIntoView({ block: 'center' });
+    window.__b = sec.querySelector('.' + cls); window.selectBlock(window.__b.id);
   }, { add, cls });
-  const r = await page.evaluate(() => { const x = window.__b.getBoundingClientRect(); return [x.left + x.width / 2, x.top + x.height / 2]; });
-  await page.mouse.click(r[0], r[1]);
   return errs;
 }
 

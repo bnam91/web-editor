@@ -12,8 +12,7 @@ async function setup(page) {
     await window.addSection(); const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec); await window.addGridBlock();
     window.__id = sec.querySelector('.grid-block').id;
   });
-  const r = await page.evaluate(() => { const b = document.getElementById(window.__id); b.scrollIntoView({ block: 'center' }); const x = b.getBoundingClientRect(); return [x.left + x.width / 2, x.top + x.height / 2]; });
-  await page.mouse.click(r[0], r[1]);
+  await page.evaluate(() => window.selectBlock(window.__id));
   await expect(page.locator('#grd-col-ratio'), '[전제] 비율 칸이 보인다').toBeVisible();
   await put(page, '3:1');
   await expect.poll(() => ratio(page), { message: '[전제] 있던 비율' }).toBe('3:1');
