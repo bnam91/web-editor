@@ -340,6 +340,18 @@ function bindSectionDropZone(sec) {
   const inner = sec.querySelector('.section-inner');
   // rAF throttle: getBoundingClientRect()를 dragover 매 이벤트마다 호출하지 않도록 (DBG-11)
   let _innerDragRafId = null;
+  const _placeIndicator = (clientX, clientY) => {
+    clearDropIndicators();
+    /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
+    if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
+    const after = getDragAfterElement(inner, clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    // ★기준 노드의 «실제 부모»에 넣는다(상자 안이면 상자 안). inner 로만 넣으면
+    //   insertBefore 가 NotFoundError 로 죽거나 블록이 상자 밖으로 튀어나온다.
+    if (after && after.parentElement) after.parentElement.insertBefore(indicator, after);
+    else inner.appendChild(indicator);
+  };
   inner.addEventListener('dragover', e => {
     if (!dragState.dragSrc) return;
     e.preventDefault();
@@ -349,16 +361,7 @@ function bindSectionDropZone(sec) {
     _innerDragRafId = requestAnimationFrame(() => {
       _innerDragRafId = null;
       if (!dragState.dragSrc) return;
-      clearDropIndicators();
-      /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
-      if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
-      const after = getDragAfterElement(inner, clientY);
-      const indicator = document.createElement('div');
-      indicator.className = 'drop-indicator';
-      // ★기준 노드의 «실제 부모»에 넣는다(상자 안이면 상자 안). inner 로만 넣으면
-      //   insertBefore 가 NotFoundError 로 죽거나 블록이 상자 밖으로 튀어나온다.
-      if (after && after.parentElement) after.parentElement.insertBefore(indicator, after);
-      else inner.appendChild(indicator);
+      _placeIndicator(clientX, clientY);
     });
   });
   inner.addEventListener('dragleave', e => {
@@ -371,6 +374,8 @@ function bindSectionDropZone(sec) {
     e.preventDefault();
     if (_innerDragRafId) { cancelAnimationFrame(_innerDragRafId); _innerDragRafId = null; }
     if (!dragState.dragSrc) return;
+    /* 177 — 표시선은 rAF 로 늦게 따라온다. 낡은 자리에 넣지 않게 «놓은 좌표»로 다시 잡는다. */
+    _placeIndicator(e.clientX, e.clientY);
     /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
     if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
     /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
