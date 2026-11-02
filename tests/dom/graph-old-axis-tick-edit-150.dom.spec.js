@@ -10,6 +10,8 @@
  *   O1 옛 눈금 더블클릭(진짜 마우스) ⇒ 그 눈금 편집(contenteditable) · 새 꼴로 다시 그려짐(data-grb-tick 생김)
  *   O2 편집 확정(글자 바꿈 + Enter) ⇒ dataset.axisTickText 에 그 눈금 키로 실림
  *   N1 (지키는 칸) 옛 눈금 «밖»(그래프 몸통) 더블클릭 ⇒ 눈금 편집 0 · 옛 꼴 그대로(다시 그리지 않음 — 바이트 무변)
+ *   O3 (157) 옛 눈금 더블클릭 → Esc ⇒ 새 꼴로 이주가 남고 이력 한 칸 · ⌘Z 로 옛 꼴 저장 바이트 그대로 돌아온다
+ *      ⚠️«Esc 에도 이주가 남는다»는 지금 값을 잠근 것이다 — 취소면 되돌릴지는 시트 157 의 설계 물음이다. 답이 바뀌면 이 칸을 바꿔라.
  * ⛔고정 대기 0 — 조건 대기만.
  */
 const { test, expect } = require('@playwright/test');
@@ -36,13 +38,14 @@ async function setup(page) {
 const S = (page, id) => page.evaluate((id) => { const g = document.getElementById(id); const t = [...g.querySelectorAll('.grb-ov-tick')];
   return { n: t.length, newMarkup: g.querySelectorAll('.grb-ov-tick[data-grb-tick]').length, ce: g.querySelector('.grb-ov-tick[contenteditable="true"]')?.textContent.trim() ?? null, editing: g.classList.contains('editing'), ov: g.dataset.axisTickText ?? null }; }, id);
 /* 눈금 자리가 «멈춘» 뒤에 잰다 — 스크롤·배치가 끝나기 전에 재면 누르는 순간 눈금이 딴 데 있다(실측: 세 판 좌표가 셋 다 달랐다) */
-const tickPt = (page, id, i) => page.evaluate(([id, i]) => new Promise((res) => {
+const SETTLE_MAX_FRAMES = 120;   // 자리 멈춤을 기다릴 프레임 상한(px 아님 — 이름 상수: dom-screen-px-census 의 3줄 창이 루프 경계를 «화면 px 문턱» 으로 읽지 않게)
+const tickPt = (page, id, i) => page.evaluate(([id, i, max]) => new Promise((res) => {
   let last = null, same = 0, n = 0;
   const tick = () => { const e = document.getElementById(id).querySelectorAll('.grb-ov-tick')[i]; const r = e.getBoundingClientRect(); const k = Math.round(r.left) + ',' + Math.round(r.top);
     same = k === last ? same + 1 : 0; last = k; n++;
-    if (same >= 5 || n > 120) res({ x: r.left + r.width / 2, y: r.top + r.height / 2, text: e.textContent.trim(), stable: same >= 5 }); else requestAnimationFrame(tick); };
+    if (same >= 5 || n > max) res({ x: r.left + r.width / 2, y: r.top + r.height / 2, text: e.textContent.trim(), stable: same >= 5 }); else requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
-}), [id, i]);
+}), [id, i, SETTLE_MAX_FRAMES]);
 
 test('P·O1·O2 ★옛 꼴 눈금 더블클릭 ⇒ 편집 · 확정 저장', async ({ page }) => {
   const { errs, id } = await setup(page);
@@ -73,5 +76,31 @@ test('N1 옛 눈금 «밖» 더블클릭 ⇒ 눈금 편집 0 · 옛 꼴 그대�
   await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
   const s = await S(page, id);
   expect({ ce: s.ce, newMarkup: s.newMarkup }, 'N1').toEqual({ ce: null, newMarkup: 0 });
+  expect(errs).toEqual([]);
+});
+
+test('O3 (157) 옛 눈금 Esc ⇒ 이주 남음 · 이력 한 칸 · ⌘Z 로 옛 꼴 바이트', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const g = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + 20, y: r.top + 20 }; }, id);
+  await page.mouse.click(g.x, g.y);
+  await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), id, { timeout: 3000 });
+  /* 이력 꼭대기를 옛 꼴로 맞춘다 — setup 이 눈금을 손으로 옛 꼴로 되돌렸다(저장본에서 연 것과 같은 출발) */
+  await page.evaluate(() => window.pushHistory?.('전제'));
+  /* 그 블럭의 저장 꼴만 잰다(앱 실측과 같은 자) — 캔버스 전체는 복원 때 그 밖의 것도 움직일 수 있다 */
+  const saved = (id) => { const t = document.createElement('template'); t.innerHTML = window.getSerializedCanvas(); return t.content.getElementById(id).outerHTML; };
+  const b0 = await page.evaluate(`({ bytes: (${saved})(${JSON.stringify(id)}), hist: window.historyStack.length })`);
+  const p = await tickPt(page, id, 1);
+  expect(p.stable, '전제: 눈금 자리가 멈췄다').toBe(true);
+  await page.mouse.dblclick(p.x, p.y);
+  await page.waitForFunction((id) => !!document.getElementById(id).querySelector('.grb-ov-tick[contenteditable="true"]'), id, { timeout: 3000 });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction((id) => !document.getElementById(id).classList.contains('editing'), id, { timeout: 3000 });
+  const b1 = await page.evaluate(`({ bytes: (${saved})(${JSON.stringify(id)}), hist: window.historyStack.length })`);
+  const s1 = await S(page, id);
+  expect({ moved: b1.bytes !== b0.bytes, newMarkup: s1.newMarkup, added: b1.hist - b0.hist }, 'O3 이주 남음 · 이력 한 칸').toEqual({ moved: true, newMarkup: s1.n, added: 1 });
+  await page.keyboard.press('Meta+z');
+  await page.waitForFunction((id) => document.getElementById(id)?.querySelectorAll('.grb-ov-tick[data-grb-tick]').length === 0, id, { timeout: 5000 });
+  const b2 = await page.evaluate(`(${saved})(${JSON.stringify(id)})`);
+  expect(b2 === b0.bytes, `O3 ⌘Z 뒤 저장 바이트 (${b0.bytes.length} → ${b2.length})`).toBe(true);
   expect(errs).toEqual([]);
 });

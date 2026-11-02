@@ -808,7 +808,7 @@ function bindGraphEdits(block) {
 }
 /* K8⒤ — 카테고리 라벨 캔버스 직접 편집(더블클릭). 저장 자리 = dataset.items[i].label 한 곳(패널 .grb-data-label-input 과 같은 키).
  *   라벨은 렌더마다 새로 만들어진다 ⇒ 블럭에 «위임» 한 번만 건다(요소 속성이라 복제·로드된 블럭은 bindBlock 이 bindGraphEdits 로 새로 건다 · t4-17).
- *   ⌘Z 한 번: 들어갈 때 ensureHistoryCheckpoint · 확정 뒤 pushHistory. Esc · 빈 글자 · 같은 글자 = 무변(다시 그려 원래 글자로).
+ *   ⌘Z 한 번: 들어갈 때 ensureHistoryCheckpoint · 확정 뒤 pushHistory. Esc · 빈 글자 · 같은 글자 = 무변(다시 안 그리고 그 요소만 되돌린다 · ★149).
  *   편집 중엔 block.editing — 공통 mousedown 드래그·삭제키 가드가 본다(그리드 줄 편집과 같은 꼴). */
 /* 카테고리 라벨 «셋»(막대·비교 .grb-bar-label · 가로 .grb-bar-h-desc · 꺾은선 .grb-line-xlabel) — 항목마다 정확히 하나(숨김이어도 display:none 으로 있다)
    ⇒ 블럭 안 순서 = items 순서. 색인을 DOM 속성으로 안 박는다 — 렌더 바이트가 핀(graph-vpair 골든 · GR-W0 기준판)과 같게(회귀 실측: data-grb-idx 가 5 빨강). */
@@ -854,8 +854,21 @@ function _bindGraphLabelEdit(block) {
     _graphLabelBeginEdit(block, el, [...block.querySelectorAll(kind)].indexOf(el));
   });
 }
+/* ★149 — 바뀐 것 없이 빠지면(Esc·같은 글자·빈 글자) 다시 그리지 않고 편집한 그 요소만 되돌린다.
+ *   왜: 저장본 꼴 ≠ 렌더러 꼴이면 다시 그리기가 저장 바이트를 움직인다(취소했는데 파일이 바뀐다).
+ *   편집 위임은 블럭에 걸려 있어(bindGraphEdits) 안 다시 그려도 그대로 산다. 편집에 들어가기 «전»에 불러라. */
+function _grbEditRestorer(el) {
+  const html = el.innerHTML, ce = el.getAttribute('contenteditable'), dg = el.getAttribute('draggable');
+  return () => {
+    el.innerHTML = html;
+    if (ce == null) el.removeAttribute('contenteditable'); else el.setAttribute('contenteditable', ce);
+    if (dg == null) el.removeAttribute('draggable'); else el.setAttribute('draggable', dg);
+    el.blur();
+  };
+}
 function _graphLabelBeginEdit(block, el, idx) {
   window.ensureHistoryCheckpoint?.('그래프 라벨 편집 전');
+  const restoreEl = _grbEditRestorer(el);
   block.classList.add('editing');
   el.setAttribute('contenteditable', 'true');   // ⒥⒝ — 세움(parkEditing)은 'true' 만 «살아 있는 편집»으로 본다(_text-selection _parkedAlive). 확정은 textContent 라 서식이 안 남는다
   el.setAttribute('draggable', 'false');
@@ -877,11 +890,10 @@ function _graphLabelBeginEdit(block, el, idx) {
     const items = JSON.parse(block.dataset.items || '[]');
     const changed = commit && val && items[idx] && val !== items[idx].label;
     if (changed) { items[idx].label = val; block.dataset.items = JSON.stringify(items); }
-    renderGraph(block);   // 확정이든 취소든 라벨을 dataset 에서 다시 그린다(편집 흔적 0)
-    if (changed) {
-      window.pushHistory?.('그래프 라벨'); window.scheduleAutoSave?.();
-      if (!keepPanel && block.classList.contains('selected')) window.showGraphProperties?.(block);
-    }
+    if (!changed) { restoreEl(); return; }
+    renderGraph(block);
+    window.pushHistory?.('그래프 라벨'); window.scheduleAutoSave?.();
+    if (!keepPanel && block.classList.contains('selected')) window.showGraphProperties?.(block);
   };
   const onKey = (ev) => {
     if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중 Enter 는 조합 확정이다
@@ -910,6 +922,7 @@ function _graphLabelBeginEdit(block, el, idx) {
 function _graphVLabelBeginEdit(block, el, idx) {
   if (idx < 0) return;
   window.ensureHistoryCheckpoint?.('그래프 값 라벨 편집 전');
+  const restoreEl = _grbEditRestorer(el);
   block.classList.add('editing');
   el.setAttribute('contenteditable', 'true');
   el.focus();
@@ -930,7 +943,7 @@ function _graphVLabelBeginEdit(block, el, idx) {
       const next = auto ? '' : Array.from(val).slice(0, window.GRAPH_LIMITS.VLABEL_TEXT_MAX).join('');
       if (next !== prev) { if (next) it.vText = next; else delete it.vText; changed = true; block.dataset.items = JSON.stringify(items); }
     }
-    renderGraph(block);
+    if (changed) renderGraph(block); else restoreEl();   // ★149
     grbVLabelPick(block, idx);
     if (changed) {
       window.pushHistory?.('그래프 값 라벨'); window.scheduleAutoSave?.();
@@ -1061,6 +1074,7 @@ function _graphAxisTickBeginEdit(block, el) {
   const key = el.dataset.grbTick;
   if (key == null) return;
   window.ensureHistoryCheckpoint?.('그래프 축 값 편집 전');
+  const restoreEl = _grbEditRestorer(el);
   block.classList.add('editing');
   el.setAttribute('contenteditable', 'true');
   el.setAttribute('draggable', 'false');
@@ -1083,8 +1097,9 @@ function _graphAxisTickBeginEdit(block, el) {
     if (changed) {
       if (Object.keys(ov).length) block.dataset.axisTickText = JSON.stringify(ov); else delete block.dataset.axisTickText;
     }
-    renderGraph(block);   // 확정이든 취소든 눈금을 dataset 에서 다시 그린다(편집 흔적 0)
-    if (changed) { window.pushHistory?.('그래프 축 값'); window.scheduleAutoSave?.(); }
+    if (!changed) { restoreEl(); return; }   // ★149
+    renderGraph(block);
+    window.pushHistory?.('그래프 축 값'); window.scheduleAutoSave?.();
   };
   const onKey = (ev) => {
     if (ev.isComposing || ev.keyCode === 229) return;
