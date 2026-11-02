@@ -5,8 +5,8 @@
  * 칸: B1 로드 중 탭 갔다 돌아옴 — 돌아온 B 가 파일에서 읽혀 씨앗 있음 · 편집 저장에 씨앗 · B2 로드 중 편집 — B 저장 0 · 읽힌 뒤 씨앗
  *     B3 로드 실패 뒤 편집 — B 저장 0 · «저장됨» 아님 · B4 [음성] 로드 끝난 뒤 편집 — 저장에 씨앗과 편집 · B5 실패 뒤 탭 갔다 돌아와 읽히면 편집 저장
  *     B6 [음성] 파일 없는 프로젝트(null) — 편집이 저장된다(쥐지 않는다) · B7 실패 + localStorage 사본 — 사본을 파일로 안 쓴다 · B8 [음성] 로드 중 홈 — B 저장 0(빈 캔버스 보호)
- * 변이: holdTabFirstLoading 을 빈 손으로 하면 B1·B2·B3·B5·B7 빨강 · 실패 때 쥔 채 두는 표식을 빼면 B3·B7 빨강 · B4·B6·B8 은 늘 초록.
- * ★처음 실행 기록: 회신 ~/srvty-relay/reply/imac-gd-L1-J342A-* 에 값. */
+ * 변이: holdTabFirstLoading 을 빈 손으로 하면 B1·B2·B3·B5·B7 빨강 · 실패 때 쥔 채 두는 표식을 빼면 B3·B5·B7 빨강 · B4·B6·B8 은 늘 초록.
+ * ★처음 실행 기록(2026-11-03 · 아이맥): ×3 24/24 · 변이 hold 5빨강 3초록 · 변이 unread 3빨강 5초록. 값 ~/srvty-relay/reply/imac-gd-L1-J342A-*. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, ORIGIN } = require('./_root-harness.js');
 const [A, B] = ['proj_342a', 'proj_342b'];

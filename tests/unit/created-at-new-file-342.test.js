@@ -16,7 +16,6 @@ const SRC = readSrc(REPO, 'main.js');
 const body = sliceBlock(SRC, 'function _guardProjectName(', '_guardProjectName 을 못 찾았다');
 const guard = vm.runInNewContext(`(${body})`, { fs, console, Date });
 const dir = mkTmpRoot('gd342-');
-test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 const prevFile = (name, obj) => { const f = path.join(dir, name); fs.writeFileSync(f, JSON.stringify(obj)); return f; };
 
 test('새 파일 — createdAt 을 찍는다', () => {
