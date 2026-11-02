@@ -221,3 +221,82 @@ test('U2c ★뿌리 — h1 OY 음수는 줄간격이 만든다(캐시 아님): �
   expect(tight.measured.OY).toBeLessThan(0);
   expect(loose.measured.OY, '★줄간격 1.6 에서도 음수다 — 줄간격이 뿌리가 아니다').toBeGreaterThan(0);
 });
+
+/* ★★147(t8-02) — 자유변형 중 Enter: 보라·격자가 따라오나. ★두 값을 나란히(전·후) · 전제 단언 · 조건 대기(rAF 두 번). */
+async function enterScene(page, kind, zoom, touched) {
+  await page.evaluate((z) => window.applyZoom(z), zoom);
+  await waitZoomSettled(page, zoom);
+  await page.evaluate(async ([kind, touched, TRAP]) => {
+    for (const k of ['showToast']) if (typeof window[k] !== 'function') window[k] = () => {};
+    const ft = await import('/js/effects-freetransform.js');
+    const canvas = document.getElementById('canvas');
+    canvas.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection();
+    const sec = [...canvas.querySelectorAll('.section-block')].pop();
+    window.getSelectedSection = () => sec; window._activeFrame = null;
+    await window.addTextBlock(kind);
+    const tb = [...sec.querySelectorAll('.text-block')].pop();
+    tb.id = 'u4tb';
+    tb.querySelector('[contenteditable]').textContent = '첫 줄';
+    if (touched) ft.setFxFreeTransform(tb, TRAP, { history: false, touched: true });
+    else ft.resetFxFreeTransform(tb, { history: false });
+    window.selectBlock?.(tb.id);
+    tb.scrollIntoView({ block: 'center' });
+    window.__u4read = () => {
+      const R = (el) => { const q = el.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom }; };
+      const ce = tb.querySelector('[contenteditable]');
+      const rng = document.createRange(); rng.selectNodeContents(ce);
+      const st = ft.ftStateOf(tb);
+      return { edge: R(tb.querySelector('.tfh-edge')), grid: R(tb.querySelector('.tfh-grid')), glyph: R(rng), H: st.H, W: st.W, corners: tb.dataset.tfCorners, touched: st.touched, editing: tb.classList.contains('editing'), text: ce.innerText };
+    };
+  }, [kind, touched, TRAP]);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const box = await page.locator('#u4tb').boundingBox();
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForFunction(() => document.getElementById('u4tb').classList.contains('editing'));
+  await page.keyboard.press('End');
+}
+const read2 = async (page) => {
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return page.evaluate(() => window.__u4read());
+};
+
+for (const [kind, zoom] of [['body', 100], ['h1', 100], ['body', 40], ['h1', 40]]) {
+  test(`U4 ★★안 만진 글상자 Enter — 보라·격자가 새 줄을 덮는다(${kind} · 줌 ${zoom})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    await enterScene(page, kind, zoom, false);
+    const a = await read2(page);
+    expect(a.editing, '전제: 편집 중이다').toBe(true);
+    expect(a.touched, '전제: 안 만진 글상자다').toBe(false);
+    /* ★음성 — Enter 전엔 다시 읽어도 안 변한다 */
+    const a2 = await read2(page);
+    expect(Math.abs((a2.edge.b - a2.edge.t) - (a.edge.b - a.edge.t)), '★음성: Enter 를 안 눌렀는데 보라 높이가 변했다').toBeLessThan(0.1);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('둘째');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('셋째');
+    const b = await read2(page);
+    console.log(`[U4:${kind}:${zoom}]`, JSON.stringify({ H: [a.H, b.H], edgeB: [a.edge.b, b.edge.b], gridB: [a.grid.b, b.grid.b], glyphB: [a.glyph.b, b.glyph.b] }));
+    expect(b.text, '전제: 글이 이어 쳐졌다(caret 안 잃음)').toContain('셋째');
+    expect(b.H, '★다시 안 쟀다 — H 그대로').toBeGreaterThan(a.H * 1.5);
+    for (const k of ['l', 't', 'r', 'b']) {
+      expect(Math.abs(b.edge[k] - b.glyph[k]), `★보라 ${k} 가 글자 상자와 어긋난다`).toBeLessThan(1.5);
+      expect(Math.abs(b.grid[k] - b.edge[k]), `★격자 ${k} 가 보라와 어긋난다`).toBeLessThan(0.1);
+    }
+  });
+}
+
+test('U4t ★음성대조 — 만진 사다리꼴은 Enter 에 네 점·잰 값을 안 건드린다(모양·글 결정은 현빈 몫 · dev 기본 동작)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  await enterScene(page, 'body', 100, true);
+  const a = await read2(page);
+  expect(a.touched, '전제: 만진 글상자다').toBe(true);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('둘째');
+  const b = await read2(page);
+  console.log('[U4t]', JSON.stringify({ H: [a.H, b.H], corners: [a.corners, b.corners] }));
+  expect(b.corners).toBe(a.corners);
+  expect(b.H).toBe(a.H);
+});

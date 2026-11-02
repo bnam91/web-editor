@@ -625,6 +625,17 @@ registerFxType({
   watchAll: watchAllFxFreeTransform,
 });
 
+/* ★147(t8-02) — 글을 치면(Enter 포함) 보라·격자가 따라온다. ★뿌리: 글 입력 길이 아무 데도 안 다시 잰다(ftHandlesSync 는 캐시 W·H 로 그린다 · 시트 ⒝).
+   ⇒ 안 만진 글상자만 그리기 문 하나(applyFxFreeTransform — 다시 재고 · 바탕 네모 맞추고 · 손잡이·테두리·격자)를 부른다.
+   ⛔만진 사다리꼴(touched)은 안 건드린다 — 「모양을 지키나 글을 지키나」는 현빈 결정이다(시안 브랜치 l5/j146a-sian). 재는 자 tests/dom/u3-purple-outline-geometry U4. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', (e) => {
+    const tb = e.target?.closest?.('.text-block[data-tf-corners]');
+    const st = tb && _tfState.get(tb);
+    if (st && !st.touched) applyFxFreeTransform(tb);
+  });
+}
+
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     ftCornersOf, ftStateOf, ftMeasure,
