@@ -41,6 +41,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert';
+import { margin, WHAT_NOW } from './_margin.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -158,12 +159,14 @@ test('R1 ★서명 닻이 ★늘지 않았다 (기준 51 · 파일 18 · 2026-10
   console.log(`  R1 ★지금 — 서명 ${c.sig}건 · 파일 ${c.files}개 · 이름 ${c.name} · 선택자 ${c.sel}`
     + ` · 조건식 ${c.cond} · 리터럴 ${c.lit} · 변수닻 ${c.var}(★못 가른다) · ★빈 파일 ${c.fileEmpty}건 · ★거르개가 먹은 파일 ${c.stripperAte}건`
     + (c.emptyList ? ` ${c.emptyList.join(' ')}` : ''));
+  margin('anchor R1 서명', c.sig, BASELINE.sig);
+  margin('anchor R1 파일', c.files, BASELINE.files);
   assert.ok(c.sig <= BASELINE.sig,
     `★서명 닻이 ${c.sig}건 — 기준 ${BASELINE.sig} 를 넘었다. ★새 검사가 «매개변수가 든 서명»을 닻으로 썼다.\n`
     + `  ⇒ ★처방: 닻에서 ★매개변수 목록을 ★빼라(예: 'const f = (' · 'function f(').\n`
     + `  ⇒ ★까닭: 누가 ★인자 하나만 더해도 ★그 검사가 ★조용히 눈이 먼다(2026-10-07 실측).`);
   assert.ok(c.files <= BASELINE.files,
-    `★서명 닻을 쓰는 파일이 ${c.files}개 — 기준 ${BASELINE.files} 를 넘었다:\n  ${c.sigList.join('\n  ')}`);
+    `★서명 닻을 쓰는 파일이 ${c.files}개 — 기준 ${BASELINE.files} 를 넘었다:\n  ${c.sigList.join('\n  ')}${WHAT_NOW}`);
   /* ★★줄었으면 ★기준을 내려라 — ★그게 래칫이다(⛔느슨히 두면 다시 늘 수 있다) */
   if (c.sig < BASELINE.sig)
     console.log(`  R1 ⚠️★${c.sig} 로 ★줄었다(기준 ${BASELINE.sig}) ⇒ ★★BASELINE.sig 를 ${c.sig} 로 내려라`);
@@ -220,6 +223,8 @@ test('R4 ★네 칸 합이 ★리터럴 총수와 같다 (등급 이동으로 �
   const c = census();
   assert.strictEqual(c.sig + c.name + c.sel + c.cond, c.lit,
     `★등급 합 ${c.sig + c.name + c.sel + c.cond} ≠ 리터럴 ${c.lit} — ★분류기에 ★새 칸이 생겼다`);
+  margin('anchor R4 리터럴(바닥)', c.lit, BASELINE.lit, 'floor');
+  margin('anchor R4 변수', c.var, BASELINE.var, 'equal');
   assert.ok(c.lit >= BASELINE.lit,
     `★리터럴 닻이 ${c.lit} < 기준 ${BASELINE.lit} — ★줄었으면 ★기준을 내려라(⛔자르개가 안 세어지는 중일 수도)`);
   assert.strictEqual(c.var, BASELINE.var,

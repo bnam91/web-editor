@@ -28,6 +28,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 const { stripComments } = createRequire(import.meta.url)('./_strip-comments.js');
+import { margin, WHAT_NOW } from './_margin.js';
 /* ★★임시 루트의 ★임자 = ★`tests/unit/_tmproot.js` · ★잠그는 자 = ★`tmproot-sole-owner.test.mjs`.
  * ⛔★처음 나는 ★여기서 ★`mkdtempSync`＋`rmSync` 를 ★손으로 썼다 ⇒ ★★그 자의 ★T2·T4·T5 가 ★★즉시 ★빨개졌다
  *   ⇒ ★★★내가 ★세운 ★명부가 ★★내 새 파일을 ★★몇 분 만에 ★잡았다. ★★그게 ★자가 ★사는 ★꼴이다 */
@@ -316,15 +317,17 @@ test('W3 ★★★«늘지 않는다» — ★곳 수·합 ms 가 ★늘면 ★�
       + ` · ★합ms ${BASE_MS} → ${c.ms} (★틈 ${slackMs})`);
     console.log('      ⇒ ★★기준선을 ★내리면 ★그 틈만큼 ★★다시 ★자라는 것을 ★막는다(⛔FAIL 은 ★아니다)');
   }
+  margin('dom-fixed-wait W3 곳', c.sites, BASE_SITES);
+  margin('dom-fixed-wait W3 합ms', c.ms, BASE_MS);
   assert.ok(c.sites <= BASE_SITES,
     `★★고정 대기가 ★늘었다: ★${BASE_SITES} → ★★${c.sites} (★＋${c.sites - BASE_SITES}곳)\n`
     + `  ★이 기준선의 ★장부: ★판 ${BASE_AT} · ★식 ${BASE_HOW}\n`
     + '  ⇒ ★★`waitForFunction`/`expect.poll`/`waitStableRect` 로 ★써라(★레포 관용구)\n'
-    + '  ⇒ ⛔수를 ★키우는 것(250 → 1000)은 ★답이 ★아니다 — ★더 느린 판에서 ★또 ★깨진다');
+    + '  ⇒ ⛔수를 ★키우는 것(250 → 1000)은 ★답이 ★아니다 — ★더 느린 판에서 ★또 ★깨진다' + WHAT_NOW);
   assert.ok(c.ms <= BASE_MS,
     `★★합 ms 가 ★늘었다: ★${BASE_MS} → ★${c.ms} (★＋${c.ms - BASE_MS}ms)\n`
     + `  ★이 기준선의 ★장부: ★판 ${BASE_AT} · ★식 ${BASE_HOW}\n`
-    + '  ⇒ ★★«곳 수»가 같아도 ★★한 곳의 ★수를 ★키우면 ★여기서 ★걸린다(★그게 ★이 칸이 ★따로 있는 ★까닭)');
+    + '  ⇒ ★★«곳 수»가 같아도 ★★한 곳의 ★수를 ★키우면 ★여기서 ★걸린다(★그게 ★이 칸이 ★따로 있는 ★까닭)' + WHAT_NOW);
 });
 
 test('W4 ★★★명부는 ★«이름»이다 — ★명부 ⊇ 실측 ＋ ★명부 밖 0 (⛔등호로 닫지 않는다 · 지디 ⒦)', () => {
@@ -376,11 +379,12 @@ test('W6 ★★★«변수·식꼴» 고정 대기 — ★늘면 ★빨강 · �
     console.log(`    ★★★«변수꼴이 ★줄었다»(★좋다) — ${BASE_VAR} → ${c.varSites} (★틈 ${slack})`);
     console.log('      ⇒ ★★기준선을 ★내리면 ★그 틈만큼 ★다시 ★자라는 것을 ★막는다(⛔FAIL 은 ★아니다)');
   }
+  margin('dom-fixed-wait W6 변수곳', c.varSites, BASE_VAR);
   assert.ok(c.varSites <= BASE_VAR,
     `★★변수·식꼴 ★고정 대기가 ★늘었다: ★${BASE_VAR} → ★★${c.varSites} (★＋${c.varSites - BASE_VAR}곳)\n`
     + `  ★잰 자리: ${JSON.stringify(c.varBy)}\n`
     + '  ⇒ ★★`' + 'waitFor' + 'Timeout(<변수>)` 는 ★★ms 가 ★딴 데 살아 ★★이 자가 ★합을 ★못 낸다\n'
-    + '  ⇒ ★★조건 대기(`waitForFunction`·`expect.poll`·`waitStableRect`)로 ★써라');
+    + '  ⇒ ★★조건 대기(`waitForFunction`·`expect.poll`·`waitStableRect`)로 ★써라' + WHAT_NOW);
   /* ⒞ ★★명부는 ★이름으로 — ★명부 ⊇ 실측 ＋ ★명부 밖 ★0 (⛔등호로 ★닫지 ★않는다) */
   const outside = Object.keys(c.varBy).filter((f) => !(f in VAR_BARE)).sort();
   assert.deepEqual(outside, [],
@@ -489,7 +493,8 @@ test('H2 ★231 공용 하네스의 고정 대기가 «늘지 않는다» · 줄
     else if (n.lit < b.lit || n.var < b.var) shrank.push(`${f} 숫자 ${b.lit}→${n.lit} · 변수 ${b.var}→${n.var}`);
   }
   assert.deepEqual(grew, [], '★공용 하네스에 고정 대기가 늘었다 — 그 하네스를 쓰는 spec 전부가 그 대기를 쓴다(조건 대기로)');
-  assert.ok(h.ms <= HARNESS_BASE_MS, `★공용 하네스 숫자꼴 합 ms 가 늘었다: ${HARNESS_BASE_MS} → ${h.ms}`);
+  margin('dom-fixed-wait H2 하네스ms', h.ms, HARNESS_BASE_MS);
+  assert.ok(h.ms <= HARNESS_BASE_MS, `★공용 하네스 숫자꼴 합 ms 가 늘었다: ${HARNESS_BASE_MS} → ${h.ms}${WHAT_NOW}`);
   assert.deepEqual(shrank, [], '줄었다 — 고맙다 · HARNESS_BASE 를 그 수로 줄여라(⛔썩은 면제)');
 });
 test('H3 ★231 면제의 조건이 아직 참인가 — 면제 파일의 숫자꼴 대기는 전부 «폴링 고리(break) 안» · 한 쌍', () => {

@@ -25,6 +25,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { margin } from './_margin.js';
 import fs from 'fs';
 import { createRequire } from 'module';
 import os from 'os';
@@ -115,12 +116,14 @@ test('T0-a ★정렬 버튼 총량이 «146 아래로 안 내려간다» (리터
 });
 
 test('T0-b ★alignBtn 호출 수가 래칫과 «정확히» 같다', () => {
+  margin('align-btn T0-b 호출', callCount, RATCHET.calls, 'equal');
   assert.equal(callCount, RATCHET.calls,
     `alignBtn( 호출이 ${callCount}개인데 RATCHET.calls 는 ${RATCHET.calls}다. ` +
     `버튼을 옮겼으면 «같은 커밋에서» 래칫을 올려라. 옮긴 걸 되돌렸다면 래칫을 내려라.`);
 });
 
 test('T0-c ★MIGRATED 파일 수가 래칫과 «정확히» 같다 (import 탐지가 살아 있다)', () => {
+  margin('align-btn T0-c 파일', MIGRATED.size, RATCHET.files, 'equal');
   assert.equal(MIGRATED.size, RATCHET.files,
     `MIGRATED = ${[...MIGRATED].join(', ') || '(비었다)'} — ${MIGRATED.size}개인데 ` +
     `RATCHET.files 는 ${RATCHET.files}다. ★비어 있다면 IMPORT_ALIGNBTN 정규식이 부서진 것이고, ` +

@@ -13,6 +13,7 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const LT = require('./_longtask.js');
+const { margin } = require('../unit/_margin.js');
 
 const SEC_N = 300, SEC_K = 20;
 /* ★명부 — 두 수를 나란히(지디 261028) · ⛔둘을 섞어 견주지 마라
@@ -90,6 +91,7 @@ test('L1·L2·L3 ★행 거터 누름·끄는 5 걸음·놓음 — 단계별 lon
   console.log('[L] ' + JSON.stringify({ info, floor: LT.LT_FLOOR_MS, base: LT_BASE, lt }));
   expect(rowsChanged, '[전제] 끄는 동안 행 높이(dataset.rows)가 바뀌었다').toBe(true);
   for (const k of ['down', 'move', 'up']) {
+    margin(`longtask-207 ${k} 개수`, lt[k].n, LT_BASE[k]);
     expect(lt[k].n, `★${k} longtask(≥${LT.LT_FLOOR_MS}ms) ${lt[k].n} 개 — 명부 ${LT_BASE[k]} 를 넘었다 (${lt[k].ms})`).toBeLessThanOrEqual(LT_BASE[k]);
     if (lt[k].n < LT_BASE[k]) console.log(`[래칫] ⚠️${k} ${lt[k].n} 로 줄었다(명부 ${LT_BASE[k]}) ⇒ LT_BASE.${k} 를 ${lt[k].n} 로 내려라`);
   }

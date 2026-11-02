@@ -28,6 +28,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-cell-panel-handles
  */
 const { test, expect } = require('@playwright/test');
+const { margin } = require('../unit/_margin.js');
 const fs = require('fs');
 const path = require('path');
 /* ⛔주석 거르개는 «공용 하나»만 쓴다 — 이 레포엔 같은 것이 11벌 있었고 9벌이 부서져 있었다.
@@ -1530,6 +1531,7 @@ test('G2 ★델타 — 순증·줄바 밀림·가로 잘림·색칸 폭이 기�
     `     컨트롤 ${g.controlN} → ${now.controlN}`].join('\n');
 
   // ⑴ 순증 — 설계 합격선 Δ ≤ +60px.
+  margin('grid-cell-panel G2 순증px', d('scrollHeight'), 60);
   expect(d('scrollHeight'), `★패널 순증이 ${d('scrollHeight')}px 다 (합격선 +60).\n${report}`).toBeLessThanOrEqual(60);
   /* ⛔Δ<0 은 「좋다」가 아니다 — 절이 «하나 안 뜬» 것일 수 있다. 무엇이 빠졌는지 먼저 세라. */
   expect(d('scrollHeight') < 0 ? `줄었다(${d('scrollHeight')}px) · 컨트롤 ${g.controlN}→${now.controlN}` : '',
