@@ -2975,6 +2975,253 @@ function _bindFrameOwnDrag(ss) {
   });
 }
 
+/* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). bindFrameDropZone 은 absolute 면 이걸 안 묶고 돌아가므로, absolute 로 묶인 자식이 스택 변환으로 흐름이 되면 드롭 자리가 없어
+   놓은 곳이 바깥 프레임으로 샜다(S3 B-5 · 다시 열면 됐다) ⇒ 변환 자리에서 이것만 따로 부른다(prop-frame.js). ⛔bindFrameDropZone 을 다시 부르지 마라 — 클릭 리스너가 겹친다. 시험: tests/dom/stack-convert-drop.dom.spec.js */
+function _bindFrameFlowDrop(ss) {
+  if (ss.dataset.textFrame === 'true' || ss._flowDropBound) return;
+  ss._flowDropBound = true;
+  const isShapeFrame = () => _isShapeFrameEl(ss);
+  const inner = ss;
+  let _rafId = null;
+
+  const _placeIndicator = (clientX, clientY) => {
+    clearDropIndicators();
+    /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
+    if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
+    const after = getDragAfterElement(inner, clientY);
+    const indicator = document.createElement('div');
+    indicator.className = 'drop-indicator';
+    if (after) inner.insertBefore(indicator, after);
+    else inner.appendChild(indicator);
+  };
+
+  // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
+  inner.addEventListener('dragover', e => {
+    if (!dragState.dragSrc) return;
+    if (isShapeFrame()) return; // shape frame은 외부 블록 수신 차단
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (_rafId) return;
+    const clientY = e.clientY, clientX = e.clientX;
+    _rafId = requestAnimationFrame(() => {
+      _rafId = null;
+      if (!dragState.dragSrc) return;
+      clearDropIndicators();
+      ss.classList.add('ss-drag-over');
+      _placeIndicator(clientX, clientY);
+    });
+  });
+
+  inner.addEventListener('dragleave', e => {
+    if (!inner.contains(e.relatedTarget)) {
+      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+      ss.classList.remove('ss-drag-over');
+      clearDropIndicators();
+    }
+  });
+
+  inner.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+    ss.classList.remove('ss-drag-over');
+    if (!dragState.dragSrc) return;
+    if (isShapeFrame()) return; // shape frame drop 차단
+    /* 177 과 같은 꼴 — 표시선은 rAF 로 늦게 따라온다. 낡은 자리에 넣지 않게 «놓은 좌표»로 다시 잡는다. */
+    _placeIndicator(e.clientX, e.clientY);
+    /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
+    if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
+    /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
+    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
+    window.pushHistory();
+    const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
+    /* ★수지③(2026-10-08 · 지디 GO) — 「들어온 것」을 «정체»로 가린다: 넣기 «전» 프레임 자식의 참조 집합(클래스·표시 아님).
+       아래 자유배치 끝 루프(「DOM 순서 변경 후 …」)가 이 집합 «밖»의 absolute 자식만 가운데·기존 바닥+16 아래로 옮기고, 이미 있던 자식은 손대지 않는다.
+       수지 원문: 「기존에 프레임블럭 안에 있던 블럭들의 위치가 바뀌게 된다. 자유배치 모드인데 왜, 오브젝트 블럭이 들어옮에 따라 위치가 영향을 받는가」
+       ⚠️전원 재적층은 09-05 결정이 «아니다» — 그 재적층(left:'0px' 하드코딩 포함)은 2026-04-11 분리(d62d9875) 때 이미 있었고,
+         09-05(ee4a59e1)는 left 를 0 → 가운데로 바꾸기만 했다. (b) 인용의 주어는 「외부에서 들고 넣을 때」의 그것이다.
+       ⛔이 설명을 아래 루프 주석으로 옮기지 마라 — tests/unit/frame-textcenter ④-e 가 그 주석부터 «1400자 창»을 읽는다(넘치면 빨강 · 2026-10-08 실측). */
+    const _kidsBeforeDrop = new Set(inner.children);
+
+    // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
+    const isFreeLayout = ss.dataset.freeLayout === 'true';
+    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
+    const SS_W = 860; // 캔버스 기준 너비
+
+    if (!isFreeLayout) {
+      // ── flow 프레임(fullWidth/stack/일반): row/블록을 flow 레이아웃 그대로 유지 (absolute 변환 금지) ──
+      const indicator = inner.querySelector('.drop-indicator');
+      if (dragState.dragSrc.classList.contains('row')) {
+        // row 통째로 재배치
+        if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
+        else inner.appendChild(dragState.dragSrc);
+      } else if (dragState.dragSrc.matches?.(BLOCK_SEL)) {
+        // 단일 블록: row로 감싸서 삽입
+        const existingRow = dragState.dragSrc.closest('.row');
+        if (existingRow && existingRow.parentElement === inner) {
+          // 이미 inner 안의 row → row째로 재배치
+          if (indicator) inner.insertBefore(existingRow, indicator);
+          else inner.appendChild(existingRow);
+        } else {
+          if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
+          else inner.appendChild(dragState.dragSrc);
+        }
+      } else if (dragState.dragSrc.classList.contains('frame-block')) {
+        // 프레임 블록(text-frame, 카드 등): flow 위치만 이동, 배치 변환 없음
+        if (!dragState.dragSrc.contains(inner)) {
+          if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
+          else inner.appendChild(dragState.dragSrc);
+        }
+      }
+    } else {
+      // ── 고정 크기 프레임(shape frame 아닌 것): 기존 absolute 방식 ──
+      // 블록을 absolute로 전환하는 헬퍼
+      const makeAbsolute = (block, left, top) => {
+        const _mp = framePadding(inner);   // F5: 안쪽 여백
+        /* ★F3(2026-10-03) — 그리드는 폭을 «모델»로 받는다. 아래 style.width px 는 다음 renderGridBlock 이 100% 로 되돌려
+           프레임 폭(764)이 되거나, 섹션 폭(860)이 그대로 들어와 프레임보다 넓었다 → T-088 클램프 x 범위 [0,0].
+           규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳. 모델이 폭을 주면 style.width 가 px 라 아래 줄은 안 탄다. */
+        window.fitGridWidthToFreeFrame?.(block, inner);
+        const w = block.offsetWidth || Math.round(SS_W * 0.5);
+        block.style.position = 'absolute';
+        block.style.left = (left + _mp.l) + 'px';
+        block.style.top  = top  + 'px';
+        if (!block.style.width || block.style.width === '100%') {
+          block.style.width = Math.min(w, SS_W - _mp.l - _mp.r) + 'px';
+        }
+        block.setAttribute('draggable', 'false');
+      };
+
+      // row 또는 text-frame이 드롭된 경우
+      if (dragState.dragSrc.classList.contains('row') || (dragState.dragSrc.classList.contains('frame-block') && dragState.dragSrc.dataset.textFrame === 'true')) {
+        if (dragState.dragSrc.dataset.textFrame === 'true') {
+          // text-frame: wrapper를 유지하고 text-frame 자체를 absolute로 전환
+          // (text-block을 꺼내면 orphan이 되므로 금지)
+          const existingAbsEls = [...inner.children].filter(b => b.style.position === 'absolute');
+          const nextY = existingAbsEls.reduce((maxY, b) => {
+            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+            return Math.max(maxY, by);
+          }, 0);
+          dragState.dragSrc.style.position = 'absolute';
+          dragState.dragSrc.style.left     = framePadding(inner).l + 'px';   // F5
+          dragState.dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
+          // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
+          // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
+          dragState.dragSrc.removeAttribute('draggable');
+          dragState.dragSrc._dragBound = false; // 재바인딩 허용 플래그
+          inner.appendChild(dragState.dragSrc);
+          // width: asset/icon makeAbsolute와 동일하게 콘텐츠 폭으로 클램프(전폭 '100%' 비일관 제거).
+          // append 후 측정해야 정확. 명시 px가 이미 있으면 보존(클램프 헬퍼 내부에서 정렬·측정 처리).
+          if (window._clampTextFrameWidth) {
+            if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '' || dragState.dragSrc.style.width === '100%') {
+              window._clampTextFrameWidth(dragState.dragSrc, inner);
+            }
+          } else if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '') {
+            dragState.dragSrc.style.width = innerFullWidth(inner);
+          }
+          // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
+          const _tb = dragState.dragSrc.querySelector('.text-block');
+          if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
+        } else {
+        // row: 블록 추출 후 absolute 전환, wrapper 제거
+        const blocks = [...dragState.dragSrc.querySelectorAll(BLOCK_SEL)];
+        const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
+        let nextY = existingBlocks.reduce((maxY, b) => {
+          const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+          return Math.max(maxY, by);
+        }, 0);
+        if (nextY > 0) nextY += 16;
+        blocks.forEach(block => {
+          makeAbsolute(block, 0, nextY);
+          inner.appendChild(block);
+          nextY += (block.offsetHeight || 60) + 16;
+        });
+        dragState.dragSrc.remove();
+        }
+      } else {
+        // dragSrc가 inner의 조상인 경우 삽입 금지 (HierarchyRequestError 방지)
+        if (dragState.dragSrc.contains(inner)) { clearDropIndicators(); return; }
+        const indicator = inner.querySelector('.drop-indicator');
+        if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
+        else inner.appendChild(dragState.dragSrc);
+        /* ★프레임을 자유배치 프레임에 떨구면 «좌표를 못 받던» 자리 (현빈 2026-09-28 보고).
+           BLOCK_SEL 에는 .frame-block 이 «없다». 그래서 프레임만 makeAbsolute 를 안 타고
+           흐름 자식으로 남았고, 두 가지가 같이 깨졌다 —
+             ⓐ style.position/left/top 이 통째로 없어 드래그로 옮길 자리가 없다.
+             ⓑ 아래 «술어 밖 루프»는 absolute 인 자식만 top 을 다시 매기는데, 흐름 자식은
+                앞선 absolute 형제가 흐름을 차지하지 않아 «자기도 y=0» 에서 그려진다.
+                ⇒ 먼저 놓인 블록과 정확히 포개지고, 프레임 배경이 불투명이면 그 블록을 덮는다.
+                (실측 2026-09-28: grd_ts0he_t961d3f 가 흰 프레임 ss_ts0he_z74j7lm 에 덮여
+                 「편집할 때만 보이고 포커스를 풀면 사라지는」 것으로 보였다.)
+           ⛔BLOCK_SEL 상수에 넣지 «않는다» — 그 상수는 querySelectorAll 로도 쓰여서
+             row 추출 경로가 «중첩된 프레임까지» 통째로 긁어낸다. 판정에만 더한다. */
+        const _isFrameDrop = dragState.dragSrc.classList.contains('frame-block');
+        if ((dragState.dragSrc.matches?.(BLOCK_SEL) || _isFrameDrop) && dragState.dragSrc.style.position !== 'absolute') {
+          const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)].filter(b => b !== dragState.dragSrc);
+          const nextY = existingBlocks.reduce((maxY, b) => {
+            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
+            return Math.max(maxY, by);
+          }, 0);
+          makeAbsolute(dragState.dragSrc, 0, nextY > 0 ? nextY + 16 : 0);
+          /* ★makeAbsolute 가 draggable="false" 를 남긴다 — 그대로 두면 다음 드래그에서
+             .dragging 이 고착해 연회색이 된다(js/CLAUDE.md 「draggable 잔류 버그」, text-frame
+             경로가 이미 같은 처방을 쓴다). 프레임도 «대칭»으로 걷고 재바인딩을 연다. */
+          if (_isFrameDrop) {
+            dragState.dragSrc.removeAttribute('draggable');
+            dragState.dragSrc._dragBound = false;
+          }
+        }
+      }
+
+      // ★수지③ — 들어온 것/이미 있던 것 가르기(_kidsBeforeDrop 선언 주석). 넣기가 다 끝난 «뒤»라 여기서 센다.
+      const _incoming = [...inner.children].filter(b => !_kidsBeforeDrop.has(b) && !b.classList.contains('drop-indicator') && b.style.position === 'absolute');
+      const _stayBottom = [...inner.children].filter(b => _kidsBeforeDrop.has(b) && b.style.position === 'absolute')
+        .reduce((m, b) => Math.max(m, (parseInt(b.style.top, 10) || 0) + (b.offsetHeight || 0)), 0);
+      /* DOM 순서 변경 후 absolute 블록의 top 재계산 + ★가로 중앙 배치.
+         ★(b) 「외부에서 들고 넣을 때는 좌표만 중앙값에 위치시켜주면 된다.
+              중앙값이란 프레임블럭의 «보여지는 가로너비»를 기준」 (현빈 2026-09-05).
+           - «가로만» 중앙이다. 세로는 이 루프의 기존 스택을 그대로 둔다 — 지시가 「중앙값」을
+             «가로너비»로 정의했고, 세로까지 중앙으로 끌면 드롭한 블록이 스택과 겹친다.
+           - 글자정렬(text-align)은 «안» 건드린다. (b) 는 좌표만이다.
+         ★이 루프가 SSOT 밖의 「술어 밖 루프」다 — 위 분기들이 left 를 어떻게 정하든
+           마지막에 여기서 다시 쓴다. 그래서 중앙 계산도 «여기»에 걸어야 실제로 먹는다.
+           실측(2026-09-05 고치기 전): 섹션→프레임 드롭 시 중심오차 −350px, 그리고 프레임 안에
+           «이미 중앙에 있던» 형제(left:303)까지 left:0 으로 되돌려 P1 의 중앙배치를 지웠다.
+         ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
+           읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
+      /* ★수지③ — «들어온 것»(_kidsBeforeDrop 밖)만 옮긴다 · 기존 자식 무변. 까닭·근거는 _kidsBeforeDrop 선언 주석. */
+      const _fv = frameVisibleSize(inner);
+      const _fpad = framePadding(inner);   // F5
+      let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
+      _incoming.forEach(b => {
+        b.style.top  = _stackY + 'px';
+        const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
+        b.style.left = Math.max(_fpad.l, _off.left) + 'px';
+        _stackY += (b.offsetHeight || 60) + 16;
+      });
+
+      /* ★T-088(2026-09-21) — 쌓고 나면 «프레임이 그만큼 커져야» 한다.
+         .frame-block 은 overflow:hidden 이라, 위 루프가 마지막 블록을 프레임 밑변 너머에
+         놓으면 그 블록은 «화면에서 사라진다»(값은 남는다 — 실측: 저장·재로드해도 그대로
+         붙어 있었다). 현빈 보고 원문 「제목을 한 칸 아래로 끌어내렸더니 사라지고 선택
+         테두리만 섹션 밖에 둥둥」이 바로 이 자리다.
+         ⚠️프레임 «안에서» 자식을 옮기는 경우(_resizeFrameToFitChildren)는 종전대로 no-op —
+           그건 사용자가 핸들로 정한 크기를 지켜야 하는 다른 축이다. 여기는 «밖에서 들고
+           들어온» 경로이고, 넓히기만 한다(줄이지 않는다). */
+      growFrameToFitChildren(inner);
+    }
+
+    window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
+    window.pruneGridKidsBox?.(_fromKids);   // G19 — 비었을 때만 걷는다
+    // dragging 클래스 고착 방지
+    dragState.dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
+    clearDropIndicators();
+    window.buildLayerPanel();
+    dragState.dragSrc = null;
+  });
+}
+
 function bindFrameDropZone(ss) {
   // fix(frame-p0#4): 붙여넣기/복제가 프레임이 아닌 맨몸 블록(class=asset-block 등)에
   // 이 함수를 걸면 프레임 정체성이 이식돼 선택이 영원히 불가능해진다 — class로 게이트.
@@ -2990,8 +3237,6 @@ function bindFrameDropZone(ss) {
   //   «도형을 품은 일반 프레임»까지 도형 프레임으로 오판(드롭 차단·핸들 숨김)했다(0918).
   const isShapeFrame = () => _isShapeFrameEl(ss);
 
-  const inner = ss;  // frame-inner 제거 — frame-block 자체가 content container
-  let _rafId = null;
 
   // ── 공통 click 핸들러 (modifier 다중선택 지원) ──
   // absolute 셀로 바인딩됐다가 flow로 변환된 frame도 click이 동작하도록 항상 바인딩
@@ -3244,242 +3489,7 @@ function bindFrameDropZone(ss) {
 
   // (click 핸들러는 함수 상단 공통 핸들러로 이동)
 
-  const _placeIndicator = (clientX, clientY) => {
-    clearDropIndicators();
-    /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
-    if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
-    const after = getDragAfterElement(inner, clientY);
-    const indicator = document.createElement('div');
-    indicator.className = 'drop-indicator';
-    if (after) inner.insertBefore(indicator, after);
-    else inner.appendChild(indicator);
-  };
-
-  // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
-  inner.addEventListener('dragover', e => {
-    if (!dragState.dragSrc) return;
-    if (isShapeFrame()) return; // shape frame은 외부 블록 수신 차단
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    if (_rafId) return;
-    const clientY = e.clientY, clientX = e.clientX;
-    _rafId = requestAnimationFrame(() => {
-      _rafId = null;
-      if (!dragState.dragSrc) return;
-      clearDropIndicators();
-      ss.classList.add('ss-drag-over');
-      _placeIndicator(clientX, clientY);
-    });
-  });
-
-  inner.addEventListener('dragleave', e => {
-    if (!inner.contains(e.relatedTarget)) {
-      if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-      ss.classList.remove('ss-drag-over');
-      clearDropIndicators();
-    }
-  });
-
-  inner.addEventListener('drop', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-    ss.classList.remove('ss-drag-over');
-    if (!dragState.dragSrc) return;
-    if (isShapeFrame()) return; // shape frame drop 차단
-    /* 177 과 같은 꼴 — 표시선은 rAF 로 늦게 따라온다. 낡은 자리에 넣지 않게 «놓은 좌표»로 다시 잡는다. */
-    _placeIndicator(e.clientX, e.clientY);
-    /* G19 — 그리드 «밑» 자리면 그 그리드의 자식으로 넣는다. 아니면 임시 띠만 걷고 종전 그대로(js/grid-children.js). */
-    if (window.gridChildDrop?.(e, inner, dragState.dragSrc)) { dragState.dragSrc = null; return; }
-    /* G9 — 글자 블럭을 «그리드 칸» 위에 놓았으면 칸의 한 줄로 받는다(prop-grid.js grdDropTextBlockOnCell — 거짓이면 종전 그대로). */
-    if (window.grdDropTextBlockOnCell?.(e, dragState.dragSrc)) { clearDropIndicators(); dragState.dragSrc = null; return; }
-    window.pushHistory();
-    const _fromKids = dragState.dragSrc.parentElement;   // G19 — 그리드 밑 그릇에서 끌어냈으면 비었을 때 걷는다(아래 끝에서)
-    /* ★수지③(2026-10-08 · 지디 GO) — 「들어온 것」을 «정체»로 가린다: 넣기 «전» 프레임 자식의 참조 집합(클래스·표시 아님).
-       아래 자유배치 끝 루프(「DOM 순서 변경 후 …」)가 이 집합 «밖»의 absolute 자식만 가운데·기존 바닥+16 아래로 옮기고, 이미 있던 자식은 손대지 않는다.
-       수지 원문: 「기존에 프레임블럭 안에 있던 블럭들의 위치가 바뀌게 된다. 자유배치 모드인데 왜, 오브젝트 블럭이 들어옮에 따라 위치가 영향을 받는가」
-       ⚠️전원 재적층은 09-05 결정이 «아니다» — 그 재적층(left:'0px' 하드코딩 포함)은 2026-04-11 분리(d62d9875) 때 이미 있었고,
-         09-05(ee4a59e1)는 left 를 0 → 가운데로 바꾸기만 했다. (b) 인용의 주어는 「외부에서 들고 넣을 때」의 그것이다.
-       ⛔이 설명을 아래 루프 주석으로 옮기지 마라 — tests/unit/frame-textcenter ④-e 가 그 주석부터 «1400자 창»을 읽는다(넘치면 빨강 · 2026-10-08 실측). */
-    const _kidsBeforeDrop = new Set(inner.children);
-
-    // 자유배치(absolute 자식) 프레임만 absolute 경로 — 그 외(fullWidth, 변환된 stack, 플래그 없는 stack 등)는 flow 경로
-    const isFreeLayout = ss.dataset.freeLayout === 'true';
-    const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .vector-block, .step-block';
-    const SS_W = 860; // 캔버스 기준 너비
-
-    if (!isFreeLayout) {
-      // ── flow 프레임(fullWidth/stack/일반): row/블록을 flow 레이아웃 그대로 유지 (absolute 변환 금지) ──
-      const indicator = inner.querySelector('.drop-indicator');
-      if (dragState.dragSrc.classList.contains('row')) {
-        // row 통째로 재배치
-        if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
-        else inner.appendChild(dragState.dragSrc);
-      } else if (dragState.dragSrc.matches?.(BLOCK_SEL)) {
-        // 단일 블록: row로 감싸서 삽입
-        const existingRow = dragState.dragSrc.closest('.row');
-        if (existingRow && existingRow.parentElement === inner) {
-          // 이미 inner 안의 row → row째로 재배치
-          if (indicator) inner.insertBefore(existingRow, indicator);
-          else inner.appendChild(existingRow);
-        } else {
-          if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
-          else inner.appendChild(dragState.dragSrc);
-        }
-      } else if (dragState.dragSrc.classList.contains('frame-block')) {
-        // 프레임 블록(text-frame, 카드 등): flow 위치만 이동, 배치 변환 없음
-        if (!dragState.dragSrc.contains(inner)) {
-          if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
-          else inner.appendChild(dragState.dragSrc);
-        }
-      }
-    } else {
-      // ── 고정 크기 프레임(shape frame 아닌 것): 기존 absolute 방식 ──
-      // 블록을 absolute로 전환하는 헬퍼
-      const makeAbsolute = (block, left, top) => {
-        const _mp = framePadding(inner);   // F5: 안쪽 여백
-        /* ★F3(2026-10-03) — 그리드는 폭을 «모델»로 받는다. 아래 style.width px 는 다음 renderGridBlock 이 100% 로 되돌려
-           프레임 폭(764)이 되거나, 섹션 폭(860)이 그대로 들어와 프레임보다 넓었다 → T-088 클램프 x 범위 [0,0].
-           규칙은 grid-block.js fitGridWidthToFreeFrame 한 곳. 모델이 폭을 주면 style.width 가 px 라 아래 줄은 안 탄다. */
-        window.fitGridWidthToFreeFrame?.(block, inner);
-        const w = block.offsetWidth || Math.round(SS_W * 0.5);
-        block.style.position = 'absolute';
-        block.style.left = (left + _mp.l) + 'px';
-        block.style.top  = top  + 'px';
-        if (!block.style.width || block.style.width === '100%') {
-          block.style.width = Math.min(w, SS_W - _mp.l - _mp.r) + 'px';
-        }
-        block.setAttribute('draggable', 'false');
-      };
-
-      // row 또는 text-frame이 드롭된 경우
-      if (dragState.dragSrc.classList.contains('row') || (dragState.dragSrc.classList.contains('frame-block') && dragState.dragSrc.dataset.textFrame === 'true')) {
-        if (dragState.dragSrc.dataset.textFrame === 'true') {
-          // text-frame: wrapper를 유지하고 text-frame 자체를 absolute로 전환
-          // (text-block을 꺼내면 orphan이 되므로 금지)
-          const existingAbsEls = [...inner.children].filter(b => b.style.position === 'absolute');
-          const nextY = existingAbsEls.reduce((maxY, b) => {
-            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
-            return Math.max(maxY, by);
-          }, 0);
-          dragState.dragSrc.style.position = 'absolute';
-          dragState.dragSrc.style.left     = framePadding(inner).l + 'px';   // F5
-          dragState.dragSrc.style.top      = (nextY > 0 ? nextY + 16 : 0) + 'px';
-          // absolute 전환 후 HTML5 drag 비활성화 — 이후 커스텀 mousemove drag 사용
-          // (섹션에서 드롭 시 draggable="true"가 잔류하면 다음 드래그에서 회색이 됨)
-          dragState.dragSrc.removeAttribute('draggable');
-          dragState.dragSrc._dragBound = false; // 재바인딩 허용 플래그
-          inner.appendChild(dragState.dragSrc);
-          // width: asset/icon makeAbsolute와 동일하게 콘텐츠 폭으로 클램프(전폭 '100%' 비일관 제거).
-          // append 후 측정해야 정확. 명시 px가 이미 있으면 보존(클램프 헬퍼 내부에서 정렬·측정 처리).
-          if (window._clampTextFrameWidth) {
-            if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '' || dragState.dragSrc.style.width === '100%') {
-              window._clampTextFrameWidth(dragState.dragSrc, inner);
-            }
-          } else if (!dragState.dragSrc.style.width || dragState.dragSrc.style.width === '') {
-            dragState.dragSrc.style.width = innerFullWidth(inner);
-          }
-          // text-block rebind — bindBlock이 absolute 상태를 다시 평가하도록
-          const _tb = dragState.dragSrc.querySelector('.text-block');
-          if (_tb) { _tb._blockBound = false; bindBlock(_tb); }
-        } else {
-        // row: 블록 추출 후 absolute 전환, wrapper 제거
-        const blocks = [...dragState.dragSrc.querySelectorAll(BLOCK_SEL)];
-        const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)];
-        let nextY = existingBlocks.reduce((maxY, b) => {
-          const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
-          return Math.max(maxY, by);
-        }, 0);
-        if (nextY > 0) nextY += 16;
-        blocks.forEach(block => {
-          makeAbsolute(block, 0, nextY);
-          inner.appendChild(block);
-          nextY += (block.offsetHeight || 60) + 16;
-        });
-        dragState.dragSrc.remove();
-        }
-      } else {
-        // dragSrc가 inner의 조상인 경우 삽입 금지 (HierarchyRequestError 방지)
-        if (dragState.dragSrc.contains(inner)) { clearDropIndicators(); return; }
-        const indicator = inner.querySelector('.drop-indicator');
-        if (indicator) inner.insertBefore(dragState.dragSrc, indicator);
-        else inner.appendChild(dragState.dragSrc);
-        /* ★프레임을 자유배치 프레임에 떨구면 «좌표를 못 받던» 자리 (현빈 2026-09-28 보고).
-           BLOCK_SEL 에는 .frame-block 이 «없다». 그래서 프레임만 makeAbsolute 를 안 타고
-           흐름 자식으로 남았고, 두 가지가 같이 깨졌다 —
-             ⓐ style.position/left/top 이 통째로 없어 드래그로 옮길 자리가 없다.
-             ⓑ 아래 «술어 밖 루프»는 absolute 인 자식만 top 을 다시 매기는데, 흐름 자식은
-                앞선 absolute 형제가 흐름을 차지하지 않아 «자기도 y=0» 에서 그려진다.
-                ⇒ 먼저 놓인 블록과 정확히 포개지고, 프레임 배경이 불투명이면 그 블록을 덮는다.
-                (실측 2026-09-28: grd_ts0he_t961d3f 가 흰 프레임 ss_ts0he_z74j7lm 에 덮여
-                 「편집할 때만 보이고 포커스를 풀면 사라지는」 것으로 보였다.)
-           ⛔BLOCK_SEL 상수에 넣지 «않는다» — 그 상수는 querySelectorAll 로도 쓰여서
-             row 추출 경로가 «중첩된 프레임까지» 통째로 긁어낸다. 판정에만 더한다. */
-        const _isFrameDrop = dragState.dragSrc.classList.contains('frame-block');
-        if ((dragState.dragSrc.matches?.(BLOCK_SEL) || _isFrameDrop) && dragState.dragSrc.style.position !== 'absolute') {
-          const existingBlocks = [...inner.querySelectorAll(BLOCK_SEL)].filter(b => b !== dragState.dragSrc);
-          const nextY = existingBlocks.reduce((maxY, b) => {
-            const by = parseInt(b.style.top || 0) + (b.offsetHeight || 0);
-            return Math.max(maxY, by);
-          }, 0);
-          makeAbsolute(dragState.dragSrc, 0, nextY > 0 ? nextY + 16 : 0);
-          /* ★makeAbsolute 가 draggable="false" 를 남긴다 — 그대로 두면 다음 드래그에서
-             .dragging 이 고착해 연회색이 된다(js/CLAUDE.md 「draggable 잔류 버그」, text-frame
-             경로가 이미 같은 처방을 쓴다). 프레임도 «대칭»으로 걷고 재바인딩을 연다. */
-          if (_isFrameDrop) {
-            dragState.dragSrc.removeAttribute('draggable');
-            dragState.dragSrc._dragBound = false;
-          }
-        }
-      }
-
-      // ★수지③ — 들어온 것/이미 있던 것 가르기(_kidsBeforeDrop 선언 주석). 넣기가 다 끝난 «뒤»라 여기서 센다.
-      const _incoming = [...inner.children].filter(b => !_kidsBeforeDrop.has(b) && !b.classList.contains('drop-indicator') && b.style.position === 'absolute');
-      const _stayBottom = [...inner.children].filter(b => _kidsBeforeDrop.has(b) && b.style.position === 'absolute')
-        .reduce((m, b) => Math.max(m, (parseInt(b.style.top, 10) || 0) + (b.offsetHeight || 0)), 0);
-      /* DOM 순서 변경 후 absolute 블록의 top 재계산 + ★가로 중앙 배치.
-         ★(b) 「외부에서 들고 넣을 때는 좌표만 중앙값에 위치시켜주면 된다.
-              중앙값이란 프레임블럭의 «보여지는 가로너비»를 기준」 (현빈 2026-09-05).
-           - «가로만» 중앙이다. 세로는 이 루프의 기존 스택을 그대로 둔다 — 지시가 「중앙값」을
-             «가로너비»로 정의했고, 세로까지 중앙으로 끌면 드롭한 블록이 스택과 겹친다.
-           - 글자정렬(text-align)은 «안» 건드린다. (b) 는 좌표만이다.
-         ★이 루프가 SSOT 밖의 「술어 밖 루프」다 — 위 분기들이 left 를 어떻게 정하든
-           마지막에 여기서 다시 쓴다. 그래서 중앙 계산도 «여기»에 걸어야 실제로 먹는다.
-           실측(2026-09-05 고치기 전): 섹션→프레임 드롭 시 중심오차 −350px, 그리고 프레임 안에
-           «이미 중앙에 있던» 형제(left:303)까지 left:0 으로 되돌려 P1 의 중앙배치를 지웠다.
-         ⚠️dataset.offsetX 는 여기서 갱신하지 않는다 — 이 루프는 원래부터 안 했고(figma export가
-           읽는 값이라 이미 낡아 있다), 이번 변경의 축을 «left 값 하나»로 묶어두기 위해서다. */
-      /* ★수지③ — «들어온 것»(_kidsBeforeDrop 밖)만 옮긴다 · 기존 자식 무변. 까닭·근거는 _kidsBeforeDrop 선언 주석. */
-      const _fv = frameVisibleSize(inner);
-      const _fpad = framePadding(inner);   // F5
-      let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
-      _incoming.forEach(b => {
-        b.style.top  = _stackY + 'px';
-        const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
-        b.style.left = Math.max(_fpad.l, _off.left) + 'px';
-        _stackY += (b.offsetHeight || 60) + 16;
-      });
-
-      /* ★T-088(2026-09-21) — 쌓고 나면 «프레임이 그만큼 커져야» 한다.
-         .frame-block 은 overflow:hidden 이라, 위 루프가 마지막 블록을 프레임 밑변 너머에
-         놓으면 그 블록은 «화면에서 사라진다»(값은 남는다 — 실측: 저장·재로드해도 그대로
-         붙어 있었다). 현빈 보고 원문 「제목을 한 칸 아래로 끌어내렸더니 사라지고 선택
-         테두리만 섹션 밖에 둥둥」이 바로 이 자리다.
-         ⚠️프레임 «안에서» 자식을 옮기는 경우(_resizeFrameToFitChildren)는 종전대로 no-op —
-           그건 사용자가 핸들로 정한 크기를 지켜야 하는 다른 축이다. 여기는 «밖에서 들고
-           들어온» 경로이고, 넓히기만 한다(줄이지 않는다). */
-      growFrameToFitChildren(inner);
-    }
-
-    window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
-    window.pruneGridKidsBox?.(_fromKids);   // G19 — 비었을 때만 걷는다
-    // dragging 클래스 고착 방지
-    dragState.dragSrc?.classList.remove('dragging', 'section-dragging', 'layer-dragging');
-    clearDropIndicators();
-    window.buildLayerPanel();
-    dragState.dragSrc = null;
-  });
+  _bindFrameFlowDrop(ss);
 
   // 내부 블록 pointerdown 시 서브섹션 drag 일시 비활성 — 블록 선택/이동과 충돌 방지
   // FIX(T5): .mockup-block 누락 시 mockup pointerdown → deselectAll 후 frame 재선택되어
@@ -3552,6 +3562,7 @@ function bindFrameDropZone(ss) {
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
+window.bindFrameFlowDrop  = _bindFrameFlowDrop;
 
 /* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
    도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라

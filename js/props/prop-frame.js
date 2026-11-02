@@ -305,6 +305,7 @@ function _convertFreeLayoutToStack(ss) {
   ss.style.minHeight = '';
   /* ★스택이 «된 뒤»에 파생한다 — 그 함수가 `freeLayout` 을 보고 비켜 가므로 순서가 뜻을 가른다 */
   _applyStackChildWidths(ss);
+  orderedItems.forEach(it => { if (it.el.classList.contains('frame-block')) window.bindFrameFlowDrop?.(it.el); });   // 흐름이 된 자식 프레임에 드롭 자리를 준다 — 까닭은 그 함수 머리말
 
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
