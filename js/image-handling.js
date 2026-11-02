@@ -720,6 +720,12 @@ function setAssetVideoFromSrc(ab, src) {
    ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼)
    motionSrc: 있으면 GIF 애니메이션 소스(src는 그 정지 프레임/썸네일) — T-012 통합 모션 자산 모델.
    video 업로드(트림→GIF 적용)와 .gif 직접 업로드 두 경로 모두 이 함수로 수렴한다. */
+/* 그림이 안 뜬 칸 표시 — 인라인 onerror 는 열 때 sanitizeCanvasHtml 이 지워 못 쓴다(error 는 안 올라와 캡처로 받는다). 직렬화가 벗긴다(section-serialize.js). */
+document.addEventListener('error', (e) => {
+  const i = e.target;
+  if (i?.classList?.contains('asset-img')) { i.classList.add('asset-img-failed'); i.alt = '이미지 로드 실패'; }
+}, true);
+
 function setAssetImageFromSrc(ab, src, motionSrc) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
@@ -758,7 +764,7 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   const prevGrainSnap = captureAssetGrain(ab);
   const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — ⛔빠지면 로고1 을 넣는 순간 ×·로고2·3 이 사라진다 */
   ab.innerHTML = `
-    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.classList.add('asset-img-failed');this.alt='이미지 로드 실패'"></div>
+    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;

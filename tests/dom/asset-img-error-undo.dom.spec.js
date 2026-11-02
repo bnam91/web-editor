@@ -1,5 +1,5 @@
 /* asset-img-error-undo.dom.spec.js — 그림이 안 뜬 칸 뒤 ⌘Z 가 그 자리에 묶이던 값의 자(앱: pos 4 · len 6 고정 3/3).
- * 까닭: onerror 가 style·alt 를 직접 고쳐 직렬화에 실렸다 ⇒ 복원 → 다시 실패 → 라이브 ≠ 꼭대기 → 체크포인트 → 제자리.
+ * 까닭: 옛 인라인 onerror 가 style·alt 를 직접 고쳐 직렬화에 실렸다 ⇒ 복원 → 다시 실패 → 라이브 ≠ 꼭대기 → 체크포인트 → 제자리.
  * ⛔이 자가 안 재는 것: 파일이 지워진 프로젝트를 다시 여는 길(앱 값이 회신에 있다).
  */
 const { test, expect } = require('@playwright/test');
@@ -37,6 +37,12 @@ test('실패 표시는 화면에만 있고 직렬화에는 없다', async ({ pag
   await page.waitForFunction(() => document.querySelector('#canvas img.asset-img')?.alt === '이미지 로드 실패');
   const v = await page.evaluate(() => { const s = window.getSerializedCanvas(); return { op: getComputedStyle(document.querySelector('#canvas img.asset-img')).opacity, cls: /class="[^"]*asset-img-failed/.test(s), alt: /\salt="이미지 로드 실패"/.test(s) }; });
   expect(v).toEqual({ op: '0.3', cls: false, alt: false });
+});
+test('열 때처럼 on* 이 지워진 HTML 도 안 뜨면 표시가 붙는다', async ({ page }) => {
+  await setup(page, 'ok');
+  await page.evaluate(() => { const c = document.querySelector('#canvas .asset-img-clip'); c.innerHTML = window.sanitizeCanvasHtml(`<img class="asset-img" src="${location.origin}/__asset/bad.png" onerror="this.title='x'">`); });
+  await page.waitForFunction(() => document.querySelector('#canvas img.asset-img')?.alt === '이미지 로드 실패');
+  expect(await page.evaluate(() => { const i = document.querySelector('#canvas img.asset-img'); return [i.hasAttribute('onerror'), getComputedStyle(i).opacity]; })).toEqual([false, '0.3']);
 });
 test('[음성] 뜬 그림은 표시가 없고 ⌘Z 로 빠진다', async ({ page }) => {
   await setup(page, 'ok');

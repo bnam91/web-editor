@@ -322,7 +322,7 @@
       const m = /^url\(\s*(["']?)(.*)\1\s*\)$/.exec(el.style.backgroundImage || '');
       if (m && m[2] === el.dataset.bgImg) el.style.backgroundImage = '';
     });
-    /* 그림 실패 표시는 내용이 아니다 — 표본에 실리면 복원 때마다 다시 실패해 «라이브 ≠ 꼭대기»가 되어 ⌘Z 가 그 자리에 묶인다(앱 3/3). 열 때 onerror 가 다시 단다. */
+    /* 그림 실패 표시는 내용이 아니다 — 표본에 실리면 복원 때마다 다시 실패해 «라이브 ≠ 꼭대기»가 되어 ⌘Z 가 그 자리에 묶인다(앱 3/3). 표시는 image-handling.js 캡처 리스너가 다시 단다. */
     root.querySelectorAll('img.asset-img-failed').forEach(i => { i.classList.remove('asset-img-failed'); i.removeAttribute('alt'); });
     restParticleMotion(root);
     /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
