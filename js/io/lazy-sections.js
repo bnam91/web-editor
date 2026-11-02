@@ -63,7 +63,9 @@ function _unloadSection(sec) {
   for (const el of els) {
     if (!el.style) continue;
     const bg = el.style.backgroundImage;
-    if (bg && bg !== 'none' && !el.hasAttribute('data-lazy-bg')) {
+    /* ★149 — 줄임(background:#e65004)의 색 전용은 image 가 'initial' 로 읽힌다. 이미지가 아닌데 내리면 style 이 CSSOM 꼴로 다시 쓰여 저장 바이트가 움직인다.
+       shortcut: 줄임에 든 진짜 url·그라데이션은 여전히 CSSOM 꼴로 바뀐다, 그것까지 막으려면 style 원문을 보관하는 쪽으로 바꿔라. */
+    if (bg && bg !== 'none' && bg !== 'initial' && !el.hasAttribute('data-lazy-bg')) {
       el.setAttribute('data-lazy-bg', bg);
       el.style.backgroundImage = 'none';
     }
