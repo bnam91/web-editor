@@ -243,6 +243,7 @@ export function ftMeasure(tb, force) {
 
   const tf = _tfOf(tb);
   const kw = tb.style.width, kmh = tb.style.minHeight, kce = ce.style.transform, ktf = tf ? tf.style.width : null;
+  const pinnedW = parseFloat(ce.style.width) || 0;   /* ★J146B ⒜ — 아래서 비우기 전에 읽는다(저장본에도 실린 값) */
   tb.style.width = ''; tb.style.minHeight = '';
   ce.style.transform = 'none';
   ce.style.width = '';   /* ★119 ㉡ — 아래에서 글자 폭으로 다시 박는다 · 재는 동안은 비운다(줄바꿈은 «재는 폭»에서) */
@@ -267,7 +268,11 @@ export function ftMeasure(tb, force) {
   if (tf) tf.style.width = st.tfMeasW == null ? ktf : st.tfMeasW;   /* ★재는 폭 — ⛔'' 로 비우면 사용자 폭을 잃는다 */
 
   const z = _scaleOf(tb);
-  const inkW = tb.dataset.tfSchema === '1' && tb.dataset.tfTouched !== '1';
+  /* ★J146B ⒜ — 안 만진 여러 줄을 처음 끌면 네 점은 글자 폭(71)인데 W 만 Range 폭(716)으로 바뀌어 글자가 그 안으로 짓눌렸다.
+     ⇒ 박힌 글자칸 폭보다 Range 가 넓으면 그 판은 글자 폭으로 잰 것이다 — 만졌어도 글자 폭으로 잰다(저장 뒤 다시 열어도 같은 값).
+     ⛔옛 만진 파일은 박힌 폭 ≈ Range 폭이라 안 걸린다 — 네 점이 그 W 기준이다(재는 자 u3-purple-outline-geometry U6·U6o). */
+  const inkW = tb.dataset.tfSchema === '1' && (tb.dataset.tfTouched !== '1'
+    || (pinnedW > 0 && _glyphBox(ce, false).width / z > pinnedW + 1));
   const b = _glyphBox(ce, inkW);
   const gb = ce.getBoundingClientRect();
 
@@ -644,12 +649,32 @@ registerFxType({
 
 /* ★147(t8-02) — 글을 치면(Enter 포함) 보라·격자가 따라온다. ★뿌리: 글 입력 길이 아무 데도 안 다시 잰다(ftHandlesSync 는 캐시 W·H 로 그린다 · 시트 ⒝).
    ⇒ 안 만진 글상자만 그리기 문 하나(applyFxFreeTransform — 다시 재고 · 바탕 네모 맞추고 · 손잡이·테두리·격자)를 부른다.
-   ⛔만진 사다리꼴(touched)은 안 건드린다 — 「모양을 지키나 글을 지키나」는 현빈 결정이다(시안 브랜치 l5/j146a-sian). 재는 자 tests/dom/u3-purple-outline-geometry U4. */
+   만진 사다리꼴은 _ftTouchedTextInput 이 받는다. 재는 자 tests/dom/u3-purple-outline-geometry U4. */
+/* ★J147B(현빈 결정 11-03 「일단은 글지키기로 가보자 왜냐면 우리는 일반 텍스트블록 움직임이랑 같아야되지않을까」) — 만진 사다리꼴에서 글이 바뀌면 글자 크기를 지키고 사다리꼴이 자라고 준다.
+   ⇒ 옛 W·H 네모 → 네 점의 행렬을 그대로 두고 새 W·H 네모를 그 행렬로 보낸 곳이 새 네 점이다.
+   ★뒤집기: 정책은 이 함수 하나다(모양 지키기 = 몸통을 applyFxFreeTransform(tb) 한 줄로 · dev 옛 동작 = 빈 함수). 재는 자 tests/dom/ft-touched-enter-keeps-text.
+   ⛔옛 파일(tfSchema 없음)은 안 건드린다 — 글자 폭 자를 안 쓰므로 Enter 에 W 가 블록 폭으로 뛰어 네 점도 그만큼 뛴다. */
+function _ftTouchedTextInput(tb) {
+  const st = _tfState.get(tb), C = ftCornersOf(tb);
+  if (!C || tb.dataset.tfSchema !== '1') return;
+  const { D, mnx, mny } = normalizeCorners(C);
+  const h = homography(_baseRect(st.W, st.H), D);   /* ⛔재기 전에 — ftMeasure 가 st.W·H 를 새 값으로 덮는다 */
+  const st1 = h && ftMeasure(tb, true);
+  if (!st1 || !(st1.W > 0) || !(st1.H > 0)) return;
+  const next = _baseRect(st1.W, st1.H).map(([x, y]) => {
+    const w = h[6] * x + h[7] * y + 1;
+    return [(h[0] * x + h[1] * y + h[2]) / w + mnx, (h[3] * x + h[4] * y + h[5]) / w + mny, w];
+  });
+  /* shortcut: 소실선을 넘는 원근(w≤0.05)은 네 점을 두고 다시 그린다 — 글이 모양 안으로 눌리고 Backspace 로 처음 네 점에 못 돌아간다(⌘Z 는 돌아간다), 회신의 물음에 답이 오면 정한다 */
+  if (next.every((p) => p[2] > 0.05 && Number.isFinite(p[0]) && Number.isFinite(p[1]))) tb.dataset.tfCorners = _cornersToStr(next.map(([x, y]) => [x, y]));
+  applyFxFreeTransform(tb);
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('input', (e) => {
     const tb = e.target?.closest?.('.text-block[data-tf-corners]');
     const st = tb && _tfState.get(tb);
-    if (st && !st.touched) applyFxFreeTransform(tb);
+    if (st) { if (st.touched) _ftTouchedTextInput(tb); else applyFxFreeTransform(tb); }
   });
 }
 

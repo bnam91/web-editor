@@ -289,10 +289,11 @@ for (const [kind, zoom] of [['body', 100], ['h1', 100], ['body', 40], ['h1', 40]
   });
 }
 
-test('U4t ★음성대조 — 만진 사다리꼴은 Enter 에 네 점·잰 값을 안 건드린다(모양·글 결정은 현빈 몫 · dev 기본 동작)', async ({ page }) => {
+test('U4t ★음성대조 — 옛 파일(tfSchema 없음)의 만진 사다리꼴은 Enter 에 네 점·잰 값을 안 건드린다(새 파일은 ft-touched-enter-keeps-text)', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 1200 });
   await bootApp(page);
   await enterScene(page, 'body', 100, true);
+  await page.evaluate(() => { delete document.getElementById('u4tb').dataset.tfSchema; });
   const a = await read2(page);
   expect(a.touched, '전제: 만진 글상자다').toBe(true);
   await page.keyboard.press('Enter');
