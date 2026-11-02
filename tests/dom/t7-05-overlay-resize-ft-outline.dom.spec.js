@@ -15,7 +15,7 @@
  *   R1 패널 글자 크기를 두 배로 쓰면 글자 크기가 커진다(전제: 크기 변경이 먹었다)
  *   R2 ★그 뒤 보라 테두리(.tfh-edge) 사각형 = 글자 사각형(1.5px 안) — 크기가 글자를 따라왔다
  *   R3 ★격자(.tfh-fx) 사각형 = 글자 사각형(1.5px 안)
- *   R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 크기 변경 전으로(테두리 = 글자) — ★지금 빨강(test.fail · 아래 시험 머리말)
+ *   R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 크기 변경 전으로(테두리 = 글자)
  *   R5 리사이즈 뒤에도 줄 수가 그대로다(상자가 글자보다 좁게 박혀 꺾이지 않는다)
  * ⛔고정 대기 0 — 조건 대기만.
  */
@@ -74,9 +74,8 @@ test('P·R1~R3·R5 ★오버레이 + 자유변형 크기 변경 — 보라 테�
   expect(errs).toEqual([]);
 });
 
-/* R4 — ⌘Z 한 번은 크기 변경 한 걸음이어야 한다. 지금은 패널 크기가 change 에서 push-after 라 자유변형 켜기까지 같이 풀린다(시트 325 곁 · 새 결함 · 안 고침). 고치면 이 시험이 «예상 밖 통과»로 빨개진다 ⇒ test.fail 을 지워라. */
+/* R4 — ⌘Z 한 번은 크기 변경 한 걸음이다(효과 켜기의 끝 표본 · js/effects-registry.js wireFxSection). */
 test('R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 크기 변경 전으로(테두리 = 글자)', async ({ page }) => {
-  test.fail();
   const { errs, id, m0 } = await growViaPanel(page);
   await page.keyboard.press('Meta+z');
   await page.waitForFunction(([id, f]) => Math.abs(parseFloat(getComputedStyle(document.getElementById(id).querySelector('[contenteditable], .tb-h1')).fontSize) - f) < 0.2, [id, m0.fs], { timeout: 3000 });
