@@ -1,7 +1,6 @@
 /* table-reject-notice-276.dom.spec.js — 시트 276 「표 패널이 거절할 때 사용자에게 보이는 말이 없다」의 자 (imac-gd-L3 · 261031 · JQ-RULER-A ⑵)
- * ★R1·R2 는 «일부러 빨강» 이다(test.fail) — 276 이 지는 빨강. FLAKY 아님. 고치는 날 «예상 밖 통과» 로 빨개져 알려 준다 · 그때 test.fail 을 떼라.
- * ★갈림: 같은 패널의 죔 칸(C1 · 공용 길 prop-number-commit-guard noticeClamped)은 말이 뜬다 ↔ 거절 칸(#tbl-merge-headers · js/props/prop-table.js _applyMergeInput)은 안 뜬다.
- *   R0 [전제] 거절이 정말 일어났다(값 안 바뀜 · 칸 원복) — 없으면 R1·R2 의 빨강이 «장면이 안 섬» 과 안 갈린다(test.fail 은 까닭을 안 가린다).
+ * ★두 자리다: 숫자 칸은 공용 가드(prop-number-commit-guard · C1 죔 · B1 오타), 머리 병합 칸(type=text · 가드 회원 아님)은 js/props/prop-table.js _applyMergeInput(R1·R2).
+ *   R0 [전제] 거절이 정말 일어났다(값 안 바뀜 · 칸 원복) — 없으면 R1·R2 가 «장면이 안 섬» 과 안 갈린다.
  *   N  [음성] 받아들여지는 입력엔 말이 안 뜬다 — 늘 뜨면 자가 아니다.
  * ★말을 읽는 자리 = #editor-toast.show (js/drag-utils.js showToast). 기다림은 조건(expect.poll) · 고정 대기 0.
  * ⛔이 자가 안 재는 것: 말의 문구 · 토스트 밖 안내(칸 옆 글·title·콘솔) · 표 패널의 다른 거절(행·열 추가 등 prop-table.js:626·644·674 는 이미 말한다) ·
@@ -40,12 +39,11 @@ test('R0 [전제] 거절이 정말 일어난다 — 꼴 틀림 · 범위 밖 둘
   }
   expect(errs).toEqual([]);
 });
-for (const [id, bad] of [['R1', 'abc'], ['R2', '0:99']]) {
-  test(`${id} ★276 이 지는 빨강 — 거절(${bad}) 뒤 보이는 말이 뜬다`, async ({ page }) => {
-    test.fail(true, '276 — 표 패널 거절이 콘솔만 말한다(js/props/prop-table.js _applyMergeInput). 고치면 이 표시가 빨개진다 — 그때 test.fail 을 떼라.');
+for (const [id, bad, re] of [['R1', 'abc', /「abc」.*시작:칸수/], ['R2', '0:99', /「0:99」.*2열/]]) {
+  test(`${id} 거절(${bad}) 뒤 보이는 말이 뜬다 · 넣은 글자와 까닭을 말한다`, async ({ page }) => {
     await setup(page);
     await put(page, '#tbl-merge-headers', bad);
-    await expect.poll(() => toast(page), { message: '거절했는데 보이는 말이 없다', timeout: 2500 }).not.toBeNull();
+    await expect.poll(() => toast(page), { message: '거절했는데 보이는 말이 없다', timeout: 2500 }).toMatch(re);
   });
 }
 test('C1 ★갈림 — 같은 패널의 죔 칸(글자 크기 12~60)에 9999 ⇒ 말이 뜬다 · 칸이 죄인다', async ({ page }) => {
