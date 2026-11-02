@@ -922,6 +922,10 @@ export async function grdPickedImageSrc(file) {
   try {
     dataUrl = await new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(String(rd.result || '')); rd.onerror = () => rej(rd.error); rd.readAsDataURL(file); });
   } catch (_) { window.showToast?.('⚠️ 이미지 읽기 실패'); return null; }
+  return grdAssetSrcOf(dataUrl);
+}
+/** 이미 읽은 data URL → 자산 URL(못 쓰면 data URL 그대로). 에셋 블럭 입구(image-handling.js loadImageToAsset)도 같은 몸통을 쓴다. */
+export async function grdAssetSrcOf(dataUrl) {
   const projectId = window.activeProjectId || new URLSearchParams(window.location.search).get('project') || null;
   const api = window.electronAPI;
   if (api && typeof api.assetsSaveCanvasImage === 'function' && projectId) {
@@ -933,6 +937,7 @@ export async function grdPickedImageSrc(file) {
   return { src: dataUrl, asset: false };
 }
 if (typeof window !== 'undefined') window.grdPickedImageSrc = grdPickedImageSrc;
+if (typeof window !== 'undefined') window.grdAssetSrcOf = grdAssetSrcOf;
 if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;
 if (typeof window !== 'undefined') window.grdAddLine = grdAddLine;
 

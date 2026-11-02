@@ -918,6 +918,7 @@ function applyProjectData(data) {
        ⇒ 정본을 «쓴다». 없으면(고전 스크립트 로드 실패 등) 옛 동작으로 떨어지되 안전망은 유지한다. */
     const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
     _loadWindowHistPos = window.historyPos;   // ★여기부터 스택이 앞으로 가면 편집이다
+    _loadWindowInput = false;
     if (AS && typeof AS.endNextFrame === 'function' && _suppressTok) {
       AS.endNextFrame(_suppressTok);
     } else {
@@ -1945,8 +1946,11 @@ const _DRAG_SUPPRESS_REASONS = new Set(['section-drag', 'layer-drag']);
 /* ★로드 뒤 창 — applyProjectData 가 끝나도 억제는 한 프레임 뒤에 풀린다(큰 판 0.1~0.8초). 그 창에 넣은 섹션은 화면에 있는데 저장 예약이 안 돼
    5초를 기다려도 디스크에 없었고 ⌘R·창 닫기로 사라졌다(앱 ×3). 창 안 변경에는 로드 자신의 잔여 변이도 섞여 온다(무편집이 다시 쓰이면 안 된다 — DEF-03·345)
    ⇒ «적용이 끝난 뒤 ⌘Z 스택이 앞으로 갔나»로 편집을 가른다. 적용 전(phase loading · 363)은 여기 안 든다.
-   shortcut: 히스토리를 안 쌓는 편집(글자 치는 중 등)은 못 본다, 그런 입력이 이 창에 닿는 값이 나오면 넓혀라. */
+   글자 치기는 스택을 안 올린다 ⇒ input 이벤트도 편집으로 친다(로드는 input 을 안 낸다).
+   shortcut: 스택도 input 도 안 내는 편집은 못 본다, 그런 입력이 이 창에 닿는 값이 나오면 넓혀라. */
 let _loadWindowHistPos = null;
+let _loadWindowInput = false;
+if (typeof document !== 'undefined') document.addEventListener('input', () => { _loadWindowInput = true; }, true);
 let _dragEditPending = false;
 let _dragEditTimer = null;
 let _dragEditTicks = 0;   // 한 에피소드(창 열림 → 닫힘 → 저장)의 폴 횟수 — 시험이 «한정»을 단언한다(S7)
@@ -1956,8 +1960,10 @@ function _noteEditDuringDrag() {
   const AS = (typeof window !== 'undefined') ? window.AutoSaveSuppress : null;
   const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
   // pushHistory 가 변이 기록을 먼저 비워 여기가 스택이 오르기 «전»에 불린다 ⇒ 그 일이 끝난 뒤(microtask)에 가른다
-  if (holders.length && _loadWindowHistPos !== null && holders.every(h => h.reason === 'applyProjectData')) {
-    queueMicrotask(() => { if (_loadWindowHistPos !== null && window.historyPos !== _loadWindowHistPos) _keepEditForAutoSave(); });
+  // 창 안 끌기는 끌기 창이 겹쳐 열린다(이유 둘) ⇒ 그 조합도 이 창이다
+  if (_loadWindowHistPos !== null && holders.some(h => h.reason === 'applyProjectData')
+      && holders.every(h => h.reason === 'applyProjectData' || _DRAG_SUPPRESS_REASONS.has(h.reason))) {
+    queueMicrotask(() => { if (_loadWindowHistPos !== null && (_loadWindowInput || window.historyPos !== _loadWindowHistPos)) _keepEditForAutoSave(); });
     return;
   }
   if (!holders.length || !holders.every(h => _DRAG_SUPPRESS_REASONS.has(h.reason))) return;

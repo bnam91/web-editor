@@ -190,6 +190,7 @@ function _wireGlowCard(tb, P, again) {
     const sl = $(`fxgl-${key}-slider`), n = $(`fxgl-${key}-num`);
     if (!sl || !n) continue;
     sl.addEventListener('mousedown', () => window.pushHistory?.('효과'));
+    sl.addEventListener('change', () => window.pushHistory?.('효과'));   /* 끝 표본 — 없으면 다음 패널 편집의 ⌘Z 가 슬라이더까지 푼다 */
     sl.addEventListener('input', () => { setFxGlow(tb, { [key]: sl.value }, { history: false }); n.value = fxGlowOf(tb)[key]; });
     n.addEventListener('change', () => { setFxGlow(tb, { [key]: n.value }); const v = fxGlowOf(tb)[key]; n.value = v; sl.value = v; });
   }

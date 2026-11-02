@@ -469,6 +469,7 @@ export function showPageProperties() {
     canvasEl.style.gap = state.pageSettings.gap + 'px';
     gapNumber.value = state.pageSettings.gap;
   });
+  gapSlider.addEventListener('change', () => window.pushHistory?.());   // 끝 표본(mousedown 은 시작 표본)
   gapSlider.addEventListener('change', () => window.scheduleAutoSave?.());
   gapNumber.addEventListener('input', () => {
     const v = Math.min(200, Math.max(0, parseInt(gapNumber.value) || 0));
@@ -643,6 +644,7 @@ export function showPageProperties() {
 
   padxSlider.addEventListener('mousedown', () => window.pushHistory?.());
   padxSlider.addEventListener('input', () => { applyPadX(parseInt(padxSlider.value)); padxNumber.value = padxSlider.value; });
+  padxSlider.addEventListener('change', () => window.pushHistory?.());   // 끝 표본(mousedown 은 시작 표본)
   padxSlider.addEventListener('change', () => window.scheduleAutoSave?.());
   padxNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padxNumber.value)||0)); applyPadX(v); padxSlider.value = v; });
   padxNumber.addEventListener('change', () => {
@@ -671,6 +673,7 @@ export function showPageProperties() {
   const padyNumber = document.getElementById('page-pady-number');
   padySlider.addEventListener('mousedown', () => window.pushHistory?.());
   padySlider.addEventListener('input', () => { applyPadY(parseInt(padySlider.value)); padyNumber.value = padySlider.value; });
+  padySlider.addEventListener('change', () => window.pushHistory?.());   // 끝 표본(mousedown 은 시작 표본)
   padySlider.addEventListener('change', () => window.scheduleAutoSave?.());
   padyNumber.addEventListener('input', () => { const v = Math.min(200, Math.max(0, parseInt(padyNumber.value)||0)); applyPadY(v); padySlider.value = v; });
   padyNumber.addEventListener('change', () => {
