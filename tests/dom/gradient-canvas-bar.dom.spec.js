@@ -49,7 +49,7 @@ async function boot(page, { shapeRot = 0, zoom = 100, sibling = false, section =
             window.scheduleAutoSave = () => {};
             window.renderBanner02 = (b) => { b.style.background = b.dataset.bg; };
           </script>
-          <script type="module" src="/js/gradient-line-overlay.js"></script>
+          <script src="/js/click-swallow.js"></script><script type="module" src="/js/gradient-line-overlay.js"></script>
           </head><body>${secOpen}
           <div class="section-block" style="width:1100px;height:900px;">${innerOpen}
             <div class="frame-block" style="position:absolute;left:200px;top:120px;width:200px;height:200px;">
@@ -70,7 +70,7 @@ async function boot(page, { shapeRot = 0, zoom = 100, sibling = false, section =
           </body></html>`,
       });
     }
-    if (url.pathname === '/js/gradient-line-overlay.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_JS });
+    if (url.pathname === '/js/click-swallow.js') return route.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(path.join(REPO, 'js/click-swallow.js'), 'utf8') }); if (url.pathname === '/js/gradient-line-overlay.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_JS });
     if (url.pathname === '/js/props/gradient-model.js') return route.fulfill({ contentType: 'application/javascript', body: MODEL_JS });
     return route.fulfill({ status: 404, body: '' });
   });

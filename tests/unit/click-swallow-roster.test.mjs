@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const HELPER = 'js/click-swallow.js';
 const ROSTER = Object.freeze({
   120: ['js/block-drag.js', 'js/blocks/mockup-block.js', 'js/effects-ft-handles.js', 'js/overlay-float.js'],
-  300: ['js/gradient-line-overlay.js'],
+  300: [],   // 305 — gradient-line-overlay 사본을 공용으로 옮겼다(S4 가 그 호출을 센다)
 });
 const FLAG_300 = ['js/editor.js'];   // 깃발 꼴(_swallowPanClick · 리스너 아님) — 이 자 밖이라 이름만 지킨다
 
@@ -83,14 +83,38 @@ test('S3 120ms·300ms 명부 = 실측 (양방향 · 이름)', () => {
   for (const f of FLAG_300) assert.match(fs.readFileSync(path.join(ROOT, f), 'utf8'), /_swallowPanClick/);
 });
 
-test('S4 부르는 자리 12 — 파일별 수(양방향 · 244 가 modal-block 하나를 걷었다 — 근거·지킴 tests/unit/modal-profile-drag-render-guard)', () => {
-  const want = { 'js/annotation-select.js': 4, 'js/blocks/radial-block.js': 1, 'js/drag-utils.js': 2, 'js/overlay-handles.js': 1,
-    'js/scratch-pad.js': 1, 'js/section-bottom-handle.js': 1, 'js/sticker-select.js': 1, 'js/table-cell-select.js': 1 };
+const callSites = () => {
   const got = {};
   for (const f of jsFiles(path.join(ROOT, 'js'))) {
     const n = (stripComments(fs.readFileSync(f, 'utf8')).match(/window\.swallowNextClick\(/g) || []).length;
     if (n) got[path.relative(ROOT, f).split(path.sep).join('/')] = n;
   }
-  assert.deepEqual(got, want);
+  return got;
+};
+
+test('S4 부르는 자리 13 — 파일별 수(양방향 · 244 가 modal-block 하나를 걷었다 — 근거·지킴 tests/unit/modal-profile-drag-render-guard)', () => {
+  const want = { 'js/annotation-select.js': 4, 'js/blocks/radial-block.js': 1, 'js/drag-utils.js': 2, 'js/gradient-line-overlay.js': 1, 'js/overlay-handles.js': 1,
+    'js/scratch-pad.js': 1, 'js/section-bottom-handle.js': 1, 'js/sticker-select.js': 1, 'js/table-cell-select.js': 1 };
+  assert.deepEqual(callSites(), want);
   assert.match(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), /<script src="js\/click-swallow\.js"><\/script>/, 'index.html 이 그 한 벌을 싣는다');
+});
+
+/* ★237 — 자리마다 그 줄을 끄면 빨강인 spec(자리별 변이 ×3 값은 커밋 메시지). 부르는 파일이 늘면 빨강 ⇒ 자를 대거나 까닭을 적어라.
+ *   null = 자를 일부러 안 세웠다: radial 은 실제 끌기에서 켜도 꺼도 값이 같다(먼저 세우면 죽은 호출을 잠근다 · ⛔«지워라» 로 읽지 마라). */
+const RULERS = {
+  'js/annotation-select.js': ['annotation-1013t2c6-label-box', 'annot-label-offset-drag-click-237', 'annotation-1013t2', 'fix5-annot-label-range'],
+  'js/blocks/radial-block.js': null,
+  'js/drag-utils.js': ['click-swallow-drag-utils-237'],
+  'js/gradient-line-overlay.js': ['grad-chip-swallow-305'],
+  'js/overlay-handles.js': ['grid-range-clip'],
+  'js/scratch-pad.js': ['marquee-sections-blocks'],
+  'js/section-bottom-handle.js': ['section-bottom-handle'],
+  'js/sticker-select.js': ['sticker-table-drag-click-237'],
+  'js/table-cell-select.js': ['sticker-table-drag-click-237'],
+};
+test('S5 부르는 파일마다 자가 명부에 있고 그 spec 이 있다(양방향)', () => {
+  assert.deepEqual(Object.keys(RULERS).sort(), Object.keys(callSites()).sort());
+  for (const specs of Object.values(RULERS)) for (const n of specs || []) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'tests/dom', n + '.dom.spec.js')), n);
+  }
 });
