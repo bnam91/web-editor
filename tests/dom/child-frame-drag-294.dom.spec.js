@@ -21,7 +21,7 @@ async function scene(page) {
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; }, id);
 const tops = (page) => page.evaluate((FR) => [...document.querySelector('#canvas .section-inner').querySelectorAll(':scope > ' + FR)].map((f) => f.id), FR);
 const pos = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); return [parseInt(e.style.left), parseInt(e.style.top), e.parentElement.closest('.frame-block')?.id || null]; }, id);
-async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(x + dx * i / 12, y + dy * i / 12); await page.waitForTimeout(20); } await page.mouse.up(); await raf(page); }
+async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(x + dx * i / 12, y + dy * i / 12); await raf(page); } await page.mouse.up(); await raf(page); }
 
 test('자식 프레임을 끌면 자식만 끝까지 따라오고 부모는 제자리다', async ({ page }) => {
   const { errs, P, A, B, Q } = await scene(page);

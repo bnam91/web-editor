@@ -697,7 +697,7 @@ test('Q12 ★★저장 왕복 — ★meta 에 실리고 ★캐시를 비워도 �
   const errs = await setup(page);
   await fakeMeta(page, 'p-q12');
   await page.evaluate(() => window.DesignSystem.addQuoteShape({ pre: '◆', post: '◆' }));
-  await page.waitForTimeout(120);
+  await page.waitForFunction(() => window.__metaStore.quoteShapes?.length > 0);
 
   const saved = await page.evaluate(() => window.__metaStore.quoteShapes || null);
   expect(Array.isArray(saved) && saved.length, '★저장본(meta)에 ★안 실렸다 — localStorage 단독이면 여기서 죽는다').toBeTruthy();

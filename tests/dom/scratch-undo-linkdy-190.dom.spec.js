@@ -5,11 +5,11 @@
  * 변이: 고침만 되돌리면 L1·L2 빨강 · L3·L4 초록.
  * ★처음 실행 기록: 2026-11-01 16:0x · 아이맥 · 판 2b7aec4d · w1 · retries 0 · repeat-each 3 · 고친 판 12/12 · 되돌린 판 L1·L2 각 3/3 빨강 · L3·L4 초록. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
 const settle = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)))));
-const frames = async (page) => { for (let i = 0; i < 6; i++) await settle(page); await page.waitForTimeout(300); };
+const frames = async (page) => { for (let i = 0; i < 6; i++) await settle(page); await page.waitForFunction(() => { const s = [...document.querySelectorAll('.scratch-item')].map((e) => e.dataset.scratchId + '|' + e.style.left + '|' + e.style.top).join(); window.__fn = s === window.__fs ? (window.__fn || 0) + 1 : 0; window.__fs = s; return window.__fn >= 3; }, null, { polling: 100 }); };   // 장들이 세 번 연달아 같은 자리
 const item = (page, id) => page.evaluate((id) => { const it = window._scratchItemById(id); return it ? { y: it.y, linkDy: it.linkDy } : null; }, id);
 async function setup(page, two) {
   await page.setViewportSize({ width: 1500, height: 1100 });
@@ -32,7 +32,7 @@ async function setup(page, two) {
 }
 async function clickItem(page, id) {
   const c = await page.evaluate((id) => { const el = window._scratchItemById(id).el; el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 6 }; }, id);
-  await page.waitForTimeout(250);
+  await waitStableRect(page, `.scratch-item[data-scratch-id="${id}"]`);
   await page.mouse.click(c.x, c.y); await settle(page);
   expect(await page.evaluate((id) => window._scratchItemById(id).el.classList.contains('scratch-selected'), id), `[전제] ${id} 를 골랐다`).toBe(true);
 }

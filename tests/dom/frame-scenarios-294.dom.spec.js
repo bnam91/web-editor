@@ -49,7 +49,7 @@ test('S1 부모를 자손 안으로 — moveBlock·마우스 끌기 둘 다 나�
   await pick(page, [P1]); const pb = await box(page, P1); const gb = await box(page, G);
   /* 잡는 점 = 부모의 빈 자리(아래 가운데). ⛔고른 프레임의 귀를 잡으면 둥글기 핸들을 끈다(J294G 실측). */
   const gx = pb.l + pb.w / 2; const gy = pb.b - 20;
-  await page.mouse.move(gx, gy); await page.mouse.down(); for (let i = 1; i <= 15; i++) { await page.mouse.move(gx + (gb.l + 10 - gx) * i / 15, gy + (gb.t + 10 - gy) * i / 15); await page.waitForTimeout(16); } await page.mouse.up(); await raf(page);
+  await page.mouse.move(gx, gy); await page.mouse.down(); for (let i = 1; i <= 15; i++) { await page.mouse.move(gx + (gb.l + 10 - gx) * i / 15, gy + (gb.t + 10 - gy) * i / 15); await raf(page); } await page.mouse.up(); await raf(page);
   const s1 = await read(page); expect(canon(s1), '끌어 놓아도 부모는 제 자손에 안 들어간다').toBe(canon(s0));
   await press(page, 'Escape');
   expect(await page.evaluate(([A, B]) => !!window.moveBlock(A, { afterId: B }), [A, B]), '대조: 형제 이동은 된다').toBe(true); await raf(page);
@@ -102,14 +102,12 @@ test('S4 빠른 연속 ⌘Z·⌘⇧Z — 기다리지 않고 눌러도 끝 상�
   for (let i = 0; i < 6; i++) { await pick(page, [i % 2 ? E : P2]); await press(page, 'Meta+d'); marks.push(canon(await read(page))); }
   await desel(page);
   for (let i = 0; i < 6; i++) await page.keyboard.press('Meta+z');
-  await raf(page); await page.waitForTimeout(50); expect(canon(await read(page)), '⌘Z×6 연타 = 처음').toBe(marks[0]);
+  await raf(page); await expect.poll(async () => canon(await read(page)), { message: '⌘Z×6 연타 = 처음' }).toBe(marks[0]);
   for (let i = 0; i < 6; i++) await page.keyboard.press('Meta+Shift+z');
-  await raf(page); await page.waitForTimeout(50); const end = canon(await read(page)); expect(JSON.parse(end).f.length, '⌘⇧Z×6 연타 = 끝 수').toBe(JSON.parse(marks[6]).f.length);
+  await raf(page); await expect.poll(async () => JSON.parse(canon(await read(page))).f.length, { message: '⌘⇧Z×6 연타 = 끝 수' }).toBe(JSON.parse(marks[6]).f.length);
   for (const [k, n] of [['Meta+z', 3], ['Meta+Shift+z', 1], ['Meta+z', 2], ['Meta+Shift+z', 4]]) for (let i = 0; i < n; i++) await page.keyboard.press(k);
-  await raf(page); await page.waitForTimeout(50);
-  expect(JSON.parse(canon(await read(page))).f.length, '섞어 연타 = 끝 수(-3+1-2+4)').toBe(JSON.parse(marks[6]).f.length);
-  await page.keyboard.press('Meta+z'); await raf(page); await page.waitForTimeout(50);
-  expect(JSON.parse(canon(await read(page))).f.length, '대조: 하나 더 누르면 수가 다르다').toBe(JSON.parse(marks[5]).f.length);
+  await raf(page); await expect.poll(async () => JSON.parse(canon(await read(page))).f.length, { message: '섞어 연타 = 끝 수(-3+1-2+4)' }).toBe(JSON.parse(marks[6]).f.length);
+  await page.keyboard.press('Meta+z'); await raf(page); await expect.poll(async () => JSON.parse(canon(await read(page))).f.length, { message: '대조: 하나 더 누르면 수가 다르다' }).toBe(JSON.parse(marks[5]).f.length);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('S5 복사→그룹→해제→재복사 · 빠른 선택 전환 뒤 ⌘D 는 마지막 고른 것만', async ({ page }) => {
@@ -146,10 +144,10 @@ test('S6 부모 복사 → 자손 수정 → 부모 삭제 → ⌘Z — 수정�
 test('S7 프레임을 다른 프레임 안으로 끌어 옮긴 뒤 복사 — 새 부모 아래 사본 · ⌘Z 둘이면 처음', async ({ page }) => {
   const { errs, E, P2, C } = await scene(page); const s0 = await read(page);
   await pick(page, [E]); const eb = await box(page, E); const cb = await box(page, P2);
-  const gx = eb.l + eb.w / 2; const gy = eb.t + eb.h / 2; const tx = cb.r - 40; const ty = cb.b - 20; await page.mouse.move(gx, gy); await page.mouse.down(); for (let i = 1; i <= 15; i++) { await page.mouse.move(gx + (tx - gx) * i / 15, gy + (ty - gy) * i / 15); await page.waitForTimeout(20); } await page.mouse.up(); await raf(page);
+  const gx = eb.l + eb.w / 2; const gy = eb.t + eb.h / 2; const tx = cb.r - 40; const ty = cb.b - 20; await page.mouse.move(gx, gy); await page.mouse.down(); for (let i = 1; i <= 15; i++) { await page.mouse.move(gx + (tx - gx) * i / 15, gy + (ty - gy) * i / 15); await raf(page); } await page.mouse.up(); await raf(page);
   const s1 = await read(page); clean(s1); expect(Object.keys(s1.frames).sort(), '유실·중복 없음').toEqual(Object.keys(s0.frames).sort());
   console.log('S7 V ' + JSON.stringify({ E부모: s1.frames[E].parent === P2 ? 'P2' : s1.frames[E].parent === C ? 'C' : s1.frames[E].parent }));
-  await page.waitForTimeout(60);
+  await raf(page);
   await press(page, 'Escape'); await desel(page);
   const moved = s1.frames[E].parent !== s0.frames[E].parent;
   if (moved) { const how = await page.evaluate((id) => { const o = document.getElementById(id); const it = o._layerItem; (it?.querySelector(':scope > .layer-row') || it)?.click(); return { it: !!it, sel: o.classList.contains('selected') }; }, E); await raf(page); console.log('S7 고름(레이어 패널 줄) ' + JSON.stringify(how));

@@ -80,7 +80,7 @@ async function setup(page) {
     window.rebindAll?.();
     window.deselectAll?.();
   }, { items: ITEMS });
-  await page.waitForTimeout(150);
+  await page.waitForFunction(() => document.querySelector('#lnG')?.offsetHeight > 0 && document.querySelector('#lnG svg, #lnG .grb-line-vlabel'));
   return errs;
 }
 

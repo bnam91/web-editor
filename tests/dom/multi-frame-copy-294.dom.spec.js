@@ -11,7 +11,7 @@ async function scene(page) {
     const add = (par, w, h, l, t) => { window.deselectAll(); window.selectSection(sec); window._activeFrame = par ? document.getElementById(par) : null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); const f = [...sec.querySelectorAll(FR)].find((x) => !b.has(x)); window.updateFrameBlock(f.id, { width: w, height: h }); if (par) { f.style.left = l + 'px'; f.style.top = t + 'px'; f.dataset.offsetX = l; f.dataset.offsetY = t; } window.deselectAll(); window._activeFrame = null; return f.id; };
     const P = add(null, 860, 500); const A = add(P, 240, 160, 20, 20); const G = add(A, 100, 60, 10, 10); const B = add(P, 240, 160, 300, 20); const C = add(P, 240, 160, 580, 20); const X = add(null, 860, 200); const Y = add(null, 860, 200);
     window.deselectAll(); window.clearHistory?.(); document.getElementById(P).scrollIntoView({ block: 'center' }); return { P, A, G, B, C, X, Y }; }, FR);
-  for (let i = 0, last = null; i < 40; i++) { const t = await page.evaluate(() => document.getElementById('canvas-scaler')?.style.transform); if (t === last) break; last = t; await page.waitForTimeout(150); }   // 첫 맞춤 줌이 자리 잡을 때까지
+  await page.waitForFunction(() => { const t = document.getElementById('canvas-scaler')?.style.transform; const same = t === window.__zt; window.__zt = t; return same; }, null, { polling: 150 });   // 첫 맞춤 줌이 자리 잡을 때까지
   await page.evaluate((P) => document.getElementById(P).scrollIntoView({ block: 'center' }), ids.P); await raf(page); return { errs, ...ids };
 }
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; }, id);
@@ -78,7 +78,7 @@ test('프레임 둘 ⌘C → 다른 섹션 클릭 → ⌘V — 고른 섹션에 
   const { errs, X, Y } = await scene(page);
   await page.evaluate((X) => document.getElementById(X).scrollIntoView({ block: 'center' }), X); await raf(page);
   const x = await box(page, X); await clk(page, (x.l + x.r) / 2, (x.t + x.b) / 2); const y = await box(page, Y); await clk(page, (y.l + y.r) / 2, (y.t + y.b) / 2, 'Meta'); await page.keyboard.press('Meta+c');
-  const secId = await page.evaluate(async () => { await window.addSection(); const s = [...document.querySelectorAll('#canvas .section-block')].pop(); window.deselectAll(); window.selectSection(s); window._activeFrame = null; return s.id; }); await raf(page); await page.waitForTimeout(100);
+  const secId = await page.evaluate(async () => { await window.addSection(); const s = [...document.querySelectorAll('#canvas .section-block')].pop(); window.deselectAll(); window.selectSection(s); window._activeFrame = null; return s.id; }); await raf(page);
   await pasteKey(page); await raf(page);
   const n = await page.evaluate(([id, FR]) => document.getElementById(id).querySelectorAll(FR).length, [secId, FR]); expect(n, '고른 섹션에 둘').toBe(2);
   expect(errs, errs.join(' | ')).toEqual([]);
