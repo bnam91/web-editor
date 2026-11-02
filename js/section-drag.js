@@ -195,7 +195,7 @@ function ungroupBlock(groupEl) {
       const fresh = unit.cloneNode(true);
       unit.replaceWith(fresh);
       [fresh, ...fresh.querySelectorAll('.frame-block')].filter(f => f.classList.contains('frame-block')).forEach(f => window.bindFrameDropZone?.(f));
-      const blocks = [...fresh.querySelectorAll(window.SECTION_BLOCK_TYPE_SEL)];
+      const blocks = [...fresh.querySelectorAll(window.SECTION_BLOCK_TYPE_SEL)].filter(b => !b.classList.contains('sticker-block'));   // 스티커는 bindBlock 을 안 탄다(bindStickerSelect 전용)
       if (fresh.matches(window.SECTION_BLOCK_TYPE_SEL)) blocks.unshift(fresh);
       blocks.forEach(b => window.bindBlock?.(b));
       window.rerenderTree?.(fresh);

@@ -115,6 +115,7 @@ test('프레임 안 스티커·그라데이션은 풀린 뒤에도 제 바인더
   await page.keyboard.press('Meta+Shift+g'); await raf(page);
   expect(await page.evaluate((a) => document.getElementById(a).parentElement.dataset.group, a), '[전제] 풀림').toBeUndefined();
   expect(await page.evaluate(([stk, gr]) => [!!document.getElementById(stk)._stickerBound, !!document.getElementById(gr)._gradientBound], [stk, gr]), '바인더').toEqual([true, true]);
+  expect(await page.evaluate((stk) => !!document.getElementById(stk)._blockBound, stk), '스티커는 bindBlock 을 안 탄다').toBe(false);
   await pickA(); await clickAt(page, stk); await raf(page);
   expect(await page.evaluate((stk) => document.getElementById(stk).classList.contains('selected'), stk), '스티커가 눌러 골라진다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
