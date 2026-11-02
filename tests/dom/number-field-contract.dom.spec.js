@@ -69,6 +69,8 @@ export function wireHexText() {}
 export function parseHex6(raw) { const m = String(raw ?? '').trim().replace(/^#/, ''); return /^[0-9a-fA-F]{6}$/.test(m) ? '#' + m.toLowerCase() : null; }
 export const formatHex6 = (v) => String(v ?? '').replace('#', '').toUpperCase();
 export function seedPickerFromGradient() {}
+export function alphaFromText() { return null; }
+export function noticeAlphaText() {}
 `;
 const GRADIENT_MODEL_STUB = `
 export function svgStopRemap() { return []; }

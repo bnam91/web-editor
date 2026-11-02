@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
 const { hitAt } = require('./_click-at.js');
+const { PAGE_LIB, canon, live, settle, select, judge } = require('./_frame-judge-294.js');
 
 const SEEDS = [294001, 294002, 294003, 294004, 294005];
 const SEEDS_UR = [294101, 294102, 294103, 294104, 294105];   // ㉡ undo·redo 를 연달아 3~5 번 쌓는 회차(지디 J294B)
@@ -30,33 +31,6 @@ const TAG = process.env.FUZZ_TAG || 'run';
 const OUT = process.env.FUZZ_OUT || path.join(__dirname, '..', '..', 'test-results', 'frame-fuzz-294');
 const INJECT = process.env.FUZZ_INJECT || '';
 const rng = (seed) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-
-/* 페이지 안 도움 — 상태 읽기(살아 있는 나무든 DOMParser 나무든 같은 자) */
-const PAGE_LIB = () => {
-  const FR = '.frame-block:not([data-text-frame])';
-  window.__readState = (root) => {
-    const frames = {}; const texts = {}; const dupes = [];
-    const seen = new Set(); const mark = (id) => { if (seen.has(id)) dupes.push(id); seen.add(id); };
-    root.querySelectorAll(FR).forEach((f) => { mark(f.id);
-      const chain = []; let cyc = false; for (let p = f.parentElement?.closest(FR); p; p = p.parentElement?.closest(FR)) { if (p.id === f.id || chain.includes(p.id)) { cyc = true; break; } chain.push(p.id); }
-      frames[f.id] = { parent: f.parentElement?.closest(FR)?.id || null, order: [...root.querySelectorAll(FR)].indexOf(f), cyc, w: f.dataset.width ?? f.style.width ?? '', h: f.dataset.height ?? f.style.height ?? '' }; });
-    root.querySelectorAll('.text-block').forEach((t) => { mark(t.id);
-      const holder = t.closest(FR); texts[t.id] = { frame: holder?.id || null, text: (t.querySelector('.tb-body') || t).textContent.trim() }; });
-    return { frames, texts, dupes };
-  };
-  window.__live = () => window.__readState(document.getElementById(window.__sec));
-  /* J294G ① 파일 망가뜨리기 — 첫 ss_ 는 섹션 기본 글자의 data-text-frame 이라 canon 밖이었다(실측 · 옛 양성이 초록인 까닭) ⇒ canon 이 읽는 진짜 프레임에만 닿는다. 닿았는지를 돌려준다(안 닿으면 빨강이 안 나도 «안 잰 것»). */
-  window.__mangleFile = (d, kind) => { const page = d.pages.find((x) => x.id === d.currentPageId) || d.pages[0]; const doc = new DOMParser().parseFromString('<div id="r">' + page.canvas + '</div>', 'text/html'); const sec = doc.getElementById(window.__sec); if (!sec) return false;
-    const fs = [...sec.querySelectorAll(FR)]; let done = false;
-    if (kind === 's' && fs[0]) { fs[0].id = 'INJECT'; done = true; }
-    if (kind === 'sp') { const inner = fs.find((f) => f.parentElement.closest(FR)); const top = fs.find((f) => !f.parentElement.closest(FR)); const other = fs.find((f) => f !== top && !top?.contains(f));
-      if (inner) { inner.parentElement.closest(FR).parentElement.appendChild(inner); done = true; } else if (top && other) { top.appendChild(other); done = true; } }
-    if (kind === 'so') { const a = fs.find((f) => fs.some((g) => g !== f && g.parentElement === f.parentElement)); if (a) { const b = fs.filter((g) => g !== a && g.parentElement === a.parentElement).pop(); b.after(a); done = true; } }
-    if (kind === 'st') { const t = sec.querySelector(FR + ' .text-block'); if (t) { (t.querySelector('.tb-body') || t).textContent = 'INJECT'; done = true; } }
-    if (done) page.canvas = doc.getElementById('r').innerHTML; return done; };
-  window.__saved = () => { const d = new DOMParser().parseFromString('<div id="r">' + window.getSerializedCanvas() + '</div>', 'text/html'); return window.__readState(d.getElementById('r').querySelector('#' + CSS.escape(window.__sec))); };
-};
-const canon = (s) => JSON.stringify({ f: Object.keys(s.frames).sort().map((k) => [k, s.frames[k].parent, s.frames[k].order, s.frames[k].w, s.frames[k].h]), t: Object.keys(s.texts).sort().map((k) => [k, s.texts[k].frame, s.texts[k].text]) });
 
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
@@ -109,75 +83,14 @@ async function fileRoundtrip(page, seed, before, inject = INJECT) {
   const after = await live(page);
   return { same: canon(after) === canon(before), injected: st.injected, frames: Object.keys(after.frames).length, texts: Object.keys(after.texts).length, fails: await judge(page, after, null) };
 }
-/* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
-async function select(page, id, depth, { enter = false, chain = null } = {}) {
-  let last = { sel: false, why: '안 함' };
-  for (let tries = 1; tries <= 3; tries++) {   // 고르기 흔들림은 판정 밖 전제다 — 조건을 재서 다시(t902 C3 도 같은 흔들림) · ⚠️시도 수는 기록에 안 남긴다(남기면 같은 시드 ×3 비교가 흔들린다)
-    await page.keyboard.press('Escape');
-    await page.evaluate(() => { window.deselectAll?.(); window._activeFrame = null; window._enteredFrame = null; document.activeElement?.blur?.(); });
-    await page.evaluate((id) => document.getElementById(id)?.scrollIntoView({ block: 'center' }), id);
-    await settle(page);
-    const q = await page.evaluate((id) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id); if (!o) return { ok: false }; const r = o.getBoundingClientRect();
-      const others = [...document.querySelectorAll('#canvas ' + FR + ', #canvas .text-block, #canvas .gap-block')].filter((f) => f !== o && !f.contains(o)).map((f) => f.getBoundingClientRect());
-      const inR = (x, y, b) => x > b.left && x < b.right && y > b.top && y < b.bottom;
-      const pts = [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]];
-      for (const [x, y] of pts) if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
-      return { ok: false, pts }; }, id);
-    if (!q.ok) {
-      if (!depth || !chain?.length) return { sel: false, why: '집을 점 없음', tries, pts: q.pts || [] };
-      /* 조상이 잡히면 그 조상에 들어간 뒤 다시 집는다(지디 J294C ㉢ · 사람 순서) — 한 겹씩 더블클릭 · 그 뒤 맨 위가 대상이면 누른다 */
-      const pts = q.pts; const ptOf = () => page.evaluate(([id, pts]) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id);
-        for (const [x, y] of pts) { const e = document.elementFromPoint(x, y); if (e && e.closest(FR) === o) return [x, y]; } return null; }, [id, pts]);
-      for (const anc of chain) {
-        const ap = await page.evaluate(([a, pts]) => { const r = document.getElementById(a)?.getBoundingClientRect(); return r ? (pts.find(([x, y]) => x > r.left && x < r.right && y > r.top && y < r.bottom) || null) : null; }, [anc, pts]);
-        if (ap) { await page.mouse.dblclick(ap[0], ap[1]); await settle(page); }
-      }
-      const hit = await ptOf();
-      if (!hit) { last = { sel: false, why: '들어가도 못 집음', tries, pts, via: 'descend' }; continue; }
-      await page.mouse.click(hit[0], hit[1]); await settle(page);
-      last = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
-      last.tries = tries; last.via = 'descend';
-      if (last.sel) return last;
-      last.why = '들어가 눌렀어도 안 골라짐'; last.pts = pts;
-      continue;
-    }
-    if (depth === 0) await page.mouse.click(q.x, q.y);
-    else if (depth === 1) await page.mouse.dblclick(q.x, q.y);
-    else {
-      for (let i = 0; i < depth - 1; i++) { await page.mouse.dblclick(q.x, q.y); await page.waitForFunction(() => !!document.querySelector('#canvas .frame-block.selected'), null, { timeout: 2000 }).catch(() => {}); }
-      if (enter) await page.mouse.dblclick(q.x, q.y); else await page.mouse.click(q.x, q.y);
-      if (enter) await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && window._enteredFrame?.id === id, id, { timeout: 2000 }).catch(() => {});
-    }
-    await settle(page);
-    last = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
-    last.tries = tries;
-    if (last.sel && (!enter || last.entered === id)) return last;
-    if (last.selected?.length && !last.sel) last.why = '다른 것이 골라짐';
-  }
-  return last;
-}
+
 const depthOf = (st, id) => { let d = 0; for (let p = st.frames[id]?.parent; p; p = st.frames[p]?.parent) d++; return d; };
 const tipOf = (page) => page.evaluate(() => { const h = window.getHistoryTip(); return [h.pos, h.len]; });
-const live = (page) => page.evaluate(() => window.__live());
-const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const kids = (st, id) => Object.keys(st.frames).filter((k) => st.frames[k].parent === id);
 const subtree = (st, id) => { const out = [id]; for (let i = 0; i < out.length; i++) out.push(...kids(st, out[i])); return out; };
 const shapeOf = (st, id) => ({ w: st.frames[id].w, h: st.frames[id].h, t: Object.keys(st.texts).filter((k) => st.texts[k].frame === id).map((k) => st.texts[k].text).sort(), k: kids(st, id).map((c) => shapeOf(st, c)).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : 1) });
 
 /* ⑶ 판정부 — 칸마다 [칸, 글] 을 돌려준다. expect = 모델이 세운 상태(canon 비교) · 없으면 ⒜⒞ 는 그 칸의 expectFn 이 잰다 */
-async function judge(page, st, want, extra = []) {
-  const fails = [...extra];
-  for (const [id, f] of Object.entries(st.frames)) if (f.cyc) fails.push(['b', `순환: ${id}`]);
-  if (st.dupes.length) fails.push(['c', `id 겹침 ${st.dupes.join(',')}`]);
-  if (want) {
-    const fa = Object.keys(st.frames).sort(); const fb = Object.keys(want.frames).sort();
-    if (JSON.stringify(fa) !== JSON.stringify(fb) || Object.keys(st.texts).sort().join() !== Object.keys(want.texts).sort().join()) fails.push(['c', `id 집합 다름: 있음 ${fa.length}/기대 ${fb.length}`]);
-    for (const k of fa) if (want.frames[k] && want.frames[k].parent !== st.frames[k].parent) fails.push(['a', `${k} 부모 ${st.frames[k].parent} ≠ 기대 ${want.frames[k].parent}`]);
-  }
-  const sv = await page.evaluate(() => window.__saved());
-  if (canon(sv) !== canon(st)) fails.push(['f', '저장물을 읽은 상태 ≠ 지금']);
-  return fails;
-}
 function norm(names, id) { return names[id] || id; }
 
 /* ⑵ 조작 생성기 + 모델 */

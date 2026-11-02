@@ -1482,15 +1482,17 @@ for (let si = 0; si < sections.length; si++) {
     blockY += h;
   }
 
-  run('resize_node', { nodeId: secFrame.id, width: canvasWidth, height: blockY });
-  console.log(`   → 섹션 높이: ${blockY}px  ID: ${secFrame.id}\n`);
+  // 186 — 캔버스 섹션 높이와 같게: 아래 여백을 더하고 바닥(min-height)이 더 크면 그 값. 옛 JSON 은 두 칸이 없다(= 0).
+  const secH = Math.max(blockY + (section.paddingBottom || 0), section.minHeight || 0);
+  run('resize_node', { nodeId: secFrame.id, width: canvasWidth, height: secH });
+  console.log(`   → 섹션 높이: ${secH}px  ID: ${secFrame.id}\n`);
 
   // 섹션 매핑 정보 출력 (호출자가 파싱해 node_map 갱신)
-  console.log(`SECTION_MAP:${JSON.stringify({ id: section.id, figmaId: secFrame.id, y: sectionY, height: blockY, name: section.name })}`);
+  console.log(`SECTION_MAP:${JSON.stringify({ id: section.id, figmaId: secFrame.id, y: sectionY, height: secH, name: section.name })}`);
 
   // 신규 섹션만 currentY 전진 (업데이트 섹션은 기존 위치 유지)
   if (!isPartialUpload || section.figmaY === undefined) {
-    currentY = sectionY + blockY + sectionGap;
+    currentY = sectionY + secH + sectionGap;
   }
 }
 

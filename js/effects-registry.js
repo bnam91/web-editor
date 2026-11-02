@@ -112,7 +112,10 @@ export function wireFxSection(el, prefix, rerender) {
     sel.value = '';                                   /* 머리로 되돌린다 — 다시 고를 수 있게(선례와 같은 결) */
     const t = types.find(x => x.key === key && !x.has(el) && typeof x.add === 'function');
     if (!t) return;
-    t.add(el); fxSetCardOpen(el, t.key, true); again();
+    t.add(el);   /* add 는 push-before — 「막 켠」 상태를 안 찍는다 */
+    /* ★끝 표본(js/insert-history.js T-131 과 같은 이음매) — 없으면 다음 패널 편집(push-after)의 ⌘Z 한 번이 효과 켜기까지 같이 푼다. 켜기만 하고 ⌘Z 는 무변화 차단·ensure 가 여전히 한 걸음으로 둔다. */
+    window.pushHistory?.('효과 켬');
+    fxSetCardOpen(el, t.key, true); again();
   });
   for (const t of types) if (t.has(el)) t.wire(el, P, again);
 }

@@ -4,7 +4,7 @@
      ⛔Y4 가 초록이라고 «O5 닫혔다» 로 읽지 마라 · 이 칸이 빨개지면(비킴이 움직임 없이도 서면) 그때 O5 를 다시 재라.
    ⚠️장면 준비만 evaluate — 임자·클릭·끌기는 진짜 마우스. */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 const raf2 = (p) => p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 const ownerAt = (p, x, y) => p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return { handle: !!e?.closest('.section-bottom-handle'), text: !!e?.closest('.text-block'), sticker: !!e?.closest('.sticker-block') }; }, [x, y]);
 const hover = async (p, x, y) => { await p.mouse.move(x, y - 40); await raf2(p); await p.mouse.move(x, y); await raf2(p); };
@@ -24,7 +24,8 @@ async function scene(page, touch) {
     sec.scrollIntoView({ block: 'center' });
     return { id: sec.id };
   }, touch);
-  await raf2(page);
+  await waitZoomSettled(page, 100);   // Y2·Y4 는 잰 좌표를 나중에 쓴다 — 보간 중에 재면 옛 배율 자리를 찍어 타이밍 따라 빨강이 났다
+  await waitStableRect(page, '#' + r.id);
   return { errs, id: r.id };
 }
 const rectOf = async (page, sel) => { const q = await waitStableRect(page, sel); return { x: q.left + q.width / 2, top: q.top, bottom: q.top + q.height, h: q.height }; };
