@@ -33,7 +33,8 @@ const show = (n) => {
   if (v === undefined) return `${n}=(없음)`;
   if (SECRET_NAME.test(n)) return `${n}=(가림:이름)`;
   if (/:\/\/[^/]*@/.test(v)) return `${n}=(가림:URL인증)`;
-  if (v.length >= 32 && !/^[/~.]/.test(v) || /-----BEGIN /.test(v)) return `${n}=(가림:값)`;   // 경로는 길어도 보인다(GOLDEN_DIR 류)
+  if (/-----BEGIN /.test(v)) return `${n}=(가림:값)`;
+  if (v.length >= 32 && !/^[/~.]/.test(v) && !/SHA/.test(n)) return `${n}=(가림:값)`;   // 경로(GOLDEN_DIR 류)와 해시(EXPECT_SHA 40자 — 이 머리가 찍으려는 그 값)는 길어도 보인다
   return `${n}=${v}`;
 };
 const sha = spawnSync('git', ['rev-parse', '--short=8', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout?.trim() || '(못 읽음)';

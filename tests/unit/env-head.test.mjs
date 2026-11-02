@@ -15,6 +15,7 @@ const run = (args, env = {}) => spawnSync(process.execPath, [TOOL, ...args], { e
 test('E1 음성 · 양성 — 안 주면 (없음) · 주면 그 값(EXPECT_SHA)', () => {
   assert.match(run([ROOT]).stdout, /\bEXPECT_SHA=\(없음\)/);
   assert.match(run([ROOT], { EXPECT_SHA: 'deadbeef' }).stdout, /\bEXPECT_SHA=deadbeef\b/);
+  assert.match(run([ROOT], { EXPECT_SHA: 'a'.repeat(40) }).stdout, new RegExp(`EXPECT_SHA=${'a'.repeat(40)}`), '★판 정체 40자가 가려지면 이 자의 목적이 죽는다');
 });
 test('E2 ★가림 — 이름 · URL 인증 · 긴 값 · 그리고 안 가릴 것은 그대로', () => {
   const o = run([ROOT], { GODITOR_TEST_ADMIN_CODE: 'hunter2', GODITOR_LICENSE_API: 'https://u:pw@api.example.com/v1', GODITOR_COLLAB_API: 'http://127.0.0.1:3000' }).stdout;
