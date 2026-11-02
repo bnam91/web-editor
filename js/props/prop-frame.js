@@ -71,6 +71,11 @@ ${blockHeaderHTML({
    AUTO 모드 (frame-block)
 ════════════════════════════════════════ */
 /* ── 자유배치 자식 행 그루핑 (Step 1: 분석만) ── */
+/* 프레임 폭 — style 값은 «px 일 때만» 믿는다(아래 ★수지④ 와 같은 뜻). ⌘G 틀·fullWidth 틀은 100% 라 parseInt 가 100 을 돌려줘 도형 150 이 stack 에서 716 으로 늘고 패딩 50 에서 폭이 풀렸다. */
+function _framePxW(ss) {
+  return (/^[\d.]+px$/.test(ss.style.width) ? parseInt(ss.style.width) : 0) || ss.offsetWidth || parseInt(ss.dataset.width) || 0;
+}
+
 function _analyzeFreeLayoutChildren(ss) {
   const directChildren = Array.from(ss.children).filter(c =>
     c.style.position === 'absolute' && c.id
@@ -103,7 +108,7 @@ function _analyzeFreeLayoutChildren(ss) {
     vGaps.push(rows[i].minTop - rows[i - 1].maxBottom);
   }
   const frameH = parseInt(ss.style.height) || parseInt(ss.dataset.height) || ss.offsetHeight || 0;
-  const frameW = parseInt(ss.style.width)  || ss.offsetWidth  || parseInt(ss.dataset.width)  || 0;
+  const frameW = _framePxW(ss);
   const padTop = rows.length ? rows[0].minTop : 0;
   const padBot = rows.length ? Math.max(0, frameH - rows[rows.length - 1].maxBottom) : 0;
   return { rows, vGaps, padTop, padBot, frameH, frameW };
@@ -227,7 +232,7 @@ function _stackDrawnW(c, base, frameW, pad) {
 function _applyStackChildWidths(ss) {
   if (!ss || ss.dataset.freeLayout === 'true') return 0;
   const pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
-  const frameW = parseInt(ss.style.width) || ss.offsetWidth || parseInt(ss.dataset.width) || 0;
+  const frameW = _framePxW(ss);
   const inner = frameW - 2 * pad;
   let n = 0;
   for (const c of ss.children) {

@@ -161,6 +161,28 @@ test('N4 [음성] free 에서 폭을 바꾸면 그 폭이 새 뜻 — 기존 규
   expect(await page.evaluate((id) => { const e = document.getElementById(id); return [e.offsetWidth, e.dataset.stackW]; }, text)).toEqual([420, '500']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+/* ⌘G 틀(style.width 100%) — 도형 둘을 묶고 stack. 묶기까지 장면, stack 단추·패딩 칸은 진짜. */
+const shapeWrap = async (page, w) => { await page.setViewportSize({ width: 1500, height: 1400 }); const errs = await bootApp(page);
+  const ids = await page.evaluate(async (w) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block');
+    const mk = () => { window.deselectAll(); window.selectSection(sec); const b = new Set(sec.querySelectorAll('.frame-block')); window.addShapeBlock('rectangle'); const e = [...sec.querySelectorAll('.frame-block')].find((x) => !b.has(x)); e.style.width = w + 'px'; e.dataset.width = String(w); return e; };
+    const A = mk(), B = mk(); window.deselectAll(); A.classList.add('selected'); B.classList.add('selected'); window.wrapSelectedBlocksInFrame();
+    const f = A.parentElement.closest('.frame-block'); window.deselectAll(); window.clearHistory?.(); f.scrollIntoView({ block: 'center' }); return { f: f.id, a: A.id, b: B.id, sw: f.style.width }; }, w);
+  await pickRoot(page, ids.f); return { errs, ...ids }; };
+const padTo = async (page, v) => { const i = page.locator('#ss-padx-num'); await i.fill(String(v)); await i.press('Tab'); };
+test('F12 ⌘G 틀 100% — 도형 폭 150 이 stack 에서 안 늘어난다', async ({ page }) => {
+  const { errs, f, a, b, sw } = await shapeWrap(page, 150); expect(sw, '[전제] 틀 100%').toBe('100%');
+  await page.locator('#ss-to-stack-btn').click(); await expect(page.locator('#ss-to-free-btn')).toBeVisible();
+  expect([await widthOf(page, a), await widthOf(page, b)]).toEqual([150, 150]); expect(await page.evaluate((id) => document.getElementById(id).style.width, f)).toBe('100%');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('F13 ⌘G 틀 100% — 도형 80 · 패딩 50 에서 폭이 안 풀린다(하한 20)', async ({ page }) => {
+  const { errs, a } = await shapeWrap(page, 80);
+  await page.locator('#ss-to-stack-btn').click(); await expect(page.locator('#ss-to-free-btn')).toBeVisible();
+  await padTo(page, 40); await expect.poll(() => widthOf(page, a), '패딩 40').toBe(20);
+  await padTo(page, 50); await expect.poll(() => widthOf(page, a), '패딩 50').toBe(20);
+  await padTo(page, 0); await expect.poll(() => widthOf(page, a), '패딩 0').toBe(80);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 test('N1 [음성] free 프레임은 stack 단추 그대로 · free 단추 없음', async ({ page }) => {
   const { errs, nb } = await scene(page); await pickRoot(page, nb);
   await expect(page.locator('#ss-to-stack-btn')).toBeVisible(); await expect(page.locator('#ss-to-free-btn')).toHaveCount(0);
