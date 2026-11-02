@@ -1,4 +1,6 @@
 /* t7-05-overlay-resize-ft-outline.dom.spec.js — t7-05 「오버레이 모드 리사이즈 시 텍스트만 확대되고 아웃라인·격자는 변경되지 않는 오류 수정」
+ * ★시트 325 — 오버레이 모서리 끌기 길은 123(23de0985)이 닫았다. 지키는 것(테두리·격자가 글자를 따라온다)은 그대로 두고 길만 패널 글자 크기로 옮겼다.
+ *   음성대조: ftScaleTo 를 무력화하거나 패널의 ftScaleTo 한 줄을 빼면 R2 빨강.
  *
  * ★잰 값(시트 t7-05 클로드코멘트) — 글꼴 36→118.7px · tf 124→409 인데 .tfh-edge rect 49.8×17.2 → 49.8×17.2 불변 ·
  *   대조 .ss-sel-path 는 따라옴(자는 살아 있다).
@@ -10,10 +12,10 @@
  *
  * ★칸
  *   P  전제 — 글상자(«짧은 글») 오버레이 + 자유변형 켬 · 보라 테두리·격자 사각형 = 글자 사각형(켠 직후 · 1.5px 안)
- *   R1 오버레이 se 손잡이를 (+120,+60) 화면 px 끌면 글자 크기가 커진다(전제: 리사이즈가 먹었다)
+ *   R1 패널 글자 크기를 두 배로 쓰면 글자 크기가 커진다(전제: 크기 변경이 먹었다)
  *   R2 ★그 뒤 보라 테두리(.tfh-edge) 사각형 = 글자 사각형(1.5px 안) — 크기가 글자를 따라왔다
  *   R3 ★격자(.tfh-fx) 사각형 = 글자 사각형(1.5px 안)
- *   R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 끌기 전으로(테두리 = 글자)
+ *   R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 크기 변경 전으로(테두리 = 글자) — ★지금 빨강(test.fail · 아래 시험 머리말)
  *   R5 리사이즈 뒤에도 줄 수가 그대로다(상자가 글자보다 좁게 박혀 꺾이지 않는다)
  * ⛔고정 대기 0 — 조건 대기만.
  */
@@ -29,7 +31,7 @@ const R = (page, id) => page.evaluate((id) => {
 }, id);
 const near = (a, b) => Math.max(Math.abs(a.l - b.l), Math.abs(a.t - b.t), Math.abs(a.w - b.w), Math.abs(a.h - b.h));
 
-test('P·R1~R4 ★오버레이 리사이즈 — 보라 테두리·격자가 글자를 따라온다', async ({ page }) => {
+async function growViaPanel(page) {
   await page.setViewportSize({ width: 1400, height: 1000 });
   const errs = await bootApp(page);
   const id = await page.evaluate(async () => {
@@ -51,12 +53,11 @@ test('P·R1~R4 ★오버레이 리사이즈 — 보라 테두리·격자가 글�
   const m0 = await R(page, id);
   expect(near(m0.edge, m0.glyph), `P 켠 직후 테두리=글자 ${JSON.stringify(m0.edge)} vs ${JSON.stringify(m0.glyph)}`).toBeLessThan(1.5);
   expect(near(m0.grid, m0.glyph), 'P 켠 직후 격자=글자').toBeLessThan(1.5);
-  const se = await page.evaluate(() => { const h = [...document.querySelectorAll('.tfo-overlay-handle.se')].find((e) => e.offsetParent !== null || e.getBoundingClientRect().width > 0); if (!h) return null; const b = h.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
-  expect(se, 'P 전제: 오버레이 se 손잡이').not.toBeNull();
-  await page.mouse.move(se.x, se.y);
-  await page.mouse.down();
-  for (let i = 1; i <= 8; i++) await page.mouse.move(se.x + 120 * i / 8, se.y + 60 * i / 8);
-  await page.mouse.up();
+  /* 비석 — 옛 전제(오버레이 se 손잡이를 끈다)는 123(23de0985)이 닫았다: 자유변형을 고른 동안 tfo 모서리는 숨는다. 남은 크기 길 = 패널 글자 크기(시트 325). */
+  expect(await page.evaluate(() => { const h = document.querySelector('.tfo-overlay-handle.se'); return !h || getComputedStyle(h).display === 'none'; }), 'P 123: 자유변형 중 오버레이 se 손잡이는 숨는다').toBe(true);
+  await page.click('#txt-size-number', { clickCount: 3 });
+  await page.keyboard.type(String(Math.round(m0.fs * 2)));
+  await page.keyboard.press('Enter');
   await page.waitForFunction(([id, f]) => parseFloat(getComputedStyle(document.getElementById(id).querySelector('[contenteditable], .tb-h1')).fontSize) > f + 4, [id, m0.fs], { timeout: 3000 });
   await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
   const m1 = await R(page, id);
@@ -65,6 +66,18 @@ test('P·R1~R4 ★오버레이 리사이즈 — 보라 테두리·격자가 글�
   expect(near(m1.grid, m1.glyph), `R3 격자 ${JSON.stringify(m1.grid)} = 글자 ${JSON.stringify(m1.glyph)}`).toBeLessThan(1.5);
   /* R5 — 실앱(261026 · 104→216.8px)에서 상자가 글자 폭보다 0.115px 좁게 박혀 «짧은 글» 이 두 줄로 꺾였다(재는 폭이 소수 px 라 배율 자가 어긋남). */
   expect(m1.lines, `R5 리사이즈 뒤에도 줄 수 그대로 (${m0.lines} → ${m1.lines})`).toBe(m0.lines);
+  return { errs, id, m0 };
+}
+
+test('P·R1~R3·R5 ★오버레이 + 자유변형 크기 변경 — 보라 테두리·격자가 글자를 따라온다', async ({ page }) => {
+  const { errs } = await growViaPanel(page);
+  expect(errs).toEqual([]);
+});
+
+/* R4 — ⌘Z 한 번은 크기 변경 한 걸음이어야 한다. 지금은 패널 크기가 change 에서 push-after 라 자유변형 켜기까지 같이 풀린다(시트 325 곁 · 새 결함 · 안 고침). 고치면 이 시험이 «예상 밖 통과»로 빨개진다 ⇒ test.fail 을 지워라. */
+test('R4 ⌘Z 한 번 ⇒ 글자 크기·테두리가 크기 변경 전으로(테두리 = 글자)', async ({ page }) => {
+  test.fail();
+  const { errs, id, m0 } = await growViaPanel(page);
   await page.keyboard.press('Meta+z');
   await page.waitForFunction(([id, f]) => Math.abs(parseFloat(getComputedStyle(document.getElementById(id).querySelector('[contenteditable], .tb-h1')).fontSize) - f) < 0.2, [id, m0.fs], { timeout: 3000 });
   await page.evaluate((id) => { const tb = document.getElementById(id); tb.classList.add('selected'); window.ftHandlesSync?.(tb); }, id);
