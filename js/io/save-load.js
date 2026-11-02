@@ -187,9 +187,11 @@ async function captureThumbnail() {
     /* ★라이브 캔버스(#canvas)는 «안 베낀다»(2026-10-07 지디 ㉠) — html2canvas 는 찍을 클론 하나가 아니라 «문서 전체»를 복제한다.
        썸네일은 첫 섹션 클론(body 에 붙은 것)만 쓰는데, 복제·레이아웃 비용은 캔버스의 «모든» 섹션 몫이었다
        (실측 20 섹션 × 입자 320: 썸네일 한 번 12.7~34.5 s · 메인스레드 최장 막힘 11.3~31.3 s · 판 2866df63 ×3 — 섹션 20 × 빈 것은 0.4~0.5 s).
-       ⛔이 술어는 «이 호출부의 인자»다 — capture 공용 길(capture-safety · export-image)의 기본값으로 옮기지 마라(내보내기 PNG 는 그대로). */
-    const _skipLiveCanvas = (el) => el === canvasEl;
-    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false, ignoreElements: _skipLiveCanvas }));
+       ⛔이 술어는 «이 호출부의 인자»다 — capture 공용 길(capture-safety · export-image)의 기본값으로 옮기지 마라(내보내기 PNG 는 그대로).
+       ★165·168(J159C) — #canvas 만 빼도 문서 나머지(#main 패널 등 1.5만 요소)를 복제하는 값이 남았다: 합성 저장본 앱 ×3 h2c 11.0~15.3 s → 0.65~0.83 s · 그림 해시 같음.
+       그래서 body 바로 밑은 찍을 클론만 남긴다 — ⛔STYLE·LINK 는 남긴다(body 에 든 규칙이 클론 꼴을 정한다 · TS5). */
+    const _skipOutsideClone = (el) => el === canvasEl || (el.parentElement === document.body && el !== clone && el.tagName !== 'STYLE' && el.tagName !== 'LINK');
+    const canvas = await withGuideOff(async () => await html2canvas(clone, { scale: 1, useCORS: true, backgroundColor: bgColor, logging: false, ignoreElements: _skipOutsideClone }));
     document.body.removeChild(clone);
 
     /* 200px 너비로 축소 — ★«빈 그림»이면 null 이다. 그럴듯한 6자를 돌려주지 않는다 (T-87).

@@ -8,6 +8,8 @@
  * ★시간 대신 «부하에 안 흔들리는 수»로 잰다: html2canvas 의 onclone 으로 «복제된 문서»의 .section-block 수를 센다.
  *   TS1 썸네일 = 1 (클론 하나) · TS2 내보내기 PNG = 라이브 N + 클론 1 (그대로 — 음성대조: capture 본체 기본값을 안 바꿨다)
  *   TS3 뺀 것이 그림에 «0 픽셀»이었다 — 같은 장면을 ignoreElements 뗀 채 다시 찍어 썸네일 data URL 이 «같다».
+ *   TS4 (165·168 · J159C) body 바로 밑은 클론·STYLE·LINK 만 복제 — 패널은 안 베낀다 · TS5 body 안 <style> 은 남아 그림에 든다
+ *     양성대조: 핀 df8241e1 = TS4 빨강 · STYLE·LINK 지킴을 뗀 사본 = TS5 빨강.
  * 양성대조(핀 2866df63 · 고치기 전 판): TS1 빨강(복제 21) · TS2 초록 · TS3 초록(뗄 것이 없어 같다) — 커밋 메시지·보고에 판과 함께.
  */
 const { test, expect } = require('@playwright/test');
@@ -40,7 +42,7 @@ async function setup(page) {
       const o2 = Object.assign({}, o);
       if (window.__stripIgnore) delete o2.ignoreElements;
       const prev = o2.onclone;
-      o2.onclone = (doc, clonedEl) => { rec.clonedSections = doc.querySelectorAll('.section-block').length; return prev ? prev(doc, clonedEl) : undefined; };
+      o2.onclone = (doc, clonedEl) => { rec.clonedSections = doc.querySelectorAll('.section-block').length; rec.kids = [...doc.body.children].map(k => (k.classList.contains('section-block') ? 'SEC' : k.tagName)); rec.panel = !!doc.getElementById('ts-panel'); rec.style = !!doc.getElementById('ts-style'); return prev ? prev(doc, clonedEl) : undefined; };
       return real.call(this, el, o2);
     };
   }, [INSTALL_FAKE_META_SRC, N]);
@@ -88,4 +90,32 @@ test('TS3 뺀 것이 그림에 «0 픽셀» — ignoreElements 를 뗀 채 다�
   expect(typeof a.t, '★전제: 썸네일이 찍혔다').toBe('string');
   expect(b.calls[0].clonedSections, '★전제: 뗀 판은 라이브 캔버스를 복제했다(대조가 살아 있다)').toBe(N + 1);
   expect(a.t === b.t, `썸네일 그림이 갈렸다(길이 ${a.t && a.t.length} · ${b.t && b.t.length}) — 뺀 것이 그림에 들어가 있었다`).toBe(true);
+});
+
+test('TS4 ★썸네일 — body 바로 밑은 찍을 클론·STYLE·LINK 만 복제한다(패널을 안 베낀다 · 165·168)', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<div id="ts-panel"><i></i><i></i></div><style id="ts-style"></style>');
+  });
+  const r = await thumb(page);
+  expect(r.calls.length, '★전제: 썸네일 저장에서 html2canvas 가 불렸다').toBeGreaterThan(0);
+  const c = r.calls[0];
+  expect(c.style, 'body 안 <style> 이 복제에서 빠졌다').toBe(true);
+  expect(c.panel, '썸네일이 body 밑 패널까지 복제했다').toBe(false);
+  expect(c.kids.filter(k => !['SEC', 'STYLE', 'LINK'].includes(k)), `클론·STYLE·LINK 밖이 복제됐다: ${c.kids.join()}`).toEqual([]);
+  expect(c.kids.filter(k => k === 'SEC').length, '찍을 클론은 하나 남아야 한다').toBe(1);
+});
+
+test('TS5 ★음성대조 — body 안 <style> 이 정한 꼴은 그림에 그대로 든다(술어를 뗀 판과 같다)', async ({ page }) => {
+  await setup(page);
+  const plain = await thumb(page);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<style id="ts-style">.section-block{background:#c31 !important}</style>');
+  });
+  const a = await thumb(page);
+  await page.evaluate(() => { window.__stripIgnore = true; });
+  const b = await thumb(page);
+  expect(typeof a.t, '★전제: 썸네일이 찍혔다').toBe('string');
+  expect(plain.t !== b.t, '★전제: 그 <style> 이 그림을 바꾼다(대조가 살아 있다)').toBe(true);
+  expect(a.t === b.t, 'body 안 <style> 이 썸네일에서 빠졌다').toBe(true);
 });
