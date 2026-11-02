@@ -1,5 +1,5 @@
 /* asset-upload-goya.dom.spec.js — BIG-IMAGE-INSERT-RENDERER-OOM-01 · loadImageToAsset 이 data URL 대신 자산 URL 을 넣는지의 자.
- * 자산 IPC 는 스텁이다(이 하네스엔 electronAPI 가 없다). 돌려주는 주소는 실제로 그림이 뜨는 /__asset/ — goya-asset:// 는 여기서 안 떠 onerror 가 DOM 을 바꾼다.
+ * 자산 IPC 만 스텁이다(나머지는 하네스 가짜). 돌려주는 주소는 실제로 그림이 뜨는 /__asset/ — goya-asset:// 는 여기서 안 떠 onerror 가 DOM 을 바꾼다.
  * 실제 파일·충돌·저장·다시 열기는 앱 측정값(회신)에 있다.
  * ⛔이 자가 안 재는 것: 렌더러 메모리 · goya-asset 프로토콜로 실제 그림이 뜨는지.
  */
@@ -16,7 +16,8 @@ async function setup(page, saved) {
   await page.evaluate((saved) => {
     window.activeProjectId = 'p1';
     window.__saves = [];
-    window.electronAPI = { ...(window.electronAPI || {}), assetsSaveCanvasImage: async (a) => { window.__saves.push(a.mime); return saved ? { ok: true, url: `${location.origin}/__asset/h${window.__saves.length}.png` } : { ok: false }; } };
+    const save = async (a) => { window.__saves.push(a.mime); return saved ? { ok: true, url: `${location.origin}/__asset/h${window.__saves.length}.png` } : { ok: false }; };
+    window.electronAPI = new Proxy(window.electronAPI, { get: (t, k) => (k === 'assetsSaveCanvasImage' ? save : t[k]) });   // ⛔{...} 로 펼치지 마라 — 하네스 가짜는 Proxy 라 다른 API 가 다 사라진다
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     const i = document.createElement('input'); i.type = 'file'; i.id = 'f'; document.body.appendChild(i);
   }, saved);
