@@ -330,7 +330,8 @@ function _convertStackToFree(ss) {
   const spots = flow.filter(c => !isSpacer(c)).map(c => {
     const kids = c.classList.contains('row') ? [...c.children].filter(k => !k.classList.contains('drop-indicator')) : [];
     const [x, y] = offsetIn(c);
-    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width };
+    const grids = [c, ...kids].filter(g => g.classList.contains('grid-block')).map(g => [g, Math.round(parseFloat(getComputedStyle(g).width))]);
+    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width, grids };
   });
   const { width: frameW, height: frameH } = getComputedStyle(ss);   // 소수 그대로 — 반올림하면 아래 이웃이 1px 밀린다
   ss.dataset.freeLayout = 'true';
@@ -338,8 +339,9 @@ function _convertStackToFree(ss) {
   ss.dataset.width = String(Math.round(parseFloat(frameW))); ss.dataset.height = String(Math.round(parseFloat(frameH)));
   ss.style.width = frameW; ss.style.height = frameH; ss.style.minHeight = frameH;
   flow.filter(isSpacer).forEach(c => c.remove());
-  for (const { c, x, y, w } of spots) {
+  for (const { c, x, y, w, grids } of spots) {
     delete c.dataset.stackW;
+    grids.forEach(([g, gw]) => window.fitGridWidthToFreeFrame?.(g, ss, gw));   // 지금 폭을 키에 — 안 적으면 settleRowInFreeFrame 이 프레임의 80% 로 줄인다(716→573)
     c.style.alignSelf = ''; c.style.flexShrink = ''; c.style.margin = '0';
     if (!window.settleRowInFreeFrame?.(ss, c, 'inplace') && !/px$/.test(c.style.width)) c.style.width = w;   // 줄·패널 블럭의 폭은 그 문이 정한다
     c.style.position = 'absolute'; c.style.left = x + 'px'; c.style.top = y + 'px';
