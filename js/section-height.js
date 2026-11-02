@@ -185,7 +185,7 @@
     secs.forEach((s, i) => {
       const h = renderOne(s, hs[i]);          // (다) 캔버스 — 쓰기만
       if (h != null) total += h;              // (라) 는 ★그 수를 그대로 더한 것
-      observeSection(s);
+      observeSection(s, hs[i]);
     });
     renderPanel(secs, total);                 // (다) 패널 칸 ＋ (라) 합계
     return { count: secs.length, total };
@@ -194,6 +194,7 @@
   /* ══ ⒝ ResizeObserver — 높이가 «무슨 까닭으로든» 바뀌면 온다 ══════════════════ */
   let _ro = null;
   const _observed = new WeakSet();
+  const _firstH = new WeakMap();                // 걸 때 잰 값 — RO 는 걸자마자 첫 통지를 준다
   let _pending = false;
 
   function _schedule() {
@@ -204,10 +205,20 @@
     setTimeout(() => { _pending = false; try { renderSectionHeights(); } catch (_) {} }, 0);
   }
 
-  function observeSection(sec) {
+  function observeSection(sec, h) {
     if (!_ro || !sec || _observed.has(sec)) return;
     _ro.observe(sec);
     _observed.add(sec);
+    _firstH.set(sec, h);
+  }
+
+  /* 노드가 갈린 뒤(⌘Z·로드) 첫 통지는 방금 그린 값을 또 알린다 — 그대로면 둘째 판을 안 돈다(172 ㉮ «섹션마다 1 번»).
+     ⛔값을 안 보고 건너뛰지 마라: 그린 뒤 첫 통지 전에 높이가 바뀌면 이 통지가 유일한 신호다(fix5-172a N2). */
+  function _isFirstSameHeight(sec) {
+    if (!_firstH.has(sec)) return false;
+    const h = _firstH.get(sec);
+    _firstH.delete(sec);
+    return measureSectionHeight(sec) === h;     // 비교만 — 그리는 값은 여전히 ruler 하나에서 나온다
   }
 
   function _initObservers() {
@@ -215,8 +226,12 @@
       /* ★1020t2h2 — 섹션 높이가 바뀌면 그 섹션 스티커(마킹)의 섹션 밖 크롭을 다시 낸다(그라데이션 _gradSecRO 와 같은 병).
          ⛔없으면 섹션이 줄어도 옛 --sec-clip 이 남아 «섹션 밖 보이기» 꺼짐인데도 밖이 보인다. */
       _ro = new ResizeObserver((entries) => {
-        for (const en of entries) en.target.querySelectorAll(':scope > .sticker-block').forEach(b => window._updateStickerSecClip?.(b));
-        _schedule();
+        let changed = false;
+        for (const en of entries) {
+          en.target.querySelectorAll(':scope > .sticker-block').forEach(b => window._updateStickerSecClip?.(b));
+          if (en.target.isConnected && !_isFirstSameHeight(en.target)) changed = true;   // 떨어져 나간 옛 노드의 0 통지는 값이 아니다(빠진 것은 MO 가 알린다)
+        }
+        if (changed) _schedule();
       });
     }
     const canvasEl = document.getElementById('canvas');
