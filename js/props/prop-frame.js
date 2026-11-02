@@ -246,11 +246,11 @@ function _convertFreeLayoutToStack(ss) {
   const a = _analyzeFreeLayoutChildren(ss);
   const multiRows = a.rows.filter(r => r.items.length > 1);
   if (multiRows.length > 0) {
-    alert(`다중 자식 행 ${multiRows.length}개 — 가로 묶기는 Step 3에서 지원 예정.`);
+    alert('나란히 놓인 자식이 있으면 stack 으로 바꿀 수 없습니다. 위아래로 옮긴 뒤 다시 눌러 주세요.');
     return false;
   }
   if (a.rows.length === 0) {
-    alert('변환할 자식이 없습니다.');
+    alert('빈 프레임은 stack 으로 바꿀 수 없습니다. 자식을 넣은 뒤 다시 눌러 주세요.');
     return false;
   }
 
@@ -312,6 +312,46 @@ function _convertFreeLayoutToStack(ss) {
   return true;
 }
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
+
+/* 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01 — 피그마 Remove auto layout: 자식이 지금 자리·크기 그대로 좌표로 고정된다. 이 프레임 한 층만, 옛 free 좌표는 안 되살린다.
+   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다) — 회전이 끼어 rect 를 못 믿으면 offset(정수).
+   투명한 간격 블럭은 걷는다 — 흐름에서 자리를 벌리는 일만 하고, 좌표에선 할 일이 없으며 남기면 다시 stack 으로 갈 때 자식으로 세어진다.
+   시험: tests/dom/frame-stack-to-free-296.dom.spec.js */
+function _convertStackToFree(ss) {
+  window.pushHistory?.('free 로 전환 전');
+  const fr = ss.getBoundingClientRect(), k = (fr.width / ss.offsetWidth) || 1;
+  const offsetIn = (el) => {
+    let x = 0, y = 0; for (let e = el; e && e !== ss; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
+    const q = el.getBoundingClientRect(), fx = (q.left - fr.left) / k - ss.clientLeft, fy = (q.top - fr.top) / k - ss.clientTop;
+    return [Math.abs(fx - x) < 1 ? +fx.toFixed(2) : x, Math.abs(fy - y) < 1 ? +fy.toFixed(2) : y];
+  };
+  const isSpacer = (c) => { if (!c.classList.contains('gap-block')) return false; const cs = getComputedStyle(c); return cs.backgroundImage === 'none' && /^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor); };
+  const flow = [...ss.children].filter(c => c.style.position !== 'absolute' && !c.classList.contains('frame-resize-handle') && !c.classList.contains('drop-indicator'));
+  const spots = flow.filter(c => !isSpacer(c)).map(c => {
+    const kids = c.classList.contains('row') ? [...c.children].filter(k => !k.classList.contains('drop-indicator')) : [];
+    const [x, y] = offsetIn(c);
+    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width };
+  });
+  const { width: frameW, height: frameH } = getComputedStyle(ss);   // 소수 그대로 — 반올림하면 아래 이웃이 1px 밀린다
+  ss.dataset.freeLayout = 'true';
+  delete ss.dataset.fullWidth;
+  ss.dataset.width = String(Math.round(parseFloat(frameW))); ss.dataset.height = String(Math.round(parseFloat(frameH)));
+  ss.style.width = frameW; ss.style.height = frameH; ss.style.minHeight = frameH;
+  flow.filter(isSpacer).forEach(c => c.remove());
+  for (const { c, x, y, w } of spots) {
+    delete c.dataset.stackW;
+    c.style.alignSelf = ''; c.style.flexShrink = ''; c.style.margin = '0';
+    if (!window.settleRowInFreeFrame?.(ss, c, 'inplace') && !/px$/.test(c.style.width)) c.style.width = w;   // 줄·패널 블럭의 폭은 그 문이 정한다
+    c.style.position = 'absolute'; c.style.left = x + 'px'; c.style.top = y + 'px';
+    c.dataset.offsetX = String(Math.round(x)); c.dataset.offsetY = String(Math.round(y));
+    if (c.dataset.textFrame === 'true') c.dataset.width = String(Math.round(parseFloat(c.style.width)));
+    if (c.hasAttribute('draggable')) c.setAttribute('draggable', 'false');
+  }
+  window.pushHistory?.('free 로 전환');
+  window.scheduleAutoSave?.();
+  window.buildLayerPanel?.();
+  window.showFrameProperties?.(ss);
+}
 
 function _renderAutoPanel(ss) {
   const isShapeFrame = _isShapeFrameEl(ss);   // ★직속 판정 SSOT(자손 검색 ✗, 0918)
@@ -448,7 +488,7 @@ function _renderAutoPanel(ss) {
       </div>` : '<div class="prop-section-title">Layout</div>'}
       <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
-        ${isFreeLayout ? `<button class="prop-action-btn secondary" id="ss-to-stack-btn" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">stack</button>` : ''}
+        <button class="prop-action-btn secondary" id="${isFreeLayout ? 'ss-to-stack-btn' : 'ss-to-free-btn'}" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">${isFreeLayout ? 'stack' : 'free'}</button>
       </div>
     </div>`}
     ${_radialTop ? _radialSec : ''}
@@ -665,6 +705,7 @@ function _renderAutoPanel(ss) {
   document.getElementById('ss-to-stack-btn')?.addEventListener('click', () => {
     _convertFreeLayoutToStack(ss);
   });
+  document.getElementById('ss-to-free-btn')?.addEventListener('click', () => _convertStackToFree(ss));
 
   // ── 위치(X/Y) 핸들러 ──
   const _applyTransform = () => {
