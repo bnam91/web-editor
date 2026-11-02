@@ -4652,6 +4652,7 @@ app.whenReady().then(async () => {
       applySpacingOps: _invokeRendererApplySpacingOps,
       exportSections: _invokeRendererExport,
       historyTip: _invokeRendererHistoryTip,
+      loadBlocked: _invokeRendererLoadBlocked,
       historyHasSeq: _invokeRendererHistoryHasSeq,
       undoOnce: _invokeRendererUndoOnce,
       exportCollect: { begin: _dlBegin, settle: _dlSettle, end: _dlEnd },
@@ -5824,6 +5825,10 @@ async function _invokeRendererHistoryTip() {
       return window.getHistoryTip();
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
   return await mainWindow.webContents.executeJavaScript(js, true);
+}
+async function _invokeRendererLoadBlocked() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
+  return await mainWindow.webContents.executeJavaScript('!!(window.LoadInputGate && window.LoadInputGate.isOn())', true);
 }
 async function _invokeRendererHistoryHasSeq(seq) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');

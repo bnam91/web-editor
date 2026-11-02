@@ -708,6 +708,27 @@ async function _awaitSwitchIdle(toolName, maxWaitMs) {
   return null;
 }
 
+/* ★363 — 사람 손으로 연 로드(카드·탭)는 _switchGate 가 모른다. 그 사이 쓰기는 곧 교체될 캔버스에 들어가 말없이 사라진다.
+ *   막힘 판정은 렌더러가 말한다(load-input-gate). 렌더러가 무거운 동기 작업으로 답을 못 하면 «아직»으로 본다(_waitProjectReady 와 같다). */
+async function _awaitProjectLoaded(toolName, maxWaitMs) {
+  if (!_rendererInvoker?.loadBlocked) return null;
+  const t0 = Date.now();
+  for (;;) {
+    let b = null;
+    try {
+      b = await Promise.race([_rendererInvoker.loadBlocked(), new Promise(res => setTimeout(() => res(null), 1000))]);
+    } catch (_) { return null; }   // 창 없음 — 도구가 자기 말로 답한다
+    if (b === false) return null;
+    if (Date.now() - t0 >= maxWaitMs) break;
+    await new Promise(res => setTimeout(res, 100));
+  }
+  return {
+    ok: false, code: 'project_loading', waitedMs: Date.now() - t0,
+    error: `프로젝트를 읽는 중이라 ${toolName} 을(를) 실행하지 않았습니다.`,
+    hint: 'The project is still loading, so this tool was NOT executed (it would write into a canvas that is about to be replaced). Retry when loading finishes.',
+  };
+}
+
 /* 전환 중에도 «안전하게» 돌아도 되는 도구 — 활성 프로젝트의 캔버스에 기대지 않는 것들만.
  * (open_project 자체는 _runExclusiveSwitch 가 따로 다룬다.) */
 const _SWITCH_EXEMPT = new Set([
@@ -8855,6 +8876,10 @@ async function _handleRpc(msg) {
         } catch (_) { /* 추적 실패는 편집을 막지 않는다 — undo 가 NOT_OURS 로 안전측 거절한다 */ }
         return r;
       };
+      if (!_SWITCH_EXEMPT.has(name) && (!_NON_MUTATING.has(name) || name === 'undo_last_mcp_change')) {
+        const _loading = await _awaitProjectLoaded(name, _SWITCH_QUEUE_MAX_MS);
+        if (_loading) return _reply(_loading);
+      }
       if (!_NON_MUTATING.has(name) && _rendererInvoker?.historyTip) {
         /* ★seq 가 null 인 «옛 항목»(도장 이전에 생긴 것)은 0 으로 본다 —
            null 을 그대로 두면 구간 계산이 못 되고 「1칸」으로 조용히 축소된다. */
