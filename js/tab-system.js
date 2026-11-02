@@ -268,8 +268,14 @@ function _restoreViewState(tab) {
   setTimeout(retry, 150);
 }
 
+/* ★360 — 전환 세대 · 첫 로드 중인 탭. 첫 로드 await 사이에 다른 탭을 누르면 늦게 끝난 로드가 활성 탭 캔버스에 앞 프로젝트를 올렸고,
+   다음 편집 저장이 그 탭 파일을 앞 프로젝트 내용으로 덮었다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 시험: tests/dom/switchtab-first-load-race-360. */
+let _switchGen = 0;
+let _firstLoadingTabId = null;
+
 async function switchTab(id) {
   if (id === _getActId()) return;
+  const _gen = ++_switchGen;
   // 스크래치패드 '로드'(switchScratch)는 currentPageId 정해진 후(applyProjectData 다음)로 미룸 —
   // 여기서 호출하면 pageId=undefined로 키 불일치 발생해 데이터 못 찾음.
   // 단 이전 프로젝트 스크래치의 '저장+DOM제거'는 새 pageId 불필요 → 아래 캔버스 클리어 시점에
@@ -293,7 +299,8 @@ async function switchTab(id) {
        about:blank 에 «홀로» 얹어 검사한다. 거기선 './io/...' 가 안 풀려 모듈이 통째로 죽고
        renderTabBar 까지 사라진다(실측: T049-DOM-2·3 빨강). 이 파일의 규약대로 window 경유다
        — 문구·판정·래치는 여전히 js/io/pending-video-warn.js 한 곳에만 있다. */
-  if (curTab) {
+  /* ★360 — 아직 안 읽힌 탭을 떠날 때는 직렬화하지 않는다: 캔버스는 비었고 state 는 앞 프로젝트다. 캐시가 없으니 돌아오면 파일에서 읽는다. */
+  if (curTab && curTab.id !== _firstLoadingTabId) {
     window.warnPendingVideoLossIf?.(document.getElementById('canvas'));
     curTab._cache = window.serializeProject();
     // DEF-03: 변경이 없으면 파일 재기록 생략 (무편집 방문이 updatedAt/파일을 오염시키는 문제). 메모리 캐시는 항상 갱신.
@@ -313,6 +320,7 @@ async function switchTab(id) {
     };
   }
 
+  _firstLoadingTabId = null;
   _setActId(id);
   _viewRestoreGen++; // 활성 탭 변경 즉시 이전 탭의 pending 스크롤 재시도 무효화 (proj 없는 분기 포함)
   history.replaceState(null, '', '?project=' + id);
@@ -373,8 +381,11 @@ async function switchTab(id) {
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
     if (window.IS_ELECTRON) {
+      _firstLoadingTabId = id;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
+      if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
+      _firstLoadingTabId = null;
       if (targetTab && proj?.name) targetTab.name = proj.name;
       renderTabBar();
     } else {
