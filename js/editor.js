@@ -2097,6 +2097,17 @@ function _insertPastedSection(el, refSection) {
   return { el, spl: _spl };
 }
 
+/* 현빈 0.9.10 FRAME-SINGLE-DUP-OVERLAPS-ORIGINAL-01 — 자유 프레임에 앉은 프레임 사본은 원본 좌표를 들고 온다 ⇒ +20 으로 비켜 복사된 걸 알아보게 한다(계단·프레임 안은 _placePastedOverlay 한 벌).
+   흐름 자리는 좌표가 없어 안 지난다. 시험: tests/dom/frame-single-dup-offset-295.dom.spec.js */
+function _stepPastedFreeChild(el) {
+  const box = el.parentElement;
+  if (box?.dataset?.freeLayout !== 'true' || el.style.position !== 'absolute') return;
+  const absPos = (c) => (c.style && c.style.position === 'absolute') ? { x: parseInt(c.style.left) || 0, y: parseInt(c.style.top) || 0 } : null;
+  const { x, y } = _placePastedOverlay(box, el, (parseInt(el.style.left) || 0) + 20, (parseInt(el.style.top) || 0) + 20, absPos);
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.dataset.offsetX = String(x); el.dataset.offsetY = String(y);
+}
+
 /* ★현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기 되어야 한다」 — 프레임 묶음의 자리.
    다른 프레임을 골랐으면 거기(단건처럼 다음 자리 · 묶음 상대 배치 유지) · 안 골랐으면 각자 원래 부모 안 원본 옆(+20).
    다른 섹션을 골랐으면 그 섹션(프레임을 안 고른 «선택된 곳»). 끌기 처리기가 position 으로 갈리니 자리는 바인드 «앞»에 정한다.
@@ -2140,7 +2151,7 @@ function _pastePickedFrames() {
     const inFree = !!el.parentElement?.closest('.frame-block[data-free-layout]');
     if (inFree && targetSec) {
       if (first) toAbs(el, (parseInt(first.style.left) || 0) + item.at[0] - firstItem.at[0], (parseInt(first.style.top) || 0) + item.at[1] - firstItem.at[1]);
-      else toAbs(el, parseInt(el.style.left) || 0, parseInt(el.style.top) || 0);   // 첫째 자리는 넣는 문이 정했다(단건과 같다)
+      else { toAbs(el, parseInt(el.style.left) || 0, parseInt(el.style.top) || 0); if (item.absAt) _stepPastedFreeChild(el); }   // 첫째 자리는 넣는 문이 정했다(단건과 같다)
     } else if (inFree && item.absAt) {
       toAbs(el, item.absAt[0] + 20, item.absAt[1] + 20);
     } else if (item.absAt) {
@@ -2381,12 +2392,14 @@ function pasteClipboard() {
       if (!sec) { window.showNoSelectionHint?.(); return; }
       const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
       const savedActiveSS = window._activeFrame;
+      const wasAbs = el.style.position === 'absolute';   // 넣는 문이 세운 좌표(settleRowInFreeFrame)는 원본 자리가 아니다
       if (pasteHasSS) window._activeFrame = null;
       insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구
       if (pasteHasSS) window._activeFrame = savedActiveSS;
       window.followHostFrameHAlign?.(el);   // ★E135
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
+      if (wasAbs) _stepPastedFreeChild(el);
       _keepOnlyPastedSelected([el]);
     }
   }
