@@ -120,11 +120,15 @@ async function select(page, id, depth, { enter = false, chain = null } = {}) {
     const q = await page.evaluate((id) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id); if (!o) return { ok: false }; const r = o.getBoundingClientRect();
       const others = [...document.querySelectorAll('#canvas ' + FR + ', #canvas .text-block, #canvas .gap-block')].filter((f) => f !== o && !f.contains(o)).map((f) => f.getBoundingClientRect());
       const inR = (x, y, b) => x > b.left && x < b.right && y > b.top && y < b.bottom;
-      const pts = [[r.right - 6, r.bottom - 6], [r.left + 6, r.bottom - 6], [r.right - 6, r.top + 6], [r.left + 6, r.top + 6], [r.left + r.width / 2, r.top + r.height / 2]];
-      for (const [x, y] of pts) if (inR(x, y, r) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
+      /* 화면에 보이는 몫에서만 집는다 — 창보다 큰 프레임은 scrollIntoView 뒤에도 네 귀가 화면 밖이라 빈 곳을 눌렀다(J294I 앱 값: 점 y=-182 · 맞힌 것 null · 고르기 안 섬 5칸의 원인) · 패널이 덮은 점도 뺀다 */
+      const wrap = document.getElementById('canvas-wrap').getBoundingClientRect();
+      const L = Math.max(r.left, wrap.left), T = Math.max(r.top, wrap.top), R = Math.min(r.right, wrap.right), B = Math.min(r.bottom, wrap.bottom);
+      const pts = [[R - 6, B - 6], [L + 6, B - 6], [R - 6, T + 6], [L + 6, T + 6], [(L + R) / 2, (T + B) / 2], [(L + R) / 2, B - 6], [(L + R) / 2, T + 6], [L + 6, (T + B) / 2], [R - 6, (T + B) / 2]];
+      const onCanvas = (x, y) => !!document.elementFromPoint(x, y)?.closest('#canvas');
+      for (const [x, y] of pts) if (inR(x, y, r) && onCanvas(x, y) && !others.some((b) => inR(x, y, b))) return { x, y, ok: true };
       return { ok: false, pts }; }, id);
     if (!q.ok) {
-      if (!depth || !chain?.length) return { sel: false, why: '집을 점 없음', tries, pts: q.pts || [] };
+      if (!depth || !chain?.length) { last = { sel: false, why: '집을 점 없음', tries, pts: q.pts || [] }; break; }
       /* 조상이 잡히면 그 조상에 들어간 뒤 다시 집는다(지디 J294C ㉢ · 사람 순서) — 한 겹씩 더블클릭 · 그 뒤 맨 위가 대상이면 누른다 */
       const pts = q.pts; const ptOf = () => page.evaluate(([id, pts]) => { const FR = '.frame-block:not([data-text-frame])'; const o = document.getElementById(id);
         for (const [x, y] of pts) { const e = document.elementFromPoint(x, y); if (e && e.closest(FR) === o) return [x, y]; } return null; }, [id, pts]);
@@ -153,6 +157,17 @@ async function select(page, id, depth, { enter = false, chain = null } = {}) {
     last.tries = tries;
     if (last.sel && (!enter || last.entered === id)) return last;
     if (last.selected?.length && !last.sel) last.why = '다른 것이 골라짐';
+  }
+  /* 화면에서 못 집는 프레임(자식·형제가 다 덮었다)은 사람도 레이어 패널 줄로 고른다 — 진짜 마우스, 안 보이는 줄이면 줄의 click */
+  if (!enter) {
+    const row = await page.evaluate((id) => { const o = document.getElementById(id); if (!o) return null; if (!o._layerItem) window.buildLayerPanel?.(); const it = o._layerItem; const el = it?.matches?.('.layer-row-header, .layer-row') ? it : it?.querySelector?.(':scope > .layer-row-header, :scope > .layer-row') || it; if (!el) return null; el.scrollIntoView({ block: 'center' }); const q = el.getBoundingClientRect(); const x = q.left + q.width / 2, y = q.top + q.height / 2; if (q.width && q.height && el.contains(document.elementFromPoint(x, y))) return { x, y }; el.click(); return { dom: true }; }, id);
+    if (row) {
+      if (!row.dom) await page.mouse.click(row.x, row.y);
+      await settle(page);
+      const p = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
+      if (p.sel) return { ...p, tries: last.tries, via: row.dom ? 'panel-dom' : 'panel' };
+      last.why = last.why || '패널 줄로도 안 골라짐';
+    }
   }
   return last;
 }
