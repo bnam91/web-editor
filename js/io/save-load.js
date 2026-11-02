@@ -335,6 +335,10 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
+      if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
+        await window.closeDeletedProjectTab?.(targetId);
+        return { ok: false, skipped: true, reason: saveResult.reason };
+      }
       if (saveResult && saveResult.ok === false) {
         console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');

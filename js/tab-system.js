@@ -431,6 +431,31 @@ async function closeTab(id) {
   saveTabState();
 }
 
+/* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 저장 없이 탭을 닫고 알린다.
+   목록에서 먼저 빼므로 switchTab 이 나가는 탭을 직렬화·저장하지 않는다. 마지막 탭이면 갤러리로 간다(goHome 은 저장하므로 안 쓴다). */
+async function closeDeletedProjectTab(id) {
+  const tabs = _getTabs();
+  const idx = tabs.findIndex(t => t.id === id);
+  if (idx === -1) return false;
+  const active = id === _getActId();
+  const lost = active && !window.isTabFirstLoading?.(id) && !!window.hasUnsavedChanges?.();
+  const msg = window.deletedTabNotice?.(tabs[idx].name, lost);
+  const next = tabs[idx + 1] || tabs[idx - 1];
+  _setTabs(tabs.filter(t => t.id !== id));
+  if (active && !next) {
+    _setActId(null);   // beforeunload 저장도 멈춘다
+    saveTabState();
+    if (msg) localStorage.setItem('gd-deleted-tab-notice', msg);   // 갤러리가 띄운다
+    setTimeout(() => { window.location.href = 'pages/projects.html'; }, 0);
+    return true;
+  }
+  if (active) await switchTab(next.id);
+  renderTabBar();
+  saveTabState();
+  if (msg) window.showStatusToast?.(msg);
+  return true;
+}
+
 async function openTabForProject(id) {
   if (_getTabs().find(t => t.id === id)) { await switchTab(id); return; }
   if (_getTabs().length >= MAX_TABS) {
@@ -550,6 +575,7 @@ window.isTabFirstLoading   = (id) => !!id && id === _firstLoadingTabId;
 window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
 window.closeTab             = closeTab;
+window.closeDeletedProjectTab = closeDeletedProjectTab;
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
 window.createNewProjectTab  = createNewProjectTab;

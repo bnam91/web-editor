@@ -2004,6 +2004,7 @@ function _getProjectAssetsDir(projectId) {
    blobPath는 'assets/ast_xxx.png' 형식. path traversal 가드 적용. */
 ipcMain.handle('assets:saveFile', (_e, { projectId, b64, mime, originalName } = {}) => {
   if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (_isProjectDeleted(projectId)) return { ok: false, error: 'project_deleted' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
     const id = 'ast_' + Math.random().toString(36).slice(2, 8);
@@ -2080,6 +2081,7 @@ function _extFromMime(mime) {
 }
 ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => {
   if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (_isProjectDeleted(projectId)) return { ok: false, error: 'project_deleted' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
     const buf = Buffer.from(b64, 'base64');
@@ -2619,7 +2621,20 @@ function _rollBackup(prevPath, backupPath) {
   return { called: true, copied: true };
 }
 
+/* ★연 채 삭제(현빈 결정 2026-11-03): 지운 프로젝트는 저장이 되살리지 못한다 — 쓰기를 거절하고, 탭을 닫고, 알린다(closeDeletedProjectTab).
+   shortcut: 이번 실행 동안만 기억한다. 재시작 뒤 쓰기는 안 막는다 — 탭 목록에서 이미 빠져 있어 그 길이 없다. 휴지통 복원이 푼다. */
+const _deletedProjects = new Set();
+const _isProjectDeleted = (id) => _deletedProjects.has(String(id));
+async function _closeDeletedTabs(projectId) {
+  const js = `window.closeDeletedProjectTab?.(${JSON.stringify(projectId)})`;
+  await Promise.all(BrowserWindow.getAllWindows().map((w) => Promise.race([   // 멈춘 창이 삭제 응답을 붙들지 않게
+    w.webContents.executeJavaScript(js, true).catch(() => {}),
+    new Promise((r) => setTimeout(r, 3000)),
+  ])));
+}
+
 async function _saveProjectImpl(project) {
+  if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
   const filePath = paths.proj;
@@ -2687,6 +2702,7 @@ ipcMain.on('app:save-pending', (event, on) => _setSavePending(event.sender, !!on
 ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
+    if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
@@ -2803,7 +2819,11 @@ ipcMain.handle('trash:list', () => {
   catch (e) { return { ok: false, error: e.message, items: [] }; }
 });
 ipcMain.handle('trash:restore', (_e, id) => {
-  try { return _trash.restoreFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || '') }); }
+  try {
+    const r = _trash.restoreFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || '') });
+    if (r && r.ok) _deletedProjects.delete(String(id));
+    return r;
+  }
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
 });
 ipcMain.handle('trash:purge', async (_e, id) => {
@@ -2849,6 +2869,8 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   if (!permanent) {
     const r = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId: safeId });
     if (r.ok) {
+      _deletedProjects.add(safeId);
+      await _closeDeletedTabs(safeId);
       /* ★사람이 쓰는 화면도 같은 위험에 놓인다 — 편집기에 열려 있으면 자동저장이 되살린다 */
       const reap = await _reapRevived(safeId);
       return { ok: true, trashed: true, appTrash: true, projectId: safeId,
@@ -2885,6 +2907,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
        permanent 는 애초에 마커를 «안» 썼다 — 휴지통에서 찾을 일이 없으니까.
      ★그래서 이 블록은 어느 경로에서도 안 돌았다. 남겨두면 「어느 쪽이 진짜 마커인가」로 다음 사람이 헤맨다. */
 
+  _deletedProjects.add(safeId);   // 옮기는 await 사이의 저장도 막는다 · 실패하면 아래서 푼다
   const failed = [];
   let trashedCount = 0;
   let bundleMoved = false;   // ★«우리가» 번들을 옮겼나 — 사후조건은 그때만 의미가 있다
@@ -2923,6 +2946,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     //   「영구 삭제할까요」를 물으므로, 여기서 거짓을 말하면 사용자가 판단을 그르친다.
     const partial = trashedCount > 0;   // 잔재 일부만 옮겨졌다(프로젝트 본체는 그대로)
     console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
+    if (!bundleMoved) _deletedProjects.delete(safeId);
     return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
              reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
              message: failed[0].error, failed };
@@ -2933,6 +2957,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     return { ok: false, trashed: true, deleted: trashedCount, reason: 'recreated_during_delete',
              message: '삭제 도중 프로젝트가 다시 만들어졌습니다(다른 창에서 편집 중일 수 있습니다).' };
   }
+  await _closeDeletedTabs(safeId);
   return { ok: true, trashed: !permanent, deleted: trashedCount };
 });
 
@@ -2989,7 +3014,7 @@ const GALLERY_PAGE = 'pages/projects.html';
 async function _clearActiveIfNeeded(projectId, wasActive) {
   if (!wasActive) return false;
   try {
-    global.currentActiveProjectId = null;
+    if (global.currentActiveProjectId === projectId) global.currentActiveProjectId = null;   // 탭을 닫아 옆 탭으로 갔으면 그대로
     for (const w of BrowserWindow.getAllWindows()) {
       try {
         const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
@@ -3005,7 +3030,7 @@ async function _clearActiveIfNeeded(projectId, wasActive) {
           await w.loadFile(GALLERY_PAGE).catch(() => {});
         }
         await w.webContents.executeJavaScript(
-          'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
+          `try{if(window.activeProjectId===${JSON.stringify(projectId)})window.activeProjectId=null}catch(_){}; true`, true).catch(() => {});
       } catch (_) {}
     }
     return true;
@@ -3043,6 +3068,8 @@ async function _deleteProjectImpl({ projectId } = {}) {
     {
       const tr = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId });
       if (tr.ok) {
+        _deletedProjects.add(projectId);
+        await _closeDeletedTabs(projectId);   // ★활성 비우기 앞 — 옆 탭이 있으면 갤러리로 쫓아내지 않는다
         const cleared = await _clearActiveIfNeeded(projectId, wasActive);
         /* ★★«되살아났나»를 본다 (2026-09-08 실측 사고).
              옮기는 건 동기 rename 이라 그 사이엔 창이 없다 — 그래서 사후조건을 뺐는데 «틀렸다».
@@ -3552,6 +3579,7 @@ async function _openProjectImpl({ projectId, timeoutMs } = {}) {
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
+  if (_isProjectDeleted(projectId)) return { ok: false, reason: 'project_deleted' };
   // write는 항상 신 위치 — proj_<id>/proj_meta.json
   const paths = _ensureNewLayoutPaths(projectId);
   // H2: 다중 writer(branch/commit/thumbnail/colorVars) lost update 방지.
