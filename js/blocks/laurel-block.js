@@ -302,6 +302,7 @@ function renderLaurelBlock(block) {
     cells = cells.slice(0, total);
   }
   block.dataset.cells    = JSON.stringify(cells);
+  delete block.dataset.height;   // ★260 — 높이 정본은 cells[].height · 옛 키는 위 _readLaurelCells 가 cells 로 옮긴 뒤라 남기면 어긋남만 남는다(prop-laurel.js 쓰기와 같은 규약)
   block.dataset.gridCols = String(cols);
   block.dataset.gridRows = String(rows);
 
