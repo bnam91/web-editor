@@ -35,13 +35,14 @@ async function setup(page, chartType, extra = {}) {
   await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
   return { errs, id };
 }
-const stablePt = (page, id, sel, i) => page.evaluate(([id, sel, i]) => new Promise((res) => {
+const SETTLE_MAX_FRAMES = 120;   // 자리 멈춤을 기다릴 프레임 상한(px 아님 — 이름 상수: dom-screen-px-census 의 3줄 창이 루프 경계를 «화면 px 문턱» 으로 읽지 않게)
+const stablePt = (page, id, sel, i) => page.evaluate(([id, sel, i, max]) => new Promise((res) => {
   let last = null, same = 0, n = 0;
   const tick = () => { const e = document.getElementById(id).querySelectorAll(sel)[i]; const r = e.getBoundingClientRect(); const k = Math.round(r.left) + ',' + Math.round(r.top);
     same = k === last ? same + 1 : 0; last = k; n++;
-    if (same >= 5 || n > 120) res({ x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, stable: same >= 5 }); else requestAnimationFrame(tick); };
+    if (same >= 5 || n > max) res({ x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, stable: same >= 5 }); else requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
-}), [id, sel, i]);
+}), [id, sel, i, SETTLE_MAX_FRAMES]);
 const S = (page, id) => page.evaluate((id) => {
   const g = document.getElementById(id);
   return { bytes: window.getSerializedCanvas(), hist: window.historyStack.length, editing: g.classList.contains('editing'), ce: g.querySelectorAll('[contenteditable]').length, kept: g.querySelectorAll('[data-saved-form]').length, focusInside: g.contains(document.activeElement) };

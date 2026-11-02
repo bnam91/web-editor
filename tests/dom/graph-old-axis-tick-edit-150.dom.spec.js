@@ -38,13 +38,14 @@ async function setup(page) {
 const S = (page, id) => page.evaluate((id) => { const g = document.getElementById(id); const t = [...g.querySelectorAll('.grb-ov-tick')];
   return { n: t.length, newMarkup: g.querySelectorAll('.grb-ov-tick[data-grb-tick]').length, ce: g.querySelector('.grb-ov-tick[contenteditable="true"]')?.textContent.trim() ?? null, editing: g.classList.contains('editing'), ov: g.dataset.axisTickText ?? null }; }, id);
 /* 눈금 자리가 «멈춘» 뒤에 잰다 — 스크롤·배치가 끝나기 전에 재면 누르는 순간 눈금이 딴 데 있다(실측: 세 판 좌표가 셋 다 달랐다) */
-const tickPt = (page, id, i) => page.evaluate(([id, i]) => new Promise((res) => {
+const SETTLE_MAX_FRAMES = 120;   // 자리 멈춤을 기다릴 프레임 상한(px 아님 — 이름 상수: dom-screen-px-census 의 3줄 창이 루프 경계를 «화면 px 문턱» 으로 읽지 않게)
+const tickPt = (page, id, i) => page.evaluate(([id, i, max]) => new Promise((res) => {
   let last = null, same = 0, n = 0;
   const tick = () => { const e = document.getElementById(id).querySelectorAll('.grb-ov-tick')[i]; const r = e.getBoundingClientRect(); const k = Math.round(r.left) + ',' + Math.round(r.top);
     same = k === last ? same + 1 : 0; last = k; n++;
-    if (same >= 5 || n > 120) res({ x: r.left + r.width / 2, y: r.top + r.height / 2, text: e.textContent.trim(), stable: same >= 5 }); else requestAnimationFrame(tick); };
+    if (same >= 5 || n > max) res({ x: r.left + r.width / 2, y: r.top + r.height / 2, text: e.textContent.trim(), stable: same >= 5 }); else requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
-}), [id, i]);
+}), [id, i, SETTLE_MAX_FRAMES]);
 
 test('P·O1·O2 ★옛 꼴 눈금 더블클릭 ⇒ 편집 · 확정 저장', async ({ page }) => {
   const { errs, id } = await setup(page);
