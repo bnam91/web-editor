@@ -7,7 +7,7 @@
  *       커밋 시점을 blur/Enter(네이티브 change)로 일원화. 기존 242개 모듈 핸들러 무수정.
  *
  * 동작 매트릭스:
- *   - 타이핑(문자/Backspace/Delete/붙여넣기/잘라내기) → input 유예 (기존 clamp/apply 미실행)
+ *   - 타이핑(문자/Backspace/Delete/붙여넣기/잘라내기/IME 조합) → input 유예 (기존 clamp/apply 미실행)
  *   - Enter → blur() → 네이티브 change → 합성 input 재발행(untrusted) → 기존 clamp/apply/동기화 실행
  *   - blur  → 동일 (change 캡처에서 커밋)
  *   - Escape → 타이핑 이전 값 복원, 커밋 없음 (change 미발화)
@@ -235,10 +235,15 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
+  /* ★161 — 조합 입력의 keydown 은 key 'Process'(229)라 세션이 안 열렸다 ⇒ 가드 밖으로 999 가 0~40 칸에 그대로 커밋됐다(CDP 조합 ×3). */
   const isEdit = (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey)
-    || e.key === 'Backspace' || e.key === 'Delete';
+    || e.key === 'Backspace' || e.key === 'Delete'
+    || e.isComposing || e.keyCode === 229;
   if (isEdit) beginTyping(el);
 }, true);
+
+// 조합 시작도 타이핑 세션 — keydown 없이 조합이 열리는 입력기가 있어 값이 바뀌기 «전»에 이전 값을 잡는다
+document.addEventListener('compositionstart', (e) => { if (isPn(e.target)) beginTyping(e.target); }, true);
 
 // 붙여넣기/잘라내기도 타이핑 세션 취급 (즉시 클램프 방지)
 document.addEventListener('paste', (e) => { if (isPn(e.target)) beginTyping(e.target); }, true);
