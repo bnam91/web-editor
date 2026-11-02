@@ -938,6 +938,20 @@ function addAssetBlock(preset, opts = {}) {
     }
     if (src && typeof window.setAssetImageFromSrc === 'function') {
       try { window.setAssetImageFromSrc(block, src); } catch (e) { console.warn('[addAssetBlock] setAssetImageFromSrc 실패:', e); }
+      /* 부르는 쪽(MCP put_image)이 그림을 바로 읽어 먼저 넣고, 뒤에서 자산 URL 로 바꾼다(BIG-IMAGE-INSERT-RENDERER-OOM-01).
+         그 사이 쌓인 표본만 고친다 — 안 고치면 라이브 ≠ 꼭대기라 ⌘Z 가 먹통 한 칸이 된다. */
+      if (src.startsWith?.('data:')) {
+        const seq = window.getHistoryTip?.()?.seq;
+        window.grdAssetSrcOf?.(src).then((got) => {
+          if (!got?.asset || block.dataset.imgSrc !== src) return;
+          block.dataset.imgSrc = got.src;
+          if (block.dataset.gifSrc === src) block.dataset.gifSrc = got.src;
+          const img = block.querySelector('img.asset-img');
+          if (img) img.src = got.src;
+          const tip = window.getHistoryTip?.();
+          if (tip && tip.seq !== seq) window.restampHistoryTop?.(tip.seq);
+        });
+      }
     }
   };
   // fullWidth sub-section 분기

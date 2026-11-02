@@ -78,3 +78,30 @@ test.describe('AI 갤러리', () => {
   });
 });
 
+test.describe('addAssetBlock opts.imgSrc', () => {
+  const add = (page) => page.evaluate((d) => { window.selectSection(window.__sec); window.addAssetBlock('img1', { imgSrc: d }); return [...window.__sec.querySelectorAll('.asset-block')].pop().dataset.imgSrc === d; }, DATA);
+  const swapped = (page) => expect.poll(async () => (await look(page)).src).toMatch(/\/__asset\/h1\.png$/);
+  test('부른 자리에선 그림이 이미 있고(MCP hasImage), 곧 자산 URL 로 바뀐다', async ({ page }) => {
+    await setup(page);
+    expect(await add(page)).toBe(true);
+    await swapped(page);
+    const v = await look(page);
+    expect(v.img).toBe(v.src);
+    expect(v.inline).toBe(false);
+  });
+  test('[음성] 자산 저장이 실패하면 data URL 그대로', async ({ page }) => {
+    await setup(page, false); await add(page);
+    await expect.poll(async () => (await look(page)).calls.save).toBe(1);
+    expect((await look(page)).src).toBe(DATA);
+  });
+  test('[음성] 바뀌기 전에 쌓인 표본도 고쳐져 ⌘Z 가 먹통 한 칸을 안 만든다', async ({ page }) => {
+    await setup(page);
+    await page.evaluate((d) => { window.selectSection(window.__sec); window.addAssetBlock('img1', { imgSrc: d }); window.pushHistory('바로 다음'); }, DATA);
+    await swapped(page);
+    const before = await page.evaluate(() => window.getHistoryTip().pos);
+    await page.evaluate(() => window.undo());
+    const v = await look(page);
+    expect(await page.evaluate(() => window.getHistoryTip().pos)).toBe(before - 1);
+    expect(v.src).toBe(null);
+  });
+});
