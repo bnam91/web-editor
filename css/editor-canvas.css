@@ -133,11 +133,13 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0;
+  /* ★안 보일 때는 클릭도 안 받는다 — 좁은 그림이면 ✕ 가 옆 그림 위로 나가, 옆 그림을 누른 손에 이 그림이 지워졌다(tests/dom/scratch-hidden-btn-hit). */
+  pointer-events: none;
   transition: opacity 0.15s;
   z-index: 10;
   line-height: 1;
 }
-.scratch-item:hover .scratch-close { opacity: 1; }
+.scratch-item:hover .scratch-close { opacity: 1; pointer-events: auto; }
 .scratch-close:hover { background: var(--ui-danger-hover); border-color: var(--ui-danger-hover); }
 
 /* ── 슬라이스 버튼 + 모드 ── */
@@ -156,12 +158,14 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   opacity: 0;
+  /* ★✕ 와 같은 까닭 — 안 보일 때 옆 그림 위에서 클릭을 받지 않는다. */
+  pointer-events: none;
   transition: opacity 0.15s;
   z-index: 10;
   line-height: 1;
   padding: 0;
 }
-.scratch-item:hover .scratch-slice-btn { opacity: 1; }
+.scratch-item:hover .scratch-slice-btn { opacity: 1; pointer-events: auto; }
 .scratch-slice-btn:hover { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); }
 
 /* ── AI 버튼 (가위 앞) ── */
