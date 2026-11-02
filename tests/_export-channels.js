@@ -211,6 +211,8 @@ const CHANNELS = [
     why: '섹션 변형 «복제» — 라이브 캔버스로 들어간다(deselectAll 이 마커를 걷는다)' },
   { file: 'js/tab-system.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '탭 드래그 «고스트» — 드롭과 함께 사라진다' },
+  { file: 'js/section-drag.js', kind: 'transient', axes: ['marker'], strips: null,
+    why: '흐름 그룹 풀기(ungroupBlock) — 푼 자식을 흐름으로 다시 묶으려 노드를 교체(리스너 초기화). 라이브 캔버스로 들어가고 바로 뒤 deselectAll 이 마커를 걷는다 · 저장은 그 뒤 serializeCleanRoot 를 탄다' },
   { file: 'js/section-merge.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '섹션 분리(D1, 2026-10-01) — 원 섹션의 «툴바» 단추를 본떠 새 섹션 껍데기에 단다. 라이브 캔버스로 들어가는 편집 UI 이고, 내용 클론이 아니다' },
 

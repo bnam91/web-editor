@@ -6,7 +6,7 @@ const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() 
 const FR = '.frame-block:not([data-text-frame])';
 const view = (page, ids) => page.evaluate(([ids]) => { const sec = document.querySelector('#canvas .section-block').getBoundingClientRect(); const rs = ids.map((i) => { const e = document.getElementById(i); const r = e.getBoundingClientRect(); return { pos: getComputedStyle(e).position, top: Math.round(r.top - sec.top), bottom: Math.round(r.bottom - sec.top), group: e.parentElement.closest('.frame-block')?.dataset.group || null }; }); return { rs, secH: Math.round(sec.height) }; }, [ids]);
 /* 첫 맞춤 줌이 자리 잡을 때까지 — 자리 값을 맞대는 시험이 부팅 직후 줌에 흔들렸다(실측 73 ↔ 81) */
-const settleZoom = async (page) => { let last = null; for (let i = 0; i < 40; i++) { const t = await page.evaluate(() => document.getElementById('canvas-scaler')?.style.transform + '|' + Math.round(document.querySelector('#canvas .section-block')?.getBoundingClientRect().height || 0)); if (t === last) return; last = t; await page.waitForTimeout(150); } };
+const settleZoom = (page) => page.waitForFunction(() => { const t = document.getElementById('canvas-scaler')?.style.transform + '|' + document.querySelector('#canvas .section-block')?.offsetHeight; const same = t === window.__zt; window.__zt = t; return same; }, null, { polling: 150 });
 async function boot(page) { await page.setViewportSize({ width: 1500, height: 1400 }); const errs = await bootApp(page); await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); }); await settleZoom(page); return errs; }
 const add = (page, parent) => page.evaluate(([FR, parent]) => { const sec = document.querySelector('#canvas .section-block'); window.deselectAll(); window.selectSection(sec); window._activeFrame = parent ? document.getElementById(parent) : null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); const f = [...sec.querySelectorAll(FR)].find((x) => !b.has(x)); window.deselectAll(); window._activeFrame = null; return f.id; }, [FR, parent]);
 const clickAt = async (page, id, mod) => { const q = await page.evaluate((id) => { const o = document.getElementById(id); const r = o.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id); if (mod) await page.keyboard.down(mod); await page.mouse.click(q[0], q[1]); if (mod) await page.keyboard.up(mod); await raf(page); };
@@ -48,7 +48,7 @@ test('푼 프레임을 다시 끌 수 있다 — 같은 세션 · ⌘Z⌘⇧Z �
   await clickAt(page, b);
   const c = await page.evaluate((b) => { const r = document.getElementById(b).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, b);
   const left0 = await page.evaluate((b) => document.getElementById(b).style.left, b);
-  await page.mouse.move(c[0], c[1]); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(c[0], c[1] + i * 3); await page.waitForTimeout(16); } await page.mouse.up(); await raf(page);
+  await page.mouse.move(c[0], c[1]); await page.mouse.down(); await page.mouse.move(c[0], c[1] + 36, { steps: 12 }); await raf(page); await page.mouse.up(); await raf(page);
   expect(await page.evaluate(() => window.__ds), 'HTML5 끌기가 시작된다').toContain(b);
   expect(await page.evaluate((b) => document.getElementById(b).style.left, b), '옛 좌표 끌기가 흐름 프레임에 값을 안 쓴다').toBe(left0);
   expect(order0.length, '셋').toBe(3); expect(q).toBeTruthy(); expect(errs, errs.join(' | ')).toEqual([]);
@@ -116,6 +116,8 @@ test('프레임 안 스티커·그라데이션은 풀린 뒤에도 제 바인더
   expect(await page.evaluate((a) => document.getElementById(a).parentElement.dataset.group, a), '[전제] 풀림').toBeUndefined();
   expect(await page.evaluate(([stk, gr]) => [!!document.getElementById(stk)._stickerBound, !!document.getElementById(gr)._gradientBound], [stk, gr]), '바인더').toEqual([true, true]);
   expect(await page.evaluate((stk) => !!document.getElementById(stk)._blockBound, stk), '스티커는 bindBlock 을 안 탄다').toBe(false);
+  /* 복제본의 행선(tests/_export-channels.js 명부 근거): 라이브 캔버스 · 저장본에 편집 마커 없음 · 원본 자리에 그 id 하나 */
+  expect(await page.evaluate(([a]) => { const d = new DOMParser().parseFromString(window.getSerializedCanvas(), 'text/html'); return [d.querySelectorAll('.selected').length, d.querySelectorAll('[id="' + a + '"]').length, document.querySelectorAll('[id="' + a + '"]').length]; }, [a]), '저장본 마커 0 · id 하나').toEqual([0, 1, 1]);
   await pickA(); await clickAt(page, stk); await raf(page);
   expect(await page.evaluate((stk) => document.getElementById(stk).classList.contains('selected'), stk), '스티커가 눌러 골라진다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
