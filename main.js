@@ -2568,7 +2568,11 @@ function _countSections(proj) {
 // (사용자가 의도적으로 'Untitled'로 rename하는 케이스는 거의 없음 — rename UI는 빈 input만 'Untitled' 폴백)
 function _guardProjectName(incomingProject, prevPath) {
   try {
-    if (!prevPath || !fs.existsSync(prevPath)) return incomingProject;
+    /* ★342 — 새로 생기는 파일에 createdAt 이 없으면 여기서 찍는다. 스냅샷(serializeProject)에는 이 칸이 없어 마켓 받기·휴지통 뒤 자동저장이
+       비운 채 만들었다(앱 실측 3/3 · ~/gd-lane/imac-gd-L1/342d). ⛔이미 있는 파일의 빈칸은 안 채운다 — 언제 만들었는지 모른다. */
+    if (!prevPath || !fs.existsSync(prevPath)) {
+      return incomingProject && incomingProject.createdAt == null ? { ...incomingProject, createdAt: new Date().toISOString() } : incomingProject;
+    }
     const prev = JSON.parse(fs.readFileSync(prevPath, 'utf8'));
     const prevName = prev && prev.name;
     const incomingName = incomingProject && incomingProject.name;
