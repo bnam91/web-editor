@@ -3768,7 +3768,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     if (window._deletePickedFrames?.()) { consumed = true; return consumed; }   // ★294 — 자식 둘 ⌫ 가 부모째 지우던 것(_pickedFrames)
     const selSS = document.querySelector('.frame-block.selected');
-    if (selSS) {
+    /* 보호 섹션 프레임은 이 단독 삭제 갈래를 안 탄다 — 먼저 지우고 return 하면 아래 A13 막음이 안 닿아 프레임·글자가 토스트 없이 지워졌다. */
+    if (selSS && !window.isSectionProtected?.(selSS.closest('.section-block'))) {
       /* ★`.shape-block.selected` 가 빠져 있었다(2026-09-20 QA 실측) — 도형은 자기 래퍼
          프레임과 «같이» 선택되므로, 도형이 끼면 이 갈래가 먼저 걸려 «그 프레임 줄만» 지우고
          return 했다. 그래서 「텍스트+도형」 다중선택 ⌫ 가 도형만 지우고 텍스트를 남겼다
