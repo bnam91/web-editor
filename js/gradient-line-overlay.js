@@ -341,7 +341,7 @@ function _startDrag(e, onMoveLocal, onEnd) {
     // ★드래그 뒤 브라우저가 쏘는 click(대상 = mousedown·mouseup 공통 조상 = 블록/캔버스)을 삼킨다.
     //   안 삼키면 에디터가 블록을 «다시 선택» → 속성 패널 재렌더 → 열린 피커의 대상 input 이
     //   떨어져 나가 캔버스→피커 동기가 끊긴다(9504 실앱 실측, 0918).
-    if (moved) window.swallowNextClick({ immediate: true });   // ★305 — 공용 0ms 한 벌(옛 사본 300ms 는 click 이 안 오면 끌기 중 Esc·⌘Z 뒤 사용자 클릭을 먹었다)
+    if (moved) window.swallowNextClick({ immediate: true, untilMousedown: true });   // ★305 — 공용 0ms 한 벌(옛 사본 300ms 는 click 이 안 오면 끌기 중 Esc·⌘Z 뒤 사용자 클릭을 먹었다) · untilMousedown = 부하에서 0ms 타이머보다 다음 클릭이 먼저 와도 안 먹는다
     onEnd(moved);
   };
   document.addEventListener('mousemove', onMove, true);
@@ -378,6 +378,7 @@ function _bindChipDrag(block, chip) {
     chip.classList.add('is-dragging');
     refs.dragging = true;
     _startDrag(e, (ev) => {
+      if (block._gradLine !== refs) return;   // 끌기 중 Esc·⌘Z 로 선이 걷혔다 — 그 뒤 움직임은 안 쓴다
       const P = _clientToLocal(block, ev);
       // view 위 위치(0~1, 끝점 사이) → 저장(canon) offset. 1% 단위(저장 CSS 와 표시값 일치).
       const tv = Math.max(0, Math.min(1, _gm().projectT(refs.line, P, _geomOpts(refs))));
@@ -421,6 +422,7 @@ function _bindEndDrag(block, handle, which) {
     const map0 = refs.map || { a: 0, b: 1 };
     const rel = refs.model.stops.map(s => ((s.offset || 0) - map0.a) / map0.b);
     _startDrag(e, (ev) => {
+      if (block._gradLine !== refs) return;   // 끌기 중 Esc·⌘Z 로 선이 걷혔다 — 그 뒤 움직임은 안 쓴다
       const P = _clientToLocal(block, ev); // 클램프 없음 — 박스 밖 허용
       const o = _geomOpts(refs);
       const view = which === 'end'
