@@ -640,11 +640,16 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
       }
       items.push({ id: saveRes.id, dataUrl, blobPath: saveRes.blobPath });
     }
-    if (switchedAway) {
+    if (switchedAway && _getProjectId() !== projectId) {
       // 전환 감지: 캡처 프로젝트 파일에 갤러리 엔트리를 직접 병합 (라이브 화면/저장 미오염)
       await _appendGalleryToProject(projectId, capturedItems);
       window.showToast?.(`✨ ${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
       return { ok: true, items, cost: res.cost };
+    }
+    if (switchedAway) {
+      // ★359 — 이미지 저장을 기다리는 사이 돌아왔다. 화면이 이미 그 프로젝트이므로 평소 길로 넣는다.
+      window.state.imageGallery = window.state.imageGallery || [];
+      window.state.imageGallery.push(...capturedItems);
     }
     window.buildAIImageGallery?.();
     window.triggerAutoSave?.();
@@ -656,7 +661,20 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
   // 라이브 window.state(전환된 다른 프로젝트)를 건드리지 않아 오염을 막는다.
   async function _appendGalleryToProject(pid, newItems) {
     if (!pid || !newItems?.length) return;
+    /* ★359 — 그 탭의 메모리 캐시에도 넣는다. 파일에만 넣으면 돌아올 때 옛 캐시가 복원되고(tab-system.js switchTab),
+       다음 저장이 항목 없는 갤러리로 파일을 덮는다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 파일 쓰기가 실패해도 캐시에는 남도록 먼저 넣는다. */
+    const tab = window.openTabs?.find(t => t.id === pid);
+    if (tab?._cache) {
+      try {
+        const cached = JSON.parse(tab._cache);
+        cached.imageGallery = [...(Array.isArray(cached.imageGallery) ? cached.imageGallery : []), ...newItems];
+        tab._cache = JSON.stringify(cached);
+      } catch (e) { console.warn('[ai-image-gen] 359 탭 캐시 갱신 실패:', e); }
+    }
     try {
+      // ★359 — 떠날 때 건 그 프로젝트 저장이 아직 돌면 끝나길 기다린다(항목 없는 스냅샷이 이 쓰기 뒤에 덮는다). 상한 5초.
+      const _deadline = Date.now() + 5000;
+      while (window._isSavingToFile && Date.now() < _deadline) await new Promise(r => setTimeout(r, 25));
       const existing = await window.electronAPI.loadProject(pid);
       if (!existing) return;
       existing.imageGallery = Array.isArray(existing.imageGallery) ? existing.imageGallery : [];
