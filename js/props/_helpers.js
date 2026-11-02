@@ -18,6 +18,13 @@ export function parseRatio(raw, count) {
   return parts;
 }
 
+/* ★239 — parseRatio 는 못 읽는 조각을 버리고 1 로 채운다(abc → 1:1 · -1:2 → 2:1). 칸만 바뀌고 말이 없었다 ⇒ 바꿨으면 말한다. 빈 칸은 균등으로 돌리는 뜻이라 말 없음. */
+export function noticeRatioCoerced(raw, value) {
+  const t = String(raw ?? '').trim();
+  const typed = t.split(/[:,\s]+/).filter(Boolean).map(Number).join(':');
+  if (typed && typed !== value) window.showToast?.(`⚠️ 비율은 열 수만큼 0 보다 큰 숫자로 적어요 — 「${t.slice(0, 20)}」 를 「${value}」 로 맞췄어요`);
+}
+
 /**
  * 슬라이더 + 숫자 인풋 쌍을 표준 패턴으로 묶는다.
  *   - slider mousedown      → pushHistory()        (드래그 시작 직전 체크포인트)
