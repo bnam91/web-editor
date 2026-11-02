@@ -210,6 +210,16 @@ let _isSavingToFile = false;
 const _pendingSaves = new Map(); // targetId → { snapshot, opts }
 // DEF-03: 마지막 저장 완료 이후 변경이 있었는지 — 무편집 방문/언로드가 파일을 재기록(updatedAt 오염)하지 않도록 게이트
 let _dirtySinceSave = false;
+/* ★345 — dirty·자동저장 타이머·진행 중 저장이 «어느 프로젝트의 것인가». 셋 다 전역 하나라, A 를 편집하고 곧바로 B→C 로 지나가면
+   A 의 것을 B 의 것으로 읽어 무편집 B 를 다시 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/345b). ⛔null(모름)은 지금 프로젝트의 것으로 센다 —
+   거짓 «없음»은 편집을 잃고 거짓 «있음»은 한 번 더 쓸 뿐이다. 판정은 _hasOwnUnsaved 한 곳. */
+let _dirtyOwnerId = null;
+let _autoSaveTimerOwnerId = null;
+let _savingOwnerId = null;
+function _hasOwnUnsaved() {
+  const mine = (owner) => owner === null || owner === activeProjectId;
+  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
+}
 /* ★[H4] «마지막으로 끝난» 저장의 결과 — targetId → { at, result }.
    큐잉된 호출(undefined 반환)은 자기 결과를 못 본다. 종료 경로가 「큐가 빠졌으니 저장됐겠지」로
    때우면 «가짜 성공»이 된다 — 실측으로 그 일이 났다(2026-09-06 deny-write 실기: 저장이
@@ -240,6 +250,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;
+  _savingOwnerId = _targetId || null;
   let _result;
   try {
     _result = await _doSaveProjectToFile(snapshot, opts);
@@ -1914,6 +1925,7 @@ function _noteEditDuringDrag() {
   const holders = (AS && typeof AS.inspect === 'function') ? (AS.inspect().holders || []) : [];
   if (!holders.length || !holders.every(h => _DRAG_SUPPRESS_REASONS.has(h.reason))) return;
   _dirtySinceSave = true;
+  _dirtyOwnerId = activeProjectId;
   _dragEditPending = true;
   if (_dragEditTimer) return;
   _dragEditTicks = 0;
@@ -1935,10 +1947,11 @@ function scheduleAutoSave() {
      이 꼴로 억제 플래그를 «도출»한다(블록 { … return } 로 바꾸면 도출이 0 이 돼 N7 전수가 거짓 초록이 된다 — 10-05 실측). */
   if (state._suppressAutoSave) return _noteEditDuringDrag();
   // [P-A2] 제스처 중이면 «미룬다» — 버리지 않고 기억해 뒀다가 놓을 때 다시 건다.
-  if (_autoSaveDeferred) { _dirtySinceSave = true; _autoSavePending = true; return; }
+  if (_autoSaveDeferred) { _dirtySinceSave = true; _dirtyOwnerId = activeProjectId; _autoSavePending = true; return; }
   // BUG-12: activeProjectId가 없으면 'web-editor-autosave__undefined' 키로 저장되는 버그 방지
   if (!activeProjectId) { console.warn('[save-load] scheduleAutoSave: activeProjectId 없음, 저장 건너뜀'); return; }
   _dirtySinceSave = true;
+  _dirtyOwnerId = activeProjectId;
   /* ★J354 — 부를 때마다 타이머를 되걸어, 1.5초보다 촘촘한 연속 편집 중에는 저장이 한 번도 안 났다(앱 0.8·1.2초 간격 40초 쓰기 0 · 비정상 종료 시 40초 전부 잃음).
      연속 편집 중에도 AUTOSAVE_MAX_WAIT_MS 안에 한 번은 쓴다. 기다림의 시작 = 타이머가 비어 있을 때 온 첫 편집. */
   if (!autoSaveTimer) _autoSaveBurstAt = Date.now();
@@ -1949,6 +1962,7 @@ function scheduleAutoSave() {
   scheduleIdleThumbnail();   // ★편집이 멈춘 뒤 썸네일 — 홈 나갈 때 찍지 않으려면 여기서 찍어둬야 한다
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   const _saveTargetId = activeProjectId; // H1: 발화 시점에 탭이 바뀌었는지 비교할 대상 캡처
+  _autoSaveTimerOwnerId = _saveTargetId;
   autoSaveTimer = setTimeout(() => {
     let _handed = false;   // ★S1 — 저장 약속에 넘겼으면 되돌림은 그 finally 몫, 아니면 아래 finally 몫
     try {
@@ -2007,7 +2021,7 @@ window.addEventListener('beforeunload', () => {
      끝난 걸 «아는» 상태면 종료 저장을 시도한다. 디스크가 나쁜 줄 «알면서» 그냥 나가지 않는다.
      ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
      ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
-  if (!_dirtySinceSave && !autoSaveTimer && !_isSavingToFile && !_lastSaveFailed(activeProjectId)) return;
+  if (!_hasOwnUnsaved() && !_lastSaveFailed(activeProjectId)) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -2674,7 +2688,7 @@ window.flushSave = async function() {
   _setAutosaveIndicator('saved');
 };
 // DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
-window.hasUnsavedChanges = () => _dirtySinceSave || !!autoSaveTimer || _isSavingToFile;
+window.hasUnsavedChanges = _hasOwnUnsaved;
 // [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 세 경로를 모두 막아야 복원본이 안 덮인다:
 //   ⓐ 큐잉된 autoSaveTimer(발화 콜백이 _suppressAutoSave를 재검사 안 함) → clearTimeout.
 //   ⓑ 대기열 _pendingSaves(in-flight의 finally가 FIFO 드레인) → clear.
