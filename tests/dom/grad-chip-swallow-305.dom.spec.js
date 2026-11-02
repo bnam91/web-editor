@@ -5,7 +5,7 @@
  *   N  [음성] 끌기 없는 클릭 ⇒ 닿는다(세는 자가 산다).
  * ⛔안 재는 것: 실 OS 창 밖 놓기 · 끝 원 끌기 · 사람 손. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 const AWAY_Y = 300;   // 칩에서 멀리 놓는다 — 칩 위에서 놓으면 합성 click 대상이 오버레이 안이라 그 문서 리스너가 대신 막아 삼킴을 못 잰다(변이로 확인)
@@ -24,11 +24,9 @@ async function scene(page) {
     document.addEventListener('click', () => { window.__clicks++; });
   });
   await page.waitForFunction(() => document.querySelector('.grad-line-overlay .grad-stop-chip:not(.grad-stop-chip-fill)'));
-  return page.evaluate(() => {
-    const q = document.querySelector('.grad-line-overlay .grad-stop-chip:not(.grad-stop-chip-fill)').getBoundingClientRect();
-    const h = document.querySelector('#panel-right .panel-header').getBoundingClientRect();
-    return { x: q.x + q.width / 2, y: q.y + q.height / 2, tx: h.x + 5, ty: h.y + 5 };
-  });
+  const q = await waitStableRect(page, '.grad-line-overlay .grad-stop-chip:not(.grad-stop-chip-fill)');   // 스크롤·줌이 멈춘 뒤 — 옛 좌표로 잡으면 칩을 놓친다(1/6 · 전제 빨강)
+  const h = await page.evaluate(() => { const r = document.querySelector('#panel-right .panel-header').getBoundingClientRect(); return { x: r.x + 5, y: r.y + 5 }; });
+  return { x: q.cx, y: q.cy, tx: h.x, ty: h.y };
 }
 const clicks = (page) => page.evaluate(() => window.__clicks);
 async function dragChip(page, p, midKey, awayY = 0) {

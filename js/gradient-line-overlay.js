@@ -378,6 +378,7 @@ function _bindChipDrag(block, chip) {
     chip.classList.add('is-dragging');
     refs.dragging = true;
     _startDrag(e, (ev) => {
+      if (block._gradLine !== refs) return;   // 끌기 중 Esc·⌘Z 로 선이 걷혔다 — 그 뒤 움직임은 안 쓴다
       const P = _clientToLocal(block, ev);
       // view 위 위치(0~1, 끝점 사이) → 저장(canon) offset. 1% 단위(저장 CSS 와 표시값 일치).
       const tv = Math.max(0, Math.min(1, _gm().projectT(refs.line, P, _geomOpts(refs))));
@@ -421,6 +422,7 @@ function _bindEndDrag(block, handle, which) {
     const map0 = refs.map || { a: 0, b: 1 };
     const rel = refs.model.stops.map(s => ((s.offset || 0) - map0.a) / map0.b);
     _startDrag(e, (ev) => {
+      if (block._gradLine !== refs) return;   // 끌기 중 Esc·⌘Z 로 선이 걷혔다 — 그 뒤 움직임은 안 쓴다
       const P = _clientToLocal(block, ev); // 클램프 없음 — 박스 밖 허용
       const o = _geomOpts(refs);
       const view = which === 'end'
