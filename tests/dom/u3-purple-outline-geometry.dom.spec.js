@@ -377,3 +377,58 @@ test('U6o ★음성대조 — 옛 만진 파일(박힌 폭 ≈ Range 폭)은 Ran
   expect(parseFloat(r.pinned), '전제: 박힌 폭 ≈ Range 폭').toBeGreaterThan(300);
   expect(r.W2).toBe(r.W1);
 });
+
+/* ★J146B ⒝ — 패딩 위 값 글상자: 보라·격자·손잡이가 글자에서 패딩만큼 어긋난다. 패널 입력으로 값을 넣는다. */
+async function padScene(page, kind, zoom, pad, side = 'v') {
+  await page.evaluate((z) => window.applyZoom(z), zoom);
+  await waitZoomSettled(page, zoom);
+  await scene(page, TRAP, kind);
+  await page.evaluate(([pad, side]) => {
+    const tb = document.getElementById('u3tb'); tb.scrollIntoView({ block: 'center' });
+    if (side === 'redraw') { tb.style.paddingTop = pad + 'px'; window.applyFxFreeTransform?.(tb); return; }   /* 패널 말고 다시 그리는 길(복원·글 입력) */
+    const n = document.getElementById(side === 'l' ? 'txt-pl-number' : 'txt-pv-number'); n.value = pad; n.dispatchEvent(new Event('input', { bubbles: true }));
+  }, [pad, side]);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return page.evaluate(() => {
+    const tb = document.getElementById('u3tb'); const R = (e) => e.getBoundingClientRect();
+    const g = document.createRange(); g.selectNodeContents(tb.querySelector('[contenteditable]'));
+    const nw = R(tb.querySelector('.tfh-handle[data-tfh="sw"]'));
+    return { edge: R(tb.querySelector('.tfh-edge')).toJSON(), grid: R(tb.querySelector('.tfh-grid')).toJSON(), glyph: g.getBoundingClientRect().toJSON(), tb: R(tb).toJSON(), blue: R(document.querySelector('#ss-handles-overlay svg.ss-sel-layer path.ss-sel-path')).toJSON(), sw: [nw.left + nw.width / 2, nw.top + nw.height / 2], pad: getComputedStyle(tb).paddingTop, padL: getComputedStyle(tb).paddingLeft };
+  });
+}
+for (const [kind, zoom] of [['h1', 100], ['body', 100], ['h1', 40], ['body', 40]]) {
+  test(`U7 ★★패딩 40 — 보라·격자·손잡이가 글자에 붙는다(${kind} · 줌 ${zoom})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    const r = await padScene(page, kind, zoom, 40);
+    console.log(`[U7:${kind}:${zoom}]`, JSON.stringify({ top: r.edge.top - r.glyph.top, bottom: r.edge.bottom - r.glyph.bottom, blueTop: r.blue.top - r.tb.top }));
+    expect(r.pad, '전제: 패널 입력이 먹었다').toBe('40px');
+    for (const k of ['top', 'bottom', 'left', 'right']) {
+      expect(Math.abs(r.edge[k] - r.glyph[k]), `★보라 ${k} 가 글자에서 어긋난다`).toBeLessThan(1.5);
+      expect(Math.abs(r.grid[k] - r.edge[k]), `★격자 ${k} 가 보라와 어긋난다`).toBeLessThan(0.1);
+    }
+    expect(Math.abs(r.sw[1] - r.edge.bottom), '★손잡이가 보라에서 어긋난다').toBeLessThan(1.5);
+    expect(Math.abs(r.blue.top - r.tb.top), '★패딩이 받는데 파란 윗변이 올랐다').toBeLessThan(1.5);
+  });
+}
+test('U7l ★왼쪽 패딩 30 — 보라가 글자에 붙는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await padScene(page, 'h1', 100, 30, 'l');
+  expect(r.padL, '전제').toBe('30px');
+  expect(Math.abs(r.edge.left - r.glyph.left), '★보라 left 가 글자에서 어긋난다').toBeLessThan(1.5);
+});
+test('U7r ★패딩 뒤 다시 그려도(복원·글 입력 길) 보라가 글자에 붙는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await padScene(page, 'h1', 100, 40, 'redraw');
+  expect(r.pad, '전제').toBe('40px');
+  expect(Math.abs(r.edge.top - r.glyph.top), '★보라 top 이 글자에서 어긋난다').toBeLessThan(1.5);
+});
+test('U7n ★음성대조 — 패딩 0 은 전과 같다(보라 = 글자)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await padScene(page, 'h1', 100, 0);
+  expect(r.pad).toBe('0px');
+  for (const k of ['top', 'bottom', 'left', 'right']) expect(Math.abs(r.edge[k] - r.glyph[k])).toBeLessThan(1.5);
+});
