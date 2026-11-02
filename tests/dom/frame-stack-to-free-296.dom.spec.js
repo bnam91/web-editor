@@ -1,6 +1,6 @@
 /* frame-stack-to-free-296 — 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01: stack → free (피그마 Remove auto layout). 자식이 지금 자리·크기 그대로 좌표로 고정된다.
  * 칸: F1 자리·크기·프레임·이웃 불변 · 투명 간격 블럭 걷힘 · 패널 줄 F1b 소수 자리 그대로 F2 ⌘Z 한 번·⌘⇧Z F3 안쪽 프레임 모드 그대로(깊이 3) F4 줌 40 도 같다
- *     F5 끌기가 좌표로 된다 F6 free→stack→free 왕복 — 옛 free 좌표 안 되살림 · 자리 유지 F7 다시 묶어도(rebindAll) 유지 N1 [음성] 이웃·버즈 Layout 무접촉
+ *     F5 끌기가 좌표로 된다 F6 free→stack→free 왕복 — 옛 free 좌표 안 되살림 · 자리 유지 F7 다시 묶어도(rebindAll) 유지 N1 [음성] 이웃·버즈 Layout 무접촉 N2 패딩 0 N3 옛 저장본 꼴 N4 free 에서 바꾼 폭
  * 양성대조: _convertStackToFree 를 걷으면(free 단추 없음) F1~F7 빨강 · N1 초록. F8 은 그리드 폭 줄을, F9·F10 은 transform 푸는 줄을 걷으면 빨강. 장면 준비만 evaluate — 고르기·단추·끌기·키는 진짜. 자리는 offset(레이아웃 px)으로 재 줌을 안 탄다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -127,6 +127,38 @@ test('F10 회전한 자식 — 그 자식 상자가 소수까지 안 튄다 · �
   await page.evaluate(() => window.deselectAll()); await pickRoot(page, root);
   const b0 = await boxes(page, [f]); await toFree(page); sameBoxes(b0, await boxes(page, [f]));
   expect(await page.evaluate((id) => document.getElementById(id).style.transform, f)).toContain('rotate(15deg)');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+/* 왕복 — 패딩·옛 저장본 꼴. 폭은 레이아웃 offsetWidth. */
+const padScene = async (page, pad, old) => { const r = await scene(page); await page.evaluate(({ root, text, pad, old }) => { const f = document.getElementById(root); f.style.width = f.offsetWidth + 'px'; f.dataset.padX = String(pad); f.style.paddingLeft = f.style.paddingRight = pad + 'px'; if (old) { const t = document.getElementById(text); t.dataset.stackW = String(old); t.style.alignSelf = 'center'; window._applyStackChildWidths(f); } window.clearHistory?.(); }, { ...r, pad, old }); await pickRoot(page, r.root); return r; };
+const widthOf = (page, id) => page.evaluate((id) => document.getElementById(id).offsetWidth, id);
+const trip = async (page) => { await toFree(page); await page.locator('#ss-to-stack-btn').click(); await expect(page.locator('#ss-to-free-btn'), 'stack 으로').toBeVisible(); };
+test('F11 패딩 40 왕복 둘 — 자식 폭이 안 준다 · 파생 규약 그대로', async ({ page }) => {
+  const { errs, root, text, nb } = await padScene(page, 40); const nb0 = await nbBox(page, nb); const w0 = await widthOf(page, text);
+  expect(w0, '[전제] 패딩을 먹은 폭').toBe(await page.evaluate((id) => document.getElementById(id).clientWidth - 80, root));
+  await trip(page); expect(await widthOf(page, text), '왕복 1').toBe(w0);
+  await trip(page); expect(await widthOf(page, text), '왕복 2').toBe(w0);
+  const nb1 = await nbBox(page, nb); expect(nb1.filter((_, i) => i !== 1), '이웃 크기·모드').toEqual(nb0.filter((_, i) => i !== 1));
+  expect(Math.abs(nb1[1] - nb0[1]), '이웃 세로 — free→stack 의 정수 읽기(왕복당 1 이내)').toBeLessThanOrEqual(2);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('N2 [음성] 패딩 0 왕복 — 폭 그대로 · stackW 안 남긴다', async ({ page }) => {
+  const { errs, text } = await padScene(page, 0); const w0 = await widthOf(page, text);
+  await toFree(page); expect(await page.evaluate((id) => document.getElementById(id).dataset.stackW ?? null, text), 'free 에 뜻을 안 남긴다').toBeNull();
+  await page.locator('#ss-to-stack-btn').click(); await expect(page.locator('#ss-to-free-btn')).toBeVisible(); expect(await widthOf(page, text)).toBe(w0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('N3 [음성] 옛 stack 저장본 꼴(stackW 300 · 패딩 40) — 폭 220 · 뜻 300 이 왕복에도 그대로', async ({ page }) => {
+  const { errs, text } = await padScene(page, 40, 300); const read = () => page.evaluate((id) => { const e = document.getElementById(id); return [e.offsetWidth, e.dataset.stackW]; }, text);
+  expect(await read(), '[전제] 저장본 값').toEqual([220, '300']);
+  await trip(page); expect(await read(), '왕복').toEqual([220, '300']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('N4 [음성] free 에서 폭을 바꾸면 그 폭이 새 뜻 — 기존 규약(500 − 2·40)', async ({ page }) => {
+  const { errs, text } = await padScene(page, 40); await toFree(page);
+  await page.evaluate((id) => { document.getElementById(id).style.width = '500px'; }, text);
+  await page.locator('#ss-to-stack-btn').click(); await expect(page.locator('#ss-to-free-btn')).toBeVisible();
+  expect(await page.evaluate((id) => { const e = document.getElementById(id); return [e.offsetWidth, e.dataset.stackW]; }, text)).toEqual([420, '500']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('N1 [음성] free 프레임은 stack 단추 그대로 · free 단추 없음', async ({ page }) => {
