@@ -91,6 +91,17 @@ function _applyMargin(el) {
   _setHostMargin(host, Math.max(0, Math.round(fx.gap + h * fx.len / 100)));
 }
 
+/** ★이력 칸을 찍기 «직전» — ResizeObserver 는 한 프레임 뒤라, 높이를 바꾼 push-after 칸엔 옛 여백이 찍힌다.
+ *  그 칸을 복원하면 여백이 또 바뀌어 ⌘Z 첫머리 체크포인트가 칸을 새로 만들고 제자리로 돌아온다(⌘Z 가 묶인다 · js/history.js _restampRestored 주석의 «늦게 쓰는 원천»).
+ *  ⛔높이 0(안 그려진 블럭)은 안 건드린다 — 재지 못한 것을 여백 0 으로 굳히지 않는다. */
+export function settleFxReflect(root = document.getElementById('canvas')) {
+  root?.querySelectorAll('[data-fx-reflect="on"]').forEach((el) => {
+    if (!el.offsetHeight) return;
+    const fx = fxReflectOf(el);
+    if (String(Math.max(0, Math.round(fx.gap + el.offsetHeight * fx.len / 100))) !== _host(el).dataset.rfMarginY) _applyMargin(el);
+  });
+}
+
 /** 데이터 → 화면. ★키 없음·흔적 없음 = 아무것도 안 만진다(옛 문서 바이트 동일). */
 export function applyFxReflect(el) {
   if (!el || !el.style) return;
@@ -208,6 +219,6 @@ registerFxType({
 });
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { fxReflectOf, applyFxReflect, setFxReflect, watchAllFxReflect, FX_REFLECT_KEYS, FX_REFLECT_DEFAULTS, FX_REFLECT_RANGES });
+  Object.assign(window, { fxReflectOf, applyFxReflect, setFxReflect, watchAllFxReflect, settleFxReflect, FX_REFLECT_KEYS, FX_REFLECT_DEFAULTS, FX_REFLECT_RANGES });
   /* ★로드 뒤 감시는 명부(js/effects-registry.js watchAllFx)가 «한 자리»에서 돈다 — 효과가 늘어도 그대로다. */
 }
