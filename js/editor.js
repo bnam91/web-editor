@@ -1641,7 +1641,7 @@ function _deletePickedFrames() {
   window.ensureHistoryCheckpoint?.('삭제 전');
   const par = picked[0].parentElement;
   picked.forEach(f => f.remove());
-  if (par.dataset?.group === 'true' && !par.children.length) par.remove();
+  if ((par.dataset?.group === 'true' || par.classList.contains('row')) && !par.children.length) par.remove();
   window._activeFrame = null;
   deselectAll();
   window.buildLayerPanel();

@@ -101,3 +101,12 @@ test('음성 — 프레임 하나 ⌘D 는 하나(부분나무) · 부모가 다
   const n0 = (await read(page)).ids.length; await page.keyboard.press('Meta+d'); await raf(page); const s3 = await read(page); console.log('V3 다른 부모 ⌘D 새 프레임 ' + (s3.ids.length - n0));
   expect(new Set(s3.ids).size, 'id 겹침 없음').toBe(s3.ids.length); expect(errs, errs.join(' | ')).toEqual([]);
 });
+test('한 줄(.row)의 프레임 둘을 지우면 빈 줄이 안 남고, 하나 남으면 줄도 남는다', async ({ page }) => {
+  const { errs, X, Y } = await scene(page);
+  const r = await page.evaluate(([X, Y]) => { const x = document.getElementById(X); const row = document.createElement('div'); row.className = 'row'; row.id = 'rowT'; x.before(row); row.append(x, document.getElementById(Y)); x.classList.add('selected'); document.getElementById(Y).classList.add('selected'); const did = window._deletePickedFrames(); return { did, row: !!document.getElementById('rowT') }; }, [X, Y]);
+  expect(r).toEqual({ did: true, row: false });
+  await page.keyboard.press('Meta+z'); await raf(page);
+  const k = await page.evaluate(([X, Y]) => { const row = document.getElementById('rowT'); const third = document.createElement('div'); third.className = 'frame-block'; row.appendChild(third); [X, Y].forEach((i) => document.getElementById(i).classList.add('selected')); const did = window._deletePickedFrames(); return { did, row: !!document.getElementById('rowT') }; }, [X, Y]);
+  expect(k, '음성').toEqual({ did: true, row: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
