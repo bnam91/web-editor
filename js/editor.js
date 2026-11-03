@@ -2294,22 +2294,26 @@ function pasteClipboard() {
     const r = _insertPastedSection(el, getSelectedSection() || _pickVisibleSection());
     _spl = r.spl;
   } else if (clipboard.freeLayout) {
-    // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
-    // duplicateSelected의 freeLayout 분기 미러.
+    /* free-layout 프레임 내 블록 붙여넣기 — 묶음(_pastePickedFrames)과 같은 자리 규칙(현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
+       고른 자유 프레임이면 그 안 · 고른 스택 프레임·다른 섹션이면 일반 경로 · 안 골랐으면 원래 부모 안 원본 옆 +20.
+       duplicateSelected의 freeLayout 분기 미러. */
     // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
     const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
-    const frame = _flFrame(clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
-      || _flFrame([...document.querySelectorAll('.frame-block[data-free-layout].selected')].find(f => !isShapeFrame(f)))
-      || _flFrame(window._activeFrame);
+    const _srcFrame = clipboard.sourceFrameId ? document.getElementById(clipboard.sourceFrameId) : null;
+    const _selFrames = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')].filter(f => !isShapeFrame(f));
+    const _picked = _selFrames.filter(f => !_selFrames.some(o => o !== f && f.contains(o))).pop() || null;
+    const _selSec = getSelectedSection();
+    const _otherSec = !_picked && _srcFrame && _selSec && _selSec !== _srcFrame.closest('.section-block');
+    const frame = _otherSec ? null : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
     if (!frame) {
       // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
-      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
+      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); _keepOnlyPastedSelected([el]); }
     } else {
       /* ★216 — id 재발급(genId · actorId · 접두사 보존)·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(el) 한 문이 한다(손 절반 걷음). */
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
-      // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
-      const vp = _viewportCenterInContainerLocal(frame);
+      // 원래 부모면 원본 옆 +20px. 고른 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 원본 위치 +20px.
+      const vp = frame === _flFrame(_srcFrame) ? null : _viewportCenterInContainerLocal(frame);
       // ★자리는 «붙인 뒤» — 사본의 실제 크기를 재야 (중앙 − 크기/2)를 구하고 프레임 안으로 넣을 수 있다(F2). 여기는 임시 자리.
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       frame.appendChild(el);

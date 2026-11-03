@@ -725,10 +725,22 @@ const _SWITCH_QUEUE_MAX_MS = 130000;  // open_project 기본 타임아웃(120s)�
  *   duplicate/import 같은 «캔버스 통째 교체» 계열과 편집 사이에도 같은 창이 생긴다.
  *   직렬화는 그 창을 한 곳에서 통째로 닫는다. 면제 목록(_SWITCH_EXEMPT)은 이 줄을 안 선다. */
 let _callChain = Promise.resolve();
+/* ★줄은 «앞 호출이 답한 뒤» 다음을 돌린다 — 그런데 렌더러의 끝 표본(restampHistoryTop)은 답 «뒤» rAF 둘 + 틱에 찍힌다.
+ *   그 창에 다음 편집이 끼면 끝 표본이 그 편집까지 삼켜 ⌘Z 가 두 도구를 한꺼번에 되돌린다(앱 add_text_block→move_block 차례 1/6 · 동시 2/6).
+ *   ⇒ 다음 호출만 기다리게 한다(답은 안 늦춘다 · 늦게 온 호출은 안 기다린다).
+ *   상한: 렌더러가 안 답해도 줄이 멈추면 안 된다. shortcut: 상한보다 오래 막힌 렌더러에선 창이 남는다, 재현되면 끝 표본 쪽에서 끊는다. */
+const _SETTLE_WAIT_MAX_MS = 400;
+function _waitRendererSettled() {
+  const wait = _rendererInvoker?.waitSettled;
+  if (typeof wait !== 'function') return Promise.resolve();
+  let timer;
+  const cap = new Promise((r) => { timer = setTimeout(r, _SETTLE_WAIT_MAX_MS); });
+  return Promise.race([Promise.resolve().then(wait).catch(() => {}), cap]).finally(() => clearTimeout(timer));
+}
 function _serializeCall(fn) {
   const run = () => fn();
   const p = _callChain.then(run, run);   // 앞 호출이 실패해도 줄은 계속 흐른다
-  _callChain = p.then(() => {}, () => {});
+  _callChain = p.then(_waitRendererSettled, _waitRendererSettled).then(() => {}, () => {});
   return p;
 }
 

@@ -660,6 +660,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   background: transparent;
 }
 /* 이미지 클리핑 전용 래퍼 — asset-block 범위로 img를 항상 클리핑 */
+.asset-img-failed { opacity: 0.3; }  /* 그림이 안 뜬 칸 — 표시만. 직렬화가 벗긴다(section-serialize.js) */
 .asset-img-clip {
   position: absolute;
   inset: 0;
