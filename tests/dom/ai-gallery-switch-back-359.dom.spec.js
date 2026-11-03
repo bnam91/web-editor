@@ -168,7 +168,7 @@ test('G9 둘째 장 저장이 던져도 첫 장은 남는다', async ({ page }) 
 const wrapApi = (page, body) => page.evaluate(body);
 const toastsOn = (page) => page.evaluate(() => { window.__t = []; const o = window.showToast; window.showToast = (m, ...a) => { window.__t.push(String(m)); return o?.(m, ...a); }; });
 const lastToast = (page) => page.evaluate(() => window.__t[window.__t.length - 1] || '');
-const holdLoadOf = (page, id, nth = 1) => page.evaluate(({ id, nth }) => { window.IS_ELECTRON = true;   /* 첫 로드 갈래는 앱에서만 탄다 */ const old = window.electronAPI; let rel; const hold = new Promise(r => { rel = r; }); window.__relLoad = rel; let n = 0; window.electronAPI = new Proxy(old, { get: (t, k) => k === 'loadProject' ? async (i, o) => { const v = await t.loadProject(i, o); if (i === id && ++n === nth) await hold; return v; } : t[k] }); }, { id, nth });
+const holdLoadOf = (page, id, nth = 1) => page.evaluate(({ id, nth }) => { window.IS_ELECTRON = true;   /* 첫 로드 갈래는 앱에서만 탄다 */ const old = window.electronAPI; let rel; const hold = new Promise(r => { rel = r; }); window.__relLoad = rel; let n = 0; window.electronAPI = new Proxy(old, { get: (t, k) => k === 'loadProject' ? async (i, o) => { const v = await t.loadProject(i, o); if (i === id && ++n === nth) { window.__loadHeld = true; await hold; } return v; } : t[k] }); }, { id, nth });
 
 test('G10 생성 중 닫았다 다시 여는 로드 중 완료 — 안 잃고 화면·파일에 들어간다', async ({ page }) => {
   const errs = await setup(page); await toastsOn(page);
@@ -177,7 +177,7 @@ test('G10 생성 중 닫았다 다시 여는 로드 중 완료 — 안 잃고 �
   await page.evaluate((X) => { window.__open = window.openTabForProject(X); }, X); await settle(page);
   expect(await page.evaluate((X) => window.isTabFirstLoading(X), X), '[전제] 읽는 중').toBe(true);
   await page.evaluate(() => { window.__gen.done(); });
-  await page.waitForTimeout(100);
+  await settle(page);
   await page.evaluate(() => window.__relLoad());
   await page.evaluate(async () => { await window.__open; await window.__genP; }); await settle(page); await saved(page);
   expect(await live(page), '★화면 갤러리에 없다').toBe(1);
@@ -185,14 +185,14 @@ test('G10 생성 중 닫았다 다시 여는 로드 중 완료 — 안 잃고 �
   expect(await onFile(page, X), '★파일에 없다').toBe(1);
   expect(errs).toEqual([]);
 });
-for (const [how, body] of [
-  ['읽기 null', `k === 'loadProject' ? async (i) => (i === id ? null : t.loadProject(i)) : t[k]`],
-  ['쓰기 ok:false', `k === 'saveProject' ? async (p) => (p.id === id ? { ok: false, reason: 'x' } : t.saveProject(p)) : t[k]`],
-  ['쓰기 throw', `k === 'saveProject' ? async (p) => { if (p.id === id) throw new Error('EPERM'); return t.saveProject(p); } : t[k]`],
-]) test(`G11 파일 추가 실패(${how}) — 알린다, 무편집으로 돌아오면 파일에 들어간다`, async ({ page }) => {
+for (const how of ['읽기 null', '쓰기 ok:false', '쓰기 throw']) test(`G11 파일 추가 실패(${how}) — 알린다, 무편집으로 돌아오면 파일에 들어간다`, async ({ page }) => {
   const errs = await setup(page); await toastsOn(page);
   await startGen(page); await go(page, Y); await settle(page);
-  await page.evaluate(({ id, body }) => { window.__okApi = window.electronAPI; const old = window.electronAPI; window.electronAPI = new Proxy(old, { get: (t, k) => (0, eval)(`(t,k,id)=>${body}`)(t, k, id) }); }, { id: X, body });
+  await page.evaluate(({ id, how }) => { window.__okApi = window.electronAPI; window.electronAPI = new Proxy(window.__okApi, { get: (t, k) => {
+    if (how === '읽기 null' && k === 'loadProject') return async (i, o) => (i === id ? null : t.loadProject(i, o));
+    if (how === '쓰기 ok:false' && k === 'saveProject') return async (p) => (p.id === id ? { ok: false, reason: 'x' } : t.saveProject(p));
+    if (how === '쓰기 throw' && k === 'saveProject') return async (p) => { if (p.id === id) throw new Error('EPERM'); return t.saveProject(p); };
+    return t[k]; } }); }, { id: X, how });
   await page.evaluate(async () => { window.__gen.done(); await window.__genP; });
   const t = await lastToast(page);
   expect(t, '★저장됨이라고 말한다').not.toContain('저장됨');
@@ -209,8 +209,10 @@ test('G12 떠날 때 저장이 5초 넘어도 항목이 안 덮인다', async ({
   await page.evaluate(() => { window.selectSection?.(document.querySelector('#canvas .section-block')); window.addTextBlock?.('body'); window.deselectAll(); });
   await page.evaluate(() => { let rel; window.__hold = new Promise(r => { rel = r; }); window.__relHold = rel; });
   await startGen(page); await go(page, Y);
+  await page.evaluate((X) => { const old = window.electronAPI; window.electronAPI = new Proxy(old, { get: (t, k) => k === 'loadProject' ? async (i, o) => { if (i === X) window.__readX = true; return t.loadProject(i, o); } : t[k] }); }, X);
   await page.evaluate(() => { window.__gen.done(); });
-  await page.waitForTimeout(6000);
+  /* 옛 판은 5초 뒤 저장이 안 끝나도 읽고 쓴다. 고친 판은 저장이 가라앉기 전에 안 읽어 여기서 시한을 넘긴다. */
+  await page.waitForFunction(() => window.__readX, null, { timeout: 6000 }).catch(() => {});
   await page.evaluate(() => { window.__hold = null; window.__relHold(); });
   await page.evaluate(() => window.__genP); await settle(page); await saved(page);
   expect(await onFile(page, X), '★떠날 때 저장이 항목을 덮었다').toBe(1);
@@ -220,9 +222,9 @@ test('G13 파일에 쓰는 틈에 다시 열어도 화면에 들어가고 다음
   const errs = await setup(page); await toastsOn(page);
   await startGen(page); await page.evaluate((X) => window.closeTab(X), X); await settle(page);
   await holdLoadOf(page, X);
-  await page.evaluate(() => { window.__gen.done(); }); await page.waitForTimeout(100);   // 추가의 첫 읽기가 붙잡힌다
+  await page.evaluate(() => { window.__gen.done(); }); await page.waitForFunction(() => window.__loadHeld);   // 추가의 첫 읽기가 붙잡힌다
   await page.evaluate((X) => window.__okOpen = (async () => { const api = window.electronAPI; await window.openTabForProject(X); })(), X);
-  await page.waitForTimeout(100);
+  await settle(page);
   await page.evaluate(() => window.__relLoad());
   await page.evaluate(async () => { await window.__okOpen; await window.__genP; }); await settle(page); await saved(page);
   expect(await live(page), '★다시 연 화면에 없다').toBe(1);
