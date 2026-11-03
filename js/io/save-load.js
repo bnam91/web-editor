@@ -2516,7 +2516,9 @@ function initApp() {
             localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}_ts`);
           }
           if (proj.updatedAt != null) { try { localStorage.setItem(_lsBaseKey(_bootProjectId), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
-          if (lsTs > 0 && lsTs + 500 > fileTs && lsFromThisFile) {
+          /* 파일보다 «새로운» 본만 이긴다 — 옛 500ms 여유는 탭·홈으로 나간 저장(파일만 씀)보다 20ms 낡은 본을 이기게 해 그 편집을 덮었다(앱 3/3).
+             평소 저장은 localStorage 를 먼저 써 본이 늘 조금 낡으니 파일이 이긴다(내용이 같다). 충돌이면 본이 더 새롭다. */
+          if (lsTs > fileTs && lsFromThisFile) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) {
               try {

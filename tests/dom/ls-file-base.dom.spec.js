@@ -100,3 +100,7 @@ test('localStorage 가 꽉 차 표시를 못 써도 프로젝트는 열린다', 
   await open(page, { lsTs: fileTs - 3600e3, base: null });
   expect(await seen(page)).toBe('FILE');
 });
+test('파일보다 조금이라도 낡은 본은 못 이긴다(탭·홈으로 나간 저장 뒤)', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 20, base: UPD });
+  expect(await seen(page)).toBe('FILE');
+});
