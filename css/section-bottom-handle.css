@@ -19,3 +19,5 @@
 .section-bottom-handle.sbh-out{ bottom:-10px; }
 /* 337 — 끌기 중에는 띠가 드롭을 먹지 않는다(js/section-bottom-handle.js) */
 body.sbh-html5-drag .section-bottom-handle{ pointer-events:none; }
+/* 번호 스티커 도구를 켜면 바닥 띠를 찍어도 스티커가 찍힌다(띠가 클릭을 먹었다 · count-sticker C19) */
+body.count-stk-mode .section-bottom-handle{ pointer-events:none; }
