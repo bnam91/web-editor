@@ -376,6 +376,9 @@ function _onHandleMouseDown(e, ss, dir) {
     collect(ss);
   }
   const _keepChildScale = !isGroup && !!ss.dataset.freeLayout && !ss.querySelector(':scope > .shape-block');
+  /* ★250B ①(★156·★165 꼴) — 끄는 동안 자동저장을 «미룬다». 첫 이동의 시작 표본이 건 1.5s 타이머가 끌기 안에서 터져 프로젝트를 통째 직렬화했다.
+     재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js). */
+  window.deferAutoSave?.();
   const _hist = window.beginDragHistory?.('프레임 크기');
 
   function onMove(ev) {
@@ -466,6 +469,7 @@ function _onHandleMouseDown(e, ss, dir) {
        ⛔끝 표본 «앞»이어야 한다 — 크기 변경과 다시 놓기가 히스토리 한 칸이 된다. */
     window.refitBuzzOnResize?.(ss);
     window.pushHistory?.();
+    window.resumeAutoSave?.();   // ★250B ① — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);

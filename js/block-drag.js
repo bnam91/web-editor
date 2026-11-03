@@ -3600,7 +3600,8 @@ function bindFrameDropZone(ss) {
        고르기는 아래 contextmenu 리스너가 한다(클릭과 같은 단일 선택). */
     if (e.button !== 0) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
-    if (!ss.classList.contains('selected')) {
+    /* gap 을 면으로 칠 때는 여기서 고르지 않는다 — 고르면 같은 클릭의 click 이 «고른 프레임의 자식»으로 읽어 한 번에 gap 까지 내려간다(뒤집기 칸이 있는 프레임 패널을 못 봤다). 프레임은 click 이 고른다. */
+    if (!ss.classList.contains('selected') && !_gapAsSurface) {
       window.deselectAll?.();
       const parentSec = ss.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
