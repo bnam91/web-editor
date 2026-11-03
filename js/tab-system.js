@@ -381,8 +381,11 @@ async function switchTab(id) {
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
     let _afterLs = null;
+    let _savesDrained = true;
     if (window.IS_ELECTRON) {
       _firstLoadingTabId = id;
+      _savesDrained = (await window.waitSavesFor?.(id)) !== false;
+      if (_gen !== _switchGen) return;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
       if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
@@ -396,7 +399,7 @@ async function switchTab(id) {
     if (proj) {
       /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
       let _lsData = null;
-      try { _lsData = window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
+      try { _lsData = _savesDrained ? (window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null) : null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
       _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
       const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
       if (targetTab) targetTab._cache = JSON.stringify(data);

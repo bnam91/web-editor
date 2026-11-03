@@ -1957,6 +1957,17 @@ function _prepareLsWin(lsData, proj, id) {
     if (await differs && stillHere()) requestAnimationFrame(() => requestAnimationFrame(() => { if (stillHere()) scheduleAutoSave(); }));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
   };
 }
+/* 그 프로젝트의 진행·대기 저장이 끝나길 기다린다 — 탭을 닫고 곧바로 다시 열면 낡은 파일을 읽어 본이 이기고, 복구 저장이 대기 중이던 편집을 덮었다(앱 3/3).
+   상한을 넘기면 false: 판정할 근거가 없으니 부르는 쪽은 본을 쓰지 않는다. */
+async function _waitSavesFor(id, capMs = 15000) {
+  const end = Date.now() + capMs;
+  while ((_isSavingToFile && (_savingOwnerId === id || _savingOwnerId === null)) || _pendingSaves.has(id)) {
+    if (Date.now() > end) return false;
+    await new Promise(r => setTimeout(r, 25));
+  }
+  return true;
+}
+window.waitSavesFor = _waitSavesFor;
 window.pickLsOverFile = _pickLsOverFile;
 window.prepareLsWin = _prepareLsWin;
 

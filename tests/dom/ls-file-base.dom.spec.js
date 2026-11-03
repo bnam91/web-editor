@@ -180,3 +180,35 @@ test('[음성] 탭: 판이 다른 본(복원한 파일)은 걷고 파일', async
   expect(await seen(page)).toBe('FILE');
   expect(await page.evaluate(() => localStorage.getItem('web-editor-autosave__p6'))).toBeNull();
 });
+async function storeBoot(page, delay = 0) {
+  await page.addInitScript(({ file, delay }) => {
+    let real; window.__store = {}; window.__delay = delay;
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
+      if (k === 'loadProject') return async (id) => ({ ...(window.__store[id] || file), id });
+      if (k === 'saveProject') return async (p) => { await new Promise((r) => setTimeout(r, window.__delay)); window.__store[p.id] = p; window.__saved = p; return { ok: true }; };
+      return t[k];
+    } }), set: (v) => { real = v; } });
+  }, { file: { ...snap('FILE'), name: 'n', updatedAt: UPD }, delay });
+  await bootApp(page);
+  await page.goto(`${ORIGIN}/index.html?project=p1`);
+  await page.waitForFunction(() => document.querySelector('#g1')?.dataset.mark);
+}
+const setMark = (page, m) => page.evaluate((m) => { document.querySelector('#g1').dataset.mark = m; window.scheduleAutoSave(); }, m);
+test('저장 중 편집 → 탭 닫기 → 쓰기 끝나기 전 다시 열기: 대기 중이던 편집이 산다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => window.openTabForProject('p3'));
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  await page.evaluate(() => { window.__delay = 800; });
+  await setMark(page, 'Q');
+  await page.waitForFunction(() => /data-mark=\\?"Q/.test(localStorage.getItem('web-editor-autosave__p3') || ''));
+  await page.evaluate(() => { document.querySelector('#g1').dataset.mark = 'Z'; return window.closeTab('p3').then(() => window.openTabForProject('p3')); });
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  expect(await seen(page)).toBe('Z');
+  expect(await page.evaluate(() => /data-mark="Z"/.test(window.__store.p3?.pages?.[0]?.canvas || ''))).toBe(true);
+});
+test('저장이 상한 안에 안 끝나면 본을 쓰지 않고 파일로 연다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await page.evaluate(() => { window.waitSavesFor = async () => false; });
+  await tabOpen(page, 'p3', { lsTs: fileTs + 3600e3, base: UPD });
+  expect(await seen(page)).toBe('FILE');
+});
