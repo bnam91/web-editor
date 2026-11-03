@@ -963,8 +963,10 @@ function bindBlock(block) {
         const elCY = rawTop  + dragEl.offsetHeight / 2;
         const fw   = _dragOutParentFrame.offsetWidth;
         const fh   = _dragOutParentFrame.offsetHeight;
-        const outside = elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
-                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN;
+        /* 큰 블럭은 윗부분을 잡으면 커서가 프레임 안인데도 중심이 먼저 넘어가 섹션으로 빠졌다(S6 새 발견 ③) ⇒ 커서도 프레임 밖이어야 뺀다. 화면 좌표끼리 견주므로 배율 오탐이 없다. 시험: tests/dom/big-block-dragout.dom.spec.js */
+        const _cursorOut = () => { const r = _dragOutParentFrame.getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; };
+        const outside = (elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
+                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN) && _cursorOut();
         if (outside) {
           draggedOutside = true;
           hideGuides();
