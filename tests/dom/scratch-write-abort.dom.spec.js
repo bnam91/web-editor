@@ -72,3 +72,26 @@ test('음성 공용 알림: 저장이 되면 안 알린다, 넣기 실패는 부
   expect(await page.evaluate((S) => window.__settle(window._scratchImportAll('proj_3', [{ pageId: 'p1', items: [{ id: 'x', src: S, x: 1, y: 1, w: 1 }] }])), S)).toBe('거절');
   expect(await page.evaluate(() => window.__toasts)).toEqual([]);
 });
+const dbIds = (page, key = 'scratch-pad-proj_1-p1') => page.evaluate((key) => new Promise((res) => { const q = indexedDB.open('ScratchPadDB'); q.onsuccess = (e) => { const db = e.target.result; const st = [...db.objectStoreNames][0]; const r = db.transaction(st).objectStore(st).get(key); r.onsuccess = (ev) => { db.close(); res(ev.target.result === undefined ? null : ev.target.result.map((i) => i.id + '=' + (i.src.startsWith('data') ? 'data' : 'goya'))); }; }; }), key);
+const holdExternalize = (page) => page.evaluate(() => { window.__release = null; Object.defineProperty(window, 'electronAPI', { value: { assetsSaveCanvasImage: () => new Promise((res) => { window.__release = () => res({ ok: true, url: 'goya-asset://proj_1/a.png' }); }) }, configurable: true, writable: true }); });
+test('외부화 경합: IPC 를 기다리는 사이 새 항목을 넣고 탭을 옮겨도 그 항목이 남는다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_a'), S);
+  await holdExternalize(page);
+  await page.evaluate(() => { window.__ext = window.externalizeScratchpad({ pages: [{ id: 'p1' }] }, 'proj_1'); });
+  await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
+  await page.evaluate((S) => window._scratchAddAndSave(S.replace('A', 'B'), 10, 90, 50, null, 's_b'), S);
+  await page.evaluate(() => window.flushScratchForSwitch());
+  await page.evaluate(async () => { window.__release(); await window.__ext; });
+  expect(await dbIds(page)).toEqual(['s_a=goya', 's_b=data']);
+});
+test('음성 외부화 경합: 기다리는 사이 지운 항목·지운 키를 되살리지 않는다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_a'), S);
+  await holdExternalize(page);
+  await page.evaluate(() => { window.__ext = window.externalizeScratchpad({ pages: [{ id: 'p1' }] }, 'proj_1'); });
+  await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
+  await page.evaluate(() => window.clearScratchPad());
+  await page.evaluate(async () => { window.__release(); await window.__ext; });
+  expect(await dbIds(page)).toBe(null);
+});

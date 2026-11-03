@@ -152,9 +152,14 @@ async function externalizeScratchpad(proj, projectId) {
     rq.onsuccess = e => res(e.target.result);   // undefined 그대로(키 없음 판별)
     rq.onerror   = e => rej(e.target.error);
   });
-  const writeRaw = (key, data) => {
+  /* 그림 주소만 바꾼다. 읽고 고치고 쓰기를 한 tx 로 — 옛 판을 통째로 쓰면 IPC 를 기다리는 사이 들어온 항목을 지운다(탭 전환이 메모리까지 비운 뒤면 어디에도 안 남는다, S3 scratch ①). 그사이 지운 키도 되살리지 않는다. */
+  const upgradeSrcs = (key, urlOf) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-    tx.objectStore(SCRATCH_STORE).put(data, key);
+    const st = tx.objectStore(SCRATCH_STORE);
+    st.get(key).onsuccess = e => {
+      const cur = e.target.result;
+      if (Array.isArray(cur)) st.put(cur.map(it => (urlOf.has(it.src) ? { ...it, src: urlOf.get(it.src) } : it)), key);
+    };
     return _txDone(tx);   // 안 끝나면 저장 길이 saveProject 까지 못 간다(save-load.js 외부화 await)
   };
   const cache = new Map(); // dataUri → goya-asset URL (동일 세이브 내 dedup)
@@ -186,8 +191,7 @@ async function externalizeScratchpad(proj, projectId) {
     }
     page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
     if (changed) {
-      const newData = data.map((it, i) => ({ ...it, src: manifest[i].src }));
-      try { await writeRaw(key, newData); } catch (_) {}
+      try { await upgradeSrcs(key, cache); } catch (_) {}
       if (projectId === _currentProjectId && page.id === _currentPageId) {
         _scratchItems.forEach(s => { const mm = manifest.find(x => x.id === s.id); if (mm && mm.src !== s.src) { s.src = mm.src; const im = s.el.querySelector('img'); if (im) im.src = mm.src; } });
       }
