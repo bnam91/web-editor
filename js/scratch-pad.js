@@ -108,6 +108,17 @@ function _txDone(tx) {
     tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));
   });
 }
+/* 공용 알림 자리(S3 market5 제안) — 저장이 안 됐는데 말없는 자리를 여기 하나로 받는다. 화면에 항목이 보여도 다시 열면 없을 수 있다는 것만 알린다.
+   부르는 쪽이 제 말을 하는 넣기(_scratchImportAll)는 안 탄다. 연달아 실패하면 도배가 되니 간격을 둔다. 시험: tests/dom/scratch-write-abort.dom.spec.js */
+const _SCRATCH_WARN_GAP_MS = 10000;
+let _scratchWarnAt = -Infinity;
+function _warnScratchWriteFailed(e) {
+  console.warn('[scratch] 쓰기 실패:', e && (e.name || e.message));
+  const now = performance.now();
+  if (now - _scratchWarnAt < _SCRATCH_WARN_GAP_MS) return;
+  _scratchWarnAt = now;
+  window.showToast?.('⚠️ 스크래치를 저장하지 못했습니다. 지금 보이는 이미지가 다시 열면 없을 수 있습니다.');
+}
 /* flush 는 항목을 화면·메모리에서 먼저 비운다. 쓰기가 실패하면 그 항목은 어디에도 없게 된다 ⇒ 이 세션에서 그 키를 다시 열 때 여기서 되살린다 */
 const _unsavedFlush = new Map();
 async function _saveScratch() {
@@ -119,7 +130,7 @@ async function _saveScratch() {
   const data = _scratchItems.map(s => _pickScratch(s));
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
   tx.objectStore(SCRATCH_STORE).put(data, key);
-  return _txDone(tx);
+  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
 }
 
 // #16 이식성 — 저장 시 스크래치 «전체 페이지» 외부화 + proj.json 매니페스트 기록.
@@ -211,6 +222,7 @@ async function flushScratchForSwitch() {
     await _txDone(tx);
   } catch (e) {
     _unsavedFlush.set(key, data);
+    _warnScratchWriteFailed(e);
     throw e;
   }
 }
@@ -2175,7 +2187,7 @@ window.clearScratchPad   = async () => {
   const db = await _openDB();
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
   tx.objectStore(SCRATCH_STORE).delete(_getScratchKey(_currentProjectId, _currentPageId));
-  return _txDone(tx);
+  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
 };
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장

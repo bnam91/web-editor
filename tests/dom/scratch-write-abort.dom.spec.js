@@ -54,3 +54,21 @@ test('clearScratchPad 쓰기가 abort 나면 멈추지 않고 거절한다', asy
   await on(page);
   expect(await page.evaluate(() => window.__settle(window.clearScratchPad()))).toBe('거절');
 });
+const WARN = '⚠️ 스크래치를 저장하지 못했습니다. 지금 보이는 이미지가 다시 열면 없을 수 있습니다.';
+test('공용 알림: 말없던 자리(안 기다리는 저장 포함)에서 알리고, 연달아 실패해도 한 번이다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await on(page);
+  await page.evaluate(() => window._scratchSaveSoon(0));
+  await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual([WARN]);
+  await page.evaluate((S) => window.__settle(window._scratchAddAndSave(S, 10, 90, 50, null, 's_2')), S);
+  expect(await page.evaluate(() => window.__toasts)).toEqual([WARN]);
+});
+test('음성 공용 알림: 저장이 되면 안 알린다, 넣기 실패는 부르는 쪽 말에 맡긴다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  expect(await page.evaluate(() => window.__toasts)).toEqual([]);
+  await on(page);
+  expect(await page.evaluate((S) => window.__settle(window._scratchImportAll('proj_3', [{ pageId: 'p1', items: [{ id: 'x', src: S, x: 1, y: 1, w: 1 }] }])), S)).toBe('거절');
+  expect(await page.evaluate(() => window.__toasts)).toEqual([]);
+});
