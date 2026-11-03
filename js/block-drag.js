@@ -3390,6 +3390,9 @@ function bindFrameDropZone(ss) {
 
       // e.preventDefault() 제거 — 호출 시 이후 자식 click 이벤트가 억제되어 선택 불가
       e.stopPropagation();
+      /* 더블클릭으로 들어가면 글자 선택이 남는다. 그 위를 눌러 잠깐(약 150ms) 있다 끌면 브라우저가 글자 드래그로 가져가 프레임이 안 움직였다(S3 C).
+         편집 중 글자 선택은 건드리지 않는다. 시험: tests/dom/frame-hold-drag-selection.dom.spec.js */
+      if (!document.activeElement?.isContentEditable) window.getSelection()?.removeAllRanges();
 
       // ss 자신이 freeLayout frame일 수 있으므로 parentElement부터 탐색
       const parentFreeFrame = ss.parentElement?.closest('.frame-block[data-free-layout]');
