@@ -51,10 +51,17 @@ test('음성: 30도 돈 프레임 안 G 를 G 위에서 잡아 끌면 G 가 움�
   const g0 = await offs(page, ids.G); await dragFrom(page, p); expect(await offs(page, ids.G)).not.toEqual(g0); expect(await isSel(page, ids.G)).toBe(true);
 });
 test('D-회전: 90도 돈 프레임 안 G 를 오른쪽 끝에서 잡아 끌어도 선택이 G 에 남는다', async ({ page }) => {
-  test.fail(true, '회신 D: 좌표는 맞게 가는데 선택이 맨 위 프레임으로 튄다. 가운데를 잡으면 안 튄다');
   const ids = await scene(page); await rotateA(page, ids, 90); expect((await pickG(page, ids)).sel).toBe(true);
   const p = await pointOn(page, ids.G, 0.85, 0.5); expect(await ownerAt(page, p)).toBe(ids.G);
   await dragFrom(page, p); expect(await isSel(page, ids.G)).toBe(true);
+  expect(await page.evaluate((a) => document.getElementById(a).classList.contains('selected'), ids.A), '부모는 안 남는다').toBe(false);
+});
+test('음성: 끌고 놓은 다음의 진짜 클릭은 삼키지 않는다 — 곧바로 다른 프레임을 누르면 그쪽이 골라진다', async ({ page }) => {
+  const ids = await scene(page); await rotateA(page, ids, 90); await pickG(page, ids);
+  const p = await pointOn(page, ids.G, 0.85, 0.5); await dragFrom(page, p);
+  await page.waitForTimeout(200);
+  const q = await J.ownPoint(page, ids.R); await page.mouse.click(q[0], q[1]); await J.settle(page);
+  expect(await isSel(page, ids.R)).toBe(true);
 });
 test('음성: 폭을 입력칸으로 줄였다 되늘리면 자식 폭이 돌아온다', async ({ page }) => {
   const ids = await scene(page); await setWidthA(page, ids, 100); await setWidthA(page, ids, 400);
