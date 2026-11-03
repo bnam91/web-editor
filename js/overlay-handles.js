@@ -368,6 +368,7 @@ function _onHandleMouseDown(e, ss, dir) {
           isTextFrame,
           contentEl,
           fs: contentEl ? (parseFloat(getComputedStyle(contentEl).fontSize) || 0) : 0,
+          laurelCells: c.classList.contains('laurel-block') ? c.dataset.cells : null,
         });
         if (c.classList.contains('frame-block') && !isTextFrame) collect(c);
       });
@@ -441,7 +442,12 @@ function _onHandleMouseDown(e, ss, dir) {
         } else {
           const H = Math.round(s.h * sy);
           s.el.style.height = H + 'px';
-          if (s.el.dataset.height !== undefined) s.el.dataset.height = String(H);
+          /* ★J260B 월계수 높이 정본은 cells[].height — H 칸(prop-multisel)과 같이 칸·잎이 겉 상자를 따른다.
+             매 틱 «쥔 때의 칸»에서 잰다: 지금 칸에서 이어 재면 [20,600] 에 닿은 비율이 끌어 되돌려도 안 돌아온다. */
+          if (s.laurelCells) {
+            s.el.dataset.cells = s.laurelCells;
+            if (H === s.h) window.renderLaurelBlock?.(s.el); else window.fitLaurelCellsToBoxHeight?.(s.el, H);
+          } else if (s.el.dataset.height !== undefined) s.el.dataset.height = String(H);
         }
       });
     }
