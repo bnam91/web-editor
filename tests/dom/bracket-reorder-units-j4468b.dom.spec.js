@@ -78,11 +78,12 @@ test('Z1 겹침 순서 — 자유 프레임 안 겹친 둘은 ⌘[ 로 임자가
   await scene(page, []);
   const ids = await page.evaluate(async () => { const s = document.querySelector('.section-block'); window.selectSection(s); window.addFrameBlock({}); const F = [...s.querySelectorAll('.frame-block')].pop(); const mk = async () => { window._activeFrame = F; const before = new Set(F.querySelectorAll('.text-block')); window.addTextBlock(); const t = [...F.querySelectorAll('.text-block')].find((x) => !before.has(x)); if (!t.id) t.id = 'k' + Math.random().toString(36).slice(2, 9); const w = t.closest('.frame-block[data-text-frame]'); w.style.position = 'absolute'; w.style.left = '40px'; w.style.top = '40px'; return t.id; }; const a = await mk(), b = await mk(); window.deselectAll(); window._activeFrame = null; return [a, b]; });
   // 점은 그때그때 잰다 — 패널로 고르면 캔버스가 스크롤된다. 두 글상자는 left·top 이 같다
-  const owner = () => page.evaluate(([a, b]) => { const q = document.getElementById(a).getBoundingClientRect(), t = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2), w = t?.closest('.frame-block[data-text-frame]') || t; return w?.querySelector?.('#' + a) ? 'a' : w?.querySelector?.('#' + b) ? 'b' : t?.className?.toString().slice(0, 20); }, ids);
+  // ★자 — 안 고른 프레임의 자식은 pointer-events:none 이라 임자가 프레임 자신으로 잡힌다(첫 판이 그 프레임 안 첫 글상자를 임자로 읽어 안 옮겼는데 초록이었다) ⇒ 재는 순간만 hit 를 연다
+  const owner = () => page.evaluate(([a, b]) => { const st = document.head.appendChild(document.createElement('style')); st.textContent = '#canvas * { pointer-events: auto !important; }'; const q = document.getElementById(a).getBoundingClientRect(), t = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); st.remove(); const w = t?.closest('.frame-block[data-text-frame]'); return w?.querySelector('#' + a) ? 'a' : w?.querySelector('#' + b) ? 'b' : String(t?.className).slice(0, 20); }, ids);
   await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), ids[1]);
   await twoFrames(page);
   const top = await owner(), other = top === 'a' ? 'b' : 'a', topId = ids[top === 'a' ? 0 : 1];
-  expect(['a', 'b'], '전제: 겹친 점의 임자가 둘 중 하나').toContain(top);
+  expect(top, '전제: 뒤에 넣은 글상자가 위').toBe('b');
   await page.evaluate((id) => { window.buildLayerPanel?.(); document.getElementById(id)._layerItem.click(); }, topId);   // 겹친 자식은 레이어 패널로 고른다
   await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), topId);
   await press(page, 'Meta+BracketLeft', owner, other);
