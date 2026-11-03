@@ -1951,10 +1951,15 @@ function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
 function _prepareLsWin(lsData, proj, id) {
   const differs = _lsDiffersFromFile(lsData, proj).catch(() => true);
   return async (stillHere) => {
-    if (!stillHere()) return;   // 그사이 다른 프로젝트로 갔다 — 그쪽에 저장을 걸지 않는다
+    if (!stillHere()) return false;   // 그사이 다른 프로젝트로 갔다 — 그쪽에 저장을 걸지 않는다(탭은 돌아왔을 때 다시 부른다)
     recordExternalizeBaseline(proj, id);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)
     /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
-    if (await differs && stillHere()) requestAnimationFrame(() => requestAnimationFrame(() => { if (stillHere()) scheduleAutoSave(); }));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
+    if (!(await differs)) return stillHere();
+    return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => {   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
+      if (!stillHere()) { done(false); return; }
+      scheduleAutoSave();
+      done(true);
+    })));
   };
 }
 /* 그 프로젝트의 진행·대기 저장이 끝나길 기다린다 — 탭을 닫고 곧바로 다시 열면 낡은 파일을 읽어 본이 이기고, 복구 저장이 대기 중이던 편집을 덮었다(앱 3/3).

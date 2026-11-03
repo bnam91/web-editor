@@ -364,11 +364,16 @@ async function switchTab(id) {
     saveTabState();
 
     const targetTab = openTabs.find(t => t.id === id);
+    const _runAfterLs = (after) => {
+      if (!after) return;
+      after(() => _gen === _switchGen && _getActId() === id).then((done) => { if (done && targetTab?._afterLs === after) targetTab._afterLs = null; });
+    };
 
     // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
     if (targetTab?._cache) {
       window.applyProjectData(JSON.parse(targetTab._cache));
       window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
+      _runAfterLs(targetTab._afterLs);   // 첫 로드 직후 떠나 못 끝낸 복구 저장(앱 3/3)
       window.initBranchStore();
       _restoreViewState(targetTab);
       requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
@@ -401,6 +406,7 @@ async function switchTab(id) {
       let _lsData = null;
       try { _lsData = _savesDrained ? (window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null) : null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
       _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
+      if (targetTab) targetTab._afterLs = _afterLs;
       const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
       if (targetTab) targetTab._cache = JSON.stringify(data);
       window.applyProjectData(data);
@@ -415,7 +421,7 @@ async function switchTab(id) {
       window.clearHistory?.();
     }
     window.AutoSaveSuppress.end(_asTok);     // 파일 분기: 예전 `= false` 와 «같은 자리»
-    _afterLs?.(() => _gen === _switchGen && _getActId() === id);
+    _runAfterLs(_afterLs);
     window.initBranchStore();
     // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
     try { await window.switchScratch?.(id, window.state?.currentPageId); }

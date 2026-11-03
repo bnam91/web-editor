@@ -212,3 +212,18 @@ test('저장이 상한 안에 안 끝나면 본을 쓰지 않고 파일로 연�
   await tabOpen(page, 'p3', { lsTs: fileTs + 3600e3, base: UPD });
   expect(await seen(page)).toBe('FILE');
 });
+test('복구 첫 로드 직후 다른 탭으로 갔다 돌아와도 복구분을 파일로 넣는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(({ ls, lsTs, upd }) => {
+    const k = 'web-editor-autosave__p3'; localStorage.setItem(k, ls); localStorage.setItem(k + '_ts', String(lsTs)); localStorage.setItem('web-editor-ls-base__p3', upd);
+    const c = document.getElementById('canvas');
+    const o = new MutationObserver(() => { if (document.querySelector('#g1')?.dataset.mark === 'LS') { o.disconnect(); window.__away = window.switchTab('p1'); } });
+    o.observe(c, { subtree: true, childList: true, attributes: true });
+    window.openTabForProject('p3');
+  }, { ls: JSON.stringify(snap('LS')), lsTs: fileTs + 3600e3, upd: UPD });
+  await page.waitForFunction(() => window.__away && window.activeProjectId === 'p1');
+  await page.evaluate(() => window.__away);
+  expect(await page.evaluate(() => window.__saved || null)).toBeNull();
+  await page.evaluate(() => window.switchTab('p3'));
+  await expect.poll(() => page.evaluate(() => /data-mark="LS"/.test(window.__store.p3?.pages?.[0]?.canvas || '')), { timeout: 8000 }).toBe(true);
+});
