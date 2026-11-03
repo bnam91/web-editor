@@ -4,6 +4,8 @@
  * 자: 저장 입구(saveProject)에 넘어온 프로젝트별 imageGallery 길이와 window.state.imageGallery. 파일은 앱이 잰다.
  * 칸: G1 돌아와 편집 — 화면 1 · 저장 1 · G2 [음성] 전환 없음 — 저장 1 · G3 저장 중 전환 — 떠날 때 저장 뒤에 항목이 쓰인다
  *     G4 파일 쓰기 실패 — 돌아온 화면엔 남고 다음 저장에 들어간다 · G5 이미지 저장 중 돌아옴 — 화면 1 · 저장 1.
+ *     G6 이미지 저장 중 옮김 — 원 프로젝트 파일에 들어가고 옮겨 간 쪽 화면·파일에 안 들어간다 · G7 G6 뒤 돌아와 편집해도 남는다 · G8 여러 장 중간에 옮김 — 전부 원 프로젝트에.
+ * 변이(G6~G8): 응답 직후 한 번만 재는 옛 판으로 되돌리면 빨강.
  * 변이: 탭 캐시 갱신을 빼면 G1·G4 빨강 · 저장 기다림을 빼면 G3 빨강 · 돌아옴 갈래를 빼면 G5 빨강 · G2 는 늘 초록.
  * ★처음 실행 기록: 2026-11-02 20:1x · 아이맥 · 판 0541078b · w1 · retries 0 · 고친 판 repeat-each 3 15/15 · 변이 각 ×1: 캐시 G1·G4 빨강 · 기다림 G3 빨강 · 돌아옴 G5 빨강 · 나머지 초록 */
 const { test, expect } = require('@playwright/test');
@@ -107,5 +109,57 @@ test('G5 이미지 저장 중 돌아옴 — 화면에 들어가고 저장된다'
   await editAndSaved(page, X);
   expect(await onFile(page, X), '★저장에 항목이 없다').toBe(1);
   expect(await onFile(page, Y)).toBe(0);
+  expect(errs).toEqual([]);
+});
+
+const holdImage = (page) => page.evaluate(() => { window.__holdImg = new Promise(r => { window.__releaseImg = () => { window.__holdImg = null; r(); }; }); });
+const releaseImage = (page) => page.evaluate(() => window.__releaseImg());
+const inFlight = (page) => page.evaluate(async () => { window.__gen.done(); await new Promise(r => setTimeout(r, 0)); });
+const saved = (page) => page.waitForFunction(() => !window.hasUnsavedChanges() && !window._isSavingToFile, null, { timeout: 15000 });
+
+test('G6 이미지 저장 중 옮김 — 원 프로젝트 파일에 들어가고 옮겨 간 쪽엔 안 들어간다', async ({ page }) => {
+  const errs = await setup(page);
+  await holdImage(page); await startGen(page); await inFlight(page);
+  await go(page, Y); await releaseImage(page); await page.evaluate(() => window.__genP); await settle(page); await saved(page);
+  expect(await onFile(page, X), '★원 프로젝트에서 빠졌다').toBe(1);
+  expect(await live(page), '★옮겨 간 프로젝트 화면에 들어갔다').toBe(0);
+  expect(await onFile(page, Y), '★옮겨 간 프로젝트 파일에 들어갔다').toBe(0);
+  expect(errs).toEqual([]);
+});
+test('G7 G6 뒤 돌아와 편집해도 남는다', async ({ page }) => {
+  const errs = await setup(page);
+  await holdImage(page); await startGen(page); await inFlight(page);
+  await go(page, Y); await releaseImage(page); await page.evaluate(() => window.__genP); await settle(page); await saved(page);
+  await go(page, X); await settle(page);
+  expect(await live(page), '★돌아온 화면에 없다').toBe(1);
+  await editAndSaved(page, X);
+  expect(await onFile(page, X), '★편집 저장이 지웠다').toBe(1);
+  expect(await onFile(page, Y)).toBe(0);
+  expect(errs).toEqual([]);
+});
+test('G8 여러 장 중간에 옮김 — 전부 원 프로젝트에', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => { window.__imgN = 0; const old = window.electronAPI; const hold = new Promise(r => { window.__releaseImg = r; }); window.electronAPI = new Proxy(old, { get: (t, k) => {
+    if (k === 'aiSaveImage') return async () => { const n = ++window.__imgN; if (n === 2) await hold; return { ok: true, id: 'img_m' + n, blobPath: 'ai/img_m' + n + '.png', mime: 'image/png' }; };
+    if (k === 'aiGenerateImage') return () => { window.__genStart(); return new Promise(r => { window.__gen.done = () => r({ ok: true, items: [{ b64: 'AAAA', mime: 'image/png' }, { b64: 'BBBB', mime: 'image/png' }], cost: { tokens: 0, krwApprox: 0 } }); }); };
+    return t[k]; } }); });
+  await page.evaluate(async () => { window.__genP = window.generateAIImage({ prompt: 'p', model: 'gemini-2.5-flash-image', count: 2 }); await window.__genStarted; window.__gen.done(); });
+  await page.waitForFunction(() => window.__imgN === 2);
+  await go(page, Y); await page.evaluate(() => window.__releaseImg()); await page.evaluate(() => window.__genP); await settle(page); await saved(page);
+  expect(await onFile(page, X), '★둘 다 원 프로젝트에').toBe(2);
+  expect(await live(page)).toBe(0); expect(await onFile(page, Y)).toBe(0);
+  expect(errs).toEqual([]);
+});
+test('G9 둘째 장 저장이 던져도 첫 장은 남는다', async ({ page }) => {
+  const errs = await setup(page);
+  const out = await page.evaluate(async () => { window.__imgN = 0; const old = window.electronAPI; window.electronAPI = new Proxy(old, { get: (t, k) => {
+    if (k === 'aiSaveImage') return async () => { const n = ++window.__imgN; if (n === 2) throw new Error('EPERM'); return { ok: true, id: 'img_t' + n, blobPath: 'ai/img_t' + n + '.png', mime: 'image/png' }; };
+    if (k === 'aiGenerateImage') return async () => ({ ok: true, items: [{ b64: 'AAAA', mime: 'image/png' }, { b64: 'BBBB', mime: 'image/png' }], cost: { tokens: 0, krwApprox: 0 } });
+    return t[k]; } });
+    const r = await window.generateAIImage({ prompt: 'p', model: 'gemini-2.5-flash-image', count: 2 }); return { ok: r.ok, n: r.items.length }; });
+  expect(out).toEqual({ ok: true, n: 1 });
+  expect(await live(page), '★첫 장이 화면 갤러리에 없다').toBe(1);
+  await settle(page); await saved(page);
+  expect(await onFile(page, X)).toBe(1);
   expect(errs).toEqual([]);
 });

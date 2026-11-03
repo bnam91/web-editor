@@ -596,16 +596,16 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
       window.showToast?.('❌ projectId 없음 — 저장 불가');
       return { ok: false, error: 'projectId 없음' };
     }
-    // H7/STATE-02: 생성(await) 동안 사용자가 다른 프로젝트로 전환했는지 감지.
-    // blob은 캡처된 projectId로 저장되지만, 아래 갤러리 push가 라이브 window.state(=전환된 B)에
-    // 들어가면 B 갤러리가 오염되고 캡처 A는 blob만 남아 갤러리 엔트리가 유실된다.
-    const switchedAway = _getProjectId() !== projectId;
+    // H7/STATE-02: 항목은 다 모은 뒤 «그때» 어느 프로젝트가 떠 있는지로 갈라 넣는다. 아래 이미지 저장(await) 중에도 탭이 옮겨진다.
+    // 생성 직후 한 번만 재면 옮겨 간 프로젝트의 state 에 들어가 그 파일로 저장되고 원 프로젝트에서는 빠졌다(S6 앱 값).
     const capturedItems = [];
     const items = [];
     const now = new Date().toISOString();
     const referenceMode = refs.length >= 2 ? 'composite' : 'single';
     for (const img of (res.items || [])) {
-      const saveRes = await window.electronAPI.aiSaveImage({ projectId, b64: img.b64, mime: img.mime });
+      // 던지면 앞서 저장한 장이 항목 없이 남는다(항목을 다 모은 뒤 넣으므로) — 이 장만 건너뛴다
+      const saveRes = await window.electronAPI.aiSaveImage({ projectId, b64: img.b64, mime: img.mime })
+        .catch((e) => { console.warn('[ai-image-gen] 이미지 저장 실패:', e); return null; });
       if (!saveRes?.ok) continue;
       const dataUrl = `data:${img.mime};base64,${img.b64}`;
       window._aiImgCache?.set(saveRes.id, dataUrl);
@@ -631,26 +631,18 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
         },
         favorite: false,
       };
-      if (switchedAway) {
-        // 캡처된 A 파일에 직접 적재 (라이브 B state 미접촉)
-        capturedItems.push(galleryItem);
-      } else {
-        window.state.imageGallery = window.state.imageGallery || [];
-        window.state.imageGallery.push(galleryItem);
-      }
+      capturedItems.push(galleryItem);
       items.push({ id: saveRes.id, dataUrl, blobPath: saveRes.blobPath });
     }
-    if (switchedAway && _getProjectId() !== projectId) {
+    if (_getProjectId() !== projectId) {
       // 전환 감지: 캡처 프로젝트 파일에 갤러리 엔트리를 직접 병합 (라이브 화면/저장 미오염)
       await _appendGalleryToProject(projectId, capturedItems);
       window.showToast?.(`✨ ${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
       return { ok: true, items, cost: res.cost };
     }
-    if (switchedAway) {
-      // ★359 — 이미지 저장을 기다리는 사이 돌아왔다. 화면이 이미 그 프로젝트이므로 평소 길로 넣는다.
-      window.state.imageGallery = window.state.imageGallery || [];
-      window.state.imageGallery.push(...capturedItems);
-    }
+    // 화면이 그 프로젝트다(한 번도 안 옮겼거나 이미지 저장 중에 돌아왔다, ★359) — 평소 길로
+    window.state.imageGallery = window.state.imageGallery || [];
+    window.state.imageGallery.push(...capturedItems);
     window.buildAIImageGallery?.();
     window.triggerAutoSave?.();
     window.showToast?.(`✨ ${items.length}장 생성 완료 (₩${res.cost?.krwApprox || 0})`);
