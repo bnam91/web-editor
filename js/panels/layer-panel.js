@@ -328,7 +328,10 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
       _layerDragRafId = requestAnimationFrame(() => {
         _layerDragRafId = null;
         clearLayerIndicators();
-        const after = getLayerDragAfterItem(children, clientY);
+        /* 맨 끝이면 안내선도 끝 여백 앞에 — 놓으면 아래 insertIntoSec 이 여백 앞에 넣는다. 끝에 그리면 놓일 자리와 한 칸 어긋난다(S3 B-6). */
+        const _lastItem = children.lastElementChild;
+        const after = getLayerDragAfterItem(children, clientY)
+          || (_lastItem?._dragTarget?.classList?.contains('gap-block') ? _lastItem : null);
         const indicator = document.createElement('div');
         indicator.className = 'layer-drop-indicator';
         if (after) children.insertBefore(indicator, after);
