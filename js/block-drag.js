@@ -3214,6 +3214,7 @@ function _bindFrameFlowDrop(ss) {
              .dragging 이 고착해 연회색이 된다(js/CLAUDE.md 「draggable 잔류 버그」, text-frame
              경로가 이미 같은 처방을 쓴다). 프레임도 «대칭»으로 걷고 재바인딩을 연다. */
           if (_isFrameDrop) {
+            dragState.dragSrc._bindAbsCellDrag?.();   // 흐름으로 묶인 프레임은 좌표 끌기가 없다 — 안 걸면 옮긴 뒤 안 끌렸다(S6 K)
             dragState.dragSrc.removeAttribute('draggable');
             dragState.dragSrc._dragBound = false;
           }

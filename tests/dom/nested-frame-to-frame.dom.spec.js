@@ -63,6 +63,26 @@ test('스택 B 위에 놓으면 B 안 흐름이고 다시 끌린다', async ({ p
   expect(k1.par).toBe(s.B); expect(k1.pos, '흐름').not.toBe('absolute'); expect(k1.dg, '다시 끌린다').toBe('true');
   expect(s.errs, s.errs.join(' | ')).toEqual([]);
 });
+for (const [name, prep] of [['스택 A', PREP['스택 A 다시 연 판']], ['자유 A', PREP['자유 A']]]) {
+  test(`${name} 에서 자유 B 로 옮긴 K 는 B 안에서 다시 끌린다, A 로 되돌릴 수 있다`, async ({ page }) => {
+    const s = await scene(page, 2); await prep(page, s);
+    expect(await pick(page, s.K)).toBe(true);
+    let k = await box(page, s.K); const b = await box(page, s.B);
+    await drag(page, k.x, k.y, b.x, b.y);
+    expect((await box(page, s.K)).par, '[전제] B 안').toBe(s.B);
+    expect(await pick(page, s.K), '옮긴 뒤 고르기').toBe(true);
+    k = await box(page, s.K);
+    await drag(page, k.x, k.y, k.x + 30, k.y + 20);
+    const k2 = await box(page, s.K);
+    expect(k2.par).toBe(s.B); expect(Math.abs(k2.x - k.x - 30), '다시 끌린다').toBeLessThanOrEqual(1);
+    expect(await pick(page, s.K)).toBe(true);
+    const a = await box(page, s.A);
+    await drag(page, k2.x, k2.y, a.x, a.y);
+    const k3 = await box(page, s.K);
+    expect(k3.n).toBe(1); expect(k3.par, 'A 로 되돌아간다').toBe(s.A);
+    expect(s.errs, s.errs.join(' | ')).toEqual([]);
+  });
+}
 test('음성 — K 를 안 고르고 A 만 고른 채 A 빈 데를 끌면 A 가 끌린다', async ({ page }) => {
   const s = await scene(page, 2);
   expect(await pick(page, s.A)).toBe(true);
