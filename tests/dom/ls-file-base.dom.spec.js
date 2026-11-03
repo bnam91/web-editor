@@ -10,7 +10,7 @@ const snap = (mark) => ({ version: 2, currentPageId: 'p', pages: [{ id: 'p', nam
 const UPD = '2026-11-03T00:00:00.000Z';
 const fileTs = Date.parse(UPD);
 
-async function open(page, { ls, lsTs, base }) {
+async function open(page, { ls, lsTs, base, file = {} }) {
   await page.addInitScript(({ file }) => {
     let real;
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
@@ -18,7 +18,7 @@ async function open(page, { ls, lsTs, base }) {
       if (k === 'saveProject') return async (p) => { window.__saved = p; return { ok: true }; };
       return t[k];
     } }), set: (v) => { real = v; } });
-  }, { file: { ...snap('FILE'), id: 'p1', name: 'n', updatedAt: UPD } });
+  }, { file: { ...snap('FILE'), id: 'p1', name: 'n', updatedAt: UPD, ...file } });
   await bootApp(page);
   await page.evaluate(({ ls, lsTs, base }) => {
     const k = 'web-editor-autosave__p1';
@@ -49,10 +49,33 @@ test('[음성] 같은 판이어도 localStorage 가 낡았으면 파일', async 
   await open(page, { lsTs: fileTs - 3600e3, base: UPD });
   expect(await seen(page)).toBe('FILE');
 });
-test('저장에 성공하면 표시가 그 파일 판을 따라간다', async ({ page }) => {
-  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
-  await page.evaluate(() => window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'p1' }));
-  const v = await page.evaluate(() => ({ saved: window.__saved?.updatedAt, base: localStorage.getItem('web-editor-ls-base__p1') }));
-  expect(v.saved).toBeTruthy();
-  expect(v.base).toBe(v.saved);
+test('거절한 본은 걷는다 — 저장 없이 끝나 다시 열어도 파일이다', async ({ page }) => {
+  await open(page, { lsTs: fileTs + 3600e3, base: '2026-11-03T01:00:00.000Z' });
+  expect(await seen(page)).toBe('FILE');
+  expect(await page.evaluate(() => [localStorage.getItem('web-editor-autosave__p1'), localStorage.getItem('web-editor-autosave__p1_ts')])).toEqual([null, null]);
+  await page.goto(`${ORIGIN}/index.html?project=p1`);
+  await page.waitForFunction(() => document.querySelector('#g1')?.dataset.mark);
+  expect(await seen(page)).toBe('FILE');
+});
+test('[음성] 깨진 파일 대신 읽은 백업(판이 다름)은 더 새 localStorage 를 못 이긴다', async ({ page }) => {
+  await open(page, { lsTs: fileTs + 3600e3, base: '2026-11-03T01:00:00.000Z', file: { _recovered: 'backup' } });
+  expect(await seen(page)).toBe('LS');
+});
+test('[음성] 숫자 updatedAt 파일도 같은 판이면 localStorage 로 복구한다', async ({ page }) => {
+  await open(page, { lsTs: fileTs + 3600e3, base: String(fileTs), file: { updatedAt: fileTs } });
+  expect(await seen(page)).toBe('LS');
+});
+test('부팅 중 활성 프로젝트가 바뀌어도 표시는 부팅 프로젝트 몫이다', async ({ page }) => {
+  await page.addInitScript(({ file }) => {
+    let real;
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
+      if (k === 'loadProject') return async () => { if (window.__swap) window.activeProjectId = 'p2'; return { ...file }; };
+      return t[k];
+    } }), set: (v) => { real = v; } });
+    window.__swap = location.search.includes('project=p1');
+  }, { file: { ...snap('FILE'), id: 'p1', name: 'n', updatedAt: UPD } });
+  await bootApp(page);
+  await page.goto(`${ORIGIN}/index.html?project=p1`);
+  await page.waitForFunction(() => localStorage.getItem('web-editor-ls-base__p1') || localStorage.getItem('web-editor-ls-base__p2'));
+  expect(await page.evaluate(() => [localStorage.getItem('web-editor-ls-base__p1'), localStorage.getItem('web-editor-ls-base__p2')])).toEqual([UPD, null]);
 });

@@ -87,12 +87,10 @@ function getSaveTsKey() {
   return getSaveKey() + '_ts';
 }
 /* localStorage 본이 «어느 파일 판에서 이어졌나» — 그 파일이 아직 디스크에 있을 때만 localStorage 가 파일을 이길 자격이 있다(열 때 판정).
-   파일이 밖에서 바뀌면(사본·백업·되돌리기) updatedAt 이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다. 시험: tests/dom/ls-file-base.dom.spec.js */
+   파일이 밖에서 바뀌면(사본·백업·되돌리기) 값이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다.
+   쓰는 곳: 파일 쓰기는 preload.js 한 자리 · 여기는 열 때뿐. 시험: tests/dom/ls-file-base.dom.spec.js */
 const _lsBaseKey = (id) => `web-editor-ls-base__${id}`;
-function _noteFileVersion(id, updatedAt) {
-  if (!id || !updatedAt) return;
-  try { localStorage.setItem(_lsBaseKey(id), updatedAt); } catch (_) {}
-}
+let _lastOpenFallback = null;   // 이번 열기가 깨진 proj.json 대신 백업·이력을 읽은 프로젝트 id
 let autoSaveTimer = null;
 const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
 let _autoSaveBurstAt = 0;
@@ -347,7 +345,6 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
         return { ok: false, reason: saveResult.reason || 'rejected' };
       }
-      _noteFileVersion(targetId, proj.updatedAt);
       // thumbnail은 _meta.json에 저장
       if (thumbnail) {
         /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 f) — 미리 읽지 않는다. 합치기는 main 핸들러({ ...cur, ...metaData }).
@@ -1860,6 +1857,7 @@ function _recoveryToastText(proj) {
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
+  _lastOpenFallback = proj && proj._recovered ? id : null;
   if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
   if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
   return proj;
@@ -2510,9 +2508,14 @@ function initApp() {
             return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
           };
           const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          const lsBase = localStorage.getItem(_lsBaseKey(activeProjectId));   // 없으면(이 고침 전 본) 옛 규칙 그대로
-          const lsFromThisFile = !lsBase || lsBase === proj.updatedAt;
-          _noteFileVersion(activeProjectId, proj.updatedAt);
+          /* 표시 없는 옛 본 · 깨진 파일 대신 읽은 백업(판이 다른 게 당연하다) · updatedAt 없는 파일은 옛 규칙 그대로. */
+          const lsBase = localStorage.getItem(_lsBaseKey(_bootProjectId));
+          const lsFromThisFile = !lsBase || _lastOpenFallback === _bootProjectId || proj.updatedAt == null || lsBase === String(proj.updatedAt);
+          if (!lsFromThisFile) {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
+            localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}`);
+            localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}_ts`);
+          }
+          if (proj.updatedAt != null) localStorage.setItem(_lsBaseKey(_bootProjectId), String(proj.updatedAt));
           if (lsTs > 0 && lsTs + 500 > fileTs && lsFromThisFile) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) {
@@ -2753,7 +2756,6 @@ window.flushSave = async function() {
         updatedAt: new Date().toISOString(),
       };
       await window.electronAPI.saveProject(proj);
-      _noteFileVersion(_targetId, proj.updatedAt);
       _dirtySinceSave = false;
     } catch (e) {
       console.error('[flushSave] 저장 실패:', e);
