@@ -2563,9 +2563,8 @@ function _countSections(proj) {
   return (c.match(/section-block/g)?.length || 0);
 }
 
-// BUG-NAME-LOSS: 큰 프로젝트 load race에서 tab.name='Untitled' 상태로 save 들어와 진짜 이름이 'Untitled'로 덮어쓰이는 회귀 방어.
-// prev.name이 'Untitled' 아닌 유의미한 이름인데 incoming.name이 비거나 'Untitled'이면 prev.name 유지.
-// (사용자가 의도적으로 'Untitled'로 rename하는 케이스는 거의 없음 — rename UI는 빈 input만 'Untitled' 폴백)
+// BUG-NAME-LOSS: 큰 프로젝트 load race에서 tab.name='Untitled' 상태로 save 들어와 진짜 이름이 'Untitled'로 덮어쓰이는 회귀.
+// ★340 A 부터: prev.name 이 유의미하면 다른 이름 저장은 모두 prev.name 유지 — 이름 바꾸기는 _renameProjectImpl 표식으로만.
 function _guardProjectName(incomingProject, prevPath) {
   try {
     /* ★342 — 새로 생기는 파일에 createdAt 이 없으면 여기서 찍는다. 스냅샷(serializeProject)에는 이 칸이 없어 마켓 받기·휴지통 뒤 자동저장이
@@ -2576,10 +2575,13 @@ function _guardProjectName(incomingProject, prevPath) {
     const prev = JSON.parse(fs.readFileSync(prevPath, 'utf8'));
     const prevName = prev && prev.name;
     const incomingName = incomingProject && incomingProject.name;
-    const incomingFalsyOrDefault = !incomingName || incomingName === 'Untitled';
     const prevMeaningful = prevName && prevName !== 'Untitled';
+    /* ★340 A — 있는 파일의 이름은 «저장»으로 안 바뀐다. 이름은 _renameProjectImpl 로만 바뀐다.
+       까닭: 자동저장은 먼저 읽어 둔 옛 이름을, 동기 저장은 묵은 탭 이름을 들고 온다 — 그 사이 바뀐 이름을 되돌렸다
+       (큰 프로젝트 앱 값 12/12 · 묵은 탭 3/3). 표식은 Symbol 이라 IPC 로 못 오고 파일에도 안 남는다 ⇒ 렌더러가 흉내 못 낸다. */
+    const renameIntent = !!(incomingProject && incomingProject[Symbol.for('goditor.renameIntent')]);
     let guarded = incomingProject;
-    if (incomingFalsyOrDefault && prevMeaningful) {
+    if (prevMeaningful && incomingName !== prevName && !renameIntent) {
       console.warn(`[projects:save] name guard: '${incomingName}' → '${prevName}' 복원 (id=${incomingProject.id})`);
       guarded = { ...incomingProject, name: prevName };
     }
@@ -3095,6 +3097,7 @@ async function _renameProjectImpl({ projectId, name } = {}) {
     if (before === nm) return { ok: true, projectId, name: nm, changed: false, note: '이미 그 이름이다' };
     proj.name = nm;
     proj.updatedAt = new Date().toISOString();
+    proj[Symbol.for('goditor.renameIntent')] = true;   // ★340 A — 이 저장만 이름을 바꿀 수 있다(_guardProjectName)
     const r = await _saveProjectImpl(proj);
     if (!r || r.ok !== true) return { ok: false, error: 'save failed', code: 'io' };
     /* ★효과로 판정한다 — 「썼다」가 아니라 «디스크에서 다시 읽어» 확인한다. */
