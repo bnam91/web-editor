@@ -393,7 +393,7 @@ async function switchTab(id) {
       if (targetTab && proj?.name) targetTab.name = proj.name;
     }
     if (proj) {
-      const data = window.pickLsOverFile?.(proj, id) || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);   // 충돌로 낡은 파일 복구 — 부팅과 같은 판정
+      const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
       if (targetTab) targetTab._cache = JSON.stringify(data);
       window.applyProjectData(data);
       _restoreViewState(targetTab);
