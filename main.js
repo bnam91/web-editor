@@ -2424,6 +2424,7 @@ function readProjectWithFallback(id, { heal = false } = {}) {
     if (heal) {   // ★E168: 목록(heal:false)은 «읽기만» — 자가치유는 열 때만
       try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
         const paths = _ensureNewLayoutPaths(id);
+        if (filePath && !_SS().preserveUnreadable(filePath, path.dirname(paths.backup))) throw new Error('깨진 proj.json 을 옆에 못 뒀다');
         _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
       } catch (e) { healed = false; healError = (e && e.code) || 'unknown'; console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
     }
@@ -2445,7 +2446,11 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
   const key = _safeSeg(String(id || ''));
   const r = readProjectWithFallback(id, { heal: true });   // ★E168 — 목록과 같은 한 곳
-  if (!r) return null;
+  if (!r) {
+    // 파일이 있는데 못 읽었다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.
+    const broken = isOpen ? _resolveProjectJsonPath(id) : null;
+    return broken ? { _unreadable: true, preservedAs: _SS().preserveUnreadable(broken, path.join(PROJECTS_DIR, key)) } : null;
+  }
   if (r.from === 'proj') {
     if (isOpen && _recentRecovery.has(key)) { const m = _recentRecovery.get(key); _recentRecovery.delete(key); return { ...r.proj, ...m }; }
     return r.proj;
@@ -2609,11 +2614,11 @@ function _rollBackup(prevPath, backupPath) {
   try { prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')); }
   catch (e) {
     console.warn(`[rolling-backup] 직전 proj.json 이 읽히지 않아 백업을 그대로 둔다: ${e.message}`);
-    return { called: true, copied: false, reason: 'unparsable' };
+    return { called: true, copied: false, reason: 'unparsable', preservedAs: _SS().preserveUnreadable(prevPath, path.dirname(backupPath)) };
   }
   if (!_SS().isProjectShaped(prev)) {
     console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
-    return { called: true, copied: false, reason: 'not_project' };
+    return { called: true, copied: false, reason: 'not_project', preservedAs: _SS().preserveUnreadable(prevPath, path.dirname(backupPath)) };
   }
   try { fs.copyFileSync(prevPath, backupPath); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
   return { called: true, copied: true };
@@ -2631,7 +2636,8 @@ async function _saveProjectImpl(project) {
   if (prevPath && fs.existsSync(prevPath)) {
     try {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
-      _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
+      const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
+      if (rb.preservedAs === null) return { ok: false, reason: 'unreadable_not_preserved' };   // 옆에 못 둔 깨진 판은 덮지 않는다
 
       // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
@@ -2693,7 +2699,8 @@ ipcMain.on('projects:save-sync', (event, project) => {
     project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
-      _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
+      const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
+      if (rb.preservedAs === null) { event.returnValue = { ok: false, reason: 'unreadable_not_preserved' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
