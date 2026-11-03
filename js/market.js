@@ -58,7 +58,8 @@
     } catch (_) {}
     const newId = 'proj_' + Date.now();
     // Phase 2: 받은 시점의 마켓 버전을 marketRef로 박제 → 이후 "내 복사본이 최신인지" 비교 근거
-    const proj = { id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)', ...parsed,
+    /* ⛔id·name 은 ...parsed 뒤에 둔다 — 앞에 두면 받은 data 의 id 가 이겨 그 id 의 로컬 프로젝트를 덮는다(S3 market). 시험: tests/dom/market-no-overwrite.dom.spec.js */
+    const proj = { ...parsed, id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)',
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const saved = await window.electronAPI.saveProject(proj);
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
@@ -108,7 +109,8 @@
       // 체크된 radio를 직접 순회(키에 '::' 포함 → 셀렉터 이스케이프 회피). name = 'r-'+key.
       ov.querySelectorAll('#rsv-list input[type=radio]:checked').forEach(r => { choices[r.name.slice(2)] = r.value; });
       const parsed = JSON.parse(window.marketMerge.applyResolve(local, remoteData, choices));
-      const proj = { id: 'proj_' + Date.now(), name: (name || '머지') + ' (머지)', ...parsed,
+      /* ⛔id·name 은 ...parsed 뒤에 — applyResolve 는 local(loadProject, id·name 있음)을 복사한다. 앞에 두면 «새 프로젝트로 저장» 이 내 복사본을 덮는다(S3 market). */
+      const proj = { ...parsed, id: 'proj_' + Date.now(), name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
       const saved = await saveFn(proj);
       ov.remove();
