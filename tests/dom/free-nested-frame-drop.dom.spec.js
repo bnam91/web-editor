@@ -88,7 +88,9 @@ test('음성 — 자유 프레임 안 absolute 조커는 그대로 좌표로 끌
   const before = await mk(page); const fr0 = await frameBox(page, id);
   await drag(page, before.x, before.y, before.x + 40, before.y + 30);
   const after = await mk(page); const fr1 = await frameBox(page, id);
-  expect([Math.round(after.x - before.x), Math.round(after.y - before.y)], '블럭이 움직인다').toEqual([40, 30]);
+  /* 뜻은 «손을 따라온다»이다. 줌 40% 에서 좌표는 정수 레이아웃 px 로 저장된다(시작값 parseInt 1 + 끝값 Math.round 0.5 = 1.5 레이아웃 px = 화면 0.6px). 지디 판에서 40,29 가 1번 났다. 화면 1px 안이면 같은 자리다. */
+  expect(Math.abs(after.x - before.x - 40), '블럭이 가로로 손을 따라온다').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.y - before.y - 30), '블럭이 세로로 손을 따라온다').toBeLessThanOrEqual(1);
   expect([fr1.l, fr1.t], '프레임은 그대로').toEqual([fr0.l, fr0.t]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
