@@ -717,7 +717,7 @@ for (const z of [100, 40]) for (const bg of [null, { on: true, color: '#ff0000' 
       expect(await page.evaluate((id) => !!document.querySelector(`#${id} > .grd-bg`) && getComputedStyle(document.getElementById(id)).isolation, a), '전제 — 배경 층 · isolation').toBe('isolate');
     }
     await force(page, a);
-    const bx = await btnBox(page, a, 'row');
+    const bx = await settledBox(page, a, 'row');
     const stack = await page.evaluate(([x, y]) => document.elementsFromPoint(x, y).slice(0, 4).map(h => `${h.tagName.toLowerCase()}${h.id ? '#' + h.id : ''}.${[...h.classList].join('.')}`), [bx.cx, bx.cy]);
     expect(bx.hitIsBtn, `★아래 ＋ 가 맨 위(elementsFromPoint ${JSON.stringify(stack)})`).toBe(true);
     const r0 = (await model(page, a)).nRows;
