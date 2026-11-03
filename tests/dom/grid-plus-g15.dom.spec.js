@@ -15,7 +15,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js grid-plus-g15
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 const SEC = `<div class="section-block" id="sG" data-section="1" data-name="sG"><div class="section-hitzone"></div><div class="section-inner" id="innerG">
   <div class="gap-block" data-type="gap" style="height:60px"></div>
@@ -43,7 +43,7 @@ async function setup(page, zoom = 100) {
     window.rebindAll?.();
     return out;
   });
-  if (zoom !== 100) await page.evaluate((z) => window.applyZoom?.(z), zoom);
+  if (zoom !== 100) { await page.evaluate((z) => window.applyZoom?.(z), zoom); await waitZoomSettled(page, zoom); }   // 배율 전환 중에 재면 폭이 26 으로 읽힌다
   await page.waitForTimeout(200);
   expect(await page.evaluate(() => window.currentZoom), `전제 — 배율 ${zoom}%`).toBe(zoom);
   return { errs, a: ids[0], b: ids[1] };
@@ -83,6 +83,16 @@ const vis = (page, id) => page.evaluate((id) => {
   }
   return out;
 }, id);
+/* 다시 그린 직후 잠깐(앱·DOM 100ms 안쪽) 손잡이·거터가 ＋ 위에 있다 ⇒ 임자가 ＋ 가 될 때까지 기다린 뒤 잰다. 끝내 안 되면 뒤따르는 hitIsBtn 단언이 빨강이다. */
+const settledBox = async (page, id, axis) => {
+  await page.waitForFunction(([id, axis]) => {
+    const b = document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="${axis}"]`);
+    if (!b) return false;
+    const r = b.getBoundingClientRect();
+    return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === b;
+  }, [id, axis], { timeout: 3000 }).catch(() => {});
+  return btnBox(page, id, axis);
+};
 const SHOWN = { present: true, opacity: 1, visibility: 'visible', clickable: true };
 const HIDDEN = { present: false, opacity: 0, visibility: 'none', clickable: false };
 
@@ -139,6 +149,7 @@ test('V2 ★H8 — 그리드 위 «호버만»(안 고름) → ＋ 안 보임 ·
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a), '전제 — 선택 안 됨(호버만)').toBe(false);
   expect(await vis(page, a), '★호버만 → 둘 다 없다(옛: 보였다)').toEqual({ col: HIDDEN, row: HIDDEN });
   await force(page, a);
+  await settledBox(page, a, 'col'); await settledBox(page, a, 'row');
   expect(await vis(page, a), '★고르면 → 둘 다 보이고 눌린다').toEqual({ col: SHOWN, row: SHOWN });
   expect(errs).toEqual([]);
 });
@@ -216,7 +227,7 @@ test('P3 ★8×8 상한(K5 10-05) — ＋ 흐림(disabled · --ui-disabled-opaci
   await force(page, a);
   // 열 8 까지 ＋ 로 (2→8) — 그 사이 col 은 살아 있다
   for (let i = 0; i < 6; i++) {
-    const bx = await btnBox(page, a, 'col');
+    const bx = await settledBox(page, a, 'col');
     expect(bx.disabled, `전제 — ${2 + i}열에선 살아 있다`).toBe(false);
     expect(bx.hitIsBtn, `전제 — ${2 + i}열 ＋ 가운데가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
     await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
@@ -236,7 +247,7 @@ test('P3 ★8×8 상한(K5 10-05) — ＋ 흐림(disabled · --ui-disabled-opaci
   for (let i = 0; i < 7; i++) {
     await page.evaluate((id) => document.querySelector(`#grd-plus-layer > .grd-add-btn[data-grd-for="${id}"][data-grd-add="row"]`)?.scrollIntoView({ block: 'center' }), a);
     await page.waitForTimeout(80);
-    const bx = await btnBox(page, a, 'row');
+    const bx = await settledBox(page, a, 'row');
     expect(bx.hitIsBtn, `전제 — ${1 + i}행 ＋ 가운데가 눌린다 ${JSON.stringify(bx)}`).toBe(true);
     await page.mouse.click(bx.cx, bx.cy); await page.waitForTimeout(120);
   }
@@ -259,7 +270,7 @@ for (const z of [40, 100]) {
     expect(await page.evaluate(() => window.currentZoom), `★재기 전 — 배율이 정말 ${z}`).toBe(z);
     await force(page, a);
     for (const axis of ['col', 'row']) {
-      const bx = await btnBox(page, a, axis);
+      const bx = await settledBox(page, a, axis);
       expect(bx, `${axis} ＋ 가 있다`).not.toBeNull();
       expect(Math.abs(bx.w - 40 * z / 100), `★${axis} 폭 ${bx.w}px ≈ ${40 * z / 100}(모델 40 × 배율 · 옛: 화면 40 고정)`).toBeLessThanOrEqual(1);
       expect(Math.abs(bx.h - 40 * z / 100), `★${axis} 높이 ${bx.h}px ≈ ${40 * z / 100}`).toBeLessThanOrEqual(1);
