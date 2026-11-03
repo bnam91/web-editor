@@ -1,5 +1,5 @@
 /* stack-convert-drop — 자유→스택 변환 직후 안쪽 프레임에 마우스로 넣어진다(S3 J294L B-5 · 전에는 다시 열어야 됐다).
- * 음성: 끌기 한 번에 사본이 안 생긴다 · ⌘Z 로 처음 부모 · 변환 직후 클릭 고르기가 산다(자식을 통째로 다시 묶으면 죽는다). */
+ * 음성: 끌기 한 번에 사본이 안 생긴다 · ⌘Z 로 처음 부모 · 변환 직후 클릭 고르기가 산다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

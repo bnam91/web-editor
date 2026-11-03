@@ -1747,6 +1747,13 @@ function bindBlock(block) {
   }
 
   if (isGap) {
+    /* 고르지 않은 스택 프레임 직속 gap 을 끌면 gap 이 아니라 프레임이 끌린다(브라우저가 draggable 조상으로 올라간다). 클릭하면 여태처럼 gap 을 고르고, 고른 gap 은 제가 끌린다. 시험: tests/dom/stack-gap-surface-drag.dom.spec.js */
+    block.addEventListener('mousedown', e => {
+      const p = block.parentElement;
+      if (e.button !== 0 || block.classList.contains('selected') || !p?.classList.contains('frame-block') || p.dataset.textFrame === 'true' || p.style.position === 'absolute' || p.dataset.freeLayout === 'true') return;
+      block.setAttribute('draggable', 'false');
+      _onPressEnd(() => block.setAttribute('draggable', 'true'));
+    });
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -3000,8 +3007,7 @@ function _bindFrameOwnDrag(ss) {
   });
 }
 
-/* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). bindFrameDropZone 은 absolute 면 이걸 안 묶고 돌아가므로, absolute 로 묶인 자식이 스택 변환으로 흐름이 되면 드롭 자리가 없어
-   놓은 곳이 바깥 프레임으로 샜다(S3 B-5 · 다시 열면 됐다) ⇒ 변환 자리에서 이것만 따로 부른다(prop-frame.js). ⛔bindFrameDropZone 을 다시 부르지 마라 — 클릭 리스너가 겹친다. 시험: tests/dom/stack-convert-drop.dom.spec.js */
+/* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). */
 function _bindFrameFlowDrop(ss) {
   if (ss.dataset.textFrame === 'true' || ss._flowDropBound) return;
   ss._flowDropBound = true;
@@ -3544,7 +3550,10 @@ function bindFrameDropZone(ss) {
       _onPressEnd(() => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'));   // absolute 부모는 HTML5 끌기를 안 쓴다(js/CLAUDE.md)
       return;
     }
-    if (isInnerBlock && !_flowShapeWrapper) {
+    /* 스택 변환이 패딩을 gap 블럭으로 바꿔 프레임 면을 덮는다 ⇒ 고르지 않은 직속 gap 은 프레임 면으로 친다(S6 새 발견 ⑤). gap 자신의 draggable 은 bindBlock 의 gap 갈래 mousedown 이 끈다. */
+    const _gapAsSurface = isInnerBlock?.classList.contains('gap-block') && !isInnerBlock.classList.contains('selected')
+      && isInnerBlock.parentElement === ss && ss.style.position !== 'absolute' && ss.dataset.freeLayout !== 'true';
+    if (isInnerBlock && !_flowShapeWrapper && !_gapAsSurface) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
       _onPressEnd(() => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'));   // 위 갈래와 같다
@@ -3594,7 +3603,6 @@ function bindFrameDropZone(ss) {
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
-window.bindFrameFlowDrop  = _bindFrameFlowDrop;
 
 /* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
    도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라
