@@ -63,16 +63,36 @@
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const saved = await window.electronAPI.saveProject(proj);
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
+    let scratchFailed = false;
     try {
       let scratch = res.project.scratch;
       if (typeof scratch === 'string') scratch = JSON.parse(scratch);
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
-    } catch (_) {}
-    if (saved?.ok !== false) _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
-    else _toast('❌ 저장 실패');
+    } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
+    if (saved?.ok === false) _toast('❌ 저장 실패');
+    else if (scratchFailed) _toast(`⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
+    else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
   }
 
-  /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽을 <id>_r 로 새로 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
+  /* 같은 그림인가 — 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 안 견준다(재머지마다 _r 이 늘었다, S3 market5 ①). 뜻은 save-load.js _sameImage 한 벌을 쓴다.
+     둘 다 goya 면 파일명(내용 해시)으로 본다: 올린 data 의 goya 는 다른 프로젝트 id 를 달고 온다. */
+  const _goyaFile = u => u.split('/').pop();
+  async function _sameScratchImage(a, b) {
+    if (a === b) return true;
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    if (a.startsWith('goya-asset:') && b.startsWith('goya-asset:')) return _goyaFile(a) === _goyaFile(b);
+    return window._sameImage ? window._sameImage(a, b) : false;
+  }
+  /* 이 맥에 없는 goya(다른 맥의 프로젝트 폴더)면 못 그린다. «없다» 는 main 이 not found 라고 답할 때만이다 — 일시 읽기 실패를 없음으로 치면 있는 그림을 버린다(S3 scratch ②). 읽기 문이 없으면(웹) 있다고 친다. */
+  async function _goyaMissingHere(src) {
+    const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(String(src || ''));
+    if (!m || !window.electronAPI?.assetsReadAsDataUri) return false;
+    try {
+      const r = await window.electronAPI.assetsReadAsDataUri({ projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) });
+      return r?.ok === false && r.error === 'not found';
+    } catch (_) { return false; }
+  }
+  /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽에 새 id 를 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
      (안 그러면 원격 고른 섹션 링크가 L 이미지를 가리킨다, 둘다면 두 섹션이 한 항목을 나눠 쓴다). parsed.pages[].canvas 를 고치므로 저장 «전»에 부른다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
   async function _planMergedScratch(parsed, local, choices, remoteScratch) {
     const pages = parsed.pages || [];
@@ -86,17 +106,27 @@
       const items = [...(mineOf.get(page.id) || [])];
       const byId = new Map(items.map(i => [i.id, i]));
       const renamed = new Map();
+      const missing = new Set();
       for (const it of theirsOf.get(page.id) || []) {
         const same = byId.get(it.id);
         if (!same) { items.push(it); byId.set(it.id, it); continue; }
-        if (same.src === it.src) continue;
-        let nid = it.id + '_r';
-        while (byId.has(nid)) nid += '_r';
+        if (await _sameScratchImage(same.src, it.src)) continue;
+        if (await _goyaMissingHere(it.src)) { missing.add(it.id); continue; }   // 깨진 원격이 멀쩡한 L 그림을 대신하지 않게 — 토큰은 그대로 L 항목을 가리킨다(S3 market5 ②). 원격 섹션이 쓰면 알린다
+        /* 앞 머지가 이미 들여온 그림이면 그 항목을 쓴다 — 안 그러면 재머지마다 같은 그림의 항목이 는다 */
+        let nid = null;
+        for (const mineIt of items) if (await _sameScratchImage(mineIt.src, it.src)) { nid = mineIt.id; break; }
+        if (nid) { renamed.set(it.id, nid); continue; }
+        nid = window._scratchNewId();
+        while (byId.has(nid)) nid = window._scratchNewId();
         renamed.set(it.id, nid);
         const copy = { ...it, id: nid };
         items.push(copy); byId.set(nid, copy);
       }
-      if (renamed.size) page.canvas = window.marketMerge.renameRemoteRefLinks(page, local, choices, renamed);
+      if (renamed.size || missing.size) {
+        const used = new Set();
+        page.canvas = window.marketMerge.renameRemoteRefLinks(page, local, choices, renamed, used);
+        for (const id of missing) if (used.has(id)) plan.missingShown = (plan.missingShown || 0) + 1;
+      }
       if (items.length) plan.push({ pageId: page.id, items });
     }
     return plan;
@@ -166,6 +196,7 @@
       ov.remove();
       if (saved?.ok === false) _toast('❌ 저장 실패');
       else if (scratchFailed) _toast(`⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기`);
+      else if (plan?.missingShown) _toast(`⚠️ 머지 완료, 원격 그림 ${plan.missingShown}장이 이 맥에 없어 내 그림으로 두었습니다 — 홈에서 "${proj.name}" 열기`);
       else _toast(`✅ 머지 완료 — 홈에서 "${proj.name}" 열기`);
     };
     return ov;
@@ -256,7 +287,11 @@
         });
       });
       listEl.querySelectorAll('.market-merge-btn').forEach(b => {
-        b.addEventListener('click', () => openResolveModal(b.dataset.acc, b.dataset.id, b.dataset.name, b.dataset.local));
+        b.addEventListener('click', async () => {
+          if (b.disabled || document.querySelector('.market-resolve-modal')) return;   // 두 번 누르면 모달이 둘 떴다(S3 scratch)
+          b.disabled = true;
+          try { await openResolveModal(b.dataset.acc, b.dataset.id, b.dataset.name, b.dataset.local); } finally { b.disabled = false; }
+        });
       });
     }
     loadList();

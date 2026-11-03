@@ -104,6 +104,7 @@ async function _sameImage(a, b) {
   const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(x => x.toString(16).padStart(2, '0')).join('');
   return goya.split('/').pop().split('.')[0] === hex.slice(0, 16);
 }
+window._sameImage = _sameImage;   // 마켓 머지 스크래치도 같은 뜻으로 견준다(js/market.js)
 async function _lsDiffersFromFile(ls, file) {
   /* 복구분은 캔버스만이 아니다. 없는 필드 · 빈 값은 같게 본다(옛 파일에 없는 필드로 무편집 쓰기가 나지 않게). */
   const core = (d) => JSON.stringify({
@@ -121,6 +122,7 @@ let _lastOpenFallback = null;   // 이번 열기가 깨진 proj.json 대신 백�
 let autoSaveTimer = null;
 const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
 let _autoSaveBurstAt = 0;
+let _autoSaveBurstHeld = false;   // ★250C — 미룸이 타이머를 지웠어도 그 기다림은 이어진다(아니면 짧은 제스처 반복이 상한을 매번 되돌린다)
 let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 저장 전)
 
 /* ── 프로젝트 관리 ── */
@@ -252,7 +254,8 @@ let _autoSaveTimerOwnerId = null;
 let _savingOwnerId = null;
 function _hasOwnUnsaved() {
   const mine = (owner) => owner === null || owner === activeProjectId;
-  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
+  /* ★250C — 저장 진행 중에 손잡이를 쥐고 고치면 그 저장이 끝나며 dirty 를 지운다. 미룸에 기억된 예약(_autoSavePending)을 안 보면 쥔 채 ⌘R 에서 편집을 잃었다(앱 재현). */
+  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (_autoSavePending && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
 }
 /* ★[H4] «마지막으로 끝난» 저장의 결과 — targetId → { at, result }.
    큐잉된 호출(undefined 반환)은 자기 결과를 못 본다. 종료 경로가 「큐가 빠졌으니 저장됐겠지」로
@@ -670,7 +673,7 @@ async function deletePage(pageId) {
     const _scratchTok = window.AutoSaveSuppress.begin('page-delete-scratch');
     _pageDeleteBusy = true;
     try {
-      await window.switchScratchPage?.(target.id);
+      await window.switchScratchPage?.(target.id, { quiet: true });   // 실패 알림은 아래 한 번, 공용 알림과 겹치지 않게
     } catch (e) {
       console.warn('[deletePage] 스크래치 저장 실패 — 삭제 취소:', e);
       window.showToast('⚠️ 스크래치 저장에 실패해 페이지를 지우지 않았습니다.');
@@ -2012,7 +2015,7 @@ function deferAutoSave() {
   if (_autoSaveDeferred) return;
   _autoSaveDeferred = true;
   // 이미 걸려 있던 타이머는 «해제»하되, 예약이 있었다는 사실은 기억한다.
-  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; }
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; _autoSaveBurstHeld = true; }
   clearTimeout(_autoSaveDeferGuard);
   _autoSaveDeferGuard = setTimeout(() => resumeAutoSave(), _AUTOSAVE_DEFER_MAX_MS);
 }
@@ -2112,7 +2115,8 @@ function scheduleAutoSave() {
   _dirtyOwnerId = activeProjectId;
   /* ★J354 — 부를 때마다 타이머를 되걸어, 1.5초보다 촘촘한 연속 편집 중에는 저장이 한 번도 안 났다(앱 0.8·1.2초 간격 40초 쓰기 0 · 비정상 종료 시 40초 전부 잃음).
      연속 편집 중에도 AUTOSAVE_MAX_WAIT_MS 안에 한 번은 쓴다. 기다림의 시작 = 타이머가 비어 있을 때 온 첫 편집. */
-  if (!autoSaveTimer) _autoSaveBurstAt = Date.now();
+  if (!autoSaveTimer && !_autoSaveBurstHeld) _autoSaveBurstAt = Date.now();
+  _autoSaveBurstHeld = false;
   const _autoSaveDelay = Math.max(0, Math.min(1500, AUTOSAVE_MAX_WAIT_MS - (Date.now() - _autoSaveBurstAt)));
   clearTimeout(autoSaveTimer);
   _holdBackground(true);   // ★S1 — 타이머를 걸기 «전에» 푼다(숨은 창에서 이 1.5초가 분 단위로 밀리지 않게)

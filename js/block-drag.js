@@ -929,6 +929,7 @@ function bindBlock(block) {
     let moved = false;
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
+    let _out = null;               // 밖에서 커서 아래 있는 다른 프레임과 그 점 — 놓으면 여기로 든다
     let _shiftAxis = null;         // Shift 수직/수평 잠금 축
     /* ★★1020t1d — ★제스처당 ★한 번만 잰다(강제 레이아웃 2회). ⛔onMove 안에서 재면 틱마다 2회가 된다.
        ★여기(mousedown 안 · onMove 밖)가 그 자리다 — `_hist` 가 제스처당 하나인 것과 ★같은 층.
@@ -991,8 +992,10 @@ function bindBlock(block) {
         if (outside) {
           draggedOutside = true;
           hideGuides();
+          _out = _trackOutFrame(_out, ev, dragEl, _dragOutParentSection);
+          if (_out?.free) return;   // 자유 프레임은 놓는 자리가 좌표다 — 표시선 없음
           // 삽입 기준 element를 closure 변수에 저장 (indicator 消失에 무관하게 유지)
-          const inner = _dragOutParentSection.querySelector('.section-inner');
+          const inner = _out?.frame || _dragOutParentSection.querySelector('.section-inner');
           _dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
           // 섹션 inner에 드롭 인디케이터 표시
           clearDropIndicators();
@@ -1003,6 +1006,7 @@ function bindBlock(block) {
           return;
         } else if (draggedOutside) {
           draggedOutside = false;
+          _out = _trackOutFrame(_out);
           _dropInsertBefore = null;
           clearDropIndicators();
         }
@@ -1095,13 +1099,16 @@ function bindBlock(block) {
       if (_lazyFlowTf) _lazyFlowTf.setAttribute('draggable', 'true');   // 끌지 않았다 — 누르기 전 그대로
       hideGuides();
 
+      if (moved && draggedOutside && _out?.free) { _placeInFreeFrame(dragEl, _out); draggedOutside = false; }   // 끌어내기가 아니라 그 프레임 안에 놓기 ⇒ 아래 if (moved) 의 죔·히스토리를 탄다
+
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
       if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
         /* ⛔여기서 또 찍지 «않는다» — onMove 첫 틱이 이미 이 제스처의 «시작»을 찍었다.
            (예전엔 이 줄이 추출 «전»을 찍는 유일한 표본이라 필요했다. 지금 다시 찍으면
             한 제스처가 항목 둘이 되어 ⌘Z 를 두 번 눌러야 원위치가 된다.)
            끝 표본은 아래 재바인딩이 끝난 뒤 한 번 찍는다. */
-        const inner = _dragOutParentSection.querySelector('.section-inner');
+        _trackOutFrame(_out);
+        const inner = _out?.frame || _dragOutParentSection.querySelector('.section-inner');
         clearDropIndicators();
 
         // 절대 위치 스타일 초기화
@@ -1307,6 +1314,7 @@ function bindBlock(block) {
       document.addEventListener('dragend', onUp);
     });
 
+    bindPlacementDrag(block.closest('.row') || block, block);   // 스택(흐름)이 된 조커는 위 좌표 끌기를 안 탄다 — 안 걸면 그릇 프레임이 대신 끌렸다
     return; // 편집 불가 — 이벤트 바인딩 여기서 종료
   }
 
@@ -3258,6 +3266,43 @@ function _bindFrameFlowDrop(ss) {
     window.buildLayerPanel();
     dragState.dragSrc = null;
   });
+}
+
+/* 좌표 끌기로 프레임 밖에 놓는 자리의 다른 프레임 — 없으면 null(섹션으로 빠진다). 안 고른 프레임의 자식은 pointer-events:none 이라 사각형으로 잰다. 뒤에 그려진(안쪽) 것부터. */
+function _frameUnderPointer(x, y, dragEl, section) {
+  return [...section.querySelectorAll('.frame-block:not([data-text-frame])')].reverse().find((f) => {
+    if (f.contains(dragEl) || dragEl.contains(f) || f.dataset.overlayBlock === 'true' || f.closest('[data-group="true"]') || _isShapeFrameEl(f)) return false;
+    const r = f.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }) || null;
+}
+
+/* 끄는 동안 커서 아래 프레임을 표시하고 { frame, free, x, y } 를 돌려준다. ev 없이 부르면 표시만 걷는다. */
+function _trackOutFrame(prev, ev, dragEl, section) {
+  prev?.frame.classList.remove('ss-drag-over');
+  const frame = ev ? _frameUnderPointer(ev.clientX, ev.clientY, dragEl, section) : null;
+  if (!frame) return null;
+  frame.classList.add('ss-drag-over');
+  const free = frame.dataset.freeLayout === 'true';
+  if (free) clearDropIndicators();
+  return { frame, free, x: ev.clientX, y: ev.clientY };
+}
+
+/* 자유 프레임 위에 놓으면 커서를 가운데로 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임 왼쪽·위로는 안 삐져나온다(큰 에셋이 위 형제를 덮었다).
+   shortcut: 회전한 프레임 안으로 놓기는 화면 좌표라 안 맞춘다, 회전 놓기 요구가 오면 measureLocalBasis 로 푼다. */
+function _placeInFreeFrame(el, { frame, x, y }) {
+  const sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
+  const r = frame.getBoundingClientRect();
+  frame.classList.remove('ss-drag-over');
+  clearDropIndicators();
+  frame.appendChild(el);
+  const left = Math.max(0, Math.round((x - r.left) / sc - el.offsetWidth / 2)), top = Math.max(0, Math.round((y - r.top) / sc - el.offsetHeight / 2));
+  el.style.position = 'absolute';
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.dataset.offsetX = String(left);
+  el.dataset.offsetY = String(top);
+  window.buildLayerPanel?.();
 }
 
 function bindFrameDropZone(ss) {
