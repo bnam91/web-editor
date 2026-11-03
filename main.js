@@ -3162,15 +3162,7 @@ async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = 
 
     // 캔버스 HTML 안의 goya-asset://<oldId>/ → <newId>/ 재매핑 (asset은 하드링크로 공유되지만
     // URL의 projectId가 원본을 가리키면 프로토콜 핸들러가 원본 폴더를 읽음 → 신 id로 교정).
-    const oldUrlPrefix = `goya-asset://${sourceProjectId}/`;
-    const newUrlPrefix = `goya-asset://${newId}/`;
-    if (Array.isArray(dup.pages)) {
-      for (const pg of dup.pages) {
-        if (pg && typeof pg.canvas === 'string' && pg.canvas.includes(oldUrlPrefix)) {
-          pg.canvas = pg.canvas.split(oldUrlPrefix).join(newUrlPrefix);
-        }
-      }
-    }
+    require('./main/project-store/copy-urls').rewriteProjectCopyUrls(dup, sourceProjectId, newId);
 
     // 자산 폴더 복사 — tmp → rename으로 원자성
     // source 디렉터리는 항상 PROJECTS_DIR/<sourceProjectId>/ (claude-pm/images/assets 등은 이미 신 레이아웃)

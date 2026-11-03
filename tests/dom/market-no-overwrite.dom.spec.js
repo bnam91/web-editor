@@ -7,9 +7,9 @@ const LOCAL = 'proj_1000000000001'; const M = 'mk_M';
 const sec = (t) => `<div class="section-block" id="sec_a" data-section="1"><div class="section-inner"><div class="text-block" id="t_a"><div class="tb-body">${t}</div></div></div></div>`;
 const data = (t, extra = {}) => ({ version: 2, currentPageId: 'p1', pages: [{ id: 'p1', name: 'p', canvas: sec(t) }], checklistItems: [], checklistSections: [], imageGallery: [], assetsTree: [], ...extra });
 
-async function open(page, remote) {
+async function open(page, remote, remoteScratch = [], localCanvas = null) {
   await bootApp(page);
-  await page.evaluate(async ({ LOCAL, M, local, remote }) => {
+  await page.evaluate(async ({ LOCAL, M, local, remote, remoteScratch }) => {
     window.__saved = [];
     const api = window.electronAPI || {};
     const fake = { ...api,
@@ -17,11 +17,11 @@ async function open(page, remote) {
       duplicateProject: async (a) => { window.__dup = { src: a.sourceProjectId, newName: a.newName }; const p = JSON.parse(JSON.stringify(a.sourceData)); p.id = 'proj_2000000000002'; p.name = a.newName; window.__saved.push(p); return { ok: true, newProjectId: p.id, newName: a.newName }; },
       loadProject: async (id) => (id === LOCAL ? JSON.parse(JSON.stringify(local)) : null),
       listProjects: async () => [{ id: LOCAL, name: local.name, marketRef: local.marketRef }],
-      market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: M, name: '원격 이름', version: 'v2', updatedAt: '2026-02-02' }] }), pull: async () => ({ ok: true, project: { id: M, name: '원격 이름', account: 'acc', version: 'v2', updatedAt: '2026-02-02', data: JSON.stringify(remote), scratch: JSON.stringify([{ pageId: 'p1', items: [{ id: 's_r', src: 'data:image/png;base64,iVBORw0KGgo=', x: 1, y: 1, w: 9 }, { id: 's_1', src: 'data:image/png;base64,REMOTE', x: 2, y: 2, w: 9 }] }]) } }), push: async () => ({ ok: false }) } };
+      market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: M, name: '원격 이름', version: 'v2', updatedAt: '2026-02-02' }] }), pull: async () => ({ ok: true, project: { id: M, name: '원격 이름', account: 'acc', version: 'v2', updatedAt: '2026-02-02', data: JSON.stringify(remote), scratch: JSON.stringify(remoteScratch) } }), push: async () => ({ ok: false }) } };
     Object.defineProperty(window, 'electronAPI', { value: fake, configurable: true, writable: true });
     const d = document.createElement('div'); d.id = 'mk-pane'; d.style.cssText = 'position:fixed;left:400px;top:100px;width:700px;height:500px;background:#111;z-index:99998;overflow:auto'; document.body.appendChild(d);
     window.renderMarketPane(d);
-  }, { LOCAL, M, remote, local: { id: LOCAL, name: '내 복사본', createdAt: '2020-01-02', ...data('내 글'), marketRef: { account: 'acc', id: M, version: 'v1', pulledAt: '2026-01-01' } } });
+  }, { LOCAL, M, remote, remoteScratch, local: { id: LOCAL, name: '내 복사본', createdAt: '2020-01-02', ...data('내 글'), ...(localCanvas ? { pages: [{ id: 'p1', name: 'p', canvas: localCanvas }] } : {}), marketRef: { account: 'acc', id: M, version: 'v1', pulledAt: '2026-01-01' } } });
 }
 const saved = async (page) => { await expect.poll(() => page.evaluate(() => window.__saved.length)).toBe(1); return page.evaluate(() => window.__saved[0]); };
 const body = (p) => p.pages[0].canvas;
@@ -58,14 +58,126 @@ test('preload 가 복제의 sourceData 를 버리지 않는다 — 버리면 머
   const src = require('fs').readFileSync(require('path').join(__dirname, '../../preload.js'), 'utf8');
   expect(src).toMatch(/duplicateProject:\s*\(\{[^}]*sourceData[^}]*\}\)\s*=>\s*ipcRenderer\.invoke\('projects:duplicate',\s*\{[^}]*sourceData[^}]*\}\)/);
 });
-test('머지본 스크래치: L 항목과 원격 항목이 다 들어가고, 겹치는 id 는 L 것이다, L 스크래치는 그대로', async ({ page }) => {
+const sA = 'data:image/png;base64,LOCAL'; const sB = 'data:image/png;base64,REMOTE';
+const linked = (t) => sec(t).replace('data-section="1"', 'data-section="1" data-ref-links="s_1:0"');
+async function sameIdScene(page, choice) {
+  await open(page, { ...data('원격 글'), pages: [{ id: 'p1', name: 'p', canvas: linked('원격 글') }] }, [{ pageId: 'p1', items: [{ id: 's_r', src: sB, x: 1, y: 1, w: 9 }, { id: 's_1', src: sB, x: 2, y: 2, w: 9 }] }], linked('내 글'));
+  await page.evaluate(({ L, sA }) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: sA, x: 3, y: 3, w: 9 }] }]), { L: LOCAL, sA });
+  await page.locator('.market-merge-btn').first().click();
+  if (choice) await page.locator(`#rsv-list input[type=radio][value=${choice}]`).first().click();
+  await page.locator('#rsv-apply').click();
+  const p = await saved(page);
+  await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).length)).toBe(1);
+  const items = await page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.src])));
+  const secs = p.pages[0].canvas.split('<div class="section-block"').slice(1).map((x) => { const tok = x.match(/data-ref-links="([^":]+)/)?.[1]; return [/원격 글/.test(x) ? '원격' : '내', items.find((i) => i[0] === tok)?.[1]]; });
+  return { items, secs };
+}
+test('머지본 스크래치 내것: L 항목과 원격 항목이 다 들어가고, 링크는 L 그림이다, L 스크래치는 그대로', async ({ page }) => {
+  const { items, secs } = await sameIdScene(page, null);
+  expect(items.map((i) => i[0]).sort()).toEqual(['s_1', 's_1_r', 's_r']);
+  expect(secs).toEqual([['내', sA]]);
+  expect(await page.evaluate(async (L) => (await window._scratchExportAll(L, ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.src])), LOCAL)).toEqual([['s_1', sA]]);
+});
+test('머지본 스크래치 원격 고름: 같은 id 여도 그 섹션 링크는 원격 그림이다', async ({ page }) => {
+  expect((await sameIdScene(page, 'theirs')).secs).toEqual([['원격', sB]]);
+});
+test('머지본 스크래치 둘다: 내 섹션은 L 그림, 원격 섹션은 원격 그림', async ({ page }) => {
+  expect((await sameIdScene(page, 'both')).secs).toEqual([['내', sA], ['원격', sB]]);
+});
+test('음성 머지본 스크래치: 같은 id 같은 그림이면 이름을 안 바꾼다', async ({ page }) => {
+  await open(page, { ...data('원격 글'), pages: [{ id: 'p1', name: 'p', canvas: linked('원격 글') }] }, [{ pageId: 'p1', items: [{ id: 's_1', src: sA, x: 2, y: 2, w: 9 }] }], linked('내 글'));
+  await page.evaluate(({ L, sA }) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: sA, x: 3, y: 3, w: 9 }] }]), { L: LOCAL, sA });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-list input[type=radio][value=theirs]').first().click();
+  await page.locator('#rsv-apply').click();
+  const p = await saved(page);
+  expect(p.pages[0].canvas).toContain('data-ref-links="s_1:0"');
+  await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => i.id)))).toEqual(['s_1']);
+});
+test('머지본 스크래치: 외부화된 항목의 src 는 머지본을 가리킨다, L 항목은 그대로', async ({ page }) => {
   await open(page, data('원격 글'));
-  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,LOCAL', x: 3, y: 3, w: 9 }] }]), LOCAL);
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_e', src: `goya-asset://${L}/s.png`, x: 3, y: 3, w: 9 }] }]), LOCAL);
   await page.locator('.market-merge-btn').first().click();
   await page.locator('#rsv-apply').click();
   await saved(page);
-  const read = (id) => page.evaluate(async (id) => (await window._scratchExportAll(id, ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.src])).sort(), id);
-  await expect.poll(async () => (await read('proj_2000000000002')).map((x) => x[0])).toEqual(['s_1', 's_r']);
-  expect((await read('proj_2000000000002')).find((x) => x[0] === 's_1')[1]).toContain('LOCAL');
-  expect((await read(LOCAL)).map((x) => x[0])).toEqual(['s_1']);
+  const src = (id) => page.evaluate(async (id) => (await window._scratchExportAll(id, ['p1'])).flatMap((b) => b.items).find((i) => i.id === 's_e')?.src, id);
+  await expect.poll(() => src('proj_2000000000002')).toBe('goya-asset://proj_2000000000002/s.png');
+  expect(await src(LOCAL)).toBe(`goya-asset://${LOCAL}/s.png`);
+});
+const toasts = (page) => page.evaluate(() => { window.__toasts = []; const o = window.showToast; window.showToast = (t, ...a) => { window.__toasts.push(String(t)); return o?.(t, ...a); }; });
+const finals = (page) => page.evaluate(() => window.__toasts.filter((t) => !t.startsWith('⏳')));
+test('스크래치를 못 옮기면 성공 토스트 대신 알린다, 머지본은 저장된다', async ({ page }) => {
+  await open(page, data('원격 글')); await toasts(page);
+  await page.evaluate(() => { window._scratchExportAll = async () => { throw new Error('대역 실패'); }; });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (머지)" 열기']);
+});
+test('음성: 스크래치가 잘 옮겨지면 성공 토스트다', async ({ page }) => {
+  await open(page, data('원격 글')); await toasts(page);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['✅ 머지 완료 — 홈에서 "원격 이름 (머지)" 열기']);
+});
+test('머지 적용을 두 번 눌러도 머지본은 하나다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  await page.locator('.market-merge-btn').first().click();
+  const b = await page.locator('#rsv-apply').boundingBox();
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  await expect.poll(() => page.evaluate(() => !document.querySelector('.market-resolve-modal'))).toBe(true);
+  expect(await page.evaluate(() => window.__saved.length)).toBe(1);
+});
+test('음성: 저장에 실패하면 모달이 남고 단추가 다시 눌린다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  await page.evaluate(() => { const f = window.electronAPI.duplicateProject; let once = true; window.electronAPI.duplicateProject = async (a) => { if (once) { once = false; throw new Error('대역'); } return f(a); }; window.addEventListener('unhandledrejection', (e) => e.preventDefault()); });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await expect.poll(() => page.evaluate(() => document.querySelector('#rsv-apply')?.disabled)).toBe(false);
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+});
+/* quota 꼴 — 쓰기 요청이 끝난 뒤 커밋에서 abort. error 이벤트 없이 abort 만 난다 */
+const armAbort = (page) => page.evaluate(() => { const ot = IDBDatabase.prototype.transaction; IDBDatabase.prototype.transaction = function (a, m, ...r) { const t = ot.call(this, a, m, ...r); if (m === 'readwrite') { const os = t.objectStore.bind(t); t.objectStore = (n) => { const st = os(n); const op = st.put.bind(st); st.put = (...x) => { const q = op(...x); q.addEventListener('success', () => { try { t.abort(); } catch (_) {} }); return q; }; return st; }; } return t; }; });
+test('쓰기가 abort 나면 스크래치 넣기가 멈추지 않고 거절된다', async ({ page }) => {
+  await open(page, data('원격 글')); await armAbort(page);
+  const r = await page.evaluate(() => window._scratchImportAll('proj_3', [{ pageId: 'p1', items: [{ id: 'x', src: 'data:image/png;base64,A', x: 1, y: 1, w: 1 }] }]).then(() => '끝남', (e) => '거절').then((v) => v));
+  expect(r).toBe('거절');
+});
+test('쓰기가 abort 나도 머지본은 저장되고 스크래치를 못 옮겼다고 알린다', async ({ page }) => {
+  await open(page, data('원격 글')); await toasts(page);
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,LOCAL', x: 3, y: 3, w: 9 }] }]), LOCAL);
+  await armAbort(page);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (머지)" 열기']);
+  expect(await page.evaluate(() => !!document.querySelector('.market-resolve-modal'))).toBe(false);
+});
+test('linkDy: 머지본은 살리고, 받기는 그대로 뺀다', async ({ page }) => {
+  await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_p', src: 'data:image/png;base64,P', x: 1, y: 300, w: 9, linkDy: 40 }] }]);
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,L', x: 3, y: 300, w: 9, linkDy: 30 }] }], { keepLinkDy: true }), LOCAL);
+  const dy = (id) => page.evaluate(async (id) => Object.fromEntries((await window._scratchExportAll(id, ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.linkDy]))), id);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => dy('proj_2000000000002')).toEqual({ s_1: 30, s_p: 40 });
+  await page.evaluate(() => { window.__saved.length = 0; });
+  await page.locator('.market-pull-btn').first().click();
+  const p = await saved(page);
+  await expect.poll(() => dy(p.id)).toEqual({ s_p: undefined });
+});
+test('받기를 두 번 눌러도 받은본은 하나다, 끝나면 단추가 다시 눌린다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  /* 대역은 바로 끝나 두 클릭 사이에 받기가 끝난다. 진짜 받기는 git·저장을 탄다 ⇒ 첫 받기를 늦춘다(꺼진 단추엔 click 이 안 와서 클릭 수로는 못 묶는다) */
+  await page.evaluate(() => { const f = window.electronAPI.market.pull; window.__pulls = 0; window.electronAPI.market.pull = async (a) => { if (++window.__pulls === 1) await new Promise((r) => setTimeout(r, 800)); return f(a); }; });
+  const b = await page.locator('.market-pull-btn').first().boundingBox();
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  await saved(page);
+  await expect.poll(() => page.evaluate(() => document.querySelector('.market-pull-btn').disabled)).toBe(false);
+  expect(await page.evaluate(() => window.__pulls), '받기는 한 번만 돈다').toBe(1);
+  expect(await page.evaluate(() => window.__saved.length)).toBe(1);
+  await page.locator('.market-pull-btn').first().click();
+  await expect.poll(() => page.evaluate(() => window.__saved.length)).toBe(2);
 });
