@@ -16,8 +16,8 @@ const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : e.name.endsWith('.js') ? [path.join(d, e.name)] : []));
 const kindsOf = (root) => { const m = read(root, 'js/editor.js').match(/const SECTION_BLOCK_TYPE_SEL = \[([\s\S]*?)\]\.join\(', '\);/); if (!m) throw new Error('SECTION_BLOCK_TYPE_SEL 을 못 떴다'); return [...m[1].matchAll(/'\.([a-z0-9-]+)'/g)].map((x) => x[1]); };
 const flat = (s) => s.replace(/-/g, '').toLowerCase();
-/* 함수 몸 — 줄 시작 선언부터 줄 시작 } 까지(이 저장소 꼴) */
-const bodyOf = (src, name) => { const m = src.match(new RegExp(`^(?:export )?(?:async )?function ${name}\\s*\\(`, 'm')); if (!m) return null; const rest = src.slice(m.index); const e = rest.search(/\n}\s*(?:\n|$)/); return e < 0 ? rest : rest.slice(0, e); };
+/* 줄 시작 선언 함수 전부의 몸 표(이 저장소 꼴: 줄 시작 } 로 닫는다). 이름으로 찾아 없으면 아래에서 멈춘다 — 조용히 눈멀지 않는다 */
+const fnTable = (sources) => { const t = new Map(); for (const src of sources) for (const m of src.matchAll(/^(?:export )?(?:async )?function ([A-Za-z_$][\w$]*)\s*\(/gm)) { if (t.has(m[1])) continue; const rest = src.slice(m.index); const e = rest.search(/\n}\s*(?:\n|$)/); t.set(m[1], e < 0 ? rest : rest.slice(0, e)); } return t; };
 const tokens = (s) => new Set([...s.matchAll(/\.([a-z0-9][\w-]*-block)\b/g)].map((x) => x[1]));
 /* 줄 앵커 뒤 첫 묶음의 토큰 */
 const listAfter = (src, anchor, stop) => { const i = src.indexOf(anchor); if (i < 0) return null; const rest = src.slice(i); return tokens(rest.slice(0, rest.indexOf(stop) + stop.length)); };
@@ -30,17 +30,18 @@ function planOf(root) {
   const sl = read(root, 'js/io/save-load.js');
   const rerender = new Set([...sl.slice(sl.indexOf('const RERENDER_KINDS'), sl.indexOf('const RERENDER_SEL')).matchAll(/\['([a-z0-9-]+-block)'/g)].map((x) => x[1]));
   const ownBinder = new Set(['sticker-block', 'gradient-block'].filter((k) => sl.includes(`bind${k[0].toUpperCase()}${k.slice(1, k.indexOf('-'))}Select`)));
-  const ed = read(root, 'js/editor.js');
   const child = listAfter(read(root, 'js/block-drag.js'), 'const CHILD_BLOCK_SEL', ';');
-  const dup = listAfter(bodyOf(ed, 'duplicateSelected'), 'const selBlock = document.querySelector(', ');');
+  const fns = fnTable(sources);
+  if (!fns.has('duplicateSelected')) throw new Error('duplicateSelected 를 못 찾았다 — 자가 낡았다');
+  const dup = listAfter(fns.get('duplicateSelected'), 'const selBlock = document.querySelector(', ');');
   const multi = listAfter(read(root, 'js/props/prop-multisel.js'), 'const BLOCK_SEL', ';');
   for (const [n, l] of [['CHILD_BLOCK_SEL', child], ['⌘D selBlock', dup], ['prop-multisel BLOCK_SEL', multi]]) if (!l || l.size < 10) throw new Error(`${n} 를 못 떴다 — 자가 낡았다`);
   const rows = kinds.map((cls) => {
     /* 이름이 안 맞으면(icon-block ↔ addIconifyBlock) 그 클래스를 만드는 파일의 입구를 본다 */
     let entry = adds.get('add' + flat(cls)) || null;
     if (!entry) for (const s of sources) if (new RegExp(`className\\s*=\\s*['"]${cls}['"]`).test(s)) { entry = [...s.matchAll(/window\.(add[A-Za-z0-9]*Block)\s*=/g)].map((x) => x[1])[0] || null; if (entry) break; }
-    let body = null;
-    if (entry) for (const s of sources) { body = bodyOf(s, entry); if (body) break; }
+    const body = entry ? fns.get(entry) : null;
+    if (entry && !body) throw new Error(`입구 ${entry} 의 몸을 못 찾았다 — 묶음을 못 가른다`);
     const groups = [];
     if (body && /_activeFrame|resolveInsertFrame/.test(body)) groups.push('G1');
     if (body && body.includes('insertAfterSelected(')) groups.push('G2');
