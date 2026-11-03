@@ -255,9 +255,10 @@ function addVariation(sec) {
 function resolveVariation(sec) {
   const groupId = sec.dataset.variationGroup;
   if (!groupId) return;
-  window.pushHistory('Variant 확정');
   const all = [...document.querySelectorAll(`.section-block[data-variation-group="${groupId}"]`)];
   const active = all.find(s => s.dataset.variationActive === '1') || all[0];
+  if (all.some(s => s !== active && window.isSectionProtected?.(s))) { window.showToast?.('🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return; }   // 확정은 나머지를 지운다
+  window.pushHistory('Variant 확정');
   all.forEach(s => { if (s !== active) s.remove(); });
   delete active.dataset.variationGroup;
   delete active.dataset.variation;
