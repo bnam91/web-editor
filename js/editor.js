@@ -4473,10 +4473,8 @@ function moveSelectedBlocks(direction) {
     return;
   }
 
-  const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
-    '.icon-text-block.selected, .shape-block.selected';
+  // ★J4468A — 손 명부 16종이 흐름 블럭 13종을 빠뜨려 ⌘[ ⌘] 가 조용히 먹통이었다(앱 ×3) ⇒ SSOT 파생
+  const BLOCK_SEL = SECTION_BLOCK_TYPE_SEL_SELECTED;
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
   if (selBlocks.length === 0) return;

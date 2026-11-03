@@ -94,11 +94,11 @@ const KNOWN_GAPS = {
   'js/editor.js MULTI_SEL#1': ['frame-block'],
   'js/editor.js BLOCK_SEL#1': ['frame-block', 'sticker-block'],
   /* 비석 — 'js/editor.js _ALL#1' 칸 걷음(명부 8 → 7): ★216(261028 S3) ⌘V 자유배치 갈래 손 명부가 _bindPastedEl 로 옮겨 사라졌다. */
-  'js/editor.js BLOCK_SEL#2': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
+  /* 비석 — 'js/editor.js BLOCK_SEL#2' 칸 걷음(명부 6 → 5): ★J4468A ⌘[ ⌘] 흐름 갈래가 SECTION_BLOCK_TYPE_SEL_SELECTED 파생으로 사라졌다. */
   'js/block-drag.js CHILD_BLOCK_SEL#1': ['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'frame-block', 'gradient-block', 'joker-block', 'laurel-block', 'qa-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'],
   /* 비석 — 'js/block-drag.js BLOCK_SEL#1' 칸 걷음(명부 7 → 6): ★365 프레임 drop 이 정본에서 받는다. 빠진 6종이 row 와 함께 지워지던 구멍이다. */
 };
-const EXPECT_ROSTERS = 6;   // 11 → 10 (t5-07 · block-factory BLOCK_SEL#1 파생) → 9 (175① · editor.js BLOCK_MULTI_SEL#1 죽은 상수 걷음) → 8 (191 · editor.js _ALL_BLOCK_SEL#1 ⌘D 절대 갈래 → _bindPastedEl) → 7 (216 · editor.js _ALL#1 ⌘V 자유배치 갈래 → _bindPastedEl) → 6 (365 · block-drag.js BLOCK_SEL#1 프레임 drop → 정본)
+const EXPECT_ROSTERS = 5;   // 6 → 5 (J4468A · editor.js BLOCK_SEL#2 ⌘[ ⌘] 파생) · 11 → 10 (t5-07 · block-factory BLOCK_SEL#1 파생) → 9 (175① · editor.js BLOCK_MULTI_SEL#1 죽은 상수 걷음) → 8 (191 · editor.js _ALL_BLOCK_SEL#1 ⌘D 절대 갈래 → _bindPastedEl) → 7 (216 · editor.js _ALL#1 ⌘V 자유배치 갈래 → _bindPastedEl) → 6 (365 · block-drag.js BLOCK_SEL#1 프레임 drop → 정본)
 
 test('A1 ★전제 — ★명부를 ★꼴로 ★9곳 찾고, ★합집합이 ★손으로 박은 명부와 ★같다', () => {
   const R = rosters();
@@ -140,14 +140,15 @@ test('A3 ★★KNOWN_GAPS 가 ★장식이 아니다 — ★표 자체가 ★비
   assert.ok(n > 0,
     '★KNOWN_GAPS 가 ★통째로 비었다 — ★구멍이 ★정말 0 이면 ★⒉ 파생이 끝난 것이니 ★이 단언을 ★지우고 그 사실을 ★적어라');
   /* ★가장 심한 둘을 ★이름으로 박는다 — ★이 검사가 ★무엇을 보고 생겼는지 ★남긴다 */
-  const worst = ALL_SEEN.filter((b) => Object.values(KNOWN_GAPS).filter((v) => v.includes(b)).length >= 5);
+  const worst = ALL_SEEN.filter((b) => Object.values(KNOWN_GAPS).filter((v) => v.includes(b)).length >= 4);
   /* ★t5-07(S3 · 261023) — ⌘G 명부 파생으로 sticker 구멍이 8 → 7곳(block-factory BLOCK_SEL#1 칸이 빠짐) ⇒ 8곳 이상 = frame 하나.
      261018 실측(frame·sticker 둘)은 이 머리말이 기록으로 남긴다 — 이 자는 «지금 이러하다»를 잠근다.
      ★191(261028 S3) — _ALL_BLOCK_SEL#1 칸이 걷혀 명부 9 → 8 · frame 구멍 8 → 7(다음 sticker 5) ⇒ 문턱 8 → 7 · 뜻 그대로(가장 심한 = frame 하나).
      ★216 — _ALL#1 칸도 걷혀 명부 8 → 7 · frame 구멍 7 → 6(다음 sticker 4) ⇒ 문턱 7 → 6 · 뜻 그대로.
-     ★365 — block-drag BLOCK_SEL#1 칸도 걷혀 명부 7 → 6 · frame 구멍 6 → 5(다음 sticker 3) ⇒ 문턱 6 → 5 · 뜻 그대로. */
+     ★365 — block-drag BLOCK_SEL#1 칸도 걷혀 명부 7 → 6 · frame 구멍 6 → 5(다음 sticker 3) ⇒ 문턱 6 → 5 · 뜻 그대로.
+     ★J4468A — editor.js BLOCK_SEL#2 칸도 걷혀 명부 6 → 5 · frame 구멍 5 → 4(다음 sticker 2) ⇒ 문턱 5 → 4 · 뜻 그대로. */
   assert.deepEqual(worst.sort(), ['frame-block'],
-    `★5곳 이상에서 빠진 블럭이 달라졌다: ${worst.join(',')} — ★261018 실측은 frame·sticker 둘 · t5-07 파생 뒤 frame 하나`);
+    `★4곳 이상에서 빠진 블럭이 달라졌다: ${worst.join(',')} — ★261018 실측은 frame·sticker 둘 · t5-07 파생 뒤 frame 하나`);
 });
 
 test('A4 ★★키가 «줄 번호»에 ★안 묶였다 — ★줄이 밀려도 ★같은 키가 나온다 (261018 S1 이 잡은 흠)', () => {
@@ -190,10 +191,6 @@ const GAP_KIND = {
     'frame-block': 영구('복사 단위가 «프레임 안의 블록»이다', 'js/editor.js', '⚠️.frame-block 은 여기 없다 — 복사 단위가 «프레임 안의 블록»이라 그대로 둔다.'),
   },
   'js/editor.js BLOCK_SEL#1': { 'frame-block': FRAME_NO_BINDBLOCK, 'sticker-block': STICKER_NO_BINDBLOCK },
-  'js/editor.js BLOCK_SEL#2': {
-    'frame-block': 영구('프레임은 위 selFrame 갈래가 따로 옮긴다(⌘[ ⌘])', 'js/editor.js', "pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');"),
-    ...같이(['banner02-block', 'canvas-block', 'chat-block', 'comparison-block', 'coupon-block', 'gradient-block', 'icon-block', 'joker-block', 'laurel-block', 'mockup-block', 'quote-block', 'radial-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'vector-block', 'zoom-block'], HB('⌘[ ⌘] 줄 이동 대상')),
-  },
   'js/block-drag.js CHILD_BLOCK_SEL#1': {
     'frame-block': FRAME_NO_BINDBLOCK,      // 이 명부 = «selected 자식만 bindBlock 에 위임»
     'sticker-block': STICKER_NO_BINDBLOCK,
