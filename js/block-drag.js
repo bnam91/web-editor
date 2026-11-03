@@ -730,6 +730,13 @@ function _onShapeHandleMouseDown(e, block, dir) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* 누름이 끝나면 한 번 — HTML5 끌기가 시작되면 pointerup 이 안 오고 dragend 만 온다. pointerup 만 들으면 그릇 draggable 이 false 로 남아 곧바로 하는 프레임 끌기가 막혔다(S6 새 발견 ⑦). 시험: tests/dom/frame-draggable-after-block-drag.dom.spec.js */
+function _onPressEnd(fn) {
+  const done = () => { document.removeEventListener('pointerup', done); document.removeEventListener('dragend', done); fn(); };
+  document.addEventListener('pointerup', done);
+  document.addEventListener('dragend', done);
+}
+
 /* 자유 프레임 안 흐름 글자 프레임을 지금 화면 자리 그대로 좌표 단위로 세운다 — 옛 흐름 row 의 settleRowInFreeFrame 과 같은 뜻(그쪽은 글자 래퍼를 안 받는다). */
 function _settleFlowTextFrame(tf, block) {
   const frame = tf.parentElement;
@@ -3534,13 +3541,13 @@ function bindFrameDropZone(ss) {
     const _pressedFrame = e.target.closest('.frame-block');
     if (!isInnerBlock && _pressedFrame && _pressedFrame !== ss && _pressedFrame._absCellDrag && _pressedFrame.style.position === 'absolute' && _pressedFrame.dataset.overlayBlock !== 'true' && ss.dataset.group !== 'true') {   // 그룹은 빼다 — 그룹 자식 위 끌기는 그룹을 옮긴다
       ss.setAttribute('draggable', 'false');
-      document.addEventListener('pointerup', () => { if (ss.style.position === 'absolute') ss.setAttribute('draggable', 'false'); else ss.setAttribute('draggable', 'true'); }, { once: true });   // absolute 부모는 HTML5 끌기를 안 쓴다(js/CLAUDE.md)
+      _onPressEnd(() => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'));   // absolute 부모는 HTML5 끌기를 안 쓴다(js/CLAUDE.md)
       return;
     }
     if (isInnerBlock && !_flowShapeWrapper) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
-      document.addEventListener('pointerup', () => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'), { once: true });   // 위 갈래와 같다 — absolute 부모는 HTML5 끌기를 안 쓴다
+      _onPressEnd(() => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'));   // 위 갈래와 같다
       return;
     }
     /* ★보조키(⇧/⌘/^)는 «다중선택» 제스처다 — pointerdown 이 손대면 안 된다 (2026-09-21 T-091).
