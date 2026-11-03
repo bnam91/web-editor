@@ -19,7 +19,7 @@ import { needsBgLayer, ensureBgLayer, removeBgLayer } from '../bg-layer.js';
 //   export-figma-json 의 generic 폴백이 [class^="tb-"] 만 텍스트로 수집한다.
 //   전용 분기가 미래에 깨져도 글자는 살아남는다.
 
-import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
+import { insertAfterSelected, genId, keepFreePos, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { fontChain } from '../props/prop-text-utils.js';
 
@@ -758,6 +758,7 @@ function renderModalBlock(block) {
   /* ★판정은 needsBgLayer «한 자리»(js/bg-layer.js) — ⛔제 벌 조건(bgImg·회전)을 따로 붙이지 마라.
      ★이 자리는 «영구 자리»다(tests/unit/bg-layer-guard.test.mjs 부류 표 · needs ? ensure : remove 짝). */
   const _bgLayerOn = needsBgLayer(block);
+  const _restorePos = keepFreePos(block);
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + (wMode === 'fixed' ? `width:${_frozenW || _num(block, 'width', MODAL_DEFAULTS.width) + 'px'};max-width:100%;margin-left:auto;margin-right:auto;` : `width:${_frozenW || '100%'};`)
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
@@ -820,6 +821,7 @@ function renderModalBlock(block) {
      ⚠️★근본은 ★cssText 통째 쓰기다 · ㉮ 는 ★«지운 뒤 다시 얹기»라, ★지워지는 것이 또 생기면 ★또 빠진다 · ★T11 과 같은 병.
        (오버레이 진입이 얹는 인라인 = position · left · top · width · max-width · margin-left/right — 무엇이 지워지는지는
         tests/dom/w2c-1020t2 F4b 의 lost 명부가 잰다.) */
+  _restorePos();
   if (block.dataset.overlayBlock === 'true') {
     block.style.position = 'absolute';
     block.style.left = (parseInt(block.dataset.offsetX, 10) || 0) + 'px';
