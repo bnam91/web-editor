@@ -3289,7 +3289,10 @@ function bindFrameDropZone(ss) {
   });
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
-  if (ss.style.position === 'absolute') {
+  /* 묶을 때 흐름이던 프레임이 뒤에 absolute 가 되면(stack→free) 이 끌기만 따로 건다 — 통째로 다시 묶으면 클릭 고르기가 죽는다(S6). 부르는 자: prop-frame.js _convertStackToFree */
+  const _bindAbsCellDrag = () => {
+    if (ss._absCellBound) return;
+    ss._absCellBound = true;
     ss.setAttribute('draggable', 'false');
     ss._absCellDrag = true;   // 아래 mousedown 좌표 끌기가 걸렸다는 표식 — 부모 pointerdown 이 본다
     /* ★D2(2026-10-05 현빈 · lane-drag) — 오버레이 «프레임»(스티커 그룹 · 도형 래퍼)의 전용 이동 드래그는 이 자리에서도 «건다».
@@ -3382,6 +3385,7 @@ function bindFrameDropZone(ss) {
       const scale = scaler
         ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
 
+      if (ss.style.position !== 'absolute') return;   // stack 으로 바뀐 자식 — 고르기까지만 하고 좌표는 안 쓴다(끌기는 HTML5). 위로 올리면 클릭 고르기가 죽는다
       // OSS 패턴 (tldraw/Suika): style.left 대신 getBoundingClientRect으로 실제 위치 캡처
       // style.left가 비어있거나 0px인 경우의 "마우스에 붙어서 이동" 버그 방지
       const _parentEl = ss.parentElement;
@@ -3480,6 +3484,10 @@ function bindFrameDropZone(ss) {
       document.addEventListener('mouseup', onUp);
     });
 
+  };
+  ss._bindAbsCellDrag = _bindAbsCellDrag;
+  if (ss.style.position === 'absolute') {
+    _bindAbsCellDrag();
     return; // absolute 셀은 drop zone 바인딩 불필요
   }
 
@@ -3562,6 +3570,7 @@ function bindFrameDropZone(ss) {
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
 window.bindFrameFlowDrop  = _bindFrameFlowDrop;
+window.bindFrameOwnDrag   = _bindFrameOwnDrag;
 
 /* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
    도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라

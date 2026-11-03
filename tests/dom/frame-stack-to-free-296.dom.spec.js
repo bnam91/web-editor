@@ -203,6 +203,20 @@ test('N5 [음성] 정말 겹친 자식(2px 이상)은 여전히 나란함 — al
   expect((await snap(page, root)).mode).toBe('true');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+/* 자식 프레임 끌기 — 진짜 마우스. 전환한 같은 세션에서. */
+const dragKid = async (page, id, to) => { const c = await page.evaluate((id) => { const q = document.getElementById(id).getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, id); await page.mouse.click(c[0], c[1]); await raf(page); await page.mouse.click(c[0], c[1]); await raf(page); await page.mouse.move(c[0], c[1]); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(c[0] + (to[0] - c[0]) * i / 12, c[1] + (to[1] - c[1]) * i / 12); await raf(page); } await page.mouse.up(); await raf(page); };
+test('F15 free 로 바꾼 뒤 자식 프레임이 좌표로 끌린다', async ({ page }) => {
+  const { errs, root, k } = await adjScene(page); await toFree(page); const a = await page.evaluate((id) => document.getElementById(id).style.top, k);
+  const c = await page.evaluate((id) => { const q = document.getElementById(id).getBoundingClientRect(); return [q.left + q.width / 2 + 40, q.top + q.height / 2 + 30]; }, k);
+  await dragKid(page, k, c); await expect.poll(() => page.evaluate((id) => parseFloat(document.getElementById(id).style.top), k), '아래로 옮겨졌다').toBeGreaterThan(parseFloat(a));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('F16 왕복한 stack 의 자식 프레임이 다시 HTML5 로 끌린다 — draggable · 위치 표시 안 남음', async ({ page }) => {
+  const { errs, k } = await adjScene(page); await trip(page);
+  expect(await page.evaluate((id) => document.getElementById(id).getAttribute('draggable'), k)).toBe('true');
+  expect(await page.evaluate((id) => [document.getElementById(id).style.position, document.getElementById(id).style.left], k)).toEqual(['', '']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 test('N1 [음성] free 프레임은 stack 단추 그대로 · free 단추 없음', async ({ page }) => {
   const { errs, nb } = await scene(page); await pickRoot(page, nb);
   await expect(page.locator('#ss-to-stack-btn')).toBeVisible(); await expect(page.locator('#ss-to-free-btn')).toHaveCount(0);

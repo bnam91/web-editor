@@ -315,7 +315,7 @@ function _convertFreeLayoutToStack(ss) {
   ss.style.minHeight = '';
   /* ★스택이 «된 뒤»에 파생한다 — 그 함수가 `freeLayout` 을 보고 비켜 가므로 순서가 뜻을 가른다 */
   _applyStackChildWidths(ss);
-  orderedItems.forEach(it => { if (it.el.classList.contains('frame-block')) window.bindFrameFlowDrop?.(it.el); });   // 흐름이 된 자식 프레임에 드롭 자리를 준다 — 까닭은 그 함수 머리말
+  orderedItems.forEach(it => { if (it.el.classList.contains('frame-block') && it.el.dataset.textFrame !== 'true') { window.bindFrameFlowDrop?.(it.el); window.bindFrameOwnDrag?.(it.el); } });   // 흐름이 된 자식 프레임에 드롭 자리와 HTML5 끌기만 준다 — 통째로 다시 묶으면 클릭 고르기가 죽는다(S6 · 다시 연 판과 같아진다)
 
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
@@ -369,6 +369,7 @@ function _convertStackToFree(ss) {
     if (c.hasAttribute('draggable')) c.setAttribute('draggable', 'false');
   }
   transforms.forEach(([e, t]) => { e.style.transform = t; });
+  spots.forEach(({ c }) => c._bindAbsCellDrag?.());   // 흐름으로 묶인 자식 프레임에 좌표 끌기만 — 안 걸면 free 로 바꾼 뒤 안 움직인다
   window.pushHistory?.('free 로 전환');
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
