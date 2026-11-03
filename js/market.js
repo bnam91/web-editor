@@ -96,25 +96,10 @@
         const copy = { ...it, id: nid };
         items.push(copy); byId.set(nid, copy);
       }
-      if (renamed.size) page.canvas = _renameRemoteLinks(page, local, choices, renamed);
+      if (renamed.size) page.canvas = window.marketMerge.renameRemoteRefLinks(page, local, choices, renamed);
       if (items.length) plan.push({ pageId: page.id, items });
     }
     return plan;
-  }
-  function _renameRemoteLinks(page, local, choices, renamed) {
-    const parser = new DOMParser();
-    const secsOf = html => [...parser.parseFromString(`<div id="c">${html || ''}</div>`, 'text/html').querySelectorAll('.section-block')];
-    const localSecs = new Set(secsOf((local.pages || []).find(p => p.id === page.id)?.canvas).map(s => s.id));
-    const doc = parser.parseFromString(`<div id="c">${page.canvas || ''}</div>`, 'text/html');
-    doc.querySelectorAll('.section-block').forEach(sec => {
-      const fromRemote = !localSecs.has(sec.id) || choices[`${page.id}::${sec.id}`] === 'theirs';
-      if (!fromRemote || !sec.dataset.refLinks) return;
-      sec.dataset.refLinks = sec.dataset.refLinks.split(',').map(tok => {
-        const [id, ...rest] = tok.trim().split(':');
-        return [renamed.get(id) || id, ...rest].join(':');
-      }).join(',');
-    });
-    return doc.getElementById('c').innerHTML;
   }
   /* 외부화된 항목은 goya-asset://L 이다. 파일은 복제가 옮겼으니 src 도 M 으로 — 안 바꾸면 L 을 지울 때 scratch-missing 이 된다. */
   async function _importMergedScratch(newId, localId, plan) {
