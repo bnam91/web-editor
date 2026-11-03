@@ -3277,6 +3277,24 @@ function _frameUnderPointer(x, y, dragEl, section) {
   }) || null;
 }
 
+/* 부모 프레임 밖에서 놓았을 때만 커서 아래 다른 프레임 — 안에서 놓으면 제자리다. */
+function _frameOutsideParentAt(ev, el, parent) {
+  const section = el.closest('.section-block');
+  if (!parent || !section || el.dataset.overlayBlock === 'true') return null;
+  const r = parent.getBoundingClientRect();
+  if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) return null;
+  return _frameUnderPointer(ev.clientX, ev.clientY, el, section);
+}
+
+/* 좌표로 끌던 자식 프레임을 스택에 넣는다 — 처리기는 묶을 때의 position 으로 갈리니 흐름 단위로 다시 태어나게 한다(section-drag.js rebirthFlowUnit). */
+function _moveFrameIntoFlow(el, frame, ev) {
+  for (const k of ['position', 'left', 'top']) el.style[k] = '';
+  delete el.dataset.offsetX; delete el.dataset.offsetY;
+  frame.insertBefore(el, getDragAfterElement(frame, ev.clientY) || null);
+  window.rebirthFlowUnit?.(el);
+  window.buildLayerPanel?.();
+}
+
 /* 끄는 동안 커서 아래 프레임을 표시하고 { frame, free, x, y } 를 돌려준다. ev 없이 부르면 표시만 걷는다. */
 function _trackOutFrame(prev, ev, dragEl, section) {
   prev?.frame.classList.remove('ss-drag-over');
@@ -3421,6 +3439,9 @@ function bindFrameDropZone(ss) {
       // 자식 블록 클릭: selected 자식만 bindBlock에 위임, 미선택 자식은 B drag로 처리
       // (B selected 상태에서 TF/C 영역 mousedown → e.target이 C가 될 수 있음)
       if (e.target !== ss) {
+        /* 고른 자식 프레임을 누른 것이다 — 끌기는 그 프레임 몫이다. 안 비키면 스택 안 K 를 끌 때 그릇이 통째로 끌렸다(S6 K). */
+        const _pressedFrameK = e.target.closest('.frame-block:not([data-text-frame])');
+        if (_pressedFrameK !== ss && _pressedFrameK?.classList.contains('selected')) return;
         const childBlock = e.target.closest(CHILD_BLOCK_SEL);
         if (childBlock?.classList.contains('selected')) {
           // text-block이 절대배치 text-frame 안에 있으면 B drag로 처리
@@ -3553,9 +3574,12 @@ function bindFrameDropZone(ss) {
         /* 누를 때 올린 바깥 표시를 내린다 — 손잡이가 mouseup 을 받으면 click 이 안 와서 바깥이 골린 채 남았다(모서리 누름). */
         parentFreeFrame?.classList.remove('selected');
         if (moved) {
+          const _into = multiPeers.length ? null : _frameOutsideParentAt(upEv, ss, parentFreeFrame);
+          if (_into && _into.dataset.freeLayout !== 'true') { _moveFrameIntoFlow(ss, _into, upEv); window.pushHistory?.(); window.triggerAutoSave?.(); return; }
+          if (_into) _placeInFreeFrame(ss, { frame: _into, x: upEv.clientX, y: upEv.clientY });
           /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
              ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
-          const _dropParent = parentFreeFrame || ss.parentElement;
+          const _dropParent = _into || parentFreeFrame || ss.parentElement;
           if (_dropParent && _dropParent.classList?.contains('frame-block') && frameClampsDrag(_dropParent, 'drop')) {
             const c = clampChildIntoFrame(
               parseFloat(ss.style.left) || 0, parseFloat(ss.style.top) || 0,
