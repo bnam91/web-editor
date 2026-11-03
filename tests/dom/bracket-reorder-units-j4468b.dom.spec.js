@@ -112,3 +112,64 @@ test('T2 음성 — 글자 편집 중이면 ⌘[ 가 순서를 안 바꾼다', a
   await twoFrames(page);
   expect(await unitIdx(page, x)).toBe(i0);
 });
+
+const fIdx = (page, f) => page.evaluate((f) => { const e = document.getElementById(f); return [...e.parentElement.children].indexOf(e); }, f);
+for (const kind of ['table', 'chat', 'text']) {
+  test(`S1 ${kind} — 스택 안 자식을 고르면 자식이 옮겨지고 프레임은 그대로 · ⌘Z`, async ({ page }) => {
+    const { ids: [, x], frame } = await scene(page, ['divider', kind, 'divider'], { stack: true });
+    const f0 = await fIdx(page, frame);
+    await clickOn(page, x);   // 첫 클릭 = 프레임
+    await pick(page, x);      // 둘째 = 자식
+    const read = () => unitIdx(page, x), i0 = await read();
+    await press(page, 'Meta+BracketLeft', read, i0 - 1);
+    expect(await fIdx(page, frame), '프레임이 같이 옮겨졌다').toBe(f0);
+    await press(page, 'Meta+BracketRight', read, i0);
+    await press(page, 'Meta+BracketRight', read, i0 + 1);
+    await press(page, 'Meta+z', read, i0);
+    expect(await fIdx(page, frame)).toBe(f0);
+  });
+}
+
+test('S2 프레임만 골랐으면 프레임이 옮겨진다', async ({ page }) => {
+  const { ids: [x], frame } = await scene(page, ['divider'], { stack: true });
+  await clickOn(page, x);
+  await page.waitForFunction((f) => document.getElementById(f).classList.contains('selected'), frame);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), x), '전제: 자식은 안 골랐다').toBe(false);
+  const read = () => fIdx(page, frame), f0 = await read();
+  await press(page, 'Meta+BracketLeft', read, f0 - 1);
+});
+
+test('S3 자식을 골랐다가 레이어 패널에서 프레임을 고르면 프레임이 옮겨진다', async ({ page }) => {
+  const { ids: [, x], frame } = await scene(page, ['divider', 'table', 'divider'], { stack: true });
+  await clickOn(page, x); await pick(page, x);
+  await page.evaluate((f) => { window.buildLayerPanel?.(); document.getElementById(f)._layerItem.click(); }, frame);
+  await twoFrames(page);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), x), '전제: 자식 선택이 풀렸다').toBe(false);
+  const read = () => fIdx(page, frame), f0 = await read(), i0 = await unitIdx(page, x);
+  await press(page, 'Meta+BracketLeft', read, f0 - 1);
+  expect(await unitIdx(page, x)).toBe(i0);
+});
+
+test('S4 중첩 프레임을 고르면 스택 안에서만 옮겨지고 밖으로 안 튄다', async ({ page }) => {
+  const { ids: [a, b], frame } = await scene(page, ['divider', 'divider'], { stack: true });
+  const inner = await page.evaluate(([a, frame]) => { const F = document.getElementById(frame), s = F.closest('.section-block'); window.deselectAll(); window._activeFrame = null; window.selectSection(s); const old = new Set(s.querySelectorAll('.frame-block')); window.addFrameBlock({}); const n = [...s.querySelectorAll('.frame-block')].find((q) => !old.has(q)); delete n.dataset.freeLayout; n.dataset.fullWidth = 'true'; n.style.height = '60px'; n.style.minHeight = '60px'; n.style.position = ''; n.style.background = '#ccd'; document.getElementById(a).closest('.row').after(n); window.deselectAll(); window._activeFrame = null; return n.id; }, [a, frame]);
+  await page.evaluate(([n]) => { window.deselectAll(); window.buildLayerPanel?.(); document.getElementById(n)._layerItem.click(); }, [inner]);
+  await twoFrames(page);
+  expect(await page.evaluate((n) => window._activeFrame?.id === n && document.getElementById(n).classList.contains('selected'), inner), '전제: 중첩 프레임이 골라졌다').toBe(true);
+  const read = () => page.evaluate(([n, F]) => { const e = document.getElementById(n); return e.parentElement.id === F ? [...e.parentElement.children].indexOf(e) : 'OUT'; }, [inner, frame]), i0 = await read();
+  await press(page, 'Meta+BracketRight', read, i0 + 1);
+  await press(page, 'Meta+BracketLeft', read, i0);
+});
+
+test('S5 자식을 골랐다가 프레임 빈 자리를 누르면 프레임이 옮겨진다', async ({ page }) => {
+  const { ids: [x], frame } = await scene(page, ['divider'], { stack: true });
+  await page.evaluate((f) => { document.getElementById(f).style.padding = '40px'; }, frame);
+  await clickOn(page, x); await pick(page, x);
+  const r = await page.locator('#' + frame).boundingBox();
+  await page.mouse.click(r.x + 12, r.y + 12);
+  await twoFrames(page);
+  const st = await page.evaluate(([x, f]) => [document.getElementById(x).classList.contains('selected'), document.getElementById(f).classList.contains('selected')], [x, frame]);
+  expect(st, '전제: 자식 선택이 풀리고 프레임만 남았다').toEqual([false, true]);
+  const read = () => fIdx(page, frame), f0 = await read();
+  await press(page, 'Meta+BracketLeft', read, f0 - 1);
+});

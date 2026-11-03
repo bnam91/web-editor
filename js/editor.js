@@ -4439,12 +4439,14 @@ function moveSelectedBlocks(direction) {
 
   // 프레임(frame-block)이 선택된 경우 별도 처리
   const selFrame = window._activeFrame;
-  if (selFrame && selFrame.classList.contains('selected')) {
+  // ★J4468B — 프레임 안 자식을 고르면 프레임도 .selected 로 남는다 ⇒ 고른 자식이 옮겨져야 한다(이 갈래가 먼저 먹어 프레임이 옮겨졌다). 도형 래퍼는 도형이 곧 래퍼라 그대로
+  const _childPicked = selFrame && !isShapeFrame(selFrame) && selFrame.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED);
+  if (selFrame && selFrame.classList.contains('selected') && !_childPicked) {
     /* ★컨테이너는 «실제 부모»다. closest('.section-inner') 는 합쳐 넣은 몸
        (.section-merged-part) 안의 프레임에 대해 «바깥» inner 를 집어, indexOf 가 -1 이 되고
        아래로 이동이 containerItems[0].after() 로 떨어져 «프레임이 섹션 맨 위로 순간이동»했다
        (위로는 idx<=0 에 걸려 먹통). 상자를 지나 밖으로 꺼내지기까지 한다. */
-    const sectionInner = (selFrame.parentElement?.classList.contains('section-merged-part')
+    const sectionInner = (selFrame.parentElement?.classList.contains('section-merged-part') || selFrame.parentElement?.classList.contains('frame-block')   // 중첩 프레임도 실제 부모 안에서만
       ? selFrame.parentElement
       : selFrame.closest('.section-inner'));
     if (!sectionInner) return;

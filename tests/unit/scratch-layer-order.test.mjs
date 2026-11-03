@@ -36,8 +36,8 @@ const has = (src, head) => src.indexOf(head) >= 0;
 test('U0 ★moveSelectedBlocks(㈎ 오버레이 · ㈏ 자유배치 프레임 · 흐름) 바이트 무변 — 갈래는 «더한다»', () => {
   const MOVE = sliceBlock(ED, 'function moveSelectedBlocks(');
   // 핀 b5148b48 에서 잰 값(손으로 박음) — 길이 8,021 · J4468A 흐름 갈래 BLOCK_SEL 파생으로 다시 잼(㈎㈏ 무변)
-  assert.equal(MOVE.length, 8147, '★moveSelectedBlocks 길이가 바뀌었다 — 스크래치 갈래를 그 안에 넣지 마라');
-  assert.equal(sha(MOVE), '526f101f16135ce86804b0fcffc703802a621c06a946cd400e16af1ecee614fb',
+  assert.equal(MOVE.length, 8480, '★moveSelectedBlocks 길이가 바뀌었다 — 스크래치 갈래를 그 안에 넣지 마라');
+  assert.equal(sha(MOVE), '82c8b7285502295399fcaae0d5eb7902e4bf94dd0dd718a62b05390a4086f2f1',
     '★moveSelectedBlocks 가 바뀌었다 — ㈎㈏ 는 손대지 않는 약속이다');
 });
 
