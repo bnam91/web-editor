@@ -294,7 +294,8 @@ function _isAllCanvasEmpty(data) {
 async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
-  if (!targetId) return;
+  /* ★340 C — «명시 반환». undefined 는 _isSaveFailure 가 못 잡아 저장을 안 했는데 미저장 표시가 꺼졌다. */
+  if (!targetId) return { ok: false, reason: 'no_target' };
   // S4: 손상된 JSON 안전 처리
   let data;
   try {
