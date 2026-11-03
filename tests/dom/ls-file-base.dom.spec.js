@@ -84,3 +84,14 @@ test('localStorage 본이 이겨도 파일에만 있는 갤러리 항목은 남�
   expect(await seen(page)).toBe('LS');
   await expect.poll(() => page.evaluate(() => (window.state.imageGallery || []).map(x => x.id))).toEqual(['a', 'gal1']);
 });
+test('복구한 본이 파일과 다르면 편집 없이도 파일에 넣는다', async ({ page }) => {
+  await open(page, { lsTs: fileTs + 3600e3, base: UPD });
+  await expect.poll(() => page.evaluate(() => /data-mark="LS"/.test(window.__saved?.pages?.[0]?.canvas || '')), { timeout: 8000 }).toBe(true);
+});
+test('[음성] localStorage 본이 파일과 같으면 안 쓴다(DEF-03) · 그림이 data 와 goya 로만 달라도 같다', async ({ page }) => {
+  const pic = (src) => ({ ...snap('FILE'), pages: [{ id: 'p', name: 'P', pageSettings: {}, canvas: canvas('FILE') + `<img src="${src}">` }] });
+  await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/h.png') });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));   // 고침이 예약하는 자리(두 프레임 뒤)를 지난다
+  expect(await page.evaluate(() => window.hasUnsavedChanges())).toBe(false);
+  expect(await page.evaluate(() => window.__saved || null)).toBeNull();
+});
