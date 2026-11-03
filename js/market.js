@@ -74,6 +74,15 @@
     else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
   }
 
+  /* 같은 그림인가 — 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 안 견준다(재머지마다 _r 이 늘었다, S3 market5 ①). 뜻은 save-load.js _sameImage 한 벌을 쓴다.
+     둘 다 goya 면 파일명(내용 해시)으로 본다: 올린 data 의 goya 는 다른 프로젝트 id 를 달고 온다. */
+  const _goyaFile = u => u.split('/').pop();
+  async function _sameScratchImage(a, b) {
+    if (a === b) return true;
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    if (a.startsWith('goya-asset:') && b.startsWith('goya-asset:')) return _goyaFile(a) === _goyaFile(b);
+    return window._sameImage ? window._sameImage(a, b) : false;
+  }
   /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽을 <id>_r 로 새로 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
      (안 그러면 원격 고른 섹션 링크가 L 이미지를 가리킨다, 둘다면 두 섹션이 한 항목을 나눠 쓴다). parsed.pages[].canvas 를 고치므로 저장 «전»에 부른다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
   async function _planMergedScratch(parsed, local, choices, remoteScratch) {
@@ -91,7 +100,7 @@
       for (const it of theirsOf.get(page.id) || []) {
         const same = byId.get(it.id);
         if (!same) { items.push(it); byId.set(it.id, it); continue; }
-        if (same.src === it.src) continue;
+        if (await _sameScratchImage(same.src, it.src)) continue;
         let nid = it.id + '_r';
         while (byId.has(nid)) nid += '_r';
         renamed.set(it.id, nid);

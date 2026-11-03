@@ -215,3 +215,32 @@ test('음성 무시·삭제: 받기·유지면 둘 다 남고, 기본도 둘 다
 test('음성 무시·삭제: 안 고르면 기본(받기·유지)으로 둘 다 남는다', async ({ page }) => {
   expect(await resolveScene(page, [])).toEqual({ y: true, x: true, a: true });
 });
+const PNG_A = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const PNG_B = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+async function mergeLinked(page, localSrc, remoteSrc) {
+  await open(page, { ...data('원격 글'), pages: [{ id: 'p1', name: 'p', canvas: linked('원격 글') }] }, [{ pageId: 'p1', items: [{ id: 's_1', src: remoteSrc, x: 2, y: 2, w: 9 }] }], linked('내 글'));
+  await page.evaluate(({ L, s }) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: s, x: 3, y: 3, w: 9 }] }]), { L: LOCAL, s: localSrc });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-list input[type=radio][value=theirs]').first().click();
+  await page.locator('#rsv-apply').click();
+  const p = await saved(page);
+  await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).length)).toBe(1);
+  return { token: p.pages[0].canvas.match(/data-ref-links="([^":]+)/)?.[1], ids: await page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => i.id))) };
+}
+/* 이 하네스는 crypto.subtle 이 없어 해시를 못 낸다(그러면 _sameImage 는 «같다»). 해시 값은 앱에서 쟀다(회신). 여기선 그 한 벌을 부르고 답을 따르는지 본다. */
+const spySame = (page, answer) => page.addInitScript((answer) => { Object.defineProperty(window, '_sameImage', { configurable: true, get: () => async (a, b) => { (window.__sameCalls = window.__sameCalls || []).push([a.slice(0, 5), b.slice(0, 5)]); return answer; }, set: () => {} }); }, answer);
+test('같은 그림: L 은 goya, 원격은 data 면 _sameImage 를 묻고 같으면 _r 을 안 단다', async ({ page }) => {
+  await spySame(page, true);
+  expect(await mergeLinked(page, `goya-asset://${LOCAL}/h.png`, PNG_A)).toEqual({ token: 's_1', ids: ['s_1'] });
+  expect(await page.evaluate(() => window.__sameCalls)).toEqual([['goya-', 'data:']]);
+});
+test('같은 그림: 둘 다 goya 면 프로젝트 id 가 달라도 파일명으로 같다', async ({ page }) => {
+  expect(await mergeLinked(page, `goya-asset://${LOCAL}/abc.png`, 'goya-asset://proj_9/abc.png')).toEqual({ token: 's_1', ids: ['s_1'] });
+});
+test('음성 같은 그림: _sameImage 가 다르다면 _r 을 단다', async ({ page }) => {
+  await spySame(page, false);
+  expect(await mergeLinked(page, `goya-asset://${LOCAL}/h.png`, PNG_B)).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+});
+test('음성 같은 그림: 둘 다 goya 인데 파일명이 다르면 다른 그림이다', async ({ page }) => {
+  expect(await mergeLinked(page, `goya-asset://${LOCAL}/abc.png`, 'goya-asset://proj_9/def.png')).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+});

@@ -104,6 +104,7 @@ async function _sameImage(a, b) {
   const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(x => x.toString(16).padStart(2, '0')).join('');
   return goya.split('/').pop().split('.')[0] === hex.slice(0, 16);
 }
+window._sameImage = _sameImage;   // 마켓 머지 스크래치도 같은 뜻으로 견준다(js/market.js)
 async function _lsDiffersFromFile(ls, file) {
   /* 복구분은 캔버스만이 아니다. 없는 필드 · 빈 값은 같게 본다(옛 파일에 없는 필드로 무편집 쓰기가 나지 않게). */
   const core = (d) => JSON.stringify({
