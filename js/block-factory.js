@@ -2530,8 +2530,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
        아래에서 «알맹이(text-block)만» 그룹으로 옮기고 빈 래퍼를 지웠다 ⇒ 그룹 안 맨 text-block → 다시 열면 로드 이주
        (save-load.js migrateColsFromDOM · 자유배치 직속 text-block → text-frame)가 래퍼를 «하나 더» 씌웠다.
        ⇒ ⌘G 에서 텍스트 프레임은 래퍼째 옮긴다(자유배치 갈래 :2202 와 같은 판정) · .row 껍데기는 그대로 껍데기. */
+    if (shell && !(asGroup && shell.dataset.textFrame === 'true')) shells.add(shell);   // ★142 — ⌘G(그룹)만. ⌘⌥G(프레임 묶기)는 «텍스트가 새 프레임 직속»이 잠겨 있다(shape-frame-wrap-group N1 · ul-groupdup G6) — 판정 «청»
     /* 회전한 텍스트는 각도가 텍스트 프레임(dataset.rotation)에 있다 — ⌘⌥G 도 래퍼째여야 회전이 안 풀린다 */
-    if (shell && !((asGroup || parseFloat(shell.dataset.rotation)) && shell.dataset.textFrame === 'true')) shells.add(shell);   // ★142 — ⌘G(그룹)만. ⌘⌥G(프레임 묶기)는 «텍스트가 새 프레임 직속»이 잠겨 있다(shape-frame-wrap-group N1 · ul-groupdup G6) — 판정 «청»
+    if (shell?.dataset.textFrame === 'true' && parseFloat(shell.dataset.rotation)) shells.delete(shell);
     if (unit && !rows.includes(unit)) rows.push(unit);
   });
   // 문서 순서 정렬 — section-inner 직속이 아닌 단위(merged-part 등)도 -1 로 맨 앞에 끼지 않게
