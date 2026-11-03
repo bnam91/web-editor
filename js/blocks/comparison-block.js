@@ -351,7 +351,7 @@ function renderComparison(block, _lnNeed = null) {
   const totalH = Math.max(...heights, 1);
   const designH = capZone + totalH + stagger + yPad * 2;
 
-  block.style.position = 'relative';
+  if (block.style.position !== 'absolute') block.style.position = 'relative';   // 자유 프레임 자리를 안 지운다
   block.style.overflow = 'visible';
   /* ★1017t1c5 — 오버레이(떠 있음)면 폭을 «굳힌 px» 그대로 둔다(grid-block.js:2781-2791 와 같은 꼴).
      띄울 때 overlay-float.js _freezeWidth 가 px 로 굳히는데, 아래에서 100% 를 또 박으면 매 재렌더(renderComparison
