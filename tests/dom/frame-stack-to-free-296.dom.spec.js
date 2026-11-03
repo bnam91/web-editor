@@ -217,6 +217,13 @@ test('F16 왕복한 stack 의 자식 프레임이 다시 HTML5 로 끌린다 —
   expect(await page.evaluate((id) => [document.getElementById(id).style.position, document.getElementById(id).style.left], k)).toEqual(['', '']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+test('F17 왕복 셋 — 자리·아래 이웃이 안 쌓인다', async ({ page }) => {
+  const { errs, root, nb } = await scene(page); await pickRoot(page, root);
+  const y = () => page.evaluate(([r, n]) => { const c = document.getElementById('canvas'), cr = c.getBoundingClientRect(), k = cr.width / c.offsetWidth || 1; const out = [(document.getElementById(n).getBoundingClientRect().top - cr.top) / k]; document.getElementById(r).querySelectorAll('.text-block,.table-block').forEach((e) => out.push((e.getBoundingClientRect().top - cr.top) / k)); return out; }, [root, nb]);
+  const a = await y(); await trip(page); await trip(page); await trip(page); const b = await y();
+  a.forEach((v, i) => expect(Math.abs(b[i] - v), `칸${i} ${v}→${b[i]}`).toBeLessThan(0.5));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 test('N1 [음성] free 프레임은 stack 단추 그대로 · free 단추 없음', async ({ page }) => {
   const { errs, nb } = await scene(page); await pickRoot(page, nb);
   await expect(page.locator('#ss-to-stack-btn')).toBeVisible(); await expect(page.locator('#ss-to-free-btn')).toHaveCount(0);

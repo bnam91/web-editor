@@ -82,12 +82,12 @@ function _analyzeFreeLayoutChildren(ss) {
   );
   const items = directChildren.map(c => {
     const left   = parseInt(c.style.left)   || 0;
-    const top    = parseInt(c.style.top)    || 0;
+    const top    = parseFloat(c.style.top)  || 0;   // 소수 그대로 — 정수로 읽으면 왕복마다 간격이 1px 씩 는다(자리·아래 이웃이 밀린다)
     /* ★수지④(2026-10-08) — style 값은 «px 일 때만» 믿는다. 글자 래퍼는 폭이 「100%」라 parseInt 가 100 을 돌려줘
        스택 변환이 그 글자를 100px 로 박았다(실측: 860→100 · 한 줄→세 줄). %·auto·빈 값이면 그려진 크기(offset*). */
     const _px = (v) => (/^-?[\d.]+px$/.test(v || '') ? Math.round(parseFloat(v)) : 0);
     const width  = _px(c.style.width)  || c.offsetWidth  || 0;
-    const height = _px(c.style.height) || c.offsetHeight || 0;
+    const height = parseFloat(getComputedStyle(c).height) || c.offsetHeight || 0;
     return { el: c, id: c.id, left, top, width, height, bottom: top + height, right: left + width };
   });
   const rows = [];
@@ -106,12 +106,12 @@ function _analyzeFreeLayoutChildren(ss) {
   rows.sort((a, b) => a.minTop - b.minTop);
   const vGaps = [];
   for (let i = 1; i < rows.length; i++) {
-    vGaps.push(rows[i].minTop - rows[i - 1].maxBottom);
+    vGaps.push(Math.round(rows[i].minTop - rows[i - 1].maxBottom));
   }
-  const frameH = parseInt(ss.style.height) || parseInt(ss.dataset.height) || ss.offsetHeight || 0;
+  const frameH = parseFloat(ss.style.height) || parseInt(ss.dataset.height) || ss.offsetHeight || 0;
   const frameW = _framePxW(ss);
-  const padTop = rows.length ? rows[0].minTop : 0;
-  const padBot = rows.length ? Math.max(0, frameH - rows[rows.length - 1].maxBottom) : 0;
+  const padTop = rows.length ? Math.round(rows[0].minTop) : 0;
+  const padBot = rows.length ? Math.max(0, Math.round(frameH - rows[rows.length - 1].maxBottom)) : 0;
   return { rows, vGaps, padTop, padBot, frameH, frameW };
 }
 
