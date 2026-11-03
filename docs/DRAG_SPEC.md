@@ -30,6 +30,7 @@
 - **cursor 화면 좌표 대신 요소 중심의 캔버스 좌표**로 판단 (scale 소수점 오탐 방지)
 - `elCX = rawLeft + dragEl.offsetWidth/2`, `elCY = rawTop + dragEl.offsetHeight/2`
 - `DRAGOUT_MARGIN = 60px (캔버스 단위)` — 의도치 않은 drag-out 방지
+- 커서도 프레임 밖이어야 뺀다 — 큰 블럭 윗부분을 잡고 끌 때 중심만 먼저 넘어가 빠지던 것(화면 좌표끼리 비교라 배율 오탐 없음)
 - 삽입 위치는 `_dropInsertBefore` closure 변수에 저장 (indicator DOM에 의존 금지)
 
 ### 다중선택 드래그

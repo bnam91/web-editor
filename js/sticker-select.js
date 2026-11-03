@@ -953,6 +953,7 @@ document.addEventListener('keydown', (e) => {
     ? document.querySelectorAll(window.CANVAS_SEL_BLOCKS_AND_SHAPE + ', .frame-block.selected')
     : null;
   if (_selNow && _selNow.length > 1) return;   // 공통 경로에 맡긴다(preventDefault 도 그쪽이 한다)
+  if (window.isSectionProtected?.(sel.closest('.section-block'))) return;   // 공통 경로의 A13 이 막고 토스트를 띄운다
   e.preventDefault();
   /* ★삭제 «전» 체크포인트 — 없으면 스티커가 ⌘Z 로 안 돌아온다(되돌릴 수 없는 소실).
      왜 필요한가 (2026-09-21 실측, 포트 9527):

@@ -572,6 +572,7 @@ function _buildLayerPanelTail(panel, collapsedSections) {
     delBtn.title = 'Variant 그룹 전체 삭제';
     delBtn.onclick = e => {
       e.stopPropagation();
+      if (secs.some(s => window.isSectionProtected?.(s))) { window.showToast?.('🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return; }
       if (window.pushHistory) window.pushHistory();
       secs.forEach(s => s.remove());
       if (window.deselectAll) window.deselectAll();
@@ -608,6 +609,7 @@ function _buildLayerPanelTail(panel, collapsedSections) {
         varDelBtn.onclick = e => {
           e.stopPropagation();
           if (secs.length <= 1) return; // 마지막 하나는 삭제 불가
+          if (window.isSectionProtected?.(s)) { window.showToast?.('🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return; }
           if (window.pushHistory) window.pushHistory();
           // 삭제 대상이 active이면 다른 variant를 active로 전환
           if (s.dataset.variationActive === '1') {

@@ -139,7 +139,7 @@ function renderBanner02(block) {
   const align   = d.align || 'left';
 
   // 외곽
-  block.style.position = 'relative';
+  if (block.style.position !== 'absolute') block.style.position = 'relative';   // 자유 프레임 자리를 안 지운다
   block.style.overflow = 'hidden';
   block.style.borderRadius = radius + 'px';
   block.style.background = bg;

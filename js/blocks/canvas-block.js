@@ -1037,7 +1037,7 @@ function renderCanvas(block) {
     block.style.aspectRatio   = '';
     block.style.background    = 'transparent';
     block.style.borderRadius  = '0';
-    block.style.position      = 'relative';
+    if (block.style.position !== 'absolute') block.style.position = 'relative';   // 자유 프레임 자리를 안 지운다
     block.style.overflow      = 'hidden';
     block.style.paddingLeft   = '';
     block.style.paddingRight  = '';
@@ -1265,7 +1265,7 @@ function renderCanvas(block) {
   block.style.aspectRatio  = `${totalW} / ${totalH}`;
   block.style.background   = 'transparent'; // 개별 셀이 배경 가짐
   block.style.borderRadius = '0';
-  block.style.position     = 'relative';
+  if (block.style.position !== 'absolute') block.style.position = 'relative';   // 자유 프레임 자리를 안 지운다
   block.style.overflow     = 'hidden';
   const padX = parseInt(block.dataset.padX ?? '0');
   block.style.paddingLeft  = '';

@@ -1,5 +1,5 @@
 /* stack-convert-drop — 자유→스택 변환 직후 안쪽 프레임에 마우스로 넣어진다(S3 J294L B-5 · 전에는 다시 열어야 됐다).
- * 음성: 끌기 한 번에 사본이 안 생긴다 · ⌘Z 로 처음 부모 · 변환 직후 클릭 고르기가 산다(자식을 통째로 다시 묶으면 죽는다). */
+ * 음성: 끌기 한 번에 사본이 안 생긴다 · ⌘Z 로 처음 부모 · 변환 직후 클릭 고르기가 산다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -44,6 +44,18 @@ for (const [name, addCall] of KINDS) {
     expect(s.errs, s.errs.join(' | ')).toEqual([]);
   });
 }
+test('변환 전부터 있던 글자도 변환 직후 B 로 들어간다 — 자식을 프레임만 묶으면 A 에 남는다', async ({ page }) => {
+  const s = await scene(page, KINDS[0][1]);
+  await page.evaluate((A) => { document.querySelector('[data-mk]').removeAttribute('data-mk'); document.getElementById(A).querySelector('.text-block').dataset.mk = '1'; }, s.A);
+  expect(await pick(page), '[전제] 클릭 고르기').toBe(true);
+  const w = await mk(page); expect(w.par, '[전제] A 안').toBe(s.A);
+  const [tx, ty] = await spot(page, s.B);
+  await drag(page, w.x, w.y, tx, ty);
+  const a = await mk(page);
+  expect(a.n, '사본·유실 없음').toBe(1);
+  expect(a.par).toBe(s.B);
+  expect(s.errs, s.errs.join(' | ')).toEqual([]);
+});
 test('음성 — 넣은 뒤 ⌘Z 를 거듭하면 처음 부모로 돌아온다', async ({ page }) => {
   const s = await scene(page, KINDS[0][1]);
   expect(await pick(page)).toBe(true);
