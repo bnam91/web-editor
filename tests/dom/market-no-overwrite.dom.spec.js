@@ -170,6 +170,8 @@ test('linkDy: 머지본은 살리고, 받기는 그대로 뺀다', async ({ page
 });
 test('받기를 두 번 눌러도 받은본은 하나다, 끝나면 단추가 다시 눌린다', async ({ page }) => {
   await open(page, data('원격 글'));
+  /* 대역은 바로 끝나 두 클릭 사이에 받기가 끝난다. 진짜 받기는 git·저장을 탄다 ⇒ 두 번째 클릭이 든 뒤에야 끝나게 묶는다 */
+  await page.evaluate(() => { const f = window.electronAPI.market.pull; let n = 0; window.__clicks = 0; document.addEventListener('click', (e) => { if (e.target.closest?.('.market-pull-btn')) window.__clicks++; }, true); window.electronAPI.market.pull = async (a) => { n++; while (n === 1 && window.__clicks < 2) await new Promise((r) => setTimeout(r, 10)); return f(a); }; });
   const b = await page.locator('.market-pull-btn').first().boundingBox();
   await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
   await saved(page);
