@@ -138,3 +138,31 @@ test('B-6 음성: 프레임 행 위에서는 안내선이 섹션 층 맨 위 프
   expect(line, '안내선 다음 = 맨 위 프레임').toBe(ids.R);
   expect(await nextOfMarked(page)).toBe(ids.R);
 });
+/* 안내선이 서기 전(rAF 전)에 놓는 장면 — dragover 의 rAF 를 멈춘 채 진짜 마우스로 놓는다 */
+async function panelDropBeforeLine(page, from, to) {
+  await page.mouse.move(from[0], from[1]); await page.mouse.down();
+  for (let i = 1; i <= STEPS; i++) { await page.mouse.move(from[0] + (to[0] - from[0]) * i / STEPS, from[1] + (to[1] - from[1]) * i / STEPS); await J.settle(page); }
+  await page.evaluate(() => { document.querySelectorAll('.layer-drop-indicator').forEach((x) => x.remove()); window.__raf = window.requestAnimationFrame; window.requestAnimationFrame = () => 0; });
+  await page.mouse.move(to[0], to[1] + 0.5);
+  expect(await page.evaluate(() => !!document.querySelector('.layer-drop-indicator')), '[전제] 안내선 없음').toBe(false);
+  await page.mouse.up();
+  await page.evaluate(() => { window.requestAnimationFrame = window.__raf; }); await J.settle(page);
+}
+test('B-6 안내선이 서기 전에 프레임 행 위에 놓아도 끝 여백 뒤로 안 가고 그 자리에 놓인다', async ({ page }) => {
+  const { ids } = await scene(page); await addBlock(page, 'addTableBlock', '.table-block', ids.sec, ids.GG); await J.settle(page);
+  const src = await page.evaluate(() => document.querySelector('[data-j294l]').id);
+  const a = await layerRowCenter(page, src); await page.mouse.click(a[0], a[1]); await J.settle(page);
+  const from = await layerRowCenter(page, src);
+  const to = await page.evaluate((id) => { const it = document.getElementById(id)._layerItem; const h = it.querySelector(':scope > .layer-row-header, :scope > .layer-row') || it; const r = h.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, ids.R);
+  await panelDropBeforeLine(page, from, to);
+  expect(await nextOfMarked(page)).toBe(ids.R);
+  expect(await page.evaluate(() => document.querySelectorAll('.layer-drop-indicator').length), '안내선이 남지 않는다').toBe(0);
+});
+test('B-6 음성: 안내선이 서기 전에 맨 끝에 놓아도 끝 여백 앞이다', async ({ page }) => {
+  const { ids } = await scene(page); await addBlock(page, 'addTableBlock', '.table-block', ids.sec, ids.GG); await J.settle(page);
+  const src = await page.evaluate(() => document.querySelector('[data-j294l]').id);
+  await layerRowCenter(page, src); const a = await layerRowCenter(page, src); await page.mouse.click(a[0], a[1]); await J.settle(page);
+  const from = await layerRowCenter(page, src); const g = await lastGapRow(page, ids.sec);
+  await panelDropBeforeLine(page, from, g.pt);
+  expect(await nextOfMarked(page)).toBe(g.id);
+});
