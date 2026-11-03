@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const FR = '.frame-block:not([data-text-frame])';
+const STEPS = 12;
 const reopen = (page) => page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.(); });
 async function scene(page, add) {
   await page.setViewportSize({ width: 1500, height: 1400 });
@@ -16,7 +17,7 @@ async function scene(page, add) {
   return { errs, F };
 }
 const rect = (page, sel) => page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
-async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(x + dx * i / 12, y + dy * i / 12); await raf(page); } await page.mouse.up(); await raf(page); }
+async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + dx * i / STEPS, y + dy * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 async function pick(page, sel) { for (let i = 0; i < 5; i++) { if (await page.evaluate((s) => document.querySelector(s).classList.contains('selected'), sel)) return true; const b = await rect(page, sel); await page.mouse.click(b.x, b.y); await raf(page); } return false; }
 
 for (const [kind, add] of [['chat', 'addChatBlock'], ['coupon', 'addCouponBlock'], ['quote', 'addQuoteBlock'], ['radial', 'addRadialBlock'], ['laurel', 'addLaurelBlock'], ['qa', 'addQABlock'], ['table(음성 · 전부터 정상)', 'addTableBlock']]) {

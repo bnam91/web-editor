@@ -4,6 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const FR = '.frame-block:not([data-text-frame])';
+const STEPS = 12;
 const reopen = (page) => page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.(); });
 async function scene(page, addCall) {
   await page.setViewportSize({ width: 1500, height: 1400 });
@@ -26,7 +27,7 @@ async function scene(page, addCall) {
 const mk = (page) => page.evaluate((FR) => { const e = document.querySelector('[data-mk]'); const r = e.getBoundingClientRect(); return { n: document.querySelectorAll('[data-mk]').length, x: r.left + r.width / 2, y: r.top + r.height / 2, par: e.parentElement.closest(FR)?.id, sel: e.classList.contains('selected') }; }, FR);
 const pick = async (page) => { for (let i = 0; i < 5; i++) { const w = await mk(page); if (w.sel) return true; await page.mouse.click(w.x, w.y); await raf(page); } return (await mk(page)).sel; };
 const spot = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.bottom - 8]; }, id);
-async function drag(page, x, y, tx, ty) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(x + (tx - x) * i / 12, y + (ty - y) * i / 12); await raf(page); } await page.mouse.up(); await raf(page); }
+async function drag(page, x, y, tx, ty) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + (tx - x) * i / STEPS, y + (ty - y) * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 const KINDS = [['에셋', { sel: '.asset-block', fn: 'addAssetBlock' }], ['글자', { sel: '.text-block', fn: 'addTextBlock', arg: 'body' }]];
 
 for (const [name, addCall] of KINDS) {
