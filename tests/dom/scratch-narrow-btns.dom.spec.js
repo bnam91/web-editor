@@ -3,7 +3,7 @@
  * 칸: F 문턱 · C 가운데 누름 · O 옆 그림 자리 · K 숨긴 동안 Delete·⌘X · L 숨긴 동안 ⌘L · G 그룹 진입 우클릭 · Z 손을 올린 채 배율 · W [음성] 넓으면 단추 그대로
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 
 const BTN = ['.scratch-ai-btn', '.scratch-close', '.scratch-slice-btn', '.spl-btns'];
 const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)))));
@@ -12,11 +12,12 @@ const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimation
 async function setup(page, { zoom = 40, w = 100, kind = '일반' } = {}) {
   await page.setViewportSize({ width: 1800, height: 1100 });
   const errs = await bootApp(page);
+  await page.evaluate((z) => window.applyZoom(z), zoom);
+  await waitZoomSettled(page, zoom);   // ★전환이 멎은 뒤에 스크롤한다
   await page.evaluate(async ([zoom, w, kind]) => {
     const c = document.createElement('canvas'); c.width = 600; c.height = 400; c.getContext('2d').fillRect(0, 0, 600, 400);
     const src = c.toDataURL('image/png');
     await window.addSection();
-    window.applyZoom(zoom);
     await window.initScratchPad('proj_nb', window.state.currentPageId);
     await window._scratchAddAndSave(src, 1000, 100, 300, undefined, 'B');
     await window._scratchAddAndSave(src, 1320, 100, w, kind === '그룹' ? 'g1' : undefined, 'A');

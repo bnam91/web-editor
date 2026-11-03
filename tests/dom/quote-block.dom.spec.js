@@ -52,7 +52,7 @@
  *   ★살아남은 것 = 「★★빈 줄은 건너뛴다」 ★하나다(M1 이 그 자리를 그대로 잡는다).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/quote-block.dom.spec.js */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 /** 앱 ＋ 섹션 하나. 블럭은 ★앱 함수로 만든다. */
@@ -79,8 +79,9 @@ async function scene(page, opts = {}) {
     window.__qt = [...document.querySelectorAll('#sQ .quote-block')].pop();
     window.buildLayerPanel && window.buildLayerPanel();
     window.deselectAll && window.deselectAll();
-    window.__qt && window.__qt.scrollIntoView({ block: 'center' });
   }, opts);
+  await waitZoomSettled(page, 100);   // ★전환이 멎은 뒤에 스크롤한다
+  await page.evaluate(() => window.__qt && window.__qt.scrollIntoView({ block: 'center' }));
   await page.waitForFunction(() => !!window.__qt && window.__qt.isConnected, null, { timeout: 5000 });
 }
 

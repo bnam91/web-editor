@@ -9,13 +9,14 @@
  * 하네스 = _root-harness bootApp(앱 통째 헤드리스, ⛔Electron 아님).
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page) {
   await page.setViewportSize({ width: 1600, height: 1100 });
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   await bootApp(page);
+  await waitZoomSettled(page, 40);   // ★부트의 applyZoom(40) 전환이 멎은 뒤에 장면을 세운다 — 전환 중 scrollIntoView 는 그림을 패널·덮개 밑에 떨군다
   await page.evaluate(() => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="gS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" data-padding-x="40" style="padding-left:40px;padding-right:40px">
@@ -34,8 +35,9 @@ async function setZoom(page, z) {
   await page.evaluate((z) => {
     if (typeof window.applyZoom === 'function') window.applyZoom(z);
     else { document.getElementById('canvas-scaler').style.transform = `scale(${z / 100})`; window.currentZoom = z; }
-    document.getElementById('gS').scrollIntoView({ block: 'start' });
   }, z);
+  await waitZoomSettled(page, z);   // ★전환이 멎은 뒤에 스크롤한다
+  await page.evaluate(() => document.getElementById('gS').scrollIntoView({ block: 'start' }));
   await page.waitForTimeout(350);
   /* ★줌 전제 «먼저» — 스케일러 행렬이 정말 그 배율인가(transition 이 끝났나). */
   const sc = await page.evaluate(() => {
