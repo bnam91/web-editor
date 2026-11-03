@@ -19,8 +19,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   trashList:      ()        => ipcRenderer.invoke('trash:list'),
   trashRestore:   (id)      => ipcRenderer.invoke('trash:restore', id),
   trashPurge:     (id)      => ipcRenderer.invoke('trash:purge', id),
-  duplicateProject: ({ sourceProjectId, newName }) =>
-    ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
+  /* sourceData = 내용만 그것으로 바꾼 복제(마켓 머지 · main.js _duplicateProjectImpl 머리글). 빼면 머지본이 원본 내용으로 저장된다 */
+  duplicateProject: ({ sourceProjectId, newName, sourceData }) =>
+    ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName, sourceData }),
 
   /* ── 프로젝트 폴더 (T-A, 2026-09-16) ── main/folders.js 머리글 참조.
      ★폴더는 «가상» — 여기서 디스크 디렉터리를 옮기지 않는다, meta 의 folderId 필드만 바꾼다. */

@@ -58,7 +58,8 @@
     } catch (_) {}
     const newId = 'proj_' + Date.now();
     // Phase 2: 받은 시점의 마켓 버전을 marketRef로 박제 → 이후 "내 복사본이 최신인지" 비교 근거
-    const proj = { id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)', ...parsed,
+    /* ⛔id·name 은 ...parsed 뒤에 둔다 — 앞에 두면 받은 data 의 id 가 이겨 그 id 의 로컬 프로젝트를 덮는다(S3 market). 시험: tests/dom/market-no-overwrite.dom.spec.js */
+    const proj = { ...parsed, id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)',
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const saved = await window.electronAPI.saveProject(proj);
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
@@ -71,13 +72,29 @@
     else _toast('❌ 저장 실패');
   }
 
+  /* 머지본 스크래치 = L 의 것 + 원격 것(페이지·id 기준, 겹치면 L). canvas refLinks 토큰이 어느 쪽 섹션에서 왔든 항목을 찾게 한다. */
+  async function _copyMergedScratch(newId, localId, pageIds, remoteScratch) {
+    const mine = (await window._scratchExportAll?.(localId, pageIds)) || [];
+    let theirs = remoteScratch;
+    if (typeof theirs === 'string') theirs = JSON.parse(theirs);
+    const byPage = new Map(mine.map(b => [b.pageId, [...b.items]]));
+    for (const b of Array.isArray(theirs) ? theirs : []) {
+      const items = byPage.get(b.pageId) || [];
+      const seen = new Set(items.map(i => i.id));
+      for (const it of b.items || []) if (!seen.has(it.id)) items.push(it);
+      byPage.set(b.pageId, items);
+    }
+    await window._scratchImportAll?.(newId, [...byPage].map(([pageId, items]) => ({ pageId, items })));
+  }
+
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   // Phase 4b: 인터랙티브 resolve 모달 빌더 — 섹션별 [내것/원격/둘다] → applyResolve → 새 머지 프로젝트로 원자 저장(원본 불변).
   // 데이터 fetch와 분리(테스트 가능). saveFn 주입(기본 electronAPI.saveProject).
   function buildResolveModal(meta, local, remoteData, saveFn) {
     if (!window.marketMerge) { _toast('⚠️ 머지 엔진 없음 (앱 재시작 필요)'); return; }
-    saveFn = saveFn || (p => window.electronAPI.saveProject(p));
+    /* 머지본은 원본 L 의 에셋을 쓴다. goya-asset URL 이 hostname 에 프로젝트 id 를 박으니 saveProject 로 새 id 에 저장하면 L 을 지울 때 이미지·패널·갤러리가 깨진다 ⇒ 복제 길(에셋 하드링크·URL 재매핑·날짜)을 탄다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
+    saveFn = saveFn || (p => window.electronAPI.duplicateProject({ sourceProjectId: local.id, newName: p.name, sourceData: p }));
     const { account, id, name } = meta;
     const diverged = window.marketMerge.diffProjects(local, remoteData).sections.filter(s => s.status !== 'same');
     if (!diverged.length) { _toast('변경점 없음 — 로컬이 최신과 동일'); return; }
@@ -108,9 +125,14 @@
       // 체크된 radio를 직접 순회(키에 '::' 포함 → 셀렉터 이스케이프 회피). name = 'r-'+key.
       ov.querySelectorAll('#rsv-list input[type=radio]:checked').forEach(r => { choices[r.name.slice(2)] = r.value; });
       const parsed = JSON.parse(window.marketMerge.applyResolve(local, remoteData, choices));
-      const proj = { id: 'proj_' + Date.now(), name: (name || '머지') + ' (머지)', ...parsed,
+      /* id 를 ...parsed 에서 안 쓴다 — applyResolve 는 local(id·name 있음)을 복사한다. 새 id 는 복제 길이 정한다(S3 market). */
+      const proj = { ...parsed, name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
       const saved = await saveFn(proj);
+      if (saved?.newProjectId) {
+        try { await _copyMergedScratch(saved.newProjectId, local.id, (proj.pages || []).map(p => p.id), meta.scratch); }
+        catch (e) { console.warn('[market] 머지본 스크래치 복사 실패:', e.message); }
+      }
       ov.remove();
       _toast(saved?.ok !== false ? `✅ 머지 완료 — 홈에서 "${proj.name}" 열기` : '❌ 저장 실패');
     };
@@ -124,7 +146,7 @@
     let remoteData; try { remoteData = JSON.parse(res.project.data); } catch { _toast('❌ 원격 데이터 손상'); return; }
     const local = await window.electronAPI.loadProject(localProjId);
     if (!local || !local.pages) { _toast('❌ 로컬 프로젝트 로드 실패'); return; }
-    buildResolveModal({ account, id, name, version: res.project.version, updatedAt: res.project.updatedAt }, local, remoteData);
+    buildResolveModal({ account, id, name, version: res.project.version, updatedAt: res.project.updatedAt, scratch: res.project.scratch }, local, remoteData);
   }
   window.marketOpenResolve = openResolveModal;
   window.marketBuildResolveModal = buildResolveModal;
