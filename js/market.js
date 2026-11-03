@@ -72,6 +72,21 @@
     else _toast('❌ 저장 실패');
   }
 
+  /* 머지본 스크래치 = L 의 것 + 원격 것(페이지·id 기준, 겹치면 L). canvas refLinks 토큰이 어느 쪽 섹션에서 왔든 항목을 찾게 한다. */
+  async function _copyMergedScratch(newId, localId, pageIds, remoteScratch) {
+    const mine = (await window._scratchExportAll?.(localId, pageIds)) || [];
+    let theirs = remoteScratch;
+    if (typeof theirs === 'string') theirs = JSON.parse(theirs);
+    const byPage = new Map(mine.map(b => [b.pageId, [...b.items]]));
+    for (const b of Array.isArray(theirs) ? theirs : []) {
+      const items = byPage.get(b.pageId) || [];
+      const seen = new Set(items.map(i => i.id));
+      for (const it of b.items || []) if (!seen.has(it.id)) items.push(it);
+      byPage.set(b.pageId, items);
+    }
+    await window._scratchImportAll?.(newId, [...byPage].map(([pageId, items]) => ({ pageId, items })));
+  }
+
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   // Phase 4b: 인터랙티브 resolve 모달 빌더 — 섹션별 [내것/원격/둘다] → applyResolve → 새 머지 프로젝트로 원자 저장(원본 불변).
@@ -114,6 +129,10 @@
       const proj = { ...parsed, name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
       const saved = await saveFn(proj);
+      if (saved?.newProjectId) {
+        try { await _copyMergedScratch(saved.newProjectId, local.id, (proj.pages || []).map(p => p.id), meta.scratch); }
+        catch (e) { console.warn('[market] 머지본 스크래치 복사 실패:', e.message); }
+      }
       ov.remove();
       _toast(saved?.ok !== false ? `✅ 머지 완료 — 홈에서 "${proj.name}" 열기` : '❌ 저장 실패');
     };
@@ -127,7 +146,7 @@
     let remoteData; try { remoteData = JSON.parse(res.project.data); } catch { _toast('❌ 원격 데이터 손상'); return; }
     const local = await window.electronAPI.loadProject(localProjId);
     if (!local || !local.pages) { _toast('❌ 로컬 프로젝트 로드 실패'); return; }
-    buildResolveModal({ account, id, name, version: res.project.version, updatedAt: res.project.updatedAt }, local, remoteData);
+    buildResolveModal({ account, id, name, version: res.project.version, updatedAt: res.project.updatedAt, scratch: res.project.scratch }, local, remoteData);
   }
   window.marketOpenResolve = openResolveModal;
   window.marketBuildResolveModal = buildResolveModal;
