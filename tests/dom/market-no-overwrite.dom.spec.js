@@ -181,3 +181,37 @@ test('받기를 두 번 눌러도 받은본은 하나다, 끝나면 단추가 �
   await page.locator('.market-pull-btn').first().click();
   await expect.poll(() => page.evaluate(() => window.__saved.length)).toBe(2);
 });
+test('받기: 스크래치를 못 옮기면 성공 토스트 대신 알린다, 받은본은 저장된다', async ({ page }) => {
+  await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_r', src: 'data:image/png;base64,R', x: 1, y: 1, w: 9 }] }]); await toasts(page); await armAbort(page);
+  await page.locator('.market-pull-btn').first().click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (받음)" 열기']);
+});
+test('음성 받기: 스크래치가 잘 오면 성공 토스트다', async ({ page }) => {
+  await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_r', src: 'data:image/png;base64,R', x: 1, y: 1, w: 9 }] }]); await toasts(page);
+  await page.locator('.market-pull-btn').first().click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['✅ 받기 완료 — 홈에서 "원격 이름 (받음)" 열기']);
+});
+async function resolveScene(page, picks) {
+  const lc = sec('내 글') + sec('내것만').replace('id="sec_a"', 'id="sec_x" data-ref-links="s_1:0"').replace('id="t_a"', 'id="t_x"');
+  const rc = sec('원격 글') + sec('원격만').replace('id="sec_a"', 'id="sec_y"').replace('id="t_a"', 'id="t_y"');
+  await open(page, { ...data('x'), pages: [{ id: 'p1', name: 'p', canvas: rc }] }, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,REMOTE', x: 1, y: 1, w: 9 }] }], lc);
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,LOCAL', x: 3, y: 3, w: 9 }] }]), LOCAL);
+  await page.locator('.market-merge-btn').first().click();
+  await page.evaluate((picks) => { for (const [s, v] of picks) { const e = [...document.querySelectorAll('#rsv-list input[type=radio]')].find((x) => x.name.endsWith('::' + s) && x.value === v); if (e) e.checked = true; } }, picks);
+  await page.locator('#rsv-apply').click();
+  const p = await saved(page);
+  return { y: body(p).includes('id="sec_y"'), x: body(p).includes('id="sec_x"'), a: body(p).includes('id="sec_a"') };
+}
+test('무시·삭제: 새 섹션 무시와 지운 섹션 삭제가 먹는다', async ({ page }) => {
+  expect(await resolveScene(page, [['sec_y', 'mine'], ['sec_x', 'theirs']])).toEqual({ y: false, x: false, a: true });
+});
+test('음성 무시·삭제: 받기·유지면 둘 다 남고, 기본도 둘 다 남는다, 내 섹션 토큰은 그대로다', async ({ page }) => {
+  expect(await resolveScene(page, [['sec_y', 'theirs'], ['sec_x', 'mine']])).toEqual({ y: true, x: true, a: true });
+  const p = await page.evaluate(() => window.__saved[0]);
+  expect(body(p)).toContain('data-ref-links="s_1:0"');
+});
+test('음성 무시·삭제: 안 고르면 기본(받기·유지)으로 둘 다 남는다', async ({ page }) => {
+  expect(await resolveScene(page, [])).toEqual({ y: true, x: true, a: true });
+});

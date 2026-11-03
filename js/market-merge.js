@@ -130,7 +130,8 @@
         if (c === 'both') { if (inL) out.push(lById[id].outerHTML); if (inR) out.push(_reId(rById[id].outerHTML, parser)); }
         else if (c === 'theirs' && inR) out.push(rById[id].outerHTML);
         else if (c === 'mine' && inL) out.push(lById[id].outerHTML);
-        else out.push((inL ? lById[id] : rById[id]).outerHTML);
+        /* 없는 쪽을 고른 것 = 새 섹션 무시(mine, 내게 없음)·지운 섹션 삭제(theirs, 원격에 없음) ⇒ 안 넣는다. 옛 판은 둘 다 남겼다(S3 market5 앱 값). */
+        else if (c !== 'mine' && c !== 'theirs') out.push((inL ? lById[id] : rById[id]).outerHTML);
       }
       base.canvas = out.join('');
       return base;
