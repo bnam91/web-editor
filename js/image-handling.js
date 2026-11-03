@@ -723,7 +723,9 @@ function setAssetVideoFromSrc(ab, src) {
 /* 그림이 안 뜬 칸 표시 — 인라인 onerror 는 열 때 sanitizeCanvasHtml 이 지워 못 쓴다(error 는 안 올라와 캡처로 받는다). 직렬화가 벗긴다(section-serialize.js). */
 document.addEventListener('error', (e) => {
   const i = e.target;
-  if (i?.classList?.contains('asset-img')) { i.classList.add('asset-img-failed'); i.alt = '이미지 로드 실패'; }
+  if (!i?.classList?.contains('asset-img')) return;
+  i.classList.add('asset-img-failed');
+  if (!i.hasAttribute('alt')) { i.alt = '이미지 로드 실패'; i.classList.add('asset-img-failed-alt'); }   // 옛 저장본에 박힌 alt 는 문서 내용이라 직렬화가 안 벗긴다
 }, true);
 
 function setAssetImageFromSrc(ab, src, motionSrc) {
