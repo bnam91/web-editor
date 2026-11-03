@@ -152,3 +152,50 @@ for (const [keyName, key] of [['Delete', 'Delete'], ['⌘X', 'Meta+x']]) {
     });
   }
 }
+
+/* ── 다른 입구: 레이어 패널 · 스티커 키 (보호 검사 없이 지우던 것 넷, 앱 3/3) ── */
+async function varScene(page, prot) {
+  await page.setViewportSize({ width: 1500, height: 1400 });
+  const errs = await bootApp(page);
+  await page.evaluate(async (prot) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection(); const a = [...c.querySelectorAll('.section-block')].pop(); await window.addSection();
+    window.createVariation(a);
+    if (prot) document.querySelectorAll('#canvas .section-block[data-variation-group]').forEach((s) => window.setSectionProtected(s.id, true));
+    window.buildLayerPanel();
+    window.__toasts = []; const o = window.showToast; window.showToast = function (m) { window.__toasts.push(String(m)); return o?.apply(this, arguments); };
+  }, prot);
+  return errs;
+}
+const SEC_TOAST = '🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요';
+const secCount = (page) => page.evaluate(() => ({ n: document.querySelectorAll('#canvas .section-block').length, t: window.__toasts }));
+for (const [name, sel, after] of [['변형안 ×', '.layer-variant-del', 2], ['그룹 ×', '.layer-variation-del', 1], ['✓ 확정', '.layer-variation-resolve', 2]]) {
+  test(`V ${name} — 보호면 그대로 · 토스트`, async ({ page }) => {
+    const errs = await varScene(page, true);
+    expect((await secCount(page)).n, '[전제] 섹션 셋').toBe(3);
+    await page.click(sel, { force: true }); await raf(page);
+    expect(await secCount(page), '★보호 변형안이 지워졌다').toEqual({ n: 3, t: [SEC_TOAST] });
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+  test(`VN [음성] ${name} — 미보호면 지워진다 · 토스트 없음`, async ({ page }) => {
+    const errs = await varScene(page, false);
+    await page.click(sel, { force: true }); await raf(page);
+    expect(await secCount(page)).toEqual({ n: after, t: [] });
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+for (const [prot, name] of [[true, '보호면 그대로 · 토스트'], [false, '[음성] 미보호면 지워진다']]) {
+  for (const [keyName, key] of [['Delete', 'Delete'], ['⌘X', 'Meta+x']]) {
+    test(`K 스티커 ${keyName} — ${name}`, async ({ page }) => {
+      const s = await scene(page, { prot });
+      await page.evaluate(async (sec) => { window.deselectAll(); window.selectSection(document.getElementById(sec)); await window.addStickerBlock({}); window.deselectAll(); }, s.sec);
+      const b = await page.evaluate(() => { const r = document.querySelector('#canvas .sticker-block').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+      await page.mouse.click(b[0], b[1]); await raf(page);
+      expect(await page.evaluate(() => document.querySelector('#canvas .sticker-block').classList.contains('selected')), '[전제] 스티커 골림').toBe(true);
+      await page.keyboard.press(key); await raf(page);
+      const r = await page.evaluate(() => ({ n: document.querySelectorAll('#canvas .sticker-block').length, t: window.__toasts }));
+      expect(r, prot ? '★보호 섹션 스티커가 지워졌다' : '').toEqual(prot ? { n: 1, t: [TOAST] } : { n: 0, t: [] });
+      expect(s.errs, s.errs.join(' | ')).toEqual([]);
+    });
+  }
+}

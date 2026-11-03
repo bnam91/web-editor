@@ -1469,7 +1469,7 @@ function duplicateSelected() {
          laurel·joker·speech-bubble 이 빠져 있다(MULTI_SEL 에는 있다). 별건으로 남긴다. */
     '.zoom-block.selected'
   );
-  const selSS = document.querySelector('.frame-block.selected:not([data-text-frame])');
+  const selSS = window._leafSelFrames?.()[0] || document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');
 
   // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
@@ -1617,13 +1617,18 @@ function claimInternalClipboard(text) {
 }
 window.claimInternalClipboard = claimInternalClipboard;
 
+/* 고른 프레임 중 고른 프레임을 품지 않은 것(문서 순서). 바깥을 집으면 안쪽을 골랐는데 바깥 나무가 지워지고 복사된다. */
+function _leafSelFrames() {
+  const frs = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')];
+  return frs.filter(f => !frs.some(o => o !== f && f.contains(o)));
+}
+
 /* ★294 t9-03(미카사 J294G) — 프레임 여럿을 고르면 복사·삭제 단위가 «첫 프레임 하나»였다(document.querySelector). 자유 프레임 안 자식을 ⇧로 더 고르면 부모도 .selected 라
    «부모»가 첫째가 되어, 고른 자식 대신 부모 통째가 자기 안에 복사되거나(앱 실측 3/3: 4→8) 부모째 지워졌다. 맨 위 프레임 둘은 첫째만 복사됐다.
    ⇒ 프레임이 둘 이상 골라졌으면(자손을 품은 조상은 맥락이라 뺀다) 그 묶음을 돌려준다 · 아니면 null(여태 길).
    ★부모가 달라도 묶음이다(현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」 — 자리 규칙은 _pastePickedFrames). ⛔오버레이는 null. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
 function _pickedFrames() {
-  const frs = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')];
-  const picked = frs.filter(f => !frs.some(o => o !== f && f.contains(o)));
+  const picked = _leafSelFrames();
   if (picked.length < 2 || picked.some(f => f.dataset.overlayBlock === 'true')) return null;
   return picked;
 }
@@ -1648,6 +1653,7 @@ function _deletePickedFrames() {
   pushHistory('서브섹션 삭제');
   return true;
 }
+window._leafSelFrames = _leafSelFrames;
 window._deletePickedFrames = _deletePickedFrames;
 
 function copySelected() {
@@ -1723,7 +1729,7 @@ function copySelected() {
   const selBlock   = allSel[0] || null;
   const selShape   = selBlock?.classList.contains('shape-block') ? selBlock : null;
   const selNormal  = selShape ? null : selBlock;
-  const selSS      = document.querySelector('.frame-block.selected');
+  const selSS      = _leafSelFrames()[0] || document.querySelector('.frame-block.selected');
   const selRow     = document.querySelector('.row.row-active');
   const selSection = document.querySelector('.section-block.selected');
 
@@ -3771,7 +3777,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 서브섹션 selected → row 단위로 삭제 (부모 섹션 삭제 방지)
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     if (window._deletePickedFrames?.()) { consumed = true; return consumed; }   // ★294 — 자식 둘 ⌫ 가 부모째 지우던 것(_pickedFrames)
-    const selSS = document.querySelector('.frame-block.selected');
+    const selSS = window._leafSelFrames?.()[0] || document.querySelector('.frame-block.selected');   // 바깥·안쪽이 같이 골렸으면 안쪽
     /* 보호 섹션 프레임은 이 단독 삭제 갈래를 안 탄다 — 먼저 지우고 return 하면 아래 A13 막음이 안 닿아 프레임·글자가 토스트 없이 지워졌다. */
     if (selSS && !window.isSectionProtected?.(selSS.closest('.section-block'))) {
       /* ★`.shape-block.selected` 가 빠져 있었다(2026-09-20 QA 실측) — 도형은 자기 래퍼
@@ -3792,7 +3798,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
          ⇒ 프레임이 «혼자» 골라졌을 때만(=M3 회귀 보존) 이 갈래를 타고, 섞였으면 아래
            일괄 삭제로 흘려보낸다(거기서 이 프레임도 «같이» 지워진다). */
       const _selOutsideSS = [...canvasEl.querySelectorAll(SECTION_BLOCK_TYPE_SEL_SELECTED + ', .frame-block.selected')]
-        .some(el => el !== selSS && !selSS.contains(el));
+        .some(el => el !== selSS && !selSS.contains(el) && !el.contains(selSS));
       if (!ssHasSelectedChild && !_selOutsideSS) {
         consumed = true;
         /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).
@@ -3817,7 +3823,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        ⚠️«자식이 골라진» 프레임은 뺀다 — 그건 「프레임은 두고 안의 블록만 지운다」는 기존 규약이고
          도형 래퍼 프레임도 그 꼴이다(래퍼는 allSelShapes 경로가 이미 줄째 지운다). */
     const allSelFrames = [...document.querySelectorAll('.frame-block.selected')]
-      .filter(f => !f.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED));
+      .filter(f => !f.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED) && !f.querySelector('.frame-block.selected:not([data-text-frame])'));
     if (allSelShapes.length > 0 || allSelBlocks.length > 0 || allSelFrames.length > 0) {
       consumed = true;
       // A13: 보호섹션(메모 '삭제하지말것' 등) 내부 블록/도형 삭제 우회 차단.

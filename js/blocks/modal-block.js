@@ -758,6 +758,8 @@ function renderModalBlock(block) {
   /* ★판정은 needsBgLayer «한 자리»(js/bg-layer.js) — ⛔제 벌 조건(bgImg·회전)을 따로 붙이지 마라.
      ★이 자리는 «영구 자리»다(tests/unit/bg-layer-guard.test.mjs 부류 표 · needs ? ensure : remove 짝). */
   const _bgLayerOn = needsBgLayer(block);
+  // 자유 프레임 자리도 cssText 가 지운다 — 아래 오버레이 갈래와 같은 꼴로 다시 얹는다(drag-utils keepFreePos 와 같은 뜻 · 단위 시험이 import 를 떼고 이 파일을 싣는다).
+  const _freePos = block.style.position === 'absolute' ? { left: block.style.left, top: block.style.top, width: block.style.width } : null;
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + (wMode === 'fixed' ? `width:${_frozenW || _num(block, 'width', MODAL_DEFAULTS.width) + 'px'};max-width:100%;margin-left:auto;margin-right:auto;` : `width:${_frozenW || '100%'};`)
     + (hMode === 'fixed' ? `min-height:${_num(block, 'height', MODAL_DEFAULTS.height)}px;` : '')
@@ -820,6 +822,7 @@ function renderModalBlock(block) {
      ⚠️★근본은 ★cssText 통째 쓰기다 · ㉮ 는 ★«지운 뒤 다시 얹기»라, ★지워지는 것이 또 생기면 ★또 빠진다 · ★T11 과 같은 병.
        (오버레이 진입이 얹는 인라인 = position · left · top · width · max-width · margin-left/right — 무엇이 지워지는지는
         tests/dom/w2c-1020t2 F4b 의 lost 명부가 잰다.) */
+  if (_freePos) { block.style.position = 'absolute'; block.style.left = _freePos.left; block.style.top = _freePos.top; if (!block.style.width) block.style.width = _freePos.width; }
   if (block.dataset.overlayBlock === 'true') {
     block.style.position = 'absolute';
     block.style.left = (parseInt(block.dataset.offsetX, 10) || 0) + 'px';
