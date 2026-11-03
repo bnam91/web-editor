@@ -46,7 +46,8 @@ async function setup(page) {
 /* 진짜 스크래치 아이템(진짜 scratch-pad.js) + 원본 섹션에 링크 — 그리고 «전제»를 단언한다 */
 async function seedLinked(page) {
   const id = await page.evaluate(async (px) => {
-    await window._scratchAddAndSave(px, 20, 300, 120);
+    /* 폭 300 · 캔버스 오른쪽 — 좁은 그림은 단추를 숨겨(247) 누름이 진짜 끌기가 되고, 섹션 위에 놓으면 캔버스로 옮겨진다(기능). TL2 는 «옮겨지지 않는 끌기»를 잰다. */
+    await window._scratchAddAndSave(px, 1600, 300, 300);
     const el = [...document.querySelectorAll('.scratch-item')].pop();
     const sid = el.dataset.scratchId;
     window.SPLink.addLink('sOrig', sid);
@@ -148,10 +149,12 @@ test('TL2 ★스크래치 아이템은 «원본»만 따라간다 — 앞 섹션
   expect(Math.round(y1 - y0), '★링크가 살아 있다면 아이템은 원본을 따라 100px 내려간다').toBe(100);
 
   /* 진짜 마우스로 스크래치 아이템을 끈다 → 원본 기준 오프셋이 재앵커될 뿐, 새 섹션엔 아무 일도 없다 */
-  const pt = await page.evaluate((sid) => { const el = window._scratchItemById(sid).el; el.scrollIntoView({ block: 'center', inline: 'center' }); const r = el.getBoundingClientRect(); return [r.left + 14, r.top + 14]; }, sid);
+  const pt = await page.evaluate((sid) => { const el = window._scratchItemById(sid).el; el.scrollIntoView({ block: 'center', inline: 'center' }); const r = el.getBoundingClientRect(); return [r.left + r.width * 0.25, r.top + r.height * 0.75]; }, sid);
+  const yBefore = await page.evaluate((sid) => window._scratchItemById(sid).y, sid);
   await page.mouse.move(pt[0], pt[1]); await page.mouse.down();
   for (let i = 1; i <= 6; i++) await page.mouse.move(pt[0], pt[1] + i * 6);
   await page.mouse.up(); await page.waitForTimeout(200);
+  expect(await page.evaluate((sid) => window._scratchItemById(sid)?.y, sid), '★전제 — 아이템이 진짜 끌렸다(단추가 받으면 안 움직인다)').toBeGreaterThan(yBefore);
   const s = await snap(page, sid);
   const news = s.secs.filter((x) => x.name === 'SP1-따라감');
   expect(news.length).toBe(2);
