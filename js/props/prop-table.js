@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { parseRatio, noticeRatioCoerced, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
@@ -731,9 +731,14 @@ ${blockHeaderHTML({
   const ratioInput = document.getElementById('tbl-col-ratio');
   ratioInput?.addEventListener('change', e => {
     const raw = e.target.value;
+    const cols = _tblLogicalColCount(table);
+    if (raw.trim() && !parseRatioStrict(raw, cols)) {   // 거절 — 값·이력 그대로(현빈 결정 11-03)
+      noticeRatioRejected(raw, cols);
+      e.target.value = block.dataset.colWidths || curColRatio;
+      return;
+    }
     _applyColRatio(block, raw);
     e.target.value = block.dataset.colWidths || '';
-    noticeRatioCoerced(raw, e.target.value);
     window.pushHistory();
     window.scheduleAutoSave?.();
   });
