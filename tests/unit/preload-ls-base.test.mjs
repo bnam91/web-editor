@@ -21,3 +21,9 @@ test('동기 저장 성공 → 표시가 그 판', () => { const { api, store } 
 test('[음성] 저장 실패 → 표시 그대로', async () => { const { api, store } = load({ ok: false }); await api.saveProject(P); api.saveProjectSync(P); assert.equal(store.has(KEY), false); });
 test('숫자 updatedAt 은 글자로', async () => { const { api, store } = load({ ok: true }); await api.saveProject({ id: 'p1', updatedAt: 123 }); assert.equal(store.get(KEY), '123'); });
 test('답은 그대로 돌려준다', async () => { const { api } = load({ ok: true, x: 1 }); assert.deepEqual({ ...(await api.saveProject(P)) }, { ok: true, x: 1 }); assert.deepEqual({ ...api.saveProjectSync(P) }, { ok: true, x: 1 }); });
+
+/* ★340 — 이름 바꾸기도 파일 판을 올린다. 안 옮기면 다음 열기에 복구본이 지워진다(앱 값은 회신). */
+test('이름 바꾸기 성공 → 표시가 본 프로세스가 준 판', async () => { const { api, store } = load({ ok: true, updatedAt: 'U2' }); await api.renameProject({ projectId: 'p1', name: 'n' }); assert.equal(store.get(KEY), 'U2'); });
+test('[음성] 이름 바꾸기 실패 → 표시 그대로', async () => { const { api, store } = load({ ok: false, error: 'x' }); await api.renameProject({ projectId: 'p1', name: 'n' }); assert.equal(store.has(KEY), false); });
+test('[음성] 같은 이름(판 안 오름) → 표시 그대로', async () => { const { api, store } = load({ ok: true, changed: false }); await api.renameProject({ projectId: 'p1', name: 'n' }); assert.equal(store.has(KEY), false); });
+test('이름 바꾸기 답은 그대로 돌려준다', async () => { const { api } = load({ ok: true, updatedAt: 'U2', x: 1 }); assert.equal((await api.renameProject({ projectId: 'p1', name: 'n' })).x, 1); });

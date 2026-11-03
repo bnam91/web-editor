@@ -329,7 +329,8 @@ function _isAllCanvasEmpty(data) {
 async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
-  if (!targetId) return;
+  /* ★340 C — «명시 반환». undefined 는 _isSaveFailure 가 못 잡아 저장을 안 했는데 미저장 표시가 꺼졌다. */
+  if (!targetId) return { ok: false, reason: 'no_target' };
   // S4: 손상된 JSON 안전 처리
   let data;
   try {
@@ -439,10 +440,17 @@ async function setProjectName(name) {
   if (!activeProjectId) return;
   // 탭 이름 업데이트
   const tab = openTabs.find(t => t.id === activeProjectId);
+  const oldName = tab ? tab.name : null;
   if (tab) { tab.name = name; window.renderTabBar(); }
   if (IS_ELECTRON) {
-    const proj = await window.electronAPI.loadProject(activeProjectId);
-    if (proj) { proj.name = name; proj.updatedAt = new Date().toISOString(); await window.electronAPI.saveProject(proj); }
+    /* ★340 B — 본 프로세스가 한 틱에 읽고 쓴다(main.js projects:rename). ⛔여기서 왕복하지 마라. */
+    let r = null;
+    try { r = await window.electronAPI.renameProject({ projectId: activeProjectId, name }); }
+    catch (e) { r = { ok: false, error: e && e.message }; }
+    if (!r || r.ok !== true) {
+      if (tab && tab.name === name) { tab.name = oldName; window.renderTabBar(); }
+      window.showToast?.(`⚠️ 이름을 바꾸지 못했습니다: ${(r && r.error) || '알 수 없는 오류'}`);
+    }
   } else {
     const list = loadProjectsList();
     const proj = list.find(p => p.id === activeProjectId);
