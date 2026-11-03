@@ -2504,7 +2504,8 @@ function initApp() {
     //   엘리먼트가 style/layout pass를 못 받아 컴포지터에 안 올라가 실패했다(실측: 105MB서 진입~+13s 미표시).
     //   ▶정적 오버레이라 첫 레이아웃에 포함→첫 프레임에 present, 이후 블로킹 동안 컴포지터가 transform
     //     스피너를 계속 회전. JS는 로드 완료/실패 시 닫기만 한다(정적 오버레이는 기본 표시라 항상 닫아야 함).
-    const _endLoadingOverlay = () => { window.hideProjectLoadingOverlay?.(); };
+    // ★363 — 입력을 막는 동안은 덮개도 둔다. 풀 때 load-input-gate 가 닫는다(적용 뒤 무장까지 큰 판은 수 초).
+    const _endLoadingOverlay = () => { if (!window.LoadInputGate?.isOn()) window.hideProjectLoadingOverlay?.(); };
     // BL-CDD-08: initLoad는 무거운 프로젝트에서 수 초를 await하는데, 그 사이 CDP 워커/탭 전환이
     // activeProjectId를 바꾸면 아래 apply가 "예전 프로젝트의 DOM"을 새 활성 프로젝트 위에 그리고,
     // 이어지는 autosave가 그 DOM을 새 프로젝트 파일에 저장해 덮어쓴다(무결성 사고).

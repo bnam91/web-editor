@@ -439,6 +439,9 @@ async function switchTab(id) {
   } finally {
     /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
     window.AutoSaveSuppress.end(_asTok);
+    /* ★363 — 적용이 던지면 settle 없이 나간다. 그대로 두면 입력이 영영 막힌다(지난 로드·이미 닫힌 로드는 건드리지 않는다). */
+    const _pl = window.gdtProjectReady?.get();
+    if (_pl && _pl.seq === _loadSeq && _pl.phase === 'loading') _settleErr('tab-threw');
   }
 }
 
