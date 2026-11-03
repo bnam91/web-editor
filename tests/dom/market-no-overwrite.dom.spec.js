@@ -75,9 +75,8 @@ async function sameIdScene(page, choice) {
 }
 test('머지본 스크래치 내것: L 항목과 원격 항목이 다 들어가고, 링크는 L 그림이다, L 스크래치는 그대로', async ({ page }) => {
   const { items, secs } = await sameIdScene(page, null);
-  expect(items.map((i) => i[0]).filter((x) => x === 's_1' || x === 's_r').sort()).toEqual(['s_1', 's_r']);
-  expect(items.length).toBe(3);
-  expect(items.map((i) => i[0]).find((x) => x !== 's_1' && x !== 's_r')).toMatch(/^sp_[a-z0-9]{6}$/);
+  /* 원격 s_r 과 s_1 은 같은 그림이라 s_r 하나로 들어온다, 새 항목을 안 만든다 */
+  expect(items.map((i) => i[0]).sort()).toEqual(['s_1', 's_r']);
   expect(secs).toEqual([['내', sA]]);
   expect(await page.evaluate(async (L) => (await window._scratchExportAll(L, ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.src])), LOCAL)).toEqual([['s_1', sA]]);
 });
