@@ -105,7 +105,11 @@ async function _sameImage(a, b) {
   return goya.split('/').pop().split('.')[0] === hex.slice(0, 16);
 }
 async function _lsDiffersFromFile(ls, file) {
-  const core = (d) => JSON.stringify((d?.pages || []).map(p => String(p?.canvas || '')));
+  /* 복구분은 캔버스만이 아니다. 없는 필드 · 빈 값은 같게 본다(옛 파일에 없는 필드로 무편집 쓰기가 나지 않게). */
+  const core = (d) => JSON.stringify({
+    pages: (d?.pages || []).map(p => ({ id: p?.id, name: p?.name, pageSettings: p?.pageSettings, canvas: String(p?.canvas || '') })),
+    checklistItems: d?.checklistItems, checklistSections: d?.checklistSections, assetsTree: d?.assetsTree, imageGallery: d?.imageGallery,
+  }, (_k, v) => (v == null || (typeof v === 'object' && !Object.keys(v).length) ? undefined : v));
   const a = core(ls), b = core(file);
   if (a === b) return false;
   if (a.replace(_IMG_URL_RE, '§') !== b.replace(_IMG_URL_RE, '§')) return true;

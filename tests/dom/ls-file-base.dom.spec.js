@@ -115,3 +115,11 @@ test('[음성] 배경 url(&quot;…&quot;) 안의 data 와 goya 는 글자가 �
   await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/h.png') });
   expect(await settled(page)).toEqual([false, false]);
 });
+test('캔버스 밖 변경(체크리스트)만 다른 본도 파일로 넣는다', async ({ page }) => {
+  await open(page, { ls: { ...snap('FILE'), checklistItems: [{ id: 'c' }] }, lsTs: fileTs + 3600e3, base: UPD });
+  await writes(page);
+});
+test('[음성] 옛 파일에 없는 필드 · 빈 값으로는 안 쓴다', async ({ page }) => {
+  await open(page, { ls: { ...snap('FILE'), checklistItems: [], checklistSections: [], assetsTree: [], imageGallery: [] }, lsTs: fileTs + 3600e3, base: UPD });
+  expect(await settled(page)).toEqual([false, false]);
+});
