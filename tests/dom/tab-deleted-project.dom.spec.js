@@ -121,16 +121,18 @@ test('Q 저장 중 종료 · 그 저장이 거절되면 «저장 못 함»으로
     return t[k]; } }); } }); });
   const errs = await setup(page, ['proj_a', 'proj_b']);
   const a = await page.evaluate(async () => {
-    window.addSection?.();
+    window.addSection?.(); window.__ids = [];
     const f = window.electronAPI; let rel; const hold = new Promise(r => { rel = r; });
-    window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => { await hold; return { ok: false, reason: 'project_deleted' }; } : t[k] });
+    window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async (x) => { window.__ids.push(x.id); await hold; return { ok: false, reason: 'project_deleted' }; } : t[k] });
     const s = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'proj_a' });
     await new Promise(r => requestAnimationFrame(r));
     const q = window.__quit();
     await new Promise(r => requestAnimationFrame(r));
     rel(); await s; await q;
-    return window.__ans;
+    return { ...window.__ans, ids: window.__ids, tabs: window.openTabs.map(t => t.id) };
   });
+  expect(a.ids, '큐의 종료 저장이 옆 프로젝트로 가면 안 된다').not.toContain('proj_b');
+  expect(a.tabs).toEqual(['proj_b']);
   expect(a.ok, JSON.stringify({ ok: a.ok, reason: a.reason })).toBe(true);
   expect(a.reason).toBe('project_deleted');
   expect(errs).toEqual([]);
