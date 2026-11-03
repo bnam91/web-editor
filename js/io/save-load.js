@@ -286,7 +286,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
-    if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts });
+    if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts: { ...opts, projectId: _targetId } });   // 대상을 지금 박는다 — 빠질 때 활성이 바뀌어 있으면(거절 저장이 탭을 닫음) 이 내용이 옆 프로젝트 파일을 덮었다(앱 3/3)
     return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;
@@ -371,6 +371,10 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
+      if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
+        await window.closeDeletedProjectTab?.(targetId);
+        return { ok: false, skipped: true, reason: saveResult.reason };
+      }
       if (saveResult && saveResult.ok === false) {
         console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
@@ -2208,6 +2212,7 @@ if (IS_ELECTRON) {
     let snap = null;
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      const quitId = activeProjectId;   // 기다리는 사이 저장 거절이 탭을 닫으면 활성이 바뀐다
       if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
@@ -2237,11 +2242,11 @@ if (IS_ELECTRON) {
       if (result === undefined) {
         const queuedAt = Date.now();
         const until = queuedAt + 1000;
-        while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(activeProjectId))) {
+        while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(quitId))) {
           await new Promise(r => setTimeout(r, 50));
         }
-        result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(activeProjectId),
-                                        _lastSaveResult.get(activeProjectId), queuedAt);
+        result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(quitId),
+                                        _lastSaveResult.get(quitId), queuedAt);
       }
       const out = _quitSaveOutcome(result);
       answer(out.ok ? { ok: true, reason: out.reason }
@@ -2762,6 +2767,23 @@ export {
 // Backward compat — 탭 함수는 tab-system.js에서 window 노출 처리
 // (saveTabState, renderTabBar 등 window.* 할당은 tab-system.js에서 수행)
 window.saveProjectToFile = saveProjectToFile;
+/* ★연 채 삭제 — main 이 휴지통으로 옮기기 전에 부른다. 보는 탭의 밀린 편집 · 옆 탭의 저장 실패분을 내리고 돌던 저장을 기다린다. */
+window.flushProjectBeforeTrash = async (id) => {
+  const tab = openTabs.find(t => t.id === id);
+  if (!tab || window.isTabFirstLoading?.(id)) return;
+  if (id === activeProjectId) {
+    if (_hasOwnUnsaved()) {
+      if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+      await saveProjectToFile(serializeProject(), { skipThumbnail: true, projectId: id });
+    }
+  } else if (_lastSaveFailed(id) && tab._cache) {
+    await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id });
+  }
+  const until = Date.now() + 5000;
+  while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));
+};
+/* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
+window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
 window.loadProjectsList = loadProjectsList;
 window.getProjectName = getProjectName;
 window.setProjectName = setProjectName;

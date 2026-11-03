@@ -2289,6 +2289,20 @@ function removeHomeTab(id) {
   } catch {}
 }
 
+/* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 이 화면의 탭은 저장된 목록뿐이라 거기서 뺀다. 마지막 탭을 닫고 온 에디터의 알림도 여기서 띄운다. */
+window.closeDeletedProjectTab = (id) => {
+  let tab = null;
+  try { tab = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(t => t.id === id); } catch {}
+  if (!tab) return false;
+  removeHomeTab(id);
+  window.showStatusToast?.(window.deletedTabNotice?.(tab.name, false));
+  return true;
+};
+try {
+  const m = localStorage.getItem('gd-deleted-tab-notice');
+  if (m) { localStorage.removeItem('gd-deleted-tab-notice'); window.showStatusToast?.(m); }
+} catch {}
+
 function renderHomeTabs() {
   const bar = document.getElementById('home-tab-bar');
   if (!bar) return;

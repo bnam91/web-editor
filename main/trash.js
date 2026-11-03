@@ -165,6 +165,12 @@ function listTrash({ projectsDir, retentionDays = RETENTION_DAYS, now = Date.now
   return { ok: true, items, retentionDays };
 }
 
+/** proj.json 도 복구 재료(백업·버전)도 없고 늦은 쓰기가 만드는 것만 든 폴더. ⛔모르는 것이 하나라도 있으면 유령이 아니다. */
+function _isGhostFolder(dir) {
+  try { return fs.readdirSync(dir).every(n => ['images', 'assets', 'proj_meta.json'].includes(n)); }
+  catch (_) { return false; }
+}
+
 /** 되살린다 — id 그대로. ⛔자리가 차 있으면 «덮지 않고» 거절한다. */
 function restoreFromTrash({ projectsDir, projectId } = {}) {
   if (!isProjId(projectId)) return { ok: false, code: 'invalid_id', error: `invalid projectId: ${projectId}` };
@@ -175,7 +181,9 @@ function restoreFromTrash({ projectsDir, projectId } = {}) {
   catch (e) { return { ok: false, code: 'meta_broken', error: e.message }; }
 
   const back = path.join(projectsDir, projectId);
-  if (fs.existsSync(back))
+  /* ★유령 폴더(지운 뒤 늦은 이미지·meta 쓰기가 만든 껍데기)는 복원을 막지 않는다 — 비켜 두었다가 복원본에 합친다(그림을 안 잃는다). 복원본이 이긴다. */
+  const ghost = meta.hasBundle && fs.existsSync(back) && _isGhostFolder(back) ? path.join(dst, 'ghost') : null;
+  if (fs.existsSync(back) && !ghost)
     return { ok: false, code: 'id_taken',
              error: `${projectId} 자리에 이미 무언가 있다 — 덮어쓰지 않는다`,
              hint: '먼저 그 프로젝트를 옮기거나 이름을 바꿔라' };
@@ -185,6 +193,7 @@ function restoreFromTrash({ projectsDir, projectId } = {}) {
     if (meta.hasBundle) {
       const from = path.join(dst, 'bundle');
       if (!fs.existsSync(from)) return { ok: false, code: 'bundle_missing', error: '휴지통 안 bundle 이 없다' };
+      if (ghost) { fs.renameSync(back, ghost); moves.push([back, ghost]); }
       fs.renameSync(from, back); moves.push([from, back]);
     }
     for (const nm of meta.legacy || []) {
@@ -194,6 +203,7 @@ function restoreFromTrash({ projectsDir, projectId } = {}) {
       if (fs.existsSync(to)) throw new Error(`복원 자리가 차 있다: ${nm}`);
       fs.renameSync(from, to); moves.push([from, to]);
     }
+    if (ghost) { fs.cpSync(ghost, back, { recursive: true, force: false }); fs.rmSync(ghost, { recursive: true, force: true }); }
     _rmdirIfEmpty(path.join(dst, 'legacy'));   // ★빈 껍데기만 치운다(안 비었으면 안 지운다)
     fs.rmSync(mp, { force: true });
     /* ⛔«비었을 때만». 메타에 안 적힌 파일이 있으면 그건 «우리가 모르는 것»이라 지울 자격이 없다
