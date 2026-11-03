@@ -6,7 +6,8 @@
  *   L2 옛 저장본(cells 없음) ⇒ 그 높이가 cells 로 옮겨 산다 — 지우기가 값을 잃지 않는다.
  *   H1 사람 길 ⇒ 만들기 → ⌘클릭 → ⌘G → 더블클릭 → ⇧클릭 → 패널 H 칸(옛 키를 안 심는다 · 어긋남을 «새로 쓰는» 그 길).
  *   N  [음성] 옛 키가 없는 평소 장면 ⇒ 어긋남 0. N2 [음성] 같은 패널 W 칸은 원래 높이 키를 안 쓴다.
- * ⛔이 자가 안 재는 것: dataset.height 를 읽는 소비자 전수(원문 ⑴ · :73 하나는 읽어 봄 · 블럭 공통 길은 안 셌다) · 저장본·다시 열기 뒤 · prop-laurel.js:20 이 지우는 패널 길 · 패널 H 칸이 겉 상자(style.height)만 바꾸고 칸(cells)은 안 따르는 것이 맞는 뜻인가(설계 물음 · 이 자는 그 값을 «지금 그대로» 로만 적는다).
+ *    F1~F5 [현빈 결정 261103] H 칸을 칸이 따른다(겉 상자 = 줄 높이 합 + 행 간격 + 패딩) · ⌘Z 한 걸음 · 줄임 · 여러 행 비율 · 옛 저장본(cells 200 + 겉 333)은 열어도 값이 그대로.
+ * ⛔이 자가 안 재는 것: dataset.height 를 읽는 소비자 전수(원문 ⑴ · :73 하나는 읽어 봄 · 블럭 공통 길은 안 셌다) · 저장본·다시 열기 뒤(앱으로 쟀다) · prop-laurel.js:20 이 지우는 패널 길 · 손잡이 끌기(칸을 안 따른다 · 범위 밖).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -93,12 +94,12 @@ const readLaurel = (page, ids) => page.evaluate((list) => list.map((id) => {
   return { ds: b.dataset.height ?? null, dw: b.dataset.width ?? null, cells: JSON.parse(b.dataset.cells).map((x) => x.height), styleH: b.style.height };
 }), ids);
 
-test('H1 사람 길 — 패널 H 칸이 높이를 두 자리에 어긋나게 쓰지 않는다(겉 상자 입력은 그대로 산다)', async ({ page }) => {
+test('H1 사람 길 — 패널 H 칸이 칸과 겉 상자를 함께 바꾸고 옛 키를 안 쓴다', async ({ page }) => {
   const ids = await panelOnTwoGrouped(page);
   await typeInto(page, 'h', 333);
   for (const r of await readLaurel(page, ids)) {
     expect(r.styleH, '[전제] H 칸이 먹었다').toBe('333px');
-    expect(r.cells, '정본은 그대로').toEqual([200]);
+    expect(r.cells, '칸이 겉 상자를 따른다(333 − 위아래 패딩 16)').toEqual([317]);
     expect(stale(r), `높이가 두 자리에 어긋난다 ${JSON.stringify(r)}`).toBe(false);
   }
 });
@@ -109,4 +110,67 @@ test('N2 [음성] 같은 패널 W 칸 — 높이 키를 안 쓴다', async ({ pa
     expect(r.dw, '[전제] W 칸이 먹었다').toBe('250');
     expect(r.ds).toBeNull();
   }
+});
+test('N3 [음성] W 칸은 칸 높이를 안 바꾼다', async ({ page }) => {
+  const ids = await panelOnTwoGrouped(page);
+  await typeInto(page, 'w', 250);
+  for (const r of await readLaurel(page, ids)) expect(r.cells).toEqual([200]);
+});
+const leaf = (page, id) => page.evaluate((i) => {
+  const s = document.getElementById(i).querySelector('.laurel-leaf');
+  return { h: s.style.height, maxW: s.style.maxWidth };
+}, id);
+test('F1 잎이 칸 높이 × 170/324 로 함께 큰다', async ({ page }) => {
+  const ids = await panelOnTwoGrouped(page);
+  await typeInto(page, 'h', 333);
+  expect(await leaf(page, ids[0])).toEqual({ h: '317px', maxW: `${Math.round(317 * 170 / 324)}px` });
+});
+test('F2 줄임 — H 100 ⇒ 칸 84', async ({ page }) => {
+  const ids = await panelOnTwoGrouped(page);
+  await typeInto(page, 'h', 100);
+  for (const r of await readLaurel(page, ids)) { expect(r.cells).toEqual([84]); expect(r.styleH).toBe('100px'); }
+});
+test('F3 ⌘Z 한 걸음이 칸과 겉 상자를 함께 되돌린다', async ({ page }) => {
+  const ids = await panelOnTwoGrouped(page);
+  await typeInto(page, 'h', 333);
+  expect((await readLaurel(page, ids))[0].cells, '[전제] 칸이 따랐다').toEqual([317]);
+  await page.keyboard.press('Meta+z');
+  await page.waitForFunction((i) => document.getElementById(i)?.style.height === '', ids[0]);
+  for (const r of await readLaurel(page, ids)) expect(r.cells).toEqual([200]);
+});
+test('F4 여러 행 — 칸끼리 비율을 지켜 합이 겉 상자에 맞는다 · 계약 [20,600] 안', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  await bootApp(page);
+  const r = await page.evaluate((sec) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    c.insertAdjacentHTML('beforeend', sec); window.rebindAll?.(); window.selectSection(document.getElementById('sL'));
+    const cell = (height) => ({ lines: [{ text: 'x' }], leafColor: '#1a1a1a', gap: 24, height });
+    window.addLaurelBlock({ gridCols: 1, gridRows: 2, cells: [cell(200), cell(100)] });
+    const b = [...document.querySelectorAll('#sL .laurel-block')].pop();
+    const hs = () => JSON.parse(b.dataset.cells).map((x) => x.height);
+    const out = {};
+    window.fitLaurelCellsToBoxHeight(b, 333); out.h333 = hs();
+    window.fitLaurelCellsToBoxHeight(b, 333); out.again = hs();
+    window.fitLaurelCellsToBoxHeight(b, 5000); out.big = hs();
+    window.fitLaurelCellsToBoxHeight(b, 5); out.tiny = hs();
+    return out;
+  }, SEC);
+  expect(r.h333).toEqual([195, 98]);   // (333 − 패딩 16 − 행 간격 24) × 2:1
+  expect(r.again, '같은 값을 다시 넣어도 안 밀린다').toEqual([195, 98]);
+  expect(r.big).toEqual([600, 600]);
+  expect(r.tiny).toEqual([20, 20]);
+});
+test('F5 옛 저장본 — 겉 333 + 칸 200 + 옛 키 333 은 열어도 칸·겉 상자 값이 그대로', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  await bootApp(page);
+  const r = await page.evaluate((sec) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    c.insertAdjacentHTML('beforeend', sec); window.rebindAll?.(); window.selectSection(document.getElementById('sL'));
+    window.addLaurelBlock({ gridCols: 1, gridRows: 1, cells: [{ lines: [{ text: 'x' }], leafColor: '#1a1a1a', gap: 24, height: 200 }] });
+    const b = [...document.querySelectorAll('#sL .laurel-block')].pop();
+    b.style.height = '333px'; b.dataset.height = '333';
+    window.rebindAll?.();
+    return { cells: JSON.parse(b.dataset.cells).map((x) => x.height), style: b.style.height, ds: b.dataset.height ?? null };
+  }, SEC);
+  expect(r).toEqual({ cells: [200], style: '333px', ds: null });
 });
