@@ -2893,7 +2893,8 @@ window.cancelPendingAutoSaveForReload = async (targetId) => {
    *   ⑵ 되돌리기가 도중에 죽어 resume 이 영영 안 오면 감시견이 «알린다». */
   if (!_reloadSealTok) _reloadSealTok = window.AutoSaveSuppress.begin('reload-seal');
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
-  _dirtyBeforeSeal = _dirtySinceSave;                     // 봉인 직전 값 캡처(③ 부작용 방지)
+  _dirtyBeforeSeal = _dirtySinceSave || _autoSavePending;  // 봉인 직전 값 캡처(③ 부작용 방지) · 미룸에 기억된 예약도 편집이다
+  _autoSavePending = false;                                // ★250D — 안 지우면 _hasOwnUnsaved 가 «미저장»으로 읽어 beforeunload 가 복원본을 덮는다
   clearPendingForReload(_pendingSaves, targetId);         // ⓑ ★되돌리기 대상만 폐기(타 프로젝트 저장 보존, 구멍2)
   _dirtySinceSave = false;
   // ⓒ in-flight 저장 드레인 대기(상한 5s — 무한대기 방지). 봉인 상태라 새 저장은 큐잉 안 됨.
