@@ -129,3 +129,18 @@ test('복구 저장은 본의 data 그림을 파일에 되돌리지 않는다', 
   await writes(page);
   expect(await page.evaluate(() => window.__saved.pages[0].canvas.includes('data:image'))).toBe(false);
 });
+test('[음성] 부팅 중 다른 프로젝트로 갔으면 복구 저장을 걸지 않는다', async ({ page }) => {
+  await page.addInitScript(({ file }) => {
+    let real;
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
+      if (k === 'loadProject') return async () => { if (location.search.includes('project=p1')) window.activeProjectId = 'p2'; return { ...file }; };
+      if (k === 'saveProject') return async (p) => { window.__saved = p; return { ok: true }; };
+      return t[k];
+    } }), set: (v) => { real = v; } });
+  }, { file: { ...snap('FILE'), id: 'p1', name: 'n', updatedAt: UPD } });
+  await bootApp(page);
+  await page.evaluate(({ ls, lsTs, upd }) => { for (const id of ['p1', 'p2']) { const k = 'web-editor-autosave__' + id; localStorage.setItem(k, ls); localStorage.setItem(k + '_ts', String(lsTs)); localStorage.setItem('web-editor-ls-base__' + id, upd); } }, { ls: JSON.stringify(snap('LS')), lsTs: fileTs + 3600e3, upd: UPD });
+  await page.goto(`${ORIGIN}/index.html?project=p1`);
+  await page.waitForFunction(() => window.activeProjectId === 'p2' && localStorage.getItem('web-editor-ls-base__p1'));
+  expect(await settled(page)).toEqual([false, false]);
+});
