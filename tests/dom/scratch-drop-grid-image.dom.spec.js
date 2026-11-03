@@ -129,32 +129,110 @@ test('G4 ★⌘Z 한 걸음 — 칸 이미지가 되돌아오고 스크래치 �
 
 const svgN = (n) => 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120"><rect width="200" height="120" fill="#${(n * 1234567 % 0xffffff).toString(16).padStart(6, '0')}"/><text x="10" y="60">img${n}</text></svg>`).toString('base64');
 
-test('G5 ★서로 다른 그림 10장을 같은 칸에 10번 — 매번 먹고(간헐 0), ⌘Z 10번이 한 걸음씩 거꾸로 간다', async ({ page }) => {
-  /* 고정 대기(300·350ms ×10)를 «상태 조건 대기»로 바꿨다 — 이 시험은 기본 30s 예산에 22.7s 를 써서(고정 대기만 6.5s) 부하가 오르면 예산째 넘어갔다.
-   * 조건 = 칸0 모델의 imgSrc(정본)·스크래치 항목 수. ⌘Z 는 «눌렀더니 imgSrc 가 바뀔 때까지» 기다린 뒤 «정확히 seq[k]» 를 단언한다 → 두 걸음 가면 빨강, 안 가면 5s 뒤 빨강.
-   * 놓기의 dwell(700ms, ARM_DELAY)과 mouseup 뒤 400ms 는 제품 시간·공용 도우미 몫이라 그대로 둔다. */
-  await setup(page);
+/* ★160(G5-SPEC-TIMEOUT-MARGIN-THIN-01 · 지디 판정 261028) — 옛 G5(넣기 10 · ⌘Z 10 · 한 시험)는 30s 예산에 24.5~25.5s(인텔 저부하 ×3 · 판 7f3c6de2)
+   ⇒ 여유 4.5~5.5s. «10» 은 QA «10번 중 5번»(66eba2e0)에서 온 «시행 수» ⇒ 5+5 로 쪼개도 시행 총 10 은 지킨다.
+   잃는 것 둘은 이름으로 갈음한다: ⑴ «같은 칸 연속 10 번 누적» → 아래 A10(225) · ⑵ «⌘Z 10 걸음 사슬» → 아래 G5c(넣기 대신 모델 문 patchCell). */
+async function dropSeq(page, from, to) {
   const cell0 = async () => (await model(page))[0][0][0].imgSrc;
   const scratchN = async () => (await state(page)).scratch;
-  const seq = [PX];
-  for (let n = 1; n <= 10; n++) {
+  const seq = [await cell0()];
+  for (let n = from; n <= to; n++) {
     const u = svgN(n);
     const n0 = await scratchN();
     await page.evaluate((u) => window._scratchAddAndSaveFx(u, 20, 20, 200), u);
-    await expect.poll(scratchN, { message: `넣기 ${n}번째 전제 — 새 스크래치 항목이 생겼어야 끌 수 있다`, timeout: 5000 }).toBe(n0 + 1);
-    // 방금 넣은 항목이 «마지막» — 이전 항목은 이미 소비됐다
+    await expect.poll(scratchN, { message: `넣기 ${n}번째 전제 — 새 스크래치 항목`, timeout: 5000 }).toBe(n0 + 1);
     const before = await state(page);
     await dragScratchTo(page, '#sG .grid-block .grd-img-frame[data-c="0"]');
     await expect.poll(cell0, { message: `넣기 ${n}번째 — 칸 이미지가 그 그림이어야`, timeout: 5000 }).toBe(u);
     await expect.poll(scratchN, { message: `넣기 ${n}번째 — 스크래치 소비`, timeout: 5000 }).toBe(before.scratch - 1);
     seq.push(u);
   }
-  expect(await cell0(), '전제 — ⌘Z 를 재기 전, 칸은 마지막 그림이어야').toBe(seq[10]);
-  for (let k = 9; k >= 0; k--) {
+  return { seq, cell0 };
+}
+async function undoSeq(page, seq, cell0, tag) {
+  for (let k = seq.length - 2; k >= 0; k--) {
     const was = await cell0();
     await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
     await page.keyboard.press('Meta+z');
-    await expect.poll(cell0, { message: `⌘Z ${10 - k}번째 — 칸 이미지가 «바뀌어야»(안 먹으면 여기서 빨강)`, timeout: 5000 }).not.toBe(was);
-    expect(await cell0(), `⌘Z ${10 - k}번째 — 정확히 한 걸음 거꾸로`).toBe(seq[k]);
+    await expect.poll(cell0, { message: `${tag} ⌘Z ${seq.length - 1 - k}번째 — 칸 이미지가 «바뀌어야»`, timeout: 5000 }).not.toBe(was);
+    expect(await cell0(), `${tag} ⌘Z ${seq.length - 1 - k}번째 — 정확히 한 걸음 거꾸로`).toBe(seq[k]);
   }
+}
+test('G5a ★서로 다른 그림 5장을 같은 칸에 5번(1~5) — 매번 먹고, ⌘Z 5번이 한 걸음씩 거꾸로', async ({ page }) => {
+  await setup(page);
+  const { seq, cell0 } = await dropSeq(page, 1, 5);
+  expect(await cell0(), '전제 — ⌘Z 전 마지막 그림').toBe(seq[5]);
+  await undoSeq(page, seq, cell0, 'G5a');
+});
+test('G5b ★서로 다른 그림 5장을 같은 칸에 5번(6~10) — 매번 먹고, ⌘Z 5번이 한 걸음씩 거꾸로', async ({ page }) => {
+  await setup(page);
+  const { seq, cell0 } = await dropSeq(page, 6, 10);
+  expect(await cell0(), '전제 — ⌘Z 전 마지막 그림').toBe(seq[5]);
+  await undoSeq(page, seq, cell0, 'G5b');
+});
+test('G5c ★⌘Z 10 걸음 사슬 — 모델 문(patchCell)으로 칸 그림을 10번 바꾸고 ⌘Z 10번이 정확히 한 걸음씩(옛 G5 ⑵ 지킴)', async ({ page }) => {
+  await setup(page);
+  const cell0 = async () => (await model(page))[0][0][0].imgSrc;
+  const seq = [await cell0()];
+  for (let n = 1; n <= 10; n++) {
+    const u = svgN(n);
+    const r = await page.evaluate(async (u) => {
+      const m = await import('/js/blocks/grid-block.js');
+      const res = m.updateGridBlock(window.__gid, { patchCell: { r: 0, c: 0, lineIndex: 0, imgSrc: u } });
+      window.pushHistory(`G5c ${u.slice(-8)}`);   // 앱 편집 한 번 = 히스토리 한 칸(넣기 길과 같은 꼴)
+      return res && res.ok;
+    }, u);
+    expect(r, `patchCell ${n}번째 ok`).toBe(true);
+    expect(await cell0(), `patchCell ${n}번째 — 칸이 그 그림`).toBe(u);
+    seq.push(u);
+  }
+  await undoSeq(page, seq, cell0, 'G5c');
+});
+
+/* ★225(지디 판정 261028 · 160 쪼개기의 짝) — «같은 칸 연속 10 번 누적» 자: 칸 하나 · 넣기 10 · 부팅 1 · ⌘Z 없음.
+   fillCells 는 단언하지 않고 걸음마다 { n, cell, ok, why } 를 돌려준다 — 양성대조(일부러 더럽힘)가 «그 걸음에서 잡히나» 를 같은 함수로 잰다. */
+async function fillCells(page, cellsOf, { dirtyAt = 0, stopOnFail = false } = {}) {
+  const out = [];
+  for (let n = 1; n <= 10; n++) {
+    const c = cellsOf(n), u = svgN(100 + n);
+    if (n === dirtyAt) {   // ★양성대조 — 그 칸의 이미지 줄을 «본문 줄» 로 바꿔 더럽힌다(놓을 자리가 없어짐)
+      await page.evaluate(async (c) => { const m = await import('/js/blocks/grid-block.js');
+        m.updateGridBlock(window.__gid, { patchCell: { r: 0, c, lines: [{ type: 'body', text: '더럽힘' }] } }); }, c);
+    }
+    const n0 = (await state(page)).scratch;
+    await page.evaluate((u) => window._scratchAddAndSaveFx(u, 20, 20, 200), u);
+    await expect.poll(async () => (await state(page)).scratch, { timeout: 5000 }).toBe(n0 + 1);
+    const sel = `#sG .grid-block .grd-img-frame[data-c="${c}"]`;
+    const has = await page.evaluate((s) => !!document.querySelector(s), sel);
+    if (has) await dragScratchTo(page, sel);
+    let got = null;
+    try {
+      await expect.poll(async () => (await model(page))[0][c][0]?.imgSrc ?? null, { timeout: 4000 }).toBe(u);
+      got = u;
+    } catch { got = (await model(page))[0][c][0]?.imgSrc ?? null; }
+    out.push({ n, cell: c, ok: got === u, why: has ? (got === u ? '' : '칸 그림이 그 그림이 아님') : '놓을 이미지 칸이 없음' });
+    if (stopOnFail && got !== u) break;   // ★양성대조는 «처음 잡힌 걸음» 이 몫 — 뒤 걸음마다 4s 기다려 30s 예산에 닿던 것(실측 29.2s)을 막는다
+  }
+  return out;
+}
+test('A10 ★225 누적 — 같은 칸에 넣기 10 번(부팅 1 · ⌘Z 없음) 전부 먹는다', async ({ page }) => {
+  test.setTimeout(90000);   // 10 번이 이 자의 값이라 일을 못 줄인다(걸음당 제품 대기 1.1s 포함 ≈2.4s). 부하 여유는 예산으로 준다
+  await setup(page);
+  const r = await fillCells(page, () => 0);
+  console.log('[A10]', JSON.stringify(r.map((x) => [x.n, x.ok])));
+  expect(r.filter((x) => !x.ok).map((x) => `${x.n}:${x.why}`), '같은 칸 연속 넣기 중 안 먹은 걸음').toEqual([]);
+});
+test('A10P ★양성대조 — 6 번째 앞에서 칸을 일부러 더럽히면 «6 번째부터» 빨강으로 잡힌다(1~5 는 초록)', async ({ page }) => {
+  await setup(page);
+  const r = await fillCells(page, () => 0, { dirtyAt: 6, stopOnFail: true });
+  console.log('[A10P]', JSON.stringify(r.map((x) => [x.n, x.ok])));
+  expect(r.slice(0, 5).every((x) => x.ok), '전제: 1~5 는 먹었다').toBe(true);
+  expect([r.length, r[5].ok], '★6 번째(더럽힌 걸음)에서 자가 잡고 멈춘다').toEqual([6, false]);
+});
+test('A10N 음성대조 — 다른 칸(칸0·칸1 번갈아) 열 번은 초록', async ({ page }) => {
+  test.setTimeout(90000);   // A10 과 같은 까닭
+  await setup(page);
+  const r = await fillCells(page, (n) => (n % 2 ? 0 : 1));
+  console.log('[A10N]', JSON.stringify(r.map((x) => [x.n, x.cell, x.ok])));
+  expect(r.filter((x) => !x.ok).map((x) => `${x.n}@${x.cell}:${x.why}`)).toEqual([]);
 });
