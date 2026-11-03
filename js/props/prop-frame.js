@@ -1080,7 +1080,9 @@ function _renderAutoPanel(ss) {
   const applyWidth  = (v) => {
     const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
     const newW = parseInt(v);
-    const ratio = newW / oldW;
+    /* 손잡이로 폭만 바뀐 뒤면 자식은 그 전 폭에 맞아 있다 — 기준은 그 폭(js/overlay-handles.js onMove 가 남긴다). 한 번 맞추면 지운다. */
+    const ratio = newW / (parseInt(ss.dataset.childScaleW) || oldW);
+    delete ss.dataset.childScaleW;
     if (ratio !== 1) {
       ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);
