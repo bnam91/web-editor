@@ -2566,6 +2566,7 @@ function initApp() {
                   /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
                   const _differs = _lsDiffersFromFile(lsData, proj);   // 적용 «전»에 — applyProjectData 가 본을 고친다
                   applyAndFinish(lsData).then(async () => {
+                    recordExternalizeBaseline(proj, _bootProjectId);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)
                     if (await _differs) requestAnimationFrame(() => requestAnimationFrame(() => scheduleAutoSave()));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
                   });
                   return;

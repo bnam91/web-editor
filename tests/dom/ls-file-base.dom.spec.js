@@ -16,6 +16,7 @@ async function open(page, { ls = snap('LS'), lsTs, base, file = {} }) {
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
       if (k === 'loadProject') return async () => ({ ...file });
       if (k === 'saveProject') return async (p) => { window.__saved = p; return { ok: true }; };
+      if (k === 'assetsSaveCanvasImage') return async () => ({ ok: true, url: 'goya-asset://p1/new.png' });
       return t[k];
     } }), set: (v) => { real = v; } });
   }, { file: { ...snap('FILE'), id: 'p1', name: 'n', updatedAt: UPD, ...file } });
@@ -122,4 +123,9 @@ test('캔버스 밖 변경(체크리스트)만 다른 본도 파일로 넣는다
 test('[음성] 옛 파일에 없는 필드 · 빈 값으로는 안 쓴다', async ({ page }) => {
   await open(page, { ls: { ...snap('FILE'), checklistItems: [], checklistSections: [], assetsTree: [], imageGallery: [] }, lsTs: fileTs + 3600e3, base: UPD });
   expect(await settled(page)).toEqual([false, false]);
+});
+test('복구 저장은 본의 data 그림을 파일에 되돌리지 않는다', async ({ page }) => {
+  await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: { ...pic('goya-asset://p1/h.png'), checklistItems: [{ id: 'x' }] } });
+  await writes(page);
+  expect(await page.evaluate(() => window.__saved.pages[0].canvas.includes('data:image'))).toBe(false);
 });
