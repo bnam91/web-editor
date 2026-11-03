@@ -54,7 +54,7 @@ test('clearScratchPad 쓰기가 abort 나면 멈추지 않고 거절한다', asy
   await on(page);
   expect(await page.evaluate(() => window.__settle(window.clearScratchPad()))).toBe('거절');
 });
-const WARN = '⚠️ 스크래치를 저장하지 못했습니다. 지금 보이는 이미지가 다시 열면 없을 수 있습니다.';
+const WARN = '⚠️ 스크래치를 저장하지 못했습니다. 다시 열면 지금 화면과 다를 수 있습니다.';
 test('공용 알림: 말없던 자리(안 기다리는 저장 포함)에서 알리고, 연달아 실패해도 한 번이다', async ({ page }) => {
   await ready(page);
   await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
@@ -116,4 +116,23 @@ test('음성 복원: 되살릴 것이 없을 때 읽기가 실패하면 전처�
   await failNextRead(page);
   await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
   await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual(['⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)']);
+});
+test('전부 지운 판: flush 가 실패해도 다시 열 때 매니페스트로 되채우지 않는다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => { window.state.pages = [{ id: 'p1', canvas: '', scratchpad: [{ id: 's_m', src: S, x: 1, y: 1, w: 9 }] }]; window.state.currentPageId = 'p1'; }, S);
+  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+  await expect.poll(() => items(page)).toEqual(['s_m']);
+  await page.evaluate(() => window._scratchRemoveById('s_m'));
+  await on(page);
+  await page.evaluate(() => window.__settle(window.flushScratchForSwitch()));
+  await off(page);
+  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+  await expect.poll(() => dbIds(page)).toEqual([]);
+  expect(await items(page)).toEqual([]);
+});
+test('음성 전부 지운 판: IDB 가 빈 다른 맥은 매니페스트로 채운다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => { window.state.pages = [{ id: 'p2', canvas: '', scratchpad: [{ id: 's_m', src: S, x: 1, y: 1, w: 9 }] }]; }, S);
+  await page.evaluate(() => window.switchScratch('proj_9', 'p2'));
+  await expect.poll(() => items(page)).toEqual(['s_m']);
 });

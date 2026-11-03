@@ -108,7 +108,7 @@ function _txDone(tx) {
     tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));
   });
 }
-/* 공용 알림 자리(S3 market5 제안) — 저장이 안 됐는데 말없는 자리를 여기 하나로 받는다. 화면에 항목이 보여도 다시 열면 없을 수 있다는 것만 알린다.
+/* 공용 알림 자리(S3 market5 제안) — 저장이 안 됐는데 말없는 자리를 여기 하나로 받는다. 넣은 것이 빠질 수도, 지운 것이 돌아올 수도 있어 «화면과 다르다» 고만 말한다.
    부르는 쪽이 제 말을 하는 넣기(_scratchImportAll)는 안 탄다. 연달아 실패하면 도배가 되니 간격을 둔다. 시험: tests/dom/scratch-write-abort.dom.spec.js */
 const _SCRATCH_WARN_GAP_MS = 10000;
 let _scratchWarnAt = -Infinity;
@@ -117,7 +117,7 @@ function _warnScratchWriteFailed(e) {
   const now = performance.now();
   if (now - _scratchWarnAt < _SCRATCH_WARN_GAP_MS) return;
   _scratchWarnAt = now;
-  window.showToast?.('⚠️ 스크래치를 저장하지 못했습니다. 지금 보이는 이미지가 다시 열면 없을 수 있습니다.');
+  window.showToast?.('⚠️ 스크래치를 저장하지 못했습니다. 다시 열면 지금 화면과 다를 수 있습니다.');
 }
 /* flush 는 항목을 화면·메모리에서 먼저 비운다. 쓰기가 실패하면 그 항목은 어디에도 없게 된다 ⇒ 이 세션에서 그 키를 다시 열 때 여기서 되살린다 */
 const _unsavedFlush = new Map();
@@ -1492,7 +1492,7 @@ async function _loadScratch(projectId, pageId) {
     //   ★«비었을 때만» = 같은 맥 로컬 편집 보존(로컬 IndexedDB 우선·덮어쓰기 금지·회귀0).
     let items = data;
     let hydrated = false;
-    if (!items || !items.length) {
+    if ((!items || !items.length) && !heldBack) {   // 복원본이 [] 면 사람이 다 지운 것이다, 매니페스트로 되채우지 않는다(S3 scratch ④)
       const pg = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
       const manifest = pg && Array.isArray(pg.scratchpad) ? pg.scratchpad : null;
       if (manifest && manifest.length) {
