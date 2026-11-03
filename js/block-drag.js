@@ -2997,6 +2997,7 @@ function _bindFrameOwnDrag(ss) {
     // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
     if (e.target !== ss) return;
     // 선택된 프레임이 아니면 드래그 취소
+    if (!ss.classList.contains('selected') && ss._gapSurfacePress) _pickFrameOnPress(ss);   // 면으로 친 gap 에서 시작한 끌기 — 누를 때 안 골랐으니 여기서 고른다
     if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
     e.stopPropagation();
     _suppressDragSave();
@@ -3018,6 +3019,16 @@ function _bindFrameOwnDrag(ss) {
     window.buildLayerPanel();
     window.triggerAutoSave?.();
   });
+}
+
+function _pickFrameOnPress(ss) {
+  window.deselectAll?.();
+  const parentSec = ss.closest('.section-block');
+  if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+  ss.classList.add('selected');
+  window._activeFrame = ss;
+  window.highlightBlock?.(ss, ss._layerItem);
+  window.showFrameProperties?.(ss);
 }
 
 /* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). */
@@ -3622,6 +3633,7 @@ function bindFrameDropZone(ss) {
     /* 스택 변환이 패딩을 gap 블럭으로 바꿔 프레임 면을 덮는다 ⇒ 고르지 않은 직속 gap 은 프레임 면으로 친다(S6 새 발견 ⑤). gap 자신의 draggable 은 bindBlock 의 gap 갈래 mousedown 이 끈다. */
     const _gapAsSurface = isInnerBlock?.classList.contains('gap-block') && !isInnerBlock.classList.contains('selected')
       && isInnerBlock.parentElement === ss && ss.style.position !== 'absolute' && ss.dataset.freeLayout !== 'true';
+    ss._gapSurfacePress = !!_gapAsSurface;
     if (isInnerBlock && !_flowShapeWrapper && !_gapAsSurface) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
@@ -3646,15 +3658,7 @@ function bindFrameDropZone(ss) {
     if (e.button !== 0) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
     /* gap 을 면으로 칠 때는 여기서 고르지 않는다 — 고르면 같은 클릭의 click 이 «고른 프레임의 자식»으로 읽어 한 번에 gap 까지 내려간다(뒤집기 칸이 있는 프레임 패널을 못 봤다). 프레임은 click 이 고른다. */
-    if (!ss.classList.contains('selected') && !_gapAsSurface) {
-      window.deselectAll?.();
-      const parentSec = ss.closest('.section-block');
-      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-      ss.classList.add('selected');
-      window._activeFrame = ss;
-      window.highlightBlock?.(ss, ss._layerItem);
-      window.showFrameProperties?.(ss);
-    }
+    if (!ss.classList.contains('selected') && !_gapAsSurface) _pickFrameOnPress(ss);
   });
 
   // 프레임 자체 hover → 레이어 패널 하이라이트
