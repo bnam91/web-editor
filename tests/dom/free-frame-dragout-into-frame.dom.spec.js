@@ -71,9 +71,14 @@ for (const [name, add] of KINDS) {
   });
 }
 test('큰 에셋을 자유 B 에 놓아도 B 위로 안 삐져나온다', async ({ page }) => {
-  const s = await scene(page, { sel: '.asset-block', fn: 'addAssetBlock' }); expect(await pick(page), '[전제] 고르기').toBe(true);
-  const w = await mk(page); const b = await box(page, s.B);
-  await drag(page, w.x, w.y, b.cx, b.cy);
+  const s = await scene(page, { sel: '.asset-block', fn: 'addAssetBlock' });
+  const top = () => page.evaluate(() => { const r = document.querySelector('#canvas [data-mk]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + 20]; });
+  const [x, y] = await top();
+  await page.evaluate(() => { window.deselectAll(); window._activeFrame = null; window._enteredFrame = null; });
+  for (let i = 0; i < 6 && !(await mk(page)).sel; i++) { await page.mouse.click(x, y); await raf(page); }
+  expect((await mk(page)).sel, '[전제] 고르기').toBe(true);
+  const b = await box(page, s.B);
+  await drag(page, x, y, b.cx, b.cy);
   const a = await mk(page);
   expect(a.n).toBe(1); expect(a.par).toBe(s.B);
   expect(parseFloat(a.top), 'top').toBeGreaterThanOrEqual(0); expect(parseFloat(a.left), 'left').toBeGreaterThanOrEqual(0);
