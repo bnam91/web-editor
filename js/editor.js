@@ -1469,7 +1469,7 @@ function duplicateSelected() {
          laurel·joker·speech-bubble 이 빠져 있다(MULTI_SEL 에는 있다). 별건으로 남긴다. */
     '.zoom-block.selected'
   );
-  const selSS = _leafSelFrames()[0] || null;
+  const selSS = window._leafSelFrames?.()[0] || document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');
 
   // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
