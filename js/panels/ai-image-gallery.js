@@ -160,6 +160,7 @@ async function galleryDeleteImage(id) {
     } catch (_) {}
   }
   window._aiImgCache?.delete(id);
+  (window._aiGalleryRemoved ||= new Set()).add(id);   // 파일에 넣는 중인 길이 되살리지 않게(ai-image-gen.js _appendGalleryToProject)
   window.state.imageGallery = window.state.imageGallery.filter(it => it.id !== id);
   buildAIImageGallery();
   window.triggerAutoSave?.();
