@@ -75,7 +75,9 @@ async function sameIdScene(page, choice) {
 }
 test('머지본 스크래치 내것: L 항목과 원격 항목이 다 들어가고, 링크는 L 그림이다, L 스크래치는 그대로', async ({ page }) => {
   const { items, secs } = await sameIdScene(page, null);
-  expect(items.map((i) => i[0]).sort()).toEqual(['s_1', 's_1_r', 's_r']);
+  expect(items.map((i) => i[0]).filter((x) => x === 's_1' || x === 's_r').sort()).toEqual(['s_1', 's_r']);
+  expect(items.length).toBe(3);
+  expect(items.map((i) => i[0]).find((x) => x !== 's_1' && x !== 's_r')).toMatch(/^sp_[a-z0-9]{6}$/);
   expect(secs).toEqual([['내', sA]]);
   expect(await page.evaluate(async (L) => (await window._scratchExportAll(L, ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.src])), LOCAL)).toEqual([['s_1', sA]]);
 });
@@ -240,10 +242,13 @@ test('같은 그림: 둘 다 goya 면 프로젝트 id 가 달라도 파일명으
 });
 test('음성 같은 그림: _sameImage 가 다르다면 _r 을 단다', async ({ page }) => {
   await spySame(page, false);
-  expect(await mergeLinked(page, `goya-asset://${LOCAL}/h.png`, PNG_B)).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+  const r = await mergeLinked(page, `goya-asset://${LOCAL}/h.png`, PNG_B);
+  expect(r.token).toMatch(/^sp_[a-z0-9]{6}$/); expect(r.ids).toEqual(['s_1', r.token]);
+  expect([...`#${r.token} `.matchAll(/#(sp_[a-z0-9]{6})\b/g)].length, 'AI 첨부 토큰에 맞는다').toBe(1);
 });
 test('음성 같은 그림: 둘 다 goya 인데 파일명이 다르면 다른 그림이다', async ({ page }) => {
-  expect(await mergeLinked(page, `goya-asset://${LOCAL}/abc.png`, 'goya-asset://proj_9/def.png')).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+  const r = await mergeLinked(page, `goya-asset://${LOCAL}/abc.png`, 'goya-asset://proj_9/def.png');
+  expect(r.token).toMatch(/^sp_[a-z0-9]{6}$/); expect(r.ids).toEqual(['s_1', r.token]);
 });
 test('없는 goya: 원격 그림이 이 맥에 없으면 _r 을 안 달고 L 그림을 쓴다', async ({ page }) => {
   await spySame(page, false);
@@ -251,7 +256,8 @@ test('없는 goya: 원격 그림이 이 맥에 없으면 _r 을 안 달고 L 그
 });
 test('음성 없는 goya: 원격 그림이 이 맥에 있으면 다른 그림으로 _r 을 단다', async ({ page }) => {
   await spySame(page, false);
-  expect(await mergeLinked(page, PNG_A, 'goya-asset://proj_here/x.png')).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+  const r = await mergeLinked(page, PNG_A, 'goya-asset://proj_here/x.png');
+  expect(r.token).toMatch(/^sp_[a-z0-9]{6}$/); expect(r.ids).toEqual(['s_1', r.token]);
 });
 test('음성 없는 goya: 겹치지 않는 항목은 없는 그림이어도 지우지 않는다', async ({ page }) => {
   await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_n', src: 'goya-asset://proj_missing/n.png', x: 1, y: 1, w: 9 }] }]);

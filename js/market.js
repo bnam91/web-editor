@@ -92,7 +92,7 @@
       return !(r && r.ok);
     } catch (_) { return true; }
   }
-  /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽을 <id>_r 로 새로 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
+  /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽에 새 id 를 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
      (안 그러면 원격 고른 섹션 링크가 L 이미지를 가리킨다, 둘다면 두 섹션이 한 항목을 나눠 쓴다). parsed.pages[].canvas 를 고치므로 저장 «전»에 부른다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
   async function _planMergedScratch(parsed, local, choices, remoteScratch) {
     const pages = parsed.pages || [];
@@ -111,8 +111,8 @@
         if (!same) { items.push(it); byId.set(it.id, it); continue; }
         if (await _sameScratchImage(same.src, it.src)) continue;
         if (await _goyaMissingHere(it.src)) continue;   // 깨진 원격이 멀쩡한 L 그림을 대신하지 않게 — 토큰은 그대로 L 항목을 가리킨다(S3 market5 ②)
-        let nid = it.id + '_r';
-        while (byId.has(nid)) nid += '_r';
+        let nid = window._scratchNewId();
+        while (byId.has(nid)) nid = window._scratchNewId();
         renamed.set(it.id, nid);
         const copy = { ...it, id: nid };
         items.push(copy); byId.set(nid, copy);

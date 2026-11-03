@@ -277,6 +277,7 @@ function _applyMarqueeSelection(baseSet, hitSet) {
   _selectedItems = next;
 }
 
+window._scratchNewId = () => _genScratchId();   // 마켓 머지가 겹치는 원격 항목에 새 이름을 줄 때. 꼴이 다르면 #sp_ 토큰(AI 첨부·OCR 지정)에 안 맞는다
 function _genScratchId() {
   return 'sp_' + Math.random().toString(36).slice(2, 8);
 }
