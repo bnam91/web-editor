@@ -822,7 +822,7 @@ function getHistoryTip() {
  *
  * ★안전장치 — 아래 네 조건 중 하나라도 틀리면 «아무것도 안 한다»(조용히 false).
  *   ⑴ 그 사이 다른 항목이 쌓였다(seq 불일치) ⑵ 되돌리기가 진행돼 꼭대기가 아니다
- *   ⑶ 복원 중(_historyPaused) ⑷ 직렬화가 같다(할 일 없음)
+ *   ⑶ 복원 중(_historyPaused) ⑷ 직렬화가 같다(할 일 없음) ⑸ 누른 포인터가 있다
  *   ⛔sidecar 는 «안» 건드린다 — 여전히 그렇다. 까닭이 T-130(2026-09-22) 뒤에 «분명해졌다»:
  *     ⑴ 미확정 영상 블럭은 세척돼 문자열이 «안 변한다» ⇒ 그 블럭 때문에 여기 ⑷(무변화)를
  *        통과할 일이 없다. 갱신이 실제로 도는 건 «다른 것»이 한 프레임 뒤에 바뀐 때뿐이고,
@@ -830,8 +830,13 @@ function getHistoryTip() {
  *     ⑵ ★단 이 함수의 getSerializedCanvas() 는 sweep 을 새로 돌려 «_lastSweepSidecar 를
  *        덮는다». 그래서 getLastVideoPendingSidecar() 는 «직전 직렬화 직후»에만 읽어야 한다 —
  *        pushHistory·ensureHistoryCheckpoint·clearHistory 셋 다 그 규약을 지킨다. */
+/* ★J260B ⑸ 누른 포인터가 있으면 안 한다 — 예약된 재찍기(앞 모델 수정의 2 rAF 뒤)가 끌기 시작 뒤에 오면, 시작 표본은 꼭대기와 같아 칸을
+   안 만들었으니 seq 가 그대로라 ⑴ 을 지나 «끌던 중간값»으로 꼭대기를 덮는다(⌘Z 가 1,1 이 아니라 1.04,0.96 · 맨 S4 6/12 ↔ 막으면 0/12). */
+let _restampPointerDown = false;
+document.addEventListener('pointerdown', () => { _restampPointerDown = true; }, true);
+for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, () => { _restampPointerDown = false; }, true);
 function restampHistoryTop(seq) {
-  if (_historyPaused) return false;
+  if (_historyPaused || _restampPointerDown) return false;
   if (historyPos !== historyStack.length - 1) return false;   // 되돌린 뒤엔 안 건드린다
   const top = historyStack[historyPos];
   if (!top || seq == null || top.seq !== seq) return false;   // 그 사이 다른 일이 끼었다

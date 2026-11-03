@@ -7,7 +7,7 @@
 // 텍스트블록 패딩 수동조절로 흉내 내던 패턴의 정식 블록화.
 // 라인 모델·렌더러는 grid-block과 공유(부품 공유) — dataset+render 재생성형.
 
-import { insertAfterSelected, genId, blockContextLuminance } from '../drag-utils.js';
+import { insertAfterSelected, genId, keepFreePos, blockContextLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { gridLineHtml } from './grid-block.js';
 
@@ -50,6 +50,7 @@ function renderInnerCardBlock(block) {
   // line.color 명시는 gridLineHtml이 인라인으로 덮으므로 항상 최우선.
   const _cardLum  = blockContextLuminance(block, bg);
   const _cardDark = _cardLum !== null && _cardLum < 0.45;
+  const _restorePos = keepFreePos(block);
   block.style.cssText = `box-sizing:border-box;position:relative;` +
     (width > 0 ? `width:${width}px;max-width:100%;margin-left:auto;margin-right:auto;` : 'width:100%;') +
     `background:${bg};color:${_cardDark ? '#f2f2f2' : '#1a1a1a'};` +
@@ -58,6 +59,7 @@ function renderInnerCardBlock(block) {
     (shadow ? `box-shadow:${shadow};` : '') +
     (borderW > 0 ? `border:${borderW}px solid ${borderColor};` : '') +
     (accentW > 0 ? `border-left:${accentW}px solid ${accentColor};` : '');
+  _restorePos();
   block.innerHTML = lines.map(l => gridLineHtml(l, align)).join('');
 }
 

@@ -40,6 +40,7 @@ const assert = require('node:assert');
 const { startHarness } = require('./_mcp-harness');
 const { canvasFixture, fixtureBlockIds, FIXTURE_SECTION_IDS } = require('./_mcp-canned');
 const CONTRACT = require('../contract/mcp-tools.contract.json');
+const { margin } = require('./_margin.js');
 
 /** 예산(바이트). 「사실상 무한」이 아니라 «지금 값의 2배 언저리». */
 const BUDGET = {
@@ -78,6 +79,7 @@ test('F4-1 get_canvas_state(blocks) — base64 0건 + 예산 안 + ★블록이 
   const r = await H.call('get_canvas_state', {});
   assert.strictEqual(r.result && r.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + r.rawText);
   assertNoBase64('get_canvas_state', r.rawText);
+  margin('mcp 예산 get_canvas_state_blocks(하네스)', r.bytes, BUDGET.get_canvas_state_blocks);
   assert.ok(r.bytes <= BUDGET.get_canvas_state_blocks,
     `${r.bytes}B > 예산 ${BUDGET.get_canvas_state_blocks}B — 응답이 부었다`);
 
@@ -101,6 +103,7 @@ test('F4-2 get_canvas_state(summary) 는 «더 싸다»', async () => {
   assert.strictEqual(b.result && b.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + b.rawText);
   assertNoBase64('get_canvas_state(summary)', s.rawText);
   assert.ok(s.bytes < b.bytes, `summary(${s.bytes}B) 가 blocks(${b.bytes}B) 보다 안 싸다 — 폴백의 뜻이 없다`);
+  margin('mcp 예산 get_canvas_state_summary(하네스)', s.bytes, BUDGET.get_canvas_state_summary);
   assert.ok(s.bytes <= BUDGET.get_canvas_state_summary, `${s.bytes}B > 예산 ${BUDGET.get_canvas_state_summary}B`);
   console.error(`  [실측] summary ${s.bytes}B < blocks ${b.bytes}B`);
 });
@@ -125,6 +128,7 @@ test('F4-4 read_section — base64 0건 + 예산 안', async () => {
   const r = await H.call('read_section', { sectionId: FIXTURE_SECTION_IDS[0] });
   assertNoBase64('read_section', r.rawText);
   assert.strictEqual(r.result.ok, true);
+  margin('mcp 예산 read_section(하네스)', r.bytes, BUDGET.read_section);
   assert.ok(r.bytes <= BUDGET.read_section, `${r.bytes}B > 예산 ${BUDGET.read_section}B`);
   console.error(`  [실측] read_section ${r.bytes}B`);
 });
@@ -138,6 +142,7 @@ test('F4-5 read_project 기본은 «목차»다 — 캔버스 원문(그리고 b
   assert.strictEqual(r.result && r.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + r.rawText);
   assertNoBase64('read_project', r.rawText);
   assert.strictEqual(r.result.truncated, true, '기본이 «목차»가 아니다 — 캔버스 원문이 나간다');
+  margin('mcp 예산 read_project(하네스)', r.bytes, BUDGET.read_project);
   assert.ok(r.bytes <= BUDGET.read_project, `${r.bytes}B > 예산 ${BUDGET.read_project}B`);
   console.error(`  [실측] read_project ${r.bytes}B (프로젝트 원본엔 base64 20,000자가 있다)`);
 });
@@ -146,6 +151,7 @@ test('F4-6 update_block «성공» 응답이 작고 base64 를 안 되돌린다'
   const u = await H.call('update_block', { blockId: 'tb_fx_h1', props: { text: '새 제목' } });
   assert.strictEqual(u.result && u.result.ok, true, '★전제: 성공 경로에 안 닿았다 — ' + u.rawText);
   assertNoBase64('update_block', u.rawText);
+  margin('mcp 예산 update_block(하네스 · 시트 318)', u.bytes, BUDGET.update_block);
   assert.ok(u.bytes <= BUDGET.update_block, `update_block ${u.bytes}B > ${BUDGET.update_block}B`);
   console.error(`  [실측] update_block ${u.bytes}B`);
 });
@@ -157,6 +163,7 @@ test('F4-6r ★put_image «거절» 경로 — 입력 검증 거절도 거절 �
   const p = await H.call('put_image', { image: img });
   assert.strictEqual(p.result && p.result.ok, false, '★전제: 거절 경로에 안 닿았다 — ' + p.rawText);
   assertNoBase64('put_image(거절)', p.rawText);
+  margin('mcp 예산 put_image 거절(하네스)', p.bytes, REFUSAL_BUDGET);
   assert.ok(p.bytes <= REFUSAL_BUDGET, `put_image 거절 ${p.bytes}B > 거절 예산 ${REFUSAL_BUDGET}B — 거절문이 길어졌다(인자 되읊음은 위 base64 단언이 따로 잰다)`);
   console.error(`  [실측] put_image 거절 ${p.bytes}B (입력 dataURL 은 50,022자)`);
 });
@@ -168,6 +175,7 @@ test('F4-6s ★put_image «성공» 경로 예산 — 계약 케이스의 참 PN
   const p = await H.call('put_image', CASES.put_image.args);
   assert.strictEqual(p.result && p.result.ok, true, `전제: 성공 경로에 안 닿았다(자극 없는 초록) — ${p.rawText}`);
   assertNoBase64('put_image(성공)', p.rawText);
+  margin('mcp 예산 put_image 성공(하네스)', p.bytes, BUDGET.put_image);
   assert.ok(p.bytes <= BUDGET.put_image, `put_image 성공 ${p.bytes}B > ${BUDGET.put_image}B — 응답이 부었다`);
   console.error(`  [실측] put_image 성공 ${p.bytes}B`);
 });

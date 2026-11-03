@@ -63,7 +63,7 @@
      ⇒ 2단계는 ★패널 줄만 더하면 된다. ⛔생성기를 다시 쓰지 마라.
 ═══════════════════════════════════════════════════════════════════════════ */
 
-import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
+import { insertAfterSelected, genId, keepFreePos, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { paint } from './coupon-geometry.js';
 /* ★허용값 명부·프리셋 명부는 ★한 자리다 — ★js/blocks/coupon-presets.js (2026-10-08).
@@ -349,8 +349,10 @@ function renderCouponBlock(block) {
   const r = cpnResponsiveSvg(L.svg, st.cw, st.ch);
   if (!r.swapped) console.warn('[coupon-block] 생성기 출력의 width/height 를 못 바꿨다 — 그림이 안 늘어난다');
 
+  const _restorePos = keepFreePos(block);
   block.style.cssText = 'box-sizing:border-box;position:relative;'
     + `width:${boxW}px;height:${boxH}px;max-width:100%;margin-left:auto;margin-right:auto;`;
+  _restorePos();
 
   const bg = document.createElement('div');
   bg.className = 'cpn-bg';

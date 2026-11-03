@@ -15,7 +15,7 @@
  * ⛔이 스펙이 ★안 재는 축(이름으로): 중첩 ★2단계 깊이의 비율 · 중첩 안 ★행 · 터치/펜 입력 ·
  *   실앱(Electron) 저장·불러오기 왕복 · HTML/Figma 내보내기에서의 중첩 비율. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 const SCENE = '<div class="section-block" id="cS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" id="cI"><div class="gap-block" data-type="gap" style="height:40px"></div><div class="row" id="cR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:400px"></div></div></div>';
 
@@ -27,6 +27,7 @@ async function scene(page) {
     c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', S);
   }, SCENE);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 보간 중에 재면 옛 배율 자리를 누른다(7차 ×6 값)
   return errs;
 }
 
@@ -251,6 +252,36 @@ test('S3b negative control — without a drag, NOTHING changes', async ({ page }
   const after = await widthsOf(page);
   console.log('### S3b ' + JSON.stringify({ before, after }));
   expect(after, '★안 끌었는데 비율이 바뀌었다').toEqual(before);
+  expect(errs).toEqual([]);
+});
+
+/* ★S4R(J260B) — S4 가 운으로 재는 순서를 못박는다: 예약된 재찍기가 «끌기 도중»에 온다(진짜 함수 · 진짜 끌기).
+   N = 음성 — 끌기 밖 재찍기는 그대로 돈다(가드가 재찍기를 통째로 죽이면 빨강). */
+test('S4R restamp during a held drag must not overwrite the start sample', async ({ page }) => {
+  const errs = await scene(page);
+  await setup(page, { nDuo: 1, nCols: 2, outerCols: 1 });
+  const before = await widthsOf(page);
+  const t = (await gutters(page)).ncol[0];
+  await page.mouse.move(t.cx, t.cy);
+  await page.mouse.down();
+  await page.mouse.move(t.cx + 70, t.cy, { steps: 4 });
+  const ret = await page.evaluate(() => window.restampHistoryTop(window.getHistoryTip().seq));
+  await page.mouse.up();
+  expect(await widthsOf(page), '[전제] 끌어서 실제로 바뀌어야 한다').not.toEqual(before);
+  expect(ret, '끌기 도중 재찍기는 안 한다').toBe(false);
+  await page.evaluate(() => window.undo());
+  expect(await widthsOf(page), '⌘Z 한 번에 끌기 전 비율').toEqual(before);
+  expect(errs).toEqual([]);
+});
+test('S4R-N restamp with no pointer held still rewrites the top', async ({ page }) => {
+  const errs = await scene(page);
+  await setup(page, { nDuo: 1, nCols: 2, outerCols: 1 });
+  const ret = await page.evaluate(() => {
+    const tip = window.getHistoryTip();
+    document.getElementById('cG').dataset.l6Probe = '1';   // 직렬화가 달라지는 날 변화
+    return window.restampHistoryTop(tip.seq);
+  });
+  expect(ret, '포인터가 없으면 재찍기는 돈다').toBe(true);
   expect(errs).toEqual([]);
 });
 

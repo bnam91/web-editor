@@ -13,6 +13,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { margin, WHAT_NOW } from './_margin.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -78,7 +79,9 @@ test('S1 ★tests/unit 고정 잠이 늘지 않는다 · 하네스(_*)는 0 · �
     if (n > b) grew.push(`${f} ${b} → ${n} — ${c.at.filter((a) => a.startsWith(f + ':')).join(' · ')}`);
     else if (n < b) shrank.push(`${f} ${b} → ${n}`);
   }
-  assert.deepEqual(grew, [], '고정 잠이 늘었다');
-  assert.ok(c.ms <= BASE_MS, `합 ms 가 늘었다: ${BASE_MS} → ${c.ms}`);
+  margin('unit-fixed-sleep S1 곳', Object.values(c.by).reduce((a, n) => a + n, 0), Object.values(BASE).reduce((a, n) => a + n, 0));
+  margin('unit-fixed-sleep S1 합ms', c.ms, BASE_MS);
+  assert.deepEqual(grew, [], '고정 잠이 늘었다' + WHAT_NOW);
+  assert.ok(c.ms <= BASE_MS, `합 ms 가 늘었다: ${BASE_MS} → ${c.ms}${WHAT_NOW}`);
   assert.deepEqual(shrank, [], '줄었다 — 고맙다 · BASE 를 그 수로 줄여라(⛔썩은 면제)');
 });

@@ -73,6 +73,17 @@ function getActorId() {
   return _actorId;
 }
 
+/* 자유 프레임 자리는 style 에만 산다(모델 칸이 없다). 렌더러가 cssText 를 통째 쓰면 저장 왕복·패널 변경에서 자리를 잃는다.
+   렌더 앞에서 부르고 쓴 뒤에 돌려받은 함수를 부른다. absolute 가 아니면 아무것도 안 한다. 폭은 렌더러가 안 정했을 때만 되돌린다. */
+function keepFreePos(block) {
+  if (block.style.position !== 'absolute') return () => {};
+  const { left, top, width } = block.style;
+  return () => {
+    block.style.position = 'absolute'; block.style.left = left; block.style.top = top;
+    if (!block.style.width) block.style.width = width;
+  };
+}
+
 function genId(prefix) {
   return (prefix || 'b') + '_' + getActorId() + '_' + Math.random().toString(36).slice(2, 9);
 }
@@ -2034,6 +2045,7 @@ function mdlReadText(host) {
 }
 
 export {
+  keepFreePos,
   genId,
   getActorId,
   clearDropIndicators,
