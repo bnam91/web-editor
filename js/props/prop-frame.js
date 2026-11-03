@@ -316,6 +316,7 @@ function _convertFreeLayoutToStack(ss) {
   /* ★스택이 «된 뒤»에 파생한다 — 그 함수가 `freeLayout` 을 보고 비켜 가므로 순서가 뜻을 가른다 */
   _applyStackChildWidths(ss);
   orderedItems.forEach(it => window.rebirthFlowUnit?.(it.el));   // absolute 때 묶인 처리기(드롭 자리 없음·옛 좌표 끌기)를 버리고 다시 연 판과 같게 묶는다 — S3 B-5 · S6 ④⑤
+  _applyStackChildWidths(ss);   // 위 다시 묶기가 다시 그리며 캔버스 등의 폭을 모델 값으로 되쓴다 ⇒ 파생 폭을 다시 놓는다(P7)
 
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
@@ -1080,7 +1081,9 @@ function _renderAutoPanel(ss) {
   const applyWidth  = (v) => {
     const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
     const newW = parseInt(v);
-    const ratio = newW / oldW;
+    /* 손잡이로 폭만 바뀐 뒤면 자식은 그 전 폭에 맞아 있다 — 기준은 그 폭(js/overlay-handles.js onMove 가 남긴다). 한 번 맞추면 지운다. */
+    const ratio = newW / (parseInt(ss.dataset.childScaleW) || oldW);
+    delete ss.dataset.childScaleW;
     if (ratio !== 1) {
       ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);

@@ -74,7 +74,8 @@ async function setup(page) {
     return [...c.querySelectorAll('.section-block:not([data-ghost])')].map(s => s.id);
   });
   await page.evaluate(async ({ px, items }) => {
-    for (const [id, x, y, g] of items) await window._scratchAddAndSave(px, x, y, 180, g, id);
+    // ★폭 320 · 간격도 같은 비로 — 단추 넷이 안 들어가는 좁은 그림은 단추를 숨긴다(scratch-narrow-btns · 247). 이 시험은 단추 길을 잰다
+    for (const [id, x, y, g] of items) await window._scratchAddAndSave(px, 1500 + (x - 1500) * 1.8, y * 1.8, 320, g, id);
   }, { px: PX, items: ITEMS });
   // 손잡이가 «실제로 주입될 때까지» 산출물로 기다린다(⛔고정 대기 금지)
   await page.waitForFunction(() => document.querySelectorAll('.scratch-item .spl-btn-link').length === 7, null, { timeout: 15000 });

@@ -544,20 +544,35 @@ export function applyFrameTransform(ss, opts) {
        style.height · style.minHeight · dataset.height
      dataset.height 를 빼면 undo/redo·재로드가 옛 높이로 되돌려 증상이 되살아난다. */
 export function growFrameToFitChildren(frameEl) {
+  /* ★250 ㉡ — 쓰기를 사슬 꼭대기까지 미룬다. 넓히자마자 부모가 읽으면 층마다 강제 스타일 재계산이다
+     (cbd91466 앱 실측: 깊이 120 추가 한 번 레이아웃 76회 · 스타일 ~300ms · 이 함수 283ms / 전체 ~400ms).
+     ⇒ 바로 아래서 넓힌 absolute 직계 자식의 높이는 읽지 않고 새 값을 쓴다(border-box 라 offsetHeight = 새 높이 · absolute 라 형제·부모 크기는 안 변함).
+     ⛔흐름 자식이거나 사이에 다른 상자가 끼면 그 값이 부모 배치를 바꾸니 먼저 쓰고 실제로 읽는다. */
   let grown = 0;
   let el = frameEl;
+  const writes = [];
+  let kid = null, kidH = 0;
+  const flush = () => {
+    for (const [f, h] of writes) {
+      f.style.height    = `${h}px`;
+      f.style.minHeight = `${h}px`;
+      f.dataset.height  = String(h);
+    }
+    writes.length = 0;
+  };
   while (el && el.nodeType === 1 && el.dataset && el.dataset.freeLayout === 'true') {
+    if (kid && (kid.parentElement !== el || kid.style.position !== 'absolute')) { flush(); kid = null; }
     const boxes = [...el.children]
       .filter(c => c.nodeType === 1 && c.style && c.style.position === 'absolute')
-      .map(c => ({ top: parseFloat(c.style.top) || 0, height: c.offsetHeight || 0 }));
+      .map(c => ({ top: parseFloat(c.style.top) || 0, height: c === kid ? kidH : (c.offsetHeight || 0) }));
+    kid = null;
     if (boxes.length) {
       const curH   = el.offsetHeight || 0;
       const chrome = Math.max(0, curH - (el.clientHeight || 0));
       const newH   = frameFitHeight(curH, absChildrenBottom(boxes), chrome);
       if (newH > curH) {
-        el.style.height    = `${newH}px`;
-        el.style.minHeight = `${newH}px`;
-        el.dataset.height  = String(newH);
+        writes.push([el, newH]);
+        kid = el; kidH = newH;
         grown++;
       }
     }
@@ -565,6 +580,7 @@ export function growFrameToFitChildren(frameEl) {
       ? el.parentElement.closest('.frame-block[data-free-layout]')
       : null;
   }
+  flush();
   return grown;
 }
 

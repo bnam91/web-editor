@@ -977,14 +977,19 @@ function bindBlock(block) {
       // 커서 화면 좌표 대신 요소 중심의 캔버스 좌표로 판단 — scale 오탐 방지
       if (_dragOutParentFrame && _dragOutParentSection && multiPeers.length === 0) {
         const DRAGOUT_MARGIN = 60; // 캔버스 px — 의도치 않은 drag-out 방지
-        const elCX = rawLeft + dragEl.offsetWidth  / 2;
-        const elCY = rawTop  + dragEl.offsetHeight / 2;
+        const elW  = dragEl.offsetWidth, elH = dragEl.offsetHeight;
+        const elCX = rawLeft + elW / 2;
+        const elCY = rawTop  + elH / 2;
         const fw   = _dragOutParentFrame.offsetWidth;
         const fh   = _dragOutParentFrame.offsetHeight;
+        /* 프레임보다 큰 자식은 중심이 처음부터 프레임 끝에 있어(조커 860 ⊂ 프레임 450) 40px 만 끌어도 빠져 섹션 흐름에 놓였다 — 화면에선 손과 반대로 튄다(S3 B-9).
+           넘친 만큼 여유를 더한다. 프레임보다 작은 자식은 전과 같다. */
+        const mX = DRAGOUT_MARGIN + Math.max(0, elW - fw) / 2;
+        const mY = DRAGOUT_MARGIN + Math.max(0, elH - fh) / 2;
         /* 큰 블럭은 윗부분을 잡으면 커서가 프레임 안인데도 중심이 먼저 넘어가 섹션으로 빠졌다(S6 새 발견 ③) ⇒ 커서도 프레임 밖이어야 뺀다. 화면 좌표끼리 견주므로 배율 오탐이 없다. 시험: tests/dom/big-block-dragout.dom.spec.js */
         const _cursorOut = () => { const r = _dragOutParentFrame.getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; };
-        const outside = (elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
-                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN) && _cursorOut();
+        const outside = (elCX < -mX || elCX > fw + mX ||
+                         elCY < -mY || elCY > fh + mY) && _cursorOut();
         if (outside) {
           draggedOutside = true;
           hideGuides();
@@ -3424,6 +3429,9 @@ function bindFrameDropZone(ss) {
 
       // e.preventDefault() 제거 — 호출 시 이후 자식 click 이벤트가 억제되어 선택 불가
       e.stopPropagation();
+      /* 더블클릭으로 들어가면 글자 선택이 남는다. 그 위를 눌러 잠깐(약 150ms) 있다 끌면 브라우저가 글자 드래그로 가져가 프레임이 안 움직였다(S3 C).
+         편집 중 글자 선택은 건드리지 않는다. 시험: tests/dom/frame-hold-drag-selection.dom.spec.js */
+      if (!document.activeElement?.isContentEditable) window.getSelection()?.removeAllRanges();
 
       // ss 자신이 freeLayout frame일 수 있으므로 parentElement부터 탐색
       const parentFreeFrame = ss.parentElement?.closest('.frame-block[data-free-layout]');
@@ -3532,7 +3540,7 @@ function bindFrameDropZone(ss) {
         }
       };
 
-      const onUp = () => {
+      const onUp = (upEv) => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
@@ -3553,6 +3561,9 @@ function bindFrameDropZone(ss) {
             ss.dataset.offsetY = String(c.top);
           }
           window.pushHistory?.(); window.triggerAutoSave?.();
+          /* 놓은 점이 ss 밖(부모가 잘라 낸 자리 등)이면 합성 click 이 공통 조상에서 나 그 조상이 선택된다(S3 D-A: 90도 돈 부모 안 G → 맨 위 R).
+             click 은 지금 ss 를 고르는 일도 하므로(눌렀을 때 부모도 selected) 삼키지 않고 ss 로 돌린다. ss 안에서 난 click 은 그대로 둔다. */
+          if (!ss.contains(upEv.target)) { ss.click(); window.swallowNextClick({ on: document }); }
         }
       };
 
@@ -3628,7 +3639,8 @@ function bindFrameDropZone(ss) {
        고르기는 아래 contextmenu 리스너가 한다(클릭과 같은 단일 선택). */
     if (e.button !== 0) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
-    if (!ss.classList.contains('selected')) {
+    /* gap 을 면으로 칠 때는 여기서 고르지 않는다 — 고르면 같은 클릭의 click 이 «고른 프레임의 자식»으로 읽어 한 번에 gap 까지 내려간다(뒤집기 칸이 있는 프레임 패널을 못 봤다). 프레임은 click 이 고른다. */
+    if (!ss.classList.contains('selected') && !_gapAsSurface) {
       window.deselectAll?.();
       const parentSec = ss.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }

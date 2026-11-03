@@ -92,8 +92,8 @@ const callSites = () => {
   return got;
 };
 
-test('S4 부르는 자리 13 — 파일별 수(양방향 · 244 가 modal-block 하나를 걷었다 — 근거·지킴 tests/unit/modal-profile-drag-render-guard)', () => {
-  const want = { 'js/annotation-select.js': 4, 'js/blocks/radial-block.js': 1, 'js/drag-utils.js': 2, 'js/gradient-line-overlay.js': 1, 'js/overlay-handles.js': 1,
+test('S4 부르는 자리 14 — 파일별 수(양방향 · 244 가 modal-block 하나를 걷었다 — 근거·지킴 tests/unit/modal-profile-drag-render-guard · S3 D-A 가 block-drag 하나를 더했다)', () => {
+  const want = { 'js/annotation-select.js': 4, 'js/block-drag.js': 1, 'js/blocks/radial-block.js': 1, 'js/drag-utils.js': 2, 'js/gradient-line-overlay.js': 1, 'js/overlay-handles.js': 1,
     'js/scratch-pad.js': 1, 'js/section-bottom-handle.js': 1, 'js/sticker-select.js': 1, 'js/table-cell-select.js': 1 };
   assert.deepEqual(callSites(), want);
   assert.match(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), /<script src="js\/click-swallow\.js"><\/script>/, 'index.html 이 그 한 벌을 싣는다');
@@ -103,6 +103,7 @@ test('S4 부르는 자리 13 — 파일별 수(양방향 · 244 가 modal-block 
  *   null = 자를 일부러 안 세웠다: radial 은 실제 끌기에서 켜도 꺼도 값이 같다(먼저 세우면 죽은 호출을 잠근다 · ⛔«지워라» 로 읽지 마라). */
 const RULERS = {
   'js/annotation-select.js': ['annotation-1013t2c6-label-box', 'annot-label-offset-drag-click-237', 'annotation-1013t2', 'fix5-annot-label-range'],
+  'js/block-drag.js': ['frame-cd-294l'],
   'js/blocks/radial-block.js': null,
   'js/drag-utils.js': ['click-swallow-drag-utils-237'],
   'js/gradient-line-overlay.js': ['grad-chip-swallow-305'],

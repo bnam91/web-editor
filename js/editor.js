@@ -329,6 +329,7 @@ function applyZoom(z, opts) {
   zoomDisplay.textContent = Math.round(currentZoom) + '%';   // [M67] 표시는 정수 — 내부 배율만 소수를 갖는다
   document.documentElement.style.setProperty('--inv-zoom', (100 / currentZoom).toFixed(4));
   document.documentElement.style.setProperty('--scratch-inv-zoom', Math.min(SCRATCH_INV_ZOOM_CAP, 100 / currentZoom).toFixed(4));
+  window._scratchSyncHoveredBtns?.();
   /* ★아이콘원형 이미지 편집 손잡이는 #canvas-scaler «안»에 살아서 «크기»뿐 아니라 «중심 보정»도
      배율을 먹는다(js/image-handling.js enterCircleImageEditMode). 크기는 바로 위 --inv-zoom 이
      CSS 로 고쳐 주지만 위치는 JS 가 잡는다 — 여기서 같이 다시 잡지 않으면 «배율 바꾸기 전» 값이
@@ -4472,10 +4473,8 @@ function moveSelectedBlocks(direction) {
     return;
   }
 
-  const BLOCK_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-    '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-    '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
-    '.icon-text-block.selected, .shape-block.selected';
+  // ★J4468A — 손 명부 16종이 흐름 블럭 13종을 빠뜨려 ⌘[ ⌘] 가 조용히 먹통이었다(앱 ×3) ⇒ SSOT 파생
+  const BLOCK_SEL = SECTION_BLOCK_TYPE_SEL_SELECTED;
 
   const selBlocks = [...document.querySelectorAll(BLOCK_SEL)];
   if (selBlocks.length === 0) return;

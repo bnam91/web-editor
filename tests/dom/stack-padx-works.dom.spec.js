@@ -90,13 +90,16 @@ async function scene(page) {
       if (!now.length) { out.push({ k, err: '(자식이 안 늘었다)' }); return; }
       const el = now[now.length - 1];
       if (!el.id) el.id = 'auto' + i;
-      el.style.top = (20 + i * 150) + 'px';     /* ★행을 가른다 — 끌어 옮기기는 사람이 하는 짓이고 폭을 안 바꾼다 */
       out.push({ k, id: el.id, abs: el.style.position === 'absolute', w: el.offsetWidth, shape: !!el.querySelector(':scope > .shape-block') });
     });
     return out;
   }, KINDS);
   for (const a of added) console.log(`   ${a.err ? '⛔' : '✅'} ${a.k} ${a.err || `id=${a.id} absolute=${a.abs} 폭=${a.w}${a.shape ? ' ★도형' : ''}`}`);
   expect(added.filter(a => !a.err).length, '전제: 고른 여섯이 다 들어갔다(인자를 호출 자리에서 끌었다)').toBe(KINDS.length);
+  /* ★행을 가른다 — 끌어 옮기기는 사람이 하는 짓이고 폭을 안 바꾼다.
+     캔버스 높이가 선 뒤 제 높이만큼 내린다: 고정 150px 은 캔버스(높이 480)와 인용구가 겹쳐 «나란히 놓인 자식»으로 변환이 거절된다(3ebbbcee 부터 인용구가 absolute 를 지킨다). */
+  await page.waitForFunction(() => document.querySelector('#sF > .canvas-block')?.offsetHeight > 0);
+  await page.evaluate((ids) => { let top = 20; for (const id of ids) { const el = document.getElementById(id); el.style.top = top + 'px'; top += el.offsetHeight + 20; } }, added.map(a => a.id));
   await pickFrame(page);
   await page.click('#ss-to-stack-btn', { timeout: 2500 });
   await pickFrame(page);
