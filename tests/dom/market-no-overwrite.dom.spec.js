@@ -14,6 +14,7 @@ async function open(page, remote) {
     const api = window.electronAPI || {};
     const fake = { ...api,
       saveProject: async (p) => { window.__saved.push(JSON.parse(JSON.stringify(p))); return { ok: true }; },
+      duplicateProject: async (a) => { window.__dup = { src: a.sourceProjectId, newName: a.newName }; const p = JSON.parse(JSON.stringify(a.sourceData)); p.id = 'proj_2000000000002'; p.name = a.newName; window.__saved.push(p); return { ok: true, newProjectId: p.id, newName: a.newName }; },
       loadProject: async (id) => (id === LOCAL ? JSON.parse(JSON.stringify(local)) : null),
       listProjects: async () => [{ id: LOCAL, name: local.name, marketRef: local.marketRef }],
       market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: M, name: '원격 이름', version: 'v2', updatedAt: '2026-02-02' }] }), pull: async () => ({ ok: true, project: { id: M, name: '원격 이름', account: 'acc', version: 'v2', updatedAt: '2026-02-02', data: JSON.stringify(remote), scratch: '[]' } }), push: async () => ({ ok: false }) } };
@@ -43,6 +44,7 @@ test('머지 기본(내것): 내 복사본 id 로 저장하지 않는다', async
   await page.locator('#rsv-apply').click();
   const p = await saved(page);
   expect(p.id).not.toBe(LOCAL); expect(p.name).toBe('원격 이름 (머지)'); expect(body(p)).toContain('내 글'); expect(p.marketRef.version).toBe('v2');
+  expect(await page.evaluate(() => window.__dup), '복제 길, 기준은 L').toEqual({ src: LOCAL, newName: '원격 이름 (머지)' });
 });
 test('머지 원격 고름: 새 프로젝트에 원격 글이 들어가고 내 복사본 id 로 안 간다', async ({ page }) => {
   await open(page, data('원격 글'));
@@ -51,4 +53,8 @@ test('머지 원격 고름: 새 프로젝트에 원격 글이 들어가고 내 �
   await page.locator('#rsv-apply').click();
   const p = await saved(page);
   expect(p.id).not.toBe(LOCAL); expect(body(p)).toContain('원격 글');
+});
+test('preload 가 복제의 sourceData 를 버리지 않는다 — 버리면 머지본이 원본 내용이 된다', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../../preload.js'), 'utf8');
+  expect(src).toMatch(/duplicateProject:\s*\(\{[^}]*sourceData[^}]*\}\)\s*=>\s*ipcRenderer\.invoke\('projects:duplicate',\s*\{[^}]*sourceData[^}]*\}\)/);
 });

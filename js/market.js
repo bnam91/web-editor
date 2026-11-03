@@ -78,7 +78,8 @@
   // 데이터 fetch와 분리(테스트 가능). saveFn 주입(기본 electronAPI.saveProject).
   function buildResolveModal(meta, local, remoteData, saveFn) {
     if (!window.marketMerge) { _toast('⚠️ 머지 엔진 없음 (앱 재시작 필요)'); return; }
-    saveFn = saveFn || (p => window.electronAPI.saveProject(p));
+    /* 머지본은 원본 L 의 에셋을 쓴다. goya-asset URL 이 hostname 에 프로젝트 id 를 박으니 saveProject 로 새 id 에 저장하면 L 을 지울 때 이미지·패널·갤러리가 깨진다 ⇒ 복제 길(에셋 하드링크·URL 재매핑·날짜)을 탄다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
+    saveFn = saveFn || (p => window.electronAPI.duplicateProject({ sourceProjectId: local.id, newName: p.name, sourceData: p }));
     const { account, id, name } = meta;
     const diverged = window.marketMerge.diffProjects(local, remoteData).sections.filter(s => s.status !== 'same');
     if (!diverged.length) { _toast('변경점 없음 — 로컬이 최신과 동일'); return; }
@@ -109,8 +110,8 @@
       // 체크된 radio를 직접 순회(키에 '::' 포함 → 셀렉터 이스케이프 회피). name = 'r-'+key.
       ov.querySelectorAll('#rsv-list input[type=radio]:checked').forEach(r => { choices[r.name.slice(2)] = r.value; });
       const parsed = JSON.parse(window.marketMerge.applyResolve(local, remoteData, choices));
-      /* ⛔id·name 은 ...parsed 뒤에 — applyResolve 는 local(loadProject, id·name 있음)을 복사한다. 앞에 두면 «새 프로젝트로 저장» 이 내 복사본을 덮는다(S3 market). */
-      const proj = { ...parsed, id: 'proj_' + Date.now(), name: (name || '머지') + ' (머지)',
+      /* id 를 ...parsed 에서 안 쓴다 — applyResolve 는 local(id·name 있음)을 복사한다. 새 id 는 복제 길이 정한다(S3 market). */
+      const proj = { ...parsed, name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
       const saved = await saveFn(proj);
       ov.remove();
