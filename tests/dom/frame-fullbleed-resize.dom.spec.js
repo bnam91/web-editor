@@ -85,7 +85,7 @@ async function turnOn(page) {
 }
 
 /** ★오버레이 ★`se` 핸들의 ★화면 좌표. */
-const seHandle = (page) => page.evaluate(() => {
+const readSeHandle = (page) => page.evaluate(() => {
   const hs = [...document.querySelectorAll('.ss-resize-handle, .frame-resize-handle')];
   const se = hs.find((x) => /\bse\b/.test(String(x.className))) || hs[hs.length - 1];
   if (!se) return { n: 0 };
@@ -94,6 +94,9 @@ const seHandle = (page) => page.evaluate(() => {
 });
 
 /* ══════ 입구 ⒥ ★오버레이 ★리사이즈 ★핸들 ══════════════════════════════════ */
+/* 패딩제외를 켜면 프레임이 넓어지고 손잡이가 뒤따라 옮긴다 — 옮기기 전에 읽은 자리를 누르면 손잡이를 못 잡는다(×9 중 3~7). 멈춘 뒤 읽는다. */
+const seHandle = async (page) => { await waitStableRect(page, '.ss-resize-handle.se'); return readSeHandle(page); };
+
 test('FB1 ★★핸들로 ★끌어도 ★패딩제외가 ★안 풀린다 — ★★«드래그 ★중»에도 (현빈 2026-10-11)', async ({ page }) => {
   const errs = await setup(page, 'fbA');
   const on = await turnOn(page);
