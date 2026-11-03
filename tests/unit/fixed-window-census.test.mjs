@@ -34,7 +34,6 @@ const BASE = {
   'tests/dom/grid-children-shell-bytes.dom.spec.js': 2,
   'tests/dom/icb-children.dom.spec.js': 2,
   'tests/dom/modal-frameify-premise.dom.spec.js': 2,
-  'tests/dom/modal-frameify.dom.spec.js': 1,
   'tests/dom/save-strip-plus7-window.dom.spec.js': 1,
   'tests/dom/section-protect-button-persist.dom.spec.js': 1,
   'tests/dom/t7-03-ft-align.dom.spec.js': 1,
