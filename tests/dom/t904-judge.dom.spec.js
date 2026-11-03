@@ -9,7 +9,7 @@ const J = require('./_t904-judge.js');
 const OUT = process.env.T904_OUT || path.join(__dirname, '..', '..', 'test-results', 't904');
 const MODES = ['dataset', 'node'];
 /* 저장 왕복 때 진짜 달라지는 것(t9-04 값 · 재현은 회신). 판정기가 잡았다는 증거이기도 하다 */
-const KNOWN_NEGATIVE = ['bridge-block stack rebind'];
+const KNOWN_NEGATIVE = [];
 const { build } = J;
 test('⑴ 분모 = SECTION_BLOCK_TYPE_SEL 길이 · 입구가 앱과 같다', async ({ page }) => {
   await bootApp(page);
