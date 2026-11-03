@@ -17,6 +17,7 @@ async function open(page, remote, remoteScratch = [], localCanvas = null) {
       duplicateProject: async (a) => { window.__dup = { src: a.sourceProjectId, newName: a.newName }; const p = JSON.parse(JSON.stringify(a.sourceData)); p.id = 'proj_2000000000002'; p.name = a.newName; window.__saved.push(p); return { ok: true, newProjectId: p.id, newName: a.newName }; },
       loadProject: async (id) => (id === LOCAL ? JSON.parse(JSON.stringify(local)) : null),
       listProjects: async () => [{ id: LOCAL, name: local.name, marketRef: local.marketRef }],
+      assetsReadAsDataUri: async ({ projectId }) => (projectId === 'proj_missing' ? { ok: false } : { ok: true, dataUri: 'data:image/png;base64,A' }),
       market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: M, name: '원격 이름', version: 'v2', updatedAt: '2026-02-02' }] }), pull: async () => ({ ok: true, project: { id: M, name: '원격 이름', account: 'acc', version: 'v2', updatedAt: '2026-02-02', data: JSON.stringify(remote), scratch: JSON.stringify(remoteScratch) } }), push: async () => ({ ok: false }) } };
     Object.defineProperty(window, 'electronAPI', { value: fake, configurable: true, writable: true });
     const d = document.createElement('div'); d.id = 'mk-pane'; d.style.cssText = 'position:fixed;left:400px;top:100px;width:700px;height:500px;background:#111;z-index:99998;overflow:auto'; document.body.appendChild(d);
@@ -243,4 +244,19 @@ test('음성 같은 그림: _sameImage 가 다르다면 _r 을 단다', async ({
 });
 test('음성 같은 그림: 둘 다 goya 인데 파일명이 다르면 다른 그림이다', async ({ page }) => {
   expect(await mergeLinked(page, `goya-asset://${LOCAL}/abc.png`, 'goya-asset://proj_9/def.png')).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+});
+test('없는 goya: 원격 그림이 이 맥에 없으면 _r 을 안 달고 L 그림을 쓴다', async ({ page }) => {
+  await spySame(page, false);
+  expect(await mergeLinked(page, PNG_A, 'goya-asset://proj_missing/x.png')).toEqual({ token: 's_1', ids: ['s_1'] });
+});
+test('음성 없는 goya: 원격 그림이 이 맥에 있으면 다른 그림으로 _r 을 단다', async ({ page }) => {
+  await spySame(page, false);
+  expect(await mergeLinked(page, PNG_A, 'goya-asset://proj_here/x.png')).toEqual({ token: 's_1_r', ids: ['s_1', 's_1_r'] });
+});
+test('음성 없는 goya: 겹치지 않는 항목은 없는 그림이어도 지우지 않는다', async ({ page }) => {
+  await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_n', src: 'goya-asset://proj_missing/n.png', x: 1, y: 1, w: 9 }] }]);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => i.id)))).toEqual(['s_n']);
 });
