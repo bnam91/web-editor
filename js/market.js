@@ -84,7 +84,10 @@
       for (const it of b.items || []) if (!seen.has(it.id)) items.push(it);
       byPage.set(b.pageId, items);
     }
-    await window._scratchImportAll?.(newId, [...byPage].map(([pageId, items]) => ({ pageId, items })));
+    /* 외부화된 항목은 goya-asset://L 이다. 파일은 복제가 옮겼으니 src 도 M 으로 — 안 바꾸면 L 을 지울 때 scratch-missing 이 된다. */
+    const from = `goya-asset://${localId}/`, to = `goya-asset://${newId}/`;
+    const reSrc = it => (typeof it.src === 'string' && it.src.startsWith(from) ? { ...it, src: to + it.src.slice(from.length) } : it);
+    await window._scratchImportAll?.(newId, [...byPage].map(([pageId, items]) => ({ pageId, items: items.map(reSrc) })));
   }
 
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }

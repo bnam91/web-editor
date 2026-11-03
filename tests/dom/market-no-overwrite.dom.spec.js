@@ -69,3 +69,13 @@ test('머지본 스크래치: L 항목과 원격 항목이 다 들어가고, 겹
   expect((await read('proj_2000000000002')).find((x) => x[0] === 's_1')[1]).toContain('LOCAL');
   expect((await read(LOCAL)).map((x) => x[0])).toEqual(['s_1']);
 });
+test('머지본 스크래치: 외부화된 항목의 src 는 머지본을 가리킨다, L 항목은 그대로', async ({ page }) => {
+  await open(page, data('원격 글'));
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_e', src: `goya-asset://${L}/s.png`, x: 3, y: 3, w: 9 }] }]), LOCAL);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  const src = (id) => page.evaluate(async (id) => (await window._scratchExportAll(id, ['p1'])).flatMap((b) => b.items).find((i) => i.id === 's_e')?.src, id);
+  await expect.poll(() => src('proj_2000000000002')).toBe('goya-asset://proj_2000000000002/s.png');
+  expect(await src(LOCAL)).toBe(`goya-asset://${LOCAL}/s.png`);
+});
