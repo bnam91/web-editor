@@ -125,11 +125,17 @@
     document.querySelectorAll('#canvas .section-block:not([data-ghost])').forEach(ensureHandle);
   }
 
+  /* 비킨 손잡이가 아래 섹션 hitzone 밑에 깔리지 않을 틈이 있나. 프레임은 틈이 있을 때만 비킨다(없으면 비켜도 못 잡아 끌기가 죽는다). */
+  function roomBelow(sec, r, band) {
+    const hz = sec.nextElementSibling?.querySelector?.(':scope > .section-hitzone');
+    return !hz || hz.getBoundingClientRect().top - r.bottom >= band;
+  }
+
   /* ★326 — 글자 칸·스티커 바닥이 띠 안이면 손잡이를 섹션 아래로 비킨다. 띠(10px×배율)가 글자 끝·선 스티커를 먹었다
      (text-selection-panel R7 · w2d06d O5 — 그 자리 클릭이 편집·선택으로 안 갔다). 앱 ×3 값은 시트 326.
      shortcut: x 겹침은 안 본다(닿는 블럭이 하나라도 있으면 띠 전체를 비킨다) · 띠 폭 일부만 비킬 일이 생기면 그때 나눠라
      shortcut: 눌러 보기 «전» 마우스가 움직여야 비킨다 — 사람은 늘 움직인다 · 안 움직이고 임자를 읽는 시험은 손잡이를 본다
-     ⚠️아래 섹션 hitzone 과 겹치는 간격(화면 약 26~36px)에서는 비킨 손잡이를 못 잡는다(시트 326 표). */
+     ⚠️아래 섹션 hitzone 과 겹치는 간격(화면 약 26~36px)에서는 비킨 손잡이를 못 잡는다(시트 326 표 · 글자·스티커만, 프레임은 roomBelow 로 안 비킨다). */
   document.addEventListener('pointermove', (ev) => {
     const sec = ev.target.closest && ev.target.closest('#canvas .section-block:not([data-ghost])');
     if (!sec || sec.classList.contains('section-bottom-dragging')) return;
@@ -137,7 +143,9 @@
     if (!h) return;
     const r = sec.getBoundingClientRect();
     const band = 10 * (r.width / (sec.offsetWidth || 1) || 1);
-    h.classList.toggle(OUT_CLS, [...sec.querySelectorAll('.text-block, .sticker-block')].some((t) => t.getBoundingClientRect().bottom > r.bottom - band));
+    const reaches = (t) => t.getBoundingClientRect().bottom > r.bottom - band;
+    h.classList.toggle(OUT_CLS, [...sec.querySelectorAll('.text-block, .sticker-block')].some(reaches)
+      || (roomBelow(sec, r, band) && [...sec.querySelectorAll('.frame-block')].some(reaches)));
   }, true);
   /* 337 — 끌기 중에는 띠가 놓는 자리를 먹지 않게 비킨다(그 자리에서 dragover 가 inner 로 안 가 drop 이 안 났다).
      행·블럭 dragstart 가 stopPropagation 하니 capture 로 받는다. 원본이 놓는 중 사라지면 dragend 가 안 오고,
