@@ -4,7 +4,7 @@
  * 칸: G1 섹션 추가·프레임 단추 · G2 단축키 · G3 붙여넣기 · G4 파일·스크래치 놓기 · G5 글자 키 · G6 스크래치 장 누름
  *     G7 적용 뒤 무장 전 창 · G8 [음성] 푼 뒤 끌기 억제로 다시 안 잠긴다 · G9 탭 전환 · G10 홈 · G11 스크롤 · G12 종료 키 기본 동작
  *     G13 읽기 실패 풀림 · G14 탭 읽기 실패 풀림 · G15 적용이 던져도 풀림 · G16 [음성] 프로젝트 없는 판 · G17 [음성] 모달 · G18 [음성] 로드 뒤 전부 지나감
- * ★처음 실행 기록: 2026-11-03 10:1x · 아이맥 · 판 8ac017c5 · w1 · retries 0 · 변이 각 ×1: 게이트 리스너 뺌 G1~G7·G12 빨강 | 토스트 뺌 G13·G14·G15 빨강 | switchTab 머리 finally 뺌 G15 빨강 | 무장 칸 뺌 G7 빨강 | 잠금을 isProjectReady 직결 G8 빨강 | PASS 비움 G9·G10 빨강 | ★error 칸 뺌은 처음에 전부 초록(15초 안전망이 18.6s 에 풀어 G14 가 지나갔다) → G14 에 5초 한도를 넣었다
+ * ★처음 실행 기록: 2026-11-03 10:1x · 아이맥 · 판 8ac017c5 · w1 · retries 0 · 변이 각 ×1: 게이트 리스너 뺌 G1~G7·G12 빨강 | 토스트 뺌 G13·G14·G15 빨강 | switchTab 머리 finally 뺌 G15 빨강 | 무장 칸 뺌 G7 빨강 | 잠금을 isProjectReady 직결 G8 빨강 | PASS 비움 G9·G10 빨강 | ★error 칸 뺌은 처음에 전부 초록(free 가 20초를 기다려 15초 안전망이 풀어 줬다) → G14·G15 의 free 에 5초 한도를 넣자 G14·G15 빨강 · 고친 판 repeat-each 3 54/54
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, ORIGIN } = require('./_root-harness.js');
@@ -48,7 +48,7 @@ const open = async (page) => {
 const finish = (page, id, how = 'done') => page.evaluate(([id, how]) => { const q = window.__pending[id]; delete window.__pending[id]; q[how](); }, [id, how]);
 const opened = (page, id) => page.waitForFunction((id) => window.__pending[id], id);
 const loaded = (page, id) => page.waitForFunction((id) => !!document.getElementById(`sec_${id}_1`), id, { timeout: 10000 });
-const free = (page) => page.waitForFunction(() => !window.LoadInputGate.isOn(), null, { timeout: 20000 });
+const free = (page, timeout = 20000) => page.waitForFunction(() => !window.LoadInputGate.isOn(), null, { timeout });
 const seen = (page, n) => page.evaluate((n) => window.__seen[n] || 0, n);
 const on = (page) => page.evaluate(() => window.LoadInputGate.isOn());
 const secN = (page) => page.evaluate(() => document.querySelectorAll('#canvas .section-block').length);
@@ -207,8 +207,8 @@ test('G14 탭 읽기 실패 — 풀리고 말한다', async ({ page }) => {
   await finish(page, B); await loaded(page, B); await free(page);
   await tab(page, A).click(); await opened(page, A);
   expect(await on(page), '[전제] 막는 중').toBe(true);
-  await finish(page, A, 'fail'); await free(page);
-  await expect(page.locator('body'), '★15초 안전망이 아니라 실패 칸이 바로 풀어야 한다').toContainText('읽지 못했습니다', { timeout: 5000 });
+  await finish(page, A, 'fail'); await free(page, 5000);   // 15초 안전망이 아니라 실패 칸이 풀어야 한다
+  await expect(page.locator('body')).toContainText('읽지 못했습니다');
   expect(await page.evaluate(() => window.gdtProjectReady.get().phase)).toBe('error');
   errs.length = 0;   // switchTab 이 일부러 다시 던진다(앞 판과 같다)
 });
@@ -218,7 +218,7 @@ test('G15 적용이 던져도 — 영영 막히지 않는다', async ({ page }) 
   await finish(page, B); await loaded(page, B); await free(page);
   await tab(page, A).click(); await opened(page, A);
   await page.evaluate(() => { window.applyProjectData = () => { throw new Error('적용 실패'); }; });
-  await finish(page, A); await free(page);
+  await finish(page, A); await free(page, 5000);
   await expect(page.locator('body')).toContainText('읽지 못했습니다');
   errs.length = 0;   // 던진 오류 자체는 이 칸의 값이 아니다
 });
