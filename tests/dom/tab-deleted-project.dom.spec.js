@@ -1,6 +1,6 @@
 /* tab-deleted-project — 연 프로젝트가 지워지면 저장 없이 탭을 닫고 알린다(현빈 결정 2026-11-03 · 쓰기 거절은 tests/unit/project-deleted-save-guard).
  * 칸: A 보는 탭(옆 탭으로) · B 옆 탭 · C 마지막 탭(갤러리 · 알림 넘김) · D 저장 거절이 탭을 닫는다 · N 대조.
- * 칸(머지 전 보완): F 휴지통 전 내림 · F2 옆 탭 저장 실패분 · L2 옆 탭 문구 · Q 저장 거절 중 종료.
+ * 칸(머지 전 보완): F 휴지통 전 내림 · F2 옆 탭 저장 실패분 · L2 옆 탭 문구 · Q 저장 거절 중 종료 · T 메뉴 저장 거절.
  * 변이: 목록에서 먼저 빼는 줄을 switchTab 뒤로 미루면 A·C 빨강(나가는 탭을 저장) · save-load 의 project_deleted 갈래를 빼면 D 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -135,5 +135,26 @@ test('Q 저장 중 종료 · 그 저장이 거절되면 «저장 못 함»으로
   expect(a.tabs).toEqual(['proj_b']);
   expect(a.ok, JSON.stringify({ ok: a.ok, reason: a.reason })).toBe(true);
   expect(a.reason).toBe('project_deleted');
+  expect(errs).toEqual([]);
+});
+
+test('T 메뉴 저장(saveProjectFile) — 거절되면 «저장됨» 아님 · 삭제 거절은 탭을 닫는다 · [음성] 성공은 «저장됨»', async ({ page }) => {
+  const errs = await setup(page, ['proj_a', 'proj_b']);
+  const run = (answer) => page.evaluate(async (answer) => {
+    const toasts = []; window.showToast = (m) => { toasts.push(m); };
+    const f = window.electronAPI; const ls = 'project_' + window.activeProjectId; localStorage.removeItem(ls);
+    window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => answer : t[k] });
+    await window.saveProjectFile();
+    window.electronAPI = f;
+    return { toasts, ls: localStorage.getItem(ls) !== null, tabs: window.openTabs.map(t => t.id) };
+  }, answer);
+  const ok = await run({ ok: true });
+  expect(ok).toMatchObject({ toasts: ['✅ 저장됨'], ls: true, tabs: ['proj_a', 'proj_b'] });
+  const no = await run({ ok: false, reason: 'page_count_reduced' });
+  expect(no.toasts).toEqual(['⚠️ 저장 거부: page_count_reduced']);
+  expect(no).toMatchObject({ ls: false, tabs: ['proj_a', 'proj_b'] });
+  const del = await run({ ok: false, reason: 'project_deleted' });
+  expect(del.toasts.join()).not.toContain('저장됨');
+  expect(del).toMatchObject({ ls: false, tabs: ['proj_b'] });
   expect(errs).toEqual([]);
 });
