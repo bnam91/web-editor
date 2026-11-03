@@ -179,7 +179,12 @@ test('R2 ★옛 문서 바이트 동일 — 같은 장면을 «핀 6119145c 파�
   const pinHtml = await shot(p2, sel); await p2.close();
   const nowHtml = await shot(page, sel);
   expect(pinned.overlaySize, '전제 — 바꾼 파일이 있다(같은 판끼리 비교가 아니다)').toBeGreaterThan(0);
-  expect(nowHtml, '★효과 없는 장면 + 패널 셋을 연 뒤 — 지금 판 바이트 = 핀 바이트').toBe(pinHtml);
+  /* 핀과 갈린 곳은 그림 템플릿의 인라인 onerror 하나다(fcaf68e1 — 실패 표시를 캡처 리스너로). 새로 넣는 그림만 달라지고 옛 문서는 열 때 sanitizeCanvasHtml 이 어차피 지운다:
+     핀 판 앱으로 만든 옛 문서(뜬 그림·깨진 그림)를 핀 판·지금 판으로 열면 보이는 값·직렬화·저장 값이 같다(앱 ×3 · 회신 taeyang-R2). 그 글자 «하나»만 뺀다 — 다른 바이트는 그대로 잰다. */
+  const ONERROR = ` onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"`;
+  expect(pinHtml.split(ONERROR).length - 1, '전제 — 핀 판의 그림 칸 하나에 그 속성이 있다').toBe(1);
+  expect(nowHtml, '지금 판 그림 칸엔 인라인 onerror 가 없다').not.toContain('onerror=');
+  expect(nowHtml, '★효과 없는 장면 + 패널 셋을 연 뒤 — 지금 판 바이트 = 핀 바이트(위 속성 하나만 뺌)').toBe(pinHtml.replace(ONERROR, ''));
 });
 
 test('R3 ★자리(D2 ㉠) — 끄면 섹션 높이 변화 0 · 켜면 «간격 + 높이×길이%» 만큼 늘고 아래 블럭이 그만큼 밀린다(텍스트·에셋·도형 래퍼)', async ({ page }) => {
