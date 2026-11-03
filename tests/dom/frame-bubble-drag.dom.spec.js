@@ -1,5 +1,5 @@
 /* frame-bubble-drag — 자유 프레임 안 말풍선을 끌면 손을 따라오고 부모가 안 바뀐다(S6 새 발견 ②).
- * 음성: 섹션 직속 말풍선은 HTML5 순서 끌기 그대로 · 누르기만 하면 자리가 안 튄다. */
+ * 음성: 섹션 직속 말풍선은 HTML5 순서 끌기 그대로 · 눌렀다 안 끌면 화면·저장본이 안 바뀐다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -40,25 +40,40 @@ for (const depth of [1, 3]) {
     expect(s.errs, s.errs.join(' | ')).toEqual([]);
   });
 }
-test('깊이 3 — 끈 뒤 ⌘Z 로 처음 자리', async ({ page }) => {
+const unit = (page) => page.evaluate(() => { const t = document.querySelector('#canvas .speech-bubble-block').closest('.frame-block[data-text-frame]'); return { pos: t.style.position, left: t.style.left, top: t.style.top, width: t.style.width, dg: t.getAttribute('draggable') }; });
+const savedUnit = (page) => page.evaluate(() => { const d = new DOMParser().parseFromString('<div>' + window.getSerializedCanvas() + '</div>', 'text/html'); const t = d.querySelector('.speech-bubble-block').closest('.frame-block[data-text-frame]'); return { pos: t.style.position, left: t.style.left, top: t.style.top, width: t.style.width, dg: t.getAttribute('draggable') }; });
+test('깊이 3 — 끈 뒤 ⌘Z 한 번에 처음 자리·처음 꼴(흐름)로, ⌘⇧Z 로 끈 자리로', async ({ page }) => {
   const s = await scene(page, 3);
   expect(await pick(page)).toBe(true);
-  const a = await st(page);
+  const u0 = await unit(page); const a = await st(page);
+  expect(u0.pos, '[전제] 처음은 흐름').toBe('');
   await drag(page, a.x, a.y, 60, 45);
+  const u1 = await unit(page);
+  expect(u1.pos).toBe('absolute');
   await page.evaluate(() => { window.deselectAll(); document.activeElement?.blur?.(); });
-  await page.keyboard.press('Meta+z'); await raf(page);
-  await expect.poll(async () => { const w = await st(page); return [Math.round(w.l - a.l), Math.round(w.t - a.t)]; }).toEqual([0, 0]);
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await unit(page)).pos, '⌘Z 한 번에 흐름').toBe('');
+  const w = await st(page);
+  expect([Math.round(w.l - a.l), Math.round(w.t - a.t)]).toEqual([0, 0]);
+  await page.keyboard.press('Meta+Shift+z');
+  await expect.poll(async () => (await unit(page)).left).toBe(u1.left);
   expect(s.errs, s.errs.join(' | ')).toEqual([]);
 });
-test('음성 — 깊이 3 누르고 그대로 놓으면 자리가 안 튄다', async ({ page }) => {
-  const s = await scene(page, 3);
-  expect(await pick(page)).toBe(true);
-  const a = await st(page);
-  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.up(); await raf(page);
-  const b = await st(page);
-  expect([Math.round(b.l - a.l), Math.round(b.t - a.t)]).toEqual([0, 0]);
-  expect(s.errs, s.errs.join(' | ')).toEqual([]);
-});
+for (const [name, dist] of [['누르고 그대로 놓으면', 0], ['문턱 밑(2px)만 움직이고 놓으면', 2]]) {
+  test(`음성 — 깊이 3 ${name} 화면·저장본이 안 바뀐다`, async ({ page }) => {
+    const s = await scene(page, 3);
+    expect(await pick(page)).toBe(true);
+    const u0 = await unit(page); const sv0 = await savedUnit(page); const a = await st(page);
+    await page.mouse.move(a.x, a.y); await page.mouse.down();
+    if (dist) await page.mouse.move(a.x + dist, a.y);
+    await page.mouse.up(); await raf(page);
+    const b = await st(page);
+    expect([Math.round(b.l - a.l), Math.round(b.t - a.t)]).toEqual([0, 0]);
+    expect(await unit(page), '화면 꼴').toEqual(u0);
+    expect(await savedUnit(page), '저장본 꼴').toEqual(sv0);
+    expect(s.errs, s.errs.join(' | ')).toEqual([]);
+  });
+}
 test('음성 — 섹션 직속 말풍선은 HTML5 순서 끌기 그대로', async ({ page }) => {
   const s = await scene(page, 0);
   expect(await pick(page)).toBe(true);
