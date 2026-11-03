@@ -829,6 +829,17 @@ function bindBlock(block) {
       if (tf && tf.style.position === 'absolute') {
         /* 고른 글자는 중첩 프레임 안에서도 제 글자 프레임을 끈다(S3 B-8 · 앱 비율 0). 옛 갈래는 바깥 프레임(B)에 넘겼는데, B 는 contenteditable 위 누름을 안 받아 아무도 안 끌었다. 고르지 않은 글자는 위 게이트에서 이미 돌아가 B 끌기로 간다. 시험: tests/dom/nested-text-drag.dom.spec.js */
         dragEl = tf;
+      } else if (tf && tf.parentElement?.dataset.freeLayout === 'true') {
+        /* 말풍선은 자유 프레임에도 흐름 글자 프레임째 들어온다(addSpeechBubbleBlock) ⇒ HTML5 로 끌려 중첩 프레임에서 맨 위로 빠졌다(S6 새 발견 ②). 처음 끌 때 그 자리 그대로 좌표 단위로 세운다 — 옛 흐름 row 의 settleRowInFreeFrame 과 같은 뜻. 시험: tests/dom/frame-bubble-drag.dom.spec.js */
+        const _fr = tf.parentElement.getBoundingClientRect();
+        const _k = (tf.parentElement.offsetWidth && _fr.width / tf.parentElement.offsetWidth) || 1;
+        const _tr = tf.getBoundingClientRect(), _br = block.getBoundingClientRect();
+        const _l = Math.round((_br.left - _fr.left) / _k - tf.parentElement.clientLeft), _t = Math.round((_tr.top - _fr.top) / _k - tf.parentElement.clientTop);
+        tf.style.width = Math.round(_br.width / _k) + 'px';
+        tf.style.position = 'absolute'; tf.style.left = _l + 'px'; tf.style.top = _t + 'px';
+        tf.dataset.offsetX = String(_l); tf.dataset.offsetY = String(_t);
+        tf.removeAttribute('draggable');
+        dragEl = tf;
       } else if (block.style.position !== 'absolute') {
         return; // flow 배치 text-block은 HTML5 DnD에 위임
       }
