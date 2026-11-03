@@ -1,7 +1,7 @@
 /* load-input-gate-363 — 로드가 끝날 때까지 입력을 막고, 막아도 나갈 길은 산다 (J363A · 현빈 결정)
  * 왜: 로드 중 넣은 것은 곧 교체될 캔버스에 들어가 화면에도 파일에도 안 남고 말도 없었다(앱 실측 9/9 · ~/gd-lane/imac-gd-L1/341d).
  * 자: 앱 손잡이가 듣는 document 캡처(게이트는 window 캡처라 그보다 앞) 도착 수 + 진짜 마우스·키의 결과. 파일은 앱 탐침이 잰다.
- * 칸: G1 섹션 추가·프레임 단추 · G2 단축키 · G3 붙여넣기 · G4 파일·스크래치 놓기 · G5 글자 키 · G6 스크래치 장 누름
+ * 칸: G19 탭 이름 편집 막음 · G20 [음성] 로드 뒤 탭 이름 편집 | G1 섹션 추가·프레임 단추 · G2 단축키 · G3 붙여넣기 · G4 파일·스크래치 놓기 · G5 글자 키 · G6 스크래치 장 누름
  *     G7 적용 뒤 무장 전 창 · G8 [음성] 푼 뒤 끌기 억제로 다시 안 잠긴다 · G9 탭 전환 · G10 홈 · G11 스크롤 · G12 종료 키 기본 동작
  *     G13 읽기 실패 풀림 · G14 탭 읽기 실패 풀림 · G15 적용이 던져도 풀림 · G16 [음성] 프로젝트 없는 판 · G17 [음성] 모달 · G18 [음성] 로드 뒤 전부 지나감
  * ★처음 실행 기록: 2026-11-03 10:1x · 아이맥 · 판 8ac017c5 · w1 · retries 0 · 변이 각 ×1: 게이트 리스너 뺌 G1~G7·G12 빨강 | 토스트 뺌 G13·G14·G15 빨강 | switchTab 머리 finally 뺌 G15 빨강 | 무장 칸 뺌 G7 빨강 | 잠금을 isProjectReady 직결 G8 빨강 | PASS 비움 G9·G10 빨강 | ★error 칸 뺌은 처음에 전부 초록(free 가 20초를 기다려 15초 안전망이 풀어 줬다) → G14·G15 의 free 에 5초 한도를 넣자 G14·G15 빨강 · 고친 판 repeat-each 3 54/54
@@ -248,5 +248,25 @@ test('G18 [음성] 로드 뒤엔 같은 입력이 전부 지나간다(자 양성
   await pasteFile(page); await dropFile(page);
   await expect(page.locator('.scratch-item').first(), '★놓기·붙여넣기가 안 들어갔다').toBeVisible();
   expect(await page.evaluate(() => [window.__seen.click > 0, window.__seen.keydown > 0, window.__seen.paste > 0, window.__seen.drop > 0, window.__seen.pointerdown > 0])).toEqual([true, true, true, true, true]);
+  expect(errs).toEqual([]);
+});
+
+test('G19 탭 이름 더블클릭 — 막는 동안엔 편집이 안 열린다 · 로드가 안 끊긴다', async ({ page }) => {
+  const errs = await setup(page); await open(page);
+  const name = page.locator(`#tab-bar .proj-tab[data-id="${B}"] .proj-tab-name`);
+  await name.dblclick();
+  expect(await name.evaluate(n => n.isContentEditable), '★로드 중 이름 칸이 열렸다').toBe(false);
+  await finish(page, B); await loaded(page, B); await free(page);
+  expect(await page.evaluate(() => window.gdtProjectReady.get().phase)).toBe('ready');
+  expect(errs).toEqual([]);
+});
+
+test('G20 [음성] 로드 뒤엔 탭 이름 더블클릭이 된다', async ({ page }) => {
+  const errs = await setup(page); await open(page);
+  await finish(page, B); await loaded(page, B); await free(page);
+  const name = page.locator(`#tab-bar .proj-tab[data-id="${B}"] .proj-tab-name`);
+  await name.dblclick();
+  expect(await name.evaluate(n => n.isContentEditable)).toBe(true);
+  await page.keyboard.press('Escape');
   expect(errs).toEqual([]);
 });

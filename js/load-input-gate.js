@@ -3,7 +3,7 @@
  * 기준 = 로드 시작(begin)부터 «확정 + autosave 무장»까지(isProjectReady 와 같은 두 칸). 첫 해제 뒤엔 다시 안 잠근다 —
  *   무장 칸은 끌기·되돌리기 때도 잠깐 꺼지므로, 잠금을 그 값에 바로 걸면 사람의 끌기를 끊는다.
  *   ⛔URL·활성 칸은 안 본다: 어긋나면 영영 안 풀린다(대기는 새 begin 이 맡는다).
- * 안 막는 것: 탭 전환·홈·새 탭(PASS) · 스크롤(휠은 안 건드리고, 스크롤 키는 기본 동작을 둔다) · 종료(메뉴 단축키도 기본 동작을 둔다) · 모달(SURFACE 밖).
+ * 안 막는 것: 탭 전환·홈·새 탭(PASS · 탭 이름 편집은 막는다) · 스크롤(휠은 안 건드리고, 스크롤 키는 기본 동작을 둔다) · 종료(메뉴 단축키도 기본 동작을 둔다) · 모달(SURFACE 밖).
  * 실패: settle('error') 또는 «못 읽음» 표식이 남은 채 끝나면 풀고 토스트로 말한다. 저장은 saveProjectToFile 머리말이 계속 거절한다.
  * ⛔고전 스크립트로 일찍 싣는다 — window 캡처는 등록 순서대로라 뒤에 실으면 앞선 window 캡처 리스너(scratch·overlay)가 먼저 돈다.
  */
@@ -25,10 +25,12 @@
     if (el.closest(PASS)) return false;
     return !!el.closest(SURFACE);
   }
+  /* 탭 이름 편집만은 탭 바에서도 막는다 — 로드가 탭 바를 다시 그리면 편집 칸의 blur 가 그 안에서 또 그려 로드를 예외로 끊는다(앱: 앞 판도 3/3 · 이름도 잃고 실패로 끝남). */
+  function tabRename(e) { return e.type === 'dblclick' && e.target && e.target.nodeType === 1 && !!e.target.closest('.proj-tab-name'); }
   function editable(t) { return !!t && t.nodeType === 1 && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT'); }
 
   function gate(e) {
-    if (!on || !onSurface(e.target)) return;
+    if (!on || !(onSurface(e.target) || tabRename(e))) return;
     blocked++;
     e.stopImmediatePropagation();
     if (CANCEL.indexOf(e.type) >= 0) {
