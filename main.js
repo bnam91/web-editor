@@ -3107,6 +3107,11 @@ async function _renameProjectImpl({ projectId, name } = {}) {
   }
 }
 
+/* ★340 B — 렌더러의 이름 바꾸기 입구. ⛔렌더러에서 loadProject → saveProject 로 왕복하지 마라:
+     그 틈에 자동저장이 끼면 방금 저장된 편집이 옛 내용으로 덮인다(지연 대역 앱 값 9/9).
+     여기는 읽기~쓰기가 한 틱이라 끼어들 틈이 없다. */
+ipcMain.handle('projects:rename', (_e, args) => _renameProjectImpl(args || {}));
+
 async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
     if (!sourceProjectId || typeof sourceProjectId !== 'string')

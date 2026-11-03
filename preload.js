@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Projects Meta — branches/commits/thumbnail 분리 저장
+  renameProject: (args) => ipcRenderer.invoke('projects:rename', args),
   saveProjectMeta: (projectId, metaData) => ipcRenderer.invoke('projects:save-meta', projectId, metaData),
   loadProjectMeta: (projectId)           => ipcRenderer.invoke('projects:load-meta', projectId),
 

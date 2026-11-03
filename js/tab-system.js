@@ -112,11 +112,15 @@ async function finishRenameProject() {
   const display = document.getElementById('project-name-display');
   const input   = document.getElementById('project-name-input');
   if (!display || !input || input.style.display === 'none') return;
-  const newName = input.value.trim() || 'Untitled';
+  const newName = input.value.trim();
   input.style.display = 'none';
   display.style.display = '';
+  /* ★340 — 빈 입력은 «취소»다. 옛 판은 'Untitled' 로 보냈고 가드가 막아 화면만 틀렸다. */
+  if (!newName) return;
 
-  const tab = _getTabs().find(t => t.id === _getActId());
+  const activeProjectId = _getActId();
+  const tab = _getTabs().find(t => t.id === activeProjectId);
+  const oldName = tab ? tab.name : display.textContent;
   if (tab) tab.name = newName;
   display.textContent = newName;
   renderTabBar();
@@ -124,14 +128,20 @@ async function finishRenameProject() {
 
   // 파일에도 저장
   const IS_ELECTRON = window.IS_ELECTRON;
-  const activeProjectId = _getActId();
   const PROJECTS_KEY = 'sangpe-projects';
   if (IS_ELECTRON && activeProjectId) {
-    const proj = await window.electronAPI.loadProject(activeProjectId);
-    if (proj) {
-      proj.name = newName;
-      proj.updatedAt = new Date().toISOString();
-      await window.electronAPI.saveProject(proj);
+    /* ★340 B — 본 프로세스가 한 틱에 읽고 쓴다(main.js projects:rename). ⛔여기서 왕복하지 마라. */
+    let r = null;
+    try { r = await window.electronAPI.renameProject({ projectId: activeProjectId, name: newName }); }
+    catch (e) { r = { ok: false, error: e && e.message }; }
+    if (!r || r.ok !== true) {
+      // ★실패를 삼키지 않는다 — 화면을 디스크 값으로 되돌리고 말한다
+      const t = _getTabs().find(x => x.id === activeProjectId);
+      if (t && t.name === newName) t.name = oldName;
+      if (_getActId() === activeProjectId) display.textContent = oldName;
+      renderTabBar();
+      saveTabState();
+      window.showToast?.(`⚠️ 이름을 바꾸지 못했습니다: ${(r && r.error) || '알 수 없는 오류'}`);
     }
   } else if (activeProjectId) {
     const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
