@@ -149,3 +149,81 @@ test('비교가 거절되면(해시 실패) 다르다고 치고 파일로 넣는
   await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/h.png') });
   await writes(page);
 });
+const tabOpen = async (page, id, { ls = snap('LS'), lsTs, base }) => {
+  await page.evaluate(({ id, ls, lsTs, base }) => { const k = 'web-editor-autosave__' + id; localStorage.setItem(k, ls); localStorage.setItem(k + '_ts', String(lsTs)); if (base) localStorage.setItem('web-editor-ls-base__' + id, base); else localStorage.removeItem('web-editor-ls-base__' + id); window.__saved = null; }, { id, ls: JSON.stringify(ls), lsTs, base });
+  await page.evaluate((id) => window.openTabForProject(id), id);
+  await page.waitForFunction((id) => window.activeProjectId === id && document.querySelector('#g1')?.dataset.mark, id);
+};
+test('탭으로 연 프로젝트도 충돌로 낡은 파일이면 복구하고 파일로 넣는다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p3', { lsTs: fileTs + 3600e3, base: UPD });
+  expect(await seen(page)).toBe('LS');
+  await writes(page);
+  expect(await page.evaluate(() => window.__saved.id)).toBe('p3');
+});
+test('[음성] 탭: 표시 없는 옛 본은 파일 · 본과 표시는 그대로 둔다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p4', { lsTs: fileTs + 3600e3, base: null });
+  expect(await seen(page)).toBe('FILE');
+  expect(await settled(page)).toEqual([false, false]);
+  expect(await page.evaluate(() => [localStorage.getItem('web-editor-ls-base__p4'), !!localStorage.getItem('web-editor-autosave__p4')])).toEqual([null, true]);
+});
+test('[음성] 탭: 평소 저장 뒤(본이 조금 낡음)는 파일 · 안 쓴다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p5', { lsTs: fileTs - 20, base: UPD });
+  expect(await seen(page)).toBe('FILE');
+  expect(await settled(page)).toEqual([false, false]);
+});
+test('[음성] 탭: 판이 다른 본(복원한 파일)은 걷고 파일', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p6', { lsTs: fileTs + 3600e3, base: 'other' });
+  expect(await seen(page)).toBe('FILE');
+  expect(await page.evaluate(() => localStorage.getItem('web-editor-autosave__p6'))).toBeNull();
+});
+async function storeBoot(page, delay = 0) {
+  await page.addInitScript(({ file, delay }) => {
+    let real; window.__store = {}; window.__delay = delay;
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
+      if (k === 'loadProject') return async (id) => ({ ...(window.__store[id] || file), id });
+      if (k === 'saveProject') return async (p) => { await new Promise((r) => setTimeout(r, window.__delay)); window.__store[p.id] = p; window.__saved = p; return { ok: true }; };
+      return t[k];
+    } }), set: (v) => { real = v; } });
+  }, { file: { ...snap('FILE'), name: 'n', updatedAt: UPD }, delay });
+  await bootApp(page);
+  await page.goto(`${ORIGIN}/index.html?project=p1`);
+  await page.waitForFunction(() => document.querySelector('#g1')?.dataset.mark);
+}
+const setMark = (page, m) => page.evaluate((m) => { document.querySelector('#g1').dataset.mark = m; window.scheduleAutoSave(); }, m);
+test('저장 중 편집 → 탭 닫기 → 쓰기 끝나기 전 다시 열기: 대기 중이던 편집이 산다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => window.openTabForProject('p3'));
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  await page.evaluate(() => { window.__delay = 800; });
+  await setMark(page, 'Q');
+  await page.waitForFunction(() => /data-mark=\\?"Q/.test(localStorage.getItem('web-editor-autosave__p3') || ''));
+  await page.evaluate(() => { document.querySelector('#g1').dataset.mark = 'Z'; return window.closeTab('p3').then(() => window.openTabForProject('p3')); });
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  expect(await seen(page)).toBe('Z');
+  expect(await page.evaluate(() => /data-mark="Z"/.test(window.__store.p3?.pages?.[0]?.canvas || ''))).toBe(true);
+});
+test('저장이 상한 안에 안 끝나면 본을 쓰지 않고 파일로 연다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await page.evaluate(() => { window.waitSavesFor = async () => false; });
+  await tabOpen(page, 'p3', { lsTs: fileTs + 3600e3, base: UPD });
+  expect(await seen(page)).toBe('FILE');
+});
+test('복구 첫 로드 직후 다른 탭으로 갔다 돌아와도 복구분을 파일로 넣는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(({ ls, lsTs, upd }) => {
+    const k = 'web-editor-autosave__p3'; localStorage.setItem(k, ls); localStorage.setItem(k + '_ts', String(lsTs)); localStorage.setItem('web-editor-ls-base__p3', upd);
+    const c = document.getElementById('canvas');
+    const o = new MutationObserver(() => { if (document.querySelector('#g1')?.dataset.mark === 'LS') { o.disconnect(); window.__away = window.switchTab('p1'); } });
+    o.observe(c, { subtree: true, childList: true, attributes: true });
+    window.openTabForProject('p3');
+  }, { ls: JSON.stringify(snap('LS')), lsTs: fileTs + 3600e3, upd: UPD });
+  await page.waitForFunction(() => window.__away && window.activeProjectId === 'p1');
+  await page.evaluate(() => window.__away);
+  expect(await page.evaluate(() => window.__saved || null)).toBeNull();
+  await page.evaluate(() => window.switchTab('p3'));
+  await expect.poll(() => page.evaluate(() => /data-mark="LS"/.test(window.__store.p3?.pages?.[0]?.canvas || '')), { timeout: 8000 }).toBe(true);
+});
