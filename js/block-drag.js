@@ -799,7 +799,7 @@ function bindBlock(block) {
         return;
       }
     }
-    if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
+    if (isLabelGroup && e.target.closest('.label-group-add-btn, .label-item-delete-btn')) return;   // 칩 위 끌기는 블럭을 옮긴다(지디 판정) — 칩 클릭·더블클릭은 그 자리 click·dblclick 이 받는다. 시험: tests/dom/label-chip-drag.dom.spec.js
 
     // shape-block: 부모 frame-block을 이동 대상으로
     // text-block: text-frame(래퍼)이 absolute인 경우 text-frame을 이동 대상으로
@@ -828,6 +828,17 @@ function bindBlock(block) {
       if (tf?.dataset.overlayBlock === 'true') return;
       if (tf && tf.style.position === 'absolute') {
         /* 고른 글자는 중첩 프레임 안에서도 제 글자 프레임을 끈다(S3 B-8 · 앱 비율 0). 옛 갈래는 바깥 프레임(B)에 넘겼는데, B 는 contenteditable 위 누름을 안 받아 아무도 안 끌었다. 고르지 않은 글자는 위 게이트에서 이미 돌아가 B 끌기로 간다. 시험: tests/dom/nested-text-drag.dom.spec.js */
+        dragEl = tf;
+      } else if (tf && tf.parentElement?.dataset.freeLayout === 'true') {
+        /* 말풍선은 자유 프레임에도 흐름 글자 프레임째 들어온다(addSpeechBubbleBlock) ⇒ HTML5 로 끌려 중첩 프레임에서 맨 위로 빠졌다(S6 새 발견 ②). 처음 끌 때 그 자리 그대로 좌표 단위로 세운다 — 옛 흐름 row 의 settleRowInFreeFrame 과 같은 뜻. 시험: tests/dom/frame-bubble-drag.dom.spec.js */
+        const _fr = tf.parentElement.getBoundingClientRect();
+        const _k = (tf.parentElement.offsetWidth && _fr.width / tf.parentElement.offsetWidth) || 1;
+        const _tr = tf.getBoundingClientRect(), _br = block.getBoundingClientRect();
+        const _l = Math.round((_br.left - _fr.left) / _k - tf.parentElement.clientLeft), _t = Math.round((_tr.top - _fr.top) / _k - tf.parentElement.clientTop);
+        tf.style.width = Math.round(_br.width / _k) + 'px';
+        tf.style.position = 'absolute'; tf.style.left = _l + 'px'; tf.style.top = _t + 'px';
+        tf.dataset.offsetX = String(_l); tf.dataset.offsetY = String(_t);
+        tf.removeAttribute('draggable');
         dragEl = tf;
       } else if (block.style.position !== 'absolute') {
         return; // flow 배치 text-block은 HTML5 DnD에 위임
@@ -952,8 +963,10 @@ function bindBlock(block) {
         const elCY = rawTop  + dragEl.offsetHeight / 2;
         const fw   = _dragOutParentFrame.offsetWidth;
         const fh   = _dragOutParentFrame.offsetHeight;
-        const outside = elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
-                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN;
+        /* 큰 블럭은 윗부분을 잡으면 커서가 프레임 안인데도 중심이 먼저 넘어가 섹션으로 빠졌다(S6 새 발견 ③) ⇒ 커서도 프레임 밖이어야 뺀다. 화면 좌표끼리 견주므로 배율 오탐이 없다. 시험: tests/dom/big-block-dragout.dom.spec.js */
+        const _cursorOut = () => { const r = _dragOutParentFrame.getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; };
+        const outside = (elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
+                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN) && _cursorOut();
         if (outside) {
           draggedOutside = true;
           hideGuides();
@@ -3529,6 +3542,9 @@ function bindFrameDropZone(ss) {
        ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은
          종전대로 해야 한다(그건 선택과 무관한 드래그 억제다). */
     if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+    /* 안쪽 흐름 프레임을 누른 것이면 바깥 프레임이 고르지 않는다. 안 그러면 안→밖으로 차례로 골라 맨 위가 선택을 가져가, 다시 연 스택에서 깊은 프레임·블럭을 클릭으로 못 고르고 끌어도 아무것도 안 움직였다(S6 새 발견 ①). ⛔absolute 자식·그룹 자식은 여태처럼 바깥이 받는다(child-frame-drag-294 음성). 시험: tests/dom/stack-reopen-click-pick.dom.spec.js */
+    const _pressedInner = e.target.closest('.frame-block:not([data-text-frame])');
+    if (_pressedInner && _pressedInner !== ss && _pressedInner.style.position !== 'absolute' && ss.dataset.group !== 'true') return;
     /* ★U16①(2026-10-05) — 오른쪽 단추는 여기서 고르지 않는다. 여기서 고르면 :149(.frame-block.selected *{pointer-events:auto})가
        «같은 누름»의 contextmenu 보다 먼저 서서, 그 contextmenu 가 «안의 글자»를 맞혔다(실측: 글자 메뉴가 뜸 + 프레임만 selected).
        고르기는 아래 contextmenu 리스너가 한다(클릭과 같은 단일 선택). */
