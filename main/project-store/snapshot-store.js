@@ -931,14 +931,18 @@ function listReferencedAssets(projectsDir, projectId) {
  * 이겨 덮어쓰는 데이터손실(F1)이 난다.
  */
 /* 못 읽는 proj.json 을 덮기 전에 옆에 둔다 — 같은 판(mtime)은 한 벌. 이름이 슬롯·후보 규약 밖이라 복구 후보·프룬이 안 집는다.
-   반환: 파일 이름 · 못 뒀으면 null(부르는 쪽이 덮지 않는다). 시험: tests/unit/corrupt-unreadable.test.js */
+   반환: 파일 이름. 못 두면 던진다(부르는 쪽이 덮지 않는다 · 자가치유는 그 코드를 _healError 로 싣는다). 시험: tests/unit/corrupt-unreadable.test.js */
+function preserveUnreadableOrThrow(srcPath, dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  const name = `proj_corrupt_${Math.trunc(fs.statSync(srcPath).mtimeMs)}.json`;
+  const to = path.join(dir, name);
+  if (!fs.existsSync(to)) fs.copyFileSync(srcPath, to);
+  return name;
+}
+/* 위와 같되 못 두면 null. */
 function preserveUnreadable(srcPath, dir) {
   try {
-    fs.mkdirSync(dir, { recursive: true });
-    const name = `proj_corrupt_${Math.trunc(fs.statSync(srcPath).mtimeMs)}.json`;
-    const to = path.join(dir, name);
-    if (!fs.existsSync(to)) fs.copyFileSync(srcPath, to);
-    return name;
+    return preserveUnreadableOrThrow(srcPath, dir);
   } catch (e) {
     console.warn('[preserve-unreadable] 옆에 못 뒀다:', e && e.message);
     return null;
@@ -980,7 +984,7 @@ module.exports = {
   canonicalize, fingerprint,
   readIndex, writeIndex, rebuildIndex, ensureIndex, updateCurrent,
   writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
-  listReferencedAssets, loadFallbackCandidates, preserveUnreadable,
+  listReferencedAssets, loadFallbackCandidates, preserveUnreadable, preserveUnreadableOrThrow,
   isProjectShaped,   // ★[A2] main.js 폴백 루프가 «파싱되면 프로젝트»로 삼지 않도록 공개
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
                canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped, isAllCanvasEmpty },

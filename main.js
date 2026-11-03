@@ -2424,7 +2424,7 @@ function readProjectWithFallback(id, { heal = false } = {}) {
     if (heal) {   // ★E168: 목록(heal:false)은 «읽기만» — 자가치유는 열 때만
       try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
         const paths = _ensureNewLayoutPaths(id);
-        if (filePath && !_SS().preserveUnreadable(filePath, path.dirname(paths.backup))) throw new Error('깨진 proj.json 을 옆에 못 뒀다');
+        if (filePath) _SS().preserveUnreadableOrThrow(filePath, path.dirname(paths.backup));   // 옆에 못 두면 덮지 않는다
         _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
       } catch (e) { healed = false; healError = (e && e.code) || 'unknown'; console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
     }
