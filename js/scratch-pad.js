@@ -100,6 +100,27 @@ function _getScratchKey(projectId, pageId) {
   return pageId ? `${base}-${pageId}` : base;
 }
 
+/* 쓰기 tx 의 끝 한 벌. quota 는 커밋에서 abort 만 낸다, onerror 가 안 불린다 — onabort 를 안 받으면 promise 가 영영 안 끝난다(S3 market4·5). 시험: tests/dom/scratch-write-abort.dom.spec.js */
+function _txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror    = e => reject(e.target.error);
+    tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));
+  });
+}
+/* 공용 알림 자리(S3 market5 제안) — 저장이 안 됐는데 말없는 자리를 여기 하나로 받는다. 화면에 항목이 보여도 다시 열면 없을 수 있다는 것만 알린다.
+   부르는 쪽이 제 말을 하는 넣기(_scratchImportAll)는 안 탄다. 연달아 실패하면 도배가 되니 간격을 둔다. 시험: tests/dom/scratch-write-abort.dom.spec.js */
+const _SCRATCH_WARN_GAP_MS = 10000;
+let _scratchWarnAt = -Infinity;
+function _warnScratchWriteFailed(e) {
+  console.warn('[scratch] 쓰기 실패:', e && (e.name || e.message));
+  const now = performance.now();
+  if (now - _scratchWarnAt < _SCRATCH_WARN_GAP_MS) return;
+  _scratchWarnAt = now;
+  window.showToast?.('⚠️ 스크래치를 저장하지 못했습니다. 지금 보이는 이미지가 다시 열면 없을 수 있습니다.');
+}
+/* flush 는 항목을 화면·메모리에서 먼저 비운다. 쓰기가 실패하면 그 항목은 어디에도 없게 된다 ⇒ 이 세션에서 그 키를 다시 열 때 여기서 되살린다 */
+const _unsavedFlush = new Map();
 async function _saveScratch() {
   if (!_scratchLoaded) return; // ★로드 미완료 컨텍스트 — 빈/불완전 배열로 기존 데이터 덮어쓰기 방지
   const key = _getScratchKey(_currentProjectId, _currentPageId);
@@ -107,13 +128,9 @@ async function _saveScratch() {
   const db   = await _openDB();
   // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
   const data = _scratchItems.map(s => _pickScratch(s));
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-    tx.objectStore(SCRATCH_STORE).put(data, key);
-    tx.oncomplete = resolve;
-    tx.onerror    = e => reject(e.target.error);
-    tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));   // quota 는 커밋에서 abort 만 난다 — 안 받으면 promise 가 영영 안 끝난다(S3 market4)
-  });
+  const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+  tx.objectStore(SCRATCH_STORE).put(data, key);
+  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
 }
 
 // #16 이식성 — 저장 시 스크래치 «전체 페이지» 외부화 + proj.json 매니페스트 기록.
@@ -135,11 +152,11 @@ async function externalizeScratchpad(proj, projectId) {
     rq.onsuccess = e => res(e.target.result);   // undefined 그대로(키 없음 판별)
     rq.onerror   = e => rej(e.target.error);
   });
-  const writeRaw = (key, data) => new Promise((res, rej) => {
+  const writeRaw = (key, data) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     tx.objectStore(SCRATCH_STORE).put(data, key);
-    tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
-  });
+    return _txDone(tx);   // 안 끝나면 저장 길이 saveProject 까지 못 간다(save-load.js 외부화 await)
+  };
   const cache = new Map(); // dataUri → goya-asset URL (동일 세이브 내 dedup)
   for (const page of proj.pages) {
     if (!page || !page.id) continue;
@@ -198,13 +215,16 @@ async function flushScratchForSwitch() {
   _currentPageId    = null;
   _scratchLoaded    = true; // 빈 컨텍스트 = 일관 상태 (key가 null이라 이후 save는 어차피 no-op)
   if (!key || !wasLoaded) return; // projectId 없었거나 로드 미완료였으면 저장 스킵
-  const db = await _openDB();
-  return new Promise((resolve, reject) => {
+  try {
+    const db = await _openDB();
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     tx.objectStore(SCRATCH_STORE).put(data, key);
-    tx.oncomplete = resolve;
-    tx.onerror    = e => reject(e.target.error);
-  });
+    await _txDone(tx);
+  } catch (e) {
+    _unsavedFlush.set(key, data);
+    _warnScratchWriteFailed(e);
+    throw e;
+  }
 }
 
 function _setIdChipVisible(item, vis) {
@@ -1461,6 +1481,8 @@ async function _loadScratch(projectId, pageId) {
       req.onerror   = e => reject(e.target.error);
     });
     if (gen !== _scratchLoadGen) return; // ★stale — DOM/배열 오염·엉뚱한 키 저장 금지
+    const heldBack = _unsavedFlush.get(key);   // 떠날 때 쓰기가 실패해 메모리에만 있던 판 — DB 보다 새 것이다
+    if (heldBack) { data.length = 0; data.push(...heldBack); _unsavedFlush.delete(key); }
     // #16 이식성 — 하이드레이션: IndexedDB가 «비었고» 프로젝트 매니페스트(page.scratchpad)가 있으면
     //   매니페스트로 재채움(다른 맥 = IndexedDB 빔 → 프로젝트에 딸려온 goya-asset URL+좌표로 복원).
     //   ★«비었을 때만» = 같은 맥 로컬 편집 보존(로컬 IndexedDB 우선·덮어쓰기 금지·회귀0).
@@ -1482,7 +1504,7 @@ async function _loadScratch(projectId, pageId) {
       _createItem(src, x, y, w, id, g, linkDy, fx, ocr);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
-    if (migrated || hydrated || addedDuringLoad) _saveScratch(); // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
+    if (migrated || hydrated || addedDuringLoad || heldBack) _saveScratch(); // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
@@ -2163,12 +2185,9 @@ window.clearScratchPad   = async () => {
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
   const db = await _openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-    tx.objectStore(SCRATCH_STORE).delete(_getScratchKey(_currentProjectId, _currentPageId));
-    tx.oncomplete = resolve;
-    tx.onerror    = e => reject(e.target.error);
-  });
+  const tx = db.transaction(SCRATCH_STORE, 'readwrite');
+  tx.objectStore(SCRATCH_STORE).delete(_getScratchKey(_currentProjectId, _currentPageId));
+  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
 };
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
@@ -2354,7 +2373,7 @@ window._scratchImportAll = async (newProjectId, scratchBlock, { keepLinkDy = fal
   if (!newProjectId || !Array.isArray(scratchBlock) || !scratchBlock.length) return 0;
   const db = await _openDB();
   let n = 0;
-  await new Promise((resolve, reject) => {
+  {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     const store = tx.objectStore(SCRATCH_STORE);
     for (const { pageId, items } of scratchBlock) {
@@ -2365,10 +2384,8 @@ window._scratchImportAll = async (newProjectId, scratchBlock, { keepLinkDy = fal
       store.put(clean, `scratch-pad-${newProjectId}-${pageId}`);
       n++;
     }
-    tx.oncomplete = () => resolve();
-    tx.onerror    = e => reject(e.target.error);
-    tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));   // _saveScratch 와 같은 까닭(S3 market4)
-  });
+    await _txDone(tx);
+  }
   return n;
 };
 
