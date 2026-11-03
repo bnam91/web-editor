@@ -149,3 +149,34 @@ test('비교가 거절되면(해시 실패) 다르다고 치고 파일로 넣는
   await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/h.png') });
   await writes(page);
 });
+const tabOpen = async (page, id, { ls = snap('LS'), lsTs, base }) => {
+  await page.evaluate(({ id, ls, lsTs, base }) => { const k = 'web-editor-autosave__' + id; localStorage.setItem(k, ls); localStorage.setItem(k + '_ts', String(lsTs)); if (base) localStorage.setItem('web-editor-ls-base__' + id, base); else localStorage.removeItem('web-editor-ls-base__' + id); window.__saved = null; }, { id, ls: JSON.stringify(ls), lsTs, base });
+  await page.evaluate((id) => window.openTabForProject(id), id);
+  await page.waitForFunction((id) => window.activeProjectId === id && document.querySelector('#g1')?.dataset.mark, id);
+};
+test('탭으로 연 프로젝트도 충돌로 낡은 파일이면 복구하고 파일로 넣는다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p3', { lsTs: fileTs + 3600e3, base: UPD });
+  expect(await seen(page)).toBe('LS');
+  await writes(page);
+  expect(await page.evaluate(() => window.__saved.id)).toBe('p3');
+});
+test('[음성] 탭: 표시 없는 옛 본은 파일 · 본과 표시는 그대로 둔다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p4', { lsTs: fileTs + 3600e3, base: null });
+  expect(await seen(page)).toBe('FILE');
+  expect(await settled(page)).toEqual([false, false]);
+  expect(await page.evaluate(() => [localStorage.getItem('web-editor-ls-base__p4'), !!localStorage.getItem('web-editor-autosave__p4')])).toEqual([null, true]);
+});
+test('[음성] 탭: 평소 저장 뒤(본이 조금 낡음)는 파일 · 안 쓴다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p5', { lsTs: fileTs - 20, base: UPD });
+  expect(await seen(page)).toBe('FILE');
+  expect(await settled(page)).toEqual([false, false]);
+});
+test('[음성] 탭: 판이 다른 본(복원한 파일)은 걷고 파일', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await tabOpen(page, 'p6', { lsTs: fileTs + 3600e3, base: 'other' });
+  expect(await seen(page)).toBe('FILE');
+  expect(await page.evaluate(() => localStorage.getItem('web-editor-autosave__p6'))).toBeNull();
+});

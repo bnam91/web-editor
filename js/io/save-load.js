@@ -1878,6 +1878,85 @@ function _recoveryToastText(proj) {
   return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 열었습니다${when}. 디스크의 파일은 아직 고치지 못했습니다(${why}) — 이대로는 저장이 안 될 수 있습니다.`;
 }
 
+/* 열 때 localStorage 본을 파일 대신 쓸지 — 부팅과 탭 첫 로드가 같은 판정을 탄다. 쓸 본 또는 null. 시험: tests/dom/ls-file-base.dom.spec.js */
+function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
+  const lsTs = parseInt(localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) || '0');
+  const fileTs = new Date(proj.updatedAt || 0).getTime();
+  const filePagesCount = proj.version === 2 ? (proj.pages?.length || 0) : (proj.snapshot?.pages?.length || 1);
+  // 파일의 섹션 수 합계 — LS가 더 적으면 LS를 신뢰하지 않음 (DBG-SEC-LOSS)
+  const _countSecs = (d) => {
+    if (!d) return 0;
+    if (d.version === 2 && Array.isArray(d.pages)) {
+      return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/section-block/g)?.length || 0), 0);
+    }
+    return ((d.canvas || '').match(/section-block/g)?.length || 0);
+  };
+  const fileSecCount = _countSecs(proj.version === 2 ? proj : (proj.snapshot || proj));
+  // BUG-44: 이미지(asset/card)에 적용된 dataURL/파일경로 개수 — LS에 누락되면 파일 우선
+  const _countImgs = (d) => {
+    if (!d) return 0;
+    if (d.version === 2 && Array.isArray(d.pages)) {
+      return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/data-img-src/g)?.length || 0), 0);
+    }
+    return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
+  };
+  const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
+  /* 표시 없는 옛 본: 부팅은 옛 규칙 · 탭은 파일(unmarkedWins:false — 복원한 파일을 이기면 안 되고, 탭은 원래 파일을 읽었다).
+     깨진 파일 대신 읽은 백업은 판이 다른 게 당연하다. updatedAt 없는 파일은 비교할 판이 없다. */
+  const lsBase = localStorage.getItem(_lsBaseKey(id));
+  const lsFromThisFile = _lastOpenFallback === id || (lsBase ? (proj.updatedAt == null || lsBase === String(proj.updatedAt)) : unmarkedWins);
+  if (lsBase && !lsFromThisFile) {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
+    localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
+    localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
+  }
+  /* 탭이 거절한 표시 없는 본이 남아 있으면 표시를 옮기지 않는다 — 옮기면 그 옛 본이 다음 열기에 자격을 얻는다. */
+  if (proj.updatedAt != null && (lsBase || unmarkedWins || !localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`))) { try { localStorage.setItem(_lsBaseKey(id), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
+  /* 파일보다 «새로운» 본만 이긴다 — 옛 500ms 여유는 탭·홈으로 나간 저장(파일만 씀)보다 20ms 낡은 본을 이기게 해 그 편집을 덮었다(앱 3/3).
+     평소 저장은 localStorage 를 먼저 써 본이 늘 조금 낡으니 파일이 이긴다(내용이 같다). 충돌이면 본이 더 새롭다. */
+  if (lsTs > fileTs && lsFromThisFile) {
+    const lsSaved = localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`);
+    if (lsSaved) {
+      try {
+        const lsData = JSON.parse(lsSaved);
+        const lsPagesCount = lsData.pages?.length || 0;
+        const lsSecCount   = _countSecs(lsData);
+        const lsImgCount   = _countImgs(lsData);
+        // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
+        // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
+        if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
+          /* 파일에만 있는 갤러리 항목을 잃지 않는다 — 다른 탭에 있는 동안의 AI 생성이 updatedAt 을 안 올리고 파일에 적재한다(ai-image-gen _appendGalleryToProject).
+             거기서 updatedAt 을 올리면 저장 실패 중이던 이 본이 파일에 져서 편집을 잃는다(앱 3/3). */
+          if (Array.isArray(proj.imageGallery)) {
+            const _lsGal = Array.isArray(lsData.imageGallery) ? lsData.imageGallery : [];
+            const _ids = new Set(_lsGal.map(it => it && it.id));
+            lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
+          }
+          return lsData;
+        }
+        if (lsSecCount < fileSecCount) {
+          console.warn(`[open] LS 섹션 수 부족 (LS:${lsSecCount} < FILE:${fileSecCount}) — 파일 우선 적용`);
+        }
+        if (lsImgCount < fileImgCount) {
+          console.warn(`[open] LS 이미지 수 부족 (LS:${lsImgCount} < FILE:${fileImgCount}) — 파일 우선 적용`);
+        }
+      } catch {}
+    }
+  }
+  return null;
+}
+/* 본이 이겼을 때의 뒤처리. 비교는 적용 «전»에 시작한다(applyProjectData 가 본을 고친다) · 못 가리면(atob 실패 등) 다르다고 친다: 복구분을 조용히 빼지 않는다. */
+function _prepareLsWin(lsData, proj, id) {
+  const differs = _lsDiffersFromFile(lsData, proj).catch(() => true);
+  return async (stillHere) => {
+    if (!stillHere()) return;   // 그사이 다른 프로젝트로 갔다 — 그쪽에 저장을 걸지 않는다
+    recordExternalizeBaseline(proj, id);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)
+    /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
+    if (await differs && stillHere()) requestAnimationFrame(() => requestAnimationFrame(() => { if (stillHere()) scheduleAutoSave(); }));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
+  };
+}
+window.pickLsOverFile = _pickLsOverFile;
+window.prepareLsWin = _prepareLsWin;
+
 /* ★E170(2026-10-06 lane-drag · 태양/지디 «한 곳») 프로젝트 «열기» 로드의 한 자리 — 부팅 로드 · 탭 첫 로드가 같이 부른다.
    열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
    옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
@@ -2514,72 +2593,11 @@ function initApp() {
           // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
           // 단, 파일 페이지 수가 더 많으면 파일 우선 (meta 오류 등으로 인한 1페이지 오염 방지)
-          const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
-          const fileTs = new Date(proj.updatedAt || 0).getTime();
-          const filePagesCount = proj.version === 2 ? (proj.pages?.length || 0) : (proj.snapshot?.pages?.length || 1);
-          // 파일의 섹션 수 합계 — LS가 더 적으면 LS를 신뢰하지 않음 (DBG-SEC-LOSS)
-          const _countSecs = (d) => {
-            if (!d) return 0;
-            if (d.version === 2 && Array.isArray(d.pages)) {
-              return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/section-block/g)?.length || 0), 0);
-            }
-            return ((d.canvas || '').match(/section-block/g)?.length || 0);
-          };
-          const fileSecCount = _countSecs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          // BUG-44: 이미지(asset/card)에 적용된 dataURL/파일경로 개수 — LS에 누락되면 파일 우선
-          const _countImgs = (d) => {
-            if (!d) return 0;
-            if (d.version === 2 && Array.isArray(d.pages)) {
-              return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/data-img-src/g)?.length || 0), 0);
-            }
-            return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
-          };
-          const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          /* 표시 없는 옛 본 · 깨진 파일 대신 읽은 백업(판이 다른 게 당연하다) · updatedAt 없는 파일은 옛 규칙 그대로. */
-          const lsBase = localStorage.getItem(_lsBaseKey(_bootProjectId));
-          const lsFromThisFile = !lsBase || _lastOpenFallback === _bootProjectId || proj.updatedAt == null || lsBase === String(proj.updatedAt);
-          if (!lsFromThisFile) {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
-            localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}`);
-            localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}_ts`);
-          }
-          if (proj.updatedAt != null) { try { localStorage.setItem(_lsBaseKey(_bootProjectId), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
-          /* 파일보다 «새로운» 본만 이긴다 — 옛 500ms 여유는 탭·홈으로 나간 저장(파일만 씀)보다 20ms 낡은 본을 이기게 해 그 편집을 덮었다(앱 3/3).
-             평소 저장은 localStorage 를 먼저 써 본이 늘 조금 낡으니 파일이 이긴다(내용이 같다). 충돌이면 본이 더 새롭다. */
-          if (lsTs > fileTs && lsFromThisFile) {
-            const lsSaved = localStorage.getItem(getSaveKey());
-            if (lsSaved) {
-              try {
-                const lsData = JSON.parse(lsSaved);
-                const lsPagesCount = lsData.pages?.length || 0;
-                const lsSecCount   = _countSecs(lsData);
-                const lsImgCount   = _countImgs(lsData);
-                // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
-                // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
-                if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
-                  /* 파일에만 있는 갤러리 항목을 잃지 않는다 — 다른 탭에 있는 동안의 AI 생성이 updatedAt 을 안 올리고 파일에 적재한다(ai-image-gen _appendGalleryToProject).
-                     거기서 updatedAt 을 올리면 저장 실패 중이던 이 본이 파일에 져서 편집을 잃는다(앱 3/3). */
-                  if (Array.isArray(proj.imageGallery)) {
-                    const _lsGal = Array.isArray(lsData.imageGallery) ? lsData.imageGallery : [];
-                    const _ids = new Set(_lsGal.map(it => it && it.id));
-                    lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
-                  }
-                  /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
-                  const _differs = _lsDiffersFromFile(lsData, proj).catch(() => true);   // 적용 «전»에 — applyProjectData 가 본을 고친다 · 못 가리면(atob 실패 등) 다르다고 친다: 복구분을 조용히 빼지 않는다
-                  applyAndFinish(lsData).then(async () => {
-                    if (_bootStale()) return;   // 그사이 다른 프로젝트로 갔다 — 그쪽에 저장을 걸지 않는다
-                    recordExternalizeBaseline(proj, _bootProjectId);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)
-                    if (await _differs) requestAnimationFrame(() => requestAnimationFrame(() => scheduleAutoSave()));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
-                  });
-                  return;
-                }
-                if (lsSecCount < fileSecCount) {
-                  console.warn(`[initLoad] LS 섹션 수 부족 (LS:${lsSecCount} < FILE:${fileSecCount}) — 파일 우선 적용`);
-                }
-                if (lsImgCount < fileImgCount) {
-                  console.warn(`[initLoad] LS 이미지 수 부족 (LS:${lsImgCount} < FILE:${fileImgCount}) — 파일 우선 적용`);
-                }
-              } catch {}
-            }
+          const _lsData = _pickLsOverFile(proj, _bootProjectId);
+          if (_lsData) {
+            const _afterLs = _prepareLsWin(_lsData, proj, _bootProjectId);
+            applyAndFinish(_lsData).then(() => _afterLs(() => !_bootStale()));
+            return;
           }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
           // v1 snapshot: 파싱 실패 시 return하지 않고 아래 localStorage fallback으로 진행

@@ -380,6 +380,7 @@ async function switchTab(id) {
 
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
+    let _afterLs = null;
     if (window.IS_ELECTRON) {
       _firstLoadingTabId = id;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
@@ -393,7 +394,11 @@ async function switchTab(id) {
       if (targetTab && proj?.name) targetTab.name = proj.name;
     }
     if (proj) {
-      const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
+      /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
+      let _lsData = null;
+      try { _lsData = window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
+      _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
+      const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
       if (targetTab) targetTab._cache = JSON.stringify(data);
       window.applyProjectData(data);
       _restoreViewState(targetTab);
@@ -407,6 +412,7 @@ async function switchTab(id) {
       window.clearHistory?.();
     }
     window.AutoSaveSuppress.end(_asTok);     // 파일 분기: 예전 `= false` 와 «같은 자리»
+    _afterLs?.(() => _gen === _switchGen && _getActId() === id);
     window.initBranchStore();
     // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
     try { await window.switchScratch?.(id, window.state?.currentPageId); }
