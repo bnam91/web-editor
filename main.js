@@ -3103,7 +3103,7 @@ async function _renameProjectImpl({ projectId, name } = {}) {
     /* ★효과로 판정한다 — 「썼다」가 아니라 «디스크에서 다시 읽어» 확인한다. */
     const after = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).name;
     if (after !== nm) return { ok: false, error: `저장했는데 값이 다르다: ${after}`, code: 'noeffect' };
-    return { ok: true, projectId, name: nm, previousName: before, changed: true };
+    return { ok: true, projectId, name: nm, previousName: before, changed: true, updatedAt: proj.updatedAt };
   } catch (e) {
     console.error('[projects:rename] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };

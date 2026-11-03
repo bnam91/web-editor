@@ -55,6 +55,7 @@ test('IPC — projects:rename 은 바꾸고, 다른 이름 projects:save 는 못
   const r = await H.invoke('projects:rename', { projectId: id, name: '둘째' });
   assert.strictEqual(r.ok, true);
   assert.strictEqual(readProj(id).name, '둘째');
+  assert.strictEqual(r.updatedAt, readProj(id).updatedAt, '★표시를 옮길 판이 파일과 다르다');
   await H.invoke('projects:save', proj(id, '처음', 's2'));
   const d = readProj(id);
   assert.strictEqual(d.name, '둘째', '★저장이 옛 이름으로 되돌렸다');

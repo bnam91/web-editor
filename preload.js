@@ -60,7 +60,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Projects Meta — branches/commits/thumbnail 분리 저장
-  renameProject: (args) => ipcRenderer.invoke('projects:rename', args),
+  /* ★340 — 이름 바꾸기도 파일 판을 올리니 표시를 옮긴다(안 옮기면 다음 열기에 복구본이 지워진다). 판은 본 프로세스가 준다. */
+  renameProject: (args) => ipcRenderer.invoke('projects:rename', args).then((r) => (r && r.ok && r.updatedAt ? _noteFileVersion({ id: args.projectId, updatedAt: r.updatedAt }, r) : r)),
   saveProjectMeta: (projectId, metaData) => ipcRenderer.invoke('projects:save-meta', projectId, metaData),
   loadProjectMeta: (projectId)           => ipcRenderer.invoke('projects:load-meta', projectId),
 
