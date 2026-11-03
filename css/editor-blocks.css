@@ -660,6 +660,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   background: transparent;
 }
 /* 이미지 클리핑 전용 래퍼 — asset-block 범위로 img를 항상 클리핑 */
+.asset-img-failed { opacity: 0.3; }  /* 그림이 안 뜬 칸 — 표시만. 직렬화가 벗긴다(section-serialize.js) */
 .asset-img-clip {
   position: absolute;
   inset: 0;
@@ -2811,6 +2812,9 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: var(--ui-sel-outline-offset-out, calc(1px * var(--inv-zoom, 1))); /* 이미지가 가장자리까지 차므로 안쪽 대신 바깥으로 빼서 겹침 방지 */
 }
+/* 회전 핫존은 모서리 «바깥»인데 renderCanvas 의 인라인 overflow:hidden 이 잘라 네 모서리 모두 안 눌렸다(앱 0/36 · 시트 328 둘째 꼴).
+   고른 동안만 푼다 — 셀이 각자 자르므로 그림은 그대로(.frame-block[data-text-frame]:has(.text-block.selected) 와 같은 정책). */
+.canvas-block.selected { overflow: visible !important; }
 .canvas-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
 
 /* banner02 — 컴포넌트 선택 표준 (배경이 가장자리까지 차므로 outline 바깥으로) */
@@ -4644,15 +4648,24 @@ html.tgs-selecting .tgs:focus-within {
    저장소 = contentEl 인라인 스타일(background-clip:text + -webkit-text-fill-color:transparent).
    클래스 대신 속성 선택자 — 인라인 단일 저장소 원칙을 지킨다.
    ① 편집 중 선택 영역: 채움색이 transparent 라 선택하면 글자가 사라진다 → 선택 영역에서만 시스템 선택색으로.
-   ② 부분 형광펜 span: span 배경이 부모의 «글자 모양 그라데이션»을 덮어 글자가 안 보인다 → 그 span 만 글자색으로 채운다. */
-[style*="background-clip: text"]::selection,
-[style*="background-clip: text"] *::selection {
+   ② 부분 형광펜 span: span 배경이 부모의 «글자 모양 그라데이션»을 덮어 글자가 안 보인다 → 그 span 만 글자색으로 채운다.
+   ★250C — ⛔`[style*=…] 자손` 꼴로 되돌리지 마라. 속성 style 이 조상 칸에 있으면 «어느 요소든» 인라인 스타일을 쓸 때 그 아래 자손을 전부 다시 계산한다
+     (#canvas-scaler 높이 한 번 = 요소 5만 개 800ms · 큰 프로젝트 끌기 멈춤의 주범 · 앱 실측). 표식을 상속 변수로 내려 자손 칸이 조상 속성을 안 보게 한다. */
+[style*="background-clip: text"] { --gd-tg-host: 1; }
+[style*="background-clip: text"]::selection {
   background-color: Highlight;
   color: HighlightText;
   -webkit-text-fill-color: HighlightText;
 }
-[style*="background-clip: text"] span[style*="background-color"] {
-  -webkit-text-fill-color: currentColor;
+@container style(--gd-tg-host: 1) {
+  ::selection {
+    background-color: Highlight;
+    color: HighlightText;
+    -webkit-text-fill-color: HighlightText;
+  }
+  span[style*="background-color"] {
+    -webkit-text-fill-color: currentColor;
+  }
 }
 
 /* ── 패널에 포커스가 간 동안의 «보이는 글자 선택» (TX1 · 2026-10-03) ──

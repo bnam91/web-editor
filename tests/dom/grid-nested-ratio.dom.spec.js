@@ -255,6 +255,36 @@ test('S3b negative control — without a drag, NOTHING changes', async ({ page }
   expect(errs).toEqual([]);
 });
 
+/* ★S4R(J260B) — S4 가 운으로 재는 순서를 못박는다: 예약된 재찍기가 «끌기 도중»에 온다(진짜 함수 · 진짜 끌기).
+   N = 음성 — 끌기 밖 재찍기는 그대로 돈다(가드가 재찍기를 통째로 죽이면 빨강). */
+test('S4R restamp during a held drag must not overwrite the start sample', async ({ page }) => {
+  const errs = await scene(page);
+  await setup(page, { nDuo: 1, nCols: 2, outerCols: 1 });
+  const before = await widthsOf(page);
+  const t = (await gutters(page)).ncol[0];
+  await page.mouse.move(t.cx, t.cy);
+  await page.mouse.down();
+  await page.mouse.move(t.cx + 70, t.cy, { steps: 4 });
+  const ret = await page.evaluate(() => window.restampHistoryTop(window.getHistoryTip().seq));
+  await page.mouse.up();
+  expect(await widthsOf(page), '[전제] 끌어서 실제로 바뀌어야 한다').not.toEqual(before);
+  expect(ret, '끌기 도중 재찍기는 안 한다').toBe(false);
+  await page.evaluate(() => window.undo());
+  expect(await widthsOf(page), '⌘Z 한 번에 끌기 전 비율').toEqual(before);
+  expect(errs).toEqual([]);
+});
+test('S4R-N restamp with no pointer held still rewrites the top', async ({ page }) => {
+  const errs = await scene(page);
+  await setup(page, { nDuo: 1, nCols: 2, outerCols: 1 });
+  const ret = await page.evaluate(() => {
+    const tip = window.getHistoryTip();
+    document.getElementById('cG').dataset.l6Probe = '1';   // 직렬화가 달라지는 날 변화
+    return window.restampHistoryTop(tip.seq);
+  });
+  expect(ret, '포인터가 없으면 재찍기는 돈다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
 /* ═══ S4 ★undo — ★«한 제스처 = 한 걸음»을 ★행위로 재라 ═══
  *  ⛔`historyPos` 증가를 자로 쓰지 ★않는다 — 이 레포가 ★스스로 그렇게 정해 뒀다
  *    (`grid-row0-save-undo:309` 「historyPos 가 줄었는지는 안 본다 — 아무것도 안 그려도 그건 참이 된다」,

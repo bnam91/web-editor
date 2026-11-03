@@ -1,5 +1,5 @@
-/* grid-col-ratio-notice-239.dom.spec.js — 시트 239 꼴 · #grd-col-ratio(Grid·Duo·Infographic 같은 칸)가 있던 비율을 말없이 덮던 자.
- * ⛔이 자가 안 재는 것: 덮는 것 자체(abc → 균등은 그대로다 · 지디 물음 ③ · ⌘Z 로 돌아오는 것만 잠근다) · 열 수 2 밖의 그리드.
+/* grid-col-ratio-notice-239.dom.spec.js — 시트 239 꼴 · #grd-col-ratio(Grid·Duo·Infographic 같은 칸)의 잘못된 입력은 거절하고 값을 지킨다(현빈 결정 11-03)의 자.
+ * ⛔이 자가 안 재는 것: 열 수 2 밖의 그리드(앱 값이 회신에 있다).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -23,12 +23,16 @@ const toast = (page) => page.evaluate(() => { const t = document.getElementById(
 const put = async (page, v) => { const i = page.locator('#grd-col-ratio'); await i.click(); await i.press('ControlOrMeta+a'); if (v) await page.keyboard.type(v); else await page.keyboard.press('Backspace'); await page.keyboard.press('Enter'); };
 const ratio = (page) => page.evaluate(() => JSON.parse(document.getElementById(window.__id).dataset.cols || '[]').map((c) => c.width).join(':'));
 
-for (const [bad, want] of [['abc', '1:1'], ['-1', '1:1'], ['1:2:3', '1:2']]) {
-  test(`덮으면(${bad} → ${want}) 말이 뜬다`, async ({ page }) => {
+const tip = (page) => page.evaluate(() => { const t = window.getHistoryTip(); return [t.pos, t.len]; });
+for (const bad of ['abc', '-1', '-1:2', '1:2:3', '4', '1e999']) {
+  test(`잘못된 입력(${bad})은 거절 — 값·칸·이력 그대로, 말한다`, async ({ page }) => {
     const errs = await setup(page);
+    const t0 = await tip(page);
     await put(page, bad);
-    await expect.poll(() => ratio(page), { message: '[전제] 고쳐 먹었다' }).toBe(want);
-    await expect.poll(() => toast(page), { message: '값을 바꿨는데 말이 없다', timeout: 2500 }).toContain(`「${bad}」 를 「${want}」`);
+    await expect.poll(() => toast(page), { timeout: 2500 }).toContain(`「${bad}」 는 쓸 수 없어요`);
+    expect(await ratio(page)).toBe('3:1');
+    await expect(page.locator('#grd-col-ratio')).toHaveValue('3:1');
+    expect(await tip(page)).toEqual(t0);
     expect(errs).toEqual([]);
   });
 }
@@ -41,10 +45,10 @@ for (const [ok, want] of [['1:2', '1:2'], ['4,1', '4:1'], ['', '1:1']]) {
     expect(errs).toEqual([]);
   });
 }
-test('[대조] 덮인 비율은 ⌘Z 로 돌아온다', async ({ page }) => {
+test('[대조] 받아들인 비율은 ⌘Z 로 돌아온다', async ({ page }) => {
   const errs = await setup(page);
-  await put(page, 'abc');
-  await expect.poll(() => ratio(page)).toBe('1:1');
+  await put(page, '5:1');
+  await expect.poll(() => ratio(page)).toBe('5:1');
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('ControlOrMeta+z');
   await expect.poll(() => ratio(page)).toBe('3:1');

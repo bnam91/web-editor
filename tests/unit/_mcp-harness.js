@@ -197,6 +197,7 @@ async function startHarness(opts = {}) {
     get(_t, prop) {
       if (typeof prop === 'symbol') return undefined;
       if (prop === 'then') return undefined;               // await 오인 방지
+      if (prop === 'waitSettled' && canned.waitSettled === undefined) return undefined;   // 줄의 부기 — 시험이 꽂을 때만(mcp-serialize-settle) · 원장에 안 찍는다
       if (Object.prototype.hasOwnProperty.call(raw, prop)) {
         calls.push({ method: String(prop), args: ['(raw object accessed)'], seq: ++seq, t: Date.now(), hrt: process.hrtime.bigint(), raw: true });
         return raw[prop];

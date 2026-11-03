@@ -6,6 +6,7 @@
  * C1 [새 것] rebindAll «동기 구간» 안 읽기 0 · 한 태스크 뒤 섹션마다 정확히 1 번 · 배지·합계 맞음
  * C2 [새 것] 한 번에 그릴 때 «먼저 다 읽고 그다음 쓴다» — 첫 배지 쓰기 앞에 읽기가 섹션 수만큼 · 쓰기 뒤 읽기 0
  * N1 [음성대조] 섹션 높이가 바뀌면(블럭 키우기) 배지·합계가 여전히 따라온다(ResizeObserver 길 무접촉)
+ * N2 [음성대조] 노드가 갈린 뒤 첫 판과 첫 통지 사이에 높이가 바뀌면 배지·합계가 따라온다(값을 안 보고 건너뛰면 빨강)
  * 기다림은 전부 조건 — 고정 대기 0. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -80,4 +81,19 @@ test('N1 [음성대조] 섹션 높이가 바뀌면(블럭 키우기) 배지·합
   await page.evaluate(() => { document.querySelector('#cS0 .gap-block').style.height = '333px'; });
   await page.waitForFunction(() => document.querySelector('#cS0 .section-height-badge')?.dataset.h === '333px', null, T);
   await page.waitForFunction((t) => document.getElementById('rp-height-total')?.querySelector('.rp-ht-val')?.textContent === t, (333 + H(1)) + 'px', T);
+});
+
+test('N2 첫 판 뒤 · 첫 통지 전 높이가 바뀌면 그 통지로 배지·합계가 따라온다', async ({ page }) => {
+  await bootApp(page);
+  const N = 3;
+  await fixture(page, N);
+  await page.evaluate((n) => {
+    const f = window.measureSectionHeight; let k = 0;
+    /* 첫 판의 마지막 읽기 직후 마이크로태스크 = 그 판이 RO 를 건 «뒤» · 첫 통지(다음 렌더) «전» */
+    window.measureSectionHeight = function (sec) { const r = f.call(this, sec); if (++k === n) queueMicrotask(() => { document.querySelector('#cS0').style.minHeight = '777px'; }); return r; };
+    const c = document.getElementById('canvas'); c.innerHTML = c.innerHTML;
+    window.rebindAll({ preserveHistory: true });
+  }, N);
+  await page.waitForFunction(() => document.querySelector('#cS0 .section-height-badge')?.dataset.h === '777px', null, T);
+  await page.waitForFunction((t) => document.getElementById('rp-height-total')?.querySelector('.rp-ht-val')?.textContent === t, (777 + H(1) + H(2)) + 'px', T);
 });

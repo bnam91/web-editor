@@ -508,7 +508,7 @@ test('P13 ★캔버스 ＋(오른쪽) 진짜 클릭 — 새 열이 줄 3개·pad
     c.insertAdjacentHTML('beforeend', html); window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(100);
   }, SEC);
   await page.waitForFunction(() => window.currentZoom === 100 && !!document.getElementById('innerP13'));
-  await waitZoomSettled(page, 100);   // 보간 중에 재면 옛 배율 자리를 누른다(7차 ×6 값)
+  await waitZoomSettled(page, 100);   // 보간 중에 재면 옛 배율 자리를 눌러 ＋ 를 빗나갔다(대기 없음 8/24 ↔ 대기 0/24)
   const id = await page.evaluate(async () => {
     const IFG = await import('/js/blocks/grid-infographic.js');
     const { row, block } = window.makeGridBlock(IFG.ifgBuildOpts(

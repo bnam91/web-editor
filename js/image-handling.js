@@ -587,6 +587,8 @@ function loadImageToAsset(ab, file) {
   reader.onload = async ev => {
     const src = ev.target.result;
     const isGif = file.type === 'image/gif' || /^data:image\/gif[;,]/i.test(src);
+    /* data URL 을 DOM 에 넣으면 표본·저장 직렬화마다 그림 두 벌(src·dataset)이 실려 렌더러가 죽는다(BIG-IMAGE-INSERT-RENDERER-OOM-01). */
+    const toAsset = async (u) => (await window.grdAssetSrcOf?.(u))?.src || u;
     if (isGif) {
       // 애니메이션 GIF 직접 업로드 — 기본 표시는 정지 프레임(첫 프레임), 재생은 토글로.
       // 1차: export-image.js의 decodeGifFrames(ImageDecoder 기반, 있으면 정확).
@@ -603,11 +605,13 @@ function loadImageToAsset(ab, file) {
         try { stillSrc = await captureDetachedFirstFrame(src); }
         catch (err2) { console.warn('[gif] 정지 프레임 추출 실패(2차) — 원본을 그대로 사용', err2); }
       }
+      const [stillOut, motionOut] = [await toAsset(stillSrc), await toAsset(src)];
       hideAssetLoading(ab);
-      setAssetImageFromSrc(ab, stillSrc, src);
+      setAssetImageFromSrc(ab, stillOut, motionOut);
     } else {
+      const out = await toAsset(src);
       hideAssetLoading(ab);
-      setAssetImageFromSrc(ab, src);
+      setAssetImageFromSrc(ab, out);
     }
     /* ★[R3 · 2026-09-22] «끝 표본» — loadVideoToAsset 과 같은 병, 같은 고침.
        위 pushHistory() 는 FileReader 가 돌기 «전»에 찍히고 실제 반영은 여기(비동기)다.
@@ -716,6 +720,14 @@ function setAssetVideoFromSrc(ab, src) {
    ⚠️ pushHistory / showAssetProperties 호출은 caller에서 결정 (직접 적용용 헬퍼)
    motionSrc: 있으면 GIF 애니메이션 소스(src는 그 정지 프레임/썸네일) — T-012 통합 모션 자산 모델.
    video 업로드(트림→GIF 적용)와 .gif 직접 업로드 두 경로 모두 이 함수로 수렴한다. */
+/* 그림이 안 뜬 칸 표시 — 인라인 onerror 는 열 때 sanitizeCanvasHtml 이 지워 못 쓴다(error 는 안 올라와 캡처로 받는다). 직렬화가 벗긴다(section-serialize.js). */
+document.addEventListener('error', (e) => {
+  const i = e.target;
+  if (!i?.classList?.contains('asset-img')) return;
+  i.classList.add('asset-img-failed');
+  if (!i.hasAttribute('alt')) { i.alt = '이미지 로드 실패'; i.classList.add('asset-img-failed-alt'); }   // 옛 저장본에 박힌 alt 는 문서 내용이라 직렬화가 안 벗긴다
+}, true);
+
 function setAssetImageFromSrc(ab, src, motionSrc) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
@@ -754,7 +766,7 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   const prevGrainSnap = captureAssetGrain(ab);
   const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — ⛔빠지면 로고1 을 넣는 순간 ×·로고2·3 이 사라진다 */
   ab.innerHTML = `
-    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}" onerror="this.style.opacity='0.3';this.alt='이미지 로드 실패'"></div>
+    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;

@@ -18,7 +18,8 @@ async function setup(page) {
   await page.evaluate(async (src) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     window.addSection(); window.deselectAll?.();
-    await window._scratchAddAndSave(src, 700, 200, 120, undefined, 'sp_x');
+    // ★폭 300 — 단추 넷이 안 들어가는 좁은 그림은 단추를 숨긴다(scratch-narrow-btns · 247). 이 시험은 ✕ 길을 잰다
+    await window._scratchAddAndSave(src, 700, 200, 300, undefined, 'sp_x');
     window.clearHistory?.();
   }, PNG);
   await page.waitForFunction(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]')); await settle(page);

@@ -88,7 +88,7 @@
      ★안 켠 칸 ★3 = ★형광펜 H(★색 명부가 ★이미 둘 — 아래 QUOTE_DEFAULTS 의 그 주석) · ★밑줄 U · ★점.
 ═══════════════════════════════════════════════════════════════════════════ */
 
-import { insertAfterSelected, genId, showNoSelectionHint } from '../drag-utils.js';
+import { insertAfterSelected, genId, keepFreePos, showNoSelectionHint } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { fontChain } from '../props/prop-text-utils.js';
 /* ★1012t1H5 외곽선 — 텍스트블럭 Stroke 절과 «같은 함수»로 그린다(⛔CSS 처방을 여기 다시 적지 않는다).
@@ -516,6 +516,7 @@ export function ensureQuoteKidsBox(block) {
 
 function renderQuoteBlock(block) {
   if (!block) return;
+  const _restorePos = keepFreePos(block);
   const st = _qtState(block);
   const lines = quoteLines(block);
 
@@ -548,6 +549,7 @@ function renderQuoteBlock(block) {
     if (st.preOn) host.appendChild(_markEl(st, 'pre'));
     host.appendChild(_bodyEl(block, st, lines));
     if (st.postOn) host.appendChild(_markEl(st, 'post'));
+    _restorePos();
     return;
   }
 
@@ -575,6 +577,7 @@ function renderQuoteBlock(block) {
   if (st.preOn) host.appendChild(_markEl(st, 'pre'));
   host.appendChild(_bodyEl(block, st, lines));
   if (st.postOn) host.appendChild(_markEl(st, 'post'));
+  _restorePos();
 }
 
 function makeQuoteBlock(opts = {}) {

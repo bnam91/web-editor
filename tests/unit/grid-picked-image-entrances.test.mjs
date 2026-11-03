@@ -7,6 +7,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { margin, WHAT_NOW } from './_margin.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,5 +32,6 @@ test('E91 ★block-factory.js(오른클릭 교체)는 readAsDataURL 0 — grdPic
 test('E91 알려진 틈 — block-drag.js 빈 슬롯 더블클릭(grdImageFileOk 뒤 readAsDataURL) ≤ 1 (lane-drag 몫)', () => {
   const src = read('js/block-drag.js');
   const gated = [...src.matchAll(/grdImageFileOk\?\.\(file\)\)[\s\S]{0,400}?readAsDataURL\(/g)].length;
-  assert.ok(gated <= KNOWN_GAP_BLOCK_DRAG, `그리드 입구 data URL ${gated}곳 — 알려진 틈은 ${KNOWN_GAP_BLOCK_DRAG}(빈 슬롯 더블클릭)뿐`);
+  margin('grid-picked E91 data URL', gated, KNOWN_GAP_BLOCK_DRAG);
+  assert.ok(gated <= KNOWN_GAP_BLOCK_DRAG, `그리드 입구 data URL ${gated}곳 — 알려진 틈은 ${KNOWN_GAP_BLOCK_DRAG}(빈 슬롯 더블클릭)뿐${WHAT_NOW}`);
 });

@@ -62,7 +62,10 @@ test('S2 서로 다른 계층 다중 선택 ⌘C⌘V → 이동 → ⌘Z — 원
   await pick(page, [P1, A]); await clickFree(page, P2, 'Meta');   // 자식 + 다른 위계의 맨 위
   const sel = await page.evaluate((FR) => [...document.querySelectorAll('#canvas ' + FR + '.selected')].map((f) => f.id), FR);
   expect(sel.length, '[전제] 둘 이상 고름').toBeGreaterThan(1);
+  /* ⌘V 는 paste 이벤트에 양보하느라 setTimeout 30 뒤에 붙는다(js/editor.js) ⇒ 두 rAF 로는 못 본다(단독 11/11 빨강) · 프레임 수가 늘 때까지 기다린다 */
+  const nFr = await page.evaluate((FR) => document.querySelectorAll('#canvas ' + FR).length, FR);
   await page.keyboard.press('Meta+c'); await press(page, 'Meta+v');
+  await page.waitForFunction(([FR, n]) => document.querySelectorAll('#canvas ' + FR).length > n, [FR, nFr], { timeout: 5000 });
   const s1 = await read(page); clean(s1);
   for (const k of Object.keys(s0.frames)) { expect(s1.frames[k]?.parent, `원본 ${k} 부모`).toBe(s0.frames[k].parent); }
   for (const k of Object.keys(s0.texts)) expect(s1.texts[k]?.text, '원본 글자').toBe(s0.texts[k].text);
@@ -89,7 +92,9 @@ test('S3 복사 직후 대상 삭제 — ⌘D 뒤 사본 Delete · ⌘C 뒤 원�
   /* ⌘C → 원본 Delete → ⌘V */
   await pick(page, [P1]); await page.keyboard.press('Meta+c'); await press(page, 'Delete');
   const gone = await read(page); expect(gone.frames[P1], '지워짐').toBeUndefined(); clean(gone);
-  await press(page, 'Meta+v'); const pasted = await read(page); clean(pasted);
+  await press(page, 'Meta+v');
+  await page.waitForFunction(([FR, n]) => document.querySelectorAll('#canvas ' + FR).length > n, [FR, Object.keys(gone.frames).length], { timeout: 5000 });   // S2 와 같은 까닭(setTimeout 30)
+  const pasted = await read(page); clean(pasted);
   const n = Object.keys(pasted.frames).length - Object.keys(gone.frames).length;
   console.log('S3 V ' + JSON.stringify({ '⌘C·Delete·⌘V 새 프레임': n, 원본부분나무: 3 + 1 }));
   /* ⌘V 가 붙었든 안 붙었든 ⌘Z 를 거듭하면 처음으로 돌아와야 한다 */

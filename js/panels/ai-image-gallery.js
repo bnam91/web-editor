@@ -121,13 +121,14 @@ async function galleryInsertToCanvas(id) {
   if (!sec) { window.showToast?.('⚠️ 캔버스에서 섹션을 먼저 선택해주세요.'); return; }
   const dataUrl = await _ensureDataUrl(item);
   if (!dataUrl) { window.showToast?.('❌ 이미지 로드 실패'); return; }
+  const src = (await window.grdAssetSrcOf?.(dataUrl))?.src || dataUrl;   // data URL 을 캔버스에 쌓지 않는다(BIG-IMAGE-INSERT-RENDERER-OOM-01)
   // addAssetBlock — 선택 섹션 끝에 삽입 (공개 API만 사용)
   window.addAssetBlock?.();
   // 방금 추가된 마지막 asset-block 찾기
   const blocks = sec.querySelectorAll('.asset-block');
   const ab = blocks[blocks.length - 1];
   if (!ab) { window.showToast?.('❌ 에셋 블록 생성 실패'); return; }
-  window.setAssetImageFromSrc?.(ab, dataUrl);
+  window.setAssetImageFromSrc?.(ab, src);
   window.triggerAutoSave?.();
   window.showToast?.('✨ 캔버스에 삽입됨');
 }

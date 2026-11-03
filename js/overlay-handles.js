@@ -368,12 +368,17 @@ function _onHandleMouseDown(e, ss, dir) {
           isTextFrame,
           contentEl,
           fs: contentEl ? (parseFloat(getComputedStyle(contentEl).fontSize) || 0) : 0,
+          laurelCells: c.classList.contains('laurel-block') ? c.dataset.cells : null,
         });
         if (c.classList.contains('frame-block') && !isTextFrame) collect(c);
       });
     };
     collect(ss);
   }
+  const _keepChildScale = !isGroup && !!ss.dataset.freeLayout && !ss.querySelector(':scope > .shape-block');
+  /* ★250B ①(★156·★165 꼴) — 끄는 동안 자동저장을 «미룬다». 첫 이동의 시작 표본이 건 1.5s 타이머가 끌기 안에서 터져 프로젝트를 통째 직렬화했다.
+     재개 길 셋: 아래 onUp · 창 blur · 30s 안전망(save-load.js). */
+  window.deferAutoSave?.();
   const _hist = window.beginDragHistory?.('프레임 크기');
 
   function onMove(ev) {
@@ -396,6 +401,9 @@ function _onHandleMouseDown(e, ss, dir) {
       if (_dirL.includes('n')) newH = Math.max(40, startH - dy);
     }
     newW = Math.round(newW); newH = Math.round(newH);
+    /* 손잡이는 자식을 안 줄인다. 패널 폭(prop-frame applyWidth)은 자식을 비례로 옮기므로, 자식이 맞던 폭을 남겨 그 비율의 기준으로 쓰게 한다.
+       없으면 400→(손잡이)60→(입력)400 에서 자식이 ×6.67 로 부푼다(S3 D-B: G 폭 300→2000 · 왼쪽 40→267). 그룹·도형은 자식이 같이 변하므로 비켜 간다. */
+    if (_keepChildScale && newW !== startW && !ss.dataset.childScaleW) ss.dataset.childScaleW = String(startW);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
     /* ★★★「패딩 제외(full-bleed)」 규약의 ★★둘째 입구 (현빈 2026-10-11 「★리사이즈하면 ★패딩제외가 ★풀린다」)
        ★★규약 = ★★«제 폭을 ★먼저 정하고», ★마지막에 ★패딩제외를 ★덮는다. ★꺼져 있으면 ★no-op 이다.
@@ -441,7 +449,12 @@ function _onHandleMouseDown(e, ss, dir) {
         } else {
           const H = Math.round(s.h * sy);
           s.el.style.height = H + 'px';
-          if (s.el.dataset.height !== undefined) s.el.dataset.height = String(H);
+          /* ★J260B 월계수 높이 정본은 cells[].height — H 칸(prop-multisel)과 같이 칸·잎이 겉 상자를 따른다.
+             매 틱 «쥔 때의 칸»에서 잰다: 지금 칸에서 이어 재면 [20,600] 에 닿은 비율이 끌어 되돌려도 안 돌아온다. */
+          if (s.laurelCells) {
+            s.el.dataset.cells = s.laurelCells;
+            if (H === s.h) window.renderLaurelBlock?.(s.el); else window.fitLaurelCellsToBoxHeight?.(s.el, H);
+          } else if (s.el.dataset.height !== undefined) s.el.dataset.height = String(H);
         }
       });
     }
@@ -456,6 +469,7 @@ function _onHandleMouseDown(e, ss, dir) {
        ⛔끝 표본 «앞»이어야 한다 — 크기 변경과 다시 놓기가 히스토리 한 칸이 된다. */
     window.refitBuzzOnResize?.(ss);
     window.pushHistory?.();
+    window.resumeAutoSave?.();   // ★250B ① — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);

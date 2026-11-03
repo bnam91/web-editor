@@ -182,6 +182,7 @@ for (const zoom of [40, 60, 100]) {
 test('U2n ★음성대조 — 파란 윗변은 «걸린 h1» 에서만 오른다: 안 건 h1·body·✕ 뒤는 글상자 윗변 그대로', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 1200 });
   await bootApp(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 첫 배율 전환 중에 재면 gap 이 -1.5~-2.46 으로 흔들린다(멎으면 -2.12)
   const r = await page.evaluate(async () => {
     const ft = await import('/js/effects-freetransform.js');
     const frames = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
@@ -289,10 +290,11 @@ for (const [kind, zoom] of [['body', 100], ['h1', 100], ['body', 40], ['h1', 40]
   });
 }
 
-test('U4t ★음성대조 — 만진 사다리꼴은 Enter 에 네 점·잰 값을 안 건드린다(모양·글 결정은 현빈 몫 · dev 기본 동작)', async ({ page }) => {
+test('U4t ★음성대조 — 옛 파일(tfSchema 없음)의 만진 사다리꼴은 Enter 에 네 점·잰 값을 안 건드린다(새 파일은 ft-touched-enter-keeps-text)', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 1200 });
   await bootApp(page);
   await enterScene(page, 'body', 100, true);
+  await page.evaluate(() => { delete document.getElementById('u4tb').dataset.tfSchema; });
   const a = await read2(page);
   expect(a.touched, '전제: 만진 글상자다').toBe(true);
   await page.keyboard.press('Enter');

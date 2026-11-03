@@ -22,11 +22,7 @@ import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';   /* 버즈(1
 function makeIndents(depth) {
   const wrap = document.createElement('span');
   wrap.className = 'layer-indents';
-  for (let i = 0; i < depth; i++) {
-    const s = document.createElement('span');
-    s.className = 'layer-indent';
-    wrap.appendChild(s);
-  }
+  wrap.style.setProperty('--depth', depth);   // ★250 ㉠ — 칸마다 span 을 두면 깊은 트리에서 패널 노드가 깊이×행으로 는다. 그림은 CSS 한 벌.
   return wrap;
 }
 const layerIcons = {
@@ -365,8 +361,13 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     // "다른 아웃라인"만 뜨는 원인이었다 — 타입→핸들 맵(showHandlesFor)으로 동일하게 맞춘다.
     window.showHandlesFor?.(block);
   });
-  block.addEventListener('mouseenter', () => item.style.background = 'var(--ui-bg-card)');
-  block.addEventListener('mouseleave', () => { if (!item.classList.contains('active')) item.style.background = ''; });
+  /* ★250 — 행은 buildLayerPanel 마다 새로 나고 블럭은 산다. 빌드마다 블럭에 리스너를 걸면 그 클로저가 «옛 패널 통째»를 잡아 GC 가 못 걷는다
+     (실측 e7987701 · 사슬 48 스냅샷: 산 gap-block → V8EventListener → context.item → 옛 행 트리 · GC 뒤 노드 14만). ⇒ 블럭당 한 벌만 걸고 지금 행을 필드로 본다. */
+  if (!block._layerHoverRow) {
+    block.addEventListener('mouseenter', () => { block._layerHoverRow.style.background = 'var(--ui-bg-card)'; });
+    block.addEventListener('mouseleave', () => { if (!block._layerHoverRow.classList.contains('active')) block._layerHoverRow.style.background = ''; });
+  }
+  block._layerHoverRow = item;
 
   item.setAttribute('draggable', 'true');
   /* ★[H6] 레이어 드래그 억제도 토큰으로 — dragstart 는 오는데 dragend 가 «안 오는» 경우가 있다

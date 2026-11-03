@@ -1,5 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+/* 프로젝트 파일을 쓴 렌더러 쓰기는 전부 여기를 지난다 — localStorage 본이 «이어진 파일 판»을 따라 옮긴다(열 때 판정 js/io/save-load.js).
+   ⛔부르는 자리마다 달지 마라: 이름 바꾸기·글꼴 대체·마켓·협업이 updatedAt 을 올리는데 표시가 안 따라가 충돌 복구를 잃었다(앱 3/3). 시험: tests/unit/preload-ls-base.test.mjs */
+function _noteFileVersion(project, res) {
+  try {
+    if (project && project.id && project.updatedAt != null && !(res && res.ok === false)) localStorage.setItem(`web-editor-ls-base__${project.id}`, String(project.updatedAt));
+  } catch (_) {}
+  return res;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // Projects (파일 기반)
   listProjects:   ()        => ipcRenderer.invoke('projects:list'),
@@ -7,9 +16,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listProjectBackups: () => ipcRenderer.invoke('projects:list-backups').catch(() => ({ ok: false, items: [] })),
   // opts.open=true → «프로젝트를 연다»는 로드(열 때 외부화 정책이 여기서만 돈다). 저장 경로의 병합용 로드는 opts 없이.
   loadProject:    (id, opts) => ipcRenderer.invoke('projects:load', id, opts),
-  saveProject:    (project) => ipcRenderer.invoke('projects:save', project),
+  saveProject:    (project) => ipcRenderer.invoke('projects:save', project).then((r) => _noteFileVersion(project, r)),
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
-  saveProjectSync:(project) => ipcRenderer.sendSync('projects:save-sync', project),
+  saveProjectSync:(project) => _noteFileVersion(project, ipcRenderer.sendSync('projects:save-sync', project)),
   /* ★S1(2026-10-03) — 자동저장 대기 중에만 창의 백그라운드 억제를 풀어 달라고 메인에 알린다(on/off). 되돌림 보증은 메인 몫. */
   setSavePending: (on) => ipcRenderer.send('app:save-pending', !!on),
   // [U7] 삭제 = «휴지통으로 이동»이 기본. permanent:true 는 휴지통이 실패해 사용자가 «2차 확인으로 선택»했을 때만.
@@ -19,8 +28,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   trashList:      ()        => ipcRenderer.invoke('trash:list'),
   trashRestore:   (id)      => ipcRenderer.invoke('trash:restore', id),
   trashPurge:     (id)      => ipcRenderer.invoke('trash:purge', id),
-  duplicateProject: ({ sourceProjectId, newName }) =>
-    ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName }),
+  /* sourceData = 내용만 그것으로 바꾼 복제(마켓 머지 · main.js _duplicateProjectImpl 머리글). 빼면 머지본이 원본 내용으로 저장된다 */
+  duplicateProject: ({ sourceProjectId, newName, sourceData }) =>
+    ipcRenderer.invoke('projects:duplicate', { sourceProjectId, newName, sourceData }),
 
   /* ── 프로젝트 폴더 (T-A, 2026-09-16) ── main/folders.js 머리글 참조.
      ★폴더는 «가상» — 여기서 디스크 디렉터리를 옮기지 않는다, meta 의 folderId 필드만 바꾼다. */
