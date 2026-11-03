@@ -86,6 +86,13 @@ function getSaveKey() {
 function getSaveTsKey() {
   return getSaveKey() + '_ts';
 }
+/* localStorage 본이 «어느 파일 판에서 이어졌나» — 그 파일이 아직 디스크에 있을 때만 localStorage 가 파일을 이길 자격이 있다(열 때 판정).
+   파일이 밖에서 바뀌면(사본·백업·되돌리기) updatedAt 이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다. 시험: tests/dom/ls-file-base.dom.spec.js */
+const _lsBaseKey = (id) => `web-editor-ls-base__${id}`;
+function _noteFileVersion(id, updatedAt) {
+  if (!id || !updatedAt) return;
+  try { localStorage.setItem(_lsBaseKey(id), updatedAt); } catch (_) {}
+}
 let autoSaveTimer = null;
 const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
 let _autoSaveBurstAt = 0;
@@ -340,6 +347,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
         return { ok: false, reason: saveResult.reason || 'rejected' };
       }
+      _noteFileVersion(targetId, proj.updatedAt);
       // thumbnail은 _meta.json에 저장
       if (thumbnail) {
         /* ★«자기 필드만» 보낸다(2026-10-02 meta 경합 f) — 미리 읽지 않는다. 합치기는 main 핸들러({ ...cur, ...metaData }).
@@ -2502,7 +2510,10 @@ function initApp() {
             return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
           };
           const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          if (lsTs > 0 && lsTs + 500 > fileTs) {
+          const lsBase = localStorage.getItem(_lsBaseKey(activeProjectId));   // 없으면(이 고침 전 본) 옛 규칙 그대로
+          const lsFromThisFile = !lsBase || lsBase === proj.updatedAt;
+          _noteFileVersion(activeProjectId, proj.updatedAt);
+          if (lsTs > 0 && lsTs + 500 > fileTs && lsFromThisFile) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) {
               try {
@@ -2742,6 +2753,7 @@ window.flushSave = async function() {
         updatedAt: new Date().toISOString(),
       };
       await window.electronAPI.saveProject(proj);
+      _noteFileVersion(_targetId, proj.updatedAt);
       _dirtySinceSave = false;
     } catch (e) {
       console.error('[flushSave] 저장 실패:', e);
