@@ -304,3 +304,131 @@ test('U4t ★음성대조 — 옛 파일(tfSchema 없음)의 만진 사다리꼴
   expect(b.corners).toBe(a.corners);
   expect(b.H).toBe(a.H);
 });
+
+/* ★J146B ⒜ — 안 만진 여러 줄의 첫 끌기: 네 점은 글자 폭 기준인데 W 만 Range 폭으로 바뀌면 글자가 짓눌린다.
+   자 = 글자 «노드» 합집합 폭(⛔Range 전체 상자는 div 줄 폭을 잡아 짓눌림을 못 본다). */
+async function firstDrag(page, kind, zoom, lines) {
+  await enterScene(page, kind, zoom, false);
+  for (let i = 1; i < lines; i++) { await page.keyboard.press('Enter'); await page.keyboard.type('줄' + i); }
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => {
+    window.__ink = () => {
+      const tb = document.getElementById('u4tb'); const ce = tb.querySelector('[contenteditable]');
+      const r = document.createRange(); const w = document.createTreeWalker(ce, NodeFilter.SHOW_TEXT); let lo = Infinity, hi = -Infinity;
+      for (let n = w.nextNode(); n; n = w.nextNode()) { r.selectNodeContents(n); const q = r.getBoundingClientRect(); if (q.width > 0) { lo = Math.min(lo, q.left); hi = Math.max(hi, q.right); } }
+      return { ink: hi - lo, lines: ce.children.length, W: window.ftStateOf(tb).W, corners: tb.dataset.tfCorners };
+    };
+    if (!document.getElementById('u4tb').classList.contains('selected')) window.selectBlock?.('u4tb');
+  });
+  const handle = page.locator('#u4tb .tfh-handle[data-tfh="nw"]');
+  await handle.waitFor();
+  await read2(page);
+  const a = await page.evaluate(() => window.__ink());
+  const h = await handle.boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 10, h.y + h.height / 2);
+  await page.mouse.up();
+  await page.waitForFunction(() => document.getElementById('u4tb').dataset.tfTouched === '1');
+  await read2(page);
+  return { a, b: await page.evaluate(() => window.__ink()) };
+}
+for (const [kind, zoom] of [['body', 100], ['h1', 100], ['body', 40], ['h1', 40]]) {
+  test(`U6 ★★안 만진 여러 줄 첫 끌기 — 글자가 안 짓눌린다(${kind} · 줌 ${zoom})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    const { a, b } = await firstDrag(page, kind, zoom, 3);
+    console.log(`[U6:${kind}:${zoom}]`, JSON.stringify({ a, b }));
+    expect(a.lines, '전제: Enter 로 줄이 갈렸다').toBeGreaterThan(1);
+    expect(b.corners, '전제: 끌기가 네 점을 바꿨다').not.toBe(a.corners);
+    expect(b.ink, `★글자가 짓눌렸다 (${a.ink} → ${b.ink})`).toBeGreaterThan(a.ink * 0.8);
+    expect(Math.abs(b.W - a.W), `★잰 폭이 뛰었다 (W ${a.W} → ${b.W})`).toBeLessThan(1);
+    /* 다시 열어도 같은 그림 — 저장본 그대로 갈아끼우고 복원 길로 */
+    await page.evaluate(() => { const s = document.getElementById('u4tb').closest('.section-block'); s.outerHTML = s.outerHTML; window.rebindAll?.(); });
+    await page.waitForFunction(() => window.ftStateOf(document.getElementById('u4tb'))?.W > 0);
+    const c = await page.evaluate(() => window.__ink());
+    expect(Math.abs(c.ink - b.ink), `★다시 열면 그림이 변한다 (${b.ink} → ${c.ink})`).toBeLessThan(1.5);
+  });
+}
+test('U6n ★음성대조 — 한 줄 첫 끌기는 원래 안 짓눌린다', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const { a, b } = await firstDrag(page, 'body', 100, 1);
+  expect(a.lines, '전제: 한 줄').toBe(0);
+  expect(b.corners).not.toBe(a.corners);
+  expect(b.ink).toBeGreaterThan(a.ink * 0.8);
+  expect(Math.abs(b.W - a.W)).toBeLessThan(1);
+});
+test('U6o ★음성대조 — 옛 만진 파일(박힌 폭 ≈ Range 폭)은 Range 폭 그대로 잰다(네 점이 그 W 기준)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  await enterScene(page, 'body', 100, true);
+  await page.keyboard.press('Escape');
+  const r = await page.evaluate(async () => {
+    const ft = await import('/js/effects-freetransform.js');
+    const tb = document.getElementById('u4tb'); const ce = tb.querySelector('[contenteditable]');
+    ce.innerHTML = '<div>첫 줄</div><div>둘째</div><div>셋째</div>'; ce.style.width = '';
+    ft.applyFxFreeTransform(tb); const W1 = ft.ftStateOf(tb).W; const pinned = ce.style.width;
+    ft.applyFxFreeTransform(tb); return { W1, pinned, W2: ft.ftStateOf(tb).W, touched: tb.dataset.tfTouched };
+  });
+  console.log('[U6o]', JSON.stringify(r));
+  expect(r.touched, '전제: 만진 글상자').toBe('1');
+  expect(r.W1, '전제: 옛 자는 블록 폭을 잡는다').toBeGreaterThan(300);
+  expect(parseFloat(r.pinned), '전제: 박힌 폭 ≈ Range 폭').toBeGreaterThan(300);
+  expect(r.W2).toBe(r.W1);
+});
+
+/* ★J146B ⒝ — 패딩 위 값 글상자: 보라·격자·손잡이가 글자에서 패딩만큼 어긋난다. 패널 입력으로 값을 넣는다. */
+async function padScene(page, kind, zoom, pad, side = 'v') {
+  await page.evaluate((z) => window.applyZoom(z), zoom);
+  await waitZoomSettled(page, zoom);
+  await scene(page, TRAP, kind);
+  await page.evaluate(([pad, side]) => {
+    const tb = document.getElementById('u3tb'); tb.scrollIntoView({ block: 'center' });
+    if (side === 'redraw') { tb.style.paddingTop = pad + 'px'; window.applyFxFreeTransform?.(tb); return; }   /* 패널 말고 다시 그리는 길(복원·글 입력) */
+    const n = document.getElementById(side === 'l' ? 'txt-pl-number' : 'txt-pv-number'); n.value = pad; n.dispatchEvent(new Event('input', { bubbles: true }));
+  }, [pad, side]);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  return page.evaluate(() => {
+    const tb = document.getElementById('u3tb'); const R = (e) => e.getBoundingClientRect();
+    const g = document.createRange(); g.selectNodeContents(tb.querySelector('[contenteditable]'));
+    const nw = R(tb.querySelector('.tfh-handle[data-tfh="sw"]'));
+    return { edge: R(tb.querySelector('.tfh-edge')).toJSON(), grid: R(tb.querySelector('.tfh-grid')).toJSON(), glyph: g.getBoundingClientRect().toJSON(), tb: R(tb).toJSON(), blue: R(document.querySelector('#ss-handles-overlay svg.ss-sel-layer path.ss-sel-path')).toJSON(), sw: [nw.left + nw.width / 2, nw.top + nw.height / 2], pad: getComputedStyle(tb).paddingTop, padL: getComputedStyle(tb).paddingLeft };
+  });
+}
+for (const [kind, zoom] of [['h1', 100], ['body', 100], ['h1', 40], ['body', 40]]) {
+  test(`U7 ★★패딩 40 — 보라·격자·손잡이가 글자에 붙는다(${kind} · 줌 ${zoom})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    const r = await padScene(page, kind, zoom, 40);
+    console.log(`[U7:${kind}:${zoom}]`, JSON.stringify({ top: r.edge.top - r.glyph.top, bottom: r.edge.bottom - r.glyph.bottom, blueTop: r.blue.top - r.tb.top }));
+    expect(r.pad, '전제: 패널 입력이 먹었다').toBe('40px');
+    for (const k of ['top', 'bottom', 'left', 'right']) {
+      expect(Math.abs(r.edge[k] - r.glyph[k]), `★보라 ${k} 가 글자에서 어긋난다`).toBeLessThan(1.5);
+      expect(Math.abs(r.grid[k] - r.edge[k]), `★격자 ${k} 가 보라와 어긋난다`).toBeLessThan(0.1);
+    }
+    expect(Math.abs(r.sw[1] - r.edge.bottom), '★손잡이가 보라에서 어긋난다').toBeLessThan(1.5);
+    expect(Math.abs(r.blue.top - r.tb.top), '★패딩이 받는데 파란 윗변이 올랐다').toBeLessThan(1.5);
+  });
+}
+test('U7l ★왼쪽 패딩 30 — 보라가 글자에 붙는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await padScene(page, 'h1', 100, 30, 'l');
+  expect(r.padL, '전제').toBe('30px');
+  expect(Math.abs(r.edge.left - r.glyph.left), '★보라 left 가 글자에서 어긋난다').toBeLessThan(1.5);
+});
+test('U7r ★패딩 뒤 다시 그려도(복원·글 입력 길) 보라가 글자에 붙는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await padScene(page, 'h1', 100, 40, 'redraw');
+  expect(r.pad, '전제').toBe('40px');
+  expect(Math.abs(r.edge.top - r.glyph.top), '★보라 top 이 글자에서 어긋난다').toBeLessThan(1.5);
+});
+test('U7n ★음성대조 — 패딩 0 은 전과 같다(보라 = 글자)', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1200 });
+  await bootApp(page);
+  const r = await padScene(page, 'h1', 100, 0);
+  expect(r.pad).toBe('0px');
+  for (const k of ['top', 'bottom', 'left', 'right']) expect(Math.abs(r.edge[k] - r.glyph[k])).toBeLessThan(1.5);
+});

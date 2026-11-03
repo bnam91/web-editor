@@ -73,4 +73,7 @@ export function wirePaddingSection({ tb, phLinked: phLinkedArg }) {
     prSlider.addEventListener('input', () => setR(parseInt(prSlider.value)));
     prNumber.addEventListener('input', () => setR(Math.min(120, Math.max(0, parseInt(prNumber.value) || 0))));
   }
+
+  /* ★J146B ⒝ — 패딩이 글자칸을 옮기면 자유변형 보라·손잡이도 따라간다(위 setter 들 뒤에 돈다) */
+  [pvSlider, pvNumber, plSlider, plNumber, prSlider, prNumber].forEach((el) => el?.addEventListener('input', () => { if (tb.dataset.tfCorners) window.ftHandlesSync?.(tb); }));
 }
