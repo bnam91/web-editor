@@ -716,9 +716,9 @@ async function _awaitProjectLoaded(toolName, maxWaitMs) {
   for (;;) {
     let b = null;
     try {
-      b = await Promise.race([_rendererInvoker.loadBlocked(), new Promise(res => setTimeout(() => res(null), 1000))]);
+      b = await Promise.race([_rendererInvoker.loadBlocked(), new Promise(res => setTimeout(() => res('stalled'), 1000))]);
     } catch (_) { return null; }   // 창 없음 — 도구가 자기 말로 답한다
-    if (b === false) return null;
+    if (b !== true && b !== 'stalled') return null;   // 큰 파일을 읽는 동안 렌더러는 답을 못 할 수 있다 — 무응답은 막힘으로 센다
     if (Date.now() - t0 >= maxWaitMs) break;
     await new Promise(res => setTimeout(res, 100));
   }

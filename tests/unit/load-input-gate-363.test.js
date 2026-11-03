@@ -1,6 +1,6 @@
 /* load-input-gate-363 — 쓰기 도구는 로드가 끝나기를 기다리고, 안 끝나면 거절한다 · 화면 면 전수
  * 재는 자리 = 서버 디스패처(mcp-project-gate 와 같다). 앱 값은 ~/gd-lane/imac-gd-L1/363d.
- * 변이: _awaitProjectLoaded 호출을 빼면 M1·M2 빨강 | 조건에서 undo 를 빼면 M4 빨강.
+ * 변이: _awaitProjectLoaded 호출을 빼면 M1·M2 빨강 | 조건에서 undo 를 빼면 M4 빨강 | 무응답을 안 막힘으로 보면 M5 빨강 | false 만 통과로 보면 M6 빨강.
  */
 'use strict';
 const { test, before, after } = require('node:test');
@@ -9,19 +9,37 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { startHarness } = require('./_mcp-harness');
 
-let H = null; let blocked = false; let polls = 0;
-const loadBlocked = async () => { polls++; return blocked; };
+let H = null; let blocked = false; let polls = 0; let freeAt = 0; let answer = null;
+const loadBlocked = () => {
+  polls++;
+  if (answer) return answer(polls);
+  if (freeAt && polls >= freeAt) blocked = false;
+  return Promise.resolve(blocked);
+};
 before(async () => { H = await startHarness({ activeProject: 'proj_1', confirmProject: true, rawInvoker: { loadBlocked } }); });
 after(async () => { if (H) await H.stop(); });
 
 test('M1 막는 동안 쓰기 도구는 기다렸다가 돈다', async () => {
-  blocked = true; polls = 0;
-  const p = H.call('add_section', {});
-  while (polls < 2) await new Promise(r => setTimeout(r, 20));
-  blocked = false;
-  const r = await p;
+  blocked = true; polls = 0; freeAt = 2;
+  const r = await H.call('add_section', {});
+  freeAt = 0;
   assert.notStrictEqual(r.result && r.result.code, 'project_loading');
   assert.ok(polls >= 2, '★기다리지 않았다');
+});
+
+test('M5 렌더러가 무응답이면 막힘으로 세고 다시 묻는다', async () => {
+  polls = 0; answer = (n) => (n === 1 ? new Promise(() => {}) : Promise.resolve(false));
+  const r = await H.call('add_section', {});
+  answer = null;
+  assert.notStrictEqual(r.result && r.result.code, 'project_loading');
+  assert.strictEqual(polls, 2, '★무응답을 안 막힘으로 봤다');
+});
+
+test('M6 [음성] 답이 불리언 true 가 아니면 안 기다린다(옛 렌더러·대역)', async () => {
+  polls = 0; answer = () => Promise.resolve({ ok: true });
+  await H.call('add_section', {});
+  answer = null;
+  assert.strictEqual(polls, 1, '★모르는 답에 기다렸다');
 });
 
 test('M2 [음성] 안 막으면 렌더러에 한 번만 묻고 돈다', async () => {
