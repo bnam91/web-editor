@@ -1512,9 +1512,16 @@ async function _loadScratch(projectId, pageId) {
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
-    if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
     console.warn('[ScratchPad] load error:', e);
-    window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
+    /* 읽기 오류여도 복원본은 여기서 쓴다. 안 쓰고 남기면 다음 열기에 그 사이 쓴 새 DB 를 덮는다(S3 scratch ③) */
+    const held = gen === _scratchLoadGen ? _unsavedFlush.get(key) : null;
+    if (held) {
+      _unsavedFlush.delete(key);
+      held.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => _createItem(src, x, y, w, id, g, linkDy, fx, ocr));
+    }
+    if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
+    if (held) _saveScratch();
+    else window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
   }
 }
 

@@ -95,3 +95,25 @@ test('음성 외부화 경합: 기다리는 사이 지운 항목·지운 키를 
   await page.evaluate(async () => { window.__release(); await window.__ext; });
   expect(await dbIds(page)).toBe(null);
 });
+const failNextRead = (page) => page.evaluate(() => { const og = IDBObjectStore.prototype.get; IDBObjectStore.prototype.get = function (...a) { IDBObjectStore.prototype.get = og; throw new DOMException('대역 읽기 실패', 'UnknownError'); }; });
+test('복원: flush 실패 뒤 다시 열 때 읽기가 실패해도 항목이 돌아오고, 다음 열기에 새 DB 를 안 덮는다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await on(page);
+  await page.evaluate((S) => window.__settle(window._scratchAddAndSave(S, 10, 90, 50, null, 's_2')), S);
+  await page.evaluate(() => window.__settle(window.flushScratchForSwitch()));
+  await off(page);
+  await failNextRead(page);
+  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+  await expect.poll(() => items(page)).toEqual(['s_1', 's_2']);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 170, 50, null, 's_new'), S);
+  await page.evaluate(() => window.flushScratchForSwitch());
+  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+  await expect.poll(() => items(page)).toEqual(['s_1', 's_2', 's_new']);
+});
+test('음성 복원: 되살릴 것이 없을 때 읽기가 실패하면 전처럼 복원 실패를 알린다', async ({ page }) => {
+  await ready(page);
+  await failNextRead(page);
+  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+  await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual(['⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)']);
+});
