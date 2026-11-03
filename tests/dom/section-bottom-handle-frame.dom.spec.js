@@ -37,12 +37,12 @@ async function dragHandle(page) {
   const h = await handle(page);
   await page.mouse.move(s.x, h.cy); await raf2(page);
   expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#sA > .section-bottom-handle'), [s.x, h.cy]), '★그 자리 임자가 손잡이').toBe(true);
-  const h0 = s.bottom - s.top;
+  const h0 = await page.evaluate(() => document.getElementById('sA').offsetHeight);
   await page.mouse.down(); await page.mouse.move(s.x, h.cy + 40, { steps: 3 }); await page.mouse.move(s.x, h.cy + 80, { steps: 3 }); await page.mouse.up();
   await raf2(page);
-  const s1 = await page.evaluate(() => { const e = document.getElementById('sA'); return { h: e.getBoundingClientRect().height, mh: e.style.minHeight }; });
+  const s1 = await page.evaluate(() => { const e = document.getElementById('sA'); return { h: e.offsetHeight, mh: e.style.minHeight }; });
   expect(s1.mh, '★끌면 바닥 높이가 생긴다').not.toBe('');
-  expect(Math.round(s1.h - h0)).toBe(80);
+  expect(s1.h - h0).toBe(80);
   return h;
 }
 
