@@ -3527,6 +3527,9 @@ function bindFrameDropZone(ss) {
        ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은
          종전대로 해야 한다(그건 선택과 무관한 드래그 억제다). */
     if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+    /* 안쪽 흐름 프레임을 누른 것이면 바깥 프레임이 고르지 않는다. 안 그러면 안→밖으로 차례로 골라 맨 위가 선택을 가져가, 다시 연 스택에서 깊은 프레임·블럭을 클릭으로 못 고르고 끌어도 아무것도 안 움직였다(S6 새 발견 ①). ⛔absolute 자식·그룹 자식은 여태처럼 바깥이 받는다(child-frame-drag-294 음성). 시험: tests/dom/stack-reopen-click-pick.dom.spec.js */
+    const _pressedInner = e.target.closest('.frame-block:not([data-text-frame])');
+    if (_pressedInner && _pressedInner !== ss && _pressedInner.style.position !== 'absolute' && ss.dataset.group !== 'true') return;
     /* ★U16①(2026-10-05) — 오른쪽 단추는 여기서 고르지 않는다. 여기서 고르면 :149(.frame-block.selected *{pointer-events:auto})가
        «같은 누름»의 contextmenu 보다 먼저 서서, 그 contextmenu 가 «안의 글자»를 맞혔다(실측: 글자 메뉴가 뜸 + 프레임만 selected).
        고르기는 아래 contextmenu 리스너가 한다(클릭과 같은 단일 선택). */
