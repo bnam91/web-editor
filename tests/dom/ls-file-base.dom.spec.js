@@ -10,7 +10,7 @@ const snap = (mark) => ({ version: 2, currentPageId: 'p', pages: [{ id: 'p', nam
 const UPD = '2026-11-03T00:00:00.000Z';
 const fileTs = Date.parse(UPD);
 
-async function open(page, { ls, lsTs, base, file = {} }) {
+async function open(page, { ls = snap('LS'), lsTs, base, file = {} }) {
   await page.addInitScript(({ file }) => {
     let real;
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
@@ -24,7 +24,7 @@ async function open(page, { ls, lsTs, base, file = {} }) {
     const k = 'web-editor-autosave__p1';
     localStorage.setItem(k, ls); localStorage.setItem(k + '_ts', String(lsTs));
     if (base) localStorage.setItem('web-editor-ls-base__p1', base); else localStorage.removeItem('web-editor-ls-base__p1');
-  }, { ls: JSON.stringify(snap('LS')), lsTs, base });
+  }, { ls: JSON.stringify(ls), lsTs, base });
   await page.goto(`${ORIGIN}/index.html?project=p1`);
   await page.waitForFunction(() => document.querySelector('#g1')?.dataset.mark);
 }
@@ -78,4 +78,9 @@ test('부팅 중 활성 프로젝트가 바뀌어도 표시는 부팅 프로젝�
   await page.goto(`${ORIGIN}/index.html?project=p1`);
   await page.waitForFunction(() => localStorage.getItem('web-editor-ls-base__p1') || localStorage.getItem('web-editor-ls-base__p2'));
   expect(await page.evaluate(() => [localStorage.getItem('web-editor-ls-base__p1'), localStorage.getItem('web-editor-ls-base__p2')])).toEqual([UPD, null]);
+});
+test('localStorage 본이 이겨도 파일에만 있는 갤러리 항목은 남는다', async ({ page }) => {
+  await open(page, { ls: { ...snap('LS'), imageGallery: [{ id: 'a' }] }, lsTs: fileTs + 3600e3, base: UPD, file: { imageGallery: [{ id: 'a' }, { id: 'gal1' }] } });
+  expect(await seen(page)).toBe('LS');
+  await expect.poll(() => page.evaluate(() => (window.state.imageGallery || []).map(x => x.id))).toEqual(['a', 'gal1']);
 });

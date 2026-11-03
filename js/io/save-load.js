@@ -2527,6 +2527,13 @@ function initApp() {
                 // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
                 // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
                 if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
+                  /* 파일에만 있는 갤러리 항목을 잃지 않는다 — 다른 탭에 있는 동안의 AI 생성이 updatedAt 을 안 올리고 파일에 적재한다(ai-image-gen _appendGalleryToProject).
+                     거기서 updatedAt 을 올리면 저장 실패 중이던 이 본이 파일에 져서 편집을 잃는다(앱 3/3). */
+                  if (Array.isArray(proj.imageGallery)) {
+                    const _lsGal = Array.isArray(lsData.imageGallery) ? lsData.imageGallery : [];
+                    const _ids = new Set(_lsGal.map(it => it && it.id));
+                    lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
+                  }
                   applyAndFinish(lsData);
                   return;
                 }
