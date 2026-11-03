@@ -140,7 +140,7 @@
   }
 
   /* 같은 id 다른 그림의 원격 스크래치를 새 이름으로 달았을 때, 원격에서 온 섹션(원격 고름·새로 붙은 것·둘다의 사본)의 refLinks 토큰만 바꾼다. 받는 쪽: js/market.js _planMergedScratch */
-  function renameRemoteRefLinks(page, local, choices, renamed) {
+  function renameRemoteRefLinks(page, local, choices, renamed, seenTokens) {   // seenTokens(선택) = 원격에서 온 섹션이 쓰는 토큰을 모아 준다
     const parser = new DOMParser();
     const secsOf = html => [...parser.parseFromString(`<div id="c">${html || ''}</div>`, 'text/html').querySelectorAll('.section-block')];
     const localSecs = new Set(secsOf((local.pages || []).find(p => p.id === page.id)?.canvas).map(s => s.id));
@@ -150,6 +150,7 @@
       if (!fromRemote || !sec.dataset.refLinks) return;
       sec.dataset.refLinks = sec.dataset.refLinks.split(',').map(tok => {
         const [id, ...rest] = tok.trim().split(':');
+        if (seenTokens) seenTokens.add(id);
         return [renamed.get(id) || id, ...rest].join(':');
       }).join(',');
     });

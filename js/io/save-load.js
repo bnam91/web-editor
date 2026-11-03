@@ -671,7 +671,7 @@ async function deletePage(pageId) {
     const _scratchTok = window.AutoSaveSuppress.begin('page-delete-scratch');
     _pageDeleteBusy = true;
     try {
-      await window.switchScratchPage?.(target.id);
+      await window.switchScratchPage?.(target.id, { quiet: true });   // 실패 알림은 아래 한 번, 공용 알림과 겹치지 않게
     } catch (e) {
       console.warn('[deletePage] 스크래치 저장 실패 — 삭제 취소:', e);
       window.showToast('⚠️ 스크래치 저장에 실패해 페이지를 지우지 않았습니다.');
