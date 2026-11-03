@@ -602,6 +602,7 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     const items = [];
     const now = new Date().toISOString();
     const referenceMode = refs.length >= 2 ? 'composite' : 'single';
+    const _asked = (res.items || []).length;
     for (const img of (res.items || [])) {
       // 던지면 앞서 저장한 장이 항목 없이 남는다(항목을 다 모은 뒤 넣으므로) — 이 장만 건너뛴다
       const saveRes = await window.electronAPI.aiSaveImage({ projectId, b64: img.b64, mime: img.mime })
@@ -634,10 +635,22 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
       capturedItems.push(galleryItem);
       items.push({ id: saveRes.id, dataUrl, blobPath: saveRes.blobPath });
     }
-    if (_getProjectId() !== projectId) {
+    if (!items.length) {
+      window.showToast?.('❌ 생성한 이미지를 저장하지 못했습니다');
+      return { ok: false, error: 'image_save_failed', cost: res.cost };
+    }
+    const _partial = items.length < _asked ? `⚠️ ${_asked}장 중 ${items.length}장만 저장했습니다 — ` : '';
+    // 그 프로젝트 탭을 파일에서 읽는 중이면 state 는 아직 앞 탭이다 — 여기 넣으면 곧 applyProjectData 가 덮는다. 읽은 뒤 다시 잰다.
+    const _loadEnd = Date.now() + 30000;
+    while (_getProjectId() === projectId && window.isTabFirstLoading?.(projectId) && Date.now() < _loadEnd) await new Promise(r => setTimeout(r, 25));
+    if (_getProjectId() !== projectId || window.isTabFirstLoading?.(projectId)) {
       // 전환 감지: 캡처 프로젝트 파일에 갤러리 엔트리를 직접 병합 (라이브 화면/저장 미오염)
-      await _appendGalleryToProject(projectId, capturedItems);
-      window.showToast?.(`✨ ${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
+      if (!(await _appendGalleryToProject(projectId, capturedItems))) {
+        _saveOnReturn(projectId);
+        window.showToast?.(`⚠️ 이미지 ${items.length}장을 생성한 프로젝트 파일에 넣지 못했습니다 — 그림 파일은 남아 있습니다. 그 프로젝트로 돌아가면 다시 저장합니다`);
+        return { ok: true, items, cost: res.cost, fileFailed: true };
+      }
+      window.showToast?.(`${_partial || '✨ '}${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
       return { ok: true, items, cost: res.cost };
     }
     // 화면이 그 프로젝트다(한 번도 안 옮겼거나 이미지 저장 중에 돌아왔다, ★359) — 평소 길로
@@ -645,36 +658,72 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     window.state.imageGallery.push(...capturedItems);
     window.buildAIImageGallery?.();
     window.triggerAutoSave?.();
-    window.showToast?.(`✨ ${items.length}장 생성 완료 (₩${res.cost?.krwApprox || 0})`);
+    window.showToast?.(`${_partial || '✨ '}${items.length}장 생성 완료 (₩${res.cost?.krwApprox || 0})`);
     return { ok: true, items, cost: res.cost };
   }
 
   // H7: 생성 중 프로젝트 전환 시, 캡처된 원래 프로젝트의 파일에 갤러리 엔트리를 직접 병합한다.
   // 라이브 window.state(전환된 다른 프로젝트)를 건드리지 않아 오염을 막는다.
   async function _appendGalleryToProject(pid, newItems) {
-    if (!pid || !newItems?.length) return;
-    /* ★359 — 그 탭의 메모리 캐시에도 넣는다. 파일에만 넣으면 돌아올 때 옛 캐시가 복원되고(tab-system.js switchTab),
-       다음 저장이 항목 없는 갤러리로 파일을 덮는다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 파일 쓰기가 실패해도 캐시에는 남도록 먼저 넣는다. */
-    const tab = window.openTabs?.find(t => t.id === pid);
-    if (tab?._cache) {
+    if (!pid || !newItems?.length) return false;
+    const _missing = (list) => { const have = new Set((Array.isArray(list) ? list : []).map(it => it && it.id)); return newItems.filter(it => !have.has(it.id)); };
+    /* ★359 — 그 탭의 메모리 캐시에도 넣는다. 파일에만 넣으면 돌아올 때 옛 캐시가 복원되고(tab-system switchTab)
+       다음 저장이 항목 없는 갤러리로 파일을 덮는다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 파일 쓰기가 실패해도 돌아온 화면에 남는다. */
+    const _addToCache = () => {
+      const tab = window.openTabs?.find(t => t.id === pid);
+      if (!tab?._cache) return;
       try {
         const cached = JSON.parse(tab._cache);
-        cached.imageGallery = [...(Array.isArray(cached.imageGallery) ? cached.imageGallery : []), ...newItems];
-        tab._cache = JSON.stringify(cached);
+        const add = _missing(cached.imageGallery);
+        if (add.length) { cached.imageGallery = [...(Array.isArray(cached.imageGallery) ? cached.imageGallery : []), ...add]; tab._cache = JSON.stringify(cached); }
       } catch (e) { console.warn('[ai-image-gen] 359 탭 캐시 갱신 실패:', e); }
-    }
+    };
+    _addToCache();
     try {
-      // ★359 — 떠날 때 건 그 프로젝트 저장이 아직 돌면 끝나길 기다린다(항목 없는 스냅샷이 이 쓰기 뒤에 덮는다). 상한 5초.
-      const _deadline = Date.now() + 5000;
-      while (window._isSavingToFile && Date.now() < _deadline) await new Promise(r => setTimeout(r, 25));
-      const existing = await window.electronAPI.loadProject(pid);
-      if (!existing) return;
-      existing.imageGallery = Array.isArray(existing.imageGallery) ? existing.imageGallery : [];
-      existing.imageGallery.push(...newItems);
-      await window.electronAPI.saveProject(existing);
+      /* 떠날 때 건 저장이 끝나기 전에 쓰면 그 옛 스냅샷이 항목을 덮는다 ⇒ 가라앉은 뒤 쓰고, 가라앉은 뒤 파일에 있나 다시 본다(S6 앱 값: 7초 저장에 덮임). */
+      for (let n = 0; n < 3; n++) {
+        await window.waitSavesFor?.(pid);
+        const existing = await window.electronAPI.loadProject(pid);
+        if (!existing) return false;
+        const add = _missing(existing.imageGallery);
+        if (add.length) {
+          existing.imageGallery = [...(Array.isArray(existing.imageGallery) ? existing.imageGallery : []), ...add];
+          const r = await window.electronAPI.saveProject(existing);
+          if (r && r.ok === false) return false;
+        }
+        await window.waitSavesFor?.(pid);
+        const after = await window.electronAPI.loadProject(pid);
+        if (after && !_missing(after.imageGallery).length) { await _reconcileReopened(pid, _missing, _addToCache); return true; }
+      }
+      return false;
     } catch (e) {
       console.warn('[ai-image-gen] H7 캡처 프로젝트 갤러리 적재 실패:', e);
+      return false;
     }
+  }
+
+  /* 파일에 못 넣은 항목은 탭 캐시에만 있다 — 무편집으로 돌아오면 저장이 안 돌아 종료 때 잃는다. 돌아오는 때 저장을 건다(복구 저장과 같은 고리). */
+  function _saveOnReturn(pid) {
+    const tab = window.openTabs?.find(t => t.id === pid);
+    if (!tab?._cache || tab._afterLs) return;
+    tab._afterLs = (stillHere) => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!stillHere()) { done(false); return; }
+      window.triggerAutoSave?.();
+      done(true);
+    })));
+  }
+
+  /* 쓰는 사이 그 프로젝트를 다시 열었으면 항목 없는 파일을 읽었을 수 있다 — 안 넣으면 다음 저장이 파일에서 지운다. */
+  async function _reconcileReopened(pid, missingOf, addToCache) {
+    const end = Date.now() + 30000;
+    while (_getProjectId() === pid && window.isTabFirstLoading?.(pid) && Date.now() < end) await new Promise(r => setTimeout(r, 25));
+    addToCache();
+    if (_getProjectId() !== pid || window.isTabFirstLoading?.(pid)) return;
+    const add = missingOf(window.state.imageGallery);
+    if (!add.length) return;
+    window.state.imageGallery = [...(Array.isArray(window.state.imageGallery) ? window.state.imageGallery : []), ...add];
+    window.buildAIImageGallery?.();
+    window.triggerAutoSave?.();
   }
 
   // 모달 내부 submit 라우터를 위한 헬퍼 — ai-prompt.js에서 호출
