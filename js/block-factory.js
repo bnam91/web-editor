@@ -1398,6 +1398,14 @@ function applyBridgeFullBleed(block) {
   }
 }
 
+/* 옮긴 뒤 새 자리의 규칙에 맞춘다 — 재오픈 때 받을 값과 같게. 섹션이면 full-bleed, 프레임이면 섹션 패딩 넓힘(calc)을 걷는다. px 폭은 그대로. 프레임을 통째로 옮기면 안 내려간다(옛 꼴을 안 바꾼다). 열기 길은 안 부른다. */
+function settleMovedBridge(root) {
+  const b = root?.classList?.contains('bridge-block') ? root : root?.classList?.contains('row') ? root.querySelector(':scope > .bridge-block') : null;
+  if (!b) return;
+  if (!b.closest('.frame-block')) { applyBridgeFullBleed(b); return; }
+  if (b.style.width.includes('calc')) { b.style.marginLeft = ''; b.style.marginRight = ''; b.style.width = '100%'; }
+}
+
 function makeBridgeBlock(opts = {}) {
   const row = document.createElement('div');
   row.className = 'row'; row.id = genId('row'); row.dataset.layout = 'stack';
@@ -5669,6 +5677,7 @@ window.makeBridgeBlock      = makeBridgeBlock;
 window.addBridgeBlock       = addBridgeBlock;
 window.renderBridgeBlock    = renderBridgeBlock;
 window.applyBridgeFullBleed = applyBridgeFullBleed;
+window.settleMovedBridge = settleMovedBridge;
 window._buildBridgePath     = _buildBridgePath;
 window.addSection           = addSection;
 window.addGhostSection      = addGhostSection;
