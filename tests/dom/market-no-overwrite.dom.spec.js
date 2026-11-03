@@ -138,3 +138,20 @@ test('음성: 저장에 실패하면 모달이 남고 단추가 다시 눌린다
   await page.locator('#rsv-apply').click();
   await saved(page);
 });
+/* quota 꼴 — 쓰기 요청이 끝난 뒤 커밋에서 abort. error 이벤트 없이 abort 만 난다 */
+const armAbort = (page) => page.evaluate(() => { const ot = IDBDatabase.prototype.transaction; IDBDatabase.prototype.transaction = function (a, m, ...r) { const t = ot.call(this, a, m, ...r); if (m === 'readwrite') { const os = t.objectStore.bind(t); t.objectStore = (n) => { const st = os(n); const op = st.put.bind(st); st.put = (...x) => { const q = op(...x); q.addEventListener('success', () => { try { t.abort(); } catch (_) {} }); return q; }; return st; }; } return t; }; });
+test('쓰기가 abort 나면 스크래치 넣기가 멈추지 않고 거절된다', async ({ page }) => {
+  await open(page, data('원격 글')); await armAbort(page);
+  const r = await page.evaluate(() => window._scratchImportAll('proj_3', [{ pageId: 'p1', items: [{ id: 'x', src: 'data:image/png;base64,A', x: 1, y: 1, w: 1 }] }]).then(() => '끝남', (e) => '거절').then((v) => v));
+  expect(r).toBe('거절');
+});
+test('쓰기가 abort 나도 머지본은 저장되고 스크래치를 못 옮겼다고 알린다', async ({ page }) => {
+  await open(page, data('원격 글')); await toasts(page);
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,LOCAL', x: 3, y: 3, w: 9 }] }]), LOCAL);
+  await armAbort(page);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (머지)" 열기']);
+  expect(await page.evaluate(() => !!document.querySelector('.market-resolve-modal'))).toBe(false);
+});

@@ -112,6 +112,7 @@ async function _saveScratch() {
     tx.objectStore(SCRATCH_STORE).put(data, key);
     tx.oncomplete = resolve;
     tx.onerror    = e => reject(e.target.error);
+    tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));   // quota 는 커밋에서 abort 만 난다 — 안 받으면 promise 가 영영 안 끝난다(S3 market4)
   });
 }
 
@@ -2365,6 +2366,7 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
     }
     tx.oncomplete = () => resolve();
     tx.onerror    = e => reject(e.target.error);
+    tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));   // _saveScratch 와 같은 까닭(S3 market4)
   });
   return n;
 };
