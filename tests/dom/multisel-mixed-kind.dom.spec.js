@@ -111,7 +111,7 @@ async function runPointerDown(page, body, mods) {
       target: ss, shiftKey: !!m.shift, metaKey: !!m.meta, ctrlKey: !!m.ctrl,
       button: m.button ?? 0,   // ★실제 좌클릭 꼴 — 빠지면 U16① button 가드(e.button !== 0)가 먼저 막는다
     };
-    new Function('ss', 'e', src)(ss, e);
+    new Function('ss', 'e', '_onPressEnd', 'isShapeFrame', src)(ss, e, () => {}, () => false);   // 이 칸들은 빈 영역 누름이라 안 지나지만 핸들러 본문이 읽는 이름이다(198)
     return { deselects, frameSelected: ss.classList.contains('selected') };
   }, [body, mods]);
 }
