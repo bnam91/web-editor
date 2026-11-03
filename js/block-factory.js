@@ -2575,6 +2575,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   const _originX = _ssRect.left + ss.clientLeft * _scale;
   const _bleedBox = new Map();   // 내용 폭 밖으로 나간 블럭 → 프레임 기준 { left, width } (캔버스 px)
   _bleedRects.forEach((r, b) => _bleedBox.set(b, { left: Math.round((r.left - _originX) / _scale), width: Math.round(r.width / _scale) }));
+  /* px 폭이 프레임보다 좁은 블럭도 보이는 상자 그대로 — 도형·패딩 제외 블럭과 같은 뜻. 안 그러면 아래 width:100% 가 폭 300 프레임을 716 으로 늘리고 가운데에서 왼쪽으로 옮긴다.
+     자리는 상자 중심으로 잰다 — 회전한 블럭은 rect 가 회전 상자라 왼쪽 끝을 못 믿는다. */
+  rows.forEach(row => {
+    const units = shells.has(row) ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row)) : [row];
+    units.forEach(b => {
+      if (isShapeFrame(b) || _bleedBox.has(b) || !/^[\d.]+px$/.test(b.style.width) || b.offsetWidth >= ss.clientWidth) return;
+      const r = b.getBoundingClientRect();
+      _bleedBox.set(b, { left: Math.round((r.left + r.width / 2 - _originX) / _scale - b.offsetWidth / 2), width: b.offsetWidth });
+    });
+  });
   const _shapeLeft = new Map();
   rows.forEach(row => {
     const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
@@ -2614,7 +2624,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       }
       const _bb = _bleedBox.get(block);
       if (_bb) {
-        // ★t5-08 — 패딩 제외 블럭: 보이는 상자 그대로(위 머리말)
+        // ★t5-08 — 패딩 제외 블럭·px 폭 블럭: 보이는 상자 그대로(위 머리말)
         block.style.marginLeft = '0px';
         block.style.marginRight = '0px';
         block.style.left = _bb.left + 'px';
