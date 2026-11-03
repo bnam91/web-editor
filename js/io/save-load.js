@@ -221,7 +221,8 @@ let _autoSaveTimerOwnerId = null;
 let _savingOwnerId = null;
 function _hasOwnUnsaved() {
   const mine = (owner) => owner === null || owner === activeProjectId;
-  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
+  /* ★250C — 저장 진행 중에 손잡이를 쥐고 고치면 그 저장이 끝나며 dirty 를 지운다. 미룸에 기억된 예약(_autoSavePending)을 안 보면 쥔 채 ⌘R 에서 편집을 잃었다(앱 재현). */
+  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (_autoSavePending && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
 }
 /* ★[H4] «마지막으로 끝난» 저장의 결과 — targetId → { at, result }.
    큐잉된 호출(undefined 반환)은 자기 결과를 못 본다. 종료 경로가 「큐가 빠졌으니 저장됐겠지」로

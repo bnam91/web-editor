@@ -2,6 +2,7 @@
  *
  * C — J354 상한(연속 편집 중에도 5초 안에 한 번 쓴다)이 짧은 제스처 반복에 무력화됐다: 누를 때 타이머가 지워지고 놓을 때 «새 기다림»이 시작.
  *     앱 실측 800ms 간격 30초: 편집 5회 · 손잡이 0회 · 팬 0회 · 거터 0회.
+ * U — 저장 진행 중에 손잡이를 쥐고 고치면 그 저장이 끝나며 dirty 를 지운다 ⇒ 쥔 채 새로고침하면 beforeunload 가 조기 return. 앱 실측: 끌린 폭이 파일에 없음.
  * 시간은 page.clock 으로 넘긴다. ⛔못 보는 꼴: 파일 쓰기 자체(가짜 electronAPI) · 메뉴의 ⌘R(beforeunload 를 직접 쏜다) — 둘은 앱 탐침이 잰다.
  */
 const { test, expect } = require('@playwright/test');
@@ -97,4 +98,34 @@ test('C4 제스처 사이가 길면 평소처럼 1.5초 뒤 쓴다(상한이 앞
   expect(await writes(page), '디바운스 안').toBe(0);
   await page.clock.runFor(800);
   await expect.poll(() => writes(page)).toBe(1);
+});
+
+test('U1 저장 진행 중 쥐고 고치면 — 저장이 끝나도 «미저장»이고 beforeunload 가 새 폭을 쓴다', async ({ page }) => {
+  const id = await boot(page);
+  await selectFrame(page, id);
+  await page.clock.install();
+  await page.evaluate(([id]) => { window.__holdSave = true; document.getElementById(id).dataset.name = '앞 편집'; window.pushHistory('앞 편집'); }, [id]);
+  await page.clock.runFor(1600);
+  await page.waitForFunction(() => window.__saving === true, null, { timeout: 5000 });
+  const h = await centerOf(page, SEL);
+  await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x - 40, h.y - 40, { steps: 2 });
+  const w = await page.evaluate((id) => document.getElementById(id).dataset.width, id);
+  await page.evaluate(() => window.__endSave());
+  await expect.poll(() => page.evaluate(() => window.__saving)).toBe(false);
+  expect(await page.evaluate(() => window.__autoSaveDeferState()), '[전제] 쥔 채 예약이 기억돼 있다').toEqual({ deferred: true, pending: true });
+  expect(await page.evaluate(() => window.hasUnsavedChanges()), '미저장으로 안다').toBe(true);
+  const sync = await page.evaluate(() => { window.dispatchEvent(new Event('beforeunload')); return window.__sync.at(-1) || ''; });
+  expect(sync.includes(id) && (sync.includes(`data-width=\\"${w}\\"`) || sync.includes(`data-width=\\\\\\"${w}\\\\\\"`)), `종료 저장에 새 폭 ${w}`).toBe(true);
+  await page.mouse.up();
+});
+
+test('U2 [지킴] 놓은 뒤 저장이 끝나면 미저장이 안 남는다(예약이 고착되지 않는다)', async ({ page }) => {
+  const id = await boot(page);
+  await selectFrame(page, id);
+  await page.clock.install();
+  const h = await centerOf(page, SEL);
+  await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x - 40, h.y - 40, { steps: 2 }); await page.mouse.up();
+  await page.clock.runFor(2000);
+  await expect.poll(() => page.evaluate(() => window.hasUnsavedChanges())).toBe(false);
+  expect(await page.evaluate(() => window.__autoSaveDeferState())).toEqual({ deferred: false, pending: false });
 });
