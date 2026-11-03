@@ -70,6 +70,15 @@ for (const [name, add] of KINDS) {
     expect(s.errs, s.errs.join(' | ')).toEqual([]);
   });
 }
+test('큰 에셋을 자유 B 에 놓아도 B 위로 안 삐져나온다', async ({ page }) => {
+  const s = await scene(page, { sel: '.asset-block', fn: 'addAssetBlock' }); expect(await pick(page), '[전제] 고르기').toBe(true);
+  const w = await mk(page); const b = await box(page, s.B);
+  await drag(page, w.x, w.y, b.cx, b.cy);
+  const a = await mk(page);
+  expect(a.n).toBe(1); expect(a.par).toBe(s.B);
+  expect(parseFloat(a.top), 'top').toBeGreaterThanOrEqual(0); expect(parseFloat(a.left), 'left').toBeGreaterThanOrEqual(0);
+  expect(s.errs, s.errs.join(' | ')).toEqual([]);
+});
 test('음성 — 프레임 없는 섹션 자리에 놓으면 전처럼 섹션으로 빠진다', async ({ page }) => {
   const s = await scene(page, KINDS[1][1]); expect(await pick(page)).toBe(true);
   const w = await mk(page); const r = await box(page, s.R);

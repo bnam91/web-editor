@@ -1099,23 +1099,7 @@ function bindBlock(block) {
       if (_lazyFlowTf) _lazyFlowTf.setAttribute('draggable', 'true');   // 끌지 않았다 — 누르기 전 그대로
       hideGuides();
 
-      /* 자유 프레임 위에 놓으면 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 끌어내기가 아니라 «그 프레임 안에 놓기»다 ⇒ 아래 if (moved) 의 죔·히스토리를 그대로 탄다.
-         shortcut: 회전한 프레임 안으로 놓기는 화면 좌표라 안 맞춘다, 회전 놓기 요구가 오면 measureLocalBasis 로 푼다. */
-      if (moved && draggedOutside && _outTarget?.dataset.freeLayout === 'true') {
-        const _sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
-        const _tr = _outTarget.getBoundingClientRect();
-        _outTarget.classList.remove('ss-drag-over');
-        clearDropIndicators();
-        _outTarget.appendChild(dragEl);
-        const _l = Math.round((_outAt[0] - _tr.left) / _sc - dragEl.offsetWidth / 2), _t = Math.round((_outAt[1] - _tr.top) / _sc - dragEl.offsetHeight / 2);
-        dragEl.style.position = 'absolute';
-        dragEl.style.left = `${_l}px`;
-        dragEl.style.top = `${_t}px`;
-        dragEl.dataset.offsetX = String(_l);
-        dragEl.dataset.offsetY = String(_t);
-        draggedOutside = false;
-        window.buildLayerPanel?.();
-      }
+      if (moved && draggedOutside && _outTarget?.dataset.freeLayout === 'true') { _placeInFreeFrame(dragEl, _outTarget, _outAt); draggedOutside = false; }   // 끌어내기가 아니라 그 프레임 안에 놓기 ⇒ 아래 if (moved) 의 죔·히스토리를 탄다
 
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
       if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
@@ -3291,6 +3275,23 @@ function _frameUnderPointer(x, y, dragEl, section) {
     const r = f.getBoundingClientRect();
     return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
   }) || null;
+}
+
+/* 자유 프레임 위에 놓으면 커서를 가운데로 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임 왼쪽·위로는 안 삐져나온다(큰 에셋이 위 형제를 덮었다).
+   shortcut: 회전한 프레임 안으로 놓기는 화면 좌표라 안 맞춘다, 회전 놓기 요구가 오면 measureLocalBasis 로 푼다. */
+function _placeInFreeFrame(el, frame, [x, y]) {
+  const sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
+  const r = frame.getBoundingClientRect();
+  frame.classList.remove('ss-drag-over');
+  clearDropIndicators();
+  frame.appendChild(el);
+  const left = Math.max(0, Math.round((x - r.left) / sc - el.offsetWidth / 2)), top = Math.max(0, Math.round((y - r.top) / sc - el.offsetHeight / 2));
+  el.style.position = 'absolute';
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.dataset.offsetX = String(left);
+  el.dataset.offsetY = String(top);
+  window.buildLayerPanel?.();
 }
 
 function bindFrameDropZone(ss) {
