@@ -112,7 +112,11 @@
         if (!same) { items.push(it); byId.set(it.id, it); continue; }
         if (await _sameScratchImage(same.src, it.src)) continue;
         if (await _goyaMissingHere(it.src)) { missing.add(it.id); continue; }   // 깨진 원격이 멀쩡한 L 그림을 대신하지 않게 — 토큰은 그대로 L 항목을 가리킨다(S3 market5 ②). 원격 섹션이 쓰면 알린다
-        let nid = window._scratchNewId();
+        /* 앞 머지가 이미 들여온 그림이면 그 항목을 쓴다 — 안 그러면 재머지마다 같은 그림의 항목이 는다 */
+        let nid = null;
+        for (const mineIt of items) if (await _sameScratchImage(mineIt.src, it.src)) { nid = mineIt.id; break; }
+        if (nid) { renamed.set(it.id, nid); continue; }
+        nid = window._scratchNewId();
         while (byId.has(nid)) nid = window._scratchNewId();
         renamed.set(it.id, nid);
         const copy = { ...it, id: nid };
@@ -283,7 +287,11 @@
         });
       });
       listEl.querySelectorAll('.market-merge-btn').forEach(b => {
-        b.addEventListener('click', () => openResolveModal(b.dataset.acc, b.dataset.id, b.dataset.name, b.dataset.local));
+        b.addEventListener('click', async () => {
+          if (b.disabled || document.querySelector('.market-resolve-modal')) return;   // 두 번 누르면 모달이 둘 떴다(S3 scratch)
+          b.disabled = true;
+          try { await openResolveModal(b.dataset.acc, b.dataset.id, b.dataset.name, b.dataset.local); } finally { b.disabled = false; }
+        });
       });
     }
     loadList();

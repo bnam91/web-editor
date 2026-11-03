@@ -293,3 +293,25 @@ test('음성 알림 없는 그림: 내 것을 고르면 없는 원격 그림은 
   await saved(page);
   await expect.poll(() => finals(page)).toEqual(['✅ 머지 완료 — 홈에서 "원격 이름 (머지)" 열기']);
 });
+test('머지 시작을 두 번 눌러도 모달은 하나다, 취소하면 다시 열린다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  await page.evaluate(() => { const f = window.electronAPI.market.pull; window.electronAPI.market.pull = async (a) => { await new Promise((r) => setTimeout(r, 500)); return f(a); }; });
+  const b = await page.locator('.market-merge-btn').first().boundingBox();
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('.market-resolve-modal').length)).toBe(1);
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 800)));
+  expect(await page.evaluate(() => document.querySelectorAll('.market-resolve-modal').length)).toBe(1);
+  await page.locator('#rsv-cancel').click();
+  await page.locator('.market-merge-btn').first().click();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('.market-resolve-modal').length)).toBe(1);
+});
+test('재머지: 앞 머지가 들여온 그림이면 새 항목을 안 만들고 그 항목을 가리킨다', async ({ page }) => {
+  await open(page, { ...data('원격 글'), pages: [{ id: 'p1', name: 'p', canvas: linked('원격 글') }] }, [{ pageId: 'p1', items: [{ id: 's_1', src: 'goya-asset://proj_9/new.png', x: 2, y: 2, w: 9 }] }], linked('내 글'));
+  await page.evaluate(({ L }) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'goya-asset://proj_9/old.png', x: 3, y: 3, w: 9 }, { id: 'sp_aaaaaa', src: 'goya-asset://proj_8/new.png', x: 3, y: 3, w: 9 }] }]), { L: LOCAL });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-list input[type=radio][value=theirs]').first().click();
+  await page.locator('#rsv-apply').click();
+  const p = await saved(page);
+  expect(p.pages[0].canvas).toContain('data-ref-links="sp_aaaaaa:0"');
+  await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => i.id)))).toEqual(['s_1', 'sp_aaaaaa']);
+});
