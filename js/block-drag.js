@@ -799,7 +799,7 @@ function bindBlock(block) {
         return;
       }
     }
-    if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
+    if (isLabelGroup && e.target.closest('.label-group-add-btn, .label-item-delete-btn')) return;   // 칩 위 끌기는 블럭을 옮긴다(지디 판정) — 칩 클릭·더블클릭은 그 자리 click·dblclick 이 받는다. 시험: tests/dom/label-chip-drag.dom.spec.js
 
     // shape-block: 부모 frame-block을 이동 대상으로
     // text-block: text-frame(래퍼)이 absolute인 경우 text-frame을 이동 대상으로
