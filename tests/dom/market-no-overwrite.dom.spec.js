@@ -121,3 +121,20 @@ test('음성: 스크래치가 잘 옮겨지면 성공 토스트다', async ({ pa
   await saved(page);
   await expect.poll(() => finals(page)).toEqual(['✅ 머지 완료 — 홈에서 "원격 이름 (머지)" 열기']);
 });
+test('머지 적용을 두 번 눌러도 머지본은 하나다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  await page.locator('.market-merge-btn').first().click();
+  const b = await page.locator('#rsv-apply').boundingBox();
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  await expect.poll(() => page.evaluate(() => !document.querySelector('.market-resolve-modal'))).toBe(true);
+  expect(await page.evaluate(() => window.__saved.length)).toBe(1);
+});
+test('음성: 저장에 실패하면 모달이 남고 단추가 다시 눌린다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  await page.evaluate(() => { const f = window.electronAPI.duplicateProject; let once = true; window.electronAPI.duplicateProject = async (a) => { if (once) { once = false; throw new Error('대역'); } return f(a); }; window.addEventListener('unhandledrejection', (e) => e.preventDefault()); });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await expect.poll(() => page.evaluate(() => document.querySelector('#rsv-apply')?.disabled)).toBe(false);
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+});

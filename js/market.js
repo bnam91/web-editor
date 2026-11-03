@@ -156,7 +156,13 @@
       </div>`;
     }).join('');
     ov.querySelector('#rsv-cancel').onclick = () => ov.remove();
-    ov.querySelector('#rsv-apply').onclick = async () => {
+    const applyBtn = ov.querySelector('#rsv-apply');
+    applyBtn.onclick = async () => {
+      if (applyBtn.disabled) return;
+      applyBtn.disabled = true;   // 두 번 누르면 머지본이 둘 생겼다(S3 market3 ④, 저장을 기다리는 사이 다음 클릭이 들어온다)
+      try { await _applyMerge(); } finally { if (ov.isConnected) applyBtn.disabled = false; }
+    };
+    const _applyMerge = async () => {
       const choices = {};
       // 체크된 radio를 직접 순회(키에 '::' 포함 → 셀렉터 이스케이프 회피). name = 'r-'+key.
       ov.querySelectorAll('#rsv-list input[type=radio]:checked').forEach(r => { choices[r.name.slice(2)] = r.value; });
