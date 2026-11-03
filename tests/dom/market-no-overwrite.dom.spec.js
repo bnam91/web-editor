@@ -17,7 +17,7 @@ async function open(page, remote, remoteScratch = [], localCanvas = null) {
       duplicateProject: async (a) => { window.__dup = { src: a.sourceProjectId, newName: a.newName }; const p = JSON.parse(JSON.stringify(a.sourceData)); p.id = 'proj_2000000000002'; p.name = a.newName; window.__saved.push(p); return { ok: true, newProjectId: p.id, newName: a.newName }; },
       loadProject: async (id) => (id === LOCAL ? JSON.parse(JSON.stringify(local)) : null),
       listProjects: async () => [{ id: LOCAL, name: local.name, marketRef: local.marketRef }],
-      assetsReadAsDataUri: async ({ projectId }) => (projectId === 'proj_missing' ? { ok: false } : { ok: true, dataUri: 'data:image/png;base64,A' }),
+      assetsReadAsDataUri: async ({ projectId }) => { if (projectId === 'proj_throw') throw new Error('일시'); if (projectId === 'proj_eio') return { ok: false, error: 'EIO' }; return projectId === 'proj_missing' ? { ok: false, error: 'not found' } : { ok: true, dataUri: 'data:image/png;base64,A' }; },
       market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: M, name: '원격 이름', version: 'v2', updatedAt: '2026-02-02' }] }), pull: async () => ({ ok: true, project: { id: M, name: '원격 이름', account: 'acc', version: 'v2', updatedAt: '2026-02-02', data: JSON.stringify(remote), scratch: JSON.stringify(remoteScratch) } }), push: async () => ({ ok: false }) } };
     Object.defineProperty(window, 'electronAPI', { value: fake, configurable: true, writable: true });
     const d = document.createElement('div'); d.id = 'mk-pane'; d.style.cssText = 'position:fixed;left:400px;top:100px;width:700px;height:500px;background:#111;z-index:99998;overflow:auto'; document.body.appendChild(d);
@@ -265,4 +265,31 @@ test('음성 없는 goya: 겹치지 않는 항목은 없는 그림이어도 지�
   await page.locator('#rsv-apply').click();
   await saved(page);
   await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => i.id)))).toEqual(['s_n']);
+});
+const LAST_TOAST = (page) => page.evaluate(() => window.__toasts.filter((t) => !t.startsWith('⏳')));
+test('알림 없는 그림: 원격 섹션이 없는 그림을 쓰면 내 그림으로 뒀다고 알린다', async ({ page }) => {
+  await spySame(page, false);
+  await open(page, { ...data('원격 글'), pages: [{ id: 'p1', name: 'p', canvas: linked('원격 글') }] }, [{ pageId: 'p1', items: [{ id: 's_1', src: 'goya-asset://proj_missing/x.png', x: 2, y: 2, w: 9 }] }], linked('내 글'));
+  await toasts(page);
+  await page.evaluate(({ L, s }) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: s, x: 3, y: 3, w: 9 }] }]), { L: LOCAL, s: PNG_A });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-list input[type=radio][value=theirs]').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => LAST_TOAST(page)).toEqual(['⚠️ 머지 완료, 원격 그림 1장이 이 맥에 없어 내 그림으로 두었습니다 — 홈에서 "원격 이름 (머지)" 열기']);
+});
+for (const pid of ['proj_throw', 'proj_eio']) test(`일시 읽기 실패(${pid})는 없음으로 안 친다: 원격 그림을 새 항목으로 둔다`, async ({ page }) => {
+  await spySame(page, false);
+  const r = await mergeLinked(page, PNG_A, `goya-asset://${pid}/x.png`);
+  expect(r.token).toMatch(/^sp_[a-z0-9]{6}$/); expect(r.ids).toEqual(['s_1', r.token]);
+});
+test('음성 알림 없는 그림: 내 것을 고르면 없는 원격 그림은 쓸 일이 없어 안 알린다', async ({ page }) => {
+  await spySame(page, false);
+  await open(page, { ...data('원격 글'), pages: [{ id: 'p1', name: 'p', canvas: linked('원격 글') }] }, [{ pageId: 'p1', items: [{ id: 's_1', src: 'goya-asset://proj_missing/x.png', x: 2, y: 2, w: 9 }] }], linked('내 글'));
+  await toasts(page);
+  await page.evaluate(({ L, s }) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: s, x: 3, y: 3, w: 9 }] }]), { L: LOCAL, s: PNG_A });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['✅ 머지 완료 — 홈에서 "원격 이름 (머지)" 열기']);
 });
