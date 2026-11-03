@@ -102,6 +102,8 @@ const secIds = (page) => page.evaluate(() => [...document.querySelectorAll('#can
 
 async function pickSec(page, id) {
   const SEC = `[id="${id}"]`; await scrollTo(page, SEC);
+  /* 맨 위 섹션은 스크롤이 덜 끝나면 띠가 위 막대(#topbar) 밑에 있다(×27 중 3 · 그 칸은 softClick 이 안 눌러 안 골라진다) ⇒ 임자가 띠가 될 때까지 다시 굴린다 */
+  await pollTrue(page, (s) => { const el = document.querySelector(s); el?.closest('.section-block')?.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el?.getBoundingClientRect(); return !!r && !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest(s); }, SEC + ' .section-hitzone', 5000);
   const hz = await stableTwice(page, SEC + ' .section-hitzone');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await softClick(page, hz.left + EDGE, hz.cy, SEC + ' .section-hitzone');
@@ -186,6 +188,9 @@ for (const label of ['Sticker', 'Text Sticker']) {
     const errs = await boot(page);
     const secA = await newSection(page);      // 원본 자리
     const src = await insSticker(page, label);
+    /* 원본은 그때 화면 가운데에 놓인다. S2 사본이 가려는 자리와 같으면 앱이 20px 계단으로 비킨다(옳은 동작) ⇒ S2 를 재려면 원본을 가운데 밖으로 뺀다.
+       옛 판은 스크롤이 덜 끝나 우연히 비켜 있었다(겹치면 S2-x 빨강). */
+    await page.evaluate((id) => { const e = document.getElementById(id); e.dataset.x = '20'; e.dataset.y = '20'; e.style.left = '20px'; e.style.top = '20px'; }, src);
     const srcBox = await boxOf(page, src);
     expect(srcBox.sec, '전제: 원본이 제 섹션 안').toBe(secA);
 
