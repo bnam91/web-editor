@@ -4,7 +4,7 @@
  *   무장 칸은 끌기·되돌리기 때도 잠깐 꺼지므로, 잠금을 그 값에 바로 걸면 사람의 끌기를 끊는다.
  *   ⛔URL·활성 칸은 안 본다: 어긋나면 영영 안 풀린다(대기는 새 begin 이 맡는다).
  * 안 막는 것: 탭 전환·홈·새 탭(PASS) · 스크롤(휠은 안 건드리고, 스크롤 키는 기본 동작을 둔다) · 종료(메뉴 단축키도 기본 동작을 둔다) · 모달(SURFACE 밖).
- * 실패: settle('error') 또는 «못 읽음» 표식이 남은 채 끝나면 풀고 토스트로 말한다. 저장은 saveProjectToFile 머리말이 계속 거절한다.
+ * 실패: settle('error') 또는 «못 읽음» 표식이 남은 채 끝나면 풀고 토스트로 말한다(깨진 파일이면 보존한 이름까지 · noteUnreadable). 저장은 saveProjectToFile 머리말이 계속 거절한다.
  * ⛔고전 스크립트로 일찍 싣는다 — window 캡처는 등록 순서대로라 뒤에 실으면 앞선 window 캡처 리스너(scratch·overlay)가 먼저 돈다.
  */
 (function (w) {
@@ -17,7 +17,7 @@
   var ARM_MAX_MS = 15000;   // 확정 뒤 무장이 안 오는 고장의 안전망. 로드 시간과 무관한 값이라 로드 대기에 쓰지 않는다
   var SHOW_AFTER_MS = 150;  // 캐시 탭 전환에서 덮개가 번쩍이지 않게. 부트는 index.html 의 정적 덮개가 이미 떠 있다
 
-  var on = false, blocked = 0, settledAt = 0, showTimer = null, pollTimer = null;
+  var on = false, blocked = 0, settledAt = 0, showTimer = null, pollTimer = null, unreadable = null;
 
   function onSurface(t) {
     var el = t && t.nodeType === 1 ? t : (t && t.parentElement) || null;
@@ -48,7 +48,9 @@
     on = false; clearTimers();
     if (w.hideProjectLoadingOverlay) w.hideProjectLoadingOverlay();
     if (s && (s.phase === 'error' || (w.isTabFirstLoading && w.isTabFirstLoading(s.projectId)))) {
-      if (w.showToast) w.showToast('⚠️ 이 프로젝트를 읽지 못했습니다 — 탭을 다시 열어 주세요.');
+      if (w.showToast) w.showToast(unreadable
+        ? '⚠️ 파일이 깨져 이 프로젝트를 읽지 못했습니다 — 저장하지 않습니다.' + (unreadable.name ? ' 원본은 프로젝트 폴더의 ' + unreadable.name + ' 로 보존했습니다.' : '')
+        : '⚠️ 이 프로젝트를 읽지 못했습니다 — 탭을 다시 열어 주세요.');
     }
   }
   function check() {
@@ -62,7 +64,7 @@
     begin: function (projectId) {
       clearTimers();
       if (!projectId) { if (on) release(null); return; }   // 프로젝트 없는 판은 쓸 파일이 없고, 끝 신호도 없을 수 있다
-      on = true; settledAt = 0;
+      on = true; settledAt = 0; unreadable = null;
       showTimer = setTimeout(function () { showTimer = null; if (on && w.showProjectLoadingOverlay) w.showProjectLoadingOverlay(); }, SHOW_AFTER_MS);
     },
     settled: function () {
@@ -72,6 +74,7 @@
       check();
       if (on) pollTimer = setInterval(check, 50);
     },
+    noteUnreadable: function (name) { unreadable = { name: name || null }; },
     isOn: function () { return on; },
     blockedCount: function () { return blocked; },
   };

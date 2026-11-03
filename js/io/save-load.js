@@ -1885,6 +1885,10 @@ function _recoveryToastText(proj) {
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
+  if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
+    window.LoadInputGate?.noteUnreadable(proj.preservedAs);
+    throw new Error('project-unreadable');
+  }
   _lastOpenFallback = proj && proj._recovered ? id : null;
   if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
   if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
