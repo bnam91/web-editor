@@ -95,3 +95,8 @@ test('[음성] localStorage 본이 파일과 같으면 안 쓴다(DEF-03) · 그
   expect(await page.evaluate(() => window.hasUnsavedChanges())).toBe(false);
   expect(await page.evaluate(() => window.__saved || null)).toBeNull();
 });
+test('localStorage 가 꽉 차 표시를 못 써도 프로젝트는 열린다', async ({ page }) => {
+  await page.addInitScript(() => { const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('web-editor-ls-base__')) throw new DOMException('full', 'QuotaExceededError'); return o.call(this, k, v); }; });
+  await open(page, { lsTs: fileTs - 3600e3, base: null });
+  expect(await seen(page)).toBe('FILE');
+});

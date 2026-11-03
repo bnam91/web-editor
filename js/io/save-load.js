@@ -2515,7 +2515,7 @@ function initApp() {
             localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}`);
             localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}_ts`);
           }
-          if (proj.updatedAt != null) localStorage.setItem(_lsBaseKey(_bootProjectId), String(proj.updatedAt));
+          if (proj.updatedAt != null) { try { localStorage.setItem(_lsBaseKey(_bootProjectId), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
           if (lsTs > 0 && lsTs + 500 > fileTs && lsFromThisFile) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) {
