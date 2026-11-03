@@ -28,7 +28,8 @@ const addBlock = (page, fn, sel, secId, frameId) => page.evaluate(({ fn, sel, se
   const e = [...document.querySelectorAll(sel)].find((x) => !b4.has(x)); e.setAttribute('data-j294l', '1'); window.deselectAll(); e.scrollIntoView({ block: 'center' });
 }, { fn, sel, secId, frameId });
 const marked = (page) => page.evaluate((FR) => { const e = document.querySelector('[data-j294l]'); if (!e) return null; const r = e.getBoundingClientRect(); return { par: e.parentElement.closest(FR)?.id || null, x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, FR);
-async function drag(page, from, to) { await page.mouse.move(from[0], from[1]); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(from[0] + (to[0] - from[0]) * i / 12, from[1] + (to[1] - from[1]) * i / 12); await J.settle(page); } await page.mouse.up(); await J.settle(page); }
+const STEPS = 12;
+async function drag(page, from, to) { await page.mouse.move(from[0], from[1]); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(from[0] + (to[0] - from[0]) * i / STEPS, from[1] + (to[1] - from[1]) * i / STEPS); await J.settle(page); } await page.mouse.up(); await J.settle(page); }
 const nearCorner = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width * 0.9, r.top + r.height * 0.9]; }, id);
 const layerRowCenter = (page, id) => page.evaluate((id) => { window.buildLayerPanel?.(); document.querySelectorAll('[class*=layer].collapsed').forEach((x) => x.classList.remove('collapsed')); const it = document.getElementById(id)._layerItem; const h = it.querySelector?.(':scope > .layer-row-header, :scope > .layer-row') || it; h.scrollIntoView({ block: 'center' }); const r = h.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }, id);
 
