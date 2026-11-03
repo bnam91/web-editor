@@ -24,7 +24,7 @@ import {
 } from './drag-drop.js';
 import { frameAlignOffset, cascadeIfOccupied, applyFrameTransform,
          newTextAlignInFrame, frameVisibleSize, clampLeftIntoFrame, framePadding, innerFullWidth,
-         growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx } from './frame-geometry.js';
+         growFrameToFitChildren, applyFrameHAlignToChild, fitContentWidthPx, applyFrameRotationMargin } from './frame-geometry.js';
 import { getGridModel, gridPreviewLine, GRID_NESTED_LINE_TYPE, GRID_NESTED_GAP, GRID_IMG_CIRCLE_D } from './blocks/grid-block.js';
 import { grdAddLine, grdToastImgFail, grdImageFileOk, grdOpenNestGapPopover } from './props/prop-grid.js';
 import { GRID_CIRCLE_ICON_INNER, GRID_CIRCLE_ICON_STROKE_WIDTH } from './blocks/grid-circle-icon.js';
@@ -2544,7 +2544,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   // 선택 블록들의 총 높이 계산 (프레임 높이 결정)
   const GAP = 0;
   let totalH = 0;
-  rows.forEach(row => { totalH += (row.offsetHeight || 60) + GAP; });
+  /* 회전 프레임은 흐름에서 회전 상자만큼 위아래 마진(rotMarginY)을 받아 자리를 잡는다. 자유배치 자식은 그 마진이 0 이라(frame-geometry) 그만큼을 자리와 높이로 옮긴다 — 안 그러면 ⌘⇧Z·재오픈 때 위로 뛰고 뒤 블럭이 겹친다. */
+  const _rotMargin = el => parseFloat(el.dataset?.rotMarginY) || 0;
+  rows.forEach(row => { totalH += (row.offsetHeight || 60) + GAP + 2 * _rotMargin(row); });
   const frameH = Math.max(totalH, 120);
 
   // 자유배치(absolute) 프레임 생성
@@ -2588,7 +2590,11 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   const _scale = ss.offsetWidth ? (_ssRect.width / ss.offsetWidth) || 1 : 1;
   const _originX = _ssRect.left + ss.clientLeft * _scale;
   const _bleedBox = new Map();   // 내용 폭 밖으로 나간 블럭 → 프레임 기준 { left, width } (캔버스 px)
-  _bleedRects.forEach((r, b) => _bleedBox.set(b, { left: Math.round((r.left - _originX) / _scale), width: Math.round(r.width / _scale) }));
+  _bleedRects.forEach((r, b) => {
+    // 회전한 블럭은 rect 가 회전 상자다 — 상자 중심과 제 폭으로 잰다(아래 px 폭 블럭과 같은 뜻)
+    if (b.style.transform) _bleedBox.set(b, { left: Math.round((r.left + r.width / 2 - _originX) / _scale - b.offsetWidth / 2), width: b.offsetWidth });
+    else _bleedBox.set(b, { left: Math.round((r.left - _originX) / _scale), width: Math.round(r.width / _scale) });
+  });
   /* px 폭이 프레임보다 좁은 블럭도 보이는 상자 그대로 — 도형·패딩 제외 블럭과 같은 뜻. 안 그러면 아래 width:100% 가 폭 300 프레임을 716 으로 늘리고 가운데에서 왼쪽으로 옮긴다.
      자리는 상자 중심으로 잰다 — 회전한 블럭은 rect 가 회전 상자라 왼쪽 끝을 못 믿는다. */
   rows.forEach(row => {
@@ -2604,15 +2610,25 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     const sfs = isShapeFrame(row) ? [row] : [...row.querySelectorAll('.frame-block')].filter(isShapeFrame);
     sfs.forEach(w => {
       const r = w.getBoundingClientRect();
-      _shapeLeft.set(w, Math.round((r.left - _originX) / _scale));
+      _shapeLeft.set(w, Math.round((w.style.transform ? r.left + r.width / 2 - w.offsetWidth * _scale / 2 - _originX : r.left - _originX) / _scale));
     });
   });
 
   // 각 블록을 absolute 배치로 ss에 직접 이동
   let stackY = 0;
   let leftBehind = false;
+  /* 회전·반전은 그대로 둔다(묶기 전후 화면이 같아야 한다). 이동값(translate)만 left·top 으로 옮긴다 — 위 자리 계산이 rect 로 이미 담았거나 아래서 더하므로, 남기면 ⌘⇧Z·재오픈 때 두 번 민다. */
+  const _keepTurnFoldMove = el => {
+    if (el.style.transform) {
+      const rest = el.style.transform.replace(/translate\([^)]*\)\s*/g, '').trim();
+      el.style.transform = /^rotate\(0deg\) scale\(1,\s*1\)$/.test(rest) ? '' : rest;
+    }
+    delete el.dataset.translateX;
+    delete el.dataset.translateY;
+    window.applyFrameRotationMargin?.(el);
+  };
   rows.forEach(row => {
-    const rowH = row.offsetHeight || 60;
+    const rowH = (row.offsetHeight || 60) + 2 * _rotMargin(row);
     const isShell = shells.has(row);
     // ★알맹이 퍼내기 — 명부(BLOCK_SEL)가 아니라 «성질»로 집는다(shape-frame.js topLevelBlocksOf).
     //   ⑴ 명부에 없던 타입(modal·gradient·speech-bubble·sticker)이 껍데기와 같이 삭제되던 게 닫힌다.
@@ -2622,16 +2638,18 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row))
       : [row];
     blocks.forEach(block => {
+      const _dx = parseInt(block.dataset.translateX) || 0;
+      const _top = stackY + _rotMargin(block) + (parseInt(block.dataset.translateY) || 0);
       block.style.position = 'absolute';
-      block.style.top = stackY + 'px';
+      block.style.top = _top + 'px';
       if (isShapeFrame(block)) {
         // 도형 래퍼 — 크기 유지, 보이는 가로 위치 유지(width:100% 로 늘리지 않는다)
         const l = _shapeLeft.get(block) || 0;
         block.style.left = l + 'px';
         block.style.margin = '0';
         block.dataset.offsetX = String(l);
-        block.dataset.offsetY = String(stackY);
-        block.style.transform = '';
+        block.dataset.offsetY = String(_top);
+        _keepTurnFoldMove(block);
         block.classList.remove('selected');
         ss.appendChild(block);
         return;
@@ -2644,10 +2662,10 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         block.style.left = _bb.left + 'px';
         block.style.width = _bb.width + 'px';
       } else {
-        block.style.left = '0px';
+        block.style.left = _dx + 'px';
         block.style.width = '100%';
       }
-      block.style.transform = '';
+      _keepTurnFoldMove(block);
       block.classList.remove('selected');
       block.setAttribute('draggable', 'false');
       ss.appendChild(block);
@@ -2748,6 +2766,7 @@ export {
 };
 
 window.addFrameBlock = addFrameBlock;
+window.applyFrameRotationMargin = applyFrameRotationMargin;
 
 // ── Shape Block ──
 // rectangle/ellipse inner geometry는 stroke 두께에 맞춰 동적 계산 (stroke=0이면 풀폭, stroke>0이면 절반만 inset)
