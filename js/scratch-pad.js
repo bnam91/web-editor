@@ -2350,7 +2350,7 @@ window._scratchExportAll = async (projectId, pageIds) => {
 };
 
 // import: pull로 받은 스크래치 블록을 newProjectId 키로 복원(페이지id 보존 — 키가 projectId로 네임스페이스라 충돌無).
-window._scratchImportAll = async (newProjectId, scratchBlock) => {
+window._scratchImportAll = async (newProjectId, scratchBlock, { keepLinkDy = false } = {}) => {
   if (!newProjectId || !Array.isArray(scratchBlock) || !scratchBlock.length) return 0;
   const db = await _openDB();
   let n = 0;
@@ -2359,8 +2359,9 @@ window._scratchImportAll = async (newProjectId, scratchBlock) => {
     const store = tx.objectStore(SCRATCH_STORE);
     for (const { pageId, items } of scratchBlock) {
       if (!pageId || !Array.isArray(items) || !items.length) continue;
-      // ⚠️linkDy 는 빼 왔다(옛 동작 그대로 — 가져온 새 프로젝트엔 그 섹션 연결이 없다는 판단으로 보인다, 까닭 기록 없음)
-      const clean = items.map(it => _pickScratch(it, ['linkDy']));
+      // ⚠️받기는 linkDy 를 뺀다(옛 동작 그대로 — 가져온 새 프로젝트엔 그 섹션 연결이 없다는 판단으로 보인다, 까닭 기록 없음).
+      //   머지본엔 연결이 있다 ⇒ keepLinkDy. 빼면 위 섹션 높이가 달라질 때 항목이 옛 y 에 남아 섹션을 안 따라간다(S3 market4 앱 값 -1000).
+      const clean = items.map(it => _pickScratch(it, keepLinkDy ? [] : ['linkDy']));
       store.put(clean, `scratch-pad-${newProjectId}-${pageId}`);
       n++;
     }

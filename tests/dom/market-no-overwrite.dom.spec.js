@@ -155,3 +155,16 @@ test('쓰기가 abort 나도 머지본은 저장되고 스크래치를 못 옮�
   await expect.poll(() => finals(page)).toEqual(['⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (머지)" 열기']);
   expect(await page.evaluate(() => !!document.querySelector('.market-resolve-modal'))).toBe(false);
 });
+test('linkDy: 머지본은 살리고, 받기는 그대로 뺀다', async ({ page }) => {
+  await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_p', src: 'data:image/png;base64,P', x: 1, y: 300, w: 9, linkDy: 40 }] }]);
+  await page.evaluate((L) => window._scratchImportAll(L, [{ pageId: 'p1', items: [{ id: 's_1', src: 'data:image/png;base64,L', x: 3, y: 300, w: 9, linkDy: 30 }] }], { keepLinkDy: true }), LOCAL);
+  const dy = (id) => page.evaluate(async (id) => Object.fromEntries((await window._scratchExportAll(id, ['p1'])).flatMap((b) => b.items.map((i) => [i.id, i.linkDy]))), id);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => dy('proj_2000000000002')).toEqual({ s_1: 30, s_p: 40 });
+  await page.evaluate(() => { window.__saved.length = 0; });
+  await page.locator('.market-pull-btn').first().click();
+  const p = await saved(page);
+  await expect.poll(() => dy(p.id)).toEqual({ s_p: undefined });
+});

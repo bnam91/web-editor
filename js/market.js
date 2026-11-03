@@ -105,7 +105,7 @@
   async function _importMergedScratch(newId, localId, plan) {
     const from = `goya-asset://${localId}/`, to = `goya-asset://${newId}/`;
     const reSrc = it => (typeof it.src === 'string' && it.src.startsWith(from) ? { ...it, src: to + it.src.slice(from.length) } : it);
-    await window._scratchImportAll?.(newId, plan.map(({ pageId, items }) => ({ pageId, items: items.map(reSrc) })));
+    await window._scratchImportAll?.(newId, plan.map(({ pageId, items }) => ({ pageId, items: items.map(reSrc) })), { keepLinkDy: true });
   }
 
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
