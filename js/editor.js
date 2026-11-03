@@ -4484,9 +4484,10 @@ function moveSelectedBlocks(direction) {
   //   unitSet 이 비어 ⌘[/⌘] 가 «조용히» 아무 일도 안 한다(먹통으로 보인다).
   const _isUnitParent = el => !!el && (el.classList.contains('section-inner')
     || el.classList.contains('frame-block') || el.classList.contains('section-merged-part'));
+  // ★J4468B — 글자·말풍선은 .row 없이 글상자 프레임이 단위다. 안 넣으면 unitSet 이 비어 조용히 안 먹었다(앱 ×3)
   const getUnit = b => b.classList.contains('gap-block')
     ? (_isUnitParent(b.parentElement) ? b : b.closest('.row'))
-    : b.closest('.row');
+    : (b.closest('.row') || b.closest('.frame-block[data-text-frame]'));
 
   const unitSet = new Set();
   selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
@@ -4503,6 +4504,9 @@ function moveSelectedBlocks(direction) {
     c.classList.contains('row') || c.classList.contains('gap-block')
     || (c.classList.contains('frame-block') && c.style.position !== 'absolute')
   );
+
+  // 흐름 형제가 아닌 단위(떠 있는 글상자)는 옮길 자리가 없다 — indexOf -1 이면 아래 갈래가 맨 앞 형제 뒤로 튄다
+  if (!units.every(u => containerItems.includes(u))) return;
 
   // DOM 순서대로 정렬
   units.sort((a, b) => containerItems.indexOf(a) - containerItems.indexOf(b));

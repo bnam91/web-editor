@@ -88,3 +88,27 @@ test('Z1 겹침 순서 — 자유 프레임 안 겹친 둘은 ⌘[ 로 임자가
   await press(page, 'Meta+BracketLeft', owner, other);
   await press(page, 'Meta+z', owner, top);
 });
+
+for (const kind of ['text', 'speech']) {
+  test(`T1 ${kind} — 섹션 직속 글상자가 일반 블럭처럼 ⌘[ ⌘] 로 옮겨지고 ⌘Z 로 돌아온다`, async ({ page }) => {
+    const { ids: [, x] } = await scene(page, ['divider', kind, 'divider']);
+    await pick(page, x);
+    const read = () => unitIdx(page, x), i0 = await read();
+    await press(page, 'Meta+BracketLeft', read, i0 - 1);
+    await press(page, 'Meta+z', read, i0);
+    await pick(page, x);
+    await press(page, 'Meta+BracketRight', read, i0 + 1);
+    expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), x)).toBe(true);
+  });
+}
+
+test('T2 음성 — 글자 편집 중이면 ⌘[ 가 순서를 안 바꾼다', async ({ page }) => {
+  const { ids: [, x] } = await scene(page, ['divider', 'text', 'divider']);
+  await pick(page, x);
+  const i0 = await unitIdx(page, x), r = await page.locator('#' + x).boundingBox();
+  await page.mouse.dblclick(r.x + r.width / 2, r.y + r.height / 2);
+  await page.waitForFunction((id) => document.getElementById(id).querySelector('[contenteditable="true"]'), x);
+  await page.keyboard.press('Meta+BracketLeft');
+  await twoFrames(page);
+  expect(await unitIdx(page, x)).toBe(i0);
+});
