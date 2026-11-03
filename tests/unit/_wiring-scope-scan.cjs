@@ -102,17 +102,42 @@ function topEval(file, src) {
   } catch { return null; } finally { Module._load = load; }
 }
 
-/** 소스 식 → 글자. 못 풀면 throw(까닭) */
-function resolver(src, ev) {
+/** 소스 식 → 글자들(갈래마다 하나). 못 풀면 throw(까닭).
+ *  ★함수 인자·for…of·객체 칸은 부르는 자리를 따라가 갈래를 다 모은다 — 갈래 하나라도 못 풀면 그 자리 전체가 못 잼이다(⛔일부만 재고 0 이라 하지 않는다). */
+function resolver(src, ev, root) {
   const text = (n) => src.slice(n.start, n.end);
-  const findInit = (name, at) => {
+  const CAP = 64;
+  const fail = (n, why = '식을 못 풀었다') => new Error(`${why} ${text(n).slice(0, 40)}`);
+  const patName = (p) => (p && p.type === 'AssignmentPattern' ? p.left : p);
+  /** 이름을 묶은 자리를 안쪽부터 찾는다 */
+  const binder = (name, at) => {
     for (const a of chain(at)) {
-      if (!(isFn(a) || a.type === 'Program' || a.type === 'BlockStatement')) continue;
-      let hit = null;
-      each(a.body && a.body.type === 'BlockStatement' ? a.body : a, (c) => {
-        if (c.type === 'VariableDeclaration') for (const d of c.declarations) if (d.id.name === name && d.init) hit = d.init;
-      });
-      if (hit) return hit;
+      if (isFn(a)) {
+        for (let i = 0; i < a.params.length; i++) {
+          const raw = a.params[i], p = patName(raw);
+          if (p.type === 'Identifier' && p.name === name) return { kind: 'param', fn: a, i, dflt: raw.type === 'AssignmentPattern' ? raw.right : null };
+          if (p.type === 'ObjectPattern') {
+            for (const q of p.properties) {
+              if (q.type !== 'Property') continue;
+              const v = patName(q.value);
+              if (v.type === 'Identifier' && v.name === name) return { kind: 'param', fn: a, i, key: q.key.name ?? q.key.value, dflt: q.value.type === 'AssignmentPattern' ? q.value.right : null };
+            }
+          }
+          if (p.type === 'ArrayPattern' && p.elements.some((x) => x && x.name === name)) return { kind: 'param', fn: a, i, idx: p.elements.findIndex((x) => x && x.name === name), dflt: null };
+        }
+      }
+      if (a.type === 'ForOfStatement' && a.left.type === 'VariableDeclaration') {
+        const id = a.left.declarations[0].id;
+        if (id.type === 'Identifier' && id.name === name) return { kind: 'forof', loop: a };
+        if (id.type === 'ArrayPattern') { const k = id.elements.findIndex((x) => x && x.name === name); if (k >= 0) return { kind: 'forof', loop: a, idx: k }; }
+      }
+      if (isFn(a) || a.type === 'Program' || a.type === 'BlockStatement') {
+        let hit = null;
+        each(a.body && a.body.type === 'BlockStatement' ? a.body : a, (c) => {
+          if (c.type === 'VariableDeclaration') for (const d of c.declarations) if (d.id.name === name && d.init) hit = d.init;
+        });
+        if (hit) return { kind: 'init', init: hit };
+      }
     }
     return null;
   };
@@ -133,22 +158,129 @@ function resolver(src, ev) {
     }
     return null;
   };
+  /** 이 함수를 부르는 자리들 — 이름 있는 함수만 */
+  const callsOf = (fn) => {
+    const name = fn.id ? fn.id.name : (fn.$p.type === 'VariableDeclarator' && fn.$p.id.name) || null;
+    if (!name) return null;
+    const out = [];
+    walk(root, (c) => { if (c.type === 'CallExpression' && c.callee.type === 'Identifier' && c.callee.name === name) out.push(c); });
+    return out;
+  };
+  /** 인자 묶음 → 그 이름에 들어오는 식 노드들 */
+  const paramNodes = (b, at) => {
+    const calls = callsOf(b.fn);
+    if (!calls) throw fail(at);
+    const out = [];
+    if (!calls.length && b.dflt) out.push(b.dflt);
+    for (const c of calls) {
+      if (c.arguments.some((x) => x.type === 'SpreadElement')) throw fail(at, '펼친 인자를 못 푼다');
+      const arg = c.arguments[b.i];
+      if (!arg) { if (b.dflt) { out.push(b.dflt); continue; } if (b.key === undefined) throw fail(at, '인자가 없다'); throw fail(at); }
+      if (b.key !== undefined) {
+        if (arg.type !== 'ObjectExpression') throw fail(at, '객체 인자를 못 푼다');
+        const q = arg.properties.find((x) => x.type === 'Property' && (x.key.name ?? x.key.value) === b.key);
+        if (q) out.push(q.value); else if (b.dflt) out.push(b.dflt); else throw fail(at, '칸이 없다');
+      } else if (b.idx !== undefined) {
+        if (arg.type !== 'ArrayExpression' || !arg.elements[b.idx]) throw fail(at, '배열 인자를 못 푼다');
+        out.push(arg.elements[b.idx]);
+      } else out.push(arg);
+    }
+    if (!out.length) throw fail(at, '부르는 자리가 없다');
+    return out;
+  };
+  /** for…of 의 오른쪽 → 원소 노드들 */
+  const elementsOf = (n, depth) => {
+    if (depth > 12) throw fail(n, '너무 깊다');
+    if (n.type === 'ArrayExpression') { if (n.elements.some((x) => !x || x.type === 'SpreadElement')) throw fail(n); return n.elements; }
+    if (n.type === 'Identifier') { const b = binder(n.name, n); if (b && b.kind === 'init') return elementsOf(b.init, depth + 1); }
+    throw fail(n);
+  };
+  const loopNodes = (b, at) => {
+    const r = b.loop.right;
+    if (r.type === 'CallExpression' && text(r.callee) === 'Object.entries' && b.idx !== undefined) {
+      if (b.idx !== 1) throw fail(at);
+      return objectsOf(r.arguments[0], 0).flatMap((o) => o.properties.map((q) => { if (q.type !== 'Property') throw fail(at); return q.value; }));
+    }
+    const els = elementsOf(r, 0);
+    if (b.idx === undefined) return els;
+    return els.map((e) => { if (e.type !== 'ArrayExpression' || !e.elements[b.idx]) throw fail(at); return e.elements[b.idx]; });
+  };
+  /** 객체 식 → ObjectExpression 들 */
+  const objectsOf = (n, depth) => {
+    if (depth > 12) throw fail(n, '너무 깊다');
+    if (n.type === 'ObjectExpression') return [n];
+    if (n.type === 'Identifier') {
+      const arg = throughArg(n.name, n);
+      if (arg) return objectsOf(arg, depth + 1);
+      const b = binder(n.name, n);
+      if (b && b.kind === 'init') return objectsOf(b.init, depth + 1);
+      if (b && b.kind === 'param') return paramNodes(b, n).flatMap((x) => objectsOf(x, depth + 1));
+      if (b && b.kind === 'forof') return loopNodes(b, n).flatMap((x) => objectsOf(x, depth + 1));
+    }
+    throw fail(n);
+  };
+  const product = (parts, at) => {
+    let out = [''];
+    for (const p of parts) {
+      const nx = [];
+      for (const a of out) for (const b of p) nx.push(a + b);
+      if (nx.length > CAP) throw fail(at, '갈래가 너무 많다');
+      out = nx;
+    }
+    return out;
+  };
   const go = (n, depth = 0) => {
-    if (depth > 8) throw new Error('너무 깊다');
-    if (n.type === 'Literal') return String(n.value);
-    if (n.type === 'TemplateLiteral') return n.quasis.map((q, i) => q.value.cooked + (n.expressions[i] ? go(n.expressions[i], depth + 1) : '')).join('');
-    if (n.type === 'BinaryExpression' && n.operator === '+') return go(n.left, depth + 1) + go(n.right, depth + 1);
+    if (depth > 12) throw fail(n, '너무 깊다');
+    if (n.type === 'Literal') return [String(n.value)];
+    if (n.type === 'TemplateLiteral') {
+      const parts = [];
+      n.quasis.forEach((q, i) => {
+        parts.push([q.value.cooked]);
+        if (!n.expressions[i]) return;
+        /* 따옴표 안 자리는 글자 값일 뿐 코드가 아니다 — 값을 몰라도 이름 세기는 변하지 않는다 */
+        const qc = q.value.cooked.slice(-1), inQuote = (qc === "'" || qc === '"') && n.quasis[i + 1].value.cooked[0] === qc;
+        try { parts.push(go(n.expressions[i], depth + 1)); } catch (e) { if (!inQuote) throw e; parts.push(['_']); }
+      });
+      return product(parts, n);
+    }
+    if (n.type === 'BinaryExpression' && n.operator === '+') return product([go(n.left, depth + 1), go(n.right, depth + 1)], n);
     if (n.type === 'Identifier') {
       const arg = throughArg(n.name, n);
       if (arg) return go(arg, depth + 1);
-      const init = findInit(n.name, n);
-      if (init) return go(init, depth + 1);
+      const b = binder(n.name, n);
+      if (b && b.kind === 'init') return go(b.init, depth + 1);
+      if (b && b.kind === 'param') return [...new Set(paramNodes(b, n).flatMap((x) => go(x, depth + 1)))];
+      if (b && b.kind === 'forof') return [...new Set(loopNodes(b, n).flatMap((x) => go(x, depth + 1)))];
+    }
+    if (n.type === 'CallExpression') {
+      const c = text(n.callee);
+      if (c === 'JSON.stringify') return ['"_"'];   // 데이터다 — 어떤 값이든 글자 하나로 읽힌다
+      if (n.callee.type === 'MemberExpression' && !n.callee.computed && n.callee.property.name === 'replace' && n.arguments.length === 2) return go(n.callee.object, depth + 1);   // 변이 사본 — 원문 이름을 센다
+      if (n.callee.type === 'Identifier') {
+        const b = binder(n.callee.name, n);
+        const f = b && b.kind === 'init' && b.init;
+        if (f && f.type === 'ArrowFunctionExpression' && f.body.type !== 'BlockStatement') return go(f.body, depth + 1);
+      }
+    }
+    if (n.type === 'MemberExpression' && n.computed && n.object.type === 'Identifier' && ev) {
+      let o = null;
+      try { o = ev(text(n.object)); } catch { o = null; }
+      if (o && typeof o === 'object' && Object.values(o).length && Object.values(o).every((x) => typeof x === 'string')) return [...new Set(Object.values(o))];
+    }
+    if (n.type === 'MemberExpression' && !n.computed && n.object.type === 'Identifier') {
+      let objs = null;
+      try { objs = objectsOf(n.object, depth + 1); } catch { objs = null; }
+      if (objs) {
+        const key = n.property.name;
+        const vals = objs.map((o) => o.properties.find((x) => x.type === 'Property' && (x.key.name ?? x.key.value) === key)).filter(Boolean).map((q) => q.value);   // 그 칸이 없는 원소는 그 길을 안 지난다
+        if (vals.length) return [...new Set(vals.flatMap((x) => go(x, depth + 1)))];
+      }
     }
     if (!ev) throw new Error('spec 윗단이 안 돈다');
     let v;
-    try { v = ev(text(n)); } catch (e) { throw new Error(`식을 못 풀었다 ${text(n).slice(0, 40)}`); }
-    if (typeof v !== 'string') throw new Error(`글자가 아니다 ${text(n).slice(0, 40)}`);
-    return v;
+    try { v = ev(text(n)); } catch (e) { throw fail(n); }
+    if (typeof v !== 'string') throw fail(n, '글자가 아니다');
+    return [v];
   };
   return go;
 }
@@ -196,7 +328,7 @@ function scan(src, { file = 'x', evalTop, productWindow = new Set() } = {}) {
   const ast = acorn.parse(src, PARSE);
   link(ast, null);
   const ev = evalTop !== undefined ? evalTop : topEval(file, src);
-  const resolve = resolver(src, ev);
+  const resolve = resolver(src, ev, ast);
   const onWindow = new Set([...src.matchAll(/\b(?:window|globalThis)\.([A-Za-z_$][\w$]*)\s*=(?!=)/g)].map((m) => m[1]));
   const rows = [];
   walk(ast, (n) => {
@@ -205,10 +337,11 @@ function scan(src, { file = 'x', evalTop, productWindow = new Set() } = {}) {
     rows.push(row);
     const given = givenNames(n, src);
     if (!given) { row.unmeasured = '넘기는 이름을 못 정했다'; return; }
-    let body;
-    try { body = resolve(n.arguments[n.arguments.length - 1]); } catch (e) { row.unmeasured = e.message; return; }
-    let free;
-    try { free = freeNames(acorn.parse(body, PARSE)); } catch (e) { row.unmeasured = `떠 온 글자가 안 읽힌다 ${e.message}`; return; }
+    let bodies;
+    try { bodies = resolve(n.arguments[n.arguments.length - 1]); } catch (e) { row.unmeasured = e.message; return; }
+    const free = new Set();
+    try { for (const body of bodies) for (const x of freeNames(acorn.parse(body, PARSE))) free.add(x); } catch (e) { row.unmeasured = `떠 온 글자가 안 읽힌다 ${e.message}`; return; }
+    row.branches = bodies.length;
     const out = [...free].filter((x) => !given.has(x) && !onWindow.has(x) && !isGlobal(x));
     row.missing = out.filter((x) => !productWindow.has(x)).sort();
     row.maybe = out.filter((x) => productWindow.has(x)).sort();

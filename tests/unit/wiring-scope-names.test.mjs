@@ -62,6 +62,24 @@ test('W4 ★못 정하면 못 잼 — 0 으로 접지 않는다', () => {
   assert.ok(rows[0].unmeasured, JSON.stringify(rows));
   assert.equal(rows[0].missing, undefined);
 });
+test('W6 ★양성 — 함수 인자로 받은 글자는 부르는 자리를 따라가 갈래마다 잰다', () => {
+  const rows = scanText("function h(p) { return new Function(p); }\nh('return nopeA;');\nh('return nopeB;');\n");
+  assert.deepEqual(rows[0].missing, ['nopeA', 'nopeB']);
+  assert.equal(rows[0].branches, 2);
+});
+test('W7 ★갈래 하나라도 못 풀면 그 자리 전체가 못 잼이다', () => {
+  const rows = scanText("function h(p) { return new Function(p); }\nh('return nopeA;');\nh(unknownFn());\n");
+  assert.ok(rows[0].unmeasured, JSON.stringify(rows));
+  assert.equal(rows[0].missing, undefined);
+});
+test('W8 양성·음성 — for…of 원소의 칸 · 따옴표 안 자리는 값을 몰라도 잰다 · 따옴표 밖이면 못 잼', () => {
+  const a = scanText("const L = [{ m: 'return nopeC;' }, { x: 1 }];\nfor (const f of L) new Function(f.m);\n");
+  assert.deepEqual(a[0].missing, ['nopeC']);
+  const q = scanText("function h(id) { return new Function(`return g('${id}');`); }\nh(ask());\n");
+  assert.deepEqual(q[0].missing, ['g']);
+  const o = scanText("function h(id) { return new Function(`return ${id};`); }\nh(ask());\n");
+  assert.ok(o[0].unmeasured, JSON.stringify(o));
+});
 test('W5 ★양성 — 없는 이름은 함수 안쪽 갈래에 있어도 센다', () => {
   const rows = scanText("const S = 'function f(a){ if (a) { return nope.x; } return 1; }';\nnew Function('z', S);\n");
   assert.deepEqual(rows[0].missing, ['nope']);
