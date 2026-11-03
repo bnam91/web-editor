@@ -12,6 +12,8 @@ const OPS = [
   ['export', 't9-07', false], ['mcp', 't9-07', false], ['crosspaste', 't9-07', false],
 ].map(([id, ticket, perPlace = true]) => ({ id, ticket, perPlace }));
 
+/* 판정기가 찾은 것 — soft 로 세어 빨강은 아니다. 재는 건이 행동을 잰다(지디 판정). kinds 는 t9-04 값 */
+const FINDINGS = [{ id: 'draggable-after-roundtrip', soft: 'attr:draggable', places: ['free', 'deep2'], ticket: 't9-05', measure: '저장 왕복 뒤 끌기 행동 차이', note: '넣은 직후 draggable=false, 왕복 뒤 속성 없음', kinds: ["asset-block", "icon-circle-block", "icon-text-block", "icon-block", "table-block", "label-group-block", "graph-block", "divider-block", "bridge-block", "modal-block", "banner02-block", "comparison-block", "mockup-block", "vector-block", "canvas-block", "coupon-block", "quote-block", "radial-block"] }];
 const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : e.name.endsWith('.js') ? [path.join(d, e.name)] : []));
 const kindsOf = (root) => { const m = read(root, 'js/editor.js').match(/const SECTION_BLOCK_TYPE_SEL = \[([\s\S]*?)\]\.join\(', '\);/); if (!m) throw new Error('SECTION_BLOCK_TYPE_SEL 을 못 떴다'); return [...m[1].matchAll(/'\.([a-z0-9-]+)'/g)].map((x) => x[1]); };
@@ -68,7 +70,7 @@ function planOf(root) {
       cells.push({ kind: r.cls, place, op: op.id, ticket: op.ticket, run, why, route: run && r.floats && place !== 'section' ? 'group' : 'entry', measured: false });
     });
   }));
-  return { kinds: rows, places: PLACES, ops: OPS, cells };
+  return { kinds: rows, places: PLACES, ops: OPS, findings: FINDINGS, cells };
 }
 const summary = (p) => { const n = (f) => p.cells.filter(f).length; return { kinds: p.kinds.length, groups: Object.fromEntries(['G1', 'G2', 'G3', 'G4'].map((g) => [g, p.kinds.filter((k) => k.groups.includes(g)).length])), tiers: Object.fromEntries(['all', 'rep', 'covered', 'gray'].map((t) => [t, p.kinds.filter((k) => k.tier === t).length])), total: p.cells.length, run: n((c) => c.run), byTicket: Object.fromEntries(['t9-05', 't9-06', 't9-07'].map((t) => [t, n((c) => c.run && c.ticket === t)])) }; };
 module.exports = { planOf, summary, kindsOf, PLACES, OPS };

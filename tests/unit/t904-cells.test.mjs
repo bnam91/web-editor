@@ -41,3 +41,11 @@ test('C5 입구 없는 종만 회색 · G2 만인 종은 대표 하나가 잰다
   assert.equal(FILE.kinds.filter((k) => k.tier === 'rep').length <= 1, true);
   for (const k of FILE.kinds.filter((x) => x.tier === 'covered')) assert.deepEqual(k.groups, ['G2'], k.cls);
 });
+test('C6 찾은 것이 표에 남는다 — draggable 은 t9-05 가 행동을 잰다', () => {
+  assert.deepEqual(FILE.findings, plan.findings);
+  const f = FILE.findings.find((x) => x.id === 'draggable-after-roundtrip');
+  assert.ok(f, 'draggable 칸이 표에 없다');
+  assert.equal(f.ticket, 't9-05');
+  const sel = kindsOf(ROOT);
+  assert.ok(f.kinds.length > 0 && f.kinds.every((k) => sel.includes(k)), f.kinds.join());
+});
