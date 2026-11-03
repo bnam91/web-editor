@@ -147,8 +147,19 @@
   for (const t of ['dragend', 'drop', 'pointerup']) document.addEventListener(t, clearDragYield, true);
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('dblclick', onDblClick, true);
-  document.addEventListener('DOMContentLoaded', sweep);
-  /* shortcut: 섹션 생성 자리 대신 1.2s 마다 훑는다 — 새 섹션에 손잡이가 늦게(≤1.2s) 붙는다, 거슬리면 addSection 에 건다 */
-  setInterval(sweep, 1200);
+  /* 섹션이 #canvas 에 들어오는 입구가 십여 곳이라(새로 만들기·붙여넣기·템플릿·⌘Z·페이지 전환·다시 열기 …) 입구마다 걸지 않고 #canvas 를 본다.
+     섹션이 들어오거나 섹션의 직속 자식이 바뀔 때(손잡이가 지워진 경우 포함)만 훑는다 · 관찰 콜백은 그 작업 끝에 돌아 다음 입력 전에 붙는다. */
+  function onCanvasChange(muts) {
+    for (const m of muts) {
+      if (m.target.id === 'canvas' || m.target.classList?.contains('section-block')
+        || [...m.addedNodes].some((n) => n.nodeType === 1 && (n.matches('.section-block') || n.querySelector('.section-block')))) { sweep(); return; }
+    }
+  }
+  function start() {
+    sweep();
+    const c = document.getElementById('canvas');
+    if (c) new MutationObserver(onCanvasChange).observe(c, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   window.sectionBottomHandleSweep = sweep;
 })();
