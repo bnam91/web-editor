@@ -407,6 +407,16 @@ function _loadImg(src) {
   });
 }
 
+/* 단추 넷이 그림 폭에 안 들어가면 손을 올려도 숨겨 그림 고르기가 먼저 되게 한다(현빈 247).
+   문턱 = 가장 왼쪽 ✨ 의 왼끝이 그림 왼끝을 넘는가. 배율·연결 상태는 ✨ 의 CSS 값이 이미 품는다. */
+function _syncBtnsFit(el) {
+  const ai = el.querySelector('.scratch-ai-btn');
+  if (!ai) return;
+  const c = getComputedStyle(ai);
+  el.classList.toggle('scratch-btns-narrow', parseFloat(c.right) + parseFloat(c.width) * new DOMMatrix(c.transform).a > el.offsetWidth);
+}
+window._scratchSyncHoveredBtns = () => { const el = document.querySelector('.scratch-item:hover'); if (el) _syncBtnsFit(el); };
+
 // 단일 컷 슬라이스: ratio(0~1) 위치에서 가로로 잘라 위/아래 dataURL 두 개 반환
 async function _sliceImageHorizontal(src, ratio) {
   const img = await _loadImg(await _toDrawableSrc(src));
@@ -996,6 +1006,8 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
     e.stopPropagation();
     _scratchShowSendMenu(item, e.clientX, e.clientY);
   });
+  el.addEventListener('mouseenter', () => _syncBtnsFit(el));
+  el.addEventListener('mousemove', () => _syncBtnsFit(el));   // 손을 올린 채 폭이 바뀐 뒤
 
   el.addEventListener('mousedown', e => {
     if (e.button !== 0) return;

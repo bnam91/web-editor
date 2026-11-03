@@ -229,6 +229,13 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   opacity: 0 !important;
   pointer-events: none !important;
 }
+.scratch-item.scratch-btns-narrow .scratch-close,
+.scratch-item.scratch-btns-narrow .scratch-slice-btn,
+.scratch-item.scratch-btns-narrow .scratch-ai-btn,
+.scratch-item.scratch-btns-narrow > .spl-btns {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 .scratch-item.scratch-slice-mode img { cursor: crosshair; }
 
 .scratch-slice-line {
