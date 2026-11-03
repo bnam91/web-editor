@@ -61,8 +61,20 @@ test('음성: 폭을 입력칸으로 줄였다 되늘리면 자식 폭이 돌아
   expect(await styleW(page, ids.G)).toBe('300px'); expect((await offs(page, ids.G))[0]).toBe(40);
 });
 test('D-축소: 손잡이로 줄였다 입력칸으로 되늘려도 자식 폭이 그대로다', async ({ page }) => {
-  test.fail(true, '회신 D: G 폭 300→2000px, 왼쪽 40→267');
   const ids = await scene(page); await handleShrinkA(page, ids); await setWidthA(page, ids, 400);
+  expect(await styleW(page, ids.G)).toBe('300px'); expect(await page.evaluate((id) => document.getElementById(id).style.left, ids.G)).toBe('40px');
+});
+test('음성 D-축소: 손잡이로 줄인 뒤 입력칸 200 은 곧바로 200 넣은 것과 같은 비율이다, 또 줄여도 부풀지 않는다', async ({ page }) => {
+  const ids = await scene(page); await handleShrinkA(page, ids); await setWidthA(page, ids, 200);
+  expect(await styleW(page, ids.G)).toBe('150px'); expect(await page.evaluate((id) => document.getElementById(id).style.left, ids.G)).toBe('20px');
+  await setWidthA(page, ids, 400);
+  expect(await styleW(page, ids.G)).toBe('300px');
+});
+test('음성 D-축소: 다시 열어도 기준이 남고, 되늘린 뒤 ⌘Z 로 돌아온다', async ({ page }) => {
+  const ids = await scene(page); await handleShrinkA(page, ids); await J.reopen(page); await J.settle(page); await page.evaluate(J.PAGE_LIB); await page.evaluate(J.EYE_LIB);
+  await setWidthA(page, ids, 400);
+  expect(await styleW(page, ids.G)).toBe('300px');
+  await page.keyboard.press('Meta+z'); await J.settle(page);
   expect(await styleW(page, ids.G)).toBe('300px');
 });
 test('D-축소: 손잡이로 줄인 것은 ⌘Z 한 번에 돌아온다', async ({ page }) => {

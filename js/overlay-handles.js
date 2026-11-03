@@ -374,6 +374,7 @@ function _onHandleMouseDown(e, ss, dir) {
     };
     collect(ss);
   }
+  const _keepChildScale = !isGroup && !!ss.dataset.freeLayout && !ss.querySelector(':scope > .shape-block');
   const _hist = window.beginDragHistory?.('프레임 크기');
 
   function onMove(ev) {
@@ -396,6 +397,9 @@ function _onHandleMouseDown(e, ss, dir) {
       if (_dirL.includes('n')) newH = Math.max(40, startH - dy);
     }
     newW = Math.round(newW); newH = Math.round(newH);
+    /* 손잡이는 자식을 안 줄인다. 패널 폭(prop-frame applyWidth)은 자식을 비례로 옮기므로, 자식이 맞던 폭을 남겨 그 비율의 기준으로 쓰게 한다.
+       없으면 400→(손잡이)60→(입력)400 에서 자식이 ×6.67 로 부푼다(S3 D-B: G 폭 300→2000 · 왼쪽 40→267). 그룹·도형은 자식이 같이 변하므로 비켜 간다. */
+    if (_keepChildScale && newW !== startW && !ss.dataset.childScaleW) ss.dataset.childScaleW = String(startW);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
     /* ★★★「패딩 제외(full-bleed)」 규약의 ★★둘째 입구 (현빈 2026-10-11 「★리사이즈하면 ★패딩제외가 ★풀린다」)
        ★★규약 = ★★«제 폭을 ★먼저 정하고», ★마지막에 ★패딩제외를 ★덮는다. ★꺼져 있으면 ★no-op 이다.
