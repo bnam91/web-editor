@@ -90,6 +90,29 @@ function getSaveTsKey() {
    파일이 밖에서 바뀌면(사본·백업·되돌리기) 값이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다.
    쓰는 곳: 파일 쓰기는 preload.js 한 자리 · 여기는 열 때뿐. 시험: tests/dom/ls-file-base.dom.spec.js */
 const _lsBaseKey = (id) => `web-editor-ls-base__${id}`;
+/* 복구한 본이 파일과 다른가. 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 비교하지 않는다:
+   둘 다 data·둘 다 goya 면 글자 그대로(다른 그림이면 다르다), 한쪽만 data 면 내용 해시로 — goya 파일명이 sha256 앞 16자다(main/project-store/externalizer.js).
+   해시를 못 내면(웹·비보안 문맥) 같다고 본다 — 무편집 쓰기(DEF-03)가 복구 유실보다 잦다. */
+const _IMG_URL_RE = /data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+=*|goya-asset:\/\/[^"'()\s&\\]+/gi;
+async function _sameImage(a, b) {
+  if (a === b) return true;
+  const aData = a.startsWith('data:');
+  if (aData === b.startsWith('data:')) return false;
+  const [data, goya] = aData ? [a, b] : [b, a];
+  if (!globalThis.crypto?.subtle) return true;
+  const bytes = Uint8Array.from(atob(data.slice(data.indexOf(',') + 1)), c => c.charCodeAt(0));
+  const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(x => x.toString(16).padStart(2, '0')).join('');
+  return goya.split('/').pop().split('.')[0] === hex.slice(0, 16);
+}
+async function _lsDiffersFromFile(ls, file) {
+  const core = (d) => JSON.stringify((d?.pages || []).map(p => String(p?.canvas || '')));
+  const a = core(ls), b = core(file);
+  if (a === b) return false;
+  if (a.replace(_IMG_URL_RE, '§') !== b.replace(_IMG_URL_RE, '§')) return true;
+  const ua = a.match(_IMG_URL_RE) || [], ub = b.match(_IMG_URL_RE) || [];
+  for (let i = 0; i < ua.length; i++) if (!(await _sameImage(ua[i], ub[i]))) return true;
+  return false;
+}
 let _lastOpenFallback = null;   // 이번 열기가 깨진 proj.json 대신 백업·이력을 읽은 프로젝트 id
 let autoSaveTimer = null;
 const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
@@ -2536,12 +2559,10 @@ function initApp() {
                     const _ids = new Set(_lsGal.map(it => it && it.id));
                     lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
                   }
-                  /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3).
-                     같으면 안 쓴다(DEF-03). 그림은 data 든 goya 든 같게 본다 — 저장 때 외부화로 갈릴 뿐 내용이 아니다. */
-                  const _core = (d) => JSON.stringify((d?.pages || []).map(p => String(p?.canvas || '').replace(/data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+=*|goya-asset:\/\/[^"'()\s]+/gi, '§')));
-                  const _recovered = _core(lsData) !== _core(proj);
-                  applyAndFinish(lsData).then(() => {
-                    if (_recovered) requestAnimationFrame(() => requestAnimationFrame(() => scheduleAutoSave()));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
+                  /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
+                  const _differs = _lsDiffersFromFile(lsData, proj);   // 적용 «전»에 — applyProjectData 가 본을 고친다
+                  applyAndFinish(lsData).then(async () => {
+                    if (await _differs) requestAnimationFrame(() => requestAnimationFrame(() => scheduleAutoSave()));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
                   });
                   return;
                 }

@@ -104,3 +104,14 @@ test('파일보다 조금이라도 낡은 본은 못 이긴다(탭·홈으로 �
   await open(page, { lsTs: fileTs - 20, base: UPD });
   expect(await seen(page)).toBe('FILE');
 });
+const pic = (src) => ({ ...snap('FILE'), pages: [{ id: 'p', name: 'P', pageSettings: {}, canvas: canvas('FILE') + `<div id="pc" style="background-image: url(&quot;${src}&quot;);"></div>` }] });
+const writes = (page, n = true) => expect.poll(() => page.evaluate(() => !!window.__saved), { timeout: 8000 }).toBe(n);
+const settled = async (page) => { await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))))); return page.evaluate(() => [window.hasUnsavedChanges(), !!window.__saved]); };
+test('그림만 다른 그림으로 바뀐 본(goya a·b)은 다르다 — 파일로 넣는다', async ({ page }) => {
+  await open(page, { ls: pic('goya-asset://p1/bbbb.png'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/aaaa.png') });
+  await writes(page);
+});
+test('[음성] 배경 url(&quot;…&quot;) 안의 data 와 goya 는 글자가 달라도 같다(하네스는 해시가 없어 같다고 본다)', async ({ page }) => {
+  await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/h.png') });
+  expect(await settled(page)).toEqual([false, false]);
+});
