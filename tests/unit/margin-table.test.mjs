@@ -16,9 +16,9 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TOOL = path.join(ROOT, 'tools', 'margin-table.mjs');
 const table = (...logs) => spawnSync(process.execPath, [TOOL, ...logs], { cwd: ROOT, encoding: 'utf8' });
 const lineOf = (...a) => {
-  const log = console.log; let out = '';
-  console.log = (s) => { out = s; };
-  try { margin(...a); } finally { console.log = log; }
+  const log = console.error; let out = '';
+  console.error = (s) => { out = s; };
+  try { margin(...a); } finally { console.error = log; }
   return out;
 };
 const leftOf = (...a) => JSON.parse(lineOf(...a).slice('[여유] '.length)).left;
