@@ -121,7 +121,7 @@ function _warnScratchWriteFailed(e) {
 }
 /* flush 는 항목을 화면·메모리에서 먼저 비운다. 쓰기가 실패하면 그 항목은 어디에도 없게 된다 ⇒ 이 세션에서 그 키를 다시 열 때 여기서 되살린다 */
 const _unsavedFlush = new Map();
-async function _saveScratch() {
+async function _saveScratch({ quiet = false } = {}) {   // quiet = 부르는 쪽이 제 말로 알린다
   if (!_scratchLoaded) return; // ★로드 미완료 컨텍스트 — 빈/불완전 배열로 기존 데이터 덮어쓰기 방지
   const key = _getScratchKey(_currentProjectId, _currentPageId);
   if (!key) return; // projectId 없으면 저장 스킵
@@ -130,7 +130,7 @@ async function _saveScratch() {
   const data = _scratchItems.map(s => _pickScratch(s));
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
   tx.objectStore(SCRATCH_STORE).put(data, key);
-  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  return _txDone(tx).catch(e => { if (!quiet) _warnScratchWriteFailed(e); throw e; });
 }
 
 // #16 이식성 — 저장 시 스크래치 «전체 페이지» 외부화 + proj.json 매니페스트 기록.
@@ -2014,8 +2014,8 @@ async function switchScratch(newProjectId, pageId) {
   await _loadScratch(newProjectId, pageId);
 }
 
-async function switchScratchPage(newPageId) {
-  await _saveScratch();
+async function switchScratchPage(newPageId, { quiet = false } = {}) {
+  await _saveScratch({ quiet });
   await _loadScratch(_currentProjectId, newPageId);
 }
 

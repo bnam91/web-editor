@@ -136,3 +136,18 @@ test('음성 전부 지운 판: IDB 가 빈 다른 맥은 매니페스트로 채
   await page.evaluate(() => window.switchScratch('proj_9', 'p2'));
   await expect.poll(() => items(page)).toEqual(['s_m']);
 });
+test('페이지 삭제: 저장이 실패하면 토스트는 하나다, 페이지는 안 지운다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate(() => { window.state.pages = [{ id: 'p1', name: '1', canvas: '' }, { id: 'p2', name: '2', canvas: '' }]; window.state.currentPageId = 'p1'; });
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await on(page);
+  await page.evaluate(() => window.__settle(window.deletePage('p1')));
+  await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual(['⚠️ 스크래치 저장에 실패해 페이지를 지우지 않았습니다.']);
+  expect(await page.evaluate(() => window.state.pages.length)).toBe(2);
+});
+test('음성 페이지 삭제: 다른 저장 실패는 전처럼 공용 알림이다', async ({ page }) => {
+  await ready(page);
+  await on(page);
+  await page.evaluate((S) => window.__settle(window._scratchAddAndSave(S, 10, 10, 50, null, 's_1')), S);
+  await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual(['⚠️ 스크래치를 저장하지 못했습니다. 다시 열면 지금 화면과 다를 수 있습니다.']);
+});
