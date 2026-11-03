@@ -44,6 +44,15 @@ test('열 때처럼 on* 이 지워진 HTML 도 안 뜨면 표시가 붙는다', 
   await page.waitForFunction(() => document.querySelector('#canvas img.asset-img')?.alt === '이미지 로드 실패');
   expect(await page.evaluate(() => { const i = document.querySelector('#canvas img.asset-img'); return [i.hasAttribute('onerror'), getComputedStyle(i).opacity]; })).toEqual([false, '0.3']);
 });
+test('[음성] 옛 저장본에 박힌 alt·opacity 는 문서 내용이라 직렬화가 그대로 둔다', async ({ page }) => {
+  await setup(page, 'ok');
+  await page.evaluate(() => { const c = document.querySelector('#canvas .asset-img-clip'); c.innerHTML = window.sanitizeCanvasHtml(`<img class="asset-img" src="${location.origin}/__asset/bad.png" draggable="false" style="object-fit: cover; opacity: 0.3;" alt="이미지 로드 실패">`); });
+  await page.waitForFunction(() => document.querySelector('#canvas img.asset-img')?.classList.contains('asset-img-failed'));
+  const m = await page.evaluate(() => window.getSerializedCanvas().match(/<img class="asset-img"[^>]*>/)[0]);
+  expect(m).toContain('alt="이미지 로드 실패"');
+  expect(m).toContain('opacity: 0.3');
+  expect(m).not.toContain('asset-img-failed');
+});
 test('[음성] 뜬 그림은 표시가 없고 ⌘Z 로 빠진다', async ({ page }) => {
   await setup(page, 'ok');
   expect(await page.evaluate(() => { const i = document.querySelector('#canvas img.asset-img'); return [i.naturalWidth > 0, i.classList.contains('asset-img-failed'), i.alt]; })).toEqual([true, false, '']);
