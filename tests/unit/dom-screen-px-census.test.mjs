@@ -107,7 +107,7 @@ const ROSTER = {
   /* ★261026 — ★줄이 ★움직였다(:301 → :304 · :300 → :303). ★미카사 0c929f2f(t5-15 가 ★남의 검사 기대값을 고침)이
      ★그 파일을 ★＋6 −3 했다 ⇒ ★순 ＋3. ★★두 줄의 ★글자는 ★★바이트까지 ★같다(내가 c278bc39 와 ★견줬다)
      ⇒ ★★태그는 ★그대로 ★옮긴다. ⛔판정을 ★다시 지어내지 ★않는다 — ★같은 자리다. */
-  'grid-plus-g15.dom.spec.js:304': 'risky',
+  'grid-plus-g15.dom.spec.js:315': 'risky',
   'k2-grid-sel-box.dom.spec.js:49': 'risky',
   'k2-grid-sel-box.dom.spec.js:50': 'risky',
   'k5-grid-8x8.dom.spec.js:41': 'risky',
@@ -128,7 +128,7 @@ const ROSTER = {
   'e130-float-cross-section-row.dom.spec.js:55': 'safe',
   'free-frame-fullwidth-drag.dom.spec.js:185': 'safe',
   'free-frame-grid-width-roundtrip.dom.spec.js:58': 'safe',
-  'gradient-canvas-bar.dom.spec.js:534': 'safe',
+  'gradient-canvas-bar.dom.spec.js:535': 'safe',
   /* ★t5-08(S7 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다. B4 는 ★화면 폭(getBoundingClientRect)을
      ★모델 px 상수 717(=860−144+1)과 견준다 ⇒ ★배율이 1 이 아니면 거짓 판정이 난다. ⇒ ★그 spec 에
      ★«전제 단언»을 박았다: |rect.width − offsetWidth| < 1.5 (화면 px = 레이아웃 px).
@@ -136,7 +136,7 @@ const ROSTER = {
      ★★음성대조: 진짜 spec 15/15 초록. ⇒ ★배율이 흔들리면 ★이제 ★먼저 빨개진다 ⇒ 'safe'.
      ⛔「이 spec 은 배율을 안 건드린다」가 까닭이 ★아니다 — ★재는 자가 섰다는 것이 까닭이다. */
   'gradient-group-t507.dom.spec.js:195': 'safe',
-  'grid-plus-g15.dom.spec.js:303': 'safe',
+  'grid-plus-g15.dom.spec.js:314': 'safe',
   'modal-resize.dom.spec.js:282': 'safe',
   'overlay-drag-rotation.dom.spec.js:224': 'safe',
   'scratch-drop-grid-image.dom.spec.js:57': 'safe',
