@@ -273,6 +273,8 @@ test('L8 ③「빈 섹션」＝ `s` 키가 만드는 ★그 섹션 — 꼴이 «
   const a2 = await secIds(page);
   expect(a2.length - b2.length, '전제 — 새 섹션이 생겼다(＋1)').toBe(1);
   const mine = a2.find(x => !b2.includes(x));
+  /* 바닥 손잡이는 1.2s 주기 훑기가 늦게 붙인다(js/section-bottom-handle.js). `s` 섹션에만 붙은 순간에 읽으면 꼴이 갈린다 ⇒ 둘 다 붙은 뒤 읽는다. */
+  await page.waitForFunction((ids) => ids.every((id) => document.querySelector(`#${id} > .section-bottom-handle`)), [mine, sRef], { timeout: 10000 });
 
   expect(await shapeOf(page, mine), '★⌘＋🔗 섹션의 꼴 = `s` 키 섹션의 꼴').toBe(await shapeOf(page, sRef));
   const hMine = await heightOf(page, mine), hS = await heightOf(page, sRef);
