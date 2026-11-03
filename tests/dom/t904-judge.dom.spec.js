@@ -1,4 +1,4 @@
-/* t904-judge — t9-04 닫는 칸. ⑴분모 = SECTION_BLOCK_TYPE_SEL 길이 ⑵종별 양성 전부 빨강(종·길·망가뜨림). 음성: 안 망가뜨리면 세 길 초록. 칸 표는 tests/unit/t904-cells.test.mjs.
+/* t904-judge — t9-04 닫는 칸. ⑴분모 = SECTION_BLOCK_TYPE_SEL 길이 ⑵종별 양성 전부 빨강(종·길·망가뜨림). 음성: 안 망가뜨리면 네 길 초록. 칸 표는 tests/unit/t904-cells.test.mjs.
  * 값: T904_OUT(기본 test-results/t904)/inject-<자리>.json. 입구 없는 종은 gray. 찾은 것은 고치지 않는다. */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs'); const path = require('path');
@@ -37,6 +37,10 @@ for (const place of ['section', 'free', 'stack', 'deep2']) test(`⑵ 종별 양�
     /* 다시 쓰면 나무가 바뀐다 — 첫 rebind 뒤 바이트가 다음 기준 */
     row.negative.rebind = noted(await J.judgeRebind(page, base, base)); const base2 = await J.serial(page);
     row.negative.rebind2 = noted(await J.judgeRebind(page, base2, base2));
+    /* 진짜 열기 — 첫 열기 차이는 음성 칸, 열기 뒤 바이트가 다음 기준(열기 둘째는 달라지면 안 된다) */
+    row.negative.open = noted(await J.judgeOpen(page, base2)); const base4 = await J.serial(page);
+    row.negative.open2 = noted(await J.judgeOpen(page, base4));
+    for (const mode of MODES) { const v = await J.judgeOpen(page, base4, { id: b.id, mode }); const r = v ? label(v, b.id) : 'unreached'; row.inject[`open:${mode}`] = r === 'green' && kind.groups.includes('G3') ? 'healed' : r; /* 열기는 지금 나무를 저장해 연다 — 앞 망가뜨림이 안 남게 바이트로 되돌린다 */ await J.judgeRebind(page, base4, base4); }
     for (const mode of MODES) {
       const m = await J.mangleBytes(page, base2, b.id, mode); const r = m.touched ? label(await J.judgeRebind(page, m.bytes, base2), b.id) : 'unreached';
       /* 다시 그리는 종은 저장 노드를 dataset 에서 되살린다 — healed. 그 뒤 나무를 망가뜨려 비교기가 그 자식을 걷는지 따로 잰다 */
