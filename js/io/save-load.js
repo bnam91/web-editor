@@ -2564,7 +2564,7 @@ function initApp() {
                     lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
                   }
                   /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
-                  const _differs = _lsDiffersFromFile(lsData, proj);   // 적용 «전»에 — applyProjectData 가 본을 고친다
+                  const _differs = _lsDiffersFromFile(lsData, proj).catch(() => true);   // 적용 «전»에 — applyProjectData 가 본을 고친다 · 못 가리면(atob 실패 등) 다르다고 친다: 복구분을 조용히 빼지 않는다
                   applyAndFinish(lsData).then(async () => {
                     if (_bootStale()) return;   // 그사이 다른 프로젝트로 갔다 — 그쪽에 저장을 걸지 않는다
                     recordExternalizeBaseline(proj, _bootProjectId);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)

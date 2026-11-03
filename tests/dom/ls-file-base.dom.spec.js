@@ -144,3 +144,8 @@ test('[음성] 부팅 중 다른 프로젝트로 갔으면 복구 저장을 걸�
   await page.waitForFunction(() => window.activeProjectId === 'p2' && localStorage.getItem('web-editor-ls-base__p1'));
   expect(await settled(page)).toEqual([false, false]);
 });
+test('비교가 거절되면(해시 실패) 다르다고 치고 파일로 넣는다', async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(globalThis.crypto, 'subtle', { configurable: true, value: { digest: async () => { throw new Error('no'); } } }); });
+  await open(page, { ls: pic('data:image/png;base64,AAAA'), lsTs: fileTs + 3600e3, base: UPD, file: pic('goya-asset://p1/h.png') });
+  await writes(page);
+});
