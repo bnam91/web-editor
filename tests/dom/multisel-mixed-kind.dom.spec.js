@@ -61,7 +61,8 @@ function declString(src, name) {
 const PD_MARK = "ss.addEventListener('pointerdown', e => {";
 const PD_AT = DRAG_SRC.indexOf(PD_MARK);
 if (PD_AT < 0) throw new Error('프레임 pointerdown 핸들러를 못 찾았다 — 검사가 대상을 놓쳤다');
-const PD_BODY = sliceBraces(DRAG_SRC, PD_AT + PD_MARK.length - 1);
+const PICK_FN = extractFn(DRAG_SRC, '_pickFrameOnPress');   // 핸들러가 부르는 같은 파일 함수 — 함께 뜬다
+const PD_BODY = PICK_FN + ';' + sliceBraces(DRAG_SRC, PD_AT + PD_MARK.length - 1);
 
 /* ⒝ 세는 자리 — 목록·거르개 둘 다 «정본»에서 떠온다. */
 const FLOW_SEL   = declString(EDITOR_SRC, 'FLOW_BLOCK_SEL_SELECTED');
