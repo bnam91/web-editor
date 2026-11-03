@@ -438,7 +438,7 @@ async function closeDeletedProjectTab(id) {
   const idx = tabs.findIndex(t => t.id === id);
   if (idx === -1) return false;
   const active = id === _getActId();
-  const lost = active && !window.isTabFirstLoading?.(id) && !!window.hasUnsavedChanges?.();
+  const lost = !window.isTabFirstLoading?.(id) && !!(active ? window.hasUnsavedChanges?.() : window.projectSaveUnsettled?.(id));
   const msg = window.deletedTabNotice?.(tabs[idx].name, lost);
   const next = tabs[idx + 1] || tabs[idx - 1];
   _setTabs(tabs.filter(t => t.id !== id));

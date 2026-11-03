@@ -1,5 +1,6 @@
 /* tab-deleted-project — 연 프로젝트가 지워지면 저장 없이 탭을 닫고 알린다(현빈 결정 2026-11-03 · 쓰기 거절은 tests/unit/project-deleted-save-guard).
  * 칸: A 보는 탭(옆 탭으로) · B 옆 탭 · C 마지막 탭(갤러리 · 알림 넘김) · D 저장 거절이 탭을 닫는다 · N 대조.
+ * 칸(머지 전 보완): F 휴지통 전 내림 · F2 옆 탭 저장 실패분 · L2 옆 탭 문구 · Q 저장 거절 중 종료.
  * 변이: 목록에서 먼저 빼는 줄을 switchTab 뒤로 미루면 A·C 빨강(나가는 탭을 저장) · save-load 의 project_deleted 갈래를 빼면 D 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -82,5 +83,55 @@ test('N [음성] 탭에 없는 id · 안 지운 프로젝트 저장', async ({ p
   expect(s.tabs).toEqual(['proj_a', 'proj_b']);
   expect(s.saved).toContain('proj_a');
   expect(s.toasts).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+test('F 휴지통 전 내림 — 밀린 편집을 저장한다 · 그 뒤 닫으면 잃은 내용 문구 없음', async ({ page }) => {
+  const errs = await setup(page, ['proj_a', 'proj_b']);
+  await dirty(page);
+  await page.evaluate(() => window.flushProjectBeforeTrash('proj_a'));
+  expect((await st(page)).saved).toEqual(['proj_a']);
+  await page.evaluate(() => window.closeDeletedProjectTab('proj_a'));
+  expect((await st(page)).toasts[0]).not.toContain('저장되지 않은 편집');
+  expect(errs).toEqual([]);
+});
+test('F2 [음성] 내림 — 탭에 없는 id · 편집 없는 보는 탭은 안 쓴다', async ({ page }) => {
+  const errs = await setup(page, ['proj_a', 'proj_b']);
+  await page.evaluate(() => window.flushProjectBeforeTrash('proj_z'));
+  await page.evaluate(() => window.flushProjectBeforeTrash('proj_b'));
+  expect((await st(page)).saved).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('L2 옆 탭 — 저장이 실패로 끝났으면 잃은 내용 문구를 붙이고, 휴지통 내림이 다시 쓴다', async ({ page }) => {
+  const errs = await setup(page, ['proj_a', 'proj_b']);
+  await dirty(page);
+  await page.evaluate(async () => { const f = window.electronAPI; window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => { throw new Error('EACCES'); } : t[k] }); await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'proj_b' }); window.electronAPI = f; });
+  await page.evaluate(() => { window.openTabs.find(t => t.id === 'proj_b')._cache = window.serializeProject(); });
+  await page.evaluate(() => window.flushProjectBeforeTrash('proj_b'));
+  expect((await st(page)).saved, '★실패분을 다시 안 썼다').toEqual(['proj_b']);
+  await page.evaluate(async () => { const f = window.electronAPI; window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => { throw new Error('EACCES'); } : t[k] }); await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'proj_b' }); window.electronAPI = f; });
+  await page.evaluate(() => window.closeDeletedProjectTab('proj_b'));
+  expect((await st(page)).toasts[0]).toContain('저장되지 않은 편집');
+  expect(errs.filter(e => !/EACCES/.test(e))).toEqual([]);
+});
+test('Q 저장 중 종료 · 그 저장이 거절되면 «저장 못 함»으로 답하지 않는다', async ({ page }) => {
+  await page.addInitScript(() => { let real; Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => real, set(v) { real = new Proxy(v, { get: (t, k) => {
+    if (k === 'onForceSaveBeforeQuit') return (cb) => { window.__quit = cb; };
+    if (k === 'quitReady') return (r) => { window.__ans = r; };
+    return t[k]; } }); } }); });
+  const errs = await setup(page, ['proj_a', 'proj_b']);
+  const a = await page.evaluate(async () => {
+    window.addSection?.();
+    const f = window.electronAPI; let rel; const hold = new Promise(r => { rel = r; });
+    window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => { await hold; return { ok: false, reason: 'project_deleted' }; } : t[k] });
+    const s = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'proj_a' });
+    await new Promise(r => requestAnimationFrame(r));
+    const q = window.__quit();
+    await new Promise(r => requestAnimationFrame(r));
+    rel(); await s; await q;
+    return window.__ans;
+  });
+  expect(a.ok, JSON.stringify({ ok: a.ok, reason: a.reason })).toBe(true);
+  expect(a.reason).toBe('project_deleted');
   expect(errs).toEqual([]);
 });
