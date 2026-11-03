@@ -3457,7 +3457,7 @@ function bindFrameDropZone(ss) {
         }
       };
 
-      const onUp = () => {
+      const onUp = (upEv) => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
@@ -3478,9 +3478,7 @@ function bindFrameDropZone(ss) {
           window.pushHistory?.(); window.triggerAutoSave?.();
           /* 놓은 점이 ss 밖(부모가 잘라 낸 자리 등)이면 합성 click 이 공통 조상에서 나 그 조상이 선택된다(S3 D-A: 90도 돈 부모 안 G → 맨 위 R).
              click 은 지금 ss 를 고르는 일도 하므로(눌렀을 때 부모도 selected) 삼키지 않고 ss 로 돌린다. ss 안에서 난 click 은 그대로 둔다. */
-          const toSelf = (ce) => { if (ss.contains(ce.target)) return; ce.stopPropagation(); ce.preventDefault(); document.removeEventListener('click', toSelf, true); ss.click(); };
-          document.addEventListener('click', toSelf, true);
-          setTimeout(() => document.removeEventListener('click', toSelf, true), 0); // 합성 click 은 mouseup 과 같은 입력 처리 안에서 난다 ⇒ 다음 태스크면 그 뒤의 진짜 클릭은 안 건드린다
+          if (!ss.contains(upEv.target)) { ss.click(); window.swallowNextClick({ on: document }); }
         }
       };
 

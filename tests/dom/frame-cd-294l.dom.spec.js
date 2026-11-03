@@ -62,6 +62,12 @@ test('음성: 끌고 놓은 다음의 진짜 클릭은 삼키지 않는다 — �
   const q = await J.ownPoint(page, ids.R); await page.mouse.click(q[0], q[1]); await J.settle(page);
   expect(await isSel(page, ids.R)).toBe(true);
 });
+test('음성: 놓은 점이 G 안이어도 곧바로 누른 다른 프레임은 그대로 골라진다 — 클릭 돌림 창이 진짜 클릭을 안 삼킨다', async ({ page }) => {
+  const ids = await scene(page); expect((await pickG(page, ids)).sel).toBe(true);
+  await dragG(page, ids); expect(await isSel(page, ids.G)).toBe(true);
+  const q = await J.ownPoint(page, ids.R); await page.mouse.click(q[0], q[1]); await J.settle(page);
+  expect(await isSel(page, ids.R)).toBe(true);
+});
 test('음성: 폭을 입력칸으로 줄였다 되늘리면 자식 폭이 돌아온다', async ({ page }) => {
   const ids = await scene(page); await setWidthA(page, ids, 100); await setWidthA(page, ids, 400);
   expect(await styleW(page, ids.G)).toBe('300px'); expect((await offs(page, ids.G))[0]).toBe(40);
