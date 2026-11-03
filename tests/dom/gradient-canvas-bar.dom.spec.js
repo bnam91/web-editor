@@ -484,7 +484,8 @@ test('B15 포털 — 블록이 움직이면 바가 따라가고, 블록이 DOM �
     return b._gradLine.overlay.getBoundingClientRect().left;
   });
   await page.evaluate(() => { document.getElementById('shp').parentElement.style.left = '260px'; });
-  await page.waitForTimeout(80);
+  /* 바는 다음 틱에 따라온다(×9 잰 값 6~97ms). 고정 80ms 는 짧다 ⇒ 따라올 때까지 기다린다. 끝내 안 오면 아래 단언이 빨강이다. */
+  await page.waitForFunction(() => { const b = document.getElementById('shp'); return Math.abs(b._gradLine.overlay.getBoundingClientRect().left - b.getBoundingClientRect().left) < 1; }, null, { timeout: 3000 }).catch(() => {});
   const moved = await page.evaluate(() => {
     const b = document.getElementById('shp');
     return { ov: b._gradLine.overlay.getBoundingClientRect().left, bl: b.getBoundingClientRect().left };
@@ -492,7 +493,7 @@ test('B15 포털 — 블록이 움직이면 바가 따라가고, 블록이 DOM �
   expect(Math.abs(moved.ov - moved.bl)).toBeLessThan(1);
   expect(moved.ov - before).toBeGreaterThan(50);
   await page.evaluate(() => document.getElementById('shp').parentElement.remove());
-  await page.waitForTimeout(80);
+  await page.waitForFunction(() => document.querySelectorAll('.grad-line-portal, .grad-line-overlay').length === 0, null, { timeout: 3000 }).catch(() => {});
   expect(await page.evaluate(() => document.querySelectorAll('.grad-line-portal, .grad-line-overlay').length)).toBe(0);
   expect(errs).toEqual([]);
 });
