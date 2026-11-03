@@ -2288,22 +2288,26 @@ function pasteClipboard() {
     const r = _insertPastedSection(el, getSelectedSection() || _pickVisibleSection());
     _spl = r.spl;
   } else if (clipboard.freeLayout) {
-    // free-layout 프레임 내 블록 붙여넣기 — 원본(또는 선택된) free-layout 프레임에 +20px 오프셋 절대배치.
-    // duplicateSelected의 freeLayout 분기 미러.
+    /* free-layout 프레임 내 블록 붙여넣기 — 묶음(_pastePickedFrames)과 같은 자리 규칙(현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
+       고른 자유 프레임이면 그 안 · 고른 스택 프레임·다른 섹션이면 일반 경로 · 안 골랐으면 원래 부모 안 원본 옆 +20.
+       duplicateSelected의 freeLayout 분기 미러. */
     // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
     const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
-    const frame = _flFrame(clipboard.sourceFrameId && document.getElementById(clipboard.sourceFrameId))
-      || _flFrame([...document.querySelectorAll('.frame-block[data-free-layout].selected')].find(f => !isShapeFrame(f)))
-      || _flFrame(window._activeFrame);
+    const _srcFrame = clipboard.sourceFrameId ? document.getElementById(clipboard.sourceFrameId) : null;
+    const _selFrames = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')].filter(f => !isShapeFrame(f));
+    const _picked = _selFrames.filter(f => !_selFrames.some(o => o !== f && f.contains(o))).pop() || null;
+    const _selSec = getSelectedSection();
+    const _otherSec = !_picked && _srcFrame && _selSec && _selSec !== _srcFrame.closest('.section-block');
+    const frame = _otherSec ? null : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
     if (!frame) {
       // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
-      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); }
+      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); _keepOnlyPastedSelected([el]); }
     } else {
       /* ★216 — id 재발급(genId · actorId · 접두사 보존)·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(el) 한 문이 한다(손 절반 걷음). */
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
-      // 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 기존처럼 원본 위치 +20px.
-      const vp = _viewportCenterInContainerLocal(frame);
+      // 원래 부모면 원본 옆 +20px. 고른 프레임이 지금 화면에 보이면 뷰포트 중앙(frame-local)에, 안 보이면 원본 위치 +20px.
+      const vp = frame === _flFrame(_srcFrame) ? null : _viewportCenterInContainerLocal(frame);
       // ★자리는 «붙인 뒤» — 사본의 실제 크기를 재야 (중앙 − 크기/2)를 구하고 프레임 안으로 넣을 수 있다(F2). 여기는 임시 자리.
       el.style.left = (ox + 20) + 'px'; el.style.top = (oy + 20) + 'px';
       frame.appendChild(el);
@@ -3768,7 +3772,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     // 단, 자식 블록이 선택된 경우 자식 블록 삭제로 처리 (프레임은 유지)
     if (window._deletePickedFrames?.()) { consumed = true; return consumed; }   // ★294 — 자식 둘 ⌫ 가 부모째 지우던 것(_pickedFrames)
     const selSS = document.querySelector('.frame-block.selected');
-    if (selSS) {
+    /* 보호 섹션 프레임은 이 단독 삭제 갈래를 안 탄다 — 먼저 지우고 return 하면 아래 A13 막음이 안 닿아 프레임·글자가 토스트 없이 지워졌다. */
+    if (selSS && !window.isSectionProtected?.(selSS.closest('.section-block'))) {
       /* ★`.shape-block.selected` 가 빠져 있었다(2026-09-20 QA 실측) — 도형은 자기 래퍼
          프레임과 «같이» 선택되므로, 도형이 끼면 이 갈래가 먼저 걸려 «그 프레임 줄만» 지우고
          return 했다. 그래서 「텍스트+도형」 다중선택 ⌫ 가 도형만 지우고 텍스트를 남겼다

@@ -126,11 +126,5 @@ export const LISTS = Object.freeze([
 // NOT_BIND — 자 R3 목록 맞추기에서 «bindBlock 명부가 아니다»로 뺀 자리(까닭과 함께).
 //   R3 꼴 = js/** 문자열 하나에 서로 다른 .xxx-block 이 10종 이상 · 그 문자열을 둘러싼 함수(없으면 그 최상위 문장)가 bindBlock 을 부름.
 //   6acfb9e4 에서 그 꼴에 걸린 자리 = 손 명부 7곳 + 아래 1곳(잰 것 · 8곳).
-export const NOT_BIND = Object.freeze([
-  {
-    file: 'js/block-drag.js',
-    anchor: "const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .icon-block",
-    lineAtBase: 3165,
-    reason: '프레임 drop 처리기의 «무엇을 떨궜나» 가르기·자리 잡기용(matches · querySelectorAll → makeAbsolute 등) — 같은 함수의 bindBlock(:3241)은 이 명부가 아니라 따로 찾은 text-block 하나에 건다',
-  },
-]);
+//   ★365 — 그 1곳(js/block-drag.js 프레임 drop BLOCK_SEL)은 정본 파생으로 바뀌어 꼴에서 빠졌다 ⇒ 비었다.
+export const NOT_BIND = Object.freeze([]);

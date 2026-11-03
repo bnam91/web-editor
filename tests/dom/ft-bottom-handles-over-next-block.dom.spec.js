@@ -11,7 +11,7 @@
  * ⛔고정 대기 없음 — waitForFunction 만. ⛔앱 무접촉(_root-harness.bootApp).
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 async function setup(page) {
   await page.setViewportSize({ width: 1700, height: 1200 });
@@ -32,6 +32,7 @@ async function setup(page) {
   await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
   await page.selectOption('#txt-fx-add', 'freetransform');
   await page.waitForFunction(() => window.__top.querySelectorAll('.tfh-handle').length === 12);
+  await waitStableRect(page, '.tfh-handle[data-tfh="se"]');   // 부팅 배율 전환이 끝나기 전 좌표로 누르지 않는다
   return errs;
 }
 const handleAt = (page, n) => page.evaluate((n) => { const h = window.__top.querySelector(`.tfh-handle[data-tfh="${n}"]`); const r = h.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, n);

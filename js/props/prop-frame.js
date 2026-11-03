@@ -215,6 +215,15 @@ if (typeof window !== 'undefined') window.__minVisibleWidth = minVisibleWidth;
    ⛔`frameW` 를 ★변환 시점 값으로 ★굳히지 ★마라 — ★굳히면 ★둘째 명부가 된다. ★«지금» 값을 ★읽고 ★꼴은 ★`:100` 과 같다.
    ★★부르는 자 ★셋: ★변환 끝 · ★`applyPadX` · ★`applyWidth`. ⛔셋 중 하나라도 빠지면 ★값이 ★조용히 ★머문다
      (★실측: ★`applyWidth` 가 빠진 판에서 ★pad 100 고정 · 너비 400→860 일 때 ★그리드가 ★344 에 ★머물렀다). */
+function _stackDrawnW(c, base, frameW, pad) {
+  /* ★하한 — ★`minVisibleWidth` 하나에서. ★★`base` 로 ★한 번 더 ★가둔다:
+     ★자식이 ★하한보다 ★이미 ★좁으면(비도형 180px 등) ★하한을 그대로 쓰면 ★★pad 0 에서 ★넓어진다 */
+  const floor = Math.min(base, minVisibleWidth(c, base));
+  /* ★★그리고 ★«자기 상자»보다 ★넓을 수 ★없다 — ⛔이건 ★수 선택이 ★아니라 ★상자에서 ★나온다.
+     ★없으면: ★프레임을 ★400 으로 줄이고 pad 100 이면 ★그리드가 ★488px 로 남아 ★패딩 상자를 ★144px/쪽 ★침범하고
+     ★프레임 자체를 ★44px/쪽 ★벗어난다(★`overflow:hidden` 이라 ★잘려 ★보이기만 ★한다 · ★실측). */
+  return Math.min(Math.max(base - 2 * pad, floor), frameW - 2 * pad);
+}
 function _applyStackChildWidths(ss) {
   if (!ss || ss.dataset.freeLayout === 'true') return 0;
   const pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
@@ -226,14 +235,7 @@ function _applyStackChildWidths(ss) {
     if (!Number.isFinite(base)) continue;
     /* ★안쪽 폭이 ★0 이하면 ★그릴 칸이 ★없다 ⇒ ★보존을 포기한다(거기서는 ★그것이 ★뜻이다) */
     if (!(frameW > 0) || !(inner > 0)) { c.style.width = ''; n++; continue; }
-    /* ★하한 — ★`minVisibleWidth` 하나에서. ★★`base` 로 ★한 번 더 ★가둔다:
-       ★자식이 ★하한보다 ★이미 ★좁으면(비도형 180px 등) ★하한을 그대로 쓰면 ★★pad 0 에서 ★넓어진다 */
-    const floor = Math.min(base, minVisibleWidth(c, base));
-    /* ★★그리고 ★«자기 상자»보다 ★넓을 수 ★없다 — ⛔이건 ★수 선택이 ★아니라 ★상자에서 ★나온다.
-       ★없으면: ★프레임을 ★400 으로 줄이고 pad 100 이면 ★그리드가 ★488px 로 남아 ★패딩 상자를 ★144px/쪽 ★침범하고
-       ★프레임 자체를 ★44px/쪽 ★벗어난다(★`overflow:hidden` 이라 ★잘려 ★보이기만 ★한다 · ★실측). */
-    const w = Math.min(Math.max(base - 2 * pad, floor), inner);
-    c.style.width = w + 'px';
+    c.style.width = _stackDrawnW(c, base, frameW, pad) + 'px';
     n++;
   }
   return n;
@@ -267,7 +269,9 @@ function _convertFreeLayoutToStack(ss) {
     c.style.flexShrink = '0';
     if (it.width < parentW) {
       /* ★«뜻»만 박는다 — ★그려지는 폭은 ★`_applyStackChildWidths` 가 ★파생한다(그 머리말의 까닭) */
-      c.dataset.stackW = String(it.width);
+      /* stack→free 가 남긴 뜻이 지금 폭을 그대로 내면 그 뜻을 쓴다 — 지금 폭을 뜻으로 박으면 왕복마다 2·pad 씩 준다(636→556→476). free 에서 폭을 바꿨으면 안 맞아 아래 줄로 간다. */
+      const kept = parseFloat(c.dataset.stackW), pad = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
+      if (!(Number.isFinite(kept) && Math.round(_stackDrawnW(c, kept, parentW, pad)) === it.width)) c.dataset.stackW = String(it.width);
       c.style.alignSelf = 'center';
     } else {
       /* ★보존 «안 함» 갈래 — ★`stackW` 를 ★떼고 ★폭도 ★여기서 ★비운다.
@@ -315,11 +319,17 @@ function _convertFreeLayoutToStack(ss) {
 window.__convertFreeLayoutToStack = _convertFreeLayoutToStack;
 
 /* 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01 — 피그마 Remove auto layout: 자식이 지금 자리·크기 그대로 좌표로 고정된다. 이 프레임 한 층만, 옛 free 좌표는 안 되살린다.
-   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다) — 회전이 끼어 rect 를 못 믿으면 offset(정수).
+   자리는 다른 자식을 빼기 «전»에 전부 읽어야 흐름이 안 밀린다. 소수까지 그대로 박는다(흐름 자리 111.59 를 112 로 고정하면 0.41px 튄다).
    투명한 간격 블럭은 걷는다 — 흐름에서 자리를 벌리는 일만 하고, 좌표에선 할 일이 없으며 남기면 다시 stack 으로 갈 때 자식으로 세어진다.
    시험: tests/dom/frame-stack-to-free-296.dom.spec.js */
 function _convertStackToFree(ss) {
   window.pushHistory?.('free 로 전환 전');
+  /* 회전이 끼면 rect 가 회전 상자라 배율·폭·소수 자리를 못 믿는다(줄 폭 716→660 · 0.41px 튐) — 재는 동안만 이 프레임·조상·자식의 transform 을 풀고 끝에서 그대로 돌린다. 칠하기 전이라 화면엔 안 나온다. */
+  const flowKids = [...ss.children].filter(c => c.style.position !== 'absolute');
+  const bare = [...flowKids, ...flowKids.flatMap(c => c.classList.contains('row') ? [...c.children] : [])];
+  for (let e = ss; e && !e.classList.contains('section-block'); e = e.parentElement) bare.push(e);
+  const transforms = bare.map(e => [e, e.style.transform]);
+  bare.forEach(e => { e.style.transform = 'none'; });
   const fr = ss.getBoundingClientRect(), k = (fr.width / ss.offsetWidth) || 1;
   const offsetIn = (el) => {
     let x = 0, y = 0; for (let e = el; e && e !== ss; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
@@ -331,7 +341,8 @@ function _convertStackToFree(ss) {
   const spots = flow.filter(c => !isSpacer(c)).map(c => {
     const kids = c.classList.contains('row') ? [...c.children].filter(k => !k.classList.contains('drop-indicator')) : [];
     const [x, y] = offsetIn(c);
-    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width };
+    const grids = [c, ...kids].filter(g => g.classList.contains('grid-block')).map(g => [g, Math.round(parseFloat(getComputedStyle(g).width))]);
+    return { c, x: kids.length ? Math.min(...kids.map(k => offsetIn(k)[0])) : x, y, w: getComputedStyle(c).width, grids };
   });
   const { width: frameW, height: frameH } = getComputedStyle(ss);   // 소수 그대로 — 반올림하면 아래 이웃이 1px 밀린다
   ss.dataset.freeLayout = 'true';
@@ -339,15 +350,19 @@ function _convertStackToFree(ss) {
   ss.dataset.width = String(Math.round(parseFloat(frameW))); ss.dataset.height = String(Math.round(parseFloat(frameH)));
   ss.style.width = frameW; ss.style.height = frameH; ss.style.minHeight = frameH;
   flow.filter(isSpacer).forEach(c => c.remove());
-  for (const { c, x, y, w } of spots) {
-    delete c.dataset.stackW;
+  const padX = parseFloat(getComputedStyle(ss).paddingLeft) || 0;
+  for (const { c, x, y, w, grids } of spots) {
+    if (!padX) delete c.dataset.stackW;
+    grids.forEach(([g, gw]) => window.fitGridWidthToFreeFrame?.(g, ss, gw));   // 지금 폭을 키에 — 안 적으면 settleRowInFreeFrame 이 프레임의 80% 로 줄인다(716→573)
     c.style.alignSelf = ''; c.style.flexShrink = ''; c.style.margin = '0';
     if (!window.settleRowInFreeFrame?.(ss, c, 'inplace') && !/px$/.test(c.style.width)) c.style.width = w;   // 줄·패널 블럭의 폭은 그 문이 정한다
     c.style.position = 'absolute'; c.style.left = x + 'px'; c.style.top = y + 'px';
     c.dataset.offsetX = String(Math.round(x)); c.dataset.offsetY = String(Math.round(y));
     if (c.dataset.textFrame === 'true') c.dataset.width = String(Math.round(parseFloat(c.style.width)));
+    if (padX && !c.dataset.stackW) c.dataset.stackW = String((/px$/.test(c.style.width) ? Math.round(parseFloat(c.style.width)) : c.offsetWidth) + 2 * padX);   // 패딩을 먹기 전 폭 = stackW 의 뜻 — 다시 stack 으로 갈 때 _convertFreeLayoutToStack 이 읽는다
     if (c.hasAttribute('draggable')) c.setAttribute('draggable', 'false');
   }
+  transforms.forEach(([e, t]) => { e.style.transform = t; });
   window.pushHistory?.('free 로 전환');
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
