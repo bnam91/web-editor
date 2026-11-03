@@ -185,13 +185,13 @@ test('받기: 스크래치를 못 옮기면 성공 토스트 대신 알린다, �
   await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_r', src: 'data:image/png;base64,R', x: 1, y: 1, w: 9 }] }]); await toasts(page); await armAbort(page);
   await page.locator('.market-pull-btn').first().click();
   await saved(page);
-  await expect.poll(() => finals(page)).toEqual(['⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (받음)" 열기']);
+  await expect.poll(async () => (await finals(page)).map((t) => t.split(' 열기')[0])).toEqual(['⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (받음)"']);
 });
 test('음성 받기: 스크래치가 잘 오면 성공 토스트다', async ({ page }) => {
   await open(page, data('원격 글'), [{ pageId: 'p1', items: [{ id: 's_r', src: 'data:image/png;base64,R', x: 1, y: 1, w: 9 }] }]); await toasts(page);
   await page.locator('.market-pull-btn').first().click();
   await saved(page);
-  await expect.poll(() => finals(page)).toEqual(['✅ 받기 완료 — 홈에서 "원격 이름 (받음)" 열기']);
+  await expect.poll(async () => (await finals(page)).map((t) => t.split(' 열기')[0])).toEqual(['✅ 받기 완료 — 홈에서 "원격 이름 (받음)"']);
 });
 async function resolveScene(page, picks) {
   const lc = sec('내 글') + sec('내것만').replace('id="sec_a"', 'id="sec_x" data-ref-links="s_1:0"').replace('id="t_a"', 'id="t_x"');

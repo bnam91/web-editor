@@ -63,13 +63,15 @@
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const saved = await window.electronAPI.saveProject(proj);
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
+    let scratchFailed = false;
     try {
       let scratch = res.project.scratch;
       if (typeof scratch === 'string') scratch = JSON.parse(scratch);
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
-    } catch (_) {}
-    if (saved?.ok !== false) _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
-    else _toast('❌ 저장 실패');
+    } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
+    if (saved?.ok === false) _toast('❌ 저장 실패');
+    else if (scratchFailed) _toast(`⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
+    else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
   }
 
   /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽을 <id>_r 로 새로 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
