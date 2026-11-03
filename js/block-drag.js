@@ -3253,6 +3253,7 @@ function _bindFrameFlowDrop(ss) {
       const _fpad = framePadding(inner);   // F5
       let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
       _incoming.forEach(b => {
+        window.settleMovedBridge?.(b);
         b.style.top  = _stackY + 'px';
         const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
         b.style.left = Math.max(_fpad.l, _off.left) + 'px';
@@ -3270,6 +3271,7 @@ function _bindFrameFlowDrop(ss) {
       growFrameToFitChildren(inner);
     }
 
+    window.settleMovedBridge?.(dragState.dragSrc);   // inner 는 프레임이라 안 내려간다 — 끌어 넣은 브릿지는 직접
     window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
     window.pruneGridKidsBox?.(_fromKids);   // G19 — 비었을 때만 걷는다
     // dragging 클래스 고착 방지

@@ -1,5 +1,5 @@
 /* _t904-judge — t9-04 판정기. 종별 명부 없이 직렬화 바이트를 structCmp 로 견준다.
- * 세 길: undo(조작 전 ↔ ⌘Z 뒤) · saved(프로젝트 파일 canvas → DOMParser ↔ 지금) · rebind(innerHTML + rebindAll ↔ 다시 쓰기 전).
+ * 네 길: undo(조작 전 ↔ ⌘Z 뒤) · saved(프로젝트 파일 canvas → DOMParser ↔ 지금) · rebind(innerHTML + rebindAll ↔ 다시 쓰기 전) · open(serializeProject → applyProjectData ↔ 열기 전, 진짜 열기).
  * 양성: 같은 세 길에 종 요소의 dataset · 자식 노드를 망가뜨려 그 요소를 짚은 빨강이 나는지 잰다. 짚지 못한 빨강은 inject:red 가 아니다(공짜 빨강).
  * 조작 결과 가르기: 안전 거절 = DOM 변화 0 ∧ (선택 유지 또는 토스트) · 손실 = 변화 있고 블럭·자식 수 줄어듦. */
 const { structCmp } = require('./_struct-cmp.js');
@@ -28,6 +28,9 @@ const judgeUndo = async (page, base) => cmp(page, base, await serial(page));
 const judgeSaved = async (page, now, file) => cmp(page, now, await parsedBack(page, file ?? await fileCanvas(page)));
 /* 그 바이트를 다시 쓰고 rebindAll — 나무를 바꾼다, 칸 끝에 둔다 */
 const judgeRebind = async (page, bytes, want) => { await page.evaluate((b) => { const c = document.getElementById('canvas'); c.innerHTML = b; window.rebindAll({ preserveHistory: true }); }, bytes); await settle(page); return cmp(page, want, await serial(page)); };
+/* 진짜 열기 길 — 프로젝트 파일(serializeProject)을 applyProjectData 로 연다. 섹션 패딩 적용까지 지난다(rebind 길은 못 지난다). 나무를 바꾼다. mangle 은 파일 canvas 를 망가뜨린다 */
+const judgeOpen = async (page, want, mangle) => { let file = await page.evaluate(() => window.serializeProject()); if (mangle) { const d = JSON.parse(file); const p = d.pages.find((x) => x.id === d.currentPageId) || d.pages[0]; const m = await mangleBytes(page, p.canvas, mangle.id, mangle.mode); if (!m.touched) return null; p.canvas = m.bytes; file = JSON.stringify(d); }
+  await page.evaluate(async (f) => { const d = JSON.parse(f); document.getElementById('canvas').innerHTML = ''; await window.applyProjectData(d); window.clearHistory?.(); }, file); await settle(page); return cmp(page, want, await serial(page)); };
 /* 그 요소를 짚었나 — diff 경로·값에 id 나 주입 표시가 있어야 한다 */
 const pointsAt = (v, id) => v.red && v.diffs.some((d) => (d.path || '').includes(id) || JSON.stringify([d.a, d.b]).includes('T904INJECT'));
 /* 조작 앞뒤 가르기 — 블럭 수는 정본 명부 + 프레임으로 센다 */
@@ -59,4 +62,4 @@ async function build(page, kind, place) {
     if (!el.id) el.id = 'blk_' + Math.random().toString(36).slice(2, 9);
     return { id: el.id, inHost: host ? host.contains(el) : true, hostMode: host ? (host.dataset.freeLayout ? 'free' : 'stack') : null, hostDepth: (() => { let n = 0; for (let p = host; p; p = p.parentElement.closest(FR)) n++; return n; })() }; }, { kind, place, FR });
 }
-module.exports = { build, pickRow, selected, smallRound, FR, settle, serial, fileCanvas, mangleBytes, mangleLive, cmp, parsedBack, judgeUndo, judgeSaved, judgeRebind, pointsAt, classify };
+module.exports = { judgeOpen, build, pickRow, selected, smallRound, FR, settle, serial, fileCanvas, mangleBytes, mangleLive, cmp, parsedBack, judgeUndo, judgeSaved, judgeRebind, pointsAt, classify };
