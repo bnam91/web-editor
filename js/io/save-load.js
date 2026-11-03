@@ -86,6 +86,38 @@ function getSaveKey() {
 function getSaveTsKey() {
   return getSaveKey() + '_ts';
 }
+/* localStorage 본이 «어느 파일 판에서 이어졌나» — 그 파일이 아직 디스크에 있을 때만 localStorage 가 파일을 이길 자격이 있다(열 때 판정).
+   파일이 밖에서 바뀌면(사본·백업·되돌리기) 값이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다.
+   쓰는 곳: 파일 쓰기는 preload.js 한 자리 · 여기는 열 때뿐. 시험: tests/dom/ls-file-base.dom.spec.js */
+const _lsBaseKey = (id) => `web-editor-ls-base__${id}`;
+/* 복구한 본이 파일과 다른가. 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 비교하지 않는다:
+   둘 다 data·둘 다 goya 면 글자 그대로(다른 그림이면 다르다), 한쪽만 data 면 내용 해시로 — goya 파일명이 sha256 앞 16자다(main/project-store/externalizer.js).
+   해시를 못 내면(웹·비보안 문맥) 같다고 본다 — 무편집 쓰기(DEF-03)가 복구 유실보다 잦다. */
+const _IMG_URL_RE = /data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+=*|goya-asset:\/\/[^"'()\s&\\]+/gi;
+async function _sameImage(a, b) {
+  if (a === b) return true;
+  const aData = a.startsWith('data:');
+  if (aData === b.startsWith('data:')) return false;
+  const [data, goya] = aData ? [a, b] : [b, a];
+  if (!globalThis.crypto?.subtle) return true;
+  const bytes = Uint8Array.from(atob(data.slice(data.indexOf(',') + 1)), c => c.charCodeAt(0));
+  const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(x => x.toString(16).padStart(2, '0')).join('');
+  return goya.split('/').pop().split('.')[0] === hex.slice(0, 16);
+}
+async function _lsDiffersFromFile(ls, file) {
+  /* 복구분은 캔버스만이 아니다. 없는 필드 · 빈 값은 같게 본다(옛 파일에 없는 필드로 무편집 쓰기가 나지 않게). */
+  const core = (d) => JSON.stringify({
+    pages: (d?.pages || []).map(p => ({ id: p?.id, name: p?.name, pageSettings: p?.pageSettings, canvas: String(p?.canvas || '') })),
+    checklistItems: d?.checklistItems, checklistSections: d?.checklistSections, assetsTree: d?.assetsTree, imageGallery: d?.imageGallery,
+  }, (_k, v) => (v == null || (typeof v === 'object' && !Object.keys(v).length) ? undefined : v));
+  const a = core(ls), b = core(file);
+  if (a === b) return false;
+  if (a.replace(_IMG_URL_RE, '§') !== b.replace(_IMG_URL_RE, '§')) return true;
+  const ua = a.match(_IMG_URL_RE) || [], ub = b.match(_IMG_URL_RE) || [];
+  for (let i = 0; i < ua.length; i++) if (!(await _sameImage(ua[i], ub[i]))) return true;
+  return false;
+}
+let _lastOpenFallback = null;   // 이번 열기가 깨진 proj.json 대신 백업·이력을 읽은 프로젝트 id
 let autoSaveTimer = null;
 const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
 let _autoSaveBurstAt = 0;
@@ -1852,6 +1884,7 @@ function _recoveryToastText(proj) {
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
+  _lastOpenFallback = proj && proj._recovered ? id : null;
   if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
   if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
   return proj;
@@ -2502,7 +2535,17 @@ function initApp() {
             return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
           };
           const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          if (lsTs > 0 && lsTs + 500 > fileTs) {
+          /* 표시 없는 옛 본 · 깨진 파일 대신 읽은 백업(판이 다른 게 당연하다) · updatedAt 없는 파일은 옛 규칙 그대로. */
+          const lsBase = localStorage.getItem(_lsBaseKey(_bootProjectId));
+          const lsFromThisFile = !lsBase || _lastOpenFallback === _bootProjectId || proj.updatedAt == null || lsBase === String(proj.updatedAt);
+          if (!lsFromThisFile) {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
+            localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}`);
+            localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_bootProjectId}_ts`);
+          }
+          if (proj.updatedAt != null) { try { localStorage.setItem(_lsBaseKey(_bootProjectId), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
+          /* 파일보다 «새로운» 본만 이긴다 — 옛 500ms 여유는 탭·홈으로 나간 저장(파일만 씀)보다 20ms 낡은 본을 이기게 해 그 편집을 덮었다(앱 3/3).
+             평소 저장은 localStorage 를 먼저 써 본이 늘 조금 낡으니 파일이 이긴다(내용이 같다). 충돌이면 본이 더 새롭다. */
+          if (lsTs > fileTs && lsFromThisFile) {
             const lsSaved = localStorage.getItem(getSaveKey());
             if (lsSaved) {
               try {
@@ -2513,7 +2556,19 @@ function initApp() {
                 // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
                 // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
                 if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
-                  applyAndFinish(lsData);
+                  /* 파일에만 있는 갤러리 항목을 잃지 않는다 — 다른 탭에 있는 동안의 AI 생성이 updatedAt 을 안 올리고 파일에 적재한다(ai-image-gen _appendGalleryToProject).
+                     거기서 updatedAt 을 올리면 저장 실패 중이던 이 본이 파일에 져서 편집을 잃는다(앱 3/3). */
+                  if (Array.isArray(proj.imageGallery)) {
+                    const _lsGal = Array.isArray(lsData.imageGallery) ? lsData.imageGallery : [];
+                    const _ids = new Set(_lsGal.map(it => it && it.id));
+                    lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
+                  }
+                  /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
+                  const _differs = _lsDiffersFromFile(lsData, proj);   // 적용 «전»에 — applyProjectData 가 본을 고친다
+                  applyAndFinish(lsData).then(async () => {
+                    recordExternalizeBaseline(proj, _bootProjectId);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)
+                    if (await _differs) requestAnimationFrame(() => requestAnimationFrame(() => scheduleAutoSave()));   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
+                  });
                   return;
                 }
                 if (lsSecCount < fileSecCount) {
