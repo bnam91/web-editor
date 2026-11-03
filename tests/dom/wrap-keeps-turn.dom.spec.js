@@ -1,6 +1,6 @@
 /* wrap-keeps-turn — ⌘⌥G·⌘G 로 묶기 전후 화면이 같다: 회전·반전이 안 풀리고, 이동값이 두 번 안 밀리고, 뒤 블럭이 안 겹친다.
- * 칸: R1 ⌘⌥G 회전+평범 R2 ⌘G R3 둘 다 회전 ⌘Z ⌘⇧Z R4 회전+이동 ⌘⇧Z R5 이동만 ⌘⇧Z R6 반전 R7 다시 그린 뒤(rebindAll) R9 저장 왕복 N1 [음성] 평범 프레임
- * 양성대조: block-factory 의 _keepTurnFoldMove 를 transform='' 로 되돌리면 R1~R7·R9 빨강, N1 초록. 회전 상자는 getBoundingClientRect 로 잰다. 장면 준비만 evaluate — 고르기(레이어)·키·값 칸은 진짜. */
+ * 칸: R1 ⌘⌥G 회전+평범 R2 ⌘G R3 둘 다 회전 ⌘Z ⌘⇧Z R4 회전+이동 ⌘⇧Z R5 이동만 ⌘⇧Z R6 반전 R7 다시 그린 뒤(rebindAll) R8 회전 글자 ⌘⌥G R9 저장 왕복 N1 [음성] 평범 프레임 N2 [음성] 평범 글자는 ⌘⌥G 에서 새 프레임 직속(잠긴 동작)
+ * 양성대조: block-factory 의 _keepTurnFoldMove 를 transform='' 로 되돌리면 R1~R7·R9 빨강, 텍스트 프레임 rotation 조건을 걷으면 R8 빨강, N1·N2 초록. 회전 상자는 getBoundingClientRect 로 잰다. 장면 준비만 evaluate — 고르기(레이어)·키·값 칸은 진짜. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 async function scene(page, specs) {
@@ -49,7 +49,15 @@ test('R9 묶자마자 저장 왕복 — 회전·이동 그대로, 뒤 프레임�
   await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.(); }); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   same(a, await read(page, ids), '저장 왕복'); expect(errs, errs.join(' | ')).toEqual([]);
 });
+test('R8 회전 글자 ⌘⌥G — 안 풀린다', async ({ page }) => {
+  const { errs, ids } = await scene(page, []); const id = await page.evaluate(async () => { const sec = document.querySelector('.section-block'); window.deselectAll(); window.selectSection(sec); window.addTextBlock('body', { content: '글자' }); const h = sec.querySelector('.frame-block[data-text-frame]'); h.dataset.rotation = '20'; h.style.transform = 'rotate(20deg)'; h.style.transformOrigin = 'center center'; window.deselectAll(); window.clearHistory?.(); return h.id; }); const a = await read(page, [id]); expect(a[0].m, '[전제] 돌았다').toEqual([0.94, 0.34]);
+  await wrap(page, [id], 'Meta+Alt+g'); same(a, await read(page, [id]), '묶음'); await undoRedo(page, [id], a); expect(errs, errs.join(' | ')).toEqual([]);
+});
 test('N1 [음성] 평범 프레임은 그대로', async ({ page }) => {
   const { errs, ids } = await scene(page, [{}, {}]); const a = await read(page, ids); expect(a[0].m, '[전제]').toEqual([1, 0]);
   await wrap(page, ids, 'Meta+Alt+g'); same(a, await read(page, ids), '묶음'); expect(await page.evaluate((id) => document.getElementById(id).style.transform, ids[0])).toBe(''); await undoRedo(page, ids, a); expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('N2 [음성] 안 돈 글자는 ⌘⌥G 에서 새 프레임 직속', async ({ page }) => {
+  const { errs } = await scene(page, []); const tid = await page.evaluate(async () => { const sec = document.querySelector('.section-block'); window.deselectAll(); window.selectSection(sec); window.addTextBlock('body', { content: '글자' }); const t = sec.querySelector('.text-block'); window.deselectAll(); window.clearHistory?.(); return t.id; }); const hid = await page.evaluate((id) => document.getElementById(id).closest('.frame-block').id, tid); await pick(page, hid);
+  await page.keyboard.press('Meta+Alt+g'); await expect.poll(() => page.evaluate((id) => document.getElementById(id).parentElement.matches('.frame-block:not([data-text-frame])'), tid), '직속').toBe(true); expect(errs, errs.join(' | ')).toEqual([]);
 });
