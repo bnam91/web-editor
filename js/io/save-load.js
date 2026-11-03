@@ -2844,7 +2844,7 @@ window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-l
 // 즉시 저장 (디바운스 없이 flush) — commit-system.js 저장하기 버튼 전용
 // saveProjectToFile 경로를 우회하고 IPC를 직접 호출해 _isSavingToFile 락 문제 방지
 window.flushSave = async function() {
-  if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
+  if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 탄다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
   const snap = serializeProject();
@@ -2857,25 +2857,20 @@ window.flushSave = async function() {
   localStorage.setItem(getSaveTsKey(), String(Date.now()));
   const _targetId = window.activeProjectId;
   if (window.IS_ELECTRON && _targetId) {
-    try {
-      const existing = await window.electronAPI.loadProject(_targetId);
-      const proj = {
-        ...(existing || {}),
-        ...data,
-        id: _targetId,
-        name: existing?.name || data.name || 'Untitled',
-        updatedAt: new Date().toISOString(),
-      };
-      await window.electronAPI.saveProject(proj);
-      _dirtySinceSave = false;
-    } catch (e) {
-      console.error('[flushSave] 저장 실패:', e);
-      window.showToast?.('❌ 저장 실패: ' + (e.message || '알 수 없는 오류'));
-      return;
-    }
+    const r = await _saveInLine(data, _targetId);
+    if (_isSaveFailure(r)) return;   // 실패 토스트는 _doSaveProjectToFile 이 띄웠다
   }
   _setAutosaveIndicator('saved');
 };
+/* 자동저장과 같은 줄에 서서 저장하고 그 프로젝트의 줄이 빌 때까지 기다린다 — 따로 읽고 쓰면 앞 저장의 옛 본이 뒤 저장을 덮는다(RENDERER-LOAD-SAVE-ROUNDTRIP · 앱 값).
+   큐에 들어가면 결과가 undefined 라 드레인 뒤 마지막 결과를 읽는다. 상한을 넘기면 실패로 친다: 저장됐다고 말할 근거가 없다. */
+async function _saveInLine(snapshot, id) {
+  const r = await saveProjectToFile(snapshot, { projectId: id, skipThumbnail: true });
+  if (r !== undefined) return r;
+  if (!(await _waitSavesFor(id))) return { ok: false, reason: 'save_wait_timeout' };
+  return _lastSaveResult.get(id)?.result;
+}
+window.saveInLine = _saveInLine;
 // DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
 window.hasUnsavedChanges = _hasOwnUnsaved;
 // [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 세 경로를 모두 막아야 복원본이 안 덮인다:
