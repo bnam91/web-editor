@@ -9,7 +9,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/fix5-quote-panel.dom.spec.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 async function setup(page, opts = {}, { before } = {}) {
@@ -27,8 +27,9 @@ async function setup(page, opts = {}, { before } = {}) {
     window.addQuoteBlock(o);
     window.__qt = [...document.querySelectorAll('#sQ .quote-block')].pop();
     window.deselectAll && window.deselectAll();
-    window.__qt && window.__qt.scrollIntoView({ block: 'center' });
   }, [opts, before || null]);
+  await waitZoomSettled(page, 100);   // ★전환이 멎은 뒤에 스크롤한다
+  await page.evaluate(() => window.__qt && window.__qt.scrollIntoView({ block: 'center' }));
   await page.waitForFunction(() => !!window.__qt && window.__qt.isConnected, null, { timeout: 5000 });
   return errs;
 }

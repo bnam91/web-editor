@@ -26,7 +26,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js scratch-group-link
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 
 const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -65,6 +65,7 @@ const snap = (page) => page.evaluate(SNAP);
 async function setup(page) {
   await page.setViewportSize({ width: 1700, height: 1100 });
   const errs = await bootApp(page);
+  await waitZoomSettled(page, 40);   // ★부트의 applyZoom(40) 전환이 멎은 뒤에 장면을 세운다 — 전환 중 scrollIntoView 는 그림을 패널·덮개 밑에 떨군다
   const secIds = await page.evaluate(() => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach(s => s.remove());
