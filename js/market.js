@@ -72,22 +72,55 @@
     else _toast('❌ 저장 실패');
   }
 
-  /* 머지본 스크래치 = L 의 것 + 원격 것(페이지·id 기준, 겹치면 L). canvas refLinks 토큰이 어느 쪽 섹션에서 왔든 항목을 찾게 한다. */
-  async function _copyMergedScratch(newId, localId, pageIds, remoteScratch) {
-    const mine = (await window._scratchExportAll?.(localId, pageIds)) || [];
+  /* 머지본 스크래치 계획 = L 의 것 + 원격 것(페이지별). 같은 id 인데 그림이 다르면 원격 쪽을 <id>_r 로 새로 달고, 원격에서 온 섹션의 refLinks 토큰만 그 이름으로 바꾼다
+     (안 그러면 원격 고른 섹션 링크가 L 이미지를 가리킨다, 둘다면 두 섹션이 한 항목을 나눠 쓴다). parsed.pages[].canvas 를 고치므로 저장 «전»에 부른다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
+  async function _planMergedScratch(parsed, local, choices, remoteScratch) {
+    const pages = parsed.pages || [];
+    const mine = (await window._scratchExportAll?.(local.id, pages.map(p => p.id))) || [];
     let theirs = remoteScratch;
     if (typeof theirs === 'string') theirs = JSON.parse(theirs);
-    const byPage = new Map(mine.map(b => [b.pageId, [...b.items]]));
-    for (const b of Array.isArray(theirs) ? theirs : []) {
-      const items = byPage.get(b.pageId) || [];
-      const seen = new Set(items.map(i => i.id));
-      for (const it of b.items || []) if (!seen.has(it.id)) items.push(it);
-      byPage.set(b.pageId, items);
+    const mineOf = new Map(mine.map(b => [b.pageId, b.items]));
+    const theirsOf = new Map((Array.isArray(theirs) ? theirs : []).map(b => [b.pageId, b.items || []]));
+    const plan = [];
+    for (const page of pages) {
+      const items = [...(mineOf.get(page.id) || [])];
+      const byId = new Map(items.map(i => [i.id, i]));
+      const renamed = new Map();
+      for (const it of theirsOf.get(page.id) || []) {
+        const same = byId.get(it.id);
+        if (!same) { items.push(it); byId.set(it.id, it); continue; }
+        if (same.src === it.src) continue;
+        let nid = it.id + '_r';
+        while (byId.has(nid)) nid += '_r';
+        renamed.set(it.id, nid);
+        const copy = { ...it, id: nid };
+        items.push(copy); byId.set(nid, copy);
+      }
+      if (renamed.size) page.canvas = _renameRemoteLinks(page, local, choices, renamed);
+      if (items.length) plan.push({ pageId: page.id, items });
     }
-    /* 외부화된 항목은 goya-asset://L 이다. 파일은 복제가 옮겼으니 src 도 M 으로 — 안 바꾸면 L 을 지울 때 scratch-missing 이 된다. */
+    return plan;
+  }
+  function _renameRemoteLinks(page, local, choices, renamed) {
+    const parser = new DOMParser();
+    const secsOf = html => [...parser.parseFromString(`<div id="c">${html || ''}</div>`, 'text/html').querySelectorAll('.section-block')];
+    const localSecs = new Set(secsOf((local.pages || []).find(p => p.id === page.id)?.canvas).map(s => s.id));
+    const doc = parser.parseFromString(`<div id="c">${page.canvas || ''}</div>`, 'text/html');
+    doc.querySelectorAll('.section-block').forEach(sec => {
+      const fromRemote = !localSecs.has(sec.id) || choices[`${page.id}::${sec.id}`] === 'theirs';
+      if (!fromRemote || !sec.dataset.refLinks) return;
+      sec.dataset.refLinks = sec.dataset.refLinks.split(',').map(tok => {
+        const [id, ...rest] = tok.trim().split(':');
+        return [renamed.get(id) || id, ...rest].join(':');
+      }).join(',');
+    });
+    return doc.getElementById('c').innerHTML;
+  }
+  /* 외부화된 항목은 goya-asset://L 이다. 파일은 복제가 옮겼으니 src 도 M 으로 — 안 바꾸면 L 을 지울 때 scratch-missing 이 된다. */
+  async function _importMergedScratch(newId, localId, plan) {
     const from = `goya-asset://${localId}/`, to = `goya-asset://${newId}/`;
     const reSrc = it => (typeof it.src === 'string' && it.src.startsWith(from) ? { ...it, src: to + it.src.slice(from.length) } : it);
-    await window._scratchImportAll?.(newId, [...byPage].map(([pageId, items]) => ({ pageId, items: items.map(reSrc) })));
+    await window._scratchImportAll?.(newId, plan.map(({ pageId, items }) => ({ pageId, items: items.map(reSrc) })));
   }
 
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -131,9 +164,12 @@
       /* id 를 ...parsed 에서 안 쓴다 — applyResolve 는 local(id·name 있음)을 복사한다. 새 id 는 복제 길이 정한다(S3 market). */
       const proj = { ...parsed, name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
+      let plan = null;
+      try { plan = await _planMergedScratch(proj, local, choices, meta.scratch); }
+      catch (e) { console.warn('[market] 머지본 스크래치 계획 실패:', e.message); }
       const saved = await saveFn(proj);
-      if (saved?.newProjectId) {
-        try { await _copyMergedScratch(saved.newProjectId, local.id, (proj.pages || []).map(p => p.id), meta.scratch); }
+      if (saved?.newProjectId && plan) {
+        try { await _importMergedScratch(saved.newProjectId, local.id, plan); }
         catch (e) { console.warn('[market] 머지본 스크래치 복사 실패:', e.message); }
       }
       ov.remove();
