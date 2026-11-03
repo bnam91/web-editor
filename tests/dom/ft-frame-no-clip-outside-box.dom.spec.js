@@ -77,3 +77,10 @@ test('F3 음성 — 둥근 프레임·「내용 자르기」 켬·자유변형 �
   const plain = await page.evaluate(() => { const b = document.createElement('div'); b.className = 'frame-block'; b.dataset.textFrame = 'true'; document.querySelector('#canvas .section-inner').appendChild(b); const v = getComputedStyle(b).overflow; b.remove(); return v; });
   expect(plain).toBe('hidden');
 });
+
+test('F4 「내용 자르기」 끔 — 자유변형 프레임은 그대로 안 자른다', async ({ page }) => {
+  await bootApp(page);
+  await scene(page, OUT_LEFT);
+  await page.evaluate(() => { document.getElementById('p1').closest('.frame-block[data-text-frame]').dataset.clipContent = 'false'; });
+  expect((await read(page)).ov).toBe('visible');
+});
