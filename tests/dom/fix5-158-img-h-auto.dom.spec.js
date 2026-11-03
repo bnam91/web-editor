@@ -31,12 +31,17 @@ const lineOf = (page, li) => page.evaluate((li) => window.getGridModel(document.
 /* 진짜 마우스로 «블럭 → 줄» 2단 선택(laurel-lines.dom.spec.js pickLine 과 같은 손) — 기다림은 전부 조건.
  *   누르는 점이 그 줄 위인지 먼저 단언 · 첫 클릭 뒤 «블럭 선택됨»을 기다린 다음 둘째 클릭 → 이미지 절이 선다. */
 async function selectLine(page, sel, blockSel = '#gG') {
-  const p = await waitStableRect(page, sel);
-  const hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); const w = document.querySelector(s); return !!(e && w && (e === w || w.contains(e))); }, [p.cx, p.cy, sel]);
-  expect(hit, `전제 — 누르는 점이 ${sel} 위`).toBe(true);
+  const pointOn = async () => {
+    const p = await waitStableRect(page, sel);
+    const hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); const w = document.querySelector(s); return !!(e && w && (e === w || w.contains(e))); }, [p.cx, p.cy, sel]);
+    expect(hit, `전제 — 누르는 점이 ${sel} 위`).toBe(true);
+    return p;
+  };
+  let p = await pointOn();
   if (!(await page.evaluate((b) => document.querySelector(b).classList.contains('selected'), blockSel))) {
     await page.mouse.click(p.cx, p.cy);
     await page.waitForFunction((b) => document.querySelector(b).classList.contains('selected'), blockSel, { timeout: 4000 });
+    p = await pointOn();   // 첫 클릭 사이에 줄 자리가 바뀌면(laurel 그림 26↔64) 옛 점은 다른 줄을 누른다 ⇒ 다시 읽는다
   }
   await page.mouse.click(p.cx, p.cy);
   await page.waitForFunction(() => !!document.getElementById('grd-img-height'), null, { timeout: 4000 });
