@@ -1,6 +1,6 @@
 /* free-nested-frame-drop — 자유 프레임 R 안 자식 프레임은 놓는 자리다. 겹쳐서 R 이 자유로 남은 장면에서 스택 A 안 블럭을 끌어도 R 로 안 빠진다(S6 챗).
  * 칸: 종류 넷 × 변환 직후·다시 연 판 × 제자리 근처(A)·B 로(B 안). 음성: 안 겹쳐 R 도 스택이면 그대로 · 묶음 안 자식 프레임은 놓는 자리가 안 된다.
- * 양성대조: bindFrameDropZone 의 absolute 갈래 묶기를 빼면 8+8 칸 빨강(블럭이 R 로 absolute), 음성 초록. 장면 준비만 evaluate — 고르기·끌기는 진짜 마우스. */
+ * 양성대조: bindFrameDropZone 의 absolute 갈래 묶기를 빼면 8+8 칸 빨강(블럭이 R 로 absolute), 음성 초록. 조커 칸은 조커 갈래의 bindPlacementDrag 를 빼면 빨강. 장면 준비만 evaluate — 고르기·끌기는 진짜 마우스. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -55,6 +55,43 @@ for (const [name, add] of KINDS) for (const opened of [false, true]) {
     expect(s.errs, s.errs.join(' | ')).toEqual([]);
   });
 }
+/* 조커는 끌기 묶기 전에 돌아가 흐름에서 HTML5 끌기가 없었다 — 블럭은 그대로고 그릇 A 가 끌렸다 */
+const JOKER = { sel: '.joker-block', fn: 'addJokerBlock' };
+for (const opened of [false, true]) {
+  const label = `조커 ${opened ? '다시 연 판' : '변환 직후'}`;
+  test(`${label} — 제자리 근처면 A, draggable 이 산다`, async ({ page }) => {
+    const s = await scene(page, JOKER); if (opened) { await reopen(page); await raf(page); }
+    expect(await pick(page), '[전제] 고르기').toBe(true);
+    expect(await page.evaluate(() => document.querySelector('#canvas [data-mk]').getAttribute('draggable'))).toBe('true');
+    const [x, y] = await spot(page); const a = await frameBox(page, s.A);
+    await drag(page, x, y, Math.min(x + 40, a.r - 4), Math.min(y + 30, a.b - 14));
+    const m = await mk(page);
+    expect(m.n).toBe(1); expect(m.par).toBe(s.A); expect(m.pos).not.toBe('absolute');
+    expect(s.errs, s.errs.join(' | ')).toEqual([]);
+  });
+  test(`${label} — B 로 끌면 B 안에 들어간다`, async ({ page }) => {
+    const s = await scene(page, JOKER); if (opened) { await reopen(page); await raf(page); }
+    expect(await pick(page), '[전제] 고르기').toBe(true);
+    const [x, y] = await spot(page); const b = await frameBox(page, s.B), r = await frameBox(page, s.R);
+    await drag(page, x, y, (b.l + b.r) / 2, Math.min(b.b, r.b) - 10);
+    const m = await mk(page);
+    expect(m.n).toBe(1); expect(m.par).toBe(s.B);
+    expect(s.errs, s.errs.join(' | ')).toEqual([]);
+  });
+}
+test('음성 — 자유 프레임 안 absolute 조커는 그대로 좌표로 끌린다', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1400 }); const errs = await bootApp(page);
+  const id = await page.evaluate(async (FR) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.selectSection(sec); window.addFrameBlock(); const f = sec.querySelector(FR); window.updateFrameBlock(f.id, { width: 800, height: 400 }); window._activeFrame = f; window.addJokerBlock(); const j = f.querySelector('.joker-block'); j.dataset.mk = '1'; window.deselectAll(); window._activeFrame = null; return f.id; }, FR);
+  await raf(page);
+  expect(await pick(page), '[전제] 고르기').toBe(true);
+  expect(await page.evaluate(() => document.querySelector('#canvas [data-mk]').getAttribute('draggable')), '좌표 끌기라 HTML5 는 꺼져 있다').not.toBe('true');
+  const before = await mk(page); const fr0 = await frameBox(page, id);
+  await drag(page, before.x, before.y, before.x + 40, before.y + 30);
+  const after = await mk(page); const fr1 = await frameBox(page, id);
+  expect([Math.round(after.x - before.x), Math.round(after.y - before.y)], '블럭이 움직인다').toEqual([40, 30]);
+  expect([fr1.l, fr1.t], '프레임은 그대로').toEqual([fr0.l, fr0.t]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 test('음성 — 안 겹쳐 R 도 스택이면 제자리는 A, B 로 끌면 B 안', async ({ page }) => {
   const s = await scene(page, KINDS[0][1], { overlap: false });
   expect((await frameBox(page, s.R)).free, '[전제] R 도 스택').not.toBe('true');

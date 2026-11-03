@@ -1302,6 +1302,7 @@ function bindBlock(block) {
       document.addEventListener('dragend', onUp);
     });
 
+    bindPlacementDrag(block.closest('.row') || block, block);   // 스택(흐름)이 된 조커는 위 좌표 끌기를 안 탄다 — 안 걸면 그릇 프레임이 대신 끌렸다
     return; // 편집 불가 — 이벤트 바인딩 여기서 종료
   }
 
