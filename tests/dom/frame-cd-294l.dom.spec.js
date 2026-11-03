@@ -59,7 +59,6 @@ test('D-회전: 90도 돈 프레임 안 G 를 오른쪽 끝에서 잡아 끌어�
 test('음성: 끌고 놓은 다음의 진짜 클릭은 삼키지 않는다 — 곧바로 다른 프레임을 누르면 그쪽이 골라진다', async ({ page }) => {
   const ids = await scene(page); await rotateA(page, ids, 90); await pickG(page, ids);
   const p = await pointOn(page, ids.G, 0.85, 0.5); await dragFrom(page, p);
-  await page.waitForTimeout(200);
   const q = await J.ownPoint(page, ids.R); await page.mouse.click(q[0], q[1]); await J.settle(page);
   expect(await isSel(page, ids.R)).toBe(true);
 });

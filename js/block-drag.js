@@ -3480,7 +3480,7 @@ function bindFrameDropZone(ss) {
              click 은 지금 ss 를 고르는 일도 하므로(눌렀을 때 부모도 selected) 삼키지 않고 ss 로 돌린다. ss 안에서 난 click 은 그대로 둔다. */
           const toSelf = (ce) => { if (ss.contains(ce.target)) return; ce.stopPropagation(); ce.preventDefault(); document.removeEventListener('click', toSelf, true); ss.click(); };
           document.addEventListener('click', toSelf, true);
-          setTimeout(() => document.removeEventListener('click', toSelf, true), 120);
+          setTimeout(() => document.removeEventListener('click', toSelf, true), 0); // 합성 click 은 mouseup 과 같은 입력 처리 안에서 난다 ⇒ 다음 태스크면 그 뒤의 진짜 클릭은 안 건드린다
         }
       };
 
