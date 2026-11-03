@@ -4497,9 +4497,11 @@ function moveSelectedBlocks(direction) {
   const container = units[0].parentElement;
   if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시
 
-  // 컨테이너의 직속 자식(row/gap-block)만 포함하는 목록
+  // 컨테이너의 직속 자식(row/gap-block/흐름 프레임)만 포함하는 목록
+  // ★J4468B — frame-block 이 빠져 행이 위아래 프레임을 한 번에 건너뛰었다(앱 ×3). 떠 있는 프레임은 흐름 형제가 아니다
   const containerItems = [...container.children].filter(c =>
     c.classList.contains('row') || c.classList.contains('gap-block')
+    || (c.classList.contains('frame-block') && c.style.position !== 'absolute')
   );
 
   // DOM 순서대로 정렬
