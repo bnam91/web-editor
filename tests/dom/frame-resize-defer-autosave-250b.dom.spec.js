@@ -30,7 +30,7 @@ async function boot(page) {
   await page.evaluate(() => window.addSection());
   const id = await page.evaluate(() => { const sec = document.querySelector('#canvas > .section-block'); window.deselectAll(); window.selectSection(sec); window._activeFrame = null; window.addFrameBlock(); const f = sec.querySelector('.frame-block:not([data-text-frame])'); window.deselectAll(); f._layerItem?.click(); if (!f.classList.contains('selected')) window.selectBlock(f.id); f.scrollIntoView({ block: 'center' }); return f.id; });
   await page.waitForSelector(SEL, { state: 'attached', timeout: 10000 });
-  await page.waitForTimeout(2200);   // 장면 세우며 걸린 저장이 끝나게
+  await page.waitForFunction(() => !window.hasUnsavedChanges(), null, { timeout: 10000 });   // 장면 세우며 걸린 저장이 끝나게
   await page.evaluate((pid) => { window.__saves = []; const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === `web-editor-autosave__${pid}`) window.__saves.push({ t: performance.now(), v: String(v) }); return o.call(this, k, v); }; }, PID);
   return { errs, id };
 }
@@ -42,12 +42,14 @@ const widthOf = (page, id) => page.evaluate((id) => document.getElementById(id).
 test('R1 ★놓지 않고 2.2초 멈춰도 끌기 안에서 안 쓴다 · 놓으면 새 크기로 한 번 쓴다', async ({ page }) => {
   const { errs, id } = await boot(page);
   const h = await handle(page);
+  await page.clock.install();   // 1.5s 디바운스를 실제로 안 기다리고 넘긴다
   await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x - 40, h.y + 30, { steps: 4 });
-  await page.waitForTimeout(2200);
+  await page.clock.runFor(2200);
   expect(await saves(page), '끌기 안 쓰기').toBe(0);
   expect((await state(page)).deferred).toBe(true);
   await page.mouse.up();
   expect((await state(page)).deferred).toBe(false);
+  await page.clock.runFor(2200);
   await expect.poll(() => saves(page), { timeout: 4000 }).toBeGreaterThan(0);
   const w = await widthOf(page, id);
   expect(await page.evaluate(([id, w]) => { const l = window.__saves.at(-1).v; return l.includes(id) && l.includes(`data-width=\\"${w}\\"`) || l.includes(`data-width="${w}"`); }, [id, w])).toBe(true);
