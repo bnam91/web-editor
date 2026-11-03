@@ -168,3 +168,13 @@ test('linkDy: 머지본은 살리고, 받기는 그대로 뺀다', async ({ page
   const p = await saved(page);
   await expect.poll(() => dy(p.id)).toEqual({ s_p: undefined });
 });
+test('받기를 두 번 눌러도 받은본은 하나다, 끝나면 단추가 다시 눌린다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  const b = await page.locator('.market-pull-btn').first().boundingBox();
+  await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+  await saved(page);
+  await expect.poll(() => page.evaluate(() => document.querySelector('.market-pull-btn').disabled)).toBe(false);
+  expect(await page.evaluate(() => window.__saved.length)).toBe(1);
+  await page.locator('.market-pull-btn').first().click();
+  await expect.poll(() => page.evaluate(() => window.__saved.length)).toBe(2);
+});

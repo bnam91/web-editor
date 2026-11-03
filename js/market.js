@@ -249,7 +249,11 @@
             </div>`).join('')}
         </div>`).join('');
       listEl.querySelectorAll('.market-pull-btn').forEach(b => {
-        b.addEventListener('click', () => pullProject(b.dataset.acc, b.dataset.id, b.dataset.name));
+        b.addEventListener('click', async () => {
+          if (b.disabled) return;
+          b.disabled = true;   // 두 번 누르면 받은본이 둘 생겼다(S3 market4, 머지 적용 단추와 같은 꼴)
+          try { await pullProject(b.dataset.acc, b.dataset.id, b.dataset.name); } finally { b.disabled = false; }
+        });
       });
       listEl.querySelectorAll('.market-merge-btn').forEach(b => {
         b.addEventListener('click', () => openResolveModal(b.dataset.acc, b.dataset.id, b.dataset.name, b.dataset.local));
