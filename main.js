@@ -3088,13 +3088,14 @@ async function _renameProjectImpl({ projectId, name } = {}) {
       return { ok: false, error: `invalid projectId: ${projectId}`, code: 'not_proj' };
     const nm = (name == null ? '' : String(name)).trim();
     if (!nm) return { ok: false, error: 'name 이 비었다(공백만도 안 된다)', code: 'invalid' };
-    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
     const jsonPath = _resolveProjectJsonPath(projectId);
     if (!jsonPath || !fs.existsSync(jsonPath))
       return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
     const proj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     const before = proj.name;
     if (before === nm) return { ok: true, projectId, name: nm, changed: false, note: '이미 그 이름이다' };
+    /* ★340 — 길이는 «같은 이름» 다음에 잰다: 옛 100자 초과 이름은 눌렀다 나가기만 해도 실패 알림이 떴다. */
+    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
     proj.name = nm;
     proj.updatedAt = new Date().toISOString();
     proj[Symbol.for('goditor.renameIntent')] = true;   // ★340 A — 이 저장만 이름을 바꿀 수 있다(_guardProjectName)

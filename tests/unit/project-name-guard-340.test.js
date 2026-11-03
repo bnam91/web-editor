@@ -76,3 +76,23 @@ test('복원(안 열림) — 옛 이름이 든 스냅샷으로 되돌려도 지�
   assert.strictEqual(d.name, '지금이름', '★복원이 이름을 되돌렸다');
   assert.ok(JSON.stringify(d.pages).includes('old'), '★내용이 안 되돌아갔다');
 });
+
+test('100자 초과 — 그대로 두면 통과 · 다른 긴 이름은 거절 · 이름 안 바뀜', async () => {
+  const id = 'proj_1787800000003';
+  const long = '가'.repeat(120);
+  await H.invoke('projects:save', proj(id, long, 's1'));
+  const same = await H.invoke('projects:rename', { projectId: id, name: long });
+  assert.strictEqual(same.ok, true, '★눌렀다 나가기만 했는데 실패했다');
+  assert.strictEqual(same.changed, false);
+  const other = await H.invoke('projects:rename', { projectId: id, name: '나'.repeat(101) });
+  assert.strictEqual(other.ok, false);
+  assert.strictEqual(other.code, 'invalid');
+  assert.strictEqual(readProj(id).name, long);
+});
+test('[음성] 100자 이름은 받는다', async () => {
+  const id = 'proj_1787800000004';
+  await H.invoke('projects:save', proj(id, '짧음', 's1'));
+  const r = await H.invoke('projects:rename', { projectId: id, name: '다'.repeat(100) });
+  assert.strictEqual(r.ok, true);
+});
+
