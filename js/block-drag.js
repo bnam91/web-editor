@@ -3525,7 +3525,12 @@ function bindFrameDropZone(ss) {
   };
   ss._bindAbsCellDrag = _bindAbsCellDrag;
   _bindAbsCellDrag();
-  if (ss.style.position === 'absolute') return; // absolute 셀은 drop zone 바인딩 불필요
+  if (ss.style.position === 'absolute') {
+    /* 자유 프레임 안 자식 프레임은 놓는 자리다 — 없으면 그 안에 놓은 블럭이 부모로 올라가 맨 아래에 absolute 로 빠진다(S6 챗). 묶음·오버레이는 칸이 아니니 그대로 둔다. */
+    const _par = ss.parentElement;
+    if (_par?.classList.contains('frame-block') && _par.dataset.group !== 'true' && ss.dataset.group !== 'true' && ss.dataset.overlayBlock !== 'true') _bindFrameFlowDrop(ss);
+    return;
+  }
 
   // 프레임 자체 드래그 — 프레임이 selected 상태에서 드래그 시 section-inner 내 순서 변경
   _bindFrameOwnDrag(ss);
