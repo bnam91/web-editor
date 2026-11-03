@@ -22,11 +22,7 @@ import { isBuzzFrame, buzzIconSvg } from '../blocks/buzz-mark.js';   /* 버즈(1
 function makeIndents(depth) {
   const wrap = document.createElement('span');
   wrap.className = 'layer-indents';
-  for (let i = 0; i < depth; i++) {
-    const s = document.createElement('span');
-    s.className = 'layer-indent';
-    wrap.appendChild(s);
-  }
+  wrap.style.setProperty('--depth', depth);   // ★250 ㉠ — 칸마다 span 을 두면 깊은 트리에서 패널 노드가 깊이×행으로 는다. 그림은 CSS 한 벌.
   return wrap;
 }
 const layerIcons = {
