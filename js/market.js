@@ -164,16 +164,18 @@
       /* id 를 ...parsed 에서 안 쓴다 — applyResolve 는 local(id·name 있음)을 복사한다. 새 id 는 복제 길이 정한다(S3 market). */
       const proj = { ...parsed, name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };
-      let plan = null;
+      let plan = null, scratchFailed = false;
       try { plan = await _planMergedScratch(proj, local, choices, meta.scratch); }
-      catch (e) { console.warn('[market] 머지본 스크래치 계획 실패:', e.message); }
+      catch (e) { scratchFailed = true; console.warn('[market] 머지본 스크래치 계획 실패:', e.message); }
       const saved = await saveFn(proj);
       if (saved?.newProjectId && plan) {
         try { await _importMergedScratch(saved.newProjectId, local.id, plan); }
-        catch (e) { console.warn('[market] 머지본 스크래치 복사 실패:', e.message); }
+        catch (e) { scratchFailed = true; console.warn('[market] 머지본 스크래치 복사 실패:', e.message); }
       }
       ov.remove();
-      _toast(saved?.ok !== false ? `✅ 머지 완료 — 홈에서 "${proj.name}" 열기` : '❌ 저장 실패');
+      if (saved?.ok === false) _toast('❌ 저장 실패');
+      else if (scratchFailed) _toast(`⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기`);
+      else _toast(`✅ 머지 완료 — 홈에서 "${proj.name}" 열기`);
     };
     return ov;
   }

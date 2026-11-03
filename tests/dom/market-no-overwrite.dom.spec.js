@@ -104,3 +104,20 @@ test('머지본 스크래치: 외부화된 항목의 src 는 머지본을 가리
   await expect.poll(() => src('proj_2000000000002')).toBe('goya-asset://proj_2000000000002/s.png');
   expect(await src(LOCAL)).toBe(`goya-asset://${LOCAL}/s.png`);
 });
+const toasts = (page) => page.evaluate(() => { window.__toasts = []; const o = window.showToast; window.showToast = (t, ...a) => { window.__toasts.push(String(t)); return o?.(t, ...a); }; });
+const finals = (page) => page.evaluate(() => window.__toasts.filter((t) => !t.startsWith('⏳')));
+test('스크래치를 못 옮기면 성공 토스트 대신 알린다, 머지본은 저장된다', async ({ page }) => {
+  await open(page, data('원격 글')); await toasts(page);
+  await page.evaluate(() => { window._scratchExportAll = async () => { throw new Error('대역 실패'); }; });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['⚠️ 머지 완료, 스크래치는 못 옮겼습니다 — 홈에서 "원격 이름 (머지)" 열기']);
+});
+test('음성: 스크래치가 잘 옮겨지면 성공 토스트다', async ({ page }) => {
+  await open(page, data('원격 글')); await toasts(page);
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  await expect.poll(() => finals(page)).toEqual(['✅ 머지 완료 — 홈에서 "원격 이름 (머지)" 열기']);
+});
