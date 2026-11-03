@@ -92,7 +92,8 @@ function _analyzeFreeLayoutChildren(ss) {
   });
   const rows = [];
   for (const it of [...items].sort((a, b) => a.top - b.top)) {
-    const row = rows.find(r => it.top < r.maxBottom && it.bottom > r.minTop);
+    /* 1px 겹침은 나란함이 아니다 — 소수 자리(57.59)를 정수로 읽으면 위 자식 밑변 58 · 아래 자식 위 57 로 겹쳐 읽혀, 간격 없이 붙은 자식이 왕복에서 «나란히» 로 막혔다 */
+    const row = rows.find(r => it.top < r.maxBottom - 1 && it.bottom > r.minTop + 1);
     if (row) {
       row.items.push(it);
       row.maxBottom = Math.max(row.maxBottom, it.bottom);

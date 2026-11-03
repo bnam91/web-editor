@@ -1,6 +1,6 @@
 /* frame-stack-to-free-296 — 현빈 0.9.10 FRAME-STACK-TO-FREE-NO-WAY-BACK-01: stack → free (피그마 Remove auto layout). 자식이 지금 자리·크기 그대로 좌표로 고정된다.
  * 칸: F1 자리·크기·프레임·이웃 불변 · 투명 간격 블럭 걷힘 · 패널 줄 F1b 소수 자리 그대로 F2 ⌘Z 한 번·⌘⇧Z F3 안쪽 프레임 모드 그대로(깊이 3) F4 줌 40 도 같다
- *     F5 끌기가 좌표로 된다 F6 free→stack→free 왕복 — 옛 free 좌표 안 되살림 · 자리 유지 F7 다시 묶어도(rebindAll) 유지 N1 [음성] 이웃·버즈 Layout 무접촉 N2 패딩 0 N3 옛 저장본 꼴 N4 free 에서 바꾼 폭
+ *     F5 끌기가 좌표로 된다 F6 free→stack→free 왕복 — 옛 free 좌표 안 되살림 · 자리 유지 F7 다시 묶어도(rebindAll) 유지 N1 [음성] 이웃·버즈 Layout 무접촉 N2 패딩 0 N3 옛 저장본 꼴 N4 free 에서 바꾼 폭 N5 정말 겹친 자식
  * 양성대조: _convertStackToFree 를 걷으면(free 단추 없음) F1~F7 빨강 · N1 초록. F8 은 그리드 폭 줄을, F9·F10 은 transform 푸는 줄을 걷으면 빨강. 장면 준비만 evaluate — 고르기·단추·끌기·키는 진짜. 자리는 offset(레이아웃 px)으로 재 줌을 안 탄다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -181,6 +181,26 @@ test('F13 ⌘G 틀 100% — 도형 80 · 패딩 50 에서 폭이 안 풀린다(�
   await padTo(page, 40); await expect.poll(() => widthOf(page, a), '패딩 40').toBe(20);
   await padTo(page, 50); await expect.poll(() => widthOf(page, a), '패딩 50').toBe(20);
   await padTo(page, 0); await expect.poll(() => widthOf(page, a), '패딩 0').toBe(80);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+/* 간격 없이 붙은 자식 — 높이가 소수인 글자 바로 아래 프레임. stack→free 뒤 자리 그대로 stack 으로 돌아온다. */
+const adjScene = async (page, side) => { await page.setViewportSize({ width: 1500, height: 1400 }); const errs = []; (await bootApp(page)).forEach((e) => errs.push(e));
+  const r = await page.evaluate(async (side) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); const FR = '.frame-block:not([data-text-frame])';
+    const within = (par, fn, sel) => { window.deselectAll(); window.selectSection(sec); window._activeFrame = par; const b = new Set(sec.querySelectorAll(sel)); fn(); const e = [...sec.querySelectorAll(sel)].find((x) => !b.has(x)); window._activeFrame = null; return e; };
+    const root = within(null, () => window.addFrameBlock({ fullWidth: true }), FR); const t = within(root, () => window.addTextBlock('body', { content: '글자' }), '.text-block').closest('.frame-block[data-text-frame]'); const k = within(root, () => window.addFrameBlock({ fullWidth: false }), FR); window.updateFrameBlock(k.id, { width: 300, height: 60 });
+    window.deselectAll(); window.clearHistory?.(); root.scrollIntoView({ block: 'center' }); return { root: root.id, t: t.id, k: k.id }; }, side);
+  await pickRoot(page, r.root); return { errs, ...r }; };
+test('F14 간격 없이 붙은 자식 — 왕복이 «나란히» 로 안 막힌다 · 폭·순서 그대로', async ({ page }) => {
+  const { errs, root, t, k } = await adjScene(page); const dialogs = []; page.on('dialog', (d) => { dialogs.push(d.message()); d.dismiss(); });
+  const s0 = await snap(page, root); await trip(page); expect(dialogs).toEqual([]); const s1 = await snap(page, root); expect(s1.mode).toBe('stack'); sameSpots(s0, s1);
+  expect(await page.evaluate(([a, b]) => document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & 4, [t, k]), '순서').toBe(4);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('N5 [음성] 정말 겹친 자식(2px 이상)은 여전히 나란함 — alert · free 그대로', async ({ page }) => {
+  const { errs, root, k } = await adjScene(page); const dialogs = []; page.on('dialog', (d) => { dialogs.push(d.message()); d.dismiss(); });
+  await toFree(page); await page.evaluate((id) => { const e = document.getElementById(id); e.style.top = (parseFloat(e.style.top) - 2) + 'px'; }, k);
+  await page.locator('#ss-to-stack-btn').click(); await expect.poll(() => dialogs.length, 'alert').toBe(1); expect(dialogs[0]).toContain('나란히');
+  expect((await snap(page, root)).mode).toBe('true');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('N1 [음성] free 프레임은 stack 단추 그대로 · free 단추 없음', async ({ page }) => {
