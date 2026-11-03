@@ -242,7 +242,8 @@ test('S6 범위 밖 스탑(-40%·130%, 캔버스 자유 끝점)을 피커가 잘
     const t = document.querySelector('.goya-cp-popover [data-el="gradType"]');
     t.dispatchEvent(new Event('change', { bubbles: true }));   // 값은 그대로(linear) — 편집 이벤트로 재내보내기만 유발
   });
-  await page.waitForTimeout(60);
+  /* 재내보내기는 다음 틱에 온다(×9 잰 값 17~123ms). 고정 60ms 가 짧았다 ⇒ 값이 바뀔 때까지 기다린다. 끝내 안 바뀌면 아래 단언이 빨강이다. */
+  await page.waitForFunction((b) => document.getElementById('shp').dataset.shapeColor !== b, before, { timeout: 3000 }).catch(() => {});
   const css = await page.evaluate(() => document.getElementById('shp').dataset.shapeColor);
   expect(css).toBe('linear-gradient(90deg, #ff0000 -40%, #0000ff 130%)');
   expect(errs).toEqual([]);
