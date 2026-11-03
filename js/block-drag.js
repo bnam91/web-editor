@@ -948,12 +948,17 @@ function bindBlock(block) {
       // 커서 화면 좌표 대신 요소 중심의 캔버스 좌표로 판단 — scale 오탐 방지
       if (_dragOutParentFrame && _dragOutParentSection && multiPeers.length === 0) {
         const DRAGOUT_MARGIN = 60; // 캔버스 px — 의도치 않은 drag-out 방지
-        const elCX = rawLeft + dragEl.offsetWidth  / 2;
-        const elCY = rawTop  + dragEl.offsetHeight / 2;
+        const elW  = dragEl.offsetWidth, elH = dragEl.offsetHeight;
+        const elCX = rawLeft + elW / 2;
+        const elCY = rawTop  + elH / 2;
         const fw   = _dragOutParentFrame.offsetWidth;
         const fh   = _dragOutParentFrame.offsetHeight;
-        const outside = elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
-                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN;
+        /* 프레임보다 큰 자식은 중심이 처음부터 프레임 끝에 있어(조커 860 ⊂ 프레임 450) 40px 만 끌어도 빠져 섹션 흐름에 놓였다 — 화면에선 손과 반대로 튄다(S3 B-9).
+           넘친 만큼 여유를 더한다. 프레임보다 작은 자식은 전과 같다. */
+        const mX = DRAGOUT_MARGIN + Math.max(0, elW - fw) / 2;
+        const mY = DRAGOUT_MARGIN + Math.max(0, elH - fh) / 2;
+        const outside = elCX < -mX || elCX > fw + mX ||
+                        elCY < -mY || elCY > fh + mY;
         if (outside) {
           draggedOutside = true;
           hideGuides();

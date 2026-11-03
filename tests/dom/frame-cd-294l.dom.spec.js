@@ -89,3 +89,38 @@ test('D-축소: 손잡이로 줄인 것은 ⌘Z 한 번에 돌아온다', async 
   await page.keyboard.press('Meta+z'); await J.settle(page);
   expect(await styleW(page, ids.A)).toBe('400px'); expect(await styleW(page, ids.G)).toBe('300px');
 });
+
+async function addJokerIn(page, ids) {
+  await page.evaluate((f) => { const sec = document.getElementById(f).closest('.section-block'); window.deselectAll(); window.selectSection(sec); window._activeFrame = document.getElementById(f); const b4 = new Set(document.querySelectorAll('.joker-block')); window.addJokerBlock(); const e = [...document.querySelectorAll('.joker-block')].find((x) => !b4.has(x)); e.dataset.jk = '1'; window.deselectAll(); window._activeFrame = null; e.scrollIntoView({ block: 'center' }); }, ids.G);
+  await J.settle(page);
+}
+const joker = (page) => page.evaluate((FR) => { const e = document.querySelector('[data-jk]'); const r = e.getBoundingClientRect(); const f = e.parentElement.closest(FR); const q = f.getBoundingClientRect(); return { par: f.id, sel: e.classList.contains('selected'), x: q.left + q.width / 2, y: q.top + q.height / 2, off: [e.dataset.offsetX, e.dataset.offsetY].map(Number), rx: r.left, ry: r.top }; }, FR);
+async function pickJoker(page) { for (let i = 0; i < 6; i++) { const w = await joker(page); if (w.sel) return w; await page.mouse.click(w.x, w.y); await J.settle(page); } return joker(page); }
+for (const [name, hx, hy] of [['오른쪽 아래', 40, 16], ['왼쪽 위', -40, -16], ['오른쪽 조금 더', 60, 20]]) {
+  test(`B-9 프레임보다 큰 조커를 ${name}로 끌면 손 쪽으로 가고 프레임에 남는다`, async ({ page }) => {
+    const ids = await scene(page); await addJokerIn(page, ids);
+    const a = await pickJoker(page); expect(a.sel, '[전제] 고름').toBe(true);
+    await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(a.x + hx, a.y + hy, { steps: 10 }); await J.settle(page); await page.mouse.up(); await J.settle(page);
+    const b = await joker(page);
+    expect(b.par).toBe(ids.G);
+    expect(Math.sign(b.off[0] - a.off[0])).toBe(Math.sign(hx)); expect(Math.sign(b.off[1] - a.off[1])).toBe(Math.sign(hy));
+    expect(Math.sign(b.rx - a.rx)).toBe(Math.sign(hx)); expect(Math.sign(b.ry - a.ry)).toBe(Math.sign(hy));
+  });
+}
+test('음성 B-9: 큰 조커도 정말 멀리 끌면 프레임에서 빠지고, 안 사라지며, ⌘Z 로 돌아온다', async ({ page }) => {
+  const ids = await scene(page); await addJokerIn(page, ids);
+  const a = await pickJoker(page); expect(a.sel, '[전제] 고름').toBe(true);
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(a.x + 300, a.y, { steps: 10 }); await J.settle(page); await page.mouse.up(); await J.settle(page);
+  const st = () => page.evaluate((FR) => { const l = document.querySelectorAll('[data-jk]'); return [l.length, l[0]?.parentElement.closest(FR)?.id || null]; }, FR);
+  expect(await st()).toEqual([1, null]);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await J.settle(page);
+  expect(await st()).toEqual([1, ids.G]);
+});
+test('음성 B-9: 프레임보다 작은 표는 전과 같이 멀리 끌면 프레임에서 빠진다', async ({ page }) => {
+  const ids = await scene(page);
+  await page.evaluate((f) => { const sec = document.getElementById(f).closest('.section-block'); window.deselectAll(); window.selectSection(sec); window._activeFrame = document.getElementById(f); const b4 = new Set(document.querySelectorAll('.table-block')); window.addTableBlock(); const e = [...document.querySelectorAll('.table-block')].find((x) => !b4.has(x)); e.dataset.jk = '1'; window.deselectAll(); window._activeFrame = null; e.scrollIntoView({ block: 'center' }); }, ids.G); await J.settle(page);
+  const a = await pickJoker(page); expect(a.sel, '[전제] 고름').toBe(true);
+  const p = await page.evaluate(() => { const r = document.querySelector('[data-jk]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.move(p[0], p[1]); await page.mouse.down(); await page.mouse.move(p[0] - 500, p[1] - 300, { steps: 14 }); await J.settle(page); await page.mouse.up(); await J.settle(page);
+  expect(await page.evaluate((FR) => document.querySelector('[data-jk]').parentElement.closest(FR)?.id || null, FR)).toBe(null);
+});
