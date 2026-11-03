@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { parseRatio, noticeRatioCoerced, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
@@ -711,6 +711,10 @@ ${blockHeaderHTML({
       return;
     }
     if (typeof window.updateTableBlock !== 'function') return;
+    /* 한 칸(0:1)은 병합이 아니라 정규화가 버린다 — 있던 병합이 말없이 풀리니 먼저 말한다(현빈 결정 11-03 ②). 지우는 동작은 그대로. 지우기 단추·빈 칸은 뜻이 분명해 말 없음. */
+    if (arr.some(([, n]) => n < 2) && JSON.parse(block.dataset.mergedHeaderCols || '[]').length) {
+      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 한 칸이라 병합이 아니에요 — 병합을 풀어요 · ⌘Z 로 되돌릴 수 있어요`);
+    }
     const res = window.updateTableBlock(block.id, { mergedHeaderCols: arr });
     if (res && res.ok === false) {
       // 사용자에게 알림(토스트 · 238·276) + 패널 재렌더로 입력값 원복
@@ -731,9 +735,14 @@ ${blockHeaderHTML({
   const ratioInput = document.getElementById('tbl-col-ratio');
   ratioInput?.addEventListener('change', e => {
     const raw = e.target.value;
+    const cols = _tblLogicalColCount(table);
+    if (raw.trim() && !parseRatioStrict(raw, cols)) {   // 거절 — 값·이력 그대로(현빈 결정 11-03)
+      noticeRatioRejected(raw, cols);
+      e.target.value = block.dataset.colWidths || curColRatio;
+      return;
+    }
     _applyColRatio(block, raw);
     e.target.value = block.dataset.colWidths || '';
-    noticeRatioCoerced(raw, e.target.value);
     window.pushHistory();
     window.scheduleAutoSave?.();
   });

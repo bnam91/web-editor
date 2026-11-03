@@ -18,11 +18,14 @@ export function parseRatio(raw, count) {
   return parts;
 }
 
-/* ★239 — parseRatio 는 못 읽는 조각을 버리고 1 로 채운다(abc → 1:1 · -1:2 → 2:1). 칸만 바뀌고 말이 없었다 ⇒ 바꿨으면 말한다. 빈 칸은 균등으로 돌리는 뜻이라 말 없음. */
-export function noticeRatioCoerced(raw, value) {
-  const t = String(raw ?? '').trim();
-  const typed = t.split(/[:,\s]+/).filter(Boolean).map(Number).join(':');
-  if (typed && typed !== value) window.showToast?.(`⚠️ 비율은 열 수만큼 0 보다 큰 숫자로 적어요 — 「${t.slice(0, 20)}」 를 「${value}」 로 맞췄어요`);
+/* 비율 칸 손입력 문(현빈 결정 11-03) — 열 수만큼 0 보다 큰 숫자가 아니면 null. 빈 칸은 부르는 쪽의 «균등» 뜻이라 여기 안 온다.
+   parseRatio 의 패딩·자름은 프로그램 길(패널 밖 호출)만 쓴다. */
+export function parseRatioStrict(raw, count) {
+  const parts = String(raw ?? '').trim().split(/[:,\s]+/).filter(Boolean).map(Number);
+  return parts.length === count && parts.every(n => Number.isFinite(n) && n > 0) ? parts : null;
+}
+export function noticeRatioRejected(raw, count) {
+  window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 쓸 수 없어요 — 0 보다 큰 숫자 ${count}개로 적어 주세요(예: ${Array(count).fill(1).join(':')}) · 이전 값으로 되돌렸어요`);
 }
 
 /**
