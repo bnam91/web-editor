@@ -1,6 +1,6 @@
-/* table-col-ratio-notice-239.dom.spec.js — 시트 239 ⒜ 「숫자 칸 회원이 아닌 비율 칸이 말없이 값을 고쳐 먹는다」의 자.
+/* table-col-ratio-notice-239.dom.spec.js — 시트 239 ⒜ · 비율 칸의 잘못된 입력은 거절하고 값을 지킨다(현빈 결정 11-03)의 자.
  * 칸 = #tbl-col-ratio(type=text · prop-number-commit-guard 회원 아님) · 고치는 자리 = js/props/prop-table.js 의 그 칸 change 처리기.
- * ⛔이 자가 안 재는 것: 칸 되돌리기(abc 가 있던 비율을 1:1 로 바꾸는 것은 그대로다 · 지디 물음) · 2 열 밖의 표.
+ * ⛔이 자가 안 재는 것: 2 열 밖의 표.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -22,12 +22,19 @@ const toast = (page) => page.evaluate(() => { const t = document.getElementById(
 const put = async (page, v) => { const i = page.locator('#tbl-col-ratio'); await i.click(); await i.press('ControlOrMeta+a'); if (v) await page.keyboard.type(v); else await page.keyboard.press('Backspace'); await page.keyboard.press('Tab'); };
 const ratio = (page) => page.evaluate(() => window.__t.dataset.colWidths ?? null);
 
-for (const [bad, want] of [['abc', '1:1'], ['-1:2', '2:1'], ['1:2:3', '1:2']]) {
-  test(`고쳐 먹으면(${bad} → ${want}) 말이 뜬다`, async ({ page }) => {
+const tip = (page) => page.evaluate(() => { const t = window.getHistoryTip(); return [t.pos, t.len]; });
+for (const bad of ['abc', '-1', '-1:2', '1:2:3', '4', '1e999']) {
+  test(`잘못된 입력(${bad})은 거절 — 값·칸·이력 그대로, 말한다`, async ({ page }) => {
     const errs = await setup(page);
+    await put(page, '3:1');
+    await expect.poll(() => ratio(page), { message: '[전제] 있던 비율' }).toBe('3:1');
+    await page.evaluate(() => document.getElementById('editor-toast')?.classList.remove('show'));
+    const t0 = await tip(page);
     await put(page, bad);
-    await expect.poll(() => ratio(page), { message: '[전제] 고쳐 먹었다' }).toBe(want);
-    await expect.poll(() => toast(page), { message: '값을 바꿨는데 말이 없다', timeout: 2500 }).toContain(`「${bad}」 를 「${want}」`);
+    await expect.poll(() => toast(page), { timeout: 2500 }).toContain(`「${bad}」 는 쓸 수 없어요`);
+    expect(await ratio(page)).toBe('3:1');
+    await expect(page.locator('#tbl-col-ratio')).toHaveValue('3:1');
+    expect(await tip(page)).toEqual(t0);
     expect(errs).toEqual([]);
   });
 }

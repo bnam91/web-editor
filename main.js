@@ -3162,15 +3162,7 @@ async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = 
 
     // 캔버스 HTML 안의 goya-asset://<oldId>/ → <newId>/ 재매핑 (asset은 하드링크로 공유되지만
     // URL의 projectId가 원본을 가리키면 프로토콜 핸들러가 원본 폴더를 읽음 → 신 id로 교정).
-    const oldUrlPrefix = `goya-asset://${sourceProjectId}/`;
-    const newUrlPrefix = `goya-asset://${newId}/`;
-    if (Array.isArray(dup.pages)) {
-      for (const pg of dup.pages) {
-        if (pg && typeof pg.canvas === 'string' && pg.canvas.includes(oldUrlPrefix)) {
-          pg.canvas = pg.canvas.split(oldUrlPrefix).join(newUrlPrefix);
-        }
-      }
-    }
+    require('./main/project-store/copy-urls').rewriteProjectCopyUrls(dup, sourceProjectId, newId);
 
     // 자산 폴더 복사 — tmp → rename으로 원자성
     // source 디렉터리는 항상 PROJECTS_DIR/<sourceProjectId>/ (claude-pm/images/assets 등은 이미 신 레이아웃)
@@ -4653,6 +4645,7 @@ app.whenReady().then(async () => {
       exportSections: _invokeRendererExport,
       historyTip: _invokeRendererHistoryTip,
       loadBlocked: _invokeRendererLoadBlocked,
+      waitSettled: _invokeRendererWaitSettled,
       historyHasSeq: _invokeRendererHistoryHasSeq,
       undoOnce: _invokeRendererUndoOnce,
       exportCollect: { begin: _dlBegin, settle: _dlSettle, end: _dlEnd },
@@ -5818,6 +5811,15 @@ async function _invokeRendererBuildBasicSection({ mainCopy = '', body = '', labe
 /* ── 히스토리 (2026-09-06) — MCP undo 판정용 ────────────────────────────────
  * ★withLive 는 «비싸다»(getSerializedCanvas). 편집 도구마다 부르는 «가벼운» 읽기와
  *   되돌리기 «직전» 한 번 부르는 «무거운» 읽기를 인자로 가른다. */
+/* MCP 줄이 다음 호출 전에 기다린다 — 끝 표본(js/insert-history.js restamp)과 같은 걸음(rAF 둘 + 틱 · 안 오면 120ms)이고 그보다 뒤에 걸려 그 뒤에 끝난다. */
+async function _invokeRendererWaitSettled() {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return false;
+  return await mainWindow.webContents.executeJavaScript(`new Promise((done) => {
+    const go = () => done(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(go, 0)));
+    setTimeout(go, 120);
+  })`, true);
+}
 async function _invokeRendererHistoryTip() {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   const js = `(() => { try {

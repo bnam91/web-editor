@@ -319,6 +319,17 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
     // 레이어 패널 드롭존 (Row/Gap 단위 재배치)
     // rAF throttle: getLayerDragAfterItem 내 getBoundingClientRect 호출 최적화 (DBG-11)
     let _layerDragRafId = null;
+    const _placeLayerLine = (clientY) => {
+      clearLayerIndicators();
+      /* 맨 끝이면 안내선도 끝 여백 앞에 — 놓으면 아래 insertIntoSec 이 여백 앞에 넣는다. 끝에 그리면 놓일 자리와 한 칸 어긋난다(S3 B-6). */
+      const _lastItem = children.lastElementChild;
+      const after = getLayerDragAfterItem(children, clientY)
+        || (_lastItem?._dragTarget?.classList?.contains('gap-block') ? _lastItem : null);
+      const indicator = document.createElement('div');
+      indicator.className = 'layer-drop-indicator';
+      if (after) children.insertBefore(indicator, after);
+      else children.appendChild(indicator);
+    };
     children.addEventListener('dragover', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -327,12 +338,7 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
       const clientY = e.clientY;
       _layerDragRafId = requestAnimationFrame(() => {
         _layerDragRafId = null;
-        clearLayerIndicators();
-        const after = getLayerDragAfterItem(children, clientY);
-        const indicator = document.createElement('div');
-        indicator.className = 'layer-drop-indicator';
-        if (after) children.insertBefore(indicator, after);
-        else children.appendChild(indicator);
+        _placeLayerLine(clientY);
       });
     });
     children.addEventListener('dragleave', e => {
@@ -343,6 +349,9 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
       e.stopPropagation();
       if (!window.layerDragSrc) return;
       const dragTarget = window.layerDragSrc._dragTarget;
+      /* 부하 때 rAF 전에 놓으면 안내선이 아직 없어 아래 insertIntoSec 이 끝 여백 뒤로 넣었다(S3 B-6 새 발견, 33 번 중 1 번). 놓는 자리로 지금 세운다. */
+      if (_layerDragRafId) { cancelAnimationFrame(_layerDragRafId); _layerDragRafId = null; }
+      if (!children.querySelector('.layer-drop-indicator')) _placeLayerLine(e.clientY);
       const indicator = children.querySelector('.layer-drop-indicator');
 
       /* ★「섹션의 끝」은 마지막 «직계» 갭이 아니라 마지막 «여백»이다.
@@ -569,6 +578,7 @@ function _buildLayerPanelTail(panel, collapsedSections) {
     delBtn.title = 'Variant 그룹 전체 삭제';
     delBtn.onclick = e => {
       e.stopPropagation();
+      if (secs.some(s => window.isSectionProtected?.(s))) { window.showToast?.('🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return; }
       if (window.pushHistory) window.pushHistory();
       secs.forEach(s => s.remove());
       if (window.deselectAll) window.deselectAll();
@@ -605,6 +615,7 @@ function _buildLayerPanelTail(panel, collapsedSections) {
         varDelBtn.onclick = e => {
           e.stopPropagation();
           if (secs.length <= 1) return; // 마지막 하나는 삭제 불가
+          if (window.isSectionProtected?.(s)) { window.showToast?.('🔒 보호된 섹션입니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return; }
           if (window.pushHistory) window.pushHistory();
           // 삭제 대상이 active이면 다른 variant를 active로 전환
           if (s.dataset.variationActive === '1') {

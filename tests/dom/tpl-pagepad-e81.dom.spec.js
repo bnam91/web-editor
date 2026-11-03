@@ -218,6 +218,8 @@ test('T6 «남 무변» — 블럭 길로 넣어도 다른 섹션(S3 · 일부�
   /* ★선택 표지(.selected)는 «남의 상태»가 아니라 편집 표시다 — 셋업이 S3 를 고른 채 찍으면 그것만으로 달라진다(첫 판 실측: bridge-block «selected» 하나). 고르기를 풀고, 비교에서도 뺀다. */
   await page.evaluate(() => window.deselectAll?.());
   const snap = () => page.evaluate(() => { const c = document.getElementById('eS3').cloneNode(true); c.classList.remove('selected'); c.querySelectorAll('.selected').forEach(x => x.classList.remove('selected')); return c.outerHTML; });
+  /* 높이 뱃지는 ResizeObserver → setTimeout(0) 뒤 따라온다. 그 틈에 찍으면 뱃지만 옛 값이라(40px↔130px, 높이는 이미 130) 넣기와 무관하게 빨강이다(실측 약 1/8). 따라잡은 뒤 찍는다. */
+  await page.waitForFunction(() => { const s = document.getElementById('eS3'); return s.querySelector('.section-height-badge')?.dataset.h === `${s.offsetHeight}px`; });
   const before = await snap();
   await ins(page, ids.bridge); await ins(page, ids.__sub);
   expect(await snap(), 'S3 무변').toBe(before);

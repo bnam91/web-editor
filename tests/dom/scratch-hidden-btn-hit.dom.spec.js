@@ -6,7 +6,7 @@
  * 변이(잰 값): CSS 되돌림 = H1·H2·H3·H6·H5 빨강 · H4 초록 | ✕ 의 hover auto 만 빼면 H6·H4·H5 빨강.
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 
 const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)))));
 
@@ -14,10 +14,12 @@ const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimation
 async function setup(page, w, dy = 0) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
+  // ★배율이 멎은 뒤에 스크롤한다 — 0.15초 전환 중 scrollIntoView 는 그 순간 배율로 자리를 셈해 A 가 왼쪽 패널 밑에 떨어진다(잰 값: 빨강의 맞은 것 = layers-section-body)
+  await page.evaluate(() => window.applyZoom(40));
+  await waitZoomSettled(page, 40);
   await page.evaluate(async ([w, dy]) => {
     const c = document.createElement('canvas'); c.width = 600; c.height = 400; c.getContext('2d').fillRect(0, 0, 600, 400);
     const src = c.toDataURL('image/png');
-    window.applyZoom(40);
     await window.initScratchPad('proj_hbh', window.state.currentPageId);
     await window._scratchAddAndSave(src, 1000, 100, 300, undefined, 'B');
     await window._scratchAddAndSave(src, 1300, 100 + dy, w, undefined, 'A');

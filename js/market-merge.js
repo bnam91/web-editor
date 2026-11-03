@@ -130,7 +130,8 @@
         if (c === 'both') { if (inL) out.push(lById[id].outerHTML); if (inR) out.push(_reId(rById[id].outerHTML, parser)); }
         else if (c === 'theirs' && inR) out.push(rById[id].outerHTML);
         else if (c === 'mine' && inL) out.push(lById[id].outerHTML);
-        else out.push((inL ? lById[id] : rById[id]).outerHTML);
+        /* 없는 쪽을 고른 것 = 새 섹션 무시(mine, 내게 없음)·지운 섹션 삭제(theirs, 원격에 없음) ⇒ 안 넣는다. 옛 판은 둘 다 남겼다(S3 market5 앱 값). */
+        else if (c !== 'mine' && c !== 'theirs') out.push((inL ? lById[id] : rById[id]).outerHTML);
       }
       base.canvas = out.join('');
       return base;
@@ -138,7 +139,23 @@
     return JSON.stringify(result);
   }
 
+  /* 같은 id 다른 그림의 원격 스크래치를 새 이름으로 달았을 때, 원격에서 온 섹션(원격 고름·새로 붙은 것·둘다의 사본)의 refLinks 토큰만 바꾼다. 받는 쪽: js/market.js _planMergedScratch */
+  function renameRemoteRefLinks(page, local, choices, renamed) {
+    const parser = new DOMParser();
+    const secsOf = html => [...parser.parseFromString(`<div id="c">${html || ''}</div>`, 'text/html').querySelectorAll('.section-block')];
+    const localSecs = new Set(secsOf((local.pages || []).find(p => p.id === page.id)?.canvas).map(s => s.id));
+    const doc = parser.parseFromString(`<div id="c">${page.canvas || ''}</div>`, 'text/html');
+    doc.querySelectorAll('.section-block').forEach(sec => {
+      const fromRemote = !localSecs.has(sec.id) || choices[`${page.id}::${sec.id}`] === 'theirs';
+      if (!fromRemote || !sec.dataset.refLinks) return;
+      sec.dataset.refLinks = sec.dataset.refLinks.split(',').map(tok => {
+        const [id, ...rest] = tok.trim().split(':');
+        return [renamed.get(id) || id, ...rest].join(':');
+      }).join(',');
+    });
+    return doc.getElementById('c').innerHTML;
+  }
   // ★hash 도 내보낸다 — 협업 동기화(js/collab/sync.js)가 «같은 해시»를 써야
   //   마켓 머지와 협업이 「바뀌었다」를 다르게 판정하지 않는다. 복붙 구현 금지.
-  window.marketMerge = { normSection, sectionMap, diffProjects, applyResolve, hash: _hash };
+  window.marketMerge = { normSection, sectionMap, diffProjects, applyResolve, renameRemoteRefLinks, hash: _hash };
 })();

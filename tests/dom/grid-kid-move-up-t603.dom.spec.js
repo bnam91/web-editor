@@ -10,7 +10,7 @@
  * 양성대조: GD1001_ROOT=<핀 d772f49e 사본> ⇒ O·X·Z 빨강 · P0 초록.
  * ⛔고정 대기 없음 — waitForFunction 만. ⛔앱 무접촉(_root-harness.bootApp). */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
@@ -25,6 +25,7 @@ async function setup(page) {
     window.deselectAll?.(); b.scrollIntoView({ block: 'center' });
   });
   await page.waitForFunction(() => window.__g.querySelectorAll('.grd-children > *').length === 2);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 보간 중에 재면 옛 배율 자리를 누른다(7차 ×6 값)
   return errs;
 }
 const st = (page) => page.evaluate(() => {

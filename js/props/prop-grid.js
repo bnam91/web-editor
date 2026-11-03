@@ -1,7 +1,7 @@
 /* ── Grid(다단) 블록 프로퍼티 패널 ──
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
-import { parseRatio, noticeRatioCoerced, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML,
+import { parseRatio, parseRatioStrict, noticeRatioRejected, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML,
   discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
@@ -3887,10 +3887,15 @@ ${_flattenRowHtml(rows, cols)}
     /* ★pushHistory 는 변경 «전»에. 뒤에 부르면 스냅샷이 «이미 바뀐 상태»라
      * 피커→비율 순서에서 undo 가 두 단계를 한꺼번에 되돌린다(적대검수 지적).
      * 이 레포엔 moveSection 에 같은 버그가 실재한다 — 새 코드에서 복제하지 않는다. */
-    window.pushHistory?.();
     const raw = e.target.value;
+    const cur = JSON.parse(block.dataset.cols || '[]');
+    if (raw.trim() && !parseRatioStrict(raw, cur.length)) {   // 거절 — 값·이력 그대로(현빈 결정 11-03)
+      noticeRatioRejected(raw, cur.length);
+      e.target.value = cur.map(c => c.width).join(':');
+      return;
+    }
+    window.pushHistory?.();
     _applyRatioInput(raw);
-    noticeRatioCoerced(raw, e.target.value);
     window.scheduleAutoSave?.();
   });
   document.getElementById('grd-col-ratio-reset')?.addEventListener('click', () => {

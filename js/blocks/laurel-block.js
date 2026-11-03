@@ -325,6 +325,21 @@ function renderLaurelBlock(block) {
   lnRemark(block);   // ★1013t1B2 — 다시 그리면 줄 표시가 지워진다 → 선택된 블럭이면 활성 줄 표시를 되붙인다(챗·비교와 같은 자리)
 }
 
+/* ★260 (현빈 결정 261103) — 겉 상자 높이 H 를 칸이 따른다: 줄 높이 합 + 행 간격 + 상자 패딩 = H 가 되게 칸끼리 비율을 지켜 늘이고 줄인다.
+ *   잎은 _renderLaurelCellHtml 이 height × 170/324 로 그리니 비율이 그대로 따라간다 · [20,600] = 패널·MCP 계약. */
+function fitLaurelCellsToBoxHeight(block, H) {
+  const cols = Math.max(1, parseInt(block.dataset.gridCols) || 1);
+  const cells = _readLaurelCells(block);
+  const hOf = (c) => (parseInt(c.height) > 0 ? parseInt(c.height) : 140);
+  let rowsSum = 0;
+  for (let i = 0; i < cells.length; i += cols) rowsSum += Math.max(...cells.slice(i, i + cols).map(hOf));
+  const rows = Math.ceil(cells.length / cols);
+  const cs = getComputedStyle(block);
+  const room = H - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0) - gridNumOr(parseInt(block.dataset.gridRowGap), 24) * (rows - 1);
+  block.dataset.cells = JSON.stringify(cells.map((c) => ({ ...c, height: Math.min(600, Math.max(20, Math.round(hOf(c) * room / rowsSum))) })));
+  renderLaurelBlock(block);
+}
+
 /* ══ ★1013t1B2 C5 캔버스 ＋ — 칸(월계관) 열·행 더하기 (결정 B2-1 · 그리드 「칸 삽입」 짝) ══════════════════════
  * ★꼴·자리·토큰 = 그리드 ＋ 그대로: 그리드 ＋ 층(#grd-plus-layer — #canvas «밖» · 저장·PNG·MCP 읽기에 안 샌다 · E65)에
  *   `.ln-add-btn[data-grd-add="col|row"]`(css/editor-blocks.css 의 같은 규칙이 원·＋ 글리프·기준점을 준다).
@@ -864,6 +879,7 @@ function updateLaurelBlock(blockId, partial = {}, opts = {}) {
 window.makeLaurelBlock     = makeLaurelBlock;
 window.addLaurelBlock      = addLaurelBlock;
 window.renderLaurelBlock   = renderLaurelBlock;
+window.fitLaurelCellsToBoxHeight = fitLaurelCellsToBoxHeight;
 window._readLaurelLines    = _readLaurelLines;
 window._readLaurelCells    = _readLaurelCells;
 window._renderLaurelCellHtml = _renderLaurelCellHtml;

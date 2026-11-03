@@ -89,11 +89,11 @@ test('죌 기준은 «부모»에서 찾는다 — 자기 자신이 자유배치
 test('두 축이 갈려 있다 — 들여놓기는 «키우고», 안에서 옮기기는 «죈다»', () => {
   const src = readSrc(REPO, 'js/block-drag.js');
   const move = stripAll(sliceAbsDrag());
-  const dropZone = stripAll(sliceBlock(src, 'function bindFrameDropZone(ss)',
-    'bindFrameDropZone 가 사라졌거나 서명이 바뀌었다'));
+  const dropZone = stripAll(sliceBlock(src, 'function _bindFrameFlowDrop(ss)',
+    '_bindFrameFlowDrop 가 사라졌거나 서명이 바뀌었다 — bindFrameDropZone 의 드롭 처리기가 옮겨 간 자리'));
 
   assert.ok(/\bgrowFrameToFitChildren\s*\(/.test(dropZone),
-    '들여놓는 자리(bindFrameDropZone)가 프레임을 안 키운다 — 1라운드 고침이 빠졌다');
+    '들여놓는 자리(_bindFrameFlowDrop)가 프레임을 안 키운다 — 1라운드 고침이 빠졌다');
   assert.ok(!/\bgrowFrameToFitChildren\s*\(/.test(move),
     '안에서 옮기는 자리가 프레임을 키운다 — 사용자가 핸들로 정한 크기를 드래그가 몰래 바꾼다');
   assert.ok(/\bclampChildIntoFrame\s*\(/.test(move),
