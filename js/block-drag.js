@@ -1099,6 +1099,24 @@ function bindBlock(block) {
       if (_lazyFlowTf) _lazyFlowTf.setAttribute('draggable', 'true');   // 끌지 않았다 — 누르기 전 그대로
       hideGuides();
 
+      /* 자유 프레임 위에 놓으면 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 끌어내기가 아니라 «그 프레임 안에 놓기»다 ⇒ 아래 if (moved) 의 죔·히스토리를 그대로 탄다.
+         shortcut: 회전한 프레임 안으로 놓기는 화면 좌표라 안 맞춘다, 회전 놓기 요구가 오면 measureLocalBasis 로 푼다. */
+      if (moved && draggedOutside && _outTarget?.dataset.freeLayout === 'true') {
+        const _sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
+        const _tr = _outTarget.getBoundingClientRect();
+        _outTarget.classList.remove('ss-drag-over');
+        clearDropIndicators();
+        _outTarget.appendChild(dragEl);
+        const _l = Math.round((_outAt[0] - _tr.left) / _sc - dragEl.offsetWidth / 2), _t = Math.round((_outAt[1] - _tr.top) / _sc - dragEl.offsetHeight / 2);
+        dragEl.style.position = 'absolute';
+        dragEl.style.left = `${_l}px`;
+        dragEl.style.top = `${_t}px`;
+        dragEl.dataset.offsetX = String(_l);
+        dragEl.dataset.offsetY = String(_t);
+        draggedOutside = false;
+        window.buildLayerPanel?.();
+      }
+
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
       if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
         /* ⛔여기서 또 찍지 «않는다» — onMove 첫 틱이 이미 이 제스처의 «시작»을 찍었다.
@@ -1106,23 +1124,6 @@ function bindBlock(block) {
             한 제스처가 항목 둘이 되어 ⌘Z 를 두 번 눌러야 원위치가 된다.)
            끝 표본은 아래 재바인딩이 끝난 뒤 한 번 찍는다. */
         _outTarget?.classList.remove('ss-drag-over');
-        if (_outTarget?.dataset.freeLayout === 'true') {
-          /* 자유 프레임에 놓으면 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임에 회전이 있으면 어긋난다: 끌어내기 판정과 같은 화면 좌표라서다. shortcut: 회전 프레임 안으로 놓기는 안 맞춘다 */
-          const _sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
-          const _tr = _outTarget.getBoundingClientRect();
-          clearDropIndicators();
-          _outTarget.appendChild(dragEl);
-          const _at = clampChildIntoFrame((_outAt[0] - _tr.left) / _sc - dragEl.offsetWidth / 2, (_outAt[1] - _tr.top) / _sc - dragEl.offsetHeight / 2,
-            dragEl.offsetWidth, dragEl.offsetHeight, _outTarget.offsetWidth, _outTarget.offsetHeight, framePadding(_outTarget));
-          dragEl.style.position = 'absolute';
-          dragEl.style.left = `${Math.round(_at.left)}px`;
-          dragEl.style.top = `${Math.round(_at.top)}px`;
-          dragEl.dataset.offsetX = String(Math.round(_at.left));
-          dragEl.dataset.offsetY = String(Math.round(_at.top));
-          window.buildLayerPanel?.();
-          window.pushHistory?.();
-          return;
-        }
         const inner = _outTarget || _dragOutParentSection.querySelector('.section-inner');
         clearDropIndicators();
 
