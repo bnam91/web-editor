@@ -4,7 +4,7 @@
  * 칸: G1 섹션 추가·프레임 단추 · G2 단축키 · G3 붙여넣기 · G4 파일·스크래치 놓기 · G5 글자 키 · G6 스크래치 장 누름
  *     G7 적용 뒤 무장 전 창 · G8 [음성] 푼 뒤 끌기 억제로 다시 안 잠긴다 · G9 탭 전환 · G10 홈 · G11 스크롤 · G12 종료 키 기본 동작
  *     G13 읽기 실패 풀림 · G14 탭 읽기 실패 풀림 · G15 적용이 던져도 풀림 · G16 [음성] 프로젝트 없는 판 · G17 [음성] 모달 · G18 [음성] 로드 뒤 전부 지나감
- * 변이: 게이트 리스너를 빼면 G1~G7 빨강 | 실패 풀기를 빼면 G13·G14 빨강 | switchTab 머리 finally 를 빼면 G15 빨강 | 무장 칸을 빼면 G7 빨강 | 해제 뒤 잠금 유지를 isProjectReady 직결로 바꾸면 G8 빨강 | PASS 를 비우면 G9·G10 빨강
+ * ★처음 실행 기록: 2026-11-03 10:1x · 아이맥 · 판 8ac017c5 · w1 · retries 0 · 변이 각 ×1: 게이트 리스너 뺌 G1~G7·G12 빨강 | 토스트 뺌 G13·G14·G15 빨강 | switchTab 머리 finally 뺌 G15 빨강 | 무장 칸 뺌 G7 빨강 | 잠금을 isProjectReady 직결 G8 빨강 | PASS 비움 G9·G10 빨강 | ★error 칸 뺌은 처음에 전부 초록(15초 안전망이 18.6s 에 풀어 G14 가 지나갔다) → G14 에 5초 한도를 넣었다
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, ORIGIN } = require('./_root-harness.js');
@@ -208,7 +208,7 @@ test('G14 탭 읽기 실패 — 풀리고 말한다', async ({ page }) => {
   await tab(page, A).click(); await opened(page, A);
   expect(await on(page), '[전제] 막는 중').toBe(true);
   await finish(page, A, 'fail'); await free(page);
-  await expect(page.locator('body')).toContainText('읽지 못했습니다');
+  await expect(page.locator('body'), '★15초 안전망이 아니라 실패 칸이 바로 풀어야 한다').toContainText('읽지 못했습니다', { timeout: 5000 });
   expect(await page.evaluate(() => window.gdtProjectReady.get().phase)).toBe('error');
   errs.length = 0;   // switchTab 이 일부러 다시 던진다(앞 판과 같다)
 });
