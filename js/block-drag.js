@@ -929,6 +929,8 @@ function bindBlock(block) {
     let moved = false;
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
+    let _outTarget = null;         // 밖에서 커서 아래 있는 다른 프레임 — 놓으면 여기로 든다
+    let _outAt = null;
     let _shiftAxis = null;         // Shift 수직/수평 잠금 축
     /* ★★1020t1d — ★제스처당 ★한 번만 잰다(강제 레이아웃 2회). ⛔onMove 안에서 재면 틱마다 2회가 된다.
        ★여기(mousedown 안 · onMove 밖)가 그 자리다 — `_hist` 가 제스처당 하나인 것과 ★같은 층.
@@ -986,8 +988,13 @@ function bindBlock(block) {
         if (outside) {
           draggedOutside = true;
           hideGuides();
+          _outTarget?.classList.remove('ss-drag-over');
+          _outTarget = _frameUnderPointer(ev.clientX, ev.clientY, dragEl, _dragOutParentSection);
+          _outAt = [ev.clientX, ev.clientY];
+          _outTarget?.classList.add('ss-drag-over');
+          if (_outTarget?.dataset.freeLayout === 'true') { clearDropIndicators(); return; }   // 자유 프레임은 놓는 자리가 좌표다 — 표시선 없음
           // 삽입 기준 element를 closure 변수에 저장 (indicator 消失에 무관하게 유지)
-          const inner = _dragOutParentSection.querySelector('.section-inner');
+          const inner = _outTarget || _dragOutParentSection.querySelector('.section-inner');
           _dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
           // 섹션 inner에 드롭 인디케이터 표시
           clearDropIndicators();
@@ -998,6 +1005,8 @@ function bindBlock(block) {
           return;
         } else if (draggedOutside) {
           draggedOutside = false;
+          _outTarget?.classList.remove('ss-drag-over');
+          _outTarget = null;
           _dropInsertBefore = null;
           clearDropIndicators();
         }
@@ -1096,7 +1105,25 @@ function bindBlock(block) {
            (예전엔 이 줄이 추출 «전»을 찍는 유일한 표본이라 필요했다. 지금 다시 찍으면
             한 제스처가 항목 둘이 되어 ⌘Z 를 두 번 눌러야 원위치가 된다.)
            끝 표본은 아래 재바인딩이 끝난 뒤 한 번 찍는다. */
-        const inner = _dragOutParentSection.querySelector('.section-inner');
+        _outTarget?.classList.remove('ss-drag-over');
+        if (_outTarget?.dataset.freeLayout === 'true') {
+          /* 자유 프레임에 놓으면 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임에 회전이 있으면 어긋난다: 끌어내기 판정과 같은 화면 좌표라서다. shortcut: 회전 프레임 안으로 놓기는 안 맞춘다 */
+          const _sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
+          const _tr = _outTarget.getBoundingClientRect();
+          clearDropIndicators();
+          _outTarget.appendChild(dragEl);
+          const _at = clampChildIntoFrame((_outAt[0] - _tr.left) / _sc - dragEl.offsetWidth / 2, (_outAt[1] - _tr.top) / _sc - dragEl.offsetHeight / 2,
+            dragEl.offsetWidth, dragEl.offsetHeight, _outTarget.offsetWidth, _outTarget.offsetHeight, framePadding(_outTarget));
+          dragEl.style.position = 'absolute';
+          dragEl.style.left = `${Math.round(_at.left)}px`;
+          dragEl.style.top = `${Math.round(_at.top)}px`;
+          dragEl.dataset.offsetX = String(Math.round(_at.left));
+          dragEl.dataset.offsetY = String(Math.round(_at.top));
+          window.buildLayerPanel?.();
+          window.pushHistory?.();
+          return;
+        }
+        const inner = _outTarget || _dragOutParentSection.querySelector('.section-inner');
         clearDropIndicators();
 
         // 절대 위치 스타일 초기화
@@ -3254,6 +3281,15 @@ function _bindFrameFlowDrop(ss) {
     window.buildLayerPanel();
     dragState.dragSrc = null;
   });
+}
+
+/* 좌표 끌기로 프레임 밖에 놓는 자리의 다른 프레임 — 없으면 null(섹션으로 빠진다). 안 고른 프레임의 자식은 pointer-events:none 이라 사각형으로 잰다. 뒤에 그려진(안쪽) 것부터. */
+function _frameUnderPointer(x, y, dragEl, section) {
+  return [...section.querySelectorAll('.frame-block:not([data-text-frame])')].reverse().find((f) => {
+    if (f.contains(dragEl) || dragEl.contains(f) || f.dataset.overlayBlock === 'true' || f.closest('[data-group="true"]') || _isShapeFrameEl(f)) return false;
+    const r = f.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }) || null;
 }
 
 function bindFrameDropZone(ss) {
