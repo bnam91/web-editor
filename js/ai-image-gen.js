@@ -634,7 +634,10 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
       capturedItems.push(galleryItem);
       items.push({ id: saveRes.id, dataUrl, blobPath: saveRes.blobPath });
     }
-    if (_getProjectId() !== projectId) {
+    // 그 프로젝트 탭을 파일에서 읽는 중이면 state 는 아직 앞 탭이다 — 여기 넣으면 곧 applyProjectData 가 덮는다. 읽은 뒤 다시 잰다.
+    const _loadEnd = Date.now() + 30000;
+    while (_getProjectId() === projectId && window.isTabFirstLoading?.(projectId) && Date.now() < _loadEnd) await new Promise(r => setTimeout(r, 25));
+    if (_getProjectId() !== projectId || window.isTabFirstLoading?.(projectId)) {
       // 전환 감지: 캡처 프로젝트 파일에 갤러리 엔트리를 직접 병합 (라이브 화면/저장 미오염)
       await _appendGalleryToProject(projectId, capturedItems);
       window.showToast?.(`✨ ${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
