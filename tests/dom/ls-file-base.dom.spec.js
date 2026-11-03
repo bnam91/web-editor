@@ -79,3 +79,14 @@ test('부팅 중 활성 프로젝트가 바뀌어도 표시는 부팅 프로젝�
   await page.waitForFunction(() => localStorage.getItem('web-editor-ls-base__p1') || localStorage.getItem('web-editor-ls-base__p2'));
   expect(await page.evaluate(() => [localStorage.getItem('web-editor-ls-base__p1'), localStorage.getItem('web-editor-ls-base__p2')])).toEqual([UPD, null]);
 });
+test('탭 첫 로드도 같은 판정이다 — 같은 판이면 localStorage 로 복구 · 판이 다르면 파일', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  await page.evaluate(({ ls, lsTs, upd }) => {
+    localStorage.setItem('web-editor-autosave__p3', ls); localStorage.setItem('web-editor-autosave__p3_ts', String(lsTs)); localStorage.setItem('web-editor-ls-base__p3', upd);
+    localStorage.setItem('web-editor-autosave__p4', ls); localStorage.setItem('web-editor-autosave__p4_ts', String(lsTs)); localStorage.setItem('web-editor-ls-base__p4', 'other');
+  }, { ls: JSON.stringify(snap('LS')), lsTs: fileTs + 3600e3, upd: UPD });
+  const file = { ...snap('FILE'), updatedAt: UPD };
+  const pick = (id) => page.evaluate(([f, id]) => (window.pickLsOverFile(f, id)?.pages[0].canvas.match(/data-mark="(\w+)"/) || [])[1] || 'FILE', [file, id]);
+  expect(await pick('p3')).toBe('LS');
+  expect(await pick('p4')).toBe('FILE');
+});
