@@ -182,6 +182,10 @@
       // 체크된 radio를 직접 순회(키에 '::' 포함 → 셀렉터 이스케이프 회피). name = 'r-'+key.
       ov.querySelectorAll('#rsv-list input[type=radio]:checked').forEach(r => { choices[r.name.slice(2)] = r.value; });
       const parsed = JSON.parse(window.marketMerge.applyResolve(local, remoteData, choices));
+      /* 전부 무시·삭제면 빈 페이지가 말없이 저장됐다(S3 scratch2) ⇒ 적용 전에 묻는다. 원래 비어 있던 페이지는 안 센다 */
+      const hadSections = (d, pid) => String((d.pages || []).find(p => p.id === pid)?.canvas || '').includes('section-block');
+      const emptied = (parsed.pages || []).filter(p => !String(p.canvas || '').includes('section-block') && (hadSections(local, p.id) || hadSections(remoteData, p.id)));
+      if (emptied.length && !window.confirm(`이대로 머지하면 ${emptied.length}개 페이지가 빈 페이지가 됩니다. 계속할까요?`)) return;
       /* id 를 ...parsed 에서 안 쓴다 — applyResolve 는 local(id·name 있음)을 복사한다. 새 id 는 복제 길이 정한다(S3 market). */
       const proj = { ...parsed, name: (name || '머지') + ' (머지)',
         marketRef: { account, id, version: meta.version || null, updatedAt: meta.updatedAt || null, pulledAt: new Date().toISOString() } };

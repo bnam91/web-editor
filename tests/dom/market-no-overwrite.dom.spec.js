@@ -314,3 +314,31 @@ test('재머지: 앞 머지가 들여온 그림이면 새 항목을 안 만들�
   expect(p.pages[0].canvas).toContain('data-ref-links="sp_aaaaaa:0"');
   await expect.poll(() => page.evaluate(async () => (await window._scratchExportAll('proj_2000000000002', ['p1'])).flatMap((b) => b.items.map((i) => i.id)))).toEqual(['s_1', 'sp_aaaaaa']);
 });
+async function allGone(page) {
+  await open(page, { ...data('x'), pages: [{ id: 'p1', name: 'p', canvas: sec('원격만').replace('id="sec_a"', 'id="sec_y"').replace('id="t_a"', 'id="t_y"') }] }, [], sec('내것만').replace('id="sec_a"', 'id="sec_x"').replace('id="t_a"', 'id="t_x"'));
+  await page.locator('.market-merge-btn').first().click();
+  await page.evaluate(() => { for (const [s, v] of [['sec_y', 'mine'], ['sec_x', 'theirs']]) { const e = [...document.querySelectorAll('#rsv-list input[type=radio]')].find((x) => x.name.endsWith('::' + s) && x.value === v); if (e) e.checked = true; } });
+}
+test('빈 머지본: 전부 무시·삭제면 적용 전에 묻고, 취소하면 저장 없이 모달이 남고 단추가 눌린다', async ({ page }) => {
+  await allGone(page);
+  const msgs = []; page.once('dialog', (d) => { msgs.push(d.message()); d.dismiss(); });
+  await page.locator('#rsv-apply').click();
+  await expect.poll(() => msgs).toEqual(['이대로 머지하면 1개 페이지가 빈 페이지가 됩니다. 계속할까요?']);
+  await expect.poll(() => page.evaluate(() => document.querySelector('#rsv-apply')?.disabled)).toBe(false);
+  expect(await page.evaluate(() => window.__saved.length)).toBe(0);
+});
+test('빈 머지본: 확인하면 저장한다', async ({ page }) => {
+  await allGone(page);
+  page.once('dialog', (d) => d.accept());
+  await page.locator('#rsv-apply').click();
+  const p = await saved(page);
+  expect(body(p)).toBe('');
+});
+test('음성 빈 머지본: 섹션이 남으면 안 묻는다', async ({ page }) => {
+  await open(page, data('원격 글'));
+  const msgs = []; page.on('dialog', (d) => { msgs.push(d.message()); d.accept(); });
+  await page.locator('.market-merge-btn').first().click();
+  await page.locator('#rsv-apply').click();
+  await saved(page);
+  expect(msgs).toEqual([]);
+});

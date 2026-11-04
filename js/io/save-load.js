@@ -326,6 +326,15 @@ function _isAllCanvasEmpty(data) {
   return data?.pages?.length > 0 && data.pages.every(p => !p.canvas || p.canvas.trim() === '');
 }
 
+/* S11 은 «탭 전환 중 빈 DOM» 덮어쓰기를 막는다. 사용자가 ⌘Z 로 빈 캔버스에 돌아온 건 그 일이 아니다 — 건너뛰면 다시 열 때 섹션이 살아난다.
+   표식은 복원 동기 구간에서만 선다(history.js). 로드·비지 않은 저장에 풀린다. */
+let _emptyByRestoreOwner = null;
+window.__noteRestoredCanvas = () => { _emptyByRestoreOwner = document.querySelector('#canvas .section-block') ? null : activeProjectId; };
+function _emptySaveBlocked(data, projectId) {
+  if (!_isAllCanvasEmpty(data)) { _emptyByRestoreOwner = null; return false; }
+  return _emptyByRestoreOwner === null || _emptyByRestoreOwner !== projectId;
+}
+
 async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
@@ -342,7 +351,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
     return { ok: false, reason: 'corrupt_snapshot' };
   }
   // S11: 빈 canvas 저장 방지 — 모든 페이지의 canvas가 비어있으면 기존 파일 데이터 보호
-  if (!opts.allowEmpty && _isAllCanvasEmpty(data)) {   // allowEmpty: 메뉴 저장은 전부터 이 보호 없이 썼다(그대로 둔다)
+  if (!opts.allowEmpty && _emptySaveBlocked(data, targetId)) {   // allowEmpty: 메뉴 저장은 전부터 이 보호 없이 썼다(그대로 둔다)
     console.warn('[save-load] saveProjectToFile: 모든 페이지 canvas가 비어있어 저장 건너뜀 (기존 데이터 보호)');
     // ★skipped:true — «보호성 스킵»이지 실패가 아니다. 자동저장 인디케이터는 빨갛게 만들지 않되,
     //   「저장했다」고 믿으면 안 되는 호출측(버전 되돌리기)은 이걸 보고 정직하게 알린다.
@@ -559,7 +568,17 @@ async function _runIdleThumbnail() {
 }
 window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
+/* 프로젝트 목록으로 나가기 전 확인 — 생성 중이 아니면 안 묻는다(현빈 결정 6524). 입구: 홈 단추 · 마지막 탭 닫기. 삭제된 프로젝트 탭은 머물 곳이 없어 안 묻는다. */
+let _leaveAccepted = false;   // 나가기로 답했다 — 곧 페이지가 떠난다. 탭 닫기가 묻고 goHome 이 또 묻지 않게
+function confirmLeaveWhileGenerating() {
+  if (_leaveAccepted || !window.aiGenerationInFlight?.()) return true;
+  _leaveAccepted = window.confirm('AI 이미지를 만드는 중입니다. 지금 나가면 결과를 잃습니다. 나갈까요?');
+  return _leaveAccepted;
+}
+window.confirmLeaveWhileGenerating = confirmLeaveWhileGenerating;
+
 async function goHome() {
+  if (!confirmLeaveWhileGenerating()) return;
   const curTab = openTabs.find(t => t.id === activeProjectId);
   if (curTab && !window.isTabFirstLoading?.(activeProjectId)) curTab._cache = serializeProject();
   // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
@@ -821,6 +840,7 @@ function healAssetsBeyondSectionEdge(root) {
 }
 
 function applyProjectData(data) {
+  _emptyByRestoreOwner = null;
   /* ★[H6] 여기는 «일부러» 직접 대입으로 둔다(허용목록 — tests/unit/autosave-suppress.test.js).
    *   AutoSaveSuppress 로 바꾸면 이 창이 «부르는 쪽»(탭전환·브랜치전환·커밋복원)의 창에 중첩돼
    *   해제가 한 프레임 밀린다. 그러면 복원 직후 MutationObserver 가 «억제 안에서» 발화해
@@ -2174,7 +2194,7 @@ function scheduleAutoSave() {
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
       const snapData = JSON.parse(snap);
-      if (_isAllCanvasEmpty(snapData)) {
+      if (_emptySaveBlocked(snapData, activeProjectId)) {
         console.warn('[save-load] scheduleAutoSave: 빈 canvas, localStorage 저장 건너뜀');
         _setAutosaveIndicator('saved');
         return;
@@ -2225,7 +2245,7 @@ window.addEventListener('beforeunload', () => {
   // S11: 빈 canvas 저장 방지 + snap 파싱은 한 번만
   let snapData;
   try { snapData = JSON.parse(snap); } catch { return; }
-  if (_isAllCanvasEmpty(snapData)) return;
+  if (_emptySaveBlocked(snapData, activeProjectId)) return;
 
   // BUG-44: Electron이면 동기 IPC로 파일에 즉시 저장 (autoSave debounce 1.5s 이내 새로고침 시 데이터 손실 방지)
   // localStorage는 보조 캐시이며, 파일 저장이 진실의 원천. 큰 snapshot도 파일에는 무조건 들어가야 함.
@@ -2851,7 +2871,7 @@ window.flushSave = async function() {
   let data;
   try {
     data = JSON.parse(snap);
-    if (_isAllCanvasEmpty(data)) return;
+    if (_emptySaveBlocked(data, activeProjectId)) return;
   } catch { return; }
   localStorage.setItem(getSaveKey(), snap);
   localStorage.setItem(getSaveTsKey(), String(Date.now()));

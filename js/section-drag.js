@@ -21,7 +21,7 @@ import {
  *   longLived — 드래그는 사람 손이 쥔 창이라 «오래» 켜져 있는 게 정상이다(감시견 오경보 방지). */
 let _dragTok = null;
 export function _suppressDragSave() {
-  if (!_dragTok) _dragTok = window.AutoSaveSuppress.begin('section-drag', { longLived: true });
+  if (!_dragTok || _dragTok.released) { _dragTok = window.AutoSaveSuppress.begin('section-drag', { longLived: true }); window.AutoSaveSuppress.endOnNextGesture(_dragTok); }
 }
 export function _resumeDragSave() {
   if (_dragTok) { window.AutoSaveSuppress.end(_dragTok); _dragTok = null; }

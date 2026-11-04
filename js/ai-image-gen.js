@@ -517,7 +517,15 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     // 텍스트 모드 textarea 클리어는 closeAiPrompt가 처리
   }
 
+  /* 생성 중인지 — 나가기 확인이 본다(현빈 결정 6524). 결과는 이 페이지가 받아 저장하므로 페이지를 떠나면 잃는다. */
+  let _genInFlight = 0;
+  window.aiGenerationInFlight = () => _genInFlight > 0;
   async function generateAIImage(payload) {
+    _genInFlight++;
+    try { return await _generateAIImage(payload); }
+    finally { _genInFlight--; }
+  }
+  async function _generateAIImage(payload) {
     const projectId = _getProjectId();
     const apiMode = payload?.apiMode || 'direct';
     const model = payload?.model || 'gemini-2.5-flash-image';
