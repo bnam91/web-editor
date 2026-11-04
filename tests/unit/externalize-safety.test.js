@@ -120,11 +120,23 @@ test('⑤ 마켓: goya 그림을 data URL 로 되싣는다 · 없는 그림은 �
   const m = inl('<img src="goya-asset://p1/none.png"><img src="goya-asset://../x.png">');
   assert.strictEqual(m.missing, 2);
 });
-test('⑤ 마켓 올리기가 되실은 값으로 blob 을 떼고, 없는 그림이면 안 올린다', () => {
-  const body = sliceBlock(readSrc(REPO, 'main.js'), "ipcMain.handle('market:push'", '대상');
-  const iData = body.indexOf('_inlineGoyaAssets(data)'), iScr = body.indexOf('_inlineGoyaAssets(JSON.stringify(scratch || []))'), iExt = body.indexOf('_extractBlobs(');
-  assert.ok(iData > 0 && iScr > 0 && iData < iExt && iScr < iExt);
-  assert.match(body, /missing[^;]*\) return \{ ok: false, message:/);
+test('⑤ 마켓 올리기: 받는 쪽 본에 goya 주소가 없고 그림이 blob 으로 간다 · 없는 그림이면 안 올린다', async () => {
+  const src = readSrc(REPO, 'main.js');
+  const root = mkTmpRoot('goya-extm-'), repo = mkTmpRoot('goya-extr-');
+  fs.mkdirSync(path.join(root, 'p1', 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'p1', 'assets', 'a.png'), Buffer.alloc(3000, 9));
+  let handler;
+  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase',
+    ['function _readAssetDataUri(', 'function _inlineGoyaAssets(', 'function _blobsDir(', 'function _extractBlobs('].map((h) => sliceBlock(src, h, '대상')).join('\n') + '\n' + sliceBlock(src, "ipcMain.handle('market:push'", '대상') + ';')(
+    fs, path, root, (x) => x, { png: 'image/png' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, 95 * 1048576, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async () => {}, async () => ({ ok: true }));
+  const push = (data, scratch) => handler(null, { account: 'a', id: 'p1', name: 'n', data, scratch });
+  const r = await push('{"c":"<img src=\\"goya-asset://p1/a.png\\">"}', [{ src: 'goya-asset://p1/a.png' }]);
+  assert.strictEqual(r.ok, true);
+  const saved = JSON.parse(fs.readFileSync(path.join(repo, 'market', 'a', 'p1.json'), 'utf8'));
+  assert.strictEqual(saved.data.includes('goya-asset://'), false); assert.ok(saved.data.includes('goditor-blob:'));
+  assert.strictEqual(saved.scratch.includes('goya-asset://'), false); assert.strictEqual(saved.blobCount, 2);
+  const bad = await push('{"c":"goya-asset://p1/none.png"}');
+  assert.strictEqual(bad.ok, false); assert.match(bad.message, /찾지 못해/);
 });
 test('⑤ 협업: 변환된 프로젝트는 등록을 막고 까닭을 말한다', async () => {
   const src = readSrc(REPO, 'main/collab/index.js');
