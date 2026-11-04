@@ -490,14 +490,17 @@ function _wireEvents(pop) {
       const file = inp.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = e => {
-        imgZone.style.backgroundImage = `url('${e.target.result}')`;
+      const target = _targetInput;
+      reader.onload = async e => {
+        const src = await window.grdAssetSrcFor(target, e.target.result);
+        if (!src) return;
+        imgZone.style.backgroundImage = `url('${src}')`;
         imgZone.classList.add('has-image');
         imgZone.innerHTML = '';
         // target 입력이 image 모드를 지원하는 필드(dataset.cpModes 에 image)면 받는다 — 업로드 = 확정 1회
         if (_state) _state.mode = 'image';
         _targetInput?.dispatchEvent(new CustomEvent('goya-cp:image', {
-          bubbles: true, detail: { src: e.target.result, fit: pop.querySelector('[data-el="imgFit"]').value, commit: true }
+          bubbles: true, detail: { src, fit: pop.querySelector('[data-el="imgFit"]').value, commit: true }
         }));
       };
       reader.readAsDataURL(file);

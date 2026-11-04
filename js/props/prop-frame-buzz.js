@@ -313,7 +313,10 @@ export function wireBuzzSection(frame) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => pfSet('profileImg', ev.target.result, '버즈 프로필 이미지', true);
+    reader.onload = async (ev) => { /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — 프로필은 말풍선마다 복사돼 data URL 두어 장이면 렌더러가 죽는다(13MB 2장 V8 OOM). */
+      const src = await window.grdAssetSrcFor(F(), ev.target.result);
+      if (src) pfSet('profileImg', src, '버즈 프로필 이미지', true);
+    };
     reader.readAsDataURL(file);
   });
   const pfEmoji = $('bzf-pf-emoji');

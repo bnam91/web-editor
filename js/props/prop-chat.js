@@ -564,8 +564,10 @@ ${blockHeaderHTML({
         const file = e.target.files?.[0];
         if (!file || !file.type.startsWith('image/')) return;
         const reader = new FileReader();
-        reader.onload = (ev) => {
-          messages[i].profileImg = ev.target.result;
+        reader.onload = async (ev) => { /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — 프로필은 말풍선마다 복사돼 data URL 두어 장이면 렌더러가 죽는다(13MB 2장 V8 OOM). */
+          const src = await window.grdAssetSrcFor(block, ev.target.result);
+          if (!src) return;
+          messages[i].profileImg = src;
           block.dataset.messages = JSON.stringify(messages);
           window.pushHistory?.('프로필 이미지');
           rerender();

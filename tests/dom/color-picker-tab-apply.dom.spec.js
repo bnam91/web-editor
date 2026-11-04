@@ -58,6 +58,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
   import { showTextProperties } from '/js/props/prop-text.js';
   window.__hist = 0;
   window.pushHistory = () => { window.__hist++; };
+  window.grdAssetSrcFor = async (_t, d) => d;   // 이 하네스엔 자산 IPC 가 없다 — 앱에서 자산 URL 이 되는 값은 image-inlet-asset 이 잰다
   window.scheduleAutoSave = () => {};
   window.getBlockBreadcrumb = () => '';
   window.__shape = showShapeProperties;

@@ -693,7 +693,7 @@ ${blockHeaderHTML({
     if (!file) return;
     const reader = new FileReader();
     /* ★캔버스 칩(아래 _syncProfileAddChip)과 ★같은 문 — 붙이고 · 그리고 · row 폭 · 이력 · 패널 되읽기(자리·크기 칸과 «제거»가 뜬다). */
-    reader.onload = (e) => { setModalProfile(block, { img: e.target.result }); };
+    reader.onload = async (e) => { const src = await window.grdAssetSrcFor(block, e.target.result); if (src) setModalProfile(block, { img: src }); };
     reader.readAsDataURL(file);
   });
   const pfEmoji = document.getElementById('mdl-pf-emoji');
@@ -824,7 +824,7 @@ function _ensureProfileAddChip() {
     file.value = '';
     if (!f || !b) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { pop.style.display = 'none'; setModalProfile(b, { img: ev.target.result }); };
+    reader.onload = async (ev) => { pop.style.display = 'none'; const src = await window.grdAssetSrcFor(b, ev.target.result); if (src) setModalProfile(b, { img: src }); };
     reader.readAsDataURL(f);
   });
   emoji.addEventListener('keydown', (e) => {

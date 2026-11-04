@@ -19,6 +19,11 @@ const INLETS = {
   '심플 카드 패널': { add: () => window.addCanvasBlock({ cardMode: 'simple' }), sel: '.canvas-block', open: async (b) => { window.showSimpleCardProperties(b); document.querySelector('.cvb-card-img-btn').click(); } },
   '카드 캔버스': { add: () => window.addCanvasBlock(), sel: '.canvas-block', open: async (b) => { window._triggerCvbCardImage(b, 0); } },
   '캔버스 레이어': { add: () => window.addCanvasBlock({ layers: [{ type: 'image', src: '', x: 0, y: 0, w: 300, h: 200 }] }), sel: '.canvas-block', open: async (b) => { window.showCanvasProperties(b); document.querySelector('.cvb-img-upload-btn').click(); } },
+  '채팅 프로필': { add: () => window.addChatBlock(), sel: '.chat-block', open: async (b) => { b.dataset.showProfile = '1'; window.showChatProperties(b); document.querySelector('.chb-profile-file[data-idx="0"]').click(); } },
+  '버즈 프로필': { add: () => window.addBuzzBlock(), sel: '.frame-block[data-buzz]', open: async (b) => { window.showFrameProperties(b); document.getElementById('bzf-pf-file').click(); } },
+  '모달 프로필': { add: () => window.addModalBlock(), sel: '.modal-block', open: async (b) => { window.showModalProperties(b); document.getElementById('mdl-pf-img-input').click(); } },
+  '표 이미지 행': { add: () => window.addTableBlock(), sel: '.table-block', open: async (b) => { const tr = b.querySelector('tr'); window.__convertTableRowToImg(tr); window.__bindTableRowImg(tr); tr.querySelector('.tbl-img-cell').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); } },
+  '도형 색 고르기 이미지': { add: () => window.addShapeBlock('rectangle'), sel: '.shape-block', open: async (b) => { window.showShapeProperties(b); window.openGoyaColorPicker(document.getElementById('shape-color-color').closest('.prop-color-swatch')); await new Promise((r) => setTimeout(r, 200)); document.querySelector('[data-el="imgZone"]').click(); } },
 };
 
 async function put(page, name, saved) {
@@ -53,7 +58,7 @@ async function putDetached(page, name) {
   await page.evaluate(async ([add, sel]) => {
     window.activeProjectId = 'p1';
     window.__toasts = []; const t0 = window.showToast; window.showToast = (m) => { window.__toasts.push(m); t0?.(m); };
-    window.electronAPI = { ...(window.electronAPI || {}), assetsSaveCanvasImage: () => { window.__b.remove(); return Promise.resolve({ ok: true, url: `${location.origin}/__asset/h.png` }); } };
+    window.electronAPI = { ...(window.electronAPI || {}), assetsSaveCanvasImage: () => { (document.getElementById('shape-color-color') || window.__b).remove(); return Promise.resolve({ ok: true, url: `${location.origin}/__asset/h.png` }); } };
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     await window.addSection();
     const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec);
