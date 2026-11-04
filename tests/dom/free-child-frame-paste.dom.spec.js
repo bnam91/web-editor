@@ -1,6 +1,6 @@
 /* free-child-frame-paste — 자유 프레임 안 프레임 하나의 ⌘X·⌘C ⌘V 자리(FRAME-GROUP-PASTE-TARGET-RULE-01). 안 골랐으면 원래 부모 안 원본 옆 +20.
  * 전: 안 고르면 섹션 끝 흐름으로 갔다(⌘X 24/24). free-child-paste-target-b2 는 글자·에셋·표만 잠갔다.
- * 변이: _pickedFreeChildFrame 을 빼면 F1·F2·F3 빨강 · N1·N2 초록. 헤드리스 대역이다(시스템 클립보드 무접촉). */
+ * ⌘D 는 이 규칙 밖이다(t902-copy4 C3 · 시트 287 이 잠근다). 변이: _pickedFreeChildFrame 을 빼면 F1·F2·F3 빨강 · N1·N2 초록. 헤드리스 대역이다(시스템 클립보드 무접촉). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const FR = '.frame-block:not([data-text-frame])';

@@ -1514,20 +1514,20 @@ function duplicateSelected() {
 
   // freeLayout 프레임 자체 복제 (frame-block.selected)
   if (selSS && !selSS.dataset.freeLayout) {
-    copySelected();
+    copySelected({ duplicate: true });
     pasteClipboard();
     return;
   }
 
   // 섹션 복제
   if (selSection) {
-    copySelected();
+    copySelected({ duplicate: true });
     pasteClipboard();
     return;
   }
 
   // 일반 flow 블록 복제
-  copySelected();
+  copySelected({ duplicate: true });
   pasteClipboard();
 }
 
@@ -1666,7 +1666,7 @@ function _deletePickedFrames() {
 window._leafSelFrames = _leafSelFrames;
 window._deletePickedFrames = _deletePickedFrames;
 
-function copySelected() {
+function copySelected({ duplicate = false } = {}) {
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
   _writeInternalClipboardToOS();
@@ -1692,7 +1692,7 @@ function copySelected() {
   }
 
   if (allSel.length === 0) {
-    const _picked = _pickedFrames() || _pickedFreeChildFrame();
+    const _picked = _pickedFrames() || (duplicate ? null : _pickedFreeChildFrame());   // ⌘D 는 제 규칙 그대로(t902-copy4 C3 · 시트 287)
     if (_picked) {
       clipboard = { type: 'multi-block', frames: true, items: _picked.map(f => {
         const r = f.getBoundingClientRect(), k = (r.width / (f.offsetWidth || 1)) || 1;   // 묶음 상대 배치는 부모가 달라도 재야 해서 화면 값 ÷ 배율
