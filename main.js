@@ -9,6 +9,7 @@ if (_QA_HIDDEN) {
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  require('./main/qa-clipboard.js').install(require('electron'));   // 격리 앱이 그 맥의 진짜 클립보드를 덮지 않게(레인 ⌘C·⌘D 사고 2회)
 }
 // ▲QA_HIDDEN
 // ▼DOWNLOADS_DIR (2026-10-05 지디 승인) — GODITOR_DOWNLOADS_DIR(절대경로)일 때만: 다운로드 기본 자리를 그 폴더로.
