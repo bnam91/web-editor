@@ -313,7 +313,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
          같은 값을 본다. 셋이 한 뿌리였다.
        ⚠️폭주 없음: 자동저장 재무장은 «편집»(scheduleAutoSave)만 한다 — dirty 는 재무장의
          입력이 아니다. 실패해도 스스로 다시 쏘지 않는다(검사 W3B-6 이 이걸 잠근다). */
-    if (!_isSaveFailure(_result)) _dirtySinceSave = false;
+    // 저장을 막은 탭의 편집은 앞 프로젝트 저장이 끝나도 안 남았다 — 미저장 표시를 지키고 «저장됨»을 안 띄운다
+    if (!_isSaveFailure(_result) && !window.isTabFirstLoading?.(activeProjectId)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
     if (!_result?.skipped) _settleBigLs(_targetId, snapshot, !_result || _isSaveFailure(_result));
@@ -2049,6 +2050,7 @@ window.loadProjectForOpen = loadProjectForOpen;
 
 let _autoSaveHideTimer = null;
 function _setAutosaveIndicator(state) {
+  if (state === 'saved' && window.isTabFirstLoading?.(activeProjectId)) state = 'error';
   const el = document.getElementById('autosave-indicator');
   if (!el) return;
   clearTimeout(_autoSaveHideTimer);
@@ -2212,7 +2214,9 @@ function scheduleAutoSave() {
     }
     // ★361 — 안 읽힌 탭(로드 실패 뒤)의 편집은 안 쓴다(saveProjectToFile 머리말 · 여기선 localStorage 도 안 쓴다). «저장됨»이라고 말하지 않는다.
     if (window.isTabFirstLoading?.(_saveTargetId)) {
-      window.showToast?.('⚠️ 이 프로젝트를 읽지 못해 저장하지 않았습니다 — 탭을 다시 열어 주세요.');
+      window.showToast?.(window.isTabStale?.(_saveTargetId)
+        ? '⚠️ 앞 저장이 안 끝난 채 연 탭이라 이 편집은 저장되지 않습니다 — 잠시 뒤 탭을 닫았다 다시 열어 주세요.'
+        : '⚠️ 이 프로젝트를 읽지 못해 저장하지 않았습니다 — 탭을 다시 열어 주세요.');
       _setAutosaveIndicator('error');
       return;
     }

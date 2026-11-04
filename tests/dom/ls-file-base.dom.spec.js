@@ -234,7 +234,7 @@ test('상한을 넘겨 낡게 연 탭: 편집이 파일을 덮지 않고, 돌아
   await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
   await page.evaluate(() => { window.__saved = null; window.waitSavesFor = window.__w; });
   await setMark(page, 'STALE');
-  await page.waitForFunction(() => [...document.querySelectorAll('[id*=toast],[class*=toast]')].some((e) => e.textContent.includes('읽지 못해')));
+  await page.waitForFunction(() => [...document.querySelectorAll('[id*=toast],[class*=toast]')].some((e) => e.textContent.includes('이 편집은 저장되지 않습니다')));
   await expect.poll(() => page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(true);
   expect(await page.evaluate(() => window.__saved)).toBeNull();
   await page.evaluate(() => window.switchTab('p1'));
@@ -242,6 +242,19 @@ test('상한을 넘겨 낡게 연 탭: 편집이 파일을 덮지 않고, 돌아
   await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
   expect(await seen(page)).toBe('FILE');
   expect(await page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(false);
+});
+test('낡게 연 탭: 앞 프로젝트 저장이 끝나도 편집이 저장된 척하지 않는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { const w = window.waitSavesFor; window.waitSavesFor = async () => false; window.__w = w; });
+  await page.evaluate(() => window.openTabForProject('p3'));
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  await page.evaluate(() => { window.waitSavesFor = window.__w; });
+  await setMark(page, 'STALE');
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
+  await page.evaluate(() => window.saveProjectToFile(JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block"></div>' }] }), { skipThumbnail: true, projectId: 'p1' }));
+  expect(await page.evaluate(() => window.hasUnsavedChanges()), '★안 남은 편집의 미저장 표시를 지웠다').toBe(true);
+  await page.evaluate(async () => { (await import('/js/io/save-load.js')); });
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
 });
 test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 맨 뒤로', async ({ page }) => {
   await open(page, { lsTs: fileTs - 3600e3, base: UPD });

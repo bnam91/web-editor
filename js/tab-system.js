@@ -282,6 +282,7 @@ function _restoreViewState(tab) {
    다음 편집 저장이 그 탭 파일을 앞 프로젝트 내용으로 덮었다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 시험: tests/dom/switchtab-first-load-race-360. */
 let _switchGen = 0;
 let _firstLoadingTabId = null;
+let _staleTabId = null;   // 앞 저장이 상한 안에 안 끝난 채 연 탭 — 안 읽힌 탭처럼 저장을 막되, 까닭이 달라 말도 다르다
 
 async function switchTab(id) {
   if (id === _getActId()) return;
@@ -406,7 +407,7 @@ async function switchTab(id) {
       if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
       /* 앞 저장이 상한 안에 안 끝났으면 이 화면은 그 저장보다 낡았다. 여기서 쓰면 그 저장을 덮는다(앱 3/3) → «안 읽힌 탭»처럼 저장을 막고 캐시도 안 둔다(돌아오면 다시 읽는다). */
       _firstLoadingTabId = _savesDrained ? null : id;
-      if (!_savesDrained) window.showToast?.('⚠️ 앞 저장이 아직 안 끝나 이 탭은 저장을 막았습니다 — 잠시 뒤 탭을 닫았다 다시 열어 주세요.');
+      _staleTabId = _savesDrained ? null : id;
       if (targetTab && proj?.name) targetTab.name = proj.name;
       renderTabBar();
     } else {
@@ -603,6 +604,7 @@ window.cancelRenameProject  = cancelRenameProject;
 window.switchTab            = switchTab;
 /* ★361 — 이 탭이 «아직 안 읽혔나»(첫 로드 중 · 로드 실패 뒤). 그동안 캔버스는 비었고 state 는 앞 프로젝트라, 직렬화하면 앞 프로젝트 내용이 이 id 로 나간다. */
 window.isTabFirstLoading   = (id) => !!id && id === _firstLoadingTabId;
+window.isTabStale          = (id) => !!id && id === _firstLoadingTabId && id === _staleTabId;
 /* ★342 — 앱 시작 때 첫 로드(initLoad · save-load.js)도 같은 창이다. ⛔풀 때는 제 id 일 때만 — 그사이 다른 탭으로 갔으면 그 탭의 것이다. */
 window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
