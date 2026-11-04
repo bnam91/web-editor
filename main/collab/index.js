@@ -27,6 +27,8 @@ let _deps = {
   readMeta: (_id) => ({}),
   /** proj_meta.json 을 read-merge-write */
   writeMeta: (_id, _patch) => {},
+  /** 되돌릴 변환 전 본이 있나 */
+  hasConversionBackup: (_id) => false,
 };
 
 /** 서버가 «대답»했는지 / «말을 안 했는지» 를 가르는 공통 처리.
@@ -93,6 +95,9 @@ function setRef(projectId, collabRef) {
 async function register({ projectId, name, actorId }) {
   const existing = getRef(projectId);
   if (existing && existing.collabId) return { ok: true, ...existing, already: true };
+  /* 변환된 프로젝트는 그림이 이 기계 파일을 가리켜 상대 화면에서 깨진다. 되실으면 섹션이 too_large 에 걸리니, 되돌릴 길이 있을 때 막고 안내한다.
+     새 그림·복제본의 깨짐은 풀 길이 없어 안 막는다(COLLAB-NEW-IMAGE-NO-GOYA-HANDLING-01). */
+  if (_deps.hasConversionBackup(projectId)) return { ok: false, reason: 'converted' };
   const r = await call('register', { localProjectId: projectId, name, actorId });
   if (r.ok && r.collabId) {
     const auth = _deps.readAuth();

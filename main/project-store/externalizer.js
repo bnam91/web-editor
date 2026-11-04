@@ -9,7 +9,7 @@
 
    ★안전 계약 (어느 단계가 실패해도 proj.json은 «바이트 하나» 안 바뀐다)
      읽기 → 고유 URI 수집 → 에셋 저장(content-hash, dedup) → 치환 → 검증 5종 전부 통과 →
-     원본 rename(proj_pre-externalize.json, 최초 원본 영구 보존) → atomic write → meta 마커.
+     원본 복제(proj_pre-externalize.json, 재변환 때 회전 · 최초 원본은 안 지운다) → atomic write → meta 마커.
      롤링 proj_backup.json은 다음 autosave가 1.5초 뒤 덮어쓰므로 «되돌리기 지점»으로 못 쓴다.
 
    ★정규식·에셋 규약은 렌더러(js/io/asset-externalize.js)·main(assets:saveCanvasImage)과 «동일»
@@ -26,7 +26,7 @@ const DATA_URI_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/g;
 const GOYA_RE = /goya-asset:\/\/([\w.-]+)\/([\w.-]+)/g;
 const BACKUP_NAME = 'proj_pre-externalize.json';
 const SCHEMA = 1;
-const MAX_PRE_EXT_ROTATIONS = 2; // [F3] proj_pre-externalize.<ts>.json 회전본 보관 상한(가장 최근 N개)
+const MAX_PRE_EXT_ROTATIONS = 2; // [F3] proj_pre-externalize.<ts>.json 회전본 보관 상한(가장 최근 N개 + 최초 원본 1개)
 
 /* ── 공용 소품 ───────────────────────────────────────────────────────────── */
 function safeSeg(s) {
@@ -62,11 +62,19 @@ function pathsFor(projectsDir, projectId) {
     assets: path.join(dir, 'assets'),
   };
 }
+function fsyncPath(p, flags) {
+  const fd = fs.openSync(p, flags);
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+function fsyncDir(dir) { try { fsyncPath(dir, 'r'); } catch (_) {} }   // 윈도우는 폴더 fsync 가 안 된다 — 파일 fsync 까지만
 function atomicWrite(filePath, data) {
   const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, data);
-  try { fs.renameSync(tmp, filePath); }
-  catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} throw e; }
+  try {
+    const fd = fs.openSync(tmp, 'w');
+    try { fs.writeFileSync(fd, data); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, filePath);
+  } catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} throw e; }
+  fsyncDir(path.dirname(filePath));
 }
 function readJsonOrNull(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
@@ -142,7 +150,21 @@ function scanProjectFile(projectsDir, projectId) {
     goyaRefs: raw.indexOf('goya-asset://') === -1 ? 0 : countMatches(raw, GOYA_RE),
     hasBackup: fs.existsSync(p.backup),
     externalized: (meta && meta.externalized) || null,
+    rolledBack: !!(meta && meta.externalizedRolledBackAt && !meta.externalized),
   };
+}
+
+/* 변환 전 본을 타임스탬프 이름으로 돌린다. 가장 최근 N개 + 가장 오래된 것(최초 원본)만 남긴다 — 반복 변환으로 무한 적립되던 것 방지[F3]. */
+function rotateBackup(p) {
+  const rotated = path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`);
+  fs.renameSync(p.backup, rotated);
+  try {
+    const rots = fs.readdirSync(p.dir)
+      .filter(f => /^proj_pre-externalize\.\d+\.json$/.test(f))
+      .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
+    for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS, -1)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
+  } catch (_) {}
+  return rotated;
 }
 
 /* ── 본체 ────────────────────────────────────────────────────────────────── */
@@ -250,27 +272,32 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   const after = Buffer.byteLength(out);
   if (after >= before) return { ok: false, reason: 'not_smaller', before, after };
 
-  // 6) 원본 보존 — rename(디스크 0 추가). 이미 백업이 있으면(이례) 덮지 않고 타임스탬프로 회전.
+  // 6) 원본 보존 — 복제(APFS 는 clone). rename 하면 새 파일을 쓰기 전에 죽을 때 proj.json 이 없어 목록에서 사라지고 폴백이 더 낡은 백업을 자가치유한다(시험으로 재현).
+  //    이미 백업이 있으면(이례) 덮지 않고 타임스탬프로 회전.
   let backupPath = p.backup;
+  const backupTmp = p.backup + '.tmp';
+  let rotatedPrev = null;
+  // 재변환이 실패하면 앞 변환 전 본을 고정 이름으로 돌린다 — 안 돌리면 되돌리기 버튼이 사라진다
+  const restorePrev = () => { if (rotatedPrev) { try { fs.renameSync(rotatedPrev, p.backup); } catch (_) {} } };
   try {
+    fs.copyFileSync(p.proj, backupTmp, fs.constants.COPYFILE_FICLONE);
+    fsyncPath(backupTmp, 'r+');
     if (fs.existsSync(p.backup)) {
-      const rotated = path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`);
-      fs.renameSync(p.backup, rotated);
-      // [F3] 회전본 상한 — 반복 변환으로 회전본이 무한 적립되던 것 방지(가장 최근 N개만 남긴다).
-      try {
-        const rots = fs.readdirSync(p.dir)
-          .filter(f => /^proj_pre-externalize\.\d+\.json$/.test(f))
-          .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
-        for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
-      } catch (_) {}
+      rotatedPrev = rotateBackup(p);
     }
-    fs.renameSync(p.proj, p.backup);
-  } catch (e) { return { ok: false, reason: 'backup_failed', error: e.message, before }; }
+    fs.renameSync(backupTmp, p.backup);
+    fsyncDir(p.dir);
+  } catch (e) {
+    try { fs.unlinkSync(backupTmp); } catch (_) {}
+    restorePrev();
+    return { ok: false, reason: 'backup_failed', error: e.message, before };
+  }
 
-  // 7) atomic write — 실패하면 백업을 제자리로 되돌린다(원본 무손상 계약)
+  // 7) atomic write — 실패하면 proj.json 은 그대로다(원본 무손상 계약)
   try { atomicWrite(p.proj, out); }
   catch (e) {
-    try { fs.renameSync(p.backup, p.proj); } catch (_) {}
+    try { fs.unlinkSync(p.backup); } catch (_) {}
+    restorePrev();
     return { ok: false, reason: 'write_failed', error: e.message, before };
   }
 
@@ -281,6 +308,19 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
 
   return { ok: true, before, after, refs, images, reused, skipped, sections: sectionsAfter, backupPath, ms: Date.now() - t0 };
 }
+
+/** 렌더러의 localStorage 복구본이 파일을 이길 수 있나(js/io/save-load.js _pickLsOverFile 과 같은 자, 수 비교는 빼 보수적).
+ *  그러면 변환을 이번 열기에 미룬다: 변환이 updatedAt 을 올리면 복구본이 자격을 잃어 복구분을 잃었다(앱 3/3). 복구 저장이 파일에 든 뒤 다음 열기가 변환한다. */
+function lsRecoveryPending(projectsDir, projectId, { lsTs, lsBase } = {}) {
+  if (!lsTs) return false;
+  let updatedAt;
+  try { updatedAt = JSON.parse(fs.readFileSync(pathsFor(projectsDir, projectId).proj, 'utf8')).updatedAt; } catch (_) { return false; }
+  if (lsBase && updatedAt != null && lsBase !== String(updatedAt)) return false;
+  return lsTs > new Date(updatedAt || 0).getTime();
+}
+
+/** 되돌릴 변환 전 본이 있나 — 협업 등록을 막아도 풀 길이 있는 경우다. */
+function hasConversionBackup(projectsDir, projectId) { return fs.existsSync(pathsFor(projectsDir, projectId).backup); }
 
 /** 되돌리기 진단 — 버려질 «현재 작업»과 복원될 «변환 전 원본»의 격차(UI 경고용, 비파괴). */
 function rollbackDiag(p, backupRaw) {
@@ -308,7 +348,7 @@ function rollbackDiag(p, backupRaw) {
  *   그 작업을 «전용» 파일 proj_pre-rollback.json에 보존한다 — 롤링 proj_backup.json은 다음 autosave가
  *   1.5초 뒤 덮어써 되돌리기-취소용으로 못 쓴다(이 파일 헤더가 스스로 경고했던 함정). 전용 파일은
  *   autosave·저장 경로가 절대 건드리지 않으므로 실수 되돌리기 후에도 복구할 여지를 남긴다.
- * 복원 후 backup(pre-externalize)은 «소비»한다(지운다) — 안 지우면 몇 주 뒤 재변환 때 옛 원본이 남아
+ * 복원 후 backup(pre-externalize)은 «소비»한다(회전본으로 돌린다) — 그 이름에 남으면 몇 주 뒤 재변환 때 옛 원본이 남아
  * 다음 되돌리기가 몇 주 전 상태로 돌아가는 사고가 난다. 에셋 파일은 남긴다(다른 참조 가능, 해시라 무해).
  * @param {{dryRun?:boolean, afterWrite?:Function}} [opts] dryRun=진단만 반환(파일 무변경).
  * @returns {{ok:boolean, reason?:string, restoredBytes?:number, ageDays?:number|null, currentSections?:number, restoreSections?:number, preRollback?:string}}
@@ -323,36 +363,48 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
   if (opts.dryRun) return { ok: true, dryRun: true, ...diag };
   // 현재 proj.json(=변환 이후 작업)을 «전용» 보관처로 보존(F2). 롤링 슬롯이 아니라 아무도 안 덮는 파일.
   // ★2차 되돌리기(변환→되돌리기→재변환→되돌리기)가 1차 보관본을 덮지 않도록, 있으면 타임스탬프로 회전(상한).
-  try {
-    if (fs.existsSync(p.proj)) {
+  // 보관 못 하면 복원하지 않는다 — 이으면 변환 뒤 작업이 사본 없이 사라진다. 앞 보관본은 돌려놓고, 복제 끝난 사본만 고정 이름으로 쓴다.
+  if (fs.existsSync(p.proj)) {
+    const tmp = p.preRollback + '.tmp';
+    let rotatedPre = null;
+    try {
+      fs.copyFileSync(p.proj, tmp, fs.constants.COPYFILE_FICLONE);
+      fsyncPath(tmp, 'r+');
       if (fs.existsSync(p.preRollback)) {
-        try {
-          fs.renameSync(p.preRollback, path.join(p.dir, `proj_pre-rollback.${Date.now()}.json`));
-          const rots = fs.readdirSync(p.dir)
-            .filter(f => /^proj_pre-rollback\.\d+\.json$/.test(f))
-            .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
-          for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
-        } catch (_) {}
+        rotatedPre = path.join(p.dir, `proj_pre-rollback.${Date.now()}.json`);
+        fs.renameSync(p.preRollback, rotatedPre);
       }
-      fs.copyFileSync(p.proj, p.preRollback);
+      fs.renameSync(tmp, p.preRollback);
+      fsyncDir(p.dir);
+    } catch (e) {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+      if (rotatedPre && !fs.existsSync(p.preRollback)) { try { fs.renameSync(rotatedPre, p.preRollback); } catch (_) {} }
+      return { ok: false, reason: 'pre_rollback_failed', error: e.message };
     }
-  } catch (_) {}
+    try {
+      const rots = fs.readdirSync(p.dir)
+        .filter(f => /^proj_pre-rollback\.\d+\.json$/.test(f))
+        .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
+      for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
+    } catch (_) {}
+  }
   try { atomicWrite(p.proj, raw); }
   catch (e) { return { ok: false, reason: 'write_failed', error: e.message }; }
-  try { fs.unlinkSync(p.backup); } catch (_) {}
+  try { rotateBackup(p); } catch (_) {}   // 지우지 않는다: 되돌린 뒤 복원본이 덮여도 원본 사본이 남는다. 되돌리기 대상에서는 빠진다
   try {
     const data = JSON.parse(raw);
     if (typeof opts.afterWrite === 'function') opts.afterWrite(p.id, data);
   } catch (_) {}
   try {
-    const meta = readJsonOrNull(p.meta);
-    if (meta && meta.externalized) { const { externalized: _x, ...rest } = meta; atomicWrite(p.meta, JSON.stringify({ ...rest, externalizedRolledBackAt: new Date().toISOString() }, null, 2)); }
+    // 변환 표지가 없어도 되돌림 표지는 남긴다 — 없으면 다음 열기가 재변환한다. 못 읽는 meta 는 덮지 않는다(그때는 열 때 변환이 보류된다).
+    const meta = fs.existsSync(p.meta) ? readJsonOrNull(p.meta) : {};
+    if (meta) { const { externalized: _x, ...rest } = meta; atomicWrite(p.meta, JSON.stringify({ ...rest, externalizedRolledBackAt: new Date().toISOString() }, null, 2)); }
   } catch (_) {}
   return { ok: true, restoredBytes: Buffer.byteLength(raw), preRollback: 'proj_pre-rollback.json', ...diag };
 }
 
 module.exports = {
   DATA_URI_RE, GOYA_RE, BACKUP_NAME,
-  extFromMime, saveImageBytes, scanProjectFile, externalizeProjectFile, rollbackExternalize,
+  extFromMime, saveImageBytes, scanProjectFile, externalizeProjectFile, rollbackExternalize, lsRecoveryPending, hasConversionBackup,
   _internal: { pathsFor, canvasSlots, countMatches, countSections, parseDataUri },
 };

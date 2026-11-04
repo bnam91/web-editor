@@ -208,9 +208,10 @@ const DEFAULT_SETTINGS = {
   // pre-release(beta) 채널: 테스터 앱만 true → GitHub pre-release 자동수신·검증.
   // 일반 사용자는 false(기본) → latest 정식 릴리스만 받음.
   betaChannel: false,
-  // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 OFF).
-  // 기본값 ON 전환은 리허설 통과 후 현빈 G2 게이트(DESIGN-asset-batch-externalize.md §3-3).
-  autoExternalizeOnOpen: false,
+  // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 ON · 현빈 답 6661).
+  autoExternalizeOnOpen: true,
+  // 기본이 OFF 이던 판의 설정 저장이 남긴 false 는 고른 값이 아니다. 이 표지가 없는 파일은 한 번 켜고, 표지가 든 뒤의 끄기는 지킨다.
+  autoExternalizeDefaultOn: true,
   // [#16] 스크래치패드↔섹션 «연결선» 표시(기본 ON = 지금까지의 동작 그대로).
   //   ⚠️기본값을 true 로 두는 이유 — 이 키가 «없는» 기존 사용자는 readSettings 의
   //     `{...DEFAULT_SETTINGS, ...raw}` 로 여기 값을 받는다. false 로 두면 업데이트만 해도
@@ -257,6 +258,7 @@ function readSettings() {
     return {
       ...DEFAULT_SETTINGS,
       ...raw,
+      ...(raw.autoExternalizeDefaultOn === true ? {} : { autoExternalizeOnOpen: true, autoExternalizeDefaultOn: true }),
       apiKeys:   { ...DEFAULT_SETTINGS.apiKeys,   ...(raw.apiKeys   || {}) },
       shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...(raw.shortcuts || {}) },
       easterEggs: { ...DEFAULT_SETTINGS.easterEggs, ...(raw.easterEggs || {}) },
@@ -2118,7 +2120,8 @@ ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => 
 // export HTML 포터블화용 — goya-asset:// 에셋을 base64 data URI로 읽어 반환.
 // 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
 // export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
-ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
+ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => _readAssetDataUri(projectId, filename));
+function _readAssetDataUri(projectId, filename) {
   try {
     const pid = _safeSeg(String(projectId || ''));
     const fn = _safeSeg(String(filename || ''));
@@ -2134,7 +2137,7 @@ ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
   } catch (e) {
     return { ok: false, error: e && e.message };
   }
-});
+}
 
 ipcMain.handle('ai:generateImage', (_e, payload) => {
   const model = String(payload?.model || 'gemini-2.5-flash-image').toLowerCase();
@@ -2337,12 +2340,12 @@ ipcMain.handle('projects:list', () => _listProjectsImpl());
 /* ── [externalize] 열 때 정책 (DESIGN-asset-batch-externalize.md §3-2 ①·§3-3·§4-C) ──
    렌더러가 «프로젝트를 연다»고 알린 로드(opts.open)에서만 동작. 저장 경로의 loadProject(기존본 병합)에선 안 돈다.
    - 협업 등록(meta.collabRef) 프로젝트: 자동변환 제외, 안내만(상대 디스크엔 에셋이 없다 — 지디 결정 ⓑ).
-   - settings.autoExternalizeOnOpen=true: 변환 → 렌더러는 처음부터 goya-asset 본을 받는다(새로고침·경합 없음).
-   - OFF(기본): 대형 레거시(≥20MB)면 힌트 이벤트만. 렌더러가 프로젝트당 1회 토스트.
+   - settings.autoExternalizeOnOpen=true(기본): 변환 → 렌더러는 처음부터 goya-asset 본을 받는다(새로고침·경합 없음).
+   - OFF: 대형 레거시(≥20MB)면 힌트 이벤트만. 렌더러가 프로젝트당 1회 토스트.
    알림은 반환 객체에 필드를 섞지 않고 이벤트로 보낸다 — loadProject→saveProject로 그대로 되쓰는 호출부가
    여럿이라(이름변경 등) 마커가 proj.json에 새는 것을 막는다. */
 const EXTERNALIZE_HINT_MIN_BYTES = 20 * 1024 * 1024;
-function _externalizeOnOpen(event, id) {
+function _externalizeOnOpen(event, id, opts) {
   const X = _getExternalizer();
   if (!X) return;
   const safeId = _safeSeg(id);
@@ -2361,10 +2364,12 @@ function _externalizeOnOpen(event, id) {
   } catch (_) {}
   if (collabRef || metaUnreadable) { send('projects:externalize-hint', { projectId: safeId, reason: collabRef ? 'collab' : 'meta_unreadable', bytes: scan.bytes, base64Refs: scan.base64Refs }); return; }
   if (readSettings().autoExternalizeOnOpen === true) {
+    if (scan.rolledBack) return;   // 사용자가 되돌린 프로젝트 — 다시 변환하면 되돌리기 뒤 새로고침에서 바로 재변환된다. 수동 변환은 그대로 된다
+    if (X.lsRecoveryPending(PROJECTS_DIR, safeId, opts)) return;
     const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
     console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));
     if (r && r.ok && !r.noop) send('projects:externalized', { projectId: safeId, ...r });
-    else if (r && !r.ok) send('projects:externalize-hint', { projectId: safeId, reason: 'failed', error: r.reason, bytes: scan.bytes, base64Refs: scan.base64Refs });
+    else if (r && !r.ok && r.reason !== 'not_smaller') send('projects:externalize-hint', { projectId: safeId, reason: 'failed', error: r.reason, bytes: scan.bytes, base64Refs: scan.base64Refs });
     return;
   }
   if (scan.bytes >= EXTERNALIZE_HINT_MIN_BYTES) send('projects:externalize-hint', { projectId: safeId, reason: 'legacy', bytes: scan.bytes, base64Refs: scan.base64Refs });
@@ -2453,7 +2458,7 @@ function readProjectWithFallback(id, { heal = false, diag = null } = {}) {
 const _recentRecovery = new Map();
 ipcMain.handle('projects:load', (event, id, opts) => {
   const isOpen = !!(opts && opts.open === true);
-  if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+  if (isOpen) { try { _externalizeOnOpen(event, id, opts); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
   const key = _safeSeg(String(id || ''));
   const diag = {};
   const r = readProjectWithFallback(id, { heal: true, diag });   // ★E168 — 목록과 같은 한 곳
@@ -3701,6 +3706,16 @@ const _BLOB_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g;
 const _MAX_BYTES = 95 * 1024 * 1024;   // GitHub 100MB 하드리밋 안전 마진
 const _BLOB_MIN = 2048;                // 이보다 작은 자산은 분리 안 함(토큰이 더 커서 역효과 + blob 클러터 방지)
 function _blobsDir(dir) { return path.join(dir, 'market', '_blobs'); }
+/* goya 그림을 data URL 로 되싣는다 — 마켓은 파일을 안 옮겨 받는 쪽에서 깨진다. 없는 그림은 센다. */
+function _inlineGoyaAssets(str) {
+  const cache = new Map(); let missing = 0;
+  const data = String(str).replace(/goya-asset:\/\/([^/"'()\s&\\]+)\/([^"'()\s&\\?#]+)/g, (m, pid, fn) => {
+    if (!cache.has(m)) { const r = _readAssetDataUri(pid, fn); cache.set(m, r.ok ? r.dataUri : null); }
+    if (!cache.get(m)) { missing++; return m; }
+    return cache.get(m);
+  });
+  return { data, missing };
+}
 function _extractBlobs(jsonStr, dir) {
   const bdir = _blobsDir(dir); fs.mkdirSync(bdir, { recursive: true });
   let maxBlob = 0, count = 0;
@@ -3764,8 +3779,10 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     const adir = path.join(dir, 'market', acc);
     fs.mkdirSync(adir, { recursive: true });
     // Phase 0: 인라인 자산 분리(프로젝트 데이터 + Phase1 스크래치) + 용량 가드
-    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(data, dir);
-    const scratchStr = JSON.stringify(scratch || []);
+    const inl = _inlineGoyaAssets(data), inlScratch = _inlineGoyaAssets(JSON.stringify(scratch || []));
+    if (inl.missing + inlScratch.missing) return { ok: false, message: `그림 ${inl.missing + inlScratch.missing}곳의 파일을 찾지 못해 올리지 않았습니다 — 받는 쪽에서 깨집니다.` };
+    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(inl.data, dir);
+    const scratchStr = inlScratch.data;
     const { data: deScratch, maxBlob: mb2, count: c2 } = _extractBlobs(scratchStr, dir);
     const maxBlob = Math.max(mb1, mb2);
     if (maxBlob > _MAX_BYTES) return { ok: false, message: `단일 자산 ${Math.round(maxBlob / 1048576)}MB — GitHub 100MB 한도 초과 위험. 자산 용량을 줄이세요.` };
@@ -3808,6 +3825,7 @@ ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
    ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다(렌더러엔 collab:* 결과만 간다). */
 require('./main/collab').init(ipcMain, {
   readAuth,
+  hasConversionBackup: (id) => { const X = _getExternalizer(); return !!X && X.hasConversionBackup(PROJECTS_DIR, _safeSeg(id)); },
   readMeta: (id) => {
     try {
       const p = _resolveMetaJsonPath(id);

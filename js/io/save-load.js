@@ -280,6 +280,12 @@ window.saveRefusedText = _saveRefusedText;
 function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
 
 /** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
+/* 닫을 때 저장할 게 있나. 되돌리기 봉인 중이면 없다: 저장 실패 기록이 남은 채 새로고침하면 동기 저장이 복원본을 덮는다. */
+function _isReloadSealed(projectId) { return !!_reloadSealTok && (!_reloadSealId || projectId === _reloadSealId); }
+function _unloadSaveNeeded(projectId) {
+  if (_isReloadSealed(projectId)) return false;
+  return _hasOwnUnsaved() || _lastSaveFailed(projectId);
+}
 function _lastSaveFailed(projectId) {
   const e = projectId ? _lastSaveResult.get(projectId) : null;
   return _isSaveFailure(e && e.result);
@@ -290,6 +296,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
   /* ★361 — 안 읽힌 탭으로 나가는 저장은 쓰지 않는다: 그 스냅샷은 앞 프로젝트 내용이다(앱 실측 · ~/gd-lane/imac-gd-L1/361: 첫 로드 중 홈·종료 · 로드 실패 뒤 편집).
      저장 대상 id 와 캔버스가 어긋나면 안 쓰는 쪽이 잃지 않는다. ⛔큐에서 나오는 저장은 통과 — 그 탭이 읽히기 전에 찍은 진짜 스냅샷이다(_fromQueue). */
   if (!opts._fromQueue && window.isTabFirstLoading?.(_targetId)) return { ok: false, skipped: true, reason: 'tab-not-loaded' };
+  /* 되돌린 뒤 새로고침 전 탭 전환·홈 이동이 변환본으로 복원본을 덮는다. 다른 프로젝트 저장은 지나간다. */
+  if (_isReloadSealed(_targetId)) return { ok: false, skipped: true, reason: 'reload-seal' };
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
@@ -2253,7 +2261,7 @@ window.addEventListener('beforeunload', () => {
      끝난 걸 «아는» 상태면 종료 저장을 시도한다. 디스크가 나쁜 줄 «알면서» 그냥 나가지 않는다.
      ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
      ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
-  if (!_hasOwnUnsaved() && !_lastSaveFailed(activeProjectId)) return;
+  if (!_unloadSaveNeeded(activeProjectId)) return;
   if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
@@ -2343,6 +2351,7 @@ if (IS_ELECTRON) {
     let snap = null;
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      if (_isReloadSealed(activeProjectId)) { answer({ ok: true, reason: 'reload-seal' }); return; }
       const quitId = activeProjectId;   // 기다리는 사이 저장 거절이 탭을 닫으면 활성이 바뀐다
       if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소
@@ -2909,7 +2918,7 @@ async function _saveInLine(snapshot, id, opts = {}) {
 window.saveInLine = _saveInLine;
 // DEF-03: 탭 전환 등에서 "변경 없으면 저장 생략" 판정용
 window.hasUnsavedChanges = _hasOwnUnsaved;
-// [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 세 경로를 모두 막아야 복원본이 안 덮인다:
+// [externalize] 되돌리기/리로드 직전 «autosave 봉인»(F4) — 아래 세 경로를 비우고, 봉인 동안 그 프로젝트의 새 파일 저장·닫기·종료 저장은 _isReloadSealed 로 막는다:
 //   ⓐ 큐잉된 autoSaveTimer(발화 콜백이 _suppressAutoSave를 재검사 안 함) → clearTimeout.
 //   ⓑ 대기열 _pendingSaves(in-flight의 finally가 FIFO 드레인) → clear.
 //   ⓒ ★in-flight _isSavingToFile(진행 중 저장이 IPC await 중) → 완료까지 «드레인 대기».
@@ -2919,11 +2928,13 @@ window.hasUnsavedChanges = _hasOwnUnsaved;
 // 봉인 직전 dirty 값 — 되돌리기 실패/reload 차단 시 «봉인 전 상태»로 정확히 복원(무편집이었으면 재저장 안 함).
 let _dirtyBeforeSeal = false;
 let _reloadSealTok = null;                               // [H6] 봉인 토큰 — resume 이 «내 것만» 닫는다
+let _reloadSealId = null;                                // 봉인한 프로젝트 — 그 파일에 가는 저장만 막는다
 window.cancelPendingAutoSaveForReload = async (targetId) => {
   /* ★[H6] 봉인도 토큰으로 — 이 창은 «의도적으로» 함수 밖까지 열려 있다(되돌리기가 끝날 때까지).
    *   그래서 try/finally 로 못 닫는다. 대신 ⑴ resume 이 «내 것만» 닫고
    *   ⑵ 되돌리기가 도중에 죽어 resume 이 영영 안 오면 감시견이 «알린다». */
   if (!_reloadSealTok) _reloadSealTok = window.AutoSaveSuppress.begin('reload-seal');
+  _reloadSealId = targetId || null;
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
   _dirtyBeforeSeal = _dirtySinceSave || _autoSavePending;  // 봉인 직전 값 캡처(③ 부작용 방지) · 미룸에 기억된 예약도 편집이다
   _autoSavePending = false;                                // ★250D — 안 지우면 _hasOwnUnsaved 가 «미저장»으로 읽어 beforeunload 가 복원본을 덮는다
@@ -2940,7 +2951,7 @@ window.cancelPendingAutoSaveForReload = async (targetId) => {
 //   재무장한다. 안 하면 beforeunload 가드(!_dirtySinceSave && !autoSaveTimer)가 조기 return → Cmd+R 시 소실.
 //   ★dirty는 «봉인 직전 값»으로만 복원한다(무조건 true면 무편집 방문도 updatedAt 오염+협업 발화 — ③ 부작용).
 window.resumeAutoSaveAfterAbortedReload = () => {
-  if (_reloadSealTok) { window.AutoSaveSuppress.end(_reloadSealTok); _reloadSealTok = null; }
+  if (_reloadSealTok) { window.AutoSaveSuppress.end(_reloadSealTok); _reloadSealTok = null; _reloadSealId = null; }
   _dirtySinceSave = _dirtyBeforeSeal;
   if (_dirtyBeforeSeal) { try { scheduleAutoSave(); } catch (_) {} }  // 편집이 있었을 때만 재무장
   _dirtyBeforeSeal = false;

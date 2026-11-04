@@ -214,7 +214,7 @@ async function optimizeProjectImages(opts = {}) {
 }
 
 /* ── 열 때 알림 (main → 렌더러 이벤트) ──
- * projects:externalized : 자동변환 완료 — 수치 토스트(무엇이 바뀌었는지 정직하게).
+ * projects:externalized : 자동변환 완료 — 일부 실패(skipped>0)만 토스트.
  * projects:externalize-hint : 변환 안 함 + 이유. legacy(기본 OFF·대형)=프로젝트당 1회만 안내,
  *                             collab(협업 등록 → 자동변환 제외)=1회 안내, failed=매번(사용자가 알아야 한다). */
 const _HINT_KEY = (pid, reason) => `goya-ext-hint:${reason}:${pid}`;
@@ -226,9 +226,8 @@ function _bindExternalizeEvents() {
     if (!p || !p.projectId) return;
     // [F6] skipped>0 = 저장에 실패해 원본 base64로 남은 장수 → «완료»로 속이지 않고 정직하게 «부분 완료» 통지.
     const skipped = Number(p.skipped || 0);
-    const base = `🗜️ 이미지 ${p.images}장을 외부 파일로 분리했습니다 · ${_fmtMB(p.before)} → ${_fmtMB(p.after)}`;
-    if (skipped > 0) window.showToast?.(`${base} — ⚠️ ${skipped}장은 변환 실패로 원본 그대로 남았습니다`);
-    else window.showToast?.(`${base} (원본은 proj_pre-externalize.json에 보존)`);
+    // 성공은 말하지 않는다(현빈 「말 없이 바꿔도 돼」). 실패 안내만 남긴다.
+    if (skipped > 0) window.showToast?.(`🗜️ 이미지 ${p.images}장을 외부 파일로 분리했습니다 · ${_fmtMB(p.before)} → ${_fmtMB(p.after)} — ⚠️ ${skipped}장은 변환 실패로 원본 그대로 남았습니다`);
   });
   api.onExternalizeHint((p) => {
     if (!p || !p.projectId) return;
