@@ -44,7 +44,7 @@ async function common(page, cell, base, id, red) {
   for (let i = 0; i < presses; i++) { await page.keyboard.press('Meta+Shift+z'); await J.settle(page); }
   const re = await J.judgeUndo(page, after); if (re.red) red.push({ check: '⌘⇧Z', detail: re.diffs.slice(0, 2) });
   const now = await J.serial(page); const op = await J.judgeOpen(page, now); if (op.red) red.push({ check: '열기', detail: op.diffs.slice(0, 2) });
-  const del = await deleteRound(page, id, red);
+  const del = id ? await deleteRound(page, id, red) : null;
   return { undoPresses: presses, soft: op.soft, del };
 }
 /* ⌫ — 자식 하나, 그다음 그 프레임째. 한 번 ⌘Z 로 그 바이트로 돌아온다 */
@@ -94,4 +94,4 @@ async function dragBothWays(page, kind) {
   const before = await once(); await page.keyboard.press('Meta+z'); await J.settle(page); await page.evaluate(() => window.deselectAll()); const now = await J.serial(page); await J.judgeOpen(page, now); const after = await once();
   return { measured: true, kind: kind.cls, before, after, same: before.moved === after.moved && before.inFrame === after.inFrame && JSON.stringify(before.to) === JSON.stringify(after.to) };
 }
-module.exports = { dragBothWays, OPS, buildCell, pick, clickPick, drag, insideSpot, parentOf };
+module.exports = { common, dragBothWays, OPS, buildCell, pick, clickPick, drag, insideSpot, parentOf };
