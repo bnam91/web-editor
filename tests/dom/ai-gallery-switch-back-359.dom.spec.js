@@ -244,3 +244,69 @@ for (const [name, fail, want, n] of [['전부 실패', 'all', '저장하지 못�
   expect(await live(page)).toBe(n);
   expect(errs).toEqual([]);
 });
+
+/* ── 2차 리뷰 칸: G15 쓰는 중 돌아와 편집 · G16 저장이 못 가라앉음 · G17 닫힌 탭 실패 안내 · G18 이미 걸린 고리 · G19 창 안에서 지움 ── */
+test('G15 파일에 쓰는 중 돌아와 편집해도 편집이 안 덮이고 항목도 남는다', async ({ page }) => {
+  const errs = await setup(page);
+  await startGen(page); await go(page, Y); await settle(page);
+  await holdLoadOf(page, X);
+  await page.evaluate(() => { window.__gen.done(); }); await page.waitForFunction(() => window.__loadHeld);
+  await go(page, X); await settle(page);
+  await editAndSaved(page, X);
+  const mark = await page.evaluate((X) => window.__files.get(X).pages[0].canvas.length, X);
+  await page.evaluate(() => window.__relLoad());
+  await page.evaluate(() => window.__genP); await settle(page); await saved(page);
+  expect(await page.evaluate((X) => window.__files.get(X).pages[0].canvas.length, X), '★옛 existing 이 편집을 덮었다').toBeGreaterThanOrEqual(mark);
+  expect(await onFile(page, X), '항목').toBe(1);
+  expect(await live(page)).toBe(1);
+  expect(errs).toEqual([]);
+});
+test('G16 저장이 못 가라앉으면 쓰지도 저장됐다고 하지도 않는다', async ({ page }) => {
+  const errs = await setup(page); await toastsOn(page);
+  await startGen(page); await go(page, Y); await settle(page);
+  await page.evaluate(() => { window.__okWait = window.waitSavesFor; window.waitSavesFor = async () => false; });
+  await page.evaluate(async () => { window.__gen.done(); await window.__genP; });
+  expect(await lastToast(page), '★근거 없이 저장됨').toContain('넣지 못했습니다');
+  expect(await onFile(page, X), '★옛 저장이 덮을 자리에 썼다').toBe(0);
+  await page.evaluate(() => { window.waitSavesFor = window.__okWait; });
+  await go(page, X); await settle(page);
+  await expect.poll(() => onFile(page, X), { message: '돌아오면 들어간다', timeout: 10000 }).toBe(1);
+  expect(errs).toEqual([]);
+});
+test('G17 닫힌 탭의 파일 추가 실패 — 돌아가면 저장한다고 말하지 않는다', async ({ page }) => {
+  const errs = await setup(page); await toastsOn(page);
+  await startGen(page); await page.evaluate((X) => window.closeTab(X), X); await settle(page);
+  await page.evaluate((id) => { const old = window.electronAPI; window.electronAPI = new Proxy(old, { get: (t, k) => k === 'loadProject' ? async (i, o) => (i === id ? null : t.loadProject(i, o)) : t[k] }); }, X);
+  await page.evaluate(async () => { window.__gen.done(); await window.__genP; });
+  const t = await lastToast(page);
+  expect(t).toContain('넣지 못했습니다');
+  expect(t, '★탭이 없는데 돌아가면 저장한다고 한다').not.toContain('돌아가면');
+  expect(errs).toEqual([]);
+});
+test('G18 이미 걸린 복구 고리가 저장 없이 끝나도 돌아오면 파일에 들어간다', async ({ page }) => {
+  const errs = await setup(page); await toastsOn(page);
+  await startGen(page); await go(page, Y); await settle(page);
+  await page.evaluate((X) => { window.openTabs.find((t) => t.id === X)._afterLs = async () => true; }, X);
+  await page.evaluate((id) => { window.__okApi = window.electronAPI; window.electronAPI = new Proxy(window.__okApi, { get: (t, k) => k === 'saveProject' ? async (p) => (p.id === id ? { ok: false, reason: 'x' } : t.saveProject(p)) : t[k] }); }, X);
+  await page.evaluate(async () => { window.__gen.done(); await window.__genP; });
+  await page.evaluate(() => { window.electronAPI = window.__okApi; });
+  await go(page, X); await settle(page);
+  await expect.poll(() => onFile(page, X), { message: '★고리가 있으면 저장을 안 걸었다', timeout: 10000 }).toBe(1);
+  expect(errs).toEqual([]);
+});
+test('G19 쓰는 창 안에서 지운 항목은 되살아나지 않는다', async ({ page }) => {
+  const errs = await setup(page);
+  page.on('dialog', (d) => d.accept());
+  await startGen(page); await go(page, Y); await settle(page);
+  await holdLoadOf(page, X);
+  await page.evaluate(() => { window.__gen.done(); }); await page.waitForFunction(() => window.__loadHeld);
+  await go(page, X); await settle(page);
+  expect(await live(page), '[전제] 돌아온 화면에 있다').toBe(1);
+  await page.evaluate(async () => { const id = window.state.imageGallery[0].id; await window.galleryDeleteImage(id); });
+  await settle(page); await saved(page);
+  await page.evaluate(() => window.__relLoad());
+  await page.evaluate(() => window.__genP); await settle(page); await saved(page);
+  expect(await live(page), '★화면에 되살았다').toBe(0);
+  expect(await onFile(page, X), '★파일에 되살았다').toBe(0);
+  expect(errs).toEqual([]);
+});

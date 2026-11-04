@@ -654,8 +654,9 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     if (_getProjectId() !== projectId || window.isTabFirstLoading?.(projectId)) {
       // 전환 감지: 캡처 프로젝트 파일에 갤러리 엔트리를 직접 병합 (라이브 화면/저장 미오염)
       if (!(await _appendGalleryToProject(projectId, capturedItems))) {
-        _saveOnReturn(projectId);
-        window.showToast?.(`⚠️ 이미지 ${items.length}장을 생성한 프로젝트 파일에 넣지 못했습니다 — 그림 파일은 남아 있습니다. 그 프로젝트로 돌아가면 다시 저장합니다`);
+        window.showToast?.(_saveOnReturn(projectId)
+          ? `⚠️ 이미지 ${items.length}장을 생성한 프로젝트 파일에 넣지 못했습니다 — 그림 파일은 남아 있습니다. 그 프로젝트로 돌아가면 다시 저장합니다`
+          : `⚠️ 이미지 ${items.length}장을 생성한 프로젝트 파일에 넣지 못했습니다 — 그림 파일은 남아 있지만 갤러리 목록에는 없습니다`);
         return { ok: true, items, cost: res.cost, fileFailed: true };
       }
       window.showToast?.(`${_partial || '✨ '}${items.length}장 생성 — 생성 시작한 프로젝트에 저장됨 (다른 프로젝트로 전환되어 현재 화면엔 미표시)`);
@@ -674,7 +675,8 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
   // 라이브 window.state(전환된 다른 프로젝트)를 건드리지 않아 오염을 막는다.
   async function _appendGalleryToProject(pid, newItems) {
     if (!pid || !newItems?.length) return false;
-    const _missing = (list) => { const have = new Set((Array.isArray(list) ? list : []).map(it => it && it.id)); return newItems.filter(it => !have.has(it.id)); };
+    /* 창이 열린 동안 사용자가 지운 항목은 되살리지 않는다(js/panels/ai-image-gallery.js galleryDeleteImage). */
+    const _missing = (list) => { const have = new Set((Array.isArray(list) ? list : []).map(it => it && it.id)); return newItems.filter(it => !have.has(it.id) && !window._aiGalleryRemoved?.has(it.id)); };
     /* ★359 — 그 탭의 메모리 캐시에도 넣는다. 파일에만 넣으면 돌아올 때 옛 캐시가 복원되고(tab-system switchTab)
        다음 저장이 항목 없는 갤러리로 파일을 덮는다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 파일 쓰기가 실패해도 돌아온 화면에 남는다. */
     const _addToCache = () => {
@@ -687,21 +689,39 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
       } catch (e) { console.warn('[ai-image-gen] 359 탭 캐시 갱신 실패:', e); }
     };
     _addToCache();
+    /* 그 프로젝트로 돌아왔으면 파일은 화면의 저장이 쓴다 — 읽어 둔 옛 existing 으로 쓰면 그사이 저장한 편집을 덮는다(S6 앱 값). 화면 state 에 넣고 자동저장을 건다. */
+    const _intoLiveIfHere = async () => {
+      const end = Date.now() + 30000;
+      while (_getProjectId() === pid && window.isTabFirstLoading?.(pid) && Date.now() < end) await new Promise(r => setTimeout(r, 25));
+      if (_getProjectId() !== pid || window.isTabFirstLoading?.(pid)) return false;
+      const add = _missing(window.state.imageGallery);
+      if (add.length) {
+        window.state.imageGallery = [...(Array.isArray(window.state.imageGallery) ? window.state.imageGallery : []), ...add];
+        window.buildAIImageGallery?.();
+        window.triggerAutoSave?.();
+      }
+      return true;
+    };
     try {
-      /* 떠날 때 건 저장이 끝나기 전에 쓰면 그 옛 스냅샷이 항목을 덮는다 ⇒ 가라앉은 뒤 쓰고, 가라앉은 뒤 파일에 있나 다시 본다(S6 앱 값: 7초 저장에 덮임). */
+      /* 떠날 때 건 저장이 끝나기 전에 쓰면 그 옛 스냅샷이 항목을 덮는다 ⇒ 가라앉은 뒤에만 쓰고, 가라앉은 뒤 파일에 있나 다시 본다.
+         ⛔못 가라앉았으면(false) 쓰지도, 됐다고 하지도 않는다 — 곧 끝날 옛 저장이 지운다(S6 앱 값: 35초 저장에 저장됨 토스트 뒤 덮임). 상한: 15초 × 2 × 3번. */
       for (let n = 0; n < 3; n++) {
-        await window.waitSavesFor?.(pid);
+        if (await _intoLiveIfHere()) return true;
+        if ((await window.waitSavesFor?.(pid)) === false) continue;
+        if (await _intoLiveIfHere()) return true;
         const existing = await window.electronAPI.loadProject(pid);
         if (!existing) return false;
+        if (await _intoLiveIfHere()) return true;   // 읽는 사이 돌아왔다 — 이 existing 은 버린다
         const add = _missing(existing.imageGallery);
         if (add.length) {
           existing.imageGallery = [...(Array.isArray(existing.imageGallery) ? existing.imageGallery : []), ...add];
           const r = await window.electronAPI.saveProject(existing);
           if (r && r.ok === false) return false;
         }
-        await window.waitSavesFor?.(pid);
+        if ((await window.waitSavesFor?.(pid)) === false) continue;
+        if (await _intoLiveIfHere()) return true;
         const after = await window.electronAPI.loadProject(pid);
-        if (after && !_missing(after.imageGallery).length) { await _reconcileReopened(pid, _missing, _addToCache); return true; }
+        if (after && !_missing(after.imageGallery).length) { _addToCache(); return true; }
       }
       return false;
     } catch (e) {
@@ -710,28 +730,21 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
     }
   }
 
-  /* 파일에 못 넣은 항목은 탭 캐시에만 있다 — 무편집으로 돌아오면 저장이 안 돌아 종료 때 잃는다. 돌아오는 때 저장을 건다(복구 저장과 같은 고리). */
+  /* 파일에 못 넣은 항목은 탭 캐시에만 있다 — 무편집으로 돌아오면 저장이 안 돌아 종료 때 잃는다. 돌아오는 때 저장을 건다(복구 저장과 같은 고리).
+     이미 걸린 고리는 저장 없이 끝날 수 있어(본이 파일과 같을 때) 뒤에 잇는다. 탭·캐시가 없으면 못 건다: 거짓 안내를 안 하게 false. */
   function _saveOnReturn(pid) {
     const tab = window.openTabs?.find(t => t.id === pid);
-    if (!tab?._cache || tab._afterLs) return;
-    tab._afterLs = (stillHere) => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!stillHere()) { done(false); return; }
+    if (!tab?._cache) return false;
+    const prev = tab._afterLs;
+    tab._afterLs = async (stillHere) => {
+      if (prev) await prev(stillHere);
+      if (!stillHere()) return false;
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      if (!stillHere()) return false;
       window.triggerAutoSave?.();
-      done(true);
-    })));
-  }
-
-  /* 쓰는 사이 그 프로젝트를 다시 열었으면 항목 없는 파일을 읽었을 수 있다 — 안 넣으면 다음 저장이 파일에서 지운다. */
-  async function _reconcileReopened(pid, missingOf, addToCache) {
-    const end = Date.now() + 30000;
-    while (_getProjectId() === pid && window.isTabFirstLoading?.(pid) && Date.now() < end) await new Promise(r => setTimeout(r, 25));
-    addToCache();
-    if (_getProjectId() !== pid || window.isTabFirstLoading?.(pid)) return;
-    const add = missingOf(window.state.imageGallery);
-    if (!add.length) return;
-    window.state.imageGallery = [...(Array.isArray(window.state.imageGallery) ? window.state.imageGallery : []), ...add];
-    window.buildAIImageGallery?.();
-    window.triggerAutoSave?.();
+      return true;
+    };
+    return true;
   }
 
   // 모달 내부 submit 라우터를 위한 헬퍼 — ai-prompt.js에서 호출
