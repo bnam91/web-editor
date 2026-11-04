@@ -377,7 +377,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   let _asTok = null;
   item.addEventListener('dragstart', e => {
     e.stopPropagation();
-    if (!_asTok) _asTok = window.AutoSaveSuppress.begin('layer-drag', { longLived: true });
+    if (!_asTok || _asTok.released) { _asTok = window.AutoSaveSuppress.begin('layer-drag', { longLived: true }); window.AutoSaveSuppress.endOnNextGesture(_asTok); }
     window.layerDragSrc = item;
     // 다중선택 드래그: 이 아이템이 active 상태이고 다른 active 아이템도 있으면 함께 이동
     if (item.classList.contains('active')) {
