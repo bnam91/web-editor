@@ -108,3 +108,57 @@ test('M4 음성 — 안 건 글칸의 ⌘Z 는 옛 문 그대로 앱 이력을 �
   const y = await press(page, 'Meta+z');
   expect(y.col, '양성: 포커스 없으면 한 걸음 간다').toBe('rgb(1, 0, 0)');
 });
+
+const C4 = [[30, 0], [375, 0], [395, 150], [0, 124]];
+const shape = (page) => page.evaluate(async (C) => { const fx = await import('/js/effects-freetransform.js'); fx.setFxFreeTransform(document.getElementById('m1'), C, { history: true, touched: true }); window.pushHistory('끌기'); }, C4);
+
+test('M5 앞 편집에서 친 글은 묵은 네이티브로 먼저 안 간다 — 첫 ⌘Z 가 모양, 글이 지워졌다 되살아나지 않는다', async ({ page }) => {
+  await scene(page, true);
+  await edit(page);
+  await page.keyboard.insertText('y');
+  await page.keyboard.press('Escape');
+  await frames(page);
+  await shape(page);
+  await edit(page);
+  const a = await read(page);
+  expect(await page.evaluate(() => document.queryCommandEnabled('undo')), '전제: 네이티브가 앞 글을 들고 있다').toBe(true);
+  expect(a.t).toBe('첫 줄y');
+  const u1 = await press(page, 'Meta+z');
+  expect(u1.C, '첫 ⌘Z 는 뒤에 한 끌기').not.toBe(a.C);
+  expect(u1.t).toBe('첫 줄y');
+});
+
+test('M6 옆 글상자에서 친 글이 스택에 있어도 첫 ⌘Z 가 먹통이 아니다', async ({ page }) => {
+  await scene(page, true);
+  await page.evaluate(async () => { await window.addTextBlock('h2'); const tb = [...document.querySelectorAll('#canvas .text-block')].find((t) => t.id !== 'm1'); tb.id = 'v1'; const ce = tb.querySelector('[contenteditable]'); ce.textContent = '옆글'; delete ce.dataset.isPlaceholder; window.selectBlock?.('v1'); window.pushHistory('옆'); });
+  await frames(page);
+  const q = await page.locator('#v1').boundingBox();
+  await page.mouse.dblclick(q.x + q.width / 2, q.y + q.height / 2);
+  await page.waitForFunction(() => document.getElementById('v1').classList.contains('editing'));
+  await page.keyboard.insertText('q');
+  await page.keyboard.press('Escape');
+  await frames(page);
+  await shape(page);
+  await edit(page);
+  const a = await read(page);
+  expect(await page.evaluate(() => document.queryCommandEnabled('undo')), '전제: 네이티브가 옆 글을 들고 있다').toBe(true);
+  const u1 = await press(page, 'Meta+z');
+  expect(u1.C).not.toBe(a.C);
+});
+
+test('M7 커서 둔 채 글 치고 손잡이를 끈 뒤 — 첫 ⌘Z 가 끌기, 글이 지워졌다 되살아나지 않는다', async ({ page }) => {
+  await scene(page, true);
+  await edit(page);
+  await page.keyboard.insertText('x');
+  const h = await page.locator('#m1 .tfh-handle[data-tfh="ne"]').boundingBox();
+  const cx = h.x + h.width / 2, cy = h.y + h.height / 2;
+  await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx - 7, cy); await frames(page); await page.mouse.move(cx - 15, cy); await frames(page); await page.mouse.up(); await frames(page);
+  const a = await read(page);
+  expect(a.cur, '전제: 커서가 그대로다').toBe(true);
+  expect(a.t).toBe('첫 줄x');
+  const seen = [];
+  for (let i = 0; i < 3; i++) seen.push(await press(page, 'Meta+z'));
+  const texts = seen.map((r) => r.t);
+  expect(texts.indexOf('첫 줄') === -1 || !texts.slice(texts.indexOf('첫 줄')).includes('첫 줄x'), `글 순서 ${texts.join(' → ')}`).toBe(true);
+  expect(seen[0].C, '첫 ⌘Z 는 끌기').not.toBe(a.C);
+});

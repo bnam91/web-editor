@@ -2616,8 +2616,15 @@ function _freeNudgeTargets() {
 function _yieldsUndoToNative(cmd) {
   const ae = document.activeElement;
   if (!ae?.isContentEditable) return false;
-  return !ae.closest('.text-block[data-tf-corners]') || document.queryCommandEnabled(cmd);
+  if (!ae.closest('.text-block[data-tf-corners]')) return true;
+  if (!document.queryCommandEnabled(cmd)) return false;
+  return cmd !== 'undo' || ae !== _nativeUndoEntry?.el || ae.innerHTML !== _nativeUndoEntry.html;
 }
+/* 네이티브 스택은 문서 하나라 앞 편집의 글을 들고 있다 — 그걸 먼저 되돌리면 다음 앱 걸음이 글을 되살린다. 그래서 이번 진입 뒤 친 글만 네이티브로 간다. */
+let _nativeUndoEntry = null;
+document.addEventListener('focusin', e => { if (e.target?.isContentEditable) _nativeUndoEntry = { el: e.target, html: e.target.innerHTML }; });
+/* 커서 둔 채 손잡이를 잡으면 친 글은 끌기 시작 표본에 들어간다 — 여기서부터 친 글만 네이티브 몫이다. */
+document.addEventListener('mousedown', e => { const ae = document.activeElement; if (ae?.isContentEditable && e.target.closest?.('.tfh-handle')) _nativeUndoEntry = { el: ae, html: ae.innerHTML }; }, true);
 
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
