@@ -1907,6 +1907,12 @@ function safeLocalStorageSet(key, value) {
         return _tsOf(k) > (Number(base) || Date.parse(base));
       };
       const oldest = candidates.sort((a, b) => (_unfiled(a) - _unfiled(b)) || (_tsOf(a) - _tsOf(b)))[0];
+      /* 남은 것이 복구본뿐이면 안 지운다 — 다른 프로젝트의 하나뿐인 편집을 잃고도 지금 본이 안 들어갔다(앱). 지금 본은 파일로 간다. */
+      if (_unfiled(oldest)) {
+        console.warn('[save-load] QuotaExceededError: 남은 본이 복구본뿐이라 안 지운다');
+        window.showToast?.('⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.');
+        return false;
+      }
       localStorage.removeItem(oldest);
       localStorage.removeItem(oldest + '_ts');
       console.warn('[save-load] QuotaExceededError: 오래된 autosave 키 삭제 후 재시도 -', oldest);

@@ -256,7 +256,7 @@ test('낡게 연 탭: 앞 프로젝트 저장이 끝나도 편집이 저장된 �
   await page.evaluate(async () => { (await import('/js/io/save-load.js')); });
   await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
 });
-test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 맨 뒤로', async ({ page }) => {
+test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 안 지운다', async ({ page }) => {
   await open(page, { lsTs: fileTs - 3600e3, base: UPD });
   const order = await page.evaluate(async () => {
     const { safeLocalStorageSet } = await import('/js/io/save-load.js');
@@ -274,7 +274,7 @@ test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 맨 뒤로'
     seq.push(gone());
     return seq;
   });
-  expect(order).toEqual([[], ['filed'], ['filed', 'nomark'], ['rec', 'filed', 'nomark'], ['rec', 'recnum', 'filed', 'nomark']]);
+  expect(order).toEqual([[], ['filed'], ['filed', 'nomark']]);
 });
 const big = (m) => JSON.stringify({ ...snap(m), pad: 'p'.repeat(2.2 * 1024 * 1024) });
 const lsOf = (page, id) => page.evaluate((id) => { const k = 'web-editor-autosave__' + id; const v = localStorage.getItem(k); return { len: v?.length ?? null, ts: localStorage.getItem(k + '_ts'), big: (v?.length ?? 0) > 2097152 }; }, id);
