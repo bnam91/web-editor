@@ -193,7 +193,8 @@ async function externalizeScratchpad(proj, projectId) {
     if (changed) {
       try { await upgradeSrcs(key, cache); } catch (_) {}
       if (projectId === _currentProjectId && page.id === _currentPageId) {
-        _scratchItems.forEach(s => { const mm = manifest.find(x => x.id === s.id); if (mm && mm.src !== s.src) { s.src = mm.src; const im = s.el.querySelector('img'); if (im) im.src = mm.src; } });
+        /* id 가 아니라 «옛 주소가 그대로일 때만» 바꾼다. IPC 를 기다리는 사이 같은 id 로 새 그림이 들어오면(배경 제거) 옛 그림으로 되돌려 다음 저장이 새 그림을 덮었다(S3 scratch2 ①) */
+        _scratchItems.forEach(s => { const url = cache.get(s.src); if (url) { s.src = url; const im = s.el.querySelector('img'); if (im) im.src = url; } });
       }
     }
   }

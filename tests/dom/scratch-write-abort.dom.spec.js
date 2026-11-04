@@ -151,3 +151,24 @@ test('음성 페이지 삭제: 다른 저장 실패는 전처럼 공용 알림�
   await page.evaluate((S) => window.__settle(window._scratchAddAndSave(S, 10, 10, 50, null, 's_1')), S);
   await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual(['⚠️ 스크래치를 저장하지 못했습니다. 다시 열면 지금 화면과 다를 수 있습니다.']);
 });
+const srcOf = (page, id) => page.evaluate((id) => window._scratchItemById(id)?.src?.slice(0, 40), id);
+test('외부화 대기 중 같은 id 로 새 그림이 들어와도 옛 그림으로 안 돌아간다', async ({ page }) => {
+  await ready(page);
+  const NEW = S.replace('A', 'B');
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_a'), S);
+  await holdExternalize(page);
+  await page.evaluate(() => { window.__ext = window.externalizeScratchpad({ pages: [{ id: 'p1' }] }, 'proj_1'); });
+  await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
+  await page.evaluate(async (NEW) => { await window._scratchRemoveById('s_a'); await window._scratchAddAndSave(NEW, 10, 10, 50, undefined, 's_a'); }, NEW);
+  await page.evaluate(async () => { window.__release(); await window.__ext; });
+  expect(await srcOf(page, 's_a')).toBe(NEW.slice(0, 40));
+});
+test('음성 외부화: 그림이 그대로면 화면 주소도 goya 로 바뀐다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_a'), S);
+  await holdExternalize(page);
+  await page.evaluate(() => { window.__ext = window.externalizeScratchpad({ pages: [{ id: 'p1' }] }, 'proj_1'); });
+  await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
+  await page.evaluate(async () => { window.__release(); await window.__ext; });
+  expect(await srcOf(page, 's_a')).toBe('goya-asset://proj_1/a.png');
+});
