@@ -9,7 +9,7 @@
 
    ★안전 계약 (어느 단계가 실패해도 proj.json은 «바이트 하나» 안 바뀐다)
      읽기 → 고유 URI 수집 → 에셋 저장(content-hash, dedup) → 치환 → 검증 5종 전부 통과 →
-     원본 rename(proj_pre-externalize.json, 최초 원본 영구 보존) → atomic write → meta 마커.
+     원본 복제(proj_pre-externalize.json) → atomic write → meta 마커.
      롤링 proj_backup.json은 다음 autosave가 1.5초 뒤 덮어쓰므로 «되돌리기 지점»으로 못 쓴다.
 
    ★정규식·에셋 규약은 렌더러(js/io/asset-externalize.js)·main(assets:saveCanvasImage)과 «동일»
@@ -62,11 +62,19 @@ function pathsFor(projectsDir, projectId) {
     assets: path.join(dir, 'assets'),
   };
 }
+function fsyncPath(p, flags) {
+  const fd = fs.openSync(p, flags);
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+function fsyncDir(dir) { try { fsyncPath(dir, 'r'); } catch (_) {} }   // 윈도우는 폴더 fsync 가 안 된다 — 파일 fsync 까지만
 function atomicWrite(filePath, data) {
   const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, data);
-  try { fs.renameSync(tmp, filePath); }
-  catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} throw e; }
+  try {
+    const fd = fs.openSync(tmp, 'w');
+    try { fs.writeFileSync(fd, data); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, filePath);
+  } catch (e) { try { fs.unlinkSync(tmp); } catch (_) {} throw e; }
+  fsyncDir(path.dirname(filePath));
 }
 function readJsonOrNull(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
@@ -251,9 +259,13 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   const after = Buffer.byteLength(out);
   if (after >= before) return { ok: false, reason: 'not_smaller', before, after };
 
-  // 6) 원본 보존 — rename(디스크 0 추가). 이미 백업이 있으면(이례) 덮지 않고 타임스탬프로 회전.
+  // 6) 원본 보존 — 복제(APFS 는 clone). rename 하면 새 파일을 쓰기 전에 죽을 때 proj.json 이 없어 목록에서 사라지고 폴백이 더 낡은 백업을 자가치유한다(시험으로 재현).
+  //    이미 백업이 있으면(이례) 덮지 않고 타임스탬프로 회전.
   let backupPath = p.backup;
+  const backupTmp = p.backup + '.tmp';
   try {
+    fs.copyFileSync(p.proj, backupTmp, fs.constants.COPYFILE_FICLONE);
+    fsyncPath(backupTmp, 'r+');
     if (fs.existsSync(p.backup)) {
       const rotated = path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`);
       fs.renameSync(p.backup, rotated);
@@ -265,13 +277,17 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
         for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
       } catch (_) {}
     }
-    fs.renameSync(p.proj, p.backup);
-  } catch (e) { return { ok: false, reason: 'backup_failed', error: e.message, before }; }
+    fs.renameSync(backupTmp, p.backup);
+    fsyncDir(p.dir);
+  } catch (e) {
+    try { fs.unlinkSync(backupTmp); } catch (_) {}
+    return { ok: false, reason: 'backup_failed', error: e.message, before };
+  }
 
-  // 7) atomic write — 실패하면 백업을 제자리로 되돌린다(원본 무손상 계약)
+  // 7) atomic write — 실패하면 proj.json 은 그대로다(원본 무손상 계약)
   try { atomicWrite(p.proj, out); }
   catch (e) {
-    try { fs.renameSync(p.backup, p.proj); } catch (_) {}
+    try { fs.unlinkSync(p.backup); } catch (_) {}
     return { ok: false, reason: 'write_failed', error: e.message, before };
   }
 
