@@ -3,6 +3,7 @@
  * ★★이 파일은 ★«측정 기록»이다. ⛔고치는 것이 ★아니다 — ★X1 은 `test.fixme` · ★X2 는 `test.skip` 이다.
  *   ★돌면 ★지금을 ★잠근다(고치면 빨개진다) ⇒ ★★그래서 ★둘 다 ★돌지 않는다.
  *   ★261104 현빈 답 6655(332): X1 은 고쳤다 — 아래 «판정» 줄들은 10-08 기록이다.
+ *   ★261104 X2 도 현빈 답으로 고쳤다: 굵게·색은 실린다 · 기울임·밑줄·취소선·형광펜은 플러그인에 범위 명령이 없어 안 실린다(릴리스 노트 칸).
  *   ⛔★두 줄기를 ★한 낱말로 ★묶지 마라 — ★X1 = ★«손실»(★고칠 것) · ★X2 = ★«한계»(⛔고칠 것이 아니다).
  *     ★지디 2026-10-08: 「⛔L1(프레임화)과 ★L2(피그마)를 ★한 칸에 섞지 마라」 ⇒ ★이 줄이 그 칸이었다.
  *   ★★고치는 사람은 ⒜ ★X1 은 `fixme` 를 · ★X2 는 `skip` 을 ★떼고 ⒝ 단언을 ★뒤집어라. ★단언 메시지에 그렇게 적었다.
@@ -158,7 +159,7 @@ test('X1b 프레임화 뒤 ⌘Z 로 모달과 서식이 돌아온다 · 평문 �
   expect(plain).toEqual([['<b>글자</b>', 0]]);
 });
 
-test.skip('X2 ★피그마 내보내기 — 글자는 산다 · 서식은 ★안 실린다 (지디 판정 = ★채널 모델 한계)', async ({ page }) => {
+test('X2 피그마 내보내기 — 글자와 굵게 범위가 실린다 (332 · 2026-10-08 기록은 안 실림 · 양성: ranges 를 빼면 빨강)', async ({ page }) => {
   const errs = await setup(page);
   const { st } = await makeFormattedModal(page);
   console.log('  X2 전제:', JSON.stringify(st));
@@ -173,7 +174,7 @@ test.skip('X2 ★피그마 내보내기 — 글자는 산다 · 서식은 ★안
     const s = JSON.stringify(j);
     return { len: s.length, hasModalNode: /"kind":"modal"/.test(s),
       hasPlainText: new RegExp('AAABBBCCC').test(s),
-      hasFmtMarkup: /<b>|<\/b>|&lt;b&gt;|textHtml|data-text-html/.test(s),
+      hasFmtMarkup: /<b>|<\/b>|&lt;b&gt;|textHtml|data-text-html/.test(s), texts: (() => { let f = null; const w = (v) => { if (!v || typeof v !== 'object' || f) return; if (v.kind === 'modal') { f = v.texts; return; } Object.values(v).forEach(w); }; w(j); return f; })(),
       modalNode: (s.match(/"kind":"modal"[\s\S]{0,260}/) || [''])[0].slice(0, 260) };
   });
   console.log('  X2 내보낸 JSON:', JSON.stringify(r));
@@ -181,8 +182,9 @@ test.skip('X2 ★피그마 내보내기 — 글자는 산다 · 서식은 ★안
   /* ★★전제 둘 — ★없으면 아래 「안 실린다」는 ★«안 쟀다»다(머리말 ③의 그 자리) */
   expect(r.hasModalNode, `★★전제 — JSON 에 ★모달 노드가 ★없다. 이 상태로는 ★아무것도 안 잰다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
   expect(r.hasPlainText, `★★전제 — JSON 에 ★글자조차 없다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
-  /* ★★지금의 ★한계를 ★기록한다. ⛔«결함»이 아니다 — ★수신측에 ★받는 칸이 ★없다(머리말 참조).
-     ★양쪽(보내는 쪽·받는 쪽)이 ★같이 리치텍스트를 ★갖추면 ★이 단언을 ★뒤집어라. */
-  expect(r.hasFmtMarkup, `★★서식이 ★실린다면 ★이 기록이 ★낡았다 — ★단언을 ★뒤집어라. 잰 값 ${JSON.stringify(r)}`).toBe(false);
+  expect(r.hasFmtMarkup, `마크업 글자가 JSON 에 샜다. 잰 값 ${JSON.stringify(r)}`).toBe(false);
+  const t = r.texts[0];
+  expect(t.t).toBe(TXT);
+  expect(t.ranges, `굵게 범위가 안 실렸다. 잰 값 ${JSON.stringify(r.texts)}`).toEqual([{ start: 6, end: 9, bold: true }]);
   expect(errs).toEqual([]);
 });
