@@ -319,6 +319,14 @@ function lsRecoveryPending(projectsDir, projectId, { lsTs, lsBase } = {}) {
   return lsTs > new Date(updatedAt || 0).getTime();
 }
 
+/** 캔버스가 이 기계의 파일을 가리키나 — 협업 상대 쪽에서 깨지는 본. 못 읽으면 모른다(false). 스크래치 매니페스트는 안 센다(섹션과 같이 안 간다). */
+function hasCanvasGoya(projectsDir, projectId) {
+  try {
+    const data = JSON.parse(fs.readFileSync(pathsFor(projectsDir, projectId).proj, 'utf8'));
+    return canvasSlots(data).some((s) => s.get().includes('goya-asset://'));
+  } catch (_) { return false; }
+}
+
 /** 되돌리기 진단 — 버려질 «현재 작업»과 복원될 «변환 전 원본»의 격차(UI 경고용, 비파괴). */
 function rollbackDiag(p, backupRaw) {
   const out = { restoreBytes: Buffer.byteLength(backupRaw), currentBytes: 0, currentSections: 0, restoreSections: 0, convertedAt: null, ageDays: null };
@@ -391,6 +399,6 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
 
 module.exports = {
   DATA_URI_RE, GOYA_RE, BACKUP_NAME,
-  extFromMime, saveImageBytes, scanProjectFile, externalizeProjectFile, rollbackExternalize, lsRecoveryPending,
+  extFromMime, saveImageBytes, scanProjectFile, externalizeProjectFile, rollbackExternalize, lsRecoveryPending, hasCanvasGoya,
   _internal: { pathsFor, canvasSlots, countMatches, countSections, parseDataUri },
 };

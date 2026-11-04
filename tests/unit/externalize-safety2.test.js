@@ -88,3 +88,31 @@ test('② 실제 beforeunload·종료 저장 손잡이가 봉인을 본다', asy
   assert.strictEqual(ser, 0, '종료가 직렬화까지 갔다');
   assert.strictEqual(hs.answer.reason, 'reload-seal');
 });
+test('③ 협업 차단은 내용으로: 캔버스에 goya 가 있으면 표지 없이도(복제·새 그림) 막는다', async () => {
+  const src = readSrc(REPO, 'main/collab/index.js');
+  const run = (f) => { let called = 0; return new Function('getRef', 'call', '_deps', 'setRef', sliceBlock(src, 'async function register(', '대상') + '\nreturn register;')(() => null, async () => { called++; return { ok: false, reason: 'x' }; }, { hasLocalImages: () => X.hasCanvasGoya(f.root, f.id), readMeta: () => ({}), readAuth: () => null }, () => {})({ projectId: f.id }).then((r) => ({ r, called })); };
+  const goya = fx(); X.externalizeProjectFile(goya.root, goya.id); fs.unlinkSync(goya.meta);   // 복제: 표지가 지워진 본
+  const a = await run(goya); assert.strictEqual(a.r.reason, 'local_images'); assert.strictEqual(a.called, 0);
+  const b = await run(fx()); assert.strictEqual(b.called, 1, '[음성] base64 본');
+  const s = fx(7, { pages: [{ id: 'a', canvas: '<div class="section-block"></div>', scratchpad: 'goya-asset://p1/x.png' }] });
+  assert.strictEqual((await run(s)).called, 1, '[음성] 스크래치만 goya');
+  const bad = fx(); fs.writeFileSync(bad.proj, '{잘림');
+  assert.strictEqual((await run(bad)).called, 1, '[음성] 못 읽음은 막지 않는다');
+  assert.match(readSrc(REPO, 'main.js'), /hasLocalImages: \(id\) => /);
+});
+test('④ 협업 안내: 변환 뒤 편집이 빠진다고 말한다', () => {
+  const t = readSrc(REPO, 'js/collab/reasons.js').match(/local_images:\s*'([^']+)'/)[1];
+  assert.match(t, /변환 뒤 편집은 빠집니다/); assert.match(t, /proj_pre-rollback\.json/);
+});
+test('④ 되돌리기 ×6: 최신 proj_pre-rollback 과 직전 본이 안 지워진다', () => {
+  const f = fx(); const latest = [];
+  for (let n = 40; n < 46; n++) {
+    addImage(f, n); X.externalizeProjectFile(f.root, f.id);
+    const d = JSON.parse(fs.readFileSync(f.proj, 'utf8')); d.work = n; fs.writeFileSync(f.proj, JSON.stringify(d)); latest.push(sha(f.proj));
+    const t = Date.now(); while (Date.now() === t);
+    assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
+    assert.strictEqual(sha(path.join(f.dir, 'proj_pre-rollback.json')), latest.at(-1));
+  }
+  const kept = fs.readdirSync(f.dir).filter((x) => /^proj_pre-rollback/.test(x)).map((x) => sha(path.join(f.dir, x)));
+  assert.ok(kept.includes(latest.at(-2)), '직전 본이 회전으로 지워졌다');
+});
