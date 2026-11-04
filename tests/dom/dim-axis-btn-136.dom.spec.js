@@ -10,6 +10,8 @@
  *     X4 ★⌘Z 한 번 = 바로 앞 방향의 선(이력 한 칸에 dimAxis·dimA·dimB 같이)
  *     X5 저장 문자열 왕복(섹션 HTML 다시 들여도) 같은 선
  *     X6 [음성대조] 끝을 끌어 비뚤게 둔 선에서 «이미 고른» 방향(auto)을 다시 눌러도 선 그대로 · 이력 칸 안 늘어남(고치기 전과 같은 동작)
+ *     X7 ★6634 가로로 찍은 치수선에 v = 안 바뀐다(고치기 전 앱: 선 300 → 1px) · 방향·이력 그대로 · 세로로 찍은 것에 h 도 같다
+ *     X8 [음성대조] 가로로 찍은 치수선에 h 는 받는다(dimAxis = h · 선 그대로)
  *   양성대조: 고치기 전(eac99ecd) ⇒ X1·X2·X4 빨강(선이 안 바뀜) · X0·X3·X5 초록(X3·X5 는 «고친 뒤 무너지지 않나» 지키는 칸 — 옛 판은 선이 안 움직여 거저 초록).
  *   ⛔고정 대기 0 — 조건 대기만. 고르기 = 라벨 실클릭 · 방향 = 패널 단추 실클릭.
  */
@@ -18,7 +20,7 @@ const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const D = [200, 160], C = [500, 260];   /* 비뚠 잰 구간 — 가로 300 · 세로 100 */
 
-async function placeDim(page) {
+async function placeDim(page, D = [200, 160], C = [500, 260]) {
   await page.setViewportSize({ width: 1600, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate(([D, C]) => {
@@ -132,5 +134,29 @@ test('X6 [음성대조] 이미 고른 방향을 다시 누르면 선 그대로 �
   const h1 = await page.evaluate(() => window.getHistoryTip?.().pos ?? null);
   expect({ x1: near(l1.x1, l0.x1), y1: near(l1.y1, l0.y1), x2: near(l1.x2, l0.x2), y2: near(l1.y2, l0.y2), hist: h1 === h0 }, `★다시 누른 뒤 ${JSON.stringify(l1)} · 앞 ${JSON.stringify(l0)} · 이력 ${h0}→${h1}`)
     .toEqual({ x1: true, y1: true, x2: true, y2: true, hist: true });
+  expect(errs).toEqual([]);
+});
+
+for (const [name, P, Q, a] of [['가로로 찍고 v', [200, 200], [500, 200], 'v'], ['세로로 찍고 h', [300, 100], [300, 400], 'h']]) {
+  test(`X7 ★${name} — 선이 안 접힌다 · 방향·이력 그대로`, async ({ page }) => {
+    const errs = await placeDim(page, P, Q);
+    const l0 = await line(page);
+    const hist0 = await page.evaluate(() => window.getHistoryTip?.().pos ?? null);
+    const b = await waitStableRect(page, `#annot-dim-axis .prop-align-btn[data-axis="${a}"]`);
+    await page.mouse.click(b.cx, b.cy);
+    await expect.poll(() => page.evaluate(() => document.getElementById('editor-toast')?.textContent || ''), '★까닭을 말한다').toContain('잴 수 없습니다');
+    expect(await line(page), '★선·방향 그대로').toEqual(l0);
+    expect(await page.evaluate(() => document.querySelector('#annot-dim-axis .prop-align-btn.active')?.dataset.axis), '★단추 표시 그대로').toBe('auto');
+    expect(await page.evaluate(() => window.getHistoryTip?.().pos ?? null), '★이력 칸 그대로').toBe(hist0);
+    expect(errs).toEqual([]);
+  });
+}
+
+test('X8 [음성대조] 가로로 찍은 치수선에 h 는 받는다', async ({ page }) => {
+  const errs = await placeDim(page, [200, 200], [500, 200]);
+  const l0 = await line(page);
+  await pressAxis(page, 'h');
+  const l = await line(page);
+  expect({ flat: near(l.y1, l.y2), len: near(l.len, l0.len) }, `★h 뒤 선 ${JSON.stringify(l)}`).toEqual({ flat: true, len: true });
   expect(errs).toEqual([]);
 });
