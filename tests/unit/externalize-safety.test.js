@@ -48,3 +48,10 @@ test('① 변환 전 본·새 파일을 디스크로 내린다(fsync)', () => {
   try { assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true); } finally { fs.fsyncSync = o; }
   assert.ok(n >= 3, `fsync ${n}번`);
 });
+test('④ 재변환이 쌓여도 최초 원본이 남는다', () => {
+  const f = fx(); const first = sha(f.proj);
+  assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true);
+  for (let n = 20; n < 26; n++) { addImage(f, n); const t = Date.now(); while (Date.now() === t); assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true); }
+  assert.ok(allShas(f).includes(first), '최초 원본이 회전으로 지워졌다');
+  assert.ok(allShas(f).length <= 4, `쌓임 ${allShas(f).length}`);
+});

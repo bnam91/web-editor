@@ -9,7 +9,7 @@
 
    ★안전 계약 (어느 단계가 실패해도 proj.json은 «바이트 하나» 안 바뀐다)
      읽기 → 고유 URI 수집 → 에셋 저장(content-hash, dedup) → 치환 → 검증 5종 전부 통과 →
-     원본 복제(proj_pre-externalize.json) → atomic write → meta 마커.
+     원본 복제(proj_pre-externalize.json, 재변환 때 회전 · 최초 원본은 안 지운다) → atomic write → meta 마커.
      롤링 proj_backup.json은 다음 autosave가 1.5초 뒤 덮어쓰므로 «되돌리기 지점»으로 못 쓴다.
 
    ★정규식·에셋 규약은 렌더러(js/io/asset-externalize.js)·main(assets:saveCanvasImage)과 «동일»
@@ -26,7 +26,7 @@ const DATA_URI_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/g;
 const GOYA_RE = /goya-asset:\/\/([\w.-]+)\/([\w.-]+)/g;
 const BACKUP_NAME = 'proj_pre-externalize.json';
 const SCHEMA = 1;
-const MAX_PRE_EXT_ROTATIONS = 2; // [F3] proj_pre-externalize.<ts>.json 회전본 보관 상한(가장 최근 N개)
+const MAX_PRE_EXT_ROTATIONS = 2; // [F3] proj_pre-externalize.<ts>.json 회전본 보관 상한(가장 최근 N개 + 최초 원본 1개)
 
 /* ── 공용 소품 ───────────────────────────────────────────────────────────── */
 function safeSeg(s) {
@@ -154,6 +154,17 @@ function scanProjectFile(projectsDir, projectId) {
   };
 }
 
+/* 변환 전 본을 타임스탬프 이름으로 돌린다. 가장 최근 N개 + 가장 오래된 것(최초 원본)만 남긴다 — 반복 변환으로 무한 적립되던 것 방지[F3]. */
+function rotateBackup(p) {
+  fs.renameSync(p.backup, path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`));
+  try {
+    const rots = fs.readdirSync(p.dir)
+      .filter(f => /^proj_pre-externalize\.\d+\.json$/.test(f))
+      .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
+    for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS, -1)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
+  } catch (_) {}
+}
+
 /* ── 본체 ────────────────────────────────────────────────────────────────── */
 /**
  * proj.json의 모든 base64 data:image를 assets/<hash>.<ext>로 빼고 goya-asset:// 로 치환한다.
@@ -267,15 +278,7 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
     fs.copyFileSync(p.proj, backupTmp, fs.constants.COPYFILE_FICLONE);
     fsyncPath(backupTmp, 'r+');
     if (fs.existsSync(p.backup)) {
-      const rotated = path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`);
-      fs.renameSync(p.backup, rotated);
-      // [F3] 회전본 상한 — 반복 변환으로 회전본이 무한 적립되던 것 방지(가장 최근 N개만 남긴다).
-      try {
-        const rots = fs.readdirSync(p.dir)
-          .filter(f => /^proj_pre-externalize\.\d+\.json$/.test(f))
-          .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
-        for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
-      } catch (_) {}
+      rotateBackup(p);
     }
     fs.renameSync(backupTmp, p.backup);
     fsyncDir(p.dir);
