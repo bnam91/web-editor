@@ -66,6 +66,21 @@ test('U2b 기획 프로젝트 열기 → 못 연다고 답하고 파일 그대�
   assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan);
   assert.deepStrictEqual(s.side(), []);
 });
+test('U2c 기획 파일 옆 모양 있는 백업이 있어도 로드가 그 위로 안 쓴다 — 열기·비열기 둘 다', () => {
+  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning' });
+  for (const how of ['open', 'read']) {
+    const s = scene({ cur: plan, backup: JSON.stringify(doc('옛')) }); const R = load(s.dir);
+    assert.deepStrictEqual(R[how](ID), how === 'open' ? { _planning: true } : null);
+    assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan, '★' + how + ' 가 기획 파일을 덮었다');
+  }
+});
+test('U2d 기획 파일은 저장이 못 덮는다 — 비동기·동기', async () => {
+  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning' });
+  const s = scene({ cur: plan }); const R = load(s.dir);
+  assert.strictEqual((await R.save(doc('새'))).reason, 'planning_not_editor');
+  assert.strictEqual(R.saveSync(doc('새')).reason, 'planning_not_editor');
+  assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan);
+});
 test('U2 [음성] 프로젝트 꼴이 아닌 JSON 은 깨짐이 아니다 — null · 옆 파일 없음 · 저장에도 옆 파일 없음', async () => {
   const plan = JSON.stringify({ id: ID, name: '이름', type: 'other' });
   const s = scene({ cur: plan }); const R = load(s.dir);

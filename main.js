@@ -2404,7 +2404,8 @@ function readProjectWithFallback(id, { heal = false, diag = null } = {}) {
          ⛔거절이 아니라 «폴백으로 내려보낸다» — 백업·히스토리에 성한 판이 있으면 그것이 답이다
            (손상 JSON 일 때 하는 것과 «같은 처분»으로 둔다. 새 뜻을 만들지 않는다). */
       if (_SS().isProjectShaped(parsed)) return { proj: parsed, from: 'proj', path: filePath, savedAt: _mtimeOr(filePath), healed: true };
-      if (diag && parsed && parsed.type === 'planning') diag.planning = true;
+      // 기획 파일은 깨진 프로젝트가 아니다 — 백업으로 내려가면 자가치유가 그 위에 프로젝트를 쓴다
+      if (parsed && parsed.type === 'planning') { if (diag) diag.planning = true; return null; }
       console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
     }
     catch (e) {
@@ -2646,7 +2647,7 @@ function _rollBackup(prevPath, backupPath) {
   }
   if (!_SS().isProjectShaped(prev)) {
     console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
-    return { called: true, copied: false, reason: 'not_project' };
+    return prev && prev.type === 'planning' ? { called: true, copied: false, reason: 'not_project', planning: true } : { called: true, copied: false, reason: 'not_project' };
   }
   try { fs.copyFileSync(prevPath, backupPath); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
   return { called: true, copied: true };
@@ -2680,6 +2681,7 @@ async function _saveProjectImpl(project) {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
       const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
       if (rb.preservedAs === null) return { ok: false, reason: 'unreadable_not_preserved' };   // 옆에 못 둔 깨진 판은 덮지 않는다
+      if (rb.planning) return { ok: false, reason: 'planning_not_editor' };   // 기획 파일은 편집기 저장이 못 덮는다
 
       // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
@@ -2744,6 +2746,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
       const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
       if (rb.preservedAs === null) { event.returnValue = { ok: false, reason: 'unreadable_not_preserved' }; return; }
+      if (rb.planning) { event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
