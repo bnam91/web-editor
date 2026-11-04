@@ -2603,12 +2603,14 @@ function _guardProjectName(incomingProject, prevPath) {
       console.warn(`[projects:save] name guard: '${incomingName}' → '${prevName}' 복원 (id=${incomingProject.id})`);
       guarded = { ...incomingProject, name: prevName };
     }
-    // DATA-LOSS guard (H3): beforeunload sync 경로는 createdAt/type 없는 snapshot을 보내 verbatim write 시
-    // 이 메타가 매 새로고침마다 소실됐다. 기존 파일에 있고 incoming에 없으면 보존한다.
-    if (prev && (prev.createdAt != null || prev.type != null)) {
+    // DATA-LOSS guard (H3): beforeunload sync 경로는 신원·메타 없는 snapshot을 보내 verbatim write 시
+    // 이 칸들이 매 새로고침마다 소실됐다(SAVE-DROPS-MARKETREF — createdAt·type 만 손으로 지켜 marketRef 가 빠졌다).
+    // 칸을 손으로 세지 않는다: 비동기 저장(proj-merge.js buildProjForSave)과 같은 뜻으로 앞 파일의 칸을 남긴다.
+    // 뺄 것도 같다 = PROJ_META_KEYS·PROJ_RUNTIME_KEYS 사본(main 은 ESM 을 못 부른다 · 어긋나면 save-guard-keeps-meta 시험이 빨강).
+    const notKept = new Set(['branches', 'commits', 'currentBranch', 'thumbnail', '_recovered', '_healed', '_healError', '_recoveredAt', '_recoveredAtLabel']);
+    if (prev && typeof prev === 'object' && !Array.isArray(prev)) {
       const patch = {};
-      if (prev.createdAt != null && guarded.createdAt == null) patch.createdAt = prev.createdAt;
-      if (prev.type != null && guarded.type == null) patch.type = prev.type;
+      for (const [k, v] of Object.entries(prev)) if (v != null && guarded[k] == null && !notKept.has(k)) patch[k] = v;
       if (Object.keys(patch).length) guarded = { ...guarded, ...patch };
     }
     return guarded;
