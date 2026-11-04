@@ -706,20 +706,20 @@ ${blockHeaderHTML({
     if (arr === null) {
       /* 꼴 틀린 입력 — 적용하지 않는다. 알림·원복은 아래 «범위 밖» 실패 길과 같은 꼴(토스트 + 패널 재렌더 · 238·276). */
       console.warn('[table-merge] 꼴 틀린 입력 — 적용 안 함(기존 병합 그대로):', JSON.stringify(String(raw ?? '')).slice(0, 80));
-      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 쓸 수 없어요 — 「시작:칸수」 꼴로 적어 주세요(예: 0:2) · 이전 값으로 되돌렸어요`);
+      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」: 쓸 수 없는 값이에요 — 「시작:칸수」 형식으로 적어 주세요(예: 0:2) · 이전 값으로 되돌렸어요`);
       try { showTableProperties(block); } catch (_) {}
       return;
     }
     if (typeof window.updateTableBlock !== 'function') return;
     /* 한 칸(0:1)은 병합이 아니라 정규화가 버린다 — 있던 병합이 말없이 풀리니 먼저 말한다(현빈 결정 11-03 ②). 지우는 동작은 그대로. 지우기 단추·빈 칸은 뜻이 분명해 말 없음. */
     if (arr.some(([, n]) => n < 2) && JSON.parse(block.dataset.mergedHeaderCols || '[]').length) {
-      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 한 칸이라 병합이 아니에요 — 병합을 풀어요 · ⌘Z 로 되돌릴 수 있어요`);
+      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」: 한 칸은 병합이 아니에요 — 병합을 풀었어요 · ⌘Z 로 되돌릴 수 있어요`);
     }
     const res = window.updateTableBlock(block.id, { mergedHeaderCols: arr });
     if (res && res.ok === false) {
       // 사용자에게 알림(토스트 · 238·276) + 패널 재렌더로 입력값 원복
       console.warn('[table-merge] update failed:', res.code, res.message);
-      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 적용할 수 없어요(이 표는 ${_tblLogicalColCount(table)}열) · 이전 값으로 되돌렸어요`);
+      window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」: 이 표는 ${_tblLogicalColCount(table)}열이라 적용할 수 없어요 · 이전 값으로 되돌렸어요`);
     }
     // 패널 재렌더 (입력값 정규형 반영)
     try { showTableProperties(block); } catch (_) {}

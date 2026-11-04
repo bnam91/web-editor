@@ -29,7 +29,7 @@ for (const bad of ['abc', '-1', '-1:2', '1:2:3', '4', '1e999']) {
     const errs = await setup(page);
     const t0 = await tip(page);
     await put(page, bad);
-    await expect.poll(() => toast(page), { timeout: 2500 }).toContain(`「${bad}」 는 쓸 수 없어요`);
+    await expect.poll(() => toast(page), { timeout: 2500 }).toContain(`「${bad}」: 쓸 수 없는 값이에요`);
     expect(await ratio(page)).toBe('3:1');
     await expect(page.locator('#grd-col-ratio')).toHaveValue('3:1');
     expect(await tip(page)).toEqual(t0);

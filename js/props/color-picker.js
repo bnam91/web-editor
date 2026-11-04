@@ -1257,8 +1257,8 @@ export function noticeAlphaText(raw, value) {
   const t = String(raw ?? '').trim();
   if (!t) return;
   const n = _alphaNum(t);
-  if (n === null || value == null) window.showToast?.(`⚠️ 「${t.slice(0, 20)}」 는 쓸 수 없어요 — 0~100 숫자로 적어 주세요 · 이전 값으로 되돌렸어요`);
-  else if (n !== value) window.showToast?.(`⚠️ 0~100 까지 쓸 수 있어요 — ${t} 를 ${value} 로 맞췄어요`);
+  if (n === null || value == null) window.showToast?.(`⚠️ 「${t.slice(0, 20)}」: 쓸 수 없는 값이에요 — 0~100 숫자로 적어 주세요 · 이전 값으로 되돌렸어요`);
+  else if (n !== value) window.showToast?.(`⚠️ 0~100 값만 쓸 수 있어요 — 입력 ${t} → 적용 ${value}`);
 }
 
 export function colorFieldHTML({ idPrefix, hex, alpha = 100, placeholder = '', gradientCss = '' }) {
