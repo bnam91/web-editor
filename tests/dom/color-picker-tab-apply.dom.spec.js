@@ -582,8 +582,8 @@ test('T15 ★피커 문법 그라데이션도 열 때 onGradient 0회(시드는 
     const hx = p.querySelector('[data-el="gradStopHex"]');
     hx.value = '00FF00'; hx.dispatchEvent(new Event('input', { bubbles: true })); hx.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  await page.waitForTimeout(80);
-  expect(await page.evaluate(() => window.__gradCalls)).toBeGreaterThan(0);
+  // 방출은 rAF 뒤에 온다. 고정 80ms 는 rAF 가 늦으면 먼저 재서 빨강이 났다(rAF 아직 0 인 판 4/4, 곧 2회 옴)
+  await page.waitForFunction(() => window.__gradCalls > 0, null, { timeout: 5000 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
