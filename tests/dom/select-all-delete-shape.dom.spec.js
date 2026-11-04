@@ -128,6 +128,7 @@ async function selectAllThenDelete(page, selRhs, delSrc, delList, selSelRhs, pre
          쓰기 시작했다 — 안 실으면 ReferenceError 로 «검사처럼 생긴 빨강»이 난다. */
       SECTION_BLOCK_TYPE_SEL: SEL,
       SECTION_BLOCK_TYPE_SEL_SELECTED,
+      _splReleaseSections: () => null,
       clearAssetImage: () => {},
       deselectAll: () => document.querySelectorAll('.selected').forEach(e => e.classList.remove('selected')),
       multiSel: { cols: new Set(), blocks: new Set(), sections: new Set() },

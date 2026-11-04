@@ -251,7 +251,7 @@ test('M3 드롭 직후 해제가 «켠 쪽»(section-drag)을 통해 간다', ()
    (앱: ⌘Z 뒤 60s 안 writes 0 · 같은 판에 ⌘Z 5s 뒤 손으로 scheduleAutoSave 를 걸면 writes 1 = 억제는 풀려 있었다).
    ★명부 = «풀고도 안 거는» 복원 함수 — 지금 하나. ⛔결함 «허용»이 아니라 «아직 안 고친 자리»의 고정이다(autosave-overlap UNNETTED_BACKLOG 와 같은 꼴):
    고치면 이 시험이 빨개지고 명부에서 지운다. 까닭 쪽 글: js/io/save-load.js _noteEditDuringDrag 머리(되돌리기 복원 = «불러오기» · DEF-03). */
-const RESTORE_NO_SAVE_REQUEST = ['restoreSnapshot'];
+const RESTORE_NO_SAVE_REQUEST = [];   // 184 ㉰ 고침 뒤 비었다 — ⌘Z·⌘⇧Z 복원은 둘 다 저장을 건다
 const RESTORE_FNS = ['restoreSnapshot', 'restoreSnapshotScoped'];
 function fnBody(code, name) {
   const at = code.search(new RegExp(`function ${name}\\s*\\(`));
@@ -270,10 +270,13 @@ test('M4 ★184 ㉰ — 복원 함수 중 «억제를 풀고도 저장을 안 �
     '★⌘Z 복원 뒤 저장을 거는 자리가 바뀌었다 — 고쳤다면 RESTORE_NO_SAVE_REQUEST 에서 지워라(앱 ⌘Z 뒤 디스크도 다시 재라)');
 });
 
-test('M4b 양성대조 — restoreSnapshot 이 저장을 «걸게» 바꾸면 M4 의 자가 그걸 본다', () => {
-  const code = codeOnly(read('js/history.js')).replace(/function restoreSnapshot\s*\([^)]*\)\s*\{/, (m) => m + ' window.scheduleAutoSave?.();');
-  assert.deepEqual(restoreNoSave(code), [], '★저장을 걸게 바꿨는데도 명부에 남는다 — M4 는 눈이 멀었다');
+test('M4b 양성대조 — restoreSnapshot 이 저장을 «안 걸게» 되돌리면 M4 의 자가 그걸 본다', () => {
+  const code = codeOnly(read('js/history.js'));
+  const body = fnBody(code, 'restoreSnapshot');
+  const cut = code.replace(body, body.replace(/window\.scheduleAutoSave\?\.\(\);/g, ''));
+  assert.deepEqual(restoreNoSave(cut), ['restoreSnapshot'], '★저장 걸기를 뺐는데도 못 잡는다 — M4 는 눈이 멀었다');
 });
+
 
 /* ═══ ⑶ 허용목록 — 남은 «직접 대입»을 기계로 고정한다 ═══════════════════ */
 
