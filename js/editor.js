@@ -2954,7 +2954,9 @@ document.addEventListener('keydown', e => {
         return;
       }
       // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
-      const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
+      /* 안쪽 그룹부터 — 그룹 안에서 방금 묶으면 바깥 그룹도 .selected 다. 첫 것을 집으면 방금 만든 그룹 대신 바깥을 풀어 자리가 바뀐다 */
+      const _selGroups = [...document.querySelectorAll('.frame-block[data-group="true"].selected')];
+      const selGroup = _selGroups.find(g => !g.querySelector('.frame-block[data-group="true"].selected'))
         || document.querySelector('.group-block.group-selected');
       if (selGroup) window.ungroupBlock?.(selGroup);
       return;

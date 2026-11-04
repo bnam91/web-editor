@@ -2650,6 +2650,9 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     blocks.forEach(block => {
       const _dx = parseInt(block.dataset.translateX) || 0;
       const _top = stackY + _rotMargin(block) + (parseInt(block.dataset.translateY) || 0);
+      /* 묶기가 지우는 흐름 자리를 적어 둔다 — ⌘⇧G(section-drag.js ungroupBlock)가 그대로 되돌린다. 저장본에도 남아야 ⌘G→저장→열기→⌘⇧G 가 같다.
+         안 적으면 margin:auto 로 가운데 있던 블럭이 왼쪽으로, 패딩 제외 블럭이 안쪽으로 간다. 시험: tests/dom/group-roundtrip-place.dom.spec.js */
+      const _flowBack = { p: block.style.position, l: block.style.left, t: block.style.top, w: block.style.width, mw: block.style.maxWidth, fm: block.dataset.fbMaxW, ml: block.style.marginLeft, mr: block.style.marginRight, mt: block.style.marginTop, mb: block.style.marginBottom, ox: block.dataset.offsetX, oy: block.dataset.offsetY, tf: block.style.transform, tx: block.dataset.translateX, ty: block.dataset.translateY };
       block.style.position = 'absolute';
       block.style.top = _top + 'px';
       if (isShapeFrame(block)) {
@@ -2660,6 +2663,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         block.dataset.offsetX = String(l);
         block.dataset.offsetY = String(_top);
         _keepTurnFoldMove(block);
+        _flowBack.gw = block.style.width; _flowBack.gt = block.style.transform; block.dataset.flowBack = JSON.stringify(_flowBack);
         block.classList.remove('selected');
         ss.appendChild(block);
         return;
@@ -2676,6 +2680,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
         block.style.width = '100%';
       }
       _keepTurnFoldMove(block);
+      _flowBack.gw = block.style.width; _flowBack.gt = block.style.transform; block.dataset.flowBack = JSON.stringify(_flowBack);
       block.classList.remove('selected');
       block.setAttribute('draggable', 'false');
       ss.appendChild(block);
