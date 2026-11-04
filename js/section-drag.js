@@ -5,7 +5,7 @@
 ═══════════════════════════════════ */
 
 import { state } from './globals.js';
-import { toFlowUnit } from './shape-frame.js';
+import { toFlowUnit, isBlockEl, isEmptyShell } from './shape-frame.js';
 import {
   clearDropIndicators,
   clearSectionIndicators,
@@ -145,9 +145,14 @@ function ungroupBlock(groupEl) {
     const gx = parseInt(groupEl.style.left) || 0;
     const gy = parseInt(groupEl.style.top) || 0;
     const gRot = parseFloat(groupEl.dataset.rotateDeg) || 0;
+    /* UNGROUP-DROPS-SPEECH-BUBBLE-IN-FREE-FRAME-01 — 알맹이는 position 과 상관없이 전부 꺼낸다. absolute 만 꺼냈더니 흐름으로 든 자식(자유 프레임의 말풍선·라이너, 그룹 안에 넣은 배너·버즈)이 아래 groupEl.remove() 로 같이 지워졌다.
+       시험: tests/dom/ungroup-keeps-all-kinds.dom.spec.js */
     const kids = [...groupEl.children].filter(c =>
       !c.classList.contains('frame-resize-handle') &&
-      getComputedStyle(c).position === 'absolute');
+      (getComputedStyle(c).position === 'absolute' || !isEmptyShell(c) || isBlockEl(c)));
+    /* 흐름 자식은 그룹 안 보이는 자리에서 좌표로 옮겨 둔다 — 옮기기 «전»에 재야 흐름이 안 흔들린다 */
+    const _flowKids = kids.filter(c => getComputedStyle(c).position !== 'absolute').map(c => ({ c, l: c.offsetLeft, t: c.offsetTop, w: c.offsetWidth }));
+    _flowKids.forEach(({ c, l, t }) => { c.style.left = l + 'px'; c.style.top = t + 'px'; });
     /* ★294 t9-03(미카사 J294G) — 흐름 자리에서 만든 그룹(⌘G 가 자식을 absolute 로 쌓는다 · block-factory.js)을 풀면 자식도 흐름으로 돌아온다.
        안 그러면 absolute 인 채 흐름 부모에 남아 위로 튀고 섹션이 자식을 못 담았다(앱 실측 3/3: 섹션 높이 1323→283 · 저장본에도 absolute). 자유 프레임 부모는 좌표가 맞고, 섹션 직속은 아래 오버레이 갈래 ⇒ 둘 다 그대로.
        시험: tests/dom/flow-ungroup-294.dom.spec.js
@@ -155,6 +160,7 @@ function ungroupBlock(groupEl) {
     const _toFlow = parent && parent.dataset?.freeLayout !== 'true' && !parent.classList?.contains('section-block');
     if (_toFlow) kids.sort((a, b) => (parseInt(a.style.top) || 0) - (parseInt(b.style.top) || 0));   // 화면 위아래 순서대로 돌아온다
     const _flowed = [];
+    if (!_toFlow) _flowKids.forEach(({ c, w }) => { c.style.position = 'absolute'; c.style.width = w + 'px'; c.setAttribute('draggable', 'false'); });
     kids.forEach(c => {
       const cl = (parseInt(c.style.left) || 0) + gx;
       const ct = (parseInt(c.style.top) || 0) + gy;
