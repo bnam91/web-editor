@@ -187,8 +187,8 @@ for (const zoom of [40, 100]) {
     await page.evaluate((z) => window.applyZoom(z), zoom);
     await expect.poll(() => page.evaluate(() => window.currentZoom), { message: '전제: 배율이 실제로 걸렸다' }).toBe(zoom);
     await page.waitForFunction(() => document.querySelector('.tfh-grid > line.h'));
-    /* 배율은 애니메이션으로 걸린다 ⇒ 다 걸리기 전에 자리를 재면 선을 비껴 0 으로 찍힌다. 사다리꼴 폭 400 = 화면 400 × 배율 */
-    await expect.poll(() => page.evaluate(() => document.getElementById('fttb').getBoundingClientRect().width), { message: '전제: 배율이 화면에 다 걸렸다' }).toBeCloseTo(400 * zoom / 100, 0);
+    /* 배율은 애니메이션으로 걸린다 ⇒ 다 걸리기 전에 자리를 재면 선을 비껴 0 으로 찍힌다. 화면 폭 ÷ 레이아웃 폭 = 배율 */
+    await expect.poll(() => page.evaluate(() => { const t = document.getElementById('fttb'); return t.getBoundingClientRect().width / t.offsetWidth; }), { message: '전제: 배율이 화면에 다 걸렸다' }).toBeCloseTo(zoom / 100, 2);
     const stroke = await page.evaluate(() => [...document.querySelectorAll('.tfh-grid > line')].map((l) => parseFloat(getComputedStyle(l).strokeWidth)));
     expect(stroke.length, '[전제] 선 넷').toBe(4);
     for (const w of stroke) expect(w, `모델 두께 ${stroke}`).toBeCloseTo(100 / zoom, 2);
