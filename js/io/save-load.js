@@ -309,6 +309,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (!_isSaveFailure(_result)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
+    if (!_result?.skipped) _settleBigLs(_targetId, snapshot, !_result || _isSaveFailure(_result));
     _isSavingToFile = false;
     // 대기 중인 프로젝트별 저장을 FIFO로 순차 드레인 (드롭 없음)
     if (_pendingSaves.size) {
@@ -1835,16 +1836,24 @@ function cleanStaleAutosaveKeys(activeProjectIds) {
  * @param {string} value
  * @returns {boolean} 저장 성공 여부
  */
+const LS_SNAPSHOT_MAX = 2 * 1024 * 1024;
+/* 2MB 넘는 본은 파일 저장 결과를 보고 정한다. 저장 전에 앞 본을 지우면 저장 실패 + 충돌에 복구길이 없었다(앱 3/3).
+   BUG-44(낡은 본이 파일을 덮음): 성공하면 지운다. 그 사이의 앞 본은 파일보다 낡아 열 때 못 이긴다(_pickLsOverFile).
+   실패 때만 큰 본을 쓴다 — 평소 수십MB 쓰기가 BUG-44 때 뺀 쿼터 반복이라서. 축출은 안 한다: 넘치면 앞 본이 그대로 남는다. */
+function _settleBigLs(id, snap, failed) {
+  if (!IS_ELECTRON || !id || typeof snap !== 'string' || snap.length <= LS_SNAPSHOT_MAX) return;
+  const key = `${SAVE_KEY_PREFIX}__${id}`;
+  try {
+    if (failed) { localStorage.setItem(key, snap); localStorage.setItem(key + '_ts', String(Date.now())); }
+    else { localStorage.removeItem(key); localStorage.removeItem(key + '_ts'); }
+  } catch (e) { console.warn('[save-load] 큰 복구본 못 씀, 앞 본 유지:', e && e.name); }
+}
 function safeLocalStorageSet(key, value) {
   // Electron에서 대용량 스냅샷(2MB↑)은 파일로 이미 저장되므로 localStorage 생략
   // (base64 이미지 포함 시 수십MB까지 커져 QuotaExceededError 반복 유발)
-  if (IS_ELECTRON && value && value.length > 2 * 1024 * 1024) {
+  if (IS_ELECTRON && value && value.length > LS_SNAPSHOT_MAX) {
     console.log('[save-load] 스냅샷 크기 초과, localStorage 건너뜀:', Math.round(value.length / 1024) + 'KB');
-    // BUG-44: stale localStorage가 새로고침 시 파일을 덮어쓰는 것 방지
-    // 이전 snapshot이 localStorage에 남아있으면 lsTs와 함께 명시적으로 제거하여
-    // initLoad의 localStorage 우선 로직이 옛 데이터를 적용하지 못하도록 함
-    try { localStorage.removeItem(key); localStorage.removeItem(key + '_ts'); } catch {}
-    return false; // localStorage에 새 데이터 없음 → caller가 lsTs 갱신하지 않도록 false 반환
+    return false; // localStorage에 새 데이터 없음 → caller가 lsTs 갱신하지 않도록 false 반환 · 앞 본 처리는 _settleBigLs
   }
   const prefix = SAVE_KEY_PREFIX + '__';
   for (let attempt = 0; attempt < 5; attempt++) {

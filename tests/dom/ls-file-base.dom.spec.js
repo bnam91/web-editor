@@ -263,3 +263,25 @@ test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 맨 뒤로'
   });
   expect(order).toEqual([[], ['filed'], ['filed', 'nomark'], ['rec', 'filed', 'nomark'], ['rec', 'recnum', 'filed', 'nomark']]);
 });
+const big = (m) => JSON.stringify({ ...snap(m), pad: 'p'.repeat(2.2 * 1024 * 1024) });
+const lsOf = (page, id) => page.evaluate((id) => { const k = 'web-editor-autosave__' + id; const v = localStorage.getItem(k); return { len: v?.length ?? null, ts: localStorage.getItem(k + '_ts'), big: (v?.length ?? 0) > 2097152 }; }, id);
+test('2MB 초과 본: 저장 실패면 큰 본을 남기고, 저장 전에는 앞 본을 안 지운다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  const id = await page.evaluate(() => window.activeProjectId);
+  await page.evaluate((id) => { localStorage.setItem('web-editor-autosave__' + id, 'old'); localStorage.setItem('web-editor-autosave__' + id + '_ts', '1'); }, id);
+  const before = await page.evaluate(async ([s, id]) => (await import('/js/io/save-load.js')).safeLocalStorageSet('web-editor-autosave__' + id, s), [big('B'), id]);
+  expect(before).toBe(false);
+  expect(await lsOf(page, id)).toMatchObject({ len: 3, ts: '1' });
+  await page.evaluate(async ([s, id]) => {
+    const a = window.electronAPI; Object.defineProperty(window, 'electronAPI', { configurable: true, value: new Proxy(a, { get: (t, k) => k === 'saveProject' ? async () => ({ ok: false, reason: 'x' }) : t[k] }) });
+    await window.saveProjectToFile(s, { skipThumbnail: true, projectId: id });
+  }, [big('B'), id]);
+  const l = await lsOf(page, id);
+  expect(l.big).toBe(true); expect(l.ts).not.toBe('1');
+});
+test('[BUG-44] 2MB 초과 본이 파일에 들어가면 본을 지운다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  const id = await page.evaluate(() => window.activeProjectId);
+  await page.evaluate(async ([s, id]) => { localStorage.setItem('web-editor-autosave__' + id, 'old'); await window.saveProjectToFile(s, { skipThumbnail: true, projectId: id }); }, [big('B'), id]);
+  expect(await lsOf(page, id)).toMatchObject({ len: null, ts: null });
+});
