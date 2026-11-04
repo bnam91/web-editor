@@ -403,3 +403,22 @@ test('beforeunload 동기 저장이 된 본도 복구본으로 치지 않는다'
   });
   expect(r).toEqual({ has: true, ok: true });
 });
+const bigFailWith = (page, seed) => page.evaluate(async ([s, seed]) => {   // 큰 본은 파일에 든 본이 비켜야 들어가는 쿼터
+  const K = 'web-editor-autosave__'; const now = Date.now(); window.__ts = []; const t = window.showToast; window.showToast = (m) => { window.__ts.push(m); return t?.(m); };
+  for (const [id, filed] of seed) { localStorage.setItem(K + id, 'x'); localStorage.setItem(K + id + '_ts', String(now - 1000)); localStorage.setItem('web-editor-ls-base__' + id, new Date(filed ? now : now - 1e7).toISOString()); }
+  const o = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (k, v) { if (k === K + 'p1' && v.length > 2097152 && (localStorage.getItem(K + 'filed') !== null || seed.every((x) => !x[1]))) throw new DOMException('q', 'QuotaExceededError'); return o.call(this, k, v); };
+  try { await window.saveProjectToFile(s, { skipThumbnail: true, projectId: 'p1' }); } finally { Storage.prototype.setItem = o; }
+  const r = {}; for (const [id] of seed) r[id] = localStorage.getItem(K + id) !== null;
+  return { 큰본: (localStorage.getItem(K + 'p1')?.length ?? 0) > 2097152, 남음: r, 말: window.__ts.filter((m) => m.includes('복구본을 남길')).length };
+}, [big('B'), seed]);
+test('큰 복구본 자리: 파일에 든 본은 비키고 복구본은 안 지운다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__saveFail = 1; });
+  expect(await bigFailWith(page, [['filed', true], ['rec', false]])).toEqual({ 큰본: true, 남음: { filed: false, rec: true }, 말: 0 });
+});
+test('큰 복구본 자리: 복구본뿐이면 아무것도 안 지우고 말한다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__saveFail = 1; });
+  expect(await bigFailWith(page, [['rec', false], ['rec2', false]])).toEqual({ 큰본: false, 남음: { rec: true, rec2: true }, 말: 1 });
+});

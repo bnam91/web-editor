@@ -1883,14 +1883,23 @@ function cleanStaleAutosaveKeys(activeProjectIds) {
 const LS_SNAPSHOT_MAX = 2 * 1024 * 1024;
 /* 2MB 넘는 본은 파일 저장 결과를 보고 정한다. 저장 전에 앞 본을 지우면 저장 실패 + 충돌에 복구길이 없었다(앱 3/3).
    BUG-44(낡은 본이 파일을 덮음): 성공하면 지운다. 그 사이의 앞 본은 파일보다 낡아 열 때 못 이긴다(_pickLsOverFile).
-   실패 때만 큰 본을 쓴다 — 평소 수십MB 쓰기가 BUG-44 때 뺀 쿼터 반복이라서. 축출은 안 한다: 넘치면 앞 본이 그대로 남는다. */
+   실패 때만 큰 본을 쓴다 — 평소 수십MB 쓰기가 BUG-44 때 뺀 쿼터 반복이라서. 넘치면 파일에 든 본만 비키고, 그래도 안 들어가면 앞 본을 두고 말한다. */
 function _settleBigLs(id, snap, failed, lsTsAtStart) {
   if (!IS_ELECTRON || !id || typeof snap !== 'string' || snap.length <= LS_SNAPSHOT_MAX) return;
   const key = `${SAVE_KEY_PREFIX}__${id}`;
   try {
     if (localStorage.getItem(key + '_ts') !== lsTsAtStart) return;   // 저장 도는 중 더 새 본이 들어왔다(사진 지우기 등으로 작아진 경우) — 그 본이 답이다
-    if (failed) { localStorage.setItem(key, snap); localStorage.setItem(key + '_ts', String(Date.now())); }
-    else { localStorage.removeItem(key); localStorage.removeItem(key + '_ts'); }
+    if (!failed) { localStorage.removeItem(key); localStorage.removeItem(key + '_ts'); return; }
+    for (;;) {
+      try { localStorage.setItem(key, snap); localStorage.setItem(key + '_ts', String(Date.now())); return; }
+      catch (e) {
+        if (e.name !== 'QuotaExceededError' && e.name !== 'NS_ERROR_DOM_QUOTA_REACHED') throw e;
+        if (_evictFiledLs(key)) continue;
+        /* 남은 것이 다른 프로젝트 복구본뿐 — 그 편집을 지워 이 편집을 살리지 않는다. 앱이 죽으면 이번 편집은 잃으니 지금 말한다(L3 12/27). */
+        window.showToast?.('⚠️ 복구본을 남길 공간이 없습니다 — 저장이 막힌 채 앱이 죽으면 이번 편집을 잃습니다. 다른 프로젝트의 복구본은 지우지 않았습니다.');
+        return;
+      }
+    }
   } catch (e) { console.warn('[save-load] 큰 복구본 못 씀, 앞 본 유지:', e && e.name); }
 }
 /* 이 _ts 까지의 본은 파일에 들어갔다 — 축출이 복구본으로 치지 않게. 표시(base)는 «연 파일의 판»이라 저장해도 안 바뀌어, 평소 편집한 본이 전부 복구본으로 읽혔다(리뷰). */
@@ -1899,6 +1908,22 @@ const _lsFiledKey = (id) => `web-editor-ls-filed__${id}`;
 function _markLsFiled(id, ts) {
   if (!IS_ELECTRON || !id || !ts || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) !== ts) return;
   try { localStorage.setItem(_lsFiledKey(id), ts); } catch (_) {}
+}
+/* 쿼터가 찼을 때 하나 지운다 — 파일에 든 본부터, 그 안에서 오래된 것부터. 파일에 안 든 본은 다른 프로젝트의 하나뿐인 복구본이라 안 지운다(앱 3/3: 잃고도 지금 본이 안 들어갔다). 표시 없는 옛 본은 든 것으로 친다. */
+function _evictFiledLs(keepKey) {
+  const prefix = SAVE_KEY_PREFIX + '__';
+  const candidates = Object.keys(localStorage).filter(k => k.startsWith(prefix) && !k.endsWith('_ts') && k !== keepKey);
+  const _tsOf = (k) => parseInt(localStorage.getItem(k + '_ts') || '0');
+  const _unfiled = (k) => {
+    const _id = k.slice(prefix.length); const base = localStorage.getItem(_lsBaseKey(_id));
+    return _tsOf(k) > (Number(base) || Date.parse(base)) && !(_tsOf(k) <= Number(localStorage.getItem(_lsFiledKey(_id))));
+  };
+  const oldest = candidates.sort((a, b) => (_unfiled(a) - _unfiled(b)) || (_tsOf(a) - _tsOf(b)))[0];
+  if (!oldest || _unfiled(oldest)) { console.warn('[save-load] QuotaExceededError: 지울 수 있는 본이 없다'); return null; }
+  localStorage.removeItem(oldest);
+  localStorage.removeItem(oldest + '_ts');
+  localStorage.removeItem(_lsFiledKey(oldest.slice(prefix.length)));
+  return oldest;
 }
 function safeLocalStorageSet(key, value) {
   // Electron에서 대용량 스냅샷(2MB↑)은 파일로 이미 저장되므로 localStorage 생략
@@ -1914,31 +1939,11 @@ function safeLocalStorageSet(key, value) {
       return true;
     } catch (e) {
       if (e.name !== 'QuotaExceededError' && e.name !== 'NS_ERROR_DOM_QUOTA_REACHED') throw e;
-      // 현재 저장하려는 키를 제외한 autosave 키 중 가장 오래된 것 삭제
-      const candidates = Object.keys(localStorage)
-        .filter(k => k.startsWith(prefix) && !k.endsWith('_ts') && k !== key);
-      if (candidates.length === 0) {
-        // 삭제 가능한 키 없음 — 실패 반환
-        console.warn('[save-load] QuotaExceededError: 삭제 가능한 autosave 키 없음, 저장 실패');
+      const oldest = _evictFiledLs(key);
+      if (!oldest) {
         window.showToast?.('⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.');
         return false;
       }
-      // 파일에 든 본부터, 그 안에서 오래된 것부터 지운다 — 파일에 안 든 본은 하나뿐인 복구본이다(앱 3/3). 표시 없는 옛 본은 든 것으로 친다.
-      const _tsOf = (k) => parseInt(localStorage.getItem(k + '_ts') || '0');
-      const _unfiled = (k) => {
-        const _id = k.slice(prefix.length); const base = localStorage.getItem(_lsBaseKey(_id));
-        return _tsOf(k) > (Number(base) || Date.parse(base)) && !(_tsOf(k) <= Number(localStorage.getItem(_lsFiledKey(_id))));
-      };
-      const oldest = candidates.sort((a, b) => (_unfiled(a) - _unfiled(b)) || (_tsOf(a) - _tsOf(b)))[0];
-      /* 남은 것이 복구본뿐이면 안 지운다 — 다른 프로젝트의 하나뿐인 편집을 잃고도 지금 본이 안 들어갔다(앱). 지금 본은 파일로 간다. */
-      if (_unfiled(oldest)) {
-        console.warn('[save-load] QuotaExceededError: 남은 본이 복구본뿐이라 안 지운다');
-        window.showToast?.('⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.');
-        return false;
-      }
-      localStorage.removeItem(oldest);
-      localStorage.removeItem(oldest + '_ts');
-      localStorage.removeItem(_lsFiledKey(oldest.slice(prefix.length)));
       console.warn('[save-load] QuotaExceededError: 오래된 autosave 키 삭제 후 재시도 -', oldest);
       window.showToast?.('⚠️ 저장 공간이 부족해 오래된 자동저장을 정리했습니다.');
     }
