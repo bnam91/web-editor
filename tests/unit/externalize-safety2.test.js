@@ -9,7 +9,7 @@ const vm = require('vm');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
 const { readSrc } = require('./_srcread.js');
-const { sliceBlock } = require('./_slice-block.js');
+const { sliceBlock, sliceCall } = require('./_slice-block.js');
 const { mkTmpRoot } = require('./_tmproot.js');
 const REPO = path.join(__dirname, '..', '..');
 const XPATH = path.join(REPO, 'main/project-store/externalizer.js');
@@ -77,11 +77,10 @@ test('② 닫기 저장: 봉인된 프로젝트만 건너뛴다', () => {
 test('② 실제 beforeunload·종료 저장 손잡이가 봉인을 본다', async () => {
   const src = SL(); const hs = {};
   const win = { addEventListener: (n, f) => { hs[n] = f; }, electronAPI: { onForceSaveBeforeQuit: (f) => { hs.quit = f; }, quitReady: (r) => { hs.answer = r; } } };
-  const iq = src.indexOf('window.electronAPI.onForceSaveBeforeQuit(');
   let ser = 0; const stub = { serializeProject: () => { ser++; return '{}'; } };
   const head = sliceBlock(src, 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(src, 'function _unloadSaveNeeded(', '대상') + '\n';
   new Function('window', 'IS_ELECTRON', 'activeProjectId', '_reloadSealTok', '_reloadSealId', '_hasOwnUnsaved', '_lastSaveFailed', 'serializeProject',
-    head + src.slice(src.indexOf("window.addEventListener('beforeunload'"), src.indexOf('/* ── 종료 시 저장 결과')) + '\nif (IS_ELECTRON) {\n' + src.slice(iq, src.indexOf('\n  });\n', iq) + 6) + '\n}')(win, true, 'p1', 1, 'p1', () => true, () => true, stub.serializeProject);
+    head + src.slice(src.indexOf("window.addEventListener('beforeunload'"), src.indexOf('/* ── 종료 시 저장 결과')) + '\nif (IS_ELECTRON) {\n' + sliceCall(src, 'window.electronAPI.onForceSaveBeforeQuit(', '대상') + ';' + '\n}')(win, true, 'p1', 1, 'p1', () => true, () => true, stub.serializeProject);
   hs.beforeunload();
   assert.strictEqual(ser, 0, '닫기가 직렬화까지 갔다');
   await hs.quit();
