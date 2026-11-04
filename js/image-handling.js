@@ -1885,9 +1885,10 @@ function loadImageToCircle(icb, file) {
   pushHistory();
   showAssetLoading(icb);
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
+    /* 칸 입구(loadImageToAsset)와 같은 까닭·같은 몸통 — data URL 이면 표본마다 그림이 실려 3.2MB 9장에 렌더러 2.7GB(BIG-IMAGE-INSERT-RENDERER-OOM-01). */
+    const src = (await window.grdAssetSrcOf?.(ev.target.result))?.src || ev.target.result;
     hideAssetLoading(icb);
-    const src = ev.target.result;
     const circle = icb.querySelector('.icb-circle');
     icb.classList.add('has-image');
     icb.dataset.imgSrc = src;
