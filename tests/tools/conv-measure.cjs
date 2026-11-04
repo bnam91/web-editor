@@ -52,6 +52,7 @@ async function main() {
   if (mode === 'big' && !source) throw new Error('큰 본 경로 필수');
   const tree = path.resolve(a.tree), work = path.resolve(a.work);
   if (fs.existsSync(work) && fs.readdirSync(work).length) throw new Error('--work 가 비어 있지 않다');
+  require('../unit/_tmproot.js').trackTmp(work);   // 끝날 때 치운다
   const UD = path.join(work, 'ud'), PJ = path.join(UD, 'projects'), LOG = path.join(work, 'app.log');
   fs.mkdirSync(path.join(UD, 'home'), { recursive: true }); fs.mkdirSync(PJ, { recursive: true });
   const { chromium } = require(path.join(tree, 'node_modules/playwright-core'));
@@ -135,7 +136,7 @@ async function main() {
       await page.evaluate(() => window.electronAPI.setSettings({ autoExternalizeOnOpen: true })); await open('s2'); const 다시켜기 = inl(p2) === 0;
       out({ at: '설정', 옛false켜짐, 협업보류, 메타보류, 끄기먹음, 재시작뒤끄기, 설정값, 다시켜기 });
     } else throw new Error('모드: big | recover | setting');
-  } finally { try { await down(); } catch (_) {} try { execSync(`chmod -R u+w "${work}"`); } catch (_) {} fs.rmSync(work, { recursive: true, force: true }); }
+  } finally { try { await down(); } catch (_) {} try { execSync(`chmod -R u+w "${work}"`); } catch (_) {} }
 }
 const X_BACKUP = (tree) => require(path.join(tree, 'main/project-store/externalizer.js')).BACKUP_NAME;
 module.exports = { verifyConverted };
