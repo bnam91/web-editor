@@ -2276,6 +2276,7 @@ function scheduleAutoSave() {
   // debounce 1500ms: Notion ~1s, Figma ~2s 중간값. 데이터 손실·저장 폭주 균형점.
   const _saveTargetId = activeProjectId; // H1: 발화 시점에 탭이 바뀌었는지 비교할 대상 캡처
   _autoSaveTimerOwnerId = _saveTargetId;
+  const _armedWhileLoading = !!window.isTabFirstLoading?.(_saveTargetId);
   autoSaveTimer = setTimeout(() => {
     let _handed = false;   // ★S1 — 저장 약속에 넘겼으면 되돌림은 그 finally 몫, 아니면 아래 finally 몫
     try {
@@ -2289,8 +2290,8 @@ function scheduleAutoSave() {
     }
     // ★361 — 안 읽힌 탭(로드 실패 뒤)의 편집은 안 쓴다(saveProjectToFile 머리말 · 여기선 localStorage 도 안 쓴다). «저장됨»이라고 말하지 않는다.
     if (window.isTabFirstLoading?.(_saveTargetId)) {
-      // 아직 읽는 중에 온 앞 타이머 — 그 편집은 닫을 때 이미 저장으로 나갔다(앱: «읽지 못해»가 잘못 떴다). 실패 말은 로드가 실패한 탭에서만.
-      if (window.gdtProjectReady?.get?.()?.phase === 'loading') { _setAutosaveIndicator('saved'); return; }
+      // 닫기 전에 걸린 앞 타이머 — 그 편집은 닫을 때 이미 저장으로 나갔다(앱: «읽지 못해»가 잘못 떴다). 읽는 중에 걸린 타이머의 편집은 안 썼으니 그대로 말한다(시험 B2).
+      if (!_armedWhileLoading && window.gdtProjectReady?.get?.()?.phase === 'loading') { _setAutosaveIndicator('saved'); return; }
       window.showToast?.('⚠️ 이 프로젝트를 읽지 못해 저장하지 않았습니다 — 탭을 다시 열어 주세요.');
       _setAutosaveIndicator('error');
       return;

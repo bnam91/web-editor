@@ -228,10 +228,11 @@ const landed = (page, id) => page.waitForFunction((id) => window.activeProjectId
 const holdSaves = (page, n) => page.evaluate((n) => { let k = 0; window.__w = window.waitSavesFor; window.waitSavesFor = async () => { await new Promise((r) => setTimeout(r, 50)); return k++ >= n; }; }, n);
 test('앞 저장이 안 끝나면 탭을 안 읽고 입력을 막고, 끝나면 파일을 읽어 열고 편집을 저장한다', async ({ page }) => {
   await storeBoot(page); await watchRed(page);
-  await holdSaves(page, 30);   // 끝나기 전 약 3초
+  await page.evaluate(() => { window.__w = window.waitSavesFor; window.waitSavesFor = async () => { await new Promise((r) => setTimeout(r, 50)); return !!window.__savesDone; }; });   // 말이 뜰 때까지 앞 저장이 안 끝난다
   await page.evaluate(() => { window.openTabForProject('p3'); });
   await page.waitForFunction(() => window.__ts.some((m) => m.includes('앞 저장이 아직 안 끝나')));
   expect(await page.evaluate(() => [window.gdtProjectReady.get().phase, window.LoadInputGate.isOn(), window.__ts.filter((m) => m.includes('읽지 못해')).length]), '★낡은 화면이 열렸다').toEqual(['loading', true, 0]);
+  await page.evaluate(() => { window.__savesDone = true; });
   await landed(page, 'p3');
   await expect.poll(() => page.evaluate(() => [window.LoadInputGate.isOn(), window.isTabFirstLoading('p3')])).toEqual([false, false]);
   await page.evaluate(() => { window.waitSavesFor = window.__w; });
