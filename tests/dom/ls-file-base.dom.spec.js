@@ -193,7 +193,8 @@ async function storeBoot(page, delay = 0) {
   await page.goto(`${ORIGIN}/index.html?project=p1`);
   await page.waitForFunction(() => document.querySelector('#g1')?.dataset.mark);
 }
-const setMark = (page, m) => page.evaluate((m) => { document.querySelector('#g1').dataset.mark = m; window.scheduleAutoSave(); }, m);
+// 표지가 보여도 로드의 저장 억제가 아직 안 풀렸을 수 있다 — 그때 부른 scheduleAutoSave 는 말없이 빠진다(×3 3/3 빨강)
+const setMark = async (page, m) => { await page.waitForFunction(() => !window.state._suppressAutoSave); await page.evaluate((m) => { document.querySelector('#g1').dataset.mark = m; window.scheduleAutoSave(); }, m); };
 test('저장 중 편집 → 탭 닫기 → 쓰기 끝나기 전 다시 열기: 대기 중이던 편집이 산다', async ({ page }) => {
   await storeBoot(page);
   await page.evaluate(() => window.openTabForProject('p3'));
@@ -258,11 +259,17 @@ test('낡게 연 탭: 앞 프로젝트 저장이 끝나도 편집이 저장된 �
 });
 test('앞 저장을 기다리는 중 온 타이머는 «읽지 못해»라고 말하지 않는다', async ({ page }) => {
   await storeBoot(page);
-  await page.evaluate(() => { window.__w = window.waitSavesFor; window.waitSavesFor = () => new Promise((r) => { window.__go = r; }); window.__ts = []; const t = window.showToast; window.showToast = (m) => { window.__ts.push(m); return t?.(m); }; });
-  await page.evaluate(() => { window.openTabForProject('p3'); });
+  await page.evaluate(() => window.openTabForProject('p3'));
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  await setMark(page, 'Q');   // 타이머는 앱처럼 «연 뒤»가 아니라 닫기 전 편집에서 걸린다(로드 중엔 억제로 안 걸린다)
+  await page.evaluate(async () => {
+    window.__ts = []; const t = window.showToast; window.showToast = (m) => { window.__ts.push(m); return t?.(m); };
+    await window.switchTab('p1'); await window.closeTab('p3');
+    window.__w = window.waitSavesFor; window.waitSavesFor = () => new Promise((r) => { window.__go = r; });
+    window.openTabForProject('p3');
+  });
   await page.waitForFunction(() => window.activeProjectId === 'p3' && window.isTabFirstLoading('p3') && window.__go);
-  await page.evaluate(() => window.scheduleAutoSave());
-  await page.waitForFunction(() => document.getElementById('autosave-indicator')?.textContent.includes('저장 실패'));
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
   expect(await page.evaluate(() => window.__ts)).toEqual([]);
   await page.evaluate(() => { window.waitSavesFor = window.__w; window.__go(false); });
   await page.waitForFunction(() => window.__ts.some((m) => m.includes('앞 저장이 아직 안 끝나')));
@@ -283,7 +290,7 @@ test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 안 지운�
     const seq = [];
     Storage.prototype.setItem = function (k, v) { if (k === K + 'me' && left-- > 0) { const b = gone(); if (seq.at(-1)?.join() !== b.join()) seq.push(b); throw new DOMException('q', 'QuotaExceededError'); } return o.call(this, k, v); };
     try { safeLocalStorageSet(K + 'me', 'y'); } finally { Storage.prototype.setItem = o; }
-    seq.push(gone());
+    if (seq.at(-1)?.join() !== gone().join()) seq.push(gone());
     return seq;
   });
   expect(order).toEqual([[], ['filed'], ['filed', 'nomark']]);
