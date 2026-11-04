@@ -436,6 +436,7 @@ export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
   return true;
 }
 window.getSelectedOverlayUnits = getSelectedOverlayUnits;
+window.overlayUnitOf = _overlayUnitOf;   // t9-01 — 플레인 스크립트 js/sticker-select.js 도 같은 명부로
 window.showOverlayMultiSelPanel = showOverlayMultiSelPanel;
 
 /* ═══════════════════════════════════
