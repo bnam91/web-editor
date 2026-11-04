@@ -94,6 +94,7 @@ async function runDuplicate(page) {
       _panelFollowsPasted: () => {},
       // ★191 — 자유배치 갈래가 공용 _bindPastedEl(clone) 을 부른다(id 재발급 포함 · 손 절반 걷음). 떠낸 판엔 정의가 없어 스텁:
       //   id 재발급만(genId · 같은 접두사) — DZ2 «id 는 다름»이 그대로 뜻을 갖게. 묶기·다시 그리기는 이 spec 범위 밖(dup-abs-bindpasted-191 이 잰다).
+      _copyForDuplicate: false,   // duplicateSelected 가 복사 앞에 세우는 표시(자유 프레임 하나의 자리 규칙 밖)
       _bindPastedEl: (el) => { [el, ...el.querySelectorAll('[id]')].forEach((e) => { if (e.id) e.id = window.genId(e.id.split('_')[0] || 'el'); }); },
     };
     window.pushHistory = (t) => calls.pushHistory.push(t);
