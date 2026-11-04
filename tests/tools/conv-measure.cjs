@@ -112,7 +112,9 @@ async function main() {
       execSync(`chmod 444 "${proj}"; chmod 555 "${dir}"`);
       await addMark('MARK-C');
       for (let i = 0; i < 60; i++) { if (await page.evaluate((id) => (localStorage.getItem('web-editor-autosave__' + id) || '').includes('MARK-C'), id)) break; await sleep(300); }
-      await sleep(1500);
+      /* 옛 프로젝트는 복구본도 인라인이다 — 파일만 인라인으로 돌리면 복구본(goya 주소)이 이겨 변환할 것이 없어진다. */
+      await page.evaluate(([id, a0, d]) => { const k = 'web-editor-autosave__' + id; localStorage.setItem(k, localStorage.getItem(k).split(a0).join(d)); }, [id, a0, d]);
+      await sleep(3000);
       try { execSync(`ps -axo pid=,command= | /usr/bin/grep -F "${UD}" | /usr/bin/grep -e "--type=renderer" | /usr/bin/grep -v grep | awk '{print $1}' | xargs kill -9`); } catch (_) {}
       await sleep(1500); execSync(`chmod 755 "${dir}"; chmod 644 "${proj}"`); await down();
       const t = fs.readFileSync(proj, 'utf8').split(a0).join(d); JSON.parse(t); fs.writeFileSync(proj, t);
@@ -124,7 +126,7 @@ async function main() {
       const preSha = fs.existsSync(pre) ? sha(pre) : null;
       await page.evaluate(() => window.cancelPendingAutoSaveForReload?.(window.activeProjectId));
       const rb = await page.evaluate((id) => window.electronAPI.externalizeRollback({ projectId: id }), id); await open(id); await sleep(4000);
-      out({ at: '복구', 첫열기: first, 둘째열기: second, 되돌림: { ok: rb.ok, 변환전본해시일치: sha(proj) === preSha, 파일C: has(proj, 'MARK-C'), 뜸C: (await screen()).includes('MARK-C') }, 살았나: first.뜸C && first.파일C && second.파일C && second.인라인 === 0 && second.변환전본C });
+      out({ at: '복구', 첫열기: first, 둘째열기: second, 되돌림: { ok: rb.ok, reason: rb.reason || null, 변환전본해시일치: sha(proj) === preSha, 파일C: has(proj, 'MARK-C'), 뜸C: (await screen()).includes('MARK-C') }, 살았나: first.뜸C && first.파일C && second.파일C && second.인라인 === 0 && second.변환전본C });
     } else if (mode === 'setting') {
       const fx = (id, meta) => { const dir = path.join(PJ, id); fs.mkdirSync(dir); const png = 'data:image/png;base64,' + Buffer.alloc(3000, 7).toString('base64'); fs.writeFileSync(path.join(dir, 'proj.json'), JSON.stringify({ id, name: id, version: 2, updatedAt: '2026-01-01T00:00:00.000Z', pages: [{ id: 'a', name: 'a', canvas: `<div class="section-block" id="s1"><img data-img-src="${png}"></div>` }] }, null, 2)); if (meta) fs.writeFileSync(path.join(dir, 'proj_meta.json'), meta); return path.join(dir, 'proj.json'); };
       const [p1, p2, p3, p4] = [fx('s1'), fx('s2'), fx('s3', '{"collabRef":"x"}'), fx('s4', '{잘림')];
