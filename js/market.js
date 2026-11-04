@@ -124,10 +124,11 @@
       if (typeof scratch === 'string') scratch = JSON.parse(scratch);
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
     } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
-    const lost = [scratchFailed && '스크래치', carryFailed && `에셋·갤러리 그림 ${carryFailed}장`].filter(Boolean);
+    const carryWord = `에셋·갤러리 그림 ${carryFailed}장은`;
+    const lost = scratchFailed && carryFailed ? `스크래치와 ${carryWord}` : scratchFailed ? '스크래치는' : carryFailed ? carryWord : '';
     /* 올린 쪽이 뺀 장수: 안 쓴 항목은 패널·갤러리에 아예 없으니 깨지지 않는다, 없다는 말만 한다 */
     const omitted = Number.isInteger(res.project.omittedImages) && res.project.omittedImages > 0 ? ` · 캔버스에 안 쓴 에셋·갤러리 그림 ${res.project.omittedImages}장은 이 본에 없습니다` : '';
-    if (lost.length) _toast(`⚠️ 받기 완료, ${lost.join('·')}은 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
+    if (lost) _toast(`⚠️ 받기 완료, ${lost} 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
     else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
   }
 

@@ -117,5 +117,5 @@ test('받기: 두 번째 저장이 실패하면 못 옮긴 장수를 말한다',
 });
 test('받기: 스크래치 실패와 그림 실패를 같이 말한다, 하나가 다른 하나를 안 가린다', async ({ page }) => {
   const { toast } = await pull(page, null, box([{ id: 'a', type: 'image', carried: true, src: 'nope' }]), { scratch: '{깨진' });
-  expect(toast).toMatch(/^⚠️ 받기 완료, 스크래치·에셋·갤러리 그림 1장은 못 옮겼습니다/);
+  expect(toast).toMatch(/^⚠️ 받기 완료, 스크래치와 에셋·갤러리 그림 1장은 못 옮겼습니다/);
 });
