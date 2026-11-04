@@ -569,10 +569,10 @@
       const _unseal = () => { try { window.resumeAutoSaveAfterAbortedReload?.(); } catch (_) {} };
       // ★구멍1: 봉인이 in-flight 저장을 5s 안에 못 끝내면(드레인 타임아웃, 대형 프로젝트서 현실적) 되돌리기를
       //   «내보내지 않는다» — 살아있는 저장이 복원본을 재덮고 backup은 이미 삭제돼 복구지점이 사라지기 때문.
-      let _sealed = true;
-      try { _sealed = await window.cancelPendingAutoSaveForReload?.(window.activeProjectId); } catch (_) {}
-      if (_sealed === false) { _unseal(); setStatus('저장 중이라 되돌리지 못했습니다. 잠시 후 다시 시도하세요.', 'err'); return; }
       try {
+        let _sealed = true;
+        try { _sealed = await window.cancelPendingAutoSaveForReload?.(window.activeProjectId); } catch (_) {}
+        if (_sealed === false) { _unseal(); setStatus('저장 중이라 되돌리지 못했습니다. 잠시 후 다시 시도하세요.', 'err'); return; }
         const r = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId });
         if (r && r.ok) {
           setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok');

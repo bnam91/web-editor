@@ -116,3 +116,15 @@ test('④ 되돌리기 ×6: 최신 proj_pre-rollback 과 직전 본이 안 지�
   const kept = fs.readdirSync(f.dir).filter((x) => /^proj_pre-rollback/.test(x)).map((x) => sha(path.join(f.dir, x)));
   assert.ok(kept.includes(latest.at(-2)), '직전 본이 회전으로 지워졌다');
 });
+test('⑤ 드레인 시한이면 되돌리기를 막되 잠금을 풀어 다시 시도할 수 있다', async () => {
+  const src = readSrc(REPO, 'js/settings/settings-modal.js');
+  let h; const rbBtn = { addEventListener: (_n, f) => { h = f; }, disabled: false }; const btn = { disabled: false };
+  const st = []; let rolled = 0; let unsealed = 0;
+  const window = { activeProjectId: 'p1', electronAPI: { externalizeRollback: async (o) => { if (!o.dryRun) rolled++; return { ok: true, dryRun: true }; } }, cancelPendingAutoSaveForReload: async () => false, resumeAutoSaveAfterAbortedReload: () => { unsealed++; }, location: { reload() {} } };
+  new Function('window', 'rbBtn', 'btn', 'setStatus', 'confirm', 'setTimeout', src.slice(src.indexOf("rbBtn.addEventListener('click'"), src.indexOf("    btn.addEventListener('click', async () => {\n      if (typeof window.optimizeProjectImages")))(window, rbBtn, btn, (m) => st.push(m), () => true, () => {});
+  await h();
+  assert.strictEqual(rolled, 0); assert.strictEqual(unsealed, 1);
+  assert.strictEqual(window.__optimizeImagesInFlight, false, '잠금이 남았다');
+  assert.strictEqual(rbBtn.disabled, false); assert.strictEqual(btn.disabled, false);
+  assert.match(st.at(-1), /저장 중이라 되돌리지 못했습니다/);
+});
