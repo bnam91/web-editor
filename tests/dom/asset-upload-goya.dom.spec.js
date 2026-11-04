@@ -68,3 +68,24 @@ test('[음성] ⌘Z 로 빠지고 다시 실행으로 같은 자산 URL 이 돌�
   await expect.poll(async () => (await look(page)).src).toBe(before);
   expect(errs).toEqual([]);
 });
+const circle = async (page, saved) => {
+  const errs = await setup(page, saved);
+  await page.evaluate(async () => { const sec = [...document.querySelectorAll('#canvas .section-block')].pop(); window.selectSection(sec); await window.addIconCircleBlock(); window.__icb = [...document.querySelectorAll('#canvas .icon-circle-block')].pop(); });
+  await page.setInputFiles('#f', { name: 'a.png', mimeType: 'image/png', buffer: PNG });
+  await page.evaluate(() => window.loadImageToCircle(window.__icb, document.getElementById('f').files[0]));
+  await page.waitForFunction(() => window.__icb.classList.contains('has-image'));
+  return { errs, src: await page.evaluate(() => window.__icb.dataset.imgSrc), img: await page.evaluate(() => window.__icb.querySelector('.icb-img').getAttribute('src')) };
+};
+test('아이콘 원 입구도 자산 URL 로 넣는다', async ({ page }) => {
+  const { errs, src, img } = await circle(page, true);
+  expect(src).toMatch(/\/__asset\//);
+  expect(img).toBe(src);
+  expect(await page.evaluate(() => window.getSerializedCanvas().includes('base64,'))).toBe(false);
+  expect(errs).toEqual([]);
+});
+test('[음성] 아이콘 원 — 자산 저장이 실패하면 data URL 로 넣어 그림을 잃지 않는다', async ({ page }) => {
+  const { errs, src, img } = await circle(page, false);
+  expect(src).toMatch(/^data:image\/png;base64,/);
+  expect(img).toBe(src);
+  expect(errs).toEqual([]);
+});
