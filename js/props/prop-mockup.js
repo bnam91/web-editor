@@ -170,10 +170,11 @@ ${blockHeaderHTML({
       const file = inp.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = e => {
+      reader.onload = async e => {
+        const src = (await window.grdAssetSrcOf?.(e.target.result))?.src || e.target.result; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
         window.pushHistory?.();
-        _applyScreenImage(block, e.target.result);
-        block.dataset.imgSrc = e.target.result;
+        _applyScreenImage(block, src);
+        block.dataset.imgSrc = src;
         block.dataset.sourceSec = '';
         /* ★[R1-업로드 · 2026-09-22] «끝 표본» — 바로 위 pushHistory 는 push-before 다(찍고 «나서» 바꾼다).
            ⚠️정정(2026-09-22): 이 자리를 한때 「찍고 → 비동기로 반영」(js/image-handling.js 꼴)으로
