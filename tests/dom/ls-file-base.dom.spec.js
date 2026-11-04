@@ -256,6 +256,18 @@ test('낡게 연 탭: 앞 프로젝트 저장이 끝나도 편집이 저장된 �
   await page.evaluate(async () => { (await import('/js/io/save-load.js')); });
   await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
 });
+test('앞 저장을 기다리는 중 온 타이머는 «읽지 못해»라고 말하지 않는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__w = window.waitSavesFor; window.waitSavesFor = () => new Promise((r) => { window.__go = r; }); window.__ts = []; const t = window.showToast; window.showToast = (m) => { window.__ts.push(m); return t?.(m); }; });
+  await page.evaluate(() => { window.openTabForProject('p3'); });
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && window.isTabFirstLoading('p3') && window.__go);
+  await page.evaluate(() => window.scheduleAutoSave());
+  await page.waitForFunction(() => document.getElementById('autosave-indicator')?.textContent.includes('저장 실패'));
+  expect(await page.evaluate(() => window.__ts)).toEqual([]);
+  await page.evaluate(() => { window.waitSavesFor = window.__w; window.__go(false); });
+  await page.waitForFunction(() => window.__ts.some((m) => m.includes('앞 저장이 아직 안 끝나')));
+  expect((await page.evaluate(() => window.__ts)).filter((m) => m.includes('읽지 못해'))).toEqual([]);
+});
 test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 안 지운다', async ({ page }) => {
   await open(page, { lsTs: fileTs - 3600e3, base: UPD });
   const order = await page.evaluate(async () => {

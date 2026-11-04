@@ -2224,7 +2224,8 @@ function scheduleAutoSave() {
     }
     // ★361 — 안 읽힌 탭(로드 실패 뒤)의 편집은 안 쓴다(saveProjectToFile 머리말 · 여기선 localStorage 도 안 쓴다). «저장됨»이라고 말하지 않는다.
     if (window.isTabFirstLoading?.(_saveTargetId)) {
-      window.showToast?.(window.isTabStale?.(_saveTargetId)
+      // 아직 읽는 중(앞 저장 기다림)에 온 앞 타이머 — 까닭이 아직 없다. 판이 정해지면 게이트가 말한다(앱 1/1: «읽지 못해»가 잘못 떴다).
+      if (window.gdtProjectReady?.get?.()?.phase !== 'loading') window.showToast?.(window.isTabStale?.(_saveTargetId)
         ? '⚠️ 앞 저장이 안 끝난 채 연 탭이라 이 편집은 저장되지 않습니다 — 잠시 뒤 탭을 닫았다 다시 열어 주세요.'
         : '⚠️ 이 프로젝트를 읽지 못해 저장하지 않았습니다 — 탭을 다시 열어 주세요.');
       _setAutosaveIndicator('error');
