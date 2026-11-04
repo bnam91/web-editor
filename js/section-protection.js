@@ -69,6 +69,8 @@
     const sec = _findSection(sectionId);
     if (!sec) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sectionId };
     const flag = !!on;
+    const _toggled = flag !== _isProtectedEl(sec);   // 사유만 고칠 때는 히스토리 칸을 안 만든다
+    if (_toggled) window.ensureHistoryCheckpoint?.('보호 전');
     if (flag) {
       sec.dataset.protected = 'true';
       if (reason != null) {
@@ -95,6 +97,11 @@
          차단 토스트(editor.js:3085)는 「🔒 버튼으로 보호 해제 후 삭제하세요」라고 «없는 버튼»을
          가리킨다. */
     _ensureProtectionButton(sec);
+    if (_toggled) {
+      // 🔒 도 ⌘Z 한 칸이다 — 되돌리기가 보호를 바꾸면 말로 알린다(되돌리기 단추에 동작 이름이 안 보인다)
+      const _say = (lockedNow) => () => window.showToast?.(lockedNow ? '🔒 되돌리기로 보호가 다시 켜졌습니다' : '🔓 되돌리기로 보호가 풀렸습니다');
+      window.pushHistory?.(flag ? '섹션 보호' : '섹션 보호 해제', { onUndo: _say(!flag), onRedo: _say(flag) });
+    }
     if (typeof window.scheduleAutoSave === 'function') {
       window.scheduleAutoSave();
     } else if (typeof window.triggerAutoSave === 'function') {
