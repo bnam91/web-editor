@@ -452,6 +452,7 @@ function _innermostEntryFrame(node) {
   for (let f = node?.closest?.('.frame-block'); f; f = f.parentElement?.closest('.frame-block')) if (_isEntryFrame(f)) return f;
   return null;
 }
+if (typeof window !== 'undefined') window._innermostEntryFrame = _innermostEntryFrame;   // ⌘A 범위(editor.js _selectAllFrame)
 let _dblGesture = null;   // { frame, entered } — 제스처 첫 mousedown 때 찍는다
 if (typeof document !== 'undefined') {
   document.addEventListener('mousedown', (e) => {

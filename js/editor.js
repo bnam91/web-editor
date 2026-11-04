@@ -1646,6 +1646,29 @@ function _pickedFreeChildFrame() {
   return f.dataset.overlayBlock !== 'true' && f.style.position === 'absolute' && f.parentElement?.matches?.('.frame-block[data-free-layout]') ? picked : null;
 }
 
+/* ⌘A 범위 — 지금 «안»에 있는 프레임, 없으면 null. 고른 것 모두를 품는 가장 안쪽 진짜 프레임(글자·도형 래퍼·그룹·배너 외곽은 프레임이 아니다).
+   프레임을 한 번 클릭만 한 것은 «안»이 아니다(안 들어감). 그 프레임 안의 프레임이 골라졌으면 바깥 프레임 «안»이다. */
+function _selectAllFrame() {
+  const leaves = [...canvasEl.querySelectorAll(SECTION_BLOCK_TYPE_SEL_SELECTED)];
+  if (!leaves.length && window._enteredFrame?.isConnected) return window._enteredFrame;
+  const picked = leaves.length ? leaves : _leafSelFrames();
+  if (!picked.length) return null;
+  let f = window._innermostEntryFrame(picked[0].parentElement);
+  while (f && !picked.every(el => f.contains(el))) f = window._innermostEntryFrame(f.parentElement);
+  return f;
+}
+
+/* 선택을 비우고 그 프레임 «안»에 선다. 자유 프레임은 .selected 가 빠지면 자식이 클릭을 못 받는다. */
+function _focusFrame(frame) {
+  const sec = frame.closest('.section-block');
+  deselectAll();
+  sec?.classList.add('selected');
+  window.syncLayerActive?.(sec);
+  _restoreFreeLayoutFrameSelected(frame);
+  window._activeFrame = frame;
+  window._enteredFrame = frame;
+}
+
 /* ⌫·⌘X 묶음 삭제 — 지웠으면 true. 묶음을 지워 비는 그룹은 일반 갈래처럼 걷는다. */
 function _deletePickedFrames() {
   if (canvasEl.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED)) return false;
@@ -2929,11 +2952,14 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       // 현재 선택된 섹션 내 모든 블록 선택
-      const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+      // 현빈 결정 6524 — 프레임 «안»이면 그 프레임 안만(밖의 선택은 푼다). 프레임 밖은 그대로 섹션 전체 «더하기».
+      const scope = _selectAllFrame();
+      const activeSec = scope || document.querySelector('.section-block.selected') || document.querySelector('.section-block');
       if (activeSec) {
         // ★손으로 한 벌 더 적지 않는다 — 파일 상단 SSOT(SECTION_BLOCK_TYPE_SEL)를 그대로 쓴다.
         //   (T-085: 여기 목록만 뒤처져 ⌘A 가 도형을 안 골랐고, 그래서 Delete 가 도형을 남겼다)
         const allBlocks = activeSec.querySelectorAll(SECTION_BLOCK_TYPE_SEL);
+        if (scope && allBlocks.length) _focusFrame(scope);   // 빈 프레임은 고를 것이 없어 그대로 둔다
         allBlocks.forEach(b => b.classList.add('selected'));
       }
       return;
