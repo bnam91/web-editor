@@ -449,7 +449,7 @@ async function closeTab(id) {
   const openTabs = _getTabs();
   const idx = openTabs.findIndex(t => t.id === id);
   if (idx === -1) return;
-  if (openTabs.length === 1) { _setTabs([]); saveTabState(); window.goHome(); return; }
+  if (openTabs.length === 1) { if (window.confirmLeaveWhileGenerating?.() === false) return; _setTabs([]); saveTabState(); window.goHome(); return; }
   if (id === _getActId()) {
     const nextTab = openTabs[idx + 1] || openTabs[idx - 1];
     await switchTab(nextTab.id);
