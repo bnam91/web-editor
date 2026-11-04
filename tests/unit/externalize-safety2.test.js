@@ -87,20 +87,22 @@ test('② 실제 beforeunload·종료 저장 손잡이가 봉인을 본다', asy
   assert.strictEqual(ser, 0, '종료가 직렬화까지 갔다');
   assert.strictEqual(hs.answer.reason, 'reload-seal');
 });
-test('③ 협업 차단은 내용으로: 캔버스에 goya 가 있으면 표지 없이도(복제·새 그림) 막는다', async () => {
+test('③ 협업 차단: 되돌릴 변환 전 본이 있을 때만 막는다', async () => {
   const src = readSrc(REPO, 'main/collab/index.js');
-  const run = (f) => { let called = 0; return new Function('getRef', 'call', '_deps', 'setRef', sliceBlock(src, 'async function register(', '대상') + '\nreturn register;')(() => null, async () => { called++; return { ok: false, reason: 'x' }; }, { hasLocalImages: () => X.hasCanvasGoya(f.root, f.id), readMeta: () => ({}), readAuth: () => null }, () => {})({ projectId: f.id }).then((r) => ({ r, called })); };
-  const goya = fx(); X.externalizeProjectFile(goya.root, goya.id); fs.unlinkSync(goya.meta);   // 복제: 표지가 지워진 본
-  const a = await run(goya); assert.strictEqual(a.r.reason, 'local_images'); assert.strictEqual(a.called, 0);
-  const b = await run(fx()); assert.strictEqual(b.called, 1, '[음성] base64 본');
-  const s = fx(7, { pages: [{ id: 'a', canvas: '<div class="section-block"></div>', scratchpad: 'goya-asset://p1/x.png' }] });
-  assert.strictEqual((await run(s)).called, 1, '[음성] 스크래치만 goya');
-  const bad = fx(); fs.writeFileSync(bad.proj, '{잘림');
-  assert.strictEqual((await run(bad)).called, 1, '[음성] 못 읽음은 막지 않는다');
-  assert.match(readSrc(REPO, 'main.js'), /hasLocalImages: \(id\) => /);
+  const run = (f) => { let called = 0; return new Function('getRef', 'call', '_deps', 'setRef', sliceBlock(src, 'async function register(', '대상') + '\nreturn register;')(() => null, async () => { called++; return { ok: false, reason: 'x' }; }, { hasConversionBackup: () => X.hasConversionBackup(f.root, f.id), readAuth: () => null }, () => {})({ projectId: f.id }).then((r) => ({ r, called })); };
+  const conv = fx(); X.externalizeProjectFile(conv.root, conv.id);
+  const a = await run(conv); assert.strictEqual(a.r.reason, 'converted'); assert.strictEqual(a.called, 0);
+  fs.unlinkSync(conv.meta);
+  assert.strictEqual((await run(conv)).r.reason, 'converted', '표지 쓰기가 실패한 본도 풀 길이 있다');
+  const dup = fx(); X.externalizeProjectFile(dup.root, dup.id); fs.unlinkSync(dup.pre);   // 복제본 꼴: 캔버스는 goya · 변환 전 본 없음
+  assert.strictEqual((await run(dup)).called, 1, '[음성] 복제본 · 표지만 있고 본이 없는 본');
+  assert.strictEqual((await run(fx())).called, 1, '[음성] 변환 안 한 본');
+  const rb = fx(); X.externalizeProjectFile(rb.root, rb.id); X.rollbackExternalize(rb.root, rb.id);
+  assert.strictEqual((await run(rb)).called, 1, '[음성] 되돌린 본은 지나간다');
+  assert.match(readSrc(REPO, 'main.js'), /hasConversionBackup: \(id\) => /);
 });
 test('④ 협업 안내: 변환 뒤 편집이 빠진다고 말한다', () => {
-  const t = readSrc(REPO, 'js/collab/reasons.js').match(/local_images:\s*'([^']+)'/)[1];
+  const t = readSrc(REPO, 'js/collab/reasons.js').match(/converted:\s*'([^']+)'/)[1];
   assert.match(t, /변환 뒤 편집은 빠집니다/); assert.match(t, /proj_pre-rollback\.json/);
 });
 test('④ 되돌리기 ×6: 최신 proj_pre-rollback 과 직전 본이 안 지워진다', () => {

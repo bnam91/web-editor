@@ -3823,7 +3823,7 @@ ipcMain.handle('market:pull', async (_e, { account, id } = {}) => {
    ⚠️ sessionToken 은 이 클로저 밖으로 안 나간다(렌더러엔 collab:* 결과만 간다). */
 require('./main/collab').init(ipcMain, {
   readAuth,
-  hasLocalImages: (id) => { const X = _getExternalizer(); return !!X && X.hasCanvasGoya(PROJECTS_DIR, _safeSeg(id)); },
+  hasConversionBackup: (id) => { const X = _getExternalizer(); return !!X && X.hasConversionBackup(PROJECTS_DIR, _safeSeg(id)); },
   readMeta: (id) => {
     try {
       const p = _resolveMetaJsonPath(id);
