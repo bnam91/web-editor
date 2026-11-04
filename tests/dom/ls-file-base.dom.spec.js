@@ -227,3 +227,19 @@ test('복구 첫 로드 직후 다른 탭으로 갔다 돌아와도 복구분을
   await page.evaluate(() => window.switchTab('p3'));
   await expect.poll(() => page.evaluate(() => /data-mark="LS"/.test(window.__store.p3?.pages?.[0]?.canvas || '')), { timeout: 8000 }).toBe(true);
 });
+test('상한을 넘겨 낡게 연 탭: 편집이 파일을 덮지 않고, 돌아오면 파일을 다시 읽는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { const w = window.waitSavesFor; window.waitSavesFor = async () => false; window.__w = w; });
+  await page.evaluate(() => window.openTabForProject('p3'));
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  await page.evaluate(() => { window.__saved = null; window.waitSavesFor = window.__w; });
+  await setMark(page, 'STALE');
+  await page.waitForFunction(() => [...document.querySelectorAll('[id*=toast],[class*=toast]')].some((e) => e.textContent.includes('읽지 못해')));
+  await expect.poll(() => page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(true);
+  expect(await page.evaluate(() => window.__saved)).toBeNull();
+  await page.evaluate(() => window.switchTab('p1'));
+  await page.evaluate(() => window.switchTab('p3'));
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+  expect(await seen(page)).toBe('FILE');
+  expect(await page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(false);
+});

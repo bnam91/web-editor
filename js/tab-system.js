@@ -404,7 +404,9 @@ async function switchTab(id) {
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
       if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
-      _firstLoadingTabId = null;
+      /* 앞 저장이 상한 안에 안 끝났으면 이 화면은 그 저장보다 낡았다. 여기서 쓰면 그 저장을 덮는다(앱 3/3) → «안 읽힌 탭»처럼 저장을 막고 캐시도 안 둔다(돌아오면 다시 읽는다). */
+      _firstLoadingTabId = _savesDrained ? null : id;
+      if (!_savesDrained) window.showToast?.('⚠️ 앞 저장이 아직 안 끝나 이 탭은 저장을 막았습니다 — 잠시 뒤 탭을 닫았다 다시 열어 주세요.');
       if (targetTab && proj?.name) targetTab.name = proj.name;
       renderTabBar();
     } else {
@@ -418,7 +420,7 @@ async function switchTab(id) {
       _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
       if (targetTab) targetTab._afterLs = _afterLs;
       const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
-      if (targetTab) targetTab._cache = JSON.stringify(data);
+      if (targetTab && _savesDrained) targetTab._cache = JSON.stringify(data);
       window.applyProjectData(data);
       _restoreViewState(targetTab);
     } else {
