@@ -121,6 +121,15 @@ function _warnScratchWriteFailed(e) {
 }
 /* flush 는 항목을 화면·메모리에서 먼저 비운다. 쓰기가 실패하면 그 항목은 어디에도 없게 된다 ⇒ 이 세션에서 그 키를 다시 열 때 여기서 되살린다 */
 const _unsavedFlush = new Map();
+/* 읽기가 실패한 판의 메모리는 DB 를 모른다(비었거나 새로 넣은 것뿐이다). 그대로 쓰면 DB 의 항목이 지워진다, 빈 판을 저장하면 다 지워지고 매니페스트까지 빈다(S3 scratch2 ②).
+   ⇒ 다음 로드가 성공할 때까지 쓰기는 DB 에 «더하기» 만 한다. 대가: 이 사이에 지운 항목은 DB 에 남아 돌아올 수 있다(안 지우는 쪽으로 틀린다). */
+let _loadFailed = false;
+const _unionById = (dbItems, mem) => { const ids = new Set(mem.map(i => i.id)); return [...(dbItems || []).filter(i => !ids.has(i.id)), ...mem]; };
+function _putScratch(tx, data, key) {
+  const st = tx.objectStore(SCRATCH_STORE);
+  if (!_loadFailed) { st.put(data, key); return; }
+  st.get(key).onsuccess = e => st.put(_unionById(e.target.result, data), key);
+}
 async function _saveScratch({ quiet = false } = {}) {   // quiet = 부르는 쪽이 제 말로 알린다
   if (!_scratchLoaded) return; // ★로드 미완료 컨텍스트 — 빈/불완전 배열로 기존 데이터 덮어쓰기 방지
   const key = _getScratchKey(_currentProjectId, _currentPageId);
@@ -129,7 +138,7 @@ async function _saveScratch({ quiet = false } = {}) {   // quiet = 부르는 쪽
   // 스냅샷을 await 전에 미리 찍어서 비동기 구간 중 배열 변경 영향 차단
   const data = _scratchItems.map(s => _pickScratch(s));
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-  tx.objectStore(SCRATCH_STORE).put(data, key);
+  _putScratch(tx, data, key);
   return _txDone(tx).catch(e => { if (!quiet) _warnScratchWriteFailed(e); throw e; });
 }
 
@@ -223,10 +232,10 @@ async function flushScratchForSwitch() {
   try {
     const db = await _openDB();
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-    tx.objectStore(SCRATCH_STORE).put(data, key);
+    _putScratch(tx, data, key);
     await _txDone(tx);
   } catch (e) {
-    _unsavedFlush.set(key, data);
+    _unsavedFlush.set(key, { data, merge: _loadFailed });
     _warnScratchWriteFailed(e);
     throw e;
   }
@@ -1480,21 +1489,23 @@ async function _loadScratch(projectId, pageId) {
   try {
     const db   = await _openDB();
     if (gen !== _scratchLoadGen) return; // ★stale — 다른 컨텍스트로 이미 전환됨
+    let keyMissing = false;   // 키 없음 = 이 맥에서 처음(다른 맥) · [] = 사람이 다 지운 것. 후자를 매니페스트로 되채우면 지운 것이 돌아온다(S3 scratch2 ②)
     const data = await new Promise((resolve, reject) => {
       const tx  = db.transaction(SCRATCH_STORE, 'readonly');
       const req = tx.objectStore(SCRATCH_STORE).get(key);
-      req.onsuccess = e => resolve(e.target.result || []);
+      req.onsuccess = e => { keyMissing = e.target.result === undefined; resolve(e.target.result || []); };
       req.onerror   = e => reject(e.target.error);
     });
     if (gen !== _scratchLoadGen) return; // ★stale — DOM/배열 오염·엉뚱한 키 저장 금지
     const heldBack = _unsavedFlush.get(key);   // 떠날 때 쓰기가 실패해 메모리에만 있던 판 — DB 보다 새 것이다
-    if (heldBack) { data.length = 0; data.push(...heldBack); _unsavedFlush.delete(key); }
+    if (heldBack) { const next = heldBack.merge ? _unionById(data, heldBack.data) : heldBack.data; data.length = 0; data.push(...next); _unsavedFlush.delete(key); }
+    _loadFailed = false;
     // #16 이식성 — 하이드레이션: IndexedDB가 «비었고» 프로젝트 매니페스트(page.scratchpad)가 있으면
     //   매니페스트로 재채움(다른 맥 = IndexedDB 빔 → 프로젝트에 딸려온 goya-asset URL+좌표로 복원).
     //   ★«비었을 때만» = 같은 맥 로컬 편집 보존(로컬 IndexedDB 우선·덮어쓰기 금지·회귀0).
     let items = data;
     let hydrated = false;
-    if ((!items || !items.length) && !heldBack) {   // 복원본이 [] 면 사람이 다 지운 것이다, 매니페스트로 되채우지 않는다(S3 scratch ④)
+    if ((!items || !items.length) && keyMissing && !heldBack) {   // 복원본이 [] 면 사람이 다 지운 것이다, 매니페스트로 되채우지 않는다(S3 scratch ④)
       const pg = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
       const manifest = pg && Array.isArray(pg.scratchpad) ? pg.scratchpad : null;
       if (manifest && manifest.length) {
@@ -1519,9 +1530,9 @@ async function _loadScratch(projectId, pageId) {
     const held = gen === _scratchLoadGen ? _unsavedFlush.get(key) : null;
     if (held) {
       _unsavedFlush.delete(key);
-      held.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => _createItem(src, x, y, w, id, g, linkDy, fx, ocr));
+      held.data.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => _createItem(src, x, y, w, id, g, linkDy, fx, ocr));
     }
-    if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
+    if (gen === _scratchLoadGen) { _scratchLoaded = true; _loadFailed = true; } // 기존 동작 유지 — 세션 중 작업/저장은 가능, 단 DB 는 더하기만
     if (held) _saveScratch();
     else window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
   }
