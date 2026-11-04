@@ -270,6 +270,13 @@ const _lastSaveResult = new Map();
      dirty 로 남아 탭 전환마다 헛저장하고 공지까지 막힌다. 스킵은 실패가 아니다.
    ★이 규칙은 «내가 새로 정한 게» 아니다 — 자동저장 인디케이터가 이미
      `r.ok === false && !r.skipped` 로 쓰고 있었다. 그걸 여기 한 곳으로 모아 «같은 값»을 쓰게 한다. */
+/* main 이 거절한 까닭을 사람 말로 — 까닭이 여럿이다(저장 버튼·flushSave 도 같은 글). */
+function _saveRefusedText(r) {
+  if (r?.reason === 'page_count_reduced') return '⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨';
+  if (r?.reason === 'unreadable_not_preserved') return '⚠️ 저장 거부: 깨진 원본을 옆에 둘 수 없어 덮지 않았습니다 — 디스크 공간·폴더 권한을 확인해 주세요';
+  return '⚠️ 저장 거부: ' + (r?.reason || '알 수 없는 오류');
+}
+window.saveRefusedText = _saveRefusedText;
 function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
 
 /** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
@@ -377,7 +384,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       }
       if (saveResult && saveResult.ok === false) {
         console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
-        window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
+        window.showToast?.(_saveRefusedText(saveResult));
         return { ok: false, reason: saveResult.reason || 'rejected' };
       }
       // thumbnail은 _meta.json에 저장
@@ -2874,7 +2881,13 @@ window.flushSave = async function() {
         name: existing?.name || data.name || 'Untitled',
         updatedAt: new Date().toISOString(),
       };
-      await window.electronAPI.saveProject(proj);
+      const saved = await window.electronAPI.saveProject(proj);
+      if (saved?.reason === 'project_deleted') { await window.closeDeletedProjectTab?.(_targetId); return; }
+      if (_isSaveFailure(saved)) {   // 거절된 저장을 저장됨으로 치지 않는다 — dirty 를 남긴다
+        window.showToast?.(_saveRefusedText(saved));
+        _setAutosaveIndicator('error');
+        return;
+      }
       _dirtySinceSave = false;
     } catch (e) {
       console.error('[flushSave] 저장 실패:', e);

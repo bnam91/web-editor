@@ -22,7 +22,7 @@ async function setup(page, answers) {
         if (!(id in answers)) return project(id);
         return answers[id] === 'null' ? null : { ...(answers[id].recovered ? project(id) : {}), ...answers[id].mark };
       },
-      saveProject: async () => { window.__saves++; return { ok: true }; },
+      saveProject: async () => { window.__saves++; return window.__saveAnswer || { ok: true }; },
       saveProjectSync: () => { window.__saves++; return { ok: true }; },
     };
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
@@ -82,4 +82,35 @@ test('C5 못 읽음(깨짐 아님) — 다른 말을 하고 저장을 안 부른
   const r = await page.evaluate(() => window.saveProjectToFile(window.serializeProject()));
   expect(r.reason).toBe('tab-not-loaded');
   expect(await page.evaluate(() => window.__saves)).toBe(0);
+});
+
+const REFUSED = { ok: false, reason: 'unreadable_not_preserved' };
+const refuse = (page) => page.evaluate((r) => { window.__saveAnswer = r; window.__toasts.length = 0; }, REFUSED);
+const dirty = async (page) => { await page.locator('button.fp-btn.primary[onclick="addSection()"]').click(); await expect.poll(() => page.evaluate(() => window.hasUnsavedChanges())).toBe(true); };
+
+test('C6 flushSave — 거절된 저장을 저장됨으로 안 친다 · dirty 남음 · 까닭을 바르게 말한다', async ({ page }) => {
+  await setup(page, {}); await refuse(page); await dirty(page);
+  await page.evaluate(() => window.flushSave());
+  expect(await page.evaluate(() => window.hasUnsavedChanges()), '★거절됐는데 dirty 를 지웠다').toBe(true);
+  await toasts(page).toContain('깨진 원본');
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
+});
+
+test('C7 [음성] flushSave — 성공이면 dirty 를 지운다', async ({ page }) => {
+  await setup(page, {}); await dirty(page);
+  await page.evaluate(() => window.flushSave());
+  expect(await page.evaluate(() => window.hasUnsavedChanges())).toBe(false);
+});
+
+test('C8 자동 저장 길 — 거절 까닭을 페이지 수라고 안 한다', async ({ page }) => {
+  await setup(page, {}); await refuse(page); await dirty(page);
+  await page.evaluate(() => window.saveProjectToFile(window.serializeProject()));
+  await toasts(page).toContain('깨진 원본');
+  expect(await page.evaluate(() => window.__toasts.join('\n'))).not.toContain('페이지 수');
+});
+
+test('C9 [음성] 페이지 수 감소 거절은 그 말 그대로', async ({ page }) => {
+  await setup(page, {}); await page.evaluate(() => { window.__saveAnswer = { ok: false, reason: 'page_count_reduced' }; }); await dirty(page);
+  await page.evaluate(() => window.saveProjectToFile(window.serializeProject()));
+  await toasts(page).toContain('페이지 수 감소');
 });

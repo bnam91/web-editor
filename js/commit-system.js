@@ -319,7 +319,7 @@ async function saveProjectFile() {
       const proj = buildProjForSave(existing, data, targetId);
       const saved = await window.electronAPI.saveProject(proj);
       if (saved?.reason === 'project_deleted') { await window.closeDeletedProjectTab?.(targetId); return; }   // 연 채 삭제 — save-load.js 와 같은 처리
-      if (saved?.ok === false) { window.showToast?.('⚠️ 저장 거부: ' + (saved.reason || '알 수 없는 오류')); return; }
+      if (saved?.ok === false) { window.showToast?.(window.saveRefusedText?.(saved) || '⚠️ 저장 거부'); return; }
       // localStorage도 sync
       localStorage.setItem('project_' + targetId, snap);
       window.showToast?.('✅ 저장됨');
