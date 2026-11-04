@@ -420,7 +420,7 @@ function restoreSnapshot(snap) {
     // _suppressAutoSave는 한 프레임 뒤 해제 — MutationObserver는 microtask 후 발화하므로
     // 동기 해제 시 잔여 mutation이 새어 부분저장을 유발. (applyProjectData와 동일 패턴)
     // 복원은 편집이다 — 억제에 흡수된 결과를 명시 예약해야 디스크에 남는다(⌘Z 뒤 kill 이면 되돌리기 전으로 돌아갔다 · S8 앱 3/3).
-    requestAnimationFrame(() => { if (!_suppressHeldByToken()) state._suppressAutoSave = false; window.scheduleAutoSave?.(); });
+    requestAnimationFrame(() => { if (!_suppressHeldByToken()) state._suppressAutoSave = false; else window.AutoSaveSuppress.clearOuter(); window.scheduleAutoSave?.(); });
     _updateUndoRedoBtns();
     // 캔버스가 통째로 바뀌었으니 「없는 글꼴」 표시도 다시 센다 —
     // 안 하면 ⌘Z로 대체를 되돌린 뒤에도 상단바가 「대체됨」이라고 거짓말한다(실측 2026-08-08).
@@ -550,7 +550,7 @@ function restoreSnapshotScoped(fromSnap, toSnap, laterSnap) {
     _historyPaused = false;
     // ★스코프 수술의 mutation 은 suppress 구간에 흡수된다 → 저장을 «명시 예약»해야 결과가
     //   디스크·서버(내 섹션만)에 남는다(B1 교훈). full-restore 와 달리 여긴 명시적으로 건다.
-    requestAnimationFrame(() => { if (!_suppressHeldByToken()) state._suppressAutoSave = false; window.scheduleAutoSave?.(); });
+    requestAnimationFrame(() => { if (!_suppressHeldByToken()) state._suppressAutoSave = false; else window.AutoSaveSuppress.clearOuter(); window.scheduleAutoSave?.(); });
     _updateUndoRedoBtns();
     window.gdtFontPaintBadge?.();
     // 스킵 정책은 «침묵하지 않는다»(notifyConflict 철학) — 되돌리지 않은 섹션을 사용자에 알린다.

@@ -86,6 +86,9 @@
     d.addEventListener('pointerdown', done, true);
   }
 
+  /** 복원의 raw true 를 outerPrev 로 잡은 창이 열린 채 복원의 rAF 가 오면 그 true 가 창이 닫힐 때 되살아나 굳는다. 복원 쪽이 «바깥 값»을 내린다. */
+  function clearOuter() { outerPrev = false; }
+
   /* ★★안전망 시간 — «타이머가 이기는 유일한 경우 = 창이 가려진 때»에만 쓰인다.
        보이는 창에선 rAF(~16ms)가 늘 먼저 오고, 토큰은 «한 번만» 닫히므로 타이머는 아무 일도 안 한다.
        ⇒ 가려진 창에서 250ms 는 아무 의미가 없다(어차피 사람이 안 보고 있다).
@@ -192,7 +195,7 @@
   }
 
   w.AutoSaveSuppress = {
-    begin: begin, end: end, endOnNextGesture: endOnNextGesture, endNextFrame: endNextFrame, wrap: wrap, wrapAsync: wrapAsync,
+    begin: begin, end: end, endOnNextGesture: endOnNextGesture, clearOuter: clearOuter, endNextFrame: endNextFrame, wrap: wrap, wrapAsync: wrapAsync,
     evaluateStuck: evaluateStuck, inspect: inspect,
     startWatch: startWatch, stopWatch: stopWatch, __resetForTest: resetForTest,
     STUCK_MS: STUCK_MS, STUCK_LONG_MS: STUCK_LONG_MS,
