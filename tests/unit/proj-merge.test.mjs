@@ -87,10 +87,14 @@ test('M6 ★시간은 «인자»로 받는다 — 안 주면 지금, 주면 그�
 
 /* ═══ W — 배선: 호출부 둘이 그 한 벌을 쓰는가 ═══════════════════════════════ */
 
-test('W1 ★호출부 둘이 «그 한 벌»을 쓴다 — 스프레드가 되살아나면 빨개진다', () => {
+test('W1 ★호출부는 «그 한 벌»을 쓴다 — 스프레드가 되살아나면 빨개진다', () => {
+  /* 커밋 저장은 자동저장 줄(saveInLine)로 옮겨 병합 호출부가 save-load.js 하나가 됐다(RT5 ①). 커밋 저장이 따로 읽고 합치면 빨강. */
+  const commit = stripComments(read('js/commit-system.js'));
+  assert.ok(/saveInLine\(/.test(commit), 'js/commit-system.js: ★자동저장 줄로 안 쓴다');
+  assert.ok(!/buildProjForSave|electronAPI\.saveProject\(/.test(commit), 'js/commit-system.js: ★따로 합치거나 쓴다 — 두 벌이 되고 앞 저장의 옛 본이 덮는다');
   for (const rel of ['js/io/save-load.js', 'js/commit-system.js']) {
     const src = stripComments(read(rel));
-    assert.match(src, /buildProjForSave\(existing, data, targetId\)/,
+    if (rel === 'js/io/save-load.js') assert.match(src, /buildProjForSave\(existing, data, targetId\)/,
       `${rel}: ★한 벌(buildProjForSave)을 안 부른다`);
     /* ⛔옛 꼴이 되살아나면 두 벌이 되고 «따로 늙는다» — 그 지문을 문다. */
     assert.ok(!/\.\.\.existingWithoutMeta/.test(src),

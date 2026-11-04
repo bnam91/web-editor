@@ -310,9 +310,13 @@ async function saveProjectFile() {
       const data = JSON.parse(snap);
       const targetId = window.activeProjectId;
       /* 자동저장과 같은 줄로 쓴다(병합은 그 안의 proj-merge.js 한 벌) — 따로 읽고 쓰면 앞 저장의 옛 본이 이 저장을 덮는다.
-         거절·실패 토스트와 삭제된 프로젝트 탭 닫기는 _doSaveProjectToFile 이 한다. */
-      const saved = await window.saveInLine(data, targetId);
-      if (saved?.ok === false) { if (saved.reason === 'save_wait_timeout') window.showToast?.('⚠️ 저장이 끝나지 않았습니다 — 잠시 뒤 다시 저장해 주세요'); return; }
+         실패 토스트와 삭제된 프로젝트 탭 닫기는 _doSaveProjectToFile 이 한다. 거절 문구는 이 메뉴가 사유를 말한다. */
+      const saved = await window.saveInLine(data, targetId, { allowEmpty: true, quietReject: true });
+      if (saved?.ok === false) {
+        if (saved.reason === 'save_wait_timeout') window.showToast?.('⚠️ 저장이 끝나지 않았습니다 — 잠시 뒤 다시 저장해 주세요');
+        else if (!saved.skipped && saved.reason !== 'exception') window.showToast?.('⚠️ 저장 거부: ' + (saved.reason || '알 수 없는 오류'));
+        return;
+      }
       // localStorage도 sync
       localStorage.setItem('project_' + targetId, snap);
       window.showToast?.('✅ 저장됨');
