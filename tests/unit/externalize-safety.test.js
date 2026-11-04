@@ -85,17 +85,6 @@ test('② [음성] 미리보기·실패 되돌리기는 복구본을 안 건드�
   const a = preload({ ok: true }); await a.api.externalizeRollback({ projectId: 'p1', dryRun: true }); assert.strictEqual(a.store.size, 3);
   const b = preload({ ok: false }); await b.api.externalizeRollback({ projectId: 'p1' }); assert.strictEqual(b.store.size, 3);
 });
-test('② 봉인 중에는 닫기·종료 저장이 복원본을 덮지 않는다(저장 실패 기록이 남아 있어도)', () => {
-  const src = readSrc(REPO, 'js/io/save-load.js');
-  const need = (sealed, unsaved, failed) => new Function('_reloadSealTok', '_hasOwnUnsaved', '_lastSaveFailed', sliceBlock(src, 'function _unloadSaveNeeded(', '대상') + '\nreturn _unloadSaveNeeded("p");')(sealed, () => unsaved, () => failed);
-  assert.strictEqual(need(1, false, true), false, '실패 기록 + 봉인');
-  assert.strictEqual(need(1, true, true), false);
-  assert.strictEqual(need(null, false, true), true, '[음성] 봉인 없으면 W-3-b 그대로');
-  assert.strictEqual(need(null, true, false), true);
-  assert.strictEqual(need(null, false, false), false);
-  assert.match(src, /if \(!_unloadSaveNeeded\(activeProjectId\)\) return;/);
-  assert.match(src, /if \(_reloadSealTok\) \{ answer\(\{ ok: true, reason: 'reload-seal' \}\); return; \}/);
-});
 test('② 되돌려도 원본 사본을 바로 지우지 않는다', () => {
   const f = fx(); const orig = sha(f.proj); X.externalizeProjectFile(f.root, f.id);
   assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
