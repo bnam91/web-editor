@@ -582,7 +582,7 @@
           return;
         }
         _unseal();
-        setStatus('✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
+        setStatus(r?.reason === 'pre_rollback_failed' ? '✗ 현재 본을 보관하지 못해 되돌리지 않았습니다. 디스크 공간을 확인한 뒤 다시 시도하세요.' : '✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
       } catch (e) { _unseal(); setStatus('✗ ' + (e && e.message), 'err'); }
       finally { window.__optimizeImagesInFlight = false; rbBtn.disabled = false; btn.disabled = false; }
     });

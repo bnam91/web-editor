@@ -363,20 +363,31 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
   if (opts.dryRun) return { ok: true, dryRun: true, ...diag };
   // 현재 proj.json(=변환 이후 작업)을 «전용» 보관처로 보존(F2). 롤링 슬롯이 아니라 아무도 안 덮는 파일.
   // ★2차 되돌리기(변환→되돌리기→재변환→되돌리기)가 1차 보관본을 덮지 않도록, 있으면 타임스탬프로 회전(상한).
-  try {
-    if (fs.existsSync(p.proj)) {
+  // 보관 못 하면 복원하지 않는다 — 이으면 변환 뒤 작업이 사본 없이 사라진다. 앞 보관본은 돌려놓고, 복제 끝난 사본만 고정 이름으로 쓴다.
+  if (fs.existsSync(p.proj)) {
+    const tmp = p.preRollback + '.tmp';
+    let rotatedPre = null;
+    try {
+      fs.copyFileSync(p.proj, tmp, fs.constants.COPYFILE_FICLONE);
+      fsyncPath(tmp, 'r+');
       if (fs.existsSync(p.preRollback)) {
-        try {
-          fs.renameSync(p.preRollback, path.join(p.dir, `proj_pre-rollback.${Date.now()}.json`));
-          const rots = fs.readdirSync(p.dir)
-            .filter(f => /^proj_pre-rollback\.\d+\.json$/.test(f))
-            .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
-          for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
-        } catch (_) {}
+        rotatedPre = path.join(p.dir, `proj_pre-rollback.${Date.now()}.json`);
+        fs.renameSync(p.preRollback, rotatedPre);
       }
-      fs.copyFileSync(p.proj, p.preRollback);
+      fs.renameSync(tmp, p.preRollback);
+      fsyncDir(p.dir);
+    } catch (e) {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+      if (rotatedPre && !fs.existsSync(p.preRollback)) { try { fs.renameSync(rotatedPre, p.preRollback); } catch (_) {} }
+      return { ok: false, reason: 'pre_rollback_failed', error: e.message };
     }
-  } catch (_) {}
+    try {
+      const rots = fs.readdirSync(p.dir)
+        .filter(f => /^proj_pre-rollback\.\d+\.json$/.test(f))
+        .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
+      for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
+    } catch (_) {}
+  }
   try { atomicWrite(p.proj, raw); }
   catch (e) { return { ok: false, reason: 'write_failed', error: e.message }; }
   try { rotateBackup(p); } catch (_) {}   // 지우지 않는다: 되돌린 뒤 복원본이 덮여도 원본 사본이 남는다. 되돌리기 대상에서는 빠진다

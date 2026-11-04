@@ -158,3 +158,26 @@ test('⑥ 복구본 시험을 진짜 _pickLsOverFile 로: updatedAt 없는 파�
   await api.externalizeRollback({ projectId: 'p1' });
   assert.strictEqual(pick(restored, 'p1'), null);
 });
+test('되돌리기: 현재 본을 보관하지 못하면 복원하지 않고 실패로 답한다', () => {
+  const f = fx(); X.externalizeProjectFile(f.root, f.id);
+  const keep = path.join(f.dir, 'proj_pre-rollback.json'); fs.writeFileSync(keep, '{"prev":1}');
+  const cur = sha(f.proj), bak = sha(f.pre), o = fs.copyFileSync;
+  fs.copyFileSync = function (a, b, ...r) { if (/proj_pre-rollback\.json(\.tmp)?$/.test(String(b))) throw new Error('ENOSPC'); return o.call(this, a, b, ...r); };
+  let r; try { r = X.rollbackExternalize(f.root, f.id); } finally { fs.copyFileSync = o; }
+  assert.strictEqual(r.ok, false); assert.strictEqual(r.reason, 'pre_rollback_failed');
+  assert.strictEqual(sha(f.proj), cur, '복원을 이어갔다');
+  assert.strictEqual(sha(f.pre), bak, '다시 시도할 변환 전 본이 있어야 한다');
+  assert.strictEqual(fs.readFileSync(keep, 'utf8'), '{"prev":1}', '앞 보관본을 돌려놓는다');
+  assert.ok(JSON.parse(fs.readFileSync(f.meta, 'utf8')).externalized, '표지 그대로');
+  assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true, '[음성] 풀리면 된다');
+});
+test('되돌리기 보관 실패를 설정 화면이 사람 말로 안내하고 봉인을 푼다', async () => {
+  const src = readSrc(REPO, 'js/settings/settings-modal.js');
+  let h; const rbBtn = { addEventListener: (_n, f) => { h = f; }, disabled: false }; const btn = { disabled: false };
+  const st = []; let unsealed = 0;
+  const window = { activeProjectId: 'p1', electronAPI: { externalizeRollback: async (o) => (o.dryRun ? { ok: true, dryRun: true } : { ok: false, reason: 'pre_rollback_failed', error: 'ENOSPC' }) }, cancelPendingAutoSaveForReload: async () => true, resumeAutoSaveAfterAbortedReload: () => { unsealed++; }, location: { reload() {} } };
+  new Function('window', 'rbBtn', 'btn', 'setStatus', 'confirm', 'setTimeout', src.slice(src.indexOf("rbBtn.addEventListener('click'"), src.indexOf("    btn.addEventListener('click', async () => {\n      if (typeof window.optimizeProjectImages")))(window, rbBtn, btn, (m) => st.push(m), () => true, () => {});
+  await h();
+  assert.strictEqual(unsealed, 1);
+  assert.match(st.at(-1), /되돌리지 않았습니다/);
+});
