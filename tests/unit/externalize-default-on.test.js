@@ -126,3 +126,14 @@ test('열기 로드가 복구본 값을 싣는다 · 없으면 안 싣는다', (
   store['web-editor-autosave__p'] = '{}'; store['b__p'] = UPD;
   assert.deepStrictEqual(hint('p'), { lsTs: 5, lsBase: UPD });
 });
+test('측정 스크립트의 대조가 맞은 변환은 통과, 어긋난 변환은 잡는다', () => {
+  const { verifyConverted } = require(path.join(REPO, 'tools/conv-measure.cjs'));
+  const f = fixture(); const src = f.proj + '.src'; fs.copyFileSync(f.proj, src); f.open();
+  const v = verifyConverted(REPO, f.dir, f.id, src);
+  assert.deepStrictEqual(v, { imagesUnique: 1, refs: 1, missing: 0, badAsset: 0, leftInline: 0, canvasExact: true });
+  const a = fs.readdirSync(path.join(f.dir, 'assets'))[0];
+  fs.writeFileSync(path.join(f.dir, 'assets', a), 'x');
+  assert.strictEqual(verifyConverted(REPO, f.dir, f.id, src).badAsset, 1);
+  const d = JSON.parse(fs.readFileSync(f.proj, 'utf8')); d.pages[0].canvas += 'y'; fs.writeFileSync(f.proj, JSON.stringify(d));
+  assert.strictEqual(verifyConverted(REPO, f.dir, f.id, src).canvasExact, false);
+});
