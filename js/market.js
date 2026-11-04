@@ -27,9 +27,29 @@
     } catch (_) {}
     _toast('⏳ 마켓에 올리는 중…');
     const res = await window.electronAPI.market.push({ account, id, name, data, scratch });
-    if (res?.ok) _toast(`✅ 마켓 업로드 완료: ${account}/${name}`);
+    if (res?.ok) _toast(res.skipped ? `⚠️ 업로드 완료, 에셋·갤러리 그림 ${res.skipped}장은 파일이 없어 빠졌습니다: ${account}/${name}` : `✅ 마켓 업로드 완료: ${account}/${name}`);
     else _toast(`❌ 업로드 실패: ${res?.message || '알 수 없음'}`);
     return res;
+  }
+
+  /* 올린 본에 실려 온 패널·갤러리 그림(main.js _carryProjectImages)을 새 프로젝트의 파일로 풀어 보통 항목으로 만든다. 못 풀면 센다: 패널은 src 로 남아 그림이 보이고, 갤러리는 못 읽는다. */
+  async function _unpackCarriedImages(proj, newId) {
+    let failed = 0;
+    const walk = async (list, save) => {
+      for (const n of Array.isArray(list) ? list : []) {
+        if (!n) continue;
+        if (n.carried) {
+          delete n.carried;
+          const m = /^data:([^;]+);base64,(.*)$/s.exec(n.src || '');
+          const r = m ? await save({ projectId: newId, b64: m[2], mime: m[1], originalName: n.originalName || n.name }).catch(() => null) : null;
+          if (r?.ok && r.blobPath) { n.blobPath = r.blobPath; delete n.src; } else failed++;
+        }
+        await walk(n.children, save);
+      }
+    };
+    await walk(proj.assetsTree, window.electronAPI.assetsSaveFile);
+    await walk(proj.imageGallery, window.electronAPI.aiSaveImage);
+    return failed;
   }
 
   async function pullProject(account, id, name) {
@@ -61,6 +81,7 @@
     /* ⛔id·name 은 ...parsed 뒤에 둔다 — 앞에 두면 받은 data 의 id 가 이겨 그 id 의 로컬 프로젝트를 덮는다(S3 market). 시험: tests/dom/market-no-overwrite.dom.spec.js */
     const proj = { ...parsed, id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)',
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
+    const carryFailed = await _unpackCarriedImages(proj, newId);
     const saved = await window.electronAPI.saveProject(proj);
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
     let scratchFailed = false;
@@ -71,6 +92,7 @@
     } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
     if (saved?.ok === false) _toast('❌ 저장 실패');
     else if (scratchFailed) _toast(`⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
+    else if (carryFailed) _toast(`⚠️ 받기 완료, 에셋·갤러리 그림 ${carryFailed}장은 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
     else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
   }
 

@@ -3716,6 +3716,23 @@ function _inlineGoyaAssets(str) {
   });
   return { data, missing };
 }
+/* 에셋 패널·AI 갤러리 그림은 프로젝트 폴더 안 파일(blobPath)로만 있어 받는 쪽에 안 갔다 ⇒ 올리는 본에만 그림을 싣는다(원본 파일·proj.json 안 고침). 표식 carried = 받는 쪽이 파일로 푼다(js/market.js _unpackCarriedImages). 앱 동봉 인라인 노드와 가른다.
+   없는 파일은 올리기를 막지 않고 센다: 캔버스에 안 쓰는 옛 항목 하나로 프로젝트를 못 올리면 안 된다. */
+function _carryProjectImages(str, pid) {
+  if (!String(str).includes('"blobPath"')) return { data: str, missing: 0 };
+  const proj = JSON.parse(str); let missing = 0;
+  const carry = (n) => {
+    const m = /^(assets|images)\/([^/\\]+)$/.exec(n.blobPath);
+    const full = m && m[2] !== '..' ? path.join(PROJECTS_DIR, _safeSeg(pid), m[1], _safeSeg(m[2])) : null;
+    if (!full || !fs.existsSync(full)) { missing++; return; }
+    const mime = _GOYA_ASSET_MIME[path.extname(full).slice(1).toLowerCase()] || 'image/png';
+    n.src = `data:${mime};base64,${fs.readFileSync(full).toString('base64')}`;
+    n.carried = true; delete n.blobPath;
+  };
+  const walk = (list) => { for (const n of Array.isArray(list) ? list : []) { if (!n) continue; if (n.blobPath) carry(n); walk(n.children); } };
+  walk(proj.assetsTree); walk(proj.imageGallery);
+  return { data: JSON.stringify(proj), missing };
+}
 function _extractBlobs(jsonStr, dir) {
   const bdir = _blobsDir(dir); fs.mkdirSync(bdir, { recursive: true });
   let maxBlob = 0, count = 0;
@@ -3779,7 +3796,8 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     const adir = path.join(dir, 'market', acc);
     fs.mkdirSync(adir, { recursive: true });
     // Phase 0: 인라인 자산 분리(프로젝트 데이터 + Phase1 스크래치) + 용량 가드
-    const inl = _inlineGoyaAssets(data), inlScratch = _inlineGoyaAssets(JSON.stringify(scratch || []));
+    const carried = _carryProjectImages(data, id);
+    const inl = _inlineGoyaAssets(carried.data), inlScratch = _inlineGoyaAssets(JSON.stringify(scratch || []));
     if (inl.missing + inlScratch.missing) return { ok: false, message: `그림 ${inl.missing + inlScratch.missing}곳의 파일을 찾지 못해 올리지 않았습니다 — 받는 쪽에서 깨집니다.` };
     const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(inl.data, dir);
     const scratchStr = inlScratch.data;
@@ -3796,7 +3814,7 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     await _execFileP('git', ['-C', dir, 'commit', '-m', `market: ${acc}/${name || pid}`]).catch(() => {});
     const pr = await _pushWithRebase(dir);   // Phase 3: non-ff면 fetch+rebase 후 재시도
     if (!pr.ok) return pr;
-    return { ok: true, account: acc, id: pid, version };
+    return { ok: true, account: acc, id: pid, version, skipped: carried.missing };
   } catch (e) { return { ok: false, message: e.message }; }
 });
 ipcMain.handle('market:list', async () => {
