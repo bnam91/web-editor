@@ -253,7 +253,7 @@ export function cmpPickRowImage(block, colIdx, rowIdx) {
     const f = inp.files?.[0]; if (!f) return;
     const r = new FileReader();
     r.onload = async () => {
-      const src = (await window.grdAssetSrcOf?.(r.result))?.src || r.result; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
+      const src = await window.grdAssetSrcFor(block, r.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
       const cols = getComparisonCols(block.dataset); const row = cols[colIdx]?.rows?.[rowIdx]; if (!row) return;
       row.type = 'image'; row.imgSrc = src; row.imgFit = row.imgFit || 'cover';
       setComparisonCols(block, cols); renderComparison(block);

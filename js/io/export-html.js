@@ -1,5 +1,5 @@
 import { canvasEl, state } from '../globals.js';
-import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl } from './goya-asset-inline.js';
+import { isGoyaAssetUrl as _isGoyaAsset, parseGoyaAssetUrl as _parseGoyaAssetUrl, goyaUrlsInStyle, replaceGoyaUrlInStyle } from './goya-asset-inline.js';
 import { HIDDEN_VARIATION_SECTION_SEL } from '../variation-visibility.js';
 import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
 import { strokeDefsMarkup } from '../props/text-stroke-filter.js';   /* ★1012t1E1 내부 외곽선 필터 정의 */
@@ -12,18 +12,12 @@ const CANVAS_W = 860;
  * 이미지 외부화 이후 라이브 DOM의 이미지는 `goya-asset://<id>/<hash>.<ext>`
  * 커스텀 프로토콜 참조다. 이 프로토콜은 앱(Electron) 안에서만 해석되므로,
  * 내보낸 단독 HTML을 일반 브라우저에서 열면 이미지가 깨진다.
- * → export 전에 clone을 순회하며 모든 goya-asset:// 참조(style background-image,
+ * → export 전에 clone을 순회하며 모든 goya-asset:// 참조(인라인 style 전부,
  *   <img src>, data-* 속성)를 fetch해 base64 data: URI로 되돌려 파일을 portable하게 만든다.
  *   (goya-asset 프로토콜은 supportFetchAPI:true 이므로 렌더러 fetch가 동작)
  *   기존 data:image 는 그대로 둔다. fetch 실패 시 해당 URL은 건드리지 않고 넘어간다(견고성).
  *   URL 판별/파싱 헬퍼는 goya-asset-inline.js(Figma JSON 재인라인과 공유)에서 가져온다.
  * ───────────────────────────────────────────────────────────────────── */
-function _extractUrl(cssOrUrl) {
-  // url("...") 형태와 raw URL 둘 다 처리
-  const m = (cssOrUrl || '').match(/url\(["']?([^"')]+)["']?\)/);
-  return m ? m[1] : cssOrUrl;
-}
-
 async function _goyaAssetToDataUri(url) {
   // 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 Chromium에 하드 차단된다
   // ("Cross origin requests are only supported for: chrome, data, http, https").
@@ -59,12 +53,12 @@ async function inlineGoyaAssets(root) {
     return data;
   };
 
-  // 1) style background-image
-  for (const el of root.querySelectorAll('[style*="background-image"]')) {
-    const raw = _extractUrl(el.style.backgroundImage);
-    if (!_isGoyaAsset(raw)) continue;
-    const data = await resolve(raw);
-    if (data) el.style.backgroundImage = `url("${data}")`;
+  // 1) 인라인 style — 긴 이름·줄임꼴·CSS 변수 어디에 있든
+  for (const el of root.querySelectorAll('[style*="goya-asset"]')) {
+    for (const url of goyaUrlsInStyle(el)) {
+      const data = await resolve(url);
+      if (data) replaceGoyaUrlInStyle(el, url, data);
+    }
   }
 
   // 2) <img src>

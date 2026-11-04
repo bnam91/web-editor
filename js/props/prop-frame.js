@@ -926,7 +926,7 @@ function _renderAutoPanel(ss) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async e => {
-      const src = (await window.grdAssetSrcOf?.(e.target.result))?.src || e.target.result; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
+      const src = await window.grdAssetSrcFor(ss, e.target.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
       ss.style.backgroundImage = `url('${src}')`;
       ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';

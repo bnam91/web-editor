@@ -936,6 +936,15 @@ export async function grdAssetSrcOf(dataUrl) {
   }
   return { src: dataUrl, asset: false };
 }
+/** 입구가 잡아 둔 대상에 넣을 값. 읽고 저장하는 사이 탭·페이지가 바뀌어 대상이 떨어졌으면 null — 떨어진 요소에 쓰면 그림이 말없이 사라지고 이력·자동저장이 새 탭에 걸린다. */
+export async function grdAssetSrcFor(target, dataUrl) {
+  const gone = () => { window.showToast?.('⚠️ 화면이 바뀌어 그림을 넣지 못했습니다 — 다시 넣어 주세요'); return null; };
+  if (!target?.isConnected) return gone();
+  const pid = window.activeProjectId;
+  const { src } = await grdAssetSrcOf(dataUrl);
+  return target.isConnected && window.activeProjectId === pid ? src : gone();
+}
+if (typeof window !== 'undefined') window.grdAssetSrcFor = grdAssetSrcFor;
 if (typeof window !== 'undefined') window.grdPickedImageSrc = grdPickedImageSrc;
 if (typeof window !== 'undefined') window.grdAssetSrcOf = grdAssetSrcOf;
 if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;

@@ -171,7 +171,7 @@ ${blockHeaderHTML({
       if (!file) return;
       const reader = new FileReader();
       reader.onload = async e => {
-        const src = (await window.grdAssetSrcOf?.(e.target.result))?.src || e.target.result; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
+        const src = await window.grdAssetSrcFor(block, e.target.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
         window.pushHistory?.();
         _applyScreenImage(block, src);
         block.dataset.imgSrc = src;

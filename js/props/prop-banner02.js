@@ -597,7 +597,8 @@ ${blockHeaderHTML({
       const f = inp.files?.[0]; if (!f) return;
       const r = new FileReader();
       r.onload = async () => { /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
-        block.dataset.imgSrc = (await window.grdAssetSrcOf?.(r.result))?.src || r.result; rerender(); commit(); showBanner02Properties(block); };
+        const src = await window.grdAssetSrcFor(block, r.result); if (!src) return;
+        block.dataset.imgSrc = src; rerender(); commit(); showBanner02Properties(block); };
       r.readAsDataURL(f);
     };
     inp.click();

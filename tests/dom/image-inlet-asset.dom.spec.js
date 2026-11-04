@@ -45,7 +45,39 @@ async function put(page, name, saved) {
   return { errs, html: await page.evaluate(() => document.getElementById('canvas').innerHTML) };
 }
 
+/* 자산 저장을 기다리는 사이 대상이 떨어진다(탭 전환이 캔버스를 비우는 그 꼴). 진짜 탭 전환은 앱 측정값(회신)에 있다. */
+async function putDetached(page, name) {
+  const it = INLETS[name];
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async ([add, sel]) => {
+    window.activeProjectId = 'p1';
+    window.__toasts = []; const t0 = window.showToast; window.showToast = (m) => { window.__toasts.push(m); t0?.(m); };
+    window.electronAPI = { ...(window.electronAPI || {}), assetsSaveCanvasImage: () => { window.__b.remove(); return Promise.resolve({ ok: true, url: `${location.origin}/__asset/h.png` }); } };
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection();
+    const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec);
+    window.__b = sec;
+    if (add) { await (0, eval)(`(${add})`)(); window.__b = [...c.querySelectorAll(sel)].pop(); }
+    window.__b.scrollIntoView({ block: 'center' });
+    window.__h0 = window.historyStack.length;
+  }, [it.add && it.add.toString(), it.sel]);
+  const chooser = page.waitForEvent('filechooser');
+  if (it.dbl) await page.evaluate((sel) => window.__b.querySelector(sel).dispatchEvent(new MouseEvent('dblclick', { bubbles: true })), it.dbl);
+  else await page.evaluate(async (open) => { await (0, eval)(`(${open})`)(window.__b); }, it.open.toString());
+  await (await chooser).setFiles({ name: 'a.png', mimeType: 'image/png', buffer: PNG });
+  await page.waitForFunction(() => window.__toasts.length > 0);
+  return { errs, r: await page.evaluate(() => ({ wrote: /__asset\//.test(window.__b.outerHTML), slot: window.historyStack.length - window.__h0, toasts: window.__toasts })) };
+}
+
 for (const name of Object.keys(INLETS)) {
+  test(`[틈] ${name} — 기다리는 사이 대상이 떨어지면 안 쓰고 이력도 안 늘고 말한다`, async ({ page }) => {
+    const { errs, r } = await putDetached(page, name);
+    expect(r.wrote).toBe(false);
+    expect(r.slot).toBe(0);
+    expect(r.toasts).toEqual(['⚠️ 화면이 바뀌어 그림을 넣지 못했습니다 — 다시 넣어 주세요']);
+    expect(errs).toEqual([]);
+  });
   test(`${name} — 자산 URL 로 넣는다`, async ({ page }) => {
     const { errs, html } = await put(page, name, true);
     expect(html).toMatch(/\/__asset\//);

@@ -108,11 +108,18 @@ async function goyaAssetToDrawableSrc(src, reader) {
      조용히 넘기면 위에 적은 «흰 네모가 성공으로 보고되는» 그 결함이 그대로 돌아온다.
    ══════════════════════════════════════════════════════════════════════════ */
 
-// 인라인 style 의 background-image 안에 든 goya-asset URL 들.
-function _bgGoyaUrls(el) {
-  const raw = (el && el.style && el.style.backgroundImage) || '';
-  if (raw.indexOf(GOYA_ASSET_PREFIX) === -1) return [];
-  return raw.match(GOYA_ASSET_RE) || [];
+// 인라인 style 안의 goya-asset URL 들 — 긴 이름만 보면 background 줄임꼴(목업)·CSS 변수(반투명 프레임 --frame-bg-img)를 놓친다.
+function goyaUrlsInStyle(el) {
+  const raw = (el && el.getAttribute && el.getAttribute('style')) || '';
+  return [...new Set(raw.match(GOYA_ASSET_RE) || [])];
+}
+// 같은 style 안의 url 하나를 풀린 값으로 — 다른 선언·레이어는 그대로 둔다. 바꿨으면 true.
+function replaceGoyaUrlInStyle(el, url, data) {
+  const before = el.getAttribute('style') || '';
+  const after = before.split(url).join(data);
+  if (after === before) return false;
+  el.setAttribute('style', after);
+  return true;
 }
 
 // scope(엘리먼트 또는 Document) 안에서 goya-asset 을 참조하는 자리들을 훑는다.
@@ -120,14 +127,14 @@ function _eachGoyaHost(scope, visit) {
   if (!scope) return;
   const els = [];
   if (scope.nodeType === 1) els.push(scope);
-  if (scope.querySelectorAll) els.push(...scope.querySelectorAll('img, video, [style*="background-image"]'));
+  if (scope.querySelectorAll) els.push(...scope.querySelectorAll('img, video, [style*="goya-asset"]'));
   for (const el of els) {
     const tag = el.tagName;
     if (tag === 'IMG' || tag === 'VIDEO') {
       const src = el.getAttribute('src') || '';
       if (isGoyaAssetUrl(src)) visit(el, 'src', src);
     }
-    for (const u of _bgGoyaUrls(el)) visit(el, 'bg', u);
+    for (const u of goyaUrlsInStyle(el)) visit(el, 'bg', u);
   }
 }
 
@@ -164,10 +171,7 @@ async function prepareGoyaAssetsForClone(scope, reader) {
         const data = map.get(url);
         if (!data) return;
         if (kind === 'src') { el.setAttribute('src', data); n++; return; }
-        // background-image — 같은 선언 안의 다른 레이어(그라데이션 등)는 그대로 둔다.
-        const before = el.style.backgroundImage;
-        const after = before.split(url).join(data);
-        if (after !== before) { el.style.backgroundImage = after; n++; }
+        if (replaceGoyaUrlInStyle(el, url, data)) n++;
       });
       return n;
     },
@@ -263,4 +267,6 @@ export {
   /* ⚠️이 이름은 «goyaAssetToDrawableSrc 와 inlineGoyaAssetsInJSON 사이»에 끼우지 마라 —
      tests/unit/goya-asset-family.test.js ⓑ-5 가 둘의 «인접»을 정규식으로 잰다. */
   prepareGoyaAssetsForClone,
+  goyaUrlsInStyle,
+  replaceGoyaUrlInStyle,
 };

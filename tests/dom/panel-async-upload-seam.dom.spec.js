@@ -30,6 +30,9 @@
  *   A3 ★업로드 뒤 push-after 편집이 하나 더 와도 ⌘Z 가 «그 편집만» 되돌린다(업로드는 남는다).
  *   N1 ★양성대조 — «내가 더한 끝 표본 줄만» 걷어낸 몸통이면 A1 이 0 이 되고 A3 가 깨진다.
  *
+ *   A4 ★자산 저장을 기다리는 사이 대상이 떨어지거나 프로젝트가 바뀌면(탭 전환) 안 쓴다 · 칸 0 · 토스트 1 — 목업·섹션(await 가 있는 자리).
+ *   N2 ★양성대조 — 공용 헬퍼의 «기다린 뒤» 확인만 걷으면 떨어진 요소에 쓰고 칸이 는다.
+ *
  * 실행: npm run test:dom -- panel-async-upload-seam
  */
 const { test, expect } = require('@playwright/test');
@@ -42,7 +45,7 @@ const read = (p) => fs.readFileSync(path.join(REPO, p), 'utf8').replace(/\r\n/g,
 
 /* `reader.onload = …` 의 «몸통»을 괄호 세어 떠온다(헤더 모양이 파일마다 다르다). */
 function sliceOnload(src, file) {
-  const m = /reader\.onload\s*=\s*(?:\(?[A-Za-z0-9_]*\)?)\s*=>\s*\{/.exec(src);
+  const m = /reader\.onload\s*=\s*(?:async\s+)?(?:\(?[A-Za-z0-9_]*\)?)\s*=>\s*\{/.exec(src);
   if (!m) throw new Error(`⛔${file}: reader.onload 화살표를 못 찾았다 — 이 스펙이 늙었다`);
   const open = m.index + m[0].length - 1;
   let d = 0;
@@ -52,6 +55,22 @@ function sliceOnload(src, file) {
   }
   throw new Error(`⛔${file}: onload 몸통의 끝을 못 찾았다`);
 }
+
+/* 공용 헬퍼 몸통도 «진짜 소스»에서 뜬다 — 틈을 막는 값이 거기 있다 */
+function sliceFn(src, name) {
+  const i = src.indexOf(`export async function ${name}(`);
+  if (i < 0) throw new Error(`⛔prop-grid.js: ${name} 를 못 찾았다 — 이 스펙이 늙었다`);
+  let d = 0;
+  for (let k = src.indexOf('{', i); k < src.length; k++) {
+    if (src[k] === '{') d++;
+    else if (src[k] === '}' && --d === 0) return src.slice(i + 'export '.length, k + 1);
+  }
+  throw new Error(`⛔prop-grid.js: ${name} 끝을 못 찾았다`);
+}
+const GRID_SRC = read('js/props/prop-grid.js');
+const HELPERS = sliceFn(GRID_SRC, 'grdAssetSrcOf') + '\n' + sliceFn(GRID_SRC, 'grdAssetSrcFor');
+const RECHECK = 'target.isConnected && window.activeProjectId === pid ? src : gone()';
+if (!HELPERS.includes(RECHECK)) throw new Error('⛔grdAssetSrcFor 의 «기다린 뒤» 확인을 못 찾았다 — 이 스펙이 늙었다');
 
 /* 세 자리 — 파일 · 끝 표본 라벨 · 「캔버스가 바뀌었나」를 읽는 법 */
 const SITES = [
@@ -83,7 +102,7 @@ for (const s of SITES) {
   }
 }
 
-const HARNESS = (site, body) => `
+const HARNESS = (site, body, helpers) => `
 import './globals.js';
 import './history.js';
 const canvas = document.getElementById('canvas');
@@ -105,10 +124,14 @@ window.showMockupProperties = () => {};
 function showSectionProperties() {}
 function showZoomProperties() {}
 
+${helpers}
+window.grdAssetSrcFor = grdAssetSrcFor;
+window.showToast = (m) => { (window.__toasts = window.__toasts || []).push(m); };
+
 /* ⛔인자 이름을 짧게 짓지 마라 — 떠온 몸통이 같은 이름을 const 로 다시 선언하면
    (prop-section.js 의 dataUrl) 하네스가 «구문 오류»로 안 뜬다(실측).
    ⛔여기는 템플릿 리터럴 «안»이다 — 주석에도 백틱을 쓰지 마라(리터럴이 끊긴다, 실측 2회). */
-window.__runUpload = function (__src) {
+window.__runUpload = async function (__src) {
   const ${site.slice.arg} = { target: { result: __src } };
   ${body}
 };
@@ -126,7 +149,7 @@ async function boot(page, site, variant) {
     if (u.pathname === '/__h.html') return route.fulfill({ contentType: 'text/html',
       body: `<!doctype html><html><head><meta charset="utf-8">
         <script type="module" src="/__h.js"></script></head><body>${BODY}</body></html>` });
-    if (u.pathname === '/__h.js')     return js(HARNESS(site, body));
+    if (u.pathname === '/__h.js')     return js(HARNESS(site, body, variant === 'N2' ? HELPERS.replace(RECHECK, 'src') : HELPERS));
     if (u.pathname === '/globals.js') return js(read('js/globals.js'));
     if (u.pathname === '/history.js') return js(read('js/history.js'));
     return route.fulfill({ status: 404, body: '' });
@@ -149,7 +172,7 @@ const RUN = async (withTail) => {
   window.pushHistory('앞 동작');
   await wait();
   const base = window.historyStack.length;
-  window.__runUpload('data:image/png;base64,AAA');
+  await window.__runUpload('data:image/png;base64,AAA');
   await wait();
   const out = { slot: window.historyStack.length - base, uploadedAfterRun: uploaded() };
   if (withTail) {
@@ -165,6 +188,44 @@ const RUN = async (withTail) => {
   }
   return out;
 };
+
+/* 걸음: 업로드 시작 → 자산 저장 대기 중에 how(떨어짐 / 프로젝트 바뀜) → 저장 끝. 대상은 잡아 둔 그 요소를 본다. */
+const SEAM = async (how) => {
+  const t = document.getElementById('t');
+  let done;
+  window.activeProjectId = 'A';
+  window.electronAPI = { assetsSaveCanvasImage: () => { window.__saving = true; return new Promise((r) => { done = r; }); } };
+  window.clearHistory();
+  t.dataset.v = '2';
+  window.pushHistory('앞 동작');
+  await new Promise((r) => setTimeout(r, 0));
+  const base = window.historyStack.length;
+  const run = window.__runUpload('data:image/png;base64,AAA');
+  while (!window.__saving) await new Promise((r) => setTimeout(r, 0));
+  if (how === 'detach') t.remove(); else window.activeProjectId = 'B';
+  done({ ok: true, url: 'goya-asset://A/h.png' });
+  await run;
+  await new Promise((r) => setTimeout(r, 0));
+  return { slot: window.historyStack.length - base, wrote: !!(t.dataset.screenImg || t.dataset.bgApplied || t.dataset.imgSrc), toasts: (window.__toasts || []).length };
+};
+
+for (const site of SITES.filter((s) => s.slice.body.includes('grdAssetSrcFor'))) {
+  const name = site.file.replace('js/props/', '');
+  for (const how of ['detach', 'project']) {
+    test(`A4 ★[${name} · ${how}] 자산 저장을 기다리는 사이 대상이 바뀌면 안 쓰고 칸도 안 는다`, async ({ page }) => {
+      const errs = await boot(page, site, 'fix');
+      expect(await page.evaluate(SEAM, how)).toEqual({ slot: 0, wrote: false, toasts: 1 });
+      expect(errs).toEqual([]);
+    });
+    test(`N2 ★[양성대조 ${name} · ${how}] «기다린 뒤» 확인만 걷으면 잡아 둔 요소에 쓰고 칸이 는다`, async ({ page }) => {
+      await boot(page, site, 'N2');
+      const r = await page.evaluate(SEAM, how);
+      expect(r.wrote).toBe(true);
+      expect(r.toasts).toBe(0);
+      expect(r.slot).toBeGreaterThan(0);
+    });
+  }
+}
 
 for (const site of SITES) {
   const name = site.file.replace('js/props/', '');

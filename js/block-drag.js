@@ -118,7 +118,7 @@ function _itbPickPhoto(block) {
       const iconEl = block.querySelector('.itb-icon');
       if (!/^data:image\//i.test(src)) { window.showToast?.('그림 파일만 올릴 수 있습니다'); return; }
       if (!iconEl || !window.itbApplyImgSrc) { window.showToast?.('사진을 넣지 못했습니다 — 잠시 뒤 다시 시도해 주세요'); return; }
-      const out = (await window.grdAssetSrcOf?.(src))?.src || src; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
+      const out = await window.grdAssetSrcFor(block, src); if (!out) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
       window.pushHistory?.();                       // 시작 표본(옛 길 그대로)
       window.itbApplyImgSrc(block, iconEl, out);
       window.pushHistory?.();                       // ★끝 표본(B-3) — 양쪽 끝(js/CLAUDE.md 히스토리 규약)
@@ -2735,7 +2735,7 @@ function bindBlock(block) {
           if (!window.grdImageFileOk?.(file)) return;
           const reader = new FileReader();
           reader.onload = async ev => {
-            const src = (await window.grdAssetSrcOf?.(ev.target.result))?.src || ev.target.result; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
+            const src = await window.grdAssetSrcFor(block, ev.target.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
             window.grdToastImgFail?.(window.updateGridBlock?.(block.id,
               { patchCell: { r, c, lineIndex: li, imgSrc: src } }, { trusted: true }));
           };
