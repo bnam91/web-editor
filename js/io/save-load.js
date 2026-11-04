@@ -1,6 +1,6 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { syncFrameBgVars, frameBgSize } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
-import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { externalizeProjectData, adoptForeignAssets, recordExternalizeBaseline } from './asset-externalize.js';
 import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
@@ -389,6 +389,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       const _externAll = opts.externalizeAll === true || window.GOEDITOR_AUTO_EXTERNALIZE_LEGACY === true;
       try { await externalizeProjectData(proj, targetId, { all: _externAll }); }
       catch (e) { console.warn('[save-load] 이미지 외부화 건너뜀:', e && e.message); }
+      try { await adoptForeignAssets(proj, targetId); }
+      catch (e) { console.warn('[save-load] 다른 프로젝트 자산 가져오기 건너뜀:', e && e.message); }
       // #16 이식성: 스크래치패드 전체 페이지를 goya-asset로 외부화 + proj.pages[].scratchpad 매니페스트 기록
       //   (다른 맥에서 하이드레이션 원본). 비파괴·hash 증분·실패 시 원본 유지. proj 객체에 scratchpad 필드 주입.
       try { await window.externalizeScratchpad?.(proj, targetId); }

@@ -16,6 +16,7 @@
 // base64 data:image URI만 매칭. base64 알파벳([A-Za-z0-9+/=])은 따옴표/괄호/공백을 포함하지 않아
 // 경계가 안전. 비base64 인라인 SVG(data:image/svg+xml,<svg ...>)는 공백·따옴표·괄호를 포함해
 // 경계가 모호하고 보통 작은 아이콘이라 bloat 원인이 아니므로 외부화 대상에서 제외(원본 유지).
+import { parseGoyaAssetUrl } from './goya-asset-inline.js';
 const DATA_URI_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/g;
 
 /* ── 정책 게이팅: 로드 베이스라인 (load baseline) ──
@@ -145,6 +146,32 @@ async function externalizeProjectData(data, projectId, opts = {}) {
   return data;
 }
 
+/* 붙여넣기로 온 다른 프로젝트의 자산을 이 프로젝트 것으로 — 주소에 프로젝트 id 가 박혀 있어 그대로 두면 원본을 지울 때 그림이 깨진다(복제는 main copy-urls 가 같은 일을 한다).
+   붙여넣기 때가 아니라 저장 때 한다: 붙여넣기는 동기 갈래가 여럿이고 ⌘Z 표본과 묶여 있는데, 저장은 한 곳이다. 라이브 DOM 은 안 바꾼다 — 다시 열면 새 주소.
+   못 읽으면(원본이 이미 지워짐) 주소를 그대로 둔다. 번은 저장마다 다시 읽지 않게 세션 동안 기억한다. */
+const _ADOPT_URL_RE = /goya-asset:\/\/[^"'()\s&\\]+\.(?:png|jpe?g|gif|webp|svg)/gi;
+const _adopted = new Map();   // `${projectId}|${url}` → 새 url
+async function adoptForeignAssets(data, projectId) {
+  const api = window.electronAPI;
+  if (!data || !Array.isArray(data.pages) || !projectId || !api?.assetsReadAsDataUri || !api?.assetsSaveCanvasImage) return;
+  for (const page of data.pages) {
+    if (typeof page?.canvas !== 'string' || page.canvas.indexOf('goya-asset://') === -1) continue;
+    for (const url of new Set(page.canvas.match(_ADOPT_URL_RE) || [])) {
+      const src = parseGoyaAssetUrl(url);
+      if (!src || src.projectId === projectId) continue;
+      const key = `${projectId}|${url}`;
+      if (!_adopted.has(key)) {
+        const read = await api.assetsReadAsDataUri(src).catch(() => null);
+        const m = read?.ok ? /^data:([^;]+);base64,(.*)$/.exec(read.dataUri || '') : null;
+        const saved = m ? await api.assetsSaveCanvasImage({ projectId, b64: m[2], mime: m[1] }).catch(() => null) : null;
+        if (!saved?.ok || !saved.url) { console.warn('[asset-externalize] 다른 프로젝트 자산을 못 가져와 주소를 그대로 둔다:', url); continue; }
+        _adopted.set(key, saved.url);
+      }
+      page.canvas = page.canvas.split(url).join(_adopted.get(key));
+    }
+  }
+}
+
 /** 프로젝트 객체(또는 직렬화 문자열)의 base64 data:image 개수 합산 — 검증용. */
 function _countBase64(data) {
   try {
@@ -251,4 +278,4 @@ window.externalizeProjectData = externalizeProjectData;
 window.recordExternalizeBaseline = recordExternalizeBaseline;
 window.optimizeProjectImages = optimizeProjectImages;
 
-export { externalizeCanvasHtml, externalizeProjectData, recordExternalizeBaseline, optimizeProjectImages };
+export { externalizeCanvasHtml, externalizeProjectData, adoptForeignAssets, recordExternalizeBaseline, optimizeProjectImages };
