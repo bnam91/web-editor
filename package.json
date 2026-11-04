@@ -15,6 +15,7 @@
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "node tools/deploy-gate.js && electron-builder --mac --publish always",
     "release:win": "node tools/deploy-gate.js && electron-builder --win --publish always",
+    "postinstall": "node -e \"for (const a of ['arm64', 'x64']) try { require('fs').chmodSync('node_modules/node-pty/prebuilds/darwin-' + a + '/spawn-helper', 0o755) } catch {}\"",
     "test": "node tests/run-unit.mjs 'tests/unit/*.test.mjs' 'tests/unit/*.test.js'",
     "test:dom": "playwright test --config=tests/dom/playwright.dom.config.js",
     "test:all": "npm test && npm run test:dom",
