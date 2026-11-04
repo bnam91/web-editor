@@ -78,7 +78,9 @@
         else delete sec.dataset.protectedReason;
       }
     } else {
-      delete sec.dataset.protected;
+      // 메모가 자동 잠금 글이면 «사람이 풀었다»를 남긴다 — 안 남기면 다시 열 때 _autoDetectFromMemo 가 또 잠근다
+      if (String(sec.dataset.memo || '').includes(AUTO_TRIGGER)) sec.dataset.protected = 'false';
+      else delete sec.dataset.protected;
       delete sec.dataset.protectedReason;
     }
     /* toolbar 버튼 상태 동기화 — ★«없으면 만들고» 나서 맞춘다(2026-09-22 실측).
@@ -153,7 +155,7 @@
 
   // ── 마이그레이션: memo → protected 자동 감지 ─────────────────────────────
   function _autoDetectFromMemo(sec) {
-    if (!sec || _isProtectedEl(sec)) return false; // 이미 보호된 건 덮어쓰지 않음
+    if (!sec || _isProtectedEl(sec) || sec.dataset.protected === 'false') return false; // 이미 보호됐거나 사람이 푼 건 덮어쓰지 않음
     const memo = sec.dataset && sec.dataset.memo;
     if (!memo) return false;
     // 첫 줄만 검사 (trim + 포함 매칭)

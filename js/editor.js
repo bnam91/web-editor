@@ -3781,6 +3781,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
     if (selGroup) {
       consumed = true;
+      if (window.isSectionProtected?.(selGroup.closest('.section-block'))) { window.showToast?.('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return consumed; }
       window.ensureHistoryCheckpoint?.('삭제 전');
       selGroup.remove();
       deselectAll();

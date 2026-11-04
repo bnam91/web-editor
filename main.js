@@ -5911,7 +5911,10 @@ async function _invokeRendererUndoOnce() {
         return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다 — 되돌리지 않았습니다.',
                  retryAfter: 2000, detail: { userEditing, recentKey } };
       }
+      /* 🔒 는 히스토리 칸을 안 만들어 undo 가 같이 되돌린다 — 보호가 풀리거나 섹션이 사라지면 원상복구하고 거절한다 */
+      const locked = [...document.querySelectorAll('.section-block[data-protected="true"]')].map(x => x.id);
       window.undo();
+      if (locked.some(id => !window.isSectionProtected?.(id))) { window.redo(); return ${_SECTION_PROTECTED_JS}; }
       return { ok: true };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
   return await mainWindow.webContents.executeJavaScript(js, true);
