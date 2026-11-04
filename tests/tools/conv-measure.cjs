@@ -101,7 +101,7 @@ async function main() {
       await page.evaluate(() => window.cancelPendingAutoSaveForReload?.(window.activeProjectId));
       const rb = await page.evaluate((id) => window.electronAPI.externalizeRollback({ projectId: id }), id);
       await open(id); await sleep(8000); failStop();
-      out({ at: '되돌림', ok: rb.ok, 원본해시일치: sha(proj) === orig, 재변환안함: !fs.existsSync(pre), 뒤바이트: fs.statSync(proj).size, peakMB: peak.sum >> 10 });
+      out({ at: '되돌림', ok: rb.ok, 원본해시일치: sha(proj) === orig, 재변환안함: !fs.existsSync(pre), 원본사본남음: fs.readdirSync(dir).filter((n) => /^proj_pre-externalize\.\d+\.json$/.test(n)).some((n) => sha(path.join(dir, n)) === orig), 뒤바이트: fs.statSync(proj).size, peakMB: peak.sum >> 10 });
     } else if (mode === 'recover') {
       await up(); const btn = page.getByText('New Design', { exact: false }).first(); await btn.waitFor(); const bb = await btn.boundingBox(); await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.waitForURL(/index\.html/); await page.waitForFunction(() => typeof window.addTextBlock === 'function');
       const id = new URL(page.url()).searchParams.get('project'), dir = path.join(PJ, id), proj = path.join(dir, 'proj.json');
