@@ -614,7 +614,11 @@ async function goHome() {
   /* ★썸네일을 «기다리지 않는다» — 그 한 줄이 홈 이동의 8초였다(위 스케줄러 주석에 실측).
      그림은 scheduleIdleThumbnail 이 편집 멈춘 뒤 미리 찍어 둔다. 편집 직후 2초 안에 홈을
      누르면 카드 그림이 한 판 낡을 수 있지만, 다음에 열었다 나올 때 갱신된다. */
-  await saveProjectToFile(serializeProject(), { skipThumbnail: true });
+  await _saveInLine(serializeProject(), activeProjectId, { skipThumbnail: true });
+  /* 줄이 빌 때까지 기다린다. 탭을 옮기자마자 나오면 떠난 탭의 저장이 아직 돌고, 목록의 글꼴 대체가 그 파일을 읽고 고쳐 써서
+     편집이나 대체를 잃었다(RENDERER-LOAD-SAVE-ROUNDTRIP-FIVE-LEFT-01). */
+  const _lineEnd = Date.now() + 60000;
+  while ((_isSavingToFile || _pendingSaves.size) && Date.now() < _lineEnd) await new Promise(r => setTimeout(r, 25));
   window.saveTabState();
   if (warnedPendingVideo) await new Promise(r => setTimeout(r, 900));
   window.location.href = 'pages/projects.html';
