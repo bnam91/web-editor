@@ -2646,6 +2646,21 @@ function _freeNudgeTargets() {
   return all.filter(a => !all.some(b => b !== a && a.contains(b)));
 }
 
+/** 글칸 포커스면 ⌘Z 를 네이티브 되돌리기에 양보한다. 자유변형 글칸은 되돌릴 글이 남았을 때만 — 없으면 앱 이력으로 끌기까지 되돌린다(현빈 6634).
+ *  shortcut: 다른 글칸(안 건 글상자·표·메모)은 옛 문 그대로라 글칸 포커스에선 앱 이력이 안 돈다, 현빈이 넓히라 하면 closest 조건을 뗀다. */
+function _yieldsUndoToNative(cmd) {
+  const ae = document.activeElement;
+  if (!ae?.isContentEditable) return false;
+  if (!ae.closest('.text-block[data-tf-corners]')) return true;
+  if (!document.queryCommandEnabled(cmd)) return false;
+  return cmd !== 'undo' || ae !== _nativeUndoEntry?.el || ae.innerHTML !== _nativeUndoEntry.html;
+}
+/* 네이티브 스택은 문서 하나라 앞 편집의 글을 들고 있다 — 그걸 먼저 되돌리면 다음 앱 걸음이 글을 되살린다. 그래서 이번 진입 뒤 친 글만 네이티브로 간다. */
+let _nativeUndoEntry = null;
+document.addEventListener('focusin', e => { if (e.target?.isContentEditable) _nativeUndoEntry = { el: e.target, html: e.target.innerHTML }; });
+/* 커서 둔 채 손잡이를 잡으면 친 글은 끌기 시작 표본에 들어간다 — 여기서부터 친 글만 네이티브 몫이다. */
+document.addEventListener('mousedown', e => { const ae = document.activeElement; if (ae?.isContentEditable && e.target.closest?.('.tfh-handle')) _nativeUndoEntry = { el: ae, html: ae.innerHTML }; }, true);
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -2766,10 +2781,10 @@ document.addEventListener('keydown', e => {
       document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100, { keepViewportCenter: true }); }  // [M62]
-    if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
+    if (e.key === 'z' && !e.shiftKey)   { if (_yieldsUndoToNative('undo')) return; e.preventDefault(); undo(); return; }
     // ★Shift+z 는 브라우저가 key:'Z'(대문자)로 준다 — 소문자만 검사하면 ⌘⇧Z redo 가 «전혀» 안 먹는다.
     //   바로 아래 취소선(⌘⇧X)이 (e.key==='x'||e.key==='X') 로 둘 다 받는 것과 같은 규약으로 맞춘다.
-    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
+    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (_yieldsUndoToNative('redo')) return; e.preventDefault(); redo(); return; }
     if (e.code === 'KeyF' && !e.shiftKey && !e.altKey) {
       // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
       if (document.querySelector('.text-block.editing')) return;
@@ -2954,7 +2969,9 @@ document.addEventListener('keydown', e => {
         return;
       }
       // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
-      const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
+      /* 안쪽 그룹부터 — 그룹 안에서 방금 묶으면 바깥 그룹도 .selected 다. 첫 것을 집으면 방금 만든 그룹 대신 바깥을 풀어 자리가 바뀐다 */
+      const _selGroups = [...document.querySelectorAll('.frame-block[data-group="true"].selected')];
+      const selGroup = _selGroups.find(g => !g.querySelector('.frame-block[data-group="true"].selected'))
         || document.querySelector('.group-block.group-selected');
       if (selGroup) window.ungroupBlock?.(selGroup);
       return;

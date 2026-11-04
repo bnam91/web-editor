@@ -27,9 +27,55 @@
     } catch (_) {}
     _toast('⏳ 마켓에 올리는 중…');
     const res = await window.electronAPI.market.push({ account, id, name, data, scratch });
-    if (res?.ok) _toast(`✅ 마켓 업로드 완료: ${account}/${name}`);
+    if (res?.ok) _toast(`✅ 마켓 업로드 완료: ${account}/${name}${res.omitted ? ` · 캔버스에 안 쓴 에셋·갤러리 그림 ${res.omitted}장은 뺐습니다` : ''}`);
     else _toast(`❌ 업로드 실패: ${res?.message || '알 수 없음'}`);
     return res;
+  }
+
+  /* 받은 패널·갤러리 항목은 남이 쓴 값이다. src·thumbSrc 는 깐깐한 data 그림만 남긴다. 표식 없는 blobPath 는 다 지운다: 새 프로젝트에 그 파일이 없다(옛 판이 올린 본).
+     src 가 그대로 남으면 캔버스로 보낼 때 innerHTML 에 들어가고, https 면 패널이 밖으로 요청하고, blobPath=proj.json 은 지우기 단추가 받은 본 파일을 지운다(S3 MKT3). svg 는 안 받는다.
+     동봉 무늬(ast_notebg_*)는 svg 라 지워져도 열 때 시드가 되채우니 안 센다(js/io/save-load.js seedNoteBgPatterns). 돌려주는 값 = 못 받은 그림 수. */
+  const _IMAGE_SIG = { png: '\x89PNG', jpeg: '\xFF\xD8\xFF', gif: 'GIF8', webp: 'RIFF' };
+  function _isSafeImageSrc(src) {
+    if (typeof src !== 'string') return false;
+    const m = /^data:image\/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(src);
+    if (!m) return false;
+    try { const head = atob(m[2].slice(0, 16)); return head.startsWith(_IMAGE_SIG[m[1]]) && (m[1] !== 'webp' || head.slice(8, 12) === 'WEBP'); } catch (_) { return false; }
+  }
+  function _sanitizeReceivedImages(proj) {
+    let bad = 0;
+    const walk = (list) => {
+      for (const n of Array.isArray(list) ? list : []) {
+        if (!n || typeof n !== 'object') continue;
+        if ('src' in n && !_isSafeImageSrc(n.src)) { delete n.src; delete n.carried; if (!String(n.id).startsWith('ast_notebg_')) bad++; }
+        if ('thumbSrc' in n && !_isSafeImageSrc(n.thumbSrc)) delete n.thumbSrc;
+        if ('blobPath' in n) { delete n.blobPath; bad++; }
+        walk(n.children);
+      }
+    };
+    walk(proj.assetsTree);
+    walk(proj.imageGallery);
+    return bad;
+  }
+
+  /* 올린 본에 실려 온 패널·갤러리 그림(main.js _carryProjectImages)을 새 프로젝트의 파일로 풀어 보통 항목으로 만든다. 못 풀면 센다: 패널은 src 로 남아 그림이 보이고, 갤러리는 못 읽는다. */
+  async function _unpackCarriedImages(proj, newId) {
+    let failed = 0, done = 0;
+    const walk = async (list, save) => {
+      for (const n of Array.isArray(list) ? list : []) {
+        if (!n) continue;
+        if (n.carried) {
+          delete n.carried;
+          const m = /^data:([^;]+);base64,(.*)$/s.exec(n.src || '');
+          const r = m ? await save({ projectId: newId, b64: m[2], mime: m[1], originalName: n.originalName || n.name }).catch(() => null) : null;
+          if (r?.ok && r.blobPath) { n.blobPath = r.blobPath; delete n.src; done++; } else failed++;
+        }
+        await walk(n.children, save);
+      }
+    };
+    await walk(proj.assetsTree, window.electronAPI.assetsSaveFile);
+    await walk(proj.imageGallery, window.electronAPI.aiSaveImage);
+    return { failed, done };
   }
 
   async function pullProject(account, id, name) {
@@ -61,7 +107,16 @@
     /* ⛔id·name 은 ...parsed 뒤에 둔다 — 앞에 두면 받은 data 의 id 가 이겨 그 id 의 로컬 프로젝트를 덮는다(S3 market). 시험: tests/dom/market-no-overwrite.dom.spec.js */
     const proj = { ...parsed, id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)',
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
-    const saved = await window.electronAPI.saveProject(proj);
+    const rejected = _sanitizeReceivedImages(proj);
+    /* 저장이 먼저다: 저장이 실패하면 파일을 안 풀어 고아 폴더가 안 생긴다(S3 MKT3). 푼 뒤 blobPath 가 생기면 한 번 더 저장한다. */
+    const saved = await window.electronAPI.saveProject(proj).catch((e) => { console.warn('[market] 받은 본 저장 실패:', e.message); return { ok: false }; });
+    if (saved?.ok === false) { _toast('❌ 저장 실패'); return; }
+    const unpacked = await _unpackCarriedImages(proj, newId);
+    let carryFailed = rejected + unpacked.failed;
+    if (unpacked.done) {
+      const again = await window.electronAPI.saveProject(proj).catch(() => ({ ok: false }));
+      if (again?.ok === false) carryFailed += unpacked.done;   // 파일에 인라인으로 남는다: 패널은 보이고 갤러리는 못 읽는다
+    }
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
     let scratchFailed = false;
     try {
@@ -69,9 +124,12 @@
       if (typeof scratch === 'string') scratch = JSON.parse(scratch);
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
     } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
-    if (saved?.ok === false) _toast('❌ 저장 실패');
-    else if (scratchFailed) _toast(`⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
-    else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
+    const carryWord = `에셋·갤러리 그림 ${carryFailed}장은`;
+    const lost = scratchFailed && carryFailed ? `스크래치와 ${carryWord}` : scratchFailed ? '스크래치는' : carryFailed ? carryWord : '';
+    /* 올린 쪽이 뺀 장수: 안 쓴 항목은 패널·갤러리에 아예 없으니 깨지지 않는다, 없다는 말만 한다 */
+    const omitted = Number.isInteger(res.project.omittedImages) && res.project.omittedImages > 0 ? ` · 캔버스에 안 쓴 에셋·갤러리 그림 ${res.project.omittedImages}장은 이 본에 없습니다` : '';
+    if (lost) _toast(`⚠️ 받기 완료, ${lost} 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
+    else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
   }
 
   /* 같은 그림인가 — 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 안 견준다(재머지마다 _r 이 늘었다, S3 market5 ①). 뜻은 save-load.js _sameImage 한 벌을 쓴다.

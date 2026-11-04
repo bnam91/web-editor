@@ -2,7 +2,7 @@
    이미지 업로드 (Asset)
 ══════════════════════════════════════ */
 import { propPanel } from './globals.js';
-import { alignBtn } from './props/_helpers.js';
+import { alignBtn, escHtml } from './props/_helpers.js';
 import { decodeGifFrames } from './io/export-image.js';
 import { applyAssetClip } from './clip-content.js';   /* ★「내용 자르기」 ★술어·표의 ★단 한 자리(2026-10-10 c2) */
 import { applyRedact } from './effects/image-redact.js';   /* ★「블러 (Redact)」 공용 모듈(1012t1 C1) */
@@ -766,7 +766,7 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   const prevGrainSnap = captureAssetGrain(ab);
   const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — ⛔빠지면 로고1 을 넣는 순간 ×·로고2·3 이 사라진다 */
   ab.innerHTML = `
-    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}"></div>
+    <div class="asset-img-clip"><img class="asset-img" src="${escHtml(src)}" draggable="false" style="object-fit:${ab.dataset.fit}"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;
