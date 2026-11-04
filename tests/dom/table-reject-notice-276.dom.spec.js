@@ -78,3 +78,41 @@ test('N [음성] 받아들여지는 입력(0:2)엔 말이 안 뜬다', async ({ 
   expect(await toast(page)).toBeNull();
   expect(errs).toEqual([]);
 });
+
+/* ★DEC — 처음 비어 있던 숫자 칸(값 '' → '' 라 change 가 안 온다). 패널 전수에서 말 없던 7종 14칸의 뿌리 하나 — 대표 둘을 잰다. */
+async function setupEmpty(page, add, sel) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async (add) => {   // 넣으면 그 블럭 패널이 선다 — 클릭은 글상자 안에 떨어져 패널을 바꾼다(첫 런 빨강 1)
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection(); const sec = [...c.querySelectorAll('.section-block')].pop(); window.selectSection(sec); window._activeFrame = null; await window[add]();
+  }, add);
+  const i = page.locator(sel).first();
+  await expect(i, '[전제] 칸이 보인다').toBeVisible();
+  expect(await i.inputValue(), '[전제] 칸이 비어 있다').toBe('');
+  return { errs, i };
+}
+const badInput = (i) => i.evaluate((e) => e.validity.badInput);
+for (const [add, sel] of [['addBanner02Block', '#bn2-h'], ['addComparisonBlock', '.cmp-row-h']]) {
+  for (const key of ['Tab', 'Enter']) {
+    test(`E1 빈 칸(${sel})에 오타 + ${key} ⇒ 말이 뜬다 · 칸에 오타가 안 남는다`, async ({ page }) => {
+      const { errs, i } = await setupEmpty(page, add, sel);
+      await i.click(); await page.keyboard.type('1e'); await page.keyboard.press(key);
+      await expect.poll(() => toast(page), { message: '오타를 거절했는데 말이 없다', timeout: 2500 }).toMatch(/숫자가 아니라/);
+      expect(await badInput(i), '칸에 오타가 남았다').toBe(false);
+      expect(await i.inputValue()).toBe('');
+      expect(errs).toEqual([]);
+    });
+  }
+  test(`E2 [음성] 빈 칸(${sel})을 안 고치고 나가면 말이 없다`, async ({ page }) => {
+    const { errs, i } = await setupEmpty(page, add, sel);
+    await i.click(); await page.keyboard.press('Tab');
+    expect(await toast(page)).toBeNull();
+    expect(errs).toEqual([]);
+  });
+}
+test('W1 문구 — 죔은 조사 없이 입력·적용 값을 말한다(「60 로」 금지)', async ({ page }) => {
+  await setup(page);
+  await put(page, '#tbl-size-number', '9999');
+  await expect.poll(() => toast(page), { timeout: 2500 }).toBe('⚠️ 12~60 값만 쓸 수 있어요 — 입력 9999 → 적용 60');
+});

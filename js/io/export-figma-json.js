@@ -6,7 +6,41 @@ import { parseGradient } from '../props/gradient-model.js';
 import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 import { collabParams, collabSlotSrc } from '../blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 */
 import { COLLAB_GLYPH } from '../blocks/logo-collab-model.js';
+import { sanitizeRichTextHtml } from '../util/sanitize-rich-text.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★197 내보내기 축 — 0 을 살리는 문 하나(빈 값만 기본 · 두 벌 금지) */
+/* 332 — 모달 슬롯 부분 서식 ↔ 평문 tx 의 글자 범위. 받는 쪽(figma-renderer/text-ranges.mjs)이 칠할 수 있는 굵게·색만 싣는다.
+   글자가 평문과 안 맞으면 틀린 자리를 칠하느니 안 싣는다. */
+function _modalTextRanges(html, tx) {
+  if (!html) return [];
+  const tpl = document.createElement('template');
+  tpl.innerHTML = sanitizeRichTextHtml(html);
+  let text = '';
+  const raw = [];
+  const walk = (n, bold, color) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) {
+        if (c.data && (bold || color)) raw.push({ start: text.length, end: text.length + c.data.length, bold, color });
+        text += c.data;
+      } else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') { text += '\n'; continue; }
+        const w = c.style?.fontWeight, col = c.style?.color;
+        walk(c, bold || /^(B|STRONG)$/.test(c.tagName) || w === 'bold' || w === 'bolder' || Number(w) >= 600, col || color);
+      }
+    }
+  };
+  walk(tpl.content, false, '');
+  const lead = text.length - text.trimStart().length;
+  if (text.trim() !== tx) return [];
+  const out = [];
+  for (const r of raw) {
+    const start = Math.max(0, r.start - lead), end = Math.min(tx.length, r.end - lead), last = out[out.length - 1];
+    if (end <= start) continue;
+    if (last && last.end === start && last.bold === r.bold && last.color === r.color) { last.end = end; continue; }
+    out.push({ start, end, bold: r.bold, color: r.color });
+  }
+  return out.map(({ start, end, bold, color }) => ({ start, end, ...(bold ? { bold } : {}), ...(color ? { color } : {}) }));
+}
+
 
 const CANVAS_W = 860;
 
@@ -984,13 +1018,15 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const fs = parseInt(ds.fontSize) || 36;
       const color = ds.textColor || '#1c1c1e';
       const texts = [];
-      const push = (slot, val) => {
+      const push = (slot, val, html) => {
         const tx = String(val ?? '').trim();
-        if (tx) texts.push({ t: tx, fs, color, slot, x: 0, y: 0 });
+        if (!tx) return;
+        const ranges = _modalTextRanges(html, tx);
+        texts.push({ t: tx, fs, color, slot, x: 0, y: 0, ...(ranges.length ? { ranges } : {}) });
       };
-      if (ds.variant === 'titled') { push('title', ds.titleText); push('text', ds.textText); }
+      if (ds.variant === 'titled') { push('title', ds.titleText, ds.titleHtml); push('text', ds.textText, ds.textHtml); }
       else if (ds.variant === 'grid-2') { push('cell1', ds.cell1); push('cell2', ds.cell2); }
-      else push('text', ds.textText);
+      else push('text', ds.textText, ds.textHtml);
       const bw = parseInt(ds.borderW) || 0;
       return {
         type: 'generic', id: el.id || '', kind: 'modal', variant: ds.variant || 'plain',

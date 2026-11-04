@@ -452,6 +452,7 @@ function _innermostEntryFrame(node) {
   for (let f = node?.closest?.('.frame-block'); f; f = f.parentElement?.closest('.frame-block')) if (_isEntryFrame(f)) return f;
   return null;
 }
+if (typeof window !== 'undefined') window._innermostEntryFrame = _innermostEntryFrame;   // ⌘A 범위(editor.js _selectAllFrame)
 let _dblGesture = null;   // { frame, entered } — 제스처 첫 mousedown 때 찍는다
 if (typeof document !== 'undefined') {
   document.addEventListener('mousedown', (e) => {
@@ -462,6 +463,7 @@ if (typeof document !== 'undefined') {
   document.addEventListener('dblclick', (e) => {
     const g = _dblGesture;
     if (!g || g.entered || !g.frame.isConnected || !g.frame.contains(e.target)) return;
+    if (e.target.closest?.('.grb-bar-label, .grb-bar-h-desc')) return;   // ★6634 현빈 — 막대 그래프 범주 라벨은 프레임 안에서도 첫 더블클릭에 글이 열린다(다른 글은 한 겹 그대로)
     e.stopPropagation();   // 자식의 편집 처리기로 안 내려간다 — 이 더블클릭은 «한 겹 내려가기»다
     if (!g.frame.querySelector('.selected')) window._enteredFrame = g.frame;   // 여백이었다 — 그 프레임 «안»이 삽입 자리
     _dblGesture = null;

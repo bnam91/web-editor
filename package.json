@@ -15,6 +15,7 @@
     "build:mac": "electron-builder --mac --dir",
     "release:mac": "node tools/deploy-gate.js && electron-builder --mac --publish always",
     "release:win": "node tools/deploy-gate.js && electron-builder --win --publish always",
+    "postinstall": "node -e \"for (const a of ['arm64', 'x64']) try { require('fs').chmodSync('node_modules/node-pty/prebuilds/darwin-' + a + '/spawn-helper', 0o755) } catch {}\"",
     "test": "node tests/run-unit.mjs 'tests/unit/*.test.mjs' 'tests/unit/*.test.js'",
     "test:dom": "playwright test --config=tests/dom/playwright.dom.config.js",
     "test:all": "npm test && npm run test:dom",
@@ -130,7 +131,7 @@
   "homepage": "https://github.com/bnam91/web-editor#readme",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "electron": "^41.0.3",
+    "electron": "43.8.6",
     "electron-builder": "^26.8.1"
   },
   "dependencies": {

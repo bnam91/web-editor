@@ -21,7 +21,9 @@ const mangleLive = (page, id, mode) => page.evaluate(([id, mode]) => { const e =
   return true; }, [id, mode]);
 /* draggable 은 내용이 아니라 묶을 때 세우는 칸이다(자유 프레임 자식 넣은 직후 false · 다시 묶은 뒤 없음, 18종 값) ⇒ soft 로 따로 세고 빨강에서 뺀다 */
 const SOFT = new Set(['attr:draggable']);
-const cmp = async (page, a, b) => { const r = await structCmp(page, a, b); const hard = r.diffs.filter((d) => !SOFT.has(d.kind)); return { red: hard.length > 0, diffs: hard, soft: r.diffs.length - hard.length, styleOnly: r.styleOnly }; };
+/* style 은 선언 순서가 달라도 같은 내용이다 — structCmp 의 cssText 비교는 순서를 본다(글자 효과 값으로 봤다) */
+const sameDecls = (a, b) => { const set = (v) => String(v).split(';').map((x) => x.trim()).filter(Boolean).sort().join(';'); return set(a) === set(b); };
+const cmp = async (page, a, b) => { const r = await structCmp(page, a, b); const hard = r.diffs.filter((d) => !SOFT.has(d.kind) && !(d.kind === 'attr:style' && sameDecls(d.a, d.b))); return { red: hard.length > 0, diffs: hard, soft: r.diffs.length - hard.length, styleOnly: r.styleOnly }; };
 const parsedBack = (page, bytes) => page.evaluate((b) => new DOMParser().parseFromString('<div id="__r">' + b + '</div>', 'text/html').getElementById('__r').innerHTML, bytes);
 /* 길 셋. base 는 조작 전 바이트 */
 const judgeUndo = async (page, base) => cmp(page, base, await serial(page));

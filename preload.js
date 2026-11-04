@@ -9,13 +9,22 @@ function _noteFileVersion(project, res) {
   return res;
 }
 
+/* 열기 로드에 복구본 값을 싣는다 — main 이 변환을 미룰지 정한다(main/project-store/externalizer.js lsRecoveryPending). 복구본이 있을 때만. */
+function _lsOpenHint(id) {
+  try {
+    const key = `web-editor-autosave__${id}`;
+    const lsTs = parseInt(localStorage.getItem(key + '_ts') || '0');
+    return lsTs && localStorage.getItem(key) ? { lsTs, lsBase: localStorage.getItem(`web-editor-ls-base__${id}`) } : {};
+  } catch (_) { return {}; }
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   // Projects (파일 기반)
   listProjects:   ()        => ipcRenderer.invoke('projects:list'),
   /* ★백업 사본 목록 — 읽기 전용. 기존 listProjects 의 문지기는 안 건드린다(T-049 방어). */
   listProjectBackups: () => ipcRenderer.invoke('projects:list-backups').catch(() => ({ ok: false, items: [] })),
   // opts.open=true → «프로젝트를 연다»는 로드(열 때 외부화 정책이 여기서만 돈다). 저장 경로의 병합용 로드는 opts 없이.
-  loadProject:    (id, opts) => ipcRenderer.invoke('projects:load', id, opts),
+  loadProject:    (id, opts) => ipcRenderer.invoke('projects:load', id, opts && opts.open === true ? { ...opts, ..._lsOpenHint(id) } : opts),
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project).then((r) => _noteFileVersion(project, r)),
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
   saveProjectSync:(project) => _noteFileVersion(project, ipcRenderer.sendSync('projects:save-sync', project)),
@@ -193,7 +202,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   assetsReadAsDataUri:   ({ projectId, filename })           => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename }),
   // [externalize] 일괄 외부화 — 수동 변환 / 되돌리기 / 상태조회 + 열 때 알림(이벤트)
   externalizeProject:     ({ projectId, force }) => ipcRenderer.invoke('projects:externalize', { projectId, force: force === true }),
-  externalizeRollback:    ({ projectId, dryRun } = {}) => ipcRenderer.invoke('projects:externalize-rollback', { projectId, dryRun: dryRun === true }),
+  externalizeRollback:    ({ projectId, dryRun } = {}) => ipcRenderer.invoke('projects:externalize-rollback', { projectId, dryRun: dryRun === true }).then((r) => {
+    /* 복구본을 걷는다 — updatedAt 없는 파일(마켓에서 받은 본)은 복구본이 복원본을 이긴다(_pickLsOverFile) */
+    if (dryRun !== true && r && r.ok) { try { for (const k of [`web-editor-autosave__${projectId}`, `web-editor-autosave__${projectId}_ts`, `web-editor-ls-base__${projectId}`]) localStorage.removeItem(k); } catch (_) {} }
+    return r;
+  }),
   externalizeScan:        ({ projectId }) => ipcRenderer.invoke('projects:externalize-scan', { projectId }),
   onProjectExternalized:  (cb) => ipcRenderer.on('projects:externalized', (_e, p) => cb(p)),
   onExternalizeHint:      (cb) => ipcRenderer.on('projects:externalize-hint', (_e, p) => cb(p)),

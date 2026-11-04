@@ -304,7 +304,7 @@
   }
 
   // [b8-2] 성능 탭 — 이미지 외부화(최적화). 변환 구현은 main(projects:externalize) 한 곳이고 여기는 트리거·상태만.
-  //   [externalize] 추가: «열 때 자동 최적화» 토글(기본 OFF, 저장 버튼으로 반영) + 현재 프로젝트 상태(인라인 장수·
+  //   [externalize] 추가: «열 때 자동 최적화» 토글(기본 ON, 저장 버튼으로 반영) + 현재 프로젝트 상태(인라인 장수·
   //   용량·백업 유무) + 「변환 되돌리기」(proj_pre-externalize.json이 있을 때만 표시).
   //   공용 클래스 재사용(settings-section-title/help/btn-primary/api-status/egg-row/egg-toggle) → 새 CSS 없음.
   const _fmtMB = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1) + 'MB';
@@ -481,7 +481,7 @@
       <div class="settings-egg-list">
         <div class="settings-egg-row" data-egg="autoExternalizeOnOpen">
           <div class="settings-egg-text">
-            <div class="settings-egg-label">프로젝트 열 때 자동 최적화 (베타)</div>
+            <div class="settings-egg-label">프로젝트 열 때 자동 최적화</div>
             <div class="settings-egg-desc">켜면 인라인 이미지가 남아 있는 프로젝트를 열 때 자동으로 분리합니다. 협업 중인 프로젝트는 건너뜁니다. (저장 버튼을 눌러야 반영됨)</div>
           </div>
           <label class="settings-egg-toggle">
@@ -569,10 +569,10 @@
       const _unseal = () => { try { window.resumeAutoSaveAfterAbortedReload?.(); } catch (_) {} };
       // ★구멍1: 봉인이 in-flight 저장을 5s 안에 못 끝내면(드레인 타임아웃, 대형 프로젝트서 현실적) 되돌리기를
       //   «내보내지 않는다» — 살아있는 저장이 복원본을 재덮고 backup은 이미 삭제돼 복구지점이 사라지기 때문.
-      let _sealed = true;
-      try { _sealed = await window.cancelPendingAutoSaveForReload?.(window.activeProjectId); } catch (_) {}
-      if (_sealed === false) { _unseal(); setStatus('저장 중이라 되돌리지 못했습니다. 잠시 후 다시 시도하세요.', 'err'); return; }
       try {
+        let _sealed = true;
+        try { _sealed = await window.cancelPendingAutoSaveForReload?.(window.activeProjectId); } catch (_) {}
+        if (_sealed === false) { _unseal(); setStatus('저장 중이라 되돌리지 못했습니다. 잠시 후 다시 시도하세요.', 'err'); return; }
         const r = await window.electronAPI.externalizeRollback({ projectId: window.activeProjectId });
         if (r && r.ok) {
           setStatus('✓ 원본으로 되돌렸습니다 — 적용을 위해 새로고침합니다…', 'ok');
@@ -582,7 +582,7 @@
           return;
         }
         _unseal();
-        setStatus('✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
+        setStatus(r?.reason === 'pre_rollback_failed' ? '✗ 현재 본을 보관하지 못해 되돌리지 않았습니다. 디스크 공간을 확인한 뒤 다시 시도하세요.' : '✗ ' + ((r && (r.reason || r.error)) || '되돌리기 실패'), 'err');
       } catch (e) { _unseal(); setStatus('✗ ' + (e && e.message), 'err'); }
       finally { window.__optimizeImagesInFlight = false; rbBtn.disabled = false; btn.disabled = false; }
     });
@@ -1063,7 +1063,7 @@
       apiKeys:   { openai: '', gemini: '', anthropic: '', ...(cur.apiKeys || {}) },
       shortcuts: { ...(cur.shortcuts || {}) },
       easterEggs: { ...defaultEggEnabled, ...(cur.easterEggs || {}) },
-      autoExternalizeOnOpen: cur.autoExternalizeOnOpen === true, // [externalize] 기본 OFF
+      autoExternalizeOnOpen: cur.autoExternalizeOnOpen !== false, // [externalize] 기본 ON
       showScratchLinkEdges: cur.showScratchLinkEdges !== false,   // [#16] 기본 ON(기존 동작 보존)
     };
     renderApiPane();

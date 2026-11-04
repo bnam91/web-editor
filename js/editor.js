@@ -1478,35 +1478,47 @@ function duplicateSelected() {
     // ★도형은 «래퍼째» 복제 단위다(0918 A안). shape-block 자체는 래퍼 안에서 absolute 라
     //   예전엔 absWrapper=shape-block, parentFrame=도형 래퍼 → 같은 래퍼 안에 도형 2개(«렉탱글 안 렉탱글»).
     //   ⚠️parentFrame 은 반드시 parentElement 부터 찾는다 — 래퍼 자신도 data-free-layout 이라 자기에 매칭된다.
-    const _shpWrap = shapeFrameOf(selBlock);
-    const absWrapper = _shpWrap ||
-                       selBlock.closest('.frame-block[data-text-frame]') ||
-                       (selBlock.style.position === 'absolute' ? selBlock : null);
-    const parentFrame = resolveInsertFrame(absWrapper?.parentElement?.closest('.frame-block[data-free-layout]') || null);
-    if (absWrapper && parentFrame) {
+    const unitOf = (selBlock) => {
+      const _shpWrap = shapeFrameOf(selBlock);
+      return _shpWrap ||
+             selBlock.closest('.frame-block[data-text-frame]') ||
+             (selBlock.style.position === 'absolute' ? selBlock : null);
+    };
+    const frameOf = (absWrapper) => resolveInsertFrame(absWrapper?.parentElement?.closest('.frame-block[data-free-layout]') || null);
+    /* ★고른 것 전부 복제(지디 6524 ⌘A→⌘D — 첫 하나만 복제했다). 흐름 블록이 섞이면 아래 copySelected 길(전부 담는다).
+       단위가 다른 단위 안이면 바깥만 — 안쪽까지 복제하면 사본이 겹친다. */
+    const _units = [...new Set([selBlock, ...document.querySelectorAll(MULTI_SEL)].map(unitOf))];
+    const units = _units.filter(u => !_units.some(o => o && o !== u && o.contains(u)));
+    // 여럿일 땐 자유 프레임 «바로 밑»만 — 안쪽 스택 프레임의 글자를 바깥 자유 프레임으로 꺼내면 안 된다
+    if (units.every(u => u && frameOf(u) && (units.length === 1 || u.parentElement === frameOf(u)))) {
       window.pushHistory('복제');
-      const clone = absWrapper.cloneNode(true);
-      /* ★191 — id 재발급·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(clone) 한 문이 한다(손 절반 걷음 · genId·actorId 는 그 문 안 — 215). */
-      // 오프셋 +20px
-      const origLeft = parseInt(absWrapper.style.left || '0');
-      const origTop  = parseInt(absWrapper.style.top  || '0');
-      clone.style.left = (origLeft + 20) + 'px';
-      clone.style.top  = (origTop  + 20) + 'px';
-      clone.dataset.offsetX = String(origLeft + 20);
-      clone.dataset.offsetY = String(origTop  + 20);
-      parentFrame.appendChild(clone);
-      /* ★191(CLONE-RERENDER-01 · bind-list:DUP_ABS 걷음) — 공용 붙여넣기 문을 지난다: id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock ·
-         rerenderTree(다시 그리기 · chat 포함) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
-         ⚰️옛 꼴은 그 절반(id + _ALL_BLOCK_SEL bindBlock 손 명부 + chat 특례 + 자기 bindBlock + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다. */
-      _bindPastedEl(clone);
-      clone._dragBound = false;
+      const clones = units.map((absWrapper) => {
+        const parentFrame = frameOf(absWrapper);
+        const clone = absWrapper.cloneNode(true);
+        /* ★191 — id 재발급·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(clone) 한 문이 한다(손 절반 걷음 · genId·actorId 는 그 문 안 — 215). */
+        // 오프셋 +20px
+        const origLeft = parseInt(absWrapper.style.left || '0');
+        const origTop  = parseInt(absWrapper.style.top  || '0');
+        clone.style.left = (origLeft + 20) + 'px';
+        clone.style.top  = (origTop  + 20) + 'px';
+        clone.dataset.offsetX = String(origLeft + 20);
+        clone.dataset.offsetY = String(origTop  + 20);
+        parentFrame.appendChild(clone);
+        /* ★191(CLONE-RERENDER-01 · bind-list:DUP_ABS 걷음) — 공용 붙여넣기 문을 지난다: id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock ·
+           rerenderTree(다시 그리기 · chat 포함) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
+           ⚰️옛 꼴은 그 절반(id + _ALL_BLOCK_SEL bindBlock 손 명부 + chat 특례 + 자기 bindBlock + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다. */
+        _bindPastedEl(clone);
+        clone._dragBound = false;
+        return clone;
+      });
       // 기존 선택 해제 후 복제본 선택
       deselectAll();
-      const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
-      cloneBlock.classList.add('selected');
-      parentFrame.closest('.section-block')?.classList.add('selected');
+      clones.forEach(clone => {
+        (clone.querySelector('.text-block, .shape-block, .asset-block') || clone).classList.add('selected');
+        clone.closest('.section-block')?.classList.add('selected');
+      });
       window.buildLayerPanel?.();
-      _panelFollowsPasted([clone]);   // ★t4-12 — 복제본 패널(deselectAll 이 띄운 페이지 패널 대신)
+      _panelFollowsPasted(clones);   // ★t4-12 — 복제본 패널(deselectAll 이 띄운 페이지 패널 대신)
       window.pushHistory('복제 완료');
       return;
     }
@@ -1644,6 +1656,29 @@ function _pickedFreeChildFrame() {
   if (picked.length !== 1) return null;
   const f = picked[0];
   return f.dataset.overlayBlock !== 'true' && f.style.position === 'absolute' && f.parentElement?.matches?.('.frame-block[data-free-layout]') ? picked : null;
+}
+
+/* ⌘A 범위 — 지금 «안»에 있는 프레임, 없으면 null. 고른 것 모두를 품는 가장 안쪽 진짜 프레임(글자·도형 래퍼·그룹·배너 외곽은 프레임이 아니다).
+   프레임을 한 번 클릭만 한 것은 «안»이 아니다(안 들어감). 그 프레임 안의 프레임이 골라졌으면 바깥 프레임 «안»이다. */
+function _selectAllFrame() {
+  const leaves = [...canvasEl.querySelectorAll(SECTION_BLOCK_TYPE_SEL_SELECTED)];
+  if (!leaves.length && window._enteredFrame?.isConnected) return window._enteredFrame;
+  const picked = leaves.length ? leaves : _leafSelFrames();
+  if (!picked.length) return null;
+  let f = window._innermostEntryFrame(picked[0].parentElement);
+  while (f && !picked.every(el => f.contains(el))) f = window._innermostEntryFrame(f.parentElement);
+  return f;
+}
+
+/* 선택을 비우고 그 프레임 «안»에 선다. 자유 프레임은 .selected 가 빠지면 자식이 클릭을 못 받는다. */
+function _focusFrame(frame) {
+  const sec = frame.closest('.section-block');
+  deselectAll();
+  sec?.classList.add('selected');
+  window.syncLayerActive?.(sec);
+  _restoreFreeLayoutFrameSelected(frame);
+  window._activeFrame = frame;
+  window._enteredFrame = frame;
 }
 
 /* ⌫·⌘X 묶음 삭제 — 지웠으면 true. 묶음을 지워 비는 그룹은 일반 갈래처럼 걷는다. */
@@ -2611,6 +2646,21 @@ function _freeNudgeTargets() {
   return all.filter(a => !all.some(b => b !== a && a.contains(b)));
 }
 
+/** 글칸 포커스면 ⌘Z 를 네이티브 되돌리기에 양보한다. 자유변형 글칸은 되돌릴 글이 남았을 때만 — 없으면 앱 이력으로 끌기까지 되돌린다(현빈 6634).
+ *  shortcut: 다른 글칸(안 건 글상자·표·메모)은 옛 문 그대로라 글칸 포커스에선 앱 이력이 안 돈다, 현빈이 넓히라 하면 closest 조건을 뗀다. */
+function _yieldsUndoToNative(cmd) {
+  const ae = document.activeElement;
+  if (!ae?.isContentEditable) return false;
+  if (!ae.closest('.text-block[data-tf-corners]')) return true;
+  if (!document.queryCommandEnabled(cmd)) return false;
+  return cmd !== 'undo' || ae !== _nativeUndoEntry?.el || ae.innerHTML !== _nativeUndoEntry.html;
+}
+/* 네이티브 스택은 문서 하나라 앞 편집의 글을 들고 있다 — 그걸 먼저 되돌리면 다음 앱 걸음이 글을 되살린다. 그래서 이번 진입 뒤 친 글만 네이티브로 간다. */
+let _nativeUndoEntry = null;
+document.addEventListener('focusin', e => { if (e.target?.isContentEditable) _nativeUndoEntry = { el: e.target, html: e.target.innerHTML }; });
+/* 커서 둔 채 손잡이를 잡으면 친 글은 끌기 시작 표본에 들어간다 — 여기서부터 친 글만 네이티브 몫이다. */
+document.addEventListener('mousedown', e => { const ae = document.activeElement; if (ae?.isContentEditable && e.target.closest?.('.tfh-handle')) _nativeUndoEntry = { el: ae, html: ae.innerHTML }; }, true);
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -2731,10 +2781,10 @@ document.addEventListener('keydown', e => {
       document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100, { keepViewportCenter: true }); }  // [M62]
-    if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
+    if (e.key === 'z' && !e.shiftKey)   { if (_yieldsUndoToNative('undo')) return; e.preventDefault(); undo(); return; }
     // ★Shift+z 는 브라우저가 key:'Z'(대문자)로 준다 — 소문자만 검사하면 ⌘⇧Z redo 가 «전혀» 안 먹는다.
     //   바로 아래 취소선(⌘⇧X)이 (e.key==='x'||e.key==='X') 로 둘 다 받는 것과 같은 규약으로 맞춘다.
-    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
+    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (_yieldsUndoToNative('redo')) return; e.preventDefault(); redo(); return; }
     if (e.code === 'KeyF' && !e.shiftKey && !e.altKey) {
       // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
       if (document.querySelector('.text-block.editing')) return;
@@ -2919,7 +2969,9 @@ document.addEventListener('keydown', e => {
         return;
       }
       // 피그마식 그룹(data-group 프레임) 우선, 없으면 레거시 group-block
-      const selGroup = document.querySelector('.frame-block[data-group="true"].selected')
+      /* 안쪽 그룹부터 — 그룹 안에서 방금 묶으면 바깥 그룹도 .selected 다. 첫 것을 집으면 방금 만든 그룹 대신 바깥을 풀어 자리가 바뀐다 */
+      const _selGroups = [...document.querySelectorAll('.frame-block[data-group="true"].selected')];
+      const selGroup = _selGroups.find(g => !g.querySelector('.frame-block[data-group="true"].selected'))
         || document.querySelector('.group-block.group-selected');
       if (selGroup) window.ungroupBlock?.(selGroup);
       return;
@@ -2929,11 +2981,14 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       e.preventDefault();
       // 현재 선택된 섹션 내 모든 블록 선택
-      const activeSec = document.querySelector('.section-block.selected') || document.querySelector('.section-block');
+      // 현빈 결정 6524 — 프레임 «안»이면 그 프레임 안만(밖의 선택은 푼다). 프레임 밖은 그대로 섹션 전체 «더하기».
+      const scope = _selectAllFrame();
+      const activeSec = scope || document.querySelector('.section-block.selected') || document.querySelector('.section-block');
       if (activeSec) {
         // ★손으로 한 벌 더 적지 않는다 — 파일 상단 SSOT(SECTION_BLOCK_TYPE_SEL)를 그대로 쓴다.
         //   (T-085: 여기 목록만 뒤처져 ⌘A 가 도형을 안 골랐고, 그래서 Delete 가 도형을 남겼다)
         const allBlocks = activeSec.querySelectorAll(SECTION_BLOCK_TYPE_SEL);
+        if (scope && allBlocks.length) _focusFrame(scope);   // 빈 프레임은 고를 것이 없어 그대로 둔다
         allBlocks.forEach(b => b.classList.add('selected'));
       }
       return;
