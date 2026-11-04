@@ -5,19 +5,21 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
-const { sliceBlock } = require('../unit/_slice-block.js');
+const { findBlockEnd } = require('../unit/_slice-block.js');
 
 const ROOT = process.env.GD1001_ROOT || path.join(__dirname, '..', '..');
 const MAIN = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
 const PROTECTED_LINE = MAIN.match(/^const _SECTION_PROTECTED_JS = .*$/m)?.[0] || 'const _SECTION_PROTECTED_JS = "null";';
-const bridge = (page, head) => new Function('mainWindow', `${PROTECTED_LINE}\n${sliceBlock(MAIN, head, head)}\nreturn ${head.match(/function (\w+)/)[1]};`)({
+/* 다리 함수 통째. 이름으로 찾고 몸통 끝은 괄호로 센다(서명을 닻으로 안 쓴다 · 페이지에 안 심고 노드에서 돈다). */
+const bridgeSrc = (name) => {
+  const at = MAIN.indexOf(`async function ${name}(`);
+  if (at < 0) throw new Error(`★${name} 을 못 찾았다`);
+  return MAIN.slice(at, findBlockEnd(MAIN, MAIN.indexOf(') {', at) + 2) + 1);
+};
+const bridge = (page, name) => new Function('mainWindow', `${PROTECTED_LINE}\n${bridgeSrc(name)}\nreturn ${name};`)({
   isDestroyed: () => false, isMinimized: () => false, webContents: { executeJavaScript: (js) => page.evaluate(js) },
 });
-const HEAD = {
-  section: 'async function _invokeRendererDeleteSection({ sectionId } = {}) {',
-  block: 'async function _invokeRendererDeleteBlock({ blockId } = {}) {',
-  variation: 'async function _invokeRendererVariation({ op, sectionId, to, confirm = false } = {}) {',
-};
+const HEAD = { section: '_invokeRendererDeleteSection', block: '_invokeRendererDeleteBlock', variation: '_invokeRendererVariation' };
 
 async function scene(page, { prot, variation = false }) {
   const errs = await bootApp(page);
