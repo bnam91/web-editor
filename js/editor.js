@@ -1634,6 +1634,15 @@ function _pickedFrames() {
   return picked;
 }
 
+/* 자유 프레임 안 프레임 «하나»도 묶음과 같은 자리 규칙을 탄다(안 골랐으면 원래 부모 안 원본 옆 +20 · FRAME-GROUP-PASTE-TARGET-RULE-01).
+   묶음(≥2)만 그 길이라 ⌘X 뒤 ⌘V 가 섹션 끝 흐름으로 갔다. 복사만의 일이다 — 삭제는 단건 길 그대로라 _pickedFrames 에 안 넣는다. */
+function _pickedFreeChildFrame() {
+  const picked = _leafSelFrames();
+  if (picked.length !== 1) return null;
+  const f = picked[0];
+  return f.dataset.overlayBlock !== 'true' && f.style.position === 'absolute' && f.parentElement?.matches?.('.frame-block[data-free-layout]') ? picked : null;
+}
+
 /* ⌫·⌘X 묶음 삭제 — 지웠으면 true. 묶음을 지워 비는 그룹은 일반 갈래처럼 걷는다. */
 function _deletePickedFrames() {
   if (canvasEl.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED)) return false;
@@ -1683,7 +1692,7 @@ function copySelected() {
   }
 
   if (allSel.length === 0) {
-    const _picked = _pickedFrames();
+    const _picked = _pickedFrames() || _pickedFreeChildFrame();
     if (_picked) {
       clipboard = { type: 'multi-block', frames: true, items: _picked.map(f => {
         const r = f.getBoundingClientRect(), k = (r.width / (f.offsetWidth || 1)) || 1;   // 묶음 상대 배치는 부모가 달라도 재야 해서 화면 값 ÷ 배율
