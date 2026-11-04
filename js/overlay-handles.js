@@ -271,33 +271,33 @@ function _startHandleRaf() {
 function _updateHandlePositions() {
   const overlay = _getOverlay();
   if (!overlay || !_overlayFrame) return;
+  /* ★읽기를 다 끝낸 뒤 쓴다 — 핸들 하나 쓸 때마다 다음 읽기가 강제 레이아웃을 냈다(rAF 한 번에 약 15회 · 405 프레임 판 프레임당 약 20ms).
+     쓰는 것은 오버레이 핸들 자리뿐이라 프레임 좌표는 안 바뀐다 ⇒ 값은 그대로다. 시험: handle-raf-read-write-lag. */
+  const writes = [];
+  const place = (h, c, half) => writes.push([h, c.y - half, c.x - half]);
   const HALF = 3.5;
   // 회전 인식: 회전된 프레임이면 실제 회전된 코너에 핸들 배치(회전 0이면 기존과 동일)
-  const handles = overlay.querySelectorAll('.ss-resize-handle');
-  handles.forEach(h => {
-    const c = _cornerScreen(_overlayFrame, h.dataset.dir);
-    h.style.top  = (c.y - HALF) + 'px';
-    h.style.left = (c.x - HALF) + 'px';
+  overlay.querySelectorAll('.ss-resize-handle').forEach(h => {
+    place(h, _cornerScreen(_overlayFrame, h.dataset.dir), HALF);
   });
 
   // 코너 반경 핸들 위치 (프레임 안쪽 코너에서 INSET만큼 안쪽)
   const INSET = 10; // 코너에서 안쪽으로 떨어진 거리
   const RADIUS_HALF = 3.5; // 7px 핸들 중앙 정렬 (= 7/2)
-  const rHandles = overlay.querySelectorAll('.ss-radius-handle');
-  rHandles.forEach(h => {
-    const c = _cornerScreen(_overlayFrame, h.dataset.radiusDir, INSET);
-    h.style.top  = (c.y - RADIUS_HALF) + 'px';
-    h.style.left = (c.x - RADIUS_HALF) + 'px';
+  overlay.querySelectorAll('.ss-radius-handle').forEach(h => {
+    place(h, _cornerScreen(_overlayFrame, h.dataset.radiusDir, INSET), RADIUS_HALF);
   });
 
   // 회전 핫존 위치 (코너 리사이즈 핸들 바깥쪽) — U14 프레임 핸들 회전
   const ROT_OUT  = 16; // 코너에서 바깥으로 (스크린px)
   const ROT_HALF = 10; // 20px 핫존 중앙 정렬
   overlay.querySelectorAll('.ss-rotate-handle').forEach(h => {
-    const c = _cornerScreen(_overlayFrame, h.dataset.rotDir, -ROT_OUT); // 음수 inset = 바깥
-    h.style.top  = (c.y - ROT_HALF) + 'px';
-    h.style.left = (c.x - ROT_HALF) + 'px';
+    place(h, _cornerScreen(_overlayFrame, h.dataset.rotDir, -ROT_OUT), ROT_HALF); // 음수 inset = 바깥
   });
+  for (const [h, top, left] of writes) {
+    h.style.top = top + 'px';
+    h.style.left = left + 'px';
+  }
 }
 
 function _onHandleMouseDown(e, ss, dir) {
