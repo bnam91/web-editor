@@ -3,6 +3,8 @@
  * 음성: 자유 프레임 안 왕복, 그룹 안에서 바꾼 폭, 옛 저장본(적어 둔 값 없음). 저장 왕복은 serializeProject → applyProjectData. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
+const { OPS } = require('./_t906-ops.js');
+const T904 = require('./t904-cells.json');
 const FR = '.frame-block:not([data-text-frame])';
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>';
@@ -102,6 +104,10 @@ test('I2 깊이 2 자유 프레임에 든 그라데이션: ⌘G→⌘⇧G 뒤 �
   const a = await box(page, b.id); await select(page, [b.id], inner); await G(page); expect(await groups(page), '[전제] 묶임').toBe(1); await U(page);
   expect(near(a, await box(page, b.id)), '자리').toBe(true); expect(await page.evaluate((id) => { const d = document.getElementById(id).dataset; return [d.x, d.y, d.overlayBlock ?? null, d.offsetX ?? null]; }, b.id)).toEqual(['30', '40', null, null]);
   await page.evaluate(() => window.deselectAll()); await reopen(page); await raf(page); expect(near(a, await box(page, b.id)), '저장 왕복 뒤').toBe(true); expect(real(errs), errs.join(' | ')).toEqual([]);
+});
+for (const [cls, place, route] of [['gradient-block', 'deep2', 'group'], ['comparison-block', 'free', 'entry']]) test(`Z1 자: t9-06 자가 고르기 스크롤을 자리 바뀜으로 안 센다 — ${cls} ${place}`, async ({ page }) => {
+  test.setTimeout(90000); await boot(page); const kind = T904.kinds.find((k) => k.cls === cls); const r = await OPS.group(page, kind, place, route); expect(r.measured, '[전제] 쟀다').toBe(true); expect(r.info.grouped, '[전제] 묶임').toBe(true);
+  expect(r.red.map((x) => x.check).filter((c) => /자리 바뀜/.test(c))).toEqual([]);
 });
 test('N1 음성: 자유 프레임 안 왕복은 전과 같다(좌표 그대로, flowBack 안 씀)', async ({ page }) => {
   const errs = await boot(page); const b = await build(page, 'addVectorBlock', [SVG], 'free'); await raf(page); const a = await box(page, b.id); const s0 = await page.evaluate((id) => document.getElementById(id).getAttribute('style'), b.id);
