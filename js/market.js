@@ -27,12 +27,12 @@
     } catch (_) {}
     _toast('⏳ 마켓에 올리는 중…');
     const res = await window.electronAPI.market.push({ account, id, name, data, scratch });
-    if (res?.ok) _toast(res.skipped ? `⚠️ 업로드 완료, 에셋·갤러리 그림 ${res.skipped}장은 파일이 없어 빠졌습니다: ${account}/${name}` : `✅ 마켓 업로드 완료: ${account}/${name}`);
+    if (res?.ok) _toast(`✅ 마켓 업로드 완료: ${account}/${name}${res.omitted ? ` · 캔버스에 안 쓴 에셋·갤러리 그림 ${res.omitted}장은 뺐습니다` : ''}`);
     else _toast(`❌ 업로드 실패: ${res?.message || '알 수 없음'}`);
     return res;
   }
 
-  /* 받은 패널·갤러리 항목은 남이 쓴 값이다. src·thumbSrc 는 깐깐한 data 그림만, blobPath 는 제 폴더 바로 아래 파일만 남긴다.
+  /* 받은 패널·갤러리 항목은 남이 쓴 값이다. src·thumbSrc 는 깐깐한 data 그림만 남긴다. 표식 없는 blobPath 는 다 지운다: 새 프로젝트에 그 파일이 없다(옛 판이 올린 본).
      src 가 그대로 남으면 캔버스로 보낼 때 innerHTML 에 들어가고, https 면 패널이 밖으로 요청하고, blobPath=proj.json 은 지우기 단추가 받은 본 파일을 지운다(S3 MKT3). svg 는 안 받는다.
      동봉 무늬(ast_notebg_*)는 svg 라 지워져도 열 때 시드가 되채우니 안 센다(js/io/save-load.js seedNoteBgPatterns). 돌려주는 값 = 못 받은 그림 수. */
   const _IMAGE_SIG = { png: '\x89PNG', jpeg: '\xFF\xD8\xFF', gif: 'GIF8', webp: 'RIFF' };
@@ -44,17 +44,17 @@
   }
   function _sanitizeReceivedImages(proj) {
     let bad = 0;
-    const walk = (list, folder) => {
+    const walk = (list) => {
       for (const n of Array.isArray(list) ? list : []) {
         if (!n || typeof n !== 'object') continue;
         if ('src' in n && !_isSafeImageSrc(n.src)) { delete n.src; delete n.carried; if (!String(n.id).startsWith('ast_notebg_')) bad++; }
         if ('thumbSrc' in n && !_isSafeImageSrc(n.thumbSrc)) delete n.thumbSrc;
-        if ('blobPath' in n && !(typeof n.blobPath === 'string' && n.blobPath.startsWith(folder + '/') && /^[^/\\]+$/.test(n.blobPath.slice(folder.length + 1)) && !n.blobPath.endsWith('/..'))) { delete n.blobPath; bad++; }
-        walk(n.children, folder);
+        if ('blobPath' in n) { delete n.blobPath; bad++; }
+        walk(n.children);
       }
     };
-    walk(proj.assetsTree, 'assets');
-    walk(proj.imageGallery, 'images');
+    walk(proj.assetsTree);
+    walk(proj.imageGallery);
     return bad;
   }
 
@@ -125,8 +125,10 @@
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
     } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
     const lost = [scratchFailed && '스크래치', carryFailed && `에셋·갤러리 그림 ${carryFailed}장`].filter(Boolean);
-    if (lost.length) _toast(`⚠️ 받기 완료, ${lost.join('·')}은 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
-    else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
+    /* 올린 쪽이 뺀 장수: 안 쓴 항목은 패널·갤러리에 아예 없으니 깨지지 않는다, 없다는 말만 한다 */
+    const omitted = Number.isInteger(res.project.omittedImages) && res.project.omittedImages > 0 ? ` · 캔버스에 안 쓴 에셋·갤러리 그림 ${res.project.omittedImages}장은 이 본에 없습니다` : '';
+    if (lost.length) _toast(`⚠️ 받기 완료, ${lost.join('·')}은 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
+    else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}${omitted}`);
   }
 
   /* 같은 그림인가 — 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 안 견준다(재머지마다 _r 이 늘었다, S3 market5 ①). 뜻은 save-load.js _sameImage 한 벌을 쓴다.

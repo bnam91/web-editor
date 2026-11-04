@@ -3732,34 +3732,51 @@ function _marketTooBig(sizes) {
   if (sizes.total > _MARKET_TOTAL_MAX) return `그림이 모두 ${mb(sizes.total)}MB 라 올리지 않았습니다. 한 번에 ${mb(_MARKET_TOTAL_MAX)}MB 까지입니다(base64 기준). 에셋·갤러리에서 안 쓰는 그림을 지운 뒤 다시 올려 주세요.`;
   return null;
 }
-/* 에셋 패널·AI 갤러리 그림은 프로젝트 폴더 안 파일(blobPath)로만 있어 받는 쪽에 안 갔다 ⇒ 올리는 본에만 그림을 싣는다(원본 파일·proj.json 안 고침). 표식 carried = 받는 쪽이 파일로 푼다(js/market.js _unpackCarriedImages). 앱 동봉 인라인 노드와 가른다.
-   없거나 못 읽는 파일(폴더·권한)은 올리기를 막지 않고 센다: 캔버스에 안 쓰는 옛 항목 하나로 프로젝트를 못 올리면 안 된다.
-   크기는 읽기 전에 잰다. 넘으면 tooBig 말을 돌려주고 한 장도 안 읽는다. */
+/* 에셋 패널·AI 갤러리 항목 중 캔버스에 쓰인 그림만 올린 본에 싣는다(현빈 결정 2026-11-05, 6779). 원본 파일·proj.json 안 고침. 표식 carried = 받는 쪽이 파일로 푼다(js/market.js _unpackCarriedImages).
+   안 쓴 항목은 이름·프롬프트까지 올린 본에서 뺀다: 공개 레포다. 없거나 못 읽는 파일도 쓴 그림이라 못 하니 뺀다, 장수는 omitted 로 센다.
+   «쓰였다» = 캔버스 goya 파일명이 같거나, 파일 내용 해시가 캔버스 그림과 같다(갤러리에서 넣으면 sha256 앞 16자 이름의 새 파일이 된다, externalizer.saveImageBytes).
+   크기는 읽기 전에 잰다. 넘으면 tooBig 말을 돌려주고 그림을 안 싣는다. */
 async function _carryProjectImages(str, pid, sizes) {
-  if (!String(str).includes('"blobPath"')) return { data: str, missing: 0, tooBig: _marketTooBig(sizes) };
-  const proj = JSON.parse(str); let missing = 0;
-  const found = [];
-  const walk = (list) => { for (const n of Array.isArray(list) ? list : []) { if (!n) continue; if (n.blobPath) found.push(n); walk(n.children); } };
-  walk(proj.assetsTree); walk(proj.imageGallery);
+  if (!String(str).includes('"blobPath"')) return { data: str, omitted: 0, tooBig: _marketTooBig(sizes) };
+  const proj = JSON.parse(str);
+  const canvas = (Array.isArray(proj.pages) ? proj.pages : []).map((p) => (p && p.canvas) || '').join('\n');
+  const usedNames = new Set(), usedHashes = new Set();
+  for (const m of canvas.matchAll(/goya-asset:\/\/[^/"'()\s&\\]+\/([^"'()\s&\\?#]+)/g)) { usedNames.add(m[1]); usedHashes.add(m[1].split('.')[0]); }
+  const hashOf = (buf) => _crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+  for (const m of canvas.matchAll(_BLOB_RE)) usedHashes.add(hashOf(Buffer.from(m[0].slice(m[0].indexOf(',') + 1), 'base64')));
+  let omitted = 0;
   const plan = [];
-  for (const n of found) {
-    const m = /^(assets|images)\/([^/\\]+)$/.exec(n.blobPath);
-    const full = m && m[2] !== '..' ? path.join(PROJECTS_DIR, _safeSeg(pid), m[1], _safeSeg(m[2])) : null;
-    let st = null;
-    try { st = full && fs.statSync(full); } catch (_) {}
-    if (!st) { missing++; continue; }
-    _countMarketBytes(sizes, st.size); plan.push([n, full]);
-  }
+  const isUsed = async (name, full, st) => {
+    if (usedNames.has(name)) return true;
+    if (Math.ceil(st.size / 3) * 4 > _MAX_BYTES) return false;   // 이만한 그림이 캔버스에 있으면 그 그림이 먼저 걸린다
+    return usedHashes.has(hashOf(await fs.promises.readFile(full)));
+  };
+  const keepUsed = async (list) => {
+    const out = [];
+    for (const n of list) {
+      if (n && Array.isArray(n.children)) n.children = await keepUsed(n.children);
+      if (!n || !n.blobPath) { out.push(n); continue; }
+      const m = /^(assets|images)\/([^/\\]+)$/.exec(n.blobPath);
+      const full = m && m[2] !== '..' ? path.join(PROJECTS_DIR, _safeSeg(pid), m[1], _safeSeg(m[2])) : null;
+      let st = null, used = false;
+      try { st = full && fs.statSync(full); used = !!st && await isUsed(_safeSeg(m[2]), full, st); } catch (_) {}
+      if (!used) { omitted++; continue; }
+      _countMarketBytes(sizes, st.size); plan.push([n, full]); out.push(n);
+    }
+    return out;
+  };
+  if (Array.isArray(proj.assetsTree)) proj.assetsTree = await keepUsed(proj.assetsTree);
+  if (Array.isArray(proj.imageGallery)) proj.imageGallery = await keepUsed(proj.imageGallery);
   const tooBig = _marketTooBig(sizes);
-  if (tooBig) return { data: str, missing, tooBig };
+  if (tooBig) return { data: str, omitted, tooBig };
   for (const [n, full] of plan) {
     const mime = _GOYA_ASSET_MIME[path.extname(full).slice(1).toLowerCase()] || 'image/png';
     let buf;
-    try { buf = await fs.promises.readFile(full); } catch (_) { missing++; continue; }
+    try { buf = await fs.promises.readFile(full); } catch (_) { continue; }   // 캔버스도 같은 파일을 쓰니 handler 가 «찾지 못해» 로 거절한다
     n.src = `data:${mime};base64,${buf.toString('base64')}`;
     n.carried = true; delete n.blobPath;
   }
-  return { data: JSON.stringify(proj), missing, tooBig: null };
+  return { data: JSON.stringify(proj), omitted, tooBig: null };
 }
 /* blob 은 write() 를 불러야 쓴다. 거절될 올리기의 blob 이 market/_blobs 에 남으면 안 된다(공개 레포, S3 MKT3). */
 function _extractBlobs(jsonStr, dir) {
@@ -3845,7 +3862,7 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     if (Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch) > _MAX_BYTES) return { ok: false, message: `프로젝트 JSON ${Math.round((Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch)) / 1048576)}MB — 한도 초과` };
     // Phase 2: 분리된 데이터(+스크래치)로 version 해시 박제
     const version = _versionHash(deinlined + '|' + deScratch);
-    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: c1 + c2, data: deinlined, scratch: deScratch };
+    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: c1 + c2, omittedImages: carried.omitted, data: deinlined, scratch: deScratch };
     const blobPaths = [...new Set([...writeB1(), ...writeB2()])];   // 여기까지 왔으면 거절 없음
     fs.writeFileSync(path.join(adir, `${pid}.json`), JSON.stringify(payload));
     _rebuildMarketIndex(dir);
@@ -3855,7 +3872,7 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     await _execFileP('git', ['-C', dir, 'commit', '-m', `market: ${acc}/${name || pid}`]).catch(() => {});
     const pr = await _pushWithRebase(dir);   // Phase 3: non-ff면 fetch+rebase 후 재시도
     if (!pr.ok) return pr;
-    return { ok: true, account: acc, id: pid, version, skipped: carried.missing };
+    return { ok: true, account: acc, id: pid, version, omitted: carried.omitted };
   } catch (e) { return { ok: false, message: e.message }; }
 });
 ipcMain.handle('market:list', async () => {

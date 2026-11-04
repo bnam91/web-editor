@@ -8,9 +8,9 @@ const remote = { version: 2, currentPageId: 'p1', pages: [{ id: 'p1', name: 'p',
   imageGallery: [{ id: 'aig_1', prompt: 'p', mime: 'image/png', src: D, carried: true }],
   assetsTree: [{ id: 'f', type: 'folder', children: [{ id: 'ast_1', type: 'image', name: 'a.png', src: D, carried: true }] }, { id: 'ast_notebg_01', type: 'image', src: D }] };
 
-async function pull(page, failCh, data = remote, { saveFail = null, scratch = '[]' } = {}) {
+async function pull(page, failCh, data = remote, { saveFail = null, scratch = '[]', omittedImages } = {}) {
   await bootApp(page);
-  await page.evaluate(({ remote, failCh, saveFail, scratch }) => {
+  await page.evaluate(({ remote, failCh, saveFail, scratch, omittedImages }) => {
     window.__saved = []; window.__files = []; window.__toasts = [];
     window.showToast = (t) => window.__toasts.push(String(t));
     const save = (ch, dir) => async (a) => { window.__files.push({ ch, projectId: a.projectId, b64: a.b64, mime: a.mime }); return ch === failCh ? { ok: false, error: '대역' } : { ok: true, id: 'n', blobPath: `${dir}/n_${window.__files.length}.png`, mime: a.mime }; };
@@ -18,11 +18,11 @@ async function pull(page, failCh, data = remote, { saveFail = null, scratch = '[
       saveProject: async (p) => { window.__saved.push(JSON.parse(JSON.stringify(p))); const n = window.__saved.length; if (saveFail?.at === n) { if (saveFail.how === 'throw') throw new Error('대역'); return { ok: false }; } return { ok: true }; },
       listProjects: async () => [],
       assetsSaveFile: save('assets', 'assets'), aiSaveImage: save('ai', 'images'),
-      market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: 'M', name: '원격', version: 'v2' }] }), pull: async () => ({ ok: true, project: { name: '원격', version: 'v2', data: JSON.stringify(remote), scratch } }) } };
+      market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: 'M', name: '원격', version: 'v2' }] }), pull: async () => ({ ok: true, project: { name: '원격', version: 'v2', data: JSON.stringify(remote), scratch, omittedImages } }) } };
     Object.defineProperty(window, 'electronAPI', { value: fake, configurable: true, writable: true });
     const d = document.createElement('div'); d.id = 'mk-pane'; d.style.cssText = 'position:fixed;left:400px;top:100px;width:700px;height:500px;background:#111;z-index:99998;overflow:auto'; document.body.appendChild(d);
     window.renderMarketPane(d);
-  }, { remote: data, failCh, saveFail, scratch });
+  }, { remote: data, failCh, saveFail, scratch, omittedImages });
   await page.locator('.market-pull-btn').first().click();
   await expect.poll(() => page.evaluate(() => window.__toasts.filter((t) => !t.startsWith('⏳')).length)).toBe(1);
   return page.evaluate(() => ({ p: window.__saved[window.__saved.length - 1], saves: window.__saved.length, files: window.__files, toast: window.__toasts.filter((t) => !t.startsWith('⏳'))[0], first: window.__saved[0] }));
@@ -69,14 +69,18 @@ test('받기: https thumbSrc 는 말없이 지운다, 멀쩡한 src 는 남는�
   const { p, toast } = await pull(page, null, box([{ id: 'a', type: 'image', src: D, thumbSrc: 'https://evil.invalid/t.png' }]));
   expect(p.assetsTree[0].thumbSrc).toBeUndefined(); expect(p.assetsTree[0].src).toBe(D); expect(toast).toMatch(/^✅/);
 });
-for (const bp of ['proj.json', '../x/proj.json', 'images/../proj.json', 'images/..', 'assets/a.png']) test('받기: 갤러리 blobPath 는 images/ 바로 아래만 — ' + bp, async ({ page }) => {
+for (const bp of ['proj.json', '../x/proj.json', 'images/../proj.json', 'images/g.png']) test('받기: 표식 없는 갤러리 blobPath 는 지우고 알린다(새 프로젝트에 그 파일이 없다) — ' + bp, async ({ page }) => {
   const { p, toast } = await pull(page, null, box([], [{ id: 'g', blobPath: bp }]));
   expect(p.imageGallery[0].blobPath).toBeUndefined(); expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
 });
-test('받기: 패널 blobPath 는 assets/ 바로 아래만, 음성 맞는 값은 남는다', async ({ page }) => {
-  const { p, toast } = await pull(page, null, box([{ id: 'a', type: 'image', blobPath: 'proj.json' }, { id: 'b', type: 'image', blobPath: 'assets/b.png' }], [{ id: 'g', blobPath: 'images/g.png' }]));
-  expect(p.assetsTree[0].blobPath).toBeUndefined(); expect(p.assetsTree[1].blobPath).toBe('assets/b.png'); expect(p.imageGallery[0].blobPath).toBe('images/g.png');
-  expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
+test('받기: 표식 없는 패널 blobPath 도 지운다, 노드는 남아 안 깨진다', async ({ page }) => {
+  const { p, toast } = await pull(page, null, box([{ id: 'a', type: 'image', name: 'a', blobPath: 'assets/a.png' }]));
+  expect(p.assetsTree[0].blobPath).toBeUndefined(); expect(p.assetsTree[0].name).toBe('a'); expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
+});
+for (const [값, 말] of [[3, true], [0, false], ['3<img>', false], [-1, false]]) test('받기: 올린 쪽이 뺀 장수를 말한다, 숫자만 — ' + 값, async ({ page }) => {
+  const { toast } = await pull(page, null, box([]), { omittedImages: 값 });
+  expect(toast).toMatch(/^✅ 받기 완료/);
+  if (말) expect(toast).toContain('그림 3장은 이 본에 없습니다'); else expect(toast).not.toContain('이 본에 없습니다');
 });
 test('음성 받기: 동봉 무늬 svg 는 알림을 안 낸다(열 때 시드가 되채운다)', async ({ page }) => {
   const { toast } = await pull(page, null, box([{ id: 'ast_notebg_01', type: 'image', src: 'data:image/svg+xml;base64,PHN2Zz4=' }]));
