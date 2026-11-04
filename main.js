@@ -2183,7 +2183,7 @@ ipcMain.handle('ai:readImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
     const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(path.join(PROJECTS_DIR, projectId))) return { ok: false, error: 'path traversal' };
+    if (!full.startsWith(path.join(PROJECTS_DIR, projectId, 'images') + path.sep)) return { ok: false, error: 'path traversal' };   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3)
     if (!fs.existsSync(full)) return { ok: false, error: 'not_found' };
     const buf = fs.readFileSync(full);
     const mime = full.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
@@ -2197,7 +2197,7 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
     const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(path.join(PROJECTS_DIR, projectId))) return { ok: false, error: 'path traversal' };
+    if (!full.startsWith(path.join(PROJECTS_DIR, projectId, 'images') + path.sep)) return { ok: false, error: 'path traversal' };   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3)
     if (fs.existsSync(full)) fs.unlinkSync(full);
     return { ok: true };
   } catch (e) {

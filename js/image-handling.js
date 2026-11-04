@@ -728,6 +728,8 @@ document.addEventListener('error', (e) => {
   if (!i.hasAttribute('alt')) { i.alt = '이미지 로드 실패'; i.classList.add('asset-img-failed-alt'); }   // 옛 저장본에 박힌 alt 는 문서 내용이라 직렬화가 안 벗긴다
 }, true);
 
+/* innerHTML 속성 자리에 넣는 주소 — 받은 프로젝트 값이 올 수 있다(S3 MKT3). 그림 주소 뜻은 안 바뀐다. */
+const _escSrcAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 function setAssetImageFromSrc(ab, src, motionSrc) {
   if (!ab || !src) return;
   ab.classList.add('has-image');
@@ -766,7 +768,7 @@ function setAssetImageFromSrc(ab, src, motionSrc) {
   const prevGrainSnap = captureAssetGrain(ab);
   const prevCollab = captureAssetCollab(ab);   /* ★1013t2A2 — ⛔빠지면 로고1 을 넣는 순간 ×·로고2·3 이 사라진다 */
   ab.innerHTML = `
-    <div class="asset-img-clip"><img class="asset-img" src="${src}" draggable="false" style="object-fit:${ab.dataset.fit}"></div>
+    <div class="asset-img-clip"><img class="asset-img" src="${_escSrcAttr(src)}" draggable="false" style="object-fit:${ab.dataset.fit}"></div>
     <button class="asset-overlay-clear" title="이미지 제거">✕</button>
     ${isGif ? '<button class="asset-gif-toggle" title="GIF 재생">▶ GIF 재생</button>' : ''}
     <div class="asset-overlay" ${prevOverlayStyle ? `style="${prevOverlayStyle}"` : ''}>${prevOverlayHTML}</div>`;

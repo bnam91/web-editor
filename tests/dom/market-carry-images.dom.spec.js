@@ -2,12 +2,13 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
-const D = 'data:image/png;base64,AQID';
+const B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const D = 'data:image/png;base64,' + B64;
 const remote = { version: 2, currentPageId: 'p1', pages: [{ id: 'p1', name: 'p', canvas: '' }], checklistItems: [], checklistSections: [],
   imageGallery: [{ id: 'aig_1', prompt: 'p', mime: 'image/png', src: D, carried: true }],
   assetsTree: [{ id: 'f', type: 'folder', children: [{ id: 'ast_1', type: 'image', name: 'a.png', src: D, carried: true }] }, { id: 'ast_notebg_01', type: 'image', src: D }] };
 
-async function pull(page, failCh) {
+async function pull(page, failCh, data = remote) {
   await bootApp(page);
   await page.evaluate(({ remote, failCh }) => {
     window.__saved = []; window.__files = []; window.__toasts = [];
@@ -21,7 +22,7 @@ async function pull(page, failCh) {
     Object.defineProperty(window, 'electronAPI', { value: fake, configurable: true, writable: true });
     const d = document.createElement('div'); d.id = 'mk-pane'; d.style.cssText = 'position:fixed;left:400px;top:100px;width:700px;height:500px;background:#111;z-index:99998;overflow:auto'; document.body.appendChild(d);
     window.renderMarketPane(d);
-  }, { remote, failCh });
+  }, { remote: data, failCh });
   await page.locator('.market-pull-btn').first().click();
   await expect.poll(() => page.evaluate(() => window.__saved.length)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__toasts.filter((t) => !t.startsWith('⏳')).length)).toBe(1);
@@ -30,7 +31,7 @@ async function pull(page, failCh) {
 
 test('받기: 실려 온 그림이 새 프로젝트의 파일이 되고 항목은 보통 꼴이다', async ({ page }) => {
   const { p, files, toast } = await pull(page);
-  expect(files.map((f) => [f.ch, f.projectId, f.b64, f.mime])).toEqual([['assets', p.id, 'AQID', 'image/png'], ['ai', p.id, 'AQID', 'image/png']]);
+  expect(files.map((f) => [f.ch, f.projectId, f.b64, f.mime])).toEqual([['assets', p.id, B64, 'image/png'], ['ai', p.id, B64, 'image/png']]);
   const node = p.assetsTree[0].children[0];
   expect(node.blobPath).toMatch(/^assets\//); expect(node.src).toBeUndefined(); expect(node.carried).toBeUndefined(); expect(node.id).toBe('ast_1');
   const g = p.imageGallery[0];
@@ -47,4 +48,49 @@ test('받기: 파일로 못 풀면 말없이 넘기지 않는다, 패널 항목�
   expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
   const node = p.assetsTree[0].children[0];
   expect(node.src).toBe(D); expect(node.blobPath).toBeUndefined(); expect(node.carried).toBeUndefined();
+});
+
+/* 받은 값 검사(S3 MKT3). 앱 값: 회신의 ①칸 */
+const X = 'x" onerror="window.__xss=1';
+const box = (tree, gallery = []) => ({ ...remote, assetsTree: tree, imageGallery: gallery });
+for (const [이름, n] of [
+  ['주입 표식 있음', { id: 'a', type: 'image', carried: true, src: X }],
+  ['주입 표식 없음', { id: 'a', type: 'image', src: X }],
+  ['https', { id: 'a', type: 'image', src: 'https://evil.invalid/a.png' }],
+  ['svg', { id: 'a', type: 'image', src: 'data:image/svg+xml;base64,PHN2Zz4=' }],
+  ['시그니처 아님', { id: 'a', type: 'image', carried: true, src: 'data:image/png;base64,QUJDRA==' }],
+  ['mime 과 시그니처가 다름', { id: 'a', type: 'image', carried: true, src: 'data:image/gif;base64,' + B64 }],
+]) test('받기: 안 맞는 src 는 지우고 알린다, 파일을 안 만든다 — ' + 이름, async ({ page }) => {
+  const { p, files, toast } = await pull(page, null, box([n]));
+  expect(p.assetsTree[0].src).toBeUndefined(); expect(p.assetsTree[0].carried).toBeUndefined();
+  expect(files.length).toBe(0);
+  expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
+});
+test('받기: https thumbSrc 는 말없이 지운다, 멀쩡한 src 는 남는다', async ({ page }) => {
+  const { p, toast } = await pull(page, null, box([{ id: 'a', type: 'image', src: D, thumbSrc: 'https://evil.invalid/t.png' }]));
+  expect(p.assetsTree[0].thumbSrc).toBeUndefined(); expect(p.assetsTree[0].src).toBe(D); expect(toast).toMatch(/^✅/);
+});
+for (const bp of ['proj.json', '../x/proj.json', 'images/../proj.json', 'images/..', 'assets/a.png']) test('받기: 갤러리 blobPath 는 images/ 바로 아래만 — ' + bp, async ({ page }) => {
+  const { p, toast } = await pull(page, null, box([], [{ id: 'g', blobPath: bp }]));
+  expect(p.imageGallery[0].blobPath).toBeUndefined(); expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
+});
+test('받기: 패널 blobPath 는 assets/ 바로 아래만, 음성 맞는 값은 남는다', async ({ page }) => {
+  const { p, toast } = await pull(page, null, box([{ id: 'a', type: 'image', blobPath: 'proj.json' }, { id: 'b', type: 'image', blobPath: 'assets/b.png' }], [{ id: 'g', blobPath: 'images/g.png' }]));
+  expect(p.assetsTree[0].blobPath).toBeUndefined(); expect(p.assetsTree[1].blobPath).toBe('assets/b.png'); expect(p.imageGallery[0].blobPath).toBe('images/g.png');
+  expect(toast).toMatch(/^⚠️ 받기 완료.*그림 1장/);
+});
+test('음성 받기: 동봉 무늬 svg 는 알림을 안 낸다(열 때 시드가 되채운다)', async ({ page }) => {
+  const { toast } = await pull(page, null, box([{ id: 'ast_notebg_01', type: 'image', src: 'data:image/svg+xml;base64,PHN2Zz4=' }]));
+  expect(toast).toMatch(/^✅/);
+});
+test('setAssetImageFromSrc: 주소의 따옴표가 속성을 못 빠져나간다, 음성 data 주소는 그대로', async ({ page }) => {
+  await bootApp(page);
+  const r = await page.evaluate(async ({ X, D }) => {
+    const ab = document.createElement('div'); ab.className = 'asset-block'; document.body.appendChild(ab);
+    window.setAssetImageFromSrc(ab, X); const bad = ab.querySelector('img');
+    await new Promise((res) => { bad.addEventListener('error', res, { once: true }); setTimeout(res, 3000); });
+    const out = { onerror: bad.hasAttribute('onerror'), xss: window.__xss || null, attr: bad.getAttribute('src') };
+    window.setAssetImageFromSrc(ab, D); out.good = ab.querySelector('img').getAttribute('src'); ab.remove(); return out;
+  }, { X, D });
+  expect(r.onerror).toBe(false); expect(r.xss).toBe(null); expect(r.attr).toBe(X); expect(r.good).toBe(D);
 });
