@@ -2703,6 +2703,7 @@ async function _saveProjectImpl(project) {
   return { ok: true };
 }
 ipcMain.handle('projects:save', (event, project) => _saveProjectImpl(project));
+ipcMain.handle('storage:flush', (event) => { event.sender.session.flushStorageData(); });
 
 // BUG-44: 새로고침/탭 닫기 시 동기 저장 — beforeunload는 async를 await할 수 없어
 // 1.5초 debounce가 끝나기 전 새로고침 시 이미지·텍스트 변경분이 파일에 누락되던 문제 해결
