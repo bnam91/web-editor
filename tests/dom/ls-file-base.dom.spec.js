@@ -290,6 +290,21 @@ test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 안 지운�
   });
   expect(order).toEqual([[], ['filed'], ['filed', 'nomark']]);
 });
+test('표시 없는 옛 본은 든 본 다음에 비킨다 — 파일에 들었는지 모르는 본이 더 오래됐어도 든 본이 먼저다', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  const gone = await page.evaluate(async () => {
+    const { safeLocalStorageSet } = await import('/js/io/save-load.js');
+    const K = 'web-editor-autosave__'; const now = Date.now();
+    for (const k of Object.keys(localStorage)) if (k.startsWith(K)) localStorage.removeItem(k);
+    localStorage.setItem(K + 'nomark', 'x'); localStorage.setItem(K + 'nomark_ts', String(now - 9e6));
+    localStorage.setItem(K + 'filed', 'x'); localStorage.setItem(K + 'filed_ts', String(now - 1000)); localStorage.setItem('web-editor-ls-base__filed', new Date(now).toISOString());
+    const o = Storage.prototype.setItem; let left = 1;
+    Storage.prototype.setItem = function (k, v) { if (k === K + 'me' && left-- > 0) throw new DOMException('q', 'QuotaExceededError'); return o.call(this, k, v); };
+    try { safeLocalStorageSet(K + 'me', 'y'); } finally { Storage.prototype.setItem = o; }
+    return ['nomark', 'filed'].filter((id) => localStorage.getItem(K + id) === null);
+  });
+  expect(gone).toEqual(['filed']);
+});
 const big = (m) => JSON.stringify({ ...snap(m), pad: 'p'.repeat(2.2 * 1024 * 1024) });
 const lsOf = (page, id) => page.evaluate((id) => { const k = 'web-editor-autosave__' + id; const v = localStorage.getItem(k); return { len: v?.length ?? null, ts: localStorage.getItem(k + '_ts'), big: (v?.length ?? 0) > 2097152 }; }, id);
 test('2MB 초과 본: 저장 실패면 큰 본을 남기고, 저장 전에는 앞 본을 안 지운다', async ({ page }) => {
@@ -442,6 +457,42 @@ test('큰 복구본 자리: 파일에 든 본은 비키고 복구본은 안 지�
   await storeBoot(page);
   await page.evaluate(() => { window.__saveFail = 1; });
   expect(await bigFailWith(page, [['filed', true], ['rec', false]])).toEqual({ 큰본: true, 남음: { filed: false, rec: true }, 말: 0 });
+});
+test('[값] 절대 안 들어갈 큰 본: 든 본은 다 비켜도 복구본은 남고 말한다 — 그 본은 저장이 막힌 파일 밖에 없다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__saveFail = 1; });
+  const r = await page.evaluate(async () => {
+    const K = 'web-editor-autosave__'; const now = Date.now(); window.__ts = []; const t = window.showToast; window.showToast = (m) => { window.__ts.push(m); return t?.(m); };
+    for (const [id, filed] of [['filed', true], ['filed2', true], ['rec', false]]) { localStorage.setItem(K + id, 'x'); localStorage.setItem(K + id + '_ts', String(now - 1000)); localStorage.setItem('web-editor-ls-base__' + id, new Date(filed ? now : now - 1e7).toISOString()); }
+    const huge = JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block"></div>' }], pad: '가'.repeat(6e6) });   // 실제 쿼터(약 5M 자)를 넘긴다
+    await window.saveProjectToFile(huge, { skipThumbnail: true, projectId: 'p1' });
+    return { 큰본: (localStorage.getItem(K + 'p1')?.length ?? 0) > 2097152, 남음: ['filed', 'filed2', 'rec'].map((id) => localStorage.getItem(K + id) !== null), 말: window.__ts.filter((m) => m.includes('복구본을 남길')).length };
+  });
+  expect(r).toEqual({ 큰본: false, 남음: [false, false, true], 말: 1 });
+});
+test('저장이 도는 중 든 LS 본은 그 저장이 끝난 뒤에도 파일보다 새롭다 — 파일에 없는 편집이다', async ({ page }) => {
+  await storeBoot(page);
+  const r = await page.evaluate(async () => {
+    const K = 'web-editor-autosave__p1';
+    const body = JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block" id="in_file"></div>' }] });
+    localStorage.setItem(K, body); localStorage.setItem(K + '_ts', String(Date.now() - 1000));
+    const p = window.saveProjectToFile(body, { skipThumbnail: true, projectId: 'p1' });
+    localStorage.setItem(K, 'later-edit'); localStorage.setItem(K + '_ts', String(Date.now()));   // 저장 준비(loadProject) 중 든 다음 편집
+    await p;
+    return { 본: localStorage.getItem(K), ts: Number(localStorage.getItem(K + '_ts')), 파일시각: Date.parse(window.__store.p1.updatedAt) };
+  });
+  expect(r.본).toBe('later-edit');
+  expect(r.ts, '★파일보다 낡아 열 때·축출 때 든 본으로 읽힌다').toBeGreaterThan(r.파일시각);
+});
+test('[음성] 저장 중 안 바뀐 LS 본의 시각은 저장이 안 건드린다', async ({ page }) => {
+  await storeBoot(page);
+  const r = await page.evaluate(async () => {
+    const K = 'web-editor-autosave__p1'; const body = JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block"></div>' }] });
+    const ts = String(Date.now() - 1000); localStorage.setItem(K, body); localStorage.setItem(K + '_ts', ts);
+    await window.saveProjectToFile(body, { skipThumbnail: true, projectId: 'p1' });
+    return { 같음: localStorage.getItem(K + '_ts') === ts };
+  });
+  expect(r).toEqual({ 같음: true });
 });
 test('큰 복구본 자리: 복구본뿐이면 아무것도 안 지우고 말한다', async ({ page }) => {
   await storeBoot(page);

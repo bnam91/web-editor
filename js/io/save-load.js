@@ -353,6 +353,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
       const _failed = !_result || _isSaveFailure(_result);
       _settleBigLs(_targetId, snapshot, _failed, _lsTsAtStart);
       if (!_failed) _markLsFiled(_targetId, _lsTsAtStart);
+      /* 저장 도는 중 든 본은 파일에 없는데, 파일 시각이 준비(loadProject) 뒤에 찍혀 그 본보다 새롭다 — 그대로면 죽었을 때 열기가 파일을 고르고 축출도 든 본으로 읽는다 */
+      if (!_failed && _targetId && _lsTsOf(_targetId) && _lsTsOf(_targetId) !== _lsTsAtStart) { try { localStorage.setItem(`${SAVE_KEY_PREFIX}__${_targetId}_ts`, String(Date.now() + 1)); } catch (_) {} }
     }
     /* ★331 — 파일이 막히면 localStorage 가 유일한 사본인데 디스크 반영이 늦다(앱: 잠근 채 20초 연속 편집 뒤 10초 안에 kill -9 ⇒ 9/9 전부 잃음 · 40초 뒤 3/3 복구). 실패 때만 바로 내린다. */
     if (_isSaveFailure(_result)) window.electronAPI?.flushLocalStorage?.();
@@ -1944,12 +1946,15 @@ function _evictFiledLs(keepKey) {
   const prefix = SAVE_KEY_PREFIX + '__';
   const candidates = Object.keys(localStorage).filter(k => k.startsWith(prefix) && !k.endsWith('_ts') && k !== keepKey);
   const _tsOf = (k) => parseInt(localStorage.getItem(k + '_ts') || '0');
-  const _unfiled = (k) => {
+  /* 0 파일에 든 본 · 1 표시 없는 옛 본 · 2 복구본(안 지운다). 옛 본은 들었는지 몰라 든 본 다음에 비킨다 — 아예 안 지우면 옛 본으로 꽉 찬 LS 를 영영 못 푼다. */
+  const _rank = (k) => {
     const _id = k.slice(prefix.length); const base = localStorage.getItem(_lsBaseKey(_id));
-    return _tsOf(k) > (Number(base) || Date.parse(base)) && !(_tsOf(k) <= Number(localStorage.getItem(_lsFiledKey(_id))));
+    if (_tsOf(k) <= Number(localStorage.getItem(_lsFiledKey(_id)))) return 0;
+    if (!base) return 1;
+    return _tsOf(k) > (Number(base) || Date.parse(base)) ? 2 : 0;
   };
-  const oldest = candidates.sort((a, b) => (_unfiled(a) - _unfiled(b)) || (_tsOf(a) - _tsOf(b)))[0];
-  if (!oldest || _unfiled(oldest)) { console.warn('[save-load] QuotaExceededError: 지울 수 있는 본이 없다'); return null; }
+  const oldest = candidates.sort((a, b) => (_rank(a) - _rank(b)) || (_tsOf(a) - _tsOf(b)))[0];
+  if (!oldest || _rank(oldest) === 2) { console.warn('[save-load] QuotaExceededError: 지울 수 있는 본이 없다'); return null; }
   localStorage.removeItem(oldest);
   localStorage.removeItem(oldest + '_ts');
   localStorage.removeItem(_lsFiledKey(oldest.slice(prefix.length)));
