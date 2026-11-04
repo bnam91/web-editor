@@ -2020,8 +2020,16 @@ window.prepareLsWin = _prepareLsWin;
    열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
    옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
+/* main 이 변환을 미룰지 정하는 값 — 복구본이 있을 때만 싣는다 */
+function _lsOpenHint(id) {
+  try {
+    const key = `${SAVE_KEY_PREFIX}__${id}`;
+    const lsTs = parseInt(localStorage.getItem(key + '_ts') || '0');
+    return lsTs && localStorage.getItem(key) ? { lsTs, lsBase: localStorage.getItem(_lsBaseKey(id)) } : {};
+  } catch (_) { return {}; }
+}
 async function loadProjectForOpen(id) {
-  const proj = await window.electronAPI.loadProject(id, { open: true });
+  const proj = await window.electronAPI.loadProject(id, { open: true, ..._lsOpenHint(id) });
   if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
     throw new Error('project-unreadable');

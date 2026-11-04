@@ -2342,7 +2342,7 @@ ipcMain.handle('projects:list', () => _listProjectsImpl());
    알림은 반환 객체에 필드를 섞지 않고 이벤트로 보낸다 — loadProject→saveProject로 그대로 되쓰는 호출부가
    여럿이라(이름변경 등) 마커가 proj.json에 새는 것을 막는다. */
 const EXTERNALIZE_HINT_MIN_BYTES = 20 * 1024 * 1024;
-function _externalizeOnOpen(event, id) {
+function _externalizeOnOpen(event, id, opts) {
   const X = _getExternalizer();
   if (!X) return;
   const safeId = _safeSeg(id);
@@ -2361,6 +2361,7 @@ function _externalizeOnOpen(event, id) {
   } catch (_) {}
   if (collabRef || metaUnreadable) { send('projects:externalize-hint', { projectId: safeId, reason: collabRef ? 'collab' : 'meta_unreadable', bytes: scan.bytes, base64Refs: scan.base64Refs }); return; }
   if (readSettings().autoExternalizeOnOpen === true) {
+    if (X.lsRecoveryPending(PROJECTS_DIR, safeId, opts)) return;
     const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
     console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));
     if (r && r.ok && !r.noop) send('projects:externalized', { projectId: safeId, ...r });
@@ -2453,7 +2454,7 @@ function readProjectWithFallback(id, { heal = false, diag = null } = {}) {
 const _recentRecovery = new Map();
 ipcMain.handle('projects:load', (event, id, opts) => {
   const isOpen = !!(opts && opts.open === true);
-  if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
+  if (isOpen) { try { _externalizeOnOpen(event, id, opts); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
   const key = _safeSeg(String(id || ''));
   const diag = {};
   const r = readProjectWithFallback(id, { heal: true, diag });   // ★E168 — 목록과 같은 한 곳

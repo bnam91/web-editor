@@ -282,6 +282,16 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   return { ok: true, before, after, refs, images, reused, skipped, sections: sectionsAfter, backupPath, ms: Date.now() - t0 };
 }
 
+/** 렌더러의 localStorage 복구본이 파일을 이길 수 있나(js/io/save-load.js _pickLsOverFile 과 같은 자, 수 비교는 빼 보수적).
+ *  그러면 변환을 이번 열기에 미룬다: 변환이 updatedAt 을 올리면 복구본이 자격을 잃어 복구분을 잃었다(앱 3/3). 복구 저장이 파일에 든 뒤 다음 열기가 변환한다. */
+function lsRecoveryPending(projectsDir, projectId, { lsTs, lsBase } = {}) {
+  if (!lsTs) return false;
+  let updatedAt;
+  try { updatedAt = JSON.parse(fs.readFileSync(pathsFor(projectsDir, projectId).proj, 'utf8')).updatedAt; } catch (_) { return false; }
+  if (lsBase && updatedAt != null && lsBase !== String(updatedAt)) return false;
+  return lsTs > new Date(updatedAt || 0).getTime();
+}
+
 /** 되돌리기 진단 — 버려질 «현재 작업»과 복원될 «변환 전 원본»의 격차(UI 경고용, 비파괴). */
 function rollbackDiag(p, backupRaw) {
   const out = { restoreBytes: Buffer.byteLength(backupRaw), currentBytes: 0, currentSections: 0, restoreSections: 0, convertedAt: null, ageDays: null };
@@ -353,6 +363,6 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
 
 module.exports = {
   DATA_URI_RE, GOYA_RE, BACKUP_NAME,
-  extFromMime, saveImageBytes, scanProjectFile, externalizeProjectFile, rollbackExternalize,
+  extFromMime, saveImageBytes, scanProjectFile, externalizeProjectFile, rollbackExternalize, lsRecoveryPending,
   _internal: { pathsFor, canvasSlots, countMatches, countSections, parseDataUri },
 };
