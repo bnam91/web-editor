@@ -104,9 +104,9 @@ test('⑤ 마켓 올리기: 받는 쪽 본에 goya 주소가 없고 그림이 bl
   fs.mkdirSync(path.join(root, 'p1', 'assets'), { recursive: true });
   fs.writeFileSync(path.join(root, 'p1', 'assets', 'a.png'), Buffer.alloc(3000, 9));
   let handler;
-  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase',
-    [sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'function _carryProjectImages(', '대상'), sliceBlock(src, 'function _blobsDir(', '대상'), sliceBlock(src, 'function _extractBlobs(', '대상'), src.slice(src.indexOf("ipcMain.handle('market:push'"), src.indexOf("ipcMain.handle('market:list'"))].join('\n') + ';')(
-    fs, path, root, (x) => x, { png: 'image/png' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, 95 * 1048576, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async () => {}, async () => ({ ok: true }));
+  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_MARKET_TOTAL_MAX', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase',
+    [sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'async function _carryProjectImages(', '대상'), sliceBlock(src, 'function _countMarketBytes(', '대상'), sliceBlock(src, 'function _marketTooBig(', '대상'), sliceBlock(src, 'function _blobsDir(', '대상'), sliceBlock(src, 'function _extractBlobs(', '대상'), src.slice(src.indexOf("ipcMain.handle('market:push'"), src.indexOf("ipcMain.handle('market:list'"))].join('\n') + ';')(
+    fs, path, root, (x) => x, { png: 'image/png' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, 95 * 1048576, 400 * 1048576, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async () => {}, async () => ({ ok: true }));
   const push = (data, scratch) => handler(null, { account: 'a', id: 'p1', name: 'n', data, scratch });
   const r = await push('{"c":"<img src=\\"goya-asset://p1/a.png\\">"}', [{ src: 'goya-asset://p1/a.png' }]);
   assert.strictEqual(r.ok, true);

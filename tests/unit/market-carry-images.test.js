@@ -12,24 +12,25 @@ const { mkTmpRoot } = require('./_tmproot.js');
 const REPO = path.join(__dirname, '..', '..');
 const BIG = (n) => Buffer.alloc(3000, n);
 
-function boot() {
+function boot({ maxOne = 95 * 1048576, maxAll = 400 * 1048576 } = {}) {
   const src = readSrc(REPO, 'main.js');
   const root = mkTmpRoot('goya-mkc-'), repo = mkTmpRoot('goya-mkr-');
-  let handler;
+  let handler; const gitCalls = [];
   const body = [
-    sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'function _carryProjectImages(', '대상'),
+    sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'async function _carryProjectImages(', '대상'), sliceBlock(src, 'function _countMarketBytes(', '대상'), sliceBlock(src, 'function _marketTooBig(', '대상'),
     sliceBlock(src, 'function _blobsDir(', '대상'), sliceBlock(src, 'function _extractBlobs(', '대상'),
     src.slice(src.indexOf("ipcMain.handle('market:push'"), src.indexOf("ipcMain.handle('market:list'")),
   ].join('\n') + ';';
-  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase', body)(
-    fs, path, root, (x) => path.basename(String(x)), { png: 'image/png', jpg: 'image/jpeg' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, 95 * 1048576, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async () => {}, async () => ({ ok: true }));
+  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_MARKET_TOTAL_MAX', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase', body)(
+    fs, path, root, (x) => path.basename(String(x)), { png: 'image/png', jpg: 'image/jpeg' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, maxOne, maxAll, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async (c, a) => { gitCalls.push(a); }, async () => ({ ok: true }));
   const put = (sub, name, buf) => { const d = path.join(root, 'p1', sub); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, name), buf); return path.join(d, name); };
   const push = async (data) => {
     const r = await handler(null, { account: 'a', id: 'p1', name: 'n', data: JSON.stringify(data), scratch: [] });
     const f = path.join(repo, 'market', 'a', 'p1.json');
     return { r, saved: r.ok ? JSON.parse(fs.readFileSync(f, 'utf8')) : null };
   };
-  return { put, push, root };
+  const blobs = () => { try { return fs.readdirSync(path.join(repo, 'market', '_blobs')); } catch (_) { return []; } };
+  return { put, push, root, repo, blobs, gitCalls, handler: (...a) => handler(...a) };
 }
 const base = (x) => ({ version: 2, pages: [{ id: 'p', canvas: '<p>글</p>' }], assetsTree: [], imageGallery: [], ...x });
 
@@ -88,4 +89,54 @@ test('갤러리 지우기·읽기 IPC 는 images/ 밖을 안 건드린다, 음�
   }
   assert.strictEqual(h['ai:readImage'](null, { projectId: 'p1', blobPath: 'images/g.png' }).ok, true);
   assert.strictEqual(h['ai:deleteImage'](null, { projectId: 'p1', blobPath: 'images/g.png' }).ok, true); assert.ok(!fs.existsSync(g));
+});
+const reads = (fn) => { const o = fs.promises.readFile; const r = fs.readFileSync; const seen = []; fs.promises.readFile = (p, ...a) => { seen.push(String(p)); return o.call(fs.promises, p, ...a); }; fs.readFileSync = (p, ...a) => { seen.push(String(p)); return r.call(fs, p, ...a); }; return fn().finally(() => { fs.promises.readFile = o; fs.readFileSync = r; }).then((v) => ({ v, seen })); };
+test('한 장이 상한을 넘으면 읽기 전에 거절한다, 사람 말, blob·파일 0', async () => {
+  const b = boot({ maxOne: 3000 });
+  b.put('assets', 'big.png', BIG(1)); b.put('assets', 'ok.png', Buffer.alloc(30, 2));
+  const { v: { r }, seen } = await reads(() => b.push(base({ assetsTree: [{ id: 'o', type: 'image', blobPath: 'assets/ok.png' }, { id: 'a', type: 'image', blobPath: 'assets/big.png' }] })));
+  assert.strictEqual(r.ok, false); assert.match(r.message, /그림 한 장이 .*MB 라 올리지 않았습니다/);
+  assert.ok(!seen.some((p) => /assets[\\/](big|ok)\.png$/.test(p)), '읽지 말아야 한다');
+  assert.deepStrictEqual(b.blobs(), []); assert.deepStrictEqual(b.gitCalls, []);
+});
+test('합계가 상한을 넘으면 읽기 전에 거절한다, goya·스크래치 그림도 합계에 든다', async () => {
+  const b = boot({ maxAll: 9000 });
+  b.put('assets', 'a.png', BIG(1)); b.put('images', 'g.png', BIG(2)); b.put('assets', 'c.png', BIG(3));
+  const { v: { r }, seen } = await reads(() => b.push(base({ assetsTree: [{ id: 'a', type: 'image', blobPath: 'assets/a.png' }], imageGallery: [{ id: 'g', blobPath: 'images/g.png' }], pages: [{ id: 'p', canvas: '<img src="goya-asset://p1/c.png">' }] })));
+  assert.strictEqual(r.ok, false); assert.match(r.message, /그림이 모두 .*MB 라 올리지 않았습니다/);
+  assert.ok(!seen.some((p) => /(a|g|c)\.png$/.test(p)));
+});
+test('음성: 상한 안이면 올라간다', async () => {
+  const b = boot({ maxOne: 5000, maxAll: 90000 });
+  b.put('assets', 'a.png', BIG(1));
+  const { r } = await b.push(base({ assetsTree: [{ id: 'a', type: 'image', blobPath: 'assets/a.png' }] }));
+  assert.strictEqual(r.ok, true); assert.strictEqual(b.blobs().length, 1);
+});
+test('data 그림이 상한을 넘어 거절돼도 blob 을 안 남긴다, 다음 올리기에 안 실린다', async () => {
+  const b = boot({ maxOne: 4000 });
+  const big = 'data:image/png;base64,' + Buffer.alloc(9000, 7).toString('base64');
+  const { r } = await b.push(base({ pages: [{ id: 'p', canvas: '<img src="' + big + '">' }] }));
+  assert.strictEqual(r.ok, false); assert.deepStrictEqual(b.blobs(), []); assert.deepStrictEqual(b.gitCalls, []);
+  assert.strictEqual((await b.push(base())).r.ok, true); assert.deepStrictEqual(b.blobs(), []);
+});
+test('이 올리기가 쓰는 파일만 git add 한다, 옛 판이 남긴 blob 은 안 들어간다', async () => {
+  const b = boot();
+  const bdir = path.join(b.repo, 'market', '_blobs'); fs.mkdirSync(bdir, { recursive: true }); fs.writeFileSync(path.join(bdir, 'old.b64'), 'x');
+  b.put('assets', 'a.png', BIG(1));
+  await b.push(base({ assetsTree: [{ id: 'a', type: 'image', blobPath: 'assets/a.png' }] }));
+  const added = b.gitCalls.filter((a) => a.includes('add')).flatMap((a) => a.slice(a.indexOf('--') + 1));
+  assert.ok(!b.gitCalls.some((a) => a.includes('-A'))); assert.ok(!added.includes('market/_blobs/old.b64'));
+  const now = b.blobs().filter((f) => f !== 'old.b64');
+  assert.deepStrictEqual(added.sort(), ['index.json', 'market/a/p1.json', 'market/_blobs/' + now[0]].sort());
+});
+test('폴더·권한 없는 파일은 세고 나머지는 올린다, 올리기 전체를 안 죽인다', async () => {
+  const b = boot();
+  b.put('assets', 'b.png', BIG(2)); fs.mkdirSync(path.join(b.root, 'p1', 'assets', 'dir.png'));
+  const no = b.put('assets', 'no.png', BIG(3)); fs.chmodSync(no, 0);
+  const denied = (() => { try { fs.readFileSync(no); return false; } catch (_) { return true; } })();
+  const { r, saved } = await b.push(base({ assetsTree: [{ id: 'd', type: 'image', blobPath: 'assets/dir.png' }, { id: 'n', type: 'image', blobPath: 'assets/no.png' }, { id: 'b', type: 'image', blobPath: 'assets/b.png' }] }));
+  fs.chmodSync(no, 0o644);
+  assert.ok(denied, '시험 전제: 이 계정이 권한으로 막혀야 한다');
+  assert.strictEqual(r.ok, true); assert.strictEqual(r.skipped, 2);
+  const d = JSON.parse(saved.data); assert.match(d.assetsTree[2].src, /^goditor-blob:/); assert.strictEqual(d.assetsTree[0].blobPath, 'assets/dir.png');
 });
