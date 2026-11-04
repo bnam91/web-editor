@@ -930,6 +930,17 @@ function listReferencedAssets(projectsDir, projectId) {
  * pre-externalize 는 변환 시점에 «고정»돼 늙는다. 앞에 두면 한 달 늙은 원본이 최신 백업/히스토리를
  * 이겨 덮어쓰는 데이터손실(F1)이 난다.
  */
+/* 파일 글자 읽기 — 잠깐 막힌 것(핸들 소진·잠금)은 잠시 뒤 다시. 그래도 안 되면 던진다: 부르는 쪽이 «못 읽음»과 «깨짐»(SyntaxError)을 가른다. */
+const _TRANSIENT_READ = new Set(['EMFILE', 'ENFILE', 'EBUSY', 'EAGAIN']);
+function readTextRetry(p) {
+  for (let i = 0; ; i++) {
+    try { return fs.readFileSync(p, 'utf8'); }
+    catch (e) {
+      if (i >= 3 || !_TRANSIENT_READ.has(e && e.code)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30 * 2 ** i);
+    }
+  }
+}
 /* 못 읽는 proj.json 을 덮기 전에 옆에 둔다 — 같은 판(mtime)은 한 벌. 이름이 슬롯·후보 규약 밖이라 복구 후보·프룬이 안 집는다.
    반환: 파일 이름. 못 두면 던진다(부르는 쪽이 덮지 않는다 · 자가치유는 그 코드를 _healError 로 싣는다). 시험: tests/unit/corrupt-unreadable.test.js */
 function preserveUnreadableOrThrow(srcPath, dir) {
@@ -984,7 +995,7 @@ module.exports = {
   canonicalize, fingerprint,
   readIndex, writeIndex, rebuildIndex, ensureIndex, updateCurrent,
   writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
-  listReferencedAssets, loadFallbackCandidates, preserveUnreadable, preserveUnreadableOrThrow,
+  listReferencedAssets, loadFallbackCandidates, preserveUnreadable, preserveUnreadableOrThrow, readTextRetry,
   isProjectShaped,   // ★[A2] main.js 폴백 루프가 «파싱되면 프로젝트»로 삼지 않도록 공개
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
                canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped, isAllCanvasEmpty },

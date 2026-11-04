@@ -1,6 +1,6 @@
 /* corrupt-open — 깨진 파일을 못 읽음으로 답하면: 빈 프로젝트로 안 열고, 말하고, 저장을 거절한다 (CORRUPT · 지디 결정)
  * 자: 대역 electronAPI 의 saveProject 호출 수 + 토스트 + 진짜 클릭. 진짜 파일 값은 앱 탐침 ~/gd-lane/imac-gd-L1/363d GXZ.
- * 칸: C1 부트 못 읽음 · C2 탭 못 읽음 · C3 [음성] 없음(null)은 그대로 빈 판·저장 된다 · C4 [음성] 백업 복구 길 그대로
+ * 칸: C1 부트 깨짐 · C2 탭 깨짐 · C3 [음성] 없음(null)은 그대로 빈 판·저장 된다 · C4 [음성] 백업 복구 길 그대로 · C5 못 읽음은 다른 말
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, ORIGIN } = require('./_root-harness.js');
@@ -73,4 +73,13 @@ test('C4 [음성] 백업 복구 길 — 그대로 복구로 열리고 저장 된
   expect(await page.evaluate(() => window.gdtProjectReady.get().phase)).toBe('ready');
   await page.locator(ADD).click();
   await expect.poll(() => page.evaluate(() => window.__saves), { timeout: 15000 }).toBeGreaterThan(0);
+});
+
+test('C5 못 읽음(깨짐 아님) — 다른 말을 하고 저장을 안 부른다', async ({ page }) => {
+  await setup(page, { [B]: { mark: { _readError: 'EMFILE' } } });
+  await toasts(page).toContain('EMFILE');
+  expect(await page.evaluate(() => window.__toasts.join('\n'))).not.toContain('깨져');
+  const r = await page.evaluate(() => window.saveProjectToFile(window.serializeProject()));
+  expect(r.reason).toBe('tab-not-loaded');
+  expect(await page.evaluate(() => window.__saves)).toBe(0);
 });

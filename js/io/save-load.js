@@ -1998,6 +1998,10 @@ async function loadProjectForOpen(id) {
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
     throw new Error('project-unreadable');
   }
+  if (proj && proj._readError) {   // 못 읽었을 뿐 깨진 게 아니다 — 같은 실패 길로, 말만 다르게
+    window.LoadInputGate?.noteReadError(proj._readError);
+    throw new Error('project-read-failed:' + proj._readError);
+  }
   _lastOpenFallback = proj && proj._recovered ? id : null;
   if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
   if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음

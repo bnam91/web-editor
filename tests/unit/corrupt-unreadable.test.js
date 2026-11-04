@@ -58,10 +58,64 @@ test('U1 깨짐·후보 없음 + 열기 → 못 읽음으로 답하고, 원본�
   assert.deepStrictEqual(s.side(), [r.preservedAs]);
   assert.strictEqual(fs.readFileSync(path.join(s.p, r.preservedAs), 'utf8'), BROKEN);
 });
-test('U2 프로젝트 꼴이 아닌 JSON 도 못 읽음이다', () => {
-  const s = scene({ cur: '"글자"' });
-  assert.strictEqual(load(s.dir).open(ID)._unreadable, true);
+test('U2 [음성] 프로젝트 꼴이 아닌 JSON(기획 프로젝트)은 깨짐이 아니다 — null · 옆 파일 없음 · 저장에도 옆 파일 없음', async () => {
+  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning' });
+  const s = scene({ cur: plan }); const R = load(s.dir);
+  assert.strictEqual(R.open(ID), null);
+  assert.deepStrictEqual(s.side(), []);
+  const r = await R.save(doc('새'));
+  assert.notStrictEqual(r.ok, false);
+  assert.deepStrictEqual(s.side(), []);
 });
+/* 진짜 fs 위에서 그 파일 읽기만 막는다 — times 번 뒤엔 풀린다 */
+function blockRead(file, code, times = Infinity) {
+  const real = fs.readFileSync; let n = 0;
+  fs.readFileSync = function (p, ...a) { if (p === file && n < times) { n++; throw Object.assign(new Error(code), { code }); } return real.call(fs, p, ...a); };
+  return { undo: () => { fs.readFileSync = real; }, count: () => n };
+}
+for (const code of ['EMFILE', 'EBUSY', 'EACCES']) {
+  test(`U12 ${code} 가 안 풀리면 깨짐이 아니다 — 못 읽음으로 답하고 파일·백업 그대로 · 옆 파일 없음`, () => {
+    const good = JSON.stringify(doc('성')); const s = scene({ cur: good, backup: JSON.stringify(doc('옛백업')) });
+    const b = blockRead(s.proj, code); let r;
+    try { r = load(s.dir).open(ID); } finally { b.undo(); }
+    assert.strictEqual(r._readError, code);
+    assert.strictEqual(r._unreadable, undefined);
+    assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), good, '★낡은 백업으로 덮었다');
+    assert.deepStrictEqual(s.side(), []);
+  });
+}
+test('U13 잠깐 막힌 것은 다시 읽어 그대로 연다', () => {
+  const s = scene({ cur: JSON.stringify(doc('성')) });
+  const b = blockRead(s.proj, 'EMFILE', 2); let r;
+  try { r = load(s.dir).open(ID); } finally { b.undo(); }
+  assert.strictEqual(r._readError, undefined);
+  assert.strictEqual(r.pages.length, 1);
+  assert.strictEqual(b.count(), 2);
+});
+test('U14 EACCES 는 다시 안 읽는다(풀릴 일이 아니다)', () => {
+  const s = scene({ cur: JSON.stringify(doc('성')) });
+  const b = blockRead(s.proj, 'EACCES'); try { load(s.dir).open(ID); } finally { b.undo(); }
+  assert.strictEqual(b.count(), 1);
+});
+test('U15 [음성] 저장 병합용 로드는 못 읽어도 있는 후보를 준다 · 안 덮는다', () => {
+  const good = JSON.stringify(doc('성')); const s = scene({ cur: good, backup: JSON.stringify(doc('옛백업')) });
+  const b = blockRead(s.proj, 'EBUSY'); let r;
+  try { r = load(s.dir).read(ID); } finally { b.undo(); }
+  assert.ok(JSON.stringify(r).includes('옛백업'));
+  assert.strictEqual(r._recovered, undefined);
+  assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), good);
+});
+for (const [name, run] of [['save', (R, d) => R.save(d)], ['save-sync', (R, d) => R.saveSync(d)]]) {
+  test(`U16 ${name} — 직전 판을 못 읽어도 거절하지 않는다(성한 메모리) · 옆 파일 없음 · 백업 그대로`, async () => {
+    const old = JSON.stringify(doc('옛백업')); const s = scene({ cur: JSON.stringify(doc('성')), backup: old });
+    const b = blockRead(s.proj, 'EACCES'); let r;
+    try { r = await run(load(s.dir), doc('새')); } finally { b.undo(); }
+    assert.notStrictEqual(r.ok, false);
+    assert.ok(fs.readFileSync(s.proj, 'utf8').includes('새'));
+    assert.deepStrictEqual(s.side(), []);
+    assert.strictEqual(fs.readFileSync(path.join(s.p, 'proj_backup.json'), 'utf8'), old);
+  });
+}
 test('U3 [음성] 없음(새 프로젝트) → 그대로 null · 옆 파일 없음', () => {
   const s = scene({ cur: null });
   assert.strictEqual(load(s.dir).open(ID), null);
