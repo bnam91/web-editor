@@ -534,7 +534,7 @@ function _stickerModifierClick(block, e) {
   const selected = block.classList.contains('selected');
   const mod = e.metaKey || e.ctrlKey || e.shiftKey;
   if (!mod) {
-    // 여럿 골라진 상태의 «보통 클릭» = 그것 하나만(흐름 블럭 규약). 끈 것은 «하나만 옮김» — 선택 유지.
+    // 여럿 골라진 상태의 «보통 클릭» = 그것 하나만(흐름 블럭 규약). 끈 것은 골라진 스티커가 «같이 옮김»(t9-01 · 현빈 6655 · 옛 1013t2C1 «하나만 옮김» 뒤집음 · _stkPeers) — 선택 유지.
     if (moved || !selected) return false;
     const others = [...document.querySelectorAll('#canvas .selected')].some(el => el !== block
       && !el.classList.contains('section-block') && !el.classList.contains('section-merged-part'));
@@ -555,6 +555,50 @@ function _stickerModifierClick(block, e) {
     window.rangeSelectBlocks(block, sec);
   }
   return true;                                   // 패널은 두 정본 함수가 _updateMultiSelPanel 로 고른다
+}
+
+/* ★t9-01(현빈 6655) — 골라진 스티커를 끄는 것과 «같은 민 양»으로 옮긴다. 명부는 «서로 맞춤»·선택상자와 한 벌(overlay-unit).
+   기준은 화면 좌표(섹션 왼쪽 위 + 자리)라 섹션을 넘어도 대열이 안 찢어진다 — 민 양은 «끄는 것이 실제로 간 양»(탄성·clamp 뒤)이다.
+   ⛔흐름 블럭은 옮기지 않는다(좌표가 없다) — 선택만 남는다. 선 스티커는 혼자 끌 때와 같이 제 섹션 안 clamp · 재부모 없음. */
+function _stkPeers(block, zoom) {
+  if (!block.classList.contains('selected')) return [];
+  // ⛔getSelectedOverlayUnits 를 안 쓴다 — 흐름 블럭이 섞이거나 섹션이 다르면 null(«서로 맞춤» 전용 규칙)이라 그때 혼자만 움직인다
+  return [...document.querySelectorAll('#canvas .sticker-block.selected')].filter(el => el !== block && window.overlayUnitOf?.(el) === el).map(el => {
+    const sec = el.closest('.section-block'), r = sec.getBoundingClientRect();
+    return { el, sec, line: _isLineStk(el),
+      gx: (parseInt(el.dataset.x) || 0) + r.left / zoom, gy: (parseInt(el.dataset.y) || 0) + r.top / zoom,
+      x1: parseFloat(el.dataset.x1) || 0, y1: parseFloat(el.dataset.y1) || 0, x2: parseFloat(el.dataset.x2) || 0, y2: parseFloat(el.dataset.y2) || 0 };
+  });
+}
+function _stkMovePeers(peers, dx, dy, zoom, freeMove) {
+  for (const p of peers) {
+    const el = p.el;
+    if (p.line) {
+      const ddx = Math.max(-Math.min(p.x1, p.x2), Math.min((p.sec.offsetWidth || 860) - Math.max(p.x1, p.x2), dx));
+      const ddy = Math.max(-Math.min(p.y1, p.y2), Math.min((p.sec.offsetHeight || 0) - Math.max(p.y1, p.y2), dy));
+      el.dataset.x1 = String(Math.round(p.x1 + ddx)); el.dataset.y1 = String(Math.round(p.y1 + ddy));
+      el.dataset.x2 = String(Math.round(p.x2 + ddx)); el.dataset.y2 = String(Math.round(p.y2 + ddy));
+      window._syncLineStickerPos?.(el);
+      window.renderStickerBlock?.(el);
+      if (el.classList.contains('selected')) _addHlbHandles(el);
+      continue;
+    }
+    let r = p.sec.getBoundingClientRect();
+    if (!freeMove) {   // 끄는 것과 같은 규약(B 정책) — 제 가운데가 다른 섹션 위면 그 섹션으로 간다
+      const hover = _findSectionAt(r.left + (p.gx + dx - r.left / zoom + (el.offsetWidth || 0) / 2) * zoom, r.top + (p.gy + dy - r.top / zoom + (el.offsetHeight || 0) / 2) * zoom);
+      if (hover && hover !== p.sec) { hover.appendChild(el); p.sec = hover; r = hover.getBoundingClientRect(); }
+    }
+    const [x, y] = _clampCoinKeep(el, p.gx + dx - r.left / zoom, p.gy + dy - r.top / zoom, p.sec) || [p.gx + dx - r.left / zoom, p.gy + dy - r.top / zoom];
+    el.dataset.x = String(Math.round(x)); el.dataset.y = String(Math.round(y));
+    el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
+    window._updateStickerSecClip?.(el);
+  }
+}
+function _stkEndPeers(peers) {
+  for (const p of peers) {
+    window._updateStickerSecClip?.(p.el);
+    if (p.el.dataset.shape === 'coin') _markCoinKept(p.el);
+  }
 }
 
 function bindStickerSelect(block) {
@@ -606,6 +650,7 @@ function bindStickerSelect(block) {
     const zoom = (window.currentZoom || 40) / 100;
     const startX = e.clientX;
     const startY = e.clientY;
+    const _peers = _stkPeers(block, zoom);
 
     // ── 선 스티커(highlightB · ★1013t2C4 arrow) 드래그 — 두 점을 함께 평행이동 + 섹션 내 clamp ──
     if (_isLineStk(block)) {
@@ -638,10 +683,12 @@ function bindStickerSelect(block) {
         window.renderStickerBlock?.(block);
         // ★1013t2C4 — 그리기가 innerHTML 을 갈아 끼워 끝점 손잡이가 사라진다 → 골라져 있으면 다시 단다
         if (block.classList.contains('selected')) _addHlbHandles(block);
+        _stkMovePeers(_peers, Math.round(dx), Math.round(dy), zoom, false);
       };
       const onUpB = () => {
         document.removeEventListener('mousemove', onMoveB);
         document.removeEventListener('mouseup', onUpB);
+        _stkEndPeers(_peers);
         window.pushHistory?.('선 형광펜 이동');
         window.scheduleAutoSave?.();
       };
@@ -670,6 +717,8 @@ function bindStickerSelect(block) {
     const grabOffX = (startX - blockRect.left) / zoom;
     const grabOffY = (startY - blockRect.top)  / zoom;
     const _hist = window.beginDragHistory?.('스티커 이동');
+    const _rect0 = sec.getBoundingClientRect();
+    const _gx0 = origX + _rect0.left / zoom, _gy0 = origY + _rect0.top / zoom;   // 끄는 것의 시작 자리(화면 기준) — _stkMovePeers 머리말
 
     const onMove = (ev) => {
       /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
@@ -699,6 +748,7 @@ function bindStickerSelect(block) {
         block.style.top  = origY + 'px';
         window._updateStickerSecClip?.(block); // 부모 섹션이 바뀌었으니 새 경계 기준 재계산
         window._syncCoinPosFields?.(block);
+        _stkMovePeers(_peers, origX + secRect.left / zoom - _gx0, origY + secRect.top / zoom - _gy0, zoom, false);
         return;
       }
       // 같은 섹션 또는 섹션 밖 — 기존 섹션 유지 + clamp (⌘=clamp 없이 자유 이동)
@@ -722,12 +772,14 @@ function bindStickerSelect(block) {
       // (드래그 중엔 .selected라 CSS가 clip 무시 — 놓고 선택 해제되는 즉시 반영되도록 준비)
       window._updateStickerSecClip?.(block);
       window._syncCoinPosFields?.(block);   // 코인 패널의 X·Y 칸이 끄는 대로 따라온다(1013t2C2)
+      _stkMovePeers(_peers, newX + secRect.left / zoom - _gx0, newY + secRect.top / zoom - _gy0, zoom, freeMove);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       window._updateStickerSecClip?.(block);
       if (block.dataset.shape === 'coin') _markCoinKept(block);
+      _stkEndPeers(_peers);
       window.pushHistory?.('스티커 이동');
       window.scheduleAutoSave?.();
     };
