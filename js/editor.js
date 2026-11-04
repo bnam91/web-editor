@@ -4700,6 +4700,7 @@ function deleteSection(secIdOrEl) {
     console.warn('[deleteSection] 유효한 섹션을 찾을 수 없음:', secIdOrEl);
     return false;
   }
+  if (window.isSectionProtected?.(sec)) return false;   // 부르는 쪽(MCP 다리)이 사유를 돌려준다
   // 마지막 섹션 삭제 방지
   const allSecs = canvasEl.querySelectorAll('.section-block');
   if (allSecs.length <= 1) {

@@ -2340,7 +2340,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.deleteSection({ sectionId });
     },
     {
-      description: 'Delete a section by id — DESTRUCTIVE, acts on the ACTIVE project. Last section is protected (will return code:DELETE_FAILED). '
+      description: 'Delete a section by id — DESTRUCTIVE, acts on the ACTIVE project. Last section is protected (will return code:DELETE_FAILED). A section the user locked with 🔒 is refused with code:SECTION_PROTECTED. '
         + 'Safety: pass expectedProject (proj_xxx you intend to modify); if it does not match the currently open project the call is refused with PROJECT_MISMATCH. Strongly recommended whenever multiple projects are involved.',
       inputSchema: {
         type: 'object',
@@ -2363,7 +2363,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.deleteBlock({ blockId });
     },
     {
-      description: 'Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.) — DESTRUCTIVE, acts on the ACTIVE project. For sections use delete_section. '
+      description: 'Delete a non-section block by id (tb_/ab_/gb_/cvb_/ss_ etc.) — DESTRUCTIVE, acts on the ACTIVE project. For sections use delete_section. A block inside a section the user locked with 🔒 is refused with code:SECTION_PROTECTED. '
         + 'Safety: pass expectedProject (proj_xxx you intend to modify); mismatch with the currently open project ⇒ refused with PROJECT_MISMATCH.',
       inputSchema: {
         type: 'object',
@@ -2714,6 +2714,7 @@ function _registerDefaultTools() {
         + 'op:"switch" + to:"B" makes THAT one the visible one on canvas (the others are display:none). '
         + 'op:"resolve" keeps only the currently visible one and DELETES the rest — requires confirm:true, and without it returns what WOULD be deleted. '
         + 'op:"delete" removes ONE alternative — requires confirm:true; if only one is left the group dissolves back into a normal section. '
+        + 'resolve/delete touching a section the user locked with 🔒 is refused with code:SECTION_PROTECTED. '
         + '★Sections sharing a variationGroup are ALTERNATIVES, never duplicates — read them with get_canvas_state first.'
         + _TARGET_NOTE,
       inputSchema: {
