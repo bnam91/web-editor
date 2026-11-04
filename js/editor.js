@@ -1478,35 +1478,47 @@ function duplicateSelected() {
     // ★도형은 «래퍼째» 복제 단위다(0918 A안). shape-block 자체는 래퍼 안에서 absolute 라
     //   예전엔 absWrapper=shape-block, parentFrame=도형 래퍼 → 같은 래퍼 안에 도형 2개(«렉탱글 안 렉탱글»).
     //   ⚠️parentFrame 은 반드시 parentElement 부터 찾는다 — 래퍼 자신도 data-free-layout 이라 자기에 매칭된다.
-    const _shpWrap = shapeFrameOf(selBlock);
-    const absWrapper = _shpWrap ||
-                       selBlock.closest('.frame-block[data-text-frame]') ||
-                       (selBlock.style.position === 'absolute' ? selBlock : null);
-    const parentFrame = resolveInsertFrame(absWrapper?.parentElement?.closest('.frame-block[data-free-layout]') || null);
-    if (absWrapper && parentFrame) {
+    const unitOf = (selBlock) => {
+      const _shpWrap = shapeFrameOf(selBlock);
+      return _shpWrap ||
+             selBlock.closest('.frame-block[data-text-frame]') ||
+             (selBlock.style.position === 'absolute' ? selBlock : null);
+    };
+    const frameOf = (absWrapper) => resolveInsertFrame(absWrapper?.parentElement?.closest('.frame-block[data-free-layout]') || null);
+    /* ★고른 것 전부 복제(지디 6524 ⌘A→⌘D — 첫 하나만 복제했다). 흐름 블록이 섞이면 아래 copySelected 길(전부 담는다).
+       단위가 다른 단위 안이면 바깥만 — 안쪽까지 복제하면 사본이 겹친다. */
+    const _units = [...new Set([selBlock, ...document.querySelectorAll(MULTI_SEL)].map(unitOf))];
+    const units = _units.filter(u => !_units.some(o => o && o !== u && o.contains(u)));
+    // 여럿일 땐 자유 프레임 «바로 밑»만 — 안쪽 스택 프레임의 글자를 바깥 자유 프레임으로 꺼내면 안 된다
+    if (units.every(u => u && frameOf(u) && (units.length === 1 || u.parentElement === frameOf(u)))) {
       window.pushHistory('복제');
-      const clone = absWrapper.cloneNode(true);
-      /* ★191 — id 재발급·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(clone) 한 문이 한다(손 절반 걷음 · genId·actorId 는 그 문 안 — 215). */
-      // 오프셋 +20px
-      const origLeft = parseInt(absWrapper.style.left || '0');
-      const origTop  = parseInt(absWrapper.style.top  || '0');
-      clone.style.left = (origLeft + 20) + 'px';
-      clone.style.top  = (origTop  + 20) + 'px';
-      clone.dataset.offsetX = String(origLeft + 20);
-      clone.dataset.offsetY = String(origTop  + 20);
-      parentFrame.appendChild(clone);
-      /* ★191(CLONE-RERENDER-01 · bind-list:DUP_ABS 걷음) — 공용 붙여넣기 문을 지난다: id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock ·
-         rerenderTree(다시 그리기 · chat 포함) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
-         ⚰️옛 꼴은 그 절반(id + _ALL_BLOCK_SEL bindBlock 손 명부 + chat 특례 + 자기 bindBlock + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다. */
-      _bindPastedEl(clone);
-      clone._dragBound = false;
+      const clones = units.map((absWrapper) => {
+        const parentFrame = frameOf(absWrapper);
+        const clone = absWrapper.cloneNode(true);
+        /* ★191 — id 재발급·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(clone) 한 문이 한다(손 절반 걷음 · genId·actorId 는 그 문 안 — 215). */
+        // 오프셋 +20px
+        const origLeft = parseInt(absWrapper.style.left || '0');
+        const origTop  = parseInt(absWrapper.style.top  || '0');
+        clone.style.left = (origLeft + 20) + 'px';
+        clone.style.top  = (origTop  + 20) + 'px';
+        clone.dataset.offsetX = String(origLeft + 20);
+        clone.dataset.offsetY = String(origTop  + 20);
+        parentFrame.appendChild(clone);
+        /* ★191(CLONE-RERENDER-01 · bind-list:DUP_ABS 걷음) — 공용 붙여넣기 문을 지난다: id 재발급(genId) · migrateGridIdentity · 프레임·블록 bindBlock ·
+           rerenderTree(다시 그리기 · chat 포함) · bindStickerSelect · bindGradientSelect · syncAutoGridWidth.
+           ⚰️옛 꼴은 그 절반(id + _ALL_BLOCK_SEL bindBlock 손 명부 + chat 특례 + 자기 bindBlock + 프레임)만 베껴 다시 그리기·스티커·그라데가 빠졌다. */
+        _bindPastedEl(clone);
+        clone._dragBound = false;
+        return clone;
+      });
       // 기존 선택 해제 후 복제본 선택
       deselectAll();
-      const cloneBlock = clone.querySelector('.text-block, .shape-block, .asset-block') || clone;
-      cloneBlock.classList.add('selected');
-      parentFrame.closest('.section-block')?.classList.add('selected');
+      clones.forEach(clone => {
+        (clone.querySelector('.text-block, .shape-block, .asset-block') || clone).classList.add('selected');
+        clone.closest('.section-block')?.classList.add('selected');
+      });
       window.buildLayerPanel?.();
-      _panelFollowsPasted([clone]);   // ★t4-12 — 복제본 패널(deselectAll 이 띄운 페이지 패널 대신)
+      _panelFollowsPasted(clones);   // ★t4-12 — 복제본 패널(deselectAll 이 띄운 페이지 패널 대신)
       window.pushHistory('복제 완료');
       return;
     }
