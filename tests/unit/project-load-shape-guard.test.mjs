@@ -102,7 +102,7 @@ function readerBody(src) {
 test('W1 ★정상 경로가 「프로젝트 형태인가」를 거친다 — 그리고 «폴백으로 내려보낸다»', () => {
   assert.match(stripComments(loadHandler(MAIN)), /readProjectWithFallback\(/, '★로드 핸들러가 공용 읽기를 안 부른다');
   const fn = stripComments(readerBody(MAIN));
-  const iParse = fn.indexOf('JSON.parse(fs.readFileSync(filePath');
+  const iParse = fn.indexOf('JSON.parse(_SS().readTextRetry(filePath');
   const iGuard = fn.indexOf('isProjectShaped(parsed)');
   const iFall = fn.indexOf('loadFallbackCandidates');
   assert.ok(iParse >= 0, '정상 경로의 읽기가 사라졌다 — 이 검사는 «안 재고» 있다');
