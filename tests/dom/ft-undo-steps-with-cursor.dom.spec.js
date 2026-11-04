@@ -162,3 +162,16 @@ test('M7 커서 둔 채 글 치고 손잡이를 끈 뒤 — 첫 ⌘Z 가 끌기,
   expect(texts.indexOf('첫 줄') === -1 || !texts.slice(texts.indexOf('첫 줄')).includes('첫 줄x'), `글 순서 ${texts.join(' → ')}`).toBe(true);
   expect(seen[0].C, '첫 ⌘Z 는 끌기').not.toBe(a.C);
 });
+
+test('M8 ⌘Z 뒤 커서를 다시 넣어도 ⌘⇧Z 가 앞으로 간다', async ({ page }) => {
+  await scene(page, true);
+  await edit(page);
+  const a = await read(page);
+  const u1 = await press(page, 'Meta+z');
+  expect(u1.C).toBe(str(C2));
+  await edit(page);
+  expect((await read(page)).cur, '전제: 커서가 글칸에 있다').toBe(true);
+  expect(await page.evaluate(() => document.queryCommandEnabled('redo')), '전제: 네이티브에 앞으로 갈 글이 없다').toBe(false);
+  const r1 = await press(page, 'Meta+Shift+z');
+  expect(r1.C).toBe(a.C);
+});
