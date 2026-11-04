@@ -151,7 +151,7 @@ test('T 메뉴 저장(saveProjectFile) — 거절되면 «저장됨» 아님 · 
   const ok = await run({ ok: true });
   expect(ok).toMatchObject({ toasts: ['✅ 저장됨'], ls: true, tabs: ['proj_a', 'proj_b'] });
   const no = await run({ ok: false, reason: 'page_count_reduced' });
-  expect(no.toasts).toEqual(['⚠️ 저장 거부: page_count_reduced']);
+  expect(no.toasts).toEqual(['⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨']);   // 거절 까닭 글은 save-load.js saveRefusedText 한 벌(코드 대신 사람 말)
   expect(no).toMatchObject({ ls: false, tabs: ['proj_a', 'proj_b'] });
   const del = await run({ ok: false, reason: 'project_deleted' });
   expect(del.toasts.join()).not.toContain('저장됨');
