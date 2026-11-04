@@ -89,6 +89,6 @@ test('B3 풀린 말풍선을 끌면 자유 프레임 좌표로 움직인다(흐�
   expect(await clickPick(page, b.id), '[전제] 다시 고름').toBe(true);
   const tf = () => page.evaluate((id) => { const t = document.getElementById(id).closest('.frame-block[data-text-frame]'); return { left: parseInt(t.style.left), top: parseInt(t.style.top), pos: getComputedStyle(t).position, par: t.parentElement.id }; }, b.id); const t0 = await tf();
   const q = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, b.id);
-  await page.mouse.move(q[0], q[1]); await page.mouse.down(); for (let i = 1; i <= 12; i++) { await page.mouse.move(q[0], q[1] + i * 10); await raf(page); } await page.mouse.up(); await raf(page);
+  await page.mouse.move(q[0], q[1]); await page.mouse.down(); for (let i = 1; i <= 8; i++) { await page.mouse.move(q[0], q[1] + i * 15); await raf(page); } await page.mouse.up(); await raf(page);
   const t1 = await tf(); expect(t1.pos, '여전히 absolute').toBe('absolute'); expect(await page.evaluate((id) => document.getElementById(id).closest('.frame-block[data-text-frame]').getAttribute('draggable'), b.id), 'HTML5 끌기 꺼짐(자유 프레임 자식 꼴)').toBe('false'); expect(t1.par, '같은 프레임').toBe(t0.par); expect(t1.top, '아래로 움직였다').toBeGreaterThan(t0.top); expect(await page.evaluate(() => document.querySelectorAll('#canvas .speech-bubble-block').length), '끌어도 하나').toBe(1); expect(real(errs), errs.join(' | ')).toEqual([]);
 });
