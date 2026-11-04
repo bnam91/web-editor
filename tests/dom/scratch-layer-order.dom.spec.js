@@ -76,6 +76,18 @@ const state = (page, P) => page.evaluate((P) => {
   };
 }, P);
 
+/* 첫 장을 화면 가운데로 굴린다. 배율 전환 중에 굴리면 그때 크기로 재어 맞지 않는 자리에 가고, 전환이 끝나면 장이 왼쪽 패널 밑에 남는다
+   (×18 중 4 · 재연 뒤 점 임자가 .file-page-name · 첫 끌기도 빗나가 «겹치는 띠 없음»). ⇒ 크기가 멈추고 가운데에 올 때까지 다시 굴린다. */
+const scrollItemIn = (page) => page.waitForFunction(() => {
+  const el = document.querySelector('.scratch-item'), wrap = document.getElementById('canvas-wrap');
+  const w0 = el.getBoundingClientRect().width;
+  const same = window.__scrollItemW === w0;
+  window.__scrollItemW = w0;
+  el.scrollIntoView({ block: 'start', inline: 'center' });
+  const r = el.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  return same && Math.abs((r.left + r.right) / 2 - (wr.left + wr.right) / 2) <= 2;
+}, null, { timeout: 8000, polling: 100 });
+
 async function bootScratch(page, pid) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
@@ -89,7 +101,7 @@ async function scratchScene(page, pid) {
   await page.setInputFiles('#scratchpad-folder-input', IMGDIR);
   await page.waitForFunction(() => document.querySelectorAll('.scratch-item').length === 3, null, { timeout: 15000 });
   await page.evaluate(() => { window.__ids = [...document.querySelectorAll('.scratch-item')].map(e => e.dataset.scratchId); });
-  await page.evaluate(() => document.querySelector('.scratch-item').scrollIntoView({ block: 'start', inline: 'center' }));
+  await scrollItemIn(page);
   await waitStableRect(page, '.scratch-item', { index: 2 });
   const r0 = await waitStableRect(page, '.scratch-item', { index: 0 });
   const z = r0.width / 860;   // 860 = 항목 폭(캔버스 px) — 화면 폭에서 배율을 읽는다
@@ -284,7 +296,7 @@ test('L7 ★저장 → 재열기(IndexedDB · 새 탭) ×3 — 바꾼 순서가 
     const errs2 = await bootScratch(p2, pid);
     await p2.waitForFunction(() => document.querySelectorAll('.scratch-item').length === 3, null, { timeout: 15000 });
     await p2.evaluate((ids) => { window.__ids = ids; }, ids);
-    await p2.evaluate(() => document.querySelector('.scratch-item').scrollIntoView({ block: 'start', inline: 'center' }));
+    await scrollItemIn(p2);
     const P2 = await overlapPoint(p2);
     const s = await state(p2, P2), sb = await state(p2, P2);
     expect(s).toEqual(sb);
@@ -317,7 +329,7 @@ test('L10 지키는 자 — 입력칸에 글자 커서가 있으면 ⌘[ 는 스
   // 우측 패널에 입력칸이 뜨게 도형 하나를 고른 뒤(앱의 제 문), 스크래치 C 를 고르고, 그 패널 입력칸을 실클릭
   const [s1] = await addTwoRects(page);
   await clickShape(page, s1);
-  await page.evaluate(() => document.querySelector('.scratch-item').scrollIntoView({ block: 'start', inline: 'center' }));
+  await scrollItemIn(page);
   const P = await overlapPoint(page);
   await page.mouse.click(P[0], P[1]); await frames(page);
   expect((await state(page, P)).sel).toBe('C');
@@ -420,7 +432,7 @@ test('L11 ★섞인 선택이면 스크래치가 가져간다 · 그 히스토�
   await press(page, 'Meta+BracketLeft'); const canvasUp = (await tip(page)).action;
   expect(canvasDown && canvasUp && canvasDown !== canvasUp).toBeTruthy();
   // 섞는다: 캔버스 자식이 골라진 채 스크래치 C 를 실클릭
-  await page.evaluate(() => document.querySelector('.scratch-item').scrollIntoView({ block: 'start', inline: 'center' }));
+  await scrollItemIn(page);
   const P2 = await overlapPoint(page);
   await page.mouse.click(P2[0], P2[1]); await frames(page);
   const mixed = await page.evaluate(() => ({ canvas: document.querySelectorAll('#canvas .shape-block.selected').length }));
@@ -455,7 +467,7 @@ test('L12 ★섞인 선택 · 스크래치 C 가 이미 맨 위에서 ⌘] → �
   await press(page, 'Meta+KeyZ');
   expect(await shapeOrder(page)).toEqual(oc0);
   // 섞는다: 캔버스 자식이 골라진 채 스크래치 C(맨 위)를 실클릭
-  await page.evaluate(() => document.querySelector('.scratch-item').scrollIntoView({ block: 'start', inline: 'center' }));
+  await scrollItemIn(page);
   const P = await overlapPoint(page);
   await page.mouse.click(P[0], P[1]); await frames(page);
   expect(await page.evaluate(() => document.querySelectorAll('#canvas .shape-block.selected').length), '전제: 캔버스 선택이 남아 있다(섞인 상태)').toBeGreaterThan(0);

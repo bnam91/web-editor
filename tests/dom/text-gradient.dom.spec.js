@@ -320,9 +320,9 @@ test('G10 ★재선택·재로드 뒤 솔리드 복귀 = 같은 세션과 같은
   await page.locator('.goya-cp-grad-thumb').first().click();
   await page.fill('.goya-cp-popover [data-el="gradStopHex"]', 'FF8800');
   await page.locator('.goya-cp-popover [data-el="gradStopHex"]').press('Enter');
-  await page.waitForTimeout(60);
+  /* 칸 반영은 rAF 뒤(color-picker _scheduleEmitGradient) — 이 맥에서 첫 rAF 13~117ms · 반영 97~182ms 라 고정 60ms 가 간헐로 빨강(★250D) */
+  await expect.poll(async () => (await look(page, 'tb1')).tg?.stops?.[0]?.color).toBe('#ff8800');
   const g = await look(page, 'tb1');
-  expect(g.tg.stops[0].color).toBe('#ff8800');
   await closePicker(page);
   // ① 재선택
   await select(page, 'tb2');

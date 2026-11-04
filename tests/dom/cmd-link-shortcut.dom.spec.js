@@ -26,7 +26,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js cmd-link-shortcut
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const { expectOneUndoStep } = require('./_history-step.js');
 
 const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -69,6 +69,7 @@ async function buildScene(page) {
 async function setup(page) {
   await page.setViewportSize({ width: 1700, height: 1100 });
   await bootApp(page);
+  await waitZoomSettled(page, 40);   // ★부트의 applyZoom(40) 전환이 멎은 뒤에 장면을 세운다 — 전환 중 scrollIntoView 는 그림을 패널·덮개 밑에 떨군다
   const ids = await buildScene(page);
   await page.evaluate(async ({ px, items }) => {
     // ★폭 320 · 간격도 같은 비로 — 단추 넷이 안 들어가는 좁은 그림은 단추를 숨긴다(scratch-narrow-btns · 247). 이 시험은 단추 길을 잰다
@@ -121,6 +122,7 @@ async function clickLinkBtn(page, sid, { meta = false } = {}) {
     .scrollIntoView({ block: 'center', inline: 'center' }), sid);
   const btn = page.locator('.scratch-item[data-scratch-id="' + sid + '"] .spl-btn-link');
   await expect(btn, `전제 — ${sid} 에 🔗 손잡이가 있다`).toHaveCount(1);
+  await page.locator('.scratch-item[data-scratch-id="' + sid + '"]').hover();   // 사람 손은 카드에 먼저 올라간다 — 안 보일 때 단추는 클릭을 안 받는다(앞 동작의 마우스 자리에 기대면 흔들린다)
   await btn.click(meta ? { modifiers: ['Meta'] } : {});
   await page.waitForTimeout(350);
 }

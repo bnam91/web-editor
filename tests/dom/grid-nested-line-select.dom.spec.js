@@ -363,7 +363,10 @@ test('A3-양성2 ★연 문을 도로 «막으면» 고치는 손잡이가 사�
 async function runDelete(page, delSrc = DEL_SRC) {
   return page.evaluate((src) => {
     const calls = { showToast: [] };
-    const scope = { clearAssetImage: () => {} };
+    /* 이 칸들은 바일아웃에서 끝나 뒤 갈래를 안 지나지만 본문이 읽는 이름은 다 넘긴다(198 자가 잰다) · 값은 앱 것 그대로 */
+    const scope = { clearAssetImage: () => {}, canvasEl: document.getElementById('canvas'), _splReleaseSections: () => null,
+      CANVAS_SEL_BLOCKS: window.CANVAS_SEL_BLOCKS, SECTION_BLOCK_TYPE_SEL: window.SECTION_BLOCK_TYPE_SEL, SECTION_BLOCK_TYPE_SEL_SELECTED: window.SECTION_BLOCK_TYPE_SEL_SELECTED,
+      clearMultiSel: window.clearMultiSel, deselectAll: window.deselectAll, ensureHistoryCheckpoint: window.ensureHistoryCheckpoint, multiSel: window.multiSel, pushHistory: window.pushHistory };
     window.showToast = (msg) => calls.showToast.push(msg);
     const names = Object.keys(scope);
     const fn = new Function(...names, `${src}; return deleteSelectedFromCanvas;`)(...names.map(n => scope[n]));

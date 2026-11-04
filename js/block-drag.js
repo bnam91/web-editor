@@ -2997,6 +2997,7 @@ function _bindFrameOwnDrag(ss) {
     // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
     if (e.target !== ss) return;
     // 선택된 프레임이 아니면 드래그 취소
+    if (!ss.classList.contains('selected') && ss._gapSurfacePress) _pickFrameOnPress(ss);   // 면으로 친 gap 에서 시작한 끌기 — 누를 때 안 골랐으니 여기서 고른다
     if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
     e.stopPropagation();
     _suppressDragSave();
@@ -3018,6 +3019,16 @@ function _bindFrameOwnDrag(ss) {
     window.buildLayerPanel();
     window.triggerAutoSave?.();
   });
+}
+
+function _pickFrameOnPress(ss) {
+  window.deselectAll?.();
+  const parentSec = ss.closest('.section-block');
+  if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+  ss.classList.add('selected');
+  window._activeFrame = ss;
+  window.highlightBlock?.(ss, ss._layerItem);
+  window.showFrameProperties?.(ss);
 }
 
 /* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). */
@@ -3214,6 +3225,7 @@ function _bindFrameFlowDrop(ss) {
              .dragging 이 고착해 연회색이 된다(js/CLAUDE.md 「draggable 잔류 버그」, text-frame
              경로가 이미 같은 처방을 쓴다). 프레임도 «대칭»으로 걷고 재바인딩을 연다. */
           if (_isFrameDrop) {
+            dragState.dragSrc._bindAbsCellDrag?.();   // 흐름으로 묶인 프레임은 좌표 끌기가 없다 — 안 걸면 옮긴 뒤 안 끌렸다(S6 K)
             dragState.dragSrc.removeAttribute('draggable');
             dragState.dragSrc._dragBound = false;
           }
@@ -3241,6 +3253,7 @@ function _bindFrameFlowDrop(ss) {
       const _fpad = framePadding(inner);   // F5
       let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
       _incoming.forEach(b => {
+        window.settleMovedBridge?.(b);
         b.style.top  = _stackY + 'px';
         const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
         b.style.left = Math.max(_fpad.l, _off.left) + 'px';
@@ -3258,6 +3271,7 @@ function _bindFrameFlowDrop(ss) {
       growFrameToFitChildren(inner);
     }
 
+    window.settleMovedBridge?.(dragState.dragSrc);   // inner 는 프레임이라 안 내려간다 — 끌어 넣은 브릿지는 직접
     window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
     window.pruneGridKidsBox?.(_fromKids);   // G19 — 비었을 때만 걷는다
     // dragging 클래스 고착 방지
@@ -3275,6 +3289,24 @@ function _frameUnderPointer(x, y, dragEl, section) {
     const r = f.getBoundingClientRect();
     return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
   }) || null;
+}
+
+/* 부모 프레임 밖에서 놓았을 때만 커서 아래 다른 프레임 — 안에서 놓으면 제자리다. */
+function _frameOutsideParentAt(ev, el, parent) {
+  const section = el.closest('.section-block');
+  if (!parent || !section || el.dataset.overlayBlock === 'true') return null;
+  const r = parent.getBoundingClientRect();
+  if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) return null;
+  return _frameUnderPointer(ev.clientX, ev.clientY, el, section);
+}
+
+/* 좌표로 끌던 자식 프레임을 스택에 넣는다 — 처리기는 묶을 때의 position 으로 갈리니 흐름 단위로 다시 태어나게 한다(section-drag.js rebirthFlowUnit). */
+function _moveFrameIntoFlow(el, frame, ev) {
+  for (const k of ['position', 'left', 'top']) el.style[k] = '';
+  delete el.dataset.offsetX; delete el.dataset.offsetY;
+  frame.insertBefore(el, getDragAfterElement(frame, ev.clientY) || null);
+  window.rebirthFlowUnit?.(el);
+  window.buildLayerPanel?.();
 }
 
 /* 끄는 동안 커서 아래 프레임을 표시하고 { frame, free, x, y } 를 돌려준다. ev 없이 부르면 표시만 걷는다. */
@@ -3421,6 +3453,9 @@ function bindFrameDropZone(ss) {
       // 자식 블록 클릭: selected 자식만 bindBlock에 위임, 미선택 자식은 B drag로 처리
       // (B selected 상태에서 TF/C 영역 mousedown → e.target이 C가 될 수 있음)
       if (e.target !== ss) {
+        /* 고른 자식 프레임을 누른 것이다 — 끌기는 그 프레임 몫이다. 안 비키면 스택 안 K 를 끌 때 그릇이 통째로 끌렸다(S6 K). */
+        const _pressedFrameK = e.target.closest('.frame-block:not([data-text-frame])');
+        if (_pressedFrameK !== ss && _pressedFrameK?.classList.contains('selected')) return;
         const childBlock = e.target.closest(CHILD_BLOCK_SEL);
         if (childBlock?.classList.contains('selected')) {
           // text-block이 절대배치 text-frame 안에 있으면 B drag로 처리
@@ -3553,9 +3588,12 @@ function bindFrameDropZone(ss) {
         /* 누를 때 올린 바깥 표시를 내린다 — 손잡이가 mouseup 을 받으면 click 이 안 와서 바깥이 골린 채 남았다(모서리 누름). */
         parentFreeFrame?.classList.remove('selected');
         if (moved) {
+          const _into = multiPeers.length ? null : _frameOutsideParentAt(upEv, ss, parentFreeFrame);
+          if (_into && _into.dataset.freeLayout !== 'true') { _moveFrameIntoFlow(ss, _into, upEv); window.pushHistory?.(); window.triggerAutoSave?.(); return; }
+          if (_into) _placeInFreeFrame(ss, { frame: _into, x: upEv.clientX, y: upEv.clientY });
           /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
              ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
-          const _dropParent = parentFreeFrame || ss.parentElement;
+          const _dropParent = _into || parentFreeFrame || ss.parentElement;
           if (_dropParent && _dropParent.classList?.contains('frame-block') && frameClampsDrag(_dropParent, 'drop')) {
             const c = clampChildIntoFrame(
               parseFloat(ss.style.left) || 0, parseFloat(ss.style.top) || 0,
@@ -3622,6 +3660,7 @@ function bindFrameDropZone(ss) {
     /* 스택 변환이 패딩을 gap 블럭으로 바꿔 프레임 면을 덮는다 ⇒ 고르지 않은 직속 gap 은 프레임 면으로 친다(S6 새 발견 ⑤). gap 자신의 draggable 은 bindBlock 의 gap 갈래 mousedown 이 끈다. */
     const _gapAsSurface = isInnerBlock?.classList.contains('gap-block') && !isInnerBlock.classList.contains('selected')
       && isInnerBlock.parentElement === ss && ss.style.position !== 'absolute' && ss.dataset.freeLayout !== 'true';
+    ss._gapSurfacePress = !!_gapAsSurface;
     if (isInnerBlock && !_flowShapeWrapper && !_gapAsSurface) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
@@ -3646,15 +3685,7 @@ function bindFrameDropZone(ss) {
     if (e.button !== 0) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
     /* gap 을 면으로 칠 때는 여기서 고르지 않는다 — 고르면 같은 클릭의 click 이 «고른 프레임의 자식»으로 읽어 한 번에 gap 까지 내려간다(뒤집기 칸이 있는 프레임 패널을 못 봤다). 프레임은 click 이 고른다. */
-    if (!ss.classList.contains('selected') && !_gapAsSurface) {
-      window.deselectAll?.();
-      const parentSec = ss.closest('.section-block');
-      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-      ss.classList.add('selected');
-      window._activeFrame = ss;
-      window.highlightBlock?.(ss, ss._layerItem);
-      window.showFrameProperties?.(ss);
-    }
+    if (!ss.classList.contains('selected') && !_gapAsSurface) _pickFrameOnPress(ss);
   });
 
   // 프레임 자체 hover → 레이어 패널 하이라이트

@@ -108,7 +108,7 @@ function _txDone(tx) {
     tx.onabort    = e => reject(e.target.error || new DOMException('스크래치 쓰기 중단', 'AbortError'));
   });
 }
-/* 공용 알림 자리(S3 market5 제안) — 저장이 안 됐는데 말없는 자리를 여기 하나로 받는다. 화면에 항목이 보여도 다시 열면 없을 수 있다는 것만 알린다.
+/* 공용 알림 자리(S3 market5 제안) — 저장이 안 됐는데 말없는 자리를 여기 하나로 받는다. 넣은 것이 빠질 수도, 지운 것이 돌아올 수도 있어 «화면과 다르다» 고만 말한다.
    부르는 쪽이 제 말을 하는 넣기(_scratchImportAll)는 안 탄다. 연달아 실패하면 도배가 되니 간격을 둔다. 시험: tests/dom/scratch-write-abort.dom.spec.js */
 const _SCRATCH_WARN_GAP_MS = 10000;
 let _scratchWarnAt = -Infinity;
@@ -117,11 +117,11 @@ function _warnScratchWriteFailed(e) {
   const now = performance.now();
   if (now - _scratchWarnAt < _SCRATCH_WARN_GAP_MS) return;
   _scratchWarnAt = now;
-  window.showToast?.('⚠️ 스크래치를 저장하지 못했습니다. 지금 보이는 이미지가 다시 열면 없을 수 있습니다.');
+  window.showToast?.('⚠️ 스크래치를 저장하지 못했습니다. 다시 열면 지금 화면과 다를 수 있습니다.');
 }
 /* flush 는 항목을 화면·메모리에서 먼저 비운다. 쓰기가 실패하면 그 항목은 어디에도 없게 된다 ⇒ 이 세션에서 그 키를 다시 열 때 여기서 되살린다 */
 const _unsavedFlush = new Map();
-async function _saveScratch() {
+async function _saveScratch({ quiet = false } = {}) {   // quiet = 부르는 쪽이 제 말로 알린다
   if (!_scratchLoaded) return; // ★로드 미완료 컨텍스트 — 빈/불완전 배열로 기존 데이터 덮어쓰기 방지
   const key = _getScratchKey(_currentProjectId, _currentPageId);
   if (!key) return; // projectId 없으면 저장 스킵
@@ -130,7 +130,7 @@ async function _saveScratch() {
   const data = _scratchItems.map(s => _pickScratch(s));
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
   tx.objectStore(SCRATCH_STORE).put(data, key);
-  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  return _txDone(tx).catch(e => { if (!quiet) _warnScratchWriteFailed(e); throw e; });
 }
 
 // #16 이식성 — 저장 시 스크래치 «전체 페이지» 외부화 + proj.json 매니페스트 기록.
@@ -152,9 +152,14 @@ async function externalizeScratchpad(proj, projectId) {
     rq.onsuccess = e => res(e.target.result);   // undefined 그대로(키 없음 판별)
     rq.onerror   = e => rej(e.target.error);
   });
-  const writeRaw = (key, data) => {
+  /* 그림 주소만 바꾼다. 읽고 고치고 쓰기를 한 tx 로 — 옛 판을 통째로 쓰면 IPC 를 기다리는 사이 들어온 항목을 지운다(탭 전환이 메모리까지 비운 뒤면 어디에도 안 남는다, S3 scratch ①). 그사이 지운 키도 되살리지 않는다. */
+  const upgradeSrcs = (key, urlOf) => {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-    tx.objectStore(SCRATCH_STORE).put(data, key);
+    const st = tx.objectStore(SCRATCH_STORE);
+    st.get(key).onsuccess = e => {
+      const cur = e.target.result;
+      if (Array.isArray(cur)) st.put(cur.map(it => (urlOf.has(it.src) ? { ...it, src: urlOf.get(it.src) } : it)), key);
+    };
     return _txDone(tx);   // 안 끝나면 저장 길이 saveProject 까지 못 간다(save-load.js 외부화 await)
   };
   const cache = new Map(); // dataUri → goya-asset URL (동일 세이브 내 dedup)
@@ -186,8 +191,7 @@ async function externalizeScratchpad(proj, projectId) {
     }
     page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
     if (changed) {
-      const newData = data.map((it, i) => ({ ...it, src: manifest[i].src }));
-      try { await writeRaw(key, newData); } catch (_) {}
+      try { await upgradeSrcs(key, cache); } catch (_) {}
       if (projectId === _currentProjectId && page.id === _currentPageId) {
         _scratchItems.forEach(s => { const mm = manifest.find(x => x.id === s.id); if (mm && mm.src !== s.src) { s.src = mm.src; const im = s.el.querySelector('img'); if (im) im.src = mm.src; } });
       }
@@ -273,6 +277,7 @@ function _applyMarqueeSelection(baseSet, hitSet) {
   _selectedItems = next;
 }
 
+window._scratchNewId = () => _genScratchId();   // 마켓 머지가 겹치는 원격 항목에 새 이름을 줄 때. 꼴이 다르면 #sp_ 토큰(AI 첨부·OCR 지정)에 안 맞는다
 function _genScratchId() {
   return 'sp_' + Math.random().toString(36).slice(2, 8);
 }
@@ -1488,7 +1493,7 @@ async function _loadScratch(projectId, pageId) {
     //   ★«비었을 때만» = 같은 맥 로컬 편집 보존(로컬 IndexedDB 우선·덮어쓰기 금지·회귀0).
     let items = data;
     let hydrated = false;
-    if (!items || !items.length) {
+    if ((!items || !items.length) && !heldBack) {   // 복원본이 [] 면 사람이 다 지운 것이다, 매니페스트로 되채우지 않는다(S3 scratch ④)
       const pg = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
       const manifest = pg && Array.isArray(pg.scratchpad) ? pg.scratchpad : null;
       if (manifest && manifest.length) {
@@ -1508,9 +1513,16 @@ async function _loadScratch(projectId, pageId) {
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
-    if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
     console.warn('[ScratchPad] load error:', e);
-    window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
+    /* 읽기 오류여도 복원본은 여기서 쓴다. 안 쓰고 남기면 다음 열기에 그 사이 쓴 새 DB 를 덮는다(S3 scratch ③) */
+    const held = gen === _scratchLoadGen ? _unsavedFlush.get(key) : null;
+    if (held) {
+      _unsavedFlush.delete(key);
+      held.forEach(({ src, x, y, w, id, g, linkDy, fx, ocr }) => _createItem(src, x, y, w, id, g, linkDy, fx, ocr));
+    }
+    if (gen === _scratchLoadGen) _scratchLoaded = true; // 기존 동작 유지 — 세션 중 작업/저장은 가능
+    if (held) _saveScratch();
+    else window.showToast?.('⚠️ 스크래치패드 복원 실패 (세션 중에는 정상 동작)');
   }
 }
 
@@ -2003,8 +2015,8 @@ async function switchScratch(newProjectId, pageId) {
   await _loadScratch(newProjectId, pageId);
 }
 
-async function switchScratchPage(newPageId) {
-  await _saveScratch();
+async function switchScratchPage(newPageId, { quiet = false } = {}) {
+  await _saveScratch({ quiet });
   await _loadScratch(_currentProjectId, newPageId);
 }
 

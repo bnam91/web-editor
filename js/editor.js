@@ -4439,12 +4439,14 @@ function moveSelectedBlocks(direction) {
 
   // 프레임(frame-block)이 선택된 경우 별도 처리
   const selFrame = window._activeFrame;
-  if (selFrame && selFrame.classList.contains('selected')) {
+  // ★J4468B — 프레임 안 자식을 고르면 프레임도 .selected 로 남는다 ⇒ 고른 자식이 옮겨져야 한다(이 갈래가 먼저 먹어 프레임이 옮겨졌다). 도형 래퍼는 도형이 곧 래퍼라 그대로
+  const _childPicked = selFrame && !isShapeFrame(selFrame) && selFrame.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED);
+  if (selFrame && selFrame.classList.contains('selected') && !_childPicked) {
     /* ★컨테이너는 «실제 부모»다. closest('.section-inner') 는 합쳐 넣은 몸
        (.section-merged-part) 안의 프레임에 대해 «바깥» inner 를 집어, indexOf 가 -1 이 되고
        아래로 이동이 containerItems[0].after() 로 떨어져 «프레임이 섹션 맨 위로 순간이동»했다
        (위로는 idx<=0 에 걸려 먹통). 상자를 지나 밖으로 꺼내지기까지 한다. */
-    const sectionInner = (selFrame.parentElement?.classList.contains('section-merged-part')
+    const sectionInner = (selFrame.parentElement?.classList.contains('section-merged-part') || selFrame.parentElement?.classList.contains('frame-block')   // 중첩 프레임도 실제 부모 안에서만
       ? selFrame.parentElement
       : selFrame.closest('.section-inner'));
     if (!sectionInner) return;
@@ -4484,9 +4486,10 @@ function moveSelectedBlocks(direction) {
   //   unitSet 이 비어 ⌘[/⌘] 가 «조용히» 아무 일도 안 한다(먹통으로 보인다).
   const _isUnitParent = el => !!el && (el.classList.contains('section-inner')
     || el.classList.contains('frame-block') || el.classList.contains('section-merged-part'));
+  // ★J4468B — 글자·말풍선은 .row 없이 글상자 프레임이 단위다. 안 넣으면 unitSet 이 비어 조용히 안 먹었다(앱 ×3)
   const getUnit = b => b.classList.contains('gap-block')
     ? (_isUnitParent(b.parentElement) ? b : b.closest('.row'))
-    : b.closest('.row');
+    : (b.closest('.row') || b.closest('.frame-block[data-text-frame]'));
 
   const unitSet = new Set();
   selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
@@ -4497,10 +4500,15 @@ function moveSelectedBlocks(direction) {
   const container = units[0].parentElement;
   if (!units.every(u => u.parentElement === container)) return; // 다른 컨테이너 혼합 → 무시
 
-  // 컨테이너의 직속 자식(row/gap-block)만 포함하는 목록
+  // 컨테이너의 직속 자식(row/gap-block/흐름 프레임)만 포함하는 목록
+  // ★J4468B — frame-block 이 빠져 행이 위아래 프레임을 한 번에 건너뛰었다(앱 ×3). 떠 있는 프레임은 흐름 형제가 아니다
   const containerItems = [...container.children].filter(c =>
     c.classList.contains('row') || c.classList.contains('gap-block')
+    || (c.classList.contains('frame-block') && c.style.position !== 'absolute')
   );
+
+  // 흐름 형제가 아닌 단위(떠 있는 글상자)는 옮길 자리가 없다 — indexOf -1 이면 아래 갈래가 맨 앞 형제 뒤로 튄다
+  if (!units.every(u => containerItems.includes(u))) return;
 
   // DOM 순서대로 정렬
   units.sort((a, b) => containerItems.indexOf(a) - containerItems.indexOf(b));

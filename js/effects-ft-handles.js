@@ -149,13 +149,15 @@ export function ftHandlesSync(tb) {
   const { fx, layer, edge, grid } = _ensureLayers(tb);
   /* ★★⒤ 꾸밈 층 — ★글자와 ★«같은 행렬». ★시안 `:570~571` 그대로(origin `0 0`). */
   fx.style.width = st.W + 'px'; fx.style.height = st.H + 'px';
-  fx.style.left = st.OX + 'px'; fx.style.top = st.OY + 'px';
+  /* ★J146B ⒝ — OX·OY 는 글자칸 기준인데 이 층들은 글상자 기준이다 ⇒ 패딩만큼 어긋났다(패딩 40 · 줌 100 에서 보라가 글자 위 40). */
+  const ox = glyph.offsetLeft + st.OX, oy = glyph.offsetTop + st.OY;
+  fx.style.left = ox + 'px'; fx.style.top = oy + 'px';
   fx.style.transform = glyph.style.transform || '';
   fx.style.transformOrigin = '0 0';
 
   /* ★★ⅱ) 손잡이 층 — ★★변형 ★«밖». ⇒ ★★두께가 ★균일하다(★현빈 ⒜ 의 ★처방). */
   const scale = _scaleOf(tb);
-  const toLocal = ([x, y]) => [st.OX + x, st.OY + y];      /* ★모델 px · ★블럭 좌표 */
+  const toLocal = ([x, y]) => [ox + x, oy + y];      /* ★모델 px · ★블럭 좌표 */
 
   /* ★★★보라 테두리 — ★★손잡이와 ★«같은 네 점»(`toLocal(D[i])`)을 ★잇는 quad.
      ★★왜 이렇게 두는가 : ★사영변환은 ★직선을 ★직선으로 ★보내므로 ★이 quad 는 ★옛 판(★변형 «안»의

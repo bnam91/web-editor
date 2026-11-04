@@ -61,7 +61,8 @@ function declString(src, name) {
 const PD_MARK = "ss.addEventListener('pointerdown', e => {";
 const PD_AT = DRAG_SRC.indexOf(PD_MARK);
 if (PD_AT < 0) throw new Error('프레임 pointerdown 핸들러를 못 찾았다 — 검사가 대상을 놓쳤다');
-const PD_BODY = sliceBraces(DRAG_SRC, PD_AT + PD_MARK.length - 1);
+const PICK_FN = extractFn(DRAG_SRC, '_pickFrameOnPress');   // 핸들러가 부르는 같은 파일 함수 — 함께 뜬다
+const PD_BODY = PICK_FN + ';' + sliceBraces(DRAG_SRC, PD_AT + PD_MARK.length - 1);
 
 /* ⒝ 세는 자리 — 목록·거르개 둘 다 «정본»에서 떠온다. */
 const FLOW_SEL   = declString(EDITOR_SRC, 'FLOW_BLOCK_SEL_SELECTED');
@@ -110,7 +111,7 @@ async function runPointerDown(page, body, mods) {
       target: ss, shiftKey: !!m.shift, metaKey: !!m.meta, ctrlKey: !!m.ctrl,
       button: m.button ?? 0,   // ★실제 좌클릭 꼴 — 빠지면 U16① button 가드(e.button !== 0)가 먼저 막는다
     };
-    new Function('ss', 'e', src)(ss, e);
+    new Function('ss', 'e', '_onPressEnd', 'isShapeFrame', src)(ss, e, () => {}, () => false);   // 이 칸들은 빈 영역 누름이라 안 지나지만 핸들러 본문이 읽는 이름이다(198)
     return { deselects, frameSelected: ss.classList.contains('selected') };
   }, [body, mods]);
 }

@@ -19,6 +19,19 @@
      ⛔토스트는 미루지 않는다. 포커스를 안 뺏으니 미룰 이유가 없다.
 ═══════════════════════════════════════════════════════════════════════════ */
 (function (w, d) {
+  /* ★연 채 삭제 알림 — 에디터·갤러리가 같이 쓴다. 6초: 짧은 showToast(2초)로는 잃은 내용 안내를 못 읽는다. */
+  w.deletedTabNotice = (name, lost) => `「${name || '이름 없음'}」 프로젝트가 삭제되어 탭을 닫았습니다.`
+    + (lost ? ' 이 탭에서 저장되지 않은 편집은 저장하지 않았습니다.' : '');
+  w.showStatusToast = (msg) => {
+    const el = d.createElement('div');
+    el.className = 'settings-toast';
+    el.setAttribute('role', 'status');
+    el.textContent = msg;
+    d.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => el.remove(), 6000);
+  };
+
   const api = w.electronAPI;
   if (!api || typeof api.notice !== 'object') return;   // 브라우저 프리뷰 등 — 조용히 없음
 

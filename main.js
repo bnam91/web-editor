@@ -9,6 +9,7 @@ if (_QA_HIDDEN) {
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  require('./main/qa-clipboard.js').install(require('electron'));   // 격리 앱이 그 맥의 진짜 클립보드를 덮지 않게(레인 ⌘C·⌘D 사고 2회)
 }
 // ▲QA_HIDDEN
 // ▼DOWNLOADS_DIR (2026-10-05 지디 승인) — GODITOR_DOWNLOADS_DIR(절대경로)일 때만: 다운로드 기본 자리를 그 폴더로.
@@ -2004,6 +2005,7 @@ function _getProjectAssetsDir(projectId) {
    blobPath는 'assets/ast_xxx.png' 형식. path traversal 가드 적용. */
 ipcMain.handle('assets:saveFile', (_e, { projectId, b64, mime, originalName } = {}) => {
   if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (_isProjectDeleted(projectId)) return { ok: false, error: 'project_deleted' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
     const id = 'ast_' + Math.random().toString(36).slice(2, 8);
@@ -2080,6 +2082,7 @@ function _extFromMime(mime) {
 }
 ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => {
   if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (_isProjectDeleted(projectId)) return { ok: false, error: 'project_deleted' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
     const buf = Buffer.from(b64, 'base64');
@@ -2142,6 +2145,7 @@ ipcMain.handle('ai:generateImage', (_e, payload) => {
 
 ipcMain.handle('ai:saveImage', (_e, { projectId, b64, mime } = {}) => {
   if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (_isProjectDeleted(projectId)) return { ok: false, error: 'project_deleted' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
     const id = 'aig_' + Math.random().toString(36).slice(2, 8);
@@ -2568,9 +2572,8 @@ function _countSections(proj) {
   return (c.match(/section-block/g)?.length || 0);
 }
 
-// BUG-NAME-LOSS: 큰 프로젝트 load race에서 tab.name='Untitled' 상태로 save 들어와 진짜 이름이 'Untitled'로 덮어쓰이는 회귀 방어.
-// prev.name이 'Untitled' 아닌 유의미한 이름인데 incoming.name이 비거나 'Untitled'이면 prev.name 유지.
-// (사용자가 의도적으로 'Untitled'로 rename하는 케이스는 거의 없음 — rename UI는 빈 input만 'Untitled' 폴백)
+// BUG-NAME-LOSS: 큰 프로젝트 load race에서 tab.name='Untitled' 상태로 save 들어와 진짜 이름이 'Untitled'로 덮어쓰이는 회귀.
+// ★340 A 부터: prev.name 이 유의미하면 다른 이름 저장은 모두 prev.name 유지 — 이름 바꾸기는 _renameProjectImpl 표식으로만.
 function _guardProjectName(incomingProject, prevPath) {
   try {
     /* ★342 — 새로 생기는 파일에 createdAt 이 없으면 여기서 찍는다. 스냅샷(serializeProject)에는 이 칸이 없어 마켓 받기·휴지통 뒤 자동저장이
@@ -2581,10 +2584,13 @@ function _guardProjectName(incomingProject, prevPath) {
     const prev = JSON.parse(fs.readFileSync(prevPath, 'utf8'));
     const prevName = prev && prev.name;
     const incomingName = incomingProject && incomingProject.name;
-    const incomingFalsyOrDefault = !incomingName || incomingName === 'Untitled';
     const prevMeaningful = prevName && prevName !== 'Untitled';
+    /* ★340 A — 있는 파일의 이름은 «저장»으로 안 바뀐다. 이름은 _renameProjectImpl 로만 바뀐다.
+       까닭: 자동저장은 먼저 읽어 둔 옛 이름을, 동기 저장은 묵은 탭 이름을 들고 온다 — 그 사이 바뀐 이름을 되돌렸다
+       (큰 프로젝트 앱 값 12/12 · 묵은 탭 3/3). 표식은 Symbol 이라 IPC 로 못 오고 파일에도 안 남는다 ⇒ 렌더러가 흉내 못 낸다. */
+    const renameIntent = !!(incomingProject && incomingProject[Symbol.for('goditor.renameIntent')]);
     let guarded = incomingProject;
-    if (incomingFalsyOrDefault && prevMeaningful) {
+    if (prevMeaningful && incomingName !== prevName && !renameIntent) {
       console.warn(`[projects:save] name guard: '${incomingName}' → '${prevName}' 복원 (id=${incomingProject.id})`);
       guarded = { ...incomingProject, name: prevName };
     }
@@ -2624,7 +2630,21 @@ function _rollBackup(prevPath, backupPath) {
   return { called: true, copied: true };
 }
 
+/* ★연 채 삭제(현빈 결정 2026-11-03): 지운 프로젝트는 저장이 되살리지 못한다 — 쓰기를 거절하고, 탭을 닫고, 알린다(closeDeletedProjectTab).
+   shortcut: 이번 실행 동안만 기억한다. 재시작 뒤 쓰기는 안 막는다 — 탭 목록에서 이미 빠져 있어 그 길이 없다. 휴지통 복원이 푼다.
+   ⛔proj.json 이 있으면 절대 거절하지 않는다 — 거짓 양성이 곧 손실이다(복원이 실패로 끝나도 프로젝트가 돌아와 있을 수 있다). */
+const _deletedProjects = new Set();
+const _isProjectDeleted = (id) => _deletedProjects.has(String(id)) && !_resolveProjectJsonPath(String(id));
+const _callEachWindow = (js, ms) => Promise.all(BrowserWindow.getAllWindows().map((w) => Promise.race([   // 멈춘 창이 삭제를 붙들지 않게
+  w.webContents.executeJavaScript(js, true).catch(() => {}),
+  new Promise((r) => setTimeout(r, ms)),
+])));
+const _closeDeletedTabs = (projectId) => _callEachWindow(`window.closeDeletedProjectTab?.(${JSON.stringify(projectId)})`, 3000);
+/* 휴지통으로 옮기기 전에 밀린 편집을 내린다 — 되살리면 그 내용이 돌아온다. 영구 삭제는 안 부른다. */
+const _flushBeforeTrash = (projectId) => _callEachWindow(`window.flushProjectBeforeTrash?.(${JSON.stringify(projectId)})`, 5000);
+
 async function _saveProjectImpl(project) {
+  if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
   const filePath = paths.proj;
@@ -2693,6 +2713,7 @@ ipcMain.on('app:save-pending', (event, on) => _setSavePending(event.sender, !!on
 ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
+    if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
@@ -2810,7 +2831,11 @@ ipcMain.handle('trash:list', () => {
   catch (e) { return { ok: false, error: e.message, items: [] }; }
 });
 ipcMain.handle('trash:restore', (_e, id) => {
-  try { return _trash.restoreFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || '') }); }
+  try {
+    const r = _trash.restoreFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || '') });
+    if ((r && r.ok) || _resolveProjectJsonPath(String(id))) _deletedProjects.delete(String(id));   // 실패여도 돌아와 있으면 푼다(rollbackStuck)
+    return r;
+  }
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
 });
 ipcMain.handle('trash:purge', async (_e, id) => {
@@ -2854,8 +2879,11 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
      ⛔조용히 OS 휴지통으로 폴백하지 «않는다» — 실패는 실패라고 말해야 사용자가 판단한다.
        (그 다음 판단지는 UI 에 이미 있다: 「영구 삭제할까요」 2차 확인) */
   if (!permanent) {
+    await _flushBeforeTrash(safeId);
     const r = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId: safeId });
     if (r.ok) {
+      _deletedProjects.add(safeId);
+      await _closeDeletedTabs(safeId);
       /* ★사람이 쓰는 화면도 같은 위험에 놓인다 — 편집기에 열려 있으면 자동저장이 되살린다 */
       const reap = await _reapRevived(safeId);
       return { ok: true, trashed: true, appTrash: true, projectId: safeId,
@@ -2892,6 +2920,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
        permanent 는 애초에 마커를 «안» 썼다 — 휴지통에서 찾을 일이 없으니까.
      ★그래서 이 블록은 어느 경로에서도 안 돌았다. 남겨두면 「어느 쪽이 진짜 마커인가」로 다음 사람이 헤맨다. */
 
+  _deletedProjects.add(safeId);   // 옮기는 await 사이의 저장도 막는다 · 실패하면 아래서 푼다
   const failed = [];
   let trashedCount = 0;
   let bundleMoved = false;   // ★«우리가» 번들을 옮겼나 — 사후조건은 그때만 의미가 있다
@@ -2930,6 +2959,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     //   「영구 삭제할까요」를 물으므로, 여기서 거짓을 말하면 사용자가 판단을 그르친다.
     const partial = trashedCount > 0;   // 잔재 일부만 옮겨졌다(프로젝트 본체는 그대로)
     console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
+    if (!bundleMoved) _deletedProjects.delete(safeId);
     return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
              reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
              message: failed[0].error, failed };
@@ -2940,6 +2970,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     return { ok: false, trashed: true, deleted: trashedCount, reason: 'recreated_during_delete',
              message: '삭제 도중 프로젝트가 다시 만들어졌습니다(다른 창에서 편집 중일 수 있습니다).' };
   }
+  await _closeDeletedTabs(safeId);
   return { ok: true, trashed: !permanent, deleted: trashedCount };
 });
 
@@ -2975,13 +3006,16 @@ async function _reapRevived(projectId, windowMs = 800, stepMs = 50) {
   const back = path.join(_projectsRoot(), projectId);
   let revived = false;
   const t0 = Date.now();
+  /* ★복원됐으면 물러난다 — 지우면 휴지통 사본도 없어 되돌릴 수 없다(창 안 복원 앱 3/3 소실). 복원 핸들러가 집합에서 뺀다. */
   while (Date.now() - t0 < windowMs) {
+    if (!_deletedProjects.has(projectId)) return { revived: false, cleaned: false };
     if (fs.existsSync(back)) { revived = true; break; }
     await new Promise(r => setTimeout(r, stepMs));
   }
   if (!revived) return { revived: false, cleaned: false };
   /* 되살아난 뒤에도 한 번 더 쓸 수 있으니, 지우고 «없어졌나»로 판정한다 */
   for (let i = 0; i < 3; i++) {
+    if (!_deletedProjects.has(projectId)) return { revived: false, cleaned: false };
     try { fs.rmSync(back, { recursive: true, force: true }); } catch (_) {}
     if (!fs.existsSync(back)) return { revived: true, cleaned: true, waitedMs: Date.now() - t0 };
     await new Promise(r => setTimeout(r, stepMs));
@@ -2996,7 +3030,7 @@ const GALLERY_PAGE = 'pages/projects.html';
 async function _clearActiveIfNeeded(projectId, wasActive) {
   if (!wasActive) return false;
   try {
-    global.currentActiveProjectId = null;
+    if (global.currentActiveProjectId === projectId) global.currentActiveProjectId = null;   // 탭을 닫아 옆 탭으로 갔으면 그대로
     for (const w of BrowserWindow.getAllWindows()) {
       try {
         const u = w.webContents && w.webContents.getURL && w.webContents.getURL();
@@ -3012,7 +3046,7 @@ async function _clearActiveIfNeeded(projectId, wasActive) {
           await w.loadFile(GALLERY_PAGE).catch(() => {});
         }
         await w.webContents.executeJavaScript(
-          'try{window.activeProjectId=null}catch(_){}; true', true).catch(() => {});
+          `try{if(window.activeProjectId===${JSON.stringify(projectId)})window.activeProjectId=null}catch(_){}; true`, true).catch(() => {});
       } catch (_) {}
     }
     return true;
@@ -3048,8 +3082,11 @@ async function _deleteProjectImpl({ projectId } = {}) {
        사용자가 「AI 가 지운 것」을 자기 휴지통 탭에서 찾을 수 있다.
        ⛔도구만 다른 데로 버리면 사용자는 영영 못 찾는다. */
     {
+      await _flushBeforeTrash(projectId);
       const tr = _trash.moveToTrash({ projectsDir: _projectsRoot(), projectId });
       if (tr.ok) {
+        _deletedProjects.add(projectId);
+        await _closeDeletedTabs(projectId);   // ★활성 비우기 앞 — 옆 탭이 있으면 갤러리로 쫓아내지 않는다
         const cleared = await _clearActiveIfNeeded(projectId, wasActive);
         /* ★★«되살아났나»를 본다 (2026-09-08 실측 사고).
              옮기는 건 동기 rename 이라 그 사이엔 창이 없다 — 그래서 사후조건을 뺐는데 «틀렸다».
@@ -3093,26 +3130,33 @@ async function _renameProjectImpl({ projectId, name } = {}) {
       return { ok: false, error: `invalid projectId: ${projectId}`, code: 'not_proj' };
     const nm = (name == null ? '' : String(name)).trim();
     if (!nm) return { ok: false, error: 'name 이 비었다(공백만도 안 된다)', code: 'invalid' };
-    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
     const jsonPath = _resolveProjectJsonPath(projectId);
     if (!jsonPath || !fs.existsSync(jsonPath))
       return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
     const proj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     const before = proj.name;
     if (before === nm) return { ok: true, projectId, name: nm, changed: false, note: '이미 그 이름이다' };
+    /* ★340 — 길이는 «같은 이름» 다음에 잰다: 옛 100자 초과 이름은 눌렀다 나가기만 해도 실패 알림이 떴다. */
+    if (nm.length > 100) return { ok: false, error: `name too long (${nm.length} > 100)`, code: 'invalid' };
     proj.name = nm;
     proj.updatedAt = new Date().toISOString();
+    proj[Symbol.for('goditor.renameIntent')] = true;   // ★340 A — 이 저장만 이름을 바꿀 수 있다(_guardProjectName)
     const r = await _saveProjectImpl(proj);
     if (!r || r.ok !== true) return { ok: false, error: 'save failed', code: 'io' };
     /* ★효과로 판정한다 — 「썼다」가 아니라 «디스크에서 다시 읽어» 확인한다. */
     const after = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).name;
     if (after !== nm) return { ok: false, error: `저장했는데 값이 다르다: ${after}`, code: 'noeffect' };
-    return { ok: true, projectId, name: nm, previousName: before, changed: true };
+    return { ok: true, projectId, name: nm, previousName: before, changed: true, updatedAt: proj.updatedAt };
   } catch (e) {
     console.error('[projects:rename] 예외:', e);
     return { ok: false, error: e.message || '알 수 없는 오류', code: 'io' };
   }
 }
+
+/* ★340 B — 렌더러의 이름 바꾸기 입구. ⛔렌더러에서 loadProject → saveProject 로 왕복하지 마라:
+     그 틈에 자동저장이 끼면 방금 저장된 편집이 옛 내용으로 덮인다(지연 대역 앱 값 9/9).
+     여기는 읽기~쓰기가 한 틱이라 끼어들 틈이 없다. */
+ipcMain.handle('projects:rename', (_e, args) => _renameProjectImpl(args || {}));
 
 async function _duplicateProjectImpl({ sourceProjectId, newName, sourceData } = {}) {
   try {
@@ -3551,6 +3595,7 @@ async function _openProjectImpl({ projectId, timeoutMs } = {}) {
 
 /* ── IPC: Projects Meta (branches/commits/thumbnail 분리 저장) ── */
 ipcMain.handle('projects:save-meta', (event, projectId, metaData) => {
+  if (_isProjectDeleted(projectId)) return { ok: false, reason: 'project_deleted' };
   // write는 항상 신 위치 — proj_<id>/proj_meta.json
   const paths = _ensureNewLayoutPaths(projectId);
   // H2: 다중 writer(branch/commit/thumbnail/colorVars) lost update 방지.
@@ -3757,6 +3802,7 @@ require('./main/collab').init(ipcMain, {
   },
   writeMeta: (id, patch) => {
     // read-merge-write — 목록 캐시(name·thumbnail 등)를 날리지 않는다.
+    if (_isProjectDeleted(id)) return;   // 폴더가 생기면 복원이 막힌다
     const paths = _ensureNewLayoutPaths(id);
     let merged = {};
     try { if (fs.existsSync(paths.meta)) merged = JSON.parse(fs.readFileSync(paths.meta, 'utf8')) || {}; } catch (_) {}

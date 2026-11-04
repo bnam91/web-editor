@@ -243,6 +243,7 @@ function applyPadXToSection(inner, padX) {
   });
   // bridge-block도 항상 full-bleed(섹션 너비 고정) — gradient와 동일 정책 (b3-2)
   inner.querySelectorAll('.bridge-block').forEach(brg => {
+    if (brg.closest('.frame-block')) return;   // 프레임 안은 섹션 패딩 맥락이 없다 — applyBridgeFullBleed 와 같은 가드
     if (padX > 0) {
       brg.style.marginLeft  = -padX + 'px';
       brg.style.marginRight = -padX + 'px';

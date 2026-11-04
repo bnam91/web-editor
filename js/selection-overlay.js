@@ -293,7 +293,7 @@ function _geomOf(el, variant, scale, outset = false) {
      아래·오른쪽은 박스 하한(boxFromCorners)이 이미 감싼다 — 윗변만 안 감싸 파란 선 밖에 보였다(판 0541078b 화면 1.9·3.3·5.2px @ 줌 40·60·100).
      ⇒ 파란 선 윗변만 그만큼 올린다 — ⛔글상자·저장본·배치는 그대로(선만 그린다). 재는 자 tests/dom/u3-purple-outline-geometry U2h·U2n. */
   const ftTb = el.closest?.('.text-block[data-tf-corners]') || el.querySelector?.(':scope > .text-block[data-tf-corners]');
-  const ftUp = ftTb ? Math.min(window.ftStateOf?.(ftTb)?.OY || 0, 0) * scale : 0;
+  const ftUp = ftTb ? Math.min((window.ftStateOf?.(ftTb)?.OY || 0) + (ftTb.querySelector('[contenteditable]')?.offsetTop || 0), 0) * scale : 0;   /* 패딩이 넘친 몫을 받으면 안 올린다 */
   const raw = { l: nw.x, t: nw.y + ftUp, r: se.x, b: se.y };
   const k = _dpr();
   let L = (osOf('l') ? _snapLoOut : _snapLo)(raw.l, k, h),
