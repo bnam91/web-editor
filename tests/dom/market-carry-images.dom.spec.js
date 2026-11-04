@@ -8,25 +8,24 @@ const remote = { version: 2, currentPageId: 'p1', pages: [{ id: 'p1', name: 'p',
   imageGallery: [{ id: 'aig_1', prompt: 'p', mime: 'image/png', src: D, carried: true }],
   assetsTree: [{ id: 'f', type: 'folder', children: [{ id: 'ast_1', type: 'image', name: 'a.png', src: D, carried: true }] }, { id: 'ast_notebg_01', type: 'image', src: D }] };
 
-async function pull(page, failCh, data = remote) {
+async function pull(page, failCh, data = remote, { saveFail = null, scratch = '[]' } = {}) {
   await bootApp(page);
-  await page.evaluate(({ remote, failCh }) => {
+  await page.evaluate(({ remote, failCh, saveFail, scratch }) => {
     window.__saved = []; window.__files = []; window.__toasts = [];
     window.showToast = (t) => window.__toasts.push(String(t));
     const save = (ch, dir) => async (a) => { window.__files.push({ ch, projectId: a.projectId, b64: a.b64, mime: a.mime }); return ch === failCh ? { ok: false, error: '대역' } : { ok: true, id: 'n', blobPath: `${dir}/n_${window.__files.length}.png`, mime: a.mime }; };
     const fake = { ...(window.electronAPI || {}),
-      saveProject: async (p) => { window.__saved.push(JSON.parse(JSON.stringify(p))); return { ok: true }; },
+      saveProject: async (p) => { window.__saved.push(JSON.parse(JSON.stringify(p))); const n = window.__saved.length; if (saveFail?.at === n) { if (saveFail.how === 'throw') throw new Error('대역'); return { ok: false }; } return { ok: true }; },
       listProjects: async () => [],
       assetsSaveFile: save('assets', 'assets'), aiSaveImage: save('ai', 'images'),
-      market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: 'M', name: '원격', version: 'v2' }] }), pull: async () => ({ ok: true, project: { name: '원격', version: 'v2', data: JSON.stringify(remote), scratch: '[]' } }) } };
+      market: { auth: async () => ({ ok: true }), list: async () => ({ ok: true, items: [{ account: 'acc', id: 'M', name: '원격', version: 'v2' }] }), pull: async () => ({ ok: true, project: { name: '원격', version: 'v2', data: JSON.stringify(remote), scratch } }) } };
     Object.defineProperty(window, 'electronAPI', { value: fake, configurable: true, writable: true });
     const d = document.createElement('div'); d.id = 'mk-pane'; d.style.cssText = 'position:fixed;left:400px;top:100px;width:700px;height:500px;background:#111;z-index:99998;overflow:auto'; document.body.appendChild(d);
     window.renderMarketPane(d);
-  }, { remote: data, failCh });
+  }, { remote: data, failCh, saveFail, scratch });
   await page.locator('.market-pull-btn').first().click();
-  await expect.poll(() => page.evaluate(() => window.__saved.length)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__toasts.filter((t) => !t.startsWith('⏳')).length)).toBe(1);
-  return page.evaluate(() => ({ p: window.__saved[0], files: window.__files, toast: window.__toasts.filter((t) => !t.startsWith('⏳'))[0] }));
+  return page.evaluate(() => ({ p: window.__saved[window.__saved.length - 1], saves: window.__saved.length, files: window.__files, toast: window.__toasts.filter((t) => !t.startsWith('⏳'))[0], first: window.__saved[0] }));
 }
 
 test('받기: 실려 온 그림이 새 프로젝트의 파일이 되고 항목은 보통 꼴이다', async ({ page }) => {
@@ -93,4 +92,26 @@ test('setAssetImageFromSrc: 주소의 따옴표가 속성을 못 빠져나간다
     window.setAssetImageFromSrc(ab, D); out.good = ab.querySelector('img').getAttribute('src'); ab.remove(); return out;
   }, { X, D });
   expect(r.onerror).toBe(false); expect(r.xss).toBe(null); expect(r.attr).toBe(X); expect(r.good).toBe(D);
+});
+
+/* 저장·토스트(S3 MKT3 ⑦) */
+for (const how of ['ok', 'throw']) test('받기 저장 실패(' + how + '): ❌ 만, 파일을 안 푼다(고아 폴더 없음), 다시 안 저장한다', async ({ page }) => {
+  const { files, toast, saves } = await pull(page, null, remote, { saveFail: { at: 1, how } });
+  expect(toast).toBe('❌ 저장 실패'); expect(files.length).toBe(0); expect(saves).toBe(1);
+});
+test('받기: 처음 저장 뒤에 파일을 풀고 다시 저장한다, 처음 저장본엔 표식이 있다', async ({ page }) => {
+  const { first, p, saves } = await pull(page);
+  expect(saves).toBe(2); expect(first.imageGallery[0].carried).toBe(true); expect(p.imageGallery[0].carried).toBeUndefined(); expect(p.imageGallery[0].blobPath).toMatch(/^images\//);
+});
+test('음성 받기: 풀 것이 없으면 한 번만 저장한다', async ({ page }) => {
+  const { saves, toast } = await pull(page, null, box([{ id: 'a', type: 'image', src: D }]));
+  expect(saves).toBe(1); expect(toast).toMatch(/^✅/);
+});
+test('받기: 두 번째 저장이 실패하면 못 옮긴 장수를 말한다', async ({ page }) => {
+  const { toast } = await pull(page, null, remote, { saveFail: { at: 2, how: 'throw' } });
+  expect(toast).toMatch(/^⚠️ 받기 완료.*그림 2장/);
+});
+test('받기: 스크래치 실패와 그림 실패를 같이 말한다, 하나가 다른 하나를 안 가린다', async ({ page }) => {
+  const { toast } = await pull(page, null, box([{ id: 'a', type: 'image', carried: true, src: 'nope' }]), { scratch: '{깨진' });
+  expect(toast).toMatch(/^⚠️ 받기 완료, 스크래치·에셋·갤러리 그림 1장은 못 옮겼습니다/);
 });

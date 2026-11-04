@@ -3747,7 +3747,7 @@ async function _carryProjectImages(str, pid, sizes) {
     const full = m && m[2] !== '..' ? path.join(PROJECTS_DIR, _safeSeg(pid), m[1], _safeSeg(m[2])) : null;
     let st = null;
     try { st = full && fs.statSync(full); } catch (_) {}
-    if (!st || !st.isFile()) { missing++; continue; }
+    if (!st) { missing++; continue; }
     _countMarketBytes(sizes, st.size); plan.push([n, full]);
   }
   const tooBig = _marketTooBig(sizes);

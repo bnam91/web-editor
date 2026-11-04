@@ -60,7 +60,7 @@
 
   /* 올린 본에 실려 온 패널·갤러리 그림(main.js _carryProjectImages)을 새 프로젝트의 파일로 풀어 보통 항목으로 만든다. 못 풀면 센다: 패널은 src 로 남아 그림이 보이고, 갤러리는 못 읽는다. */
   async function _unpackCarriedImages(proj, newId) {
-    let failed = 0;
+    let failed = 0, done = 0;
     const walk = async (list, save) => {
       for (const n of Array.isArray(list) ? list : []) {
         if (!n) continue;
@@ -68,14 +68,14 @@
           delete n.carried;
           const m = /^data:([^;]+);base64,(.*)$/s.exec(n.src || '');
           const r = m ? await save({ projectId: newId, b64: m[2], mime: m[1], originalName: n.originalName || n.name }).catch(() => null) : null;
-          if (r?.ok && r.blobPath) { n.blobPath = r.blobPath; delete n.src; } else failed++;
+          if (r?.ok && r.blobPath) { n.blobPath = r.blobPath; delete n.src; done++; } else failed++;
         }
         await walk(n.children, save);
       }
     };
     await walk(proj.assetsTree, window.electronAPI.assetsSaveFile);
     await walk(proj.imageGallery, window.electronAPI.aiSaveImage);
-    return failed;
+    return { failed, done };
   }
 
   async function pullProject(account, id, name) {
@@ -108,8 +108,15 @@
     const proj = { ...parsed, id: newId, name: (res.project.name || name || '마켓 프로젝트') + ' (받음)',
       marketRef: { account, id, version: res.project.version || null, updatedAt: res.project.updatedAt || null, pulledAt: new Date().toISOString() } };
     const rejected = _sanitizeReceivedImages(proj);
-    const carryFailed = rejected + await _unpackCarriedImages(proj, newId);
-    const saved = await window.electronAPI.saveProject(proj);
+    /* 저장이 먼저다: 저장이 실패하면 파일을 안 풀어 고아 폴더가 안 생긴다(S3 MKT3). 푼 뒤 blobPath 가 생기면 한 번 더 저장한다. */
+    const saved = await window.electronAPI.saveProject(proj).catch((e) => { console.warn('[market] 받은 본 저장 실패:', e.message); return { ok: false }; });
+    if (saved?.ok === false) { _toast('❌ 저장 실패'); return; }
+    const unpacked = await _unpackCarriedImages(proj, newId);
+    let carryFailed = rejected + unpacked.failed;
+    if (unpacked.done) {
+      const again = await window.electronAPI.saveProject(proj).catch(() => ({ ok: false }));
+      if (again?.ok === false) carryFailed += unpacked.done;   // 파일에 인라인으로 남는다: 패널은 보이고 갤러리는 못 읽는다
+    }
     // Phase 1: 받은 스크래치를 새 projectId 키로 복원
     let scratchFailed = false;
     try {
@@ -117,9 +124,8 @@
       if (typeof scratch === 'string') scratch = JSON.parse(scratch);
       if (Array.isArray(scratch) && scratch.length) await window._scratchImportAll?.(newId, scratch);
     } catch (e) { scratchFailed = true; console.warn('[market] 받은 스크래치 복원 실패:', e.message); }
-    if (saved?.ok === false) _toast('❌ 저장 실패');
-    else if (scratchFailed) _toast(`⚠️ 받기 완료, 스크래치는 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
-    else if (carryFailed) _toast(`⚠️ 받기 완료, 에셋·갤러리 그림 ${carryFailed}장은 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
+    const lost = [scratchFailed && '스크래치', carryFailed && `에셋·갤러리 그림 ${carryFailed}장`].filter(Boolean);
+    if (lost.length) _toast(`⚠️ 받기 완료, ${lost.join('·')}은 못 옮겼습니다 — 홈에서 "${proj.name}" 열기${divergeNote}`);
     else _toast(`✅ 받기 완료 — 홈에서 "${proj.name}" 열기${divergeNote}`);
   }
 
