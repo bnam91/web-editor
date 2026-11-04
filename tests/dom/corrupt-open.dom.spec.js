@@ -114,3 +114,13 @@ test('C9 [음성] 페이지 수 감소 거절은 그 말 그대로', async ({ pa
   await page.evaluate(() => window.saveProjectToFile(window.serializeProject()));
   await toasts(page).toContain('페이지 수 감소');
 });
+
+test('C10 탭 닫기 — 다음 탭이 깨졌어도 닫힌다 · 말한다 · 저장을 안 부른다', async ({ page }) => {
+  await setup(page, { [A]: UNREADABLE });
+  const tb = page.locator(`#tab-bar .proj-tab[data-id="${B}"]`).first();
+  await tb.hover(); await tb.locator('.proj-tab-close').click();
+  await expect(page.locator(`#tab-bar .proj-tab[data-id="${B}"]`), '★닫기가 중단됐다').toHaveCount(0);
+  await toasts(page).toContain('proj_corrupt_1.json');
+  expect(await page.evaluate((A) => window.activeProjectId === A, A)).toBe(true);
+  expect(await page.evaluate(() => window.__saves)).toBe(0);
+});
