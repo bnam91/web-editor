@@ -161,11 +161,34 @@ function ungroupBlock(groupEl) {
     if (_toFlow) kids.sort((a, b) => (parseInt(a.style.top) || 0) - (parseInt(b.style.top) || 0));   // 화면 위아래 순서대로 돌아온다
     const _flowed = [];
     if (!_toFlow) _flowKids.forEach(({ c, w }) => { c.style.position = 'absolute'; c.style.width = w + 'px'; c.setAttribute('draggable', 'false'); });
+    const _flowPos = new Map();
+    /* 풀면서 앞 자식이 그룹을 밀어내므로 자리는 꺼내기 «전»에 재 둔다(섹션 기준) */
+    const _secEl = groupEl.closest('.section-block');
+    const _secBox = el => { const r = el.getBoundingClientRect(), s = _secEl.getBoundingClientRect(); return { x: r.left - s.left, y: r.top - s.top }; };
+    const _ownBox = new Map(kids.filter(c => _toFlow && _secEl && c.dataset.x != null && c.dataset.y != null && c.dataset.overlayBlock !== 'true').map(c => [c, _secBox(c)]));
     kids.forEach(c => {
       const cl = (parseInt(c.style.left) || 0) + gx;
       const ct = (parseInt(c.style.top) || 0) + gy;
-      c.style.left = cl + 'px'; c.style.top = ct + 'px';
-      c.dataset.offsetX = String(cl); c.dataset.offsetY = String(ct);
+      /* 자리 정본이 dataset.x/y 인 떠 있는 블럭(줌·그라데이션·스티커)은 묶기(block-factory.js _shiftXY)가 정본째 밀었다 ⇒ 정본째 되민다.
+         style 만 되돌리면 화면은 맞아도 저장본이 묶기 때 좌표(대개 0,0)라 다시 열면 튄다. 표식도 원래 없던 것이라 안 단다. */
+      const _ownXY = c.dataset.x != null && c.dataset.y != null && c.dataset.overlayBlock !== 'true';
+      const _shiftOwn = (dx, dy) => {
+        if (c.classList.contains('sticker-block') && window._translateSticker) { window._translateSticker(c, dx, dy); return; }
+        c.dataset.x = String((parseInt(c.dataset.x, 10) || 0) + dx); c.dataset.y = String((parseInt(c.dataset.y, 10) || 0) + dy);
+        c.style.left = ((parseInt(c.style.left, 10) || 0) + dx) + 'px'; c.style.top = ((parseInt(c.style.top, 10) || 0) + dy) + 'px';
+        if (c.classList.contains('zoom-block')) window.renderZoomBlock?.(c);
+      };
+      if (_ownXY) {
+        _shiftOwn(gx, gy);
+        delete c.dataset.offsetX; delete c.dataset.offsetY;
+      } else {
+        c.style.left = cl + 'px'; c.style.top = ct + 'px';
+        c.dataset.offsetX = String(cl); c.dataset.offsetY = String(ct);
+      }
+      /* 묶기가 적어 둔 흐름 자리(block-factory.js _flowBack). 그룹 안에서 폭을 바꿨으면 폭·여백은 지금 값을 둔다 */
+      let _back = null;
+      try { _back = c.dataset.flowBack ? JSON.parse(c.dataset.flowBack) : null; } catch { _back = null; }
+      delete c.dataset.flowBack;
       // 그룹 회전은 각 자식 회전에 가산 (스큐 없음 가정)
       if (gRot) {
         const cr = (parseFloat(c.dataset.rotation) || 0) + gRot;
@@ -175,13 +198,31 @@ function ungroupBlock(groupEl) {
         c.style.transformOrigin = 'center center';
       }
       groupEl.before(c);
+      /* 흐름 그룹에 든 떠 있는 블럭(block-factory.js _floatIntoNew)은 섹션 직속으로 돌아간다 — 흐름 부모에 남으면 좌표 기준이 달라져 자리가 튄다 */
+      if (_ownBox.has(c)) {
+        _secEl.appendChild(c);
+        const _at = _secBox(c), _was = _ownBox.get(c), _k = _secEl.offsetWidth ? (_secEl.getBoundingClientRect().width / _secEl.offsetWidth) || 1 : 1;
+        _shiftOwn(Math.round((_was.x - _at.x) / _k), Math.round((_was.y - _at.y) / _k));
+      }
       /* 떠 있는 것(그라데이션·스티커·오버레이)은 흐름 단위가 아니다 — 자리·묶기가 제 길이라 그대로 둔다. */
-      if (_toFlow && !c.matches('.gradient-block, .sticker-block, .chat-block, .laurel-block, .joker-block') && c.dataset.overlayBlock !== 'true') {
+      /* 챗·월계·조커는 떠 있을 수도, 흐름에 있을 수도 있다 — 흐름에서 묶은 것(_back)은 흐름으로 돌아온다 */
+      if (_toFlow && !_ownXY && (_back || !c.matches('.gradient-block, .sticker-block, .chat-block, .laurel-block, .joker-block')) && c.dataset.overlayBlock !== 'true') {
         c.style.position = ''; c.style.left = ''; c.style.top = '';
         delete c.dataset.offsetX; delete c.dataset.offsetY;
-        if (c.style.width === '100%') c.style.width = c.dataset.width ? c.dataset.width + 'px' : '';
+        if (_back) {
+          if (c.style.width === _back.gw) { c.style.width = _back.w; c.style.marginLeft = _back.ml; c.style.marginRight = _back.mr; c.style.marginTop = _back.mt; c.style.marginBottom = _back.mb; c.style.maxWidth = _back.mw; if (_back.fm != null) c.dataset.fbMaxW = _back.fm; }   /* 다시 열기는 그룹 자식의 max-width·fbMaxW 를 고쳐 쓴다 */
+          /* 이동값(translate)은 묶기가 left·top 으로 옮겼다 — 그룹 안에서 돌리지 않았으면 그대로 되돌린다 */
+          if (c.style.transform === _back.gt) { c.style.transform = _back.tf; if (_back.tx != null) c.dataset.translateX = _back.tx; if (_back.ty != null) c.dataset.translateY = _back.ty; }
+          window.applyFrameRotationMargin?.(c);
+          _flowPos.set(c, _back.p);
+        } else if (c.style.width === '100%') c.style.width = c.dataset.width ? c.dataset.width + 'px' : '';
         c.removeAttribute('draggable');
-        _flowed.push(c);
+        /* 흐름 부모에서 좌표로 살던 것(스택 안 조커)은 그 좌표로 돌아간다 — row 를 씌우지 않는다 */
+        if (_back?.p === 'absolute') {
+          c.style.position = 'absolute'; c.style.left = _back.l; c.style.top = _back.t;
+          if (_back.ox != null) c.dataset.offsetX = _back.ox;
+          if (_back.oy != null) c.dataset.offsetY = _back.oy;
+        } else _flowed.push(c);
       }
       window.syncAutoGridWidth?.(c);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
       /* ★오버레이 그룹을 풀면 자식은 «다시 섹션 직속 오버레이»가 된다 (현빈 2026-09-30).
@@ -191,7 +232,7 @@ function ungroupBlock(groupEl) {
        *   (js/io/export-figma-json.js 의 같은 술어)도 이 블록을 흐름 블록으로 오인한다.
        * ★다는 칸은 enterFloat 이 다는 것과 같다. 복귀 자리는 섹션 본문 맨 앞
        *   (exitFloat 의 fallback 과 같은 자리) — 그룹 안에 있던 동안의 «원래 자리»는 없다. */
-      if (parent && parent.classList?.contains('section-block')) {
+      if (parent && parent.classList?.contains('section-block') && !_ownXY) {
         const _inner = parent.querySelector(':scope > .section-inner');
         if (_inner && !_inner.id) {
           _inner.id = (typeof window.genId === 'function')
@@ -210,7 +251,11 @@ function ungroupBlock(groupEl) {
     groupEl.remove();
     /* 끌기 처리기는 바인드 때의 position 으로 갈린다(absolute 면 좌표 끌기 · 흐름이면 HTML5) ⇒ 푼 자식만 새로 태어나게 해 다시 묶는다. 맨몸 블록은 끌어내기처럼 줄로 감싼다.
        ⛔rebindAll 금지 — 안 바꾼 프레임까지 _subSecBound 를 풀어 리스너가 겹치고(⌘클릭이 두 번 돌아 선택이 안 된다) 옵션 없이는 이력도 지운다. */
-    _flowed.forEach(c => rebirthFlowUnit((c.classList.contains('frame-block') || c.classList.contains('row')) ? c : toFlowUnit(c)));
+    _flowed.forEach(c => {
+      const unit = (c.classList.contains('frame-block') || c.classList.contains('row')) ? c : toFlowUnit(c);
+      if (_flowPos.get(c)) c.style.position = _flowPos.get(c);
+      rebirthFlowUnit(unit);
+    });
     window.deselectAll?.();
     window._activeFrame = (parent && parent.dataset?.freeLayout === 'true') ? parent : null;
     window.buildLayerPanel();
