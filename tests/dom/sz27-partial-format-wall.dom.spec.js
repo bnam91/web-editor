@@ -12,8 +12,7 @@
  *     ⇒ ★그래서 ★구현 «전»에 ★빨강이다 — ★그게 ★이 레인의 ★양성대조다.
  *     ★뒤집기 «전»의 기록: ★재렌더 뒤 `b=0`(서식이 ★사라졌다) · ★지금 단언: ★`fmt===true`.
  *     ★판정자를 ★`<b>` 수에서 ★«앱 자신의 판정자»로 ★갈았다(아래 그 자리의 주석).
- *   ★W-② 모달은 ★그대로 ★기록(skip)이다 — ⛔★내 레인(⑦)이 ★아니다. ★그 레인이 뒤집는다.
- *   ⛔그래서 「★전부 skip 이다」는 ★이제 ★거짓이다 — ★W-② ★하나만 남았다.
+ *   ★W-② 모달도 뒤집었다(261104 332) — 이 파일에 skip 은 없다.
  *   ★나머지 칸(저장·무회귀·변조·꼴 B/I/U/S)은 ★`sz7-grid-rich-text.dom.spec.js` 가 잰다
  *     (⛔★명부를 둘로 만들지 않으려고 ★「재렌더를 견디나」는 ★여기 ★한 자리에만 둔다).
  *
@@ -156,7 +155,8 @@ test('W-⑦ ★그리드 칸 — 부분 서식이 ★재렌더를 ★견딘다 (
   expect(errs).toEqual([]);
 });
 
-test.skip('W-② 모달 슬롯 — 부분 서식이 ★재렌더에서 사라진다 (2026-10-08 측정 기록)', async ({ page }) => {
+/* 비석 — 2026-10-08 기록은 b=0(사라짐)이었다 · 261031·261104 실측 b=1 ⇒ 그 사이에 고쳐졌다 · 이 단언은 그 이득을 잠근다. 양성: modal-block.js _textHtml 을 평문(_esc)으로 되돌리면 빨강. */
+test('W-② 모달 슬롯 — 부분 서식이 재렌더를 견딘다', async ({ page }) => {
   const errs = await setup(page);
   const id = await page.evaluate(() => {
     const before = new Set([...document.querySelectorAll('#canvas [id]')].map(e => e.id));
@@ -187,6 +187,7 @@ test.skip('W-② 모달 슬롯 — 부분 서식이 ★재렌더에서 사라진
     const e = document.getElementById(i).querySelector('[data-mdl-slot="text"]');
     return { html: e ? e.innerHTML : null, b: e ? e.querySelectorAll('b,strong').length : -1 }; }, id);
   console.log('  W-② 재렌더 뒤:', JSON.stringify(afterRender));
-  expect(afterRender.b, `★★부분 서식이 재렌더를 ★견딘다면 이 기록이 낡았다 — 단언을 뒤집어라. 잰 값 ${JSON.stringify(afterRender)}`).toBe(0);
+  expect(afterRender.b, `부분 서식이 재렌더에서 사라졌다. 잰 값 ${JSON.stringify(afterRender)}`).toBe(1);
+  expect(afterRender.html).toContain('CCC');
   expect(errs).toEqual([]);
 });

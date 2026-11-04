@@ -15,6 +15,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import os from 'os';
 import { cssGradientToFigmaPaint } from './gradient-paint.mjs';
+import { applyTextRanges } from './text-ranges.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1375,7 +1376,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       (block.texts || []).forEach((t, i) => {
         const tx = Math.max(0, t.x || 0), ty = Math.max(0, (typeof t.y === 'number' && t.y) ? t.y : i * 44);
         const tn = run('create_text', { x: tx, y: ty, width: Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: 400, fontColor: hex(t.color || '#111111'), textAlignHorizontal: 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
-        if (tn) run('set_font_name', { nodeId: tn.id, family: font.family, style: font.style });
+        if (tn) { run('set_font_name', { nodeId: tn.id, family: font.family, style: font.style }); applyTextRanges(tn.id, t.ranges, font.family, { run, loadFontSafe, hex }); }
       });
     }
     return h;

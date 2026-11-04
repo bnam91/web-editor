@@ -30,6 +30,7 @@
      새 블럭을 «새로 만들어» 쓰고 모달 노드는 버리므로 남을 자리가 없다(단위시험 modal-frameify-map 이 잠근다).
 ═══════════════════════════════════════════════════════════════════════════ */
 
+import { sanitizeRichTextHtml } from '../util/sanitize-rich-text.js';
 import { MODAL_DEFAULTS, MODAL_LIMITS, MODAL_PH, MODAL_SHADOW_CSS, MODAL_VARIANTS,
          _effDefault, _dropShadow, clampModal, renderModalBlock } from './modal-block.js';
 
@@ -82,7 +83,7 @@ function _textStyle(block, root, slotEl, { title = false, pad = null } = {}) {
   return { ce, tb };
 }
 
-function _makeTextRow(kind, value, ph, style) {
+function _makeTextRow(kind, value, ph, style, html = '') {
   const { block } = window.makeTextBlock(kind);
   const tf = window._makeTextFrame();
   const ce = block.querySelector('[class^="tb-"]');
@@ -91,7 +92,9 @@ function _makeTextRow(kind, value, ph, style) {
   if (txt.trim() === '') {
     ce.textContent = ph; ce.dataset.placeholder = ph; ce.dataset.isPlaceholder = 'true';
   } else {
-    ce.textContent = txt; delete ce.dataset.isPlaceholder;
+    // 332 — 부분 서식(dataset html)이 있으면 그것으로 · 렌더마다 재-sanitize 규약(modal-block _textHtml 과 같다)
+    if (html) ce.innerHTML = sanitizeRichTextHtml(html); else ce.textContent = txt;
+    delete ce.dataset.isPlaceholder;
   }
   tf.appendChild(block);
   return { tf, block };
@@ -175,11 +178,11 @@ export function frameifyModalDom(block) {
   if (v === 'titled') {
     const tSlot = block.querySelector('.tb-mdl-title');
     const tStyle = _textStyle(block, root, tSlot, { title: true, pad: { t: Math.round(padY * 0.6), x: padX } });
-    const t = _makeTextRow('h2', ds.titleText, MODAL_PH.title, tStyle);
+    const t = _makeTextRow('h2', ds.titleText, MODAL_PH.title, tStyle, ds.titleHtml);
     frame.appendChild(t.tf); blocks.push(t.block);
   }
   const bStyle = _textStyle(block, root, block.querySelector('.tb-mdl-text'), { pad: v === 'titled' ? { t: padY, x: padX } : null });
-  const b = _makeTextRow('body', ds.textText, MODAL_PH.text, bStyle);
+  const b = _makeTextRow('body', ds.textText, MODAL_PH.text, bStyle, ds.textHtml);
   if (v === 'icon-stack') {
     // ★모달 icon-stack 의 글자 칸은 align-items:center 의 flex 아이템 = «내용 폭»으로 준다(shrink-to-fit).
     //   텍스트프레임 기본 폭 100% 로 두면 형광펜 칠이 줄 전체로 번진다(골든 1차 실측: 꾸밈 칸 ~13k px). 내용 폭 + 가운데로.

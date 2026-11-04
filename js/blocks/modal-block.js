@@ -563,7 +563,7 @@ function _titleWeightCss(ds) {
 }
 
 /* 형광펜 — 슬롯 «글자 뒤»에 칠한다. 루트에 칠하면 배경색(bg)과 싸운다.
-   ⚠️슬롯은 _esc() 평문이라 «부분 선택»은 원리적으로 불가하다 — 슬롯 전체가 칠해진다. */
+   ⚠️이 형광펜은 슬롯 전체를 칠한다. 부분 서식은 따로 있다 — 슬롯 마크업은 _textHtml 이 sanitizeRichTextHtml 로 그린다. */
 function _highlightCss(ds) {
   return ds.highlight === '1' ? 'background-color:#fff2a8;' : '';
 }
