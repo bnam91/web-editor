@@ -4949,6 +4949,9 @@ async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectio
  *   ⑵ delete — 시안 «하나»만 지우는 함수가 아예 없다.
  * ★모든 판정은 «효과»로 — 함수를 부른 뒤 DOM 을 다시 세어 답한다(rc 를 안 믿는다).
  */
+// MCP 지우기 도구가 보호 섹션에서 돌려주는 값 — 자동화가 이유를 읽게
+const _SECTION_PROTECTED_JS = `{ ok:false, code:'SECTION_PROTECTED', message:'보호된 섹션이라 지울 수 없습니다 — 보호를 먼저 푸세요' }`;
+
 async function _invokeRendererVariation({ op, sectionId, to, confirm = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
   if (mainWindow.isMinimized()) return { ok: false, code: 'WINDOW_MINIMIZED', message: '창이 최소화 상태입니다.' };
@@ -5019,6 +5022,7 @@ async function _invokeRendererVariation({ op, sectionId, to, confirm = false } =
       if (p.op === 'resolve') {
         const active = before.find(m => m.active) || before[0];
         const willDelete = before.filter(m => m.variation !== active.variation);
+        if (willDelete.some(m => window.isSectionProtected?.(m.sectionId))) return ${_SECTION_PROTECTED_JS};
         /* ⛔되돌리기 어려운 일이다 — «무엇이 지워지는지» 먼저 돌려주고, confirm 없으면 «안 한다». */
         if (!p.confirm)
           return { ok:false, code:'CONFIRM_REQUIRED', keep: active.variation,
@@ -5036,6 +5040,7 @@ async function _invokeRendererVariation({ op, sectionId, to, confirm = false } =
       if (p.op === 'delete') {
         /* 렌더러에 «시안 하나만 지우는» 함수가 없어서 여기서 짓는다. */
         if (before.length <= 1) return { ok:false, code:'LAST_VARIATION', message:'남은 안이 하나뿐이라 못 지운다' };
+        if (window.isSectionProtected?.(sec)) return ${_SECTION_PROTECTED_JS};
         const me = before.find(m => m.sectionId === sec.id);
         if (!p.confirm)
           return { ok:false, code:'CONFIRM_REQUIRED', willDelete: me && me.variation,
@@ -5367,6 +5372,7 @@ async function _invokeRendererDeleteSection({ sectionId } = {}) {
   return await mainWindow.webContents.executeJavaScript(
     `(() => { try {
       const ok = typeof window.deleteSection === 'function' && window.deleteSection(${safe});
+      if (!ok && window.isSectionProtected?.(${safe})) return ${_SECTION_PROTECTED_JS};
       if (!ok) return { ok:false, code:'DELETE_FAILED', message:'섹션을 삭제할 수 없습니다 (없거나 마지막 섹션)' };
       return { ok:true, sectionId: ${safe}, remaining: document.querySelectorAll('.section-block').length };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
@@ -5383,6 +5389,8 @@ async function _invokeRendererDeleteBlock({ blockId } = {}) {
       const el = document.getElementById(${safe});
       if (!el) return { ok:false, code:'NOT_FOUND', message:'block not found: '+${safe} };
       if (el.classList.contains('section-block')) return { ok:false, code:'IS_SECTION', message:'section은 delete_section 사용' };
+      /* 함수(deleteBlock)가 아니라 여기서 막는다 — section-cleanup 이 false 를 받으면 빈 칸 지우기 while 이 안 끝난다 */
+      if (window.isSectionProtected?.(el.closest('.section-block'))) return ${_SECTION_PROTECTED_JS};
       const ok = typeof window.deleteBlock === 'function' && window.deleteBlock(${safe});
       return { ok: !!ok, blockId: ${safe} };
     } catch(e) { return { ok:false, code:'EXCEPTION', message:e.message }; } })()`,
@@ -5923,7 +5931,10 @@ async function _invokeRendererUndoOnce() {
         return { ok: false, code: 'USER_BUSY', message: '사용자가 편집 중입니다 — 되돌리지 않았습니다.',
                  retryAfter: 2000, detail: { userEditing, recentKey } };
       }
+      /* 🔒 는 히스토리 칸을 안 만들어 undo 가 같이 되돌린다 — 보호가 풀리거나 섹션이 사라지면 원상복구하고 거절한다 */
+      const locked = [...document.querySelectorAll('.section-block[data-protected="true"]')].map(x => x.id);
       window.undo();
+      if (locked.some(id => !window.isSectionProtected?.(id))) { window.redo(); return ${_SECTION_PROTECTED_JS}; }
       return { ok: true };
     } catch (e) { return { ok: false, code: 'CALL_ERROR', message: e.message }; } })()`;
   return await mainWindow.webContents.executeJavaScript(js, true);

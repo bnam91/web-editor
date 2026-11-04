@@ -69,6 +69,8 @@
     const sec = _findSection(sectionId);
     if (!sec) return { ok: false, code: 'NOT_FOUND', message: 'section not found: ' + sectionId };
     const flag = !!on;
+    const _toggled = flag !== _isProtectedEl(sec);   // 사유만 고칠 때는 히스토리 칸을 안 만든다
+    if (_toggled) window.ensureHistoryCheckpoint?.('보호 전');
     if (flag) {
       sec.dataset.protected = 'true';
       if (reason != null) {
@@ -78,7 +80,9 @@
         else delete sec.dataset.protectedReason;
       }
     } else {
-      delete sec.dataset.protected;
+      // 메모가 자동 잠금 글이면 «사람이 풀었다»를 남긴다 — 안 남기면 다시 열 때 _autoDetectFromMemo 가 또 잠근다
+      if (String(sec.dataset.memo || '').includes(AUTO_TRIGGER)) sec.dataset.protected = 'false';
+      else delete sec.dataset.protected;
       delete sec.dataset.protectedReason;
     }
     /* toolbar 버튼 상태 동기화 — ★«없으면 만들고» 나서 맞춘다(2026-09-22 실측).
@@ -93,6 +97,11 @@
          차단 토스트(editor.js:3085)는 「🔒 버튼으로 보호 해제 후 삭제하세요」라고 «없는 버튼»을
          가리킨다. */
     _ensureProtectionButton(sec);
+    if (_toggled) {
+      // 🔒 도 ⌘Z 한 칸이다 — 되돌리기가 보호를 바꾸면 말로 알린다(되돌리기 단추에 동작 이름이 안 보인다)
+      const _say = (lockedNow) => () => window.showToast?.(lockedNow ? '🔒 되돌리기로 보호가 다시 켜졌습니다' : '🔓 되돌리기로 보호가 풀렸습니다');
+      window.pushHistory?.(flag ? '섹션 보호' : '섹션 보호 해제', { onUndo: _say(!flag), onRedo: _say(flag) });
+    }
     if (typeof window.scheduleAutoSave === 'function') {
       window.scheduleAutoSave();
     } else if (typeof window.triggerAutoSave === 'function') {
@@ -153,7 +162,7 @@
 
   // ── 마이그레이션: memo → protected 자동 감지 ─────────────────────────────
   function _autoDetectFromMemo(sec) {
-    if (!sec || _isProtectedEl(sec)) return false; // 이미 보호된 건 덮어쓰지 않음
+    if (!sec || _isProtectedEl(sec) || sec.dataset.protected === 'false') return false; // 이미 보호됐거나 사람이 푼 건 덮어쓰지 않음
     const memo = sec.dataset && sec.dataset.memo;
     if (!memo) return false;
     // 첫 줄만 검사 (trim + 포함 매칭)

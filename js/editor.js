@@ -1514,6 +1514,7 @@ function duplicateSelected() {
 
   // freeLayout 프레임 자체 복제 (frame-block.selected)
   if (selSS && !selSS.dataset.freeLayout) {
+    _copyForDuplicate = true;
     copySelected();
     pasteClipboard();
     return;
@@ -1521,13 +1522,15 @@ function duplicateSelected() {
 
   // 섹션 복제
   if (selSection) {
+    _copyForDuplicate = true;
     copySelected();
     pasteClipboard();
     return;
   }
 
   // 일반 flow 블록 복제
-  copySelected();
+  _copyForDuplicate = true;
+    copySelected();
   pasteClipboard();
 }
 
@@ -1634,6 +1637,15 @@ function _pickedFrames() {
   return picked;
 }
 
+/* 자유 프레임 안 프레임 «하나»도 묶음과 같은 자리 규칙을 탄다(안 골랐으면 원래 부모 안 원본 옆 +20 · FRAME-GROUP-PASTE-TARGET-RULE-01).
+   묶음(≥2)만 그 길이라 ⌘X 뒤 ⌘V 가 섹션 끝 흐름으로 갔다. 복사만의 일이다 — 삭제는 단건 길 그대로라 _pickedFrames 에 안 넣는다. */
+function _pickedFreeChildFrame() {
+  const picked = _leafSelFrames();
+  if (picked.length !== 1) return null;
+  const f = picked[0];
+  return f.dataset.overlayBlock !== 'true' && f.style.position === 'absolute' && f.parentElement?.matches?.('.frame-block[data-free-layout]') ? picked : null;
+}
+
 /* ⌫·⌘X 묶음 삭제 — 지웠으면 true. 묶음을 지워 비는 그룹은 일반 갈래처럼 걷는다. */
 function _deletePickedFrames() {
   if (canvasEl.querySelector(SECTION_BLOCK_TYPE_SEL_SELECTED)) return false;
@@ -1657,7 +1669,9 @@ function _deletePickedFrames() {
 window._leafSelFrames = _leafSelFrames;
 window._deletePickedFrames = _deletePickedFrames;
 
+let _copyForDuplicate = false;   // ⌘D 는 자유 프레임 하나의 자리 규칙 밖이다(t902-copy4 C3 · 시트 287) — 복사가 읽고 바로 끈다
 function copySelected() {
+  const duplicate = _copyForDuplicate; _copyForDuplicate = false;
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
   _writeInternalClipboardToOS();
@@ -1683,7 +1697,7 @@ function copySelected() {
   }
 
   if (allSel.length === 0) {
-    const _picked = _pickedFrames();
+    const _picked = _pickedFrames() || (duplicate ? null : _pickedFreeChildFrame());   // ⌘D 는 제 규칙 그대로(t902-copy4 C3 · 시트 287)
     if (_picked) {
       clipboard = { type: 'multi-block', frames: true, items: _picked.map(f => {
         const r = f.getBoundingClientRect(), k = (r.width / (f.offsetWidth || 1)) || 1;   // 묶음 상대 배치는 부모가 달라도 재야 해서 화면 값 ÷ 배율
@@ -3767,6 +3781,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     const selGroup = document.querySelector('.group-block.group-selected:not(.group-editing)');
     if (selGroup) {
       consumed = true;
+      if (window.isSectionProtected?.(selGroup.closest('.section-block'))) { window.showToast?.('🔒 보호된 섹션의 블록은 삭제할 수 없습니다 — 🔒 버튼으로 보호 해제 후 삭제하세요'); return consumed; }
       window.ensureHistoryCheckpoint?.('삭제 전');
       selGroup.remove();
       deselectAll();
@@ -4700,6 +4715,7 @@ function deleteSection(secIdOrEl) {
     console.warn('[deleteSection] 유효한 섹션을 찾을 수 없음:', secIdOrEl);
     return false;
   }
+  if (window.isSectionProtected?.(sec)) return false;   // 부르는 쪽(MCP 다리)이 사유를 돌려준다
   // 마지막 섹션 삭제 방지
   const allSecs = canvasEl.querySelectorAll('.section-block');
   if (allSecs.length <= 1) {

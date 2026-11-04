@@ -8,7 +8,7 @@
  *   ⒠ ⌘Z/⌘⇧Z: 뒤 상태 = 모델 되돌림 칸 ⒡ 저장: getSerializedCanvas 를 DOMParser 로 읽은 상태 = 지금 · 끝에 ★innerHTML+rebindAll 재로드 뒤 같은 꼴
  * ★못 집은 회차: 조상에 들어가 다시 집기(via descend) · 그래도 못 집으면 후보 점마다 hitAt 으로 맨 위 임자를 rec.owners 에(시트 328 재료) · 고르기 시도 수는 옆 파일 *.tries.json.
  * ★재현: 시드·초기 구조·조작 순서·칸별 판정을 FUZZ_OUT(기본 test-results/frame-fuzz-294)/<RUN_TAG>-<시드>.json · id 는 F0·T0 이름으로 정규화 ⇒ 같은 시드 ×3 은 파일 내용이 같아야 한다.
- * ★양성 둘: P287(알려진 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f|s|sp|so|st(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · s* = 저장 파일 축: id·부모·순서·글자 · 평소 끔) · FS294 = 같은 넷을 늘 도는 양성. V265 = 값만.
+ * ★양성 둘: P287(설계 꼴 — 진입 상태 ⌘D · 음성 P287N) · FUZZ_INJECT=a|b|c|d|e|f|s|sp|so|st(칸마다 일부러 망가뜨려 그 칸이 빨개지나 · s* = 저장 파일 축: id·부모·순서·글자 · 평소 끔) · FS294 = 같은 넷을 늘 도는 양성. V265 = 값만.
  * ⚠️⌘Z 칸 trace 번호: urun 안 빨강은 그 앞까지 끝난 조작 수로 적힌다.
  * ⚠️자 한계: 모델은 그룹을 «부모만 새 그룹으로 옮겨도 된다» 로 너그럽게 본다 · 좌표·겹침 안 봄 · 진입 상태는 시드에서 안 뽑음(P287 만) · 재로드 = 열기 경로 두 줄 · 저장 파일 축 = serializeProject → 파일 → applyProjectData(IPC·main.js 저장 코어는 안 지남).
  * ⌘Z 앞 부름 = evaluate · getSerializedCanvas · DOMParser · 스크린샷 0(JNOTE). */
@@ -262,13 +262,13 @@ test('FS294 ★파일 왕복 양성·음성 — id·부모·순서·글자를 �
   for (const k of ['s', 'sp', 'so', 'st']) expect(out[k], `양성 ${k}`).toEqual({ same: false, injected: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
-/* ⑸ 양성 — 알려진 결함 꼴(287 · ⌘D 가 안 보이는 진입 상태로 갈린다): 자손을 «들어가» 고르면 사본이 그 안으로 간다. 모델(원본 부모)과 맞대면 판정 ⒜ 가 빨개져야 자가 산다 · 같은 장면 «안 들어감» 은 초록(음성). 287 의 그 꼴이 설계인지 결함인지는 이 시험이 안 가른다(R1 · 지디 줄). */
+/* ⑸ 양성 — 설계 꼴(287 · C3 설계로 판정, 결함 아님. 자가 이 꼴을 잡는지만 본다 · ⌘D 가 안 보이는 진입 상태로 갈린다): 자손을 «들어가» 고르면 사본이 그 안으로 간다. 모델(원본 부모)과 맞대면 판정 ⒜ 가 빨개져야 자가 산다 · 같은 장면 «안 들어감» 은 초록(음성). 287 의 그 꼴이 설계인지 결함인지는 이 시험이 안 가른다(R1 · 지디 줄). */
 async function tree3(page) {
   return page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const out = [];
     for (let i = 0; i < 3; i++) { window.deselectAll?.(); window.selectSection(sec); window._activeFrame = i ? document.getElementById(out[i - 1]) : null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); out.push([...sec.querySelectorAll(FR)].find((x) => !b.has(x)).id); }
     window.deselectAll?.(); window._activeFrame = null; window.clearHistory?.(); return out; });
 }
-for (const [name, enter, red] of [['P287 ★양성 — 들어가 고른 ⌘D 는 판정 ⒜ 빨강(사본이 원본 부모 밖 · 그 프레임 안)', true, true], ['P287N 음성 — 안 들어간 ⌘D 는 판정 초록', false, false]]) {
+for (const [name, enter, red] of [['P287 ★양성(설계 C3) — 들어가 고른 ⌘D 는 판정 ⒜ 빨강(사본이 원본 부모 밖 · 그 프레임 안)', true, true], ['P287N 음성 — 안 들어간 ⌘D 는 판정 초록', false, false]]) {
   test(name, async ({ page }) => {
     const errs = await setup(page);
     const [, , G] = await tree3(page);

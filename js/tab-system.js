@@ -449,7 +449,7 @@ async function closeTab(id) {
   const openTabs = _getTabs();
   const idx = openTabs.findIndex(t => t.id === id);
   if (idx === -1) return;
-  if (openTabs.length === 1) { _setTabs([]); saveTabState(); window.goHome(); return; }
+  if (openTabs.length === 1) { if (window.confirmLeaveWhileGenerating?.() === false) return; _setTabs([]); saveTabState(); window.goHome(); return; }
   if (id === _getActId()) {
     const nextTab = openTabs[idx + 1] || openTabs[idx - 1];
     /* 다음 탭을 못 읽어도 닫기는 끝낸다 — switchTab 이 실패를 일부러 던진다(말은 게이트가 했다). 못 옮겨 갔으면 닫으면 안 된다. */
