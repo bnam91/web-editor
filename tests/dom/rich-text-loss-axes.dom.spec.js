@@ -2,6 +2,7 @@
  *
  * ★★이 파일은 ★«측정 기록»이다. ⛔고치는 것이 ★아니다 — ★X1 은 `test.fixme` · ★X2 는 `test.skip` 이다.
  *   ★돌면 ★지금을 ★잠근다(고치면 빨개진다) ⇒ ★★그래서 ★둘 다 ★돌지 않는다.
+ *   ★261104 현빈 답 6655(332): X1 은 고쳤다 — 아래 «판정» 줄들은 10-08 기록이다.
  *   ⛔★두 줄기를 ★한 낱말로 ★묶지 마라 — ★X1 = ★«손실»(★고칠 것) · ★X2 = ★«한계»(⛔고칠 것이 아니다).
  *     ★지디 2026-10-08: 「⛔L1(프레임화)과 ★L2(피그마)를 ★한 칸에 섞지 마라」 ⇒ ★이 줄이 그 칸이었다.
  *   ★★고치는 사람은 ⒜ ★X1 은 `fixme` 를 · ★X2 는 `skip` 을 ★떼고 ⒝ 단언을 ★뒤집어라. ★단언 메시지에 그렇게 적었다.
@@ -114,7 +115,7 @@ async function makeFormattedModal(page) {
 
 /* ══════════════════════════════════════════════════════════════════ */
 
-test.fixme('X1 ★프레임화 — 부분 서식이 ★사라진다 (2026-10-08 측정 기록 · 지디 판정 = ★별건)', async ({ page }) => {
+test('X1 프레임화 — 부분 서식이 산다 (332 · 2026-10-08 기록은 사라짐 · 양성: _makeTextRow 의 html 을 빼면 빨강)', async ({ page }) => {
   const errs = await setup(page);
   const { id, st } = await makeFormattedModal(page);
   console.log('  X1 전제:', JSON.stringify(st));
@@ -130,7 +131,7 @@ test.fixme('X1 ★프레임화 — 부분 서식이 ★사라진다 (2026-10-08 
     const fr = frames[frames.length - 1] || null;
     const tbs = fr ? [...fr.querySelectorAll('[class^="tb-"]')] : [];
     return { can, stillModal: !!document.getElementById(i), frames: frames.length,
-      tbCount: tbs.length, tbHtml: tbs.map(e => e.innerHTML).slice(0, 4),
+      tbCount: tbs.length, tbHtml: tbs.map(e => e.innerHTML).slice(0, 4), tbText: tbs.map(e => e.textContent).join(''),
       anyFmt: tbs.some(e => window._stickerHtmlHasFormatting?.(e.innerHTML) ?? false) };
   }, id);
   console.log('  X1 프레임화 뒤:', JSON.stringify(r));
@@ -138,10 +139,23 @@ test.fixme('X1 ★프레임화 — 부분 서식이 ★사라진다 (2026-10-08 
   expect(r.can?.ok, `★전제 — 이 모달은 프레임화가 안 된다. 잰 값 ${JSON.stringify(r.can)}`).toBe(true);
   expect(r.tbCount, `★전제 — 프레임 안에 글자칸이 안 생겼다. 잰 값 ${JSON.stringify(r)}`).toBeGreaterThan(0);
   /* ★글자는 ★산다 — 이건 ★지켜야 하는 것이다(여기가 빨개지면 ★더 나쁜 결함이다) */
-  expect(r.tbHtml.join(''), `★★글자까지 사라졌다 — 이건 기록이 아니라 ★새 결함이다. 잰 값 ${JSON.stringify(r)}`).toContain(TXT);
-  /* ★★지금의 ★손실을 ★기록한다. ★고치는 사람은 ★이 단언을 ★뒤집어라(toBe(true) 로). */
-  expect(r.anyFmt, `★★부분 서식이 ★프레임화를 ★견딘다면 ★이 기록이 ★낡았다 — ★단언을 ★뒤집어라. 잰 값 ${JSON.stringify(r)}`).toBe(false);
+  expect(r.tbText, `★★글자까지 사라졌다 — 이건 기록이 아니라 ★새 결함이다. 잰 값 ${JSON.stringify(r)}`).toContain(TXT);
+  expect(r.anyFmt, `부분 서식이 프레임화에서 사라졌다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
+  expect(r.tbHtml.join('')).toContain('<b>CCC</b>');
   expect(errs).toEqual([]);
+});
+
+test('X1b 프레임화 뒤 ⌘Z 로 모달과 서식이 돌아온다 · 평문 모달은 태그 없는 글자 그대로(음성)', async ({ page }) => {
+  await setup(page);
+  const { id } = await makeFormattedModal(page);
+  await page.evaluate((i) => window.frameifyModal(i), id);
+  await page.waitForFunction((i) => !document.getElementById(i), id);
+  await page.mouse.click(OUTSIDE.x, OUTSIDE.y);
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.waitForFunction((i) => !!document.getElementById(i), id);
+  expect(await page.evaluate((i) => document.getElementById(i).querySelector('[data-mdl-slot="text"]').innerHTML, id)).toContain('<b>CCC</b>');
+  const plain = await page.evaluate(() => { const before = new Set(document.querySelectorAll('.modal-block')); window.addModalBlock({}); const b = [...document.querySelectorAll('.modal-block')].find((x) => !before.has(x)); b.dataset.textText = '<b>글자</b>'; window.renderModalBlock(b); window.frameifyModal(b.id); const fr = [...document.querySelectorAll('#canvas .frame-block')].pop(); return [...fr.querySelectorAll('[class^="tb-"]')].map((e) => [e.textContent, e.querySelectorAll('b').length]); });
+  expect(plain).toEqual([['<b>글자</b>', 0]]);
 });
 
 test.skip('X2 ★피그마 내보내기 — 글자는 산다 · 서식은 ★안 실린다 (지디 판정 = ★채널 모델 한계)', async ({ page }) => {
