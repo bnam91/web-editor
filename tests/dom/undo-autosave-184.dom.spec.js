@@ -12,6 +12,8 @@ const dirty = (page) => page.evaluate(() => window.hasUnsavedChanges());
 const clean = (page) => page.waitForFunction(() => !window.hasUnsavedChanges(), null, { timeout: 15000 });
 const frames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const writes = (page) => page.evaluate(() => window.__writes);
+/* 저장 지연(1.5초)이 지날 만큼 기다린다 — 그 사이 쓰기가 안 나는지 보는 음성 칸의 몫 */
+const pastDebounce = async (page, ms) => { const t0 = await page.evaluate(() => performance.now()); await page.waitForFunction(([t, m]) => performance.now() - t > m, [t0, ms]); };
 
 async function setup(page) {
   const errs = await bootApp(page);
@@ -61,7 +63,7 @@ test('N1 [음성] 맨 처음에서 ⌘Z — 저장을 안 건다', async ({ page
   await undoKey(page);
   await frames(page);
   expect(await dirty(page), '★되돌릴 것이 없는데 미저장이 섰다').toBe(false);
-  await page.waitForTimeout(1800);
+  await pastDebounce(page, 1800);
   expect(await writes(page), '★쓰기가 났다').toBe(w0);
   expect(errs).toEqual([]);
 });
@@ -73,7 +75,7 @@ test('N2 [음성] ⌘Z 의 저장이 끝나면 다시 안 쓴다', async ({ page
   await expect.poll(() => saved(page, id), { timeout: 15000 }).toBe(false);
   await clean(page);
   const w0 = await writes(page);
-  await page.waitForTimeout(2500);
+  await pastDebounce(page, 2500);
   expect(await writes(page), '★복원 뒤 무편집 쓰기가 또 났다').toBe(w0);
   expect(await dirty(page)).toBe(false);
   expect(errs).toEqual([]);
@@ -88,7 +90,7 @@ test('N3 [음성] 되돌리기 봉인 중 ⌘Z — 안 쓰고 봉인도 안 푼�
   await expect.poll(() => page.evaluate((i) => !document.getElementById(i), id), { message: '전제 — ⌘Z 가 먹었다' }).toBe(true);
   await frames(page);
   expect(await page.evaluate(() => window.state._suppressAutoSave), '★복원이 봉인을 풀었다').toBe(true);
-  await page.waitForTimeout(1800);
+  await pastDebounce(page, 1800);
   expect(await writes(page), '★봉인 중 쓰기가 났다').toBe(w0);
   expect(await saved(page, id), '저장본은 봉인 앞 그대로').toBe(true);
   await page.evaluate(() => window.resumeAutoSaveAfterAbortedReload());

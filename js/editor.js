@@ -1514,20 +1514,23 @@ function duplicateSelected() {
 
   // freeLayout 프레임 자체 복제 (frame-block.selected)
   if (selSS && !selSS.dataset.freeLayout) {
-    copySelected({ duplicate: true });
+    _copyForDuplicate = true;
+    copySelected();
     pasteClipboard();
     return;
   }
 
   // 섹션 복제
   if (selSection) {
-    copySelected({ duplicate: true });
+    _copyForDuplicate = true;
+    copySelected();
     pasteClipboard();
     return;
   }
 
   // 일반 flow 블록 복제
-  copySelected({ duplicate: true });
+  _copyForDuplicate = true;
+    copySelected();
   pasteClipboard();
 }
 
@@ -1666,7 +1669,9 @@ function _deletePickedFrames() {
 window._leafSelFrames = _leafSelFrames;
 window._deletePickedFrames = _deletePickedFrames;
 
-function copySelected({ duplicate = false } = {}) {
+let _copyForDuplicate = false;   // ⌘D 는 자유 프레임 하나의 자리 규칙 밖이다(t902-copy4 C3 · 시트 287) — 복사가 읽고 바로 끈다
+function copySelected() {
+  const duplicate = _copyForDuplicate; _copyForDuplicate = false;
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
   _writeInternalClipboardToOS();
