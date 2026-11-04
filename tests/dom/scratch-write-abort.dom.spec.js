@@ -120,14 +120,14 @@ test('음성 복원: 되살릴 것이 없을 때 읽기가 실패하면 전처�
 test('전부 지운 판: flush 가 실패해도 다시 열 때 매니페스트로 되채우지 않는다', async ({ page }) => {
   await ready(page);
   await page.evaluate((S) => { window.state.pages = [{ id: 'p1', canvas: '', scratchpad: [{ id: 's_m', src: S, x: 1, y: 1, w: 9 }] }]; window.state.currentPageId = 'p1'; }, S);
-  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+  await page.evaluate(() => window.switchScratch('proj_m', 'p1'));
   await expect.poll(() => items(page)).toEqual(['s_m']);
   await page.evaluate(() => window._scratchRemoveById('s_m'));
   await on(page);
   await page.evaluate(() => window.__settle(window.flushScratchForSwitch()));
   await off(page);
-  await page.evaluate(() => window.switchScratch('proj_1', 'p1'));
-  await expect.poll(() => dbIds(page)).toEqual([]);
+  await page.evaluate(() => window.switchScratch('proj_m', 'p1'));
+  await expect.poll(() => dbIds(page, 'scratch-pad-proj_m-p1')).toEqual([]);
   expect(await items(page)).toEqual([]);
 });
 test('음성 전부 지운 판: IDB 가 빈 다른 맥은 매니페스트로 채운다', async ({ page }) => {
@@ -150,4 +150,73 @@ test('음성 페이지 삭제: 다른 저장 실패는 전처럼 공용 알림�
   await on(page);
   await page.evaluate((S) => window.__settle(window._scratchAddAndSave(S, 10, 10, 50, null, 's_1')), S);
   await expect.poll(() => page.evaluate(() => window.__toasts)).toEqual(['⚠️ 스크래치를 저장하지 못했습니다. 다시 열면 지금 화면과 다를 수 있습니다.']);
+});
+const srcOf = (page, id) => page.evaluate((id) => window._scratchItemById(id)?.src?.slice(0, 40), id);
+test('외부화 대기 중 같은 id 로 새 그림이 들어와도 옛 그림으로 안 돌아간다', async ({ page }) => {
+  await ready(page);
+  const NEW = S.replace('A', 'B');
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_a'), S);
+  await holdExternalize(page);
+  await page.evaluate(() => { window.__ext = window.externalizeScratchpad({ pages: [{ id: 'p1' }] }, 'proj_1'); });
+  await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
+  await page.evaluate(async (NEW) => { await window._scratchRemoveById('s_a'); await window._scratchAddAndSave(NEW, 10, 10, 50, undefined, 's_a'); }, NEW);
+  await page.evaluate(async () => { window.__release(); await window.__ext; });
+  expect(await srcOf(page, 's_a')).toBe(NEW.slice(0, 40));
+});
+test('음성 외부화: 그림이 그대로면 화면 주소도 goya 로 바뀐다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_a'), S);
+  await holdExternalize(page);
+  await page.evaluate(() => { window.__ext = window.externalizeScratchpad({ pages: [{ id: 'p1' }] }, 'proj_1'); });
+  await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
+  await page.evaluate(async () => { window.__release(); await window.__ext; });
+  expect(await srcOf(page, 's_a')).toBe('goya-asset://proj_1/a.png');
+});
+const reopen = (page) => page.evaluate(() => window.switchScratch('proj_1', 'p1'));
+test('읽기 실패 판: 떠날 때 쓰기가 성공해도 DB 의 항목이 안 지워진다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await failNextRead(page); await reopen(page);
+  await expect.poll(() => items(page)).toEqual([]);
+  await page.evaluate(() => window.flushScratchForSwitch());
+  await reopen(page);
+  await expect.poll(() => items(page)).toEqual(['s_1']);
+});
+test('읽기 실패 판: 떠날 때 쓰기까지 실패해도 복구 뒤 다시 열면 항목이 있다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await failNextRead(page); await reopen(page);
+  await on(page);
+  expect(await page.evaluate(() => window.__settle(window.flushScratchForSwitch()))).toBe('거절');
+  await off(page);
+  await reopen(page);
+  await expect.poll(() => items(page)).toEqual(['s_1']);
+  expect(await dbIds(page)).toEqual(['s_1=data']);
+});
+test('읽기 실패 판: 새 항목을 넣어도 DB 의 옛 항목이 남는다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await failNextRead(page); await reopen(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 90, 50, null, 's_new'), S);
+  await expect.poll(() => dbIds(page)).toEqual(['s_1=data', 's_new=data']);
+});
+test('전부 지우고 flush 성공: 다시 열어도 낡은 매니페스트로 안 되살아난다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => { window.state.pages = [{ id: 'p1', canvas: '', scratchpad: [{ id: 's_m', src: S, x: 1, y: 1, w: 9 }] }]; window.state.currentPageId = 'p1'; }, S);
+  await page.evaluate(() => window.switchScratch('proj_m', 'p1'));
+  await expect.poll(() => items(page)).toEqual(['s_m']);
+  await page.evaluate(() => window._scratchRemoveById('s_m'));
+  await page.evaluate(() => window.flushScratchForSwitch());
+  await page.evaluate(() => window.switchScratch('proj_m', 'p1'));
+  await expect.poll(() => dbIds(page, 'scratch-pad-proj_m-p1')).toEqual([]);
+  expect(await items(page)).toEqual([]);
+});
+test('음성 읽기 실패 판: 다음 로드가 성공하면 평소대로 지운 것이 지워진다', async ({ page }) => {
+  await ready(page);
+  await page.evaluate((S) => window._scratchAddAndSave(S, 10, 10, 50, null, 's_1'), S);
+  await failNextRead(page); await reopen(page);
+  await reopen(page);
+  await expect.poll(() => items(page)).toEqual(['s_1']);
+  await page.evaluate(() => window._scratchRemoveById('s_1'));
+  await expect.poll(() => dbIds(page)).toEqual([]);
 });
