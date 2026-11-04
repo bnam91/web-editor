@@ -26,7 +26,7 @@ test('병합 있는 표에 0:1 — 말하고 푼다 · ⌘Z 로 돌아온다', a
   const errs = await setup(page);
   await merge(page);
   await put(page, '0:1');
-  await expect.poll(() => toast(page), { timeout: 2500 }).toContain('「0:1」 는 한 칸이라 병합이 아니에요');
+  await expect.poll(() => toast(page), { timeout: 2500 }).toContain('「0:1」: 한 칸은 병합이 아니에요');
   expect(await merged(page)).toBe(null);
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('ControlOrMeta+z');

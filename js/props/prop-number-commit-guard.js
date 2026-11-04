@@ -167,7 +167,7 @@ function noticeClamped(el, typed, clamped) {
   const range = (Number.isFinite(lo) && Number.isFinite(hi)) ? `${lo}~${hi}`
               : Number.isFinite(hi) ? `${hi} 이하`
               : `${lo} 이상`;
-  try { window.showToast?.(`⚠️ ${range} 까지 쓸 수 있어요 — ${typed} 를 ${clamped} 로 맞췄어요`); } catch (_) {}
+  try { window.showToast?.(`⚠️ ${range} 값만 쓸 수 있어요 — 입력 ${typed} → 적용 ${clamped}`); } catch (_) {}
 }
 
 /** 값 없음 — 이전 «표시값»을 되돌린다(0 과 갈린다: '0' 은 유한수라 여기 안 온다). */
@@ -277,6 +277,12 @@ document.addEventListener('change', (e) => {
   }
   commitTyping(el); // 합성 input → 기존 핸들러가 «클램프된» 값을 읽는다
   // change 자체는 그대로 전파 → 기존 pushHistory/scheduleAutoSave 동작 유지
+}, true);
+
+/* ★DEC — 빈 칸에 오타: value 가 '' → '' 라 change 가 안 온다 ⇒ 위 갈래를 못 타 칸에 「1e」가 남고 말도 없었다(패널 7종 14칸 · 전부 처음 비어 있던 칸). */
+document.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (isPn(el) && el._pnTyping && isBadInput(el)) restorePrev(el);
 }, true);
 
 // ── 스피너 마우스클릭: 미커밋 타이핑 값에서 스텝하지 않도록 선커밋 ──

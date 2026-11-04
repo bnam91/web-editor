@@ -25,7 +25,7 @@ export function parseRatioStrict(raw, count) {
   return parts.length === count && parts.every(n => Number.isFinite(n) && n > 0) ? parts : null;
 }
 export function noticeRatioRejected(raw, count) {
-  window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」 는 쓸 수 없어요 — 0 보다 큰 숫자 ${count}개로 적어 주세요(예: ${Array(count).fill(1).join(':')}) · 이전 값으로 되돌렸어요`);
+  window.showToast?.(`⚠️ 「${String(raw).trim().slice(0, 20)}」: 쓸 수 없는 값이에요 — 0 보다 큰 숫자 ${count}개로 적어 주세요(예: ${Array(count).fill(1).join(':')}) · 이전 값으로 되돌렸어요`);
 }
 
 /**
