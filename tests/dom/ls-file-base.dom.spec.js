@@ -263,8 +263,7 @@ test('앞 저장을 기다리는 중 온 타이머는 «읽지 못해»·저장 
     window.openTabForProject('p3');
   });
   await page.waitForFunction(() => window.activeProjectId === 'p3' && window.isTabFirstLoading('p3') && window.__go);
-  await page.waitForFunction(() => document.getElementById('autosave-indicator')?.textContent.includes('저장됨') || !document.getElementById('autosave-indicator')?.textContent);
-  await page.waitForTimeout(1600);
+  await expect(page.locator('#autosave-indicator')).toContainText('저장됨', { timeout: 8000 });   // 타이머가 왔다
   expect(await page.evaluate(() => window.__ts)).toEqual([]);
   await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
   await page.evaluate(() => { window.waitSavesFor = window.__w; window.__go(true); });
@@ -322,8 +321,8 @@ test('A 저장이 안 읽힌 B 를 여는 창 안에서 끝나도 빨간 저장 
   await holdLoad(page, 'p3');
   await page.waitForFunction(() => window.isTabFirstLoading('p3'));
   await page.waitForFunction(() => /data-mark=.?.?"?Q/.test(window.__store.p1?.pages?.[0]?.canvas || ''));
-  await page.waitForTimeout(100);
-  expect(await page.evaluate(() => [window.isTabFirstLoading('p3'), window.__red]), '★저장이 됐는데 저장 실패').toEqual([true, 0]);
+  await expect(page.locator('#autosave-indicator'), '★저장이 됐는데 저장 실패').toContainText('저장됨', { timeout: 8000 });
+  expect(await page.evaluate(() => [window.isTabFirstLoading('p3'), window.__red])).toEqual([true, 0]);
   await page.evaluate(() => window.__loadGo()); await landed(page, 'p3');
   await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
 });
@@ -333,8 +332,8 @@ test('탭 전환 감지 skip 길도 B 를 여는 창 안에서 저장 실패라�
   await setMark(page, 'Q');   // 타이머는 1.5초 뒤 — 그때 활성은 B
   await holdLoad(page, 'p3');
   await page.waitForFunction(() => window.isTabFirstLoading('p3'));
-  await page.waitForTimeout(2200);
-  expect(await page.evaluate(() => [window.isTabFirstLoading('p3'), window.__red]), '★skip 인데 저장 실패').toEqual([true, 0]);
+  await expect(page.locator('#autosave-indicator'), '★skip 인데 저장 실패').toContainText('저장됨', { timeout: 8000 });
+  expect(await page.evaluate(() => [window.isTabFirstLoading('p3'), window.__red])).toEqual([true, 0]);
   await page.evaluate(() => window.__loadGo()); await landed(page, 'p3');
   await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
 });
@@ -344,8 +343,18 @@ test('[음성] 평소 탭 전환에 빨강 0', async ({ page }) => {
   await page.evaluate(() => window.openTabForProject('p3')); await landed(page, 'p3');
   await setMark(page, 'R');
   await page.evaluate(() => window.switchTab('p1')); await landed(page, 'p1');
-  await page.waitForTimeout(1700);
+  await expect.poll(() => page.locator('#autosave-indicator').textContent(), { timeout: 8000 }).not.toContain('저장 중');
   expect(await page.evaluate(() => window.__red)).toBe(0);
+});
+test('A 저장이 로드 실패 탭 위에서 끝나면 저장 실패로 남긴다 — 그 탭은 저장이 안 된다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__delay = 1500; });
+  await setMark(page, 'Q');
+  await page.waitForFunction(() => /data-mark=\\?"Q/.test(localStorage.getItem('web-editor-autosave__p1') || ''));
+  await page.evaluate(() => { window.__loadFail = { p3: 1 }; window.openTabForProject('p3').catch(() => {}); });
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && window.gdtProjectReady.get().phase === 'error');
+  await page.waitForFunction(() => /data-mark=.?.?"?Q/.test(window.__store.p1?.pages?.[0]?.canvas || ''));
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패', { timeout: 8000 });
 });
 test('로드 실패 탭은 앞 저장이 끝나도 저장됨이라 안 하고 미저장을 지우지 않는다', async ({ page }) => {
   await storeBoot(page);
