@@ -126,3 +126,10 @@ test('⑤ 마켓 올리기가 되실은 값으로 blob 을 떼고, 없는 그림
   assert.ok(iData > 0 && iScr > 0 && iData < iExt && iScr < iExt);
   assert.match(body, /missing[^;]*\) return \{ ok: false, message:/);
 });
+test('⑤ 협업: 변환된 프로젝트는 등록을 막고 까닭을 말한다', async () => {
+  const src = readSrc(REPO, 'main/collab/index.js');
+  const run = (meta) => { let called = 0; return new Function('getRef', 'call', '_deps', 'setRef', sliceBlock(src, 'async function register(', '대상') + '\nreturn register;')(() => null, async () => { called++; return { ok: false, reason: 'x' }; }, { readMeta: () => ({ externalized: meta }), readAuth: () => null }, () => {})({ projectId: 'p1' }).then((r) => ({ r, called })); };
+  const a = await run({ at: 'x' }); assert.strictEqual(a.r.reason, 'externalized'); assert.strictEqual(a.called, 0);
+  const b = await run(null); assert.strictEqual(b.called, 1);
+  assert.ok(readSrc(REPO, 'js/collab/reasons.js').includes('externalized:'));
+});
