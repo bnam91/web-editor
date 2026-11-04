@@ -947,7 +947,15 @@ function preserveUnreadableOrThrow(srcPath, dir) {
   fs.mkdirSync(dir, { recursive: true });
   const name = `proj_corrupt_${Math.trunc(fs.statSync(srcPath).mtimeMs)}.json`;
   const to = path.join(dir, name);
-  if (!fs.existsSync(to)) fs.copyFileSync(srcPath, to);
+  try { if (fs.statSync(to).size === fs.statSync(srcPath).size) return name; } catch (_) {}   // 크기가 다르면 끊긴 사본이다 — 다시
+  const tmp = to + '.tmp';   // 복사 중 꺼져도 이름이 붙은 사본은 언제나 온전하다
+  try {
+    fs.copyFileSync(srcPath, tmp);
+    fs.renameSync(tmp, to);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    throw e;
+  }
   return name;
 }
 /* 위와 같되 못 두면 null. */

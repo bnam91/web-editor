@@ -178,3 +178,18 @@ test('U11 같은 판을 여러 번 열어도 옆 파일은 한 벌 · 복구 후
   assert.strictEqual(s.side().length, 1);
   assert.strictEqual(again._unreadable, true, '★옆 파일이 복구 후보로 먹혔다');
 });
+test('U17 복사 중 끊기면 이름 붙은 사본이 없다 · 다음 번에 온전히 둔다', () => {
+  const s = scene(); const R = load(s.dir); const real = fs.copyFileSync;
+  fs.copyFileSync = (a, b) => { fs.writeFileSync(b, 'x'); throw Object.assign(new Error('끊김'), { code: 'EIO' }); };
+  let r; try { r = R.open(ID); } finally { fs.copyFileSync = real; }
+  assert.strictEqual(r.preservedAs, null);
+  assert.deepStrictEqual(s.side(), [], '★잘린 사본에 이름이 붙었다');
+  const again = R.open(ID);
+  assert.strictEqual(fs.readFileSync(path.join(s.p, again.preservedAs), 'utf8'), BROKEN);
+});
+test('U18 이미 있는 잘린 사본을 믿지 않는다 — 다시 둔다', async () => {
+  const s = scene(); const m = Math.trunc(fs.statSync(s.proj).mtimeMs);
+  fs.writeFileSync(path.join(s.p, `proj_corrupt_${m}.json`), 'x');
+  await load(s.dir).save(doc('새'));
+  assert.strictEqual(fs.readFileSync(path.join(s.p, `proj_corrupt_${m}.json`), 'utf8'), BROKEN, '★잘린 사본을 믿고 원본을 덮었다');
+});
