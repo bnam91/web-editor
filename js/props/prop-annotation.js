@@ -577,6 +577,10 @@ ${blockHeaderHTML({
   if (dimAxisGrp) {
     dimAxisGrp.querySelectorAll('.prop-align-btn').forEach((b) => {
       b.addEventListener('click', () => {
+        /* ★6634 — 그 방향 성분이 없는 잰 구간(가로로 찍고 v · 세로로 찍고 h)은 길이 0 이라 선이 1px 로 접혀 사라졌다(앱 값). 안 바꾸고 말한다. */
+        const pts0 = _readState(block).points, d0 = pts0?.[0], c0 = pts0?.[pts0.length - 1];
+        const comp = d0 && c0 && (b.dataset.axis === 'h' ? Math.abs(c0[0] - d0[0]) : b.dataset.axis === 'v' ? Math.abs(c0[1] - d0[1]) : Infinity);
+        if (comp < 1) { window.showToast?.(b.dataset.axis === 'h' ? '두 점의 가로 길이가 없어 가로로 잴 수 없습니다' : '두 점의 세로 길이가 없어 세로로 잴 수 없습니다'); return; }
         dimAxisGrp.querySelectorAll('.prop-align-btn').forEach((x) => x.classList.remove('active'));
         b.classList.add('active');
         /* ★136 DIM-AXIS-BTN-NO-EFFECT-01(현빈 GO 261027) — 그리는 자리는 하나(annotDimGeometry)인데 «선 방향»을 정하는 값이 둘이다:
