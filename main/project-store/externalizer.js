@@ -156,13 +156,15 @@ function scanProjectFile(projectsDir, projectId) {
 
 /* 변환 전 본을 타임스탬프 이름으로 돌린다. 가장 최근 N개 + 가장 오래된 것(최초 원본)만 남긴다 — 반복 변환으로 무한 적립되던 것 방지[F3]. */
 function rotateBackup(p) {
-  fs.renameSync(p.backup, path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`));
+  const rotated = path.join(p.dir, `proj_pre-externalize.${Date.now()}.json`);
+  fs.renameSync(p.backup, rotated);
   try {
     const rots = fs.readdirSync(p.dir)
       .filter(f => /^proj_pre-externalize\.\d+\.json$/.test(f))
       .sort((a, b) => (parseInt(b.match(/\d+/)) || 0) - (parseInt(a.match(/\d+/)) || 0));
     for (const old of rots.slice(MAX_PRE_EXT_ROTATIONS, -1)) { try { fs.unlinkSync(path.join(p.dir, old)); } catch (_) {} }
   } catch (_) {}
+  return rotated;
 }
 
 /* ── 본체 ────────────────────────────────────────────────────────────────── */
@@ -274,16 +276,20 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   //    이미 백업이 있으면(이례) 덮지 않고 타임스탬프로 회전.
   let backupPath = p.backup;
   const backupTmp = p.backup + '.tmp';
+  let rotatedPrev = null;
+  // 재변환이 실패하면 앞 변환 전 본을 고정 이름으로 돌린다 — 안 돌리면 되돌리기 버튼이 사라진다
+  const restorePrev = () => { if (rotatedPrev) { try { fs.renameSync(rotatedPrev, p.backup); } catch (_) {} } };
   try {
     fs.copyFileSync(p.proj, backupTmp, fs.constants.COPYFILE_FICLONE);
     fsyncPath(backupTmp, 'r+');
     if (fs.existsSync(p.backup)) {
-      rotateBackup(p);
+      rotatedPrev = rotateBackup(p);
     }
     fs.renameSync(backupTmp, p.backup);
     fsyncDir(p.dir);
   } catch (e) {
     try { fs.unlinkSync(backupTmp); } catch (_) {}
+    restorePrev();
     return { ok: false, reason: 'backup_failed', error: e.message, before };
   }
 
@@ -291,6 +297,7 @@ function externalizeProjectFile(projectsDir, projectId, opts = {}) {
   try { atomicWrite(p.proj, out); }
   catch (e) {
     try { fs.unlinkSync(p.backup); } catch (_) {}
+    restorePrev();
     return { ok: false, reason: 'write_failed', error: e.message, before };
   }
 
