@@ -42,12 +42,6 @@ test('① 쓰기 실패: proj.json 그대로 · 변환 전 본을 남기지 않�
   assert.strictEqual(r.ok, false); assert.strictEqual(r.reason, 'write_failed');
   assert.strictEqual(sha(f.proj), orig); assert.strictEqual(fs.existsSync(f.pre), false);
 });
-test('① 변환 전 본·새 파일을 디스크로 내린다(fsync)', () => {
-  const f = fx(); const o = fs.fsyncSync; let n = 0;
-  fs.fsyncSync = function (...a) { n++; return o.apply(this, a); };
-  try { assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true); } finally { fs.fsyncSync = o; }
-  assert.ok(n >= 3, `fsync ${n}번`);
-});
 test('④ 재변환이 쌓여도 최초 원본이 남는다', () => {
   const f = fx(); const first = sha(f.proj);
   assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true);
@@ -76,11 +70,6 @@ function preload(result) {
   store.set('web-editor-ls-base__p1', 'U');
   return { api, store };
 }
-test('② 되돌리기 성공이면 복구본을 걷는다: updatedAt 없는 파일에서 복구본이 복원본을 못 이긴다', async () => {
-  const { api, store } = preload({ ok: true });
-  await api.externalizeRollback({ projectId: 'p1' });
-  assert.deepStrictEqual([...store.keys()], []);
-});
 test('② [음성] 미리보기·실패 되돌리기는 복구본을 안 건드린다', async () => {
   const a = preload({ ok: true }); await a.api.externalizeRollback({ projectId: 'p1', dryRun: true }); assert.strictEqual(a.store.size, 3);
   const b = preload({ ok: false }); await b.api.externalizeRollback({ projectId: 'p1' }); assert.strictEqual(b.store.size, 3);

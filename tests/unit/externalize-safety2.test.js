@@ -128,3 +128,32 @@ test('⑤ 드레인 시한이면 되돌리기를 막되 잠금을 풀어 다시 
   assert.strictEqual(rbBtn.disabled, false); assert.strictEqual(btn.disabled, false);
   assert.match(st.at(-1), /저장 중이라 되돌리지 못했습니다/);
 });
+test('⑥ fsync 대상과 순서: 변환 전 본 → 에셋 → 새 proj.json, 각각 rename 앞', () => {
+  const f = fx(); const fds = new Map(); const ev = [];
+  const o = { open: fs.openSync, fsync: fs.fsyncSync, close: fs.closeSync, rename: fs.renameSync };
+  fs.openSync = function (p, ...a) { const fd = o.open.call(this, p, ...a); fds.set(fd, String(p)); return fd; };
+  fs.fsyncSync = function (fd) { ev.push('fsync ' + path.relative(f.dir, fds.get(fd))); return o.fsync.call(this, fd); };
+  fs.renameSync = function (a, b) { ev.push('rename ' + path.relative(f.dir, String(b))); return o.rename.call(this, a, b); };
+  try { assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true); }
+  finally { fs.openSync = o.open; fs.fsyncSync = o.fsync; fs.renameSync = o.rename; }
+  const at = (s) => { const i = ev.indexOf(s); assert.ok(i >= 0, `${s} 없음 — ${ev.join(' | ')}`); return i; };
+  const bak = X.BACKUP_NAME, asset = ev.find((e) => /^rename assets\//.test(e)).slice(7);
+  const seq = [at(`fsync ${asset}.tmp`), at(`rename ${asset}`), at(`fsync ${bak}.tmp`), at(`rename ${bak}`), at('fsync proj.json.tmp'), at('rename proj.json')];
+  assert.deepStrictEqual(seq, [...seq].sort((x, y) => x - y), ev.join(' | '));
+  const dirAfter = ev.slice(at('rename proj.json')).includes('fsync ');   // path.relative(dir, dir) === ''
+  assert.ok(dirAfter, '폴더 fsync 없음: ' + ev.join(' | '));
+});
+test('⑥ 복구본 시험을 진짜 _pickLsOverFile 로: updatedAt 없는 파일은 복구본이 이기고, 되돌리기가 걷으면 파일이 이긴다', async () => {
+  const store = new Map();
+  const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+  const pick = new Function('localStorage', 'SAVE_KEY_PREFIX', '_lsBaseKey', '_lastOpenFallback', 'console', sliceBlock(readSrc(REPO, 'js/io/save-load.js'), 'function _pickLsOverFile(', '대상') + '\nreturn _pickLsOverFile;')(localStorage, 'web-editor-autosave', (i) => `web-editor-ls-base__${i}`, null, { warn() {} });
+  const restored = { id: 'p1', version: 2, pages: [{ id: 'a', canvas: '<div class="section-block"></div>' }] };   // 마켓에서 받은 본: updatedAt 없음
+  const set = () => { store.set('web-editor-autosave__p1', JSON.stringify({ version: 2, pages: [{ id: 'a', canvas: '<div class="section-block">변환본</div>' }] })); store.set('web-editor-autosave__p1_ts', String(Date.now())); store.set('web-editor-ls-base__p1', 'U'); };
+  set();
+  assert.ok(pick(restored, 'p1'), '재현: 걷지 않으면 복구본이 복원본을 이긴다');
+  let api; const electron = { contextBridge: { exposeInMainWorld: (_n, a) => { api = api || a; } }, ipcRenderer: { invoke: async () => ({ ok: true }), on() {}, send() {}, sendSync() {} } };
+  vm.runInNewContext(fs.readFileSync(path.join(REPO, 'preload.js'), 'utf8'), { require: (m) => (m === 'electron' ? electron : {}), localStorage, console, process, Buffer, setTimeout });
+  set();
+  await api.externalizeRollback({ projectId: 'p1' });
+  assert.strictEqual(pick(restored, 'p1'), null);
+});
