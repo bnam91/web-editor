@@ -2120,7 +2120,8 @@ ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => 
 // export HTML 포터블화용 — goya-asset:// 에셋을 base64 data URI로 읽어 반환.
 // 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
 // export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
-ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
+ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => _readAssetDataUri(projectId, filename));
+function _readAssetDataUri(projectId, filename) {
   try {
     const pid = _safeSeg(String(projectId || ''));
     const fn = _safeSeg(String(filename || ''));
@@ -2136,7 +2137,7 @@ ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => {
   } catch (e) {
     return { ok: false, error: e && e.message };
   }
-});
+}
 
 ipcMain.handle('ai:generateImage', (_e, payload) => {
   const model = String(payload?.model || 'gemini-2.5-flash-image').toLowerCase();
@@ -3703,6 +3704,16 @@ const _BLOB_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g;
 const _MAX_BYTES = 95 * 1024 * 1024;   // GitHub 100MB 하드리밋 안전 마진
 const _BLOB_MIN = 2048;                // 이보다 작은 자산은 분리 안 함(토큰이 더 커서 역효과 + blob 클러터 방지)
 function _blobsDir(dir) { return path.join(dir, 'market', '_blobs'); }
+/* goya 그림을 data URL 로 되싣는다 — 마켓은 파일을 안 옮겨 받는 쪽에서 깨진다. 없는 그림은 센다. */
+function _inlineGoyaAssets(str) {
+  const cache = new Map(); let missing = 0;
+  const data = String(str).replace(/goya-asset:\/\/([^/"'()\s&\\]+)\/([^"'()\s&\\?#]+)/g, (m, pid, fn) => {
+    if (!cache.has(m)) { const r = _readAssetDataUri(pid, fn); cache.set(m, r.ok ? r.dataUri : null); }
+    if (!cache.get(m)) { missing++; return m; }
+    return cache.get(m);
+  });
+  return { data, missing };
+}
 function _extractBlobs(jsonStr, dir) {
   const bdir = _blobsDir(dir); fs.mkdirSync(bdir, { recursive: true });
   let maxBlob = 0, count = 0;
@@ -3766,8 +3777,10 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     const adir = path.join(dir, 'market', acc);
     fs.mkdirSync(adir, { recursive: true });
     // Phase 0: 인라인 자산 분리(프로젝트 데이터 + Phase1 스크래치) + 용량 가드
-    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(data, dir);
-    const scratchStr = JSON.stringify(scratch || []);
+    const inl = _inlineGoyaAssets(data), inlScratch = _inlineGoyaAssets(JSON.stringify(scratch || []));
+    if (inl.missing + inlScratch.missing) return { ok: false, message: `그림 ${inl.missing + inlScratch.missing}곳의 파일을 찾지 못해 올리지 않았습니다 — 받는 쪽에서 깨집니다.` };
+    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(inl.data, dir);
+    const scratchStr = inlScratch.data;
     const { data: deScratch, maxBlob: mb2, count: c2 } = _extractBlobs(scratchStr, dir);
     const maxBlob = Math.max(mb1, mb2);
     if (maxBlob > _MAX_BYTES) return { ok: false, message: `단일 자산 ${Math.round(maxBlob / 1048576)}MB — GitHub 100MB 한도 초과 위험. 자산 용량을 줄이세요.` };

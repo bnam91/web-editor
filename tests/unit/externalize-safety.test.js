@@ -104,3 +104,25 @@ test('② 되돌려도 원본 사본을 바로 지우지 않는다', () => {
   assert.ok(allShas(f).includes(orig), '원본 사본이 사라졌다');
   assert.strictEqual(X.scanProjectFile(f.root, f.id).hasBackup, false);
 });
+function mainInline(root) {
+  const src = readSrc(REPO, 'main.js');
+  return new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', sliceBlock(src, 'function _readAssetDataUri(', '대상') + '\n' + sliceBlock(src, 'function _inlineGoyaAssets(', '대상') + '\nreturn _inlineGoyaAssets;')(fs, path, root, (s) => s, { png: 'image/png' });
+}
+test('⑤ 마켓: goya 그림을 data URL 로 되싣는다 · 없는 그림은 센다', () => {
+  const root = mkTmpRoot('goya-extm-'); fs.mkdirSync(path.join(root, 'p1', 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'p1', 'assets', 'a.png'), Buffer.from([1, 2, 3]));
+  const inl = mainInline(root);
+  const s = '{"c":"<img src=\\"goya-asset://p1/a.png\\"><i style=\\"background:url(&quot;goya-asset://p1/a.png&quot;)\\"></i>"}';
+  const r = inl(s);
+  assert.strictEqual(r.missing, 0); assert.strictEqual(r.data.includes('goya-asset://'), false);
+  assert.strictEqual(r.data.split('data:image/png;base64,AQID').length - 1, 2);
+  JSON.parse(r.data);
+  const m = inl('<img src="goya-asset://p1/none.png"><img src="goya-asset://../x.png">');
+  assert.strictEqual(m.missing, 2);
+});
+test('⑤ 마켓 올리기가 되실은 값으로 blob 을 떼고, 없는 그림이면 안 올린다', () => {
+  const body = sliceBlock(readSrc(REPO, 'main.js'), "ipcMain.handle('market:push'", '대상');
+  const iData = body.indexOf('_inlineGoyaAssets(data)'), iScr = body.indexOf('_inlineGoyaAssets(JSON.stringify(scratch || []))'), iExt = body.indexOf('_extractBlobs(');
+  assert.ok(iData > 0 && iScr > 0 && iData < iExt && iScr < iExt);
+  assert.match(body, /missing[^;]*\) return \{ ok: false, message:/);
+});
