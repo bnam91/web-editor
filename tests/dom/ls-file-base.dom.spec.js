@@ -243,3 +243,23 @@ test('상한을 넘겨 낡게 연 탭: 편집이 파일을 덮지 않고, 돌아
   expect(await seen(page)).toBe('FILE');
   expect(await page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(false);
 });
+test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 맨 뒤로', async ({ page }) => {
+  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
+  const order = await page.evaluate(async () => {
+    const { safeLocalStorageSet } = await import('/js/io/save-load.js');
+    const K = 'web-editor-autosave__'; const now = Date.now();
+    for (const k of Object.keys(localStorage)) if (k.startsWith(K)) localStorage.removeItem(k);
+    const put = (id, ts, base) => { localStorage.setItem(K + id, 'x'); localStorage.setItem(K + id + '_ts', String(ts)); if (base) localStorage.setItem('web-editor-ls-base__' + id, base); };
+    put('rec', now - 9e6, new Date(now - 1e7).toISOString());   // 가장 오래됐지만 파일보다 새로운 복구본
+    put('recnum', now - 8e6, String(now - 1e7));                // 숫자 updatedAt 복구본
+    put('filed', now - 1000, new Date(now).toISOString());      // 새롭지만 파일에 든 본
+    put('nomark', now - 500, null);
+    const o = Storage.prototype.setItem; let left = 4; const gone = () => ['rec', 'recnum', 'filed', 'nomark'].filter((id) => localStorage.getItem(K + id) === null);
+    const seq = [];
+    Storage.prototype.setItem = function (k, v) { if (k === K + 'me' && left-- > 0) { const b = gone(); if (seq.at(-1)?.join() !== b.join()) seq.push(b); throw new DOMException('q', 'QuotaExceededError'); } return o.call(this, k, v); };
+    try { safeLocalStorageSet(K + 'me', 'y'); } finally { Storage.prototype.setItem = o; }
+    seq.push(gone());
+    return seq;
+  });
+  expect(order).toEqual([[], ['filed'], ['filed', 'nomark'], ['rec', 'filed', 'nomark'], ['rec', 'recnum', 'filed', 'nomark']]);
+});

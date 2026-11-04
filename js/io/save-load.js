@@ -1862,12 +1862,13 @@ function safeLocalStorageSet(key, value) {
         window.showToast?.('⚠️ 저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.');
         return false;
       }
-      // _ts 키로 타임스탬프 비교해 가장 오래된 키 선택
-      const oldest = candidates.sort((a, b) => {
-        const ta = parseInt(localStorage.getItem(a + '_ts') || '0');
-        const tb = parseInt(localStorage.getItem(b + '_ts') || '0');
-        return ta - tb;
-      })[0];
+      // 파일에 든 본부터, 그 안에서 오래된 것부터 지운다 — 파일에 안 든 본은 하나뿐인 복구본이다(앱 3/3). 표시 없는 옛 본은 든 것으로 친다.
+      const _tsOf = (k) => parseInt(localStorage.getItem(k + '_ts') || '0');
+      const _unfiled = (k) => {
+        const base = localStorage.getItem(_lsBaseKey(k.slice(prefix.length)));
+        return _tsOf(k) > (Number(base) || Date.parse(base));
+      };
+      const oldest = candidates.sort((a, b) => (_unfiled(a) - _unfiled(b)) || (_tsOf(a) - _tsOf(b)))[0];
       localStorage.removeItem(oldest);
       localStorage.removeItem(oldest + '_ts');
       console.warn('[save-load] QuotaExceededError: 오래된 autosave 키 삭제 후 재시도 -', oldest);
