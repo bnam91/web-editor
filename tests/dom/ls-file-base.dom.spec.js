@@ -184,7 +184,7 @@ async function storeBoot(page, delay = 0) {
   await page.addInitScript(({ file, delay }) => {
     let real; window.__store = {}; window.__delay = delay;
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
-      if (k === 'loadProject') return async (id) => { await window.__loadHold?.[id]; if (window.__loadFail?.[id]) return { _readError: 'EMFILE' }; return { ...(window.__store[id] || file), id }; };
+      if (k === 'loadProject') return async (id, o) => { if (o?.open === true) await window.__loadHold?.[id]; if (window.__loadFail?.[id]) return { _readError: 'EMFILE' }; return { ...(window.__store[id] || file), id }; };
       if (k === 'saveProject') return async (p) => { await new Promise((r) => setTimeout(r, window.__delay)); if (window.__saveFail) return { ok: false, reason: 'x' }; window.__store[p.id] = p; window.__saved = p; return { ok: true }; };
       return t[k];
     } }), set: (v) => { real = v; } });
