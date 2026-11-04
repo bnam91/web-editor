@@ -50,9 +50,7 @@
     on = false; clearTimers();
     if (w.hideProjectLoadingOverlay) w.hideProjectLoadingOverlay();
     if (s && (s.phase === 'error' || (w.isTabFirstLoading && w.isTabFirstLoading(s.projectId)))) {
-      if (w.showToast) w.showToast(message ? message : w.isTabStale && w.isTabStale(s.projectId)
-        ? '⚠️ 앞 저장이 아직 안 끝나 이 탭은 저장을 막았습니다 — 잠시 뒤 탭을 닫았다 다시 열어 주세요.'
-        : readError
+      if (w.showToast) w.showToast(message ? message : readError
         ? '⚠️ 파일을 지금 열 수 없습니다(' + readError + ') — 파일은 그대로입니다. 잠시 뒤 탭을 다시 열어 주세요.'
         : unreadable
         ? '⚠️ 파일이 깨져 이 프로젝트를 읽지 못했습니다 — 저장하지 않습니다.' + (unreadable.name ? ' 원본은 프로젝트 폴더의 ' + unreadable.name + ' 로 보존했습니다.' : '')

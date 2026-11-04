@@ -184,8 +184,8 @@ async function storeBoot(page, delay = 0) {
   await page.addInitScript(({ file, delay }) => {
     let real; window.__store = {}; window.__delay = delay;
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(real || {}, { get: (t, k) => {
-      if (k === 'loadProject') return async (id) => ({ ...(window.__store[id] || file), id });
-      if (k === 'saveProject') return async (p) => { await new Promise((r) => setTimeout(r, window.__delay)); window.__store[p.id] = p; window.__saved = p; return { ok: true }; };
+      if (k === 'loadProject') return async (id) => { await window.__loadHold?.[id]; if (window.__loadFail?.[id]) return { _readError: 'EMFILE' }; return { ...(window.__store[id] || file), id }; };
+      if (k === 'saveProject') return async (p) => { await new Promise((r) => setTimeout(r, window.__delay)); if (window.__saveFail) return { ok: false, reason: 'x' }; window.__store[p.id] = p; window.__saved = p; return { ok: true }; };
       return t[k];
     } }), set: (v) => { real = v; } });
   }, { file: { ...snap('FILE'), name: 'n', updatedAt: UPD }, delay });
@@ -207,12 +207,6 @@ test('저장 중 편집 → 탭 닫기 → 쓰기 끝나기 전 다시 열기: �
   expect(await seen(page)).toBe('Z');
   expect(await page.evaluate(() => /data-mark="Z"/.test(window.__store.p3?.pages?.[0]?.canvas || ''))).toBe(true);
 });
-test('저장이 상한 안에 안 끝나면 본을 쓰지 않고 파일로 연다', async ({ page }) => {
-  await open(page, { lsTs: fileTs - 3600e3, base: UPD });
-  await page.evaluate(() => { window.waitSavesFor = async () => false; });
-  await tabOpen(page, 'p3', { lsTs: fileTs + 3600e3, base: UPD });
-  expect(await seen(page)).toBe('FILE');
-});
 test('복구 첫 로드 직후 다른 탭으로 갔다 돌아와도 복구분을 파일로 넣는다', async ({ page }) => {
   await storeBoot(page);
   await page.evaluate(({ ls, lsTs, upd }) => {
@@ -228,36 +222,36 @@ test('복구 첫 로드 직후 다른 탭으로 갔다 돌아와도 복구분을
   await page.evaluate(() => window.switchTab('p3'));
   await expect.poll(() => page.evaluate(() => /data-mark="LS"/.test(window.__store.p3?.pages?.[0]?.canvas || '')), { timeout: 8000 }).toBe(true);
 });
-test('상한을 넘겨 낡게 연 탭: 편집이 파일을 덮지 않고, 돌아오면 파일을 다시 읽는다', async ({ page }) => {
-  await storeBoot(page);
-  await page.evaluate(() => { const w = window.waitSavesFor; window.waitSavesFor = async () => false; window.__w = w; });
-  await page.evaluate(() => window.openTabForProject('p3'));
-  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
-  await page.evaluate(() => { window.__saved = null; window.waitSavesFor = window.__w; });
-  await setMark(page, 'STALE');
-  await page.waitForFunction(() => [...document.querySelectorAll('[id*=toast],[class*=toast]')].some((e) => e.textContent.includes('이 편집은 저장되지 않습니다')));
-  await expect.poll(() => page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(true);
-  expect(await page.evaluate(() => window.__saved)).toBeNull();
-  await page.evaluate(() => window.switchTab('p1'));
-  await page.evaluate(() => window.switchTab('p3'));
-  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
-  expect(await seen(page)).toBe('FILE');
-  expect(await page.evaluate(() => window.isTabFirstLoading('p3'))).toBe(false);
-});
-test('낡게 연 탭: 앞 프로젝트 저장이 끝나도 편집이 저장된 척하지 않는다', async ({ page }) => {
-  await storeBoot(page);
-  await page.evaluate(() => { const w = window.waitSavesFor; window.waitSavesFor = async () => false; window.__w = w; });
-  await page.evaluate(() => window.openTabForProject('p3'));
-  await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
+const watchRed = (page) => page.evaluate(() => { window.__red = 0; window.__ts = []; const t = window.showToast; window.showToast = (m) => { window.__ts.push(m); return t?.(m); }; const el = document.getElementById('autosave-indicator'); new MutationObserver(() => { if (el.textContent.includes('저장 실패')) window.__red++; }).observe(el, { childList: true, characterData: true, subtree: true }); });
+const holdLoad = (page, id) => page.evaluate((id) => { window.__loadHold = { [id]: new Promise((r) => { window.__loadGo = r; }) }; window.openTabForProject(id); }, id);
+const landed = (page, id) => page.waitForFunction((id) => window.activeProjectId === id && window.gdtProjectReady.isReady(id) && document.querySelector('#g1')?.dataset.mark, id);
+const holdSaves = (page, n) => page.evaluate((n) => { let k = 0; window.__w = window.waitSavesFor; window.waitSavesFor = async () => { await new Promise((r) => setTimeout(r, 50)); return k++ >= n; }; }, n);
+test('앞 저장이 안 끝나면 탭을 안 읽고 입력을 막고, 끝나면 파일을 읽어 열고 편집을 저장한다', async ({ page }) => {
+  await storeBoot(page); await watchRed(page);
+  await holdSaves(page, 30);   // 끝나기 전 약 3초
+  await page.evaluate(() => { window.openTabForProject('p3'); });
+  await page.waitForFunction(() => window.__ts.some((m) => m.includes('앞 저장이 아직 안 끝나')));
+  expect(await page.evaluate(() => [window.gdtProjectReady.get().phase, window.LoadInputGate.isOn(), window.__ts.filter((m) => m.includes('읽지 못해')).length]), '★낡은 화면이 열렸다').toEqual(['loading', true, 0]);
+  await landed(page, 'p3');
+  await expect.poll(() => page.evaluate(() => [window.LoadInputGate.isOn(), window.isTabFirstLoading('p3')])).toEqual([false, false]);
   await page.evaluate(() => { window.waitSavesFor = window.__w; });
-  await setMark(page, 'STALE');
-  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
-  await page.evaluate(() => window.saveProjectToFile(JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block"></div>' }] }), { skipThumbnail: true, projectId: 'p1' }));
-  expect(await page.evaluate(() => window.hasUnsavedChanges()), '★안 남은 편집의 미저장 표시를 지웠다').toBe(true);
-  await page.evaluate(async () => { (await import('/js/io/save-load.js')); });
-  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
+  await setMark(page, 'E');
+  await page.waitForFunction(() => /data-mark=.?.?"?E/.test(window.__store.p3?.pages?.[0]?.canvas || ''));
+  await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
+  expect(await page.evaluate(() => window.__red)).toBe(0);
 });
-test('앞 저장을 기다리는 중 온 타이머는 «읽지 못해»라고 말하지 않는다', async ({ page }) => {
+test('앞 저장을 기다리다 다른 탭으로 나가도 그 탭이 막히지 않고, 돌아오면 다시 읽는다', async ({ page }) => {
+  await storeBoot(page);
+  await holdSaves(page, 1e6);
+  await page.evaluate(() => { window.openTabForProject('p3'); });
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && window.gdtProjectReady.get().phase === 'loading');
+  await page.evaluate(() => { window.switchTab('p1'); });
+  await landed(page, 'p1');
+  await page.evaluate(() => { window.waitSavesFor = window.__w; });
+  await page.evaluate(() => { window.switchTab('p3'); }); await landed(page, 'p3');
+  expect(await seen(page)).toBe('FILE');
+});
+test('앞 저장을 기다리는 중 온 타이머는 «읽지 못해»·저장 실패라고 말하지 않는다', async ({ page }) => {
   await storeBoot(page);
   await page.evaluate(() => window.openTabForProject('p3'));
   await page.waitForFunction(() => window.activeProjectId === 'p3' && document.querySelector('#g1')?.dataset.mark);
@@ -269,11 +263,13 @@ test('앞 저장을 기다리는 중 온 타이머는 «읽지 못해»라고 �
     window.openTabForProject('p3');
   });
   await page.waitForFunction(() => window.activeProjectId === 'p3' && window.isTabFirstLoading('p3') && window.__go);
-  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
+  await page.waitForFunction(() => document.getElementById('autosave-indicator')?.textContent.includes('저장됨') || !document.getElementById('autosave-indicator')?.textContent);
+  await page.waitForTimeout(1600);
   expect(await page.evaluate(() => window.__ts)).toEqual([]);
-  await page.evaluate(() => { window.waitSavesFor = window.__w; window.__go(false); });
-  await page.waitForFunction(() => window.__ts.some((m) => m.includes('앞 저장이 아직 안 끝나')));
-  expect((await page.evaluate(() => window.__ts)).filter((m) => m.includes('읽지 못해'))).toEqual([]);
+  await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
+  await page.evaluate(() => { window.waitSavesFor = window.__w; window.__go(true); });
+  await landed(page, 'p3');
+  await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
 });
 test('쿼터 축출은 파일에 든 본부터, 안 든 복구본은 안 지운다', async ({ page }) => {
   await open(page, { lsTs: fileTs - 3600e3, base: UPD });
@@ -316,4 +312,94 @@ test('[BUG-44] 2MB 초과 본이 파일에 들어가면 본을 지운다', async
   const id = await page.evaluate(() => window.activeProjectId);
   await page.evaluate(async ([s, id]) => { localStorage.setItem('web-editor-autosave__' + id, 'old'); await window.saveProjectToFile(s, { skipThumbnail: true, projectId: id }); }, [big('B'), id]);
   expect(await lsOf(page, id)).toMatchObject({ len: null, ts: null });
+});
+/* 리뷰 칸 — 표시·낡은 탭·큰 본·축출. */
+test('A 저장이 안 읽힌 B 를 여는 창 안에서 끝나도 빨간 저장 실패가 안 뜬다', async ({ page }) => {
+  await storeBoot(page); await watchRed(page);
+  await page.evaluate(() => { window.__delay = 1500; });
+  await setMark(page, 'Q');
+  await page.waitForFunction(() => /data-mark=\\?"Q/.test(localStorage.getItem('web-editor-autosave__p1') || ''));   // 저장이 도는 중
+  await holdLoad(page, 'p3');
+  await page.waitForFunction(() => window.isTabFirstLoading('p3'));
+  await page.waitForFunction(() => /data-mark=.?.?"?Q/.test(window.__store.p1?.pages?.[0]?.canvas || ''));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => [window.isTabFirstLoading('p3'), window.__red]), '★저장이 됐는데 저장 실패').toEqual([true, 0]);
+  await page.evaluate(() => window.__loadGo()); await landed(page, 'p3');
+  await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
+});
+test('탭 전환 감지 skip 길도 B 를 여는 창 안에서 저장 실패라고 안 한다', async ({ page }) => {
+  await storeBoot(page); await watchRed(page);
+  await page.evaluate(() => { window.__delay = 600; });
+  await setMark(page, 'Q');   // 타이머는 1.5초 뒤 — 그때 활성은 B
+  await holdLoad(page, 'p3');
+  await page.waitForFunction(() => window.isTabFirstLoading('p3'));
+  await page.waitForTimeout(2200);
+  expect(await page.evaluate(() => [window.isTabFirstLoading('p3'), window.__red]), '★skip 인데 저장 실패').toEqual([true, 0]);
+  await page.evaluate(() => window.__loadGo()); await landed(page, 'p3');
+  await expect(page.locator('#autosave-indicator')).not.toContainText('저장 실패');
+});
+test('[음성] 평소 탭 전환에 빨강 0', async ({ page }) => {
+  await storeBoot(page); await watchRed(page);
+  await setMark(page, 'Q');
+  await page.evaluate(() => window.openTabForProject('p3')); await landed(page, 'p3');
+  await setMark(page, 'R');
+  await page.evaluate(() => window.switchTab('p1')); await landed(page, 'p1');
+  await page.waitForTimeout(1700);
+  expect(await page.evaluate(() => window.__red)).toBe(0);
+});
+test('로드 실패 탭은 앞 저장이 끝나도 저장됨이라 안 하고 미저장을 지우지 않는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__loadFail = { p3: 1 }; window.openTabForProject('p3').catch(() => {}); });
+  await page.waitForFunction(() => window.activeProjectId === 'p3' && window.gdtProjectReady.get().phase === 'error' && !window.state._suppressAutoSave);
+  await page.evaluate(() => window.scheduleAutoSave());
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
+  await page.evaluate(() => window.saveProjectToFile(JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block"></div>' }] }), { skipThumbnail: true, projectId: 'p1' }));
+  expect(await page.evaluate(() => window.hasUnsavedChanges()), '★안 남은 편집의 미저장 표시를 지웠다').toBe(true);
+  await expect(page.locator('#autosave-indicator')).toContainText('저장 실패');
+});
+const saveDuring = (page, s, id, small) => page.evaluate(async ([s, id, small]) => {   // 큰 본 저장이 도는 중 자동저장이 작은 본을 LS 에 쓴다(사진 지우기 등)
+  const K = 'web-editor-autosave__' + id; const p = window.saveProjectToFile(s, { skipThumbnail: true, projectId: id });
+  await new Promise((r) => setTimeout(r, 30));
+  localStorage.setItem(K, small); localStorage.setItem(K + '_ts', String(Date.now() + 1000));
+  await p;
+  return { v: localStorage.getItem(K)?.slice(0, 20) ?? null, ts: localStorage.getItem(K + '_ts') };
+}, [s, id, small]);
+test('큰 본 저장이 실패해도 그 사이 쓴 더 새 작은 본을 안 덮는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__delay = 200; window.__saveFail = 1; });
+  expect((await saveDuring(page, big('B'), 'p1', 'small-new')).v).toBe('small-new');
+});
+test('큰 본 저장이 성공해도 그 사이 쓴 더 새 작은 본을 안 지운다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__delay = 200; });
+  expect((await saveDuring(page, big('B'), 'p1', 'small-new')).v).toBe('small-new');
+});
+test('파일에 들어간 본은 축출에서 복구본으로 치지 않는다', async ({ page }) => {
+  await storeBoot(page);
+  await setMark(page, 'Q');   // 평소 편집 → LS ts 가 표시(열 때 값)보다 새롭다 · 파일 저장 성공
+  await page.waitForFunction(() => /data-mark=.?.?"?Q/.test(window.__store.p1?.pages?.[0]?.canvas || ''));
+  await page.waitForFunction(() => window.waitSavesFor('p1', 1));
+  const r = await page.evaluate(async () => {
+    const { safeLocalStorageSet } = await import('/js/io/save-load.js'); const K = 'web-editor-autosave__';
+    const has = !!localStorage.getItem(K + 'p1'); const o = Storage.prototype.setItem; let left = 1;
+    Storage.prototype.setItem = function (k, v) { if (k === K + 'me' && left-- > 0) throw new DOMException('q', 'QuotaExceededError'); return o.call(this, k, v); };
+    let ok; try { ok = safeLocalStorageSet(K + 'me', 'y'); } finally { Storage.prototype.setItem = o; }
+    return { has, ok, 남음: !!localStorage.getItem(K + 'p1') };
+  });
+  expect(r).toEqual({ has: true, ok: true, 남음: false });
+});
+test('beforeunload 동기 저장이 된 본도 복구본으로 치지 않는다', async ({ page }) => {
+  await storeBoot(page);
+  await page.waitForFunction(() => !window.state._suppressAutoSave);
+  const r = await page.evaluate(async () => {
+    const a = window.electronAPI; Object.defineProperty(window, 'electronAPI', { configurable: true, value: new Proxy(a, { get: (t, k) => k === 'saveProjectSync' ? () => ({ ok: true }) : t[k] }) });
+    document.querySelector('#g1').dataset.mark = 'U'; window.scheduleAutoSave();
+    window.dispatchEvent(new Event('beforeunload'));
+    const { safeLocalStorageSet } = await import('/js/io/save-load.js'); const K = 'web-editor-autosave__';
+    const has = !!localStorage.getItem(K + 'p1'); const o = Storage.prototype.setItem; let left = 1;
+    Storage.prototype.setItem = function (k, v) { if (k === K + 'me' && left-- > 0) throw new DOMException('q', 'QuotaExceededError'); return o.call(this, k, v); };
+    let ok; try { ok = safeLocalStorageSet(K + 'me', 'y'); } finally { Storage.prototype.setItem = o; }
+    return { has, ok };
+  });
+  expect(r).toEqual({ has: true, ok: true });
 });

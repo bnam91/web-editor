@@ -282,7 +282,6 @@ function _restoreViewState(tab) {
    다음 편집 저장이 그 탭 파일을 앞 프로젝트 내용으로 덮었다(앱 실측 · ~/gd-lane/imac-gd-L1/359). 시험: tests/dom/switchtab-first-load-race-360. */
 let _switchGen = 0;
 let _firstLoadingTabId = null;
-let _staleTabId = null;   // 앞 저장이 상한 안에 안 끝난 채 연 탭 — 안 읽힌 탭처럼 저장을 막되, 까닭이 달라 말도 다르다
 
 async function switchTab(id) {
   if (id === _getActId()) return;
@@ -397,17 +396,20 @@ async function switchTab(id) {
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
     let _afterLs = null;
-    let _savesDrained = true;
     if (window.IS_ELECTRON) {
       _firstLoadingTabId = id;
-      _savesDrained = (await window.waitSavesFor?.(id)) !== false;
+      /* 그 프로젝트의 앞 저장이 끝날 때까지 안 읽는다 — 먼저 읽으면 그 저장보다 낡은 화면이고, 거기서 쓰면 그 저장을 덮고(앱 3/3) 안 쓰면 받은 편집을 버린다(리뷰).
+         기다리는 동안 입력은 게이트가 막고, 탭 바는 열려 있어 다른 탭으로 나갈 수 있다. 끝나지 않는 저장이면 이 탭만 안 열린다 — 잃는 것은 없다. */
+      for (let _said = false; (await window.waitSavesFor?.(id, _said ? 1000 : 15000)) === false; _said = true) {
+        if (_gen !== _switchGen) return;
+        if (!_said) window.showToast?.('⏳ 앞 저장이 아직 안 끝나 기다립니다 — 끝나면 파일을 읽어 엽니다. 그동안 이 탭은 편집이 막힙니다.');
+        await new Promise((r) => setTimeout(r, 50));
+      }
       if (_gen !== _switchGen) return;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
       if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
-      /* 앞 저장이 상한 안에 안 끝났으면 이 화면은 그 저장보다 낡았다. 여기서 쓰면 그 저장을 덮는다(앱 3/3) → «안 읽힌 탭»처럼 저장을 막고 캐시도 안 둔다(돌아오면 다시 읽는다). */
-      _firstLoadingTabId = _savesDrained ? null : id;
-      _staleTabId = _savesDrained ? null : id;
+      _firstLoadingTabId = null;
       if (targetTab && proj?.name) targetTab.name = proj.name;
       renderTabBar();
     } else {
@@ -417,11 +419,11 @@ async function switchTab(id) {
     if (proj) {
       /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
       let _lsData = null;
-      try { _lsData = _savesDrained ? (window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null) : null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
+      try { _lsData = window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
       _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
       if (targetTab) targetTab._afterLs = _afterLs;
       const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
-      if (targetTab && _savesDrained) targetTab._cache = JSON.stringify(data);
+      if (targetTab) targetTab._cache = JSON.stringify(data);
       window.applyProjectData(data);
       _restoreViewState(targetTab);
     } else {
@@ -604,7 +606,6 @@ window.cancelRenameProject  = cancelRenameProject;
 window.switchTab            = switchTab;
 /* ★361 — 이 탭이 «아직 안 읽혔나»(첫 로드 중 · 로드 실패 뒤). 그동안 캔버스는 비었고 state 는 앞 프로젝트라, 직렬화하면 앞 프로젝트 내용이 이 id 로 나간다. */
 window.isTabFirstLoading   = (id) => !!id && id === _firstLoadingTabId;
-window.isTabStale          = (id) => !!id && id === _firstLoadingTabId && id === _staleTabId;
 /* ★342 — 앱 시작 때 첫 로드(initLoad · save-load.js)도 같은 창이다. ⛔풀 때는 제 id 일 때만 — 그사이 다른 탭으로 갔으면 그 탭의 것이다. */
 window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
