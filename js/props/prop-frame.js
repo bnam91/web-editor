@@ -82,12 +82,12 @@ function _analyzeFreeLayoutChildren(ss) {
   );
   const items = directChildren.map(c => {
     const left   = parseInt(c.style.left)   || 0;
-    const top    = parseInt(c.style.top)    || 0;
+    const top    = parseFloat(c.style.top)  || 0;   // 소수 그대로 — 정수로 읽으면 왕복마다 간격이 1px 씩 는다(자리·아래 이웃이 밀린다)
     /* ★수지④(2026-10-08) — style 값은 «px 일 때만» 믿는다. 글자 래퍼는 폭이 「100%」라 parseInt 가 100 을 돌려줘
        스택 변환이 그 글자를 100px 로 박았다(실측: 860→100 · 한 줄→세 줄). %·auto·빈 값이면 그려진 크기(offset*). */
     const _px = (v) => (/^-?[\d.]+px$/.test(v || '') ? Math.round(parseFloat(v)) : 0);
     const width  = _px(c.style.width)  || c.offsetWidth  || 0;
-    const height = _px(c.style.height) || c.offsetHeight || 0;
+    const height = parseFloat(getComputedStyle(c).height) || c.offsetHeight || 0;
     return { el: c, id: c.id, left, top, width, height, bottom: top + height, right: left + width };
   });
   const rows = [];
@@ -106,12 +106,12 @@ function _analyzeFreeLayoutChildren(ss) {
   rows.sort((a, b) => a.minTop - b.minTop);
   const vGaps = [];
   for (let i = 1; i < rows.length; i++) {
-    vGaps.push(rows[i].minTop - rows[i - 1].maxBottom);
+    vGaps.push(Math.round(rows[i].minTop - rows[i - 1].maxBottom));
   }
-  const frameH = parseInt(ss.style.height) || parseInt(ss.dataset.height) || ss.offsetHeight || 0;
+  const frameH = parseFloat(ss.style.height) || parseInt(ss.dataset.height) || ss.offsetHeight || 0;
   const frameW = _framePxW(ss);
-  const padTop = rows.length ? rows[0].minTop : 0;
-  const padBot = rows.length ? Math.max(0, frameH - rows[rows.length - 1].maxBottom) : 0;
+  const padTop = rows.length ? Math.round(rows[0].minTop) : 0;
+  const padBot = rows.length ? Math.max(0, Math.round(frameH - rows[rows.length - 1].maxBottom)) : 0;
   return { rows, vGaps, padTop, padBot, frameH, frameW };
 }
 
@@ -315,7 +315,8 @@ function _convertFreeLayoutToStack(ss) {
   ss.style.minHeight = '';
   /* ★스택이 «된 뒤»에 파생한다 — 그 함수가 `freeLayout` 을 보고 비켜 가므로 순서가 뜻을 가른다 */
   _applyStackChildWidths(ss);
-  orderedItems.forEach(it => { if (it.el.classList.contains('frame-block')) window.bindFrameFlowDrop?.(it.el); });   // 흐름이 된 자식 프레임에 드롭 자리를 준다 — 까닭은 그 함수 머리말
+  orderedItems.forEach(it => window.rebirthFlowUnit?.(it.el));   // absolute 때 묶인 처리기(드롭 자리 없음·옛 좌표 끌기)를 버리고 다시 연 판과 같게 묶는다 — S3 B-5 · S6 ④⑤
+  _applyStackChildWidths(ss);   // 위 다시 묶기가 다시 그리며 캔버스 등의 폭을 모델 값으로 되쓴다 ⇒ 파생 폭을 다시 놓는다(P7)
 
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
@@ -369,6 +370,7 @@ function _convertStackToFree(ss) {
     if (c.hasAttribute('draggable')) c.setAttribute('draggable', 'false');
   }
   transforms.forEach(([e, t]) => { e.style.transform = t; });
+  spots.forEach(({ c }) => c._bindAbsCellDrag?.());   // 흐름으로 묶인 자식 프레임에 좌표 끌기만 — 안 걸면 free 로 바꾼 뒤 안 움직인다
   window.pushHistory?.('free 로 전환');
   window.scheduleAutoSave?.();
   window.buildLayerPanel?.();
@@ -1079,7 +1081,9 @@ function _renderAutoPanel(ss) {
   const applyWidth  = (v) => {
     const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
     const newW = parseInt(v);
-    const ratio = newW / oldW;
+    /* 손잡이로 폭만 바뀐 뒤면 자식은 그 전 폭에 맞아 있다 — 기준은 그 폭(js/overlay-handles.js onMove 가 남긴다). 한 번 맞추면 지운다. */
+    const ratio = newW / (parseInt(ss.dataset.childScaleW) || oldW);
+    delete ss.dataset.childScaleW;
     if (ratio !== 1) {
       ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
         const curLeft  = parseInt(block.style.left  || 0);

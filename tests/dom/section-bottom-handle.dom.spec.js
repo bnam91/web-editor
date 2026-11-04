@@ -80,3 +80,75 @@ test('섹션 바닥 손잡이: 끌면 섹션 바닥 높이(min-height)가 생기
   expect(r.hBack, '지운 뒤 바닥으로 안 돌아왔다').toBe(r.H);
   expect(errs, `콘솔 오류 = ${JSON.stringify(errs)}`).toEqual([]);
 });
+
+/* ── 188 — 앱 QA 로만 재던 칸을 CI 로 옮긴다 ─────────────────────────────
+   변이: 저장에서 min-height 를 걷으면 S1·D1 빨강 · onDblClick 을 안 걸면 D1 빨강 · 바닥 없을 때 되돌아 나가는 줄을 빼면 D2 빨강.
+   장면 준비만 evaluate — 끌기·더블클릭은 진짜 마우스. 다시 열기 = 저장 글자를 applyProjectData 로 되읽기. */
+async function floorScene(page) {
+  await page.setViewportSize({ width: 1500, height: 1400 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(() => {
+    const c = document.getElementById('canvas');
+    c.querySelectorAll('.section-block').forEach(s => s.remove());
+    window.addSection();
+    const el = [...c.querySelectorAll('.section-block')].pop();
+    window.applyZoom?.(100);
+    window.selectSection?.(el);
+    el.scrollIntoView({ block: 'start' });
+    return el.id;
+  });
+  await waitStableRect(page, '#' + id);
+  return { errs, id };
+}
+async function dragFloor(page, id, dy) {
+  const s = await waitStableRect(page, '#' + id);
+  const x = s.left + s.width / 2, y = s.top + s.height - 3;
+  await page.mouse.move(x, y - 40); await page.mouse.move(x, y); await raf2(page);
+  await page.mouse.down(); await page.mouse.move(x, y + dy / 2, { steps: 3 }); await page.mouse.move(x, y + dy, { steps: 3 }); await page.mouse.up(); await raf2(page);
+  await expect.poll(() => page.evaluate((i) => document.getElementById(i).style.minHeight, id), { message: '전제 — 끌어 바닥이 생겼다' }).not.toBe('');
+}
+const floorOf = (page, id) => page.evaluate((i) => { const e = document.getElementById(i); return { min: e.style.minHeight, h: e.offsetHeight, handles: e.querySelectorAll(':scope > .section-bottom-handle').length }; }, id);
+
+test('S1 ★188 직렬화 — 저장 → 다시 열기 뒤 바닥 높이·그려진 높이가 같다 · 손잡이는 저장에 안 실리고 다시 붙는다', async ({ page }) => {
+  const { errs, id } = await floorScene(page);
+  await dragFloor(page, id, 120);
+  const before = await floorOf(page, id);
+  const saved = await page.evaluate(() => window.serializeProject());
+  expect(saved, '★저장 글자에 바닥 높이가 실린다').toContain(`min-height: ${before.min}`);
+  expect(saved, '★손잡이는 저장에 안 실린다').not.toContain('section-bottom-handle');
+  await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(JSON.parse(d)); }, saved);
+  await page.waitForFunction((i) => document.querySelector(`#${i} > .section-bottom-handle`), id, { timeout: 5000 });
+  expect(await floorOf(page, id), '★다시 연 뒤 값이 같다').toEqual(before);
+  expect(errs).toEqual([]);
+});
+
+test('D1 ★188 더블클릭 — 바닥이 있으면 없앤다 · ⌘Z 한 번에 돌아온다', async ({ page }) => {
+  const { errs, id } = await floorScene(page);
+  const natural = (await floorOf(page, id)).h;
+  await dragFloor(page, id, 120);
+  const made = await floorOf(page, id);
+  const s = await waitStableRect(page, '#' + id);
+  const x = s.left + s.width / 2, y = s.top + s.height - 3;
+  await page.mouse.move(x, y - 40); await page.mouse.move(x, y); await raf2(page);
+  await page.mouse.dblclick(x, y);
+  await expect.poll(() => floorOf(page, id).then((f) => f.min), { message: '★더블클릭 = 바닥 없앰' }).toBe('');
+  expect((await floorOf(page, id)).h, '★높이가 블럭 높이로 돌아왔다').toBe(natural);
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => floorOf(page, id).then((f) => f.min), { message: '★⌘Z 한 번에 바닥이 돌아온다' }).toBe(made.min);
+  expect(errs).toEqual([]);
+});
+
+test('D2 [음성] 바닥이 없으면 더블클릭해도 아무 일 없다 · 기록이 안 쌓인다', async ({ page }) => {
+  const { errs, id } = await floorScene(page);
+  const before = await floorOf(page, id);
+  const s = await waitStableRect(page, '#' + id);
+  const x = s.left + s.width / 2, y = s.top + s.height - 3;
+  await page.mouse.move(x, y - 40); await page.mouse.move(x, y); await raf2(page);
+  await page.evaluate(() => { const o = window.pushHistory; window.__ph = 0; window.pushHistory = (...a) => { window.__ph++; return o(...a); }; document.addEventListener('dblclick', () => { window.__dbl = (window.__dbl || 0) + 1; }, true); });
+  await page.mouse.dblclick(x, y);
+  await expect.poll(() => page.evaluate(() => window.__dbl), { message: '전제 — 더블클릭이 왔다' }).toBeGreaterThan(0);
+  expect(await page.evaluate((i) => document.elementFromPoint(...(() => { const r = document.getElementById(i).getBoundingClientRect(); return [r.left + r.width / 2, r.bottom - 3]; })())?.closest('.section-bottom-handle') !== null, id), '전제 — 손잡이를 눌렀다').toBe(true);
+  expect(await floorOf(page, id)).toEqual(before);
+  expect(await page.evaluate(() => window.__ph), '★기록 0').toBe(0);
+  expect(errs).toEqual([]);
+});

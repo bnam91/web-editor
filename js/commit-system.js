@@ -317,7 +317,9 @@ async function saveProjectFile() {
          뺐고 여기는 안 뺐다. 그 마커는 「저장에 남기지 않음」이 명시된 런타임 표식이라, 커밋
          경로로 저장하면 파일에 실렸다. 한 벌로 모으며 그 결함도 닫는다. */
       const proj = buildProjForSave(existing, data, targetId);
-      await window.electronAPI.saveProject(proj);
+      const saved = await window.electronAPI.saveProject(proj);
+      if (saved?.reason === 'project_deleted') { await window.closeDeletedProjectTab?.(targetId); return; }   // 연 채 삭제 — save-load.js 와 같은 처리
+      if (saved?.ok === false) { window.showToast?.('⚠️ 저장 거부: ' + (saved.reason || '알 수 없는 오류')); return; }
       // localStorage도 sync
       localStorage.setItem('project_' + targetId, snap);
       window.showToast?.('✅ 저장됨');

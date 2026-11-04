@@ -53,7 +53,8 @@ const MOVE_SRC = sliceBlock(ED, 'function moveSelectedBlocks(');
    ⛔손으로 베끼지 않는다: 베끼면 명부가 갈려 이 검사가 앱과 다른 것을 잰다. */
 const SECTION_SEL_SRC = (ED.match(/^const SECTION_BLOCK_TYPE_SEL = \[[\s\S]*?\]\.join\(', '\);$/m) || [])[0];
 const SIBLING_SEL_SRC = (ED.match(/^const SIBLING_MULTI_SEL = .*;$/m) || [])[0];
-if (!SECTION_SEL_SRC || !SIBLING_SEL_SRC) {
+const SECTION_SELECTED_SRC = (ED.match(/^const SECTION_BLOCK_TYPE_SEL_SELECTED =\n.*;$/m) || [])[0];   // 606b8ddc 부터 moveSelectedBlocks 가 쓴다
+if (!SECTION_SEL_SRC || !SIBLING_SEL_SRC || !SECTION_SELECTED_SRC) {
   throw new Error('★editor.js 의 형제 명부 상수를 못 떴다 — 이름이 바뀌었나? 이 하네스는 앱과 다른 것을 재게 된다');
 }
 const UNGROUP_SRC = sliceBlock(SD, 'function ungroupBlock(');
@@ -84,6 +85,7 @@ window.deselectAll = () => document.querySelectorAll('.selected').forEach(e => e
 window.__toasts = [];
 window.showToast = (m) => window.__toasts.push(m);
 ${SECTION_SEL_SRC}
+${SECTION_SELECTED_SRC}
 ${SIBLING_SEL_SRC}
 ${NEXT_GROUP_SRC}
 ${WRAP_SRC}

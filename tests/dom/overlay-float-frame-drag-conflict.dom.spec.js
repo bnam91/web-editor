@@ -111,6 +111,7 @@ function harness(preMode, deps = '') {
       const _isShapeFrameEl = () => false;
       const showFrameHandles = () => {};
       const _bindFrameOwnDrag = () => {};
+      const _frameOutsideParentAt = () => null;
       const clearDropIndicators = () => {};
       const getDragAfterElement = () => null;
       const showGuides = () => {};

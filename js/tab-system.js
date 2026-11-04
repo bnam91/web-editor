@@ -112,11 +112,15 @@ async function finishRenameProject() {
   const display = document.getElementById('project-name-display');
   const input   = document.getElementById('project-name-input');
   if (!display || !input || input.style.display === 'none') return;
-  const newName = input.value.trim() || 'Untitled';
+  const newName = input.value.trim();
   input.style.display = 'none';
   display.style.display = '';
+  /* ★340 — 빈 입력은 «취소»다. 옛 판은 'Untitled' 로 보냈고 가드가 막아 화면만 틀렸다. */
+  if (!newName) return;
 
-  const tab = _getTabs().find(t => t.id === _getActId());
+  const activeProjectId = _getActId();
+  const tab = _getTabs().find(t => t.id === activeProjectId);
+  const oldName = tab ? tab.name : display.textContent;
   if (tab) tab.name = newName;
   display.textContent = newName;
   renderTabBar();
@@ -124,14 +128,20 @@ async function finishRenameProject() {
 
   // 파일에도 저장
   const IS_ELECTRON = window.IS_ELECTRON;
-  const activeProjectId = _getActId();
   const PROJECTS_KEY = 'sangpe-projects';
   if (IS_ELECTRON && activeProjectId) {
-    const proj = await window.electronAPI.loadProject(activeProjectId);
-    if (proj) {
-      proj.name = newName;
-      proj.updatedAt = new Date().toISOString();
-      await window.electronAPI.saveProject(proj);
+    /* ★340 B — 본 프로세스가 한 틱에 읽고 쓴다(main.js projects:rename). ⛔여기서 왕복하지 마라. */
+    let r = null;
+    try { r = await window.electronAPI.renameProject({ projectId: activeProjectId, name: newName }); }
+    catch (e) { r = { ok: false, error: e && e.message }; }
+    if (!r || r.ok !== true) {
+      // ★실패를 삼키지 않는다 — 화면을 디스크 값으로 되돌리고 말한다
+      const t = _getTabs().find(x => x.id === activeProjectId);
+      if (t && t.name === newName) t.name = oldName;
+      if (_getActId() === activeProjectId) display.textContent = oldName;
+      renderTabBar();
+      saveTabState();
+      window.showToast?.(`⚠️ 이름을 바꾸지 못했습니다: ${(r && r.error) || '알 수 없는 오류'}`);
     }
   } else if (activeProjectId) {
     const list = JSON.parse(localStorage.getItem(PROJECTS_KEY) || '[]');
@@ -364,11 +374,16 @@ async function switchTab(id) {
     saveTabState();
 
     const targetTab = openTabs.find(t => t.id === id);
+    const _runAfterLs = (after) => {
+      if (!after) return;
+      after(() => _gen === _switchGen && _getActId() === id).then((done) => { if (done && targetTab?._afterLs === after) targetTab._afterLs = null; });
+    };
 
     // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
     if (targetTab?._cache) {
       window.applyProjectData(JSON.parse(targetTab._cache));
       window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
+      _runAfterLs(targetTab._afterLs);   // 첫 로드 직후 떠나 못 끝낸 복구 저장(앱 3/3)
       window.initBranchStore();
       _restoreViewState(targetTab);
       requestAnimationFrame(() => { if (window.buildLayerPanel) window.buildLayerPanel(); });
@@ -380,8 +395,12 @@ async function switchTab(id) {
 
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
+    let _afterLs = null;
+    let _savesDrained = true;
     if (window.IS_ELECTRON) {
       _firstLoadingTabId = id;
+      _savesDrained = (await window.waitSavesFor?.(id)) !== false;
+      if (_gen !== _switchGen) return;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
       if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
@@ -393,7 +412,12 @@ async function switchTab(id) {
       if (targetTab && proj?.name) targetTab.name = proj.name;
     }
     if (proj) {
-      const data = proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj;
+      /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
+      let _lsData = null;
+      try { _lsData = _savesDrained ? (window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null) : null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
+      _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
+      if (targetTab) targetTab._afterLs = _afterLs;
+      const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
       if (targetTab) targetTab._cache = JSON.stringify(data);
       window.applyProjectData(data);
       _restoreViewState(targetTab);
@@ -407,6 +431,7 @@ async function switchTab(id) {
       window.clearHistory?.();
     }
     window.AutoSaveSuppress.end(_asTok);     // 파일 분기: 예전 `= false` 와 «같은 자리»
+    _runAfterLs(_afterLs);
     window.initBranchStore();
     // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
     try { await window.switchScratch?.(id, window.state?.currentPageId); }
@@ -414,6 +439,9 @@ async function switchTab(id) {
   } finally {
     /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
     window.AutoSaveSuppress.end(_asTok);
+    /* ★363 — 적용이 던지면 settle 없이 나간다. 그대로 두면 입력이 영영 막힌다(지난 로드·이미 닫힌 로드는 건드리지 않는다). */
+    const _pl = window.gdtProjectReady?.get();
+    if (_pl && _pl.seq === _loadSeq && _pl.phase === 'loading') _settleErr('tab-threw');
   }
 }
 
@@ -429,6 +457,31 @@ async function closeTab(id) {
   _setTabs(_getTabs().filter(t => t.id !== id));
   renderTabBar();
   saveTabState();
+}
+
+/* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 저장 없이 탭을 닫고 알린다.
+   목록에서 먼저 빼므로 switchTab 이 나가는 탭을 직렬화·저장하지 않는다. 마지막 탭이면 갤러리로 간다(goHome 은 저장하므로 안 쓴다). */
+async function closeDeletedProjectTab(id) {
+  const tabs = _getTabs();
+  const idx = tabs.findIndex(t => t.id === id);
+  if (idx === -1) return false;
+  const active = id === _getActId();
+  const lost = !window.isTabFirstLoading?.(id) && !!(active ? window.hasUnsavedChanges?.() : window.projectSaveUnsettled?.(id));
+  const msg = window.deletedTabNotice?.(tabs[idx].name, lost);
+  const next = tabs[idx + 1] || tabs[idx - 1];
+  _setTabs(tabs.filter(t => t.id !== id));
+  if (active && !next) {
+    _setActId(null);   // beforeunload 저장도 멈춘다
+    saveTabState();
+    if (msg) localStorage.setItem('gd-deleted-tab-notice', msg);   // 갤러리가 띄운다
+    setTimeout(() => { window.location.href = 'pages/projects.html'; }, 0);
+    return true;
+  }
+  if (active) await switchTab(next.id);
+  renderTabBar();
+  saveTabState();
+  if (msg) window.showStatusToast?.(msg);
+  return true;
 }
 
 async function openTabForProject(id) {
@@ -550,6 +603,7 @@ window.isTabFirstLoading   = (id) => !!id && id === _firstLoadingTabId;
 window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
 window.closeTab             = closeTab;
+window.closeDeletedProjectTab = closeDeletedProjectTab;
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
 window.createNewProjectTab  = createNewProjectTab;

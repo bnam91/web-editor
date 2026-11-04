@@ -919,6 +919,7 @@ function _gridRowFollows(g, inFree) {
  *  ★결정됨: 열 때도 맞춘다(키 없는 전폭만) — E129 · 2026-10-05 · 지디 ⒜. 문 = 아래 fitKeylessFreeFrameGridsOnOpen(«페이지 padX 적용 뒤» — 그 전엔 프레임이 764 로 잡혀 611 이 된다).
  *  부르는 «떠나는/옮기는» 입구 전수는 커밋 메시지에 명부로 적었다. @returns 바꾼 개수 */
 function syncAutoGridWidth(root) {
+  window.settleMovedBridge?.(root);   // 옮긴 자리마다 이 함수를 부른다 — 브릿지도 이 자리에서 맞춘다
   if (!root || root.nodeType !== 1) return 0;
   const grids = [...root.querySelectorAll('.grid-block[data-grid-width-auto]')];
   if (root.classList.contains('grid-block') && root.dataset.gridWidthAuto !== undefined) grids.unshift(root);

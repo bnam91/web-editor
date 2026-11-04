@@ -254,13 +254,14 @@ export function collectCanvasCss(scopeEl, doc) {
         try { walk(r.styleSheet.cssRules, sink); } catch (_) { /* 접근 불가 시트 */ }
         continue;
       }
-      // @media / @supports / @layer — 안쪽이 비면 껍데기도 안 싣는다.
-      if (kind === 'CSSMediaRule' || kind === 'CSSSupportsRule' || kind === 'CSSLayerBlockRule') {
+      // @media / @supports / @container / @layer — 안쪽이 비면 껍데기도 안 싣는다.
+      if (kind === 'CSSMediaRule' || kind === 'CSSSupportsRule' || kind === 'CSSContainerRule' || kind === 'CSSLayerBlockRule') {
         const inner = [];
         try { walk(r.cssRules, inner); } catch (_) { continue; }
         if (!inner.length) continue;
         const head = kind === 'CSSMediaRule'    ? `@media ${r.media.mediaText}`
                    : kind === 'CSSSupportsRule' ? `@supports ${r.conditionText}`
+                   : kind === 'CSSContainerRule' ? `@container ${r.conditionText}`
                    : null;                       // @layer 는 껍데기 없이 안쪽만 펴 담는다
         if (!head) { sink.push(...inner); continue; }
         sink.push(`${head}{${inner.join('')}}`);

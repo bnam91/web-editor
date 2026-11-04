@@ -289,6 +289,8 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
 /* 글자 그라데이션 + 그림자/네온 = 그림자를 글자 «뒤»로 (0919r3 textshadow — 앱 css/editor-blocks.css .tgs 와 같은 규칙).
    이 줄이 없으면 인라인 text-shadow 가 그라데이션 위에 칠해져 페이드가 사라진다. 여러 겹은 아래 <svg> 필터 정의를 참조. */
 [style*="--gd-stroke-filter"]{filter:var(--gd-stroke-filter);}
+/* 그라데이션 글자 안 형광펜 span — 앱의 style 쿼리 블록을 Firefox 150 이하·Safari 17 이하는 버려 글자가 사라진다. 배송본은 인라인 스타일을 안 고치니 이 꼴의 재계산 값을 안 치른다. */
+[style*="background-clip: text"] span[style*="background-color"]{-webkit-text-fill-color:currentColor;}
 .tgs{text-shadow:none!important;filter:var(--gd-stroke-filter,) var(--tgs-filter)!important;}
 `;
 

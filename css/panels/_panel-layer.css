@@ -179,21 +179,14 @@
 .layer-item-nested { padding-left: 0; }
 
 /* ── 피그마 스타일 depth 들여쓰기 ── */
-.layer-indents { display: flex; flex-shrink: 0; align-items: stretch; align-self: stretch; }
-.layer-indent {
-  width: 16px;
+/* 들여쓰기 한 칸 16px · 안내선은 칸 왼쪽 5px 의 1px. 마지막 칸은 안내선 없음(자기 자신 레벨) ⇒ 그림 폭이 한 칸 모자란다. */
+.layer-indents {
   flex-shrink: 0;
-  position: relative;
+  align-self: stretch;
+  width: calc(16px * var(--depth, 0));
+  background: repeating-linear-gradient(to right, transparent 0 5px, rgba(255,255,255,0.15) 5px 6px, transparent 6px 16px) no-repeat;
+  background-size: calc(16px * (var(--depth, 0) - 1)) 100%;
 }
-.layer-indent::before {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 0; bottom: 0;
-  border-left: 1px solid rgba(255,255,255,0.15);
-}
-/* 마지막 indent는 가이드 라인 없음 (자기 자신 레벨) */
-.layer-indent:last-child::before { border-left: none; }
 
 .layer-item {
   display: flex; align-items: center; gap: 7px;

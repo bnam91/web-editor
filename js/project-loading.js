@@ -4,6 +4,8 @@ let _overlayEl = null;
 
 function _ensureOverlay() {
   if (_overlayEl && _overlayEl.isConnected) return _overlayEl;
+  const stat = document.getElementById('proj-loading-overlay');   // 정적 덮개가 떠 있으면 두 벌을 만들지 않는다
+  if (stat) { _overlayEl = stat; return stat; }
   const host = document.getElementById('canvas-area') || document.body;
   const ov = document.createElement('div');
   ov.className = 'proj-loading-overlay';
@@ -79,6 +81,7 @@ function beginProjectLoad(projectId, source) {
   _plRec.settledAt = 0;
   _plRec.detail = '';
   _plRec.sections = -1;
+  window.LoadInputGate?.begin(_plRec.projectId);
   return _plRec.seq;
 }
 
@@ -91,6 +94,7 @@ function settleProjectLoad(seq, phase, detail) {
   try { _plRec.sections = document.querySelectorAll('#canvas .section-block').length; }
   catch (_) { _plRec.sections = -1; }
   try { window.dispatchEvent(new CustomEvent('gdt:project-load-settled', { detail: getProjectLoadState() })); } catch (_) {}
+  window.LoadInputGate?.settled();
   return true;
 }
 

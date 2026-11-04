@@ -730,6 +730,26 @@ function _onShapeHandleMouseDown(e, block, dir) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* 누름이 끝나면 한 번 — HTML5 끌기가 시작되면 pointerup 이 안 오고 dragend 만 온다. pointerup 만 들으면 그릇 draggable 이 false 로 남아 곧바로 하는 프레임 끌기가 막혔다(S6 새 발견 ⑦). 시험: tests/dom/frame-draggable-after-block-drag.dom.spec.js */
+function _onPressEnd(fn) {
+  const done = () => { document.removeEventListener('pointerup', done); document.removeEventListener('dragend', done); fn(); };
+  document.addEventListener('pointerup', done);
+  document.addEventListener('dragend', done);
+}
+
+/* 자유 프레임 안 흐름 글자 프레임을 지금 화면 자리 그대로 좌표 단위로 세운다 — 옛 흐름 row 의 settleRowInFreeFrame 과 같은 뜻(그쪽은 글자 래퍼를 안 받는다). */
+function _settleFlowTextFrame(tf, block) {
+  const frame = tf.parentElement;
+  const fr = frame.getBoundingClientRect();
+  const k = (frame.offsetWidth && fr.width / frame.offsetWidth) || 1;
+  const tr = tf.getBoundingClientRect(), br = block.getBoundingClientRect();
+  const left = Math.round((br.left - fr.left) / k - frame.clientLeft), top = Math.round((tr.top - fr.top) / k - frame.clientTop);
+  tf.style.width = Math.round(br.width / k) + 'px';
+  tf.style.position = 'absolute'; tf.style.left = left + 'px'; tf.style.top = top + 'px';
+  tf.dataset.offsetX = String(left); tf.dataset.offsetY = String(top);
+  return { left, top };
+}
+
 function bindBlock(block) {
   if (block._blockBound) return;
   block._blockBound = true;
@@ -799,12 +819,13 @@ function bindBlock(block) {
         return;
       }
     }
-    if (isLabelGroup && e.target.closest('.label-item, .label-group-add-btn')) return;
+    if (isLabelGroup && e.target.closest('.label-group-add-btn, .label-item-delete-btn')) return;   // 칩 위 끌기는 블럭을 옮긴다(지디 판정) — 칩 클릭·더블클릭은 그 자리 click·dblclick 이 받는다. 시험: tests/dom/label-chip-drag.dom.spec.js
 
     // shape-block: 부모 frame-block을 이동 대상으로
     // text-block: text-frame(래퍼)이 absolute인 경우 text-frame을 이동 대상으로
     // shape/text가 아닌 블록: block 자체가 absolute여야 함
     let dragEl = block;
+    let _lazyFlowTf = null;   // 끌기가 시작되면 세울 흐름 글자 프레임(아래 isText 갈래)
     // B2 — 프레임 안 흐름 row(옛 꼴)를 처음 끌 때 그 자리 그대로 세운다. 까닭: drag-utils.js settleRowInFreeFrame 머리말.
     const _settleOldFlowUnit = () => {
       const _row = block.closest('.row');
@@ -828,6 +849,11 @@ function bindBlock(block) {
       if (tf?.dataset.overlayBlock === 'true') return;
       if (tf && tf.style.position === 'absolute') {
         /* 고른 글자는 중첩 프레임 안에서도 제 글자 프레임을 끈다(S3 B-8 · 앱 비율 0). 옛 갈래는 바깥 프레임(B)에 넘겼는데, B 는 contenteditable 위 누름을 안 받아 아무도 안 끌었다. 고르지 않은 글자는 위 게이트에서 이미 돌아가 B 끌기로 간다. 시험: tests/dom/nested-text-drag.dom.spec.js */
+        dragEl = tf;
+      } else if (tf && tf.parentElement?.dataset.freeLayout === 'true') {
+        /* 말풍선은 자유 프레임에도 흐름 글자 프레임째 들어온다(addSpeechBubbleBlock) ⇒ HTML5 로 끌려 중첩 프레임에서 맨 위로 빠졌다(S6 새 발견 ②). 끌기가 실제 시작될 때 그 자리 그대로 좌표 단위로 세운다(아래 onMove) — 눌렀다 놓기만 하면 저장본을 안 바꾼다. 시험: tests/dom/frame-bubble-drag.dom.spec.js */
+        tf.removeAttribute('draggable');
+        _lazyFlowTf = tf;
         dragEl = tf;
       } else if (block.style.position !== 'absolute') {
         return; // flow 배치 text-block은 HTML5 DnD에 위임
@@ -863,7 +889,7 @@ function bindBlock(block) {
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
     let   startLeft = parseInt(dragEl.style.left || '0');   // D3 — 폭 100% 글자를 가로로 끌기 시작할 때 한 번 옮긴다
-    const startTop  = parseInt(dragEl.style.top  || '0');
+    let   startTop  = parseInt(dragEl.style.top  || '0');
     /* ★D3(2026-10-05 현빈 «자유 이동이 되어야지?» · 지디 ⒜) — 자유 프레임 안 «폭 100%» 글자 프레임(가운데/오른쪽 정렬의 설계 꼴,
        block-factory.js _clampTextFrameWidth)은 아래 클램프가 가로 여유 0 을 줘서 좌우로 0px 움직였다(실앱 실측 · 세로만 됨).
        ⇒ «가로 성분이 처음 생기는 틱»에만 폭을 내용 폭 px 로 바꾸고, 보이는 글자 자리가 그대로이게 left 를 정렬만큼 옮긴다
@@ -903,6 +929,7 @@ function bindBlock(block) {
     let moved = false;
     let draggedOutside = false;    // 프레임 밖 드래그 상태 플래그
     let _dropInsertBefore = null;  // 삽입 기준 element (null=끝에 추가)
+    let _out = null;               // 밖에서 커서 아래 있는 다른 프레임과 그 점 — 놓으면 여기로 든다
     let _shiftAxis = null;         // Shift 수직/수평 잠금 축
     /* ★★1020t1d — ★제스처당 ★한 번만 잰다(강제 레이아웃 2회). ⛔onMove 안에서 재면 틱마다 2회가 된다.
        ★여기(mousedown 안 · onMove 밖)가 그 자리다 — `_hist` 가 제스처당 하나인 것과 ★같은 층.
@@ -930,6 +957,7 @@ function bindBlock(block) {
       /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
          다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */
       { const _h = _toLocal(dx, dy); _hist?.arm(_h.dx, _h.dy); }
+      if (_lazyFlowTf) { const _at = _settleFlowTextFrame(_lazyFlowTf, block); startLeft = _at.left; startTop = _at.top; _lazyFlowTf = null; }   // ⛔arm «뒤» — 시작 표본에 흐름 꼴이 담겨야 ⌘Z 가 처음 꼴로 돌아간다
 
       // Shift 수직/수평 이동 제한
       if (!ev.shiftKey) { _shiftAxis = null; }
@@ -948,17 +976,26 @@ function bindBlock(block) {
       // 커서 화면 좌표 대신 요소 중심의 캔버스 좌표로 판단 — scale 오탐 방지
       if (_dragOutParentFrame && _dragOutParentSection && multiPeers.length === 0) {
         const DRAGOUT_MARGIN = 60; // 캔버스 px — 의도치 않은 drag-out 방지
-        const elCX = rawLeft + dragEl.offsetWidth  / 2;
-        const elCY = rawTop  + dragEl.offsetHeight / 2;
+        const elW  = dragEl.offsetWidth, elH = dragEl.offsetHeight;
+        const elCX = rawLeft + elW / 2;
+        const elCY = rawTop  + elH / 2;
         const fw   = _dragOutParentFrame.offsetWidth;
         const fh   = _dragOutParentFrame.offsetHeight;
-        const outside = elCX < -DRAGOUT_MARGIN || elCX > fw + DRAGOUT_MARGIN ||
-                        elCY < -DRAGOUT_MARGIN || elCY > fh + DRAGOUT_MARGIN;
+        /* 프레임보다 큰 자식은 중심이 처음부터 프레임 끝에 있어(조커 860 ⊂ 프레임 450) 40px 만 끌어도 빠져 섹션 흐름에 놓였다 — 화면에선 손과 반대로 튄다(S3 B-9).
+           넘친 만큼 여유를 더한다. 프레임보다 작은 자식은 전과 같다. */
+        const mX = DRAGOUT_MARGIN + Math.max(0, elW - fw) / 2;
+        const mY = DRAGOUT_MARGIN + Math.max(0, elH - fh) / 2;
+        /* 큰 블럭은 윗부분을 잡으면 커서가 프레임 안인데도 중심이 먼저 넘어가 섹션으로 빠졌다(S6 새 발견 ③) ⇒ 커서도 프레임 밖이어야 뺀다. 화면 좌표끼리 견주므로 배율 오탐이 없다. 시험: tests/dom/big-block-dragout.dom.spec.js */
+        const _cursorOut = () => { const r = _dragOutParentFrame.getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; };
+        const outside = (elCX < -mX || elCX > fw + mX ||
+                         elCY < -mY || elCY > fh + mY) && _cursorOut();
         if (outside) {
           draggedOutside = true;
           hideGuides();
+          _out = _trackOutFrame(_out, ev, dragEl, _dragOutParentSection);
+          if (_out?.free) return;   // 자유 프레임은 놓는 자리가 좌표다 — 표시선 없음
           // 삽입 기준 element를 closure 변수에 저장 (indicator 消失에 무관하게 유지)
-          const inner = _dragOutParentSection.querySelector('.section-inner');
+          const inner = _out?.frame || _dragOutParentSection.querySelector('.section-inner');
           _dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
           // 섹션 inner에 드롭 인디케이터 표시
           clearDropIndicators();
@@ -969,6 +1006,7 @@ function bindBlock(block) {
           return;
         } else if (draggedOutside) {
           draggedOutside = false;
+          _out = _trackOutFrame(_out);
           _dropInsertBefore = null;
           clearDropIndicators();
         }
@@ -1058,7 +1096,10 @@ function bindBlock(block) {
          ★남으면 ★그 프레임은 ★영구 `overflow: visible` = ★현빈 10-10 이 ★조용히 ★되돌아간다.
          ★지키는 자: tests/dom/frame-clip-drag.dom.spec.js 「놓으면 표식이 떼진다」(돌연변이로 세웠다). */
       dragEl.classList.remove('frame-child-dragging');
+      if (_lazyFlowTf) _lazyFlowTf.setAttribute('draggable', 'true');   // 끌지 않았다 — 누르기 전 그대로
       hideGuides();
+
+      if (moved && draggedOutside && _out?.free) { _placeInFreeFrame(dragEl, _out); draggedOutside = false; }   // 끌어내기가 아니라 그 프레임 안에 놓기 ⇒ 아래 if (moved) 의 죔·히스토리를 탄다
 
       // 드래그아웃: freeLayout 프레임 밖에서 마우스업 → 섹션 레벨로 추출
       if (moved && draggedOutside && _dragOutParentFrame && _dragOutParentSection) {
@@ -1066,7 +1107,8 @@ function bindBlock(block) {
            (예전엔 이 줄이 추출 «전»을 찍는 유일한 표본이라 필요했다. 지금 다시 찍으면
             한 제스처가 항목 둘이 되어 ⌘Z 를 두 번 눌러야 원위치가 된다.)
            끝 표본은 아래 재바인딩이 끝난 뒤 한 번 찍는다. */
-        const inner = _dragOutParentSection.querySelector('.section-inner');
+        _trackOutFrame(_out);
+        const inner = _out?.frame || _dragOutParentSection.querySelector('.section-inner');
         clearDropIndicators();
 
         // 절대 위치 스타일 초기화
@@ -1272,6 +1314,7 @@ function bindBlock(block) {
       document.addEventListener('dragend', onUp);
     });
 
+    bindPlacementDrag(block.closest('.row') || block, block);   // 스택(흐름)이 된 조커는 위 좌표 끌기를 안 탄다 — 안 걸면 그릇 프레임이 대신 끌렸다
     return; // 편집 불가 — 이벤트 바인딩 여기서 종료
   }
 
@@ -1717,6 +1760,13 @@ function bindBlock(block) {
   }
 
   if (isGap) {
+    /* 고르지 않은 스택 프레임 직속 gap 을 끌면 gap 이 아니라 프레임이 끌린다(브라우저가 draggable 조상으로 올라간다). 클릭하면 여태처럼 gap 을 고르고, 고른 gap 은 제가 끌린다. 시험: tests/dom/stack-gap-surface-drag.dom.spec.js */
+    block.addEventListener('mousedown', e => {
+      const p = block.parentElement;
+      if (e.button !== 0 || block.classList.contains('selected') || !p?.classList.contains('frame-block') || p.dataset.textFrame === 'true' || p.style.position === 'absolute' || p.dataset.freeLayout === 'true') return;
+      block.setAttribute('draggable', 'false');
+      _onPressEnd(() => block.setAttribute('draggable', 'true'));
+    });
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
@@ -2947,6 +2997,7 @@ function _bindFrameOwnDrag(ss) {
     // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
     if (e.target !== ss) return;
     // 선택된 프레임이 아니면 드래그 취소
+    if (!ss.classList.contains('selected') && ss._gapSurfacePress) _pickFrameOnPress(ss);   // 면으로 친 gap 에서 시작한 끌기 — 누를 때 안 골랐으니 여기서 고른다
     if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
     e.stopPropagation();
     _suppressDragSave();
@@ -2970,8 +3021,17 @@ function _bindFrameOwnDrag(ss) {
   });
 }
 
-/* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). bindFrameDropZone 은 absolute 면 이걸 안 묶고 돌아가므로, absolute 로 묶인 자식이 스택 변환으로 흐름이 되면 드롭 자리가 없어
-   놓은 곳이 바깥 프레임으로 샜다(S3 B-5 · 다시 열면 됐다) ⇒ 변환 자리에서 이것만 따로 부른다(prop-frame.js). ⛔bindFrameDropZone 을 다시 부르지 마라 — 클릭 리스너가 겹친다. 시험: tests/dom/stack-convert-drop.dom.spec.js */
+function _pickFrameOnPress(ss) {
+  window.deselectAll?.();
+  const parentSec = ss.closest('.section-block');
+  if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
+  ss.classList.add('selected');
+  window._activeFrame = ss;
+  window.highlightBlock?.(ss, ss._layerItem);
+  window.showFrameProperties?.(ss);
+}
+
+/* 흐름 프레임의 «드롭 자리»(dragover·dragleave·drop). */
 function _bindFrameFlowDrop(ss) {
   if (ss.dataset.textFrame === 'true' || ss._flowDropBound) return;
   ss._flowDropBound = true;
@@ -3165,6 +3225,7 @@ function _bindFrameFlowDrop(ss) {
              .dragging 이 고착해 연회색이 된다(js/CLAUDE.md 「draggable 잔류 버그」, text-frame
              경로가 이미 같은 처방을 쓴다). 프레임도 «대칭»으로 걷고 재바인딩을 연다. */
           if (_isFrameDrop) {
+            dragState.dragSrc._bindAbsCellDrag?.();   // 흐름으로 묶인 프레임은 좌표 끌기가 없다 — 안 걸면 옮긴 뒤 안 끌렸다(S6 K)
             dragState.dragSrc.removeAttribute('draggable');
             dragState.dragSrc._dragBound = false;
           }
@@ -3192,6 +3253,7 @@ function _bindFrameFlowDrop(ss) {
       const _fpad = framePadding(inner);   // F5
       let _stackY = _stayBottom > 0 ? _stayBottom + 16 : _fpad.t;
       _incoming.forEach(b => {
+        window.settleMovedBridge?.(b);
         b.style.top  = _stackY + 'px';
         const _off = frameAlignOffset(_fv.w, 0, b.offsetWidth, 0, 'center', null, _fpad);
         b.style.left = Math.max(_fpad.l, _off.left) + 'px';
@@ -3209,6 +3271,7 @@ function _bindFrameFlowDrop(ss) {
       growFrameToFitChildren(inner);
     }
 
+    window.settleMovedBridge?.(dragState.dragSrc);   // inner 는 프레임이라 안 내려간다 — 끌어 넣은 브릿지는 직접
     window.syncAutoGridWidth?.(inner);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth — 흐름 프레임으로 들어오면 100%, 자유 프레임이면 이 프레임 기준
     window.pruneGridKidsBox?.(_fromKids);   // G19 — 비었을 때만 걷는다
     // dragging 클래스 고착 방지
@@ -3217,6 +3280,61 @@ function _bindFrameFlowDrop(ss) {
     window.buildLayerPanel();
     dragState.dragSrc = null;
   });
+}
+
+/* 좌표 끌기로 프레임 밖에 놓는 자리의 다른 프레임 — 없으면 null(섹션으로 빠진다). 안 고른 프레임의 자식은 pointer-events:none 이라 사각형으로 잰다. 뒤에 그려진(안쪽) 것부터. */
+function _frameUnderPointer(x, y, dragEl, section) {
+  return [...section.querySelectorAll('.frame-block:not([data-text-frame])')].reverse().find((f) => {
+    if (f.contains(dragEl) || dragEl.contains(f) || f.dataset.overlayBlock === 'true' || f.closest('[data-group="true"]') || _isShapeFrameEl(f)) return false;
+    const r = f.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  }) || null;
+}
+
+/* 부모 프레임 밖에서 놓았을 때만 커서 아래 다른 프레임 — 안에서 놓으면 제자리다. */
+function _frameOutsideParentAt(ev, el, parent) {
+  const section = el.closest('.section-block');
+  if (!parent || !section || el.dataset.overlayBlock === 'true') return null;
+  const r = parent.getBoundingClientRect();
+  if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) return null;
+  return _frameUnderPointer(ev.clientX, ev.clientY, el, section);
+}
+
+/* 좌표로 끌던 자식 프레임을 스택에 넣는다 — 처리기는 묶을 때의 position 으로 갈리니 흐름 단위로 다시 태어나게 한다(section-drag.js rebirthFlowUnit). */
+function _moveFrameIntoFlow(el, frame, ev) {
+  for (const k of ['position', 'left', 'top']) el.style[k] = '';
+  delete el.dataset.offsetX; delete el.dataset.offsetY;
+  frame.insertBefore(el, getDragAfterElement(frame, ev.clientY) || null);
+  window.rebirthFlowUnit?.(el);
+  window.buildLayerPanel?.();
+}
+
+/* 끄는 동안 커서 아래 프레임을 표시하고 { frame, free, x, y } 를 돌려준다. ev 없이 부르면 표시만 걷는다. */
+function _trackOutFrame(prev, ev, dragEl, section) {
+  prev?.frame.classList.remove('ss-drag-over');
+  const frame = ev ? _frameUnderPointer(ev.clientX, ev.clientY, dragEl, section) : null;
+  if (!frame) return null;
+  frame.classList.add('ss-drag-over');
+  const free = frame.dataset.freeLayout === 'true';
+  if (free) clearDropIndicators();
+  return { frame, free, x: ev.clientX, y: ev.clientY };
+}
+
+/* 자유 프레임 위에 놓으면 커서를 가운데로 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임 왼쪽·위로는 안 삐져나온다(큰 에셋이 위 형제를 덮었다).
+   shortcut: 회전한 프레임 안으로 놓기는 화면 좌표라 안 맞춘다, 회전 놓기 요구가 오면 measureLocalBasis 로 푼다. */
+function _placeInFreeFrame(el, { frame, x, y }) {
+  const sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
+  const r = frame.getBoundingClientRect();
+  frame.classList.remove('ss-drag-over');
+  clearDropIndicators();
+  frame.appendChild(el);
+  const left = Math.max(0, Math.round((x - r.left) / sc - el.offsetWidth / 2)), top = Math.max(0, Math.round((y - r.top) / sc - el.offsetHeight / 2));
+  el.style.position = 'absolute';
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.dataset.offsetX = String(left);
+  el.dataset.offsetY = String(top);
+  window.buildLayerPanel?.();
 }
 
 function bindFrameDropZone(ss) {
@@ -3289,7 +3407,11 @@ function bindFrameDropZone(ss) {
   });
 
   // ── absolute 셀 프레임 mousemove 드래그 (position:absolute인 경우) ──
+  /* 묶을 때 흐름이던 프레임이 뒤에 absolute 가 되면(stack→free) 이 끌기만 따로 건다 — 통째로 다시 묶으면 클릭 고르기가 죽는다(S6). 부르는 자: prop-frame.js _convertStackToFree */
+  const _bindAbsCellDrag = () => {
+  if (ss._absCellBound) return;
   if (ss.style.position === 'absolute') {
+    ss._absCellBound = true;
     ss.setAttribute('draggable', 'false');
     ss._absCellDrag = true;   // 아래 mousedown 좌표 끌기가 걸렸다는 표식 — 부모 pointerdown 이 본다
     /* ★D2(2026-10-05 현빈 · lane-drag) — 오버레이 «프레임»(스티커 그룹 · 도형 래퍼)의 전용 이동 드래그는 이 자리에서도 «건다».
@@ -3331,6 +3453,9 @@ function bindFrameDropZone(ss) {
       // 자식 블록 클릭: selected 자식만 bindBlock에 위임, 미선택 자식은 B drag로 처리
       // (B selected 상태에서 TF/C 영역 mousedown → e.target이 C가 될 수 있음)
       if (e.target !== ss) {
+        /* 고른 자식 프레임을 누른 것이다 — 끌기는 그 프레임 몫이다. 안 비키면 스택 안 K 를 끌 때 그릇이 통째로 끌렸다(S6 K). */
+        const _pressedFrameK = e.target.closest('.frame-block:not([data-text-frame])');
+        if (_pressedFrameK !== ss && _pressedFrameK?.classList.contains('selected')) return;
         const childBlock = e.target.closest(CHILD_BLOCK_SEL);
         if (childBlock?.classList.contains('selected')) {
           // text-block이 절대배치 text-frame 안에 있으면 B drag로 처리
@@ -3345,6 +3470,9 @@ function bindFrameDropZone(ss) {
 
       // e.preventDefault() 제거 — 호출 시 이후 자식 click 이벤트가 억제되어 선택 불가
       e.stopPropagation();
+      /* 더블클릭으로 들어가면 글자 선택이 남는다. 그 위를 눌러 잠깐(약 150ms) 있다 끌면 브라우저가 글자 드래그로 가져가 프레임이 안 움직였다(S3 C).
+         편집 중 글자 선택은 건드리지 않는다. 시험: tests/dom/frame-hold-drag-selection.dom.spec.js */
+      if (!document.activeElement?.isContentEditable) window.getSelection()?.removeAllRanges();
 
       // ss 자신이 freeLayout frame일 수 있으므로 parentElement부터 탐색
       const parentFreeFrame = ss.parentElement?.closest('.frame-block[data-free-layout]');
@@ -3382,6 +3510,7 @@ function bindFrameDropZone(ss) {
       const scale = scaler
         ? parseFloat(scaler.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
 
+      if (ss.style.position !== 'absolute') return;   // stack 으로 바뀐 자식 — 고르기까지만 하고 좌표는 안 쓴다(끌기는 HTML5). 위로 올리면 클릭 고르기가 죽는다
       // OSS 패턴 (tldraw/Suika): style.left 대신 getBoundingClientRect으로 실제 위치 캡처
       // style.left가 비어있거나 0px인 경우의 "마우스에 붙어서 이동" 버그 방지
       const _parentEl = ss.parentElement;
@@ -3452,16 +3581,19 @@ function bindFrameDropZone(ss) {
         }
       };
 
-      const onUp = () => {
+      const onUp = (upEv) => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
         /* 누를 때 올린 바깥 표시를 내린다 — 손잡이가 mouseup 을 받으면 click 이 안 와서 바깥이 골린 채 남았다(모서리 누름). */
         parentFreeFrame?.classList.remove('selected');
         if (moved) {
+          const _into = multiPeers.length ? null : _frameOutsideParentAt(upEv, ss, parentFreeFrame);
+          if (_into && _into.dataset.freeLayout !== 'true') { _moveFrameIntoFlow(ss, _into, upEv); window.pushHistory?.(); window.triggerAutoSave?.(); return; }
+          if (_into) _placeInFreeFrame(ss, { frame: _into, x: upEv.clientX, y: upEv.clientY });
           /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
              ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
-          const _dropParent = parentFreeFrame || ss.parentElement;
+          const _dropParent = _into || parentFreeFrame || ss.parentElement;
           if (_dropParent && _dropParent.classList?.contains('frame-block') && frameClampsDrag(_dropParent, 'drop')) {
             const c = clampChildIntoFrame(
               parseFloat(ss.style.left) || 0, parseFloat(ss.style.top) || 0,
@@ -3473,6 +3605,9 @@ function bindFrameDropZone(ss) {
             ss.dataset.offsetY = String(c.top);
           }
           window.pushHistory?.(); window.triggerAutoSave?.();
+          /* 놓은 점이 ss 밖(부모가 잘라 낸 자리 등)이면 합성 click 이 공통 조상에서 나 그 조상이 선택된다(S3 D-A: 90도 돈 부모 안 G → 맨 위 R).
+             click 은 지금 ss 를 고르는 일도 하므로(눌렀을 때 부모도 selected) 삼키지 않고 ss 로 돌린다. ss 안에서 난 click 은 그대로 둔다. */
+          if (!ss.contains(upEv.target)) { ss.click(); window.swallowNextClick({ on: document }); }
         }
       };
 
@@ -3480,7 +3615,15 @@ function bindFrameDropZone(ss) {
       document.addEventListener('mouseup', onUp);
     });
 
-    return; // absolute 셀은 drop zone 바인딩 불필요
+  }
+  };
+  ss._bindAbsCellDrag = _bindAbsCellDrag;
+  _bindAbsCellDrag();
+  if (ss.style.position === 'absolute') {
+    /* 자유 프레임 안 자식 프레임은 놓는 자리다 — 없으면 그 안에 놓은 블럭이 부모로 올라가 맨 아래에 absolute 로 빠진다(S6 챗). 묶음·오버레이는 칸이 아니니 그대로 둔다. */
+    const _par = ss.parentElement;
+    if (_par?.classList.contains('frame-block') && _par.dataset.group !== 'true' && ss.dataset.group !== 'true' && ss.dataset.overlayBlock !== 'true') _bindFrameFlowDrop(ss);
+    return;
   }
 
   // 프레임 자체 드래그 — 프레임이 selected 상태에서 드래그 시 section-inner 내 순서 변경
@@ -3511,13 +3654,17 @@ function bindFrameDropZone(ss) {
     const _pressedFrame = e.target.closest('.frame-block');
     if (!isInnerBlock && _pressedFrame && _pressedFrame !== ss && _pressedFrame._absCellDrag && _pressedFrame.style.position === 'absolute' && _pressedFrame.dataset.overlayBlock !== 'true' && ss.dataset.group !== 'true') {   // 그룹은 빼다 — 그룹 자식 위 끌기는 그룹을 옮긴다
       ss.setAttribute('draggable', 'false');
-      document.addEventListener('pointerup', () => { if (ss.style.position === 'absolute') ss.setAttribute('draggable', 'false'); else ss.setAttribute('draggable', 'true'); }, { once: true });   // absolute 부모는 HTML5 끌기를 안 쓴다(js/CLAUDE.md)
+      _onPressEnd(() => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'));   // absolute 부모는 HTML5 끌기를 안 쓴다(js/CLAUDE.md)
       return;
     }
-    if (isInnerBlock && !_flowShapeWrapper) {
+    /* 스택 변환이 패딩을 gap 블럭으로 바꿔 프레임 면을 덮는다 ⇒ 고르지 않은 직속 gap 은 프레임 면으로 친다(S6 새 발견 ⑤). gap 자신의 draggable 은 bindBlock 의 gap 갈래 mousedown 이 끈다. */
+    const _gapAsSurface = isInnerBlock?.classList.contains('gap-block') && !isInnerBlock.classList.contains('selected')
+      && isInnerBlock.parentElement === ss && ss.style.position !== 'absolute' && ss.dataset.freeLayout !== 'true';
+    ss._gapSurfacePress = !!_gapAsSurface;
+    if (isInnerBlock && !_flowShapeWrapper && !_gapAsSurface) {
       // 자식 블록 드래그 중엔 프레임 drag 비활성
       ss.setAttribute('draggable', 'false');
-      document.addEventListener('pointerup', () => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'), { once: true });   // 위 갈래와 같다 — absolute 부모는 HTML5 끌기를 안 쓴다
+      _onPressEnd(() => ss.setAttribute('draggable', ss.style.position === 'absolute' ? 'false' : 'true'));   // 위 갈래와 같다
       return;
     }
     /* ★보조키(⇧/⌘/^)는 «다중선택» 제스처다 — pointerdown 이 손대면 안 된다 (2026-09-21 T-091).
@@ -3529,20 +3676,16 @@ function bindFrameDropZone(ss) {
        ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은
          종전대로 해야 한다(그건 선택과 무관한 드래그 억제다). */
     if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+    /* 안쪽 흐름 프레임을 누른 것이면 바깥 프레임이 고르지 않는다. 안 그러면 안→밖으로 차례로 골라 맨 위가 선택을 가져가, 다시 연 스택에서 깊은 프레임·블럭을 클릭으로 못 고르고 끌어도 아무것도 안 움직였다(S6 새 발견 ①). ⛔absolute 자식·그룹 자식은 여태처럼 바깥이 받는다(child-frame-drag-294 음성). 시험: tests/dom/stack-reopen-click-pick.dom.spec.js */
+    const _pressedInner = e.target.closest('.frame-block:not([data-text-frame])');
+    if (_pressedInner && _pressedInner !== ss && _pressedInner.style.position !== 'absolute' && ss.dataset.group !== 'true') return;
     /* ★U16①(2026-10-05) — 오른쪽 단추는 여기서 고르지 않는다. 여기서 고르면 :149(.frame-block.selected *{pointer-events:auto})가
        «같은 누름»의 contextmenu 보다 먼저 서서, 그 contextmenu 가 «안의 글자»를 맞혔다(실측: 글자 메뉴가 뜸 + 프레임만 selected).
        고르기는 아래 contextmenu 리스너가 한다(클릭과 같은 단일 선택). */
     if (e.button !== 0) return;
     // 빈 영역 pointerdown → dragstart 전에 selected 상태 즉시 적용
-    if (!ss.classList.contains('selected')) {
-      window.deselectAll?.();
-      const parentSec = ss.closest('.section-block');
-      if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }
-      ss.classList.add('selected');
-      window._activeFrame = ss;
-      window.highlightBlock?.(ss, ss._layerItem);
-      window.showFrameProperties?.(ss);
-    }
+    /* gap 을 면으로 칠 때는 여기서 고르지 않는다 — 고르면 같은 클릭의 click 이 «고른 프레임의 자식»으로 읽어 한 번에 gap 까지 내려간다(뒤집기 칸이 있는 프레임 패널을 못 봤다). 프레임은 click 이 고른다. */
+    if (!ss.classList.contains('selected') && !_gapAsSurface) _pickFrameOnPress(ss);
   });
 
   // 프레임 자체 hover → 레이어 패널 하이라이트
@@ -3561,7 +3704,6 @@ function bindFrameDropZone(ss) {
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
-window.bindFrameFlowDrop  = _bindFrameFlowDrop;
 
 /* ★도형 «선택» SSOT(0919 QA) — 캔버스 클릭·삽입 직후·레이어 패널 줄 클릭이 모두 여기로 온다.
    도형은 «그냥 도형»(A안): 래퍼(frame-block) 속성 패널(Layout·Border·Child Align…)이 아니라

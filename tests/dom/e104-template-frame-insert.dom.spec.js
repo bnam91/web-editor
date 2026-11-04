@@ -43,9 +43,10 @@ async function setup(page) {
   await page.waitForTimeout(300);
   return { errs, ...r };
 }
-/** 프레임의 «빈 자리» — 맨 위 요소가 그 프레임 자신인 점 */
+/** 프레임의 «빈 자리» — 맨 위 요소가 그 프레임 자신인 점.
+ *  바닥 10px 띠는 뺀다 — 섹션 바닥 손잡이가 hover 때만 떠서 elementFromPoint 는 프레임이라 하고 마우스는 손잡이를 누른다(손잡이가 붙은 뒤 늘). */
 const emptyPoint = (page, id) => page.evaluate((id) => { const f = document.getElementById(id); f.scrollIntoView({ block: 'center' }); const r = f.getBoundingClientRect();
-  for (let y = Math.round(r.bottom - 4); y > r.top; y -= 4) for (const x of [Math.round(r.right - 8), Math.round(r.left + 8)]) { if (document.elementFromPoint(x, y) === f) return [x, y]; } return null; }, id);
+  for (let y = Math.round(r.bottom - 16); y > r.top; y -= 4) for (const x of [Math.round(r.right - 8), Math.round(r.left + 8)]) { if (document.elementFromPoint(x, y) === f) return [x, y]; } return null; }, id);
 const textPoint = (page, id) => page.evaluate((id) => { const t = document.getElementById(id).querySelector('.text-block [class^="tb-"]'); t.scrollIntoView({ block: 'center' }); const r = t.getBoundingClientRect(); return [r.left + 20, r.top + r.height / 2]; }, id);
 
 test('O1 [새 것] 넣은 프레임 빈 자리 클릭 → 그 프레임이 골라진다(원본과 같음)', async ({ page }) => {

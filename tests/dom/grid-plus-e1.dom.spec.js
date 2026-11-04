@@ -7,7 +7,7 @@
  * 양성대조: d1f642ff 나무 안 → S1 S2 Z50 P1 G1 빨강 · Z100 P2 L1 초록 (predict: $S/e1/predict.md).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/grid-plus-e1.dom.spec.js */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
 const SEC = `<div class="section-block" id="sG" data-section="1"><div class="section-hitzone"></div><div class="section-inner">
@@ -31,6 +31,7 @@ async function setup(page, zoom = 100) {
   }, SEC);
   if (zoom !== 100) await page.evaluate((z) => window.applyZoom(z), zoom);
   await page.waitForFunction((z) => window.currentZoom === z, zoom);
+  await waitZoomSettled(page, zoom);   // ★전환이 멎은 뒤에 스크롤한다
   await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), ids.g);
   return { errs, ...ids };
 }

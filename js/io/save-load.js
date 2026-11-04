@@ -86,9 +86,43 @@ function getSaveKey() {
 function getSaveTsKey() {
   return getSaveKey() + '_ts';
 }
+/* localStorage 본이 «어느 파일 판에서 이어졌나» — 그 파일이 아직 디스크에 있을 때만 localStorage 가 파일을 이길 자격이 있다(열 때 판정).
+   파일이 밖에서 바뀌면(사본·백업·되돌리기) 값이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다.
+   쓰는 곳: 파일 쓰기는 preload.js 한 자리 · 여기는 열 때뿐. 시험: tests/dom/ls-file-base.dom.spec.js */
+const _lsBaseKey = (id) => `web-editor-ls-base__${id}`;
+/* 복구한 본이 파일과 다른가. 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 비교하지 않는다:
+   둘 다 data·둘 다 goya 면 글자 그대로(다른 그림이면 다르다), 한쪽만 data 면 내용 해시로 — goya 파일명이 sha256 앞 16자다(main/project-store/externalizer.js).
+   해시를 못 내면(웹·비보안 문맥) 같다고 본다 — 무편집 쓰기(DEF-03)가 복구 유실보다 잦다. */
+const _IMG_URL_RE = /data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+=*|goya-asset:\/\/[^"'()\s&\\]+/gi;
+async function _sameImage(a, b) {
+  if (a === b) return true;
+  const aData = a.startsWith('data:');
+  if (aData === b.startsWith('data:')) return false;
+  const [data, goya] = aData ? [a, b] : [b, a];
+  if (!globalThis.crypto?.subtle) return true;
+  const bytes = Uint8Array.from(atob(data.slice(data.indexOf(',') + 1)), c => c.charCodeAt(0));
+  const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(x => x.toString(16).padStart(2, '0')).join('');
+  return goya.split('/').pop().split('.')[0] === hex.slice(0, 16);
+}
+window._sameImage = _sameImage;   // 마켓 머지 스크래치도 같은 뜻으로 견준다(js/market.js)
+async function _lsDiffersFromFile(ls, file) {
+  /* 복구분은 캔버스만이 아니다. 없는 필드 · 빈 값은 같게 본다(옛 파일에 없는 필드로 무편집 쓰기가 나지 않게). */
+  const core = (d) => JSON.stringify({
+    pages: (d?.pages || []).map(p => ({ id: p?.id, name: p?.name, pageSettings: p?.pageSettings, canvas: String(p?.canvas || '') })),
+    checklistItems: d?.checklistItems, checklistSections: d?.checklistSections, assetsTree: d?.assetsTree, imageGallery: d?.imageGallery,
+  }, (_k, v) => (v == null || (typeof v === 'object' && !Object.keys(v).length) ? undefined : v));
+  const a = core(ls), b = core(file);
+  if (a === b) return false;
+  if (a.replace(_IMG_URL_RE, '§') !== b.replace(_IMG_URL_RE, '§')) return true;
+  const ua = a.match(_IMG_URL_RE) || [], ub = b.match(_IMG_URL_RE) || [];
+  for (let i = 0; i < ua.length; i++) if (!(await _sameImage(ua[i], ub[i]))) return true;
+  return false;
+}
+let _lastOpenFallback = null;   // 이번 열기가 깨진 proj.json 대신 백업·이력을 읽은 프로젝트 id
 let autoSaveTimer = null;
 const AUTOSAVE_MAX_WAIT_MS = 5000;   // ★J354 — 앱 실측: 40초 연속 편집 쓰기 간격 5.6~6초 · 잃는 작업 최대 4.6초 · longtask 최대 75ms(글 55개 판)
 let _autoSaveBurstAt = 0;
+let _autoSaveBurstHeld = false;   // ★250C — 미룸이 타이머를 지웠어도 그 기다림은 이어진다(아니면 짧은 제스처 반복이 상한을 매번 되돌린다)
 let currentFileName = null; // 현재 세션의 저장 파일명 (null = 최초 저장 전)
 
 /* ── 프로젝트 관리 ── */
@@ -220,7 +254,8 @@ let _autoSaveTimerOwnerId = null;
 let _savingOwnerId = null;
 function _hasOwnUnsaved() {
   const mine = (owner) => owner === null || owner === activeProjectId;
-  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
+  /* ★250C — 저장 진행 중에 손잡이를 쥐고 고치면 그 저장이 끝나며 dirty 를 지운다. 미룸에 기억된 예약(_autoSavePending)을 안 보면 쥔 채 ⌘R 에서 편집을 잃었다(앱 재현). */
+  return (_dirtySinceSave && mine(_dirtyOwnerId)) || (_autoSavePending && mine(_dirtyOwnerId)) || (!!autoSaveTimer && mine(_autoSaveTimerOwnerId)) || (_isSavingToFile && mine(_savingOwnerId));
 }
 /* ★[H4] «마지막으로 끝난» 저장의 결과 — targetId → { at, result }.
    큐잉된 호출(undefined 반환)은 자기 결과를 못 본다. 종료 경로가 「큐가 빠졌으니 저장됐겠지」로
@@ -251,7 +286,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
-    if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts });
+    if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts: { ...opts, projectId: _targetId } });   // 대상을 지금 박는다 — 빠질 때 활성이 바뀌어 있으면(거절 저장이 탭을 닫음) 이 내용이 옆 프로젝트 파일을 덮었다(앱 3/3)
     return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;
@@ -294,7 +329,8 @@ function _isAllCanvasEmpty(data) {
 async function _doSaveProjectToFile(snapshot, opts = {}) {
   // opts.projectId: 탭 전환 시 이전 탭 ID로 저장하기 위한 명시적 ID (S10 race condition 방지)
   const targetId = opts.projectId || activeProjectId;
-  if (!targetId) return;
+  /* ★340 C — «명시 반환». undefined 는 _isSaveFailure 가 못 잡아 저장을 안 했는데 미저장 표시가 꺼졌다. */
+  if (!targetId) return { ok: false, reason: 'no_target' };
   // S4: 손상된 JSON 안전 처리
   let data;
   try {
@@ -335,6 +371,10 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
+      if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
+        await window.closeDeletedProjectTab?.(targetId);
+        return { ok: false, skipped: true, reason: saveResult.reason };
+      }
       if (saveResult && saveResult.ok === false) {
         console.warn('[save-load] 저장 거부됨:', saveResult.reason, saveResult);
         window.showToast?.('⚠️ 저장 거부: 페이지 수 감소 감지 — 데이터 보호됨');
@@ -404,10 +444,17 @@ async function setProjectName(name) {
   if (!activeProjectId) return;
   // 탭 이름 업데이트
   const tab = openTabs.find(t => t.id === activeProjectId);
+  const oldName = tab ? tab.name : null;
   if (tab) { tab.name = name; window.renderTabBar(); }
   if (IS_ELECTRON) {
-    const proj = await window.electronAPI.loadProject(activeProjectId);
-    if (proj) { proj.name = name; proj.updatedAt = new Date().toISOString(); await window.electronAPI.saveProject(proj); }
+    /* ★340 B — 본 프로세스가 한 틱에 읽고 쓴다(main.js projects:rename). ⛔여기서 왕복하지 마라. */
+    let r = null;
+    try { r = await window.electronAPI.renameProject({ projectId: activeProjectId, name }); }
+    catch (e) { r = { ok: false, error: e && e.message }; }
+    if (!r || r.ok !== true) {
+      if (tab && tab.name === name) { tab.name = oldName; window.renderTabBar(); }
+      window.showToast?.(`⚠️ 이름을 바꾸지 못했습니다: ${(r && r.error) || '알 수 없는 오류'}`);
+    }
   } else {
     const list = loadProjectsList();
     const proj = list.find(p => p.id === activeProjectId);
@@ -638,7 +685,7 @@ async function deletePage(pageId) {
     const _scratchTok = window.AutoSaveSuppress.begin('page-delete-scratch');
     _pageDeleteBusy = true;
     try {
-      await window.switchScratchPage?.(target.id);
+      await window.switchScratchPage?.(target.id, { quiet: true });   // 실패 알림은 아래 한 번, 공용 알림과 겹치지 않게
     } catch (e) {
       console.warn('[deletePage] 스크래치 저장 실패 — 삭제 취소:', e);
       window.showToast('⚠️ 스크래치 저장에 실패해 페이지를 지우지 않았습니다.');
@@ -1846,12 +1893,108 @@ function _recoveryToastText(proj) {
   return `⚠️ 프로젝트 파일이 손상되어 ${base}에서 열었습니다${when}. 디스크의 파일은 아직 고치지 못했습니다(${why}) — 이대로는 저장이 안 될 수 있습니다.`;
 }
 
+/* 열 때 localStorage 본을 파일 대신 쓸지 — 부팅과 탭 첫 로드가 같은 판정을 탄다. 쓸 본 또는 null. 시험: tests/dom/ls-file-base.dom.spec.js */
+function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
+  const lsTs = parseInt(localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) || '0');
+  const fileTs = new Date(proj.updatedAt || 0).getTime();
+  const filePagesCount = proj.version === 2 ? (proj.pages?.length || 0) : (proj.snapshot?.pages?.length || 1);
+  // 파일의 섹션 수 합계 — LS가 더 적으면 LS를 신뢰하지 않음 (DBG-SEC-LOSS)
+  const _countSecs = (d) => {
+    if (!d) return 0;
+    if (d.version === 2 && Array.isArray(d.pages)) {
+      return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/section-block/g)?.length || 0), 0);
+    }
+    return ((d.canvas || '').match(/section-block/g)?.length || 0);
+  };
+  const fileSecCount = _countSecs(proj.version === 2 ? proj : (proj.snapshot || proj));
+  // BUG-44: 이미지(asset/card)에 적용된 dataURL/파일경로 개수 — LS에 누락되면 파일 우선
+  const _countImgs = (d) => {
+    if (!d) return 0;
+    if (d.version === 2 && Array.isArray(d.pages)) {
+      return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/data-img-src/g)?.length || 0), 0);
+    }
+    return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
+  };
+  const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
+  /* 표시 없는 옛 본: 부팅은 옛 규칙 · 탭은 파일(unmarkedWins:false — 복원한 파일을 이기면 안 되고, 탭은 원래 파일을 읽었다).
+     깨진 파일 대신 읽은 백업은 판이 다른 게 당연하다. updatedAt 없는 파일은 비교할 판이 없다. */
+  const lsBase = localStorage.getItem(_lsBaseKey(id));
+  const lsFromThisFile = _lastOpenFallback === id || (lsBase ? (proj.updatedAt == null || lsBase === String(proj.updatedAt)) : unmarkedWins);
+  if (lsBase && !lsFromThisFile) {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
+    localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
+    localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
+  }
+  /* 탭이 거절한 표시 없는 본이 남아 있으면 표시를 옮기지 않는다 — 옮기면 그 옛 본이 다음 열기에 자격을 얻는다. */
+  if (proj.updatedAt != null && (lsBase || unmarkedWins || !localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`))) { try { localStorage.setItem(_lsBaseKey(id), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
+  /* 파일보다 «새로운» 본만 이긴다 — 옛 500ms 여유는 탭·홈으로 나간 저장(파일만 씀)보다 20ms 낡은 본을 이기게 해 그 편집을 덮었다(앱 3/3).
+     평소 저장은 localStorage 를 먼저 써 본이 늘 조금 낡으니 파일이 이긴다(내용이 같다). 충돌이면 본이 더 새롭다. */
+  if (lsTs > fileTs && lsFromThisFile) {
+    const lsSaved = localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`);
+    if (lsSaved) {
+      try {
+        const lsData = JSON.parse(lsSaved);
+        const lsPagesCount = lsData.pages?.length || 0;
+        const lsSecCount   = _countSecs(lsData);
+        const lsImgCount   = _countImgs(lsData);
+        // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
+        // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
+        if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
+          /* 파일에만 있는 갤러리 항목을 잃지 않는다 — 다른 탭에 있는 동안의 AI 생성이 updatedAt 을 안 올리고 파일에 적재한다(ai-image-gen _appendGalleryToProject).
+             거기서 updatedAt 을 올리면 저장 실패 중이던 이 본이 파일에 져서 편집을 잃는다(앱 3/3). */
+          if (Array.isArray(proj.imageGallery)) {
+            const _lsGal = Array.isArray(lsData.imageGallery) ? lsData.imageGallery : [];
+            const _ids = new Set(_lsGal.map(it => it && it.id));
+            lsData.imageGallery = [..._lsGal, ...proj.imageGallery.filter(it => it && !_ids.has(it.id))];
+          }
+          return lsData;
+        }
+        if (lsSecCount < fileSecCount) {
+          console.warn(`[open] LS 섹션 수 부족 (LS:${lsSecCount} < FILE:${fileSecCount}) — 파일 우선 적용`);
+        }
+        if (lsImgCount < fileImgCount) {
+          console.warn(`[open] LS 이미지 수 부족 (LS:${lsImgCount} < FILE:${fileImgCount}) — 파일 우선 적용`);
+        }
+      } catch {}
+    }
+  }
+  return null;
+}
+/* 본이 이겼을 때의 뒤처리. 비교는 적용 «전»에 시작한다(applyProjectData 가 본을 고친다) · 못 가리면(atob 실패 등) 다르다고 친다: 복구분을 조용히 빼지 않는다. */
+function _prepareLsWin(lsData, proj, id) {
+  const differs = _lsDiffersFromFile(lsData, proj).catch(() => true);
+  return async (stillHere) => {
+    if (!stillHere()) return false;   // 그사이 다른 프로젝트로 갔다 — 그쪽에 저장을 걸지 않는다(탭은 돌아왔을 때 다시 부른다)
+    recordExternalizeBaseline(proj, id);   // 기준선은 파일 — 본의 data 그림을 «옛것»으로 치면 복구 저장이 파일에 base64 를 되돌린다(앱 3/3)
+    /* 복구한 본이 파일과 다르면 곧 파일로 넣는다 — 안 그러면 이름만 바꾼 뒤 저장 없이 끝날 때 복구분이 사라진다(앱 3/3). 같으면 안 쓴다(DEF-03). */
+    if (!(await differs)) return stillHere();
+    return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => {   // applyProjectData 의 억제가 한 프레임 뒤 풀린다
+      if (!stillHere()) { done(false); return; }
+      scheduleAutoSave();
+      done(true);
+    })));
+  };
+}
+/* 그 프로젝트의 진행·대기 저장이 끝나길 기다린다 — 탭을 닫고 곧바로 다시 열면 낡은 파일을 읽어 본이 이기고, 복구 저장이 대기 중이던 편집을 덮었다(앱 3/3).
+   상한을 넘기면 false: 판정할 근거가 없으니 부르는 쪽은 본을 쓰지 않는다. */
+async function _waitSavesFor(id, capMs = 15000) {
+  const end = Date.now() + capMs;
+  while ((_isSavingToFile && (_savingOwnerId === id || _savingOwnerId === null)) || _pendingSaves.has(id)) {
+    if (Date.now() > end) return false;
+    await new Promise(r => setTimeout(r, 25));
+  }
+  return true;
+}
+window.waitSavesFor = _waitSavesFor;
+window.pickLsOverFile = _pickLsOverFile;
+window.prepareLsWin = _prepareLsWin;
+
 /* ★E170(2026-10-06 lane-drag · 태양/지디 «한 곳») 프로젝트 «열기» 로드의 한 자리 — 부팅 로드 · 탭 첫 로드가 같이 부른다.
    열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
    옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
+  _lastOpenFallback = proj && proj._recovered ? id : null;
   if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
   if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
   return proj;
@@ -1900,7 +2043,7 @@ function deferAutoSave() {
   if (_autoSaveDeferred) return;
   _autoSaveDeferred = true;
   // 이미 걸려 있던 타이머는 «해제»하되, 예약이 있었다는 사실은 기억한다.
-  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; }
+  if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; _autoSavePending = true; _autoSaveBurstHeld = true; }
   clearTimeout(_autoSaveDeferGuard);
   _autoSaveDeferGuard = setTimeout(() => resumeAutoSave(), _AUTOSAVE_DEFER_MAX_MS);
 }
@@ -2000,7 +2143,8 @@ function scheduleAutoSave() {
   _dirtyOwnerId = activeProjectId;
   /* ★J354 — 부를 때마다 타이머를 되걸어, 1.5초보다 촘촘한 연속 편집 중에는 저장이 한 번도 안 났다(앱 0.8·1.2초 간격 40초 쓰기 0 · 비정상 종료 시 40초 전부 잃음).
      연속 편집 중에도 AUTOSAVE_MAX_WAIT_MS 안에 한 번은 쓴다. 기다림의 시작 = 타이머가 비어 있을 때 온 첫 편집. */
-  if (!autoSaveTimer) _autoSaveBurstAt = Date.now();
+  if (!autoSaveTimer && !_autoSaveBurstHeld) _autoSaveBurstAt = Date.now();
+  _autoSaveBurstHeld = false;
   const _autoSaveDelay = Math.max(0, Math.min(1500, AUTOSAVE_MAX_WAIT_MS - (Date.now() - _autoSaveBurstAt)));
   clearTimeout(autoSaveTimer);
   _holdBackground(true);   // ★S1 — 타이머를 걸기 «전에» 푼다(숨은 창에서 이 1.5초가 분 단위로 밀리지 않게)
@@ -2163,6 +2307,7 @@ if (IS_ELECTRON) {
     let snap = null;
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      const quitId = activeProjectId;   // 기다리는 사이 저장 거절이 탭을 닫으면 활성이 바뀐다
       if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
@@ -2192,11 +2337,11 @@ if (IS_ELECTRON) {
       if (result === undefined) {
         const queuedAt = Date.now();
         const until = queuedAt + 1000;
-        while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(activeProjectId))) {
+        while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(quitId))) {
           await new Promise(r => setTimeout(r, 50));
         }
-        result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(activeProjectId),
-                                        _lastSaveResult.get(activeProjectId), queuedAt);
+        result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(quitId),
+                                        _lastSaveResult.get(quitId), queuedAt);
       }
       const out = _quitSaveOutcome(result);
       answer(out.ok ? { ok: true, reason: out.reason }
@@ -2359,7 +2504,8 @@ function initApp() {
     //   엘리먼트가 style/layout pass를 못 받아 컴포지터에 안 올라가 실패했다(실측: 105MB서 진입~+13s 미표시).
     //   ▶정적 오버레이라 첫 레이아웃에 포함→첫 프레임에 present, 이후 블로킹 동안 컴포지터가 transform
     //     스피너를 계속 회전. JS는 로드 완료/실패 시 닫기만 한다(정적 오버레이는 기본 표시라 항상 닫아야 함).
-    const _endLoadingOverlay = () => { window.hideProjectLoadingOverlay?.(); };
+    // ★363 — 입력을 막는 동안은 덮개도 둔다. 풀 때 load-input-gate 가 닫는다(적용 뒤 무장까지 큰 판은 수 초).
+    const _endLoadingOverlay = () => { if (!window.LoadInputGate?.isOn()) window.hideProjectLoadingOverlay?.(); };
     // BL-CDD-08: initLoad는 무거운 프로젝트에서 수 초를 await하는데, 그 사이 CDP 워커/탭 전환이
     // activeProjectId를 바꾸면 아래 apply가 "예전 프로젝트의 DOM"을 새 활성 프로젝트 위에 그리고,
     // 이어지는 autosave가 그 DOM을 새 프로젝트 파일에 저장해 덮어쓴다(무결성 사고).
@@ -2481,49 +2627,11 @@ function initApp() {
           // DBG-REFRESH: 프로젝트별 키로 localStorage 조회 — 다른 프로젝트 데이터 오염 방지
           // localStorage가 파일보다 새로우면 우선 적용 (새로고침 데이터 손실 방지)
           // 단, 파일 페이지 수가 더 많으면 파일 우선 (meta 오류 등으로 인한 1페이지 오염 방지)
-          const lsTs = parseInt(localStorage.getItem(getSaveTsKey()) || '0');
-          const fileTs = new Date(proj.updatedAt || 0).getTime();
-          const filePagesCount = proj.version === 2 ? (proj.pages?.length || 0) : (proj.snapshot?.pages?.length || 1);
-          // 파일의 섹션 수 합계 — LS가 더 적으면 LS를 신뢰하지 않음 (DBG-SEC-LOSS)
-          const _countSecs = (d) => {
-            if (!d) return 0;
-            if (d.version === 2 && Array.isArray(d.pages)) {
-              return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/section-block/g)?.length || 0), 0);
-            }
-            return ((d.canvas || '').match(/section-block/g)?.length || 0);
-          };
-          const fileSecCount = _countSecs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          // BUG-44: 이미지(asset/card)에 적용된 dataURL/파일경로 개수 — LS에 누락되면 파일 우선
-          const _countImgs = (d) => {
-            if (!d) return 0;
-            if (d.version === 2 && Array.isArray(d.pages)) {
-              return d.pages.reduce((s, p) => s + ((p.canvas || '').match(/data-img-src/g)?.length || 0), 0);
-            }
-            return ((d.canvas || '').match(/data-img-src/g)?.length || 0);
-          };
-          const fileImgCount = _countImgs(proj.version === 2 ? proj : (proj.snapshot || proj));
-          if (lsTs > 0 && lsTs + 500 > fileTs) {
-            const lsSaved = localStorage.getItem(getSaveKey());
-            if (lsSaved) {
-              try {
-                const lsData = JSON.parse(lsSaved);
-                const lsPagesCount = lsData.pages?.length || 0;
-                const lsSecCount   = _countSecs(lsData);
-                const lsImgCount   = _countImgs(lsData);
-                // localStorage 페이지/섹션/이미지 수가 파일보다 적으면 파일이 더 완전한 데이터 → 파일 우선
-                // (이전엔 페이지 수만 비교 — 섹션/이미지 통째 누락된 LS가 파일을 덮어쓰는 버그가 있었음)
-                if (lsPagesCount > 0 && lsPagesCount >= filePagesCount && lsSecCount >= fileSecCount && lsImgCount >= fileImgCount) {
-                  applyAndFinish(lsData);
-                  return;
-                }
-                if (lsSecCount < fileSecCount) {
-                  console.warn(`[initLoad] LS 섹션 수 부족 (LS:${lsSecCount} < FILE:${fileSecCount}) — 파일 우선 적용`);
-                }
-                if (lsImgCount < fileImgCount) {
-                  console.warn(`[initLoad] LS 이미지 수 부족 (LS:${lsImgCount} < FILE:${fileImgCount}) — 파일 우선 적용`);
-                }
-              } catch {}
-            }
+          const _lsData = _pickLsOverFile(proj, _bootProjectId);
+          if (_lsData) {
+            const _afterLs = _prepareLsWin(_lsData, proj, _bootProjectId);
+            applyAndFinish(_lsData).then(() => _afterLs(() => !_bootStale()));
+            return;
           }
           if (proj.version === 2 && proj.pages) { applyAndFinish(proj); return; }
           // v1 snapshot: 파싱 실패 시 return하지 않고 아래 localStorage fallback으로 진행
@@ -2694,6 +2802,23 @@ export {
 // Backward compat — 탭 함수는 tab-system.js에서 window 노출 처리
 // (saveTabState, renderTabBar 등 window.* 할당은 tab-system.js에서 수행)
 window.saveProjectToFile = saveProjectToFile;
+/* ★연 채 삭제 — main 이 휴지통으로 옮기기 전에 부른다. 보는 탭의 밀린 편집 · 옆 탭의 저장 실패분을 내리고 돌던 저장을 기다린다. */
+window.flushProjectBeforeTrash = async (id) => {
+  const tab = openTabs.find(t => t.id === id);
+  if (!tab || window.isTabFirstLoading?.(id)) return;
+  if (id === activeProjectId) {
+    if (_hasOwnUnsaved()) {
+      if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+      await saveProjectToFile(serializeProject(), { skipThumbnail: true, projectId: id });
+    }
+  } else if (_lastSaveFailed(id) && tab._cache) {
+    await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id });
+  }
+  const until = Date.now() + 5000;
+  while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));
+};
+/* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
+window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
 window.loadProjectsList = loadProjectsList;
 window.getProjectName = getProjectName;
 window.setProjectName = setProjectName;
@@ -2769,7 +2894,8 @@ window.cancelPendingAutoSaveForReload = async (targetId) => {
    *   ⑵ 되돌리기가 도중에 죽어 resume 이 영영 안 오면 감시견이 «알린다». */
   if (!_reloadSealTok) _reloadSealTok = window.AutoSaveSuppress.begin('reload-seal');
   clearTimeout(autoSaveTimer); autoSaveTimer = null;
-  _dirtyBeforeSeal = _dirtySinceSave;                     // 봉인 직전 값 캡처(③ 부작용 방지)
+  _dirtyBeforeSeal = _dirtySinceSave || _autoSavePending;  // 봉인 직전 값 캡처(③ 부작용 방지) · 미룸에 기억된 예약도 편집이다
+  _autoSavePending = false;                                // ★250D — 안 지우면 _hasOwnUnsaved 가 «미저장»으로 읽어 beforeunload 가 복원본을 덮는다
   clearPendingForReload(_pendingSaves, targetId);         // ⓑ ★되돌리기 대상만 폐기(타 프로젝트 저장 보존, 구멍2)
   _dirtySinceSave = false;
   // ⓒ in-flight 저장 드레인 대기(상한 5s — 무한대기 방지). 봉인 상태라 새 저장은 큐잉 안 됨.
