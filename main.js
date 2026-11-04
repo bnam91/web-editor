@@ -2183,7 +2183,7 @@ ipcMain.handle('ai:readImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
     const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(path.join(PROJECTS_DIR, projectId))) return { ok: false, error: 'path traversal' };
+    if (!full.startsWith(path.join(PROJECTS_DIR, projectId, 'images') + path.sep)) return { ok: false, error: 'path traversal' };   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3)
     if (!fs.existsSync(full)) return { ok: false, error: 'not_found' };
     const buf = fs.readFileSync(full);
     const mime = full.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
@@ -2197,7 +2197,7 @@ ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
     const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(path.join(PROJECTS_DIR, projectId))) return { ok: false, error: 'path traversal' };
+    if (!full.startsWith(path.join(PROJECTS_DIR, projectId, 'images') + path.sep)) return { ok: false, error: 'path traversal' };   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3)
     if (fs.existsSync(full)) fs.unlinkSync(full);
     return { ok: true };
   } catch (e) {
@@ -3704,30 +3704,98 @@ const _safe = s => String(s || '').replace(/[^\w.-]/g, '_');
 const _crypto = require('crypto');
 const _BLOB_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g;
 const _MAX_BYTES = 95 * 1024 * 1024;   // GitHub 100MB 하드리밋 안전 마진
+const _MARKET_TOTAL_MAX = 400 * 1024 * 1024;   // 그림을 실은 JSON 한 벌 상한. V8 문자열 한도(약 512MB)를 넘으면 «Invalid string length» 로 죽는다
 const _BLOB_MIN = 2048;                // 이보다 작은 자산은 분리 안 함(토큰이 더 커서 역효과 + blob 클러터 방지)
 function _blobsDir(dir) { return path.join(dir, 'market', '_blobs'); }
 /* goya 그림을 data URL 로 되싣는다 — 마켓은 파일을 안 옮겨 받는 쪽에서 깨진다. 없는 그림은 센다. */
-function _inlineGoyaAssets(str) {
+function _inlineGoyaAssets(str, sizes) {
   const cache = new Map(); let missing = 0;
   const data = String(str).replace(/goya-asset:\/\/([^/"'()\s&\\]+)\/([^"'()\s&\\?#]+)/g, (m, pid, fn) => {
+    if (sizes) {   // 재기만 한다: 읽기 전에 거절하려고
+      if (!cache.has(m)) { cache.set(m, true); try { _countMarketBytes(sizes, fs.statSync(path.join(PROJECTS_DIR, _safeSeg(pid), 'assets', _safeSeg(fn))).size); } catch (_) {} }
+      return m;
+    }
     if (!cache.has(m)) { const r = _readAssetDataUri(pid, fn); cache.set(m, r.ok ? r.dataUri : null); }
     if (!cache.get(m)) { missing++; return m; }
     return cache.get(m);
   });
   return { data, missing };
 }
+/* 파일 크기 → base64 뒤 크기로 합계·최대를 센다 */
+function _countMarketBytes(sizes, fileBytes) {
+  const b = Math.ceil(fileBytes / 3) * 4;
+  sizes.total += b; if (b > sizes.max) sizes.max = b;
+}
+function _marketTooBig(sizes) {
+  const mb = (n) => Math.ceil(n / 1048576);
+  if (sizes.max > _MAX_BYTES) return `그림 한 장이 ${mb(sizes.max)}MB 라 올리지 않았습니다. 한 장 ${mb(_MAX_BYTES)}MB 까지입니다(base64 기준). 큰 그림을 줄이거나 지운 뒤 다시 올려 주세요.`;
+  if (sizes.total > _MARKET_TOTAL_MAX) return `그림이 모두 ${mb(sizes.total)}MB 라 올리지 않았습니다. 한 번에 ${mb(_MARKET_TOTAL_MAX)}MB 까지입니다(base64 기준). 에셋·갤러리에서 안 쓰는 그림을 지운 뒤 다시 올려 주세요.`;
+  return null;
+}
+/* 에셋 패널·AI 갤러리 항목 중 캔버스에 쓰인 그림만 올린 본에 싣는다(현빈 결정 2026-11-05, 6779). 원본 파일·proj.json 안 고침. 표식 carried = 받는 쪽이 파일로 푼다(js/market.js _unpackCarriedImages).
+   안 쓴 항목은 이름·프롬프트까지 올린 본에서 뺀다: 공개 레포다. 없거나 못 읽는 파일도 쓴 그림이라 못 하니 뺀다, 장수는 omitted 로 센다.
+   «쓰였다» = 캔버스 goya 파일명이 같거나, 파일 내용 해시가 캔버스 그림과 같다(갤러리에서 넣으면 sha256 앞 16자 이름의 새 파일이 된다, externalizer.saveImageBytes).
+   크기는 읽기 전에 잰다. 넘으면 tooBig 말을 돌려주고 그림을 안 싣는다. */
+async function _carryProjectImages(str, pid, sizes) {
+  if (!String(str).includes('"blobPath"')) return { data: str, omitted: 0, tooBig: _marketTooBig(sizes) };
+  const proj = JSON.parse(str);
+  const canvas = (Array.isArray(proj.pages) ? proj.pages : []).map((p) => (p && p.canvas) || '').join('\n');
+  const usedNames = new Set(), usedHashes = new Set();
+  for (const m of canvas.matchAll(/goya-asset:\/\/[^/"'()\s&\\]+\/([^"'()\s&\\?#]+)/g)) { usedNames.add(m[1]); usedHashes.add(m[1].split('.')[0]); }
+  const hashOf = (buf) => _crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+  for (const m of canvas.matchAll(_BLOB_RE)) usedHashes.add(hashOf(Buffer.from(m[0].slice(m[0].indexOf(',') + 1), 'base64')));
+  let omitted = 0;
+  const plan = [];
+  const isUsed = async (name, full, st) => {
+    if (usedNames.has(name)) return true;
+    if (Math.ceil(st.size / 3) * 4 > _MAX_BYTES) return false;   // 이만한 그림이 캔버스에 있으면 그 그림이 먼저 걸린다
+    return usedHashes.has(hashOf(await fs.promises.readFile(full)));
+  };
+  const keepUsed = async (list) => {
+    const out = [];
+    for (const n of list) {
+      if (n && Array.isArray(n.children)) n.children = await keepUsed(n.children);
+      if (!n || !n.blobPath) { out.push(n); continue; }
+      const m = /^(assets|images)\/([^/\\]+)$/.exec(n.blobPath);
+      const full = m && m[2] !== '..' ? path.join(PROJECTS_DIR, _safeSeg(pid), m[1], _safeSeg(m[2])) : null;
+      let st = null, used = false;
+      try { st = full && fs.statSync(full); used = !!st && await isUsed(_safeSeg(m[2]), full, st); } catch (_) {}
+      if (!used) { omitted++; continue; }
+      _countMarketBytes(sizes, st.size); plan.push([n, full]); out.push(n);
+    }
+    return out;
+  };
+  if (Array.isArray(proj.assetsTree)) proj.assetsTree = await keepUsed(proj.assetsTree);
+  if (Array.isArray(proj.imageGallery)) proj.imageGallery = await keepUsed(proj.imageGallery);
+  const tooBig = _marketTooBig(sizes);
+  if (tooBig) return { data: str, omitted, tooBig };
+  for (const [n, full] of plan) {
+    const mime = _GOYA_ASSET_MIME[path.extname(full).slice(1).toLowerCase()] || 'image/png';
+    let buf;
+    try { buf = await fs.promises.readFile(full); } catch (_) { continue; }   // 캔버스도 같은 파일을 쓰니 handler 가 «찾지 못해» 로 거절한다
+    n.src = `data:${mime};base64,${buf.toString('base64')}`;
+    n.carried = true; delete n.blobPath;
+  }
+  return { data: JSON.stringify(proj), omitted, tooBig: null };
+}
+/* blob 은 write() 를 불러야 쓴다. 거절될 올리기의 blob 이 market/_blobs 에 남으면 안 된다(공개 레포, S3 MKT3). */
 function _extractBlobs(jsonStr, dir) {
-  const bdir = _blobsDir(dir); fs.mkdirSync(bdir, { recursive: true });
+  const bdir = _blobsDir(dir);
   let maxBlob = 0, count = 0;
+  const pending = new Map();
   const data = String(jsonStr).replace(_BLOB_RE, (m) => {
     if (Buffer.byteLength(m) < _BLOB_MIN) return m;   // 작은 자산은 인라인 유지
     const h = _crypto.createHash('sha256').update(m).digest('hex');
-    const fp = path.join(bdir, h + '.b64');
-    if (!fs.existsSync(fp)) fs.writeFileSync(fp, m);   // dedup: 동일 자산은 1회만
+    pending.set(h, m);
     const b = Buffer.byteLength(m); if (b > maxBlob) maxBlob = b; count++;
     return 'goditor-blob:' + h;
   });
-  return { data, maxBlob, count };
+  const write = () => {
+    fs.mkdirSync(bdir, { recursive: true });
+    for (const [h, m] of pending) { const fp = path.join(bdir, h + '.b64'); if (!fs.existsSync(fp)) fs.writeFileSync(fp, m); }   // dedup: 동일 자산은 1회만
+    return [...pending.keys()].map((h) => `market/_blobs/${h}.b64`);
+  };
+  return { data, maxBlob, count, write };
 }
 function _inlineBlobs(jsonStr, dir) {
   const bdir = _blobsDir(dir);
@@ -3779,24 +3847,32 @@ ipcMain.handle('market:push', async (_e, { account, id, name, data, scratch, upd
     const adir = path.join(dir, 'market', acc);
     fs.mkdirSync(adir, { recursive: true });
     // Phase 0: 인라인 자산 분리(프로젝트 데이터 + Phase1 스크래치) + 용량 가드
-    const inl = _inlineGoyaAssets(data), inlScratch = _inlineGoyaAssets(JSON.stringify(scratch || []));
+    const scratchJson = JSON.stringify(scratch || []);
+    const sizes = { total: Buffer.byteLength(data) + Buffer.byteLength(scratchJson), max: 0 };
+    _inlineGoyaAssets(data, sizes); _inlineGoyaAssets(scratchJson, sizes);
+    const carried = await _carryProjectImages(data, id, sizes);
+    if (carried.tooBig) return { ok: false, message: carried.tooBig };
+    const inl = _inlineGoyaAssets(carried.data), inlScratch = _inlineGoyaAssets(scratchJson);
     if (inl.missing + inlScratch.missing) return { ok: false, message: `그림 ${inl.missing + inlScratch.missing}곳의 파일을 찾지 못해 올리지 않았습니다 — 받는 쪽에서 깨집니다.` };
-    const { data: deinlined, maxBlob: mb1, count: c1 } = _extractBlobs(inl.data, dir);
+    const { data: deinlined, maxBlob: mb1, count: c1, write: writeB1 } = _extractBlobs(inl.data, dir);
     const scratchStr = inlScratch.data;
-    const { data: deScratch, maxBlob: mb2, count: c2 } = _extractBlobs(scratchStr, dir);
+    const { data: deScratch, maxBlob: mb2, count: c2, write: writeB2 } = _extractBlobs(scratchStr, dir);
     const maxBlob = Math.max(mb1, mb2);
     if (maxBlob > _MAX_BYTES) return { ok: false, message: `단일 자산 ${Math.round(maxBlob / 1048576)}MB — GitHub 100MB 한도 초과 위험. 자산 용량을 줄이세요.` };
     if (Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch) > _MAX_BYTES) return { ok: false, message: `프로젝트 JSON ${Math.round((Buffer.byteLength(deinlined) + Buffer.byteLength(deScratch)) / 1048576)}MB — 한도 초과` };
     // Phase 2: 분리된 데이터(+스크래치)로 version 해시 박제
     const version = _versionHash(deinlined + '|' + deScratch);
-    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: c1 + c2, data: deinlined, scratch: deScratch };
+    const payload = { id: pid, name: name || pid, account: acc, updatedAt: updatedAt || new Date().toISOString(), version, blobCount: c1 + c2, omittedImages: carried.omitted, data: deinlined, scratch: deScratch };
+    const blobPaths = [...new Set([...writeB1(), ...writeB2()])];   // 여기까지 왔으면 거절 없음
     fs.writeFileSync(path.join(adir, `${pid}.json`), JSON.stringify(payload));
     _rebuildMarketIndex(dir);
-    await _execFileP('git', ['-C', dir, 'add', '-A']);
+    /* -A 를 안 쓴다: 옛 판이 거절된 올리기에서 남긴 blob 까지 공개되고, 100MB 넘는 blob 이 커밋되면 이후 올리기가 다 막힌다(S3 MKT3). 이 올리기가 쓰는 파일만 넣는다. 윈도우 명령 길이 때문에 나눠 넣는다 */
+    const toAdd = ['index.json', `market/${acc}/${pid}.json`, ...blobPaths];
+    for (let i = 0; i < toAdd.length; i += 100) await _execFileP('git', ['-C', dir, 'add', '--', ...toAdd.slice(i, i + 100)]);
     await _execFileP('git', ['-C', dir, 'commit', '-m', `market: ${acc}/${name || pid}`]).catch(() => {});
     const pr = await _pushWithRebase(dir);   // Phase 3: non-ff면 fetch+rebase 후 재시도
     if (!pr.ok) return pr;
-    return { ok: true, account: acc, id: pid, version };
+    return { ok: true, account: acc, id: pid, version, omitted: carried.omitted };
   } catch (e) { return { ok: false, message: e.message }; }
 });
 ipcMain.handle('market:list', async () => {
