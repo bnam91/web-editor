@@ -2399,6 +2399,7 @@ function readProjectWithFallback(id, { heal = false, diag = null } = {}) {
          ⛔거절이 아니라 «폴백으로 내려보낸다» — 백업·히스토리에 성한 판이 있으면 그것이 답이다
            (손상 JSON 일 때 하는 것과 «같은 처분»으로 둔다. 새 뜻을 만들지 않는다). */
       if (_SS().isProjectShaped(parsed)) return { proj: parsed, from: 'proj', path: filePath, savedAt: _mtimeOr(filePath), healed: true };
+      if (diag && parsed && parsed.type === 'planning') diag.planning = true;
       console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
     }
     catch (e) {
@@ -2458,6 +2459,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const diag = {};
   const r = readProjectWithFallback(id, { heal: true, diag });   // ★E168 — 목록과 같은 한 곳
   // 못 읽음(EMFILE·EACCES 등)은 깨짐이 아니다 — 열기는 실패로 말하고 파일은 그대로. 저장 병합용 로드는 있는 후보로.
+  if (isOpen && diag.planning && !r) return { _planning: true };   // 기획 프로젝트는 편집기 것이 아니다 — 빈 판으로 열면 저장이 기획 칸을 지운다
   if (diag.readError) return isOpen ? { _readError: diag.readError } : (r ? r.proj : null);
   if (!r) {
     // JSON 이 깨졌다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.

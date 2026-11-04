@@ -2043,6 +2043,10 @@ async function loadProjectForOpen(id) {
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
     throw new Error('project-unreadable');
   }
+  if (proj && proj._planning) {   // 같은 실패 길로 — 저장을 막아 파일이 그대로다
+    window.LoadInputGate?.noteMessage('⚠️ 기획 프로젝트는 편집기에서 열 수 없습니다 — 파일은 그대로입니다.');
+    throw new Error('project-planning');
+  }
   if (proj && proj._readError) {   // 못 읽었을 뿐 깨진 게 아니다 — 같은 실패 길로, 말만 다르게
     window.LoadInputGate?.noteReadError(proj._readError);
     throw new Error('project-read-failed:' + proj._readError);

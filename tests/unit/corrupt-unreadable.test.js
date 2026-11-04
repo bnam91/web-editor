@@ -58,8 +58,16 @@ test('U1 깨짐·후보 없음 + 열기 → 못 읽음으로 답하고, 원본�
   assert.deepStrictEqual(s.side(), [r.preservedAs]);
   assert.strictEqual(fs.readFileSync(path.join(s.p, r.preservedAs), 'utf8'), BROKEN);
 });
-test('U2 [음성] 프로젝트 꼴이 아닌 JSON(기획 프로젝트)은 깨짐이 아니다 — null · 옆 파일 없음 · 저장에도 옆 파일 없음', async () => {
-  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning' });
+test('U2b 기획 프로젝트 열기 → 못 연다고 답하고 파일 그대로 · 저장 병합용 로드는 그대로 null', () => {
+  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning', extra: 1 });
+  const s = scene({ cur: plan }); const R = load(s.dir);
+  assert.deepStrictEqual(R.open(ID), { _planning: true });
+  assert.strictEqual(R.read(ID), null);
+  assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan);
+  assert.deepStrictEqual(s.side(), []);
+});
+test('U2 [음성] 프로젝트 꼴이 아닌 JSON 은 깨짐이 아니다 — null · 옆 파일 없음 · 저장에도 옆 파일 없음', async () => {
+  const plan = JSON.stringify({ id: ID, name: '이름', type: 'other' });
   const s = scene({ cur: plan }); const R = load(s.dir);
   assert.strictEqual(R.open(ID), null);
   assert.deepStrictEqual(s.side(), []);

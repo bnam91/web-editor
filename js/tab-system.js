@@ -565,7 +565,7 @@ async function toggleTabAddMenu(e) {
 
   // 이미 탭에 열린 프로젝트 제외
   const openIds = new Set(_getTabs().map(t => t.id));
-  list = list.filter(p => !openIds.has(p.id)).slice(0, 12);
+  list = list.filter(p => !openIds.has(p.id) && p.type !== 'planning').slice(0, 12);   // 기획 프로젝트는 편집기로 안 연다
 
   if (!list.length) {
     menu.innerHTML = NEW_PROJECT_BTN_HTML;
