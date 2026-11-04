@@ -306,6 +306,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
   }
   _isSavingToFile = true;
   _savingOwnerId = _targetId || null;
+  const _lsTsAtStart = _lsTsOf(_targetId);
   let _result;
   try {
     _result = await _doSaveProjectToFile(snapshot, opts);
@@ -325,7 +326,11 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (!_isSaveFailure(_result) && !window.isTabFirstLoading?.(activeProjectId)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
-    if (!_result?.skipped) _settleBigLs(_targetId, snapshot, !_result || _isSaveFailure(_result));
+    if (!_result?.skipped) {
+      const _failed = !_result || _isSaveFailure(_result);
+      _settleBigLs(_targetId, snapshot, _failed, _lsTsAtStart);
+      if (!_failed) _markLsFiled(_targetId, _lsTsAtStart);
+    }
     _isSavingToFile = false;
     // 대기 중인 프로젝트별 저장을 FIFO로 순차 드레인 (드롭 없음)
     if (_pendingSaves.size) {
@@ -1877,13 +1882,21 @@ const LS_SNAPSHOT_MAX = 2 * 1024 * 1024;
 /* 2MB 넘는 본은 파일 저장 결과를 보고 정한다. 저장 전에 앞 본을 지우면 저장 실패 + 충돌에 복구길이 없었다(앱 3/3).
    BUG-44(낡은 본이 파일을 덮음): 성공하면 지운다. 그 사이의 앞 본은 파일보다 낡아 열 때 못 이긴다(_pickLsOverFile).
    실패 때만 큰 본을 쓴다 — 평소 수십MB 쓰기가 BUG-44 때 뺀 쿼터 반복이라서. 축출은 안 한다: 넘치면 앞 본이 그대로 남는다. */
-function _settleBigLs(id, snap, failed) {
+function _settleBigLs(id, snap, failed, lsTsAtStart) {
   if (!IS_ELECTRON || !id || typeof snap !== 'string' || snap.length <= LS_SNAPSHOT_MAX) return;
   const key = `${SAVE_KEY_PREFIX}__${id}`;
   try {
+    if (localStorage.getItem(key + '_ts') !== lsTsAtStart) return;   // 저장 도는 중 더 새 본이 들어왔다(사진 지우기 등으로 작아진 경우) — 그 본이 답이다
     if (failed) { localStorage.setItem(key, snap); localStorage.setItem(key + '_ts', String(Date.now())); }
     else { localStorage.removeItem(key); localStorage.removeItem(key + '_ts'); }
   } catch (e) { console.warn('[save-load] 큰 복구본 못 씀, 앞 본 유지:', e && e.name); }
+}
+/* 이 _ts 까지의 본은 파일에 들어갔다 — 축출이 복구본으로 치지 않게. 표시(base)는 «연 파일의 판»이라 저장해도 안 바뀌어, 평소 편집한 본이 전부 복구본으로 읽혔다(리뷰). */
+const _lsTsOf = (id) => (id ? localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) : null);
+const _lsFiledKey = (id) => `web-editor-ls-filed__${id}`;
+function _markLsFiled(id, ts) {
+  if (!IS_ELECTRON || !id || !ts || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) !== ts) return;
+  try { localStorage.setItem(_lsFiledKey(id), ts); } catch (_) {}
 }
 function safeLocalStorageSet(key, value) {
   // Electron에서 대용량 스냅샷(2MB↑)은 파일로 이미 저장되므로 localStorage 생략
@@ -1911,8 +1924,8 @@ function safeLocalStorageSet(key, value) {
       // 파일에 든 본부터, 그 안에서 오래된 것부터 지운다 — 파일에 안 든 본은 하나뿐인 복구본이다(앱 3/3). 표시 없는 옛 본은 든 것으로 친다.
       const _tsOf = (k) => parseInt(localStorage.getItem(k + '_ts') || '0');
       const _unfiled = (k) => {
-        const base = localStorage.getItem(_lsBaseKey(k.slice(prefix.length)));
-        return _tsOf(k) > (Number(base) || Date.parse(base));
+        const _id = k.slice(prefix.length); const base = localStorage.getItem(_lsBaseKey(_id));
+        return _tsOf(k) > (Number(base) || Date.parse(base)) && !(_tsOf(k) <= Number(localStorage.getItem(_lsFiledKey(_id))));
       };
       const oldest = candidates.sort((a, b) => (_unfiled(a) - _unfiled(b)) || (_tsOf(a) - _tsOf(b)))[0];
       /* 남은 것이 복구본뿐이면 안 지운다 — 다른 프로젝트의 하나뿐인 편집을 잃고도 지금 본이 안 들어갔다(앱). 지금 본은 파일로 간다. */
@@ -1923,6 +1936,7 @@ function safeLocalStorageSet(key, value) {
       }
       localStorage.removeItem(oldest);
       localStorage.removeItem(oldest + '_ts');
+      localStorage.removeItem(_lsFiledKey(oldest.slice(prefix.length)));
       console.warn('[save-load] QuotaExceededError: 오래된 autosave 키 삭제 후 재시도 -', oldest);
       window.showToast?.('⚠️ 저장 공간이 부족해 오래된 자동저장을 정리했습니다.');
     }
@@ -2298,6 +2312,7 @@ window.addEventListener('beforeunload', () => {
 
   // BUG-44: Electron이면 동기 IPC로 파일에 즉시 저장 (autoSave debounce 1.5s 이내 새로고침 시 데이터 손실 방지)
   // localStorage는 보조 캐시이며, 파일 저장이 진실의 원천. 큰 snapshot도 파일에는 무조건 들어가야 함.
+  let _unloadFiled = false;
   if (IS_ELECTRON && window.electronAPI?.saveProjectSync) {
     try {
       const proj = {
@@ -2307,6 +2322,7 @@ window.addEventListener('beforeunload', () => {
         updatedAt: new Date().toISOString(),
       };
       const result = window.electronAPI.saveProjectSync(proj);
+      _unloadFiled = !!result && result.ok !== false;
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
       }
@@ -2316,7 +2332,7 @@ window.addEventListener('beforeunload', () => {
   }
 
   const _unloadSaveOk = safeLocalStorageSet(getSaveKey(), snap);
-  if (_unloadSaveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
+  if (_unloadSaveOk) { localStorage.setItem(getSaveTsKey(), String(Date.now())); if (_unloadFiled) _markLsFiled(activeProjectId, localStorage.getItem(getSaveTsKey())); }
   // non-Electron: PROJECTS_KEY snapshot 동기 업데이트 (파싱 결과 재사용)
   if (!IS_ELECTRON && activeProjectId) {
     try {

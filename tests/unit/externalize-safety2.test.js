@@ -54,7 +54,7 @@ function sealedFns(tok, sealId) {
 function saveFn(tok, sealId) {
   const calls = [];
   const fn = new Function('window', '_reloadSealTok', '_reloadSealId', 'activeProjectId', '_isSavingToFile', '_pendingSaves', '_doSaveProjectToFile', '_isSaveFailure', '_lastSaveResult',
-    'let _savingOwnerId = null, _dirtySinceSave = true;\n' + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
+    'let _savingOwnerId = null, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
     {}, tok, sealId, 'p1', false, new Map(), async (_s, o) => { calls.push(o.projectId || 'p1'); return { ok: true }; }, () => false, new Map());
   return { fn, calls };
 }
