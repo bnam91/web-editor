@@ -252,6 +252,7 @@ let _dirtySinceSave = false;
 let _dirtyOwnerId = null;
 let _autoSaveTimerOwnerId = null;
 let _savingOwnerId = null;
+let _savingSnapshot = null;   // 앱이 끝날 때 아직 파일에 안 닿았을 수 있는 본(_flushUnfinishedSavesSync)
 function _hasOwnUnsaved() {
   const mine = (owner) => owner === null || owner === activeProjectId;
   /* ★250C — 저장 진행 중에 손잡이를 쥐고 고치면 그 저장이 끝나며 dirty 를 지운다. 미룸에 기억된 예약(_autoSavePending)을 안 보면 쥔 채 ⌘R 에서 편집을 잃었다(앱 재현). */
@@ -291,6 +292,27 @@ function _lastSaveFailed(projectId) {
   return _isSaveFailure(e && e.result);
 }
 
+/* 문서가 끝난다 — 줄에 선 저장과 준비(loadProject) 중인 저장은 더 안 돈다. 닫은 탭의 저장이면 캐시도 LS 도 없어 그 편집을 잃었다(앱: 줄의 본이 종료·창 닫기 뒤 파일에 없음).
+   메인 저장은 받자마자 동기로 쓰니 뒤늦게 옛 본이 덮는 일은 없다. 못 쓴 것을 돌려준다 — 종료 답이 실패로 말한다. */
+function _flushUnfinishedSavesSync() {
+  if (!IS_ELECTRON || !window.electronAPI?.saveProjectSync) return [];
+  const left = new Map(_pendingSaves);
+  _pendingSaves.clear();
+  if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId)) left.set(_savingOwnerId, { snapshot: _savingSnapshot });
+  const failed = [];
+  for (const [id, { snapshot }] of left) {
+    if (_isReloadSealed(id)) continue;
+    let reason = null;
+    try {
+      const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+      const r = window.electronAPI.saveProjectSync({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() });
+      if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
+    } catch (e) { reason = (e && e.message) || 'exception'; }
+    if (reason) failed.push({ id, reason, snapshot: typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot) });
+  }
+  return failed;
+}
+
 async function saveProjectToFile(snapshot, opts = {}) {
   const _targetId = opts.projectId || activeProjectId;
   /* ★361 — 안 읽힌 탭으로 나가는 저장은 쓰지 않는다: 그 스냅샷은 앞 프로젝트 내용이다(앱 실측 · ~/gd-lane/imac-gd-L1/361: 첫 로드 중 홈·종료 · 로드 실패 뒤 편집).
@@ -306,6 +328,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
   }
   _isSavingToFile = true;
   _savingOwnerId = _targetId || null;
+  _savingSnapshot = snapshot;
   const _lsTsAtStart = _lsTsOf(_targetId);
   let _result;
   try {
@@ -334,6 +357,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     /* ★331 — 파일이 막히면 localStorage 가 유일한 사본인데 디스크 반영이 늦다(앱: 잠근 채 20초 연속 편집 뒤 10초 안에 kill -9 ⇒ 9/9 전부 잃음 · 40초 뒤 3/3 복구). 실패 때만 바로 내린다. */
     if (_isSaveFailure(_result)) window.electronAPI?.flushLocalStorage?.();
     _isSavingToFile = false;
+    _savingSnapshot = null;
     // 대기 중인 프로젝트별 저장을 FIFO로 순차 드레인 (드롭 없음)
     if (_pendingSaves.size) {
       const [nextId, nextSave] = _pendingSaves.entries().next().value;
@@ -405,7 +429,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       const saveResult = await window.electronAPI.saveProject(proj);
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
-        await window.closeDeletedProjectTab?.(targetId);
+        /* 안 기다린다 — 다음 탭에 줄 선 저장이 있으면 그 탭은 저장이 끝나길 기다리고, 줄은 이 저장의 finally 가 빼서 저장이 영영 멈췄다(앱 재현). */
+        Promise.resolve(window.closeDeletedProjectTab?.(targetId)).catch(e => console.warn('[save-load] 삭제된 탭 닫기 실패:', e && e.message));
         return { ok: false, skipped: true, reason: saveResult.reason };
       }
       if (saveResult && saveResult.ok === false) {
@@ -1887,9 +1912,10 @@ function cleanStaleAutosaveKeys(activeProjectIds) {
 const LS_SNAPSHOT_MAX = 2 * 1024 * 1024;
 /* 2MB 넘는 본은 파일 저장 결과를 보고 정한다. 저장 전에 앞 본을 지우면 저장 실패 + 충돌에 복구길이 없었다(앱 3/3).
    BUG-44(낡은 본이 파일을 덮음): 성공하면 지운다. 그 사이의 앞 본은 파일보다 낡아 열 때 못 이긴다(_pickLsOverFile).
-   실패 때만 큰 본을 쓴다 — 평소 수십MB 쓰기가 BUG-44 때 뺀 쿼터 반복이라서. 넘치면 파일에 든 본만 비키고, 그래도 안 들어가면 앞 본을 두고 말한다. */
+   실패 때만 큰 본을 쓴다 — 평소 수십MB 쓰기가 BUG-44 때 뺀 쿼터 반복이라서. 넘치면 파일에 든 본만 비키고, 그래도 안 들어가면 앞 본을 두고 말한다.
+   실패면 작은 본도 쓴다 — 탭을 닫는 저장은 자동저장을 안 거쳐 LS 가 낡고 캐시도 없어, 다시 열면 옛 판이 멀쩡히 열렸다(앱 재현). */
 function _settleBigLs(id, snap, failed, lsTsAtStart) {
-  if (!IS_ELECTRON || !id || typeof snap !== 'string' || snap.length <= LS_SNAPSHOT_MAX) return;
+  if (!IS_ELECTRON || !id || typeof snap !== 'string' || (!failed && snap.length <= LS_SNAPSHOT_MAX)) return;
   const key = `${SAVE_KEY_PREFIX}__${id}`;
   try {
     if (localStorage.getItem(key + '_ts') !== lsTsAtStart) return;   // 저장 도는 중 더 새 본이 들어왔다(사진 지우기 등으로 작아진 경우) — 그 본이 답이다
@@ -2304,6 +2330,7 @@ function scheduleAutoSave() {
 
 // 새로고침/탭 닫기 시 항상 localStorage에 flush (autoSaveTimer 여부 무관)
 window.addEventListener('beforeunload', () => {
+  _flushUnfinishedSavesSync();   // 활성 탭과 무관 — 아래 어느 갈래로 나가도 먼저(실패는 메인이 기록한다)
   // BUG-12: activeProjectId 없으면 undefined 키 오염 방지
   if (!activeProjectId) return;
   // DEF-03: 마지막 저장 이후 변경이 없으면 재기록하지 않음 (무편집 새로고침/방문의 updatedAt·파일 오염 방지)
@@ -2398,6 +2425,8 @@ if (IS_ELECTRON) {
     let answered = false;
     const answer = (r) => {
       if (answered) return; answered = true;
+      const _left = _flushUnfinishedSavesSync()[0];   // 안 읽힌 탭에서 끝내도 닫은 탭의 저장은 남아 있다 · 앱이 곧 끝나 큐가 안 돈다
+      if (_left && r.ok) r = { ok: false, reason: _left.reason, projectId: _left.id, projectName: openTabs.find(t => t.id === _left.id)?.name || null, snapshot: _left.snapshot };
       try { window.electronAPI.quitReady(r); } catch (_) {}
     };
     let snap = null;

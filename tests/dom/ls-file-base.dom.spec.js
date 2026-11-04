@@ -373,6 +373,23 @@ const saveDuring = (page, s, id, small) => page.evaluate(async ([s, id, small]) 
   await p;
   return { v: localStorage.getItem(K)?.slice(0, 20) ?? null, ts: localStorage.getItem(K + '_ts') };
 }, [s, id, small]);
+const smallSave = (page, id) => page.evaluate(async (id) => {
+  const K = 'web-editor-autosave__' + id; localStorage.setItem(K, 'old'); localStorage.setItem(K + '_ts', '1');
+  await window.saveProjectToFile(JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', canvas: '<div class="section-block" id="small_new"></div>' }] }), { skipThumbnail: true, projectId: id });
+  return { new: (localStorage.getItem(K) || '').includes('small_new'), ts: localStorage.getItem(K + '_ts') };
+}, id);
+test('작은 본 저장이 실패하면 그 본을 LS 에 남긴다 — 탭을 닫는 저장은 자동저장을 안 거쳐 LS 가 낡았다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__delay = 0; window.__saveFail = 1; });
+  const r = await smallSave(page, 'p1');
+  expect(r.new, '★저장 실패한 편집이 어디에도 없다').toBe(true);
+  expect(Number(r.ts)).toBeGreaterThan(1);
+});
+test('[음성] 작은 본 저장이 성공하면 LS 를 안 건드린다', async ({ page }) => {
+  await storeBoot(page);
+  await page.evaluate(() => { window.__delay = 0; });
+  expect(await smallSave(page, 'p1')).toEqual({ new: false, ts: '1' });
+});
 test('큰 본 저장이 실패해도 그 사이 쓴 더 새 작은 본을 안 덮는다', async ({ page }) => {
   await storeBoot(page);
   await page.evaluate(() => { window.__delay = 200; window.__saveFail = 1; });

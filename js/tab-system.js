@@ -399,11 +399,11 @@ async function switchTab(id) {
     if (window.IS_ELECTRON) {
       _firstLoadingTabId = id;
       /* 그 프로젝트의 앞 저장이 끝날 때까지 안 읽는다 — 먼저 읽으면 그 저장보다 낡은 화면이고, 거기서 쓰면 그 저장을 덮고(앱 3/3) 안 쓰면 받은 편집을 버린다(리뷰).
-         기다리는 동안 입력은 게이트가 막고, 탭 바는 열려 있어 다른 탭으로 나갈 수 있다. 끝나지 않는 저장이면 이 탭만 안 열린다 — 잃는 것은 없다. */
-      for (let _said = false; (await window.waitSavesFor?.(id, _said ? 1000 : 15000)) === false; _said = true) {
+         기다리는 동안 입력은 게이트가 막는다. 다른 탭으로 가면 곧바로 그만둔다 — 오래 끌면 이 억제 토큰이 남아 그 탭 게이트가 안 풀린다. */
+      const _waitFrom = Date.now();
+      for (let _said = false; (await window.waitSavesFor?.(id, 100)) === false;) {
         if (_gen !== _switchGen) return;
-        if (!_said) window.showToast?.('⏳ 앞 저장이 아직 안 끝나 기다립니다 — 끝나면 파일을 읽어 엽니다. 그동안 이 탭은 편집이 막힙니다.');
-        await new Promise((r) => setTimeout(r, 50));
+        if (!_said && Date.now() - _waitFrom > 15000) { _said = true; window.showToast?.('⏳ 앞 저장이 아직 안 끝나 기다립니다 — 끝나면 파일을 읽어 엽니다. 그동안 이 탭은 편집이 막힙니다.'); }
       }
       if (_gen !== _switchGen) return;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)

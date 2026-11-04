@@ -5,6 +5,7 @@
  * 칸: E1 로드 중 홈 — B 저장 0 · 이동함 · E2 [음성] 로드 끝난 뒤 홈 — B 저장(345 무편집 홈 재기록 값 그대로) · E3 로드 중 종료 — B 저장 0 · 답 ok
  *     E4 [음성] 로드 끝난 뒤 편집·종료 — B 저장 · E5 로드 실패 뒤 편집 — B 저장 0 · 표시 «저장됨» 아님 · E6 로드 중 saveProjectFile·flushSave·직접 저장 — B 쓰기 0
  *     E7 [양성] 그 탭 로드 전에 찍혀 큐에 선 진짜 저장은 통과한다 · E8 로드 실패 뒤 다른 탭으로 갔다 돌아와 읽히면 편집이 저장된다.
+ *     E9~E12 앞 저장을 기다리는 탭에서 종료·창 닫기 — 줄의 본·준비 중인 본이 동기로 파일에 들어가고 못 쓰면 답이 실패다 · E13 기다리다 다른 탭으로 — 그 탭 게이트가 곧 풀린다 · E14 저장이 삭제된 탭을 닫고 다음 탭이 줄을 기다려도 저장이 안 멈춘다.
  * 변이: isTabFirstLoading 을 늘 거짓으로 하면 E1·E3·E5·E6 빨강 · 큐 표식을 빼면 E7 빨강 · E2·E4·E8 은 늘 초록.
  * ★처음 실행 기록: 2026-11-02 22:1x · 아이맥 · 판 3e051e96 · w1 · retries 0 · 고친 판 repeat-each 3 24/24 · 변이 각 ×1: 늘 거짓 E1·E3·E5·E6 빨강 · 큐 표식 뺌 E7 빨강 · 나머지 초록 */
 const { test, expect } = require('@playwright/test');
@@ -117,11 +118,76 @@ test('E7 [양성] 로드 전에 찍혀 큐에 선 진짜 저장은 통과한다'
   await page.evaluate(() => { window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: window.activeProjectId }); });
   await page.waitForFunction(() => window._isSavingToFile);
   await page.evaluate(([real, B]) => { window.__p2 = window.saveProjectToFile(real, { skipThumbnail: true, projectId: B }); }, [real, B]);
-  await go(page, B); await opened(page, B);
+  await go(page, B); await page.waitForFunction((B) => window.isTabFirstLoading(B), B);   // 앞 저장이 끝나야 읽는다 — 줄은 표식이 선 채 빠진다
   await page.evaluate(() => { window.__hold = null; window.__release(); return window.__p1; });
   await page.waitForFunction(() => !window._isSavingToFile);
+  await opened(page, B);
   expect(of(s, B).map(r => r.seeds.join()), '★진짜 저장이 버려졌다').toContain(['sec_' + B + '_1', 'sec_' + B + '_9'].join());
   expect(s.errs).toEqual([]);
+});
+
+/* 2차 리뷰: B 저장이 준비·줄에 있는 채 B 를 다시 연다(앞 저장을 기다리는 중) */
+async function waitingB(page) {
+  const real = await page.evaluate((B) => { const d = JSON.parse(JSON.stringify(window.__files.get(B))); d.pages[0].canvas += '<div class="section-block" id="sec_proj_361b_9"></div>'; return JSON.stringify(d); }, B);
+  await page.evaluate(() => { window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: window.activeProjectId }); });
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(([real, B]) => { window.__p2 = window.saveProjectToFile(real, { skipThumbnail: true, projectId: B }); }, [real, B]);
+  await go(page, B); await page.waitForFunction((B) => window.isTabFirstLoading(B), B);
+}
+const NINE = ['sec_' + B + '_1', 'sec_' + B + '_9'].join();
+const syncOf = (s, id) => s.rec.filter(r => r.kind === 'sync' && r.id === id).map(r => r.seeds.join());
+test('E9 앞 저장을 기다리는 중 종료 — 줄의 본을 동기로 쓰고 답한다', async ({ page }) => {
+  const s = await setup(page);
+  await waitingB(page);
+  await page.evaluate(() => window.__quit());
+  await page.waitForFunction(() => window.__answer);
+  expect(syncOf(s, B), '★줄의 본이 종료에 안 나갔다').toContain(NINE);
+  expect(await page.evaluate(() => window.__answer.ok)).toBe(true);
+});
+test('E10 그 동기 쓰기가 실패하면 종료 답이 실패로 말하고 본을 싣는다', async ({ page }) => {
+  const s = await setup(page);
+  await waitingB(page);
+  await page.evaluate(() => { window.__fake.saveProjectSync = () => ({ ok: false, reason: 'lsq' }); return window.__quit(); });
+  await page.waitForFunction(() => window.__answer);
+  const a = await page.evaluate(() => ({ ok: window.__answer.ok, reason: window.__answer.reason, id: window.__answer.projectId, has: (window.__answer.snapshot || '').includes('sec_proj_361b_9') }));
+  expect(a).toEqual({ ok: false, reason: 'lsq', id: B, has: true });
+  expect(s.errs).toEqual([]);
+});
+test('E11 앞 저장을 기다리는 중 문서가 내려가면(창 닫기·새로고침·홈) 줄의 본을 동기로 쓴다', async ({ page }) => {
+  const s = await setup(page);
+  await waitingB(page);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  expect(syncOf(s, B), '★줄의 본을 잃었다').toContain(NINE);
+});
+test('E12 준비 중인 저장(줄 없음)도 종료에 나간다', async ({ page }) => {
+  const s = await setup(page);
+  const real = await page.evaluate((B) => { const d = JSON.parse(JSON.stringify(window.__files.get(B))); d.pages[0].canvas += '<div class="section-block" id="sec_proj_361b_9"></div>'; return JSON.stringify(d); }, B);
+  await page.evaluate(([real, B]) => { window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(real, { skipThumbnail: true, projectId: B }); }, [real, B]);
+  await page.waitForFunction(() => window._isSavingToFile);
+  await go(page, B); await page.waitForFunction((B) => window.isTabFirstLoading(B), B);
+  await page.evaluate(() => window.__quit());
+  await page.waitForFunction(() => window.__answer);
+  expect(syncOf(s, B)).toContain(NINE);
+});
+test('E13 앞 저장을 기다리다 다른 탭으로 가면 그 탭 게이트가 곧 풀린다', async ({ page }) => {
+  const s = await setup(page);
+  await waitingB(page);
+  await go(page, C); await page.evaluate((C) => window.__ops[C], C);
+  await page.waitForFunction(() => window.LoadInputGate.isOn() === false && window.gdtProjectReady.get().autosaveArmed === true, null, { timeout: 3000 });
+  expect(await page.evaluate(() => window._isSavingToFile), '앞 저장은 아직 도는 중이어야 이 칸이 잰다').toBe(true);
+  expect(s.errs).toEqual([]);
+});
+test('E14 활성 탭 저장이 삭제됨을 받고 다음 탭에 줄 선 저장이 있어도 저장이 안 멈춘다', async ({ page }) => {
+  const s = await setup(page);
+  await page.evaluate((A) => { const o = window.__fake.saveProject; window.__fake.saveProject = async (p) => { if (p.id !== A) return o(p); await window.__hold; return { ok: false, reason: 'project_deleted' }; }; }, A);
+  const real = await page.evaluate((B) => { const d = JSON.parse(JSON.stringify(window.__files.get(B))); d.pages[0].canvas += '<div class="section-block" id="sec_proj_361b_9"></div>'; return JSON.stringify(d); }, B);
+  await page.evaluate(([real, B]) => { window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: window.activeProjectId }); window.__p2 = window.saveProjectToFile(real, { skipThumbnail: true, projectId: B }); }, [real, B]);
+  await page.evaluate(() => { window.__hold = null; window.__release(); });
+  await opened(page, B);
+  await page.waitForFunction(() => !window._isSavingToFile, null, { timeout: 3000 });
+  expect(of(s, B).map(r => r.seeds.join()), '★줄의 저장이 안 돌았다').toContain(NINE);
+  await release(page, B);
+  expect(await page.evaluate(() => window.activeProjectId)).toBe(B);
 });
 
 test('E8 로드 실패 뒤 다른 탭 갔다 돌아와 읽히면 편집이 저장된다', async ({ page }) => {
