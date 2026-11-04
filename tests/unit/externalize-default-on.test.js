@@ -1,5 +1,5 @@
 /* externalize-default-on.test.js — 열 때 자동 변환 기본 켬(현빈 답 6661)이 지킬 것.
- * main.js 원문을 잘라 진짜 externalizer 와 작은 픽스처로 돌린다. 앱 값은 tools/conv-measure.cjs.
+ * main.js 원문을 잘라 진짜 externalizer 와 작은 픽스처로 돌린다. 앱 값은 tests/tools/conv-measure.cjs.
  * 실행: node --test tests/unit/externalize-default-on.test.js */
 'use strict';
 const { test } = require('node:test');
@@ -116,18 +116,19 @@ test('줄어들지 않는 변환은 실패 안내를 안 띄우고 파일도 안
   assert.strictEqual(sha(f.proj), orig); assert.strictEqual(f.sent.length, 0);
 });
 test('열기 로드가 복구본 값을 싣는다 · 없으면 안 싣는다', () => {
-  const src = readSrc(REPO, 'js/io/save-load.js');
+  const src = readSrc(REPO, 'preload.js');
+  assert.match(src, /loadProject: .*opts\.open === true \? \{ \.\.\.opts, \.\.\._lsOpenHint\(id\) \}/);
   const store = {};
   const localStorage = { getItem: (k) => (k in store ? store[k] : null) };
-  const hint = new Function('localStorage', 'SAVE_KEY_PREFIX', '_lsBaseKey', sliceBlock(src, 'function _lsOpenHint(', '대상') + '\nreturn _lsOpenHint;')(localStorage, 'web-editor-autosave', (i) => 'b__' + i);
+  const hint = new Function('localStorage', sliceBlock(src, 'function _lsOpenHint(', '대상') + '\nreturn _lsOpenHint;')(localStorage);
   assert.deepStrictEqual(hint('p'), {});
   store['web-editor-autosave__p_ts'] = '5';
   assert.deepStrictEqual(hint('p'), {}, '본 없는 ts');
-  store['web-editor-autosave__p'] = '{}'; store['b__p'] = UPD;
+  store['web-editor-autosave__p'] = '{}'; store['web-editor-ls-base__p'] = UPD;
   assert.deepStrictEqual(hint('p'), { lsTs: 5, lsBase: UPD });
 });
 test('측정 스크립트의 대조가 맞은 변환은 통과, 어긋난 변환은 잡는다', () => {
-  const { verifyConverted } = require(path.join(REPO, 'tools/conv-measure.cjs'));
+  const { verifyConverted } = require(path.join(REPO, 'tests/tools/conv-measure.cjs'));
   const f = fixture(); const src = f.proj + '.src'; fs.copyFileSync(f.proj, src); f.open();
   const v = verifyConverted(REPO, f.dir, f.id, src);
   assert.deepStrictEqual(v, { imagesUnique: 1, refs: 1, missing: 0, badAsset: 0, leftInline: 0, canvasExact: true });

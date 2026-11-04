@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* conv-measure — 열 때 자동 변환을 격리 앱에서 잰다. 수·크기·해시만 찍고 내용은 안 찍는다.
- *   큰 본:  node tools/conv-measure.cjs big <proj.json 경로> --tree <트리> --work <임시폴더> --cdp N --mcp N [--out 결과.jsonl]
- *   복구:   node tools/conv-measure.cjs recover --tree … --work … --cdp N --mcp N   (합성 표식 · 합성 그림, 원본 파일 안 씀)
- *   설정:   node tools/conv-measure.cjs setting --tree … --work … --cdp N --mcp N
+ *   큰 본:  node tests/tools/conv-measure.cjs big <proj.json 경로> --tree <트리> --work <임시폴더> --cdp N --mcp N [--out 결과.jsonl]
+ *   복구:   node tests/tools/conv-measure.cjs recover --tree … --work … --cdp N --mcp N   (합성 표식 · 합성 그림, 원본 파일 안 씀)
+ *   설정:   node tests/tools/conv-measure.cjs setting --tree … --work … --cdp N --mcp N
  * 원본은 읽기만 하고 --work 안의 사본만 쓴다. --work 는 비어 있거나 없는 폴더여야 하고, 끝나면 지운다(앱 RSS 3000MB 넘으면 멈춤).
  * ⛔이 스크립트는 ⌘C·⌘X·⌘D·copySelected 를 안 쓴다. GODITOR_QA_HIDDEN=1 필수. */
 'use strict';
