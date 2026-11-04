@@ -2361,6 +2361,7 @@ function _externalizeOnOpen(event, id, opts) {
   } catch (_) {}
   if (collabRef || metaUnreadable) { send('projects:externalize-hint', { projectId: safeId, reason: collabRef ? 'collab' : 'meta_unreadable', bytes: scan.bytes, base64Refs: scan.base64Refs }); return; }
   if (readSettings().autoExternalizeOnOpen === true) {
+    if (scan.rolledBack) return;   // 사용자가 되돌린 프로젝트 — 다시 변환하면 되돌리기 뒤 새로고침에서 바로 재변환된다. 수동 변환은 그대로 된다
     if (X.lsRecoveryPending(PROJECTS_DIR, safeId, opts)) return;
     const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
     console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));

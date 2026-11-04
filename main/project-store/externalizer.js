@@ -142,6 +142,7 @@ function scanProjectFile(projectsDir, projectId) {
     goyaRefs: raw.indexOf('goya-asset://') === -1 ? 0 : countMatches(raw, GOYA_RE),
     hasBackup: fs.existsSync(p.backup),
     externalized: (meta && meta.externalized) || null,
+    rolledBack: !!(meta && meta.externalizedRolledBackAt && !meta.externalized),
   };
 }
 

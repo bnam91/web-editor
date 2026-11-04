@@ -59,3 +59,16 @@ test('[음성] 협업·meta 못 읽음은 보류 유지', () => {
     assert.strictEqual(sha(f.proj), before); assert.strictEqual(f.sent[0].p.reason, reason);
   }
 });
+test('되돌린 프로젝트는 열 때 다시 변환하지 않는다 · 원본 해시 일치', () => {
+  const f = fixture(); const orig = sha(f.proj);
+  f.open();
+  assert.strictEqual(inline(f), false);
+  assert.strictEqual(sha(f.pre), orig, '변환 전 본 = 원본');
+  assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
+  assert.strictEqual(sha(f.proj), orig);
+  f.open();
+  assert.strictEqual(sha(f.proj), orig, '되돌린 뒤 열기가 재변환하면 되돌리기가 안 된 것이다');
+  assert.strictEqual(fs.existsSync(f.pre), false);
+  assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true, '수동 변환은 된다');
+  assert.strictEqual(inline(f), false);
+});
