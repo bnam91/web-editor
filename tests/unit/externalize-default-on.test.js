@@ -72,3 +72,57 @@ test('되돌린 프로젝트는 열 때 다시 변환하지 않는다 · 원본 
   assert.strictEqual(X.externalizeProjectFile(f.root, f.id).ok, true, '수동 변환은 된다');
   assert.strictEqual(inline(f), false);
 });
+function settings(raw) {
+  const root = mkTmpRoot('goya-exts-'); const p = path.join(root, 'settings.json');
+  if (raw) fs.writeFileSync(p, JSON.stringify(raw));
+  const DEF = new Function(sliceBlock(MAIN, 'const DEFAULT_SETTINGS = ', '대상') + '\nreturn DEFAULT_SETTINGS;')();
+  return new Function('fs', 'getSettingsPath', 'DEFAULT_SETTINGS', sliceBlock(MAIN, 'function readSettings(', '대상') + '\n' + sliceBlock(MAIN, 'function writeSettings(', '대상') + '\nreturn { readSettings, writeSettings };')(fs, () => p, DEF);
+}
+test('기본 켬: 새 설정 · 옛 판이 저장한 false 는 켜지고, 표지가 든 뒤의 끄기는 지킨다', () => {
+  assert.strictEqual(settings().readSettings().autoExternalizeOnOpen, true);
+  const s = settings({ autoExternalizeOnOpen: false, betaChannel: true });
+  assert.strictEqual(s.readSettings().autoExternalizeOnOpen, true, '옛 false');
+  assert.strictEqual(s.readSettings().betaChannel, true, '다른 값은 그대로');
+  s.writeSettings({ betaChannel: false });
+  assert.strictEqual(s.readSettings().autoExternalizeOnOpen, true, '다른 설정 저장 뒤에도');
+  s.writeSettings({ autoExternalizeOnOpen: false });
+  assert.strictEqual(s.readSettings().autoExternalizeOnOpen, false, '사용자가 끈 값');
+  s.writeSettings({ betaChannel: true });
+  assert.strictEqual(s.readSettings().autoExternalizeOnOpen, false, '끈 값이 다음 저장에도 산다');
+  s.writeSettings({ autoExternalizeOnOpen: true });
+  assert.strictEqual(s.readSettings().autoExternalizeOnOpen, true);
+});
+test('기본값 세 자리가 같다', () => {
+  assert.match(readSrc(REPO, 'js/settings/settings-store.js'), /autoExternalizeOnOpen: true,/);
+  assert.match(readSrc(REPO, 'js/settings/settings-modal.js'), /autoExternalizeOnOpen: cur\.autoExternalizeOnOpen !== false,/);
+  assert.match(MAIN, /\n  autoExternalizeOnOpen: true,\n/);
+});
+test('성공은 말 없이, 일부 실패·변환 실패는 안내', () => {
+  const toasts = []; const on = {};
+  const window = { electronAPI: { onProjectExternalized: (c) => { on.ok = c; }, onExternalizeHint: (c) => { on.hint = c; } }, showToast: (m) => toasts.push(m) };
+  const localStorage = { getItem: () => null, setItem() {} };
+  new Function('window', 'localStorage', '_fmtMB', '_HINT_KEY', sliceBlock(readSrc(REPO, 'js/io/asset-externalize.js'), 'function _bindExternalizeEvents(', '대상') + '\n_bindExternalizeEvents();')(window, localStorage, () => '1MB', () => 'k');
+  on.ok({ projectId: 'p', images: 2, skipped: 0 });
+  assert.strictEqual(toasts.length, 0);
+  on.ok({ projectId: 'p', images: 2, skipped: 1 });
+  assert.match(toasts[0], /1장은 변환 실패/);
+  on.hint({ projectId: 'p', reason: 'failed', error: 'x' });
+  assert.match(toasts[1], /자동 최적화 실패/);
+});
+test('줄어들지 않는 변환은 실패 안내를 안 띄우고 파일도 안 건드린다', () => {
+  // 작은 그림 + 들여쓴 재기록으로 커지는 본: 켜진 기본값에서 열 때마다 뜨면 안 된다
+  const f = fixture(null, { pad: Array.from({ length: 3000 }, (_, i) => i) });
+  const orig = sha(f.proj); f.open();
+  assert.strictEqual(sha(f.proj), orig); assert.strictEqual(f.sent.length, 0);
+});
+test('열기 로드가 복구본 값을 싣는다 · 없으면 안 싣는다', () => {
+  const src = readSrc(REPO, 'js/io/save-load.js');
+  const store = {};
+  const localStorage = { getItem: (k) => (k in store ? store[k] : null) };
+  const hint = new Function('localStorage', 'SAVE_KEY_PREFIX', '_lsBaseKey', sliceBlock(src, 'function _lsOpenHint(', '대상') + '\nreturn _lsOpenHint;')(localStorage, 'web-editor-autosave', (i) => 'b__' + i);
+  assert.deepStrictEqual(hint('p'), {});
+  store['web-editor-autosave__p_ts'] = '5';
+  assert.deepStrictEqual(hint('p'), {}, '본 없는 ts');
+  store['web-editor-autosave__p'] = '{}'; store['b__p'] = UPD;
+  assert.deepStrictEqual(hint('p'), { lsTs: 5, lsBase: UPD });
+});

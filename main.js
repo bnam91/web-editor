@@ -208,9 +208,10 @@ const DEFAULT_SETTINGS = {
   // pre-release(beta) 채널: 테스터 앱만 true → GitHub pre-release 자동수신·검증.
   // 일반 사용자는 false(기본) → latest 정식 릴리스만 받음.
   betaChannel: false,
-  // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 OFF).
-  // 기본값 ON 전환은 리허설 통과 후 현빈 G2 게이트(DESIGN-asset-batch-externalize.md §3-3).
-  autoExternalizeOnOpen: false,
+  // [externalize] 프로젝트를 «열 때» 레거시 base64 이미지를 goya-asset 에셋으로 일괄 외부화(기본 ON · 현빈 답 6661).
+  autoExternalizeOnOpen: true,
+  // 기본이 OFF 이던 판의 설정 저장이 남긴 false 는 고른 값이 아니다. 이 표지가 없는 파일은 한 번 켜고, 표지가 든 뒤의 끄기는 지킨다.
+  autoExternalizeDefaultOn: true,
   // [#16] 스크래치패드↔섹션 «연결선» 표시(기본 ON = 지금까지의 동작 그대로).
   //   ⚠️기본값을 true 로 두는 이유 — 이 키가 «없는» 기존 사용자는 readSettings 의
   //     `{...DEFAULT_SETTINGS, ...raw}` 로 여기 값을 받는다. false 로 두면 업데이트만 해도
@@ -257,6 +258,7 @@ function readSettings() {
     return {
       ...DEFAULT_SETTINGS,
       ...raw,
+      ...(raw.autoExternalizeDefaultOn === true ? {} : { autoExternalizeOnOpen: true, autoExternalizeDefaultOn: true }),
       apiKeys:   { ...DEFAULT_SETTINGS.apiKeys,   ...(raw.apiKeys   || {}) },
       shortcuts: { ...DEFAULT_SETTINGS.shortcuts, ...(raw.shortcuts || {}) },
       easterEggs: { ...DEFAULT_SETTINGS.easterEggs, ...(raw.easterEggs || {}) },
@@ -2337,8 +2339,8 @@ ipcMain.handle('projects:list', () => _listProjectsImpl());
 /* ── [externalize] 열 때 정책 (DESIGN-asset-batch-externalize.md §3-2 ①·§3-3·§4-C) ──
    렌더러가 «프로젝트를 연다»고 알린 로드(opts.open)에서만 동작. 저장 경로의 loadProject(기존본 병합)에선 안 돈다.
    - 협업 등록(meta.collabRef) 프로젝트: 자동변환 제외, 안내만(상대 디스크엔 에셋이 없다 — 지디 결정 ⓑ).
-   - settings.autoExternalizeOnOpen=true: 변환 → 렌더러는 처음부터 goya-asset 본을 받는다(새로고침·경합 없음).
-   - OFF(기본): 대형 레거시(≥20MB)면 힌트 이벤트만. 렌더러가 프로젝트당 1회 토스트.
+   - settings.autoExternalizeOnOpen=true(기본): 변환 → 렌더러는 처음부터 goya-asset 본을 받는다(새로고침·경합 없음).
+   - OFF: 대형 레거시(≥20MB)면 힌트 이벤트만. 렌더러가 프로젝트당 1회 토스트.
    알림은 반환 객체에 필드를 섞지 않고 이벤트로 보낸다 — loadProject→saveProject로 그대로 되쓰는 호출부가
    여럿이라(이름변경 등) 마커가 proj.json에 새는 것을 막는다. */
 const EXTERNALIZE_HINT_MIN_BYTES = 20 * 1024 * 1024;
@@ -2366,7 +2368,7 @@ function _externalizeOnOpen(event, id, opts) {
     const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
     console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));
     if (r && r.ok && !r.noop) send('projects:externalized', { projectId: safeId, ...r });
-    else if (r && !r.ok) send('projects:externalize-hint', { projectId: safeId, reason: 'failed', error: r.reason, bytes: scan.bytes, base64Refs: scan.base64Refs });
+    else if (r && !r.ok && r.reason !== 'not_smaller') send('projects:externalize-hint', { projectId: safeId, reason: 'failed', error: r.reason, bytes: scan.bytes, base64Refs: scan.base64Refs });
     return;
   }
   if (scan.bytes >= EXTERNALIZE_HINT_MIN_BYTES) send('projects:externalize-hint', { projectId: safeId, reason: 'legacy', bytes: scan.bytes, base64Refs: scan.base64Refs });

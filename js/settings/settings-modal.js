@@ -304,7 +304,7 @@
   }
 
   // [b8-2] 성능 탭 — 이미지 외부화(최적화). 변환 구현은 main(projects:externalize) 한 곳이고 여기는 트리거·상태만.
-  //   [externalize] 추가: «열 때 자동 최적화» 토글(기본 OFF, 저장 버튼으로 반영) + 현재 프로젝트 상태(인라인 장수·
+  //   [externalize] 추가: «열 때 자동 최적화» 토글(기본 ON, 저장 버튼으로 반영) + 현재 프로젝트 상태(인라인 장수·
   //   용량·백업 유무) + 「변환 되돌리기」(proj_pre-externalize.json이 있을 때만 표시).
   //   공용 클래스 재사용(settings-section-title/help/btn-primary/api-status/egg-row/egg-toggle) → 새 CSS 없음.
   const _fmtMB = (n) => (Number(n || 0) / 1024 / 1024).toFixed(1) + 'MB';
@@ -481,7 +481,7 @@
       <div class="settings-egg-list">
         <div class="settings-egg-row" data-egg="autoExternalizeOnOpen">
           <div class="settings-egg-text">
-            <div class="settings-egg-label">프로젝트 열 때 자동 최적화 (베타)</div>
+            <div class="settings-egg-label">프로젝트 열 때 자동 최적화</div>
             <div class="settings-egg-desc">켜면 인라인 이미지가 남아 있는 프로젝트를 열 때 자동으로 분리합니다. 협업 중인 프로젝트는 건너뜁니다. (저장 버튼을 눌러야 반영됨)</div>
           </div>
           <label class="settings-egg-toggle">
@@ -1063,7 +1063,7 @@
       apiKeys:   { openai: '', gemini: '', anthropic: '', ...(cur.apiKeys || {}) },
       shortcuts: { ...(cur.shortcuts || {}) },
       easterEggs: { ...defaultEggEnabled, ...(cur.easterEggs || {}) },
-      autoExternalizeOnOpen: cur.autoExternalizeOnOpen === true, // [externalize] 기본 OFF
+      autoExternalizeOnOpen: cur.autoExternalizeOnOpen !== false, // [externalize] 기본 ON
       showScratchLinkEdges: cur.showScratchLinkEdges !== false,   // [#16] 기본 ON(기존 동작 보존)
     };
     renderApiPane();
