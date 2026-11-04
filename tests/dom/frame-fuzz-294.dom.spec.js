@@ -262,13 +262,13 @@ test('FS294 ★파일 왕복 양성·음성 — id·부모·순서·글자를 �
   for (const k of ['s', 'sp', 'so', 'st']) expect(out[k], `양성 ${k}`).toEqual({ same: false, injected: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
-/* ⑸ 옛 양성 — 알려진 결함 꼴(287 · ⌘D 가 안 보이는 진입 상태로 갈린다): 자손을 «들어가» 고르면 사본이 그 안으로 간다. 모델(원본 부모)과 맞대면 판정 ⒜ 가 빨개져야 자가 산다 · 같은 장면 «안 들어감» 은 초록(음성). 287 의 그 꼴이 설계인지 결함인지는 이 시험이 안 가른다(R1 · 지디 줄). */
+/* ⑸ 양성 — 알려진 결함 꼴(287 · ⌘D 가 안 보이는 진입 상태로 갈린다): 자손을 «들어가» 고르면 사본이 그 안으로 간다. 모델(원본 부모)과 맞대면 판정 ⒜ 가 빨개져야 자가 산다 · 같은 장면 «안 들어감» 은 초록(음성). 287 의 그 꼴이 설계인지 결함인지는 이 시험이 안 가른다(R1 · 지디 줄). */
 async function tree3(page) {
   return page.evaluate(() => { const FR = '.frame-block:not([data-text-frame])'; const sec = window.__secEl(); const out = [];
     for (let i = 0; i < 3; i++) { window.deselectAll?.(); window.selectSection(sec); window._activeFrame = i ? document.getElementById(out[i - 1]) : null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); out.push([...sec.querySelectorAll(FR)].find((x) => !b.has(x)).id); }
     window.deselectAll?.(); window._activeFrame = null; window.clearHistory?.(); return out; });
 }
-for (const [name, enter, red] of [['P287 ★들어가 고른 ⌘D 도 판정 ⒜ 없음 — 사본이 원본 부모 안(옛 결함 287: 그 프레임 안으로 갔다 · 프레임 하나의 자리 규칙으로 닫혔다)', true, false], ['P287N 음성 — 안 들어간 ⌘D 는 판정 초록', false, false]]) {
+for (const [name, enter, red] of [['P287 ★양성 — 들어가 고른 ⌘D 는 판정 ⒜ 빨강(사본이 원본 부모 밖 · 그 프레임 안)', true, true], ['P287N 음성 — 안 들어간 ⌘D 는 판정 초록', false, false]]) {
   test(name, async ({ page }) => {
     const errs = await setup(page);
     const [, , G] = await tree3(page);
