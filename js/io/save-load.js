@@ -559,7 +559,14 @@ async function _runIdleThumbnail() {
 }
 window.scheduleIdleThumbnail = scheduleIdleThumbnail;
 
-async function goHome() {
+/* 프로젝트 목록으로 나가기 전 확인 — 생성 중이 아니면 안 묻는다(현빈 결정 6524). 입구: 홈 단추 · 마지막 탭 닫기. 삭제된 프로젝트 탭은 머물 곳이 없어 안 묻는다. */
+function confirmLeaveWhileGenerating() {
+  return !window.aiGenerationInFlight?.() || window.confirm('AI 이미지를 만드는 중입니다. 지금 나가면 결과를 잃습니다. 나갈까요?');
+}
+window.confirmLeaveWhileGenerating = confirmLeaveWhileGenerating;
+
+async function goHome({ confirmed = false } = {}) {
+  if (!confirmed && !confirmLeaveWhileGenerating()) return;
   const curTab = openTabs.find(t => t.id === activeProjectId);
   if (curTab && !window.isTabFirstLoading?.(activeProjectId)) curTab._cache = serializeProject();
   // ★T-012: video-pending(트림 확정 전) 상태로 저장·홈이동하면 원본 영상이 저장에서 빠진다
