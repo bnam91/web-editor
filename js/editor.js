@@ -2611,6 +2611,14 @@ function _freeNudgeTargets() {
   return all.filter(a => !all.some(b => b !== a && a.contains(b)));
 }
 
+/** 글칸 포커스면 ⌘Z 를 네이티브 되돌리기에 양보한다. 자유변형 글칸은 되돌릴 글이 남았을 때만 — 없으면 앱 이력으로 끌기까지 되돌린다(현빈 6634).
+ *  shortcut: 다른 글칸(안 건 글상자·표·메모)은 옛 문 그대로라 글칸 포커스에선 앱 이력이 안 돈다, 현빈이 넓히라 하면 closest 조건을 뗀다. */
+function _yieldsUndoToNative(cmd) {
+  const ae = document.activeElement;
+  if (!ae?.isContentEditable) return false;
+  return !ae.closest('.text-block[data-tf-corners]') || document.queryCommandEnabled(cmd);
+}
+
 document.addEventListener('keydown', e => {
   // contenteditable 편집 중: 에디터 전역 단축키 차단
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
@@ -2731,10 +2739,10 @@ document.addEventListener('keydown', e => {
       document.body.classList.contains('preview-mode') ? window.previewZoomStep?.(-10) : zoomStep(-10);
     }
     if (e.key === '0')                  { e.preventDefault(); applyZoom(100, { keepViewportCenter: true }); }  // [M62]
-    if (e.key === 'z' && !e.shiftKey)   { if (document.activeElement?.isContentEditable) return; e.preventDefault(); undo(); return; }
+    if (e.key === 'z' && !e.shiftKey)   { if (_yieldsUndoToNative('undo')) return; e.preventDefault(); undo(); return; }
     // ★Shift+z 는 브라우저가 key:'Z'(대문자)로 준다 — 소문자만 검사하면 ⌘⇧Z redo 가 «전혀» 안 먹는다.
     //   바로 아래 취소선(⌘⇧X)이 (e.key==='x'||e.key==='X') 로 둘 다 받는 것과 같은 규약으로 맞춘다.
-    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (document.activeElement?.isContentEditable) return; e.preventDefault(); redo(); return; }
+    if ((e.key === 'z' || e.key === 'Z') && e.shiftKey) { if (_yieldsUndoToNative('redo')) return; e.preventDefault(); redo(); return; }
     if (e.code === 'KeyF' && !e.shiftKey && !e.altKey) {
       // ⌘F — 섹션 검색이동 팔레트. 편집/입력 중엔 양보(기본 동작도 막지 않음).
       if (document.querySelector('.text-block.editing')) return;
