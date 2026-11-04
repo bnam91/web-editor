@@ -8,15 +8,13 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { sliceCall } from './_slice-block.js';
 const ROOT = process.env.GD1001_ROOT || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require = createRequire(import.meta.url);
 const SRC = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
 
 const qaBlock = SRC.slice(SRC.indexOf('const _QA_HIDDEN'), SRC.indexOf('// ▲QA_HIDDEN'));
-const handler = (ch) => {
-  const a = SRC.indexOf(`ipcMain.handle('${ch}'`); assert.ok(a > 0, `★${ch} 처리기를 못 찾았다`);
-  return SRC.slice(a, SRC.indexOf('\n  });', a) + 6);
-};
+const handler = (ch) => sliceCall(SRC, `ipcMain.handle('${ch}'`, ch) + ';';
 
 /* QA_HIDDEN 값 하나로 main.js 조각을 돌린 세상 */
 function boot(env) {
