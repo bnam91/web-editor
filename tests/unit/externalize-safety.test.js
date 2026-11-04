@@ -55,3 +55,15 @@ test('④ 재변환이 쌓여도 최초 원본이 남는다', () => {
   assert.ok(allShas(f).includes(first), '최초 원본이 회전으로 지워졌다');
   assert.ok(allShas(f).length <= 4, `쌓임 ${allShas(f).length}`);
 });
+test('③ 변환 표지가 없어도 되돌림 표지가 남아 재변환하지 않는다', () => {
+  const f = fx(); X.externalizeProjectFile(f.root, f.id);
+  fs.unlinkSync(f.meta);
+  assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
+  assert.strictEqual(X.scanProjectFile(f.root, f.id).rolledBack, true);
+});
+test('③ [음성] 못 읽는 meta 를 되돌림이 덮지 않는다', () => {
+  const f = fx(); X.externalizeProjectFile(f.root, f.id);
+  fs.writeFileSync(f.meta, '{잘림');
+  assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
+  assert.strictEqual(fs.readFileSync(f.meta, 'utf8'), '{잘림');
+});

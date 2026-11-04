@@ -375,8 +375,9 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
     if (typeof opts.afterWrite === 'function') opts.afterWrite(p.id, data);
   } catch (_) {}
   try {
-    const meta = readJsonOrNull(p.meta);
-    if (meta && meta.externalized) { const { externalized: _x, ...rest } = meta; atomicWrite(p.meta, JSON.stringify({ ...rest, externalizedRolledBackAt: new Date().toISOString() }, null, 2)); }
+    // 변환 표지가 없어도 되돌림 표지는 남긴다 — 없으면 다음 열기가 재변환한다. 못 읽는 meta 는 덮지 않는다(그때는 열 때 변환이 보류된다).
+    const meta = fs.existsSync(p.meta) ? readJsonOrNull(p.meta) : {};
+    if (meta) { const { externalized: _x, ...rest } = meta; atomicWrite(p.meta, JSON.stringify({ ...rest, externalizedRolledBackAt: new Date().toISOString() }, null, 2)); }
   } catch (_) {}
   return { ok: true, restoredBytes: Buffer.byteLength(raw), preRollback: 'proj_pre-rollback.json', ...diag };
 }
