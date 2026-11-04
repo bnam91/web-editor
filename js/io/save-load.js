@@ -280,6 +280,11 @@ window.saveRefusedText = _saveRefusedText;
 function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
 
 /** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
+/* 닫을 때 저장할 게 있나. 되돌리기 봉인 중이면 없다: 저장 실패 기록이 남은 채 새로고침하면 동기 저장이 복원본을 덮는다. */
+function _unloadSaveNeeded(projectId) {
+  if (_reloadSealTok) return false;
+  return _hasOwnUnsaved() || _lastSaveFailed(projectId);
+}
 function _lastSaveFailed(projectId) {
   const e = projectId ? _lastSaveResult.get(projectId) : null;
   return _isSaveFailure(e && e.result);
@@ -2253,7 +2258,7 @@ window.addEventListener('beforeunload', () => {
      끝난 걸 «아는» 상태면 종료 저장을 시도한다. 디스크가 나쁜 줄 «알면서» 그냥 나가지 않는다.
      ⛔이건 위 ②의 대체재가 아니라 «보조»다. 근본은 ②(결과를 보고 dirty 를 지운다).
      ⚠️권한이 복구됐다면 이 시도가 «성공»해서 데이터가 들어간다 — 손해 없는 재시도다. */
-  if (!_hasOwnUnsaved() && !_lastSaveFailed(activeProjectId)) return;
+  if (!_unloadSaveNeeded(activeProjectId)) return;
   if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
@@ -2343,6 +2348,7 @@ if (IS_ELECTRON) {
     let snap = null;
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
+      if (_reloadSealTok) { answer({ ok: true, reason: 'reload-seal' }); return; }
       const quitId = activeProjectId;   // 기다리는 사이 저장 거절이 탭을 닫으면 활성이 바뀐다
       if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소

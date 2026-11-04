@@ -338,7 +338,7 @@ function rollbackDiag(p, backupRaw) {
  *   그 작업을 «전용» 파일 proj_pre-rollback.json에 보존한다 — 롤링 proj_backup.json은 다음 autosave가
  *   1.5초 뒤 덮어써 되돌리기-취소용으로 못 쓴다(이 파일 헤더가 스스로 경고했던 함정). 전용 파일은
  *   autosave·저장 경로가 절대 건드리지 않으므로 실수 되돌리기 후에도 복구할 여지를 남긴다.
- * 복원 후 backup(pre-externalize)은 «소비»한다(지운다) — 안 지우면 몇 주 뒤 재변환 때 옛 원본이 남아
+ * 복원 후 backup(pre-externalize)은 «소비»한다(회전본으로 돌린다) — 그 이름에 남으면 몇 주 뒤 재변환 때 옛 원본이 남아
  * 다음 되돌리기가 몇 주 전 상태로 돌아가는 사고가 난다. 에셋 파일은 남긴다(다른 참조 가능, 해시라 무해).
  * @param {{dryRun?:boolean, afterWrite?:Function}} [opts] dryRun=진단만 반환(파일 무변경).
  * @returns {{ok:boolean, reason?:string, restoredBytes?:number, ageDays?:number|null, currentSections?:number, restoreSections?:number, preRollback?:string}}
@@ -369,7 +369,7 @@ function rollbackExternalize(projectsDir, projectId, opts = {}) {
   } catch (_) {}
   try { atomicWrite(p.proj, raw); }
   catch (e) { return { ok: false, reason: 'write_failed', error: e.message }; }
-  try { fs.unlinkSync(p.backup); } catch (_) {}
+  try { rotateBackup(p); } catch (_) {}   // 지우지 않는다: 되돌린 뒤 복원본이 덮여도 원본 사본이 남는다. 되돌리기 대상에서는 빠진다
   try {
     const data = JSON.parse(raw);
     if (typeof opts.afterWrite === 'function') opts.afterWrite(p.id, data);

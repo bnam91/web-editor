@@ -67,3 +67,40 @@ test('③ [음성] 못 읽는 meta 를 되돌림이 덮지 않는다', () => {
   assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
   assert.strictEqual(fs.readFileSync(f.meta, 'utf8'), '{잘림');
 });
+function preload(result) {
+  const store = new Map(); let api;
+  const electron = { contextBridge: { exposeInMainWorld: (_n, a) => { api = api || a; } }, ipcRenderer: { invoke: async () => result, on() {}, send() {}, sendSync() {} } };
+  const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+  vm.runInNewContext(fs.readFileSync(path.join(REPO, 'preload.js'), 'utf8'), { require: (m) => (m === 'electron' ? electron : {}), localStorage, console, process, Buffer, setTimeout });
+  for (const s of ['', '_ts']) store.set('web-editor-autosave__p1' + s, 'x');
+  store.set('web-editor-ls-base__p1', 'U');
+  return { api, store };
+}
+test('② 되돌리기 성공이면 복구본을 걷는다: updatedAt 없는 파일에서 복구본이 복원본을 못 이긴다', async () => {
+  const { api, store } = preload({ ok: true });
+  await api.externalizeRollback({ projectId: 'p1' });
+  assert.deepStrictEqual([...store.keys()], []);
+});
+test('② [음성] 미리보기·실패 되돌리기는 복구본을 안 건드린다', async () => {
+  const a = preload({ ok: true }); await a.api.externalizeRollback({ projectId: 'p1', dryRun: true }); assert.strictEqual(a.store.size, 3);
+  const b = preload({ ok: false }); await b.api.externalizeRollback({ projectId: 'p1' }); assert.strictEqual(b.store.size, 3);
+});
+test('② 봉인 중에는 닫기·종료 저장이 복원본을 덮지 않는다(저장 실패 기록이 남아 있어도)', () => {
+  const src = readSrc(REPO, 'js/io/save-load.js');
+  const need = (sealed, unsaved, failed) => new Function('_reloadSealTok', '_hasOwnUnsaved', '_lastSaveFailed', sliceBlock(src, 'function _unloadSaveNeeded(', '대상') + '\nreturn _unloadSaveNeeded("p");')(sealed, () => unsaved, () => failed);
+  assert.strictEqual(need(1, false, true), false, '실패 기록 + 봉인');
+  assert.strictEqual(need(1, true, true), false);
+  assert.strictEqual(need(null, false, true), true, '[음성] 봉인 없으면 W-3-b 그대로');
+  assert.strictEqual(need(null, true, false), true);
+  assert.strictEqual(need(null, false, false), false);
+  assert.match(src, /if \(!_unloadSaveNeeded\(activeProjectId\)\) return;/);
+  assert.match(src, /if \(_reloadSealTok\) \{ answer\(\{ ok: true, reason: 'reload-seal' \}\); return; \}/);
+});
+test('② 되돌려도 원본 사본을 바로 지우지 않는다', () => {
+  const f = fx(); const orig = sha(f.proj); X.externalizeProjectFile(f.root, f.id);
+  assert.strictEqual(X.rollbackExternalize(f.root, f.id).ok, true);
+  assert.strictEqual(sha(f.proj), orig);
+  assert.strictEqual(fs.existsSync(f.pre), false, '되돌리기 대상은 아니다(버튼이 숨는다)');
+  assert.ok(allShas(f).includes(orig), '원본 사본이 사라졌다');
+  assert.strictEqual(X.scanProjectFile(f.root, f.id).hasBackup, false);
+});

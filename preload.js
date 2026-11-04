@@ -202,7 +202,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   assetsReadAsDataUri:   ({ projectId, filename })           => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename }),
   // [externalize] 일괄 외부화 — 수동 변환 / 되돌리기 / 상태조회 + 열 때 알림(이벤트)
   externalizeProject:     ({ projectId, force }) => ipcRenderer.invoke('projects:externalize', { projectId, force: force === true }),
-  externalizeRollback:    ({ projectId, dryRun } = {}) => ipcRenderer.invoke('projects:externalize-rollback', { projectId, dryRun: dryRun === true }),
+  externalizeRollback:    ({ projectId, dryRun } = {}) => ipcRenderer.invoke('projects:externalize-rollback', { projectId, dryRun: dryRun === true }).then((r) => {
+    /* 복구본을 걷는다 — updatedAt 없는 파일(마켓에서 받은 본)은 복구본이 복원본을 이긴다(_pickLsOverFile) */
+    if (dryRun !== true && r && r.ok) { try { for (const k of [`web-editor-autosave__${projectId}`, `web-editor-autosave__${projectId}_ts`, `web-editor-ls-base__${projectId}`]) localStorage.removeItem(k); } catch (_) {} }
+    return r;
+  }),
   externalizeScan:        ({ projectId }) => ipcRenderer.invoke('projects:externalize-scan', { projectId }),
   onProjectExternalized:  (cb) => ipcRenderer.on('projects:externalized', (_e, p) => cb(p)),
   onExternalizeHint:      (cb) => ipcRenderer.on('projects:externalize-hint', (_e, p) => cb(p)),
