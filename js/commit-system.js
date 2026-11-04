@@ -314,7 +314,7 @@ async function saveProjectFile() {
       const saved = await window.saveInLine(data, targetId, { allowEmpty: true, quietReject: true });
       if (saved?.ok === false) {
         if (saved.reason === 'save_wait_timeout') window.showToast?.('⚠️ 저장이 끝나지 않았습니다 — 잠시 뒤 다시 저장해 주세요');
-        else if (!saved.skipped && saved.reason !== 'exception') window.showToast?.('⚠️ 저장 거부: ' + (saved.reason || '알 수 없는 오류'));
+        else if (!saved.skipped && saved.reason !== 'exception') window.showToast?.(window.saveRefusedText?.(saved) || '⚠️ 저장 거부');
         return;
       }
       // localStorage도 sync

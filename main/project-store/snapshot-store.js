@@ -930,6 +930,44 @@ function listReferencedAssets(projectsDir, projectId) {
  * pre-externalize 는 변환 시점에 «고정»돼 늙는다. 앞에 두면 한 달 늙은 원본이 최신 백업/히스토리를
  * 이겨 덮어쓰는 데이터손실(F1)이 난다.
  */
+/* 파일 글자 읽기 — 잠깐 막힌 것(핸들 소진·잠금)은 잠시 뒤 다시. 그래도 안 되면 던진다: 부르는 쪽이 «못 읽음»과 «깨짐»(SyntaxError)을 가른다. */
+const _TRANSIENT_READ = new Set(['EMFILE', 'ENFILE', 'EBUSY', 'EAGAIN']);
+function readTextRetry(p) {
+  for (let i = 0; ; i++) {
+    try { return fs.readFileSync(p, 'utf8'); }
+    catch (e) {
+      if (i >= 3 || !_TRANSIENT_READ.has(e && e.code)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30 * 2 ** i);
+    }
+  }
+}
+/* 못 읽는 proj.json 을 덮기 전에 옆에 둔다 — 같은 판(mtime)은 한 벌. 이름이 슬롯·후보 규약 밖이라 복구 후보·프룬이 안 집는다.
+   반환: 파일 이름. 못 두면 던진다(부르는 쪽이 덮지 않는다 · 자가치유는 그 코드를 _healError 로 싣는다). 시험: tests/unit/corrupt-unreadable.test.js */
+function preserveUnreadableOrThrow(srcPath, dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  const name = `proj_corrupt_${Math.trunc(fs.statSync(srcPath).mtimeMs)}.json`;
+  const to = path.join(dir, name);
+  try { if (fs.statSync(to).size === fs.statSync(srcPath).size) return name; } catch (_) {}   // 크기가 다르면 끊긴 사본이다 — 다시
+  const tmp = to + '.tmp';   // 복사 중 꺼져도 이름이 붙은 사본은 언제나 온전하다
+  try {
+    fs.copyFileSync(srcPath, tmp);
+    fs.renameSync(tmp, to);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    throw e;
+  }
+  return name;
+}
+/* 위와 같되 못 두면 null. */
+function preserveUnreadable(srcPath, dir) {
+  try {
+    return preserveUnreadableOrThrow(srcPath, dir);
+  } catch (e) {
+    console.warn('[preserve-unreadable] 옆에 못 뒀다:', e && e.message);
+    return null;
+  }
+}
+
 function loadFallbackCandidates(projectsDir, id, resolveBackupPath) {
   const rawId = id;
   id = safeSeg(id); // [F9] 초판은 여기만 빼먹어 ../ 로 PROJECTS_DIR 밖 JSON 을 후보에 넣을 수 있었다
@@ -965,7 +1003,7 @@ module.exports = {
   canonicalize, fingerprint,
   readIndex, writeIndex, rebuildIndex, ensureIndex, updateCurrent,
   writeSnapshot, pruneVersions, listVersions, readVersion, prepareRestore,
-  listReferencedAssets, loadFallbackCandidates,
+  listReferencedAssets, loadFallbackCandidates, preserveUnreadable, preserveUnreadableOrThrow, readTextRetry,
   isProjectShaped,   // ★[A2] main.js 폴백 루프가 «파싱되면 프로젝트»로 삼지 않도록 공개
   _internal: { safeSeg, pathsFor, canvasStrings, mapCanvas, assetNameFor, slotFiles, dayKey, isValidTs,
                canonOf, assetsFromRaw, fingerprintRaw, readPins, writePins, isProjectShaped, isAllCanvasEmpty },

@@ -61,7 +61,8 @@ const SELF = 'unit/anchor-signature-ratchet.test.mjs';
    를 ★'window._scratchAnimateItemTo = ('  로 줄이고, 새 닻도 ★같은 꼴로 적었다.
    ⇒ sig 52→★51 · files 19→★18 (그 파일이 명부에서 빠졌다) · sel 4→★6 · lit 246→★247(닻이 하나 늘었다).
    ★R1 이 「줄었으면 내려라」라 했고 ★R2(양성대조)가 ★안 내리면 빨개진다 — 그 둘이 이 줄을 시킨 자다. */
-const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 37 };
+/* var 37→38: tests/unit/corrupt-unreadable.test.js 의 fnSrc — e169·e168 과 같은 꼴, 변수에 든 것은 매개변수 없는 `function 이름(` 뿐(손으로 봄). */
+const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 38 };
 
 const CUTTERS = ['sliceBlock', 'bodyOf', 'arrowBodyOf', 'arrowBody', 'ruleOf', 'balanced'];
 const CALL = new RegExp(`(?:${CUTTERS.join('|')})\\(\\s*[A-Za-z_$][\\w$]*\\s*,\\s*'([^']+)'`, 'g');

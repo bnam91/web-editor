@@ -1860,7 +1860,7 @@ function _SS() {
      모듈 부재 시 `_SS().isProjectShaped is not a function` 으로 죽는다(지금까지는 폴백 루프에서만
      불렸고, 그 루프는 loadFallbackCandidates 가 [] 라 돌지 않아서 드러나지 않았다).
    ★모르면 «통과»다 — 판정 모듈이 없을 때 로드를 막으면 프로젝트가 안 열린다(덜 하는 쪽이 안전). */
-const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [], isProjectShaped: () => true };
+const _SS_FALLBACK = { writeSnapshot: () => ({ ok: false, skipped: 'module_missing' }), pruneVersions: () => ({ kept: 0, deleted: [] }), loadFallbackCandidates: () => [], isProjectShaped: () => true, readTextRetry: (p) => fs.readFileSync(p, 'utf8') };
 
 function _resolveProjectJsonPath(id) {
   id = _safeSeg(id); // GAP-009
@@ -2381,12 +2381,14 @@ function _savedAtLabel(ms) {
   const d = new Date(ms); const p2 = (n) => String(n).padStart(2, '0');
   return `${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
-function readProjectWithFallback(id, { heal = false } = {}) {
+/* diag(있으면): corrupt = JSON 이 깨졌다 · readError = 파일을 못 읽었다(코드 — 깨짐이 아니니 안 덮고 사본도 안 둔다). */
+function readProjectWithFallback(id, { heal = false, diag = null } = {}) {
   const filePath = _resolveProjectJsonPath(id);
+  let corrupt = false;
   // 1) 정상 경로: proj.json
   if (filePath) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const parsed = JSON.parse(_SS().readTextRetry(filePath));
       /* ★★[T-232] 「★[A2 치명] «파싱되면 프로젝트»가 아니다」 — 그 규율이 아래 폴백 루프에만
          걸려 있었다. 그 주석 자신이 「폴백 루프«만» 안 걸러서」라고 적고 폴백만 고쳤다.
          ⇒ 정상 경로도 같은 자로 잰다.
@@ -2399,7 +2401,11 @@ function readProjectWithFallback(id, { heal = false } = {}) {
       if (_SS().isProjectShaped(parsed)) return { proj: parsed, from: 'proj', path: filePath, savedAt: _mtimeOr(filePath), healed: true };
       console.warn(`[projects:load] proj.json 이 «프로젝트 형태»가 아니다(${id}, ${typeof parsed}) — 백업 폴백 시도`);
     }
-    catch (e) { console.warn(`[projects:load] proj.json 손상(${id}): ${e.message} — 백업 폴백 시도`); }
+    catch (e) {
+      if (e instanceof SyntaxError) { corrupt = true; if (diag) diag.corrupt = true; }
+      else if (e && e.code !== 'ENOENT') { heal = false; if (diag) diag.readError = (e && e.code) || 'unknown'; }
+      console.warn(`[projects:load] proj.json 못 읽음(${id}): ${e.message} — 백업 폴백 시도`);
+    }
   }
   // 2) GAP-004 폴백 체인: proj_backup.json → proj_history 최신→오래된 순.
   //    백업 인프라(롤링백업·히스토리 5슬롯)가 옆에 유효본을 둬도 손상 시 빈 프로젝트로
@@ -2428,6 +2434,7 @@ function readProjectWithFallback(id, { heal = false } = {}) {
     if (heal) {   // ★E168: 목록(heal:false)은 «읽기만» — 자가치유는 열 때만
       try { // 자가치유: 복구본을 proj.json으로 재기록 (다음 로드부터 정상)
         const paths = _ensureNewLayoutPaths(id);
+        if (corrupt) _SS().preserveUnreadableOrThrow(filePath, path.dirname(paths.backup));   // 옆에 못 두면 덮지 않는다
         _atomicWriteFileSync(paths.proj, JSON.stringify(proj, null, 2));
       } catch (e) { healed = false; healError = (e && e.code) || 'unknown'; console.warn('[projects:load] 자가치유 재기록 실패:', e.message); }
     }
@@ -2448,8 +2455,15 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const isOpen = !!(opts && opts.open === true);
   if (isOpen) { try { _externalizeOnOpen(event, id); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
   const key = _safeSeg(String(id || ''));
-  const r = readProjectWithFallback(id, { heal: true });   // ★E168 — 목록과 같은 한 곳
-  if (!r) return null;
+  const diag = {};
+  const r = readProjectWithFallback(id, { heal: true, diag });   // ★E168 — 목록과 같은 한 곳
+  // 못 읽음(EMFILE·EACCES 등)은 깨짐이 아니다 — 열기는 실패로 말하고 파일은 그대로. 저장 병합용 로드는 있는 후보로.
+  if (diag.readError) return isOpen ? { _readError: diag.readError } : (r ? r.proj : null);
+  if (!r) {
+    // JSON 이 깨졌다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.
+    const broken = isOpen && diag.corrupt ? _resolveProjectJsonPath(id) : null;
+    return broken ? { _unreadable: true, preservedAs: _SS().preserveUnreadable(broken, path.join(PROJECTS_DIR, key)) } : null;
+  }
   if (r.from === 'proj') {
     if (isOpen && _recentRecovery.has(key)) { const m = _recentRecovery.get(key); _recentRecovery.delete(key); return { ...r.proj, ...m }; }
     return r.proj;
@@ -2612,10 +2626,14 @@ function _guardProjectName(incomingProject, prevPath) {
    ⛔다세대 백업 아님(다음 판). 저장 자체는 막지 않는다. 시험: tests/unit/rolling-backup-e169.test.js */
 function _rollBackup(prevPath, backupPath) {
   let prev;
-  try { prev = JSON.parse(fs.readFileSync(prevPath, 'utf8')); }
+  try { prev = JSON.parse(_SS().readTextRetry(prevPath)); }
   catch (e) {
+    if (!(e instanceof SyntaxError)) {   // 못 읽었을 뿐 깨진 게 아니다 — 저장은 막지 않는다(성한 메모리)
+      console.warn(`[rolling-backup] 직전 proj.json 을 못 읽어 백업을 그대로 둔다: ${e.message}`);
+      return { called: true, copied: false, reason: 'read_failed' };
+    }
     console.warn(`[rolling-backup] 직전 proj.json 이 읽히지 않아 백업을 그대로 둔다: ${e.message}`);
-    return { called: true, copied: false, reason: 'unparsable' };
+    return { called: true, copied: false, reason: 'unparsable', preservedAs: _SS().preserveUnreadable(prevPath, path.dirname(backupPath)) };
   }
   if (!_SS().isProjectShaped(prev)) {
     console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
@@ -2651,7 +2669,8 @@ async function _saveProjectImpl(project) {
   if (prevPath && fs.existsSync(prevPath)) {
     try {
       // 롤링 백업: 정상 저장 전 직전 버전 보존 — 신 위치에만 작성
-      _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
+      const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — 깨진 직전 판은 백업으로 안 옮긴다
+      if (rb.preservedAs === null) return { ok: false, reason: 'unreadable_not_preserved' };   // 옆에 못 둔 깨진 판은 덮지 않는다
 
       // (버전 스냅샷은 proj.json 을 «쓴 뒤» 아래에서 만든다 — 재료가 파일이 아니라 메모리의 객체다)
     } catch {}
@@ -2714,7 +2733,8 @@ ipcMain.on('projects:save-sync', (event, project) => {
     project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
-      _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
+      const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
+      if (rb.preservedAs === null) { event.returnValue = { ok: false, reason: 'unreadable_not_preserved' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙

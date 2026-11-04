@@ -452,7 +452,9 @@ async function closeTab(id) {
   if (openTabs.length === 1) { if (window.confirmLeaveWhileGenerating?.() === false) return; _setTabs([]); saveTabState(); window.goHome(); return; }
   if (id === _getActId()) {
     const nextTab = openTabs[idx + 1] || openTabs[idx - 1];
-    await switchTab(nextTab.id);
+    /* 다음 탭을 못 읽어도 닫기는 끝낸다 — switchTab 이 실패를 일부러 던진다(말은 게이트가 했다). 못 옮겨 갔으면 닫으면 안 된다. */
+    try { await switchTab(nextTab.id); }
+    catch (e) { console.warn('[closeTab] 다음 탭 열기 실패:', e && e.message); if (_getActId() === id) return; }
   }
   _setTabs(_getTabs().filter(t => t.id !== id));
   renderTabBar();
@@ -477,7 +479,7 @@ async function closeDeletedProjectTab(id) {
     setTimeout(() => { window.location.href = 'pages/projects.html'; }, 0);
     return true;
   }
-  if (active) await switchTab(next.id);
+  if (active) { try { await switchTab(next.id); } catch (e) { console.warn('[closeDeletedProjectTab] 다음 탭 열기 실패:', e && e.message); } }
   renderTabBar();
   saveTabState();
   if (msg) window.showStatusToast?.(msg);
