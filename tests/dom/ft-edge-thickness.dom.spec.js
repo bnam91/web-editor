@@ -176,3 +176,36 @@ test('G2 ★★118 격자 휨은 남아 있다 — 사다리꼴에서 세로 분
   console.log('[G2] 위 간격=', topGap.toFixed(2), '아래 간격=', botGap.toFixed(2));
   expect(Math.abs(topGap - botGap), '★휨이 사라졌다(세로 분할선이 평행)').toBeGreaterThan(5);
 });
+
+/* ★189 GRID-THICKNESS-UNMEASURED-AT-REAL-ZOOM-01 — 배율 40(캔버스가 열리는 배율)·100. 기대값은 식이다: 화면 1px = 모델 (100/배율)px.
+ * 화면 두께는 픽셀로 잰다 — 격자 있는 판·뺀 판을 찍어 차이를 덮임 비율로 더한다(색 #9966ff 알파 .5 · 초록 채널). 입력 = 합성 · 하네스. ⛔손 끌기는 사람 몫. */
+for (const zoom of [40, 100]) {
+  test(`G3 ★189 배율 ${zoom} — 격자 두께가 모델 ${100 / zoom}px · 화면 1px`, async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1200 });
+    await bootApp(page);
+    await scene(page, TRAP);
+    await page.evaluate((z) => window.applyZoom(z), zoom);
+    await expect.poll(() => page.evaluate(() => window.currentZoom), { message: '전제: 배율이 실제로 걸렸다' }).toBe(zoom);
+    await page.waitForFunction(() => document.querySelector('.tfh-grid > line.h'));
+    /* 배율은 애니메이션으로 걸린다 ⇒ 다 걸리기 전에 자리를 재면 선을 비껴 0 으로 찍힌다. 사다리꼴 폭 400 = 화면 400 × 배율 */
+    await expect.poll(() => page.evaluate(() => document.getElementById('fttb').getBoundingClientRect().width), { message: '전제: 배율이 화면에 다 걸렸다' }).toBeCloseTo(400 * zoom / 100, 0);
+    const stroke = await page.evaluate(() => [...document.querySelectorAll('.tfh-grid > line')].map((l) => parseFloat(getComputedStyle(l).strokeWidth)));
+    expect(stroke.length, '[전제] 선 넷').toBe(4);
+    for (const w of stroke) expect(w, `모델 두께 ${stroke}`).toBeCloseTo(100 / zoom, 2);
+    const clip = await page.evaluate(() => { document.getElementById('fttb').scrollIntoView({ block: 'center' }); const r = document.querySelector('.tfh-grid > line.h').getBoundingClientRect(); return { x: Math.round(r.left + r.width * 0.3), y: Math.round(r.top + r.height / 2) - 6, width: 12, height: 12 }; });
+    expect(await page.evaluate((c) => { const w = document.getElementById('canvas-wrap').getBoundingClientRect(); return c.x >= w.left && c.y >= w.top && c.x + c.width <= w.right && c.y + c.height <= w.bottom; }, clip), '[전제] 잴 자리가 화면 안').toBe(true);
+    const a = (await page.screenshot({ clip, caret: 'initial' })).toString('base64');
+    await page.evaluate(() => { document.querySelector('.tfh-grid').style.display = 'none'; });
+    const b = (await page.screenshot({ clip, caret: 'initial' })).toString('base64');
+    const px = await page.evaluate(async ([a, b, cw]) => {
+      const dec = async (s) => { const i = new Image(); i.src = 'data:image/png;base64,' + s; await i.decode(); const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const x = c.getContext('2d'); x.drawImage(i, 0, 0); return { w: i.width, h: i.height, d: x.getImageData(0, 0, i.width, i.height).data }; };
+      const A = await dec(a), B = await dec(b); const dpr = A.w / cw; const cols = [];
+      for (let x = 0; x < A.w; x++) { let s = 0; for (let y = 0; y < A.h; y++) { const k = (y * A.w + x) * 4; const bg = B.d[k + 1]; if (bg < 180) { s = NaN; break; } s += (bg - A.d[k + 1]) / ((bg - 102) * 0.5); } if (!Number.isNaN(s)) cols.push(s / dpr); }
+      cols.sort((p, q) => p - q); return { n: cols.length, med: cols[cols.length >> 1] };
+    }, [a, b, clip.width]);
+    console.log(`[G3] 배율 ${zoom}: 모델 ${stroke} · 화면 ${JSON.stringify(px)}`);
+    expect(px.n, '[전제] 글자 없는 열이 있다').toBeGreaterThan(0);
+    expect(px.med, '화면 두께').toBeGreaterThan(0.8);
+    expect(px.med, '화면 두께').toBeLessThan(1.2);
+  });
+}
