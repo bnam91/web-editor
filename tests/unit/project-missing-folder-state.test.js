@@ -15,13 +15,14 @@ const proj = (id) => ({ id, name: id, version: 2, pages: [{ id: 'page_1', name: 
 let n = 0;
 const made = async () => { const id = 'proj_' + (9500 + n++); assert.equal((await H.invoke('projects:save', proj(id))).ok, true); return id; };
 const dir = (id) => path.join(H.projectsDir, id);
+const goneOutside = (id) => fs.renameSync(dir(id), path.join(H.userData, 'gone-' + id));   // 앱 밖에서 옮겨 없앤 꼴 — 치우기는 하네스 임시 폴더 몫
 const notes = (id) => said.filter((x) => x.includes('noteProjectFolderRecreated') && x.includes(id)).length;
 
 test('S1 폴더가 있으면 ok', async () => {
   assert.equal(await H.invoke('projects:folder-state', await made()), 'ok');
 });
 test('S2 앱 밖에서 없어지면 missing', async () => {
-  const id = await made(); fs.rmSync(dir(id), { recursive: true });
+  const id = await made(); goneOutside(id);
   assert.equal(await H.invoke('projects:folder-state', id), 'missing');
 });
 test('S3 앱 휴지통으로 옮긴 것은 trashed', async () => {
@@ -33,7 +34,7 @@ test('S4 영구 삭제도 trashed — 저장이 못 되살리는 쪽', async () 
   assert.equal(await H.invoke('projects:folder-state', id), 'trashed');
 });
 test('R1 앱 밖에서 없어진 뒤 저장은 폴더를 다시 만들고 알린다', async () => {
-  const id = await made(); fs.rmSync(dir(id), { recursive: true });
+  const id = await made(); goneOutside(id);
   assert.equal((await H.invoke('projects:save', proj(id))).ok, true);
   assert.equal(fs.existsSync(path.join(dir(id), 'proj.json')), true, '★편집이 파일에 안 남았다');
   assert.equal(notes(id), 1);
@@ -42,7 +43,7 @@ test('R1 앱 밖에서 없어진 뒤 저장은 폴더를 다시 만들고 알린
 test('R2 이번 실행에서 읽기만 한 것도 같다', async () => {
   const id = 'proj_' + (9500 + n++); fs.mkdirSync(dir(id), { recursive: true }); fs.writeFileSync(path.join(dir(id), 'proj.json'), JSON.stringify(proj(id)));
   assert.equal((await H.invoke('projects:load', id)).id, id);
-  fs.rmSync(dir(id), { recursive: true });
+  goneOutside(id);
   assert.equal((await H.invoke('projects:save', proj(id))).ok, true);
   assert.equal(notes(id), 1);
 });

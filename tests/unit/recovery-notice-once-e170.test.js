@@ -44,7 +44,7 @@ function app(projectsDir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const handlers = {}; const on = {};
   // 표지 상태(있으면) — 핸들러 밖 최상위 선언이라 같이 떼어 온다
-  const stateDecl = /const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\nconst _isProjectDeleted = () => false;\n' : 'const _isProjectDeleted = () => false;\n';
+  const stateDecl = /const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\nconst _isProjectDeleted = () => false; const _seenProjects = new Set();\n' : 'const _isProjectDeleted = () => false; const _seenProjects = new Set();\n';
   const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
     `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` + stateDecl +
     'const syncClaudePmTitle = async () => {};\n' + FNS.map(fnSrc).join('\n\n') + '\n' + loadHandlerSrc() + '\n' + saveSyncSrc() + '\n; return { _saveProjectImpl };')(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, { handle: (ch, fn) => { handlers[ch] = fn; }, on: (ch, fn) => { on[ch] = fn; } });
