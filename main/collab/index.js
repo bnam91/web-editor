@@ -164,7 +164,7 @@ function init(ipcMain, deps) {
     const ref = getRef(p.projectId);
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
     if (typeof p.seq !== 'number' || p.seq <= (ref.seq || 0)) return { ok: true, seq: ref.seq || 0 };
-    setRef(p.projectId, { ...ref, seq: p.seq });
+    setRef(p.projectId, { ...ref, seq: p.seq, ...(p.hashes && typeof p.hashes === 'object' ? { hashes: p.hashes } : {}) });   // 재개 때 «내가 고친 섹션»을 가르는 값(js/collab/sync.js _durableHashes)
     return { ok: true, seq: p.seq };
   });
 }

@@ -130,3 +130,68 @@ test('R5 프로젝트를 읽는 중엔 받은 것을 안 붙이고 안 쓴다 �
   expect(r.text).toBe('읽는중글');
   expect(r.saves).toBeGreaterThanOrEqual(1);
 });
+
+/* 재개: 서버 목차는 상대가 고친 최신 해시, 로컬은 닫을 때 그대로 */
+async function resumeScene(page, localEdited) {
+  return page.evaluate(async (localEdited) => {
+    const pageId = window.state.currentPageId;
+    const key = pageId + '::secX';
+    const base = window.__I.collectSections(JSON.parse(window.serializeProject()))[0].hash;
+    const theirs = window.__SEC('상대글');
+    const c = window.electronAPI.collab;
+    c.ref = async () => ({ ok: true, ref: { collabId: 'cb_t', seq: 5, role: 'member', hashes: { [key]: base } } });
+    const pull = c.pull;
+    c.pull = async (q) => ({ ...(await pull(q)), sections: [{ pageId, sectionId: 'secX', hash: window.__hash(theirs) }] });
+    if (localEdited) document.querySelector('#secX .tb').textContent = '내 편집';
+    window.__seq = 6;
+    window.__queue = [{ pageId, sectionId: 'secX', html: theirs, hash: window.__hash(theirs), actorId: 'aaaa', seq: 6, baseSeq: 5 }];
+    await window.collabSync.start('proj_x');
+    return { pushes: [...window.__pushes], text: document.querySelector('#secX').textContent, conflicts: window.collabSync.conflicts().length };
+  }, localEdited);
+}
+
+test('R6 내가 안 고친 섹션은 재개 때 안 올리고 상대 판을 받는다(낡은 판으로 상대를 가리지 않는다)', async ({ page }) => {
+  await boot(page);
+  const r = await resumeScene(page, false);
+  expect(r.pushes, '안 고친 낡은 판을 올렸다').toEqual([]);
+  expect(r.text).toBe('상대글');
+  expect(r.conflicts).toBe(0);
+});
+
+test('R7 닫혀 있는 사이 내가 고친 섹션은 재개 때 올리고 내 판을 지킨다', async ({ page }) => {
+  await boot(page);
+  const r = await resumeScene(page, true);
+  expect(r.pushes).toEqual(['secX']);
+  expect(r.text).toBe('내 편집');
+  expect(r.conflicts, '상대 판을 충돌로 남긴다').toBe(1);
+});
+
+test('R8 쓰기 실패면 진도와 함께 남는 해시에 못 쓴 판이 안 든다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    const calls = []; const c = window.electronAPI.collab; const seq = c.seq;
+    c.seq = (p) => { calls.push(p); return seq(p); };
+    await window.collabSync.start('proj_x');
+    await window.collabSync.tick();
+    window.__I.flushSeq(); await Promise.resolve();
+    window.__saveAnswer = async () => ({ ok: false, reason: 'qa' });
+    const n = window.__recv('못쓴글');
+    const hash = window.__queue[0].hash;
+    await window.collabSync.tick();
+    await window.__settle();
+    const failed = calls.filter(p => p.seq >= n).length;
+    let done; window.__saveAnswer = () => new Promise(res => { done = res; });
+    const pending = window.__I.settleReceived();
+    /* 쓰는 사이 다음 패치가 붙는다 */
+    const n2 = window.__recv('쓰는사이글');
+    const hash2 = window.__queue[0].hash;
+    await window.collabSync.tick();
+    done({ ok: true }); await pending; window.__I.flushSeq(); await Promise.resolve();
+    const key = window.state.currentPageId + '::secX';
+    return { failed, last: calls.at(-1), hash, hash2, key, n, n2 };
+  });
+  expect(r.failed).toBe(0);
+  expect(r.last.seq, '쓰는 사이 도착한 패치는 진도에 안 든다').toBeLessThan(r.n2);
+  expect(r.last.hashes[r.key], '쓴 판의 해시').toBe(r.hash);
+  expect(r.last.hashes[r.key]).not.toBe(r.hash2);
+});

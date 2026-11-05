@@ -97,6 +97,10 @@
   let _saveFailed = false;            // 실패한 뒤엔 2초 폴링마다 말고 진도 타이머(10초)로만 다시 쓴다
   let _settling = false;
   let _resumeOwed = false;            // 프로젝트가 아직 읽히는 중이라 첫 받기를 미뤘다
+  /* 진도와 함께 남기는 «그때 서버와 같았던 해시». 재개 때 서버 최신 해시만 보면 내가 닫혀 있는 사이 상대가 고친 섹션이
+   * 「내가 고쳤다」로 보여 낡은 판을 올려 상대 것을 가린다. 이 값과 다를 때만 내 편집이다. */
+  let _durableHashes = {};
+  let _baseHashes = null;
   let _seqTimer = null;
   const _listeners = new Set();       // 상태 변화 구독(탑바 표시 등)
 
@@ -136,7 +140,7 @@
     const v = _seqDurable;
     /* ★조용한 까닭(A9 · 지디 판정): 진도 저장 실패의 대가는 «다음 시작 때 몇 초치를 다시 받는 것»뿐이다(되받는 건 안전한 쪽 실패 —
      *   위 주석). 사용자가 할 일이 없다 ⇒ 화면엔 안 띄우고 debug 로만 남긴다. */
-    c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch((e) => { console.debug('[collab] 진도(seq) 저장 실패 — 다음에 되받음:', e); });
+    c.seq({ projectId: _cfg.projectId, seq: v, hashes: _durableHashes }).then(() => { _seqSaved = v; }).catch((e) => { console.debug('[collab] 진도(seq) 저장 실패 — 다음에 되받음:', e); });
   }
 
   /* 프로젝트가 아직 안 읽혔나 — 읽는 중에 붙인 패치는 로드가 덮어 사라지고, 그 캔버스를 저장하면 파일이 빈 판으로 덮인다.
@@ -157,11 +161,13 @@
     _settling = true;
     try {
       let upTo = _owedSeq;
+      let hashes = null;
       if (_owedSave) {
         if (typeof window.saveProjectToFile !== 'function' || typeof window.serializeProject !== 'function') return;
         const active = window.activeProjectId;
         if (projectLoading(cfg.projectId) || (active && active !== cfg.projectId)) return;   // 다른 내용을 이 프로젝트로 쓰지 않는다 — 진도 타이머가 다시 온다
         _owedSave = false;   // 쓰는 사이 도착한 패치는 다시 세운다
+        hashes = { ..._sent };   // 이 스냅샷에 든 판 — 쓰는 사이 도착한 패치의 해시가 섞이면 다시 열 때 그 섹션을 내 편집으로 본다
         let r = null;
         try { r = await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: cfg.projectId, quietReject: true }); }
         catch (e) { console.error('[collab] 받은 내용 저장 예외 — 진도를 안 올린다:', e); }
@@ -174,7 +180,7 @@
         _saveFailed = false;
       }
       for (const p of _deferred.values()) if (Number.isFinite(+p.seq)) upTo = Math.min(upTo, +p.seq - 1);   // 보류한 패치는 아직 안 붙었다 — 그 앞까지만
-      if (upTo > _seqDurable) _seqDurable = upTo;
+      if (upTo > _seqDurable) { _seqDurable = upTo; _durableHashes = hashes || { ..._sent }; }
     } finally {
       _settling = false;
     }
@@ -649,6 +655,7 @@
     for (const s of (r.sections || [])) {
       if (s && s.sectionId && s.hash) _sent[(s.pageId || '') + '::' + s.sectionId] = s.hash;
     }
+    if (_baseHashes) Object.assign(_sent, _baseHashes);   // 옛 판이 남긴 진도엔 이 값이 없다 — 그땐 위 서버 해시로 간다
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
       /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
@@ -683,6 +690,7 @@
      *   register 가 심는 collabRef.role='owner', 수락 경로(collab/accept.js)는 'member'. */
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0, role: ref.role || '' };
     _seqSaved = _seqDurable = _owedSeq = ref.seq || 0;
+    _baseHashes = ref.hashes || null; _durableHashes = ref.hashes || {};
     _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false;
     _sent = Object.create(null);
     _localSnap = Object.create(null);
