@@ -427,6 +427,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
       /* ★[T-232 ⓑ] 병합은 «한 벌»이다 — js/io/proj-merge.js. ⛔여기에 스프레드를 다시 쓰지 마라:
          이 코드가 commit-system.js 와 두 벌이었고 이미 갈라져 있었다(한쪽만 `_recovered` 를 뺐다). */
+      /* 파일이 없으면 이름을 받아 올 데가 탭뿐이다 — 스냅샷엔 이름이 없어 폴더를 다시 만들 때 Untitled 가 됐다(앱 재현). */
+      if (!existing && !data.name) data = { ...data, name: openTabs.find(t => t.id === targetId)?.name };
       const proj = buildProjForSave(existing, data, targetId);
       // 이미지 외부화 (정책 게이팅): 기본 autosave는 new-only — 이번 세션 신규 base64만 분리하고
       // 로드 시점에 존재하던 기존 base64는 그대로 둔다(비파괴). 기존 대량변환은 optimizeProjectImages
@@ -1913,6 +1915,7 @@ function cleanStaleAutosaveKeys(activeProjectIds) {
       if (!activeSet.has(pid)) {
         localStorage.removeItem(k);
         localStorage.removeItem(k + '_ts');
+        localStorage.removeItem('web-editor-ls-root__' + pid);
         console.log('[save-load] 고아 autosave 키 정리:', k);
       }
     });
@@ -2117,6 +2120,10 @@ window.prepareLsWin = _prepareLsWin;
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
+  if (!proj && await window.electronAPI.projectFolderState?.(id) === 'unknown') {   // 없는 게 아니라 못 읽었다 — 빈 판으로 열지 않고 읽기 실패 길로
+    window.LoadInputGate?.noteReadError('폴더를 읽지 못함');
+    throw new Error('project-read-failed:folder-unknown');
+  }
   if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
     throw new Error('project-unreadable');
@@ -2129,6 +2136,7 @@ async function loadProjectForOpen(id) {
     window.LoadInputGate?.noteReadError(proj._readError);
     throw new Error('project-read-failed:' + proj._readError);
   }
+  if (proj) await window.markLsRoot?.(id);
   _lastOpenFallback = proj && proj._recovered ? id : null;
   if (proj && proj._recovered) window.showToast?.(_recoveryToastText(proj));
   if (proj) { delete proj._recovered; delete proj._healed; delete proj._healError; delete proj._recoveredAt; delete proj._recoveredAtLabel; } // 마커는 메모리/저장에 남기지 않음
@@ -2667,6 +2675,8 @@ function initApp() {
     /* ★342 — 읽히기 전 캔버스는 비었다. 탭 전환이 빈 캐시를 남기고, 편집이 빈 화면을 파일로 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/342d).
        읽히면 풀고, 못 읽었으면 쥔 채 둔다(_bootUnread) — 그 편집은 안 남지만 파일이 남는다(saveProjectToFile 머리말과 같은 판정). */
     let _bootUnread = false;
+    let _bootNoOwner = false;   // 어느 계정인지 모른다 — 누구 것인지 모르는 LS 본을 화면에 안 올린다
+    let _bootGone = null, _bootGoneName = null;   // 이번 부팅 프로젝트의 폴더가 앱 밖에서 없어졌으면 그 값(_projectGoneCopy)
     if (_bootProjectId) window.holdTabFirstLoading?.(_bootProjectId);
     const _bootStale = () => {
       if (activeProjectId === _bootProjectId) return false;
@@ -2731,9 +2741,22 @@ function initApp() {
         let allProjects = [];
         try {
           allProjects = await window.electronAPI.listProjects();
-          cleanStaleAutosaveKeys(allProjects.map(p => p.id));
+          /* 폴더가 앱 밖에서 없어진 탭 — LS 본이 있으면 탭과 본을 남긴다(누르면 그 본으로 연다). 없으면 뺀다. */
+          const _listed = new Set(allProjects.map(p => p.id));
+          const _root = await window.electronAPI.projectsRootKey?.();
+          _bootNoOwner = _root === null && await window.electronAPI.projectFolderState?.('') === 'unknown';
+          const _away = window.awayTabs?.() || [];   // 다른 계정으로 갈 때 맡긴 탭 — 이 계정 것이면 돌려받는다
+          openTabs.push(..._away.filter(t => _listed.has(t.id) && !openTabs.some(o => o.id === t.id)));
+          const _goneTabs = await Promise.all(openTabs.filter(t => !_listed.has(t.id)).map(async t => ({ t, g: await window.projectGoneCopy(t.id) })));
+          const _keptIds = _goneTabs.filter(x => x.g?.data || x.g?.state === 'unknown').map(x => x.t.id);   // 못 읽은 것은 없어진 게 아니다 — 탭과 본을 그대로 둔다
+          const _bootG = _goneTabs.find(x => x.t.id === _bootProjectId)?.g || null;   // 기다리는 사이 다른 탭으로 갔어도 판정 대상은 부팅한 프로젝트다
+          _bootGone = _bootG?.state === 'unknown' ? null : _bootG;
+          _bootGoneName = openTabs.find(t => t.id === _bootProjectId)?.name;
+          window.setAwayTabs?.([..._away.filter(t => !_listed.has(t.id) && !_goneTabs.some(x => x.t.id === t.id)), ..._goneTabs.filter(x => x.g?.state === 'foreign').map(x => ({ id: x.t.id, name: x.t.name }))]);
+          if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._listed, ..._keptIds, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
+          _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
-          const existingIds = new Set(allProjects.map(p => p.id));
+          const existingIds = new Set([..._listed, ..._keptIds]);
           existingIds.add(activeProjectId);
           openTabs = openTabs.filter(t => existingIds.has(t.id));
           if (!openTabs.find(t => t.id === activeProjectId)) {
@@ -2773,7 +2796,7 @@ function initApp() {
         }
         // proj null이어도 탭바는 반드시 렌더 (이름은 Untitled로 유지)
         const tab = openTabs.find(t => t.id === activeProjectId);
-        if (tab) tab.name = name;
+        if (tab && (proj || !_bootGone)) tab.name = name;
         window.renderTabBar();
         window.saveTabState?.();
         if (proj) {
@@ -2824,9 +2847,16 @@ function initApp() {
       window.renderTabBar();
       window.saveTabState?.();
     }
-    const saved = localStorage.getItem(getSaveKey());
-    if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
+    /* 부팅을 기다리는 사이 다른 탭으로 갔다(앱 재현 3/3) — 없어진 건 부팅한 프로젝트다. 활성 탭을 닫으면 멀쩡한 탭이 닫힌다. 화면은 그 탭 것이니 건드리지 않는다. */
+    if (_bootGone && _bootStale()) {
+      if (!_bootGone.data) window.closeDeletedProjectTab?.(_bootProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);
+      initEmpty();
+      return;
+    }
+    const saved = _bootNoOwner || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
+    if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
+    if (_bootGone) window.closeDeletedProjectTab?.(_bootProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다
   })().catch(e => {
     // [b7] 페일세이프: initLoad 본문이 예기치 못한 예외로 종료되면 정적 로딩 오버레이가 화면에
     //   영원히 남는다(기본 표시 상태이므로). 모든 정상 경로는 applyAndFinish.finally / initEmpty에서

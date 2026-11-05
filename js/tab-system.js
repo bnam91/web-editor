@@ -379,10 +379,18 @@ async function switchTab(id) {
       after(() => _gen === _switchGen && _getActId() === id).then((done) => { if (done && targetTab?._afterLs === after) targetTab._afterLs = null; });
     };
 
+    /* 남은 본으로 연 탭 — 폴더가 돌아왔으면 그 캐시는 파일보다 낡았다. 그대로 쓰면 첫 편집이 돌아온 파일을 덮는다(앱 재현). 파일로 다시 연다. */
+    if (targetTab?._goneCopy && await window.electronAPI?.projectFolderState?.(id) === 'ok') {
+      if (_gen !== _switchGen) return;
+      targetTab._goneCopy = false; targetTab._cache = null; targetTab._afterLs = null;
+    }
     // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
     if (targetTab?._cache) {
       window.applyProjectData(JSON.parse(targetTab._cache));
       window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
+      Promise.resolve(window.electronAPI?.projectFolderState?.(id)).then((s) => {   // 파일을 안 읽는 분기라 폴더가 없어도 모른다 — 탭을 막지 않고 묻는다
+        if (s === 'missing' && _getActId() === id) window.showStatusToast?.(window.missingFolderNotice?.(targetTab.name));
+      }).catch(() => {});
       _runAfterLs(targetTab._afterLs);   // 첫 로드 직후 떠나 못 끝낸 복구 저장(앱 3/3)
       window.initBranchStore();
       _restoreViewState(targetTab);
@@ -416,7 +424,15 @@ async function switchTab(id) {
       proj = window.loadProjectsList().find(p => p.id === id) || null;
       if (targetTab && proj?.name) targetTab.name = proj.name;
     }
-    if (proj) {
+    /* 폴더가 앱 밖에서 없어진 탭 — 빈 화면으로 열면 첫 편집이 남은 LS 본까지 빈 판으로 덮는다(앱 3/3). 본이 있으면 그것으로 열고, 없으면 지운 프로젝트와 같이 탭을 닫고 알린다. */
+    const _gone = (!proj && window.IS_ELECTRON) ? await window.projectGoneCopy?.(id) : null;
+    if (_gen !== _switchGen) return;
+    if (_gone?.data) {
+      if (targetTab) { targetTab._cache = JSON.stringify(_gone.data); targetTab._goneCopy = true; }
+      window.applyProjectData(_gone.data);
+      _restoreViewState(targetTab);
+      window.showStatusToast?.(window.missingFolderNotice?.(targetTab?.name));
+    } else if (proj) {
       /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
       let _lsData = null;
       try { _lsData = window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
@@ -441,6 +457,8 @@ async function switchTab(id) {
     // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
     try { await window.switchScratch?.(id, window.state?.currentPageId); }
     finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
+    if (_gone?.state === 'foreign') window.setAwayTabs?.([...(window.awayTabs?.() || []).filter(t => t.id !== id), { id, name: targetTab?.name }]);
+    if (_gone && !_gone.data) queueMicrotask(() => Promise.resolve(closeDeletedProjectTab(id, _gone.state === 'foreign' ? { notice: window.foreignTabNotice?.(targetTab?.name), keepLs: true } : undefined)).catch(e => console.warn('[tab] 없어진 프로젝트 탭 닫기 실패:', e && e.message)));
   } finally {
     /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
     window.AutoSaveSuppress.end(_asTok);
@@ -454,6 +472,10 @@ async function closeTab(id) {
   const openTabs = _getTabs();
   const idx = openTabs.findIndex(t => t.id === id);
   if (idx === -1) return;
+  if (window.IS_ELECTRON) {   // 폴더 없이 본만 남은 탭 — 닫기 전에 파일로. 못 내리면 안 닫는다(닫으면 그 본을 잃는다)
+    const _filed = await window.fileGoneCopy?.(id, openTabs[idx].name);
+    if (_filed?.ok === false) { window.showToast?.(`⚠️ 탭을 닫지 않았습니다 — 남은 내용을 파일로 내리지 못했습니다(${_filed.reason || '저장 실패'}).`); return; }
+  }
   if (openTabs.length === 1) { if (window.confirmLeaveWhileGenerating?.() === false) return; _setTabs([]); saveTabState(); window.goHome(); return; }
   if (id === _getActId()) {
     const nextTab = openTabs[idx + 1] || openTabs[idx - 1];
@@ -469,15 +491,17 @@ async function closeTab(id) {
 
 /* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 저장 없이 탭을 닫고 알린다.
    목록에서 먼저 빼므로 switchTab 이 나가는 탭을 직렬화·저장하지 않는다. 마지막 탭이면 갤러리로 간다(goHome 은 저장하므로 안 쓴다). */
-async function closeDeletedProjectTab(id) {
+async function closeDeletedProjectTab(id, opts) {
   const tabs = _getTabs();
   const idx = tabs.findIndex(t => t.id === id);
   if (idx === -1) return false;
   const active = id === _getActId();
   const lost = !window.isTabFirstLoading?.(id) && !!(active ? window.hasUnsavedChanges?.() : window.projectSaveUnsettled?.(id));
-  const msg = window.deletedTabNotice?.(tabs[idx].name, lost);
+  const msg = opts?.notice || window.deletedTabNotice?.(tabs[idx].name, lost);
   const next = tabs[idx + 1] || tabs[idx - 1];
   _setTabs(tabs.filter(t => t.id !== id));
+  /* 지운 프로젝트의 탭과 본을 디스크까지 지금 내린다 — 60초 안에 죽으면 다음 부팅이 옛 탭·옛 본을 읽어 영구 삭제한 프로젝트를 «앱 밖에서 없어진 것»으로 되살렸다(앱 재현). */
+  try { if (!opts?.keepLs) { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); } saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
   if (active && !next) {
     _setActId(null);   // beforeunload 저장도 멈춘다
     saveTabState();
@@ -612,6 +636,7 @@ window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
 window.closeTab             = closeTab;
 window.closeDeletedProjectTab = closeDeletedProjectTab;
+window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
 window.createNewProjectTab  = createNewProjectTab;

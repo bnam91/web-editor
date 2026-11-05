@@ -22,6 +22,10 @@
   /* ★연 채 삭제 알림 — 에디터·갤러리가 같이 쓴다. 6초: 짧은 showToast(2초)로는 잃은 내용 안내를 못 읽는다. */
   w.deletedTabNotice = (name, lost) => `「${name || '이름 없음'}」 프로젝트가 삭제되어 탭을 닫았습니다.`
     + (lost ? ' 이 탭에서 저장되지 않은 편집은 저장하지 않았습니다.' : '');
+  /* 폴더가 앱 밖에서 없어진 탭 — 지운 프로젝트와 달리 탭을 안 닫는다: 남은 내용이 있고, 저장이 폴더를 다시 만든다. */
+  w.missingFolderNotice = (name) => `「${name || '이름 없음'}」 프로젝트 폴더를 찾을 수 없습니다(앱 밖에서 지워졌거나 옮겨졌습니다). 남아 있던 내용을 열었습니다 — 저장하면 폴더를 다시 만듭니다.`;
+  w.folderRecreatedNotice = (name) => `「${name || '이름 없음'}」 프로젝트 폴더가 앱 밖에서 없어져 지금 내용으로 다시 만들었습니다. 버전 기록·백업·그림 파일은 함께 돌아오지 않을 수 있습니다.`;
+  w.foreignTabNotice = (name) => `「${name || '이름 없음'}」 프로젝트는 다른 계정의 것이라 이 계정에서 열지 않고 탭을 닫았습니다. 그 계정으로 돌아가면 다시 보입니다.`;
   w.showStatusToast = (msg) => {
     const el = d.createElement('div');
     el.className = 'settings-toast';

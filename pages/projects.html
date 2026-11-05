@@ -898,6 +898,7 @@ body {
 <script src="../js/collab/invites-badge.js"></script>
 <script src="../js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — 아래 인라인 스크립트가 바로 쓴다 (T-87) -->
 <script src="../js/notice.js"></script>
+<script src="../js/io/project-gone.js"></script>
 <script src="../js/entitlement-banner.js"></script>
 <!-- ★[H3] 지난 실행 복구. recovery-banner.js = 판정·문구(DOM 의존 0),
      report-modal.js = «기존» 신고 창 그대로(새 전송 경로를 만들지 않는다 — 재사용).
@@ -2278,7 +2279,16 @@ async function toggleFavorite(ev, id) {
   }
 }
 
-function removeHomeTab(id) {
+/* × 단추 — 폴더 없이 본만 남은 탭은 먼저 파일로(tab-system.js closeTab 과 같은 까닭). 못 내리면 안 닫는다. */
+async function removeHomeTab(id) {
+  let name = null;
+  try { name = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(t => t.id === id)?.name; } catch {}
+  const filed = await window.fileGoneCopy?.(id, name);
+  if (filed?.ok === false) { window.showStatusToast?.('탭을 닫지 않았습니다 — 남은 내용을 파일로 내리지 못했습니다.'); return; }
+  _dropHomeTab(id);
+}
+window.noteProjectFolderRecreated = (id) => { let t = null; try { t = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(x => x.id === id); } catch {} if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };
+function _dropHomeTab(id) {
   try {
     const saved = JSON.parse(localStorage.getItem('web-editor-open-tabs'));
     if (!saved) return;
@@ -2294,7 +2304,8 @@ window.closeDeletedProjectTab = (id) => {
   let tab = null;
   try { tab = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(t => t.id === id); } catch {}
   if (!tab) return false;
-  removeHomeTab(id);
+  _dropHomeTab(id);
+  try { localStorage.removeItem('web-editor-autosave__' + id); localStorage.removeItem('web-editor-autosave__' + id + '_ts'); window.electronAPI?.flushLocalStorage?.(); } catch {}   // 편집기 쪽과 같은 까닭(tab-system.js)
   window.showStatusToast?.(window.deletedTabNotice?.(tab.name, false));
   return true;
 };
@@ -2312,7 +2323,10 @@ function renderHomeTabs() {
     // ★[T-049 후속, a1-a3 게이트 지적] tab.name/tab.id 도 카드 그리드와 «같은 이중 문맥»
     //   (HTML속성 title=""/JS문자열 onclick="…('${id}')") — safeId 패턴 그대로 재사용.
     //   tab.id 는 project_id 형식(proj_\d+|plan_\d+)이 아니면 애초에 그려도 열 수 없으니 걸러낸다.
-    bar.innerHTML = saved.tabs.filter(tab => /^(proj|plan)_\d+$/.test(String(tab.id))).map(tab => {
+    const _root = window._homeRootKey;
+    if (_root === undefined) { window._homeRootKey = null; window.electronAPI?.projectsRootKey?.().then((k) => { window._homeRootKey = k; if (k) renderHomeTabs(); }).catch(() => {}); }
+    const mine = (tab) => !_root || !window.lsCopyOwner?.(tab.id) || window.lsCopyOwner(tab.id) === _root;   // 다른 계정의 탭 이름을 안 보인다
+    bar.innerHTML = saved.tabs.filter(tab => /^(proj|plan)_\d+$/.test(String(tab.id)) && mine(tab)).map(tab => {
       const safeId = _escHtml(tab.id);
       const safeName = _escHtml(tab.name || '이름 없음');
       return `
