@@ -31,7 +31,7 @@ function load(dir) {
   const h = {}; const ipcMain = { handle: (c, f) => { h[c] = f; }, on: (c, f) => { h[c] = f; } };
   const body = FNS.map(fnSrc).join('\n\n') + '\n' + stmt("ipcMain.handle('projects:load'") + '\n' + stmt("ipcMain.on('projects:save-sync'");
   const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {}; const _isProjectDeleted = () => false; const _externalizeOnOpen = () => {}; const _recentRecovery = new Map();\n${body}\n; return { _saveProjectImpl };`
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {}; const _isProjectDeleted = () => false; const _externalizeOnOpen = () => {}; const _recentRecovery = new Map(); const _recordSyncSaveFailure = () => {};\n${body}\n; return { _saveProjectImpl };`
   )(fs, path, dir, req, { log() {}, warn() {}, error() {} }, ipcMain);
   return {
     open: (id) => h['projects:load']({}, id, { open: true }),
