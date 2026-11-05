@@ -165,6 +165,43 @@ test('U-W3-5 ★회귀: 창이 «살아 있으면» 기존 H4 경로 그대로 (
   } finally { H.stub.BrowserWindow.getAllWindows = () => []; }
 });
 
+test('U-W3-5b 저장 답이 없는 화면(목록·라이선스)에서는 묻지 않고 끝난다, 실패 기록이 있으면 말한다', async () => {
+  const fakeWin = (url) => { const sent = []; return { sent, isDestroyed: () => false, webContents: { getURL: () => url, send: (ch) => sent.push(ch) } }; };
+  const SCREENS = ['pages/projects.html', 'pages/license.html'];
+  try {
+    for (const scr of SCREENS) {
+      const calls = reset();
+      const win = fakeWin(`file:///a/app.asar/${scr}`);
+      H.stub.BrowserWindow.getAllWindows = () => [win];
+      const { prevented } = fireBeforeQuit();
+      await wait(50);
+      assert.equal(prevented, false, `${scr}: 종료를 붙잡았다`);
+      assert.deepEqual(win.sent, [], `${scr}: 답할 코드가 없는 화면에 저장을 물었다`);
+      assert.equal(calls.length, 0, `${scr}: 저장할 것이 없는데 상자가 떴다`);
+      assert.equal(fs.existsSync(path.join(H.userData, 'quit-save-failure.json')), false, `${scr}: 거짓 실패 마커`);
+    }
+    // 대조: 편집 화면을 떠나며 동기 저장이 실패했으면 목록에서 끝내도 말한다
+    const calls = reset();
+    saveGuard.init({ userDataDir: H.userData, dialog: H.stub.dialog, appVersion: 'test' });
+    saveGuard.recordSyncSaveFailure({ projectId: 'proj_w3_list', projectName: '목록', snapshot: JSON.stringify({ id: 'proj_w3_list', pages: [] }), reason: 'exception', error: 'EPERM' });
+    const win = fakeWin('file:///a/pages/projects.html');
+    H.stub.BrowserWindow.getAllWindows = () => [win];
+    const { prevented } = fireBeforeQuit();
+    await wait(50);
+    assert.equal(prevented, true, '실패 기록이 있는데 말 없이 끝났다');
+    assert.ok(calls.length >= 1, '실패 기록이 있는데 상자가 없다');
+    // 대조: 편집 화면은 그대로 묻는다(쿼리 붙은 주소·모르는 주소)
+    for (const u of ['file:///a/index.html?project=proj_1', '', 'file:///a/pages/planning.html']) {
+      reset();
+      const w = fakeWin(u);
+      H.stub.BrowserWindow.getAllWindows = () => [w];
+      const r = fireBeforeQuit();
+      assert.equal(r.prevented, true, `${u || '빈 주소'}: 종료를 안 붙잡았다`);
+      assert.ok(w.sent.includes('force-save-before-quit'), `${u || '빈 주소'}: 저장을 안 물었다`);
+    }
+  } finally { H.stub.BrowserWindow.getAllWindows = () => []; }
+});
+
 test('U-W3-6 ★다이얼로그가 «안 닫혀도» 앱은 꺼진다 (상한 타이머 — 안 꺼지는 앱 금지)', async () => {
   reset();
   // 영원히 안 끝나는 다이얼로그 = 사용자가 확인을 안 누른 상태

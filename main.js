@@ -9135,7 +9135,9 @@ app.on('before-quit', (event) => {
   try { killAllTerminalSessions(); } catch (_) {}
 
   const win = BrowserWindow.getAllWindows()[0];
-  if (!win || win.isDestroyed()) {
+  /* 목록·라이선스 화면에는 저장 답을 하는 코드가 없다(save-load.js 를 안 싣는다). 물으면 3초 뒤 «저장 확인 못 함» 상자가 뜬다
+     (QUIT-NO-SAVE-DIALOG-ON-EMPTY-SCREEN-01). 떠나며 동기 저장이 실패했다면 그 기록은 아래 창-없음 길이 말한다. */
+  if (!win || win.isDestroyed() || quitSaveGuard.isNoSaveScreen(win.webContents.getURL?.())) {
     /* ★[W-3] 창이 «이미 사라진 뒤»에 오는 before-quit — 윈도우 X 버튼(WM_CLOSE) 이 여기다.
        창 close → 렌더러 unload → 창 소멸 → window-all-closed → app.quit() → 여기(창 0개).
        옛 코드는 여기서 그냥 return 했다 ⇒ 아래 quitSaveGuard 는 «한 번도 안 불렸고»,

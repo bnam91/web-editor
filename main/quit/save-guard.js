@@ -253,6 +253,11 @@ function showFailureDialog(win, outcome, saved) {
   }).catch((e) => { _log(`[quit-guard] 다이얼로그 대기 실패: ${e && e.message}`); return { shown: false }; });
 }
 
+/** 저장 답을 하는 코드(save-load.js)가 없는 화면인가. 모르는 주소는 false — 묻는 쪽(옛 길)이 안전하다. */
+function isNoSaveScreen(url) {
+  return typeof url === 'string' && /^file:.*\/pages\/(projects|license)\.html(?:[?#]|$)/.test(url);
+}
+
 /* ── 본체 ─────────────────────────────────────────────────────────────── */
 /**
  * before-quit 에서 부른다. 여기서 «반드시» exit 가 불린다 — 어느 경로로 새도.
@@ -420,5 +425,6 @@ module.exports = {
   classify, writeFailureRecord, failureText, readMarker, markerPath, emergencyDir,
   TIMINGS, MAX_RECORDS, MAX_EMERGENCY_FILES,
   recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone,
+  isNoSaveScreen,
   _reset() { _running = null; _pendingSync = null; },
 };
