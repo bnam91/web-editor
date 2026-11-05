@@ -89,6 +89,14 @@
   let _inFlight = false;
   let _lastError = null;
   let _seqSaved = 0;                  // 디스크에 남긴 진도
+  /* COLLAB-RECEIVED-PATCH-LOST-ON-REOPEN-01 — 받은 내용은 화면에만 붙고(자동저장 억제) 진도만 디스크에 올라, 안 만지고 다시 열면 내용은 없고 다시 받지도 못했다.
+   * ⇒ 진도는 «내용을 디스크에 쓴 데까지»만 남긴다. _cfg.seq 는 다음 pull 이 쓰는 커서이고, 디스크로 가는 값은 _seqDurable 이다. */
+  let _seqDurable = 0;
+  let _owedSeq = 0;                   // 마지막 pull 이 가져온 데까지
+  let _owedSave = false;              // 화면에 붙였는데 아직 디스크에 안 쓴 내용이 있다
+  let _saveFailed = false;            // 실패한 뒤엔 2초 폴링마다 말고 진도 타이머(10초)로만 다시 쓴다
+  let _settling = false;
+  let _resumeOwed = false;            // 프로젝트가 아직 읽히는 중이라 첫 받기를 미뤘다
   let _seqTimer = null;
   const _listeners = new Set();       // 상태 변화 구독(탑바 표시 등)
 
@@ -124,11 +132,52 @@
   function flushSeq() {
     const c = api();
     if (!c || !_cfg || !c.seq) return;
-    if (_cfg.seq <= _seqSaved) return;
-    const v = _cfg.seq;
+    if (_seqDurable <= _seqSaved) return;
+    const v = _seqDurable;
     /* ★조용한 까닭(A9 · 지디 판정): 진도 저장 실패의 대가는 «다음 시작 때 몇 초치를 다시 받는 것»뿐이다(되받는 건 안전한 쪽 실패 —
      *   위 주석). 사용자가 할 일이 없다 ⇒ 화면엔 안 띄우고 debug 로만 남긴다. */
     c.seq({ projectId: _cfg.projectId, seq: v }).then(() => { _seqSaved = v; }).catch((e) => { console.debug('[collab] 진도(seq) 저장 실패 — 다음에 되받음:', e); });
+  }
+
+  /* 프로젝트가 아직 안 읽혔나 — 읽는 중에 붙인 패치는 로드가 덮어 사라지고, 그 캔버스를 저장하면 파일이 빈 판으로 덮인다.
+   * 주소가 이 프로젝트면 «확정(ready)» 까지 기다린다(실패 phase 도 안 붙인다). */
+  function projectLoading(projectId) {
+    const s = window.gdtProjectReady && window.gdtProjectReady.get ? window.gdtProjectReady.get() : null;
+    if (!s) return false;
+    if (s.urlProject === projectId) return !(s.phase === 'ready' && s.projectId === projectId);
+    return s.phase === 'loading';
+  }
+
+  /* 받은 내용을 디스크에 쓰고 나서 진도를 올린다. 실패·미확정이면 진도를 그대로 둬서 다음에 열 때 다시 받는다.
+   * ★되보내는 고리가 없다: sync.js 머리말의 무한 왕복은 자동저장 → gd:project-saved → push 길이다. 여기는 saveProjectToFile 을 직접 불러
+   *   그 사건이 안 난다(사건은 scheduleAutoSave 타이머에서만 난다). 자동저장 억제는 그대로 둔다. */
+  async function settleReceived() {
+    if (_settling || !_cfg) return;
+    const cfg = _cfg;
+    _settling = true;
+    try {
+      let upTo = _owedSeq;
+      if (_owedSave) {
+        if (typeof window.saveProjectToFile !== 'function' || typeof window.serializeProject !== 'function') return;
+        const active = window.activeProjectId;
+        if (projectLoading(cfg.projectId) || (active && active !== cfg.projectId)) return;   // 다른 내용을 이 프로젝트로 쓰지 않는다 — 진도 타이머가 다시 온다
+        _owedSave = false;   // 쓰는 사이 도착한 패치는 다시 세운다
+        let r = null;
+        try { r = await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: cfg.projectId, quietReject: true }); }
+        catch (e) { console.error('[collab] 받은 내용 저장 예외 — 진도를 안 올린다:', e); }
+        if (_cfg !== cfg) return;
+        if (!r || r.ok !== true || r.skipped) {   // undefined = 줄 섰다(미확정) · skipped = 안 썼다
+          _owedSave = true; _saveFailed = true;
+          console.warn('[collab] 받은 내용을 디스크에 못 썼다 — 진도를 안 올린다:', r && r.reason);
+          return;
+        }
+        _saveFailed = false;
+      }
+      for (const p of _deferred.values()) if (Number.isFinite(+p.seq)) upTo = Math.min(upTo, +p.seq - 1);   // 보류한 패치는 아직 안 붙었다 — 그 앞까지만
+      if (upTo > _seqDurable) _seqDurable = upTo;
+    } finally {
+      _settling = false;
+    }
   }
 
   /* ── 「사용자가 지금 이 섹션을 만지고 있나」 ──────────────────────────────
@@ -311,6 +360,7 @@
    *   안 만졌다」로 잘못 스킵하게 된다(C8 재발 경로). 보류가 풀려 flushDeferred→applyPatch
    *   가 «실제 적용»할 때 그때 이 함수가 불린다(N2 의미론과 정합). */
   function emitRemoteApplied(p) {
+    _owedSave = true;
     if (!p || !p.pageId || !p.sectionId) return;
     try {
       window.dispatchEvent(new CustomEvent('gd:collab-remote-applied', {
@@ -510,6 +560,13 @@
   async function tick() {
     if (!_cfg) return;
     const c = api(); if (!c) return;
+    if (_resumeOwed) {
+      if (projectLoading(_cfg.projectId)) return;
+      _resumeOwed = false;
+      const rs = await resumeSafely();
+      if (!rs || !rs.ok) { _resumeOwed = true; _lastError = (rs && rs.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); }
+      return;
+    }
     flushDeferred();                              // ★손 뗀 섹션부터 먼저 갚는다
     /* ★결손이 남아 있는 동안만 목차를 다시 받는다(10초에 한 번). 매 틱마다 실으면
      *   2초 폴링에 목차가 계속 따라와 응답이 무거워진다(pull.js 주석의 그 이유). */
@@ -535,6 +592,7 @@
       _sent = Object.create(null);
       _localSnap = Object.create(null);
       _cfg.seq = typeof r.serverSeq === 'number' ? r.serverSeq : _cfg.seq;
+      _seqDurable = Math.max(_seqDurable, _cfg.seq);   // 서버에 그 구간이 없다 — 진도를 묶어 둬도 받을 것이 없다
       // ★resync 응답엔 목차가 함께 온다(pull.js: gapLost → wantSections). 결손 판정 기준을 갈아둔다.
       if (Array.isArray(r.sections)) { _serverSections = r.sections; refreshNeeds(); }
       emit({ type: 'resync_required', reason: r.reason || 'patches_pruned', patchFloorSeq: r.patchFloorSeq });
@@ -551,7 +609,8 @@
       //   (flushDeferred→applyPatch=true) 기록된다.
       if (applied === true && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;   // 'kept'(묵은 패치 거절)은 기록 안 함
     }
-    if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    if (typeof r.seq === 'number') { _cfg.seq = r.seq; _owedSeq = r.seq; }
+    if (!_saveFailed) settleReceived();
     /* ★시드 재푸시 — 목차가 왔으면 기준을 갈고, 패치가 붙었으면 결손을 다시 센다.
      *   그리고 «내가 오너면» 남이 올린 요청 마커에 답한다. */
     if (Array.isArray(r.sections)) _serverSections = r.sections;
@@ -601,7 +660,8 @@
       const applied = applyPatch(p);
       if (applied === true && p.pageId && p.sectionId && p.hash) _sent[p.pageId + '::' + p.sectionId] = p.hash;
     }
-    if (typeof r.seq === 'number') _cfg.seq = r.seq;
+    if (typeof r.seq === 'number') { _cfg.seq = r.seq; _owedSeq = r.seq; }
+    await settleReceived();
     /* ★합류 직후가 결손이 가장 크게 벌어지는 순간이다 — 여기서 «목차 대 내 문서»를 처음 맞춰본다.
      *   (패치가 prune 돼 목차만 있고 내용이 없는 섹션이 여기서 잡힌다 — §4-발견1) */
     if (Array.isArray(r.sections)) _serverSections = r.sections;
@@ -622,7 +682,8 @@
     /* ★role 을 싣는다 — 시드 재푸시에 «오너만» 응답한다(serveNeeds).
      *   register 가 심는 collabRef.role='owner', 수락 경로(collab/accept.js)는 'member'. */
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0, role: ref.role || '' };
-    _seqSaved = ref.seq || 0;
+    _seqSaved = _seqDurable = _owedSeq = ref.seq || 0;
+    _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false;
     _sent = Object.create(null);
     _localSnap = Object.create(null);
     _deferred = new Map();
@@ -632,11 +693,12 @@
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
     _bootstrap = (ref.seq || 0) === 0;
-    const rs = await resumeSafely();              // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    _resumeOwed = projectLoading(projectId);      // 읽는 중이면 첫 받기를 tick 으로 미룬다
+    const rs = _resumeOwed ? { ok: true } : await resumeSafely();              // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
     /* ★폴링은 «실패해도» 건다 — 첫 받기만 실패한 것(오프라인 등)이면 다음 tick 이 회복한다. 예전과 같은 동작이다.
      *   바뀐 것은 «거짓말을 안 하는 것»뿐이다: 실패면 ok:false ＋ reason, 「started」 대신 「start_failed」. */
     _timer = setInterval(tick, POLL_MS);
-    _seqTimer = setInterval(flushSeq, 10000);
+    _seqTimer = setInterval(() => { settleReceived().finally(flushSeq); }, 10000);
     if (!rs || !rs.ok) {
       const reason = (rs && rs.reason) || 'unknown';
       emit({ type: 'start_failed', reason, status: rs && rs.status, collabId: ref.collabId });
@@ -761,6 +823,8 @@
       maps: () => ({ sent: { ..._sent }, localSnap: { ..._localSnap } }),
       // 시드 재푸시 검증용 — 마커 생성/결손 계산을 «직접» 재보기 위한 창구
       needMarker, refreshNeeds, localSectionIdSet, NEED_PREFIX,
+      // 받은 내용 저장·진도 순서 검증용
+      settleReceived, flushSeq,
     },
   };
 })();
