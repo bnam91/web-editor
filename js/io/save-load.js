@@ -2673,6 +2673,7 @@ function initApp() {
     /* ★342 — 읽히기 전 캔버스는 비었다. 탭 전환이 빈 캐시를 남기고, 편집이 빈 화면을 파일로 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/342d).
        읽히면 풀고, 못 읽었으면 쥔 채 둔다(_bootUnread) — 그 편집은 안 남지만 파일이 남는다(saveProjectToFile 머리말과 같은 판정). */
     let _bootUnread = false;
+    let _bootNoOwner = false;   // 어느 계정인지 모른다 — 누구 것인지 모르는 LS 본을 화면에 안 올린다
     let _bootGone = null, _bootGoneName = null;   // 이번 부팅 프로젝트의 폴더가 앱 밖에서 없어졌으면 그 값(_projectGoneCopy)
     if (_bootProjectId) window.holdTabFirstLoading?.(_bootProjectId);
     const _bootStale = () => {
@@ -2741,6 +2742,7 @@ function initApp() {
           /* 폴더가 앱 밖에서 없어진 탭 — LS 본이 있으면 탭과 본을 남긴다(누르면 그 본으로 연다). 없으면 뺀다. */
           const _listed = new Set(allProjects.map(p => p.id));
           const _root = await window.electronAPI.projectsRootKey?.();
+          _bootNoOwner = _root === null && await window.electronAPI.projectFolderState?.('') === 'unknown';
           const _away = window.awayTabs?.() || [];   // 다른 계정으로 갈 때 맡긴 탭 — 이 계정 것이면 돌려받는다
           openTabs.push(..._away.filter(t => _listed.has(t.id) && !openTabs.some(o => o.id === t.id)));
           const _goneTabs = await Promise.all(openTabs.filter(t => !_listed.has(t.id)).map(async t => ({ t, g: await window.projectGoneCopy(t.id) })));
@@ -2849,7 +2851,7 @@ function initApp() {
       initEmpty();
       return;
     }
-    const saved = _bootGone && !_bootGone.data ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
+    const saved = _bootNoOwner || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
     if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
     if (_bootGone) window.closeDeletedProjectTab?.(_bootProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다

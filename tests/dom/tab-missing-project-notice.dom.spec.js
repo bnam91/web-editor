@@ -109,16 +109,16 @@ test('N3 [대조] 탭이 없는 프로젝트를 다시 만들어도 말이 없�
 });
 
 /* 부팅 길: 저장된 탭과 LS 를 놓고 다시 싣는다. 가짜 API 는 init 스크립트라 새 문서에도 남는다. */
-async function bootWith(page, { url, listed, states, ls, tabs, owners = {}, away, hold }) {
+async function bootWith(page, { url, listed, states, ls, tabs, owners = {}, away, hold, root = 'acct_me' }) {
   const errs = await bootApp(page);
-  await page.addInitScript(({ listed, states, doc, hold }) => {
+  await page.addInitScript(({ listed, states, doc, hold, root }) => {
     const mk = (id) => JSON.parse(JSON.stringify(doc).split('@ID').join(id));
     const real = window.electronAPI;
     window.electronAPI = new Proxy(real, { get: (t, k) => k === 'listProjects' ? async () => listed.map((id) => ({ id, name: id + '이름', updatedAt: 0 }))
       : k === 'loadProject' ? async (id, o) => { if (hold && o?.open && id === hold) await new Promise((r) => { window.__release = r; }); return listed.includes(id) ? mk(id) : null; }
       : k === 'projectFolderState' ? async (id) => states[id] || 'ok'
-      : k === 'projectsRootKey' ? async () => 'acct_me' : t[k] });
-  }, { listed, states, doc: doc('@ID'), hold });
+      : k === 'projectsRootKey' ? async () => root : t[k] });
+  }, { listed, states, doc: doc('@ID'), hold, root });
   await page.evaluate(({ ls, tabs, doc, owners, away }) => {
     localStorage.clear();
     for (const id of ls) { localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(doc).split('@ID').join(id)); localStorage.setItem('web-editor-ls-root__' + id, owners[id] || 'acct_me'); }
@@ -329,5 +329,16 @@ test('D1 부팅을 기다리는 사이 다른 탭으로 가면 없어진 탭만 
   expect(s.active, '★활성 탭이 바뀌었다').toBe('proj_c');
   expect(s.tabs, '★멀쩡한 탭을 닫았다').toEqual(['proj_a', 'proj_c']);
   expect(s.toasts.join()).toContain('proj_b이름');
+  expect(errs).toEqual([]);
+});
+
+/* 리뷰 ⑥ — 계정 파일이 깨져 어느 계정인지 모를 때 */
+test('U4 어느 계정인지 모르면 LS 본을 화면에 안 올리고 탭과 본을 그대로 둔다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_b', listed: [], states: { proj_b: 'unknown', '': 'unknown' }, ls: ['proj_b'], tabs: ['proj_b'], root: null });
+  const s = await bs(page);
+  expect(s.screenB, '★주인 모르는 본을 띄웠다').toBe(false);
+  expect(s.lsB, '★본을 지웠다').toBe(true);
+  expect(s.tabs).toEqual(['proj_b']);
+  expect(await page.evaluate(() => window.isTabFirstLoading('proj_b')), '저장 막는 표식').toBe(true);
   expect(errs).toEqual([]);
 });
