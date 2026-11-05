@@ -114,17 +114,24 @@ test('C4 천장을 넘는 섹션은 안 보내고 말한다 · 다음 저장에 
 
 test('C5 파일을 읽는 사이 탭이 바뀌면 이 글을 다음 방에 올리지 않는다', async ({ page }) => {
   await boot(page);
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     window.__set(window.__assetSec('proj_a'));
     let open; window.__gate = new Promise(r => { open = r; }); window.__open = open;
     window.__started = window.collabSync.start('proj_x');
   });
   await page.waitForFunction(() => window.__reads.length >= 1);
-  await page.evaluate(() => {
+  const rooms = await page.evaluate(async () => {
     window.collabSync.stop();
+    const c = window.electronAPI.collab;
+    c.ref = async () => ({ ok: true, ref: { collabId: 'cb_next', seq: 5, role: 'member' } });
+    const push = c.push;
+    const rooms = [];
+    c.push = (q) => { rooms.push(q.collabId + ':' + q.patches[0].sectionId); return push(q); };
+    window.__set(window.__Y('Y0'));
+    await window.collabSync.start('proj_y');   // 다음 방이 이미 열렸다 — 앞 글이 여기로 새면 안 된다
     window.__open(); window.__gate = null;
-    return window.__started.catch(() => {});   // 멈춘 뒤 start 의 뒷걸음은 이 시험이 재는 것이 아니다
+    await window.__started;
+    return rooms;
   });
-  /* start 는 push 가 끝난 뒤 답한다 — 그 뒤라 더 올 것이 없다 */
-  expect((await pushedOf(page, 'secX')).length).toBe(0);
+  expect(rooms.filter(r => r.endsWith(':secX')), `앞 방의 섹션이 다음 방으로 샜다: ${rooms}`).toEqual([]);
 });
