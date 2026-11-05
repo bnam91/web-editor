@@ -11,6 +11,7 @@ const fs = require('fs');
 const { app, Menu, dialog, ipcMain, BrowserWindow } = require('electron');
 const { exportGdt } = require('./export');
 const { importGdt } = require('./import');
+const { trackWrite } = require('../quit/save-guard');
 
 // 파일명으로 못 쓰는 문자만 걷어낸다. 한글은 그대로 둔다(겉 이름은 사용자 것 — GDT-SPEC §1).
 function safeFileName(name) {
@@ -226,7 +227,7 @@ function registerGdtIpc({ projectsDir, resolveProjectJsonPath }) {
         }
       };
 
-      return await importGdt({ gdtPath: src, projectsDir: _pd(), onProgress });
+      return await trackWrite(importGdt({ gdtPath: src, projectsDir: _pd(), onProgress }));
     } catch (e) {
       return { ok: false, error: (e && e.message) || String(e) };
     }
