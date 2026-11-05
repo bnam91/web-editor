@@ -6,6 +6,7 @@
  *     E4 [음성] 로드 끝난 뒤 편집·종료 — B 저장 · E5 로드 실패 뒤 편집 — B 저장 0 · 표시 «저장됨» 아님 · E6 로드 중 saveProjectFile·flushSave·직접 저장 — B 쓰기 0
  *     E7 [양성] 그 탭 로드 전에 찍혀 큐에 선 진짜 저장은 통과한다 · E8 로드 실패 뒤 다른 탭으로 갔다 돌아와 읽히면 편집이 저장된다.
  *     E9~E12 앞 저장을 기다리는 탭에서 종료·창 닫기 — 줄의 본·준비 중인 본이 동기로 파일에 들어가고 못 쓰면 답이 실패다 · E13 기다리다 다른 탭으로 — 그 탭 게이트가 곧 풀린다 · E14 저장이 삭제된 탭을 닫고 다음 탭이 줄을 기다려도 저장이 안 멈춘다.
+ *     E15~E17 동기로 쓴 뒤 준비 중이던 앞 저장이 안 덮고, 동기 쓰기가 실패하면 간다 · E18·E19 줄에 서 미확정이던 본이 들어가면 성공, 못 쓰면 실패 · E20 다음 탭을 기다리는 동안 돌아오면 닫기를 그만둔다 · E21 빈 본은 동기로 안 쓴다 · E22 거절된 본은 LS 에 남는다.
  * 변이: isTabFirstLoading 을 늘 거짓으로 하면 E1·E3·E5·E6 빨강 · 큐 표식을 빼면 E7 빨강 · E2·E4·E8 은 늘 초록.
  * ★처음 실행 기록: 2026-11-02 22:1x · 아이맥 · 판 3e051e96 · w1 · retries 0 · 고친 판 repeat-each 3 24/24 · 변이 각 ×1: 늘 거짓 E1·E3·E5·E6 빨강 · 큐 표식 뺌 E7 빨강 · 나머지 초록 */
 const { test, expect } = require('@playwright/test');
@@ -188,6 +189,94 @@ test('E14 활성 탭 저장이 삭제됨을 받고 다음 탭에 줄 선 저장�
   expect(of(s, B).map(r => r.seeds.join()), '★줄의 저장이 안 돌았다').toContain(NINE);
   await release(page, B);
   expect(await page.evaluate(() => window.activeProjectId)).toBe(B);
+});
+
+/* S1 은 준비(loadProject)에 걸려 있고 S2(NINE)는 줄에 있다. 풀면 S1 이 깨어난다 */
+async function preparingB(page) {
+  const body = (mark) => page.evaluate(([B, mark]) => { const d = JSON.parse(JSON.stringify(window.__files.get(B))); d.pages[0].canvas += `<div class="section-block" id="sec_proj_361b_${mark}"></div>`; return JSON.stringify(d); }, [B, mark]);
+  const [s1, s2] = [await body(8), await body(9)];
+  await page.evaluate(([s1, s2, B]) => {
+    const o = window.__fake.loadProject; window.__prep = new Promise(r => { window.__prepGo = r; }); window.__prepIn = 0;
+    window.__fake.loadProject = async (id) => { window.__prepIn++; await window.__prep; return o(id); };
+    window.__p1 = window.saveProjectToFile(s1, { skipThumbnail: true, projectId: B });
+    window.__p2 = window.saveProjectToFile(s2, { skipThumbnail: true, projectId: B });
+  }, [s1, s2, B]);
+  await page.waitForFunction(() => window.__prepIn > 0);
+}
+const lateSave = async (page, s) => { await page.evaluate(async () => { window.__prepGo(); await window.__p1; await window.__p2; }); return s.rec.filter(r => r.kind === 'save' && r.id === B); };
+test('E15 종료가 줄의 본을 쓴 뒤 준비 중이던 앞 저장이 깨어나도 옛 본으로 안 덮는다', async ({ page }) => {
+  const s = await setup(page);
+  await preparingB(page);
+  await page.evaluate(() => window.__quit());
+  await page.waitForFunction(() => window.__answer);
+  expect(syncOf(s, B)).toContain(NINE);
+  expect(await lateSave(page, s), '★앞 저장이 뒤늦게 파일을 덮었다').toEqual([]);
+});
+test('E16 새로고침·창 닫기도 같다 — 동기로 쓴 뒤 앞 저장이 안 덮는다', async ({ page }) => {
+  const s = await setup(page);
+  await preparingB(page);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  expect(syncOf(s, B)).toContain(NINE);
+  expect(await lateSave(page, s), '★앞 저장이 뒤늦게 파일을 덮었다').toEqual([]);
+});
+test('E17 [음성] 동기 쓰기가 실패하면 앞 저장은 그대로 간다 — 그것이 마지막 기회다', async ({ page }) => {
+  const s = await setup(page);
+  await preparingB(page);
+  await page.evaluate(() => { window.__fake.saveProjectSync = () => ({ ok: false, reason: 'lsq' }); window.dispatchEvent(new Event('beforeunload')); });
+  expect((await lateSave(page, s)).length).toBe(1);
+});
+test('E18 줄에 서 미확정이던 활성 탭 본이 동기로 들어가면 실패라고 답하지 않는다', async ({ page }) => {
+  const s = await setup(page);
+  await page.evaluate(() => { window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true }); });
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(() => window.__quit());
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => ({ ok: window.__answer.ok, reason: window.__answer.reason }))).toEqual({ ok: true, reason: 'flushed' });
+  expect(syncOf(s, A).length).toBeGreaterThan(0);
+});
+test('E19 [음성] 동기 쓰기가 실패하면 미확정은 실패로 남는다', async ({ page }) => {
+  const s = await setup(page);
+  await page.evaluate(() => { window.__fake.saveProjectSync = () => ({ ok: false, reason: 'lsq' }); window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true }); });
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(() => window.__quit());
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => window.__answer.ok)).toBe(false);
+  expect(s.errs).toEqual([]);
+});
+test('E20 활성 탭을 닫아 다음 탭이 앞 저장을 기다리는 동안 그 탭으로 돌아오면 닫기를 그만둔다', async ({ page }) => {
+  const s = await setup(page);
+  await waitingB(page);
+  await go(page, A); await page.evaluate((A) => window.__ops[A], A);   // B 는 탭에 남고 캐시가 없다 · 저장은 아직 돈다
+  await page.evaluate((A) => { window.__closing = window.closeTab(A); }, A);
+  await page.waitForFunction((B) => window.activeProjectId === B && window.isTabFirstLoading(B), B);
+  await go(page, A); await page.evaluate((A) => window.__ops[A], A);
+  await page.evaluate(() => window.__closing);
+  expect(await page.evaluate((A) => [window.activeProjectId === A, window.openTabs.some(t => t.id === A)], A), '★활성 탭이 목록에서 빠졌다').toEqual([true, true]);
+  await edit(page); s.rec.length = 0;
+  await go(page, C); await page.evaluate((C) => window.__ops[C], C);
+  await page.evaluate(() => { window.__hold = null; window.__release(); });   // 앞 저장이 도는 동안 A 저장은 줄에 선다
+  await expect.poll(() => of(s, A).length, { message: '★떠날 때 저장을 건너뛰었다' }).toBeGreaterThan(0);
+  expect(s.errs).toEqual([]);
+});
+
+test('E21 줄의 전부 빈 본은 동기로 안 쓴다', async ({ page }) => {
+  const s = await setup(page);
+  await waitingB(page);
+  await page.evaluate((B) => { window.__p3 = window.saveProjectToFile(JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', name: 'P', pageSettings: {}, canvas: '' }] }), { skipThumbnail: true, projectId: B, _fromQueue: true }); }, B);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  expect(syncOf(s, B), '★빈 본이 파일로 나갔다').toEqual([]);
+});
+test('E22 동기 쓰기가 거절된 본은 LS 에 남는다 — 줄에 둘이어도 둘 다', async ({ page }) => {
+  await setup(page);
+  await waitingB(page);
+  const r = await page.evaluate(([B, C]) => {
+    const d = JSON.parse(JSON.stringify(window.__files.get(C))); d.pages[0].canvas += '<div class="section-block" id="sec_proj_361c_9"></div>';
+    window.__p3 = window.saveProjectToFile(JSON.stringify(d), { skipThumbnail: true, projectId: C });
+    window.__fake.saveProjectSync = () => ({ ok: false, reason: 'planning_not_editor' });
+    window.dispatchEvent(new Event('beforeunload'));
+    return [(localStorage.getItem('web-editor-autosave__' + B) || '').includes('sec_proj_361b_9'), (localStorage.getItem('web-editor-autosave__' + C) || '').includes('sec_proj_361c_9')];
+  }, [B, C]);
+  expect(r, '★거절된 본이 어디에도 없다').toEqual([true, true]);
 });
 
 test('E8 로드 실패 뒤 다른 탭 갔다 돌아와 읽히면 편집이 저장된다', async ({ page }) => {

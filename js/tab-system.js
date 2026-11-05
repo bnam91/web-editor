@@ -460,6 +460,7 @@ async function closeTab(id) {
     /* 다음 탭을 못 읽어도 닫기는 끝낸다 — switchTab 이 실패를 일부러 던진다(말은 게이트가 했다). 못 옮겨 갔으면 닫으면 안 된다. */
     try { await switchTab(nextTab.id); }
     catch (e) { console.warn('[closeTab] 다음 탭 열기 실패:', e && e.message); if (_getActId() === id) return; }
+    if (_getActId() === id) return;   // 다음 탭이 앞 저장을 기다리는 동안 이 탭으로 돌아왔다 — 활성 탭을 목록에서 빼면 떠날 때 저장을 건너뛰어 편집을 잃는다
   }
   _setTabs(_getTabs().filter(t => t.id !== id));
   renderTabBar();
