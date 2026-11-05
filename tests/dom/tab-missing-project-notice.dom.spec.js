@@ -109,16 +109,16 @@ test('N3 [대조] 탭이 없는 프로젝트를 다시 만들어도 말이 없�
 });
 
 /* 부팅 길: 저장된 탭과 LS 를 놓고 다시 싣는다. 가짜 API 는 init 스크립트라 새 문서에도 남는다. */
-async function bootWith(page, { url, listed, states, ls, tabs, owners = {}, away }) {
+async function bootWith(page, { url, listed, states, ls, tabs, owners = {}, away, hold }) {
   const errs = await bootApp(page);
-  await page.addInitScript(({ listed, states, doc }) => {
+  await page.addInitScript(({ listed, states, doc, hold }) => {
     const mk = (id) => JSON.parse(JSON.stringify(doc).split('@ID').join(id));
     const real = window.electronAPI;
     window.electronAPI = new Proxy(real, { get: (t, k) => k === 'listProjects' ? async () => listed.map((id) => ({ id, name: id + '이름', updatedAt: 0 }))
-      : k === 'loadProject' ? async (id) => (listed.includes(id) ? mk(id) : null)
+      : k === 'loadProject' ? async (id, o) => { if (hold && o?.open && id === hold) await new Promise((r) => { window.__release = r; }); return listed.includes(id) ? mk(id) : null; }
       : k === 'projectFolderState' ? async (id) => states[id] || 'ok'
       : k === 'projectsRootKey' ? async () => 'acct_me' : t[k] });
-  }, { listed, states, doc: doc('@ID') });
+  }, { listed, states, doc: doc('@ID'), hold });
   await page.evaluate(({ ls, tabs, doc, owners, away }) => {
     localStorage.clear();
     for (const id of ls) { localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(doc).split('@ID').join(id)); localStorage.setItem('web-editor-ls-root__' + id, owners[id] || 'acct_me'); }
@@ -126,6 +126,7 @@ async function bootWith(page, { url, listed, states, ls, tabs, owners = {}, away
     localStorage.setItem('web-editor-open-tabs', JSON.stringify({ tabs: tabs.map((id) => ({ id, name: id + '이름' })), activeId: tabs[0] }));
   }, { ls, tabs, doc: doc('@ID'), owners, away });
   await page.goto(`${ORIGIN}/${url}`);
+  if (hold) return errs;
   await page.waitForFunction(() => { const g = window.gdtProjectReady?.get?.(); return g && g.phase !== 'loading'; }, null, { timeout: 20000 });
   return errs;
 }
@@ -314,4 +315,19 @@ test('C3 [대조] 폴더가 있거나 앱 휴지통·다른 계정이면 닫을 
     expect(errs).toEqual([]);
     await p2.close();
   }
+});
+
+/* 리뷰 ④ — 부팅을 기다리는 사이 탭 이동 */
+test('D1 부팅을 기다리는 사이 다른 탭으로 가면 없어진 탭만 닫는다 — 멀쩡한 탭을 안 닫는다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_b', listed: ['proj_a', 'proj_c'], states: { proj_b: 'missing' }, ls: [], tabs: ['proj_b', 'proj_a', 'proj_c'], hold: 'proj_b' });
+  await page.waitForFunction(() => typeof window.__release === 'function', null, { timeout: 15000 });
+  await page.evaluate(() => { window.switchTab('proj_c'); });
+  await page.waitForFunction(() => window.activeProjectId === 'proj_c' && window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 10000 });
+  await page.evaluate(() => window.__release());
+  await page.waitForFunction(() => document.querySelectorAll('.settings-toast').length > 0, null, { timeout: 10000 });
+  const s = await bs(page);
+  expect(s.active, '★활성 탭이 바뀌었다').toBe('proj_c');
+  expect(s.tabs, '★멀쩡한 탭을 닫았다').toEqual(['proj_a', 'proj_c']);
+  expect(s.toasts.join()).toContain('proj_b이름');
+  expect(errs).toEqual([]);
 });

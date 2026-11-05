@@ -2745,9 +2745,9 @@ function initApp() {
           openTabs.push(..._away.filter(t => _listed.has(t.id) && !openTabs.some(o => o.id === t.id)));
           const _goneTabs = await Promise.all(openTabs.filter(t => !_listed.has(t.id)).map(async t => ({ t, g: await window.projectGoneCopy(t.id) })));
           const _keptIds = _goneTabs.filter(x => x.g?.data || x.g?.state === 'unknown').map(x => x.t.id);   // 못 읽은 것은 없어진 게 아니다 — 탭과 본을 그대로 둔다
-          const _bootG = _goneTabs.find(x => x.t.id === activeProjectId)?.g || null;
+          const _bootG = _goneTabs.find(x => x.t.id === _bootProjectId)?.g || null;   // 기다리는 사이 다른 탭으로 갔어도 판정 대상은 부팅한 프로젝트다
           _bootGone = _bootG?.state === 'unknown' ? null : _bootG;
-          _bootGoneName = openTabs.find(t => t.id === activeProjectId)?.name;
+          _bootGoneName = openTabs.find(t => t.id === _bootProjectId)?.name;
           window.setAwayTabs?.([..._away.filter(t => !_listed.has(t.id) && !_goneTabs.some(x => x.t.id === t.id)), ..._goneTabs.filter(x => x.g?.state === 'foreign').map(x => ({ id: x.t.id, name: x.t.name }))]);
           if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._listed, ..._keptIds, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
           _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
@@ -2843,10 +2843,16 @@ function initApp() {
       window.renderTabBar();
       window.saveTabState?.();
     }
+    /* 부팅을 기다리는 사이 다른 탭으로 갔다(앱 재현 3/3) — 없어진 건 부팅한 프로젝트다. 활성 탭을 닫으면 멀쩡한 탭이 닫힌다. 화면은 그 탭 것이니 건드리지 않는다. */
+    if (_bootGone && _bootStale()) {
+      if (!_bootGone.data) window.closeDeletedProjectTab?.(_bootProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);
+      initEmpty();
+      return;
+    }
     const saved = _bootGone && !_bootGone.data ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
     if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
-    if (_bootGone) window.closeDeletedProjectTab?.(activeProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다
+    if (_bootGone) window.closeDeletedProjectTab?.(_bootProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다
   })().catch(e => {
     // [b7] 페일세이프: initLoad 본문이 예기치 못한 예외로 종료되면 정적 로딩 오버레이가 화면에
     //   영원히 남는다(기본 표시 상태이므로). 모든 정상 경로는 applyAndFinish.finally / initEmpty에서
