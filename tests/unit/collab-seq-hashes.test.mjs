@@ -33,3 +33,12 @@ test('해시 없이 온 진도는 앞서 남긴 해시를 안 지운다 · 뒤�
   assert.equal(meta.collabRef.seq, 4);
   assert.deepEqual(meta.collabRef.hashes, { 'p::s': 'h1' });
 });
+
+test('진도가 그대로여도 해시는 쓴다(보류 패치가 진도를 묶을 때) · 해시 없으면 안 쓴다', () => {
+  seq({ seq: 4, hashes: { 'p::s': 'h2' } });
+  assert.equal(meta.collabRef.seq, 4);
+  assert.deepEqual(meta.collabRef.hashes, { 'p::s': 'h2' });
+  seq({ seq: 4 });
+  assert.deepEqual(meta.collabRef.hashes, { 'p::s': 'h2' });
+});
+
