@@ -2314,7 +2314,10 @@ function renderHomeTabs() {
     // ★[T-049 후속, a1-a3 게이트 지적] tab.name/tab.id 도 카드 그리드와 «같은 이중 문맥»
     //   (HTML속성 title=""/JS문자열 onclick="…('${id}')") — safeId 패턴 그대로 재사용.
     //   tab.id 는 project_id 형식(proj_\d+|plan_\d+)이 아니면 애초에 그려도 열 수 없으니 걸러낸다.
-    bar.innerHTML = saved.tabs.filter(tab => /^(proj|plan)_\d+$/.test(String(tab.id))).map(tab => {
+    const _root = window._homeRootKey;
+    if (_root === undefined) { window._homeRootKey = null; window.electronAPI?.projectsRootKey?.().then((k) => { window._homeRootKey = k; if (k) renderHomeTabs(); }).catch(() => {}); }
+    const mine = (tab) => !_root || !window.lsCopyOwner?.(tab.id) || window.lsCopyOwner(tab.id) === _root;   // 다른 계정의 탭 이름을 안 보인다
+    bar.innerHTML = saved.tabs.filter(tab => /^(proj|plan)_\d+$/.test(String(tab.id)) && mine(tab)).map(tab => {
       const safeId = _escHtml(tab.id);
       const safeName = _escHtml(tab.name || '이름 없음');
       return `

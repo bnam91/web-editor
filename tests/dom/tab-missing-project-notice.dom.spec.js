@@ -4,25 +4,28 @@
  * 칸: M1 LS 본이 있으면 그 본으로 열고 알린다 · M2 본이 없으면 닫고 알린다 · M3 앱 휴지통의 것은 본이 있어도 안 연다 · M4 캐시 탭도 알린다 · M5 다시 만들었으면 알린다.
  * 대조: N1 폴더가 있으면 말 없음(캐시) · N2 폴더가 있으면 말 없음(읽기) · N3 없는 탭의 다시 만듦은 말 없음.
  * 칸(부팅 길 — 앱을 다시 띄워 탭을 누른 길): B1 보던 탭 LS 본으로 연다 · B2 본 없으면 닫는다 · B3 옆 탭은 본이 있으면 남고 없으면 알리고 빠진다 · B4 앱 휴지통의 것은 본으로 안 연다.
- * 변이: 고치기 전 판(GD1001_ROOT)에서 M1~M5·B1~B4 빨강 · 대조 초록(회신에 값).  */
+ * 칸(리뷰): U1~U3 못 읽음 · A1~A5 계정 전환 · 그 뒤 칸은 커밋마다 더한다.
+ * 변이: 회신의 값(커밋마다 그 고침만 되돌린 판). */
 const { test, expect } = require('@playwright/test');
 const { bootApp, ORIGIN } = require('./_root-harness.js');
 
 const doc = (id) => ({ id, name: id + '이름', version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P', canvas: '<div class="section-block" id="s_' + id + '" data-section="1"><div class="section-hitzone"></div><div class="section-inner"></div></div>' }] });
-async function setup(page, { state, ls, cached }) {
+async function setup(page, { state, ls, cached, owner = 'acct_me' }) {
   const errs = await bootApp(page);
-  await page.evaluate(({ state, ls, cached, A, B }) => {
+  await page.evaluate(({ state, ls, cached, owner, A, B }) => {
     window.__saved = [];
     const real = window.electronAPI;
     window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { window.__saved.push(x.id); return { ok: true }; }
       : k === 'loadProject' ? async (id) => (id === 'proj_b' && state !== 'ok' ? null : (id === 'proj_b' ? B : A))
-      : k === 'projectFolderState' ? async (id) => (id === 'proj_b' ? state : 'ok') : t[k] });
+      : k === 'projectFolderState' ? async (id) => (id === 'proj_b' ? state : 'ok')
+      : k === 'projectsRootKey' ? async () => 'acct_me' : t[k] });
     window.__toasts = []; const f = window.showStatusToast; window.showStatusToast = (m) => { window.__toasts.push(m); f(m); };
     if (ls) localStorage.setItem('web-editor-autosave__proj_b', JSON.stringify(B));
+    if (ls && owner) localStorage.setItem('web-editor-ls-root__proj_b', owner);
     window.openTabs = [{ id: 'proj_a', name: 'proj_a이름', _cache: JSON.stringify(A) }, { id: 'proj_b', name: 'proj_b이름', ...(cached ? { _cache: JSON.stringify(B) } : {}) }];
     window.activeProjectId = 'proj_a';
     window.renderTabBar();
-  }, { state, ls, cached, A: doc('proj_a'), B: doc('proj_b') });
+  }, { state, ls, cached, owner, A: doc('proj_a'), B: doc('proj_b') });
   return errs;
 }
 const go = (page) => page.evaluate(() => window.switchTab('proj_b'));
@@ -106,20 +109,22 @@ test('N3 [대조] 탭이 없는 프로젝트를 다시 만들어도 말이 없�
 });
 
 /* 부팅 길: 저장된 탭과 LS 를 놓고 다시 싣는다. 가짜 API 는 init 스크립트라 새 문서에도 남는다. */
-async function bootWith(page, { url, listed, states, ls, tabs }) {
+async function bootWith(page, { url, listed, states, ls, tabs, owners = {}, away }) {
   const errs = await bootApp(page);
   await page.addInitScript(({ listed, states, doc }) => {
     const mk = (id) => JSON.parse(JSON.stringify(doc).split('@ID').join(id));
     const real = window.electronAPI;
     window.electronAPI = new Proxy(real, { get: (t, k) => k === 'listProjects' ? async () => listed.map((id) => ({ id, name: id + '이름', updatedAt: 0 }))
       : k === 'loadProject' ? async (id) => (listed.includes(id) ? mk(id) : null)
-      : k === 'projectFolderState' ? async (id) => states[id] || 'ok' : t[k] });
+      : k === 'projectFolderState' ? async (id) => states[id] || 'ok'
+      : k === 'projectsRootKey' ? async () => 'acct_me' : t[k] });
   }, { listed, states, doc: doc('@ID') });
-  await page.evaluate(({ ls, tabs, doc }) => {
+  await page.evaluate(({ ls, tabs, doc, owners, away }) => {
     localStorage.clear();
-    for (const id of ls) localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(doc).split('@ID').join(id));
+    for (const id of ls) { localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(doc).split('@ID').join(id)); localStorage.setItem('web-editor-ls-root__' + id, owners[id] || 'acct_me'); }
+    if (away) localStorage.setItem('web-editor-open-tabs-away', JSON.stringify(away));
     localStorage.setItem('web-editor-open-tabs', JSON.stringify({ tabs: tabs.map((id) => ({ id, name: id + '이름' })), activeId: tabs[0] }));
-  }, { ls, tabs, doc: doc('@ID') });
+  }, { ls, tabs, doc: doc('@ID'), owners, away });
   await page.goto(`${ORIGIN}/${url}`);
   await page.waitForFunction(() => { const g = window.gdtProjectReady?.get?.(); return g && g.phase !== 'loading'; }, null, { timeout: 20000 });
   return errs;
@@ -192,5 +197,55 @@ test('U3 부팅 — 뿌리를 못 읽으면 고아 정리를 안 한다(탭에 �
 test('N4 [대조] 뿌리가 성하면 탭에 없는 본은 지운다', async ({ page }) => {
   const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a'], states: {}, ls: ['proj_b'], tabs: ['proj_a'] });
   expect((await bs(page)).lsB).toBe(false);
+  expect(errs).toEqual([]);
+});
+
+/* 리뷰 ① — 계정 전환: 다른 계정의 본을 안 주고, 그 계정으로 돌아오면 탭과 본이 있다 */
+const away = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('web-editor-open-tabs-away') || '[]').map(t => t.id));
+test('A1 다른 계정의 본은 안 연다 — 닫고 알리되 본은 남기고 탭은 맡긴다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true, owner: 'acct_other' });
+  await go(page);
+  await page.waitForFunction(() => window.openTabs.length === 1);
+  const s = await st(page);
+  expect(s.screenB, '★B 화면에 A 내용').toBe(false);
+  expect(s.saved).not.toContain('proj_b');
+  expect(s.ls, '★A 의 본을 지웠다').toBeTruthy();
+  expect(s.toasts.join()).toContain('다른 계정');
+  expect(await away(page)).toEqual(['proj_b']);
+  expect(errs).toEqual([]);
+});
+test('A2 부팅 — 보던 탭이 다른 계정 것이면 안 열고 닫는다 · 본은 남는다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_b', listed: ['proj_a'], states: { proj_b: 'missing' }, ls: ['proj_b'], owners: { proj_b: 'acct_other' }, tabs: ['proj_b', 'proj_a'] });
+  await page.waitForFunction(() => window.activeProjectId === 'proj_a', null, { timeout: 10000 });
+  const s = await bs(page);
+  expect(s.screenB, '★B 화면에 A 내용').toBe(false);
+  expect(s.lsB, '★A 의 본을 지웠다').toBe(true);
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(await away(page)).toEqual(['proj_b']);
+  expect(errs).toEqual([]);
+});
+test('A3 부팅 — 옆 탭이 다른 계정 것이면 말없이 맡기고 본을 남긴다 · 탭에 없는 그 계정 본도', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a'], states: { proj_b: 'missing' }, ls: ['proj_b', 'proj_c'], owners: { proj_b: 'acct_other', proj_c: 'acct_other' }, tabs: ['proj_a', 'proj_b'] });
+  const s = await bs(page);
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(s.lsB).toBe(true);
+  expect(await page.evaluate(() => !!localStorage.getItem('web-editor-autosave__proj_c')), '★탭에 없는 A 본을 지웠다').toBe(true);
+  expect(s.toasts).toEqual([]);
+  expect(await away(page)).toEqual(['proj_b']);
+  expect(errs).toEqual([]);
+});
+test('A4 그 계정으로 돌아오면 맡긴 탭을 돌려받는다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a', 'proj_b'], states: {}, ls: ['proj_b'], tabs: ['proj_a'], away: [{ id: 'proj_b', name: 'proj_b이름' }] });
+  const s = await bs(page);
+  expect(s.tabs).toEqual(['proj_a', 'proj_b']);
+  expect(s.lsB).toBe(true);
+  expect(await away(page)).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('A5 어느 계정 것인지 모르는 본은 안 준다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true, owner: null });
+  await go(page);
+  await page.waitForFunction(() => window.openTabs.length === 1);
+  expect((await st(page)).screenB).toBe(false);
   expect(errs).toEqual([]);
 });

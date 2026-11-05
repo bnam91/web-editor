@@ -2686,6 +2686,7 @@ function _projectFolderState(id) {
   return 'missing';
 }
 ipcMain.handle('projects:folder-state', (_e, id) => _projectFolderState(id));
+ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirState.unresolved ? null : (_projectsDirState && _projectsDirState.account) || 'legacy'));   // 본이 어느 뿌리 것인지 가르는 값
 
 async function _saveProjectImpl(project) {
   if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };

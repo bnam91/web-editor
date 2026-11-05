@@ -452,7 +452,8 @@ async function switchTab(id) {
     // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
     try { await window.switchScratch?.(id, window.state?.currentPageId); }
     finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
-    if (_gone && !_gone.data) queueMicrotask(() => Promise.resolve(closeDeletedProjectTab(id)).catch(e => console.warn('[tab] 없어진 프로젝트 탭 닫기 실패:', e && e.message)));
+    if (_gone?.state === 'foreign') window.setAwayTabs?.([...(window.awayTabs?.() || []).filter(t => t.id !== id), { id, name: targetTab?.name }]);
+    if (_gone && !_gone.data) queueMicrotask(() => Promise.resolve(closeDeletedProjectTab(id, _gone.state === 'foreign' ? { notice: window.foreignTabNotice?.(targetTab?.name), keepLs: true } : undefined)).catch(e => console.warn('[tab] 없어진 프로젝트 탭 닫기 실패:', e && e.message)));
   } finally {
     /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
     window.AutoSaveSuppress.end(_asTok);
@@ -481,17 +482,17 @@ async function closeTab(id) {
 
 /* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 저장 없이 탭을 닫고 알린다.
    목록에서 먼저 빼므로 switchTab 이 나가는 탭을 직렬화·저장하지 않는다. 마지막 탭이면 갤러리로 간다(goHome 은 저장하므로 안 쓴다). */
-async function closeDeletedProjectTab(id) {
+async function closeDeletedProjectTab(id, opts) {
   const tabs = _getTabs();
   const idx = tabs.findIndex(t => t.id === id);
   if (idx === -1) return false;
   const active = id === _getActId();
   const lost = !window.isTabFirstLoading?.(id) && !!(active ? window.hasUnsavedChanges?.() : window.projectSaveUnsettled?.(id));
-  const msg = window.deletedTabNotice?.(tabs[idx].name, lost);
+  const msg = opts?.notice || window.deletedTabNotice?.(tabs[idx].name, lost);
   const next = tabs[idx + 1] || tabs[idx - 1];
   _setTabs(tabs.filter(t => t.id !== id));
   /* 지운 프로젝트의 탭과 본을 디스크까지 지금 내린다 — 60초 안에 죽으면 다음 부팅이 옛 탭·옛 본을 읽어 영구 삭제한 프로젝트를 «앱 밖에서 없어진 것»으로 되살렸다(앱 재현). */
-  try { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
+  try { if (!opts?.keepLs) { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); } saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
   if (active && !next) {
     _setActId(null);   // beforeunload 저장도 멈춘다
     saveTabState();

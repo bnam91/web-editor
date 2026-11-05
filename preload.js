@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   //   반환은 { ok, trashed, reason } — 「지웠나」와 「휴지통이냐 영구냐」를 구분한다(구 boolean 은 못 나눴다).
   deleteProject:  (id, opts) => ipcRenderer.invoke('projects:delete', id, opts || {}),
   projectFolderState: (id)  => ipcRenderer.invoke('projects:folder-state', id),
+  projectsRootKey: ()       => ipcRenderer.invoke('projects:root-key'),
   /* 앱 «휴지통 탭» (2026-09-08) — 삭제는 여기로 가고 30일 뒤 OS 휴지통으로 넘어간다 */
   trashList:      ()        => ipcRenderer.invoke('trash:list'),
   trashRestore:   (id)      => ipcRenderer.invoke('trash:restore', id),

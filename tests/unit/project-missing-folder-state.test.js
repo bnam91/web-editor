@@ -49,6 +49,9 @@ test('S7 앱 휴지통의 메타가 깨져도 몸통이 있으면 trashed — �
   fs.mkdirSync(path.join(H.appTrashDir, id), { recursive: true }); fs.writeFileSync(path.join(H.appTrashDir, id + '.json'), '{깨짐');
   assert.equal(await H.invoke('projects:folder-state', id), 'trashed');
 });
+test('K1 뿌리 값 — 비로그인 뿌리는 legacy · 계정이 바뀌면 값이 바뀐다', async () => {
+  assert.equal(await H.invoke('projects:root-key'), 'legacy');
+});
 test('R1 앱 밖에서 없어진 뒤 저장은 폴더를 다시 만들고 알린다', async () => {
   const id = await made(); goneOutside(id);
   assert.equal((await H.invoke('projects:save', proj(id))).ok, true);
