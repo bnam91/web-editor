@@ -61,7 +61,7 @@ test('S2 조합으로 범위 밖(999) ⇒ 죄고 말한다', async ({ page }) =>
   await compose(page, cdp, '999');
   await page.keyboard.press('Enter'); await raf2(page);
   expect(await state(page)).toMatchObject({ v: '40', pad: '40px' });
-  expect(await toast(page)).toMatch(/999 를 40/);
+  expect(await toast(page)).toMatch(/입력 999 → 적용 40/);
   expect(errs).toEqual([]);
 });
 test('S3 조합으로 오타(1e) ⇒ 이전 값 · 말한다', async ({ page }) => {
@@ -80,7 +80,7 @@ test('S4 조합을 확정 안 하고 Enter ⇒ 조합 글자로 규약이 돈다
   await cdp.send('Input.imeSetComposition', { text: '999', selectionStart: 3, selectionEnd: 3 });
   await page.keyboard.press('Enter'); await raf2(page);
   expect(await state(page)).toMatchObject({ v: '40', typing: false, pad: '40px' });
-  expect(await toast(page)).toMatch(/999 를 40/);
+  expect(await toast(page)).toMatch(/입력 999 → 적용 40/);
   expect(errs).toEqual([]);
 });
 for (const [t, v, pad] of [['7', '7', '7px'], ['+5', '5', '5px'], ['1e3', '40', '40px']]) {
