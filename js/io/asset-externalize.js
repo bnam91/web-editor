@@ -199,7 +199,10 @@ async function adoptForeignAssets(data, projectId) {
    못 읽은 그림은 주소를 그대로 둔다 — 다른 사람이 올린 옛 주소일 수 있고, 그 주인 화면에선 읽힌다. */
 async function inlineAssetsForPeer(html, projectId, maxBytes) {
   const api = window.electronAPI;
-  const box = { html };
+  /* 저장 스냅샷은 옮기기 전 주소일 수 있다(첫 자동저장) — 저장 길이 이 프로젝트로 옮긴 그림은 새 주소로 읽는다 */
+  const moved = { pages: [{ canvas: html }] };
+  applyAdoptedAssets(moved, projectId);
+  const box = { html: moved.pages[0].canvas };
   let tooBig = 0;
   /* 이 프로젝트 자기 주소만 읽는다 — 받은 글에 내 다른 프로젝트 주소가 있으면 그 그림을 방에 올리게 된다. 큰 파일은 main 이 안 읽고 크기만 답한다. */
   const reader = api?.assetsReadAsDataUri ? async (pid, filename) => {
