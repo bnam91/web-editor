@@ -192,3 +192,17 @@ test('U-W3-7 ★소비형 — 같은 실패로 두 번 말하지 않는다', () 
   assert.ok(saveGuard.takePendingSyncFailure(), '첫 소비가 비었다');
   assert.equal(saveGuard.takePendingSyncFailure(), null, '⛔두 번째도 나온다 — 다음 종료 때 또 뜬다');
 });
+
+test('U-W3-9 동기 저장이 기획 파일로 거절돼도 그 본이 마커·비상 사본에 남는다', () => {
+  reset();
+  const pid = 'proj_w3_plan';
+  assert.equal(H.invokeSync('projects:save-sync', {}, { id: pid, name: 'p', pages: [{ id: 'p1', canvas: '' }] }).ok, true, '전제: 첫 저장');
+  const file = path.join(H.projectsDir, pid, 'proj.json');
+  assert.ok(fs.existsSync(file), `전제: 파일 위치 ${file}`);
+  fs.writeFileSync(file, JSON.stringify({ id: pid, name: 'p', type: 'planning' }));
+  assert.equal(H.invokeSync('projects:save-sync', {}, projectWithToken(pid)).reason, 'planning_not_editor');
+  const j = JSON.parse(fs.readFileSync(path.join(H.userData, 'quit-save-failure.json'), 'utf8'));
+  assert.equal(j.records[0].reason, 'planning_not_editor');
+  assert.ok(fs.readFileSync(j.records[0].emergencyPath, 'utf8').includes(TOKEN), '⛔거절된 본이 사본에 없다');
+  saveGuard.takePendingSyncFailure();
+});

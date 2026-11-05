@@ -2746,8 +2746,9 @@ ipcMain.on('projects:save-sync', (event, project) => {
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
       const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
-      if (rb.preservedAs === null) { event.returnValue = { ok: false, reason: 'unreadable_not_preserved' }; return; }
-      if (rb.planning) { event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
+      /* 이 본은 곧 끝나는 문서가 쥔 마지막 사본이다 — 닫은 탭이면 LS 도 못 믿는다(기획 파일 id 는 목록에 없어 다음 부팅의 고아 정리가 지운다 · 앱 값). 마커·비상 사본으로 남긴다. */
+      if (rb.preservedAs === null) { _recordSyncSaveFailure(project, 'unreadable_not_preserved'); event.returnValue = { ok: false, reason: 'unreadable_not_preserved' }; return; }
+      if (rb.planning) { _recordSyncSaveFailure(project, 'planning_not_editor'); event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
