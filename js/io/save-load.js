@@ -2220,7 +2220,7 @@ function scheduleAutoSave() {
       _setAutosaveIndicator('error');
       return;
     }
-    const snap = serializeProject();
+    let snap = serializeProject();
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
       const snapData = JSON.parse(snap);
@@ -2229,6 +2229,7 @@ function scheduleAutoSave() {
         _setAutosaveIndicator('saved');
         return;
       }
+      if (applyAdoptedAssets(snapData, activeProjectId)) snap = JSON.stringify(snapData);   // 파일 쓰기 전에 렌더러가 죽거나 저장이 거절되면 이 localStorage 본이 다음 열기에 이겨 옛 주소가 파일까지 덮는다(앱 ×6)
     } catch {}
     const saveOk = safeLocalStorageSet(getSaveKey(), snap);
     if (saveOk) localStorage.setItem(getSaveTsKey(), String(Date.now()));
@@ -2374,6 +2375,7 @@ if (IS_ELECTRON) {
         return;
       }
       if (_isAllCanvasEmpty(snapData)) { answer({ ok: true, reason: 'empty_canvas_skipped' }); return; }
+      if (applyAdoptedAssets(snapData, quitId)) snap = JSON.stringify(snapData);   // 아래 실패 답의 비상 사본도 새 주소로
 
       let result;
       try {
@@ -2900,11 +2902,12 @@ window.flushSave = async function() {
   if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 탄다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
-  const snap = serializeProject();
+  let snap = serializeProject();
   let data;
   try {
     data = JSON.parse(snap);
     if (_emptySaveBlocked(data, activeProjectId)) return;
+    if (applyAdoptedAssets(data, activeProjectId)) snap = JSON.stringify(data);   // 자동저장과 같은 까닭
   } catch { return; }
   localStorage.setItem(getSaveKey(), snap);
   localStorage.setItem(getSaveTsKey(), String(Date.now()));

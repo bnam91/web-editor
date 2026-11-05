@@ -13,3 +13,11 @@ test('beforeunload: applyAdoptedAssets 가 saveProjectSync 바로 앞이고 loca
 test('종료 저장: 새 옮기기를 먼저 멈춘다', () => {
   assert.match(src, /onForceSaveBeforeQuit\(async \(\) => \{\s*stopAdoptingForQuit\(\);/);
 });
+test('자동저장·즉시 저장·종료 저장: localStorage 본과 비상 사본에 쓸 snap 도 옮겨 둔 짝을 적용한다', () => {
+  const apply = /if \(applyAdoptedAssets\((?:snapData|data), (?:activeProjectId|quitId)\)\) snap = JSON\.stringify\((?:snapData|data)\);/;
+  for (const [name, anchor] of [['자동저장', 'const saveOk = safeLocalStorageSet(getSaveKey(), snap);'], ['즉시 저장', 'localStorage.setItem(getSaveKey(), snap);'], ['종료 저장', 'result = await saveProjectToFile(snapData, { skipThumbnail: true });']]) {
+    const at = src.indexOf(anchor);
+    assert.ok(at > 0, name);
+    assert.match(src.slice(Math.max(0, at - 500), at), apply, name);
+  }
+});

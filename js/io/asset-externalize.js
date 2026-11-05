@@ -161,10 +161,12 @@ function applyAdoptedAssets(data, projectId) {
   let changed = false;
   for (const page of data.pages) {
     if (typeof page?.canvas !== 'string' || page.canvas.indexOf('goya-asset://') === -1) continue;
-    for (const url of new Set(page.canvas.match(_ADOPT_URL_RE) || [])) {
+    page.canvas = page.canvas.replace(_ADOPT_URL_RE, (url) => {   // 한 번만 훑는다 — 주소마다 split·join 하면 30MB 본에서 487ms(앱 실측), 자동저장마다 탄다
       const to = _adopted.get(`${projectId}|${url}`);
-      if (to) { page.canvas = page.canvas.split(url).join(to); changed = true; }
-    }
+      if (!to) return url;
+      changed = true;
+      return to;
+    });
   }
   return changed;
 }

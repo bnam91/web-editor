@@ -73,3 +73,20 @@ test('[양성] 아무 일 없으면 고른 말풍선에 들어가고 같은 패�
   expect(m[1].profileImg).toBe(URL_);
   expect(errs).toEqual([]);
 });
+test('두 말풍선에 동시에 올려도 둘 다 들어간다 — 먼저 끝난 쪽이 늦은 쪽의 말풍선을 잃게 하지 않는다', async ({ page }) => {
+  const errs = await pickAndHold(page, 0);
+  await page.evaluate(() => { window.__toasts = []; window.showToast = (t) => window.__toasts.push(t); window.__go0 = window.__go; delete window.__go; });
+  await page.locator('.chb-profile-file[data-idx="2"]').setInputFiles(PNG);
+  await page.waitForFunction(() => typeof window.__go === 'function');
+  const m = await page.evaluate(async (u) => {
+    window.__go0(u + '0'); await new Promise((r) => setTimeout(r, 50));
+    window.__go(u + '2'); await new Promise((r) => setTimeout(r, 50));
+    return JSON.parse(window.__b.dataset.messages);
+  }, URL_);
+  expect(m.map((x) => x.profileImg)).toEqual([URL_ + '0', undefined, URL_ + '2']);
+  expect(await page.evaluate(() => window.__toasts)).toEqual([]);
+  await page.locator('.chb-text-input[data-idx="1"]').fill('고침');   // 같은 패널의 다음 편집이 두 그림을 안 지운다
+  const m2 = await page.evaluate(() => JSON.parse(window.__b.dataset.messages));
+  expect(m2.map((x) => x.profileImg)).toEqual([URL_ + '0', undefined, URL_ + '2']);
+  expect(errs).toEqual([]);
+});
