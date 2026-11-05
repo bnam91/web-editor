@@ -16,7 +16,7 @@
 // base64 data:image URI만 매칭. base64 알파벳([A-Za-z0-9+/=])은 따옴표/괄호/공백을 포함하지 않아
 // 경계가 안전. 비base64 인라인 SVG(data:image/svg+xml,<svg ...>)는 공백·따옴표·괄호를 포함해
 // 경계가 모호하고 보통 작은 아이콘이라 bloat 원인이 아니므로 외부화 대상에서 제외(원본 유지).
-import { parseGoyaAssetUrl } from './goya-asset-inline.js';
+import { parseGoyaAssetUrl, inlineGoyaAssetsInJSON } from './goya-asset-inline.js';
 const DATA_URI_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/g;
 
 /* ── 정책 게이팅: 로드 베이스라인 (load baseline) ──
@@ -194,6 +194,27 @@ async function adoptForeignAssets(data, projectId) {
   applyAdoptedAssets(data, projectId);
 }
 
+/* 협업으로 나가는 섹션 — 상대 디스크엔 이 기계의 자산 파일이 없다(COLLAB-NEW-IMAGE-NO-GOYA-HANDLING-01). 보내는 글만 data URL 로 되돌린다.
+   저장 파일·라이브 DOM 은 안 건드린다. 받는 쪽 저장은 위 externalizeProjectData 가 그쪽 프로젝트 자산으로 다시 나눈다.
+   못 읽은 그림은 주소를 그대로 둔다 — 다른 사람이 올린 옛 주소일 수 있고, 그 주인 화면에선 읽힌다. */
+async function inlineAssetsForPeer(html, projectId, maxBytes) {
+  const api = window.electronAPI;
+  /* 저장 스냅샷은 옮기기 전 주소일 수 있다(첫 자동저장) — 저장 길이 이 프로젝트로 옮긴 그림은 새 주소로 읽는다 */
+  const moved = { pages: [{ canvas: html }] };
+  applyAdoptedAssets(moved, projectId);
+  const box = { html: moved.pages[0].canvas };
+  let tooBig = 0;
+  /* 이 프로젝트 자기 주소만 읽는다 — 받은 글에 내 다른 프로젝트 주소가 있으면 그 그림을 방에 올리게 된다. 큰 파일은 main 이 안 읽고 크기만 답한다. */
+  const reader = api?.assetsReadAsDataUri ? async (pid, filename) => {
+    if (pid !== projectId) return null;
+    const res = await api.assetsReadAsDataUri({ projectId: pid, filename, maxBytes });
+    if (res?.tooBig) tooBig += Math.ceil(res.bytes * 4 / 3);   // base64 로 나갈 크기 — 천장과 같은 단위로 잰다
+    return res?.ok && res.dataUri ? res.dataUri : null;
+  } : null;
+  const r = await inlineGoyaAssetsInJSON(box, reader);
+  return { html: box.html, unresolved: r.unresolvedAssets, tooBig };
+}
+
 /** 프로젝트 객체(또는 직렬화 문자열)의 base64 data:image 개수 합산 — 검증용. */
 function _countBase64(data) {
   try {
@@ -299,5 +320,6 @@ window.externalizeCanvasHtml = externalizeCanvasHtml;
 window.externalizeProjectData = externalizeProjectData;
 window.recordExternalizeBaseline = recordExternalizeBaseline;
 window.optimizeProjectImages = optimizeProjectImages;
+window.inlineAssetsForPeer = inlineAssetsForPeer;
 
 export { externalizeCanvasHtml, externalizeProjectData, adoptForeignAssets, applyAdoptedAssets, stopAdoptingForQuit, recordExternalizeBaseline, optimizeProjectImages };

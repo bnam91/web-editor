@@ -14,7 +14,8 @@
 
 const GOYA_ASSET_PREFIX = 'goya-asset://';
 // 문자열 안의 goya-asset URL (raw 또는 url("...") 안쪽). 따옴표·괄호·공백에서 끝난다.
-const GOYA_ASSET_RE = /goya-asset:\/\/[^"'()\s]+/g;
+// & 와 \ 에서도 끝난다 — 직렬화한 HTML 의 style 안 따옴표는 &quot; 라, 안 끊으면 파일 이름에 붙어 못 읽는다(협업 섹션이 이 꼴이다).
+const GOYA_ASSET_RE = /goya-asset:\/\/[^"'()\s&\\]+/g;
 
 function isGoyaAssetUrl(url) {
   return typeof url === 'string' && url.indexOf(GOYA_ASSET_PREFIX) !== -1;
@@ -24,7 +25,8 @@ function isGoyaAssetUrl(url) {
 function parseGoyaAssetUrl(url) {
   const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(url || '');
   if (!m) return null;
-  return { projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) };
+  try { return { projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) }; }
+  catch (_) { return null; }   // 받은 글의 잘못된 %인코딩 — 못 읽는 주소로 친다
 }
 
 // Electron IPC 기반 reader — preload `assetsReadAsDataUri` 없으면(웹) null 반환.

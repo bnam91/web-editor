@@ -202,7 +202,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   assetsDeleteFile: ({ projectId, blobPath })                => ipcRenderer.invoke('assets:deleteFile', { projectId, blobPath }),
   // 캔버스 이미지 외부화 — content-hash dedup 저장, goya-asset:// URL 반환
   assetsSaveCanvasImage: ({ projectId, b64, mime })          => ipcRenderer.invoke('assets:saveCanvasImage', { projectId, b64, mime }),
-  assetsReadAsDataUri:   ({ projectId, filename })           => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename }),
+  assetsReadAsDataUri:   ({ projectId, filename, maxBytes }) => ipcRenderer.invoke('assets:readAsDataUri', { projectId, filename, maxBytes }),
   // [externalize] 일괄 외부화 — 수동 변환 / 되돌리기 / 상태조회 + 열 때 알림(이벤트)
   externalizeProject:     ({ projectId, force }) => ipcRenderer.invoke('projects:externalize', { projectId, force: force === true }),
   externalizeRollback:    ({ projectId, dryRun } = {}) => ipcRenderer.invoke('projects:externalize-rollback', { projectId, dryRun: dryRun === true }).then((r) => {

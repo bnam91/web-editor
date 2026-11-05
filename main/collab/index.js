@@ -96,7 +96,7 @@ async function register({ projectId, name, actorId }) {
   const existing = getRef(projectId);
   if (existing && existing.collabId) return { ok: true, ...existing, already: true };
   /* 변환된 프로젝트는 그림이 이 기계 파일을 가리켜 상대 화면에서 깨진다. 되실으면 섹션이 too_large 에 걸리니, 되돌릴 길이 있을 때 막고 안내한다.
-     새 그림·복제본의 깨짐은 풀 길이 없어 안 막는다(COLLAB-NEW-IMAGE-NO-GOYA-HANDLING-01). */
+     새 그림·복제본은 보내는 쪽(js/collab/sync.js forPeer)이 data URL 로 되돌려 올린다(COLLAB-NEW-IMAGE-NO-GOYA-HANDLING-01). */
   if (_deps.hasConversionBackup(projectId)) return { ok: false, reason: 'converted' };
   const r = await call('register', { localProjectId: projectId, name, actorId });
   if (r.ok && r.collabId) {
@@ -163,8 +163,9 @@ function init(ipcMain, deps) {
   ipcMain.handle('collab:seq', (_e, p = {}) => {
     const ref = getRef(p.projectId);
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
-    if (typeof p.seq !== 'number' || p.seq <= (ref.seq || 0)) return { ok: true, seq: ref.seq || 0 };
-    setRef(p.projectId, { ...ref, seq: p.seq });
+    const hashes = p.hashes && typeof p.hashes === 'object';
+    if (typeof p.seq !== 'number' || p.seq < (ref.seq || 0) || (p.seq === (ref.seq || 0) && !hashes)) return { ok: true, seq: ref.seq || 0 };   // 진도가 그대로여도 해시는 갱신된다(보류 패치가 진도를 묶을 때)
+    setRef(p.projectId, { ...ref, seq: p.seq, ...(hashes ? { hashes: p.hashes } : {}) });   // 재개 때 «내가 고친 섹션»을 가르는 값(js/collab/sync.js _durableHashes)
     return { ok: true, seq: p.seq };
   });
 }
