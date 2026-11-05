@@ -191,8 +191,10 @@ function _bindTableRowImg(tr) {
         const file = ev.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
-          ph.style.backgroundImage = `url(${reader.result})`;
+        reader.onload = async () => {
+          const src = await window.grdAssetSrcFor(ph, reader.result);
+          if (!src) return;
+          ph.style.backgroundImage = `url(${src})`;
           ph.style.backgroundSize = 'cover';
           ph.style.backgroundPosition = 'center';
           window.scheduleAutoSave?.();

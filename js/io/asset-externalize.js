@@ -16,6 +16,7 @@
 // base64 data:image URI만 매칭. base64 알파벳([A-Za-z0-9+/=])은 따옴표/괄호/공백을 포함하지 않아
 // 경계가 안전. 비base64 인라인 SVG(data:image/svg+xml,<svg ...>)는 공백·따옴표·괄호를 포함해
 // 경계가 모호하고 보통 작은 아이콘이라 bloat 원인이 아니므로 외부화 대상에서 제외(원본 유지).
+import { parseGoyaAssetUrl } from './goya-asset-inline.js';
 const DATA_URI_RE = /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*/g;
 
 /* ── 정책 게이팅: 로드 베이스라인 (load baseline) ──
@@ -145,6 +146,52 @@ async function externalizeProjectData(data, projectId, opts = {}) {
   return data;
 }
 
+/* 붙여넣기로 온 다른 프로젝트의 자산을 이 프로젝트 것으로 — 주소에 프로젝트 id 가 박혀 있어 그대로 두면 원본을 지울 때 그림이 깨진다(복제는 main copy-urls 가 같은 일을 한다).
+   붙여넣기 때가 아니라 저장 때 한다: 붙여넣기는 동기 갈래가 여럿이고 ⌘Z 표본과 묶여 있는데, 저장은 한 곳이다. 라이브 DOM 은 안 바꾼다 — 다시 열면 새 주소.
+   못 읽으면(원본이 이미 지워짐) 주소를 그대로 둔다. 번은 저장마다 다시 읽지 않게 세션 동안 기억한다.
+   동기 저장은 IPC 를 못 기다려 그 기억만 적용한다(applyAdoptedAssets) — 안 하면 라이브 DOM 의 옛 주소가 파일을 되돌린다. */
+const _ADOPT_URL_RE = /goya-asset:\/\/[^"'()\s&\\]+\.(?:png|jpe?g|gif|webp|svg)/gi;
+const _adopted = new Map();   // `${projectId}|${url}` → 새 url
+const _adoptWarned = new Set();   // 못 옮긴 프로젝트 — 저장마다 다시 읽으니 말은 세션에 한 번
+/* 종료 길엔 새로 안 옮긴다 — main 은 3초만 기다리고 넘기면 사본도 없이 끝낸다(13MB 20장 실측 no-response). 도는 자동저장도 지금 장까지만. 못 옮긴 칸은 다음 편집의 자동저장이 옮긴다. */
+let _adoptStopped = false;
+function stopAdoptingForQuit() { _adoptStopped = true; }
+function applyAdoptedAssets(data, projectId) {
+  if (!Array.isArray(data?.pages) || !_adopted.size) return false;
+  let changed = false;
+  for (const page of data.pages) {
+    if (typeof page?.canvas !== 'string' || page.canvas.indexOf('goya-asset://') === -1) continue;
+    for (const url of new Set(page.canvas.match(_ADOPT_URL_RE) || [])) {
+      const to = _adopted.get(`${projectId}|${url}`);
+      if (to) { page.canvas = page.canvas.split(url).join(to); changed = true; }
+    }
+  }
+  return changed;
+}
+async function adoptForeignAssets(data, projectId) {
+  const api = window.electronAPI;
+  if (!data || !Array.isArray(data.pages) || !projectId || !api?.assetsReadAsDataUri || !api?.assetsSaveCanvasImage) return;
+  for (const page of data.pages) {
+    if (typeof page?.canvas !== 'string' || page.canvas.indexOf('goya-asset://') === -1) continue;
+    for (const url of new Set(page.canvas.match(_ADOPT_URL_RE) || [])) {
+      if (_adoptStopped) break;
+      const src = parseGoyaAssetUrl(url);
+      const key = `${projectId}|${url}`;
+      if (!src || src.projectId === projectId || _adopted.has(key)) continue;
+      const read = await api.assetsReadAsDataUri(src).catch(() => null);
+      const m = read?.ok ? /^data:([^;]+);base64,(.*)$/.exec(read.dataUri || '') : null;
+      const saved = m ? await api.assetsSaveCanvasImage({ projectId, b64: m[2], mime: m[1] }).catch(() => null) : null;
+      if (saved?.ok && saved.url) { _adopted.set(key, saved.url); continue; }
+      console.warn('[asset-externalize] 다른 프로젝트 자산을 못 가져와 주소를 그대로 둔다:', url);
+      if (!_adoptWarned.has(projectId)) {   // 저장은 ok 로 끝나므로 말하지 않으면 사람은 모른 채 원본을 지운다
+        _adoptWarned.add(projectId);
+        window.showToast?.('⚠️ 다른 프로젝트에서 붙여넣은 그림을 이 프로젝트로 옮기지 못했습니다 — 원본 프로젝트를 지우면 그림이 깨질 수 있습니다');
+      }
+    }
+  }
+  applyAdoptedAssets(data, projectId);
+}
+
 /** 프로젝트 객체(또는 직렬화 문자열)의 base64 data:image 개수 합산 — 검증용. */
 function _countBase64(data) {
   try {
@@ -251,4 +298,4 @@ window.externalizeProjectData = externalizeProjectData;
 window.recordExternalizeBaseline = recordExternalizeBaseline;
 window.optimizeProjectImages = optimizeProjectImages;
 
-export { externalizeCanvasHtml, externalizeProjectData, recordExternalizeBaseline, optimizeProjectImages };
+export { externalizeCanvasHtml, externalizeProjectData, adoptForeignAssets, applyAdoptedAssets, stopAdoptingForQuit, recordExternalizeBaseline, optimizeProjectImages };

@@ -1,6 +1,6 @@
 import { canvasEl, state, PAGE_LABELS } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기만 쓴다(직접 대입 재유입 방지) */
 import { syncFrameBgVars, frameBgSize } from '../frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
-import { externalizeProjectData, recordExternalizeBaseline } from './asset-externalize.js';
+import { externalizeProjectData, adoptForeignAssets, applyAdoptedAssets, stopAdoptingForQuit, recordExternalizeBaseline } from './asset-externalize.js';
 import { buildProjForSave } from './proj-merge.js';   /* ★저장 병합은 «한 벌»(T-232 ⓑ) */
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★svg 의 CSS transform 을 감싸는 쪽으로 — h2c 는 svg 쪽을 안 그린다 */
 import { clearPendingForReload, isDrainSettled } from './save-reload-seal.js';
@@ -389,6 +389,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       const _externAll = opts.externalizeAll === true || window.GOEDITOR_AUTO_EXTERNALIZE_LEGACY === true;
       try { await externalizeProjectData(proj, targetId, { all: _externAll }); }
       catch (e) { console.warn('[save-load] 이미지 외부화 건너뜀:', e && e.message); }
+      try { await adoptForeignAssets(proj, targetId); }
+      catch (e) { console.warn('[save-load] 다른 프로젝트 자산 가져오기 건너뜀:', e && e.message); }
       // #16 이식성: 스크래치패드 전체 페이지를 goya-asset로 외부화 + proj.pages[].scratchpad 매니페스트 기록
       //   (다른 맥에서 하이드레이션 원본). 비파괴·hash 증분·실패 시 원본 유지. proj 객체에 scratchpad 필드 주입.
       try { await window.externalizeScratchpad?.(proj, targetId); }
@@ -2269,7 +2271,7 @@ window.addEventListener('beforeunload', () => {
   if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 거친다
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
-  const snap = serializeProject();
+  let snap = serializeProject();
   // S11: 빈 canvas 저장 방지 + snap 파싱은 한 번만
   let snapData;
   try { snapData = JSON.parse(snap); } catch { return; }
@@ -2285,6 +2287,7 @@ window.addEventListener('beforeunload', () => {
         name: openTabs.find(t => t.id === activeProjectId)?.name || 'Untitled',
         updatedAt: new Date().toISOString(),
       };
+      if (applyAdoptedAssets(proj, activeProjectId)) snap = JSON.stringify(snapData);   // 아래 localStorage 본도 — 파일보다 새로워 다음 열기에 이기면 옛 주소가 파일까지 되돌린다
       const result = window.electronAPI.saveProjectSync(proj);
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
@@ -2345,6 +2348,7 @@ function _quitSaveResolveQueued(isSaving, pendingHas, last, queuedAt) {
 // 앱 종료 전 강제 저장 (Electron before-quit IPC)
 if (IS_ELECTRON) {
   window.electronAPI.onForceSaveBeforeQuit(async () => {
+    stopAdoptingForQuit();
     /* ★어느 경로로 새도 «한 번은» 답한다 — 답을 안 하면 메인이 3초를 헛기다린다.
        그리고 실패는 «실패라고» 답한다(옛 코드는 실패도 성공처럼 답했다). */
     let answered = false;

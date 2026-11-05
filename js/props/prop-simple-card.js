@@ -1382,10 +1382,11 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         const file = input.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = ev => {
+        reader.onload = async ev => {
+          const src = await window.grdAssetSrcFor(block, ev.target.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
           const arr = getCards();
           if (arr[idx] !== undefined) {
-            arr[idx].imgSrc = ev.target.result;
+            arr[idx].imgSrc = src;
             setCards(arr);
             showSimpleCardProperties(block);
           }

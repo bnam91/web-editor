@@ -563,13 +563,24 @@ ${blockHeaderHTML({
         const i = parseInt(fi.dataset.idx);
         const file = e.target.files?.[0];
         if (!file || !file.type.startsWith('image/')) return;
+        const msg = messages[i];
+        const list = propPanel.querySelector('#chb-msg-list');
         const reader = new FileReader();
-        reader.onload = (ev) => {
-          messages[i].profileImg = ev.target.result;
-          block.dataset.messages = JSON.stringify(messages);
+        reader.onload = async (ev) => { /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — 프로필은 말풍선마다 복사돼 data URL 두어 장이면 렌더러가 죽는다(13MB 2장 V8 OOM). */
+          const src = await window.grdAssetSrcFor(block, ev.target.result);
+          if (!src) return;
+          /* 기다리는 사이 말풍선이 지워지거나 패널이 다시 그려졌을 수 있다 — 잡아 둔 배열로 쓰면 그 사이 편집을 덮는다. 정본(dataset)을 다시 읽는다. */
+          if (propPanel.contains(document.activeElement)) document.activeElement.blur();   // 쓰던 칸을 먼저 확정 — 패널을 다시 그릴 때 나는 change 가 옛 배열로 덮는다
+          const samePanel = propPanel.querySelector('#chb-msg-list') === list;
+          const k = samePanel ? messages.indexOf(msg) : i;   // shortcut: 다시 그린 패널에서 앞 말풍선까지 지우면 번호가 밀린다, 말풍선에 id 가 생기면 그걸로
+          const cur = JSON.parse(block.dataset.messages || '[]');
+          if (!cur[k]) { window.showToast?.('⚠️ 말풍선이 지워져 프로필 이미지를 넣지 못했습니다'); return; }
+          cur[k].profileImg = src;
+          block.dataset.messages = JSON.stringify(cur);
           window.pushHistory?.('프로필 이미지');
           rerender();
-          rebindMsgList();
+          if (samePanel) { messages.splice(0, messages.length, ...cur); rebindMsgList(); }
+          else if (block.classList.contains('selected')) window.showChatProperties(block);   // 새 패널의 배열은 이 그림을 모른다
         };
         reader.readAsDataURL(file);
       });

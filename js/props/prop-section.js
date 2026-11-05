@@ -973,8 +973,8 @@ ${blockHeaderHTML({
       const file = bgImgInput.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target.result;
+      reader.onload = async (e) => {
+        const dataUrl = await window.grdAssetSrcFor(sec, e.target.result); if (!dataUrl) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
         window.pushHistory?.('섹션 배경 이미지');
         sec.dataset.bgImg = dataUrl;
         sec.dataset.bgSize = 'cover';

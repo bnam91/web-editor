@@ -925,11 +925,12 @@ function _renderAutoPanel(ss) {
     const file = bgImgInput.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
-      ss.style.backgroundImage = `url('${e.target.result}')`;
+    reader.onload = async e => {
+      const src = await window.grdAssetSrcFor(ss, e.target.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
+      ss.style.backgroundImage = `url('${src}')`;
       ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';
-      ss.dataset.bgImg = e.target.result;
+      ss.dataset.bgImg = src;
       _syncFrameBgVars();
       window.scheduleAutoSave?.();
       window.pushHistory?.();
