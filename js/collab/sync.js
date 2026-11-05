@@ -104,6 +104,8 @@
   let _hashesDirty = false;
   let _replaced = Object.create(null);   // 'pageId::secId' → 받은 패치가 덮기 직전의 내 해시
   let _serverHashes = null;              // 재개 때 서버 목차 — 내 글이 이것과 같으면 올릴 것이 없다
+  let _appliedLog = [];                  // 이 세션에 붙였고 아직 진도에 안 든 패치 { seq, key, before }
+  let _rewound = null;                   // 되감았을 때: seq → 그 섹션의 첫 덮이기 전 해시
   let _nextSaveAt = 0;                   // 받은 저장 사이 간격 — 큰 프로젝트에서 저장이 쉬지 않고 돌지 않게
   let _seqTimer = null;
   const _listeners = new Set();       // 상태 변화 구독(탑바 표시 등)
@@ -169,6 +171,17 @@
     _owedSave = false;
     _cfg.seq = _owedSeq = _seqDurable;
     Object.assign(_sent, _durableHashes);
+    const first = {};
+    _rewound = new Map();
+    for (const e of _appliedLog) { if (!(e.key in first)) first[e.key] = e.before; _rewound.set(e.seq, first[e.key]); }
+    _appliedLog = [];
+  }
+  /* 되감아 다시 받는 패치의 판정 재료 — 돌아온 화면의 섹션 해시(그림은 보내는 꼴로 풀어 같은 재료로) */
+  async function localHashesNow(cfg) {
+    const out = {};
+    const base = { ..._sent };
+    for (const s of collectSections(JSON.parse(window.serializeProject()))) out[s.key] = (await forPeer(s, base, cfg.projectId)).hash;
+    return out;
   }
 
   /* 받은 내용을 디스크에 쓰고 나서 진도를 올린다. 실패·미확정이면 진도를 그대로 둬서 다음에 열 때 다시 받는다.
@@ -204,6 +217,7 @@
         _durableHashes = hashes; _hashesDirty = true;   // 진도가 보류 패치에 묶여도 이 판은 디스크에 있다
       }
       for (const p of _deferred.values()) if (Number.isFinite(+p.seq)) upTo = Math.min(upTo, +p.seq - 1);   // 보류한 패치는 아직 안 붙었다 — 그 앞까지만
+      _appliedLog = _appliedLog.filter(e => e.seq > upTo);
       if (upTo > _seqDurable) { _seqDurable = upTo; if (!hashes) { _durableHashes = { ..._sent }; _hashesDirty = true; } }
     } finally {
       _settling = false;
@@ -609,13 +623,17 @@
 
   /* 적용한 것«만» 「서버가 아는 것」으로 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
    * USER_BUSY 보류(false)·거절('kept')은 기록하지 않는다(N2). 덮이기 전 판을 남긴다 — 저장은 스냅샷을 찍고 몇 초 뒤 끝나므로, 그 스냅샷의 옛 판을 내 편집으로 볼 수 있다. */
-  function applyRecorded(p) {
+  function applyRecorded(p, local) {
     const key = (p.pageId || '') + '::' + p.sectionId;
+    /* 되감아 다시 온 패치: 돌아온 글이 덮이기 전 판이면(또는 섹션이 없으면) 화면과 함께 사라진 것이라 다시 붙인다.
+     * 그 밖이면 이 패치 위에 고친 내 글이 탭 전환 저장에 실려 돌아온 것이다 — 화면을 안 건드리고 서버가 아는 해시만 적는다. */
+    if (_rewound && _rewound.has(+p.seq) && local && local[key] && local[key] !== _rewound.get(+p.seq)) { _sent[key] = p.hash; return 'kept_local'; }
     const before = _localSnap[key] || _sent[key];
     const applied = applyPatch(p);
     if (applied === true && p.pageId && p.sectionId && p.hash) {
       if (before) _replaced[key] = before;
       _sent[key] = p.hash;
+      if (Number.isFinite(+p.seq)) _appliedLog.push({ seq: +p.seq, key, before });
     }
     return applied;
   }
@@ -673,7 +691,10 @@
       console.warn('[collab] 서버가 오래된 변경분을 정리했다 — 내 섹션은 다시 올리고, 못 받은 남의 변경은 되찾을 수 없다.');
       return;
     }
-    for (const p of (r.patches || [])) applyRecorded(p);
+    const local = (_rewound && (r.patches || []).length) ? await localHashesNow(cfg) : null;
+    if (_cfg !== cfg || paused()) return;
+    for (const p of (r.patches || [])) applyRecorded(p, local);
+    _rewound = null;
     if (typeof r.seq === 'number') { _cfg.seq = r.seq; _owedSeq = r.seq; }
     if (!_saveFailed) settleReceived();
     /* ★시드 재푸시 — 목차가 왔으면 기준을 갈고, 패치가 붙었으면 결손을 다시 센다.
@@ -755,6 +776,7 @@
     _serverSections = null; _needIds = []; _needTicks = 0;
     _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
     _lastPushedSeq = Object.create(null); _conflicts = new Map(); _peerForm = new Map();
+    _appliedLog = []; _rewound = null;
     _replaced = Object.create(null); _serverHashes = null; _nextSaveAt = 0; _hashesDirty = false;
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
