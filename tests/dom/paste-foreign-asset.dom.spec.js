@@ -90,3 +90,28 @@ test('종료 길: 멈추면 도는 저장도 지금 장까지만 읽고, 옮겨 
   expect(r.after).toBe(want);
   expect(errs).toEqual([]);
 });
+test('자동저장의 localStorage 본은 옮겨 둔 새 주소다 — 라이브 DOM 은 옛 주소여도 (즉시 저장도)', async ({ page }) => {
+  const errs = await bootApp(page);
+  const r = await page.evaluate(async () => {
+    const m = await import('/js/io/asset-externalize.js');
+    window.activeProjectId = 'pB'; history.replaceState(null, '', location.pathname + '?project=pB');
+    window.electronAPI = { ...(window.electronAPI || {}),
+      assetsReadAsDataUri: async () => ({ ok: true, dataUri: 'data:image/png;base64,AAAA' }),
+      assetsSaveCanvasImage: async (a) => ({ ok: true, url: `goya-asset://${a.projectId}/h.png` }) };
+    await m.adoptForeignAssets({ pages: [{ canvas: '<img src="goya-asset://pA/h.png">' }] }, 'pB');
+    const c = document.getElementById('canvas');
+    c.querySelectorAll('.section-block').forEach((x) => x.remove());
+    c.insertAdjacentHTML('beforeend', '<div class="section-block" data-section="1" id="s1"><div class="section-hitzone"></div><div class="section-inner"><img src="goya-asset://pA/h.png"></div></div>');
+    const k = 'web-editor-autosave__pB';
+    localStorage.removeItem(k);
+    window.scheduleAutoSave();
+    for (let i = 0; i < 80 && !localStorage.getItem(k); i++) await new Promise((z) => setTimeout(z, 50));
+    const auto = localStorage.getItem(k) || '';
+    localStorage.removeItem(k);
+    await window.flushSave();
+    return { auto, flush: localStorage.getItem(k) || '', dom: c.innerHTML };
+  });
+  for (const v of [r.auto, r.flush]) { expect(v).toContain('goya-asset://pB/h.png'); expect(v).not.toContain('goya-asset://pA/'); }
+  expect(r.dom).toContain('goya-asset://pA/h.png');
+  expect(errs).toEqual([]);
+});

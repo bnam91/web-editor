@@ -579,7 +579,7 @@ ${blockHeaderHTML({
           block.dataset.messages = JSON.stringify(cur);
           window.pushHistory?.('프로필 이미지');
           rerender();
-          if (samePanel) { messages.splice(0, messages.length, ...cur); rebindMsgList(); }
+          if (samePanel) { cur.forEach((m, j) => { messages[j] = Object.assign(messages[j] || {}, m); }); messages.length = cur.length; rebindMsgList(); }   // 객체를 바꾸지 않는다 — 함께 기다리는 다른 말풍선의 indexOf 가 -1 이 된다
           else if (block.classList.contains('selected')) window.showChatProperties(block);   // 새 패널의 배열은 이 그림을 모른다
         };
         reader.readAsDataURL(file);
