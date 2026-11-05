@@ -36,7 +36,7 @@ for (const f of FIELDS) {
     test('-1 은 1% 가 아니다 — 0 으로 죄고 말한다', async ({ page }) => {
       await put(page, f.sel, '-1');
       await expect.poll(() => f.model(page)).toBe(f.at(0));
-      await expect.poll(() => toast(page), { timeout: 2500 }).toContain('-1 를 0 로');
+      await expect.poll(() => toast(page), { timeout: 2500 }).toContain('입력 -1 → 적용 0');
       expect(page.__errs).toEqual([]);
     });
     test('abc 는 안 먹고 말한다', async ({ page }) => {
@@ -66,11 +66,11 @@ test('#dvd-alpha [음성] 「50%」 는 전처럼 50 · 말 없음, 1.5 → 2 �
   expect(await toast(page)).toBeNull();
   await put(page, '#dvd-alpha', '1.5');
   await expect.poll(line).toBe('rgba(204,204,204,0.02)');
-  await expect.poll(() => toast(page), { timeout: 2500 }).toContain('1.5 를 2 로');
+  await expect.poll(() => toast(page), { timeout: 2500 }).toContain('입력 1.5 → 적용 2');
   await hideToast(page);
   await put(page, '#dvd-alpha', '150');
   await expect.poll(line).toBe('#cccccc');
-  await expect.poll(() => toast(page), { timeout: 2500 }).toContain('150 를 100 로');
+  await expect.poll(() => toast(page), { timeout: 2500 }).toContain('입력 150 → 적용 100');
   expect(errs).toEqual([]);
 });
 
@@ -83,7 +83,7 @@ for (const [name, open, sel] of [
     await open(page);
     await expect(page.locator(sel).first(), '[전제] 칸이 보인다').toBeVisible();
     await put(page, sel, '-1');
-    await expect.poll(() => toast(page), { timeout: 2500 }).toContain('-1 를 0 로');
+    await expect.poll(() => toast(page), { timeout: 2500 }).toContain('입력 -1 → 적용 0');
     await expect(page.locator(sel).first()).toHaveValue('0');
     await hideToast(page);
     await put(page, sel, 'abc');

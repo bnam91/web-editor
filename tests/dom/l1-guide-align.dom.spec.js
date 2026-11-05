@@ -181,7 +181,7 @@ test('L1-X 누출 — 썸네일 · PNG(h2c·네이티브) 칼럼 자리 = 흰색
     // ⑴ 썸네일 — 진짜 저장 길
     const real = window.electronAPI; const got = [];
     window.electronAPI = new Proxy({}, { get: (t, k) => (...args) => { for (const a of args) { const s = typeof a === 'string' ? a : (() => { try { return JSON.stringify(a); } catch (_) { return ''; } })(); const m = s && s.match(/data:image\/[a-z]+;base64,[A-Za-z0-9+/=]{100,}/); if (m) got.push(m[0]); } return Promise.resolve(null); } });
-    try { const m = await import('/js/io/save-load.js'); await m.saveProjectToFile(undefined, { projectId: 'p_l1_thumb' }); } catch (e) { out.thumbErr = String(e); }
+    try { const m = await import('/js/io/save-load.js'); await m.saveProjectToFile(window.serializeProject(), { projectId: 'p_l1_thumb' }); } catch (e) { out.thumbErr = String(e); }
     window.electronAPI = real;
     out.thumbGot = got.length;
     out.thumbPx = got.length ? await decode(got[0], 100, 40) : null;
@@ -223,15 +223,16 @@ test('L1-S 가이드 켠 채 저장 — 저장 문자열의 gdt-grid 0번', asyn
     out.serialize = count(window.serializeProject());
     const real = window.electronAPI; const args = [];
     window.electronAPI = new Proxy({}, { get: (t, k) => (...a) => { for (const x of a) { try { args.push(typeof x === 'string' ? x : JSON.stringify(x)); } catch (_) {} } return Promise.resolve(null); } });
-    try { const m = await import('/js/io/save-load.js'); await m.saveProjectToFile(undefined, { projectId: 'p_l1_save' }); } catch (e) { out.err = String(e); }
+    try { const m = await import('/js/io/save-load.js'); await m.saveProjectToFile(window.serializeProject(), { projectId: 'p_l1_save' }); } catch (e) { out.err = String(e); }
     window.electronAPI = real;
-    out.saveCalls = args.length; out.saveArgsChars = args.reduce((a, s) => a + (s ? s.length : 0), 0);
+    out.saveCalls = args.length; out.saveArgsChars = args.reduce((a, s) => a + (s ? s.length : 0), 0); out.savedSec = args.some(s => s && s.includes('sB'));
     out.saveArgs = args.reduce((a, s) => a + count(s), 0);
     return out;
   });
   console.log('L1S', JSON.stringify(r));
   expect(r.bodyOn, '전제 — 가이드가 켜져 있다').toBe(true);
   expect(r.saveCalls, `전제 — 저장이 실제로 electronAPI 로 나갔다 ${JSON.stringify(r)}`).toBeGreaterThan(0);
+  expect(r.savedSec, `전제 — 나간 인자에 섹션 내용이 있다(loadProject 의 id 만 세면 빈 시험이다) ${JSON.stringify(r)}`).toBe(true);
   expect(r.serialize, `★serializeProject 의 gdt-grid ${r.serialize}번`).toBe(0);
   expect(r.saveArgs, `★저장 인자의 gdt-grid ${r.saveArgs}번`).toBe(0);
   expect(errs).toEqual([]);
