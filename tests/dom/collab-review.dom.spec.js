@@ -311,7 +311,7 @@ test('T7b 천장을 넘는 파일은 maxBytes 를 실어 물어 안 읽는다', 
     return { seen, ev: ev.map(e => ({ s: e.sectionId, b: e.detail.bytes })), pushed: window.__pushes.map(p => p.sectionId) };
   });
   expect(r.seen.every(n => n === 525000), `maxBytes: ${r.seen}`).toBe(true);
-  expect(r.ev).toEqual([{ s: 'secV', b: 50000000 }]);
+  expect(r.ev).toEqual([{ s: 'secV', b: Math.ceil(50000000 * 4 / 3) }]);
   expect(r.pushed).toEqual(['secT']);
 });
 
