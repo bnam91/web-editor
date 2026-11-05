@@ -2467,6 +2467,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   // 못 읽음(EMFILE·EACCES 등)은 깨짐이 아니다 — 열기는 실패로 말하고 파일은 그대로. 저장 병합용 로드는 있는 후보로.
   if (isOpen && diag.planning && !r) return { _planning: true };   // 기획 프로젝트는 편집기 것이 아니다 — 빈 판으로 열면 저장이 기획 칸을 지운다
   if (diag.readError) return isOpen ? { _readError: diag.readError } : (r ? r.proj : null);
+  if (r) _seenProjects.add(String(id));
   if (!r) {
     // JSON 이 깨졌다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.
     const broken = isOpen && diag.corrupt ? _resolveProjectJsonPath(id) : null;
@@ -2666,8 +2667,20 @@ const _closeDeletedTabs = (projectId) => _callEachWindow(`window.closeDeletedPro
 /* 휴지통으로 옮기기 전에 밀린 편집을 내린다 — 되살리면 그 내용이 돌아온다. 영구 삭제는 안 부른다. */
 const _flushBeforeTrash = (projectId) => _callEachWindow(`window.flushProjectBeforeTrash?.(${JSON.stringify(projectId)})`, 5000);
 
+/* 폴더가 앱 밖에서 없어진 탭(MISSING-PROJECT-TAB-NO-NOTICE-01) — 앱 안 삭제와 갈라 부른다: 앱 휴지통의 프로젝트는 저장이 되살리지 못한다(위 현빈 결정), 앱 밖에서 없어진 것은 편집을 살리려고 저장이 폴더를 다시 만든다. */
+const _seenProjects = new Set();   // 이번 실행에서 읽었거나 쓴 프로젝트 — 첫 저장(새 프로젝트)과 «다시 만듦»을 가른다
+function _projectFolderState(id) {
+  const key = String(id || '');
+  if (_resolveProjectJsonPath(key)) return 'ok';
+  if (_deletedProjects.has(key)) return 'trashed';
+  try { if (_trash.listTrash({ projectsDir: _projectsRoot() }).items.some((x) => x.projectId === key)) return 'trashed'; } catch (_) {}
+  return 'missing';
+}
+ipcMain.handle('projects:folder-state', (_e, id) => _projectFolderState(id));
+
 async function _saveProjectImpl(project) {
   if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };
+  const _recreated = _seenProjects.has(String(project.id)) && !_resolveProjectJsonPath(project.id);
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
   const filePath = paths.proj;
@@ -2688,6 +2701,8 @@ async function _saveProjectImpl(project) {
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
+  _seenProjects.add(String(project.id));
+  if (_recreated) _callEachWindow(`window.noteProjectFolderRecreated?.(${JSON.stringify(project.id)})`, 3000);   // 안 기다린다 — 저장 줄을 말 띄우기에 묶지 않는다
   _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
   _refreshListMeta(project.id, project);

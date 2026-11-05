@@ -2114,6 +2114,16 @@ window.prepareLsWin = _prepareLsWin;
    열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
    옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
+/* 앱 밖에서 폴더가 없어진 프로젝트의 남은 LS 본(MISSING-PROJECT-TAB-NO-NOTICE-01). 폴더가 있으면 null. 앱 휴지통의 것은 본을 안 준다 — 지운 프로젝트는 되살리지 않는다. */
+async function _projectGoneCopy(id) {
+  const state = await window.electronAPI?.projectFolderState?.(id);
+  if (state !== 'missing' && state !== 'trashed') return null;
+  let data = null;
+  if (state === 'missing') { try { const d = JSON.parse(localStorage.getItem(SAVE_KEY_PREFIX + '__' + id)); if (Array.isArray(d?.pages) && d.pages.length) data = d; } catch {} }
+  return { state, data };
+}
+window.projectGoneCopy = _projectGoneCopy;
+
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
   if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
@@ -2666,6 +2676,7 @@ function initApp() {
     /* ★342 — 읽히기 전 캔버스는 비었다. 탭 전환이 빈 캐시를 남기고, 편집이 빈 화면을 파일로 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/342d).
        읽히면 풀고, 못 읽었으면 쥔 채 둔다(_bootUnread) — 그 편집은 안 남지만 파일이 남는다(saveProjectToFile 머리말과 같은 판정). */
     let _bootUnread = false;
+    let _bootGone = null, _bootGoneName = null;   // 이번 부팅 프로젝트의 폴더가 앱 밖에서 없어졌으면 그 값(_projectGoneCopy)
     if (_bootProjectId) window.holdTabFirstLoading?.(_bootProjectId);
     const _bootStale = () => {
       if (activeProjectId === _bootProjectId) return false;
@@ -2730,9 +2741,16 @@ function initApp() {
         let allProjects = [];
         try {
           allProjects = await window.electronAPI.listProjects();
-          cleanStaleAutosaveKeys(allProjects.map(p => p.id));
+          /* 폴더가 앱 밖에서 없어진 탭 — LS 본이 있으면 탭과 본을 남긴다(누르면 그 본으로 연다). 없으면 뺀다. */
+          const _listed = new Set(allProjects.map(p => p.id));
+          const _goneTabs = await Promise.all(openTabs.filter(t => !_listed.has(t.id)).map(async t => ({ t, g: await _projectGoneCopy(t.id) })));
+          const _keptIds = _goneTabs.filter(x => x.g?.data).map(x => x.t.id);
+          _bootGone = _goneTabs.find(x => x.t.id === activeProjectId)?.g || null;
+          _bootGoneName = openTabs.find(t => t.id === activeProjectId)?.name;
+          cleanStaleAutosaveKeys([..._listed, ..._keptIds]);
+          _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
-          const existingIds = new Set(allProjects.map(p => p.id));
+          const existingIds = new Set([..._listed, ..._keptIds]);
           existingIds.add(activeProjectId);
           openTabs = openTabs.filter(t => existingIds.has(t.id));
           if (!openTabs.find(t => t.id === activeProjectId)) {
@@ -2772,7 +2790,7 @@ function initApp() {
         }
         // proj null이어도 탭바는 반드시 렌더 (이름은 Untitled로 유지)
         const tab = openTabs.find(t => t.id === activeProjectId);
-        if (tab) tab.name = name;
+        if (tab && (proj || !_bootGone)) tab.name = name;
         window.renderTabBar();
         window.saveTabState?.();
         if (proj) {
@@ -2823,9 +2841,10 @@ function initApp() {
       window.renderTabBar();
       window.saveTabState?.();
     }
-    const saved = localStorage.getItem(getSaveKey());
-    if (saved) { try { applyAndFinish(JSON.parse(saved)); return; } catch {} }
+    const saved = _bootGone && !_bootGone.data ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
+    if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); return; } catch {} }
     initEmpty();
+    if (_bootGone) window.closeDeletedProjectTab?.(activeProjectId);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다
   })().catch(e => {
     // [b7] 페일세이프: initLoad 본문이 예기치 못한 예외로 종료되면 정적 로딩 오버레이가 화면에
     //   영원히 남는다(기본 표시 상태이므로). 모든 정상 경로는 applyAndFinish.finally / initEmpty에서

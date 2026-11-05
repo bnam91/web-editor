@@ -1,0 +1,164 @@
+/* tab-missing-project-notice — 폴더가 앱 밖에서 없어진 탭이 말없는 빈 탭이 안 되고 남은 내용을 안 잃는다(MISSING-PROJECT-TAB-NO-NOTICE-01).
+ * 앱 실측(78746dbc · ~/gd-lane/imac-gd-L3/MPT/b0 · 3/3): 첫 로드 탭은 LS 본이 있어도 빈 화면 · 거기서 편집하면 LS 본까지 빈 판으로 덮임 · 캐시 탭은 말없이 옛 화면.
+ * 장면: 폴더 상태와 읽기를 가짜 API 로 돌린다(하네스라 폴더 지우기는 못 쓴다 · 앱 길은 위 탐침이 잰다).
+ * 칸: M1 LS 본이 있으면 그 본으로 열고 알린다 · M2 본이 없으면 닫고 알린다 · M3 앱 휴지통의 것은 본이 있어도 안 연다 · M4 캐시 탭도 알린다 · M5 다시 만들었으면 알린다.
+ * 대조: N1 폴더가 있으면 말 없음(캐시) · N2 폴더가 있으면 말 없음(읽기) · N3 없는 탭의 다시 만듦은 말 없음.
+ * 칸(부팅 길 — 앱을 다시 띄워 탭을 누른 길): B1 보던 탭 LS 본으로 연다 · B2 본 없으면 닫는다 · B3 옆 탭은 본이 있으면 남고 없으면 알리고 빠진다 · B4 앱 휴지통의 것은 본으로 안 연다.
+ * 변이: 고치기 전 판(GD1001_ROOT)에서 M1~M5·B1~B4 빨강 · 대조 초록(회신에 값).  */
+const { test, expect } = require('@playwright/test');
+const { bootApp, ORIGIN } = require('./_root-harness.js');
+
+const doc = (id) => ({ id, name: id + '이름', version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P', canvas: '<div class="section-block" id="s_' + id + '" data-section="1"><div class="section-hitzone"></div><div class="section-inner"></div></div>' }] });
+async function setup(page, { state, ls, cached }) {
+  const errs = await bootApp(page);
+  await page.evaluate(({ state, ls, cached, A, B }) => {
+    window.__saved = [];
+    const real = window.electronAPI;
+    window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { window.__saved.push(x.id); return { ok: true }; }
+      : k === 'loadProject' ? async (id) => (id === 'proj_b' && state !== 'ok' ? null : (id === 'proj_b' ? B : A))
+      : k === 'projectFolderState' ? async (id) => (id === 'proj_b' ? state : 'ok') : t[k] });
+    window.__toasts = []; const f = window.showStatusToast; window.showStatusToast = (m) => { window.__toasts.push(m); f(m); };
+    if (ls) localStorage.setItem('web-editor-autosave__proj_b', JSON.stringify(B));
+    window.openTabs = [{ id: 'proj_a', name: 'proj_a이름', _cache: JSON.stringify(A) }, { id: 'proj_b', name: 'proj_b이름', ...(cached ? { _cache: JSON.stringify(B) } : {}) }];
+    window.activeProjectId = 'proj_a';
+    window.renderTabBar();
+  }, { state, ls, cached, A: doc('proj_a'), B: doc('proj_b') });
+  return errs;
+}
+const go = (page) => page.evaluate(() => window.switchTab('proj_b'));
+const settled = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))));
+const st = (page) => page.evaluate(() => ({ tabs: window.openTabs.map(t => t.id), active: window.activeProjectId, screenB: !!document.getElementById('s_proj_b'), saved: window.__saved, toasts: window.__toasts, ls: localStorage.getItem('web-editor-autosave__proj_b') }));
+
+test('M1 LS 본이 있으면 그 본으로 열고 알린다 — 빈 화면이 아니다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true });
+  await go(page); await settled(page);
+  const s = await st(page);
+  expect(s.tabs).toEqual(['proj_a', 'proj_b']);
+  expect(s.active).toBe('proj_b');
+  expect(s.screenB, '★남은 본이 있는데 빈 화면').toBe(true);
+  expect(s.toasts.length).toBe(1);
+  expect(s.toasts[0]).toContain('proj_b이름');
+  expect(s.toasts[0]).toContain('폴더를 찾을 수 없습니다');
+  expect(s.saved, '열기만으로 폴더를 되살리지 않는다').not.toContain('proj_b');
+  expect(errs).toEqual([]);
+});
+test('M2 본이 없으면 지운 프로젝트와 같이 닫고 알린다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: false });
+  await go(page);
+  await page.waitForFunction(() => window.openTabs.length === 1);
+  const s = await st(page);
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(s.active).toBe('proj_a');
+  expect(s.saved).not.toContain('proj_b');
+  expect(s.toasts).toEqual(['「proj_b이름」 프로젝트가 삭제되어 탭을 닫았습니다.']);
+  expect(errs).toEqual([]);
+});
+test('M3 앱 휴지통의 프로젝트는 본이 있어도 안 연다', async ({ page }) => {
+  const errs = await setup(page, { state: 'trashed', ls: true });
+  await go(page);
+  await page.waitForFunction(() => window.openTabs.length === 1);
+  const s = await st(page);
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(s.screenB, '★지운 프로젝트를 본으로 열었다').toBe(false);
+  expect(s.saved).not.toContain('proj_b');
+  expect(errs).toEqual([]);
+});
+test('M4 캐시 탭도 알린다 — 화면은 그대로', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', cached: true });
+  await go(page);
+  await page.waitForFunction(() => window.__toasts.length > 0);
+  const s = await st(page);
+  expect(s.screenB).toBe(true);
+  expect(s.toasts[0]).toContain('폴더를 찾을 수 없습니다');
+  expect(errs).toEqual([]);
+});
+test('M5 저장이 폴더를 다시 만들면 알린다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', cached: true });
+  await page.evaluate(() => window.noteProjectFolderRecreated('proj_b'));
+  const s = await st(page);
+  expect(s.toasts.length).toBe(1);
+  expect(s.toasts[0]).toContain('proj_b이름');
+  expect(s.toasts[0]).toContain('다시 만들었습니다');
+  expect(errs).toEqual([]);
+});
+test('N1 [대조] 폴더가 있으면 캐시 탭은 말이 없다', async ({ page }) => {
+  const errs = await setup(page, { state: 'ok', cached: true });
+  await go(page); await settled(page);
+  const s = await st(page);
+  expect(s.screenB).toBe(true);
+  expect(s.toasts).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('N2 [대조] 폴더가 있으면 첫 로드 탭은 말이 없다', async ({ page }) => {
+  const errs = await setup(page, { state: 'ok' });
+  await go(page); await settled(page);
+  const s = await st(page);
+  expect(s.screenB).toBe(true);
+  expect(s.tabs).toEqual(['proj_a', 'proj_b']);
+  expect(s.toasts).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('N3 [대조] 탭이 없는 프로젝트를 다시 만들어도 말이 없다', async ({ page }) => {
+  const errs = await setup(page, { state: 'ok' });
+  await page.evaluate(() => window.noteProjectFolderRecreated('proj_없음'));
+  expect((await st(page)).toasts).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+/* 부팅 길: 저장된 탭과 LS 를 놓고 다시 싣는다. 가짜 API 는 init 스크립트라 새 문서에도 남는다. */
+async function bootWith(page, { url, listed, states, ls, tabs }) {
+  const errs = await bootApp(page);
+  await page.addInitScript(({ listed, states, doc }) => {
+    const mk = (id) => JSON.parse(JSON.stringify(doc).split('@ID').join(id));
+    const real = window.electronAPI;
+    window.electronAPI = new Proxy(real, { get: (t, k) => k === 'listProjects' ? async () => listed.map((id) => ({ id, name: id + '이름', updatedAt: 0 }))
+      : k === 'loadProject' ? async (id) => (listed.includes(id) ? mk(id) : null)
+      : k === 'projectFolderState' ? async (id) => states[id] || 'ok' : t[k] });
+  }, { listed, states, doc: doc('@ID') });
+  await page.evaluate(({ ls, tabs, doc }) => {
+    localStorage.clear();
+    for (const id of ls) localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(doc).split('@ID').join(id));
+    localStorage.setItem('web-editor-open-tabs', JSON.stringify({ tabs: tabs.map((id) => ({ id, name: id + '이름' })), activeId: tabs[0] }));
+  }, { ls, tabs, doc: doc('@ID') });
+  await page.goto(`${ORIGIN}/${url}`);
+  await page.waitForFunction(() => { const g = window.gdtProjectReady?.get?.(); return g && g.phase !== 'loading'; }, null, { timeout: 20000 });
+  return errs;
+}
+const bs = (page) => page.evaluate(() => ({ tabs: JSON.parse(localStorage.getItem('web-editor-open-tabs') || '{}').tabs?.map(t => t.id), tabNames: JSON.parse(localStorage.getItem('web-editor-open-tabs') || '{}').tabs?.map(t => t.name), active: window.activeProjectId, screenB: !!document.getElementById('s_proj_b'), toasts: [...document.querySelectorAll('.settings-toast')].map(x => x.textContent), lsB: !!localStorage.getItem('web-editor-autosave__proj_b') }));
+
+test('B1 보던 탭의 폴더가 없어졌으면 LS 본으로 열고 알린다 — 부팅의 고아 정리가 그 본을 안 지운다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_b', listed: ['proj_a'], states: { proj_b: 'missing' }, ls: ['proj_b'], tabs: ['proj_b', 'proj_a'] });
+  await page.waitForSelector('#s_proj_b', { state: 'attached', timeout: 10000 });
+  const s = await bs(page);
+  expect(s.lsB, '★고아 정리가 남은 본을 지웠다').toBe(true);
+  expect(s.toasts.join()).toContain('proj_b이름');
+  expect(s.toasts.join()).toContain('폴더를 찾을 수 없습니다');
+  expect(s.tabNames, '이름을 Untitled 로 안 덮는다').toContain('proj_b이름');
+  expect(errs).toEqual([]);
+});
+test('B2 보던 탭에 본도 없으면 말없는 빈 탭 대신 닫고 알린다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_b', listed: ['proj_a'], states: { proj_b: 'missing' }, ls: [], tabs: ['proj_b', 'proj_a'] });
+  await page.waitForFunction(() => window.activeProjectId === 'proj_a', null, { timeout: 10000 });
+  const s = await bs(page);
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(s.toasts.join()).toContain('「proj_b이름」 프로젝트가 삭제되어 탭을 닫았습니다.');
+  expect(errs).toEqual([]);
+});
+test('B3 옆 탭 — 본이 있으면 남고, 없으면 알리고 빠진다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a'], states: { proj_b: 'missing', proj_c: 'missing' }, ls: ['proj_b'], tabs: ['proj_a', 'proj_b', 'proj_c'] });
+  await page.waitForFunction(() => document.querySelectorAll('.settings-toast').length > 0, null, { timeout: 10000 });
+  const s = await bs(page);
+  expect(s.tabs).toEqual(['proj_a', 'proj_b']);
+  expect(s.lsB).toBe(true);
+  expect(s.toasts.join()).toContain('proj_c이름');
+  expect(errs).toEqual([]);
+});
+test('B4 앱 휴지통의 프로젝트는 본이 있어도 안 연다 — 탭 목록이 낡아도', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_b', listed: ['proj_a'], states: { proj_b: 'trashed' }, ls: ['proj_b'], tabs: ['proj_b', 'proj_a'] });
+  await page.waitForFunction(() => window.activeProjectId === 'proj_a', null, { timeout: 10000 });
+  const s = await bs(page);
+  expect(s.screenB, '★지운 프로젝트를 본으로 열었다').toBe(false);
+  expect(s.lsB).toBe(false);
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(errs).toEqual([]);
+});

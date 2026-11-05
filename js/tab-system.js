@@ -383,6 +383,9 @@ async function switchTab(id) {
     if (targetTab?._cache) {
       window.applyProjectData(JSON.parse(targetTab._cache));
       window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
+      Promise.resolve(window.electronAPI?.projectFolderState?.(id)).then((s) => {   // 파일을 안 읽는 분기라 폴더가 없어도 모른다 — 탭을 막지 않고 묻는다
+        if (s === 'missing' && _getActId() === id) window.showStatusToast?.(window.missingFolderNotice?.(targetTab.name));
+      }).catch(() => {});
       _runAfterLs(targetTab._afterLs);   // 첫 로드 직후 떠나 못 끝낸 복구 저장(앱 3/3)
       window.initBranchStore();
       _restoreViewState(targetTab);
@@ -416,7 +419,15 @@ async function switchTab(id) {
       proj = window.loadProjectsList().find(p => p.id === id) || null;
       if (targetTab && proj?.name) targetTab.name = proj.name;
     }
-    if (proj) {
+    /* 폴더가 앱 밖에서 없어진 탭 — 빈 화면으로 열면 첫 편집이 남은 LS 본까지 빈 판으로 덮는다(앱 3/3). 본이 있으면 그것으로 열고, 없으면 지운 프로젝트와 같이 탭을 닫고 알린다. */
+    const _gone = (!proj && window.IS_ELECTRON) ? await window.projectGoneCopy?.(id) : null;
+    if (_gen !== _switchGen) return;
+    if (_gone?.data) {
+      if (targetTab) targetTab._cache = JSON.stringify(_gone.data);
+      window.applyProjectData(_gone.data);
+      _restoreViewState(targetTab);
+      window.showStatusToast?.(window.missingFolderNotice?.(targetTab?.name));
+    } else if (proj) {
       /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
       let _lsData = null;
       try { _lsData = window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
@@ -441,6 +452,7 @@ async function switchTab(id) {
     // 파일 로드 분기에서도 스크래치 전환 (currentPageId는 applyProjectData가 set한 후)
     try { await window.switchScratch?.(id, window.state?.currentPageId); }
     finally { _settle(proj ? 'tab-file' : 'tab-missing'); }
+    if (_gone && !_gone.data) queueMicrotask(() => Promise.resolve(closeDeletedProjectTab(id)).catch(e => console.warn('[tab] 없어진 프로젝트 탭 닫기 실패:', e && e.message)));
   } finally {
     /* ★이미 위에서 정상 해제됐으면 여기선 «아무 일도 안 한다»(토큰이 한 번만 먹는다). */
     window.AutoSaveSuppress.end(_asTok);
@@ -612,6 +624,7 @@ window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
 window.closeTab             = closeTab;
 window.closeDeletedProjectTab = closeDeletedProjectTab;
+window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;
 window.createNewProjectTab  = createNewProjectTab;
