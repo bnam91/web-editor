@@ -115,3 +115,36 @@ test('자동저장의 localStorage 본은 옮겨 둔 새 주소다 — 라이브
   expect(r.dom).toContain('goya-asset://pA/h.png');
   expect(errs).toEqual([]);
 });
+for (const [name, queued] of [['준비 중인 본', false], ['줄에 선 본', true]]) {
+  test(`종료 flush: ${name}도 옮겨 둔 새 주소로 동기 저장한다 — 탭을 떠난 프로젝트의 옛 주소 본이 파일을 되돌리지 않는다`, async ({ page }) => {
+    const errs = await bootApp(page);
+    const r = await page.evaluate(async (queued) => {
+      const m = await import('/js/io/asset-externalize.js');
+      const syncs = [];
+      let held; const hold = new Promise((z) => { held = z; });
+      const fake = {
+        assetsReadAsDataUri: async () => ({ ok: true, dataUri: 'data:image/png;base64,AAAA' }),
+        assetsSaveCanvasImage: async (a) => ({ ok: true, url: `goya-asset://${a.projectId}/h.png` }),
+        loadProject: async () => { window.__inPrep = true; await hold; return {}; },
+        saveProject: async () => ({ ok: true }),
+        saveProjectSync: (p) => { syncs.push(p); return { ok: true }; },
+      };
+      window.electronAPI = new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
+      window.IS_ELECTRON = true;
+      await m.adoptForeignAssets({ pages: [{ canvas: '<img src="goya-asset://pA/h.png">' }] }, 'pB');
+      window.activeProjectId = 'pC'; history.replaceState(null, '', '?project=pC');
+      const snap = (c) => JSON.stringify({ version: 2, pages: [{ id: 'page_1', canvas: `<div class="section-block">${c}<img src="goya-asset://pA/h.png"></div>` }] });
+      window.saveProjectToFile(queued ? snap('앞') : snap('본'), { skipThumbnail: true, projectId: queued ? 'pD' : 'pB' });
+      while (!window.__inPrep) await new Promise((z) => setTimeout(z, 10));
+      if (queued) window.saveProjectToFile(snap('본'), { skipThumbnail: true, projectId: 'pB' });
+      window.dispatchEvent(new Event('beforeunload'));
+      held();
+      return syncs.filter((p) => p.id === 'pB').map((p) => p.pages[0].canvas);
+    }, queued);
+    expect(r.length).toBe(1);
+    expect(r[0]).toContain('본');
+    expect(r[0]).toContain('goya-asset://pB/h.png');
+    expect(r[0]).not.toContain('goya-asset://pA/');
+    expect(errs).toEqual([]);
+  });
+}
