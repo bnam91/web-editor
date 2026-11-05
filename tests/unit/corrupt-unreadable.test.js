@@ -31,7 +31,7 @@ function load(dir) {
   const h = {}; const ipcMain = { handle: (c, f) => { h[c] = f; }, on: (c, f) => { h[c] = f; } };
   const body = FNS.map(fnSrc).join('\n\n') + '\n' + stmt("ipcMain.handle('projects:load'") + '\n' + stmt("ipcMain.on('projects:save-sync'");
   const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {}; const _isProjectDeleted = () => false; const _externalizeOnOpen = () => {}; const _recentRecovery = new Map();\n${body}\n; return { _saveProjectImpl };`
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {}; const _isProjectDeleted = () => false; const _externalizeOnOpen = () => {}; const _recentRecovery = new Map(); const _recordSyncSaveFailure = () => {};\n${body}\n; return { _saveProjectImpl };`
   )(fs, path, dir, req, { log() {}, warn() {}, error() {} }, ipcMain);
   return {
     open: (id) => h['projects:load']({}, id, { open: true }),
@@ -58,8 +58,31 @@ test('U1 깨짐·후보 없음 + 열기 → 못 읽음으로 답하고, 원본�
   assert.deepStrictEqual(s.side(), [r.preservedAs]);
   assert.strictEqual(fs.readFileSync(path.join(s.p, r.preservedAs), 'utf8'), BROKEN);
 });
-test('U2 [음성] 프로젝트 꼴이 아닌 JSON(기획 프로젝트)은 깨짐이 아니다 — null · 옆 파일 없음 · 저장에도 옆 파일 없음', async () => {
+test('U2b 기획 프로젝트 열기 → 못 연다고 답하고 파일 그대로 · 저장 병합용 로드는 그대로 null', () => {
+  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning', extra: 1 });
+  const s = scene({ cur: plan }); const R = load(s.dir);
+  assert.deepStrictEqual(R.open(ID), { _planning: true });
+  assert.strictEqual(R.read(ID), null);
+  assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan);
+  assert.deepStrictEqual(s.side(), []);
+});
+test('U2c 기획 파일 옆 모양 있는 백업이 있어도 로드가 그 위로 안 쓴다 — 열기·비열기 둘 다', () => {
   const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning' });
+  for (const how of ['open', 'read']) {
+    const s = scene({ cur: plan, backup: JSON.stringify(doc('옛')) }); const R = load(s.dir);
+    assert.deepStrictEqual(R[how](ID), how === 'open' ? { _planning: true } : null);
+    assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan, '★' + how + ' 가 기획 파일을 덮었다');
+  }
+});
+test('U2d 기획 파일은 저장이 못 덮는다 — 비동기·동기', async () => {
+  const plan = JSON.stringify({ id: ID, name: '기획', type: 'planning' });
+  const s = scene({ cur: plan }); const R = load(s.dir);
+  assert.strictEqual((await R.save(doc('새'))).reason, 'planning_not_editor');
+  assert.strictEqual(R.saveSync(doc('새')).reason, 'planning_not_editor');
+  assert.strictEqual(fs.readFileSync(s.proj, 'utf8'), plan);
+});
+test('U2 [음성] 프로젝트 꼴이 아닌 JSON 은 깨짐이 아니다 — null · 옆 파일 없음 · 저장에도 옆 파일 없음', async () => {
+  const plan = JSON.stringify({ id: ID, name: '이름', type: 'other' });
   const s = scene({ cur: plan }); const R = load(s.dir);
   assert.strictEqual(R.open(ID), null);
   assert.deepStrictEqual(s.side(), []);

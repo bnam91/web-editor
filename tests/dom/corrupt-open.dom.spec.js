@@ -16,7 +16,7 @@ async function setup(page, answers) {
     const fake = {
       isElectron: true,
       onForceSaveBeforeQuit: () => {}, quitReady: () => {},
-      listProjects: async () => [A, B].map(id => ({ id, name: id })),
+      listProjects: async () => [...[A, B].map(id => ({ id, name: id })), { id: 'plan_1', name: '기획칸', type: 'planning' }, { id: 'proj_9', name: '보통칸' }],
       loadProject: async (id, opts) => {
         if (!(opts && opts.open === true)) return id in answers ? null : project(id);
         if (!(id in answers)) return project(id);
@@ -123,4 +123,19 @@ test('C10 탭 닫기 — 다음 탭이 깨졌어도 닫힌다 · 말한다 · �
   await toasts(page).toContain('proj_corrupt_1.json');
   expect(await page.evaluate((A) => window.activeProjectId === A, A)).toBe(true);
   expect(await page.evaluate(() => window.__saves)).toBe(0);
+});
+
+test('C11 기획 프로젝트 — 편집기가 못 연다고 말하고 저장을 안 부른다', async ({ page }) => {
+  await setup(page, { [B]: { mark: { _planning: true } } });
+  await toasts(page).toContain('기획 프로젝트');
+  const r = await page.evaluate(() => window.saveProjectToFile(window.serializeProject()));
+  expect(r.reason).toBe('tab-not-loaded');
+  expect(await page.evaluate(() => window.__saves)).toBe(0);
+});
+
+test('C12 + 메뉴에 기획 프로젝트가 없다 · [음성] 보통 프로젝트는 있다', async ({ page }) => {
+  await setup(page, {});
+  await page.evaluate(() => window.toggleTabAddMenu(new MouseEvent('click')));
+  await expect(page.locator('#tab-add-menu')).toContainText('보통칸');
+  await expect(page.locator('#tab-add-menu')).not.toContainText('기획칸');
 });

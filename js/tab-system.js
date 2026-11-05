@@ -396,10 +396,15 @@ async function switchTab(id) {
     // 최초 로드: 파일에서 읽기 ({open:true} — 열 때 외부화 정책은 이 로드에서만 돈다)
     let proj = null;
     let _afterLs = null;
-    let _savesDrained = true;
     if (window.IS_ELECTRON) {
       _firstLoadingTabId = id;
-      _savesDrained = (await window.waitSavesFor?.(id)) !== false;
+      /* 그 프로젝트의 앞 저장이 끝날 때까지 안 읽는다 — 먼저 읽으면 그 저장보다 낡은 화면이고, 거기서 쓰면 그 저장을 덮고(앱 3/3) 안 쓰면 받은 편집을 버린다(리뷰).
+         기다리는 동안 입력은 게이트가 막는다. 다른 탭으로 가면 곧바로 그만둔다 — 오래 끌면 이 억제 토큰이 남아 그 탭 게이트가 안 풀린다. */
+      const _waitFrom = Date.now();
+      for (let _said = false; (await window.waitSavesFor?.(id, 100)) === false;) {
+        if (_gen !== _switchGen) return;
+        if (!_said && Date.now() - _waitFrom > 15000) { _said = true; window.showToast?.('⏳ 앞 저장이 아직 안 끝나 기다립니다 — 끝나면 파일을 읽어 엽니다. 그동안 이 탭은 편집이 막힙니다.'); }
+      }
       if (_gen !== _switchGen) return;
       proj = await window.loadProjectForOpen(id)   // ★E170 — 열기 로드 한 자리(복구 알림 포함 · save-load.js)
         .catch(e => { _settleErr('tab-load-failed:' + ((e && e.message) || e)); throw e; });
@@ -414,7 +419,7 @@ async function switchTab(id) {
     if (proj) {
       /* 충돌로 파일이 낡았으면 localStorage 본으로 복구 — 부팅과 같은 판정. 표시 없는 옛 본은 파일(복원한 파일을 이기면 안 된다). 판정이 던지면 파일로 연다. */
       let _lsData = null;
-      try { _lsData = _savesDrained ? (window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null) : null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
+      try { _lsData = window.pickLsOverFile?.(proj, id, { unmarkedWins: false }) || null; } catch (e) { console.warn('[tab] 복구 판정 실패 — 파일로 연다:', e); }
       _afterLs = _lsData ? window.prepareLsWin(_lsData, proj, id) : null;
       if (targetTab) targetTab._afterLs = _afterLs;
       const data = _lsData || (proj.version === 2 && proj.pages ? proj : proj.snapshot ? JSON.parse(proj.snapshot) : proj);
@@ -455,6 +460,7 @@ async function closeTab(id) {
     /* 다음 탭을 못 읽어도 닫기는 끝낸다 — switchTab 이 실패를 일부러 던진다(말은 게이트가 했다). 못 옮겨 갔으면 닫으면 안 된다. */
     try { await switchTab(nextTab.id); }
     catch (e) { console.warn('[closeTab] 다음 탭 열기 실패:', e && e.message); if (_getActId() === id) return; }
+    if (_getActId() === id) return;   // 다음 탭이 앞 저장을 기다리는 동안 이 탭으로 돌아왔다 — 활성 탭을 목록에서 빼면 떠날 때 저장을 건너뛰어 편집을 잃는다
   }
   _setTabs(_getTabs().filter(t => t.id !== id));
   renderTabBar();
@@ -562,7 +568,7 @@ async function toggleTabAddMenu(e) {
 
   // 이미 탭에 열린 프로젝트 제외
   const openIds = new Set(_getTabs().map(t => t.id));
-  list = list.filter(p => !openIds.has(p.id)).slice(0, 12);
+  list = list.filter(p => !openIds.has(p.id) && p.type !== 'planning').slice(0, 12);   // 기획 프로젝트는 편집기로 안 연다
 
   if (!list.length) {
     menu.innerHTML = NEW_PROJECT_BTN_HTML;
