@@ -315,6 +315,96 @@ test('T7b 천장을 넘는 파일은 maxBytes 를 실어 물어 안 읽는다', 
   expect(r.pushed).toEqual(['secT']);
 });
 
+test('T7c 525,001~700,000 바이트 파일도 base64 로 재서 안 보낸다 — 죽은 주소가 안 나간다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    const real = window.electronAPI.assetsReadAsDataUri;
+    window.electronAPI.assetsReadAsDataUri = async (q) => (q.filename === 'p600.png' ? { ok: false, tooBig: true, bytes: 600000 } : real(q));
+    const ev = []; window.collabSync.onEvent(e => { if (e.type === 'section_too_large') ev.push(e); });
+    window.__canvas(window.__img('secV', 'proj_a', 'p600.png') + window.__txt('secT', 'T0', 2));
+    await window.collabSync.start('proj_a');
+    return { ev: ev.map(e => ({ s: e.sectionId, b: e.detail.bytes })), pushed: window.__pushes.map(p => p.sectionId), goya: window.__pushes.filter(p => p.html.includes('goya-asset://')).length };
+  });
+  expect(r.goya, '죽은 주소가 나갔다').toBe(0);
+  expect(r.ev).toEqual([{ s: 'secV', b: 800000 }]);
+  expect(r.pushed, '★양성: 다른 섹션은 간다').toEqual(['secT']);
+});
+
+/* 받은 패치가 저장 대기 중일 때 탭을 옮기는 장면. edit=true 면 그 섹션을 고쳐 탭 전환 저장에 실려 돌아온다 */
+async function rewindScene(page, edit) {
+  return page.evaluate(async (edit) => {
+    window.__canvas(window.__txt('secP', 'P0'));
+    await window.collabSync.start('proj_a');
+    await window.collabSync.tick();
+    await window.collabSync._internals.settleReceived(true);
+    await new Promise(res => requestAnimationFrame(res));
+    window.saveProjectToFile = async () => ({ ok: false, reason: 'qa' });
+    const cur = window.state.currentPageId;
+    const wire = window.collabSync._internals.collectSections(JSON.parse(window.serializeProject())).find(x => x.sectionId === 'secP').html;
+    window.__other('secP', '', cur, wire.replace('P0', '받은글'));
+    await window.collabSync.tick();
+    await new Promise(res => requestAnimationFrame(res));
+    const onScreen = document.querySelector('#secP .tb').textContent;
+    const real = Object.getOwnPropertyDescriptor(window, 'activeProjectId');
+    let active = 'proj_q';
+    Object.defineProperty(window, 'activeProjectId', { configurable: true, get: () => active, set: (v) => { active = v; } });
+    window.__canvas(window.__txt('secQ', 'Q0'));
+    await window.collabSync.tick();
+    active = 'proj_a';
+    /* 돌아온 판 — 고쳤으면 탭 전환 저장에 실린 내 글, 아니면 파일의 옛 판 */
+    window.__canvas(window.__txt('secP', edit ? '받은글+내편집' : 'P0'));
+    window.saveProjectToFile = async () => ({ ok: true });
+    const before = window.__pushes.length;
+    await window.collabSync.tick();
+    await new Promise(res => requestAnimationFrame(res));
+    const text = document.querySelector('#secP .tb').textContent;
+    await window.collabSync.tick();
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } }));
+    for (let i = 0; i < 10; i++) await new Promise(res => requestAnimationFrame(res));
+    if (real) Object.defineProperty(window, 'activeProjectId', real);
+    return { onScreen, text, pushed: window.__pushes.slice(before).map(p => /받은글\+내편집|받은글|P0/.exec(p.html)?.[0]) };
+  }, edit);
+}
+
+test('T1c 저장 대기 중 받은 섹션을 고치고 탭을 옮겨도 돌아와 내 편집이 안 덮인다 · 내 편집은 올라간다', async ({ page }) => {
+  await boot(page);
+  const r = await rewindScene(page, true);
+  expect(r.onScreen, '★전제: 받은 글이 붙었다').toBe('받은글');
+  expect(r.text, '다시 받은 패치가 내 편집을 덮었다').toBe('받은글+내편집');
+  expect(r.pushed).toEqual(['받은글+내편집']);
+});
+
+test('T1d 양성: 안 고쳤으면 화면과 함께 사라진 패치를 돌아와 다시 붙인다', async ({ page }) => {
+  await boot(page);
+  const r = await rewindScene(page, false);
+  expect(r.text, '사라진 패치를 다시 못 받았다').toBe('받은글');
+  expect(r.pushed, '되올리지 않는다').toEqual([]);
+});
+
+test('T11b 붙여넣어 옮긴 다른 프로젝트 그림은 첫 저장에도 풀어 보낸다 — 안 옮긴 주소는 그대로 안 읽는다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    const X = await import(new URL('js/io/asset-externalize.js', location.href).href);
+    window.__files['proj_other/x.png'] = window.__files['proj_a/a.png'];
+    window.__files['proj_a/moved.png'] = window.__files['proj_a/a.png'];
+    window.electronAPI.assetsSaveCanvasImage = async () => ({ ok: true, url: 'goya-asset://proj_a/moved.png' });
+    const html = window.__img('secX', 'proj_other', 'x.png');
+    window.__canvas(html + window.__img('secS', 'proj_secret', 's.png'));
+    /* 자동저장 스냅샷은 옮기기 전 주소다. 저장 길이 옮긴 뒤 push 가 돈다 */
+    const snap = window.serializeProject();
+    await X.adoptForeignAssets({ pages: [{ canvas: html }] }, 'proj_a');
+    window.__reads.length = 0;
+    await window.collabSync.start('proj_a');
+    const before = window.__pushes.length;
+    const x = window.__pushes.find(p => p.sectionId === 'secX')?.html;
+    return { x, reads: [...window.__reads], s: window.__pushes.find(p => p.sectionId === 'secS')?.html, same: !!X.applyAdoptedAssets, before };
+  });
+  expect(r.x, '옛 주소가 나갔다').not.toContain('goya-asset://');
+  expect(r.x).toContain('data:image/png');
+  expect(r.reads, '다른 프로젝트 파일을 읽었다').not.toContain('proj_other/x.png');
+  expect(r.s, '★양성: 안 옮긴 주소는 그대로').toContain('goya-asset://proj_secret/s.png');
+});
+
 test('T12 받은 글의 on* 을 세척하고 붙인다 — onerror 가 안 돈다 · 다른 페이지 갈래도', async ({ page }) => {
   await boot(page);
   const r = await page.evaluate(async () => {

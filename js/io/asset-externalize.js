@@ -205,7 +205,7 @@ async function inlineAssetsForPeer(html, projectId, maxBytes) {
   const reader = api?.assetsReadAsDataUri ? async (pid, filename) => {
     if (pid !== projectId) return null;
     const res = await api.assetsReadAsDataUri({ projectId: pid, filename, maxBytes });
-    if (res?.tooBig) tooBig += res.bytes;
+    if (res?.tooBig) tooBig += Math.ceil(res.bytes * 4 / 3);   // base64 로 나갈 크기 — 천장과 같은 단위로 잰다
     return res?.ok && res.dataUri ? res.dataUri : null;
   } : null;
   const r = await inlineGoyaAssetsInJSON(box, reader);
