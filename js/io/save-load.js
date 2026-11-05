@@ -391,8 +391,8 @@ function _isAllCanvasEmpty(data) {
 let _emptyByRestoreOwner = null;
 window.__noteRestoredCanvas = () => { _emptyByRestoreOwner = document.querySelector('#canvas .section-block') ? null : activeProjectId; };
 function _emptySaveBlocked(data, projectId) {
-  // 표식은 그 프로젝트 화면이 다시 찼을 때만 풀린다 — 옆 프로젝트 본이나 줄에 남은 앞 본을 검사해도 ⌘Z 로 비운 사실은 그대로다(앱: 풀리면 비운 본이 막혀 다시 열 때 섹션이 살아난다)
-  if (!_isAllCanvasEmpty(data)) { if (projectId === _emptyByRestoreOwner && document.querySelector('#canvas .section-block')) _emptyByRestoreOwner = null; return false; }
+  // 표식은 화면이 다시 찼을 때만 풀린다(탭이 바뀌면 applyProjectData 가 먼저 풀어 표식이 있는 동안 화면은 곧 그 주인 것이다) — 옆 프로젝트 본이나 줄에 남은 앞 본을 검사해도 ⌘Z 로 비운 사실은 그대로다(앱: 풀리면 비운 본이 막혀 다시 열 때 섹션이 살아난다)
+  if (!_isAllCanvasEmpty(data)) { if (document.querySelector('#canvas .section-block')) _emptyByRestoreOwner = null; return false; }
   return _emptyByRestoreOwner === null || _emptyByRestoreOwner !== projectId;
 }
 
