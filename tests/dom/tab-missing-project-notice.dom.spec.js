@@ -15,7 +15,7 @@ async function setup(page, { state, ls, cached, owner = 'acct_me' }) {
   await page.evaluate(({ state, ls, cached, owner, A, B }) => {
     window.__saved = [];
     const real = window.electronAPI;
-    window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { window.__saved.push(x.id); return { ok: true }; }
+    window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { window.__saved.push(x.id); (window.__savedDocs ||= []).push(x); return window.__saveRefuse ? { ok: false, reason: 'x' } : { ok: true }; }
       : k === 'loadProject' ? async (id) => (id === 'proj_b' && state !== 'ok' ? null : (id === 'proj_b' ? B : A))
       : k === 'projectFolderState' ? async (id) => (id === 'proj_b' ? state : 'ok')
       : k === 'projectsRootKey' ? async () => 'acct_me' : t[k] });
@@ -268,5 +268,21 @@ test('T2 [대조] 평범한 캐시 탭은 파일을 다시 안 읽는다', async
   await go(page); await settled(page);
   expect(await page.evaluate(() => window.__fileRead)).toBe(0);
   expect((await st(page)).screenB).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+/* 리뷰 ③ — 이름 */
+test('Y1 폴더를 다시 만드는 저장은 탭 이름을 쓴다 — Untitled 가 안 된다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true });
+  await go(page); await settled(page);
+  await page.evaluate(() => window.saveProjectToFile(window.serializeProject(), { projectId: 'proj_b', skipThumbnail: true }));
+  expect(await page.evaluate(() => window.__savedDocs.at(-1).name)).toBe('proj_b이름');
+  expect(errs).toEqual([]);
+});
+test('Y2 [대조] 파일이 있으면 파일 이름이 이긴다', async ({ page }) => {
+  const errs = await setup(page, { state: 'ok', cached: true });
+  await page.evaluate(() => { const t = window.openTabs.find(x => x.id === 'proj_b'); t.name = '낡은 탭 이름'; });
+  await page.evaluate(() => window.saveProjectToFile(window.serializeProject(), { projectId: 'proj_b', skipThumbnail: true }));
+  expect(await page.evaluate(() => window.__savedDocs.at(-1).name)).toBe('proj_b이름');
   expect(errs).toEqual([]);
 });

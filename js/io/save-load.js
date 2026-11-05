@@ -426,7 +426,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       // existing 먼저 spread 후 data로 덮어쓰기 — 레거시 필드는 data에 없으면 existing 유지
       /* ★[T-232 ⓑ] 병합은 «한 벌»이다 — js/io/proj-merge.js. ⛔여기에 스프레드를 다시 쓰지 마라:
          이 코드가 commit-system.js 와 두 벌이었고 이미 갈라져 있었다(한쪽만 `_recovered` 를 뺐다). */
-      const proj = buildProjForSave(existing, data, targetId);
+      /* 파일이 없으면 이름을 받아 올 데가 탭뿐이다 — 스냅샷엔 이름이 없어 폴더를 다시 만들 때 Untitled 가 됐다(앱 재현). */
+      const proj = buildProjForSave(existing, existing ? data : { ...data, name: data.name || openTabs.find(t => t.id === targetId)?.name }, targetId);
       // 이미지 외부화 (정책 게이팅): 기본 autosave는 new-only — 이번 세션 신규 base64만 분리하고
       // 로드 시점에 존재하던 기존 base64는 그대로 둔다(비파괴). 기존 대량변환은 optimizeProjectImages
       // (opts.externalizeAll) 또는 레거시 플래그(GOEDITOR_AUTO_EXTERNALIZE_LEGACY)로만 동작.
