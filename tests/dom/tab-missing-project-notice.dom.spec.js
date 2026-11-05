@@ -265,7 +265,7 @@ test('T1 남은 본으로 연 탭은 폴더가 돌아오면 파일로 다시 연
 });
 test('T2 [대조] 평범한 캐시 탭은 파일을 다시 안 읽는다', async ({ page }) => {
   const errs = await setup(page, { state: 'ok', cached: true });
-  await page.evaluate(() => { window.__fileRead = 0; const real = window.electronAPI; window.electronAPI = new Proxy(real, { get: (t, k) => k === 'loadProject' ? async () => { window.__fileRead++; return null; } : t[k] }); });
+  await page.evaluate(() => { window.__fileRead = 0; const real = window.electronAPI; window.electronAPI = new Proxy(real, { get: (t, k) => k === 'loadProject' ? async (id, o) => { if (o?.open) window.__fileRead++; return null; } : t[k] }); });
   await go(page); await settled(page);
   expect(await page.evaluate(() => window.__fileRead)).toBe(0);
   expect((await st(page)).screenB).toBe(true);
@@ -282,6 +282,7 @@ test('Y1 폴더를 다시 만드는 저장은 탭 이름을 쓴다 — Untitled 
 });
 test('Y2 [대조] 파일이 있으면 파일 이름이 이긴다', async ({ page }) => {
   const errs = await setup(page, { state: 'ok', cached: true });
+  await go(page); await settled(page);
   await page.evaluate(() => { const t = window.openTabs.find(x => x.id === 'proj_b'); t.name = '낡은 탭 이름'; });
   await page.evaluate(() => window.saveProjectToFile(window.serializeProject(), { projectId: 'proj_b', skipThumbnail: true }));
   expect(await page.evaluate(() => window.__savedDocs.at(-1).name)).toBe('proj_b이름');
