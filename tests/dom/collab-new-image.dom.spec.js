@@ -12,7 +12,7 @@ async function boot(page) {
   await page.evaluate((PNG) => {
     window.__assetSec = (pid, id = 'secX') => `<div class="section-block" id="${id}"><div class="section-inner"><div class="asset-block has-image" id="ab_${id}" data-img-src="goya-asset://${pid}/aaaa.png"><img class="asset-img" src="goya-asset://${pid}/aaaa.png"></div><div id="bg_${id}" style="background-image: url(&quot;goya-asset://${pid}/aaaa.png&quot;)"></div></div></div>`;
     window.__Y = (t) => `<div class="section-block" id="secY"><div class="section-inner">${t}</div></div>`;
-    window.__pushes = []; window.__events = []; window.__reads = []; window.__seq = 5; window.__queue = []; window.__known = { 'proj_a/aaaa.png': PNG, 'proj_b/aaaa.png': PNG };
+    window.__pushes = []; window.__events = []; window.__reads = []; window.__seq = 5; window.__queue = []; window.__known = { 'proj_a/aaaa.png': PNG, 'proj_c/aaaa.png': PNG };
     window.__gate = null;
     window.electronAPI = Object.assign({}, window.electronAPI, {
       assetsReadAsDataUri: async ({ projectId, filename }) => {
@@ -38,7 +38,7 @@ const waitPushes = (page, n) => page.waitForFunction((n) => window.__pushes.leng
 
 test('C1 파일로 들어간 그림은 data URL 로 나간다 — img·data-img-src·style 안(&quot;) 셋 다 · 화면과 저장 글은 그대로', async ({ page }) => {
   await boot(page);
-  await page.evaluate(async () => { window.__set(window.__assetSec('proj_a')); await window.collabSync.start('proj_x'); });
+  await page.evaluate(async () => { window.__set(window.__assetSec('proj_a')); await window.collabSync.start('proj_a'); });
   await waitPushes(page, 1);
   const [p] = await pushedOf(page, 'secX');
   expect(p.html, `주소가 그대로 나갔다: ${p.html.slice(0, 200)}`).not.toContain('goya-asset://');
@@ -52,20 +52,20 @@ test('C2 받은 그림을 다시 열어 주소가 내 것으로 바뀌어도 되
   await boot(page);
   const r = await page.evaluate(async () => {
     window.__set(window.__Y('Y0'));
-    await window.collabSync.start('proj_x');
+    await window.collabSync.start('proj_c');
     return window.__pushes.length;
   });
   await waitPushes(page, r || 1);
   /* 상대가 data URL 로 올린 secX 를 받는다 — 그 글을 알아야 hash 가 맞는다 */
   const applied = await page.evaluate(async () => {
-    const inl = await window.inlineAssetsForPeer(window.__assetSec('proj_a'));
+    const inl = await window.inlineAssetsForPeer(window.__assetSec('proj_a'), 'proj_a');
     const M = window.marketMerge;
     const hash = M.hash(M.normSection(new DOMParser().parseFromString(inl.html, 'text/html').querySelector('.section-block')));
     window.__seq += 1;
     window.__queue = [{ pageId: window.state.currentPageId, sectionId: 'secX', html: inl.html, hash, actorId: 'aaaa', seq: window.__seq, baseSeq: 0 }];
     await window.collabSync.tick();
     /* 받는 쪽 저장·다시 열기 = 같은 그림이 그쪽 주소로 */
-    document.getElementById('secX').outerHTML = window.__assetSec('proj_b');
+    document.getElementById('secX').outerHTML = window.__assetSec('proj_c');
     document.getElementById('secY').outerHTML = window.__Y('Y1');
     const before = window.__pushes.length;
     window.__save();
@@ -78,9 +78,9 @@ test('C2 받은 그림을 다시 열어 주소가 내 것으로 바뀌어도 되
 
 test('C3 못 읽은 그림은 주소를 그대로 둔다 — 지어내지 않고 멀쩡한 섹션은 간다', async ({ page }) => {
   await boot(page);
-  await page.evaluate(async () => { window.__set(window.__assetSec('proj_gone') + window.__Y('Y0')); await window.collabSync.start('proj_x'); });
+  await page.evaluate(async () => { window.__set(window.__assetSec('proj_a', 'secX').replaceAll('aaaa.png', 'gone.png') + window.__Y('Y0')); await window.collabSync.start('proj_a'); });
   await waitPushes(page, 2);
-  expect((await pushedOf(page, 'secX'))[0].html).toContain('goya-asset://proj_gone/aaaa.png');
+  expect((await pushedOf(page, 'secX'))[0].html).toContain('goya-asset://proj_a/gone.png');
   expect((await pushedOf(page, 'secY'))[0].html).toContain('Y0');
 });
 
@@ -90,7 +90,7 @@ test('C4 천장을 넘는 섹션은 안 보내고 말한다 · 다음 저장에 
     window.__known['proj_a/aaaa.png'] = PNG.slice(0, 22) + 'A'.repeat(400000);   // 세 자리면 1.2MB
     /* 이 하네스엔 goya-asset 스킴이 없어 <img> 면 실패 표시가 글에 붙어 hash 가 바뀐다 — 저장 사이 글이 같아야 하는 시험이라 img 없는 꼴로 잰다 */
     window.__set(`<div class="section-block" id="secX" data-img-src="goya-asset://proj_a/aaaa.png"><div class="section-inner"><div data-bg-img="goya-asset://proj_a/aaaa.png"></div><div data-img-src="goya-asset://proj_a/aaaa.png"></div></div></div>` + window.__Y('Y0'));
-    await window.collabSync.start('proj_x');
+    await window.collabSync.start('proj_a');
   }, PNG);
   await waitPushes(page, 1);
   expect((await pushedOf(page, 'secX')).length).toBe(0);
@@ -117,7 +117,7 @@ test('C5 파일을 읽는 사이 탭이 바뀌면 이 글을 다음 방에 올�
   await page.evaluate(() => {
     window.__set(window.__assetSec('proj_a'));
     let open; window.__gate = new Promise(r => { open = r; }); window.__open = open;
-    window.__started = window.collabSync.start('proj_x');
+    window.__started = window.collabSync.start('proj_a');
   });
   await page.waitForFunction(() => window.__reads.length >= 1);
   const rooms = await page.evaluate(async () => {

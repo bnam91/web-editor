@@ -25,7 +25,8 @@ function isGoyaAssetUrl(url) {
 function parseGoyaAssetUrl(url) {
   const m = /^goya-asset:\/\/([^/]+)\/(.+)$/.exec(url || '');
   if (!m) return null;
-  return { projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) };
+  try { return { projectId: decodeURIComponent(m[1]), filename: decodeURIComponent(m[2]) }; }
+  catch (_) { return null; }   // 받은 글의 잘못된 %인코딩 — 못 읽는 주소로 친다
 }
 
 // Electron IPC 기반 reader — preload `assetsReadAsDataUri` 없으면(웹) null 반환.

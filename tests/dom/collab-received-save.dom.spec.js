@@ -24,7 +24,7 @@ async function boot(page) {
     window.saveProjectToFile = (snap, o) => { window.__saves.push({ text: snap, o }); return window.__saveAnswer(); };
     window.__recv = (t) => { window.__seq += 1; const html = window.__SEC(t); window.__queue = [{ pageId: window.state.currentPageId, sectionId: 'secX', html, hash: window.__hash(html), actorId: 'aaaa', seq: window.__seq, baseSeq: 5 }]; return window.__seq; };
     window.__I = window.collabSync._internals;
-    window.__settle = async () => { await window.__I.settleReceived(); window.__I.flushSeq(); await Promise.resolve(); };
+    window.__settle = async () => { await window.__I.settleReceived(true); window.__I.flushSeq(); await Promise.resolve(); };
   });
 }
 
@@ -181,7 +181,7 @@ test('R8 쓰기 실패면 진도와 함께 남는 해시에 못 쓴 판이 안 �
     await window.__settle();
     const failed = calls.filter(p => p.seq >= n).length;
     let done; window.__saveAnswer = () => new Promise(res => { done = res; });
-    const pending = window.__I.settleReceived();
+    const pending = window.__I.settleReceived(true);
     /* 쓰는 사이 다음 패치가 붙는다 */
     const n2 = window.__recv('쓰는사이글');
     const hash2 = window.__queue[0].hash;

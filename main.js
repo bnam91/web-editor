@@ -2120,8 +2120,8 @@ ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => 
 // export HTML 포터블화용 — goya-asset:// 에셋을 base64 data URI로 읽어 반환.
 // 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
 // export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
-ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename } = {}) => _readAssetDataUri(projectId, filename));
-function _readAssetDataUri(projectId, filename) {
+ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename, maxBytes } = {}) => _readAssetDataUri(projectId, filename, maxBytes));
+function _readAssetDataUri(projectId, filename, maxBytes) {
   try {
     const pid = _safeSeg(String(projectId || ''));
     const fn = _safeSeg(String(filename || ''));
@@ -2130,6 +2130,7 @@ function _readAssetDataUri(projectId, filename) {
     const full = path.join(safeRoot, fn);
     if (!full.startsWith(safeRoot + path.sep)) return { ok: false, error: 'forbidden' };
     if (!fs.existsSync(full)) return { ok: false, error: 'not found' };
+    if (maxBytes > 0) { const bytes = fs.statSync(full).size; if (bytes > maxBytes) return { ok: false, tooBig: true, bytes }; }   // 협업: 어차피 못 올릴 파일(영상 포함)을 동기로 읽지 않는다
     const ext = path.extname(full).slice(1).toLowerCase();
     const mime = _GOYA_ASSET_MIME[ext] || 'application/octet-stream';
     const b64 = fs.readFileSync(full).toString('base64');
