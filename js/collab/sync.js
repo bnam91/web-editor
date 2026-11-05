@@ -428,7 +428,8 @@
           const acc = Array.isArray(r.accepted) ? r.accepted.find(a => a && a.sectionId === s.sectionId) : null;
           const mySeq = (acc && Number.isFinite(+acc.seq)) ? +acc.seq : (typeof r.seq === 'number' ? r.seq : null);
           if (mySeq != null) _lastPushedSeq[s.key] = mySeq;
-          if (typeof r.seq === 'number') _cfg.seq = r.seq;
+          /* 받기 커서(_cfg.seq)는 pull 만 올린다 — push 답의 seq 는 아직 안 받은 상대 패치까지 넘는다(COLLAB-PUSH-SEQ-SKIPS-UNPULLED-PATCH-01).
+           * 내 패치는 서버 pull 이 actorId 로 빼고 주므로 커서가 뒤에 있어도 다시 안 온다. */
           if (r.limits && r.limits.section > 0) _sectionLimit = r.limits.section;
           _lastError = null;
           if (r.conflicts && r.conflicts.length) { emit({ type: 'conflict', conflicts: r.conflicts }); notifyConflict(r.conflicts); }
