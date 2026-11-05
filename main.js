@@ -2725,7 +2725,7 @@ async function _saveProjectImpl(project) {
   } catch (e) { console.warn('[projects:save] 버전 스냅샷 실패(저장은 정상):', e.message); }
   // claude-pm/project.meta.json title 동기화 (PM 폴더 있을 때만, best-effort)
   try { await syncClaudePmTitle(PROJECTS_DIR, project.id, project.name); } catch {}
-  return { ok: true };
+  return _recreated ? { ok: true, recreated: true } : { ok: true };
 }
 ipcMain.handle('projects:save', (event, project) => _saveProjectImpl(project));
 ipcMain.handle('storage:flush', (event) => { event.sender.session.flushStorageData(); });

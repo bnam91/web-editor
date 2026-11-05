@@ -286,3 +286,32 @@ test('Y2 [대조] 파일이 있으면 파일 이름이 이긴다', async ({ page
   expect(await page.evaluate(() => window.__savedDocs.at(-1).name)).toBe('proj_b이름');
   expect(errs).toEqual([]);
 });
+
+/* 리뷰 ⑤ — 본만 남은 탭을 닫을 때 */
+test('C1 본만 남은 탭을 닫으면 파일로 내린 뒤 닫고 알린다 — 이름 그대로', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true });
+  await page.evaluate(() => window.closeTab('proj_b')); await settled(page);
+  const s = await st(page);
+  expect(s.saved, '★하나뿐인 내용을 안 내리고 닫았다').toContain('proj_b');
+  expect(await page.evaluate(() => window.__savedDocs.at(-1).name)).toBe('proj_b이름');
+  expect(s.tabs).toEqual(['proj_a']);
+  expect(s.toasts.join()).toContain('다시 만들었습니다');
+  expect(errs).toEqual([]);
+});
+test('C2 못 내리면 안 닫는다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true });
+  await page.evaluate(() => { window.__saveRefuse = true; });
+  await page.evaluate(() => window.closeTab('proj_b')); await settled(page);
+  expect((await st(page)).tabs).toEqual(['proj_a', 'proj_b']);
+  expect(errs).toEqual([]);
+});
+test('C3 [대조] 폴더가 있거나 앱 휴지통·다른 계정이면 닫을 때 안 쓴다', async ({ page }) => {
+  for (const [state, owner] of [['ok', 'acct_me'], ['trashed', 'acct_me'], ['missing', 'acct_other']]) {
+    const p2 = await page.context().newPage();
+    const errs = await setup(p2, { state, ls: true, owner });
+    await p2.evaluate(() => window.closeTab('proj_b')); await settled(p2);
+    expect((await st(p2)).saved, state + ' ' + owner).toEqual([]);
+    expect(errs).toEqual([]);
+    await p2.close();
+  }
+});

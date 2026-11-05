@@ -24,4 +24,12 @@
     if (state === 'missing') { try { const d = JSON.parse(localStorage.getItem(KEY(id))); if (Array.isArray(d?.pages) && d.pages.length) data = d; } catch {} }
     return { state, data };
   };
+  /* 폴더도 없고 본만 남은 탭을 닫을 때 — 그 본이 하나뿐인 내용이다. 그대로 닫으면 다음 부팅의 고아 정리가 말없이 지운다(앱 재현). 파일로 내려 폴더를 다시 만든다. 본이 없거나 폴더가 있으면 null. */
+  w.fileGoneCopy = async (id, name) => {
+    const g = await w.projectGoneCopy(id);
+    if (!g?.data) return null;
+    const r = await w.electronAPI.saveProject({ ...g.data, id, name: g.data.name || name || 'Untitled', updatedAt: new Date().toISOString() });
+    if (r?.ok !== false && !r?.recreated) w.showStatusToast?.(w.folderRecreatedNotice?.(name));   // recreated 면 main 이 이미 알렸다
+    return r;
+  };
 })(window);

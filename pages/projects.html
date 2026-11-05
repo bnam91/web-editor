@@ -2279,7 +2279,16 @@ async function toggleFavorite(ev, id) {
   }
 }
 
-function removeHomeTab(id) {
+/* × 단추 — 폴더 없이 본만 남은 탭은 먼저 파일로(tab-system.js closeTab 과 같은 까닭). 못 내리면 안 닫는다. */
+async function removeHomeTab(id) {
+  let name = null;
+  try { name = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(t => t.id === id)?.name; } catch {}
+  const filed = await window.fileGoneCopy?.(id, name);
+  if (filed?.ok === false) { window.showStatusToast?.('탭을 닫지 않았습니다 — 남은 내용을 파일로 내리지 못했습니다.'); return; }
+  _dropHomeTab(id);
+}
+window.noteProjectFolderRecreated = (id) => { let t = null; try { t = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(x => x.id === id); } catch {} if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };
+function _dropHomeTab(id) {
   try {
     const saved = JSON.parse(localStorage.getItem('web-editor-open-tabs'));
     if (!saved) return;
@@ -2295,7 +2304,7 @@ window.closeDeletedProjectTab = (id) => {
   let tab = null;
   try { tab = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(t => t.id === id); } catch {}
   if (!tab) return false;
-  removeHomeTab(id);
+  _dropHomeTab(id);
   try { localStorage.removeItem('web-editor-autosave__' + id); localStorage.removeItem('web-editor-autosave__' + id + '_ts'); window.electronAPI?.flushLocalStorage?.(); } catch {}   // 편집기 쪽과 같은 까닭(tab-system.js)
   window.showStatusToast?.(window.deletedTabNotice?.(tab.name, false));
   return true;

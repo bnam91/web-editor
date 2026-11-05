@@ -472,6 +472,10 @@ async function closeTab(id) {
   const openTabs = _getTabs();
   const idx = openTabs.findIndex(t => t.id === id);
   if (idx === -1) return;
+  if (window.IS_ELECTRON) {   // 폴더 없이 본만 남은 탭 — 닫기 전에 파일로. 못 내리면 안 닫는다(닫으면 그 본을 잃는다)
+    const _filed = await window.fileGoneCopy?.(id, openTabs[idx].name);
+    if (_filed?.ok === false) { window.showToast?.(`⚠️ 탭을 닫지 않았습니다 — 남은 내용을 파일로 내리지 못했습니다(${_filed.reason || '저장 실패'}).`); return; }
+  }
   if (openTabs.length === 1) { if (window.confirmLeaveWhileGenerating?.() === false) return; _setTabs([]); saveTabState(); window.goHome(); return; }
   if (id === _getActId()) {
     const nextTab = openTabs[idx + 1] || openTabs[idx - 1];
