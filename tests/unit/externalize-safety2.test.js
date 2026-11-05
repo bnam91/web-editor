@@ -79,8 +79,8 @@ test('② 실제 beforeunload·종료 저장 손잡이가 봉인을 본다', asy
   const win = { addEventListener: (n, f) => { hs[n] = f; }, electronAPI: { onForceSaveBeforeQuit: (f) => { hs.quit = f; }, quitReady: (r) => { hs.answer = r; } } };
   let ser = 0; const stub = { serializeProject: () => { ser++; return '{}'; } };
   const head = sliceBlock(src, 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(src, 'function _unloadSaveNeeded(', '대상') + '\n';
-  new Function('window', 'IS_ELECTRON', 'activeProjectId', '_reloadSealTok', '_reloadSealId', '_hasOwnUnsaved', '_lastSaveFailed', 'serializeProject',
-    head + src.slice(src.indexOf("window.addEventListener('beforeunload'"), src.indexOf('/* ── 종료 시 저장 결과')) + '\nif (IS_ELECTRON) {\n' + sliceCall(src, 'window.electronAPI.onForceSaveBeforeQuit(', '대상') + ';' + '\n}')(win, true, 'p1', 1, 'p1', () => true, () => true, stub.serializeProject);
+  new Function('window', 'IS_ELECTRON', 'activeProjectId', '_reloadSealTok', '_reloadSealId', '_hasOwnUnsaved', '_lastSaveFailed', 'serializeProject', 'stopAdoptingForQuit',
+    head + src.slice(src.indexOf("window.addEventListener('beforeunload'"), src.indexOf('/* ── 종료 시 저장 결과')) + '\nif (IS_ELECTRON) {\n' + sliceCall(src, 'window.electronAPI.onForceSaveBeforeQuit(', '대상') + ';' + '\n}')(win, true, 'p1', 1, 'p1', () => true, () => true, stub.serializeProject, () => {});
   hs.beforeunload();
   assert.strictEqual(ser, 0, '닫기가 직렬화까지 갔다');
   await hs.quit();

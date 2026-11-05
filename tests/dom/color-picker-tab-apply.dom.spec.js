@@ -731,3 +731,39 @@ test('T18d 그라데이션 탭에 계속 머물면 hex 입력은 그대로 커�
   expect(await hist(page) - h0, '탭 1 + hex 커밋 1').toBe(2);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+test('T-wait ★그림 저장을 기다리는 사이 피커를 닫거나 다른 칸을 열어도 그림은 고른 칸에 간다 — 다른 칸엔 안 간다', async ({ page }) => {
+  const PNG = { name: 'p.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64') };
+  const SRC = 'data:image/png;base64,' + PNG.buffer.toString('base64');
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    const host = document.getElementById('plain-field');
+    host.innerHTML = window.__cfHTML({ idPrefix: 'other', hex: '#aa0000' });
+    window.__wireCF('other', { onApply: () => {} });
+    document.getElementById('other-color').addEventListener('goya-cp:image', () => { window.__otherImg = (window.__otherImg || 0) + 1; });
+    window.grdAssetSrcFor = () => new Promise((r) => { window.__go = r; });
+  });
+  const pickHold = async (id) => {
+    await openShape(page, id);
+    await openSwatchOf(page, 'shape-color-color');
+    await tab(page, 'image').click();
+    await page.evaluate(() => { window.__go = null; });
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.locator('.goya-cp-popover [data-el="imgZone"]').click()]);
+    await fc.setFiles(PNG);
+    await page.waitForFunction(() => typeof window.__go === 'function');
+  };
+  const done = (src) => page.evaluate(async (s) => { window.__go(s); await new Promise((r) => setTimeout(r, 50)); }, src);
+  const filled = (id) => page.evaluate((i) => !!document.querySelector(`#${i} .shape-img-fill`), id);
+
+  await pickHold('shpA');
+  await page.evaluate(() => window.closeGoyaColorPicker());
+  await done(SRC);
+  expect(await filled('shpA')).toBe(true);
+
+  await pickHold('shpB');
+  await openSwatchOf(page, 'other-color');
+  await done(SRC);
+  expect(await filled('shpB')).toBe(true);
+  expect(await page.evaluate(() => window.__otherImg || 0)).toBe(0);
+  expect(errs).toEqual([]);
+});
