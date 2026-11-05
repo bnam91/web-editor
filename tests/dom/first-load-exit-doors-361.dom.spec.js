@@ -6,6 +6,7 @@
  *     E4 [음성] 로드 끝난 뒤 편집·종료 — B 저장 · E5 로드 실패 뒤 편집 — B 저장 0 · 표시 «저장됨» 아님 · E6 로드 중 saveProjectFile·flushSave·직접 저장 — B 쓰기 0
  *     E7 [양성] 그 탭 로드 전에 찍혀 큐에 선 진짜 저장은 통과한다 · E8 로드 실패 뒤 다른 탭으로 갔다 돌아와 읽히면 편집이 저장된다.
  *     E9~E12 앞 저장을 기다리는 탭에서 종료·창 닫기 — 줄의 본·준비 중인 본이 동기로 파일에 들어가고 못 쓰면 답이 실패다 · E13 기다리다 다른 탭으로 — 그 탭 게이트가 곧 풀린다 · E14 저장이 삭제된 탭을 닫고 다음 탭이 줄을 기다려도 저장이 안 멈춘다.
+ *     E23~E25 종료 대기 중 든 편집 · E26 삭제됨은 성공 아님 · E27·E28 대기 중 탭 전환에도 답은 스냅샷 주인 · E29~E32 ⌘Z 로 비운 표식은 다른 본 검사로 안 풀린다.
  *     E15~E17 동기로 쓴 뒤 준비 중이던 앞 저장이 안 덮고, 동기 쓰기가 실패하면 간다 · E18·E19 줄에 서 미확정이던 본이 들어가면 성공, 못 쓰면 실패 · E20 다음 탭을 기다리는 동안 돌아오면 닫기를 그만둔다 · E21 빈 본은 동기로 안 쓴다 · E22 거절된 본은 LS 에 남는다.
  * 변이: isTabFirstLoading 을 늘 거짓으로 하면 E1·E3·E5·E6 빨강 · 큐 표식을 빼면 E7 빨강 · E2·E4·E8 은 늘 초록.
  * ★처음 실행 기록: 2026-11-02 22:1x · 아이맥 · 판 3e051e96 · w1 · retries 0 · 고친 판 repeat-each 3 24/24 · 변이 각 ×1: 늘 거짓 E1·E3·E5·E6 빨강 · 큐 표식 뺌 E7 빨강 · 나머지 초록 */
@@ -277,6 +278,103 @@ test('E22 동기 쓰기가 거절된 본은 LS 에 남는다 — 줄에 둘이�
     return [(localStorage.getItem('web-editor-autosave__' + B) || '').includes('sec_proj_361b_9'), (localStorage.getItem('web-editor-autosave__' + C) || '').includes('sec_proj_361c_9')];
   }, [B, C]);
   expect(r, '★거절된 본이 어디에도 없다').toEqual([true, true]);
+});
+
+/* 합친 판 리뷰 1·2·4: S1 이 돌고 종료가 줄에서 기다리는 동안 */
+const SEVEN = '<div class="section-block" id="sec_proj_361a_7"></div>';
+async function quittingA(page) {
+  await page.evaluate(() => { window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true }); });
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(() => { window.__quit(); });
+}
+const lateEdit = (page) => page.evaluate((h) => document.querySelector('#canvas').insertAdjacentHTML('beforeend', h), SEVEN);
+test('E23 줄을 기다리는 사이 든 편집도 동기로 들어간 뒤에야 성공이라 답한다', async ({ page }) => {
+  const s = await setup(page);
+  await quittingA(page); await lateEdit(page);
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => [window.__answer.ok, window.__answer.reason])).toEqual([true, 'flushed']);
+  expect(syncOf(s, A).at(-1), '★새 편집이 파일에 없는데 성공이다').toContain('sec_proj_361a_7');
+});
+test('E24 그 동기 쓰기가 실패하면 실패 답의 비상 사본에 새 편집이 있다', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__fake.saveProjectSync = () => ({ ok: false, reason: 'lsq' }); });
+  await quittingA(page); await lateEdit(page);
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => [window.__answer.ok, window.__answer.snapshot.includes('sec_proj_361a_7')])).toEqual([false, true]);
+});
+test('E25 [음성] 새 편집이 없으면 줄의 본만 쓴다', async ({ page }) => {
+  const s = await setup(page);
+  await quittingA(page);
+  await page.waitForFunction(() => window.__answer);
+  expect(syncOf(s, A).length).toBe(1);
+  expect(await page.evaluate(() => window.__answer.ok)).toBe(true);
+});
+test('E26 동기 쓰기가 project_deleted 면 성공이 아니다 — 비상 사본이 남는다', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__fake.saveProjectSync = () => ({ ok: false, reason: 'project_deleted' }); });
+  await quittingA(page);
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => [window.__answer.ok, window.__answer.reason, !!window.__answer.snapshot])).toEqual([false, 'unconfirmed', true]);
+});
+test('E27 기다리는 중 탭이 바뀌고 저장이 실패해도 답은 스냅샷 주인을 말한다', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__fake.saveProjectSync = () => ({ ok: false, reason: 'lsq' }); });
+  await quittingA(page);
+  await go(page, C); await page.waitForFunction((C) => window.activeProjectId === C, C);
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => [window.__answer.ok, window.__answer.projectId, window.__answer.projectName])).toEqual([false, A, A]);
+});
+test('E28 기다리는 중 탭이 바뀌어도 스냅샷 주인의 본이 들어갔으면 성공이다', async ({ page }) => {
+  const s = await setup(page);
+  await quittingA(page);
+  await go(page, C); await page.waitForFunction((C) => window.activeProjectId === C, C);
+  await page.waitForFunction(() => window.__answer);
+  expect(await page.evaluate(() => [window.__answer.ok, window.__answer.reason])).toEqual([true, 'flushed']);
+  expect(syncOf(s, A).length).toBeGreaterThan(0);
+});
+
+/* 합친 판 리뷰 3: 활성 C 를 ⌘Z 로 비운 표식 — 다른 본을 검사해도 안 풀린다 */
+const undoEmptyC = async (page) => { await go(page, C); await page.evaluate((C) => window.__ops[C], C); await settle(page); await page.evaluate(() => { document.querySelectorAll('#canvas .section-block').forEach(e => e.remove()); window.__noteRestoredCanvas(); }); };
+const nonEmpty = (page, id, n) => page.evaluate(([id, n]) => { const d = JSON.parse(JSON.stringify(window.__files.get(id))); d.pages[0].canvas += `<div class="section-block" id="sec_${id}_${n}"></div>`; return JSON.stringify(d); }, [id, n]);
+test('E29 ⌘Z 로 비운 뒤 줄의 다른 프로젝트 본이 flush 돼도 빈 본이 새로고침으로 들어간다', async ({ page }) => {
+  const s = await setup(page);
+  const bb = await nonEmpty(page, B, 9);
+  await undoEmptyC(page); s.rec.length = 0;
+  await page.evaluate(([bb, B]) => { window.__hold = new Promise(r => { window.__release = r; }); window.saveProjectToFile(bb, { skipThumbnail: true, projectId: B }); }, [bb, B]);
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  expect(s.rec.filter(r => r.kind === 'sync').map(r => r.id)).toEqual([B, C]);
+  expect(syncOf(s, C), '★비운 본이 막혀 다시 열 때 섹션이 살아난다').toEqual(['']);
+});
+test('E30 ⌘Z 로 비운 뒤 줄의 자기 앞 본이 flush 돼도 빈 본이 뒤이어 들어간다', async ({ page }) => {
+  const s = await setup(page);
+  const bb = await nonEmpty(page, B, 9), cc = await nonEmpty(page, C, 9);
+  await undoEmptyC(page); s.rec.length = 0;
+  await page.evaluate(([bb, cc, B, C]) => { window.__hold = new Promise(r => { window.__release = r; }); window.saveProjectToFile(bb, { skipThumbnail: true, projectId: B }); window.saveProjectToFile(cc, { skipThumbnail: true, projectId: C }); }, [bb, cc, B, C]);
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  expect(syncOf(s, C).at(-1), '★앞 본이 마지막이다').toBe('');
+});
+test('E31 ⌘Z 로 비운 뒤 줄이 그냥 빠져도(옆 프로젝트 본) 빈 본이 저장된다', async ({ page }) => {
+  const s = await setup(page);
+  const bb = await nonEmpty(page, B, 9);
+  await undoEmptyC(page); s.rec.length = 0;
+  const empty = await page.evaluate(() => window.serializeProject());
+  const r = await page.evaluate(async ([bb, empty, B, C]) => { window.__hold = new Promise(r => { window.__release = r; }); const p1 = window.saveProjectToFile(bb, { skipThumbnail: true, projectId: B }); window.saveProjectToFile(bb, { skipThumbnail: true, projectId: B }); window.saveProjectToFile(empty, { skipThumbnail: true, projectId: C }); await new Promise(q => setTimeout(q, 50)); window.__hold = null; window.__release(); await p1; return true; }, [bb, empty, B, C]);
+  expect(r).toBe(true);
+  expect(of(s, C).filter(x => x.kind === 'save').map(x => x.seeds.join()), '★비운 본이 안 나갔다').toEqual(['']);
+});
+test('E32 [음성] 화면이 다시 차서 저장되면 표식이 풀려 빈 본은 다시 막힌다', async ({ page }) => {
+  const s = await setup(page);
+  await undoEmptyC(page);
+  await page.evaluate(() => { document.querySelector('#canvas').insertAdjacentHTML('beforeend', '<div class="section-block" id="sec_proj_361c_5"><div class="section-inner"></div></div>'); });
+  const full = await page.evaluate(() => window.serializeProject());
+  const empty = JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', name: 'P', pageSettings: {}, canvas: '' }] });
+  await page.evaluate((full) => window.saveProjectToFile(full, { skipThumbnail: true }), full);
+  s.rec.length = 0;
+  const r = await page.evaluate((empty) => window.saveProjectToFile(empty, { skipThumbnail: true }), empty);
+  expect(r?.skipped, JSON.stringify(r)).toBe(true);
+  expect(of(s, C)).toEqual([]);
 });
 
 test('E8 로드 실패 뒤 다른 탭 갔다 돌아와 읽히면 편집이 저장된다', async ({ page }) => {

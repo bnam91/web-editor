@@ -2742,13 +2742,15 @@ ipcMain.on('projects:save-sync', (event, project) => {
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
+    const incoming = project;
     project = _guardProjectName(project, prevPath);
     if (prevPath && fs.existsSync(prevPath)) {
       // 롤링 백업 (다중 백업 슬롯은 sync 경로에서 생략 — 새로고침 빈도가 높아 슬롯 폭주 우려)
       const rb = _rollBackup(prevPath, paths.backup);   // ★E169 — save 와 같은 한 곳
       /* 이 본은 곧 끝나는 문서가 쥔 마지막 사본이다 — 닫은 탭이면 LS 도 못 믿는다(기획 파일 id 는 목록에 없어 다음 부팅의 고아 정리가 지운다 · 앱 값). 마커·비상 사본으로 남긴다. */
       if (rb.preservedAs === null) { _recordSyncSaveFailure(project, 'unreadable_not_preserved'); event.returnValue = { ok: false, reason: 'unreadable_not_preserved' }; return; }
-      if (rb.planning) { _recordSyncSaveFailure(project, 'planning_not_editor'); event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
+      // 사본에는 앞 파일의 칸(type: planning)을 안 얹는다 — 얹으면 복구본이 기획으로 분류된다(앱)
+      if (rb.planning) { _recordSyncSaveFailure({ ...incoming, name: project.name }, 'planning_not_editor'); event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
@@ -9361,6 +9363,7 @@ ipcMain.handle('recovery:restore', async (_e, { emergencyPath, projectId } = {})
     const hasSource = !!(srcPath && fs.existsSync(srcPath));
     let base = {};
     if (hasSource) { try { base = JSON.parse(fs.readFileSync(srcPath, 'utf8')) || {}; } catch (_) { base = {}; } }
+    if (base.type === 'planning' && !_SS().isProjectShaped(base)) base = { name: base.name };   // 그 파일이 기획이어도 사본은 편집기 내용이다 — 기획 칸을 얹으면 복구본이 기획으로 분류된다(앱)
     const merged = { ...base, ...snap.data };
     const stamp = new Date().toLocaleString('sv').slice(5, 16);   // MM-DD HH:mm
     const name = `${base.name || '되살린 작업'} (복구본 ${stamp})`;
