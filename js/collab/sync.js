@@ -57,6 +57,10 @@
    *   그때 요청을 무한 반복하면 오너가 15초마다 그 섹션을 통째로 다시 올린다(무의미한 트래픽).
    *   ⇒ 이 횟수만큼 물어보고 포기한다. 「조용히 어긋난 채로」가 아니라 «말하고» 포기한다. */
   const NEED_MAX_ASKS = 12;
+  /* 서버 섹션 천장(api/_lib/collab.js MAX_SECTION_BYTES). 성공 답의 limits 로 갈아 쓴다. 넘는 섹션은 아예 안 보낸다 —
+   * 그림을 되실은 글은 수십 MB 일 수 있는데 저장마다 올리면 413 만 받고 트래픽이 샌다. */
+  let _sectionLimit = 700000;
+  let _peerForm = new Map();          // 보낼 글이 goya-asset 인 섹션의 원본 hash → { hash, bytes } (저장마다 파일을 다시 읽지 않게)
 
   let _cfg = null;                    // { projectId, collabId, actorId, seq, role }
   let _serverSections = null;         // 마지막으로 받은 서버 목차(결손 판정의 기준)
@@ -174,6 +178,23 @@
         });
       });
     }
+    return out;
+  }
+
+  /* ── 보내는 꼴 ──────────────────────────────────────────────────────────
+   * goya-asset 주소는 이 기계 파일을 가리켜 상대 화면에서 깨진다. 받는 쪽이 저장·다시 열기를 거치면 같은 섹션이 그쪽 주소로
+   * 바뀌어, 그대로 올리면 보낸 사람 그림까지 깨진다. ⇒ 비교·전송 둘 다 data URL 로 되돌린 글로 한다.
+   * 같은 그림이면 어느 쪽 주소든 같은 글·같은 hash 가 되어 다시 올라가지 않는다. */
+  async function forPeer(s) {
+    if (s.html.indexOf('goya-asset://') === -1) return s;
+    const known = _peerForm.get(s.hash);
+    if (known && (known.hash === _sent[s.key] || known.bytes > _sectionLimit)) return { ...s, hash: known.hash, bytes: known.bytes };
+    if (typeof window.inlineAssetsForPeer !== 'function') return s;
+    const r = await window.inlineAssetsForPeer(s.html);
+    const sec = new DOMParser().parseFromString(`<div id="c">${r.html}</div>`, 'text/html').querySelector('.section-block');
+    const M = mm();
+    const out = { ...s, html: r.html, hash: M.hash(M.normSection(sec)), bytes: new Blob([r.html]).size };
+    if (!r.unresolved) _peerForm.set(s.hash, { hash: out.hash, bytes: out.bytes });   // 못 읽은 그림은 기억하지 않는다 — 파일이 나중에 생길 수 있다
     return out;
   }
 
@@ -313,17 +334,28 @@
     /* ★A8(지디 판정): 저장 스냅샷이 JSON 이 아니면 «내부 오류»다 — 사용자가 할 일이 없어 화면엔 안 띄우고 error 로 남긴다. */
     try { obj = typeof snapStr === 'string' ? JSON.parse(snapStr) : snapStr; } catch (e) { console.error('[collab] 저장 스냅샷 파싱 실패 — 이번 push 건너뜀:', e); return; }
 
-    const secs = collectSections(obj);
-    // ★모든 섹션의 «스냅샷 해시»를 기록해 둔다(바뀐 것만이 아니라). 덮어쓰기 경고가
-    //   이걸 서버 해시와 비교한다 — 라이브 DOM 으로 계산하면 재료가 달라 오경보가 난다.
-    for (const s of secs) _localSnap[s.key] = s.hash;
-    const changed = secs.filter(s => _sent[s.key] !== s.hash);
-    if (!changed.length) return;
-
+    const cfg = _cfg;
+    let attempted = false;
     _inFlight = true;
     try {
+      const secs = [];
+      for (const s of collectSections(obj)) secs.push(await forPeer(s));
+      if (_cfg !== cfg) return;   // 파일을 읽는 사이 탭이 바뀌었다 — 이 글을 다른 방에 올리지 않는다
+      // ★모든 섹션의 «스냅샷 해시»를 기록해 둔다(바뀐 것만이 아니라). 덮어쓰기 경고가
+      //   이걸 서버 해시와 비교한다 — 라이브 DOM 으로 계산하면 재료가 달라 오경보가 난다.
+      for (const s of secs) _localSnap[s.key] = s.hash;
+      const changed = secs.filter(s => _sent[s.key] !== s.hash);
+      if (!changed.length) return;
+      attempted = true;
+
       // ★한 요청에 한 섹션이다. 합쳐 보내면 큰 섹션 하나 때문에 «멀쩡한 섹션까지» 같이 막힌다.
       for (const s of changed) {
+        const bytes = s.bytes || 0;
+        if (bytes > _sectionLimit) {   // 서버 413 과 같은 말 — 그 섹션만 막히고 루프는 계속 간다
+          _lastError = 'too_large';
+          emit({ type: 'section_too_large', sectionId: s.sectionId, detail: { sectionId: s.sectionId, bytes, limit: _sectionLimit } });
+          continue;
+        }
         /* ★SIX ⓒ: 이 섹션에 «보류 중»인 원격 패치가 있으면 baseSeq 를 «그 패치 직전»으로 — 그래야 서버가 keep-both 충돌로 본다
          *   (옛 판은 _cfg.seq 를 그대로 실어, 보류 패치까지 «본 셈»이 돼 서버 충돌 판정이 «충돌 없음»으로 속았다). */
         const dp = _deferred.get(s.sectionId);
@@ -341,6 +373,7 @@
           const mySeq = (acc && Number.isFinite(+acc.seq)) ? +acc.seq : (typeof r.seq === 'number' ? r.seq : null);
           if (mySeq != null) _lastPushedSeq[s.key] = mySeq;
           if (typeof r.seq === 'number') _cfg.seq = r.seq;
+          if (r.limits && r.limits.section > 0) _sectionLimit = r.limits.section;
           _lastError = null;
           if (r.conflicts && r.conflicts.length) { emit({ type: 'conflict', conflicts: r.conflicts }); notifyConflict(r.conflicts); }
         } else {
@@ -356,7 +389,7 @@
       }
     } finally {
       _inFlight = false;
-      emit({ type: 'pushed', error: _lastError });
+      if (attempted) emit({ type: 'pushed', error: _lastError });
     }
   }
 
@@ -595,7 +628,7 @@
     _deferred = new Map();
     _serverSections = null; _needIds = []; _needTicks = 0;
     _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
-    _lastPushedSeq = Object.create(null); _conflicts = new Map();
+    _lastPushedSeq = Object.create(null); _conflicts = new Map(); _peerForm = new Map();
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
     _bootstrap = (ref.seq || 0) === 0;

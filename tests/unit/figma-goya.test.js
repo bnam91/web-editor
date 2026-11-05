@@ -139,3 +139,13 @@ test('parseGoyaAssetUrl / isGoyaAssetUrl / makeElectronAssetReader(window 없음
   assert.equal(isGoyaAssetUrl(null), false);
   assert.equal(makeElectronAssetReader(), null);
 });
+
+test('직렬화한 HTML 의 style 안 &quot; 에서 주소가 끝난다(협업 섹션) — 파일 이름에 붙으면 못 읽는다', async () => {
+  const { inlineGoyaAssetsInJSON } = await load();
+  const seen = [];
+  const box = { html: '<div style="background-image: url(&quot;goya-asset://p1/a.png&quot;)"></div>' };
+  const r = await inlineGoyaAssetsInJSON(box, async (pid, fn) => { seen.push(fn); return 'data:image/png;base64,AA'; });
+  assert.deepEqual(seen, ['a.png']);
+  assert.equal(r.unresolvedAssets, 0);
+  assert.equal(box.html, '<div style="background-image: url(&quot;data:image/png;base64,AA&quot;)"></div>');
+});
