@@ -202,6 +202,35 @@ test('U-W3-5b 저장 답이 없는 화면(목록·라이선스)에서는 묻지 
   } finally { H.stub.BrowserWindow.getAllWindows = () => []; }
 });
 
+test('U-W3-5c 목록 화면에서 비동기 쓰기가 도는 중이면 끝날 때까지 종료를 미룬다, 없으면 안 미룬다', async () => {
+  const win = { sent: [], isDestroyed: () => false, webContents: { getURL: () => 'file:///a/pages/projects.html', send() { win.sent.push('x'); } } };
+  const quit0 = H.stub.app.quit; let quits = 0; H.stub.app.quit = () => { quits++; };
+  try {
+    const calls = reset();
+    H.stub.BrowserWindow.getAllWindows = () => [win];
+    let finish; saveGuard.trackWrite(new Promise((r) => { finish = r; }));
+    assert.equal(fireBeforeQuit().prevented, true, '쓰기가 도는데 그냥 끝냈다');
+    assert.equal(fireBeforeQuit().prevented, true, '다시 눌러도 쓰기가 끝나기 전에는 끝나면 안 된다');
+    await wait(50);
+    assert.equal(quits, 0, '쓰기가 끝나기 전에 다시 껐다');
+    assert.equal(calls.length, 0, '기다리는 동안 상자가 떴다');
+    finish();
+    await wait(50);
+    assert.equal(quits, 1, '쓰기가 끝났는데 안 꺼졌다');
+    assert.equal(fireBeforeQuit().prevented, false, '쓰기가 끝났는데 또 붙잡았다');
+    // 실패한 쓰기도 종료를 막지 않고, 상한을 넘기면 두고 끝낸다
+    quits = 0; saveGuard.trackWrite(Promise.reject(new Error('x')).catch((e) => { throw e; })).catch(() => {});
+    assert.equal(fireBeforeQuit().prevented, true);
+    await wait(50);
+    assert.equal(quits, 1, '실패한 쓰기가 종료를 막았다');
+    quits = 0; saveGuard.trackWrite(new Promise(() => {}));
+    assert.equal(saveGuard.holdForWrites(() => { quits++; }, 30), true);
+    await wait(80);
+    assert.equal(quits, 1, '상한을 넘겼는데 안 꺼졌다');
+    assert.equal(saveGuard.holdForWrites(() => { quits++; }), false);
+  } finally { H.stub.app.quit = quit0; H.stub.BrowserWindow.getAllWindows = () => []; }
+});
+
 test('U-W3-6 ★다이얼로그가 «안 닫혀도» 앱은 꺼진다 (상한 타이머 — 안 꺼지는 앱 금지)', async () => {
   reset();
   // 영원히 안 끝나는 다이얼로그 = 사용자가 확인을 안 누른 상태

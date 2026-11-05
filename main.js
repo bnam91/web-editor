@@ -2866,9 +2866,9 @@ ipcMain.handle('trash:restore', (_e, id) => {
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
 });
 ipcMain.handle('trash:purge', async (_e, id) => {
-  try { return await _trash.purgeFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || ''),
+  try { return await quitSaveGuard.trackWrite(_trash.purgeFromTrash({ projectsDir: _projectsRoot(), projectId: String(id || ''),
                                              trashItem: (p) => shell.trashItem(p),
-                                             packageGdt: _packageProjectGdt }); }
+                                             packageGdt: _packageProjectGdt })); }
   catch (e) { return { ok: false, code: 'io', error: e.message }; }
 });
 
@@ -9138,6 +9138,8 @@ app.on('before-quit', (event) => {
   /* 목록·라이선스 화면에는 저장 답을 하는 코드가 없다(save-load.js 를 안 싣는다). 물으면 3초 뒤 «저장 확인 못 함» 상자가 뜬다
      (QUIT-NO-SAVE-DIALOG-ON-EMPTY-SCREEN-01). 떠나며 동기 저장이 실패했다면 그 기록은 아래 창-없음 길이 말한다. */
   if (!win || win.isDestroyed() || quitSaveGuard.isNoSaveScreen(win.webContents.getURL?.())) {
+    /* 가져오기·휴지통 비우기가 도는 중이면 끝난 뒤에 다시 끈다 — 옛 길은 상자가 뜬 9초 동안 끝났다. */
+    if (quitSaveGuard.holdForWrites(() => app.quit())) { event.preventDefault(); return; }
     /* ★[W-3] 창이 «이미 사라진 뒤»에 오는 before-quit — 윈도우 X 버튼(WM_CLOSE) 이 여기다.
        창 close → 렌더러 unload → 창 소멸 → window-all-closed → app.quit() → 여기(창 0개).
        옛 코드는 여기서 그냥 return 했다 ⇒ 아래 quitSaveGuard 는 «한 번도 안 불렸고»,

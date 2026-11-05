@@ -40,7 +40,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const TIMINGS = { saveWaitMs: 3000, notifyMs: 6000, hardExitMs: 12000 };
+const TIMINGS = { saveWaitMs: 3000, notifyMs: 6000, hardExitMs: 12000, writeHoldMs: 180000 };
 /** 마커에 남기는 실패 기록 수. 오래된 것부터 버린다. */
 const MAX_RECORDS = 10;
 /** 비상 사본 보관 개수. 코퍼스가 40MB 급이라 무한히 쌓으면 디스크를 먹는다. */
@@ -258,6 +258,38 @@ function isNoSaveScreen(url) {
   return typeof url === 'string' && /^file:.*\/pages\/(projects|license)\.html(?:[?#]|$)/.test(url);
 }
 
+/* 본 프로세스가 비동기로 쓰는 일(.gdt 가져오기·휴지통 비우기). 저장 답이 없는 화면에서는 묻지 않고 바로 끝나므로,
+   이 일이 도는 중이면 끝날 때까지 종료를 미룬다. 상한은 가져오기 시한(gdt/limits TIMEOUT_MS)과 같다 — 넘으면 그냥 끝낸다. */
+const _writes = new Set();
+let _holding = false;
+
+function trackWrite(promise) {
+  const p = Promise.resolve(promise);
+  _writes.add(p);
+  const done = () => { _writes.delete(p); };
+  p.then(done, done);
+  return promise;
+}
+
+/** 도는 쓰기가 있으면 true — 끝나면 onDone 을 한 번 부른다. 없으면 false(바로 끝내도 된다). */
+function holdForWrites(onDone, limitMs = TIMINGS.writeHoldMs) {
+  if (!_writes.size) return false;
+  if (_holding) return true;
+  _holding = true;
+  console.log(`[quit-guard] 쓰기 ${_writes.size}건 끝날 때까지 종료를 미룬다`);
+  let timer;
+  const limit = new Promise((r) => { timer = setTimeout(r, limitMs); });
+  Promise.race([Promise.allSettled([..._writes]), limit]).then(() => {
+    clearTimeout(timer);
+    const left = _writes.size;
+    if (left) console.warn(`[quit-guard] 상한을 넘겨 쓰기 ${left}건을 두고 끝낸다`);
+    _writes.clear();
+    _holding = false;
+    onDone();
+  });
+  return true;
+}
+
 /* ── 본체 ─────────────────────────────────────────────────────────────── */
 /**
  * before-quit 에서 부른다. 여기서 «반드시» exit 가 불린다 — 어느 경로로 새도.
@@ -425,6 +457,6 @@ module.exports = {
   classify, writeFailureRecord, failureText, readMarker, markerPath, emergencyDir,
   TIMINGS, MAX_RECORDS, MAX_EMERGENCY_FILES,
   recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone,
-  isNoSaveScreen,
-  _reset() { _running = null; _pendingSync = null; },
+  isNoSaveScreen, trackWrite, holdForWrites,
+  _reset() { _running = null; _pendingSync = null; _writes.clear(); _holding = false; },
 };
