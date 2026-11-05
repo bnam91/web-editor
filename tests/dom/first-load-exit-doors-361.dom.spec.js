@@ -6,7 +6,7 @@
  *     E4 [음성] 로드 끝난 뒤 편집·종료 — B 저장 · E5 로드 실패 뒤 편집 — B 저장 0 · 표시 «저장됨» 아님 · E6 로드 중 saveProjectFile·flushSave·직접 저장 — B 쓰기 0
  *     E7 [양성] 그 탭 로드 전에 찍혀 큐에 선 진짜 저장은 통과한다 · E8 로드 실패 뒤 다른 탭으로 갔다 돌아와 읽히면 편집이 저장된다.
  *     E9~E12 앞 저장을 기다리는 탭에서 종료·창 닫기 — 줄의 본·준비 중인 본이 동기로 파일에 들어가고 못 쓰면 답이 실패다 · E13 기다리다 다른 탭으로 — 그 탭 게이트가 곧 풀린다 · E14 저장이 삭제된 탭을 닫고 다음 탭이 줄을 기다려도 저장이 안 멈춘다.
- *     E23~E25 종료 대기 중 든 편집 · E26 삭제됨은 성공 아님 · E27·E28 대기 중 탭 전환에도 답은 스냅샷 주인 · E29~E32 ⌘Z 로 비운 표식은 다른 본 검사로 안 풀린다.
+ *     E23~E25 종료 대기 중 든 편집 · E26 삭제됨은 성공 아님 · E27·E28 대기 중 탭 전환에도 답은 스냅샷 주인 · E33 동기 거절 때 LS 본은 새 주소 · E29~E32 ⌘Z 로 비운 표식은 다른 본 검사로 안 풀린다.
  *     E15~E17 동기로 쓴 뒤 준비 중이던 앞 저장이 안 덮고, 동기 쓰기가 실패하면 간다 · E18·E19 줄에 서 미확정이던 본이 들어가면 성공, 못 쓰면 실패 · E20 다음 탭을 기다리는 동안 돌아오면 닫기를 그만둔다 · E21 빈 본은 동기로 안 쓴다 · E22 거절된 본은 LS 에 남는다.
  * 변이: isTabFirstLoading 을 늘 거짓으로 하면 E1·E3·E5·E6 빨강 · 큐 표식을 빼면 E7 빨강 · E2·E4·E8 은 늘 초록.
  * ★처음 실행 기록: 2026-11-02 22:1x · 아이맥 · 판 3e051e96 · w1 · retries 0 · 고친 판 repeat-each 3 24/24 · 변이 각 ×1: 늘 거짓 E1·E3·E5·E6 빨강 · 큐 표식 뺌 E7 빨강 · 나머지 초록 */
@@ -375,6 +375,24 @@ test('E32 [음성] 화면이 다시 차서 저장되면 표식이 풀려 빈 본
   const r = await page.evaluate((empty) => window.saveProjectToFile(empty, { skipThumbnail: true }), empty);
   expect(r?.skipped, JSON.stringify(r)).toBe(true);
   expect(of(s, C)).toEqual([]);
+});
+
+test('E33 동기 쓰기가 거절되면 LS 본은 옮겨 둔 새 주소로 남는다', async ({ page }) => {
+  await setup(page);
+  const [from, to] = ['goya-asset://pX/h.png', `goya-asset://${C}/h.png`];
+  await page.evaluate(async ([C, from, to]) => {
+    Object.assign(window.__fake, { assetsReadAsDataUri: async () => ({ ok: true, dataUri: 'data:image/png;base64,AAAA' }), assetsSaveCanvasImage: async () => ({ ok: true, url: to }), saveProjectSync: () => ({ ok: false, reason: 'lsq' }) });
+    const snap = JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', name: 'P', pageSettings: {}, canvas: `<div class="section-block"><img src="${from}"></div>` }] });
+    window.__hold = new Promise(r => { window.__release = r; }); window.__p1 = window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true });
+    window.saveProjectToFile(snap, { skipThumbnail: true, projectId: C });   // 옮기기 전에 찍혀 줄에 선 본
+    const m = await import('/js/io/asset-externalize.js');
+    await m.adoptForeignAssets(JSON.parse(snap), C);
+  }, [C, from, to]);
+  await page.waitForFunction(() => window._isSavingToFile);
+  await page.evaluate(() => window.__quit());
+  await page.waitForFunction(() => window.__answer);
+  const ls = await page.evaluate((C) => localStorage.getItem('web-editor-autosave__' + C) || '', C);
+  expect([ls.includes(to), ls.includes(from)]).toEqual([true, false]);
 });
 
 test('E8 로드 실패 뒤 다른 탭 갔다 돌아와 읽히면 편집이 저장된다', async ({ page }) => {

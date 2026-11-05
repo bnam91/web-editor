@@ -313,7 +313,8 @@ function _flushUnfinishedSavesSync() {
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
     if (reason) {
-      const _str = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot);
+      let _str = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot);
+      try { const _d = JSON.parse(_str); if (applyAdoptedAssets(_d, id)) _str = JSON.stringify(_d); } catch (_) {}   // 줄의 본은 옮기기 전에 찍혔을 수 있다 — 비상 사본·LS 본이 옛 주소로 남으면 그 프로젝트를 지운 뒤 그림이 빠진다(앱: 거절 때 사본에 옛 주소)
       failed.push({ id, reason, snapshot: _str });
       _settleBigLs(id, _str, true, _lsTsOf(id));   // 닫은 탭이면 LS 에도 없고 종료 답은 한 건만 싣는다 — 거절된 본을 LS 에 남긴다
     }
