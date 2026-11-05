@@ -162,3 +162,35 @@ test('B4 앱 휴지통의 프로젝트는 본이 있어도 안 연다 — 탭 �
   expect(s.tabs).toEqual(['proj_a']);
   expect(errs).toEqual([]);
 });
+
+/* 리뷰 ⑥⑦ — 못 읽은 것은 없어진 게 아니다 */
+test('U1 폴더를 못 읽으면 탭을 안 닫고 빈 판으로 안 연다 — 읽기 실패 길', async ({ page }) => {
+  const errs = await setup(page, { state: 'unknown', ls: true });
+  await page.evaluate(() => window.switchTab('proj_b')).catch(() => {});
+  await settled(page);
+  const s = await st(page);
+  expect(s.tabs, '★못 읽은 탭을 닫았다').toEqual(['proj_a', 'proj_b']);
+  expect(s.screenB, '★못 읽었는데 LS 본으로 열었다').toBe(false);
+  expect(s.ls, '본은 그대로').toBeTruthy();
+  expect(await page.evaluate(() => window.isTabFirstLoading('proj_b')), '저장 막는 표식').toBe(true);
+  expect(s.toasts.join(), '「찾을 수 없습니다」 거짓말 없음').not.toContain('찾을 수 없습니다');
+  expect(errs).toEqual([]);
+});
+test('U2 부팅 — 못 읽은 옆 탭과 본을 안 지운다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a'], states: { proj_b: 'unknown' }, ls: ['proj_b'], tabs: ['proj_a', 'proj_b'] });
+  const s = await bs(page);
+  expect(s.tabs).toEqual(['proj_a', 'proj_b']);
+  expect(s.lsB).toBe(true);
+  expect(s.toasts).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('U3 부팅 — 뿌리를 못 읽으면 고아 정리를 안 한다(탭에 없는 본도)', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a'], states: { '': 'unknown' }, ls: ['proj_b'], tabs: ['proj_a'] });
+  expect((await bs(page)).lsB, '★뿌리를 못 읽었는데 본을 지웠다').toBe(true);
+  expect(errs).toEqual([]);
+});
+test('N4 [대조] 뿌리가 성하면 탭에 없는 본은 지운다', async ({ page }) => {
+  const errs = await bootWith(page, { url: 'index.html?project=proj_a', listed: ['proj_a'], states: {}, ls: ['proj_b'], tabs: ['proj_a'] });
+  expect((await bs(page)).lsB).toBe(false);
+  expect(errs).toEqual([]);
+});

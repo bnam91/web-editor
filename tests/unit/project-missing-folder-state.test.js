@@ -1,7 +1,8 @@
 /* project-missing-folder-state — 폴더가 앱 밖에서 없어진 프로젝트와 앱 안 삭제를 main 이 가른다(MISSING-PROJECT-TAB-NO-NOTICE-01 · 탭 쪽은 tests/dom/tab-missing-project-notice).
  * 칸: 진짜 main 핸들러(_ipc-harness). S1 있음 · S2 앱 밖에서 없어짐 · S3 앱 휴지통 · S4 영구 삭제 · R1 저장이 폴더를 다시 만들고 알린다 · R2 읽은 뒤 없어져도 같다.
  * 대조: N1 새 프로젝트의 첫 저장은 말 없음 · N2 폴더가 있는 저장은 말 없음 · N3 앱 안 삭제는 안 되살린다.
- * 변이: _projectFolderState 의 휴지통 줄을 빼면 S3 빨강 · _deletedProjects 줄까지 빼면 S4 빨강 · 알림 줄을 빼면 R1·R2 빨강 · _seenProjects 조건을 빼면 N1 빨강. */
+ * 칸(리뷰): S5 폴더 못 읽음 · S6 뿌리 못 읽음 · S7 깨진 휴지통 메타.
+ * 변이: 회신의 값(ENOENT 판정을 existsSync 로 되돌리면 S5·S6 빨강 · 몸통 보기를 빼면 S7 빨강). */
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -31,6 +32,21 @@ test('S3 앱 휴지통으로 옮긴 것은 trashed', async () => {
 });
 test('S4 영구 삭제도 trashed — 저장이 못 되살리는 쪽', async () => {
   const id = await made(); await H.invoke('projects:delete', id, { permanent: true });
+  assert.equal(await H.invoke('projects:folder-state', id), 'trashed');
+});
+test('S5 폴더를 못 읽으면(EACCES) missing 이 아니라 unknown', async () => {
+  const id = await made(); fs.chmodSync(dir(id), 0o000);
+  try { assert.equal(await H.invoke('projects:folder-state', id), 'unknown'); } finally { fs.chmodSync(dir(id), 0o755); }
+  assert.equal(await H.invoke('projects:folder-state', id), 'ok', '[대조] 풀면 ok');
+});
+test('S6 뿌리를 못 읽으면 어느 id 든 unknown · 빈 id 도 unknown', async () => {
+  const id = await made(); fs.chmodSync(H.projectsDir, 0o000);
+  try { assert.equal(await H.invoke('projects:folder-state', id), 'unknown'); assert.equal(await H.invoke('projects:folder-state', ''), 'unknown'); } finally { fs.chmodSync(H.projectsDir, 0o755); }
+  assert.equal(await H.invoke('projects:folder-state', ''), 'ok', '[대조] 풀면 ok');
+});
+test('S7 앱 휴지통의 메타가 깨져도 몸통이 있으면 trashed — 재시작 뒤 꼴(이번 실행의 삭제 기억 없음)', async () => {
+  const id = await made(); goneOutside(id);
+  fs.mkdirSync(path.join(H.appTrashDir, id), { recursive: true }); fs.writeFileSync(path.join(H.appTrashDir, id + '.json'), '{깨짐');
   assert.equal(await H.invoke('projects:folder-state', id), 'trashed');
 });
 test('R1 앱 밖에서 없어진 뒤 저장은 폴더를 다시 만들고 알린다', async () => {

@@ -2114,18 +2114,12 @@ window.prepareLsWin = _prepareLsWin;
    열기 입구 10 곳(카드 · 홈 최근 탭 · 설정 · 협업 수락 · MCP open_project · 탭 바 · 탭 닫기 뒤 · 「+」 최근 · 새 프로젝트)이 이 두 자리로 모인다.
    옛 판: 부팅 로드만 복구 토스트 · 탭 첫 로드는 없음(말없는 복구). ⇒ 토스트(같은 글)와 표식 걷기를 여기 «한 번»만.
    ⛔렌더러에서 electronAPI.loadProject 에 open:true 를 넘기는 «날» 호출을 새로 쓰지 마라 — tests/unit/open-load-notice-e170.test.js 가 «하나»로 잠근다. */
-/* 앱 밖에서 폴더가 없어진 프로젝트의 남은 LS 본(MISSING-PROJECT-TAB-NO-NOTICE-01). 폴더가 있으면 null. 앱 휴지통의 것은 본을 안 준다 — 지운 프로젝트는 되살리지 않는다. */
-async function _projectGoneCopy(id) {
-  const state = await window.electronAPI?.projectFolderState?.(id);
-  if (state !== 'missing' && state !== 'trashed') return null;
-  let data = null;
-  if (state === 'missing') { try { const d = JSON.parse(localStorage.getItem(SAVE_KEY_PREFIX + '__' + id)); if (Array.isArray(d?.pages) && d.pages.length) data = d; } catch {} }
-  return { state, data };
-}
-window.projectGoneCopy = _projectGoneCopy;
-
 async function loadProjectForOpen(id) {
   const proj = await window.electronAPI.loadProject(id, { open: true });
+  if (!proj && await window.electronAPI.projectFolderState?.(id) === 'unknown') {   // 없는 게 아니라 못 읽었다 — 빈 판으로 열지 않고 읽기 실패 길로
+    window.LoadInputGate?.noteReadError('폴더를 읽지 못함');
+    throw new Error('project-read-failed:folder-unknown');
+  }
   if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
     throw new Error('project-unreadable');
@@ -2743,11 +2737,12 @@ function initApp() {
           allProjects = await window.electronAPI.listProjects();
           /* 폴더가 앱 밖에서 없어진 탭 — LS 본이 있으면 탭과 본을 남긴다(누르면 그 본으로 연다). 없으면 뺀다. */
           const _listed = new Set(allProjects.map(p => p.id));
-          const _goneTabs = await Promise.all(openTabs.filter(t => !_listed.has(t.id)).map(async t => ({ t, g: await _projectGoneCopy(t.id) })));
-          const _keptIds = _goneTabs.filter(x => x.g?.data).map(x => x.t.id);
-          _bootGone = _goneTabs.find(x => x.t.id === activeProjectId)?.g || null;
+          const _goneTabs = await Promise.all(openTabs.filter(t => !_listed.has(t.id)).map(async t => ({ t, g: await window.projectGoneCopy(t.id) })));
+          const _keptIds = _goneTabs.filter(x => x.g?.data || x.g?.state === 'unknown').map(x => x.t.id);   // 못 읽은 것은 없어진 게 아니다 — 탭과 본을 그대로 둔다
+          const _bootG = _goneTabs.find(x => x.t.id === activeProjectId)?.g || null;
+          _bootGone = _bootG?.state === 'unknown' ? null : _bootG;
           _bootGoneName = openTabs.find(t => t.id === activeProjectId)?.name;
-          cleanStaleAutosaveKeys([..._listed, ..._keptIds]);
+          if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._listed, ..._keptIds]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
           _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
           const existingIds = new Set([..._listed, ..._keptIds]);

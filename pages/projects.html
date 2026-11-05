@@ -898,6 +898,7 @@ body {
 <script src="../js/collab/invites-badge.js"></script>
 <script src="../js/io/image-data-url.js"></script><!-- 썸네일 «빈 그림» 판정 — 아래 인라인 스크립트가 바로 쓴다 (T-87) -->
 <script src="../js/notice.js"></script>
+<script src="../js/io/project-gone.js"></script>
 <script src="../js/entitlement-banner.js"></script>
 <!-- ★[H3] 지난 실행 복구. recovery-banner.js = 판정·문구(DOM 의존 0),
      report-modal.js = «기존» 신고 창 그대로(새 전송 경로를 만들지 않는다 — 재사용).
@@ -2295,6 +2296,7 @@ window.closeDeletedProjectTab = (id) => {
   try { tab = JSON.parse(localStorage.getItem('web-editor-open-tabs'))?.tabs?.find(t => t.id === id); } catch {}
   if (!tab) return false;
   removeHomeTab(id);
+  try { localStorage.removeItem('web-editor-autosave__' + id); localStorage.removeItem('web-editor-autosave__' + id + '_ts'); window.electronAPI?.flushLocalStorage?.(); } catch {}   // 편집기 쪽과 같은 까닭(tab-system.js)
   window.showStatusToast?.(window.deletedTabNotice?.(tab.name, false));
   return true;
 };

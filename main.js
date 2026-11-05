@@ -2670,10 +2670,19 @@ const _flushBeforeTrash = (projectId) => _callEachWindow(`window.flushProjectBef
 /* 폴더가 앱 밖에서 없어진 탭(MISSING-PROJECT-TAB-NO-NOTICE-01) — 앱 안 삭제와 갈라 부른다: 앱 휴지통의 프로젝트는 저장이 되살리지 못한다(위 현빈 결정), 앱 밖에서 없어진 것은 편집을 살리려고 저장이 폴더를 다시 만든다. */
 const _seenProjects = new Set();   // 이번 실행에서 읽었거나 쓴 프로젝트 — 첫 저장(새 프로젝트)과 «다시 만듦»을 가른다
 function _projectFolderState(id) {
+  /* existsSync 는 EACCES·EIO 에도 false 다 — ENOENT 만 «없다»고 말한다. 못 읽은 것을 없다고 읽으면 탭을 닫고 본을 지운다. */
+  if (_projectsDirState && _projectsDirState.unresolved) return 'unknown';   // 어느 계정인지 모른다 — 이 뿌리엔 아무것도 없는 게 당연하다
+  const root = _projectsRoot();
+  const exists = (p) => { try { fs.statSync(p); return true; } catch (e) { if (e && e.code === 'ENOENT') return false; throw e; } };
   const key = String(id || '');
-  if (_resolveProjectJsonPath(key)) return 'ok';
+  try {
+    fs.readdirSync(root);
+    if (!key) return 'ok';   // 빈 id = 뿌리만 묻는다
+    if (_resolveProjectJsonPath(key) || exists(path.join(root, key, 'proj.json')) || exists(path.join(root, `${key}.json`))) return 'ok';
+  } catch (_) { return 'unknown'; }
   if (_deletedProjects.has(key)) return 'trashed';
-  try { if (_trash.listTrash({ projectsDir: _projectsRoot() }).items.some((x) => x.projectId === key)) return 'trashed'; } catch (_) {}
+  /* 메타가 깨져 목록에 안 나와도 몸통이 있으면 휴지통의 것이다 — 복원 길이 살아 있는데 되살리면 id 가 둘이 된다. */
+  try { const t = path.join(root, _trash.TRASH_DIRNAME); if (exists(path.join(t, key)) || exists(path.join(t, `${key}.json`))) return 'trashed'; } catch (_) { return 'unknown'; }
   return 'missing';
 }
 ipcMain.handle('projects:folder-state', (_e, id) => _projectFolderState(id));
