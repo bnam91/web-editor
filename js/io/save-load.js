@@ -307,6 +307,7 @@ function _flushUnfinishedSavesSync() {
     let reason = null;
     try {
       const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+      applyAdoptedAssets(data, id);   // 탭 전환 본은 라이브 DOM 의 옛 주소다 — 평소엔 저장 줄에서 옮기지만 여기선 그 길을 안 탄다(앱 ×6: 파일이 되돌아가 A 삭제 후 0/2)
       if (!opts?.allowEmpty && _emptySaveBlocked(data, id)) continue;   // 평소 저장과 같은 보호(_doSaveProjectToFile) — 메인에는 이 검사가 없어 파일이 빈다
       const r = window.electronAPI.saveProjectSync({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() });
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
