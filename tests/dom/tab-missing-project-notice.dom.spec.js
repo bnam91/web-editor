@@ -249,3 +249,24 @@ test('A5 어느 계정 것인지 모르는 본은 안 준다', async ({ page }) 
   expect((await st(page)).screenB).toBe(false);
   expect(errs).toEqual([]);
 });
+
+/* 리뷰 ② — 폴더가 돌아온 뒤 */
+test('T1 남은 본으로 연 탭은 폴더가 돌아오면 파일로 다시 연다 — 낡은 캐시를 안 쓴다', async ({ page }) => {
+  const errs = await setup(page, { state: 'missing', ls: true });
+  await go(page); await settled(page);
+  expect((await st(page)).screenB, '[전제] 본으로 열렸다').toBe(true);
+  await page.evaluate(() => window.switchTab('proj_a')); await settled(page);
+  /* 폴더가 돌아왔다 — 파일 쪽 내용이 다르다 */
+  await page.evaluate(() => { const real = window.electronAPI; window.__fileRead = 0; window.electronAPI = new Proxy(real, { get: (t, k) => k === 'projectFolderState' ? async () => 'ok' : k === 'loadProject' ? async (id) => { window.__fileRead++; return { id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P', canvas: '<div class="section-block" id="s_returned" data-section="1"><div class="section-hitzone"></div><div class="section-inner"></div></div>' }] }; } : t[k] }); });
+  await go(page); await settled(page);
+  expect(await page.evaluate(() => !!document.getElementById('s_returned')), '★돌아온 파일을 안 읽고 낡은 본을 띄웠다').toBe(true);
+  expect(errs).toEqual([]);
+});
+test('T2 [대조] 평범한 캐시 탭은 파일을 다시 안 읽는다', async ({ page }) => {
+  const errs = await setup(page, { state: 'ok', cached: true });
+  await page.evaluate(() => { window.__fileRead = 0; const real = window.electronAPI; window.electronAPI = new Proxy(real, { get: (t, k) => k === 'loadProject' ? async () => { window.__fileRead++; return null; } : t[k] }); });
+  await go(page); await settled(page);
+  expect(await page.evaluate(() => window.__fileRead)).toBe(0);
+  expect((await st(page)).screenB).toBe(true);
+  expect(errs).toEqual([]);
+});

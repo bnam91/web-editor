@@ -2843,7 +2843,7 @@ function initApp() {
       window.saveTabState?.();
     }
     const saved = _bootGone && !_bootGone.data ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
-    if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); return; } catch {} }
+    if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
     if (_bootGone) window.closeDeletedProjectTab?.(activeProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다
   })().catch(e => {

@@ -379,6 +379,11 @@ async function switchTab(id) {
       after(() => _gen === _switchGen && _getActId() === id).then((done) => { if (done && targetTab?._afterLs === after) targetTab._afterLs = null; });
     };
 
+    /* 남은 본으로 연 탭 — 폴더가 돌아왔으면 그 캐시는 파일보다 낡았다. 그대로 쓰면 첫 편집이 돌아온 파일을 덮는다(앱 재현). 파일로 다시 연다. */
+    if (targetTab?._goneCopy && await window.electronAPI?.projectFolderState?.(id) === 'ok') {
+      if (_gen !== _switchGen) return;
+      targetTab._goneCopy = false; targetTab._cache = null; targetTab._afterLs = null;
+    }
     // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
     if (targetTab?._cache) {
       window.applyProjectData(JSON.parse(targetTab._cache));
@@ -423,7 +428,7 @@ async function switchTab(id) {
     const _gone = (!proj && window.IS_ELECTRON) ? await window.projectGoneCopy?.(id) : null;
     if (_gen !== _switchGen) return;
     if (_gone?.data) {
-      if (targetTab) targetTab._cache = JSON.stringify(_gone.data);
+      if (targetTab) { targetTab._cache = JSON.stringify(_gone.data); targetTab._goneCopy = true; }
       window.applyProjectData(_gone.data);
       _restoreViewState(targetTab);
       window.showStatusToast?.(window.missingFolderNotice?.(targetTab?.name));
