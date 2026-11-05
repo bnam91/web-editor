@@ -270,5 +270,6 @@ test('U-W3-9 동기 저장이 기획 파일로 거절돼도 그 본이 마커·�
   const j = JSON.parse(fs.readFileSync(path.join(H.userData, 'quit-save-failure.json'), 'utf8'));
   assert.equal(j.records[0].reason, 'planning_not_editor');
   assert.ok(fs.readFileSync(j.records[0].emergencyPath, 'utf8').includes(TOKEN), '⛔거절된 본이 사본에 없다');
+  assert.equal(JSON.parse(fs.readFileSync(j.records[0].emergencyPath, 'utf8')).type, undefined, '⛔사본이 기획으로 분류된다');
   saveGuard.takePendingSyncFailure();
 });

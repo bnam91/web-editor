@@ -78,6 +78,22 @@ test('U-H3-W3 ★★되살리기 = «새 프로젝트». 원본은 한 글자도
   assert.ok(fs.existsSync(em), '★비상 사본을 지웠다 — 되살리기가 실패했을 때 사용자가 챙길 마지막 통로다');
 });
 
+test('U-H3-W3b 원본이 pages 없는 기획 파일이어도 복구본은 기획으로 분류되지 않는다', async () => {
+  const id = 'proj_1788000097777';
+  const dir = path.join(UD, 'projects', id); fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'proj.json'), JSON.stringify({ id, name: '기획서', type: 'planning', planData: { a: 1 } }));
+  fs.mkdirSync(EMER, { recursive: true });
+  const em = path.join(EMER, `${id}-x.json`);
+  fs.writeFileSync(em, JSON.stringify({ version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'Page 1', canvas: sec('sec_plan', '기획 위의 편집') }] }), 'utf8');
+  const r = await H.invoke('recovery:restore', { emergencyPath: em, projectId: id });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const o = JSON.parse(fs.readFileSync(path.join(UD, 'projects', r.projectId, 'proj.json'), 'utf8'));
+  assert.equal(o.type ?? null, null, '★복구본이 기획으로 분류된다');
+  assert.equal(o.planData, undefined);
+  assert.ok(JSON.stringify(o).includes('기획 위의 편집'));
+  assert.ok(o.name.startsWith('기획서'), o.name);
+});
+
 test('U-H3-W4 ★원본이 «없거나» id 규약과 안 맞아도 되살린다 — 대신 «반쪽»임을 말한다', async () => {
   /* ★실기가 요구한 가지(2026-09-06): H4 러너가 만든 프로젝트 id 는 `proj_h4_<epoch>` 라
      _duplicateProjectImpl 의 `^proj_\d+$` 를 통과 못 한다. 초판은 거기서 그냥 실패했고,

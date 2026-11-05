@@ -311,10 +311,11 @@ function _flushUnfinishedSavesSync() {
       if (!opts?.allowEmpty && _emptySaveBlocked(data, id)) continue;   // 평소 저장과 같은 보호(_doSaveProjectToFile) — 메인에는 이 검사가 없어 파일이 빈다
       const r = window.electronAPI.saveProjectSync({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() });
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
-      if (!reason) { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }
+      if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
     if (reason) {
-      const _str = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot);
+      let _str = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot);
+      try { const _d = JSON.parse(_str); if (applyAdoptedAssets(_d, id)) _str = JSON.stringify(_d); } catch (_) {}   // 줄의 본은 옮기기 전에 찍혔을 수 있다 — 비상 사본·LS 본이 옛 주소로 남으면 그 프로젝트를 지운 뒤 그림이 빠진다(앱: 거절 때 사본에 옛 주소)
       failed.push({ id, reason, snapshot: _str });
       _settleBigLs(id, _str, true, _lsTsOf(id));   // 닫은 탭이면 LS 에도 없고 종료 답은 한 건만 싣는다 — 거절된 본을 LS 에 남긴다
     }
@@ -392,7 +393,8 @@ function _isAllCanvasEmpty(data) {
 let _emptyByRestoreOwner = null;
 window.__noteRestoredCanvas = () => { _emptyByRestoreOwner = document.querySelector('#canvas .section-block') ? null : activeProjectId; };
 function _emptySaveBlocked(data, projectId) {
-  if (!_isAllCanvasEmpty(data)) { _emptyByRestoreOwner = null; return false; }
+  // 표식은 화면이 다시 찼을 때만 풀린다(탭이 바뀌면 applyProjectData 가 먼저 풀어 표식이 있는 동안 화면은 곧 그 주인 것이다) — 옆 프로젝트 본이나 줄에 남은 앞 본을 검사해도 ⌘Z 로 비운 사실은 그대로다(앱: 풀리면 비운 본이 막혀 다시 열 때 섹션이 살아난다)
+  if (!_isAllCanvasEmpty(data)) { if (document.querySelector('#canvas .section-block')) _emptyByRestoreOwner = null; return false; }
   return _emptyByRestoreOwner === null || _emptyByRestoreOwner !== projectId;
 }
 
@@ -2464,10 +2466,12 @@ if (IS_ELECTRON) {
       try { window.electronAPI.quitReady(r); } catch (_) {}
     };
     let snap = null;
+    let quitId = null, quitName = null;   // snap 의 주인 — 기다리는 사이 탭이 바뀌어도 답은 이 프로젝트를 말한다
     try {
       if (!activeProjectId) { answer({ ok: true, reason: 'no-project' }); return; }
       if (_isReloadSealed(activeProjectId)) { answer({ ok: true, reason: 'reload-seal' }); return; }
-      const quitId = activeProjectId;   // 기다리는 사이 저장 거절이 탭을 닫으면 활성이 바뀐다
+      quitId = activeProjectId;   // 기다리는 사이 저장 거절이 탭을 닫으면 활성이 바뀐다
+      quitName = getProjectName();
       if (window.isTabFirstLoading?.(activeProjectId)) { answer({ ok: true, reason: 'tab-not-loaded' }); return; }   // ★361 — saveProjectToFile 머리말
       // debounce 타이머 즉시 취소
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
@@ -2489,7 +2493,7 @@ if (IS_ELECTRON) {
       } catch (e) {
         console.error('[save-load] force-save-before-quit 저장 실패:', e);
         answer({ ok: false, reason: 'exception', error: (e && e.message) || String(e),
-                 projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
+                 projectId: quitId, projectName: quitName, snapshot: snap });
         return;
       }
       /* undefined = «다른 저장이 도는 중이라 큐에 넣었다». 그 큐는 앞 저장이 끝나야 돌므로
@@ -2504,14 +2508,24 @@ if (IS_ELECTRON) {
         result = _quitSaveResolveQueued(_isSavingToFile, _pendingSaves.has(quitId),
                                         _lastSaveResult.get(quitId), queuedAt);
       }
+      /* 기다리는 사이 든 편집은 snap 에 없다(타이머가 다시 걸린 것이 표시) — 줄에 올려 answer 의 flush 가 쓴다. 못 쓰면 실패 답의 비상 사본이 이 본이다. */
+      if ((autoSaveTimer || _autoSavePending) && activeProjectId === quitId && !window.isTabFirstLoading?.(quitId)) {
+        const _late = JSON.parse(serializeProject());
+        if (!_isAllCanvasEmpty(_late)) {
+          if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+          applyAdoptedAssets(_late, quitId);
+          snap = JSON.stringify(_late);
+          _pendingSaves.set(quitId, { snapshot: snap, opts: { skipThumbnail: true, projectId: quitId } });
+        }
+      }
       const out = _quitSaveOutcome(result);
       answer(out.ok ? { ok: true, reason: out.reason }
                     : { ok: false, reason: out.reason, error: out.error || null,
-                        projectId: activeProjectId, projectName: getProjectName(), snapshot: snap });
+                        projectId: quitId, projectName: quitName, snapshot: snap });
     } catch (e) {
       console.error('[save-load] force-save-before-quit 처리 실패:', e);
       answer({ ok: false, reason: 'exception', error: (e && e.message) || String(e),
-               projectId: activeProjectId || null, snapshot: snap });
+               projectId: quitId || activeProjectId || null, projectName: quitName, snapshot: snap });
     }
   });
 }
