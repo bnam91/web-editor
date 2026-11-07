@@ -493,6 +493,9 @@ function _placeAfterFrameAsSibling(frame, el) {
   unit.after(el);
   const parent = unit.parentElement;
   if (parent?.dataset?.freeLayout === 'true') window.settleRowInFreeFrame?.(parent, el, 'stack');
+  /* ★T-KEY-REPEAT-INSERTS-INTO-FRAME-01(현빈 261108) — 프레임 «밖»에 놓았으면 활성 프레임도 새 블럭이 선 자리로 옮긴다.
+     안 옮기면 그 프레임이 「안 골라짐 · 활성만」으로 남아 frameTakesInsert 가 참 → 다음 t·g 가 그 프레임 «안» 끝에 쌓였다(0.9.9 부터). */
+  window._activeFrame = parent?.closest?.('.frame-block:not([data-text-frame])') || null;
 }
 
 /* 키보드 입구용 삽입 — 프레임을 «오브젝트로» 골라 둔 상태면 안이 아니라 «다음 형제»로, 아니면 insertAfterSelected 그대로.

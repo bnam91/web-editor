@@ -1011,6 +1011,9 @@ function addGapBlock(height, opts = {}) {
   bindBlock(gb);
   window.buildLayerPanel();
   window.selectSection(sec);
+  /* ★T-KEY-REPEAT-INSERTS-INTO-FRAME-01(현빈 261108) — selectSection 이 활성 프레임을 비운다. 갭이 프레임 «안»에 섰으면 그 프레임을 다시 활성으로 —
+     안 그러면 다음 t 가 섹션 레벨로 튀어 갭 다음이 아닌 곳에 선다(프레임 안 프레임에서 g → t). */
+  window._activeFrame = gb.parentElement?.closest?.('.frame-block:not([data-text-frame])') || null;
 }
 
 function addIconCircleBlock(opts = {}) {
