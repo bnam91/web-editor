@@ -444,12 +444,14 @@ function frameSelectedAsObject(section) {
  *   ★번지는 범위: 판정 대상은 «진짜 프레임»(도형 래퍼·글자 래퍼·배너 외곽·그룹 제외) 안의 더블클릭뿐 — 프레임 밖 블럭은 이 처리기를 안 탄다
  *     (잠금: tests/dom/dblclick-outside-frame-unchanged · 처리기 18 종 정의 자리 수는 그 머리말).
  *   나가기(R4)는 안 바꾼다 — deselectAll 이 «들어간 프레임» 표시를 같이 지운다(editor.js). */
-function _isEntryFrame(f) {
+function _isEntryFrame(f, withGroup) {
   return !!f && f.classList?.contains('frame-block') && !f.dataset?.textFrame && !f.dataset?.bannerPreset
-    && f.dataset?.group !== 'true' && !isShapeFrame(f);
+    && (withGroup || f.dataset?.group !== 'true') && !isShapeFrame(f);
 }
-function _innermostEntryFrame(node) {
-  for (let f = node?.closest?.('.frame-block'); f; f = f.parentElement?.closest('.frame-block')) if (_isEntryFrame(f)) return f;
+/* withGroup — 더블클릭 진입은 그룹(⌘G)도 탄다(B안: 프레임·그룹·스택 똑같이). 덮개 CSS 가 그룹 자식도 막으니 안 타면 그룹 자식을 고를 길이 없다.
+   ⌘A 범위(editor.js _selectAllFrame)는 옛 그대로 그룹을 건너뛴다. */
+function _innermostEntryFrame(node, withGroup) {
+  for (let f = node?.closest?.('.frame-block'); f; f = f.parentElement?.closest('.frame-block')) if (_isEntryFrame(f, withGroup)) return f;
   return null;
 }
 if (typeof window !== 'undefined') window._innermostEntryFrame = _innermostEntryFrame;   // ⌘A 범위(editor.js _selectAllFrame)
@@ -457,7 +459,7 @@ let _dblGesture = null;   // { frame, entered } — 제스처 첫 mousedown 때 
 if (typeof document !== 'undefined') {
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || e.detail !== 1) return;
-    const f = _innermostEntryFrame(e.target);
+    const f = _innermostEntryFrame(e.target, true);
     _dblGesture = f ? { frame: f, entered: !!f.querySelector('.selected') || window._enteredFrame === f } : null;
   }, true);
   document.addEventListener('dblclick', (e) => {
