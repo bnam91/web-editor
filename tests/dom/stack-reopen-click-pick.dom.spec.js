@@ -1,4 +1,4 @@
-/* stack-reopen-click-pick — 다시 연 중첩 스택에서 안쪽 프레임·블럭을 클릭으로 차례로 고르고, 끌면 블럭이 간다(S6 새 발견 ① · 고치기 전엔 G1 에 묶여 아무것도 안 움직였다).
+/* stack-reopen-click-pick — 다시 연 중첩 스택에서 안쪽 프레임·블럭을 더블클릭으로 차례로 고르고(B안 — 한 번 클릭은 바깥), 끌면 블럭이 간다(S6 새 발견 ① · 고치기 전엔 G1 에 묶여 아무것도 안 움직였다).
  * 음성: 맨 위 프레임 빈 자리 클릭은 맨 위를 고른다. absolute 자식·그룹 자식은 child-frame-drag-294 가 지킨다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -31,18 +31,24 @@ async function drag(page, x, y, tx, ty) { await page.mouse.move(x, y); await pag
 const KINDS = [['에셋', '.asset-block', 'addAssetBlock'], ['표', '.table-block', 'addTableBlock'], ['글자', '.text-block', 'addTextBlock', 'body'], ['챗', '.chat-block', 'addChatBlock']];
 
 for (const [name, sel, fn, arg] of KINDS) {
-  test(`${name} — 클릭할 때마다 R→G1→A→블럭으로 내려간다`, async ({ page }) => {
+  /* B안(현빈 261107): 옛 «클릭할 때마다 R→G1→A→블럭» 드릴인은 일부러 뺐다 — 한 번 클릭은 바깥(R)에 머물고, 더블클릭이 한 겹씩 내려간다. */
+  test(`${name} — 한 번 클릭은 R 에 머물고 더블클릭할 때마다 G1→A→블럭으로 내려간다`, async ({ page }) => {
     const s = await scene(page, sel, fn, arg);
+    const clicks = [];
+    for (let i = 0; i < 3; i++) { const w = await mk(page); await page.mouse.click(w.x, w.y); await raf(page); clicks.push((await selected(page)).pop()); }
+    expect(clicks, '한 번 클릭은 거듭해도 R').toEqual([s.R, s.R, s.R]);
+    expect((await mk(page)).sel, '한 번 클릭으로는 블럭이 안 잡힌다').toBe(false);
     const seen = [];
-    for (let i = 0; i < 4; i++) { const w = await mk(page); await page.mouse.click(w.x, w.y); await raf(page); seen.push((await selected(page)).pop()); }
-    expect(seen.slice(0, 3)).toEqual([s.R, s.G1, s.A]);
-    expect((await mk(page)).sel, '넷째 클릭에 블럭').toBe(true);
+    for (let i = 0; i < 3; i++) { const w = await mk(page); await page.mouse.dblclick(w.x, w.y); await raf(page); seen.push((await selected(page)).pop()); }
+    expect(seen.slice(0, 2)).toEqual([s.G1, s.A]);
+    expect((await mk(page)).sel, '셋째 더블클릭에 블럭').toBe(true);
     expect(s.errs, s.errs.join(' | ')).toEqual([]);
   });
 }
 test('에셋 — 고른 뒤 끌면 블럭이 B 로 간다', async ({ page }) => {
   const s = await scene(page, KINDS[0][1], KINDS[0][2]);
-  for (let i = 0; i < 4; i++) { const w = await mk(page); await page.mouse.click(w.x, w.y); await raf(page); }
+  for (let i = 0; i < 4 && !(await mk(page)).sel; i++) { const w = await mk(page); await page.mouse.dblclick(w.x, w.y); await raf(page); }  // B안: 더블클릭 진입으로 고른다
+  expect((await mk(page)).sel, '[전제] 고르기').toBe(true);
   const w = await mk(page); const [tx, ty] = await spot(page, s.B);
   await drag(page, w.x, w.y, tx, ty);
   const a = await mk(page);

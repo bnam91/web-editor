@@ -1,6 +1,6 @@
 /* stack-gap-surface-drag — 스택 프레임의 빈 데(패딩 gap)를 끌면 gap 이 아니라 프레임이 끌린다, 변환 직후도 다시 연 판도(S6 새 발견 ⑤).
  * 또 변환 직후 옛 좌표 끌기가 프레임에 좌표를 안 쓴다(새 발견 ④).
- * 음성: gap 을 클릭하면 gap 을 고르고, 고른 gap 은 제가 끌린다 · 안쪽 블럭 끌기는 그대로 · 놓은 뒤 gap draggable 복귀. */
+ * 음성: gap 을 더블클릭하면(B안 진입) gap 을 고르고, 고른 gap 은 제가 끌린다 · 안쪽 블럭 끌기는 그대로 · 놓은 뒤 gap draggable 복귀. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -26,7 +26,7 @@ async function scene(page, mode) {
 }
 const gap = (page, A) => page.evaluate((A) => { const g = document.getElementById(A).querySelector(':scope > .gap-block'); if (!g.id) g.id = 'gap_test'; const r = g.getBoundingClientRect(); return { id: g.id, x: r.left + r.width / 2, y: r.top + r.height / 2, sel: g.classList.contains('selected'), dg: g.getAttribute('draggable') }; }, A);
 const live = (page) => page.evaluate(() => new Promise((r) => setTimeout(() => r(window.__live.splice(0)), 0)));
-const pickA = async (page, s) => { const g = await gap(page, s.A); await page.mouse.click(g.x, g.y); await raf(page); await page.mouse.click(g.x, g.y); await raf(page); return page.evaluate((A) => document.getElementById(A).classList.contains('selected'), s.A); };
+const pickA = async (page, s) => { const g = await gap(page, s.A); await page.mouse.dblclick(g.x, g.y); await raf(page); /* B안(현빈 261107): 한 번 클릭 두 번(R→A) 드릴인 대신 더블클릭 진입이 R 안의 A 를 고른다 */ return page.evaluate((A) => document.getElementById(A).classList.contains('selected'), s.A); };
 async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + dx * i / STEPS, y + dy * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 
 for (const mode of ['fresh', 'reopen']) {
@@ -46,7 +46,7 @@ for (const mode of ['fresh', 'reopen']) {
     const s = await scene(page, mode);
     expect(await pickA(page, s)).toBe(true);
     const g = await gap(page, s.A);
-    await page.mouse.click(g.x, g.y); await raf(page);
+    await page.mouse.dblclick(g.x, g.y); await raf(page);  // B안: 고른 A 안의 gap 도 더블클릭 진입으로 고른다(한 번 클릭은 A)
     expect((await gap(page, s.A)).sel, 'gap 고름').toBe(true);
     await page.evaluate(() => { window.__live.length = 0; });
     await drag(page, g.x, g.y, 0, 40);
