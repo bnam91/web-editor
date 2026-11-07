@@ -150,8 +150,7 @@ function _selectSticker(block) {
   }
   if (block.dataset.shape === 'coin') _markCoinKept(block);
   window.showStickerProperties?.(block);
-  // ★1013t2C1 — deselectAll 이 앵커(_lastClickedBlock)를 지운다 → ⇧ 범위의 시작점을 다시 박는다
-  //   (안 하면 다음 ⇧클릭이 rangeSelectBlocks 의 «단일 선택 폴백»으로 떨어진다)
+  // ★1013t2C1 — deselectAll 이 앵커(_lastClickedBlock)를 지운다 → 다시 박는다(다른 블럭 클릭과 같은 꼴 · ⇧ 범위선택은 7042 로 없앰)
   window.setBlockAnchor?.(block);
 }
 window._selectSticker = _selectSticker;
@@ -511,7 +510,7 @@ window._addCornerHandles = _addCornerHandles;
 window._removeCornerHandles = _removeCornerHandles;
 
 /* ★1013t2C1 — 스티커 복수 선택(⌘/Ctrl·⇧). 다른 블럭과 «같은 규약»(js/editor.js):
-     ⌘/Ctrl = toggleBlockSelect(하나 넣고 빼기) · ⇧ = rangeSelectBlocks(앵커~대상 범위).
+     ⌘/Ctrl·⇧ = toggleBlockSelect(하나 넣고 빼기 · 현빈 7042 피그마식 — ⇧ 범위선택 없앰).
    mousedown 은 modifier 면 선택을 «안 바꾸고» 누른 자리(_stkDown)만 적는다. 가름은 여기(click)서 한다.
    ★「제자리 클릭」만 가른다 — 3px 넘게 끈 것은 ⌘드래그 = 자유 이동이라 선택을 토글하지 않는다
      (onMove 를 건드리지 않고 «누른 자리 ↔ 뗀 자리» 거리로 잰다).
@@ -546,14 +545,10 @@ function _stickerModifierClick(block, e) {
     if (!selected) _selectSticker(block);
     return true;
   }
-  if (!window.toggleBlockSelect || !window.rangeSelectBlocks) return false;
+  if (!window.toggleBlockSelect) return false;
   const sec = block.closest('.section-block');
-  if (e.metaKey || e.ctrlKey) {
-    if (selected) { _removeHlbHandles(block); _removeCornerHandles(block); }   // 빠지는 스티커에 손잡이가 남지 않게
-    window.toggleBlockSelect(block, sec);
-  } else {
-    window.rangeSelectBlocks(block, sec);
-  }
+  if (selected) { _removeHlbHandles(block); _removeCornerHandles(block); }   // 빠지는 스티커에 손잡이가 남지 않게
+  window.toggleBlockSelect(block, sec);   // ⌘/Ctrl·⇧ 모두 넣고 빼기(피그마식 — 현빈 7042)
   return true;                                   // 패널은 두 정본 함수가 _updateMultiSelPanel 로 고른다
 }
 

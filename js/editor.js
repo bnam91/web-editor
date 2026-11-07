@@ -32,7 +32,7 @@ if (typeof window !== 'undefined') {
 
 /* ═══════════════════════════════════
    SSOT: 「섹션 안에서 고를 수 있는 블록」 타입 셀렉터 (★.selected 접미사 없음)
-   ⇒ ⇧클릭 범위선택(SIBLING_MULTI_SEL)과 ⌘A 전체선택(editor.js 의 `e.key === 'a'` 분기)이
+   ⇒ 형제 단위 명부(SIBLING_MULTI_SEL)와 ⌘A 전체선택(editor.js 의 `e.key === 'a'` 분기)이
      이 «한 자리»를 같이 본다. 새 블록 타입이 생기면 여기 한 줄만 고친다.
 
    ★왜 한 자리로 모았나 — 2026-09-20 «사용자 관점 훑기» T-085 실측
@@ -43,7 +43,7 @@ if (typeof window !== 'undefined') {
      [gap, text, text, gap] — shape 0개. Delete 뒤에도 .shape-block 이 1개 남았다.
 
    ⚠️`.frame-block` 은 «일부러» 뺐다 — 프레임은 «그릇»이지 고를 잎이 아니다.
-     ⇧클릭 경로는 _toSibling 으로 텍스트프레임을 형제 단위로 쓰므로 SIBLING_MULTI_SEL 에만 더한다.
+     형제 단위 명부(SIBLING_MULTI_SEL)에만 더한다(옛 ⇧ 범위선택이 쓰던 명부 — 현빈 7042 로 ⇧ = ⌘ 토글이 되어 범위선택은 없앴다).
      ⌘A 가 프레임까지 고르면 deleteSelectedFromCanvas 의 `selSS`(프레임 단독 삭제) 갈래가
      먼저 걸려 «그 프레임 줄 하나»만 지우고 return 한다 — 지금은 프레임이 안 골라지므로 안 걸린다.
 
@@ -1031,8 +1031,7 @@ let clipboard = null;
 
 /* ═══════════════════════════════════
    BLOCK MULTI-SELECT HELPERS
-   - Cmd+click  : toggle individual block
-   - Shift+click: range select from last clicked
+   - Cmd/Shift+click: toggle individual block (Figma-style — 현빈 7042 removed Shift range for blocks)
 ═══════════════════════════════════ */
 /* 비석 — BLOCK_MULTI_SEL 죽은 상수(261027) · 두 자로 섰다: ⑴ 정적(지디) git grep -w 선언 걷고 읽는 자 0 ⑵ 행위(S7) 선언 지워도 새 빨강 0(41 파일 475 검사 · o1 98 · c1 95 · o2 99 · c2 95 번갈아) ⑶ 동적 참조(S7 ①⒜) 문자열 조립 · window[…] · eval 0건. ⛔살아있는 9칸(59 종-자리)은 그대로 · 그 표엔 ㉠영구/㉡조건부 구분 0건(별건 175 본체) */
 
@@ -1088,7 +1087,7 @@ function _updateFreeLayoutMultiSelPanel() {
 }
 
 /* ★2026-09-24 T-091 — 「선택은 «한 블럭»인데 우측 패널이 Page 로 남는다」의 마감.
-   ⇧클릭이 «범위»를 못 만들면(앵커와 같은 블럭 = 폭 1 / 앵커 없음 = 단일선택 폴백)
+   (옛 ⇧ 범위선택 시절 기록 — 현빈 7042 로 없앰) ⇧클릭이 «범위»를 못 만들면(앵커와 같은 블럭 = 폭 1 / 앵커 없음 = 단일선택 폴백)
    rangeSelectBlocks 는 deselectAll() 로 패널을 비우고 한 개만 다시 고른다. 그 뒤 여기 오는데
    옛 판은 n<=1 에서 «아무 일도 안 했다» ⇒ 비워진 패널(Page)이 그대로 남았다.
    실측(2026-09-24 포트 9342, 판 7780267): 글자·이미지·도형 전부 같은 증상, ⌘클릭으로 둘 → 하나로
@@ -1118,7 +1117,7 @@ function _openSoleBlockPanel() {
  *   `position:absolute` 하나로는 안 빠지고 `.frame-block[data-free-layout]` «안»일 때만 빠진다.
  *   ⇒ 섹션 직속 플로팅(그라데이션·확대블럭)은 «흐름»으로 친다.
  * ★스티커는 한때 여기서 빠져 있었다(「js/sticker-select.js 라는 전용 선택 모듈이 자기 경로로 훑는다」).
- *   1013t2C1 에서 스티커에 ⌘/⇧ 복수 선택 분기(toggleBlockSelect·rangeSelectBlocks)가 생겨
+ *   1013t2C1 에서 스티커에 ⌘/⇧ 복수 선택 분기(toggleBlockSelect · 7042 뒤로 ⇧ 도 토글)가 생겨
  *   검사 ⓑ-20b 의 규칙(복수선택이 되면 이 목록에 있다)대로 넣었다 — 확대블럭과 같은 자리.
  *   전용 모듈이 있다고 빼면 대체 경로 없이 기능이 사라진다(여럿 고르면 정렬 패널이 아예 안 뜬다).
  *   ⛔한때 확대블럭을 「플로팅이니까」로 뺐다가 되돌렸다 — 그때 형제를 «둘만» 보고
@@ -1126,7 +1125,7 @@ function _openSoleBlockPanel() {
  *     ⇒ 형제 패턴으로 훑되 «전수로 세고» 판정은 한 건씩. (검사 ⓑ-20b 가 이걸 못박는다)
  * 1454행 allSelBlocks와 동일한 셀렉터 목록(.selected 접미) — SSOT */
 /* ★2026-09-21 T-091 — «.frame-block.selected» 가 들어온 이유.
-   ⇧클릭의 «단위»는 SIBLING_MULTI_SEL(:1106) 이 정하는데 거긴 '.frame-block' 이 «있다».
+   (옛 ⇧ 범위선택 시절) ⇧클릭의 «단위»는 SIBLING_MULTI_SEL 이 정했는데 거긴 '.frame-block' 이 «있다».
    그래서 「글자 1 + 프레임(그룹) 1」은 실제로 둘 다 골라지는데, 세는 목록엔 프레임이 없어
    n=1 이 되어 멀티선택 패널이 안 뜨고 직전 deselectAll 이 띄운 «Page» 가 그대로 남았다.
    = 「둘 다 잡혀도 우측 패널이 Page 라 정렬을 못 쓴다」의 실체. 두 목록이 갈린 것이었다.
@@ -1199,14 +1198,14 @@ function _updateMultiSelPanel(block) {
        ⇒ 그 계약을 지키는 쪽이 정본 수리다. 수는 늙지만 선언은 안 늙는다.
      ＋참고로 이 함수를 부르는 자리는 «넷»이고(아래 setTimeout 네 줄이 전부다. 이 함수는
        window 에 안 붙어 있어 부를 수 있는 파일이 이 파일 하나뿐이다) 넷 다 여기로 내려온다.
-       ⛔이 «넷»은 rangeSelectBlocks 의 호출부 수(다른 함수의 수다)와 «다른 수»다. */
+       ⛔이 «넷»은 블럭 click 처리기의 보조키 호출부 수(다른 함수의 수다)와 «다른 수»다. */
   _openSoleBlockPanel();
 }
 
 /* Cmd+클릭: 단일 블록 토글 */
 function toggleBlockSelect(block, sec) {
   /* ★0918r2 T-058 — ⌘클릭은 «블럭 단위» 선택이다. 그리드 줄 선택(활성줄)을 남겨 두면 다중선택
-     상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. Shift 범위선택(deselectAll 경유)과 똑같이 끝낸다. */
+     상태에서 ⌫/⌘X 가 그 줄 하나로 샜다. ⇧클릭도 여기로 온다(현빈 7042 피그마식 — ⇧ = ⌘ 넣고 빼기). */
   window.grdDropLineSelection?.(canvasEl);
   /* 1013t1C4 고침 — 원형 그래프 «조각 선택» 표식도 같은 까닭으로 걷는다(⌘클릭은 clearSelectionMarks 를 안 지난다 ⇒ 다중 선택인데 조각 점선이 남았다). */
   /* 1013t1C4 고침 2 — 표식이 걷혔으면 패널의 Slice 절도 같이 걷는다. 아래 «해제 가지»(같은 블럭을 ⌘클릭해 선택이 0 이 되는 때)는 패널을 다시 안 그린다
@@ -1229,107 +1228,13 @@ function toggleBlockSelect(block, sec) {
   setTimeout(() => _updateMultiSelPanel(block), 0);
 }
 
-/* Shift+클릭: 마지막 클릭 블록 ~ 현재 블록 범위 선택
- * — 같은 부모(섹션 또는 프레임)의 직속 자식만 sibling으로 취급
- * — 텍스트프레임(투명 wrapper)은 자기 안의 text-block을 selected
- * — 프레임/일반 블록은 자기 자신을 selected
- */
-// ★목록은 SECTION_BLOCK_TYPE_SEL(파일 상단 SSOT) 한 자리에 있다 — 여기선 «그릇»인 프레임만 더한다.
-//   (_toSibling 이 text-block 을 제 텍스트프레임으로 올려 형제 단위를 맞추므로 ⇧클릭엔 프레임이 필요하다)
+/* ★형제 단위 명부 — 텍스트프레임 위 «그릇»인 프레임까지 더한다. 쓰는 자: 쌓기 순서 이동 _stackUnitOf(⌘[ · ⌘]) 등.
+   (옛 ⇧클릭 범위선택 rangeSelectBlocks 가 쓰던 명부 — 현빈 7042 「피그마식」으로 ⇧ = ⌘ 넣고 빼기가 되어 그 함수는 없앴다.) */
 const SIBLING_MULTI_SEL = SECTION_BLOCK_TYPE_SEL + ', .frame-block';
 
-function _toSibling(el) {
-  if (!el) return null;
-  // 텍스트블록 클릭은 부모 텍스트프레임을 sibling 단위로 사용
-  const tf = el.closest('.frame-block[data-text-frame]');
-  return tf || el;
-}
-
-function _selectSibling(sib) {
-  // 텍스트프레임이면 inner text-block을 selected (기존 패턴 유지)
-  if (sib.dataset.textFrame === 'true') {
-    const tb = sib.querySelector('.text-block');
-    if (tb) {
-      tb.classList.add('selected');
-      const li = _getBlockLayerItem(tb);
-      if (li) li.classList.add('active');
-    }
-    return;
-  }
-  sib.classList.add('selected');
-  const li = _getBlockLayerItem(sib);
-  if (li) li.classList.add('active');
-}
-
-function rangeSelectBlocks(block, sec) {
-  const target = _toSibling(block);
-  const anchor = _toSibling(_lastClickedBlock);
-  const parent = target?.parentElement;
-
-  // Path 1: 같은 부모 — 기존 빠른 경로 (row 안 형제, frame 안 형제 등)
-  if (anchor && parent && anchor.parentElement === parent) {
-    const siblings = Array.from(parent.children).filter(c => c.matches(SIBLING_MULTI_SEL));
-    const a = siblings.indexOf(anchor);
-    const b = siblings.indexOf(target);
-    if (a >= 0 && b >= 0) {
-      const [lo, hi] = a < b ? [a, b] : [b, a];
-      window.deselectAll?.();
-      _lastClickedBlock = anchor;
-      for (let i = lo; i <= hi; i++) _selectSibling(siblings[i]);
-      if (sec) window.syncSection?.(sec);
-      // 범위선택 후 패널 갱신 (A11) — 어느 패널인지는 _updateMultiSelPanel 이 «선택 전체»를 보고 정한다
-      if (_isInFreeLayout(block)) _restoreFreeLayoutFrameSelected(block);
-      setTimeout(() => _updateMultiSelPanel(block), 0);
-      return;
-    }
-  }
-
-  // Path 2: 부모 다르거나 sibling 매칭 실패 — 같은 섹션 안 selectable 블록 통째 fallback
-  // (sec_xxx > section-inner > row > divider | section-inner > frame[textFrame] > text-block 같이 깊이 다른 케이스)
-  if (anchor && sec && sec.contains(anchor) && sec.contains(target)) {
-    const all = Array.from(sec.querySelectorAll(SIBLING_MULTI_SEL));
-    // text-frame 안 text-block은 frame 자체를 repr로 → 중복 회피
-    const seen = new Set();
-    const sibs = [];
-    for (const el of all) {
-      const repr = _toSibling(el);
-      if (!repr || seen.has(repr)) continue;
-      // repr 자체가 SIBLING_MULTI_SEL을 만족해야 함 (안전망)
-      if (!repr.matches || !repr.matches(SIBLING_MULTI_SEL)) continue;
-      seen.add(repr);
-      sibs.push(repr);
-    }
-    const a = sibs.indexOf(anchor);
-    const b = sibs.indexOf(target);
-    if (a >= 0 && b >= 0) {
-      const [lo, hi] = a < b ? [a, b] : [b, a];
-      window.deselectAll?.();
-      _lastClickedBlock = anchor;
-      for (let i = lo; i <= hi; i++) _selectSibling(sibs[i]);
-      if (sec) window.syncSection?.(sec);
-      // 멀티선택 후 패널 갱신 (A11) — ★0924 T-091 로 「단일선택엔 무동작」이 «아니게» 됐다:
-      //   한 블럭이면 _updateMultiSelPanel 이 그 블럭 패널로 잇는다(빈 Page 가 남던 자리)
-      setTimeout(() => _updateMultiSelPanel(block), 0);
-      return;
-    }
-  }
-
-  // 끝까지 매칭 실패 — 단일 선택
-  window.deselectAll?.();
-  block.classList.add('selected');
-  const li = _getBlockLayerItem(block);
-  if (li) li.classList.add('active');
-  _lastClickedBlock = block;
-  if (sec) window.syncSection?.(sec);
-  // 단일선택 fallback — 카운트 패널은 n>1 가드로 안 뜬다. ★0924 T-091: 그렇다고 «무동작»도
-  //   아니다 — 여기로 떨어진 한 블럭의 패널을 _updateMultiSelPanel 이 연다(옛 판은 Page 가 남았다)
-  setTimeout(() => _updateMultiSelPanel(block), 0);
-}
-
-/* 일반 클릭 시 앵커 업데이트 */
+/* 일반 클릭 시 앵커 업데이트 — ⇧ 범위선택이 없어진 뒤 앵커를 읽는 자는 없다(호출부가 많아 남겨 둠) */
 function setBlockAnchor(block) { _lastClickedBlock = block; }
 window.toggleBlockSelect  = toggleBlockSelect;
-window.rangeSelectBlocks  = rangeSelectBlocks;
 window.setBlockAnchor     = setBlockAnchor;
 window._restoreFreeLayoutFrameSelected = _restoreFreeLayoutFrameSelected; // QA/디버그용
 
@@ -4451,7 +4356,7 @@ function moveSelectedBlocks(direction) {
    *   ⇒ 피그마의 ⌘[ / ⌘] 와 같은 손맛이고, 레이어 패널의 위아래와도 어긋나지 않는다.
    * ★«단위» 해석은 ⌘G 와 «같은 술어»다 — 텍스트는 text-frame 래퍼, 도형은 도형 래퍼
    *   (shapeFrameOf · SSOT), 그 밖은 자기 자신(js/block-factory.js wrapSelectedBlocksInFrame).
-   *   ⛔형제 명부는 손으로 적지 않는다 — SIBLING_MULTI_SEL(⇧클릭이 쓰는 그 명부)을 그대로 쓴다.
+   *   ⛔형제 명부는 손으로 적지 않는다 — SIBLING_MULTI_SEL(형제 단위 명부)을 그대로 쓴다.
    *     그래야 손잡이(.frame-resize-handle 등 절대배치 껍데기)가 «형제로 세어지지» 않는다. */
   const _stackUnitOf = (el) => {
     const w = el?.closest?.('.frame-block[data-text-frame]') || shapeFrameOf(el) || el;

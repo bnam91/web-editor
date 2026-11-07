@@ -1198,8 +1198,7 @@ function bindBlock(block) {
       const sec = block.closest('.section-block');
       const ss = block.closest('.frame-block');
       const layerItem = ss?._layerItem || block._layerItem;
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       // shape-block은 프레임 선택 단계를 건너뛰고 직접 선택 (핸들 즉시 표시)
       selectShapeBlock(block);
     });
@@ -1472,8 +1471,7 @@ function bindBlock(block) {
         && (!_isBubble || !!window.lnBubbleLines?.(block) || !!window.grdWasCanvasDrilled?.(block));
       const _lnAt = _isBubble ? window.lnClickAddr?.(block, e.target, _lnSole) : null;
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -1652,8 +1650,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       // 이미지 편집 모드 진행 중 클릭 무시 — 드래그/리사이즈 후 click 버블링으로 편집 모드가 종료되는 버그 방지
       if (block._imgEditing) return;
       if (_isInsideUnselectedFrame(block)) {
@@ -1771,8 +1768,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -1799,8 +1795,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2016,8 +2011,7 @@ function bindBlock(block) {
         // ★수식어 키는 «누른 자리»와 무관하다 — 칩(.label-item) 위에서 눌러도 배경과 같아야 한다.
         //   ⛔예전엔 이 분기가 ⌘/shift 를 안 봐서 라벨그룹은 «위아래 블록과 동시선택이 안 됐다».
         //   칩이 왼쪽에 몰려 있어(716x69.5 안에 121.8 짜리 3개) 라벨을 겨냥하면 반드시 이리로 온다.
-        if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-        if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+        if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
         if (!block.classList.contains('selected')) {
           window.deselectAll();
           _restoreParentFrameSelected(block);
@@ -2034,8 +2028,7 @@ function bindBlock(block) {
         return;
       }
       // 블록 배경 클릭: 블록만 선택
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       window.deselectAll();
       _restoreParentFrameSelected(block);
       block.classList.add('selected');
@@ -2078,8 +2071,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2118,8 +2110,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2152,8 +2143,7 @@ function bindBlock(block) {
       /* ★BT2 — 이미 «이것 하나»가 선택돼 있으면 메시지/줄을 고른다(그리드 2단 선택과 같은 규칙). deselectAll «전»에 잰다. */
       const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && !!window.grdIsSoleSelected?.(block));
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2185,8 +2175,7 @@ function bindBlock(block) {
       /* ★1013t1B2 — 그리드 2단 선택과 같은 규칙(챗·비교 꼴): 이미 «이것 하나»가 선택돼 있었으면 칸/줄을 고른다. deselectAll «전»에 잰다. */
       const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && _isSoleSelectedBlock(block));
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2214,8 +2203,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2251,8 +2239,7 @@ function bindBlock(block) {
          deselectAll «전»에 잰다(그 전에 .selected 가 걷히면 wasSole 판정이 어긋난다). */
       const _lnAt = window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && _isSoleSelectedBlock(block));
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         const ss = _getParentFrame(block);
         window.deselectAll?.();
@@ -2286,8 +2273,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         const ss = _getParentFrame(block);
         window.deselectAll?.();
@@ -2328,8 +2314,7 @@ function bindBlock(block) {
       const _lnAt = _cmpCell ? null
         : window.lnClickAddr?.(block, e.target, block.classList.contains('selected') && _isSoleSelectedBlock(block));
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         const ss = _getParentFrame(block);
         window.deselectAll?.();
@@ -2368,8 +2353,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         const ss = _getParentFrame(block);
         window.deselectAll?.();
@@ -2396,8 +2380,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         const ss = _getParentFrame(block);
         window.deselectAll?.();
@@ -2427,8 +2410,7 @@ function bindBlock(block) {
       e.stopPropagation();
       if (block.classList.contains('editing')) return;
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2510,8 +2492,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2539,8 +2520,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2589,8 +2569,7 @@ function bindBlock(block) {
         block.classList.remove('editing');
       }
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       if (_isInsideUnselectedFrame(block)) {
         e.stopPropagation();
         const ss = _getParentFrame(block);
@@ -2936,8 +2915,7 @@ function bindBlock(block) {
     block.addEventListener('click', e => {
       e.stopPropagation();
       const sec = block.closest('.section-block');
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(block, sec); return; }
-      if (e.shiftKey) { window.rangeSelectBlocks?.(block, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(block, sec); return; }
       window.deselectAll();
       block.classList.add('selected');
       window.syncSection(sec);
@@ -3368,8 +3346,7 @@ function bindFrameDropZone(ss) {
     if (!e.target.closest('.frame-block')) return;
     e.stopPropagation();
     const parentSec = ss.closest('.section-block');
-    if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(ss, parentSec); return; }
-    if (e.shiftKey) { window.rangeSelectBlocks?.(ss, parentSec); return; }
+    if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(ss, parentSec); return; }
     // 일반 click — 단일 선택
     window.deselectAll?.();
     if (parentSec) {
@@ -3685,8 +3662,8 @@ function bindFrameDropZone(ss) {
     }
     /* ★보조키(⇧/⌘/^)는 «다중선택» 제스처다 — pointerdown 이 손대면 안 된다 (2026-09-21 T-091).
        아래 갈래가 보조키를 «안 보고» deselectAll() 을 불렀다. deselectAll 은 앵커를 지운다
-       (js/editor.js `_lastClickedBlock = null`) ⇒ 곧이어 뜨는 click 의 rangeSelectBlocks(:2232)
-       가 앵커를 잃고 «단일 선택» 폴백으로 떨어진다.
+       (js/editor.js `_lastClickedBlock = null`) ⇒ 곧이어 뜨는 click 의 옛 ⇧ 범위선택(7042 로 없앰 — 지금은 토글)
+       이 앵커를 잃고 «단일 선택» 폴백으로 떨어졌다.
        = 글자를 고른 뒤 프레임(그룹)을 ⇧클릭하면 «먼저 고른 것이 풀리고» 패널이 Page 가 됐다.
        ⚠️같은 요소의 mousedown 갈래(:2278)는 이미 같은 가드를 갖고 있다 — 대칭을 맞춘다.
        ⚠️자리는 «자식 블록» 갈래 «뒤»다 — 자식 위 ⇧드래그에서 프레임 draggable 을 끄는 일은

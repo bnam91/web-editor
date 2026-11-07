@@ -252,17 +252,18 @@ Section (섹션)
 | 입력 | 동작 |
 |------|------|
 | 단순 클릭 | 단일 선택 (기존 선택 해제) |
-| `Cmd+click` | 개별 토글 선택 (anchor 유지) |
-| `Shift+click` | 범위 선택 — anchor 블록 ~ 클릭 블록 사이 전체 선택 |
+| `Cmd+click` | 개별 토글 선택 — 안 골라졌으면 넣고, 골라졌으면 뺀다 |
+| `Shift+click` | `Cmd+click` 과 같다(피그마식 넣고 빼기 — 2026-11 현빈 7042, 옛 «범위 선택»은 없앴다) |
+| 섹션·칸(col) `Shift+click` | 범위 선택 그대로 — 블록이 아니라 그릇이라 이번 변경 밖 |
 | `Backspace` | 선택된 모든 블록 일괄 삭제 |
 | `Cmd+C` | 선택된 모든 블록 복사 (`clipboard.type = 'multi-block'`) |
 | `Cmd+V` | 복사된 블록들 순서 유지하며 붙여넣기 |
 
-**구현 파일**: `js/editor.js` (`toggleBlockSelect`, `rangeSelectBlocks`, `setBlockAnchor`), `js/drag-drop.js` (각 블록 click 핸들러), `js/layer-panel-items.js` (`makeLayerBlockItem` click 핸들러)
+**구현 파일**: `js/editor.js` (`toggleBlockSelect`, `setBlockAnchor`), `js/drag-drop.js` (각 블록 click 핸들러), `js/layer-panel-items.js` (`makeLayerBlockItem` click 핸들러)
 
-**anchor 규칙**: `setBlockAnchor(block)` — 단순 클릭 시 anchor 설정. `rangeSelectBlocks`는 anchor~target 구간을 `deselectAll()` 후 재선택. `deselectAll()` 내부에서 `_lastClickedBlock = null` 초기화되므로 anchor를 로컬 변수에 저장 후 복원.
+**anchor 규칙**: `setBlockAnchor(block)` — 단순 클릭 시 anchor 설정. 옛 `rangeSelectBlocks`(Shift 범위)가 읽던 값이라 지금은 읽는 자가 없다(7042 로 함수 제거).
 
-**여러 블록 선택이 닿는 곳**: 각 블록 종의 click 핸들러가 `window.rangeSelectBlocks?.(…)` 를 부른다(`js/block-drag.js`). anchor 는 `setBlockAnchor` / 토글은 `toggleBlockSelect`(`js/editor.js`). ⛔종 목록도 줄 번호도 여기 적지 마라 — 정본은 코드다(이름으로 `git grep -w`). (옛 `BLOCK_MULTI_SEL` 상수는 2026-10-27 죽은 상수로 걷었다 · 티켓 175)
+**여러 블록 선택이 닿는 곳**: 각 블록 종의 click 핸들러가 `⌘/Ctrl/Shift` 를 `window.toggleBlockSelect?.(…)` 로 보낸다(`js/block-drag.js`). anchor 는 `setBlockAnchor`(`js/editor.js`). ⛔종 목록도 줄 번호도 여기 적지 마라 — 정본은 코드다(이름으로 `git grep -w`). (옛 `BLOCK_MULTI_SEL` 상수는 2026-10-27 죽은 상수로 걷었다 · 티켓 175)
 
 ### 4-4. 드래그앤드롭 (레이어 내)
 

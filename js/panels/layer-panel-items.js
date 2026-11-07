@@ -252,14 +252,9 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
   item.addEventListener('click', e => {
     e.stopPropagation();
     if (e.target.classList.contains('editing')) return;
-    if (e.metaKey || e.ctrlKey) {
-      // Cmd+클릭: 개별 토글
+    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+      // Cmd/Shift+클릭: 개별 토글(피그마식 — 현빈 7042, Shift 범위 선택 없앰)
       window.toggleBlockSelect?.(block, sec);
-      return;
-    }
-    if (e.shiftKey) {
-      // Shift+클릭: 범위 선택
-      window.rangeSelectBlocks?.(block, sec);
       return;
     }
     window.deselectAll();
@@ -869,9 +864,8 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
     /* ★보조키는 «다중선택» — 블록 줄(makeLayerBlockItem)과 같은 자리로 보낸다 (2026-09-21 T-091).
        예전엔 프레임 줄만 ⇧/⌘ 를 «안 보고» deselectAll 로 시작해서, 레이어패널에서
        글자를 고른 뒤 그룹 줄을 ⇧클릭하면 먼저 고른 것이 풀렸다(실측).
-       ⇒ 판정은 캔버스와 같은 rangeSelectBlocks/toggleBlockSelect 가 한다. */
-    if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(ssEl, sec); return; }
-    if (e.shiftKey)             { window.rangeSelectBlocks?.(ssEl, sec); return; }
+       ⇒ 판정은 캔버스와 같은 toggleBlockSelect 가 한다(⇧ = ⌘ = 넣고 빼기 · 현빈 7042 피그마식). */
+    if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(ssEl, sec); return; }
     // ★0919 QA(A안): 도형 줄 = 도형 선택 → 도형 속성. 래퍼 프레임 속성(Border·Layout…)을 열면
     //   Border 슬라이더가 도형 선과 별개로 래퍼에 테두리를 만들었다(«프레임처럼» 편집되는 마지막 경로).
     if (_isShapeFrameEl(ssEl) && typeof window.selectShapeBlock === 'function') {
@@ -946,8 +940,7 @@ function makeLayerFrameItem(ssEl, sec, appendRowFn, depth = 1) {
       if (e.target.classList.contains('editing')) return;
       /* ★보조키 = 다중선택 (2026-09-21 T-091) — 위 wrapper 갈래와 같은 이유·같은 자리.
          자식이 있는 프레임은 이 header 가 그 프레임의 줄이다(ssEl._layerItem = header). */
-      if (e.metaKey || e.ctrlKey) { window.toggleBlockSelect?.(ssEl, sec); return; }
-      if (e.shiftKey)             { window.rangeSelectBlocks?.(ssEl, sec); return; }
+      if (e.metaKey || e.ctrlKey || e.shiftKey) { window.toggleBlockSelect?.(ssEl, sec); return; }
       window.deselectAll?.();
       const parentSec = ssEl.closest('.section-block');
       if (parentSec) { parentSec.classList.add('selected'); window.syncLayerActive?.(parentSec); }

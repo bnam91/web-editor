@@ -201,7 +201,7 @@ function _gradEdgeSnap(block, sec, x, y, bw, bh, secRect, grabZoom) {
 }
 
 /* ★1013t2C1-g — 그라데이션 복수 선택(⌘/Ctrl·⇧). js/sticker-select.js _stickerModifierClick 과 같은 꼴
-   (⌘/Ctrl = toggleBlockSelect · ⇧ = rangeSelectBlocks · 3px 넘게 끈 것은 토글하지 않는다).
+   (⌘/Ctrl·⇧ = toggleBlockSelect(현빈 7042 피그마식) · 3px 넘게 끈 것은 토글하지 않는다).
    ⛔공용 헬퍼로 묶지 않았다 — 두 파일(클래식 스크립트 ↔ 모듈)의 로드 순서 결합을 만들지 않으려고.
    @returns {boolean} 여기서 처리했으면 true(옛 길을 타지 않는다). */
 const _GRD_CLICK_SLOP = 3;
@@ -222,14 +222,10 @@ function _gradientModifierClick(block, e) {
     return true;
   }
   if (moved) { if (!selected) _selectGradient(block); return true; }
-  if (!window.toggleBlockSelect || !window.rangeSelectBlocks) return false;
+  if (!window.toggleBlockSelect) return false;
   const sec = block.closest('.section-block');
-  if (e.metaKey || e.ctrlKey) {
-    if (selected) _removeGradientCornerHandles(block);
-    window.toggleBlockSelect(block, sec);
-  } else {
-    window.rangeSelectBlocks(block, sec);
-  }
+  if (selected) _removeGradientCornerHandles(block);
+  window.toggleBlockSelect(block, sec);   // ⌘/Ctrl·⇧ 모두 넣고 빼기(피그마식 — 현빈 7042)
   return true;
 }
 
