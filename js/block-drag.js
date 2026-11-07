@@ -3459,6 +3459,10 @@ function bindFrameDropZone(ss) {
         const _pressedFrameK = e.target.closest('.frame-block:not([data-text-frame])');
         if (_pressedFrameK !== ss && _pressedFrameK?.classList.contains('selected')) return;
         const childBlock = e.target.closest(CHILD_BLOCK_SEL);
+        /* ★B안(261107) — 명부 밖 종류(챗·쿠폰·조커…)도 «고른 자식»이면 그 블럭 몫이다. 옛날엔 여기서 프레임을 골라도 덮개가 «선택»으로 풀려 있어
+           HTML5 끌기가 살았지만, 이제 덮개는 :has(.selected) 로만 풀려 자식 선택을 지우는 순간 끌 자리가 사라졌다(free-nested-frame-drop 챗·쿠폰·조커). */
+        const _selKid = !childBlock && e.target.closest('.selected');
+        if (_selKid && _selKid !== ss && ss.contains(_selKid)) return;
         if (childBlock?.classList.contains('selected')) {
           // text-block이 절대배치 text-frame 안에 있으면 B drag로 처리
           // (bindBlock의 TF drag가 아닌 B frame 자체 이동이 의도)
