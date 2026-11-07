@@ -90,7 +90,7 @@ test('음성 — 자유 프레임 안에서 묶었다 풀면 absolute 그대로 
   await page.evaluate(() => window.clearHistory?.()); await raf(page);
   const before = await page.evaluate((id) => { const e = document.getElementById(id).getBoundingClientRect(); return [e.left, e.top]; }, b);
   const p = await page.evaluate((P) => { const r = document.getElementById(P).getBoundingClientRect(); return [r.left + 300, r.bottom - 10]; }, P);
-  await page.mouse.click(p[0], p[1]); await raf(page);
+  await page.mouse.dblclick(p[0], p[1]); await raf(page);  // B안(현빈 261107): 여백 더블클릭 = P 진입 — 그 뒤 한 번 클릭이 직계 자식을 고른다(옛: 여백 한 번 클릭 뒤 자식 클릭 드릴인)
   await clickAt(page, a); await clickAt(page, b, 'Shift');
   await page.keyboard.press('Meta+g'); await raf(page);
   expect(await page.evaluate((a) => document.getElementById(a).parentElement.dataset.group, a), '[전제] 묶임').toBe('true');

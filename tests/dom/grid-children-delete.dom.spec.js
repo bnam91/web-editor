@@ -156,11 +156,11 @@ test('N1 지키는 — 그리드 밖 보통 글자 줄 클릭 → Delete = 그 �
 test('N2 지키는 — 프레임 안 에셋(자기 줄) 클릭 → Backspace = 그 줄(rF2)째 · 프레임·글자래퍼 남음', async ({ page }) => {
   const errs = await setup(page);
   const s0 = await sig(page);
-  /* 프레임 안 자식은 프레임을 먼저 고른 뒤(첫 클릭) 다시 눌러 고른다 — 실제 손 순서 */
+  /* 프레임 안 자식은 프레임을 먼저 고른 뒤(첫 클릭) 더블클릭으로 진입해 고른다 — B안(현빈 261107) 손 순서. 옛 «다시 한 번 클릭 = 드릴인»은 빠졌다 */
   const a = await rect(page, '#aF2');
   await page.mouse.click(a.x, a.y); await page.waitForTimeout(300);
   let sel = await logSel(page, 'N2 첫 클릭 뒤');
-  if (!sel.some(s => s.startsWith('aF2.'))) { await page.mouse.click(a.x, a.y); await page.waitForTimeout(300); sel = await logSel(page, 'N2 키 직전'); }
+  if (!sel.some(s => s.startsWith('aF2.'))) { await page.mouse.dblclick(a.x, a.y); await page.waitForTimeout(300); sel = await logSel(page, 'N2 키 직전'); }
   expect(sel.some(s => s.startsWith('aF2.') && s.includes('selected')), '전제 — 프레임 안 에셋이 골라졌다').toBe(true);
   await blur(page);
   await page.keyboard.press('Backspace'); await page.waitForTimeout(400);
@@ -172,12 +172,12 @@ test('N2 지키는 — 프레임 안 에셋(자기 줄) 클릭 → Backspace = �
 
 /* ── 명부(census) 측정: «자기 줄 없는 자식» 꼴 중 M1(모달 프레임화) 꼴 — 줄 안 스택 프레임 > 맨몸 글자래퍼.
    M1 판은 dev 에 없어 그 «꼴»을 손으로 심어 잰다(⚠️M1 코드 자체는 미측정). 지키는 규칙 = _frameBetween(블럭만 · 프레임·줄 남음). */
-async function pickInFrame(page, q, tag) {
+async function pickInFrame(page, q, tag) {   // B안: 첫 클릭 = 프레임, 그다음 더블클릭 = 진입·자식 선택
   const a = await rect(page, q);
   await page.mouse.click(a.x, a.y); await page.waitForTimeout(300);
   let sel = await logSel(page, `${tag} 첫 클릭 뒤`);
   const id = q.slice(1);
-  if (!sel.some(s => s.startsWith(id + '.') && s.includes('selected'))) { await page.mouse.click(a.x, a.y); await page.waitForTimeout(300); sel = await logSel(page, `${tag} 키 직전`); }
+  if (!sel.some(s => s.startsWith(id + '.') && s.includes('selected'))) { await page.mouse.dblclick(a.x, a.y); await page.waitForTimeout(300); sel = await logSel(page, `${tag} 키 직전`); }
   return sel;
 }
 test('M-sec 명부 — 줄(rM) 안 스택 프레임(M1 꼴)의 맨몸 글자 → Delete = 그 글자만 · 프레임·줄·다른 글자 남음 · ⌘Z 한 번', async ({ page }) => {

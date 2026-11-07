@@ -77,7 +77,8 @@ test('F5 전환 뒤 자식 끌기가 좌표로 된다', async ({ page }) => {
   const before = await page.evaluate((id) => document.getElementById(id).style.left, text);
   const q = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }, text);
   const cx = q[0] + q[2] / 2, cy = q[1] + q[3] / 2;
-  await page.mouse.click(cx, cy); await raf(page); await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + q[2] * 0.1, cy, { steps: 6 }); await page.mouse.up(); await raf(page);
+  await page.mouse.dblclick(cx, cy); await raf(page);  // B안(현빈 261107): 고른 프레임의 자식은 더블클릭 진입으로 잡는다(한 번 클릭은 프레임)
+  await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + q[2] * 0.1, cy, { steps: 6 }); await page.mouse.up(); await raf(page);
   await expect.poll(() => page.evaluate((id) => parseInt(document.getElementById(id).style.left), text), '가로로 옮겨졌다').toBeGreaterThan(parseInt(before));
   expect(errs, errs.join(' | ')).toEqual([]);
 });
