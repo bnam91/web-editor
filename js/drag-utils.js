@@ -473,7 +473,11 @@ if (typeof document !== 'undefined') {
       const hit = document.elementFromPoint(e.clientX, e.clientY);
       if (hit && hit !== g.frame && g.frame.contains(hit)) {
         const o = { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: 0, detail: 1, view: window };
-        hit.dispatchEvent(new MouseEvent('mousedown', o)); hit.dispatchEvent(new MouseEvent('mouseup', o)); hit.dispatchEvent(new MouseEvent('click', o));
+        /* 진짜 클릭 순서 그대로(pointerdown→mousedown→pointerup→mouseup→click) — pointerup 이 빠지면 누름 끝(_onPressEnd)을 기다리던
+           처리기가 다음 진짜 누름까지 매달린다(고른 gap 의 draggable 이 false 로 남아 안 끌렸다 · stack-gap-surface-drag). */
+        const po = { ...o, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+        hit.dispatchEvent(new PointerEvent('pointerdown', { ...po, buttons: 1 })); hit.dispatchEvent(new MouseEvent('mousedown', { ...o, buttons: 1 }));
+        hit.dispatchEvent(new PointerEvent('pointerup', po)); hit.dispatchEvent(new MouseEvent('mouseup', o)); hit.dispatchEvent(new MouseEvent('click', o));
         if (g.frame.querySelector('.selected')) { g.frame.classList.remove('frame-entered'); window._enteredFrame = null; }   // 자식이 골라졌다 = 진입은 :has(.selected) 가 맡는다(옛 상태와 같게)
       }
     }   // 여백이었다 — 그 프레임 «안»이 삽입 자리
