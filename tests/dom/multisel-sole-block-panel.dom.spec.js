@@ -1,6 +1,10 @@
 /* multisel-sole-block-panel.dom.spec.js — T-091 「⇧클릭이 «범위»를 못 만들면
  * 선택은 «한 개»인데 우측 패널이 «Page» 로 남는다」
  *
+ * ★2026-11 현빈 7042 「피그마식」— ⇧클릭은 이제 ⌘클릭과 같은 «넣고 빼기»(toggleBlockSelect)다. rangeSelectBlocks 는 없앴다.
+ *   아래 실측 기록은 옛 범위선택 시절 것이다. 검사의 뜻(«한 블럭이면 그 블럭 패널» · «여럿이면 멀티 패널» · 표 규약)은 그대로 두고,
+ *   ⇧ 조작(op 'shift')을 지금 정본(toggleBlockSelect)으로 잰다. ③ 은 «사이 블럭을 안 넣는다»로 기대값을 바꿨다.
+ *
  * ★실측 재현 (2026-09-24 · 판 7780267 · 격리앱 포트 9342 · 프로필 <워크트리>/_ud · 줌 100%)
  *   패널은 `#panel-right .panel-body` 의 `.prop-block-name` 으로 읽었다.
  *     ① A 평범 클릭                → 1개 · 「Text Block」  ✅
@@ -68,9 +72,6 @@ const PARTS = [
   extractFn(EDITOR_SRC, '_updateFreeLayoutMultiSelPanel'),
   extractFn(EDITOR_SRC, '_updateMultiSelPanel'),
   extractFn(EDITOR_SRC, '_getBlockLayerItem'),
-  extractFn(EDITOR_SRC, '_toSibling'),
-  extractFn(EDITOR_SRC, '_selectSibling'),
-  extractFn(EDITOR_SRC, 'rangeSelectBlocks'),
   extractFn(EDITOR_SRC, 'toggleBlockSelect'),
 ];
 /* ★_openSoleBlockPanel 은 «고친 뒤에만» 있는 함수다. 없으면 «빈 자리»로 둔다 —
@@ -91,7 +92,7 @@ const BUILD = `
   };
   window.syncSection = () => {};
   return {
-    range:  (id, secId) => rangeSelectBlocks(document.getElementById(id), document.getElementById(secId)),
+    shift:  (id, secId) => toggleBlockSelect(document.getElementById(id), document.getElementById(secId)),   // 7042: ⇧ = ⌘ = 넣고 빼기
     toggle: (id, secId) => toggleBlockSelect(document.getElementById(id), document.getElementById(secId)),
     setAnchor: (id) => { _lastClickedBlock = id ? document.getElementById(id) : null; },
     getAnchor: () => _lastClickedBlock && _lastClickedBlock.id,
@@ -153,10 +154,10 @@ async function act(page, api, fn) {
   }));
 }
 
-test('② ⇧클릭이 «같은 블럭»이라 범위가 폭1 로 오그라들어도 그 블럭 패널이 뜬다', async ({ page }) => {
+test('② ⇧클릭으로 한 블럭만 골라도 그 블럭 패널이 뜬다', async ({ page }) => {
   const { errs, api } = await boot(page);
   await page.evaluate((h) => h.setAnchor('tbA'), api);         // ① 평범 클릭이 남긴 앵커
-  const r = await act(page, api, { op: 'range', a: 'tbA', b: 'sec1' });
+  const r = await act(page, api, { op: 'shift', a: 'tbA', b: 'sec1' });
   expect(r.selected, '선택이 그 글자 하나로 안 끝났다').toEqual(['sec1', 'tbA'].filter(id => r.selected.includes(id)));
   expect(r.selected).toContain('tbA');
   expect(r.calls, '선택은 1개인데 아무 패널도 안 열렸다 — 직전 deselectAll 이 띄운 «Page» 가 남는다')
@@ -167,7 +168,7 @@ test('② ⇧클릭이 «같은 블럭»이라 범위가 폭1 로 오그라들�
 test('④ 앵커가 «없어도» — 선택도 생기고(기능 유지) 그 블럭 패널도 뜬다', async ({ page }) => {
   const { errs, api } = await boot(page);
   await page.evaluate((h) => h.setAnchor(null), api);          // 빈 캔버스 클릭이 앵커를 지운 뒤
-  const r = await act(page, api, { op: 'range', a: 'tbA', b: 'sec1' });
+  const r = await act(page, api, { op: 'shift', a: 'tbA', b: 'sec1' });
   /* ★「범위를 못 만들면 아무것도 안 하고 돌아간다」로 고치면 여기가 깨진다 —
        실측(포트 9342): ④ 직전 selected=[] → 직후 [sec, tbA]. 그 폴백이 «유일한» 선택 경로다. */
   expect(r.selected, '앵커가 없다고 선택조차 안 됐다 — 기능이 줄었다').toContain('tbA');
@@ -175,11 +176,13 @@ test('④ 앵커가 «없어도» — 선택도 생기고(기능 유지) 그 블
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
 
-test('③ 회귀 — 범위가 «성립»하면 종전대로 멀티선택 패널이다(블럭 패널이 끼어들면 안 된다)', async ({ page }) => {
+test('③ 회귀 — ⇧클릭으로 둘이 되면 멀티선택 패널이다 · 사이 블럭(tbB)은 안 들어간다(7042)', async ({ page }) => {
   const { errs, api } = await boot(page);
-  await page.evaluate((h) => h.setAnchor('tbA'), api);
-  const r = await act(page, api, { op: 'range', a: 'img1', b: 'sec1' });
-  expect(r.selected, '범위가 안 잡혔다').toEqual(expect.arrayContaining(['tbA', 'tbB', 'img1']));
+  await page.evaluate((h) => { h.shift('tbA', 'sec1'); h.setAnchor('tbA'); }, api);
+  await page.waitForTimeout(20);
+  const r = await act(page, api, { op: 'shift', a: 'img1', b: 'sec1' });
+  expect(r.selected, '⇧클릭한 둘이 안 잡혔다').toEqual(expect.arrayContaining(['tbA', 'img1']));
+  expect(r.selected, '옛 범위선택처럼 사이 블럭이 따라 들어왔다(7042 위반)').not.toContain('tbB');
   expect(r.calls, '범위가 성립했는데 단일 블럭 패널로 샜다').toEqual(['multi']);
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
 });
@@ -187,7 +190,7 @@ test('③ 회귀 — 범위가 «성립»하면 종전대로 멀티선택 패널
 test('⑥ 타입을 안 가린다 — 이미지 ⇧클릭(같은 블럭)은 Asset 패널이다', async ({ page }) => {
   const { api } = await boot(page);
   await page.evaluate((h) => h.setAnchor('img1'), api);
-  const r = await act(page, api, { op: 'range', a: 'img1', b: 'sec1' });
+  const r = await act(page, api, { op: 'shift', a: 'img1', b: 'sec1' });
   expect(r.calls, '표를 안 읽고 «글자 패널»로 떨어지면 조용한 데이터 손실이다(T-079)')
     .toEqual(['showAssetProperties#img1']);
 });
@@ -195,7 +198,7 @@ test('⑥ 타입을 안 가린다 — 이미지 ⇧클릭(같은 블럭)은 Asse
 test('⑧ 자유배치도 같다 — 도형 ⇧클릭(같은 블럭)은 도형 패널이다', async ({ page }) => {
   const { api } = await boot(page);
   await page.evaluate((h) => h.setAnchor('shp1'), api);       // 실측 ⑦→⑧ 과 같은 차례
-  const r = await act(page, api, { op: 'range', a: 'shp1', b: 'sec1' });
+  const r = await act(page, api, { op: 'shift', a: 'shp1', b: 'sec1' });
   /* 도형은 래퍼(.frame-block)와 알맹이(.shape-block)가 «한 몸»으로 켜진다.
      래퍼는 표에 없어서 저절로 빠지고 «한 블럭»이 남는다 — 그게 hasPanelForBlock 으로 세는 이유다. */
   expect(r.calls).toEqual(['showShapeProperties#shp1']);
@@ -213,7 +216,7 @@ test('⑩ ⌘클릭으로 둘 → 하나로 줄여도 패널이 «2개 선택됨
 test('폴백 규약 — 표에 «없는» 타입이면 패널을 안 건드린다(엉뚱한 패널보다 «그대로»가 낫다)', async ({ page }) => {
   const { api } = await boot(page);
   await page.evaluate((h) => h.setAnchor('grp1'), api);
-  const r = await act(page, api, { op: 'range', a: 'grp1', b: 'sec1' });
+  const r = await act(page, api, { op: 'shift', a: 'grp1', b: 'sec1' });
   expect(r.selected, '그룹 프레임이 안 골라졌다').toContain('grp1');
   expect(r.calls, '표에 없는 타입인데 아무 패널이나 열었다 — 엉뚱한 패널의 값이 «실제로 먹는다»')
     .toEqual([]);
@@ -223,7 +226,7 @@ test('음성대조 — 정본 표(openPanelForBlock)를 «부수면» ② 가 �
   const { api } = await boot(page);
   await page.evaluate(() => { window.openPanelForBlock = () => false; });   // 표를 «정체»로 끊는다
   await page.evaluate((h) => h.setAnchor('tbA'), api);
-  const r = await act(page, api, { op: 'range', a: 'tbA', b: 'sec1' });
+  const r = await act(page, api, { op: 'shift', a: 'tbA', b: 'sec1' });
   expect(r.calls, '표를 끊었는데도 패널이 열렸다 — 이 검사는 다른 것을 재고 있다').toEqual([]);
 });
 
@@ -236,14 +239,15 @@ test('음성대조 — 정본 표(openPanelForBlock)를 «부수면» ② 가 �
    여기서 «따로» 밟는다. 넷을 다 밟아야 「함수 안에 넣으면 네 자리 모두에 듣는다」가
    읽기가 아니라 실측이 된다.
    ═══════════════════════════════════════════════════════════════════════════ */
-test('Path2 ★부모가 달라 «섹션 전수» 갈래로 떨어져도, 한 블럭이면 그 블럭 패널이다', async ({ page }) => {
+test('Path2 ★부모가 달라도(그룹 줄 → 그 안 글자) ⇧ 는 둘을 넣고, 패널을 가진 블럭이 하나면 그 블럭 패널이다', async ({ page }) => {
   const { errs, api } = await boot(page);
   /* 앵커 = 그룹 프레임(section-inner 의 자식) · 대상 = 그 «안»의 글자
      ⇒ 대상의 단위(tfC)는 grp1 의 자식이고 앵커는 inner1 의 자식이라 Path 1 의
         `anchor.parentElement === parent` 가 깨진다. */
-  await page.evaluate((h) => h.setAnchor('grp1'), api);
-  const r = await act(page, api, { op: 'range', a: 'tbC', b: 'sec1' });
-  expect(r.selected, 'Path 2 가 범위를 안 잡았다 — 이 검사가 그 갈래를 못 밟고 있다')
+  await page.evaluate((h) => { h.shift('grp1', 'sec1'); }, api);   // 7042: 옛 «앵커만»이 아니라 ⇧ 로 그룹을 먼저 넣는다
+  await page.waitForTimeout(20);
+  const r = await act(page, api, { op: 'shift', a: 'tbC', b: 'sec1' });
+  expect(r.selected, '⇧ 가 둘을 안 넣었다')
     .toEqual(expect.arrayContaining(['grp1', 'tbC']));
   /* 고른 «단위»는 둘로 보이지만 패널을 가진 블럭은 글자 하나뿐이다(그룹 프레임은 표에 없다). */
   expect(r.calls, 'Path 2 갈래에서만 패널이 안 열린다 — 갈래마다 따로 고치면 이런 구멍이 남는다')

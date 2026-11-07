@@ -281,7 +281,7 @@ test('U4 회귀 — 텍스트프레임은 «그릇»이다(단위는 안의 text
 
 /* ⒞ 같은 병의 «다른 문» — 레이어패널의 프레임 줄. 실측(2026-09-21): 글자 줄을 고른 뒤
    Group 줄을 ⇧클릭하면 먼저 고른 것이 풀렸다. 블록 줄(makeLayerBlockItem)은 예전부터
-   rangeSelectBlocks/toggleBlockSelect 로 보내는데 프레임 줄만 «안 보고» deselectAll 로 시작했다.
+   rangeSelectBlocks/toggleBlockSelect(7042 뒤로는 ⇧ 도 toggleBlockSelect) 로 보내는데 프레임 줄만 «안 보고» deselectAll 로 시작했다.
    ⇒ 고르기가 «같은 판정»을 쓰는지 잰다. 여기도 원문을 떠서 돌린다. */
 const ITEMS_SRC = fs.readFileSync(path.join(REPO, 'js/panels/layer-panel-items.js'), 'utf8');
 const FRAME_FN_AT = ITEMS_SRC.indexOf('function makeLayerFrameItem');
@@ -325,7 +325,8 @@ for (const which of ['wrapper', 'header']) {
   test(`L-${which} ★레이어패널 프레임 줄도 ⇧/⌘ 는 «같은 판정»으로 보낸다 (캔버스와 한 자리)`, async ({ page }) => {
     const errs = await boot(page);
     const sh = await runLayerClick(page, LP_BODIES[which], which, { shift: 1 });
-    expect(sh.calls, `⇧클릭이 rangeSelectBlocks 로 안 갔다 (calls=${sh.calls})`).toEqual(['range']);
+    // 현빈 7042 피그마식: ⇧ = ⌘ = 넣고 빼기(옛 기대 'range' = 없앤 ⇧ 범위선택)
+    expect(sh.calls, `⇧클릭이 toggleBlockSelect 로 안 갔다 (calls=${sh.calls})`).toEqual(['toggle']);
     const cm = await runLayerClick(page, LP_BODIES[which], which, { meta: 1 });
     expect(cm.calls, `⌘클릭이 toggleBlockSelect 로 안 갔다 (calls=${cm.calls})`).toEqual(['toggle']);
     const pl = await runLayerClick(page, LP_BODIES[which], which, {});

@@ -1210,7 +1210,7 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
      ⑶ 지디가 준 「deselectAll 을 부르는가」도 판별자가 아니다 — 재보니 셋 다 부른다
         (sticker 5 · gradient 3 · zoom 의 선택 경로 2). 그쪽은 zoom-block.js(0건)를 봤는데
         확대블럭의 «선택 경로»는 js/block-drag.js 의 if (isZoom) 구간이다.
-     ★진짜 판별자 = 「Cmd/Shift 복수선택 분기가 있는가」(toggleBlockSelect·rangeSelectBlocks).
+     ★진짜 판별자 = 「Cmd/Shift 복수선택 분기가 있는가」(toggleBlockSelect · ⇧ — 7042 전엔 rangeSelectBlocks 였다).
        복수선택이 되는 블록만 이 목록이 뜻을 갖는다 — 2개를 못 고르면 그 패널이 애초에 안 뜬다. */
   const e = SRC.editor;
   const i = e.indexOf('const FLOW_BLOCK_SEL_SELECTED');
@@ -1238,7 +1238,8 @@ test('ⓑ-20b ★흐름 목록의 기준 — «규칙»을 재서 판정한다(�
   const multiSel = {};
   for (const [cls, src] of Object.entries(PATHS)) {
     assert.ok(src.length > 100, `${cls}: 선택 경로를 ${src.length}자밖에 못 떴다 — 못 잰 것이다`);
-    multiSel[cls] = /toggleBlockSelect/.test(src) && /rangeSelectBlocks/.test(src);
+    // 현빈 7042 피그마식 — ⇧ 도 toggleBlockSelect 로 간다(rangeSelectBlocks 없앰). 판별자 = «⌘/⇧ 를 보고 toggleBlockSelect 로 보내는 분기가 있는가»
+    multiSel[cls] = /toggleBlockSelect/.test(src) && /shiftKey/.test(src);
   }
   /* ★계측기가 «상수»를 돌려주지 않는지 — 갈리지 않으면 아무것도 판정 못 한다.
      ⛔계열별 «오늘 답»을 박지 않는다(그게 ⑳에서 잡힌 병이다). 「갈리는가」만 본다. */

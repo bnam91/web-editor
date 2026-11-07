@@ -100,9 +100,9 @@ const ev = (target, mods = {}) => ({ target, stopPropagation: () => {},
 const CASES = [
   { at: 'chip', mods: { meta: true },  toggle: 1, range: 0, why: '칩 위에서 ⌘ — 배경과 «같아야» 한다' },
   { at: 'chip', mods: { ctrl: true },  toggle: 1, range: 0, why: '칩 위에서 ctrl(윈도우)' },
-  { at: 'chip', mods: { shift: true }, toggle: 0, range: 1, why: '칩 위에서 shift 범위선택' },
+  { at: 'chip', mods: { shift: true }, toggle: 1, range: 0, why: '칩 위에서 shift — 현빈 7042 피그마식: ⌘ 와 같은 넣고 빼기(옛 기대 range 1 = 없앤 범위선택)' },
   { at: 'bg',   mods: { meta: true },  toggle: 1, range: 0, why: '★양성대조 — 배경 ⌘ 는 «원래도» 됐다' },
-  { at: 'bg',   mods: { shift: true }, toggle: 0, range: 1, why: '★양성대조 — 배경 shift 는 «원래도» 됐다' },
+  { at: 'bg',   mods: { shift: true }, toggle: 1, range: 0, why: '★양성대조 — 배경 shift 도 7042 뒤로 넣고 빼기' },
 ];
 
 test('★입력이 살아 있다 — 잘라낸 핸들러와 표가 «비어 있지 않다»', () => {
