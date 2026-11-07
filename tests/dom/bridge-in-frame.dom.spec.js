@@ -30,7 +30,7 @@ async function dragScene(page, from) {
 }
 const STEPS = 12;
 const centerOf = (page, id) => page.evaluate((id) => { const q = document.getElementById(id).getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, id);
-const grab = async (page, id) => { const LIMIT = 4; for (let n = 0; n < LIMIT; n++) { const c = await centerOf(page, id); await page.mouse.click(c[0], c[1]); await raf(page); if (await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id)) return true; } return false; };
+const grab = async (page, id) => { const LIMIT = 4; for (let n = 0; n < LIMIT; n++) { const c = await centerOf(page, id); await page.mouse.dblclick(c[0], c[1]);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 바깥 프레임 */ await raf(page); if (await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id)) return true; } return false; };
 async function dragTo(page, id, t) { const a = await centerOf(page, id); await page.mouse.move(a[0], a[1]); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(a[0] + (t[0] - a[0]) * i / STEPS, a[1] + (t[1] - a[1]) * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 const bottomOf = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.bottom - 8]; }, id);
 const belowOf = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.bottom + 24]; }, id);

@@ -100,7 +100,7 @@ async function addJokerIn(page, ids) {
   await J.settle(page);
 }
 const joker = (page) => page.evaluate((FR) => { const e = document.querySelector('[data-jk]'); const r = e.getBoundingClientRect(); const f = e.parentElement.closest(FR); const q = f.getBoundingClientRect(); return { par: f.id, sel: e.classList.contains('selected'), x: q.left + q.width / 2, y: q.top + q.height / 2, off: [e.dataset.offsetX, e.dataset.offsetY].map(Number), rx: r.left, ry: r.top }; }, FR);
-async function pickJoker(page) { for (let i = 0; i < 6; i++) { const w = await joker(page); if (w.sel) return w; await page.mouse.click(w.x, w.y); await J.settle(page); } return joker(page); }
+async function pickJoker(page) { for (let i = 0; i < 6; i++) { const w = await joker(page); if (w.sel) return w; await page.mouse.dblclick(w.x, w.y);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 바깥 프레임 */ await J.settle(page); } return joker(page); }
 for (const [name, hx, hy] of [['오른쪽 아래', 40, 16], ['왼쪽 위', -40, -16], ['오른쪽 조금 더', 60, 20], ['커서가 프레임 끝을 넘게 오른쪽', 70, 20], ['커서가 프레임 끝을 넘게 왼쪽', -220, -40]]) {
   test(`B-9 프레임보다 큰 조커를 ${name}로 끌면 손 쪽으로 가고 프레임에 남는다`, async ({ page }) => {
     const ids = await scene(page); await addJokerIn(page, ids);

@@ -18,7 +18,7 @@ async function scene(page, add) {
 }
 const rect = (page, sel) => page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
 async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + dx * i / STEPS, y + dy * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
-async function pick(page, sel) { for (let i = 0; i < 5; i++) { if (await page.evaluate((s) => document.querySelector(s).classList.contains('selected'), sel)) return true; const b = await rect(page, sel); await page.mouse.click(b.x, b.y); await raf(page); } return false; }
+async function pick(page, sel) { for (let i = 0; i < 5; i++) { if (await page.evaluate((s) => document.querySelector(s).classList.contains('selected'), sel)) return true; const b = await rect(page, sel); await page.mouse.dblclick(b.x, b.y);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 바깥 프레임 */ await raf(page); } return false; }
 
 for (const [kind, add] of [['chat', 'addChatBlock'], ['coupon', 'addCouponBlock'], ['quote', 'addQuoteBlock'], ['radial', 'addRadialBlock'], ['laurel', 'addLaurelBlock'], ['qa', 'addQABlock'], ['table(음성 · 전부터 정상)', 'addTableBlock']]) {
   test(`${kind} — 끌면 블럭이 손을 따라오고 그릇 프레임은 HTML5 끌기가 안 시작된다`, async ({ page }) => {

@@ -86,7 +86,7 @@ async function toStack(page, ids) {
   for (const id of [ids.GG, ids.GS, ids.G1, ids.R]) { const p = await layerRowCenter(page, id); await page.mouse.click(p[0], p[1]); await J.settle(page); await page.locator('#ss-to-stack-btn').click(); await J.settle(page); }
   expect(await page.evaluate((l) => l.filter((id) => document.getElementById(id).dataset.freeLayout).length, [ids.GG, ids.GS, ids.G1, ids.R]), '[전제] 넷 다 stack').toBe(0);
 }
-async function pickMarked(page) { for (let i = 0; i < 6; i++) { if (await page.evaluate(() => document.querySelector('[data-j294l]').classList.contains('selected'))) return true; const m = await marked(page); await page.mouse.click(m.x, m.y); await J.settle(page); } return false; }
+async function pickMarked(page) { for (let i = 0; i < 6; i++) { if (await page.evaluate(() => document.querySelector('[data-j294l]').classList.contains('selected'))) return true; const m = await marked(page); await page.mouse.dblclick(m.x, m.y);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 바깥 프레임 */ await J.settle(page); } return false; }
 const lowerMiddle = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height * 0.9]; }, id);
 
 test('B-5 변환 직후 안쪽 stack 프레임의 블럭을 옆 stack 프레임에 놓으면 그 프레임으로 들어간다', async ({ page }) => {

@@ -37,7 +37,7 @@ async function holdDrag(page, p, hx, hy) {
 }
 const textBox = (page) => page.evaluate(() => { const e = document.querySelector('[data-hd]'); const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, sel: e.classList.contains('selected') }; });
 async function enterText(page) {
-  for (let i = 0; i < 8; i++) { const b = await textBox(page); if (b.sel) break; await page.mouse.click(b.x + b.w / 2, b.y + b.h / 2); await J.settle(page); }
+  for (let i = 0; i < 8; i++) { const b = await textBox(page); if (b.sel) break; await page.mouse.dblclick(b.x + b.w / 2, b.y + b.h / 2);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 바깥 프레임 */ await J.settle(page); }
   const b = await textBox(page); await page.mouse.dblclick(b.x + b.w / 2, b.y + b.h / 2); await J.settle(page);
   return page.evaluate(() => !!document.activeElement?.isContentEditable);
 }

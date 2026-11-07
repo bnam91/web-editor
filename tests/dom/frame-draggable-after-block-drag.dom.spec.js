@@ -19,7 +19,7 @@ const dg = (page, F) => page.evaluate((F) => document.getElementById(F).getAttri
 const live = (page) => page.evaluate(() => new Promise((r) => setTimeout(() => r(window.__live.splice(0)), 0)));
 async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + dx * i / STEPS, y + dy * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 const ASSET = '#canvas .asset-block';
-async function pickAsset(page) { for (let i = 0; i < 4; i++) { const w = await rect(page, ASSET); if (w.sel) return true; await page.mouse.click(w.x, w.y); await raf(page); } return (await rect(page, ASSET)).sel; }
+async function pickAsset(page) { for (let i = 0; i < 4; i++) { const w = await rect(page, ASSET); if (w.sel) return true; await page.mouse.dblclick(w.x, w.y);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 바깥 프레임 */ await raf(page); } return (await rect(page, ASSET)).sel; }
 
 test('블럭을 끈 뒤 그릇 draggable 이 돌아오고 곧바로 프레임 면 끌기가 산다', async ({ page }) => {
   const { errs, F } = await scene(page);
