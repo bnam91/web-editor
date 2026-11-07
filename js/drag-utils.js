@@ -481,6 +481,8 @@ if (typeof document !== 'undefined') {
         hit.dispatchEvent(new PointerEvent('pointerdown', { ...po, buttons: 1 })); hit.dispatchEvent(new MouseEvent('mousedown', { ...o, buttons: 1 }));
         hit.dispatchEvent(new PointerEvent('pointerup', po)); hit.dispatchEvent(new MouseEvent('mouseup', o)); hit.dispatchEvent(new MouseEvent('click', o));
         if (g.frame.querySelector('.selected')) { g.frame.classList.remove('frame-entered'); window._enteredFrame = null; }   // 자식이 골라졌다 = 진입은 :has(.selected) 가 맡는다(옛 상태와 같게)
+        /* 맞은 것이 고를 수 없는 그릇(.row 등)이면 그 클릭이 프레임 click 으로 올라가 deselectAll 이 진입 표식을 지웠다(회전 스택 프레임 여백 = row) — 여백 진입으로 되살린다. */
+        else if (window._enteredFrame !== g.frame) { window._enteredFrame?.classList.remove('frame-entered'); window._enteredFrame = g.frame; g.frame.classList.add('frame-entered'); }
       }
     }   // 여백이었다 — 그 프레임 «안»이 삽입 자리
     _dblGesture = null;
