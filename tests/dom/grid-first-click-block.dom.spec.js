@@ -249,11 +249,11 @@ test('T-058-7 ★프레임 안 그리드: 부모 프레임·섹션의 selected �
   await mount(page, ONE_LINE);
   await page.evaluate(() => {
     /* 프레임 안에 넣고, 프레임이 이미 활성(= _restoreParentFrameSelected 가 만드는 상태) */
-    const fr = document.createElement('div'); fr.className = 'frame-block selected'; fr.id = 'fr';
+    const fr = document.createElement('div'); fr.className = 'frame-block selected frame-entered'; fr.id = 'fr';   // B안(현빈 261107): 자식이 눌리는 «활성» 프레임 = 들어간 프레임(.frame-entered) — 옛: 선택만으로 덮개가 풀렸다
     const row = window.__block.closest('.row') || window.__block.parentElement;
     row.parentElement.insertBefore(fr, row); fr.appendChild(row);
     document.querySelector('.section-block').classList.add('selected');
-    window._activeFrame = fr;
+    window._activeFrame = fr; window._enteredFrame = fr;
   });
   await lineLoc(page, 0, 0).click();
   let s = await state(page);

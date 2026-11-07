@@ -125,6 +125,9 @@ test('FD3 같은 프레임 안 옛 흐름 row 의 블럭을 HTML5 로 다시 놓
   expect(old, '[전제] 옛 흐름 row 가 자유배치 프레임 직속·흐름이다').toEqual({ flow: true, parentIsFrame: true });
   const p0 = await pos(page, ids);
   const g = await box(page, 'fdOldGap');
+  /* B안(현빈 261107): 안 들어간 프레임의 자식 누름은 프레임째 끌기다(옛: 누르는 순간 프레임이 골라져 덮개가 풀리며 블럭 HTML5 가 났다) — 먼저 더블클릭으로 들어가 그 블럭을 고른다 */
+  await page.mouse.dblclick(g.x, g.y); await page.waitForTimeout(150);
+  await page.evaluate(() => { window.__fd3.ds.length = 0; window.__fd3.drop = 0; });
   await page.mouse.move(g.x, g.y); await page.mouse.down();
   for (let i = 1; i <= 15; i++) await page.mouse.move(g.x + i * 6, g.y + i * 4);
   await page.mouse.up(); await page.waitForTimeout(600);

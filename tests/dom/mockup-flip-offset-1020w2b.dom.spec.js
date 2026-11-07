@@ -71,8 +71,8 @@ async function scene(page, form) {
   await page.click('#ss-to-stack-btn');
   await page.waitForFunction((id) => document.getElementById(id).dataset.freeLayout !== 'true', fid);
   const ar = await rect2(page, '#' + aId);
-  await page.mouse.click(ar.cx, ar.cy);                              // A 클릭(드릴인)
-  if (!(await page.evaluate((a) => document.getElementById(a).classList.contains('selected'), aId))) await page.mouse.click(ar.cx, ar.cy);
+  await page.mouse.dblclick(ar.cx, ar.cy);                           // A 더블클릭(B안 진입 · 옛: 클릭 두 번 드릴인)
+  expect(await page.evaluate((a) => document.getElementById(a).classList.contains('selected'), aId), '★전제: 목업 A 고름').toBe(true);
   await openMockupAndInsert(page);                                   // 목업 B(스택 프레임 > row > mockup)
   const mid = await page.evaluate((a) => [...document.querySelectorAll('#canvas .mockup-block')].find((m) => m.id !== a)?.id, aId);
   expect(mid, '★전제: 목업 B 가 생겼다').toBeTruthy();
@@ -128,13 +128,16 @@ async function unselect(page, s) {
   /* ★상태 = 「프레임이 골라져 있고(.frame-block.selected ⇒ 자식이 맞는다 · css/editor-blocks.css 「선택 상태: 자식 pointer-events 복원」)
      목업은 안 골라짐」. ⌘+클릭(안 움직임)은 이 상태를 바꾼다(실측: rot90 A 뒤 누른 점의 맨 위가 ss_…) ⇒ 그 상태가 아니면
      프레임 구석을 클릭한다. ⚠️이미 골라진 프레임을 또 누르면 풀린다(실측) ⇒ 상태를 보고 누른다(최대 3번) */
-  const ok = () => page.evaluate(([f, m]) => document.getElementById(f).classList.contains('selected') && !document.getElementById(m).classList.contains('selected'), [s.fid, s.mid]);
+  /* ★B안(현빈 261107) — 덮개는 «선택»이 아니라 «진입»해야 풀린다 ⇒ 「프레임 들어감(여백 더블클릭 · .frame-entered) · 목업 안 골라짐」을 만든다(옛: 프레임 골라짐 = 자식이 맞는다). */
+  /* 들어감 = 덮개가 풀렸다 = .frame-entered 또는 «목업 아닌» 자손이 골라짐(여백이 스택 프레임의 패딩 gap 이면 더블클릭이 그 gap 을 고른다 — :has(.selected) 가 진입을 맡는다) */
+  const ok = () => page.evaluate(([f, m]) => { const F = document.getElementById(f), M = document.getElementById(m); const sel = F.querySelector('.selected');
+    return !M.classList.contains('selected') && (F.classList.contains('frame-entered') || (!!sel && !M.contains(sel))); }, [s.fid, s.mid]);
   for (let i = 0; i < 3 && !(await ok()); i++) {
     /* 구석 = 프레임 AABB ∩ 섹션 의 왼위(+5) — rot90 프레임은 섹션보다 넓어 AABB 구석이 섹션 밖이다 */
     const fr = await rect2(page, '#' + s.fid), sr = await rect2(page, '#' + s.secId);
-    await page.mouse.click(Math.max(fr.left, sr.left) + 5, Math.max(fr.top, sr.top) + 5);
+    await page.mouse.dblclick(Math.max(fr.left, sr.left) + 5, Math.max(fr.top, sr.top) + 5);
   }
-  expect(await ok(), '★전제: 프레임 골라짐 · 목업 안 골라짐').toBe(true);
+  expect(await ok(), '★전제: 프레임 들어감 · 목업 안 골라짐').toBe(true);
 }
 
 /** 한 번 끌고 ★모델Δ·화면Δ·갈래 마커 */

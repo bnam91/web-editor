@@ -41,11 +41,12 @@ async function scene(page, { stack = true } = {}) {
   return ids;
 }
 const pt = (page, id, fx = 0.5, fy = 0.5) => page.evaluate(({ id, fx, fy }) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width * fx, y: r.top + r.height * fy }; }, { id, fx, fy });
-async function clickOn(page, id, fx, fy, expectId) {
+async function clickOn(page, id, fx, fy, expectId, dbl = false) {
   const p = await pt(page, id, fx, fy);
   const ok = await page.evaluate(({ x, y, id }) => !!document.elementFromPoint(x, y)?.closest('#' + id), { x: p.x, y: p.y, id: expectId || id });
   expect(ok, `[전제] 누르는 점이 #${expectId || id} 위다`).toBe(true);
-  await page.mouse.click(p.x, p.y); await page.waitForTimeout(500);
+  if (dbl) await page.mouse.dblclick(p.x, p.y); else await page.mouse.click(p.x, p.y);
+  await page.waitForTimeout(500);
 }
 const frOrder = (page, ids) => page.evaluate((ids) => [...document.getElementById(ids.fr).children].map(c => c.id).filter(id => ids.kids.some(k => k.tu === id)), ids);
 const secOrder = (page) => page.evaluate(() => [...document.querySelector('#sSM .section-inner').children].map(c => c.id || c.className.split(' ')[0]));
@@ -55,7 +56,7 @@ test('SM1 ★스택 프레임 안 글자를 골라 ⌘↑ — 그 글자가 위�
   const ids = await scene(page);
   expect(ids.frStack, '[전제] 스택으로 바뀌었다').toBe(true);
   await clickOn(page, ids.fr, 0.9, 0.95);                               // 첫 클릭 = 프레임
-  await clickOn(page, ids.kids[1].tu, 0.2, 0.5, ids.kids[1].tu);       // 두 번째 = 안의 글자(드릴인)
+  await clickOn(page, ids.kids[1].tu, 0.2, 0.5, ids.fr, true);        // 두 번째 = 안의 글자 더블클릭(B안 진입 · 옛: 한 번 클릭 드릴인) — 안 들어간 프레임 위는 덮개(프레임)가 맞는다
   expect(await sel(page), '[전제] 글2 가 골라졌다(드릴인)').toContain(ids.kids[1].tb);
   const o0 = await frOrder(page, ids), s0 = await secOrder(page);
   expect(o0, '[전제] 프레임 안 순서 = 글1, 글2').toEqual([ids.kids[0].tu, ids.kids[1].tu]);

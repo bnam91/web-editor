@@ -129,10 +129,10 @@ test('C4 ★버즈 카드에서도 같은 길로 붙고 그 row 폭이 넓어진
   expect(ids.fr && ids.card, 'C4 전제: 버즈 묶음과 카드가 섰다').toBeTruthy();
   await waitStableRect(page, '#' + ids.card);
   const w0 = await page.evaluate((id) => document.getElementById(id).closest('.row').getBoundingClientRect().width, ids.card);
-  /* 버즈 카드는 묶음(프레임) 안이라 «첫 누름 = 묶음», «한 번 더 = 카드» 일 수 있다 — 카드가 골라질 때까지 사람처럼 다시 누른다. */
+  /* 버즈 카드는 묶음(프레임) 안이라 덮개가 맞는다 — B안: 카드가 골라질 때까지 더블클릭(진입·선택). */
   for (let i = 0; i < 3; i++) {
     const r = await waitStableRect(page, '#' + ids.card);
-    await page.mouse.click(r.cx, r.cy);
+    await page.mouse.dblclick(r.cx, r.cy);   // B안(현빈 261107): 묶음 안 카드는 더블클릭 진입으로(옛: 한 번 더 클릭 드릴인)
     const ok = await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected'), ids.card, { timeout: 1500 }).then(() => true, () => false);
     if (ok) break;
   }
