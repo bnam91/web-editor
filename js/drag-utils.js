@@ -465,7 +465,18 @@ if (typeof document !== 'undefined') {
     if (!g || g.entered || !g.frame.isConnected || !g.frame.contains(e.target)) return;
     if (e.target.closest?.('.grb-bar-label, .grb-bar-h-desc')) return;   // ★6634 현빈 — 막대 그래프 범주 라벨은 프레임 안에서도 첫 더블클릭에 글이 열린다(다른 글은 한 겹 그대로)
     e.stopPropagation();   // 자식의 편집 처리기로 안 내려간다 — 이 더블클릭은 «한 겹 내려가기»다
-    if (!g.frame.querySelector('.selected')) { window._enteredFrame?.classList.remove('frame-entered'); window._enteredFrame = g.frame; g.frame.classList.add('frame-entered'); }   // .frame-entered = 덮개 푸는 CSS 표식(editor-blocks.css)   // 여백이었다 — 그 프레임 «안»이 삽입 자리
+    if (!g.frame.querySelector('.selected')) {
+      window._enteredFrame?.classList.remove('frame-entered');
+      window._enteredFrame = g.frame; g.frame.classList.add('frame-entered');   // .frame-entered = 덮개 푸는 CSS 표식(editor-blocks.css)
+      /* ★B안(261107) — 덮개가 «선택»으로 안 풀리니 더블클릭의 둘째 누름이 자식을 못 고른다. 진입 표식을 단 «뒤» 그 자리 직계를
+         한 번 «클릭»해 R2 길(들어간 프레임 안 1번 클릭 = 직계 자식 선택)에 태운다. 여백이면 프레임 자신이 맞아 아무것도 안 고른다. */
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      if (hit && hit !== g.frame && g.frame.contains(hit)) {
+        const o = { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: 0, detail: 1, view: window };
+        hit.dispatchEvent(new MouseEvent('mousedown', o)); hit.dispatchEvent(new MouseEvent('mouseup', o)); hit.dispatchEvent(new MouseEvent('click', o));
+        if (g.frame.querySelector('.selected')) { g.frame.classList.remove('frame-entered'); window._enteredFrame = null; }   // 자식이 골라졌다 = 진입은 :has(.selected) 가 맡는다(옛 상태와 같게)
+      }
+    }   // 여백이었다 — 그 프레임 «안»이 삽입 자리
     _dblGesture = null;
   }, true);
 }
