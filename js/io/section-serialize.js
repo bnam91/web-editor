@@ -240,7 +240,7 @@
      ⛔`'dragging'` 토큰은 ★명부에 ★그대로 ★둔다 — ★그 명부 주석이 「사람이 읽으라고 남긴다」라 ★적었다. */
   const RUNTIME_MARKER_RE  = /(?:^|-)(?:(?:line|cell)-selected|dragging)$/;
   const RUNTIME_MARKER_CLS = [
-    'selected', 'multi-selected', 'ci-selected', 'ci-active', 'row-active',
+    'selected', 'multi-selected', 'frame-entered', 'ci-selected', 'ci-active', 'row-active',
     'cell-selected',                             // ★RE 가 이미 잡는다(`-cell-selected`). 「지금 무엇이 있나」를 사람이 읽으라고 남긴다
     'item-selected',                             // ★라벨 항목(2026-10-10 A4) — 저장본 1건 · 섹션 해시 `a1ad09e8`→`b4189398` 실측
     'bn2-line-selected', 'grd-line-selected',   // ★RE 가 이미 잡는다. 「현재 무엇이 있나」를 사람이 읽으라고 남긴다

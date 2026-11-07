@@ -263,7 +263,9 @@
    ★이 덮개가 곧 현빈의 «오버레이»다(2026-10-08 「1번클릭은 … 오버레이된것 처럼 내부수정이 안되게」) — 더블클릭 진입은 js/drag-utils.js R1 머리말. */
 /* text-frame은 항상 .selected 없음 (투명 래퍼) → 별도 규칙으로 제외 */
 /* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
-.frame-block:not(.selected):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
+/* ★B안(현빈 261107) — 덮개는 «선택»이 아니라 «진입»해야 풀린다. 진입 = 여백 더블클릭(.frame-entered) 또는 자손 선택(:has(.selected) = 자식 더블클릭).
+   ⇒ 프레임을 한 번 골라도 자식 자리 누름은 프레임으로 간다(끌면 프레임째). 정의 원문 handoff ORDER-frame-dblclick-focus §1. */
+.frame-block:not(.frame-entered):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */

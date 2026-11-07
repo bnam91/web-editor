@@ -1679,6 +1679,7 @@ function _focusFrame(frame) {
   _restoreFreeLayoutFrameSelected(frame);
   window._activeFrame = frame;
   window._enteredFrame = frame;
+  frame.classList.add('frame-entered');   // deselectAll 이 위에서 옛 표식을 걷었다
 }
 
 /* ⌫·⌘X 묶음 삭제 — 지웠으면 true. 묶음을 지워 비는 그룹은 일반 갈래처럼 걷는다. */
@@ -4373,6 +4374,7 @@ window.clearSelectionMarks = clearSelectionMarks;
 
 function deselectAll() {
   clearMultiSel();
+  window._enteredFrame?.classList?.remove('frame-entered');
   window._enteredFrame = null;   // ★프레임 더블클릭 «들어간 프레임» 표시도 같이 푼다(R4 나가기 = 지금 동작 그대로 · drag-utils.js R1 머리말)
   _lastClickedBlock = null;
   // 텍스트 편집 중인 블록이 있으면 편집 종료 전 현재 상태 히스토리에 저장
