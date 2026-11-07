@@ -24,7 +24,7 @@ async function scene(page, add) {
 }
 const mk = (page) => page.evaluate((FR) => { const e = document.querySelector('#canvas [data-mk]'); const r = e.getBoundingClientRect(); const u = e.closest('.frame-block[data-text-frame]') || e; return { n: document.querySelectorAll('#canvas [data-mk]').length, x: r.left + r.width / 2, y: r.top + r.height / 2, par: u.parentElement.closest(FR)?.id || null, inSec: !u.parentElement.closest(FR), sel: e.classList.contains('selected'), pos: u.style.position, left: u.style.left, top: u.style.top }; }, FR);
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; }, id);
-const pick = async (page) => { await page.evaluate(() => { window.deselectAll(); window._activeFrame = null; window._enteredFrame = null; }); for (let i = 0; i < 6; i++) { const w = await mk(page); if (w.sel) return true; await page.mouse.click(w.x, w.y); await raf(page); } return (await mk(page)).sel; };
+const pick = async (page) => { await page.evaluate(() => { window.deselectAll(); window._activeFrame = null; window._enteredFrame = null; }); for (let i = 0; i < 6; i++) { const w = await mk(page); if (w.sel) return true; await page.mouse.dblclick(w.x, w.y);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 프레임 */ await raf(page); } return (await mk(page)).sel; };
 async function drag(page, x, y, tx, ty) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + (tx - x) * i / STEPS, y + (ty - y) * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 const KINDS = [['말풍선', { sel: '.speech-bubble-block', fn: 'addSpeechBubbleBlock' }], ['글자', { sel: '.text-block', fn: 'addTextBlock', arg: 'body' }]];
 
@@ -75,7 +75,7 @@ test('큰 에셋을 자유 B 에 놓아도 B 위로 안 삐져나온다', async 
   const top = () => page.evaluate(() => { const r = document.querySelector('#canvas [data-mk]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + 20]; });
   const [x, y] = await top();
   await page.evaluate(() => { window.deselectAll(); window._activeFrame = null; window._enteredFrame = null; });
-  for (let i = 0; i < 6 && !(await mk(page)).sel; i++) { await page.mouse.click(x, y); await raf(page); }
+  for (let i = 0; i < 6 && !(await mk(page)).sel; i++) { await page.mouse.dblclick(x, y); await raf(page); }  // B안: 더블클릭 진입
   expect((await mk(page)).sel, '[전제] 고르기').toBe(true);
   const b = await box(page, s.B);
   await drag(page, x, y, b.cx, b.cy);

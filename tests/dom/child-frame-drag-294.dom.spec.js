@@ -25,8 +25,7 @@ async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await pag
 
 test('자식 프레임을 끌면 자식만 끝까지 따라오고 부모는 제자리다', async ({ page }) => {
   const { errs, P, A, B, Q } = await scene(page);
-  const p = await box(page, P); await page.mouse.click(p.l + 300, p.b - 10); await raf(page);
-  const a = await box(page, B);
+  const a = await box(page, B); await page.mouse.dblclick(a.r - 6, a.b - 6); await raf(page);  // B안: 자식 프레임은 더블클릭으로 진입·선택한 뒤 끈다
   const order0 = await tops(page);
   await drag(page, a.r - 6, a.b - 6, -40, 60);
   const scale = await page.evaluate(() => parseFloat(document.getElementById('canvas-scaler').style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1'));
@@ -73,7 +72,7 @@ test('음성 — 자식 안 글자를 누른 뒤에도 자식 끌기가 좌표 �
   const t = await page.evaluate((B) => { const r = document.getElementById(B).querySelector('.text-block').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, B);
   await page.mouse.click(t[0], t[1]); await raf(page);
   expect(await page.evaluate((B) => document.getElementById(B).getAttribute('draggable'), B), '자식 draggable').toBe('false');
-  await page.mouse.click(p.l + 300, p.b - 10); await raf(page);
+  await page.mouse.dblclick(a.r - 6, a.b - 6); await raf(page);  // B안: 자식 프레임은 더블클릭으로 진입·선택한 뒤 끈다
   const [l0, t0] = await pos(page, B); await page.evaluate(() => { window.__dragstarts.length = 0; });
   await drag(page, a.r - 6, a.b - 6, -40, 60);
   const [l1, t1, par] = await pos(page, B);

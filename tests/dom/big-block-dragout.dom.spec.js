@@ -16,7 +16,7 @@ async function scene(page, sel, fn, arg) {
   return { errs, F };
 }
 const st = (page, F) => page.evaluate(({ F, FR }) => { const e = document.querySelector('#canvas [data-mk]'); const r = e.getBoundingClientRect(); const f = document.getElementById(F).getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height, x: r.left + r.width / 2, y: r.top + r.height / 2, sel: e.classList.contains('selected'), fb: f.bottom, inF: e.parentElement.closest(FR)?.id === F }; }, { F, FR });
-const pick = async (page, F) => { for (let i = 0; i < 6; i++) { const w = await st(page, F); if (w.sel) return true; await page.mouse.click(w.x, w.y); await raf(page); } return (await st(page, F)).sel; };
+const pick = async (page, F) => { for (let i = 0; i < 6; i++) { const w = await st(page, F); if (w.sel) return true; await page.mouse.dblclick(w.x, w.y);  /* B안(현빈 261107): 자식은 더블클릭으로 진입해야 잡힌다 — 한 번 클릭은 프레임 */ await raf(page); } return (await st(page, F)).sel; };
 async function drag(page, x, y, dx, dy) { await page.mouse.move(x, y); await page.mouse.down(); for (let i = 1; i <= STEPS; i++) { await page.mouse.move(x + dx * i / STEPS, y + dy * i / STEPS); await raf(page); } await page.mouse.up(); await raf(page); }
 
 test('비교표 윗부분을 잡고 내려도 커서가 프레임 안이면 안 빠지고 움직인다', async ({ page }) => {
