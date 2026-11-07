@@ -49,7 +49,7 @@ jobs:
     # ★★2026-11-06 — 120 → 240 (0.9.9 · 현빈 6958 릴리스 진행 중 지디). 검사 DOM 이 6969건(762파일)으로 늘어
     #   dispatch 런 42071045242 가 ★120분 벽에서 ★5821/6969(83.5%) 지점에 잘렸다 ⇒ 전수 약 140분 + 빌드·공증 ~15분.
     #   ⛔여전히 임시다 — 샤딩(matrix)은 0.9.10. 공개 레포라 러너 분은 과금 없음.
-    timeout-minutes: 240
+    timeout-minutes: 330
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           npx playwright install chromium
-          npm run test:dom
+          GOEDITOR_DOM_WORKERS=3 npm run test:dom
       # ═══════════════════════════════════════════════════════════════════
 
       - name: Import signing certificate
