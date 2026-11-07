@@ -3567,6 +3567,7 @@ function bindFrameDropZone(ss) {
         ss.style.top  = newTop  + 'px';
         ss.dataset.offsetX = String(newLeft);
         ss.dataset.offsetY = String(newTop);
+        if (parentFreeFrame) ss.classList.add('frame-child-dragging');   // 끄는 동안 부모 자르기를 푼다 — 일반 블록 끌기(:950)와 같은 CSS 한 줄
 
         // multiPeers 동시 이동
         /* ★★1020t1d-⒞ — 피어는 ★ss 와 ★같은 부모(parentFreeFrame)의 ★형제다(위 :2975
@@ -3587,11 +3588,20 @@ function bindFrameDropZone(ss) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
+        ss.classList.remove('frame-child-dragging');
         /* 누를 때 올린 바깥 표시를 내린다 — 손잡이가 mouseup 을 받으면 click 이 안 와서 바깥이 골린 채 남았다(모서리 누름). */
         parentFreeFrame?.classList.remove('selected');
         if (moved) {
           const _into = multiPeers.length ? null : _frameOutsideParentAt(upEv, ss, parentFreeFrame);
           if (_into && _into.dataset.freeLayout !== 'true') { _moveFrameIntoFlow(ss, _into, upEv); window.pushHistory?.(); window.triggerAutoSave?.(); return; }
+          /* ★현빈 261107 — 자유 프레임 «밖»의 빈 섹션에 놓으면 섹션 흐름으로 꺼낸다(글자 끌어내기 :1106 과 같은 동작).
+             옛: 다른 프레임 위가 아니면 아무 일 없이 부모 안으로 죄어 돌아왔다(8te2eiu 가 wz11mwt 밖으로 안 빠짐). 좌표는 _moveFrameIntoFlow 가 걷는다. */
+          if (!_into && !multiPeers.length && parentFreeFrame && ss.dataset.overlayBlock !== 'true' && parentFreeFrame.dataset.group !== 'true') {
+            const pr = parentFreeFrame.getBoundingClientRect();
+            const out = upEv.clientX < pr.left || upEv.clientX > pr.right || upEv.clientY < pr.top || upEv.clientY > pr.bottom;
+            const inner = out && ss.closest('.section-block')?.querySelector(':scope > .section-inner');
+            if (inner) { _moveFrameIntoFlow(ss, inner, upEv); window.pushHistory?.(); window.triggerAutoSave?.(); return; }
+          }
           if (_into) _placeInFreeFrame(ss, { frame: _into, x: upEv.clientX, y: upEv.clientY });
           /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
              ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
