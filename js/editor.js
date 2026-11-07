@@ -4356,7 +4356,7 @@ function moveSelectedBlocks(direction) {
    *   ⇒ 피그마의 ⌘[ / ⌘] 와 같은 손맛이고, 레이어 패널의 위아래와도 어긋나지 않는다.
    * ★«단위» 해석은 ⌘G 와 «같은 술어»다 — 텍스트는 text-frame 래퍼, 도형은 도형 래퍼
    *   (shapeFrameOf · SSOT), 그 밖은 자기 자신(js/block-factory.js wrapSelectedBlocksInFrame).
-   *   ⛔형제 명부는 손으로 적지 않는다 — SIBLING_MULTI_SEL(형제 단위 명부)을 그대로 쓴다.
+   *   ⛔형제 명부는 손으로 적지 않는다 — SIBLING_MULTI_SEL(⇧클릭이 쓰는 그 명부)을 그대로 쓴다.
    *     그래야 손잡이(.frame-resize-handle 등 절대배치 껍데기)가 «형제로 세어지지» 않는다. */
   const _stackUnitOf = (el) => {
     const w = el?.closest?.('.frame-block[data-text-frame]') || shapeFrameOf(el) || el;
