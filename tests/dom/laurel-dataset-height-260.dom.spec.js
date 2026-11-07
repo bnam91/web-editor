@@ -79,7 +79,8 @@ async function panelOnTwoGrouped(page) {
   await page.keyboard.press('Meta+g');
   await page.waitForFunction(() => document.getElementById('lA').parentElement.dataset.freeLayout === 'true');
   [ax, ay] = await mid(ids[0]); [bx, by] = await mid(ids[1]);
-  await clickAt(page, ax, ay, LAUREL, { dbl: true });
+  await clickAt(page, ax, ay, { sel: '.frame-block[data-group="true"]' }, { dbl: true });   // B안(현빈 261107): 안 들어간 그룹 위는 덮개(그룹)가 맞는다 — 더블클릭이 들어가 lA 를 고른다
+  expect(await page.evaluate(() => document.getElementById('lA').classList.contains('selected')), '[전제] 더블클릭으로 lA 고름').toBe(true);
   await page.keyboard.down('Shift'); await clickAt(page, bx, by, LAUREL); await page.keyboard.up('Shift');
   await page.waitForFunction(() => !!document.getElementById('msp-h'));
   expect(await page.evaluate(() => document.getElementById('lA').style.position), '[전제] 묶기가 자유배치로 띄웠다').toBe('absolute');
