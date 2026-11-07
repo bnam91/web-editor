@@ -53,9 +53,9 @@ async function setup(page, kind, zoom = 100) {
 const rc = (page, id) => page.evaluate((id) => { const r = document.getElementById(id)?.getBoundingClientRect(); return r && { l: r.left, t: r.top, w: r.width, h: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; }, id);
 async function selectKidAndDelete(page) {
   const r = await rc(page, 'kid');
-  for (let i = 0; i < 3; i++) {   // 안 골라진 프레임의 자식 — 프레임이 먼저 잡히면 한 번 더
+  for (let i = 0; i < 3; i++) {   // 안 골라진 프레임의 자식 — 더블클릭 진입(B안)
     if (await page.evaluate(() => document.getElementById('kid').classList.contains('selected'))) break;
-    await page.mouse.click(r.cx, r.cy); await page.waitForTimeout(150);
+    await page.mouse.dblclick(r.cx, r.cy); await page.waitForTimeout(150);   // B안(현빈 261107): 자식은 더블클릭 진입으로(옛: 거듭 클릭 드릴인)
   }
   expect(await page.evaluate(() => document.getElementById('kid').classList.contains('selected')), '전제 — 자식(에셋)이 골라졌다').toBe(true);
   await page.keyboard.press('Delete'); await page.waitForTimeout(400);

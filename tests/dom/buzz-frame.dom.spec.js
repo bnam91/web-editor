@@ -130,12 +130,14 @@ async function pickFrame(page, fid, { buzz = true } = {}) {
   expect(await isSelected(page, mid), '전제: 모달까지 들어가지는 않았다').toBe(false);
   if (buzz) await expect(page.locator('#bzf-section'), '전제: 프레임 패널에 Buzz 절이 있다').toHaveCount(1);
 }
-/** 낱개 모달을 고른다 — 프레임이 골라진 뒤 한 번 더 누른다(많아야 두 번). */
+/** 낱개 모달을 고른다 — B안(현빈 261107): 안 들어간 프레임 위는 덮개(프레임)가 맞으니 그 모달 자리를 «더블클릭»해 진입·선택한다
+ *  (옛: 프레임이 골라진 뒤 한 번 더 클릭 = 드릴인 — 빠졌다). 많아야 두 번. */
 async function pickModal(page, mid) {
+  const fid = await page.evaluate((id) => document.getElementById(id).closest('.frame-block')?.id || null, mid);   // 프레임 밖 모달 = 덮개가 없어 그대로 한 번 클릭
   for (let i = 0; i < 2; i++) {
     if (await isSelected(page, mid)) break;
-    const p = await pointOn(page, mid);
-    await clickAt(page, p.x, p.y, { sel: `[id="${mid}"]` }, { label: `모달 고르기 ${i + 1}` });
+    const p = await pointOn(page, mid, { frameOk: !!fid });
+    await clickAt(page, p.x, p.y, { sel: fid ? `[id="${mid}"], [id="${fid}"]` : `[id="${mid}"]` }, { label: `모달 고르기 ${i + 1}`, dbl: !!fid });
   }
   await expect.poll(() => isSelected(page, mid), { message: `전제: 모달 ${mid} 이 골라졌다` }).toBe(true);
   await expect(page.locator('#panel-right .prop-block-name'), '전제: 패널이 Modal 이다').toHaveText('Modal');

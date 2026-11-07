@@ -34,10 +34,10 @@ const putModal = (page, opts) => page.evaluate((o) => {
   window.clearHistory?.();
   return block.id;
 }, opts);
-async function clickEl(page, sel, dx = null, dy = null) {
+async function clickEl(page, sel, dx = null, dy = null, dbl = false) {
   const p = await page.evaluate(([sel, dx, dy]) => { const el = document.querySelector(sel); el.scrollIntoView({ block: 'center' });
     const r = el.getBoundingClientRect(); return [dx === null ? r.left + r.width / 2 : (dx < 0 ? r.right + dx : r.left + dx), dy === null ? r.top + r.height / 2 : r.top + dy]; }, [sel, dx, dy]);
-  await page.mouse.click(p[0], p[1]);
+  if (dbl) await page.mouse.dblclick(p[0], p[1]); else await page.mouse.click(p[0], p[1]);
   await page.waitForTimeout(120);
 }
 /** 모달을 «클릭으로» 고르고 패널 select 에 진짜 change 를 쏜다 — 함수 직접 호출이 아니라 사용자 길. */
@@ -52,7 +52,7 @@ async function frameifyByPanel(page) {
 async function drillIntoFrame(page, fid) {
   const id = await page.evaluate((fid) => { const ts = [...document.getElementById(fid).querySelectorAll('.text-block')]; return ts[ts.length - 1].id; }, fid);
   await page.waitForTimeout(400);
-  await clickEl(page, `[id="${id}"]`, 20, null);
+  await clickEl(page, `[id="${id}"]`, 20, null, true);   // B안(현빈 261107): 안쪽 줄은 더블클릭 진입으로 고른다(옛: 한 번 클릭 드릴인)
   await expect.poll(() => page.evaluate(([fid, id]) => document.getElementById(fid).classList.contains('selected') && document.getElementById(id).classList.contains('selected'), [fid, id]), { timeout: 2000, message: '[전제] 들어간 상태(프레임 + 안쪽 줄)' }).toBe(true);
 }
 const keyN = async (page, key, n = 1) => {
