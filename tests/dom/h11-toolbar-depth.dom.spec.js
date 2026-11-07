@@ -3,7 +3,7 @@
  * 머리표(지디 규율): [새 것] d1f642ff 에서 빨강 · [회귀 지킴·안전망] d1f642ff 에서도 초록 · [전제] 재기 위한 조건.
  * 규칙(판정 한 자리 = js/drag-utils.js frameTakesInsert):
  *   ⒤ 프레임을 «한 번 클릭»(오브젝트 선택 — 자손 선택 0) → 툴바 넣기는 프레임 «다음 형제»(밖).
- *   ⒥ «들어간 상태»(프레임 클릭 → 자식 클릭 = 자식이 골라짐) → 툴바 넣기는 프레임 «안»(09-23 의 요구가 drill-in 으로 산다 — 안전망).
+ *   ⒥ «들어간 상태»(프레임 클릭 → 자식 더블클릭(B안 · 옛: 자식 클릭) = 자식이 골라짐) → 툴바 넣기는 프레임 «안»(09-23 의 요구가 drill-in 으로 산다 — 안전망).
  * 실측(H11-F1/README · h11b-base.json, d1f642ff 실앱): ⒤ 툴바 넷(Graph·T▾ Heading·이미지 Standard·도형 Rectangle) «안» ✗ · ⒥ 넷 «안» ✓.
  * ⒜(10-05 지디 승인) 정의: «drill-in 할 대상이 없는 프레임(자식 요소 0)은 그 자체가 안쪽 상태다 ⇒ 안에 넣는다» — 아래 E-* 경계 행(I-* 장면은 자식이 있어 그대로 밖).
  * 하네스 = bootApp(앱 통째) · 고르기·메뉴 = clickAt(누르기 직전 맞힌 요소 단언) · 상태 대기. */
@@ -54,7 +54,7 @@ async function drillIn(page) {
   await clickFrame(page);
   const k = await kidPoint(page);
   await page.waitForTimeout(400);   // 두 번 클릭이 «더블클릭»으로 묶이지 않게(앱의 들어가기 = 따로 두 번)
-  await clickAt(page, k[0], k[1], { sel: '.text-block' }, { label: '자식 클릭(들어가기)' });
+  await clickAt(page, k[0], k[1], { sel: '#FR' }, { label: '자식 더블클릭(들어가기)', dbl: true });   // B안(현빈 261107): 들어가기 = 자식 더블클릭(옛: 프레임 클릭 뒤 자식 한 번 클릭 드릴인) · 안 들어간 프레임 위는 덮개(#FR)가 맞는다
   await expect.poll(() => page.evaluate(() => document.getElementById('FR').classList.contains('selected') && !!document.querySelector('#FR .text-block.selected')), { message: '[전제] 들어간 상태(프레임 + 자식 골라짐)' }).toBe(true);
 }
 async function toolbar(page, p) {

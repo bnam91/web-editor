@@ -47,7 +47,9 @@ async function align(page, btnId) {
 async function drillIn(page) {
   await pickFrame(page);
   const k = await page.evaluate(() => { const t = document.querySelector('#FR .text-block [class^="tb-"]'); const r = t.getBoundingClientRect(); return [Math.round(r.left + 12), Math.round(r.top + r.height / 2)]; });
-  await clickAt(page, k[0], k[1], { sel: '#FR .text-block' }, { label: '자식 클릭(들어가기)' });
+  await page.waitForTimeout(400);   // 프레임 클릭과 묶이지 않게
+  await clickAt(page, k[0], k[1], { sel: '#FR' }, { label: '자식 더블클릭(들어가기)', dbl: true });   // B안(현빈 261107): 들어가기 = 자식 더블클릭(옛: 자식 한 번 클릭 드릴인) · 안 들어간 프레임 위는 덮개(#FR)가 맞는다
+  await expect.poll(() => page.evaluate(() => !!document.querySelector('#FR .text-block.selected')), { message: '[전제] 들어간 상태(자식 골라짐)' }).toBe(true);
   await page.waitForTimeout(300);
 }
 const markKnown = (page) => page.evaluate(() => { window.__known = new Set([...document.getElementById('FR').children]); });

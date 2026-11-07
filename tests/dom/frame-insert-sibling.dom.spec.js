@@ -140,7 +140,7 @@ test('S4 자식을 고른 채 ⌘V 는 «안쪽» — 그 자식 뒤로 들어�
   await press(page, 'Meta+c');
   const [kx, ky] = await rectOf(page, 'kid', 0.5, 0.5);
   await page.mouse.click(kx, ky);   // 선택 안 된 프레임의 자식 — 프레임이 먼저 잡히면 한 번 더
-  if (!(await page.evaluate(() => document.getElementById('kid').classList.contains('selected')))) await page.mouse.click(kx, ky);
+  if (!(await page.evaluate(() => document.getElementById('kid').classList.contains('selected')))) await page.mouse.dblclick(kx, ky);   // B안(현빈 261107): 프레임이 먼저 잡혔으면 자식은 더블클릭 진입으로(옛: 한 번 더 클릭)
   expect(await page.evaluate(() => document.getElementById('kid').classList.contains('selected'))).toBe(true);
   await press(page, 'Meta+v');
   const o = await page.evaluate(() => ({ kids: document.getElementById('FR').children.length, after: document.getElementById('kid').nextElementSibling?.classList.contains('gap-block') }));
@@ -155,7 +155,7 @@ test('S5 중첩 — 바깥 자유 프레임 안의 안쪽 프레임을 골라 g 
   const [ox, oy] = await rectOf(page, 'FR', 0.9, 0.2);
   await page.mouse.click(ox, oy);                       // 바깥 프레임 먼저
   const [ix, iy] = await rectOf(page, 'IN', 0.9, 0.9);
-  await page.mouse.click(ix, iy);                       // 그다음 안쪽 프레임
+  await page.mouse.dblclick(ix, iy);                    // 그다음 안쪽 프레임 — B안: 더블클릭 진입으로 고른다(옛: 한 번 더 클릭 드릴인)
   await expect.poll(() => page.evaluate(() => document.getElementById('IN').classList.contains('selected')), { timeout: 2000 }).toBe(true);
   const before = await page.evaluate(() => ({ outer: document.getElementById('FR').children.length, inner: document.getElementById('IN').children.length }));
   await press(page, 'g');
@@ -185,8 +185,8 @@ for (const kind of ['grid', 'asset']) for (const how of ['g', 'paste']) {
     const errs = await setup(page, 'free', ABS[kind]);
     if (how === 'paste') { const [gx, gy] = await rectOf(page, 'gBefore', 0.5, 0.5); await page.mouse.click(gx, gy); await press(page, 'Meta+c'); }
     await pickFrame(page);
-    const [kx, ky] = await rectOf(page, 'kidX', 0.5, 0.5);
-    await page.mouse.click(kx, ky);
+    const [kx, ky] = await rectOf(page, 'kidX', 0.2, 0.5);   // 프레임 상자 «안» 몫 — 그리드는 폭이 늘어 가운데가 프레임 오른끝(밖)이다. 안 들어간 프레임 밖으로 삐진 자식 몫은 B안 덮개라 못 누른다
+    await page.mouse.dblclick(kx, ky);   // B안: 프레임 뒤 자식은 더블클릭 진입(옛: 한 번 클릭 드릴인)
     expect(await page.evaluate(() => document.getElementById('kidX').classList.contains('selected')), '전제 — 자식이 골라졌다').toBe(true);
     const before = await snap(page);
     await press(page, how === 'g' ? 'g' : 'Meta+v');

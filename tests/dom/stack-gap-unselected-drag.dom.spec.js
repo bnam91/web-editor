@@ -26,8 +26,8 @@ async function scene(page) {
   await page.click('#ss-to-stack-btn');
   await page.waitForFunction((id) => document.getElementById(id).dataset.freeLayout !== 'true', fid);
   const a = await waitStableRect(page, '#' + aId);
-  await page.mouse.click(a.cx, a.cy);
-  if (!(await page.evaluate((i) => document.getElementById(i).classList.contains('selected'), aId))) await page.mouse.click(a.cx, a.cy);
+  await page.mouse.dblclick(a.cx, a.cy);   // B안(현빈 261107): 프레임 안 목업은 더블클릭 진입으로 고른다(옛: 한 번 더 클릭 = 드릴인)
+  expect(await page.evaluate((i) => document.getElementById(i).classList.contains('selected'), aId), '[전제] 목업 고름').toBe(true);
   await insertMockup(page);
   fr = await waitStableRect(page, '#' + fid);
   const pt = [fr.left + 5, fr.top + 5];
