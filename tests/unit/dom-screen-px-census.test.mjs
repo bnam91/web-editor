@@ -116,6 +116,8 @@ const ROSTER = {
   'graph-colorfield.dom.spec.js:30': 'loop',
   'graph-e152-escape.dom.spec.js:47': 'loop',
   'graph-panel-defaults.dom.spec.js:24': 'loop',
+  /* ★0.9.10 B안(261107) — 지디 사람 triage: ★loop. drag() 의 `i <= 12` 는 마우스 이동 «걸음 수»(문턱 아님) · rect 는 «누를·놓을 좌표»만 · 단언은 부모 id·position 값이다 */
+  'free-frame-child-frame-dragout-section.dom.spec.js:24': 'loop',
   /* ★150(S3 · 261026) — ★지디 사람 triage(17:51): ★loop. tickPt 의 `n > 120` 은 rAF «횟수 상한»(문턱 아님) · rect 는 «누를 좌표»만 · 단언은
      p.stable(불린) 하나 ⇒ 배율 무관. :41 = rect 를 재는 줄 · :43 = 그 상한·되돌림 줄. */
   'graph-old-axis-tick-edit-150.dom.spec.js:41': 'loop',
