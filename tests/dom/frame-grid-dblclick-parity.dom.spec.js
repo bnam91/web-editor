@@ -68,7 +68,8 @@ const state = (page, target, ids) => page.evaluate(({ target, ids }) => {
 }, { target, ids });
 
 /* ★R1(2026-10-08): 프레임은 더블클릭 한 번에 «진입 ＋ 선택»까지만 — 편집은 «이미 들어간 뒤» 다시 더블클릭할 때(frame-dblclick-overlay OV-d) */
-const FRAME_NOW = { 'dbl': { inner: true, editing: false }, 'click+dbl': { inner: true, editing: false } };
+/* ★B안(현빈 261107): 진입 전 단일 클릭은 몇 번이든 프레임에 머문다 — 자식으로 내려가는 길은 더블클릭뿐. click+click 칸 inner true → false(정의 변경, 회귀 아님). 그리드 줄은 안 바뀐다. */
+const FRAME_NOW = { 'click+click': { inner: false, editing: false }, 'dbl': { inner: true, editing: false }, 'click+dbl': { inner: true, editing: false } };
 for (const target of ['grid', 'frame']) {
   for (const g of Object.keys(EXPECT)) {
     test(`DP ${target} · ${g} — 편집 진입 축의 끝 상태가 표와 같다(그리드 줄 = 프레임 자식)`, async ({ page }) => {

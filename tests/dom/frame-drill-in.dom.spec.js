@@ -76,23 +76,23 @@ for (const kind of ['flow', 'free']) {
     expect(await page.evaluate(() => document.getElementById('T').classList.contains('selected')), '글자는 안 골라짐').toBe(false);
     expect(errs).toEqual([]);
   });
-  test(`② ${name} — 같은 자리를 한 번 더 누르면 선택 = 글자(프레임도 selected 로 남는다 · 잰 사실)`, async ({ page }) => {
+  /* ★B안(현빈 261107 · 정의 ORDER-frame-dblclick-focus §1): 진입 전 «두 번째 단일 클릭»은 자식으로 안 내려간다 — 맞힌 요소도 선택도 프레임 그대로.
+     옛 기대(2회 = 글자)는 10-05 드릴인 규칙이었다. 뒤집힘 = 정의 변경(회귀 아님). 자식은 더블클릭으로 고른다(frame-dblclick-overlay OV-c). */
+  test(`② ${name} — 같은 자리를 한 번 더 눌러도 선택 = 프레임(진입 전엔 자식으로 안 내려간다 · B안)`, async ({ page }) => {
     await scene(page, kind);
     await press(page, { sel: '#F' }, () => document.getElementById('F').classList.contains('selected'), `${kind} 1회`);
-    await press(page, { sel: '[id="T"]' }, () => document.getElementById('T').classList.contains('selected'), `${kind} 2회`);
+    await press(page, { sel: '#F' }, () => document.getElementById('F').classList.contains('selected'), `${kind} 2회`);
     const s = await sel(page);
-    expect(s.includes('T') && s.includes('F'), `2회 뒤 선택 ${JSON.stringify(s)}`).toBe(true);
+    expect(s.includes('F') && !s.includes('T'), `2회 뒤 선택 ${JSON.stringify(s)}`).toBe(true);
   });
 }
 
-test('④ 중첩 프레임(F > F2 > 글자) — 글자까지 «세 번»: 1회 = F · 2회 = F2(F 풀림) · 3회 = 글자', async ({ page }) => {
+/* ★B안(현빈 261107): 단일 클릭 세 번은 바깥 F 에 머문다(옛: 1=F·2=F2·3=글자). 중첩으로 내려가는 길은 더블클릭 — frame-dblclick-overlay OV-g. */
+test('④ 중첩 프레임(F > F2 > 글자) — 단일 클릭 «세 번»이어도 F 에 머문다(B안)', async ({ page }) => {
   await scene(page, 'nested');
   expect(await page.evaluate(() => !document.getElementById('F').classList.contains('selected') && !document.getElementById('F2').classList.contains('selected')), '전제 — 두 프레임 다 안 골라짐').toBe(true);
-  await press(page, { sel: '#F' }, () => document.getElementById('F').classList.contains('selected'), '중첩 1회');
-  expect(await page.evaluate(() => document.getElementById('T').classList.contains('selected')), '1회 뒤 글자 안 골라짐').toBe(false);
-  await press(page, { sel: '#F2' }, () => document.getElementById('F2').classList.contains('selected'), '중첩 2회');
-  expect(await page.evaluate(() => ({ F: document.getElementById('F').classList.contains('selected'), T: document.getElementById('T').classList.contains('selected') })), '2회 뒤 F 풀림 · 글자 아직').toEqual({ F: false, T: false });
-  await press(page, { sel: '[id="T"]' }, () => document.getElementById('T').classList.contains('selected'), '중첩 3회');
+  for (const n of [1, 2, 3]) await press(page, { sel: '#F' }, () => document.getElementById('F').classList.contains('selected'), `중첩 ${n}회`);
+  expect(await page.evaluate(() => ({ F2: document.getElementById('F2').classList.contains('selected'), T: document.getElementById('T').classList.contains('selected') })), '세 번 뒤에도 F2·글자 안 골라짐').toEqual({ F2: false, T: false });
 });
 
 /* ── U16① · U17② — 우클릭 메뉴 ── */
