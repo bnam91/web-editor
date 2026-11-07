@@ -194,7 +194,8 @@ test('P7 목적 — 자식 있는 fullWidth 프레임을 «클릭으로» 고른
   await page.evaluate(() => window.addTextBlock('body'));
   const r = await page.evaluate(() => ({ active: window._activeFrame?.id, sel: document.getElementById('fwT').classList.contains('selected'), n: document.querySelectorAll('#fwT .text-block').length }));
   console.log('[P7]', JSON.stringify({ before, ...r }));
-  expect(r.active).toBe('fwT');
+  /* 옛 단언(기록): expect(r.active).toBe('fwT') — T-KEY-REPEAT-INSERTS-INTO-FRAME-01(현빈 261108 · 3ea98f256): 밖에 놓으면 활성 프레임도 새 블럭이 선 자리(섹션 = 없음)로 옮긴다 */
+  expect(r.active, '활성 프레임이 새 블럭 자리(섹션)로 옮겨졌다').toBeUndefined();
   /* 옛 단언(기록): expect(r.n).toBe(before + 1) — 09-23 «안» */
   expect(r.n, '★H11 ⒝: 오브젝트 선택 = 밖 — 프레임 안 줄 수 그대로').toBe(before);
 });
@@ -209,7 +210,7 @@ test('P7b ⒝ 우회 — 같은 프레임에서 안쪽 줄을 먼저 클릭하�
   await page.mouse.click(pt[0], pt[1]);
   await page.waitForTimeout(400);
   const tp = await page.evaluate(() => { const ce = document.querySelector('#tbT0 [class^="tb-"]') || document.getElementById('tbT0'); const b = ce.getBoundingClientRect(); return [b.left + 20, b.top + b.height / 2]; });
-  await page.mouse.click(tp[0], tp[1]);
+  await page.mouse.dblclick(tp[0], tp[1]);   // B안(현빈 261107): 안쪽 줄은 더블클릭 진입으로 고른다(옛: 한 번 클릭 드릴인)
   await expect.poll(() => page.evaluate(() => document.getElementById('tbT0').classList.contains('selected')), { timeout: 2000, message: '[전제] 들어간 상태' }).toBe(true);
   const before = await page.evaluate(() => document.querySelectorAll('#fwT .text-block').length);
   await page.evaluate(() => window.addTextBlock('body'));

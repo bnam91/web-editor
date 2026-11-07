@@ -24,7 +24,9 @@ async function setup(page, variant = 'plain') {
     const { row, block } = window.makeModalBlock({ variant, title: '제목', text: '첫 줄 본문' });
     document.getElementById('gTop').after(row); window.renderModalBlock(block); window.bindBlock?.(block);
     const f = window.frameifyModal(block);
-    window.addTextBlock('body'); window.addTextBlock('body');
+    /* 줄 둘을 프레임 «안»에 — 「안 골라짐 · 활성만」= 안에 넣기(frameTakesInsert). 옛 판은 프레임화 직후 t 두 번에 «둘째만» 안으로 샜다
+       (T-KEY-REPEAT-INSERTS-INTO-FRAME-01 이 고친 결함 · 3ea98f256) — 그 결함에 기대지 않고 대놓고 활성으로 둔다. */
+    for (let i = 0; i < 2; i++) { window.deselectAll?.(); window._activeFrame = f; window.addTextBlock('body'); }
     window.deselectAll?.(); document.activeElement?.blur?.();
     window.clearHistory?.();
     return { fid: f.id, rows: [...f.querySelectorAll('.text-block')].map(t => t.id) };
@@ -35,16 +37,16 @@ async function setup(page, variant = 'plain') {
 const selList = (page) => page.evaluate(() => [...document.querySelectorAll('#canvas .selected')].map(e => `${e.id || '-'}.${[...e.classList].filter(c => c !== 'selected').join('.')}`));
 const state = (page, fid) => page.evaluate((fid) => { const f = document.getElementById(fid);
   return { frame: !!f, rows: f ? [...f.querySelectorAll('.text-block')].map(t => t.id) : [], gEnd: !!document.getElementById('gEnd'), gTop: !!document.getElementById('gTop'), sec: !!document.getElementById('sF') }; }, fid);
-async function clickAt(page, sel, where = 'center') {
+async function clickAt(page, sel, where = 'center', dbl = false) {
   const p = await page.evaluate(([sel, where]) => { const el = document.querySelector(sel); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect();
     return where === 'corner' ? [r.right - 4, r.top + 4] : [r.left + Math.min(40, r.width / 2), r.top + r.height / 2]; }, [sel, where]);
-  await page.mouse.click(p[0], p[1]);
+  if (dbl) await page.mouse.dblclick(p[0], p[1]); else await page.mouse.click(p[0], p[1]);
   await page.waitForTimeout(150);
 }
 /** 줄 하나를 «고른다» — 프레임 밖에서 처음 누르면 프레임이 먼저 잡힐 수 있다(드릴인). 몇 번 눌렀는지 돌려준다. */
 async function pickRow(page, id) {
   for (let n = 1; n <= 3; n++) {
-    await clickAt(page, `#${id}`);
+    await clickAt(page, `#${id}`, 'center', true);   // B안(현빈 261107): 프레임 안 줄은 더블클릭 진입으로(옛: 거듭 클릭 드릴인)
     if (await page.evaluate((id) => document.getElementById(id)?.classList.contains('selected'), id)) return n;
   }
   return -1;
