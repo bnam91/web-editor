@@ -29,7 +29,7 @@ const canon = (s) => JSON.stringify({ f: Object.keys(s.frames).sort().map((k) =>
 
 const live = (page) => page.evaluate(() => window.__live());
 const settle = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-/* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 1 = 더블클릭 · 깊이 2 = 더블클릭 뒤 클릭(들어간 프레임 ≠ 고른 것 · C3b) */
+/* 고르기 = 진짜 마우스 — selectBlock 은 프레임을 못 고른다(첫 판 흠 · 조작 대부분 skip). t902 pick 꼴: 그 프레임 상자 안 ∧ 다른(조상 아닌) 프레임·글자 밖 점. 깊이 d = 더블클릭 d 번(B안 — 옛 «깊이 2 = 더블클릭 뒤 클릭» 드릴인은 빠졌다) · enter = 그 뒤 여백 더블클릭 한 번(들어간 프레임 = 고른 것) */
 async function select(page, id, depth, { enter = false, chain = null } = {}) {
   let last = { sel: false, why: '안 함' };
   for (let tries = 1; tries <= 3; tries++) {   // 고르기 흔들림은 판정 밖 전제다 — 조건을 재서 다시(t902 C3 도 같은 흔들림) · ⚠️시도 수는 기록에 안 남긴다(남기면 같은 시드 ×3 비교가 흔들린다)
@@ -58,19 +58,24 @@ async function select(page, id, depth, { enter = false, chain = null } = {}) {
       }
       const hit = await ptOf();
       if (!hit) { last = { sel: false, why: '들어가도 못 집음', tries, pts, via: 'descend' }; continue; }
-      await page.mouse.click(hit[0], hit[1]); await settle(page);
+      /* B안(현빈 261107): 한 번 클릭은 더 내려가지 않는다 — 조상 더블클릭이 이미 대상을 골랐으면 그대로, 아니면 대상 자리를 더블클릭(진입·선택) */
+      if (!(await page.evaluate((id) => !!document.getElementById(id)?.classList.contains('selected'), id))) await page.mouse.dblclick(hit[0], hit[1]);
+      await settle(page);
       last = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
       last.tries = tries; last.via = 'descend';
       if (last.sel) return last;
       last.why = '들어가 눌렀어도 안 골라짐'; last.pts = pts;
       continue;
     }
-    if (depth === 0) await page.mouse.click(q.x, q.y);
-    else if (depth === 1) await page.mouse.dblclick(q.x, q.y);
-    else {
-      for (let i = 0; i < depth - 1; i++) { await page.mouse.dblclick(q.x, q.y); await page.waitForFunction(() => !!document.querySelector('#canvas .frame-block.selected'), null, { timeout: 2000 }).catch(() => {}); }
-      if (enter) await page.mouse.dblclick(q.x, q.y); else await page.mouse.click(q.x, q.y);
-      if (enter) await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && window._enteredFrame?.id === id, id, { timeout: 2000 }).catch(() => {});
+    /* B안(현빈 261107) — 옛 «더블클릭 (깊이−1)번 + 한 번 클릭 = 한 겹 더»(R2 드릴인)는 빠졌다. 더블클릭 하나가 한 겹씩 내려가 그 자리 직계를 고른다.
+       ⇒ 대상이 골라질 때까지 더블클릭(깊이 + 1 번 안 · 부르는 자마다 깊이를 세는 법이 달라 «수»가 아니라 «골라졌나»로 멈춘다).
+       enter = 골라진 대상의 여백(이 점은 다른 프레임·글자 밖)을 한 번 더 더블클릭 = 그 프레임 «진입»(_enteredFrame). */
+    const isSel = () => page.evaluate((id) => !!document.getElementById(id)?.classList.contains('selected'), id);
+    if (depth === 0) { await page.mouse.click(q.x, q.y); await settle(page); }
+    else for (let i = 0; i <= depth && !(await isSel()); i++) { await page.mouse.dblclick(q.x, q.y); await settle(page); }
+    if (enter && (await isSel()) && !(await page.evaluate((id) => window._enteredFrame?.id === id, id))) {
+      await page.mouse.dblclick(q.x, q.y);
+      await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && window._enteredFrame?.id === id, id, { timeout: 2000 }).catch(() => {});
     }
     await settle(page);
     last = await page.evaluate((id) => { document.activeElement?.blur?.(); return { sel: !!document.getElementById(id)?.classList.contains('selected'), entered: window._enteredFrame?.id || null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; }, id);
