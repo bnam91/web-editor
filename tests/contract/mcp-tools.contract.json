@@ -36,7 +36,7 @@
     "vector": "vb_",
     "mockup": "mkp_",
     "banner": "ss_",
-    "banner02": "lnr_",
+    "liner": "lnr_",
     "gradient": "grad_"
   },
   "tools": {
@@ -69,10 +69,8 @@
       "targetFree": false,
       "required": [],
       "expectedProjectGuard": false,
-      "noArgs": "ok",
-      "responseKeys": [
-        "ok"
-      ]
+      "noArgs": "rejected",
+      "responseKeys": []
     },
     "add_block": {
       "hidden": false,

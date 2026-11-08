@@ -23,7 +23,7 @@
 
 const CASES = {
   add_asset_block: { args: {}, sinks: ["addAssetBlock"] },
-  add_banner02_block: { args: {}, sinks: ["addBanner02Block"] },
+  add_banner02_block: { args: {}, sinks: [], expectReject: true },   // BANNER02-HIDE-LEGACY-01
   add_banner_block: { args: {}, sinks: [], expectReject: true },
     // ★MVP 에서 «의도적으로» 제외된 구형 도구 — 거절이 옳다
   add_block: { args: {"type":"text","props":{"text":"hi"}}, sinks: ["addTextBlock"] },

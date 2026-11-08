@@ -90,9 +90,11 @@ const BLOCK_TYPES = [
      ⇒ add:null 로 두면 add_block 이 「type "banner" has no add tool」로 «먼저» 끊고,
        blurb 가 대안을 알려 준다. 읽기·수정(옛 프로젝트의 ss_ 배너)은 그대로 산다. */
   { type: 'banner', add: null, addLegacy: 'add_banner_block', upd: 'update_frame_block', pfx: 'ss_',
-    blurb: 'LEGACY horizontal banner — read/update only; to CREATE one use type "banner02"' },
-  { type: 'banner02', add: 'add_banner02_block', upd: 'update_banner02_block', pfx: 'bn2_',
-    blurb: 'standalone wide banner (label/title/sub + image)' },
+    blurb: 'LEGACY horizontal banner — read/update only; creating banners is disabled' },
+  /* ★BANNER02-HIDE-LEGACY-01(현빈 0.9.10 · 7107 「응 막아」): banner02 도 «새로 넣기»만 끊는다 — banner 와 같은 꼴.
+       UI 메뉴 항목을 숨긴 것과 맞춘다. 이미 든 bn2_ 의 읽기·수정(update_banner02_block)은 그대로 산다. */
+  { type: 'banner02', add: null, addLegacy: 'add_banner02_block', upd: 'update_banner02_block', pfx: 'bn2_',
+    blurb: 'wide banner (label/title/sub + image) — read/update only; creating new banners is disabled' },
   { type: 'liner', add: 'add_liner_block', upd: 'update_liner_block', pfx: 'lnr_',
     blurb: 'text along a curve/arc/wave/circle path' },
   { type: 'gradient', add: 'add_gradient_block', upd: 'update_gradient_block', pfx: 'grad_',

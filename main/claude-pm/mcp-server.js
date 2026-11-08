@@ -2980,6 +2980,10 @@ function _registerDefaultTools() {
   registerTool(
     'add_banner02_block',
     async (args = {}) => {
+      /* ★BANNER02-HIDE-LEGACY-01(현빈 0.9.10 · 7107): 새 배너2 만들기는 막았다(UI 메뉴 숨김과 맞춤).
+         ⛔도구 정의는 안 지운다(add_banner_block 과 같은 까닭) — «왜 막혔고 무엇은 되나»를 말한다. */
+      throw new Error('새 배너(banner02) 만들기는 막혔다(현빈 결정 · 0.9.10). 이미 있는 배너는 update_banner02_block 으로 고칠 수 있다.');
+      // eslint-disable-next-line no-unreachable
       if (!_rendererInvoker?.addBanner02Block) throw new Error('renderer bridge not ready');
       const opts = _validateBanner02Opts(args, { mode: 'add' });
       return await _rendererInvoker.addBanner02Block(opts);
@@ -3305,7 +3309,7 @@ function _registerDefaultTools() {
          실사용 전수: 구형 블록 0개 / 신형 banner02 28개. add_banner02_block 을 써라.
          ⛔도구 정의를 지우진 않는다 — 지우면 옛 대화·스크립트가 «도구 없음»으로 조용히 실패한다.
            대신 «왜 막혔고 무엇을 쓰라»고 말한다. */
-      throw new Error('add_banner 는 MVP 에서 제외됐다(구형 banner). 대신 add_banner02_block 을 사용해라.');
+      throw new Error('add_banner 는 MVP 에서 제외됐다(구형 banner). 새 배너 만들기는 막혔다 — 이미 있는 배너는 update_frame_block 으로 고칠 수 있다.');
       // eslint-disable-next-line no-unreachable
       if (!_rendererInvoker?.addBannerBlock) throw new Error('renderer bridge not ready');
       if (sectionId !== undefined && (typeof sectionId !== 'string' || !sectionId.startsWith('sec_'))) {
