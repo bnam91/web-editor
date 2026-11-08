@@ -90,35 +90,11 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
     });
 
     header.addEventListener('click', (e) => {
-      if (e.shiftKey) {
-        const panel = document.getElementById('layer-panel-body');
-        const allSectionEls = [...document.querySelectorAll('#canvas .section-block')];
-        const targetIdx = allSectionEls.indexOf(sec);
-
-        const activeHeader = panel.querySelector('.layer-section-header.active');
-        const anchorLayerSection = activeHeader ? activeHeader.closest('.layer-section') : null;
-        const anchorIdx = anchorLayerSection
-          ? parseInt(anchorLayerSection.dataset.section, 10) - 1
-          : -1;
-
-        if (anchorIdx === -1 || targetIdx === -1) {
-          selectSection(sec, true);
-          return;
-        }
-
-        const [from, to] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
-
-        // 범위 내 모든 섹션 선택
-        allSectionEls.forEach(s => s.classList.remove('selected'));
-        panel.querySelectorAll('.layer-section-header').forEach(h => h.classList.remove('active'));
-
-        const allLayerSections = [...panel.querySelectorAll('.layer-section')];
-        for (let i = from; i <= to; i++) {
-          if (allSectionEls[i]) allSectionEls[i].classList.add('selected');
-          if (allLayerSections[i]) {
-            allLayerSections[i].querySelector('.layer-section-header')?.classList.add('active');
-          }
-        }
+      if (e.shiftKey || e.metaKey || e.ctrlKey) {
+        /* ★MARK-MULTISELECT-PICKS-UNSELECTED-MIDDLE-01(현빈 0.9.10) — ⇧클릭 = 피그마식 토글(하나씩 더하기·빼기). 옛 «범위 선택»은 없앴다
+             (블럭 쪽 7042 와 맞춤). 쓰기 = editor.js selectSectionWithModifier 의 ⌘ 갈래 «한 곳»(multiSel · 여러 섹션 패널).
+             ⌘/Ctrl 도 같은 토글(옛: 머리 ⌘ = 그냥 고르기 — 문서 표 「Cmd+click = 개별 토글」과 어긋났다). 이름 글자 click 도 아래에서 같은 길. */
+        window.selectSectionWithModifier?.(sec, { metaKey: true });
       } else {
         // 비활성 variant 클릭 시 해당 variant를 활성화한 뒤 이동 (nameEl 외 header 영역 클릭 포함)
         if (sec.dataset.variationActive === '0' && sec.dataset.variationGroup) {
@@ -142,6 +118,8 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
     });
     nameEl.addEventListener('click', e => {
       e.stopPropagation();
+      /* ★이름 글자 위 ⇧/⌘ 도 머리와 같은 토글 — 옛날엔 여기서 수식키를 무시해 «이름 위 ⇧클릭»이 단일 선택이 됐다(사람은 대개 이름을 누른다). */
+      if (e.shiftKey || e.metaKey || e.ctrlKey) { window.selectSectionWithModifier?.(sec, { metaKey: true }); return; }
       // 비활성 variant 클릭 시 해당 variant를 활성화한 뒤 이동
       if (sec.dataset.variationActive === '0' && sec.dataset.variationGroup) {
         const gid = sec.dataset.variationGroup;
