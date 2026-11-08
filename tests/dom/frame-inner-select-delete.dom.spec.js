@@ -36,8 +36,9 @@ async function scene(page, depth) {
   return { errs, ids };
 }
 const read = (page) => page.evaluate((FR) => [...document.querySelectorAll('#canvas ' + FR)].map((f) => ({ id: f.id, par: f.parentElement.closest(FR)?.id || null, sel: f.classList.contains('selected') })), FR);
-const corner = async (page, id) => { const b = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.right - 10, r.bottom - 10]; }, id); await page.mouse.click(b[0], b[1]); await raf(page); };
-const pickDown = async (page, ids, depth) => { for (const n of NAMES.slice(0, depth)) await corner(page, ids[n]); };
+const corner = async (page, id, dbl) => { const b = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.right - 10, r.bottom - 10]; }, id); if (dbl) await page.mouse.dblclick(b[0], b[1]); else await page.mouse.click(b[0], b[1]); await raf(page); };
+/* B안(현빈 261107): 맨 바깥은 한 번 클릭 · 그 안은 한 겹씩 더블클릭 진입(옛: 모서리를 차례로 한 번씩 = 드릴인) */
+const pickDown = async (page, ids, depth) => { for (const [i, n] of NAMES.slice(0, depth).entries()) await corner(page, ids[n], i > 0); };
 /* 붙여넣기는 늦게 붙는다 — 프레임 수가 늘 때까지 기다린다 */
 const grew = (page, n) => page.waitForFunction(([FR, n]) => document.querySelectorAll('#canvas ' + FR).length > n, [FR, n]);
 const OPS = {

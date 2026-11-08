@@ -47,7 +47,7 @@ async function pickAndPressT(page) {
      빈 return · fullWidth 만들기)라 전제를 «들어간 상태»로 둔다: 안쪽 gIn 을 클릭해 고른다(실기의 「안쪽 블럭을 먼저 고른다」). */
   await page.waitForTimeout(400);
   const [gx, gy] = await page.evaluate(() => { const r = document.getElementById('gIn').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-  await page.mouse.click(gx, gy);
+  await page.mouse.dblclick(gx, gy);   // B안(현빈 261107): 안쪽은 더블클릭 진입으로 고른다(옛: 한 번 클릭 드릴인)
   await expect.poll(() => page.evaluate(() => document.getElementById('FRX').classList.contains('selected') && !!document.querySelector('#FRX .selected')), { timeout: 2000, message: '[전제] 들어간 상태(프레임 + 안쪽 골라짐)' }).toBe(true);
   const kidsBefore = await page.evaluate(() => document.getElementById('FRX').children.length);
   await spyPush(page);

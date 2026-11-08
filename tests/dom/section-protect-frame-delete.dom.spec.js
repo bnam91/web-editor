@@ -50,10 +50,10 @@ const read = (page) => page.evaluate((FR) => ({
   tip: JSON.stringify(window.getHistoryTip()),
 }), FR);
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; }, id);
-const clickFree = async (page, id, mod) => { const b = await box(page, id); if (mod) await page.keyboard.down(mod); await page.mouse.click(mod ? (b.l + b.r) / 2 : b.r - 14, mod ? (b.t + b.b) / 2 : b.b - 14); if (mod) await page.keyboard.up(mod); await raf(page); };
-/* 사람 길: 바깥부터 차례로 눌러 들어가 target 만 고른다. */
+const clickFree = async (page, id, mod, dbl) => { const b = await box(page, id); if (mod) await page.keyboard.down(mod); const x = mod ? (b.l + b.r) / 2 : b.r - 14, y = mod ? (b.t + b.b) / 2 : b.b - 14; if (dbl) await page.mouse.dblclick(x, y); else await page.mouse.click(x, y); if (mod) await page.keyboard.up(mod); await raf(page); };
+/* 사람 길: 바깥은 한 번 클릭, 그 안은 한 겹씩 더블클릭 진입(B안 · 현빈 261107 — 옛: 차례로 한 번씩 눌러 드릴인)으로 target 만 고른다. */
 async function pick(page, path) {
-  for (const id of path) await clickFree(page, id);
+  for (const [i, id] of path.entries()) await clickFree(page, id, null, i > 0);
   const target = path[path.length - 1];
   const s = await page.evaluate((id) => ({ on: document.getElementById(id).classList.contains('selected'), blocks: document.querySelectorAll('#canvas .text-block.selected').length }), target);
   expect(s, '[전제] 프레임만 골랐다').toEqual({ on: true, blocks: 0 });

@@ -52,7 +52,7 @@ async function realDrag(page, fid, gid, dx, dy) {
   await page.waitForTimeout(150);
   const p = await page.evaluate((gid) => { const r = document.getElementById(gid).getBoundingClientRect(); return [r.left + Math.min(40, r.width / 4), r.top + r.height / 2]; }, gid);
   await clickAt(page, p[0], p[1], { sel: '.frame-block' }, { label: '프레임 고르기' }); await page.waitForTimeout(250);
-  await clickAt(page, p[0], p[1], { sel: `.grid-block` }, { label: '그리드 고르기(파고들기)' }); await page.waitForTimeout(250);
+  await clickAt(page, p[0], p[1], { sel: '.frame-block' }, { label: '그리드 고르기(더블클릭 진입)', dbl: true }); await page.waitForTimeout(250);   // B안(현빈 261107): 안 들어간 프레임 위는 덮개(프레임)가 맞는다 — 옛: 한 번 더 클릭 = 파고들기
   await expect.poll(() => page.evaluate((gid) => document.getElementById(gid).classList.contains('selected'), gid), { message: '[전제] 그리드가 골라졌다' }).toBe(true);
   await page.mouse.move(p[0], p[1]); await page.mouse.down();
   for (let i = 1; i <= 12; i++) await page.mouse.move(p[0] + dx * i / 12, p[1] + dy * i / 12);

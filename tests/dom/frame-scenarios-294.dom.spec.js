@@ -28,9 +28,9 @@ async function scene(page) {
   return { errs, ...ids };
 }
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; }, id);
-const clickFree = async (page, id, mod) => { await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await raf(page); const b = await box(page, id); if (mod) await page.keyboard.down(mod); await page.mouse.click(b.r - 8, b.b - 8); if (mod) await page.keyboard.up(mod); await raf(page); };
+const clickFree = async (page, id, mod, dbl) => { await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await raf(page); const b = await box(page, id); if (mod) await page.keyboard.down(mod); if (dbl) await page.mouse.dblclick(b.r - 8, b.b - 8); else await page.mouse.click(b.r - 8, b.b - 8); if (mod) await page.keyboard.up(mod); await raf(page); };
 /* 위에서부터 사람 순서로 고른다: 부모 빈 자리 클릭 → 그 안의 자식 빈 자리 클릭 … */
-const pick = async (page, chain) => { await page.keyboard.press('Escape'); await page.evaluate(() => window.deselectAll()); for (const id of chain) await clickFree(page, id); const s = await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), chain[chain.length - 1]); expect(s, `[전제] ${chain.length} 단계로 고름`).toBe(true); };
+const pick = async (page, chain) => { await page.keyboard.press('Escape'); await page.evaluate(() => window.deselectAll()); for (const [i, id] of chain.entries()) await clickFree(page, id, null, i > 0);   /* B안(현빈 261107): 바깥 한 번 클릭 · 그 안은 한 겹씩 더블클릭(옛: 빈 자리 한 번씩 드릴인) */ const s = await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), chain[chain.length - 1]); expect(s, `[전제] ${chain.length} 단계로 고름`).toBe(true); };
 const desel = (page) => page.evaluate(() => { window.deselectAll(); document.activeElement?.blur?.(); });
 const press = async (page, key) => { await page.keyboard.press(key); await raf(page); };
 const clean = (s) => { expect(s.dupes, 'id 겹침 없음').toEqual([]); };

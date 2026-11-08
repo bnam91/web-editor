@@ -62,12 +62,13 @@ async function pick(page, id, depth, mode = 'dbl') {
   const q = await pt(id);
   if (depth === 0) await page.mouse.click(q.x, q.y);
   else if (mode === 'dbl') for (let i = 0; i < depth; i++) await page.mouse.dblclick(q.x, q.y);
-  else { for (let i = 0; i < depth - 1; i++) await page.mouse.dblclick(q.x, q.y); await page.waitForFunction(() => !!document.querySelector('#canvas .frame-block.selected'), null, { timeout: 2000 }).catch(() => {}); await page.mouse.click(q.x, q.y); }   // ★C3b 몸짓: 진입 한 번 + 클릭
+  else { for (let i = 0; i < depth - 1; i++) await page.mouse.dblclick(q.x, q.y); await page.waitForFunction(() => !!document.querySelector('#canvas .frame-block.selected'), null, { timeout: 2000 }).catch(() => {}); await page.mouse.dblclick(q.x, q.y); }   // ★C3b 몸짓 = «G 골라짐 · 안 들어감» — B안(현빈 261107): 옛 «진입 한 번 + 클릭»(드릴인)은 빠져 더블클릭 깊이만큼
   await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected'), id, { timeout: 2000 }).catch(() => {});   // 조건 대기(고정 대기 0 · dom-fixed-wait-census)
   return { ...q, selected: await page.evaluate((id) => document.getElementById(id)?.classList.contains('selected'), id) };
 }
 
-const CELLS = [['C1', 'P', 0, 'dbl'], ['C2', 'K', 1, 'dbl'], ['C3', 'G', 2, 'dbl'], ['C3', 'G', 2, 'dbl+click'], ['C4', 'S1', 1, 'dbl']];
+/* B안(현빈 261107): C3(dbl) = «G 에 들어간 상태» — 더블클릭 둘은 G 를 «고르기»까지라 하나 더(G 여백) = 3 · C3b = «G 골라짐 · 안 들어감» = 더블클릭 둘 */
+const CELLS = [['C1', 'P', 0, 'dbl'], ['C2', 'K', 1, 'dbl'], ['C3', 'G', 3, 'dbl'], ['C3', 'G', 2, 'dbl+click'], ['C4', 'S1', 1, 'dbl']];
 for (const [kind, who, depth, mode] of CELLS) {
   test(`${kind}${mode === 'dbl' ? '' : 'b'} ${who} ⌘D (${mode}) — 부모·바로 다음 형제·부분나무·id·원본·⌘Z (프레임 총수 4 고정)`, async ({ page }) => {
     const s = await build(page, kind);

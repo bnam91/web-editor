@@ -18,9 +18,9 @@ async function scene(page) {
 }
 const pos = (page) => page.evaluate((FR) => Object.fromEntries([...document.querySelectorAll('#canvas ' + FR)].map((f) => [f.id, { par: f.parentElement.closest(FR)?.id || null, at: [f.style.position, f.style.left, f.style.top], off: [f.dataset.offsetX, f.dataset.offsetY], prev: f.previousElementSibling?.id || null }])), FR);
 /* 자리 비율로 누른다 — 좌표 px 를 안 박아 배율을 안 탄다 */
-const clickAt = async (page, id, fx, fy, mod) => { const r = await page.evaluate((id) => { const q = document.getElementById(id).getBoundingClientRect(); return [q.left, q.top, q.width, q.height]; }, id); if (mod) await page.keyboard.down(mod); await page.mouse.click(r[0] + r[2] * fx, r[1] + r[3] * fy); if (mod) await page.keyboard.up(mod); await raf(page); };
+const clickAt = async (page, id, fx, fy, mod, dbl) => { const r = await page.evaluate((id) => { const q = document.getElementById(id).getBoundingClientRect(); return [q.left, q.top, q.width, q.height]; }, id); if (mod) await page.keyboard.down(mod); if (dbl) await page.mouse.dblclick(r[0] + r[2] * fx, r[1] + r[3] * fy); else await page.mouse.click(r[0] + r[2] * fx, r[1] + r[3] * fy); if (mod) await page.keyboard.up(mod); await raf(page); };
 const isSel = (page, id) => page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id);
-const pick = async (page, P, kid) => { await clickAt(page, P, 0.5, 0.6); await clickAt(page, kid, 0.5, 0.5); expect(await isSel(page, kid), '[전제] 자식 고름').toBe(true); };
+const pick = async (page, P, kid) => { await clickAt(page, P, 0.5, 0.6); await clickAt(page, kid, 0.5, 0.5, null, true);   /* B안(현빈 261107): 자식은 더블클릭 진입(옛: 한 번 클릭 드릴인) */ expect(await isSel(page, kid), '[전제] 자식 고름').toBe(true); };
 const fresh = async (page, before, n) => { await expect.poll(async () => Object.keys(await pos(page)).filter((i) => !before[i]).length, '[전제] 사본 수').toBe(n); const now = await pos(page); return { now, ids: Object.keys(now).filter((i) => !before[i]) }; };
 const count = (page) => page.evaluate((FR) => document.querySelectorAll('#canvas ' + FR).length, FR);
 
