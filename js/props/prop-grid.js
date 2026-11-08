@@ -16,7 +16,7 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
          gridCollapseToColumns,   /* ★T12 — 2×2 → 독립 칼럼 */
          gridNumOr, GRID_NESTED_GAP, GRID_GAP_LINE_H,   /* ★t6-04b — 0 을 살려 읽는 문 · 기본값 정본 */
-         gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
+         gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BLOCK_BG_RADIUS_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
@@ -2723,7 +2723,10 @@ function _grdBlockBgSectionHtml(block) {
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">${sub('상하', 'grd-bbg-pady', GRID_BLOCK_BG_PAD_Y_MAX, 4, bg.padY)}${sub('좌우', 'grd-bbg-padx', GRID_BLOCK_BG_PAD_X_MAX, 2, bg.padX)}
         </div>
       </div>
-    </div>`;
+      ${/* ★GRID-BG-RADIUS-SHADOW-01 — 「코너」 = 프레임 Style 절과 같은 말·같은 범위(prop-frame.js ss-radius 0~80) · 같은 그리개 sliderRowHTML */
+        sliderRowHTML('코너', 'grd-bbg-radius-slider', 'grd-bbg-radius-num', { min: 0, max: GRID_BLOCK_BG_RADIUS_MAX, step: 1, value: bg.radius })}
+    </div>${/* ★그림자 = 에셋 Effects 절 «그대로»(effects-registry fxSectionHtml · 그리드는 그림자 하나만 고를 수 있다) — 배경 상자에 선다 */
+      window.fxSectionHtml?.(block, 'grdbb') || ''}`;
 }
 
 /** 배선 — 단추·토글·이미지는 updateGridBlock «한 문», 슬라이더·색은 층 «한 노드»만(applyGridBlockBg). */
@@ -2755,6 +2758,8 @@ function _grdWireBlockBgSection(block) {
   bindSlider(document.getElementById('grd-bbg-op-slider'), document.getElementById('grd-bbg-op-num'), live('blockBgOpacity'), { min: 0, max: 100 });
   bindSlider(document.getElementById('grd-bbg-pady-slider'), document.getElementById('grd-bbg-pady-num'), live('blockBgPadY'), { min: 0, max: GRID_BLOCK_BG_PAD_Y_MAX });
   bindSlider(document.getElementById('grd-bbg-padx-slider'), document.getElementById('grd-bbg-padx-num'), live('blockBgPadX'), { min: 0, max: GRID_BLOCK_BG_PAD_X_MAX });
+  bindSlider(document.getElementById('grd-bbg-radius-slider'), document.getElementById('grd-bbg-radius-num'), live('blockBgRadius'), { min: 0, max: GRID_BLOCK_BG_RADIUS_MAX });
+  window.wireFxSection?.(block, 'grdbb', () => window.showGridProperties?.(block));   // GRID-BG-RADIUS-SHADOW-01 — 에셋과 같은 배선
 }
 
 /* ══ 칸 «사이» 괘선 — 현빈 2026-09-30 ══════════════════════════════════════
