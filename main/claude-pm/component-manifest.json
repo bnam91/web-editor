@@ -17,6 +17,8 @@
       "prefix": "bn2_",
       "category": "special",
       "api": "window.addBanner02Block(opts)",
+      "deprecated": true,
+      "note": "★새로 넣기 막음(BANNER02-HIDE-LEGACY-01 · 현빈 0.9.10). 이미 있는 bn2_ 는 update_banner02_block 으로 고친다. add_banner02_block 은 거절한다.",
       "useCases": [
         "3단(label/title/sub) 마케팅 배너 — 'NEW LAUNCH / 이번주 한정 / 무료배송' 같은 헤드 블록",
         "가변 lines 지원하므로 4단 이상 안내 카피도 한 블록으로 처리 가능",

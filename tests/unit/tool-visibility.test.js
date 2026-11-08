@@ -92,12 +92,13 @@ test('T2 ★끊은 경로(add:null)의 «옛 도구»는 목록에 없다', () =
   }
 });
 
-test('T3 살아있는 대안은 «부를 수 있다» — 숨김이 기능 삭제가 되면 안 된다', () => {
-  /* banner 를 끊었으면 banner02 로는 만들 수 있어야 한다.
-     ⛔숨김(hidden)은 «목록 미노출»이지 «호출 불가»가 아니다 — 그 구분을 여기서 지킨다. */
-  assert.ok(CONTRACT.tools['add_banner02_block'], 'banner02 add 도구가 아예 없다');
-  assert.match(BT, /type: 'banner02', add: 'add_banner02_block'/,
-    'banner02 가 통합 도구(add_block)로 만들 수 있게 등록돼 있어야 한다');
+test('T3 끊은 것은 «만들기»뿐 — 이미 든 배너를 고치는 도구는 산다', () => {
+  /* BANNER02-HIDE-LEGACY-01(현빈 0.9.10 · 7107): banner02 도 새로 넣기를 끊었다(banner 와 같은 꼴).
+     ⛔숨김(hidden)은 «목록 미노출»이지 «호출 불가»가 아니다 — 고치는 길(update_*)은 여기서 지킨다. */
+  assert.match(BT, /type: 'banner02', add: null, addLegacy: 'add_banner02_block', upd: 'update_banner02_block'/,
+    'banner02 는 add 를 끊고 update 는 남겨야 한다');
+  assert.ok(CONTRACT.tools['update_banner02_block'], 'banner02 update 도구가 사라졌다');
+  assert.equal(CONTRACT.tools['add_banner02_block']?.noArgs, 'rejected', 'add_banner02_block 은 거절해야 한다');
 });
 
 test('T4 ★변이대조 — addLegacy 를 빼면 T2 가 빨개진다', () => {
