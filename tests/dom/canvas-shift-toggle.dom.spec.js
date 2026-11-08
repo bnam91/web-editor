@@ -4,7 +4,8 @@
  *   C2 칸: A 일반 클릭(기준점) 뒤 C ⇧클릭 ⇒ A·C (사이 B 아님) → C ⇧ 다시 ⇒ 빠짐 · ⌘ 로도 같은 결과
  * ★양성대조: editor.js 의 ⇧ 범위 갈래를 되돌리면(base 3e1ef987d) C1·C2 의 ⇧ 칸 빨강. 진짜 마우스. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
+const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
 const SEC = (id, inner = '<div class="gap-block" data-type="gap" style="height:120px"></div>') => `<div class="section-block" id="${id}" data-section="1" data-name="${id}" style="background:#fff;"><div class="section-hitzone"><span class="section-label">${id}</span></div>
   <div class="section-inner" style="padding-left:40px;padding-right:40px;">${inner}</div></div>`;
@@ -14,14 +15,17 @@ async function boot(page, html) {
   await bootApp(page);
   await page.evaluate((h) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     c.insertAdjacentHTML('beforeend', h); window.rebindAll?.(); window.deselectAll?.(); window.applyZoom?.(60); document.getElementById('canvas-wrap').scrollTop = 0; }, html);
-  await page.waitForTimeout(300);
+  await waitZoomSettled(page, 60);
 }
 const pickedSec = (page) => page.evaluate(() => [...document.querySelectorAll('#canvas .section-block.selected')].map((s) => s.id).sort());
 const pickedCol = (page) => page.evaluate(() => [...document.querySelectorAll('#canvas .col.selected')].map((s) => s.id).sort());
+let _nth = 0;
 async function clickAt(page, sel, mod, where = 'hit') {
   // 진짜 마우스 — locator.click 이 스크롤·멈춤을 기다리고 맞힌 요소를 확인한다
-  await page.locator(sel).click({ position: where === 'pad' ? { x: 8, y: 8 } : where === 'body' ? { x: 10, y: 60 } : { x: 20, y: 6 }, modifiers: mod ? [mod] : [] });
-  await page.waitForTimeout(700);   // 같은 자리 두 번이 더블클릭(크로미움 ~500ms)으로 안 묶이게
+  // 누를 때마다 가로로 16px 씩 비킨다 — 같은 자리 두 번이 더블클릭으로 묶이지 않게(고정 대기 대신 · dom-fixed-wait-census 래칫)
+  const dx = (_nth++ % 4) * 16;
+  await page.locator(sel).click({ position: where === 'pad' ? { x: 8 + dx, y: 8 } : where === 'body' ? { x: 10, y: 24 + dx / 2 } : { x: 20 + dx, y: 6 }, modifiers: mod ? [mod] : [] });
+  await raf(page);
 }
 
 for (const mod of ['Shift', 'Meta']) {

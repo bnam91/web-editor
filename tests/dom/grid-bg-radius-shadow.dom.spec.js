@@ -6,7 +6,7 @@
  *   S4 저장→다시 열기 유지 · ⌘Z 한 번 = 그림자 추가 전
  * ★양성대조: grid-block.js _gridBlockBgHtml 의 radius·box-shadow 두 줄을 빼면 S2·S3·S4 빨강 · effects-shadow supports 의 grid 가지를 빼면 S1 빨강. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 const BG = '#2f3d57';
 async function setup(page) {
@@ -22,7 +22,7 @@ async function setup(page) {
     window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.(); window.applyZoom?.(100);
     g.scrollIntoView({ block: 'center' }); window.clearHistory?.();
   });
-  await page.waitForTimeout(300);
+  await waitZoomSettled(page, 100);
   return errs;
 }
 const upd = async (page, partial) => { const r = await page.evaluate((p) => window.updateGridBlock('gG', p), partial); expect(r && r.ok, JSON.stringify(r)).toBe(true); };
