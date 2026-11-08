@@ -3,7 +3,7 @@
  * 0.9.9 까지는 둘째부터 그 프레임 «안» 끝에 쌓였다(활성 프레임이 남아 「안 골라짐 · 활성만」 = 안에 넣기로 읽혔다).
  * 음성: 들어간 상태(자식 더블클릭으로 고름)에서 t 는 여전히 프레임 «안», 고른 자식 다음이다. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 const FR = '.frame-block:not([data-text-frame])';
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 async function scene(page, nested) {
@@ -53,9 +53,16 @@ for (const nested of [false, true]) for (const keys of [['t', 't', 't'], ['t', '
 }
 test('음성 — 자식을 더블클릭으로 골라 들어간 상태면 t 는 F «안», 고른 자식 다음', async ({ page }) => {
   const s = await scene(page, false);
-  const r = await page.evaluate((id) => { const e = document.getElementById(id).getBoundingClientRect(); return [e.left + e.width / 2, e.top + e.height / 2]; }, s.kid);
-  await page.mouse.dblclick(...r); await raf(page);
-  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), s.kid), '[전제] 자식 고름').toBe(true);
+  /* 고르기만 재시도 — 부하 때 첫 맞춤 줌이 덜 앉은 자리를 재면 더블클릭이 F 여백에 떨어져 «진입만» 되고 자식은 안 골라졌다(30회 중 1회 실측: 진입 뒤에도 그 점의 임자 = F).
+     자리를 매번 다시 재고, 이미 들어갔으면 한 번 클릭(B안: 들어간 프레임 안 클릭 = 직계 자식 선택 · 또 더블클릭하면 글자 편집이 열린다). 단언은 아래 그대로. */
+  await waitStableRect(page, '#' + s.kid);
+  const kidSel = () => page.evaluate((id) => document.getElementById(id).classList.contains('selected'), s.kid);
+  for (let i = 0; i < 3 && !(await kidSel()); i++) {
+    const r = await page.evaluate((id) => { const e = document.getElementById(id).getBoundingClientRect(); return [e.left + e.width / 2, e.top + e.height / 2]; }, s.kid);
+    if (await page.evaluate((F) => window._enteredFrame?.id === F, s.F)) await page.mouse.click(...r); else await page.mouse.dblclick(...r);
+    await raf(page);
+  }
+  expect(await kidSel(), '[전제] 자식 고름').toBe(true);
   await page.keyboard.press('t'); await raf(page);
   const u = await newUnit(page);
   const kids = await page.evaluate((F) => [...document.getElementById(F).children].map((e) => e.id), s.F);
