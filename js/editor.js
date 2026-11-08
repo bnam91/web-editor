@@ -4333,9 +4333,14 @@ function moveSelectedBlocks(direction) {
    *   (shapeFrameOf · SSOT), 그 밖은 자기 자신(js/block-factory.js wrapSelectedBlocksInFrame).
    *   ⛔형제 명부는 손으로 적지 않는다 — SIBLING_MULTI_SEL(⇧클릭이 쓰는 그 명부)을 그대로 쓴다.
    *     그래야 손잡이(.frame-resize-handle 등 절대배치 껍데기)가 «형제로 세어지지» 않는다. */
+  /* ★T906-BRING-FORWARD-BACK-KEY-DEAD-01(0.9.10) — 먹통 14칸의 두 원인:
+   *   ① 자유 프레임 안 grid·innercard·step 등은 .row 래퍼(절대배치)에 들어 있다 — 단위는 블럭이 아니라 그 row 다(옛: 블럭만 봐서 null).
+   *   ② 깊이 2: 자식을 고르면 부모 프레임도 .selected 로 남는다(J4468B) — 그 부모가 «단위»로 잡혀 자식 대신 부모를 옮기거나(형제 없음) 아무 일도 안 했다.
+   *      ⇒ 고른 것 «안에» 또 고른 것이 있으면 바깥 것은 건너뛴다(가장 깊은 선택이 주인 · 프레임 갈래의 _childPicked 와 같은 뜻). */
   const _stackUnitOf = (el) => {
-    const w = el?.closest?.('.frame-block[data-text-frame]') || shapeFrameOf(el) || el;
-    if (!w || w.nodeType !== 1 || !w.matches?.(SIBLING_MULTI_SEL)) return null;
+    let w = el?.closest?.('.frame-block[data-text-frame]') || shapeFrameOf(el) || el;
+    if (w?.parentElement?.classList?.contains('row') && w.parentElement.parentElement?.dataset?.freeLayout === 'true') w = w.parentElement;   // ①
+    if (!w || w.nodeType !== 1 || !(w.matches?.(SIBLING_MULTI_SEL) || w.classList.contains('row'))) return null;
     const p = w.parentElement;
     if (!p || !p.classList) return null;
     if (p.classList.contains('section-block')) {
@@ -4348,6 +4353,7 @@ function moveSelectedBlocks(direction) {
   };
   const _stackUnits = [];
   document.querySelectorAll('.selected').forEach(el => {
+    if (el.querySelector('.selected')) return;   // ② 안쪽에 더 깊은 선택이 있다 — 바깥(부모 프레임·섹션)은 단위가 아니다
     const u = _stackUnitOf(el);
     if (u && !_stackUnits.includes(u)) _stackUnits.push(u);
   });
