@@ -93,11 +93,20 @@ export function fxShadowFilterOf(keys) {
   return fx.state === 'on' ? _css(fx) : '';
 }
 
+/** ★GRID-BG-RADIUS-SHADOW-01 — 같은 키 묶음 → box-shadow 값(«상자»에 거는 쪽 · 그리드 배경 층). 켜져 있지 않으면 ''.
+ *  ⛔식은 위 _css 와 같은 값(x y blur rgba) — 상자 모양에선 drop-shadow 와 같은 그림이다. */
+export function fxShadowBoxOf(keys) {
+  const fx = fxShadowOf({ dataset: keys || {} });
+  return fx.state === 'on' ? `${fx.x}px ${fx.y}px ${fx.blur}px ${_rgba(fx)}` : '';
+}
+
 function _dropEmptyStyle(el) { if (el && el.getAttribute && el.getAttribute('style') === '') el.removeAttribute('style'); }
 
 /** 데이터 → 화면. ★키 없음·흔적 없음 = 아무것도 안 만진다(옛 문서 바이트 동일). */
 export function applyFxShadow(el) {
   if (!el || !el.style) return;
+  /* ★그리드 = 블럭 자신이 아니라 배경 층(.grd-bg)에 — 그 층은 렌더러가 키를 읽어 다시 짓는다(⛔블럭 filter 금지: 칸·글자마다 그림자가 생긴다). */
+  if (el.classList && el.classList.contains('grid-block')) { window.applyGridBlockBg?.(el); return; }
   const fx = fxShadowOf(el);
   const t = _target(el);
   const trace = !!(t.style && t.style.filter);
@@ -188,7 +197,9 @@ registerFxType({
   label: '그림자',
   /* ★도형·에셋·프레임만 — 텍스트는 제 「Shadow」 절이 있다(위 머리말). ⛔허용 목록으로 적는다(막는 목록은 블럭이 늘면 샌다). */
   /* ★t5-13ⓐ — 그리드 칸 «원형 이미지»(.grd-img-circle)도 받는다. 패널(js/props/prop-grid.js)이 그 줄의 키를 담은 대리를 넘긴다. */
-  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block') || el.classList.contains('grd-img-circle'))),
+  /* ★GRID-BG-RADIUS-SHADOW-01 — 그리드는 «블럭 배경»을 켰을 때만(그림자가 서는 상자 = 배경 층). */
+  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block') || el.classList.contains('grd-img-circle')
+    || (el.classList.contains('grid-block') && el.dataset.blockBgOn === '1'))),
   has:  (el) => fxShadowOf(el).state !== 'none',
   add:  (el) => setFxShadow(el, { state: 'on' }),
   card: _shadowCardHtml,
@@ -196,5 +207,5 @@ registerFxType({
 });
 
 if (typeof window !== 'undefined') {
-  Object.assign(window, { fxShadowOf, applyFxShadow, setFxShadow, fxShadowFilterOf, FX_SHADOW_KEYS, FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES });
+  Object.assign(window, { fxShadowOf, applyFxShadow, setFxShadow, fxShadowFilterOf, fxShadowBoxOf, FX_SHADOW_KEYS, FX_SHADOW_DEFAULTS, FX_SHADOW_RANGES });
 }

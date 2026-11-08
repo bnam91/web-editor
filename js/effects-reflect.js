@@ -212,6 +212,8 @@ function _wireReflectCard(el, P, again) {
 registerFxType({
   key: 'reflect',
   label: '반사',
+  /* ★GRID-BG-RADIUS-SHADOW-01 — 그리드 Effects 절은 «배경 상자 그림자» 하나만(현빈 범위). 반사는 그리드에 안 뜬다. */
+  supports: (el) => !(el && el.classList && el.classList.contains('grid-block')),
   has:  (el) => fxReflectOf(el).state !== 'none',
   add:  (el) => setFxReflect(el, { state: 'on' }),
   card: _reflectCardHtml,

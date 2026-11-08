@@ -213,13 +213,13 @@ test('B8 ★저장 왕복 — serializeProject → 새로 띄운 앱에 applyPro
   expect((await relRects(page, ['gG'])).gG[3]).toBe(r0.gG[3]);
 });
 
-test('B10 고치는 문 계약 — applied 는 커밋 뒤 값 · 범위 밖·모르는 하위 키·잘못된 색/이미지는 INVALID · RENDER 롤백 명부에 일곱 키', async ({ page }) => {
+test('B10 고치는 문 계약 — applied 는 커밋 뒤 값 · 범위 밖·모르는 하위 키·잘못된 색/이미지는 INVALID · RENDER 롤백 명부에 여덟 키', async ({ page }) => {
   await setup(page);
   let r = await upd(page, 'gG', { blockBg: { on: true, padX: 50 } });
   expect(r.ok).toBe(true);
-  expect(r.applied.blockBg).toEqual({ on: true, color: '#f5f5f5', img: '', pos: 'center center', opacity: 100, padY: 16, padX: 50 });
-  expect(Object.keys(r.before).filter(k => k.startsWith('blockBg')).sort()).toEqual(['blockBgColor', 'blockBgImg', 'blockBgOn', 'blockBgOpacity', 'blockBgPadX', 'blockBgPadY', 'blockBgPos']);
-  for (const bad of [{ padX: 101 }, { padY: -1 }, { opacity: 101 }, { color: 'red;x:1' }, { color: '#fff"' }, { image: 'http://x/a.png' }, { image: "data:image/png;base64,a'b" }, { pos: 'middle top' }, { on: 'yes' }, { fill: '#000' }]) {
+  expect(r.applied.blockBg).toEqual({ on: true, color: '#f5f5f5', img: '', pos: 'center center', opacity: 100, padY: 16, padX: 50, radius: 0 });
+  expect(Object.keys(r.before).filter(k => k.startsWith('blockBg')).sort()).toEqual(['blockBgColor', 'blockBgImg', 'blockBgOn', 'blockBgOpacity', 'blockBgPadX', 'blockBgPadY', 'blockBgPos', 'blockBgRadius']);   // GRID-BG-RADIUS-SHADOW-01 — 코너 키 더함
+  for (const bad of [{ radius: 81 }, { padX: 101 }, { padY: -1 }, { opacity: 101 }, { color: 'red;x:1' }, { color: '#fff"' }, { image: 'http://x/a.png' }, { image: "data:image/png;base64,a'b" }, { pos: 'middle top' }, { on: 'yes' }, { fill: '#000' }]) {
     r = await updRaw(page, 'gG', { blockBg: bad });
     expect(r.ok, JSON.stringify(bad)).toBe(false);
     expect(r.code).toBe('INVALID');

@@ -535,8 +535,10 @@ function _gridApplyBlockOutline(block) {
  *   끄면 `blockBgOn` 만 지운다 — 색·여백은 남아 다시 켜면 돌아온다. 전부 지우는 문은 `blockBg:null` 하나.
  * ⛔`background` 축약·`inset` 축약을 쓰지 마라 — HTML 내보내기는 `[style*="background-image"]` 만 asset 을 풀고
  *   (export-html.js inlineGoyaAssets), PNG html2canvas 길은 inset 을 못 읽는다(export-image.js). */
-export const GRID_BLOCK_BG_KEYS = ['blockBgOn', 'blockBgColor', 'blockBgImg', 'blockBgPos', 'blockBgOpacity', 'blockBgPadY', 'blockBgPadX'];
-export const GRID_BLOCK_BG_DEFAULTS = { color: '#f5f5f5', pos: 'center center', opacity: 100, padY: 16, padX: 16 };
+export const GRID_BLOCK_BG_KEYS = ['blockBgOn', 'blockBgColor', 'blockBgImg', 'blockBgPos', 'blockBgOpacity', 'blockBgPadY', 'blockBgPadX', 'blockBgRadius'];
+export const GRID_BLOCK_BG_DEFAULTS = { color: '#f5f5f5', pos: 'center center', opacity: 100, padY: 16, padX: 16, radius: 0 };
+/* ★GRID-BG-RADIUS-SHADOW-01(현빈 0.9.10) — 배경 상자 «모서리» · 범위 = 프레임 「코너」(prop-frame.js ss-radius 0~80). 0/없음 = 각진 옛 모양(바이트 동일). */
+export const GRID_BLOCK_BG_RADIUS_MAX = 80;
 export const GRID_BLOCK_BG_PAD_Y_MAX = 200;   // 프레임 「상하 패딩」과 같은 범위(prop-frame.js ss-pady 0~200)
 export const GRID_BLOCK_BG_PAD_X_MAX = 100;   // 프레임 「좌우 패딩」과 같은 범위(prop-frame.js ss-padx 0~100)
 export const GRID_BLOCK_BG_POS_X = ['left', 'center', 'right'];
@@ -578,6 +580,7 @@ function _gridBlockBg(block) {
     opacity: pick(ds.blockBgOpacity, 100, D.opacity),
     padY: pick(ds.blockBgPadY, GRID_BLOCK_BG_PAD_Y_MAX, D.padY),
     padX: pick(ds.blockBgPadX, GRID_BLOCK_BG_PAD_X_MAX, D.padX),
+    radius: pick(ds.blockBgRadius, GRID_BLOCK_BG_RADIUS_MAX, D.radius),
   };
 }
 
@@ -599,6 +602,12 @@ function _gridBlockBgHtml(block) {
   let st = `position:absolute;top:${-t}px;right:${-r}px;bottom:${-b}px;left:${-l}px;z-index:-1;pointer-events:none;background-color:${bg.color};`;
   if (bg.img) st += `background-image:url('${bg.img}');background-size:cover;background-repeat:no-repeat;background-position:${bg.pos};`;
   if (bg.opacity < 100) st += `opacity:${bg.opacity / 100};`;
+  /* ★GRID-BG-RADIUS-SHADOW-01 — 모서리·그림자는 «그리드 전체 바깥 상자»(이 층) 하나에만 — 칸마다가 아니다.
+     그림자 = 에셋 Effects 「그림자」와 같은 키 여섯(fxShadow*)·같은 식(effects-shadow.js fxShadowBoxOf) — 상자라 box-shadow
+     (drop-shadow 와 같은 그림 · PNG html2canvas 폴백도 box-shadow 는 그린다). 둘 다 꺼져 있으면 한 글자도 안 붙는다(옛 바이트). */
+  if (bg.radius > 0) st += `border-radius:${bg.radius}px;`;
+  const _sh = (typeof window !== 'undefined' && typeof window.fxShadowBoxOf === 'function') ? window.fxShadowBoxOf(block.dataset) : '';
+  if (_sh) st += `box-shadow:${_sh};`;
   /* ★G17 겹침 — 안 A: 외곽선은 «배경 바깥 가장자리»에(띠가 곧 블럭의 보이는 크기). 같은 사각형 · 배경 «뒤» 형제라 그 위에 칠해진다.
      ⛔배경 층 안에 넣지 않는다 — 불투명도가 선까지 옅게 만든다. 켠 변이 없으면 이 덩이도 없다. */
   const { o } = _gridOutlineWidths(block);
@@ -606,7 +615,7 @@ function _gridBlockBgHtml(block) {
   if (GRID_OUTLINE_SIDES.some(sd => o.on[sd])) {
     const line = `${o.width}px ${o.style} ${o.color}`;
     const sides = GRID_OUTLINE_SIDES.map(sd => `border-${sd}:${o.on[sd] ? line : '0'};`).join('');
-    edge = `<div class="grd-edge" aria-hidden="true" style="position:absolute;top:${-t}px;right:${-r}px;bottom:${-b}px;left:${-l}px;z-index:-1;pointer-events:none;box-sizing:border-box;${sides}"></div>`;
+    edge = `<div class="grd-edge" aria-hidden="true" style="position:absolute;top:${-t}px;right:${-r}px;bottom:${-b}px;left:${-l}px;z-index:-1;pointer-events:none;box-sizing:border-box;${sides}${bg.radius > 0 ? `border-radius:${bg.radius}px;` : ''}"></div>`;
   }
   return `<div class="grd-bg" aria-hidden="true" style="${st}"></div>${edge}`;
 }
@@ -658,10 +667,10 @@ if (typeof window !== 'undefined') { window.applyGridBlockBg = applyGridBlockBg;
 /** 입구 하나(만드는 문·고치는 문) — `blockBg` 값을 dataset 쓰기 계획으로. 
  *  @returns {{error:string}|{set:Object, del:string[]}}
  *  · null → 일곱 키 전부 지움 · 하위 키 null → 그 키만 지움(= 기본값) · 모르는 하위 키 → 거절 */
-const _GRID_BG_SUBKEYS = { on: 'blockBgOn', color: 'blockBgColor', image: 'blockBgImg', pos: 'blockBgPos', opacity: 'blockBgOpacity', padY: 'blockBgPadY', padX: 'blockBgPadX' };
+const _GRID_BG_SUBKEYS = { on: 'blockBgOn', color: 'blockBgColor', image: 'blockBgImg', pos: 'blockBgPos', opacity: 'blockBgOpacity', padY: 'blockBgPadY', padX: 'blockBgPadX', radius: 'blockBgRadius' };
 function _gridIntakeBlockBg(v, trusted) {
   if (v === null) return { set: {}, del: GRID_BLOCK_BG_KEYS.slice() };
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return { error: 'blockBg must be an object {on,color,image,pos,opacity,padY,padX} or null (= remove all)' };
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return { error: 'blockBg must be an object {on,color,image,pos,opacity,padY,padX,radius} or null (= remove all)' };
   const unknown = Object.keys(v).filter(k => !(k in _GRID_BG_SUBKEYS));
   if (unknown.length) return { error: `blockBg: unknown field(s) ${unknown.join(', ')} — expected ${Object.keys(_GRID_BG_SUBKEYS).join('/')}` };
   const set = {}, del = [];
@@ -684,7 +693,7 @@ function _gridIntakeBlockBg(v, trusted) {
       if (!p) return { error: `blockBg.pos must be "<${GRID_BLOCK_BG_POS_X.join('|')}> <${GRID_BLOCK_BG_POS_Y.join('|')}>"` };
       set[key] = p;
     } else {
-      const max = k === 'opacity' ? 100 : (k === 'padY' ? GRID_BLOCK_BG_PAD_Y_MAX : GRID_BLOCK_BG_PAD_X_MAX);
+      const max = k === 'opacity' ? 100 : k === 'radius' ? GRID_BLOCK_BG_RADIUS_MAX : (k === 'padY' ? GRID_BLOCK_BG_PAD_Y_MAX : GRID_BLOCK_BG_PAD_X_MAX);
       const n = _gridBgInt(raw, max);
       if (n === null) return { error: `blockBg.${k} must be 0~${max}` };
       set[key] = String(n);
@@ -3686,10 +3695,10 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     cellPadY: block.dataset.cellPadY,     // 제4안 — 칸 위아래 여백
     gridWidthAuto: block.dataset.gridWidthAuto,   // F3 후속 — 출처 표시도 같이 되돌린다
     blockOutline: block.dataset.blockOutline,     // G17 — 블럭 외곽선
-    /* G12 — 블럭 배경 일곱 키(GRID_BLOCK_BG_KEYS 와 같은 줄) */
+    /* G12 — 블럭 배경 여덟 키(GRID_BLOCK_BG_KEYS 와 같은 줄 · GRID-BG-RADIUS-SHADOW-01 radius 더함) */
     blockBgOn: block.dataset.blockBgOn, blockBgColor: block.dataset.blockBgColor, blockBgImg: block.dataset.blockBgImg,
     blockBgPos: block.dataset.blockBgPos, blockBgOpacity: block.dataset.blockBgOpacity,
-    blockBgPadY: block.dataset.blockBgPadY, blockBgPadX: block.dataset.blockBgPadX,
+    blockBgPadY: block.dataset.blockBgPadY, blockBgPadX: block.dataset.blockBgPadX, blockBgRadius: block.dataset.blockBgRadius,
   };
   /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
    *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
