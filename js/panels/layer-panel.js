@@ -346,7 +346,25 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
         }
         return found;
       };
+      /* ★FRAME-ABSOLUTE-COORDS-IN-STACK-SECTION-01(현빈 0.9.10 · 재현: 자유 프레임 안 자식 프레임을 레이어에서 섹션 흐름으로 끌면
+           position:absolute·left·top 이 그대로 남아 섹션 밖으로 삐져나갔다 — 실측 860×520 · top:704px 와 같은 꼴).
+         ⇒ 자유 프레임에서 «흐름»으로 나온 것만 좌표를 걷는다 — 캔버스 끌어내기(block-drag.js 드래그아웃)와 같은 넷(position·left·top·offsetX/Y).
+         ⛔자리 정본이 dataset.x/y 인 떠 있는 블럭(스티커·그라데이션·줌 · 오버레이)은 안 건드린다(section-drag.js ungroup 과 같은 가름).
+         ⛔이미 저장된 문서 자동 바로잡기는 안 한다(현빈 결정). */
+      const _fromFree = (el) => !!el?.parentElement?.closest?.('.frame-block[data-free-layout="true"]');
+      const _dropFreeCoords = (el, wasFree) => {
+        if (!wasFree || !el?.style || el.style.position !== 'absolute') return;
+        if (el.parentElement?.closest?.('.frame-block[data-free-layout="true"]')) return;   // 여전히 자유 프레임 안이면 좌표가 맞다
+        if ((el.dataset.x != null && el.dataset.y != null) || el.dataset.overlayBlock === 'true' || el.matches?.('.gradient-block, .sticker-block')) return;
+        el.style.position = ''; el.style.left = ''; el.style.top = '';
+        delete el.dataset.offsetX; delete el.dataset.offsetY;
+      };
       const insertIntoSec = (domEl) => {
+        const wasFree = _fromFree(domEl);
+        _insertIntoSec(domEl);
+        _dropFreeCoords(domEl, wasFree);
+      };
+      const _insertIntoSec = (domEl) => {
         if (!indicator) { sectionInner.appendChild(domEl); window.syncAutoGridWidth?.(domEl); return; }   // ⛔이 return 이 아래 sync 를 건너뛰었다(D2)
         const nextEl = indicator.nextElementSibling;
         const nextTarget = nextEl?._dragTarget || null;
@@ -428,8 +446,10 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
           return 0;
         });
         sorted.forEach(target => {
+          const wasFree = _fromFree(target);
           if (refNode && sectionInner.contains(refNode)) sectionInner.insertBefore(target, refNode);
           else sectionInner.appendChild(target);
+          _dropFreeCoords(target, wasFree);   // FRAME-ABSOLUTE-COORDS-IN-STACK-SECTION-01 — 위 한 줄 갈래와 같은 규칙
           window.syncAutoGridWidth?.(target);   // F3 후속 — 자동 폭 그리드를 새 자리에 맞춘다(떠나면 100%). 규약: grid-block.js syncAutoGridWidth
         });
         clearLayerIndicators();
