@@ -645,15 +645,40 @@ export function grdRangeBlocksKey(e) {
   const isCut = (e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'x' || e.key === 'X');
   if (!isDel && !isCut) return false;
   const block = document.querySelector('.grid-block.selected');
-  if (!block || !grdIsSoleSelected(block) || !grdGetRange(block)) return false;
+  const rng = block && grdIsSoleSelected(block) ? grdGetRange(block) : null;
+  if (!rng) return false;
   e.preventDefault();
+  /* ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓑ — 머리띠로 고른 행/열(axis)이면 Delete·Backspace = 그 행/열 지우기.
+       확인창 없음 · ⌘Z 한 번(removeGrid* 가 변경 전 1회) · 마지막 하나는 막고 말한다. ⌘X 는 종전대로 막는다. */
+  if (isDel && rng.axis) {
+    const row = rng.axis === 'row';
+    grdDeleteBand(block, rng.axis, row ? rng.r0 : rng.c0);
+    return true;
+  }
   window.showToast?.('칸 범위 지우기·잘라내기는 아직 안 돼요');
+  return true;
+}
+
+/** 행/열 하나 지우기 — 머리띠 Delete(ⓑ)와 우클릭 메뉴(ⓐ)가 «같은 문» 하나를 쓴다. 지웠으면 true. */
+export function grdDeleteBand(block, axis, i) {
+  const row = axis === 'row';
+  const m = getGridModel(block);
+  const n = row ? m.rows.length : m.cols.length;
+  if (n <= (row ? MIN_ROWS : MIN_COLS)) { window.showToast?.(row ? '마지막 행은 지울 수 없어요' : '마지막 열은 지울 수 없어요'); return false; }
+  const ok = row ? window.removeGridRow?.(block, i) : window.removeGridCol?.(block, i);
+  if (!ok) return false;
+  window.grdClearRange?.();
+  window.grdSetActiveLine?.(block, null);   // 옛 주소 비우기(머리띠 옮기기와 같은 까닭)
+  window.grdClearLineSel?.(block);
+  window._grdAfterResize?.(block);
+  window.pushHistory?.();                   // 끝 표본 — 머리띠 옮기기와 같은 규약(다음 동작이 push-after 여도 ⌘Z 한 번 = 이 지우기)
   return true;
 }
 if (typeof window !== 'undefined') {
   window.grdCopyRange = grdCopyRange;
   window.grdPasteRange = grdPasteRange;
   window.grdRangeBlocksKey = grdRangeBlocksKey;
+  window.grdDeleteBand = grdDeleteBand;
   if (typeof document !== 'undefined') {
     document.addEventListener?.('paste', _grdOnRangePaste, true);   // ★D2 — 무장된 ⌘V 의 쓰기 자리(capture · 한 번 듣고 무장 해제)
     document.addEventListener?.('keydown', _grdDisarmRangePaste, true);     // ★결함1 — 무장 = 이번 키 누름 한 번

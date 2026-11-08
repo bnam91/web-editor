@@ -313,6 +313,7 @@ test.describe('U2a 머리띠 @grid-reorder', () => {
 });
 
 /* ═══ U2a-fix (독립 이벨류 PASS-WITH-FIXES 의 D1·D2) ═══════════════════════════════════════════════
+ * ⚠️2026-11-08 현빈 7112 — D1·R4 의 «넘기기»는 껐다(띠가 보이면 띠가 이긴다). 아래 그 절의 검사 여섯은 같은 장면에서 새 정의를 잰다.
  * D1 이웃 블럭 — 틈 0 으로 붙은 위 블럭 gU(1줄 짧은 그리드) · 왼쪽 이웃 gL. gG 를 고른 채 «머리띠 자리»의 이웃 점을
  *    진짜 마우스로 누르면 ⇒ 이웃이 골라진다(머리띠 없을 때와 같은 결과). 끌기는 여전히 머리띠 것 · 자기 바탕(조상) 탭 = 옛 동작.
  *    ★변이 «D1 고침 되돌림»(click 넘기기 떼기) ⇒ 이 절 빨강.
@@ -405,7 +406,11 @@ const snap = (page) => page.evaluate(() => {
 });
 
 test.describe('U2a-fix D1·D2 @grid-reorder', () => {
-  test('D1 위 이웃(E1) — gG 고른 채 위 블럭 gU(1줄) 아랫단 = 열 머리띠 자리를 진짜 마우스로 누르면 gU 가 골라진다 @grid-reorder', async ({ page }) => {
+  /* ★2026-11-08 현빈 7112 「응 바꿔」(GRID-RIGHTCLICK-DELETE-ROW-COL-01 덧붙임) — 머리띠가 보이면 띠 탭이 «늘 이긴다» = 그 행/열 고르기.
+   *   옛 D1·R4(띠 밑 이웃·캔버스 바깥 바탕에 넘기기) 기대를 «같은 장면»에서 새 정의로 바꿨다 — 약화 아님: 무엇이 골라지는지(행/열 주소)까지 단언.
+   *   띠 «밖»(진짜 바탕·이웃)을 누르면 옛 동작 그대로(R4 대조 점) · 끌기는 여전히 띠 것(E5 (b)). */
+  const rangeOf = (page) => page.evaluate(() => window.grdGetRange(document.getElementById('gG')));
+  test('D1→띠 우선(E1) — gG 고른 채 위 블럭 gU(1줄) 위에 뜬 열 머리띠 B 를 누르면 gU 가 아니라 gG 의 열 B 가 골라진다 @grid-reorder', async ({ page }) => {
     const errs = await setupNeighbor(page, SEC_UP, 'gU');
     const gap = await page.evaluate(() => document.getElementById('gG').getBoundingClientRect().top - document.getElementById('gU').getBoundingClientRect().bottom);
     expect(Math.abs(gap), '[전제] gU 와 gG 사이 틈 0').toBeLessThan(1);
@@ -414,36 +419,36 @@ test.describe('U2a-fix D1·D2 @grid-reorder', () => {
     const b1 = await waitStableRect(page, `${BANDS}[data-axis="col"][data-i="1"]`);
     expect(await underIs(page, b1.cx, b1.cy, 'gU'), '[전제] 그 점 = 맨 위는 머리띠 · 그 밑은 gU').toEqual({ topIsBand: true, underInNb: true });
     await page.mouse.click(b1.cx, b1.cy);
-    await expect.poll(() => selState(page), '머리띠 자리 gU 점 클릭 → gU 골라짐(머리띠 없을 때와 같다)').toEqual(['gU']);
-    await expect.poll(() => bandCount(page), 'gU(2열×1행) 머리띠로 바뀜').toEqual({ col: 2, row: 1, any: 3 });
+    await expect.poll(() => rangeOf(page), '띠 탭 → gG 열 B 통째(axis col)').toEqual({ r0: 0, c0: 1, r1: 2, c1: 1, axis: 'col' });
+    expect(await selState(page), 'gG 그대로 골라짐 · gU 안 골라짐').toEqual(['gG']);
+    expect(await bandCount(page), 'gG 머리띠 그대로').toEqual({ col: 3, row: 3, any: 6 });
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test('D1 위 이웃(E5) — gG 고른 채 1줄 짧은 그리드 gU 칸 가운데를 누르면 gU 가 골라진다 · 다시 gG 고르고 열 머리띠 끌기는 여전히 된다 @grid-reorder', async ({ page }) => {
+  test('D1→띠 우선(E5) — gG 고른 채 1줄 짧은 그리드 gU 칸 가운데(띠 밑)를 누르면 그 자리 띠의 열이 골라진다 · 열 머리띠 끌기는 여전히 된다 @grid-reorder', async ({ page }) => {
     const errs = await setupNeighbor(page, SEC_UP, 'gU');
     await selectGrid(page);
     await expect.poll(() => bandCount(page)).toEqual({ col: 3, row: 3, any: 6 });
     const u = await waitStableRect(page, '#gU .grd-cell[data-r="0"][data-c="0"]');
-    const pt = { x: u.cx, y: u.cy };   // E5 그대로 = gU 칸 «가운데»(1줄 짧은 그리드라 머리띠 띠 안 — [전제]로 잰다)
+    const pt = { x: u.cx, y: u.cy };
     expect(await underIs(page, pt.x, pt.y, 'gU'), '[전제] gU 칸 점이 머리띠 밑에 깔렸다').toEqual({ topIsBand: true, underInNb: true });
+    const bi = await page.evaluate(([x, y]) => Number(document.elementFromPoint(x, y).closest('.grd-headband').dataset.i), [pt.x, pt.y]);
     await page.mouse.click(pt.x, pt.y);
-    await expect.poll(() => selState(page), 'gU 칸 클릭 → gU 골라짐').toEqual(['gU']);
-    await expect.poll(() => bandCount(page)).toEqual({ col: 2, row: 1, any: 3 });
-    // (b) 끌기는 여전히 머리띠 것 — gG 다시 고르고 gU 위에 뜬 열 머리띠 C 를 자리 0 으로
+    await expect.poll(() => rangeOf(page), `그 점의 띠(열 ${bi}) 통째`).toEqual({ r0: 0, c0: bi, r1: 2, c1: bi, axis: 'col' });
+    expect(await selState(page)).toEqual(['gG']);
+    // (b) 끌기는 여전히 머리띠 것 — 열 머리띠 C 를 자리 0 으로
     const b = await model(page);
-    await selectGrid(page);
-    await expect.poll(() => bandCount(page)).toEqual({ col: 3, row: 3, any: 6 });
     const c0 = await waitStableRect(page, '#gG .grd-cell[data-r="0"][data-c="0"]');
     const cb = await waitStableRect(page, `${BANDS}[data-axis="col"][data-i="2"]`);
     expect((await underIs(page, cb.cx, cb.cy, 'gU')).underInNb, '[전제] 끌 머리띠 C 가 gU 위에 떠 있다').toBe(true);
     await dragBand(page, 'col', 2, c0.left + c0.width * 0.2, cb.cy);
     await expect.poll(async () => (await model(page)).text['00'], '열 머리띠 끌기 = 옮김(이웃 위여도)').toBe('C1');
     expect((await model(page)).m.cols, 'cols 같은 순열').toEqual(spliceMove(b.m.cols, 2, 0));
-    expect(await selState(page), '끈 뒤 gG 그대로 골라짐(이웃으로 안 넘어감)').toEqual(['gG']);
+    expect(await selState(page), '끈 뒤 gG 그대로 골라짐').toEqual(['gG']);
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test('D1 왼쪽 이웃 — gG 고른 채 왼쪽 이웃 gL 오른단 = 행 머리띠 자리를 누르면 gL 이 골라진다 @grid-reorder', async ({ page }) => {
+  test('D1→띠 우선(왼쪽 이웃) — gG 고른 채 왼쪽 이웃 gL 위에 뜬 행 머리띠 1 을 누르면 gL 이 아니라 gG 의 행 1 이 골라진다 @grid-reorder', async ({ page }) => {
     const errs = await setupNeighbor(page, SEC_LEFT, 'gL');
     const gap = await page.evaluate(() => document.getElementById('gG').getBoundingClientRect().left - document.getElementById('gL').getBoundingClientRect().right);
     expect(Math.abs(gap), '[전제] gL 과 gG 사이 틈 0').toBeLessThan(1);
@@ -452,11 +457,12 @@ test.describe('U2a-fix D1·D2 @grid-reorder', () => {
     const b = await waitStableRect(page, `${BANDS}[data-axis="row"][data-i="0"]`);
     expect(await underIs(page, b.cx, b.cy, 'gL'), '[전제] 행 머리띠 밑 = gL').toEqual({ topIsBand: true, underInNb: true });
     await page.mouse.click(b.cx, b.cy);
-    await expect.poll(() => selState(page), '행 머리띠 자리 gL 점 클릭 → gL 골라짐').toEqual(['gL']);
+    await expect.poll(() => rangeOf(page), '행 1 통째(axis row)').toEqual({ r0: 0, c0: 0, r1: 0, c1: 2, axis: 'row' });
+    expect(await selState(page), 'gG 그대로 · gL 안 골라짐').toEqual(['gG']);
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test('D1 자기 바탕 — 머리띠 밑이 gG 의 «섹션 안» 조상(row·섹션 바탕)이면 탭 = 옛 동작(아무 일 0 · gG 선택 유지 · 쓰기 0 · 해-13) @grid-reorder', async ({ page }) => {
+  test('D1 자기 바탕 → 띠 우선 — 머리띠 밑이 gG 의 «섹션 안» 조상이어도 탭 = 행 2 고르기 · gG 선택 유지 · 쓰기 0 @grid-reorder', async ({ page }) => {
     await setup(page, SCENE, SEC_INSET);
     const before = (await model(page)).raw;
     await selectGrid(page);
@@ -470,12 +476,13 @@ test.describe('U2a-fix D1·D2 @grid-reorder', () => {
     }, [b.cx, b.cy, PAGE_BG]);
     expect(anc, '[전제] 행 머리띠 밑 = gG 의 조상 · 섹션 안 · 캔버스 바깥 바탕 아님').toEqual({ anc: true, inSection: true, pageBg: false });
     await page.mouse.click(b.cx, b.cy);
+    await expect.poll(() => rangeOf(page), '행 2 통째').toEqual({ r0: 1, c0: 0, r1: 1, c1: 2, axis: 'row' });
     await expect.poll(() => bandCount(page)).toEqual({ col: 3, row: 3, any: 6 });
     expect(await selState(page), '탭 뒤 gG 선택 유지').toEqual(['gG']);
     expect((await model(page)).raw, '탭 = 쓰기 0').toEqual(before);
   });
 
-  test('R4 캔버스 바깥 바탕 — 행 머리띠 밑이 #canvas-wrap 등(조상이어도)이면 넘긴다 ⇒ 선택 풀림 · 패널 Page · 진짜 빈 바탕 클릭(4px 틈)과 같다 @grid-reorder', async ({ page }) => {
+  test('R4 → 띠 우선 — 행 머리띠 밑이 캔버스 바깥 바탕이어도 띠 탭 = 행 2 고르기(선택 유지 · 패널 그리드) · 띠 «밖» 같은 바탕 클릭은 옛 동작(선택 풀림 · Page) @grid-reorder', async ({ page }) => {
     const errs = await setup(page);
     await selectGrid(page);
     await expect.poll(() => bandCount(page)).toEqual({ col: 3, row: 3, any: 6 });
@@ -487,59 +494,41 @@ test.describe('U2a-fix D1·D2 @grid-reorder', () => {
     }, [b.cx, b.cy]);
     expect(PAGE_BG.includes(u.id) && u.anc, `[전제] 행 머리띠 밑 = 캔버스 바깥 바탕(조상) — ${JSON.stringify(u)}`).toBe(true);
     await page.mouse.click(b.cx, b.cy);
-    await expect.poll(() => selState(page), '머리띠 자리 바깥 바탕 탭 → 선택 풀림').toEqual([]);
-    await expect.poll(() => bandCount(page), '머리띠 0').toEqual({ col: 0, row: 0, any: 0 });
-    const fwd = await snap(page);
-    expect(fwd.selected, '#canvas 안 .selected 0').toEqual([]);
-    expect([fwd.panelId, fwd.panelPage], '패널 = Page').toEqual([null, true]);
-    // 대조 — 같은 바탕을 머리띠 «밖»(행 머리띠 왼끝에서 6px 더 왼쪽 · 블럭 가장자리 손잡이와 떨어진 점)에서 진짜로 누른다.
-    //   ⚠️u2ar 변이 noguard 런에서 «그리드 왼쪽 2px» 점의 맨 위가 id 없는 요소였다(블럭 가장자리 오버레이 추정 · 안 쟀다) ⇒ 점을 옮김.
-    await setup(page);
-    await selectGrid(page);
-    await expect.poll(() => bandCount(page)).toEqual({ col: 3, row: 3, any: 6 });
-    const bb = await waitStableRect(page, `${BANDS}[data-axis="row"][data-i="1"]`);
-    const c = { x: bb.left - 6, y: bb.cy };
+    await expect.poll(() => rangeOf(page), '행 2 통째').toEqual({ r0: 1, c0: 0, r1: 1, c1: 2, axis: 'row' });
+    expect(await selState(page), '선택 유지').toEqual(['gG']);
+    expect((await snap(page)).panelPage, '패널은 Page 로 안 넘어감').toBe(false);
+    // 대조 — 같은 바탕을 머리띠 «밖»(행 머리띠 왼끝에서 6px 더 왼쪽)에서 누르면 옛 동작
+    const c = { x: b.left - 6, y: b.cy };
     const cu = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? (e.id || e.className || e.tagName) : null; }, [c.x, c.y]);
     expect(PAGE_BG.includes(cu), `[전제] 대조 점 맨 위 = 캔버스 바깥 바탕 — ${cu}`).toBe(true);
     await page.mouse.click(c.x, c.y);
-    await expect.poll(() => selState(page)).toEqual([]);
+    await expect.poll(() => selState(page), '띠 밖 바탕 클릭 → 선택 풀림').toEqual([]);
+    await expect.poll(() => bandCount(page), '머리띠 0').toEqual({ col: 0, row: 0, any: 0 });
     const ctl = await snap(page);
-    expect(fwd, '넘김 = 진짜 빈 바탕 클릭').toEqual(ctl);
+    expect([ctl.panelId, ctl.panelPage], '패널 = Page').toEqual([null, true]);
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test('R1 칸 글 편집 중 — 머리띠 자리 위 글 블럭 탭 ⇒ 편집 끝(.editing 0 · 포커스가 그리드 칸 아님) · 진짜 클릭(4px 틈 · 머리띠 밖)과 같다 @grid-reorder', async ({ page }) => {
-    const enterEdit = async () => {
-      const l = await waitStableRect(page, '#gG .grd-cell[data-r="2"][data-c="0"] [data-line="0"]');
-      await page.mouse.click(l.left + 6, l.cy);
-      await page.mouse.dblclick(l.left + 6, l.cy);
-      await expect.poll(() => page.evaluate(() => {
-        const a = document.activeElement, g = document.getElementById('gG');
-        return { inGrid: !!(a && g.contains(a)), ce: !!(a && a.isContentEditable), editing: g.classList.contains('editing') };
-      }), '[전제] gG 칸 글 편집 중').toEqual({ inGrid: true, ce: true, editing: true });
-    };
+  test('R1 칸 글 편집 중 — 위 글 블럭 위에 뜬 열 머리띠 A 탭 ⇒ 편집 끝(.editing 0 · 포커스가 그리드 칸 아님) · tT 가 아니라 gG 열 A 가 골라진다 @grid-reorder', async ({ page }) => {
     const errs = await setupText(page);
     await selectGrid(page);
-    await enterEdit();
+    const l = await waitStableRect(page, '#gG .grd-cell[data-r="2"][data-c="0"] [data-line="0"]');
+    await page.mouse.click(l.left + 6, l.cy);
+    await page.mouse.dblclick(l.left + 6, l.cy);
+    await expect.poll(() => page.evaluate(() => {
+      const a = document.activeElement, g = document.getElementById('gG');
+      return { inGrid: !!(a && g.contains(a)), ce: !!(a && a.isContentEditable), editing: g.classList.contains('editing') };
+    }), '[전제] gG 칸 글 편집 중').toEqual({ inGrid: true, ce: true, editing: true });
     await expect.poll(() => bandCount(page)).toEqual({ col: 3, row: 3, any: 6 });
     const b = await waitStableRect(page, `${BANDS}[data-axis="col"][data-i="0"]`);
     expect(await underIs(page, b.cx, b.cy, 'tT'), '[전제] 열 머리띠 A 밑 = 위 글 블럭 tT').toEqual({ topIsBand: true, underInNb: true });
     await page.mouse.click(b.cx, b.cy);
-    await expect.poll(() => page.evaluate(() => document.getElementById('tT').classList.contains('selected')), '넘김 → tT 골라짐').toBe(true);
-    const fwd = await snap(page);
-    expect(fwd.editing, '넘긴 뒤 .editing 0').toEqual([]);
-    expect(fwd.activeInGrid, '넘긴 뒤 포커스가 그리드 칸 아님').toBe(false);
-    // 대조 — 같은 tT 를 머리띠 밖(gG 위 2px · 틈 0 이라 tT 아랫단)에서 진짜로 누른다
-    await setupText(page);
-    await selectGrid(page);
-    await enterEdit();
-    const g = await waitStableRect(page, '#gG');
-    const c = { x: b.cx, y: g.top - 2 };
-    expect((await underIs(page, c.x, c.y, 'tT')).underInNb, '[전제] 대조 점 = tT').toBe(true);
-    await page.mouse.click(c.x, c.y);
-    await expect.poll(() => page.evaluate(() => document.getElementById('tT').classList.contains('selected'))).toBe(true);
-    const ctl = await snap(page);
-    expect(fwd, '넘김 = 진짜 클릭(선택·편집·포커스·패널)').toEqual(ctl);
+    await expect.poll(() => rangeOf(page), '열 A 통째').toEqual({ r0: 0, c0: 0, r1: 2, c1: 0, axis: 'col' });
+    const st = await snap(page);
+    expect(st.editing, '편집 끝 — .editing 0').toEqual([]);
+    expect(st.activeInGrid, '포커스가 그리드 칸 아님').toBe(false);
+    expect(await page.evaluate(() => document.getElementById('tT').classList.contains('selected')), 'tT 안 골라짐').toBe(false);
+    expect(await selState(page)).toEqual(['gG']);
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
