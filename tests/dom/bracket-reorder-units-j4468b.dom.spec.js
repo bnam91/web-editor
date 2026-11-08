@@ -47,14 +47,15 @@ async function scene(page, names, { stack = false } = {}) {
 }
 const unitIdx = (page, id) => page.evaluate((id) => { const e = document.getElementById(id), u = e.closest('.row') || e.closest('.frame-block[data-text-frame]') || e; return [...u.parentElement.children].indexOf(u); }, id);
 const twoFrames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-const clickOn = async (page, id) => {
+const clickOn = async (page, id, dbl) => {
   const loc = page.locator('#' + id);
   await loc.scrollIntoViewIfNeeded();
   const r = await loc.boundingBox();
-  await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+  if (dbl) await page.mouse.dblclick(r.x + r.width / 2, r.y + r.height / 2); else await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
   await twoFrames(page);
 };
-const pick = async (page, id) => { await clickOn(page, id); await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), id); };
+/* B안(현빈 261107): 한 번 클릭으로 안 골라지면(안 들어간 프레임의 자식) 더블클릭 진입으로 — 옛: 한 번 더 클릭 = 드릴인 */
+const pick = async (page, id) => { if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), id))) await clickOn(page, id, await page.evaluate((id) => !!document.getElementById(id).parentElement.closest('.frame-block:not([data-text-frame])') && document.getElementById(id).parentElement.closest('.frame-block:not([data-text-frame])').classList.contains('selected'), id)); await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), id); };
 const press = async (page, key, read, to) => { await page.keyboard.press(key); await expect.poll(read, `${key} 뒤`).toBe(to); };
 
 test('F1 행 위가 프레임이면 ⌘[ 한 번에 그 프레임 위로만 간다 · ⌘Z 로 돌아온다', async ({ page }) => {

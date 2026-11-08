@@ -18,12 +18,12 @@ async function scene(page) {
 const box = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; }, id);
 /* ⌘V 는 paste 이벤트에 양보하느라 setTimeout 30ms 뒤에 붙는다 — 프레임 수가 늘 때까지 기다린다(raf 만이면 18건 중 1건 흔들림). */
 const pasteKey = async (p) => { const n = await p.evaluate((FR) => document.querySelectorAll('#canvas ' + FR).length, FR); await p.keyboard.press('Meta+v'); await p.waitForFunction(([FR, n]) => document.querySelectorAll('#canvas ' + FR).length > n, [FR, n], { timeout: 3000 }); await raf(p); };
-const clk = async (page, x, y, mod) => { if (mod) await page.keyboard.down(mod); await page.mouse.click(x, y); if (mod) await page.keyboard.up(mod); await raf(page); };
+const clk = async (page, x, y, mod, dbl) => { if (mod) await page.keyboard.down(mod); if (dbl) await page.mouse.dblclick(x, y); else await page.mouse.click(x, y); if (mod) await page.keyboard.up(mod); await raf(page); };
 async function pickKids(page, { P, A, B }) { const p = await box(page, P); await clk(page, (p.l + p.r) / 2, p.b - 12); const a = await box(page, A); await clk(page, (a.l + a.r) / 2, (a.t + a.b) / 2 + 10); const b = await box(page, B); await clk(page, (b.l + b.r) / 2, (b.t + b.b) / 2, 'Shift'); const sel = await page.evaluate(([A, B]) => [A, B].map((i) => document.getElementById(i).classList.contains('selected')), [A, B]); expect(sel, '[전제] 자식 둘 고름').toEqual([true, true]); }
 
 const info = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); return e && { par: e.parentElement.id, pos: e.style.position, l: e.style.left, t: e.style.top }; }, id);
 const none = (page) => page.evaluate(() => { window.deselectAll(); window._activeFrame = null; document.querySelectorAll('#canvas .section-block.selected').forEach((x) => x.classList.remove('selected')); });
-const pickChild = async (page, s, id) => { const p = await box(page, s.P); await clk(page, (p.l + p.r) / 2, p.b - 12); const a = await box(page, id); await clk(page, (a.l + a.r) / 2, (a.t + a.b) / 2); };
+const pickChild = async (page, s, id) => { const p = await box(page, s.P); await clk(page, (p.l + p.r) / 2, p.b - 12); const a = await box(page, id); await clk(page, (a.l + a.r) / 2, (a.t + a.b) / 2, null, true); };   // B안(현빈 261107): 자식 = 더블클릭 진입
 const newOf = async (page, before) => (await read(page)).ids.filter((i) => !before.ids.includes(i));
 
 test('F1 ⌘X → 안 고름 → ⌘V 는 원래 부모 안 원본 옆 +20 · 다시 ⌘V 는 또 +20 · ⌘Z 한 걸음', async ({ page }) => {

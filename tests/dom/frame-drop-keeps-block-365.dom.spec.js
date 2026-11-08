@@ -25,7 +25,7 @@ async function dragTo(page, from, to) { await page.mouse.move(from[0], from[1]);
 async function dropOnFree(page, s, id) {
   const fromStack = s.stack && await page.evaluate(([a, b]) => document.getElementById(a).contains(document.getElementById(b)), [s.stack, id]);
   if (fromStack) { const r = await page.evaluate((a) => { const b = document.getElementById(a).getBoundingClientRect(); return [b.left + 6, b.top + 6]; }, s.stack); await page.mouse.click(r[0], r[1]); await raf(page); }
-  const from = await center(page, id); await page.mouse.click(from[0], from[1]); await raf(page);
+  const from = await center(page, id); if (fromStack) await page.mouse.dblclick(from[0], from[1]); else await page.mouse.click(from[0], from[1]); await raf(page);   // B안(현빈 261107): 스택 안 블럭은 더블클릭 진입으로 고른다(옛: 한 번 클릭 드릴인 — 이제는 스택째 끌린다)
   await dragTo(page, await center(page, id), await center(page, s.free));
 }
 const count = (page, cls) => page.evaluate((cls) => document.querySelectorAll('#canvas .' + cls).length, cls);

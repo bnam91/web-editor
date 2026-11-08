@@ -20,7 +20,7 @@ async function scene(page, cls, entry) {
 const open = async (page) => { await page.setViewportSize({ width: 1500, height: 1400 }); await bootApp(page); await page.evaluate(() => window.applyZoom(40)); await waitZoomSettled(page, 40); };
 const corner = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.right - 5, r.bottom - 5]; }, id);
 const clickFrame = async (page, id) => { const p = await corner(page, id); await page.mouse.click(p[0], p[1]); await raf(page); };
-async function pick(page, s) { await clickFrame(page, s.A); const m = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, s.k); await page.mouse.click(m[0], m[1]); await raf(page); }
+async function pick(page, s) { await clickFrame(page, s.A); const m = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, s.k); await page.mouse.dblclick(m[0], m[1]); await raf(page); }   // B안(현빈 261107): 프레임 뒤 자식 = 더블클릭 진입(옛: 한 번 클릭 드릴인)
 const count = (page, cls) => page.evaluate((c) => document.querySelectorAll('#canvas .' + c).length, cls);
 async function paste(page, cls) { const n = await count(page, cls); await page.keyboard.press('Meta+v'); await page.waitForFunction(([c, n]) => document.querySelectorAll('#canvas .' + c).length > n, [cls, n]); await raf(page); }
 const home = (page, s, cls) => page.evaluate(({ s, cls }) => { const cnt = (id) => document.getElementById(id).querySelectorAll('.' + cls).length; return { A: cnt(s.A), B: cnt(s.B), C: cnt(s.C), S2: cnt(s.S2) }; }, { s, cls });

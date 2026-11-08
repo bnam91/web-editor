@@ -41,7 +41,7 @@ async function pickGrid(page) {
   const fr = await page.evaluate(() => { const r = document.getElementById('ssF2a').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + 12]; });
   await page.mouse.click(fr[0], fr[1]);                       // 그리드 위(top 43 위쪽) 프레임 빈 자리 — 프레임 선택
   const g = await page.evaluate(() => { const r = document.getElementById('grdF2a').getBoundingClientRect(); return [r.left + r.width * 0.5, r.top + r.height * 0.5]; });
-  await page.mouse.click(g[0], g[1]);
+  await page.mouse.dblclick(g[0], g[1]);   // B안(현빈 261107): 프레임 뒤 그리드는 더블클릭 진입으로(옛: 한 번 클릭 드릴인)
   await expect.poll(() => page.evaluate(() => document.getElementById('grdF2a').classList.contains('selected')), { timeout: 2000 }).toBe(true);
 }
 const press = async (page, k) => { await page.keyboard.press(k); await page.waitForTimeout(300); };
