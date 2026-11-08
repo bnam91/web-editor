@@ -41,7 +41,8 @@ for (const nested of [false, true]) for (const keys of [['t', 't', 't'], ['t', '
     for (const k of keys) {
       if (k === 'A') await page.evaluate(() => window.addAssetBlock());   // a 키는 에셋 «메뉴»를 연다(넣지 않음) — 메뉴에서 고른 것과 같은 함수
       else await page.keyboard.press(k);
-      await raf(page); await page.waitForTimeout(150);
+      await raf(page);
+      await expect.poll(() => newUnit(page), `${k}: 새 블럭이 골라짐`).not.toBe(prev);   // 고정 대기 대신 새 블럭이 골라질 때까지
       const u = await newUnit(page); const o = await order(page, s.P);
       expect(o.indexOf(u), `${k}: 새 블럭 ${u} 가 ${prev} 바로 다음 (순서 ${o.join(',')})`).toBe(o.indexOf(prev) + 1);
       prev = u;
