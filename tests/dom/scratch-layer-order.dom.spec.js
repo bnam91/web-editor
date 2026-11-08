@@ -495,9 +495,7 @@ test('L13 ★#canvas-scaler 의 비-스크래치 자식(#grd-plus-layer)과의 �
   await clickEmpty(page);
   await page.click('button.fp-btn.primary[title="새 섹션 추가"]');
   await page.waitForFunction(() => !!document.querySelector('#canvas .section-block'));
-  await page.click('button.fp-dropdown-trigger[onclick*="fp-component-dropdown"]');
-  const g = page.locator('#fp-component-dropdown button.fp-menu-item', { hasText: /^Grid$/ });
-  await g.waitFor({ state: 'visible' }); await g.click();
+  await page.click('#fp-grid-btn');   // FLOATING-PANEL-ADD-GRID-01: 메뉴 Grid → 플로팅 패널 단추
   await page.waitForFunction(() => !!document.querySelector('#canvas .grid-block'));
   const gid = await page.evaluate(() => document.querySelector('#canvas .grid-block').id);
   await clickShape(page, gid);

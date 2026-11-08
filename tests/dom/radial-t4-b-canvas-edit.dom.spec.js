@@ -1212,14 +1212,9 @@ test.describe('S6 t4 ⒝ radial 캔버스 편집 · 가운데 지우기 · 체�
   async function insertGridViaMenu(page, secId) {
     await page.evaluate((sid) => { window.deselectAll?.(); window.selectSection?.(document.getElementById(sid)); }, secId);
     const before = await ids(page, 'grid-block');
-    const trig = '#fp-component-dropdown .fp-dropdown-trigger';
-    const t = await stableTwice(page, trig);
-    await clickAt(page, t.cx, t.cy, { sel: trig });
-    await expect(page.locator('#fp-component-dropdown')).toHaveClass(/open/);
-    const idx = await page.evaluate(() => [...document.querySelectorAll('#fp-component-menu .fp-menu-item')].findIndex((b) => b.textContent.trim() === 'Grid'));
-    expect(idx, '메뉴 Grid').toBeGreaterThanOrEqual(0);
-    const r = await stableTwice(page, '#fp-component-menu .fp-menu-item', { index: idx });
-    await clickAt(page, r.cx, r.cy, { sel: '#fp-component-menu .fp-menu-item' });
+    // FLOATING-PANEL-ADD-GRID-01: 컴포넌트 메뉴 Grid 항목 → 플로팅 패널 단추로 옮김.
+    const r = await stableTwice(page, '#fp-grid-btn');
+    await clickAt(page, r.cx, r.cy, { sel: '#fp-grid-btn, #fp-grid-btn *' });
     await expect.poll(async () => (await ids(page, 'grid-block')).length).toBe(before.length + 1);
     const id = (await ids(page, 'grid-block')).find((x) => !before.includes(x));
     await stableTwice(page, `[id="${id}"]`);
