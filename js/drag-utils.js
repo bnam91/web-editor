@@ -484,6 +484,10 @@ if (typeof document !== 'undefined') {
         /* 맞은 것이 블럭이 아닌 그릇(.row 등)이면 그 클릭이 프레임 click 으로 올라가 deselectAll 이 진입 표식을 지웠다(회전 스택 프레임 여백 = row) — 여백 진입으로 되살린다. */
         /* 블럭 위였으면 그 블럭 처리기 몫이다(고르기가 늦게 올 수 있다) — 손대지 않는다. */
         else if (window._enteredFrame !== g.frame && !hit.closest(window.SECTION_BLOCK_TYPE_SEL || '.text-block')) { window._enteredFrame?.classList.remove('frame-entered'); window._enteredFrame = g.frame; g.frame.classList.add('frame-entered'); }
+        /* ★6634(현빈) — 막대 그래프 범주 라벨은 프레임 안에서도 첫 더블클릭에 글이 열린다. B안 덮개 밑이라 e.target 이 프레임이어서 위 예외 줄이
+           못 봤다 ⇒ 들어가 고른 «뒤» 그 라벨에 더블클릭을 다시 보낸다(이 처리기는 _dblGesture 를 비워 그냥 흘린다). */
+        const lab = hit.closest('.grb-bar-label, .grb-bar-h-desc');
+        if (lab) { _dblGesture = null; lab.dispatchEvent(new MouseEvent('dblclick', { ...o, detail: 2 })); }
       }
     }   // 여백이었다 — 그 프레임 «안»이 삽입 자리
     _dblGesture = null;
