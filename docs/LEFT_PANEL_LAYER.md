@@ -255,7 +255,8 @@ Section (섹션)
 | `Cmd+click` | 개별 토글 선택 — 안 골라졌으면 넣고, 골라졌으면 뺀다 |
 | `Shift+click` | `Cmd+click` 과 같다(피그마식 넣고 빼기 — 2026-11 현빈 7042, 옛 «범위 선택»은 없앴다) |
 | 레이어 섹션 줄 `Shift+click` | `Cmd+click` 과 같다 — 섹션 하나씩 넣고 빼기(2026-11-08 현빈 0.9.10 MARK-MULTISELECT…-01 · 옛 범위 선택 없앰 · `selectSectionWithModifier` ⌘ 갈래) |
-| 칸(col) | 레이어 목록엔 칸 줄이 없다(`row > .col` 래퍼는 비표시 — `appendRowToLayer`). 캔버스 칸 `Shift+click`(`selectColWithModifier`)은 레이어 밖이라 이번 변경 밖 |
+| 칸(col) | 레이어 목록엔 칸 줄이 없다(`row > .col` 래퍼는 비표시 — `appendRowToLayer`) |
+| 캔버스 섹션·칸 `Shift+click` | `Cmd+click` 과 같다 — 하나씩 넣고 빼기(2026-11-09 현빈 7119 · 옛 범위 선택 없앰 · `selectSectionWithModifier`/`selectColWithModifier`). 칸은 일반 클릭한 칸(`multiSel.lastCol`, 같은 행)이 기준점으로 합류한다. 고른 섹션의 히트존은 클릭을 통과시키므로 빼기는 섹션 몸통을 누른다. 마키(끌어서 고르기)는 그대로 |
 | `Backspace` | 선택된 모든 블록 일괄 삭제 |
 | `Cmd+C` | 선택된 모든 블록 복사 (`clipboard.type = 'multi-block'`) |
 | `Cmd+V` | 복사된 블록들 순서 유지하며 붙여넣기 |

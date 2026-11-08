@@ -1270,7 +1270,9 @@ function showMultiSelPanel() {
 }
 
 function selectSectionWithModifier(sec, e) {
-  if (e && (e.metaKey || e.ctrlKey)) {
+  /* ★MARK-MULTISELECT-PICKS-UNSELECTED-MIDDLE-01 캔버스 쪽(현빈 0.9.10 · 7119) — ⇧ = ⌘ = 피그마식 토글(하나씩 더하기·빼기). 옛 ⇧ «범위 선택»은 없앴다
+       (블럭 7042 · 레이어 섹션 줄과 맞춤). 마키(끌어서 고르기)는 이 함수가 아니다 — 무접촉. */
+  if (e && (e.metaKey || e.ctrlKey || e.shiftKey)) {
     // Cmd: toggle
     if (multiSel.sections.has(sec)) {
       sec.classList.remove('selected', 'multi-selected');
@@ -1293,21 +1295,6 @@ function selectSectionWithModifier(sec, e) {
     if (multiSel.sections.size > 1) { showMultiSelPanel(); return; }
     if (multiSel.sections.size === 1) { selectSection([...multiSel.sections][0]); clearMultiSel(); return; }
     deselectAll();
-  } else if (e && e.shiftKey && multiSel.lastSection) {
-    // Shift: range
-    const all = [...document.querySelectorAll('.section-block')];
-    const a = all.indexOf(multiSel.lastSection);
-    const b = all.indexOf(sec);
-    const [lo, hi] = a < b ? [a, b] : [b, a];
-    deselectAll();
-    clearMultiSel();
-    for (let i = lo; i <= hi; i++) {
-      all[i].classList.add('selected', 'multi-selected');
-      multiSel.sections.add(all[i]);
-    }
-    multiSel.lastSection = sec;
-    if (multiSel.sections.size > 1) { showMultiSelPanel(); return; }
-    if (multiSel.sections.size === 1) { selectSection([...multiSel.sections][0]); clearMultiSel(); return; }
   } else {
     // 일반 클릭: 단일 선택
     clearMultiSel();
@@ -1322,34 +1309,22 @@ function selectColWithModifier(col, e) {
   if (!row) return false;
   const rowCols = [...row.querySelectorAll(':scope > .col')];
 
-  if (e.metaKey || e.ctrlKey) {
+  if (e.metaKey || e.ctrlKey || e.shiftKey) {   // ★7119 — ⇧ = ⌘ 토글(옛 ⇧ 범위 갈래 지움 · 위 selectSectionWithModifier 머리말)
     if (multiSel.cols.has(col)) {
       col.classList.remove('selected', 'multi-selected');
       multiSel.cols.delete(col);
     } else {
-      const prevCol = row.querySelector('.col.selected:not(.multi-selected)');
+      /* ★7119 — 칸 일반 클릭은 행만 활성으로 두고 칸에 .selected 를 안 단다 ⇒ 기준점이 없어 ⇧/⌘ 로 «A·C» 를 못 만들었다(옛 ⇧ 범위만 lastCol 을 읽었다).
+           고른 칸이 없으면 같은 행의 마지막 일반 클릭 칸(lastCol)을 기준점으로 합류시킨다(피그마 «기준 + 더하기»). */
+      const prevCol = row.querySelector('.col.selected:not(.multi-selected)')
+        || (multiSel.cols.size === 0 && multiSel.lastCol && multiSel.lastCol !== col && multiSel.lastCol.closest('.row') === row ? multiSel.lastCol : null);
       if (prevCol && !multiSel.cols.has(prevCol)) {
-        prevCol.classList.add('multi-selected');
+        prevCol.classList.add('selected', 'multi-selected');   // 기준점(lastCol)은 아직 .selected 가 없다(7119)
         multiSel.cols.add(prevCol);
         multiSel.lastCol = prevCol;
       }
       col.classList.add('selected', 'multi-selected');
       multiSel.cols.add(col);
-    }
-    multiSel.lastCol = col;
-    if (multiSel.cols.size > 1) { showMultiSelPanel(); return true; }
-    if (multiSel.cols.size === 1) { clearMultiSel(); return false; }
-    return true;
-  } else if (e.shiftKey && multiSel.lastCol) {
-    const a = rowCols.indexOf(multiSel.lastCol);
-    const b = rowCols.indexOf(col);
-    if (a === -1 || b === -1) return false;
-    const [lo, hi] = a < b ? [a, b] : [b, a];
-    multiSel.cols.forEach(c => c.classList.remove('selected','multi-selected'));
-    multiSel.cols.clear();
-    for (let i = lo; i <= hi; i++) {
-      rowCols[i].classList.add('selected', 'multi-selected');
-      multiSel.cols.add(rowCols[i]);
     }
     multiSel.lastCol = col;
     if (multiSel.cols.size > 1) { showMultiSelPanel(); return true; }
