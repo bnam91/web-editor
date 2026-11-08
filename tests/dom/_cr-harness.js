@@ -245,7 +245,7 @@ const KINDS = {
     } },
   chat: { sel: '.chat-block', ins: (p) => clickMenu(p, 'fp-component', 'Chat'), door: 'menu Chat', act: async (p, id) => { await escapeOut(p); return editableAfterDbl('.chb-btext')(p, id); } },
   canvas: { sel: '.canvas-block', ins: (p) => clickMenu(p, 'fp-component', 'Card'), door: 'menu Card(addCanvasBlock)', act: async (p, id) => { await escapeOut(p); return editableAfterDbl('.cvb-card-title')(p, id); } },
-  banner02: { sel: '.banner02-block', ins: (p) => clickMenu(p, 'fp-component', 'Banner 2'), door: 'menu Banner 2', act: async (p, id) => { await escapeOut(p); return editableAfterDbl('[data-line-idx]')(p, id); } },
+  banner02: { sel: '.banner02-block', ins: (p) => p.evaluate(() => window.addBanner02Block()), door: 'window.addBanner02Block (메뉴 항목 숨김 · BANNER02-HIDE-LEGACY-01)', act: async (p, id) => { await escapeOut(p); return editableAfterDbl('[data-line-idx]')(p, id); } },
   step: { sel: '.step-block', ins: (p) => clickMenu(p, 'fp-component', 'Step'), door: 'menu Step', act: async (p, id) => { await escapeOut(p); return editableAfterDbl('.stb-title')(p, id); } },
   comparison: { sel: '.comparison-block', ins: (p) => clickMenu(p, 'fp-component', 'Comparison'), door: 'menu Comparison', act: async (p, id) => { await escapeOut(p); return editableAfterDbl('.cmp-hd')(p, id); } },
   qa: { sel: '.qa-block', ins: (p) => p.evaluate(() => window.addQABlock()), door: 'window.addQABlock (메뉴 항목 0)',

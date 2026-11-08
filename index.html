@@ -766,7 +766,11 @@
            데이터모델로 포팅»한 후속이고, 실사용 전수에서 구형은 블록 0개·프로젝트 0개다
            (신형 28개·9개). 메뉴에 둘 다 있으면 눌러보고 나서야 다른 걸 안다.
            ⛔코드(js/blocks/banner-block.js)는 지우지 않는다 — 옛 프로젝트가 생기면 렌더는 돼야 한다. -->
+      <!-- ★[숨김] Banner 2 — BANNER02-HIDE-LEGACY-01(현빈 0.9.10 QA). 새로 넣는 입구만 막는다 — 이미 든 배너2는
+           그대로 보이고 편집된다(블록·패널·저장/로드 무접촉). 다른 사용자 입구 실측 0(템플릿·검색 없음).
+           MCP add_banner02_block(Claude PM)은 남김 — 사용자 UI 아님 · 지디 보고. 짝 검사 banner02-hide-entry.dom.spec.js.
       <button class="fp-menu-item" onclick="addBanner02Block();toggleFpDropdown('fp-component-dropdown')">Banner 2</button>
+      -->
       <button class="fp-menu-item" onclick="addComparisonBlock();toggleFpDropdown('fp-component-dropdown')">Comparison</button>
       <button class="fp-menu-item" onclick="addLaurelBlock();toggleFpDropdown('fp-component-dropdown')">Laurel</button>
       <button class="fp-menu-item" onclick="addBridgeBlock();toggleFpDropdown('fp-component-dropdown')">Bridge</button>
