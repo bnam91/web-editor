@@ -127,11 +127,10 @@ async function addTextSticker(page) {
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#canvas .sticker-block[data-shape="text"]').length), '★전제: 텍스트 스티커가 하나 생겼다').toBe(1);
 }
 
-/** ★사람 손 그대로 — 컴포넌트 목록 → 「Grid」. */
+/** ★사람 손 그대로 — 플로팅 패널 「Grid」 단추(FLOATING-PANEL-ADD-GRID-01 · 메뉴 항목은 지움). */
 async function addGrid(page) {
   await selectSection(page);
-  await page.evaluate(() => window.toggleFpDropdown?.('fp-component-dropdown'));
-  await page.locator('#fp-component-dropdown .fp-menu-item', { hasText: /^Grid$/ }).first().click();
+  await page.click('#fp-grid-btn');
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#secT .grid-block').length), '★전제: 그리드 블럭이 하나 생겼다').toBe(1);
 }
 

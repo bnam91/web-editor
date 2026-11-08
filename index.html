@@ -619,6 +619,10 @@
       <path fill="currentColor" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
     </svg>
   </button>
+  <!-- FLOATING-PANEL-ADD-GRID-01(현빈 0.9.10 QA): 프레임 옆 같은 크기 그리드 단추. 아이콘 = 레이어 패널 grid 아이콘과 같은 모양. 컴포넌트 메뉴 Grid 항목은 지웠다. -->
+  <button class="fp-btn" id="fp-grid-btn" onclick="addGridBlock()" title="Grid 추가">
+    <svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1"><rect x="1" y="2" width="4.5" height="8" rx="1"/><rect x="6.5" y="2" width="4.5" height="8" rx="1"/></svg>
+  </button>
   <div class="fp-divider"></div>
   <div class="fp-dropdown" id="fp-text-dropdown">
     <button class="fp-btn fp-dropdown-trigger" onclick="toggleFpDropdown('fp-text-dropdown')" title="텍스트 블록 추가 (Heading / Body / Caption / Label)">
@@ -744,7 +748,6 @@
       <!-- <button class="fp-menu-item" onclick="addGapBlock(undefined,{asSibling:true});toggleFpDropdown('fp-component-dropdown')" title="여백(갭) 추가 — 단축키 G">Gap</button> -->
       <button class="fp-menu-item" onclick="addStepBlock();toggleFpDropdown('fp-component-dropdown')">Step</button>
       <button class="fp-menu-item" onclick="addChatBlock();toggleFpDropdown('fp-component-dropdown')">Chat</button>
-      <button class="fp-menu-item" onclick="addGridBlock();toggleFpDropdown('fp-component-dropdown')">Grid</button>
       <button class="fp-menu-item" onclick="addInfographicBlock();toggleFpDropdown('fp-component-dropdown')" title="인포그래픽 — 그리드 블럭(아이콘 + 제목 + 설명) · 레이아웃 프리셋은 우측 패널">Infographic</button>
       <button class="fp-menu-item" onclick="addModalBlock();toggleFpDropdown('fp-component-dropdown')">Modal</button>
       <button class="fp-menu-item" onclick="addBuzzBlock();toggleFpDropdown('fp-component-dropdown')">Buzz</button>
