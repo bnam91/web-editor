@@ -2437,6 +2437,8 @@ function _quitSaveOutcome(result) {
   return { ok: false, reason: (result && result.reason) || 'save-failed', error: (result && result.error) || null };
 }
 
+/** 종료 때 줄에 선 저장을 기다리는 상한(핸들러 시작부터) — 메인 quit 가드 saveWaitMs 3000 보다 작아야 한다(넘으면 메인이 no-response 로 창). */
+const QUIT_SAVE_WAIT_MS = 2500;
 function _quitSaveResolveQueued(isSaving, pendingHas, last, queuedAt) {
   /* ★★«큐가 빠졌다» ≠ «저장에 성공했다».
      실측(2026-09-06 deny-write 실기): 종료 시점에 다른 저장이 돌고 있어 우리 저장이 큐로 갔고,
@@ -2453,6 +2455,7 @@ function _quitSaveResolveQueued(isSaving, pendingHas, last, queuedAt) {
 if (IS_ELECTRON) {
   window.electronAPI.onForceSaveBeforeQuit(async () => {
     stopAdoptingForQuit();
+    const _quitT0 = Date.now();   // QUIT-FALSE-SAVE-FAILURE-DIALOG-01 — 아래 기다림 상한은 «이 시각부터» 센다(메인 saveWaitMs 3000 안)
     /* ★어느 경로로 새도 «한 번은» 답한다 — 답을 안 하면 메인이 3초를 헛기다린다.
        그리고 실패는 «실패라고» 답한다(옛 코드는 실패도 성공처럼 답했다). */
     let answered = false;
@@ -2501,7 +2504,11 @@ if (IS_ELECTRON) {
          ⛔무한 대기 금지 — 메인의 3초 상한을 넘기면 앱이 그냥 죽는다. */
       if (result === undefined) {
         const queuedAt = Date.now();
-        const until = queuedAt + 1000;
+        /* ★QUIT-FALSE-SAVE-FAILURE-DIALOG-01(0.9.10) — 옛 상한 «줄에 선 뒤 1초»는 짧았다: 앞 저장이 끝나 우리 저장이 «시작은 했는데» 1초 안에 안 끝나면
+             답이 unconfirmed(=실패 창, 6초 상한 · 체감 약 7초)였고 쓰기는 곧 끝나 디스크는 최신이었다(거짓 실패 · 동기 flush 가 못 들어가는 때).
+           ⇒ 핸들러 시작부터 QUIT_SAVE_WAIT_MS 까지 기다린다 — 메인 saveWaitMs(3000, main/quit/save-guard.js) 안에 답이 가도록 여유 500ms.
+           ⛔진짜 실패는 그대로 실패다: 끝난 저장의 결과(_quitSaveResolveQueued)를 읽고, 상한을 넘기면 옛날처럼 미확정(=창). */
+        const until = _quitT0 + QUIT_SAVE_WAIT_MS;
         while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(quitId))) {
           await new Promise(r => setTimeout(r, 50));
         }
@@ -2518,6 +2525,10 @@ if (IS_ELECTRON) {
           _pendingSaves.set(quitId, { snapshot: snap, opts: { skipThumbnail: true, projectId: quitId } });
         }
       }
+      /* ★QUIT-FALSE-SAVE-FAILURE-DIALOG-01 — 기다림이 자동저장 지연(1.5초)보다 길어져, 기다리는 사이 든 편집은 위 갈래 대신 자동저장이 «줄»에 올렸을 수 있다.
+           줄의 본이 이 프로젝트의 가장 새 본이다 — 실패 답의 비상 사본도 그것이어야 한다(first-load-exit-doors-361 E24). */
+      { const _q = activeProjectId === quitId ? _pendingSaves.get(quitId) : null;
+        if (_q && _q.snapshot) snap = typeof _q.snapshot === 'string' ? _q.snapshot : JSON.stringify(_q.snapshot); }
       const out = _quitSaveOutcome(result);
       answer(out.ok ? { ok: true, reason: out.reason }
                     : { ok: false, reason: out.reason, error: out.error || null,
