@@ -117,6 +117,26 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
     });
   }
 
+  /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 아이콘 크기 · 세로 맞춤. 쓰기 = block-factory.js «한 곳» · 적용 먼저 → pushHistory(위 방향 단추와 같은 순서). */
+  if (isIconText) {
+    const sl = propPanel.querySelector('#itb-icon-size-slider');
+    const num = propPanel.querySelector('#itb-icon-size-number');
+    if (sl && num) {
+      const live = (v) => { if (window.setIconTextIconSize?.(tb, v)) window.scheduleAutoSave?.(); const n = window.iconTextIconSizeOf?.(tb); sl.value = n; num.value = n; };
+      sl.addEventListener('input', () => live(sl.value));
+      sl.addEventListener('change', () => window.pushHistory?.('아이콘 크기'));   // 끄기 끝 표본 한 번
+      num.addEventListener('change', () => { live(num.value); window.pushHistory?.('아이콘 크기'); });
+    }
+    propPanel.querySelectorAll('#itb-valign-group .prop-align-btn[data-itb-valign]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!window.setIconTextValign?.(tb, btn.dataset.itbValign)) return;
+        window.pushHistory?.('아이콘 맞춤');
+        window.scheduleAutoSave?.();
+        propPanel.querySelectorAll('#itb-valign-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+  }
+
   /* 아이콘-텍스트 간격 */
   if (isIconText) {
     const itbGapSlider = propPanel.querySelector('#itb-gap-slider');

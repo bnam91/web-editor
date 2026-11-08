@@ -5535,6 +5535,40 @@ function setIconTextDirection(block, dir) {
   if (t && t.getAttribute('style') === '') t.removeAttribute('style');
   return true;
 }
+/* ══ ICONTEXT-ICON-SIZE-POSITION-01(현빈 0.9.10) — 아이콘 «크기»·«세로 맞춤» 한 곳 ═══════════════════════════
+ * 크기 = .itb-icon 인라인 width·height(정사각 · CSS 기본 40 · 기본값이면 인라인을 지워 옛 바이트) — 렌더러 없는 블럭이라 DOM 이 정본.
+ * 세로 맞춤 = 블럭 속성 data-itb-valign="top|bottom"(없음 = 가운데 = 옛 모양) · 그림은 CSS(editor-extra.css) 의 align-self.
+ *   ★가로 방향일 때만 뜻이 있다 — 세로(data-itb-dir="v")에선 CSS 가 안 건다(정렬 단추의 alignItems 와 안 부딪힌다). 값은 남는다. */
+const ITB_ICON_SIZE = { min: 16, max: 200, def: 40 };
+function iconTextIconSizeOf(block) {
+  const ic = block?.querySelector(':scope > .itb-icon');
+  const n = parseInt(ic?.style.width, 10);
+  return Number.isFinite(n) ? n : ITB_ICON_SIZE.def;
+}
+/** @returns {boolean} 바뀌었으면 true */
+function setIconTextIconSize(block, px) {
+  const ic = block?.classList?.contains('icon-text-block') ? block.querySelector(':scope > .itb-icon') : null;
+  const n = Math.round(Number(px));
+  if (!ic || !Number.isFinite(n)) return false;
+  const v = Math.max(ITB_ICON_SIZE.min, Math.min(ITB_ICON_SIZE.max, n));
+  if (v === iconTextIconSizeOf(block)) return false;
+  if (v === ITB_ICON_SIZE.def) { ic.style.removeProperty('width'); ic.style.removeProperty('height'); if (ic.getAttribute('style') === '') ic.removeAttribute('style'); }
+  else { ic.style.width = v + 'px'; ic.style.height = v + 'px'; }
+  return true;
+}
+function iconTextValignOf(block) { const v = block?.dataset?.itbValign; return v === 'top' || v === 'bottom' ? v : 'center'; }
+/** @param {'top'|'center'|'bottom'} v  @returns {boolean} 바뀌었으면 true */
+function setIconTextValign(block, v) {
+  if (!block?.classList?.contains('icon-text-block') || !['top', 'center', 'bottom'].includes(v)) return false;
+  if (iconTextValignOf(block) === v) return false;
+  if (v === 'center') delete block.dataset.itbValign; else block.dataset.itbValign = v;
+  return true;
+}
+window.ITB_ICON_SIZE = ITB_ICON_SIZE;
+window.iconTextIconSizeOf = iconTextIconSizeOf;
+window.setIconTextIconSize = setIconTextIconSize;
+window.iconTextValignOf = iconTextValignOf;
+window.setIconTextValign = setIconTextValign;
 window.iconTextAlignOf = iconTextAlignOf;
 window.applyIconTextAlign = applyIconTextAlign;
 window.setIconTextDirection = setIconTextDirection;

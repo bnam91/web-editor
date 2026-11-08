@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, ALIGN_ICONS } from './_helpers.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
@@ -376,7 +376,20 @@ ${blockHeaderHTML({
               세로
             </button>
           </div>
-        </div>` : ''}
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">아이콘 크기</span>
+          <input type="range" class="prop-slider" id="itb-icon-size-slider" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" step="2" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
+          <input type="number" class="prop-number" id="itb-icon-size-number" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
+        </div>${itbVertical ? '' : /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 세로 맞춤은 가로 방향에서만(세로 방향엔 뜻이 없다 · 정렬 단추와 안 부딪힘). 그림 = 객체정렬 정본 ALIGN_ICONS['object-v'](alignBtn 은 안 들인다 — 들이면 이 파일 전체가 align-btn-ssot «이관 파일»이 돼 기존 리터럴 단추를 다 옮겨야 한다). */ `
+        <div class="prop-row">
+          <span class="prop-label">아이콘 맞춤</span>
+          <div class="prop-align-group" id="itb-valign-group" role="group" aria-label="아이콘 세로 맞춤 (글 기준)">
+            <button class="prop-align-btn${window.iconTextValignOf?.(tb) === 'top' ? ' active' : ''}" data-itb-valign="top" title="글 위쪽에 맞춤" aria-label="글 위쪽에 맞춤">${ALIGN_ICONS['object-v'].top}</button>
+            <button class="prop-align-btn${(window.iconTextValignOf?.(tb) ?? 'center') === 'center' ? ' active' : ''}" data-itb-valign="center" title="글 가운데에 맞춤" aria-label="글 가운데에 맞춤">${ALIGN_ICONS['object-v'].middle}</button>
+            <button class="prop-align-btn${window.iconTextValignOf?.(tb) === 'bottom' ? ' active' : ''}" data-itb-valign="bottom" title="글 아래쪽에 맞춤" aria-label="글 아래쪽에 맞춤">${ALIGN_ICONS['object-v'].bottom}</button>
+          </div>
+        </div>`}` : ''}
         <div class="prop-row">
           <span class="prop-label">아이콘-텍스트 간격</span>
           <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
