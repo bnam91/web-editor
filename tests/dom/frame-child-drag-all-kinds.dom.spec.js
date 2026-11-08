@@ -25,7 +25,8 @@ for (const [cls, entry] of KINDS) {
     await page.mouse.click(k0[0], k0[1]); await raf(page); await drag(page, k0, f0);
     const a = await at(page, s.id); expect(a.par, '[전제] 프레임 직속').toBe(s.f);
     const c = await corner(page, s.f); await page.mouse.click(c[0], c[1]); await raf(page);
-    const p = await mid(page, s.id); await page.mouse.click(p[0], p[1]); await raf(page);
+    const p = await mid(page, s.id); await page.mouse.dblclick(p[0], p[1]); await raf(page);   // B안(현빈 261107): 프레임 뒤 블럭은 더블클릭 진입으로 고른다(옛: 한 번 클릭 드릴인)
+    expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), s.id), '[전제] 블럭 고름').toBe(true);
     const fpar = await parentOfFrame(page, s.f);
     await page.evaluate(() => { window.__ds.length = 0; });
     await drag(page, p, [p[0] + 30, p[1] + 30]);

@@ -33,7 +33,7 @@ async function setup(page, overlay) {
   /* 카드 고르기 — 묶음 → 카드 (사람처럼 다시 누른다) */
   for (let k = 0; k < 3; k++) {
     const r = await waitStableRect(page, '#' + ids.card + ' .mdl-profile-face');
-    await page.mouse.click(r.cx, r.cy);
+    await page.mouse.dblclick(r.cx, r.cy);   // B안(현빈 261107): 묶음(프레임) 안 카드는 더블클릭 진입으로(옛: 거듭 클릭 드릴인)
     const ok = await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected'), ids.card, { timeout: 1500 }).then(() => true, () => false);
     if (ok) break;
   }

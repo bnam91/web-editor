@@ -119,18 +119,20 @@ async function overflowPlan(page, frameId, childId) {
   }, [frameId, childId]);
 }
 
-/** ★프레임을 ★사람처럼 ★클릭해 ★고른다. ⛔안 고르면 자식이 ★안 잡힌다
+/** ★프레임에 ★사람처럼 ★여백 더블클릭으로 ★들어간다(B안). ⛔안 들어가면 자식이 ★안 잡힌다
  *  (`.frame-block:not(.selected):not([data-text-frame]) * { pointer-events:none }`). */
 async function selectFrame(page, frameId) {
   const f = await page.evaluate((id) => {
     const fr = document.getElementById(id); fr.scrollIntoView({ block: 'center' });
     const b = fr.getBoundingClientRect();
-    return { x: Math.round(b.left + 8), y: Math.round(b.top + 8) };
+    return { x: Math.round(b.left + b.width * 0.15), y: Math.round(b.top + b.height * 0.85) };   // 여백 = 안쪽 왼아래(구석은 골린 프레임의 모서리 손잡이가 덮고 · 글자 자식은 가운데에 선다)
   }, frameId);
-  await page.mouse.click(f.x, f.y);
+  await page.evaluate(() => window.deselectAll?.());   // 장면이 넣은 글자가 골라진 채면 프레임이 이미 «들어간» 꼴이라 더블클릭이 진입으로 안 읽힌다
+  /* B안(현빈 261107): 덮개는 «선택»이 아니라 «진입»해야 풀린다 — 여백 더블클릭으로 들어간다(옛: 한 번 클릭으로 골라 자식이 잡혔다) */
+  await page.mouse.dblclick(f.x, f.y);
   await page.waitForTimeout(350);
-  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), frameId),
-    '★전제: 프레임을 ★못 골랐다 — ★자식이 ★안 잡혀 ★아래가 뜻이 없다').toBe(true);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('frame-entered'), frameId),
+    '★전제: 프레임에 ★못 들어갔다 — ★자식이 ★안 잡혀 ★아래가 뜻이 없다').toBe(true);
 }
 
 /** ★사람 순서 — ⑴ 프레임을 ★클릭해 고르고 ⑵ 자식을 ★끈다. ⛔⑴ 을 빼면 자식이 ★안 잡힌다. */

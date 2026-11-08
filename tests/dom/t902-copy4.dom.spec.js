@@ -7,7 +7,7 @@
  *   ⒝ «C3(_enteredFrame = G · 더블클릭 둘)는 설계다» — drag-utils.js:421 R1(현빈 2026-10-08) ⇒ ⛔그 칸을 «빨강 기대»로 적지 마라
  *   ⒞ «그 양성(:463)으로는 C3 를 못 가른다» — 원 판도 «안» 길
  * ★깊이·개수 안 섞기(S7 250 D·C = «깊이»): 네 장면 모두 프레임 총수 = 4 · 관계만 바꾼다
- *   C1 부모 P⊃K + 납작 2 (P 고름) · C2 자식 같은 꼴(K 고름) · C3/C3b 자손 P⊃K⊃G + 납작 1(G 고름 · C3 = 더블클릭 둘 = G 에 들어감 · C3b = 더블클릭 하나 + 클릭 = G 를 오브젝트로) · C4 형제 P⊃{S1,S2} + 납작 1(S1 고름)
+ *   C1 부모 P⊃K + 납작 2 (P 고름) · C2 자식 같은 꼴(K 고름) · C3/C3b 자손 P⊃K⊃G + 납작 1(G 고름 · C3 = 더블클릭 셋(B안: 둘은 G 고르기 · 셋째 = G 여백 진입) = G 에 들어감 · C3b = 더블클릭 둘(옛: 하나 + 클릭 드릴인) = G 를 오브젝트로) · C4 형제 P⊃{S1,S2} + 납작 1(S1 고름)
  * ★⌘D 길(자유 프레임): editor.js:1455 duplicateSelected → copySelected(:1731 type block) + pasteClipboard → :2273 insertAfterSelectedAsSibling
  *   → drag-utils.js:409 frameSelectedAsObject(:421 들어간 프레임이면 null) → :461 _placeAfterFrameAsSibling → :463 unit.after(el)(다음 형제) · null 이면 :498 insertAfterSelected(«안»)
  * ★단언(칸마다 일곱): ⑴ 프레임 수 = 앞 + 부분나무 ⑵ 새 것의 부모 = 고른 것의 부모 ⑶ 바로 다음 형제 ⑷ 부분나무 깊이 꼴 같음 ⑸ id 겹침 0 ⑹ 원본 그대로(조상은 kids 뺌) ⑺ ⌘Z 1 번 → 앞 꼴
