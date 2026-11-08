@@ -5763,6 +5763,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
   let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
   let _targetLnAddr = null;   // ★1020t2i1 line-host 주인(카드): 우클릭한 줄 {r,c,li|null} — 판정 = window.lnCtxAddAddr
+  let _targetGridBand = null; // ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓐ 그리드: 우클릭한 행/열 머리띠 {axis, i}
   let _targetGridNest = null; // ★t6-04㉡ 그리드: 우클릭한 자리를 품은 «나란히 두 칸» 줄 {r,c,li} — 칸의 바깥 줄만(중첩 안 중첩은 null)
 
   // 메뉴 닫기
@@ -5771,6 +5772,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetBlock = null;
     _targetCell = null;
     _targetGridAddr = null;
+    _targetGridBand = null;
     _targetCmpAddr = null;
     _targetLnAddr = null;
     _targetGridNest = null;
@@ -5987,6 +5989,27 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const splitItem = document.getElementById('bcm-section-split');
     if (splitItem) splitItem.style.display = block.closest('.section-merged-part') ? 'flex' : 'none';
 
+    /* ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓐ(현빈 0.9.10) — 행/열 머리띠(.grd-headband · overlay-handles.js) 우클릭 → 「행 N 삭제」·「열 X 삭제」.
+         머리띠는 오버레이 자식이라 블럭 메뉴로 넘어올 때 e.target 이 그 머리띠다(_wireGutterContextMenu).
+         마지막 한 행/열이면 흐리게(맥 메뉴 관례 — 위 스타일 붙여넣기와 같은 꼴) · 누르면 이유를 말한다(grdDeleteBand). */
+    {
+      const band = block.classList.contains('grid-block') ? e.target?.closest?.('.grd-headband') : null;
+      _targetGridBand = band ? { axis: band.dataset.axis, i: Number(band.dataset.i) } : null;
+      const it = document.getElementById('bcm-grid-band-del');
+      if (it) {
+        it.style.display = _targetGridBand ? 'flex' : 'none';
+        if (_targetGridBand) {
+          const row = _targetGridBand.axis === 'row';
+          const m = window.getGridModel?.(block);
+          const last = !m || (row ? m.rows.length : m.cols.length) <= 1;
+          const lbl = document.getElementById('bcm-grid-band-del-label');
+          if (lbl) lbl.textContent = row ? `행 ${window.gridRowLabel?.(_targetGridBand.i)} 삭제` : `열 ${window.gridColLabel?.(_targetGridBand.i)} 삭제`;
+          it.setAttribute('aria-disabled', last ? 'true' : 'false');
+          it.style.opacity = last ? '0.4' : '';
+          it.style.cursor = last ? 'default' : '';
+        }
+      }
+    }
     // 그리드 블록 셀 우클릭 → "이미지 추가/교체" (현빈 2026-09-15 요청: 그리드 셀 이미지 지원)
     const gridImgItem = document.getElementById('bcm-grid-img');
     const gridImgLabel = document.getElementById('bcm-grid-img-label');
@@ -6413,6 +6436,14 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
    *   (addr.li != null 가지). 넣는 길과 비우는 길이 한 모양이라 따로 늙지 않는다.
    *   ⛔crop(imgPosX/imgPosY/imgSizePct)은 «안» 턴다 — 「이미지 교체」도 안 턴다. 비우기만
    *     따로 털면 같은 줄을 두고 두 길이 다르게 행동하게 된다. */
+  document.getElementById('bcm-grid-band-del')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    const band = _targetGridBand;
+    closeMenu();
+    if (!block || !band) return;
+    window.grdDeleteBand?.(block, band.axis, band.i);   // 마지막 하나 막기·이유 문구·⌘Z 한 번 = 그 문 하나(prop-grid.js)
+  });
   document.getElementById('bcm-grid-img-del')?.addEventListener('click', e => {
     e.stopPropagation();
     const block = _targetBlock;

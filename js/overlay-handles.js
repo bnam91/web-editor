@@ -2349,7 +2349,7 @@ function _createGridHeadbands(overlay, block, nCols, nRows) {
     b.dataset.axis = axis;
     b.dataset.i = String(i);
     b.textContent = axis === 'col' ? gridColLabel(i) : gridRowLabel(i);
-    b.title = axis === 'col' ? '끌어서 열 순서 바꾸기' : '끌어서 행 순서 바꾸기';   // ★현빈 «프롭힌트» 자 — title 하나만
+    b.title = axis === 'col' ? '끌어서 열 순서 바꾸기 · 눌러 고르고 Delete 로 지우기 · 우클릭 삭제' : '끌어서 행 순서 바꾸기 · 눌러 고르고 Delete 로 지우기 · 우클릭 삭제';   // ★현빈 «프롭힌트» 자 — title 하나만
     b.style.cssText = 'position:absolute;z-index:97;pointer-events:auto;';
     overlay.appendChild(b);
     b.addEventListener('mousedown', e => _onGridHeadbandMouseDown(e, block, axis, i));
@@ -2428,9 +2428,16 @@ function _grdBandForwardTap(e, band, block) {
   if (!tap) return;
   const ovl = _getOverlay();
   const under = document.elementsFromPoint(e.clientX, e.clientY).find(el => !(ovl && ovl.contains(el)));
-  if (!under || under === block || block.contains(under)) return;   // 자기 = 옛 동작
+  /* ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓑ(현빈 0.9.10) — 넘기지 않는 탭(자기·섹션 안 빈 바탕) = 그 행/열 «고르기»
+       (옛: 아무 일 0). 고른 것 = 칸 범위(행/열 통째 + axis) ⇒ Delete·Backspace 가 그 행/열을 지운다(prop-grid.js grdRangeBlocksKey).
+     ⛔D1 넘기기(이웃 블럭·캔버스 바깥 바탕)는 그대로 — 그 자리에선 고르기 대신 이웃이 골라진다(잠긴 동작 · 지디 보고). */
+  const pick = () => _grdBandSelect(block, band.dataset.axis, Number(band.dataset.i));
+  if (!under || under === block || block.contains(under)) { pick(); return; }   // 자기
   const pageBg = GRD_BAND_PAGE_BG.includes(under.id);   // R4 — 캔버스 바깥 바탕이면 조상이어도 넘긴다
-  if (under.contains(block) && !pageBg) return;          // 섹션 안 조상(빈 바탕) = 옛 동작(해-13)
+  if (under.contains(block) && !pageBg) { pick(); return; }   // 섹션 안 조상(빈 바탕) — 해-13: 그리드 선택은 유지
+  /* ★섹션 손잡이 띠(.section-hitzone)·여백 블럭(.gap-block)은 «이웃 블럭»이 아니다 — 그 위 탭도 고르기(안 그러면 머리띠 위 탭이
+       거의 늘 섹션/여백 선택으로 넘어가 ⓑ 가 안 된다 · 실측). D1 이 지키는 «내용 블럭 이웃»(E1·E5 짧은 그리드)은 그대로 넘긴다. */
+  if (!pageBg && under.closest('.section-hitzone, .gap-block')) { pick(); return; }
   const act = document.activeElement;
   if (act && act !== document.body && !under.contains(act) && typeof act.blur === 'function') act.blur();   // R1
   e.preventDefault();
@@ -2443,6 +2450,14 @@ function _grdBandForwardTap(e, band, block) {
   under.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }));
   under.dispatchEvent(new MouseEvent('mouseup', { ...init, buttons: 0 }));
   under.dispatchEvent(new MouseEvent('click', { ...init, buttons: 0 }));
+}
+
+/** ⓑ 행/열 하나를 «고른다» = 그 행/열 통째 칸 범위 + axis 표지. 꼴이 틀리면 false. */
+function _grdBandSelect(block, axis, i) {
+  const C = gridCols(block).length, R = gridRows(block).length;
+  if (axis === 'col' && i >= 0 && i < C) return grdSetRange(block, { r0: 0, c0: i, r1: R - 1, c1: i, axis });
+  if (axis === 'row' && i >= 0 && i < R) return grdSetRange(block, { r0: i, c0: 0, r1: i, c1: C - 1, axis });
+  return false;
 }
 
 function _onGridHeadbandMouseDown(e, block, axis, from) {
@@ -2570,13 +2585,16 @@ function grdGetRange(block) {
   const r0 = Math.min(st.ar, st.fr), r1 = Math.max(st.ar, st.fr);
   const c0 = Math.min(st.ac, st.fc), c1 = Math.max(st.ac, st.fc);
   if (r0 < 0 || c0 < 0 || r1 >= R || c1 >= C) return null;
+  /* ★axis(머리띠로 고른 행/열) — 범위가 «아직 그 행/열 통째»일 때만 싣는다(R·C 가 바뀌었으면 떨군다). */
+  if (st.axis === 'row' && r0 === r1 && c0 === 0 && c1 === C - 1) return { r0, c0, r1, c1, axis: 'row' };
+  if (st.axis === 'col' && c0 === c1 && r0 === 0 && r1 === R - 1) return { r0, c0, r1, c1, axis: 'col' };
   return { r0, c0, r1, c1 };
 }
 
 /** 범위를 세운다(붙인 뒤 «들어간 영역» 표시 · 해-25). 꼴이 틀리면 false(지어내지 않는다). */
 function grdSetRange(block, rng) {
   if (!block || !rng || ![rng.r0, rng.c0, rng.r1, rng.c1].every(Number.isInteger)) return false;
-  _grdRange = { block, ar: rng.r0, ac: rng.c0, fr: rng.r1, fc: rng.c1 };
+  _grdRange = { block, ar: rng.r0, ac: rng.c0, fr: rng.r1, fc: rng.c1, axis: rng.axis === 'row' || rng.axis === 'col' ? rng.axis : null };
   _updateGridRangeRect(_getOverlay(), block);
   return grdGetRange(block) !== null;
 }

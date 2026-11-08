@@ -4294,6 +4294,19 @@ function gridPermute(model, axis, from, to) {
   return _gridModelFromFull(cols2, model.rows, full2);
 }
 
+/** ★순수 — 행/열 하나를 «지운» 새 모델(GRID-RIGHTCLICK-DELETE-ROW-COL-01). 원본은 안 바뀐다.
+ *  ★gridPermute 와 같은 길(전체 R×C → _gridModelFromFull) — 행 0 을 지우면 다음 행의 줄이 cols[c].lines 로 오른다.
+ *  @returns 새 모델 | null(축·index 가 틀렸다 · ★마지막 한 행/열은 못 지운다 — MIN_ROWS/MIN_COLS). */
+function gridRemove(model, axis, i) {
+  if (!_gridIsObj(model) || !Array.isArray(model.cols) || !Array.isArray(model.rows)) return null;
+  const n = axis === 'row' ? model.rows.length : axis === 'col' ? model.cols.length : 0;
+  if (!_gridIsIdx(i, n) || n <= (axis === 'row' ? MIN_ROWS : MIN_COLS)) return null;
+  const full = _gridFullCellsOf(model);
+  const keep = (_, k) => k !== i;
+  if (axis === 'row') return _gridModelFromFull(model.cols, model.rows.filter(keep), full.filter(keep));
+  return _gridModelFromFull(model.cols.filter(keep), model.rows, full.map(row => row.filter(keep)));
+}
+
 /** ★순수 — 칸 범위 복사. 끝점은 순서 무관(min/max 로 편다) · 그리드 밖은 잘라 낸다.
  *  @returns {h, w, cells:[[cell…]]}(칸 객체 통째 깊은 사본 · 행 0 칸도 줄을 «포함») | null(범위가 그리드와 안 겹친다) */
 function gridCopyRange(model, r0, c0, r1, c1) {
@@ -4370,6 +4383,20 @@ function _gridMoveDirect(block, axis, from, to) {
   window.scheduleAutoSave?.();
   return true;
 }
+/** 행/열 하나를 지운다 — ⌘Z 한 번에 돌아온다(변경 «전» 1회). 지웠으면 true · 마지막 하나·범위 밖이면 false(쓰기·이력 0). */
+function _gridRemoveDirect(block, axis, i) {
+  if (!block || !block.dataset) return false;
+  const next = gridRemove(getGridModel(block), axis, i);
+  if (!next) return false;
+  window.pushHistory?.();
+  _gridWriteModelDirect(block, next, axis === 'row');
+  if (next.rows.length <= 1) delete block.dataset.rows;   // 1행 = gridResizeTo 의 nRows<=1 과 같은 옛 모양
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return true;
+}
+function removeGridRow(block, i) { return _gridRemoveDirect(block, 'row', i); }
+function removeGridCol(block, i) { return _gridRemoveDirect(block, 'col', i); }
 /** 행 하나를 옮긴다(높이 · 칸 통째). 바뀌었으면 true. */
 function moveGridRow(block, from, to) { return _gridMoveDirect(block, 'row', from, to); }
 /** 열 하나를 옮긴다(폭 · 열 기본값 · 칸 통째). 바뀌었으면 true. */
@@ -4500,6 +4527,9 @@ window.moveGridCol = moveGridCol;
 window.pasteGridRange = pasteGridRange;
 window.gridCopyRange = gridCopyRange;
 window.gridPermute = gridPermute;
+window.gridRemove = gridRemove;
+window.removeGridRow = removeGridRow;
+window.removeGridCol = removeGridCol;
 window.gridPasteRange = gridPasteRange;
 window.gridColLabel = gridColLabel;
 window.gridRowLabel = gridRowLabel;
@@ -4562,5 +4592,5 @@ export {
   gridResizeTo, gridAddAtEnd,   /* ★G15 — 피커·캔버스 ＋ 가 «같은 길» */
   /* ★t3-04(S6 U1) — 순서 바꾸기·범위 복붙: 순수 셈(유닛이 DOM 없이 잰다) ＋ 직접 쓰기 문 */
   gridPermute, gridCopyRange, gridPasteRange, gridColLabel, gridRowLabel,
-  moveGridRow, moveGridCol, pasteGridRange,
+  moveGridRow, moveGridCol, removeGridRow, removeGridCol, gridRemove, pasteGridRange,
 };
