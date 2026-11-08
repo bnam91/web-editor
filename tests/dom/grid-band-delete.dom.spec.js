@@ -4,6 +4,8 @@
  *   확인창 없음 · ⌘Z 한 번에 dataset 바이트 그대로 복원 · 마지막 한 행/열은 막는다(메뉴 흐림 + Delete 무변).
  *   행 0 을 지우면 다음 행 글자가 첫 행으로 오른다(cols[c].lines 승격) · 저장→다시 열기 뒤에도 유지.
  * ★장면 = 실제 새 섹션처럼 좌우 여백 32px(행 머리띠 밑 = 섹션 안 바탕). 머리띠 밑이 «내용 블럭 이웃»·캔버스 바깥이면 탭은 D1 대로 넘긴다(grid-range-clip D1·R4).
+ * ★N1(현빈 7112): 새 섹션 기본 모양(제목 바로 아래 그리드 · 열 띠 밑 = 제목 글 블럭)에서도 띠 탭이 이긴다 — 열 고르기 → ⌫ 삭제.
+ *   양성대조: overlay-handles.js _grdBandForwardTap 을 옛 «이웃 넘기기» 판으로 되돌리면 N1 빨강(제목이 골라진다).
  * ★양성대조: overlay-handles.js 의 pick() 을 빼면 ⓑ 빨강 · block-factory.js 의 _targetGridBand 판정을 null 로 두면 ⓐ 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
@@ -122,4 +124,27 @@ test('마지막 한 열 — 메뉴 흐림·눌러도 무변 · Delete 도 무변
   await tapBand(page, 'row', 1);
   await page.keyboard.press('Delete');
   await expect.poll(async () => (await grid(page)).R).toBe(1);
+});
+
+test('N1 새 섹션 기본 모양 — 제목 바로 아래 그리드에서 열 띠 클릭 → 열 선택 → ⌫ 삭제(제목이 안 골라진다)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await bootApp(page);
+  await page.click('.fp-btn.primary[title="새 섹션 추가"]');
+  await expect.poll(() => page.evaluate(() => !!window.getSelectedSection?.())).toBe(true);
+  await page.evaluate(() => window.addGridBlock());
+  const id = await page.evaluate(() => document.querySelector('#canvas .grid-block').id);
+  const C0 = await page.evaluate((id) => window.getGridModel(document.getElementById(id)).cols.length, id);
+  expect(C0, '[전제] 기본 그리드 2열 이상').toBeGreaterThanOrEqual(2);
+  const g = await waitStableRect(page, `[id="${id}"]`);
+  await page.mouse.click(g.cx, g.cy);
+  await page.waitForSelector(BAND('col', 1));
+  const b = await waitStableRect(page, BAND('col', 1));
+  const under = await page.evaluate(([x, y]) => { const ovl = document.getElementById('ss-handles-overlay');
+    const u = document.elementsFromPoint(x, y).find(el => !ovl.contains(el)); return u ? (u.closest('.text-block,[class*="tb-"]') ? 'text' : (u.id || u.className)) : null; }, [b.cx, b.cy]);
+  expect(under, '[전제] 열 띠 밑 = 그리드 위 제목 글 블럭(새 섹션 기본 모양)').toBe('text');
+  await page.mouse.click(b.cx, b.cy);
+  await expect.poll(() => page.evaluate((id) => window.grdGetRange(document.getElementById(id))?.axis, id), '열이 골라졌다').toBe('col');
+  expect(await page.evaluate(() => [...document.querySelectorAll('#canvas .text-block.selected')].length), '제목은 안 골라진다').toBe(0);
+  await page.keyboard.press('Backspace');
+  await expect.poll(() => page.evaluate((id) => window.getGridModel(document.getElementById(id)).cols.length, id)).toBe(C0 - 1);
 });

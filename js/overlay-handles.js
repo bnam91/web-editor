@@ -2353,7 +2353,7 @@ function _createGridHeadbands(overlay, block, nCols, nRows) {
     b.style.cssText = 'position:absolute;z-index:97;pointer-events:auto;';
     overlay.appendChild(b);
     b.addEventListener('mousedown', e => _onGridHeadbandMouseDown(e, block, axis, i));
-    b.addEventListener('click', e => _grdBandForwardTap(e, b, block));   // ★U2a-fix D1 — 안 끈 누르기는 아래 이웃에게
+    b.addEventListener('click', e => _grdBandForwardTap(e, b, block));   // 안 끈 누르기 = 그 행/열 고르기(현빈 7112 · 띠가 이긴다)
     _wireGutterContextMenu(b, block);
   };
   for (let i = 0; i < nCols; i++) mk('col', i);
@@ -2405,7 +2405,7 @@ function _grdBandSlotEdge(block, axis, n, k) {
   return b ? b.top : a ? a.bottom : null;
 }
 
-/* ★U2a-fix D1 (이벨류 E1·E5) — 머리띠는 블럭 상자 «밖»(위·왼)에 떠서, 틈 0 으로 붙은 이웃 블럭(위 블럭 아랫단 ·
+/* ~~(역사 · 2026-11-08 현빈 7112 로 껐다 — 아래 _grdBandForwardTap 머리말)~~ ★U2a-fix D1 (이벨류 E1·E5) — 머리띠는 블럭 상자 «밖»(위·왼)에 떠서, 틈 0 으로 붙은 이웃 블럭(위 블럭 아랫단 ·
  *   왼쪽 이웃)의 그 띠를 덮는다 ⇒ 고른 동안 이웃을 못 골랐다. 고친 길 = «끌기 임계를 못 넘고 끝난 누르기(탭)»는
  *   그 점 «아래»(오버레이 제외) 것에 mousedown → mouseup → click 을 «그대로» 넘긴다(머리띠가 없을 때와 같은 결과).
  *   ★넘기지 않는 것: 아래가 «이 그리드 자신·그 조상»(섹션 바탕·row·프레임 — 빈 바탕)일 때 ⇒ 옛 동작(탭 = 아무 일 0 ·
@@ -2421,35 +2421,20 @@ function _grdBandSlotEdge(block, axis, n, k) {
  * ★U2a 재평가 R1 — 머리띠 mousedown 이 preventDefault 라 칸 편집 포커스가 그리드에 남는다. 진짜 클릭은 누르는 순간
  *   포커스가 옮겨 가 편집이 끝난다 ⇒ 넘기기 «전»에, 포커스가 body 가 아니고 넘길 대상 안이 아니면 blur(편집 종료는
  *   그 칸의 blur 처리기가 한다 — 진짜 클릭과 같은 길). */
-const GRD_BAND_PAGE_BG = ['canvas-wrap', 'canvas-scaler', 'canvas'];   // = editor.js 빈 바탕 deselect 셀렉터
 function _grdBandForwardTap(e, band, block) {
   const tap = band._grdTap === true;
   band._grdTap = false;
   if (!tap) return;
-  const ovl = _getOverlay();
-  const under = document.elementsFromPoint(e.clientX, e.clientY).find(el => !(ovl && ovl.contains(el)));
-  /* ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓑ(현빈 0.9.10) — 넘기지 않는 탭(자기·섹션 안 빈 바탕) = 그 행/열 «고르기»
-       (옛: 아무 일 0). 고른 것 = 칸 범위(행/열 통째 + axis) ⇒ Delete·Backspace 가 그 행/열을 지운다(prop-grid.js grdRangeBlocksKey).
-     ⛔D1 넘기기(이웃 블럭·캔버스 바깥 바탕)는 그대로 — 그 자리에선 고르기 대신 이웃이 골라진다(잠긴 동작 · 지디 보고). */
-  const pick = () => _grdBandSelect(block, band.dataset.axis, Number(band.dataset.i));
-  if (!under || under === block || block.contains(under)) { pick(); return; }   // 자기
-  const pageBg = GRD_BAND_PAGE_BG.includes(under.id);   // R4 — 캔버스 바깥 바탕이면 조상이어도 넘긴다
-  if (under.contains(block) && !pageBg) { pick(); return; }   // 섹션 안 조상(빈 바탕) — 해-13: 그리드 선택은 유지
-  /* ★섹션 손잡이 띠(.section-hitzone)·여백 블럭(.gap-block)은 «이웃 블럭»이 아니다 — 그 위 탭도 고르기(안 그러면 머리띠 위 탭이
-       거의 늘 섹션/여백 선택으로 넘어가 ⓑ 가 안 된다 · 실측). D1 이 지키는 «내용 블럭 이웃»(E1·E5 짧은 그리드)은 그대로 넘긴다. */
-  if (!pageBg && under.closest('.section-hitzone, .gap-block')) { pick(); return; }
+  /* ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓑ(현빈 0.9.10 · 7112 「응 바꿔」) — 머리띠가 보이면(= 그리드를 고른 동안) 띠 탭이 «늘 이긴다»:
+       그 행/열을 고른다(칸 범위 통째 + axis ⇒ Delete·Backspace 가 지운다 · prop-grid.js grdRangeBlocksKey).
+     ⛔옛 U2a-fix D1·R4(띠 밑 이웃 블럭·캔버스 바깥 바탕에 탭을 넘기기)는 껐다 — 새 섹션 기본 모양(제목 바로 아래 그리드)에서
+       열 띠 탭이 제목을 골랐다. 이웃은 띠 «밖»을 누르거나 Esc 로 그리드를 푼 뒤 고른다(띠가 없으면 옛 동작 그대로).
+     ★R1 은 살린다 — 칸 글 편집 중이면 진짜 클릭처럼 편집을 끝낸다(mousedown preventDefault 라 포커스가 남아 있다). */
   const act = document.activeElement;
-  if (act && act !== document.body && !under.contains(act) && typeof act.blur === 'function') act.blur();   // R1
+  if (act && act !== document.body && typeof act.blur === 'function') act.blur();   // R1
   e.preventDefault();
   e.stopPropagation();
-  const init = {
-    bubbles: true, cancelable: true, composed: true, view: window, detail: 1, button: 0,
-    clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
-    shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
-  };
-  under.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }));
-  under.dispatchEvent(new MouseEvent('mouseup', { ...init, buttons: 0 }));
-  under.dispatchEvent(new MouseEvent('click', { ...init, buttons: 0 }));
+  _grdBandSelect(block, band.dataset.axis, Number(band.dataset.i));
 }
 
 /** ⓑ 행/열 하나를 «고른다» = 그 행/열 통째 칸 범위 + axis 표지. 꼴이 틀리면 false. */
