@@ -117,7 +117,7 @@ test('마지막 한 열 — 메뉴 흐림·눌러도 무변 · Delete 도 무변
   await page.click('#bcm-grid-band-del');
   await tapBand(page, 'col', 0);
   await page.keyboard.press('Delete');
-  await page.waitForTimeout(200);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));   // 지우기가 돌았으면 이 틱 안에 끝났다(동기 · 고정 대기 대신)
   expect((await grid(page)).raw, '마지막 열은 안 지워진다').toBe(before.raw);
   expect(await page.evaluate(() => !!document.getElementById('gG')), '블럭도 안 지워진다').toBe(true);
   // 행 하나는 지울 수 있다(2행 → 1행)
