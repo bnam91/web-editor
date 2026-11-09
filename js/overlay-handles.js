@@ -2147,10 +2147,16 @@ function _onGridNestedColMouseDown(e, block, addr, i) {
   const W = (Number(cols[i].width) || 1) + (Number(cols[i + 1].width) || 1);
   const startX = e.clientX;
   /* ★드래그 «시작 직전» 1회만 — 바깥 거터와 같은 규약. 아래 쓰기는 noHistory 로 보낸다
-     (updateGridBlock 이 제 스스로 1회 쌓으므로, 안 끄면 mousemove 마다 한 칸씩 쌓인다). */
-  window.pushHistory?.();
+     (updateGridBlock 이 제 스스로 1회 쌓으므로, 안 끄면 mousemove 마다 한 칸씩 쌓인다).
+     ★1109t1A1 — 쌓는 때를 «첫 진짜 움직임»(3px)으로 미룬다: 그냥 클릭은 이력 없이 바깥 줄 고르기가 된다. */
+  let moved = false;
 
   function onMove(ev) {
+    if (!moved) {
+      if (Math.abs(ev.clientX - startX) < 3) return;
+      moved = true;
+      window.pushHistory?.();
+    }
     const scale = _canvasScaleNow();
     const delta = (ev.clientX - startX) / scale;
     const r = resizeColBoundary(wL0, wR0, W, delta);   // ★바깥 열과 «같은 순수함수». ⛔제 계산 금지
@@ -2181,6 +2187,7 @@ function _onGridNestedColMouseDown(e, block, addr, i) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     restoreDrag();
+    if (!moved) window.grdSelectOuterLine?.(block, addr);   // ★1109t1A1 — 안 끌고 뗐으면 «그 줄» 고르기(바깥 줄이 잡히는 유일한 캔버스 자리가 이 거터다)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);

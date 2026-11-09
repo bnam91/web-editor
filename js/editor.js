@@ -3058,6 +3058,7 @@ document.addEventListener('keydown', e => {
        블럭 선택은 유지한다(이 상태의 Backspace = 블럭 삭제). 한 번 더 Esc 면 전체 해제. */
     const _gridSelEsc = document.querySelector('.grid-block.selected');
     if (_gridSelEsc && window.grdGetActiveLine?.(_gridSelEsc)) {
+      if (window.grdSelectOuterLine?.(_gridSelEsc)) return;   // ★1109t1A1 — 중첩 안 줄이면 먼저 «바깥 줄»로 한 단계만 오른다
       window.showGridProperties?.(_gridSelEsc, null);
       return;
     }
@@ -3487,7 +3488,7 @@ function moveGridLineFromCanvas({ dir } = {}) {
        그리드가 통째로 자리를 옮긴다. 그래서 여기서 명시적으로 멈춘다.
      ★옮기는 길은 이번 범위 밖이다(patchCell{lines} 가 중첩 안으로 못 내려간다 — T-220 몫). */
   if (got.nested) {
-    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — Esc로 바깥 줄을 고르세요');
     return true;
   }
   /* ★옮기는 «한 벌»은 prop-grid.js grdMoveLine — 줄을 넣는/지우는 길과 같은 집이다.
@@ -3525,7 +3526,7 @@ function moveGridLineAcrossCells({ dir } = {}) {
   /* ★중첩 안 줄은 먹고 멈춘다 — ⌘↑/↓ 와 «같은 말»을 한다(문구까지 같다. 두 키가 다른 말을
      하면 사용자는 「어느 쪽이 되는 건가」를 새로 배워야 한다). */
   if (got.nested) {
-    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — 바깥 줄을 고르세요');
+    window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — Esc로 바깥 줄을 고르세요');
     return true;
   }
   /* ★⑵-B②(2026-10-06) — ⌘←/→ 는 ★「옆 칸으로」다. 버블·챗에서 그 뜻이 갈린다:
@@ -3620,7 +3621,7 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        ★지우는 길은 커밋 ② 범위 밖이다(patchCell{lineIndex} 가 중첩으로 못 내려간다). */
     if (gridSel && gridAddr && gridAddr.np) {
       consumed = true;
-      window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 지울 수 없습니다 — 바깥 줄을 고르세요');
+      window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 지울 수 없습니다 — Esc로 바깥 줄을 고르세요');
       return consumed;
     }
     if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {

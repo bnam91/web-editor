@@ -138,8 +138,9 @@ async function mount(page) {
   }, FIXTURE);
 }
 
-/** 패널 안의 «고치는 손잡이» 수 — input/select/textarea/button/슬라이더. */
-const HANDLE_SEL = 'input, select, textarea, button, [role="slider"], .prop-slider';
+/** 패널 안의 «고치는 손잡이» 수 — input/select/textarea/button/슬라이더.
+ *  ★1109t1A1 — 안내 절의 「바깥 줄 고르기」(#grd-nest-outer-btn)는 «고르기» 단추라 안 센다(세면 A3 ⑵ 가 그 하나로 거저 초록·A3-양성2 가 거저 빨강). */
+const HANDLE_SEL = 'input, select, textarea, button:not(#grd-nest-outer-btn), [role="slider"], .prop-slider';
 
 /* ═══ A — 「잡힌다 · 가리킨다 · ⛔안 고쳐진다」 ═══════════════════════════ */
 

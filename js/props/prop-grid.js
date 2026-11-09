@@ -161,7 +161,19 @@ export function grdResolveClickAddr({ at, prevAddr, insideCell, wasSelected } = 
   if (insideCell) return prevAddr || null;
   return null;
 }
+/* ★1109t1A1 — 중첩 안 줄에서 «품은 바깥 줄»로 한 단계 오른다(Esc·패널 단추·중첩 거터 클릭). 캔버스 클릭과 같은 순서로 부른다.
+ *   addr 를 주면 그 바깥 줄을, 안 주면 지금 활성 줄(np 있을 때만)의 바깥 줄을 고른다. 한 일이 있으면 true. */
+export function grdSelectOuterLine(block, addr) {
+  const a = addr || (block && grdGetActiveLine(block));
+  if (!block || !a || (!addr && !a.np)) return false;
+  const outer = { r: a.r, c: a.c, li: a.li };
+  grdApplyLineSelClick(block, outer, {});
+  showGridProperties(block, outer);
+  grdMarkCanvasDrill(block);
+  return true;
+}
 if (typeof window !== 'undefined') {
+  window.grdSelectOuterLine = grdSelectOuterLine;
   window.grdSetActiveLine = grdSetActiveLine;
   window.grdGetActiveLine = grdGetActiveLine;
   window.grdClearAllActiveLines = grdClearAllActiveLines;
@@ -1454,6 +1466,9 @@ function _grdNestHintHtml(nestHit) {
       <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>
       <div class="prop-hint" style="margin-top:2px;">아직 «고치는» 건 안 됩니다 — 글자는 캔버스에서, 손잡이는 다음 판</div>
       <div class="prop-hint" style="margin-top:2px;opacity:.7;">주소 ${_grdEsc(addr)}</div>
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <button id="grd-nest-outer-btn" class="prop-btn-sm" title="이 칸을 품은 바깥 줄을 고릅니다 (Esc 와 같음)">바깥 줄 고르기</button>
+      </div>
     </div>`;
 }
 const _grdEsc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -3912,6 +3927,7 @@ ${_flattenRowHtml(rows, cols)}
     showGridGutters(block);
   });
   _grdWireDisclosure(block, 'size', 'grd-size-toggle', 'grd-size-body');
+  document.getElementById('grd-nest-outer-btn')?.addEventListener('click', () => grdSelectOuterLine(block));   // ★1109t1A1
 
   const ratioInput = document.getElementById('grd-col-ratio');
   const _applyRatioInput = (raw) => {
