@@ -3485,6 +3485,14 @@ function _gridActiveOuterLine() {
   return { block: gridSel, addr: gridAddr, nested: false };
 }
 
+/* ★HBQA-TWOCELL-INNER — 활성 중첩 줄(깊이 1만 · np 에 '/' 없음) → {host: 그 열의 주인(prop-grid.js _grdNestColHost), i: 열 안 줄}. 아니면 null. */
+function _gridNestHostOf(block, addr) {
+  if (!addr || typeof addr.np !== 'string' || addr.np.includes('/')) return null;
+  const [ci, i] = addr.np.split('.').map(Number);
+  if (!Number.isInteger(ci) || !Number.isInteger(i) || !window.grdNestColHost) return null;
+  return { host: window.grdNestColHost(block, addr.r, addr.c, Number(addr.li), ci), i };
+}
+
 function moveGridLineFromCanvas({ dir } = {}) {
   const got = _gridActiveOuterLine();
   if (!got) return false;
@@ -3494,7 +3502,10 @@ function moveGridLineFromCanvas({ dir } = {}) {
      ⛔gridAddr.li 는 «품은 duo 줄»이다 — np 를 안 보고 옮기면 사용자가 고른 적 없는 중첩
        그리드가 통째로 자리를 옮긴다. 그래서 여기서 명시적으로 멈춘다.
      ★옮기는 길은 이번 범위 밖이다(patchCell{lines} 가 중첩 안으로 못 내려간다 — T-220 몫). */
+  /* ★HBQA-TWOCELL-INNER — 깊이 1(np '열.줄')은 그 «열» 안에서 옮긴다: 바깥과 같은 문, 주인만 중첩 열(⌘Z 한 번). 깊이 2+ 는 아래 토스트. */
   if (got.nested) {
+    const H = _gridNestHostOf(got.block, got.addr);
+    if (H) { window.grdMoveLine?.(got.block, { r: got.addr.r, c: got.addr.c }, H.i, dir, H.host); return true; }
     window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 옮길 수 없습니다 — Esc로 바깥 줄을 고르세요');
     return true;
   }
@@ -3626,7 +3637,8 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
        ⛔gridAddr.li 는 «품은 duo 줄»이다. np 를 안 보고 지우면 사용자가 고른 적 없는
          중첩 그리드 통째가 사라진다 — 그래서 여기서 명시적으로 멈춘다.
        ★지우는 길은 커밋 ② 범위 밖이다(patchCell{lineIndex} 가 중첩으로 못 내려간다). */
-    if (gridSel && gridAddr && gridAddr.np) {
+    const nestH = gridSel && gridAddr && gridAddr.np ? _gridNestHostOf(gridSel, gridAddr) : null;
+    if (gridSel && gridAddr && gridAddr.np && !nestH) {
       consumed = true;
       window.showToast?.('⚠️ 중첩 칸 «안»의 줄은 아직 지울 수 없습니다 — Esc로 바깥 줄을 고르세요');
       return consumed;
@@ -3634,8 +3646,9 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
     if (gridSel && gridAddr && gridAddr.li !== null && gridAddr.li !== undefined) {
       consumed = true;
       let lines;
-      try { lines = window.getGridModel?.(gridSel).cells?.[gridAddr.r]?.[gridAddr.c]?.lines; } catch (_) { lines = null; }
-      const li = Number(gridAddr.li);
+      /* ★HBQA-TWOCELL-INNER — 중첩 열 줄이면 «그 열»이 주인이다(줄 읽기·커밋·활성줄 주소). 나머지는 바깥 줄과 한 벌. */
+      try { lines = nestH ? nestH.host.getLines() : window.getGridModel?.(gridSel).cells?.[gridAddr.r]?.[gridAddr.c]?.lines; } catch (_) { lines = null; }
+      const li = nestH ? nestH.i : Number(gridAddr.li);
       if (!Array.isArray(lines) || !Number.isInteger(li) || li < 0 || li >= lines.length) {
         return consumed;   // 주소가 이미 무효(그 사이 데이터가 바뀜) — 블록 삭제로 새지 않는다.
       }
@@ -3664,8 +3677,11 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
          ★그래도 이 원복은 «남긴다» — 상한·모양 거절이 남아 있고, 「거절인데 활성줄만 움직였다」는
            이 레포가 여러 번 당한 갈래다. 문이 하나 줄었다고 방어를 걷지 않는다. */
       const prevActive = window.grdGetActiveLine?.(gridSel) || null;
-      window.grdSetActiveLine?.(gridSel, newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null);
-      const delRes = window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });
+      window.grdSetActiveLine?.(gridSel, nestH
+        ? (newLines.length ? nestH.host.addrOf(gridAddr.r, gridAddr.c, newLi) : { r: gridAddr.r, c: gridAddr.c, li: Number(gridAddr.li) })   // 열이 비면 품은 duo 줄로
+        : (newLines.length ? { r: gridAddr.r, c: gridAddr.c, li: newLi } : null));
+      const delRes = nestH ? nestH.host.commitLines(gridAddr.r, gridAddr.c, newLines)
+        : window.updateGridBlock?.(gridSel.id, { patchCell: { r: gridAddr.r, c: gridAddr.c, lines: newLines } });
       if (delRes && delRes.ok === false) {
         window.grdSetActiveLine?.(gridSel, prevActive);
         /* ⛔여기서 문구를 «새로 적지 마라» — code→한국어는 prop-grid.js grdToastImgFail 한 벌이다.

@@ -5914,7 +5914,12 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const nEl = node && node.closest ? node.closest('[data-npath]') : null;
     if (nEl && block.contains(nEl) && !nEl.dataset.npath.includes('/')) {
       const root = Number(nEl.dataset.nroot);
-      return { r: Number(nEl.dataset.r), c: Number(nEl.dataset.c), li: null, afterLi: root, nest: { root, np: nEl.dataset.npath } };
+      const r = Number(nEl.dataset.r), c = Number(nEl.dataset.c);
+      /* ★HBQA-TWOCELL-INNER — 누른 중첩 줄이 그림이면 img = true(바깥 «그림 줄 = li»와 같은 갈림 · 교체/삭제). */
+      const [ci, ni] = nEl.dataset.npath.split('.').map(Number);
+      let img = false;
+      try { img = getGridModel(block).cells?.[r]?.[c]?.lines?.[root]?.cols?.[ci]?.lines?.[ni]?.type === 'image'; } catch (_) {}
+      return { r, c, li: null, afterLi: root, nest: { root, np: nEl.dataset.npath, img } };
     }
     const lineEl = node && node.closest ? node.closest('[data-line]') : null;
     const cellEl = node && node.closest ? node.closest('.grd-cell') : null;
@@ -6097,11 +6102,11 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     if (gridImgItem) {
       gridImgItem.style.display = _targetGridAddr ? 'flex' : 'none';
       if (_targetGridAddr && gridImgLabel) {
-        gridImgLabel.textContent = _targetGridAddr.li != null ? '이미지 교체' : '이미지 추가';
+        gridImgLabel.textContent = _gridImgLineHit(_targetGridAddr) ? '이미지 교체' : '이미지 추가';
       }
     }
     if (gridImgDelItem) {
-      gridImgDelItem.style.display = (_targetGridAddr && _targetGridAddr.li != null) ? 'flex' : 'none';
+      gridImgDelItem.style.display = _gridImgLineHit(_targetGridAddr) ? 'flex' : 'none';
     }
     /* ★「나란히 두 칸으로 나누기」(T-221) — 그리드 칸에서만 보인다.
        ★「이미지 추가」와 «같은 판정»을 쓴다(`_targetGridAddr` 하나) — 두 벌로 가르면 한쪽만 늙는다. */
@@ -6429,15 +6434,20 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       }
       return;
     }
-    if (addr.nest) { _gridNestAdd(block, addr, 'circle'); return; }   // ★1109t1A2
-    const after = addr.li != null ? addr.li : (addr.afterLi ?? null);
-    grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, after, window.grdNewLineSpec('circle')));
+    _gridPickAdd(block, addr, 'circle');
   });
-  /* ★1109t1A2 — 중첩 열 안 줄 «다음»에 빈 사진/원 슬롯 — 주인 = 그 열(prop-grid.js _grdNestColHost · 커밋 한 문). */
-  function _gridNestAdd(block, addr, kind) {
+  /* ★HBQA ㉠ — 누른 줄 «다음»에 사진/원: 파일창 먼저(고르면 그림 · 취소면 빈 슬롯) — prop-grid.js grdAddImageLinePicked 한 벌.
+     중첩(★1109t1A2) = 주인이 그 열(_grdNestColHost) · 바깥 = 칸(afterLi, 없으면 끝). */
+  function _gridPickAdd(block, addr, kind) {
+    if (!addr.nest) { window.grdAddImageLinePicked(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null, kind); return; }
     const [ci, i] = addr.nest.np.split('.').map(Number);
-    grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, i, window.grdNewLineSpec(kind), {},
-      window.grdNestColHost(block, addr.r, addr.c, addr.nest.root, ci)));
+    window.grdAddImageLinePicked(block, { r: addr.r, c: addr.c }, i, kind,
+      window.grdNestColHost(block, addr.r, addr.c, addr.nest.root, ci));
+  }
+  /* ★HBQA-TWOCELL-INNER — 누른 곳이 그림 줄인가(바깥 = li · 중첩 = nest.img) / 그 줄을 고치는 patchCell 주소(중첩 = lineIndex 품은 duo + np). */
+  function _gridImgLineHit(addr) { return !!addr && (addr.li != null || !!addr.nest?.img); }
+  function _gridImgLineTarget(addr) {
+    return addr.nest ? { r: addr.r, c: addr.c, lineIndex: addr.nest.root, np: addr.nest.np } : { r: addr.r, c: addr.c, lineIndex: addr.li };
   }
   /* 그리드 주소 → 그 줄(모델). 없으면 null. (중첩 np 는 이 메뉴가 다루지 않는다 — 바깥 줄만) */
   function _gridLineAt(block, addr) {
@@ -6450,34 +6460,10 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const addr = _targetGridAddr;
     closeMenu();
     if (!block || !addr) return;
-    if (addr.nest) { _gridNestAdd(block, addr, 'photo'); return; }   // ★1109t1A2
-    if (addr.li == null) {
-      grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null, window.grdNewLineSpec('photo')));
-      return;
-    }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = () => {
-      const file = input.files[0];
-      /* ★사람이 고른 파일 = «신뢰 입구». 바이트로 거르고(grdImageFileOk = GRID_IMG_MAX_BYTES),
-         커밋은 opts.trusted 로 보내 MCP/IPC 용 문자열 캡(200000자 ≈ 146KB)을 건너뛴다.
-         ⛔그 캡을 그대로 두면 스크린샷·사진은 거의 전부 거절된다 — 현빈이 본
-           「그리드 우클릭 이미지 삽입이 안 된다」의 실제 원인이다(2026-09-20 실측). */
-      if (!grdImageFileOk(file)) return;
-      /* ★E91 — 값은 prop-grid.js grdPickedImageSrc 한 벌(자산 URL · 없으면 data URL). ⛔import 줄은 안 바꾼다 — window 로. */
-      window.grdPickedImageSrc(file).then(got => {
-        if (!got) return;
-        /* ★기존 이미지 줄 «교체»는 patchCell{lineIndex} — 이 길만 파일창을 지난다.
-           ⛔여기 있던 「새 줄 추가(grdAddLine)」 가지는 위쪽 `addr.li == null` 로 «올라갔다»
-             (2026-09-26). 파일창을 열기 «전»에 갈려야 파일창이 안 뜨기 때문이다.
-           ★반환을 «받는다» — 예전엔 안 받아서 실패가 토스트 0건·콘솔 0건으로 사라졌다. */
-        grdToastImgFail(window.updateGridBlock?.(block.id,
-          { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: got.src } },
-          { trusted: true }));
-      });
-    };
-    input.click();
+    if (!_gridImgLineHit(addr)) { _gridPickAdd(block, addr, 'photo'); return; }
+    /* ★교체 = 그림 줄 위(바깥 li · 중첩 nest.img) — 파일창·게이트·값·신뢰 커밋은 prop-grid.js grdPickImageFile 한 벌(취소 = 아무것도 안 함). */
+    window.grdPickImageFile((src, trust) => grdToastImgFail(window.updateGridBlock?.(block.id,
+      { patchCell: { ..._gridImgLineTarget(addr), imgSrc: src } }, trust)));
   });
 
   /* 그리드 셀 이미지 삭제 — 그 줄의 «그림만» 비운다. 줄은 남아서 빈 슬롯(grd-img-empty)이 된다.
@@ -6534,9 +6520,9 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const block = _targetBlock;
     const addr = _targetGridAddr;
     closeMenu();
-    if (!block || !addr || addr.li == null) return;
+    if (!block || !_gridImgLineHit(addr)) return;
     grdToastImgFail(window.updateGridBlock?.(block.id,
-      { patchCell: { r: addr.r, c: addr.c, lineIndex: addr.li, imgSrc: '' } }));
+      { patchCell: { ..._gridImgLineTarget(addr), imgSrc: '' } }));
   });
 
   /* ── 비교(comparison) 셀의 «칸 종류» (현빈 2026-10-08) ────────────────────────────────
