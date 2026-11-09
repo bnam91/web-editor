@@ -80,6 +80,7 @@
   let _localSnap = Object.create(null); // 'pageId::secId' → «마지막 자동저장 스냅샷»의 hash
                                         //   (덮어쓰기 경고 기준 — 서버 해시와 «같은 재료»로 계산돼야 비교가 성립한다)
   let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
+  let _heldNoticed = false;           // ⑴ «저장 안 된 내 편집 때문에 미룬다»를 이번 미룸에 한 번 말했나
   /* ★SIX ⒜(2026-10-06 · 현빈 「동시에 고쳤는데 한쪽 작업량이 날라가네」 — 지디 서버 데이터로 확정):
    *   보류된 «묵은» 원격 패치가, 그 사이 내가 올린 더 새 판을 손 뗀 뒤 «경고 없이» 덮고 → 다음 저장이 그걸 다시 올렸다
    *   (서버 seq 13 A 3061 → 14 B 3481 → ★15 B 가 3061 을 그대로 → 16 B 3483 · 13↔15 바이트 동일 · conflicts 0).
@@ -554,6 +555,13 @@
 
     const el = findSectionEl(p.sectionId);
     if (el && isUserBusyIn(el)) { _deferred.set(p.sectionId, p); return false; }
+    /* ★COLLAB-SYNC-OLD-GAPS ⑴ — 아직 저장 안 된 내 편집이 있으면(자동저장 대기·저장 중) 붙이지 않고 미룬다. 옛 판은 덮어쓰기 경고가 «저장 뒤» 스냅만 봐
+       그 편집이 말없이 상대 글에 졌다(토스트 0). 미루면 내 저장이 baseSeq 를 그 패치 앞으로 실어(SIX ⓒ) 서버가 충돌로 보고 기존 notifyConflict 가 말한다 ·
+       풀릴 때는 SIX ⓐ(kept)로 내 판을 지키고 상대 판은 충돌 기록에 남는다. ⛔저장이 «실패»로 끝났으면 미루지 않는다(아래 — 조용히 안 받는 상태 0). */
+    const pid = _cfg && _cfg.projectId;
+    const unsaved = !!(el && window.hasUnsavedChanges && window.hasUnsavedChanges());
+    const saveFailed = !!(unsaved && window.projectLastSaveFailed && window.projectLastSaveFailed(pid));
+    if (unsaved && !saveFailed) { _deferred.set(p.sectionId, { ...p, _heldUnsaved: true }); return false; }
 
     /* ★SIX ⓐ — 이 섹션에 내가 이미 «더 새 판»을 올렸나(내 마지막 push seq ≥ 이 패치 seq).
      *   그렇다면 이 패치는 «묵었다»: 붙이면 내 새 글을 덮고, 다음 저장이 그 묵은 판을 다시 올린다(현빈 사고).
@@ -569,7 +577,8 @@
       return 'kept';
     }
     /* ★SIX — 상대가 «내 마지막 push 를 못 본 채»(그 baseSeq < 내 push seq) 더 늦게 올린 패치: 붙이되(나중 쓴 쪽) 덮이는 내 판을 남긴다. */
-    const replacedMine = (el && mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) ? el.outerHTML : null;
+    /* ⑴ 저장 실패 중 미저장 편집이 덮이면 그 판도 남긴다(충돌 목록 «되살리기»로 고를 수 있게) */
+    const replacedMine = (el && ((mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) || saveFailed)) ? el.outerHTML : null;
 
     /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
      *   충돌을 «올린 사람»은 서버 응답으로 알게 되지만, «덮이는 사람»은 자기 화면의 글이
@@ -585,7 +594,7 @@
        *      다르면 = 아직 서버에 못 올린 내 작업이 이 섹션에 있다 → 지금 덮인다. */
       const key = (p.pageId || '') + '::' + p.sectionId;
       const mine = _localSnap[key];
-      if (mine && mine !== _sent[key] && mine !== p.hash) {
+      if ((mine && mine !== _sent[key] && mine !== p.hash) || saveFailed) {
         notifyConflict([{ sectionId: p.sectionId, otherActor: p.actorId }]);
       }
     }
@@ -659,6 +668,10 @@
       return;
     }
     flushDeferred();                              // ★손 뗀 섹션부터 먼저 갚는다
+    /* ⑴ 미저장 편집 때문에 미룬 것 — 이번 미룸에 한 번 몇 건인지 말한다(기존 토스트 · 새 UI 0). 다 풀리면 다음 미룸에 다시 말한다. */
+    const held = [..._deferred.values()].filter(x => x._heldUnsaved).length;
+    if (!held) _heldNoticed = false;
+    else if (!_heldNoticed) { _heldNoticed = true; try { window.showToast?.(`⏳ 저장 안 된 내 편집이 있어 상대 변경 ${held}건은 저장 뒤에 받습니다`); } catch (e) { console.warn('[collab] 토스트 실패:', e); } }
     /* ★결손이 남아 있는 동안만 목차를 다시 받는다(10초에 한 번). 매 틱마다 실으면
      *   2초 폴링에 목차가 계속 따라와 응답이 무거워진다(pull.js 주석의 그 이유). */
     const wantSections = _needIds.length > 0 && (_needTicks++ % NEED_RESCAN_TICKS === 0);

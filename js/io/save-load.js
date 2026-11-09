@@ -3027,6 +3027,7 @@ window.flushProjectBeforeTrash = async (id) => {
 };
 /* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
 window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
+window.projectLastSaveFailed = (id) => _lastSaveFailed(id);   // 읽기만 — 협업이 «미저장 편집을 지키며 상대 패치를 미룰지»를 가른다(COLLAB-SYNC-OLD-GAPS ⑴)
 window.loadProjectsList = loadProjectsList;
 window.getProjectName = getProjectName;
 window.setProjectName = setProjectName;
