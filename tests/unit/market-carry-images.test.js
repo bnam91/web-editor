@@ -17,12 +17,14 @@ function boot({ maxOne = 95 * 1048576, maxAll = 400 * 1048576 } = {}) {
   const root = mkTmpRoot('goya-mkc-'), repo = mkTmpRoot('goya-mkr-');
   let handler; const gitCalls = [];
   const body = [
+    /* _readAssetDataUri·_inlineGoyaAssets 는 그림 자리를 _goyaAssetFile 한 곳에서 푼다(FOREIGN-ASSET — 휴지통 번들까지) — 있으면 같이 싣는다(옛 판엔 없다) */
+    src.includes('function _goyaAssetFile(') ? sliceBlock(src, 'function _goyaAssetFile(', '대상') : '',
     sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'async function _carryProjectImages(', '대상'), sliceBlock(src, 'function _countMarketBytes(', '대상'), sliceBlock(src, 'function _marketTooBig(', '대상'),
     sliceBlock(src, 'function _blobsDir(', '대상'), sliceBlock(src, 'function _extractBlobs(', '대상'),
     src.slice(src.indexOf("ipcMain.handle('market:push'"), src.indexOf("ipcMain.handle('market:list'")),
   ].join('\n') + ';';
-  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_MARKET_TOTAL_MAX', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase', body)(
-    fs, path, root, (x) => path.basename(String(x)), { png: 'image/png', jpg: 'image/jpeg' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, maxOne, maxAll, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async (c, a) => { gitCalls.push(a); }, async () => ({ ok: true }));
+  new Function('fs', 'path', 'PROJECTS_DIR', '_trash', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_MARKET_TOTAL_MAX', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase', body)(
+    fs, path, root, { TRASH_DIRNAME: '.trash' }, (x) => path.basename(String(x)), { png: 'image/png', jpg: 'image/jpeg' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, maxOne, maxAll, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async (c, a) => { gitCalls.push(a); }, async () => ({ ok: true }));
   const put = (sub, name, buf) => { const d = path.join(root, 'p1', sub); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, name), buf); return path.join(d, name); };
   const push = async (data) => {
     const r = await handler(null, { account: 'a', id: 'p1', name: 'n', data: JSON.stringify(data), scratch: [] });

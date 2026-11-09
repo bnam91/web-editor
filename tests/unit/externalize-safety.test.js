@@ -82,9 +82,12 @@ test('② 되돌려도 원본 사본을 바로 지우지 않는다', () => {
   assert.ok(allShas(f).includes(orig), '원본 사본이 사라졌다');
   assert.strictEqual(X.scanProjectFile(f.root, f.id).hasBackup, false);
 });
+/* _readAssetDataUri·_inlineGoyaAssets 는 그림 자리를 _goyaAssetFile 한 곳에서 푼다(FOREIGN-ASSET — 휴지통 번들까지) — 있으면 같이 싣는다(옛 판엔 없다) */
+const assetFileSrc = (src) => (src.includes('function _goyaAssetFile(') ? sliceBlock(src, 'function _goyaAssetFile(', '대상') + '\n' : '');
+const TRASH = { TRASH_DIRNAME: '.trash' };
 function mainInline(root) {
   const src = readSrc(REPO, 'main.js');
-  return new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', sliceBlock(src, 'function _readAssetDataUri(', '대상') + '\n' + sliceBlock(src, 'function _inlineGoyaAssets(', '대상') + '\nreturn _inlineGoyaAssets;')(fs, path, root, (s) => s, { png: 'image/png' });
+  return new Function('fs', 'path', 'PROJECTS_DIR', '_trash', '_safeSeg', '_GOYA_ASSET_MIME', assetFileSrc(src) + sliceBlock(src, 'function _readAssetDataUri(', '대상') + '\n' + sliceBlock(src, 'function _inlineGoyaAssets(', '대상') + '\nreturn _inlineGoyaAssets;')(fs, path, root, TRASH, (s) => s, { png: 'image/png' });
 }
 test('⑤ 마켓: goya 그림을 data URL 로 되싣는다 · 없는 그림은 센다', () => {
   const root = mkTmpRoot('goya-extm-'); fs.mkdirSync(path.join(root, 'p1', 'assets'), { recursive: true });
@@ -104,9 +107,9 @@ test('⑤ 마켓 올리기: 받는 쪽 본에 goya 주소가 없고 그림이 bl
   fs.mkdirSync(path.join(root, 'p1', 'assets'), { recursive: true });
   fs.writeFileSync(path.join(root, 'p1', 'assets', 'a.png'), Buffer.alloc(3000, 9));
   let handler;
-  new Function('fs', 'path', 'PROJECTS_DIR', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_MARKET_TOTAL_MAX', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase',
-    [sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'async function _carryProjectImages(', '대상'), sliceBlock(src, 'function _countMarketBytes(', '대상'), sliceBlock(src, 'function _marketTooBig(', '대상'), sliceBlock(src, 'function _blobsDir(', '대상'), sliceBlock(src, 'function _extractBlobs(', '대상'), src.slice(src.indexOf("ipcMain.handle('market:push'"), src.indexOf("ipcMain.handle('market:list'"))].join('\n') + ';')(
-    fs, path, root, (x) => x, { png: 'image/png' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, 95 * 1048576, 400 * 1048576, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async () => {}, async () => ({ ok: true }));
+  new Function('fs', 'path', 'PROJECTS_DIR', '_trash', '_safeSeg', '_GOYA_ASSET_MIME', '_crypto', 'ipcMain', '_ensureMarketRepo', '_safe', '_MAX_BYTES', '_MARKET_TOTAL_MAX', '_BLOB_MIN', '_BLOB_RE', '_versionHash', '_rebuildMarketIndex', '_execFileP', '_pushWithRebase',
+    [assetFileSrc(src), sliceBlock(src, 'function _readAssetDataUri(', '대상'), sliceBlock(src, 'function _inlineGoyaAssets(', '대상'), sliceBlock(src, 'async function _carryProjectImages(', '대상'), sliceBlock(src, 'function _countMarketBytes(', '대상'), sliceBlock(src, 'function _marketTooBig(', '대상'), sliceBlock(src, 'function _blobsDir(', '대상'), sliceBlock(src, 'function _extractBlobs(', '대상'), src.slice(src.indexOf("ipcMain.handle('market:push'"), src.indexOf("ipcMain.handle('market:list'"))].join('\n') + ';')(
+    fs, path, root, TRASH, (x) => x, { png: 'image/png' }, crypto, { handle: (_c, f) => { handler = f; } }, async () => repo, (x) => x, 95 * 1048576, 400 * 1048576, 2048, /data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, () => 'v', () => {}, async () => {}, async () => ({ ok: true }));
   const push = (data, scratch) => handler(null, { account: 'a', id: 'p1', name: 'n', data, scratch });
   const r = await push('{"c":"<img src=\\"goya-asset://p1/a.png\\">"}', [{ src: 'goya-asset://p1/a.png' }]);
   assert.strictEqual(r.ok, true);
