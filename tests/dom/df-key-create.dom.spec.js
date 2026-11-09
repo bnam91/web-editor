@@ -2,7 +2,7 @@
  * 팀장 결정: Q1 F F = 형제 · Q2 프레임 오브젝트 선택 → 다음 형제 / 들어간 상태 → 안(고른 자식 다음, 없으면 끝) · Q3 하드코딩 · Q4 그리드 칸 골라 D → 그 그리드 다음 형제.
  * 하네스 = bootApp(앱 통째) · 키는 진짜 keyboard.press · 고르기는 진짜 클릭/더블클릭(t-key-repeat-after-frame 꼴) · 대기는 rAF·expect.poll. */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const FR_SEL = '.frame-block:not([data-text-frame])';
 const KIND = { d: '.grid-block', f: FR_SEL };
@@ -52,7 +52,9 @@ async function press(page, k, sel, before) {
 }
 /* id 를 host 직계 단위로(rebindAll 이 글을 text-frame 으로 감싼다) */
 const unitIn = (page, id, host) => page.evaluate(([id, host]) => { let u = document.getElementById(id); while (u && u.parentElement?.id !== host) u = u.parentElement; return u?.id; }, [id, host]);
-const center = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+/* ★누르기 전에 대상이 멈출 때까지 — 부하 때 스크롤 직후 옛 좌표로 눌러 세 번 다 빗나가던 것(평가 2차 ×15 에서 4/30) */
+const center = async (page, id) => { await waitStableRect(page, '#' + id); return centerNow(page, id); };
+const centerNow = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
 const scrollTo = (page, id) => page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
 const emptyPoint = (page, id) => page.evaluate((id) => { const f = document.getElementById(id); const r = f.getBoundingClientRect();
   for (let y = Math.round(r.bottom - 6); y > r.top; y -= 4) for (const x of [Math.round(r.right - 10), Math.round(r.left + 10)]) if (document.elementFromPoint(x, y) === f) return [x, y]; return null; }, id);
@@ -106,7 +108,7 @@ test('Q4 — 그리드 칸 골라 D → 그 그리드 다음 형제(섹션 직�
   const gid = await page.evaluate(() => document.querySelector('#inH .grid-block').id);
   await scrollTo(page, gid);
   await until(page, () => page.evaluate((g) => document.getElementById(g).classList.contains('selected'), gid),
-    async () => { const p = await page.evaluate((g) => { const c = document.getElementById(g).querySelector('[class*="grd-cell"]') || document.getElementById(g); const r = c.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, gid); await page.mouse.click(...p); });
+    async () => { await waitStableRect(page, '#' + gid); const p = await page.evaluate((g) => { const c = document.getElementById(g).querySelector('[class*="grd-cell"]') || document.getElementById(g); const r = c.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, gid); await page.mouse.click(...p); });
   const before = await ids(page, '.grid-block');
   await press(page, 'd', '.grid-block', before);
   const gUnit = await page.evaluate((g) => { let u = document.getElementById(g); while (u.parentElement.id !== 'inH') u = u.parentElement; return u.id; }, gid);
