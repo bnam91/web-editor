@@ -184,7 +184,30 @@
           </div>
         `).join('')}
       </div>
+      <div class="settings-section-title">Higgsfield</div>
+      <div class="settings-api-list">
+        <div class="settings-api-row" data-provider="higgsfield">
+          <label class="settings-api-label">Higgsfield</label>
+          <div class="settings-api-input-wrap">
+            <input type="password" class="settings-api-input" data-hf-key
+                   placeholder="Higgsfield API 키" autocomplete="off" spellcheck="false" />
+            <button class="settings-api-test" data-hf-save>저장</button>
+            <button class="settings-api-test" data-hf-clear style="display:none">삭제</button>
+          </div>
+          <div class="settings-api-status" data-hf-status></div>
+          <label class="settings-api-label">모델</label>
+          <select class="settings-api-input" data-hf-model>
+            <option value="">(미선택)</option>
+            <option value="gpt_image_2_6">GPT Image 2.6</option>
+            <option value="flux_3_image">FLUX 3 Image</option>
+            <option value="seedream_v5_pro">Seedream 5.0 Pro</option>
+            <option value="flux_2">FLUX.2</option>
+            <option value="marketing_studio_image">Marketing Studio Image</option>
+          </select>
+        </div>
+      </div>
     `;
+    bindHiggsfieldRow(pane);
 
     // 현재 값 채우기
     PROVIDERS.forEach(p => {
@@ -236,6 +259,52 @@
           btn.disabled = false;
         }
       });
+    });
+  }
+
+  /* t2-03: Higgsfield 키는 «즉시» IPC 로 main 의 암호 파일에 간다 — _draft·window._settings 에 원문을 안 싣는다.
+   *   모델(비밀 아님)만 _draft.higgsfieldModel → 아래 «저장»으로 settings.json. 모델 목록 = 현빈 7271 답(id·이름 5개). */
+  const HF_ERR = { empty: '키를 입력하세요', too_long: '✗ 키가 너무 깁니다', no_encryption: '✗ 이 기기에서는 암호화 저장을 쓸 수 없습니다' };
+  function bindHiggsfieldRow(pane) {
+    const row = pane.querySelector('.settings-api-row[data-provider="higgsfield"]');
+    const input = row.querySelector('[data-hf-key]');
+    const saveBtn = row.querySelector('[data-hf-save]');
+    const clearBtn = row.querySelector('[data-hf-clear]');
+    const status = row.querySelector('[data-hf-status]');
+    const model = row.querySelector('[data-hf-model]');
+    const api = window.electronAPI && window.electronAPI.higgsfield;
+    model.value = _draft.higgsfieldModel || '';
+    model.addEventListener('change', () => { _draft.higgsfieldModel = model.value; });
+
+    const paint = (st) => {
+      const has = !!(st && st.hasKey);
+      input.placeholder = has && st.masked ? st.masked : 'Higgsfield API 키';
+      clearBtn.style.display = has ? '' : 'none';
+      status.textContent = has ? ('✓ 저장됨 ' + (st.masked || '')).trim() : '';
+      status.className = 'settings-api-status' + (has ? ' ok' : '');
+    };
+    const fail = (reason) => {
+      status.textContent = HF_ERR[reason] || '✗ 실패';
+      status.className = 'settings-api-status err';
+    };
+    if (!api) { saveBtn.disabled = true; return; }
+    api.status().then(paint).catch(() => {});
+
+    saveBtn.addEventListener('click', async () => {
+      const key = input.value;
+      if (!key.trim()) return fail('empty');
+      saveBtn.disabled = true;
+      try {
+        const r = await api.setKey(key);
+        if (r && r.ok) { input.value = ''; paint(r); } else fail(r && r.reason);
+      } catch (_) { fail(); }
+      finally { saveBtn.disabled = false; }
+    });
+    clearBtn.addEventListener('click', async () => {
+      try {
+        const r = await api.clearKey();
+        if (r && r.ok) paint(r); else fail(r && r.reason);
+      } catch (_) { fail(); }
     });
   }
 
@@ -729,6 +798,7 @@
         autoExternalizeOnOpen: _draft.autoExternalizeOnOpen === true,
         // [#16] 기본 ON 이므로 «!== false» 로 읽는다(=== true 로 읽으면 미설정이 OFF 가 된다)
         showScratchLinkEdges: _draft.showScratchLinkEdges !== false,
+        higgsfieldModel: _draft.higgsfieldModel || '',   // t2-03(키는 여기 없다 — 즉시 IPC)
       });
       /* [#16] 저장 즉시 반영 — 모달을 닫고 나서야 선이 바뀌면 「저장이 됐나」를 알 수 없다.
          ⛔SPLink 가 아직 없을 수 있다(스크립트 로드 순서: settings-modal 이 scratchpad-link 보다 «앞»).
@@ -1065,6 +1135,7 @@
       easterEggs: { ...defaultEggEnabled, ...(cur.easterEggs || {}) },
       autoExternalizeOnOpen: cur.autoExternalizeOnOpen !== false, // [externalize] 기본 ON
       showScratchLinkEdges: cur.showScratchLinkEdges !== false,   // [#16] 기본 ON(기존 동작 보존)
+      higgsfieldModel: cur.higgsfieldModel || '',                 // t2-03
     };
     renderApiPane();
     renderShortcutsPane();
