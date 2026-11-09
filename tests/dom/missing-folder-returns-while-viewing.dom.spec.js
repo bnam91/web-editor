@@ -41,7 +41,8 @@ async function setup(page, { cached = false } = {}) {
 }
 const ret = (page) => page.evaluate(() => { window.__state = 'ok'; });   // 앱 밖에서 폴더가 돌아왔다
 const edit = (page, t) => page.evaluate((t) => { document.querySelector('#canvas .text-block p').textContent = t; window.scheduleAutoSave(); }, t);
-const save = (page, t, id = 'proj_b') => page.evaluate(([t, id]) => { document.querySelector('#canvas .text-block p').textContent = t; return window.saveProjectToFile(window.serializeProject(), { projectId: id, skipThumbnail: true }); }, [t, id]);
+/* 다른 저장이 돌면 saveProjectToFile 은 줄에만 세우고 곧장 돌아오고, 같은 id 의 줄은 최신 하나로 합쳐진다(인텔 cbef8dea4 N1 «2≠1») — 줄이 빠질 때까지 기다린다(고정 대기 아님 · 앱의 waitSavesFor). */
+const save = (page, t, id = 'proj_b') => page.evaluate(async ([t, id]) => { document.querySelector('#canvas .text-block p').textContent = t; await window.saveProjectToFile(window.serializeProject(), { projectId: id, skipThumbnail: true }); return window.waitSavesFor(id, 15000); }, [t, id]);
 const wroteB = (page) => page.evaluate(() => window.__written.filter(w => w.id === 'proj_b').map(w => JSON.stringify(w.pages)));
 
 test('V1 자동저장 길 — 돌아온 파일을 안 덮고, 알리고, 파일로 다시 연다', async ({ page }) => {
