@@ -246,16 +246,16 @@
       return;
     }
 
-    // 저장은 기존 규약을 쓴다 — ⛔새 저장 경로를 만들지 않는다
-    const projectId = window.state?.id || window.currentProjectId || null;
-    let newSrc = `data:${res.mime};base64,${res.b64}`;
-    if (projectId && window.electronAPI?.aiSaveImage) {
-      const saved = await window.electronAPI.aiSaveImage({ projectId, b64: res.b64, mime: res.mime });
-      if (saved?.ok && saved.blobPath) newSrc = saved.blobPath;
+    /* 저장은 기존 규약을 쓴다 — ⛔새 저장 경로를 만들지 않는다.
+       ★t2-11c — 블럭은 다른 그림 입구와 같은 문 grdAssetSrcFor(prop-grid.js · goya-asset:// · 프로젝트 없으면 data URL · 대상이 떨어지면 null).
+       스크래치는 data URL 그대로 — 스크래치 자기 규약(저장 때 externalizeScratchpad 가 거둔다). */
+    const dataUrl = `data:${res.mime};base64,${res.b64}`;
+    if (target.kind === 'scratch') await _applyScratch(target, dataUrl);
+    else {
+      const newSrc = await window.grdAssetSrcFor(target.el, dataUrl);
+      if (!newSrc) return;                         // 기다리는 사이 화면이 바뀜 — grdAssetSrcFor 가 이미 알렸다
+      _applyAsset(target, newSrc);
     }
-
-    if (target.kind === 'scratch') await _applyScratch(target, newSrc);
-    else _applyAsset(target, newSrc);
     window.showToast?.('✂️ 배경 제거 완료');
   }
 
