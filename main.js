@@ -2701,7 +2701,8 @@ function _projectReadState(id) {
   if (!_isListableProjectId(id)) return 'none';
   const diag = {};
   try {
-    if (readProjectWithFallback(id, { heal: false, diag })) return 'ok';
+    const r = readProjectWithFallback(id, { heal: false, diag });
+    if (r) return r.proj && r.proj.id === id ? 'ok' : 'unreadable';   // 읽히지만 id 가 폴더와 다르면 목록이 안 싣는다(_listItemFor) — 못 읽음과 같이 남긴다(리뷰 1-4)
     if (diag.planning) return 'planning';
     return _resolveProjectJsonPath(id) ? 'unreadable' : 'none';
   } catch (_) { return 'unknown'; }
