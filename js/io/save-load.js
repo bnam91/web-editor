@@ -785,7 +785,7 @@ async function deletePage(pageId) {
       return;
     } finally { _pageDeleteBusy = false; window.AutoSaveSuppress.end(_scratchTok); }
     idx = state.pages.findIndex(p => p.id === pageId);   // 기다리는 사이 프로젝트가 바뀌었으면 그 페이지는 없다
-    if (idx === -1) return;
+    if (idx === -1 || state.pages[idx] !== page) return;   // 같은 id 의 «다른» 페이지(다른 프로젝트의 page_1 등)를 지우지 않는다 · ⌘Z 가 옛 프로젝트 장을 넣지 않게(리뷰 1-2)
   }
   const wasActive = pageId === state.currentPageId;
   /* ★EMPTY-PAGE-DELETE-NO-CONFIRM-NO-UNDO-01 — 확인 없이 지우는 빈 페이지는 ⌘Z 한 번으로 돌아오게 한다(확인창은 안 더한다 · 내용 페이지 갈래는 무변).
@@ -831,6 +831,7 @@ async function deletePage(pageId) {
       onRedo: () => {
         const i = state.pages.findIndex(p => p.id === removed.id);
         if (i === -1 || removed.id === state.currentPageId || state.pages.length <= 1) return;
+        if ((removed.canvas || '').includes('section-block')) return;   // 돌아온 뒤 내용이 생겼다 — 지울 때와 같은 잣대로 확인 없이 안 지운다(리뷰 1-1 · 손실)
         state.pages.splice(i, 1);
         window.buildLayerPanel(); scheduleAutoSave();
       },

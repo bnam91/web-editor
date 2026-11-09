@@ -6,6 +6,7 @@
  * 진짜 키(page.keyboard ⌘Z · ⌘⇧Z). 픽스처: 페이지 셋(섹션·글·그림) · 가운데 페이지를 비운 뒤 지운다 · 그 페이지에 스크래치 한 장.
  * 칸: E1 보던 빈 페이지 지움 → ⌘Z = 같은 자리·같은 이름으로 돌아오고 유령 없음 · 스크래치 그대로 · E2 안 보던 빈 페이지 지움 → ⌘Z = 그 페이지만 돌아오고 남은 페이지 편집은 그대로
  *     E3 ⌘Z 뒤 ⌘⇧Z = 다시 지워진다(확인창 없음) · M1 [재기만] 내용 있는 페이지(확인 뒤) 지움 → ⌘Z 값을 로그로.
+ * 칸(리뷰 1): E4 ⌘Z 로 돌아온 장에 섹션을 넣고 다른 장에서 ⌘⇧Z — 그 장을 안 지운다(확인 없이 내용 장이 사라지던 길).
  * 양성대조: js/io/save-load.js 만 c1588d839 로 되돌리면 E1·E2·E3 빨강. 고정 대기 0. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -96,5 +97,21 @@ test('M1 [재기만] 내용 있는 페이지(확인 뒤) 지움 → ⌘Z 값', a
   const u = await pages(page);
   console.log('[M1] ' + JSON.stringify({ dialogs: page.__dialogs || 0, before, del, u }));
   expect(page.__dialogs || 0, '[전제] 확인창이 떴다').toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('E4 ⌘Z 로 돌아온 장에 내용을 넣은 뒤 다른 장에서 ⌘⇧Z — 그 장을 확인 없이 안 지운다', async ({ page }) => {
+  const { errs, ids } = await setup(page);
+  await page.evaluate((id) => window.deletePage(id), ids.p1);
+  await key(page, 'Meta+z');
+  expect((await pages(page)).list.map((x) => x[0]), '[전제] 돌아왔다').toEqual([ids.p0, ids.p1, ids.p2]);
+  const back = (await pages(page)).cur;
+  await page.evaluate(async (id) => { await window.switchPage(id); await window.addSection(); }, ids.p1);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .section-block').length), '[전제] 돌아온 장에 섹션').toBeGreaterThan(0);
+  await page.evaluate((id) => window.switchPage(id), back);
+  await key(page, 'Meta+Shift+z');
+  const r = await pages(page);
+  expect(r.list.map((x) => x[0]), '★내용 생긴 장을 ⌘⇧Z 가 확인 없이 지웠다').toEqual([ids.p0, ids.p1, ids.p2]);
+  expect(page.__dialogs || 0).toBe(0);
   expect(errs).toEqual([]);
 });
