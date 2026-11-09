@@ -2173,6 +2173,12 @@ async function loadProjectForOpen(id) {
     window.LoadInputGate?.noteReadError('폴더를 읽지 못함');
     throw new Error('project-read-failed:folder-unknown');
   }
+  /* ★BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01 — «JSON 은 맞는데 모양 아님» 이면 main 은 _unreadable 대신 null 을 준다 → 빈 판이 편집 가능하게 열려 첫 편집이
+     남긴 LS 본·파일을 덮었다(부팅 · 탭을 떠났다 돌아오기 둘 다 · 리뷰 3-1). proj.json 이 있는데 못 읽으면 깨진 것과 같은 실패 길로. */
+  if (!proj && await window.electronAPI.projectReadState?.(id) === 'unreadable') {
+    window.LoadInputGate?.noteUnreadable();
+    throw new Error('project-unreadable');
+  }
   if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
     throw new Error('project-unreadable');
@@ -2958,8 +2964,6 @@ function initApp() {
       initEmpty();
       return;
     }
-    /* 남긴 부팅 id 는 첫 로드를 쥔 채 둔다 — 열기가 «모양 아님» 을 null 로 주면 _bootUnread 가 안 켜져 빈 화면이 편집 가능해지고, 첫 편집이 남긴 LS 본을 덮었다(리뷰 2-1). */
-    if (_bootKeptUnreadable) _bootUnread = true;
     const saved = _bootNoOwner || _bootKeptUnreadable || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
     if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();

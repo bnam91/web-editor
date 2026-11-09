@@ -78,3 +78,11 @@ test('K7 모양이 틀린 proj.json(열기가 null) — 첫 로드를 쥔 채라
   const ls = await page.evaluate((A) => localStorage.getItem('web-editor-autosave__' + A) || '', A);
   expect(ls, '★편집·떠나기가 남긴 LS 본을 덮었다').toContain('LS 에만 있는 편집');
 });
+test('K8 모양이 틀린 탭을 떠났다 돌아와도 쥠이 남아 편집·떠나기가 LS 본을 안 덮는다(리뷰 3-1)', async ({ page }) => {
+  await bootWith(page, { active: A, loadNull: true });
+  await page.waitForFunction(() => window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 });
+  await page.evaluate(async ([A, B]) => { await window.switchTab(B).catch(() => {}); await window.switchTab(A).catch(() => {}); }, [A, B]);
+  await page.evaluate(() => { try { window.addSection?.(); } catch (_) {} window.dispatchEvent(new Event('beforeunload')); });
+  const ls = await page.evaluate((A) => localStorage.getItem('web-editor-autosave__' + A) || '', A);
+  expect(ls, '★돌아온 탭의 편집·떠나기가 남긴 LS 본을 덮었다').toContain('LS 에만 있는 편집');
+});
