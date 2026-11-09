@@ -4049,7 +4049,7 @@ function _inlineGoyaAssets(str, sizes) {
   const cache = new Map(); let missing = 0;
   const data = String(str).replace(/goya-asset:\/\/([^/"'()\s&\\]+)\/([^"'()\s&\\?#]+)/g, (m, pid, fn) => {
     if (sizes) {   // 재기만 한다: 읽기 전에 거절하려고
-      if (!cache.has(m)) { cache.set(m, true); try { _countMarketBytes(sizes, fs.statSync(path.join(PROJECTS_DIR, _safeSeg(pid), 'assets', _safeSeg(fn))).size); } catch (_) {} }
+      if (!cache.has(m)) { cache.set(m, true); try { const at = _goyaAssetFile(pid, fn); if (at.full) _countMarketBytes(sizes, fs.statSync(at.full).size); } catch (_) {} }   // 싣는 쪽(_readAssetDataUri)과 같은 자리를 잰다 — 휴지통 그림도(FOREIGN-ASSET 리뷰)
       return m;
     }
     if (!cache.has(m)) { const r = _readAssetDataUri(pid, fn); cache.set(m, r.ok ? r.dataUri : null); }
