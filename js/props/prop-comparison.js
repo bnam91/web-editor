@@ -1,19 +1,14 @@
 // prop-comparison.js — 비교 블록 우측 프로퍼티 패널 (N칼럼: 1:1, 1:1:1 …)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { _num, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_ROW_HINT, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
+import { _num, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
 /* ★1017t1c4 — 행 높이의 바닥·천장과 «쓰는 한 벌». 캔버스 행 경계 드래그(overlay-handles.js)와 ★같은 함수·같은 수를 쓴다.
    ⛔여기 16·400 을 다시 적지 마라(그 둘이 갈리면 「패널에서는 되는데 끌면 다른 값」이 된다). */
 import { CMP_ROW_H_MIN, CMP_ROW_H_MAX, setCmpRowHeight } from '../grid-cell-resize.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { redactSectionHTML, wireRedactSection, normalizeRedact } from '../effects/image-redact.js';   /* ★1012t1D4 셀 이미지 「블러 (Redact)」 — 에셋과 같은 공용 절(C1) */
-import { grdGetActiveLine } from './prop-grid.js';   /* ★1017t1c1 — 「고른 글자 칸」 절의 활성 주소(line-host.js 가 이미 들이는 모듈 · 새 그래프 간선 0 — line-host.js 가 같은 자리에서 이미 import 한다) */
 
-/* ★옛 사본은 «닫는 꺾쇠»와 홑따옴표를 안 덮었다 — 이 파일이 쓰는 세 자리에서는 무력한
-   글자들이라 새지는 않았지만, 다음 사람이 이 사본을 홑따옴표 속성 자리에 쓰면 그때 뚫린다.
-   ⛔사본을 고치는 대신 «지웠다» — 공용 한 벌(_helpers.js escHtml)이 다섯 글자를 다 덮는다. */
-const _esc = escHtml;
 /* ★1017t1c4 — 사본을 지웠다. 읽는 자는 comparison-block.js cmpRowHeights ★한 벌(렌더러가 쓰는 바로 그 함수)이다. */
 const _rowHeights = cmpRowHeights;
 
@@ -38,7 +33,8 @@ export function showComparisonProperties(block) {
         : '';
       /* ★1017t1c1 — 글자 칸의 입력칸(.cmp-row-input)을 ★뺐다(현빈 원문 「칼럼별 플레이스홀더·인풋박스들이
          모두 있을 필요가 있을까」). ★대체 수단 = 캔버스 더블클릭(_editableRow, comparison-block.js) ·
-         줄 있는 칸은 캔버스에서 칸/줄을 고르면 뜨는 줄 절(line-host.js) · 「고른 글자 칸」 절(아래 textSection).
+         줄 있는 칸은 캔버스에서 칸/줄을 고르면 뜨는 줄 절(line-host.js).
+         ★t4-06 — 「고른 글자 칸」 절(#cmp-text-section · Text 제목 + textarea)도 뺐다(캔버스 직접 편집과 중복).
          ⛔이미지 칸은 그대로(교체·꽉채우기/원본비율 — 캔버스에 대체 수단이 없다). */
       let body = '';
       if (isImg) {
@@ -123,21 +119,6 @@ export function showComparisonProperties(block) {
      색보정은 에셋·카드처럼 «편집기(더블클릭)에 들어가면» 뜨는 플로팅 패널이다(js/blocks/comparison-img-edit.js) — 우측 패널 자리 0. */
   const redactSection = (imgSection && _actRow.imgSrc)
     ? redactSectionHTML({ idPrefix: 'cmp-cell', value: normalizeRedact(_actRow.redact) }) : '';
-  /* ★1017t1c1 — 「고른 글자 칸」 절. ★Image 절(바로 위)과 ★같은 자리·같은 꼴 — 활성 «글자 칸» 하나에만 뜬다.
-   * ★출처 — 이미지 칸은 cmpGetActiveCell(block._cmpActiveCell · D3) 를 읽고, 글자 칸은 grdGetActiveLine
-   *   (addr.li===null · D2, line-host.js lnClickAddr) 를 읽는다 — «둘»이다, 섞지 않는다(아래 한 줄 주석).
-   * ⚠️block-drag.js:2143-2144 — 이미지 칸을 고르면 cmpSetActiveCell 만 갈리고 grdSetActiveLine 은
-   *   «그대로»(이전 글자 칸 주소가 남는다 · _lnAt 이 거짓이면 안 지운다). ⇒ ★imgSection 이 섰으면
-   *   textSection 은 ★무조건 끈다(아래 `!imgSection &&`) — 안 그러면 두 절이 동시에 뜬다. */
-  const _lnAct = grdGetActiveLine(block);
-  const _lnActRow = (!imgSection && _lnAct && _lnAct.li === null) ? cols[_lnAct.c]?.rows?.[_lnAct.r] : null;
-  const textSection = (_lnActRow && _lnActRow.type !== 'image') ? `
-    <div class="prop-section" id="cmp-text-section">
-      <div class="prop-section-title">Text</div>
-      <div class="prop-row">
-        <textarea class="prop-textarea" id="cmp-text-input" rows="2" placeholder="${_esc(CMP_ROW_HINT)}" style="width:100%;box-sizing:border-box;">${_esc(_lnActRow.text)}</textarea>
-      </div>
-    </div>` : '';
 
   // ★flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»를 한다 — 칼럼이 «6개 이상»이면 각자 몫이
   //   글자보다 좁아져 「칼럼 N」이 잘린다(comparison-block.js:480 이 상한을 8 로 허용한다).
@@ -160,7 +141,7 @@ ${blockHeaderHTML({
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
     })}
-    </div>${imgSection}${redactSection}${textSection}
+    </div>${imgSection}${redactSection}
     <div class="prop-section">
       <div class="prop-section-title prop-ph-header">
         <span>강조 칼럼 (떠보이는 쪽)</span>
@@ -329,16 +310,6 @@ ${blockHeaderHTML({
       getHost: () => block.querySelector(`.cmp-row.cmp-img[data-col-idx="${aci}"][data-row-idx="${ari}"]`),
       onCommit: (v) => { if (withRow(row => { if (v > 0) row.redact = v; else delete row.redact; })) window.scheduleAutoSave?.(); },
     });
-  }
-  /* ★1017t1c1 — 「고른 글자 칸」 절 배선. push-after(이미지 절 패턴과 같다 — input=라이브·change=commit). */
-  if (textSection) {
-    const { r: tr, c: tc } = _lnAct;
-    const ta = propPanel.querySelector('#cmp-text-input');
-    ta?.addEventListener('input', () => {
-      const c = getCols(); const row = c[tc]?.rows?.[tr];
-      if (row && row.type !== 'image') { row.text = ta.value; saveCols(c); rerender(); }
-    });
-    ta?.addEventListener('change', commit);
   }
   propPanel.querySelectorAll('.cmp-row-img-clear').forEach(btn =>
     btn.addEventListener('click', () => {
