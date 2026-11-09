@@ -155,7 +155,7 @@ test('T3 전폭 아님 8 — 블럭 길로 넣은 블럭 outerHTML 이 핀(4df20
       c.querySelectorAll('.selected').forEach(x => x.classList.remove('selected'));
       return c.outerHTML.replace(/(id|data-[a-z-]*id|for|aria-labelledby)="[^"]*"/g, '$1="#"').replace(/\b(sec|row|ss|tb|grd|cvb|chb|tbl|dvd|itb|ab|gb|icn|mkp|ln)_[A-Za-z0-9_]+/g, '$1_#'); }, k);
   }
-  const WANT = ['FONT', 'CVB_H', 'CVB_SCALE'];   // ★뜻한 바뀜 토큰 — 갱신은 «고른 바이트»를 견주고 그대로 쓴다(212 ㉠⒝·④ · 지디)
+  const WANT = ['FONT', 'CVB_H', 'CVB_SCALE', 'FRAME_BG'];   // FRAME_BG = t3-05 새 프레임 기본 배경(_golden-tokens.js ⑷)   // ★뜻한 바뀜 토큰 — 갱신은 «고른 바이트»를 견주고 그대로 쓴다(212 ㉠⒝·④ · 지디)
   if (UPDATE) { const w = _normAll(_mutForWrite(out), (h) => tokensBack(h, WANT).s); if (fs.existsSync(GOLD)) _expectNoDeletes(expect, 'tpl-pagepad-e81', JSON.parse(fs.readFileSync(GOLD, 'utf8')), w); fs.mkdirSync(path.dirname(GOLD), { recursive: true }); fs.writeFileSync(GOLD, JSON.stringify(w, null, 1) + '\n'); return; }
   const gold = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
   /* ★«뜻한 바뀜» 토큰은 옛 꼴로 되돌려 견준다 — 정본 = tests/dom/_golden-tokens.js.

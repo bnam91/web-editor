@@ -43,6 +43,9 @@ const TOKENS = [
      applyScale(canvas-block.js renderCanvas)이 인라인 두 줄을 «덧붙인다». 핀 판엔 없다 ⇒ 덧붙은 것을 지운다. */
   { name: 'CVB_H', re: /(<div class="canvas-block"[^>]*? style="[^"]*?) height: [0-9.]+px;(")/g, to: (_, a, b) => a + b },
   { name: 'CVB_SCALE', re: /(<div class="cvb-inner" style="[^"]*?) transform: scale\([0-9.]+\);(")/g, to: (_, a, b) => a + b },
+  /* ⑷ FRAME_BG (t3-05 397f224ca · 현빈 「섹션 바로 아래 새 프레임 = #D9D9D9」) — 앱 길로 만든 섹션 직속 새 프레임의 기본 배경. 핀 판엔 #ffffff.
+     ★그 프레임 «여는 태그»의 data-bg 와 인라인 background 둘만 되돌린다(프레임 안 자식 = #FFFFFF 는 핀과 같아 손 안 댄다). */
+  { name: 'FRAME_BG', re: /(<div class="frame-block"[^>]*? data-bg=")#D9D9D9("[^>]*? style="background: )rgb\(217, 217, 217\)(;)/g, to: (_, a, b, c) => `${a}#ffffff${b}rgb(255, 255, 255)${c}` },
 ];
 
 /** 토큰을 옛 꼴로 되돌린다.
