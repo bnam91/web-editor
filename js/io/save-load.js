@@ -283,6 +283,8 @@ function _noteFailedSave(id, failed) {
   _setFailedSaveIds(failed ? [...cur, id] : cur.filter(x => x !== id));
 }
 window.forgetFailedSave = (id) => _noteFailedSave(id, false);   // 프로젝트를 지웠다 — 보호할 본이 아니다
+const _listedAtBoot = new Set();   // 부팅 때 목록에 있던 id — 고아 정리 대상이 아니라 LS 본이 지켜진다 · 종료 때 사본을 또 만들어 5칸을 쓰지 않는다(리뷰 2-3)
+const RECORDED_THIS_SESSION_KEY = 'web-editor-failed-recorded-session';   // sessionStorage — 이 앱 실행 안에서 남긴 사본 id. ⌘R·갤러리 왕복 부팅이 그 사본으로 보호를 풀어 옆 탭이 말없이 빠지지 않게(리뷰 2-2)
 const _flushedFailed = new Map();   // id → 이 문서에서 이미 내린 옆 탭 실패 본(그 캐시) — 종료 답 뒤 beforeunload 가 또 내리면 비상 사본이 둘 · 본이 바뀌면 다시 내린다(리뷰)
 
 /* ★[W-3-b] 「이 저장은 «실패»로 끝났나」 — 이 파일의 «단 하나의» 판정.
@@ -327,12 +329,13 @@ function _flushUnfinishedSavesSync() {
   for (const t of openTabs) {
     if (t.id === activeProjectId || left.has(t.id) || !t._cache || _flushedFailed.get(t.id) === t._cache || _isReloadSealed(t.id) || !_lastSaveFailed(t.id)) continue;
     const last = _lastSaveResult.get(t.id);
-    if (last?.kept || !window.electronAPI?.recordRefusedSave) continue;
+    if (last?.kept || _listedAtBoot.has(t.id) || !window.electronAPI?.recordRefusedSave) continue;
     let data = null;
     try { data = JSON.parse(t._cache); } catch (_) {}
     if (!data || !Array.isArray(data.pages)) continue;
     applyAdoptedAssets(data, t.id);
     _flushedFailed.set(t.id, t._cache);
+    try { const ss = JSON.parse(sessionStorage.getItem(RECORDED_THIS_SESSION_KEY) || '[]'); if (Array.isArray(ss) && !ss.includes(t.id)) sessionStorage.setItem(RECORDED_THIS_SESSION_KEY, JSON.stringify([...ss, t.id])); } catch (_) {}
     try { window.electronAPI.recordRefusedSave({ ...data, id: t.id, name: t.name || 'Untitled' }, last?.result?.reason || 'save-failed')?.catch?.(() => {}); } catch (_) {}
   }
   const work = [...left];
@@ -2824,6 +2827,7 @@ function initApp() {
           _bootGoneName = openTabs.find(t => t.id === _bootProjectId)?.name;
           window.setAwayTabs?.([..._away.filter(t => !_listed.has(t.id) && !_goneTabs.some(x => x.t.id === t.id)), ..._goneTabs.filter(x => x.g?.state === 'foreign').map(x => ({ id: x.t.id, name: x.t.name }))]);
           /* 실패 표지 id — LS 본이 있고 폴더가 그대로(목록에만 없음: 기획 등)면 남긴다. 지웠거나(휴지통·없음) 본이 없으면 표지를 걷는다. */
+          _listed.forEach(id => _listedAtBoot.add(id));
           const _failedKeep = [];
           /* 지디 결정 ⒝ — 그 id 의 비상 사본이 있으면(다음 실행 복구 제안이 그걸 가진다) 보호를 푼다. 못 물으면(IPC 실패) 보호 유지. */
           let _withCopy = null;
@@ -2840,7 +2844,8 @@ function initApp() {
             if (_listed.has(id) || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === null) continue;
             const _owner = window.lsCopyOwner?.(id);
             if (_owner && _owner !== (_root || 'legacy')) { _failedKeep.push(id); continue; }
-            if (_withCopy && (_withCopy.get(id) || 0) >= (parseInt(localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) || '0') || Infinity)) continue;   // LS 본보다 새롭거나 같은 사본이 있다 — LS 는 옛 동작(정리)으로 · 사본이 더 낡았거나 LS 시각을 모르면 지킨다   // 다른 계정의 본 — 이 뿌리의 폴더 상태로 걷으면 그 계정으로 돌아왔을 때 지운다(리뷰: X→Y→X)
+            let _thisSession = false; try { _thisSession = (JSON.parse(sessionStorage.getItem(RECORDED_THIS_SESSION_KEY) || '[]') || []).includes(id); } catch (_) {}
+            if (_withCopy && !_thisSession && (_withCopy.get(id) || 0) >= (parseInt(localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) || '0') || Infinity)) continue;   // LS 본보다 새롭거나 같은 사본이 있다 — LS 는 옛 동작(정리)으로 · 사본이 더 낡았거나 LS 시각을 모르면 지킨다   // 다른 계정의 본 — 이 뿌리의 폴더 상태로 걷으면 그 계정으로 돌아왔을 때 지운다(리뷰: X→Y→X)
             const st = await window.electronAPI.projectFolderState?.(id);
             if (st === 'ok' || st === 'unknown') _failedKeep.push(id);   // 못 읽었으면 지운 게 아니다 — 남긴다
           }

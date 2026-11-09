@@ -8,6 +8,8 @@
  *     T7 지운 프로젝트는 표지가 있어도 정리·표지 걷힘(지디 ㉠) · T8 표지 목록이 깨졌으면 옛 동작(지디 ㉡)
  *     T9 다른 계정 본의 표지는 안 걷음 · T10 연 채 지운 탭 닫기가 표지를 걷음
  *     T12 LS 보다 새 비상 사본 있으면 보호 풂(⒝) · T13 못 물으면 보호 유지 · T14 낡은 사본이면 보호 유지
+ *     T15 같은 실행 안에서 남긴 사본으론 안 풂 · T16 종료 flush 가 이 실행 표지를 적음
+ *     ⬜ 안 잼: 갤러리에서 기록 처리(되살리기·무시) 때 보호 풀기(pages/projects.html releaseFailedProtection) · 부팅 목록 id 를 종료 때 안 남김(_listedAtBoot)
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -126,8 +128,8 @@ test('T11 실패 뒤 파일이 밖에서 바뀌어도(다른 창·MCP·복원) �
 
 /* 부팅 고아 정리 — 다시 부팅(reload)해 실제 부팅 길로 잰다. 정리가 돌았다는 신호 = 목록에도 표지에도 없는 고아 Z 의 LS 가 지워짐(고정 대기 없음). */
 const Z = 'proj_tsz';
-async function bootWith(page, { failed, state = 'ok', corrupt = false, ownerA = 'legacy', pending = null }) {
-  await page.addInitScript(([A, B, Z, K, failed, state, corrupt, ownerA, pending]) => {
+async function bootWith(page, { failed, state = 'ok', corrupt = false, ownerA = 'legacy', pending = null, recordedThisSession = false }) {
+  await page.addInitScript(([A, B, Z, K, failed, state, corrupt, ownerA, pending, recordedThisSession]) => {
     const proj = (id) => ({ id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas: `<div class="section-block" id="sec_${id}"><div class="section-inner"><div class="text-block" data-type="text"><div class="tb-h2">${id} 본문</div></div></div></div>` }] });
     const fake = {
       listProjects: async () => [{ id: B, name: B, type: null, updatedAt: new Date().toISOString() }],
@@ -151,10 +153,11 @@ async function bootWith(page, { failed, state = 'ok', corrupt = false, ownerA = 
         localStorage.setItem('web-editor-autosave__' + id + '_ts', String(Date.now()));
         localStorage.setItem('web-editor-ls-root__' + id, id === A ? ownerA : 'legacy');
       }
+      if (recordedThisSession) sessionStorage.setItem('web-editor-failed-recorded-session', JSON.stringify([A]));
       if (corrupt) localStorage.setItem(K, '{깨짐');
       else if (failed) localStorage.setItem(K, JSON.stringify([A]));
     }
-  }, [A, B, Z, FAILED_KEY, failed, state, corrupt, ownerA, pending]);
+  }, [A, B, Z, FAILED_KEY, failed, state, corrupt, ownerA, pending, recordedThisSession]);
   await bootApp(page);
   await page.evaluate((B) => { history.replaceState(null, '', '?project=' + B); }, B);
   await page.reload();
@@ -204,4 +207,15 @@ test('T13 복구 제안을 못 물으면 보호 유지(안전 쪽)', async ({ pa
 test('T14 사본이 LS 본보다 낡았으면 보호 유지 — 새 편집은 LS 에만 있다', async ({ page }) => {
   const r = await bootWith(page, { failed: true, pending: 'copyOld' });
   expect(r.ls, '★낡은 사본만 보고 새 편집이 든 LS 를 지웠다').toBeGreaterThan(0);
+});
+test('T15 같은 앱 실행 안에서 남긴 사본으로는 보호를 안 푼다(⌘R·갤러리 왕복 — 리뷰 2-2)', async ({ page }) => {
+  const r = await bootWith(page, { failed: true, pending: 'copyNew', recordedThisSession: true });
+  expect(r.ls, '★⌘R 한 번에 옆 탭 본을 지웠다').toBeGreaterThan(0);
+  expect(JSON.parse(r.ids || '[]')).toContain(A);
+});
+test('T16 종료 flush 가 사본을 남기면 이 실행 표지(sessionStorage)에 적는다', async ({ page }) => {
+  await setup(page);
+  await editThenLeaveA(page, 'planning_not_editor');
+  await quit(page);
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem('web-editor-failed-recorded-session') || '[]')), '★이 실행 표지가 없다 — ⌘R 부팅이 보호를 푼다').toContain(A);
 });
