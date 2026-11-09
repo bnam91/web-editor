@@ -74,16 +74,25 @@ async function key(page, k) { await page.evaluate(() => document.activeElement?.
 /** 열 1 = [글자, 빈 사진] — 우클릭 「이미지 추가」(A2 길). 이력은 비운다. */
 async function withPhoto(page) {
   const s = await setup(page);
-  await rclickMenu(page, INNER1(s.id), '#bcm-grid-img');
+  await rclickPick(page, INNER1(s.id), '#bcm-grid-img', null);   // ㉠ 파일창 → 취소 = 빈 사진(옛 길)
   await page.waitForSelector(NP(s.id, '1.1'), { timeout: COND_MS });
   await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); window.clearHistory?.(); });
   return s;
 }
+/** ㉠ 우클릭 → 항목 → 파일창. files = 고를 파일 경로(null = 취소).
+ *  ⚠️취소는 Playwright 가 «진짜로» 못 한다(가로챈 파일창엔 취소 API 가 없다) ⇒ 그 input 에 'cancel' 이벤트를 쏜다 — Chromium 이 취소 때 쏘는 그 이벤트다. */
+async function rclickPick(page, sel, item, files) {
+  await clickAt(page, sel); await clickAt(page, sel); await clickAt(page, sel, { button: 'right' });
+  await choose(page, () => clickAt(page, item), files);
+}
+async function choose(page, act, files) {
+  const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: COND_MS }), act()]);
+  if (files) await fc.setFiles(files); else await fc.element().dispatchEvent('cancel');
+}
 async function rclickOnly(page, sel) { await clickAt(page, sel); await clickAt(page, sel); await clickAt(page, sel, { button: 'right' }); }
 const vis = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); return !!e && getComputedStyle(e).display !== 'none'; }, sel);
 async function pickFile(page, item) {
-  const [fc] = await Promise.all([page.waitForEvent('filechooser'), clickAt(page, item)]);
-  await fc.setFiles(pngFile());
+  await choose(page, () => clickAt(page, item), pngFile());
 }
 
 test('H1 중첩 이미지 줄 ⌫ → 그 열에서 빠진다 · ⌘Z 한 번 = 복원 · 저장 왕복', async ({ page }) => {
@@ -163,7 +172,7 @@ test('H4 중첩 이미지 우클릭 「이미지 교체」 → 파일창 → 그
 
 test('H5 대조 — 바깥 줄 ⌫ · ⌘↑ · 「이미지 교체」 파일창은 그대로', async ({ page }) => {
   const { errs, id } = await setup(page);
-  await rclickMenu(page, OUT(id, 0), '#bcm-grid-img');   // 바깥 [body, image, duo]
+  await rclickPick(page, OUT(id, 0), '#bcm-grid-img', null);   // 바깥 [body, image(빈), duo] — 취소 = 빈 슬롯
   await expect.poll(async () => (await model(page, id)).map(l => l.type)).toEqual(['body', 'image', 'duo']);
   await rclickOnly(page, OUT(id, 1));
   expect(await page.textContent('#bcm-grid-img-label')).toBe('이미지 교체');
@@ -202,5 +211,105 @@ test('H6 현빈 문서 사본 — 왼쪽 열 빈 원 하나 ⌫ → 모델이 �
   await expect.poll(async () => (await left()).length).toBe(L0.length - 1);
   expect(await left()).toEqual(L0.filter((_, i) => i !== 1));
   expect((await model(page, id))[0].cols[1], '오른쪽 열 그대로').toEqual(right0);
+  expect(errs).toEqual([]);
+});
+
+/* ═══ ㉠(지디 2026-11-09) — 글자 줄 우클릭 「이미지 추가」·「원형 이미지 추가」 = 파일창 먼저. 고르면 그림 줄 · 취소면 빈 슬롯. 바깥·중첩 왼/오른 열·패널 같은 규칙 ═══ */
+const IMG = { type: 'image' };
+async function addCase(page, id, { sel, item, files, get, at, expectLine }) {
+  const m0 = await model(page, id);
+  const n0 = (await get()).length;
+  await rclickPick(page, sel, item, files);
+  await expect.poll(async () => (await get()).length).toBe(n0 + 1);
+  const ln = (await get())[at];
+  expect(ln, '누른 줄 «바로 다음»').toMatchObject(expectLine);
+  if (files) expect(ln.imgSrc, '고른 그림 src').toMatch(/^data:image\/png|^goya-asset:/); else expect(ln.imgSrc, '취소 = 빈 슬롯').toBe('');
+  await key(page, 'Meta+z');
+  await expect.poll(() => model(page, id), '⌘Z 한 번 = 그 줄이 없어진다').toEqual(m0);
+}
+const CIRCLE = { type: 'image', imgShape: 'circle' };
+
+test('A1 바깥 글자 줄 — 「이미지 추가」 고르면 그림 줄 · 취소면 빈 슬롯 · 각각 ⌘Z', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const get = async () => model(page, id);
+  for (const files of [pngFile(), null]) await addCase(page, id, { sel: OUT(id, 0), item: '#bcm-grid-img', files, get, at: 1, expectLine: IMG });
+  expect(errs).toEqual([]);
+});
+
+test('A2 중첩 왼쪽 열 · 오른쪽 열 — 「이미지 추가」 고르면/취소면 · 각각 ⌘Z', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const colOf = (ci) => async () => (await model(page, id)).find(l => l.type === 'duo').cols[ci].lines;
+  for (const ci of [0, 1]) for (const files of [pngFile(), null]) {
+    await addCase(page, id, { sel: NP(id, `${ci}.0`), item: '#bcm-grid-img', files, get: colOf(ci), at: 1, expectLine: IMG });
+  }
+  expect(errs).toEqual([]);
+});
+
+test('A3 「원형 이미지 추가」 — 고르면 원 + src · 취소면 빈 원 (중첩 왼쪽 열 · 바깥) · 각각 ⌘Z', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const col0 = async () => (await model(page, id)).find(l => l.type === 'duo').cols[0].lines;
+  for (const files of [pngFile(), null]) await addCase(page, id, { sel: NP(id, '0.0'), item: '#bcm-grid-img-circle', files, get: col0, at: 1, expectLine: CIRCLE });
+  for (const files of [pngFile(), null]) await addCase(page, id, { sel: OUT(id, 0), item: '#bcm-grid-img-circle', files, get: () => model(page, id), at: 1, expectLine: CIRCLE });
+  expect(errs).toEqual([]);
+});
+
+test('A4 패널 「+ 줄 추가」 이미지·원형 이미지(중첩 줄) — 고르면/취소면 · 각각 ⌘Z', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const col1 = async () => (await model(page, id)).find(l => l.type === 'duo').cols[1].lines;
+  for (const [kind, line] of [['photo', IMG], ['circle', CIRCLE]]) for (const files of [pngFile(), null]) {
+    const m0 = await model(page, id);
+    await pick(page, INNER1(id));
+    await page.waitForSelector('#grd-nest-hint #grd-line-add-kind', { timeout: COND_MS });
+    await choose(page, () => page.selectOption('#grd-line-add-kind', kind), files);
+    await expect.poll(async () => (await col1(page, id)).length).toBe(2);
+    const ln = (await col1(page, id))[1];
+    expect(ln).toMatchObject(line);
+    expect(!!ln.imgSrc, `${kind} ${files ? '고름' : '취소'}`).toBe(!!files);
+    await key(page, 'Meta+z');
+    await expect.poll(() => model(page, id)).toEqual(m0);
+  }
+  expect(errs).toEqual([]);
+});
+
+test('A5 현빈 문서 사본 — 기존 글자 줄 «ㅇㄹㅅ» ⌫ · 추가한 그림을 ⌘↑ 로 글자 위로 · 각각 ⌘Z', async ({ page }) => {
+  test.skip(!fs.existsSync(SCR), '현빈 문서 사본 없음');
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  const errs = await bootApp(page);
+  await page.evaluate((d) => window.applyProjectData(d), JSON.parse(fs.readFileSync(SCR, 'utf8')));
+  const id = 'grd_rwx4l_kcoz5xe';
+  await page.waitForFunction((id) => !!document.getElementById(id), id, { timeout: COND_MS });
+  await page.evaluate(() => { window.applyZoom?.(100); window.deselectAll?.(); window.clearHistory?.(); });
+  await page.waitForFunction(() => { const S = document.getElementById('canvas-scaler'); return !!S && !S.getAnimations().length; }, null, { timeout: COND_MS });
+  const enter = async (np) => {
+    const sel = `#${id} [data-npath="${np}"]`;
+    await page.evaluate((s) => { window.deselectAll?.(); document.activeElement?.blur?.(); document.querySelector(s).scrollIntoView({ block: 'center' }); }, sel);
+    const r = await waitStableRect(page, sel);
+    await page.mouse.dblclick(r.cx, r.cy); await frames2(page);
+    await clickAt(page, sel);
+    expect((await active(page, id))?.np, `${np} 가 골라졌다`).toBe(np);
+  };
+  const right = async () => (await model(page, id))[0].cols[1].lines;
+  const left = async () => (await model(page, id))[0].cols[0].lines;
+  const m0 = await model(page, id);
+  // ① 기존 글자 줄 ⌫
+  expect(m0[0].cols[0].lines[0]).toMatchObject({ type: 'body', text: 'ㅇㄹㅅ' });
+  await enter('0.0');
+  await key(page, 'Backspace');
+  await expect.poll(async () => (await left()).length).toBe(m0[0].cols[0].lines.length - 1);
+  expect((await left())[0].type, '«ㅇㄹㅅ» 가 빠졌다').toBe('image');
+  await key(page, 'Meta+z');
+  await expect.poll(() => model(page, id)).toEqual(m0);
+  // ② 오른쪽 열 빈 글자 줄 다음에 그림 추가(고름) → 그 그림을 ⌘↑ 로 글자 위로
+  const sel10 = `#${id} [data-npath="1.0"]`;
+  await page.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'center' }), sel10);
+  await rclickPick(page, sel10, '#bcm-grid-img', pngFile());
+  await expect.poll(async () => (await right()).length).toBe(2);
+  const m1 = await model(page, id);
+  await enter('1.1');
+  await key(page, 'Meta+ArrowUp');
+  await expect.poll(async () => (await right()).map(l => l.type)).toEqual(['image', 'body']);
+  expect(!!(await right())[0].imgSrc).toBe(true);
+  await key(page, 'Meta+z');
+  await expect.poll(() => model(page, id)).toEqual(m1);
   expect(errs).toEqual([]);
 });

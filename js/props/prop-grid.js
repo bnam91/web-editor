@@ -1000,6 +1000,34 @@ export async function grdAssetSrcFor(target, dataUrl) {
   return target.isConnected && window.activeProjectId === pid ? src : gone();
 }
 if (typeof window !== 'undefined') window.grdAssetSrcFor = grdAssetSrcFor;
+
+/* ★HBQA ㉠(지디 2026-11-09) — 그리드 «파일창» 한 벌: 고르면 바이트 게이트 → 값(grdPickedImageSrc) → commit(src, 신뢰 표시) · 취소면 onCancel().
+ *   우클릭 교체·우클릭 추가(사진/원 · 바깥/중첩)·중첩 패널 「+ 이미지/원형 이미지」가 이 문 하나를 쓴다. */
+export function grdPickImageFile(commit, onCancel = null) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  let done = false;
+  const cancel = () => { if (!done) { done = true; onCancel?.(); } };
+  input.addEventListener('cancel', cancel);   // Chromium 113+ · Electron 정본
+  /* shortcut: 'cancel' 없는 엔진 폴백 = 창 포커스가 돌아오고 0.5초 뒤에도 파일이 없으면 취소로 본다. 그보다 늦은 change 는 놓친다 — 그런 엔진을 지원하게 되면 바꿔라. */
+  window.addEventListener('focus', () => setTimeout(() => { if (!input.files?.length) cancel(); }, 500), { once: true });
+  input.onchange = () => {
+    if (done) return;
+    done = true;
+    const file = input.files[0];
+    if (!grdImageFileOk(file)) return;
+    grdPickedImageSrc(file).then(got => { if (got) commit(got.src, { trusted: true }); });
+  };
+  input.click();
+}
+/** ★HBQA ㉠ — 사진/원 «새 줄»: 파일창 먼저. 고르면 그림 줄 · 취소면 빈 슬롯(옛 길). ⌘Z 한 번 = 그 줄. host = 줄의 주인(중첩 열). */
+export function grdAddImageLinePicked(block, pos, afterLi, kind, host = null) {
+  const add = (src, o = {}) => grdToastImgFail(grdAddLine(block, pos, afterLi,
+    src ? { ...grdNewLineSpec(kind), imgSrc: src } : grdNewLineSpec(kind), o, host));
+  grdPickImageFile(add, () => add(''));
+}
+if (typeof window !== 'undefined') { window.grdPickImageFile = grdPickImageFile; window.grdAddImageLinePicked = grdAddImageLinePicked; }
 if (typeof window !== 'undefined') window.grdPickedImageSrc = grdPickedImageSrc;
 if (typeof window !== 'undefined') window.grdAssetSrcOf = grdAssetSrcOf;
 if (typeof window !== 'undefined') window.grdImageFileOk = grdImageFileOk;
@@ -1404,6 +1432,7 @@ function _grdWireKindSelects(block, r, c, afterLi, host = null) {
       });
       return;
     }
+    if (kind === 'photo' || kind === 'circle') { grdAddImageLinePicked(block, { r, c }, afterLi, kind, H); return; }   // ★HBQA ㉠ 우클릭과 같은 규칙
     const _spec = grdNewLineSpec(kind);   // ★①단축키·★버블/챗 단축키와 «같은 자»에서 뜬다 — 두 벌 금지
     grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec, {}, H));
   });
