@@ -197,7 +197,7 @@ function _wireShadowCard(el, P, again) {
    ★새 그림자를 만들지 않았다 — 텍스트의 «옛» 그림자 그대로다(팀장 지시):
      정본 = 글자칸 dataset `shadowEnabled`·`shadowX`·`shadowY`·`shadowBlur`·`shadowColor`·`shadowAlpha` + 인라인 text-shadow(합성 문)
      · 기본값 = SHADOW_DEFAULTS · 조절칸 = 옛 절 마크업 «그대로»(textShadowControlsHtml · id 같음 ⇒ 배선 = wireShadowSection 하나).
-   ★자리 = 블러(1012t1C1)와 같은 옮김 — 옛 「Shadow」 절은 Effects 가 품는 블럭에선 안 그린다(prop-text-template.js _fxShadow · 두 벌 금지).
+   ★자리 = 블러(1012t1C1)와 같은 옮김 — 옛 「Shadow」 절은 Effects 가 품는 블럭에선 안 그린다(prop-text-template.js · 명부 fxReplaces · 두 벌 금지).
      걸림(has) = 그림자 키가 «하나라도» 있음 · 보임 = shadowEnabled 'true'. 옛 저장본은 저절로 카드로 뜬다(마이그레이션 0).
    ★눈(t4-01b · 팀장) = shadowEnabled 만 뒤집는다(값 남김 · 반사·글로우 U8 과 같은 결) — ⛔새 키 0.
      ⇒ 옛 토글로 «꺼 둔» 저장본(값 남음)은 이제 «걸렸지만 숨긴» 카드로 뜬다. ✕ = 키 전부 지움(켜기 전 바이트).
@@ -244,6 +244,7 @@ function _txtWire(tb, P, again) {
 registerFxType({
   key: 'shadow',
   label: '그림자',
+  replaces: 'txt-shadow-section',   /* t4-01 — 텍스트 패널의 옛 「Shadow」 절은 이 카드가 갈음한다(prop-text-template.js 가 fxReplaces 로 묻는다) */
   /* ★도형·에셋·프레임만 — 텍스트는 제 「Shadow」 절이 있다(위 머리말). ⛔허용 목록으로 적는다(막는 목록은 블럭이 늘면 샌다). */
   /* ★t5-13ⓐ — 그리드 칸 «원형 이미지»(.grd-img-circle)도 받는다. 패널(js/props/prop-grid.js)이 그 줄의 키를 담은 대리를 넘긴다. */
   /* ★GRID-BG-RADIUS-SHADOW-01 — 그리드는 «블럭 배경»을 켰을 때만(그림자가 서는 상자 = 배경 층). */
