@@ -2485,15 +2485,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
        (실측: 선택 = [프레임, 목업, 줌]). 그러면 위의 「다른 선택을 품은 컨테이너는 뺀다」가 프레임을 빼서
        host 가 목업이 되고 거절 토스트만 떴다. ⌘클릭은 됐다(실측) — 갈림은 «선택 방법»이었다.
        ⇒ host 후보가 흐름 자유배치 프레임의 자식이면 «그 프레임»으로 올려 잡는다. ⇧ 범위선택 자체는 안 건드린다. */
+    // ★CMDG-MARKING — 도형 감싼 프레임(isShapeFrame)은 «넣을 프레임»이 아니라 블럭 하나(100×100 · overflow:hidden 이라 넣으면 잘려 사라진다)
+    const _isHostFrame = f => !!f?.matches?.('.frame-block[data-free-layout]') && f.dataset.textFrame !== 'true' && !isShapeFrame(f);
     const _liftToFrame = u => {
-      if (u.matches?.('.frame-block[data-free-layout]')) return u;
+      if (_isHostFrame(u)) return u;
       const f = u.parentElement?.closest?.('.frame-block[data-free-layout]');
-      return (f && f.dataset.textFrame !== 'true' && f.closest('.section-block') === sec) ? f : u;
+      return (_isHostFrame(f) && f.closest('.section-block') === sec) ? f : u;
     };
     const hosts    = [...new Set(units.filter(u => u.parentElement !== sec).map(_liftToFrame))];
     if (floaters.length && hosts.length) {
-      const host = (hosts.length === 1 && hosts[0].matches?.('.frame-block[data-free-layout]')
-                    && hosts[0].dataset.textFrame !== 'true') ? hosts[0] : null;
+      const host = (hosts.length === 1 && _isHostFrame(hosts[0])) ? hosts[0] : null;
       // ★t5-07 — 이름(zoom-block) 대신 성질: 제 방식 떠 있는 블럭(줌 · 그라데이션 · 스티커) 또는 오버레이
       const _canNest = u => _ownFloat(u) || u.dataset.overlayBlock === 'true';
       const bad = floaters.filter(u => !_canNest(u));
