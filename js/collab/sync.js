@@ -80,13 +80,19 @@
   let _localSnap = Object.create(null); // 'pageId::secId' → «마지막 자동저장 스냅샷»의 hash
                                         //   (덮어쓰기 경고 기준 — 서버 해시와 «같은 재료»로 계산돼야 비교가 성립한다)
   let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
+  let _heldNoticed = false;
+  let _pushDone = 0;                  // 리뷰 1 F4 — 끝난 pushChanged 수. 미저장 때문에 미룬 패치는 «그 뒤 push 가 한 번 끝나야» 푼다           // ⑴ «저장 안 된 내 편집 때문에 미룬다»를 이번 미룸에 한 번 말했나
   /* ★SIX ⒜(2026-10-06 · 현빈 「동시에 고쳤는데 한쪽 작업량이 날라가네」 — 지디 서버 데이터로 확정):
    *   보류된 «묵은» 원격 패치가, 그 사이 내가 올린 더 새 판을 손 뗀 뒤 «경고 없이» 덮고 → 다음 저장이 그걸 다시 올렸다
    *   (서버 seq 13 A 3061 → 14 B 3481 → ★15 B 가 3061 을 그대로 → 16 B 3483 · 13↔15 바이트 동일 · conflicts 0).
    *   ⇒ 섹션마다 «내가 마지막으로 올린 seq» 를 기억해, 그보다 묵은 원격 패치는 붙이지 않고 «충돌»로 남긴다. */
   let _lastPushedSeq = Object.create(null);   // 'pageId::secId' → 내 push 가 받은 서버 seq
   let _conflicts = new Map();                 // 'pageId::secId' → { mode:'kept'|'replaced', mineHtml, theirsHtml, theirs:{actorId,email,seq} }
+  const _conflictsByProject = new Map();      // 리뷰 1 F6 — ⑷ 로 탭마다 다시 start 하므로 충돌 기록(진 쪽 판)을 프로젝트별로 남긴다(메모리)
   let _inFlight = false;
+  let _owedPush = null;
+  let _resumed = false;
+  let _startGen = 0;                 // ⑷ 탭을 빠르게 두 번 옮기면 늦게 끝난 앞 start 가 _cfg 를 앞 프로젝트로 세우지 않게              // ⑶ 재개가 서버 해시를 심었나 — 그 전 자동저장은 모든 섹션을 «바뀜»으로 본다              // ⑵ 올리는 중에 온 저장 스냅 — 버리지 않고 끝나면 한 번 더(최신 하나)
   let _lastError = null;
   let _seqSaved = 0;                  // 디스크에 남긴 진도
   /* COLLAB-RECEIVED-PATCH-LOST-ON-REOPEN-01 — 받은 내용은 화면에만 붙고(자동저장 억제) 진도만 디스크에 올라, 안 만지고 다시 열면 내용은 없고 다시 받지도 못했다.
@@ -102,7 +108,7 @@
   let _durableHashes = {};
   let _baseHashes = null;
   let _hashesDirty = false;
-  let _replaced = Object.create(null);   // 'pageId::secId' → 받은 패치가 덮기 직전의 내 해시
+  let _replaced = Object.create(null);   // 'pageId::secId' → { h: 받은 패치가 덮기 직전의 내 해시, at: 붙인 때(performance.now) } — ㉮
   let _serverHashes = null;              // 재개 때 서버 목차 — 내 글이 이것과 같으면 올릴 것이 없다
   let _appliedLog = [];                  // 이 세션에 붙였고 아직 진도에 안 든 패치 { seq, key, before }
   let _rewound = null;                   // 되감았을 때: seq → 그 섹션의 첫 덮이기 전 해시
@@ -278,8 +284,43 @@
    * goya-asset 주소는 이 기계 파일을 가리켜 상대 화면에서 깨진다. 받는 쪽이 저장·다시 열기를 거치면 같은 섹션이 그쪽 주소로
    * 바뀌어, 그대로 올리면 보낸 사람 그림까지 깨진다. ⇒ 비교·전송 둘 다 data URL 로 되돌린 글로 한다.
    * 같은 그림이면 어느 쪽 주소든 같은 글·같은 hash 가 되어 다시 올라가지 않는다. */
+  /* ★COLLAB-BIG-IMAGE-SECTION-NOT-SENT-01 — 에셋 블럭은 같은 그림을 data-img-src 와 <img class="asset-img" src> «두 번» 든다(image-handling.js setAssetImageFromSrc).
+     data URL 로 풀면 섹션에 base64 사본 2개 → 원본 ≈262KB 에서 서버 천장(700KB)에 닿아 섹션이 통째로 안 갔다.
+     ⇒ 천장을 «넘을 때만» img src 를 빼 사본 1개로 보낸다(data-src-from="img-src" 표식). 받는 쪽은 붙이기 전에 data-img-src 로 되살린다(restoreSlim).
+     «넘을 때만» = 지금 올라가는 섹션은 글·해시 그대로(올림 폭탄·옛 판 충돌 0). 옛 판 받는 쪽은 원래 못 받던 섹션만 그림 빈 채로 받는다(지디 OK).
+     ⛔GIF(data-gif-src)·섹션 배경 사본은 이번 범위 밖(지디: 별 줄). 서버·천장 무변. */
+  const SLIM_MARK = 'data-src-from';
+  function slimIfOver(o) {
+    const bytes = o.bytes != null ? o.bytes : new Blob([o.html]).size;
+    if (bytes <= _sectionLimit || o.html.indexOf('data:') === -1) return { ...o, bytes };
+    const M = mm(); if (!M) return { ...o, bytes };
+    const sec = new DOMParser().parseFromString(`<div id="c">${o.html}</div>`, 'text/html').querySelector('.section-block');
+    if (!sec) return { ...o, bytes };
+    let n = 0;
+    sec.querySelectorAll('img.asset-img[src^="data:"]').forEach(img => {
+      const ab = img.closest('[data-img-src]');
+      if (ab && ab.getAttribute('data-img-src') === img.getAttribute('src')) { img.removeAttribute('src'); img.setAttribute(SLIM_MARK, 'img-src'); n++; }
+    });
+    if (!n) return { ...o, bytes };
+    const html = sec.outerHTML;
+    return { ...o, html, hash: M.hash(M.normSection(sec)), bytes: new Blob([html]).size };
+  }
+  /** 받은 섹션의 빠진 img src 를 data-img-src 로 되살린다(해시는 받은 꼴 그대로 둔다 — 내 forPeer 가 같은 꼴을 다시 만든다). */
+  function restoreSlim(html) {
+    if (!html || html.indexOf(SLIM_MARK) === -1) return html;
+    const sec = new DOMParser().parseFromString(`<div id="c">${html}</div>`, 'text/html').querySelector('.section-block');
+    if (!sec) return html;
+    sec.querySelectorAll(`img.asset-img[${SLIM_MARK}="img-src"]`).forEach(img => {
+      const ab = img.closest('[data-img-src]');
+      if (ab && !img.getAttribute('src')) { img.setAttribute('src', ab.getAttribute('data-img-src')); img.removeAttribute(SLIM_MARK); }
+    });
+    return sec.outerHTML;
+  }
+
   async function forPeer(s, base, projectId) {
-    if (s.html.indexOf('goya-asset://') === -1) return s;
+    /* 이미 data URL 인 섹션도 천장을 넘으면 같은 꼴(사본 1개)로 — 받은 쪽이 저장 전이면 이 꼴이다(다르면 되돌려 올린다).
+       ★㉠(지디) 단, 로컬에서 미리 막지는 않는다(bytes 를 안 싣는다 = 옛 동작 · 서버가 정한다 — 서버 진짜 천장이 700KB 보다 크면 그 섹션이 간다). 미리 막기는 goya-asset 섹션만. */
+    if (s.html.indexOf('goya-asset://') === -1) { const o = slimIfOver(s); return { ...o, bytes: undefined }; }
     const known = _peerForm.get(s.hash);
     if (known && (known.hash === base[s.key] || known.bytes > _sectionLimit)) return { ...s, hash: known.hash, bytes: known.bytes };
     if (typeof window.inlineAssetsForPeer !== 'function') return s;
@@ -294,7 +335,7 @@
     }
     const sec = new DOMParser().parseFromString(`<div id="c">${r.html}</div>`, 'text/html').querySelector('.section-block');
     const M = mm();
-    const out = { ...s, html: r.html, hash: M.hash(M.normSection(sec)), bytes: new Blob([r.html]).size };
+    const out = slimIfOver({ ...s, html: r.html, hash: M.hash(M.normSection(sec)), bytes: new Blob([r.html]).size });
     if (!r.unresolved) _peerForm.set(s.hash, { hash: out.hash, bytes: out.bytes });   // 못 읽은 그림은 기억하지 않는다 — 파일이 나중에 생길 수 있다
     return out;
   }
@@ -429,8 +470,10 @@
   }
 
   /* ── 보내기 ────────────────────────────────────────────────────────────── */
-  async function pushChanged(snapStr) {
-    if (!_cfg || _inFlight) return;
+  async function pushChanged(snapStr, snapAt) {
+    if (!_cfg) return;
+    /* ★COLLAB-SYNC-OLD-GAPS ⑵ — 올리는 중에 온 두 번째 저장을 버리면 다음 저장까지 서버와 어긋났다 ⇒ 최신 스냅 하나를 기억했다가 끝나면 올린다(baseSeq 는 보낼 때 읽음) */
+    if (_inFlight) { _owedPush = { snap: snapStr, cfg: _cfg, at: snapAt }; return; }
     const c = api(); if (!c) return;
     let obj;
     /* ★A8(지디 판정): 저장 스냅샷이 JSON 이 아니면 «내부 오류»다 — 사용자가 할 일이 없어 화면엔 안 띄우고 error 로 남긴다. */
@@ -448,7 +491,10 @@
       //   이걸 서버 해시와 비교한다 — 라이브 DOM 으로 계산하면 재료가 달라 오경보가 난다.
       const changed = [];
       for (const s of secs) {
-        if (_replaced[s.key] === s.hash) continue;   // 받기 전에 찍힌 스냅샷의 옛 판이다 — 올리면 상대를 되돌린다
+        /* 받기 전에 찍힌 스냅샷의 옛 판이다 — 올리면 상대를 되돌린다. ★COLLAB-SYNC-OLD-GAPS ㉮ — «받기 전에 찍혔을 때만» 건너뛴다(snapAt < 붙인 때).
+           옛 판은 붙인 뒤 내가 그 판으로 «되돌린»(⌘Z·같은 글) 편집까지 영영 건너뛰어, 그 위로 온 상대 패치가 토스트·기록 없이 덮었다. snapAt 이 없으면(직접 부름) 옛 동작. */
+        const rep = _replaced[s.key];
+        if (rep && rep.h === s.hash && !(Number.isFinite(snapAt) && snapAt > rep.at)) continue;
         delete _replaced[s.key];
         _localSnap[s.key] = s.hash;
         if (_serverHashes && _serverHashes[s.key] === s.hash) { _sent[s.key] = s.hash; continue; }   // 이미 서버와 같다
@@ -501,7 +547,10 @@
       }
     } finally {
       _inFlight = false;
+      _pushDone++;
       if (attempted) emit({ type: 'pushed', error: _lastError });
+      const owed = _owedPush; _owedPush = null;
+      if (owed && owed.cfg === _cfg) pushChanged(owed.snap, owed.at);   // 빚진 스냅이 «지금» 방 것일 때만(리뷰 1 F3 — 앞 방 push 의 finally 가 새 방 재개 push 를 버리지 않게)
     }
   }
 
@@ -520,6 +569,7 @@
     if (!st || !p || !p.html) return false;
     /* 상대가 보낸 글이다 — 열 때와 같은 세척을 붙이기 전에 한다(img onerror 가 내 화면에서 실행됐다). 해시는 상대 글 그대로 둔다. */
     if (typeof window.sanitizeCanvasHtml === 'function') p = { ...p, html: window.sanitizeCanvasHtml(p.html) };
+    p = { ...p, html: restoreSlim(p.html) };   // BIG-IMAGE — 사본 1개로 온 그림의 img src 를 되살린다(해시는 받은 꼴)
 
     // 다른 페이지의 섹션이면 DOM 이 아니라 state.pages[].canvas 문자열을 고친다.
     if (p.pageId && p.pageId !== st.currentPageId) {
@@ -554,6 +604,13 @@
 
     const el = findSectionEl(p.sectionId);
     if (el && isUserBusyIn(el)) { _deferred.set(p.sectionId, p); return false; }
+    /* ★COLLAB-SYNC-OLD-GAPS ⑴ — 아직 저장 안 된 내 편집이 있으면(자동저장 대기·저장 중) 붙이지 않고 미룬다. 옛 판은 덮어쓰기 경고가 «저장 뒤» 스냅만 봐
+       그 편집이 말없이 상대 글에 졌다(토스트 0). 미루면 내 저장이 baseSeq 를 그 패치 앞으로 실어(SIX ⓒ) 서버가 충돌로 보고 기존 notifyConflict 가 말한다 ·
+       풀릴 때는 SIX ⓐ(kept)로 내 판을 지키고 상대 판은 충돌 기록에 남는다. ⛔저장이 «실패»로 끝났으면 미루지 않는다(아래 — 조용히 안 받는 상태 0). */
+    const pid = _cfg && _cfg.projectId;
+    const unsaved = !!(el && window.hasUnsavedChanges && window.hasUnsavedChanges());
+    const saveFailed = !!(unsaved && window.projectLastSaveFailed && window.projectLastSaveFailed(pid));
+    if (unsaved && !saveFailed) { const prev = _deferred.get(p.sectionId); _deferred.set(p.sectionId, { ...p, _heldUnsaved: true, _heldPush: prev && prev._heldUnsaved ? prev._heldPush : _pushDone + (_inFlight ? 1 : 0),   /* 리뷰 2 #2 — 날아가는 push 는 내 편집 전 스냅이다 — 그 «다음» push 가 끝나야 */ _heldAt: prev && prev._heldUnsaved ? prev._heldAt : Date.now() }); return false; }
 
     /* ★SIX ⓐ — 이 섹션에 내가 이미 «더 새 판»을 올렸나(내 마지막 push seq ≥ 이 패치 seq).
      *   그렇다면 이 패치는 «묵었다»: 붙이면 내 새 글을 덮고, 다음 저장이 그 묵은 판을 다시 올린다(현빈 사고).
@@ -569,7 +626,11 @@
       return 'kept';
     }
     /* ★SIX — 상대가 «내 마지막 push 를 못 본 채»(그 baseSeq < 내 push seq) 더 늦게 올린 패치: 붙이되(나중 쓴 쪽) 덮이는 내 판을 남긴다. */
-    const replacedMine = (el && mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) ? el.outerHTML : null;
+    /* ⑴ 저장 실패 중 미저장 편집이 덮이면 그 판도 남긴다(충돌 목록 «되살리기»로 고를 수 있게) */
+    /* 리뷰 2 #3(옛 결함) — 내 push 가 실패·천장 초과로 못 올라간 판(_localSnap ≠ _sent)이 덮이면 토스트만 나고 되살릴 판이 없었다 ⇒ 그 판도 남긴다 */
+    /* 리뷰 3 — _localSnap 이 «받은 패치가 덮은 판»이면(연달아 두 상대 패치) 내 못 올라간 글이 아니다 — 거짓 replaced(되살리기로 상대 새 글을 되돌림)를 막는다 */
+    const unpushedMine = !!(_localSnap[ckey] && _localSnap[ckey] !== _sent[ckey] && _localSnap[ckey] !== p.hash && _localSnap[ckey] !== (_replaced[ckey] && _replaced[ckey].h));
+    const replacedMine = (el && ((mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) || saveFailed || unpushedMine)) ? el.outerHTML : null;
 
     /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
      *   충돌을 «올린 사람»은 서버 응답으로 알게 되지만, «덮이는 사람»은 자기 화면의 글이
@@ -585,7 +646,7 @@
        *      다르면 = 아직 서버에 못 올린 내 작업이 이 섹션에 있다 → 지금 덮인다. */
       const key = (p.pageId || '') + '::' + p.sectionId;
       const mine = _localSnap[key];
-      if (mine && mine !== _sent[key] && mine !== p.hash) {
+      if ((mine && mine !== _sent[key] && mine !== p.hash && mine !== (_replaced[key] && _replaced[key].h)) || saveFailed) {   // 리뷰 3 — 같은 까닭으로 거짓 덮어쓰기 토스트(옛)도 끈다
         notifyConflict([{ sectionId: p.sectionId, otherActor: p.actorId }]);
       }
     }
@@ -623,15 +684,43 @@
 
   /* 적용한 것«만» 「서버가 아는 것」으로 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
    * USER_BUSY 보류(false)·거절('kept')은 기록하지 않는다(N2). 덮이기 전 판을 남긴다 — 저장은 스냅샷을 찍고 몇 초 뒤 끝나므로, 그 스냅샷의 옛 판을 내 편집으로 볼 수 있다. */
+  /* ★COLLAB-SYNC-OLD-GAPS ⑸ — data-section 은 «자리 번호»(layer-panel 이 위치대로 다시 매김)인데 해시에 들어간다. 상대 번호가 실린 패치를 붙이면
+     내 레이어 패널이 내 번호로 되돌려 내 해시 ≠ 받은 해시 = 다음 저장이 그 섹션을 «바뀜»으로 한 번 되올렸다.
+     ⇒ 붙이기 전에 받은 섹션의 data-section 을 «지금 내 번호»로 바꾸고 해시도 그 글로 다시 잰다(_sent 가 그 해시를 적는다).
+     ⛔normSection 에서 data-section 을 빼는 뿌리 고침은 안 한다 — 모든 클라이언트의 해시가 바뀌어 섞인 판 사이 재개가 전부 올린다(지디 OK). */
+  function localizeSectionNum(p) {
+    const M = mm(); if (!M || !p || !p.html) return p;
+    const st = window.state;
+    let local = null;
+    if (!p.pageId || !st || p.pageId === st.currentPageId) { const el = findSectionEl(p.sectionId); local = el ? (el.getAttribute('data-section')) : null; }
+    else {
+      const page = (st.pages || []).find(x => x.id === p.pageId);
+      if (page && page.canvas) { const t = new DOMParser().parseFromString(`<div id="c">${page.canvas}</div>`, 'text/html').querySelector('#' + CSS.escape(p.sectionId)); local = t ? t.getAttribute('data-section') : null; }
+    }
+    if (local == null) return p;
+    const sec = new DOMParser().parseFromString(`<div id="c">${p.html}</div>`, 'text/html').querySelector('.section-block');
+    if (!sec || sec.getAttribute('data-section') === local) return p;
+    sec.setAttribute('data-section', local);
+    return { ...p, html: sec.outerHTML, hash: M.hash(M.normSection(sec)) };
+  }
+
   function applyRecorded(p, local) {
+    const origHash = p && p.hash;
+    p = localizeSectionNum(p);
     const key = (p.pageId || '') + '::' + p.sectionId;
+    /* ★리뷰 1 F1 — 재개 중: 서버의 지금 판이 «내 로컬과 같고» 이 패치는 그 판이 아니다 = 묵은 패치(내가 그 위에 고쳐 올린 뒤 다시 온 것 — ⑷ 탭 재시작·앱 재기동이
+       _rewound·_lastPushedSeq 를 비워 옛 보호가 안 섰다). 붙이면 화면·디스크 = 옛 패치 · 서버 = 내 것으로 갈라지고 다음 편집이 옛 판 위에서 올라간다. */
+    if (_serverHashes && _localSnap[key] && _localSnap[key] === _serverHashes[key] && p.hash !== _serverHashes[key] && origHash !== _serverHashes[key]) {
+      _sent[key] = _serverHashes[key];
+      return 'kept_local';
+    }
     /* 되감아 다시 온 패치: 돌아온 글이 덮이기 전 판이면(또는 섹션이 없으면) 화면과 함께 사라진 것이라 다시 붙인다.
      * 그 밖이면 이 패치 위에 고친 내 글이 탭 전환 저장에 실려 돌아온 것이다 — 화면을 안 건드리고 서버가 아는 해시만 적는다. */
     if (_rewound && _rewound.has(+p.seq) && local && local[key] && local[key] !== _rewound.get(+p.seq)) { _sent[key] = p.hash; return 'kept_local'; }
     const before = _localSnap[key] || _sent[key];
     const applied = applyPatch(p);
     if (applied === true && p.pageId && p.sectionId && p.hash) {
-      if (before) _replaced[key] = before;
+      if (before) _replaced[key] = { h: before, at: performance.now() };   // ㉮ 붙인 때 — 이보다 먼저 찍힌 스냅만 echo 로 건너뛴다
       _sent[key] = p.hash;
       if (Number.isFinite(+p.seq)) _appliedLog.push({ seq: +p.seq, key, before });
     }
@@ -642,6 +731,9 @@
     if (!_deferred.size) return;
     for (const [sid, p] of [..._deferred]) {
       const el = findSectionEl(sid);
+      /* 리뷰 1 F4 — 저장이 미저장 표시를 지운 뒤 gd:project-saved(→ 내 push)가 오기 전 틈에 풀면, 아직 안 올라간 내 글 위에 상대 판이 경고 없이 붙었다.
+         ⇒ 미룬 뒤 push 가 한 번 끝나야 푼다(10초 넘으면 그래도 푼다 — 영영 쥐지 않게 · 커서는 그동안 그 앞에 묶여 있어 잃지 않는다). */
+      if (p._heldUnsaved && _pushDone === p._heldPush && Date.now() - (p._heldAt || 0) < 10000) continue;
       if (!el || !isUserBusyIn(el)) { _deferred.delete(sid); applyRecorded(p); }
     }
   }
@@ -655,10 +747,15 @@
     if (_resumeOwed) {
       _resumeOwed = false;
       const rs = await resumeSafely();
-      if (!rs || !rs.ok) { _resumeOwed = true; _lastError = (rs && rs.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); }
+      if (!rs || !rs.ok) { if (_cfg !== cfg) return; _resumeOwed = true; _lastError = (rs && rs.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); }   // 리뷰 2 #1 — 앞 방 재개가 'switched' 로 끝나면 새 방에 «연결 끊김»을 안 낸다
+      else { _lastError = null; emit({ type: 'pulled', presence: [], applied: 0, deferred: _deferred.size, missing: _needIds.length }); }   // ⑶ 재개도 «받기 회복»이다 — 받기 실패 알림·상단바 «연결 끊김»이 풀린다(collab-notify W6)
       return;
     }
     flushDeferred();                              // ★손 뗀 섹션부터 먼저 갚는다
+    /* ⑴ 미저장 편집 때문에 미룬 것 — 이번 미룸에 한 번 몇 건인지 말한다(기존 토스트 · 새 UI 0). 다 풀리면 다음 미룸에 다시 말한다. */
+    const held = [..._deferred.values()].filter(x => x._heldUnsaved).length;
+    if (!held) _heldNoticed = false;
+    else if (!_heldNoticed) { _heldNoticed = true; try { window.showToast?.(`⏳ 저장 안 된 내 편집이 있어 상대 변경 ${held}건은 저장 뒤에 받습니다`); } catch (e) { console.warn('[collab] 토스트 실패:', e); } }
     /* ★결손이 남아 있는 동안만 목차를 다시 받는다(10초에 한 번). 매 틱마다 실으면
      *   2초 폴링에 목차가 계속 따라와 응답이 무거워진다(pull.js 주석의 그 이유). */
     const wantSections = _needIds.length > 0 && (_needTicks++ % NEED_RESCAN_TICKS === 0);
@@ -725,10 +822,12 @@
    *   start() 가 ok:true ＋ 「started」를 냈다. 이제 { ok } 로 답하고 start() 가 그걸 읽는다. */
   async function resumeSafely() {
     const c = api(); if (!c || !_cfg) return { ok: false, reason: 'unavailable' };
+    const cfg = _cfg;   // 리뷰 1 F2 — 기다리는 사이 탭이 바뀌면(⑷ 재시작) 앞 방의 패치·표식을 새 방 상태에 쓰지 않는다
     let r;
     try {
       r = await c.pull({ collabId: _cfg.collabId, sinceSeq: _cfg.seq, actorId: _cfg.actorId, wantSections: true });
     } catch (e) { console.error('[collab] 첫 받기 예외:', e); return { ok: false, reason: 'exception' }; }
+    if (_cfg !== cfg) return { ok: false, reason: 'switched' };
     if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return { ok: false, reason: _lastError, status: r && r.status }; }
 
     // ① 서버가 아는 해시를 «이미 보낸 것»으로 심는다 → 안 바뀐 섹션은 다시 안 올라간다.
@@ -737,14 +836,18 @@
     }
     _serverHashes = { ..._sent };
     if (_baseHashes) Object.assign(_sent, _baseHashes);   // 옛 판이 남긴 진도엔 이 값이 없다 — 그땐 위 서버 해시로 간다
+    /* ⛔COLLAB-BIG-IMAGE (b) «옛 진도 첫 재개에 상대가 고친 섹션은 안 올리고 받기»는 «넣었다가 뺐다»(리뷰 1): 충돌 기록은 메모리뿐이라 재기동 전에 «되살리기»를
+       안 누르면 내 오프라인 편집이 디스크·서버·메모리 어디에도 안 남았다 · 다른 페이지 섹션은 기록조차 없이 덮였다. 옛 동작(올림 → 서버 keep-both 에 둘 다 남는 1회 충돌)이 잃지 않는다. */
+    _resumed = true;   // ⑶ 이제부터 자동저장 push 는 진짜 차이만 본다
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
       /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
       try { await pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재개 push 직렬화 실패:', e); }
     }
-    _serverHashes = null;
-    // ③ 이제 남의 것을 적용한다.
+    if (_cfg !== cfg) { _serverHashes = null; return { ok: false, reason: 'switched' }; }
+    // ③ 이제 남의 것을 적용한다. ★리뷰 1 F1 — _serverHashes 는 ③ 뒤에 비운다: applyRecorded 가 «서버의 지금 판이 이미 내 것»인 섹션의 묵은 패치를 안 붙인다.
     for (const p of (r.patches || [])) applyRecorded(p);   // BUGS.md:275 — 보류·거절은 applyRecorded 가 기록 안 한다
+    _serverHashes = null;
     if (typeof r.seq === 'number') { _cfg.seq = r.seq; _owedSeq = r.seq; }
     await settleReceived();
     /* ★합류 직후가 결손이 가장 크게 벌어지는 순간이다 — 여기서 «목차 대 내 문서»를 처음 맞춰본다.
@@ -760,8 +863,10 @@
   async function start(projectId) {
     if (!window.COLLAB_ENABLED) return { ok: false, reason: 'collab_disabled' };  // ★킬스위치: 협업 비활성 시 동기화 시작 안 함
     stop();
+    const gen = ++_startGen;
     const c = api(); if (!c || !projectId) return { ok: false, reason: 'unavailable' };
     const r = await c.ref({ projectId });
+    if (gen !== _startGen) return { ok: false, reason: 'switched' };   // ⑷ 그사이 다른 start(탭 전환)가 왔다
     const ref = r && r.ref;
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
     /* ★role 을 싣는다 — 시드 재푸시에 «오너만» 응답한다(serveNeeds).
@@ -769,25 +874,27 @@
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0, role: ref.role || '' };
     _seqSaved = _seqDurable = _owedSeq = ref.seq || 0;
     _baseHashes = ref.hashes || null; _durableHashes = ref.hashes || {};
-    _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false;
+    _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false; _resumed = false;
     _sent = Object.create(null);
     _localSnap = Object.create(null);
     _deferred = new Map();
     _serverSections = null; _needIds = []; _needTicks = 0;
     _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
-    _lastPushedSeq = Object.create(null); _conflicts = new Map(); _peerForm = new Map();
+    _lastPushedSeq = Object.create(null); _conflicts = _conflictsByProject.get(projectId) || new Map(); _conflictsByProject.set(projectId, _conflicts); _peerForm = new Map();
     _appliedLog = []; _rewound = null;
     _replaced = Object.create(null); _serverHashes = null; _nextSaveAt = 0; _hashesDirty = false;
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
     _bootstrap = (ref.seq || 0) === 0;
-    _resumeOwed = projectLoading(projectId);      // 읽는 중이면 첫 받기를 tick 으로 미룬다
+    _resumeOwed = projectLoading(projectId) || _inFlight;      // 읽는 중이면 첫 받기를 tick 으로 미룬다 · 리뷰 1 F3 — 앞 방 push 가 아직 날아가는 중이면 그것도(tick 이 _inFlight 를 기다린다)
     const rs = _resumeOwed ? { ok: true } : await resumeSafely();              // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    if (gen !== _startGen) return { ok: false, reason: 'switched' };   // 리뷰 1 F5 — 밀려난 start 가 타이머를 걸면 tick 이 겹쳐 돈다
     /* ★폴링은 «실패해도» 건다 — 첫 받기만 실패한 것(오프라인 등)이면 다음 tick 이 회복한다. 예전과 같은 동작이다.
      *   바뀐 것은 «거짓말을 안 하는 것»뿐이다: 실패면 ok:false ＋ reason, 「started」 대신 「start_failed」. */
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(() => { settleReceived().finally(flushSeq); }, 10000);
     if (!rs || !rs.ok) {
+      _resumeOwed = true;   // ⑶ 첫 재개가 실패하면 tick 이 재개를 다시 한다(옛: 그냥 pull 로 넘어가 다음 저장이 모든 섹션을 올렸다)
       const reason = (rs && rs.reason) || 'unknown';
       emit({ type: 'start_failed', reason, status: rs && rs.status, collabId: ref.collabId });
       return { ok: false, reason, retrying: true, collabId: ref.collabId };
@@ -800,7 +907,8 @@
     flushSeq();                                   // 닫기 전에 진도부터 남긴다
     if (_timer) clearInterval(_timer);
     if (_seqTimer) clearInterval(_seqTimer);
-    _timer = null; _seqTimer = null; _cfg = null; _deferred.clear();
+    _timer = null; _seqTimer = null; _cfg = null; _deferred.clear(); _owedPush = null;
+    _conflicts = new Map();   // 리뷰 2 #4 — 그 방 기록은 _conflictsByProject 에 남는다 · 보통 프로젝트로 가서 앞 방 충돌을 «되살리기»로 엉뚱한 곳에 쓰지 않게
     const el = document.getElementById('collab-topbar-badge');
     if (el) { el.style.display = 'none'; el.textContent = ''; }
     emit({ type: 'stopped' });
@@ -811,7 +919,10 @@
     if (!_cfg) return;
     const d = e.detail || {};
     if (d.projectId && _cfg.projectId && d.projectId !== _cfg.projectId) return;  // 탭 전환 레이스
-    pushChanged(d.snap);
+    /* ★COLLAB-SYNC-OLD-GAPS ⑶ — 재개(서버 해시 심기) 전엔 _sent 가 비어 모든 섹션을 «바뀜»으로 올렸다(읽는 중 · 재개 받는 중 · 첫 재개 실패 뒤).
+       편집은 안 잃는다 — 재개가 그때 프로젝트를 다시 직렬화해 진짜 차이만 올린다. */
+    if (!_resumed) return;
+    pushChanged(d.snap, d.snapAt);
   });
 
   /* ── 「상대가 지금 뭘 하고 있나」 상단바 표시 ─────────────────────────────

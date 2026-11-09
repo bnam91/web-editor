@@ -337,6 +337,9 @@ async function switchTab(id) {
   // ★여기서 URL·activeProjectId 는 벌써 «새 프로젝트»인데 캔버스는 아직 비어 있다(아래 await 구간).
   //   부트 경로와 «같은 구멍»이라 같은 레지스트리로 닫는다 — 대기자는 settle 만 본다.
   const _loadSeq = window.gdtProjectReady?.begin(id, 'tab');
+  /* ★COLLAB-SYNC-OLD-GAPS ⑷ — 협업 동기화는 주소(부팅)·초대 수락에서만 붙었다 → 협업 프로젝트로 탭을 옮겨 오면 그 편집이 안 올라갔다(sync.js 주석이 인정).
+     주소가 새 프로젝트로 바뀌고 «읽는 중»이 선 «뒤»에 붙인다 — start 가 읽는 중을 보고 첫 재개를 로드 끝까지 미룬다(_resumeOwed). 보통 프로젝트면 앞 동기화만 멈춘다(not_linked). */
+  window.collabSync?.autoStart?.();
   const _settle = (detail) => { window.gdtProjectReady?.settle(_loadSeq, 'ready', detail); };
   // 던지고 끝나면 phase 가 'loading' 으로 굳어 대기자가 영원히 매달린다 — 실패도 «닫는다».
   const _settleErr = (detail) => { window.gdtProjectReady?.settle(_loadSeq, 'error', detail); };

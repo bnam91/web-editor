@@ -2478,6 +2478,7 @@ function scheduleAutoSave() {
       _setAutosaveIndicator('error');
       return;
     }
+    const _snapAt = performance.now();   // 협업이 «이 스냅이 받은 패치보다 먼저 찍혔나»를 가른다(COLLAB-SYNC-OLD-GAPS ㉮ · 읽기만)
     let snap = serializeProject();
     // S11: 빈 canvas 저장 방지 — _suppressAutoSave 해제 직후 빈 상태 덮어쓰기 방지
     try {
@@ -2506,7 +2507,7 @@ function scheduleAutoSave() {
         //   없는 것을 남에게 주게 된다. 실패했으면 안 쏜다(공유는 저장의 «다음» 단계다).
         //   이벤트로 가른 이유: save-load 가 협업을 몰라도 되게 — 협업이 없으면 아무도 안 듣는다.
         if (!(r && r.ok === false)) {
-          try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _saveTargetId, snap } })); } catch (_) {}
+          try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _saveTargetId, snap, snapAt: _snapAt } })); } catch (_) {}
         }
       })
       .catch(() => _setAutosaveIndicator('error'))
@@ -3256,6 +3257,7 @@ window.keepFailedCopyOnClose = async (id, name, cache, waitMs) => {   // waitMs:
 };
 /* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
 window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
+window.projectLastSaveFailed = (id) => _lastSaveFailed(id);   // 읽기만 — 협업이 «미저장 편집을 지키며 상대 패치를 미룰지»를 가른다(COLLAB-SYNC-OLD-GAPS ⑴)
 window.loadProjectsList = loadProjectsList;
 window.getProjectName = getProjectName;
 window.setProjectName = setProjectName;

@@ -113,11 +113,14 @@ test('R5 프로젝트를 읽는 중엔 받은 것을 안 붙이고 안 쓴다 �
   const r = await page.evaluate(async () => {
     const real = window.gdtProjectReady.get;
     window.gdtProjectReady.get = () => ({ ...real(), phase: 'loading', projectId: 'proj_x' });
-    /* 진짜 서버처럼 목차를 준다 — 없으면 재개 push 가 먼저 나가 이 패치가 «묵은 패치»로 갈린다 */
+    /* 진짜 서버처럼 목차를 준다 — 목차 = 서버 «지금» 판(= 이 패치) · 진도의 해시(ref.hashes) = 내가 닫을 때 서버와 같았던 판(BASE)이라 재개 push 가 안 나간다.
+       ⚠️(COLLAB-SYNC-OLD-GAPS 리뷰 1 F1 뒤) 옛 장면은 목차를 BASE 로 줬다 — 서버 지금 판이 BASE 인데 그보다 새 패치가 오는 «어긋난 서버»라 재개가 묵은 패치로 친다. */
     const local = window.__I.collectSections(JSON.parse(window.serializeProject()))[0];
-    const pull = window.electronAPI.collab.pull;
-    window.electronAPI.collab.pull = async (q) => ({ ...(await pull(q)), sections: [{ pageId: local.pageId, sectionId: local.sectionId, hash: local.hash }] });
     window.__recv('읽는중글');
+    const ph = window.__queue[0].hash;
+    window.electronAPI.collab.ref = async () => ({ ok: true, ref: { collabId: 'cb_t', seq: 5, role: 'member', hashes: { [local.key]: local.hash } } });
+    const pull = window.electronAPI.collab.pull;
+    window.electronAPI.collab.pull = async (q) => ({ ...(await pull(q)), sections: [{ pageId: local.pageId, sectionId: local.sectionId, hash: ph }] });
     await window.collabSync.start('proj_x');
     await window.collabSync.tick();
     const during = { text: document.querySelector('#secX').textContent, saves: window.__saves.length, queue: window.__queue.length };
