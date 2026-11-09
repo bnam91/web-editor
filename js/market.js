@@ -154,7 +154,7 @@
      (안 그러면 원격 고른 섹션 링크가 L 이미지를 가리킨다, 둘다면 두 섹션이 한 항목을 나눠 쓴다). parsed.pages[].canvas 를 고치므로 저장 «전»에 부른다. 시험: tests/dom/market-no-overwrite.dom.spec.js */
   async function _planMergedScratch(parsed, local, choices, remoteScratch) {
     const pages = parsed.pages || [];
-    const mine = (await window._scratchExportAll?.(local.id, pages.map(p => p.id))) || [];
+    const mine = (await window._scratchExportAll?.(local.id, pages.map(p => p.id), local.pages)) || [];   // local.pages — 표식 키 합침은 L 의 매니페스트로(열린 프로젝트가 아닐 수 있다)
     let theirs = remoteScratch;
     if (typeof theirs === 'string') theirs = JSON.parse(theirs);
     const mineOf = new Map(mine.map(b => [b.pageId, b.items]));
