@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net: electronNet, screen: electronScreen, Notification } = require('electron');
 // ▼QA_HIDDEN (2026-10-02 현빈 승인) — GODITOR_QA_HIDDEN=1 일 때만: 창을 숨기고(show:false) 렌더러가 서지 않게 플래그 셋.
 //   ★목적 = QA 창이 «현빈 화면 포커스를 안 뺏는다»(2026-10-02 격리앱을 open -g 로 띄워도 뺏은 사고).
 //   ⛔이 환경변수가 없으면 이 파일은 dev(22d94bf0)판과 «한 바이트도» 다르지 않아야 한다 — ▼▲ 표식 안만 다르다
@@ -23,6 +23,59 @@ function _downloadsDir(env, getPath, isAbs, mkdir) {
   return getPath();
 }
 // ▲DOWNLOADS_DIR
+// ▼DL_FINALIZE (DOWNLOADS-SYNC-MKDIR-ON-DOWNLOAD-01 · 지디 승인안 ㉠) — 받기는 staging 에, ~/Downloads 로는 «비동기»로 옮긴다.
+//   ★왜 — ~/Downloads 는 맥 «파일 접근» 확인창 대상이라 메인 스레드에서 existsSync·mkdirSync 를 부르면 확인창이 떠 있는 동안 앱이 멈춘다.
+//     setSavePath 는 will-download 안에서 «동기로»만 받으니(안 부르면 저장 창 → 유실), 그 자리엔 fs 를 안 쓰는
+//     userData/downloads-staging/<고유>/<이름> 을 주고(없는 폴더는 Electron 이 만든다) 이름 고르기·옮기기는 done 뒤에.
+//   ⛔옮기기 실패해도 던지지 않는다 — 파일은 staging 에 남고(유실 없음) onMoveFail 로 알린다. tests/unit/main-dl-finalize.test.mjs 가 떼어 잰다.
+function _makeWillDownload({ dirFor, stagingDir, fsp, pathMod, getCollector, onMoveFail }) {
+  let seq = 0;   // 같은 ms 에 두 내보내기가 와도 staging 칸이 안 겹치게
+  return (_event, item) => {
+    const collector = getCollector();
+    const dir = dirFor(collector);
+    const base = item.getFilename() || 'export';
+    const tmp = pathMod.join(stagingDir, `${Date.now()}-${++seq}`, base);
+    item.setSavePath(tmp);
+    /* ★계측 — 「내보냈다」와 「어디에 떨어졌나」는 다른 사실이다.
+       ⑴ 충돌 시 _dlFinalize 가 `(1)` 을 붙이는데 그 결과가 «렌더러로 안 돌아간다» → MCP 가
+          도구를 만들어도 ok:true 인데 클로드가 파일을 못 찾는다. 여기가 최종 경로를 아는 «유일한» 자리다.
+       ⑵ ⛔setSavePath 는 «의도»지 «결과»가 아니다 — 실패·취소해도 경로는 정해진다.
+          그래서 done 과 옮기기를 기다려 state 와 실제 경로를 같이 싣는다. */
+    const rec = collector ? { filename: base, intendedPath: pathMod.join(dir, base), state: 'pending', path: null, bytes: 0 } : null;
+    if (rec) collector.items.push(rec);
+    item.once('done', async (_e, state) => {
+      const bytes = item.getReceivedBytes() || 0;
+      let out = { path: null, moved: false };
+      if (state === 'completed') {
+        out = await _dlFinalize(tmp, dir, base, fsp, pathMod);
+        if (!out.moved) onMoveFail(out.path, out.error);
+      } else fsp.rm(pathMod.dirname(tmp), { recursive: true, force: true }).catch(() => {});
+      if (!rec) return;
+      if (out.moved) rec.intendedPath = out.path;
+      rec.path = out.path;                      // ★실제로 쓰인 경로(옮긴 뒤 최종 · 실패면 staging)
+      rec.bytes = bytes;
+      rec.pathMatchesIntent = out.moved;
+      rec.state = state;                        // completed | cancelled | interrupted — ★맨 끝(_dlSettle 이 이걸 본다)
+    });
+  };
+}
+async function _dlFinalize(tmpPath, dir, base, fsp, pathMod) {
+  try {
+    await fsp.mkdir(dir, { recursive: true });
+    const ext = pathMod.extname(base);
+    let dest = pathMod.join(dir, base);
+    for (let n = 1; await fsp.access(dest).then(() => true, () => false); n++) {
+      dest = pathMod.join(dir, `${pathMod.basename(base, ext)} (${n})${ext}`);
+    }
+    try { await fsp.rename(tmpPath, dest); }
+    catch (e) { if (e && e.code === 'EXDEV') { await fsp.copyFile(tmpPath, dest); await fsp.unlink(tmpPath); } else throw e; }
+    fsp.rm(pathMod.dirname(tmpPath), { recursive: true, force: true }).catch(() => {});
+    return { path: dest, moved: true };
+  } catch (e) {
+    return { path: tmpPath, moved: false, error: (e && e.code) || String(e) };
+  }
+}
+// ▲DL_FINALIZE
 
 // ── 캔버스 이미지 외부화: 커스텀 프로토콜 goya-asset://<projectId>/<filename> ──
 // 캔버스 HTML에 박히던 인라인 base64를 proj_<id>/assets/<contenthash>.<ext>로 분리하고,
@@ -416,34 +469,22 @@ function createWindow() {
   // 다운로드(섹션 내보내기 등)는 다이얼로그 없이 Downloads에 바로 저장.
   // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
   // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
-  mainWindow.webContents.session.on('will-download', (event, item) => {
-    const dir = (_dlCollector && _dlCollector.outDir)
-      || _downloadsDir(process.env, () => app.getPath('downloads'), path.isAbsolute, (d) => fs.mkdirSync(d, { recursive: true }));   // DOWNLOADS_DIR — 읽는 자리 하나(위 ▼ 블록)
-    const base = item.getFilename() || 'export';
-    let dest = path.join(dir, base);
-    for (let n = 1; fs.existsSync(dest); n++) {
-      const ext = path.extname(base);
-      dest = path.join(dir, `${path.basename(base, ext)} (${n})${ext}`);
-    }
-    item.setSavePath(dest);
-    /* ★계측 — 「내보냈다」와 「어디에 떨어졌나」는 다른 사실이다.
-       ⑴ 충돌 시 위 루프가 `(1)` 을 붙이는데 그 결과가 «렌더러로 안 돌아간다» → MCP 가
-          도구를 만들어도 ok:true 인데 클로드가 파일을 못 찾는다. 여기가 최종 경로를 아는
-          «유일한» 자리다.
-       ⑵ ⛔setSavePath 는 «의도»지 «결과»가 아니다 — 실패·취소해도 경로는 정해진다.
-          그래서 done 을 기다려 state 와 getSavePath() 를 같이 싣는다. 안 그러면
-          「실패한 내보내기」를 성공 경로로 보고하게 된다. */
-    if (_dlCollector) {
-      const rec = { filename: base, intendedPath: dest, state: 'pending', path: null, bytes: 0 };
-      _dlCollector.items.push(rec);
-      item.once('done', (_e, state) => {
-        rec.state = state;                        // completed | cancelled | interrupted
-        rec.path = item.getSavePath() || null;    // ★실제로 쓰인 경로
-        rec.bytes = item.getReceivedBytes() || 0;
-        rec.pathMatchesIntent = rec.path === dest;
-      });
-    }
-  });
+  mainWindow.webContents.session.on('will-download', _makeWillDownload({   // ▼DL_FINALIZE 블록 — 여기선 fs 를 동기로 안 만진다
+    dirFor: (c) => (c && c.outDir)
+      || _downloadsDir(process.env, () => app.getPath('downloads'), path.isAbsolute, (d) => fs.promises.mkdir(d, { recursive: true }).catch(() => {})),   // DOWNLOADS_DIR — 읽는 자리 하나(위 ▼ 블록)
+    stagingDir: path.join(app.getPath('userData'), 'downloads-staging'),
+    fsp: fs.promises,
+    pathMod: path,
+    getCollector: () => _dlCollector,
+    onMoveFail: (p, err) => {
+      console.warn('[download] 옮기기 실패 — staging 에 남김:', p, err);
+      try {
+        const n = new Notification({ title: '다운로드 폴더로 옮기지 못했어요', body: p });
+        n.on('click', () => shell.showItemInFolder(p));
+        n.show();
+      } catch (_) {}
+    },
+  }));
 
   // local-fonts 퍼미션 허용 (queryLocalFonts API)
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
