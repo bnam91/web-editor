@@ -88,6 +88,7 @@
   let _lastPushedSeq = Object.create(null);   // 'pageId::secId' → 내 push 가 받은 서버 seq
   let _conflicts = new Map();                 // 'pageId::secId' → { mode:'kept'|'replaced', mineHtml, theirsHtml, theirs:{actorId,email,seq} }
   let _inFlight = false;
+  let _owedPush = null;              // ⑵ 올리는 중에 온 저장 스냅 — 버리지 않고 끝나면 한 번 더(최신 하나)
   let _lastError = null;
   let _seqSaved = 0;                  // 디스크에 남긴 진도
   /* COLLAB-RECEIVED-PATCH-LOST-ON-REOPEN-01 — 받은 내용은 화면에만 붙고(자동저장 억제) 진도만 디스크에 올라, 안 만지고 다시 열면 내용은 없고 다시 받지도 못했다.
@@ -431,7 +432,9 @@
 
   /* ── 보내기 ────────────────────────────────────────────────────────────── */
   async function pushChanged(snapStr) {
-    if (!_cfg || _inFlight) return;
+    if (!_cfg) return;
+    /* ★COLLAB-SYNC-OLD-GAPS ⑵ — 올리는 중에 온 두 번째 저장을 버리면 다음 저장까지 서버와 어긋났다 ⇒ 최신 스냅 하나를 기억했다가 끝나면 올린다(baseSeq 는 보낼 때 읽음) */
+    if (_inFlight) { _owedPush = { snap: snapStr, cfg: _cfg }; return; }
     const c = api(); if (!c) return;
     let obj;
     /* ★A8(지디 판정): 저장 스냅샷이 JSON 이 아니면 «내부 오류»다 — 사용자가 할 일이 없어 화면엔 안 띄우고 error 로 남긴다. */
@@ -503,6 +506,8 @@
     } finally {
       _inFlight = false;
       if (attempted) emit({ type: 'pushed', error: _lastError });
+      const owed = _owedPush; _owedPush = null;
+      if (owed && owed.cfg === _cfg && _cfg === cfg) pushChanged(owed.snap);   // 같은 방일 때만 — 방이 바뀌었으면 그 글은 앞 방 것이다
     }
   }
 
@@ -813,7 +818,7 @@
     flushSeq();                                   // 닫기 전에 진도부터 남긴다
     if (_timer) clearInterval(_timer);
     if (_seqTimer) clearInterval(_seqTimer);
-    _timer = null; _seqTimer = null; _cfg = null; _deferred.clear();
+    _timer = null; _seqTimer = null; _cfg = null; _deferred.clear(); _owedPush = null;
     const el = document.getElementById('collab-topbar-badge');
     if (el) { el.style.display = 'none'; el.textContent = ''; }
     emit({ type: 'stopped' });

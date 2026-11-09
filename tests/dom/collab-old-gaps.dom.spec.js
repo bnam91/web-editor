@@ -2,7 +2,8 @@
  *   ⑴ C1 미저장 편집 중 상대 패치 → 붙이지 않고 미룸(내 글 그대로) · 미룬 건수 토스트 1번 · 저장하면 서버 충돌 → 충돌 토스트 + 충돌 기록 1 · 내 글 유지
  *      C2 저장이 «실패»한 채 미저장이면 미루지 않는다 — 붙이고 바로 충돌 토스트 · 덮인 내 판은 충돌 기록(replaced)에 남는다
  *      C3 [대조] 미저장 없으면 예전처럼 바로 붙고 토스트 없음
- * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C1(상대 글이 말없이 덮음)·C2(토스트 0) 빨강 · C3 초록. */
+ *   ⑵ C4 올리는 중 두 번째 저장 → 버리지 않고 끝나면 올린다(서버 마지막 글 = A2 · 세 번째 저장 없이)
+ * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
@@ -88,4 +89,26 @@ test('C3 [대조] 미저장 없으면 바로 붙고 토스트 없음', async ({ 
     return { text: window.__text('secA'), toasts: [...window.__toasts], deferred: window.collabSync.status().deferred };
   });
   expect({ text: r.text, deferred: r.deferred, conflict: conflictToasts(r.toasts), held: held(r.toasts) }).toEqual({ text: '상대글', deferred: 0, conflict: 0, held: 0 });   // 다른 안내 토스트(연결 등)는 이 칸의 뜻이 아니다
+});
+
+test('C4 올리는 중 두 번째 저장 — 버리지 않고 끝나면 올린다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    const push = window.electronAPI.collab.push; let rel; let held = 0;
+    window.electronAPI.collab.push = async (q) => { if (!held++) await new Promise((res) => { rel = res; }); return push(q); };
+    window.__edit('secA', 'A1');
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } }));
+    await new Promise((res) => { const iv = setInterval(() => { if (rel) { clearInterval(iv); res(); } }, 10); });   // 첫 push 가 붙잡혔다(올리는 중)
+    window.__edit('secA', 'A2');
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } }));   // 올리는 중 두 번째 저장
+    const pendingWhileHeld = held;
+    rel();
+    await new Promise((res) => { const t0 = Date.now(); const iv = setInterval(() => { const mine = window.__log.filter(p => p.actorId !== 'other' && p.sectionId === 'secA'); if (mine.length >= 2 || Date.now() - t0 > 3000) { clearInterval(iv); res(); } }, 20); });
+    const mine = window.__log.filter(p => p.actorId !== 'other' && p.sectionId === 'secA');
+    return { pendingWhileHeld, n: mine.length, last: mine.at(-1)?.html || '' };
+  });
+  expect(r.pendingWhileHeld, '[전제] 두 번째 저장 때 push 는 하나만 붙잡혀 있었다').toBe(1);
+  expect(r.last, '★두 번째 저장이 버려져 서버가 A1 에 머묾').toContain('A2');
+  expect(r.n, JSON.stringify(r)).toBeGreaterThanOrEqual(2);   // 자동저장 사건이 하나 더 올 수 있다 — 뜻은 «버리지 않음»
 });
