@@ -284,6 +284,10 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 .scratch-item.scratch-selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
+  /* ★고른 장만 한 층 위(SCRATCH-HANDLE-UNDER-NEIGHBOR-01) — 항목이 전부 z 100 이고 손잡이는 항목 «안»이라 뒤 이웃이 덮으면 그 모서리를 잡을 때 이웃이 잡혔다(t2-10 네 모서리 전부).
+     층 순서의 정본은 배열·DOM(저장·⌘[ ⌘] 무관)이고 이건 «고른 동안만» 보이는 층이다 — 고름을 풀면 옛 순서로 돌아온다.
+     득실: 대리 손잡이 넷(수지 안 확장)은 CSS 앵커·감시자·손잡이 넷이 든다 / 이 한 줄은 고른 동안 그 장이 이웃 위로 보이고 겹친 자리를 누르면 그 장이 잡힌다. */
+  z-index: 101;
 }
 
 /* 캔버스 빈 영역 마퀴 드래그 — 스크래치 다중 선택 (canvas-scaler 내부 절대좌표) */
