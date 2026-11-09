@@ -116,7 +116,9 @@
   let _seqTimer = null;
   const _listeners = new Set();       // 상태 변화 구독(탑바 표시 등)
 
-  const api = () => (window.electronAPI && window.electronAPI.collab) || null;
+  /* int-3(ls-file-base 토스트 4 — ⑷ 탭 전환 autoStart 뒤): electronAPI 를 Proxy 로 흉내 낸 곳(하니스·옛 preload)에선 collab 이 «함수»로 보여도 ref/pull/push 가 없어
+     start 가 던지고 «동기화를 시작하지 못했습니다» 를 거짓으로 띄웠다 ⇒ 세 문이 다 «함수»일 때만 협업 API 로 본다(아니면 없는 것 = autoStart 조용히 끝). */
+  const api = () => { const c = window.electronAPI && window.electronAPI.collab; return (c && typeof c.ref === 'function' && typeof c.pull === 'function' && typeof c.push === 'function') ? c : null; };
   const mm  = () => window.marketMerge || null;
 
   /* ★actorId 를 «읽기만» 하면 안 된다 — 아직 블록을 하나도 안 만든 사용자는 값이 없다.
