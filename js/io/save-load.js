@@ -3174,7 +3174,9 @@ window.flushProjectBeforeTrash = async (id) => {
       await saveProjectToFile(serializeProject(), { skipThumbnail: true, projectId: id });
     }
   } else if (_lastSaveFailed(id) && tab._cache) {
-    await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id });
+    /* ★TRASH-FLUSH-STALE-CACHE-OVERWRITES-NEWER-FILE-01 — 옆 탭의 실패 본은 파일에 안 쓰고 비상 사본으로(닫기·종료와 같은 길 · 같은 실패는 한 번만).
+       ⛔파일에 쓰면 그 캐시는 실패 뒤 다른 창·MCP·버전 복원으로 새로워진 파일보다 낡아 그 새 내용을 덮고, 덮인 판이 그대로 휴지통에 들어갔다. */
+    await window.keepFailedCopyOnClose(id, tab.name, tab._cache);
   }
   const until = Date.now() + 5000;
   while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));
