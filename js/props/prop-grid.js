@@ -1327,6 +1327,11 @@ const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
  *         문다」라고 «미리» 적어 두었고, 실제로 그 패치에서 물었다.
  *   ⇒ ★그래서 손잡이를 «우클릭 메뉴»로 냈다(index.html `#bcm-grid-nested` ＋ block-factory.js).
  *     지키는 그물: tests/dom/grid-nested-create.dom.spec.js */
+/* ★1109t1A2/Q-1109t1A2 — 「+ 줄 추가」 덧 옵션 사진/원(우클릭과 같은 이름 · grdNewLineSpec 한 자). 일반 칸·중첩 칸이 «이 한 벌»을 쓴다.
+ *   E12/E13 은 «줄 type» 으로 견준다 — 둘 다 type:'image'(이미 두 명부에 있다)라 명부가 안 늘어난다. */
+const _GRD_ADD_IMG_OPTS = `
+          <option value="photo">+ 이미지</option>
+          <option value="circle">+ 원형 이미지</option>`;
 const _grdAddKindSelectHtml = (kinds = _GRD_KINDS, extra = '') => `
         <select class="prop-select" id="grd-line-add-kind" style="flex:1 1 96px;min-width:0;width:auto;"
                 title="고른 종류로 새 줄을 만든다 (단축키 T=텍스트 · G=여백 · K=아이콘)">
@@ -1484,9 +1489,7 @@ function _grdNestHintHtml(nestHit) {
       <div class="prop-section-title">줄 (중첩 칸 안)</div>
       <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>${/* ★1109t1A 게이트(지디) — 「아직 고치는 건…다음 판」·「주소 r,c…」 두 줄은 사용자에게 개발자 말·약속이라 지웠다(불필요한 프롭힌트) */ ''}
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">${nestHit.np.includes('/') ? '' : /* ★1109t1A2 깊이 1만 · 중첩 종류는 _GRD_KINDS 에 없다(E12/E13) · 사진/원은 우클릭(이미지 추가/원형 이미지 추가)과 같은 이름 · 만드는 꼴은 grdNewLineSpec('photo'|'circle') 한 곳 */
-          _grdAddKindSelectHtml(_GRD_KINDS, `
-          <option value="photo">+ 이미지</option>
-          <option value="circle">+ 원형 이미지</option>`)}
+          _grdAddKindSelectHtml(_GRD_KINDS, _GRD_ADD_IMG_OPTS)}
         <button id="grd-nest-outer-btn" class="prop-btn-sm" title="이 칸을 품은 바깥 줄을 고릅니다 (Esc 와 같음)">바깥 줄 고르기</button>
       </div>
     </div>`;
@@ -1514,7 +1517,7 @@ function _grdLineBarHtml(anyHit, block, host = null) {
         <span class="prop-hint" style="flex:1;min-width:0;">${H.head(r, c, null)}</span>
       </div>
       <div class="prop-row" style="gap:6px;flex-wrap:wrap;">
-${_grdAddKindSelectHtml(H.kinds)}${H.kinds.includes('image') ? `
+${_grdAddKindSelectHtml(H.kinds, H.kind === 'grid' ? _GRD_ADD_IMG_OPTS : '')}${H.kinds.includes('image') ? `
         <button id="grd-cell-add-icon-btn" class="prop-btn-sm" title="아이콘 줄 추가 (단축키 K)">+ 아이콘 (K)</button>` : ''}
       </div>
     </div>`;
@@ -1557,7 +1560,7 @@ ${_grdAddKindSelectHtml(H.kinds)}${H.kinds.includes('image') ? `
               style="flex:1 1 0;min-width:0;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${summary}</span>
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
-${_grdAddKindSelectHtml(H.kinds)}
+${_grdAddKindSelectHtml(H.kinds, H.kind === 'grid' ? _GRD_ADD_IMG_OPTS : '')}
         <button id="grd-line-dup-btn" class="prop-btn-sm"
                 title="이 줄을 그대로 한 벌 더 만들어 «바로 아래»에 넣습니다 (⌘Z 로 복원)">줄 복사</button>
         <button id="grd-line-del-btn" class="prop-btn-sm"

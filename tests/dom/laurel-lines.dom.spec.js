@@ -238,7 +238,8 @@ test.describe('laurel 줄 — C2 네 번째 주인(캔버스 2단 선택 · 줄�
       window.selectSection(document.getElementById('sB')); window.addGridBlock({});
       const g = [...document.querySelectorAll('#sB .grid-block')].pop();
       window.deselectAll(); g.classList.add('selected'); window.grdSetActiveLine(g, { r: 0, c: 0, li: 0 }); window.showGridProperties(g);
-      const o = [...(document.getElementById('grd-line-add-kind')?.options || [])].map(x => x.value);
+      /* ★Q-1109t1A2 — 사진·원 빈 슬롯(photo·circle)은 «그리드 칸»에만 연다(laurel 은 범위 밖) ⇒ 명부 비교에서 뺀다 */
+      const o = [...(document.getElementById('grd-line-add-kind')?.options || [])].map(x => x.value).filter(v => v !== 'photo' && v !== 'circle');
       window.deselectAll(); g.closest('.row')?.remove(); return o;
     });
     expect(gridKinds.length, '전제 — 그리드 줄바 명부를 읽었다').toBeGreaterThan(3);

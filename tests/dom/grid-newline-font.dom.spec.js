@@ -241,7 +241,8 @@ test('G-KIND ★종류별 — 박히는 종류 집합 = 렌더러가 fontFamily 
     window.grdSetActiveLine?.(g, { r: 0, c: 0, li: 0 });
     window.showGridProperties?.(g);
     const sel = document.getElementById('grd-line-add-kind');
-    const kinds = [...sel.options].map(o => o.value).filter(Boolean);
+    /* ★Q-1109t1A2 — photo·circle 은 «종류»가 아니라 type:'image' 빈 슬롯(같은 type 은 'image' 가 잰다) ⇒ 값 = type 인 것만 */
+    const kinds = [...sel.options].map(o => o.value).filter(Boolean).filter(v => window.grdNewLineSpec(v).type === v);
 
     /* ★아이콘(image)은 피커가 ★비동기다 — ★실물 이름 그대로 세워 ★동기로 답하게 한다.
        ⛔이 자리를 건너뛰면 ★한 종류가 ★안 재진 채 초록이 된다. */
