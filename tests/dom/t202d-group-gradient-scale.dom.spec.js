@@ -105,3 +105,19 @@ test('C1 [대조] 같은 묶음의 도형은 바닥 길 그대로 비율대로',
   expectFollows(a, b, 'C1', ['shf']);
   expect(errs).toEqual([]);
 });
+
+/* ★지디(261109) 크기 바닥 — 아주 작게 줄여 반올림이 0 이하가 되면 renderGradientBlock 의 `|| 기본값` 으로 튀거나 음수 폭으로 무너졌다.
+   ⇒ 그룹 손잡이 최소와 같은 8px 바닥(패널 범위 200~1200/50~1500 으로는 안 조임). 함수를 직접 부른다(손잡이 최소가 막기 전 값까지 재려고). */
+test('F1 바닥 — 0.001 배로 줄여도 그라데이션 크기 = 8px(기본 크기로 튀지 않음 · 무너지지 않음) · 1.5 배는 그대로(바닥 아님)', async ({ page }) => {
+  const errs = await grouped(page);
+  const r = await page.evaluate(() => {
+    const g = document.getElementById('g1'); const d0 = { ...g.dataset };
+    window._scaleGradientFromSnap(g, d0, 0.001, 0.001);
+    const a = { w: g.dataset.gradWidth, h: g.dataset.gradHeight, rw: Math.round(g.getBoundingClientRect().width / ((window.currentZoom || 100) / 100)), rh: Math.round(g.getBoundingClientRect().height / ((window.currentZoom || 100) / 100)) };
+    window._scaleGradientFromSnap(g, d0, 1.5, 1.5);
+    return { a, b: { w: g.dataset.gradWidth, h: g.dataset.gradHeight }, w0: d0.gradWidth, h0: d0.gradHeight };
+  });
+  expect(r.a, JSON.stringify(r)).toEqual({ w: '8', h: '8', rw: 8, rh: 8 });
+  expect(r.b, '바닥 아닌 값은 그대로 · 패널 범위로 안 조임').toEqual({ w: String(Math.round(+r.w0 * 1.5)), h: String(Math.round(+r.h0 * 1.5)) });
+  expect(errs).toEqual([]);
+});
