@@ -189,7 +189,7 @@ const { fillSectionTexts: anthropicFill, ocrImage: anthropicOcr } = require('./s
 const { generateImage: aiGenerateImage } = require('./services/imageGenService');
 const { registerClaudePMIPC, setActualMcpPort, setMcpStartFailed, syncClaudePmTitle, handleEnsureClaudePMFolder, setPmProjectsRoot } = require('./main/claude-pm/ipc');
 const { registerTerminalIPC, killAllSessions: killAllTerminalSessions } = require('./main/claude-pm/terminal');
-const { startMcpServer, stopMcpServer, setRendererInvoker: setMcpRendererInvoker, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, setProjectsRoot: setMcpProjectsRoot, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
+const { startMcpServer, stopMcpServer, setRendererInvoker: _setMcpRendererInvokerRaw, setIconifyApi: setMcpIconifyApi, setProjectOps: setMcpProjectOps, setAuthProbe: setMcpAuthProbe, setProjectsRoot: setMcpProjectsRoot, getToken: getMcpToken, regenerateToken: regenerateMcpToken } = require('./main/claude-pm/mcp-server');
 // Unit B — MCP 접속 토큰(메모리 보관, 화면표시/IPC용). 파일/레포 저장 금지.
 let currentMcpToken = null;
 
@@ -4835,7 +4835,7 @@ app.whenReady().then(async () => {
     // Unit B — 접속 토큰 보관(메모리). renderer 노출은 admin 게이팅 IPC로만.
     currentMcpToken = mcpToken || null;
     // Phase 2/3 — renderer write bridge 주입
-    setMcpRendererInvoker(_withProtectedTextGuards({   // 🔒 보호 섹션 글을 빈 글로 만드는 update_* 는 되돌리고 거절(공용 한 자리 · 아래 _guardProtectedText)
+    setMcpRendererInvoker({
       addTextBlock: _invokeRendererAddBlock,
       editTextBlock: _invokeRendererEditBlock,
       addSection: _invokeRendererAddSection,
@@ -4932,7 +4932,7 @@ app.whenReady().then(async () => {
       addLinerBlock: _invokeRendererAddLinerBlock,
       updateLinerBlock: _invokeRendererUpdateLinerBlock,
       addBannerBlock: _invokeRendererAddBannerBlock,
-    }));
+    });
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
       setMcpIconifyApi({ search: _doIconifySearch, fetchSvg: _fetchIconifySvg });
@@ -5116,6 +5116,8 @@ function _withProtectedTextGuards(inv) {
   for (const k of Object.keys(inv)) if (/^update[A-Z]/.test(k) && typeof inv[k] === 'function') inv[k] = _guardProtectedText(inv[k]);
   return inv;
 }
+/* 다리 객체를 MCP 에 넘기는 유일한 문 — 여기서 update* 를 감싼다(부르는 쪽 글자 «setMcpRendererInvoker({» 는 그대로: tests/unit/spacing-wiring Ⓕ 가 그 한 곳을 센다). */
+function setMcpRendererInvoker(inv) { return _setMcpRendererInvokerRaw(_withProtectedTextGuards(inv)); }
 
 async function _invokeRendererVariation({ op, sectionId, to, confirm = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');
