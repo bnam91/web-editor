@@ -3474,7 +3474,7 @@ function _grdWireTypo(block, addr, host = null) {
  *
  * ★접힘 기본 — 칸 꾸미기와 «같은 부품·같은 집»(_grdDisclosureHtml · _grdOpenSections).
  *   ⛔절을 하나 더 «펼친 채로» 내면 순증 예산(Δ≤+60)을 그 자리에서 넘긴다(실측으로 확인). */
-const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image']);
+const _GRD_LINE_ALIGN_KINDS = new Set([..._GRD_ROLE_KINDS, 'image', 'divider']);   // ★divider — 줄인 구분선 가운데 두기(1109t1A3)
 
 /* ★「줄 꾸미기」를 처음부터 펼치는 줄 종류 — «손으로 적은 명부»다(도출·시험 둘 다 불가, 아래 까닭).
  *   왜 이 둘인가: 갭 = 높이(px) · 구분선 = 굵기(px)·색 — 그 줄 «전용» 손잡이가 줄 꾸미기 절 «안»에만 있다.
@@ -3530,6 +3530,10 @@ ${_grdKindSelectHtml(line, H.kinds)}
         ${isDivider ? `<div class="prop-row">
           <span class="prop-label" title="구분선의 굵기(px). 비우면 기본 ${GRID_DIVIDER_H_MIN}">굵기(px)</span>
           <input type="number" class="prop-number" id="grd-divider-h" min="${GRID_DIVIDER_H_MIN}" max="${GRID_DIVIDER_H_MAX}" placeholder="${GRID_DIVIDER_H_MIN}" value="${Number(line.height) || ''}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label" title="구분선의 너비(%). 비우면 기본 100">너비(%)</span>
+          <input type="number" class="prop-number" id="grd-divider-w" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${gridNumOr(line.widthPct, '')}">
         </div>
         <div class="prop-row" style="margin-bottom:0;">
           <span class="prop-label" title="구분선의 색. 비우면 기본 ${GRID_DIVIDER_DEFAULT_COLOR}">선 색</span>
@@ -3615,6 +3619,16 @@ function _grdWireLineSection(block, addr, host = null) {
     window.pushHistory?.();
     H.previewLine(r, c, li, { height: v }, addr.np);
     H.mark(addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
+    window.scheduleAutoSave?.();
+  });
+  /* ★구분선 너비(%) — 1109t1A3 현빈 「너비 조절」. 굵기와 같은 길 · 이미지 폭과 같은 5~100 클램프 · 빈 칸 = 꽉 참. */
+  document.getElementById('grd-divider-w')?.addEventListener('change', (e) => {
+    const rawV = String(e.target.value).trim();
+    const v = rawV === '' ? undefined
+      : Math.max(IMG_MIN_PCT, Math.min(100, parseInt(rawV, 10) || 100));
+    window.pushHistory?.();
+    H.previewLine(r, c, li, { widthPct: v }, addr.np);
+    H.mark(addr);
     window.scheduleAutoSave?.();
   });
 

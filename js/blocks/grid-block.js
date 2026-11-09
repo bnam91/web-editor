@@ -2309,7 +2309,15 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
     const th = Math.max(GRID_DIVIDER_H_MIN,
                         Math.min(GRID_DIVIDER_H_MAX, Number(line.height) || GRID_DIVIDER_H_MIN));
     const col = _esc(line.color || GRID_DIVIDER_DEFAULT_COLOR);
-    return `<div${addrAttr} class="grd-divider" style="height:${th}px;background:${col};margin-block:8px;${mtCss}"></div>`;
+    /* ★너비(widthPct · 1109t1A3 현빈 「구분선 줄 너비 조절」) — 이미지 가지와 같은 5~100 클램프 · 100 이상/없음은 바이트 동일. */
+    const dwRaw = Number(line.widthPct);
+    const dw = Number.isFinite(dwRaw) ? Math.max(5, Math.min(100, dwRaw)) : 100;
+    let dwCss = '';
+    if (dw < 100) {
+      const dAlign = _gridAlign(line.align, colAlign);
+      dwCss = `width:${dw}%;` + (dAlign === 'center' ? 'margin-left:auto;margin-right:auto;' : dAlign === 'right' ? 'margin-left:auto;' : '');
+    }
+    return `<div${addrAttr} class="grd-divider" style="height:${th}px;background:${col};margin-block:8px;${dwCss}${mtCss}"></div>`;
   }
   if (line.type === 'image') {
     const h = Number(line.height) || 0;

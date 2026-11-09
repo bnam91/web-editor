@@ -172,3 +172,32 @@ test('D7 ★«잡을 데»가 에디터 안에만 있다 — 내보내기 산출
   const body = CSS_SRC.slice(at, CSS_SRC.indexOf('}', at));
   assert.ok(!/background/.test(body), `★잡을 데에 배경이 있다 — 투명해야 한다. 본 것: ${body}`);
 });
+
+/* ── 1109t1A3 — 구분선 «너비»(widthPct · % of 칸 폭) ── */
+test('D8 ★너비 — 50 은 width:50% · 없음/100/상한 밖은 오늘과 바이트 동일 · 하한 5 로 자른다', () => {
+  const today = renderDivider({});
+  assert.match(renderDivider({ widthPct: 50 }), /width:50%;/, '★widthPct 를 렌더러가 안 읽는다');
+  assert.equal(renderDivider({ widthPct: 100 }), today, '★100 인데 산출이 바뀌었다(바이트 동일 깨짐)');
+  assert.equal(renderDivider({ widthPct: 999 }), today, '★999 가 100 으로 안 잘렸다');
+  assert.ok(!/width:/.test(today), `★너비 없는 구분선에 width 가 샌다 — ${today}`);
+  assert.match(renderDivider({ widthPct: 2 }), /width:5%;/, '★하한 5 로 안 자른다');
+  assert.match(renderDivider({ widthPct: 50, align: 'center' }), /margin-left:auto;margin-right:auto;/);
+  assert.match(renderDivider({ widthPct: 50, align: 'right' }), /width:50%;margin-left:auto;"/);
+});
+
+test('D9 ★칸 정렬(colAlign) center 를 줄어든 구분선이 따른다', () => {
+  const { block: b } = G.makeGridBlock({ cols: [{ width: 1, lines: [] }] });
+  G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, align: 'center', lines: [{ type: 'divider', widthPct: 40 }] } });
+  assert.match(b.innerHTML, /class="grd-divider" style="[^"]*width:40%;margin-left:auto;margin-right:auto;/);
+});
+
+test('D10 ★입구 — divider 의 patchCell{widthPct} 는 ok (전엔 INVALID) · 글자 줄은 그대로 INVALID', () => {
+  const { block: b } = G.makeGridBlock({ cols: [{ width: 1, lines: [] }] });
+  G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lines: [{ type: 'divider' }] } });
+  const ok = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lineIndex: 0, widthPct: 50 } });
+  assert.equal(ok.ok, true, `★구분선 widthPct 가 거절됐다 — ${JSON.stringify(ok)}`);
+  assert.match(b.innerHTML, /class="grd-divider" style="[^"]*width:50%;/);
+  G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lines: [{ type: 'body', text: 'x' }] } });
+  const bad = G.updateGridBlock(b.id, { patchCell: { r: 0, c: 0, lineIndex: 0, widthPct: 50 } });
+  assert.equal(bad.ok, false); assert.equal(bad.code, 'INVALID');
+});
