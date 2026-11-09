@@ -107,6 +107,7 @@ async function runDelete(page) {
     const calls = { showToast: [] };
     window.showToast = (msg) => calls.showToast.push(msg);
     const scope = {
+      _gridNestHostOf: () => null, // HBQA-TWOCELL 새 이름 — 이 검사는 중첩 줄 없음(wiring-scope-names)
       canvasEl: document.getElementById('canvas'),
       _splReleaseSections: () => null,
       clearAssetImage: () => {},

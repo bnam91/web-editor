@@ -427,7 +427,9 @@ test('T-U1-8 ★⌘D 도 «같은 문» — duplicateSelected 섹션 분기가 c
 });
 
 test('T-U1-9 ★「로드 전」 갈래의 근거 — _loadScratch 는 첫 await «보다 앞»에서 _scratchItems 를 비운다', () => {
-  const body = fnBody(SRC.scratch, 'async function _loadScratch(projectId, pageId)', '_loadScratch');
+  /* SCRATCH-CLEARED-MANIFEST(태양 · 5d2ebb71a 줄기): _loadScratch 는 «도는 로드»를 잡아 두는 동기 감싸개가 되고 몸통은 _loadScratchImpl 로 옮겼다
+     (clearScratchPad 가 그 로드를 기다린다). 재는 것(비움이 첫 await 앞)은 몸통 그대로 — 이름만 따라간다. */
+  const body = fnBody(SRC.scratch, 'async function _loadScratchImpl(projectId, pageId)', '_loadScratchImpl');
   const iClear = body.indexOf('_scratchItems = [];');
   const iAwait = body.indexOf('await ');
   assert.ok(iClear !== -1 && iAwait !== -1, '★_loadScratch 의 비움/await 문을 못 찾았다');

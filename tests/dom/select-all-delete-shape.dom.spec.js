@@ -123,6 +123,7 @@ async function selectAllThenDelete(page, selRhs, delSrc, delList, selSelRhs, pre
     window.addGhostSection = () => {};
     const SECTION_BLOCK_TYPE_SEL_SELECTED = new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SEL);
     const scope = {
+      _gridNestHostOf: () => null, // HBQA-TWOCELL 새 이름 — 이 검사는 중첩 줄 없음(wiring-scope-names)
       /* ★하네스는 잘라 넣은 코드가 부르는 «최상위 선언 전부»를 실어야 한다(레포 규약).
          2026-09-22 T-099 로 deleteSelectedFromCanvas 가 SSOT «원본»(.selected 없는 판)도
          쓰기 시작했다 — 안 실으면 ReferenceError 로 «검사처럼 생긴 빨강»이 난다. */
@@ -229,6 +230,7 @@ test('픽스① 회귀 ★프레임만 «혼자» 골랐으면 그 프레임 줄
     const actions = [];
     const SECTION_BLOCK_TYPE_SEL_SELECTED = new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SEL);
     const scope = {
+      _gridNestHostOf: () => null, // HBQA-TWOCELL 새 이름 — 이 검사는 중첩 줄 없음(wiring-scope-names)
       /* ★하네스는 잘라 넣은 코드가 부르는 «최상위 선언 전부»를 실어야 한다(레포 규약).
          2026-09-22 T-099 로 deleteSelectedFromCanvas 가 SSOT «원본»(.selected 없는 판)도
          쓰기 시작했다 — 안 실으면 ReferenceError 로 «검사처럼 생긴 빨강»이 난다. */

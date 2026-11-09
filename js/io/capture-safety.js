@@ -643,7 +643,8 @@ export function stripEditorOnlyForCapture(clone) {
    *     ⛔그래서 상수로 빼지 마라 — 빼면 ★R1 이 「안 막힘」으로 되돌아가 ★이 줄이 한 일이 안 보인다(지디 ⑵).
    *   ★잠그는 자 = tests/unit/capture-derive-roster.test.mjs R1 — ★정본에 10번째가 늘면 ★다시 빨개진다
    *     (그래서 이 줄은 ★손 명부가 아니라 ★정본에 매여 있다). ⛔한 줄 더 적어 끄지 말고 그때 ★정본을 봐라. */
-  clone.querySelectorAll('.annot-selbox, .drop-indicator, .grad-line-overlay, .grd-add-btn, .mdl-profile-x, .section-block[data-ghost], .section-height-badge, .vpen-edit-overlay, .vpen-preview')
+  /* t4-03(태양 · 261110) — .mesh-corner-overlay 는 .grad-line-overlay 와 같은 포털(#canvas-scaler · 저장 창 밖)이라 정본(NON_CONTENT)에 못 오르고 같은 줄로 닫는다 */
+  clone.querySelectorAll('.annot-selbox, .drop-indicator, .grad-line-overlay, .mesh-corner-overlay, .grd-add-btn, .mdl-profile-x, .section-block[data-ghost], .section-height-badge, .vpen-edit-overlay, .vpen-preview')
     .forEach(el => el.remove());
 }
 

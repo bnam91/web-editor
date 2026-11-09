@@ -214,6 +214,7 @@ async function runDelete(page) {
   return page.evaluate((delSrc) => {
     const calls = { showToast: [] };
     const scope = {
+      _gridNestHostOf: () => null, // HBQA-TWOCELL 새 이름 — 이 검사는 중첩 줄 없음(wiring-scope-names)
       canvasEl: document.getElementById('canvas'),
       _splReleaseSections: () => null,
       clearAssetImage: () => {},
@@ -299,6 +300,7 @@ test('버그B-회귀 ★활성 줄이 «없으면»(li:null) 기존처럼 블록
 
   const r = await page.evaluate((delSrc) => {
     const scope = {
+      _gridNestHostOf: () => null, // HBQA-TWOCELL 새 이름 — 이 검사는 중첩 줄 없음(wiring-scope-names)
       canvasEl: document.getElementById('canvas'),
       _splReleaseSections: () => null,
       clearAssetImage: () => {},

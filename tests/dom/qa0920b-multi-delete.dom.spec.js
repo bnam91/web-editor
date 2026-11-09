@@ -99,6 +99,7 @@ async function runDelete(page) {
     const SECTION_BLOCK_TYPE_SEL_SELECTED =
       new Function('SECTION_BLOCK_TYPE_SEL', 'return (' + selSelRhs + ')')(SECTION_BLOCK_TYPE_SEL);
     const scope = {
+      _gridNestHostOf: () => null, // HBQA-TWOCELL 새 이름 — 이 검사는 중첩 줄 없음(wiring-scope-names)
       SECTION_BLOCK_TYPE_SEL,
       SECTION_BLOCK_TYPE_SEL_SELECTED,
       clearAssetImage: () => {},

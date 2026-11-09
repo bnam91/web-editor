@@ -487,7 +487,7 @@ function _onHandleMouseDown(e, ss, dir) {
     /* 버즈(1012t1Z5 D-1) — 손잡이를 놓았을 때 말풍선이 프레임 밖이면 같은 무늬번호로 안에 다시 맞춘다(안 나갔으면 무동작).
        ⛔끝 표본 «앞»이어야 한다 — 크기 변경과 다시 놓기가 히스토리 한 칸이 된다. */
     window.refitBuzzOnResize?.(ss);
-    groupSnap?.forEach(s => { if (s.sticker) window._rekeepCoin?.(s.el); });   // t2-02 — 코인 마킹은 줄어든 뒤 다시 가둔다(단일 모서리 끌기와 같게)
+    _rekeepCoins(groupSnap);   // t2-02 — 코인 마킹은 줄어든 뒤 다시 가둔다(단일 모서리 끌기와 같게)
     window.pushHistory?.();
     window.resumeAutoSave?.();   // ★250B ① — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
@@ -581,7 +581,7 @@ export function onUnionHandleDown(e, dir, U, els) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    for (const s of snaps) if (s.sticker) window._rekeepCoin?.(s.el);   // 단일 모서리 끌기·⌘G 와 같게
+    _rekeepCoins(snaps);   // 단일 모서리 끌기·⌘G 와 같게
     window.pushHistory?.();
     window.resumeAutoSave?.();
   }
@@ -4842,3 +4842,6 @@ export {
 
   showHandlesFor,
 };
+
+/* 코인 마킹 다시 가두기 — 여럿(⌘G 묶음·전체 상자) 크기 조절 뒤. ★부르는 자리를 한 곳으로(coin-rekeep-call-shape K1: 파일마다 하나 · window._rekeepCoin?.( 꼴) */
+function _rekeepCoins(snaps) { snaps?.forEach(s => { if (s.sticker) window._rekeepCoin?.(s.el); }); }

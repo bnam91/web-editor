@@ -287,6 +287,7 @@ const DROP_STRIP_ROSTER = {
     { sel: '.annot-selbox',         kind: 'chrome', why: '어노테이션 ★선택 상자 — 고른 동안만 보이는 편집 표시' },
     { sel: '.drop-indicator',       kind: 'chrome', why: '드래그 ★드롭 자리 표시 — 끄는 동안만' },
     { sel: '.grad-line-overlay',    kind: 'chrome', why: '그라데이션 ★조절선 오버레이 — 패널을 열었을 때만' },
+    { sel: '.mesh-corner-overlay',  kind: 'chrome', why: '메시 그라데이션 ★모서리 점 오버레이 — 편집 중만(t4-03 · grad-line-overlay 와 같은 포털)' },
     { sel: '.grd-add-btn',          kind: 'chrome', why: '그리드 ★칸/줄 ★추가 단추 — 편집 UI' },
     { sel: '.mdl-profile-x',        kind: 'chrome', why: '모달 프로필 ★✕ 단추 — 지우기용 편집 UI' },
     { sel: '.section-block[data-ghost]', kind: 'chrome', why: '드래그 중 ★고스트 섹션 — 끄는 동안의 ★그림자(실물이 아니다)' },
@@ -419,6 +420,8 @@ const CAPTURE_VERDICT = {
   '.hlb-handle':          _Y('선 스티커 끝점·두께 손잡이 — 블럭 안 appendChild(js/sticker-select.js:208) · 전역 CSS(MARKER-HLB ⑶)'),
   '.section-bottom-handle': _Y('섹션 바닥 높이 손잡이 — 섹션의 자식(js/section-bottom-handle.js) · 등록 전 저장본 3곳에 각 1건 실측 · 2026-10-27 t8-03'),
   '.annot-point-angle':   _Y('어노테이션 점 손잡이 ★끌는 중 각도 글자(37.5°) — `.annot-svg` 안 SVG text(js/annotation-select.js:264) · ★끌기 중 자동저장이 끼면 저장본·캡처에 실린다(261024 실측 1/1/1) · 지디'),
+  /* t4-03(태양) — 섹션 메시 그라데이션 «모서리 점»(js/mesh-corner-overlay.js · #canvas-scaler 에 host.appendChild · 편집 중 표시) — section-serialize 가 .grad-line-overlay 와 같은 줄에서 저장 때 지운다 */
+  '.mesh-corner-overlay': _Y('메시 그라데이션 모서리 점 편집 오버레이 — js/mesh-corner-overlay.js(#canvas-scaler 에 appendChild · 섹션 밖) · 저장은 section-serialize 가 지운다 · 산출물 쓰레기'),
   '.grad-line-overlay':   _Y('그라데이션 선 편집 오버레이 — js/gradient-line-overlay.js:20 「section-serialize 가 저장 시 제거」 · 편집 중 표시'),
   '.vpen-preview':        _Y('펜툴 «그리는 중» 미리보기 — 섹션 안 appendChild(js/pen-tool.js:336) · 캡처가 .annot-preview 를 같은 까닭으로 지운다(설계 제외)'),
   '.vpen-edit-overlay':   _Y('펜툴 편집 오버레이 — js/pen-tool.js:603 `wrap.className = \'vpen-edit-overlay\'` · 편집 중 표시'),
