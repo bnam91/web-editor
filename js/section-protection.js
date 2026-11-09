@@ -369,9 +369,9 @@
     let total = 0, filled = 0;
     el.querySelectorAll('*').forEach((n) => {
       const inSvg = !!n.closest('svg');
-      if (inSvg ? !/^(text|tspan)$/i.test(n.tagName) : /^(IMG|BR|HR|INPUT|TEXTAREA|SELECT|STYLE|SCRIPT|CANVAS|VIDEO|SVG)$/i.test(n.tagName)) return;
+      if (inSvg ? !/^(text|tspan|textPath)$/i.test(n.tagName) : /^(IMG|BR|HR|INPUT|TEXTAREA|SELECT|STYLE|SCRIPT|CANVAS|VIDEO|SVG)$/i.test(n.tagName)) return;
       let own = ''; for (const t of n.childNodes) if (t.nodeType === 3) own += t.nodeValue;
-      const has = own.replace(_ZW, '') !== '' && !n.closest('[data-is-placeholder]');   // 자리표시 글(그리드 기본 글 등)은 사용자 글이 아니다 — 빈 칸으로(리뷰 2-3)
+      const has = own.replace(_ZW, '') !== '' && !n.closest('[data-is-placeholder="true"]');   // 자리표시 글(그리드 기본 글 등)은 사용자 글이 아니다 — 빈 칸으로(리뷰 2-3) · ⛔"false" 도 붙는다(liner 거울 — 리뷰 3-1)
       if (!has && n.children.length) return;   // 글 없는 그릇은 칸이 아니다
       total++; if (has) filled++;
     });
@@ -403,9 +403,10 @@
       if (!applied || window.activeProjectId !== p.project || window.state?.currentPageId !== p.page) return { refused: false };
       const el = document.getElementById(p.blockId);
       const after = el ? _textSlots(el) : null;
-      /* 칸 수(구조)는 그대로인데 글 든 칸이 줄었다 = 있던 글이 빈 글이 됐다. 구조가 바뀐 수정(줄·열 더하고 빼기·아이콘 더한 다시 그리기)은 통과(리뷰 2-2) ·
-         다른 글·빈 칸 채우기도 통과. shortcut: 빈 글과 구조 바꾸기를 «한 호출»에 섞으면 못 잡는다 — 잡으려면 도구별 모델 비교로. */
-      if (after && after.total === p.before.total && after.filled < p.before.filled && p.snap) {
+      /* 글 든 칸이 줄었고 (칸 수 그대로 = 칸은 남고 글만 빔 · 또는 빈 칸이 늘었다 = 글 칸이 자리표시로 바뀜 — canvas 카드 제목·설명 둘 다 비움, 리뷰 3-2) ⇒ 있던 글이 빈 글.
+         다른 글·빈 칸 채우기·글 든 줄 지우기는 통과. ⚠️손실을 놓치는 쪽보다 거절이 낫다 — 보호 섹션에서 그리드 «글 든 열 빼고 빈 줄 더하기»를 한 호출에 하면 거절된다(보호 풀고 하면 된다).
+         shortcut: 렌더러가 빈 글 칸을 «지워» 칸 수가 주는 꼴(canvas 카드 제목만 비움)·빈 글과 구조 바꾸기를 한 호출에 섞는 꼴은 못 잡는다 — 잡으려면 도구별 모델 비교로. */
+      if (after && after.filled < p.before.filled && (after.total === p.before.total || after.empty > p.before.empty) && p.snap) {
         window.restoreSnapshot?.(p.snap);   // restoreSnapshot 은 이력을 안 쌓는다
         return { refused: true, before: p.before, after };
       }
