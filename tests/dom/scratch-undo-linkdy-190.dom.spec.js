@@ -50,15 +50,15 @@ test('L1 겹침으로 밀린 장을 지웠다 ⌘Z — 앵커가 그대로다', 
   expect(errs).toEqual([]);
 });
 
-test('L2 글과 함께 지운 장 — ⌘Z 두 번이면 처음 자리다', async ({ page }) => {
+/* ★SCRATCH-CLICK-KEEPS-TEXT-SELECTION 뒤: 장 단독 클릭이 글 선택을 푼다 ⇒ Backspace 는 장만 지운다(옛 «글과 함께» 는 그 결함이었다) ⇒ ⌘Z 한 번 */
+test('L2 글이 선택된 채 장을 클릭해 지운 장 — 글은 남고 ⌘Z 한 번이면 처음 자리다', async ({ page }) => {
   const { sec, errs } = await setup(page, false);
   await page.evaluate(() => { const s = document.getElementById(window.__secs[0]); window.selectSection?.(s); window.addTextBlock('h2'); });
   await frames(page);
   const a0 = await item(page, 'sp_a'); const glyphs = await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length);
   expect(await page.evaluate(() => document.querySelectorAll('#canvas .text-block.selected, #canvas [data-text-frame].selected').length), '[전제] 글이 선택돼 있다').toBeGreaterThan(0);
   await clickItem(page, 'sp_a'); await page.keyboard.press('Backspace'); await frames(page);
-  expect(await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length), '[전제] 글도 같이 지워졌다').toBe(glyphs - 1);
-  await page.keyboard.press('Meta+z'); await frames(page);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length), '[전제] 글은 그대로다').toBe(glyphs);
   await page.keyboard.press('Meta+z'); await frames(page);
   const a1 = await item(page, 'sp_a');
   expect(a1.linkDy, '★앵커가 어긋났다').toBeCloseTo(a0.linkDy, 1);

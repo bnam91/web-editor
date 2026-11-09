@@ -1068,6 +1068,10 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
 
     // 선택 처리
     if (!_selectedItems.has(item)) {
+      /* ★SCRATCH-CLICK-KEEPS-TEXT-SELECTION — 위 stopPropagation 때문에 캔버스의 «빈 곳 클릭 = 선택 풀기»가 안 닿아
+         글 블럭이 고른 채 남았다 ⇒ Backspace 한 번에 글과 장이 함께 지워졌다. 단독 클릭은 캔버스 선택을 푼다(빈 곳 클릭과 같은 함수).
+         Shift 클릭·이미 고른 장(마퀴로 섞어 고른 것 끌기)은 그대로 둔다. */
+      if (!e.shiftKey) window.deselectAll?.();
       _selectItem(item, e.shiftKey);
     } else if (e.shiftKey) {
       _selectItem(item, true);
