@@ -75,6 +75,7 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
   });
   number.addEventListener('change', () => {
     if (allowEmpty && String(number.value).trim() === '') { if (history) window.pushHistory?.(); if (autosave) window.scheduleAutoSave?.(); return; }   // 빈 칸 = «미설정» 뜻(알약 둥글기·구분선 너비) — clamp·되쓰기 없이 빈 채로
+    number.value = clamp(number.value);   // 칸에 «실제로 먹은» 값을 보인다(30 → 100) — input 때 쓰면 300 치는 도중 3 이 100 으로 튄다
     if (history)  window.pushHistory?.();
     if (autosave) window.scheduleAutoSave?.();
   });
