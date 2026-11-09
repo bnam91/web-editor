@@ -11,7 +11,7 @@ const fs = require('fs');
 const { app, Menu, dialog, ipcMain, BrowserWindow } = require('electron');
 const { exportGdt } = require('./export');
 const { importGdt } = require('./import');
-const { trackWrite } = require('../quit/save-guard');
+const { trackWrite, failureDialogOpen } = require('../quit/save-guard');
 
 // 파일명으로 못 쓰는 문자만 걷어낸다. 한글은 그대로 둔다(겉 이름은 사용자 것 — GDT-SPEC §1).
 function safeFileName(name) {
@@ -92,6 +92,14 @@ function _focusFirstWindow() {
   }
 }
 
+/* 종료 상자가 떠 있을 때 두 번째 실행 — 앱을 앞으로(상자가 따라온다) + 독 반짝(맥) · 작업표시줄 반짝(윈도우). */
+function _nudgeQuitDialog() {
+  try {
+    if (process.platform === 'darwin') { app.focus({ steal: true }); app.dock?.bounce?.('critical'); }
+    else { app.focus(); BrowserWindow.getAllWindows().forEach(w => { if (!w.isDestroyed()) w.flashFrame(true); }); }
+  } catch (e) { console.warn('[single-instance] 종료 상자를 앞으로 못 냈다:', e && e.message); }
+}
+
 /* 여러 인스턴스를 «일부러» 띄우는 경우인가. ⛔패키징 빌드에는 예외가 없다. */
 function _allowMultiInstance() {
   /* ★0920 pkgguard: app.isPackaged(실행파일 이름) 대신 authService 의 한 벌짜리 답 — 스톡 Electron 으로
@@ -140,6 +148,9 @@ function registerGdtFileAssociations() {
     if (!app.requestSingleInstanceLock()) { app.exit(0); return; }
     app.on('second-instance', (_e, argv) => {
       _focusFirstWindow();
+      /* ★종료 중 저장 실패 상자가 떠 있으면 그 상자 쪽으로 눈을 끈다 — 창이 이미 없거나(부모 없는 상자) 멈춘 창이면
+         위 창 끌어내기만으로는 아무것도 안 보여 «아이콘을 눌렀는데 아무 일도 없음» 이 됐다(S6 2/2 · S8 4/4). 새 창·새 UI 0 · 종료 흐름 무변. */
+      if (failureDialogOpen()) _nudgeQuitDialog();
       _deliverAll(_gdtPathsFromArgv(argv));
     });
   }

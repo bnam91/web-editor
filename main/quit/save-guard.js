@@ -56,6 +56,7 @@ let _running = null;             // 재진입 방지(before-quit 은 두 번 올
 /* ★[W-3] beforeunload 동기 저장이 «실패했다»는 사실. 창이 이미 닫히는 중이라 그 자리에선
    말할 수 없다 — 흔적은 «그 자리»에서 남기고, 말하는 건 뒤이어 오는 before-quit 이 한다. */
 let _pendingSync = null;
+let _dialogOpen = 0;   // 저장 실패 상자가 지금 떠 있나 — 두 번째 실행이 «아무것도 안 보임» 대신 그 상자를 앞으로 낸다(SECOND-LAUNCH-SILENT-EXIT-DURING-QUIT-DIALOG-01)
 
 function init({ userDataDir, log, dialog, shell, appVersion, workspaceDir} = {}) {
   if (userDataDir) _dir = userDataDir;
@@ -247,7 +248,8 @@ function showFailureDialog(win, outcome, saved) {
   let p;
   try { p = _dialog.showMessageBox(win || null, opts); }
   catch (e) { _log(`[quit-guard] 다이얼로그 호출 실패: ${e && e.message}`); return Promise.resolve({ shown: false }); }
-  return Promise.resolve(p).then((r) => {
+  _dialogOpen++;
+  return Promise.resolve(p).finally(() => { _dialogOpen = Math.max(0, _dialogOpen - 1); }).then((r) => {
     if (canReveal && r && r.response === 1) { try { _shell.showItemInFolder(saved.record.emergencyPath); } catch (_) {} }
     return { shown: true, response: r && r.response };
   }).catch((e) => { _log(`[quit-guard] 다이얼로그 대기 실패: ${e && e.message}`); return { shown: false }; });
@@ -458,6 +460,9 @@ function notifyWindowGone({ pending, exit, timings } = {}) {
 }
 
 /** 다음 실행이 읽을 «흔적». H3(복구 다이얼로그)이 이 함수를 쓴다 — 여기서 UI 를 만들지 않는다. */
+/** 저장 실패 상자가 지금 떠 있나(종료 중). second-instance 가 묻는다. */
+function failureDialogOpen() { return _dialogOpen > 0; }
+
 function pendingFailures() {
   return readMarker().filter((r) => r && !r.handled);
 }
@@ -467,7 +472,7 @@ module.exports = {
   // 검사·도구용
   classify, writeFailureRecord, failureText, readMarker, markerPath, emergencyDir,
   TIMINGS, MAX_RECORDS, MAX_EMERGENCY_FILES,
-  recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone,
+  recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone, failureDialogOpen,
   isNoSaveScreen, trackWrite, holdForWrites,
-  _reset() { _running = null; _pendingSync = null; _writes.clear(); _holding = false; },
+  _reset() { _running = null; _pendingSync = null; _dialogOpen = 0; _writes.clear(); _holding = false; },
 };
