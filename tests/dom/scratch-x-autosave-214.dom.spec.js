@@ -23,7 +23,8 @@ async function setup(page) {
     window.clearHistory?.();
   }, PNG);
   await page.waitForFunction(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_x"]')); await settle(page);
-  await page.evaluate(() => { const o = window.triggerAutoSave; window.__saves = 0; window.triggerAutoSave = function (...a) { window.__saves++; return o.apply(this, a); }; });
+  /* ★X-THEN-CRASH 뒤: 지우기·되살리기는 예약(triggerAutoSave) 대신 바로 저장(flushSave)한다 — «저장이 잡히나»를 세는 자라 둘 다 센다 */
+  await page.evaluate(() => { window.__saves = 0; for (const k of ['triggerAutoSave', 'flushSave']) { const o = window[k]; window[k] = function (...a) { window.__saves++; return o.apply(this, a); }; } });
   return errs;
 }
 async function pick(page) {
