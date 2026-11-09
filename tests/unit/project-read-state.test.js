@@ -20,12 +20,13 @@ const fnSrc = (name) => { for (const pat of [`function ${name}(`, `const ${name}
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath', '_resolveBackupJsonPath',
   '_ensureNewLayoutPaths', '_refreshListMeta', '_listItemFor', '_isListableProjectId', '_listProjectsImpl', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel', '_projectReadState'];
 
-function load(dir) {
-  assert.ok(has('_projectReadState'), '★main.js 에 _projectReadState 가 없다 — 깨진 프로젝트를 가를 창구가 없다(고치기 전 판)');
+/* needReadState:false — S0(전제)는 옛 main 의 목록 동작만 본다: 새 창구가 없어도 실어야 손실 확정 근거가 선다(인텔 d2e7c76c 양성대조에서 S0 이 이 단언에 걸려 빨갰다). */
+function load(dir, { needReadState = true } = {}) {
+  if (needReadState) assert.ok(has('_projectReadState'), '★main.js 에 _projectReadState 가 없다 — 깨진 프로젝트를 가를 창구가 없다(고치기 전 판)');
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const body = FNS.filter(has).map(fnSrc).join('\n\n');
   const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\n` + body + `\n; return { _listProjectsImpl, _projectReadState };`)(fs, path, dir, req, { log() {}, warn() {}, error() {} });
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\n` + body + `\n; return { _listProjectsImpl, _projectReadState: typeof _projectReadState === 'function' ? _projectReadState : null };`)(fs, path, dir, req, { log() {}, warn() {}, error() {} });
   return R;
 }
 const GOOD = (id, extra = {}) => ({ id, name: '이름', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
@@ -46,7 +47,7 @@ function scene(kind) {
 
 test('S0 [전제] 깨짐+후보 0 은 목록에 없다 — 티켓의 길', () => {
   const { dir, id } = scene('corrupt');
-  const R = load(dir);
+  const R = load(dir, { needReadState: false });
   assert.equal(R._listProjectsImpl().some(x => x.id === id), false);
 });
 test('S1 ★깨짐+후보 0 → unreadable', () => { const { dir, id } = scene('corrupt'); assert.equal(load(dir)._projectReadState(id), 'unreadable'); });
