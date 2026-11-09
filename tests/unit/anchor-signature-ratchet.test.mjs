@@ -62,7 +62,8 @@ const SELF = 'unit/anchor-signature-ratchet.test.mjs';
    ⇒ sig 52→★51 · files 19→★18 (그 파일이 명부에서 빠졌다) · sel 4→★6 · lit 246→★247(닻이 하나 늘었다).
    ★R1 이 「줄었으면 내려라」라 했고 ★R2(양성대조)가 ★안 내리면 빨개진다 — 그 둘이 이 줄을 시킨 자다. */
 /* var 37→38: tests/unit/corrupt-unreadable.test.js 의 fnSrc — e169·e168 과 같은 꼴, 변수에 든 것은 매개변수 없는 `function 이름(` 뿐(손으로 봄). */
-const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 38 };
+/* var 38→39: tests/unit/project-read-state.test.js 의 fnSrc(BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01) — 위 corrupt-unreadable 과 같은 꼴, 변수에 든 것은 매개변수 없는 `function 이름(`·`const 이름 = ` 뿐(손으로 봄 · 서명 닻 아님 · sig·files 무변). */
+const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 39 };
 
 const CUTTERS = ['sliceBlock', 'bodyOf', 'arrowBodyOf', 'arrowBody', 'ruleOf', 'balanced'];
 const CALL = new RegExp(`(?:${CUTTERS.join('|')})\\(\\s*[A-Za-z_$][\\w$]*\\s*,\\s*'([^']+)'`, 'g');

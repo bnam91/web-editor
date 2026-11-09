@@ -51,10 +51,18 @@ function sealedFns(tok, sealId) {
   return new Function('_reloadSealTok', '_reloadSealId', '_hasOwnUnsaved', '_lastSaveFailed',
     sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'function _unloadSaveNeeded(', '대상') + '\nreturn { _isReloadSealed, _unloadSaveNeeded };')(tok, sealId, () => true, () => true);
 }
+/* saveProjectToFile 의 finally 가 실패 표지 도우미(_noteFailedSave · FAILED-SAVE-TAB-SWITCH)를 부른다 — 있으면 같이 싣는다(옛 판엔 없다).
+   도우미는 localStorage 를 try 안에서만 만져 node 에선 조용히 빈 값이다. */
+function failedSaveSrc() {
+  const src = SL();
+  if (!src.includes('function _noteFailedSave(')) return '';
+  /* 닻은 글자 그대로 셋 — 변수로 넘기면 anchor-signature-ratchet R4(변수 닻 수)가 는다 */
+  return "const FAILED_SAVE_IDS_KEY = 'web-editor-failed-save-ids';\n" + sliceBlock(src, 'function _failedSaveIds(', '대상') + '\n' + sliceBlock(src, 'function _setFailedSaveIds(', '대상') + '\n' + sliceBlock(src, 'function _noteFailedSave(', '대상') + '\n';
+}
 function saveFn(tok, sealId) {
   const calls = [];
   const fn = new Function('window', '_reloadSealTok', '_reloadSealId', 'activeProjectId', '_isSavingToFile', '_pendingSaves', '_doSaveProjectToFile', '_isSaveFailure', '_lastSaveResult',
-    'let _savingOwnerId = null, _savingEntry = null, _savingSuperseded = false, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
+    'let _savingOwnerId = null, _savingEntry = null, _savingSuperseded = false, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + failedSaveSrc() + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
     {}, tok, sealId, 'p1', false, new Map(), async (_s, o) => { calls.push(o.projectId || 'p1'); return { ok: true }; }, () => false, new Map());
   return { fn, calls };
 }
@@ -147,7 +155,9 @@ test('⑥ fsync 대상과 순서: 변환 전 본 → 에셋 → 새 proj.json, �
 test('⑥ 복구본 시험을 진짜 _pickLsOverFile 로: updatedAt 없는 파일은 복구본이 이기고, 되돌리기가 걷으면 파일이 이긴다', async () => {
   const store = new Map();
   const localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
-  const pick = new Function('localStorage', 'SAVE_KEY_PREFIX', '_lsBaseKey', '_lastOpenFallback', 'console', sliceBlock(readSrc(REPO, 'js/io/save-load.js'), 'function _pickLsOverFile(', '대상') + '\nreturn _pickLsOverFile;')(localStorage, 'web-editor-autosave', (i) => `web-editor-ls-base__${i}`, null, { warn() {} });
+  /* _pickLsOverFile 은 옛 파일 되돌리기 갈래(LS-NEWER-THAN-FILE-DELETED-ON-OLD-FILE-RESTORE-01)에서 LS_PENDING_PREFIX·window·applyAdoptedAssets 를 부른다 —
+     같이 넘긴다(electronAPI 가 없으니 사본 갈래는 안 타고 옛 동작 그대로 · 이 칸의 표지 'U' 는 시각이 아니라 원래 그 갈래 밖). 옛 판엔 안 쓰는 인자다. */
+  const pick = new Function('localStorage', 'SAVE_KEY_PREFIX', '_lsBaseKey', '_lastOpenFallback', 'console', 'LS_PENDING_PREFIX', 'window', 'applyAdoptedAssets', sliceBlock(readSrc(REPO, 'js/io/save-load.js'), 'function _pickLsOverFile(', '대상') + '\nreturn _pickLsOverFile;')(localStorage, 'web-editor-autosave', (i) => `web-editor-ls-base__${i}`, null, { warn() {} }, 'web-editor-ls-pending__', {}, () => false);
   const restored = { id: 'p1', version: 2, pages: [{ id: 'a', canvas: '<div class="section-block"></div>' }] };   // 마켓에서 받은 본: updatedAt 없음
   const set = () => { store.set('web-editor-autosave__p1', JSON.stringify({ version: 2, pages: [{ id: 'a', canvas: '<div class="section-block">변환본</div>' }] })); store.set('web-editor-autosave__p1_ts', String(Date.now())); store.set('web-editor-ls-base__p1', 'U'); };
   set();
