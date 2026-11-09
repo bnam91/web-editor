@@ -74,12 +74,12 @@ test('G3 ★「좌우 패딩 제외」 + 오버레이 둘 다 참 — 띄워도 
   const g0 = await geo(page);
   expect({ x: g0.x, r: g0.r }, '전제 — 패딩 제외가 걸려 양쪽이 섹션 끝').toEqual({ x: 0, r: 0 });
   await openPanel(page);
-  expect(await page.isVisible('#grd-use-padx'), '전제 — 안 띄웠을 땐 패딩 제외 칸이 보인다').toBe(true);
+  expect(await page.isVisible('label.prop-toggle:has(#grd-use-padx)'), '전제 — 안 띄웠을 땐 패딩 제외 칸이 보인다').toBe(true);
   await toggle(page);
   let g = await geo(page);
   expect(g.float).toBe(true);
   expect({ x: g.x, y: g.y, w: g.w }).toEqual({ x: g0.x, y: g0.y, w: g0.w });
-  expect(await page.isVisible('#grd-use-padx'), '떠 있는 동안엔 패딩 제외 칸을 숨긴다(못 거는 자리)').toBe(false);
+  expect(await page.isVisible('label.prop-toggle:has(#grd-use-padx)'), '떠 있는 동안엔 패딩 제외 칸을 숨긴다(못 거는 자리)').toBe(false);
   await rerender(page, 60);
   g = await geo(page);
   expect({ x: g.x, w: g.w }, '떠 있는 동안 다시 그려도 그대로').toEqual({ x: g0.x, w: g0.w });

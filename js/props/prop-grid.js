@@ -2972,10 +2972,11 @@ function _grdPadExcludeSectionHtml(block) {
       ${_grdWidthRowHtml(block)}
       ${_grdCellPadYRowHtml(block)}
       <div class="prop-row" style="align-items:center;gap:6px;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;${floating ? 'display:none;' : ''}">
+        <span class="prop-label prop-label--auto"${floating ? ' style="display:none;"' : ''}
+              title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
+        <label class="prop-toggle"${floating ? ' style="display:none;"' : ''}>
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
-          <span class="prop-label prop-label--auto"
-                title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
+          <span class="prop-toggle-track"></span>
         </label>
         ${floating ? '<span class="prop-label prop-label--auto">섹션 위에 떠 있음</span>' : ''}
         <span style="margin-left:auto;"></span>
