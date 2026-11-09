@@ -301,7 +301,7 @@ function _flushUnfinishedSavesSync() {
   if (!IS_ELECTRON || !window.electronAPI?.saveProjectSync) return { failed, wrote };
   const left = new Map(_pendingSaves);
   _pendingSaves.clear();
-  if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId)) left.set(_savingOwnerId, _savingEntry);
+  if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId) && !_savingSuperseded) left.set(_savingOwnerId, _savingEntry);   // 앞 flush 가 같거나 새 본을 이미 썼다 — 두 번째 flush(종료 답 뒤 beforeunload)가 옛 본으로 덮지 않게
   const work = [...left];
   for (const [id, entry] of work) {
     const { snapshot, opts } = entry;

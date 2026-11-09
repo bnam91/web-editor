@@ -83,6 +83,24 @@ test('Q2 준비 중 FM1 · 줄에 FM2 · 그 위에 빈 본 → 종료: 더 새 
   expect(errs).toEqual([]);
 });
 
+test('Q3 종료 flush 가 줄의 새 본(FM2)을 쓴 뒤 beforeunload flush 가 한 번 더 돌아도 준비 중 옛 본(FM1)으로 안 덮는다', async ({ page }) => {
+  test.setTimeout(30000);
+  const errs = await setup(page);
+  await editAndHold(page);
+  await page.evaluate((A) => {
+    document.querySelector('#tb_3 [contenteditable]').textContent = 'FM2';
+    window.saveProjectToFile(JSON.parse(window.serializeProject()), { projectId: A, skipThumbnail: true });
+  }, A);
+  await quit(page);
+  expect(await fileHas(page, 'FM2'), '[전제] 종료 flush 가 새 본을 썼다').toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  const last = await page.evaluate(() => JSON.stringify(window.__syncs.at(-1)));
+  expect(last.includes('FM2'), '★두 번째 flush 가 옛 본으로 덮었다').toBe(true);
+  expect(await fileHas(page, 'FM2')).toBe(true);
+  await page.evaluate(() => window.__rel()); await page.waitForFunction(() => !window._isSavingToFile);
+  expect(errs).toEqual([]);
+});
+
 test('N1 [음성] 줄의 본이 비지 않았으면 그 본(새 본)만 쓴다', async ({ page }) => {
   test.setTimeout(30000);
   const errs = await setup(page);
