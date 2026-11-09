@@ -351,8 +351,10 @@ function _onHandleMouseDown(e, ss, dir) {
   // ── 그룹 리사이즈: 자식을 비례 스케일 (피그마식). data-group 프레임에만 적용 ──
   const isGroup = ss.dataset.group === 'true';
   // 스케일 기준은 style.width/height(canvas px) — rect/scale 불일치 회피
-  const groupStartW = parseInt(ss.style.width) || startW;
-  const groupStartH = parseInt(ss.style.height) || startH;
+  //   t2-02c — px 일 때만. 흐름 갈래 ⌘G 묶음은 width:100% 라 parseInt 가 100 을 읽어 자식이 ×8 로 부풀었다 → 그려진 상자(startW/H)
+  const _px = (v, d) => /^[\d.]+px$/.test(v) ? parseInt(v) : d;
+  const groupStartW = _px(ss.style.width, startW);
+  const groupStartH = _px(ss.style.height, startH);
   let groupSnap = null;
   if (isGroup) {
     groupSnap = [];
@@ -362,6 +364,10 @@ function _onHandleMouseDown(e, ss, dir) {
         if (getComputedStyle(c).position !== 'absolute') return;
         // t2-02 — 마킹은 상자가 아니라 dataset(x·y·size·끝점…)이 정본이다 → 쥔 때 값을 통째로 찍어 그 모델로 늘린다
         if (c.classList.contains('sticker-block')) { groupSnap.push({ el: c, sticker: { ...c.dataset } }); return; }
+        // t2-02d — 그라데이션도 정본이 dataset(x·y·gradWidth·gradHeight)이고 렌더가 cssText 를 그 키로 다시 쓴다 → 같은 꼴
+        if (c.classList.contains('gradient-block')) { groupSnap.push({ el: c, grad: { ...c.dataset } }); return; }
+        if (c.classList.contains('zoom-block')) { groupSnap.push({ el: c, zoom: { ...c.dataset } }); return; }   // 확대블럭도 같은 꼴(x·y·w·h)
+        if (c.classList.contains('vector-block')) { groupSnap.push({ el: c, vec: { ...c.dataset }, left: parseInt(c.style.left) || 0, top: parseInt(c.style.top) || 0 }); return; }   // 벡터도 같은 꼴(크기 w·h · 자리는 style)
         const isTextFrame = c.dataset.textFrame === 'true';
         const contentEl = isTextFrame ? c.querySelector('[class^="tb-"]') : null;
         groupSnap.push({
@@ -447,6 +453,9 @@ function _onHandleMouseDown(e, ss, dir) {
       const fsScale = Math.min(sx, sy);
       groupSnap.forEach(s => {
         if (s.sticker) { window._scaleStickerFromSnap?.(s.el, s.sticker, sx, sy, fsScale); return; }   // t2-02
+        if (s.grad) { window._scaleGradientFromSnap?.(s.el, s.grad, sx, sy); return; }   // t2-02d
+        if (s.zoom) { window._scaleZoomFromSnap?.(s.el, s.zoom, sx, sy); return; }
+        if (s.vec) { window._scaleVectorFromSnap?.(s.el, s.vec, sx, sy, s.left, s.top); return; }
         const L = Math.round(s.left * sx), T = Math.round(s.top * sy);
         s.el.style.left = L + 'px'; s.el.dataset.offsetX = String(L);
         s.el.style.top  = T + 'px'; s.el.dataset.offsetY = String(T);

@@ -34,7 +34,7 @@
 import { bindBlock } from '../drag-drop.js';
 // ★배율은 «한 곳»에서만 읽는다 — 베끼면 핸들과 갈라진다(overlay-handles.js 주석 참조).
 import { _canvasScaleNow } from '../overlay-handles.js';
-import { buildZoomInner, blockBoxSpec, computeZoomGeometry, hasZoomImage, ZOOM_CHECKER,
+import { buildZoomInner, blockBoxSpec, computeZoomGeometry, hasZoomImage, shapeHalf, ZOOM_CHECKER,
          ZOOM_TEXT_ALIGNS } from './zoom-geometry.js';
 
 const ZOOM_DEFAULTS = {
@@ -552,6 +552,16 @@ function addZoomBlock(opts = {}) {
 window.makeZoomBlock          = makeZoomBlock;
 window.addZoomBlock           = addZoomBlock;
 window.renderZoomBlock        = renderZoomBlock;
+/* ⌘G 묶음 손잡이가 확대블럭을 늘린다 — 정본 키(x·y·w·h)를 «쥔 때 값» d0 에서 재고 제 렌더로 그린다
+   (gradient-block.js _scaleGradientFromSnap 과 같은 꼴 · ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다). 바닥 8px만 · 범위로는 안 조임. */
+function _scaleZoomFromSnap(block, d0, sx, sy) {
+  const { hw, hh } = shapeHalf(readZoomState({ dataset: d0 }));
+  const d = block.dataset;
+  d.x = String(Math.round((parseFloat(d0.x) || 0) * sx)); d.y = String(Math.round((parseFloat(d0.y) || 0) * sy));
+  d.w = String(Math.max(8, Math.round(hw * 2 * sx))); d.h = String(Math.max(8, Math.round(hh * 2 * sy)));
+  renderZoomBlock(block);
+}
+window._scaleZoomFromSnap     = _scaleZoomFromSnap;
 window.readZoomState          = readZoomState;
 window.commitZoomText         = commitZoomText;
 window.readPinnedZoomShortEdge = readPinnedShortEdge;

@@ -528,6 +528,20 @@ function updateGradientBlock(blockId, partial = {}) {
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeGradientBlock   = makeGradientBlock;
 window.addGradientBlock    = addGradientBlock;
+/* t2-02d — 묶음(⌘G) 손잡이가 그라데이션을 늘린다: 정본 키(x·y·gradWidth·gradHeight)를 «쥔 때 값» d0 에서 재고 제 렌더로 그린다
+   (js/sticker-select.js _scaleStickerFromSnap 과 같은 꼴 · ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다). */
+function _scaleGradientFromSnap(block, d0, sx, sy) {
+  const sc = (k, f, def) => String(Math.round((parseFloat(d0[k]) || def) * f));
+  const d = block.dataset;
+  d.x = sc('x', sx, 0); d.y = sc('y', sy, 0);
+  /* ★지디(261109): 크기 바닥 = 그룹 손잡이 최소(8px)와 같은 값 — 반올림이 0 이하면 renderGradientBlock 의 `|| 기본값` 으로 튀거나
+     음수 폭으로 무너졌다. 패널 허용 범위(200~1200/50~1500)로 조이지는 않는다(값 그대로 · 바닥만). */
+  const MIN = 8;
+  d.gradWidth = String(Math.max(MIN, +sc('gradWidth', sx, GRADIENT_DEFAULTS.width)));
+  d.gradHeight = String(Math.max(MIN, +sc('gradHeight', sy, GRADIENT_DEFAULTS.height)));
+  renderGradientBlock(block);
+}
+window._scaleGradientFromSnap = _scaleGradientFromSnap;
 window.renderGradientBlock = renderGradientBlock;
 window.updateGradientBlock = updateGradientBlock;
 window.resolveGradientStops = _resolveStops;
