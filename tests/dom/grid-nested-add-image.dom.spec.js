@@ -194,3 +194,54 @@ test('N6 저장 왕복이 src 를 지키고 · HTML 내보내기에 빈 슬롯 �
   await page2.close();
   expect(n, '내보낸 HTML 의 중첩 칸에 그림').toBeGreaterThan(0);
 });
+
+/* ── Q-1109t1A2 (현빈 7271) — 일반 칸 「+ 줄 추가」에도 이미지·원형 이미지 — 두칸 줄 목록과 «같은 목록» ── */
+const OUTER0 = (id) => `#${id} .grd-cell[data-r="0"][data-c="0"] [data-line="0"]`;
+const addOpts = (page) => page.$$eval('#grd-line-add-kind option', os => os.map(o => [o.value, o.textContent.trim()]));
+async function pickOuter0(page, id) {
+  await clickAt(page, OUTER0(id)); await clickAt(page, OUTER0(id));
+  await page.waitForSelector('#grd-line-add-kind', { timeout: COND_MS });
+  expect(await page.locator('#grd-nest-hint').count(), '일반 칸 줄 패널(중첩 패널 아님)').toBe(0);
+}
+
+test('N7 일반 칸 「+ 줄 추가」 = 두칸 줄 목록(이름·순서) · 이미지 고르면 그 칸에 빈 사진 · ⌘Z 한 번', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await clickAt(page, INNER1(id)); await clickAt(page, INNER1(id));
+  await page.waitForSelector('#grd-nest-hint #grd-line-add-kind', { timeout: COND_MS });
+  const nested = await addOpts(page);
+  await pickOuter0(page, id);
+  const plain = await addOpts(page);
+  expect(plain.map(o => o[0])).toEqual(expect.arrayContaining(['photo', 'circle']));
+  expect(plain, '★일반 칸 목록 = 두칸 줄 목록').toEqual(nested);
+  const m0 = await model(page, id);
+  await page.selectOption('#grd-line-add-kind', 'photo');
+  await expect.poll(async () => (await model(page, id)).map(l => l.type)).toEqual(['body', 'image', 'duo']);
+  expect((await model(page, id))[1]).toEqual({ type: 'image', imgSrc: '' });
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => model(page, id)).toEqual(m0);
+  expect(errs).toEqual([]);
+});
+
+test('N8 일반 칸 「+ 줄 추가」 원형 이미지 → 원 슬롯 · ⌘Z 한 번 · 저장 왕복', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  await pickOuter0(page, id);
+  const m0 = await model(page, id);
+  await page.selectOption('#grd-line-add-kind', 'circle');
+  const D = await page.evaluate(() => window.grdNewLineSpec('circle').height);
+  const circ = { type: 'image', imgSrc: '', imgShape: 'circle', height: D };
+  await expect.poll(async () => (await model(page, id))[1]).toEqual(circ);
+  expect((await model(page, id)).map(l => l.type)).toEqual(['body', 'image', 'duo']);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => model(page, id)).toEqual(m0);
+  await page.keyboard.press('Meta+Shift+z');
+  await expect.poll(async () => (await model(page, id))[1]).toEqual(circ);
+  const saved = await model(page, id);
+  const snap = await page.evaluate(() => window.serializeProject());
+  await bootApp(page);
+  await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+  await page.waitForFunction((id) => !!document.getElementById(id), id, { timeout: COND_MS });
+  expect(await model(page, id), '저장 왕복').toEqual(saved);
+  expect(errs).toEqual([]);
+});
