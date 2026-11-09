@@ -177,8 +177,11 @@ test('P7 저장본(serializeProject)에 안내 문구가 0', async ({ page }) =>
  *   `expect(r.titles.every(p => p === h.hdHint), ...).toBe(true);`
  * ★새 참값: 두 셀렉터 전부 0 ＋ 음성으로만 닫지 않는다 — 양성 둘을 같이 잰다:
  *   ㉠ 캔버스 더블클릭으로 고치는 길은 ★그대로 산다(이 파일 P5·P5b 가 이미 그 자를 문다 — 사본 금지).
- *   ㉡ 「고른 글자 칸」 절(#cmp-text-section)의 placeholder 가 ★그 두 벌 중 하나(window.CMP_ROW_HINT)에서 온다. */
-test('P8 ⚰️우측 패널 입력칸 — «글자 입력칸» 0 · 「고른 글자 칸」 절 placeholder = CMP_ROW_HINT', async ({ page }) => {
+ *   ㉡ 「고른 글자 칸」 절(#cmp-text-section)의 placeholder 가 ★그 두 벌 중 하나(window.CMP_ROW_HINT)에서 온다.
+ * ★t4-06 — 그 절도 뺐다(현빈 「캔버스에서 직접 편집하니 우측 중복 입력 UI 제거」). ㉡ 옛 → 새:
+ *   절 1 · placeholder = CMP_ROW_HINT · value ''  →  절 0 · textarea 0 · 고른 «캔버스 칸»의 ::before = CMP_ROW_HINT · textContent ''
+ *   (안내가 패널이 아니라 캔버스 칸 자리에 뜬다 — 같은 한 벌 상수에서). */
+test('P8 ⚰️우측 패널 입력칸 — «글자 입력칸» 0 · 「고른 글자 칸」 절 0 · 고른 캔버스 칸 안내 = CMP_ROW_HINT', async ({ page }) => {
   const errs = await setup(page, NEW);
   const h = await assertRuler(page);
   const r = await page.evaluate(() => { window.showComparisonProperties(window.__blk);
@@ -186,15 +189,19 @@ test('P8 ⚰️우측 패널 입력칸 — «글자 입력칸» 0 · 「고른 �
              titles: document.querySelectorAll('.cmp-col-title').length }; });
   expect(r.rows, '1017t1c1 — 행 입력칸 0').toBe(0);
   expect(r.titles, '1017t1c1 — 제목 입력칸 0').toBe(0);
-  /* ㉡ — 글자 칸(li:null)을 고른 뒤 「고른 글자 칸」 절이 뜨고, 그 placeholder = CMP_ROW_HINT */
+  /* ㉡(t4-06) — 글자 칸(li:null)을 골라도 패널엔 글자 절이 없고, 안내는 그 «캔버스 칸»에 CMP_ROW_HINT 로 뜬다 */
   const act = await page.evaluate(() => {
     window.grdSetActiveLine(window.__blk, { r: 0, c: 0, li: null });
     window.showComparisonProperties(window.__blk);
-    const ta = document.getElementById('cmp-text-input');
-    return { sections: document.querySelectorAll('#cmp-text-section').length, placeholder: ta?.getAttribute('placeholder'), value: ta?.value };
+    const cell = window.__blk.querySelector('.cmp-row[data-col-idx="0"][data-row-idx="0"]');
+    return { sections: document.querySelectorAll('#cmp-text-section').length, inputs: document.querySelectorAll('#cmp-text-input').length,
+             panel: document.querySelectorAll('#panel-right .prop-section').length,
+             hint: cell && getComputedStyle(cell, '::before').content, value: cell?.textContent };
   });
-  expect(act.sections, '「고른 글자 칸」 절 1').toBe(1);
-  expect(act.placeholder, 'placeholder = CMP_ROW_HINT(두 벌 중 하나가 한 자리에서 온다)').toBe(h.row);
+  expect(act.panel, '전제 — 패널이 그려졌다').toBeGreaterThan(0);
+  expect(act.sections, 't4-06 — 「고른 글자 칸」 절 0').toBe(0);
+  expect(act.inputs, 't4-06 — textarea 0').toBe(0);
+  expect(act.hint, '고른 캔버스 칸 안내 = CMP_ROW_HINT(두 벌 중 하나가 한 자리에서 온다)').toBe(JSON.stringify(h.row));
   expect(act.value, '값 = 그 칸의 글자(처음엔 빈 문자열)').toBe('');
   expect(errs, errs.join('\n')).toEqual([]);
 });

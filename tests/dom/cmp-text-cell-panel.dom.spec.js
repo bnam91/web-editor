@@ -8,11 +8,11 @@
  *   grdGetActiveLine(li===null) 을 읽는다(이미지 칸의 cmpGetActiveCell 과는 다른 출처 — 섞으면 두 절이 동시에 뜬다).
  * ⛔고정 대기 0.
  *
- * 음성대조(공용 본문 무력화):
- *   · prop-comparison.js 의 `const textSection = (_lnActRow && ...)` 조건을 항상 거짓으로(M4) → A1·N5 빨강
- *     (N5 는 ★절이 아예 안 뜨니 음성은 그대로 초록일 수 있다 — 본문에 적은 수로 보고).
- *   · `#cmp-text-input` 의 input 배선만 제거(M5, 마크업은 유지) → A1 의 ★주 단언(모델이 바뀐다)만 빨강 —
- *     「칸은 섰는데 안 먹는다」를 잡는다(섹션 유무는 초록).
+ * ★t4-06(0.9.11) — 현빈 원문: 「컴패리전 블록 우측 패널의 텍스트 입력 영역 제거 … 캔버스에서 직접 텍스트를 편집할 수
+ *   있으므로 우측 패널의 중복 텍스트 입력 UI 제거」. 「고른 글자 칸」 절(#cmp-text-section · Text 제목 + #cmp-text-input)을
+ *   통째로 뺐다(절 안에 그 둘뿐이라 빈 껍데기도 같이). A1 은 «textarea 로 고침» → «캔버스 더블클릭으로 고침»으로 바꿔 쓴다.
+ *
+ * 양성대조(t4-06): prop-comparison.js 를 e7d97f1ec 로 되돌리면 A1 의 「절 0 · textarea 0 · Text 제목 0」 이 빨강.
  *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js cmp-text-cell-panel
  */
@@ -66,19 +66,55 @@ async function pickCell(page, c, r) {
   await page.waitForFunction(() => !!document.getElementById('grd-line-add-kind') || document.querySelectorAll('.cmp-cell-selected').length > 0, null, { timeout: 3000 });
 }
 
-test('A1 글자 칸(0,1) 고름 → #cmp-text-section 1 · textarea 값 = 그 칸 글자 · 타이핑 → 모델·캔버스 갱신', async ({ page }) => {
+/* ★t4-06 — 옛 A1(textarea 로 고침)을 캔버스로 옮겼다.
+ * ⚰️옛 단언 → 새 단언:
+ *   `#cmp-text-section` 1                  → 0(절이 없다) ＋ #cmp-text-input 0 ＋ 패널에 「Text」 제목 0
+ *   textarea 초깃값 = 'a1'                → 캔버스 칸(0,1) textContent = 'a1'(편집 전 · 같은 출처 모델과 일치)
+ *   textarea input → 모델 '바뀐글자'      → 캔버스 더블클릭 → 전체선택 → 타이핑 → blur → 모델 '바뀐글자'
+ *   캔버스 칸 textContent = '바뀐글자'    → 같다(그대로)
+ *   ＋새: ⌘Z 한 번 → 모델·캔버스 'a1'(히스토리 len 불변 · 구제 칸 0) · 저장 왕복(serializeProject→applyProjectData) 뒤 편집 생존 · 콘솔 에러 0 */
+async function canvasEdit(page, c, r, text) {
+  await page.locator(cellSel(c, r)).dblclick();
+  await page.waitForFunction((s) => document.activeElement?.closest?.('.cmp-row') === document.querySelector(s), cellSel(c, r), { timeout: 3000 });
+  await page.keyboard.press('Meta+a'); await page.keyboard.press('Delete');
+  await page.keyboard.type(text);
+  await page.evaluate(() => document.activeElement?.blur?.());
+}
+const panelTextTitles = (page) => page.evaluate(() =>
+  [...document.querySelectorAll('#panel-right .prop-section-title')].filter(e => e.textContent.trim() === 'Text').length);
+
+test('A1 글자 칸(0,1) 고름 → 패널에 글자 입력 절 0 · 캔버스 더블클릭 타이핑 → 모델·캔버스 갱신 · ⌘Z 한 번 복구 · 저장 왕복 생존', async ({ page }) => {
   const errs = await setup(page);
   await pickCell(page, 0, 1);
-  expect(await count(page, '#cmp-text-section'), '절 1').toBe(1);
-  const before = await page.evaluate(() => document.getElementById('cmp-text-input')?.value);
-  expect(before, '초깃값 = 그 칸 글자').toBe('a1');
-  await page.evaluate(() => {
-    const ta = document.getElementById('cmp-text-input');
-    ta.value = '바뀐글자'; ta.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  expect(await count(page, '#panel-right .prop-section'), '전제 — 패널이 그려졌다').toBeGreaterThan(0);
+  expect(await count(page, '#cmp-text-section'), 't4-06 — 「고른 글자 칸」 절 0').toBe(0);
+  expect(await count(page, '#cmp-text-input'), 't4-06 — textarea 0').toBe(0);
+  expect(await panelTextTitles(page), 't4-06 — 패널 «Text» 제목 0').toBe(0);
+  expect(await count(page, '#cmp-feat-group'), '이웃 절(강조 칼럼)은 그대로 산다').toBe(1);
+  expect(await count(page, '.cmp-row-h'), '행 높이 칸 그대로 산다').toBeGreaterThan(0);
+  expect(await page.evaluate((s) => document.querySelector(s)?.textContent, cellSel(0, 1)), '편집 전 캔버스 = a1').toBe('a1');
+
+  const h0 = await page.evaluate(() => window.getHistoryTip());
+  await canvasEdit(page, 0, 1, '바뀐글자');
   await expect.poll(async () => (await model(page))[0].rows[1].text, { timeout: 3000 }).toBe('바뀐글자');
-  const drawn = await page.evaluate((s) => document.querySelector(s)?.textContent, cellSel(0, 1));
-  expect(drawn, '캔버스도 갱신').toBe('바뀐글자');
+  expect(await page.evaluate((s) => document.querySelector(s)?.textContent, cellSel(0, 1)), '캔버스도 갱신').toBe('바뀐글자');
+  const h1 = await page.evaluate(() => window.getHistoryTip());
+  expect(h1.pos - h0.pos >= 1 && h1.seq !== h0.seq, `편집 끝 표본이 쌓였다 ${JSON.stringify([h0, h1])}`).toBe(true);
+
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await model(page))[0].rows[1].text, { timeout: 3000, message: '⌘Z 한 번 → a1' }).toBe('a1');
+  await page.waitForFunction((s) => document.querySelector(s)?.textContent === 'a1', cellSel(0, 1), { timeout: 3000 });
+  const h2 = await page.evaluate(() => window.getHistoryTip());
+  expect([h2.len - h1.len, h2.pos - h1.pos], `⌘Z = 구제 칸 없이 정확히 한 칸 아래 ${JSON.stringify([h1, h2])}`).toEqual([0, -1]);
+
+  /* 저장 왕복 — 다시 캔버스로 고친 뒤 serializeProject → applyProjectData */
+  await canvasEdit(page, 0, 1, '저장글자');
+  await expect.poll(async () => (await model(page))[0].rows[1].text, { timeout: 3000 }).toBe('저장글자');
+  await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.(); });
+  await page.waitForFunction((s) => document.querySelector(s)?.textContent === '저장글자', cellSel(0, 1), { timeout: 5000 });
+  const re = await page.evaluate(() => window.getComparisonCols(document.querySelector('#sB .comparison-block').dataset));
+  expect(re[0].rows[1].text, '왕복 뒤 모델 생존').toBe('저장글자');
+  expect(re[0].rows[0].text, '이웃 칸 무변').toBe('a0');
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
