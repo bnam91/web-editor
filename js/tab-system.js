@@ -636,6 +636,17 @@ window.holdTabFirstLoading    = (id) => { _firstLoadingTabId = id; };
 window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstLoadingTabId = null; };
 window.closeTab             = closeTab;
 window.closeDeletedProjectTab = closeDeletedProjectTab;
+/* 남은 본으로 연 탭의 폴더가 돌아와 저장이 거절됐다(folder_returned) — 알리고 파일로 다시 연다. 옆 탭이면 표시만 걷는다: 돌아올 때 파일로 연다. */
+window.reopenReturnedTab = async (id) => {
+  const t = _getTabs().find(x => x.id === id);
+  if (!t?._goneCopy) return false;
+  t._goneCopy = false; t._cache = null; t._afterLs = null;
+  window.showStatusToast?.(window.folderReturnedNotice?.(t.name));
+  if (_getActId() !== id) return true;
+  _setActId(null);   // 같은 탭으로는 switchTab 이 안 돈다 — 나가는 탭이 없게 비우고 다시 연다(직렬화·저장 없음)
+  await switchTab(id);
+  return true;
+};
 window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;

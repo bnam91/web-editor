@@ -2694,10 +2694,21 @@ function _projectFolderState(id) {
   return 'missing';
 }
 ipcMain.handle('projects:folder-state', (_e, id) => _projectFolderState(id));
+/* 폴더 없는 동안 남은 본으로 연 탭의 저장(MISSING-FOLDER-RETURNS-WHILE-VIEWING-OVERWRITES-01) — 그사이 폴더가 돌아왔으면 그 본은 돌아온 파일보다 낡았다(덮으면 proj_backup 한 칸에만 남았다 · 앱 3/3).
+   덮지 않고 그 본을 버전 기록에 남긴다 — 거절이 편집을 버리면 안 된다. 폴더가 아직 없으면 표시만 떼고 평소대로 다시 만든다. */
+function _goneBaseRefusal(project) {
+  if (!project || !project._goneBase) return null;
+  delete project._goneBase;
+  if (!_resolveProjectJsonPath(String(project.id))) return null;
+  let kept = false;
+  try { kept = !!_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true }).ok; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
+  return { ok: false, reason: 'folder_returned', kept };
+}
 ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirState.unresolved ? null : (_projectsDirState && _projectsDirState.account) || 'legacy'));   // 본이 어느 뿌리 것인지 가르는 값
 
 async function _saveProjectImpl(project) {
   if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };
+  const _returned = _goneBaseRefusal(project); if (_returned) return _returned;
   const _recreated = _seenProjects.has(String(project.id)) && !_resolveProjectJsonPath(project.id);
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -2772,6 +2783,8 @@ ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
     if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
+    const _returned = _goneBaseRefusal(project);   // 곧 끝나는 문서의 본이다 — 버전 기록에 더해 비상 사본으로도 남기고 종료 때 알린다(planning 거절과 같은 길)
+    if (_returned) { _recordSyncSaveFailure(project, _returned.reason); event.returnValue = _returned; return; }
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);

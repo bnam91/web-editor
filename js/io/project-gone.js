@@ -28,7 +28,8 @@
   w.fileGoneCopy = async (id, name) => {
     const g = await w.projectGoneCopy(id);
     if (!g?.data) return null;
-    const r = await w.electronAPI.saveProject({ ...g.data, id, name: g.data.name || name || 'Untitled', updatedAt: new Date().toISOString() });
+    const r = await w.electronAPI.saveProject({ ...g.data, id, name: g.data.name || name || 'Untitled', updatedAt: new Date().toISOString(), _goneBase: true });   // 묻고 쓰는 사이 폴더가 돌아오면 main 이 안 덮는다
+    if (r?.reason === 'folder_returned') { if (r.kept) await w.reopenReturnedTab?.(id); return r; }
     if (r?.ok !== false && !r?.recreated) w.showStatusToast?.(w.folderRecreatedNotice?.(name));   // recreated 면 main 이 이미 알렸다
     return r;
   };

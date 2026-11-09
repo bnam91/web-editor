@@ -280,6 +280,8 @@ function _saveRefusedText(r) {
 }
 window.saveRefusedText = _saveRefusedText;
 function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
+/* 폴더 없는 동안 남은 본으로 연 탭의 저장이면 표시를 붙인다 — 그사이 폴더가 돌아왔으면 main 이 덮지 않고 거절한다(folder_returned · MISSING-FOLDER-RETURNS-WHILE-VIEWING-OVERWRITES-01). */
+function _markGoneBase(p, id) { if (openTabs.find(t => t.id === id)?._goneCopy) p._goneBase = true; return p; }
 
 /** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
 /* 닫을 때 저장할 게 있나. 되돌리기 봉인 중이면 없다: 저장 실패 기록이 남은 채 새로고침하면 동기 저장이 복원본을 덮는다. */
@@ -309,7 +311,7 @@ function _flushUnfinishedSavesSync() {
       const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
       applyAdoptedAssets(data, id);   // 탭 전환 본은 라이브 DOM 의 옛 주소다 — 평소엔 저장 줄에서 옮기지만 여기선 그 길을 안 탄다(앱 ×6: 파일이 되돌아가 A 삭제 후 0/2)
       if (!opts?.allowEmpty && _emptySaveBlocked(data, id)) continue;   // 평소 저장과 같은 보호(_doSaveProjectToFile) — 메인에는 이 검사가 없어 파일이 빈다
-      const r = window.electronAPI.saveProjectSync({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() });
+      const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id));
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
@@ -446,7 +448,15 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       try { await window.externalizeScratchpad?.(proj, targetId); }
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       if (_savingSuperseded && targetId === _savingOwnerId) return { ok: true, skipped: true, reason: 'flushed' };
-      const saveResult = await window.electronAPI.saveProject(proj);
+      const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId));
+      if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
+        if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다
+          .catch(e => console.warn('[save-load] 돌아온 폴더 다시 열기 실패:', e && e.message));
+        else window.showToast?.(_saveRefusedText(saveResult));
+        _setAutosaveIndicator('error');
+        return { ok: false, reason: saveResult.reason };
+      }
+      if (saveResult?.ok !== false) { const _t = openTabs.find(t => t.id === targetId); if (_t?._goneCopy) _t._goneCopy = false; }   // 폴더를 이 본으로 다시 만들었다 — 이제 파일이 그 본이다
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
         /* 안 기다린다 — 다음 탭에 줄 선 저장이 있으면 그 탭은 저장이 끝나길 기다리고, 줄은 이 저장의 finally 가 빼서 저장이 영영 멈췄다(앱 재현). */
@@ -2391,7 +2401,7 @@ window.addEventListener('beforeunload', () => {
         updatedAt: new Date().toISOString(),
       };
       if (applyAdoptedAssets(proj, activeProjectId)) snap = JSON.stringify(snapData);   // 아래 localStorage 본도 — 파일보다 새로워 다음 열기에 이기면 옛 주소가 파일까지 되돌린다
-      const result = window.electronAPI.saveProjectSync(proj);
+      const result = window.electronAPI.saveProjectSync(_markGoneBase(proj, activeProjectId));
       _unloadFiled = !!result && result.ok !== false;
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
