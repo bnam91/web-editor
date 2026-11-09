@@ -522,15 +522,18 @@ export function sliderRowHTML(label, sliderId, numberId, { min, max, step, value
  *   같은 블록 안에서만 부딪힌다(한 블록이 그리드이면서 카드일 수는 없다).
  * ⛔두 벌 만들지 마라 — 접이식 절이 또 필요하면 여기를 쓴다. */
 const _discOpenSections = new WeakMap();
+/* ★t2-06 ⌘Z: history.js restoreSnapshot 은 블럭을 «같은 id 의 새 요소» 로 갈아끼운다 → 요소 키 WeakMap 이
+ *   비어 펼친 절이 도로 접혔다. id 가 있으면 id 로 든다(문자열 몇 개 — 저장본 무관). id 없는 요소만 WeakMap. */
+const _discOpenById = new Map();
+const _discGet = (block) => (block?.id ? _discOpenById.get(block.id) : _discOpenSections.get(block)) || {};
 /** dflt — 사람이 아직 안 건드렸을 때의 기본(미지정 = 접힘). 한 번 눌러 상태가 생기면 그 값이 이긴다. */
 export function discSecOpen(block, key, dflt = false) {
-  const v = (_discOpenSections.get(block) || {})[key];
+  const v = _discGet(block)[key];
   return v === undefined ? dflt === true : v === true;
 }
 export function discSecToggle(block, key, dflt = false) {
-  const cur = _discOpenSections.get(block) || {};
-  const next = { ...cur, [key]: !discSecOpen(block, key, dflt) };
-  _discOpenSections.set(block, next);
+  const next = { ..._discGet(block), [key]: !discSecOpen(block, key, dflt) };
+  if (block?.id) _discOpenById.set(block.id, next); else _discOpenSections.set(block, next);
   return next[key];
 }
 /** 접이식 절 머리글 HTML — ⛔산출 바이트를 바꾸지 마라(prop-grid.js 옛 `_grdDisclosureHtml`과 글자 그대로 같다 —
