@@ -3030,9 +3030,23 @@ function _bindFrameFlowDrop(ss) {
     else inner.appendChild(indicator);
   };
 
+  /* t2-09b — 진입 안 한 이 프레임의 자손 프레임은 pointer-events:none(css «덮개»)이라 그 위 dragover·drop 도 «여기»로 온다.
+     포인터 아래 가장 깊은 프레임(_frameUnderPointer)이 이 프레임 안에 있으면 그 프레임의 처리기에 넘긴다(넘긴 이벤트는 버블하지 않는다). */
+  const _handOffDeeper = (e) => {
+    const sec = ss.closest('.section-block');
+    const deeper = sec && _frameUnderPointer(e.clientX, e.clientY, dragState.dragSrc, sec);
+    if (!deeper || deeper === ss || !ss.contains(deeper)) return false;
+    e.preventDefault(); e.stopPropagation();
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+    ss.classList.remove('ss-drag-over');
+    deeper.dispatchEvent(new DragEvent(e.type, { clientX: e.clientX, clientY: e.clientY, dataTransfer: e.dataTransfer, cancelable: true }));
+    return true;
+  };
+
   // 드래그오버 — 내부 블록 재배치 (shape frame은 drop 불가)
   inner.addEventListener('dragover', e => {
     if (!dragState.dragSrc) return;
+    if (_handOffDeeper(e)) return;
     if (isShapeFrame()) return; // shape frame은 외부 블록 수신 차단
     e.preventDefault();
     e.stopPropagation();
@@ -3057,6 +3071,7 @@ function _bindFrameFlowDrop(ss) {
   });
 
   inner.addEventListener('drop', e => {
+    if (dragState.dragSrc && _handOffDeeper(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
