@@ -435,10 +435,10 @@
   }
 
   /* ── 보내기 ────────────────────────────────────────────────────────────── */
-  async function pushChanged(snapStr) {
+  async function pushChanged(snapStr, snapAt) {
     if (!_cfg) return;
     /* ★COLLAB-SYNC-OLD-GAPS ⑵ — 올리는 중에 온 두 번째 저장을 버리면 다음 저장까지 서버와 어긋났다 ⇒ 최신 스냅 하나를 기억했다가 끝나면 올린다(baseSeq 는 보낼 때 읽음) */
-    if (_inFlight) { _owedPush = { snap: snapStr, cfg: _cfg }; return; }
+    if (_inFlight) { _owedPush = { snap: snapStr, cfg: _cfg, at: snapAt }; return; }
     const c = api(); if (!c) return;
     let obj;
     /* ★A8(지디 판정): 저장 스냅샷이 JSON 이 아니면 «내부 오류»다 — 사용자가 할 일이 없어 화면엔 안 띄우고 error 로 남긴다. */
@@ -456,7 +456,10 @@
       //   이걸 서버 해시와 비교한다 — 라이브 DOM 으로 계산하면 재료가 달라 오경보가 난다.
       const changed = [];
       for (const s of secs) {
-        if (_replaced[s.key] === s.hash) continue;   // 받기 전에 찍힌 스냅샷의 옛 판이다 — 올리면 상대를 되돌린다
+        /* 받기 전에 찍힌 스냅샷의 옛 판이다 — 올리면 상대를 되돌린다. ★COLLAB-SYNC-OLD-GAPS ㉮ — «받기 전에 찍혔을 때만» 건너뛴다(snapAt < 붙인 때).
+           옛 판은 붙인 뒤 내가 그 판으로 «되돌린»(⌘Z·같은 글) 편집까지 영영 건너뛰어, 그 위로 온 상대 패치가 토스트·기록 없이 덮었다. snapAt 이 없으면(직접 부름) 옛 동작. */
+        const rep = _replaced[s.key];
+        if (rep && rep.h === s.hash && !(Number.isFinite(snapAt) && snapAt > rep.at)) continue;
         delete _replaced[s.key];
         _localSnap[s.key] = s.hash;
         if (_serverHashes && _serverHashes[s.key] === s.hash) { _sent[s.key] = s.hash; continue; }   // 이미 서버와 같다
@@ -512,7 +515,7 @@
       _pushDone++;
       if (attempted) emit({ type: 'pushed', error: _lastError });
       const owed = _owedPush; _owedPush = null;
-      if (owed && owed.cfg === _cfg) pushChanged(owed.snap);   // 빚진 스냅이 «지금» 방 것일 때만(리뷰 1 F3 — 앞 방 push 의 finally 가 새 방 재개 push 를 버리지 않게)
+      if (owed && owed.cfg === _cfg) pushChanged(owed.snap, owed.at);   // 빚진 스냅이 «지금» 방 것일 때만(리뷰 1 F3 — 앞 방 push 의 finally 가 새 방 재개 push 를 버리지 않게)
     }
   }
 
@@ -590,7 +593,7 @@
     /* ⑴ 저장 실패 중 미저장 편집이 덮이면 그 판도 남긴다(충돌 목록 «되살리기»로 고를 수 있게) */
     /* 리뷰 2 #3(옛 결함) — 내 push 가 실패·천장 초과로 못 올라간 판(_localSnap ≠ _sent)이 덮이면 토스트만 나고 되살릴 판이 없었다 ⇒ 그 판도 남긴다 */
     /* 리뷰 3 — _localSnap 이 «받은 패치가 덮은 판»이면(연달아 두 상대 패치) 내 못 올라간 글이 아니다 — 거짓 replaced(되살리기로 상대 새 글을 되돌림)를 막는다 */
-    const unpushedMine = !!(_localSnap[ckey] && _localSnap[ckey] !== _sent[ckey] && _localSnap[ckey] !== p.hash && _localSnap[ckey] !== _replaced[ckey]);
+    const unpushedMine = !!(_localSnap[ckey] && _localSnap[ckey] !== _sent[ckey] && _localSnap[ckey] !== p.hash && _localSnap[ckey] !== (_replaced[ckey] && _replaced[ckey].h));
     const replacedMine = (el && ((mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) || saveFailed || unpushedMine)) ? el.outerHTML : null;
 
     /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
@@ -607,7 +610,7 @@
        *      다르면 = 아직 서버에 못 올린 내 작업이 이 섹션에 있다 → 지금 덮인다. */
       const key = (p.pageId || '') + '::' + p.sectionId;
       const mine = _localSnap[key];
-      if ((mine && mine !== _sent[key] && mine !== p.hash && mine !== _replaced[key]) || saveFailed) {   // 리뷰 3 — 같은 까닭으로 거짓 덮어쓰기 토스트(옛)도 끈다
+      if ((mine && mine !== _sent[key] && mine !== p.hash && mine !== (_replaced[key] && _replaced[key].h)) || saveFailed) {   // 리뷰 3 — 같은 까닭으로 거짓 덮어쓰기 토스트(옛)도 끈다
         notifyConflict([{ sectionId: p.sectionId, otherActor: p.actorId }]);
       }
     }
@@ -681,7 +684,7 @@
     const before = _localSnap[key] || _sent[key];
     const applied = applyPatch(p);
     if (applied === true && p.pageId && p.sectionId && p.hash) {
-      if (before) _replaced[key] = before;
+      if (before) _replaced[key] = { h: before, at: performance.now() };   // ㉮ 붙인 때 — 이보다 먼저 찍힌 스냅만 echo 로 건너뛴다
       _sent[key] = p.hash;
       if (Number.isFinite(+p.seq)) _appliedLog.push({ seq: +p.seq, key, before });
     }
@@ -881,7 +884,7 @@
     /* ★COLLAB-SYNC-OLD-GAPS ⑶ — 재개(서버 해시 심기) 전엔 _sent 가 비어 모든 섹션을 «바뀜»으로 올렸다(읽는 중 · 재개 받는 중 · 첫 재개 실패 뒤).
        편집은 안 잃는다 — 재개가 그때 프로젝트를 다시 직렬화해 진짜 차이만 올린다. */
     if (!_resumed) return;
-    pushChanged(d.snap);
+    pushChanged(d.snap, d.snapAt);
   });
 
   /* ── 「상대가 지금 뭘 하고 있나」 상단바 표시 ─────────────────────────────

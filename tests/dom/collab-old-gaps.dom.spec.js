@@ -9,6 +9,7 @@
  *          C13 F5 밀려난 start 는 'switched' · C14 F6 같은 프로젝트 다시 start 해도 충돌 기록이 남는다(양성대조: ⑸ 판 6921c9685 → C10~C14 빨강)
  *   리뷰 2: C15 미룰 때 날아가던 옛 push 가 끝나도 안 푼다 · C16 push 실패로 못 올라간 내 판이 덮이면 충돌 기록(replaced) · C17 stop 뒤 충돌 목록은 비고 같은 방 다시 start 면 돌아온다
  *          (양성대조: 리뷰 1 판 b61f2a520 → C15~C17 빨강)
+  *   ㉮(리뷰 4): C19 상대 패치 뒤 «받기 전 판과 똑같이» 되돌린 내 편집(스냅이 붙인 뒤 찍힘)은 올라간다 · C20 [대조] 붙이기 전에 찍힌 스냅은 여전히 echo 로 안 올린다(양성대조: aa85e956f → C19 빨강)
  *   리뷰 3: C18 상대 패치 둘이 연달아 같은 섹션 — 거짓 충돌 기록·덮어쓰기 토스트 0 (양성대조: d638c70dc → C18 빨강)
  * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C9(secB 되올림)· C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
@@ -280,6 +281,7 @@ async function seedServer(page) {
   await page.evaluate(() => {
     const sec = (id, t) => `<div class="section-block" id="${id}"><div class="section-inner"><div class="tb">${t}</div></div></div>`;
     document.getElementById('canvas').innerHTML = sec('secA', 'A0') + sec('secB', 'B0');
+    window.rebindAll?.({ preserveHistory: true }); window.buildLayerPanel?.();   // 묶인 꼴·자리 번호(data-section)로 시작 — 받은 패치를 붙일 때의 rebind 가 내 섹션 꼴을 바꾸지 않게(같은 글이면 같은 해시)
     const secs = window.collabSync._internals.collectSections(JSON.parse(window.serializeProject()));
     let seq = 3; for (const x of secs) window.__log.push({ pageId: x.pageId, sectionId: x.sectionId, html: x.html, hash: x.hash, actorId: 'seed', seq: ++seq, baseSeq: 0 });
   });
@@ -359,4 +361,27 @@ test('C18 리뷰 3 — 상대 패치 둘이 연달아 같은 섹션에 와도 �
   expect(r.text).toBe('상대2');
   expect(r.conflicts, '★상대1 을 «내 판»으로 적은 거짓 replaced ' + JSON.stringify(r)).toEqual([]);
   expect(r.toasts, '거짓 덮어쓰기 토스트').toBe(0);
+});
+
+const saveAt = (page, at) => page.evaluate((at) => { const snap = window.serializeProject(); window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap, snapAt: at == null ? performance.now() : at } })); return new Promise(r => setTimeout(r, 300)); }, at);
+const seenP = (page, t) => page.evaluate(async (t) => { const pg = JSON.parse(window.serializeProject()).pages.find(x => x.id === window.state.currentPageId); const cur = new DOMParser().parseFromString(`<div>${pg.canvas}</div>`, 'text/html').getElementById('secA'); cur.querySelector('.tb').textContent = t; const html = cur.outerHTML; const base = window.__server; window.__log.push({ pageId: window.state.currentPageId, sectionId: 'secA', html, hash: window.__hash(html), actorId: 'other', seq: ++window.__server, baseSeq: base }); await window.collabSync.tick(); }, t);
+const myA = (page) => page.evaluate(() => window.__log.filter(p => p.actorId !== 'other' && p.actorId !== 'seed' && p.sectionId === 'secA').map(p => new DOMParser().parseFromString(p.html, 'text/html').querySelector('.tb')?.textContent));
+test('C19 ㉮ — 상대 패치 뒤 «받기 전 판과 똑같이» 되돌린 내 편집은 올라간다(옛: 영영 건너뜀 → 다음 패치가 말없이 덮음)', async ({ page }) => {
+  await boot(page); await seedServer(page);
+  await page.evaluate(() => window.collabSync.start('proj_x'));
+  await page.evaluate(() => window.__edit('secA', 'A')); await saveAt(page);
+  await seenP(page, 'P1');
+  expect(await page.evaluate(() => window.__text('secA')), '[전제] 상대 P1 이 붙었다').toBe('P1');
+  await page.evaluate(() => window.__edit('secA', 'A')); await saveAt(page);   // 붙인 «뒤» 찍힌 스냅 — 내가 A 로 되돌렸다
+  expect(await myA(page), '★되돌린 A 가 echo 로 건너뛰어 안 올라갔다').toEqual(['A', 'A']);
+});
+test('C20 [대조] 붙이기 전에 찍힌 스냅은 여전히 echo 로 안 올린다', async ({ page }) => {
+  await boot(page); await seedServer(page);
+  await page.evaluate(() => window.collabSync.start('proj_x'));
+  await page.evaluate(() => window.__edit('secA', 'A')); await saveAt(page);
+  const before = await page.evaluate(() => { window.__oldSnap = window.serializeProject(); return performance.now(); });   // 붙이기 전 스냅(A)
+  await seenP(page, 'P1');
+  await page.evaluate((at) => { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.__oldSnap, snapAt: at } })); return new Promise(r => setTimeout(r, 300)); }, before);
+  expect(await myA(page), '옛 스냅 A 를 다시 올려 상대 P1 을 되돌렸다').toEqual(['A']);
+  expect(await page.evaluate(() => window.__text('secA'))).toBe('P1');
 });
