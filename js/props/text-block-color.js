@@ -472,6 +472,24 @@ export function textShadowSource(el) {
 
 const _TGS_SEL = '.tgs, [style*="background-clip"], [data-stroke-align="inside"]';   /* ★1012t1E1 내부 외곽선도 */
 const _GEO_SEL = '[style*="background-clip"]';
+// t4-02: 칠 구간 다시 재기 줄 — 요소당 프레임당 한 번(Set) · 끄는 동안 보류(_geoHeld).
+const _geoQ = new Set();
+let _geoRaf = 0, _geoHeld = false;
+const _geoSeen = new WeakSet();
+const _geoRO = typeof ResizeObserver === 'function' ? new ResizeObserver(es => _geoQueue(es.map(e => e.target))) : null;
+function _geoQueue(els) {
+  for (const e of els) _geoQ.add(e);
+  if (_geoQ.size && !_geoRaf && !_geoHeld) _geoRaf = requestAnimationFrame(_geoFlush);
+}
+function _geoFlush() {
+  _geoRaf = 0;
+  if (_geoHeld) return;
+  const q = [..._geoQ]; _geoQ.clear();
+  for (const el of q) {
+    // ⚠️observe 는 한 번만 — 다시 부르면 첫 통지가 또 와서 매 프레임 되먹임 고리가 된다
+    if (syncTextGradGeometry(el) && _geoRO && !_geoSeen.has(el)) { _geoSeen.add(el); _geoRO.observe(el); }
+  }
+}
 function _syncTree(node) {
   if (!node || node.nodeType !== 1) return;
   if (node.matches && node.matches(_TGS_SEL)) syncTextGradShadow(node);
@@ -509,16 +527,27 @@ if (typeof window !== 'undefined') {
     const _start = () => {
       _syncTree(document.body);
       new MutationObserver((muts) => {
-        const geo = new Set();
+        const geo = [];
         for (const m of muts) {
-          for (const n of m.addedNodes) _syncTree(n);
-          // t4-02: 글자·스타일(정렬·크기·서체)·추가 노드가 바뀌면 그라데이션 칠 구간을 다시 잰다(폭이 «잰 값»이라)
+          for (const n of m.addedNodes) {
+            _syncTree(n);
+            if (n.nodeType === 1) { if (n.matches(_GEO_SEL)) geo.push(n); geo.push(...n.querySelectorAll(_GEO_SEL)); }   // 로드·undo·붙여넣기
+          }
+          /* t4-02: 글자·스타일(정렬·크기·서체)이 바뀌면 칠 구간을 다시 잰다(폭이 «잰 값»이라).
+             ★그라데이션 글자 «안»의 변화만 센다 — 조상(프레임·섹션) 스타일은 버린다: 프레임 끌기 틱마다 하위 그라데이션 전부를 재던 원인.
+             조상 크기 변화로 글자가 다시 접히는 꼴은 아래 ResizeObserver 가 받는다(이동엔 안 울린다). */
           const t = m.target.nodeType === 1 ? m.target : m.target.parentElement;
           const g = t && t.closest && t.closest(_GEO_SEL);
-          if (g) geo.add(g); else if (t && t.querySelectorAll) t.querySelectorAll(_GEO_SEL).forEach(e => geo.add(e));
+          if (g) geo.push(g);
         }
-        geo.forEach(syncTextGradGeometry);
+        _geoQueue(geo);
       }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] });
+      /* 마우스 단추가 눌린 동안(끌기)은 재지 않고 모아 두었다가 놓은 뒤 rAF 에 한 번 잰다.
+         shortcut: 앱에 전역 «끄는 중» 깃발이 없어(beginDragHistory 엔 끝 훅이 없다) 단추 상태로 본다 — 끌기 상태가 생기면 그걸로 바꿀 것. */
+      window.addEventListener('mousedown', () => { _geoHeld = true; }, true);
+      const _geoRelease = () => { _geoHeld = false; _geoQueue([]); };
+      for (const ev of ['mouseup', 'pointercancel']) window.addEventListener(ev, _geoRelease, true);
+      window.addEventListener('blur', _geoRelease);   // 창 밖에서 놓은 꼴 · ⚠️캡처로 걸면 요소 blur(끌기 시작의 포커스 이동)까지 받아 보류가 풀린다
       document.fonts?.addEventListener?.('loadingdone', () => document.querySelectorAll(_GEO_SEL).forEach(syncTextGradGeometry));
     };
     if (typeof document !== 'undefined') {

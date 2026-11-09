@@ -277,3 +277,40 @@ test('T6 현빈 프로젝트 사본 tb_rwx4l_atr5nd1 — L·C·R 반복 → 솔�
   await tracks(page, ID, '사본 솔리드 뒤 다시 그라데이션');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* T7 ★끄는 동안은 안 잰다 — 79d9c80b1 감시자는 조상(프레임) style 이 바뀔 때마다 하위 그라데이션 전부를 다시 쟀다
+ *   (프레임 끌기 틱마다 · 지디 «좁히고 재라»). 하네스 «프레임» = #host: 단추 누른 채 움직이면 left 로 옮기고 width 로 좁힌다
+ *   (앱 block-drag 처럼 조상 style 만 바꾼다). 잼 횟수 = Range.getClientRects 호출 수(_textSpanX 가 쓰는 유일한 자).
+ *   양성대조: HEAD(130a18491)의 text-block-color.js 면 «끄는 동안 0» 이 빨강. */
+test('T7 ★프레임 끌기 — 틱마다 안 잰다(Range 측정 0) · 놓은 뒤 한 번 재서 접힌 글자에도 칠 구간 = 글자 양끝', async ({ page }) => {
+  const errs = await boot(page);
+  await page.evaluate(() => {
+    const h = document.getElementById('host');
+    h.style.position = 'relative';
+    document.querySelector('#tb1 .tb-body').textContent = '그라데이션 글자 길게 길게';   // 600px 엔 한 줄 · 200px 면 접힌다
+    window.applyTextGradient(document.getElementById('tb1'), { css: 'linear-gradient(90deg, #cc2244 0%, #1144aa 100%)' });
+    let x0 = null;
+    addEventListener('mousedown', (e) => { x0 = e.clientX; });
+    addEventListener('mousemove', (e) => { if (x0 === null) return; const d = e.clientX - x0; h.style.left = d + 'px'; h.style.width = Math.max(200, 600 - d * 4) + 'px'; });
+    addEventListener('mouseup', () => { x0 = null; });
+  });
+  const ok = async () => { const s = await span(page, 'tb1'); return Math.abs(s.g[0] - s.t[0]) <= 2 && Math.abs(s.g[1] - s.t[1]) <= 2; };
+  await expect.poll(ok).toBe(true);
+  const s0 = await tracks(page, 'tb1', '끌기 전');
+  // ResizeObserver 첫 통지(관찰 시작 뒤 한 프레임) → 그 잼이 끝날 때까지 rAF 세 번 — 안 그러면 그 한 번이 «끄는 동안»에 섞인다(실측 1회)
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+  await page.evaluate(() => { window.__rc = 0; const o = Range.prototype.getClientRects; Range.prototype.getClientRects = function () { window.__rc++; return o.call(this); }; });
+  await page.mouse.move(700, 20); await page.mouse.down();
+  for (let k = 1; k <= 20; k++) {
+    await page.mouse.move(700 + k * 5, 20);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));   // 틱마다 rAF 두 번 — 미뤄 둔 잼이 있으면 여기서 돈다
+  }
+  const during = await page.evaluate(() => window.__rc);
+  await page.mouse.up();
+  await expect.poll(ok, '놓은 뒤 칠 구간이 글자 양끝').toBe(true);
+  const s1 = await tracks(page, 'tb1', '놓은 뒤');
+  expect(s1.lines.length, `[전제] 좁혀서 접혔다 (전 ${s0.lines} → 뒤 ${s1.lines})`).toBeGreaterThan(s0.lines.length);
+  expect(await page.evaluate(() => window.__rc), '놓은 뒤엔 잰다').toBeGreaterThan(0);
+  expect(during, `★끄는 20 틱 동안 잰 횟수 ${during} — 0 이어야 한다`).toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
