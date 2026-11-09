@@ -3540,6 +3540,7 @@ ${_grdKindSelectHtml(line, H.kinds)}
         </div>
         <div class="prop-row">
           <span class="prop-label" title="구분선의 너비(%). 비우면 기본 100">너비(%)</span>
+          <input type="range" class="prop-slider" id="grd-divider-w-slider" min="${IMG_MIN_PCT}" max="100" step="1" value="${gridNumOr(line.widthPct, 100)}">
           <input type="number" class="prop-number" id="grd-divider-w" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${gridNumOr(line.widthPct, '')}">
         </div>
         <div class="prop-row" style="margin-bottom:0;">
@@ -3629,15 +3630,16 @@ function _grdWireLineSection(block, addr, host = null) {
     window.scheduleAutoSave?.();
   });
   /* ★구분선 너비(%) — 1109t1A3 현빈 「너비 조절」. 굵기와 같은 길 · 이미지 폭과 같은 5~100 클램프 · 빈 칸 = 꽉 참. */
-  document.getElementById('grd-divider-w')?.addEventListener('change', (e) => {
-    const rawV = String(e.target.value).trim();
-    const v = rawV === '' ? undefined
-      : Math.max(IMG_MIN_PCT, Math.min(100, parseInt(rawV, 10) || 100));
-    window.pushHistory?.();
-    H.previewLine(r, c, li, { widthPct: v }, addr.np);
-    H.mark(addr);
-    window.scheduleAutoSave?.();
-  });
+  /*   ★1109 현빈QA — 「슬라이더 + 숫자」(굵기 #grd-border-w 와 같은 bindSlider · 이력도 그 규약: 끌기 한 번 = ⌘Z 한 번). */
+  const dvWNum = document.getElementById('grd-divider-w');
+  const dvWApply = (v) => { H.previewLine(r, c, li, { widthPct: v }, addr.np); H.mark(addr); };
+  bindSlider(document.getElementById('grd-divider-w-slider'), dvWNum, dvWApply, { min: IMG_MIN_PCT, max: 100 });
+  // 빈 칸 = 꽉 참(예전 그대로) — bindSlider 는 빈 값을 min 으로 세므로 확정 때 되돌린다(이력은 bindSlider 의 change 가 찍는다)
+  dvWNum?.addEventListener('change', () => {
+    if (String(dvWNum.value).trim() !== '') return;
+    dvWApply(undefined);
+    document.getElementById('grd-divider-w-slider').value = 100;
+  }, { capture: true });
 
   const dvPick = document.getElementById('grd-divider-color');
   const dvHexEl = document.getElementById('grd-divider-hex');
