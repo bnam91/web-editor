@@ -329,7 +329,7 @@ function _flushUnfinishedSavesSync() {
   for (const t of openTabs) {
     if (t.id === activeProjectId || left.has(t.id) || !t._cache || _flushedFailed.get(t.id) === t._cache || _isReloadSealed(t.id) || !_lastSaveFailed(t.id)) continue;
     const last = _lastSaveResult.get(t.id);
-    if (last?.kept || _listedAtBoot.has(t.id) || !window.electronAPI?.recordRefusedSave) continue;
+    if (last?.kept || (_listedAtBoot.has(t.id) && _failedSaveIds().includes(t.id)) || !window.electronAPI?.recordRefusedSave) continue;   // 목록 id 라도 표지를 못 적었으면(LS 가득) 사본은 남긴다(리뷰 3-5)
     let data = null;
     try { data = JSON.parse(t._cache); } catch (_) {}
     if (!data || !Array.isArray(data.pages)) continue;
@@ -3115,7 +3115,7 @@ window.keepFailedCopyOnClose = async (id, name, cache) => {
   let r = null;
   try { r = await window.electronAPI.recordRefusedSave({ ...data, id, name: name || 'Untitled' }, reason); }
   catch (e) { console.warn('[save-load] 거절된 본을 남기지 못했다:', e && e.message); }
-  if (r?.ok) { if (last && settled) last.kept = true; return true; }
+  if (r?.ok) { if (last && settled) last.kept = true; try { const ss = JSON.parse(sessionStorage.getItem('web-editor-failed-recorded-session') || '[]'); if (Array.isArray(ss) && !ss.includes(id)) sessionStorage.setItem('web-editor-failed-recorded-session', JSON.stringify([...ss, id])); } catch (_) {} return true; }   // 같은 실행 안 부팅이 이 사본으로 보호를 안 풀게(리뷰 3-2)
   /* 사본도 못 남겼다(디스크 가득·권한) — 닫은 탭은 종료 때 아무도 안 보니 말없이 잃는다. 닫기는 그대로, 알리기만(지디 결정 ⒜) */
   _warn();
   return false;
