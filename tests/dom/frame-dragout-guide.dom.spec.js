@@ -20,6 +20,10 @@ async function scene(page, zoom = 40, extra = null) {
     const put = (par, sel, fn, ...a) => { into(par); const b = new Set(sec.querySelectorAll(sel)); window[fn](...a); const e = [...sec.querySelectorAll(sel)].find((x) => !b.has(x)); done(); if (!e.id) e.id = 'k' + Math.random().toString(36).slice(2, 9); return e.id; };
     const S = fr(null, 700, 420); const tS = put(S, '.text-block', 'addTextBlock', 'body');
     const K = fr(S, 220, 90, 440, 300);
+    /* ★int-2(t3-06 9d8728c59 뒤): 옛 장면은 K 를 넣을 때 «맨 아래+16» 으로 S 가 420→591 로 저절로 커졌다 — 그 뒤 넣는 다른 종류(아이콘 등)는
+       S 세로 가운데(176)에 놓여 tS 글자 프레임(181~239) 밑을 비켜 갔다. t3-06 은 정한 높이 부모를 안 키운다(뜻한 바뀜) → S 420 그대로 →
+       아이콘이 90 에 놓여 가운데가 tS 위 → 고르기 더블클릭이 tS 를 잡았다(인텔 실측). ⇒ 옛 장면의 S 크기(591)를 «정해» 준다. 재는 것(밖으로 끄는 가이드)은 그대로. */
+    window.updateFrameBlock(S, { height: 591 });
     let X = extra && !extra[3] ? put(S, extra[0], extra[1], ...(extra[2] || [])) : null;
     /* S 가 X 를 다 품게 높이를 정한다 — 옛 장면은 K 의 기본 크기(860×520)로 S 가 저절로 커진 덕에 품었다(t3-05 뒤 80% 라 덜 커져 에셋이 TS 위로 넘쳤다) */
     if (X) { const f = document.getElementById(S), fr0 = f.getBoundingClientRect(), k = fr0.height / f.offsetHeight; const need = Math.ceil((document.getElementById(X).getBoundingClientRect().bottom - fr0.top) / k + parseFloat(getComputedStyle(f).paddingBottom)); if (need > f.offsetHeight) window.updateFrameBlock(S, { height: need }); }
