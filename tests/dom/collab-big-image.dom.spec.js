@@ -3,9 +3,9 @@
  *   T1 400KB 그림 섹션 → 천장을 넘으니 사본 1개(img src 빼고 data-src-from 표식)로 올라간다 · section_too_large 0
  *   T1b [지킴] 150KB 그림 섹션 → 지금과 같은 글(사본 2개 · 표식 없음) = 해시 그대로
  *   T2 받는 쪽 — 사본 1개로 온 섹션의 img src 를 data-img-src 로 되살리고, 다음 저장이 그 섹션을 되올리지 않는다
- *   T3 (b) 옛 진도(ref.hashes 없음) 첫 재개 — 받을 패치가 있는 섹션은 안 올리고 받는다 · 내 판은 충돌 기록(replaced)
+ *   T3 (b) [지킴] 옛 진도(ref.hashes 없음) 첫 재개 — 내 오프라인 편집은 «올린다»(서버 keep-both 에 남음). ⛔«안 올리고 받기»는 넣었다 뺐다(리뷰 1: 충돌 기록이 메모리뿐 · 다른 페이지는 기록 없이 덮임)
  *   T4 (c) [지킴] 서버 목차에 없는 섹션(옛 판에서 천장으로 못 간 것)은 재개에 한 번 올라간다
- * 양성대조: js/collab/sync.js 를 ㉮ 판(b25d887b2)으로 되돌리면 T1(too_large · push 0)·T2(img src 없음)·T3(그 섹션 올림) 빨강 · T1b·T4 초록. */
+ * 양성대조: js/collab/sync.js 를 ㉮ 판(b25d887b2)으로 되돌리면 T1(too_large · push 0)·T2(img src 없음) 빨강 · T1b·T3·T4 초록(지킴). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
@@ -82,22 +82,19 @@ test('T2 받는 쪽 — 사본 1개로 온 그림의 img src 를 되살리고 �
   expect(r.srcOk, '★받은 그림의 img src 가 비었다').toBe(true);
   expect(r.re, '★받은 섹션을 되올렸다').toEqual([]);
 });
-test('T3 (b) 옛 진도 첫 재개 — 받을 패치가 있는 섹션은 안 올리고 받는다 · 내 판은 충돌 기록', async ({ page }) => {
+test('T3 (b) [지킴] 옛 진도 첫 재개 — 내 오프라인 편집은 올린다(서버에 둘 다 남는다 · 메모리 기록에만 맡기지 않는다)', async ({ page }) => {
   await boot(page);   // ref.hashes 없음
   const r = await page.evaluate(async () => {
     const sec = (id, t) => `<div class="section-block" id="${id}"><div class="section-inner"><div class="tb">${t}</div></div></div>`;
-    document.getElementById('canvas').innerHTML = sec('secA', '옛내글');
+    document.getElementById('canvas').innerHTML = sec('secA', '내오프라인글');
     const html = sec('secA', '상대새글');
     const p = { pageId: window.state.currentPageId, sectionId: 'secA', html, hash: window.__hash(html), actorId: 'other', seq: ++window.__server, baseSeq: 5 };
     window.__log.push(p);
     window.__srvSecs = [{ pageId: p.pageId, sectionId: 'secA', hash: p.hash }];
     await window.collabSync.start('proj_x');
-    const c = window.collabSync.conflicts();
-    return { pushed: window.__log.filter(x => x.actorId !== 'other').map(x => x.sectionId), text: document.querySelector('#secA .tb').textContent, mine: c.map(x => x.mode + ':' + (x.mineHtml || '').replace(/<[^>]+>/g, '')) };
+    return window.__log.filter(x => x.actorId !== 'other').map(x => new DOMParser().parseFromString(x.html, 'text/html').querySelector('.tb')?.textContent);
   });
-  expect(r.pushed, '★옛 진도 첫 재개가 상대가 고친 섹션을 옛 baseSeq 로 올렸다(충돌 1회)').toEqual([]);
-  expect(r.text).toBe('상대새글');
-  expect(r.mine.join('|'), '내 판은 충돌 기록에(잃음 0)').toContain('옛내글');
+  expect(r, '★내 오프라인 편집이 서버에 안 올라갔다(재기동하면 잃는다)').toEqual(['내오프라인글']);
 });
 test('T4 (c) [지킴] 서버 목차에 없는 섹션은 재개에 한 번 올라간다', async ({ page }) => {
   await boot(page);

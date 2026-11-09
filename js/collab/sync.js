@@ -107,7 +107,6 @@
    * 「내가 고쳤다」로 보여 낡은 판을 올려 상대 것을 가린다. 이 값과 다를 때만 내 편집이다. */
   let _durableHashes = {};
   let _baseHashes = null;
-  let _resumeSkip = null;            // BIG-IMAGE (b) — 옛 진도(ref.hashes 없음) 첫 재개: 이번에 받을 패치가 있는 섹션은 ②에서 안 올린다(내 판은 ③에서 충돌 기록으로)
   let _hashesDirty = false;
   let _replaced = Object.create(null);   // 'pageId::secId' → { h: 받은 패치가 덮기 직전의 내 해시, at: 붙인 때(performance.now) } — ㉮
   let _serverHashes = null;              // 재개 때 서버 목차 — 내 글이 이것과 같으면 올릴 것이 없다
@@ -492,7 +491,6 @@
       for (const s of secs) {
         /* 받기 전에 찍힌 스냅샷의 옛 판이다 — 올리면 상대를 되돌린다. ★COLLAB-SYNC-OLD-GAPS ㉮ — «받기 전에 찍혔을 때만» 건너뛴다(snapAt < 붙인 때).
            옛 판은 붙인 뒤 내가 그 판으로 «되돌린»(⌘Z·같은 글) 편집까지 영영 건너뛰어, 그 위로 온 상대 패치가 토스트·기록 없이 덮었다. snapAt 이 없으면(직접 부름) 옛 동작. */
-        if (_resumeSkip && _resumeSkip.has(s.key)) { _localSnap[s.key] = s.hash; continue; }   // BIG-IMAGE (b)
         const rep = _replaced[s.key];
         if (rep && rep.h === s.hash && !(Number.isFinite(snapAt) && snapAt > rep.at)) continue;
         delete _replaced[s.key];
@@ -836,16 +834,14 @@
     }
     _serverHashes = { ..._sent };
     if (_baseHashes) Object.assign(_sent, _baseHashes);   // 옛 판이 남긴 진도엔 이 값이 없다 — 그땐 위 서버 해시로 간다
-    /* ★COLLAB-BIG-IMAGE (b) — 옛 진도엔 «닫을 때 서버와 같았던 해시»가 없어, 그 사이 상대가 고친 섹션이 «내가 바꾼 것»으로 보여 ②가 옛 baseSeq 로 올려 첫 재개에 충돌이 한 번 났다.
-       ⇒ 그 섹션은 ②에서 안 올리고 ③에서 받는다 — 내 판은 applyPatch 가 충돌 기록(replaced)으로 남긴다(잃음 0 · 지디 OK: 1회 충돌 기록행). */
-    _resumeSkip = _baseHashes ? null : new Set((r.patches || []).map(p => (p.pageId || '') + '::' + p.sectionId));
+    /* ⛔COLLAB-BIG-IMAGE (b) «옛 진도 첫 재개에 상대가 고친 섹션은 안 올리고 받기»는 «넣었다가 뺐다»(리뷰 1): 충돌 기록은 메모리뿐이라 재기동 전에 «되살리기»를
+       안 누르면 내 오프라인 편집이 디스크·서버·메모리 어디에도 안 남았다 · 다른 페이지 섹션은 기록조차 없이 덮였다. 옛 동작(올림 → 서버 keep-both 에 둘 다 남는 1회 충돌)이 잃지 않는다. */
     _resumed = true;   // ⑶ 이제부터 자동저장 push 는 진짜 차이만 본다
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
       /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
       try { await pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재개 push 직렬화 실패:', e); }
     }
-    _resumeSkip = null;
     if (_cfg !== cfg) { _serverHashes = null; return { ok: false, reason: 'switched' }; }
     // ③ 이제 남의 것을 적용한다. ★리뷰 1 F1 — _serverHashes 는 ③ 뒤에 비운다: applyRecorded 가 «서버의 지금 판이 이미 내 것»인 섹션의 묵은 패치를 안 붙인다.
     for (const p of (r.patches || [])) applyRecorded(p);   // BUGS.md:275 — 보류·거절은 applyRecorded 가 기록 안 한다
