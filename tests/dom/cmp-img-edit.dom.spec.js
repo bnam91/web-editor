@@ -86,10 +86,10 @@ async function rclickItems(page, c, r) {
   return page.evaluate(() => [...document.querySelectorAll('#block-context-menu > .bcm-item')]
     .filter(i => getComputedStyle(i).display !== 'none' && i.id.startsWith('bcm-cmp-')).map(i => i.id));
 }
-/* 메뉴 닫기 — block-factory.js 가 document 'click' 에 closeMenu 를 건다. 화면 어딘가를 «누르면» 그 자리 단추가 눌릴 수 있어 이벤트만 보낸다. */
+/* 메뉴 닫기 — block-factory.js 가 window capture 'pointerdown'(바깥 누름)에 closeMenu 를 건다(1109t1B1 · 전엔 document 'click'). 화면 어딘가를 «누르면» 그 자리 단추가 눌릴 수 있어 이벤트만 보낸다. */
 async function closeMenu(page) {
   /* 대상은 body — document 자체에 쏘면 다른 click 리스너들의 e.target.closest 가 없어 던진다(실측 E8) */
-  await page.evaluate(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  await page.evaluate(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
   await page.waitForFunction(() => getComputedStyle(document.getElementById('block-context-menu')).display === 'none', null, { timeout: 3000 });
 }
 

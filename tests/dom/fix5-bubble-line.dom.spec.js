@@ -139,9 +139,9 @@ async function bubbleToTwoLines(page, id) {
 }
 
 
-/** 줄 선택 상태에서 우클릭 메뉴를 닫는다 — 메뉴가 누른 점에 서므로 바깥 클릭(문서 click 닫기 리스너)으로 닫는다. */
+/** 줄 선택 상태에서 우클릭 메뉴를 닫는다 — 메뉴가 누른 점에 서므로 바깥 누름(window capture pointerdown 닫기 · 1109t1B1)으로 닫는다. */
 async function closeMenu(page) {
-  await page.evaluate(() => document.body.click());
+  await page.evaluate(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
   await waitFor(page, () => getComputedStyle(document.getElementById('block-context-menu')).display === 'none', undefined, '메뉴가 안 닫혔다');
 }
 const shadowOf = (page, id) => page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .tb-bubble`)).boxShadow, id);

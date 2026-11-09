@@ -6585,8 +6585,18 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   bcmFolderNew?.addEventListener('click', e => e.stopPropagation());
   bcmTagsInput?.addEventListener('click', e => e.stopPropagation());
 
-  // 외부 클릭 시 닫기 (click만 — contextmenu는 stopPropagation으로 차단되므로 제거)
-  document.addEventListener('click', closeMenu);
+  /* ★1109t1B1 바깥 누름·휠·Esc·창 이탈이면 닫는다 — 버블 click 은 블럭들의 stopPropagation 에 막혀 안 닫혔다(현빈).
+     window capture 라 남이 막아도 받는다 · 바깥 누름은 닫기만 하고 그 클릭은 제 할 일을 한다(inspector.js 메뉴와 같은 꼴).
+     우클릭으로 다른 블럭을 누르면 pointerdown 이 닫고 contextmenu 가 새 대상으로 다시 연다. */
+  const _outside = e => menu.style.display !== 'none' && !menu.contains(e.target);
+  window.addEventListener('pointerdown', e => { if (_outside(e)) closeMenu(); }, true);
+  window.addEventListener('wheel', e => { if (_outside(e)) closeMenu(); }, { capture: true, passive: true });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || menu.style.display === 'none') return;
+    closeMenu(); e.stopPropagation(); e.preventDefault();   // 메뉴만 닫는다 — 선택 풀기까지 가지 않게
+  }, true);
+  // Electron 의 네이티브 <select> 는 창 blur 를 낼 수 있다 — 포커스가 메뉴 안이면 닫지 않는다.
+  window.addEventListener('blur', () => { if (!menu.contains(document.activeElement)) closeMenu(); });
 
   // window에 등록 (bindBlock에서 사용)
   window._openBlockContextMenu = openMenu;
