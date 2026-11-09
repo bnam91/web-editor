@@ -20,7 +20,7 @@ async function setup(page, { cached = false } = {}) {
   await page.evaluate(({ A, B, R, cached }) => {
     window.__state = 'missing'; window.__written = []; window.__sent = []; window.__toasts = [];
     const real = window.electronAPI;
-    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') { (window.__refused ||= []).push(JSON.stringify(x.pages)); return { ok: false, reason: 'folder_returned', kept: 'history' }; } if (x.id === 'proj_b') window.__state = 'ok'; window.__written.push(x); return { ok: true }; };
+    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') { (window.__refused ||= []).push(JSON.stringify(x.pages)); return { ok: false, reason: 'folder_returned', kept: 'history' }; } if (x.id === 'proj_b') window.__state = 'ok'; const { _goneBase, ...kept } = x; window.__written.push(kept); return { ok: true }; };   // main 처럼 표시를 떼고 «쓴다» — 붙은 채 두면 다음 저장이 읽어 합친 본에 표시가 따라 들어간다(인텔 N1 2≠1 · main 은 유닛 N1)
     /* __hold: proj_b 의 첫 비동기 저장을 붙든다 — 그사이 폴더가 돌아오고 다음 저장이 줄에 선다(적대 리뷰 ①). 판정은 풀린 뒤에 한다. */
     window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { if (window.__hold && x.id === 'proj_b' && !window.__held) { window.__held = true; window.__sent.push({ id: 'held' }); await new Promise((r) => { window.__rel = r; }); window.__sent.pop(); } return write(x); }
       : k === 'saveProjectSync' ? (x) => write(x)
@@ -96,6 +96,8 @@ test('N1 [대조] 폴더가 아직 없으면 그 본으로 다시 만들고, 그
 });
 test('N2 [대조] 평범한 탭의 저장은 표시가 없다', async ({ page }) => {
   const errs = await setup(page);
+  /* 처음 proj_b 로 갈 때 나가는 탭 캐시에 하네스 부팅 화면이 찍혀 s_A1 이 안 돌아온다(인텔 N2 시간 초과 · 고치기 전 판도 같음) — 캐시를 다시 놓는다. */
+  await page.evaluate((A) => { window.openTabs.find((t) => t.id === 'proj_a')._cache = JSON.stringify(A); }, doc('proj_a', 'A'));
   await page.evaluate(() => window.switchTab('proj_a'));
   await page.waitForFunction(() => !!document.getElementById('s_A1') && window.gdtProjectReady?.get?.()?.phase !== 'loading');
   await save(page, 'A편집', 'proj_a');
