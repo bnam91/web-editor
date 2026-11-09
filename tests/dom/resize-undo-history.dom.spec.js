@@ -154,18 +154,24 @@ window.__ready = true;
  *  ★import 이름은 sliceExternalDeps 가 import 줄에서 끌어온다. ★같은 파일 함수(cornerSign)는 import 가 아니라 그 자가 안 보므로
  *    «overlay-handles.js 의 export function 중 조각이 부르고 하네스가 안 주는 것»으로 ★같은 꼴로 파생한다(⛔이름을 손으로 적지 않는다). */
 const _PROBE = harnessJs('');                                                    // ★deps 없이 — 하네스가 ★제 손으로 주는 것만
-const _FRAME_NEED = sliceExternalDeps(OH, FRAME_SRC);                             // import 이름 중 조각이 부르는 것
+/* ★t3-08 — 두 조각(프레임·도형)이 맞은편 고정에 anchoredLeftTop·blockRotationDeg(frame-geometry)·_applyOverlayPos(overlay-float)를 새로 부른다 ⇒ 도형 조각도 같은 파생에 넣고 overlay-float 도 뜬다 */
+const OF = read('js/overlay-float.js');
+const _FRAME_NEED = [...new Set([...sliceExternalDeps(OH, FRAME_SRC), ...sliceExternalDeps(BD, SHAPE_SRC)])];   // import 이름 중 조각이 부르는 것
 const _FRAME_MISSING = _FRAME_NEED.filter((n) => !declaresName(_PROBE, n));       // ★하네스가 안 주는 것
 const _OH_LOCAL_MISSING = [...OH.matchAll(/^export function ([\w$]+)\(/gm)].map((m) => m[1])
   .filter((n) => new RegExp('\\b' + n + '\\s*\\(').test(FRAME_SRC) && !declaresName(_PROBE, n));
 const FRAME_DEPS = [
   ..._FRAME_MISSING.filter((n) => FG.includes(`export function ${n}(`))
     .map((n) => sliceBlock(FG, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`)),
+  ..._FRAME_MISSING.filter((n) => OF.includes(`export function ${n}(`))
+    .map((n) => sliceBlock(OF, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`)),
+  ...(_FRAME_MISSING.includes('_applyOverlayPos') ? [sliceBlock(OF, 'function _syncPanelXY(', '★_applyOverlayPos 가 부르는 같은 파일 함수')] : []),
   ..._OH_LOCAL_MISSING.map((n) => sliceBlock(OH, `export function ${n}(`, `★조각이 부르는 같은 파일 함수 — ${n}`)),
 ].join('\n').replace(/^export /gm, '');                                          // 일반 script 라 export 를 뗀다
 const HARNESS_JS = harnessJs(FRAME_DEPS);
 /* ★★파생 가드 — ★여기서 던지면 ★페이지 안 ReferenceError ★전에 ★이름을 ★찍어 준다. */
 assertDepsProvided(FRAME_SRC, OH, HARNESS_JS, 'resize-undo-history 하네스(_onHandleMouseDown)');
+assertDepsProvided(SHAPE_SRC, BD, HARNESS_JS, 'resize-undo-history 하네스(_onShapeHandleMouseDown)');   // ★t3-08 — 도형 조각도 같은 잠금
 if (_OH_LOCAL_MISSING.some((n) => !declaresName(HARNESS_JS, n))) throw new Error(`resize-undo-history 하네스: 같은 파일 함수를 안 준다 — ${_OH_LOCAL_MISSING}`);
 
 const BODY = `

@@ -7,7 +7,7 @@
 
 import { state, BLOCK_DELEGATE_SEL } from './globals.js';
 import { isShapeFrame as _isShapeFrameEl, toFlowUnit, isEmptyShell } from './shape-frame.js';
-import { posElOf as _floatPosElOf, bindFloatMoveDrag as _bindFloatMoveDrag } from './overlay-float.js';
+import { posElOf as _floatPosElOf, bindFloatMoveDrag as _bindFloatMoveDrag, _applyOverlayPos } from './overlay-float.js';
 import {
   clearDropIndicators,
   makeLabelItem,
@@ -21,7 +21,7 @@ import {
 import { snapPosition, showGuides, hideGuides } from './smart-guides.js';
 /* ★1020t1d — 화면 Δ → «담은 상자의 로컬» Δ. ★조상 프레임의 flip·rotate 를 ★측정으로 되돌린다.
    ★frame-geometry.js 는 「다른 모듈을 import 하지 않는 순수 계산 + 얇은 DOM 어댑터」라 그래프가 안 무거워진다(그 파일 머리말). */
-import { measureLocalBasis, localDeltaFromBasis, localStartFromStyle } from './frame-geometry.js';
+import { measureLocalBasis, localDeltaFromBasis, localStartFromStyle, anchoredLeftTop, blockRotationDeg } from './frame-geometry.js';
 import { isBlurIntoPanel, parkEditing } from './props/_text-selection.js';
 /* ★«부분 서식 HTML» 한 벌 = js/util/sanitize-rich-text.js — ★이 파일의 ★소비자가 ★둘이다:
  *   ★수지②(모달 슬롯) ＋ ★수지⑦(그리드 줄) — ★2026-10-08 에 ★둘이 ★같은 날 ★들어왔다.
@@ -655,6 +655,8 @@ function _onShapeHandleMouseDown(e, block, dir) {
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
   const startW = ssRect ? Math.round(ssRect.width / scale0) : (parseInt(ss?.style.width || ss?.dataset.width) || 100);
   const startH = ssRect ? Math.round(ssRect.height / scale0) : (parseInt(ss?.style.height || ss?.dataset.height) || 100);
+  // t3-08 — 자유배치(absolute) 래퍼면 맞은편 꼭지 고정. 흐름 배치는 무변화.
+  const _anchor0 = ss?.style.position === 'absolute' ? { L: parseFloat(ss.style.left) || 0, T: parseFloat(ss.style.top) || 0, deg: blockRotationDeg(ss) } : null;
   const _hist = window.beginDragHistory?.('도형 크기');
   let _moved = false;   // ★아래 onUp 의 «합성 click 삼키기» 판정용 — 진짜로 끌었을 때만 삼킨다
 
@@ -694,6 +696,10 @@ function _onShapeHandleMouseDown(e, block, dir) {
          js/props/prop-shape.js applySize · js/overlay-handles.js _onFrameHandleMouseDown.
          (2026-09-21 최종통합 QA medium: 「핸들로 높이를 줄일 수 없다」) */
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+      if (_anchor0) {
+        const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, dir, _anchor0.deg);
+        _applyOverlayPos(ss, p.left, p.top);
+      }
     }
     // 우측 패널 슬라이더 동기화
     const wNum = document.getElementById('shape-w-num');

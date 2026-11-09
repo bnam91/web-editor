@@ -420,6 +420,16 @@ export function applyFrameRotationMargin(ss, sizeHint) {
  *   `measureLocalBasis`   = ★얇은 DOM 어댑터(★제스처당 ★한 번)
  *   `screenDeltaToLocal`  = 둘을 ★묶은 입구(기저를 ★캐시해 받는다) */
 
+/** t3-08 — absolute 박스를 W0×H0 → W1×H1 로 바꿀 때 «잡은 꼭지 dir(로컬 nw/ne/sw/se)의 맞은편»이 화면에서 안 움직이는 새 left/top.
+ *  중심 기준이라 자기 회전(deg, transform-origin 가운데)까지 한 식. deg=0 이면 w 쪽 left −ΔW · n 쪽 top −ΔH · e/s 쪽 그대로. */
+export function anchoredLeftTop(L0, T0, W0, H0, W1, H1, dir, deg = 0) {
+  const sx = dir.includes('e') ? 1 : -1, sy = dir.includes('s') ? 1 : -1;
+  const hx = sx * (W1 - W0) / 2, hy = sy * (H1 - H0) / 2, t = (Number(deg) || 0) * Math.PI / 180;
+  const cx = L0 + W0 / 2 + hx * Math.cos(t) - hy * Math.sin(t);
+  const cy = T0 + H0 / 2 + hx * Math.sin(t) + hy * Math.cos(t);
+  return { left: Math.round(cx - W1 / 2), top: Math.round(cy - H1 / 2) };
+}
+
 /** 기저(ex,ey) 로 화면 Δ 를 로컬 Δ 로. ★퇴화(det≈0)면 null — 부르는 자가 ★옛 식으로 떨어진다.
  *  ex = 로컬 +1px(x) 가 화면에서 간 벡터 · ey = 로컬 +1px(y) 가 화면에서 간 벡터.
  *  ⚠️null 을 ★0 으로 읽지 마라 — 「못 구했다」와 「안 움직인다」는 ★다르다. */

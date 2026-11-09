@@ -4,7 +4,7 @@
    Extracted from drag-drop.js (lines ~13–988)
 ═══════════════════════════════════ */
 import { applyFrameTransform, applyFrameRotationMargin, blockRotationDeg,
-         measureLocalBasis, localDeltaFromBasis } from './frame-geometry.js';
+         measureLocalBasis, localDeltaFromBasis, anchoredLeftTop } from './frame-geometry.js';
 
 import { resizeColBoundary, resizeRowHeight, resizeGridImage,
          resizeCmpRowHeight, setCmpRowHeight } from './grid-cell-resize.js';   /* ★1017t1c4 비교 행 경계 드래그 — ★같은 모듈(새 import 간선 0) */
@@ -338,6 +338,8 @@ function _onHandleMouseDown(e, ss, dir) {
   const _layoutStart = _rotStart || _basis;
   const startW = _layoutStart ? Math.round(ss.offsetWidth)  : Math.round(ssRect.width  / scale0);
   const startH = _layoutStart ? Math.round(ss.offsetHeight) : Math.round(ssRect.height / scale0);
+  // t3-08 — 자유배치(absolute)면 맞은편 꼭지를 고정한다(left/top 을 같이 민다). 흐름 배치는 무변화.
+  const _anchor0 = ss.style.position === 'absolute' ? { L: parseFloat(ss.style.left) || 0, T: parseFloat(ss.style.top) || 0 } : null;
   const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
   const secInnerCS = secInner ? getComputedStyle(secInner) : null;
   const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
@@ -430,6 +432,10 @@ function _onHandleMouseDown(e, ss, dir) {
     window.applyBlockFullBleed?.(ss);
     if (!isFullWidth) {
       ss.style.height = `${newH}px`; ss.style.minHeight = `${newH}px`; ss.dataset.height = String(newH);
+    }
+    if (_anchor0) {
+      const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, _dirL, _rotStart);
+      _applyOverlayPos(ss, p.left, p.top);
     }
     // 회전한 프레임을 리사이즈하면 AABB 도 같이 변한다 → 세로 마진 보정 재계산.
     // sizeHint 로 넘겨 offsetWidth/Height 재측정(강제 리플로우) 없이 계산한다.
@@ -1023,6 +1029,8 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
   const startH = _rotStart ? Math.round(ab.offsetHeight) : Math.round(rect.height / scale0);
 
   const aspectRatio = startW / startH;
+  // t3-08 — 자유배치(absolute)면 맞은편 꼭지 고정. 흐름 배치는 무변화.
+  const _anchor0 = ab.style.position === 'absolute' ? { L: parseFloat(ab.style.left) || 0, T: parseFloat(ab.style.top) || 0 } : null;
 
   const _hist = window.beginDragHistory?.('에셋 크기');
   function onMove(ev) {
@@ -1062,6 +1070,10 @@ function _onAssetResizeHandleMouseDown(e, ab, dir) {
     else if (newW >= 860) window.applyAssetFullBleed?.(ab);
     else { ab.style.width = newW + 'px'; ab.style.marginLeft = ''; ab.style.marginRight = ''; }
     ab.style.height = newH + 'px';
+    if (_anchor0) {
+      const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, dir, _rotStart);
+      _applyOverlayPos(ab, p.left, p.top);
+    }
     // 우측 패널 슬라이더 동기화
     const wNum = document.getElementById('asset-w-number');
     const wSl  = document.getElementById('asset-w-slider');
