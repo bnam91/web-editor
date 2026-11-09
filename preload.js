@@ -233,6 +233,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hasApiKey:    (provider)      => ipcRenderer.invoke('settings:has-key', provider),
   /* remove.bg 누끼 — 렌더러는 CSP 로 외부 fetch 가 막혀 있어 main 이 대신 부른다. */
   removebgCutout: ({ b64, mime }) => ipcRenderer.invoke('removebg:cutout', { b64, mime }),
+  /* t2-03: Higgsfield 키 — 넣기·지우기·상태(••••끝4)만. ⛔원문을 돌려받는 길은 없다. */
+  higgsfield: {
+    status:   ()    => ipcRenderer.invoke('higgsfield:key-status'),
+    setKey:   (key) => ipcRenderer.invoke('higgsfield:key-set', key),
+    clearKey: ()    => ipcRenderer.invoke('higgsfield:key-clear'),
+  },
 
   // ── [Unit B] 버그·피드백 신고 ──
   //   ★sessionToken 은 «메인»이 붙인다(여기로 안 나온다). 렌더러는 내용·이미지만 넘긴다.

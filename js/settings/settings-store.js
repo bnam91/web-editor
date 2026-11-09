@@ -45,6 +45,7 @@
        ⚠️기본값은 «두 벌»이다 — 여기(렌더러 FALLBACK)와 main.js DEFAULT_SETTINGS(정본).
          단축키 때와 같은 구조라 «둘 다» 같은 값이어야 한다. */
     showScratchLinkEdges: true,
+    higgsfieldModel: '', // t2-03: main.js DEFAULT_SETTINGS 와 같은 값(키는 settings 에 없다)
     easterEggs: {
       fkeyHotkeys:      true,
       jokerBlock:       true,

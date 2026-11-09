@@ -217,6 +217,8 @@ const DEFAULT_SETTINGS = {
   //     `{...DEFAULT_SETTINGS, ...raw}` 로 여기 값을 받는다. false 로 두면 업데이트만 해도
   //     선이 «말없이 사라진» 것처럼 보인다. 「없다」를 「지워졌다」로 읽히게 하지 않는다.
   showScratchLinkEdges: true,
+  // t2-03: Higgsfield 모델 id(비밀 아님). ⛔키는 여기 안 둔다 — main/higgsfield-key.js(암호 파일).
+  higgsfieldModel: '',
   apiKeys: { openai: '', gemini: '', anthropic: '' },
   shortcuts: {
     addGap:       'KeyG',
@@ -491,6 +493,11 @@ function createWindow() {
   ipcMain.handle('settings:get',      () => readSettings());
   ipcMain.handle('settings:set',      (_e, patch) => writeSettings(patch || {}));
   ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
+  // t2-03: Higgsfield 키는 settings.json 이 아니라 safeStorage 암호 파일에 — 렌더러엔 ••••끝4 만 간다.
+  require('./main/higgsfield-key').createHiggsfieldKey({
+    safeStorage: require('electron').safeStorage, fs,
+    filePath: path.join(app.getPath('userData'), 'higgsfield.key.bin'),
+  }).registerIpc(ipcMain);
 
   // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
   // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
