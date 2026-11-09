@@ -2210,6 +2210,9 @@ window.switchScratch     = switchScratch;
 window.switchScratchPage = switchScratchPage;
 window.flushScratchForSwitch = flushScratchForSwitch;
 window.clearScratchPad   = async () => {
+  /* ★적대 리뷰(261110): 로드가 도는 중에 비우면 늦은 읽기가 옛 장을 다시 그려 «화면엔 있는데 저장엔 없음»이 됐다(다시 열면 사라짐).
+     ⇒ 도는 로드를 낡게 만들고(세대 토큰) 이 컨텍스트를 «로드 끝·비었음»으로 — 화면 = 저장 = [] 로 맞춘다. */
+  ++_scratchLoadGen; _scratchLoaded = true;
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];

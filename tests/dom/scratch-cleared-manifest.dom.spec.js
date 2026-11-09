@@ -72,3 +72,22 @@ test('M4 비움 뒤 ⌘Z — 비움은 이력이 없어 안 되돌아오고, 저
   expect(await page.evaluate(() => window.__items())).toEqual([]);
   expect(errs).toEqual([]);
 });
+
+/* ★적대 리뷰(261110) — 로드가 도는 «중»에 비우기: 늦은 읽기가 옛 두 장을 다시 그려 «화면엔 있는데 IDB·디스크엔 없음» 이었다.
+   ⇒ 비우기가 도는 로드를 낡게 만든다 — 화면 = IDB = 디스크 = 0. */
+test('M5 로드 도중 비우기 — 화면·IDB·저장 매니페스트 셋 다 0(늦은 읽기가 옛 장을 다시 그리지 않음)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(async () => {
+    const load = window.initScratchPad('proj_m', 'p1');   // 기다리지 않는다 — IDB 읽기가 도는 중
+    const clear = window.clearScratchPad();
+    await Promise.all([load, clear]);
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const db = await new Promise((res, rej) => { const q = indexedDB.open('goditor-scratch'); q.onsuccess = () => res(q.result); q.onerror = rej; }).catch(() => null);
+    let idb = 'n/a';
+    if (db && db.objectStoreNames.length) { const st = db.objectStoreNames[0]; idb = await new Promise((res) => { const g = db.transaction(st).objectStore(st).get('scratch-pad-proj_m-p1'); g.onsuccess = () => res(g.result); g.onerror = () => res('err'); }); }
+    return { screen: window.__items(), idb };
+  });
+  expect(r.screen, '★화면에 옛 장이 다시 그려졌다').toEqual([]);
+  expect(await page.evaluate(() => window.__save()), '저장 매니페스트').toEqual([]);
+  expect(errs).toEqual([]);
+});
