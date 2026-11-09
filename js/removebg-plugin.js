@@ -43,9 +43,15 @@
 
   /* ── 이미지 → {b64, mime} ────────────────────────────────────────────
      goya-asset:// 는 그대로 fetch 가 안 되므로 캔버스로 굽는다.
-     ⚠️_toDrawableSrc 는 scratch-pad.js 모듈 지역이라 여기선 쓸 수 없다 —
-       대신 <img> 로 그려 PNG 로 뽑는다(표시되고 있는 것이 곧 원본이다). */
-  function _toB64(src) {
+     ★t2-11b — goya-asset:// 는 <img crossOrigin> 로도 «아예 안 열린다»(scratch-pad.js:420-424 실측 · 다시 연 프로젝트 그림 = 전부 이 주소)
+       ⇒ 공용 문 goyaAssetToDrawableSrc(io/goya-asset-inline.js · window 다리)로 data: 로 먼저 바꾼다 — ai-image-gen.js 와 같은 문.
+       못 바꾸면(웹·읽기 실패) 옛날처럼 «읽지 못했습니다». */
+  async function _toB64(src0) {
+    let src = src0;
+    if (typeof src === 'string' && src.startsWith('goya-asset://')) {
+      src = (await window.goyaAssetToDrawableSrc?.(src)) || null;
+      if (!src) throw new Error('이미지를 읽지 못했습니다');
+    }
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';

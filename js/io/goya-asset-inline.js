@@ -259,6 +259,9 @@ async function inlineGoyaAssetsInJSON(root, reader) {
   };
 }
 
+/* ★t2-11b — 고전 스크립트(js/removebg-plugin.js)가 import 없이 «같은 문»을 쓰게 하는 다리. ⛔변환을 거기 다시 짓지 마라(두 벌 금지). */
+if (typeof window !== 'undefined') window.goyaAssetToDrawableSrc = goyaAssetToDrawableSrc;
+
 export {
   GOYA_ASSET_PREFIX,
   isGoyaAssetUrl,
