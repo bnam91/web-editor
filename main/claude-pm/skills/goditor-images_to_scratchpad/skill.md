@@ -168,6 +168,8 @@ function evaluate(ws, fn, args, pending, msgIdRef) {
   console.log(`이미지 ${images.length}개 발견`);
 
   let curY = START_Y;
+  const failed = [];
+  const saveFailed = (save) => !!save && save.ok === false;   // 성공 판정: 결과 없음(옛 판)·ok:true = 성공 · ok:false 만 실패
 
   for (let i = 0; i < images.length; i++) {
     const imgPath = images[i];
@@ -181,35 +183,46 @@ function evaluate(ws, fn, args, pending, msgIdRef) {
     let result;
     try {
       // _scratchAddAndSave: DOM 생성 + IndexedDB 저장 (새로고침 후에도 유지)
-      result = await evaluate(ws, `(src, x, y, w) => new Promise(resolve => {
+      // 저장 약속을 «기다리고» 그 결과(save)를 돌려준다 — 옛 판(결과 없음)은 save 가 undefined = 성공으로 본다
+      result = await evaluate(ws, `(src, x, y, w) => new Promise((resolve, reject) => {
         const img = new Image();
+        const done = (dims) => Promise.resolve(window._scratchAddAndSave(src, x, y, w))
+          .then(save => resolve({ ...dims, save }), reject);
         img.onload = () => {
           const displayH = img.naturalWidth > 0 ? Math.round((img.naturalHeight / img.naturalWidth) * w) : w;
-          window._scratchAddAndSave(src, x, y, w);
-          resolve({ nw: img.naturalWidth, nh: img.naturalHeight, displayH });
+          done({ nw: img.naturalWidth, nh: img.naturalHeight, displayH });
         };
-        img.onerror = () => {
-          window._scratchAddAndSave(src, x, y, w);
-          resolve({ nw: w, nh: w, displayH: w });
-        };
+        img.onerror = () => done({ nw: w, nh: w, displayH: w });
         img.src = src;
       })`, [dataUrl, START_X, curY, WIDTH], pending, msgIdRef);
     } catch(e) {
       console.log(`SKIP (${e.message})`);
+      failed.push(`${path.basename(imgPath)}(${e.message})`);
       curY += WIDTH + GAP_Y;
       continue;
     }
 
     if (!result || typeof result.displayH === 'undefined') {
       console.log(`SKIP (결과 없음)`);
+      failed.push(`${path.basename(imgPath)}(결과 없음)`);
       curY += WIDTH + GAP_Y;
       continue;
     }
 
     curY += result.displayH + GAP_Y;
+    if (saveFailed(result.save)) {   // 앱이 {ok:false, reason} 로 «저장 못 함»을 알렸다 — 완료로 세지 않는다
+      failed.push(`${path.basename(imgPath)}(${result.save.reason || 'ok:false'})`);
+      console.log(`${result.nw}×${result.nh}px · ⚠️ 저장 실패: ${result.save.reason || 'ok:false'}`);
+      continue;
+    }
     console.log(`${result.nw}×${result.nh}px`);
   }
 
+  if (failed.length) {
+    console.log(`\n⚠️ ${images.length - failed.length}/${images.length}개만 저장 · 저장 실패 ${failed.length}개: ${failed.join(', ')}`);
+    ws.close();
+    process.exit(2);
+  }
   console.log(`\n✅ 완료! ${images.length}개 → IndexedDB 저장 완료 (새로고침 후에도 유지)`);
   ws.close();
 })().catch(e => { console.error(e.message); process.exit(1); });
