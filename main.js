@@ -2694,6 +2694,19 @@ function _projectFolderState(id) {
   return 'missing';
 }
 ipcMain.handle('projects:folder-state', (_e, id) => _projectFolderState(id));
+/* ★BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01 — proj.json 은 있는데 프로젝트로 못 읽나(깨짐·후보 0). 부팅 LS 고아 정리가 그 id 의 LS 본을 남길지 가른다
+   — 그 본이 성한 마지막 사본일 수 있다. 읽기만(heal:false · 사본 안 둠). ⛔projects:list 계약은 그대로(소비자 6곳) — 좁은 창구 하나.
+   'ok' 읽힘(목록에 있다) · 'planning' 기획 파일 · 'unreadable' 있는데 못 읽음 · 'none' proj.json 없음 · 'unknown' 판정하다 던짐. */
+function _projectReadState(id) {
+  if (!_isListableProjectId(id)) return 'none';
+  const diag = {};
+  try {
+    if (readProjectWithFallback(id, { heal: false, diag })) return 'ok';
+    if (diag.planning) return 'planning';
+    return _resolveProjectJsonPath(id) ? 'unreadable' : 'none';
+  } catch (_) { return 'unknown'; }
+}
+ipcMain.handle('projects:read-state', (_e, id) => _projectReadState(typeof id === 'string' ? id : ''));
 ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirState.unresolved ? null : (_projectsDirState && _projectsDirState.account) || 'legacy'));   // 본이 어느 뿌리 것인지 가르는 값
 
 async function _saveProjectImpl(project) {

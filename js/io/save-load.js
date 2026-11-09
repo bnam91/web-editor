@@ -2850,7 +2850,19 @@ function initApp() {
             if (st === 'ok' || st === 'unknown') _failedKeep.push(id);   // 못 읽었으면 지운 게 아니다 — 남긴다
           }
           _setFailedSaveIds(_failedSaveIds().filter(id => localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) !== null && (_listed.has(id) || _failedKeep.includes(id))));
-          if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._listed, ..._keptIds, ..._failedKeep, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
+          /* ★BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01 — 목록 밖이라도 proj.json 이 있는데 못 읽는(깨짐·후보 0) id 의 LS 본은 남긴다: 성한 마지막 사본일 수 있다.
+             부팅 프로젝트 자신도 같다. 못 물으면(창구 없음·던짐) 남긴다. 기획·없음은 지금 규칙 그대로. */
+          const _keepSoFar = new Set([..._listed, ..._keptIds, ..._failedKeep, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);
+          const _unreadableKeep = [];
+          for (const k of Object.keys(localStorage)) {
+            if (!k.startsWith(`${SAVE_KEY_PREFIX}__`) || k.endsWith('_ts')) continue;
+            const id = k.slice(SAVE_KEY_PREFIX.length + 2);
+            if (_keepSoFar.has(id)) continue;
+            let st = 'unknown';
+            try { st = window.electronAPI.projectReadState ? await window.electronAPI.projectReadState(id) : 'unknown'; } catch (_) {}
+            if (st === 'unreadable' || st === 'unknown') _unreadableKeep.push(id);
+          }
+          if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._keepSoFar, ..._unreadableKeep]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
           _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
           const existingIds = new Set([..._listed, ..._keptIds]);
