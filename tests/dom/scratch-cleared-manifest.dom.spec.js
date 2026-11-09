@@ -143,3 +143,15 @@ test('M7 프로젝트 전환과 겹친 비우기 — B 프로젝트 장은 늘 �
   expect(r.z).toEqual(['sp_z']);
   expect(errs.filter((e) => !/clearScratchPad 거절/.test(e))).toEqual([]);
 });
+
+test('M8 로드가 표식을 못 세우고 끝나면(로드 안에서 던짐) 비우기는 멈추지 않고 거절한다', async ({ page }) => {
+  await setup(page);
+  // projectId 가 키를 만들 때 한 번만 던지게 — try 앞에서 던져 _scratchLoaded 가 false 로 남는 길(리뷰 4 #3)
+  const r = await page.evaluate(async () => {
+    let n = 0; const bad = { toString() { if (++n === 1) throw new Error('boom'); return 'proj_m'; } };
+    await window.initScratchPad(bad, 'p1').catch(() => {});
+    const t = await Promise.race([window.clearScratchPad().then(() => 'cleared', e => String(e.message)), new Promise(res => setTimeout(() => res('hang'), 3000))]);
+    return t;
+  });
+  expect(r, '★멈춤(옛: 끝없는 microtask 고리) 또는 비움').toBe('scratch: load did not finish — not cleared');
+});

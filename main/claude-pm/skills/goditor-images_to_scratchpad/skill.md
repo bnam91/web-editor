@@ -132,8 +132,10 @@ function evaluate(ws, fn, args, pending, msgIdRef) {
   ws.on('message', (data) => {
     const msg = JSON.parse(data);
     if (msg.id && pending.has(msg.id)) {
-      const { resolve } = pending.get(msg.id);
+      const { resolve, reject } = pending.get(msg.id);
       pending.delete(msg.id);
+      // 페이지 안에서 던지면(예: clearScratchPad 거절) 성공으로 보지 않는다 — 안 비운 패드·엉뚱한 페이지에 넣지 않게
+      if (msg.error || msg.result?.exceptionDetails) { reject(new Error(msg.error?.message || msg.result.exceptionDetails.exception?.description || msg.result.exceptionDetails.text || 'evaluate failed')); return; }
       resolve(msg.result?.result?.value ?? msg.result?.result);
     }
   });
@@ -154,7 +156,7 @@ function evaluate(ws, fn, args, pending, msgIdRef) {
   const hasScratchApi = await evaluate(ws, `() => typeof window._scratchAddAndSave === 'function'`, [], pending, msgIdRef);
   if (!hasScratchApi) throw new Error('_scratchAddAndSave 없음 — 에디터가 아직 로드 중이거나 다른 페이지');
 
-  // 기존 스크래치 클리어 (IndexedDB 포함)
+  // 기존 스크래치 클리어 (IndexedDB 포함) — 거절(페이지 전환 중·컨텍스트 바뀜·키 없음)이면 던지고 여기서 멈춘다(아래 .catch → exit 1). 잠시 뒤 다시 돌리면 된다.
   await evaluate(ws, `() => window.clearScratchPad ? window.clearScratchPad() : null`, [], pending, msgIdRef);
   console.log('기존 스크래치 초기화');
 
@@ -222,7 +224,7 @@ function evaluate(ws, fn, args, pending, msgIdRef) {
 3. `window._scratchAddAndSave(src, x, y, w)` 호출 — DOM 생성 + IndexedDB 저장 한 번에 처리
 4. 이미지를 **한 장씩** base64로 전달 (한 번에 전달 시 timeout 발생)
 5. **새로고침 후에도 유지** — IndexedDB(`ScratchPadDB`)에 프로젝트+페이지 키로 저장됨
-6. `clearScratchPad()`로 기존 항목 먼저 초기화 후 삽입
+6. `clearScratchPad()`로 기존 항목 먼저 초기화 후 삽입 — 거절하면 «던진다»(페이지 전환 중·기다리는 사이 프로젝트/페이지 바뀜·프로젝트 없음) → 스크립트는 아무것도 안 넣고 끝남 · 잠시 뒤 다시 실행
 
 ---
 

@@ -52,10 +52,12 @@ function _openDB() {
   return _tryOpenDB().catch(err => {
     console.warn('[ScratchPad] IndexedDB open failed, retrying after delete:', err);
     return new Promise((res, rej) => {
+      let gaveUp = false;
       const del = indexedDB.deleteDatabase(SCRATCH_DB_NAME);
-      del.onsuccess = () => _tryOpenDB().then(res).catch(rej);
-      del.onerror   = () => _tryOpenDB().then(res).catch(rej);
-      del.onblocked = () => rej(new Error('ScratchPadDB delete blocked'));   // 리뷰 3 #5 — 다른 연결이 막으면 영영 안 끝나지 않게(→ 메모리 폴백)
+      // 리뷰 4 #2 — 막힘으로 포기한 뒤 지우기가 늦게 끝나도 새 빈 DB 를 열어 _db 를 바꾸지 않는다(메모리 폴백에 쓴 것이 몰래 버려짐)
+      del.onsuccess = () => { if (!gaveUp) _tryOpenDB().then(res).catch(rej); };
+      del.onerror   = () => { if (!gaveUp) _tryOpenDB().then(res).catch(rej); };
+      del.onblocked = () => { gaveUp = true; rej(new Error('ScratchPadDB delete blocked')); };   // 리뷰 3 #5 — 다른 연결이 막으면 영영 안 끝나지 않게(→ 메모리 폴백)
     });
   }).catch(err => {
     console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback:', err);
@@ -2229,7 +2231,8 @@ window.clearScratchPad   = async () => {
      프로젝트 전환(switchScratch·initScratchPad)은 페이지 전환 표식을 안 켜서, 기다린 뒤 컨텍스트가 바뀌었으면 거절한다. */
   const _ctx0 = _currentProjectId + '\u0000' + _currentPageId;
   await _scratchLoadP;
-  while (!_scratchLoaded) await _scratchLoadP;
+  // 리뷰 4 #3 — 로드가 표식을 못 세우고 끝난 길(던짐)이면 영영 돌지 않게 끊고 거절
+  for (let i = 0; !_scratchLoaded; i++) { if (i >= 20) throw new Error('scratch: load did not finish — not cleared'); await _scratchLoadP; }
   if (_currentProjectId + '\u0000' + _currentPageId !== _ctx0) { console.warn('[scratch] clearScratchPad 거절 — 기다리는 사이 프로젝트/페이지가 바뀜'); throw new Error('scratch: context changed while waiting — not cleared'); }
   /* ★리뷰 2: 페이지 바꾸는 중(스크래치는 새 페이지로 넘어갔는데 캔버스 state 는 아직 옛 페이지)이면 «어느 페이지를 비우라는지» 모른다 —
      아직 안 보인 새 페이지를 지우거나 떠난 페이지를 지우는 대신 거절(아무것도 안 지움 · 부른 쪽이 다시 부르면 됨).
