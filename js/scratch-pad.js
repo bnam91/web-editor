@@ -269,6 +269,33 @@ function _selectItem(item, shiftKey) {
   }
 }
 
+/* SCRATCH-HANDLE-UNDER-NEIGHBOR-01 — 고른 «한 장»의 네 모서리 크기 손잡이를 이웃 위로(수지 692a9f9b9 를 t2-10 네 모서리로).
+   ★왜 — 항목은 전부 z-index 100(DOM 뒤 = 위)이고 손잡이는 항목 «안»이라 항목 층을 못 벗어난다 ⇒ 뒤 이웃이 덮은 모서리를 잡으면 이웃이 잡혔다.
+   ★고침 — #canvas-scaler 직계에 대리 손잡이 넷(z 101) · 고른 장에 CSS 앵커(css/editor-canvas.css `.scratch-resize-sel`)로 붙고 그 장의 그 모서리 리사이즈를 부른다.
+     ⛔항목 z-index 는 안 바꾼다 — 그림 층 순서의 정본 = 배열·DOM(고른 장을 올려 보이면 사용자가 정한 순서가 바뀌어 보인다 · 지디 판정).
+   ⚠️앵커는 «트리 순서상 앞»이어야 잡힌다 ⇒ 항목이 뒤에 붙거나 ⌘] 로 옮겨지면 대리 손잡이를 다시 맨 뒤로. */
+const _SEL_CORNERS = ['nw', 'ne', 'sw', 'se'];
+function _ensureSelResize(scaler) {
+  if (scaler._scratchSelResize) return;
+  const hs = _SEL_CORNERS.map((c) => {
+    const h = document.createElement('div');
+    h.className = `scratch-resize scratch-resize-sel scratch-resize-sel--${c}`;
+    h.addEventListener('mousedown', e => {
+      if (_selectedItems.size !== 1) return;
+      [..._selectedItems][0].el?._scratchResizeDown?.[c]?.(e);
+    });
+    scaler.appendChild(h);
+    return h;
+  });
+  scaler._scratchSelResize = hs;
+  new MutationObserver(() => {
+    if (hs[0].parentElement !== scaler) return;
+    let n = hs[hs.length - 1].nextElementSibling;
+    while (n && !n.classList.contains('scratch-item')) n = n.nextElementSibling;
+    if (n) hs.forEach((h) => scaler.appendChild(h));   // 넷 다 맨 뒤로(순서 그대로)
+  }).observe(scaler, { childList: true });
+}
+
 function _clearSelection() {
   _selectedItems.forEach(s => { s.el.classList.remove('scratch-selected'); _setIdChipVisible(s, false); });
   _selectedItems.clear();
@@ -962,7 +989,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
   const L = corner.includes('w'), T = corner.includes('n');   // 왼쪽·위쪽 손잡이면 그 축은 반대쪽(오른·아래)이 고정
   const resizeH = document.createElement('div');
   resizeH.className = `scratch-resize scratch-resize--${corner}`;
-  resizeH.addEventListener('mousedown', e => {
+  const onResizeDown = e => {
     if (_sliceMode) { e.stopPropagation(); return; }
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
@@ -1028,7 +1055,9 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  });
+  };
+  resizeH.addEventListener('mousedown', onResizeDown);
+  (el._scratchResizeDown ||= {})[corner] = onResizeDown;   // 대리 손잡이(_ensureSelResize)가 이 장의 그 모서리 리사이즈를 그대로 부른다
   el.appendChild(resizeH);
   return resizeH;
   });
@@ -1465,6 +1494,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
   });
 
   scaler.appendChild(el);
+  _ensureSelResize(scaler);
 
   // #16 follow — linkDy = 연결된 섹션 top(scaler-local) 기준 y 오프셋. 미연결/미앵커면 undefined.
   //   (refLinks dataset 포맷은 «건드리지 않는다» — 오프셋은 스크래치 아이템 레코드에만 둔다.)
