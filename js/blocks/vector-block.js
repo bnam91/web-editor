@@ -291,6 +291,18 @@ function updateVectorBlock(blockId, partial = {}) {
 window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.renderVector    = renderVector;
+/* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
+   ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.
+   자리는 벡터가 dataset.x·y 를 안 쓰니 손잡이 바닥 길과 같은 style.left·top + offsetX·Y. */
+function _scaleVectorFromSnap(block, d0, sx, sy, left, top) {
+  const L = Math.round(left * sx), T = Math.round(top * sy);
+  block.style.left = L + 'px'; block.dataset.offsetX = String(L);
+  block.style.top  = T + 'px'; block.dataset.offsetY = String(T);
+  block.dataset.w = String(Math.max(8, Math.round((parseInt(d0.w) || 120) * sx)));
+  block.dataset.h = String(Math.max(8, Math.round((parseInt(d0.h) || 120) * sy)));
+  renderVector(block);
+}
+window._scaleVectorFromSnap = _scaleVectorFromSnap;
 window.updateVectorBlock = updateVectorBlock;
 window.rebuildPenSvg   = rebuildPenSvg;
 
