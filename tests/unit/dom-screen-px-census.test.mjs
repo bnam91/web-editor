@@ -95,6 +95,10 @@ const ROSTER_HOW = [
 
 const ROSTER = {
   'coupon-presets.dom.spec.js:157': 'risky',
+  /* ★t2-07(태양 · 그리드 배경 코너 손잡이) — 자가 새로 잡았다 · 태양 triage(지디 t3-06 선례대로 · 지디 재판정 가능): ★risky.
+     H4b 의 [전제] «배경 상자 높이(getBoundingClientRect · 화면 px) < 24» 를 절대 숫자 24 와 견준다 — 제품 규칙(24px 미만 상자는 점 넷 숨김)이 화면 px 라도
+     «제품이 화면 px 로 정의했다 ≠ 자가 배율 무관»(t3-06 판정). 장면이 zoom 40 을 박아 둬 지금은 맞지만 배율이 바뀌면 전제가 흔들린다 = risky. */
+  'grid-bg-radius-handle.dom.spec.js:149': 'risky',
   /* ★t3-06(S6 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다(사람 판정 · 261026 14:15): ★risky.
      C2 는 «섹션 위 − 캔버스 창 위»(두 rect 의 차 · 화면 px)를 ★절대 숫자 40 과 견준다 ⇒ 줌 40% 에서 같은 거리는 화면 16px — risky 정의 그대로.
      (S6 는 처음 'safe' 로 적었다: 제품 selectSection 이 CANVAS_TAIL_GAP 40 을 화면 px 로 빼고 실측 40%=40.12 · 100%=39.80 이라서.
@@ -128,7 +132,8 @@ const ROSTER = {
   'cmp-overlay.dom.spec.js:142': 'safe',
   'drag-move-autosave.dom.spec.js:82': 'safe',
   'e130-float-cross-section-row.dom.spec.js:55': 'safe',
-  'free-frame-fullwidth-drag.dom.spec.js:185': 'safe',
+  /* ★0911-int-2(2514848e2 — 검사 전제에 _enteredFrame 세 줄을 더해 ＋3) — ★줄이 ★움직였다(:185 → :188) · 글자 바이트 같은 자리 ⇒ 태그 그대로 옮김(판정 안 지어냄) */
+  'free-frame-fullwidth-drag.dom.spec.js:188': 'safe',
   'free-frame-grid-width-roundtrip.dom.spec.js:58': 'safe',
   'gradient-canvas-bar.dom.spec.js:535': 'safe',
   /* ★t5-08(S7 · 261026) — ★자가 ★새로 잡았고 ★지디가 ★triage 했다. B4 는 ★화면 폭(getBoundingClientRect)을
