@@ -6,7 +6,7 @@
  *   파일이 새것이거나 시각을 못 믿으면(없음·같음·못 읽음) 지금 동작 그대로.
  * 자: window.pickLsOverFile 직접 — 부팅(unmarkedWins 기본)·탭(unmarkedWins:false) 두 입구가 같은 함수다. 사본 파일은 main 몫(가짜 기록).
  * 칸: N1 옛 파일 → 사본 남김·파일 우선·LS 걷음 · N2 탭 입구도 같다 · N3 [음성] 파일이 새것 → 지금대로(사본 0) · N4 [음성] 시각 못 믿음(lsBase 꼴 아님) → 지금대로
- *     N5 사본 실패 → LS·표지 그대로 + 알림(다음 열기에 다시)
+ *     N5 사본 실패 → 보류 자리로 옮기고 알림(자동저장이 못 덮음) · N6 다음 열기에 보류 본 다시 남김 · N7 남기는 사이 표지가 옮겨졌으면 손 안 댐
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -17,7 +17,7 @@ const T1 = '2026-11-01T00:00:00.000Z', T2 = '2026-11-05T00:00:00.000Z', T3 = '20
 
 async function setup(page, { recordOk = true } = {}) {
   await page.addInitScript((recordOk) => {
-    const fake = { recordRefusedSave: async (p, reason) => { window.__kept.push({ id: p.id, reason, body: JSON.stringify(p) }); return { ok: recordOk }; } };
+    const fake = { recordRefusedSave: async (p, reason) => { if (window.__gate) await window.__gate; window.__kept.push({ id: p.id, reason, body: JSON.stringify(p) }); return { ok: window.__recordOk ?? recordOk }; } };
     window.__kept = [];
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
   }, recordOk);
@@ -48,6 +48,7 @@ test('N1 옛 파일을 되돌려 놓고 열면 — 새 LS 편집을 사본으로
   expect(k.body).toContain(HALF.slice(-24));
   expect(k.reason).toBe('ls_newer_than_file');
   await expect.poll(() => lsOf(page).then(s => s.ls)).toBe(null);
+  expect((await lsOf(page)).base, '표지가 되돌린 파일 판으로').toBe(T1);
   expect(errs).toEqual([]);
 });
 test('N2 탭 입구(unmarkedWins:false)도 같다', async ({ page }) => {
@@ -68,12 +69,31 @@ test('N4 [음성] 시각을 못 믿으면(lsBase 꼴 아님) 지금대로', asyn
   expect((await lsOf(page)).ls).toBe(null);
   expect(await kept(page)).toEqual([]);
 });
-test('N5 사본을 못 남기면 LS·표지를 그대로 두고 알린다 — 다음 열기에 다시 한다', async ({ page }) => {
+const pend = (page) => page.evaluate((A) => localStorage.getItem('web-editor-ls-pending__' + A), A);
+test('N5 사본을 못 남기면 그 본을 보류 자리에 옮기고 알린다 — 첫 편집의 자동저장이 덮지 못한다(리뷰 1-2)', async ({ page }) => {
   await setup(page, { recordOk: false });
   await page.evaluate(() => { window.__toasts = []; const o = window.showToast; window.showToast = (m) => { window.__toasts.push(String(m)); return o?.(m); }; });
   expect(await pick(page, file(T1))).toBe(null);
   await expect.poll(() => page.evaluate(() => window.__toasts.length), { message: '★못 남겼는데 말이 없다' }).toBeGreaterThan(0);
-  const s = await lsOf(page);
-  expect(s.ls, '★사본도 없이 LS 를 지웠다').toContain('되돌린 뒤 사라지면 안 되는 편집');
-  expect(s.base, '★표지가 파일 판으로 옮겨 다음 열기에 LS 가 되돌린 파일을 덮는다').toBe(T2);
+  expect(await pend(page), '★못 남긴 본이 보류 자리에 없다 — 첫 편집이 LS 를 덮으면 잃는다').toContain('되돌린 뒤 사라지면 안 되는 편집');
+  await page.evaluate((A) => localStorage.setItem('web-editor-autosave__' + A, '{"pages":[]}'), A);   // 첫 편집의 자동저장 흉내
+  expect(await pend(page), '★자동저장이 보류 본을 건드렸다').toContain('되돌린 뒤 사라지면 안 되는 편집');
+});
+test('N6 다음 열기에 보류 본을 다시 남기고, 남겨지면 보류 자리를 비운다', async ({ page }) => {
+  await setup(page, { recordOk: false });
+  expect(await pick(page, file(T1))).toBe(null);
+  await expect.poll(() => pend(page)).not.toBe(null);
+  await page.evaluate(() => { window.__recordOk = true; window.__kept.length = 0; });
+  await pick(page, file(T1));
+  await expect.poll(() => kept(page).then(k => k.filter(x => x.body.includes('되돌린 뒤 사라지면 안 되는 편집')).length), { message: '★보류 본을 다시 안 남겼다' }).toBe(1);
+  await expect.poll(() => pend(page), { message: '★남겼는데 보류 자리가 안 비었다' }).toBe(null);
+});
+test('N7 사본을 남기는 사이 저장이 표지를 옮겼으면 손대지 않는다 — 낡은 판으로 되돌리지 않는다(리뷰 1-1)', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__gate = new Promise(r => { window.__open = r; }); });
+  expect(await pick(page, file(T1))).toBe(null);
+  await page.evaluate(([A, T3]) => { localStorage.setItem('web-editor-ls-base__' + A, T3); window.__open(); }, [A, T3]);   // 그사이 파일 저장이 표지를 T3 로
+  await expect.poll(() => kept(page).then(k => k.length)).toBe(1);
+  await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
+  expect((await lsOf(page)).base, '★저장이 옮긴 표지를 낡은 판으로 되돌렸다').toBe(T3);
 });

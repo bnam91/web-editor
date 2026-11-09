@@ -2099,6 +2099,13 @@ function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
      그 뒤의 LS 편집을 말없이 걷지 않는다: 비상 사본(다음 실행 복구 제안)으로 먼저 남기고, 남겨졌을 때만 걷고 표지를 옮긴다(되돌린 파일이 이긴다 — 지금과 같다).
      못 남기면 본·표지를 그대로 두고 알린다 — 다음 열기에 다시 한다. 파일이 새것이거나 시각을 못 믿으면(없음·꼴 아님) 지금 동작. */
   let _keepForCopy = false;
+  const _pendKey = `web-editor-ls-pending__${id}`;   // 사본을 못 남긴 본 — 자동저장이 안 쓰는 자리에 두고 다음 열기에 다시 남긴다(리뷰 1-2)
+  const _record = (data, name) => Promise.resolve().then(() => window.electronAPI.recordRefusedSave({ ...data, id, name: name || data.name || 'Untitled' }, 'ls_newer_than_file'));
+  if (window.electronAPI?.recordRefusedSave && localStorage.getItem(_pendKey)) {
+    const _p = localStorage.getItem(_pendKey);
+    let _pd = null; try { _pd = JSON.parse(_p); } catch (_) {}
+    if (_pd && Array.isArray(_pd.pages)) _record(_pd, proj.name).then((r) => { if (r?.ok && localStorage.getItem(_pendKey) === _p) localStorage.removeItem(_pendKey); }, () => {});
+  }
   if (lsBase && !lsFromThisFile) {
     const _raw = localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`);
     const _baseMs = Date.parse(lsBase), _fileMs = proj.updatedAt == null ? NaN : Date.parse(proj.updatedAt);
@@ -2108,15 +2115,19 @@ function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
       _keepForCopy = true;
       applyAdoptedAssets(_data, id);
       const _fileVer = String(proj.updatedAt);
-      const _failed = () => window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 비상 사본으로 남기지 못했습니다 — 다음에 열 때 다시 남깁니다');
-      Promise.resolve().then(() => window.electronAPI.recordRefusedSave({ ..._data, id, name: proj.name || _data.name || 'Untitled' }, 'ls_newer_than_file')).then((r) => {
-        if (!r?.ok) { _failed(); return; }
-        if (localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === _raw) {   // 그사이 새 편집이 본을 바꿨으면 그건 이 파일에서 이어진 본이다 — 안 걷는다
+      /* 끝맺음 — 그사이 저장이 표지를 옮겼으면(파일이 새 판이 됐다) 손대지 않는다: 낡은 판으로 되돌리면 다음 열기의 판정이 어긋나 LS 를 말없이 걷었다(리뷰 1-1).
+         본이 그대로면 걷는다. 바뀌었으면 그 본은 이 파일에서 이어진 것 — 표지만 옮긴다(리뷰 1-4). */
+      const _settle = (ok) => {
+        if (localStorage.getItem(_lsBaseKey(id)) !== lsBase) return;
+        if (localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === _raw) {
+          if (!ok) { try { localStorage.setItem(_pendKey, JSON.stringify(_data)); } catch (_) { window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 남기지 못했습니다 — 이 프로젝트를 편집하기 전에 디스크 공간을 확인해 주세요'); return; } }
           localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
           localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
-          try { localStorage.setItem(_lsBaseKey(id), _fileVer); } catch (_) {}
         }
-      }, _failed);
+        try { localStorage.setItem(_lsBaseKey(id), _fileVer); } catch (_) {}
+        if (!ok) window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 비상 사본으로 남기지 못했습니다 — 다음에 열 때 다시 남깁니다');
+      };
+      _record(_data, proj.name).then((r) => _settle(!!r?.ok), () => _settle(false));
     } else {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
       localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
       localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
