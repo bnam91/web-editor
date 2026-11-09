@@ -3815,7 +3815,6 @@ ${_flattenRowHtml(rows, cols)}
         </div>
       </div>
       ${_alignWipes ? '<div class="prop-hint" style="text-align:left;padding:2px 0 4px;">칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)</div>' : ''}
-      <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
     ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
