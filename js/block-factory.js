@@ -2151,7 +2151,10 @@ function addFrameBlock(opts = {}) {
         if (c === ss || !c.style || c.style.position !== 'absolute') return maxY;
         return Math.max(maxY, (parseInt(c.style.top) || 0) + (c.offsetHeight || 0));
       }, 0);
-      const _top = _bottom > 0 ? _bottom + 16 : 0;
+      /* ★t3-06(현빈 「자식 프레임 추가만으로 기존 프레임 높이가 바뀌지 않아야」 · 지디 Q1 ㉠): 부모가 «정한 높이(px)» 면 새 프레임을
+         맨 아래+16 대신 부모 안에 들게 눌러 놓는다(형제와 겹쳐도 됨 — 자유 배치라 옮기면 된다). growFrameToFitChildren 은 무변(끌기·방사·감싸기 공유). */
+      const _maxTop = /^\d+(\.\d+)?px$/.test(String(activeFrame.style.height || '').trim()) ? Math.max(0, activeFrame.clientHeight - ss.offsetHeight) : Infinity;
+      const _top = Math.min(_bottom > 0 ? _bottom + 16 : 0, _maxTop);
       ss.style.position = 'absolute';
       ss.style.left = '0px';
       ss.style.top  = _top + 'px';
