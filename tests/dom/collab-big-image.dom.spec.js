@@ -5,6 +5,7 @@
  *   T2 받는 쪽 — 사본 1개로 온 섹션의 img src 를 data-img-src 로 되살리고, 다음 저장이 그 섹션을 되올리지 않는다
  *   T3 (b) [지킴] 옛 진도(ref.hashes 없음) 첫 재개 — 내 오프라인 편집은 «올린다»(서버 keep-both 에 남음). ⛔«안 올리고 받기»는 넣었다 뺐다(리뷰 1: 충돌 기록이 메모리뿐 · 다른 페이지는 기록 없이 덮임)
  *   T4 (c) [지킴] 서버 목차에 없는 섹션(옛 판에서 천장으로 못 간 것)은 재개에 한 번 올라간다
+ *   T5 ㉠ data URL 만 든 섹션(600KB 그림 1장 · 줄일 사본 없음 · 천장 초과)은 로컬에서 미리 막지 않고 push 를 시도한다(서버가 정함) · 양성대조: 2d6fb18d9 → T5 빨강(push 0)
  * 양성대조: js/collab/sync.js 를 ㉮ 판(b25d887b2)으로 되돌리면 T1(too_large · push 0)·T2(img src 없음) 빨강 · T1b·T3·T4 초록(지킴). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -107,4 +108,18 @@ test('T4 (c) [지킴] 서버 목차에 없는 섹션은 재개에 한 번 올라
     return window.__log.filter(x => x.actorId !== 'other').map(x => x.sectionId);
   });
   expect(r).toEqual(['secLost']);
+});
+
+test('T5 ㉠ data URL 만 든 섹션(600KB · 줄일 사본 없음)은 로컬에서 미리 막지 않고 push 를 시도한다', async ({ page }) => {
+  await boot(page);
+  const src = dataUrl(600);
+  const r = await page.evaluate(async ([src]) => {
+    window.__tries = 0; const push = window.electronAPI.collab.push;
+    window.electronAPI.collab.push = async (q) => { if (q.patches[0].sectionId === 'secD') window.__tries++; return push(q); };
+    document.getElementById('canvas').innerHTML = `<div class="section-block" id="secD"><div class="section-inner"><img class="plain" src="${src}"></div></div>`;
+    await window.collabSync.start('proj_x');
+    return { tries: window.__tries, ev: window.__events };
+  }, [src]);
+  expect(r.tries, '★서버에 묻지도 않고 로컬에서 막았다').toBe(1);
+  expect(r.ev.includes('section_too_large'), '서버(가짜 700KB)가 거절하면 예전처럼 알린다').toBe(true);
 });

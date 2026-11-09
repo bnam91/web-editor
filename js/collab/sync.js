@@ -318,7 +318,9 @@
   }
 
   async function forPeer(s, base, projectId) {
-    if (s.html.indexOf('goya-asset://') === -1) return slimIfOver(s);   // 이미 data URL 인 섹션도 천장을 넘으면 같은 꼴로(받은 쪽이 저장 전이면 이 꼴이다 — 다르면 되돌려 올린다)
+    /* 이미 data URL 인 섹션도 천장을 넘으면 같은 꼴(사본 1개)로 — 받은 쪽이 저장 전이면 이 꼴이다(다르면 되돌려 올린다).
+       ★㉠(지디) 단, 로컬에서 미리 막지는 않는다(bytes 를 안 싣는다 = 옛 동작 · 서버가 정한다 — 서버 진짜 천장이 700KB 보다 크면 그 섹션이 간다). 미리 막기는 goya-asset 섹션만. */
+    if (s.html.indexOf('goya-asset://') === -1) { const o = slimIfOver(s); return { ...o, bytes: undefined }; }
     const known = _peerForm.get(s.hash);
     if (known && (known.hash === base[s.key] || known.bytes > _sectionLimit)) return { ...s, hash: known.hash, bytes: known.bytes };
     if (typeof window.inlineAssetsForPeer !== 'function') return s;
