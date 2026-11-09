@@ -214,6 +214,7 @@ test('A3 ★★패널이 «그 줄»을 가리키되 «고치는 손잡이»는 
       lineSection: !!document.getElementById('grd-line-body'),
       hint: !!hintEl,
       hintText: hintEl ? hintEl.textContent.replace(/\s+/g, ' ').trim() : '',
+      hintLines: hintEl ? hintEl.querySelectorAll('.prop-hint').length : 0,
       usesLabel: !!(hintEl && hintEl.querySelector('.prop-label')),
       hintClipped: hintEl ? [...hintEl.querySelectorAll('.prop-hint')]
         .some(e => e.scrollWidth > e.clientWidth + 1) : null,
@@ -280,8 +281,10 @@ test('A3 ★★패널이 «그 줄»을 가리키되 «고치는 손잡이»는 
   // ⑶ ★그런데 «말은» 해야 한다 — 잡혔다는 것과 아직 못 고친다는 것.
   expect(nested.hint, '★중첩 안 줄을 골랐는데 패널이 «아무 말도» 안 한다').toBe(true);
   expect(nested.hintText, '★안내문이 「이 줄입니다」를 안 말한다').toContain('이 줄입니다');
-  expect(nested.hintText, '★안내문이 「아직 못 고친다」를 안 말한다 — 그 말이 이 갈래의 전부다').toContain('고치는');
-  expect(nested.hintText, '★안내문이 주소를 안 보여 준다').toContain('0.0');
+  /* ★1109t1A 게이트(지디 2026-11-09) — 「아직 고치는 건…다음 판」·「주소 r,c…」 두 줄은 개발자 말(불필요한 프롭힌트)이라 지웠다.
+       ⇒ 새 정의: 안내는 «이 줄입니다» 한 줄뿐 · 개발자 말·주소·약속이 «없다»(옛 단언을 뒤집어 잰다 — 다시 붙으면 빨강). */
+  expect(nested.hintLines, '★중첩 안내가 한 줄이 아니다 — 「이 줄입니다」 한 줄만 남긴다').toBe(1);
+  for (const w of ['고치는', '다음 판', '주소', '0.0']) expect(nested.hintText, `★안내에 개발자 말 «${w}» 이 다시 붙었다`).not.toContain(w);
   expect(nested.usesLabel, '★안내문을 .prop-label 에 실었다 — 56px 고정이라 잘린다(전례 있음)').toBe(false);
   expect(nested.hintClipped, '★안내문이 가로로 잘린다 — 읽히지 않으면 없는 것과 같다').toBe(false);
 

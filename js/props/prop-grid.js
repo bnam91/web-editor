@@ -1479,13 +1479,10 @@ function _grdSummaryText(r, c, li, line, host = null) {
 function _grdNestHintHtml(nestHit) {
   if (!nestHit) return '';
   const kind = (nestHit.line && nestHit.line.type) || 'body';
-  const addr = `${nestHit.r},${nestHit.c} · ${nestHit.li} · ${nestHit.np}`;
   return `
     <div class="prop-section" id="grd-nest-hint">
       <div class="prop-section-title">줄 (중첩 칸 안)</div>
-      <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>
-      <div class="prop-hint" style="margin-top:2px;">아직 «고치는» 건 안 됩니다 — 줄 추가는 됩니다. 글자는 캔버스에서, 손잡이는 다음 판</div>
-      <div class="prop-hint" style="margin-top:2px;opacity:.7;">주소 ${_grdEsc(addr)}</div>
+      <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>${/* ★1109t1A 게이트(지디) — 「아직 고치는 건…다음 판」·「주소 r,c…」 두 줄은 사용자에게 개발자 말·약속이라 지웠다(불필요한 프롭힌트) */ ''}
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">${nestHit.np.includes('/') ? '' : /* ★1109t1A2 깊이 1만 · 중첩 종류는 _GRD_KINDS 에 없다(E12/E13) · 사진/원은 우클릭(이미지 추가/원형 이미지 추가)과 같은 이름 · 만드는 꼴은 grdNewLineSpec('photo'|'circle') 한 곳 */
           _grdAddKindSelectHtml(_GRD_KINDS, `
           <option value="photo">+ 이미지</option>
