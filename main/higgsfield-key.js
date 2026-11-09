@@ -38,7 +38,8 @@ function createHiggsfieldKey({ safeStorage, fs, filePath }) {
     try { buf = fs.readFileSync(filePath); } catch (_) { return { hasKey: false, masked: '' }; }
     if (!encOk()) return { hasKey: true, masked: '' };
     try {
-      return { hasKey: true, masked: '••••' + safeStorage.decryptString(buf).slice(-4) };
+      const key = safeStorage.decryptString(buf);   // 8자 이하는 끝4가 키의 절반 이상 — 꼬리를 안 보인다
+      return { hasKey: true, masked: '••••' + (key.length > 8 ? key.slice(-4) : '') };
     } catch (_) {
       return { hasKey: true, masked: '' };   // 복호 실패(다른 기기에서 옮긴 파일 등) — 있음만 알린다
     }

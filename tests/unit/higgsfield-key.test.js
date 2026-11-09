@@ -96,3 +96,15 @@ test('H5 src-guard — preload 은 원문 getter 없음 · DEFAULT_SETTINGS/FALL
   const store = readSrc(REPO, 'js/settings/settings-store.js');
   assert.match(store, /higgsfieldModel:\s*''/, '렌더러 FALLBACK 에 higgsfieldModel 이 없다');
 });
+
+test('H6 짧은 키(8자 이하)는 끝4도 안 보인다 — 화면·IPC 에 키 전체가 나오지 않게', () => {
+  const { k } = mk(true);
+  for (const short of ['abcd', 'ab12cd34']) {
+    const r = k.set(short);
+    assert.strictEqual(r.ok, true);
+    assert.deepStrictEqual(k.status(), { hasKey: true, masked: '••••' });
+    assert.ok(!JSON.stringify(r).includes(short.slice(-4)));
+  }
+  k.set('abcde12345');
+  assert.deepStrictEqual(k.status(), { hasKey: true, masked: '••••2345' }, '9자 이상은 끝4');
+});
