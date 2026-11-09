@@ -4835,7 +4835,7 @@ app.whenReady().then(async () => {
     // Unit B — 접속 토큰 보관(메모리). renderer 노출은 admin 게이팅 IPC로만.
     currentMcpToken = mcpToken || null;
     // Phase 2/3 — renderer write bridge 주입
-    setMcpRendererInvoker({
+    setMcpRendererInvoker(_withProtectedTextGuards({   // 🔒 보호 섹션 글을 빈 글로 만드는 update_* 는 되돌리고 거절(공용 한 자리 · 아래 _guardProtectedText)
       addTextBlock: _invokeRendererAddBlock,
       editTextBlock: _invokeRendererEditBlock,
       addSection: _invokeRendererAddSection,
@@ -4932,7 +4932,7 @@ app.whenReady().then(async () => {
       addLinerBlock: _invokeRendererAddLinerBlock,
       updateLinerBlock: _invokeRendererUpdateLinerBlock,
       addBannerBlock: _invokeRendererAddBannerBlock,
-    });
+    }));
     // iconify search/svg fetch는 main에서 직접 (renderer CSP/외부 fetch 우회 + SSRF 가드)
     if (typeof setMcpIconifyApi === 'function') {
       setMcpIconifyApi({ search: _doIconifySearch, fetchSvg: _fetchIconifySvg });
@@ -5089,6 +5089,33 @@ async function _invokeRendererAddChecklistItem({ text, x, y, sectionId, ckSectio
  */
 // MCP 지우기 도구가 보호 섹션에서 돌려주는 값 — 자동화가 이유를 읽게
 const _SECTION_PROTECTED_JS = `{ ok:false, code:'SECTION_PROTECTED', message:'보호된 섹션이라 지울 수 없습니다 — 보호를 먼저 푸세요' }`;
+/* ★MCP-OTHER-UPDATE-TOOLS-NO-PROTECTED-CHECK-01 — update_* 다리 «입구» 한 자리. 🔒 보호 섹션 블럭이면 렌더러 window.__mcpProtGuard(js/section-protection.js)가
+   고치기 전 글 칸을 찍고, 고친 뒤 «있던 글이 빈 글»이 생겼으면 시작 칸으로 되돌린다(이력에 칸 안 남김) — 그때 지우기 거절과 같은 답.
+   도구마다 붙이지 않는다(복붙 금지): setMcpRendererInvoker 객체의 update* 전부를 감싼다. blockId 없는 것·보호 아닌 섹션은 그대로 지나간다.
+   update_block(editTextBlock)은 제 자리 검사(빈 글 → 거절)가 있어 이름이 달라 안 감싼다.
+   shortcut: 판정이 두 IPC(시작·끝) 사이에 걸친다 — 그 몇 ms 에 사용자가 친 글은 거절 복원 때 같이 되돌아간다(USER_BUSY 가 1.5초 안 키 입력은 미리 막는다). */
+function _guardProtectedText(fn) {
+  return async (args = {}) => {
+    const id = args && typeof args.blockId === 'string' ? args.blockId : null;
+    const wc = mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents;
+    if (!id || !wc) return fn(args);
+    let tok = null;
+    try { tok = await wc.executeJavaScript(`(window.__mcpProtGuard && window.__mcpProtGuard.begin(${JSON.stringify(id)})) || null`, true); } catch (_) { tok = null; }
+    if (!tok) return fn(args);
+    let r, err = null;
+    try { r = await fn(args); } catch (e) { err = e; }
+    const applied = !err && !(r && r.ok === false);
+    let refused = null;
+    try { refused = await wc.executeJavaScript(`(() => { const c = window.__mcpProtGuard.end(${Number(tok)}, ${applied}); return c && c.refused ? ${_SECTION_PROTECTED_JS} : null; })()`, true); } catch (_) {}
+    if (refused) return refused;
+    if (err) throw err;
+    return r;
+  };
+}
+function _withProtectedTextGuards(inv) {
+  for (const k of Object.keys(inv)) if (/^update[A-Z]/.test(k) && typeof inv[k] === 'function') inv[k] = _guardProtectedText(inv[k]);
+  return inv;
+}
 
 async function _invokeRendererVariation({ op, sectionId, to, confirm = false } = {}) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) throw new Error('renderer not ready');

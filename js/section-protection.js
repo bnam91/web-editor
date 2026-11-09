@@ -357,6 +357,48 @@
   window.setSectionProtected            = setSectionProtected;
   window.getSectionProtected            = getSectionProtected;
   window.isSectionProtected             = isSectionProtected;
+
+  /* ★MCP-OTHER-UPDATE-TOOLS-NO-PROTECTED-CHECK-01 — MCP update_* 가 🔒 보호 섹션 블럭의 «있던 글을 빈 글»로 만들면 되돌리고 거절한다(공용 한 자리 · main _guardProtectedText 가 부른다).
+     판정(전/후 비교 · 도구 꼴을 모른다): 블럭 안 «글 칸»(자식 요소 없는 잎)의 수와 그중 글이 든 칸의 수를 견준다 —
+       글 든 칸이 줄었는데 칸 수는 안 줄었다 = 칸은 남고 글만 비었다 ⇒ 거절. 다른 글로 바꾸기(글 든 칸 수 그대로)·빈 칸 채우기(늘어남)·
+       배열 비우기(칸 수가 준다 — 이번 범위 밖)는 통과. 이력: 고치는 동안 쌓기를 멈추고, 거절이면 시작 칸으로 복원(이력에 칸 안 남김) · 통과면 끝 칸 하나. */
+  const _ZW = /[\s\u200B-\u200D\u2060\uFEFF]/g;
+  function _textSlots(el) {
+    let total = 0, filled = 0;
+    el.querySelectorAll('*').forEach((n) => {
+      if (n.children.length || n.closest('svg') || /^(IMG|BR|INPUT|TEXTAREA|SELECT|STYLE|SCRIPT|CANVAS|VIDEO|SVG)$/i.test(n.tagName)) return;
+      total++;
+      if ((n.textContent || '').replace(_ZW, '')) filled++;
+    });
+    return { total, filled };
+  }
+  const _guardPending = new Map(); let _guardSeq = 0;
+  window.__mcpProtGuard = {
+    begin(blockId) {
+      const el = document.getElementById(String(blockId || ''));
+      const sec = el && el.closest('.section-block');
+      if (!sec || !isSectionProtected(sec)) return null;
+      window.ensureHistoryCheckpoint?.('MCP 수정 전');   // 시작 칸 = 지금 화면
+      const tok = ++_guardSeq;
+      _guardPending.set(tok, { blockId: el.id, before: _textSlots(el), snap: window.historyStack?.[window.historyPos], paused: window._historyPaused });
+      window._historyPaused = true;
+      return tok;
+    },
+    end(tok, applied) {
+      const p = _guardPending.get(tok);
+      if (!p) return { refused: false };
+      _guardPending.delete(tok);
+      window._historyPaused = p.paused;
+      const el = document.getElementById(p.blockId);
+      const after = el ? _textSlots(el) : null;
+      if (after && after.filled < p.before.filled && after.total >= p.before.total && p.snap) {
+        window.restoreSnapshot?.(p.snap);   // restoreSnapshot 은 이력을 안 쌓는다
+        return { refused: true, before: p.before, after };
+      }
+      if (applied) window.pushHistory?.('MCP 수정');
+      return { refused: false };
+    },
+  };
   window._ensureProtectionButton        = _ensureProtectionButton;
   window._hydrateAllSectionsForProtection = _hydrateAllSectionsForProtection;
   window.SectionProtection = {
