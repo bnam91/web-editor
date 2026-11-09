@@ -158,6 +158,7 @@
     if (!e) return '';
     if (e.reason === 'pre-restore') return '되돌리기 직전';
     if (e.reason === 'manual') return '수동';
+    if (e.reason === 'gone-copy') return '폴더 없던 때';   // 폴더가 돌아와 덮지 않은 남은 본(main _goneBaseRefusal)
     if (e.pending) return '옛 형식 · 미분석';
     if (e.canon === 0) return '옛 형식';
     return '';

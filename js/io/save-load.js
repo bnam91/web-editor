@@ -301,6 +301,8 @@ function _saveRefusedText(r) {
 }
 window.saveRefusedText = _saveRefusedText;
 function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
+/* 폴더 없는 동안 남은 본으로 연 탭의 저장이면 표시를 붙인다 — 그사이 폴더가 돌아왔으면 main 이 덮지 않고 거절한다(folder_returned · MISSING-FOLDER-RETURNS-WHILE-VIEWING-OVERWRITES-01). */
+function _markGoneBase(p, id, captured) { if (captured ?? openTabs.find(t => t.id === id)?._goneCopy) p._goneBase = true; return p; }   // captured = 저장이 들어올 때 잡은 값 — 닫는 탭은 보낼 때 이미 목록에 없다(V4)
 
 /** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
 /* 닫을 때 저장할 게 있나. 되돌리기 봉인 중이면 없다: 저장 실패 기록이 남은 채 새로고침하면 동기 저장이 복원본을 덮는다. */
@@ -351,7 +353,8 @@ function _flushUnfinishedSavesSync() {
         if (id === _savingOwnerId && _isSavingToFile && _savingEntry && entry !== _savingEntry && !_savingSuperseded) work.push([id, _savingEntry]);   // 줄의 빈 본이 막히면 준비 중 본(실내용)이라도 — 둘 다 빠지면 파일이 그 이전 판에 머문다(FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01)
         continue;
       }
-      const r = window.electronAPI.saveProjectSync({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() });
+      const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id, opts?._goneBase));
+      if (r?.reason === 'folder_returned' && r.kept) continue;   // 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
@@ -375,6 +378,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
   if (!opts._fromQueue && window.isTabFirstLoading?.(_targetId)) return { ok: false, skipped: true, reason: 'tab-not-loaded' };
   /* 되돌린 뒤 새로고침 전 탭 전환·홈 이동이 변환본으로 복원본을 덮는다. 다른 프로젝트 저장은 지나간다. */
   if (_isReloadSealed(_targetId)) return { ok: false, skipped: true, reason: 'reload-seal' };
+  /* 남은 본 표시는 «지금» 잡는다 — 줄에 서거나 await 하는 사이 탭이 닫히거나(V4) 다시 열려 표시가 걷히면, 남은 본 위의 이 스냅샷이 표시 없이 나가 돌아온 파일을 덮었다. */
+  if (_targetId && opts._goneBase === undefined) opts = { ...opts, _goneBase: !!openTabs.find(t => t.id === _targetId)?._goneCopy };
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
@@ -406,9 +411,14 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (!_isSaveFailure(_result) && !window.isTabFirstLoading?.(activeProjectId)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
+    /* int-3 합침(TAB-SWITCH × MISSING-FOLDER): 돌아온 폴더를 안 덮고 main 이 그 본을 남긴 것(folder_returned·kept)은 «실패 저장»으로 적지 않는다 —
+       적으면 종료가 같은 본을 비상 사본으로 또 쓴다(MISSING 의 flush 갈래 주석과 같은 까닭). */
+    const _keptByMain = _result?.reason === 'folder_returned' && !!_result.kept;
     if (_targetId && _result?.reason === 'project_deleted') _noteFailedSave(_targetId, false);
-    else if (_targetId && !_result?.skipped) _noteFailedSave(_targetId, !_result || _isSaveFailure(_result));
-    if (!_result?.skipped) {
+    else if (_targetId && !_result?.skipped) _noteFailedSave(_targetId, !_keptByMain && (!_result || _isSaveFailure(_result)));
+    /* 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — LS 본(남은 본 위 편집)을 지운다. 두면 다시 열기·다음 부팅의 pickLsOverFile 이 그 본을 골라 표시 없이 돌아온 파일을 덮는다(리뷰 2 ①). */
+    if (_keptByMain && _targetId) { try { localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_targetId}`); localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_targetId}_ts`); } catch (_) {} }
+    else if (!_result?.skipped) {
       const _failed = !_result || _isSaveFailure(_result);
       _settleBigLs(_targetId, snapshot, _failed, _lsTsAtStart);
       if (!_failed) _markLsFiled(_targetId, _lsTsAtStart);
@@ -494,7 +504,15 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       try { await window.externalizeScratchpad?.(proj, targetId); }
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       if (_savingSuperseded && targetId === _savingOwnerId) return { ok: true, skipped: true, reason: 'flushed' };
-      const saveResult = await window.electronAPI.saveProject(proj);
+      const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId, opts._goneBase));
+      if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
+        if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId, saveResult.kept)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false, saveResult.kept)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다
+          .catch(e => console.warn('[save-load] 돌아온 폴더 다시 열기 실패:', e && e.message));
+        else window.showToast?.(_saveRefusedText(saveResult));
+        _setAutosaveIndicator('error');
+        return { ok: false, reason: saveResult.reason, kept: saveResult.kept };
+      }
+      if (saveResult?.ok !== false) { const _t = openTabs.find(t => t.id === targetId); if (_t?._goneCopy) _t._goneCopy = false; }   // 폴더를 이 본으로 다시 만들었다 — 이제 파일이 그 본이다
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
         /* 안 기다린다 — 다음 탭에 줄 선 저장이 있으면 그 탭은 저장이 끝나길 기다리고, 줄은 이 저장의 finally 가 빼서 저장이 영영 멈췄다(앱 재현). */
@@ -2506,7 +2524,7 @@ window.addEventListener('beforeunload', () => {
         updatedAt: new Date().toISOString(),
       };
       if (applyAdoptedAssets(proj, activeProjectId)) snap = JSON.stringify(snapData);   // 아래 localStorage 본도 — 파일보다 새로워 다음 열기에 이기면 옛 주소가 파일까지 되돌린다
-      const result = window.electronAPI.saveProjectSync(proj);
+      const result = window.electronAPI.saveProjectSync(_markGoneBase(proj, activeProjectId));
       _unloadFiled = !!result && result.ok !== false;
       if (result?.reason !== 'project_deleted') _noteFailedSave(activeProjectId, !_unloadFiled);
       if (result && result.ok === false) {
