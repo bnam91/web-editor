@@ -361,6 +361,8 @@ function _onHandleMouseDown(e, ss, dir) {
         if (getComputedStyle(c).position !== 'absolute') return;
         // t2-02 — 마킹은 상자가 아니라 dataset(x·y·size·끝점…)이 정본이다 → 쥔 때 값을 통째로 찍어 그 모델로 늘린다
         if (c.classList.contains('sticker-block')) { groupSnap.push({ el: c, sticker: { ...c.dataset } }); return; }
+        // t2-02d — 그라데이션도 정본이 dataset(x·y·gradWidth·gradHeight)이고 렌더가 cssText 를 그 키로 다시 쓴다 → 같은 꼴
+        if (c.classList.contains('gradient-block')) { groupSnap.push({ el: c, grad: { ...c.dataset } }); return; }
         const isTextFrame = c.dataset.textFrame === 'true';
         const contentEl = isTextFrame ? c.querySelector('[class^="tb-"]') : null;
         groupSnap.push({
@@ -442,6 +444,7 @@ function _onHandleMouseDown(e, ss, dir) {
       const fsScale = Math.min(sx, sy);
       groupSnap.forEach(s => {
         if (s.sticker) { window._scaleStickerFromSnap?.(s.el, s.sticker, sx, sy, fsScale); return; }   // t2-02
+        if (s.grad) { window._scaleGradientFromSnap?.(s.el, s.grad, sx, sy); return; }   // t2-02d
         const L = Math.round(s.left * sx), T = Math.round(s.top * sy);
         s.el.style.left = L + 'px'; s.el.dataset.offsetX = String(L);
         s.el.style.top  = T + 'px'; s.el.dataset.offsetY = String(T);
