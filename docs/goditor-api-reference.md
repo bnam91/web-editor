@@ -1374,7 +1374,7 @@ window._scratchAddAndSave(src, x, y, w)
 ### 전체 초기화
 
 ```js
-await window.clearScratchPad()   // 현재 프로젝트+페이지 스크래치 전체 삭제
+await window.clearScratchPad()   // 현재 프로젝트+페이지 스크래치 전체 삭제 · 거절하면 던진다(페이지 전환 중·기다리는 사이 프로젝트/페이지 바뀜·프로젝트 없음·로드 안 끝남): 아무것도 안 지움, 잠시 뒤 다시 부르기
 ```
 
 ### 프로젝트/페이지 전환 시

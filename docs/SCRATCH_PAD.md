@@ -114,7 +114,7 @@ value:          JSON 배열 [{ src, x, y, w }, ...]
 | `initScratchPad(projectId, pageId)` | 프로젝트 열기 시 1회 |
 | `switchScratch(newProjectId, pageId)` | 탭 전환 (프로젝트 변경) |
 | `switchScratchPage(newPageId)` | 같은 프로젝트 내 페이지 전환 |
-| `clearScratchPad()` | 스크래치패드 전체 초기화 |
+| `clearScratchPad()` | 스크래치패드 전체 초기화 — 거절하면 던진다(페이지 전환 중·기다리는 사이 프로젝트/페이지 바뀜·프로젝트 없음·로드 안 끝남): 아무것도 안 지움, 잠시 뒤 다시 부르기 |
 
 ---
 
@@ -136,4 +136,4 @@ window._scratchAddAndSave(src, x, y, w)
 - 파일 크기 **20MB** 제한 (FileReader 전 체크)
 - 스크래치패드 아이템은 **내보내기(PNG/JPG)에 포함되지 않음**
 - canvas-scaler 줌/이동에 따라 함께 스크롤 (scaler 내 position:absolute)
-- `clearScratchPad()` 는 async — IndexedDB 삭제 완료까지 대기 필요
+- `clearScratchPad()` 는 async — IndexedDB 에 [] 쓰기 완료까지 대기 필요 — 거절하면 던진다(페이지 전환 중·기다리는 사이 프로젝트/페이지 바뀜·프로젝트 없음·로드 안 끝남): 아무것도 안 지움, 잠시 뒤 다시 부르기
