@@ -359,7 +359,7 @@
   window.isSectionProtected             = isSectionProtected;
 
   /* ★MCP-OTHER-UPDATE-TOOLS-NO-PROTECTED-CHECK-01 — MCP update_* 가 🔒 보호 섹션 블럭의 «있던 글을 빈 글»로 만들면 되돌리고 거절한다(공용 한 자리 · main _guardProtectedText 가 부른다).
-     판정(전/후 비교 · 도구 꼴을 모른다): 블럭 안 «글 칸»의 글 든 수·빈 수를 견준다 — 글 든 칸이 줄고 빈 칸이 늘었다 = 있던 글이 빈 글이 됐다 ⇒ 거절.
+     판정(전/후 비교 · 도구 꼴을 모른다): 블럭 안 «글 칸» 수가 그대로인데 글 든 칸이 줄었다 = 있던 글이 빈 글이 됐다 ⇒ 거절.
        다른 글로 바꾸기·빈 칸 채우기·배열 비우기(글 든 줄째 지움 — 이번 범위 밖)는 통과. 이력: 고치는 동안 쌓기를 멈추고, 거절이면 시작 칸으로 복원(이력에 칸 안 남김) · 통과면 끝 칸 하나.
        shortcut: 거절 복원은 캔버스 통째(restoreSnapshot) — 협업 중 그 몇 ms 에 온 상대 패치도 되돌린다(범위 복원 창구가 window 에 없다) · 협업 보호 섹션 MCP 가 늘면 restoreSnapshotScoped 로. */
   const _ZW = /[\s\u200B-\u200D\u2060\uFEFF]/g;
@@ -371,7 +371,7 @@
       const inSvg = !!n.closest('svg');
       if (inSvg ? !/^(text|tspan)$/i.test(n.tagName) : /^(IMG|BR|HR|INPUT|TEXTAREA|SELECT|STYLE|SCRIPT|CANVAS|VIDEO|SVG)$/i.test(n.tagName)) return;
       let own = ''; for (const t of n.childNodes) if (t.nodeType === 3) own += t.nodeValue;
-      const has = own.replace(_ZW, '') !== '';
+      const has = own.replace(_ZW, '') !== '' && !n.closest('[data-is-placeholder]');   // 자리표시 글(그리드 기본 글 등)은 사용자 글이 아니다 — 빈 칸으로(리뷰 2-3)
       if (!has && n.children.length) return;   // 글 없는 그릇은 칸이 아니다
       total++; if (has) filled++;
     });
@@ -385,7 +385,11 @@
       if (!sec || !isSectionProtected(sec)) return null;
       window.ensureHistoryCheckpoint?.('MCP 수정 전');   // 시작 칸 = 지금 화면
       const tok = ++_guardSeq;
-      _guardPending.set(tok, { blockId: el.id, before: _textSlots(el), snap: window.historyStack?.[window.historyPos], paused: window._historyPaused,
+      /* 시작 칸은 «지금 화면»을 직접 찍는다 — 이력 꼭대기는 쌓기가 이미 멈춰 있으면 낡은 판이다(리뷰 2-4). restoreSnapshot 이 읽는 꼴 그대로. */
+      const snap = { canvas: window.getSerializedCanvas?.(), videoPendingSidecar: window.getLastVideoPendingSidecar?.(), settings: { ...(window.state?.pageSettings || {}) },
+        pageId: window.state?.currentPageId, selection: null };
+      if (typeof snap.canvas !== 'string') return null;
+      _guardPending.set(tok, { blockId: el.id, before: _textSlots(el), snap, paused: window._historyPaused,
         project: window.activeProjectId, page: window.state?.currentPageId });
       window._historyPaused = true;
       return tok;
@@ -399,8 +403,9 @@
       if (!applied || window.activeProjectId !== p.project || window.state?.currentPageId !== p.page) return { refused: false };
       const el = document.getElementById(p.blockId);
       const after = el ? _textSlots(el) : null;
-      /* 빈 칸이 늘고 글 든 칸이 줄었다 = 있던 글이 빈 글이 됐다(배열을 같이 줄여도 잡는다) · 다른 글·빈 칸 채우기·글 든 줄 지우기는 통과 */
-      if (after && after.filled < p.before.filled && after.empty > p.before.empty && p.snap) {
+      /* 칸 수(구조)는 그대로인데 글 든 칸이 줄었다 = 있던 글이 빈 글이 됐다. 구조가 바뀐 수정(줄·열 더하고 빼기·아이콘 더한 다시 그리기)은 통과(리뷰 2-2) ·
+         다른 글·빈 칸 채우기도 통과. shortcut: 빈 글과 구조 바꾸기를 «한 호출»에 섞으면 못 잡는다 — 잡으려면 도구별 모델 비교로. */
+      if (after && after.total === p.before.total && after.filled < p.before.filled && p.snap) {
         window.restoreSnapshot?.(p.snap);   // restoreSnapshot 은 이력을 안 쌓는다
         return { refused: true, before: p.before, after };
       }
