@@ -3123,10 +3123,15 @@ function _grdWirePadExclude(block) {
        ⛔0928 초판은 dataset.usePadx ＋ 자체 계산이었다. 같은 일을 하는 것이 둘이면 계산 규칙이
          바뀔 때 한쪽만 고쳐진다 — 그래서 0929 에 이 한 벌로 합쳤다. */
     block.dataset.fullBleed = cb.checked ? 'true' : 'false';
-    if (cb.checked) window.applyBlockFullBleed?.(block);
+    /* ★t2-08 A — 너비 키(gridWidth)가 있으면 렌더러가 그 폭을 이기고 전폭 흔적을 걷는다 ⇒ 켠 효과가 다음 다시 그리기(편집·⌘Z·다시 열기)에 사라졌다.
+         폭을 정하면 전폭을 끄는 규칙(grid-block.js _gridDropFullBleedForManualWidth)의 «반대 방향» — 전폭을 켜면 정한 폭을 뗀다. */
+    const _hadW = cb.checked && block.dataset.gridWidth !== undefined;
+    if (_hadW) { delete block.dataset.gridWidth; delete block.dataset.gridWidthAuto; window.renderGridBlock?.(block); }
+    else if (cb.checked) window.applyBlockFullBleed?.(block);
     else window.clearBlockFullBleed?.(block);
     window.pushHistory?.();              // ★적용 먼저, 찍기 나중 (js/props 는 push-after 규약)
     window.scheduleAutoSave?.();
+    if (_hadW) showGridProperties(block);   // 너비 줄이 «자동»을 말하게
   });
 }
 
