@@ -170,10 +170,9 @@ test('㉤ ⌘X ⌘V ⌘Z ⌘V — 두 번 다 원래 부모 안 원본 옆 +20',
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-/* ⚠️자유 프레임 글자 «하나»(freeLayout 갈래)는 고른 자유 프레임 «안»이 옛 잠금(frame-mode-roundtrip-294l B-2)이라 이 표 밖 — 보고에 결정거리로 올림. */
 test('㉠ 안쪽(깊이 2) 프레임을 오브젝트로 고름 — ⌘V 는 그 «다음 자리»(안이 아니다)', async ({ page }) => {
   const errs = await open(page);
-  for (const [src, n] of [['a', 2], ['g', 1], ['g', 2]]) {
+  for (const [src, n] of [['a', 1], ['a', 2], ['g', 1], ['g', 2]]) {
     await scene(page); await raf(page);
     await pickSrc(page, src, n); await page.keyboard.press('Meta+c'); await raf(page);
     await page.evaluate(() => { window.deselectAll(); window._activeFrame = null; }); await raf(page);

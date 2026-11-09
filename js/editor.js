@@ -2261,7 +2261,7 @@ function pasteClipboard() {
     _spl = r.spl;
   } else if (clipboard.freeLayout) {
     /* free-layout 프레임 내 블록 붙여넣기 — 묶음(_pastePickedFrames)과 같은 자리 규칙(현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
-       고른 자유 프레임이면 그 안(안쪽 프레임이어도 — frame-mode-roundtrip-294l B-2) · 밖에서 고른 맨 위(또는 들어간) 스택 프레임이면 그 안 끝 흐름(1109t1C1) · 섹션만 고름·다른 섹션이면 그 섹션 끝 · 안 골랐으면 원래 부모 안 원본 옆 +20.
+       고른 자유 프레임이면 그 안(맨 위·들어간 것) · 안쪽 프레임을 오브젝트로 골랐으면 그 다음 자리(1109t1C1 ⑵) · 밖에서 고른 맨 위(또는 들어간) 스택 프레임이면 그 안 끝 흐름(1109t1C1) · 섹션만 고름·다른 섹션이면 그 섹션 끝 · 안 골랐으면 원래 부모 안 원본 옆 +20.
        duplicateSelected의 freeLayout 분기 미러. */
     // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
     const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
@@ -2270,13 +2270,15 @@ function pasteClipboard() {
     const _picked = _selFrames.filter(f => !_selFrames.some(o => o !== f && f.contains(o))).pop() || null;
     const _selSec = getSelectedSection();
     const _otherSec = _t?.sec || (!_picked && _srcFrame && _selSec && _selSec !== _srcFrame.closest('.section-block'));   // 1109t1C1 ㉣ — 섹션만 골랐으면 같은 섹션이어도 그 끝
-    const frame = _otherSec ? null : _t?.into ? _flFrame(_t.into) : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
+    const _nestObj = !_t && _picked && window.frameSelectedAsObject(null) === _picked && !!window._innermostEntryFrame(_picked.parentElement);   // 1109t1C1 ⑵ — 안쪽 프레임을 오브젝트로 골랐으면 안이 아니라 그 다음 자리(묶음·흐름 갈래와 같게)
+    const frame = (_otherSec || _nestObj) ? null : _t?.into ? _flFrame(_t.into) : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
     if (!frame) {
       // 대상 프레임 못 찾음 → 스택 프레임(㉡㉢)이면 그 안 끝 흐름 · 아니면 일반 경로 폴백(섹션 끝에 삽입)
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (_t?.into) { _t.into.appendChild(el); window.followHostFrameHAlign?.(el); }
+      else if (_nestObj) insertAfterSelectedAsSibling(sec, el);
       else if (sec) insertAfterSelected(sec, el);
-      if (el.isConnected) { _bindPastedEl(el); _normalizePastedAbsolute(el); _keepOnlyPastedSelected([el]); }
+      if (el.isConnected) { _bindPastedEl(el); _normalizePastedAbsolute(el); if (_nestObj) _stepPastedFreeChild(el); _keepOnlyPastedSelected([el]); }
     } else {
       /* ★216 — id 재발급(genId · actorId · 접두사 보존)·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(el) 한 문이 한다(손 절반 걷음). */
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
