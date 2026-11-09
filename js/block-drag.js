@@ -2692,10 +2692,12 @@ function bindBlock(block) {
       /* ★빈 이미지 슬롯 더블클릭 → 파일 선택(T-B, prop-table.js `_bindTableRowImg` 의
          더블클릭 관용구 재사용). 우클릭 메뉴·프로퍼티 패널 [이미지 선택…]과 같은
          FileReader→dataURL→patchCell{lineIndex,imgSrc} 경로다. */
-      const emptyImg = node && node.closest ? node.closest('.grd-img-empty[data-line]') : null;
+      /* ★1109t1A2 — 중첩 열 안 빈 슬롯(data-npath)도 같은 입구 — 주소 = lineIndex:nroot ＋ np(patchCell 의 중첩 쓰기 길). */
+      const emptyImg = node && node.closest ? (node.closest('.grd-img-empty[data-line]') || node.closest('.grd-img-empty[data-npath]')) : null;
       if (emptyImg && block.contains(emptyImg)) {
         e.stopPropagation();
-        const r = Number(emptyImg.dataset.r), c = Number(emptyImg.dataset.c), li = Number(emptyImg.dataset.line);
+        const np = emptyImg.dataset.npath;
+        const r = Number(emptyImg.dataset.r), c = Number(emptyImg.dataset.c), li = Number(np ? emptyImg.dataset.nroot : emptyImg.dataset.line);
         if (!Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(li)) return;
         const input = document.createElement('input');
         input.type = 'file';
@@ -2716,7 +2718,7 @@ function bindBlock(block) {
           reader.onload = async ev => {
             const src = await window.grdAssetSrcFor(block, ev.target.result); if (!src) return; /* BIG-IMAGE-INSERT-RENDERER-OOM-01 — data URL 이면 표본마다 그림이 실린다. 칸 입구와 같은 몸통 · 저장 실패면 data URL. */
             window.grdToastImgFail?.(window.updateGridBlock?.(block.id,
-              { patchCell: { r, c, lineIndex: li, imgSrc: src } }, { trusted: true }));
+              { patchCell: { r, c, lineIndex: li, ...(np ? { np } : {}), imgSrc: src } }, { trusted: true }));
           };
           reader.readAsDataURL(file);
         };

@@ -409,6 +409,23 @@ function _grdGridHost(block) {
   };
 }
 
+/** ★1109t1A2 — «나란히 두 칸» 안 한 열(lines[li].cols[ci])을 줄의 주인으로 — 커밋은 바깥 칸 lines 통째 한 문(⌘Z 한 번). 깊이 1만. */
+function _grdNestColHost(block, r, c, li, ci) {
+  const G = _grdGridHost(block);
+  return {
+    ...G,
+    getLines: () => G.getLines(r, c)?.[li]?.cols?.[ci]?.lines || [],
+    commitLines: (r2, c2, inner, opts) => {
+      const outer = JSON.parse(JSON.stringify(G.getLines(r, c)));
+      if (!outer[li]?.cols?.[ci]) return { ok: false, code: 'INVALID' };
+      outer[li].cols[ci].lines = inner;
+      return G.commitLines(r, c, outer, opts);
+    },
+    addrOf: (r2, c2, i) => ({ r, c, li, np: `${ci}.${i}` }),
+  };
+}
+if (typeof window !== 'undefined') window.grdNestColHost = _grdNestColHost;
+
 /* ══ 셀에 «줄 추가» — 공용 함수 ══════════════════════════════════════════════
  * ★T-A(빈 셀 선택+단축키)·T-B(이미지 새 줄) 둘 다 이 함수 하나로 모인다 — 우클릭 이미지
  *   추가(block-factory.js)·패널 [+ 줄 추가]·빈 셀 3버튼·T/G/K 단축키가 전부 이걸 부른다.
@@ -437,7 +454,7 @@ export function grdAddLine(block, pos, afterLi, lineSpec = { type: 'body', text:
    *   INVALID 로도 거절한다. 그때 활성줄만 앞으로 가 «없는 li»를 가리켰다(2026-09-20 실측).
    *   ⇒ 되돌릴 수 있게 직전 값을 들고 간다. */
   const prevActive = grdGetActiveLine(block);
-  grdSetActiveLine(block, { r, c, li: insertAt });
+  grdSetActiveLine(block, H.addrOf ? H.addrOf(r, c, insertAt) : { r, c, li: insertAt });   // ★1109t1A2 중첩 열 주인은 np 주소
   // updateGridBlock 이 pushHistory + 재렌더 + 패널 재표시를 스스로 한다(줄 삭제·비율 입력과 같은 원칙).
   const res = H.commitLines(r, c, newLines, opts);
   /* ★반환을 «받는다». 예전엔 안 받고 무조건 {ok:true} 를 돌려줬다 — 호출부(우클릭 이미지 추가 등)는
@@ -1270,6 +1287,9 @@ function grdNewLineFontFamily() {
 function grdNewLineSpec(kind) {
   if (kind === 'gap') return { type: 'gap', height: 16 };
   if (kind === 'divider') return { type: 'divider', height: 1 };
+  /* ★1109t1A2 — 빈 사진/원 슬롯(우클릭 「이미지 추가」·「원형 이미지 추가」·중첩 패널이 같은 자에서 뜬다). */
+  if (kind === 'photo') return { type: 'image', imgSrc: '' };
+  if (kind === 'circle') return { type: 'image', imgSrc: '', imgShape: 'circle', height: GRID_IMG_CIRCLE_D };
   /* ★글자 없는 줄은 «자기 기본값»을 들고 간다 — {text:''} 를 주면 렌더러가 글자 가지로
      읽지는 않지만 저장본에 뜻 없는 빈 필드가 남는다(여백 줄이 이미 그 규약이다). */
   const spec = { type: kind, text: '' };
@@ -1307,11 +1327,11 @@ const _grdKindOptsHtml = (kinds, cur, prefix = '') => kinds
  *         문다」라고 «미리» 적어 두었고, 실제로 그 패치에서 물었다.
  *   ⇒ ★그래서 손잡이를 «우클릭 메뉴»로 냈다(index.html `#bcm-grid-nested` ＋ block-factory.js).
  *     지키는 그물: tests/dom/grid-nested-create.dom.spec.js */
-const _grdAddKindSelectHtml = (kinds = _GRD_KINDS) => `
+const _grdAddKindSelectHtml = (kinds = _GRD_KINDS, extra = '') => `
         <select class="prop-select" id="grd-line-add-kind" style="flex:1 1 96px;min-width:0;width:auto;"
                 title="고른 종류로 새 줄을 만든다 (단축키 T=텍스트 · G=여백 · K=아이콘)">
           <option value="">+ 줄 추가…</option>
-          ${_grdKindOptsHtml(kinds, null, '+ ')}
+          ${_grdKindOptsHtml(kinds, null, '+ ')}${extra}
         </select>`;
 
 /** ②종류 바꾸기 — 이미 있는 줄의 종류를 바꾼다(지우고 다시 만들 필요 없이).
@@ -1464,9 +1484,12 @@ function _grdNestHintHtml(nestHit) {
     <div class="prop-section" id="grd-nest-hint">
       <div class="prop-section-title">줄 (중첩 칸 안)</div>
       <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>
-      <div class="prop-hint" style="margin-top:2px;">아직 «고치는» 건 안 됩니다 — 글자는 캔버스에서, 손잡이는 다음 판</div>
+      <div class="prop-hint" style="margin-top:2px;">아직 «고치는» 건 줄 추가만 됩니다 — 글자는 캔버스에서, 손잡이는 다음 판</div>
       <div class="prop-hint" style="margin-top:2px;opacity:.7;">주소 ${_grdEsc(addr)}</div>
-      <div class="prop-row" style="align-items:center;gap:6px;">
+      <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">${nestHit.np.includes('/') ? '' : /* ★1109t1A2 깊이 1만 · 중첩 종류는 _GRD_KINDS 에 없다(E12/E13) · 사진/원은 우클릭과 같은 이름 */
+          _grdAddKindSelectHtml(_GRD_KINDS, `
+          <option value="photo">+ 이미지</option>
+          <option value="circle">+ 원형 이미지</option>`)}
         <button id="grd-nest-outer-btn" class="prop-btn-sm" title="이 칸을 품은 바깥 줄을 고릅니다 (Esc 와 같음)">바깥 줄 고르기</button>
       </div>
     </div>`;
@@ -3928,6 +3951,10 @@ ${_flattenRowHtml(rows, cols)}
   });
   _grdWireDisclosure(block, 'size', 'grd-size-toggle', 'grd-size-body');
   document.getElementById('grd-nest-outer-btn')?.addEventListener('click', () => grdSelectOuterLine(block));   // ★1109t1A1
+  if (_nestHit && !_nestHit.np.includes('/')) {   // ★1109t1A2 — 중첩 열에 줄 추가: 같은 select 배선, 주인만 그 열
+    const [ci, i] = _nestHit.np.split('.').map(Number);
+    _grdWireKindSelects(block, _nestHit.r, _nestHit.c, i, _grdNestColHost(block, _nestHit.r, _nestHit.c, _nestHit.li, ci));
+  }
 
   const ratioInput = document.getElementById('grd-col-ratio');
   const _applyRatioInput = (raw) => {

@@ -139,8 +139,9 @@ async function mount(page) {
 }
 
 /** 패널 안의 «고치는 손잡이» 수 — input/select/textarea/button/슬라이더.
- *  ★1109t1A1 — 안내 절의 「바깥 줄 고르기」(#grd-nest-outer-btn)는 «고르기» 단추라 안 센다(세면 A3 ⑵ 가 그 하나로 거저 초록·A3-양성2 가 거저 빨강). */
-const HANDLE_SEL = 'input, select, textarea, button:not(#grd-nest-outer-btn), [role="slider"], .prop-slider';
+ *  ★1109t1A1 — 안내 절의 「바깥 줄 고르기」(#grd-nest-outer-btn)는 «고르기» 단추라 안 센다(세면 A3 ⑵ 가 그 하나로 거저 초록·A3-양성2 가 거저 빨강).
+ *  ★1109t1A2 — 중첩 열 «줄 추가» select(#grd-line-add-kind)도 안 센다: 이 저울은 타이포 문을 재지 추가 손잡이를 재지 않는다(추가는 grid-nested-add-image N3 가 잰다). */
+const HANDLE_SEL = 'input, select:not(#grd-line-add-kind), textarea, button:not(#grd-nest-outer-btn), [role="slider"], .prop-slider';
 
 /* ═══ A — 「잡힌다 · 가리킨다 · ⛔안 고쳐진다」 ═══════════════════════════ */
 

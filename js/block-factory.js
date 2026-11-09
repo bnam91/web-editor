@@ -5871,6 +5871,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       const atPoint = document.elementFromPoint(e.clientX, e.clientY);
       node = (atPoint && block.contains(atPoint)) ? atPoint : e.target;
     }
+    /* ★1109t1A2 — 중첩 열 안 줄(data-npath)이 먼저: closest('[data-line]') 는 품은 duo 줄을 집어 «바깥 칸»에 넣었다.
+       afterLi = 그 duo 줄 — 다른 항목(나란히 두 칸 등)은 옛 값 그대로 받는다. 깊이 1만. */
+    const nEl = node && node.closest ? node.closest('[data-npath]') : null;
+    if (nEl && block.contains(nEl) && !nEl.dataset.npath.includes('/')) {
+      const root = Number(nEl.dataset.nroot);
+      return { r: Number(nEl.dataset.r), c: Number(nEl.dataset.c), li: null, afterLi: root, nest: { root, np: nEl.dataset.npath } };
+    }
     const lineEl = node && node.closest ? node.closest('[data-line]') : null;
     const cellEl = node && node.closest ? node.closest('.grd-cell') : null;
     let r, c;
@@ -6384,10 +6391,16 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       }
       return;
     }
+    if (addr.nest) { _gridNestAdd(block, addr, 'circle'); return; }   // ★1109t1A2
     const after = addr.li != null ? addr.li : (addr.afterLi ?? null);
-    grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, after,
-      { type: 'image', imgSrc: '', imgShape: 'circle', height: GRID_IMG_CIRCLE_D }));
+    grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, after, window.grdNewLineSpec('circle')));
   });
+  /* ★1109t1A2 — 중첩 열 안 줄 «다음»에 빈 사진/원 슬롯 — 주인 = 그 열(prop-grid.js _grdNestColHost · 커밋 한 문). */
+  function _gridNestAdd(block, addr, kind) {
+    const [ci, i] = addr.nest.np.split('.').map(Number);
+    grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, i, window.grdNewLineSpec(kind), {},
+      window.grdNestColHost(block, addr.r, addr.c, addr.nest.root, ci)));
+  }
   /* 그리드 주소 → 그 줄(모델). 없으면 null. (중첩 np 는 이 메뉴가 다루지 않는다 — 바깥 줄만) */
   function _gridLineAt(block, addr) {
     try { return getGridModel(block).cells?.[addr.r]?.[addr.c]?.lines?.[addr.li] || null; } catch (_) { return null; }
@@ -6399,9 +6412,9 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const addr = _targetGridAddr;
     closeMenu();
     if (!block || !addr) return;
+    if (addr.nest) { _gridNestAdd(block, addr, 'photo'); return; }   // ★1109t1A2
     if (addr.li == null) {
-      grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null,
-        { type: 'image', imgSrc: '' }));
+      grdToastImgFail(grdAddLine(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null, window.grdNewLineSpec('photo')));
       return;
     }
     const input = document.createElement('input');
