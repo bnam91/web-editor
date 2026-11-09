@@ -49,18 +49,13 @@ let _scratchLoaded = true;
 
 function _openDB() {
   if (_db) return Promise.resolve(_db);
+  /* ★SCRATCH-DB-OPEN-FAIL-RECOVERY-WIPES-ALL-01(지디 ⒜) — 옛 판은 열기에 실패하면 indexedDB.deleteDatabase 로 «모든 프로젝트·페이지» 스크래치를
+     지우고 다시 열었다(다른 연결이 막고 있다 풀려도 지워졌다 → 비운 [] 가 «모름»이 돼 매니페스트로 되살아나고 마지막 저장 뒤 위치는 잃음).
+     ⇒ 지우지 않는다. 이번 실행은 메모리 폴백으로 돌고(저장 때 외부화가 폴백을 읽어 파일 매니페스트에 남긴다) 다음 실행에 다시 연다. */
   return _tryOpenDB().catch(err => {
-    console.warn('[ScratchPad] IndexedDB open failed, retrying after delete:', err);
-    return new Promise((res, rej) => {
-      let gaveUp = false;
-      const del = indexedDB.deleteDatabase(SCRATCH_DB_NAME);
-      // 리뷰 4 #2 — 막힘으로 포기한 뒤 지우기가 늦게 끝나도 새 빈 DB 를 열어 _db 를 바꾸지 않는다(메모리 폴백에 쓴 것이 몰래 버려짐)
-      del.onsuccess = () => { if (!gaveUp) _tryOpenDB().then(res).catch(rej); };
-      del.onerror   = () => { if (!gaveUp) _tryOpenDB().then(res).catch(rej); };
-      del.onblocked = () => { gaveUp = true; rej(new Error('ScratchPadDB delete blocked')); };   // 리뷰 3 #5 — 다른 연결이 막으면 영영 안 끝나지 않게(→ 메모리 폴백)
-    });
-  }).catch(err => {
-    console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback:', err);
+    console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback (no delete):', err);
+    if (_db) return _db;   // ★⒝ 그사이 다른 부름이 이미 열었거나 폴백을 세웠다 — 덮지 않는다
+    window.showToast?.('⚠️ 스크래치 저장소를 열지 못했습니다 — 이번 실행은 프로젝트 파일에만 남깁니다');
     // 메모리 폴백: get/put/delete 메서드만 흉내냄
     const store = {};
     _db = {
@@ -87,13 +82,14 @@ function _openDB() {
 
 function _tryOpenDB() {
   return new Promise((resolve, reject) => {
+    let settled = false;   // ★⒝ 막힘으로 거절한 «뒤» 늦게 열려도 _db(이미 메모리 폴백)를 새 빈 연결로 갈지 않는다 — 폴백에 쓴 것이 몰래 버려졌다
     const req = indexedDB.open(SCRATCH_DB_NAME, 1);
     req.onupgradeneeded = e => {
       e.target.result.createObjectStore(SCRATCH_STORE);
     };
-    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
-    req.onerror   = e => reject(e.target.error);
-    req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    req.onsuccess = e => { if (settled) { try { e.target.result.close(); } catch (_) {} return; } settled = true; if (!_db) _db = e.target.result; else { try { e.target.result.close(); } catch (_) {} } resolve(_db); };
+    req.onerror   = e => { if (settled) return; settled = true; reject(e.target.error); };
+    req.onblocked = () => { if (settled) return; settled = true; reject(new Error('IndexedDB blocked')); };
   });
 }
 
@@ -2333,9 +2329,17 @@ window._scratchAddAndSaveFx = async (src, x, y, w, g, id, fx, ocr, linkDy) => {
   await _saveScratch();
 };
 
+/* ★⒞ — 결과를 돌려준다: { ok:true, id } = 화면 + 저장소에 들어감 · { ok:false, reason, id } = 화면에만(프로젝트/페이지 없음 · 로드 중이라 저장 안 됨 · 그림 자리 없음).
+   쓰기 실패는 예전처럼 던진다. 부르는 쪽(스킬)이 이 값을 읽어 «저장 완료»를 거짓으로 말하지 않게. */
 window._scratchAddAndSave = async (src, x, y, w, g, id) => {
-  _createItem(src, x, y, w, id, g);
+  const it = _createItem(src, x, y, w, id, g);
+  const key = _getScratchKey(_currentProjectId, _currentPageId);
+  const loaded = _scratchLoaded;
   await _saveScratch();
+  if (!it) return { ok: false, reason: 'no-scaler', id: null };
+  if (!key) return { ok: false, reason: 'no-context', id: it.id };
+  if (!loaded) return { ok: false, reason: 'loading', id: it.id };   // 로드가 끝나면 «읽는 사이 들어온 장»으로 저장된다(addedDuringLoad) — 지금은 아직
+  return { ok: true, id: it.id };
 };
 
 /* ── #16 「링크된 섹션을 붙여넣으면 스크래치도 같이 복제」 (scratchpad-link.js 가 부른다) ──
