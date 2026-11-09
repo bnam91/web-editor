@@ -2703,7 +2703,7 @@ function _goneBaseRefusal(project) {
   const key = String(project.id);
   if (!project._goneBase) { _goneRecreated.delete(key); return null; }   // 표시 없는 저장 = 탭이 파일로 돌아왔다 — 다시 없어지면 처음부터 가른다
   delete project._goneBase;
-  if (!_resolveProjectJsonPath(key)) { _goneRecreated.add(key); return null; }
+  if (!_resolveProjectJsonPath(key)) return 'recreate';   // 기억은 쓰기가 «된 뒤» 호출측이 한다 — 실패한 다시 만들기를 제 폴더로 기억하면 밖에서 돌아온 파일을 덮는다(리뷰 3 ①)
   if (_goneRecreated.has(key)) return null;
   let kept = false;   // 'history' = 버전 기록(핀) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
   try { if (_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }).ok) kept = 'history'; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
@@ -2714,7 +2714,7 @@ ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirStat
 
 async function _saveProjectImpl(project) {
   if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };
-  const _returned = _goneBaseRefusal(project); if (_returned) return _returned;
+  const _returned = _goneBaseRefusal(project); if (_returned && _returned !== 'recreate') return _returned;
   const _recreated = _seenProjects.has(String(project.id)) && !_resolveProjectJsonPath(project.id);
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -2737,6 +2737,7 @@ async function _saveProjectImpl(project) {
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
   _seenProjects.add(String(project.id));
+  if (_returned === 'recreate') _goneRecreated.add(String(project.id));
   if (_recreated) _callEachWindow(`window.noteProjectFolderRecreated?.(${JSON.stringify(project.id)})`, 3000);   // 안 기다린다 — 저장 줄을 말 띄우기에 묶지 않는다
   _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
@@ -2790,7 +2791,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
     if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
     const _returned = _goneBaseRefusal(project);   // 곧 끝나는 문서의 본 — 버전 기록에 남기고, 못 남기면 비상 사본(종료 때 알린다)
-    if (_returned) { event.returnValue = _returned; return; }
+    if (_returned && _returned !== 'recreate') { event.returnValue = _returned; return; }
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
@@ -2805,6 +2806,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
       if (rb.planning) { _recordSyncSaveFailure({ ...incoming, name: project.name }, 'planning_not_editor'); event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
+    if (_returned === 'recreate') _goneRecreated.add(String(project.id));
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데

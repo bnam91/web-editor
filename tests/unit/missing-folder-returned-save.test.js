@@ -3,6 +3,7 @@
  * 칸: 진짜 main 핸들러(_ipc-harness). G1 비동기 저장 거절 · G2 동기(종료·새로고침) 저장 거절 · G3 거절한 본은 버전 기록에 남는다(편집을 안 버린다).
  * 칸(리뷰 1): G4 남긴 본은 핀(프룬·핀 상한 밖)이고 버전 목록의 «현재»를 안 바꾼다 · G5 버전 기록을 못 쓰면 비상 사본으로 남긴다 · 렌더러 칸(줄 선 저장)은 DOM V5.
  * 칸(리뷰 2): G6 제가 다시 만든 폴더에 줄 선 표시 저장은 거절하지 않는다 · G7 그 뒤 탭이 파일로 돌아왔다가(표시 없는 저장) 폴더가 바뀌어 돌아오면 다시 거절한다.
+ * 칸(리뷰 3): G8 다시 만들기 쓰기가 실패하면 제 폴더로 기억하지 않는다 — 그 뒤 밖에서 돌아오면 거절한다.
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -110,5 +111,17 @@ test('G7 그 뒤 파일로 돌아왔다가 또 없어지고 바뀐 채 돌아오
   fs.rmSync(dir(id), { recursive: true }); fs.renameSync(away(id), dir(id));   // 또 없어졌다가 옛 폴더가 돌아왔다(그사이 상태를 물었든 안 물었든)
   const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
   assert.equal(r.reason, 'folder_returned', '★돌아온 폴더를 덮었다');
+  assert.match(JSON.stringify(file(id)), /처음 머리/);
+});
+test('G8 다시 만들기가 실패하면 제 폴더로 기억하지 않는다 — 밖에서 돌아온 파일을 안 덮는다', async () => {
+  const id = 'proj_' + (9700 + n++);
+  assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
+  fs.renameSync(dir(id), away(id));
+  fs.chmodSync(H.projectsDir, 0o500);   // 뿌리에 못 쓴다 — 다시 만들기가 던진다
+  let r1; try { r1 = await H.invoke('projects:save', { ...proj(id, '실패한저장'), _goneBase: true }); } catch (_) { r1 = { ok: false, threw: true }; } finally { fs.chmodSync(H.projectsDir, 0o755); }
+  assert.equal(r1.ok, false, '[전제] 다시 만들기가 실패했다');
+  fs.renameSync(away(id), dir(id));   // 밖에서 돌아왔다 · 탭은 안 옮겼다(folder-state 를 안 물었다)
+  const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
+  assert.equal(r.reason, 'folder_returned', '★실패한 다시 만들기를 제 폴더로 기억해 돌아온 파일을 덮었다');
   assert.match(JSON.stringify(file(id)), /처음 머리/);
 });
