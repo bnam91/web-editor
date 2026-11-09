@@ -484,9 +484,11 @@ async function closeTab(id) {
     catch (e) { console.warn('[closeTab] 다음 탭 열기 실패:', e && e.message); if (_getActId() === id) return; }
     if (_getActId() === id) return;   // 다음 탭이 앞 저장을 기다리는 동안 이 탭으로 돌아왔다 — 활성 탭을 목록에서 빼면 떠날 때 저장을 건너뛰어 편집을 잃는다
   }
+  const closed = openTabs[idx];
   _setTabs(_getTabs().filter(t => t.id !== id));
   renderTabBar();
   saveTabState();
+  await window.keepFailedCopyOnClose?.(id, closed.name, closed._cache);   // 저장이 실패로 끝난 탭이면 그 본을 비상 사본으로 — 닫은 탭은 종료 때 아무도 안 본다
 }
 
 /* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 저장 없이 탭을 닫고 알린다.

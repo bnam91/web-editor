@@ -2836,6 +2836,14 @@ function _recordSyncSaveFailure(project, reason, error) {
   }
 }
 
+/* 저장이 실패로 끝난 탭을 닫을 때 렌더러가 넘긴다 — 사유와 상관없이 그 본을 마커·비상 사본으로(REFUSED-SAVE-THEN-CLOSE-TAB-EDIT-LOST-01).
+   닫은 탭은 종료 flush·beforeunload 가 안 보고 LS 는 다음 부팅 고아 정리가 지울 수 있다. 다음 실행의 복구 제안이 이 기록을 읽는다. */
+ipcMain.on('projects:record-refused', (event, project, reason) => {
+  if (!project || typeof project !== 'object' || typeof project.id !== 'string' || !project.id || !Array.isArray(project.pages)) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
+  _recordSyncSaveFailure(project, typeof reason === 'string' && reason ? reason : 'rejected');
+  event.returnValue = { ok: true };
+});
+
 /* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
  * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
  *   proj_<id>/ 안에 proj.json · proj_backup.json · **proj_history 스냅샷 전부** · assets 가 다 있다.

@@ -3072,6 +3072,21 @@ window.flushProjectBeforeTrash = async (id) => {
   const until = Date.now() + 5000;
   while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));
 };
+/* 탭을 닫았다 — 그 프로젝트의 저장이 끝나길 기다려, 실패로 끝났으면 그 본을 main 에 넘겨 마커·비상 사본으로 남긴다.
+   까닭: 거절된 본은 LS 에만 있고, 닫은 탭은 종료 flush·beforeunload 가 안 본다. 기획 id 는 목록에 없어 다음 부팅의 고아 정리가 LS 를 지웠다(앱 L1 C17 ×1 · REFUSED-SAVE-THEN-CLOSE-TAB-EDIT-LOST-01).
+   거절 사유는 안 가린다 — 실패로 끝난 저장이면 다 남긴다. 기다림이 상한을 넘으면 끝을 모르니 남긴다(잃는 쪽보다 헛 복구 제안이 낫다). */
+window.keepFailedCopyOnClose = async (id, name, cache) => {
+  if (!IS_ELECTRON || !id || !window.electronAPI?.recordRefusedSave) return false;
+  const settled = await _waitSavesFor(id);
+  if (settled && !_lastSaveFailed(id)) return false;
+  let data = null;
+  try { data = JSON.parse(cache || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`)); } catch (_) {}
+  if (!data || !Array.isArray(data.pages)) return false;
+  applyAdoptedAssets(data, id);   // 줄의 본은 옮기기 전에 찍혔을 수 있다 — 사본이 옛 주소면 그 프로젝트를 지운 뒤 그림이 빠진다(_flushUnfinishedSavesSync 와 같은 까닭)
+  const reason = settled ? (_lastSaveResult.get(id)?.result?.reason || 'save-failed') : 'unconfirmed';
+  try { await window.electronAPI.recordRefusedSave({ ...data, id, name: name || 'Untitled' }, reason); return true; }
+  catch (e) { console.warn('[save-load] 거절된 본을 남기지 못했다:', e && e.message); return false; }
+};
 /* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
 window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
 window.loadProjectsList = loadProjectsList;
