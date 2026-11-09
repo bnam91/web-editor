@@ -2,7 +2,7 @@
  * 왜: 거절된 본은 LS 에만 남았다. 탭을 닫으면 종료 flush·beforeunload 가 그 id 를 안 보고, 기획 id 는 목록에 없어
  *   다음 부팅의 고아 정리(cleanStaleAutosaveKeys)가 LS 를 지웠다 — 앱 L1 C17 ×1: 마커·비상본 없음 · 재시작 LS 0.
  * 자: 렌더러가 main 에 넘기는 recordRefusedSave 호출(가짜 API 기록). 마커·비상 사본 파일 쓰기는 main(_recordSyncSaveFailure) 몫 — 여기선 안 잰다.
- * 칸: R1 옆 탭으로 간 뒤 거절된 탭 닫기 · R2 활성 탭 닫기(떠나는 저장이 거절됨) · R3 사유 셋(깨진 원본·모르는 새 사유·예외) · R6 자동저장이 바로 거절된 활성 탭 닫기 · R7 닫고 종료 — 한 번만 남김 · R8 같은 실패 한 번만 · R9 사본 실패면 다시 · R10 던진 저장도 실패 · R11 사본 실패면 토스트(닫기는 그대로)
+ * 칸: R1 옆 탭으로 간 뒤 거절된 탭 닫기 · R2 활성 탭 닫기(떠나는 저장이 거절됨) · R3 사유 셋(깨진 원본·모르는 새 사유·예외) · R6 자동저장이 바로 거절된 활성 탭 닫기 · R7 닫고 종료 — 한 번만 남김 · R8 같은 실패 한 번만 · R8b 다시 열기 길 · R9 사본 실패면 다시 · R10 던진 저장도 실패 · R11 사본 실패면 토스트(닫기는 그대로)
  *     R4 [음성] 저장이 성공한 탭 닫기 — 남기지 않는다 · R5 [음성] 빈 캔버스 보호 스킵은 실패가 아니다.
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘(서로 다른 PNG). */
 const { test, expect } = require('@playwright/test');
@@ -148,7 +148,7 @@ test('R7 거절된 탭을 닫고 종료 — 닫을 때 한 번만 남기고 종�
 });
 
 /* 리뷰 1라운드 1번: 비상 사본은 5칸을 모든 프로젝트가 나눠 쓴다 — 같은 실패를 닫을 때마다 새로 남기면 남의 사본을 밀어낸다.
-   다시 열기는 안 탄다 — 이 하네스에선 다시 연 탭의 미저장 표시를 자동저장이 안 지워 기다림이 안 끝났다(인텔 16f0302e R8·R9 시간초과).
+   다시 열기는 안 탄다 — 거절이 이어지면 다시 연 탭은 미저장으로 남아(R8b) «무편집» 이 성립하지 않는다(인텔 16f0302e R8·R9 시간초과의 까닭).
    닫을 때 부르는 그 함수를 한 번 더 부르고, 새 거절은 저장을 곧장 불러 만든 뒤 저장 끝(waitSavesFor)을 기다린다. */
 const closeAgain = (page) => page.evaluate(async (A) => window.keepFailedCopyOnClose(A, A, window.__cacheA), A);   // 닫을 때와 같은 인자(닫힌 탭의 캐시)
 test('R8 같은 실패는 한 번만 남긴다 — 같은 실패로 또 닫으면 안 남기고, 새로 거절되면 남긴다', async ({ page }) => {
@@ -160,6 +160,27 @@ test('R8 같은 실패는 한 번만 남긴다 — 같은 실패로 또 닫으�
   await page.evaluate(async (A) => { await window.saveProjectToFile(window.__cacheA, { skipThumbnail: true, projectId: A }); await window.waitSavesFor(A); }, A);
   expect(await closeAgain(page)).toBe(true);
   expect(await keptA(page).then(k => k.length), '★새로 거절된 저장을 안 남겼다').toBe(2);
+  expect(errs).toEqual([]);
+});
+
+/* 진짜 다시 열기 길(지디 261110 «다시 열기를 뺐으니 그 길을 아무 칸도 안 잰다»).
+   코드 판정: 실패한 저장은 미저장 표시를 안 지우고(save-load.js 360 · 임자 A) 거절이 이어지면 자동저장도 거절돼 표시가 안 풀린다 —
+   다시 연 A 는 «미저장»이 맞다(하네스 탓 아님). 그 탭을 닫으면 떠나는 저장이 다시 거절된다 = 새 실패라 또 남긴다(같은 실패 아님).
+   1.6초 대기는 «1.5초 자동저장 뒤 값» 재기(지디 물음)이지 동기화가 아니다. */
+test('R8b 거절이 이어지는 탭을 다시 열면 미저장으로 남고, 닫으면 새 실패로 또 남긴다', async ({ page }) => {
+  const errs = await setup(page);
+  await refuseThenCloseInactive(page, 'planning_not_editor');
+  await expect.poll(() => keptA(page).then(k => k.length)).toBe(1);
+  await page.evaluate((A) => window.openTabForProject(A), A);
+  await page.waitForFunction((A) => window.activeProjectId === A && !window.isTabFirstLoading(A), A);
+  const at0 = await page.evaluate(() => window.hasUnsavedChanges());
+  await page.waitForTimeout(1600);
+  const at16 = await page.evaluate(() => window.hasUnsavedChanges());
+  console.log('[R8b] 다시 연 직후 hasUnsavedChanges', at0, '· 1.6초 뒤', at16);
+  expect([at0, at16], '★실패가 이어지는데 미저장이 아니라고 한다').toEqual([true, true]);
+  await page.evaluate((A) => window.closeTab(A), A);
+  await page.evaluate((A) => window.waitSavesFor(A), A);
+  await expect.poll(() => keptA(page).then(k => k.length), { message: '★다시 거절된 떠나는 저장을 안 남겼다' }).toBe(2);
   expect(errs).toEqual([]);
 });
 
