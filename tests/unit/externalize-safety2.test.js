@@ -56,7 +56,8 @@ function sealedFns(tok, sealId) {
 function failedSaveSrc() {
   const src = SL();
   if (!src.includes('function _noteFailedSave(')) return '';
-  return "const FAILED_SAVE_IDS_KEY = 'web-editor-failed-save-ids';\n" + ['function _failedSaveIds(', 'function _setFailedSaveIds(', 'function _noteFailedSave('].map((h) => sliceBlock(src, h, '대상')).join('\n') + '\n';
+  /* 닻은 글자 그대로 셋 — 변수로 넘기면 anchor-signature-ratchet R4(변수 닻 수)가 는다 */
+  return "const FAILED_SAVE_IDS_KEY = 'web-editor-failed-save-ids';\n" + sliceBlock(src, 'function _failedSaveIds(', '대상') + '\n' + sliceBlock(src, 'function _setFailedSaveIds(', '대상') + '\n' + sliceBlock(src, 'function _noteFailedSave(', '대상') + '\n';
 }
 function saveFn(tok, sealId) {
   const calls = [];
