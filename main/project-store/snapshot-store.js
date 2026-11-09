@@ -56,7 +56,7 @@ const LEGACY_RAW_MAX = 8 * 1024 * 1024;
 //   최신 슬롯부터 예산만큼만 분석하고 나머지는 pending 으로 둔다. 다음 열람 때 이어서 채운다
 //   (이미 분석된 항목은 재사용하므로 자동으로 완성된다). 목록은 그 사이에도 시각·용량으로 답한다.
 const REBUILD_BYTE_BUDGET = 120 * 1024 * 1024;
-const PINNED_REASONS = new Set(['pre-restore', 'manual']);
+const PINNED_REASONS = new Set(['pre-restore', 'manual', 'gone-copy']);   // gone-copy = 돌아온 폴더를 안 덮고 남긴 편집(main _goneBaseRefusal) — 다른 데 없는 본이라 프룬이 못 지운다
 
 /* ── 지문 정규식 — «싸구려»가 요구사항이다(저장 경로에 얹힌다) ─────────────
  * 실측(39.6MB canvas): SEC_OPEN 16ms · BLOCK_ID 7ms · 이미지 2종 20ms · secs 추출 8ms.
@@ -601,7 +601,7 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   // [F10] 인덱스 기록 실패가 «throw» 로 나가면 호출측이 스냅샷이 없다고 오해한다. 정직하게 돌려준다.
   try { writeIndex(projectsDir, projectId, idx); }
   catch (e) { return { ok: true, ts, indexFailed: e.message, bytes: Buffer.byteLength(out) }; }
-  try { updateCurrent(projectsDir, projectId, data, { now }); } catch (_) {}
+  if (!opts.notCurrent) { try { updateCurrent(projectsDir, projectId, data, { now }); } catch (_) {} }   // notCurrent: proj.json 이 아닌 본(gone-copy)은 «현재»를 안 바꾼다
 
   return { ok: true, ts, bytes: Buffer.byteLength(out), images: canon.images, reused: canon.reused,
            bytesWritten: canon.bytesWritten, ...(pinsOk === null ? {} : { pinsOk }),
@@ -631,7 +631,7 @@ function pruneVersions(projectsDir, projectId, opts = {}) {
   //   그리고 prepareRestore 가 이미 ok:true 로 「돌아갈 수 있다」고 말한 뒤라, 조용한 철회다.
   //   상한은 사용자 «선호»로 찍는 핀(manual)에만 건다.
   let unpinned = 0;
-  const cappedPins = all.filter(e => e.pinned && e.reason !== 'pre-restore');
+  const cappedPins = all.filter(e => e.pinned && e.reason !== 'pre-restore' && e.reason !== 'gone-copy');   // gone-copy 도 상한 밖 — 선호가 아니라 하나뿐인 본이다
   for (const e of cappedPins.slice(PINNED_MAX)) { e.pinned = false; unpinned++; }
 
   const keep = new Set();

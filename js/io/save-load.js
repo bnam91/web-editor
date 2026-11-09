@@ -281,7 +281,7 @@ function _saveRefusedText(r) {
 window.saveRefusedText = _saveRefusedText;
 function _isSaveFailure(r) { return !!(r && r.ok === false && r.skipped !== true); }
 /* 폴더 없는 동안 남은 본으로 연 탭의 저장이면 표시를 붙인다 — 그사이 폴더가 돌아왔으면 main 이 덮지 않고 거절한다(folder_returned · MISSING-FOLDER-RETURNS-WHILE-VIEWING-OVERWRITES-01). */
-function _markGoneBase(p, id) { if (openTabs.find(t => t.id === id)?._goneCopy) p._goneBase = true; return p; }
+function _markGoneBase(p, id, captured) { if (captured ?? openTabs.find(t => t.id === id)?._goneCopy) p._goneBase = true; return p; }   // captured = 저장이 들어올 때 잡은 값 — 닫는 탭은 보낼 때 이미 목록에 없다(V4)
 
 /** 그 프로젝트의 «마지막으로 끝난» 저장이 실패였나. dirty 와 «따로» 묻는다. */
 /* 닫을 때 저장할 게 있나. 되돌리기 봉인 중이면 없다: 저장 실패 기록이 남은 채 새로고침하면 동기 저장이 복원본을 덮는다. */
@@ -311,7 +311,8 @@ function _flushUnfinishedSavesSync() {
       const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
       applyAdoptedAssets(data, id);   // 탭 전환 본은 라이브 DOM 의 옛 주소다 — 평소엔 저장 줄에서 옮기지만 여기선 그 길을 안 탄다(앱 ×6: 파일이 되돌아가 A 삭제 후 0/2)
       if (!opts?.allowEmpty && _emptySaveBlocked(data, id)) continue;   // 평소 저장과 같은 보호(_doSaveProjectToFile) — 메인에는 이 검사가 없어 파일이 빈다
-      const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id));
+      const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id, opts?._goneBase));
+      if (r?.reason === 'folder_returned' && r.kept) continue;   // 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
@@ -333,6 +334,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
   if (!opts._fromQueue && window.isTabFirstLoading?.(_targetId)) return { ok: false, skipped: true, reason: 'tab-not-loaded' };
   /* 되돌린 뒤 새로고침 전 탭 전환·홈 이동이 변환본으로 복원본을 덮는다. 다른 프로젝트 저장은 지나간다. */
   if (_isReloadSealed(_targetId)) return { ok: false, skipped: true, reason: 'reload-seal' };
+  /* 남은 본 표시는 «지금» 잡는다 — 줄에 서거나 await 하는 사이 탭이 닫히거나(V4) 다시 열려 표시가 걷히면, 남은 본 위의 이 스냅샷이 표시 없이 나가 돌아온 파일을 덮었다. */
+  if (_targetId && opts._goneBase === undefined) opts = { ...opts, _goneBase: !!openTabs.find(t => t.id === _targetId)?._goneCopy };
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
@@ -448,9 +451,9 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       try { await window.externalizeScratchpad?.(proj, targetId); }
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       if (_savingSuperseded && targetId === _savingOwnerId) return { ok: true, skipped: true, reason: 'flushed' };
-      const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId));
+      const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId, opts._goneBase));
       if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
-        if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다
+        if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId, saveResult.kept)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false, saveResult.kept)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다
           .catch(e => console.warn('[save-load] 돌아온 폴더 다시 열기 실패:', e && e.message));
         else window.showToast?.(_saveRefusedText(saveResult));
         _setAutosaveIndicator('error');

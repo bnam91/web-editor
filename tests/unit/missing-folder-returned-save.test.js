@@ -1,6 +1,7 @@
 /* missing-folder-returned-save — 남은 본으로 연 탭의 저장은 돌아온 폴더를 안 덮는다(MISSING-FOLDER-RETURNS-WHILE-VIEWING-OVERWRITES-01 · 탭 쪽은 tests/dom/missing-folder-returns-while-viewing).
  * 앱 값(MPT-리뷰8-203500 · L3 3/3): 폴더 없는 탭을 LS 본으로 보는 중 폴더가 돌아오고 그 탭에서 편집하면 돌아온 파일이 proj_backup 한 칸에만 남는다.
  * 칸: 진짜 main 핸들러(_ipc-harness). G1 비동기 저장 거절 · G2 동기(종료·새로고침) 저장 거절 · G3 거절한 본은 버전 기록에 남는다(편집을 안 버린다).
+ * 칸(리뷰 1): G4 남긴 본은 핀(프룬·핀 상한 밖)이고 버전 목록의 «현재»를 안 바꾼다 · G5 버전 기록을 못 쓰면 비상 사본으로 남긴다 · 렌더러 칸(줄 선 저장)은 DOM V5.
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -49,7 +50,7 @@ test('G3 거절한 본은 버전 기록에 남는다 — 거절이 편집을 안
     const before = history(id).filter((x) => x.includes('남은본편집')).length;
     const body = { ...proj(id, '남은본편집'), _goneBase: true };
     const r = sync ? H.invokeSync('projects:save-sync', null, body) : await H.invoke('projects:save', body);
-    assert.equal(r.kept, true, (sync ? '동기' : '비동기') + ' kept');
+    assert.equal(r.kept, 'history', (sync ? '동기' : '비동기') + ' kept');
     const kept = history(id).filter((x) => x.includes('남은본편집'));
     assert.equal(kept.length, before + 1, '★거절한 편집이 어디에도 안 남았다 · ' + (sync ? '동기' : '비동기'));
     assert.equal(kept[0].includes('_goneBase'), false, '표시는 파일에 안 들어간다');
@@ -68,4 +69,24 @@ test('N2 [대조] 표시 없는 저장은 평소대로 덮는다', async () => {
   const id = await returned();
   assert.equal((await H.invoke('projects:save', proj(id, '평소'))).ok, true);
   assert.match(JSON.stringify(file(id)), /평소 머리/);
+});
+
+const idx = (id) => JSON.parse(fs.readFileSync(path.join(dir(id), 'proj_history', 'index.json'), 'utf8'));
+test('G4 남긴 본은 핀이다 — 프룬이 못 지우고, 버전 목록의 «현재»는 돌아온 파일 그대로', async () => {
+  const id = await returned();
+  const cur0 = idx(id).current;
+  await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
+  const e = idx(id).entries.find((x) => x.reason === 'gone-copy');
+  assert.ok(e, '[전제] 남긴 칸');
+  assert.equal(e.pinned, true, '★핀이 아니다 — 약 20칸 뒤 프룬이 지운다');
+  assert.deepEqual(idx(id).current, cur0, '★남긴 본이 «현재»를 바꿨다');
+});
+test('G5 버전 기록을 못 쓰면 비상 사본으로 남긴다', async () => {
+  const id = await returned();
+  const h = path.join(dir(id), 'proj_history'); fs.chmodSync(h, 0o500);
+  let r; try { r = await H.invoke('projects:save', { ...proj(id, '기록못씀편집'), _goneBase: true }); } finally { fs.chmodSync(h, 0o755); }
+  assert.equal(r.reason, 'folder_returned'); assert.equal(r.kept, 'emergency');
+  const em = path.join(H.userData, 'emergency-saves');
+  assert.ok(fs.readdirSync(em).some((f) => f.startsWith(id) && fs.readFileSync(path.join(em, f), 'utf8').includes('기록못씀편집')), '★어디에도 안 남았다');
+  assert.match(JSON.stringify(file(id)), /돌아온 머리/);
 });

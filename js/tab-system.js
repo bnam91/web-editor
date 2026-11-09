@@ -382,7 +382,7 @@ async function switchTab(id) {
     /* 남은 본으로 연 탭 — 폴더가 돌아왔으면 그 캐시는 파일보다 낡았다. 그대로 쓰면 첫 편집이 돌아온 파일을 덮는다(앱 재현). 파일로 다시 연다. */
     if (targetTab?._goneCopy && await window.electronAPI?.projectFolderState?.(id) === 'ok') {
       if (_gen !== _switchGen) return;
-      targetTab._goneCopy = false; targetTab._cache = null; targetTab._afterLs = null;
+      targetTab._cache = null; targetTab._afterLs = null;   // _goneCopy 는 파일을 읽은 뒤 걷는다 — 그 전에 걷으면 줄 선 저장이 표시 없이 덮는다(적대 리뷰 ①)
     }
     // 메모리 캐시 있으면 즉각 복원 (파일 I/O 없음)
     if (targetTab?._cache) {
@@ -419,6 +419,7 @@ async function switchTab(id) {
       if (_gen !== _switchGen) return;   // ★360 — 그사이 다른 탭으로 갔다. 이 로드는 버린다(억제 토큰은 아래 finally 가 닫는다).
       _firstLoadingTabId = null;
       if (targetTab && proj?.name) targetTab.name = proj.name;
+      if (targetTab && proj) targetTab._goneCopy = false;   // 앞 저장이 다 끝나고(waitSavesFor) 파일을 읽었다 — 이제 남은 본이 아니다
       renderTabBar();
     } else {
       proj = window.loadProjectsList().find(p => p.id === id) || null;
@@ -637,14 +638,17 @@ window.releaseTabFirstLoading = (id) => { if (_firstLoadingTabId === id) _firstL
 window.closeTab             = closeTab;
 window.closeDeletedProjectTab = closeDeletedProjectTab;
 /* 남은 본으로 연 탭의 폴더가 돌아와 저장이 거절됐다(folder_returned) — 알리고 파일로 다시 연다. 옆 탭이면 표시만 걷는다: 돌아올 때 파일로 연다. */
-window.reopenReturnedTab = async (id) => {
+window.reopenReturnedTab = async (id, kept) => {
   const t = _getTabs().find(x => x.id === id);
   if (!t?._goneCopy) return false;
-  t._goneCopy = false; t._cache = null; t._afterLs = null;
-  window.showStatusToast?.(window.folderReturnedNotice?.(t.name));
+  if (t._reopening) return true;   // 줄 선 저장도 거절돼 다시 부른다 — 한 번만 열고 한 번만 알린다
+  /* ★_goneCopy 는 여기서 안 걷는다 — 줄 선 저장이 표시 없이 나가 돌아온 파일을 덮었다(적대 리뷰 ①). 파일을 읽은 뒤 switchTab 이 걷는다. */
+  t._cache = null; t._afterLs = null;
+  window.showStatusToast?.(window.folderReturnedNotice?.(t.name, true, kept));
   if (_getActId() !== id) return true;
-  _setActId(null);   // 같은 탭으로는 switchTab 이 안 돈다 — 나가는 탭이 없게 비우고 다시 연다(직렬화·저장 없음)
-  await switchTab(id);
+  t._reopening = true;
+  try { _setActId(null); await switchTab(id); }   // 같은 탭으로는 switchTab 이 안 돈다 — 나가는 탭이 없게 비우고 다시 연다(직렬화·저장 없음)
+  finally { t._reopening = false; }
   return true;
 };
 window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };

@@ -2,6 +2,8 @@
  * 앱 값(MPT-리뷰8-203500 · L3 3/3): 탭을 안 옮기고 편집하면 돌아온 파일을 덮고 proj_backup 한 칸에만 남는다. 옆 탭을 다녀오면 파일로 다시 열린다(T1 · tab-missing-project-notice).
  * 장면: 폴더 상태·읽기·쓰기를 가짜 API 로 돌린다 — 쓰기는 main 의 약속(남은 본 표시 + 폴더 있음 ⇒ folder_returned · kept)을 흉내 낸다. main 쪽은 tests/unit/missing-folder-returned-save.
  * 칸: V1 자동저장 길 — 안 덮고, 알리고, 파일로 다시 연다 · V2 종료·새로고침 동기 길도 표시를 단다 · V3 다시 연 뒤 편집은 평소대로 파일에 간다.
+ * 칸(인텔 1): V4 닫는 탭 — 표시는 저장이 들어올 때 잡는다(보낼 때 찾으면 탭이 목록에 없어 덮었다 · Expected −1 / Received +3).
+ * 칸(리뷰 1): V5 줄 선 저장도 표시를 단 채 나가 거절된다 — 첫 거절 뒤 다시 열기가 표시를 먼저 걷으면 그 저장이 덮었다.
  * 대조: N1 폴더가 아직 없으면 그 본으로 폴더를 다시 만들고 그 뒤 저장도 막지 않는다 · N2 평범한 탭은 표시가 없다.
  * 변이: 회신의 값. */
 const { test, expect } = require('@playwright/test');
@@ -17,8 +19,9 @@ async function setup(page, { cached = false } = {}) {
   await page.evaluate(({ A, B, R, cached }) => {
     window.__state = 'missing'; window.__written = []; window.__sent = []; window.__toasts = [];
     const real = window.electronAPI;
-    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') return { ok: false, reason: 'folder_returned', kept: true }; if (x.id === 'proj_b') window.__state = 'ok'; window.__written.push(x); return { ok: true }; };
-    window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => write(x)
+    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') return { ok: false, reason: 'folder_returned', kept: 'history' }; if (x.id === 'proj_b') window.__state = 'ok'; window.__written.push(x); return { ok: true }; };
+    /* __hold: proj_b 의 첫 비동기 저장을 붙든다 — 그사이 폴더가 돌아오고 다음 저장이 줄에 선다(적대 리뷰 ①). 판정은 풀린 뒤에 한다. */
+    window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { if (window.__hold && x.id === 'proj_b' && !window.__held) { window.__held = true; window.__sent.push({ id: 'held' }); await new Promise((r) => { window.__rel = r; }); window.__sent.pop(); } return write(x); }
       : k === 'saveProjectSync' ? (x) => write(x)
       : k === 'saveProjectMeta' ? async () => ({ ok: true })
       : k === 'loadProject' ? async (id) => (id === 'proj_b' ? (window.__state === 'ok' ? (window.__written.filter(w => w.id === 'proj_b').at(-1) || R) : null) : A)
@@ -37,6 +40,7 @@ async function setup(page, { cached = false } = {}) {
 }
 const ret = (page) => page.evaluate(() => { window.__state = 'ok'; });   // 앱 밖에서 폴더가 돌아왔다
 const edit = (page, t) => page.evaluate((t) => { document.querySelector('#canvas .text-block p').textContent = t; window.scheduleAutoSave(); }, t);
+const save = (page, t, id = 'proj_b') => page.evaluate(([t, id]) => { document.querySelector('#canvas .text-block p').textContent = t; return window.saveProjectToFile(window.serializeProject(), { projectId: id, skipThumbnail: true }); }, [t, id]);
 const wroteB = (page) => page.evaluate(() => window.__written.filter(w => w.id === 'proj_b').map(w => JSON.stringify(w.pages)));
 
 test('V1 자동저장 길 — 돌아온 파일을 안 덮고, 알리고, 파일로 다시 연다', async ({ page }) => {
@@ -78,11 +82,11 @@ test('V3 다시 연 뒤 편집은 평소대로 파일에 간다', async ({ page 
 });
 test('N1 [대조] 폴더가 아직 없으면 그 본으로 다시 만들고, 그 뒤 저장도 안 막는다', async ({ page }) => {
   const errs = await setup(page);
-  await edit(page, '첫편집');
-  await page.waitForFunction(() => window.__written.some(w => w.id === 'proj_b'), null, { timeout: 15000 });
-  await edit(page, '둘째편집');
-  await page.waitForFunction(() => window.__written.filter(w => w.id === 'proj_b').some(w => JSON.stringify(w.pages).includes('둘째편집')), null, { timeout: 15000 });
+  /* 저장을 곧장 부른다 — 1.5초 자동저장 타이머는 이 하네스에서 뒤따른 편집에 안 온다(인텔 N1·N2 시간 초과, 고치기 전 판도 같음). 자동저장 길은 V1 이 잰다. */
+  await save(page, '첫편집');
+  await save(page, '둘째편집');
   const s = await page.evaluate(() => ({ sent: window.__sent.filter(s => s.id === 'proj_b'), tab: window.openTabs.find(t => t.id === 'proj_b')._goneCopy }));
+  expect(await wroteB(page).then(w => w.length), '[전제] 두 저장이 다 들어갔다').toBe(2);
   expect(s.sent[0].gone).toBe(true);
   expect(s.sent.at(-1).gone, '★다시 만든 뒤에도 남은 본 표시 — 다음 저장이 거절된다').toBe(false);
   expect(s.tab).toBe(false);
@@ -92,9 +96,10 @@ test('N2 [대조] 평범한 탭의 저장은 표시가 없다', async ({ page })
   const errs = await setup(page);
   await page.evaluate(() => window.switchTab('proj_a'));
   await page.waitForFunction(() => !!document.getElementById('s_A1') && window.gdtProjectReady?.get?.()?.phase !== 'loading');
-  await edit(page, 'A편집');
-  await page.waitForFunction(() => window.__sent.some(s => s.id === 'proj_a'), null, { timeout: 15000 });
-  expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_a').some(s => s.gone))).toBe(false);
+  await save(page, 'A편집', 'proj_a');
+  const a = await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_a'));
+  expect(a.length, '[전제] 저장이 나갔다').toBeGreaterThan(0);
+  expect(a.some(s => s.gone)).toBe(false);
   expect(errs).toEqual([]);
 });
 test('V4 남은 본 탭을 닫으며 나간 저장이 거절돼도 알린다 — 다시 열 탭이 없다', async ({ page }) => {
@@ -105,5 +110,20 @@ test('V4 남은 본 탭을 닫으며 나간 저장이 거절돼도 알린다 —
   await page.waitForFunction(() => window.__toasts.some(t => t.includes('폴더가 돌아와')), null, { timeout: 15000 }).catch(() => {});
   expect(await wroteB(page), '★닫으며 나간 저장이 돌아온 파일을 덮었다').toEqual([]);
   expect((await page.evaluate(() => window.__toasts)).join(), '★거절했는데 말이 없다').toContain('버전 기록');
+  expect(errs).toEqual([]);
+});
+test('V5 줄 선 저장 — 첫 저장이 거절된 뒤 줄에서 나오는 저장도 돌아온 파일을 안 덮는다', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => { window.__hold = true; document.querySelector('#canvas .text-block p').textContent = '첫편집'; window.saveProjectToFile(window.serializeProject(), { projectId: 'proj_b', skipThumbnail: true }); });
+  await page.waitForFunction(() => typeof window.__rel === 'function', null, { timeout: 15000 });
+  await ret(page);
+  await page.evaluate(() => { document.querySelector('#canvas .text-block p').textContent = '줄선편집'; window.saveProjectToFile(window.serializeProject(), { projectId: 'proj_b', skipThumbnail: true }); });
+  expect(await page.evaluate(() => window.projectSaveUnsettled('proj_b')), '[전제] 둘째 저장이 줄에 섰다').toBe(true);
+  await page.evaluate(() => window.__rel());
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1') && window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 }).catch(() => {});
+  expect(await wroteB(page), '★줄 선 저장이 돌아온 파일을 덮었다').toEqual([]);
+  expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_b').length), '[전제] 두 저장이 다 나갔다').toBe(2);
+  expect(await page.evaluate(() => !!document.getElementById('s_돌아온1')), '★파일로 다시 안 열었다').toBe(true);
+  expect((await page.evaluate(() => window.__toasts)).filter(t => t.includes('폴더가 돌아와')).length, '안내는 한 번').toBe(1);
   expect(errs).toEqual([]);
 });

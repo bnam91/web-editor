@@ -2700,8 +2700,9 @@ function _goneBaseRefusal(project) {
   if (!project || !project._goneBase) return null;
   delete project._goneBase;
   if (!_resolveProjectJsonPath(String(project.id))) return null;
-  let kept = false;
-  try { kept = !!_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true }).ok; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
+  let kept = false;   // 'history' = 버전 기록(핀) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
+  try { if (_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }).ok) kept = 'history'; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
+  if (!kept) { const r = _recordSyncSaveFailure(project, 'folder_returned'); if (r && r.saved && r.saved.record && r.saved.record.emergencyPath) kept = 'emergency'; }
   return { ok: false, reason: 'folder_returned', kept };
 }
 ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirState.unresolved ? null : (_projectsDirState && _projectsDirState.account) || 'legacy'));   // 본이 어느 뿌리 것인지 가르는 값
@@ -2783,8 +2784,8 @@ ipcMain.on('projects:save-sync', (event, project) => {
   try {
     if (!project || !project.id) { event.returnValue = { ok: false, reason: 'invalid' }; return; }
     if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
-    const _returned = _goneBaseRefusal(project);   // 곧 끝나는 문서의 본이다 — 버전 기록에 더해 비상 사본으로도 남기고 종료 때 알린다(planning 거절과 같은 길)
-    if (_returned) { _recordSyncSaveFailure(project, _returned.reason); event.returnValue = _returned; return; }
+    const _returned = _goneBaseRefusal(project);   // 곧 끝나는 문서의 본 — 버전 기록에 남기고, 못 남기면 비상 사본(종료 때 알린다)
+    if (_returned) { event.returnValue = _returned; return; }
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
@@ -2837,7 +2838,7 @@ function _recordSyncSaveFailure(project, reason, error) {
     if (!project || !project.id) return;
     /* init 은 «준 것만» 덮는다 — dialog·shell 은 before-quit 이 뒤에 얹는다(충돌 없음). */
     quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion(), log: (m) => console.warn(m) });
-    quitSaveGuard.recordSyncSaveFailure({
+    return quitSaveGuard.recordSyncSaveFailure({
       projectId: project.id,
       projectName: project.name || null,
       /* ★비상 사본은 «프로젝트 JSON 과 같은 모양» 그대로 — recovery:restore 가 그대로 되살린다. */
