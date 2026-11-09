@@ -39,6 +39,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script type="module">
   import '/js/props/color-picker.js';
   import '/js/props/text-block-color.js';
+  import '/js/effects-shadow.js';   /* ★t4-01 — 텍스트 그림자는 Effects 카드(명부 식구)다 · 실제 index.html 처럼 싣는다 */
   import { showTextProperties } from '/js/props/prop-text.js';
   const host = document.getElementById('host');
   window.__snaps = [host.innerHTML];
