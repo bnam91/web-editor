@@ -353,26 +353,46 @@ async function handleSpawnClaudeTerminal(_e, { folderPath } = {}) {
 //   4. 폴더 없으면 generateFolder로 신규 생성 (PM-B 위임, projectId 전달)
 //   5. return {ok, folderPath, created, reused}
 // 호출 측은 결과를 localStorage에 캐싱 가능 (renderer가 책임).
-// base 내 폴더들 scan → project.meta.json.id가 projectId와 일치하는 폴더 반환
-// 사용자가 프로젝트명을 변경해도 같은 폴더를 reuse하기 위함 (이름과 무관하게 ID 기반)
-function _findFolderByProjectId(base, projectId) {
-  if (!fs.existsSync(base)) return null;
-  let entries;
-  try { entries = fs.readdirSync(base); } catch (_) { return null; }
-  for (const name of entries) {
-    if (name.startsWith('.')) continue;
-    const dir = path.join(base, name);
+/* ★NEWPROJ-FREEZE-DOCUMENTS-TCC-01 — 옛 PM 폴더(~/Documents/claude-pm-projects) 찾기.
+   맥 «문서 폴더 접근»(TCC) 확인창이 뜨면 그 경로의 sync fs 가 «메인 스레드째» 붙잡혀 앱 전체가 멈췄다
+   (새 프로젝트 만들 때 6분+ · HOME 을 바꾸면 즉시 통과 · v0.9.10 에도 같은 코드).
+   ⇒ 옛 경로는 ★비동기(fs.promises — libuv 스레드)로만 훑는다 · LEGACY_PROBE_MS 안에 못 끝나면 이관을 건너뛰고
+     새로 만든다(실패해도 계속) · 한 번 막히면 이 세션엔 다시 안 훑는다(붙잡힌 스레드를 더 쌓지 않게).
+   찾는 순서는 옛 sync 판과 같다: ⒜ <base>/<projectId> 폴더(meta id 가 다르면 버림) ⒝ base 의 폴더들 중 meta.id 일치.
+   lstat → symlink 는 폴더로 안 친다(symlink escape 방어 · 옛 판과 같음). */
+const LEGACY_PROBE_MS = 1500;
+let _legacyBlocked = false;
+async function _findLegacySrcAsync(base, projectId, { fsp = fs.promises, ms = LEGACY_PROBE_MS } = {}) {
+  if (_legacyBlocked) return null;
+  const probe = (async () => {
+    try { await fsp.access(base); } catch (_) { return null; }
+    const byId = path.join(base, projectId);
     try {
-      // lstatSync: symlink 자체로 인식 → isDirectory()=false → skip (symlink escape 방어)
-      const st = fs.lstatSync(dir);
-      if (!st.isDirectory()) continue;
-      const metaP = path.join(dir, 'project.meta.json');
-      if (!fs.existsSync(metaP)) continue;
-      const m = JSON.parse(fs.readFileSync(metaP, 'utf8'));
-      if (m && m.id === projectId) return dir;
-    } catch (_) { /* skip */ }
-  }
-  return null;
+      if ((await fsp.lstat(byId)).isDirectory()) {
+        let ok = true;
+        try {
+          const eid = JSON.parse(await fsp.readFile(path.join(byId, 'project.meta.json'), 'utf8'))?.id;
+          if (eid && eid !== projectId) ok = false;
+        } catch (_) { /* meta 없음·깨짐 = 폴더명 매칭으로 채택(옛 판과 같음) */ }
+        if (ok) return byId;
+      }
+    } catch (_) {}
+    let names;
+    try { names = await fsp.readdir(base); } catch (_) { return null; }
+    for (const name of names) {
+      if (name.startsWith('.')) continue;
+      const dir = path.join(base, name);
+      try {
+        if (!(await fsp.lstat(dir)).isDirectory()) continue;
+        const m = JSON.parse(await fsp.readFile(path.join(dir, 'project.meta.json'), 'utf8'));
+        if (m && m.id === projectId) return dir;
+      } catch (_) { /* skip */ }
+    }
+    return null;
+  })();
+  let timer;
+  const timeout = new Promise((r) => { timer = setTimeout(() => { _legacyBlocked = true; r(null); }, ms); });
+  try { return await Promise.race([probe, timeout]); } finally { clearTimeout(timer); }
 }
 
 // _repairFolder: meta/CLAUDE/NOTES/.mcp/archive 누락 보완 (이미 있는 파일 보존)
@@ -525,32 +545,7 @@ async function handleEnsureClaudePMFolder(_e, { projectId, projectName, basePath
     // [2] legacy 경로 자동 마이그레이션
     //     a) ~/Documents/claude-pm-projects/<projectId>/ (A 패턴, 폴더명=ID)
     //     b) ~/Documents/claude-pm-projects/<옛 이름>/ (project.meta.json id 매칭)
-    const legacyBase = _legacyBasePath();
-    let legacySrc = null;
-    if (fs.existsSync(legacyBase)) {
-      const candidateById = path.join(legacyBase, safePid);
-      // lstatSync로 symlink escape 방어 (codex 리뷰 반영, _findFolderByProjectId와 일관)
-      let isDirRegular = false;
-      try {
-        const st = fs.lstatSync(candidateById);
-        isDirRegular = st.isDirectory();
-      } catch (_) {}
-      if (isDirRegular) {
-        // meta id 일치 또는 meta 없으면 폴더명 매칭으로 채택
-        const metaP = path.join(candidateById, 'project.meta.json');
-        let okMatch = true;
-        try {
-          if (fs.existsSync(metaP)) {
-            const eid = JSON.parse(fs.readFileSync(metaP, 'utf8'))?.id;
-            if (eid && eid !== safePid) okMatch = false;
-          }
-        } catch (_) {}
-        if (okMatch) legacySrc = candidateById;
-      }
-      if (!legacySrc) {
-        legacySrc = _findFolderByProjectId(legacyBase, safePid);
-      }
-    }
+    const legacySrc = await _findLegacySrcAsync(_legacyBasePath(), safePid);
 
     if (legacySrc) {
       // copy → 신규 위치. 사용자 편집 보존(이미 있는 파일은 skip).
@@ -710,6 +705,8 @@ module.exports = {
     /* ⚠️검사 전용 — 「주입이 없으면 던지나」는 이 함수를 직접 흔들어야 잰다.
        IPC 경유로는 못 닿아서(핸들러가 오류를 감싼다) 검사가 장식이 된다. */
     _projectsRootPath,
+    _findLegacySrcAsync,
+    _resetLegacyBlocked: () => { _legacyBlocked = false; },
     get MCP_PORT() { return MCP_PORT; },
     handlePingMcp,
     handleGetMcpInfo,
