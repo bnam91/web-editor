@@ -26,7 +26,7 @@
      여기서는 최소한 «감지»해서 그 상자를 dedupe 에서 빼둔다(틀린 폴리곤으로 남의 변을
      지우면 두 배로 나쁘다).
 ═══════════════════════════════════════════════════════════════════════════ */
-import { CORNER_DIRS, _cornerScreen, _canvasScaleNow } from './overlay-handles.js';
+import { CORNER_DIRS, _cornerScreen, _canvasScaleNow, onUnionHandleDown } from './overlay-handles.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -138,7 +138,16 @@ function _collect() {
     const variant = _variantOf(host);
     out.push({ el: host, variant, outset: _selOutsetOf(host) });
   }
-  return out;
+  /* ★R2(t2-01) — 고른 것의 «조상»(프레임·그룹)은 그리지 않는다. 비교는 호스트끼리(_hostOf 뒤)라 글자 래퍼는 오탐이 없다.
+     ⛔.selected 자체는 안 지운다 — editor.js _restoreFreeLayoutFrameSelected 의 클릭·더블클릭 보호다. 그리기만 거른다.
+     ★«같은 상자»인 조상은 래퍼다(도형 = 래퍼 .frame-block + .shape-block 이 한 몸으로 켜진다 · selectShapeBlock) — 오늘처럼 둘 다 그리고
+       «한 개»로 센다(inner). 안 그러면 도형 하나가 «여럿»으로 잡혀 전체 상자가 생기고 핸들이 숨는다.
+     shortcut: O(N²) contains — 선택 수백 개에서 느려지면 조상 사슬 Set 으로 바꾼다. */
+  const near = (p, q) => Math.abs(p.x - q.x) < 0.5 && Math.abs(p.y - q.y) < 0.5;
+  const sameBox = (a, b) => near(_cornerScreen(a, 'nw', 0), _cornerScreen(b, 'nw', 0)) && near(_cornerScreen(a, 'se', 0), _cornerScreen(b, 'se', 0));
+  const kept = out.filter(a => !out.some(b => b !== a && a.el.contains(b.el) && !sameBox(a.el, b.el)));
+  for (const a of kept) a.inner = kept.some(b => b !== a && b.el.contains(a.el));   // 남은 포함 쌍 = 같은 상자 래퍼 쌍
+  return kept;
 }
 
 /* ── 기하 ────────────────────────────────────────────────────────────────── */
@@ -513,7 +522,7 @@ function _build() {
     if (!t.el.isConnected) return null;
     const g = _geomOf(t.el, t.variant, scale, t.outset);
     if (!g.rot && (g.raw.r - g.raw.l < 0.5 || g.raw.b - g.raw.t < 0.5)) continue; // 접힌/숨은 상자
-    const it = { el: t.el, variant: t.variant, g, edges: g.rot ? null : _edgesOf(g) };
+    const it = { el: t.el, variant: t.variant, inner: t.inner, g, edges: g.rot ? null : _edgesOf(g) };
     /* ⛔바깥 선은 dedupe 에 참여시키지 않는다(회전 상자와 같은 이유 — 틀린 폴리곤으로 남의 변을 지우면 두 배로 나쁘다).
        바깥 선은 이웃의 «상자 안» 선과 1~2px 떨어져 있는데 dedupe 는 «상자 변»이 맞닿았다고 보고 이웃 변을
        통째로 지운다 → 이웃 선이 사라지고 그 자리는 비어 보인다. 안 지우면 최악이 「선이 두 줄」이다. */
@@ -521,7 +530,60 @@ function _build() {
     items.push(it);
   }
   if (items.length > 1) _dedupe(items);
+  if (items.filter(it => !it.inner).length > 1) items.push(_unionItem(items));   // ★전체 상자는 dedupe «뒤» — 이웃 선을 안 지운다
   return items;
+}
+
+/* ★전체 상자(t2-01 R1) — 2개 이상 고르면 고른 것 전체를 감싸는 상자 «하나». 주인은 이 함수 «한 자리»다.
+   ★t2-02b 훅: «비율대로 함께» 크기 핸들은 이 상자(selectionUnion() 의 화면 좌표 · .ss-sel-union path)에 단다.
+     ⛔두 번째 오버레이를 만들지 마라. 2개 이상이면 body.sel-multi 가 붙고 낱개 핸들은 CSS 가 숨긴다(editor-blocks.css). */
+let _union = null;
+function _unionItem(items) {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  for (const { g } of items) {
+    for (const p of g.rot ? g.pts : [{ x: g.raw.l, y: g.raw.t }, { x: g.raw.r, y: g.raw.b }]) {
+      l = Math.min(l, p.x); t = Math.min(t, p.y); r = Math.max(r, p.x); b = Math.max(b, p.y);
+    }
+  }
+  const raw = { l, t, r, b }, k = _dpr(), h = _strokeOf('') / 2;
+  const g = { rot: false, raw, sw: 2 * h, h, r: _ZERO_R,
+              L: _snapLo(l, k, h), T: _snapLo(t, k, h), R: _snapHi(r, k, h), B: _snapHi(b, k, h),
+              xlo: _rowEdge(l, k), xhi: _rowEdge(r, k), ylo: _rowEdge(t, k), yhi: _rowEdge(b, k) };
+  return { el: null, variant: '', union: true, g, edges: _edgesOf(g) };
+}
+/** 전체 상자의 화면 좌표 {l,t,r,b} — 2개 미만이면 null. */
+export function selectionUnion() { return _union && { ..._union }; }
+
+/* ★t2-02b — 전체 상자 손잡이 8개(모서리 4 + 변 4) = 고른 것을 «맞은편 꼭지/변 기준»으로 같은 비율로 늘린다.
+   손잡이는 #ss-handles-overlay 에 산다(낱개 핸들과 같은 층). 끌기 셈은 overlay-handles.js onUnionHandleDown(⌘G 묶음 옆 · 같은 규약). ⛔.ss-resize-handle 클래스를 안 단다 — 그 이름은
+   overlay-handles.js 가 «지금 프레임»의 꼭지에 옮기고(_updateHandlePositions) 지우며(hideFrameHandles) sel-multi 가 숨긴다.
+   모양은 css/editor-blocks.css 의 .ss-resize-handle 규칙을 같이 쓴다(.ss-union-handle).
+   ★흐름 배치(absolute 아님) 대상이 하나라도 있으면 손잡이를 «안 단다» — 좌표가 없어 비율이 안 서고, ⌘G 묶음은 그 자식에 width:100%→×8 로 부푼다(t2-02 평가 · 알려진 흠). */
+const _UDIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+let _unionScalable = false;
+const _isFree = (el) => el.classList.contains('sticker-block') || getComputedStyle(el).position === 'absolute';
+function _placeUnionHandles(r) {
+  const ov = document.getElementById('ss-handles-overlay');
+  if (!ov) return;
+  let hs = ov.querySelectorAll(':scope > .ss-union-handle');
+  if (!r) { hs.forEach(h => h.remove()); return; }
+  if (hs.length !== _UDIRS.length) {
+    hs.forEach(h => h.remove());
+    for (const d of _UDIRS) {
+      const h = document.createElement('div');
+      h.className = `ss-union-handle ${d}`;
+      h.dataset.dir = d;
+      h.addEventListener('mousedown', e => onUnionHandleDown(e, d, _union, _targets.filter(t => !t.inner).map(t => t.el)));
+      ov.appendChild(h);
+    }
+    hs = ov.querySelectorAll(':scope > .ss-union-handle');
+  }
+  for (const h of hs) {
+    const d = h.dataset.dir;
+    const x = d.includes('w') ? r.l : d.includes('e') ? r.r : (r.l + r.r) / 2;
+    const y = d.includes('n') ? r.t : d.includes('s') ? r.b : (r.t + r.b) / 2;
+    h.style.left = (x - 3.5) + 'px'; h.style.top = (y - 3.5) + 'px';
+  }
 }
 
 function _render(items) {
@@ -535,12 +597,17 @@ function _render(items) {
     const hasR = !!(g.r && CORNER_DIRS.some(d => g.r[d][0] > 0.05 || g.r[d][1] > 0.05));
     const cls = 'ss-sel-path'
       + (items[i].variant ? ` ss-sel-path--${items[i].variant}` : '')
-      + (g.rot || hasR ? ' is-rot' : '');   // is-rot = geometricPrecision(호·기울기엔 crispEdges 가 해롭다)
+      + (g.rot || hasR ? ' is-rot' : '')   // is-rot = geometricPrecision(호·기울기엔 crispEdges 가 해롭다)
+      + (items[i].union ? ' ss-sel-union' : '');   // 전체 상자 표식(모양은 .ss-sel-path 그대로 · t2-02b 훅)
     if (p.getAttribute('class') !== cls) p.setAttribute('class', cls);
     const d = _pathData(items[i]);
     if (p.getAttribute('d') !== d) p.setAttribute('d', d);
   }
   while (kids.length > items.length) layer.removeChild(layer.lastChild);
+  const u = items.find(it => it.union);
+  _union = u ? u.g.raw : null;
+  _placeUnionHandles(u && _unionScalable ? _union : null);   // t2-02b
+  document.body.classList.toggle('sel-multi', !!u);   // 낱개 핸들 숨김(Q2·Q5) — editor-blocks.css
 }
 
 function _frame() {
@@ -552,6 +619,8 @@ function _frame() {
     _targets = _collect();
     items = _build() || [];
   }
+  // 매 프레임 — 자리 방식(absolute↔흐름)은 style 만 바뀌어 MO(class·childList)가 못 본다. 고른 것 몇 개의 computed style 읽기라 싸다(_build 가 이미 배치를 읽었다).
+  _unionScalable = _targets.every(t => t.inner || _isFree(t.el));
   _render(items);
   if (items.length) _raf = requestAnimationFrame(_frame);   // 집합이 비면 루프 정지(MO 가 다시 깨운다)
 }
@@ -586,7 +655,9 @@ export function stopSelectionOverlay() {
   if (_raf != null) { cancelAnimationFrame(_raf); _raf = null; }
   _targets = [];
   _clear();
-  document.body.classList.remove('sel-ov');
+  _union = null;
+  _placeUnionHandles(null);
+  document.body.classList.remove('sel-ov', 'sel-multi');
 }
 
 try {
@@ -599,6 +670,7 @@ try {
     get layer() { return _layer; },
     targets: () => _targets.map(t => t.el),
     build: () => { _targets = _collect(); return _build(); },
+    union: selectionUnion,
   };
   if (!ok) console.warn('[sel-overlay] 초기화 안 함 — 문서 outline 이 그대로 쓰인다(플래그 OFF 또는 DOM 미존재)');
 } catch (e) {
