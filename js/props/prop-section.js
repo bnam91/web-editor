@@ -165,8 +165,10 @@ window.isOpaqueSectionColor = isOpaqueSectionColor;
 export const MESH_CORNERS = Object.freeze(['tl', 'tr', 'br', 'bl']);
 const MESH_AT = Object.freeze({ tl: '0% 0%', tr: '100% 0%', br: '100% 100%', bl: '0% 100%' });
 const MESH_LABEL = Object.freeze({ tl: '왼위', tr: '오른위', br: '오른아래', bl: '왼아래' });
-/* ★처음 켤 때의 네 색 — ★모서리끼리 ★색상환에서 ★떨어져 있어야 ★「메시」로 보인다(한 계열이면 단색처럼 보인다). */
-export const MESH_DEFAULT = Object.freeze(['#ff6ec7', '#7b5cff', '#4ad7d1', '#ffd166']);
+/* ★처음 켤 때의 네 색(TL·TR·BR·BL) — t4-04(현빈 「무채색 또는 저채도」 · 지디 ㉠ 무채색): 색상 대신 ★밝기 단차로 메시가 읽힌다.
+   ★바꿀 자리는 이 한 줄뿐(후보 ㉡ 저채도 따뜻 #f0eeea #d8d1cb #aca29a #e5e2dc · ㉢ 저채도 차가움 #eaedf0 #c7d1cc #929cab #d9e0e2).
+   ★이미 저장된 섹션은 자기 네 색을 data-bg-mesh 에 들고 있어 ★안 바뀐다. */
+export const MESH_DEFAULT = Object.freeze(['#f5f5f5', '#d9d9d9', '#a8a8a8', '#e6e6e6']);
 const MESH_HEX_RE = /^#[0-9a-f]{6}$/i;
 /* ★★★겹의 ★«꼴» — ★★`circle` 을 ★쓰지 ★마라. (261025 ★픽셀 실측 · tests/dom/section-mesh-gradient-v1 ★M7 이 잠근다)
      ★`circle` 의 기본 반지름은 ★`farthest-corner` = ★★대각선이라, ★가로로 긴 섹션(실측 344×168)에서
