@@ -107,8 +107,9 @@
    * 「내가 고쳤다」로 보여 낡은 판을 올려 상대 것을 가린다. 이 값과 다를 때만 내 편집이다. */
   let _durableHashes = {};
   let _baseHashes = null;
+  let _resumeSkip = null;            // BIG-IMAGE (b) — 옛 진도(ref.hashes 없음) 첫 재개: 이번에 받을 패치가 있는 섹션은 ②에서 안 올린다(내 판은 ③에서 충돌 기록으로)
   let _hashesDirty = false;
-  let _replaced = Object.create(null);   // 'pageId::secId' → 받은 패치가 덮기 직전의 내 해시
+  let _replaced = Object.create(null);   // 'pageId::secId' → { h: 받은 패치가 덮기 직전의 내 해시, at: 붙인 때(performance.now) } — ㉮
   let _serverHashes = null;              // 재개 때 서버 목차 — 내 글이 이것과 같으면 올릴 것이 없다
   let _appliedLog = [];                  // 이 세션에 붙였고 아직 진도에 안 든 패치 { seq, key, before }
   let _rewound = null;                   // 되감았을 때: seq → 그 섹션의 첫 덮이기 전 해시
@@ -284,8 +285,41 @@
    * goya-asset 주소는 이 기계 파일을 가리켜 상대 화면에서 깨진다. 받는 쪽이 저장·다시 열기를 거치면 같은 섹션이 그쪽 주소로
    * 바뀌어, 그대로 올리면 보낸 사람 그림까지 깨진다. ⇒ 비교·전송 둘 다 data URL 로 되돌린 글로 한다.
    * 같은 그림이면 어느 쪽 주소든 같은 글·같은 hash 가 되어 다시 올라가지 않는다. */
+  /* ★COLLAB-BIG-IMAGE-SECTION-NOT-SENT-01 — 에셋 블럭은 같은 그림을 data-img-src 와 <img class="asset-img" src> «두 번» 든다(image-handling.js setAssetImageFromSrc).
+     data URL 로 풀면 섹션에 base64 사본 2개 → 원본 ≈262KB 에서 서버 천장(700KB)에 닿아 섹션이 통째로 안 갔다.
+     ⇒ 천장을 «넘을 때만» img src 를 빼 사본 1개로 보낸다(data-src-from="img-src" 표식). 받는 쪽은 붙이기 전에 data-img-src 로 되살린다(restoreSlim).
+     «넘을 때만» = 지금 올라가는 섹션은 글·해시 그대로(올림 폭탄·옛 판 충돌 0). 옛 판 받는 쪽은 원래 못 받던 섹션만 그림 빈 채로 받는다(지디 OK).
+     ⛔GIF(data-gif-src)·섹션 배경 사본은 이번 범위 밖(지디: 별 줄). 서버·천장 무변. */
+  const SLIM_MARK = 'data-src-from';
+  function slimIfOver(o) {
+    const bytes = o.bytes != null ? o.bytes : new Blob([o.html]).size;
+    if (bytes <= _sectionLimit || o.html.indexOf('data:') === -1) return { ...o, bytes };
+    const M = mm(); if (!M) return { ...o, bytes };
+    const sec = new DOMParser().parseFromString(`<div id="c">${o.html}</div>`, 'text/html').querySelector('.section-block');
+    if (!sec) return { ...o, bytes };
+    let n = 0;
+    sec.querySelectorAll('img.asset-img[src^="data:"]').forEach(img => {
+      const ab = img.closest('[data-img-src]');
+      if (ab && ab.getAttribute('data-img-src') === img.getAttribute('src')) { img.removeAttribute('src'); img.setAttribute(SLIM_MARK, 'img-src'); n++; }
+    });
+    if (!n) return { ...o, bytes };
+    const html = sec.outerHTML;
+    return { ...o, html, hash: M.hash(M.normSection(sec)), bytes: new Blob([html]).size };
+  }
+  /** 받은 섹션의 빠진 img src 를 data-img-src 로 되살린다(해시는 받은 꼴 그대로 둔다 — 내 forPeer 가 같은 꼴을 다시 만든다). */
+  function restoreSlim(html) {
+    if (!html || html.indexOf(SLIM_MARK) === -1) return html;
+    const sec = new DOMParser().parseFromString(`<div id="c">${html}</div>`, 'text/html').querySelector('.section-block');
+    if (!sec) return html;
+    sec.querySelectorAll(`img.asset-img[${SLIM_MARK}="img-src"]`).forEach(img => {
+      const ab = img.closest('[data-img-src]');
+      if (ab && !img.getAttribute('src')) { img.setAttribute('src', ab.getAttribute('data-img-src')); img.removeAttribute(SLIM_MARK); }
+    });
+    return sec.outerHTML;
+  }
+
   async function forPeer(s, base, projectId) {
-    if (s.html.indexOf('goya-asset://') === -1) return s;
+    if (s.html.indexOf('goya-asset://') === -1) return slimIfOver(s);   // 이미 data URL 인 섹션도 천장을 넘으면 같은 꼴로(받은 쪽이 저장 전이면 이 꼴이다 — 다르면 되돌려 올린다)
     const known = _peerForm.get(s.hash);
     if (known && (known.hash === base[s.key] || known.bytes > _sectionLimit)) return { ...s, hash: known.hash, bytes: known.bytes };
     if (typeof window.inlineAssetsForPeer !== 'function') return s;
@@ -300,7 +334,7 @@
     }
     const sec = new DOMParser().parseFromString(`<div id="c">${r.html}</div>`, 'text/html').querySelector('.section-block');
     const M = mm();
-    const out = { ...s, html: r.html, hash: M.hash(M.normSection(sec)), bytes: new Blob([r.html]).size };
+    const out = slimIfOver({ ...s, html: r.html, hash: M.hash(M.normSection(sec)), bytes: new Blob([r.html]).size });
     if (!r.unresolved) _peerForm.set(s.hash, { hash: out.hash, bytes: out.bytes });   // 못 읽은 그림은 기억하지 않는다 — 파일이 나중에 생길 수 있다
     return out;
   }
@@ -458,6 +492,7 @@
       for (const s of secs) {
         /* 받기 전에 찍힌 스냅샷의 옛 판이다 — 올리면 상대를 되돌린다. ★COLLAB-SYNC-OLD-GAPS ㉮ — «받기 전에 찍혔을 때만» 건너뛴다(snapAt < 붙인 때).
            옛 판은 붙인 뒤 내가 그 판으로 «되돌린»(⌘Z·같은 글) 편집까지 영영 건너뛰어, 그 위로 온 상대 패치가 토스트·기록 없이 덮었다. snapAt 이 없으면(직접 부름) 옛 동작. */
+        if (_resumeSkip && _resumeSkip.has(s.key)) { _localSnap[s.key] = s.hash; continue; }   // BIG-IMAGE (b)
         const rep = _replaced[s.key];
         if (rep && rep.h === s.hash && !(Number.isFinite(snapAt) && snapAt > rep.at)) continue;
         delete _replaced[s.key];
@@ -534,6 +569,7 @@
     if (!st || !p || !p.html) return false;
     /* 상대가 보낸 글이다 — 열 때와 같은 세척을 붙이기 전에 한다(img onerror 가 내 화면에서 실행됐다). 해시는 상대 글 그대로 둔다. */
     if (typeof window.sanitizeCanvasHtml === 'function') p = { ...p, html: window.sanitizeCanvasHtml(p.html) };
+    p = { ...p, html: restoreSlim(p.html) };   // BIG-IMAGE — 사본 1개로 온 그림의 img src 를 되살린다(해시는 받은 꼴)
 
     // 다른 페이지의 섹션이면 DOM 이 아니라 state.pages[].canvas 문자열을 고친다.
     if (p.pageId && p.pageId !== st.currentPageId) {
@@ -800,12 +836,16 @@
     }
     _serverHashes = { ..._sent };
     if (_baseHashes) Object.assign(_sent, _baseHashes);   // 옛 판이 남긴 진도엔 이 값이 없다 — 그땐 위 서버 해시로 간다
+    /* ★COLLAB-BIG-IMAGE (b) — 옛 진도엔 «닫을 때 서버와 같았던 해시»가 없어, 그 사이 상대가 고친 섹션이 «내가 바꾼 것»으로 보여 ②가 옛 baseSeq 로 올려 첫 재개에 충돌이 한 번 났다.
+       ⇒ 그 섹션은 ②에서 안 올리고 ③에서 받는다 — 내 판은 applyPatch 가 충돌 기록(replaced)으로 남긴다(잃음 0 · 지디 OK: 1회 충돌 기록행). */
+    _resumeSkip = _baseHashes ? null : new Set((r.patches || []).map(p => (p.pageId || '') + '::' + p.sectionId));
     _resumed = true;   // ⑶ 이제부터 자동저장 push 는 진짜 차이만 본다
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
       /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
       try { await pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재개 push 직렬화 실패:', e); }
     }
+    _resumeSkip = null;
     if (_cfg !== cfg) { _serverHashes = null; return { ok: false, reason: 'switched' }; }
     // ③ 이제 남의 것을 적용한다. ★리뷰 1 F1 — _serverHashes 는 ③ 뒤에 비운다: applyRecorded 가 «서버의 지금 판이 이미 내 것»인 섹션의 묵은 패치를 안 붙인다.
     for (const p of (r.patches || [])) applyRecorded(p);   // BUGS.md:275 — 보류·거절은 applyRecorded 가 기록 안 한다
