@@ -253,6 +253,19 @@ test('B4 칩 드래그 — 그 스탑의 offset 만 바뀌고 글자 클리핑�
   expect(errs).toEqual([]);
 });
 
+test('B4b ★바가 처음 선 자리 = 다음 프레임 자리 — 아직 안 잰 그라데이션(옛 저장본 꼴)에서도 «상자→글자» 로 튀지 않는다 (t4-02)', async ({ page }) => {
+  const errs = await boot(page);
+  const r = await page.evaluate(async () => { const tb = document.getElementById('tb');
+    const pre = tb.querySelector('.tb-h1').style.backgroundSize;
+    window.showGradientLine(tb);
+    const at = () => tb._gradLine.chips[1].getBoundingClientRect().left; const a = at();
+    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    return { pre, a, b: at() }; });
+  expect(r.pre, '[전제] 열기 전엔 칠 영역을 아직 안 쟀다(옛 저장본 꼴)').toBe('');
+  expect(Math.abs(r.a - r.b), `바가 튀었다: 처음 ${r.a} → 다음 프레임 ${r.b}`).toBeLessThan(0.5);
+  expect(errs).toEqual([]);
+});
+
 test('B5 단색 복귀(clearTextGradient) → 바가 사라진다', async ({ page }) => {
   const errs = await boot(page);
   const out = await page.evaluate(() => {

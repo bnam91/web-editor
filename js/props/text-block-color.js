@@ -253,6 +253,9 @@ export function syncTextGradGeometry(contentEl) {
 }
 /** 캔버스 그라데이션 바용 «칠 구간» 사각형(화면 px) — 가로 = 글자 범위, 세로 = 상자. 그라데이션 없으면 null. */
 export function textGradientPaintRect(contentEl) {
+  /* ★아직 안 잰 그라데이션(옛 저장본 · 감시자가 돌기 전)이면 지금 잰다 — 안 그러면 캔버스 바가 «상자» 자리에 섰다가
+     다음 프레임에 «글자» 자리로 튄다(실측 x 471 → 385 · B4 칩 끌기가 빗나가던 원인). */
+  if (hasTextGradient(contentEl) && !contentEl.style.backgroundSize) syncTextGradGeometry(contentEl);
   if (!hasTextGradient(contentEl) || !contentEl.style.backgroundSize) return null;
   const x = _textSpanX(contentEl);
   if (!x) return null;
