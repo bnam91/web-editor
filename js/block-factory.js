@@ -2092,6 +2092,7 @@ window.addQuoteChild = addQuoteChild;
      ⇒ ★★거기는 ★명부가 ★둘이다. ⛔인용구는 ★그 꼴을 ★★따르지 ★않는다(★이름으로 적어 둔다). */
 window.QUOTE_CHILD_KINDS = QUOTE_CHILD_KINDS;
 
+const FRAME_CHILD_MIN_INNER = 40;   // t3-05: 부모 안쪽이 이보다 작으면 자식 크기는 섹션 기본의 80%(688×416)
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
@@ -2112,8 +2113,11 @@ function addFrameBlock(opts = {}) {
     if (opts.bg == null) { ss.dataset.bg = host ? '#FFFFFF' : '#D9D9D9'; ss.style.background = ss.dataset.bg; }
     if (host) {
       const p = framePadding(host);
-      const w = Math.max(1, Math.round((host.clientWidth  - p.l - p.r) * 0.8));
-      const h = Math.max(1, Math.round((host.clientHeight - p.t - p.b) * 0.8));
+      /* ★지디(261109): 부모 안쪽이 0·너무 작으면(높이 0 · 내용 맞춤 쌓기) 1px 자식이 생겼다 ⇒ 그 축은 섹션 기본(860×520)의 80% = 688×416 으로.
+         «너무 작음» = 안쪽 < FRAME_CHILD_MIN_INNER(40px) — 그보다 크면 늘 부모 안쪽의 80%. */
+      const _cx = (inner, def) => inner < FRAME_CHILD_MIN_INNER ? Math.round(def * 0.8) : Math.round(inner * 0.8);
+      const w = _cx(host.clientWidth  - p.l - p.r, 860);
+      const h = _cx(host.clientHeight - p.t - p.b, 520);
       ss.style.width = w + 'px'; ss.style.height = h + 'px'; ss.style.minHeight = h + 'px';
       ss.dataset.width = String(w); ss.dataset.height = String(h);
     }

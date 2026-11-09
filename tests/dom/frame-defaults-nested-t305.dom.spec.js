@@ -121,3 +121,16 @@ test('저장 → 다시 열기 — 새 프레임 색·크기 유지 · 옛 프�
   expect(s0[1]).toMatchObject({ ...WHITE, w: 480, h: 160 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ★지디(261109) 하한 — 부모 안쪽이 FRAME_CHILD_MIN_INNER(40px) 보다 작으면(높이 0·내용 맞춤 부모) 그 축은 섹션 기본 860×520 의 80% = 688×416.
+   옛(397f224ca)은 그대로 80% → 1px·24px 같은 자식이 생겼다. */
+for (const [tag, size, want] of [['높이만 작음(600×30)', { w: 600, h: 30 }, { w: 480, h: 416 }], ['둘 다 작음(30×30)', { w: 30, h: 30 }, { w: 688, h: 416 }]]) test(`하한 — ${tag} 부모에 들어가 F → ${want.w}×${want.h}`, async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(({ w, h }) => { const f = document.getElementById('EF'); f.style.width = w + 'px'; f.style.height = h + 'px'; f.style.minHeight = '0'; f.style.minWidth = '0'; }, size);
+  expect(await page.evaluate(() => { const f = document.getElementById('EF'); return [f.clientWidth, f.clientHeight]; }), '[전제] 부모 안쪽이 그 크기').toEqual([size.w, size.h]);
+  await raf(page);
+  await enter(page, 'EF');
+  const r = await info(page, await make(page, 'F'));
+  expect(r, JSON.stringify(r)).toMatchObject({ ...WHITE, parent: 'EF', dw: String(want.w), dh: String(want.h) });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
