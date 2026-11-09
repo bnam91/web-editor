@@ -80,8 +80,8 @@ function _render() {
   const i = S.sel;
   S.rad.hidden = S.ring.hidden = i == null;
   if (i != null) {
-    const g = geo[i], cx = g.x / 100 * w, cy = g.y / 100 * h, rx = g.rx / 100 * w, ry = g.ry / 100 * h;
-    // □ = 타원 위 45° 자리(상자 가운데 쪽) — 끌면 rx·ry 가 따로 움직인다
+    const g = geo[i], { x: cx, y: cy } = S.pts[i], rx = g.rx / 100 * w, ry = g.ry / 100 * h;
+    // 고리·□ 는 비켜 그린 점 자리(S.pts)를 따른다 · □ = 타원 위 45° 자리(상자 가운데 쪽) — 끌면 rx·ry 가 따로 움직인다
     S.rad.style.left = cx + (g.x <= 50 ? 1 : -1) * rx / SQ2 + 'px';
     S.rad.style.top = cy + (g.y <= 50 ? 1 : -1) * ry / SQ2 + 'px';
     Object.assign(S.ring.style, { left: cx - rx + 'px', top: cy - ry + 'px', width: 2 * rx + 'px', height: 2 * ry + 'px' });
@@ -99,6 +99,8 @@ function _tick() {
 }
 
 function _swallow(e) { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); }
+// preventDefault 는 포커스를 안 옮긴다 ⇒ 패널 입력칸이 포커스를 쥔 채면 뒤이은 Delete 가 그 칸을 고친다
+function _blurField() { if (_editable(document.activeElement)) document.activeElement.blur(); }
 
 function _local(ev) {
   const r = S.ov.getBoundingClientRect();
@@ -153,6 +155,7 @@ function showMeshCorners(sec) {
     d.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       _swallow(e);
+      _blurField();
       _select(i);
       _drag(e, (ev) => { const p = _local(ev); const g = window.meshGeoOf(sec)[i]; window.setMeshCornerGeo(sec, i, { ...g, x: p.x, y: p.y }); });
     });
@@ -166,10 +169,12 @@ function showMeshCorners(sec) {
   rad.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || S?.sel == null) return;
     _swallow(e);
+    _blurField();
     const i = S.sel;
     _drag(e, (ev) => {
-      const p = _local(ev), g = window.meshGeoOf(sec)[i];
-      window.setMeshCornerGeo(sec, i, { ...g, rx: Math.abs(p.x - g.x) * SQ2, ry: Math.abs(p.y - g.y) * SQ2 });
+      // 반지름은 그린 점(비켜 그렸으면 그 자리)에서 잰다 — □ 가 그 점을 따르니 잡는 순간 튀지 않게
+      const p = _local(ev), g = window.meshGeoOf(sec)[i], c = S.pts[i];
+      window.setMeshCornerGeo(sec, i, { ...g, rx: Math.abs(p.x - c.x / S.ov.offsetWidth * 100) * SQ2, ry: Math.abs(p.y - c.y / S.ov.offsetHeight * 100) * SQ2 });
     });
   });
   ov.appendChild(rad);
@@ -201,7 +206,10 @@ document.addEventListener('mouseover', (ev) => {
 function _editable(t) { return !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)); }
 window.addEventListener('keydown', (ev) => {
   if (S?.sel == null || _editable(ev.target) || _editable(document.activeElement)) return;
-  if (ev.key === 'Escape') { _swallow(ev); _select(null); return; }
+  if (ev.key === 'Escape') {
+    if (document.querySelector('.goya-cp-popover:not([hidden])')) return;   // 피커가 열렸으면 Esc 는 피커 몫(color-picker.js 가 닫는다)
+    _swallow(ev); _select(null); return;
+  }
   if (ev.key !== 'Delete' && ev.key !== 'Backspace') return;
   _swallow(ev);   // 섹션 삭제로 새지 않게 — 모서리는 지울 수 없고 자리만 기본값
   const before = S.sec.dataset.bgMeshGeo;

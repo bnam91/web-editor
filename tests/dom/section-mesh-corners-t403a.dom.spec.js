@@ -247,3 +247,91 @@ test('C10 틀린 geo 는 버리고 기본 모서리로 그린다 (메시는 4겹
   expect((await layers(page, A)).join(', ')).not.toBe(img0);
   expect(errs).toEqual([]);
 });
+
+/* ── t403b 후속(지디 ①②③ · 가드 A5·A10) ── */
+const cpOpen = (page) => page.evaluate(() => !!document.querySelector('.goya-cp-popover:not([hidden])'));
+const selCorner = (page) => page.evaluate(() => document.querySelector('.mesh-corner-dot.is-sel')?.dataset.meshCorner ?? null);
+
+test('E1 피커가 열렸으면 Esc 는 피커를 닫고 고른 점은 그대로 · 둘째 Esc = 점 풀기(현행)', async ({ page }) => {
+  const { errs, A } = await setup(page);
+  await meshOn(page, A);
+  const p = await dotPt(page, 'tr');
+  await page.mouse.dblclick(p.x, p.y);
+  await expect.poll(() => cpOpen(page), '더블클릭 = 피커').toBe(true);
+  expect(await selCorner(page)).toBe('tr');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => cpOpen(page), 'Esc 한 번 = 피커 닫힘').toBe(false);
+  expect(await selCorner(page), '고른 점 그대로').toBe('tr');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => selCorner(page), '둘째 Esc = 점 풀기').toBe(null);
+  expect(await page.evaluate((i) => document.getElementById(i).classList.contains('selected'), A), '섹션 선택 그대로').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('F1 패널 입력칸에 포커스가 있어도 점을 누른 뒤 Delete = 그 모서리 기본 · 입력칸 값 무변', async ({ page }) => {
+  const { errs, A } = await setup(page);
+  await meshOn(page, A);
+  await drag(page, await dotPt(page, 'tr'), await secPt(page, A, 0.6, 0.3));
+  await page.click('#sec-mesh-tr-hex');
+  expect(await page.evaluate(() => document.activeElement?.id), '전제: 입력칸 포커스').toBe('sec-mesh-tr-hex');
+  const v0 = await page.inputValue('#sec-mesh-tr-hex');
+  const p = await dotPt(page, 'tr');
+  await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.mouse.up();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await geoOf(page, A))?.split('|')[1] ?? '100 0 100 100', 'TR 기본').toBe('100 0 100 100');
+  expect(await page.inputValue('#sec-mesh-tr-hex'), '입력칸 값 무변').toBe(v0);
+  expect(errs).toEqual([]);
+});
+
+test('R1 비켜 그린 아래 점: 고리 중심과 □ 가 그린 점을 따른다(±1px) · 값은 그대로', async ({ page }) => {
+  const { errs, A } = await setup(page);
+  await meshOn(page, A);
+  const p = await dotPt(page, 'bl');
+  const sb = await page.evaluate((i) => document.getElementById(i).getBoundingClientRect().bottom, A);
+  expect(sb - p.y > 5, `전제: bl 점이 바닥에서 비켜 그려졌다 (${sb - p.y})`).toBe(true);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(() => selCorner(page)).toBe('bl');
+  await raf2(page);
+  const r = await page.evaluate(() => {
+    const c = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height }; };
+    return { dot: c(document.querySelector('.mesh-corner-dot[data-mesh-corner="bl"]')), ring: c(document.querySelector('.mesh-corner-ring')), rad: c(document.querySelector('.mesh-corner-rad')) };
+  });
+  expect(near(r.ring.x, r.dot.x, 1) && near(r.ring.y, r.dot.y, 1), `고리 중심 = 점 ${JSON.stringify(r)}`).toBe(true);
+  expect(near(r.rad.x, r.dot.x + r.ring.w / 2 / Math.SQRT2, 1) && near(r.rad.y, r.dot.y - r.ring.h / 2 / Math.SQRT2, 1), `□ = 점 기준 45° ${JSON.stringify(r)}`).toBe(true);
+  expect(await geoOf(page, A), '값은 그대로(기본 = 속성 없음)').toBe(null);
+  expect(errs).toEqual([]);
+});
+
+test('A5 패널 스톱 막대에서 스톱을 끌어도 data-bg-mesh-geo 는 그대로', async ({ page }) => {
+  const { errs, A } = await setup(page);
+  await meshOn(page, A);
+  await drag(page, await dotPt(page, 'tl'), await secPt(page, A, 0.4, 0.3));
+  const g0 = await geoOf(page, A);
+  const m0 = await page.evaluate((i) => document.getElementById(i).dataset.bgMesh, A);
+  const t = await page.locator('#sec-mesh-tl-bar .goya-cp-grad-thumb').first().boundingBox();
+  await drag(page, { x: t.x + t.width / 2, y: t.y + t.height / 2 }, { x: t.x + t.width / 2 + 40, y: t.y + t.height / 2 });
+  await expect.poll(() => page.evaluate((i) => document.getElementById(i).dataset.bgMesh, A), '전제: 스톱이 움직였다').not.toBe(m0);
+  expect(await geoOf(page, A), 'geo 무변').toBe(g0);
+  expect(errs).toEqual([]);
+});
+
+test('A10 점 밖의 자식 블록 클릭 = 그 블록 선택 · 점 클릭 = 어떤 블록도 안 고른다', async ({ page }) => {
+  const { errs, A } = await setup(page);
+  const tb = await page.evaluate((i) => {
+    const s = document.getElementById(i);
+    const before = new Set([...s.querySelectorAll('.text-block')].map((t) => t.id));
+    window.selectSection(s); window.addTextBlock('body');
+    return [...s.querySelectorAll('.text-block')].find((t) => !before.has(t.id)).id;
+  }, A);
+  await meshOn(page, A);
+  const b = await waitStableRect(page, '#' + tb);
+  await drag(page, await dotPt(page, 'tl'), { x: b.left + 12, y: b.cy });
+  const p = await dotPt(page, 'tl');
+  await page.mouse.click(p.x, p.y);
+  await raf2(page);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .selected:not(.section-block)').length), '점 클릭 = 블록 선택 없음').toBe(0);
+  expect(await page.evaluate((i) => document.getElementById(i).classList.contains('selected'), A), '섹션 선택 그대로').toBe(true);
+  await page.mouse.click(b.left + b.width - 12, b.cy);
+  await expect.poll(() => page.evaluate((i) => document.getElementById(i).classList.contains('selected'), tb), '블록 클릭 = 그 블록 선택').toBe(true);
+  expect(errs).toEqual([]);
+});
