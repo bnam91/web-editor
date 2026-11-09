@@ -329,11 +329,17 @@ function _removeItem(item) {
 /* ★SCRATCH-X-THEN-CRASH-WITHIN-SAVE-WINDOW-01 — 지우기·되살리기는 파일 매니페스트(proj.json pages[].scratchpad)를 1.5초 미룬 자동저장에 맡겼다
    ⇒ 그 창 안 비정상 종료면 파일에 지운 장이 남아 IndexedDB 없는 곳(다른 맥)에서 매니페스트로 되살아났다(원문 ×3).
    ⇒ IndexedDB 쓰기를 «기다린 뒤»(외부화가 그 키를 읽어 매니페스트를 만든다) 바로 저장(flushSave = 저장 버튼 길 · 자동저장 줄에 선다).
-   flushSave 는 성패를 안 돌려준다 — 끝난 뒤에도 안 저장된 것이 남았으면 예전처럼 자동저장을 건다(물러남). */
+   ★리뷰 1: 예약(triggerAutoSave)을 «먼저·동기로» 건다 — 미저장 표시(임자 = 지금 프로젝트)·끌기 억제·탭 전환 저장(H1)이 그것을 본다.
+     IndexedDB 를 기다리는 사이 탭이 바뀌었거나 자동저장이 억제 중(탭 전환·끌기)이면 바로 저장은 안 한다 — 걸어 둔 예약·탭 전환 저장 몫
+     (안 그러면 flushSave 가 «지금» 탭 = B 를 저장하고 A 는 미저장 표시도 없이 남았다 · 전환 도중이면 A 의 페이지를 B 파일에 쓸 수 있었다).
+   flushSave 는 성패를 안 돌려준다 — 끝난 뒤에도 미저장이 남았으면(실패 · flushSave 가 타이머를 지웠다) 예약을 다시 건다. */
 async function _scratchSaveFileNow(idbWrite) {
-  try { await idbWrite; } catch (_) {}
-  try { if (typeof window.flushSave === 'function') { await window.flushSave(); if (!window.hasUnsavedChanges?.()) return; } } catch (_) {}
   window.triggerAutoSave?.();
+  const pid = window.activeProjectId;
+  try { await idbWrite; } catch (_) {}
+  if (window.activeProjectId !== pid || window.state?._suppressAutoSave) return;
+  try { if (typeof window.flushSave === 'function') await window.flushSave(); } catch (_) {}
+  if (window.activeProjectId === pid && window.hasUnsavedChanges?.()) window.triggerAutoSave?.();
 }
 
 function _deleteScratchItemsWithHistory(items, opts = {}) {
@@ -407,11 +413,12 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
         /* ★redo 는 처음 지우기와 «같은 처분»이어야 한다 — 우클릭 「삭제」면 keepLone 도 넘긴다(적대 검수 1 · 옛: redo 만 1장 그룹을 풀었다) */
-        for (const s of snapshots) {
-          try { await window._scratchRemoveById?.(s.id, { keepLone: inGroupMode }); } catch (_) {}
-        }
-        try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
-        await _scratchSaveFileNow();   // ★J214 · ★X-THEN-CRASH(지우기는 위 await 로 IndexedDB 까지 끝났다)
+        await _scratchSaveFileNow((async () => {   // ★J214 · ★X-THEN-CRASH — 예약·프로젝트 잡기는 지우기 «전»에(리뷰 1)
+          for (const s of snapshots) {
+            try { await window._scratchRemoveById?.(s.id, { keepLone: inGroupMode }); } catch (_) {}
+          }
+          try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
+        })());
       },
     });
   } catch (_) {}
