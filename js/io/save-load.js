@@ -3086,8 +3086,13 @@ window.keepFailedCopyOnClose = async (id, name, cache) => {
   if (!data || !Array.isArray(data.pages)) return false;
   applyAdoptedAssets(data, id);   // 줄의 본은 옮기기 전에 찍혔을 수 있다 — 사본이 옛 주소면 그 프로젝트를 지운 뒤 그림이 빠진다(_flushUnfinishedSavesSync 와 같은 까닭)
   const reason = settled ? (_lastSaveResult.get(id)?.result?.reason || 'save-failed') : 'unconfirmed';
-  try { const r = await window.electronAPI.recordRefusedSave({ ...data, id, name: name || 'Untitled' }, reason); if (r?.ok && last && settled) last.kept = true; return !!r?.ok; }
-  catch (e) { console.warn('[save-load] 거절된 본을 남기지 못했다:', e && e.message); return false; }
+  let r = null;
+  try { r = await window.electronAPI.recordRefusedSave({ ...data, id, name: name || 'Untitled' }, reason); }
+  catch (e) { console.warn('[save-load] 거절된 본을 남기지 못했다:', e && e.message); }
+  if (r?.ok) { if (last && settled) last.kept = true; return true; }
+  /* 사본도 못 남겼다(디스크 가득·권한) — 닫은 탭은 종료 때 아무도 안 보니 말없이 잃는다. 닫기는 그대로, 알리기만(지디 결정 ⒜) */
+  window.showToast?.('⚠️ 저장 실패: 닫은 탭의 편집을 비상 사본으로 남기지 못했습니다 — 디스크 공간·폴더 권한을 확인해 주세요');
+  return false;
 };
 /* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
 window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);

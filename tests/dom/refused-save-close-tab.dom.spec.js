@@ -2,7 +2,7 @@
  * 왜: 거절된 본은 LS 에만 남았다. 탭을 닫으면 종료 flush·beforeunload 가 그 id 를 안 보고, 기획 id 는 목록에 없어
  *   다음 부팅의 고아 정리(cleanStaleAutosaveKeys)가 LS 를 지웠다 — 앱 L1 C17 ×1: 마커·비상본 없음 · 재시작 LS 0.
  * 자: 렌더러가 main 에 넘기는 recordRefusedSave 호출(가짜 API 기록). 마커·비상 사본 파일 쓰기는 main(_recordSyncSaveFailure) 몫 — 여기선 안 잰다.
- * 칸: R1 옆 탭으로 간 뒤 거절된 탭 닫기 · R2 활성 탭 닫기(떠나는 저장이 거절됨) · R3 사유 셋(깨진 원본·모르는 새 사유·예외) · R6 자동저장이 바로 거절된 활성 탭 닫기 · R7 닫고 종료 — 한 번만 남김 · R8 같은 실패 한 번만 · R9 사본 실패면 다시 · R10 던진 저장도 실패
+ * 칸: R1 옆 탭으로 간 뒤 거절된 탭 닫기 · R2 활성 탭 닫기(떠나는 저장이 거절됨) · R3 사유 셋(깨진 원본·모르는 새 사유·예외) · R6 자동저장이 바로 거절된 활성 탭 닫기 · R7 닫고 종료 — 한 번만 남김 · R8 같은 실패 한 번만 · R9 사본 실패면 다시 · R10 던진 저장도 실패 · R11 사본 실패면 토스트(닫기는 그대로)
  *     R4 [음성] 저장이 성공한 탭 닫기 — 남기지 않는다 · R5 [음성] 빈 캔버스 보호 스킵은 실패가 아니다.
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘(서로 다른 PNG). */
 const { test, expect } = require('@playwright/test');
@@ -186,4 +186,17 @@ test('R10 저장이 던져 결과가 없어도 실패로 친다(썸네일 앞 �
   expect(await page.evaluate((A) => window.projectSaveUnsettled(A), A), '★결과 없음을 미저장으로 안 센다(닫기 알림·beforeunload 가 같은 판정)').toBe(true);
   await page.evaluate((A) => window.closeTab(A), A);
   await expect.poll(() => keptA(page).then(k => k.length), { message: '★던진 저장 뒤 남지 않았다' }).toBe(1);
+});
+
+/* 리뷰 3라운드 → 지디 결정 ⒜: 사본도 못 남기면 알린다(닫기는 그대로) */
+test('R11 비상 사본 쓰기가 실패하면 토스트 1번 · 탭은 닫힌다', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => {
+    window.__toasts = []; const orig = window.showToast; window.showToast = (m) => { window.__toasts.push(String(m)); return orig?.(m); };
+    window.__fake.recordRefusedSave = () => ({ ok: false });
+  });
+  await refuseThenCloseInactive(page, 'unreadable_not_preserved');
+  await expect.poll(() => page.evaluate(() => window.__toasts.filter(t => t.includes('비상 사본으로 남기지 못했습니다')).length), { message: '★사본을 못 남겼는데 말이 없다' }).toBe(1);
+  expect(await page.evaluate((A) => window.openTabs.some(t => t.id === A), A), '탭이 안 닫혔다').toBe(false);
+  expect(errs).toEqual([]);
 });
