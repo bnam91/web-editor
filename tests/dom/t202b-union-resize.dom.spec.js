@@ -179,3 +179,64 @@ test('M 마킹이 섞이면 — t2-02 함수가 없는 판 = 상자만(자리·�
   expect(errs).toEqual([]);
 });
 test.fixme('M2 마킹 크기를 모델 키(sizeW/H·fontSize)로 — t2-02(a218bd92e) window._scaleStickerFromSnap 합친 뒤 켠다', async () => {});
+
+/* ── 후속(평가 조건) — F1 가는 대상 바닥 · P2 부모 둘 · S2 자리 방식만 바뀐 손잡이 ─────────────────────────── */
+test('T1 2px 선이 섞여도 줄일 수 있다 — 보통 블럭 50% · 선은 제 굵기 밑으로 안 간다', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(() => { const sec = document.getElementById('sG'); window.deselectAll(); window.selectSection(sec); const b = new Set(sec.querySelectorAll('.shape-block')); window.addShapeBlock('rectangle');
+    const sh = [...sec.querySelectorAll('.shape-block')].find((x) => !b.has(x)); sh.id = 'ln'; const f = sh.closest('.frame-block'); f.id = 'lnf'; window.updateFrameBlock?.(f.id, { width: 200, height: 2 });
+    const p = window.OverlayFloat.posElOf(f); window.OverlayFloat.enterFloat(p); p.style.left = '40px'; p.style.top = '320px'; p.dataset.offsetX = '40'; p.dataset.offsetY = '320';
+    p.style.height = '2px'; p.style.minHeight = '0px'; p.dataset.height = '2'; sh.style.height = '100%'; sh.style.minHeight = '0px'; window.deselectAll(); });   // 2px 구분선(높이 칸은 최소값이 있어 style 로 직접)
+  await raf(page);
+  await pick(page, ['#sh1', '#ln']);
+  expect((await look(page)).uh, '[전제] 손잡이 8').toBe(8);
+  const ids = ['sh1f', 'lnf'];
+  const a = await read(page, ids);
+  expect(a.lnf.r[3], '[전제] 선 굵기 ≤2').toBeLessThanOrEqual(2.5);
+  const W0 = a.U.r - a.U.l, H0 = a.U.b - a.U.t;
+  await drag(page, UH('se'), -W0 / 2, -H0 / 2);
+  const b = await read(page, ids), tag = JSON.stringify({ a, b });
+  expect(Math.abs(b.sh1f.r[2] - a.sh1f.r[2] / 2), `보통 블럭 폭 50% ${tag}`).toBeLessThanOrEqual(1.5);
+  expect(Math.abs(b.sh1f.r[3] - a.sh1f.r[3] / 2), `보통 블럭 높이 50% ${tag}`).toBeLessThanOrEqual(1.5);
+  expect(b.lnf.r[3], `선 굵기 그대로 ${tag}`).toBeGreaterThanOrEqual(a.lnf.r[3] - 0.01);
+  expect(Math.abs(b.lnf.r[2] - a.lnf.r[2] / 2), `선 길이는 50% ${tag}`).toBeLessThanOrEqual(1.5);
+  expect(errs).toEqual([]);
+});
+
+test('P2 부모가 다른 둘(프레임 A · 프레임 B 안) — se 끌기 = 각자 전체 상자 기준 같은 비율 · 맞은편 고정', async ({ page }) => {
+  const errs = await scene(page);
+  const ok = await page.evaluate(() => { const sec = document.getElementById('sG'), FR = '.frame-block:not([data-text-frame])';
+    const add = (id, w, h) => { window.deselectAll(); window.selectSection(sec); window._activeFrame = null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); const f = [...sec.querySelectorAll(FR)].find((x) => !b.has(x)); f.id = id; window.updateFrameBlock(f.id, { width: w, height: h }); return f; };
+    const A = add('fA', 300, 200), B = add('fB', 340, 220);
+    const inner = sec.querySelector('.section-inner'); inner.prepend(B.closest('.row') || B); inner.prepend(A.closest('.row') || A);   // 위쪽 흐름에 A·B — 원점이 서로 다르다
+    const put = (f, par, l, t) => { par.appendChild(f); f.style.position = 'absolute'; f.style.left = l + 'px'; f.style.top = t + 'px'; f.dataset.offsetX = String(l); f.dataset.offsetY = String(t); };
+    put(document.getElementById('sh1f'), A, 30, 40); put(document.getElementById('sh2f'), B, 90, 50);
+    window.deselectAll();
+    return document.getElementById('sh1f').offsetParent !== document.getElementById('sh2f').offsetParent; });
+  expect(ok, '[전제] 부모가 다르다').toBe(true);
+  await raf(page);
+  await page.evaluate(() => { for (const id of ['sh1', 'sh2']) { const s = document.getElementById(id); s.classList.add('selected'); s.closest('.frame-block').classList.add('selected'); } });
+  await raf(page);
+  expect(await page.evaluate(() => window.__selOverlay.targets().map((e) => e.id).sort()), '[전제] 고른 것(도형 = 래퍼+안쪽 한 몸)').toEqual(['sh1', 'sh1f', 'sh2', 'sh2f']);
+  expect((await look(page)).uh, '[전제] 손잡이 8').toBe(8);
+  const ids = ['sh1f', 'sh2f'];
+  const a = await read(page, ids);
+  await drag(page, UH('se'), 90, 60);
+  const b = await read(page, ids);
+  const { sx, sy } = expectRatio(a, b, 'se', ids);
+  expect(sx > 1 && sy > 1, '[전제] 커졌다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('S2 고른 채 자리 방식만 흐름으로 바뀌면 손잡이가 사라지고 · 되돌리면 돌아온다', async ({ page }) => {
+  const errs = await scene(page);
+  await pick(page, ['#sh1', '#sh2']);
+  expect((await look(page)).uh, '[전제] 손잡이 8').toBe(8);
+  const sel0 = await page.evaluate(() => window.__selOverlay.targets().map((e) => e.id).sort());
+  await page.evaluate(() => { document.getElementById('sh2f').style.position = 'relative'; });   // class·DOM 은 그대로 = MO 가 못 본다
+  await expect.poll(async () => (await look(page)).uh, { message: '흐름 → 손잡이 0', timeout: 1000 }).toBe(0);
+  await page.evaluate(() => { document.getElementById('sh2f').style.position = 'absolute'; });
+  await expect.poll(async () => (await look(page)).uh, { message: '되돌림 → 손잡이 8', timeout: 1000 }).toBe(8);
+  expect(await page.evaluate(() => window.__selOverlay.targets().map((e) => e.id).sort()), '선택 그대로').toEqual(sel0);
+  expect(errs).toEqual([]);
+});

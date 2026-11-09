@@ -613,12 +613,14 @@ function _render(items) {
 function _frame() {
   _raf = null;
   if (!_active) return;
-  if (_dirty) { _dirty = false; _targets = _collect(); _unionScalable = _targets.every(t => t.inner || _isFree(t.el)); }
+  if (_dirty) { _dirty = false; _targets = _collect(); }
   let items = _build();
   if (items === null) {           // 죽은 노드를 만났다 → 집합을 다시 잡고 이 프레임에서 바로 복구
-    _targets = _collect(); _unionScalable = _targets.every(t => t.inner || _isFree(t.el));
+    _targets = _collect();
     items = _build() || [];
   }
+  // 매 프레임 — 자리 방식(absolute↔흐름)은 style 만 바뀌어 MO(class·childList)가 못 본다. 고른 것 몇 개의 computed style 읽기라 싸다(_build 가 이미 배치를 읽었다).
+  _unionScalable = _targets.every(t => t.inner || _isFree(t.el));
   _render(items);
   if (items.length) _raf = requestAnimationFrame(_frame);   // 집합이 비면 루프 정지(MO 가 다시 깨운다)
 }

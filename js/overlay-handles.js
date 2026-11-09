@@ -491,11 +491,12 @@ function _snapOf(el) {
 }
 /* 상자 하나를 쓴다 — 자리 L,T(부모 기준 캔버스 px) · 크기 ×sx,×sy · 자식은 부모 원점 기준 같은 비율(⌘G 와 같다). */
 function _applyBox(s, L, T, sx, sy, fs) {
-  const e = s.el, W = Math.round(s.w * sx);
+  const e = s.el, keep = (v, k) => Math.max(Math.min(v, _UMIN), Math.round(v * k));   // 8px 보다 가는 축은 제 크기 밑으로 안 간다
+  const W = keep(s.w, sx);
   if (s.sticker) {   // shortcut: t2-02 의 window._scaleStickerFromSnap 이 없는 판 = 상자만(렌더·저장에서 크기는 옛 dataset 으로 돌아갈 수 있다). t2-02 합치면 위 갈래가 탄다.
     e.dataset.x = String(Math.round(L)); e.dataset.y = String(Math.round(T));
     e.style.left = Math.round(L) + 'px'; e.style.top = Math.round(T) + 'px';
-    e.style.width = W + 'px'; e.style.height = Math.round(s.h * sy) + 'px';
+    e.style.width = W + 'px'; e.style.height = keep(s.h, sy) + 'px';
     return;
   }
   L = Math.round(L); T = Math.round(T);
@@ -505,7 +506,7 @@ function _applyBox(s, L, T, sx, sy, fs) {
   if (e.dataset.width !== undefined && e.dataset.width !== '100%') e.dataset.width = String(W);
   if (s.isTextFrame) { if (s.contentEl && s.fs) s.contentEl.style.fontSize = (s.fs * fs).toFixed(1) + 'px'; }   // 글자 높이는 글자 크기가 정한다
   else {
-    const H = Math.round(s.h * sy);
+    const H = keep(s.h, sy);
     e.style.height = H + 'px';
     if (e.style.minHeight) e.style.minHeight = H + 'px';
     if (e.dataset.height !== undefined) e.dataset.height = String(H);
@@ -528,7 +529,10 @@ export function onUnionHandleDown(e, dir, U, els) {
     return s;
   });
   if (!snaps.length || W0 <= 0 || H0 <= 0) return;
-  const minSx = Math.max(...snaps.map(s => _UMIN / Math.max(1, s.w))), minSy = Math.max(...snaps.map(s => _UMIN / Math.max(1, s.h)));
+  // 바닥 비율 = «그 축에서 늘어나는» 보통 크기 대상만 8px 를 지킨다. 이미 8px 보다 가는 것(선·구분선)은 바닥을 안 세우고 _applyBox 에서 «제 크기 밑으로만» 안 간다.
+  // 글자 프레임 높이는 글자가 정하니 세로 바닥에서 뺀다. 아무도 없으면 전체 상자 자체가 8px 밑으로 안 간다.
+  const floorOf = (ds, D0) => Math.max(_UMIN / D0, ...ds.filter(d => d >= _UMIN).map(d => _UMIN / d));
+  const minSx = floorOf(snaps.map(s => s.w), W0 / scale), minSy = floorOf(snaps.filter(s => !s.isTextFrame).map(s => s.h), H0 / scale);
   window.deferAutoSave?.();
   const _hist = window.beginDragHistory?.('여럿 크기');
   function onMove(ev) {
