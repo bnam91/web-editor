@@ -5,7 +5,7 @@
  *   맨 이름으로 불러 꼴이 갈렸다 — 그 함수를 떼어 싣는 곳(tests/dom/resize-undo-history.dom.spec.js 의
  *   sliceBlock)에서 ReferenceError 로 드러났다.
  * ★무엇을 잠그나
- *   K1 js/ 전체에서 부르는 자리를 센다 — 세 파일에 하나씩, 셋 다 `window._rekeepCoin?.(` · 맨 이름 0
+ *   K1 js/ 전체에서 부르는 자리를 센다 — 네 파일에 하나씩(0911-int-2 t2-02 overlay-handles.js 더함), 넷 다 `window._rekeepCoin?.(` · 맨 이름 0
  *   K2 셈 자(callSites)의 반례 한 쌍 — 맨 이름·`?.` 없는 window 호출은 «나쁨»으로, 주석·정의는 «안 셈»으로 잡는다
  * ★주석은 걷고 센다(주석 안의 이름은 호출이 아니다).
  */
@@ -41,13 +41,15 @@ function jsFiles(dir) {
   });
 }
 
-test('K1 js/ 전체 — `_rekeepCoin` 호출은 세 파일에 하나씩이고 셋 다 window._rekeepCoin?.( 꼴', () => {
+test('K1 js/ 전체 — `_rekeepCoin` 호출은 네 파일에 하나씩이고 넷 다 window._rekeepCoin?.( 꼴', () => {
   const found = {};
   for (const f of jsFiles(path.join(REPO, 'js'))) {
     const sites = callSites(fs.readFileSync(f, 'utf8'));
     if (sites.length) found[path.relative(REPO, f)] = sites;
   }
-  assert.deepEqual(Object.keys(found).sort(), ['js/blocks/sticker-block.js', 'js/props/prop-sticker-coin.js', 'js/sticker-select.js']);
+  /* ★0911-int-2(t2-02 a218bd92e) — js/overlay-handles.js 가 넷째 자리: ⌘G 묶음 손잡이로 줄인 뒤 코인 마킹을 다시 가둔다(단일 모서리 끌기 = sticker-select.js 와 같은 일).
+       꼴은 window._rekeepCoin?.( 그대로 — 이 검사가 잠그는 «꼴»(맨 이름 0)은 무변 · 명부만 넷으로. */
+  assert.deepEqual(Object.keys(found).sort(), ['js/blocks/sticker-block.js', 'js/overlay-handles.js', 'js/props/prop-sticker-coin.js', 'js/sticker-select.js']);
   for (const [f, sites] of Object.entries(found)) {
     assert.equal(sites.length, 1, `${f}: 부르는 자리 ${sites.length}개`);
     assert.equal(sites[0].good, true, `${f}:${sites[0].line} 맨 이름(또는 ?. 없는) 호출 — ${sites[0].text}`);

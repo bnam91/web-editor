@@ -12,6 +12,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { mkTmpRoot } = require('./_tmproot.js');
+const { linkToDirOutside } = require('./_link.js');   // 정션 — 비승격 윈도우에서도 되고 실패는 던진다(win-portability Ⓒ-3)
 const { sliceBlock } = require('./_slice-block.js');
 
 const IPC = path.join(__dirname, '..', '..', 'main', 'claude-pm', 'ipc.js');
@@ -47,11 +48,12 @@ test('N2 이관 찾기 결과는 옛 판과 같다(⒜~⒠)', async () => {
   fs.mkdirSync(path.join(base, '옛 이름'));
   fs.writeFileSync(path.join(base, '옛 이름', 'project.meta.json'), JSON.stringify({ id: PID }));
   assert.strictEqual(await find(base), path.join(base, '옛 이름'), '⒞ 다른 이름 폴더의 meta.id 일치');
-  fs.rmSync(path.join(base, '옛 이름'), { recursive: true });
-  const real = path.join(path.dirname(base), 'outside'); fs.mkdirSync(real);
+  /* ⒟ 는 새 임시 루트에서 — 앞 장면을 손으로 지우지 않는다(tmproot-sole-owner T2: 치우기는 _tmproot 가 쥔다) */
+  const base2 = path.join(mkTmpRoot('legacy-link-'), 'claude-pm-projects'); fs.mkdirSync(base2, { recursive: true });
+  const real = path.join(path.dirname(base2), 'outside'); fs.mkdirSync(real);
   fs.writeFileSync(path.join(real, 'project.meta.json'), JSON.stringify({ id: PID }));
-  fs.symlinkSync(real, path.join(base, 'link'));
-  assert.strictEqual(await find(base), null, '⒟ symlink 은 폴더로 안 친다');
+  linkToDirOutside(real, path.join(base2, 'link'));
+  assert.strictEqual(await find(base2), null, '⒟ symlink 은 폴더로 안 친다');
 });
 
 test('N3 ensureFolder 통합 — 옛 폴더 있으면 이관 · 없으면 새로 생성', async () => {
