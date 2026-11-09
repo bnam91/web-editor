@@ -6,6 +6,7 @@
  *     T3 종료 답 뒤 beforeunload 의 두 번째 flush 는 같은 본을 다시 안 쓴다 · T4 [음성] 저장이 성공한 옆 탭은 안 쓴다
  *     T5 부팅 고아 정리가 실패 표지 id 의 LS 본을 남긴다 · T6 [음성] 표지 없는 목록 밖 id 는 그대로 지운다(다른 갈래 무접촉)
  *     T7 지운 프로젝트는 표지가 있어도 정리·표지 걷힘(지디 ㉠) · T8 표지 목록이 깨졌으면 옛 동작(지디 ㉡)
+ *     T9 다른 계정 본의 표지는 안 걷음 · T10 연 채 지운 탭 닫기가 표지를 걷음
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -106,8 +107,8 @@ test('T4 [음성] 저장이 성공한 옆 탭은 종료 때 다시 안 쓴다', 
 
 /* 부팅 고아 정리 — 다시 부팅(reload)해 실제 부팅 길로 잰다. 정리가 돌았다는 신호 = 목록에도 표지에도 없는 고아 Z 의 LS 가 지워짐(고정 대기 없음). */
 const Z = 'proj_tsz';
-async function bootWith(page, { failed, state = 'ok', corrupt = false }) {
-  await page.addInitScript(([A, B, Z, K, failed, state, corrupt]) => {
+async function bootWith(page, { failed, state = 'ok', corrupt = false, ownerA = 'legacy' }) {
+  await page.addInitScript(([A, B, Z, K, failed, state, corrupt, ownerA]) => {
     const proj = (id) => ({ id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas: `<div class="section-block" id="sec_${id}"><div class="section-inner"><div class="text-block" data-type="text"><div class="tb-h2">${id} 본문</div></div></div></div>` }] });
     const fake = {
       listProjects: async () => [{ id: B, name: B, type: null, updatedAt: new Date().toISOString() }],
@@ -122,12 +123,12 @@ async function bootWith(page, { failed, state = 'ok', corrupt = false }) {
       for (const id of [A, Z]) {
         localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(proj(id)));
         localStorage.setItem('web-editor-autosave__' + id + '_ts', String(Date.now()));
-        localStorage.setItem('web-editor-ls-root__' + id, 'legacy');
+        localStorage.setItem('web-editor-ls-root__' + id, id === A ? ownerA : 'legacy');
       }
       if (corrupt) localStorage.setItem(K, '{깨짐');
       else if (failed) localStorage.setItem(K, JSON.stringify([A]));
     }
-  }, [A, B, Z, FAILED_KEY, failed, state, corrupt]);
+  }, [A, B, Z, FAILED_KEY, failed, state, corrupt, ownerA]);
   await bootApp(page);
   await page.evaluate((B) => { history.replaceState(null, '', '?project=' + B); }, B);
   await page.reload();
@@ -151,4 +152,16 @@ test('T7 지운 프로젝트(휴지통)는 표지가 있어도 정리되고 표�
 test('T8 표지 목록이 깨졌으면 옛 동작 — 보호 없이 정리', async ({ page }) => {
   const r = await bootWith(page, { failed: true, corrupt: true });
   expect(r.ls).toBe(0);
+});
+test('T9 다른 계정의 본은 이 계정 폴더 상태로 표지를 걷지 않는다(X→Y→X 에서 잃음 · 리뷰 1)', async ({ page }) => {
+  const r = await bootWith(page, { failed: true, state: 'missing', ownerA: 'acct_x' });
+  expect(r.ls, '다른 계정 본을 지웠다').toBeGreaterThan(0);
+  expect(JSON.parse(r.ids || '[]'), '★다른 계정 본의 표지를 걷었다 — 그 계정으로 돌아가면 정리가 지운다').toContain(A);
+});
+test('T10 연 채 지운 프로젝트 탭을 닫으면 표지를 걷는다(지디 ㉠)', async ({ page }) => {
+  await setup(page);
+  await editThenLeaveA(page, 'planning_not_editor');
+  expect(await failedIds(page), '[전제] 실패 표지').toContain(A);
+  await page.evaluate((A) => window.closeDeletedProjectTab(A), A);
+  expect(await failedIds(page), '★지운 프로젝트 표지가 남았다(목록이 쌓인다)').not.toContain(A);
 });

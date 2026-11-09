@@ -283,7 +283,7 @@ function _noteFailedSave(id, failed) {
   _setFailedSaveIds(failed ? [...cur, id] : cur.filter(x => x !== id));
 }
 window.forgetFailedSave = (id) => _noteFailedSave(id, false);   // 프로젝트를 지웠다 — 보호할 본이 아니다
-const _flushedFailed = new Set();   // 이 문서에서 이미 내린 옆 탭 실패 본 — 종료 답 뒤 beforeunload 가 또 내리면 비상 사본이 둘
+const _flushedFailed = new Map();   // id → 이 문서에서 이미 내린 옆 탭 실패 본(그 캐시) — 종료 답 뒤 beforeunload 가 또 내리면 비상 사본이 둘 · 본이 바뀌면 다시 내린다(리뷰)
 
 /* ★[W-3-b] 「이 저장은 «실패»로 끝났나」 — 이 파일의 «단 하나의» 판정.
    ⛔`ok === false` 만 보면 «보호성 스킵»(빈 캔버스)까지 실패로 센다 ⇒ 새 프로젝트가 영원히
@@ -323,8 +323,8 @@ function _flushUnfinishedSavesSync() {
   /* ★FAILED-SAVE-TAB-SWITCH-THEN-QUIT-ORPHAN-LS-01 — 옆 탭의 실패 본도 내린다: 줄엔 없고 LS·탭 캐시에만 있어 종료가 안 봤다(DOM 재기 LS 319→0).
      거절되면 main 이 마커·비상 사본을 남기고 아래 흐름이 LS 에 둔다. 활성 탭은 부르는 쪽(종료 답·beforeunload)이 쓴다. */
   for (const t of openTabs) {
-    if (t.id === activeProjectId || left.has(t.id) || !t._cache || _flushedFailed.has(t.id) || _isReloadSealed(t.id) || !_lastSaveFailed(t.id)) continue;
-    _flushedFailed.add(t.id);
+    if (t.id === activeProjectId || left.has(t.id) || !t._cache || _flushedFailed.get(t.id) === t._cache || _isReloadSealed(t.id) || !_lastSaveFailed(t.id)) continue;
+    _flushedFailed.set(t.id, t._cache);
     left.set(t.id, { snapshot: t._cache, opts: { skipThumbnail: true, projectId: t.id } });
   }
   const work = [...left];
@@ -2819,6 +2819,8 @@ function initApp() {
           const _failedKeep = [];
           for (const id of _failedSaveIds()) {
             if (_listed.has(id) || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === null) continue;
+            const _owner = window.lsCopyOwner?.(id);
+            if (_owner && _owner !== (_root || 'legacy')) { _failedKeep.push(id); continue; }   // 다른 계정의 본 — 이 뿌리의 폴더 상태로 걷으면 그 계정으로 돌아왔을 때 지운다(리뷰: X→Y→X)
             const st = await window.electronAPI.projectFolderState?.(id);
             if (st === 'ok' || st === 'unknown') _failedKeep.push(id);   // 못 읽었으면 지운 게 아니다 — 남긴다
           }
