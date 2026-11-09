@@ -7,6 +7,12 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const FR = '.frame-block:not([data-text-frame])';
+/* «고른 블럭의 크기·회전» 손잡이 이름 — css/editor-blocks.css 의 body.sel-multi 목록과 같다. 넓은 «-handle» 성질로 세면 그 규칙이 모드 손잡이까지 죽여도 못 잡는다. */
+const OWNER = ['ss-resize-handle', 'ss-radius-handle', 'ss-rotate-handle', 'asset-overlay-handle', 'asset-radius-handle', 'mdl-overlay-handle', 'mdl-radius-handle',
+  'cpn-overlay-handle', 'icb-overlay-handle', 'canvas-overlay-handle', 'canvas-radius-handle', 'vector-overlay-handle', 'grd-overlay-handle', 'grd-img-overlay-handle',
+  'zm-overlay-handle', 'zm-radius-handle', 'zm-rotate-handle', 'tfo-overlay-handle', 'gradient-corner-handle', 'frame-resize-handle', 'shape-handle', 'zoom-handle',
+  'annot-handle', 'annot-rot-handle', 'hlb-handle', 'hlb-thickness-handle', 'sticker-corner-handle', 'asset-handle', 'tfh-handle', 'shape-rotate-zone', 'tb-rotate-zone',
+  'mdl-rotate-zone', 'ab-rotate-zone', 'vb-rotate-zone', 'mkp-rotate-zone', 'icn-rotate-zone', 'icb-rotate-zone', 'cvb-rotate-zone', 'sticker-rotate-zone'].map((c) => '.' + c).join(',');
 
 async function build(page) {
   await page.setViewportSize({ width: 1500, height: 1400 });
@@ -48,7 +54,8 @@ async function groups(page) {
   return { G1, G2, GA, GB, GC };
 }
 /* 화면 상태 — 그린 대상(호스트 id) · 테두리 path 수 · 전체 상자 bbox · 보이는 핸들 수(섹션 바닥 손잡이는 한 블럭 것이 아니라 뺀다). */
-const look = (page) => page.evaluate(() => {
+const look = (page) => page.evaluate((OWNER) => {
+  const vis = (h) => h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none';
   const paths = [...document.querySelectorAll('.ss-sel-layer .ss-sel-path')];
   const u = paths.filter((p) => p.classList.contains('ss-sel-union'));
   const tg = window.__selOverlay.targets();
@@ -61,10 +68,10 @@ const look = (page) => page.evaluate(() => {
     unionOk: !!(bb && want) && Math.abs(bb.x - want.l) <= 1 && Math.abs(bb.y - want.t) <= 1 && Math.abs(bb.x + bb.width - want.r) <= 1 && Math.abs(bb.y + bb.height - want.b) <= 1,
     unionBox: bb && [bb.x, bb.y, bb.x + bb.width, bb.y + bb.height].map(Math.round), want: want && [want.l, want.t, want.r, want.b].map(Math.round),
     oneOk: !!(one && hosts[0]) && Math.abs(one.x - hosts[0].left) <= 1 && Math.abs(one.y - hosts[0].top) <= 1 && Math.abs(one.x + one.width - hosts[0].right) <= 1 && Math.abs(one.y + one.height - hosts[0].bottom) <= 1,
-    handles: [...document.querySelectorAll('[class*="-handle"], [class*="-rotate-zone"]')].filter((h) => !h.matches('.section-bottom-handle') && h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none').length,
+    handles: [...document.querySelectorAll(OWNER)].filter(vis).length,
     multi: document.body.classList.contains('sel-multi'),
   };
-});
+}, OWNER);
 /* 여럿 칸의 판정 한 자리 — 테두리 = 고른 수 + 1 · 전체 상자 = 고른 것의 합 ±1 · 핸들 0 · 그린 대상에 조상 없음. */
 function expectMulti(L, ids, ancestors = []) {
   expect(L.drawn.slice().sort(), '그린 대상 = 고른 것').toEqual(ids.slice().sort());
@@ -155,4 +162,39 @@ test('S 한 개 고름은 오늘과 같다 — 그룹 · 블럭 · 프레임 (�
   await click(page, 'T4'); expectSingle(await look(page), 'WT4', 4);
   await page.evaluate(() => window.deselectAll()); await raf(page);
   await click(page, 'K5'); expectSingle(await look(page), 'F', 12);
+});
+
+/* 모드 손잡이는 «고른 블럭»의 것이 아니다 — 여럿 골라도 숨기지 않는다. 양성대조: css 를 3e6e74997(넓은 «-handle» 규칙)로 돌리면 크롭 칸이 빨강. */
+const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const modeVis = (page, sel) => page.evaluate((sel) => { const hs = [...document.querySelectorAll(sel)];
+  return { n: hs.length, vis: hs.filter((h) => getComputedStyle(h).display !== 'none' && h.getBoundingClientRect().width > 0).length, multi: document.body.classList.contains('sel-multi') }; }, sel);
+
+test('M1 여럿 고른 채 이미지 크롭(편집) 모드 손잡이는 보인다', async ({ page }) => {
+  test.setTimeout(90000); const errs = await build(page);
+  await click(page, 'T0'); await click(page, 'T1', 'Shift');
+  /* 크롭은 더블클릭으로 들어가고 그 클릭이 하나로 좁힌다 → 진짜 ⇧클릭 여럿 고름은 그대로 두고 앱의 진입 함수를 직접 부른다. */
+  await page.evaluate((PX) => { const sec = document.getElementById('S').querySelector('.section-inner');
+    sec.insertAdjacentHTML('afterbegin', `<div class="asset-block" id="AB" style="width:200px;height:120px;position:relative;overflow:hidden"><img class="asset-img" src="${PX}" style="width:200px;height:120px"></div>`);
+    window.enterImageEditMode(document.getElementById('AB'), { noColorAdjust: true }); }, PX);
+  await raf(page);
+  const C = await modeVis(page, '.img-corner-handle, .img-edge-handle, .img-rotate-zone');
+  expect(C.multi, '[전제] 여럿 고름 표식').toBe(true);
+  expect(C.n, '[전제] 크롭 손잡이 생김').toBeGreaterThan(0);
+  expect(C.vis, '크롭 손잡이 다 보임').toBe(C.n);
+  expect(errs).toEqual([]);
+});
+
+test('M2 여럿 고른 채 아웃페인트 손잡이는 보인다', async ({ page }) => {
+  test.setTimeout(90000); await build(page);
+  await click(page, 'T0'); await click(page, 'T1', 'Shift');
+  /* 앱 길 = js/ai-image-gen.js 가 스크래치 칩에 window._outpaintShow(id). 스크래치 항목은 _createItem 꼴(#canvas-scaler 안 .scratch-item[data-scratch-id] > img)로 둔다. */
+  await page.evaluate((PX) => { document.getElementById('canvas-scaler').insertAdjacentHTML('beforeend',
+    `<div class="scratch-item" data-scratch-id="sp_t201" style="position:absolute;left:40px;top:40px;width:200px;height:120px"><img src="${PX}" style="width:200px;height:120px"></div>`);
+    window._outpaintShow('sp_t201'); }, PX);
+  await raf(page);
+  const O = await modeVis(page, '.outpaint-handle');
+  await page.evaluate(() => window._outpaintHide());
+  expect(O.multi, '[전제] 여럿 고름 표식').toBe(true);
+  expect(O.n, '[전제] 아웃페인트 손잡이 8').toBe(8);
+  expect(O.vis, '아웃페인트 손잡이 다 보임').toBe(8);
 });
