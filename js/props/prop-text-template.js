@@ -35,7 +35,7 @@ export function buildTextPropsHtml(state) {
   const _sh = shadow || { enabled:false, x:2, y:2, blur:4, color:'#000000', alpha:50 };
   /* ★t4-01 — 그림자는 Effects 「효과 추가」의 «그림자» 카드로 산다(js/effects-shadow.js 텍스트 갈래 · 블러 1012t1C1 와 같은 옮김).
      ⛔두 벌 금지 — Effects 절이 그림자를 품는 블럭에선 옛 「Shadow」 절을 안 그린다. 품지 못하는 블럭(말풍선·라벨·아이콘텍스트·명부 없는 단위 하네스)은 옛 절 그대로(골든 바이트 동일). */
-  const _fxShadow = !isSpeechBubble && !isLabel && !isIconText && !!window.fxTypesFor?.(tb)?.some?.(t => t.key === 'shadow');
+  const _shInFx = !isSpeechBubble && !isLabel && !isIconText && !!window.fxReplaces?.(tb, 'txt-shadow-section');   /* 어느 식구가 갈음하는지는 명부가 안다(A0) */
 
   /* ═══ ★1012t1E1 Stroke(외곽선) 절 — Fill 과 Shadow 사이(피그마 순서 Fill → Stroke → Effects) ═══
    * ★«stroke 가 안 넘어오면 빈 문자열» ⇒ 단위 골든(typo-section-ssot T1)의 산출이 바이트 동일하다.
@@ -187,7 +187,7 @@ ${blockHeaderHTML({
          ⛔모달은 기본 false 라 마크업이 «바이트 동일»이다(형광펜 칸·밑줄 칸과 ★같은 규약). */
       showGradRecent: true })}${_strokeSec}
 
-${_fxShadow ? '' : `    <div class="prop-section" id="txt-shadow-section">
+${_shInFx ? '' : `    <div class="prop-section" id="txt-shadow-section">
       <div class="prop-section-title-row">
         <div class="prop-section-title">Shadow</div>
         <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">

@@ -54,6 +54,9 @@ export function fxTypesFor(el) {
   return FX_REGISTRY.filter(t => (typeof t.supports === 'function' ? !!t.supports(el) : true));
 }
 
+/** 그 블럭에서 어느 식구가 패널의 «옛 절»(sectionId)을 갈음하나 — 식구의 replaces 로 가른다(패널은 효과 이름을 모른다). */
+export function fxReplaces(el, sectionId) { return fxTypesFor(el).some(t => t.replaces === sectionId); }
+
 /* ── 카드 접힘(패널 «표시»만 · 데이터 아님) ──────────────────────── */
 const _openCards = new WeakMap();   // el → { [key]: 펼침 } (기본 펼침)
 export const fxIsCardOpen  = (el, k) => (_openCards.get(el) || {})[k] !== false;
@@ -131,7 +134,7 @@ export function watchAllFx(root = document) {
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     registerFxType, unregisterFxType, fxTypeKeys, fxTypesFor,
-    fxSectionHtml, wireFxSection, watchAllFx, FX_ADD_HEAD_LABEL,
+    fxSectionHtml, wireFxSection, watchAllFx, FX_ADD_HEAD_LABEL, fxReplaces,
     fxIsCardOpen, fxSetCardOpen,
   });
   /* 문서가 열린 뒤 걸린 블럭을 감시에 올린다(로드는 캔버스를 통째로 갈아 끼운다 — 그 뒤 rebindAll 이 돈다).
