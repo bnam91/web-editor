@@ -54,7 +54,8 @@ function extractFn(src, name) {
   }
   return src.slice(m.index, i);
 }
-const DEL_SRC = extractFn(EDITOR_SRC, 'deleteSelectedFromCanvas');
+/* ★HBQA-TWOCELL-INNER(2026-11-09) — 깊이 1 중첩 줄은 이제 ⌫·⌘↑↓ 로 «그 열 안»에서 지우고 옮긴다(hbqa-twocell-inner-edit.dom.spec.js). 바일아웃은 깊이 2+ 에만 남아 B1/M4 는 np '0.0/0.0' 으로 잰다. 새 이름 _gridNestHostOf 를 같이 심는다. */
+const DEL_SRC = extractFn(EDITOR_SRC, 'deleteSelectedFromCanvas') + '\n' + extractFn(EDITOR_SRC, '_gridNestHostOf');
 const ADDR_AT_SRC = extractFn(DRAG_SRC, '_gridAddrAt');
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
@@ -382,7 +383,7 @@ async function runDelete(page, delSrc = DEL_SRC) {
 test('B1 ★중첩 안 줄이 잡힌 채 ⌫ 를 눌러도 «아무 줄도» 안 지워진다(블록도 안전)', async ({ page }) => {
   const errs = await boot(page);
   await mount(page);
-  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0' }));
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0/0.0' }));
 
   const before = await page.evaluate(() => JSON.stringify(window.__model(window.__block).cells[0][0].lines));
   const r = await runDelete(page);
@@ -403,9 +404,9 @@ test('B1 ★중첩 안 줄이 잡힌 채 ⌫ 를 눌러도 «아무 줄도» 안
 test('B1-양성 ★⌫ 바일아웃을 떼면 «품은 duo 줄»이 통째로 지워진다(그래서 그 한 줄이 필요하다)', async ({ page }) => {
   const errs = await boot(page);
   await mount(page);
-  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0' }));
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0/0.0' }));
 
-  const ANCHOR = 'if (gridSel && gridAddr && gridAddr.np) {';
+  const ANCHOR = 'if (gridSel && gridAddr && gridAddr.np && !nestH) {';
   expect(DEL_SRC.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다').toBe(true);
   // 바일아웃 분기의 조건을 «늘 거짓»으로 만든다 — 분기 몸통은 그대로 둔다(문법 안전).
   const mutated = DEL_SRC.replace(ANCHOR, 'if (false) {');

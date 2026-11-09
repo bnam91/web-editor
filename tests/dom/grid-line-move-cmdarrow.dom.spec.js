@@ -79,7 +79,8 @@ const MOVE_SRC = extractFn(EDITOR_SRC, 'moveGridLineFromCanvas');
      M1~M6 아홉 개가 한꺼번에 빨개졌다. ★모듈 스코프의 이름을 «하나라도» 안 심으면 이 수법
      (함수 소스를 떠서 new Function 으로 감싸기)은 이렇게 끊긴다. 새 이름을 부르기 시작하면
      ★여기에 같이 심어라 — 그게 이 하네스의 값이다(T-220 에서 같은 병을 밟은 적이 있다). */
-const GATE_SRC = extractFn(EDITOR_SRC, '_gridActiveOuterLine');
+/* ★HBQA-TWOCELL-INNER(2026-11-09) — 깊이 1 중첩 줄은 이제 ⌫·⌘↑↓ 로 «그 열 안»에서 지우고 옮긴다(hbqa-twocell-inner-edit.dom.spec.js). 바일아웃은 깊이 2+ 에만 남아 B1/M4 는 np '0.0/0.0' 으로 잰다. 새 이름 _gridNestHostOf 를 같이 심는다. */
+const GATE_SRC = extractFn(EDITOR_SRC, '_gridActiveOuterLine') + '\n' + extractFn(EDITOR_SRC, '_gridNestHostOf');
 
 const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-base.css">
@@ -315,7 +316,7 @@ test('M3-양성 ★바깥 줄 분기의 consumed 를 떼면 칸의 끝에서 «�
 test('M4 ★중첩 안 줄이 잡힌 채 ⌘↑ — 아무것도 안 움직이고 토스트로 말한다', async ({ page }) => {
   const errs = await boot(page);
   await mount(page);
-  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 2, np: '0.0' }));
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 2, np: '0.0/0.0' }));
 
   const r = await pressCmdArrow(page, 'ArrowUp');
   const s = await snap(page);
@@ -333,7 +334,7 @@ test('M4 ★중첩 안 줄이 잡힌 채 ⌘↑ — 아무것도 안 움직이�
 test('M4-양성 ★np 바일아웃을 떼면 «품은 duo 줄»이 통째로 옮겨진다', async ({ page }) => {
   const errs = await boot(page);
   await mount(page);
-  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 2, np: '0.0' }));
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 2, np: '0.0/0.0' }));
 
   /* ★★0927 — np 바일아웃은 이제 «게이트»(_gridActiveOuterLine)가 세운다. 그래서 변이 대상이
      MOVE_SRC 가 아니라 GATE_SRC 다. ⛔MOVE_SRC 를 계속 때리면 닻이 없어 이 대조가 «안 재게» 된다. */

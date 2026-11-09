@@ -752,11 +752,11 @@ if (typeof window !== 'undefined') window.grdDuplicateLine = grdDuplicateLine;
  * @param {number} dir  -1 = 위로 · +1 = 아래로
  * @returns {{ok:true, li:number}|{ok:false, code:'INVALID'|'EDGE'|string}}
  *   EDGE = 칸의 끝이라 갈 자리가 없다(실패가 아니라 «할 일이 없다» — 토스트 안 띄운다). */
-export function grdMoveLine(block, pos, li, dir) {
+export function grdMoveLine(block, pos, li, dir, host = null) {
   const { r, c } = pos || {};
   const step = dir < 0 ? -1 : 1;
   let curLines;
-  try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
+  try { curLines = host ? host.getLines(r, c) : getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
   /* ⛔`li === null` 은 «빈 칸»(셀 모드, T-A) 표식이다 — Number(null) === 0 이라 그냥 Number 로
      받으면 «li:0 처럼» 통과해 첫 줄이 조용히 움직인다. _grdResolveAddr 이 같은 함정을 같은
      말로 막고 있다(그 주석의 규약을 여기서도 지킨다). ★검사가 실제로 잡았다 —
@@ -771,7 +771,7 @@ export function grdMoveLine(block, pos, li, dir) {
   /* ★EDGE 는 «여기서만» 판정한다 — 「칸의 끝」을 아는 것은 dir(한 칸씩)을 받는 이쪽뿐이다.
      자리를 «직접» 받는 grdMoveLineWithin 에는 「끝」이라는 뜻이 없다(범위 밖이면 INVALID 다). */
   if (to < 0 || to >= curLines.length) return { ok: false, code: 'EDGE' };
-  return grdMoveLineWithin(block, pos, from, to);
+  return grdMoveLineWithin(block, pos, from, to, host);
 }
 
 /* ══ 같은 칸 «안»에서 줄을 «지정한 자리»로 — T-228 이 쓸 문 (0927) ═════════
@@ -786,10 +786,10 @@ export function grdMoveLine(block, pos, li, dir) {
  * @returns {{ok:true, li:number}|{ok:false, code:'INVALID'|'SAME_SPOT'|string}}
  *   SAME_SPOT = 제자리다(할 일이 없다 — 실패가 아니라서 토스트를 안 띄운다. 끌다가 같은 자리에
  *   놓는 것은 «흔한 일»이고, 그때 아무 일도 안 일어나야 맞다). */
-export function grdMoveLineWithin(block, pos, fromLi, toLi) {
+export function grdMoveLineWithin(block, pos, fromLi, toLi, host = null) {   // ★host = 줄의 주인(중첩 열 = _grdNestColHost) · 없으면 그리드 칸
   const { r, c } = pos || {};
   let curLines;
-  try { curLines = getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
+  try { curLines = host ? host.getLines(r, c) : getGridModel(block).cells?.[r]?.[c]?.lines; } catch (_) { curLines = null; }
   /* ⛔null 을 Number 로 받지 않는다 — grdMoveLine·grdMoveLineToCell 이 같은 함정을 같은 말로
      막는다(빈 칸 표식 null 이 0 으로 통과하면 첫 줄이 조용히 움직인다). */
   const from = fromLi === null ? NaN : Number(fromLi);
@@ -806,9 +806,10 @@ export function grdMoveLineWithin(block, pos, fromLi, toLi) {
    *   뒤에 옮기면 패널과 캔버스 마커가 «옛 자리»를 한 번 그린다(grdAddLine 의 순서 규약).
    *   ⛔실패하면 되돌린다(같은 규약 — 없는 li 를 가리키면 패널이 빈 줄을 띄운다). */
   const prevActive = grdGetActiveLine(block);
-  grdSetActiveLine(block, { r, c, li: to });
+  grdSetActiveLine(block, host ? host.addrOf(r, c, to) : { r, c, li: to });
   // updateGridBlock 이 pushHistory + 재렌더 + 패널 재표시를 스스로 한다(줄 추가·삭제와 같은 원칙).
-  const res = window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
+  const res = host ? host.commitLines(r, c, newLines)
+    : window.updateGridBlock?.(block.id, { patchCell: { r, c, lines: newLines } });
   if (res && res.ok === false) {
     grdSetActiveLine(block, prevActive);
     return { ok: false, code: res.code, message: res.message };
