@@ -149,3 +149,21 @@ test('크기 — 내용 맞춤 흐름 부모(정한 높이 없음·자식 없음
   expect(r, JSON.stringify(r)).toMatchObject({ ...WHITE, parent: 'FL', dw: String(Math.round(inner.w * 0.8)), dh: '416' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ★미카사 실앱(261109): 진입 → F(흰 자식, 골라진 채) → F 한 번 더 = 새 «형제»가 부모 안 — 형제여도 흰색·부모 안쪽의 80%(섹션 기본 회색 860×520 아님) */
+for (const host of ['EF', 'FL']) test(`안 형제 — ${host} 진입 → F → F = 둘째도 #FFFFFF · 부모 80% · 부모 크기 그대로`, async ({ page }) => {
+  const errs = await scene(page);
+  await enter(page, host);
+  const w = await want80(page, host);
+  const size0 = await page.evaluate((h) => { const f = document.getElementById(h); return [f.offsetWidth, f.offsetHeight]; }, host);
+  const a = await make(page, 'F');
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a), '[전제] 첫 자식이 골라진 채').toBe(true);
+  const w2 = await want80(page, host);
+  const b = await make(page, 'F');
+  const r = await info(page, b);
+  expect(r, JSON.stringify(r)).toMatchObject({ ...WHITE, parent: host });
+  expect80(r, w2, `${host} 둘째`);
+  if (host === 'EF') expect(await page.evaluate((h) => { const f = document.getElementById(h); return [f.offsetWidth, f.offsetHeight]; }, host), '자유(고정) 부모 크기 그대로').toEqual(size0);
+  expect(w.w, '[전제] 첫째 기준 폭').toBeGreaterThan(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

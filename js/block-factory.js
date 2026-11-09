@@ -2108,8 +2108,12 @@ function addFrameBlock(opts = {}) {
      ★들어갈 부모 = insertAfterSelected 가 «안»에 넣는 그 조건(text-frame·banner 외곽은 안이 아니다). 넣기 «전»에 정한다 —
        자유배치 갈래의 growFrameToFitChildren 이 860×520 으로 부모를 키우기 전에. opts.bg 를 준 호출(MCP·runner)은 그 색 그대로. */
   if (!opts.fullWidth) {
-    const host = activeFrame && activeFrame.closest('.section-block') === sec
-      && !activeFrame.dataset.textFrame && !activeFrame.dataset.bannerPreset ? activeFrame : null;
+    const _okHost = (f) => f && f.closest('.section-block') === sec && !f.dataset.textFrame && !f.dataset.bannerPreset ? f : null;
+    /* ★미카사 실앱(261109): 진입 → F(자식 골라진 채) → F 한 번 더 = 그 자식의 «다음 형제»가 부모 «안»에 생기는데 activeFrame 이 비어
+       섹션 기본(회색 860×520)으로 들어갔다(자유 부모는 넘쳐 잘림·쌓기 부모는 936→1456). ⇒ 안/밖 = «들어갈 자리의 부모가 프레임이냐»:
+       오브젝트로 고른 프레임 다음 형제로 가면 그 프레임의 부모 프레임이 host. */
+    const _sib = activeFrame ? null : frameSelectedAsObject(sec);
+    const host = _okHost(activeFrame) || (_sib ? _okHost(_sib.parentElement?.closest('.frame-block:not([data-text-frame])')) : null);
     if (opts.bg == null) { ss.dataset.bg = host ? '#FFFFFF' : '#D9D9D9'; ss.style.background = ss.dataset.bg; }
     if (host) {
       const p = framePadding(host);
