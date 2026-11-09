@@ -4012,43 +4012,43 @@ require('./main/notice').init(ipcMain, {
   getWindows: () => BrowserWindow.getAllWindows(),
 });
 
-/* ── IPC: Intake (design-bot pipeline) ── */
+/* ── IPC: Intake (design-bot pipeline) ──
+   ★STARTUP-DOCUMENTS-SYNC-MKDIR-01: 예전엔 «시작 때» ~/Documents/design-bot-builder 를 동기(existsSync·mkdirSync)로 만들었다 —
+     첫 실행에 맥 «문서 폴더 접근»(TCC) 확인창이 뜨면 메인 스레드째 붙잡혀 기동이 멈출 수 있다(NEWPROJ-FREEZE 와 같은 꼴).
+   ⇒ 시작 때는 아무것도 안 건드린다 · 쓸 때만 비동기(fs.promises) · 폴더는 저장할 때 만든다.
+     (2026-11-09 기준 렌더러에 이 셋을 부르는 곳 없음 — preload 다리만 남음) */
 const INTAKE_DIR = path.join(os.homedir(), 'Documents', 'design-bot-builder');
-if (!fs.existsSync(INTAKE_DIR)) fs.mkdirSync(INTAKE_DIR, { recursive: true });
 
-ipcMain.handle('intake:save', (event, data) => {
+ipcMain.handle('intake:save', async (event, data) => {
   if (!data || typeof data !== 'object') throw new Error('invalid data');
   const safeProduct = (data.product_name || 'unknown').replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const filename = `intake_${safeProduct}_${dateStr}.json`;
   const filePath = path.join(INTAKE_DIR, filename);
   const payload = { ...data, ts: new Date().toISOString(), saved_to: filePath };
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
+  await fs.promises.mkdir(INTAKE_DIR, { recursive: true });
+  await fs.promises.writeFile(filePath, JSON.stringify(payload, null, 2), 'utf8');
   return { ok: true, filename, filePath };
 });
 
-ipcMain.handle('intake:load', (event, filename) => {
+ipcMain.handle('intake:load', async (event, filename) => {
   try {
     const filePath = path.join(INTAKE_DIR, _safeSeg(filename)); // GAP-009
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
   } catch { return null; }
 });
 
-ipcMain.handle('intake:list', () => {
-  try {
-    if (!fs.existsSync(INTAKE_DIR)) return [];
-    return fs.readdirSync(INTAKE_DIR)
-      .filter(f => f.startsWith('intake_') && f.endsWith('.json'))
-      .map(f => {
-        try {
-          const data = JSON.parse(fs.readFileSync(path.join(INTAKE_DIR, f), 'utf8'));
-          return { filename: f, product_name: data.product_name, volume: data.volume, ts: data.ts };
-        } catch { return null; }
-      })
-      .filter(Boolean)
-      .sort((a, b) => new Date(b.ts) - new Date(a.ts));
-  } catch { return []; }
+ipcMain.handle('intake:list', async () => {
+  let names;
+  try { names = await fs.promises.readdir(INTAKE_DIR); } catch { return []; }
+  const out = [];
+  for (const f of names.filter(f => f.startsWith('intake_') && f.endsWith('.json'))) {
+    try {
+      const data = JSON.parse(await fs.promises.readFile(path.join(INTAKE_DIR, f), 'utf8'));
+      out.push({ filename: f, product_name: data.product_name, volume: data.volume, ts: data.ts });
+    } catch { /* skip */ }
+  }
+  return out.sort((a, b) => new Date(b.ts) - new Date(a.ts));
 });
 
 /* ── IPC: Presets ── */
