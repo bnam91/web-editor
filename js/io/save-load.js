@@ -3078,8 +3078,8 @@ window.flushProjectBeforeTrash = async (id) => {
 window.keepFailedCopyOnClose = async (id, name, cache) => {
   if (!IS_ELECTRON || !id || !window.electronAPI?.recordRefusedSave) return false;
   const settled = await _waitSavesFor(id);
-  if (settled && !_lastSaveFailed(id)) return false;
   const last = _lastSaveResult.get(id);
+  if (settled && !_lastSaveFailed(id) && !(last && !last.result)) return false;   // 결과 없음 = 저장이 던졌다(썸네일 등) — _settleBigLs 도 실패로 친다
   if (settled && last?.kept) return false;   // 같은 실패를 이미 남겼다 — 무편집으로 열고 닫기를 되풀이하면 사본이 쌓여 5칸을 나눠 쓰는 남의 사본을 밀어냈다(리뷰)
   let data = null;
   try { data = JSON.parse(cache || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`)); } catch (_) {}
