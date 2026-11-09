@@ -95,7 +95,7 @@ function _focusFirstWindow() {
 /* 종료 상자가 떠 있을 때 두 번째 실행 — 앱을 앞으로(상자가 따라온다) + 독 반짝(맥) · 작업표시줄 반짝(윈도우). */
 function _nudgeQuitDialog() {
   try {
-    if (process.platform === 'darwin') { app.focus({ steal: true }); app.dock?.bounce?.('critical'); }
+    if (process.platform === 'darwin') { app.dock?.bounce?.('critical'); app.focus({ steal: true }); }   // 반짝을 먼저 — 앱이 이미 활성이면 macOS 가 주의 요청을 무시한다
     else { app.focus(); BrowserWindow.getAllWindows().forEach(w => { if (!w.isDestroyed()) w.flashFrame(true); }); }
   } catch (e) { console.warn('[single-instance] 종료 상자를 앞으로 못 냈다:', e && e.message); }
 }
@@ -147,10 +147,13 @@ function registerGdtFileAssociations() {
     //   이 인스턴스는 아직 아무것도 안 했으므로 즉시 끊는 게 안전하다.
     if (!app.requestSingleInstanceLock()) { app.exit(0); return; }
     app.on('second-instance', (_e, argv) => {
-      _focusFirstWindow();
       /* ★종료 중 저장 실패 상자가 떠 있으면 그 상자 쪽으로 눈을 끈다 — 창이 이미 없거나(부모 없는 상자) 멈춘 창이면
-         위 창 끌어내기만으로는 아무것도 안 보여 «아이콘을 눌렀는데 아무 일도 없음» 이 됐다(S6 2/2 · S8 4/4). 새 창·새 UI 0 · 종료 흐름 무변. */
-      if (failureDialogOpen()) _nudgeQuitDialog();
+         창 끌어내기만으로는 아무것도 안 보여 «아이콘을 눌렀는데 아무 일도 없음» 이 됐다(S6 2/2 · S8 4/4). 새 창·새 UI 0 · 종료 흐름 무변.
+         그때는 창을 앞으로 안 낸다 — 살아 있는 창이 부모 없는 상자를 덮을 수 있다(리뷰). */
+      if (failureDialogOpen()) {
+        console.log('[single-instance] 종료 저장 실패 상자가 떠 있는 동안 두 번째 실행 — 상자 쪽으로 반짝·앞으로');   // 실기기 판정용 한 줄
+        _nudgeQuitDialog();
+      } else _focusFirstWindow();
       _deliverAll(_gdtPathsFromArgv(argv));
     });
   }
