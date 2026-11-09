@@ -3,6 +3,8 @@
  * 왜: 장 mousedown 이 stopPropagation 이라 캔버스의 «빈 곳 클릭 = deselectAll» 이 안 닿았다.
  * 칸: C1 글 고름 → 장 클릭 → 글 선택 0 · Backspace → 글 수 그대로 · 장만 사라짐 · ⌘Z 한 번 = 장 돌아옴
  *     C2 [대조] Shift 클릭은 캔버스 선택을 안 푼다(섞어 고르기 유지 — 바꾸지 않은 길)
+ *     C3 [지킴] (적대 리뷰 1 의심) 패널 숫자칸에 Enter 없이 친 값 → 장 클릭 → 값이 블럭에 들어간다. 잰 것(인텔): 패널이 갈릴 때 Chromium 이 칸을 떼기 «전»
+ *        change·blur 를 쏜다(isConnected true) ⇒ 이 고침에서도 커밋된다 — 별도 blur 줄은 효과 0 이라 안 넣었다(넣은 판·뺀 판 같은 값). 앞으로 패널 갈기·포커스 순서가 바뀌면 이 칸이 문다.
  * ★양성대조: js/scratch-pad.js 를 기준판(c1588d839)으로 되돌리면 C1 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
@@ -64,4 +66,19 @@ test('C2 [대조] Shift 클릭은 캔버스 선택을 그대로 둔다', async (
   const s = await st(page);
   expect(s.itemSel).toBe(true);
   expect(s.textSel).toBeGreaterThan(0);
+});
+
+test('C3 패널 숫자칸에 Enter 없이 친 값은 장을 눌러도 블럭에 들어간다', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { const g = document.querySelector('#canvas .gap-block') || (() => { window.addGapBlock?.(); return document.querySelector('#canvas .gap-block'); })();
+    g.id = 'gC'; window.deselectAll?.(); window.selectBlock?.(g); window.showGapProperties?.(g); });
+  const n = page.locator('#gap-number');
+  await expect(n, '[전제] 갭 패널').toBeVisible();
+  const h0 = await page.evaluate(() => document.getElementById('gC').offsetHeight);
+  const want = h0 === 77 ? 81 : 77;   // 처음 값과 다른 값(갭 칸 step 과 무관 — 숫자칸은 그대로 받는다)
+  await n.click(); await page.keyboard.press('Meta+a'); await page.keyboard.type(String(want));
+  expect(await page.evaluate(() => document.getElementById('gC').offsetHeight), '[전제] 아직 커밋 전').toBe(h0);
+  await clickItem(page);
+  await expect.poll(() => page.evaluate(() => document.getElementById('gC').offsetHeight), '★친 값이 버려졌다(패널만 갈림)').toBe(want);
+  expect((await st(page)).itemSel, '장은 골랐다').toBe(true);
 });
