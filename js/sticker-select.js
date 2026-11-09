@@ -506,6 +506,30 @@ function _bindCornerHandleDrag(handle, block, corner) {
     document.addEventListener('mouseup', onUp);
   });
 }
+/* t2-02 — 묶음(⌘G) 손잡이가 마킹을 늘린다: 위 모서리 끌기와 «같은 모델 키»를 쓴다(⛔style.width/offsetX 안 씀).
+   매 틱 «쥔 때 값» d0 에서 잰다 — 앞 틱에서 이어 재면 반올림·하한이 쌓여 되돌려 끌어도 안 돌아온다. fsScale = 그룹 글자와 같은 min(sx,sy). */
+function _scaleStickerFromSnap(block, d0, sx, sy, fsScale) {
+  const d = block.dataset, MIN = 10;
+  const sc = (k, f, def = 0) => String(Math.round((parseFloat(d0[k]) || def) * f));
+  d.x = sc('x', sx); d.y = sc('y', sy);
+  if (window._isLineSticker?.(block)) {
+    d.x1 = sc('x1', sx); d.x2 = sc('x2', sx); d.y1 = sc('y1', sy); d.y2 = sc('y2', sy);
+    window._syncLineStickerPos?.(block);
+  } else if (d0.shape === 'highlight') {
+    d.hlW = String(Math.max(MIN, +sc('hlW', sx, 160)));
+    d.hlH = String(Math.max(MIN, +sc('hlH', sy, 28)));
+  } else {
+    const w0 = parseInt(d0.sizeW) || parseInt(d0.size) || 60, h0 = parseInt(d0.sizeH) || parseInt(d0.size) || 60;
+    const W = Math.max(MIN, Math.round(w0 * sx)), H = Math.max(MIN, Math.round(h0 * sy));
+    d.sizeW = String(W); d.sizeH = String(H); d.size = String(Math.max(W, H));
+    d.fontSize = String(Math.max(6, Math.min(150, Math.round((parseInt(d0.fontSize) || 14) * fsScale))));
+    const ls0 = parseInt(d0.countLabelSize);
+    if (d0.count != null && Number.isFinite(ls0)) window.CountSticker?.rescaleLabel?.(d, w0, w0 * fsScale, ls0 / w0);
+  }
+  window.renderStickerBlock?.(block);
+  if (block.classList.contains('selected')) (_isLineStk(block) ? _addHlbHandles : _addCornerHandles)(block);   // render 가 핸들을 지운다(고를 때와 같은 갈래)
+}
+window._scaleStickerFromSnap = _scaleStickerFromSnap;
 window._addCornerHandles = _addCornerHandles;
 window._removeCornerHandles = _removeCornerHandles;
 

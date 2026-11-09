@@ -358,6 +358,8 @@ function _onHandleMouseDown(e, ss, dir) {
       [...container.children].forEach(c => {
         if (c.classList.contains('frame-resize-handle')) return;
         if (getComputedStyle(c).position !== 'absolute') return;
+        // t2-02 — 마킹은 상자가 아니라 dataset(x·y·size·끝점…)이 정본이다 → 쥔 때 값을 통째로 찍어 그 모델로 늘린다
+        if (c.classList.contains('sticker-block')) { groupSnap.push({ el: c, sticker: { ...c.dataset } }); return; }
         const isTextFrame = c.dataset.textFrame === 'true';
         const contentEl = isTextFrame ? c.querySelector('[class^="tb-"]') : null;
         groupSnap.push({
@@ -438,6 +440,7 @@ function _onHandleMouseDown(e, ss, dir) {
       const sy = (!isFullWidth && groupStartH) ? newH / groupStartH : 1;
       const fsScale = Math.min(sx, sy);
       groupSnap.forEach(s => {
+        if (s.sticker) { window._scaleStickerFromSnap?.(s.el, s.sticker, sx, sy, fsScale); return; }   // t2-02
         const L = Math.round(s.left * sx), T = Math.round(s.top * sy);
         s.el.style.left = L + 'px'; s.el.dataset.offsetX = String(L);
         s.el.style.top  = T + 'px'; s.el.dataset.offsetY = String(T);
@@ -469,6 +472,7 @@ function _onHandleMouseDown(e, ss, dir) {
     /* 버즈(1012t1Z5 D-1) — 손잡이를 놓았을 때 말풍선이 프레임 밖이면 같은 무늬번호로 안에 다시 맞춘다(안 나갔으면 무동작).
        ⛔끝 표본 «앞»이어야 한다 — 크기 변경과 다시 놓기가 히스토리 한 칸이 된다. */
     window.refitBuzzOnResize?.(ss);
+    groupSnap?.forEach(s => { if (s.sticker) window._rekeepCoin?.(s.el); });   // t2-02 — 코인 마킹은 줄어든 뒤 다시 가둔다(단일 모서리 끌기와 같게)
     window.pushHistory?.();
     window.resumeAutoSave?.();   // ★250B ① — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
   }
