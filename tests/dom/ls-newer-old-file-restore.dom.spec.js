@@ -7,6 +7,7 @@
  * 자: window.pickLsOverFile 직접 — 부팅(unmarkedWins 기본)·탭(unmarkedWins:false) 두 입구가 같은 함수다. 사본 파일은 main 몫(가짜 기록).
  * 칸: N1 옛 파일 → 사본 남김·파일 우선·LS 걷음 · N2 탭 입구도 같다 · N3 [음성] 파일이 새것 → 지금대로(사본 0) · N4 [음성] 시각 못 믿음(lsBase 꼴 아님) → 지금대로
  *     N5 사본 실패 → 보류 자리로 옮기고 알림(자동저장이 못 덮음) · N6 다음 열기에 보류 본 다시 남김 · N7 남기는 사이 표지가 옮겨졌으면 손 안 댐
+ *     N8 실패 + 그사이 편집 → 보류에 남음 · N9 앞 보류 본 안 덮음 · N10 표지가 이미 파일 판이면 끝맺음
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -69,13 +70,15 @@ test('N4 [음성] 시각을 못 믿으면(lsBase 꼴 아님) 지금대로', asyn
   expect((await lsOf(page)).ls).toBe(null);
   expect(await kept(page)).toEqual([]);
 });
-const pend = (page) => page.evaluate((A) => localStorage.getItem('web-editor-ls-pending__' + A), A);
+const pend = (page) => page.evaluate((A) => { const ks = Object.keys(localStorage).filter(k => k.startsWith('web-editor-ls-pending__' + A + '__')); return ks.length ? ks.map(k => localStorage.getItem(k)).join('\n') : null; }, A);
 test('N5 사본을 못 남기면 그 본을 보류 자리에 옮기고 알린다 — 첫 편집의 자동저장이 덮지 못한다(리뷰 1-2)', async ({ page }) => {
   await setup(page, { recordOk: false });
   await page.evaluate(() => { window.__toasts = []; const o = window.showToast; window.showToast = (m) => { window.__toasts.push(String(m)); return o?.(m); }; });
   expect(await pick(page, file(T1))).toBe(null);
   await expect.poll(() => page.evaluate(() => window.__toasts.length), { message: '★못 남겼는데 말이 없다' }).toBeGreaterThan(0);
   expect(await pend(page), '★못 남긴 본이 보류 자리에 없다 — 첫 편집이 LS 를 덮으면 잃는다').toContain('되돌린 뒤 사라지면 안 되는 편집');
+  const s1 = await lsOf(page);
+  expect([s1.ls, s1.base], '보류로 옮겼으면 LS 를 걷고 표지는 되돌린 파일 판').toEqual([null, T1]);
   await page.evaluate((A) => localStorage.setItem('web-editor-autosave__' + A, '{"pages":[]}'), A);   // 첫 편집의 자동저장 흉내
   expect(await pend(page), '★자동저장이 보류 본을 건드렸다').toContain('되돌린 뒤 사라지면 안 되는 편집');
 });
@@ -95,5 +98,29 @@ test('N7 사본을 남기는 사이 저장이 표지를 옮겼으면 손대지 �
   await page.evaluate(([A, T3]) => { localStorage.setItem('web-editor-ls-base__' + A, T3); window.__open(); }, [A, T3]);   // 그사이 파일 저장이 표지를 T3 로
   await expect.poll(() => kept(page).then(k => k.length)).toBe(1);
   await page.evaluate(() => new Promise(r => setTimeout(r, 0)));
-  expect((await lsOf(page)).base, '★저장이 옮긴 표지를 낡은 판으로 되돌렸다').toBe(T3);
+  const s7 = await lsOf(page);
+  expect(s7.base, '★저장이 옮긴 표지를 낡은 판으로 되돌렸다').toBe(T3);
+  expect(s7.ls, '표지가 옮겨졌으면 본도 그대로').toContain('되돌린 뒤 사라지면 안 되는 편집');
+});
+test('N8 사본이 실패했는데 그사이 편집이 LS 를 바꿨어도 그 본은 보류 자리에 남는다(리뷰 2-1)', async ({ page }) => {
+  await setup(page, { recordOk: false });
+  await page.evaluate(() => { window.__gate = new Promise(r => { window.__open = r; }); });
+  expect(await pick(page, file(T1))).toBe(null);
+  await page.evaluate((A) => { localStorage.setItem('web-editor-autosave__' + A, '{"pages":[{"id":"p","canvas":"되돌린 파일에서 이은 편집"}]}'); window.__open(); }, A);
+  await expect.poll(() => pend(page), { message: '★실패한 본이 아무 데도 없다' }).toContain('되돌린 뒤 사라지면 안 되는 편집');
+  expect((await lsOf(page)).ls, '이은 편집은 그대로').toContain('되돌린 파일에서 이은 편집');
+});
+test('N9 앞 보류 본이 있어도 새 실패 본이 덮지 않는다(리뷰 2-2)', async ({ page }) => {
+  await setup(page, { recordOk: false });
+  await page.evaluate((A) => localStorage.setItem('web-editor-ls-pending__' + A + '__1', JSON.stringify({ id: A, pages: [{ id: 'p', canvas: '앞 보류 본' }] })), A);
+  expect(await pick(page, file(T1))).toBe(null);
+  await expect.poll(() => pend(page)).toContain('되돌린 뒤 사라지면 안 되는 편집');
+  expect(await pend(page), '★앞 보류 본을 덮었다').toContain('앞 보류 본');
+});
+test('N10 표지가 이미 되돌린 파일 판이면 끝맺는다 — 남은 본이 다음 열기에 파일을 이기지 않게(리뷰 2-3)', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__gate = new Promise(r => { window.__open = r; }); });
+  expect(await pick(page, file(T1))).toBe(null);
+  await page.evaluate(([A, T1]) => { localStorage.setItem('web-editor-ls-base__' + A, T1); window.__open(); }, [A, T1]);
+  await expect.poll(() => lsOf(page).then(s => s.ls), { message: '★남은 본이 다음 열기에 되돌린 파일을 이긴다' }).toBe(null);
 });

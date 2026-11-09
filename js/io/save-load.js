@@ -90,6 +90,7 @@ function getSaveTsKey() {
    파일이 밖에서 바뀌면(사본·백업·되돌리기) 값이 달라 파일이 이긴다. 충돌로 저장이 끊기면 같아서 복구가 산다.
    쓰는 곳: 파일 쓰기는 preload.js 한 자리 · 여기는 열 때뿐. 시험: tests/dom/ls-file-base.dom.spec.js */
 const _lsBaseKey = (id) => `web-editor-ls-base__${id}`;
+const LS_PENDING_PREFIX = 'web-editor-ls-pending__';   // 옛 파일을 되돌린 뒤 사본을 못 남긴 새 LS 본 — <id>__<시각> (LS-NEWER-THAN-FILE-DELETED-ON-OLD-FILE-RESTORE-01)
 /* 복구한 본이 파일과 다른가. 그림 주소는 저장 때 data → goya 로 바뀌니 글자로 비교하지 않는다:
    둘 다 data·둘 다 goya 면 글자 그대로(다른 그림이면 다르다), 한쪽만 data 면 내용 해시로 — goya 파일명이 sha256 앞 16자다(main/project-store/externalizer.js).
    해시를 못 내면(웹·비보안 문맥) 같다고 본다 — 무편집 쓰기(DEF-03)가 복구 유실보다 잦다. */
@@ -1968,6 +1969,10 @@ function cleanStaleAutosaveKeys(activeProjectIds) {
         console.log('[save-load] 고아 autosave 키 정리:', k);
       }
     });
+  /* 옛 파일 복원 뒤 못 남긴 보류 본 — 남김 목록 밖(지운 프로젝트 등)의 것만 걷는다. 안 걷으면 영구 삭제한 프로젝트 본이 공간을 영영 잡는다(리뷰 2-4). */
+  Object.keys(localStorage).filter(k => k.startsWith(LS_PENDING_PREFIX)).forEach(k => {
+    if (!activeSet.has(k.slice(LS_PENDING_PREFIX.length).replace(/__\d+$/, ''))) localStorage.removeItem(k);
+  });
 }
 
 /**
@@ -2099,12 +2104,15 @@ function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
      그 뒤의 LS 편집을 말없이 걷지 않는다: 비상 사본(다음 실행 복구 제안)으로 먼저 남기고, 남겨졌을 때만 걷고 표지를 옮긴다(되돌린 파일이 이긴다 — 지금과 같다).
      못 남기면 본·표지를 그대로 두고 알린다 — 다음 열기에 다시 한다. 파일이 새것이거나 시각을 못 믿으면(없음·꼴 아님) 지금 동작. */
   let _keepForCopy = false;
-  const _pendKey = `web-editor-ls-pending__${id}`;   // 사본을 못 남긴 본 — 자동저장이 안 쓰는 자리에 두고 다음 열기에 다시 남긴다(리뷰 1-2)
+  /* 사본을 못 남긴 본 — 자동저장이 안 쓰는 자리(본마다 시각을 붙인 키)에 두고 다음 열기에 다시 남긴다(리뷰 1-2 · 2-2 덮어쓰기 막음). */
+  const _pendPrefix = `${LS_PENDING_PREFIX}${id}__`;
   const _record = (data, name) => Promise.resolve().then(() => window.electronAPI.recordRefusedSave({ ...data, id, name: name || data.name || 'Untitled' }, 'ls_newer_than_file'));
-  if (window.electronAPI?.recordRefusedSave && localStorage.getItem(_pendKey)) {
-    const _p = localStorage.getItem(_pendKey);
-    let _pd = null; try { _pd = JSON.parse(_p); } catch (_) {}
-    if (_pd && Array.isArray(_pd.pages)) _record(_pd, proj.name).then((r) => { if (r?.ok && localStorage.getItem(_pendKey) === _p) localStorage.removeItem(_pendKey); }, () => {});
+  if (window.electronAPI?.recordRefusedSave) {
+    for (const k of Object.keys(localStorage).filter(k => k.startsWith(_pendPrefix))) {
+      const _p = localStorage.getItem(k);
+      let _pd = null; try { _pd = JSON.parse(_p); } catch (_) {}
+      if (_pd && Array.isArray(_pd.pages)) _record(_pd, proj.name).then((r) => { if (r?.ok && localStorage.getItem(k) === _p) localStorage.removeItem(k); }, () => {});
+    }
   }
   if (lsBase && !lsFromThisFile) {
     const _raw = localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`);
@@ -2115,16 +2123,25 @@ function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
       _keepForCopy = true;
       applyAdoptedAssets(_data, id);
       const _fileVer = String(proj.updatedAt);
-      /* 끝맺음 — 그사이 저장이 표지를 옮겼으면(파일이 새 판이 됐다) 손대지 않는다: 낡은 판으로 되돌리면 다음 열기의 판정이 어긋나 LS 를 말없이 걷었다(리뷰 1-1).
-         본이 그대로면 걷는다. 바뀌었으면 그 본은 이 파일에서 이어진 것 — 표지만 옮긴다(리뷰 1-4). */
+      const _K = `${SAVE_KEY_PREFIX}__${id}`;
       const _settle = (ok) => {
-        if (localStorage.getItem(_lsBaseKey(id)) !== lsBase) return;
-        if (localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === _raw) {
-          if (!ok) { try { localStorage.setItem(_pendKey, JSON.stringify(_data)); } catch (_) { window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 남기지 못했습니다 — 이 프로젝트를 편집하기 전에 디스크 공간을 확인해 주세요'); return; } }
-          localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
-          localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
+        if (!ok) {   // 본은 이제 메모리에만 — 다른 판정보다 먼저 보류 자리에(그사이 편집·저장이 끼어도 잃지 않게 · 리뷰 2-1)
+          const _same = localStorage.getItem(_K) === _raw, _ts = localStorage.getItem(_K + '_ts');
+          if (_same) { localStorage.removeItem(_K); localStorage.removeItem(_K + '_ts'); }   // 같은 크기를 한 번 더 쓰기 전에 자리를 비운다(리뷰 2-6)
+          try { localStorage.setItem(_pendPrefix + Date.now(), JSON.stringify(_data)); }
+          catch (_) {
+            if (_same) { try { localStorage.setItem(_K, _raw); if (_ts) localStorage.setItem(_K + '_ts', _ts); } catch (_) {} }
+            window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 남기지 못했습니다 — 이 프로젝트를 편집하기 전에 디스크 공간을 확인해 주세요');
+            return;
+          }
         }
-        try { localStorage.setItem(_lsBaseKey(id), _fileVer); } catch (_) {}
+        /* 그사이 저장이 표지를 새 판으로 옮겼으면 손대지 않는다 — 낡은 판으로 되돌리면 다음 열기 판정이 어긋나 LS 를 말없이 걷었다(리뷰 1-1).
+           표지가 이미 이 파일 판이면(부팅 이전 저장 등) 끝맺는다 — 안 그러면 남은 본이 다음 열기에 되돌린 파일을 이긴다(리뷰 2-3). */
+        const _cur = localStorage.getItem(_lsBaseKey(id));
+        if (_cur === lsBase || _cur === _fileVer) {
+          if (ok && localStorage.getItem(_K) === _raw) { localStorage.removeItem(_K); localStorage.removeItem(_K + '_ts'); }
+          try { localStorage.setItem(_lsBaseKey(id), _fileVer); } catch (_) {}   // 본이 바뀌었으면 그 본은 이 파일에서 이어진 것(리뷰 1-4)
+        }
         if (!ok) window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 비상 사본으로 남기지 못했습니다 — 다음에 열 때 다시 남깁니다');
       };
       _record(_data, proj.name).then((r) => _settle(!!r?.ok), () => _settle(false));
