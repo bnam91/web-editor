@@ -30,6 +30,8 @@ import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } fr
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
  * ⛔DOM 노드 참조로 들지 마라 — renderGridBlock 이 innerHTML 을 통째로 갈아끼워 매 조작마다 죽는다.
  *   그래서 «주소»를 들고, 렌더 뒤에 _grdSyncLineMark 로 «다시» 붙인다. */
+/* 알약 둥글기 슬라이더 끝 — 실측: 기본 body(22px) 알약 높이 44 → 반 22 를 넘으면 모양이 같다; h2(40px) 알약 80 → 반 40 까지 덮는다. 숫자칸은 GRID_BADGE_RADIUS 까지 받는다. */
+const GRID_BADGE_SLIDER_MAX = 40;
 const _grdActiveLine = new WeakMap();
 export function grdSetActiveLine(block, addr) { _grdActiveLine.set(block, addr || null); }
 export function grdGetActiveLine(block) { return _grdActiveLine.get(block) || null; }
@@ -3563,6 +3565,7 @@ ${_grdKindSelectHtml(line, H.kinds)}
           <input type="text" class="prop-color-hex" id="grd-badge-hex" maxlength="7" placeholder="없음" aria-label="알약 배경색" value="${raw ? hex.replace('#', '').toUpperCase() : ''}">
         </div>${raw ? `<div class="prop-row" title="알약의 모서리 둥글기. 0 이면 모난 네모, 큰 값이면 완전 둥근 알약입니다">
           <span class="prop-label">알약 둥글기</span>
+          <input type="range" class="prop-slider" id="grd-badge-radius-slider" min="0" max="${GRID_BADGE_SLIDER_MAX}" step="1" value="${Number.isFinite(Number(line.radius)) ? Math.min(GRID_BADGE_SLIDER_MAX, Number(line.radius)) : GRID_BADGE_SLIDER_MAX}">
           <input type="number" class="prop-number" id="grd-badge-radius" min="0" max="${GRID_BADGE_RADIUS}"
                  placeholder="${GRID_BADGE_RADIUS}" aria-label="알약 모서리 둥글기"
                  value="${Number.isFinite(Number(line.radius)) ? Number(line.radius) : ''}">
@@ -3699,14 +3702,17 @@ function _grdWireLineSection(block, addr, host = null) {
      ★gridPreviewLine 은 `_gridMergeLine` 을 지난다 = updateGridBlock 과 ★같은 병합 함수
        ⇒ 「패널로 고친 것」과 「API 로 고친 것」이 갈리지 않는다(grid-block.js 머리말 규율).
      ★빈 칸 = «미설정»으로 되돌린다(undefined) ⇒ 렌더러가 다시 GRID_BADGE_RADIUS 를 쓴다. */
-  document.getElementById('grd-badge-radius')?.addEventListener('change', (e) => {
-    const t = String(e.target.value).trim();
-    const v = t === '' ? undefined : Math.max(0, Math.min(GRID_BADGE_RADIUS, parseInt(t, 10) || 0));
-    window.pushHistory?.();
-    H.previewLine(r, c, li, { radius: v }, addr.np);
-    H.mark(addr);                    // 재렌더가 마커를 지웠다 — 다시 붙인다
-    window.scheduleAutoSave?.();
-  });
+  /*   ★현빈QA GRID-PILL-RADIUS-SLIDER — 「슬라이더 + 숫자」(구분선 너비와 같은 bindSlider · 끌기 한 번 = ⌘Z 한 번).
+       숫자칸 상한은 GRID_BADGE_RADIUS 그대로(옛 999 보존) — 슬라이더만 GRID_BADGE_SLIDER_MAX 에서 멈춘다. */
+  const bdRNum = document.getElementById('grd-badge-radius');
+  const bdRApply = (v) => { H.previewLine(r, c, li, { radius: v }, addr.np); H.mark(addr); };
+  bindSlider(document.getElementById('grd-badge-radius-slider'), bdRNum, bdRApply, { min: 0, max: GRID_BADGE_RADIUS });
+  // 빈 칸 = 완전 둥근(미설정) — bindSlider 는 빈 값을 0 으로 세므로 확정 때 되돌린다(이력은 bindSlider 의 change 가 찍는다)
+  bdRNum?.addEventListener('change', () => {
+    if (String(bdRNum.value).trim() !== '') return;
+    bdRApply(undefined);
+    document.getElementById('grd-badge-radius-slider').value = GRID_BADGE_SLIDER_MAX;
+  }, { capture: true });
 
   const pick = document.getElementById('grd-badge-color');
   const hexEl = document.getElementById('grd-badge-hex');
