@@ -3522,6 +3522,9 @@ function bindFrameDropZone(ss) {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        /* ★t2-01 Q5 — 여럿을 끄는 동안 «함께 고른 것»으로 보인다(각자 테두리 + 전체 상자 · js/selection-overlay.js). 누름은 위 deselectAll 로
+           하나로 좁혀 두고(그냥 클릭 = 하나만 고르기 — 오늘 그대로), «실제로 끌기 시작한 틱»에만 피어를 되살린다. 놓으면 뒤따르는 click 이 오늘처럼 하나로 좁힌다(놓은 뒤 유지는 이번 범위 밖). */
+        if (!moved) multiPeers.forEach(p => p.el.classList.add('selected'));
         moved = true;
         /* ★«시작 상태»를 여기서 1회 찍는다 — 끝 상태는 onUp 의 pushHistory. 드래그는 «양쪽 끝»을
            다 남겨야 삽입(push-before) 뒤 첫 드래그에서 ⌘Z 가 삽입까지 먹지 않는다(js/drag-history.js). */

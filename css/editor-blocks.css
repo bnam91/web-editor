@@ -387,6 +387,9 @@
 }
 /* 스티커·그라데이션 = 보라(--ui-sel-overlay). */
 .ss-sel-path--sticker { stroke: var(--ui-sel-overlay, #9966ff); }
+/* ★t2-01 Q2·Q5 — 2개 이상 고르면(body.sel-multi · js/selection-overlay.js) 낱개 손잡이를 숨긴다. 전체 상자(.ss-sel-union)는 위 .ss-sel-path 그대로.
+   이름 목록 대신 «-handle»·«-rotate-zone» 성질로 잡는다(오버레이 층 + 블럭 안 손잡이 둘 다 · 섹션 바닥 손잡이는 «한 블럭»의 것이 아니라 뺀다). t2-02b 가 전체 상자 핸들을 달면 여기서 빼 준다. */
+body.sel-multi :is(#ss-handles-overlay, #canvas) :is([class*="-handle"], [class*="-rotate-zone"]):not(.section-bottom-handle) { display: none !important; }
 
 /* ── ⑵ 중화(P0 임시물) ─────────────────────────────────────────────────────────
    ⛔원본을 «지우지» 않는다. 색만 투명으로 돌린다(레이아웃·offset·specificity 그대로).
