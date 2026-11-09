@@ -266,6 +266,24 @@ function _hasOwnUnsaved() {
    ⛔saveProjectToFile 의 반환 계약(큐잉=undefined)은 그대로 둔다 — 바꾸면 다른 호출측이
      드레인이 끝날 때까지 매달린다(행 위험). 여기 «기록»만 남기고, 볼 사람이 보게 한다. */
 const _lastSaveResult = new Map();
+/* ★FAILED-SAVE-TAB-SWITCH-THEN-QUIT-ORPHAN-LS-01 — 마지막 저장이 실패한 id. 다음 부팅 고아 정리가 이 id 의 LS 본을 안 지운다(그 본이 유일한 사본일 수 있다 ·
+   기획 id 는 목록에 없어 지웠다 · DOM 재기 LS 319→0). 빠지는 길 셋: 저장 성공 · 프로젝트 지움 · 그 LS 본이 없어짐(부팅 때 걷는다).
+   목록이 깨졌거나 비었으면 없는 것으로 친다 — 보호 없음 = 옛 동작. */
+const FAILED_SAVE_IDS_KEY = 'web-editor-failed-save-ids';
+function _failedSaveIds() {
+  try { const v = JSON.parse(localStorage.getItem(FAILED_SAVE_IDS_KEY)); return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x) : []; } catch (_) { return []; }
+}
+function _setFailedSaveIds(ids) {
+  try { if (ids.length) localStorage.setItem(FAILED_SAVE_IDS_KEY, JSON.stringify(ids)); else localStorage.removeItem(FAILED_SAVE_IDS_KEY); } catch (_) {}
+}
+function _noteFailedSave(id, failed) {
+  if (!id) return;
+  const cur = _failedSaveIds();
+  if (failed === cur.includes(id)) return;
+  _setFailedSaveIds(failed ? [...cur, id] : cur.filter(x => x !== id));
+}
+window.forgetFailedSave = (id) => _noteFailedSave(id, false);   // 프로젝트를 지웠다 — 보호할 본이 아니다
+const _flushedFailed = new Set();   // 이 문서에서 이미 내린 옆 탭 실패 본 — 종료 답 뒤 beforeunload 가 또 내리면 비상 사본이 둘
 
 /* ★[W-3-b] 「이 저장은 «실패»로 끝났나」 — 이 파일의 «단 하나의» 판정.
    ⛔`ok === false` 만 보면 «보호성 스킵»(빈 캔버스)까지 실패로 센다 ⇒ 새 프로젝트가 영원히
@@ -302,6 +320,13 @@ function _flushUnfinishedSavesSync() {
   const left = new Map(_pendingSaves);
   _pendingSaves.clear();
   if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId) && !_savingSuperseded) left.set(_savingOwnerId, _savingEntry);   // 앞 flush 가 같거나 새 본을 이미 썼다 — 두 번째 flush(종료 답 뒤 beforeunload)가 옛 본으로 덮지 않게
+  /* ★FAILED-SAVE-TAB-SWITCH-THEN-QUIT-ORPHAN-LS-01 — 옆 탭의 실패 본도 내린다: 줄엔 없고 LS·탭 캐시에만 있어 종료가 안 봤다(DOM 재기 LS 319→0).
+     거절되면 main 이 마커·비상 사본을 남기고 아래 흐름이 LS 에 둔다. 활성 탭은 부르는 쪽(종료 답·beforeunload)이 쓴다. */
+  for (const t of openTabs) {
+    if (t.id === activeProjectId || left.has(t.id) || !t._cache || _flushedFailed.has(t.id) || _isReloadSealed(t.id) || !_lastSaveFailed(t.id)) continue;
+    _flushedFailed.add(t.id);
+    left.set(t.id, { snapshot: t._cache, opts: { skipThumbnail: true, projectId: t.id } });
+  }
   const work = [...left];
   for (const [id, entry] of work) {
     const { snapshot, opts } = entry;
@@ -325,6 +350,8 @@ function _flushUnfinishedSavesSync() {
       _settleBigLs(id, _str, true, _lsTsOf(id));   // 닫은 탭이면 LS 에도 없고 종료 답은 한 건만 싣는다 — 거절된 본을 LS 에 남긴다
     }
   }
+  for (const id of wrote) _noteFailedSave(id, false);
+  for (const f of failed) _noteFailedSave(f.id, true);
   if (failed.length) window.electronAPI?.flushLocalStorage?.();
   return { failed, wrote };
 }
@@ -367,6 +394,8 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (!_isSaveFailure(_result) && !window.isTabFirstLoading?.(activeProjectId)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
+    if (_targetId && _result?.reason === 'project_deleted') _noteFailedSave(_targetId, false);
+    else if (_targetId && !_result?.skipped) _noteFailedSave(_targetId, !_result || _isSaveFailure(_result));
     if (!_result?.skipped) {
       const _failed = !_result || _isSaveFailure(_result);
       _settleBigLs(_targetId, snapshot, _failed, _lsTsAtStart);
@@ -2400,6 +2429,7 @@ window.addEventListener('beforeunload', () => {
       if (applyAdoptedAssets(proj, activeProjectId)) snap = JSON.stringify(snapData);   // 아래 localStorage 본도 — 파일보다 새로워 다음 열기에 이기면 옛 주소가 파일까지 되돌린다
       const result = window.electronAPI.saveProjectSync(proj);
       _unloadFiled = !!result && result.ok !== false;
+      if (result?.reason !== 'project_deleted') _noteFailedSave(activeProjectId, !_unloadFiled);
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
       }
@@ -2785,7 +2815,15 @@ function initApp() {
           _bootGone = _bootG?.state === 'unknown' ? null : _bootG;
           _bootGoneName = openTabs.find(t => t.id === _bootProjectId)?.name;
           window.setAwayTabs?.([..._away.filter(t => !_listed.has(t.id) && !_goneTabs.some(x => x.t.id === t.id)), ..._goneTabs.filter(x => x.g?.state === 'foreign').map(x => ({ id: x.t.id, name: x.t.name }))]);
-          if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._listed, ..._keptIds, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
+          /* 실패 표지 id — LS 본이 있고 폴더가 그대로(목록에만 없음: 기획 등)면 남긴다. 지웠거나(휴지통·없음) 본이 없으면 표지를 걷는다. */
+          const _failedKeep = [];
+          for (const id of _failedSaveIds()) {
+            if (_listed.has(id) || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === null) continue;
+            const st = await window.electronAPI.projectFolderState?.(id);
+            if (st === 'ok' || st === 'unknown') _failedKeep.push(id);   // 못 읽었으면 지운 게 아니다 — 남긴다
+          }
+          _setFailedSaveIds(_failedSaveIds().filter(id => localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) !== null && (_listed.has(id) || _failedKeep.includes(id))));
+          if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._listed, ..._keptIds, ..._failedKeep, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
           _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
           const existingIds = new Set([..._listed, ..._keptIds]);

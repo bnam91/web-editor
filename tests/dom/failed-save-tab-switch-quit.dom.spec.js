@@ -1,0 +1,154 @@
+/* failed-save-tab-switch-quit — 저장이 실패한 탭을 닫지 않고 옆 탭으로만 옮긴 채 종료해도 그 편집을 잃지 않는다 (FAILED-SAVE-TAB-SWITCH-THEN-QUIT-ORPHAN-LS-01)
+ * 왜: 종료 flush 는 줄(_pendingSaves)·진행 중 저장만 봐서 옆 탭의 실패 본을 안 내렸고, 기획 id 는 목록에 없어
+ *   다음 부팅 고아 정리(cleanStaleAutosaveKeys)가 LS 본을 지웠다 — DOM 재기 1회(인텔 9e1f79d6 · [M1] LS 319 → 0 · 탭 [B] 만).
+ * 자: 렌더러가 부르는 saveProjectSync(가짜 API 기록 — main 은 거절하면 마커·비상 사본을 남긴다) · 종료 답 · LS 키.
+ * 칸: T1 옆 탭 실패 본이 종료 때 동기로 나가고, 거절되면 종료 답이 그 본을 싣는다 · T2 동기 쓰기가 되면(권한이 돌아옴) 성공 · 실패 표지가 풀린다
+ *     T3 종료 답 뒤 beforeunload 의 두 번째 flush 는 같은 본을 다시 안 쓴다 · T4 [음성] 저장이 성공한 옆 탭은 안 쓴다
+ *     T5 부팅 고아 정리가 실패 표지 id 의 LS 본을 남긴다 · T6 [음성] 표지 없는 목록 밖 id 는 그대로 지운다(다른 갈래 무접촉)
+ *     T7 지운 프로젝트는 표지가 있어도 정리·표지 걷힘(지디 ㉠) · T8 표지 목록이 깨졌으면 옛 동작(지디 ㉡)
+ * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘. */
+const { test, expect } = require('@playwright/test');
+const { bootApp } = require('./_root-harness.js');
+const [A, B] = ['proj_tsa', 'proj_tsb'];
+const RED = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+const HALF = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAD0lEQVR4nGNgYPj/nwEIAAr+Af/hHqJQAAAAAElFTkSuQmCC';
+const EDIT = 'TS-EDIT-옆탭-편집';
+const FAILED_KEY = 'web-editor-failed-save-ids';
+
+const settle = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)))));
+async function setup(page) {
+  await page.addInitScript(() => {
+    const fake = { onForceSaveBeforeQuit: (f) => { window.__quit = f; }, quitReady: (r) => { window.__answer = r; } };
+    window.__fake = fake;
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
+  });
+  const errs = await bootApp(page);
+  await page.evaluate(([A, B, RED, HALF]) => {
+    const img = (n, src) => `<div class="asset-block has-image" id="ab_${n}" data-img-src="${src}" style="height:200px;"><div class="asset-img-clip"><img class="asset-img" src="${src}" style="width:100%;height:100%"></div></div>`;
+    const txt = (n, s) => `<div class="text-block" id="tb_${n}" data-type="text"><div class="tb-h2" contenteditable="false">${s}</div></div>`;
+    const sec = (id, n, inner) => `<div class="section-block" id="sec_${id}_${n}" data-section="${n}" data-name="S${n}"><div class="section-inner">${inner}</div></div>`;
+    const canvas = (id) => sec(id, 1, txt(id + '1', id + ' 제목')) + sec(id, 2, img(id + '2', RED)) + sec(id, 3, txt(id + '3', '본문') + img(id + '3', HALF));
+    const project = (id) => ({ ...window.buildEmptyProject(id, id), id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas: canvas(id) }] });
+    const files = new Map([[A, project(A)], [B, project(B)]]);
+    window.__files = files; window.__syncs = []; window.__refuse = null; window.__syncRefuse = null;
+    Object.assign(window.__fake, {
+      loadProject: async (id) => JSON.parse(JSON.stringify(files.get(id) || null)),
+      saveProject: async (p) => { if (window.__refuse && p.id === A) return { ok: false, reason: window.__refuse }; files.set(p.id, JSON.parse(JSON.stringify(p))); return { ok: true }; },
+      saveProjectSync: (p) => { window.__syncs.push({ id: p.id, body: JSON.stringify(p) }); if (window.__syncRefuse && p.id === A) return { ok: false, reason: window.__syncRefuse }; files.set(p.id, JSON.parse(JSON.stringify(p))); return { ok: true }; },
+      saveProjectMeta: async () => ({ ok: true }),
+    });
+    window.loadProjectForOpen = async (id) => JSON.parse(JSON.stringify(files.get(id)));
+    window.openTabs = [{ id: A, name: A }, { id: B, name: B, _cache: JSON.stringify(files.get(B)) }];
+    window.activeProjectId = A;
+    history.replaceState(null, '', '?project=' + A);
+    window.applyProjectData(JSON.parse(JSON.stringify(files.get(A))));
+  }, [A, B, RED, HALF]);
+  await settle(page);
+  await page.waitForFunction(() => !window.hasUnsavedChanges());
+  return errs;
+}
+const editA = (page) => page.evaluate((EDIT) => { const s = document.querySelector('#canvas .section-block'); window.selectSection?.(s); window.addTextBlock('h2', { content: EDIT }); }, EDIT);
+/* A 를 편집하고 떠난다 — 떠나는 저장의 끝을 직접 기다린다 */
+async function editThenLeaveA(page, refuse) {
+  await editA(page);
+  await page.evaluate(async ([B, A, r]) => { window.__refuse = r; await window.switchTab(B); await window.waitSavesFor(A); }, [B, A, refuse]);
+}
+const quit = (page) => page.evaluate(async () => { window.__quit(); await new Promise((r) => { const iv = setInterval(() => { if (window.__answer) { clearInterval(iv); r(); } }, 20); }); return window.__answer; });
+const syncA = (page) => page.evaluate((A) => window.__syncs.filter(s => s.id === A).map(s => s.body), A);
+const failedIds = (page) => page.evaluate((K) => { try { return JSON.parse(localStorage.getItem(K)) || []; } catch { return null; } }, FAILED_KEY);
+
+test('T1 옆 탭의 실패 본이 종료 때 동기로 나가고, 거절되면 종료 답이 그 본을 싣는다', async ({ page }) => {
+  const errs = await setup(page);
+  await editThenLeaveA(page, 'planning_not_editor');
+  expect(await page.evaluate((A) => [window.activeProjectId, window.openTabs.some(t => t.id === A)], A), '[전제] A 는 옆 탭으로 열려 있다').toEqual([B, true]);
+  await page.evaluate(() => { window.__syncRefuse = 'planning_not_editor'; });
+  const a = await quit(page);
+  const bodies = await syncA(page);
+  expect(bodies.length, '★옆 탭의 실패 본이 종료 때 안 나갔다').toBe(1);
+  expect(bodies[0], '★나간 본에 그 편집이 없다').toContain(EDIT);
+  expect(bodies[0]).toContain(RED.slice(-24));
+  expect(bodies[0]).toContain(HALF.slice(-24));
+  expect([a.ok, a.projectId, a.reason], '종료 답이 그 실패를 말한다').toEqual([false, A, 'planning_not_editor']);
+  expect(String(a.snapshot || '')).toContain(EDIT);
+  expect(errs).toEqual([]);
+});
+
+test('T2 동기 쓰기가 되면 성공 — 실패 표지가 풀린다', async ({ page }) => {
+  const errs = await setup(page);
+  await editThenLeaveA(page, 'exception');
+  expect(await failedIds(page), '[전제] 실패 표지').toContain(A);
+  const a = await quit(page);
+  expect((await syncA(page)).length).toBe(1);
+  expect(a.ok, '들어갔는데 실패라고 했다').toBe(true);
+  expect(await page.evaluate((A) => JSON.stringify(window.__files.get(A)).includes('TS-EDIT'), A), '★파일에 그 편집이 없다').toBe(true);
+  expect(await failedIds(page), '★들어갔는데 표지가 남았다').not.toContain(A);
+  expect(errs).toEqual([]);
+});
+
+test('T3 종료 답 뒤 beforeunload 의 두 번째 flush 는 같은 본을 다시 안 쓴다', async ({ page }) => {
+  await setup(page);
+  await editThenLeaveA(page, 'planning_not_editor');
+  await page.evaluate(() => { window.__syncRefuse = 'planning_not_editor'; });
+  await quit(page);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  expect((await syncA(page)).length, '★같은 실패 본을 두 번 내려 비상 사본이 둘').toBe(1);
+});
+
+test('T4 [음성] 저장이 성공한 옆 탭은 종료 때 다시 안 쓴다', async ({ page }) => {
+  const errs = await setup(page);
+  await editThenLeaveA(page, null);
+  const a = await quit(page);
+  expect(await syncA(page)).toEqual([]);
+  expect(a.ok).toBe(true);
+  expect(await failedIds(page)).not.toContain(A);
+  expect(errs).toEqual([]);
+});
+
+/* 부팅 고아 정리 — 다시 부팅(reload)해 실제 부팅 길로 잰다. 정리가 돌았다는 신호 = 목록에도 표지에도 없는 고아 Z 의 LS 가 지워짐(고정 대기 없음). */
+const Z = 'proj_tsz';
+async function bootWith(page, { failed, state = 'ok', corrupt = false }) {
+  await page.addInitScript(([A, B, Z, K, failed, state, corrupt]) => {
+    const proj = (id) => ({ id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas: `<div class="section-block" id="sec_${id}"><div class="section-inner"><div class="text-block" data-type="text"><div class="tb-h2">${id} 본문</div></div></div></div>` }] });
+    const fake = {
+      listProjects: async () => [{ id: B, name: B, type: null, updatedAt: new Date().toISOString() }],
+      projectsRootKey: async () => 'legacy',
+      projectFolderState: async (id) => (id === A ? state : 'ok'),   // A: ok = 폴더는 있고 목록에만 없음(기획) · trashed = 지움
+      loadProject: async (id, o) => (id === B ? proj(B) : (o && o.open ? { _planning: true } : null)),
+    };
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
+    if (!sessionStorage.getItem('__seeded')) {   // 첫 부팅은 씨만 — reload 뒤 부팅이 잰다
+      sessionStorage.setItem('__seeded', '1');
+      localStorage.setItem('web-editor-open-tabs', JSON.stringify({ tabs: [{ id: A, name: A }, { id: B, name: B }], activeId: B }));
+      for (const id of [A, Z]) {
+        localStorage.setItem('web-editor-autosave__' + id, JSON.stringify(proj(id)));
+        localStorage.setItem('web-editor-autosave__' + id + '_ts', String(Date.now()));
+        localStorage.setItem('web-editor-ls-root__' + id, 'legacy');
+      }
+      if (corrupt) localStorage.setItem(K, '{깨짐');
+      else if (failed) localStorage.setItem(K, JSON.stringify([A]));
+    }
+  }, [A, B, Z, FAILED_KEY, failed, state, corrupt]);
+  await bootApp(page);
+  await page.evaluate((B) => { history.replaceState(null, '', '?project=' + B); }, B);
+  await page.reload();
+  await page.waitForFunction((Z) => typeof window.rebindAll === 'function' && localStorage.getItem('web-editor-autosave__' + Z) === null, Z, { timeout: 15000 });
+  return page.evaluate(([A, K]) => ({ ls: (localStorage.getItem('web-editor-autosave__' + A) || '').length, ids: localStorage.getItem(K) }), [A, FAILED_KEY]);
+}
+test('T5 부팅 고아 정리가 실패 표지 id 의 LS 본을 남긴다(폴더는 있고 목록에만 없음)', async ({ page }) => {
+  const r = await bootWith(page, { failed: true });
+  expect(r.ls, '★실패 표지 id 의 LS 본을 지웠다(편집을 잃음)').toBeGreaterThan(0);
+  expect(JSON.parse(r.ids || '[]'), '표지가 걷혔다').toContain(A);
+});
+test('T6 [음성] 표지 없는 목록 밖 id 는 그대로 지운다(다른 갈래 무접촉)', async ({ page }) => {
+  const r = await bootWith(page, { failed: false });
+  expect(r.ls).toBe(0);
+});
+test('T7 지운 프로젝트(휴지통)는 표지가 있어도 정리되고 표지도 걷힌다', async ({ page }) => {
+  const r = await bootWith(page, { failed: true, state: 'trashed' });
+  expect(r.ls, '★지운 프로젝트의 본을 보호했다(목록이 쌓인다)').toBe(0);
+  expect(r.ids, '★지운 프로젝트 표지가 남았다').toBe(null);
+});
+test('T8 표지 목록이 깨졌으면 옛 동작 — 보호 없이 정리', async ({ page }) => {
+  const r = await bootWith(page, { failed: true, corrupt: true });
+  expect(r.ls).toBe(0);
+});

@@ -501,7 +501,7 @@ async function closeDeletedProjectTab(id, opts) {
   const next = tabs[idx + 1] || tabs[idx - 1];
   _setTabs(tabs.filter(t => t.id !== id));
   /* 지운 프로젝트의 탭과 본을 디스크까지 지금 내린다 — 60초 안에 죽으면 다음 부팅이 옛 탭·옛 본을 읽어 영구 삭제한 프로젝트를 «앱 밖에서 없어진 것»으로 되살렸다(앱 재현). */
-  try { if (!opts?.keepLs) { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); } saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
+  try { if (!opts?.keepLs) { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); window.forgetFailedSave?.(id); } saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
   if (active && !next) {
     _setActId(null);   // beforeunload 저장도 멈춘다
     saveTabState();
