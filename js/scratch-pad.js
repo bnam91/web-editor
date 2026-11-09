@@ -2213,10 +2213,15 @@ window.clearScratchPad   = async () => {
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
+  const key = _getScratchKey(_currentProjectId, _currentPageId);
+  if (!key) return;
   const db = await _openDB();
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-  tx.objectStore(SCRATCH_STORE).delete(_getScratchKey(_currentProjectId, _currentPageId));
-  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  /* 키를 지우지 않고 [] 를 쓴다 — 키 없음은 «아직 모름»(외부화가 매니페스트를 보존 · 로드가 매니페스트로 되채움), [] 는 «사람이 비움»이다.
+     지우면 저장 뒤에도 디스크 매니페스트가 옛 장을 들고 있어 다시 열 때 · 다른 맥에서 돌아왔다(SCRATCH-CLEARED-MANIFEST-STAYS-01). */
+  tx.objectStore(SCRATCH_STORE).put([], key);
+  await _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  window.triggerAutoSave?.();   // J214 와 같은 까닭 — 비운 것을 매니페스트에 싣는다
 };
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
