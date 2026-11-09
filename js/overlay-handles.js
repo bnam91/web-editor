@@ -17,7 +17,8 @@ import { resizeColBoundary, resizeRowHeight, resizeGridImage,
 //   이라 여기서 dataset.cols/rows 를 직접 재파싱하면 클램프/폴백 로직이 두 곳에 흩어진다
 //   (이 레포의 고질 — P1 IMPL 보고서·P0 EVAL 둘 다 지적한 패턴). 재사용이 맞다.
 import { getGridModel, gridCols, gridRows, gridPreviewLine,
-         moveGridRow, moveGridCol, gridColLabel, gridRowLabel, getGridCellPadY } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
+         moveGridRow, moveGridCol, gridColLabel, gridRowLabel, getGridCellPadY,
+         gridBlockBg, GRID_BLOCK_BG_RADIUS_MAX } from './blocks/grid-block.js';   /* ★t3-04 U2a — 머리띠(같은 import 간선 · 새 간선 0) */
 /* ★모달 핸들의 클램프는 «패널과 같은 표»를 본다 — 리터럴을 여기 다시 쓰면 갈라진다.
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
@@ -4316,6 +4317,15 @@ function showGridOverlayResizeHandles(block) {
     overlay.appendChild(h);
     h.addEventListener('mousedown', e => _onGridOverlayResizeMouseDown(e, block, dir));
   });
+  /* ★t2-07 — 배경 「코너」 손잡이 넷(에셋 모서리 점과 같은 모양). 자기 클래스 — .asset-radius-handle 을 빌리면 hideAssetRadiusHandles 가 쓸어 간다. */
+  CORNER_DIRS.forEach(dir => {
+    const r = document.createElement('div');
+    r.className = `grd-radius-handle ${dir}`;
+    r.dataset.grdRadiusDir = dir;
+    r.title = '모서리 반경 조절';
+    overlay.appendChild(r);
+    r.addEventListener('mousedown', e => _onGridBgRadiusMouseDown(e, block, dir));
+  });
   _updateGridOverlayHandlePositions();
   _startGridOverlayResizeRaf();
 }
@@ -4324,7 +4334,7 @@ function hideGridOverlayResizeHandles() {
   if (_grdResizeRafId) { cancelAnimationFrame(_grdResizeRafId); _grdResizeRafId = null; }
   _grdResizeBlock = null;
   const overlay = _getOverlay();
-  if (overlay) overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => h.remove());
+  if (overlay) overlay.querySelectorAll('[data-grd-resize-dir],[data-grd-radius-dir]').forEach(h => h.remove());
 }
 
 function _updateGridOverlayHandlePositions() {
@@ -4346,6 +4356,20 @@ function _updateGridOverlayHandlePositions() {
     if (overPlus) h.style.display = 'none';
     syncHandleSelVariant(h, _grdResizeBlock);   // 떠 있으면 보라 — 테두리와 «한 색»
   });
+  /* ★t2-07 — 코너 점은 배경을 켰을 때만. 자리 = .grd-bg 모서리 안쪽(모달처럼 작은 상자에선 inset 을 좁힌다). */
+  const rBox = window.gridVisualBox?.(_grdResizeBlock) || _grdResizeBlock;
+  const rr = rBox.getBoundingClientRect();
+  const bgOn = gridBlockBg(_grdResizeBlock).on && rr.height >= 24;   // 24px 미만이면 행 경계를 덮는다 — 넷 다 숨김(t2-07 지디 결정)
+  const INSET = Math.max(0, Math.min(10, rr.width / 2 - 4, rr.height / 2 - 4));
+  const plus = [...document.querySelectorAll(`#grd-plus-layer > .grd-add-btn[data-grd-for="${_grdResizeBlock.id}"]`)].map(p => p.getBoundingClientRect());
+  overlay.querySelectorAll('[data-grd-radius-dir]').forEach(h => {
+    const c = _cornerScreen(rBox, h.dataset.grdRadiusDir, INSET);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+    const overPlus = plus.some(q => q.width > 0 && c.x + HALF > q.left && c.x - HALF < q.right && c.y + HALF > q.top && c.y - HALF < q.bottom);   // P4 ⒜ 와 같은 양보
+    if (!bgOn || overPlus) h.style.display = 'none';
+    syncHandleSelVariant(h, _grdResizeBlock);
+  });
 }
 
 function _startGridOverlayResizeRaf() {
@@ -4360,7 +4384,7 @@ function _startGridOverlayResizeRaf() {
     }
     const editing = _grdEditing(block);
     const overlay = _getOverlay();
-    if (overlay) overlay.querySelectorAll('[data-grd-resize-dir]').forEach(h => { h.style.display = editing ? 'none' : ''; });
+    if (overlay) overlay.querySelectorAll('[data-grd-resize-dir],[data-grd-radius-dir]').forEach(h => { h.style.display = editing ? 'none' : ''; });
     if (!editing) _updateGridOverlayHandlePositions();
     _grdResizeRafId = requestAnimationFrame(loop);
   }
@@ -4413,6 +4437,46 @@ function _onGridOverlayResizeMouseDown(e, block, dir) {
       if (block.classList.contains('selected')) window.showGridProperties?.(block);   // 패널 너비칸이 손잡이 값을 알게
       window.triggerAutoSave?.();
     }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ★t2-07 — 배경 「코너」 끌기(모달 반경 손잡이 꼴). 진실 = dataset.blockBgRadius · 그림 = applyGridBlockBg · 패널 두 칸도 같이. */
+function _onGridBgRadiusMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const startR = gridBlockBg(block).radius;
+  let moved = false;
+  const _hist = window.beginDragHistory?.('그리드 배경 모서리');
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale, dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;
+      _hist?.arm(dx, dy);
+      moved = true;
+    }
+    // 안쪽으로 끌면 둥글게 — 에셋·모달 반경과 같은 부호
+    const delta = dir === 'nw' ? (dx + dy) / 2
+                : dir === 'ne' ? (-dx + dy) / 2
+                : dir === 'sw' ? (dx - dy) / 2
+                : (-dx - dy) / 2;
+    const newR = Math.max(0, Math.min(GRID_BLOCK_BG_RADIUS_MAX, Math.round(startR + delta)));
+    block.dataset.blockBgRadius = String(newR);
+    window.applyGridBlockBg?.(block);
+    const slider = document.getElementById('grd-bbg-radius-slider');
+    const num    = document.getElementById('grd-bbg-radius-num');
+    if (slider) slider.value = String(newR);
+    if (num)    num.value    = String(newR);
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved) window.pushHistory?.('그리드 배경 모서리');   // 끝 표본 — 맨클릭은 항목을 안 만든다
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);

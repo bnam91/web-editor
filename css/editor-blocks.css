@@ -460,7 +460,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  *     확대블럭 리사이즈 → 같은 자리). js/overlay-handles.js 1827행 주석 참조. */
 .asset-radius-handle,
 .mdl-radius-handle,
-.zm-radius-handle {
+.zm-radius-handle,
+.grd-radius-handle {
   position: absolute;
   width:  7px;
   height: 7px;
@@ -475,7 +476,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .asset-radius-handle:hover,
 .mdl-radius-handle:hover,
-.zm-radius-handle:hover {
+.zm-radius-handle:hover,
+.grd-radius-handle:hover {
   transform: scale(1.4);
   background: var(--sel-color);
 }
@@ -573,7 +575,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    ⛔`[data-sel-variant]:hover` 로 넓게 걸지 않는다 — 리사이즈 손잡이는 hover 채움이 «없어서»
      흰 채움이 정상인데, 넓게 걸면 없던 hover 색이 새로 생긴다. hover 채움을 가진 계열
      (반경 = data-asset-radius-dir)에만 얹는다. */
-#ss-handles-overlay [data-sel-variant="sticker"][data-asset-radius-dir]:hover {
+#ss-handles-overlay [data-sel-variant="sticker"][data-asset-radius-dir]:hover,
+#ss-handles-overlay [data-sel-variant="sticker"][data-grd-radius-dir]:hover {
   background: var(--ui-sel-overlay, #9966ff);
 }
 /* ★도형의 모서리 핸들(.shape-handle)은 블럭의 «자식»이라(js/block-drag.js _addShapeHandles)
