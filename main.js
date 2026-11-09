@@ -5738,7 +5738,7 @@ async function _invokeRendererEditBlock({ blockId, content, color, fontSize, fon
       const _fontWeight = ${safeFontWeight};
       const _align = ${safeAlign};
       /* 🔒 보호 섹션 글을 빈 글로 덮는 것은 지우기와 같다 — 지우기 거절과 같은 답(MCP-UPDATE-BLOCK-EMPTIES-PROTECTED-01). 다른 글·색 등은 그대로 된다. */
-      if (_content !== null && String(_content).trim() === '' && window.isSectionProtected?.(document.getElementById(${safeBlockId})?.closest('.section-block'))) return ${_SECTION_PROTECTED_JS};
+      if (_content !== null && String(_content).replace(/[\\s\\u200B-\\u200D\\u2060\\uFEFF]/g, '') === '' && window.isSectionProtected?.(document.getElementById(${safeBlockId})?.closest('.section-block'))) return ${_SECTION_PROTECTED_JS};
       if (_content !== null) _opts.content = _content;
       if (_color !== null) _opts.color = _color;
       if (_fontSize !== null) _opts.fontSize = _fontSize;

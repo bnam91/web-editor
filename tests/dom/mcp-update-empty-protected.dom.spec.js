@@ -2,7 +2,7 @@
  * 왜: 보호는 «지우기 금지»인데 빈 글로 덮으면 지운 것과 같다 — w1 앱 3/3 · 보호·미보호 같음.
  * 자: main.js 의 진짜 다리 _invokeRendererEditBlock 이 만드는 JS 를 진짜 페이지에서 돌린다(mcp-delete-protected 와 같은 수법).
  * 칸: E1 보호 + "" → SECTION_PROTECTED · 글 그대로 · E2 보호 + 빈칸만("  ") → 같음 · E3 [음성] 미보호 + "" → 비워짐(지금과 같음)
- *     E4 [음성] 보호 + 다른 글 → 바뀜 · E5 [음성] 보호 + 색만 → 바뀜 · 픽스처: 섹션 둘 · 보호 섹션에 글 둘·그림 하나. */
+ *     E6 보호 + 폭 없는 글자만 → 같음 · E4 [음성] 보호 + 다른 글 → 바뀜 · E5 [음성] 보호 + 색만 → 바뀜 · 픽스처: 섹션 둘 · 보호 섹션에 글 둘·그림 하나. */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
@@ -42,7 +42,7 @@ async function scene(page, { prot }) {
 }
 const textOf = (page, id) => page.evaluate((id) => document.getElementById(id)?.textContent || '', id);
 
-for (const [cell, content] of [['E1', ''], ['E2', '  ']]) {
+for (const [cell, content] of [['E1', ''], ['E2', '  '], ['E6', '\u200B\u2060']]) {   // E6 폭 없는 글자만 — trim 이 못 지운다(리뷰 1)
   test(`${cell} 보호 섹션 글을 ${JSON.stringify(content)} 로 비우려 하면 SECTION_PROTECTED · 글 그대로`, async ({ page }) => {
     const { errs, id } = await scene(page, { prot: true });
     const res = await edit(page)({ blockId: id, content });
