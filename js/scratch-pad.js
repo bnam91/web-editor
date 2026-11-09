@@ -186,6 +186,7 @@ async function externalizeScratchpad(proj, projectId) {
   for (const page of proj.pages) {
     if (!page || !page.id) continue;
     const key = `scratch-pad-${projectId}-${page.id}`;
+    if (!db._isFallback && _fbWins.has(key)) continue;   // 리뷰 2 #2 — 표식 키는 로드가 맞출 때까지 매니페스트 보존(옛 DB 값으로 덮지 않는다 · 안 가 본 페이지)
     let data;
     try { data = await readRaw(key); } catch (_) { continue; }
     if (data === undefined) continue;              // 키 없음 = 스크래치 없음/미로드 → 매니페스트 보존
@@ -1526,7 +1527,9 @@ async function _loadScratchImpl(projectId, pageId) {
     let manifestWins = false;
     if (!db._isFallback && _fbWins.has(key)) {
       const pgW = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
-      if (pgW && Array.isArray(pgW.scratchpad)) { data.length = 0; data.push(...pgW.scratchpad.map(m => _pickScratch(m))); keyMissing = false; manifestWins = true; }
+      /* 리뷰 2 #1 — 갈지 말고 «합친다»(같은 id 는 매니페스트 · DB 에만 있는 것은 남김): 장 넣기·옮기기는 DB 만 써서 DB 가 매니페스트보다 새 것일 수 있다
+         (그 세션에 스크래치를 안 만져도 캔버스 저장이 표식을 남긴다). 값: 폴백 세션에 지운 장은 돌아올 수 있다(_loadFailed 길과 같은 «잃지 않기» 쪽) */
+      if (pgW && Array.isArray(pgW.scratchpad)) { const u = _unionById(data, pgW.scratchpad.map(m => _pickScratch(m))); data.length = 0; data.push(...u); keyMissing = false; manifestWins = true; }
     }
     const heldBack = _unsavedFlush.get(key);   // 떠날 때 쓰기가 실패해 메모리에만 있던 판 — DB 보다 새 것이다
     if (heldBack) { const next = heldBack.merge ? _unionById(data, heldBack.data) : heldBack.data; data.length = 0; data.push(...next); _unsavedFlush.delete(key); }
@@ -2455,7 +2458,10 @@ window._scratchExportAll = async (projectId, pageIds) => {
       req.onsuccess = e => resolve(e.target.result || []);
       req.onerror   = () => resolve([]);
     });
-    if (items && items.length) out.push({ pageId, items });
+    /* 리뷰 2 #3 — 표식 키(지난 폴백 세션 편집이 매니페스트에만)는 로드와 같은 합침으로 내보낸다 */
+    let outItems = items;
+    if (!db._isFallback && _fbWins.has(key)) { const pg = window.state?.pages?.find?.(p => p.id === pageId); if (pg && Array.isArray(pg.scratchpad)) outItems = _unionById(items, pg.scratchpad.map(m => _pickScratch(m))); }
+    if (outItems && outItems.length) out.push({ pageId, items: outItems });
   }
   return out;
 };

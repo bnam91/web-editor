@@ -5,6 +5,8 @@
  *   D3 _scratchAddAndSave 결과: 정상 { ok:true, id } · 프로젝트 없음 { ok:false, reason:'no-context' } (폴백이면 D1: 'memory-only')
  *   D4 (적대 리뷰 1) 지난 폴백 세션이 매니페스트로만 남긴 키 → 다음 진짜 로드는 옛 DB 값 대신 매니페스트(그 세션 편집)를 쓰고 DB 에 적은 뒤 표식을 지운다
  *      D1 은 폴백 외부화가 그 표식을 남기는지도 잰다 · 양성대조: 표식 갈래를 빼면 D4 빨강(옛 DB [A] 가 이김)
+ *   D5 (리뷰 2 #1) DB 가 매니페스트보다 새 것(DB [A,B] · 매니페스트 [A] · 표식) → 합침 = [A,B](B 를 안 잃음)
+ *   D6 (리뷰 2 #2) 안 가 본 표식 페이지 p2 — 진짜 DB 에서 외부화해도 p2 매니페스트 [A,B] 를 옛 DB [A] 로 안 덮는다
  * ★양성대조: js/scratch-pad.js 를 기준판(f5e4970d9)으로 되돌리면 D1(deleteDatabase 1)·D2(늦은 연결로 갈림)·D3 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -100,5 +102,35 @@ test('D4 지난 폴백 세션의 매니페스트가 다음 진짜 로드에서 �
   expect(r.shown, '★옛 DB [A] 가 이겨 폴백 세션의 B 를 잃었다').toEqual(['sp_a', 'sp_b']);
   expect(r.inDb, 'DB 에도 적혔다').toEqual(['sp_a', 'sp_b']);
   expect(r.mark, '적은 뒤 표식을 지웠다').toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+async function putIdb(page, K, items) {
+  await page.evaluate(async ([K, items]) => { await new Promise((res, rej) => { const q = indexedDB.open('ScratchPadDB', 1); q.onupgradeneeded = e => { try { e.target.result.createObjectStore('scratch'); } catch (_) {} };
+    q.onsuccess = e => { const db = e.target.result; const tx = db.transaction('scratch', 'readwrite'); tx.objectStore('scratch').put(items, K); tx.oncomplete = () => { db.close(); res(); }; tx.onerror = rej; }; q.onerror = rej; }); }, [K, items]);
+}
+test('D5 DB 가 매니페스트보다 새 것이면 합친다 — 표식이 DB 에만 있는 장을 안 지운다', async ({ page }) => {
+  const errs = await bootApp(page);
+  const A = { id: 'sp_a', src: PNG, x: 700, y: 200, w: 300 }, B = { id: 'sp_b', src: PNG, x: 700, y: 600, w: 300 };
+  await putIdb(page, 'scratch-pad-proj_d5-p1', [A, B]);
+  const shown = await page.evaluate(async ([A]) => { localStorage.setItem('scratch-manifest-wins', JSON.stringify(['scratch-pad-proj_d5-p1'])); window.state.pages = [{ id: 'p1', scratchpad: [A] }];
+    await window.initScratchPad('proj_d5', 'p1'); return [...document.querySelectorAll('.scratch-item')].map(e => e.dataset.scratchId).sort(); }, [A]);
+  expect(shown, '★표식이 DB 에만 있던 B 를 지웠다').toEqual(['sp_a', 'sp_b']);
+  expect(errs).toEqual([]);
+});
+test('D6 안 가 본 표식 페이지 — 진짜 DB 에서 외부화해도 그 매니페스트를 옛 DB 값으로 안 덮는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  const A = { id: 'sp_a', src: 'goya-asset://proj_d6/a.png', x: 700, y: 200, w: 300 }, B = { id: 'sp_b', src: 'goya-asset://proj_d6/b.png', x: 700, y: 600, w: 300 };
+  await putIdb(page, 'scratch-pad-proj_d6-p2', [A]);
+  const m = await page.evaluate(async ([A, B]) => {
+    window.electronAPI = { assetsSaveCanvasImage: async () => ({ ok: true, url: 'goya-asset://proj_d6/x.png' }) };
+    localStorage.setItem('scratch-manifest-wins', JSON.stringify(['scratch-pad-proj_d6-p2']));
+    window.state.pages = [{ id: 'p1' }, { id: 'p2', scratchpad: [A, B] }];
+    await window.initScratchPad('proj_d6', 'p1');
+    const proj = { pages: [{ id: 'p1' }, { id: 'p2', scratchpad: [A, B] }] };
+    await window.externalizeScratchpad(proj, 'proj_d6');
+    return proj.pages[1].scratchpad.map(i => i.id).sort();
+  }, [A, B]);
+  expect(m, '★옛 DB [A] 로 매니페스트 [A,B] 를 덮었다').toEqual(['sp_a', 'sp_b']);
   expect(errs).toEqual([]);
 });
