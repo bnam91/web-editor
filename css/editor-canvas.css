@@ -274,7 +274,13 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
   transition: opacity 0.15s;
   z-index: 10;
 }
-.scratch-item:hover .scratch-resize { opacity: 1; }
+/* ★t2-10 — 나머지 세 모서리(se 는 위 기본 그대로). 모양·크기는 같고 자리·밀기 방향·커서만 다르다. */
+.scratch-resize--nw { top: 0; left: 0; bottom: auto; right: auto; transform: translate(-50%, -50%) scale(var(--scratch-inv-zoom, 1)); }
+.scratch-resize--ne { top: 0; bottom: auto; transform: translate(50%, -50%) scale(var(--scratch-inv-zoom, 1)); cursor: nesw-resize; }
+.scratch-resize--sw { left: 0; right: auto; transform: translate(-50%, 50%) scale(var(--scratch-inv-zoom, 1)); cursor: nesw-resize; }
+/* 새 세 모서리는 안 보일 땐 클릭도 안 받는다 — 좁은 그림이면 옆 그림 위로 4px 나가 그 클릭을 가로챘다(scratch-hidden-btn-hit H1·H6 · ✕ 와 같은 규칙) */
+.scratch-resize--nw, .scratch-resize--ne, .scratch-resize--sw { pointer-events: none; }
+.scratch-item:hover .scratch-resize { opacity: 1; pointer-events: auto; }
 .scratch-item.scratch-selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
