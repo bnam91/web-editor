@@ -326,6 +326,16 @@ function _removeItem(item) {
  *   Figma·Illustrator·Canva 공식 문서에 «그룹 안 하나 삭제 뒤 남은 수에 따른 처분»·«되돌리기 범위» 문구 없음):
  *     ㉱ 남은 1장 ⇒ 그룹 ★유지 · 0장 ⇒ 그룹 없음 + 모드 나감 — `_dissolveLoneGroup` 의 keepLone 인자(규칙 한 벌 안에서 갈린다)
  *     ㉱-z ⌘Z 한 번 ⇒ 그룹 소속·전체 수·★순서 셋이 전과 같다 — 되살린 장은 맨 뒤에 붙으므로 순서를 다시 앉힌다 */
+/* ★SCRATCH-X-THEN-CRASH-WITHIN-SAVE-WINDOW-01 — 지우기·되살리기는 파일 매니페스트(proj.json pages[].scratchpad)를 1.5초 미룬 자동저장에 맡겼다
+   ⇒ 그 창 안 비정상 종료면 파일에 지운 장이 남아 IndexedDB 없는 곳(다른 맥)에서 매니페스트로 되살아났다(원문 ×3).
+   ⇒ IndexedDB 쓰기를 «기다린 뒤»(외부화가 그 키를 읽어 매니페스트를 만든다) 바로 저장(flushSave = 저장 버튼 길 · 자동저장 줄에 선다).
+   flushSave 는 성패를 안 돌려준다 — 끝난 뒤에도 안 저장된 것이 남았으면 예전처럼 자동저장을 건다(물러남). */
+async function _scratchSaveFileNow(idbWrite) {
+  try { await idbWrite; } catch (_) {}
+  try { if (typeof window.flushSave === 'function') { await window.flushSave(); if (!window.hasUnsavedChanges?.()) return; } } catch (_) {}
+  window.triggerAutoSave?.();
+}
+
 function _deleteScratchItemsWithHistory(items, opts = {}) {
   if (!items || items.length === 0) return;
   const inGroupMode = !!opts.inGroupMode;
@@ -371,10 +381,9 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
    *   ★음성대조 = ★C7(3장에서 하나 빼면 ★2장 그룹이 ★남는다 — ⛔풀리지 않는다). */
   const touchedGroups = [...new Set(items.map(s => s.g).filter(Boolean))];
   for (const gid of touchedGroups) _dissolveLoneGroup(gid, { exitMode: true, keepLone: inGroupMode });
-  _saveScratch();
   /* ★J214 — 지우기는 캔버스를 안 건드려 파일 저장이 안 잡힌다 ⇒ proj.json 매니페스트(pages[].scratchpad)에 지운 장이 남는다.
-     그 채로 앱이 비정상 종료되면 다시 열 때(IndexedDB 빔) · 다른 맥에서 매니페스트로 되살아난다(앱 3/3). 저장을 예약한다. */
-  window.triggerAutoSave?.();
+     그 채로 앱이 비정상 종료되면 다시 열 때(IndexedDB 빔) · 다른 맥에서 매니페스트로 되살아난다(앱 3/3). ★X-THEN-CRASH: 예약 대신 바로 저장. */
+  _scratchSaveFileNow(_saveScratch());
 
   // 글로벌 history에 sideEffects entry 추가 — 캔버스 스냅샷은 동일 상태로 push되어
   // restoreSnapshot은 캔버스에 영향을 주지 않고 onUndo가 스크래치만 복원
@@ -393,8 +402,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
           _applyScratchOrder(orderBefore);
           if (_groupMode) _markGroupMode(true);
         }
-        await Promise.allSettled(saving);
-        window.triggerAutoSave?.();   // ★J214 — 되살린 장도 매니페스트에 싣는다
+        await _scratchSaveFileNow(Promise.allSettled(saving));   // ★J214 — 되살린 장도 매니페스트에 싣는다(★X-THEN-CRASH: 바로)
       },
       onRedo: async () => {
         // 복원했던 item들을 다시 제거 (id 보존이므로 원본 id로 직접 제거)
@@ -403,7 +411,7 @@ function _deleteScratchItemsWithHistory(items, opts = {}) {
           try { await window._scratchRemoveById?.(s.id, { keepLone: inGroupMode }); } catch (_) {}
         }
         try { _severLinks(severed.map(r => r.link.scratchId)); } catch (_) {}
-        window.triggerAutoSave?.();   // ★J214
+        await _scratchSaveFileNow();   // ★J214 · ★X-THEN-CRASH(지우기는 위 await 로 IndexedDB 까지 끝났다)
       },
     });
   } catch (_) {}
