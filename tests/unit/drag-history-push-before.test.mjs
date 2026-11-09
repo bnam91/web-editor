@@ -59,6 +59,8 @@ const ROSTER = {
        (arm + onUp pushHistory) — 끝 표본은 tests/dom/grid-width-ui.dom.spec.js U2 가 이웃으로 잰다. */
     /* 2026-10-05 제4안 — 같은 손잡이가 높이(칸 위아래 여백)도 끌게 되어 라벨 '그리드 폭' → '그리드 크기'. */
     '그리드 크기',
+    /* t2-07 — 그리드 배경 「코너」 손잡이(.grd-radius-handle). 그리드 크기 핸들러 바로 뒤(소스 등장 순서). */
+    '그리드 배경 모서리',
   ],
   /* ★1017t1e1 — «두께» 손잡이(.hlb-handle[data-endpoint="thick"])가 끝점 갈래 «앞»에 산다
      (_bindHlbHandleDrag 안에서 if (endpoint==='thick') 가 끝점 분기보다 먼저 나온다) ⇒ 소스 등장 순서로 맨 앞. */
