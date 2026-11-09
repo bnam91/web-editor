@@ -125,8 +125,8 @@ export function wireShadowSection({ ctx, initial }) {
     }
   };
 
-  // 초기 상태
-  _setCtrlsDisabled(!s.enabled);
+  // 초기 상태 — 옛 절(토글 있음)만. Effects 카드엔 토글이 없고 눈이 숨겨도 조절칸은 보인다(js/effects-shadow.js)
+  if (onChk) _setCtrlsDisabled(!s.enabled);
 
   // 토글
   if (onChk) {

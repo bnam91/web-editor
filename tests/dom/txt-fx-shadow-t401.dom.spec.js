@@ -7,6 +7,9 @@
  *   S1 목록 = 반사·그림자·글로우·자유변형(등록 순서) · 옛 Shadow 절은 없다(두 벌 금지)
  *   S2 고르면 옛 기본값 그대로 그려지고 조절칸이 카드에 뜬다 · S3 칸 → 그림 · S4 ✕ → 켜기 전 바이트
  *   S5 더하기 ⌘Z 한 번 · S6 저장 왕복 · S7 옛 저장본(그림자 켜짐) = 카드로 · S8 이웃 효과 무변
+ *   ★t4-01b(팀장) 눈 — 걸림 = 그림자 키가 하나라도 있음 · 보임 = shadowEnabled 'true' (⛔새 키 0)
+ *   E1 눈 꼴 = 글로우 눈 · E2 숨김 = 그림 0·값 남음·카드 남음 · E3 다시 = 같은 그림 · E4 숨김 ⌘Z 한 번
+ *   E5 숨긴 채 저장 왕복 · E6 숨김 뒤 ✕ = 키 0·목록 복귀
  * ⛔고정 대기 0 — waitForFunction / expect.poll (dom-fixed-wait-census). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -186,7 +189,7 @@ test('S6 저장 왕복 — 키·그림 유지 · 다시 고르면 카드(값 그
   expect([...errs, ...errs2]).toEqual([]);
 });
 
-test('S7 옛 저장본(Shadow 절로 켠 그림자) — 열면 «걸린» 카드로 뜨고 목록엔 없다 · 꺼 둔 옛 값은 «안 걸림»', async ({ page }) => {
+test('S7 옛 저장본(Shadow 절로 켠 그림자) — 열면 «걸린» 카드로 뜨고 목록엔 없다 · 꺼 둔 옛 값은 «걸렸지만 숨김»(t4-01b 눈)', async ({ page }) => {
   const errs = await setup(page);
   /* 옛 판이 쓰던 그대로 — 글자칸 dataset + 인라인 text-shadow(옛 _apply 와 같은 꼴) */
   await page.evaluate(() => {
@@ -205,11 +208,13 @@ test('S7 옛 저장본(Shadow 절로 켠 그림자) — 열면 «걸린» 카드
   await expect(page.locator('#txt-shadow-y-number')).toHaveValue('6');
   await expect(page.locator('#txt-shadow-color-hex')).toHaveValue('112233');
   expect(await ts(page)).toContain('4px 6px 8px');
-  /* 꺼 둔 옛 값(토글 끔 — 값은 남음) = 안 걸린 것 · 고르면 남은 값으로 켠다(옛 토글 켜기와 같다) */
+  /* 꺼 둔 옛 값(토글 끔 — 값은 남음) = 걸렸지만 숨긴 카드(눈 hidden) · 목록엔 없다 · 눈을 켜면 남은 값으로 켠다(옛 토글 켜기와 같다) */
   await page.evaluate(() => { const h = document.querySelector('#eT [class^="tb-"]'); h.dataset.shadowEnabled = 'false'; h.style.textShadow = ''; });
   await pick(page, 'eT');
-  expect(await addList(page, 'txt')).toContain('shadow');
-  await choose(page, 'txt', 'shadow');
+  expect(await cards(page)).toEqual(['shadow']);
+  expect(await addList(page, 'txt')).not.toContain('shadow');
+  await expect(page.locator('#txt-fxsh-eye')).toHaveAttribute('aria-pressed', 'false');
+  await clickMid(page, '#txt-fxsh-eye');
   await expect.poll(() => ts(page)).toContain('4px 6px 8px');
   expect([...errs, ...errs2]).toEqual([]);
 });
@@ -238,5 +243,101 @@ test('S8 이웃 효과 무변 — 글로우와 합성(4겹) · 그림자 ✕ 뒤
   await page.waitForFunction(() => !!document.getElementById('shape-fxsh-eye'));
   expect(await page.evaluate(() => document.getElementById('eSh').style.filter)).toContain('drop-shadow');
   await expect(page.locator('#txt-shadow-controls')).toHaveCount(0);
+  expect(errs).toEqual([]);
+});
+
+/* ═══ t4-01b 눈(숨김) ═══ */
+const eyeState = (page) => page.evaluate(() => { const e = document.getElementById('txt-fxsh-eye'); return e ? { pressed: e.getAttribute('aria-pressed'), icon: e.innerHTML, hiddenIcon: (() => { const t = document.createElement('template'); t.innerHTML = (window.EYE_ICONS || {}).hidden || ''; return t.innerHTML; })() } : null; });
+const addShadow = async (page) => { await pick(page, 'eT'); await choose(page, 'txt', 'shadow'); await page.waitForFunction(() => !!document.getElementById('txt-fxsh-card')); };
+const hide = async (page) => { await clickMid(page, '#txt-fxsh-eye'); await page.waitForFunction(() => document.getElementById('txt-fxsh-eye')?.getAttribute('aria-pressed') === 'false'); };
+const VALS = { shadowX: '2', shadowY: '2', shadowBlur: '4', shadowColor: '#000000', shadowAlpha: '50' };
+
+test('E1 그림자 카드에 눈 — 글로우 카드 눈과 같은 자리·같은 마크업(id 만 다르다)', async ({ page }) => {
+  const errs = await setup(page);
+  await addShadow(page);
+  await choose(page, 'txt', 'glow');
+  await page.waitForFunction(() => !!document.getElementById('txt-fxgl-eye') && !!document.getElementById('txt-fxsh-eye'));
+  const m = await page.evaluate(() => {
+    const norm = (id) => { const e = document.getElementById(id); return { html: e.outerHTML.replace(/ id="[^"]*"/, ''), first: e.parentElement.firstElementChild === e, next: e.nextElementSibling.className }; };
+    return { sh: norm('txt-fxsh-eye'), gl: norm('txt-fxgl-eye') };
+  });
+  expect(m.sh).toEqual(m.gl);
+  expect(m.sh.first, '머리 첫 칸').toBe(true);
+  expect(m.sh.html).toContain('class="prop-icon-btn"');
+  expect(errs).toEqual([]);
+});
+
+test('E2 눈 누르기 = 그림 0 · 값 키 다 남음 · shadowEnabled false · 카드는 남고 눈은 숨김 · 목록에 안 돌아감', async ({ page }) => {
+  const errs = await setup(page);
+  await addShadow(page);
+  await hide(page);
+  expect(await ts(page)).toBe('none');
+  expect(await shKeys(page)).toEqual({ shadowEnabled: 'false', ...VALS });
+  expect(await cards(page)).toEqual(['shadow']);
+  const e = await eyeState(page);
+  expect(e.pressed).toBe('false');
+  expect(e.icon).toBe(e.hiddenIcon);
+  expect(await addList(page, 'txt')).not.toContain('shadow');
+  await expect(page.locator('#txt-fxsh-card #txt-shadow-controls'), '숨겨도 조절칸은 보인다').toBeVisible();
+  expect(errs).toEqual([]);
+});
+
+test('E3 한 번 더 누르면 숨기기 전과 같은 text-shadow', async ({ page }) => {
+  const errs = await setup(page);
+  await addShadow(page);
+  const x = page.locator('#txt-shadow-x-number');
+  await x.click(); await x.fill('-6');
+  await expect.poll(async () => (await shKeys(page)).shadowX).toBe('-6');
+  const t0 = await ts(page);
+  expect(t0).not.toBe('none');
+  await hide(page);
+  expect(await ts(page)).toBe('none');
+  await clickMid(page, '#txt-fxsh-eye');
+  await page.waitForFunction(() => document.getElementById('txt-fxsh-eye')?.getAttribute('aria-pressed') === 'true');
+  expect(await ts(page)).toBe(t0);
+  expect((await shKeys(page)).shadowEnabled).toBe('true');
+  expect(errs).toEqual([]);
+});
+
+test('E4 숨김 뒤 ⌘Z 한 번 = 다시 보임(같은 그림)', async ({ page }) => {
+  const errs = await setup(page);
+  await addShadow(page);
+  const t0 = await ts(page);
+  await hide(page);
+  await undo(page);
+  await expect.poll(async () => (await shKeys(page)).shadowEnabled, '숨김 ⌘Z 1').toBe('true');
+  expect(await ts(page)).toBe(t0);
+  expect(await shKeys(page)).toEqual({ shadowEnabled: 'true', ...VALS });
+  expect(errs).toEqual([]);
+});
+
+test('E5 숨긴 채 저장 → 다시 열기 = 카드 있음·숨김·값 그대로·그림 0', async ({ page }) => {
+  const errs = await setup(page);
+  await addShadow(page);
+  await hide(page);
+  const k0 = await shKeys(page);
+  const snap = await page.evaluate(() => window.serializeProject());
+  const errs2 = await boot(page);
+  await page.evaluate((d) => window.applyProjectData(d), JSON.parse(snap));
+  await page.waitForFunction(() => !!document.getElementById('eT'));
+  expect(await shKeys(page)).toEqual(k0);
+  expect(await ts(page)).toBe('none');
+  await pick(page, 'eT');
+  expect(await cards(page)).toEqual(['shadow']);
+  expect((await eyeState(page)).pressed).toBe('false');
+  await expect(page.locator('#txt-shadow-x-number')).toHaveValue('2');
+  expect(await addList(page, 'txt')).not.toContain('shadow');
+  expect([...errs, ...errs2]).toEqual([]);
+});
+
+test('E6 숨김 뒤 ✕ = 키 전부 지움 · 카드 0 · 목록에 다시 뜬다', async ({ page }) => {
+  const errs = await setup(page);
+  await addShadow(page);
+  await hide(page);
+  await clickMid(page, '#txt-fxsh-del');
+  await page.waitForFunction(() => !document.getElementById('txt-fxsh-card'));
+  expect(await shKeys(page)).toEqual({});
+  expect(await ts(page)).toBe('none');
+  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'freetransform']);
   expect(errs).toEqual([]);
 });

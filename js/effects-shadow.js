@@ -31,7 +31,7 @@
      ⇒ HOST_MARGIN_Y_KEYS 에 ★키를 더하지 않는다.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
-import { readShadowState, writeTextShadow } from './props/prop-text-wireup-shadow.js';
+import { readShadowState, writeTextShadow, TEXT_SHADOW_KEYS } from './props/prop-text-wireup-shadow.js';
 import { textShadowControlsHtml } from './props/prop-text-template.js';
 
 export const FX_SHADOW_KEYS = ['fxShadow', 'fxShadowX', 'fxShadowY', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp'];
@@ -198,14 +198,15 @@ function _wireShadowCard(el, P, again) {
      정본 = 글자칸 dataset `shadowEnabled`·`shadowX`·`shadowY`·`shadowBlur`·`shadowColor`·`shadowAlpha` + 인라인 text-shadow(합성 문)
      · 기본값 = SHADOW_DEFAULTS · 조절칸 = 옛 절 마크업 «그대로»(textShadowControlsHtml · id 같음 ⇒ 배선 = wireShadowSection 하나).
    ★자리 = 블러(1012t1C1)와 같은 옮김 — 옛 「Shadow」 절은 Effects 가 품는 블럭에선 안 그린다(prop-text-template.js _fxShadow · 두 벌 금지).
-     옛 저장본 = shadowEnabled 'true' 면 has() 가 참 ⇒ 저절로 카드로 뜬다(마이그레이션 0).
-   ★눈(끄기) 없음 — 옛 데이터엔 「걸렸지만 끈」 상태가 없다(enabled 하나). ⛔새 키를 짓지 않았다. ✕ = 키 전부 지움(켜기 전 바이트).
+     걸림(has) = 그림자 키가 «하나라도» 있음 · 보임 = shadowEnabled 'true'. 옛 저장본은 저절로 카드로 뜬다(마이그레이션 0).
+   ★눈(t4-01b · 팀장) = shadowEnabled 만 뒤집는다(값 남김 · 반사·글로우 U8 과 같은 결) — ⛔새 키 0.
+     ⇒ 옛 토글로 «꺼 둔» 저장본(값 남음)은 이제 «걸렸지만 숨긴» 카드로 뜬다. ✕ = 키 전부 지움(켜기 전 바이트).
    ⛔filter(drop-shadow)로 바꾸지 마라 — 위 머리말(글자 그라데이션이 filter 를 쓴다). */
 const _isText = (el) => !!(el && el.classList && el.classList.contains('text-block'));
 /* 글자칸 — js/effects-glow.js _contentOf · prop-text.js showTextProperties 와 같은 순서 */
 const _txtContent = (tb) => tb.querySelector('[contenteditable]')
   || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner,.itb-text');
-const _txtHas = (tb) => { const ce = _txtContent(tb); return !!ce && readShadowState(ce).enabled; };
+const _txtHas = (tb) => { const ce = _txtContent(tb); return !!ce && TEXT_SHADOW_KEYS.some(k => ce.dataset[k] !== undefined); };
 function _txtAdd(tb) {
   const ce = _txtContent(tb);
   if (!ce) return;
@@ -215,21 +216,26 @@ function _txtAdd(tb) {
 }
 function _txtCardHtml(tb, P) {
   const open = fxIsCardOpen(tb, 'shadow');
+  const st = readShadowState(_txtContent(tb));
+  const off = !st.enabled;
+  const eye = (window.EYE_ICONS || {})[off ? 'hidden' : 'shown'] || '';
   return `
       <div class="prop-cell-card${open ? ' expanded' : ''}" id="${P}-fxsh-card" data-fx-type="shadow">
         <div class="prop-cell-card-header" id="${P}-fxsh-head">
-          <span class="prop-cell-card-title" style="flex:1;">그림자</span>
+          <button class="prop-icon-btn" id="${P}-fxsh-eye" title="${off ? '효과 켜기' : '효과 끄기'}" aria-label="효과 켜기/끄기" aria-pressed="${!off}">${eye}</button>
+          <span class="prop-cell-card-title" style="flex:1;${off ? 'text-decoration:line-through;opacity:.6;' : ''}">그림자</span>
           <button class="prop-icon-btn" id="${P}-fxsh-del" title="효과 삭제" aria-label="효과 삭제">×</button>
         </div>
         <div class="prop-cell-card-body" id="${P}-fxsh-body"${open ? '' : ' hidden'}>
-${textShadowControlsHtml(readShadowState(_txtContent(tb)))}
+${textShadowControlsHtml({ ...st, enabled: true })/* 숨겨도 조절칸은 보인다(반사·글로우 카드 몸통과 같다) — enabled 는 표시에만 쓰인다 */}
         </div>
       </div>`;
 }
 function _txtWire(tb, P, again) {
   const $ = (id) => document.getElementById(`${P}-${id}`);
-  /* 조절칸은 prop-text.js 의 wireShadowSection 이 이미 묶었다(같은 id) — 여기선 ✕ 와 접기만 */
+  /* 조절칸은 prop-text.js 의 wireShadowSection 이 이미 묶었다(같은 id) — 여기선 ✕ · 눈 · 접기만 */
   $('fxsh-del')?.addEventListener('click', (e) => { e.stopPropagation(); window.pushHistory?.('효과'); writeTextShadow(_txtContent(tb), null); window.scheduleAutoSave?.(); window.pushHistory?.('효과 끔'); again(); });
+  $('fxsh-eye')?.addEventListener('click', (e) => { e.stopPropagation(); const c = _txtContent(tb); const st = readShadowState(c); window.pushHistory?.('효과'); writeTextShadow(c, { ...st, enabled: !st.enabled }); window.scheduleAutoSave?.(); again(); });
   $('fxsh-head')?.addEventListener('click', () => { const b = $('fxsh-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(tb, 'shadow', open); $('fxsh-card')?.classList.toggle('expanded', open); });
 }
 
