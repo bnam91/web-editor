@@ -337,7 +337,7 @@ async function _scratchSaveFileNow(idbWrite) {
   window.triggerAutoSave?.();
   const pid = window.activeProjectId;
   try { await idbWrite; } catch (_) {}
-  if (window.activeProjectId !== pid || window.state?._suppressAutoSave) return;
+  if (window.activeProjectId !== pid || window.state?._suppressAutoSave || window.__autoSaveDeferState?.().deferred) return;   // 손짓 미룸(팬·크기 손잡이) 중 = 중간 꼴 저장 말고 예약 몫(리뷰 2 · 지디)
   try { if (typeof window.flushSave === 'function') await window.flushSave(); } catch (_) {}
   if (window.activeProjectId === pid && window.hasUnsavedChanges?.()) window.triggerAutoSave?.();
 }

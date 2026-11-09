@@ -4,6 +4,7 @@
  *   자: 가짜 electronAPI.saveProject 가 받은 proj(= 디스크) 의 pages[0].scratchpad. «1초 안»(자동저장 1.5초보다 짧게) 맞는지 잰다.
  *   X1 ✕ → 1초 안 파일에 그 장 없음 · X2 ⌘Z → 1초 안 다시 있음 · X3 ⌘⇧Z → 1초 안 다시 없음 · X4 연달아 ✕ 5번 → 저장 수 기록 + 끝 파일 = 0장
  *   (적대 리뷰 1) X5 ✕ 와 같은 틱에 탭 B 로 — A 파일에서 그 장이 빠지고 B 파일엔 A 내용이 안 들어간다 · X6 저장이 실패하면 미저장이 남아 다시 건다
+ *   (리뷰 2) X7 손짓 미룸(deferAutoSave) 중 ✕ → 바로 저장 0 · 손을 떼면(resumeAutoSave) 파일에서 빠진다 · 양성대조: 미룸 확인을 빼면 X7 빨강
  *   양성대조(리뷰 1): 예약을 먼저 거는 줄·탭 확인 줄을 빼면 X5 빨강 · X6 빨강
  * 양성대조: js/scratch-pad.js 를 기준판(5cebeb139)으로 되돌리면 X1·X2·X3 빨강(1.5초 미룬 저장). */
 const { test, expect } = require('@playwright/test');
@@ -113,4 +114,16 @@ test('X6 저장이 실패하면 ✕ 뒤에도 미저장이 남아 예약이 다�
   await page.evaluate(() => new Promise(r => setTimeout(r, 300)));
   expect(await page.evaluate(() => window.hasUnsavedChanges?.()), '★실패했는데 미저장 표시가 없다(다시 안 씀)').toBe(true);
   errs.length = 0;   // 실패 토스트·콘솔은 이 칸의 뜻
+});
+
+test('X7 손짓 미룸 중 ✕ → 바로 저장 안 함(중간 꼴) · 손을 떼면 파일에서 빠진다', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => { window.__w7 = 0; const o = window.__fake.saveProject; window.__fake.saveProject = async (p) => { window.__w7++; return o(p); }; window.deferAutoSave(); });
+  await pressX(page, 'sp_0');
+  await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+  expect(await page.evaluate(() => window.__w7), '★손짓 중에 바로 저장했다').toBe(0);
+  expect(await page.evaluate(() => window.__autoSaveDeferState().pending), '[전제] 예약은 기억됐다').toBe(true);
+  await page.evaluate(() => window.resumeAutoSave());
+  await expect.poll(() => onDisk(page), { timeout: 6000, message: '★손을 뗀 뒤에도 파일에 남았다' }).toEqual([]);
+  expect(errs).toEqual([]);
 });
