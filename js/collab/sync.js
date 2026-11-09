@@ -89,7 +89,8 @@
   let _conflicts = new Map();                 // 'pageId::secId' → { mode:'kept'|'replaced', mineHtml, theirsHtml, theirs:{actorId,email,seq} }
   let _inFlight = false;
   let _owedPush = null;
-  let _resumed = false;              // ⑶ 재개가 서버 해시를 심었나 — 그 전 자동저장은 모든 섹션을 «바뀜»으로 본다              // ⑵ 올리는 중에 온 저장 스냅 — 버리지 않고 끝나면 한 번 더(최신 하나)
+  let _resumed = false;
+  let _startGen = 0;                 // ⑷ 탭을 빠르게 두 번 옮기면 늦게 끝난 앞 start 가 _cfg 를 앞 프로젝트로 세우지 않게              // ⑶ 재개가 서버 해시를 심었나 — 그 전 자동저장은 모든 섹션을 «바뀜»으로 본다              // ⑵ 올리는 중에 온 저장 스냅 — 버리지 않고 끝나면 한 번 더(최신 하나)
   let _lastError = null;
   let _seqSaved = 0;                  // 디스크에 남긴 진도
   /* COLLAB-RECEIVED-PATCH-LOST-ON-REOPEN-01 — 받은 내용은 화면에만 붙고(자동저장 억제) 진도만 디스크에 올라, 안 만지고 다시 열면 내용은 없고 다시 받지도 못했다.
@@ -781,8 +782,10 @@
   async function start(projectId) {
     if (!window.COLLAB_ENABLED) return { ok: false, reason: 'collab_disabled' };  // ★킬스위치: 협업 비활성 시 동기화 시작 안 함
     stop();
+    const gen = ++_startGen;
     const c = api(); if (!c || !projectId) return { ok: false, reason: 'unavailable' };
     const r = await c.ref({ projectId });
+    if (gen !== _startGen) return { ok: false, reason: 'switched' };   // ⑷ 그사이 다른 start(탭 전환)가 왔다
     const ref = r && r.ref;
     if (!ref || !ref.collabId) return { ok: false, reason: 'not_linked' };
     /* ★role 을 싣는다 — 시드 재푸시에 «오너만» 응답한다(serveNeeds).
