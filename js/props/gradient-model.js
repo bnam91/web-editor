@@ -486,7 +486,8 @@ registerGradientTarget({
     return {
       space: 'css',
       rotation: () => parseFloat(block.dataset.rotation) || 0,
-      rect: () => (contentEl() || block).getBoundingClientRect(),
+      // t4-02: 칠 구간이 글자 폭으로 줄었다(text-block-color.js syncTextGradGeometry) — 바도 그 구간에 놓는다
+      rect: () => { const el = contentEl() || block; return window.textGradientPaintRect?.(el) || el.getBoundingClientRect(); },
       // 그라데이션이 «걸려 있을 때만» 문자열을 준다 → getGradientTarget 의 parseGradient 검사와 합쳐져
       // 단색 글자엔 바가 안 뜬다.
       // ★게이트는 패널과 «같은» 함수(textGradientAllowed) — 라벨·불릿·말풍선·메탈릭 효과 글자는

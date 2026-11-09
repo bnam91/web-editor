@@ -53,6 +53,7 @@ if (typeof window !== 'undefined') window.clearBubbleSenderAlign = clearBubbleSe
  *  ⛔라벨(tb.textAlign)·아이콘텍스트(justifyContent)는 이 길이 아니다 — 아래 단추 핸들러의 앞 갈래들. 이력은 부르는 쪽이 찍는다. */
 export function applyTextAlignToBlock(tb, contentEl, align) {
   contentEl.style.textAlign = align;
+  window.syncTextGradGeometry?.(contentEl);   // t4-02: 글자 그라데이션 칠 구간이 글자를 따라간다(이력 «전»에 — 스냅샷에 실린다)
   /* ★말풍선 — ★이름표는 ★형제라 ★못 물려받는다 ⇒ ★★한 자리(위 함수)로 ★같이 ★건다 */
   applyBubbleSenderAlign(tb, align);
   // U10: 커스텀 폭(width≠100%) 블록은 contentEl text-align만으론 박스가 좌측 고정

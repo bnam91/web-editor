@@ -162,9 +162,11 @@ for (const zoom of [100, 40]) {
       const tb = document.getElementById('tb');
       const ce = tb.querySelector('.tb-h1');
       const s = tb._gradLine.box;
-      return { w: s.w, h: s.h, ceW: ce.offsetWidth, ceH: ce.offsetHeight };
+      /* t4-02: 칠 영역 = 글자 폭(syncTextGradGeometry) — 화면 px 를 줌으로 되돌려 css px 로 견준다 */
+      const pr = window.textGradientPaintRect(ce);
+      return { w: s.w, h: s.h, ceW: pr.width * ce.offsetWidth / ce.getBoundingClientRect().width, ceH: ce.offsetHeight };
     });
-    expect(Math.abs(box.w - box.ceW), '오버레이 폭 = contentEl 폭').toBeLessThanOrEqual(1);
+    expect(Math.abs(box.w - box.ceW), '오버레이 폭 = 칠 영역(글자) 폭').toBeLessThanOrEqual(1);
     expect(Math.abs(box.h - box.ceH), '오버레이 높이 = contentEl 높이').toBeLessThanOrEqual(1);
     for (const c of await expectedChips(page, 'tb')) {
       expect(Math.abs(c.got.x - c.want.x), 'chip x').toBeLessThanOrEqual(1);
@@ -359,6 +361,8 @@ test('B8 ★칠 영역(contentEl)만 줄어도 바가 따라온다 — 블럭 �
       ovL: Math.round(refs.overlay.getBoundingClientRect().left),
       ceW: Math.round(ce.getBoundingClientRect().width),
       ceL: Math.round(ce.getBoundingClientRect().left),
+      pW: Math.round(window.textGradientPaintRect(ce).width),   // t4-02: 칠 영역 = 글자 폭
+      pL: Math.round(window.textGradientPaintRect(ce).left),
       ends,
     };
   });
@@ -373,11 +377,11 @@ test('B8 ★칠 영역(contentEl)만 줄어도 바가 따라온다 — 블럭 �
   expect(after.portalKey, '포털 키가 같다 = 옛 코드의 재측정 트리거는 안 걸린다').toBe(before.portalKey);
 
   expect(after.ceW, '칠 영역은 좌우 64px 씩 줄었다').toBeLessThan(before.ceW - 100);
-  expect(Math.abs(after.ovW - after.ceW), '바의 폭 = 칠 영역 폭').toBeLessThanOrEqual(1);
-  expect(Math.abs(after.ovL - after.ceL), '바의 좌표 = 칠 영역 좌표').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.ovW - after.pW), '바의 폭 = 칠 영역 폭').toBeLessThanOrEqual(1);
+  expect(Math.abs(after.ovL - after.pL), '바의 좌표 = 칠 영역 좌표').toBeLessThanOrEqual(1);
   // 끝 원(0%/100%)이 칠 영역 «안»에 선다 — 이벨류 실측의 gapLeft -64 / gapRight +64 가 사라졌는지
-  expect(after.ends[0], '왼쪽 끝 원이 칠 영역 밖으로 안 나간다').toBeGreaterThanOrEqual(after.ceL - 1);
-  expect(after.ends[1], '오른쪽 끝 원이 칠 영역 밖으로 안 나간다').toBeLessThanOrEqual(after.ceL + after.ceW + 1);
+  expect(after.ends[0], '왼쪽 끝 원이 칠 영역 밖으로 안 나간다').toBeGreaterThanOrEqual(after.pL - 1);
+  expect(after.ends[1], '오른쪽 끝 원이 칠 영역 밖으로 안 나간다').toBeLessThanOrEqual(after.pL + after.pW + 1);
   expect(errs).toEqual([]);
 });
 
