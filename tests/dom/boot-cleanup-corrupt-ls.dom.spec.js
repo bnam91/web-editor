@@ -23,7 +23,7 @@ async function bootWith(page, { stateA = 'unreadable', active = B, readThrows = 
       projectsRootKey: async () => 'legacy',
       projectFolderState: async (id) => (id === Z ? 'missing' : 'ok'),
       projectReadState: async (id) => { if (readThrows && id === A) throw new Error('IPC 실패 흉내'); return id === A ? stateA : id === B ? 'ok' : 'none'; },   // Z 는 답한다 — 정리가 돌았다는 신호
-      loadProject: async (id, o) => (id === B ? proj(B) : (o && o.open && !loadNull ? { _unreadable: true } : null)),   // loadNull: «JSON 은 맞는데 모양 아님» — main 이 _unreadable 대신 null 을 준다
+      loadProject: async (id, o) => { if (id === A && o && o.open) window.__openA = (window.__openA || 0) + 1; return id === B ? proj(B) : (o && o.open && !loadNull ? { _unreadable: true } : null); },   // loadNull: «JSON 은 맞는데 모양 아님» — main 이 _unreadable 대신 null 을 준다
     };
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
     if (!sessionStorage.getItem('__seeded')) {   // 첫 부팅은 씨만 — reload 뒤 부팅이 잰다
@@ -82,6 +82,7 @@ test('K8 모양이 틀린 탭을 떠났다 돌아와도 쥠이 남아 편집·�
   await bootWith(page, { active: A, loadNull: true });
   await page.waitForFunction(() => window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 });
   await page.evaluate(async ([A, B]) => { await window.switchTab(B).catch(() => {}); await window.switchTab(A).catch(() => {}); }, [A, B]);
+  expect(await page.evaluate(() => window.__openA || 0), '[전제] 돌아올 때 A 를 다시 읽었다(캐시로 건너뛰면 이 칸은 아무것도 안 잰다)').toBeGreaterThanOrEqual(2);
   await page.evaluate(() => { try { window.addSection?.(); } catch (_) {} window.dispatchEvent(new Event('beforeunload')); });
   const ls = await page.evaluate((A) => localStorage.getItem('web-editor-autosave__' + A) || '', A);
   expect(ls, '★돌아온 탭의 편집·떠나기가 남긴 LS 본을 덮었다').toContain('LS 에만 있는 편집');

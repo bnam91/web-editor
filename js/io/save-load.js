@@ -2964,6 +2964,7 @@ function initApp() {
       initEmpty();
       return;
     }
+    if (_bootKeptUnreadable) _bootUnread = true;   // 겹침 그물 — 열기가 못 읽음으로 안 던진 드문 꼴(id 가 폴더와 다름 등)에도 첫 로드를 쥔다(리뷰 4-3)
     const saved = _bootNoOwner || _bootKeptUnreadable || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
     if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
