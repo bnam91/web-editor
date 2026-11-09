@@ -320,12 +320,20 @@ function _flushUnfinishedSavesSync() {
   const left = new Map(_pendingSaves);
   _pendingSaves.clear();
   if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId) && !_savingSuperseded) left.set(_savingOwnerId, _savingEntry);   // 앞 flush 가 같거나 새 본을 이미 썼다 — 두 번째 flush(종료 답 뒤 beforeunload)가 옛 본으로 덮지 않게
-  /* ★FAILED-SAVE-TAB-SWITCH-THEN-QUIT-ORPHAN-LS-01 — 옆 탭의 실패 본도 내린다: 줄엔 없고 LS·탭 캐시에만 있어 종료가 안 봤다(DOM 재기 LS 319→0).
-     거절되면 main 이 마커·비상 사본을 남기고 아래 흐름이 LS 에 둔다. 활성 탭은 부르는 쪽(종료 답·beforeunload)이 쓴다. */
+  /* ★FAILED-SAVE-TAB-SWITCH-THEN-QUIT-ORPHAN-LS-01 — 옆 탭의 실패 본을 비상 사본으로 남긴다: 줄엔 없고 LS·탭 캐시에만 있어 종료가 안 봤다(DOM 재기 LS 319→0).
+     ⛔파일에는 안 쓴다(지디 결정 ②) — 그 캐시는 실패 뒤 다른 창·MCP·버전 복원으로 새로워진 파일보다 낡을 수 있고, 동기 자리라 파일 판을 못 묻는다.
+     권한이 돌아왔어도 파일로는 안 가고 다음 실행 복구 제안으로 간다. 보내기만 한다(invoke) — main 은 받는 즉시 쓰고, 종료 답보다 먼저 닿는다(같은 IPC 줄).
+     활성 탭은 부르는 쪽(종료 답·beforeunload)이 쓴다. 같은 본은 한 문서에서 한 번 · 닫을 때 이미 남긴 실패(kept)는 다시 안 남긴다. */
   for (const t of openTabs) {
     if (t.id === activeProjectId || left.has(t.id) || !t._cache || _flushedFailed.get(t.id) === t._cache || _isReloadSealed(t.id) || !_lastSaveFailed(t.id)) continue;
+    const last = _lastSaveResult.get(t.id);
+    if (last?.kept || !window.electronAPI?.recordRefusedSave) continue;
+    let data = null;
+    try { data = JSON.parse(t._cache); } catch (_) {}
+    if (!data || !Array.isArray(data.pages)) continue;
+    applyAdoptedAssets(data, t.id);
     _flushedFailed.set(t.id, t._cache);
-    left.set(t.id, { snapshot: t._cache, opts: { skipThumbnail: true, projectId: t.id } });
+    try { window.electronAPI.recordRefusedSave({ ...data, id: t.id, name: t.name || 'Untitled' }, last?.result?.reason || 'save-failed')?.catch?.(() => {}); } catch (_) {}
   }
   const work = [...left];
   for (const [id, entry] of work) {
@@ -2817,10 +2825,22 @@ function initApp() {
           window.setAwayTabs?.([..._away.filter(t => !_listed.has(t.id) && !_goneTabs.some(x => x.t.id === t.id)), ..._goneTabs.filter(x => x.g?.state === 'foreign').map(x => ({ id: x.t.id, name: x.t.name }))]);
           /* 실패 표지 id — LS 본이 있고 폴더가 그대로(목록에만 없음: 기획 등)면 남긴다. 지웠거나(휴지통·없음) 본이 없으면 표지를 걷는다. */
           const _failedKeep = [];
+          /* 지디 결정 ⒝ — 그 id 의 비상 사본이 있으면(다음 실행 복구 제안이 그걸 가진다) 보호를 푼다. 못 물으면(IPC 실패) 보호 유지. */
+          let _withCopy = null;
+          if (_failedSaveIds().length) {
+            try {
+              const _p = await window.electronAPI.recovery?.pending?.();
+              if (_p && _p.ok === true && Array.isArray(_p.items)) {
+                _withCopy = new Map();   // id → 가장 새 사본 시각(ms)
+                for (const x of _p.items) if (x && x.kind === 'save-failure' && x.emergencyExists && x.projectId) { const at = Date.parse(x.at) || 0; if (at > (_withCopy.get(x.projectId) || 0)) _withCopy.set(x.projectId, at); }
+              }
+            } catch (_) {}
+          }
           for (const id of _failedSaveIds()) {
             if (_listed.has(id) || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === null) continue;
             const _owner = window.lsCopyOwner?.(id);
-            if (_owner && _owner !== (_root || 'legacy')) { _failedKeep.push(id); continue; }   // 다른 계정의 본 — 이 뿌리의 폴더 상태로 걷으면 그 계정으로 돌아왔을 때 지운다(리뷰: X→Y→X)
+            if (_owner && _owner !== (_root || 'legacy')) { _failedKeep.push(id); continue; }
+            if (_withCopy && (_withCopy.get(id) || 0) >= (parseInt(localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}_ts`) || '0') || Infinity)) continue;   // LS 본보다 새롭거나 같은 사본이 있다 — LS 는 옛 동작(정리)으로 · 사본이 더 낡았거나 LS 시각을 모르면 지킨다   // 다른 계정의 본 — 이 뿌리의 폴더 상태로 걷으면 그 계정으로 돌아왔을 때 지운다(리뷰: X→Y→X)
             const st = await window.electronAPI.projectFolderState?.(id);
             if (st === 'ok' || st === 'unknown') _failedKeep.push(id);   // 못 읽었으면 지운 게 아니다 — 남긴다
           }
