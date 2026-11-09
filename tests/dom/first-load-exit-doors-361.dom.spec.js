@@ -265,7 +265,8 @@ test('E21 줄의 전부 빈 본은 동기로 안 쓴다', async ({ page }) => {
   await waitingB(page);
   await page.evaluate((B) => { window.__p3 = window.saveProjectToFile(JSON.stringify({ version: 2, currentPageId: 'x', pages: [{ id: 'x', name: 'P', pageSettings: {}, canvas: '' }] }), { skipThumbnail: true, projectId: B, _fromQueue: true }); }, B);
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
-  expect(syncOf(s, B), '★빈 본이 파일로 나갔다').toEqual([]);
+  /* 빈 본은 줄의 실내용 본을 밀어내지 않는다(FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01) — 옛 판은 둘 다 안 써서 sec_9 를 잃었다 */
+  expect(syncOf(s, B), '★빈 본이 파일로 나갔거나 줄의 실내용 본을 잃었다').toEqual([NINE]);
 });
 test('E22 동기 쓰기가 거절된 본은 LS 에 남는다 — 줄에 둘이어도 둘 다', async ({ page }) => {
   await setup(page);

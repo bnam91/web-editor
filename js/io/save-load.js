@@ -301,14 +301,19 @@ function _flushUnfinishedSavesSync() {
   if (!IS_ELECTRON || !window.electronAPI?.saveProjectSync) return { failed, wrote };
   const left = new Map(_pendingSaves);
   _pendingSaves.clear();
-  if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId)) left.set(_savingOwnerId, _savingEntry);
-  for (const [id, { snapshot, opts }] of left) {
+  if (_isSavingToFile && _savingOwnerId && !left.has(_savingOwnerId) && !_savingSuperseded) left.set(_savingOwnerId, _savingEntry);   // 앞 flush 가 같거나 새 본을 이미 썼다 — 두 번째 flush(종료 답 뒤 beforeunload)가 옛 본으로 덮지 않게
+  const work = [...left];
+  for (const [id, entry] of work) {
+    const { snapshot, opts } = entry;
     if (_isReloadSealed(id)) continue;
     let reason = null;
     try {
       const data = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
       applyAdoptedAssets(data, id);   // 탭 전환 본은 라이브 DOM 의 옛 주소다 — 평소엔 저장 줄에서 옮기지만 여기선 그 길을 안 탄다(앱 ×6: 파일이 되돌아가 A 삭제 후 0/2)
-      if (!opts?.allowEmpty && _emptySaveBlocked(data, id)) continue;   // 평소 저장과 같은 보호(_doSaveProjectToFile) — 메인에는 이 검사가 없어 파일이 빈다
+      if (!opts?.allowEmpty && _emptySaveBlocked(data, id)) {   // 평소 저장과 같은 보호(_doSaveProjectToFile) — 메인에는 이 검사가 없어 파일이 빈다
+        if (id === _savingOwnerId && _isSavingToFile && _savingEntry && entry !== _savingEntry && !_savingSuperseded) work.push([id, _savingEntry]);   // 줄의 빈 본이 막히면 준비 중 본(실내용)이라도 — 둘 다 빠지면 파일이 그 이전 판에 머문다(FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01)
+        continue;
+      }
       const r = window.electronAPI.saveProjectSync({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() });
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
@@ -334,7 +339,9 @@ async function saveProjectToFile(snapshot, opts = {}) {
   // 저장 중이면 프로젝트별로 최신 데이터를 큐에 대기 — 같은 프로젝트는 최신값으로 coalesce,
   // 다른 프로젝트는 별도 슬롯을 유지해 어느 프로젝트도 드롭하지 않는다.
   if (_isSavingToFile) {
-    if (_targetId) _pendingSaves.set(_targetId, { snapshot, opts: { ...opts, projectId: _targetId } });   // 대상을 지금 박는다 — 빠질 때 활성이 바뀌어 있으면(거절 저장이 탭을 닫음) 이 내용이 옆 프로젝트 파일을 덮었다(앱 3/3)
+    let _blankOverQueued = false;   // 막힐 빈 본이 줄의 실내용 본을 밀어내면 빠질 때 둘 다 안 들어간다(FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01) — 실내용 본을 둔다
+    if (_targetId && _pendingSaves.has(_targetId) && !opts.allowEmpty) { try { _blankOverQueued = _emptySaveBlocked(typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot, _targetId); } catch (_) {} }
+    if (_targetId && !_blankOverQueued) _pendingSaves.set(_targetId, { snapshot, opts: { ...opts, projectId: _targetId } });   // 대상을 지금 박는다 — 빠질 때 활성이 바뀌어 있으면(거절 저장이 탭을 닫음) 이 내용이 옆 프로젝트 파일을 덮었다(앱 3/3)
     return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;
