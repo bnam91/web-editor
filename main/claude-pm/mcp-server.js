@@ -1988,7 +1988,7 @@ function _registerDefaultTools() {
       return await _rendererInvoker.editTextBlock({ blockId, content, color, fontSize, fontWeight, align });
     },
     {
-      description: 'Edit an EXISTING text block by id. Obtain blockId via get_canvas_state or read_section. Changes color/fontSize/fontWeight/content/align of one text block. Returns USER_BUSY if user is editing.',
+      description: 'Edit an EXISTING text block by id. Obtain blockId via get_canvas_state or read_section. Changes color/fontSize/fontWeight/content/align of one text block. Returns USER_BUSY if user is editing. Emptying the content of a block inside a section the user locked with 🔒 is refused with code:SECTION_PROTECTED.',
       inputSchema: {
         type: 'object',
         properties: {
