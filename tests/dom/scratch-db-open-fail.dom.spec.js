@@ -9,6 +9,8 @@
  *   D6 (리뷰 2 #2) 안 가 본 표식 페이지 p2 — 진짜 DB 에서 외부화해도 p2 매니페스트 [A,B] 를 옛 DB [A] 로 안 덮는다
  *   D7 (리뷰 3 #1) 합쳐 읽은 뒤 첫 저장이 실패해도 다음 성공 저장에서 표식을 지운다 → 외부화가 그 페이지 새 장을 매니페스트에 싣는다
  *   D8 (리뷰 3 #2) 열린 프로젝트가 아닌 L 내보내기 — 넘긴 pages(L 의 매니페스트)로 합친다
+ *   D9 (리뷰 4 #1) 부팅 경합 — 첫 로드가 자리표시 pages(매니페스트 없음)에서 돌아도 표식이 남고, 진짜 로드가 합친다
+ *   D10 (리뷰 4 #3) 표식 페이지를 비우면 표식이 지워져 다음 로드·외부화가 비운 장을 되살리지 않는다
  * ★양성대조: js/scratch-pad.js 를 기준판(f5e4970d9)으로 되돌리면 D1(deleteDatabase 1)·D2(늦은 연결로 갈림)·D3 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -173,4 +175,48 @@ test('D8 열린 프로젝트가 아닌 L 의 표식 페이지 내보내기 — �
     return r.map(x => ({ pageId: x.pageId, ids: x.items.map(i => i.id).sort() }));
   }, [A, B]);
   expect(out, '★L 의 매니페스트 대신 열린 프로젝트 pages 로 합쳤다').toEqual([{ pageId: 'p1', ids: ['sp_a', 'sp_b'] }]);
+});
+
+test('D9 부팅 경합 — 자리표시 pages 에서 먼저 돈 로드가 표식을 안 지우고, 진짜 로드가 합친다', async ({ page }) => {
+  const errs = await bootApp(page);
+  const A = { id: 'sp_a', src: 'goya-asset://b1/a.png', x: 700, y: 200, w: 300 }, B = { id: 'sp_b', src: 'goya-asset://b1/b.png', x: 700, y: 600, w: 300 };
+  await putIdb(page, 'scratch-pad-proj_b1-page_1', [A]);
+  const r = await page.evaluate(async ([A, B]) => {
+    window.electronAPI = { assetsSaveCanvasImage: async () => ({ ok: true, url: 'goya-asset://b1/x.png' }) };
+    localStorage.setItem('scratch-manifest-wins', JSON.stringify(['scratch-pad-proj_b1-page_1']));
+    window.state.pages = [{ id: 'page_1' }];                       // 부팅 자리표시(globals.js) — 매니페스트 없음
+    await window.initScratchPad('proj_b1', 'page_1');
+    await new Promise(res => setTimeout(res, 200));
+    const markEarly = JSON.parse(localStorage.getItem('scratch-manifest-wins') || '[]');
+    window.state.pages = [{ id: 'page_1', scratchpad: [A, B] }];   // applyProjectData 뒤
+    await window.initScratchPad('proj_b1', 'page_1');
+    await new Promise(res => setTimeout(res, 200));
+    const shown = [...document.querySelectorAll('.scratch-item')].map(e => e.dataset.scratchId).sort();
+    const proj = { pages: [{ id: 'page_1', scratchpad: [A, B] }] };
+    await window.externalizeScratchpad(proj, 'proj_b1');
+    return { markEarly, shown, m: proj.pages[0].scratchpad.map(i => i.id).sort() };
+  }, [A, B]);
+  expect(r.markEarly, '★자리표시 로드가 표식을 지웠다').toEqual(['scratch-pad-proj_b1-page_1']);
+  expect(r.shown, '★진짜 로드가 옛 DB [A] 만 읽었다').toEqual(['sp_a', 'sp_b']);
+  expect(r.m, '★외부화가 매니페스트를 [A] 로 덮었다').toEqual(['sp_a', 'sp_b']);
+  expect(errs).toEqual([]);
+});
+test('D10 표식 페이지를 비우면 표식이 지워진다 — 다음 로드·외부화가 비운 장을 되살리지 않는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  const A = { id: 'sp_a', src: 'goya-asset://c1/a.png', x: 700, y: 200, w: 300 }, B = { id: 'sp_b', src: 'goya-asset://c1/b.png', x: 700, y: 600, w: 300 };
+  await putIdb(page, 'scratch-pad-proj_c1-p1', [A]);
+  const r = await page.evaluate(async ([A, B]) => {
+    window.electronAPI = { assetsSaveCanvasImage: async () => ({ ok: true, url: 'goya-asset://c1/x.png' }) };
+    window.state.pages = [{ id: 'p1', scratchpad: [A, B] }];
+    await window.initScratchPad('proj_c1', 'p1');
+    localStorage.setItem('scratch-manifest-wins', JSON.stringify(['scratch-pad-proj_c1-p1']));   // 합침 저장 «뒤» 표식이 남은 꼴(떠날 때 쓰기 등)
+    await window.clearScratchPad();
+    const mark = JSON.parse(localStorage.getItem('scratch-manifest-wins') || '[]');
+    const proj = { pages: [{ id: 'p1', scratchpad: [A, B] }] };
+    await window.externalizeScratchpad(proj, 'proj_c1');
+    return { mark, m: proj.pages[0].scratchpad };
+  }, [A, B]);
+  expect(r.mark, '★비웠는데 표식이 남았다').toEqual([]);
+  expect(r.m, '★비운 장이 매니페스트에 남았다').toEqual([]);
+  expect(errs).toEqual([]);
 });

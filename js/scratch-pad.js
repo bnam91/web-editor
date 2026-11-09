@@ -187,7 +187,10 @@ async function externalizeScratchpad(proj, projectId) {
   for (const page of proj.pages) {
     if (!page || !page.id) continue;
     const key = `scratch-pad-${projectId}-${page.id}`;
-    if (!db._isFallback && _fbWins.has(key)) continue;   // 리뷰 2 #2 — 표식 키는 로드가 맞출 때까지 매니페스트 보존(옛 DB 값으로 덮지 않는다 · 안 가 본 페이지)
+    if (!db._isFallback && _fbWins.has(key)) {   // 리뷰 2 #2 — 표식 키는 로드가 맞출 때까지 매니페스트 보존(옛 DB 값으로 덮지 않는다 · 안 가 본 페이지)
+      if (Array.isArray(page.scratchpad)) continue;
+      _fbWins.del(key);   // 리뷰 4 — 저장할 파일에 그 페이지 매니페스트가 없다 = 지킬 것이 없다 · 표식이 영영 남지 않게
+    }
     let data;
     try { data = await readRaw(key); } catch (_) { continue; }
     if (data === undefined) continue;              // 키 없음 = 스크래치 없음/미로드 → 매니페스트 보존
@@ -248,6 +251,7 @@ async function flushScratchForSwitch() {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     _putScratch(tx, data, key);
     await _txDone(tx);
+    if (key === _mergedKey) { _fbWins.del(key); _mergedKey = null; }   // 리뷰 4 #2 — 합친 판을 떠날 때 쓴 것도 «성공 쓰기»
   } catch (e) {
     _unsavedFlush.set(key, { data, merge: _loadFailed });
     _warnScratchWriteFailed(e);
@@ -1504,6 +1508,7 @@ function _loadScratch(projectId, pageId) {
   return p;
 }
 async function _loadScratchImpl(projectId, pageId) {
+  _mergedKey = null;   // 리뷰 4 #4 — 이 로드가 합칠 때만 다시 선다
   const gen = ++_scratchLoadGen; // ★이 로드의 세대 토큰 — 이후 flush/새 로드가 bump하면 stale
   _scratchLoaded    = false;     // 로드 완료 전 save/flush의 빈 배열 덮어쓰기 차단
   _currentProjectId = projectId;
@@ -1530,8 +1535,9 @@ async function _loadScratchImpl(projectId, pageId) {
       const pgW = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
       /* 리뷰 2 #1 — 갈지 말고 «합친다»(같은 id 는 매니페스트 · DB 에만 있는 것은 남김): 장 넣기·옮기기는 DB 만 써서 DB 가 매니페스트보다 새 것일 수 있다
          (그 세션에 스크래치를 안 만져도 캔버스 저장이 표식을 남긴다). 값: 폴백 세션에 지운 장은 돌아올 수 있다(_loadFailed 길과 같은 «잃지 않기» 쪽) */
-      if (pgW && Array.isArray(pgW.scratchpad)) { const u = _unionById(data, pgW.scratchpad.map(m => _pickScratch(m))); data.length = 0; data.push(...u); keyMissing = false; }
-      if (pgW) { manifestWins = true; _mergedKey = key; }   // 매니페스트 배열이 없으면 합칠 것 없음 = DB 그대로 쓰고 표식만 지운다(리뷰 3 · 영영 남지 않게)
+      /* 리뷰 4 #1 — 매니페스트 «배열»이 있을 때만 합침 끝으로 친다. 부팅 때 첫 initScratchPad 는 applyProjectData «전»(state.pages = 자리표시 [{id:'page_1'}])에 돌아
+         배열 없음을 «합침 끝»으로 치면 표식을 지워 다음(진짜) 로드가 옛 DB 만 읽고 외부화가 매니페스트를 덮었다. 배열 없는 표식이 영영 남는 것은 외부화 쪽이 푼다. */
+      if (pgW && Array.isArray(pgW.scratchpad)) { const u = _unionById(data, pgW.scratchpad.map(m => _pickScratch(m))); data.length = 0; data.push(...u); keyMissing = false; manifestWins = true; _mergedKey = key; }
     }
     const heldBack = _unsavedFlush.get(key);   // 떠날 때 쓰기가 실패해 메모리에만 있던 판 — DB 보다 새 것이다
     if (heldBack) { const next = heldBack.merge ? _unionById(data, heldBack.data) : heldBack.data; data.length = 0; data.push(...next); _unsavedFlush.delete(key); }
@@ -2272,6 +2278,7 @@ window.clearScratchPad   = async () => {
      지우면 저장 뒤에도 디스크 매니페스트가 옛 장을 들고 있어 다시 열 때 · 다른 맥에서 돌아왔다(SCRATCH-CLEARED-MANIFEST-STAYS-01). */
   tx.objectStore(SCRATCH_STORE).put([], key);
   await _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  _fbWins.del(key); if (_mergedKey === key) _mergedKey = null;   // 리뷰 4 #3 — 사람이 보이는 것을 비웠다 = 매니페스트를 다시 합치지 않는다(비운 장이 돌아오지 않게)
   _unsavedFlush.delete(key);   // 떠날 때 못 쓴 옛 판이 다음 열기에 비운 장을 되살리지 않게(리뷰 2)
   if (_getScratchKey(_currentProjectId, _currentPageId) === key) _loadFailed = false;   // 비움이 써졌다 = 이 키는 이제 아는 상태 — 그사이 다른 컨텍스트로 갔으면 그쪽 표식은 안 건드림(리뷰 3 #3)
   window.triggerAutoSave?.();   // J214 와 같은 까닭 — 비운 것을 매니페스트에 싣는다
