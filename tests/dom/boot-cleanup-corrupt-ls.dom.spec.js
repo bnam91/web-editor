@@ -12,8 +12,8 @@ const [A, B, Z] = ['proj_cla', 'proj_clb', 'proj_clz'];
 const RED = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
 const HALF = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAD0lEQVR4nGNgYPj/nwEIAAr+Af/hHqJQAAAAAElFTkSuQmCC';
 
-async function bootWith(page, { stateA = 'unreadable', active = B, readThrows = false }) {
-  await page.addInitScript(([A, B, Z, RED, HALF, stateA, active, readThrows]) => {
+async function bootWith(page, { stateA = 'unreadable', active = B, readThrows = false, loadNull = false }) {
+  await page.addInitScript(([A, B, Z, RED, HALF, stateA, active, readThrows, loadNull]) => {
     const img = (n, src) => `<div class="asset-block has-image" id="ab_${n}" data-img-src="${src}" style="height:200px;"><div class="asset-img-clip"><img class="asset-img" src="${src}"></div></div>`;
     const txt = (n, s) => `<div class="text-block" id="tb_${n}" data-type="text"><div class="tb-h2">${s}</div></div>`;
     const sec = (id, n, inner) => `<div class="section-block" id="sec_${id}_${n}" data-section="${n}"><div class="section-inner">${inner}</div></div>`;
@@ -23,7 +23,7 @@ async function bootWith(page, { stateA = 'unreadable', active = B, readThrows = 
       projectsRootKey: async () => 'legacy',
       projectFolderState: async (id) => (id === Z ? 'missing' : 'ok'),
       projectReadState: async (id) => { if (readThrows && id === A) throw new Error('IPC 실패 흉내'); return id === A ? stateA : id === B ? 'ok' : 'none'; },   // Z 는 답한다 — 정리가 돌았다는 신호
-      loadProject: async (id, o) => (id === B ? proj(B) : (o && o.open ? { _unreadable: true } : null)),
+      loadProject: async (id, o) => (id === B ? proj(B) : (o && o.open && !loadNull ? { _unreadable: true } : null)),   // loadNull: «JSON 은 맞는데 모양 아님» — main 이 _unreadable 대신 null 을 준다
     };
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
     if (!sessionStorage.getItem('__seeded')) {   // 첫 부팅은 씨만 — reload 뒤 부팅이 잰다
@@ -35,7 +35,7 @@ async function bootWith(page, { stateA = 'unreadable', active = B, readThrows = 
         localStorage.setItem('web-editor-ls-root__' + id, 'legacy');
       }
     }
-  }, [A, B, Z, RED, HALF, stateA, active, readThrows]);
+  }, [A, B, Z, RED, HALF, stateA, active, readThrows, loadNull]);
   await bootApp(page);
   await page.evaluate((id) => { history.replaceState(null, '', '?project=' + id); }, active);
   await page.reload();
@@ -69,4 +69,12 @@ test('K6 부팅 프로젝트가 깨졌으면 LS 본은 남기기만 — 화면�
   expect(ls.length, '★LS 본을 지웠다').toBeGreaterThan(0);
   expect(await page.evaluate(() => (document.querySelector('#canvas')?.innerHTML || '').includes('LS 에만 있는 편집')), '★깨진 부팅 프로젝트의 LS 본을 화면에 올렸다(보여주기는 CORRUPT-PROJECT 몫)').toBe(false);
   expect(await page.evaluate((A) => (localStorage.getItem('web-editor-autosave__' + A) || '').length, A), '★부팅 뒤 LS 본이 사라졌다').toBeGreaterThan(0);
+});
+test('K7 모양이 틀린 proj.json(열기가 null) — 첫 로드를 쥔 채라 편집·떠나기가 남긴 LS 본을 안 덮는다(리뷰 2-1)', async ({ page }) => {
+  await bootWith(page, { active: A, loadNull: true });
+  await page.waitForFunction(() => window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 });
+  expect(await page.evaluate((A) => window.isTabFirstLoading?.(A), A), '★쥠이 풀려 빈 화면이 편집 가능하다').toBe(true);
+  await page.evaluate(() => { try { window.addSection?.(); } catch (_) {} window.dispatchEvent(new Event('beforeunload')); });
+  const ls = await page.evaluate((A) => localStorage.getItem('web-editor-autosave__' + A) || '', A);
+  expect(ls, '★편집·떠나기가 남긴 LS 본을 덮었다').toContain('LS 에만 있는 편집');
 });

@@ -2857,7 +2857,7 @@ function initApp() {
           const _askIds = Object.keys(localStorage).filter(k => k.startsWith(`${SAVE_KEY_PREFIX}__`) && !k.endsWith('_ts')).map(k => k.slice(SAVE_KEY_PREFIX.length + 2)).filter(id => !_keepSoFar.has(id));
           const _states = await Promise.all(_askIds.map(id => Promise.resolve().then(() => window.electronAPI.projectReadState ? window.electronAPI.projectReadState(id) : 'unknown').catch(() => 'unknown')));   // 한꺼번에 묻는다 — 부팅 로드 앞이다(리뷰 1-5)
           const _unreadableKeep = _askIds.filter((id, i) => _states[i] === 'unreadable' || _states[i] === 'unknown');
-          _bootKeptUnreadable = _unreadableKeep.includes(_bootProjectId);
+          _bootKeptUnreadable = _askIds.some((id, i) => id === _bootProjectId && _states[i] === 'unreadable');   // 못 물은(unknown) 것은 숨기지 않는다 — 읽히는 프로젝트일 수 있다(리뷰 2-2)
           if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._keepSoFar, ..._unreadableKeep]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
           _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
@@ -2958,6 +2958,8 @@ function initApp() {
       initEmpty();
       return;
     }
+    /* 남긴 부팅 id 는 첫 로드를 쥔 채 둔다 — 열기가 «모양 아님» 을 null 로 주면 _bootUnread 가 안 켜져 빈 화면이 편집 가능해지고, 첫 편집이 남긴 LS 본을 덮었다(리뷰 2-1). */
+    if (_bootKeptUnreadable) _bootUnread = true;
     const saved = _bootNoOwner || _bootKeptUnreadable || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
     if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
