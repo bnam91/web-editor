@@ -63,8 +63,10 @@ async function refuseThenCloseInactive(page, reason) {
 
 test('R1 옆 탭으로 간 뒤 거절된 탭을 닫으면 그 본이 남는다', async ({ page }) => {
   const errs = await setup(page);
+  await page.evaluate(() => { window.__toasts = []; const orig = window.showToast; window.showToast = (m) => { window.__toasts.push(String(m)); return orig?.(m); }; });
   await refuseThenCloseInactive(page, 'planning_not_editor');
   await expect.poll(() => keptA(page).then(k => k.length), { message: '★거절된 편집이 남지 않았다(LS 뿐)' }).toBe(1);
+  expect(await page.evaluate(() => window.__toasts.filter(t => t.includes('비상 사본')).length), '사본을 남겼는데 실패라고 했다').toBe(0);
   const [k] = await keptA(page);
   expect(k.reason).toBe('planning_not_editor');
   expect(k.name).toBe(A);

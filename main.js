@@ -2845,7 +2845,7 @@ ipcMain.handle('projects:record-refused', (_e, project, reason) => {
     quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion(), log: (m) => console.warn(m) });
     const saved = quitSaveGuard.writeFailureRecord({ ok: false, reason: (typeof reason === 'string' && reason ? reason : 'rejected').slice(0, 64), error: null,
       projectId: project.id.slice(0, 128), projectName: typeof project.name === 'string' ? project.name.slice(0, 200) : null, snapshot: JSON.stringify(project, null, 2) }, Date.now());
-    return { ok: !!saved.record.emergencyPath };   // 사본이 없으면 성공이 아니다 — 마커만 남기고 ok 를 주면 다음 닫기가 다시 안 해 LS 와 함께 그 편집을 잃었다(리뷰 2)
+    return { ok: !!saved.record.emergencyPath && !saved.markerError };   // 사본·마커 둘 다라야 성공 — 마커가 없으면 다음 실행 복구 제안에 안 뜬다 · 사본이 없으면 — 마커만 남기고 ok 를 주면 다음 닫기가 다시 안 해 LS 와 함께 그 편집을 잃었다(리뷰 2)
   } catch (e) { console.warn('[projects:record-refused] 기록 실패:', e && e.message); return { ok: false, reason: 'exception' }; }
 });
 
