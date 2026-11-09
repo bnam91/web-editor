@@ -26,7 +26,7 @@
      여기서는 최소한 «감지»해서 그 상자를 dedupe 에서 빼둔다(틀린 폴리곤으로 남의 변을
      지우면 두 배로 나쁘다).
 ═══════════════════════════════════════════════════════════════════════════ */
-import { CORNER_DIRS, _cornerScreen, _canvasScaleNow } from './overlay-handles.js';
+import { CORNER_DIRS, _cornerScreen, _canvasScaleNow, onUnionHandleDown } from './overlay-handles.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -554,6 +554,38 @@ function _unionItem(items) {
 /** 전체 상자의 화면 좌표 {l,t,r,b} — 2개 미만이면 null. */
 export function selectionUnion() { return _union && { ..._union }; }
 
+/* ★t2-02b — 전체 상자 손잡이 8개(모서리 4 + 변 4) = 고른 것을 «맞은편 꼭지/변 기준»으로 같은 비율로 늘린다.
+   손잡이는 #ss-handles-overlay 에 산다(낱개 핸들과 같은 층). 끌기 셈은 overlay-handles.js onUnionHandleDown(⌘G 묶음 옆 · 같은 규약). ⛔.ss-resize-handle 클래스를 안 단다 — 그 이름은
+   overlay-handles.js 가 «지금 프레임»의 꼭지에 옮기고(_updateHandlePositions) 지우며(hideFrameHandles) sel-multi 가 숨긴다.
+   모양은 css/editor-blocks.css 의 .ss-resize-handle 규칙을 같이 쓴다(.ss-union-handle).
+   ★흐름 배치(absolute 아님) 대상이 하나라도 있으면 손잡이를 «안 단다» — 좌표가 없어 비율이 안 서고, ⌘G 묶음은 그 자식에 width:100%→×8 로 부푼다(t2-02 평가 · 알려진 흠). */
+const _UDIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+let _unionScalable = false;
+const _isFree = (el) => el.classList.contains('sticker-block') || getComputedStyle(el).position === 'absolute';
+function _placeUnionHandles(r) {
+  const ov = document.getElementById('ss-handles-overlay');
+  if (!ov) return;
+  let hs = ov.querySelectorAll(':scope > .ss-union-handle');
+  if (!r) { hs.forEach(h => h.remove()); return; }
+  if (hs.length !== _UDIRS.length) {
+    hs.forEach(h => h.remove());
+    for (const d of _UDIRS) {
+      const h = document.createElement('div');
+      h.className = `ss-union-handle ${d}`;
+      h.dataset.dir = d;
+      h.addEventListener('mousedown', e => onUnionHandleDown(e, d, _union, _targets.filter(t => !t.inner).map(t => t.el)));
+      ov.appendChild(h);
+    }
+    hs = ov.querySelectorAll(':scope > .ss-union-handle');
+  }
+  for (const h of hs) {
+    const d = h.dataset.dir;
+    const x = d.includes('w') ? r.l : d.includes('e') ? r.r : (r.l + r.r) / 2;
+    const y = d.includes('n') ? r.t : d.includes('s') ? r.b : (r.t + r.b) / 2;
+    h.style.left = (x - 3.5) + 'px'; h.style.top = (y - 3.5) + 'px';
+  }
+}
+
 function _render(items) {
   const layer = _ensureLayer();
   if (!layer) return;
@@ -574,16 +606,17 @@ function _render(items) {
   while (kids.length > items.length) layer.removeChild(layer.lastChild);
   const u = items.find(it => it.union);
   _union = u ? u.g.raw : null;
+  _placeUnionHandles(u && _unionScalable ? _union : null);   // t2-02b
   document.body.classList.toggle('sel-multi', !!u);   // 낱개 핸들 숨김(Q2·Q5) — editor-blocks.css
 }
 
 function _frame() {
   _raf = null;
   if (!_active) return;
-  if (_dirty) { _dirty = false; _targets = _collect(); }
+  if (_dirty) { _dirty = false; _targets = _collect(); _unionScalable = _targets.every(t => t.inner || _isFree(t.el)); }
   let items = _build();
   if (items === null) {           // 죽은 노드를 만났다 → 집합을 다시 잡고 이 프레임에서 바로 복구
-    _targets = _collect();
+    _targets = _collect(); _unionScalable = _targets.every(t => t.inner || _isFree(t.el));
     items = _build() || [];
   }
   _render(items);
@@ -621,6 +654,7 @@ export function stopSelectionOverlay() {
   _targets = [];
   _clear();
   _union = null;
+  _placeUnionHandles(null);
   document.body.classList.remove('sel-ov', 'sel-multi');
 }
 

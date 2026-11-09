@@ -475,6 +475,96 @@ function _onHandleMouseDown(e, ss, dir) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* t2-02b 쥔 때 값 — 위 ⌘G 묶음 손잡이(_onHandleMouseDown groupSnap)와 같은 키·같은 갈래(마킹 = dataset 통째 · 글자 프레임 = 폭 + 글자 크기 · 프레임 = 자식까지). */
+const _UMIN = 8;   // 대상 하나의 최소 폭·높이(캔버스 px)
+function _snapOf(el) {
+  if (el.classList.contains('sticker-block')) return { el, sticker: { ...el.dataset }, w: el.offsetWidth, h: el.offsetHeight };
+  const isTextFrame = el.dataset.textFrame === 'true';
+  const contentEl = isTextFrame ? el.querySelector('[class^="tb-"]') : null;
+  const s = { el, isTextFrame, contentEl, left: parseFloat(el.style.left) || 0, top: parseFloat(el.style.top) || 0,
+    w: parseFloat(el.style.width) || el.offsetWidth, h: parseFloat(el.style.height) || el.offsetHeight,
+    fs: contentEl ? (parseFloat(getComputedStyle(contentEl).fontSize) || 0) : 0, kids: [] };
+  if (el.classList.contains('frame-block') && !isTextFrame) {
+    for (const c of el.children) if (!c.classList.contains('frame-resize-handle') && getComputedStyle(c).position === 'absolute') s.kids.push(_snapOf(c));
+  }
+  return s;
+}
+/* 상자 하나를 쓴다 — 자리 L,T(부모 기준 캔버스 px) · 크기 ×sx,×sy · 자식은 부모 원점 기준 같은 비율(⌘G 와 같다). */
+function _applyBox(s, L, T, sx, sy, fs) {
+  const e = s.el, W = Math.round(s.w * sx);
+  if (s.sticker) {   // shortcut: t2-02 의 window._scaleStickerFromSnap 이 없는 판 = 상자만(렌더·저장에서 크기는 옛 dataset 으로 돌아갈 수 있다). t2-02 합치면 위 갈래가 탄다.
+    e.dataset.x = String(Math.round(L)); e.dataset.y = String(Math.round(T));
+    e.style.left = Math.round(L) + 'px'; e.style.top = Math.round(T) + 'px';
+    e.style.width = W + 'px'; e.style.height = Math.round(s.h * sy) + 'px';
+    return;
+  }
+  L = Math.round(L); T = Math.round(T);
+  e.style.left = L + 'px'; e.dataset.offsetX = String(L);
+  e.style.top = T + 'px'; e.dataset.offsetY = String(T);
+  e.style.width = W + 'px';
+  if (e.dataset.width !== undefined && e.dataset.width !== '100%') e.dataset.width = String(W);
+  if (s.isTextFrame) { if (s.contentEl && s.fs) s.contentEl.style.fontSize = (s.fs * fs).toFixed(1) + 'px'; }   // 글자 높이는 글자 크기가 정한다
+  else {
+    const H = Math.round(s.h * sy);
+    e.style.height = H + 'px';
+    if (e.style.minHeight) e.style.minHeight = H + 'px';
+    if (e.dataset.height !== undefined) e.dataset.height = String(H);
+  }
+  for (const k of s.kids) _applyBox(k, k.left * sx, k.top * sy, sx, sy, fs);
+}
+/** t2-02b — 여럿 고른 «전체 상자»(js/selection-overlay.js) 손잡이 끌기. U = 화면 상자 {l,t,r,b} · els = 고른 것(호스트 · 같은 상자 래퍼 안쪽 뺌). */
+export function onUnionHandleDown(e, dir, U, els) {
+  if (e.button !== 0 || !U) return;
+  e.stopPropagation(); e.preventDefault();
+  U = { ...U };
+  const scale = _canvasScaleNow() || 1, x0 = e.clientX, y0 = e.clientY;
+  // 맞은편 = 고정점(화면 px). 변 손잡이는 다른 축을 안 바꾼다.
+  const ax = dir.includes('w') ? U.r : dir.includes('e') ? U.l : null;
+  const ay = dir.includes('n') ? U.b : dir.includes('s') ? U.t : null;
+  const W0 = U.r - U.l, H0 = U.b - U.t;
+  const snaps = els.filter(el => el.isConnected).map(el => {
+    const s = _snapOf(el), op = el.offsetParent || el.parentElement, pr = op.getBoundingClientRect();
+    s.px = pr.left + op.clientLeft * scale; s.py = pr.top + op.clientTop * scale;   // 부모의 left/top 원점(화면 px)
+    return s;
+  });
+  if (!snaps.length || W0 <= 0 || H0 <= 0) return;
+  const minSx = Math.max(...snaps.map(s => _UMIN / Math.max(1, s.w))), minSy = Math.max(...snaps.map(s => _UMIN / Math.max(1, s.h)));
+  window.deferAutoSave?.();
+  const _hist = window.beginDragHistory?.('여럿 크기');
+  function onMove(ev) {
+    const dx = ev.clientX - x0, dy = ev.clientY - y0;
+    _hist?.arm(dx / scale, dy / scale);
+    const sx = ax == null ? 1 : Math.max(minSx, (W0 + (dir.includes('e') ? dx : -dx)) / W0);
+    const sy = ay == null ? 1 : Math.max(minSy, (H0 + (dir.includes('s') ? dy : -dy)) / H0);
+    const fs = Math.min(sx, sy);   // ⌘G 묶음과 같은 글자 규칙
+    for (const s of snaps) {
+      // 고정점을 부모 좌표로 옮겨 그 점 기준으로 늘린다: 새 자리 = A + (옛 자리 − A)×s
+      const Ax = ax == null ? 0 : (ax - s.px) / scale, Ay = ay == null ? 0 : (ay - s.py) / scale;
+      const tx = Ax * (1 - sx), ty = Ay * (1 - sy);
+      if (s.sticker && window._scaleStickerFromSnap) {
+        // t2-02 함수는 부모 원점 기준으로 늘린다 → 쥔 값의 좌표를 미리 tx/sx 만큼 옮겨 «고정점 기준»이 되게 한다
+        const d0 = { ...s.sticker };
+        for (const k of ['x', 'x1', 'x2']) if (d0[k] != null) d0[k] = String(parseFloat(d0[k]) + tx / sx);
+        for (const k of ['y', 'y1', 'y2']) if (d0[k] != null) d0[k] = String(parseFloat(d0[k]) + ty / sy);
+        window._scaleStickerFromSnap(s.el, d0, sx, sy, fs);
+      } else {
+        const l0 = s.sticker ? parseFloat(s.sticker.x) || 0 : s.left, t0 = s.sticker ? parseFloat(s.sticker.y) || 0 : s.top;
+        _applyBox(s, l0 * sx + tx, t0 * sy + ty, sx, sy, fs);
+      }
+    }
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    for (const s of snaps) if (s.sticker) window._rekeepCoin?.(s.el);   // 단일 모서리 끌기·⌘G 와 같게
+    window.pushHistory?.();
+    window.resumeAutoSave?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 /* 코너 반경 핸들 드래그 — Figma 스타일 */
 function _onRadiusHandleMouseDown(e, ss, dir) {
   if (e.button !== 0) return;
