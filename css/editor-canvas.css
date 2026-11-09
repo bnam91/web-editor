@@ -281,6 +281,27 @@ body.scratch-yield-drag .scratch-item { pointer-events: none; opacity: .35; }
 /* 새 세 모서리는 안 보일 땐 클릭도 안 받는다 — 좁은 그림이면 옆 그림 위로 4px 나가 그 클릭을 가로챘다(scratch-hidden-btn-hit H1·H6 · ✕ 와 같은 규칙) */
 .scratch-resize--nw, .scratch-resize--ne, .scratch-resize--sw { pointer-events: none; }
 .scratch-item:hover .scratch-resize { opacity: 1; pointer-events: auto; }
+/* ★고른 한 장의 대리 손잡이 넷(js/scratch-pad.js _ensureSelResize · SCRATCH-HANDLE-UNDER-NEIGHBOR-01) — 이웃(z 100) 위로. 모양은 .scratch-resize 그대로 · 자리만 앵커.
+   ⛔항목 z 는 안 올린다(층 순서 그대로 보이게 · 지디 판정 — 피그마도 손잡이만 위). 한 장만 골랐을 때만 · 자르기·숨김·끌기 양보 중엔 숨긴다. */
+.scratch-item.scratch-selected { anchor-name: --scratch-sel; }
+.scratch-resize-sel {
+  display: none;
+  position-anchor: --scratch-sel;
+  bottom: auto; right: auto;
+  transform: translate(-50%, -50%) scale(var(--scratch-inv-zoom, 1));
+  z-index: 101;
+}
+.scratch-resize-sel--nw { top: anchor(top);    left: anchor(left); }
+.scratch-resize-sel--ne { top: anchor(top);    left: anchor(right); cursor: nesw-resize; }
+.scratch-resize-sel--sw { top: anchor(bottom); left: anchor(left);  cursor: nesw-resize; }
+.scratch-resize-sel--se { top: anchor(bottom); left: anchor(right); }
+#canvas-scaler:has(> .scratch-item.scratch-selected) > .scratch-resize-sel { display: block; }
+#canvas-scaler:has(> .scratch-item.scratch-selected ~ .scratch-item.scratch-selected) > .scratch-resize-sel,
+#canvas-scaler:has(> .scratch-item.scratch-slice-mode) > .scratch-resize-sel,
+body.scratch-hidden-all .scratch-resize-sel,
+body.scratch-yield-drag .scratch-resize-sel { display: none; }
+#canvas-scaler:has(> .scratch-item.scratch-selected:hover) > .scratch-resize-sel,
+.scratch-resize-sel:hover { opacity: 1; }
 .scratch-item.scratch-selected {
   outline: var(--sel-outline-w) solid var(--sel-color);
   outline-offset: calc(-1 * var(--sel-outline-w));
