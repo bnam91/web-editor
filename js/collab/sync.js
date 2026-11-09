@@ -589,7 +589,8 @@
     /* ★SIX — 상대가 «내 마지막 push 를 못 본 채»(그 baseSeq < 내 push seq) 더 늦게 올린 패치: 붙이되(나중 쓴 쪽) 덮이는 내 판을 남긴다. */
     /* ⑴ 저장 실패 중 미저장 편집이 덮이면 그 판도 남긴다(충돌 목록 «되살리기»로 고를 수 있게) */
     /* 리뷰 2 #3(옛 결함) — 내 push 가 실패·천장 초과로 못 올라간 판(_localSnap ≠ _sent)이 덮이면 토스트만 나고 되살릴 판이 없었다 ⇒ 그 판도 남긴다 */
-    const unpushedMine = !!(_localSnap[ckey] && _localSnap[ckey] !== _sent[ckey] && _localSnap[ckey] !== p.hash);
+    /* 리뷰 3 — _localSnap 이 «받은 패치가 덮은 판»이면(연달아 두 상대 패치) 내 못 올라간 글이 아니다 — 거짓 replaced(되살리기로 상대 새 글을 되돌림)를 막는다 */
+    const unpushedMine = !!(_localSnap[ckey] && _localSnap[ckey] !== _sent[ckey] && _localSnap[ckey] !== p.hash && _localSnap[ckey] !== _replaced[ckey]);
     const replacedMine = (el && ((mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) || saveFailed || unpushedMine)) ? el.outerHTML : null;
 
     /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
@@ -606,7 +607,7 @@
        *      다르면 = 아직 서버에 못 올린 내 작업이 이 섹션에 있다 → 지금 덮인다. */
       const key = (p.pageId || '') + '::' + p.sectionId;
       const mine = _localSnap[key];
-      if ((mine && mine !== _sent[key] && mine !== p.hash) || saveFailed) {
+      if ((mine && mine !== _sent[key] && mine !== p.hash && mine !== _replaced[key]) || saveFailed) {   // 리뷰 3 — 같은 까닭으로 거짓 덮어쓰기 토스트(옛)도 끈다
         notifyConflict([{ sectionId: p.sectionId, otherActor: p.actorId }]);
       }
     }

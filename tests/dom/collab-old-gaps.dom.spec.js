@@ -9,6 +9,7 @@
  *          C13 F5 밀려난 start 는 'switched' · C14 F6 같은 프로젝트 다시 start 해도 충돌 기록이 남는다(양성대조: ⑸ 판 6921c9685 → C10~C14 빨강)
  *   리뷰 2: C15 미룰 때 날아가던 옛 push 가 끝나도 안 푼다 · C16 push 실패로 못 올라간 내 판이 덮이면 충돌 기록(replaced) · C17 stop 뒤 충돌 목록은 비고 같은 방 다시 start 면 돌아온다
  *          (양성대조: 리뷰 1 판 b61f2a520 → C15~C17 빨강)
+ *   리뷰 3: C18 상대 패치 둘이 연달아 같은 섹션 — 거짓 충돌 기록·덮어쓰기 토스트 0 (양성대조: d638c70dc → C18 빨강)
  * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C9(secB 되올림)· C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -341,4 +342,21 @@ test('C17 리뷰 2 #4 — stop 뒤 충돌 목록은 비고, 같은 방을 다시
   expect(r.n0).toBeGreaterThanOrEqual(1);
   expect(r.afterStop, '★멈춘 뒤에도 앞 방 충돌이 남아 보통 프로젝트에서 «되살리기»로 쓰일 수 있다').toBe(0);
   expect(r.back).toBe(r.n0);
+});
+
+test('C18 리뷰 3 — 상대 패치 둘이 연달아 같은 섹션에 와도 거짓 충돌 기록(되살리기)·덮어쓰기 토스트가 없다', async ({ page }) => {
+  await boot(page); await seedServer(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    window.__edit('secA', '내글'); await window.__save();          // 내 판이 올라갔다(_localSnap = _sent)
+    /* 상대는 내 push 를 «본 뒤» 고친다(baseSeq = 그때 서버 seq) — 진짜 충돌이 아니다 */
+    const seen = (id, t) => { const html = `<div class="section-block" id="${id}"><div class="section-inner"><div class="tb">${t}</div></div></div>`; const base = window.__server; window.__log.push({ pageId: window.state.currentPageId, sectionId: id, html, hash: window.__hash(html), actorId: 'other', seq: ++window.__server, baseSeq: base }); };
+    seen('secA', '상대1'); await window.collabSync.tick();
+    seen('secA', '상대2'); await window.collabSync.tick();
+    const c = window.collabSync.conflicts();
+    return { text: window.__text('secA'), conflicts: c.map(x => x.mode + ':' + (x.mineHtml || '').replace(/<[^>]+>/g, '')), toasts: window.__toasts.filter(t => /같은 섹션을 동시에/.test(t)).length };
+  });
+  expect(r.text).toBe('상대2');
+  expect(r.conflicts, '★상대1 을 «내 판»으로 적은 거짓 replaced ' + JSON.stringify(r)).toEqual([]);
+  expect(r.toasts, '거짓 덮어쓰기 토스트').toBe(0);
 });
