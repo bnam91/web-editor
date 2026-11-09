@@ -431,10 +431,11 @@ test('L11 ★섞인 선택이면 스크래치가 가져간다 · 그 히스토�
   await press(page, 'Meta+BracketRight'); const canvasDown = (await tip(page)).action;
   await press(page, 'Meta+BracketLeft'); const canvasUp = (await tip(page)).action;
   expect(canvasDown && canvasUp && canvasDown !== canvasUp).toBeTruthy();
-  // 섞는다: 캔버스 자식이 골라진 채 스크래치 C 를 실클릭
+  // 섞는다: 캔버스 자식이 골라진 채 스크래치 C 를 실클릭(Shift)
+  /* ★SCRATCH-CLICK-KEEPS-TEXT-SELECTION 뒤: 장 «단독» 클릭은 캔버스 선택을 푼다(글+장 함께 지워지던 결함) — 섞인 선택은 Shift 클릭으로 만든다(그 길은 그대로) */
   await scrollItemIn(page);
   const P2 = await overlapPoint(page);
-  await page.mouse.click(P2[0], P2[1]); await frames(page);
+  await page.keyboard.down('Shift'); await page.mouse.click(P2[0], P2[1]); await page.keyboard.up('Shift'); await frames(page);
   const mixed = await page.evaluate(() => ({ canvas: document.querySelectorAll('#canvas .shape-block.selected').length }));
   expect(mixed.canvas, '전제: 캔버스 선택이 남아 있다(섞인 상태)').toBeGreaterThan(0);
   const o0 = await shapeOrder(page), s0 = await state(page, P2);
@@ -466,10 +467,11 @@ test('L12 ★섞인 선택 · 스크래치 C 가 이미 맨 위에서 ⌘] → �
   expect(await shapeOrder(page), '전제: 캔버스 ⌘] 가 도형 순서를 바꾼다').not.toEqual(oc0);
   await press(page, 'Meta+KeyZ');
   expect(await shapeOrder(page)).toEqual(oc0);
-  // 섞는다: 캔버스 자식이 골라진 채 스크래치 C(맨 위)를 실클릭
+  // 섞는다: 캔버스 자식이 골라진 채 스크래치 C(맨 위)를 실클릭(Shift)
+  /* ★SCRATCH-CLICK-KEEPS-TEXT-SELECTION 뒤: 장 «단독» 클릭은 캔버스 선택을 푼다(글+장 함께 지워지던 결함) — 섞인 선택은 Shift 클릭으로 만든다(그 길은 그대로) */
   await scrollItemIn(page);
   const P = await overlapPoint(page);
-  await page.mouse.click(P[0], P[1]); await frames(page);
+  await page.keyboard.down('Shift'); await page.mouse.click(P[0], P[1]); await page.keyboard.up('Shift'); await frames(page);
   expect(await page.evaluate(() => document.querySelectorAll('#canvas .shape-block.selected').length), '전제: 캔버스 선택이 남아 있다(섞인 상태)').toBeGreaterThan(0);
   const s0 = await state(page, P), o0 = await shapeOrder(page);
   expect([s0.dom, s0.arr, s0.top, s0.sel]).toEqual(['ABC', 'ABC', 'C', 'C']);
