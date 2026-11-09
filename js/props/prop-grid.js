@@ -2520,8 +2520,10 @@ function _flattenRowHtml(rows, cols) {
         <div class="prop-hint" style="margin-top:2px;">${rows.length}행을 열 ${cols.length}개의 «줄 묶음» 으로 접는다 — 그러면 칼럼마다 높이를 따로 준다 (⌘Z 복원)</div>`;
 }
 
-function _rowHeightHtml(rows) {
+/* ★t2-06(현빈 0.9.11_t2 「기본 상태를 접힘」): 행마다 칸이 하나씩이라 행이 많으면 패널이 길다 → 옆 절들과 같은 접이식(블록별 WeakMap · 기본 접힘). */
+function _rowHeightHtml(rows, block) {
   if (rows.length < 2) return '';
+  const open = _grdSecOpen(block, 'rowh');
   const items = rows.map((r, ri) => `
       <div class="grd-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
         <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
@@ -2529,11 +2531,14 @@ function _rowHeightHtml(rows) {
                placeholder="auto" value="${r.height === 'auto' ? '' : r.height}" title="이 행 높이(px). 비우면 자동" style="width:70px;">
       </div>`).join('');
   return `
+${_grdDisclosureHtml('grd-rowh-toggle', `행 높이 (${rows.length}행)`, open)}
+      <div id="grd-rowh-body" style="display:${open ? 'block' : 'none'};">
       <div class="prop-row" style="align-items:flex-start;">
         <span class="prop-label" style="padding-top:4px;">행 높이</span>
         <div class="grd-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
       </div>
-      <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>`;
+      <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>
+      </div>`;
 }
 
 /* ── 열/행 「간격」 UI ───────────────────────────────────────────────────────
@@ -3844,7 +3849,7 @@ ${_flattenRowHtml(rows, cols)}
     <div class="prop-section">
       <div class="prop-section-title">Layout</div>
       ${_ratioRowHtml(cols)}
-      ${_rowHeightHtml(rows)}
+      ${_rowHeightHtml(rows, block)}
       ${_gapRowHtml(cols, rows, _colGap, _rowGap)}
       ${_childGapRowHtml(block)}
       <div class="prop-row">
@@ -3864,7 +3869,6 @@ ${_flattenRowHtml(rows, cols)}
         </div>
       </div>
       ${_alignWipes ? '<div class="prop-hint" style="text-align:left;padding:2px 0 4px;">칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)</div>' : ''}
-      <div class="prop-hint" style="margin-top:2px;">세로 정렬은 컬럼 높이가 서로 다를 때만 움직인다</div>
     </div>
     ${_grdNestHintHtml(_nestHit)}
     ${_grdLineBarHtml(_anyHit, block)}
@@ -3966,6 +3970,7 @@ ${_flattenRowHtml(rows, cols)}
     const [ci, i] = _nestHit.np.split('.').map(Number);
     _grdWireKindSelects(block, _nestHit.r, _nestHit.c, i, _grdNestColHost(block, _nestHit.r, _nestHit.c, _nestHit.li, ci));
   }
+  _grdWireDisclosure(block, 'rowh', 'grd-rowh-toggle', 'grd-rowh-body');   // t2-06
 
   const ratioInput = document.getElementById('grd-col-ratio');
   const _applyRatioInput = (raw) => {
