@@ -3180,8 +3180,10 @@ window.flushProjectBeforeTrash = async (id) => {
        안 바뀌었으면 옛 동작대로 다시 써서 편집이 프로젝트와 함께 휴지통에 간다(리뷰 1 ① — 사본만 두면 5칸 비상 사본에서 밀려 지워질 수 있다). 다시 쓰기도 실패하면 사본. */
     let _outside = true;
     try { const f = await window.electronAPI?.loadProject?.(id); const base = localStorage.getItem(`web-editor-ls-base__${id}`); _outside = !f || base == null || String(f.updatedAt) !== base; } catch (_) {}
-    if (!_outside) { await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id }); await _waitSavesFor(id, 5000); }
-    if (_outside || _lastSaveFailed(id)) await window.keepFailedCopyOnClose(id, tab.name, tab._cache);
+    let _settled = true;
+    if (!_outside) { await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id }); _settled = await _waitSavesFor(id, 3000); }
+    /* 다시 쓰기가 3초 안에 안 끝났으면(줄 뒤) 기다리지 않고 지금 사본을 남긴다 — main 은 5초만 기다리고 옮긴 뒤엔 줄의 저장이 project_deleted(실패 아님)라 사본이 안 남았다(리뷰 2) */
+    if (_outside || !_settled || _lastSaveFailed(id)) await window.keepFailedCopyOnClose(id, tab.name, tab._cache, _settled ? undefined : 0);
   }
   const until = Date.now() + 5000;
   while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));
@@ -3189,9 +3191,9 @@ window.flushProjectBeforeTrash = async (id) => {
 /* 탭을 닫았다 — 그 프로젝트의 저장이 끝나길 기다려, 실패로 끝났으면 그 본을 main 에 넘겨 마커·비상 사본으로 남긴다.
    까닭: 거절된 본은 LS 에만 있고, 닫은 탭은 종료 flush·beforeunload 가 안 본다. 기획 id 는 목록에 없어 다음 부팅의 고아 정리가 LS 를 지웠다(앱 L1 C17 ×1 · REFUSED-SAVE-THEN-CLOSE-TAB-EDIT-LOST-01).
    거절 사유는 안 가린다 — 실패로 끝난 저장이면 다 남긴다(지워진 프로젝트는 skipped 라 실패가 아니다). 기다림이 상한을 넘으면 끝을 모르니 남긴다(잃는 쪽보다 헛 복구 제안이 낫다). */
-window.keepFailedCopyOnClose = async (id, name, cache) => {
+window.keepFailedCopyOnClose = async (id, name, cache, waitMs) => {   // waitMs: 기다림 상한(기본 15초) — 0 이면 돌던 저장을 안 기다리고 «모름(unconfirmed)»으로 곧장 남긴다
   if (!IS_ELECTRON || !id || !window.electronAPI?.recordRefusedSave) return false;
-  const settled = await _waitSavesFor(id);
+  const settled = await _waitSavesFor(id, waitMs ?? 15000);
   const last = _lastSaveResult.get(id);
   if (settled && !_lastSaveFailed(id)) return false;
   if (settled && last?.kept) return false;   // 같은 실패를 이미 남겼다 — 무편집으로 열고 닫기를 되풀이하면 사본이 쌓여 5칸을 나눠 쓰는 남의 사본을 밀어냈다(리뷰)
