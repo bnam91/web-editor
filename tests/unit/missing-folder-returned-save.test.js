@@ -2,6 +2,7 @@
  * 앱 값(MPT-리뷰8-203500 · L3 3/3): 폴더 없는 탭을 LS 본으로 보는 중 폴더가 돌아오고 그 탭에서 편집하면 돌아온 파일이 proj_backup 한 칸에만 남는다.
  * 칸: 진짜 main 핸들러(_ipc-harness). G1 비동기 저장 거절 · G2 동기(종료·새로고침) 저장 거절 · G3 거절한 본은 버전 기록에 남는다(편집을 안 버린다).
  * 칸(리뷰 1): G4 남긴 본은 핀(프룬·핀 상한 밖)이고 버전 목록의 «현재»를 안 바꾼다 · G5 버전 기록을 못 쓰면 비상 사본으로 남긴다 · 렌더러 칸(줄 선 저장)은 DOM V5.
+ * 칸(리뷰 2): G6 제가 다시 만든 폴더에 줄 선 표시 저장은 거절하지 않는다 · G7 그 뒤 탭이 파일로 돌아왔다가(표시 없는 저장) 폴더가 바뀌어 돌아오면 다시 거절한다.
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -89,4 +90,25 @@ test('G5 버전 기록을 못 쓰면 비상 사본으로 남긴다', async () =>
   const em = path.join(H.userData, 'emergency-saves');
   assert.ok(fs.readdirSync(em).some((f) => f.startsWith(id) && fs.readFileSync(path.join(em, f), 'utf8').includes('기록못씀편집')), '★어디에도 안 남았다');
   assert.match(JSON.stringify(file(id)), /돌아온 머리/);
+});
+test('G6 제가 다시 만든 폴더 — 줄에 선 표시 저장은 거절하지 않는다(거짓 «돌아왔다» 없음)', async () => {
+  const id = 'proj_' + (9700 + n++);
+  assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
+  fs.renameSync(dir(id), away(id));
+  assert.equal(await H.invoke('projects:folder-state', id), 'missing');
+  assert.equal((await H.invoke('projects:save', { ...proj(id, '첫저장'), _goneBase: true })).ok, true, '[전제] 다시 만듦');
+  const r = await H.invoke('projects:save', { ...proj(id, '줄선저장'), _goneBase: true });
+  assert.equal(r.ok, true, '★제가 만든 폴더를 «돌아왔다»고 거절했다');
+  assert.match(JSON.stringify(file(id)), /줄선저장 머리/);
+});
+test('G7 그 뒤 파일로 돌아왔다가 또 없어지고 바뀐 채 돌아오면 다시 거절한다', async () => {
+  const id = 'proj_' + (9700 + n++);
+  assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
+  fs.renameSync(dir(id), away(id));
+  assert.equal((await H.invoke('projects:save', { ...proj(id, '첫저장'), _goneBase: true })).ok, true);
+  assert.equal((await H.invoke('projects:save', proj(id, '평소'))).ok, true);   // 탭이 파일로 돌아왔다
+  fs.rmSync(dir(id), { recursive: true }); fs.renameSync(away(id), dir(id));   // 또 없어졌다가 옛 폴더가 돌아왔다(그사이 상태를 물었든 안 물었든)
+  const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
+  assert.equal(r.reason, 'folder_returned', '★돌아온 폴더를 덮었다');
+  assert.match(JSON.stringify(file(id)), /처음 머리/);
 });

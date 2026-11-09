@@ -2688,6 +2688,7 @@ function _projectFolderState(id) {
     if (!key) return 'ok';   // 빈 id = 뿌리만 묻는다
     if (_resolveProjectJsonPath(key) || exists(path.join(root, key, 'proj.json')) || exists(path.join(root, `${key}.json`))) return 'ok';
   } catch (_) { return 'unknown'; }
+  _goneRecreated.delete(key);   // 또 없어졌다 — 앞서 제가 다시 만든 폴더라는 기억은 끝났다(그 뒤 돌아오면 남의 것이다)
   if (_deletedProjects.has(key)) return 'trashed';
   /* 메타가 깨져 목록에 안 나와도 몸통이 있으면 휴지통의 것이다 — 복원 길이 살아 있는데 되살리면 id 가 둘이 된다. */
   try { const t = path.join(root, _trash.TRASH_DIRNAME); if (exists(path.join(t, key)) || exists(path.join(t, `${key}.json`))) return 'trashed'; } catch (_) { return 'unknown'; }
@@ -2696,10 +2697,14 @@ function _projectFolderState(id) {
 ipcMain.handle('projects:folder-state', (_e, id) => _projectFolderState(id));
 /* 폴더 없는 동안 남은 본으로 연 탭의 저장(MISSING-FOLDER-RETURNS-WHILE-VIEWING-OVERWRITES-01) — 그사이 폴더가 돌아왔으면 그 본은 돌아온 파일보다 낡았다(덮으면 proj_backup 한 칸에만 남았다 · 앱 3/3).
    덮지 않고 그 본을 버전 기록에 남긴다 — 거절이 편집을 버리면 안 된다. 폴더가 아직 없으면 표시만 떼고 평소대로 다시 만든다. */
+const _goneRecreated = new Set();   // 이번 실행에서 남은 본 저장이 다시 만든 폴더 — 그 뒤 줄에 선 표시 저장은 «돌아온» 것이 아니라 제 것이다(리뷰 2 ③)
 function _goneBaseRefusal(project) {
-  if (!project || !project._goneBase) return null;
+  if (!project) return null;
+  const key = String(project.id);
+  if (!project._goneBase) { _goneRecreated.delete(key); return null; }   // 표시 없는 저장 = 탭이 파일로 돌아왔다 — 다시 없어지면 처음부터 가른다
   delete project._goneBase;
-  if (!_resolveProjectJsonPath(String(project.id))) return null;
+  if (!_resolveProjectJsonPath(key)) { _goneRecreated.add(key); return null; }
+  if (_goneRecreated.has(key)) return null;
   let kept = false;   // 'history' = 버전 기록(핀) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
   try { if (_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }).ok) kept = 'history'; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
   if (!kept) { const r = _recordSyncSaveFailure(project, 'folder_returned'); if (r && r.saved && r.saved.record && r.saved.record.emergencyPath) kept = 'emergency'; }

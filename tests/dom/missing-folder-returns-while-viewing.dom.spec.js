@@ -4,6 +4,7 @@
  * 칸: V1 자동저장 길 — 안 덮고, 알리고, 파일로 다시 연다 · V2 종료·새로고침 동기 길도 표시를 단다 · V3 다시 연 뒤 편집은 평소대로 파일에 간다.
  * 칸(인텔 1): V4 닫는 탭 — 표시는 저장이 들어올 때 잡는다(보낼 때 찾으면 탭이 목록에 없어 덮었다 · Expected −1 / Received +3).
  * 칸(리뷰 1): V5 줄 선 저장도 표시를 단 채 나가 거절된다 — 첫 거절 뒤 다시 열기가 표시를 먼저 걷으면 그 저장이 덮었다.
+ * 칸(리뷰 2): V6 남긴 거절 뒤 LS 본을 지운다(남으면 다시 열기·다음 부팅이 그 본으로 덮는다) · V7 거절된 저장이 도는 사이 친 편집도 남긴다(다시 열기가 화면을 비우기 전에).
  * 대조: N1 폴더가 아직 없으면 그 본으로 폴더를 다시 만들고 그 뒤 저장도 막지 않는다 · N2 평범한 탭은 표시가 없다.
  * 변이: 회신의 값. */
 const { test, expect } = require('@playwright/test');
@@ -19,7 +20,7 @@ async function setup(page, { cached = false } = {}) {
   await page.evaluate(({ A, B, R, cached }) => {
     window.__state = 'missing'; window.__written = []; window.__sent = []; window.__toasts = [];
     const real = window.electronAPI;
-    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') return { ok: false, reason: 'folder_returned', kept: 'history' }; if (x.id === 'proj_b') window.__state = 'ok'; window.__written.push(x); return { ok: true }; };
+    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') { (window.__refused ||= []).push(JSON.stringify(x.pages)); return { ok: false, reason: 'folder_returned', kept: 'history' }; } if (x.id === 'proj_b') window.__state = 'ok'; window.__written.push(x); return { ok: true }; };
     /* __hold: proj_b 의 첫 비동기 저장을 붙든다 — 그사이 폴더가 돌아오고 다음 저장이 줄에 선다(적대 리뷰 ①). 판정은 풀린 뒤에 한다. */
     window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { if (window.__hold && x.id === 'proj_b' && !window.__held) { window.__held = true; window.__sent.push({ id: 'held' }); await new Promise((r) => { window.__rel = r; }); window.__sent.pop(); } return write(x); }
       : k === 'saveProjectSync' ? (x) => write(x)
@@ -125,5 +126,27 @@ test('V5 줄 선 저장 — 첫 저장이 거절된 뒤 줄에서 나오는 저�
   expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_b').length), '[전제] 두 저장이 다 나갔다').toBe(2);
   expect(await page.evaluate(() => !!document.getElementById('s_돌아온1')), '★파일로 다시 안 열었다').toBe(true);
   expect((await page.evaluate(() => window.__toasts)).filter(t => t.includes('폴더가 돌아와')).length, '안내는 한 번').toBe(1);
+  expect(errs).toEqual([]);
+});
+test('V6 남긴 거절 뒤 LS 본은 지운다 — 다시 열기·다음 부팅이 그 본을 못 고른다', async ({ page }) => {
+  const errs = await setup(page);
+  await ret(page);
+  await save(page, '남은본편집');
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1') && window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 }).catch(() => {});
+  const ls = await page.evaluate(() => localStorage.getItem('web-editor-autosave__proj_b') || '');
+  expect(ls, '★거절한 남은 본이 LS 에 남았다').not.toContain('남은본편집');
+  expect(ls).not.toContain('남은 몸');
+  expect(await wroteB(page)).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('V7 거절된 저장이 도는 사이 친 편집도 남긴다 — 다시 열기가 화면을 비우기 전에', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => { window.__hold = true; document.querySelector('#canvas .text-block p').textContent = '첫편집'; window.saveProjectToFile(window.serializeProject(), { projectId: 'proj_b', skipThumbnail: true }); });
+  await page.waitForFunction(() => typeof window.__rel === 'function', null, { timeout: 15000 });
+  await ret(page);
+  await page.evaluate(() => { document.querySelector('#canvas .text-block p').textContent = '도는사이편집'; window.scheduleAutoSave(); window.__rel(); });
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1') && window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 }).catch(() => {});
+  expect((await page.evaluate(() => window.__refused || [])).some(p => p.includes('도는사이편집')), '★도는 사이 친 편집이 어디에도 안 남았다').toBe(true);
+  expect(await wroteB(page)).toEqual([]);
   expect(errs).toEqual([]);
 });

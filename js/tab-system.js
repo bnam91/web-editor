@@ -647,8 +647,11 @@ window.reopenReturnedTab = async (id, kept) => {
   window.showStatusToast?.(window.folderReturnedNotice?.(t.name, true, kept));
   if (_getActId() !== id) return true;
   t._reopening = true;
-  try { _setActId(null); await switchTab(id); }   // 같은 탭으로는 switchTab 이 안 돈다 — 나가는 탭이 없게 비우고 다시 연다(직렬화·저장 없음)
-  finally { t._reopening = false; }
+  try {
+    /* 거절된 저장이 도는 사이 친 편집은 화면에만 있다 — 비우기 전에 그 화면도 같은 길(거절·남김)로 보낸다(리뷰 2 ②). */
+    if (window.hasUnsavedChanges?.()) await window.saveProjectToFile?.(window.serializeProject(), { projectId: id, skipThumbnail: true, _goneBase: true });
+    _setActId(null); await switchTab(id);   // 같은 탭으로는 switchTab 이 안 돈다 — 나가는 탭이 없게 비우고 다시 연다(직렬화·저장 없음)
+  } finally { t._reopening = false; }
   return true;
 };
 window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };

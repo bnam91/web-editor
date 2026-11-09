@@ -365,7 +365,9 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (!_isSaveFailure(_result) && !window.isTabFirstLoading?.(activeProjectId)) _dirtySinceSave = false;
   } finally {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
-    if (!_result?.skipped) {
+    /* 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — LS 본(남은 본 위 편집)을 지운다. 두면 다시 열기·다음 부팅의 pickLsOverFile 이 그 본을 골라 표시 없이 돌아온 파일을 덮는다(리뷰 2 ①). */
+    if (_result?.reason === 'folder_returned' && _result.kept && _targetId) { try { localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_targetId}`); localStorage.removeItem(`${SAVE_KEY_PREFIX}__${_targetId}_ts`); } catch (_) {} }
+    else if (!_result?.skipped) {
       const _failed = !_result || _isSaveFailure(_result);
       _settleBigLs(_targetId, snapshot, _failed, _lsTsAtStart);
       if (!_failed) _markLsFiled(_targetId, _lsTsAtStart);
@@ -457,7 +459,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
           .catch(e => console.warn('[save-load] 돌아온 폴더 다시 열기 실패:', e && e.message));
         else window.showToast?.(_saveRefusedText(saveResult));
         _setAutosaveIndicator('error');
-        return { ok: false, reason: saveResult.reason };
+        return { ok: false, reason: saveResult.reason, kept: saveResult.kept };
       }
       if (saveResult?.ok !== false) { const _t = openTabs.find(t => t.id === targetId); if (_t?._goneCopy) _t._goneCopy = false; }   // 폴더를 이 본으로 다시 만들었다 — 이제 파일이 그 본이다
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
