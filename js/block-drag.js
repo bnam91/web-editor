@@ -994,16 +994,8 @@ function bindBlock(block) {
           draggedOutside = true;
           hideGuides();
           _out = _trackOutFrame(_out, ev, dragEl, _dragOutParentSection);
-          if (_out?.free) return;   // 자유 프레임은 놓는 자리가 좌표다 — 표시선 없음
           // 삽입 기준 element를 closure 변수에 저장 (indicator 消失에 무관하게 유지)
-          const inner = _out?.frame || _dragOutParentSection.querySelector('.section-inner');
-          _dropInsertBefore = getDragAfterElement(inner, ev.clientY) || null;
-          // 섹션 inner에 드롭 인디케이터 표시
-          clearDropIndicators();
-          const indicator = document.createElement('div');
-          indicator.className = 'drop-indicator';
-          if (_dropInsertBefore) inner.insertBefore(indicator, _dropInsertBefore);
-          else inner.appendChild(indicator);
+          _dropInsertBefore = _drawOutCue(_out, ev, _dragOutParentSection);
           return;
         } else if (draggedOutside) {
           draggedOutside = false;
@@ -3025,6 +3017,7 @@ function _bindFrameFlowDrop(ss) {
     clearDropIndicators();
     /* G19 — 그리드 «밑» 자리(사각형 판정)면 표시선을 그 그릇 안에 그렸다(js/grid-children.js). */
     if (window.gridChildDragOver?.(inner, clientX, clientY, dragState.dragSrc)) return;
+    if (ss.dataset.freeLayout === 'true') return;   // 자유 프레임은 놓는 자리가 좌표다 — 흐름 선은 틀린 자리를 가리켰다(t2-09)
     const after = getDragAfterElement(inner, clientY);
     const indicator = document.createElement('div');
     indicator.className = 'drop-indicator';
@@ -3045,8 +3038,8 @@ function _bindFrameFlowDrop(ss) {
       _rafId = null;
       if (!dragState.dragSrc) return;
       clearDropIndicators();
-      ss.classList.add('ss-drag-over');
       _placeIndicator(clientX, clientY);
+      ss.classList.add('ss-drag-over');   // 표시선 «뒤»에 붙인다 — _placeIndicator 의 clearDropIndicators 가 테두리까지 지웠다(t2-09)
     });
   });
 
@@ -3294,12 +3287,22 @@ function _moveFrameIntoFlow(el, frame, ev) {
 /* 끄는 동안 커서 아래 프레임을 표시하고 { frame, free, x, y } 를 돌려준다. ev 없이 부르면 표시만 걷는다. */
 function _trackOutFrame(prev, ev, dragEl, section) {
   prev?.frame.classList.remove('ss-drag-over');
+  if (ev) clearDropIndicators();   // 지우기 «먼저» — 붙인 뒤 지우면 테두리까지 사라져 자유 프레임 위 가이드가 없었다(t2-09)
   const frame = ev ? _frameUnderPointer(ev.clientX, ev.clientY, dragEl, section) : null;
   if (!frame) return null;
   frame.classList.add('ss-drag-over');
-  const free = frame.dataset.freeLayout === 'true';
-  if (free) clearDropIndicators();
-  return { frame, free, x: ev.clientX, y: ev.clientY };
+  return { frame, free: frame.dataset.freeLayout === 'true', x: ev.clientX, y: ev.clientY };
+}
+
+/* 부모 프레임 밖으로 끄는 동안의 파란 가이드 — 자유 프레임은 점선 테두리만(놓는 자리가 좌표), 스택·섹션은 표시선. 표시선의 다음 형제를 돌려준다(t2-09). */
+function _drawOutCue(out, ev, section) {
+  if (out?.free) return null;
+  const inner = out?.frame || section.querySelector('.section-inner');
+  const before = getDragAfterElement(inner, ev.clientY) || null;
+  const indicator = document.createElement('div');
+  indicator.className = 'drop-indicator';
+  inner.insertBefore(indicator, before);
+  return before;
 }
 
 /* 자유 프레임 위에 놓으면 커서를 가운데로 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임 왼쪽·위로는 안 삐져나온다(큰 에셋이 위 형제를 덮었다).
@@ -3518,6 +3521,8 @@ function bindFrameDropZone(ss) {
       const _ssBasis = measureLocalBasis(ss);
       let moved = false;
       let _shiftAxisF = null;
+      let _outF;   // 부모 밖 가이드 상태(t2-09) — undefined = 안 그림
+      const _cueOK = parentFreeFrame && !multiPeers.length && parentFreeFrame.dataset.group !== 'true' && parentSec;
       const _hist = window.beginDragHistory?.('블록 이동');
 
       const onMove = ev => {
@@ -3565,12 +3570,22 @@ function bindFrameDropZone(ss) {
         if (parentFreeFrame && multiPeers.length === 0) {
           showGuides(ss, parentFreeFrame, scale);
         }
+        /* 부모 자유 프레임 밖이면 onUp 이 놓을 자리를 미리 보인다 — 글자 끌어내기와 같은 가이드(t2-09). 판정은 onUp 과 같은 «커서가 부모 밖». */
+        if (_cueOK) {
+          const pr = parentFreeFrame.getBoundingClientRect();
+          if (ev.clientX < pr.left || ev.clientX > pr.right || ev.clientY < pr.top || ev.clientY > pr.bottom) {
+            hideGuides();
+            _outF = _trackOutFrame(_outF, ev, ss, parentSec);
+            _drawOutCue(_outF, ev, parentSec);
+          } else if (_outF !== undefined) { _trackOutFrame(_outF); clearDropIndicators(); _outF = undefined; }
+        }
       };
 
       const onUp = (upEv) => {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         hideGuides();
+        if (_outF !== undefined) { _trackOutFrame(_outF); clearDropIndicators(); }   // 가이드는 맨 앞에서 걷는다 — 아래 return 길이 여럿이다(t2-09)
         ss.classList.remove('frame-child-dragging');
         /* 누를 때 올린 바깥 표시를 내린다 — 손잡이가 mouseup 을 받으면 click 이 안 와서 바깥이 골린 채 남았다(모서리 누름). */
         parentFreeFrame?.classList.remove('selected');
