@@ -137,6 +137,7 @@ async function setOuterPad(page, v) {
 async function makeInner(page) {
   return page.evaluate(() => {
     const outer = document.getElementById('outerF');
+    window._enteredFrame = outer; outer.classList.add('frame-entered');   // ㉠(2026-11-09): 오브젝트 선택이면 «다음 형제» — 들어간 상태(앱 더블클릭 진입 표식)로 «안»에 넣는다
     window.addFrameBlock();
     const inner = [...document.querySelectorAll('#sFI .frame-block:not([data-text-frame])')]
       .find((f) => f !== outer && outer.contains(f)) || null;
@@ -374,6 +375,7 @@ test('FI6 ★★★«stack 으로 바꾸면 ★좌표를 ★잃는다» — ★�
     const DONE = new Set();
     const mk = (id, left, top, w) => {
       f.classList.add('selected'); window.selectBlock && window.selectBlock(f);
+      window._enteredFrame = f; f.classList.add('frame-entered');   // ㉠(2026-11-09): 오브젝트 선택이면 «다음 형제» — 들어간 상태라야 «안»
       window.addTextBlock && window.addTextBlock('body');
       const k = [...f.querySelectorAll(':scope > *')]
         .filter((x) => /-block/.test(String(x.className)) && !DONE.has(x)).pop();

@@ -84,7 +84,7 @@ async function scene(page) {
     const out = [];
     KINDS.forEach(([k, args], i) => {
       const before = new Set([...F.children]);
-      window._activeFrame = F;
+      window._activeFrame = F; window._enteredFrame = F; F.classList.add('frame-entered');   // ㉠(2026-11-09): 들어간 상태라야 «안»(오브젝트 선택 = 다음 형제)
       try { window[k]?.(...args); } catch (e) { out.push({ k, err: String(e && e.message || e) }); return; }
       const now = [...F.children].filter(x => !before.has(x));
       if (!now.length) { out.push({ k, err: '(자식이 안 늘었다)' }); return; }
@@ -394,7 +394,7 @@ test('P7 ★★«하한보다 ★이미 ★좁은» 비도형 자식 — ★pad 
     window.selectSection(S); window.addFrameBlock();
     const F = [...S.querySelectorAll('.frame-block:not([data-text-frame])')].pop();
     F.id = 'sF'; F.style.height = '600px';
-    window._activeFrame = F;
+    window._activeFrame = F; window._enteredFrame = F; F.classList.add('frame-entered');   // ㉠(2026-11-09): 들어간 상태라야 «안»(오브젝트 선택 = 다음 형제)
     window.addCanvasBlock({});
     const el = [...F.children].pop();
     el.id = 'narrow';
@@ -501,7 +501,7 @@ test('P9 ★★«패딩 먼저 → 변환 나중» — ★변환 ★끝의 ★�
     window.selectSection(S); window.addFrameBlock();
     const F = [...S.querySelectorAll('.frame-block:not([data-text-frame])')].pop();
     F.id = 'sF'; F.style.height = '600px';
-    window._activeFrame = F;
+    window._activeFrame = F; window._enteredFrame = F; F.classList.add('frame-entered');   // ㉠(2026-11-09): 들어간 상태라야 «안»(오브젝트 선택 = 다음 형제)
     window.addGridBlock({});
     const el = [...F.children].pop(); el.id = 'g1'; el.style.top = '40px';
   });

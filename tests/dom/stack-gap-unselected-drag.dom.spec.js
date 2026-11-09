@@ -19,6 +19,8 @@ async function scene(page) {
   const before = await page.evaluate(() => [...document.querySelectorAll('#canvas .frame-block')].map((e) => e.id));
   await page.click('.fp-btn[onclick="addFrameBlock()"]');
   const fid = await page.evaluate((b) => [...document.querySelectorAll('#canvas .frame-block')].map((e) => e.id).find((id) => !b.includes(id)), before);
+  { const r = await waitStableRect(page, '#' + fid); await page.mouse.dblclick(r.cx, r.cy); }   // ㉠(2026-11-09): 빈 프레임도 오브젝트 선택이면 다음 형제 — 여백 더블클릭으로 들어가 «안»에 넣는다
+  await page.waitForFunction((s) => window._enteredFrame === document.querySelector(s), '#' + fid, { timeout: 5000 });
   await insertMockup(page);
   const aId = await page.evaluate(() => document.querySelector('#canvas .mockup-block').id);
   let fr = await waitStableRect(page, '#' + fid);

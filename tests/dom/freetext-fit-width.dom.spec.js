@@ -53,7 +53,7 @@ async function freeFrame(page) {
 async function addText(page, fn, args) {
   return page.evaluate(({ fn, args }) => {
     const F = document.getElementById('sF');
-    window._activeFrame = F;
+    window._activeFrame = F; window._enteredFrame = F; F.classList.add('frame-entered');   // ㉠(2026-11-09): 들어간 상태라야 «안»(오브젝트 선택 = 다음 형제)
     window[fn](...args);
     const tf = [...F.children].filter(c => c.dataset.textFrame === 'true').pop();
     if (tf) tf.id = 'tf1';

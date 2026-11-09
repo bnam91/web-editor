@@ -53,6 +53,7 @@ async function scene(page) {
     window.addSection();
     window.addFrameBlock();
     const fr = [...document.querySelectorAll('.frame-block')].find((f) => f.dataset.freeLayout === 'true');
+    window._enteredFrame = fr; fr.classList.add('frame-entered');   // ㉠(2026-11-09): 오브젝트 선택이면 «다음 형제» — 들어간 상태(앱 더블클릭 진입 표식)로 «안»에 넣는다
     window.addTextBlock();
     return { frameId: fr.id, childId: [...fr.children].map((k) => k.id).pop() };
   });

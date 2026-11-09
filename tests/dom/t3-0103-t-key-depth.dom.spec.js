@@ -144,7 +144,7 @@ for (const kind of ['free', 'flow']) {
 }
 
 /* [대조] 같은 장면에서 G(갭)는 이미 «바로 아래»다 — G 는 addGapBlock({asSibling}) → frameSelectedAsObject(빈 프레임도 오브젝트) 길.
- *   T 만 addTextBlock 의 활성 프레임 갈래 → frameTakesInsert(빈 프레임 = 안쪽, H11 ⒜) 길이라 갈린다. */
+ *   (옛 판: T 만 frameTakesInsert(빈 프레임 = 안쪽, H11 ⒜) 길이라 갈렸다 — ㉠ 2026-11-09 로 ⒜ 를 걷어 이제 T·G 둘 다 «바로 아래».) */
 test('t3-01 대조 G — 섹션 고름 → 툴바 Frame 추가 → G = 새 프레임 바로 아래', async ({ page }) => {
   const errs = await setup(page, html('free', 1), 'rowF');
   await page.evaluate(() => { window.deselectAll(); window.selectSection(document.getElementById('sH')); });
