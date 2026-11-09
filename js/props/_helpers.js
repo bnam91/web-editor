@@ -73,6 +73,7 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
     slider.value = v;
   });
   number.addEventListener('change', () => {
+    number.value = clamp(number.value);   // 칸에 «실제로 먹은» 값을 보인다(30 → 100) — input 때 쓰면 300 치는 도중 3 이 100 으로 튄다
     if (history)  window.pushHistory?.();
     if (autosave) window.scheduleAutoSave?.();
   });
