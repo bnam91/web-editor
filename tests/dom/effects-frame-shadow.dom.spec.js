@@ -72,12 +72,12 @@ test('㉠ 전제 — fxTypesFor 다리가 산다 · 명부에 shadow 가 있다'
   expect(errs).toEqual([]);
 });
 
-test('㉡ fxTypesFor(frame-block) 가 shadow 를 포함한다(supports 가 프레임을 허용) · ㉤ 텍스트는 ★여전히 안 뜬다', async ({ page }) => {
+test('㉡ fxTypesFor(frame-block) 가 shadow 를 포함한다(supports 가 프레임을 허용) · ㉤ 텍스트도 뜬다(t4-01 · 2026-11-09)', async ({ page }) => {
   await setup(page);
   const frKeys = await page.evaluate(() => window.fxTypesFor(document.getElementById('fFr')).map((t) => t.key));
   expect(frKeys, '★프레임 — 그림자를 고를 수 있다').toEqual(expect.arrayContaining(['shadow']));
   const txtKeys = await page.evaluate(() => window.fxTypesFor(document.getElementById('fT')).map((t) => t.key));
-  expect(txtKeys, '★음성대조 보존 — 텍스트는 안 된다(effects-registry A3 와 같은 사실)').not.toContain('shadow');
+  expect(txtKeys, '★텍스트도 된다 — t4-01(2026-11-09)이 텍스트를 더했다(effects-registry A3 와 같은 사실)').toContain('shadow');
   const shapeAssetIntact = await page.evaluate(() => {
     const fake = { classList: { contains: (c) => c === 'shape-block' } };
     return window.fxTypesFor(fake).map((t) => t.key);
