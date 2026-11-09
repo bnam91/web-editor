@@ -33,16 +33,9 @@ export function buildTextPropsHtml(state) {
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
   const _sh = shadow || { enabled:false, x:2, y:2, blur:4, color:'#000000', alpha:50 };
-  const _shHex = (_sh.color || '#000000').replace('#','').toUpperCase();
-  const _shHexLow = '#' + _shHex.toLowerCase();
-  const _shSwatchBg = (() => {
-    const h = _shHex;
-    const r = parseInt(h.slice(0,2), 16);
-    const g = parseInt(h.slice(2,4), 16);
-    const b = parseInt(h.slice(4,6), 16);
-    const a = Math.max(0, Math.min(1, (_sh.alpha ?? 100) / 100));
-    return a >= 1 ? _shHexLow : `rgba(${r},${g},${b},${a})`;
-  })();
+  /* ★t4-01 — 그림자는 Effects 「효과 추가」의 «그림자» 카드로 산다(js/effects-shadow.js 텍스트 갈래 · 블러 1012t1C1 와 같은 옮김).
+     ⛔두 벌 금지 — Effects 절이 그림자를 품는 블럭에선 옛 「Shadow」 절을 안 그린다. 품지 못하는 블럭(말풍선·라벨·아이콘텍스트·명부 없는 단위 하네스)은 옛 절 그대로(골든 바이트 동일). */
+  const _fxShadow = !isSpeechBubble && !isLabel && !isIconText && !!window.fxTypesFor?.(tb)?.some?.(t => t.key === 'shadow');
 
   /* ═══ ★1012t1E1 Stroke(외곽선) 절 — Fill 과 Shadow 사이(피그마 순서 Fill → Stroke → Effects) ═══
    * ★«stroke 가 안 넘어오면 빈 문자열» ⇒ 단위 골든(typo-section-ssot T1)의 산출이 바이트 동일하다.
@@ -194,7 +187,7 @@ ${blockHeaderHTML({
          ⛔모달은 기본 false 라 마크업이 «바이트 동일»이다(형광펜 칸·밑줄 칸과 ★같은 규약). */
       showGradRecent: true })}${_strokeSec}
 
-    <div class="prop-section" id="txt-shadow-section">
+${_fxShadow ? '' : `    <div class="prop-section" id="txt-shadow-section">
       <div class="prop-section-title-row">
         <div class="prop-section-title">Shadow</div>
         <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
@@ -202,37 +195,8 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div id="txt-shadow-controls" style="display:${_sh.enabled ? 'block' : 'none'}">
-        <div class="prop-row">
-          <span class="prop-label">X</span>
-          <input type="range" class="prop-slider" id="txt-shadow-x-slider" min="-20" max="20" step="1" value="${_sh.x}">
-          <input type="number" class="prop-number" id="txt-shadow-x-number" min="-20" max="20" value="${_sh.x}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">Y</span>
-          <input type="range" class="prop-slider" id="txt-shadow-y-slider" min="-20" max="20" step="1" value="${_sh.y}">
-          <input type="number" class="prop-number" id="txt-shadow-y-number" min="-20" max="20" value="${_sh.y}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">Blur</span>
-          <input type="range" class="prop-slider" id="txt-shadow-blur-slider" min="0" max="40" step="1" value="${_sh.blur}">
-          <input type="number" class="prop-number" id="txt-shadow-blur-number" min="0" max="40" value="${_sh.blur}">
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">색상</span>
-          <div class="prop-color-field">
-            <div class="prop-color-swatch" style="background:${_shSwatchBg}">
-              <input type="color" id="txt-shadow-color" value="${_shHexLow}">
-            </div>
-            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="7" aria-label="Shadow color">
-            <label class="prop-color-alpha" title="Opacity">
-              <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="${_sh.alpha}" aria-label="Shadow opacity">
-              <span class="prop-color-alpha-suffix">%</span>
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>${/* ★E1 Effects(바닥 반사) — Shadow 바로 아래(지디 승인) · 말풍선·라벨·아이콘텍스트는 대상 밖. ⛔줄바꿈을 더하지 마라 — 절이 없을 때 산출이 추출 전 골든과 같아야 한다(typo-section-ssot T1). */
+${textShadowControlsHtml(_sh)}
+    </div>`}${/* ★E1 Effects(바닥 반사) — Shadow 바로 아래(지디 승인) · 말풍선·라벨·아이콘텍스트는 대상 밖. ⛔줄바꿈을 더하지 마라 — 절이 없을 때 산출이 추출 전 골든과 같아야 한다(typo-section-ssot T1). */
       (!isSpeechBubble && !isLabel && !isIconText) ? (window.fxSectionHtml?.(tb, 'txt') || '') : ''}
 
     <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
@@ -452,4 +416,48 @@ export function buildStrokeSectionHtml({ p, stroke, colorHtml } = {}) {
         </div>
       </div>
     </div>`;
+}
+
+/** ★t4-01 — 텍스트 그림자 조절칸(X·Y·Blur·색상) 마크업 «한 벌». 옛 「Shadow」 절과 Effects 「그림자」 카드(js/effects-shadow.js)가 같이 부른다 — id 그대로라 배선은 wireShadowSection 하나. */
+export function textShadowControlsHtml(_sh) {
+  const _shHex = (_sh.color || '#000000').replace('#','').toUpperCase();
+  const _shHexLow = '#' + _shHex.toLowerCase();
+  const _shSwatchBg = (() => {
+    const h = _shHex;
+    const r = parseInt(h.slice(0,2), 16);
+    const g = parseInt(h.slice(2,4), 16);
+    const b = parseInt(h.slice(4,6), 16);
+    const a = Math.max(0, Math.min(1, (_sh.alpha ?? 100) / 100));
+    return a >= 1 ? _shHexLow : `rgba(${r},${g},${b},${a})`;
+  })();
+  return `      <div id="txt-shadow-controls" style="display:${_sh.enabled ? 'block' : 'none'}">
+        <div class="prop-row">
+          <span class="prop-label">X</span>
+          <input type="range" class="prop-slider" id="txt-shadow-x-slider" min="-20" max="20" step="1" value="${_sh.x}">
+          <input type="number" class="prop-number" id="txt-shadow-x-number" min="-20" max="20" value="${_sh.x}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Y</span>
+          <input type="range" class="prop-slider" id="txt-shadow-y-slider" min="-20" max="20" step="1" value="${_sh.y}">
+          <input type="number" class="prop-number" id="txt-shadow-y-number" min="-20" max="20" value="${_sh.y}">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">Blur</span>
+          <input type="range" class="prop-slider" id="txt-shadow-blur-slider" min="0" max="40" step="1" value="${_sh.blur}">
+          <input type="number" class="prop-number" id="txt-shadow-blur-number" min="0" max="40" value="${_sh.blur}">
+        </div>
+        <div class="prop-color-row">
+          <span class="prop-label">색상</span>
+          <div class="prop-color-field">
+            <div class="prop-color-swatch" style="background:${_shSwatchBg}">
+              <input type="color" id="txt-shadow-color" value="${_shHexLow}">
+            </div>
+            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="${_shHex}" maxlength="7" aria-label="Shadow color">
+            <label class="prop-color-alpha" title="Opacity">
+              <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="${_sh.alpha}" aria-label="Shadow opacity">
+              <span class="prop-color-alpha-suffix">%</span>
+            </label>
+          </div>
+        </div>
+      </div>`;
 }

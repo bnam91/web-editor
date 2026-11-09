@@ -133,12 +133,12 @@ test('S1 텍스트 블럭에 Stroke 절이 뜨고 위치 = 내부/가운데/외�
   await expect(page.locator('#txt-stroke-section')).toBeVisible();
   const opts = await page.locator('#txt-stroke-align option').evaluateAll(os => os.map(o => [o.value, o.textContent.trim()]));
   expect(opts).toEqual([['inside', '내부'], ['center', '가운데'], ['outside', '외부']]);
-  // 이웃 순서: Fill(…) 다음, Shadow 앞
+  // 이웃 순서: Fill(…) 다음, Effects 앞(★t4-01 — 텍스트 Shadow 절은 Effects 「그림자」 카드로 옮겼다)
   const order = await page.evaluate(() => {
-    const s = document.getElementById('txt-stroke-section'), sh = document.getElementById('txt-shadow-section');
+    const s = document.getElementById('txt-stroke-section'), sh = document.getElementById('txt-fx-section');
     return !!(s.compareDocumentPosition(sh) & Node.DOCUMENT_POSITION_FOLLOWING);
   });
-  expect(order, 'Stroke 절이 Shadow 절 앞').toBe(true);
+  expect(order, 'Stroke 절이 Effects 절 앞').toBe(true);
   await select(page, 'tbLab');
   await expect(page.locator('#txt-shadow-section'), '전제: 라벨 패널이 그려졌다').toHaveCount(1);
   await expect(page.locator('#txt-stroke-section')).toHaveCount(0);

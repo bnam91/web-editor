@@ -75,7 +75,7 @@ test('#dvd-alpha [음성] 「50%」 는 전처럼 50 · 말 없음, 1.5 → 2 �
 });
 
 for (const [name, open, sel] of [
-  ['그림자 #txt-shadow-color-alpha', async (p) => { await boot(p, 'addTextBlock', 'text-block'); await p.locator('#txt-shadow-section label.prop-toggle').first().click(); }, '#txt-shadow-color-alpha'],
+  ['그림자 #txt-shadow-color-alpha', async (p) => { await boot(p, 'addTextBlock', 'text-block'); await p.locator('#txt-fx-add').selectOption('shadow'); }, '#txt-shadow-color-alpha'],   /* ★t4-01 — 그림자는 Effects 목록에서 */
   ['페이지 #page-bg-alpha-input', async (p) => { await boot(p, 'addDividerBlock', 'divider-block'); await p.evaluate(() => { window.switchToTab('inspector'); if (!document.getElementById('design-system-panel').classList.contains('open')) window.DesignSystem.togglePanel(); }); if (!(await p.locator('#page-bg-alpha-input').isVisible())) await p.locator('.ds-section-label', { hasText: '캔버스' }).click(); }, '#page-bg-alpha-input'],
   ['색 팝업 알파', async (p) => { await boot(p, 'addDividerBlock', 'divider-block'); await p.locator('#dvd-color').click(); }, '.goya-cp-alpha-input'],
 ]) {

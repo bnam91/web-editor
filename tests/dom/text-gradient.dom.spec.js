@@ -474,11 +474,14 @@ function cols(img, a, b) {
   }
   return out;
 }
-/** 진짜 패널 토글(숨은 체크박스를 감싼 라벨 트랙)을 마우스로 누른다. */
+/** 텍스트 그림자 켬/끔 — ★t4-01 부터 Effects 「그림자」 카드(목록에서 고름 · ✕ 를 마우스로 누름). 옛 Shadow 절 토글은 텍스트 블럭에서 사라졌다. */
 async function shadowToggle(page, on) {
-  const cur = await page.locator('#txt-shadow-on').isChecked();
-  if (cur !== on) await page.locator('#txt-shadow-section .prop-toggle-track').click();
-  await expect(page.locator('#txt-shadow-on')).toBeChecked({ checked: on });
+  const card = page.locator('#txt-fxsh-card');
+  if (((await card.count()) > 0) !== on) {
+    if (on) await page.locator('#txt-fx-add').selectOption('shadow');
+    else await page.locator('#txt-fxsh-del').click();
+  }
+  await expect(card).toHaveCount(on ? 1 : 0);
 }
 const minG = (px) => px.reduce((m, p) => Math.min(m, p.g), 255);
 const tgsLook = (page, sel = '#tb5 .tb-body') => page.evaluate((s) => {
