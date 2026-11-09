@@ -123,6 +123,7 @@ test('E1 ★패널 삽입 — 프레임 고른 채 addGridBlock → 좌우로도
   const id = await page.evaluate(() => {
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
     window.deselectAll?.(); sec.classList.add('selected'); fr.classList.add('selected'); window._activeFrame = fr;
+    window._enteredFrame = fr; fr.classList.add('frame-entered');   /* ★T307 ㉠ — 빈 프레임은 «들어간» 뒤에 넣어야 안(⒜ 걷음 · 실앱 = 여백 더블클릭) */
     return window.addGridBlock({}).block.id;
   });
   await page.waitForTimeout(300);
@@ -142,6 +143,7 @@ test('E1c ★★「내용 자르기」 ★켬(`true`) — ★★기본과 ★같
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
     fr.dataset.clipContent = 'true';                       /* ★이 한 줄만 ★E1 과 다르다 */
     window.deselectAll?.(); sec.classList.add('selected'); fr.classList.add('selected'); window._activeFrame = fr;
+    window._enteredFrame = fr; fr.classList.add('frame-entered');   /* ★T307 ㉠ — 빈 프레임은 «들어간» 뒤에 넣어야 안(⒜ 걷음 · 실앱 = 여백 더블클릭) */
     return window.addGridBlock({}).block.id;
   });
   await page.waitForTimeout(300);
@@ -163,6 +165,7 @@ test('E1f ★★`clipContent="false"`(현빈 09-28 의 끔) — ★같은 삽입
     const fr = document.getElementById('frF'), sec = document.getElementById('sF');
     fr.dataset.clipContent = 'false';                      /* ★이 한 줄만 ★E1 과 다르다 */
     window.deselectAll?.(); sec.classList.add('selected'); fr.classList.add('selected'); window._activeFrame = fr;
+    window._enteredFrame = fr; fr.classList.add('frame-entered');   /* ★T307 ㉠ — 빈 프레임은 «들어간» 뒤에 넣어야 안(⒜ 걷음 · 실앱 = 여백 더블클릭) */
     return window.addGridBlock({}).block.id;
   });
   await page.waitForTimeout(300);

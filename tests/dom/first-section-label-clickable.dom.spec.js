@@ -26,7 +26,9 @@ const clickSelects = async (page, s) => { await page.mouse.click(s.x, s.y); awai
 
 test('L1 연 직후 — 첫 섹션 라벨 띠가 툴바 밑에 안 깔리고 눌린다 (둘째 섹션 대조)', async ({ page }) => {
   const errs = await setup(page);
+  const top0 = await page.evaluate(() => document.getElementById('canvas-wrap').scrollTop);   // «연 직후» 스크롤 — 섹션 띠를 누르면 캔버스가 그 섹션 쪽으로 내려가므로 둘째도 이 자리에서 잰다
   for (const i of [0, 1]) {
+    await page.evaluate((t) => { document.getElementById('canvas-wrap').scrollTop = t; }, top0); await raf2(page);
     const s = await strip(page, i);
     expect(s.top, `섹션 ${i + 1} 띠 윗변 ${s.top} ≥ 툴바 아래끝 ${s.topbarBottom}`).toBeGreaterThanOrEqual(s.topbarBottom);
     expect(s.onTop, `섹션 ${i + 1} 띠 가운데 맨 위 = 그 띠`).toBe(true);

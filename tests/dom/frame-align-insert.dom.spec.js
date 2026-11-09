@@ -46,6 +46,13 @@ async function pickFrameAndAlign(page, btnId) {
   await clickAt(page, b.cx, b.cy, { sel: `[id="${btnId}"]` }, { label: btnId });
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('active'), btnId), { message: `전제 — ${btnId} 켜짐` }).toBe(true);
 }
+/* ★T307 ㉠(지디 261109) 뒤: 빈 프레임을 «오브젝트로» 고른 채 넣으면 밖(다음 형제)이다 — 안에 넣으려면 실앱처럼 여백을 더블클릭해 «들어간» 뒤 넣는다.
+   이 검사가 재는 것(넣은 것이 프레임 정렬을 따르나)은 그대로 — 넣는 자리만 실앱의 지금 손으로 맞춘다. */
+async function enterFrame(page) {
+  const f = await waitStableRect(page, '#FR');
+  for (let i = 0; i < 3 && !(await page.evaluate(() => window._enteredFrame?.id === 'FR')); i++) await page.mouse.dblclick(f.cx, f.cy);   // 빈 프레임 가운데 = 여백(고른 프레임의 모서리 +8 은 크기 손잡이 자리)
+  expect(await page.evaluate(() => window._enteredFrame?.id === 'FR'), '전제 — 프레임에 들어갔다(여백 더블클릭)').toBe(true);
+}
 /** 플로팅 패널 단추 → 메뉴 항목 (실앱과 같은 손) */
 async function insertViaMenu(page, titleHead, label) {
   const tsel = `button.fp-dropdown-trigger[title^="${titleHead}"]`;
@@ -73,6 +80,7 @@ for (const [dir, btn] of [['L', 'ss-align-left'], ['R', 'ss-align-right']]) {
     test(`${dir}${i + 1} ★「${dir === 'L' ? '왼쪽' : '오른쪽'}」 준 스택 프레임에 새 ${name} → ${dir === 'L' ? '왼쪽' : '오른쪽'} 끝에 붙는다`, async ({ page }) => {
       const errs = await setup(page);
       await pickFrameAndAlign(page, btn);
+      await enterFrame(page);
       await insertViaMenu(page, title, label);
       const p = await newPos(page);
       expect(p[dir], `${dir === 'L' ? '왼쪽' : '오른쪽'} 여백 ≤1 이어야 · 잰 값 ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
@@ -85,6 +93,7 @@ for (const [dir, btn] of [['L', 'ss-align-left'], ['R', 'ss-align-right']]) {
 test('C1 ★「가운데」 준 스택 프레임에 새 Icon Text → 가운데(L≈R · 폭을 다 안 채움)', async ({ page }) => {
   await setup(page);
   await pickFrameAndAlign(page, 'ss-align-hcenter');
+  await enterFrame(page);
   await insertViaMenu(page, '텍스트 블록 추가', 'Icon Text');
   const p = await newPos(page);
   expect(p.L > 20 && Math.abs(p.L - p.R) <= 2, `가운데 · 잰 값 ${JSON.stringify(p)}`).toBe(true);
@@ -93,6 +102,7 @@ test('C1 ★「가운데」 준 스택 프레임에 새 Icon Text → 가운데(
 test('G1 지킴 — 「왼쪽」 뒤 새 Heading 은 원래대로 왼쪽', async ({ page }) => {
   await setup(page);
   await pickFrameAndAlign(page, 'ss-align-left');
+  await enterFrame(page);
   await insertViaMenu(page, '텍스트 블록 추가', 'Heading');
   const p = await newPos(page);
   expect(p.L, `잰 값 ${JSON.stringify(p)}`).toBeLessThanOrEqual(1);
@@ -101,6 +111,7 @@ test('G1 지킴 — 「왼쪽」 뒤 새 Heading 은 원래대로 왼쪽', async
 test('G2 지킴 — 정렬 단추를 «안 누른» 프레임의 새 Object 에셋은 종전대로 가운데', async ({ page }) => {
   await setup(page);
   await pickFrameAndAlign(page, null);
+  await enterFrame(page);
   expect(await page.evaluate(() => document.getElementById('FR').dataset.alignItems ?? null), '전제 — 프레임에 정렬 값 없음').toBe(null);
   await insertViaMenu(page, '이미지(Asset)', 'Object');
   const p = await newPos(page);

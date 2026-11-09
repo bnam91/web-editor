@@ -43,6 +43,8 @@ const mkGrid = (page, user) => page.evaluate((user) => {
   /* ★10-05 H11: 자식 있는 프레임을 «오브젝트로» 골라 두면 넣기는 밖(다음 형제). 이 시험의 전제는 «frA 안에 넣기» ⇒
      자식이 있으면 «들어간 상태»(안쪽 자식 골라짐)로 둔다 — 실기의 「안쪽 블럭을 먼저 고른다」. 빈 frA 는 ⒜ 정의로 그대로 안. */
   if (fr.firstElementChild) fr.firstElementChild.classList.add('selected');
+  /* ★T307 ㉠(지디 261109)이 ⒜(빈 프레임 = 이미 안)를 걷었다 ⇒ 빈 frA 는 여백 더블클릭으로 «들어간» 상태여야 안에 넣는다(drag-utils.js frameSelectedAsObject :432) */
+  else { window._enteredFrame = fr; fr.classList.add('frame-entered'); }
   const id = window.addGridBlock({}).block.id;
   if (user) window.updateGridBlock(id, { width: 300 });
   window.deselectAll?.(); window._activeFrame = null;

@@ -20,7 +20,7 @@ const SCENE = `<div class="section-block" id="sH" data-section="1"><div class="s
     <div class="frame-block" id="FN" data-free-layout="true" style="position:absolute;left:20px;top:20px;width:400px;height:160px;">
       <div class="text-block" id="kidN" data-type="heading" style="position:absolute;left:10px;top:10px;width:200px;"><div class="tb-h2" contenteditable="false">손자</div></div></div></div></div>
   <div class="row" id="rowE" data-layout="stack"><div class="frame-block" id="EF" data-free-layout="true" style="position:relative;width:600px;height:200px;"></div></div>
-  <div class="gap-block" id="gAfter" data-type="gap" style="height:200px"></div></div></div>`;
+  <div class="gap-block" id="gAfter" data-type="gap" style="height:900px"></div></div></div>`;   /* ★int-2 빨강(인텔): 200px 이면 캔버스 끝이라 scrollIntoView(center) 가 못 올려 EF·그리드 가운데가 플로팅 패널 단추(fp-dropdown-trigger) 밑 → 클릭·더블클릭이 안 닿음 */
 
 async function scene(page) {
   await page.setViewportSize({ width: 1600, height: 1200 });
@@ -53,7 +53,8 @@ async function press(page, k, sel, before) {
 /* id 를 host 직계 단위로(rebindAll 이 글을 text-frame 으로 감싼다) */
 const unitIn = (page, id, host) => page.evaluate(([id, host]) => { let u = document.getElementById(id); while (u && u.parentElement?.id !== host) u = u.parentElement; return u?.id; }, [id, host]);
 /* ★누르기 전에 대상이 멈출 때까지 — 부하 때 스크롤 직후 옛 좌표로 눌러 세 번 다 빗나가던 것(평가 2차 ×15 에서 4/30) */
-const center = async (page, id) => { await waitStableRect(page, '#' + id); return centerNow(page, id); };
+/* ★int-2(인텔): 앞서 건 스크롤(새 블럭 넣기의 따라가기 등)이 뒤늦게 이겨 대상이 화면 아래 플로팅 패널 밑에 남았다 → 누를 때마다 다시 가운데로 올린다 */
+const center = async (page, id) => { await scrollTo(page, id); await waitStableRect(page, '#' + id); return centerNow(page, id); };
 const centerNow = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
 const scrollTo = (page, id) => page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
 const emptyPoint = (page, id) => page.evaluate((id) => { const f = document.getElementById(id); const r = f.getBoundingClientRect();
@@ -108,7 +109,7 @@ test('Q4 — 그리드 칸 골라 D → 그 그리드 다음 형제(섹션 직�
   const gid = await page.evaluate(() => document.querySelector('#inH .grid-block').id);
   await scrollTo(page, gid);
   await until(page, () => page.evaluate((g) => document.getElementById(g).classList.contains('selected'), gid),
-    async () => { await waitStableRect(page, '#' + gid); const p = await page.evaluate((g) => { const c = document.getElementById(g).querySelector('[class*="grd-cell"]') || document.getElementById(g); const r = c.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, gid); await page.mouse.click(...p); });
+    async () => { await scrollTo(page, gid); await waitStableRect(page, '#' + gid); const p = await page.evaluate((g) => { const c = document.getElementById(g).querySelector('[class*="grd-cell"]') || document.getElementById(g); const r = c.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, gid); await page.mouse.click(...p); });
   const before = await ids(page, '.grid-block');
   await press(page, 'd', '.grid-block', before);
   const gUnit = await page.evaluate((g) => { let u = document.getElementById(g); while (u.parentElement.id !== 'inH') u = u.parentElement; return u.id; }, gid);
