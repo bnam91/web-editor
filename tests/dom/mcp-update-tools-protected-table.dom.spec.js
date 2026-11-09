@@ -8,6 +8,7 @@
  * 단언(지디 결정 ⓑ): ⑴ SECTION_PROTECTED · MARK 그대로 · 이력 칸 수 그대로(되돌림이 칸을 안 남김) ⑵ 다른 글은 들어간다 ⑶ 배열 비우기는 이번 범위 밖(값만).
  *   F1·F2 원래 빈 칸 채우기 / 빈 칸 둔 채 다른 칸 고치기 → 통과.
  * 인텔 표(3b51f14fa · 고치기 전): 11 도구 전부 빈 글 통과(markKept false) · other 전부 applied · card 준비 실패(no addCardBlock) → 이제 addCanvasBlock 카드 모드로.
+ * 알려진 미잡힘(리뷰 3): card 제목«만» 비우기 — 렌더러가 빈 제목 칸을 지워 칸 수가 준다(전/후 비교로 못 가름) ⇒ 이 칸은 제목·설명 둘 다 비우기로 잰다.
  * 양성대조: main.js·js/section-protection.js 를 3b51f14fa 로 되돌리면 빈 글 칸 전부 빨강 · F1·F2 초록.
  * 픽스처: 섹션 둘 · 보호할 섹션에 글·그림과 그 도구의 블럭. 고정 대기 0. */
 const { test, expect } = require('@playwright/test');
@@ -47,7 +48,7 @@ const TOOLS = [
   ['update_speech_bubble_block', '_invokeRendererUpdateSpeechBubbleBlock', 'addSpeechBubbleBlock', 'bubble', P({ text: M }), P({ text: '' }), P({ text: O }), null],
   ['update_banner02_block', '_invokeRendererUpdateBanner02Block', 'addBanner02Block', 'banner02', P({ title: M }), P({ title: '' }), P({ title: O }), null],
   ['update_liner_block', '_invokeRendererUpdateLinerBlock', 'addLinerBlock', 'liner', F({ text: M }), F({ text: '' }), F({ text: O }), null],
-  ['update_card_block', ['_invokeRendererUpdateCardBlock', '_invokeRendererUpdateCanvasBlock'], ['addCanvasBlock', { cardMode: 'simple', cards: [{ title: '카드 제목', desc: '카드 설명' }] }], 'canvas-block', F({ title: M }), F({ title: '' }), F({ title: O }), null],   // card = canvas 카드 모드 위임(main) — 렌더러에 addCardBlock 이 없다(인텔 표 준비 실패)
+  ['update_card_block', ['_invokeRendererUpdateCardBlock', '_invokeRendererUpdateCanvasBlock'], ['addCanvasBlock', { cardMode: 'simple', cards: [{ title: '카드 제목', desc: '카드 설명' }] }], 'canvas-block', F({ title: M }), F({ title: '', desc: '' }), F({ title: O }), null],   // card = canvas 카드 모드 위임(main) — 렌더러에 addCardBlock 이 없다(인텔 표 준비 실패)
   ['update_graph_block', '_invokeRendererUpdateGraphBlock', 'addGraphBlock', 'graph', P({ items: [{ label: M, value: 50 }] }), P({ items: [{ label: '', value: 50 }] }), P({ items: [{ label: O, value: 50 }] }), null],
 ];
 
