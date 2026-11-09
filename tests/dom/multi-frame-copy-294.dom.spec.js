@@ -1,5 +1,6 @@
 /* multi-frame-copy-294 — 프레임 여럿을 골라 ⌘D·⌘C⌘V 하면 고른 것들이 복사된다(294 t9-03 · J294G).
- * 음성: 프레임 하나 ⌘D 는 +부분나무 하나. 자리 규칙 = 현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01. */
+ * 음성: 프레임 하나 ⌘D 는 +부분나무 하나. 자리 규칙 = 현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 ＋ 1109t1C1:
+ *   밖에서 고른 맨 위 프레임 → 그 안 끝(⌘V 만 · g·⌘D 는 다음 자리) · 섹션만 고름 → 섹션 끝. 전체 표는 frame-paste-target-c1. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const FR = '.frame-block:not([data-text-frame])';
@@ -126,14 +127,17 @@ for (const [name, act] of [['⌘D', (p) => p.keyboard.press('Meta+d')], ['⌘C�
     expect((await read(page)).ids, '⌘Z 처음').toEqual(s0.ids); expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
-test('자식 둘 ⌘C → 맨 위 다른 프레임 클릭 → ⌘V — 그 프레임 다음 자리 · 흐름 · 순서 유지', async ({ page }) => {
+test('자식 둘 ⌘C → 맨 위 다른 프레임 클릭 → ⌘V — 그 프레임 «안» 끝(1109t1C1 ㉡) · 좌표째 · 첫째 원본+20 · 간격·순서 유지', async ({ page }) => {
   const { errs, P, A, B, Y } = await scene(page); const s0 = await read(page);
   await pickKids(page, { P, A, B }); await page.keyboard.press('Meta+c');
   await page.evaluate((Y) => document.getElementById(Y).scrollIntoView({ block: 'center' }), Y); await raf(page); const y = await box(page, Y); await clk(page, (y.l + y.r) / 2, (y.t + y.b) / 2);
   await pasteKey(page);
   const s1 = await read(page); const r = rootsOf(s1, s0);
-  expect(r.map((i) => s1.par[i]), '맨 위로').toEqual([null, null]); expect(r.map((i) => s1.pos[i][0]), '흐름').toEqual(['', '']);
-  expect(await page.evaluate(([Y, r]) => { const a = document.getElementById(Y).nextElementSibling; return [a?.id, a?.nextElementSibling?.id].join() === r.join(); }, [Y, r]), 'Y 다음 순서대로').toBe(true);
+  expect(r.map((i) => s1.par[i]), 'Y 안').toEqual([Y, Y]); expect(r.map((i) => s1.pos[i][0]), '좌표째').toEqual(['absolute', 'absolute']);
+  const yMax = await page.evaluate(([Y, id]) => Math.max(0, document.getElementById(Y).clientHeight - document.getElementById(id).offsetHeight), [Y, r[0]]);
+  expect(s1.pos[r[0]].slice(1), '첫째 = A(20,20)+20 · Y 안으로 클램프').toEqual(['40px', Math.min(40, yMax) + 'px']);
+  expect(parseInt(s1.pos[r[1]][1]) - parseInt(s1.pos[r[0]][1]), '가로 간격 = 원본 300-20').toBe(280);
+  expect(await page.evaluate(([Y, r]) => { const k = [...document.getElementById(Y).children]; return k.slice(-2).map((e) => e.id).join() === r.join(); }, [Y, r]), 'Y 끝에 순서대로').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('자식 둘 ⌘C → 같은 부모의 다른 자식 클릭 → ⌘V — 그 옆 · 묶음 상대 배치 유지', async ({ page }) => {
@@ -147,7 +151,7 @@ test('자식 둘 ⌘C → 같은 부모의 다른 자식 클릭 → ⌘V — 그
   expect(await page.evaluate(([C, f]) => document.getElementById(C).nextElementSibling?.id === f, [C, r[0]]), 'C 다음 자리').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
-test('부모가 다른 둘 ⌘X⌘V — 부모·형제 남고 각자 부모로 돌아온다 · ⌘X → 다른 프레임 → ⌘V 는 거기', async ({ page }) => {
+test('부모가 다른 둘 ⌘X⌘V — 부모·형제 남고 각자 부모로 돌아온다 · ⌘X → 맨 위 다른 프레임 → ⌘V 는 그 «안» 끝(1109t1C1 ㉡)', async ({ page }) => {
   const { errs, P, A, B, X, Y } = await scene(page);
   await pickMixed(page, { P, A, X }); await page.keyboard.press('Meta+x'); await raf(page);
   const s1 = await read(page); expect([P, B, Y].every((i) => s1.ids.includes(i)), '부모·형제 남음').toBe(true); expect([A, X].some((i) => s1.ids.includes(i)), '둘 다 잘림').toBe(false);
@@ -156,6 +160,7 @@ test('부모가 다른 둘 ⌘X⌘V — 부모·형제 남고 각자 부모로 �
   await page.keyboard.press('Meta+z'); await raf(page);
   await page.evaluate((Y) => document.getElementById(Y).scrollIntoView({ block: 'center' }), Y); await raf(page); const y = await box(page, Y); await clk(page, (y.l + y.r) / 2, (y.t + y.b) / 2);
   const s3 = await read(page); await pasteKey(page); const s4 = await read(page); const r2 = rootsOf(s4, s3);
-  expect(r2.map((i) => s4.par[i]), 'Y 쪽으로').toEqual([null, null]); expect(await page.evaluate(([Y, f]) => document.getElementById(Y).nextElementSibling?.id === f, [Y, r2[0]]), 'Y 다음').toBe(true);
+  expect(r2.map((i) => s4.par[i]), 'Y 안으로').toEqual([Y, Y]); expect(r2.map((i) => s4.pos[i][0]), '좌표째').toEqual(['absolute', 'absolute']);
+  expect(await page.evaluate(([Y, r]) => [...document.getElementById(Y).children].slice(-2).map((e) => e.id).join() === r.join(), [Y, r2]), 'Y 끝에 순서대로').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
