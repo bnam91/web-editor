@@ -3174,9 +3174,14 @@ window.flushProjectBeforeTrash = async (id) => {
       await saveProjectToFile(serializeProject(), { skipThumbnail: true, projectId: id });
     }
   } else if (_lastSaveFailed(id) && tab._cache) {
-    /* ★TRASH-FLUSH-STALE-CACHE-OVERWRITES-NEWER-FILE-01 — 옆 탭의 실패 본은 파일에 안 쓰고 비상 사본으로(닫기·종료와 같은 길 · 같은 실패는 한 번만).
-       ⛔파일에 쓰면 그 캐시는 실패 뒤 다른 창·MCP·버전 복원으로 새로워진 파일보다 낡아 그 새 내용을 덮고, 덮인 판이 그대로 휴지통에 들어갔다. */
-    await window.keepFailedCopyOnClose(id, tab.name, tab._cache);
+    /* ★TRASH-FLUSH-STALE-CACHE-OVERWRITES-NEWER-FILE-01 — 실패 뒤 파일이 «밖에서» 새로워졌으면(MCP·버전 복원 등) 그 캐시로 안 덮는다:
+       덮인 판이 그대로 휴지통에 들어갔다. 판정 = 지금 파일의 updatedAt 이 이 렌더러가 마지막으로 열거나 쓴 판(ls-base · preload _noteFileVersion)과 다르다.
+       판을 모르거나 못 읽으면 밖에서 바뀐 쪽으로 친다. 그때는 비상 사본만(닫기·종료와 같은 길 · 같은 실패는 한 번만).
+       안 바뀌었으면 옛 동작대로 다시 써서 편집이 프로젝트와 함께 휴지통에 간다(리뷰 1 ① — 사본만 두면 5칸 비상 사본에서 밀려 지워질 수 있다). 다시 쓰기도 실패하면 사본. */
+    let _outside = true;
+    try { const f = await window.electronAPI?.loadProject?.(id); const base = localStorage.getItem(`web-editor-ls-base__${id}`); _outside = !f || base == null || String(f.updatedAt) !== base; } catch (_) {}
+    if (!_outside) { await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id }); await _waitSavesFor(id, 5000); }
+    if (_outside || _lastSaveFailed(id)) await window.keepFailedCopyOnClose(id, tab.name, tab._cache);
   }
   const until = Date.now() + 5000;
   while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));

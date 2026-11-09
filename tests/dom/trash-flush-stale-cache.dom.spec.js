@@ -2,8 +2,9 @@
  * 장면: A 에서 편집 → 옆 탭 B 로 가며 A 저장이 거절(A 캐시 = 그 편집) → 다른 창·MCP·버전 복원 흉내로 A 파일을 새 내용으로 → main 이 휴지통으로 옮기기 전에 부르는 flushProjectBeforeTrash(A).
  * 자: 가짜 API 의 파일 표(window.__files)와 recordRefusedSave 기록(window.__kept). 휴지통 «옮기기»는 main 몫 — 옮겨지는 것은 그 순간의 proj.json 이다.
  * 칸: K1 ★밖에서 새로워진 파일을 안 덮는다(옮겨지는 proj.json = 새 내용) · K2 ★실패한 편집은 비상 사본으로 남는다(잃지 않는다) · K3 같은 실패는 한 번만(닫기·종료와 같은 표지)
+ *     K4 밖에서 안 바뀌었으면 옛 동작대로 다시 써 편집이 파일(→ 휴지통 묶음)에 간다(리뷰 1 ①) · K5 그 다시 쓰기도 실패하면 비상 사본
  *     N1 [음성] 보는 탭의 밀린 편집은 그대로 파일로 내린다(이 고침 밖 · 동작 무변) · N2 [음성] 저장이 성공한 옆 탭은 아무것도 안 쓴다.
- * 양성대조: js/io/save-load.js 만 고치기 전 판으로 되돌리면 K1·K2 빨강 · N1·N2 초록. 픽스처: 섹션 셋 · 글 · 그림 둘(refused-save-close-tab 과 같은 꼴). */
+ * 양성대조: js/io/save-load.js 만 고치기 전 판(e0f825089)으로 되돌리면 K1·K2·K5 빨강 · K4·N1·N2 초록. 픽스처: 섹션 셋 · 글 · 그림 둘(refused-save-close-tab 과 같은 꼴). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const [A, B] = ['proj_tfa', 'proj_tfb'];
@@ -27,13 +28,14 @@ async function setup(page) {
     const canvas = (id) => sec(id, 1, txt(id + '1', id + ' 제목')) + sec(id, 2, img(id + '2', RED)) + sec(id, 3, txt(id + '3', '본문') + img(id + '3', HALF));
     const project = (id) => ({ ...window.buildEmptyProject(id, id), id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas: canvas(id) }] });
     const files = new Map([[A, project(A)], [B, project(B)]]);
+    for (const [id, f] of files) { f.updatedAt = f.updatedAt || '2026-11-01T00:00:00.000Z'; localStorage.setItem('web-editor-ls-base__' + id, String(f.updatedAt)); }   // 열 때 판(pickLsOverFile 이 하는 것)
     window.__files = files; window.__kept = []; window.__refuse = null; window.__EDIT = 'TF-EDIT-실패한-편집';
     Object.assign(window.__fake, {
       loadProject: async (id) => JSON.parse(JSON.stringify(files.get(id) || null)),
       saveProject: async (p) => {
         if (window.__refuse === 'throw') throw new Error('EPERM 흉내');
         if (window.__refuse) return { ok: false, reason: window.__refuse };
-        files.set(p.id, JSON.parse(JSON.stringify(p))); return { ok: true };
+        files.set(p.id, JSON.parse(JSON.stringify(p))); if (p.updatedAt != null) localStorage.setItem('web-editor-ls-base__' + p.id, String(p.updatedAt)); return { ok: true };   // preload _noteFileVersion 흉내 — 이 렌더러가 쓴 판
       },
       saveProjectSync: () => ({ ok: true }),
       recordRefusedSave: (p, reason) => { window.__kept.push({ id: p.id, name: p.name, reason, body: JSON.stringify(p) }); return { ok: true }; },
@@ -115,5 +117,33 @@ test('N2 [음성] 저장이 성공한 옆 탭은 아무것도 안 쓴다', async
   await page.evaluate((A) => window.flushProjectBeforeTrash(A), A);
   expect(await fileA(page)).toContain(NEWER);
   expect(await keptA(page)).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+/* A 편집 → B 로 가며 A 저장 거절 → 거절 풂 · 파일은 밖에서 안 바뀜 */
+async function failedSideTabOnly(page) {
+  await editA(page);
+  await page.evaluate(() => { window.__refuse = 'disk_full'; });
+  await page.evaluate((B) => window.switchTab(B), B);
+  await idle(page);
+  await page.waitForFunction((A) => window.projectSaveUnsettled(A), A);
+  await page.evaluate(() => { window.__refuse = null; });
+}
+test('K4 밖에서 안 바뀌었으면 다시 써서 편집이 파일(휴지통 묶음)에 간다', async ({ page }) => {
+  const errs = await setup(page);
+  await failedSideTabOnly(page);
+  await page.evaluate((A) => window.flushProjectBeforeTrash(A), A);
+  expect(await fileA(page), '★실패한 편집이 휴지통에 갈 파일에 없다').toContain(EDIT);
+  expect(await keptA(page)).toEqual([]);
+  expect(errs).toEqual([]);
+});
+test('K5 그 다시 쓰기도 실패하면 비상 사본으로 남긴다', async ({ page }) => {
+  const errs = await setup(page);
+  await failedSideTabOnly(page);
+  await page.evaluate(() => { window.__refuse = 'disk_full'; });
+  await page.evaluate((A) => window.flushProjectBeforeTrash(A), A);
+  const k = await keptA(page);
+  expect(k.length, '★다시 쓰기 실패 뒤 편집이 어디에도 없다').toBe(1);
+  expect(k[0].body).toContain(EDIT);
   expect(errs).toEqual([]);
 });
