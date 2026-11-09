@@ -39,6 +39,7 @@ const TOOLS = [
   ['update_qa_block', '_invokeRendererUpdateQABlock', 'addQABlock', 'qa-block', P({ items: [{ text: M, done: false }] }), P({ items: [{ text: '', done: false }] }), P({ items: [{ text: O, done: false }] }), P({ items: [] })],
   ['update_table_block', '_invokeRendererUpdateTableBlock', 'addTableBlock', 'table', P({ headers: [M, 'B'], rows: [['c', 'd']] }), P({ headers: ['', 'B'], rows: [['c', 'd']] }), P({ headers: [O, 'B'], rows: [['c', 'd']] }), null],
   ['update_chat_block', '_invokeRendererUpdateChatBlock', 'addChatBlock', 'chat', P({ messages: [{ text: M, align: 'left' }] }), P({ messages: [{ text: '', align: 'left' }] }), P({ messages: [{ text: O, align: 'left' }] }), null],
+  ['update_chat_block(여러 줄)', '_invokeRendererUpdateChatBlock', 'addChatBlock', 'chat', P({ messages: [{ text: M + '\n둘째 줄', align: 'left' }] }), P({ messages: [{ text: '', align: 'left' }] }), P({ messages: [{ text: O + '\n둘째 줄', align: 'left' }] }), null],   // 리뷰 1-5: 줄바꿈 든 칸(제 글자 + <br>)도 한 칸
   ['update_step_block', '_invokeRendererUpdateStepBlock', 'addStepBlock', 'step', P({ steps: [{ title: M, desc: 'd' }] }), P({ steps: [{ title: '', desc: 'd' }] }), P({ steps: [{ title: O, desc: 'd' }] }), null],
   ['update_label_group_block', '_invokeRendererUpdateLabelGroupBlock', 'addLabelGroupBlock', 'label-group', P({ labels: [M] }), P({ labels: [''] }), P({ labels: [O] }), P({ labels: [] })],
   ['update_sticker_block', '_invokeRendererUpdateStickerBlock', 'addStickerBlock', 'sticker', P({ text: M }), P({ text: '' }), P({ text: O }), null],
