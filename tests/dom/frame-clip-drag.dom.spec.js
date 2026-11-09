@@ -64,6 +64,7 @@ async function scene(page, { clipAttr = null, radius = null } = {}) {
     window.addSection();
     window.addFrameBlock();
     const fr = [...document.querySelectorAll('.frame-block')].find((f) => f.dataset.freeLayout === 'true');
+    window._enteredFrame = fr; fr.classList.add('frame-entered');   // ㉠(2026-11-09): 오브젝트 선택이면 «다음 형제» — 들어간 상태(앱 더블클릭 진입 표식)로 «안»에 넣는다
     window.addTextBlock();
     /* ★★축은 ★세 값이다 — ★`null` = ★속성 ★없음(= ★★기본) · `'false'` = ★끔 · `'true'` = ★콀.
        ⚠️2026-09-28 이후엘 ★★기본이 `visible` 이었으나, ★★2026-10-10(현빈 t1-②)부톰 ★기본이 ★★자른다.

@@ -2,8 +2,8 @@
  *
  * 현빈 실기 제보(2026-09-23, userlens): 「그리드 블럭이 프레임 블럭에 안 들어간다」.
  *
- * ★무엇이 있었나 — 프레임 속성 패널 맨 아랫줄이 이렇게 «약속»한다:
- *     「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.」
+ * ★무엇이 있었나 — 프레임 속성 패널 맨 아랫줄이 «프레임을 클릭하고 넣으면 안으로 든다»고 약속했었다
+ *     (㉠ 2026-11-09 뒤 거짓이 돼 지웠다 — 지디 ㉮ · tests/unit/frame-panel-insert-hint-gone.test.mjs).
  *   그런데 실측(격리 인스턴스 9341, 재현 3/3)은 이랬다:
  *     · 텍스트(Label)  → 프레임 «안»  ✅   (block-factory.js 가 자기 프레임 분기를 갖고 있다)
  *     · 그리드          → 프레임 «밖»  ⛔   (공용 insertAfterSelected 를 탄다)
@@ -20,6 +20,8 @@
  *   ⇒ F1(아래)을 뒤집었다: 프레임을 «오브젝트로» 고른 채(자손 선택 0) 넣으면 «다음 형제». 옛 단언(«안»)은 지우지 않고 각 시험 안에 주석으로 남긴다.
  *   F1d(새): 들어간 상태(프레임 안 자식이 골라짐)에서 넣으면 여전히 «안» — 09-23 의 요구가 drill-in 으로 살아 있다는 증거.
  * ★10-05 ⒜: F1 은 10-05 H11 때 밖으로 뒤집었다가 ⒜ 정의(빈 프레임 = 안쪽)로 되돌림 — 픽스처 프레임이 비어 있어서(F0 「처음엔비어있다」).
+ * ★㉠(2026-11-09, t3-01/t3-07 · 지디 확정): ⒜ 를 걷었다 — 빈 프레임도(방금 만든 것 포함) «오브젝트로» 골랐으면 «다음 형제». F1 은 다시 H11 단언(밖)이다.
+ *   F1e(새): 빈 프레임에 «들어간» 상태(더블클릭 진입 = _enteredFrame)에서 넣으면 «안» — ㉠ 의 「들어간 뒤 넣으면 안」 쪽.
  * ⛔앱을 «안» 띄운다 — js/drag-utils.js 원본만 route-fulfill (shape-frame-isolation 부트 패턴).
  * 실행: npm run test:dom -- frame-accepts-component-blocks
  */
@@ -100,8 +102,9 @@ test('F0 전제 — 그물이 살아 있다(프레임은 «진짜» 프레임이
 for (const cls of COMPONENTS) {
   /* 09-23 옛 제목(기록): `F1-${cls} ★프레임을 고른 채 「${cls}」을 넣으면 프레임 «안»에 들어간다 (화면이 약속한 그대로)`
      H11 제목(기록): `F1-${cls} ★프레임을 «오브젝트로» 고른 채 …을 넣으면 프레임 «다음 형제»(H11 10-05 재지시 — 09-23 «안» 뒤집음)`
-     ★10-05 H11 때 밖으로 뒤집었다가 ⒜ 정의(빈 프레임 = 안쪽)로 되돌림 — 픽스처 프레임은 «처음엔 비어있다»(F0). */
-  test(`F1-${cls} ★«빈» 프레임을 고른 채 「${cls}」을 넣으면 프레임 «안»에 들어간다(09-23 · ⒜ 정의: 자식 요소 0 = 안쪽 상태)`, async ({ page }) => {
+     ⒜ 제목(기록): `F1-${cls} ★«빈» 프레임을 고른 채 「${cls}」을 넣으면 프레임 «안»에 들어간다(09-23 · ⒜ 정의: 자식 요소 0 = 안쪽 상태)`
+     ★㉠(2026-11-09, t3-01/t3-07): ⒜ 를 걷었다 — 빈 프레임도 오브젝트로 골랐으면 «다음 형제». */
+  test(`F1-${cls} ★«빈» 프레임을 «오브젝트로» 고른 채 「${cls}」을 넣으면 프레임 «다음 형제»(㉠ 2026-11-09 — ⒜ 걷음)`, async ({ page }) => {
     const errs = await boot(page, FIXTURE);
     const out = await page.evaluate((klass) => {
       const F = document.getElementById('F');
@@ -118,16 +121,13 @@ for (const cls of COMPONENTS) {
       };
     }, cls);
     expect(errs).toEqual([]);
-    /* ── H11(10-05) 단언(기록 — ⒜ 정의로 되돌림: 빈 프레임은 오브젝트로 골라도 안쪽 상태):
-       expect(out.프레임안).toBe(false) · expect(out.프레임자식수).toBe(0) · expect(out.앞형제).toBe('R') ──
-       ── 아래 = 09-23 단언(다시 살아 있음 · 10-05 ⒜) ── */
-    expect(out.프레임안,
-      `★「${cls}」이 프레임 «밖»으로 나갔다 — 부모=${out.부모}.\n` +
-      '   프레임 속성 패널은 「Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다」라고\n' +
-      '   «약속»한다. 텍스트(Label)는 그 약속을 지키는데(block-factory.js 자기 분기) 컴포넌트 블럭\n' +
-      '   15종은 공용 insertAfterSelected 를 타서 프레임 «뒤»(형제)로 붙는다.\n' +
-      '   ⇒ 고칠 자리는 drag-utils.js 의 «한 곳»이다. 15곳에 분기를 베끼지 마라.').toBe(true);
-    expect(out.프레임자식수).toBe(1);
+    /* ── ⒜(10-05) 단언(기록 — ㉠ 2026-11-09 에 걷음): expect(out.프레임안).toBe(true) · expect(out.프레임자식수).toBe(1) ──
+       ── 아래 = H11 단언(다시 살아 있음 · ㉠) ── */
+    expect(out.프레임안, `★오브젝트로 고른 빈 프레임 «안»에 들어갔다(⒜ 잔재) — 부모=${out.부모}. ㉠: «안»은 들어간 상태에서만.`).toBe(false);
+    expect(out.부모).toBe('SI');
+    expect(out.프레임자식수).toBe(0);
+    expect(out.앞형제).toBe('R');
+    expect(out.표지블록그대로).toBe('NEW');
   });
 }
 
@@ -144,6 +144,22 @@ for (const cls of COMPONENTS) {
     }, cls);
     expect(errs).toEqual([]);
     expect(out.프레임안, `들어간 상태인데 프레임 «밖»으로 나갔다 · 부모=${out.부모}`).toBe(true);
+  });
+}
+
+for (const cls of COMPONENTS) {
+  test(`F1e-${cls} [㉠ 안쪽] «빈» 프레임에 «들어간» 상태(더블클릭 진입)에서 「${cls}」을 넣으면 프레임 «안»`, async ({ page }) => {
+    const errs = await boot(page, FIXTURE);
+    const out = await page.evaluate((klass) => {
+      const F = document.getElementById('F');
+      window._activeFrame = F;
+      window._enteredFrame = F; F.classList.add('frame-entered');   // 앱이 여백 더블클릭 진입 때 세우는 상태(drag-utils.js _dblGesture)
+      const el = document.createElement('div'); el.className = klass; el.id = 'NEW';
+      window.__DU.insertAfterSelected(document.getElementById('S'), el);
+      return { 부모: el.parentElement.id, 프레임자식: [...F.children].map((c) => c.id), 표지앞: document.getElementById('AFTER').previousElementSibling.id };
+    }, cls);
+    expect(errs).toEqual([]);
+    expect(out).toEqual({ 부모: 'F', 프레임자식: ['NEW'], 표지앞: 'R' });
   });
 }
 

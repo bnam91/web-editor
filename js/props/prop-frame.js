@@ -680,9 +680,6 @@ function _renderAutoPanel(ss) {
         `;
       })()}
     </div>
-    <div class="prop-section">
-      <div class="prop-hint">Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>
-    </div>
     ${window.fxSectionHtml?.(ss, 'ss') || ''}`;   /* ★1017a7 Effects — ★맨 끝(prop-shape.js:356 과 같은 자리 · 지디 승인분 그대로) */
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);

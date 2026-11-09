@@ -2092,6 +2092,7 @@ window.addQuoteChild = addQuoteChild;
      ⇒ ★★거기는 ★명부가 ★둘이다. ⛔인용구는 ★그 꼴을 ★★따르지 ★않는다(★이름으로 적어 둔다). */
 window.QUOTE_CHILD_KINDS = QUOTE_CHILD_KINDS;
 
+const FRAME_CHILD_MIN_INNER = 40;   // t3-05: 크기 «안 정한» 부모의 안쪽이 이보다 작으면 자식은 섹션 기본의 80%(688×416)
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
@@ -2100,8 +2101,34 @@ function addFrameBlock(opts = {}) {
 
   // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
   // ★도형 래퍼 판정·넣을 자리는 shape-frame.js SSOT — insertAfterSelected 도 같은 해석을 쓴다
-  const activeFrame = !opts.fullWidth && resolveInsertFrame(window._activeFrame);
-  if (activeFrame && activeFrame.closest('.section-block') === sec) {
+  /* ★T307 Q1·Q2(261109) — 깊이 판정은 다른 add* 와 같은 문지기(_insFrameGate → frameTakesInsert) 한 자리:
+     오브젝트로 고른 프레임(방금 만든 빈 프레임 포함) → 다음 형제 · 들어간 흐름 프레임 → 고른 자식 다음(없으면 끝) — 둘 다 insertAfterSelected 가 놓는다. */
+  const activeFrame = !opts.fullWidth && _insFrameGate(resolveInsertFrame(window._activeFrame));
+  /* ★t3-05(현빈) — 새 프레임 기본값: 섹션 바로 아래 #D9D9D9 · 프레임 안(깊이 무관) #FFFFFF ＋ 부모 안쪽 상자의 80%.
+     ★들어갈 부모 = insertAfterSelected 가 «안»에 넣는 그 조건(text-frame·banner 외곽은 안이 아니다). 넣기 «전»에 정한다 —
+       자유배치 갈래의 growFrameToFitChildren 이 860×520 으로 부모를 키우기 전에. opts.bg 를 준 호출(MCP·runner)은 그 색 그대로. */
+  if (!opts.fullWidth) {
+    const host = activeFrame && activeFrame.closest('.section-block') === sec
+      && !activeFrame.dataset.textFrame && !activeFrame.dataset.bannerPreset ? activeFrame : null;
+    if (opts.bg == null) { ss.dataset.bg = host ? '#FFFFFF' : '#D9D9D9'; ss.style.background = ss.dataset.bg; }
+    if (host) {
+      const p = framePadding(host);
+      /* ★지디(261109) 크기 규칙(축마다):
+         ⒜ 부모가 그 축에 «정한 크기»가 없다(내용 맞춤·auto) → 안쪽 < FRAME_CHILD_MIN_INNER(40) 이면 섹션 기본 860×520 의 80% = 688·416, 아니면 안쪽의 80%
+         ⒝ 부모가 정한 크기(px)가 있다 → 안쪽의 80%, 최소 24px(찌그러짐 막기), ★부모 안쪽을 넘지 않게 — 자식 때문에 부모가 커지면 t3-06 과 같은 꼴을 우리가 만든다 */
+      const _fixed = (v) => /^\d+(\.\d+)?px$/.test(String(v || '').trim());
+      const _cx = (inner, def, fixed) => fixed
+        ? Math.max(1, Math.min(inner, Math.max(24, Math.round(inner * 0.8))))
+        : (inner < FRAME_CHILD_MIN_INNER ? Math.round(def * 0.8) : Math.round(inner * 0.8));
+      const w = _cx(host.clientWidth  - p.l - p.r, 860, _fixed(host.style.width));
+      const h = _cx(host.clientHeight - p.t - p.b, 520, _fixed(host.style.height));
+      ss.style.width = w + 'px'; ss.style.height = h + 'px'; ss.style.minHeight = h + 'px';
+      ss.dataset.width = String(w); ss.dataset.height = String(h);
+    }
+  }
+  if (!(activeFrame && activeFrame.dataset.freeLayout === 'true')) {
+    insertAfterSelected(sec, ss);
+  } else if (activeFrame && activeFrame.closest('.section-block') === sec) {
     activeFrame.appendChild(ss);
     /* ★자유배치 프레임의 자식은 «좌표»로 산다 — 안 주면 흐름 자식이 되어, 이미 들어와 있던
        absolute 형제와 «둘 다 y=0» 에 포개진다(absolute 형제는 흐름을 차지하지 않으므로

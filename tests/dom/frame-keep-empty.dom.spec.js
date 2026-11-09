@@ -39,6 +39,7 @@ async function setup(page, kind, zoom = 100) {
     document.getElementById('gBefore').classList.add('selected');
     window.addFrameBlock(kind === 'flow' ? { fullWidth: true } : {});      // 진짜 프레임(툴바 「Frame」과 같은 함수)
     const FR = window._activeFrame; FR.id = 'FR';
+    window._enteredFrame = FR; FR.classList.add('frame-entered');   // ㉠(2026-11-09): 오브젝트 선택이면 «다음 형제» — 들어간 상태(앱 더블클릭 진입 표식)로 «안»에 넣는다
     window.addAssetBlock('standard');                                      // 패널 삽입 — 프레임 «안»으로
     FR.querySelector('.asset-block').id = 'kid';
     window.rebindAll?.(); window.deselectAll?.();
@@ -119,12 +120,24 @@ for (const kind of ['free', 'flow']) {
       // ⑶ 프레임 속성 패널
       const panel = await page.evaluate(() => (document.querySelector('#panel-right')?.innerText || '').replace(/\s+/g, ' '));
       expect(panel, '프레임 패널이 안 떴다').toMatch(/PROPERTIES Frame FR/);
-      // ⑷ 패널 삽입 — 진짜 단추(Body)를 누른다
-      await page.evaluate(() => window.toggleFpDropdown?.('fp-text-dropdown'));
-      await page.locator('#fp-text-dropdown .fp-menu-item', { hasText: 'Body' }).click();
+      expect(panel, '★지운 안내(「…이 안으로 들어갑니다」 · 지디 ㉮ 2026-11-09)가 프레임 패널에 다시 떴다').not.toContain('이 안으로 들어갑니다');
+      /* ⑷ 패널 삽입 — 진짜 단추(Body)를 누른다.
+         ★㉠(2026-11-09, t3-01/t3-07): ⒜(빈 프레임 = 안쪽)를 걷었다. 옛 단언 = 「클릭으로 고른 빈 프레임에 Body → «안»」({inFrame:1, all:1}).
+         새 정의: ⑷a 클릭(오브젝트 선택)이면 «다음 형제» · ⑷b 여백 더블클릭으로 들어간 뒤면 «안». */
+      const body = async () => { await page.evaluate(() => window.toggleFpDropdown?.('fp-text-dropdown'));
+        await page.locator('#fp-text-dropdown .fp-menu-item', { hasText: 'Body' }).click(); };
+      await body();
       await page.waitForTimeout(300);
+      const sib = await page.evaluate(() => { const F = document.getElementById('FR'); const unit = F.parentElement.classList.contains('row') ? F.parentElement : F;
+        const tbs = [...document.querySelectorAll('#sF1 .text-block')];
+        return { inFrame: F.querySelectorAll('.text-block').length, all: tbs.length, nextHasIt: !!(tbs[0] && unit.nextElementSibling?.contains(tbs[0])) }; });
+      expect(sib, '⑷a ㉠ — 오브젝트로 고른 빈 프레임에 넣으면 «다음 형제»').toEqual({ inFrame: 0, all: 1, nextHasIt: true });
+      await page.mouse.dblclick(r.cx, r.cy);
+      await expect.poll(() => page.evaluate(() => window._enteredFrame?.id || null), { message: '⑷b 전제 — 여백 더블클릭으로 FR 에 들어갔다' }).toBe('FR');
+      await body();
+      await expect.poll(() => page.evaluate(() => document.querySelectorAll('#sF1 .text-block').length)).toBe(2);
       const ins = await page.evaluate(() => ({ inFrame: document.querySelectorAll('#FR .text-block').length, all: document.querySelectorAll('#sF1 .text-block').length }));
-      expect(ins, '다시 넣은 블록이 빈 프레임 «안»에 안 들어갔다').toEqual({ inFrame: 1, all: 1 });
+      expect(ins, '⑷b ㉠ — 들어간 빈 프레임에 넣은 블록이 «안»에 안 들어갔다').toEqual({ inFrame: 1, all: 2 });
       /* ★[2026-10-06] 옛 단언은 「내용이 생겼는데 ★빈 표시(점선)가 남았다 → none」이었다. 점선을 없앤 뒤엔
          ★항상 참이라 ★아무것도 안 잠근다(항등식) ⇒ 갈아끼웠다.
          ⛔첫 시도(「풀기 전엔 solid 가 있다」)도 ★틀린 가정이었다 — ★재 보니 삽입 직후엔 프레임이 이미

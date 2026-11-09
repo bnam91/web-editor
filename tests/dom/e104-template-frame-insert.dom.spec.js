@@ -27,7 +27,8 @@ async function setup(page) {
     const f0 = new Set([...document.querySelectorAll('.frame-block')].map(f => f.id));
     window.addFrameBlock();
     const F = [...document.querySelectorAll('#sT .frame-block:not([data-text-frame])')].find(f => !f0.has(f.id));
-    window.addTextBlock('h2');   // 프레임을 고른 채 — 프레임 안으로
+    window._enteredFrame = F; F.classList.add('frame-entered');   // ㉠(2026-11-09): 오브젝트 선택이면 «다음 형제» — 들어간 상태(앱 더블클릭 진입 표식)로 «안»에 넣는다
+    window.addTextBlock('h2');   // 들어간 프레임 — 프레임 안으로(옛: 고른 채 = ⒜)
     const inner = [...F.querySelectorAll('[id]')].map(e => e.id);
     await window.saveAsTemplate(F, 'e104-sub', '기타', '', [], 'subsection');
     const tpl = window.loadTemplates().find(t => t.name === 'e104-sub');

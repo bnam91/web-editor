@@ -20,6 +20,8 @@ async function scene(page, cls, entry) {
 const open = async (page) => { await page.setViewportSize({ width: 1500, height: 1400 }); await bootApp(page); await page.evaluate(() => window.applyZoom(40)); await waitZoomSettled(page, 40); };
 const corner = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.right - 5, r.bottom - 5]; }, id);
 const clickFrame = async (page, id) => { const p = await corner(page, id); await page.mouse.click(p[0], p[1]); await raf(page); };
+/* ㉠(2026-11-09): 빈 프레임도 한 번 클릭(오브젝트)이면 붙여넣기는 «다음 형제» — «안»은 여백 더블클릭으로 들어간 뒤다(앱 진입 문). */
+const enterFrame = async (page, id) => { const p = await corner(page, id); await page.mouse.dblclick(p[0], p[1]); await raf(page); };
 async function pick(page, s) { await clickFrame(page, s.A); const m = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, s.k); await page.mouse.dblclick(m[0], m[1]); await raf(page); }   // B안(현빈 261107): 프레임 뒤 자식 = 더블클릭 진입(옛: 한 번 클릭 드릴인)
 const count = (page, cls) => page.evaluate((c) => document.querySelectorAll('#canvas .' + c).length, cls);
 async function paste(page, cls) { const n = await count(page, cls); await page.keyboard.press('Meta+v'); await page.waitForFunction(([c, n]) => document.querySelectorAll('#canvas .' + c).length > n, [cls, n]); await raf(page); }
@@ -59,10 +61,12 @@ test('⌘X → 아무것도 안 고름 → ⌘V 는 원래 부모 안 원본 옆
   await paste(page, cls);
   expect(await at(), '둘째는 겹치지 않는다').toEqual([['60px', '70px'], ['80px', '90px']]);
 });
-test('⌘X → 빈 스택 프레임 → ⌘V 는 그 안 흐름으로', async ({ page }) => {
+test('⌘X → 빈 스택 프레임에 «들어가» ⌘V 는 그 안 흐름으로(㉠ — 옛: 클릭만 해도 안 = ⒜)', async ({ page }) => {
   await open(page); const [cls, entry] = KINDS[1]; const s = await scene(page, cls, entry); await raf(page);
   await pick(page, s); await page.keyboard.press('Meta+x'); await raf(page);
-  await clickFrame(page, s.C); await paste(page, cls);
+  await enterFrame(page, s.C);
+  expect(await page.evaluate((C) => window._enteredFrame?.id === C, s.C), '전제: 더블클릭으로 C 에 들어갔다').toBe(true);
+  await paste(page, cls);
   expect(await home(page, s, cls)).toEqual({ A: 0, B: 0, C: 1, S2: 0 });
   expect(await page.evaluate((C) => document.getElementById(C).querySelector('.asset-block').style.position, s.C), '흐름').not.toBe('absolute');
 });

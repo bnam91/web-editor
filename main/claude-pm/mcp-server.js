@@ -3230,7 +3230,7 @@ function _registerDefaultTools() {
         properties: {
           sectionId: { type: 'string', description: 'sec_xxx — omit to use currently selected section' },
           fullWidth: { type: 'boolean', description: 'true=fullWidth flow layout (이중배경 섹션용), 미지정=freeLayout 자유배치(기본)' },
-          bg:        { type: 'string', description: '배경색 (#hex | rgb(a)/hsl(a)() | transparent). default #ffffff' },
+          bg:        { type: 'string', description: '배경색 (#hex | rgb(a)/hsl(a)() | transparent). 미지정 기본 = 섹션 바로 아래 #D9D9D9 · 프레임 안(진입한 프레임) #FFFFFF·부모 안쪽의 80% 크기 · fullWidth 는 #ffffff' },
           radius:    { type: 'integer', minimum: 0, maximum: 400, description: 'border-radius px' }
         },
         required: []

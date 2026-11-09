@@ -56,6 +56,8 @@ async function scene(page, mode) {
   if (mode === 'flipH' || mode === 'flipHV') await page.locator('#ss-flip-h').click();
   if (mode === 'flipV' || mode === 'flipHV') await page.locator('#ss-flip-v').click();
   if (mode === 'rot90') await page.locator('#ss-rotate-90').click();
+  { const r = await waitStableRect(page, '[data-qa-anc="1"]'); await page.mouse.dblclick(r.cx, r.cy); }   // ㉠(2026-11-09): 빈 프레임도 오브젝트 선택이면 다음 형제 — 여백 더블클릭으로 들어가 «안»에 넣는다
+  await page.waitForFunction((s) => window._enteredFrame === document.querySelector(s), '[data-qa-anc="1"]', { timeout: 5000 });
   await clickFrameBtn(page);
   await page.evaluate(() => {
     [...document.querySelectorAll('.frame-block.selected')].filter((x) => x.dataset.textFrame !== 'true' && !x.hasAttribute('data-qa-anc')).pop().setAttribute('data-qa-fr', 'cur');

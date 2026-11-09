@@ -36,6 +36,7 @@ async function scene(page, { free = false } = {}) {
       fr.dataset.freeLayout = 'true';
       fr.classList.add('selected');
       window._activeFrame = fr;
+      window._enteredFrame = fr; fr.classList.add('frame-entered');   // ㉠(2026-11-09): 들어간 상태라야 «안»(오브젝트 선택 = 다음 형제)
     }
     /* ★내용 폭 — ⛔clientWidth 는 padding 을 «포함»한다(실측: 860 이 나왔다). 그 둘을 빼야 내용 폭이다. */
     const si = document.getElementById('siO');
