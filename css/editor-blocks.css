@@ -391,16 +391,20 @@
    이름 목록으로 잡는다 — 만드는 곳이 20곳 넘게 흩어져 공통 클래스 한 자리가 없다. «-handle» 성질로 잡으면 모드 손잡이(아웃페인트·이미지 크롭/편집 img-* ·
    그라데이션 선·펜)까지 죽고 새 손잡이도 몰래 죽는다(3e6e74997 의 흠). 새 «블럭 크기·회전» 손잡이를 만들면 여기 이름을 더한다.
    t2-02b 전체 상자 핸들(.ss-union-handle)은 여기 목록에 «없다»(= 저절로 산다). */
-body.sel-multi :is(#ss-handles-overlay, #canvas) :is(
+/* int-3 유닛(handle-token-parity H5 · zoom-block ⓑ-26): 이 숨김 규칙이 «#ss-handles-overlay·.shape-handle» 와 «.asset/.icb/.zm-overlay-handle 셋»을
+   한 셀렉터에 들어, 그 셀렉터로 «대상 규칙»을 찾는 두 검사가 이 규칙을 잘못 집었다 ⇒ 동작 같게(body.sel-multi 한정 · 같은 이름들 · display none) 둘로 쪼갠다.
+   손잡이는 #ss-handles-overlay·#canvas 안에서만 만들어지므로 그릇 한정을 빼도 걸리는 자리는 같다. */
+body.sel-multi :is(
   .ss-resize-handle, .ss-radius-handle, .ss-rotate-handle,
   .asset-overlay-handle, .asset-radius-handle, .mdl-overlay-handle, .mdl-radius-handle, .cpn-overlay-handle, .icb-overlay-handle,
   .canvas-overlay-handle, .canvas-radius-handle, .vector-overlay-handle, .grd-overlay-handle, .grd-img-overlay-handle,
-  .zm-overlay-handle, .zm-radius-handle, .zm-rotate-handle, .tfo-overlay-handle, .gradient-corner-handle,
-  .frame-resize-handle, .shape-handle, .zoom-handle, .annot-handle, .annot-rot-handle, .hlb-handle, .hlb-thickness-handle,
+  .tfo-overlay-handle, .gradient-corner-handle,
+  .frame-resize-handle, .zoom-handle, .annot-handle, .annot-rot-handle, .hlb-handle, .hlb-thickness-handle,
   .sticker-corner-handle, .asset-handle, .tfh-handle,
   .shape-rotate-zone, .tb-rotate-zone, .mdl-rotate-zone, .ab-rotate-zone, .vb-rotate-zone, .mkp-rotate-zone,
   .icn-rotate-zone, .icb-rotate-zone, .cvb-rotate-zone, .sticker-rotate-zone
 ) { display: none !important; }
+body.sel-multi :is(.zm-overlay-handle, .zm-radius-handle, .zm-rotate-handle, .shape-handle) { display: none !important; }
 
 /* ── ⑵ 중화(P0 임시물) ─────────────────────────────────────────────────────────
    ⛔원본을 «지우지» 않는다. 색만 투명으로 돌린다(레이아웃·offset·specificity 그대로).

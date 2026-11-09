@@ -41,7 +41,11 @@ const code = (rel) => { if (!SRC.has(rel)) SRC.set(rel, readCode(rel)); return S
 const ROSTER = {
   'js/block-drag.js': ['도형 크기', '블록 이동', '블록 이동', '블록 이동'],
   'js/overlay-handles.js': [
-    '프레임 회전', '프레임 크기', '프레임 모서리', '목업 크기', '아이콘 크기',
+    '프레임 회전', '프레임 크기',
+    /* t2-02b(태양) — ⌘G 묶음·복수 선택 «전체 상자» 손잡이(.ss-union-handle)로 여럿을 한 번에 줄이고 늘림. 양쪽 끝 규약(beginDragHistory → onUp).
+       자리 = 소스 등장 순서(프레임 크기 핸들러 바로 뒤). 끝 표본은 tests/dom 의 t2-02b spec 이 잰다. */
+    '여럿 크기',
+    '프레임 모서리', '목업 크기', '아이콘 크기',
     '에셋 모서리', '에셋 크기', '모달 모서리', '모달 크기',
     /* 2026-10-07 쿠폰 — 모서리 넷이지만 ★«폭»만 쓴다(높이는 16:9 에서 나온다).
        처음부터 양쪽 끝 규약(onMove 의 arm ＋ onUp 의 pushHistory).
