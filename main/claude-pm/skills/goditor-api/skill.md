@@ -127,7 +127,7 @@ window._scratchAddAndSave(src, x, y, w)
 // - 반드시 한 장씩 순차 호출 (한꺼번에 보내면 timeout)
 // - awaitPromise: true 필수 (비동기 저장 대기)
 
-window.clearScratchPad()              // 현재 프로젝트+페이지 스크래치 전체 삭제
+await window.clearScratchPad()        // 현재 프로젝트+페이지 스크래치 전체 삭제 · 거절하면 던진다(페이지 전환 중·기다리는 사이 프로젝트/페이지 바뀜·프로젝트 없음·로드 안 끝남): 아무것도 안 지움, 잠시 뒤 다시 부르기 (CDP 면 exceptionDetails 확인)
 window.initScratchPad(projectId, pageId)  // 프로젝트 열기 시 IndexedDB에서 복원
 window.switchScratch(projectId, pageId)   // 프로젝트 전환 시
 window.switchScratchPage(pageId)          // 페이지 전환 시

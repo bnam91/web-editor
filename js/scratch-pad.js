@@ -49,15 +49,13 @@ let _scratchLoaded = true;
 
 function _openDB() {
   if (_db) return Promise.resolve(_db);
+  /* ★SCRATCH-DB-OPEN-FAIL-RECOVERY-WIPES-ALL-01(지디 ⒜) — 옛 판은 열기에 실패하면 indexedDB.deleteDatabase 로 «모든 프로젝트·페이지» 스크래치를
+     지우고 다시 열었다(다른 연결이 막고 있다 풀려도 지워졌다 → 비운 [] 가 «모름»이 돼 매니페스트로 되살아나고 마지막 저장 뒤 위치는 잃음).
+     ⇒ 지우지 않는다. 이번 실행은 메모리 폴백으로 돌고(저장 때 외부화가 폴백을 읽어 파일 매니페스트에 남긴다) 다음 실행에 다시 연다. */
   return _tryOpenDB().catch(err => {
-    console.warn('[ScratchPad] IndexedDB open failed, retrying after delete:', err);
-    return new Promise((res, rej) => {
-      const del = indexedDB.deleteDatabase(SCRATCH_DB_NAME);
-      del.onsuccess = () => _tryOpenDB().then(res).catch(rej);
-      del.onerror   = () => _tryOpenDB().then(res).catch(rej);
-    });
-  }).catch(err => {
-    console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback:', err);
+    console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback (no delete):', err);
+    if (_db) return _db;   // ★⒝ 그사이 다른 부름이 이미 열었거나 폴백을 세웠다 — 덮지 않는다
+    window.showToast?.('⚠️ 스크래치 저장소를 열지 못했습니다 — 이번 실행은 프로젝트 파일에만 남깁니다');
     // 메모리 폴백: get/put/delete 메서드만 흉내냄
     const store = {};
     _db = {
@@ -82,15 +80,29 @@ function _openDB() {
   });
 }
 
+/* ★리뷰 1(SCRATCH-DB-OPEN-FAIL) — 메모리 폴백 세션의 편집은 파일 매니페스트에만 남는다. 다음 실행에 진짜 DB 가 열리면 그 키의 «옛» 값이 있어
+   매니페스트를 안 읽고(키 있음) 다음 저장이 옛 값을 매니페스트에 되써서 폴백 세션 편집이 모든 곳에서 사라졌다.
+   ⇒ 폴백에서 외부화한 키를 localStorage 에 적어 두고, 다음 진짜 로드는 그 키만 매니페스트(빈 [] 포함)를 이기게 한 뒤 DB 에 쓰고 나서 지운다. */
+const _FB_WINS = 'scratch-manifest-wins';
+let _mergedKey = null;   // 리뷰 3 — 합쳐 읽은 표식 키. 그 키의 «첫 성공 쓰기»에서 표식을 지운다(로드의 한 번 저장이 실패해도 다음 성공에서 · 안 그러면 외부화가 영영 건너뛴다)
+const _fbWins = {
+  read() { try { return new Set(JSON.parse(localStorage.getItem(_FB_WINS) || '[]')); } catch (_) { return new Set(); } },
+  write(set) { try { if (set.size) localStorage.setItem(_FB_WINS, JSON.stringify([...set])); else localStorage.removeItem(_FB_WINS); } catch (_) {} },
+  has(k) { return this.read().has(k); },
+  add(k) { const s = this.read(); if (!s.has(k)) { s.add(k); this.write(s); } },
+  del(k) { const s = this.read(); if (s.delete(k)) this.write(s); },
+};
+
 function _tryOpenDB() {
   return new Promise((resolve, reject) => {
+    let settled = false;   // ★⒝ 막힘으로 거절한 «뒤» 늦게 열려도 _db(이미 메모리 폴백)를 새 빈 연결로 갈지 않는다 — 폴백에 쓴 것이 몰래 버려졌다
     const req = indexedDB.open(SCRATCH_DB_NAME, 1);
     req.onupgradeneeded = e => {
       e.target.result.createObjectStore(SCRATCH_STORE);
     };
-    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
-    req.onerror   = e => reject(e.target.error);
-    req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    req.onsuccess = e => { if (settled) { try { e.target.result.close(); } catch (_) {} return; } settled = true; if (!_db) _db = e.target.result; else { try { e.target.result.close(); } catch (_) {} } resolve(_db); };
+    req.onerror   = e => { if (settled) return; settled = true; reject(e.target.error); };
+    req.onblocked = () => { if (settled) return; settled = true; reject(new Error('IndexedDB blocked')); };
   });
 }
 
@@ -139,7 +151,7 @@ async function _saveScratch({ quiet = false } = {}) {   // quiet = 부르는 쪽
   const data = _scratchItems.map(s => _pickScratch(s));
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
   _putScratch(tx, data, key);
-  return _txDone(tx).catch(e => { if (!quiet) _warnScratchWriteFailed(e); throw e; });
+  return _txDone(tx).then(() => { if (key === _mergedKey) { _fbWins.del(key); _mergedKey = null; } }, e => { if (!quiet) _warnScratchWriteFailed(e); throw e; });
 }
 
 // #16 이식성 — 저장 시 스크래치 «전체 페이지» 외부화 + proj.json 매니페스트 기록.
@@ -175,10 +187,14 @@ async function externalizeScratchpad(proj, projectId) {
   for (const page of proj.pages) {
     if (!page || !page.id) continue;
     const key = `scratch-pad-${projectId}-${page.id}`;
+    if (!db._isFallback && _fbWins.has(key)) {   // 리뷰 2 #2 — 표식 키는 로드가 맞출 때까지 매니페스트 보존(옛 DB 값으로 덮지 않는다 · 안 가 본 페이지)
+      if (Array.isArray(page.scratchpad)) continue;
+      _fbWins.del(key);   // 리뷰 4 — 저장할 파일에 그 페이지 매니페스트가 없다 = 지킬 것이 없다 · 표식이 영영 남지 않게
+    }
     let data;
     try { data = await readRaw(key); } catch (_) { continue; }
     if (data === undefined) continue;              // 키 없음 = 스크래치 없음/미로드 → 매니페스트 보존
-    if (!Array.isArray(data) || data.length === 0) { page.scratchpad = []; continue; } // 비움 동기화
+    if (!Array.isArray(data) || data.length === 0) { page.scratchpad = []; if (db._isFallback) _fbWins.add(key); continue; } // 비움 동기화
     let changed = false;
     const manifest = [];
     for (const it of data) {
@@ -199,6 +215,7 @@ async function externalizeScratchpad(proj, projectId) {
       manifest.push({ ..._pickScratch(it), src });
     }
     page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
+    if (db._isFallback) _fbWins.add(key);   // 리뷰 1 — 다음 진짜 로드에서 이 매니페스트가 옛 DB 를 이긴다
     if (changed) {
       try { await upgradeSrcs(key, cache); } catch (_) {}
       if (projectId === _currentProjectId && page.id === _currentPageId) {
@@ -234,6 +251,7 @@ async function flushScratchForSwitch() {
     const tx = db.transaction(SCRATCH_STORE, 'readwrite');
     _putScratch(tx, data, key);
     await _txDone(tx);
+    if (key === _mergedKey) { _fbWins.del(key); _mergedKey = null; }   // 리뷰 4 #2 — 합친 판을 떠날 때 쓴 것도 «성공 쓰기»
   } catch (e) {
     _unsavedFlush.set(key, { data, merge: _loadFailed });
     _warnScratchWriteFailed(e);
@@ -1496,7 +1514,16 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
   return item;
 }
 
-async function _loadScratch(projectId, pageId) {
+/* ★적대 리뷰 2(261110): 도는 로드를 «버리지» 말고 «기다린다» — 버리면 페이지 바꾸는 중 비우기가 아직 안 보인 새 페이지의 장을 늘 지웠다.
+   비우기는 이 약속을 먼저 기다린 뒤 지금 컨텍스트(로드 끝난 것)를 비운다. */
+let _scratchLoadP = Promise.resolve();
+function _loadScratch(projectId, pageId) {
+  const p = _loadScratchImpl(projectId, pageId);
+  _scratchLoadP = p.catch(() => {});
+  return p;
+}
+async function _loadScratchImpl(projectId, pageId) {
+  _mergedKey = null;   // 리뷰 4 #4 — 이 로드가 합칠 때만 다시 선다
   const gen = ++_scratchLoadGen; // ★이 로드의 세대 토큰 — 이후 flush/새 로드가 bump하면 stale
   _scratchLoaded    = false;     // 로드 완료 전 save/flush의 빈 배열 덮어쓰기 차단
   _currentProjectId = projectId;
@@ -1517,6 +1544,16 @@ async function _loadScratch(projectId, pageId) {
       req.onerror   = e => reject(e.target.error);
     });
     if (gen !== _scratchLoadGen) return; // ★stale — DOM/배열 오염·엉뚱한 키 저장 금지
+    /* 리뷰 1 — 지난 폴백 세션이 이 키를 매니페스트로만 남겼다 → 이번(진짜 DB)엔 매니페스트가 이긴다(빈 [] = 그 세션에 비운 것) */
+    let manifestWins = false;
+    if (!db._isFallback && _fbWins.has(key)) {
+      const pgW = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
+      /* 리뷰 2 #1 — 갈지 말고 «합친다»(같은 id 는 매니페스트 · DB 에만 있는 것은 남김): 장 넣기·옮기기는 DB 만 써서 DB 가 매니페스트보다 새 것일 수 있다
+         (그 세션에 스크래치를 안 만져도 캔버스 저장이 표식을 남긴다). 값: 폴백 세션에 지운 장은 돌아올 수 있다(_loadFailed 길과 같은 «잃지 않기» 쪽) */
+      /* 리뷰 4 #1 — 매니페스트 «배열»이 있을 때만 합침 끝으로 친다. 부팅 때 첫 initScratchPad 는 applyProjectData «전»(state.pages = 자리표시 [{id:'page_1'}])에 돌아
+         배열 없음을 «합침 끝»으로 치면 표식을 지워 다음(진짜) 로드가 옛 DB 만 읽고 외부화가 매니페스트를 덮었다. 배열 없는 표식이 영영 남는 것은 외부화 쪽이 푼다. */
+      if (pgW && Array.isArray(pgW.scratchpad)) { const u = _unionById(data, pgW.scratchpad.map(m => _pickScratch(m))); data.length = 0; data.push(...u); keyMissing = false; manifestWins = true; _mergedKey = key; }
+    }
     const heldBack = _unsavedFlush.get(key);   // 떠날 때 쓰기가 실패해 메모리에만 있던 판 — DB 보다 새 것이다
     if (heldBack) { const next = heldBack.merge ? _unionById(data, heldBack.data) : heldBack.data; data.length = 0; data.push(...next); _unsavedFlush.delete(key); }
     _loadFailed = false;
@@ -1541,7 +1578,9 @@ async function _loadScratch(projectId, pageId) {
       _createItem(src, x, y, w, id, g, linkDy, fx, ocr);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
-    if (migrated || hydrated || addedDuringLoad || heldBack) _saveScratch(); // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
+    if (migrated || hydrated || addedDuringLoad || heldBack || manifestWins) {
+      _saveScratch()?.catch?.(() => {});   // 표식은 _saveScratch 성공 길이 지운다(_mergedKey) — 실패면 그 페이지 다음 성공 쓰기에서
+    } // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
@@ -2047,9 +2086,13 @@ async function switchScratch(newProjectId, pageId) {
   await _loadScratch(newProjectId, pageId);
 }
 
+let _scratchPageSwitching = 0;   // ★리뷰 2: 페이지 전환 중 표식 — clearScratchPad 가 «어느 페이지인지 모를 때» 거절하는 근거
 async function switchScratchPage(newPageId, { quiet = false } = {}) {
-  await _saveScratch({ quiet });
-  await _loadScratch(_currentProjectId, newPageId);
+  _scratchPageSwitching++;
+  try {
+    await _saveScratch({ quiet });
+    await _loadScratch(_currentProjectId, newPageId);
+  } finally { _scratchPageSwitching--; }
 }
 
 
@@ -2225,13 +2268,35 @@ window.switchScratch     = switchScratch;
 window.switchScratchPage = switchScratchPage;
 window.flushScratchForSwitch = flushScratchForSwitch;
 window.clearScratchPad   = async () => {
+  /* ★적대 리뷰(261110): 로드가 도는 중에 비우면 늦은 읽기가 옛 장을 다시 그려 «화면엔 있는데 저장엔 없음»이 됐다(다시 열면 사라짐).
+     ⇒ 도는 로드를 먼저 «기다린다»(버리지 않는다 — 리뷰 2) · 그 뒤 화면 = 저장 = [] */
+  /* ★리뷰 3 #1: 부른 때의 컨텍스트를 잡아 두고, 로드가 «끝날 때까지» 기다린다(기다리는 사이 다음 로드가 이어 붙으면 그것도) —
+     프로젝트 전환(switchScratch·initScratchPad)은 페이지 전환 표식을 안 켜서, 기다린 뒤 컨텍스트가 바뀌었으면 거절한다. */
+  const _ctx0 = _currentProjectId + '\u0000' + _currentPageId;
+  await _scratchLoadP;
+  // 리뷰 4 #3 — 로드가 표식을 못 세우고 끝난 길(던짐)이면 영영 돌지 않게 끊고 거절
+  for (let i = 0; !_scratchLoaded; i++) { if (i >= 20) throw new Error('scratch: load did not finish — not cleared'); await _scratchLoadP; }
+  if (_currentProjectId + '\u0000' + _currentPageId !== _ctx0) { console.warn('[scratch] clearScratchPad 거절 — 기다리는 사이 프로젝트/페이지가 바뀜'); throw new Error('scratch: context changed while waiting — not cleared'); }
+  /* ★리뷰 2: 페이지 바꾸는 중(스크래치는 새 페이지로 넘어갔는데 캔버스 state 는 아직 옛 페이지)이면 «어느 페이지를 비우라는지» 모른다 —
+     아직 안 보인 새 페이지를 지우거나 떠난 페이지를 지우는 대신 거절(아무것도 안 지움 · 부른 쪽이 다시 부르면 됨).
+     표식 = switchScratchPage 안에서만 켜지는 _scratchPageSwitching(캔버스 state 와 견주지 않는다 — 하니스·MCP 문맥에선 둘이 늘 같지 않다). */
+  /* ★리뷰 3 #2: 거절은 «던진다» — false/undefined 를 돌려주면 스킬(goditor-images_to_scratchpad)이 성공으로 보고 넣어 중복·키 없는 곳에 넣어 잃음 */
+  if (_scratchPageSwitching) { console.warn('[scratch] clearScratchPad 거절 — 페이지 전환 중(어느 페이지를 비울지 모름)'); throw new Error('scratch: page switch in progress — not cleared'); }
+  const key = _getScratchKey(_currentProjectId, _currentPageId);
+  if (!key) throw new Error('scratch: no project/page context — not cleared');   // 리뷰 3 #2 — 화면만 비우고 «됨»처럼 굴지 않는다
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
   const db = await _openDB();
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
-  tx.objectStore(SCRATCH_STORE).delete(_getScratchKey(_currentProjectId, _currentPageId));
-  return _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  /* 키를 지우지 않고 [] 를 쓴다 — 키 없음은 «아직 모름»(외부화가 매니페스트를 보존 · 로드가 매니페스트로 되채움), [] 는 «사람이 비움»이다.
+     지우면 저장 뒤에도 디스크 매니페스트가 옛 장을 들고 있어 다시 열 때 · 다른 맥에서 돌아왔다(SCRATCH-CLEARED-MANIFEST-STAYS-01). */
+  tx.objectStore(SCRATCH_STORE).put([], key);
+  await _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  _fbWins.del(key); if (_mergedKey === key) _mergedKey = null;   // 리뷰 4 #3 — 사람이 보이는 것을 비웠다 = 매니페스트를 다시 합치지 않는다(비운 장이 돌아오지 않게)
+  _unsavedFlush.delete(key);   // 떠날 때 못 쓴 옛 판이 다음 열기에 비운 장을 되살리지 않게(리뷰 2)
+  if (_getScratchKey(_currentProjectId, _currentPageId) === key) _loadFailed = false;   // 비움이 써졌다 = 이 키는 이제 아는 상태 — 그사이 다른 컨텍스트로 갔으면 그쪽 표식은 안 건드림(리뷰 3 #3)
+  window.triggerAutoSave?.();   // J214 와 같은 까닭 — 비운 것을 매니페스트에 싣는다
 };
 
 // CDP 스킬용 헬퍼 — 이미지를 추가하고 IndexedDB에 즉시 저장
@@ -2312,9 +2377,18 @@ window._scratchAddAndSaveFx = async (src, x, y, w, g, id, fx, ocr, linkDy) => {
   await _saveScratch();
 };
 
+/* ★⒞ — 결과를 돌려준다: { ok:true, id } = 화면 + 저장소에 들어감 · { ok:false, reason, id } = 화면에만(프로젝트/페이지 없음 · 로드 중이라 저장 안 됨 · 그림 자리 없음).
+   쓰기 실패는 예전처럼 던진다. 부르는 쪽(스킬)이 이 값을 읽어 «저장 완료»를 거짓으로 말하지 않게. */
 window._scratchAddAndSave = async (src, x, y, w, g, id) => {
-  _createItem(src, x, y, w, id, g);
+  const it = _createItem(src, x, y, w, id, g);
+  const key = _getScratchKey(_currentProjectId, _currentPageId);
+  const loaded = _scratchLoaded;
   await _saveScratch();
+  if (!it) return { ok: false, reason: 'no-scaler', id: null };
+  if (!key) return { ok: false, reason: 'no-context', id: it.id };
+  if (!loaded) return { ok: false, reason: 'loading', id: it.id };
+  if (_db?._isFallback) return { ok: false, reason: 'memory-only', id: it.id };   // 리뷰 1 #4 — 저장소를 못 열어 메모리에만(프로젝트 저장 때 파일로)   // 로드가 끝나면 «읽는 사이 들어온 장»으로 저장된다(addedDuringLoad) — 지금은 아직
+  return { ok: true, id: it.id };
 };
 
 /* ── #16 「링크된 섹션을 붙여넣으면 스크래치도 같이 복제」 (scratchpad-link.js 가 부른다) ──
@@ -2393,7 +2467,7 @@ window._scratchSaveSoon = (delay = 400) => {
 // ── Phase 1(마켓 동기화): 프로젝트 전 페이지 스크래치 export/import ──
 // export: 현재 페이지 미저장분 flush 후, pageIds를 진실소스로 전 페이지 IndexedDB 항목 수집.
 //   반환 [{ pageId, items:[{src,x,y,w,id}] }] (빈 페이지 제외). pageIds 미지정 시 현재 페이지만.
-window._scratchExportAll = async (projectId, pageIds) => {
+window._scratchExportAll = async (projectId, pageIds, pagesSrc = window.state?.pages) => {   // pagesSrc = 표식 키 합침에 쓸 그 프로젝트의 pages(열린 프로젝트가 아닐 때 · 리뷰 3 #2)
   if (!projectId) return [];
   try { await _saveScratch(); } catch (_) {}   // 현재 페이지 in-memory분 영속화
   const db = await _openDB();
@@ -2407,7 +2481,10 @@ window._scratchExportAll = async (projectId, pageIds) => {
       req.onsuccess = e => resolve(e.target.result || []);
       req.onerror   = () => resolve([]);
     });
-    if (items && items.length) out.push({ pageId, items });
+    /* 리뷰 2 #3 — 표식 키(지난 폴백 세션 편집이 매니페스트에만)는 로드와 같은 합침으로 내보낸다 */
+    let outItems = items;
+    if (!db._isFallback && _fbWins.has(key)) { const pg = Array.isArray(pagesSrc) ? pagesSrc.find(p => p && p.id === pageId) : null; if (pg && Array.isArray(pg.scratchpad)) outItems = _unionById(items, pg.scratchpad.map(m => _pickScratch(m))); }
+    if (outItems && outItems.length) out.push({ pageId, items: outItems });
   }
   return out;
 };

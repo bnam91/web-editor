@@ -93,7 +93,7 @@ test('음성 외부화 경합: 기다리는 사이 지운 항목·지운 키를 
   await expect.poll(() => page.evaluate(() => !!window.__release)).toBe(true);
   await page.evaluate(() => window.clearScratchPad());
   await page.evaluate(async () => { window.__release(); await window.__ext; });
-  expect(await dbIds(page)).toBe(null);
+  expect(await dbIds(page)).toEqual([]);   // 비움 = [] (키 없음이 아니다 · SCRATCH-CLEARED-MANIFEST-STAYS-01)
 });
 const failNextRead = (page) => page.evaluate(() => { const og = IDBObjectStore.prototype.get; IDBObjectStore.prototype.get = function (...a) { IDBObjectStore.prototype.get = og; throw new DOMException('대역 읽기 실패', 'UnknownError'); }; });
 test('복원: flush 실패 뒤 다시 열 때 읽기가 실패해도 항목이 돌아오고, 다음 열기에 새 DB 를 안 덮는다', async ({ page }) => {
