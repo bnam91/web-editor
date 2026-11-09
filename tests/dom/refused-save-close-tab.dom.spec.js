@@ -158,7 +158,8 @@ test('R8 같은 실패는 한 번만 남긴다 — 무편집으로 다시 열고
   await page.evaluate((A) => window.openTabForProject(A), A);
   await page.waitForFunction((A) => window.activeProjectId === A, A);
   await editA(page);
-  await page.evaluate((A) => window.closeTab(A), A);
+  /* 저장을 곧장 부른다 — 이 하네스에선 뒤 편집의 1.5초 자동저장이 안 와 닫기가 상한(15초)까지 기다렸다(인텔 9e1f79d6 R8 시간초과 · 워커1 같은 꼴). 자동저장 길은 R1·R2 가 잰다 */
+  await page.evaluate(async (A) => { await window.saveProjectToFile(JSON.parse(window.serializeProject()), { skipThumbnail: true }); await window.closeTab(A); }, A);
   await expect.poll(() => keptA(page).then(k => k.length), { message: '★새로 거절된 편집을 안 남겼다' }).toBe(2);
   expect(errs).toEqual([]);
 });
