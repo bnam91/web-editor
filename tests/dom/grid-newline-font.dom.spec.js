@@ -241,8 +241,13 @@ test('G-KIND ★종류별 — 박히는 종류 집합 = 렌더러가 fontFamily 
     window.grdSetActiveLine?.(g, { r: 0, c: 0, li: 0 });
     window.showGridProperties?.(g);
     const sel = document.getElementById('grd-line-add-kind');
-    /* ★Q-1109t1A2 — photo·circle 은 «종류»가 아니라 type:'image' 빈 슬롯(같은 type 은 'image' 가 잰다) ⇒ 값 = type 인 것만 */
-    const kinds = [...sel.options].map(o => o.value).filter(Boolean).filter(v => window.grdNewLineSpec(v).type === v);
+    /* ★Q-1109t1A2 — photo·circle 은 «종류»가 아니라 type:'image' 빈 슬롯(같은 type 은 'image' 가 잰다) ⇒ 그 둘만 이름으로 뺀다.
+       ⛔«값 ≠ type» 으로 거르지 마라 — 진짜 종류의 type 이 어긋나도 조용히 빠진다. 값 ≠ type 은 정확히 그 둘이어야 한다. */
+    const all = [...sel.options].map(o => o.value).filter(Boolean);
+    const IMG_ALIAS = ['photo', 'circle'];
+    const alias = all.filter(v => window.grdNewLineSpec(v).type !== v);
+    if (JSON.stringify(alias) !== JSON.stringify(IMG_ALIAS)) throw new Error('G-KIND 전제: 값 ≠ type 인 항목은 photo·circle 뿐이어야 — 실제 ' + JSON.stringify(alias));
+    const kinds = all.filter(v => !IMG_ALIAS.includes(v));
 
     /* ★아이콘(image)은 피커가 ★비동기다 — ★실물 이름 그대로 세워 ★동기로 답하게 한다.
        ⛔이 자리를 건너뛰면 ★한 종류가 ★안 재진 채 초록이 된다. */
