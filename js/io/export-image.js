@@ -453,7 +453,10 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
       const _to = await _waitImagesReady(clone); // goya-asset 이미지 디코드 대기(콜드 캐시 빈 캡처 방지)
       clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const secH = clone.offsetHeight;
+      /* ★EXPORT-HEIGHT 회색 줄 — offsetHeight 는 소수 높이를 «반올림»한다(627.9375→628). 클립은 정수인데 클론은
+         0.0625px 모자라 마지막 줄에 캔버스 바탕(회색)이 비친다 ⇒ 클론을 «올림» 정수로 키워 클립 끝까지 섹션 바탕이 덮게. */
+      const secH = Math.ceil(clone.getBoundingClientRect().height);
+      clone.style.minHeight = secH + 'px';
       let pngBase64;
       if (window.electronAPI.captureSectionCdp) {
         // clone은 top:-99999px(off-screen)에 위치 — clip.y를 그 좌표로 전달해 캡쳐
