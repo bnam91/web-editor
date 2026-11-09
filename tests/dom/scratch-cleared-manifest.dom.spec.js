@@ -82,12 +82,40 @@ test('M5 로드 도중 비우기 — 화면·IDB·저장 매니페스트 셋 다
     const clear = window.clearScratchPad();
     await Promise.all([load, clear]);
     await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
-    const db = await new Promise((res, rej) => { const q = indexedDB.open('goditor-scratch'); q.onsuccess = () => res(q.result); q.onerror = rej; }).catch(() => null);
+    const db = await new Promise((res, rej) => { const q = indexedDB.open('ScratchPadDB'); q.onsuccess = () => res(q.result); q.onerror = rej; }).catch(() => null);
     let idb = 'n/a';
-    if (db && db.objectStoreNames.length) { const st = db.objectStoreNames[0]; idb = await new Promise((res) => { const g = db.transaction(st).objectStore(st).get('scratch-pad-proj_m-p1'); g.onsuccess = () => res(g.result); g.onerror = () => res('err'); }); }
+    if (db && db.objectStoreNames.contains('scratch')) { const st = 'scratch'; idb = await new Promise((res) => { const g = db.transaction(st).objectStore(st).get('scratch-pad-proj_m-p1'); g.onsuccess = () => res(g.result); g.onerror = () => res('err'); }); }
     return { screen: window.__items(), idb };
   });
   expect(r.screen, '★화면에 옛 장이 다시 그려졌다').toEqual([]);
+  expect(r.idb, 'IDB = [] (비움)').toEqual([]);
   expect(await page.evaluate(() => window.__save()), '저장 매니페스트').toEqual([]);
   expect(errs).toEqual([]);
+});
+
+/* ★적대 리뷰 2(261110) — 페이지 바꾸는 중 비우기: 스크래치는 새 페이지 p2 로 넘어갔는데 캔버스(state.currentPageId)는 아직 p1.
+   옛(5d2ebb71a): 도는 로드를 버리고 아직 안 보인 p2 의 장을 지웠다. ⇒ 지금: 거절 — p1·p2 장 둘 다 그대로. 전환이 끝나면(화면 = p2) 비우기는 p2 를 비운다. */
+test('M6 페이지 바꾸는 «중» 비우기 = 거절(떠난 p1·새 p2 장 둘 다 그대로) · 전환이 끝난 뒤 비우기는 그 페이지만', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(async ({ PNG }) => {
+    const get = async (k) => { const db = await new Promise((res) => { const q = indexedDB.open('ScratchPadDB'); q.onsuccess = () => res(q.result); }); return new Promise((res) => { const g = db.transaction('scratch').objectStore('scratch').get(k); g.onsuccess = () => res((g.result || []).map((i) => i.id).sort()); }); };
+    window.state.pages = [{ id: 'p1' }, { id: 'p2' }];
+    await window.switchScratchPage('p2');
+    await window._scratchAddAndSaveFx(PNG, 700, 200, 300, undefined, 'sp_p2', undefined, [{ text: 'p2 메모', at: 1 }]);
+    await window.switchScratchPage('p1');
+    // 전환 «중»(p1 → p2 저장·로드가 도는 동안) 비우기
+    const sw = window.switchScratchPage('p2');
+    const refused = await window.clearScratchPad();
+    await sw;
+    const mid = { p1: await get('scratch-pad-proj_m-p1'), p2: await get('scratch-pad-proj_m-p2'), screen: window.__items() };
+    const done = await window.clearScratchPad();   // 전환 끝 — 지금 컨텍스트 p2 를 비운다
+    const after = { p1: await get('scratch-pad-proj_m-p1'), p2: await get('scratch-pad-proj_m-p2') };
+    return { refused, done, mid, after };
+  }, { PNG });
+  expect(r.refused, '전환 중엔 거절(false)').toBe(false);
+  expect(r.mid.p1, '★떠난 p1 의 장').toEqual(['sp_asset', 'sp_img']);
+  expect(r.mid.p2, '★새 p2 의 장').toEqual(['sp_p2']);
+  expect(r.mid.screen, '화면 = p2 장').toEqual(['sp_p2']);
+  expect(r.after, '전환 끝난 뒤 비우기 = p2 만').toEqual({ p1: ['sp_asset', 'sp_img'], p2: [] });
+  expect(errs.filter((e) => !/clearScratchPad 거절/.test(e))).toEqual([]);
 });

@@ -1481,7 +1481,15 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
   return item;
 }
 
-async function _loadScratch(projectId, pageId) {
+/* ★적대 리뷰 2(261110): 도는 로드를 «버리지» 말고 «기다린다» — 버리면 페이지 바꾸는 중 비우기가 아직 안 보인 새 페이지의 장을 늘 지웠다.
+   비우기는 이 약속을 먼저 기다린 뒤 지금 컨텍스트(로드 끝난 것)를 비운다. */
+let _scratchLoadP = Promise.resolve();
+function _loadScratch(projectId, pageId) {
+  const p = _loadScratchImpl(projectId, pageId);
+  _scratchLoadP = p.catch(() => {});
+  return p;
+}
+async function _loadScratchImpl(projectId, pageId) {
   const gen = ++_scratchLoadGen; // ★이 로드의 세대 토큰 — 이후 flush/새 로드가 bump하면 stale
   _scratchLoaded    = false;     // 로드 완료 전 save/flush의 빈 배열 덮어쓰기 차단
   _currentProjectId = projectId;
@@ -2032,9 +2040,13 @@ async function switchScratch(newProjectId, pageId) {
   await _loadScratch(newProjectId, pageId);
 }
 
+let _scratchPageSwitching = 0;   // ★리뷰 2: 페이지 전환 중 표식 — clearScratchPad 가 «어느 페이지인지 모를 때» 거절하는 근거
 async function switchScratchPage(newPageId, { quiet = false } = {}) {
-  await _saveScratch({ quiet });
-  await _loadScratch(_currentProjectId, newPageId);
+  _scratchPageSwitching++;
+  try {
+    await _saveScratch({ quiet });
+    await _loadScratch(_currentProjectId, newPageId);
+  } finally { _scratchPageSwitching--; }
 }
 
 
@@ -2211,8 +2223,12 @@ window.switchScratchPage = switchScratchPage;
 window.flushScratchForSwitch = flushScratchForSwitch;
 window.clearScratchPad   = async () => {
   /* ★적대 리뷰(261110): 로드가 도는 중에 비우면 늦은 읽기가 옛 장을 다시 그려 «화면엔 있는데 저장엔 없음»이 됐다(다시 열면 사라짐).
-     ⇒ 도는 로드를 낡게 만들고(세대 토큰) 이 컨텍스트를 «로드 끝·비었음»으로 — 화면 = 저장 = [] 로 맞춘다. */
-  ++_scratchLoadGen; _scratchLoaded = true;
+     ⇒ 도는 로드를 먼저 «기다린다»(버리지 않는다 — 리뷰 2) · 그 뒤 화면 = 저장 = [] */
+  await _scratchLoadP;
+  /* ★리뷰 2: 페이지 바꾸는 중(스크래치는 새 페이지로 넘어갔는데 캔버스 state 는 아직 옛 페이지)이면 «어느 페이지를 비우라는지» 모른다 —
+     아직 안 보인 새 페이지를 지우거나 떠난 페이지를 지우는 대신 거절(아무것도 안 지움 · 부른 쪽이 다시 부르면 됨).
+     표식 = switchScratchPage 안에서만 켜지는 _scratchPageSwitching(캔버스 state 와 견주지 않는다 — 하니스·MCP 문맥에선 둘이 늘 같지 않다). */
+  if (_scratchPageSwitching) { console.warn('[scratch] clearScratchPad 거절 — 페이지 전환 중(어느 페이지를 비울지 모름)'); return false; }
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
@@ -2224,6 +2240,8 @@ window.clearScratchPad   = async () => {
      지우면 저장 뒤에도 디스크 매니페스트가 옛 장을 들고 있어 다시 열 때 · 다른 맥에서 돌아왔다(SCRATCH-CLEARED-MANIFEST-STAYS-01). */
   tx.objectStore(SCRATCH_STORE).put([], key);
   await _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
+  _unsavedFlush.delete(key);   // 떠날 때 못 쓴 옛 판이 다음 열기에 비운 장을 되살리지 않게(리뷰 2)
+  _loadFailed = false;         // 비움이 써졌다 = 이 키는 이제 아는 상태(합치기 모드 풀기 · 리뷰 2)
   window.triggerAutoSave?.();   // J214 와 같은 까닭 — 비운 것을 매니페스트에 싣는다
 };
 
