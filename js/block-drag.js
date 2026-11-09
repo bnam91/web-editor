@@ -3709,6 +3709,13 @@ function bindFrameDropZone(ss) {
 
 }
 
+/* 끄는 중 창이 포커스를 잃거나(blur·탭 숨김) Esc 를 누르면 파란 가이드만 걷는다 — 끌기는 이어지고 놓는 자리는 다음 mouseup·drop 이 정한다(옛 동작 그대로 · 다음 움직임이 다시 그린다).
+   옛: 가이드가 다음 놓기까지 남았다(t2-09d). 한 번 붙여 두고 끌지 않을 땐 걷을 것이 없다. 시험: tests/dom/drag-guide-cleanup-t209d.dom.spec.js */
+const _clearDragCues = () => { hideGuides(); clearDropIndicators(); };
+window.addEventListener('blur', _clearDragCues);
+document.addEventListener('visibilitychange', () => { if (document.hidden) _clearDragCues(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') _clearDragCues(); });
+
 // Backward compat
 window.bindBlock          = bindBlock;
 window.bindFrameDropZone  = bindFrameDropZone;
