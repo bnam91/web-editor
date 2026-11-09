@@ -119,3 +119,25 @@ test('R7 배경 없으면 알약 둥글기 줄이 없다', async ({ page }) => {
   await page.waitForFunction(() => !!document.getElementById('grd-badge-hex'), null, { timeout: COND_MS });
   expect(await page.evaluate(() => [!!document.getElementById('grd-badge-radius-slider'), !!document.getElementById('grd-badge-radius')])).toEqual([false, false]);
 });
+
+/* R8 — 수지 d54d1d177(bindSlider number change 에서 clamp 값을 칸에 다시 씀)과 만나도 빈 칸이 0 으로 굳지 않는다 */
+test('R8 빈 칸 확정 → 칸은 빈 채 · 모델 미설정 · 다음 끌기 ⌘Z 뒤에도 0 으로 안 굳는다', async ({ page }) => {
+  await setup(page, { radius: 10 });
+  await page.locator('#grd-badge-radius').fill('');
+  await page.locator('#grd-badge-radius').press('Enter');
+  await page.locator('#grd-badge-radius').blur();
+  await expect.poll(() => st(page)).toEqual({ slider: '40', number: '', radius: null, css: '999px' });
+  const r = await waitStableRect(page, '#grd-badge-radius-slider');
+  await page.mouse.move(r.left + r.width - 2, r.cy); await page.mouse.down();
+  await page.mouse.move(r.left + r.width * 0.3, r.cy, { steps: 6 });
+  await page.mouse.up();
+  expect((await st(page)).radius).toBeGreaterThan(0);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await st(page)).css).toBe('999px');
+  expect((await st(page)).radius, '⌘Z 뒤 모델은 미설정(0 아님)').toBeNull();
+  // 패널을 다시 그려도 칸은 비어 있다(0 아님)
+  await page.evaluate(() => { const g = document.getElementById('gG'); window.showGridProperties(g, { r: 0, c: 0, li: 0 }); });
+  await openLineSec(page);
+  await expect.poll(() => st(page)).toEqual({ slider: '40', number: '', radius: null, css: '999px' });
+});

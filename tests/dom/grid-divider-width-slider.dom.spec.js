@@ -56,5 +56,5 @@ test('D2 숫자 → 슬라이더 따라옴 · 빈 칸 확정 = 꽉 참', async (
   await page.locator('#grd-divider-w').fill('');
   await page.locator('#grd-divider-w').press('Enter');
   await page.locator('#grd-divider-w').blur();
-  await expect.poll(() => st(page)).toMatchObject({ slider: '100', pct: null });
+  await expect.poll(() => st(page)).toEqual({ slider: '100', number: '', pct: null });
 });

@@ -3637,7 +3637,7 @@ function _grdWireLineSection(block, addr, host = null) {
   /*   ★1109 현빈QA — 「슬라이더 + 숫자」(굵기 #grd-border-w 와 같은 bindSlider · 이력도 그 규약: 끌기 한 번 = ⌘Z 한 번). */
   const dvWNum = document.getElementById('grd-divider-w');
   const dvWApply = (v) => { H.previewLine(r, c, li, { widthPct: v }, addr.np); H.mark(addr); };
-  bindSlider(document.getElementById('grd-divider-w-slider'), dvWNum, dvWApply, { min: IMG_MIN_PCT, max: 100 });
+  bindSlider(document.getElementById('grd-divider-w-slider'), dvWNum, dvWApply, { min: IMG_MIN_PCT, max: 100, allowEmpty: true });
   // 빈 칸 = 꽉 참(예전 그대로) — bindSlider 는 빈 값을 min 으로 세므로 확정 때 되돌린다(이력은 bindSlider 의 change 가 찍는다)
   dvWNum?.addEventListener('change', () => {
     if (String(dvWNum.value).trim() !== '') return;
@@ -3706,7 +3706,7 @@ function _grdWireLineSection(block, addr, host = null) {
        숫자칸 상한은 GRID_BADGE_RADIUS 그대로(옛 999 보존) — 슬라이더만 GRID_BADGE_SLIDER_MAX 에서 멈춘다. */
   const bdRNum = document.getElementById('grd-badge-radius');
   const bdRApply = (v) => { H.previewLine(r, c, li, { radius: v }, addr.np); H.mark(addr); };
-  bindSlider(document.getElementById('grd-badge-radius-slider'), bdRNum, bdRApply, { min: 0, max: GRID_BADGE_RADIUS });
+  bindSlider(document.getElementById('grd-badge-radius-slider'), bdRNum, bdRApply, { min: 0, max: GRID_BADGE_RADIUS, allowEmpty: true });
   // 빈 칸 = 완전 둥근(미설정) — bindSlider 는 빈 값을 0 으로 세므로 확정 때 되돌린다(이력은 bindSlider 의 change 가 찍는다)
   bdRNum?.addEventListener('change', () => {
     if (String(bdRNum.value).trim() !== '') return;
