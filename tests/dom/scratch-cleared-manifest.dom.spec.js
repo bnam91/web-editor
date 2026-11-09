@@ -105,17 +105,41 @@ test('M6 페이지 바꾸는 «중» 비우기 = 거절(떠난 p1·새 p2 장 �
     await window.switchScratchPage('p1');
     // 전환 «중»(p1 → p2 저장·로드가 도는 동안) 비우기
     const sw = window.switchScratchPage('p2');
-    const refused = await window.clearScratchPad();
+    const refused = await window.clearScratchPad().then(() => 'cleared', (e) => String(e.message || e));
     await sw;
     const mid = { p1: await get('scratch-pad-proj_m-p1'), p2: await get('scratch-pad-proj_m-p2'), screen: window.__items() };
     const done = await window.clearScratchPad();   // 전환 끝 — 지금 컨텍스트 p2 를 비운다
     const after = { p1: await get('scratch-pad-proj_m-p1'), p2: await get('scratch-pad-proj_m-p2') };
     return { refused, done, mid, after };
   }, { PNG });
-  expect(r.refused, '전환 중엔 거절(false)').toBe(false);
+  expect(r.refused, '전환 중엔 거절(던짐 — 스킬이 성공으로 보지 않게)').toMatch(/page switch in progress/);
   expect(r.mid.p1, '★떠난 p1 의 장').toEqual(['sp_asset', 'sp_img']);
   expect(r.mid.p2, '★새 p2 의 장').toEqual(['sp_p2']);
   expect(r.mid.screen, '화면 = p2 장').toEqual(['sp_p2']);
   expect(r.after, '전환 끝난 뒤 비우기 = p2 만').toEqual({ p1: ['sp_asset', 'sp_img'], p2: [] });
+  expect(errs.filter((e) => !/clearScratchPad 거절/.test(e))).toEqual([]);
+});
+
+/* ★적대 리뷰 3(261110) #1 — 프로젝트 전환과 겹친 비우기: 기다리는 사이 다음 프로젝트 B 의 로드가 이어 붙어도 B 의 장은 절대 안 지운다.
+   (순서는 마이크로태스크에 달려 «A 를 비움» 또는 «거절(던짐)» 둘 중 하나 — 둘 다 B 무사) */
+test('M7 프로젝트 전환과 겹친 비우기 — B 프로젝트 장은 늘 그대로(A 를 비우거나 거절)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(async ({ PNG }) => {
+    const get = async (k) => { const db = await new Promise((res) => { const q = indexedDB.open('ScratchPadDB'); q.onsuccess = () => res(q.result); }); return new Promise((res) => { const g = db.transaction('scratch').objectStore('scratch').get(k); g.onsuccess = () => res((g.result || []).map((i) => i.id).sort()); }); };
+    await window.initScratchPad('proj_z', 'p1');
+    await window._scratchAddAndSaveFx(PNG, 700, 200, 300, undefined, 'sp_z', undefined, [{ text: 'B 프로젝트 메모', at: 1 }]);
+    const out = [];
+    for (let i = 0; i < 6; i++) {
+      const l1 = window.initScratchPad('proj_m', 'p1');
+      const c = window.clearScratchPad().then(() => 'cleared', (e) => 'refused:' + (e.message || e));
+      const l2 = l1.then(() => window.initScratchPad('proj_z', 'p1'));
+      out.push(await c); await l2;
+      const z = await get('scratch-pad-proj_z-p1');
+      if (JSON.stringify(z) !== JSON.stringify(['sp_z'])) return { lost: z, round: i, out };
+    }
+    return { lost: null, out, z: await get('scratch-pad-proj_z-p1') };
+  }, { PNG });
+  expect(r.lost, '★B 프로젝트 장이 지워졌다 ' + JSON.stringify(r)).toBe(null);
+  expect(r.z).toEqual(['sp_z']);
   expect(errs.filter((e) => !/clearScratchPad 거절/.test(e))).toEqual([]);
 });

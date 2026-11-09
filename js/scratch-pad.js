@@ -55,6 +55,7 @@ function _openDB() {
       const del = indexedDB.deleteDatabase(SCRATCH_DB_NAME);
       del.onsuccess = () => _tryOpenDB().then(res).catch(rej);
       del.onerror   = () => _tryOpenDB().then(res).catch(rej);
+      del.onblocked = () => rej(new Error('ScratchPadDB delete blocked'));   // 리뷰 3 #5 — 다른 연결이 막으면 영영 안 끝나지 않게(→ 메모리 폴백)
     });
   }).catch(err => {
     console.warn('[ScratchPad] IndexedDB unavailable, using in-memory fallback:', err);
@@ -2224,16 +2225,22 @@ window.flushScratchForSwitch = flushScratchForSwitch;
 window.clearScratchPad   = async () => {
   /* ★적대 리뷰(261110): 로드가 도는 중에 비우면 늦은 읽기가 옛 장을 다시 그려 «화면엔 있는데 저장엔 없음»이 됐다(다시 열면 사라짐).
      ⇒ 도는 로드를 먼저 «기다린다»(버리지 않는다 — 리뷰 2) · 그 뒤 화면 = 저장 = [] */
+  /* ★리뷰 3 #1: 부른 때의 컨텍스트를 잡아 두고, 로드가 «끝날 때까지» 기다린다(기다리는 사이 다음 로드가 이어 붙으면 그것도) —
+     프로젝트 전환(switchScratch·initScratchPad)은 페이지 전환 표식을 안 켜서, 기다린 뒤 컨텍스트가 바뀌었으면 거절한다. */
+  const _ctx0 = _currentProjectId + '\u0000' + _currentPageId;
   await _scratchLoadP;
+  while (!_scratchLoaded) await _scratchLoadP;
+  if (_currentProjectId + '\u0000' + _currentPageId !== _ctx0) { console.warn('[scratch] clearScratchPad 거절 — 기다리는 사이 프로젝트/페이지가 바뀜'); throw new Error('scratch: context changed while waiting — not cleared'); }
   /* ★리뷰 2: 페이지 바꾸는 중(스크래치는 새 페이지로 넘어갔는데 캔버스 state 는 아직 옛 페이지)이면 «어느 페이지를 비우라는지» 모른다 —
      아직 안 보인 새 페이지를 지우거나 떠난 페이지를 지우는 대신 거절(아무것도 안 지움 · 부른 쪽이 다시 부르면 됨).
      표식 = switchScratchPage 안에서만 켜지는 _scratchPageSwitching(캔버스 state 와 견주지 않는다 — 하니스·MCP 문맥에선 둘이 늘 같지 않다). */
-  if (_scratchPageSwitching) { console.warn('[scratch] clearScratchPad 거절 — 페이지 전환 중(어느 페이지를 비울지 모름)'); return false; }
+  /* ★리뷰 3 #2: 거절은 «던진다» — false/undefined 를 돌려주면 스킬(goditor-images_to_scratchpad)이 성공으로 보고 넣어 중복·키 없는 곳에 넣어 잃음 */
+  if (_scratchPageSwitching) { console.warn('[scratch] clearScratchPad 거절 — 페이지 전환 중(어느 페이지를 비울지 모름)'); throw new Error('scratch: page switch in progress — not cleared'); }
+  const key = _getScratchKey(_currentProjectId, _currentPageId);
+  if (!key) throw new Error('scratch: no project/page context — not cleared');   // 리뷰 3 #2 — 화면만 비우고 «됨»처럼 굴지 않는다
   _clearSelection();
   _scratchItems.forEach(s => s.el.remove());
   _scratchItems = [];
-  const key = _getScratchKey(_currentProjectId, _currentPageId);
-  if (!key) return;
   const db = await _openDB();
   const tx = db.transaction(SCRATCH_STORE, 'readwrite');
   /* 키를 지우지 않고 [] 를 쓴다 — 키 없음은 «아직 모름»(외부화가 매니페스트를 보존 · 로드가 매니페스트로 되채움), [] 는 «사람이 비움»이다.
@@ -2241,7 +2248,7 @@ window.clearScratchPad   = async () => {
   tx.objectStore(SCRATCH_STORE).put([], key);
   await _txDone(tx).catch(e => { _warnScratchWriteFailed(e); throw e; });
   _unsavedFlush.delete(key);   // 떠날 때 못 쓴 옛 판이 다음 열기에 비운 장을 되살리지 않게(리뷰 2)
-  _loadFailed = false;         // 비움이 써졌다 = 이 키는 이제 아는 상태(합치기 모드 풀기 · 리뷰 2)
+  if (_getScratchKey(_currentProjectId, _currentPageId) === key) _loadFailed = false;   // 비움이 써졌다 = 이 키는 이제 아는 상태 — 그사이 다른 컨텍스트로 갔으면 그쪽 표식은 안 건드림(리뷰 3 #3)
   window.triggerAutoSave?.();   // J214 와 같은 까닭 — 비운 것을 매니페스트에 싣는다
 };
 
