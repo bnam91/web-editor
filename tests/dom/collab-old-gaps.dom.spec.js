@@ -5,6 +5,8 @@
  *   ⑵ C4 올리는 중 두 번째 저장 → 버리지 않고 끝나면 올린다(서버 마지막 글 = A2 · 세 번째 저장 없이)
  *   ⑶ C5 읽는 중(gdtProjectReady loading) 저장 → push 0 · ready 뒤 tick 재개 → 진짜 차이 1 섹션만 · C6 첫 재개 실패 뒤 저장 → push 0 · 다음 tick 재개 → 차이만
  *   ⑸ C9 상대 번호(data-section=1)가 실린 secB 패치 → 붙인 뒤 저장해도 secB 를 다시 안 올린다(내 번호 2 유지)
+ *   리뷰 1: C10 F1 재개가 묵은 패치(서버 지금 판 = 내 것)를 안 붙인다 · C11 F2 재개 받는 사이 다른 start → 앞 방 패치 안 붙음 · C12 F4 미저장 표시만 풀리고 push 전이면 미룬 패치를 안 푼다
+ *          C13 F5 밀려난 start 는 'switched' · C14 F6 같은 프로젝트 다시 start 해도 충돌 기록이 남는다(양성대조: ⑸ 판 6921c9685 → C10~C14 빨강)
  * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C9(secB 되올림)· C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -176,4 +178,96 @@ test('C9 상대 자리 번호가 실린 패치 — 붙인 뒤 저장해도 그 �
   expect(r.text, '[전제] 상대 글이 붙었다').toBe('B1');
   expect(r.num, '내 자리 번호').toBe('2');
   expect(r.re, '★받은 섹션을 번호 차이로 다시 올렸다').toEqual([]);
+});
+
+/* 서버 목차(sections)를 로그의 섹션별 마지막 판으로 — 재개(wantSections)가 받는 꼴 */
+async function withSections(page) {
+  await page.evaluate(() => {
+    const pull = window.electronAPI.collab.pull;
+    window.electronAPI.collab.pull = async (q) => {
+      const r = await pull(q);
+      if (!q.wantSections) return r;
+      const last = new Map(); for (const p of window.__log) last.set(p.sectionId, p);
+      return { ...r, sections: [...last.values()].map(p => ({ pageId: p.pageId, sectionId: p.sectionId, hash: p.hash })) };
+    };
+  });
+}
+test('C10 F1 — 재개가 «서버 지금 판 = 내 것»인 섹션의 묵은 패치를 안 붙인다', async ({ page }) => {
+  await boot(page); await withSections(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    window.__other('secA', '상대글');
+    await window.collabSync.tick();
+    const applied = window.__text('secA');
+    window.__edit('secA', '내글'); await window.__save();          // 그 위에 고쳐 올림(서버 지금 판 = 내 것)
+    window.collabSync.stop(); await window.collabSync.start('proj_x');   // ⑷ 탭 재시작·재기동 — ref.seq 5(진도 저장 전) → 상대 패치가 다시 온다
+    return { applied, after: window.__text('secA') };
+  });
+  expect(r.applied, '[전제] 처음엔 상대 글이 붙었다').toBe('상대글');
+  expect(r.after, '★묵은 상대 패치가 내 글을 덮었다(서버엔 내 글)').toBe('내글');
+});
+test('C11 F2 — 재개 받는 사이 다른 start 가 오면 앞 방 패치를 안 붙인다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    window.__other('secA', '앞방글');
+    const pull = window.electronAPI.collab.pull; let rel; let first = true;
+    window.electronAPI.collab.pull = async (q) => { if (first) { first = false; await new Promise(res => { rel = res; }); } return pull(q); };
+    const ref = window.electronAPI.collab.ref;
+    window.electronAPI.collab.ref = async ({ projectId }) => projectId === 'proj_y' ? { ok: true, ref: null } : ref({ projectId });
+    const a = window.collabSync.start('proj_x').catch(e => ({ ok: false, reason: 'threw:' + e.message }));
+    await new Promise(res => { const iv = setInterval(() => { if (rel) { clearInterval(iv); res(); } }, 10); });
+    await window.collabSync.start('proj_y');   // 보통 프로젝트로 — 앞 동기화 멈춤
+    rel(); const ra = await a;
+    return { text: window.__text('secA'), ra, active: window.collabSync.isActive() };
+  });
+  expect(r.text, '★다른 방으로 옮긴 뒤 앞 방 패치가 붙었다').toBe('A0');
+  expect(r.active).toBe(false);
+});
+test('C12 F4 — 미저장 표시만 풀리고 내 push 전이면 미룬 패치를 안 푼다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    window.__unsaved = true; window.__edit('secA', '내글');
+    window.__other('secA', '상대글');
+    await window.collabSync.tick();
+    window.__unsaved = false;                  // 저장이 표시를 지웠다 · gd:project-saved 는 아직
+    await window.collabSync.tick();
+    const gap = window.__text('secA');
+    await window.__save(); await window.collabSync.tick();
+    return { gap, after: window.__text('secA'), conflicts: window.collabSync.conflicts().length };
+  });
+  expect(r.gap, '★저장 표시가 풀린 틈에 미룬 패치가 내 글을 덮었다').toBe('내글');
+  expect(r.after).toBe('내글');
+  expect(r.conflicts).toBeGreaterThanOrEqual(1);
+});
+test('C13 F5 — 밀려난 start 는 switched 로 물러난다(타이머를 안 건다)', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    const pull = window.electronAPI.collab.pull; let rel; let first = true;
+    window.electronAPI.collab.pull = async (q) => { if (first) { first = false; await new Promise(res => { rel = res; }); } return pull(q); };
+    const a = window.collabSync.start('proj_x');
+    await new Promise(res => { const iv = setInterval(() => { if (rel) { clearInterval(iv); res(); } }, 10); });
+    const b = await window.collabSync.start('proj_x');
+    rel(); const ra = await a;
+    return { ra, b };
+  });
+  expect(r.b.ok, '[전제] 뒤 start 는 붙었다').toBe(true);
+  expect(r.ra.reason, '★밀려난 start 가 끝까지 가 타이머를 걸었다').toBe('switched');
+});
+test('C14 F6 — 같은 프로젝트를 다시 start 해도 충돌 기록(진 쪽 판)이 남는다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    window.__unsaved = true; window.__failed = true; window.__edit('secA', '내글');
+    window.__other('secA', '상대글'); await window.collabSync.tick();
+    const n0 = window.collabSync.conflicts().length;
+    window.collabSync.stop(); window.__unsaved = false; window.__failed = false;
+    window.electronAPI.collab.ref = async () => ({ ok: true, ref: { collabId: 'cb_t', seq: window.__server, role: 'member' } });   // 진도 저장됨 = 다시 안 받는다(새 충돌이 안 생긴다)
+    await window.collabSync.start('proj_x');
+    const c = window.collabSync.conflicts();
+    return { n0, n1: c.length, mine: c.map(x => x.mineHtml || '').join('|') };
+  });
+  expect(r.n0, '[전제] 충돌 기록 1').toBeGreaterThanOrEqual(1);
+  expect(r.n1, '★탭 재시작에 충돌 기록이 사라졌다').toBe(r.n0);
+  expect(r.mine, '진 쪽(내) 판이 남았다').toContain('내글');
 });

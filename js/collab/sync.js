@@ -80,13 +80,15 @@
   let _localSnap = Object.create(null); // 'pageId::secId' → «마지막 자동저장 스냅샷»의 hash
                                         //   (덮어쓰기 경고 기준 — 서버 해시와 «같은 재료»로 계산돼야 비교가 성립한다)
   let _deferred = new Map();          // sectionId → patch (USER_BUSY 로 미뤄둔 것)
-  let _heldNoticed = false;           // ⑴ «저장 안 된 내 편집 때문에 미룬다»를 이번 미룸에 한 번 말했나
+  let _heldNoticed = false;
+  let _pushDone = 0;                  // 리뷰 1 F4 — 끝난 pushChanged 수. 미저장 때문에 미룬 패치는 «그 뒤 push 가 한 번 끝나야» 푼다           // ⑴ «저장 안 된 내 편집 때문에 미룬다»를 이번 미룸에 한 번 말했나
   /* ★SIX ⒜(2026-10-06 · 현빈 「동시에 고쳤는데 한쪽 작업량이 날라가네」 — 지디 서버 데이터로 확정):
    *   보류된 «묵은» 원격 패치가, 그 사이 내가 올린 더 새 판을 손 뗀 뒤 «경고 없이» 덮고 → 다음 저장이 그걸 다시 올렸다
    *   (서버 seq 13 A 3061 → 14 B 3481 → ★15 B 가 3061 을 그대로 → 16 B 3483 · 13↔15 바이트 동일 · conflicts 0).
    *   ⇒ 섹션마다 «내가 마지막으로 올린 seq» 를 기억해, 그보다 묵은 원격 패치는 붙이지 않고 «충돌»로 남긴다. */
   let _lastPushedSeq = Object.create(null);   // 'pageId::secId' → 내 push 가 받은 서버 seq
   let _conflicts = new Map();                 // 'pageId::secId' → { mode:'kept'|'replaced', mineHtml, theirsHtml, theirs:{actorId,email,seq} }
+  const _conflictsByProject = new Map();      // 리뷰 1 F6 — ⑷ 로 탭마다 다시 start 하므로 충돌 기록(진 쪽 판)을 프로젝트별로 남긴다(메모리)
   let _inFlight = false;
   let _owedPush = null;
   let _resumed = false;
@@ -507,9 +509,10 @@
       }
     } finally {
       _inFlight = false;
+      _pushDone++;
       if (attempted) emit({ type: 'pushed', error: _lastError });
       const owed = _owedPush; _owedPush = null;
-      if (owed && owed.cfg === _cfg && _cfg === cfg) pushChanged(owed.snap);   // 같은 방일 때만 — 방이 바뀌었으면 그 글은 앞 방 것이다
+      if (owed && owed.cfg === _cfg) pushChanged(owed.snap);   // 빚진 스냅이 «지금» 방 것일 때만(리뷰 1 F3 — 앞 방 push 의 finally 가 새 방 재개 push 를 버리지 않게)
     }
   }
 
@@ -568,7 +571,7 @@
     const pid = _cfg && _cfg.projectId;
     const unsaved = !!(el && window.hasUnsavedChanges && window.hasUnsavedChanges());
     const saveFailed = !!(unsaved && window.projectLastSaveFailed && window.projectLastSaveFailed(pid));
-    if (unsaved && !saveFailed) { _deferred.set(p.sectionId, { ...p, _heldUnsaved: true }); return false; }
+    if (unsaved && !saveFailed) { const prev = _deferred.get(p.sectionId); _deferred.set(p.sectionId, { ...p, _heldUnsaved: true, _heldPush: prev && prev._heldUnsaved ? prev._heldPush : _pushDone, _heldAt: prev && prev._heldUnsaved ? prev._heldAt : Date.now() }); return false; }
 
     /* ★SIX ⓐ — 이 섹션에 내가 이미 «더 새 판»을 올렸나(내 마지막 push seq ≥ 이 패치 seq).
      *   그렇다면 이 패치는 «묵었다»: 붙이면 내 새 글을 덮고, 다음 저장이 그 묵은 판을 다시 올린다(현빈 사고).
@@ -660,8 +663,15 @@
   }
 
   function applyRecorded(p, local) {
+    const origHash = p && p.hash;
     p = localizeSectionNum(p);
     const key = (p.pageId || '') + '::' + p.sectionId;
+    /* ★리뷰 1 F1 — 재개 중: 서버의 지금 판이 «내 로컬과 같고» 이 패치는 그 판이 아니다 = 묵은 패치(내가 그 위에 고쳐 올린 뒤 다시 온 것 — ⑷ 탭 재시작·앱 재기동이
+       _rewound·_lastPushedSeq 를 비워 옛 보호가 안 섰다). 붙이면 화면·디스크 = 옛 패치 · 서버 = 내 것으로 갈라지고 다음 편집이 옛 판 위에서 올라간다. */
+    if (_serverHashes && _localSnap[key] && _localSnap[key] === _serverHashes[key] && p.hash !== _serverHashes[key] && origHash !== _serverHashes[key]) {
+      _sent[key] = _serverHashes[key];
+      return 'kept_local';
+    }
     /* 되감아 다시 온 패치: 돌아온 글이 덮이기 전 판이면(또는 섹션이 없으면) 화면과 함께 사라진 것이라 다시 붙인다.
      * 그 밖이면 이 패치 위에 고친 내 글이 탭 전환 저장에 실려 돌아온 것이다 — 화면을 안 건드리고 서버가 아는 해시만 적는다. */
     if (_rewound && _rewound.has(+p.seq) && local && local[key] && local[key] !== _rewound.get(+p.seq)) { _sent[key] = p.hash; return 'kept_local'; }
@@ -679,6 +689,9 @@
     if (!_deferred.size) return;
     for (const [sid, p] of [..._deferred]) {
       const el = findSectionEl(sid);
+      /* 리뷰 1 F4 — 저장이 미저장 표시를 지운 뒤 gd:project-saved(→ 내 push)가 오기 전 틈에 풀면, 아직 안 올라간 내 글 위에 상대 판이 경고 없이 붙었다.
+         ⇒ 미룬 뒤 push 가 한 번 끝나야 푼다(10초 넘으면 그래도 푼다 — 영영 쥐지 않게 · 커서는 그동안 그 앞에 묶여 있어 잃지 않는다). */
+      if (p._heldUnsaved && _pushDone === p._heldPush && Date.now() - (p._heldAt || 0) < 10000) continue;
       if (!el || !isUserBusyIn(el)) { _deferred.delete(sid); applyRecorded(p); }
     }
   }
@@ -767,10 +780,12 @@
    *   start() 가 ok:true ＋ 「started」를 냈다. 이제 { ok } 로 답하고 start() 가 그걸 읽는다. */
   async function resumeSafely() {
     const c = api(); if (!c || !_cfg) return { ok: false, reason: 'unavailable' };
+    const cfg = _cfg;   // 리뷰 1 F2 — 기다리는 사이 탭이 바뀌면(⑷ 재시작) 앞 방의 패치·표식을 새 방 상태에 쓰지 않는다
     let r;
     try {
       r = await c.pull({ collabId: _cfg.collabId, sinceSeq: _cfg.seq, actorId: _cfg.actorId, wantSections: true });
     } catch (e) { console.error('[collab] 첫 받기 예외:', e); return { ok: false, reason: 'exception' }; }
+    if (_cfg !== cfg) return { ok: false, reason: 'switched' };
     if (!r || !r.ok) { _lastError = (r && r.reason) || 'unknown'; return { ok: false, reason: _lastError, status: r && r.status }; }
 
     // ① 서버가 아는 해시를 «이미 보낸 것»으로 심는다 → 안 바뀐 섹션은 다시 안 올라간다.
@@ -785,9 +800,10 @@
       /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
       try { await pushChanged(window.serializeProject()); } catch (e) { console.error('[collab] 재개 push 직렬화 실패:', e); }
     }
-    _serverHashes = null;
-    // ③ 이제 남의 것을 적용한다.
+    if (_cfg !== cfg) { _serverHashes = null; return { ok: false, reason: 'switched' }; }
+    // ③ 이제 남의 것을 적용한다. ★리뷰 1 F1 — _serverHashes 는 ③ 뒤에 비운다: applyRecorded 가 «서버의 지금 판이 이미 내 것»인 섹션의 묵은 패치를 안 붙인다.
     for (const p of (r.patches || [])) applyRecorded(p);   // BUGS.md:275 — 보류·거절은 applyRecorded 가 기록 안 한다
+    _serverHashes = null;
     if (typeof r.seq === 'number') { _cfg.seq = r.seq; _owedSeq = r.seq; }
     await settleReceived();
     /* ★합류 직후가 결손이 가장 크게 벌어지는 순간이다 — 여기서 «목차 대 내 문서»를 처음 맞춰본다.
@@ -820,14 +836,15 @@
     _deferred = new Map();
     _serverSections = null; _needIds = []; _needTicks = 0;
     _servedAt = Object.create(null); _asked = Object.create(null); _gaveUp = new Set();
-    _lastPushedSeq = Object.create(null); _conflicts = new Map(); _peerForm = new Map();
+    _lastPushedSeq = Object.create(null); _conflicts = _conflictsByProject.get(projectId) || new Map(); _conflictsByProject.set(projectId, _conflicts); _peerForm = new Map();
     _appliedLog = []; _rewound = null;
     _replaced = Object.create(null); _serverHashes = null; _nextSaveAt = 0; _hashesDirty = false;
     /* ★seq 0 = 「이 방의 문서를 처음부터 쌓아올리는 중」 = 결손이 생길 수 있는 유일한 구간.
      *   이미 진도가 있는 멤버는 목차 대조를 아예 안 한다(위 주석의 오판 방지). */
     _bootstrap = (ref.seq || 0) === 0;
-    _resumeOwed = projectLoading(projectId);      // 읽는 중이면 첫 받기를 tick 으로 미룬다
+    _resumeOwed = projectLoading(projectId) || _inFlight;      // 읽는 중이면 첫 받기를 tick 으로 미룬다 · 리뷰 1 F3 — 앞 방 push 가 아직 날아가는 중이면 그것도(tick 이 _inFlight 를 기다린다)
     const rs = _resumeOwed ? { ok: true } : await resumeSafely();              // ★먼저 내 것을 올리고, 그 다음에 남의 것을 받는다
+    if (gen !== _startGen) return { ok: false, reason: 'switched' };   // 리뷰 1 F5 — 밀려난 start 가 타이머를 걸면 tick 이 겹쳐 돈다
     /* ★폴링은 «실패해도» 건다 — 첫 받기만 실패한 것(오프라인 등)이면 다음 tick 이 회복한다. 예전과 같은 동작이다.
      *   바뀐 것은 «거짓말을 안 하는 것»뿐이다: 실패면 ok:false ＋ reason, 「started」 대신 「start_failed」. */
     _timer = setInterval(tick, POLL_MS);
