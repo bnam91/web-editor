@@ -2181,15 +2181,28 @@ ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => 
 // 렌더러 fetch()는 file:// origin에서 커스텀 스킴 cross-origin이 하드 차단되므로(Chromium),
 // export-html의 inlineGoyaAssets가 이 IPC로 base64 재인라인한다. path-traversal 가드 포함.
 ipcMain.handle('assets:readAsDataUri', (_e, { projectId, filename, maxBytes } = {}) => _readAssetDataUri(projectId, filename, maxBytes));
+/* ★FOREIGN-ASSET-ADOPT-GAPS-01 — goya-asset 그림 파일 «한 자리». 살아 있는 프로젝트 폴더에 없으면 앱 휴지통(.trash/<id>/bundle/assets) 것을 읽는다.
+   까닭: 다른 프로젝트(A) 그림을 붙인 B 는 저장 때에야 그 파일을 B 로 옮긴다(adopt). 그 전 화면·내보내기·adopt 가 A 파일을 읽는데,
+   A 를 지우면(기본 = 휴지통으로 폴더째 이동) 파일이 있는데도 못 읽어 그림이 깨졌다(S8 430c180e ①②④⑥). 영구 삭제 뒤엔 없다 — 지금과 같다.
+   ⛔읽기만 · 경로 잣대는 기존 그대로(_safeSeg + 그 뿌리 안) · 뿌리는 둘뿐(살아 있는 폴더 · 그 id 의 휴지통 번들) — 다른 프로젝트·휴지통 밖은 안 본다.
+   반환 { full } | { error: 'bad' | 'forbidden' | 'not found' }. */
+function _goyaAssetFile(projectId, filename) {
+  const pid = _safeSeg(String(projectId || ''));
+  const fn = _safeSeg(String(filename || ''));
+  if (!pid || !fn) return { error: 'bad' };
+  const roots = [path.join(PROJECTS_DIR, pid, 'assets'), path.join(PROJECTS_DIR, _trash.TRASH_DIRNAME, pid, 'bundle', 'assets')];
+  for (const root of roots) {
+    const full = path.join(root, fn);
+    if (!full.startsWith(root + path.sep)) return { error: 'forbidden' };
+    if (fs.existsSync(full)) return { full };
+  }
+  return { error: 'not found' };
+}
 function _readAssetDataUri(projectId, filename, maxBytes) {
   try {
-    const pid = _safeSeg(String(projectId || ''));
-    const fn = _safeSeg(String(filename || ''));
-    if (!pid || !fn) return { ok: false, error: 'projectId/filename 필수' };
-    const safeRoot = path.join(PROJECTS_DIR, pid, 'assets');
-    const full = path.join(safeRoot, fn);
-    if (!full.startsWith(safeRoot + path.sep)) return { ok: false, error: 'forbidden' };
-    if (!fs.existsSync(full)) return { ok: false, error: 'not found' };
+    const at = _goyaAssetFile(projectId, filename);
+    if (at.error) return { ok: false, error: at.error === 'bad' ? 'projectId/filename 필수' : at.error };
+    const full = at.full;
     if (maxBytes > 0) { const bytes = fs.statSync(full).size; if (bytes > maxBytes) return { ok: false, tooBig: true, bytes }; }   // 협업: 어차피 못 올릴 파일(영상 포함)을 동기로 읽지 않는다
     const ext = path.extname(full).slice(1).toLowerCase();
     const mime = _GOYA_ASSET_MIME[ext] || 'application/octet-stream';
@@ -5012,13 +5025,11 @@ app.whenReady().then(async () => {
   protocol.handle('goya-asset', (request) => {
     try {
       const u = new URL(request.url); // goya-asset://<projectId>/<filename>
-      const projectId = _safeSeg(decodeURIComponent(u.hostname || ''));
-      const filename = _safeSeg(decodeURIComponent((u.pathname || '').replace(/^\/+/, '')));
-      if (!projectId || !filename) return new Response('bad request', { status: 400 });
-      const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
-      const full = path.join(safeRoot, filename);
-      if (!full.startsWith(safeRoot + path.sep)) return new Response('forbidden', { status: 403 });
-      if (!fs.existsSync(full)) return new Response('not found', { status: 404 });
+      const at = _goyaAssetFile(decodeURIComponent(u.hostname || ''), decodeURIComponent((u.pathname || '').replace(/^\/+/, '')));   // 휴지통 번들까지 · 잣대는 그대로
+      if (at.error === 'bad') return new Response('bad request', { status: 400 });
+      if (at.error === 'forbidden') return new Response('forbidden', { status: 403 });
+      if (at.error) return new Response('not found', { status: 404 });
+      const full = at.full;
       // 렌더러 Image()/lazy-load 는 이 스트림으로 동작. (단, file:// origin 렌더러의 fetch()는
       // Chromium이 커스텀 스킴 cross-origin을 하드 차단 → export HTML 재인라인은 fetch 대신
       // assets:readAsDataUri IPC를 사용한다. 아래 핸들러 참조.)

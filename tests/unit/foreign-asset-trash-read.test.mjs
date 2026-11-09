@@ -4,7 +4,7 @@
  * A 를 지우면(기본 = 앱 휴지통 .trash/<id>/bundle/ 로 통째 이동) 파일은 휴지통에 그대로 있는데 못 읽는다
  *   ⇒ adopt 실패(②④⑥ 의 «나중 저장이 옮긴다» 도 실패) · 같은 세션 HTML 내보내기(readAsDataUri) 그림 빠짐(①).
  * 칸: F1 A 를 휴지통으로 보낸 뒤 A 그림을 readAsDataUri 로 읽힌다(기준판 빨강 = 뿌리 확정) · F2 [음성] A 를 영구 삭제하면 못 읽는다(되살릴 데가 없다 — 지금과 같음)
- *     F3 [음성] 살아 있는 A 는 지금처럼 읽힌다
+ *     F3 [음성] 살아 있는 A 는 지금처럼 읽힌다 · F4 [보안] 휴지통 읽기도 경로 탈출 0
  * ⚠️goya-asset 프로토콜(화면 표시)은 하네스가 app ready 를 안 돌려 못 잰다 — 같은 경로 규칙이라 코드로만.
  * 실행: node --test tests/unit/foreign-asset-trash-read.test.mjs */
 import test from 'node:test';
@@ -45,4 +45,15 @@ test('F3 [음성] 살아 있는 A 는 지금처럼 읽힌다', async () => {
   const a = await projectWithAsset('proj_1788000000003');
   const r = await H.invoke('assets:readAsDataUri', a);
   assert.equal(r && r.ok, true);
+});
+
+test('F4 [보안] 휴지통 읽기도 경로 탈출 0 — 그 번들의 assets 밖(proj.json 등)은 못 읽는다', async () => {
+  await projectWithAsset('proj_1788000000004');
+  await H.invoke('projects:delete', 'proj_1788000000004', {});
+  for (const filename of ['../proj.json', '..%2Fproj.json', '../../.trash/proj_1788000000004/meta.json', '/etc/hosts']) {
+    const r = await H.invoke('assets:readAsDataUri', { projectId: 'proj_1788000000004', filename });
+    assert.notEqual(r && r.ok, true, `⛔assets 밖을 읽었다: ${filename}`);
+  }
+  const r2 = await H.invoke('assets:readAsDataUri', { projectId: '../.trash/proj_1788000000004/bundle', filename: 'proj.json' });
+  assert.notEqual(r2 && r2.ok, true, '⛔id 로 휴지통 번들 안을 돌아 읽었다');
 });
