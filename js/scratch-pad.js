@@ -80,6 +80,18 @@ function _openDB() {
   });
 }
 
+/* ★리뷰 1(SCRATCH-DB-OPEN-FAIL) — 메모리 폴백 세션의 편집은 파일 매니페스트에만 남는다. 다음 실행에 진짜 DB 가 열리면 그 키의 «옛» 값이 있어
+   매니페스트를 안 읽고(키 있음) 다음 저장이 옛 값을 매니페스트에 되써서 폴백 세션 편집이 모든 곳에서 사라졌다.
+   ⇒ 폴백에서 외부화한 키를 localStorage 에 적어 두고, 다음 진짜 로드는 그 키만 매니페스트(빈 [] 포함)를 이기게 한 뒤 DB 에 쓰고 나서 지운다. */
+const _FB_WINS = 'scratch-manifest-wins';
+const _fbWins = {
+  read() { try { return new Set(JSON.parse(localStorage.getItem(_FB_WINS) || '[]')); } catch (_) { return new Set(); } },
+  write(set) { try { if (set.size) localStorage.setItem(_FB_WINS, JSON.stringify([...set])); else localStorage.removeItem(_FB_WINS); } catch (_) {} },
+  has(k) { return this.read().has(k); },
+  add(k) { const s = this.read(); if (!s.has(k)) { s.add(k); this.write(s); } },
+  del(k) { const s = this.read(); if (s.delete(k)) this.write(s); },
+};
+
 function _tryOpenDB() {
   return new Promise((resolve, reject) => {
     let settled = false;   // ★⒝ 막힘으로 거절한 «뒤» 늦게 열려도 _db(이미 메모리 폴백)를 새 빈 연결로 갈지 않는다 — 폴백에 쓴 것이 몰래 버려졌다
@@ -177,7 +189,7 @@ async function externalizeScratchpad(proj, projectId) {
     let data;
     try { data = await readRaw(key); } catch (_) { continue; }
     if (data === undefined) continue;              // 키 없음 = 스크래치 없음/미로드 → 매니페스트 보존
-    if (!Array.isArray(data) || data.length === 0) { page.scratchpad = []; continue; } // 비움 동기화
+    if (!Array.isArray(data) || data.length === 0) { page.scratchpad = []; if (db._isFallback) _fbWins.add(key); continue; } // 비움 동기화
     let changed = false;
     const manifest = [];
     for (const it of data) {
@@ -198,6 +210,7 @@ async function externalizeScratchpad(proj, projectId) {
       manifest.push({ ..._pickScratch(it), src });
     }
     page.scratchpad = manifest; // URL+좌표 경량(base64 인라인 아님)
+    if (db._isFallback) _fbWins.add(key);   // 리뷰 1 — 다음 진짜 로드에서 이 매니페스트가 옛 DB 를 이긴다
     if (changed) {
       try { await upgradeSrcs(key, cache); } catch (_) {}
       if (projectId === _currentProjectId && page.id === _currentPageId) {
@@ -1509,6 +1522,12 @@ async function _loadScratchImpl(projectId, pageId) {
       req.onerror   = e => reject(e.target.error);
     });
     if (gen !== _scratchLoadGen) return; // ★stale — DOM/배열 오염·엉뚱한 키 저장 금지
+    /* 리뷰 1 — 지난 폴백 세션이 이 키를 매니페스트로만 남겼다 → 이번(진짜 DB)엔 매니페스트가 이긴다(빈 [] = 그 세션에 비운 것) */
+    let manifestWins = false;
+    if (!db._isFallback && _fbWins.has(key)) {
+      const pgW = (window.state && Array.isArray(window.state.pages)) ? window.state.pages.find(p => p.id === pageId) : null;
+      if (pgW && Array.isArray(pgW.scratchpad)) { data.length = 0; data.push(...pgW.scratchpad.map(m => _pickScratch(m))); keyMissing = false; manifestWins = true; }
+    }
     const heldBack = _unsavedFlush.get(key);   // 떠날 때 쓰기가 실패해 메모리에만 있던 판 — DB 보다 새 것이다
     if (heldBack) { const next = heldBack.merge ? _unionById(data, heldBack.data) : heldBack.data; data.length = 0; data.push(...next); _unsavedFlush.delete(key); }
     _loadFailed = false;
@@ -1533,7 +1552,10 @@ async function _loadScratchImpl(projectId, pageId) {
       _createItem(src, x, y, w, id, g, linkDy, fx, ocr);
     });
     _scratchLoaded = true; // migrated 재저장 전에 완료 마킹 (_saveScratch가 가드하므로)
-    if (migrated || hydrated || addedDuringLoad || heldBack) _saveScratch(); // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
+    if (migrated || hydrated || addedDuringLoad || heldBack || manifestWins) {
+      const sp = _saveScratch();
+      if (manifestWins) Promise.resolve(sp).then(() => _fbWins.del(key), () => {});   // DB 에 쓰인 «뒤»에만 표식을 지운다(못 쓰면 다음 로드가 다시 매니페스트)
+    } // 하이드레이션분·읽는 사이 들어온 장을 로컬 IndexedDB에 영속
     // #16: 스크래치 로드 완료 → 연결(refLinks)된 아이템 pane 필터 + 사이드카 재렌더(P2 오버레이).
     try { window.__spLinkRerender && window.__spLinkRerender(); } catch (_) {}
   } catch(e) {
@@ -2338,7 +2360,8 @@ window._scratchAddAndSave = async (src, x, y, w, g, id) => {
   await _saveScratch();
   if (!it) return { ok: false, reason: 'no-scaler', id: null };
   if (!key) return { ok: false, reason: 'no-context', id: it.id };
-  if (!loaded) return { ok: false, reason: 'loading', id: it.id };   // 로드가 끝나면 «읽는 사이 들어온 장»으로 저장된다(addedDuringLoad) — 지금은 아직
+  if (!loaded) return { ok: false, reason: 'loading', id: it.id };
+  if (_db?._isFallback) return { ok: false, reason: 'memory-only', id: it.id };   // 리뷰 1 #4 — 저장소를 못 열어 메모리에만(프로젝트 저장 때 파일로)   // 로드가 끝나면 «읽는 사이 들어온 장»으로 저장된다(addedDuringLoad) — 지금은 아직
   return { ok: true, id: it.id };
 };
 

@@ -2,7 +2,9 @@
  *   옛: 열기 실패 → indexedDB.deleteDatabase(ScratchPadDB) 로 모든 프로젝트·페이지 스크래치를 지우고 다시 열었다 · 막힘으로 거절한 뒤 늦게 열리면 _db 를 새 빈 연결로 갈았다.
  *   D1 열기 실패 → deleteDatabase 0 · 메모리 폴백으로 넣은 장이 화면에 있고 저장(외부화) 매니페스트에 실린다 · 토스트 1번
  *   D2 막힘 → 폴백 → 늦게 열림(onsuccess) → _db 는 폴백 그대로(폴백에 넣은 장이 읽힌다) · 늦은 연결은 닫힌다
- *   D3 _scratchAddAndSave 결과: 정상 { ok:true, id } · 프로젝트 없음 { ok:false, reason:'no-context' }
+ *   D3 _scratchAddAndSave 결과: 정상 { ok:true, id } · 프로젝트 없음 { ok:false, reason:'no-context' } (폴백이면 D1: 'memory-only')
+ *   D4 (적대 리뷰 1) 지난 폴백 세션이 매니페스트로만 남긴 키 → 다음 진짜 로드는 옛 DB 값 대신 매니페스트(그 세션 편집)를 쓰고 DB 에 적은 뒤 표식을 지운다
+ *      D1 은 폴백 외부화가 그 표식을 남기는지도 잰다 · 양성대조: 표식 갈래를 빼면 D4 빨강(옛 DB [A] 가 이김)
  * ★양성대조: js/scratch-pad.js 를 기준판(f5e4970d9)으로 되돌리면 D1(deleteDatabase 1)·D2(늦은 연결로 갈림)·D3 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -47,10 +49,11 @@ test('D1 열기 실패 → 통째 지우기 0 · 폴백 장이 화면·저장 �
   const r = await page.evaluate(async (PNG) => { await window.switchScratch('proj_d', 'p1'); return window._scratchAddAndSave(PNG, 700, 200, 300, undefined, 'sp_d'); }, PNG);
   expect(await page.evaluate(() => window.__idb.opens), '[전제] 스크래치 저장소 열기를 시도했다').toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__idb.del), '★ScratchPadDB 를 통째 지웠다').toBe(0);
-  expect(r).toEqual({ ok: true, id: 'sp_d' });
+  expect(r, '폴백 = 메모리에만').toEqual({ ok: false, reason: 'memory-only', id: 'sp_d' });
   expect(await page.evaluate(() => !!document.querySelector('.scratch-item[data-scratch-id="sp_d"]'))).toBe(true);
   expect((await page.evaluate(() => window.__save())).map(i => i.id), '★폴백 장이 파일 매니페스트에 안 실렸다').toEqual(['sp_d']);
   expect(await page.evaluate(() => window.__toasts.filter(t => /스크래치 저장소를 열지 못했습니다/.test(t)).length), '토스트 1번').toBe(1);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('scratch-manifest-wins') || '[]')), '★폴백 외부화가 «매니페스트가 이긴다» 표식을 안 남겼다').toEqual(['scratch-pad-proj_d-p1']);
   expect(errs).toEqual([]);
 });
 
@@ -75,4 +78,27 @@ test('D3 _scratchAddAndSave 결과 — 정상 ok · 프로젝트 없음 no-conte
   }, PNG);
   expect(r.a).toEqual({ ok: false, reason: 'no-context', id: 'sp_n' });
   expect(r.b).toEqual({ ok: true, id: 'sp_y' });
+});
+
+test('D4 지난 폴백 세션의 매니페스트가 다음 진짜 로드에서 옛 DB 값을 이긴다 · DB 에 적고 표식을 지운다', async ({ page }) => {
+  const errs = await bootApp(page);
+  const r = await page.evaluate(async (PNG) => {
+    const K = 'scratch-pad-proj_d4-p1';
+    const A = { id: 'sp_a', src: PNG, x: 700, y: 200, w: 300 }, B = { id: 'sp_b', src: PNG, x: 700, y: 600, w: 300 };
+    // 진짜 DB 에 «폴백 세션 전» 값 [A] — 폴백 세션은 이 DB 를 안 건드렸다
+    await new Promise((res, rej) => { const q = indexedDB.open('ScratchPadDB', 1); q.onupgradeneeded = e => { try { e.target.result.createObjectStore('scratch'); } catch (_) {} };
+      q.onsuccess = e => { const db = e.target.result; const tx = db.transaction('scratch', 'readwrite'); tx.objectStore('scratch').put([A], K); tx.oncomplete = () => { db.close(); res(); }; tx.onerror = rej; }; q.onerror = rej; });
+    // 폴백 세션이 남긴 것: 파일 매니페스트 [A,B] + 표식
+    localStorage.setItem('scratch-manifest-wins', JSON.stringify([K]));
+    window.state.pages = [{ id: 'p1', scratchpad: [A, B] }];
+    await window.initScratchPad('proj_d4', 'p1');
+    const shown = [...document.querySelectorAll('.scratch-item')].map(e => e.dataset.scratchId).sort();
+    await new Promise(res => setTimeout(res, 300));
+    const inDb = await new Promise((res) => { const q = indexedDB.open('ScratchPadDB', 1); q.onsuccess = e => { const db = e.target.result; const g = db.transaction('scratch').objectStore('scratch').get(K); g.onsuccess = () => { res((g.result || []).map(i => i.id).sort()); db.close(); }; }; });
+    return { shown, inDb, mark: JSON.parse(localStorage.getItem('scratch-manifest-wins') || '[]') };
+  }, PNG);
+  expect(r.shown, '★옛 DB [A] 가 이겨 폴백 세션의 B 를 잃었다').toEqual(['sp_a', 'sp_b']);
+  expect(r.inDb, 'DB 에도 적혔다').toEqual(['sp_a', 'sp_b']);
+  expect(r.mark, '적은 뒤 표식을 지웠다').toEqual([]);
+  expect(errs).toEqual([]);
 });
