@@ -7,6 +7,7 @@
  * ⛔앱을 «안» 띄운다. 하네스 = text-gradient.dom.spec.js 와 같은 꼴(+editor-layout.css · 넓은 상자).
  */
 const { test, expect } = require('@playwright/test');
+const { bootApp } = require('./_root-harness.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -96,16 +97,17 @@ const look = (page, id) => page.evaluate((i) => {
 const ALIGN = (page, a) => page.click(`.prop-align-group .prop-align-btn[data-align="${a}"]`);
 // 칠 구간 [시작, 끝] vs 글자 [왼, 오른] (화면 px — 하네스는 줌 없음)
 const span = (page, id) => page.evaluate((i) => {
-  const el = document.querySelector(`#${i} [class^="tb-"]`);
+  const el = window.resolveTextContentEl(document.getElementById(i));   // 앱이 쓰는 그 고르기(실앱엔 tb-* 형제가 더 있다)
   const c = getComputedStyle(el);
   const b = el.getBoundingClientRect();
-  const pl = parseFloat(c.paddingLeft), pr = parseFloat(c.paddingRight), bl = parseFloat(c.borderLeftWidth), br = parseFloat(c.borderRightWidth);
+  const k = b.width / el.offsetWidth;   // 줌(배율) — computed 는 css px, 사각형은 화면 px
+  const pl = parseFloat(c.paddingLeft) * k, pr = parseFloat(c.paddingRight) * k, bl = parseFloat(c.borderLeftWidth) * k, br = parseFloat(c.borderRightWidth) * k;
   const box = c.backgroundOrigin === 'content-box' ? [b.left + bl + pl, b.right - br - pr] : [b.left + bl, b.right - br];
   const bw = box[1] - box[0];
   const sz = c.backgroundSize.split(' ')[0];
-  const gw = sz === 'auto' ? bw : sz.endsWith('%') ? bw * parseFloat(sz) / 100 : parseFloat(sz);
+  const gw = sz === 'auto' ? bw : sz.endsWith('%') ? bw * parseFloat(sz) / 100 : parseFloat(sz) * k;
   const px = c.backgroundPosition.split(' ')[0];
-  const gx = box[0] + (px.endsWith('%') ? (bw - gw) * parseFloat(px) / 100 : parseFloat(px));
+  const gx = box[0] + (px.endsWith('%') ? (bw - gw) * parseFloat(px) / 100 : parseFloat(px) * k);
   const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const r = document.createRange();
   let L = Infinity, R = -Infinity; const lines = [];
   for (let n = w.nextNode(); n; n = w.nextNode()) { r.selectNodeContents(n); for (const q of r.getClientRects()) if (q.width) { L = Math.min(L, q.left); R = Math.max(R, q.right); lines.push(Math.round(q.width)); } }
@@ -240,5 +242,38 @@ test('T5 글자를 고치면(편집) 칠 구간이 다시 맞는다 · 옛 저�
   });
   await expect.poll(async () => { const s = await span(page, 'tb9'); return Math.abs(s.g[0] - s.t[0]) <= 2; }).toBe(true);
   await tracks(page, 'tb9', '옛 저장본');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* T6 현빈 프로젝트 «사본»(scratchpad · 레포 밖 · 없으면 건너뜀) — tb_rwx4l_atr5nd1 그대로:
+ *   tb-h2 72px «PATENA» 한 줄 · 글자마다 .tb-dot(점 효과) · text-align:center · 텍스트 프레임 715px · 91deg 3스탑.
+ *   ★여기서 재는 것은 «칠 구간 기하»뿐이다. ⚠️이 블럭은 점 효과 때문에 글자가 --tb-grad-fb(첫 스탑) «단색»으로
+ *   칠해진다(css/editor-layout.css .tb-dot 절 · 2026-10-08 결정) — 그라데이션 «가시성»은 이 칸이 안 잰다(지디 결정 대기). */
+const PROJ = '/private/tmp/claude-501/-Users-a1-wt-srv/15280401-eb92-4115-a360-02f2d224e5e9/scratchpad/t402-proj/proj_1794018687325/proj.json';
+test('T6 현빈 프로젝트 사본 tb_rwx4l_atr5nd1 — L·C·R 반복 → 솔리드 → 그라데이션, 칠 구간이 글자 양끝(±2)', async ({ page }) => {
+  test.skip(!fs.existsSync(PROJ), '사본 없음(레포 밖 파일)');
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(JSON.parse(d)); }, fs.readFileSync(PROJ, 'utf8'));
+  const ID = 'tb_rwx4l_atr5nd1';
+  test.skip(!(await page.evaluate((id) => !!document.getElementById(id), ID)), '그 블럭이 이 페이지에 없음');
+  await page.evaluate((id) => { const t = document.getElementById(id); t.scrollIntoView({ block: 'center' }); window.deselectAll?.(); window.selectBlock?.(t); window.showTextProperties?.(t); }, ID);
+  // applyProjectData 가 블럭을 다 칠할 때까지(고정 대기 금지 — 조건으로)
+  await expect.poll(() => page.evaluate((id) => { const e = window.resolveTextContentEl(document.getElementById(id)); return !!e && getComputedStyle(e).backgroundSize !== 'auto'; }, ID)).toBe(true);
+  const s0 = await tracks(page, ID, '열자마자(옛 저장본 정규화)');
+  expect(s0.lines.length, '한 줄(점 span 6개 = 글자 사각형 6)').toBe(6);
+  expect(s0.t[1] - s0.t[0], '글자가 프레임보다 좁다').toBeLessThan((s0.box[1] - s0.box[0]) * 0.6);
+  for (const a of ['left', 'center', 'right', 'left', 'center', 'right']) {
+    await ALIGN(page, a);
+    expect((await tracks(page, ID, `사본 ${a}`)).align).toBe(a);
+  }
+  await page.locator('#txt-color').locator('xpath=..').click();
+  await tab(page, 'solid').click();
+  const so = await span(page, ID);
+  expect(so.img).toBe('none');
+  expect(so.fill, '솔리드 = 인라인 마지막 단색').toBe('rgb(242, 15, 15)');
+  await tab(page, 'gradient').click();
+  await closePicker(page);
+  await tracks(page, ID, '사본 솔리드 뒤 다시 그라데이션');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
