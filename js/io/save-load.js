@@ -2912,7 +2912,10 @@ function initApp() {
           /* ★BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01 — 목록 밖이라도 proj.json 이 있는데 못 읽는(깨짐·후보 0) id 의 LS 본은 남긴다: 성한 마지막 사본일 수 있다.
              부팅 프로젝트 자신도 같다. 못 물으면(창구 없음·던짐) 남긴다. 기획·없음은 지금 규칙 그대로. */
           const _keepSoFar = new Set([..._listed, ..._keptIds, ..._failedKeep, ...(_root ? (window.foreignLsIds?.(_root) || []) : [])]);
-          const _askIds = Object.keys(localStorage).filter(k => k.startsWith(`${SAVE_KEY_PREFIX}__`) && !k.endsWith('_ts')).map(k => k.slice(SAVE_KEY_PREFIX.length + 2)).filter(id => !_keepSoFar.has(id));
+          const _askIds = [...new Set([
+            ...Object.keys(localStorage).filter(k => k.startsWith(`${SAVE_KEY_PREFIX}__`) && !k.endsWith('_ts')).map(k => k.slice(SAVE_KEY_PREFIX.length + 2)),
+            ...Object.keys(localStorage).filter(k => k.startsWith(LS_PENDING_PREFIX)).map(k => k.slice(LS_PENDING_PREFIX.length).replace(/__\d+$/, '')),   // 보류 본만 남은 id 도 묻는다 — 안 물으면 못 읽는 동안 정리가 그 사본을 지웠다(LS-NEWER 리뷰 3-1)
+          ])].filter(id => !_keepSoFar.has(id));
           const _states = await Promise.all(_askIds.map(id => Promise.resolve().then(() => window.electronAPI.projectReadState ? window.electronAPI.projectReadState(id) : 'unknown').catch(() => 'unknown')));   // 한꺼번에 묻는다 — 부팅 로드 앞이다(리뷰 1-5)
           const _unreadableKeep = _askIds.filter((id, i) => _states[i] === 'unreadable' || _states[i] === 'unknown');
           _bootKeptUnreadable = _askIds.some((id, i) => id === _bootProjectId && _states[i] === 'unreadable');   // 못 물은(unknown) 것은 숨기지 않는다 — 읽히는 프로젝트일 수 있다(리뷰 2-2)

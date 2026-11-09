@@ -7,7 +7,7 @@
  * 자: window.pickLsOverFile 직접 — 부팅(unmarkedWins 기본)·탭(unmarkedWins:false) 두 입구가 같은 함수다. 사본 파일은 main 몫(가짜 기록).
  * 칸: N1 옛 파일 → 사본 남김·파일 우선·LS 걷음 · N2 탭 입구도 같다 · N3 [음성] 파일이 새것 → 지금대로(사본 0) · N4 [음성] 시각 못 믿음(lsBase 꼴 아님) → 지금대로
  *     N5 사본 실패 → 보류 자리로 옮기고 알림(자동저장이 못 덮음) · N6 다음 열기에 보류 본 다시 남김 · N7 남기는 사이 표지가 옮겨졌으면 손 안 댐
- *     N8 실패 + 그사이 편집 → 보류에 남음 · N9 앞 보류 본 안 덮음 · N10 표지가 이미 파일 판이면 끝맺음
+ *     N8 실패 + 그사이 편집 → 보류에 남음 · N9 앞 보류 본 안 덮음 · N10 표지가 이미 파일 판이면 끝맺음 · N11 보류 본만 남은 id 가 못 읽혀도 부팅 정리가 안 지움
  * 픽스처: 섹션 셋 · 글 블럭 · 그림 블럭 둘. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -123,4 +123,31 @@ test('N10 표지가 이미 되돌린 파일 판이면 끝맺는다 — 남은 �
   expect(await pick(page, file(T1))).toBe(null);
   await page.evaluate(([A, T1]) => { localStorage.setItem('web-editor-ls-base__' + A, T1); window.__open(); }, [A, T1]);
   await expect.poll(() => lsOf(page).then(s => s.ls), { message: '★남은 본이 다음 열기에 되돌린 파일을 이긴다' }).toBe(null);
+});
+
+/* 부팅 정리가 보류 본만 남은 id 도 «못 읽음» 판정을 묻는다 — 기록 실패와 proj.json 못 읽음은 같은 디스크 탓으로 함께 온다(리뷰 3-1) */
+test('N11 보류 본만 남은 프로젝트가 잠깐 못 읽혀도 부팅 정리가 그 보류 본을 지우지 않는다', async ({ page }) => {
+  const P = 'proj_lnp', B = 'proj_lnb', Z = 'proj_lnz';
+  await page.addInitScript(([P, B, Z]) => {
+    const fake = {
+      listProjects: async () => [{ id: B, name: B, type: null, updatedAt: new Date().toISOString() }],
+      projectsRootKey: async () => 'legacy',
+      projectFolderState: async (id) => (id === Z ? 'missing' : 'ok'),
+      projectReadState: async (id) => (id === P ? 'unreadable' : id === B ? 'ok' : 'none'),
+      loadProject: async (id) => (id === B ? { id: B, name: B, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas: '' }] } : null),
+    };
+    Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
+    if (!sessionStorage.getItem('__seeded')) {
+      sessionStorage.setItem('__seeded', '1');
+      localStorage.setItem('web-editor-open-tabs', JSON.stringify({ tabs: [{ id: B, name: B }], activeId: B }));
+      localStorage.setItem('web-editor-ls-pending__' + P + '__1', JSON.stringify({ id: P, pages: [{ id: 'p', canvas: '보류에만 남은 편집' }] }));
+      localStorage.setItem('web-editor-autosave__' + Z, '{"pages":[{"id":"p","canvas":"z"}]}');
+      localStorage.setItem('web-editor-ls-root__' + Z, 'legacy');
+    }
+  }, [P, B, Z]);
+  await bootApp(page);
+  await page.evaluate((B) => { history.replaceState(null, '', '?project=' + B); }, B);
+  await page.reload();
+  await page.waitForFunction((Z) => typeof window.rebindAll === 'function' && localStorage.getItem('web-editor-autosave__' + Z) === null, Z, { timeout: 15000 });
+  expect(await page.evaluate((P) => localStorage.getItem('web-editor-ls-pending__' + P + '__1'), P), '★못 읽는 동안 보류 본을 지웠다').toContain('보류에만 남은 편집');
 });
