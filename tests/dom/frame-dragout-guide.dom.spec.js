@@ -21,6 +21,8 @@ async function scene(page, zoom = 40, extra = null) {
     const S = fr(null, 700, 420); const tS = put(S, '.text-block', 'addTextBlock', 'body');
     const K = fr(S, 220, 90, 440, 300);
     let X = extra && !extra[3] ? put(S, extra[0], extra[1], ...(extra[2] || [])) : null;
+    /* S 가 X 를 다 품게 높이를 정한다 — 옛 장면은 K 의 기본 크기(860×520)로 S 가 저절로 커진 덕에 품었다(t3-05 뒤 80% 라 덜 커져 에셋이 TS 위로 넘쳤다) */
+    if (X) { const f = document.getElementById(S), fr0 = f.getBoundingClientRect(), k = fr0.height / f.offsetHeight; const need = Math.ceil((document.getElementById(X).getBoundingClientRect().bottom - fr0.top) / k + parseFloat(getComputedStyle(f).paddingBottom)); if (need > f.offsetHeight) window.updateFrameBlock(S, { height: need }); }
     const TS = fr(null, 700, 260); const tTS = put(TS, '.text-block', 'addTextBlock', 'body'); const tTS2 = put(TS, '.text-block', 'addTextBlock', 'body');
     [[tTS, 20], [tTS2, 150]].forEach(([id, t]) => { const w = document.getElementById(id).closest('[data-text-frame]'); w.style.top = t + 'px'; w.dataset.offsetY = t; });   // 나란히면 스택으로 못 바꾼다
     window.__convertFreeLayoutToStack(document.getElementById(TS));
