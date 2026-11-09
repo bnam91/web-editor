@@ -3193,20 +3193,27 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     if (!moved) { moved = true; window.pushHistory?.('그리드 이미지 크기'); }
     const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey });
     lastResult = result;
-    el.style.width = result.widthPct + '%';
-    el.style.height = result.height + 'px';
-    /* ★미리보기 = 커밋 결과. 그림을 «시작 기하»에 px 로 못박고 프레임만 자라고 줄게 한다.
-       ⛔안 하면 드래그 중엔 그림이 같이 줄다가 놓는 순간 튄다 — 「보인 대로 된다」가 깨진다. */
-    const innerImg = el.querySelector('img');
-    if (innerImg && imgPin) {
-      el.style.position = 'relative';
-      el.style.overflow = 'hidden';
-      innerImg.style.position = 'absolute';
-      innerImg.style.left = imgPin.x + 'px';
-      innerImg.style.top = imgPin.y + 'px';
-      innerImg.style.width = imgPin.w + 'px';
-      innerImg.style.height = 'auto';
-      innerImg.style.objectFit = '';
+    /* ★원(imgShape circle)은 렌더러가 지름 = height 로 1:1 을 지킨다(놓을 때 onUp 의 gridPreviewLine 이 그 길이다).
+       ⛔아래 폭%·높이px 를 따로 쓰면 끄는 동안 타원이 됐다(현빈QA) ⇒ 미리보기도 «같은 렌더»로 그린다. */
+    if (line && line.imgShape === 'circle') {
+      gridPreviewLine(block, r, c, li, { height: result.height });
+      window._grdSyncLineMark?.(block, addr);
+    } else {
+      el.style.width = result.widthPct + '%';
+      el.style.height = result.height + 'px';
+      /* ★미리보기 = 커밋 결과. 그림을 «시작 기하»에 px 로 못박고 프레임만 자라고 줄게 한다.
+         ⛔안 하면 드래그 중엔 그림이 같이 줄다가 놓는 순간 튄다 — 「보인 대로 된다」가 깨진다. */
+      const innerImg = el.querySelector('img');
+      if (innerImg && imgPin) {
+        el.style.position = 'relative';
+        el.style.overflow = 'hidden';
+        innerImg.style.position = 'absolute';
+        innerImg.style.left = imgPin.x + 'px';
+        innerImg.style.top = imgPin.y + 'px';
+        innerImg.style.width = imgPin.w + 'px';
+        innerImg.style.height = 'auto';
+        innerImg.style.objectFit = '';
+      }
     }
     /* 우측 패널 입력을 «직접» 갱신 — 드래그 중 패널 재렌더 금지(gutter 와 같은 원칙).
      * ★2026-09-25 — 여기 「이미지 절에는 폭 입력이 없어 높이만 동기화한다」고 적혀 있었다.
