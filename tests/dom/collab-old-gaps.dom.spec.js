@@ -7,6 +7,8 @@
  *   ⑸ C9 상대 번호(data-section=1)가 실린 secB 패치 → 붙인 뒤 저장해도 secB 를 다시 안 올린다(내 번호 2 유지)
  *   리뷰 1: C10 F1 재개가 묵은 패치(서버 지금 판 = 내 것)를 안 붙인다 · C11 F2 재개 받는 사이 다른 start → 앞 방 패치 안 붙음 · C12 F4 미저장 표시만 풀리고 push 전이면 미룬 패치를 안 푼다
  *          C13 F5 밀려난 start 는 'switched' · C14 F6 같은 프로젝트 다시 start 해도 충돌 기록이 남는다(양성대조: ⑸ 판 6921c9685 → C10~C14 빨강)
+ *   리뷰 2: C15 미룰 때 날아가던 옛 push 가 끝나도 안 푼다 · C16 push 실패로 못 올라간 내 판이 덮이면 충돌 기록(replaced) · C17 stop 뒤 충돌 목록은 비고 같은 방 다시 start 면 돌아온다
+ *          (양성대조: 리뷰 1 판 b61f2a520 → C15~C17 빨강)
  * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C9(secB 되올림)· C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -270,4 +272,73 @@ test('C14 F6 — 같은 프로젝트를 다시 start 해도 충돌 기록(진 �
   expect(r.n0, '[전제] 충돌 기록 1').toBeGreaterThanOrEqual(1);
   expect(r.n1, '★탭 재시작에 충돌 기록이 사라졌다').toBe(r.n0);
   expect(r.mine, '진 쪽(내) 판이 남았다').toContain('내글');
+});
+
+/* 서버가 지금 캔버스 판(secA·secB)을 이미 안다 — start 의 재개 push 가 안 나가 _lastPushedSeq 가 비어 있는 장면(옛 길의 보호가 안 서는 꼴) */
+async function seedServer(page) {
+  await page.evaluate(() => {
+    const sec = (id, t) => `<div class="section-block" id="${id}"><div class="section-inner"><div class="tb">${t}</div></div></div>`;
+    document.getElementById('canvas').innerHTML = sec('secA', 'A0') + sec('secB', 'B0');
+    const secs = window.collabSync._internals.collectSections(JSON.parse(window.serializeProject()));
+    let seq = 3; for (const x of secs) window.__log.push({ pageId: x.pageId, sectionId: x.sectionId, html: x.html, hash: x.hash, actorId: 'seed', seq: ++seq, baseSeq: 0 });
+  });
+  await withSections(page);
+}
+test('C15 리뷰 2 #2 — 미룰 때 날아가던 옛 push 가 끝나도 내 push 전엔 안 푼다', async ({ page }) => {
+  await boot(page); await seedServer(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    const pull = window.electronAPI.collab.pull, push = window.electronAPI.collab.push;
+    let pullGate = null, pushGate = null;
+    window.electronAPI.collab.pull = async (q) => { if (pullGate) await pullGate.p; return pull(q); };
+    window.electronAPI.collab.push = async (q) => { if (pushGate) await pushGate.p; return push(q); };
+    const mk = () => { let rel; const p = new Promise(r => { rel = r; }); return { p, rel }; };
+    pullGate = mk(); const t = window.collabSync.tick();                   // 받기가 붙잡힘
+    window.__edit('secB', 'B1'); pushGate = mk();   // 날아가는 옛 push = 다른 섹션(secA 를 안 올린다 → secA 의 _lastPushedSeq 없음)
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } }));   // 옛 스냅 push 가 날아감(붙잡힘)
+    await new Promise(r => setTimeout(r, 50));
+    window.__unsaved = true; window.__edit('secA', 'mine1');               // 그 뒤 고친 내 글(미저장)
+    window.__other('secA', '상대글');
+    const g = pullGate; pullGate = null; g.rel(); await t;                  // 받기 → 미저장이라 미룸
+    const heldNow = window.collabSync.status().deferred;
+    const pg = pushGate; pushGate = null; pg.rel(); await new Promise(r => setTimeout(r, 100));   // 옛 push 끝
+    window.__unsaved = false;                                              // 저장이 표시를 지움 · 내 push 는 아직
+    await window.collabSync.tick();
+    return { heldNow, text: window.__text('secA'), pushedA: window.__log.filter(p => p.actorId !== 'other' && p.actorId !== 'seed' && p.sectionId === 'secA').length };
+  });
+  expect(r.heldNow, '[전제] 미뤘다').toBe(1);
+  expect(r.pushedA, '[전제] secA 는 아직 안 올렸다').toBe(0);
+  expect(r.text, '★옛 push 끝을 «내 push»로 보고 풀어 내 글을 덮었다').toBe('mine1');
+});
+test('C16 리뷰 2 #3 — push 실패로 못 올라간 내 판이 덮이면 충돌 기록(replaced)에 남는다', async ({ page }) => {
+  await boot(page); await seedServer(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    window.electronAPI.collab.push = async () => ({ ok: false, reason: 'server' });
+    window.__edit('secA', '내글');
+    await new Promise((res) => { const off = window.collabSync.onEvent((e) => { if (e.type === 'pushed') { off(); res(); } }); window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } })); });
+    window.__other('secA', '상대글');
+    await window.collabSync.tick();
+    const c = window.collabSync.conflicts();
+    return { text: window.__text('secA'), mine: c.map(x => x.mineHtml || '').join('|'), toasts: [...window.__toasts] };
+  });
+  expect(r.text).toBe('상대글');
+  expect(r.mine, '★덮인 «못 올라간 내 판»을 되살릴 기록이 없다').toContain('내글');
+});
+test('C17 리뷰 2 #4 — stop 뒤 충돌 목록은 비고, 같은 방을 다시 start 하면 돌아온다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    await window.collabSync.start('proj_x');
+    window.__unsaved = true; window.__failed = true; window.__edit('secA', '내글');
+    window.__other('secA', '상대글'); await window.collabSync.tick();
+    const n0 = window.collabSync.conflicts().length;
+    window.collabSync.stop(); window.__unsaved = false; window.__failed = false;
+    const afterStop = window.collabSync.conflicts().length;
+    window.electronAPI.collab.ref = async () => ({ ok: true, ref: { collabId: 'cb_t', seq: window.__server, role: 'member' } });
+    await window.collabSync.start('proj_x');
+    return { n0, afterStop, back: window.collabSync.conflicts().length };
+  });
+  expect(r.n0).toBeGreaterThanOrEqual(1);
+  expect(r.afterStop, '★멈춘 뒤에도 앞 방 충돌이 남아 보통 프로젝트에서 «되살리기»로 쓰일 수 있다').toBe(0);
+  expect(r.back).toBe(r.n0);
 });

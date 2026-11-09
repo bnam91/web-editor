@@ -571,7 +571,7 @@
     const pid = _cfg && _cfg.projectId;
     const unsaved = !!(el && window.hasUnsavedChanges && window.hasUnsavedChanges());
     const saveFailed = !!(unsaved && window.projectLastSaveFailed && window.projectLastSaveFailed(pid));
-    if (unsaved && !saveFailed) { const prev = _deferred.get(p.sectionId); _deferred.set(p.sectionId, { ...p, _heldUnsaved: true, _heldPush: prev && prev._heldUnsaved ? prev._heldPush : _pushDone, _heldAt: prev && prev._heldUnsaved ? prev._heldAt : Date.now() }); return false; }
+    if (unsaved && !saveFailed) { const prev = _deferred.get(p.sectionId); _deferred.set(p.sectionId, { ...p, _heldUnsaved: true, _heldPush: prev && prev._heldUnsaved ? prev._heldPush : _pushDone + (_inFlight ? 1 : 0),   /* 리뷰 2 #2 — 날아가는 push 는 내 편집 전 스냅이다 — 그 «다음» push 가 끝나야 */ _heldAt: prev && prev._heldUnsaved ? prev._heldAt : Date.now() }); return false; }
 
     /* ★SIX ⓐ — 이 섹션에 내가 이미 «더 새 판»을 올렸나(내 마지막 push seq ≥ 이 패치 seq).
      *   그렇다면 이 패치는 «묵었다»: 붙이면 내 새 글을 덮고, 다음 저장이 그 묵은 판을 다시 올린다(현빈 사고).
@@ -588,7 +588,9 @@
     }
     /* ★SIX — 상대가 «내 마지막 push 를 못 본 채»(그 baseSeq < 내 push seq) 더 늦게 올린 패치: 붙이되(나중 쓴 쪽) 덮이는 내 판을 남긴다. */
     /* ⑴ 저장 실패 중 미저장 편집이 덮이면 그 판도 남긴다(충돌 목록 «되살리기»로 고를 수 있게) */
-    const replacedMine = (el && ((mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) || saveFailed)) ? el.outerHTML : null;
+    /* 리뷰 2 #3(옛 결함) — 내 push 가 실패·천장 초과로 못 올라간 판(_localSnap ≠ _sent)이 덮이면 토스트만 나고 되살릴 판이 없었다 ⇒ 그 판도 남긴다 */
+    const unpushedMine = !!(_localSnap[ckey] && _localSnap[ckey] !== _sent[ckey] && _localSnap[ckey] !== p.hash);
+    const replacedMine = (el && ((mine != null && Number.isFinite(+p.baseSeq) && +p.baseSeq < mine) || saveFailed || unpushedMine)) ? el.outerHTML : null;
 
     /* ⚠️★덮어쓰기 경고 — 이쪽이 더 위험한 쪽이다.
      *   충돌을 «올린 사람»은 서버 응답으로 알게 되지만, «덮이는 사람»은 자기 화면의 글이
@@ -705,7 +707,7 @@
     if (_resumeOwed) {
       _resumeOwed = false;
       const rs = await resumeSafely();
-      if (!rs || !rs.ok) { _resumeOwed = true; _lastError = (rs && rs.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); }
+      if (!rs || !rs.ok) { if (_cfg !== cfg) return; _resumeOwed = true; _lastError = (rs && rs.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); }   // 리뷰 2 #1 — 앞 방 재개가 'switched' 로 끝나면 새 방에 «연결 끊김»을 안 낸다
       else { _lastError = null; emit({ type: 'pulled', presence: [], applied: 0, deferred: _deferred.size, missing: _needIds.length }); }   // ⑶ 재개도 «받기 회복»이다 — 받기 실패 알림·상단바 «연결 끊김»이 풀린다(collab-notify W6)
       return;
     }
@@ -864,6 +866,7 @@
     if (_timer) clearInterval(_timer);
     if (_seqTimer) clearInterval(_seqTimer);
     _timer = null; _seqTimer = null; _cfg = null; _deferred.clear(); _owedPush = null;
+    _conflicts = new Map();   // 리뷰 2 #4 — 그 방 기록은 _conflictsByProject 에 남는다 · 보통 프로젝트로 가서 앞 방 충돌을 «되살리기»로 엉뚱한 곳에 쓰지 않게
     const el = document.getElementById('collab-topbar-badge');
     if (el) { el.style.display = 'none'; el.textContent = ''; }
     emit({ type: 'stopped' });
