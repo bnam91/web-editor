@@ -4303,6 +4303,7 @@ function deselectAll() {
   window.hideTextOverlayResizeHandles?.();
   window.hideGridOverlayResizeHandles?.(); // ★G2-b 떠 있는 그리드 «폭» 손잡이 — 빠지면 같은 블럭 재클릭이 동일블럭 빗장에 걸린다(위와 같은 사고)
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
+  window.hideMeshCorners?.(); // ★t4-03 섹션 메시 모서리 점
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   // (.frame-block 의 .selected 는 clearSelectionMarks 의 일괄 제거가 이미 벗긴다)
   window.showPageProperties();

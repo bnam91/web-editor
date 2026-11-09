@@ -254,7 +254,7 @@ const near = (a, hex, tol = 8) => {
   return a.every((v, i) => Math.abs(v - w[i]) <= tol);
 };
 
-test('M7 ★★네 모서리 픽셀이 ★사용자가 고른 색 ★그대로다 (＋★`circle` 사본은 ★틀어진다 = 양성대조)', async ({ page }) => {
+test('M7 ★★기본 상태에선 모서리에 머문다 — 네 모서리 픽셀 = 고른 색 (＋★`circle` 사본은 ★틀어진다 = 양성대조)', async ({ page }) => {
   const { A } = await setup(page);
   await pickSection(page, A);
   await page.evaluate(([i, cols]) => {
@@ -269,7 +269,7 @@ test('M7 ★★네 모서리 픽셀이 ★사용자가 고른 색 ★그대로�
   expect(r.w > r.h, `전제: 섹션이 가로로 길다 ${r.w}×${r.h}`).toBe(true);
   const got = { TL: hexOf(r.TL), TR: hexOf(r.TR), BR: hexOf(r.BR), BL: hexOf(r.BL) };
   ['TL', 'TR', 'BR', 'BL'].forEach((k, n) => {
-    expect(near(r[k], CORNER_COLS[n]), `${k} = ${got[k]} · 고른 값 ${CORNER_COLS[n]} (전부: ${JSON.stringify(got)})`).toBe(true);
+    expect(near(r[k], CORNER_COLS[n]), `기본 상태에선 모서리에 머문다 — ${k} = ${got[k]} · 고른 값 ${CORNER_COLS[n]} (전부: ${JSON.stringify(got)})`).toBe(true);
   });
 
   /* ★★양성대조 — ★같은 자로 ★`circle` 사본을 재면 ★왼아래가 ★틀어진다.
