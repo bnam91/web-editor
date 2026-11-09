@@ -63,3 +63,10 @@ test('K4 [음성] proj.json 없음은 지금대로 지운다', async ({ page }) 
 test('K5 판정 창구가 던지면 남긴다(안전 쪽)', async ({ page }) => {
   expect((await bootWith(page, { readThrows: true })).length, '★못 물었는데 지웠다').toBeGreaterThan(0);
 });
+test('K6 부팅 프로젝트가 깨졌으면 LS 본은 남기기만 — 화면엔 안 올린다(지디 결정 ⒝)', async ({ page }) => {
+  const ls = await bootWith(page, { active: A });
+  await page.waitForFunction(() => window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 });
+  expect(ls.length, '★LS 본을 지웠다').toBeGreaterThan(0);
+  expect(await page.evaluate(() => (document.querySelector('#canvas')?.innerHTML || '').includes('LS 에만 있는 편집')), '★깨진 부팅 프로젝트의 LS 본을 화면에 올렸다(보여주기는 CORRUPT-PROJECT 몫)').toBe(false);
+  expect(await page.evaluate((A) => (localStorage.getItem('web-editor-autosave__' + A) || '').length, A), '★부팅 뒤 LS 본이 사라졌다').toBeGreaterThan(0);
+});

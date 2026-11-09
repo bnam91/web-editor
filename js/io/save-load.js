@@ -2748,6 +2748,7 @@ function initApp() {
     /* ★342 — 읽히기 전 캔버스는 비었다. 탭 전환이 빈 캐시를 남기고, 편집이 빈 화면을 파일로 썼다(앱 실측 · ~/gd-lane/imac-gd-L1/342d).
        읽히면 풀고, 못 읽었으면 쥔 채 둔다(_bootUnread) — 그 편집은 안 남지만 파일이 남는다(saveProjectToFile 머리말과 같은 판정). */
     let _bootUnread = false;
+    let _bootKeptUnreadable = false;   // 부팅 프로젝트가 깨져(proj.json 있는데 못 읽음) LS 본을 남기기만 했다 — 화면엔 안 올린다(지디 결정 ⒝ · 보여주기는 CORRUPT-PROJECT 몫)
     let _bootNoOwner = false;   // 어느 계정인지 모른다 — 누구 것인지 모르는 LS 본을 화면에 안 올린다
     let _bootGone = null, _bootGoneName = null;   // 이번 부팅 프로젝트의 폴더가 앱 밖에서 없어졌으면 그 값(_projectGoneCopy)
     if (_bootProjectId) window.holdTabFirstLoading?.(_bootProjectId);
@@ -2856,6 +2857,7 @@ function initApp() {
           const _askIds = Object.keys(localStorage).filter(k => k.startsWith(`${SAVE_KEY_PREFIX}__`) && !k.endsWith('_ts')).map(k => k.slice(SAVE_KEY_PREFIX.length + 2)).filter(id => !_keepSoFar.has(id));
           const _states = await Promise.all(_askIds.map(id => Promise.resolve().then(() => window.electronAPI.projectReadState ? window.electronAPI.projectReadState(id) : 'unknown').catch(() => 'unknown')));   // 한꺼번에 묻는다 — 부팅 로드 앞이다(리뷰 1-5)
           const _unreadableKeep = _askIds.filter((id, i) => _states[i] === 'unreadable' || _states[i] === 'unknown');
+          _bootKeptUnreadable = _unreadableKeep.includes(_bootProjectId);
           if (await window.electronAPI.projectFolderState?.('') !== 'unknown') cleanStaleAutosaveKeys([..._keepSoFar, ..._unreadableKeep]);   // 뿌리를 못 읽으면 목록이 빈 게 당연하다 — 안 지운다
           _goneTabs.filter(x => x.g?.state === 'missing' && !x.g.data && x.t.id !== activeProjectId).forEach(x => window.showStatusToast?.(window.deletedTabNotice?.(x.t.name, false)));
           // 삭제된 프로젝트 탭 정리 (현재 프로젝트는 항상 유지)
@@ -2956,7 +2958,7 @@ function initApp() {
       initEmpty();
       return;
     }
-    const saved = _bootNoOwner || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
+    const saved = _bootNoOwner || _bootKeptUnreadable || (_bootGone && !_bootGone.data) ? null : localStorage.getItem(getSaveKey());   // 앱 휴지통의 프로젝트는 본으로 안 연다
     if (saved) { try { applyAndFinish(JSON.parse(saved)); if (_bootGone) { const _t = openTabs.find(t => t.id === _bootProjectId); if (_t) _t._goneCopy = true; window.showStatusToast?.(window.missingFolderNotice?.(_bootGoneName)); } return; } catch {} }
     initEmpty();
     if (_bootGone) window.closeDeletedProjectTab?.(_bootProjectId, _bootGone.state === 'foreign' ? { notice: window.foreignTabNotice?.(_bootGoneName), keepLs: true } : undefined);   // 열 것이 없다 — 말없는 빈 탭 대신 닫고 알린다
