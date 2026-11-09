@@ -51,10 +51,18 @@ function sealedFns(tok, sealId) {
   return new Function('_reloadSealTok', '_reloadSealId', '_hasOwnUnsaved', '_lastSaveFailed',
     sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'function _unloadSaveNeeded(', '대상') + '\nreturn { _isReloadSealed, _unloadSaveNeeded };')(tok, sealId, () => true, () => true);
 }
+/* saveProjectToFile 의 finally 가 실패 표지 도우미(_noteFailedSave · FAILED-SAVE-TAB-SWITCH)를 부른다 — 있으면 같이 싣는다(옛 판엔 없다).
+   도우미는 localStorage 를 try 안에서만 만져 node 에선 조용히 빈 값이다. */
+function failedSaveSrc() {
+  const src = SL();
+  if (!src.includes('function _noteFailedSave(')) return '';
+  /* 닻은 글자 그대로 셋 — 변수로 넘기면 anchor-signature-ratchet R4(변수 닻 수)가 는다 */
+  return "const FAILED_SAVE_IDS_KEY = 'web-editor-failed-save-ids';\n" + sliceBlock(src, 'function _failedSaveIds(', '대상') + '\n' + sliceBlock(src, 'function _setFailedSaveIds(', '대상') + '\n' + sliceBlock(src, 'function _noteFailedSave(', '대상') + '\n';
+}
 function saveFn(tok, sealId) {
   const calls = [];
   const fn = new Function('window', '_reloadSealTok', '_reloadSealId', 'activeProjectId', '_isSavingToFile', '_pendingSaves', '_doSaveProjectToFile', '_isSaveFailure', '_lastSaveResult',
-    'let _savingOwnerId = null, _savingEntry = null, _savingSuperseded = false, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
+    'let _savingOwnerId = null, _savingEntry = null, _savingSuperseded = false, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + failedSaveSrc() + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
     {}, tok, sealId, 'p1', false, new Map(), async (_s, o) => { calls.push(o.projectId || 'p1'); return { ok: true }; }, () => false, new Map());
   return { fn, calls };
 }

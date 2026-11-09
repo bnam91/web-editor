@@ -102,7 +102,7 @@ for (const reason of ['unreadable_not_preserved', 'ls_copy_folder_returned', 'th
 test('R4 [음성] 저장이 성공한 탭을 닫으면 남기지 않는다', async ({ page }) => {
   const errs = await setup(page);
   await refuseThenCloseInactive(page, null);
-  await page.waitForTimeout(300);
+  await page.evaluate((A) => window.waitSavesFor(A), A);   // 고정 대기 대신 저장 줄이 빈 것(closeTab 은 닫기 처리를 기다린 뒤 돌아온다)
   expect(await keptA(page), '★성공한 저장에 비상 사본을 만들었다').toEqual([]);
   expect(await page.evaluate((A) => window.__files.get(A).pages[0].canvas.includes('RS-EDIT'), A)).toBe(true);
   expect(errs).toEqual([]);
@@ -115,7 +115,7 @@ test('R5 [음성] 빈 캔버스 보호 스킵은 실패가 아니다', async ({ 
   await page.evaluate((B) => window.switchTab(B), B);   // 무편집 — 떠나는 저장 없음
   await idle(page);
   await page.evaluate((A) => window.closeTab(A), A);
-  await page.waitForTimeout(300);
+  await page.evaluate((A) => window.waitSavesFor(A), A);   // 고정 대기 대신 저장 줄이 빈 것(closeTab 은 닫기 처리를 기다린 뒤 돌아온다)
   expect(await keptA(page)).toEqual([]);
 });
 
@@ -166,7 +166,7 @@ test('R8 같은 실패는 한 번만 남긴다 — 같은 실패로 또 닫으�
 /* 진짜 다시 열기 길(지디 261110 «다시 열기를 뺐으니 그 길을 아무 칸도 안 잰다»).
    코드 판정: 실패한 저장은 미저장 표시를 안 지우고(save-load.js 360 · 임자 A) 거절이 이어지면 자동저장도 거절돼 표시가 안 풀린다 —
    다시 연 A 는 «미저장»이 맞다(하네스 탓 아님). 그 탭을 닫으면 떠나는 저장이 다시 거절된다 = 새 실패라 또 남긴다(같은 실패 아님).
-   1.6초 대기는 «1.5초 자동저장 뒤 값» 재기(지디 물음)이지 동기화가 아니다. */
+   «1.5초 자동저장 뒤 값»(지디 물음)은 저장을 직접 한 번 부른 뒤 값으로 잰다 — 고정 대기 0(dom-fixed-wait-census). */
 test('R8b 거절이 이어지는 탭을 다시 열면 미저장으로 남고, 닫으면 새 실패로 또 남긴다', async ({ page }) => {
   const errs = await setup(page);
   await refuseThenCloseInactive(page, 'planning_not_editor');
@@ -174,9 +174,10 @@ test('R8b 거절이 이어지는 탭을 다시 열면 미저장으로 남고, �
   await page.evaluate((A) => window.openTabForProject(A), A);
   await page.waitForFunction((A) => window.activeProjectId === A && !window.isTabFirstLoading(A), A);
   const at0 = await page.evaluate(() => window.hasUnsavedChanges());
-  await page.waitForTimeout(1600);
+  /* «자동저장 한 번이 지나간 뒤» — 고정 대기(1.6초) 대신 그 저장을 직접 한 번 부르고 끝을 기다린다(dom-fixed-wait-census · 거절이 이어지니 다시 거절된다). */
+  await page.evaluate(async (A) => { await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true }); await window.waitSavesFor(A); }, A);
   const at16 = await page.evaluate(() => window.hasUnsavedChanges());
-  console.log('[R8b] 다시 연 직후 hasUnsavedChanges', at0, '· 1.6초 뒤', at16);
+  console.log('[R8b] 다시 연 직후 hasUnsavedChanges', at0, '· 저장 한 번 뒤', at16);
   expect([at0, at16], '★실패가 이어지는데 미저장이 아니라고 한다').toEqual([true, true]);
   await page.evaluate((A) => window.closeTab(A), A);
   await page.evaluate((A) => window.waitSavesFor(A), A);
