@@ -198,6 +198,11 @@
           <label class="settings-api-label">모델</label>
           <select class="settings-api-input" data-hf-model>
             <option value="">(미선택)</option>
+            <option value="gpt_image_2_6">GPT Image 2.6</option>
+            <option value="flux_3_image">FLUX 3 Image</option>
+            <option value="seedream_v5_pro">Seedream 5.0 Pro</option>
+            <option value="flux_2">FLUX.2</option>
+            <option value="marketing_studio_image">Marketing Studio Image</option>
           </select>
         </div>
       </div>
@@ -258,7 +263,7 @@
   }
 
   /* t2-03: Higgsfield 키는 «즉시» IPC 로 main 의 암호 파일에 간다 — _draft·window._settings 에 원문을 안 싣는다.
-   *   모델(비밀 아님)만 _draft.higgsfieldModel → 아래 «저장»으로 settings.json. 모델 목록은 Q1(현빈) 답 뒤에 채운다. */
+   *   모델(비밀 아님)만 _draft.higgsfieldModel → 아래 «저장»으로 settings.json. 모델 목록 = 현빈 7271 답(id·이름 5개). */
   const HF_ERR = { empty: '키를 입력하세요', too_long: '✗ 키가 너무 깁니다', no_encryption: '✗ 이 기기에서는 암호화 저장을 쓸 수 없습니다' };
   function bindHiggsfieldRow(pane) {
     const row = pane.querySelector('.settings-api-row[data-provider="higgsfield"]');

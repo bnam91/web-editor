@@ -21,11 +21,11 @@ const HARNESS = (() => {
   /* 가짜 main — 키는 «클로저 안»에만 둔다(window 를 훑는 검사가 가짜 자신을 잡지 않게). */
   window.__calls = { set: 0, clear: 0, patches: [] };
   (function () {
-    let stored = '';
+    let stored = '', hfModel = '';
     const st = () => stored ? { hasKey: true, masked: '••••' + stored.slice(-4) } : { hasKey: false, masked: '' };
     window.electronAPI = {
-      getSettings: async () => ({ apiKeys: {}, shortcuts: {}, easterEggs: {}, higgsfieldModel: '' }),
-      setSettings: async (patch) => { window.__calls.patches.push(JSON.parse(JSON.stringify(patch))); return { ...patch }; },
+      getSettings: async () => ({ apiKeys: {}, shortcuts: {}, easterEggs: {}, higgsfieldModel: hfModel }),
+      setSettings: async (patch) => { window.__calls.patches.push(JSON.parse(JSON.stringify(patch))); if ('higgsfieldModel' in patch) hfModel = patch.higgsfieldModel; return { ...patch }; },
       higgsfield: {
         status:   async () => st(),
         setKey:   async (k) => { window.__calls.set++; stored = String(k).trim(); return { ok: true, ...st() }; },
@@ -89,16 +89,21 @@ test('HF1 키 저장·삭제 흐름 + ★전체 키가 화면·저장소·consol
 
   // 모델 + footer 저장 → settings:set 패치
   const model = page.locator(`${ROW} select.settings-api-input`);
-  expect(await model.locator('option').evaluateAll((os) => os.map((o) => [o.value, o.textContent]))).toEqual([['', '(미선택)']]);
+  expect(await model.locator('option').evaluateAll((os) => os.map((o) => [o.value, o.textContent])), '현빈 7271 목록 · 기본 (미선택)').toEqual([
+    ['', '(미선택)'], ['gpt_image_2_6', 'GPT Image 2.6'], ['flux_3_image', 'FLUX 3 Image'],
+    ['seedream_v5_pro', 'Seedream 5.0 Pro'], ['flux_2', 'FLUX.2'], ['marketing_studio_image', 'Marketing Studio Image']]);
+  expect(await model.inputValue()).toBe('');
+  await model.selectOption('flux_2');
   await page.click('#settings-save-btn');
   await expect.poll(() => page.evaluate(() => window.__calls.patches.length)).toBe(1);
   const patch = await page.evaluate(() => window.__calls.patches[0]);
-  expect(patch).toHaveProperty('higgsfieldModel', '');
+  expect(patch).toHaveProperty('higgsfieldModel', 'flux_2');
   expect(JSON.stringify(patch)).not.toContain(KEY);
 
   // 다시 열어 삭제
   await page.evaluate(() => window.openSettingsModal());
   await expect(status).toHaveText('✓ 저장됨 ••••1234');
+  await expect(model, '저장한 모델이 다시 열어도 골라져 있다').toHaveValue('flux_2');
   await del.click();
   await expect(del).toBeHidden();
   await expect(status).toHaveText('');
