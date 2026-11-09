@@ -2175,9 +2175,19 @@ async function loadProjectForOpen(id) {
   }
   /* ★BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01 — «JSON 은 맞는데 모양 아님» 이면 main 은 _unreadable 대신 null 을 준다 → 빈 판이 편집 가능하게 열려 첫 편집이
      남긴 LS 본·파일을 덮었다(부팅 · 탭을 떠났다 돌아오기 둘 다 · 리뷰 3-1). proj.json 이 있는데 못 읽으면 깨진 것과 같은 실패 길로. */
-  if (!proj && await window.electronAPI.projectReadState?.(id) === 'unreadable') {
-    window.LoadInputGate?.noteUnreadable();
-    throw new Error('project-unreadable');
+  if (!proj) {
+    const _rs = await window.electronAPI.projectReadState?.(id);
+    if (_rs === 'unreadable') {
+      window.LoadInputGate?.noteUnreadable();
+      throw new Error('project-unreadable');
+    }
+    /* ★OPEN-NULL-EMPTY-BOARD-EDITABLE-01 — null 인데 proj.json 이 «없음»이 아니다: 그 순간 못 읽었고 그사이 다른 창·MCP 가 성한 파일을 썼거나(ok) 판정을 못 했다(unknown·planning).
+       빈 판으로 열면 첫 편집의 저장이 그 성한 파일을 빈 판으로 덮는다(buildProjForSave 는 existing 위에 빈 판 pages 를 얹는다). 같은 읽기 실패 길로 — 다시 열면 읽힌다.
+       'none'(proj.json 없음)만 null 로 둔다 — 앱 밖에서 없어진 폴더 길(projectGoneCopy)이 그걸 받는다. 답이 글자가 아니면(옛 판·대역 API) 옛 동작. */
+    if (typeof _rs === 'string' && _rs !== 'none') {   // main 은 늘 글자로 답한다 — 답이 없으면(창구 없음·대역) 옛 동작
+      window.LoadInputGate?.noteReadError(_rs === 'ok' ? '열 때 파일이 바뀌는 중' : '읽기 상태를 모름');
+      throw new Error('project-read-failed:open-null-' + _rs);
+    }
   }
   if (proj && proj._unreadable) {   // 읽기 실패와 같은 길로 보낸다 — 확정 error · 안 읽힘 표식 · 저장 거절이 거기 있다(빈 프로젝트로 열면 첫 편집이 깨진 파일을 덮는다)
     window.LoadInputGate?.noteUnreadable(proj.preservedAs);
@@ -2784,7 +2794,7 @@ function initApp() {
         if (!_bootUnread) window.releaseTabFirstLoading?.(_bootProjectId);
         _endLoadingOverlay();
         // ★확정 — 이 시점의 DOM 이 «그 프로젝트»다. 여기 전에 들어온 편집은 방금 교체돼 사라졌다.
-        window.gdtProjectReady?.settle(_loadSeq, 'ready', _settleDetail || 'applied');
+        window.gdtProjectReady?.settle(_loadSeq, _bootUnread ? 'error' : 'ready', _settleDetail || (_bootUnread ? 'unread:applied' : 'applied'));   // 못 읽어 쥔 판(LS 본·적용 실패)은 편집 확정이 아니다 — MCP open_project 가 ok 로 받으면 저장 안 되는 판에 편집한다(③)
       }
     }
     function initEmpty(reason) {
@@ -2796,8 +2806,10 @@ function initApp() {
       window.buildLayerPanel();
       window.showPageProperties();
       // 빈 프로젝트/폴백도 «편집 가능»한 terminal 상태다 — 확정한다(무엇으로 닫혔는지는 detail 에).
-      _settleDetail = 'empty:' + (reason || 'no-data');
-      window.gdtProjectReady?.settle(_loadSeq, 'ready', _settleDetail);
+      _settleDetail = (_bootUnread ? 'unread:' : 'empty:') + (reason || 'no-data');
+      /* ★OPEN-NULL-EMPTY-BOARD-EDITABLE-01 ③ — 못 읽은 부팅의 빈 판은 «편집 가능» 확정이 아니다(첫 로드를 쥐어 저장도 안 나간다).
+         ready 로 닫으면 MCP open_project 가 ok 로 받아 빈 판에 편집 도구를 쓴다 — 탭 열기 실패(_settleErr)와 같게 error 로 닫는다. */
+      window.gdtProjectReady?.settle(_loadSeq, _bootUnread ? 'error' : 'ready', _settleDetail);
     }
 
     // localStorage에서 이전 탭 상태 즉시 복원 (await 전에 탭바 표시)
