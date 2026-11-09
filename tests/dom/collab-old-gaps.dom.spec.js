@@ -3,7 +3,8 @@
  *      C2 저장이 «실패»한 채 미저장이면 미루지 않는다 — 붙이고 바로 충돌 토스트 · 덮인 내 판은 충돌 기록(replaced)에 남는다
  *      C3 [대조] 미저장 없으면 예전처럼 바로 붙고 토스트 없음
  *   ⑵ C4 올리는 중 두 번째 저장 → 버리지 않고 끝나면 올린다(서버 마지막 글 = A2 · 세 번째 저장 없이)
- * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾) 빨강 · C3 초록. */
+ *   ⑶ C5 읽는 중(gdtProjectReady loading) 저장 → push 0 · ready 뒤 tick 재개 → 진짜 차이 1 섹션만 · C6 첫 재개 실패 뒤 저장 → push 0 · 다음 tick 재개 → 차이만
+ * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
@@ -111,4 +112,41 @@ test('C4 올리는 중 두 번째 저장 — 버리지 않고 끝나면 올린�
   expect(r.pendingWhileHeld, '[전제] 두 번째 저장 때 push 는 하나만 붙잡혀 있었다').toBe(1);
   expect(r.last, '★두 번째 저장이 버려져 서버가 A1 에 머묾').toContain('A2');
   expect(r.n, JSON.stringify(r)).toBeGreaterThanOrEqual(2);   // 자동저장 사건이 하나 더 올 수 있다 — 뜻은 «버리지 않음»
+});
+
+/* 세 섹션 · 서버는 secA·secB 를 지금 판 그대로 안다(secC 만 내가 바꿈) */
+async function threeSecs(page) {
+  await page.evaluate(() => {
+    const sec = (id, t) => `<div class="section-block" id="${id}"><div class="section-inner"><div class="tb">${t}</div></div></div>`;
+    document.getElementById('canvas').innerHTML = sec('secA', 'A0') + sec('secB', 'B0') + sec('secC', 'C0');
+    const pid = window.state.currentPageId;
+    const snap = JSON.parse(window.serializeProject());
+    const html = (id) => { const d = new DOMParser().parseFromString(`<div>${(snap.pages.find(p => p.id === pid) || snap.pages[0]).canvas}</div>`, 'text/html'); return d.getElementById(id).outerHTML; };
+    window.__srvSecs = ['secA', 'secB'].map(id => ({ pageId: pid, sectionId: id, hash: window.__hash(html(id)) }));
+    window.__edit('secC', 'C1');
+    const pull = window.electronAPI.collab.pull;
+    window.__pullFail = 0;
+    window.electronAPI.collab.pull = async (q) => { if (window.__pullFail > 0) { window.__pullFail--; return { ok: false, reason: 'offline' }; } const r = await pull(q); return { ...r, sections: window.__srvSecs }; };
+  });
+}
+const myPushes = (page) => page.evaluate(() => window.__log.filter(p => p.actorId !== 'other').map(p => p.sectionId));
+const saveEvt = (page) => page.evaluate(() => { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } })); return new Promise(r => setTimeout(r, 300)); });
+
+test('C5 읽는 중 저장은 안 올린다 — ready 뒤 재개가 진짜 차이(secC)만 올린다', async ({ page }) => {
+  await boot(page); await threeSecs(page);
+  await page.evaluate(() => { window.__phase = 'loading'; window.gdtProjectReady = { get: () => ({ urlProject: 'proj_x', projectId: window.__phase === 'ready' ? 'proj_x' : null, phase: window.__phase }) }; });
+  await page.evaluate(() => window.collabSync.start('proj_x'));
+  await saveEvt(page);
+  expect(await myPushes(page), '★읽는 중 자동저장이 섹션을 올렸다').toEqual([]);
+  await page.evaluate(async () => { window.__phase = 'ready'; await window.collabSync.tick(); await new Promise(r => setTimeout(r, 200)); });
+  expect(await myPushes(page), '재개는 진짜 차이만').toEqual(['secC']);
+});
+test('C6 첫 재개 실패 뒤 저장은 안 올린다 — 다음 tick 재개가 차이만 올린다', async ({ page }) => {
+  await boot(page); await threeSecs(page);
+  const st = await page.evaluate(async () => { window.__pullFail = 1; return window.collabSync.start('proj_x'); });
+  expect(st.ok, '[전제] 첫 재개 실패').toBe(false);
+  await saveEvt(page);
+  expect(await myPushes(page), '★재개 전 저장이 모든 섹션을 올렸다').toEqual([]);
+  await page.evaluate(async () => { await window.collabSync.tick(); await new Promise(r => setTimeout(r, 200)); });
+  expect(await myPushes(page), '재개 재시도는 차이만').toEqual(['secC']);
 });

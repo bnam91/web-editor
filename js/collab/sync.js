@@ -88,7 +88,8 @@
   let _lastPushedSeq = Object.create(null);   // 'pageId::secId' → 내 push 가 받은 서버 seq
   let _conflicts = new Map();                 // 'pageId::secId' → { mode:'kept'|'replaced', mineHtml, theirsHtml, theirs:{actorId,email,seq} }
   let _inFlight = false;
-  let _owedPush = null;              // ⑵ 올리는 중에 온 저장 스냅 — 버리지 않고 끝나면 한 번 더(최신 하나)
+  let _owedPush = null;
+  let _resumed = false;              // ⑶ 재개가 서버 해시를 심었나 — 그 전 자동저장은 모든 섹션을 «바뀜»으로 본다              // ⑵ 올리는 중에 온 저장 스냅 — 버리지 않고 끝나면 한 번 더(최신 하나)
   let _lastError = null;
   let _seqSaved = 0;                  // 디스크에 남긴 진도
   /* COLLAB-RECEIVED-PATCH-LOST-ON-REOPEN-01 — 받은 내용은 화면에만 붙고(자동저장 억제) 진도만 디스크에 올라, 안 만지고 다시 열면 내용은 없고 다시 받지도 못했다.
@@ -755,6 +756,7 @@
     }
     _serverHashes = { ..._sent };
     if (_baseHashes) Object.assign(_sent, _baseHashes);   // 옛 판이 남긴 진도엔 이 값이 없다 — 그땐 위 서버 해시로 간다
+    _resumed = true;   // ⑶ 이제부터 자동저장 push 는 진짜 차이만 본다
     // ② 내가 그 사이 바꾼 것만 올라간다.
     if (typeof window.serializeProject === 'function') {
       /* ★조용한 까닭(A10): pushChanged 안의 실패는 그 안에서 emit 으로 말한다 — 여기는 직렬화 예외만. */
@@ -787,7 +789,7 @@
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0, role: ref.role || '' };
     _seqSaved = _seqDurable = _owedSeq = ref.seq || 0;
     _baseHashes = ref.hashes || null; _durableHashes = ref.hashes || {};
-    _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false;
+    _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false; _resumed = false;
     _sent = Object.create(null);
     _localSnap = Object.create(null);
     _deferred = new Map();
@@ -806,6 +808,7 @@
     _timer = setInterval(tick, POLL_MS);
     _seqTimer = setInterval(() => { settleReceived().finally(flushSeq); }, 10000);
     if (!rs || !rs.ok) {
+      _resumeOwed = true;   // ⑶ 첫 재개가 실패하면 tick 이 재개를 다시 한다(옛: 그냥 pull 로 넘어가 다음 저장이 모든 섹션을 올렸다)
       const reason = (rs && rs.reason) || 'unknown';
       emit({ type: 'start_failed', reason, status: rs && rs.status, collabId: ref.collabId });
       return { ok: false, reason, retrying: true, collabId: ref.collabId };
@@ -829,6 +832,9 @@
     if (!_cfg) return;
     const d = e.detail || {};
     if (d.projectId && _cfg.projectId && d.projectId !== _cfg.projectId) return;  // 탭 전환 레이스
+    /* ★COLLAB-SYNC-OLD-GAPS ⑶ — 재개(서버 해시 심기) 전엔 _sent 가 비어 모든 섹션을 «바뀜»으로 올렸다(읽는 중 · 재개 받는 중 · 첫 재개 실패 뒤).
+       편집은 안 잃는다 — 재개가 그때 프로젝트를 다시 직렬화해 진짜 차이만 올린다. */
+    if (!_resumed) return;
     pushChanged(d.snap);
   });
 
