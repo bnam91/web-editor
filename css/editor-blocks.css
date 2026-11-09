@@ -604,6 +604,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .grd-overlay-handle.nw, .grd-overlay-handle.se { cursor: nwse-resize; }
 .grd-overlay-handle.ne, .grd-overlay-handle.sw { cursor: nesw-resize; }
 .grd-overlay-handle.n, .grd-overlay-handle.s { cursor: ns-resize; }
+/* ★칸 그림 손잡이는 블럭 손잡이보다 한 층 위(GRID-CIRCLE-LEFT-ALIGN-NW-SW-HANDLE-DEAD-01) — 둘이 같은 z(9992)라 겹친 점에선 나중에 붙은 블럭 손잡이가 이겼다.
+   실측(인텔 8fb962a6b): 왼쪽 정렬 원이 그리드 왼쪽 위 모서리에 붙으면 원 nw 중심 = .grd-overlay-handle.nw 중심 → 원 nw 가 안 잡힘(12칸 중 1).
+   칸 그림 손잡이는 그 줄을 고른 동안에만 있다 ⇒ 블럭 손잡이는 겹친 그 한 점에서만 지고, 나머지 동작은 그대로다. */
+.grd-img-overlay-handle { z-index: 9993; }
 
 /* ── Canvas Block overlay resize handles ── */
 .canvas-overlay-handle {
