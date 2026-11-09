@@ -2157,6 +2157,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 #canvas .grid-block .grd-nested .grd-h3:empty::before   { content: '소항목'; }
 #canvas .grid-block .grd-nested .grd-body:empty::before { content: '내용'; }
 #canvas .grid-block .grd-caption:empty::before { content: '캡션을 입력하세요'; }
+/* ★EXPORT-HEIGHT — 내보내기 클론은 #canvas 밖이라 위 안내문이 안 붙고 빈 줄이 높이 0 으로 접혔다(duo 빈 칸 = 35px 짧은 PNG).
+   ⇒ #canvas 밖에선 «보이지 않는 한 글자»(ZWSP)로 줄 높이만 남긴다. 안내문 글자는 여전히 안 그려진다. 캔버스에선 위 #canvas 규칙이 이긴다. */
+.grid-block :is(.grd-h1, .grd-h2, .grd-h3, .grd-body, .grd-caption, .grd-label):empty::before { content: '\200b'; }
 #canvas .grid-block .grd-label:empty::before   { content: 'Label'; }
 
 /* ★빈 «칸»(줄이 하나도 없다)도 손에 닿게 한다(T-A, 2026-09-16) — 위 :empty::before 와
