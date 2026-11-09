@@ -44,7 +44,8 @@ function saveSyncSrc() {
 
 // ★_rollBackup 은 «있으면» 싣는다 — base 에는 없다(그래서 ⒜ 가 «동작으로» 빨갛다).
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath',
-  '_ensureNewLayoutPaths', '_refreshListMeta', '_guardProjectName', '_SS', '_rollBackup', '_saveProjectImpl'];
+  '_ensureNewLayoutPaths', '_refreshListMeta', '_guardProjectName', '_SS', '_rollBackup', '_saveProjectImpl',
+  ...(MAIN_SRC.includes('function _goneBaseRefusal(') ? ['_goneBaseRefusal'] : [])];   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
 
 /** @param {{naive?:boolean}} o naive = 양성대조(공용 함수를 «검사 없이 복사»로 꺾음) */
 function load(projectsDir, { naive = false } = {}) {
@@ -57,7 +58,7 @@ function load(projectsDir, { naive = false } = {}) {
   // 부른 기록(⒝ — «불렸고 거절»을 «안 불림»과 가른다). 함수 선언은 다시 묶을 수 있는 이름이다.
   body += `\nif (typeof _rollBackup === 'function') { const __rb = _rollBackup; _rollBackup = function (...a) { const r = __rb(...a); __calls.push(r); return r; }; }`;
   const factory = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain', '__calls',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {};\nconst _isProjectDeleted = () => false; const _seenProjects = new Set();\n` + (/const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\n' : '') + body + '\n' + saveSyncSrc() +
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {};\nconst _isProjectDeleted = () => false; const _seenProjects = new Set();\nconst _goneRecreated = new Set(); const _recordSyncSaveFailure = () => {};\n` + (/const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\n' : '') + body + '\n' + saveSyncSrc() +
     `\n; return { _saveProjectImpl };`);
   const R = factory(fs, path, projectsDir, req, { log() {}, warn: (...a) => warns.push(a.join(' ')), error() {} }, ipcMain, calls);
   return {

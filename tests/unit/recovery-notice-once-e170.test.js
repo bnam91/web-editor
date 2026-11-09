@@ -37,7 +37,7 @@ function loadHandlerSrc() {
   return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
 }
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel',
-  '_resolveMetaJsonPath', '_refreshListMeta', '_guardProjectName', '_rollBackup', '_saveProjectImpl']
+  '_resolveMetaJsonPath', '_refreshListMeta', '_guardProjectName', '_rollBackup', '_saveProjectImpl', '_goneBaseRefusal']   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
   .filter(n => [`function ${n}(`, `const ${n} = `].some(p => MAIN_SRC.includes(p)));
 /** main 쪽 상태(표지)는 «한 앱 실행» 동안 산다 — 한 loader = 한 실행 */
 function app(projectsDir) {
@@ -46,7 +46,7 @@ function app(projectsDir) {
   // 표지 상태(있으면) — 핸들러 밖 최상위 선언이라 같이 떼어 온다
   const stateDecl = /const _recentRecovery = new Map\(\);/.test(MAIN_SRC) ? 'const _recentRecovery = new Map();\nconst _isProjectDeleted = () => false; const _seenProjects = new Set();\n' : 'const _isProjectDeleted = () => false; const _seenProjects = new Set();\n';
   const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\n` + stateDecl +
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst _externalizeOnOpen = () => {};\nconst _goneRecreated = new Set(); const _recordSyncSaveFailure = () => {};\n` + stateDecl +
     'const syncClaudePmTitle = async () => {};\n' + FNS.map(fnSrc).join('\n\n') + '\n' + loadHandlerSrc() + '\n' + saveSyncSrc() + '\n; return { _saveProjectImpl };')(fs, path, projectsDir, req, { log() {}, warn() {}, error() {} }, { handle: (ch, fn) => { handlers[ch] = fn; }, on: (ch, fn) => { on[ch] = fn; } });
   return { load: (id, opts) => handlers['projects:load']({}, id, opts), save: (p) => R._saveProjectImpl(p), saveSync: (p) => { const ev = {}; on['projects:save-sync'](ev, p); return ev.returnValue; } };
 }

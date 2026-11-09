@@ -24,14 +24,15 @@ const stmt = (A) => {
   return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
 };
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths',
-  '_refreshListMeta', '_guardProjectName', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel', '_rollBackup', '_saveProjectImpl'];
+  '_refreshListMeta', '_guardProjectName', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel', '_rollBackup', '_saveProjectImpl',
+  ...(MAIN_SRC.includes('function _goneBaseRefusal(') ? ['_goneBaseRefusal'] : [])];   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
 
 function load(dir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
   const h = {}; const ipcMain = { handle: (c, f) => { h[c] = f; }, on: (c, f) => { h[c] = f; } };
   const body = FNS.map(fnSrc).join('\n\n') + '\n' + stmt("ipcMain.handle('projects:load'") + '\n' + stmt("ipcMain.on('projects:save-sync'");
   const R = new Function('fs', 'path', 'PROJECTS_DIR', 'require', 'console', 'ipcMain',
-    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {}; const _isProjectDeleted = () => false; const _seenProjects = new Set(); const _externalizeOnOpen = () => {}; const _recentRecovery = new Map(); const _recordSyncSaveFailure = () => {};\n${body}\n; return { _saveProjectImpl };`
+    `let _ssMod = null, _ssTried = false; const _SS_FALLBACK = {};\nconst syncClaudePmTitle = async () => {}; const _isProjectDeleted = () => false; const _seenProjects = new Set(); const _externalizeOnOpen = () => {}; const _recentRecovery = new Map(); const _recordSyncSaveFailure = () => {}; const _goneRecreated = new Set();\n${body}\n; return { _saveProjectImpl };`
   )(fs, path, dir, req, { log() {}, warn() {}, error() {} }, ipcMain);
   return {
     open: (id) => h['projects:load']({}, id, { open: true }),

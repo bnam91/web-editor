@@ -2406,7 +2406,8 @@ window.addEventListener('beforeunload', () => {
         updatedAt: new Date().toISOString(),
       };
       if (applyAdoptedAssets(proj, activeProjectId)) snap = JSON.stringify(snapData);   // 아래 localStorage 본도 — 파일보다 새로워 다음 열기에 이기면 옛 주소가 파일까지 되돌린다
-      const result = window.electronAPI.saveProjectSync(_markGoneBase(proj, activeProjectId));
+      _markGoneBase(proj, activeProjectId);   // 남은 본 표시(proj 에 붙인다) — 호출 글자는 그대로 둔다(tests/unit/unload-save-adopted 가 그 자리를 잰다)
+      const result = window.electronAPI.saveProjectSync(proj);
       _unloadFiled = !!result && result.ok !== false;
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
