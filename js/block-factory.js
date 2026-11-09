@@ -3090,6 +3090,7 @@ window.setSectionBg = function(sectionEl, color) {
      ★`_meshWas` 가 참이면 ★아래 `applySectionBg` 를 ★불러야 ★메시 그림이 ★치워진다. */
   const _meshWas = !!sec.dataset.bgMesh;
   if (_meshWas) delete sec.dataset.bgMesh;
+  delete sec.dataset.bgMeshGeo;   // ★t4-03 — 메시를 걷으면 모서리 자리도 같이
   if (color) {
     sec.style.backgroundColor = color;
     sec.dataset.bg = color;

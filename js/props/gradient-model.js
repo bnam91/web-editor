@@ -524,6 +524,7 @@ registerGradientTarget({
     },
     set: (css, commit) => {
       delete sec.dataset.bgMesh;
+      delete sec.dataset.bgMeshGeo;   // ★t4-03
       sec.dataset.bg = css;
       window.applySectionBg?.(sec);
       window.scheduleAutoSave?.();

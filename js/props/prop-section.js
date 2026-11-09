@@ -281,17 +281,61 @@ export function meshColorsOf(spec) {
   const corners = meshCornersOf(spec);
   return corners ? corners.map((st) => st[0].color) : null;
 }
-/** 저장 꼴 → 그릴 CSS. 꼴이 안 맞으면 `null`. */
-export function sectionMeshCss(spec) {
+/* ★t4-03 ㉠ — 모서리 겹의 «자리»(중심 x·y · 반지름 rx·ry, 단위 % · 100% 반지름 = 상자 폭·높이).
+   저장 = `data-bg-mesh-geo="x y rx ry|…×4"`(TL|TR|BR|BL) — ⛔data-bg-mesh 안에 넣지 마라: 옛 판(v0.9.9·10)이 그 칸을
+   못 읽으면 메시를 통째로 끈다(설계서 T403A §1-1). 옛 판은 이 속성을 모르니 기본 모서리로 그린다.
+   네 칸이 모두 기본이면 속성을 지운다 = 저장 바이트·CSS 가 오늘과 같다. 꼴·범위가 틀리면 geo 만 버린다(메시는 그린다). */
+export const MESH_POS_RANGE = Object.freeze([-20, 120]);
+export const MESH_RAD_RANGE = Object.freeze([10, 200]);
+const MESH_GEO_DEF = Object.freeze({ tl: [0, 0], tr: [100, 0], br: [100, 100], bl: [0, 100] });
+const MESH_GEO_RE = /^-?\d{1,3}(?:\.\d{1,2})? -?\d{1,3}(?:\.\d{1,2})? \d{1,3}(?:\.\d{1,2})? \d{1,3}(?:\.\d{1,2})?$/;
+const _geoR = (v) => Math.round(v * 100) / 100;
+const _geoClamp = (v, [lo, hi]) => _geoR(Math.max(lo, Math.min(hi, Number(v) || 0)));
+export const meshGeoDefault = (k) => ({ x: MESH_GEO_DEF[k][0], y: MESH_GEO_DEF[k][1], rx: 100, ry: 100 });
+const _geoIsDefault = (g, k) => g.x === MESH_GEO_DEF[k][0] && g.y === MESH_GEO_DEF[k][1] && g.rx === 100 && g.ry === 100;
+/** 저장 글자 → [{x,y,rx,ry}×4] · 꼴이나 범위가 하나라도 틀리면 `null`. */
+export function meshGeoParse(str) {
+  const parts = String(str ?? '').split('|');
+  if (parts.length !== MESH_CORNERS.length || !parts.every((p) => MESH_GEO_RE.test(p))) return null;
+  const geo = parts.map((p) => { const [x, y, rx, ry] = p.split(' ').map(Number); return { x, y, rx, ry }; });
+  const inR = (v, [lo, hi]) => v >= lo && v <= hi;
+  return geo.every((g) => inR(g.x, MESH_POS_RANGE) && inR(g.y, MESH_POS_RANGE) && inR(g.rx, MESH_RAD_RANGE) && inR(g.ry, MESH_RAD_RANGE)) ? geo : null;
+}
+/** 섹션 → 네 겹의 자리(없거나 틀리면 기본 모서리). */
+export function meshGeoOf(sec) { return meshGeoParse(sec?.dataset?.bgMeshGeo) || MESH_CORNERS.map(meshGeoDefault); }
+/** 네 겹의 자리 → 저장 글자 · 모두 기본이면 ''. */
+export function meshGeoSpecOf(geo) {
+  if (geo.every((g, i) => _geoIsDefault(g, MESH_CORNERS[i]))) return '';
+  return geo.map((g) => [g.x, g.y, g.rx, g.ry].join(' ')).join('|');
+}
+/** 한 겹의 자리를 쓰고(범위로 자르고) 다시 칠한다 — 캔버스 모서리 점(js/mesh-corner-overlay.js)이 쓴다. */
+export function setMeshCornerGeo(sec, i, g) {
+  const geo = meshGeoOf(sec);
+  geo[i] = g ? { x: _geoClamp(g.x, MESH_POS_RANGE), y: _geoClamp(g.y, MESH_POS_RANGE), rx: _geoClamp(g.rx, MESH_RAD_RANGE), ry: _geoClamp(g.ry, MESH_RAD_RANGE) }
+    : meshGeoDefault(MESH_CORNERS[i]);
+  const spec = meshGeoSpecOf(geo);
+  if (spec) sec.dataset.bgMeshGeo = spec; else delete sec.dataset.bgMeshGeo;
+  _applySectionBg(sec);
+  return geo[i];
+}
+/** 저장 꼴 → 그릴 CSS. 꼴이 안 맞으면 `null`. geo 를 안 주거나 그 겹이 기본이면 오늘 글자 그대로(farthest-side at 모서리). */
+export function sectionMeshCss(spec, geo) {
   const corners = meshCornersOf(spec);
   if (!corners) return null;
   const cols = corners.map((st) => st[0].color);
   const image = MESH_CORNERS
-    .map((k, i) => 'radial-gradient(' + MESH_SHAPE + ' at ' + MESH_AT[k] + ', ' + corners[i].map(_meshStopCss).join(', ') + ')')
+    .map((k, i) => {
+      const g = geo?.[i];
+      const shape = !g || _geoIsDefault(g, k) ? MESH_SHAPE + ' at ' + MESH_AT[k] : `ellipse ${g.rx}% ${g.ry}% at ${g.x}% ${g.y}%`;
+      return 'radial-gradient(' + shape + ', ' + corners[i].map(_meshStopCss).join(', ') + ')';
+    })
     .join(', ');
   return { image, blend: MESH_CORNERS.map(() => MESH_BLEND).join(', '), base: _meshBase(cols), colors: cols, corners };
 }
 window.sectionMeshCss = sectionMeshCss;
+window.meshGeoOf = meshGeoOf;
+window.setMeshCornerGeo = setMeshCornerGeo;
+window.meshCornersOf = meshCornersOf;
 
 function _applySectionBg(sec) {
   /* ★체크 배경(빈 이미지 자리) — 무늬는 CSS 한 자리(.sec-bg-empty)가 준다.
@@ -340,7 +384,7 @@ function _applySectionBg(sec) {
      ★그리고 ★그림만 그릴 때 ★`backgroundColor` 를 ★★`transparent` 가 아니라 ★★그 색으로 둔다 —
        ★배경색은 ★언제나 ★그림 ★«아래»라 ★가릴 일이 없고, ★그림이 ★못 뜨면 ★그 색이 ★받쳐 준다. */
   /* ★★prev-06 메시 — ★그림이 ★없을 때만. ★그림이 있으면 ★그 합성이 ★주인이다(아래 분기 그대로). */
-  const mesh = img ? null : sectionMeshCss(sec.dataset.bgMesh);
+  const mesh = img ? null : sectionMeshCss(sec.dataset.bgMesh, meshGeoOf(sec));
   if (mesh) {
     sec.style.backgroundImage = mesh.image;
     sec.style.backgroundBlendMode = mesh.blend;
@@ -478,11 +522,11 @@ async function showSectionProperties(sec) {
       title="네 모서리 색을 번지게 섞어 메시 그라데이션처럼 보이게 합니다. 피그마의 메시와 똑같지는 않습니다(v1)">
       ${meshOn ? '메시 그라데이션 끄기' : '메시 그라데이션'}</button>
     ${meshOn ? MESH_CORNERS.map((k, i) => `
-    <div class="prop-color-row" style="margin-top:4px;">
+    <div class="prop-color-row" style="margin-top:4px;" data-mesh-corner="${k}">
       <span class="prop-label">${MESH_LABEL[k]}</span>
       ${colorFieldHTML({ idPrefix: `sec-mesh-${k}`, hex: meshCols[i], alpha: Math.round(meshCorners[i][0].opacity * 100) })}
     </div>
-    <div class="sec-mesh-stops" data-corner="${k}">
+    <div class="sec-mesh-stops" data-corner="${k}" data-mesh-corner="${k}">
       <div class="goya-cp-gradient-bar sec-mesh-bar" id="sec-mesh-${k}-bar" title="더블클릭으로 스톱 추가"><div class="goya-cp-gradient-fill"></div></div>
       <button type="button" class="goya-cp-grad-stop-del" id="sec-mesh-${k}-del" title="스톱 삭제(최소 2개)">×</button>
     </div>`).join('') + `
@@ -763,7 +807,7 @@ ${blockHeaderHTML({
        (★「피커가 먹통」으로 보인다 · tests/dom/section-mesh-gradient-v1 ★M9 가 잰다).
      ★이것은 ★새 규약이 ★아니다 — ★그라데이션도 ★「단색을 주면 걷는다」가 ★이미 규약이다
        (tests/dom/section-bg-gradient ★G10 · `block-factory.js setSectionBg` 머리말). */
-  const _setSecBg = (v) => { delete sec.dataset.bgMesh; sec.dataset.bg = v; _applySectionBg(sec); _syncSecGradLine(sec); };
+  const _setSecBg = (v) => { delete sec.dataset.bgMesh; delete sec.dataset.bgMeshGeo; sec.dataset.bg = v; _applySectionBg(sec); _syncSecGradLine(sec); };
   wireColorField('sec-bg', {
     initialAlpha: secBgAlpha,
     gradientValue: bgGradCss,   // 재선택 뒤에도 그라데이션 탭·정지점으로 열린다(T-059 2라운드 규약)
@@ -782,6 +826,7 @@ ${blockHeaderHTML({
   document.getElementById('sec-bg-mesh')?.addEventListener('click', () => {
     if (meshColorsOf(sec.dataset.bgMesh)) delete sec.dataset.bgMesh;
     else sec.dataset.bgMesh = meshSpecOf(MESH_DEFAULT);
+    delete sec.dataset.bgMeshGeo;   /* ★t4-03 — 켤 때도 지운다(옛 판이 남긴 고아 geo 가 되살아나지 않게) */
     _applySectionBg(sec);
     _syncSecGradLine(sec);
     pushHistory();
@@ -793,7 +838,7 @@ ${blockHeaderHTML({
      ★저장은 매번 «지금 값에서 다시 읽어» 쓴다 — 네 칸이 같은 한 줄(dataset.bgMesh)을 공유한다(아래 onApply 머리말과 같은 까닭).
      ★기록: 끌기 한 번·추가·삭제 = ⌘Z 한 걸음(움직이지 않은 클릭은 기록 0 — 피커 썸과 같은 규칙). */
   const _meshSel = {};   // 모서리 → 고른 스톱 번호(위치 오름차순 기준)
-  const _meshWrite = (corners) => { sec.dataset.bgMesh = meshSpecOfCorners(corners); _applySectionBg(sec); };
+  const _meshWrite = (corners) => { sec.dataset.bgMesh = meshSpecOfCorners(corners); _applySectionBg(sec); window.showMeshCorners?.(sec); };
   const _meshLerpHex = (h1, h2, t) => '#' + [1, 3, 5].map((o) => _hex2(Math.round(parseInt(h1.slice(o, o + 2), 16) * (1 - t) + parseInt(h2.slice(o, o + 2), 16) * t))).join('');
   const _meshField = (k, st) => {
     if (!st) return;
@@ -1235,6 +1280,7 @@ function _syncSecGradLine(sec) {
   } else {
     window.hideGradientLine?.(sec);
   }
+  window.showMeshCorners?.(sec);   // ★t4-03 — 메시면 캔버스 모서리 점(아니면 스스로 거둔다)
 }
 /* 캔버스에서 바를 끌면(source==='canvas') 패널 스와치만 따라간다 — 쓰기·칠하기는 어댑터 set() 이 이미 했다(배너02 와 같은 규약). */
 document.addEventListener('gradient-line:change', (e) => {
