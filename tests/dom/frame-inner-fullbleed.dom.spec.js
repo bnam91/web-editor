@@ -232,8 +232,11 @@ test('FI1 ★★★«자르는 겉 프레임» 안에서 ★패딩제외가 ★�
   expect(after.styleWidth, `★★폭 식이 ★calc(100% + ${OUTER_PAD * 2}px) 여야 한다. 잰 값 ${JSON.stringify(after)}`)
     .toBe(`calc(100% + ${OUTER_PAD * 2}px)`);
   expect(after.marginL, `★★왼쪽 마진이 ★-${OUTER_PAD}px 여야 한다. 잰 값 ${JSON.stringify(after)}`).toBe(`-${OUTER_PAD}px`);
-  expect(after.rectW - before.rectW,
-    `★★그려진 폭이 ★★2×${OUTER_PAD} 만큼 ★늘어야 한다. 잰 값 전=${before.rectW} 후=${after.rectW}`).toBe(OUTER_PAD * 2);
+  /* ★t3-05(2026-11-09): 진입한 프레임 안 새 프레임은 «부모 안쪽의 80%» 로 태어난다 ⇒ 켜기 전 폭은 안쪽 폭이 아니다.
+     ⇒ «전 + 2×패딩» 대신 «그려진 폭 = 겉 안쪽 폭 + 2×패딩 · 왼쪽 = 겉 상자 왼쪽» 을 잰다(같은 뜻을 전 폭과 무관하게 · 더 좁은 단언) */
+  expect(after.rectW,
+    `★★그려진 폭 = ★겉 안쪽 폭(${before.frInnerW}) ＋ 2×${OUTER_PAD}. 잰 값 전=${before.rectW} 후=${after.rectW}`).toBe(before.frInnerW + OUTER_PAD * 2);
+  expect(after.rectL, `★★왼쪽 = ★겉 프레임 상자 왼쪽(${before.frBoxL}). 잰 값 ${JSON.stringify(after)}`).toBe(before.frBoxL);
   expect(errs.map((e) => String(e)), '★오류 0').toEqual([]);
 });
 
