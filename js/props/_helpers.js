@@ -47,10 +47,11 @@ export function noticeRatioRejected(raw, count) {
  * @param {number} [opts.max=Infinity]     클램프 상한
  * @param {boolean} [opts.autosave=true]   change 시 scheduleAutoSave 호출
  * @param {boolean} [opts.history=true]    mousedown / number-change 시 pushHistory 호출
+ * @param {boolean} [opts.allowEmpty=false] 빈 칸이 «미설정» 뜻인 칸 — number change 때 빈 값을 clamp·되쓰기 하지 않는다(applyFn 은 호출부가 capture 로 처리)
  */
 export function bindSlider(slider, number, applyFn, opts = {}) {
   if (!slider || !number) return;
-  const { min = 0, max = Infinity, autosave = true, history = true } = opts;
+  const { min = 0, max = Infinity, autosave = true, history = true, allowEmpty = false } = opts;
   const clamp = (raw) => {
     const v = parseInt(raw);
     if (Number.isNaN(v)) return min;
@@ -73,6 +74,7 @@ export function bindSlider(slider, number, applyFn, opts = {}) {
     slider.value = v;
   });
   number.addEventListener('change', () => {
+    if (allowEmpty && String(number.value).trim() === '') { if (history) window.pushHistory?.(); if (autosave) window.scheduleAutoSave?.(); return; }   // 빈 칸 = «미설정» 뜻(알약 둥글기·구분선 너비) — clamp·되쓰기 없이 빈 채로
     if (history)  window.pushHistory?.();
     if (autosave) window.scheduleAutoSave?.();
   });
