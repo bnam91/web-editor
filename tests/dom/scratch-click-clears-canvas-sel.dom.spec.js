@@ -5,7 +5,8 @@
  *     C2 [대조] Shift 클릭은 캔버스 선택을 안 푼다(섞어 고르기 유지 — 바꾸지 않은 길)
  *     C3 [지킴] (적대 리뷰 1 의심) 패널 숫자칸에 Enter 없이 친 값 → 장 클릭 → 값이 블럭에 들어간다. 잰 것(인텔): 패널이 갈릴 때 Chromium 이 칸을 떼기 «전»
  *        change·blur 를 쏜다(isConnected true) ⇒ 이 고침에서도 커밋된다 — 별도 blur 줄은 효과 0 이라 안 넣었다(넣은 판·뺀 판 같은 값). 앞으로 패널 갈기·포커스 순서가 바뀌면 이 칸이 문다.
- * ★양성대조: js/scratch-pad.js 를 기준판(c1588d839)으로 되돌리면 C1 빨강. */
+ *     C4 (리뷰 2) 그리드 줄에 글 쓰다 장 클릭 → Backspace = 장만 지움 · 줄 글자 그대로(옛: 줄 «abc»→«ab», 장 남음 — 기준판·blur 없는 판 둘 다)
+ * ★양성대조: js/scratch-pad.js 를 기준판(c1588d839)으로 되돌리면 C1·C4 빨강 · 캔버스 blur 줄만 빼면 C4 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 
@@ -81,4 +82,19 @@ test('C3 패널 숫자칸에 Enter 없이 친 값은 장을 눌러도 블럭에 
   await clickItem(page);
   await expect.poll(() => page.evaluate(() => document.getElementById('gC').offsetHeight), '★친 값이 버려졌다(패널만 갈림)').toBe(want);
   expect((await st(page)).itemSel, '장은 골랐다').toBe(true);
+});
+
+test('C4 그리드 줄 편집 중 장 클릭 → Backspace 는 장만 · 줄 글자 그대로', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { const sec = document.querySelector('#canvas .section-block'); window.deselectAll?.(); window.selectSection?.(sec); window.addGridBlock?.(); window.deselectAll?.(); });
+  const line = page.locator('#canvas .grid-block .grd-line').first(); await line.scrollIntoViewIfNeeded(); const r = await line.boundingBox();
+  const inGrid = () => page.evaluate(() => !!(document.activeElement?.isContentEditable && document.activeElement.closest('.grid-block')));
+  for (let i = 0; i < 4 && !(await inGrid()); i++) { await page.mouse.dblclick(r.x + 10, r.y + r.height / 2); await settle(page); }
+  expect(await inGrid(), '[전제] 그리드 줄 편집 중').toBe(true);
+  await page.keyboard.press('Meta+a'); await page.keyboard.type('abc'); await settle(page);
+  await clickItem(page);
+  expect((await st(page)).itemSel, '[전제] 장을 골랐다').toBe(true);
+  await page.keyboard.press('Backspace'); await settle(page);
+  await expect.poll(() => page.evaluate(() => document.querySelector('#canvas .grid-block .grd-line')?.innerText), '★Backspace 가 줄 글자를 지웠다').toBe('abc');
+  expect((await st(page)).item, '★장이 안 지워졌다').toBe(false);
 });
