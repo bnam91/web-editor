@@ -122,15 +122,30 @@ test('저장 → 다시 열기 — 새 프레임 색·크기 유지 · 옛 프�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-/* ★지디(261109) 하한 — 부모 안쪽이 FRAME_CHILD_MIN_INNER(40px) 보다 작으면(높이 0·내용 맞춤 부모) 그 축은 섹션 기본 860×520 의 80% = 688×416.
-   옛(397f224ca)은 그대로 80% → 1px·24px 같은 자식이 생겼다. */
-for (const [tag, size, want] of [['높이만 작음(600×30)', { w: 600, h: 30 }, { w: 480, h: 416 }], ['둘 다 작음(30×30)', { w: 30, h: 30 }, { w: 688, h: 416 }]]) test(`하한 — ${tag} 부모에 들어가 F → ${want.w}×${want.h}`, async ({ page }) => {
+/* ★지디(261109) 크기 규칙 — ⒝ 정한 크기(px) 부모: 안쪽의 80%·최소 24px·부모 안쪽을 넘지 않음 ⇒ 부모 크기 그대로(t3-06 꼴 안 만듦)
+   ⒜ 내용 맞춤 부모(정한 높이 없음)·안쪽 < 40px: 그 축 = 섹션 기본의 80%(높이 416). 옛(397f224ca)은 1px·24px, 9e398ea36 은 고정 부모도 416 으로 키웠다. */
+for (const [tag, size, want] of [['고정 600×30', { w: 600, h: 30 }, { w: 480, h: 24 }], ['고정 30×30', { w: 30, h: 30 }, { w: 24, h: 24 }]]) test(`크기 — ${tag} 부모에 들어가 F → ${want.w}×${want.h} · 부모 크기 그대로`, async ({ page }) => {
   const errs = await scene(page);
   await page.evaluate(({ w, h }) => { const f = document.getElementById('EF'); f.style.width = w + 'px'; f.style.height = h + 'px'; f.style.minHeight = '0'; f.style.minWidth = '0'; }, size);
-  expect(await page.evaluate(() => { const f = document.getElementById('EF'); return [f.clientWidth, f.clientHeight]; }), '[전제] 부모 안쪽이 그 크기').toEqual([size.w, size.h]);
   await raf(page);
+  expect(await page.evaluate(() => { const f = document.getElementById('EF'); return [f.clientWidth, f.clientHeight]; }), '[전제] 부모 안쪽이 그 크기').toEqual([size.w, size.h]);
   await enter(page, 'EF');
   const r = await info(page, await make(page, 'F'));
   expect(r, JSON.stringify(r)).toMatchObject({ ...WHITE, parent: 'EF', dw: String(want.w), dh: String(want.h) });
+  await raf(page);
+  expect(await page.evaluate(() => { const f = document.getElementById('EF'); return [f.offsetWidth, f.offsetHeight]; }), '★자식 넣은 뒤 부모 크기 그대로').toEqual([size.w, size.h]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('크기 — 내용 맞춤 흐름 부모(정한 높이 없음·자식 없음·padding 10) → 높이 416 · 너비 안쪽의 80%', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(() => { const f = document.getElementById('FL'); f.querySelectorAll(':scope > *').forEach((k) => k.remove()); f.style.minHeight = '0'; f.style.height = ''; });
+  await raf(page);
+  const inner = await page.evaluate(() => { const f = document.getElementById('FL'); return { w: f.clientWidth - 20, h: f.clientHeight - 20, styleH: f.style.height }; });
+  expect(inner.h, '[전제] 안쪽 높이가 40 미만').toBeLessThan(40);
+  expect(inner.styleH, '[전제] 정한 높이 없음').toBe('');
+  await enter(page, 'FL');
+  const r = await info(page, await make(page, 'F'));
+  expect(r, JSON.stringify(r)).toMatchObject({ ...WHITE, parent: 'FL', dw: String(Math.round(inner.w * 0.8)), dh: '416' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
