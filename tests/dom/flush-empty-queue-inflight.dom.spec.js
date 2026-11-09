@@ -93,9 +93,12 @@ test('Q3 종료 flush 가 줄의 새 본(FM2)을 쓴 뒤 beforeunload flush 가 
   }, A);
   await quit(page);
   expect(await fileHas(page, 'FM2'), '[전제] 종료 flush 가 새 본을 썼다').toBe(true);
+  const n0 = await page.evaluate(() => window.__syncs.length);
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
-  const last = await page.evaluate(() => JSON.stringify(window.__syncs.at(-1)));
-  expect(last.includes('FM2'), '★두 번째 flush 가 옛 본으로 덮었다').toBe(true);
+  /* 마지막 sync 만 보면 활성 탭 저장(화면 본 FM2)이 옛 본 쓰기를 가린다 — 두 번째 flush 의 sync 전부를 본다 */
+  const after = await page.evaluate((n0) => window.__syncs.slice(n0).map((p) => JSON.stringify(p).includes('FM2')), n0);
+  expect(after.length, '[전제] 두 번째 flush 가 돌았다').toBeGreaterThan(0);
+  expect(after.every(Boolean), '★두 번째 flush 가 옛 본(FM1)으로 덮었다').toBe(true);
   expect(await fileHas(page, 'FM2')).toBe(true);
   await page.evaluate(() => window.__rel()); await page.waitForFunction(() => !window._isSavingToFile);
   expect(errs).toEqual([]);
