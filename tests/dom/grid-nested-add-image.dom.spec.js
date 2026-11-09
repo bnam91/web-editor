@@ -127,10 +127,10 @@ async function fillNested(page, id) {
   await rclickMenu(page, INNER1(id), '#bcm-grid-img');
   const slot = `#${id} .grd-img-empty[data-npath="1.1"]`;
   await page.waitForSelector(slot, { timeout: COND_MS });
-  const r = await waitStableRect(page, slot);
-  const fc = page.waitForEvent('filechooser');
-  await page.mouse.dblclick(r.cx, r.cy);
-  await (await fc).setFiles(pngFile());
+  await waitStableRect(page, slot);
+  // 누르는 순간 슬롯을 다시 찾는다 — 사이에 다시 그려지면 옛 좌표 더블클릭이 파일창을 못 연다(1109t1A2 평가: 66회 중 1회 흔들림)
+  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.locator(slot).dblclick()]);
+  await fc.setFiles(pngFile());
   await page.waitForFunction((id) => !!document.querySelector(`#${id} [data-npath="1.1"] img, #${id} img[data-npath="1.1"]`)
     || !!(window.getGridModel(document.getElementById(id)).cells[0][0].lines[1].cols[1].lines[1].imgSrc), id, { timeout: COND_MS });
 }
