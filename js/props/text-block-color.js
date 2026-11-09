@@ -203,6 +203,7 @@ export function clearTextGradient(contentEl) {
   st.removeProperty('-webkit-text-fill-color');
   st.removeProperty('caret-color');
   st.removeProperty('--tb-grad-fb');   /* ★점 글자의 대체 채움색 — caret-color 와 ★한 쌍으로 두고 걷는다(바로 아래 applyTextGradient 의 그 줄) */
+  _clearGradGeometry(st);
   _stripSpanFill(contentEl);
   syncTextGradShadow(contentEl);   // 0919r3: 그라데이션이 풀리면 원래 text-shadow 로 복귀
   // 0920b textgrad-bar: 그라데이션이 «실제로» 풀렸을 때만 캔버스 바를 내린다.
@@ -211,6 +212,55 @@ export function clearTextGradient(contentEl) {
   //   남아 있다»가 된다(prop-shape.js 가 같은 이유로 hideGradientLine 을 부른다).
   window.hideGradientLine?.(contentEl.closest?.('.text-block') || contentEl);
   return true;
+}
+
+/* ★t4-02 (현빈 tb_rwx4l_atr5nd1): background-clip:text 는 그라데이션을 «상자» 전체에 깐다.
+ *   폭 100% 블럭에서 정렬로 «글자만» 옮기면 글자는 그라데이션의 한 구간만 받는다
+ *   (실측 600px 상자·267px 글자: 가운데 = 28~72% · 오른쪽 = 55~100% ⇒ 기본 «100%→0%»는 오른쪽 정렬이면 거의 투명
+ *    = 「솔리드 갔다 다시 그라데이션을 걸어도 안 먹는다」의 정체 — 값은 걸렸고 «보이는 구간»이 틀렸다).
+ * ⇒ 칠 구간의 폭 = 글자 폭(가장 긴 줄), 가로 위치 = 정렬 비율(0/50/100%). % 위치는 (상자−그림)×p 라
+ *   글자 덩어리의 왼끝과 정확히 같고, 상자 폭이 바뀌어도 따라간다. 폭만 «잰 값»이라 글자·스타일이 바뀌면 다시 잰다
+ *   (아래 관찰자 · applyTextGradient · 정렬 단추). 저장소는 같은 인라인 스타일 한 곳(옛 저장본 = 열 때 한 번 맞춘다). */
+const _GEO_PROPS = ['background-size', 'background-position', 'background-origin'];
+function _clearGradGeometry(st) { _GEO_PROPS.forEach(p => st.removeProperty(p)); }
+// 글자 노드들의 가로 범위(화면 px). 줄 div·점 span 같은 «요소 상자»는 빼고 글자만 센다(Range 가 요소면 상자 전폭을 준다).
+function _textSpanX(el) {
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const r = document.createRange();
+  let L = Infinity, R = -Infinity;
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    if (!n.data.trim()) continue;
+    r.selectNodeContents(n);
+    for (const q of r.getClientRects()) { if (q.width) { L = Math.min(L, q.left); R = Math.max(R, q.right); } }
+  }
+  return R > L ? { left: L, right: R } : null;
+}
+/** 글자 그라데이션의 칠 구간을 글자에 맞춘다. 그라데이션이 없거나 글자가 비면 기하를 걷는다(= 예전처럼 상자 전체). */
+export function syncTextGradGeometry(contentEl) {
+  const st = contentEl && contentEl.style;
+  if (!st || !contentEl.isConnected) return false;
+  const x = hasTextGradient(contentEl) && _textSpanX(contentEl);
+  const bw = contentEl.getBoundingClientRect().width;
+  if (!x || !bw) { if (st.backgroundSize) _clearGradGeometry(st); return false; }
+  // shortcut: 줌(scale)은 상자 비율로 되돌리지만 회전 블럭은 AABB 라 폭이 근사다 — 회전 글자 그라데이션 민원이 오면 offset 기준으로 바꿀 것.
+  const w = Math.round((x.right - x.left) * contentEl.offsetWidth / bw * 10) / 10;
+  const ta = getComputedStyle(contentEl).textAlign;
+  const want = { 'background-size': `${w}px 100%`,
+    'background-position': (ta === 'center' ? '50%' : (ta === 'right' || ta === 'end') ? '100%' : '0%') + ' 0%',
+    'background-origin': 'content-box' };
+  for (const p of _GEO_PROPS) if (st.getPropertyValue(p) !== want[p]) st.setProperty(p, want[p]);   // 같으면 안 쓴다 — 관찰자 되먹임 차단
+  return true;
+}
+/** 캔버스 그라데이션 바용 «칠 구간» 사각형(화면 px) — 가로 = 글자 범위, 세로 = 상자. 그라데이션 없으면 null. */
+export function textGradientPaintRect(contentEl) {
+  /* ★아직 안 잰 그라데이션(옛 저장본 · 감시자가 돌기 전)이면 지금 잰다 — 안 그러면 캔버스 바가 «상자» 자리에 섰다가
+     다음 프레임에 «글자» 자리로 튄다(실측 x 471 → 385 · B4 칩 끌기가 빗나가던 원인). */
+  if (hasTextGradient(contentEl) && !contentEl.style.backgroundSize) syncTextGradGeometry(contentEl);
+  if (!hasTextGradient(contentEl) || !contentEl.style.backgroundSize) return null;
+  const x = _textSpanX(contentEl);
+  if (!x) return null;
+  const b = contentEl.getBoundingClientRect();
+  return new DOMRect(x.left, b.top, x.right - x.left, b.height);
 }
 
 /**
@@ -264,6 +314,7 @@ export function applyTextGradient(blockEl, g, { commit = false } = {}) {
      tests/dom/text-grad-dot-ul.dom.spec.js G0 이 ★그 동일성을 ★잰다. */
   st.setProperty('--tb-grad-fb', textGradientFallbackColor(contentEl) || fb);
   syncTextGradShadow(contentEl);   // 0919r3: 그림자·네온이 있으면 글자 «뒤»로(기록 «전»에 — 스냅샷에 같이 실린다)
+  syncTextGradGeometry(contentEl);  // t4-02: 칠 구간 = 글자 폭(기록 «전»에)
   if (commit) window.pushHistory?.('글자 그라데이션');
   window.scheduleAutoSave?.();
   return true;
@@ -420,6 +471,25 @@ export function textShadowSource(el) {
 }
 
 const _TGS_SEL = '.tgs, [style*="background-clip"], [data-stroke-align="inside"]';   /* ★1012t1E1 내부 외곽선도 */
+const _GEO_SEL = '[style*="background-clip"]';
+// t4-02: 칠 구간 다시 재기 줄 — 요소당 프레임당 한 번(Set) · 끄는 동안 보류(_geoHeld).
+const _geoQ = new Set();
+let _geoRaf = 0, _geoHeld = false;
+const _geoSeen = new WeakSet();
+const _geoRO = typeof ResizeObserver === 'function' ? new ResizeObserver(es => _geoQueue(es.map(e => e.target))) : null;
+function _geoQueue(els) {
+  for (const e of els) _geoQ.add(e);
+  if (_geoQ.size && !_geoRaf && !_geoHeld) _geoRaf = requestAnimationFrame(_geoFlush);
+}
+function _geoFlush() {
+  _geoRaf = 0;
+  if (_geoHeld) return;
+  const q = [..._geoQ]; _geoQ.clear();
+  for (const el of q) {
+    // ⚠️observe 는 한 번만 — 다시 부르면 첫 통지가 또 와서 매 프레임 되먹임 고리가 된다
+    if (syncTextGradGeometry(el) && _geoRO && !_geoSeen.has(el)) { _geoSeen.add(el); _geoRO.observe(el); }
+  }
+}
 function _syncTree(node) {
   if (!node || node.nodeType !== 1) return;
   if (node.matches && node.matches(_TGS_SEL)) syncTextGradShadow(node);
@@ -457,8 +527,28 @@ if (typeof window !== 'undefined') {
     const _start = () => {
       _syncTree(document.body);
       new MutationObserver((muts) => {
-        for (const m of muts) for (const n of m.addedNodes) _syncTree(n);
-      }).observe(document.body, { childList: true, subtree: true });
+        const geo = [];
+        for (const m of muts) {
+          for (const n of m.addedNodes) {
+            _syncTree(n);
+            if (n.nodeType === 1) { if (n.matches(_GEO_SEL)) geo.push(n); geo.push(...n.querySelectorAll(_GEO_SEL)); }   // 로드·undo·붙여넣기
+          }
+          /* t4-02: 글자·스타일(정렬·크기·서체)이 바뀌면 칠 구간을 다시 잰다(폭이 «잰 값»이라).
+             ★그라데이션 글자 «안»의 변화만 센다 — 조상(프레임·섹션) 스타일은 버린다: 프레임 끌기 틱마다 하위 그라데이션 전부를 재던 원인.
+             조상 크기 변화로 글자가 다시 접히는 꼴은 아래 ResizeObserver 가 받는다(이동엔 안 울린다). */
+          const t = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+          const g = t && t.closest && t.closest(_GEO_SEL);
+          if (g) geo.push(g);
+        }
+        _geoQueue(geo);
+      }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] });
+      /* 마우스 단추가 눌린 동안(끌기)은 재지 않고 모아 두었다가 놓은 뒤 rAF 에 한 번 잰다.
+         shortcut: 앱에 전역 «끄는 중» 깃발이 없어(beginDragHistory 엔 끝 훅이 없다) 단추 상태로 본다 — 끌기 상태가 생기면 그걸로 바꿀 것. */
+      window.addEventListener('mousedown', () => { _geoHeld = true; }, true);
+      const _geoRelease = () => { _geoHeld = false; _geoQueue([]); };
+      for (const ev of ['mouseup', 'pointercancel']) window.addEventListener(ev, _geoRelease, true);
+      window.addEventListener('blur', _geoRelease);   // 창 밖에서 놓은 꼴 · ⚠️캡처로 걸면 요소 blur(끌기 시작의 포커스 이동)까지 받아 보류가 풀린다
+      document.fonts?.addEventListener?.('loadingdone', () => document.querySelectorAll(_GEO_SEL).forEach(syncTextGradGeometry));
     };
     if (typeof document !== 'undefined') {
       if (document.body) _start(); else document.addEventListener('DOMContentLoaded', _start, { once: true });
@@ -469,5 +559,7 @@ if (typeof window !== 'undefined') {
   window.getTextGradient = getTextGradient;
   window.textGradientAllowed = textGradientAllowed;
   window.textGradientFallbackColor = textGradientFallbackColor;
+  window.syncTextGradGeometry = syncTextGradGeometry;
+  window.textGradientPaintRect = textGradientPaintRect;
   window.resolveTextContentEl = resolveTextContentEl;   // 0920b textgrad-bar: 캔버스 바 어댑터 공용
 }
