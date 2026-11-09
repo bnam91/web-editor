@@ -2095,12 +2095,36 @@ function _pickLsOverFile(proj, id, { unmarkedWins = true } = {}) {
      깨진 파일 대신 읽은 백업은 판이 다른 게 당연하다. updatedAt 없는 파일은 비교할 판이 없다. */
   const lsBase = localStorage.getItem(_lsBaseKey(id));
   const lsFromThisFile = _lastOpenFallback === id || (lsBase ? (proj.updatedAt == null || lsBase === String(proj.updatedAt)) : unmarkedWins);
-  if (lsBase && !lsFromThisFile) {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
-    localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
-    localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
+  /* ★LS-NEWER-THAN-FILE-DELETED-ON-OLD-FILE-RESTORE-01 — 파일이 이 본의 바탕 판(lsBase)보다 «옛것» 이면 사용자가 옛 판을 되돌려 놓은 것이다.
+     그 뒤의 LS 편집을 말없이 걷지 않는다: 비상 사본(다음 실행 복구 제안)으로 먼저 남기고, 남겨졌을 때만 걷고 표지를 옮긴다(되돌린 파일이 이긴다 — 지금과 같다).
+     못 남기면 본·표지를 그대로 두고 알린다 — 다음 열기에 다시 한다. 파일이 새것이거나 시각을 못 믿으면(없음·꼴 아님) 지금 동작. */
+  let _keepForCopy = false;
+  if (lsBase && !lsFromThisFile) {
+    const _raw = localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`);
+    const _baseMs = Date.parse(lsBase), _fileMs = proj.updatedAt == null ? NaN : Date.parse(proj.updatedAt);
+    let _data = null;
+    if (_raw && isFinite(_baseMs) && isFinite(_fileMs) && _fileMs < _baseMs && window.electronAPI?.recordRefusedSave) { try { _data = JSON.parse(_raw); } catch (_) {} }
+    if (_data && Array.isArray(_data.pages)) {
+      _keepForCopy = true;
+      applyAdoptedAssets(_data, id);
+      const _fileVer = String(proj.updatedAt);
+      const _failed = () => window.showToast?.('⚠️ 저장 실패: 되돌려 놓은 파일보다 새 편집을 비상 사본으로 남기지 못했습니다 — 다음에 열 때 다시 남깁니다');
+      Promise.resolve().then(() => window.electronAPI.recordRefusedSave({ ..._data, id, name: proj.name || _data.name || 'Untitled' }, 'ls_newer_than_file')).then((r) => {
+        if (!r?.ok) { _failed(); return; }
+        if (localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`) === _raw) {   // 그사이 새 편집이 본을 바꿨으면 그건 이 파일에서 이어진 본이다 — 안 걷는다
+          localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
+          localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
+          try { localStorage.setItem(_lsBaseKey(id), _fileVer); } catch (_) {}
+        }
+      }, _failed);
+    } else {   // 걷는다 — 남기면 표시가 이 파일을 따라간 뒤 다음 열기에 이 본이 이긴다(앱: 복원 → 저장 없이 끝 → 다시 열기 3/3)
+      localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`);
+      localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`);
+    }
   }
-  /* 탭이 거절한 표시 없는 본이 남아 있으면 표시를 옮기지 않는다 — 옮기면 그 옛 본이 다음 열기에 자격을 얻는다. */
-  if (proj.updatedAt != null && (lsBase || unmarkedWins || !localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`))) { try { localStorage.setItem(_lsBaseKey(id), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
+  /* 탭이 거절한 표시 없는 본이 남아 있으면 표시를 옮기지 않는다 — 옮기면 그 옛 본이 다음 열기에 자격을 얻는다.
+     사본으로 남기는 중인 본도 옮기지 않는다 — 옮기면 사본이 못 남았을 때 다음 열기에 그 본이 되돌린 파일을 덮는다. */
+  if (!_keepForCopy && proj.updatedAt != null && (lsBase || unmarkedWins || !localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`))) { try { localStorage.setItem(_lsBaseKey(id), String(proj.updatedAt)); } catch (_) {} }   // 쿼터 초과가 부팅을 끊어 빈 캔버스로 열렸다(앱 3/3)
   /* 파일보다 «새로운» 본만 이긴다 — 옛 500ms 여유는 탭·홈으로 나간 저장(파일만 씀)보다 20ms 낡은 본을 이기게 해 그 편집을 덮었다(앱 3/3).
      평소 저장은 localStorage 를 먼저 써 본이 늘 조금 낡으니 파일이 이긴다(내용이 같다). 충돌이면 본이 더 새롭다. */
   if (lsTs > fileTs && lsFromThisFile) {
