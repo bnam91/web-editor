@@ -2092,7 +2092,7 @@ window.addQuoteChild = addQuoteChild;
      ⇒ ★★거기는 ★명부가 ★둘이다. ⛔인용구는 ★그 꼴을 ★★따르지 ★않는다(★이름으로 적어 둔다). */
 window.QUOTE_CHILD_KINDS = QUOTE_CHILD_KINDS;
 
-const FRAME_CHILD_MIN_INNER = 40;   // t3-05: 크기 «안 정한» 부모의 안쪽이 이보다 작으면 자식은 섹션 기본의 80%(688×416)
+const FRAME_CHILD_MIN_INNER = 40;   // t3-05: 크기 «안 정한» 축 = 섹션 기본의 80%(688×416) · 폭은 부모 안쪽(이 값 이상일 때)을 넘지 않음
 function addFrameBlock(opts = {}) {
   const sec = window.getSelectedSection();
   if (!sec) { showNoSelectionHint(); return; }
@@ -2121,9 +2121,11 @@ function addFrameBlock(opts = {}) {
          ⒜ 부모가 그 축에 «정한 크기»가 없다(내용 맞춤·auto) → 안쪽 < FRAME_CHILD_MIN_INNER(40) 이면 섹션 기본 860×520 의 80% = 688·416, 아니면 안쪽의 80%
          ⒝ 부모가 정한 크기(px)가 있다 → 안쪽의 80%, 최소 24px(찌그러짐 막기), ★부모 안쪽을 넘지 않게 — 자식 때문에 부모가 커지면 t3-06 과 같은 꼴을 우리가 만든다 */
       const _fixed = (v) => /^\d+(\.\d+)?px$/.test(String(v || '').trim());
+      /* ★미카사 실앱(261109) 눈덩이: 내용 맞춤 부모에 «안쪽의 80%» 를 주면 자식이 생길 때마다 부모가 커져 다음 자식이 더 커졌다
+         (부모 936 → 자식 749 → 부모 1685 → 자식 1348 …). ⇒ 정한 크기 없는 축은 «늘» 섹션 기본의 80%(688·416) — 부모 안쪽 폭은 넘지 않게. */
       const _cx = (inner, def, fixed) => fixed
         ? Math.max(1, Math.min(inner, Math.max(24, Math.round(inner * 0.8))))
-        : (inner < FRAME_CHILD_MIN_INNER ? Math.round(def * 0.8) : Math.round(inner * 0.8));
+        : (def === 860 && inner >= FRAME_CHILD_MIN_INNER ? Math.min(Math.round(def * 0.8), Math.round(inner)) : Math.round(def * 0.8));
       const w = _cx(host.clientWidth  - p.l - p.r, 860, _fixed(host.style.width));
       const h = _cx(host.clientHeight - p.t - p.b, 520, _fixed(host.style.height));
       ss.style.width = w + 'px'; ss.style.height = h + 'px'; ss.style.minHeight = h + 'px';

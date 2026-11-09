@@ -44,9 +44,13 @@ async function make(page, how) {
 }
 const info = (page, id) => page.evaluate((id) => { const e = document.getElementById(id); const p = e.parentElement.closest('.frame-block:not([data-text-frame])');
   return { bg: e.dataset.bg, css: getComputedStyle(e).backgroundColor, w: e.offsetWidth, h: e.offsetHeight, dw: e.dataset.width, dh: e.dataset.height, parent: p?.id || null }; }, id);
-/* 부모 안쪽 상자의 80% — 만들기 «전»에 잰다(흐름 부모는 자식이 들면 자란다) */
+/* 기대 크기 — 만들기 «전»에 잰다. 축마다: 부모가 그 축에 «정한 크기(px)» → 안쪽의 80%(최소 24·안쪽 넘지 않음)
+   · 정한 크기 없음(내용 맞춤) → 섹션 기본의 80%(높이 416 · 폭 688, 단 폭은 부모 안쪽을 넘지 않음) — 미카사 눈덩이(261109) 뒤 규칙 */
 const want80 = (page, id) => page.evaluate((id) => { const f = document.getElementById(id); const cs = getComputedStyle(f);
-  return { w: Math.round((f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) * 0.8), h: Math.round((f.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) * 0.8) }; }, id);
+  const fx = (v) => /^\d+(\.\d+)?px$/.test(String(v || '').trim());
+  const iw = f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), ih = f.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const fixed = (inner) => Math.max(1, Math.min(inner, Math.max(24, Math.round(inner * 0.8))));
+  return { w: fx(f.style.width) ? fixed(iw) : Math.min(688, Math.round(iw)), h: fx(f.style.height) ? fixed(ih) : 416 }; }, id);
 const enter = async (page, id) => { await scrollTo(page, id);
   await until(page, () => page.evaluate((id) => window._enteredFrame?.id === id && !document.querySelector(`#${id} .selected`), id), async () => { const p = await emptyPoint(page, id); await page.mouse.dblclick(...p); }); };
 const section = (page) => page.evaluate(() => { window.deselectAll(); window._activeFrame = null; window.selectSection(document.getElementById('sH')); });
@@ -165,5 +169,28 @@ for (const host of ['EF', 'FL']) test(`안 형제 — ${host} 진입 → F → F
   expect80(r, w2, `${host} 둘째`);
   if (host === 'EF') expect(await page.evaluate((h) => { const f = document.getElementById(h); return [f.offsetWidth, f.offsetHeight]; }, host), '자유(고정) 부모 크기 그대로').toEqual(size0);
   expect(w.w, '[전제] 첫째 기준 폭').toBeGreaterThan(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ★미카사 실앱(261109) 눈덩이 — 내용 맞춤 흐름 부모(정한 높이 없음)에서 자식 고른 채 F 세 번 = 셋 다 416 · 부모는 자식 하나씩만큼만 자란다
+   (옛 2818818f0~e051610f8: «그때 부모 안쪽의 80%» → 749 → 1348 … 로 커졌다) */
+test('눈덩이 — 내용 맞춤 부모 진입 → F ×3 = 셋 다 높이 416 · 부모 증가분이 매번 같다', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(() => { const f = document.getElementById('FL'); f.style.height = ''; f.style.minHeight = ''; delete f.dataset.height; });
+  expect(await page.evaluate(() => document.getElementById('FL').style.height), '[전제] 정한 높이 없음(내용 맞춤)').toBe('');
+  await enter(page, 'FL');
+  const hs = [], ps = [await page.evaluate(() => document.getElementById('FL').offsetHeight)];
+  for (let i = 0; i < 3; i++) {
+    const id = await make(page, 'F');
+    const r = await info(page, id);
+    expect(r.parent, `${i + 1}번째도 FL 안`).toBe('FL');
+    hs.push(r.dh);
+    await raf(page);
+    ps.push(await page.evaluate(() => document.getElementById('FL').offsetHeight));
+  }
+  expect(hs, `자식 높이 = 늘 416 · 부모 ${JSON.stringify(ps)} · 자식 ${JSON.stringify(hs)} · ${await page.evaluate(() => JSON.stringify([...document.querySelectorAll('#FL > *')].map((k) => [k.className.split(' ')[0], k.offsetHeight, getComputedStyle(k).position])))}`).toEqual(['416', '416', '416']);
+  const d = ps.slice(1).map((p, i) => p - ps[i]);
+  expect(Math.abs(d[1] - d[2]) <= 1 && Math.abs(d[0] - d[1]) <= 24, `부모 증가분이 눈덩이 아님 ${JSON.stringify(d)}`).toBe(true);
+  expect(Math.max(...d), `한 번에 자식 하나 + 간격만큼만 ${JSON.stringify(d)}`).toBeLessThanOrEqual(416 + 40);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
