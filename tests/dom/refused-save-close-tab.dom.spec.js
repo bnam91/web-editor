@@ -58,7 +58,7 @@ async function refuseThenCloseInactive(page, reason) {
   await page.evaluate((r) => { window.__refuse = r; }, reason);
   await page.evaluate((B) => window.switchTab(B), B);   // 떠나는 A 저장이 거절된다
   await idle(page);
-  await page.evaluate((A) => window.closeTab(A), A);
+  await page.evaluate((A) => { window.__cacheA = window.openTabs.find(t => t.id === A)?._cache || null; return window.closeTab(A); }, A);
 }
 
 test('R1 옆 탭으로 간 뒤 거절된 탭을 닫으면 그 본이 남는다', async ({ page }) => {
@@ -147,22 +147,19 @@ test('R7 거절된 탭을 닫고 종료 — 닫을 때 한 번만 남기고 종�
   expect(errs).toEqual([]);
 });
 
-/* 리뷰 1라운드 1번: 비상 사본은 5칸을 모든 프로젝트가 나눠 쓴다 — 같은 실패를 닫을 때마다 새로 남기면 남의 사본을 밀어낸다 */
-test('R8 같은 실패는 한 번만 남긴다 — 무편집으로 다시 열고 닫으면 안 남기고, 새 편집이 또 거절되면 남긴다', async ({ page }) => {
+/* 리뷰 1라운드 1번: 비상 사본은 5칸을 모든 프로젝트가 나눠 쓴다 — 같은 실패를 닫을 때마다 새로 남기면 남의 사본을 밀어낸다.
+   다시 열기는 안 탄다 — 이 하네스에선 다시 연 탭의 미저장 표시를 자동저장이 안 지워 기다림이 안 끝났다(인텔 16f0302e R8·R9 시간초과).
+   닫을 때 부르는 그 함수를 한 번 더 부르고, 새 거절은 저장을 곧장 불러 만든 뒤 저장 끝(waitSavesFor)을 기다린다. */
+const closeAgain = (page) => page.evaluate(async (A) => window.keepFailedCopyOnClose(A, A, window.__cacheA), A);   // 닫을 때와 같은 인자(닫힌 탭의 캐시)
+test('R8 같은 실패는 한 번만 남긴다 — 같은 실패로 또 닫으면 안 남기고, 새로 거절되면 남긴다', async ({ page }) => {
   const errs = await setup(page);
   await refuseThenCloseInactive(page, 'planning_not_editor');
   await expect.poll(() => keptA(page).then(k => k.length)).toBe(1);
-  await page.evaluate((A) => window.openTabForProject(A), A);
-  await page.waitForFunction((A) => window.activeProjectId === A && !window.hasUnsavedChanges(), A);
-  await page.evaluate((A) => window.closeTab(A), A);
-  await idle(page);
+  expect(await closeAgain(page), '같은 실패를 또 남기려 했다').toBe(false);
   expect(await keptA(page).then(k => k.length), '★같은 실패를 또 남겼다').toBe(1);
-  await page.evaluate((A) => window.openTabForProject(A), A);
-  await page.waitForFunction((A) => window.activeProjectId === A, A);
-  await editA(page);
-  /* 저장을 곧장 부른다 — 이 하네스에선 뒤 편집의 1.5초 자동저장이 안 와 닫기가 상한(15초)까지 기다렸다(인텔 9e1f79d6 R8 시간초과 · 워커1 같은 꼴). 자동저장 길은 R1·R2 가 잰다 */
-  await page.evaluate(async (A) => { await window.saveProjectToFile(JSON.parse(window.serializeProject()), { skipThumbnail: true }); await window.closeTab(A); }, A);
-  await expect.poll(() => keptA(page).then(k => k.length), { message: '★새로 거절된 편집을 안 남겼다' }).toBe(2);
+  await page.evaluate(async (A) => { await window.saveProjectToFile(window.__cacheA, { skipThumbnail: true, projectId: A }); await window.waitSavesFor(A); }, A);
+  expect(await closeAgain(page)).toBe(true);
+  expect(await keptA(page).then(k => k.length), '★새로 거절된 저장을 안 남겼다').toBe(2);
   expect(errs).toEqual([]);
 });
 
@@ -172,10 +169,8 @@ test('R9 사본을 못 남겼으면(답 ok:false) 남긴 것으로 치지 않는
   await page.evaluate(() => { const f = window.__fake.recordRefusedSave; let n = 0; window.__fake.recordRefusedSave = (p, r) => (++n === 1 ? (window.__kept.push({ id: p.id, failed: true }), { ok: false }) : f(p, r)); });
   await refuseThenCloseInactive(page, 'unreadable_not_preserved');
   await expect.poll(() => keptA(page).then(k => k.length)).toBe(1);
-  await page.evaluate((A) => window.openTabForProject(A), A);
-  await page.waitForFunction((A) => window.activeProjectId === A && !window.hasUnsavedChanges(), A);
-  await page.evaluate((A) => window.closeTab(A), A);
-  await expect.poll(() => keptA(page).then(k => k.filter(x => !x.failed).length), { message: '★사본 실패 뒤 다시 남기지 않았다' }).toBe(1);
+  expect(await closeAgain(page), '★사본 실패 뒤 다시 남기지 않았다').toBe(true);
+  expect(await keptA(page).then(k => k.filter(x => !x.failed).length)).toBe(1);
 });
 test('R10 저장이 던져 결과가 없어도 실패로 친다(썸네일 앞 대기가 던짐)', async ({ page }) => {
   await setup(page);
