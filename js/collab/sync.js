@@ -639,7 +639,28 @@
 
   /* 적용한 것«만» 「서버가 아는 것」으로 기록한다 — 안 그러면 받은 내용을 그대로 되쏜다.
    * USER_BUSY 보류(false)·거절('kept')은 기록하지 않는다(N2). 덮이기 전 판을 남긴다 — 저장은 스냅샷을 찍고 몇 초 뒤 끝나므로, 그 스냅샷의 옛 판을 내 편집으로 볼 수 있다. */
+  /* ★COLLAB-SYNC-OLD-GAPS ⑸ — data-section 은 «자리 번호»(layer-panel 이 위치대로 다시 매김)인데 해시에 들어간다. 상대 번호가 실린 패치를 붙이면
+     내 레이어 패널이 내 번호로 되돌려 내 해시 ≠ 받은 해시 = 다음 저장이 그 섹션을 «바뀜»으로 한 번 되올렸다.
+     ⇒ 붙이기 전에 받은 섹션의 data-section 을 «지금 내 번호»로 바꾸고 해시도 그 글로 다시 잰다(_sent 가 그 해시를 적는다).
+     ⛔normSection 에서 data-section 을 빼는 뿌리 고침은 안 한다 — 모든 클라이언트의 해시가 바뀌어 섞인 판 사이 재개가 전부 올린다(지디 OK). */
+  function localizeSectionNum(p) {
+    const M = mm(); if (!M || !p || !p.html) return p;
+    const st = window.state;
+    let local = null;
+    if (!p.pageId || !st || p.pageId === st.currentPageId) { const el = findSectionEl(p.sectionId); local = el ? (el.getAttribute('data-section')) : null; }
+    else {
+      const page = (st.pages || []).find(x => x.id === p.pageId);
+      if (page && page.canvas) { const t = new DOMParser().parseFromString(`<div id="c">${page.canvas}</div>`, 'text/html').querySelector('#' + CSS.escape(p.sectionId)); local = t ? t.getAttribute('data-section') : null; }
+    }
+    if (local == null) return p;
+    const sec = new DOMParser().parseFromString(`<div id="c">${p.html}</div>`, 'text/html').querySelector('.section-block');
+    if (!sec || sec.getAttribute('data-section') === local) return p;
+    sec.setAttribute('data-section', local);
+    return { ...p, html: sec.outerHTML, hash: M.hash(M.normSection(sec)) };
+  }
+
   function applyRecorded(p, local) {
+    p = localizeSectionNum(p);
     const key = (p.pageId || '') + '::' + p.sectionId;
     /* 되감아 다시 온 패치: 돌아온 글이 덮이기 전 판이면(또는 섹션이 없으면) 화면과 함께 사라진 것이라 다시 붙인다.
      * 그 밖이면 이 패치 위에 고친 내 글이 탭 전환 저장에 실려 돌아온 것이다 — 화면을 안 건드리고 서버가 아는 해시만 적는다. */

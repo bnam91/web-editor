@@ -4,7 +4,8 @@
  *      C3 [대조] 미저장 없으면 예전처럼 바로 붙고 토스트 없음
  *   ⑵ C4 올리는 중 두 번째 저장 → 버리지 않고 끝나면 올린다(서버 마지막 글 = A2 · 세 번째 저장 없이)
  *   ⑶ C5 읽는 중(gdtProjectReady loading) 저장 → push 0 · ready 뒤 tick 재개 → 진짜 차이 1 섹션만 · C6 첫 재개 실패 뒤 저장 → push 0 · 다음 tick 재개 → 차이만
- * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
+ *   ⑸ C9 상대 번호(data-section=1)가 실린 secB 패치 → 붙인 뒤 저장해도 secB 를 다시 안 올린다(내 번호 2 유지)
+ * 양성대조: js/collab/sync.js 를 기준판(c1588d839)으로 되돌리면 C9(secB 되올림)· C1(상대 글이 말없이 덮음)·C2(토스트 0)·C4(서버가 A1 에 머묾)·C5·C6(모든 섹션 올림) 빨강 · C3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
@@ -149,4 +150,30 @@ test('C6 첫 재개 실패 뒤 저장은 안 올린다 — 다음 tick 재개가
   expect(await myPushes(page), '★재개 전 저장이 모든 섹션을 올렸다').toEqual([]);
   await page.evaluate(async () => { await window.collabSync.tick(); await new Promise(r => setTimeout(r, 200)); });
   expect(await myPushes(page), '재개 재시도는 차이만').toEqual(['secC']);
+});
+
+test('C9 상대 자리 번호가 실린 패치 — 붙인 뒤 저장해도 그 섹션을 다시 안 올린다', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(async () => {
+    const sec = (id, n, t) => `<div class="section-block" id="${id}" data-section="${n}"><div class="section-inner"><div class="tb">${t}</div></div></div>`;
+    document.getElementById('canvas').innerHTML = sec('secA', 1, 'A0') + sec('secB', 2, 'B0');
+    window.rebindAll?.({ preserveHistory: true }); window.buildLayerPanel?.();   // 묶인 꼴(히트존 등)로 시작 — 받은 섹션도 그 꼴이다
+    await window.collabSync.start('proj_x');
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } })); await new Promise(r => setTimeout(r, 300));   // 시작 판을 서버가 안다(_sent) — 바뀐 게 없으면 pushed 가 안 난다
+    const before = window.__log.filter(p => p.actorId !== 'other').length;
+    const pg = JSON.parse(window.serializeProject()).pages.find(x => x.id === window.state.currentPageId);
+    const cur = new DOMParser().parseFromString(`<div>${pg.canvas}</div>`, 'text/html').getElementById('secB');
+    cur.querySelector('.tb').textContent = 'B1'; cur.setAttribute('data-section', '1');   // 상대 화면에선 secB 가 첫째 · 글만 바뀜
+    const html = cur.outerHTML;
+    window.__log.push({ pageId: window.state.currentPageId, sectionId: 'secB', html, hash: window.__hash(html), actorId: 'other', seq: ++window.__server, baseSeq: 5 });
+    await window.collabSync.tick();
+    window.buildLayerPanel?.();
+    const num = document.getElementById('secB').getAttribute('data-section');
+    window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { snap: window.serializeProject() } }));
+    await new Promise(r => setTimeout(r, 400));
+    return { num, text: window.__text('secB'), re: window.__log.filter(p => p.actorId !== 'other').slice(before).map(p => p.sectionId) };
+  });
+  expect(r.text, '[전제] 상대 글이 붙었다').toBe('B1');
+  expect(r.num, '내 자리 번호').toBe('2');
+  expect(r.re, '★받은 섹션을 번호 차이로 다시 올렸다').toEqual([]);
 });
