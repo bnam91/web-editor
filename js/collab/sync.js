@@ -671,6 +671,7 @@
       _resumeOwed = false;
       const rs = await resumeSafely();
       if (!rs || !rs.ok) { _resumeOwed = true; _lastError = (rs && rs.reason) || 'unknown'; emit({ type: 'pull_error', reason: _lastError }); }
+      else { _lastError = null; emit({ type: 'pulled', presence: [], applied: 0, deferred: _deferred.size, missing: _needIds.length }); }   // ⑶ 재개도 «받기 회복»이다 — 받기 실패 알림·상단바 «연결 끊김»이 풀린다(collab-notify W6)
       return;
     }
     flushDeferred();                              // ★손 뗀 섹션부터 먼저 갚는다
