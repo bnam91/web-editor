@@ -348,8 +348,10 @@ function _onHandleMouseDown(e, ss, dir) {
   // ── 그룹 리사이즈: 자식을 비례 스케일 (피그마식). data-group 프레임에만 적용 ──
   const isGroup = ss.dataset.group === 'true';
   // 스케일 기준은 style.width/height(canvas px) — rect/scale 불일치 회피
-  const groupStartW = parseInt(ss.style.width) || startW;
-  const groupStartH = parseInt(ss.style.height) || startH;
+  //   t2-02c — px 일 때만. 흐름 갈래 ⌘G 묶음은 width:100% 라 parseInt 가 100 을 읽어 자식이 ×8 로 부풀었다 → 그려진 상자(startW/H)
+  const _px = (v, d) => /^[\d.]+px$/.test(v) ? parseInt(v) : d;
+  const groupStartW = _px(ss.style.width, startW);
+  const groupStartH = _px(ss.style.height, startH);
   let groupSnap = null;
   if (isGroup) {
     groupSnap = [];
