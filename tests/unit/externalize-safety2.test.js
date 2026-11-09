@@ -62,7 +62,11 @@ function failedSaveSrc() {
 function saveFn(tok, sealId) {
   const calls = [];
   const fn = new Function('window', '_reloadSealTok', '_reloadSealId', 'activeProjectId', '_isSavingToFile', '_pendingSaves', '_doSaveProjectToFile', '_isSaveFailure', '_lastSaveResult',
-    'let _savingOwnerId = null, _savingEntry = null, _savingSuperseded = false, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + failedSaveSrc() + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
+    'let _savingOwnerId = null, _savingEntry = null, _savingSuperseded = false, _dirtySinceSave = true; const _lsTsOf = () => null, _settleBigLs = () => {}, _markLsFiled = () => {};\n' + failedSaveSrc()
+    /* MISSING-FOLDER — saveProjectToFile 머리가 남은 본 표시를 잡느라 모듈 변수 openTabs·SAVE_KEY_PREFIX 를 읽는다 — 그 판이면 같이 둔다(옛 판엔 안 읽어 안 둔다 · ca2f1ae9 꼴)
+       int-3 합침: TAB-SWITCH 의 failedSaveSrc() 와 MISSING 의 이 줄을 둘 다 싣는다 */
+    + (SL().includes('opts._goneBase === undefined') ? 'const openTabs = [], SAVE_KEY_PREFIX = "web-editor-autosave";\n' : '')
+    + sliceBlock(SL(), 'function _isReloadSealed(', '대상') + '\n' + sliceBlock(SL(), 'async function saveProjectToFile(', '대상') + '\nreturn saveProjectToFile;')(
     {}, tok, sealId, 'p1', false, new Map(), async (_s, o) => { calls.push(o.projectId || 'p1'); return { ok: true }; }, () => false, new Map());
   return { fn, calls };
 }
