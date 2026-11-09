@@ -363,6 +363,7 @@ function _onHandleMouseDown(e, ss, dir) {
         if (c.classList.contains('sticker-block')) { groupSnap.push({ el: c, sticker: { ...c.dataset } }); return; }
         // t2-02d — 그라데이션도 정본이 dataset(x·y·gradWidth·gradHeight)이고 렌더가 cssText 를 그 키로 다시 쓴다 → 같은 꼴
         if (c.classList.contains('gradient-block')) { groupSnap.push({ el: c, grad: { ...c.dataset } }); return; }
+        if (c.classList.contains('zoom-block')) { groupSnap.push({ el: c, zoom: { ...c.dataset } }); return; }   // 확대블럭도 같은 꼴(x·y·w·h)
         const isTextFrame = c.dataset.textFrame === 'true';
         const contentEl = isTextFrame ? c.querySelector('[class^="tb-"]') : null;
         groupSnap.push({
@@ -445,6 +446,7 @@ function _onHandleMouseDown(e, ss, dir) {
       groupSnap.forEach(s => {
         if (s.sticker) { window._scaleStickerFromSnap?.(s.el, s.sticker, sx, sy, fsScale); return; }   // t2-02
         if (s.grad) { window._scaleGradientFromSnap?.(s.el, s.grad, sx, sy); return; }   // t2-02d
+        if (s.zoom) { window._scaleZoomFromSnap?.(s.el, s.zoom, sx, sy); return; }
         const L = Math.round(s.left * sx), T = Math.round(s.top * sy);
         s.el.style.left = L + 'px'; s.el.dataset.offsetX = String(L);
         s.el.style.top  = T + 'px'; s.el.dataset.offsetY = String(T);
