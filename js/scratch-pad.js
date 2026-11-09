@@ -957,8 +957,11 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
   });
   el.appendChild(idChip);
 
+  /* ★t2-10(현빈 0.9.11_t2): 손잡이를 네 모서리로 — 잡은 모서리의 «맞은편»이 고정점이다(se = 옛 동작 그대로). */
+  const resizeHs = ['nw', 'ne', 'sw', 'se'].map(corner => {
+  const L = corner.includes('w'), T = corner.includes('n');   // 왼쪽·위쪽 손잡이면 그 축은 반대쪽(오른·아래)이 고정
   const resizeH = document.createElement('div');
-  resizeH.className = 'scratch-resize';
+  resizeH.className = `scratch-resize scratch-resize--${corner}`;
   resizeH.addEventListener('mousedown', e => {
     if (_sliceMode) { e.stopPropagation(); return; }
     if (e.button !== 0) return;
@@ -972,9 +975,9 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
       ? [..._selectedItems]
       : (item.g ? _scratchItems.filter(s => s.g === item.g) : [item]);
     const isGroup = members.length > 1;
-    // 앵커 = 그룹 바운딩박스 좌상단 (핸들이 우하단이므로 좌상단 고정 → 우하단으로 성장)
-    const anchorX = Math.min(...members.map(m => m.x));
-    const anchorY = Math.min(...members.map(m => m.y));
+    // 앵커 = 그룹 바운딩박스에서 잡은 모서리의 맞은편 모서리 (se 면 좌상단 고정 → 우하단으로 성장)
+    const anchorX = L ? Math.max(...members.map(m => m.x + m.w)) : Math.min(...members.map(m => m.x));
+    const anchorY = T ? Math.max(...members.map(m => m.y + (m.el ? m.el.offsetHeight : 0))) : Math.min(...members.map(m => m.y));
     // 드래그 시작 시점의 각 멤버 지오메트리 고정 스냅샷 (누적 아닌 절대 배율 적용)
     const starts = members.map(m => ({ it: m, x: m.x, y: m.y, w: m.w }));
     const minMemberW = Math.min(...starts.map(s => s.w));
@@ -982,18 +985,18 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
     // 최좌측이 아니면 자기 폭(startW)보다 커서 → 배율을 startW로 뽑으면 핸들이 커서보다
     // 빨리 달아나 그룹이 과하게 커진다. 앵커→핸들 거리로 배율을 뽑아야 핸들이 커서를 정확히 추종.
     const gs0 = starts.find(s => s.it === item);
-    const anchorDist = Math.max(1, gs0.x + gs0.w - anchorX);
+    const anchorDist = Math.max(1, L ? anchorX - gs0.x : gs0.x + gs0.w - anchorX);
     // 리사이즈 undo/redo용 사전 지오메트리 스냅샷 — onMove가 변형하기 전에 그룹 전체 캡처
     const geomBefore = _scratchGeomSnapshot(members);
     const onMove = mv => {
       const dx = (mv.clientX - startX) / scale;
       // 배율 클램프: 잡은 아이템은 최소 60(기존 관용값), 최소 멤버는 20 밑으로 붕괴 방지
       const fMin = Math.max(60 / startW, 20 / minMemberW);
-      const f = Math.max(fMin, (anchorDist + dx) / anchorDist);
+      const f = Math.max(fMin, (anchorDist + (L ? -dx : dx)) / anchorDist);
       starts.forEach(s => {
         const w = s.w * f;
         s.it.w = w;
-        if (isGroup) {
+        if (isGroup || L || T) {   // 단독 se 는 좌상단이 앵커라 x·y 그대로 — 옛 길
           const x = anchorX + (s.x - anchorX) * f;
           const y = anchorY + (s.y - anchorY) * f;
           s.it.x = x; s.it.y = y;
@@ -1027,6 +1030,8 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
     document.addEventListener('mouseup', onUp);
   });
   el.appendChild(resizeH);
+  return resizeH;
+  });
 
   // 우클릭 → 자산 폴더로 보내기 메뉴
   /* ★⑦ 더블클릭 = ★그룹 진입(현빈 2026-10-10). ⛔그룹이 아니면 ★아무 일도 안 한다 —
@@ -1056,7 +1061,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
        ⛔지우기가 죽지 않게 «짝»으로 고칠 것이 하나 있다(아래 onMove 참고): 드래그가 실제로
          «움직였을 때만» pointer-events 를 끈다. mousedown 즉시 끄면 제자리 클릭의 mouseup 이
          아이템 «밑»에 떨어져 closeBtn 의 click 이 아예 안 난다 = ✕ 가 안 먹는다. */
-    if (e.target === resizeH || e.target === idChip || e.target === sliceBtn) return;
+    if (resizeHs.includes(e.target) || e.target === idChip || e.target === sliceBtn) return;
     if (_sliceMode === item) { e.preventDefault(); e.stopPropagation(); return; }
 
     e.preventDefault(); e.stopPropagation();
