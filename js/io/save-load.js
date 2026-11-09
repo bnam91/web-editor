@@ -308,7 +308,7 @@ function _unloadSaveNeeded(projectId) {
 }
 function _lastSaveFailed(projectId) {
   const e = projectId ? _lastSaveResult.get(projectId) : null;
-  return _isSaveFailure(e && e.result);
+  return _isSaveFailure(e && e.result) || !!(e && !e.result);   // 기록은 있는데 결과가 없다 = 저장이 던졌다(썸네일 앞 대기 등) — _settleBigLs 도 실패로 친다
 }
 
 /* 문서가 끝난다 — 줄에 선 저장과 준비(loadProject) 중인 저장은 더 안 돈다. 닫은 탭의 저장이면 캐시도 LS 도 없어 그 편집을 잃었다(앱: 줄의 본이 종료·창 닫기 뒤 파일에 없음).
@@ -3079,7 +3079,7 @@ window.keepFailedCopyOnClose = async (id, name, cache) => {
   if (!IS_ELECTRON || !id || !window.electronAPI?.recordRefusedSave) return false;
   const settled = await _waitSavesFor(id);
   const last = _lastSaveResult.get(id);
-  if (settled && !_lastSaveFailed(id) && !(last && !last.result)) return false;   // 결과 없음 = 저장이 던졌다(썸네일 등) — _settleBigLs 도 실패로 친다
+  if (settled && !_lastSaveFailed(id)) return false;
   if (settled && last?.kept) return false;   // 같은 실패를 이미 남겼다 — 무편집으로 열고 닫기를 되풀이하면 사본이 쌓여 5칸을 나눠 쓰는 남의 사본을 밀어냈다(리뷰)
   let data = null;
   try { data = JSON.parse(cache || localStorage.getItem(`${SAVE_KEY_PREFIX}__${id}`)); } catch (_) {}

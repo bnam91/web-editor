@@ -183,7 +183,7 @@ test('R10 저장이 던져 결과가 없어도 실패로 친다(썸네일 앞 �
     await window.saveProjectToFile(window.openTabs.find(t => t.id === A)._cache, { projectId: A }).catch(() => {});
     delete window.whenGridRatiosSettled;
   }, A);
-  expect(await page.evaluate((A) => window.projectSaveUnsettled(A), A), '[전제] 결과 없음은 지금 실패로 안 센다').toBe(false);
+  expect(await page.evaluate((A) => window.projectSaveUnsettled(A), A), '★결과 없음을 미저장으로 안 센다(닫기 알림·beforeunload 가 같은 판정)').toBe(true);
   await page.evaluate((A) => window.closeTab(A), A);
   await expect.poll(() => keptA(page).then(k => k.length), { message: '★던진 저장 뒤 남지 않았다' }).toBe(1);
 });
