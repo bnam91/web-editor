@@ -59,10 +59,37 @@ export function textUserShadowCss(contentEl) {
   return st.enabled ? _buildShadowCss(st) : '';
 }
 
+export const TEXT_SHADOW_KEYS = ['shadowEnabled', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor', 'shadowAlpha'];
+
+/** 데이터 → 화면 «한 문» — 패널 _apply 와 Effects 「그림자」 카드(추가·✕)가 같이 쓴다.
+ *  s = readShadowState 꼴 · null = 키 «전부» 지움(✕ — 켜기 전 바이트로).
+ *  ★text-shadow 는 «합성 문»(js/effects-glow.js fxComposeTextShadow)으로 쓴다: [Effects 글로우 겹, 이 사용자 그림자].
+ *    ⛔통째로 대입하지 마라 — 글로우를 지운다(시험 effects-glow G3). 합성 문이 없는 판(단위 대역)은 옛 대입. */
+export function writeTextShadow(el, s) {
+  if (!el) return;
+  const userCss = s && s.enabled ? _buildShadowCss(s) : '';
+  if (typeof window !== 'undefined' && typeof window.fxComposeTextShadow === 'function') window.fxComposeTextShadow(el, userCss);
+  else el.style.textShadow = userCss;
+  if (!s) {
+    TEXT_SHADOW_KEYS.forEach(k => { delete el.dataset[k]; });
+    if (el.getAttribute('style') === '') el.removeAttribute('style');
+  } else {
+    el.dataset.shadowEnabled = s.enabled ? 'true' : 'false';
+    // 항상 dataset에 값 저장 (off여도 복원 시 슬라이더 위치 유지)
+    el.dataset.shadowX = String(s.x);
+    el.dataset.shadowY = String(s.y);
+    el.dataset.shadowBlur = String(s.blur);
+    el.dataset.shadowColor = _hex6(s.color);
+    el.dataset.shadowAlpha = String(s.alpha);
+  }
+  // 0919r3 textshadow: 글자 그라데이션이면 그림자를 글자 «뒤»(drop-shadow)로 — 파생값 갱신
+  window.syncTextGradShadow?.(el);
+}
+
 /** Wire up the Shadow controls in the right panel */
 export function wireShadowSection({ ctx, initial }) {
-  const section = document.getElementById('txt-shadow-section');
-  if (!section) return;
+  /* ★t4-01 — 조절칸은 옛 절이나 Effects 「그림자」 카드(js/effects-shadow.js) 둘 중 «한 곳»에 산다(id 같음). */
+  if (!document.getElementById('txt-shadow-controls')) return;
 
   const onChk  = document.getElementById('txt-shadow-on');
   const xSli   = document.getElementById('txt-shadow-x-slider');
@@ -87,20 +114,7 @@ export function wireShadowSection({ ctx, initial }) {
 
   const _apply = () => {
     if (!ctx.contentEl) return;
-    const el = ctx.contentEl;
-    /* ★1012t1E3 — text-shadow 는 «합성 문»(js/effects-glow.js fxComposeTextShadow)으로 쓴다:
-       [Effects 글로우 겹, 이 사용자 그림자]. ⛔여기서 통째로 대입하지 마라 — 글로우를 지운다(시험 effects-glow G3).
-       글로우가 없으면 합성 결과 = 아래 userCss 그대로(옛 동작 바이트 동일 · G7). 합성 문이 없는 판(단위 대역)은 옛 대입. */
-    const userCss = s.enabled ? _buildShadowCss(s) : '';
-    if (typeof window !== 'undefined' && typeof window.fxComposeTextShadow === 'function') window.fxComposeTextShadow(el, userCss);
-    else el.style.textShadow = userCss;
-    el.dataset.shadowEnabled = s.enabled ? 'true' : 'false';
-    // 항상 dataset에 값 저장 (off여도 복원 시 슬라이더 위치 유지)
-    el.dataset.shadowX = String(s.x);
-    el.dataset.shadowY = String(s.y);
-    el.dataset.shadowBlur = String(s.blur);
-    el.dataset.shadowColor = _hex6(s.color);
-    el.dataset.shadowAlpha = String(s.alpha);
+    writeTextShadow(ctx.contentEl, s);
     if (cSwatch) {
       const h = _hex6(s.color).replace('#','');
       const r = parseInt(h.slice(0,2), 16);
@@ -109,8 +123,6 @@ export function wireShadowSection({ ctx, initial }) {
       const a = Math.max(0, Math.min(1, s.alpha / 100));
       cSwatch.style.background = a >= 1 ? '#'+h : `rgba(${r},${g},${b},${a})`;
     }
-    // 0919r3 textshadow: 글자 그라데이션이면 그림자를 글자 «뒤»(drop-shadow)로 — 파생값 갱신
-    window.syncTextGradShadow?.(el);
   };
 
   // 초기 상태

@@ -113,7 +113,7 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
     await page.evaluate(() => window.deselectAll?.()); await page.mouse.click(p[0], p[1]); await page.waitForTimeout(300); };
   const click = async (sel) => { const p = await page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, sel);
     expect(p, `패널에 ${sel}`).not.toBeNull(); await page.mouse.click(p[0], p[1]); await page.waitForTimeout(250); };
-  for (const [id, P, after] of [['eT', 'txt', 'txt-shadow-section'], ['eSh', 'shape', null], ['eA', 'asset', null]]) {
+  for (const [id, P, after] of [['eT', 'txt', 'txt-stroke-section'], ['eSh', 'shape', null], ['eA', 'asset', null]]) {
     await select(id);
     const sec = await page.evaluate(([P, after]) => { const s = document.getElementById(`${P}-fx-section`); if (!s) return null;
       const a = document.getElementById(`${P}-fx-add`);
@@ -129,7 +129,7 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
     expect(sec.headSel, '열었을 때 머리가 골라져 있다').toBe(0);
     expect(sec.opts, '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
     expect(sec.addText, '⛔글자 + 를 쓰지 않는다(E65)').not.toContain('+');
-    expect(sec.prevOk, '텍스트 = Shadow 절 바로 아래').toBe(true);
+    expect(sec.prevOk, '텍스트 = Stroke 절 바로 아래(t4-01 — Shadow 절은 Effects 카드로 옮겼다)').toBe(true);
     /* ★목록을 «열기만» 해서는 아무것도 안 붙는다 — 이것이 이 발주의 한 줄이다 */
     await click(`#${P}-fx-add`);
     expect(await ds(page, id), '★고르기 전 = 아무 키도 안 붙는다').toEqual({});

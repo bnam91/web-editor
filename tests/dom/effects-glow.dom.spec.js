@@ -74,10 +74,13 @@ const addGlow = async (page) => {
   await page.selectOption('#txt-fx-add', 'glow');
   await page.waitForFunction(() => !!document.getElementById('txt-fxgl-card'));
 };
-/** Shadow 절 토글 — 숨은 checkbox 를 DOM click(change 가 뜬다 · 사람이 라벨을 누를 때와 같은 사건). */
+/** 텍스트 그림자 켬/끔 — ★t4-01 부터 Effects 「그림자」 카드(목록에서 고름 · ✕ 로 지움). 옛 Shadow 절 토글은 텍스트 블럭에서 사라졌다. */
 const shadowToggle = async (page, on) => {
-  await page.evaluate((on) => { const c = document.getElementById('txt-shadow-on'); if (!c) throw new Error('txt-shadow-on 없음'); if (c.checked !== on) c.click(); }, on);
-  await page.waitForFunction((on) => document.querySelector('#eT [class^="tb-"]').dataset.shadowEnabled === (on ? 'true' : 'false'), on);
+  const has = (await page.locator('#txt-fxsh-card').count()) > 0;
+  if (on && !has) await page.selectOption('#txt-fx-add', 'shadow');
+  if (!on && has) await page.click('#txt-fxsh-del');
+  await page.waitForFunction((on) => !!document.getElementById('txt-fxsh-card') === on
+    && (document.querySelector('#eT [class^="tb-"]').dataset.shadowEnabled === 'true') === on, on);
 };
 
 /* ══ G0 전제 ══ */

@@ -133,11 +133,11 @@ test('A2 음성 — 등록하지 «않은» 이름은 목록에 0건(목록을 �
 });
 
 /* ══ A3 supports — 목록은 블럭마다 다르다 ══ */
-test('A3 ★supports — 그림자는 도형·에셋에만 뜨고 ★텍스트엔 «안» 뜬다(텍스트는 제 「Shadow」 절이 있다) · 반사는 셋 다', async ({ page }) => {
+test('A3 ★supports — 그림자·반사는 셋 다(★t4-01 — 텍스트 그림자는 옛 「Shadow」 절을 Effects 로 옮겼다)', async ({ page }) => {
   const errs = await setup(page);
   const got = {};
   for (const [id, P] of [['eT', 'txt'], ['eSh', 'shape'], ['eA', 'asset']]) { await pick(page, id); got[P] = (await addList(page, P)).opts.map(o => o.v); }
-  expect(got.txt, '★텍스트 — 그림자 없음').not.toContain('shadow');
+  expect(got.txt, '★텍스트 — 그림자 있음(t4-01)').toContain('shadow');
   expect(got.txt, '텍스트 — 반사 있음').toContain('reflect');
   expect(got.shape, '도형 — 둘 다').toEqual(expect.arrayContaining(['reflect', 'shadow']));
   expect(got.asset, '에셋 — 둘 다').toEqual(expect.arrayContaining(['reflect', 'shadow']));
@@ -146,7 +146,7 @@ test('A3 ★supports — 그림자는 도형·에셋에만 뜨고 ★텍스트�
     const t = window.fxTypesFor(document.getElementById('eT')).map(x => x.key);
     const s = window.fxTypesFor(document.getElementById('eSh')).map(x => x.key);
     return { t, s };
-  }), 'fxTypesFor 가 같은 답을 준다').toEqual({ t: expect.not.arrayContaining(['shadow']), s: expect.arrayContaining(['shadow']) });
+  }), 'fxTypesFor 가 같은 답을 준다').toEqual({ t: expect.arrayContaining(['shadow']), s: expect.arrayContaining(['shadow']) });
   expect(errs).toEqual([]);
 });
 

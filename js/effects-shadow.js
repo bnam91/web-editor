@@ -9,8 +9,9 @@
        box-shadow 를 못 써 drop-shadow 로 갔다).
      ★인라인이라 저장본에 그대로 남는다 ⇒ 문서를 열 때 다시 그릴 일이 없다(반사와 같다).
    ★대상 = ★도형·에셋·프레임(1017a7, 현빈 발주 「프레임블럭에 이펙트에 쉐도우 추가기능」).
-     ⛔텍스트에는 «안» 올린다 —
-     텍스트는 「Shadow」 절이 Effects 절 «바로 위»에 이미 있다(js/props/prop-text-template.js:131).
+     ★텍스트는 ★t4-01(2026-11-09)부터 «옛 텍스트 그림자»로 잇는다(아래 「텍스트 갈래」 — filter 아님 · 새 키 아님).
+     그 전 판단(아래 둘)은 «filter 그림자를 텍스트에 걸지 마라»로서 여전히 참이다 —
+     텍스트는 「Shadow」 절이 Effects 절 «바로 위»에 이미 있었다(js/props/prop-text-template.js).
      거기 또 카드를 만들면 같은 것이 두 벌이 된다(이 레포의 고질). 그리고 텍스트는 style.filter 를
      글자 그라데이션이 이미 쓴다(js/props/text-block-color.js:268,371) — 우리가 덮으면 그걸 끈다.
      ⇒ 명부의 `supports(el)` 가 그 가름을 «한 자리»에서 한다.
@@ -30,6 +31,8 @@
      ⇒ HOST_MARGIN_Y_KEYS 에 ★키를 더하지 않는다.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
+import { readShadowState, writeTextShadow } from './props/prop-text-wireup-shadow.js';
+import { textShadowControlsHtml } from './props/prop-text-template.js';
 
 export const FX_SHADOW_KEYS = ['fxShadow', 'fxShadowX', 'fxShadowY', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp'];
 /* ★텍스트 「Shadow」 절(prop-text-wireup-shadow.js SHADOW_DEFAULTS)에서 빌린 값 — 손으로 고른 수가 아니다. */
@@ -190,6 +193,46 @@ function _wireShadowCard(el, P, again) {
   hex?.addEventListener('change', () => { setFxShadow(el, { color: hex.value }); again(); });
 }
 
+/* ═══ ★t4-01 텍스트 갈래 — 현빈 「텍스트 블록 Effects 드롭다운에 Shadow 추가 … 기존 텍스트 그림자 효과가 추가되고 설정할 수 있어야 함」 ═══
+   ★새 그림자를 만들지 않았다 — 텍스트의 «옛» 그림자 그대로다(팀장 지시):
+     정본 = 글자칸 dataset `shadowEnabled`·`shadowX`·`shadowY`·`shadowBlur`·`shadowColor`·`shadowAlpha` + 인라인 text-shadow(합성 문)
+     · 기본값 = SHADOW_DEFAULTS · 조절칸 = 옛 절 마크업 «그대로»(textShadowControlsHtml · id 같음 ⇒ 배선 = wireShadowSection 하나).
+   ★자리 = 블러(1012t1C1)와 같은 옮김 — 옛 「Shadow」 절은 Effects 가 품는 블럭에선 안 그린다(prop-text-template.js _fxShadow · 두 벌 금지).
+     옛 저장본 = shadowEnabled 'true' 면 has() 가 참 ⇒ 저절로 카드로 뜬다(마이그레이션 0).
+   ★눈(끄기) 없음 — 옛 데이터엔 「걸렸지만 끈」 상태가 없다(enabled 하나). ⛔새 키를 짓지 않았다. ✕ = 키 전부 지움(켜기 전 바이트).
+   ⛔filter(drop-shadow)로 바꾸지 마라 — 위 머리말(글자 그라데이션이 filter 를 쓴다). */
+const _isText = (el) => !!(el && el.classList && el.classList.contains('text-block'));
+/* 글자칸 — js/effects-glow.js _contentOf · prop-text.js showTextProperties 와 같은 순서 */
+const _txtContent = (tb) => tb.querySelector('[contenteditable]')
+  || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet,.tb-liner,.itb-text');
+const _txtHas = (tb) => { const ce = _txtContent(tb); return !!ce && readShadowState(ce).enabled; };
+function _txtAdd(tb) {
+  const ce = _txtContent(tb);
+  if (!ce) return;
+  window.pushHistory?.('효과');   /* push-before — 옛 토글과 같은 한 걸음 */
+  writeTextShadow(ce, { ...readShadowState(ce), enabled: true });   /* 옛 토글 켜기와 같은 값(저장된 값 · 없으면 기본값) */
+  window.scheduleAutoSave?.();
+}
+function _txtCardHtml(tb, P) {
+  const open = fxIsCardOpen(tb, 'shadow');
+  return `
+      <div class="prop-cell-card${open ? ' expanded' : ''}" id="${P}-fxsh-card" data-fx-type="shadow">
+        <div class="prop-cell-card-header" id="${P}-fxsh-head">
+          <span class="prop-cell-card-title" style="flex:1;">그림자</span>
+          <button class="prop-icon-btn" id="${P}-fxsh-del" title="효과 삭제" aria-label="효과 삭제">×</button>
+        </div>
+        <div class="prop-cell-card-body" id="${P}-fxsh-body"${open ? '' : ' hidden'}>
+${textShadowControlsHtml(readShadowState(_txtContent(tb)))}
+        </div>
+      </div>`;
+}
+function _txtWire(tb, P, again) {
+  const $ = (id) => document.getElementById(`${P}-${id}`);
+  /* 조절칸은 prop-text.js 의 wireShadowSection 이 이미 묶었다(같은 id) — 여기선 ✕ 와 접기만 */
+  $('fxsh-del')?.addEventListener('click', (e) => { e.stopPropagation(); window.pushHistory?.('효과'); writeTextShadow(_txtContent(tb), null); window.scheduleAutoSave?.(); window.pushHistory?.('효과 끔'); again(); });
+  $('fxsh-head')?.addEventListener('click', () => { const b = $('fxsh-body'); if (!b) return; const open = b.hidden; b.hidden = !open; fxSetCardOpen(tb, 'shadow', open); $('fxsh-card')?.classList.toggle('expanded', open); });
+}
+
 /* ═══ 명부의 둘째 식구 ══════════════════════════════════════════════════════
    ★이 한 벌이 전부다 — 목록·＋·접힘·배선은 명부가 한다(패널 파일 0줄 변경). */
 registerFxType({
@@ -198,12 +241,13 @@ registerFxType({
   /* ★도형·에셋·프레임만 — 텍스트는 제 「Shadow」 절이 있다(위 머리말). ⛔허용 목록으로 적는다(막는 목록은 블럭이 늘면 샌다). */
   /* ★t5-13ⓐ — 그리드 칸 «원형 이미지»(.grd-img-circle)도 받는다. 패널(js/props/prop-grid.js)이 그 줄의 키를 담은 대리를 넘긴다. */
   /* ★GRID-BG-RADIUS-SHADOW-01 — 그리드는 «블럭 배경»을 켰을 때만(그림자가 서는 상자 = 배경 층). */
-  supports: (el) => !!(el && el.classList && (el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block') || el.classList.contains('grd-img-circle')
+  /* ★t4-01 — 텍스트(글자칸이 있는)도 — 옛 텍스트 그림자로 잇는다(위 텍스트 갈래). */
+  supports: (el) => !!(el && el.classList && ((el.classList.contains('text-block') && _txtContent(el)) || el.classList.contains('shape-block') || el.classList.contains('asset-block') || el.classList.contains('frame-block') || el.classList.contains('grd-img-circle')
     || (el.classList.contains('grid-block') && el.dataset.blockBgOn === '1'))),
-  has:  (el) => fxShadowOf(el).state !== 'none',
-  add:  (el) => setFxShadow(el, { state: 'on' }),
-  card: _shadowCardHtml,
-  wire: _wireShadowCard,
+  has:  (el) => (_isText(el) ? _txtHas(el) : fxShadowOf(el).state !== 'none'),
+  add:  (el) => (_isText(el) ? _txtAdd(el) : setFxShadow(el, { state: 'on' })),
+  card: (el, P) => (_isText(el) ? _txtCardHtml(el, P) : _shadowCardHtml(el, P)),
+  wire: (el, P, again) => (_isText(el) ? _txtWire(el, P, again) : _wireShadowCard(el, P, again)),
 });
 
 if (typeof window !== 'undefined') {
