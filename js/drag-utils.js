@@ -519,12 +519,11 @@ function _placeAfterFrameAsSibling(frame, el) {
  *            10-05 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」(현빈) — 자식 있는 프레임을 한 번 클릭하면 밖, 그대로.
  *   «자식 요소» = 요소 노드만(글자·주석 노드는 안 센다) · 끌기 중 잠깐 서는 .drop-indicator 는 안 센다. 갭·빈 글자 프레임은 «요소»라 센다
  *   (경계 행 = tests/dom/h11-toolbar-depth.dom.spec.js E-*). */
-function frameHasDrillTarget(frame) {
-  return [...frame.children].some(c => !c.classList.contains('drop-indicator'));
-}
+/* ★T307 ㉠(지디 261109 · 현빈 t3-01 「프레임 블록을 신규 추가한 직후 T 키 → 프레임 내부가 아닌 … 바로 아래」) — ⒜ 를 걷었다.
+ *   빈 프레임도(방금 만든 것 포함) 오브젝트로 골랐으면 «밖»(다음 형제). «안»은 들어간 상태(더블클릭 진입 · 자식 고름)이거나 고르지 않고 활성만일 때뿐.
+ *   빈 프레임 «안»에 넣기 = 더블클릭으로 들어간 뒤(_enteredFrame — frameSelectedAsObject 가 null). 위 ⒜ 글은 기록으로 둔다. */
 function frameTakesInsert(frame) {
   if (!frame) return false;
-  if (!frameHasDrillTarget(frame)) return true;   // 들어갈 자식이 없다 = 이미 안쪽 상태
   return frameSelectedAsObject(frame.closest('.section-block')) !== frame;
 }
 if (typeof window !== 'undefined') window.frameTakesInsert = frameTakesInsert;

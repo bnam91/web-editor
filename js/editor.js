@@ -3189,6 +3189,13 @@ document.addEventListener('keydown', e => {
       window.addTextBlock?.('body'); return;
     }
     if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
+    /* ★T307(현빈 261109) — 맨 D = 그리드 · 맨 F = 프레임. 하드코딩(K 선례 · 설정 레지스트리 밖). 가드는 T 와 같은 것(편집 중·입력칸·⌘^⇧ 위에서 빠짐).
+       ⌥D(우정렬)는 위에서 먼저 return · 여기 !altKey 는 그 순서에 기대지 않으려는 것. _isAdd* «다음»이라 사용자가 T/G/A 를 D/F 로 바꿔 두면 그쪽이 이긴다. */
+    if (!e.altKey && !e.isComposing && (e.code === 'KeyD' || e.code === 'KeyF')) {
+      e.preventDefault();
+      if (e.code === 'KeyD') window.addGridBlock?.(); else window.addFrameBlock?.();
+      return;
+    }
     // ★아이콘 새 줄(K) — 그리드 전용, 하드코딩(설정 리매핑 레지스트리는 이번 범위 밖).
     if (e.code === 'KeyK' && !e.isComposing) {
       if (window.grdAddIconToSelectedCell?.()) { e.preventDefault(); return; }

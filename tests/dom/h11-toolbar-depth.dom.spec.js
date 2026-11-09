@@ -6,6 +6,7 @@
  *   ⒥ «들어간 상태»(프레임 클릭 → 자식 더블클릭(B안 · 옛: 자식 클릭) = 자식이 골라짐) → 툴바 넣기는 프레임 «안»(09-23 의 요구가 drill-in 으로 산다 — 안전망).
  * 실측(H11-F1/README · h11b-base.json, d1f642ff 실앱): ⒤ 툴바 넷(Graph·T▾ Heading·이미지 Standard·도형 Rectangle) «안» ✗ · ⒥ 넷 «안» ✓.
  * ⒜(10-05 지디 승인) 정의: «drill-in 할 대상이 없는 프레임(자식 요소 0)은 그 자체가 안쪽 상태다 ⇒ 안에 넣는다» — 아래 E-* 경계 행(I-* 장면은 자식이 있어 그대로 밖).
+ * ★⒜ 는 T307 ㉠(지디 261109)로 걷혔다 — 빈 프레임도 한 번 클릭이면 «밖». E-empty·E-ws·E-made 는 새 정의로 고쳐 단언한다(옛 «안» → 새 «다음 형제»).
  * 하네스 = bootApp(앱 통째) · 고르기·메뉴 = clickAt(누르기 직전 맞힌 요소 단언) · 상태 대기. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -97,8 +98,8 @@ for (const kind of ['free', 'flow']) for (const p of PATHS) {
  * 경계 행(예측 먼저 — H11-F1/E-rows-predict.md): «자식 요소» = 요소 노드만 · .drop-indicator 제외 · 갭·빈 글자 프레임은 센다.
  * 머리표: [새 것] cfd307ff 에서 빨강 · [경계 고정] 정의의 «센다» 쪽을 잠근다(cfd307ff 에서도 초록). */
 const INNER = {
-  empty: { tag: '[새 것]', want: true, html: () => '' },
-  ws: { tag: '[새 것]', want: true, html: () => '\n   <!-- 주석 -->\n   ' },
+  empty: { tag: '[T307 ㉠ 고침]', want: false, html: () => '' },   // ⒜ 걷음(지디 261109 ㉠ · 현빈 t3-01): 옛 «안» → 새 «밖»(다음 형제)
+  ws: { tag: '[T307 ㉠ 고침]', want: false, html: () => '\n   <!-- 주석 -->\n   ' },
   gap: { tag: '[경계 고정]', want: false, html: (kind) => `<div class="gap-block" id="eGap" data-type="gap" style="height:40px;${kind === 'free' ? 'position:absolute;left:20px;top:20px;width:200px;' : ''}"></div>` },
   tf: { tag: '[경계 고정]', want: false, html: (kind) => `<div class="frame-block" id="eTF" data-text-frame="true" data-bg="transparent" style="background:transparent;${kind === 'free' ? 'position:absolute;left:20px;top:20px;width:200px;' : 'width:100%;'}box-sizing:border-box;"></div>` },
   real: { tag: '[경계 고정]', want: false, html: (kind) => CHILD[kind] },
@@ -126,9 +127,11 @@ for (const kind of ['free', 'flow']) for (const [row, def] of Object.entries(INN
     expect(errs).toEqual([]);
   });
 }
-/* E-made — 툴바 「Frame 추가」(진짜 클릭) 직후 바로 툴바 넣기 = 새 프레임 «안»(09-23 의 그 자리) */
+/* E-made — 툴바 「Frame 추가」(진짜 클릭) 직후 바로 툴바 넣기 = 새 프레임 «다음 형제»(섹션 직속).
+ * ★T307 ㉠(지디 261109 · 현빈 t3-01 「프레임 블록을 신규 추가한 직후 T 키 → 프레임 내부가 아닌 … 바로 아래」): 옛 단언 «새 프레임 안»(⒜) → 새 단언 «새 프레임 바로 다음».
+ *   빈 프레임 안에 넣기는 더블클릭으로 들어간 뒤 — tests/dom/df-key-create.dom.spec.js 「빈 프레임 진입」. */
 for (const p of E_PATHS) {
-  test(`E-made-${p.name} [새 것] 「Frame 추가」 직후(새 프레임이 골라진 채) → 툴바 「${p.item}」 = 새 프레임 «안»`, async ({ page }) => {
+  test(`E-made-${p.name} [T307 ㉠] 「Frame 추가」 직후(새 프레임이 골라진 채) → 툴바 「${p.item}」 = 새 프레임 «다음 형제»`, async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1200 });
     const errs = await bootApp(page);
     await page.evaluate(() => {
@@ -144,8 +147,12 @@ for (const p of E_PATHS) {
     expect(await page.evaluate((id) => { const f = document.getElementById(id); return { sel: f.classList.contains('selected'), kids: f.children.length }; }, fid), '[전제] 새 프레임 = 골라짐 · 자식 0').toEqual({ sel: true, kids: 0 });
     const before = await ids(page, p.cls);
     await toolbar(page, p);
-    const r = await page.evaluate(([cls, before, fid]) => { const n = [...document.querySelectorAll(`#canvas ${cls}`)].filter(e => !before.includes(e.id)); return { n: n.length, inside: n.length === 1 && !!n[0].closest(`[id="${fid}"]`) }; }, [p.cls, before, fid]);
-    expect(r, `★새 프레임 안 ${JSON.stringify(r)}`).toEqual({ n: 1, inside: true });
+    const r = await page.evaluate(([cls, before, fid]) => { const n = [...document.querySelectorAll(`#canvas ${cls}`)].filter(e => !before.includes(e.id));
+      if (n.length !== 1) return { n: n.length };
+      const f = document.getElementById(fid); const fUnit = f.parentElement.id === 'inH' ? f : f.closest('#inH > *');
+      let u = n[0]; while (u.parentElement && u.parentElement.id !== 'inH') u = u.parentElement;
+      return { n: 1, inside: !!n[0].closest(`[id="${fid}"]`), unitParent: u.parentElement?.id, afterNewFrame: u.previousElementSibling === fUnit, frameKids: f.children.length }; }, [p.cls, before, fid]);
+    expect(r, `★새 프레임 바로 다음 형제(섹션 직속) ${JSON.stringify(r)}`).toEqual({ n: 1, inside: false, unitParent: 'inH', afterNewFrame: true, frameKids: 0 });
     expect(errs).toEqual([]);
   });
 }

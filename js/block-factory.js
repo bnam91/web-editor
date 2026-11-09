@@ -2100,8 +2100,12 @@ function addFrameBlock(opts = {}) {
 
   // 활성 프레임 안에 삽입 (중첩 프레임) — fullWidth 모드 및 shape frame 제외
   // ★도형 래퍼 판정·넣을 자리는 shape-frame.js SSOT — insertAfterSelected 도 같은 해석을 쓴다
-  const activeFrame = !opts.fullWidth && resolveInsertFrame(window._activeFrame);
-  if (activeFrame && activeFrame.closest('.section-block') === sec) {
+  /* ★T307 Q1·Q2(261109) — 깊이 판정은 다른 add* 와 같은 문지기(_insFrameGate → frameTakesInsert) 한 자리:
+     오브젝트로 고른 프레임(방금 만든 빈 프레임 포함) → 다음 형제 · 들어간 흐름 프레임 → 고른 자식 다음(없으면 끝) — 둘 다 insertAfterSelected 가 놓는다. */
+  const activeFrame = !opts.fullWidth && _insFrameGate(resolveInsertFrame(window._activeFrame));
+  if (!(activeFrame && activeFrame.dataset.freeLayout === 'true')) {
+    insertAfterSelected(sec, ss);
+  } else if (activeFrame && activeFrame.closest('.section-block') === sec) {
     activeFrame.appendChild(ss);
     /* ★자유배치 프레임의 자식은 «좌표»로 산다 — 안 주면 흐름 자식이 되어, 이미 들어와 있던
        absolute 형제와 «둘 다 y=0» 에 포개진다(absolute 형제는 흐름을 차지하지 않으므로
