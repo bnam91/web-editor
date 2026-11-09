@@ -2836,6 +2836,19 @@ function _recordSyncSaveFailure(project, reason, error) {
   }
 }
 
+/* 저장이 실패로 끝난 탭을 닫을 때 렌더러가 넘긴다 — 사유와 상관없이 그 본을 마커·비상 사본으로(REFUSED-SAVE-THEN-CLOSE-TAB-EDIT-LOST-01).
+   닫은 탭은 종료 flush·beforeunload 가 안 보고 LS 는 다음 부팅 고아 정리가 지울 수 있다. 다음 실행의 복구 제안이 이 기록을 읽는다. */
+ipcMain.handle('projects:record-refused', (_e, project, reason) => {
+  if (!project || typeof project !== 'object' || typeof project.id !== 'string' || !project.id || !Array.isArray(project.pages)) return { ok: false, reason: 'invalid' };
+  /* 마커·사본만 — recordSyncSaveFailure 와 달리 종료 대화상자 몫(_pendingSync)을 안 세운다: 닫은 지 오래된 실패를 창 없는 종료가 «방금 실패»로 알렸다(리뷰) */
+  try {
+    quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, appVersion: app.getVersion(), log: (m) => console.warn(m) });
+    const saved = quitSaveGuard.writeFailureRecord({ ok: false, reason: (typeof reason === 'string' && reason ? reason : 'rejected').slice(0, 64), error: null,
+      projectId: project.id.slice(0, 128), projectName: typeof project.name === 'string' ? project.name.slice(0, 200) : null, snapshot: JSON.stringify(project, null, 2) }, Date.now());
+    return { ok: !!saved.record.emergencyPath && !saved.markerError };   // 사본·마커 둘 다라야 성공 — 마커가 없으면 다음 실행 복구 제안에 안 뜬다 · 사본이 없으면 — 마커만 남기고 ok 를 주면 다음 닫기가 다시 안 해 LS 와 함께 그 편집을 잃었다(리뷰 2)
+  } catch (e) { console.warn('[projects:record-refused] 기록 실패:', e && e.message); return { ok: false, reason: 'exception' }; }
+});
+
 /* ── [version-history/U7] 삭제 안전망 — 영구삭제 → «휴지통» (현빈 승인) ────
  * ★설계 §8-0 규약: «되돌릴 수단»을 대상과 «같은 봉투»에 두지 마라.
  *   proj_<id>/ 안에 proj.json · proj_backup.json · **proj_history 스냅샷 전부** · assets 가 다 있다.

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project).then((r) => _noteFileVersion(project, r)),
   // BUG-44: beforeunload용 동기 저장 — async를 await할 수 없는 새로고침/탭닫기 시점에 호출
   saveProjectSync:(project) => _noteFileVersion(project, ipcRenderer.sendSync('projects:save-sync', project)),
+  recordRefusedSave: (project, reason) => ipcRenderer.invoke('projects:record-refused', project, reason),   // 저장이 실패로 끝난 탭을 닫을 때 — 마커·비상 사본으로 남긴다(closeTab 이 기다린다 · 큰 본에 동기면 두 프로세스가 멈춘다)
   flushLocalStorage: () => ipcRenderer.invoke('storage:flush'),
   /* ★S1(2026-10-03) — 자동저장 대기 중에만 창의 백그라운드 억제를 풀어 달라고 메인에 알린다(on/off). 되돌림 보증은 메인 몫. */
   setSavePending: (on) => ipcRenderer.send('app:save-pending', !!on),

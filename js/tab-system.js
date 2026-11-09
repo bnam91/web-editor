@@ -484,9 +484,11 @@ async function closeTab(id) {
     catch (e) { console.warn('[closeTab] 다음 탭 열기 실패:', e && e.message); if (_getActId() === id) return; }
     if (_getActId() === id) return;   // 다음 탭이 앞 저장을 기다리는 동안 이 탭으로 돌아왔다 — 활성 탭을 목록에서 빼면 떠날 때 저장을 건너뛰어 편집을 잃는다
   }
+  const closed = openTabs[idx];
   _setTabs(_getTabs().filter(t => t.id !== id));
   renderTabBar();
   saveTabState();
+  await window.keepFailedCopyOnClose?.(id, closed.name, closed._cache);   // 저장이 실패로 끝난 탭이면 그 본을 비상 사본으로 — 닫은 탭은 종료 때 아무도 안 본다
 }
 
 /* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 저장 없이 탭을 닫고 알린다.
@@ -501,7 +503,7 @@ async function closeDeletedProjectTab(id, opts) {
   const next = tabs[idx + 1] || tabs[idx - 1];
   _setTabs(tabs.filter(t => t.id !== id));
   /* 지운 프로젝트의 탭과 본을 디스크까지 지금 내린다 — 60초 안에 죽으면 다음 부팅이 옛 탭·옛 본을 읽어 영구 삭제한 프로젝트를 «앱 밖에서 없어진 것»으로 되살렸다(앱 재현). */
-  try { if (!opts?.keepLs) { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); } saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
+  try { if (!opts?.keepLs) { const k = 'web-editor-autosave__' + id; localStorage.removeItem(k); localStorage.removeItem(k + '_ts'); window.forgetFailedSave?.(id); } saveTabState(); window.electronAPI?.flushLocalStorage?.(); } catch (_) {}
   if (active && !next) {
     _setActId(null);   // beforeunload 저장도 멈춘다
     saveTabState();
