@@ -788,9 +788,13 @@ async function deletePage(pageId) {
     if (idx === -1) return;
   }
   const wasActive = pageId === state.currentPageId;
+  /* ★EMPTY-PAGE-DELETE-NO-CONFIRM-NO-UNDO-01 — 확인 없이 지우는 빈 페이지는 ⌘Z 한 번으로 돌아오게 한다(확인창은 안 더한다 · 내용 페이지 갈래는 무변).
+     돌아올 본 = 지운 순간 그대로(보던 장이면 라이브 화면 — page.canvas 는 flush 전이라 지우기 전 섹션이 남아 있을 수 있다). 그 장의 이력은 버리지 않고 맡겨 둔다. */
+  const _undoable = !hasContent;
+  if (_undoable) { if (wasActive) { page.canvas = canvasHtmlForCheck; window.stashHistoryFor?.(pageId); } }
   state.pages.splice(idx, 1);
-  // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지)
-  window.dropHistoryFor?.(pageId);
+  // D1: 삭제된 페이지의 히스토리 stash 정리 (메모리 누수 방지) — 되돌릴 수 있는 빈 페이지는 남긴다(돌아오면 그 이력도 같이)
+  if (!_undoable) window.dropHistoryFor?.(pageId);
   _pageVideoPendingSidecars.delete(pageId); // 같은 이유로 sidecar도 같이 정리
   if (wasActive) {
     const next = state.pages[Math.min(idx, state.pages.length - 1)];
@@ -809,9 +813,29 @@ async function deletePage(pageId) {
       window.fitKeylessFreeFrameGridsOnOpen?.(canvasEl);   // E129 F3 — 페이지 전환도 «열기»다
       window.deselectAll();
       window.showPageProperties();
+      /* 빈 페이지 갈래: 남을 페이지의 이력으로 갈아탄다(switchPage 와 같은 짝) — 안 갈아타면 ⌘Z 가 지운 장의 옛 칸을 목록에 없는 id 로 띄웠다(유령) */
+      if (_undoable) window.adoptHistoryFor?.(next.id);
     } finally { window.AutoSaveSuppress.end(_asTok); }
   }
   window.buildLayerPanel();
+  if (_undoable) {
+    /* 남은 페이지 이력에 «페이지 삭제» 한 칸 — 캔버스는 그대로라 되돌릴 것은 목록뿐이다(sideEffects 길 · 섹션 보호·스크래치와 같은 꼴).
+       ⛔다시 하기는 그 장을 보고 있으면 안 지운다(지우는 길은 deletePage 의 스크래치 옮기기를 거쳐야 한다) · 마지막 한 장도 안 지운다. */
+    const removed = page, at = idx;
+    window.pushHistory?.('페이지 삭제', {
+      onUndo: () => {
+        if (state.pages.some(p => p.id === removed.id)) return;
+        state.pages.splice(Math.min(at, state.pages.length), 0, removed);
+        window.buildLayerPanel(); scheduleAutoSave();
+      },
+      onRedo: () => {
+        const i = state.pages.findIndex(p => p.id === removed.id);
+        if (i === -1 || removed.id === state.currentPageId || state.pages.length <= 1) return;
+        state.pages.splice(i, 1);
+        window.buildLayerPanel(); scheduleAutoSave();
+      },
+    });
+  }
   scheduleAutoSave();
 }
 
