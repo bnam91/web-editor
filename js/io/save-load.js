@@ -3213,12 +3213,18 @@ window.saveProjectToFile = saveProjectToFile;
 window.flushProjectBeforeTrash = async (id) => {
   const tab = openTabs.find(t => t.id === id);
   if (!tab || window.isTabFirstLoading?.(id)) return;
-  if (id === activeProjectId) {
+  const _active = id === activeProjectId;
+  /* ★NEW-TRASH-FROM-GALLERY-DROPS-FAILED-EDIT-01 — «보는 탭인데 마지막 저장이 실패»도 아래 옆 탭 갈래(TRASH-FLUSH)로 보낸다.
+     옛: 보는 탭이면 판 검사 없이 지금 본으로 다시 썼다 — 밖에서 새로워진 파일을 덮고, 그 쓰기마저 실패하면 사본 없이 휴지통 뒤 LS 를 지워(closeDeletedProjectTab) 편집을 잃었다.
+     본만 다르다: 보는 탭 = 지금 캔버스(serializeProject) · 옆 탭 = 탭 캐시. 판정·사본 길은 한 벌 그대로. */
+  if (_active && !_lastSaveFailed(id)) {
     if (_hasOwnUnsaved()) {
       if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
       await saveProjectToFile(serializeProject(), { skipThumbnail: true, projectId: id });
     }
-  } else if (_lastSaveFailed(id) && tab._cache) {
+  } else if (_lastSaveFailed(id) && (_active || tab._cache)) {
+    if (_active && autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+    const _body = _active ? serializeProject() : tab._cache;
     /* ★TRASH-FLUSH-STALE-CACHE-OVERWRITES-NEWER-FILE-01 — 실패 뒤 파일이 «밖에서» 새로워졌으면(MCP·버전 복원 등) 그 캐시로 안 덮는다:
        덮인 판이 그대로 휴지통에 들어갔다. 판정 = 지금 파일의 updatedAt 이 이 렌더러가 마지막으로 열거나 쓴 판(ls-base · preload _noteFileVersion)과 다르다.
        판을 모르거나 못 읽으면 밖에서 바뀐 쪽으로 친다. 그때는 비상 사본만(닫기·종료와 같은 길 · 같은 실패는 한 번만).
@@ -3226,9 +3232,9 @@ window.flushProjectBeforeTrash = async (id) => {
     let _outside = true;
     try { const f = await window.electronAPI?.loadProject?.(id); const base = localStorage.getItem(`web-editor-ls-base__${id}`); _outside = !f || base == null || String(f.updatedAt) !== base; } catch (_) {}
     let _settled = true;
-    if (!_outside) { await saveProjectToFile(tab._cache, { skipThumbnail: true, projectId: id }); _settled = await _waitSavesFor(id, 3000); }
+    if (!_outside) { await saveProjectToFile(_body, { skipThumbnail: true, projectId: id }); _settled = await _waitSavesFor(id, 3000); }
     /* 다시 쓰기가 3초 안에 안 끝났으면(줄 뒤) 기다리지 않고 지금 사본을 남긴다 — main 은 5초만 기다리고 옮긴 뒤엔 줄의 저장이 project_deleted(실패 아님)라 사본이 안 남았다(리뷰 2) */
-    if (_outside || !_settled || _lastSaveFailed(id)) await window.keepFailedCopyOnClose(id, tab.name, tab._cache, _settled ? undefined : 0);
+    if (_outside || !_settled || _lastSaveFailed(id)) await window.keepFailedCopyOnClose(id, tab.name, _body, _settled ? undefined : 0);
   }
   const until = Date.now() + 5000;
   while (Date.now() < until && (_isSavingToFile || _pendingSaves.has(id))) await new Promise(r => setTimeout(r, 25));

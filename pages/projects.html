@@ -2299,6 +2299,24 @@ function _dropHomeTab(id) {
   } catch {}
 }
 
+/* ★NEW-TRASH-FROM-GALLERY-DROPS-FAILED-EDIT-01 — main 이 휴지통으로 옮기기 «전»에 모든 창에서 부르는 문(main.js _flushBeforeTrash → window.flushProjectBeforeTrash).
+   편집기 창은 save-load.js 가 맡는데 이 화면엔 그 문이 없었다 ⇒ 갤러리 ✕ 로 지우면, 저장 실패로 LS 에만 남은 편집이 비상 사본 없이 옮겨지고
+   바로 아래 closeDeletedProjectTab 이 LS 를 지워 다음 실행 복구 제안에도 안 나왔다(미카사 int-3 실앱 · 사본 0).
+   ⛔판정을 새로 짓지 않는다 — 편집기가 남긴 «마지막 저장 실패» 표지(web-editor-failed-save-ids · save-load.js _noteFailedSave)와 그 본(LS)을 쓴다.
+   남기는 문도 편집기 keepFailedCopyOnClose 와 같은 IPC(recordRefusedSave). 이 화면은 프로젝트 파일을 안 쓴다(TRASH-FLUSH «밖에서 바뀐 쪽»과 같은 처리 — 사본만). */
+window.flushProjectBeforeTrash = async (id) => {
+  let failed = [];
+  try { failed = JSON.parse(localStorage.getItem('web-editor-failed-save-ids')) || []; } catch {}
+  if (!Array.isArray(failed) || !failed.includes(id) || !window.electronAPI?.recordRefusedSave) return;
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem('web-editor-autosave__' + id)); } catch {}
+  if (!data || !Array.isArray(data.pages)) return;
+  let r = null;
+  try { r = await window.electronAPI.recordRefusedSave({ ...data, id, name: data.name || 'Untitled' }, 'save-failed'); }
+  catch (e) { console.warn('[projects] 휴지통 전 비상 사본 실패:', e && e.message); }
+  if (!r?.ok) window.showStatusToast?.('⚠️ 저장 실패로 남아 있던 편집을 비상 사본으로 남기지 못했습니다 — 디스크 공간·폴더 권한을 확인해 주세요');   // 말없이 잃지 않는다(편집기 쪽 _warn 과 같은 뜻)
+};
+
 /* ★연 채 삭제(현빈 결정 2026-11-03) — main 이 부른다. 이 화면의 탭은 저장된 목록뿐이라 거기서 뺀다. 마지막 탭을 닫고 온 에디터의 알림도 여기서 띄운다. */
 window.closeDeletedProjectTab = (id) => {
   let tab = null;
