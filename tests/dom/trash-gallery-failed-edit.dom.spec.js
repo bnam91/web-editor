@@ -7,6 +7,8 @@
  *     E2 [대조] 보는 탭 · 실패 · 밖에서 안 바뀜 → 다시 써서 편집이 파일(휴지통 묶음)로 · 사본 0 (옛 동작과 같음)
  *     E3 ★그 다시 쓰기도 실패 → 비상 사본 1
  *     N1 [음성] 보는 탭 · 저장 실패 없음(밀린 편집만) → 옛대로 파일로 내림 · 사본 0
+ *     U1 [적대 리뷰 2] 떠날 때 sync 저장이 실패(main 이 그 자리에서 사본·기록 at 을 씀) → LS 본 시각(_ts) ≤ 그 at — 옛 판은 LS 시각을 «뒤에» 찍어 at < _ts 라
+ *        «사본 ≥ LS 본» 규칙(부팅 정리 · G4)이 같은 편집을 또 남겼다
  *   ── 갤러리 ✕ 길(pages/projects.html — 진짜 페이지 · 진짜 ✕ 클릭 · main 은 가짜: 진짜 main 처럼 «옮기기 전 flushProjectBeforeTrash → 옮김 → closeDeletedProjectTab») ──
  *     옛: 갤러리엔 flushProjectBeforeTrash 가 없어 아무도 사본을 안 남겼고, closeDeletedProjectTab 이 LS 를 지웠다.
  *     G1 ★실패 표지(web-editor-failed-save-ids)에 있는 프로젝트 → 비상 사본 1(LS 본 그대로 · 이름·사유) · 옮긴 뒤 LS 는 지워짐(사본이 있으니 잃음 0)
@@ -119,6 +121,21 @@ test('N1 [음성] 보는 탭 · 저장 실패 없음(밀린 편집만) → 파�
   await page.evaluate((A) => window.flushProjectBeforeTrash(A), A);
   expect(await fileA(page)).toContain(EDIT);
   expect(await keptA(page)).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+test('U1 떠날 때 sync 저장 실패 — LS 본 시각이 main 의 사본 기록 시각보다 늦지 않다(같은 본을 «더 새 LS»로 안 읽게)', async ({ page }) => {
+  const errs = await setupEditor(page);
+  await editA(page);
+  const r = await page.evaluate((A) => {
+    /* main _recordSyncSaveFailure 흉내 — 실패한 그 자리에서 기록 시각을 찍는다 */
+    window.__fake.saveProjectSync = (p) => { window.__syncAt = Date.now(); const t = Date.now(); while (Date.now() - t < 5) {} return { ok: false, reason: 'disk_full' }; };
+    window.dispatchEvent(new Event('beforeunload'));
+    return { at: window.__syncAt, ts: parseInt(localStorage.getItem('web-editor-autosave__' + A + '_ts') || '0'), hasBody: !!localStorage.getItem('web-editor-autosave__' + A) };
+  }, A);
+  expect(r.hasBody, '[전제] LS 본이 남았다').toBe(true);
+  expect(r.at, '[전제] sync 저장이 불렸다').toBeTruthy();
+  expect(r.ts <= r.at, `★LS 시각 ${r.ts} 가 사본 기록 ${r.at} 보다 늦다 — 같은 본을 «사본보다 새 LS»로 읽어 또 남긴다`).toBe(true);
   expect(errs).toEqual([]);
 });
 

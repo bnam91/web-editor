@@ -2541,6 +2541,9 @@ window.addEventListener('beforeunload', () => {
   // BUG-44: Electron이면 동기 IPC로 파일에 즉시 저장 (autoSave debounce 1.5s 이내 새로고침 시 데이터 손실 방지)
   // localStorage는 보조 캐시이며, 파일 저장이 진실의 원천. 큰 snapshot도 파일에는 무조건 들어가야 함.
   let _unloadFiled = false;
+  /* LS 본의 시각은 «파일 저장을 부르기 전»에 잡는다 — 그 저장이 실패하면 main 이 그 자리에서 비상 사본·기록(at)을 쓰는데, 옛 판은 LS 시각을 그 «뒤»에 찍어
+     같은 본인데 at < _ts 가 됐다 ⇒ 부팅 정리·갤러리 휴지통의 «사본 ≥ LS 본» 규칙이 같은 편집을 또 남겼다(NEW-TRASH-FROM-GALLERY 적대 리뷰 2). LS 본(snap)은 그 전에 찍힌 것이라 이 시각이 참이다. */
+  const _unloadAt = Date.now();
   if (IS_ELECTRON && window.electronAPI?.saveProjectSync) {
     try {
       const proj = {
@@ -2563,7 +2566,7 @@ window.addEventListener('beforeunload', () => {
   }
 
   const _unloadSaveOk = safeLocalStorageSet(getSaveKey(), snap);
-  if (_unloadSaveOk) { localStorage.setItem(getSaveTsKey(), String(Date.now())); if (_unloadFiled) _markLsFiled(activeProjectId, localStorage.getItem(getSaveTsKey())); }
+  if (_unloadSaveOk) { localStorage.setItem(getSaveTsKey(), String(_unloadAt)); if (_unloadFiled) _markLsFiled(activeProjectId, localStorage.getItem(getSaveTsKey())); }
   // non-Electron: PROJECTS_KEY snapshot 동기 업데이트 (파싱 결과 재사용)
   if (!IS_ELECTRON && activeProjectId) {
     try {
