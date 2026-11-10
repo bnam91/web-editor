@@ -160,6 +160,14 @@ const _FRAME_NEED = [...new Set([...sliceExternalDeps(OH, FRAME_SRC), ...sliceEx
 const _FRAME_MISSING = _FRAME_NEED.filter((n) => !declaresName(_PROBE, n));       // ★하네스가 안 주는 것
 const _OH_LOCAL_MISSING = [...OH.matchAll(/^export function ([\w$]+)\(/gm)].map((m) => m[1])
   .filter((n) => new RegExp('\\b' + n + '\\s*\\(').test(FRAME_SRC) && !declaresName(_PROBE, n));
+/* ★int-4(261110 · 워커2) — t2-02c 가 조각이 부르는 «export 안 한» 같은 파일 도우미 _pxOr 를 더했다 — 위 파생(export function 만)이 못 봐 T1a·T1c 가 ReferenceError.
+ *  ★같은 꼴로 파생(⛔이름 손으로 안 적음): 조각이 부르는 OH 최상위 `function 이름(`(export 없는 것) 중 하네스가 안 주고 «자족»(import 0 · 같은 파일 함수 0)인 것만. */
+const _ohLocalCalls = (frag) => [...OH.matchAll(/^function ([\w$]+)\(/gm)].map((m) => m[1])
+  .filter((n) => new RegExp('\\b' + n + '\\s*\\(').test(frag) && !new RegExp('function ' + n + '\\(').test(frag));
+const _OH_PLAIN_DEPS = _ohLocalCalls(FRAME_SRC)
+  .filter((n) => !declaresName(_PROBE, n))
+  .map((n) => sliceBlock(OH, `function ${n}(`, `★조각이 부르는 같은 파일 도우미 — ${n}`))
+  .filter((body) => sliceExternalDeps(OH, body).length === 0 && _ohLocalCalls(body).length === 0);
 const FRAME_DEPS = [
   ..._FRAME_MISSING.filter((n) => FG.includes(`export function ${n}(`))
     .map((n) => sliceBlock(FG, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`)),
@@ -167,6 +175,7 @@ const FRAME_DEPS = [
     .map((n) => sliceBlock(OF, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`)),
   ...(_FRAME_MISSING.includes('_applyOverlayPos') ? [sliceBlock(OF, 'function _syncPanelXY(', '★_applyOverlayPos 가 부르는 같은 파일 함수')] : []),
   ..._OH_LOCAL_MISSING.map((n) => sliceBlock(OH, `export function ${n}(`, `★조각이 부르는 같은 파일 함수 — ${n}`)),
+  ..._OH_PLAIN_DEPS,
 ].join('\n').replace(/^export /gm, '');                                          // 일반 script 라 export 를 뗀다
 const HARNESS_JS = harnessJs(FRAME_DEPS);
 /* ★★파생 가드 — ★여기서 던지면 ★페이지 안 ReferenceError ★전에 ★이름을 ★찍어 준다. */

@@ -162,7 +162,17 @@ const FG_DEPS = MISSING
   .replace(/^export /gm, '');                                       // 일반 script 라 export 를 뗀다
 /* ★★파생 가드 — ⛔「가드 줄 하나」만 보던 위 가드는 ★이 결함을 ★못 잡았다.
  *  ★여기서 던지면 ★페이지 안 ReferenceError ★전에 ★이름을 ★찍어 준다. */
-assertDepsProvided(BIND_FRAME_DROPZONE, BD, _PROBE + FG_DEPS, 'overlay-float-frame-drag-conflict 하네스');
+/* ★int-4(261110 · 워커2) — 같은 파일의 «export 안 한» 도우미(T2-01-DROP _afterDropClick)도 조각이 부른다 — 위 파생은 import 이름만 봐 못 보고 F2 가 ReferenceError.
+ *  ★파생(⛔이름 손으로 안 적음): 조각이 부르는 BD 최상위 `function 이름(` 중 하네스가 안 주고, «제 몸이 더 부르는 것이 없는»(import 0 · 같은 파일 함수 0 = 자족) 것만 원본에서 뜬다.
+ *  ⇒ 안 닿는 큰 갈래(_bindFrameFlowDrop 등 · 자족 아님)는 지금처럼 안 심는다 — 그것을 심으면 그 몸의 import 까지 줄줄이 끌려온다. */
+const _bdLocalCalls = (frag) => [...BD.matchAll(/^function ([\w$]+)\(/gm)].map((m) => m[1])
+  .filter((n) => new RegExp('\\b' + n + '\\s*\\(').test(frag) && !new RegExp('function ' + n + '\\(').test(frag));
+const LOCAL_DEPS = _bdLocalCalls(BIND_FRAME_DROPZONE)
+  .filter((n) => !declaresName(_PROBE + FG_DEPS, n))
+  .map((n) => sliceBlock(BD, `function ${n}(`, `★조각이 부르는 같은 파일 도우미 — ${n}`))
+  .filter((body) => sliceExternalDeps(BD, body).length === 0 && _bdLocalCalls(body).length === 0)
+  .join('\n');
+assertDepsProvided(BIND_FRAME_DROPZONE, BD, _PROBE + FG_DEPS + LOCAL_DEPS, 'overlay-float-frame-drag-conflict 하네스');
 
 
 async function boot(page, { pre = false } = {}) {
@@ -170,7 +180,7 @@ async function boot(page, { pre = false } = {}) {
   page.on('pageerror', (e) => errs.push(String(e)));
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: harness(pre, FG_DEPS) });
+    if (url.pathname === '/__harness.html') return route.fulfill({ contentType: 'text/html', body: harness(pre, FG_DEPS + '\n' + LOCAL_DEPS) });
     if (url.pathname === '/overlay-float.js') return route.fulfill({ contentType: 'application/javascript', body: OVERLAY_FLOAT_JS });
     if (url.pathname === '/frame-geometry.js') return route.fulfill({ contentType: 'application/javascript', body: FRAME_GEOMETRY_JS });
     if (url.pathname === '/shape-frame.js') return route.fulfill({ contentType: 'application/javascript', body: SHAPE_FRAME_JS });
