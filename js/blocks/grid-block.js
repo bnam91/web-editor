@@ -3800,9 +3800,11 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   const _hideFor = mergesSet || (!mergesUnset && (next.cells !== undefined || next.cols !== undefined) ? gridMerges(block) : null);
   if (_hideFor && _hideFor.length) {
     const model = getGridModel(block), full = _gridFullCellsOf(model);
-    const sent = (r, c) => { const src = partial.cells !== undefined ? partial.cells?.[r]?.[c] : (r === 0 ? partial.cols?.[c] : null); return Array.isArray(src?.lines) && src.lines.length > 0; };
+    const has = (src) => Array.isArray(src?.lines) && src.lines.length > 0;
     for (const m of _hideFor) for (let r = m.r; r < m.r + m.rs; r++) for (let c = m.c; c < m.c + m.cs; c++) if (r !== m.r || c !== m.c) {
-      if (sent(r, c)) drops.push({ path: partial.cells !== undefined ? `cells[${r}][${c}].lines` : `cols[${c}].lines`, why: `cell (${r},${c}) is hidden by the merge anchored at (${m.r},${m.c}) — write the anchor, or unmerge first` });
+      const why = `cell (${r},${c}) is hidden by the merge anchored at (${m.r},${m.c}) — write the anchor, or unmerge first`;
+      if (has(partial.cells?.[r]?.[c])) drops.push({ path: `cells[${r}][${c}].lines`, why });
+      if (r === 0 && has(partial.cols?.[c])) drops.push({ path: `cols[${c}].lines`, why });
       full[r][c] = { lines: [] };
     }
     _gridWriteModelDirect(block, _gridModelFromFull(model.cols, model.rows, full), false);

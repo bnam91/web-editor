@@ -2745,6 +2745,7 @@ function _updateGridRangeRect(overlay, block) {
   /* ★t2-04 — 상자 네 변은 «트랙»에서 잰다(한 칸짜리 칸) — 머리띠 범위가 합친 칸을 지나도 그 행/열만 감싼다. 병합이 없으면 a·b 와 같은 값. */
   const tk = (axis, i) => _gridTrackCell(block, axis, i)?.getBoundingClientRect();
   const tL = tk('col', rng.c0), tR = tk('col', rng.c1), tT = tk('row', rng.r0), tB = tk('row', rng.r1);
+  if (rng.axis && !(tL && tR && tT && tB)) { if (el) el.remove(); return; }   // 머리띠 행/열이 모든 칸에서 합쳐져 잴 트랙이 없다 — 틀린 상자보다 안 그림
   if (!el) {
     el = document.createElement('div');
     el.className = 'grd-range-rect';

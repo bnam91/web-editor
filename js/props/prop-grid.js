@@ -709,10 +709,15 @@ export function grdDeleteBand(block, axis, i) {
  *  가리킨 칸 = at(우클릭한 칸) → 없으면 범위의 왼쪽 위 → 없으면 활성 줄의 칸. 메뉴와 ⌘M 이 «같은 판정»을 쓴다. */
 export function grdMergeAction(block, at) {
   if (!block || !block.classList?.contains('grid-block')) return null;
-  const rng = window.grdGetRange?.(block);
+  const rng0 = window.grdGetRange?.(block);
+  /* 머리띠(행/열 통째) 범위는 grdGetRange 가 안 넓힌다 — 판정은 «넓힌» 범위로 한다(병합 문 gridMergeRange 와 같은 셈) */
+  const rng = rng0 && window.gridExpandRange ? { ...window.gridExpandRange(window.gridMerges?.(block) || [], rng0.r0, rng0.c0, rng0.r1, rng0.c1), axis: rng0.axis } : rng0;
   const multi = rng && (rng.r1 > rng.r0 || rng.c1 > rng.c0);
   const one = multi ? window.gridMergeAt?.(block, rng.r0, rng.c0) : null;
   const isExact = one && one.r === rng.r0 && one.c === rng.c0 && one.r + one.rs - 1 === rng.r1 && one.c + one.cs - 1 === rng.c1;
+  /* ⛔머리띠가 합친 칸을 «걸쳐» 넓어졌으면 병합하지 않는다 — 보이는 상자(그 행/열) 밖 칸까지 비우게 된다. 칸을 끌어 고르면 된다. */
+  const widened = rng0 && rng0.axis && (rng.r0 !== rng0.r0 || rng.c0 !== rng0.c0 || rng.r1 !== rng0.r1 || rng.c1 !== rng0.c1);
+  if (multi && !isExact && widened) return { kind: 'blocked' };
   if (multi && !isExact) return { kind: 'merge', rng };
   const p = at || (rng ? { r: rng.r0, c: rng.c0 } : grdGetActiveLine(block));
   if (p && Number.isInteger(p.r) && Number.isInteger(p.c) && window.gridMergeAt?.(block, p.r, p.c)) return { kind: 'unmerge', r: p.r, c: p.c };
@@ -722,6 +727,7 @@ export function grdMergeAction(block, at) {
 export function grdMergeToggle(block, at, decided) {
   const act = decided || grdMergeAction(block, at);   // decided = 우클릭 때 판정한 것(메뉴 — 그 사이 범위가 풀려도 같은 일을 한다)
   if (!act) return false;
+  if (act.kind === 'blocked') { window.showToast?.('합친 칸에 걸쳐 있어 행/열째로는 병합할 수 없어요 — 칸을 끌어 골라 주세요'); return false; }
   let m = null;
   if (act.kind === 'merge') { m = window.gridMergeRange?.(block, act.rng.r0, act.rng.c0, act.rng.r1, act.rng.c1); if (!m) return false; }
   else if (!window.gridUnmergeAt?.(block, act.r, act.c)) return false;
