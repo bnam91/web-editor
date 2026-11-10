@@ -331,11 +331,6 @@ const GATE_PANEL = {
   from: '  const _anyHit = _nestHit ? null : _grdResolveAnyAddr(block, _addrIn);',
   to:   '  const _anyHit = _grdResolveAnyAddr(block, _addrIn);',
 };
-const GATE_RESOLVER = {
-  path: '/js/props/prop-grid.js',
-  from: '  if (addr.np) return null;\n  const r = Number(addr.r), c = Number(addr.c);',
-  to:   '  const r = Number(addr.r), c = Number(addr.c);',
-};
 
 /** 「줄 선택 없음」 대비 손잡이가 몇 개 늘었나 — A3 와 «같은 저울». */
 const grewHandles = (page) => page.evaluate((sel) => {
@@ -440,33 +435,53 @@ test('B2 ★이미지 코너 핸들의 두 문이 중첩 주소를 «명시적�
   }
 });
 
-test('B3 ★T/G/K 단축키도 중첩 주소에선 «그리드를 건드리지 않는다»', async ({ page }) => {
-  /* grdAddLineToSelectedCell 은 _grdResolveAnyAddr 로 주소를 푼다 ⇒ np 바일아웃에 같이 걸린다.
-     false 를 돌려주면 호출부가 «기존 전역 동작»(텍스트/갭 블록 추가)으로 흘려보낸다 — 오늘
-     「줄 선택 없음」과 같은 길이다. ★여기서 재는 것은 「그리드가 안 바뀐다」 하나다. */
+/* ★B3 뒤집힘 — NEW-현빈QA-TWOCELL-COL-ADD-TEXT-LINE-01(현빈 261110): 두 칸 안(깊이 1) 줄을 고른 T·G 는 «그 열 안» 고른 줄 바로 아래에 넣는다.
+   옛 B3 은 «그리드를 안 건드린다»(어느 줄 뒤에 넣을지 정할 길이 없었다)를 지켰다 — 이제 길이 났다(grdAddLineAt → _grdNestAddTarget = 중첩 열 주인).
+   ⛔바깥 줄(품은 duo 뒤)엔 여전히 안 넣는다 — 그게 옛 B3 이 막던 «엉뚱한 바깥 자리»다. 깊이 2+ 는 그대로 무동작(B3b). K(아이콘)는 그대로 무동작. */
+test('B3 ★T·G — 두 칸 안(깊이 1) 줄 주소면 «그 열 안» 고른 줄 바로 아래 · 바깥 줄은 그대로', async ({ page }) => {
   const errs = await boot(page);
   await mount(page);
+  const st = () => page.evaluate(() => { const L = window.__model(window.__block).cells[0][0].lines; return { outer: L.map((l) => l.type), col0: L[1].cols[0].lines.map((l) => l.type + ':' + (l.text ?? '')), col1: L[1].cols[1].lines.length }; });
+  const s0 = await st();
   await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0' }));
-  const before = await page.evaluate(() => JSON.stringify(window.__model(window.__block).cells[0][0].lines));
-  const ret = await page.evaluate(() => window.grdAddLineToSelectedCell?.('body'));
-  const after = await page.evaluate(() => JSON.stringify(window.__model(window.__block).cells[0][0].lines));
-  expect(ret, '★중첩 주소인데 그리드가 단축키를 «먹었다» — 어느 줄 뒤에 넣을지 정할 길이 없다').toBe(false);
-  expect(after, '★그리드 모델이 바뀌었다').toBe(before);
+  expect(await page.evaluate(() => window.grdAddLineToSelectedCell?.('body')), 'T 를 먹었다').toBe(true);
+  const s1 = await st();
+  expect(s1.outer, '바깥 줄(품은 duo 뒤)엔 안 넣는다').toEqual(s0.outer);
+  expect(s1.col0, '그 열 안 IN-A 바로 아래 글 줄').toEqual([s0.col0[0], 'body:', ...s0.col0.slice(1)]);
+  expect(s1.col1, '옆 열 그대로').toBe(s0.col1);
+  expect(await page.evaluate(() => JSON.parse(JSON.stringify(window.grdGetActiveLine(window.__block)))), '활성 줄 = 새 줄').toMatchObject({ r: 0, c: 0, li: 1, np: '0.1' });
+  expect(await page.evaluate(() => window.grdAddLineToSelectedCell?.('gap')), 'G 도 같은 문').toBe(true);
+  expect((await st()).col0[2], '새 줄 아래 여백 줄').toBe('gap:');
   expect(errs).toEqual([]);
 });
 
-test('B3-양성 ★리졸버 문을 떼면 T/G/K 가 «품은 duo 줄» 뒤에 줄을 끼워 넣는다', async ({ page }) => {
-  /* ★이 자가 GATE_RESOLVER 의 «제 일»을 보여 준다 — 패널 문(A3-양성2a)과 달리 이 길은
-     _grdResolveAnyAddr «하나»로만 막힌다. 떼면 hit.li(=품은 duo 줄) 뒤에 새 줄이 생긴다:
-     사용자가 «중첩 안 줄»을 고르고 T 를 눌렀는데 줄이 엉뚱한 «바깥» 자리에 생기는 꼴. */
-  const errs = await boot(page, GATE_RESOLVER);
+test('B3b ★깊이 2+ 주소·K 는 그대로 무동작 — 그리드 모델 안 바뀜', async ({ page }) => {
+  const errs = await boot(page);
+  await mount(page);
+  const snap = () => page.evaluate(() => JSON.stringify(window.__model(window.__block).cells[0][0].lines));
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0/0.0' }));
+  const before = await snap();
+  expect(await page.evaluate(() => window.grdAddLineToSelectedCell?.('body')), '깊이 2 T = 안 먹음').toBe(false);
+  expect(await snap(), '깊이 2 — 모델 그대로').toBe(before);
+  await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0' }));
+  expect(await page.evaluate(() => { window.openIconifyModal = () => {}; return window.grdAddIconToSelectedCell?.(); }), 'K(아이콘)는 깊이 1 에서도 그대로 안 먹음').toBe(false);
+  expect(await snap(), 'K — 모델 그대로').toBe(before);
+  expect(errs).toEqual([]);
+});
+
+/* ★양성대조 — 새 문(_grdNestAddTarget)을 막으면 B3 의 일이 사라진다(옛 동작 = 안 먹음 · 모델 그대로) ⇒ B3 의 초록은 그 문이 한다. */
+const GATE_NEST_ADD = {
+  path: '/js/props/prop-grid.js',
+  from: 'function _grdNestAddTarget(block, addr) {',
+  to:   'function _grdNestAddTarget(block, addr) { return null;',
+};
+test('B3-양성 ★두 칸 열 주인 문(_grdNestAddTarget)을 막으면 T 가 다시 «안 먹음» — B3 의 초록은 그 문이 한다', async ({ page }) => {
+  const errs = await boot(page, GATE_NEST_ADD);
   await mount(page);
   await page.evaluate(() => window.__setActive(window.__block, { r: 0, c: 0, li: 1, np: '0.0' }));
-  const before = await page.evaluate(() => window.__model(window.__block).cells[0][0].lines.length);
-  const ret = await page.evaluate(() => window.grdAddLineToSelectedCell?.('body'));
-  const after = await page.evaluate(() => window.__model(window.__block).cells[0][0].lines.length);
-  expect(ret, '★문을 떼었는데도 단축키가 안 먹었다 — 이 양성대조는 «안 재고» 있다').toBe(true);
-  expect(after - before, '★문을 떼었는데도 줄이 안 늘었다 — 막고 있던 것이 이 문이 아니다').toBe(1);
+  const before = await page.evaluate(() => JSON.stringify(window.__model(window.__block).cells[0][0].lines));
+  expect(await page.evaluate(() => window.grdAddLineToSelectedCell?.('body')), '문을 막으면 T 안 먹음').toBe(false);
+  expect(await page.evaluate(() => JSON.stringify(window.__model(window.__block).cells[0][0].lines)), '모델 그대로').toBe(before);
   expect(errs, '★변이 닻을 못 찾았다(MUTATION_ANCHOR_MISSING)').toEqual([]);
 });
 
