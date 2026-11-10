@@ -3298,6 +3298,8 @@ async function _renameProjectImpl({ projectId, name } = {}) {
       return { ok: false, error: `invalid projectId: ${projectId}`, code: 'not_proj' };
     const nm = (name == null ? '' : String(name)).trim();
     if (!nm) return { ok: false, error: 'name 이 비었다(공백만도 안 된다)', code: 'invalid' };
+    /* -02b 리뷰 4 — 지금 파일을 읽어 그 위에 쓰는 쓰기다(남은 본 아님) — «제가 다시 만든 폴더» 기억을 지운다(안 지우면 대치로 돌아온 파일 위 이름 바꾸기가 거짓 거절). typeof: 잘라 싣는 유닛 보호. */
+    if (typeof _goneForget === 'function') _goneForget(String(projectId));
     const jsonPath = _resolveProjectJsonPath(projectId);
     if (!jsonPath || !fs.existsSync(jsonPath))
       return { ok: false, error: `project not found: ${projectId}`, code: 'not_found' };
@@ -3534,7 +3536,9 @@ ipcMain.handle('projects:history-restore', async (_e, { projectId, ts, openProje
       createdAt: r.data.createdAt || prev.createdAt || null,
       updatedAt: new Date().toISOString(),   // 되돌린 «시각»이 최신이다 — 목록 정렬이 과거로 감기면 안 된다
     };
-    await _saveProjectImpl(merged);          // 롤링백업·이름가드·목록캐시·스냅샷을 한 번에 얻는다
+    if (typeof _goneForget === 'function') _goneForget(String(pid));   // -02b 리뷰 4 — 지금 파일 위의 복원(남은 본 아님) · 거짓 «돌아왔다» 거절 방지
+    const _sr = await _saveProjectImpl(merged);          // 롤링백업·이름가드·목록캐시·스냅샷을 한 번에 얻는다
+    if (!_sr || _sr.ok === false) return { ok: false, reason: 'write_failed', message: (_sr && _sr.reason) || 'save failed', preRestoreTs: r.preRestoreTs };   // 리뷰 4 — 거절·실패를 성공으로 답하지 않는다
   } catch (e) {
     // ★여기서 실패해도 «안전판은 이미 있다» — 사용자는 아무것도 잃지 않았다.
     console.error('[history:restore] 쓰기 실패:', e);
