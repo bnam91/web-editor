@@ -6,6 +6,9 @@
  *   F3 내보내기 — 캡처 클론(stripEditorOnlyForCapture)·저장 직렬화 뒤: 클론엔 체커 0 · 저장본엔 키 둘이 실린다
  *   F4 다시 열기 — 클래스가 걷힌 저장본도 rebindAll 이 키로 체커를 다시 세운다 · 그림이 있으면 체커가 그림을 안 덮는다
  *   F5 ⌘Z — 켜기·톤이 «한 칸씩»: 톤 켠 뒤 undo 한 번 = 톤만 · 한 번 더 = 체크 배경 꺼짐(적용 먼저 · 기록 나중)
+ *   F6 ⌘Z 가 남의 편집을 같이 안 지운다 — push-after 손잡이(테두리 모양)로 앞뒤를 감싼다: 테두리 dashed → [체크 배경 | 톤] → 테두리 dotted → undo 한 번
+ *      = dotted 만 되돌고 체크 쪽은 남는다. 옛 «찍고 나서 바꾸는» 판에선 체크 쪽 편집이 제 칸이 없어 dotted 와 같이 사라진다(빨강).
+ *      ★뒤에 push-after 편집이 와야 갈린다 — 앞만 있으면 undo 첫머리 ensureHistoryCheckpoint 가 라이브를 찍어 메워 줘 옛 판도 초록(인텔 실측).
  *   N1 [대조] 같은 문서 섹션 체크 배경·톤은 그대로(라디오 name 이 안 섞인다)
  * ★양성대조: js/props/prop-frame.js 의 ss-bg-img-empty 배선(클릭 처리기 한 덩이)을 지우면 F1·F2·F3 빨강 · css/editor-base.css 의
  *   .frame-block[data-checker-tone="dark"] 규칙을 지우면 F2 빨강 · save-load.js 프레임 복원 한 줄을 지우면 F4 빨강 · N1 은 늘 초록.
@@ -131,3 +134,23 @@ test('F5 ⌘Z — 체크 배경 켜기·톤이 한 칸씩 되돌아간다', asyn
   await page.evaluate(() => window.undo());
   expect(await st(), 'undo 한 번 더 = 체크 배경 꺼짐').toEqual({ e: null, t: null });
 });
+
+/* F6 — push-after 손잡이 = 테두리 모양 select(prop-frame.js: applyBorder() → pushHistory). 매번 getElementById 로 «지금» 노드(패널이 다시 그려진다). */
+const borderStyle = (page, v) => page.evaluate((v) => { const e = document.getElementById('ss-border-style'); e.value = v; e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+const st6 = (page) => page.evaluate(() => { const f = document.getElementById('F'); return { b: f.dataset.borderStyle ?? null, e: f.dataset.bgImgEmpty ?? null, t: f.dataset.checkerTone ?? null }; });
+for (const what of ['체크 배경', '톤']) {
+  test(`F6 ${what} — 앞뒤 push-after 편집 사이에서 ⌘Z 한 번은 뒤 편집만 되돌린다`, async ({ page }) => {
+    await bootApp(page);
+    await build(page);
+    await page.evaluate(() => window.clearHistory?.());
+    await open(page, 'F');
+    if (what === '톤') await click(page, '#ss-bg-img-empty');
+    await borderStyle(page, 'dashed');
+    if (what === '체크 배경') await click(page, '#ss-bg-img-empty'); else await radio(page, 'ss-checker-tone-on');
+    await borderStyle(page, 'dotted');
+    const want = what === '체크 배경' ? { b: 'dashed', e: '1', t: null } : { b: 'dashed', e: '1', t: 'dark' };
+    expect(await st6(page), '[전제]').toEqual({ ...want, b: 'dotted' });
+    await page.evaluate(() => window.undo());
+    expect(await st6(page), `★⌘Z 한 번에 ${what} 편집까지 같이 사라졌다(제 칸이 없다 = 찍고 나서 바꿈)`).toEqual(want);
+  });
+}
