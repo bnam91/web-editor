@@ -3308,7 +3308,7 @@ window.flushSave = async function() {
     if (window.IS_ELECTRON && _targetId) {
       const r = await _saveInLine(data, _targetId);
       if (_isSaveFailure(r)) return;   // 실패 토스트는 _doSaveProjectToFile 이 띄웠다
-      if (r && r.ok === false) return;   // 건너뜀(지운 프로젝트·봉인 등)도 «저장됨»·공유 아님 — 타이머 길과 같은 잣대(리뷰 2 F2)
+      if (r && r.ok === false) { _setAutosaveIndicator('saved'); return; }   // 건너뜀(지운 프로젝트·봉인 등)은 공유 안 함 — 표시는 타이머 길처럼 «저장 중…»을 걷는다(타이머를 지웠으니 아무도 안 걷는다 · 리뷰 3)
     }
     _setAutosaveIndicator('saved');
     try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _targetId, snap, snapAt: _snapAt } })); } catch (_) {}
