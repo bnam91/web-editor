@@ -1,10 +1,13 @@
-/* icontext-icon-size-valign.dom.spec.js — ICONTEXT-ICON-SIZE-POSITION-01 (현빈 0.9.10 QA): 아이콘텍스트 ⑴ 아이콘 크기 숫자칸 ⑵ 아이콘 세로 맞춤(글 기준 위·가운데·아래).
- *   I1 패널: 「아이콘 크기」(prop-slider·prop-number · 간격 줄과 같은 폭) · 「아이콘 맞춤」(prop-align-btn 셋 · 방향 단추와 같은 묶음 클래스)
+/* icontext-icon-size-valign.dom.spec.js — ICONTEXT-ICON-SIZE-POSITION-01 (현빈 0.9.10 QA) ＋ ★ICONTEXT-VALIGN-SLIDER-01(현빈 261110 — 세로 맞춤 3단추 → 슬라이더).
+ *   I1 패널: 「아이콘 크기」·「아이콘 세로」(prop-slider·prop-number · 간격 줄과 같은 폭) · 옛 3단추 없음
  *   I2 크기 80 → 아이콘 80×80 · ⌘Z 한 번 = 40
- *   I3 맞춤 위/아래 → 아이콘 윗변 = 글 윗변 / 아랫변 = 글 아랫변 (여러 줄 글) · 가운데 = 옛 모양(속성 없음)
- *   I4 「방향」 세로로 바꾸면 맞춤 줄이 사라지고 아이콘 가로 위치는 정렬(가운데) 그대로 · 다시 가로면 맞춤이 돌아온다
- *   I5 저장 → 다시 열기 유지
- * ★양성대조: block-factory.js setIconTextValign·setIconTextIconSize 를 늘 false 로 하면 I2·I3·I5 빨강 · 템플릿 줄을 빼면 I1 빨강. */
+ *   I3 세로 오프셋: 0 = 글 가운데 · 슬라이더 왼끝 = 글 윗변 · 오른끝 = 글 아랫변 · ±3 은 가운데로 붙는다(자석)
+ *   V1 슬라이더 끌기 한 번 = ⌘Z 한 번
+ *   V2 ★옛 data-itb-valign top/bottom 블럭 — 열면 그대로 · 슬라이더를 «처음 만지는»(등가값 그대로 넣기) 순간 화면이 1:1(안 튐) · 속성이 dy 로 옮겨진다
+ *   I4 「방향」 세로 — 세로 줄이 사라지고 오프셋은 안 먹는다(값은 남는다) · 가로로 돌아오면 다시 먹는다
+ *   I5 저장 → 다시 열기 유지 · 저장 HTML 에 .itb-icon 인라인 translateY(내보내기 PNG·HTML 이 싣는 그 바이트)
+ * ★양성대조: block-factory.js setIconTextDy 를 늘 false 로 하면 I3·V1·V2·I5 빨강 · 템플릿 줄을 빼면 I1 빨강.
+ * ⚠️Figma: icon-text 는 GENERIC 폴백(svg·글만 · 아이콘 자리 필드 없음)이라 옛 위·아래 맞춤도 안 실렸다 — 같은 꼴(이 검사 밖 · 보고에 적음). */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 
@@ -23,7 +26,12 @@ async function setup(page) {
     b.style.width = '700px';
     window.clearHistory?.();
     return b.id;
-  }, SEC);
+  }, SEC).then(async (id) => {
+    /* ★서체가 늦게 오면 글이 다시 감겨 높이가 바뀐다(실측 154↔205px) — 자리를 재는 칸이라 «다 온 뒤»에서 시작한다(고정 대기 0). */
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForFunction((id) => { const t = document.querySelector(`#${id} .itb-text`); const h = t.offsetHeight; const ok = window.__itbH === h; window.__itbH = h; return ok; }, id, { polling: 'raf' });
+    return id;
+  });
 }
 async function selectItb(page, id) {
   await page.evaluate(() => window.deselectAll?.());
@@ -34,21 +42,23 @@ const geo = (page, id) => page.evaluate((id) => {
   const b = document.getElementById(id), ic = b.querySelector('.itb-icon'), I = ic.getBoundingClientRect(), T = b.querySelector('.itb-text').getBoundingClientRect(), B = b.getBoundingClientRect();
   const r = Math.round;
   return { w: ic.offsetWidth, h: ic.offsetHeight,   // 캔버스 배율 무관 CSS px
-    dTop: r(I.top - T.top), dBot: r(I.bottom - T.bottom), dMid: r((I.top + I.bottom) / 2 - (T.top + T.bottom) / 2), cx: r((I.left + I.right) / 2 - B.left), bw: r(B.width), valign: b.dataset.itbValign ?? null };
+    dTop: r(I.top - T.top), dBot: r(I.bottom - T.bottom), dMid: r((I.top + I.bottom) / 2 - (T.top + T.bottom) / 2), cx: r((I.left + I.right) / 2 - B.left), bw: r(B.width), valign: b.dataset.itbValign ?? null, dy: b.dataset.itbDy ?? null, top: I.top, z: I.height / (ic.offsetHeight || 1),
+    mid: ((I.top + I.bottom) / 2 - (T.top + T.bottom) / 2) / (I.height / (ic.offsetHeight || 1)),   // 가운데 기준 아이콘 자리(레이아웃 px · 줌 무관)
+    half: Math.max(0, (b.querySelector('.itb-text').offsetHeight - ic.offsetHeight) / 2) };
 }, id);
 
-test('I1 패널 — 아이콘 크기·맞춤 줄 · 기존 클래스·폭', async ({ page }) => {
+test('I1 패널 — 아이콘 크기·세로 줄 · 기존 클래스·폭 · 옛 3단추 없음', async ({ page }) => {
   const id = await setup(page);
   await selectItb(page, id);
   const p = await page.evaluate(() => {
     const w = (sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().width ?? -1);
     return { sCls: document.getElementById('itb-icon-size-slider').className, nCls: document.getElementById('itb-icon-size-number').className,
       sameW: w('#itb-icon-size-slider') === w('#itb-gap-slider') && w('#itb-icon-size-number') === w('#itb-gap-number'),
-      grp: document.getElementById('itb-valign-group')?.className, grpDir: document.getElementById('itb-dir-group')?.className,
-      btns: [...document.querySelectorAll('#itb-valign-group .prop-align-btn')].map(b => b.dataset.itbValign + (b.classList.contains('active') ? '*' : '')),
-      noDataAlign: !document.querySelector('#itb-valign-group [data-align]'), val: document.getElementById('itb-icon-size-number').value };
+      dyCls: [document.getElementById('itb-dy-slider')?.className, document.getElementById('itb-dy-number')?.className],
+      dySameW: w('#itb-dy-slider') === w('#itb-gap-slider') && w('#itb-dy-number') === w('#itb-gap-number'),
+      dyVal: document.getElementById('itb-dy-number')?.value, oldGroup: !!document.getElementById('itb-valign-group'), val: document.getElementById('itb-icon-size-number').value };
   });
-  expect(p).toEqual({ sCls: 'prop-slider', nCls: 'prop-number', sameW: true, grp: 'prop-align-group', grpDir: 'prop-align-group', btns: ['top', 'center*', 'bottom'], noDataAlign: true, val: '40' });
+  expect(p).toEqual({ sCls: 'prop-slider', nCls: 'prop-number', sameW: true, dyCls: ['prop-slider', 'prop-number'], dySameW: true, dyVal: '0', oldGroup: false, val: '40' });
 });
 
 test('I2 크기 80 → 80×80 · ⌘Z 한 번 = 40', async ({ page }) => {
@@ -62,38 +72,87 @@ test('I2 크기 80 → 80×80 · ⌘Z 한 번 = 40', async ({ page }) => {
   await expect.poll(async () => { const g = await geo(page, id); return [g.w, g.h]; }).toEqual([40, 40]);
 });
 
-test('I3 맞춤 위/아래 = 글 윗변/아랫변 · 가운데 = 속성 없음', async ({ page }) => {
+/* 슬라이더를 사람처럼: 값 넣고 input(끄는 중) → change(놓음) */
+const slide = (page, v) => page.evaluate((v) => { const sl = document.getElementById('itb-dy-slider'); sl.value = String(v); sl.dispatchEvent(new Event('input', { bubbles: true })); sl.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+const range = (page) => page.evaluate(() => { const sl = document.getElementById('itb-dy-slider'); sl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return [Number(sl.min), Number(sl.max)]; });   // 손 닿는 순간 다시 잰 끝
+
+test('I3 세로 오프셋 — 0 = 글 가운데 · 왼끝 = 글 윗변 · 오른끝 = 글 아랫변 · ±3 자석', async ({ page }) => {
   const id = await setup(page);
   await selectItb(page, id);
   await expect.poll(async () => (await geo(page, id)).dTop, '[전제] 가운데 — 여러 줄이라 아이콘이 글 위보다 아래').toBeGreaterThan(10);
   expect(Math.abs((await geo(page, id)).dMid), '[전제] 가운데 = 글 가운데').toBeLessThanOrEqual(1);
-  await page.click('#itb-valign-group [data-itb-valign="top"]');
-  await expect.poll(async () => (await geo(page, id)).dTop).toBe(0);
-  await page.click('#itb-valign-group [data-itb-valign="bottom"]');
-  await expect.poll(async () => (await geo(page, id)).dBot).toBe(0);
-  await page.click('#itb-valign-group [data-itb-valign="center"]');
-  await expect.poll(async () => (await geo(page, id)).valign).toBe(null);
-  expect(Math.abs((await geo(page, id)).dMid), '가운데로 돌아왔다').toBeLessThanOrEqual(1);
+  const [mn, mx] = await range(page);
+  const half = (await geo(page, id)).half;
+  expect([mn, mx], '끝 = ±max(60, 글 기준 빈 높이 절반)').toEqual([-Math.max(60, Math.ceil(half)), Math.max(60, Math.ceil(half))]);
+  for (const v of [mn, -25, 25, mx]) {
+    await slide(page, v);
+    await expect.poll(async () => Math.abs((await geo(page, id)).mid - v), `${v} → 가운데에서 ${v}px`).toBeLessThanOrEqual(0.6);
+  }
+  if (half >= 60) {   // 빈 높이가 넉넉하면 끝 = 글 윗변·아랫변
+    await slide(page, mn); expect(Math.abs((await geo(page, id)).mid + half), '왼끝 = 글 윗변').toBeLessThanOrEqual(1);
+  }
+  await slide(page, 2);
+  await expect.poll(async () => (await geo(page, id)).dy, '±3 은 가운데로(속성 없음 = 옛 바이트)').toBe(null);
+  expect(Math.abs((await geo(page, id)).dMid)).toBeLessThanOrEqual(1);
+  expect(await page.evaluate((id) => document.querySelector(`#${id} .itb-icon`).getAttribute('style'), id), '가운데면 인라인 transform 도 없다').toBe(null);
 });
 
-test('I4 방향 세로 — 맞춤 줄 없음 · 아이콘 가로 가운데 그대로 · 가로로 돌아오면 맞춤 복귀', async ({ page }) => {
+test('V1 슬라이더 놓기 한 번 = ⌘Z 한 번', async ({ page }) => {
   const id = await setup(page);
   await selectItb(page, id);
-  await page.click('#itb-valign-group [data-itb-valign="top"]');
-  await page.click('#itb-dir-group [data-dir="vertical"]');
-  await expect(page.locator('#itb-valign-group')).toHaveCount(0);
-  const g = await geo(page, id);
-  expect(Math.abs(g.cx - g.bw / 2), '세로 방향 기본 = 가운데(맞춤 값이 가로 위치를 안 건드린다)').toBeLessThanOrEqual(1);
-  await page.click('#itb-dir-group [data-dir="horizontal"]');
-  await expect(page.locator('#itb-valign-group [data-itb-valign="top"].active')).toHaveCount(1);
-  await expect.poll(async () => (await geo(page, id)).dTop).toBe(0);
+  await slide(page, -20);
+  await expect.poll(async () => (await geo(page, id)).dy).toBe('-20');
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await geo(page, id)).dy, '⌘Z 한 번 = 가운데').toBe(null);
 });
 
-test('I5 저장 → 다시 열기 유지', async ({ page }) => {
+for (const old of ['top', 'bottom']) {
+  test(`V2 ★옛 data-itb-valign=${old} — 열면 그대로 · 슬라이더 첫 손(등가값)에 1:1 · 속성이 dy 로 옮겨진다`, async ({ page }) => {
+    const id = await setup(page);
+    await page.evaluate(([id, old]) => { document.getElementById(id).dataset.itbValign = old; }, [id, old]);   // 옛 판 저장본과 같은 속성(3단추 시절)
+    const g0 = await geo(page, id);
+    expect(old === 'top' ? g0.dTop : g0.dBot, `[전제] 옛 ${old} = 글 ${old === 'top' ? '윗변' : '아랫변'}`).toBe(0);
+    await selectItb(page, id);
+    /* 손이 닿는 순간(pointerdown) 패널이 화면 자리를 다시 잰다 — 그 값에서 출발 = 첫 손 */
+    const shown = await page.evaluate(() => { const sl = document.getElementById('itb-dy-slider'); sl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return Number(sl.value); });
+    expect(shown, '패널은 그 자리의 등가 오프셋을 보인다(0 이 아니다)').not.toBe(0);
+    expect((await geo(page, id)).valign, '패널을 여는 것만으론 안 바뀐다').toBe(old);
+    const gA = await geo(page, id);   // ★바로 «앞» 자리(글은 패널 연 뒤에도 다시 감길 수 있다 — 비교는 첫 손 직전·직후)
+    expect(old === 'top' ? gA.dTop : gA.dBot, '[전제] 첫 손 직전에도 옛 자리').toBe(0);
+    await slide(page, shown);   // 첫 손 = 보이는 값 그대로
+    await expect.poll(async () => (await geo(page, id)).valign, '옛 속성은 걷힌다').toBe(null);
+    const g1 = await geo(page, id);
+    expect(g1.dy, 'dy 로 옮겨졌다').toBe(String(shown));
+    expect(Math.abs(g1.top - gA.top) / gA.z, `★안 튐 1:1 — 아이콘 윗변 차 ${g1.top - gA.top}`).toBeLessThanOrEqual(0.5);
+  });
+}
+
+test('I4 방향 세로 — 세로 줄 없음 · 오프셋 안 먹음(값은 남음) · 가로로 돌아오면 다시 먹음', async ({ page }) => {
   const id = await setup(page);
-  await page.evaluate((id) => { const b = document.getElementById(id); window.setIconTextIconSize(b, 64); window.setIconTextValign(b, 'bottom'); }, id);
+  await selectItb(page, id);
+  await slide(page, -30);
+  await expect.poll(async () => Math.abs((await geo(page, id)).mid + 30)).toBeLessThanOrEqual(0.6);
+  const mn = -30;
+  await page.click('#itb-dir-group [data-dir="vertical"]');
+  await expect(page.locator('#itb-dy-slider')).toHaveCount(0);
+  const tr = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .itb-icon`)).transform, id);
+  expect(tr, '세로 방향에선 오프셋 안 먹음').toBe('none');
+  const g = await geo(page, id);
+  expect(Math.abs(g.cx - g.bw / 2), '세로 방향 기본 = 가운데').toBeLessThanOrEqual(1);
+  expect(g.dy, '값은 남는다').toBe(String(mn));
+  await page.click('#itb-dir-group [data-dir="horizontal"]');
+  await expect(page.locator('#itb-dy-number')).toHaveValue(String(mn));
+  await expect.poll(async () => Math.abs((await geo(page, id)).mid + 30), '가로로 돌아오면 다시 먹는다').toBeLessThanOrEqual(0.6);
+});
+
+test('I5 저장 → 다시 열기 유지 · 저장 HTML 에 인라인 translateY', async ({ page }) => {
+  const id = await setup(page);
+  await page.evaluate((id) => { const b = document.getElementById(id); window.setIconTextIconSize(b, 64); window.setIconTextDy(b, 25); }, id);
+  const before = await geo(page, id);
   const snap = await page.evaluate(() => window.serializeProject());
+  expect(snap, '저장 HTML 의 아이콘 인라인 translateY(내보내기 PNG·HTML 이 싣는 바이트)').toContain('translateY(25px)');
   await bootApp(page);
   await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(JSON.parse(d)); }, snap);
-  await expect.poll(async () => { const g = await geo(page, id); return [g.w, g.h, g.valign, g.dBot]; }).toEqual([64, 64, 'bottom', 0]);
+  await expect.poll(async () => { const g = await geo(page, id); return [g.w, g.h, g.dy, g.dMid]; }).toEqual([64, 64, '25', before.dMid]);
 });

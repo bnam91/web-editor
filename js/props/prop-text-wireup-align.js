@@ -118,7 +118,7 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
     });
   }
 
-  /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 아이콘 크기 · 세로 맞춤. 쓰기 = block-factory.js «한 곳» · 적용 먼저 → pushHistory(위 방향 단추와 같은 순서). */
+  /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 아이콘 크기 · 세로(VALIGN-SLIDER-01 슬라이더). 쓰기 = block-factory.js «한 곳» · 적용 먼저 → pushHistory(위 방향 단추와 같은 순서). */
   if (isIconText) {
     const sl = propPanel.querySelector('#itb-icon-size-slider');
     const num = propPanel.querySelector('#itb-icon-size-number');
@@ -128,14 +128,20 @@ export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {
       sl.addEventListener('change', () => window.pushHistory?.('아이콘 크기'));   // 끄기 끝 표본 한 번
       num.addEventListener('change', () => { live(num.value); window.pushHistory?.('아이콘 크기'); });
     }
-    propPanel.querySelectorAll('#itb-valign-group .prop-align-btn[data-itb-valign]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (!window.setIconTextValign?.(tb, btn.dataset.itbValign)) return;
-        window.pushHistory?.('아이콘 맞춤');
-        window.scheduleAutoSave?.();
-        propPanel.querySelectorAll('#itb-valign-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
-      });
-    });
+    /* ★ICONTEXT-VALIGN-SLIDER-01 — 아이콘 세로 오프셋. 크기 줄과 같은 꼴(적용 먼저 → 끄기 끝 표본 한 번). 옛 valign 블럭은 첫 손에 등가 오프셋으로 옮겨진다(setIconTextDy). */
+    const dsl = propPanel.querySelector('#itb-dy-slider');
+    const dnum = propPanel.querySelector('#itb-dy-number');
+    if (dsl && dnum) {
+      const liveDy = (v) => { if (window.setIconTextDy?.(tb, v)) window.scheduleAutoSave?.(); const n = window.iconTextDyOf?.(tb); dsl.value = n; dnum.value = n; };
+      /* 손이 닿는 «그 순간» 화면 자리를 다시 잰다 — 글 높이는 패널을 그린 뒤에도 바뀐다(서체 로드·다시 감기 · 실측 154→205px).
+         옛 valign 블럭은 이 값이 «등가 오프셋»이라, 첫 손이 이 값에서 출발해야 안 튄다(V2). */
+      const fresh = () => { const r = window.iconTextDyRange?.(tb); if (r) { dsl.min = dnum.min = r.min; dsl.max = dnum.max = r.max; } const n = window.iconTextDyOf?.(tb); if (n != null) { dsl.value = n; dnum.value = n; } };
+      dsl.addEventListener('pointerdown', fresh);
+      dnum.addEventListener('focus', fresh);
+      dsl.addEventListener('input', () => liveDy(dsl.value));
+      dsl.addEventListener('change', () => window.pushHistory?.('아이콘 세로'));   // 끄기 끝 표본 한 번
+      dnum.addEventListener('change', () => { liveDy(dnum.value); window.pushHistory?.('아이콘 세로'); });
+    }
   }
 
   /* 아이콘-텍스트 간격 */
