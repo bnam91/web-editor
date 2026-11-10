@@ -48,7 +48,8 @@ test('C 더블클릭으로 들어가 글자 선택이 남은 프레임을 눌러
   await page.evaluate((id) => getSelection().selectAllChildren(document.getElementById(id).closest('.section-block')), ids.E);
   expect(await selType(page), '[전제] 글자 선택이 남았다').toBe('Range');
   const o0 = await offs(page, ids.E); const p = await J.ownPoint(page, ids.E);
-  await holdDrag(page, p, 60, 40);
+  /* ⓐ(FREE-FRAME-SIBLING-DROP-A-01) 뒤 — 옛 (60,40)은 커서가 형제 S 위에서 끝나 E 가 S «안»으로 든다(피그마식 · 인텔 실측 커서 y 812 ⊂ S 804~). 재는 것(쥐었다 끌기)은 그대로, 놓는 자리만 S 밖 */
+  await holdDrag(page, p, 60, 20);
   const o1 = await offs(page, ids.E);
   expect(await page.evaluate(() => window.__hd.ds)).toBe(0);
   expect(o1[0]).toBeGreaterThan(o0[0]); expect(o1[1]).toBeGreaterThan(o0[1]);

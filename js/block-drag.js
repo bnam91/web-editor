@@ -3324,13 +3324,16 @@ function _frameUnderPointer(x, y, dragEl, section) {
   }) || null;
 }
 
-/* 부모 프레임 밖에서 놓았을 때만 커서 아래 다른 프레임 — 안에서 놓으면 제자리다. */
+/* 커서 아래 «놓을» 다른 프레임 — 부모 밖이면 어느 프레임이든, 부모 «안»이면 그 부모 안의 프레임(형제·형제의 자손)만. 없으면 null = 제자리.
+   ★FREE-FRAME-SIBLING-DROP-A-01(현빈 ⓐ 피그마식) — 옛: 부모 안이면 늘 null 이라 같은 부모의 형제 프레임 위에 놓아도 겹쳐 놓일 뿐 안 들어갔다.
+   자기 자신·자기 자손·조상은 _frameUnderPointer 가 이미 뺀다(순환 없음). */
 function _frameOutsideParentAt(ev, el, parent) {
   const section = el.closest('.section-block');
   if (!parent || !section || el.dataset.overlayBlock === 'true') return null;
+  const f = _frameUnderPointer(ev.clientX, ev.clientY, el, section);
   const r = parent.getBoundingClientRect();
-  if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) return null;
-  return _frameUnderPointer(ev.clientX, ev.clientY, el, section);
+  if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) return f && parent.contains(f) && parent.dataset.group !== 'true' ? f : null;   // 묶음(⌘G) 안 끌기는 종전 그대로
+  return f;
 }
 
 /* 좌표로 끌던 자식 프레임을 스택에 넣는다 — 처리기는 묶을 때의 position 으로 갈리니 흐름 단위로 다시 태어나게 한다(section-drag.js rebirthFlowUnit). */
@@ -3365,13 +3368,18 @@ function _drawOutCue(out, ev, section) {
 
 /* 자유 프레임 위에 놓으면 커서를 가운데로 놓은 자리에 든다(말풍선·글자를 옆 프레임으로 — S6 남은 칸). 프레임 왼쪽·위로는 안 삐져나온다(큰 에셋이 위 형제를 덮었다).
    shortcut: 회전한 프레임 안으로 놓기는 화면 좌표라 안 맞춘다, 회전 놓기 요구가 오면 measureLocalBasis 로 푼다. */
-function _placeInFreeFrame(el, { frame, x, y }) {
+function _placeInFreeFrame(el, { frame, x, y }, keep) {
   const sc = parseFloat(document.getElementById('canvas-scaler')?.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
   const r = frame.getBoundingClientRect();
   frame.classList.remove('ss-drag-over');
   clearDropIndicators();
+  /* keep — 화면 자리 그대로(형제 프레임으로 넣기 · FREE-FRAME-SIBLING-DROP-A-01): 옛 부모 안쪽 원점 → 새 부모 안쪽 원점 차를 더한다.
+     shortcut: 조상 회전·뒤집기는 안 맞춘다(위 shortcut 과 같다). */
+  const op = keep ? el.offsetParent : null, opr = op?.getBoundingClientRect();   // ⛔`keep && …` 로 쓰지 마라 — false 는 ?. 를 통과해 TypeError(인텔 d418aec74 빨강 12 의 뿌리)
+  const kl = op ? (parseFloat(el.style.left) || 0) + (opr.left - r.left) / sc + op.clientLeft - frame.clientLeft : 0;
+  const kt = op ? (parseFloat(el.style.top) || 0) + (opr.top - r.top) / sc + op.clientTop - frame.clientTop : 0;
   frame.appendChild(el);
-  const left = Math.max(0, Math.round((x - r.left) / sc - el.offsetWidth / 2)), top = Math.max(0, Math.round((y - r.top) / sc - el.offsetHeight / 2));
+  const left = op ? Math.round(kl) : Math.max(0, Math.round((x - r.left) / sc - el.offsetWidth / 2)), top = op ? Math.round(kt) : Math.max(0, Math.round((y - r.top) / sc - el.offsetHeight / 2));
   el.style.position = 'absolute';
   el.style.left = `${left}px`;
   el.style.top = `${top}px`;
@@ -3635,7 +3643,7 @@ function bindFrameDropZone(ss) {
         /* 부모 자유 프레임 밖이면 onUp 이 놓을 자리를 미리 보인다 — 글자 끌어내기와 같은 가이드(t2-09). 판정은 onUp 과 같은 «커서가 부모 밖». */
         if (_cueOK) {
           const pr = parentFreeFrame.getBoundingClientRect();
-          if (ev.clientX < pr.left || ev.clientX > pr.right || ev.clientY < pr.top || ev.clientY > pr.bottom) {
+          if (ev.clientX < pr.left || ev.clientX > pr.right || ev.clientY < pr.top || ev.clientY > pr.bottom || _frameOutsideParentAt(ev, ss, parentFreeFrame)) {   // 부모 밖 · 또는 부모 안 형제 프레임 위(ⓐ)
             hideGuides();
             _outF = _trackOutFrame(_outF, ev, ss, parentSec);
             _drawOutCue(_outF, ev, parentSec);
@@ -3662,7 +3670,7 @@ function bindFrameDropZone(ss) {
             const inner = out && ss.closest('.section-block')?.querySelector(':scope > .section-inner');
             if (inner) { _moveFrameIntoFlow(ss, inner, upEv); window.pushHistory?.(); window.triggerAutoSave?.(); return; }
           }
-          if (_into) _placeInFreeFrame(ss, { frame: _into, x: upEv.clientX, y: upEv.clientY });
+          if (_into) _placeInFreeFrame(ss, { frame: _into, x: upEv.clientX, y: upEv.clientY }, parentFreeFrame?.contains(_into));   // 부모 안 형제로 넣기 = 화면 자리 그대로(ⓐ) · 밖 = 종전(커서 가운데)
           /* ★★놓을 때 ★안으로 ★되돌린다 — ★위 일반 블록 끌기 갈래와 ★★«같은 술어·같은 함수»다.
              ⛔여기서 ★제 벌로 ★다시 세지 ★않는다(★이 자리의 ★옛 흠이 ★그것이었다). */
           const _dropParent = _into || parentFreeFrame || ss.parentElement;
