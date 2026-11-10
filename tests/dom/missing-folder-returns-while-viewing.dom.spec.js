@@ -111,8 +111,10 @@ test('N1 [대조] 폴더가 아직 없으면 그 본으로 다시 만들고, 그
   const s = await page.evaluate(() => ({ sent: window.__sent.filter(s => s.id === 'proj_b'), tab: window.openTabs.find(t => t.id === 'proj_b')._goneCopy }));
   expect(await wroteB(page).then(w => w.length), '[전제] 두 저장이 다 들어갔다').toBe(2);
   expect(s.sent[0].gone).toBe(true);
-  expect(s.sent.at(-1).gone, '★다시 만든 뒤에도 남은 본 표시 — 다음 저장이 거절된다').toBe(false);
-  expect(s.tab).toBe(false);
+  /* ★-02 계약(인텔 7f9a3b74b N1 빨강 = 이 칸이 옛 계약을 단언했다): 다시 만든 뒤에도 표시는 파일을 «읽을» 때까지 남는다(옛 판은 여기서 걷어 대치 뒤 덮었다 · V1·V8).
+       그 표시 저장은 main 이 «제 폴더»(도장 일치 · 가짜 main 의 __own)로 받는다 — 막지 않는다는 것은 위 «두 저장이 다 들어갔다»가 잰다. */
+  expect(s.sent.at(-1).gone, '다시 만든 뒤 저장도 표시를 단다(파일을 읽기 전)').toBe(true);
+  expect(s.tab, '파일을 읽기 전엔 남은 본 표시가 남는다').toBe(true);
   expect(errs).toEqual([]);
 });
 test('N2 [대조] 평범한 탭의 저장은 표시가 없다', async ({ page }) => {
