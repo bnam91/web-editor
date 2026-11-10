@@ -3763,7 +3763,15 @@ function _grdWireLineSection(block, addr, host = null) {
     H.previewLine(r, c, li, { bg }, addr.np);
     H.mark(addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
   };
-  const end = () => { _gesture = false; window.scheduleAutoSave?.(); };
+  const end = () => {
+    _gesture = false; window.scheduleAutoSave?.();
+    /* ★PILL-RADIUS-ROW-NEEDS-RESELECT-AFTER-BG-01 — 「알약 둥글기」 줄은 배경이 «있을 때만» 그려진다(_grdLineSectionHtml).
+         배경을 켜거나 끈 «끝»에서 그 줄의 유무가 어긋나면 패널을 그 줄로 다시 보인다(↺ 기본과 같은 H.show).
+         ⛔input 도중엔 안 한다 — 열린 색상창·포커스가 끊긴다(위 ⛔updateGridBlock 주석의 그 까닭). */
+    const cur = H.line(addr) || {};
+    const hasBg = typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim());
+    if (hasBg !== !!document.getElementById('grd-badge-radius')) H.show(addr);
+  };
 
   pick?.addEventListener('input', () => {
     paint(pick.value);
