@@ -35,8 +35,12 @@
     // ⑵ 스크래치에서 «선택된» 것
     /* ★REMOVEBG-SCRATCH-SELECTION-NEVER-TARGETED-01 — 스크래치 고르기 표식은 `.scratch-selected` + `data-scratch-id` 다
        (scratch-pad.js 가 다는 것 · scratch-ocr.js·scratchpad-link.js 가 읽는 꼴 그대로). 옛 `.selected`·`el.id` 는 스크래치에 «한 번도» 안 붙어
-       스크래치 그림은 영영 대상이 안 됐다(t2-11 실앱 실측). 여럿 골랐으면 DOM 첫 것. */
-    const selScratch = document.querySelector('.scratch-item.scratch-selected');
+       스크래치 그림은 영영 대상이 안 됐다(t2-11 실앱 실측).
+       ★여럿 골랐으면 «안 고른다» — OCR 이 이미 쓰는 규칙(scratch-ocr.js _scratchOcrEnter: «하나»일 때만 대상)과 같게.
+         DOM 첫 것을 집으면 그룹 둘째를 눌렀는데 첫째가 바뀌었다(그룹 클릭은 모두를 고른다 · 적대 리뷰 2회차). */
+    const selAll = [...document.querySelectorAll('.scratch-item.scratch-selected')];
+    if (selAll.length > 1) return { kind: 'ambiguous', n: selAll.length };
+    const selScratch = selAll[0];
     const sid = selScratch?.dataset?.scratchId;
     if (sid) {
       const it = window._scratchGetItemById?.(sid);
@@ -185,6 +189,8 @@
        2장 그룹이 풀림(_dissolveLoneGroup) · fx·ocr·linkDy 사라짐 · 맨 위로 올라감 · 선택 빠짐 · ⌘Z 로도 안 돌아옴.
      ⇒ 항목·id·순서·그룹·효과는 그대로 두고 src 만 — scratch-pad.js 외부화(upgradeSrcs 뒤 «s.src = url · img.src = url»)와 같은 꼴. 저장은 그 파일의 디바운스 문. */
   async function _applyScratch(target, newSrc) {
+    /* 보내고 기다리는 사이 그 항목이 사라졌으면(지움·페이지/프로젝트 바꿈) «완료»라 하지 않는다 — 블럭 쪽 grdAssetSrcFor null 과 같은 뜻 */
+    if (!window._scratchItemById?.(target.id)) { window.showToast?.('❌ 배경을 지우는 사이 그 스크래치 이미지가 사라졌습니다'); return false; }
     const set = (src) => {
       const it = window._scratchItemById?.(target.id);
       if (!it) return;
@@ -196,6 +202,7 @@
     const before = target.src;
     set(newSrc);
     window.pushHistory?.('배경 제거', { onUndo: () => set(before), onRedo: () => set(newSrc) });
+    return true;
   }
 
   function _applyAsset(target, newSrc) {
@@ -217,6 +224,10 @@
     const target = _pickTarget();
     if (!target) {
       window.showToast?.('❌ 배경을 지울 이미지를 먼저 선택하세요 (스크래치 항목 또는 이미지 블록)');
+      return;
+    }
+    if (target.kind === 'ambiguous') {
+      window.showToast?.(`❌ 스크래치 이미지를 하나만 골라 주세요 (지금 ${target.n}개 · 그룹이면 더블클릭으로 안에 들어가 하나를 고르세요)`);
       return;
     }
     const model = await _chooseModel();
@@ -252,7 +263,7 @@
        ★t2-11c — 블럭은 다른 그림 입구와 같은 문 grdAssetSrcFor(prop-grid.js · goya-asset:// · 프로젝트 없으면 data URL · 대상이 떨어지면 null).
        스크래치는 data URL 그대로 — 스크래치 자기 규약(저장 때 externalizeScratchpad 가 거둔다). */
     const dataUrl = `data:${res.mime};base64,${res.b64}`;
-    if (target.kind === 'scratch') await _applyScratch(target, dataUrl);
+    if (target.kind === 'scratch') { if (!(await _applyScratch(target, dataUrl))) return; }
     else {
       const newSrc = await window.grdAssetSrcFor(target.el, dataUrl);
       if (!newSrc) return;                         // 기다리는 사이 화면이 바뀜 — grdAssetSrcFor 가 이미 알렸다

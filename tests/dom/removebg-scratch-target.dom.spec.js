@@ -8,6 +8,8 @@
  *   S3 [음성] 아무것도 안 고름 → «먼저 선택» 안내 · 전송 0
  *   S4 [대조] 이미지 블럭과 스크래치를 같이 골랐으면 이미지 블럭이 먼저(옛 순서 그대로) · 스크래치 무변
  *   S5 적대 리뷰 — 그룹·순서·선택·효과 표식이 그대로(그림만 바뀜) · ⌘Z 도 그 자리에서(옛 판은 지우고 다시 넣어 그룹이 풀리고 맨 위로 갔다)
+ *   S6 적대 리뷰 2 — 그룹 둘째를 클릭(그룹 클릭 = 둘 다 고름) → 안 보냄 · «하나만 골라 주세요» · 둘 다 무변(OCR 의 «하나일 때만» 규칙과 같게)
+ *   S7 적대 리뷰 2 — 보내는 사이 그 항목이 지워짐 → «완료» 아님 · «사라졌습니다» · 이력 안 쌓음
  *   ★모의: electronAPI.removebgCutout(=main 의 fetch 앞 IPC 문)를 세는 가짜 — 실제 키·remove.bg 호출 0.
  * ★양성대조(지디 인텔): js/removebg-plugin.js _pickTarget 의 `'.scratch-item.scratch-selected'` 를 옛 `'.scratch-item.selected'` 로 → S1·S2 빨강 · S3·S4 초록. */
 const { test, expect } = require('@playwright/test');
@@ -23,7 +25,7 @@ async function setup(page, { withAsset = false } = {}) {
     window.__cuts = [];
     const fake = {
       hasApiKey: async () => true,
-      removebgCutout: async (p) => { window.__cuts.push(p); return { ok: true, b64: OUT_B64, mime: 'image/png' }; },
+      removebgCutout: async (p) => { window.__cuts.push(p); if (window.__vanish) await window._scratchRemoveById(window.__vanish); return { ok: true, b64: OUT_B64, mime: 'image/png' }; },
     };
     Object.defineProperty(window, 'electronAPI', { configurable: true, get: () => new Proxy(fake, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) }), set: () => {} });
   }, OUT_B64);
@@ -139,5 +141,37 @@ test('S5 그룹 든 스크래치 — 결과 뒤에도 그룹·순서·선택 그
   await expect.poll(async () => (await state(page)).scratchSrc).toBe(src0);
   const after = await look();
   expect([after.order, after.groups], '⌘Z 뒤에도 그룹·순서 그대로').toEqual([before.order, before.groups]);
+  expect(errs).toEqual([]);
+});
+
+test('S6 그룹 둘째를 클릭(둘 다 골라짐) → 안 보냄 · «하나만 골라 주세요» · 둘 다 무변', async ({ page }) => {
+  const { errs, src0 } = await setup(page);
+  await page.evaluate(async (SID) => {
+    const px = window._scratchGetItemById(SID).src;
+    await window._scratchRemoveById(SID);
+    await window._scratchAddAndSave(px, 1500, 120, 320, 'g_rb', SID);
+    await window._scratchAddAndSave(px, 1500, 520, 320, 'g_rb', 'sp_rbs2');
+  }, SID);
+  await page.evaluate(() => document.querySelector('.scratch-item[data-scratch-id="sp_rbs2"]').scrollIntoView({ block: 'center', inline: 'center' }));
+  await page.locator('.scratch-item[data-scratch-id="sp_rbs2"]').click();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('.scratch-item.scratch-selected').length), '[전제] 그룹 클릭 = 둘 다 골라짐').toBe(2);
+  await runPickRemoveBg(page, false);
+  await expect.poll(async () => (await state(page)).toasts.some(t => /하나만 골라/.test(t))).toBe(true);
+  expect((await state(page)).cuts).toBe(0);
+  const srcs = await page.evaluate(() => ['sp_rbs1', 'sp_rbs2'].map(id => window._scratchGetItemById(id).src));
+  expect(srcs).toEqual([src0, src0]);
+  expect(errs).toEqual([]);
+});
+
+test('S7 보내는 사이 그 항목이 지워짐 → «완료» 아님 · «사라졌습니다»', async ({ page }) => {
+  const { errs } = await setup(page);
+  await pickScratch(page);
+  await page.evaluate((SID) => { window.__vanish = SID; }, SID);
+  await runPickRemoveBg(page);
+  await expect.poll(async () => (await state(page)).toasts.some(t => /사라졌습니다/.test(t))).toBe(true);
+  const s = await state(page);
+  expect(s.cuts).toBe(1);
+  expect(s.toasts.some(t => /배경 제거 완료/.test(t)), '없는 것을 «완료»라 하지 않는다').toBe(false);
+  expect(s.scratchN).toBe(0);
   expect(errs).toEqual([]);
 });
