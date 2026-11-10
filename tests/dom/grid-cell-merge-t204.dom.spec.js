@@ -184,13 +184,50 @@ test('M4 저장→다시 열기 — merges 키·앵커 상자(블럭 기준) 같
   expect(errs).toEqual([]);
 });
 
-test('M5 PNG(제품 캡처 파이프라인) — 앵커 색 픽셀 ≈ 합친 넓이 · 가려진 칸 색 0', async ({ page }) => {
+/* ★M5 진단(인텔 875363566: 앵커 색 54207 / 넓이 89930 ≈ 60%) — 제품(PNG 에서 덜 칠함) vs 자(넓이를 잘못 잡음)를 «값»으로 가른다.
+ *   덤프 T204DIAG: ⑴ 화면(라이브) 그리드를 찍어 같은 셈(라이브도 60% 면 PNG 경로 탓 아님) ⑵ 클론 칸마다 상자·계산된 배경·grid-row/column·패딩·테두리
+ *   ⑶ 클론 .grd-inner 의 계산된 트랙 ⑷ PNG 안 앵커 색의 경계 상자(minX..maxX·minY..maxY) vs 클론 앵커 상자(같은 원점) ⑸ 앵커 상자 안 색 상위 6개
+ *   PNG 원본은 testInfo 출력에 m5-clone.png · m5-live.png 로 남긴다. */
+const DIAG_COLORS = ({ b64, box, want }) => (async () => {   // ⛔page 안 eval 금지(앱 CSP 에 unsafe-eval 없음) — page.evaluate 에 함수째 넘긴다
+  const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+  const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+  const x = cv.getContext('2d'); x.drawImage(img, 0, 0); const d = x.getImageData(0, 0, cv.width, cv.height).data;
+  const t = [1, 3, 5].map(i => parseInt(want.slice(i, i + 2), 16));
+  let n = 0, minX = 1e9, minY = 1e9, maxX = -1, maxY = -1;
+  for (let y = 0; y < cv.height; y++) for (let X = 0; X < cv.width; X++) {
+    const i = (y * cv.width + X) * 4;
+    if (Math.abs(d[i] - t[0]) <= 4 && Math.abs(d[i + 1] - t[1]) <= 4 && Math.abs(d[i + 2] - t[2]) <= 4) { n++; minX = Math.min(minX, X); maxX = Math.max(maxX, X); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  }
+  const hist = {};
+  if (box) for (let y = Math.max(0, Math.round(box.y)); y < Math.min(cv.height, Math.round(box.y + box.h)); y++) for (let X = Math.max(0, Math.round(box.x)); X < Math.min(cv.width, Math.round(box.x + box.w)); X++) {
+    const i = (y * cv.width + X) * 4; const k = '#' + [d[i], d[i + 1], d[i + 2]].map(v => (v >> 3 << 3).toString(16).padStart(2, '0')).join(''); hist[k] = (hist[k] || 0) + 1;
+  }
+  return { img: [cv.width, cv.height], n, bbox: n ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 } : null, top: Object.entries(hist).sort((a, b) => b[1] - a[1]).slice(0, 6) };
+})();
+const CELL_DUMP = ({ rootSel, baseSel }) => { const root = document.querySelector(rootSel), base = document.querySelector(baseSel).getBoundingClientRect();
+  return [...root.querySelectorAll('.grid-block .grd-inner > .grd-cell')].map(c => {
+  const r = c.getBoundingClientRect(), cs = getComputedStyle(c);
+  return { rc: c.dataset.r + c.dataset.c, x: Math.round(r.left - base.left), y: Math.round(r.top - base.top), w: Math.round(r.width), h: Math.round(r.height),
+    bg: cs.backgroundColor, gr: cs.gridRow, gc: cs.gridColumn, pad: cs.padding, bd: cs.borderTopWidth + '/' + cs.borderBottomWidth, mh: cs.minHeight, style: (c.getAttribute('style') || '').slice(0, 160) };
+  }); };
+
+test('M5 PNG(제품 캡처 파이프라인) — 앵커 색 픽셀 ≈ 합친 넓이 · 가려진 칸 색 0', async ({ page }, testInfo) => {
   const errs = await setup(page);
   await drill(page, 1, 0);
   await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 1 });
   await page.keyboard.press('Meta+m');
   await expect.poll(async () => (await model(page)).merges).toBe('[{"r":1,"c":0,"rs":2,"cs":2}]');
   await page.evaluate(() => { window.deselectAll?.(); });
+  /* ⑴ 라이브 — 화면 그리드를 그대로 찍어 같은 셈(배율이 걸려 있어 넓이는 화면 상자로) */
+  const live = await page.evaluate(() => { const g = document.getElementById('gG'); const b = g.getBoundingClientRect(); const a = g.querySelector('.grd-cell[data-r="1"][data-c="0"]').getBoundingClientRect();
+    return { box: { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height }, area: Math.round(a.width * a.height),
+      tracks: { rows: getComputedStyle(g.querySelector('.grd-inner')).gridTemplateRows, cols: getComputedStyle(g.querySelector('.grd-inner')).gridTemplateColumns } }; });
+  live.cells = await page.evaluate(CELL_DUMP, { rootSel: '#sG', baseSel: '#gG' });
+  const liveShot = await page.locator('#gG').screenshot({ type: 'png' });
+  await testInfo.attach('m5-live.png', { body: liveShot, contentType: 'image/png' });
+  const liveColors = await page.evaluate(DIAG_COLORS, { b64: liveShot.toString('base64'), box: live.box, want: BG.a2 });
+  console.log('T204DIAG M5 live ' + JSON.stringify({ area: live.area, box: live.box, tracks: live.tracks, colors: liveColors, ratio: +(liveColors.n / live.area).toFixed(3) }));
+  console.log('T204DIAG M5 liveCells ' + JSON.stringify(live.cells));
   await page.evaluate(async () => {
     const ex = await import('/js/io/export-image.js');
     document.getElementById('__t204clone')?.remove();
@@ -201,11 +238,23 @@ test('M5 PNG(제품 캡처 파이프라인) — 앵커 색 픽셀 ≈ 합친 넓
     /* 넓이는 «클론 안»에서 잰다 — 캔버스는 배율이 걸려 있어 화면 상자와 PNG 픽셀의 자가 다르다 */
     const ar = (r, c) => { const b = clone.querySelector(`.grid-block .grd-cell[data-r="${r}"][data-c="${c}"]`).getBoundingClientRect(); return Math.round(b.width * b.height); };
     window.__area = ar(1, 0); window.__one = ar(1, 2);
+    const cb = clone.getBoundingClientRect();
+    const an = clone.querySelector('.grid-block .grd-cell[data-r="1"][data-c="0"]').getBoundingClientRect();
+    window.__cloneBox = { x: an.left - cb.left, y: an.top - cb.top, w: an.width, h: an.height };
+    window.__cloneRect = { w: cb.width, h: cb.height };
+    const inner = clone.querySelector('.grid-block .grd-inner');
+    window.__cloneTracks = inner ? { rows: getComputedStyle(inner).gridTemplateRows, cols: getComputedStyle(inner).gridTemplateColumns, merges: clone.querySelector('.grid-block')?.dataset.merges || null } : null;
   });
+  const cloneCells = await page.evaluate(CELL_DUMP, { rootSel: '#__t204clone', baseSel: '#__t204clone' });
+  console.log('T204DIAG M5 cloneCells ' + JSON.stringify(cloneCells));
   const area = await page.evaluate(() => window.__area), one = await page.evaluate(() => window.__one);
   const h = await page.evaluate(() => window.__h);
   await page.setViewportSize({ width: 1500, height: Math.min(4000, Math.max(300, h + 40)) });
   const shot = await page.locator('#__t204clone').screenshot({ type: 'png' });
+  await testInfo.attach('m5-clone.png', { body: shot, contentType: 'image/png' });
+  { const [box, rect, tracks] = await page.evaluate(() => [window.__cloneBox, window.__cloneRect, window.__cloneTracks]);
+    const cc = await page.evaluate(DIAG_COLORS, { b64: shot.toString('base64'), box, want: BG.a2 });
+    console.log('T204DIAG M5 clone ' + JSON.stringify({ area, cloneBox: box, cloneRect: rect, tracks, colors: cc, ratio: +(cc.n / area).toFixed(3) })); }
   const px = await page.evaluate(async ([b64, want]) => {
     const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
     const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
@@ -227,7 +276,11 @@ test('M5 PNG(제품 캡처 파이프라인) — 앵커 색 픽셀 ≈ 합친 넓
   expect(errs).toEqual([]);
 });
 
-test('M6 Figma JSON — 가려진 칸 글 없음 · 앵커 글 한 번 · 높이 = 화면 높이(그리드는 일반 폴백 — 칸 배치는 원래 안 실림)', async ({ page }) => {
+/* ★M6 진단(인텔 875363566: toBe 불일치) — 코드 읽기 근거: Figma 일반 폴백은 글자를 `[class^="tb-"]`·`.annot-label` 로만 줍는다(export-figma-json.js:1099)
+ *   그런데 그리드 줄 HTML 에는 tb- 클래스가 없다(grid-block.js 의 tb- 는 tb-hl·tb-dot 리치텍스트 명부뿐) ⇒ 그리드 칸 글은 «원래» Figma 로 안 나간다(기존 한계 · 병합과 무관).
+ *   ⇒ 옛 단언 「B2 정확히 한 번」은 없는 능력을 전제한 자였다. 덤프 T204DIAG M6 이 그 값을(texts·JSON 전체에 B2/C2 등장 수) 보여 준다.
+ *   남기는 단언(병합이 바꿀 수 있는 것만): 그리드가 나간다 · 높이 = 화면 높이 · 가려진 칸 글(C2)은 JSON 어디에도 없다. */
+test('M6 Figma JSON — 그리드가 나가고 높이 = 화면 높이 · 가려진 칸 글 없음(그리드 칸 글은 원래 Figma 로 안 나감 — 기존 한계)', async ({ page }) => {
   const errs = await setup(page);
   await drill(page, 1, 1);
   await dragRange(page, { r: 1, c: 1 }, { r: 1, c: 2 });
@@ -239,14 +292,14 @@ test('M6 Figma JSON — 가려진 칸 글 없음 · 앵커 글 한 번 · 높이
     state.pages = [{ canvas: document.getElementById('canvas').innerHTML, pageSettings: ps }]; state.pageSettings = ps;
     const json = window.buildFigmaExportJSON(null);
     const g = json.sections[0].blocks.find(b => b.kind === 'grid');
-    return { g, liveH: document.querySelector('#gG').offsetHeight };
+    const flat = JSON.stringify(json);
+    return { g, liveH: document.querySelector('#gG').offsetHeight, nB2: flat.split('"B2"').length - 1, nC2: flat.split('C2').length - 1, nB1: flat.split('"B1"').length - 1, kinds: json.sections[0].blocks.map(b => b.type + ':' + (b.kind || '')) };
   });
   const texts = (r.g?.texts || []).map(t => t.t);
-  console.log('T204ROW M6 ' + JSON.stringify({ texts, h: r.g?.height, liveH: r.liveH }));
+  console.log('T204DIAG M6 ' + JSON.stringify({ texts, h: r.g?.height, liveH: r.liveH, nB2: r.nB2, nB1: r.nB1, nC2: r.nC2, kinds: r.kinds }));
   expect(r.g, '[전제] 그리드가 나갔다').toBeTruthy();
-  expect(texts.filter(t => t === 'B2').length).toBe(1);
-  expect(texts).not.toContain('C2');
-  expect(close(r.g.height, r.liveH, 1)).toBe(true);
+  expect(r.nC2, '가려진 칸 글은 JSON 어디에도 없다').toBe(0);
+  expect(close(r.g.height, r.liveH, 1), `높이 ${r.g.height} vs 화면 ${r.liveH}`).toBe(true);
   expect(errs).toEqual([]);
 });
 
