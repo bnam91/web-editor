@@ -1236,11 +1236,22 @@ export function grdAddLineToSelectedCell(type) {
 if (typeof window !== 'undefined') window.grdAddLineToSelectedCell = grdAddLineToSelectedCell;
 
 /* ★1012t1G1 — 주소를 «받는» 그리드 줄 추가: T(위)와 우클릭 「아래에 줄 추가 (T)」(line-host.js lnAddLineAt 의 그리드 갈래)가 같이 쓴다.
- *  addr = {r,c,li|null} — li 가 숫자면 그 줄 다음, null 이면 칸 끝. ⛔중첩(np)은 _grdResolveAnyAddr 가 null(T 와 같은 바일아웃). */
+ *  addr = {r,c,li|null} — li 가 숫자면 그 줄 다음, null 이면 칸 끝. 두 칸 안(np 깊이 1)이면 그 열 안 고른 줄 다음(TWOCELL-COL-ADD-TEXT 261110) · 깊이 2+ 는 무동작. */
+/* ★NEW-현빈QA-TWOCELL-COL-ADD-TEXT-LINE-01(261110) — «나란히 두 칸» 안 줄(깊이 1 · np '열.줄')이 주소면 그 «열» 이 주인: {host(_grdNestColHost), i}. 아니면 null. */
+function _grdNestAddTarget(block, addr) {
+  if (!addr || typeof addr.np !== 'string' || addr.np.includes('/')) return null;
+  const hit = _grdResolveNestAddr(block, addr);
+  if (!hit) return null;
+  const [ci, i] = addr.np.split('.').map(Number);
+  return { r: hit.r, c: hit.c, i, host: _grdNestColHost(block, hit.r, hit.c, hit.li, ci) };
+}
 export function grdAddLineAt(block, addr, type) {
+  const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
+  /* ★TWOCELL-COL-ADD-TEXT — 두 칸 안 줄을 골랐으면 «그 열 안» 고른 줄 바로 아래(새 블럭 X). 주인만 그 열 · 넣는 문은 같은 grdAddLine(⌘Z 한 번 · 활성 줄 = 새 줄). */
+  const nt = _grdNestAddTarget(block, addr);
+  if (nt) { const r = grdAddLine(block, { r: nt.r, c: nt.c }, nt.i, lineSpec, {}, nt.host); grdToastImgFail(r); return !!(r && r.ok); }
   const hit = _grdResolveAnyAddr(block, addr);
   if (!hit) return false;
-  const lineSpec = grdNewLineSpec(type === 'gap' ? 'gap' : 'body');   // ★spec 은 «한 곳»에서 뜬다(grdNewLineSpec)
   const res = grdAddLine(block, { r: hit.r, c: hit.c }, hit.li, lineSpec);
   return !!(res && res.ok);
 }
@@ -1249,14 +1260,18 @@ export function grdAddLineAt(block, addr, type) {
  *  · 칸 여백 = 그 칸의 고른 줄(같은 칸일 때) 아니면 칸 끝(li:null)
  *  · 칸 밖(왼쪽 손잡이 .grd-line-grip 위 등 — #ss-handles-overlay 소속이라 블럭 밖) = 이 그리드 하나만 골라졌을 때의 고른 줄
  *  · 거터(.grd-gutter — 역시 오버레이 소속) 위 = elementsFromPoint 가 그 «밑»의 칸/줄을 주므로 그 칸 기준이다(설계대로 · 검수 ⒟).
- *  ⛔중첩(duo) «안»은 null(항목 숨김) — T(grdAddLineToSelectedCell → _grdResolveAnyAddr np 바일아웃)가 거기서 무동작이므로
- *    메뉴도 같은 판정으로 숨긴다(검수 ⒞). 누른 점이 중첩 안이거나, 칸 여백·블럭 밖인데 고른 줄이 중첩 안이면 둘 다 null.
+ *  ★두 칸 안(깊이 1)은 그 줄 주소(np)를 돌려준다 — T 가 그 열 안에 넣으므로 메뉴도 같은 판정으로 띄운다(TWOCELL-COL-ADD-TEXT 261110 · 옛: 숨김 검수 ⒞).
+ *  ⛔깊이 2+ 는 그대로 null(항목 숨김 · T 무동작).
  *  ⛔안쪽 그리드(.grd-children 의 다른 그리드)의 줄·칸은 안 집는다(closest('.grid-block') === block). */
 export function grdCtxAddAddr(block, node) {
   if (!block || !block.classList || !block.classList.contains('grid-block')) return null;
   const own = (el) => !!el && block.contains(el) && el.closest('.grid-block') === block;
   const nestEl = node && node.closest ? node.closest('[data-r][data-c][data-nroot][data-npath]') : null;
-  if (own(nestEl)) return null;
+  /* ★TWOCELL-COL-ADD-TEXT — 두 칸 안(깊이 1) 줄 위면 그 줄 주소(np) — 메뉴 「아래에 줄 추가 (T)」가 뜨고 grdAddLineAt 이 그 열 안에 넣는다. 깊이 2+ 는 그대로 숨김. */
+  if (own(nestEl)) {
+    const na = { r: Number(nestEl.dataset.r), c: Number(nestEl.dataset.c), li: Number(nestEl.dataset.nroot), np: nestEl.dataset.npath };
+    return _grdNestAddTarget(block, na) ? na : null;
+  }
   const lineEl = node && node.closest ? node.closest('[data-r][data-c][data-line]') : null;
   const cellEl = node && node.closest ? node.closest('.grd-cell[data-r][data-c]') : null;
   const act = grdIsSoleSelected(block) ? grdGetActiveLine(block) : null;
@@ -1266,7 +1281,8 @@ export function grdCtxAddAddr(block, node) {
     const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
     addr = (act && act.r === r && act.c === c) ? act : { r, c, li: null };
   } else addr = act;
-  const hit = _grdResolveAnyAddr(block, addr);   // ★np 가 실린 주소(고른 중첩 줄)는 여기서 null — T 와 같은 문
+  if (_grdNestAddTarget(block, addr)) return addr;   // 고른 줄이 두 칸 안(깊이 1)이면 그 줄 — T 와 같은 문
+  const hit = _grdResolveAnyAddr(block, addr);   // ★np 가 실린 주소(깊이 2+)는 여기서 null — T 와 같은 문
   return hit ? { r: hit.r, c: hit.c, li: hit.li } : null;
 }
 if (typeof window !== 'undefined') { window.grdAddLineAt = grdAddLineAt; window.grdCtxAddAddr = grdCtxAddAddr; }

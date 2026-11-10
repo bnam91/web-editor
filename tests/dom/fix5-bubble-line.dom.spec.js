@@ -11,7 +11,7 @@
  *   · 줄 없는 말풍선의 본문 = «가상 줄 0»(lnIsBubbleBodyLine) — 둘째 클릭이 고르고(.tb-bubble.ln-line-selected) 그리드 손잡이(.grd-line-grip)가 선다.
  *     첫 클릭은 그리드와 같은 드릴다운 걸쇠(grdMarkCanvasDrill)를 봐서 «삽입 직후에도» 블럭이다.
  *     가상 줄 상태의 ⌘X = 블럭 잘라내기 · ⌘↑/↓ = 블럭 이동(줄로 안 삼킨다) · ⌫ 만 두 걸음.
- *   · 우클릭 「아래에 줄 추가 (T)」 — 말풍선(명부에 더함) ＋ 그리드(grdCtxAddAddr → grdAddLineAt = T 와 한 길). 중첩(duo) 안은 T 처럼 숨김.
+ *   · 우클릭 「아래에 줄 추가 (T)」 — 말풍선(명부에 더함) ＋ 그리드(grdCtxAddAddr → grdAddLineAt = T 와 한 길). 두 칸 안(깊이 1)은 그 열 안에(R8 · 261110) · 깊이 2+ 는 숨김.
  *   · 말풍선 «안» 빈 줄 안내 = '말풍선 텍스트를 입력하세요'(다른 주인·그리드 안내문 무변).
  *
  * ★칸이 두 무리다:
@@ -418,23 +418,42 @@ test('R7 ⒜ 지킴 — 말풍선을 두 번 클릭한 상태의 ⌘↑/⌘↓ =
   expect(errs).toEqual([]);
 });
 
-test('R8 ⒞ 지킴 — 그리드 중첩(duo) «안» 줄 우클릭엔 「줄 추가」가 없다(그 줄을 고른 T 도 무동작 — 같은 판정)', async ({ page }) => {
+/* ★R8 뒤집힘 — NEW-현빈QA-TWOCELL-COL-ADD-TEXT-LINE-01(현빈 261110): 두 칸 안 줄을 고른 채 T · 우클릭 「아래에 줄 추가 (T)」 = «그 열 안» 고른 줄 바로 아래 글 줄(새 블럭 X).
+   옛 R8 은 «없음·무동작»(검수 ⒞ · 그땐 그 길이 없었다)을 지켰다. 이제 같은 판정 문(grdCtxAddAddr → grdAddLineAt · 깊이 1 = 중첩 열 주인)이 넣는다 · 깊이 2+ 는 그대로 숨김·무동작. */
+test('R8 두 칸 안 줄 — 우클릭 「아래에 줄 추가 (T)」·T 가 «그 열 안» 고른 줄 바로 아래 글 줄 · 바깥 줄·블럭 수 그대로 · ⌘Z 한 번 · 저장 왕복', async ({ page }) => {
   const { errs, id } = await setup(page, 'grid');
   const l0 = `#${id} [data-r="0"][data-c="0"][data-line="0"]`;
   await clickAt(page, l0, { button: 'right' });
   await pressById(page, 'bcm-grid-nested');
   const inner = `#${id} [data-nroot][data-npath]`;
   await waitFor(page, (id) => !!document.querySelector(`#${id} [data-nroot][data-npath]`), id, '전제 — 중첩 줄이 안 생겼다');
-  const n0 = await page.evaluate((id) => window.getGridModel(document.getElementById(id)).cells[0][0].lines.length, id);
+  const np = await page.evaluate((s) => document.querySelector(s).dataset.npath, inner);
+  const [ci, i0] = np.split('.').map(Number);
+  const st = () => page.evaluate(([id, ci]) => { const L = window.getGridModel(document.getElementById(id)).cells[0][0].lines; const d = L.find((l) => l.type === 'duo');
+    return { outer: L.map((l) => l.type), col: d.cols[ci].lines.map((l) => l.type), blocks: document.querySelectorAll('#canvas .section-block [data-type]').length }; }, [id, ci]);
+  const s0 = await st();
   await clickAt(page, inner, { button: 'right' });
   const m = await menuState(page);
   console.log('    R8 ' + JSON.stringify(m));
   expect(m.open, '전제 — 메뉴가 열렸다').toBe(true);
-  expect(m.lnAdd, `중첩 안 줄 우클릭엔 「줄 추가」 없음 ${JSON.stringify(m.items)}`).toBe(false);
-  await closeMenu(page);
+  expect(m.lnAdd, `두 칸 안 줄 우클릭에 「줄 추가」 ${JSON.stringify(m.items)}`).toBe(true);
+  await pressById(page, 'bcm-ln-add');
+  await waitFor(page, ([id, ci, n]) => window.getGridModel(document.getElementById(id)).cells[0][0].lines.find((l) => l.type === 'duo').cols[ci].lines.length === n, [id, ci, s0.col.length + 1], '우클릭 줄 추가가 그 열에 안 들었다');
+  const s1 = await st();
+  expect(s1.col, '그 열 안 고른 줄 바로 아래 글 줄').toEqual([...s0.col.slice(0, i0 + 1), 'body', ...s0.col.slice(i0 + 1)]);
+  expect([s1.outer, s1.blocks], '바깥 줄·블럭 수 그대로(새 블럭 X)').toEqual([s0.outer, s0.blocks]);
+  // T — 같은 문
   await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); });
   await clickAt(page, inner); await clickAt(page, inner);
-  await page.keyboard.press('t'); await frames2(page);   // T 처리기는 keydown 에서 동기 — 무동작을 재므로 «바뀔 때까지» 는 못 기다린다
-  expect(await page.evaluate((id) => window.getGridModel(document.getElementById(id)).cells[0][0].lines.length, id), '중첩 줄을 고른 T = 무동작').toBe(n0);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('t');
+  await waitFor(page, ([id, ci, n]) => window.getGridModel(document.getElementById(id)).cells[0][0].lines.find((l) => l.type === 'duo').cols[ci].lines.length === n, [id, ci, s1.col.length + 1], 'T 가 그 열에 줄을 안 넣었다');
+  const s2 = await st();
+  expect([s2.outer, s2.blocks], 'T 도 바깥 줄·블럭 수 그대로').toEqual([s0.outer, s0.blocks]);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); await frames2(page);
+  expect((await st()).col, '⌘Z 한 번 = T 전').toEqual(s1.col);
+  await page.evaluate(async () => { window.deselectAll?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; await window.applyProjectData(d); });
+  await waitFor(page, (id) => !!document.getElementById(id), id, '다시 열기');
+  expect((await st()).col, '저장 왕복').toEqual(s1.col);
   expect(errs).toEqual([]);
 });
