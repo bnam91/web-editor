@@ -352,9 +352,8 @@ function _onHandleMouseDown(e, ss, dir) {
   const isGroup = ss.dataset.group === 'true';
   // 스케일 기준은 style.width/height(canvas px) — rect/scale 불일치 회피
   //   t2-02c — px 일 때만. 흐름 갈래 ⌘G 묶음은 width:100% 라 parseInt 가 100 을 읽어 자식이 ×8 로 부풀었다 → 그려진 상자(startW/H)
-  const _px = (v, d) => /^[\d.]+px$/.test(v) ? parseInt(v) : d;
-  const groupStartW = _px(ss.style.width, startW);
-  const groupStartH = _px(ss.style.height, startH);
+  const groupStartW = _pxOr(ss.style.width, startW, parseInt);
+  const groupStartH = _pxOr(ss.style.height, startH, parseInt);
   let groupSnap = null;
   if (isGroup) {
     groupSnap = [];
@@ -374,8 +373,8 @@ function _onHandleMouseDown(e, ss, dir) {
           el: c,
           left: parseInt(c.style.left) || 0,
           top: parseInt(c.style.top) || 0,
-          w: parseInt(c.style.width) || c.offsetWidth,
-          h: parseInt(c.style.height) || c.offsetHeight,
+          w: _pxOr(c.style.width, c.offsetWidth, parseInt),     // t2-02c(미카사 int-3) — 흐름 제목 글자 프레임은 width:100% → parseInt 100 이 «쓰기»(×sx px)로 나가 716→100 으로 무너졌다
+          h: _pxOr(c.style.height, c.offsetHeight, parseInt),
           isTextFrame,
           contentEl,
           fs: contentEl ? (parseFloat(getComputedStyle(contentEl).fontSize) || 0) : 0,
@@ -495,6 +494,10 @@ function _onHandleMouseDown(e, ss, dir) {
   document.addEventListener('mouseup', onUp);
 }
 
+/* ★t2-02c — «쥔 때 크기»를 style 에서 읽는 «한 자리». px 일 때만 그 값, 아니면(흐름 갈래 width:100% · 빈 값 · auto) 그려진 크기 d.
+ *   옛: parseInt('100%') = 100 을 px 로 읽었다 — 묶음 시작 폭(태양 0d552c2f5 가 막음) · 묶음 자식 폭(쓰기로 나가 제목이 716→100 · 미카사 3/3) · 여럿 크기 셋이 따로 같은 실수. */
+function _pxOr(v, d, parse = parseFloat) { return /^[\d.]+px$/.test(v || '') ? parse(v) : d; }
+
 /* t2-02b 쥔 때 값 — 위 ⌘G 묶음 손잡이(_onHandleMouseDown groupSnap)와 같은 키·같은 갈래(마킹 = dataset 통째 · 글자 프레임 = 폭 + 글자 크기 · 프레임 = 자식까지). */
 const _UMIN = 8;   // 대상 하나의 최소 폭·높이(캔버스 px)
 function _snapOf(el) {
@@ -502,7 +505,7 @@ function _snapOf(el) {
   const isTextFrame = el.dataset.textFrame === 'true';
   const contentEl = isTextFrame ? el.querySelector('[class^="tb-"]') : null;
   const s = { el, isTextFrame, contentEl, left: parseFloat(el.style.left) || 0, top: parseFloat(el.style.top) || 0,
-    w: parseFloat(el.style.width) || el.offsetWidth, h: parseFloat(el.style.height) || el.offsetHeight,
+    w: _pxOr(el.style.width, el.offsetWidth), h: _pxOr(el.style.height, el.offsetHeight),   // t2-02c — 여럿 크기(t2-02b)도 같은 쥔 때 값 · %(흐름 100%) 를 px 로 읽지 않는다
     fs: contentEl ? (parseFloat(getComputedStyle(contentEl).fontSize) || 0) : 0, kids: [] };
   if (el.classList.contains('frame-block') && !isTextFrame) {
     for (const c of el.children) if (!c.classList.contains('frame-resize-handle') && getComputedStyle(c).position === 'absolute') s.kids.push(_snapOf(c));
