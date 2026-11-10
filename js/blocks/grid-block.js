@@ -2848,6 +2848,16 @@ function previewGridTracks(block) {
   return true;
 }
 
+/* ★t2-08 ⓐ(현빈 확정 2026-11-10) — 「좌우 패딩 제외」를 «자유 프레임 안» 그리드에도 건다: 켜면 프레임 좌우 끝까지, 끄면 원래 x·너비.
+ *   자유 프레임 자식 = 프레임(data-free-layout) 직속 · 인라인 absolute(자리 정본 = dataset.offsetX · style.left 는 그 되읽기 — overlay-float 규약).
+ *   ⛔정본(offsetX·gridWidth)은 안 건드린다 — «그릴 때» 화면만 편다. 그래서 끄면 그대로 돌아온다(키를 지우는 섹션 길과 다르다 · 섹션 길은 ⓒ).
+ *   absolute 자식의 100% = 프레임 «패딩 상자» = 프레임 좌우 끝(js/drag-utils.js effectiveSectionPadX 머리말의 실측과 같은 사실). */
+export function gridFreeFrameChild(block) {
+  const p = block && block.parentElement;
+  return !!(p && p.classList && p.classList.contains('frame-block') && p.dataset.freeLayout === 'true'
+    && block.style && block.style.position === 'absolute' && block.dataset.overlayBlock !== 'true');
+}
+
 function renderGridBlock(block) {
   const { cols, rows, cells } = getGridModel(block);
   const { row: rowGapPx, col: colGapPx } = _gridGaps(block);
@@ -2886,6 +2896,11 @@ function renderGridBlock(block) {
      다시 그릴 때마다(열 간격 끌기 등) «왼쪽은 붙고 오른쪽만 패딩»이 됐다(현빈 2026-10-01, grd_ts0he_lvy913j).
      꺼져 있으면 이 함수는 아무것도 안 만진다(drag-utils 규약). */
   if (!floating && ownW === null) window.applyBlockFullBleed?.(block);
+  /* ★t2-08 ⓐ — 자유 프레임 자식: 켜면 화면만 left 0 · 폭 100%(프레임 끝까지) · 끄면 정본(offsetX · 위 줄의 키 폭)으로 */
+  if (gridFreeFrameChild(block)) {
+    if (block.dataset.fullBleed === 'true') { block.style.left = '0px'; block.style.width = '100%'; block.style.maxWidth = '100%'; }
+    else if (block.dataset.offsetX != null && block.dataset.offsetX !== '') block.style.left = block.dataset.offsetX + 'px';
+  }
 
   const colTemplate = _gridColTemplate(cols);   // ★한 식 — 끌기 미리보기(previewGridTracks)와 한 자리
   /* 칸 사이 괘선 — 루프 «밖»에서 한 번 읽는다(칸마다 dataset 을 다시 파싱하지 않는다). */
@@ -4535,6 +4550,7 @@ function _makeGridAddBtn(block, axis) {
 window.gridAddAtEnd = gridAddAtEnd;
 
 window.renderGridBlock = renderGridBlock;
+window.gridFreeFrameChild = gridFreeFrameChild;   // t2-08 ⓐ — 패널(prop-grid)은 import 를 안 늘리고 window 로 묻는다(그 파일 머리말 · 유닛 하네스)
 window.previewGridTracks = previewGridTracks;   // ★132 — 행·열 끌기 미리보기(overlay-handles.js 가 window 로 부른다 · import 안 늘림)
 window.gridCollapseToColumns = gridCollapseToColumns;
 /* ★t3-04(S6 U1) — 행·열 순서 바꾸기 ＋ 칸 범위 복붙. 머리띠·키(U2 · overlay-handles.js / editor.js / prop-grid.js)는
