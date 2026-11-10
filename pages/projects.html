@@ -1819,6 +1819,53 @@ window.addEventListener('load', paintFontBadges);
      목록이 다시 그려질 때마다 백업까지 다시 읽으면 느려지고, 백업은 자주 안 바뀐다. */
 window.addEventListener('load', initBackupToggle);
 
+/* ── 열 수 없는 프로젝트 — CORRUPT-PROJECT-NOT-FINDABLE-IN-APP-01 (현빈 2026-11-10: 목록과 분리 · 관리자만 · 토스트 없음) ──
+ * ★자리는 «JS 가 만든다» — 관리자가 아니거나 0개면 DOM 에 아예 없다(backup-zone 처럼 숨기기만 하지 않는다).
+ * ★행 모양은 백업 사본 행과 같다 · 이름은 textContent(T-049). 열기·복구 없음 — Finder 로 보내기만. */
+async function renderUnreadable() {
+  document.getElementById('unreadable-zone')?.remove();
+  if (!IS_ELECTRON || !window.electronAPI?.listUnreadableProjects) return;
+  let r;
+  try { r = await window.electronAPI.listUnreadableProjects(); } catch (_) { return; }
+  const items = (r && r.ok !== false && r.items) || [];
+  if (!items.length) return;
+  const zone = document.createElement('div');
+  zone.id = 'unreadable-zone';
+  zone.style.cssText = 'margin-top:18px;';
+  const head = document.createElement('div');
+  head.style.cssText = 'font-size:12px;color:#888;';
+  head.textContent = `열 수 없는 프로젝트 (${items.length}개)`;
+  zone.appendChild(head);
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:8px;';
+  const finderLabel = /Windows/i.test(navigator.userAgent) ? '탐색기에서 보기' : 'Finder 에서 보기';
+  for (const it of items) {
+    const row = document.createElement('div');
+    row.className = 'unreadable-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:12px;color:#aaa;border-bottom:1px solid #2a2a2a;';
+    const nm = document.createElement('span');
+    nm.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    nm.textContent = it.name || it.id;   // ★textContent
+    const sz = document.createElement('span');
+    sz.style.cssText = 'color:#777;flex-shrink:0;';
+    sz.textContent = _fmtBytes(it.bytes);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'trash-btn';
+    btn.textContent = finderLabel;
+    btn.onclick = () => window.electronAPI.revealUnreadableProject(it.id);
+    row.appendChild(nm); row.appendChild(sz); row.appendChild(btn);
+    box.appendChild(row);
+  }
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:11px;color:#666;padding:6px 2px;';
+  hint.textContent = `파일이 손상돼 열 수 없습니다 — ${finderLabel.replace(' 보기', '')} 직접 확인하세요.`;
+  box.appendChild(hint);
+  zone.appendChild(box);
+  (document.getElementById('backup-zone') || document.getElementById('project-grid'))?.after(zone);
+}
+window.addEventListener('load', renderUnreadable);
+
 /** 폴더 «안»에서 새로 생긴 프로젝트(새로 만들기·가져오기·복제)를 «지금 보고 있는» 폴더 소속으로 — 한 벌.
  *  ★루트·검색 중·휴지통에선 아무것도 안 한다(_viewMode() === 'inside' 일 때만). 실패해도 흐름은 막지 않는다(경고만).
  *  (meta 는 projects:save-meta·folders:assign 이 read-merge-write 라 뒤이은 저장이 folderId 를 지우지 않는다.)

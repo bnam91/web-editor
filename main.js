@@ -2382,6 +2382,51 @@ ipcMain.handle('projects:list-backups', () => {
   return _listProjectBackupsImpl();
 });
 
+/* ── 열 수 없는 프로젝트 — CORRUPT-PROJECT-NOT-FINDABLE-IN-APP-01 (현빈 2026-11-10: 목록과 분리 · 관리자만) ──
+ * proj.json 이 깨지고 백업·히스토리 후보도 없으면 _listItemFor 가 null 을 줘서 목록·갤러리·+메뉴 어디에도 안 뜬다.
+ * ★listProjects 계약은 그대로 둔다(받아 쓰는 곳 6) — 백업 사본과 같은 까닭으로 창구를 «하나 더» 낸다.
+ * ★목록에 이미 뜬 것(메타 빠른 길 포함)은 다시 안 읽는다 — 빠진 것만 풀파싱하니 목록 비용이 안 는다.
+ * ⛔디스크는 안 건드린다(heal:false · 옮기기 없음) — 보여 주고 Finder 로 보내기만. */
+function _listUnreadableProjectsImpl() {
+  let entries = [];
+  try { entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true }); } catch (_) { return { ok: true, items: [] }; }
+  const listed = new Set(_listProjectsImpl().map((p) => p.id));
+  const out = [];
+  for (const ent of entries) {
+    if (!ent.isDirectory() || !_isListableProjectId(ent.name) || listed.has(ent.name)) continue;
+    const id = ent.name;
+    const projPath = path.join(PROJECTS_DIR, id, 'proj.json');
+    if (!fs.existsSync(projPath)) continue;
+    const diag = {};
+    let r = null;
+    try { r = readProjectWithFallback(id, { heal: false, diag }); } catch (_) {}
+    if (r || diag.planning) continue;   // 읽히면 목록 몫 · 기획 파일은 깨진 게 아니다
+    let name = null, updatedAt = null;
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(PROJECTS_DIR, id, 'proj_meta.json'), 'utf8'));
+      name = m && m.name != null ? String(m.name) : null;
+      updatedAt = (m && m.updatedAt) || null;
+    } catch (_) {}
+    let bytes = 0;
+    try { bytes = fs.statSync(projPath).size; } catch (_) {}
+    out.push({ id, name, updatedAt, bytes });
+  }
+  out.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  return { ok: true, items: out };
+}
+ipcMain.handle('projects:list-unreadable', () => {
+  if (!isAdminAuthorized()) return { ok: false, code: 'not_admin', items: [] };   // 백업 사본과 같은 문 — 값 자체를 안 준다
+  return _listUnreadableProjectsImpl();
+});
+ipcMain.handle('projects:reveal-unreadable', (_e, id) => {
+  if (!isAdminAuthorized()) return { ok: false, code: 'not_admin' };
+  if (!_isListableProjectId(id)) return { ok: false, code: 'bad_id' };   // 모양으로 거른다 — `../` 같은 것은 여기서 끝
+  const abs = path.join(PROJECTS_DIR, id, 'proj.json');
+  if (!fs.existsSync(abs)) return { ok: false, code: 'not_found' };
+  shell.showItemInFolder(abs);
+  return { ok: true };
+});
+
 ipcMain.handle('projects:list', () => _listProjectsImpl());
 
 

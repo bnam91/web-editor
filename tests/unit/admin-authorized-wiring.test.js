@@ -132,7 +132,9 @@ test('W7 ★판정은 하나: 호출처 스냅샷 + 두 번째 admin 판정 없�
   //   「백업 사본 보기는 관리자만 볼 수 있게」(현빈 지시) — 백업 폴더 목록은 다른 계정의
   //   프로젝트 이름까지 드러내므로 일반 사용자에게 열면 안 된다. 그래서 판정을 «창구에서»
   //   한 번 하고 not_admin 이면 빈 목록을 돌려준다(main.js `projects:list-backups`).
-  assert.strictEqual(calls.length, 9, `isAdminAuthorized() 호출처 수가 바뀌었다(${calls.length}) — 새 자리면 이 스냅샷과 주석을 같이 갱신`);
+  // ＋projects:list-unreadable · projects:reveal-unreadable = 11 (2026-11-10 CORRUPT-PROJECT-NOT-FINDABLE-IN-APP-01)
+  //   현빈 「열 수 없는 프로젝트는 목록과 분리 · 관리자만」 — 백업 사본과 같은 까닭·같은 꼴.
+  assert.strictEqual(calls.length, 11, `isAdminAuthorized() 호출처 수가 바뀌었다(${calls.length}) — 새 자리면 이 스냅샷과 주석을 같이 갱신`);
   assert.match(code, /createDevToolsGate\(\{[\s\S]*?isAdminAuthorized,/, 'devtools-gate 주입(판정엔 안 씀)');
   // 'admin' 인자 판정은 isAdminAuthorized 한 곳뿐
   const files = [path.join(ROOT, 'main.js'), path.join(ROOT, 'preload.js')];

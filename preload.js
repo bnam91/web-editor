@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listProjects:   ()        => ipcRenderer.invoke('projects:list'),
   /* ★백업 사본 목록 — 읽기 전용. 기존 listProjects 의 문지기는 안 건드린다(T-049 방어). */
   listProjectBackups: () => ipcRenderer.invoke('projects:list-backups').catch(() => ({ ok: false, items: [] })),
+  /* ★열 수 없는 프로젝트(깨짐·후보 0) — 관리자만 · 목록 계약 무변. 보기는 Finder 로만. */
+  listUnreadableProjects: () => ipcRenderer.invoke('projects:list-unreadable').catch(() => ({ ok: false, items: [] })),
+  revealUnreadableProject: (id) => ipcRenderer.invoke('projects:reveal-unreadable', id).catch(() => ({ ok: false })),
   // opts.open=true → «프로젝트를 연다»는 로드(열 때 외부화 정책이 여기서만 돈다). 저장 경로의 병합용 로드는 opts 없이.
   loadProject:    (id, opts) => ipcRenderer.invoke('projects:load', id, opts && opts.open === true ? { ...opts, ..._lsOpenHint(id) } : opts),
   saveProject:    (project) => ipcRenderer.invoke('projects:save', project).then((r) => _noteFileVersion(project, r)),
