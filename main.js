@@ -3074,9 +3074,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   /* ★NEW-TRASH-DELETE-FAIL-WIPES-HISTORY-01(미카사 실앱) — 영구 삭제는 «지우기 전에» 다 지울 수 있는지 본다. 하나라도 막히면 «한 바이트도» 안 지우고 거절.
        옛: fs.rmSync(recursive) 가 쓰기 되는 하위(claude-pm·proj_history)부터 지우다 쓰기 금지(555) 꼭대기에서 ENOTEMPTY 로 멈춰,
        프로젝트는 목록에 남고 버전 기록만 비었다. 점검 = 각 대상의 부모 폴더 쓰기 · 대상 안 모든 폴더 쓰기+들어가기(그래야 안의 것을 지운다).
-     ⚠️남는 위험: 점검과 지우기 사이에 권한이 바뀌는 틈(TOCTOU) · 잠금 깃발(chflags uchg)은 access 로 안 보인다 — 그때는 옛처럼 중간에 멈출 수 있다.
-     (먼저 같은 볼륨 임시 이름으로 rename 해 떼어 낸 뒤 지우는 길도 견줬다 — 555 폴더는 같은 부모 안 rename 은 되는 경우가 많아 그 뒤 rmSync 가 또 중간에 멈추고
-      «목록엔 없는데 반쯤 지운 찌꺼기»가 남는다 ⇒ 이 사고엔 점검이 더 맞다.) */
+     점검과 지우기 사이 틈(TOCTOU)·잠금 깃발(chflags uchg — access 로 안 보임)은 아래 «떼어 낸 뒤 지우기»가 받는다(목록의 프로젝트는 반쯤 안 지워진다). */
   if (permanent) {
     const _blocked = (p0) => {
       const walk = (p) => {
@@ -3117,9 +3115,9 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
       const stuck = [];
       for (const [from, to] of held.slice().reverse()) { try { fs.renameSync(to, from); } catch (e2) { stuck.push({ path: to, error: e2.message }); } }
       try { fs.rmdirSync(hold); } catch (_) {}   // 비었을 때만 — 못 되돌린 것이 있으면 남는다(지우지 않는다)
-      if (!stuck.length) _deletedProjects.delete(safeId);
+      _deletedProjects.delete(safeId);   // 번들은 마지막이라 여기 오면 늘 제자리다 — 지움 표시를 남기면 그 프로젝트 저장을 막는다(리뷰 ②)
       console.warn('[projects:delete] 영구 삭제 — 떼어 내기 실패 · 아무것도 안 지움:', e && e.message, stuck.length ? JSON.stringify(stuck) : '');
-      return { ok: false, trashed: false, bundleIntact: !stuck.length, deleted: 0, reason: 'delete_failed', code: 'detach_failed',
+      return { ok: false, trashed: false, bundleIntact: true, deleted: 0, reason: 'delete_failed', code: 'detach_failed',
                message: `프로젝트를 떼어 내지 못해 아무것도 지우지 않았습니다(${(e && (e.code || e.message)) || '알 수 없는 이유'})`,
                failed: [{ path: path.basename(targets[held.length] || targets[0]), error: e && e.message }], ...(stuck.length ? { rollbackStuck: stuck } : {}) };
     }
@@ -3143,10 +3141,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
   //   ★순서(잔재 먼저)는 필요조건이었을 뿐 충분조건이 아니었다 — 중단이 있어야 보장이 된다.
   //   ⇒ 이 루프가 나가는 순간의 불변식: «failed 가 비어있지 않으면 번들은 그대로 있다».
   for (const t of targets) {
-    if (permanent) {
-      try { fs.rmSync(t, { recursive: true, force: true }); trashedCount++; if (t === dirPath) bundleMoved = true; }
-      catch (e) { failed.push({ path: path.basename(t), error: e.message }); break; }
-    } else {
+    {   // 영구 삭제는 위에서 끝난다(떼어 낸 뒤 지우기) — 이 고리는 OS 휴지통 갈래만
       try { await shell.trashItem(t); trashedCount++; if (t === dirPath) bundleMoved = true; }
       catch (e) {
         // ★이미 없으면 «성공»이다 — 연타·경합으로 먼저 치워진 것을 실패로 보면
@@ -3170,7 +3165,7 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
     console.warn('[projects:delete] 실패:', JSON.stringify(failed), 'moved=', trashedCount, 'bundleMoved=', bundleMoved);
     if (!bundleMoved) _deletedProjects.delete(safeId);
     return { ok: false, trashed: bundleMoved, bundleIntact: !bundleMoved, deleted: trashedCount,
-             reason: permanent ? 'delete_failed' : (partial ? 'trash_partial' : 'trash_failed'),
+             reason: partial ? 'trash_partial' : 'trash_failed',
              message: failed[0].error, failed };
   }
   // ★사후조건 — await 사이에 autosave 가 프로젝트를 «다시 만들었을» 수 있다(D-U7-4 의 비동기 창).
