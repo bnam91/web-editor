@@ -383,22 +383,22 @@ export function gridRules(block) {
  *  ★내미는 거리 = 간격/2 ＋ 굵기/2 ⇒ 줄의 «가운데»가 간격의 «가운데»에 온다.
  *  ★통짜(span:'through')는 위아래(가로줄이면 좌우)를 «반대 축 간격»의 절반만큼 늘려 그 틈을
  *    덮는다. 블럭 «바깥»으로는 안 늘린다(첫·마지막 줄 쪽은 그대로) — 안 그러면 블럭 밖으로 삐친다. */
-function _gridCellRuleHtml(rules, r, c, colsN, rowsN, rowGapPx, colGapPx, re = r, ce = c) {   // re·ce = 합친 칸의 끝 행·열(t2-04 · 안 합친 칸은 r·c)
+function _gridCellRuleHtml(rules, r, c, colsN, rowsN, rowGapPx, colGapPx, re = r, ce = c, cut = {}) {   // re·ce = 합친 칸의 끝 행·열 · cut = 그 쪽 이웃 경계가 합친 칸 «안»이라 통짜 늘림을 안 함(t2-04)
   let out = '';
   const v = rules.col;
   if (ce < colsN - 1 && v.on[ce]) {
     const off = colGapPx / 2 + v.width / 2;
     const thru = v.inset === 0 && v.span === 'through';
-    const top = thru && r > 0 ? -(rowGapPx / 2) : v.inset;
-    const bot = thru && re < rowsN - 1 ? -(rowGapPx / 2) : v.inset;
+    const top = thru && r > 0 && !cut.t ? -(rowGapPx / 2) : v.inset;
+    const bot = thru && re < rowsN - 1 && !cut.b ? -(rowGapPx / 2) : v.inset;
     out += `<div class="grd-crule" aria-hidden="true" style="position:absolute;right:${-off}px;top:${top}px;bottom:${bot}px;width:${v.width}px;background:${_esc(v.color)};pointer-events:none;"></div>`;
   }
   const h = rules.row;
   if (re < rowsN - 1 && h.on[re]) {
     const off = rowGapPx / 2 + h.width / 2;
     const thru = h.inset === 0 && h.span === 'through';
-    const left = thru && c > 0 ? -(colGapPx / 2) : h.inset;
-    const right = thru && ce < colsN - 1 ? -(colGapPx / 2) : h.inset;
+    const left = thru && c > 0 && !cut.l ? -(colGapPx / 2) : h.inset;
+    const right = thru && ce < colsN - 1 && !cut.r ? -(colGapPx / 2) : h.inset;
     out += `<div class="grd-rrule" aria-hidden="true" style="position:absolute;bottom:${-off}px;left:${left}px;right:${right}px;height:${h.width}px;background:${_esc(h.color)};pointer-events:none;"></div>`;
   }
   return out;
@@ -3015,7 +3015,11 @@ function renderGridBlock(block) {
          `position:relative` 도 줄이 있을 때만 붙는다(있으면 절대배치 자식의 기준이 된다).
          ⛔줄 div 는 «줄(line)들보다 앞»에 둔다 — 흐름에 안 끼는 absolute 라 자리는 안 먹고,
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
-      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx), re, ce);
+      /* ★t2-04 — 이웃 행/열에서 이 경계가 합친 칸 «안»이면 그쪽으로 통짜 줄을 늘리지 않는다(이을 줄이 없어 반 간격 꼬리가 남는다) */
+      const inV = (rr, b) => merges.some(m => rr >= m.r && rr < m.r + m.rs && b >= m.c && b + 1 < m.c + m.cs);
+      const inH = (cc, b) => merges.some(m => cc >= m.c && cc < m.c + m.cs && b >= m.r && b + 1 < m.r + m.rs);
+      const cut = merges.length ? { t: inV(r - 1, ce), b: inV(re + 1, ce), l: inH(c - 1, re), r: inH(ce + 1, re) } : undefined;
+      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx), re, ce, cut);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
       const pullLeft = colGapPx < 0 && c > 0 ? `margin-left:${colGapPx}px;` : '';   // ★t6-02 음수 열 간격 = 왼 칸으로 당긴다(GRID_COL_GAP_MIN 주석)
       cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}"${spanAttr} style="${place}min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
@@ -3796,7 +3800,11 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   const _hideFor = mergesSet || (!mergesUnset && (next.cells !== undefined || next.cols !== undefined) ? gridMerges(block) : null);
   if (_hideFor && _hideFor.length) {
     const model = getGridModel(block), full = _gridFullCellsOf(model);
-    for (const m of _hideFor) for (let r = m.r; r < m.r + m.rs; r++) for (let c = m.c; c < m.c + m.cs; c++) if (r !== m.r || c !== m.c) full[r][c] = { lines: [] };
+    const sent = (r, c) => { const src = partial.cells !== undefined ? partial.cells?.[r]?.[c] : (r === 0 ? partial.cols?.[c] : null); return Array.isArray(src?.lines) && src.lines.length > 0; };
+    for (const m of _hideFor) for (let r = m.r; r < m.r + m.rs; r++) for (let c = m.c; c < m.c + m.cs; c++) if (r !== m.r || c !== m.c) {
+      if (sent(r, c)) drops.push({ path: partial.cells !== undefined ? `cells[${r}][${c}].lines` : `cols[${c}].lines`, why: `cell (${r},${c}) is hidden by the merge anchored at (${m.r},${m.c}) — write the anchor, or unmerge first` });
+      full[r][c] = { lines: [] };
+    }
     _gridWriteModelDirect(block, _gridModelFromFull(model.cols, model.rows, full), false);
   }
   if (!mergesSet && !mergesUnset && (next.rows !== undefined || next.cols !== undefined) && block.dataset.merges) {

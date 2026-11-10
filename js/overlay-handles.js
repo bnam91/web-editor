@@ -2711,15 +2711,12 @@ function grdGetRange(block) {
   const r0 = Math.min(st.ar, st.fr), r1 = Math.max(st.ar, st.fr);
   const c0 = Math.min(st.ac, st.fc), c1 = Math.max(st.ac, st.fc);
   if (r0 < 0 || c0 < 0 || r1 >= R || c1 >= C) return null;
-  /* ★t2-04 — 합친 칸을 걸치면 그 병합을 통째로 덮게 넓힌다(엑셀). 넓어지면 «행/열 통째»(axis)가 아니게 되니 axis 를 떼고 돌려준다. */
-  const merges = window.gridMerges?.(block, R, C) || [];
-  if (merges.length) {
-    const g = window.gridExpandRange(merges, r0, c0, r1, c1);
-    if (g.r0 !== r0 || g.c0 !== c0 || g.r1 !== r1 || g.c1 !== c1) return { r0: g.r0, c0: g.c0, r1: g.r1, c1: g.c1 };
-  }
   /* ★axis(머리띠로 고른 행/열) — 범위가 «아직 그 행/열 통째»일 때만 싣는다(R·C 가 바뀌었으면 떨군다). */
   if (st.axis === 'row' && r0 === r1 && c0 === 0 && c1 === C - 1) return { r0, c0, r1, c1, axis: 'row' };
   if (st.axis === 'col' && c0 === c1 && r0 === 0 && r1 === R - 1) return { r0, c0, r1, c1, axis: 'col' };
+  /* ★t2-04 — 칸 범위가 합친 칸을 걸치면 그 병합을 통째로 덮게 넓힌다(엑셀). ⛔머리띠(행/열 통째)는 안 넓힌다 — 그건 «그 행/열»이라 Delete = 그 행/열 지우기(병합은 줄어든다). */
+  const merges = window.gridMerges?.(block, R, C) || [];
+  if (merges.length) { const g = window.gridExpandRange(merges, r0, c0, r1, c1); return { r0: g.r0, c0: g.c0, r1: g.r1, c1: g.c1 }; }
   return { r0, c0, r1, c1 };
 }
 
@@ -2742,9 +2739,12 @@ function _updateGridRangeRect(overlay, block) {
   if (!overlay) return;
   const rng = _grdRange && _grdRange.block === block ? grdGetRange(block) : null;
   const a = rng ? _gridCoverCell(block, rng.r0, rng.c0) : null;
-  const b = rng ? _gridCoverCell(block, rng.r1, rng.c1) : null;   // ★t2-04 — 끝 칸이 가려졌으면 앵커(범위는 병합을 통째로 덮게 넓혀져 있다)
+  const b = rng ? _gridCoverCell(block, rng.r1, rng.c1) : null;   // ★t2-04 — 끝 칸이 가려졌으면 앵커
   let el = overlay.querySelector(':scope > .grd-range-rect');
   if (!a || !b) { if (el) el.remove(); return; }
+  /* ★t2-04 — 상자 네 변은 «트랙»에서 잰다(한 칸짜리 칸) — 머리띠 범위가 합친 칸을 지나도 그 행/열만 감싼다. 병합이 없으면 a·b 와 같은 값. */
+  const tk = (axis, i) => _gridTrackCell(block, axis, i)?.getBoundingClientRect();
+  const tL = tk('col', rng.c0), tR = tk('col', rng.c1), tT = tk('row', rng.r0), tB = tk('row', rng.r1);
   if (!el) {
     el = document.createElement('div');
     el.className = 'grd-range-rect';
@@ -2752,10 +2752,10 @@ function _updateGridRangeRect(overlay, block) {
     overlay.appendChild(el);
   }
   const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-  const left = Math.min(ar.left, br.left), top = Math.min(ar.top, br.top);
+  const left = tL ? tL.left : Math.min(ar.left, br.left), top = tT ? tT.top : Math.min(ar.top, br.top);
   el.style.left = left + 'px'; el.style.top = top + 'px';
-  el.style.width = (Math.max(ar.right, br.right) - left) + 'px';
-  el.style.height = (Math.max(ar.bottom, br.bottom) - top) + 'px';
+  el.style.width = ((tR ? tR.right : Math.max(ar.right, br.right)) - left) + 'px';
+  el.style.height = ((tB ? tB.bottom : Math.max(ar.bottom, br.bottom)) - top) + 'px';
   el.dataset.r0 = String(rng.r0); el.dataset.c0 = String(rng.c0);
   el.dataset.r1 = String(rng.r1); el.dataset.c1 = String(rng.c1);
   const n0 = `${gridColLabel(rng.c0)}${gridRowLabel(rng.r0)}`, n1 = `${gridColLabel(rng.c1)}${gridRowLabel(rng.r1)}`;
