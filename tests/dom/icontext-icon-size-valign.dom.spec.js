@@ -5,7 +5,7 @@
  *   V1 슬라이더 끌기 한 번 = ⌘Z 한 번
  *   V2 ★옛 data-itb-valign top/bottom 블럭 — 열면 그대로 · 슬라이더를 «처음 만지는»(등가값 그대로 넣기) 순간 화면이 1:1(안 튐) · 속성이 dy 로 옮겨진다
  *   I4 「방향」 세로 — 세로 줄이 사라지고 오프셋은 안 먹는다(값은 남는다) · 가로로 돌아오면 다시 먹는다
- *   I5 저장 → 다시 열기 유지 · 저장 HTML 에 .itb-icon 인라인 translateY(내보내기 PNG·HTML 이 싣는 그 바이트)
+ *   I5 저장 → 다시 열기 유지 · 저장 HTML 에 블럭 --itb-dy(그림은 CSS 규칙 · !important 없음 — h2c-svg-transform H7)
  * ★양성대조: block-factory.js setIconTextDy 를 늘 false 로 하면 I3·V1·V2·I5 빨강 · 템플릿 줄을 빼면 I1 빨강.
  * ⚠️Figma: icon-text 는 GENERIC 폴백(svg·글만 · 아이콘 자리 필드 없음)이라 옛 위·아래 맞춤도 안 실렸다 — 같은 꼴(이 검사 밖 · 보고에 적음). */
 const { test, expect } = require('@playwright/test');
@@ -146,13 +146,46 @@ test('I4 방향 세로 — 세로 줄 없음 · 오프셋 안 먹음(값은 남�
   await expect.poll(async () => Math.abs((await geo(page, id)).mid + 30), '가로로 돌아오면 다시 먹는다').toBeLessThanOrEqual(0.6);
 });
 
-test('I5 저장 → 다시 열기 유지 · 저장 HTML 에 인라인 translateY', async ({ page }) => {
+test('I5 저장 → 다시 열기 유지 · 저장 HTML 에 --itb-dy', async ({ page }) => {
   const id = await setup(page);
   await page.evaluate((id) => { const b = document.getElementById(id); window.setIconTextIconSize(b, 64); window.setIconTextDy(b, 25); }, id);
   const before = await geo(page, id);
   const snap = await page.evaluate(() => window.serializeProject());
-  expect(snap, '저장 HTML 의 아이콘 인라인 translateY(내보내기 PNG·HTML 이 싣는 바이트)').toContain('translateY(25px)');
+  expect(snap, '저장 HTML 에 블럭 CSS 변수 --itb-dy(오프셋의 정본 · 그림은 editor-extra.css 규칙)').toMatch(/--itb-dy:\s*25px/);
   await bootApp(page);
   await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(JSON.parse(d)); }, snap);
   await expect.poll(async () => { const g = await geo(page, id); return [g.w, g.h, g.dy, g.dMid]; }).toEqual([64, 64, '25', before.dMid]);
 });
+
+/* ★I6 PNG 내보내기(html2canvas 길 · h2c-svg-transform 과 같은 길) — 아이콘 세로 자리가 화면과 같다. 가로 방향 = 오프셋 실림 · 세로 방향 = 오프셋 안 먹음(I4) — 둘 다 화면 = PNG.
+   아이콘을 빨강으로 칠해(검사만) 내보낸 그림의 빨강 윗변과 화면의 아이콘 윗변(섹션 기준 · 레이아웃 px)을 견준다. */
+async function pngIconTop(page, id) {
+  return page.evaluate(async (id) => {
+    const ex = await import('/js/io/export-image.js');
+    const b = document.getElementById(id), sec = b.closest('.section-block'), ic = b.querySelector('.itb-icon');
+    const z = sec.getBoundingClientRect().width / sec.offsetWidth;
+    const live = (ic.getBoundingClientRect().top - sec.getBoundingClientRect().top) / z;
+    const w = sec.offsetWidth;
+    const clone = await ex.prepareCloneForCapture(sec, w, false);
+    const cv = (await ex.captureCloneToCanvas(clone, w, '#ffffff', false, sec)).canvas;   // { canvas, imgTimedOut, native }
+    clone.remove?.();
+    const k = cv.width / w, d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let y0 = 1e9, n = 0;
+    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) { const i = (y * cv.width + x) * 4; if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] < 60) { n++; if (y < y0) y0 = y; } }
+    return { live: Math.round(live * 10) / 10, png: Math.round((y0 / k) * 10) / 10, n };
+  }, id);
+}
+for (const dir of ['horizontal', 'vertical']) {
+  test(`I6 PNG(html2canvas) — ${dir} · 오프셋 +30 · 아이콘 윗변 화면 = PNG`, async ({ page }) => {
+    const id = await setup(page);
+    await page.evaluate(([id, dir]) => { const b = document.getElementById(id); b.querySelector('.itb-icon').style.background = '#ff0000'; if (dir === 'vertical') window.setIconTextDirection?.(b, 'vertical'); window.setIconTextDy(b, 30); }, [id, dir]);
+    await page.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
+    const g = await geo(page, id);
+    if (dir === 'horizontal') expect(Math.abs(g.mid - 30), '[전제] 화면에 +30').toBeLessThanOrEqual(0.6);
+    else expect(await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .itb-icon`)).transform, id), '[전제] 세로 방향 = 오프셋 안 먹음(I4)').toBe('none');
+    const p = await pngIconTop(page, id);
+    console.log(`[I6 ${dir}] ` + JSON.stringify(p));
+    expect(p.n, '[전제] PNG 에 빨간 아이콘').toBeGreaterThan(200);
+    expect(Math.abs(p.png - p.live), `${dir} — PNG 아이콘 윗변 ${p.png} vs 화면 ${p.live}`).toBeLessThanOrEqual(1.5);
+  });
+}

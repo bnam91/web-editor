@@ -1880,8 +1880,9 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 아이콘 세로 맞춤(글 기준 위·아래 · 없음 = 가운데). 가로 방향에서만(세로 방향은 정렬 단추 몫). 전환 = block-factory.js setIconTextValign. */
 .icon-text-block:not([data-itb-dir="v"])[data-itb-valign="top"] > .itb-icon { align-self: flex-start; }
 .icon-text-block:not([data-itb-dir="v"])[data-itb-valign="bottom"] > .itb-icon { align-self: flex-end; }
-/* ★ICONTEXT-VALIGN-SLIDER-01 — 세로 오프셋(.itb-icon 인라인 translateY)은 가로 방향에서만 · 세로 방향이면 끈다(값은 블럭 data-itb-dy 에 남는다). */
-.icon-text-block[data-itb-dir="v"] > .itb-icon { transform: none !important; }
+/* ★ICONTEXT-VALIGN-SLIDER-01 — 세로 오프셋 = 블럭 CSS 변수 --itb-dy(값은 data-itb-dy 와 짝) · 가로 방향에서만 건다(세로 방향은 이 규칙이 안 맞아 저절로 꺼짐 · 값은 남는다).
+   ⛔!important 금지 — 내보내기(html2canvas)가 SVG 를 감쌀 때 거는 인라인 transform:none 이 이겨야 한다(tests/dom/h2c-svg-transform H7). */
+.icon-text-block[data-itb-dy]:not([data-itb-dir="v"]) > .itb-icon { transform: translateY(var(--itb-dy, 0px)); }
 
 /* ── 블록 컨텍스트 메뉴 ── */
 .bcm-item {

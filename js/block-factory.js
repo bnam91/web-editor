@@ -5603,7 +5603,7 @@ function setIconTextValign(block, v) {
   return true;
 }
 /* ══ ICONTEXT-VALIGN-SLIDER-01(현빈 261110) — 아이콘 세로 = «가운데 기준 px 오프셋» 슬라이더(옛 위·가운데·아래 3단추 대체) ══════════
- * 값 = 블럭 data-itb-dy(px · 0.1 단위 · 0 = 가운데 = 속성 없음 = 옛 바이트) · 그림 = .itb-icon 인라인 translateY(내보내기 PNG·HTML 이 그대로 싣는다).
+ * 값 = 블럭 data-itb-dy(px · 0.1 단위 · 0 = 가운데 = 속성 없음 = 옛 바이트) + 블럭 CSS 변수 --itb-dy · 그림 = editor-extra.css 규칙(가로 방향 translateY · !important 없음).
  *   %가 아닌 까닭 — 행 높이가 글에 따라 바뀌어 align-self·top% 로는 «같은 자리»를 못 지킨다(translate 는 행 높이를 안 바꾼다).
  * 옛 data-itb-valign top/bottom = 열면 그대로(editor-extra.css align-self) · 패널은 그 자리의 «등가 오프셋»을 보인다(iconTextDyOf) ·
  *   처음 바꾸는 순간 valign 을 지우고 dy 로 옮긴다 — 등가값을 그대로 넣으면 화면이 1:1(안 튐 · tests/dom/icontext-icon-size-valign V2).
@@ -5633,8 +5633,11 @@ function setIconTextDy(block, px) {
   const had = !!block.dataset.itbValign;
   if (!had && v === iconTextDyOf(block)) return false;
   delete block.dataset.itbValign;   // 옛 맞춤 → 오프셋(첫 손)
-  if (v === 0) { delete block.dataset.itbDy; ic.style.removeProperty('transform'); if (ic.getAttribute('style') === '') ic.removeAttribute('style'); }
-  else { block.dataset.itbDy = String(v); ic.style.transform = `translateY(${v}px)`; }
+  /* ★값 = 블럭 data-itb-dy + CSS 변수 --itb-dy · 그림 = editor-extra.css 규칙(가로 방향에서만 translateY). 아이콘 인라인 transform 은 안 쓴다 —
+     내보내기가 거는 인라인 transform:none 과 안 부딪히게(h2c-svg-transform H7) · 세로 방향은 규칙이 안 맞아 저절로 꺼진다(!important 없이). */
+  ic.style.removeProperty('transform'); if (ic.getAttribute('style') === '') ic.removeAttribute('style');
+  if (v === 0) { delete block.dataset.itbDy; block.style.removeProperty('--itb-dy'); }
+  else { block.dataset.itbDy = String(v); block.style.setProperty('--itb-dy', `${v}px`); }
   return true;
 }
 window.iconTextDyOf = iconTextDyOf;
