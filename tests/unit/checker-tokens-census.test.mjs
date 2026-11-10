@@ -20,7 +20,7 @@ const { makeStripper } = _req('./_strip-comments.js');
 const ROOT = process.env.GD1001_ROOT || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TOKEN_HOME = path.join('css', 'editor-base.css');
 const SWATCH_EXEMPT = new Set([path.join('js', 'props', 'prop-simple-card.js'), path.join('js', 'props', 'prop-gradient.js')]);
-const FAMILIES = ['big-a', 'big-b', 'big-size', 'small-a', 'small-b', 'small-size', 'clear-a', 'clear-b', 'svg-a', 'svg-b', 'secbg-a', 'secbg-b', 'asset-a', 'asset-b'];
+const FAMILIES = ['big-a', 'big-b', 'big-size', 'small-a', 'small-b', 'small-size', 'clear-a', 'clear-b', 'svg-a', 'svg-b', 'secbg-a', 'secbg-b', 'asset-a', 'asset-b', 'frame-a', 'frame-b'];
 
 const walk = (dir, exts, out = []) => {
   if (!fs.existsSync(dir)) return out;
@@ -107,7 +107,10 @@ export const TONE_FAMILIES = ['secbg-a', 'secbg-b'];
  *   ★제 전용 쌍만 덮는다. ⇒ «선택자 → 덮어도 되는 쌍» 표로 잰다(한 선택자가 남의 쌍·공용 쌍을 덮으면 빨강). */
 export const ASSET_TONE_SEL = '.asset-block[data-checker-tone="dark"]';
 export const ASSET_TONE_FAMILIES = ['asset-a', 'asset-b'];
-const TONE_RULES = new Map([[TONE_SEL, TONE_FAMILIES], [ASSET_TONE_SEL, ASSET_TONE_FAMILIES]]);
+/* FRAME-BG-CHECKER-OPTIONS-01 — 프레임도 같은 꼴(제 전용 쌍만). */
+export const FRAME_TONE_SEL = '.frame-block[data-checker-tone="dark"]';
+export const FRAME_TONE_FAMILIES = ['frame-a', 'frame-b'];
+const TONE_RULES = new Map([[TONE_SEL, TONE_FAMILIES], [ASSET_TONE_SEL, ASSET_TONE_FAMILIES], [FRAME_TONE_SEL, FRAME_TONE_FAMILIES]]);
 /** 정본 CSS 를 규칙 단위로 잘라 «선택자 → 그 안의 체커 토큰 정의 목록». 주석은 먼저 걷는다. */
 export function tokenDefsBySelector(cssText) {
   const out = [];
@@ -200,6 +203,14 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   const secName = nameOf(js, 'sec-checker-tone-on'), assetName = nameOf(ajs, 'asset-checker-tone-on');
   assert.ok(secName && assetName, `라디오 name 을 못 읽었다(sec=${secName} · asset=${assetName})`);
   assert.notEqual(assetName, secName, '에셋 라디오 name 이 섹션과 같다 — 두 그룹이 섞인다');
+  /* 프레임(FRAME-BG-CHECKER-OPTIONS-01) — 같은 글자 대조 · 라디오 name 이 섹션·에셋과 다르다 */
+  const fjs = fs.readFileSync(path.join(ROOT, 'js', 'props', 'prop-frame.js'), 'utf8');
+  const fm = fjs.match(/ss\.dataset\.([A-Za-z0-9]+)\s*=\s*'dark'/);
+  assert.ok(fm, "js/props/prop-frame.js 에 ss.dataset.<이름> = 'dark' 가 없다 — 프레임 켜는 문이 사라졌다");
+  assert.equal(`.frame-block[data-${fm[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="dark"]`, FRAME_TONE_SEL);
+  assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(FRAME_TONE_SEL), '정본 CSS 에 프레임 톤 선택자가 없다');
+  const frameName = nameOf(fjs, 'ss-checker-tone-on');
+  assert.ok(frameName && frameName !== secName && frameName !== assetName, `프레임 라디오 name(${frameName})이 없거나 섹션·에셋과 같다`);
   // ⛔전역 토글이 되살아나면 빨강 — 명부를 둘로 두지 않는다(2026-10-06 지디).
   for (const rel of ['js/checker-tokens.js', 'js/props/prop-page.js']) {
     const src = stripJs(fs.readFileSync(path.join(ROOT, rel), 'utf8'));

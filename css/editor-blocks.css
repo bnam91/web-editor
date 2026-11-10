@@ -2932,6 +2932,15 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
   background-position: 0 0 !important;
   background-repeat: repeat !important;
 }
+/* 프레임 «체크 배경»(FRAME-BG-CHECKER-OPTIONS-01) — 위 섹션 규칙과 같은 꼴 · 색만 프레임 전용 쌍(editor-base.css).
+   같은 클래스라 내보내기 제거(capture-safety·export-html 의 .sec-bg-empty 떼기)를 그대로 탄다.
+   :not([data-bg-img]) — 패널 밖 길(MCP·끌어 넣기)로 그림이 들어와도 체커가 그림을 덮지 않는다. */
+.frame-block.sec-bg-empty:not([data-bg-img]) {
+  background-image: repeating-conic-gradient(var(--goya-checker-frame-a) 0% 25%, var(--goya-checker-frame-b) 0% 50%) !important;
+  background-size: var(--goya-checker-big-size) var(--goya-checker-big-size) !important;
+  background-position: 0 0 !important;
+  background-repeat: repeat !important;
+}
 /* ★이미지 메모 쪽지 (2026-09-30, 현빈 — js/image-memo.js 머리말이 정본)
    ★DOM 요소가 아니라 «가상요소»다 — 값(data-memo)만 블럭에 있고 그림은 여기서 그린다.
      그래서 저장본에 편집용 요소가 새어 나갈 자리가 없고, 캡처 클론은 속성만 떼면 된다

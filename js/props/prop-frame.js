@@ -396,6 +396,9 @@ function _renderAutoPanel(ss) {
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
+  /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 배경 절의 «체크 배경»·«체커 어둡게»를 그대로(prop-section.js · 같은 키·문구·어휘 · id 만 ss-*). */
+  const _bgEmpty = ss.dataset.bgImgEmpty === '1';
+  const _bgTone  = ss.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   /* ★2026-10-10 ③ — ★배경 크기 칸. ★값은 ★dataset 이 정본(공용 `frameBgSize`)이고 ★여기선 ★그릴 때만 읽는다 */
   const _bgSizeNow = frameBgSize(ss);
   const _bgSizeCustom = /px/.test(_bgSizeNow);
@@ -532,6 +535,17 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Bg Image</div>
       <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
+      ${ss.dataset.bgImg ? '' : `<div id="ss-bg-empty-box">
+      <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="ss-bg-img-empty" style="margin-top:4px;"
+        title="이미지를 넣기 «전»에 자리만 잡아 둔다. 내보내기엔 무늬가 안 나간다">
+        ${_bgEmpty ? '체크 배경 끄기' : '체크 배경으로 두기'}</button>
+      ${_bgEmpty ? `<div class="prop-row" style="margin-top:4px;" title="이 프레임의 체크 배경만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
+        <span class="prop-label prop-label--auto">체커 어둡게</span>
+        <div class="prop-radio-group">
+          <label class="prop-radio"><input type="radio" name="ss-checker-tone" id="ss-checker-tone-on" value="dark" ${_bgTone === 'dark' ? 'checked' : ''}> 켬</label>
+          <label class="prop-radio"><input type="radio" name="ss-checker-tone" id="ss-checker-tone-off" value="light" ${_bgTone === 'dark' ? '' : 'checked'}> 끔</label>
+        </div>
+      </div>` : ''}</div>`}
       ${hasBgImg ? `
         <!-- ★★2026-10-10 (현빈 ③ 「프레임블럭의 배경도 ★면 프레임안에서 ★이미지 위치나 ★크기 조절되게」)
              ★섹션 패널의 sec-bg-size 와 ★★같은 꼴·같은 값»을 쓴다 — ⛔새 이름·새 값 ★금지.
@@ -928,6 +942,8 @@ function _renderAutoPanel(ss) {
       ss.style.backgroundSize = frameBgSize(ss);
       ss.style.backgroundPosition = 'center';
       ss.dataset.bgImg = src;
+      delete ss.dataset.bgImgEmpty; ss.classList.remove('sec-bg-empty');   // ★진짜 그림이 오면 «자리표시»는 물러난다(섹션과 같다)
+      document.getElementById('ss-bg-empty-box')?.remove();
       _syncFrameBgVars();
       window.scheduleAutoSave?.();
       window.pushHistory?.();
@@ -964,8 +980,29 @@ function _renderAutoPanel(ss) {
     document.getElementById('ss-bg-img-clear')?.remove();
     window.scheduleAutoSave?.();
     window.pushHistory?.();
+    showFrameProperties(ss);   // 그림이 빠지면 «체크 배경» 단추가 다시 선다(섹션은 늘 다시 그린다)
   }
   if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
+  /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 sec-bg-img-empty·sec-checker-tone 배선과 같은 꼴(js/props/prop-section.js).
+     ⛔checkerTone 은 체크 배경을 끌 때 «같이 지우지 마라» — 다시 켜면 고른 톤이 돌아와야 한다(섹션 주석 그대로). */
+  document.getElementById('ss-bg-img-empty')?.addEventListener('click', () => {
+    const on = ss.dataset.bgImgEmpty === '1';
+    window.pushHistory?.(on ? '프레임 체크 배경 끄기' : '프레임 체크 배경');
+    if (on) delete ss.dataset.bgImgEmpty; else ss.dataset.bgImgEmpty = '1';
+    ss.classList.toggle('sec-bg-empty', !on && !ss.dataset.bgImg);
+    window.scheduleAutoSave?.();
+    showFrameProperties(ss);
+  });
+  const ckOn = document.getElementById('ss-checker-tone-on'), ckOff = document.getElementById('ss-checker-tone-off');
+  if (ckOn && ckOff) {
+    const applyTone = (dark) => {
+      window.pushHistory?.(dark ? '프레임 체커 어둡게' : '프레임 체커 밝게');
+      if (dark) ss.dataset.checkerTone = 'dark'; else delete ss.dataset.checkerTone;
+      window.scheduleAutoSave?.();
+    };
+    ckOn.addEventListener('change',  () => { if (ckOn.checked)  applyTone(true);  });
+    ckOff.addEventListener('change', () => { if (ckOff.checked) applyTone(false); });
+  }
   /* ★★2026-10-10 (현빈 ③) — ★배경 크기 칸 배선. ★섹션(prop-section.js bgSizeEl)과 ★★같은 꼴:
        ⑴ pushHistory ★먼저(push-before — js/CLAUDE.md 규약 · 이 패널의 다른 칸들과 ★같은 쪽)
        ⑵ dataset 에 ★쓰고(★정본 한 칸)  ⑶ ★두 그리는 길을 ★공용으로 ★다시 먹인다  ⑷ autosave
