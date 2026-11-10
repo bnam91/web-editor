@@ -77,7 +77,9 @@ test('N1 [대조] 폴더가 아직 없으면 표시를 떼고 다시 만든다',
   assert.equal('_goneBase' in file(id), false, '표시가 파일에 들어갔다');
 });
 test('N2 [대조] 표시 없는 저장은 평소대로 덮는다', async () => {
-  const id = await returned();
+  /* ★recreate:false — 이번 실행에 앱이 그 폴더를 «다시 만든» 적이 없는 평범한 경우. returned() 기본(실앱 순서)은 앱이 다시 만든 뒤 대치라
+       -02b 가 일부러 막는 꼴(G12)이다(인텔 abecf9295 N2 빨강 = folder_returned · 평소 저장 회귀 아님 · 이 전제만 옛 순서로). */
+  const id = await returned({ recreate: false });
   assert.equal((await H.invoke('projects:save', proj(id, '평소'))).ok, true);
   assert.match(JSON.stringify(file(id)), /평소 머리/);
 });
