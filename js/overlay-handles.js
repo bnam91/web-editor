@@ -410,6 +410,11 @@ function _onHandleMouseDown(e, ss, dir) {
       if (_dirL.includes('s')) newH = Math.max(40, startH + dy);
       if (_dirL.includes('n')) newH = Math.max(40, startH - dy);
     }
+    // MULTISEL-UNION-SHIFT-RATIO-01 — ⌘G 묶음 모서리 + Shift = 비율 유지(변화 큰 축 · 에셋 손잡이 :1060 과 같은 어휘). 낱개 프레임·변 손잡이는 그대로.
+    if (isGroup && ev.shiftKey && !isFullWidth && /[ns]/.test(_dirL) && /[ew]/.test(_dirL) && startW > 0 && startH > 0) {
+      if (Math.abs(newW / startW - 1) >= Math.abs(newH / startH - 1)) newH = Math.max(40, newW * startH / startW);
+      else newW = Math.min(maxW, Math.max(60, newH * startW / startH));
+    }
     newW = Math.round(newW); newH = Math.round(newH);
     /* 손잡이는 자식을 안 줄인다. 패널 폭(prop-frame applyWidth)은 자식을 비례로 옮기므로, 자식이 맞던 폭을 남겨 그 비율의 기준으로 쓰게 한다.
        없으면 400→(손잡이)60→(입력)400 에서 자식이 ×6.67 로 부푼다(S3 D-B: G 폭 300→2000 · 왼쪽 40→267). 그룹·도형은 자식이 같이 변하므로 비켜 간다. */
@@ -561,8 +566,10 @@ export function onUnionHandleDown(e, dir, U, els) {
   function onMove(ev) {
     const dx = ev.clientX - x0, dy = ev.clientY - y0;
     _hist?.arm(dx / scale, dy / scale);
-    const sx = ax == null ? 1 : Math.max(minSx, (W0 + (dir.includes('e') ? dx : -dx)) / W0);
-    const sy = ay == null ? 1 : Math.max(minSy, (H0 + (dir.includes('s') ? dy : -dy)) / H0);
+    let sx = ax == null ? 1 : Math.max(minSx, (W0 + (dir.includes('e') ? dx : -dx)) / W0);
+    let sy = ay == null ? 1 : Math.max(minSy, (H0 + (dir.includes('s') ? dy : -dy)) / H0);
+    // MULTISEL-UNION-SHIFT-RATIO-01 — 모서리 + Shift = 비율 유지(변화 큰 축 · 두 바닥 다 지킴 · 단일 에셋/스티커와 같은 어휘). 변 손잡이는 그대로.
+    if (ev.shiftKey && ax != null && ay != null) sx = sy = Math.max(minSx, minSy, Math.abs(sx - 1) >= Math.abs(sy - 1) ? sx : sy);
     const fs = Math.min(sx, sy);   // ⌘G 묶음과 같은 글자 규칙
     for (const s of snaps) {
       // 고정점을 부모 좌표로 옮겨 그 점 기준으로 늘린다: 새 자리 = A + (옛 자리 − A)×s
