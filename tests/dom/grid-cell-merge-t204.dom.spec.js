@@ -12,7 +12,7 @@
  *   M8 MCP 입구(updateGridBlock merges) — 겹침·1×1·범위 밖 거절 · 가려진 칸 patchCell 거절 · 정상값은 가려진 칸 비움
  *   M9 적대 리뷰 1회차 — 가장자리에 닿은 병합 앞 행/열 지우기(모양 유지) · 범위 붙여넣기·MCP cells 는 가려진 칸에 안 씀
  *   M10 적대 리뷰 2회차 — 합친 칸을 지나는 행 머리띠 고르기 → Delete = 그 행 지우기(병합 줄어듦) · MCP cells 가 가려진 칸에 준 글은 ignoredProps 로 말한다
- *   M11 적대 리뷰 3회차 — 합친 칸 «안»의 행 머리띠 ⌘M = 해제 · 합친 칸을 «걸친» 행 머리띠 ⌘M = 막고 토스트(보이는 상자 밖을 안 비움)
+ *   M11 적대 리뷰 3회차 — 합친 칸을 «걸친» 행 머리띠 ⌘M = 막고 토스트(보이는 상자 밖을 안 비움)
  *   M0 음성대조 — 병합 없는 그리드는 칸 수 R×C · style 에 grid-row 없음(옛 산출 그대로)
  * 양성대조(지디 인텔): grid-block.js gridMergeRange 첫 줄 `return null;` → M1·M3·M4·M5·M6 빨강 /
  *   renderGridBlock 의 `const merges = gridMerges(...)` 를 `const merges = [];` → M1 상자·M5 빨강 */
@@ -376,14 +376,10 @@ async function tapRowBand(page, i) {
   await page.mouse.click(b.cx, b.cy);
   await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG'))?.axis)).toBe('row');
 }
-test('M11 행 머리띠 ⌘M — 합친 칸 «안»이면 해제 · 합친 칸을 «걸치면» 막고 토스트(상자 밖 칸 무변)', async ({ page }) => {
+test('M11 합친 칸을 «걸친» 행 머리띠 ⌘M = 막고 토스트(상자 밖 칸 무변)', async ({ page }) => {
   const errs = await setup(page);
-  await page.evaluate(() => { window.updateGridBlock('gG', { merges: [{ r: 0, c: 0, rs: 2, cs: 3 }] }); window.clearHistory?.(); });
-  await selectGrid(page);
-  await tapRowBand(page, 1);
-  await page.keyboard.press('Meta+m');
-  await expect.poll(async () => (await model(page)).merges).toBeNull();
-  await page.evaluate(() => { window.updateGridBlock('gG', { merges: [{ r: 1, c: 1, rs: 2, cs: 1 }] }); const t = document.getElementById('editor-toast'); if (t) t.textContent = ''; });
+  /* (「합친 칸 안의 머리띠 = 해제」 꼴은 손으로 못 만든다 — 행 전체가 합쳐지면 잴 트랙이 없어 그 머리띠가 안 뜬다 · 판정 코드만 있음) */
+  await page.evaluate(() => { window.updateGridBlock('gG', { merges: [{ r: 1, c: 1, rs: 2, cs: 1 }] }); window.clearHistory?.(); const t = document.getElementById('editor-toast'); if (t) t.textContent = ''; });
   const before = await model(page);
   await selectGrid(page);
   await tapRowBand(page, 1);
