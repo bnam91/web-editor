@@ -2779,9 +2779,18 @@ function _goneBaseRefusal(project) {
     for (const k of _goneRecreated) if (k.startsWith(key + '\u0000')) { mine = true; break; }
     if (!mine || !exists) { _goneForget(key); return null; }
   } else if (!exists) return 'recreate';   // 기억은 쓰기가 «된 뒤» 호출측이 한다 — 실패한 다시 만들기를 제 폴더로 기억하면 밖에서 돌아온 파일을 덮는다(리뷰 3 ①)
+  /* ★MISSING-RETURN-DUPLICATE-PIN-01 — 같은 본이 두 길로 거절돼(첫 저장 + 다시 열기 전 «화면 저장» · 줄 선 저장) «폴더 없던 때» 핀이 둘씩 생겼다(미카사 실앱).
+       직전에 남긴 본과 내용이 같으면(updatedAt 만 다름) 또 쓰지 않고 그 기록을 돌려준다 — 다른 본이면 따로 남긴다(잃음 없음).
+       기억은 함수 속성 — 이 함수를 잘라 싣는 유닛 셋이 최상위 새 이름을 안 싣는다. 해시를 못 내면 옛 동작(매번 남김). */
+  let sig = null;
+  try { const { updatedAt: _u, ...rest } = project; sig = require('crypto').createHash('sha1').update(JSON.stringify(rest)).digest('hex'); } catch (_) {}
+  const memo = (_goneBaseRefusal._kept || (_goneBaseRefusal._kept = new Map()));
+  const prev = sig ? memo.get(key) : null;
+  if (prev && prev.sig === sig && prev.kept) return { ok: false, reason: 'folder_returned', kept: prev.kept };
   let kept = false;   // 'history' = 버전 기록(핀) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
   try { if (_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }).ok) kept = 'history'; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
   if (!kept) { const r = _recordSyncSaveFailure(project, 'folder_returned'); if (r && r.saved && r.saved.record && r.saved.record.emergencyPath) kept = 'emergency'; }
+  if (sig && kept) memo.set(key, { sig, kept });
   return { ok: false, reason: 'folder_returned', kept };
 }
 ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirState.unresolved ? null : (_projectsDirState && _projectsDirState.account) || 'legacy'));   // 본이 어느 뿌리 것인지 가르는 값

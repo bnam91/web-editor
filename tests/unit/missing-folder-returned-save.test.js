@@ -7,6 +7,7 @@
  * 칸(-02 · 미카사 int-3 실앱 2/2): returned() 가 실앱 순서(남은 본 자동저장이 폴더를 다시 만든 뒤 원래 폴더가 Finder 대치로 돌아옴)를 탄다 ⇒ G1~G5 가 그 길 ·
  *   G9 다시 만들기 없는 옛 순서도 거절 · G10 다시 만든 뒤 제 저장이 이어져도 거절 없음 → 대치로 돌아오면 거절 · G11 그 사이 표시 없는 쓰기(이름 바꾸기·복원)가 껴도 거짓 거절 없음(리뷰 1). 기준 int-3 은 G1~G5·G10 빨강(제 폴더라 기억한 id 만 보고 덮었다).
  * 칸(-02b): G12 보는 동안 빠진 폴더를 표시 없는 저장이 다시 만든 뒤 대치로 돌아오면 거절 · 열며 읽은 뒤엔 평소 · G13 대치 뒤 이름 바꾸기는 통과하되 낡은 탭 저장은 계속 거절(리뷰 4·5).
+ * 칸(MISSING-RETURN-DUPLICATE-PIN-01): G14 같은 본(시각만 다름)의 두 거절 = 핀 하나 · 다른 본은 따로.
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -204,4 +205,19 @@ test('G13 대치 뒤 이름 바꾸기는 거절 없이 원본 위에 쓰고, 그
   const r = await H.invoke('projects:save', proj(id, '낡은탭저장'));
   assert.equal(r.reason, 'folder_returned', '★이름 바꾸기 뒤 낡은 본을 쥔 탭의 저장이 원본을 덮었다(리뷰 5 ①)');
   assert.match(JSON.stringify(file(id)), /밖에서고침 머리/);
+});
+
+test('G14 같은 본이 두 번 거절돼도 «폴더 없던 때» 핀은 하나 · 다른 본이면 따로 남는다(MISSING-RETURN-DUPLICATE-PIN-01)', async () => {
+  const id = await returned();
+  const same = (stamp) => ({ ...proj(id, '남은본편집'), updatedAt: stamp, _goneBase: true });
+  const a = await H.invoke('projects:save', same('2026-11-10T01:00:00.000Z'));   // 첫 저장
+  const b = await H.invoke('projects:save', same('2026-11-10T01:00:02.000Z'));   // 다시 열기 전 «화면 저장» — 같은 본 · 시각만 다름
+  assert.equal(a.reason, 'folder_returned'); assert.equal(b.reason, 'folder_returned');
+  assert.equal(b.kept, a.kept, '두 번째 거절도 «남겼다»를 말한다(이미 남긴 그 핀)');
+  const count = (re) => history(id).filter((h) => re.test(h)).length;
+  assert.equal(count(/남은본편집 머리/), 1, '★같은 본의 «폴더 없던 때» 핀이 둘 생겼다');
+  const c = await H.invoke('projects:save', { ...proj(id, '남은본편집2'), _goneBase: true });   // 다른 본
+  assert.equal(c.reason, 'folder_returned');
+  assert.equal(count(/남은본편집2 머리/), 1, '★다른 본을 안 남겼다(잃음)');
+  assert.match(JSON.stringify(file(id)), /돌아온 머리/);
 });
