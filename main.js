@@ -3071,7 +3071,65 @@ ipcMain.handle('projects:delete', async (event, id, opts = {}) => {
        permanent 는 애초에 마커를 «안» 썼다 — 휴지통에서 찾을 일이 없으니까.
      ★그래서 이 블록은 어느 경로에서도 안 돌았다. 남겨두면 「어느 쪽이 진짜 마커인가」로 다음 사람이 헤맨다. */
 
+  /* ★NEW-TRASH-DELETE-FAIL-WIPES-HISTORY-01(미카사 실앱) — 영구 삭제는 «지우기 전에» 다 지울 수 있는지 본다. 하나라도 막히면 «한 바이트도» 안 지우고 거절.
+       옛: fs.rmSync(recursive) 가 쓰기 되는 하위(claude-pm·proj_history)부터 지우다 쓰기 금지(555) 꼭대기에서 ENOTEMPTY 로 멈춰,
+       프로젝트는 목록에 남고 버전 기록만 비었다. 점검 = 각 대상의 부모 폴더 쓰기 · 대상 안 모든 폴더 쓰기+들어가기(그래야 안의 것을 지운다).
+     ⚠️남는 위험: 점검과 지우기 사이에 권한이 바뀌는 틈(TOCTOU) · 잠금 깃발(chflags uchg)은 access 로 안 보인다 — 그때는 옛처럼 중간에 멈출 수 있다.
+     (먼저 같은 볼륨 임시 이름으로 rename 해 떼어 낸 뒤 지우는 길도 견줬다 — 555 폴더는 같은 부모 안 rename 은 되는 경우가 많아 그 뒤 rmSync 가 또 중간에 멈추고
+      «목록엔 없는데 반쯤 지운 찌꺼기»가 남는다 ⇒ 이 사고엔 점검이 더 맞다.) */
+  if (permanent) {
+    const _blocked = (p0) => {
+      const walk = (p) => {
+        let st; try { st = fs.lstatSync(p); } catch (_) { return null; }
+        if (!st.isDirectory()) return null;
+        try { fs.accessSync(p, fs.constants.W_OK | fs.constants.X_OK); } catch (_) { return p; }
+        let names = []; try { names = fs.readdirSync(p); } catch (_) { return p; }
+        for (const n of names) { const b = walk(path.join(p, n)); if (b) return b; }
+        return null;
+      };
+      try { fs.accessSync(path.dirname(p0), fs.constants.W_OK | fs.constants.X_OK); } catch (_) { return path.dirname(p0); }
+      return walk(p0);
+    };
+    for (const t of targets) {
+      const b = _blocked(t);
+      if (b) {
+        const where = path.relative(projectsBase, b) || path.basename(b);
+        console.warn('[projects:delete] 영구 삭제 전 점검에서 막힘 — 아무것도 안 지움:', where);
+        return { ok: false, trashed: false, bundleIntact: true, deleted: 0, reason: 'delete_failed', code: 'not_deletable',
+                 message: `지울 수 없는 곳이 있어 아무것도 지우지 않았습니다(${where} — 폴더 권한을 확인해 주세요)`, failed: [{ path: where, error: 'EACCES' }] };
+      }
+    }
+  }
+
   _deletedProjects.add(safeId);   // 옮기는 await 사이의 저장도 막는다 · 실패하면 아래서 푼다
+  /* ★NEW-TRASH-DELETE-FAIL-WIPES-HISTORY-01 — 영구 삭제는 «통째로 떼어 낸 뒤»에만 지운다(매니저 결정 · 원자성).
+       ① 대상(잔재 먼저 · 번들 마지막 — 아래 A3 순서 그대로)을 같은 볼륨의 대기 자리(.trash/.deleting/<id>-<시각>)로 rename
+       ② 하나라도 실패하면 옮긴 것을 되돌리고 «아무것도 안 지운다»(점검을 지나도 그 틈에 막힌 경우까지 · TOCTOU 를 닫는다)
+       ③ 다 옮긴 «뒤»에만 그 대기 자리를 지운다 — 여기서 멈추면 남은 것은 «목록 밖 대기 자리»에 있고 사용자는 이미 지우기를 골랐다(프로젝트가 기록만 빈 채 목록에 남는 꼴이 없다).
+     위 점검(_blocked)은 «흔한 막힘이면 처음부터 0 바이트로 거절»하는 앞단이다(대기 자리에 못 지우는 찌꺼기를 안 남기게). */
+  if (permanent) {
+    const hold = path.join(projectsBase, _trash.TRASH_DIRNAME, '.deleting', `${safeId}-${Date.now()}`);
+    const held = [];
+    try {
+      fs.mkdirSync(hold, { recursive: true });
+      for (const t of targets) { const to = path.join(hold, path.basename(t)); fs.renameSync(t, to); held.push([t, to]); }
+    } catch (e) {
+      const stuck = [];
+      for (const [from, to] of held.slice().reverse()) { try { fs.renameSync(to, from); } catch (e2) { stuck.push({ path: to, error: e2.message }); } }
+      try { fs.rmdirSync(hold); } catch (_) {}   // 비었을 때만 — 못 되돌린 것이 있으면 남는다(지우지 않는다)
+      if (!stuck.length) _deletedProjects.delete(safeId);
+      console.warn('[projects:delete] 영구 삭제 — 떼어 내기 실패 · 아무것도 안 지움:', e && e.message, stuck.length ? JSON.stringify(stuck) : '');
+      return { ok: false, trashed: false, bundleIntact: !stuck.length, deleted: 0, reason: 'delete_failed', code: 'detach_failed',
+               message: `프로젝트를 떼어 내지 못해 아무것도 지우지 않았습니다(${(e && (e.code || e.message)) || '알 수 없는 이유'})`,
+               failed: [{ path: path.basename(targets[held.length] || targets[0]), error: e && e.message }], ...(stuck.length ? { rollbackStuck: stuck } : {}) };
+    }
+    let leftover = null;
+    try { fs.rmSync(hold, { recursive: true, force: true }); }
+    catch (e) { leftover = { dir: hold, error: (e && (e.code || e.message)) || 'rm-failed' }; console.warn('[projects:delete] 영구 삭제 — 떼어 낸 뒤 일부를 못 지움(목록 밖 대기 자리에 남음):', JSON.stringify(leftover)); }
+    await _closeDeletedTabs(safeId);
+    return { ok: true, trashed: false, deleted: held.length,
+             ...(leftover ? { leftover, note: `프로젝트는 지웠지만 일부 파일을 권한 때문에 못 지워 ${hold} 에 남겼습니다` } : {}) };
+  }
   const failed = [];
   let trashedCount = 0;
   let bundleMoved = false;   // ★«우리가» 번들을 옮겼나 — 사후조건은 그때만 의미가 있다

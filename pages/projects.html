@@ -2038,7 +2038,9 @@ async function deleteProject(e, id) {
         if (!confirm(`휴지통으로 옮길 수 없습니다.\n(${r.message || '알 수 없는 이유'})${partial}\n\n«영구 삭제»하면 되돌릴 수 없습니다. 진행할까요?`)) return;
         r = await window.electronAPI.deleteProject(id, { permanent: true });
       }
-      if (r && r.ok === false) { alert(`삭제하지 못했습니다 — ${r.message || r.reason}`); return; }
+      /* ★NEW-TRASH-DELETE-FAIL-WIPES-HISTORY-01 — 네이티브 알림 대신 앱 안 안내(지디 ③). 막혀서 아무것도 안 지웠으면 그 말을 그대로(main 이 message 에 담는다). */
+      if (r && r.ok === false) { (window.showStatusToast || alert)(`삭제하지 못했습니다 — ${r.message || r.reason}`); return; }
+      if (r && r.leftover && r.note) window.showStatusToast?.(r.note);   // 지웠지만 대기 자리에 못 지운 것이 남았다 — 말없이 두지 않는다
     }
     window.gdtFontReport?.clear?.(id);   // 글꼴 기록도 같이 거둔다(안 지우면 localStorage에 계속 쌓인다)
   } finally {
