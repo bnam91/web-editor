@@ -6444,7 +6444,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     }
     _gridPickAdd(block, addr, 'circle');
   });
-  /* ★HBQA ㉠ — 누른 줄 «다음»에 사진/원: 파일창 먼저(고르면 그림 · 취소면 빈 슬롯) — prop-grid.js grdAddImageLinePicked 한 벌.
+  /* 누른 줄 «다음»에 사진/원 = 빈 그림 줄만(파일창 안 염 · 현빈 261110 ⓑ · ~~HBQA ㉠ 파일창 먼저~~) — prop-grid.js grdAddImageLinePicked 한 벌.
      중첩(★1109t1A2) = 주인이 그 열(_grdNestColHost) · 바깥 = 칸(afterLi, 없으면 끝). */
   function _gridPickAdd(block, addr, kind) {
     if (!addr.nest) { window.grdAddImageLinePicked(block, { r: addr.r, c: addr.c }, addr.afterLi ?? null, kind); return; }
