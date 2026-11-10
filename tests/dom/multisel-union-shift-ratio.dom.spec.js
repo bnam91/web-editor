@@ -22,14 +22,17 @@ const UH = (d) => `#ss-handles-overlay .ss-union-handle.${d}`;
 const GH = (d) => `#ss-handles-overlay .ss-resize-handle.${d}`;
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-/* 장면 — t202b-union-resize 와 같은 꼴: 떠 있는 사각 sh1f(40,190 160×100) · sh2f(400,40 200×120) · 번호 마킹 m1(500,300). */
+/* 장면 — t202b-union-resize 와 같은 꼴: 떠 있는 사각 sh1f(40,190 160×100) · sh2f(400,40 200×120) · 번호 마킹 m1(500,300).
+ *   ★간격 블럭에 id 를 준다 — 날 HTML 로 넣은 id 없는 블럭은 ⌘Z 복원 때 id 를 새로 받아 A3(내용 비교)가 «id 하나»로 빨개진다
+ *     (워커2 격리 실측 · 진짜 입력: int-4 8531420ec 전체 상자 Shift 없이 = 그 차이 하나 · 이 가지에서 상자/⌘G × Shift 유무 넷 다 같은 차이 하나 ·
+ *      id 주면 넷 다 날 바이트까지 같음(⌘Z 한 칸) = 장면 전제였다 · 데이터 무관). */
 async function scene(page) {
   await page.setViewportSize({ width: 1600, height: 1300 });
   const errs = await bootApp(page);
   await page.evaluate(async () => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection();
     const sec = [...c.querySelectorAll('.section-block')].pop(); sec.id = 'sG';
-    sec.querySelector('.section-inner').insertAdjacentHTML('beforeend', '<div class="gap-block" data-type="gap" style="height:600px"></div>');
+    sec.querySelector('.section-inner').insertAdjacentHTML('beforeend', '<div class="gap-block" id="gapG" data-type="gap" style="height:600px"></div>');
     window.applyZoom?.(100);
   });
   await waitZoomSettled(page, 100);
