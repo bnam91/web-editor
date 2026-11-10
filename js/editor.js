@@ -2627,6 +2627,9 @@ document.addEventListener('keydown', e => {
     } else if (document.querySelector('.table-block .tb-table td.cell-selected')) {
       /* #5-b 테이블 바디셀 병합 (table-cell-select.js) */
       window.mergeSelectedCells?.();
+    } else if (window.grdMergeAction?.(document.querySelector('#canvas .grid-block.selected'))) {
+      /* ★t2-04 그리드 셀 병합/해제 — 범위 2칸+ = 병합 · 합친 칸 = 해제(메뉴와 같은 문). 섹션보다 앞(좁은 대상이 먼저). */
+      window.grdMergeToggle?.(document.querySelector('#canvas .grid-block.selected'));
     } else if (_sectionOnlySelection()) {
       /* 섹션 합치기 (section-merge.js) — 「바로 위 섹션과 하나로」 */
       window.mergeSelectedSectionUp?.();

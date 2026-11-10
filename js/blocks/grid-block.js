@@ -383,22 +383,22 @@ export function gridRules(block) {
  *  ★내미는 거리 = 간격/2 ＋ 굵기/2 ⇒ 줄의 «가운데»가 간격의 «가운데»에 온다.
  *  ★통짜(span:'through')는 위아래(가로줄이면 좌우)를 «반대 축 간격»의 절반만큼 늘려 그 틈을
  *    덮는다. 블럭 «바깥»으로는 안 늘린다(첫·마지막 줄 쪽은 그대로) — 안 그러면 블럭 밖으로 삐친다. */
-function _gridCellRuleHtml(rules, r, c, colsN, rowsN, rowGapPx, colGapPx) {
+function _gridCellRuleHtml(rules, r, c, colsN, rowsN, rowGapPx, colGapPx, re = r, ce = c) {   // re·ce = 합친 칸의 끝 행·열(t2-04 · 안 합친 칸은 r·c)
   let out = '';
   const v = rules.col;
-  if (c < colsN - 1 && v.on[c]) {
+  if (ce < colsN - 1 && v.on[ce]) {
     const off = colGapPx / 2 + v.width / 2;
     const thru = v.inset === 0 && v.span === 'through';
     const top = thru && r > 0 ? -(rowGapPx / 2) : v.inset;
-    const bot = thru && r < rowsN - 1 ? -(rowGapPx / 2) : v.inset;
+    const bot = thru && re < rowsN - 1 ? -(rowGapPx / 2) : v.inset;
     out += `<div class="grd-crule" aria-hidden="true" style="position:absolute;right:${-off}px;top:${top}px;bottom:${bot}px;width:${v.width}px;background:${_esc(v.color)};pointer-events:none;"></div>`;
   }
   const h = rules.row;
-  if (r < rowsN - 1 && h.on[r]) {
+  if (re < rowsN - 1 && h.on[re]) {
     const off = rowGapPx / 2 + h.width / 2;
     const thru = h.inset === 0 && h.span === 'through';
     const left = thru && c > 0 ? -(colGapPx / 2) : h.inset;
-    const right = thru && c < colsN - 1 ? -(colGapPx / 2) : h.inset;
+    const right = thru && ce < colsN - 1 ? -(colGapPx / 2) : h.inset;
     out += `<div class="grd-rrule" aria-hidden="true" style="position:absolute;bottom:${-off}px;left:${left}px;right:${right}px;height:${h.width}px;background:${_esc(h.color)};pointer-events:none;"></div>`;
   }
   return out;
@@ -2922,9 +2922,18 @@ function renderGridBlock(block) {
      *   칸 «배경 이미지»(cellImg)도 같은 조건(지디 10-06) — 부르는 자리에서 'hex'. ⛔이미지 위 결과를 «맞는 색»이라 하지 않는다: dev 와 같은 값일 뿐. */
     return textToneOver(rgb) === 'light' ? 'light' : 'hex';
   };
+  /* ★t2-04 셀 병합 — 합친 칸(앵커)은 grid-row/column span, 가려진 칸은 안 찍는다. 병합이 없으면 자리 글자 '' = 옛 산출 바이트 그대로. */
+  const merges = gridMerges(block, rows.length, cols.length);
+  const mergeAt = new Map(merges.map(m => [`${m.r},${m.c}`, m]));
+  const covered = (r, c) => merges.some(m => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs && !(r === m.r && c === m.c));
   const cellsHtml = [];
   for (let r = 0; r < rows.length; r++) {
     for (let c = 0; c < cols.length; c++) {
+      if (merges.length && covered(r, c)) continue;
+      const mg = mergeAt.get(`${r},${c}`);
+      const re = mg ? r + mg.rs - 1 : r, ce = mg ? c + mg.cs - 1 : c;
+      const place = merges.length ? `grid-row:${r + 1} / span ${mg ? mg.rs : 1};grid-column:${c + 1} / span ${mg ? mg.cs : 1};` : '';
+      const spanAttr = mg ? `${mg.rs > 1 ? ` data-rs="${mg.rs}"` : ''}${mg.cs > 1 ? ` data-cs="${mg.cs}"` : ''}` : '';
       const col = cols[c];
       const cell = (cells[r] && cells[r][c]) || {};
       /* 셀 속성 우선순위: cell > col > block(valign) — PLAN §3-A.
@@ -2968,7 +2977,7 @@ function renderGridBlock(block) {
       const cellFit = GRID_BG_FIT_VALUES.includes(fitRaw) ? fitRaw : 'cover';
       const cellPos = _gridNormBgPos(pick('bgPos')) || 'center center';
       const imgCss = cellImg ? `background-image:url('${cellImg}');background-size:${cellFit};background-position:${cellPos};background-repeat:no-repeat;` : '';
-      if (cellImg && rows[r] && rows[r].height !== 'auto') (bgRows[r] = bgRows[r] || []).push({ c, src: cellImg });   // ★E157
+      if (cellImg && rows[r] && rows[r].height !== 'auto' && re === r) (bgRows[r] = bgRows[r] || []).push({ c, src: cellImg });   // ★E157 (여러 행에 걸친 합친 칸은 한 행 트랙에 못 얹는다 — 뺀다)
       // ★각 라인에도 좌표를 심는다(data-r/data-c/data-line) — 현빈 2026-09-04 지시.
       //   ★2026-09-05 P1.5 부터 «실제로 읽는 소비자»가 있다: js/block-drag.js 의 캔버스 인라인 편집이
       //   blur 때 「어느 셀 몇 번째 줄인가」를 DOM 순서 추측 없이 여기서 바로 읽어 patchCell 로 커밋한다.
@@ -3006,10 +3015,10 @@ function renderGridBlock(block) {
          `position:relative` 도 줄이 있을 때만 붙는다(있으면 절대배치 자식의 기준이 된다).
          ⛔줄 div 는 «줄(line)들보다 앞»에 둔다 — 흐름에 안 끼는 absolute 라 자리는 안 먹고,
            먼저 그려져 내용 뒤에 깔린다(내용이 줄 위로 온다). */
-      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx));
+      const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx), re, ce);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
       const pullLeft = colGapPx < 0 && c > 0 ? `margin-left:${colGapPx}px;` : '';   // ★t6-02 음수 열 간격 = 왼 칸으로 당긴다(GRID_COL_GAP_MIN 주석)
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}" style="min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}"${spanAttr} style="${place}min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
         ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? 'hex' : _cellTone(bg))).join('')}
       </div>`);
     }
@@ -3410,6 +3419,40 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     drops.push(..._gridInspectCells(partial.cells, baseCols.length, rowCountForValidation));
     appliedCellsPending = true;
   }
+  /* ★t2-04 셀 병합 — merges:[{r,c,rs,cs}] = 블럭의 병합 «전체»를 갈아 끼운다 · null/[] = 전부 해제.
+   *   ⛔읽는 문(gridMerges)처럼 조용히 고치지 않는다 — 입구는 틀린 것을 거절한다(정수 아님·범위 밖·1×1·겹침).
+   *   가려지는 칸은 UI 병합과 같게 비운다(왼쪽 위만 남김 — 아래 커밋에서). */
+  let mergesUnset = false, mergesSet = null;
+  const colCountForValidation = (partial.cols !== undefined && Array.isArray(partial.cols)) ? partial.cols.length : _gridCols(block).length;
+  if (partial.merges !== undefined) {
+    if (partial.merges === null || (Array.isArray(partial.merges) && !partial.merges.length)) { mergesUnset = true; applied.merges = []; }
+    else {
+      if (!Array.isArray(partial.merges)) return { ok: false, code: 'INVALID', message: 'merges must be an array of {r,c,rs,cs} (or null/[] = unmerge all)' };
+      const list = [];
+      for (const [k, m] of partial.merges.entries()) {
+        const bad = (why) => ({ ok: false, code: 'INVALID', message: `merges[${k}] ${why}` });
+        if (!m || typeof m !== 'object' || Array.isArray(m)) return bad('must be {r,c,rs,cs}');
+        const extra = Object.keys(m).filter(x => !['r', 'c', 'rs', 'cs'].includes(x));
+        if (extra.length) return bad(`unknown field ${extra.join(',')} — only r,c,rs,cs`);
+        if (![m.r, m.c, m.rs, m.cs].every(Number.isInteger) || m.r < 0 || m.c < 0 || m.rs < 1 || m.cs < 1) return bad('r,c must be integers ≥0 and rs,cs integers ≥1');
+        if (m.r + m.rs > rowCountForValidation || m.c + m.cs > colCountForValidation) return bad(`out of range — grid is ${rowCountForValidation} rows × ${colCountForValidation} cols`);
+        if (m.rs * m.cs < 2) return bad('covers one cell — a merge needs 2+ cells');
+        const o = list.findIndex(x => _gridMergeHits(x, m));
+        if (o >= 0) return bad(`overlaps merges[${o}]`);
+        list.push({ r: m.r, c: m.c, rs: m.rs, cs: m.cs });
+      }
+      mergesSet = list;
+      next.merges = JSON.stringify(list);
+      applied.merges = list;
+    }
+  }
+  if (partial.patchCell !== undefined) {
+    const p = partial.patchCell;
+    const pr = Number(p && p.r), pc = Number(p && p.c);
+    const hid = (mergesSet || (mergesUnset ? [] : gridMerges(block, rowCountForValidation, colCountForValidation)))
+      .find(m => pr >= m.r && pr < m.r + m.rs && pc >= m.c && pc < m.c + m.cs && !(pr === m.r && pc === m.c));
+    if (hid) return { ok: false, code: 'INVALID', message: `patchCell (${pr},${pc}) is hidden by a merge anchored at (${hid.r},${hid.c}) — write to the anchor, or unmerge first` };
+  }
   if (partial.patchCell !== undefined) {
     const p = partial.patchCell;
     if (!p || typeof p !== 'object' || !Number.isFinite(Number(p.r)) || !Number.isFinite(Number(p.c))) {
@@ -3672,8 +3715,8 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     Object.assign(next, plan.set);
     bgDel = plan.del.filter(k => !(k in plan.set));
   }
-  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length && !cellPadYUnset && !edgesUnset && !ifgUnset) {
-    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/cellBorderEdges/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline/blockBg/ifgPreset' };
+  if (Object.keys(next).length === 0 && !widthUnset && !outlineUnset && !bgDel.length && !cellPadYUnset && !edgesUnset && !ifgUnset && !mergesUnset) {
+    return { ok: false, code: 'INVALID', message: 'no recognized fields — expected one of cols/patchCol/rows/cells/patchCell/gap/rowGap/colGap/valign/width/cellBorderWidth/cellBorderColor/cellBorderStyle/cellBorderEdges/{col,row}Rule{On,Width,Color,Inset,Span}/blockOutline/blockBg/ifgPreset/merges' };
   }
 
   /* ⛔되돌림 명부에 «새 키»를 같이 넣어라 — 빠지면 RENDER_ERROR 롤백이 테두리만 남겨
@@ -3707,6 +3750,7 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
     blockBgOn: block.dataset.blockBgOn, blockBgColor: block.dataset.blockBgColor, blockBgImg: block.dataset.blockBgImg,
     blockBgPos: block.dataset.blockBgPos, blockBgOpacity: block.dataset.blockBgOpacity,
     blockBgPadY: block.dataset.blockBgPadY, blockBgPadX: block.dataset.blockBgPadX, blockBgRadius: block.dataset.blockBgRadius,
+    merges: block.dataset.merges,   // ★t2-04 셀 병합
   };
   /* ★★★2026-09-30 — 되돌림 명부를 «스냅샷에서 뽑는다». 손으로 적지 않는다.
    *   ⛔무엇이 났나: 바로 위 ⛔주석이 「새 키를 같이 넣어라」라고 경고하는데, 나는 `before` 에는
@@ -3746,6 +3790,14 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (outlineUnset) delete block.dataset.blockOutline;
   if (edgesUnset) delete block.dataset.cellBorderEdges;
   if (ifgUnset) delete block.dataset.ifgPreset;
+  if (mergesUnset) delete block.dataset.merges;
+  if (mergesSet) {   // ★t2-04 — 가려지는 칸을 비운다(UI 병합과 같은 규칙 · 왼쪽 위만 남김)
+    const model = getGridModel(block), full = _gridFullCellsOf(model);
+    for (const m of mergesSet) for (let r = m.r; r < m.r + m.rs; r++) for (let c = m.c; c < m.c + m.cs; c++) if (r !== m.r || c !== m.c) full[r][c] = { lines: [] };
+    _gridWriteModelDirect(block, _gridModelFromFull(model.cols, model.rows, full), false);
+  } else if (!mergesUnset && (next.rows !== undefined || next.cols !== undefined) && block.dataset.merges) {
+    _gridSetMerges(block, gridMerges(block));   // 줄인 판에 맞춰 저장본도 자른다(gridResizeTo 와 같은 까닭)
+  }
   bgDel.forEach(k => { delete block.dataset[k]; });
   if (partial.width !== undefined) delete block.dataset.gridWidthAuto;   // 사람이 정한 폭 — 자동 출처 표시를 뗀다
   /* ★T5-⒜ — 폭을 «세울» 때만. ⛔widthUnset(width:null = 자동으로 되돌리기)은 제외한다 —
@@ -4067,6 +4119,7 @@ function gridResizeTo(block, nCols, nRows) {
     if (nextCells.length) block.dataset.cells = _gridCellsToDataset(nextCells);
     else delete block.dataset.cells;
   }
+  _gridSetMerges(block, gridMerges(block, Math.max(1, nRows), nCols));   // ★t2-04 — 잘린 병합을 «저장본에서도» 자른다(안 자르면 다시 늘릴 때 옛 병합이 되살아나 새 칸을 가린다)
   renderGridBlock(block);
   window.pushHistory?.();   // 끝 표본(js/insert-history.js T-131 과 같은 이음매) — 없으면 다음 패널 편집의 ⌘Z 한 번이 칸 추가까지 같이 푼다
   window.scheduleAutoSave?.();
@@ -4183,6 +4236,7 @@ function gridCollapseToColumns(block) {
   const nextCols = model.cols.map((col, c) => Object.assign({}, col, { lines: merged[c] }));
   block.dataset.cols = JSON.stringify(nextCols);
   delete block.dataset.rows;
+  delete block.dataset.merges;   // ★t2-04 — 한 행 열 스택엔 병합이 없다(남기면 가로 병합이 옆 열 스택을 가린다)
   let row0 = [];
   try { const cur = JSON.parse(block.dataset.cells || '[]'); row0 = Array.isArray(cur[0]) ? cur[0] : []; } catch (_) { row0 = []; }
   const keep = [];
@@ -4394,8 +4448,11 @@ function _gridMoveDirect(block, axis, from, to) {
   if (!block || !block.dataset || from === to) return false;
   const next = gridPermute(getGridModel(block), axis, from, to);
   if (!next) return false;                     // ⛔범위 밖 = 아무 일 없음(히스토리도 안 쌓는다)
+  const merges = _gridMergesAfterMove(gridMerges(block), axis, from, to, axis === 'row' ? next.rows.length : next.cols.length);
+  if (!merges) { window.showToast?.('합친 칸을 가로지르는 이동은 할 수 없어요 — 병합을 먼저 풀어 주세요'); return false; }   // ★t2-04 태양 Q2
   window.pushHistory?.();                      // ★변경 «전»에 «한 번»
   _gridWriteModelDirect(block, next, axis === 'row');
+  _gridSetMerges(block, merges);
   renderGridBlock(block);
   window.scheduleAutoSave?.();
   return true;
@@ -4407,6 +4464,7 @@ function _gridRemoveDirect(block, axis, i) {
   if (!next) return false;
   window.pushHistory?.();
   _gridWriteModelDirect(block, next, axis === 'row');
+  _gridSetMerges(block, _gridMergesAfterRemove(gridMerges(block), axis, i));   // ★t2-04 태양 Q3 — 안을 지우면 줄어든다(1×1 이면 사라짐)
   if (next.rows.length <= 1) delete block.dataset.rows;   // 1행 = gridResizeTo 의 nRows<=1 과 같은 옛 모양
   renderGridBlock(block);
   window.scheduleAutoSave?.();
@@ -4432,6 +4490,102 @@ function pasteGridRange(block, clip, anchor) {
     window.scheduleAutoSave?.();
   }
   return { written: res.written, dropped: res.dropped };
+}
+
+
+/* ═══ ★t2-04 그리드 셀 병합(현빈 2026-11-10 결정 · 태양 설계 T204-DESIGN-261109) ═══════════════
+ *  모델 = 블럭 키 «하나» dataset.merges = [{r,c,rs,cs}] — 키가 없으면 옛 산출과 바이트 같음.
+ *  ★읽는 문(gridMerges)이 그리드 크기로 잘라 고친다: 범위 밖은 자르고, 1×1 이 되거나 앞 것과 겹치면 버린다.
+ *    ⇒ 줄이는 길(피커·updateGridBlock rows/cols·＋)은 따로 안 고쳐도 화면이 깨지지 않는다.
+ *  병합 = 왼쪽 위 칸만 남기고 나머지 칸은 비운다(엑셀 · 경고 없음) · 해제 = 나머지 칸 빈 칸 · 둘 다 ⌘Z 한 번. */
+const _gridMergeHits = (a, b) => a.r < b.r + b.rs && b.r < a.r + a.rs && a.c < b.c + b.cs && b.c < a.c + a.cs;
+function gridMerges(block, R, C) {
+  let raw;
+  try { raw = JSON.parse((block && block.dataset && block.dataset.merges) || '[]'); } catch (_) { raw = []; }
+  if (!Array.isArray(raw) || !raw.length) return [];
+  if (R == null) R = _gridRows(block).length;
+  if (C == null) C = _gridCols(block).length;
+  const out = [];
+  for (const m of raw) {
+    if (!m || ![m.r, m.c, m.rs, m.cs].every(Number.isInteger) || m.r < 0 || m.c < 0 || m.rs < 1 || m.cs < 1 || m.r >= R || m.c >= C) continue;
+    const g = { r: m.r, c: m.c, rs: Math.min(m.rs, R - m.r), cs: Math.min(m.cs, C - m.c) };
+    if (g.rs * g.cs < 2 || out.some(o => _gridMergeHits(o, g))) continue;
+    out.push(g);
+  }
+  return out;
+}
+/** (r,c) 를 덮는 병합 | null — 앵커든 가려진 칸이든. */
+function gridMergeAt(block, r, c) {
+  return gridMerges(block).find(m => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs) || null;
+}
+/** 범위를 걸친 병합까지 «통째로» 덮게 넓힌다(엑셀 — 합친 칸 일부만 고를 수 없다). */
+function gridExpandRange(merges, r0, c0, r1, c1) {
+  const g = { r0: Math.min(r0, r1), c0: Math.min(c0, c1), r1: Math.max(r0, r1), c1: Math.max(c0, c1) };
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const m of merges) {
+      if (!_gridMergeHits(m, { r: g.r0, c: g.c0, rs: g.r1 - g.r0 + 1, cs: g.c1 - g.c0 + 1 })) continue;
+      const n = { r0: Math.min(g.r0, m.r), c0: Math.min(g.c0, m.c), r1: Math.max(g.r1, m.r + m.rs - 1), c1: Math.max(g.c1, m.c + m.cs - 1) };
+      if (n.r0 !== g.r0 || n.c0 !== g.c0 || n.r1 !== g.r1 || n.c1 !== g.c1) { Object.assign(g, n); grew = true; }
+    }
+  }
+  return g;
+}
+function _gridSetMerges(block, list) {
+  if (list && list.length) block.dataset.merges = JSON.stringify(list.map(({ r, c, rs, cs }) => ({ r, c, rs, cs })));
+  else delete block.dataset.merges;
+}
+/** 행/열 i 를 지운 뒤의 병합 — 안이면 줄이고, 뒤면 당긴다(1×1 은 읽는 문이 버린다). */
+function _gridMergesAfterRemove(merges, axis, i) {
+  const [p, s] = axis === 'row' ? ['r', 'rs'] : ['c', 'cs'];
+  return merges.map(m => {
+    if (i < m[p]) return { ...m, [p]: m[p] - 1 };
+    if (i < m[p] + m[s]) return { ...m, [s]: m[s] - 1 };
+    return m;
+  }).filter(m => m.rs >= 1 && m.cs >= 1 && m.rs * m.cs >= 2);
+}
+/** 행/열 하나를 from→to 로 옮긴 뒤의 병합 | null(합친 칸이 찢어진다 = 막는다 · 태양 Q2). */
+function _gridMergesAfterMove(merges, axis, from, to, n) {
+  const order = _gridSpliceMove([...Array(n).keys()], from, to);   // order[새 자리] = 옛 자리
+  const at = new Map(order.map((old, k) => [old, k]));
+  const [p, s] = axis === 'row' ? ['r', 'rs'] : ['c', 'cs'];
+  const out = [];
+  for (const m of merges) {
+    const ks = [];
+    for (let j = 0; j < m[s]; j++) ks.push(at.get(m[p] + j));
+    if (ks.some((k, j) => k !== ks[0] + j)) return null;
+    out.push({ ...m, [p]: ks[0] });
+  }
+  return out;
+}
+/** 범위를 합친다 — 넓힌 범위의 «왼쪽 위» 칸만 남기고 나머지 칸은 통째로 비운다. 합쳤으면 그 병합, 아니면 null(쓰기·이력 0). */
+function gridMergeRange(block, r0, c0, r1, c1) {
+  if (!block || !block.dataset || ![r0, c0, r1, c1].every(Number.isInteger)) return null;
+  const model = getGridModel(block);
+  const R = model.rows.length, C = model.cols.length;
+  const cur = gridMerges(block, R, C);
+  const g = gridExpandRange(cur, r0, c0, r1, c1);
+  if (g.r0 < 0 || g.c0 < 0 || g.r1 >= R || g.c1 >= C) return null;
+  const m = { r: g.r0, c: g.c0, rs: g.r1 - g.r0 + 1, cs: g.c1 - g.c0 + 1 };
+  if (m.rs * m.cs < 2 || cur.some(o => o.r === m.r && o.c === m.c && o.rs === m.rs && o.cs === m.cs)) return null;
+  const full = _gridFullCellsOf(model);
+  for (let r = g.r0; r <= g.r1; r++) for (let c = g.c0; c <= g.c1; c++) if (r !== g.r0 || c !== g.c0) full[r][c] = { lines: [] };
+  window.pushHistory?.();                      // ★변경 «전»에 «한 번»
+  _gridWriteModelDirect(block, _gridModelFromFull(model.cols, model.rows, full), false);
+  _gridSetMerges(block, [...cur.filter(o => !_gridMergeHits(o, m)), m]);
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return m;
+}
+/** (r,c) 를 덮는 병합을 푼다 — 내용은 앵커에 그대로, 나머지는 빈 칸. 풀었으면 true. */
+function gridUnmergeAt(block, r, c) {
+  const m = block && block.dataset ? gridMergeAt(block, r, c) : null;
+  if (!m) return false;
+  window.pushHistory?.();
+  _gridSetMerges(block, gridMerges(block).filter(o => !(o.r === m.r && o.c === m.c)));
+  renderGridBlock(block);
+  window.scheduleAutoSave?.();
+  return true;
 }
 
 /* ＋ 한 번 = 끝에 열(axis 'col') 또는 행(axis 'row') 하나. 상한이면 아무것도 안 한다. */
@@ -4547,6 +4701,11 @@ window.gridPermute = gridPermute;
 window.gridRemove = gridRemove;
 window.removeGridRow = removeGridRow;
 window.removeGridCol = removeGridCol;
+window.gridMerges = gridMerges;           // ★t2-04 — overlay-handles·prop-grid·block-factory 가 window 로 부른다(import 안 늘림)
+window.gridMergeAt = gridMergeAt;
+window.gridExpandRange = gridExpandRange;
+window.gridMergeRange = gridMergeRange;
+window.gridUnmergeAt = gridUnmergeAt;
 window.gridPasteRange = gridPasteRange;
 window.gridColLabel = gridColLabel;
 window.gridRowLabel = gridRowLabel;
@@ -4610,4 +4769,5 @@ export {
   /* ★t3-04(S6 U1) — 순서 바꾸기·범위 복붙: 순수 셈(유닛이 DOM 없이 잰다) ＋ 직접 쓰기 문 */
   gridPermute, gridCopyRange, gridPasteRange, gridColLabel, gridRowLabel,
   moveGridRow, moveGridCol, removeGridRow, removeGridCol, gridRemove, pasteGridRange,
+  gridMerges, gridMergeAt, gridExpandRange, gridMergeRange, gridUnmergeAt,   /* ★t2-04 셀 병합 */
 };

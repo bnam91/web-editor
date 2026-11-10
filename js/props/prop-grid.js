@@ -705,7 +705,38 @@ export function grdDeleteBand(block, axis, i) {
   window.pushHistory?.();                   // 끝 표본 — 머리띠 옮기기와 같은 규약(다음 동작이 push-after 여도 ⌘Z 한 번 = 이 지우기)
   return true;
 }
+/** ★t2-04 셀 병합 — 지금 «할 수 있는 것»: 'merge'(범위 2칸+ · 그 범위가 이미 한 병합 그대로가 아님) | 'unmerge'(가리킨 칸이 합친 칸) | null.
+ *  가리킨 칸 = at(우클릭한 칸) → 없으면 범위의 왼쪽 위 → 없으면 활성 줄의 칸. 메뉴와 ⌘M 이 «같은 판정»을 쓴다. */
+export function grdMergeAction(block, at) {
+  if (!block || !block.classList?.contains('grid-block')) return null;
+  const rng = window.grdGetRange?.(block);
+  const multi = rng && (rng.r1 > rng.r0 || rng.c1 > rng.c0);
+  const one = multi ? window.gridMergeAt?.(block, rng.r0, rng.c0) : null;
+  const isExact = one && one.r === rng.r0 && one.c === rng.c0 && one.r + one.rs - 1 === rng.r1 && one.c + one.cs - 1 === rng.c1;
+  if (multi && !isExact) return { kind: 'merge', rng };
+  const p = at || (rng ? { r: rng.r0, c: rng.c0 } : grdGetActiveLine(block));
+  if (p && Number.isInteger(p.r) && Number.isInteger(p.c) && window.gridMergeAt?.(block, p.r, p.c)) return { kind: 'unmerge', r: p.r, c: p.c };
+  return null;
+}
+/** 병합/해제를 한다(메뉴·⌘M 공용 문). 했으면 true. ⌘Z 한 번 = 이 한 수. */
+export function grdMergeToggle(block, at) {
+  const act = grdMergeAction(block, at);
+  if (!act) return false;
+  let m = null;
+  if (act.kind === 'merge') { m = window.gridMergeRange?.(block, act.rng.r0, act.rng.c0, act.rng.r1, act.rng.c1); if (!m) return false; }
+  else if (!window.gridUnmergeAt?.(block, act.r, act.c)) return false;
+  /* 옛 줄 주소가 가려진 칸을 가리킬 수 있다 — 비운다(행/열 지우기와 같은 까닭) */
+  const al = grdGetActiveLine(block);
+  if (al && m && !(al.r === m.r && al.c === m.c)) window.grdSetActiveLine?.(block, null);
+  window.grdClearLineSel?.(block);
+  window._grdAfterResize?.(block);   // ⚠️거터를 다시 세우며 범위를 푼다 — 범위는 이 «뒤»에 세운다
+  if (m) window.grdSetRange?.(block, { r0: m.r, c0: m.c, r1: m.r + m.rs - 1, c1: m.c + m.cs - 1 });   // 합친 칸을 그대로 골라 둔다(⌘M 다시 = 해제)
+  window.pushHistory?.();   // 끝 표본 — grdDeleteBand 와 같은 규약
+  return true;
+}
 if (typeof window !== 'undefined') {
+  window.grdMergeAction = grdMergeAction;
+  window.grdMergeToggle = grdMergeToggle;
   window.grdCopyRange = grdCopyRange;
   window.grdPasteRange = grdPasteRange;
   window.grdRangeBlocksKey = grdRangeBlocksKey;

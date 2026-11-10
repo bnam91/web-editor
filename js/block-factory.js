@@ -5835,6 +5835,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   let _targetGridAddr = null; // 그리드 블록: 우클릭한 셀 {r,c,li} — li는 «기존 이미지 줄»이 있을 때만 숫자
   let _targetCmpAddr = null;  // 비교 블록: 우클릭한 «행 셀» {colIdx,rowIdx} — 헤더·여백이면 null
   let _targetLnAddr = null;   // ★1020t2i1 line-host 주인(카드): 우클릭한 줄 {r,c,li|null} — 판정 = window.lnCtxAddAddr
+  let _targetGridMerge = null; // ★t2-04 그리드: 우클릭 때 판정한 병합/해제 {kind,…}
   let _targetGridBand = null; // ★GRID-RIGHTCLICK-DELETE-ROW-COL-01 ⓐ 그리드: 우클릭한 행/열 머리띠 {axis, i}
   let _targetGridNest = null; // ★t6-04㉡ 그리드: 우클릭한 자리를 품은 «나란히 두 칸» 줄 {r,c,li} — 칸의 바깥 줄만(중첩 안 중첩은 null)
 
@@ -6042,11 +6043,13 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     _targetCell = block.classList.contains('table-block')
       ? (e.target.closest && e.target.closest('.tb-table tbody td'))
       : null;
+    /* ★t2-04 그리드 셀 병합 — 같은 두 항목을 그리드 갈래로도 쓴다(범위 2칸+ = 병합 · 합친 칸 위 = 해제). 판정은 ⌘M 과 같은 문(grdMergeAction). */
+    _targetGridMerge = block.classList.contains('grid-block') ? (window.grdMergeAction?.(block, _gridCellAddrAt(e, block)) || null) : null;
     const cellMergeItem = document.getElementById('bcm-cell-merge');
     if (cellMergeItem) {
       const tb = _targetCell && _targetCell.closest('tbody');
       const selCount = tb ? tb.querySelectorAll('td.cell-selected').length : 0;
-      cellMergeItem.style.display = (_targetCell && selCount >= 2) ? 'flex' : 'none';
+      cellMergeItem.style.display = ((_targetCell && selCount >= 2) || _targetGridMerge?.kind === 'merge') ? 'flex' : 'none';
     }
     const cellUnmergeItem = document.getElementById('bcm-cell-unmerge');
     if (cellUnmergeItem) {
@@ -6054,7 +6057,7 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
         (parseInt(_targetCell.getAttribute('rowspan') || '1', 10) || 1) > 1 ||
         (parseInt(_targetCell.getAttribute('colspan') || '1', 10) || 1) > 1
       );
-      cellUnmergeItem.style.display = merged ? 'flex' : 'none';
+      cellUnmergeItem.style.display = (merged || _targetGridMerge?.kind === 'unmerge') ? 'flex' : 'none';
     }
 
     // 이미지 메모(2026-09-30) — 에셋 블럭에서만. 메모가 있으면 「고치기」 + 「지우기」.
@@ -6317,13 +6320,16 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   // #5-b: 셀 병합 / 병합 해제
   document.getElementById('bcm-cell-merge')?.addEventListener('click', e => {
     e.stopPropagation();
+    const gm = _targetGridMerge, gb = _targetBlock;
     closeMenu();
+    if (gm && gb?.classList.contains('grid-block')) { window.grdMergeToggle?.(gb, gm.kind === 'unmerge' ? { r: gm.r, c: gm.c } : null); return; }   // ★t2-04
     window.mergeSelectedCells?.();
   });
   document.getElementById('bcm-cell-unmerge')?.addEventListener('click', e => {
     e.stopPropagation();
-    const cell = _targetCell;
+    const cell = _targetCell, gm = _targetGridMerge, gb = _targetBlock;
     closeMenu();
+    if (gm?.kind === 'unmerge' && gb?.classList.contains('grid-block')) { window.grdMergeToggle?.(gb, { r: gm.r, c: gm.c }); return; }   // ★t2-04 — 메뉴를 띄울 때와 같은 판정(해제)
     window.unmergeCell?.(cell);
   });
 

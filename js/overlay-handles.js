@@ -1954,6 +1954,17 @@ let _gridGutterRafId = null;
 function _getGridCell(block, r, c) {
   return block.querySelector(`:scope > .grd-inner > .grd-cell[data-r="${r}"][data-c="${c}"]`);
 }
+/* ★t2-04 셀 병합 — 트랙(열 폭·행 높이)을 잴 칸: 그 열(행)에서 «한 칸 폭(높이)»인 첫 칸. 합친 칸(data-cs/data-rs)은 여러 트랙에 걸쳐 못 잰다.
+ *   병합이 없으면 행 0(열 0) 칸 그대로 = 옛 동작. 그 열이 모든 행에서 합쳐져 있으면 null(그 경계 손잡이는 숨는다). */
+function _gridTrackCell(block, axis, i) {
+  const sel = axis === 'col' ? `[data-c="${i}"]:not([data-cs])` : `[data-r="${i}"]:not([data-rs])`;
+  return block.querySelector(`:scope > .grd-inner > .grd-cell${sel}`);
+}
+/** (r,c) 를 «덮는» 칸 — 가려진 칸이면 그 병합의 앵커. */
+function _gridCoverCell(block, r, c) {
+  const m = window.gridMergeAt?.(block, r, c);
+  return _getGridCell(block, m ? m.r : r, m ? m.c : c);
+}
 
 function showGridGutters(block) {
   const { cols, rows } = getGridModel(block);   // 단일 진실원(grid-block.js) — 여기서 재파싱하지 않는다
@@ -2151,7 +2162,7 @@ function _updateGridGutterPositions() {
   const shellRect = (block.querySelector(':scope > .grd-inner') || block).getBoundingClientRect();
   overlay.querySelectorAll('.grd-gutter[data-axis="col"]').forEach(g => {
     const i = +g.dataset.i;
-    const a = _getGridCell(block, 0, i), b = _getGridCell(block, 0, i + 1);
+    const a = _gridTrackCell(block, 'col', i), b = _gridTrackCell(block, 'col', i + 1);
     if (!a || !b) { g.style.display = 'none'; return; }
     g.style.display = '';
     const ar = a.getBoundingClientRect();
@@ -2177,7 +2188,7 @@ function _updateGridGutterPositions() {
   });
   overlay.querySelectorAll('.grd-gutter[data-axis="row"]').forEach(g => {
     const i = +g.dataset.i;
-    const a = _getGridCell(block, i, 0), b = _getGridCell(block, i + 1, 0);
+    const a = _gridTrackCell(block, 'row', i), b = _gridTrackCell(block, 'row', i + 1);
     if (!a || !b) { g.style.display = 'none'; return; }
     g.style.display = '';
     const ar = a.getBoundingClientRect();
@@ -2323,7 +2334,7 @@ function _onGridColMouseDown(e, block, i) {
   e.stopPropagation();
   const cols = gridCols(block);   // 클램프·폴백까지 반영된 단일 진실원(grid-block.js)
   if (!cols[i] || !cols[i + 1]) return;
-  const elA = _getGridCell(block, 0, i), elB = _getGridCell(block, 0, i + 1);
+  const elA = _gridTrackCell(block, 'col', i), elB = _gridTrackCell(block, 'col', i + 1);
   if (!elA || !elB) return;
 
   // row draggable(block-drag.js)과의 충돌 방지 — 거터는 블록 밖(오버레이)이라 애초에 잘 안 맞지만,
@@ -2410,7 +2421,7 @@ function _onGridRowMouseDown(e, block, i) {
   e.stopPropagation();
   const rows = gridRows(block);   // 클램프·폴백까지 반영된 단일 진실원(grid-block.js)
   if (!rows[i] || !rows[i + 1]) return;
-  const elA = _getGridCell(block, i, 0);
+  const elA = _gridTrackCell(block, 'row', i);
   if (!elA) return;
 
   const scale0 = _canvasScaleNow();
@@ -2494,7 +2505,7 @@ function _updateGridHeadbandPositions(overlay, block, blockRect) {
   overlay.querySelectorAll('.grd-headband').forEach(b => {
     const i = +b.dataset.i;
     const col = b.dataset.axis === 'col';
-    const el = col ? _getGridCell(block, 0, i) : _getGridCell(block, i, 0);
+    const el = _gridTrackCell(block, col ? 'col' : 'row', i);
     if (!el) { b.style.display = 'none'; return; }
     b.style.display = '';
     const r = el.getBoundingClientRect();
@@ -2512,7 +2523,7 @@ function _updateGridHeadbandPositions(overlay, block, blockRect) {
 function _grdBandInsertAt(block, axis, n, p) {
   let k = 0;
   for (let j = 0; j < n; j++) {
-    const el = axis === 'col' ? _getGridCell(block, 0, j) : _getGridCell(block, j, 0);
+    const el = _gridTrackCell(block, axis, j);
     if (!el) continue;
     const r = el.getBoundingClientRect();
     if (p > (axis === 'col' ? r.left + r.width / 2 : r.top + r.height / 2)) k = j + 1;
@@ -2523,7 +2534,7 @@ function _grdBandInsertAt(block, axis, n, p) {
 /** 삽입 자리 k 의 «선» 좌표(화면) — 첫 칸 앞 끝 · 사이 gap 가운데 · 끝 칸 뒤 끝. */
 function _grdBandSlotEdge(block, axis, n, k) {
   const at = (j) => {
-    const el = axis === 'col' ? _getGridCell(block, 0, j) : _getGridCell(block, j, 0);
+    const el = _gridTrackCell(block, axis, j);
     return el ? el.getBoundingClientRect() : null;
   };
   const a = k > 0 ? at(k - 1) : null, b = k < n ? at(k) : null;
@@ -2703,6 +2714,9 @@ function grdGetRange(block) {
   /* ★axis(머리띠로 고른 행/열) — 범위가 «아직 그 행/열 통째»일 때만 싣는다(R·C 가 바뀌었으면 떨군다). */
   if (st.axis === 'row' && r0 === r1 && c0 === 0 && c1 === C - 1) return { r0, c0, r1, c1, axis: 'row' };
   if (st.axis === 'col' && c0 === c1 && r0 === 0 && r1 === R - 1) return { r0, c0, r1, c1, axis: 'col' };
+  /* ★t2-04 — 합친 칸을 걸치면 그 병합을 통째로 덮게 넓힌다(엑셀). 병합이 없으면 그대로. */
+  const merges = window.gridMerges?.(block, R, C) || [];
+  if (merges.length) { const g = window.gridExpandRange(merges, r0, c0, r1, c1); return { r0: g.r0, c0: g.c0, r1: g.r1, c1: g.c1 }; }
   return { r0, c0, r1, c1 };
 }
 
@@ -2724,8 +2738,8 @@ function grdClearRange() {
 function _updateGridRangeRect(overlay, block) {
   if (!overlay) return;
   const rng = _grdRange && _grdRange.block === block ? grdGetRange(block) : null;
-  const a = rng ? _getGridCell(block, rng.r0, rng.c0) : null;
-  const b = rng ? _getGridCell(block, rng.r1, rng.c1) : null;
+  const a = rng ? _gridCoverCell(block, rng.r0, rng.c0) : null;
+  const b = rng ? _gridCoverCell(block, rng.r1, rng.c1) : null;   // ★t2-04 — 끝 칸이 가려졌으면 앵커(범위는 병합을 통째로 덮게 넓혀져 있다)
   let el = overlay.querySelector(':scope > .grd-range-rect');
   if (!a || !b) { if (el) el.remove(); return; }
   if (!el) {

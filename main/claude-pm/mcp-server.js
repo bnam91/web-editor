@@ -3712,7 +3712,7 @@ function _registerDefaultTools() {
       }
       if (!Object.keys(partial).length) {
         return { ok: false, code: 'NOTHING_TO_DO',
-          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle / blockBg / cellPadY' };
+          message: 'no fields to update — pass cols / rows / cells / patchCell / gap / rowGap / colGap / valign / cellBorderWidth / cellBorderColor / cellBorderStyle / blockBg / cellPadY / merges' };
       }
       return await _rendererInvoker.updateGridBlock({ blockId, partial });
     },
@@ -3791,6 +3791,10 @@ function _registerDefaultTools() {
             + 'pos:"<left|center|right> <top|center|bottom>", opacity:0~100, padY:0~200, padX:0~100}. Each field optional; a field set to null resets to its default. '
             + 'on:false hides it but keeps the values; blockBg:null removes everything. Unknown fields are REJECTED.' },
           cellPadY: { type: ['number', 'null'], description: '★grid «height» (제4안 2026-10-05) — px added to EVERY cell\'s top AND bottom padding (0~70). Text size and image ratio are never changed; the grid gets taller by 2 × cellPadY × rows. 0 or null = none (old documents unchanged).' },
+          merges: { type: ['array', 'null'], items: { type: 'object', properties: { r: { type: 'integer' }, c: { type: 'integer' }, rs: { type: 'integer' }, cs: { type: 'integer' } }, required: ['r', 'c', 'rs', 'cs'], additionalProperties: false },
+            description: '★t2-04 merged cells — REPLACES the block\'s whole merge list. Each {r,c,rs,cs} = top-left cell (row 0 included) + row/col span (2+ cells). '
+            + 'Like Excel only the top-left cell keeps its content — the other covered cells are EMPTIED. null or [] = unmerge all (covered cells come back empty). '
+            + 'Rejected: non-integers, out of range, 1×1, overlapping. patchCell into a covered cell is rejected (write the anchor).' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],
