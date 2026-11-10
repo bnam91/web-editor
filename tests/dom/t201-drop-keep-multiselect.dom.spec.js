@@ -55,7 +55,7 @@ const sel = (page, ids) => page.evaluate((ids) => Object.fromEntries(ids.map((id
 const pos = (page, ids) => page.evaluate((ids) => Object.fromEntries(ids.map((id) => { const e = document.getElementById(id); return [id, [parseFloat(e.style.left) || 0, parseFloat(e.style.top) || 0]]; })), ids);
 const delta = (a, b) => [Math.round(b[0] - a[0]), Math.round(b[1] - a[1])];
 
-/* 자식 프레임 둘 고르기 — 자유 프레임 안은 «클릭 = 바깥 F · 더블클릭 = 한 단계 안»(t201-multi-group-outline 과 같은 손). 프레임의 빈 자리(아래쪽)를 누른다. */
+/* 자식 프레임 둘 고르기 — 자유 프레임 안은 «클릭 = 바깥 F · 더블클릭 = 한 단계 안»(t2-01 int-3 의 t201-multi-group-outline 과 같은 손 — 그 spec 은 이 기준판에 없다). 프레임의 빈 자리(아래쪽)를 누른다. */
 async function pickFrames(page) {
   await click(page, 'P', null, 140); await dbl(page, 'P', 140); await click(page, 'Q', 'Shift', 140);
   expect(await sel(page, ['P', 'Q', 'R']), '[전제] P·Q 를 골랐다').toEqual({ P: true, Q: true, R: false });

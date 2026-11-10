@@ -1202,7 +1202,10 @@ function bindBlock(block) {
         _resizeFrameToFitChildren(dragEl);
         multiPeers.forEach(p => _resizeFrameToFitChildren(p.el));
         window.pushHistory?.();
-        if (multiPeers.length && _grabWasSel && upEv?.type === 'mouseup') _afterDropClick(dragEl, upEv, multiPeers, null);   // T2-01-DROP — 놓은 뒤 click 이 하나로 좁히지 않게(누를 때 안 좁혔으니 다시 고를 것 없음)
+        if (multiPeers.length && _grabWasSel && upEv?.type === 'mouseup') {
+          _afterDropClick(dragEl, upEv, multiPeers, null);
+          window.showFreeLayoutMultiSelPanel?.();   // 여럿 패널의 X·Y·간격을 옮긴 자리로(전엔 좁히는 click 이 패널을 다시 그렸다)
+        }   // T2-01-DROP — 놓은 뒤 click 이 하나로 좁히지 않게(누를 때 안 좁혔으니 다시 고를 것 없음)
       }
     }
     document.addEventListener('mousemove', onMove);
