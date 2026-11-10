@@ -2410,7 +2410,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
             fxShadowBlur: line.fxShadowBlur, fxShadowColor: line.fxShadowColor, fxShadowOp: line.fxShadowOp })
         : '';
       const fxCss = _fxF ? `filter:${_fxF};` : '';
-      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
+      /* ★NEW-현빈QA-GRID-TWOCELL-ROW-DELETE-AND-ALIGN-01(261110) — 원 틀은 flex 항목으로 «안 줄어든다»(flex-shrink:0).
+         그림 든 원은 overflow:hidden 이라 flex 자동 최소 높이가 0 ⇒ 같은 열의 빈 사진 자리(height:100% — 열 높이만큼 요구)가 공간을 다투면
+         원만 눌려 타원(120×41)이 됐다(미카사 사본 실측 89×29). 폭은 max-width·aspect-ratio 가 지키니 높이만 막으면 정원이다.
+         ⛔사각 그림 틀엔 안 단다 — 그쪽은 «줄어드는 것»이 옛 규칙이다(아래 커밋 ① ㈐ 실측). */
+      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;flex-shrink:0;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
       if (!line.imgSrc) return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}${lid ? 'overflow:hidden;' : ''}">${cTextHtml}</div>`;
       return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
@@ -2599,11 +2603,16 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
            「왜 다른 이름인가」 참조). 대신 naddr 이 data-nroot/data-npath 를 싣는다.
          ★이 줄이 바깥 줄이면(addr 있음) 길이 시작되고, 이미 중첩 안이면(naddr 있음) 길이 이어진다.
            둘 다 없으면 null 이 내려가 산출이 예전과 «바이트 동일»이다(innercard 경로). */
-      const inner = (Array.isArray(c.lines) ? c.lines : [])
+      let inner = (Array.isArray(c.lines) ? c.lines : [])
         .map((l, ni) => _gridLineHtml(l, c.align || colAlign, depth + 1, null, useRoleColor,
           _gridNestAddr(addr, naddr, ci, ni))).join('');
+      /* ★NEW-현빈QA-GRID-TWOCELL-ROW-DELETE-AND-ALIGN-01 D1⒜(현빈 261110) — 줄을 다 지운 «빈 열»은 그대로 두고 «누를 자리»를 준다.
+         빈 div 하나(주소만 싣는다 · 안내 글자와 높이는 #canvas 스코프 CSS — 산출물엔 0 높이 = 오늘과 같은 빈 열). 깊이 1(바깥 줄 주소가 있을 때)만 — 누르면 block-drag.js 가 그 열에 줄 하나를 넣는다. */
+      if (!inner && addr && !naddr) inner = `<div class="grd-nested-col-empty" data-r="${addr.r}" data-c="${addr.c}" data-nroot="${addr.li}" data-ncol="${ci}"></div>`;
+      /* ★D2ⓐ(현빈 261110) — 열마다 세로 정렬(c.valign · top/middle/bottom) · 없으면 duo 전체 값(옛 산출 그대로). */
+      const cv = _gridEnum(_GRID_VALIGN, c.valign) || valign;
       // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
-      return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
+      return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${cv};">${inner}</div>`;
     }).join('');
     return `<div${addrAttr} class="grd-nested" style="display:flex;gap:${gap}px;align-items:stretch;${mtCss}">${colsHtml}</div>`;
   }

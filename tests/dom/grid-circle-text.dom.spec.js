@@ -484,11 +484,12 @@ test('G20-7 ★「사각으로 바꾸기」가 색·글자를 ★안 뗀다 — 
 test('G20-8 ★지키는 자 — bg·text 가 둘 다 «없는» 원의 산출은 ★예전과 바이트 동일 · 사각 줄도 그대로', async ({ page }) => {
   /* ★이 자가 ★핀(2866df63)에서도 ★초록이어야 한다 — 그래야 「G20-1~7 빨강」이 «기능이 없어서»이고
    *   «하네스가 깨져서»가 아님을 가른다. ⇒ ⛔여기 단언을 바꾸면 양성대조의 바닥이 사라진다. */
+  /* ★261110 TWOCELL-ROW-DELETE-AND-ALIGN — 모든 원 틀에 flex-shrink:0 이 붙었다(두 칸 안 원이 빈 사진 자리에 눌려 타원 · grid-block.js 원 가지 주석) ⇒ 바탕 바이트에 그 한 마디만 더했다. 이 자가 재는 «bg·text 가 안 샌다»는 그대로다. */
   await setup(page, { lines: CIRC({ imgSrc: PX, height: 100 }) });
   const htmlCircle = await page.evaluate(() =>
     document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-img-frame').outerHTML);
   expect(htmlCircle, '★장식 없는 원의 산출이 바뀌었다(position/background 가 샜다)').toBe(
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-circle" style="width:100px;max-width:100%;aspect-ratio:1/1;border-radius:50%;overflow:hidden;">'
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-circle" style="width:100px;max-width:100%;aspect-ratio:1/1;border-radius:50%;flex-shrink:0;overflow:hidden;">'
     + `<img class="grd-img" src="${PX}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
     + '</div>');
   expect(await page.evaluate(() => !!document.querySelector('#gG .grd-img-circle-text')), '★글자를 안 줬는데 글자칸이 생겼다').toBe(false);
@@ -497,7 +498,7 @@ test('G20-8 ★지키는 자 — bg·text 가 둘 다 «없는» 원의 산출�
   await setup(page, { lines: CIRC({ height: 120 }) });
   expect(await page.evaluate(() => document.querySelector('#gG .grd-img-frame').outerHTML),
     '★장식 없는 «빈» 원의 산출이 바뀌었다').toBe(
-    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty grd-img-circle" style="width:120px;max-width:100%;aspect-ratio:1/1;border-radius:50%;"></div>');
+    '<div data-r="0" data-c="0" data-line="0" class="grd-img-frame grd-img-empty grd-img-circle" style="width:120px;max-width:100%;aspect-ratio:1/1;border-radius:50%;flex-shrink:0;"></div>');
 
   // 사각 줄 — bg·text 를 줘도 원 가지를 안 탄다(사각 산출은 한 글자도 안 바뀐다)
   await setup(page, { lines: [{ type: 'image', imgSrc: PX2, height: 120, bg: '#ff0000', text: 'X' }] });

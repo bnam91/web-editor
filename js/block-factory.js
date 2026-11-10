@@ -6109,7 +6109,9 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
       }
     }
     if (gridImgDelItem) {
-      gridImgDelItem.style.display = _gridImgLineHit(_targetGridAddr) ? 'flex' : 'none';
+      /* ★TWOCELL-ROW-DELETE-AND-ALIGN(261110) — 「이미지 삭제」= 그림만 비운다(자리 남김 · 비교 칸과 같은 규약). 이미 빈 자리면 할 일이 없다 ⇒ 안 띄운다
+         (전엔 빈 사진에서 눌러도 아무 일 없었다 — 자리째 지우기는 ⌫·패널 [줄 삭제]). */
+      gridImgDelItem.style.display = _gridImgLineHit(_targetGridAddr) && _gridImgLineHasSrc(block, _targetGridAddr) ? 'flex' : 'none';
     }
     /* ★「나란히 두 칸으로 나누기」(T-221) — 그리드 칸에서만 보인다.
        ★「이미지 추가」와 «같은 판정»을 쓴다(`_targetGridAddr` 하나) — 두 벌로 가르면 한쪽만 늙는다. */
@@ -6454,6 +6456,14 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
   function _gridImgLineHit(addr) { return !!addr && (addr.li != null || !!addr.nest?.img); }
   function _gridImgLineTarget(addr) {
     return addr.nest ? { r: addr.r, c: addr.c, lineIndex: addr.nest.root, np: addr.nest.np } : { r: addr.r, c: addr.c, lineIndex: addr.li };
+  }
+  function _gridImgLineHasSrc(block, addr) {
+    const t = _gridImgLineTarget(addr);
+    try {
+      const L = getGridModel(block).cells?.[t.r]?.[t.c]?.lines?.[t.lineIndex];
+      const [ci, ni] = t.np ? t.np.split('.').map(Number) : [];
+      return !!(t.np ? L?.cols?.[ci]?.lines?.[ni] : L)?.imgSrc;
+    } catch (_) { return false; }
   }
   /* 그리드 주소 → 그 줄(모델). 없으면 null. (중첩 np 는 이 메뉴가 다루지 않는다 — 바깥 줄만) */
   function _gridLineAt(block, addr) {

@@ -142,7 +142,10 @@ async function mount(page) {
 /** 패널 안의 «고치는 손잡이» 수 — input/select/textarea/button/슬라이더.
  *  ★1109t1A1 — 안내 절의 「바깥 줄 고르기」(#grd-nest-outer-btn)는 «고르기» 단추라 안 센다(세면 A3 ⑵ 가 그 하나로 거저 초록·A3-양성2 가 거저 빨강).
  *  ★1109t1A2 — 중첩 열 «줄 추가» select(#grd-line-add-kind)도 안 센다: 이 저울은 타이포 문을 재지 추가 손잡이를 재지 않는다(추가는 grid-nested-add-image N3 가 잰다). */
-const HANDLE_SEL = 'input, select:not(#grd-line-add-kind), textarea, button:not(#grd-nest-outer-btn), [role="slider"], .prop-slider';
+/* ★TWOCELL-ROW-DELETE-AND-ALIGN(261110) — 깊이 1 중첩 줄에 줄바 [줄 복사]·[줄 삭제]와 「줄 꾸미기」 절이 «바깥 줄과 같은 절»로 열렸다(다른 문 — _grdResolveNestAddr · NS 주인).
+   이 저울은 그대로 «타이포 문»(_grdResolveAddr np 분기)만 잰다 ⇒ 그 절의 손잡이도 안 센다(세면 A3-양성2 가 그 문과 무관한 수로 거저 빨강). 그 절은 twocell-row-delete-align P·A 가 잰다. */
+const _NOT_LINE_DOOR = ':not(#grd-line-body *):not(#grd-line-toggle):not(#grd-line-dup-btn):not(#grd-line-del-btn):not(#grd-nest-valign-group *)';   // + D2ⓐ «열 세로» 세 단추(그 절도 twocell-row-delete-align V1 이 잰다)
+const HANDLE_SEL = ['input', 'select:not(#grd-line-add-kind)', 'textarea', 'button:not(#grd-nest-outer-btn)', '[role="slider"]', '.prop-slider'].map((x) => x + _NOT_LINE_DOOR).join(', ');
 
 /* ═══ A — 「잡힌다 · 가리킨다 · ⛔안 고쳐진다」 ═══════════════════════════ */
 
@@ -250,11 +253,15 @@ test('A3 ★★패널이 «그 줄»을 가리키되 «고치는 손잡이»는 
        「그 줄의 글씨 크기나 정렬을 바꿔 보십니다」이기 때문이다.
      ★나머지 다섯 소비자를 같이 여는 것은 «다른 카드»다. 여기서 그 사실을 못박아,
        다음 사람이 「왜 어떤 절은 나고 어떤 절은 안 나나」를 다시 캐지 않게 한다. */
-  expect(nested.lineSection, '★「줄 꾸미기」 절이 났다 — 그 길(_grdResolveAnyAddr)은 아직 안 열었다').toBe(false);
+  /* ★★뒤집힘 (TWOCELL-ROW-DELETE-AND-ALIGN · 261110 · 지디 발주 「줄 정렬 재사용」) — 위 ⛔가 말한 «다른 카드»가 이것이다.
+       ⛔리졸버 바일아웃(_grdResolveAnyAddr np)은 «그대로» 두고(여섯 소비자 무변), 깊이 1 중첩 줄만 따로 풀어(_grdResolveNestAddr) 같은 절을 띄운다 · 쓰기는 np. */
+  expect(nested.lineSection, '★깊이 1 중첩 줄에 「줄 꾸미기」 절이 안 났다(TWOCELL-ROW-DELETE-AND-ALIGN)').toBe(true);
   /* ⛔「줄 삭제」는 «아직» 길이 없다 — 지우는 쪽은 `lines` 배열을 통째로 갈아치우는 경로라
        li(=품은 중첩 줄의 자리)가 그대로 흘러 «그 중첩이 통째로» 지워진다.
      ⇒ 고치는 길만 냈다. 이 단언이 「지우기도 됐다」로 바뀌려면 «그 길»부터 나야 한다. */
-  expect(nested.delBtn, '★「줄 삭제」가 나왔다 — 누르면 «품은 중첩 줄»이 통째로 지워진다(그 길은 아직 없다)').toBe(false);
+  /* ★★뒤집힘 (261110) — «그 길»이 났다: 중첩 열 주인(_grdNestColHost.commitLines)이 그 열 줄만 갈아 바깥 lines 통째 한 문으로 쓴다(⌘Z 한 번).
+       «품은 duo 줄이 통째로 지워지지 않는다»는 twocell-row-delete-align P1(왼 열 한 줄만 · 오른 열 무손)이 잰다. */
+  expect(nested.delBtn, '★깊이 1 중첩 줄에 「줄 삭제」가 안 났다(TWOCELL-ROW-DELETE-AND-ALIGN)').toBe(true);
 
   /* ⑶ ★★핵심 — 난 손잡이가 «실제로 그 줄»을 고치는가. ⛔이게 없으면 ⑵는 「헛도는 손잡이가
        늘었다」와 구별이 안 된다. 그것이 옛 A3 가 막으려던 바로 그 결함이다.

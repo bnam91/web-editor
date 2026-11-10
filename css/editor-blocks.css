@@ -2199,7 +2199,15 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔#canvas 스코프 필수 — export 클론엔 안내문이 안 새게(위 규칙과 같은 이유). */
 #canvas .grid-block .grd-cell-empty::before {
   content: '+ 내용 추가 (T/G/K)';
-  color: #ccc;
+  color: var(--text-hint-canvas-faint);   /* EMPTY-CELL-HINT-LIGHTER(261110) — 옛 #ccc · 토큰 css/design-tokens.css */
+  pointer-events: none;
+}
+/* ★두 칸 안 «빈 열» 자리(NEW-현빈QA-GRID-TWOCELL-ROW-DELETE-AND-ALIGN-01 D1⒜) — 빈 칸과 같은 관용구·같은 연한 색. 누르면 그 열에 줄 하나(block-drag.js).
+   ⛔#canvas 스코프 — 산출물(캡처·단독 HTML)엔 글자도 높이도 안 나간다(빈 div 0 높이 = 오늘의 빈 열). */
+#canvas .grid-block .grd-nested-col-empty { min-height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+#canvas .grid-block .grd-nested-col-empty::before {
+  content: '+ 내용 추가';
+  color: var(--text-hint-canvas-faint);
   pointer-events: none;
 }
 #canvas .grid-block .grd-cell-empty { min-height: 48px; }
