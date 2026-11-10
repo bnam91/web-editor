@@ -2760,7 +2760,9 @@ function _goneForget(id) { for (const k of _goneRecreated) if (k === id || k.sta
 function _goneBaseRefusal(project) {
   if (!project) return null;
   const key = String(project.id);
-  if (!project._goneBase) { _goneForget(key); return null; }   // 표시 없는 저장 = 탭이 파일로 돌아왔다 — 다시 없어지면 처음부터 가른다
+  /* 표시 없는 저장 = 탭이 파일로 돌아왔거나(그때 파일이 제 것이 아니면 기억 끝) · 제 폴더 위의 이름 바꾸기·버전 복원(_renameProjectImpl·restore 가 이 길을 탄다).
+     ★-02 리뷰 1: 쓰기 «전» 도장이 제 것이면 기억을 지우지 않는다 — 'own' 으로 쓰고 도장을 새로 잡는다(지우면 아직 표시를 단 탭의 다음 저장이 거짓 «돌아왔다» 거절). */
+  if (!project._goneBase) { if (_goneRecreated.has(_goneStamp(key))) return 'own'; _goneForget(key); return null; }
   delete project._goneBase;
   if (!_resolveProjectJsonPath(key)) return 'recreate';   // 기억은 쓰기가 «된 뒤» 호출측이 한다 — 실패한 다시 만들기를 제 폴더로 기억하면 밖에서 돌아온 파일을 덮는다(리뷰 3 ①)
   if (_goneRecreated.has(_goneStamp(key))) return 'own';   // 제가 쓴 그 파일 그대로 — 저장하고 도장을 새로 잡는다

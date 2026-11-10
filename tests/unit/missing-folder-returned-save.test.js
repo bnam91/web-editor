@@ -5,7 +5,7 @@
  * 칸(리뷰 2): G6 제가 다시 만든 폴더에 줄 선 표시 저장은 거절하지 않는다 · G7 그 뒤 탭이 파일로 돌아왔다가(표시 없는 저장) 폴더가 바뀌어 돌아오면 다시 거절한다.
  * 칸(리뷰 3): G8 다시 만들기 쓰기가 실패하면 제 폴더로 기억하지 않는다 — 그 뒤 밖에서 돌아오면 거절한다.
  * 칸(-02 · 미카사 int-3 실앱 2/2): returned() 가 실앱 순서(남은 본 자동저장이 폴더를 다시 만든 뒤 원래 폴더가 Finder 대치로 돌아옴)를 탄다 ⇒ G1~G5 가 그 길 ·
- *   G9 다시 만들기 없는 옛 순서도 거절 · G10 다시 만든 뒤 제 저장이 이어져도 거절 없음 → 대치로 돌아오면 거절. 기준 int-3 은 G1~G5·G10 빨강(제 폴더라 기억한 id 만 보고 덮었다).
+ *   G9 다시 만들기 없는 옛 순서도 거절 · G10 다시 만든 뒤 제 저장이 이어져도 거절 없음 → 대치로 돌아오면 거절 · G11 그 사이 표시 없는 쓰기(이름 바꾸기·복원)가 껴도 거짓 거절 없음(리뷰 1). 기준 int-3 은 G1~G5·G10 빨강(제 폴더라 기억한 id 만 보고 덮었다).
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -155,4 +155,17 @@ test('G10 다시 만든 뒤 제 저장이 이어져도 거절이 없다 → 원�
   assert.equal(r.reason, 'folder_returned', '★대치로 돌아온 원래 폴더를 덮었다');
   assert.match(JSON.stringify(file(id)), /처음 머리/);
   assert.ok(history(id).some((h) => /남은본편집 머리/.test(h)), '거절한 본은 버전 기록에 남는다');
+});
+
+test('G11 다시 만든 폴더 위의 표시 없는 쓰기(이름 바꾸기·버전 복원 꼴) 뒤에도 그 탭의 표시 저장을 «돌아왔다»고 거절하지 않는다(리뷰 1)', async () => {
+  const id = 'proj_' + (9700 + n++);
+  assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
+  fs.renameSync(dir(id), away(id));
+  assert.equal((await H.invoke('projects:save', { ...proj(id, '자동1'), _goneBase: true })).ok, true, '[전제] 다시 만듦');
+  assert.equal((await H.invoke('projects:save', { ...proj(id, '이름바꿈'), name: '새 이름' })).ok, true, '표시 없는 쓰기(제 폴더 위)');
+  const r = await H.invoke('projects:save', { ...proj(id, '자동2'), _goneBase: true });
+  assert.equal(r.ok, true, `★제 폴더인데 «돌아왔다»고 거절했다(${r.reason})`);
+  assert.match(JSON.stringify(file(id)), /자동2 머리/);
+  fs.renameSync(dir(id), away(id) + '-app'); fs.renameSync(away(id), dir(id));   // 그 뒤 대치로 돌아오면 여전히 거절
+  assert.equal((await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true })).reason, 'folder_returned');
 });
