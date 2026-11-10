@@ -1859,7 +1859,7 @@ async function renderUnreadable() {
   }
   const hint = document.createElement('div');
   hint.style.cssText = 'font-size:11px;color:#666;padding:6px 2px;';
-  hint.textContent = `파일이 손상돼 열 수 없습니다 — ${finderLabel.replace(' 보기', '')} 직접 확인하세요.`;
+  hint.textContent = `파일이 손상됐거나 읽을 수 없어 열 수 없습니다 — ${finderLabel.replace(' 보기', '')} 직접 확인하세요.`;
   box.appendChild(hint);
   zone.appendChild(box);
   (document.getElementById('backup-zone') || document.getElementById('project-grid'))?.after(zone);

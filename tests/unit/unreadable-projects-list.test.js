@@ -47,7 +47,7 @@ function load(dir, { admin = true } = {}) {
 
 const doc = (id, name) => ({ id, name, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
   pages: [{ id: 'page_1', canvas: '<div class="section-block"><div class="text-block">본문</div><img src="a.png"><img src="b.png"></div>' }] });
-const BAD = 'proj_1700000000001', OK = 'proj_1700000000002', HEALED = 'proj_1700000000003', PLAN = 'plan_1700000000004';
+const BAD = 'proj_1700000000001', OK = 'proj_1700000000002', HEALED = 'proj_1700000000003', PLAN = 'plan_1700000000004', NOID = 'proj_1700000000005';
 function scene() {
   const dir = mkTmpRoot('gdt-unreadable-');
   const put = (id, file, txt) => { fs.mkdirSync(path.join(dir, id), { recursive: true }); fs.writeFileSync(path.join(dir, id, file), txt); };
@@ -60,6 +60,8 @@ function scene() {
   put(HEALED, 'proj_backup.json', JSON.stringify(doc(HEALED, '백업 있는 상페')));
   put(PLAN, 'proj.json', JSON.stringify({ id: PLAN, name: '기획', type: 'planning' }));
   put(`${OK}.bak_20260101`, 'proj.json', '{깨짐');   // 백업 사본 몫
+  const noid = doc(NOID, 'id 없는 상페'); delete noid.id;
+  put(NOID, 'proj.json', JSON.stringify(noid));   // 읽히지만 _listItemFor 가 !data.id 로 null — 역시 목록에 없다
   return dir;
 }
 
@@ -67,10 +69,11 @@ test('U1 깨짐·후보 0 → 열 수 없는 목록에 1행(이름은 meta 그�
   const dir = scene(); const m = load(dir);
   const r = m.unreadable();
   assert.strictEqual(r.ok, true);
-  assert.deepStrictEqual(r.items.map((x) => x.id), [BAD]);
+  assert.deepStrictEqual(r.items.map((x) => x.id), [BAD, NOID]);
   assert.strictEqual(r.items[0].name, '<img src=x onerror=1>깨진 상페');
   assert.ok(r.items[0].bytes > 0);
-  assert.ok(!m.list().some((p) => p.id === BAD), '목록 계약 무변 — 깨진 것은 일반 목록에 안 든다');
+  const listed = m.list().map((p) => p.id);
+  for (const id of [BAD, NOID]) assert.ok(!listed.includes(id), `목록 계약 무변 — ${id} 는 일반 목록에 안 든다`);
 });
 
 test('N1~N4 백업 있는 것(목록이 «백업에서 읽음» 으로 맡음)·성한 것·기획·bak 사본은 0행', () => {
@@ -80,12 +83,12 @@ test('N1~N4 백업 있는 것(목록이 «백업에서 읽음» 으로 맡음)·
   assert.ok(m.list().some((p) => p.id === HEALED), '대조 — 백업 있는 것은 일반 목록에 있다');
 });
 
-test('N5 디스크 무접촉 — 목록을 물어도 깨진 파일·폴더가 그대로', () => {
-  const dir = scene(); const before = fs.readdirSync(path.join(dir, BAD)).sort();
-  const bytes = fs.readFileSync(path.join(dir, BAD, 'proj.json'), 'utf8');
+test('N5 디스크 무접촉 — 물어도 어느 폴더 하나 안 바뀐다(깨진 것 · meta 없는 성한 것)', () => {
+  const dir = scene();
+  const snap = () => fs.readdirSync(dir).sort().map((d) => [d, fs.readdirSync(path.join(dir, d)).sort().map((f) => [f, fs.readFileSync(path.join(dir, d, f), 'utf8')])]);
+  const before = JSON.stringify(snap());
   load(dir).unreadable();
-  assert.deepStrictEqual(fs.readdirSync(path.join(dir, BAD)).sort(), before);
-  assert.strictEqual(fs.readFileSync(path.join(dir, BAD, 'proj.json'), 'utf8'), bytes);
+  assert.strictEqual(JSON.stringify(snap()), before, '★목록 코어를 다시 돌려 meta 를 썼다');
 });
 
 test('A1 관리자 아님 → 값 자체를 안 준다(not_admin) · Finder 도 거절', () => {
