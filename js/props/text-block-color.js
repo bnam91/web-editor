@@ -235,11 +235,15 @@ function _textSpanX(el) {
   }
   return R > L ? { left: L, right: R } : null;
 }
-/** 글자 그라데이션의 칠 구간을 글자에 맞춘다. 그라데이션이 없거나 글자가 비면 기하를 걷는다(= 예전처럼 상자 전체). */
+/** 글자 그라데이션의 칠 구간을 글자에 맞춘다. 글자가 비면 기하를 걷는다(= 예전처럼 상자 전체). 글자 그라데이션이 아니면 아무것도 안 한다(그 걷기는 removeTextGradient 몫). */
 export function syncTextGradGeometry(contentEl) {
   const st = contentEl && contentEl.style;
   if (!st || !contentEl.isConnected) return false;
-  const x = hasTextGradient(contentEl) && _textSpanX(contentEl);
+  /* ★int-3(261110 · sec-bg-live G5 이분 = t4-02) — 글자 그라데이션이 «아닌» 요소의 background-* 는 남의 것이다 — ⛔안 건드린다.
+     관찰자 셀렉터([style*="background-clip"])는 섹션·프레임 배경(background-clip 인라인)도 집는다 → 옛 판은 여기서 그들의
+     background-size/position/origin 을 지웠다(배경 편집 스케일 중 화면 틀어짐 · 저장되면 배경 자리 잃음). 그라데이션을 «풀 때»의 걷기는 removeTextGradient 가 직접 한다. */
+  if (!hasTextGradient(contentEl)) return false;
+  const x = _textSpanX(contentEl);
   const bw = contentEl.getBoundingClientRect().width;
   if (!x || !bw) { if (st.backgroundSize) _clearGradGeometry(st); return false; }
   // shortcut: 줌(scale)은 상자 비율로 되돌리지만 회전 블럭은 AABB 라 폭이 근사다 — 회전 글자 그라데이션 민원이 오면 offset 기준으로 바꿀 것.
