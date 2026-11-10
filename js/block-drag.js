@@ -3375,7 +3375,7 @@ function _placeInFreeFrame(el, { frame, x, y }, keep) {
   clearDropIndicators();
   /* keep — 화면 자리 그대로(형제 프레임으로 넣기 · FREE-FRAME-SIBLING-DROP-A-01): 옛 부모 안쪽 원점 → 새 부모 안쪽 원점 차를 더한다.
      shortcut: 조상 회전·뒤집기는 안 맞춘다(위 shortcut 과 같다). */
-  const op = keep && el.offsetParent, opr = op?.getBoundingClientRect();
+  const op = keep ? el.offsetParent : null, opr = op?.getBoundingClientRect();   // ⛔`keep && …` 로 쓰지 마라 — false 는 ?. 를 통과해 TypeError(인텔 d418aec74 빨강 12 의 뿌리)
   const kl = op ? (parseFloat(el.style.left) || 0) + (opr.left - r.left) / sc + op.clientLeft - frame.clientLeft : 0;
   const kt = op ? (parseFloat(el.style.top) || 0) + (opr.top - r.top) / sc + op.clientTop - frame.clientTop : 0;
   frame.appendChild(el);

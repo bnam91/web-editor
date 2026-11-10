@@ -20,6 +20,7 @@ async function scene(page) {
     const mk = (par, w, h, l, t) => { window.deselectAll(); window.selectSection(sec); window._activeFrame = par ? document.getElementById(par) : null; const b = new Set(sec.querySelectorAll(FR)); window.addFrameBlock(); const f = [...sec.querySelectorAll(FR)].find((x) => !b.has(x)); window.updateFrameBlock(f.id, { width: w, height: h }); if (par) { f.style.left = l + 'px'; f.style.top = t + 'px'; f.dataset.offsetX = l; f.dataset.offsetY = t; } window.deselectAll(); window._activeFrame = null; return f.id; };
     const R = mk(null, 1000, 900);
     const Z = mk(R, 160, 80, 40, 40); const T = mk(R, 400, 300, 40, 200); const Q = mk(T, 120, 80, 20, 20); const P = mk(R, 400, 300, 500, 200);
+    window.deselectAll(); window.selectSection(sec); window._activeFrame = document.getElementById(P); window.addTextBlock('body'); window.deselectAll(); window._activeFrame = null;   // 빈 프레임은 쌓기로 안 바뀐다(인텔 실측) — 자식 하나
     return { R, Z, T, Q, P }; }, FR);
   await page.evaluate((id) => window.__convertFreeLayoutToStack(document.getElementById(id)), ids.P);
   await reopen(page);
@@ -68,6 +69,7 @@ test('W3 저장 왕복 — 형제 안으로 넣은 뒤 다시 열어도 Z ⊂ T 
 test('W4 쌓기 형제 프레임 위 — 기존 쌓기 넣기 규칙(흐름 자식)', async ({ page }) => {
   const s = await scene(page);
   expect(await pick(page, s.Z)).toBe(true);
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.freeLayout ?? null, s.P), '[전제] P 는 쌓기').not.toBe('true');
   const r = await drag(page, s.Z, await box(page, s.Z), await box(page, s.P));
   expect(r.during.over, '★끄는 동안 쌓기 형제 P 에 점선이 없다').toEqual([s.P]);
   expect(r.during.ind, '쌓기는 표시선도').toBeGreaterThan(0);
