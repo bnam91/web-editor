@@ -25,7 +25,7 @@ async function setup(page) {
           <div class="gap-block" data-type="gap" style="height:40px"></div>
         </div></div>
       <div class="section-block" id="s2" data-section="2"><div class="section-hitzone"></div>
-        <div class="section-inner" style="padding-left:42px;padding-right:42px">
+        <div class="section-inner" data-padding-x="42" style="padding-left:42px;padding-right:42px">
           <div class="row" id="rFlow" data-layout="stack"></div>
           <div class="frame-block" id="fr2" data-free-layout="true" data-width="776" data-height="528" data-pad-y="0" data-radius="77"
                style="background:#f3f4f0;padding:0px;width:776px;max-width:100%;margin:0px auto;min-height:528px;height:528px;border-radius:77px;">
@@ -85,6 +85,8 @@ test('F4 둥근 자유 프레임 안 절대 row(fit-content) 안 그리드(737) 
 });
 
 test('C1 [대조] 패딩 42 섹션 흐름 그리드(776) → 예전처럼 너비 키 떼고 섹션 전폭', async ({ page }) => {
+  /* ★전제 — 뺄 패딩 = 그린 패딩(42). 인텔 1차는 data-padding-x 없이 style 만 줘 코드가 문서 기본 padX 32 를 읽어 776+64=840 이 나왔다(픽스처 결함) */
+  expect(await page.evaluate(() => window.effectiveSectionPadX(document.getElementById('gFlow')))).toBe(42);
   await setup(page);
   await pick(page, 'gFlow');
   await toggleOn(page);
