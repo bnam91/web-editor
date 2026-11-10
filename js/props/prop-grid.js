@@ -719,8 +719,8 @@ export function grdMergeAction(block, at) {
   return null;
 }
 /** 병합/해제를 한다(메뉴·⌘M 공용 문). 했으면 true. ⌘Z 한 번 = 이 한 수. */
-export function grdMergeToggle(block, at) {
-  const act = grdMergeAction(block, at);
+export function grdMergeToggle(block, at, decided) {
+  const act = decided || grdMergeAction(block, at);   // decided = 우클릭 때 판정한 것(메뉴 — 그 사이 범위가 풀려도 같은 일을 한다)
   if (!act) return false;
   let m = null;
   if (act.kind === 'merge') { m = window.gridMergeRange?.(block, act.rng.r0, act.rng.c0, act.rng.r1, act.rng.c1); if (!m) return false; }

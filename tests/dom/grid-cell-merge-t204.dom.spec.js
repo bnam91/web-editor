@@ -10,6 +10,7 @@
  *   M6 Figma JSON — 그리드는 일반 폴백(칸 배치를 안 싣는다 · 기존 한계) ⇒ 잴 수 있는 것만: 가려진 칸 글 없음 · 앵커 글 한 번 · 높이 = 화면 높이
  *   M7 행 지우기(병합 안) = 병합 줄어듦 · 열 옮기기(가로지름) = 막힘 + 토스트 · 범위가 합친 칸 일부만 걸치면 통째로 넓힘
  *   M8 MCP 입구(updateGridBlock merges) — 겹침·1×1·범위 밖 거절 · 가려진 칸 patchCell 거절 · 정상값은 가려진 칸 비움
+ *   M9 적대 리뷰 1회차 — 가장자리에 닿은 병합 앞 행/열 지우기(모양 유지) · 범위 붙여넣기·MCP cells 는 가려진 칸에 안 씀
  *   M0 음성대조 — 병합 없는 그리드는 칸 수 R×C · style 에 grid-row 없음(옛 산출 그대로)
  * 양성대조(지디 인텔): grid-block.js gridMergeRange 첫 줄 `return null;` → M1·M3·M4·M5·M6 빨강 /
  *   renderGridBlock 의 `const merges = gridMerges(...)` 를 `const merges = [];` → M1 상자·M5 빨강 */
@@ -299,5 +300,34 @@ test('M8 MCP 입구 merges — 겹침·1×1·범위 밖·모르는 필드 거절
   const un = await page.evaluate(() => window.updateGridBlock('gG', { merges: null }).ok);
   expect(un).toBe(true);
   expect((await model(page)).merges).toBeNull();
+  expect(errs).toEqual([]);
+});
+
+test('M9 가장자리에 닿은 병합 — 앞 행/열을 지워도 모양 유지 · 붙여넣기·MCP cells 는 가려진 칸에 안 쓴다(해제 = 빈 칸)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => {
+    const g = document.getElementById('gG');
+    const out = {};
+    window.updateGridBlock('gG', { merges: [{ r: 1, c: 1, rs: 2, cs: 2 }] });       // 마지막 행·열에 닿는 2×2
+    out.delRow = window.removeGridRow(g, 0) && g.dataset.merges;                   // → {r:0,c:1,rs:2,cs:2}
+    out.delCol = window.removeGridCol(g, 0) && g.dataset.merges;                   // → {r:0,c:0,rs:2,cs:2}
+    const clip = { h: 2, w: 2, cells: [[{ lines: [{ type: 'body', text: 'P1' }] }, { lines: [{ type: 'body', text: 'P2' }] }], [{ lines: [{ type: 'body', text: 'P3' }] }, { lines: [{ type: 'body', text: 'P4' }] }]] };
+    out.paste = window.pasteGridRange(g, clip, { r: 0, c: 0 });
+    const m = window.getGridModel(g);
+    out.afterPaste = m.cells.map(row => row.map(c => (c.lines || []).map(l => l.text).join('+')));
+    const full = m.cells.map(row => row.map(c => ({ lines: [{ type: 'body', text: 'X' }] })));
+    out.mcp = window.updateGridBlock('gG', { cells: full }).ok;
+    out.afterMcp = window.getGridModel(g).cells.map(row => row.map(c => (c.lines || []).map(l => l.text).join('+')));
+    window.gridUnmergeAt(g, 0, 0);
+    out.afterUnmerge = window.getGridModel(g).cells.map(row => row.map(c => (c.lines || []).map(l => l.text).join('+')));
+    return out;
+  });
+  expect(r.delRow).toBe('[{"r":0,"c":1,"rs":2,"cs":2}]');
+  expect(r.delCol).toBe('[{"r":0,"c":0,"rs":2,"cs":2}]');
+  expect(r.paste).toEqual({ written: 1, dropped: 3 });
+  expect(r.afterPaste).toEqual([['P1', ''], ['', '']]);
+  expect(r.mcp).toBe(true);
+  expect(r.afterMcp).toEqual([['X', ''], ['', '']]);
+  expect(r.afterUnmerge, '해제 = 나머지 빈 칸(숨은 글이 안 나온다)').toEqual([['X', ''], ['', '']]);
   expect(errs).toEqual([]);
 });

@@ -6322,14 +6322,14 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     e.stopPropagation();
     const gm = _targetGridMerge, gb = _targetBlock;
     closeMenu();
-    if (gm && gb?.classList.contains('grid-block')) { window.grdMergeToggle?.(gb, gm.kind === 'unmerge' ? { r: gm.r, c: gm.c } : null); return; }   // ★t2-04
+    if (gm && gb?.classList.contains('grid-block')) { window.grdMergeToggle?.(gb, null, gm); return; }   // ★t2-04 — 메뉴를 띄울 때 판정한 그대로
     window.mergeSelectedCells?.();
   });
   document.getElementById('bcm-cell-unmerge')?.addEventListener('click', e => {
     e.stopPropagation();
     const cell = _targetCell, gm = _targetGridMerge, gb = _targetBlock;
     closeMenu();
-    if (gm?.kind === 'unmerge' && gb?.classList.contains('grid-block')) { window.grdMergeToggle?.(gb, { r: gm.r, c: gm.c }); return; }   // ★t2-04 — 메뉴를 띄울 때와 같은 판정(해제)
+    if (gm?.kind === 'unmerge' && gb?.classList.contains('grid-block')) { window.grdMergeToggle?.(gb, null, gm); return; }   // ★t2-04 — 메뉴를 띄울 때 판정한 그대로(해제)
     window.unmergeCell?.(cell);
   });
 

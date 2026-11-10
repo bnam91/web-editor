@@ -3794,7 +3794,7 @@ function _registerDefaultTools() {
           merges: { type: ['array', 'null'], items: { type: 'object', properties: { r: { type: 'integer' }, c: { type: 'integer' }, rs: { type: 'integer' }, cs: { type: 'integer' } }, required: ['r', 'c', 'rs', 'cs'], additionalProperties: false },
             description: '★t2-04 merged cells — REPLACES the block\'s whole merge list. Each {r,c,rs,cs} = top-left cell (row 0 included) + row/col span (2+ cells). '
             + 'Like Excel only the top-left cell keeps its content — the other covered cells are EMPTIED. null or [] = unmerge all (covered cells come back empty). '
-            + 'Rejected: non-integers, out of range, 1×1, overlapping. patchCell into a covered cell is rejected (write the anchor).' },
+            + 'Rejected: non-integers, out of range, 1×1, overlapping. patchCell into a covered cell is rejected (write the anchor); content sent through cells/cols into a covered cell is dropped (kept empty).' },
           expectedProject: { type: 'string' },
         },
         required: ['blockId'],

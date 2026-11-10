@@ -3791,11 +3791,15 @@ function updateGridBlock(blockId, partial = {}, opts = {}) {
   if (edgesUnset) delete block.dataset.cellBorderEdges;
   if (ifgUnset) delete block.dataset.ifgPreset;
   if (mergesUnset) delete block.dataset.merges;
-  if (mergesSet) {   // ★t2-04 — 가려지는 칸을 비운다(UI 병합과 같은 규칙 · 왼쪽 위만 남김)
+  /* ★t2-04 — 가려지는 칸을 비운다(UI 병합과 같은 규칙 · 왼쪽 위만 남김). 병합을 새로 줄 때 «와» 병합이 있는 블럭에 cells/cols 로 글을 써 넣을 때 둘 다 —
+   *   안 비우면 숨은 글이 해제 때 나온다(«해제 = 빈 칸» 결정과 어긋남). */
+  const _hideFor = mergesSet || (!mergesUnset && (next.cells !== undefined || next.cols !== undefined) ? gridMerges(block) : null);
+  if (_hideFor && _hideFor.length) {
     const model = getGridModel(block), full = _gridFullCellsOf(model);
-    for (const m of mergesSet) for (let r = m.r; r < m.r + m.rs; r++) for (let c = m.c; c < m.c + m.cs; c++) if (r !== m.r || c !== m.c) full[r][c] = { lines: [] };
+    for (const m of _hideFor) for (let r = m.r; r < m.r + m.rs; r++) for (let c = m.c; c < m.c + m.cs; c++) if (r !== m.r || c !== m.c) full[r][c] = { lines: [] };
     _gridWriteModelDirect(block, _gridModelFromFull(model.cols, model.rows, full), false);
-  } else if (!mergesUnset && (next.rows !== undefined || next.cols !== undefined) && block.dataset.merges) {
+  }
+  if (!mergesSet && !mergesUnset && (next.rows !== undefined || next.cols !== undefined) && block.dataset.merges) {
     _gridSetMerges(block, gridMerges(block));   // 줄인 판에 맞춰 저장본도 자른다(gridResizeTo 와 같은 까닭)
   }
   bgDel.forEach(k => { delete block.dataset[k]; });
@@ -4404,10 +4408,12 @@ function gridPasteRange(model, clip, anchor) {
   const R = model.rows.length, C = model.cols.length;
   const full = _gridFullCellsOf(model);
   let written = 0, dropped = 0;
+  const hidden = Array.isArray(model.merges) ? model.merges : [];   // ★t2-04 — 가려진 칸엔 안 쓴다(버린 수로 센다 · 해제 때 숨은 글이 나오지 않게)
   for (let i = 0; i < clip.h; i++) {
     for (let j = 0; j < clip.w; j++) {
       const r = anchor.r + i, c = anchor.c + j;
       if (r >= R || c >= C) { dropped++; continue; }
+      if (hidden.some(m => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs && !(r === m.r && c === m.c))) { dropped++; continue; }
       const cell = _gridIsObj(clip.cells[i][j]) ? _gridDeep(clip.cells[i][j]) : {};
       if (!Array.isArray(cell.lines)) cell.lines = [];
       full[r][c] = cell;   // ★통째로 «갈아 끼운다» — 옛 칸 꾸밈이 섞여 남지 않는다(엑셀 ⌘V)
@@ -4462,9 +4468,10 @@ function _gridRemoveDirect(block, axis, i) {
   if (!block || !block.dataset) return false;
   const next = gridRemove(getGridModel(block), axis, i);
   if (!next) return false;
+  const merges = _gridMergesAfterRemove(gridMerges(block), axis, i);   // ★t2-04 태양 Q3 — 안을 지우면 줄어든다(1×1 이면 사라짐) · ⛔쓰기 «전»에 읽는다(뒤면 줄인 판 크기로 먼저 잘린다)
   window.pushHistory?.();
   _gridWriteModelDirect(block, next, axis === 'row');
-  _gridSetMerges(block, _gridMergesAfterRemove(gridMerges(block), axis, i));   // ★t2-04 태양 Q3 — 안을 지우면 줄어든다(1×1 이면 사라짐)
+  _gridSetMerges(block, merges);
   if (next.rows.length <= 1) delete block.dataset.rows;   // 1행 = gridResizeTo 의 nRows<=1 과 같은 옛 모양
   renderGridBlock(block);
   window.scheduleAutoSave?.();
@@ -4481,7 +4488,7 @@ function moveGridCol(block, from, to) { return _gridMoveDirect(block, 'col', fro
  *  ⛔clip·anchor 꼴이 틀리면 {written:0, dropped:0}(조용히 지어내지 않는다 — 호출부가 0 을 보고 말한다). */
 function pasteGridRange(block, clip, anchor) {
   if (!block || !block.dataset) return { written: 0, dropped: 0 };
-  const res = gridPasteRange(getGridModel(block), clip, anchor);
+  const res = gridPasteRange({ ...getGridModel(block), merges: gridMerges(block) }, clip, anchor);
   if (!res) return { written: 0, dropped: 0 };
   if (res.written > 0) {
     window.pushHistory?.();                    // ★범위 전체가 «한 수» — 칸마다 쌓지 않는다

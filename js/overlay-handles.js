@@ -2138,7 +2138,7 @@ function _rowContentEdge(block, r, dir) {
   const inner = block.querySelector(':scope > .grd-inner');
   if (!inner) return null;
   let edge = null;
-  for (const cell of inner.querySelectorAll(`:scope > .grd-cell[data-r="${r}"]`)) {
+  for (const cell of inner.querySelectorAll(`:scope > .grd-cell[data-r="${r}"]${dir === 'up' ? ':not([data-rs])' : ''}`)) {   // ★t2-04 — 여러 행 합친 칸의 마지막 줄은 이 경계 «아래»다
     const lines = cell.querySelectorAll('[data-line]');
     if (!lines.length) continue;
     const lr = (dir === 'up' ? lines[lines.length - 1] : lines[0]).getBoundingClientRect();
@@ -2711,12 +2711,15 @@ function grdGetRange(block) {
   const r0 = Math.min(st.ar, st.fr), r1 = Math.max(st.ar, st.fr);
   const c0 = Math.min(st.ac, st.fc), c1 = Math.max(st.ac, st.fc);
   if (r0 < 0 || c0 < 0 || r1 >= R || c1 >= C) return null;
+  /* ★t2-04 — 합친 칸을 걸치면 그 병합을 통째로 덮게 넓힌다(엑셀). 넓어지면 «행/열 통째»(axis)가 아니게 되니 axis 를 떼고 돌려준다. */
+  const merges = window.gridMerges?.(block, R, C) || [];
+  if (merges.length) {
+    const g = window.gridExpandRange(merges, r0, c0, r1, c1);
+    if (g.r0 !== r0 || g.c0 !== c0 || g.r1 !== r1 || g.c1 !== c1) return { r0: g.r0, c0: g.c0, r1: g.r1, c1: g.c1 };
+  }
   /* ★axis(머리띠로 고른 행/열) — 범위가 «아직 그 행/열 통째»일 때만 싣는다(R·C 가 바뀌었으면 떨군다). */
   if (st.axis === 'row' && r0 === r1 && c0 === 0 && c1 === C - 1) return { r0, c0, r1, c1, axis: 'row' };
   if (st.axis === 'col' && c0 === c1 && r0 === 0 && r1 === R - 1) return { r0, c0, r1, c1, axis: 'col' };
-  /* ★t2-04 — 합친 칸을 걸치면 그 병합을 통째로 덮게 넓힌다(엑셀). 병합이 없으면 그대로. */
-  const merges = window.gridMerges?.(block, R, C) || [];
-  if (merges.length) { const g = window.gridExpandRange(merges, r0, c0, r1, c1); return { r0: g.r0, c0: g.c0, r1: g.r1, c1: g.c1 }; }
   return { r0, c0, r1, c1 };
 }
 
