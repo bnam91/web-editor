@@ -1880,6 +1880,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 /* ★ICONTEXT-ICON-SIZE-POSITION-01 — 아이콘 세로 맞춤(글 기준 위·아래 · 없음 = 가운데). 가로 방향에서만(세로 방향은 정렬 단추 몫). 전환 = block-factory.js setIconTextValign. */
 .icon-text-block:not([data-itb-dir="v"])[data-itb-valign="top"] > .itb-icon { align-self: flex-start; }
 .icon-text-block:not([data-itb-dir="v"])[data-itb-valign="bottom"] > .itb-icon { align-self: flex-end; }
+/* ★ICONTEXT-VALIGN-SLIDER-01 — 세로 오프셋(.itb-icon 인라인 translateY)은 가로 방향에서만 · 세로 방향이면 끈다(값은 블럭 data-itb-dy 에 남는다). */
+.icon-text-block[data-itb-dir="v"] > .itb-icon { transform: none !important; }
 
 /* ── 블록 컨텍스트 메뉴 ── */
 .bcm-item {

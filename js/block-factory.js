@@ -5602,6 +5602,44 @@ function setIconTextValign(block, v) {
   if (v === 'center') delete block.dataset.itbValign; else block.dataset.itbValign = v;
   return true;
 }
+/* ══ ICONTEXT-VALIGN-SLIDER-01(현빈 261110) — 아이콘 세로 = «가운데 기준 px 오프셋» 슬라이더(옛 위·가운데·아래 3단추 대체) ══════════
+ * 값 = 블럭 data-itb-dy(px · 0.1 단위 · 0 = 가운데 = 속성 없음 = 옛 바이트) · 그림 = .itb-icon 인라인 translateY(내보내기 PNG·HTML 이 그대로 싣는다).
+ *   %가 아닌 까닭 — 행 높이가 글에 따라 바뀌어 align-self·top% 로는 «같은 자리»를 못 지킨다(translate 는 행 높이를 안 바꾼다).
+ * 옛 data-itb-valign top/bottom = 열면 그대로(editor-extra.css align-self) · 패널은 그 자리의 «등가 오프셋»을 보인다(iconTextDyOf) ·
+ *   처음 바꾸는 순간 valign 을 지우고 dy 로 옮긴다 — 등가값을 그대로 넣으면 화면이 1:1(안 튐 · tests/dom/icontext-icon-size-valign V2).
+ * 슬라이더 끝 = 행 안의 위·아래(빈 높이의 절반 · 최소 ±60) · 가운데 ±3px 자석. 가로 방향에서만(세로 방향은 CSS 가 transform 을 끈다 · 값은 남는다). */
+const ITB_DY_HARD = 400;
+/* 글 기준 빈 높이의 절반(레이아웃 px · 줌 무관) — 가운데(align center)에서 글 윗변·아랫변까지. 옛 위·아래 맞춤이 «글 윗변·아랫변»이었다(I3). */
+function _itbFreeHalf(block) {
+  const ic = block?.querySelector(':scope > .itb-icon'), tx = block?.querySelector(':scope > .itb-text');
+  if (!ic || !tx) return 0;
+  return Math.max(0, (tx.offsetHeight - ic.offsetHeight) / 2);
+}
+function iconTextDyRange(block) { const s = Math.max(60, Math.ceil(_itbFreeHalf(block))); return { min: -s, max: s }; }
+/** 지금 화면과 같은 오프셋(px) — 옛 valign 은 그 자리의 등가값. */
+function iconTextDyOf(block) {
+  const v = block?.dataset?.itbValign;
+  if (v === 'top' || v === 'bottom') { const h = Math.round(_itbFreeHalf(block) * 10) / 10; return v === 'top' ? -h : h; }
+  const n = Number(block?.dataset?.itbDy);
+  return Number.isFinite(n) ? n : 0;
+}
+/** @returns {boolean} 바뀌었으면 true */
+function setIconTextDy(block, px) {
+  const ic = block?.classList?.contains('icon-text-block') ? block.querySelector(':scope > .itb-icon') : null;
+  let v = Math.round(Number(px) * 10) / 10;
+  if (!ic || !Number.isFinite(v)) return false;
+  if (Math.abs(v) <= 3) v = 0;   // 가운데 자석
+  v = Math.max(-ITB_DY_HARD, Math.min(ITB_DY_HARD, v));
+  const had = !!block.dataset.itbValign;
+  if (!had && v === iconTextDyOf(block)) return false;
+  delete block.dataset.itbValign;   // 옛 맞춤 → 오프셋(첫 손)
+  if (v === 0) { delete block.dataset.itbDy; ic.style.removeProperty('transform'); if (ic.getAttribute('style') === '') ic.removeAttribute('style'); }
+  else { block.dataset.itbDy = String(v); ic.style.transform = `translateY(${v}px)`; }
+  return true;
+}
+window.iconTextDyOf = iconTextDyOf;
+window.setIconTextDy = setIconTextDy;
+window.iconTextDyRange = iconTextDyRange;
 window.ITB_ICON_SIZE = ITB_ICON_SIZE;
 window.iconTextIconSizeOf = iconTextIconSizeOf;
 window.setIconTextIconSize = setIconTextIconSize;
