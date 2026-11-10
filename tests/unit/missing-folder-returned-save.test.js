@@ -4,6 +4,8 @@
  * 칸(리뷰 1): G4 남긴 본은 핀(프룬·핀 상한 밖)이고 버전 목록의 «현재»를 안 바꾼다 · G5 버전 기록을 못 쓰면 비상 사본으로 남긴다 · 렌더러 칸(줄 선 저장)은 DOM V5.
  * 칸(리뷰 2): G6 제가 다시 만든 폴더에 줄 선 표시 저장은 거절하지 않는다 · G7 그 뒤 탭이 파일로 돌아왔다가(표시 없는 저장) 폴더가 바뀌어 돌아오면 다시 거절한다.
  * 칸(리뷰 3): G8 다시 만들기 쓰기가 실패하면 제 폴더로 기억하지 않는다 — 그 뒤 밖에서 돌아오면 거절한다.
+ * 칸(-02 · 미카사 int-3 실앱 2/2): returned() 가 실앱 순서(남은 본 자동저장이 폴더를 다시 만든 뒤 원래 폴더가 Finder 대치로 돌아옴)를 탄다 ⇒ G1~G5 가 그 길 ·
+ *   G9 다시 만들기 없는 옛 순서도 거절 · G10 다시 만든 뒤 제 저장이 이어져도 거절 없음 → 대치로 돌아오면 거절. 기준 int-3 은 G1~G5·G10 빨강(제 폴더라 기억한 id 만 보고 덮었다).
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -21,12 +23,18 @@ let n = 0;
 const dir = (id) => path.join(H.projectsDir, id);
 const file = (id) => JSON.parse(fs.readFileSync(path.join(dir(id), 'proj.json'), 'utf8'));
 const away = (id) => path.join(H.userData, 'away-' + id);
-/* 폴더를 앱 밖으로 옮겼다가 되돌린 꼴 — 그사이 다른 곳에서 고친 «돌아온» 내용이 들어 있다. */
-async function returned() {
+/* 폴더를 앱 밖으로 옮겼다가 되돌린 꼴 — 그사이 다른 곳에서 고친 «돌아온» 내용이 들어 있다.
+   ★-02 실앱 순서(미카사 int-3 2/2): 폴더가 없는 동안 남은 본 탭의 자동저장이 «표시 저장»으로 폴더를 다시 만들고,
+     사용자는 원래 폴더를 Finder 로 «대치»해 되돌린다(앱이 만든 폴더는 치워진다). recreate:false = 그 저장 없이 바로 돌아온 옛 순서. */
+async function returned({ recreate = true } = {}) {
   const id = 'proj_' + (9700 + n++);
   assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
   fs.renameSync(dir(id), away(id));
   assert.equal(await H.invoke('projects:folder-state', id), 'missing');
+  if (recreate) {
+    assert.equal((await H.invoke('projects:save', { ...proj(id, '남은본자동'), _goneBase: true })).ok, true, '[전제] 남은 본 자동저장이 폴더를 다시 만든다');
+    fs.renameSync(dir(id), away(id) + '-app');   // Finder 대치 — 앱이 만든 폴더를 치우고(지우지 않고 옮긴다 · tmproot-sole-owner)
+  }
   fs.renameSync(away(id), dir(id));
   fs.writeFileSync(path.join(dir(id), 'proj.json'), JSON.stringify(proj(id, '돌아온')));
   return id;
@@ -124,4 +132,27 @@ test('G8 다시 만들기가 실패하면 제 폴더로 기억하지 않는다 �
   const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
   assert.equal(r.reason, 'folder_returned', '★실패한 다시 만들기를 제 폴더로 기억해 돌아온 파일을 덮었다');
   assert.match(JSON.stringify(file(id)), /처음 머리/);
+});
+
+test('G9 다시 만들기 없이 바로 돌아온 옛 순서도 거절한다', async () => {
+  const id = await returned({ recreate: false });
+  const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
+  assert.equal(r.reason, 'folder_returned');
+  assert.match(JSON.stringify(file(id)), /돌아온 머리/);
+});
+test('G10 다시 만든 뒤 제 저장이 이어져도 거절이 없다 → 원래 폴더가 대치로 돌아오면 거절한다', async () => {
+  const id = 'proj_' + (9700 + n++);
+  assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
+  fs.renameSync(dir(id), away(id));
+  for (const tag of ['자동1', '자동2', '자동3']) {
+    const r = await H.invoke('projects:save', { ...proj(id, tag), _goneBase: true });
+    assert.equal(r.ok, true, `★제가 다시 만든 폴더에 이어 쓴 저장(${tag})을 «돌아왔다»고 거절했다`);
+  }
+  assert.match(JSON.stringify(file(id)), /자동3 머리/);
+  fs.renameSync(dir(id), away(id) + '-app');   // Finder 대치
+  fs.renameSync(away(id), dir(id));
+  const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
+  assert.equal(r.reason, 'folder_returned', '★대치로 돌아온 원래 폴더를 덮었다');
+  assert.match(JSON.stringify(file(id)), /처음 머리/);
+  assert.ok(history(id).some((h) => /남은본편집 머리/.test(h)), '거절한 본은 버전 기록에 남는다');
 });
