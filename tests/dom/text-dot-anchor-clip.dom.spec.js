@@ -5,6 +5,8 @@
  *   S1 점 자리 — 점마다 제 글자 가운데 ±2px(빨강 덩이 중심 ↔ span 가운데)
  *   S2 잘림 유지 — 점을 자르는 상자 밖으로 밀면 그 띠에 빨강 0 · [양성대조] 그 상자의 자르기를 풀면 빨강 > 0(띠가 넘침을 잡는 자임)
  *     A 둥근 프레임(data-radius 24 · 자름) 위로 −60px(프레임 위변 밖 · 섹션 위 패딩 안) · B·C 섹션 가로 자르기(.section-inner overflow-x:clip) 왼쪽으로 −3000px
+ * ★장면 A 의 프레임 위 여백 40 — 없으면 h1 글자 상자 위변이 프레임 위변보다 위라 점이 처음부터 프레임 밖에서 잘린다(옛 bottom:100% 도 같은 자리 · srv 실측 span top 199 < frame top 204).
+ * ★B·C 는 «섹션 왼변 60px 밖»에 떨어지게 민다 — −3000px 로 밀면 화면 밖이라 양성대조 띠가 못 본다(srv 실측 open 0).
  * ⛔못 재는 것: 실물에 없는 꼴(positioned 아닌 overflow:hidden 그릇 안의 점 글자) — S0 이 실물 자리에서 «그 꼴이 없음»을 잰다.
  *   (훑은 자르는 그릇: laurel-cell·zoom-text·mkp-screen·joker-block-inner·icb-circle·chb-profile-* — 점 글자를 담는 줄 그릇이 아니다.)
  */
@@ -22,7 +24,7 @@ async function setup(page) {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="sA" data-section="1" style="background-color:#ffffff"><div class="section-hitzone"></div>
       <div class="section-inner" id="inA" style="padding:120px 40px 120px 40px">
-        <div class="frame-block" id="frA" data-radius="24" style="border-radius:24px;height:160px;background:#eeeeee;"></div>
+        <div class="frame-block" id="frA" data-radius="24" style="border-radius:24px;height:200px;padding-top:40px;background:#eeeeee;"></div>
         <div class="gap-block" data-type="gap" style="height:160px"></div>
         <div class="row" id="rG" data-layout="stack"></div>
         <div class="gap-block" data-type="gap" style="height:160px"></div>
@@ -47,6 +49,9 @@ async function setup(page) {
     window.deselectAll?.();
     document.querySelectorAll('#canvas .selected, #canvas .editing').forEach(e => e.classList.remove('selected', 'editing'));
   }, [dotHtml(), DOTVARS]);
+  /* 고르기를 풀면 패널이 닫히며 캔버스가 다시 놓인다 — 세 자리 상자가 3 프레임 연속 같을 때까지 기다린다 */
+  await page.waitForFunction(() => new Promise((res) => { const at = () => JSON.stringify(['#tA', '#gB', '#qC'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.width]; }));
+    let last = at(), same = 0; const tick = () => requestAnimationFrame(() => { const now = at(); same = now === last ? same + 1 : 0; last = now; if (same >= 3) res(true); else tick(); }); tick(); }));
   return errs;
 }
 const HOSTS = { A: '#tA', B: '#gB', C: '#qC' };
@@ -128,7 +133,8 @@ test('S2 잘림 유지 — 자르는 상자 밖으로 민 점은 안 보인다 �
   const res = {};
   for (const k of ['B', 'C']) {
     const sel = HOSTS[k];
-    await page.evaluate((s) => document.querySelector(s).style.setProperty('--tb-dot-x', '-3000px'), sel);
+    await page.evaluate(([s, secX]) => { const sp = document.querySelector(`${s} span.tb-dot`); const r = sp.getBoundingClientRect();
+      document.querySelector(s).style.setProperty('--tb-dot-x', `${Math.round(secX - 60 - (r.left + r.width / 2))}px`); }, [sel, sec.x]);   // 첫 점이 섹션 왼변 60px 밖
     const h = await rectOf(page, sel);
     const band = { x: 0, y: h.y - 60, w: sec.x - 2, h: h.h + 60 };
     const clipped = await redIn(page, band);

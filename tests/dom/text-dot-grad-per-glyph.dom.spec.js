@@ -48,30 +48,40 @@ const dotOn = async (page, id) => {
   /* 점을 빨강·10px 로 — 글자 픽셀(초록·파랑)과 안 섞이게 */
   await page.evaluate((i) => { const tb = document.getElementById(i); tb.style.setProperty('--tb-dot-color', '#ff0000'); tb.style.setProperty('--tb-dot-size', '10px'); }, id);
 };
-const clean = (page) => page.evaluate(() => { document.querySelectorAll('#canvas .selected, #canvas .editing').forEach(e => e.classList.remove('selected', 'editing')); });
+/* 고르기를 풀면 패널이 닫히며 캔버스가 다시 놓인다 — 글자 자리가 3 프레임 연속 같을 때까지 기다린 뒤 잰다(srv 실측: 안 기다리면 점↔글자 가운데가 −5.4~−0.3 으로 고르게 어긋났다) */
+const clean = async (page) => {
+  await page.evaluate(() => { window.deselectAll?.(); document.querySelectorAll('#canvas .selected, #canvas .editing').forEach(e => e.classList.remove('selected', 'editing')); });
+  await page.waitForFunction(() => new Promise((res) => { const at = () => JSON.stringify([...document.querySelectorAll('#canvas .tb-h1')].map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width]; }));
+    let last = at(), same = 0; const tick = () => requestAnimationFrame(() => { const now = at(); same = now === last ? same + 1 : 0; last = now; if (same >= 3) res(true); else tick(); }); tick(); }));
+};
 
 /* 상자(sel) 를 찍고 초록·파랑·빨강 픽셀을 센다 · 왼/오른 반 · 빨강 열 덩이 중심 */
-async function stats(page, sel) {
+/* ★글자 가로 범위(Range 상자) 밖은 안 센다 — 고른 블럭의 파란 크기 손잡이(□)가 색 픽셀 범위를 섹션 끝까지 늘려 «가운데»를 틀리게 했다(srv 1회차 실측 · 스크린샷으로 확인: 글자는 이어진 램프였다). */
+const textRange = (page, id) => page.evaluate((i) => { const r = document.createRange(); r.selectNodeContents(document.getElementById(i).querySelector('.tb-h1')); const b = r.getBoundingClientRect(); return { l: b.left, r: b.right }; }, id);
+async function stats(page, sel, tx) {
   const el = await page.$(sel);
   const box = await el.boundingBox();
   const b64 = (await el.screenshot()).toString('base64');
-  return page.evaluate(async ([s, bx]) => {
+  return page.evaluate(async ([s, bx, tx]) => {
     const im = new Image(); im.src = 'data:image/png;base64,' + s; await im.decode();
     const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
     const x = c.getContext('2d'); x.drawImage(im, 0, 0);
     const d = x.getImageData(0, 0, c.width, c.height).data;
     const k = c.width / bx.width;
+    const TL = tx ? Math.floor((tx.l - bx.x) * k) : 0, TR = tx ? Math.ceil((tx.r - bx.x) * k) : c.width;
     let green = 0, blue = 0, red = 0, gL = 0, gR = 0, bL = 0, bR = 0, minX = c.width, maxX = -1;
     const redCols = new Array(c.width).fill(0);
     for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) {
       const i = (y * c.width + xx) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
       if (r > 200 && g < 70 && b < 70) { red++; redCols[xx]++; continue; }
       const isG = g > b + 40 && g > r + 40, isB = b > g + 40 && b > r + 40;
+      if (xx < TL || xx > TR) continue;
       if (isG || isB) { minX = Math.min(minX, xx); maxX = Math.max(maxX, xx); }
       if (isG) green++; if (isB) blue++;
     }
     const mid = (minX + maxX) / 2;
     for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) {
+      if (xx < TL || xx > TR) continue;
       const i = (y * c.width + xx) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
       if (g > b + 40 && g > r + 40) (xx < mid ? gL++ : gR++);
       if (b > g + 40 && b > r + 40) (xx < mid ? bL++ : bR++);
@@ -83,19 +93,19 @@ async function stats(page, sel) {
       else if (st >= 0) { blobs.push(+(wsum / sum / k + bx.x).toFixed(1)); st = -1; sum = 0; wsum = 0; }
     }
     return { green, blue, red, gL, gR, bL, bR, blobs };
-  }, [b64, box]);
+  }, [b64, box, tx || null]);
 }
 
 test('P1 ★점 켠 글자도 그라데이션이 이어진다 — 왼쪽 초록 · 오른쪽 파랑(그라만 켠 판과 같은 갈림)', async ({ page }) => {
   const { errs, id } = await setup(page);
   const sel = '#canvas #sA';   /* ★섹션째 — 점은 글자 상자 «위»에 그려져 글자 상자만 찍으면 잘린다 */
   await clean(page);
-  const only = await stats(page, sel);
+  const only = await stats(page, sel, await textRange(page, id));
   expect(only.blue, `★전제 — 그라만 켠 판에 파랑이 없다(그라데이션이 안 걸렸다) ${JSON.stringify(only)}`).toBeGreaterThan(200);
   expect(only.bR / only.blue, '★전제 — 그라만 켠 판의 파랑이 오른쪽에 몰려 있지 않다').toBeGreaterThan(0.7);
   await dotOn(page, id);
   await clean(page);
-  const dot = await stats(page, sel);
+  const dot = await stats(page, sel, await textRange(page, id));
   console.log(`  P1 gradOnly=${JSON.stringify(only)} gradDot=${JSON.stringify(dot)}`);
   expect(dot.blue / only.blue, `★★점 켠 글자에 파랑이 없다 — 첫 스탑 단색(10-08 절충)으로 칠해졌다 ${dot.blue}/${only.blue}`).toBeGreaterThan(0.8);
   expect(dot.green / only.green, `점 켠 글자의 초록이 줄었다 ${dot.green}/${only.green}`).toBeGreaterThan(0.8);
