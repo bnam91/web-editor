@@ -1072,11 +1072,12 @@ export function grdPickImageFile(commit, onCancel = null) {
   };
   input.click();
 }
-/** ★HBQA ㉠ — 사진/원 «새 줄»: 파일창 먼저. 고르면 그림 줄 · 취소면 빈 슬롯(옛 길). ⌘Z 한 번 = 그 줄. host = 줄의 주인(중첩 열). */
+/** 사진/원 «새 줄» = ★빈 그림 줄만(파일창 안 염) — 에셋 블럭처럼 «추가 = 빈 자리 · 더블클릭해야 파일창»(빈 슬롯 더블클릭 길은 그대로).
+ *  ★NEW-현빈QA-IMAGE-LINE-ADD-NO-AUTO-PICKER-01(현빈 261110 ⓑ · 0.9.11) — ~~HBQA ㉠(지디 2026-11-09) «파일창 먼저 · 고르면 그림 줄 · 취소면 빈 슬롯»~~ 를 되돌렸다.
+ *  부르는 곳 셋이 다 이 한 문: 우클릭 「이미지 추가」·「원형 이미지 추가」(바깥·두 칸 안 · block-factory.js _gridPickAdd) · 패널 「+ 이미지/+ 원형 이미지」(아래 + 줄 추가).
+ *  ⌘Z 한 번 = 그 줄. host = 줄의 주인(중첩 열). (이름은 부르는 곳을 안 흔들려고 그대로 둔다) */
 export function grdAddImageLinePicked(block, pos, afterLi, kind, host = null) {
-  const add = (src, o = {}) => grdToastImgFail(grdAddLine(block, pos, afterLi,
-    src ? { ...grdNewLineSpec(kind), imgSrc: src } : grdNewLineSpec(kind), o, host));
-  grdPickImageFile(add, () => add(''));
+  grdToastImgFail(grdAddLine(block, pos, afterLi, grdNewLineSpec(kind), {}, host));
 }
 if (typeof window !== 'undefined') { window.grdPickImageFile = grdPickImageFile; window.grdAddImageLinePicked = grdAddImageLinePicked; }
 if (typeof window !== 'undefined') window.grdPickedImageSrc = grdPickedImageSrc;
@@ -1488,7 +1489,7 @@ function _grdWireKindSelects(block, r, c, afterLi, host = null) {
       });
       return;
     }
-    if (kind === 'photo' || kind === 'circle') { grdAddImageLinePicked(block, { r, c }, afterLi, kind, H); return; }   // ★HBQA ㉠ 우클릭과 같은 규칙
+    if (kind === 'photo' || kind === 'circle') { grdAddImageLinePicked(block, { r, c }, afterLi, kind, H); return; }   // 우클릭과 같은 규칙(현빈 261110 ⓑ 빈 그림 줄만 · ~~HBQA ㉠ 창 먼저~~)
     const _spec = grdNewLineSpec(kind);   // ★①단축키·★버블/챗 단축키와 «같은 자»에서 뜬다 — 두 벌 금지
     grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec, {}, H));
   });
