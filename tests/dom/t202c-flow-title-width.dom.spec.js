@@ -6,7 +6,7 @@
  *   T1 se −40,+20 · T2 nw +40,−20 — 제목 폭 = 쥔 폭 × 묶음 비율(±2) · 100 근처로 안 무너짐 · 글자 크기 = 72×min(sx,sy)
  *   T3 ⌘Z 한 번 = 끌기 전
  *   C1 [대조] 제목 폭이 px(300)이면 옛 판도 맞다(태양 F 와 같은 꼴 — 고침 전후 초록)
- * 양성대조(지디 인텔): overlay-handles.js 묶음 스냅의 `w: _pxOr(c.style.width, c.offsetWidth, parseInt)` → 옛 `w: parseInt(c.style.width) || c.offsetWidth` → T1·T2·T3 빨강 · C1 초록. */
+ * 양성대조(지디 인텔): overlay-handles.js 묶음 스냅의 `w: _pxOr(c.style.width, c.offsetWidth, parseInt)` → 옛 `w: parseInt(c.style.width) || c.offsetWidth` → T1·T2 빨강 · T3·C1 초록(⌘Z 는 끌기가 뭘 썼든 되돌린다 — 적대 리뷰). */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const { expectOneUndoStep } = require('./_history-step.js');
