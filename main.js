@@ -2399,9 +2399,9 @@ function _listUnreadableProjectsImpl() {
     const id = ent.name;
     const projPath = path.join(PROJECTS_DIR, id, 'proj.json');
     if (!fs.existsSync(projPath)) continue;
-    const metaPath = path.join(PROJECTS_DIR, id, 'proj_meta.json');
+    const metaPath = _resolveMetaJsonPath(id);   // _listItemFor 와 같은 resolver(레거시 flat meta 포함)
     let meta = null;
-    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) {}
+    try { meta = metaPath ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : null; } catch (_) {}
     try {
       if (meta && meta.listMetaV && meta.name != null && fs.statSync(metaPath).mtimeMs >= fs.statSync(projPath).mtimeMs) continue;   // ⑴
     } catch (_) {}
