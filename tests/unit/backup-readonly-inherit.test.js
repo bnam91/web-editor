@@ -4,7 +4,7 @@
  * 칸: 진짜 main 핸들러(_ipc-harness) · 진짜 chmod.
  *   B1 proj.json 444 에서 저장 → 백업은 쓰기 되는 권한 · 다음 저장마다 백업이 «직전 판»으로 바뀐다(기준판 빨강: 굳어 첫 판에 멈춘다)
  *   B2 이미 굳은 444 백업(옛 판이 남긴 것) → 다음 저장이 갈아 끼운다(기준판 빨강)
- *   B3 비동기·동기 두 저장 길 다 · N1 [대조] 평범한 권한이면 예전과 같다(백업 = 직전 판 바이트)
+ *   B3 비동기·동기 두 저장 길 다 · N1 [대조] 평범한 권한이면 예전과 같다(백업 = 직전 판 바이트 · 백업 mtime = 그 판이 저장된 시각 — 리뷰 1)
  * ★판단(proj.json 권한): 지금도 «존중하지 않는다» — 저장은 임시 파일 → rename 이라 444 proj.json 도 첫 저장에서 644 새 파일로 갈린다(이 가지 무변).
  *   존중하면(읽기전용이면 저장 거절) 편집이 LS 에만 남고 파일엔 안 간다 = 잃음 쪽 — 그래서 바꾸지 않는다. B1 이 그 «지금 동작»을 같이 적는다.
  * ⚠️root 로 돌면 권한이 안 먹어 재현이 안 된다 — 건너뛴다(빨강 0 을 «통과»로 읽지 않게 이유를 남긴다).
@@ -58,8 +58,11 @@ test('B2 이미 굳은 444 백업(옛 판이 남긴 것) — 다음 저장이 �
 test('N1 [대조] 평범한 권한이면 백업 = 직전 proj.json 바이트 그대로', async () => {
   const id = 'proj_' + (8100 + n++);
   assert.equal((await H.invoke('projects:save', proj(id, '판1'))).ok, true);
+  const old = new Date('2026-01-02T03:04:05.000Z'); fs.utimesSync(P(id, 'proj.json'), old, old);   // 판1 이 «그때» 저장됐다
   const before = fs.readFileSync(P(id, 'proj.json'));
   assert.equal((await H.invoke('projects:save', proj(id, '판2'))).ok, true);
   assert.ok(fs.readFileSync(P(id, 'proj_backup.json')).equals(before), '백업 바이트가 직전 proj.json 과 다르다');
+  /* 리뷰 1 — 백업 mtime = 그 내용이 저장된 시각(옛 copyfile 과 같게) — 복구 안내의 «언제 저장된 판»이 이 값이다 */
+  assert.ok(Math.abs(fs.statSync(P(id, 'proj_backup.json')).mtimeMs - old.getTime()) < 1000, '★백업 mtime 이 «백업을 쓴 시각»이 됐다 — 복구 안내가 실제보다 최근으로 보인다');
   assert.equal(fs.existsSync(P(id, 'proj_backup.json.tmp')), false, '임시 파일이 남았다');
 });

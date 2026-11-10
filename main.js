@@ -2704,6 +2704,8 @@ function _rollBackup(prevPath, backupPath) {
      ⇒ proj.json 과 같은 원자적 쓰기(임시 파일 → rename) — 새 파일은 늘 쓰기 되는 권한이고, rename 은 이미 굳은 444 백업도 갈아 끼운다.
        바이트는 그대로다(방금 읽은 그 문자열 · 읽기와 파싱에 이미 썼다 = 추가 읽기 0). */
   try { _atomicWriteFileSync(backupPath, raw); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
+  /* 리뷰 1 — 옛 copyfile 은 mtime 도 옮겼다: 백업의 mtime = 그 내용이 저장된 시각이고, 복구 안내(recoveredAtLabel)가 그걸 보여 준다. 새 쓰기는 «지금»이 되므로 되돌려 붙인다(실패해도 백업은 성하다). */
+  try { const st = fs.statSync(prevPath); fs.utimesSync(backupPath, st.atime, st.mtime); } catch (_) {}
   return { called: true, copied: true };
 }
 
