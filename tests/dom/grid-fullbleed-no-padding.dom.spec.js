@@ -86,8 +86,8 @@ test('F4 둥근 자유 프레임 안 절대 row(fit-content) 안 그리드(737) 
 
 test('C1 [대조] 패딩 42 섹션 흐름 그리드(776) → 예전처럼 너비 키 떼고 섹션 전폭', async ({ page }) => {
   /* ★전제 — 뺄 패딩 = 그린 패딩(42). 인텔 1차는 data-padding-x 없이 style 만 줘 코드가 문서 기본 padX 32 를 읽어 776+64=840 이 나왔다(픽스처 결함) */
-  expect(await page.evaluate(() => window.effectiveSectionPadX(document.getElementById('gFlow')))).toBe(42);
   await setup(page);
+  expect(await page.evaluate(() => window.effectiveSectionPadX(document.getElementById('gFlow')))).toBe(42);
   await pick(page, 'gFlow');
   await toggleOn(page);
   await page.evaluate(() => window.renderGridBlock(document.getElementById('gFlow')));
