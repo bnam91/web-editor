@@ -2517,6 +2517,9 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   if (isOpen && diag.planning && !r) return { _planning: true };   // 기획 프로젝트는 편집기 것이 아니다 — 빈 판으로 열면 저장이 기획 칸을 지운다
   if (diag.readError) return isOpen ? { _readError: diag.readError } : (r ? r.proj : null);
   if (r) _seenProjects.add(String(id));
+  /* -02b 탭이 파일을 «열며» 읽었다 — 그 파일이 이제 탭의 바탕이다. «제가 다시 만든 폴더» 기억을 지운다(안 지우면 그 위 평소 저장을 거짓 거절).
+     typeof — 이 핸들러를 잘라 싣는 유닛 10여 벌이 도장 함수를 안 싣는다(미선언 이름도 typeof 는 안 던진다). */
+  if (isOpen && r && typeof _goneForget === 'function') _goneForget(String(id));
   if (!r) {
     // JSON 이 깨졌다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.
     const broken = isOpen && diag.corrupt ? _resolveProjectJsonPath(id) : null;
@@ -2760,12 +2763,19 @@ function _goneForget(id) { for (const k of _goneRecreated) if (k === id || k.sta
 function _goneBaseRefusal(project) {
   if (!project) return null;
   const key = String(project.id);
-  /* 표시 없는 저장 = 탭이 파일로 돌아왔거나(그때 파일이 제 것이 아니면 기억 끝) · 제 폴더 위의 이름 바꾸기·버전 복원(_renameProjectImpl·restore 가 이 길을 탄다).
-     ★-02 리뷰 1: 쓰기 «전» 도장이 제 것이면 기억을 지우지 않는다 — 'own' 으로 쓰고 도장을 새로 잡는다(지우면 아직 표시를 단 탭의 다음 저장이 거짓 «돌아왔다» 거절). */
-  if (!project._goneBase) { if (_goneRecreated.has(_goneStamp(key))) return 'own'; _goneForget(key); return null; }
+  const flagged = !!project._goneBase;
   delete project._goneBase;
-  if (!_resolveProjectJsonPath(key)) return 'recreate';   // 기억은 쓰기가 «된 뒤» 호출측이 한다 — 실패한 다시 만들기를 제 폴더로 기억하면 밖에서 돌아온 파일을 덮는다(리뷰 3 ①)
-  if (_goneRecreated.has(_goneStamp(key))) return 'own';   // 제가 쓴 그 파일 그대로 — 저장하고 도장을 새로 잡는다
+  const exists = !!_resolveProjectJsonPath(key);
+  /* 제가 마지막에 쓴 그 파일 그대로 — 표시 유무와 무관하게 쓰고 도장을 새로 잡는다(이름 바꾸기·버전 복원도 이 길 · 리뷰 1). */
+  if (exists && _goneRecreated.has(_goneStamp(key))) return 'own';
+  if (!flagged) {
+    /* ★-02b — 보는 동안 폴더가 빠지면 표시 없는 자동저장이 평소 길로 폴더를 다시 만든다(_recreated · 그때도 도장을 남긴다).
+         그 뒤 원본이 Finder 대치로 돌아오면 도장이 다르다 — 표시가 없어도 거절한다. 이번 실행에서 제가 다시 만든 id 일 때만(기억 없으면 옛 동작 그대로).
+         탭이 파일을 «열 때» 읽으면 기억은 지워진다(projects:load open) — 그 뒤 저장은 그 파일 위의 평소 저장이다. */
+    let mine = false;
+    for (const k of _goneRecreated) if (k.startsWith(key + '\u0000')) { mine = true; break; }
+    if (!mine || !exists) { _goneForget(key); return null; }
+  } else if (!exists) return 'recreate';   // 기억은 쓰기가 «된 뒤» 호출측이 한다 — 실패한 다시 만들기를 제 폴더로 기억하면 밖에서 돌아온 파일을 덮는다(리뷰 3 ①)
   let kept = false;   // 'history' = 버전 기록(핀) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
   try { if (_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }).ok) kept = 'history'; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
   if (!kept) { const r = _recordSyncSaveFailure(project, 'folder_returned'); if (r && r.saved && r.saved.record && r.saved.record.emergencyPath) kept = 'emergency'; }
@@ -2798,7 +2808,7 @@ async function _saveProjectImpl(project) {
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
   _seenProjects.add(String(project.id));
-  if (_returned === 'recreate' || _returned === 'own') { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }
+  if (_returned === 'recreate' || _returned === 'own' || _recreated) { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }   // _recreated = 표시 없는 다시 만들기(-02b)
   if (_recreated) _callEachWindow(`window.noteProjectFolderRecreated?.(${JSON.stringify(project.id)})`, 3000);   // 안 기다린다 — 저장 줄을 말 띄우기에 묶지 않는다
   _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
   // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
@@ -2853,6 +2863,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
     if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
     const _returned = _goneBaseRefusal(project);   // 곧 끝나는 문서의 본 — 버전 기록에 남기고, 못 남기면 비상 사본(종료 때 알린다)
     if (_returned && typeof _returned === 'object') { event.returnValue = _returned; return; }
+    const _recreatedSync = _seenProjects.has(String(project.id)) && !_resolveProjectJsonPath(project.id);   // -02b 표시 없는 다시 만들기도 도장
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);
     const prevPath = _resolveProjectJsonPath(project.id);
@@ -2867,7 +2878,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
       if (rb.planning) { _recordSyncSaveFailure({ ...incoming, name: project.name }, 'planning_not_editor'); event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
-    if (_returned === 'recreate' || _returned === 'own') { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }
+    if (_returned === 'recreate' || _returned === 'own' || _recreatedSync) { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }
     _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
     _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
     // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데

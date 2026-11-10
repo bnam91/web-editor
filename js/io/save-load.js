@@ -506,6 +506,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       if (_savingSuperseded && targetId === _savingOwnerId) return { ok: true, skipped: true, reason: 'flushed' };
       const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId, opts._goneBase));
       if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
+        { const _t = openTabs.find(t => t.id === targetId); if (_t && !_t._goneCopy) _t._goneCopy = true; }   // -02b 표시 없던 탭(보는 동안 폴더가 빠져 앱이 다시 만든 탭)도 거절되면 남은 본이다 — 다시 열기·줄 선 저장 표시가 같은 길을 탄다
         if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId, saveResult.kept)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false, saveResult.kept)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다
           .catch(e => console.warn('[save-load] 돌아온 폴더 다시 열기 실패:', e && e.message));
         else window.showToast?.(_saveRefusedText(saveResult));

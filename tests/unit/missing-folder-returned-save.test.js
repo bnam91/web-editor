@@ -6,6 +6,7 @@
  * 칸(리뷰 3): G8 다시 만들기 쓰기가 실패하면 제 폴더로 기억하지 않는다 — 그 뒤 밖에서 돌아오면 거절한다.
  * 칸(-02 · 미카사 int-3 실앱 2/2): returned() 가 실앱 순서(남은 본 자동저장이 폴더를 다시 만든 뒤 원래 폴더가 Finder 대치로 돌아옴)를 탄다 ⇒ G1~G5 가 그 길 ·
  *   G9 다시 만들기 없는 옛 순서도 거절 · G10 다시 만든 뒤 제 저장이 이어져도 거절 없음 → 대치로 돌아오면 거절 · G11 그 사이 표시 없는 쓰기(이름 바꾸기·복원)가 껴도 거짓 거절 없음(리뷰 1). 기준 int-3 은 G1~G5·G10 빨강(제 폴더라 기억한 id 만 보고 덮었다).
+ * 칸(-02b): G12 보는 동안 빠진 폴더를 표시 없는 저장이 다시 만든 뒤 대치로 돌아오면 거절 · 열며 읽은 뒤엔 평소.
  * 대조: N1 폴더가 아직 없으면 표시를 떼고 다시 만든다 · N2 표시 없는 저장은 평소대로 덮는다.
  * 변이(잰 값): _goneBaseRefusal 을 빼면 G1·G2·G3·N1 빨강(N1 = 표시가 파일에 남는다) · N2 초록. */
 'use strict';
@@ -168,4 +169,22 @@ test('G11 다시 만든 폴더 위의 표시 없는 쓰기(이름 바꾸기·버
   assert.match(JSON.stringify(file(id)), /자동2 머리/);
   fs.renameSync(dir(id), away(id) + '-app'); fs.renameSync(away(id), dir(id));   // 그 뒤 대치로 돌아오면 여전히 거절
   assert.equal((await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true })).reason, 'folder_returned');
+});
+
+test('G12 보는 동안 폴더가 빠져 표시 없는 저장이 다시 만든 뒤 원본이 대치로 돌아오면 — 표시 없어도 거절 · 파일을 열며 읽은 뒤엔 평소 저장(-02b)', async () => {
+  const id = 'proj_' + (9700 + n++);
+  assert.equal((await H.invoke('projects:save', proj(id, '처음'))).ok, true);
+  fs.renameSync(dir(id), away(id));   // 보는 동안 밖으로
+  const re = await H.invoke('projects:save', proj(id, '보는중'));   // 표시 없는 자동저장 — 평소 길로 다시 만든다
+  assert.equal(re.ok, true); assert.equal(re.recreated, true, '[전제] 평소 길의 다시 만들기');
+  assert.equal((await H.invoke('projects:save', proj(id, '보는중2'))).ok, true, '★제가 다시 만든 폴더 위 이어 쓴 저장을 거절했다');
+  fs.writeFileSync(path.join(away(id), 'proj.json'), JSON.stringify(proj(id, '밖에서고침')));   // 밖에 있는 동안 고침
+  fs.renameSync(dir(id), away(id) + '-app'); fs.renameSync(away(id), dir(id));   // Finder 대치
+  const r = await H.invoke('projects:save', proj(id, '대치뒤편집'));
+  assert.equal(r.reason, 'folder_returned', '★표시 없는 저장이 대치로 돌아온 원본을 덮었다');
+  assert.match(JSON.stringify(file(id)), /밖에서고침 머리/);
+  assert.ok(history(id).some((h) => /대치뒤편집 머리/.test(h)), '거절한 본은 버전 기록에 남는다');
+  await H.invoke('projects:load', id, { open: true });   // 탭이 파일로 다시 열림
+  assert.equal((await H.invoke('projects:save', proj(id, '다시연뒤'))).ok, true, '★파일을 열며 읽은 뒤의 평소 저장을 거절했다');
+  assert.match(JSON.stringify(file(id)), /다시연뒤 머리/);
 });
