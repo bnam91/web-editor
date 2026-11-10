@@ -12,7 +12,8 @@
  *     그라데이션의 -webkit-text-fill-color:transparent 는 ★혼자서는 ★무해하다(그라만 켠 판 2315 가 증거).
  *     ★.tb-dot 이 ★positioned 라 ★그 글자가 ★부모의 background-clip:text ★밖으로 나가
  *     ★«메울 것 없는 투명 글자» = ★빈 구멍이 된다.
- *   ⇒ ★.tb-dot 이 ★제 글자를 ★스스로 칠한다(--tb-grad-fb = 그라데이션 ★첫 스탑).
+ *   ⇒ ⚰️(10-08) .tb-dot 이 제 글자를 첫 스탑 단색으로 칠했다(--tb-grad-fb).
+ *   ⇒ ★(11-10 T4-02) .tb-dot 을 positioned 에서 빼고 점은 CSS 앵커로 붙인다 — 글자가 부모 그라데이션을 그대로 탄다(글자별 색은 text-dot-grad-per-glyph 가 잰다).
  *
  * ★★이 파일의 ★자 — ⛔span 수·변수값이 아니라 ★★«그려진 픽셀»을 센다.
  *   dark = 흰 배경과의 거리 ≥60 인 픽셀 수 · wideRows = 가로로 ★6할 이상 채워진 ★줄 수(= 선의 두께)
@@ -23,8 +24,8 @@
  *   G1  ★★양성 — 그라✓＋점✓ 에서 ★글자가 ★보인다(그라만 켠 판의 ★8할 이상). ★고치기 전 판에서 ★0.15 ⇒ ★빨강
  *   G2  ★음성대조 — ★하나만 켠 판은 ★전과 같다(점만 / 그라만 둘 다 단색 판의 8할 이상)
  *   G-N1 ★무접촉 증명 — 그라데이션이 ★없으면 새 규칙이 ★inert 하다(점 글자의 채움색 == 그 글자의 color)
- *   G3  ★저장 왕복 — 저장본에 --tb-grad-fb 가 실리고, 다시 열어도 ★글자가 보인다
- *   G4  ★옛 저장본 — --tb-grad-fb 가 ★없어도 ★currentColor 로 내려앉아 ★글자가 보인다(마이그레이션 불요)
+ *   G3  ★저장 왕복 — 저장본에 --tb-grad-fb 가 ★안 실리고(T4-02), 다시 열어도 점 글자가 부모 그라데이션을 탄다(채움 투명) · 글자가 보인다
+ *   G4  ★옛 저장본(10-08~11-10) — --tb-grad-fb 가 ★남아 있어도 무시된다(채움 투명 그대로) · 글자가 보인다(마이그레이션 불요)
  *   Y0  ★전제 — 패널 Y 칸의 ★처음 값이 ★computed --tb-hl-y 에서 ★파생한다(명부 둘 방지)
  *   Y1  ★★형광펜 Y — 패널로 바꾸면 ★그려진 획이 ★그만큼 ★옮겨간다
  *   Y-N1 ★repeat 음성대조 — 획을 ★상자 높이만큼 위로 밀면 ★아래쪽엔 ★아무것도 없다
@@ -176,9 +177,8 @@ test('G0·G1·G2 ★그라데이션＋점 — 글자가 보인다(양성) ＋ �
   expect(g0.img, '★전제 — 그라데이션이 ★안 걸렸다').toBe(true);
   expect(g0.clip, `★전제 — background-clip 이 text 가 아니다. 잰 값 ${g0.clip}`).toMatch(/text/);
   expect(g0.fill, `★전제 — 채움색이 투명이 아니다(그러면 이 버그의 판이 아니다). 잰 값 ${g0.fill}`).toMatch(/rgba\(0, 0, 0, 0\)/);
-  /* ★--tb-grad-fb 가 ★«첫 스탑»인가 — ★그 값은 ★textGradientFallbackColor(내보내기 경로의 그 함수)에서 ★읽는다.
-     ⇒ ★여기서는 ★걸린 그라데이션의 ★첫 색과 ★견준다. ★어긋나면 ★화면과 PNG 가 ★갈린다. */
-  expect(g0.fb, `★--tb-grad-fb 가 그라데이션 ★첫 스탑이 아니다. 잰 값 ${JSON.stringify(g0.fb)} (걸린 css ${GRAD})`).toBe('#00aa55');
+  /* ⚰️--tb-grad-fb(점 글자 첫 스탑 단색)는 T4-02 에서 걷었다 — 걸어도 안 실린다. */
+  expect(g0.fb, `★--tb-grad-fb 가 아직 실린다 — 점 글자가 단색으로 돌아간다. 잰 값 ${JSON.stringify(g0.fb)}`).toBe('');
   /* ★★지디 요구 ⑶ — ★「그라만 켠 판」이 ★실제로 ★글자를 그린다를 ★절대수로 먼저 단언한다.
      ⛔이 수는 ★환경에 묶인 ★닻이다(헤드리스 크로미움 · Pretendard · DPR1 · 16px body · 'AAA BBB CCC').
        ★실측 2026-10-08 = ★2315. ★느슨하게 ★2000 으로 둔다 — ★안 서면 ★아래 ★비율 단언이 ★공허해진다.
@@ -198,7 +198,7 @@ test('G0·G1·G2 ★그라데이션＋점 — 글자가 보인다(양성) ＋ �
   // ── G1 양성 — ★고치기 전 판에서 이 비는 ★0.15 였다(354/2315) ⇒ ★그 판에서 ★빨강이다 ──
   expect(gradDot.dark / gradOnly.dark,
     `★★그라데이션＋점에서 ★글자가 사라졌다 — 잰 dark ${gradDot.dark} vs 그라만 ${gradOnly.dark}. ` +
-    '고치기 전 판의 비는 0.15 였다(354/2315). css .tb-dot 의 -webkit-text-fill-color 규칙을 보라')
+    '고치기 전 판의 비는 0.15 였다(354/2315). css .tb-dot 이 positioned 가 됐는지 보라(앵커 대신 position:relative 면 글자가 부모 text-clip 밖)')
     .toBeGreaterThan(0.8);
   /* ★★지디 요구 ⑴ — ★절대 하한도 ★같이 건다(★고친 뒤 실측 2538/2643 에서 ★느슨하게 2000). */
   expect(gradDot.dark, `★★그라데이션＋점의 글자 픽셀이 ${gradDot.dark} 다 — 고친 뒤 실측 닻 2538. 고치기 전은 ★354 였다`).toBeGreaterThan(2000);
@@ -236,7 +236,7 @@ test('G3·G4 ★저장 왕복 ＋ 옛 저장본(--tb-grad-fb 없음) 내려앉�
   const sel = `#${id} .tb-body`;
 
   const snap = await page.evaluate(() => window.serializeProject());
-  expect(/--tb-grad-fb/.test(snap), '★저장본에 --tb-grad-fb 가 ★안 실렸다 — 다시 열면 글자가 다시 사라진다').toBe(true);
+  expect(/--tb-grad-fb/.test(snap), '★저장본에 --tb-grad-fb 가 실렸다 — T4-02 에서 걷은 값이다').toBe(false);
 
   await bootApp(page);
   await page.evaluate((d) => window.applyProjectData(JSON.parse(d)), snap);
@@ -252,14 +252,16 @@ test('G3·G4 ★저장 왕복 ＋ 옛 저장본(--tb-grad-fb 없음) 내려앉�
   }, id);
   expect(st.err).toBeUndefined();
   expect(st.nDot, `★다시 연 뒤 점이 사라졌다. 잰 값 ${st.nDot}`).toBe(3);
-  expect(st.fb, `★다시 연 뒤 --tb-grad-fb 가 사라졌다. 잰 값 ${JSON.stringify(st.fb)}`).toBe('#00aa55');
-  expect(st.fill, `★다시 연 뒤 점 글자의 채움색이 ★첫 스탑이 아니다. 잰 값 ${st.fill}`).toBe('rgb(0, 170, 85)');
+  expect(st.fb).toBe('');
+  expect(st.fill, `★다시 연 뒤 점 글자의 채움이 투명이 아니다 — 부모 그라데이션을 못 탄다. 잰 값 ${st.fill}`).toBe('rgba(0, 0, 0, 0)');
 
   const gd = await measure(page, sel);                 // 그라✓점✓ (재로드 뒤)
-  // ── G4 ★옛 저장본 — 그 변수가 ★없는 판 (★같은 창) ──
-  await page.evaluate((i) => document.getElementById(i).querySelector('.tb-body').style.removeProperty('--tb-grad-fb'), id);
+  // ── G4 ★옛 저장본(10-08~11-10) — 그 변수가 ★남은 판 (★같은 창) · 무시돼야 한다 ──
+  await page.evaluate((i) => document.getElementById(i).querySelector('.tb-body').style.setProperty('--tb-grad-fb', '#00aa55'), id);
   await page.waitForTimeout(150);
   const noFb = await measure(page, sel);
+  const oldFill = await page.evaluate((i) => getComputedStyle(document.getElementById(i).querySelector('span.tb-dot')).webkitTextFillColor, id);
+  expect(oldFill, `★옛 저장본의 --tb-grad-fb 가 아직 먹는다(점 글자 단색). 잰 값 ${oldFill}`).toBe('rgba(0, 0, 0, 0)');
   // ── ★같은 창의 ★기준 = 그라데이션을 ★푼 판(단색) ──
   await page.evaluate((i) => { const ce = document.getElementById(i).querySelector('.tb-body'); ce.style.removeProperty('--tb-grad-fb'); window.applyTextBlockColor(document.getElementById(i), '#555555'); }, id);
   await page.waitForTimeout(200);
@@ -267,7 +269,7 @@ test('G3·G4 ★저장 왕복 ＋ 옛 저장본(--tb-grad-fb 없음) 내려앉�
   console.log(`  G3/G4(재로드 뒤 ★같은 창 ${solid.w}x${solid.h}): gradDot=${gd.dark} noFb=${noFb.dark} solid=${solid.dark}`);
   expect([gd.w, gd.h], `★전제 — 세 번 재는 사이에 ★창이 바뀌었다 (${gd.w}x${gd.h} vs ${solid.w}x${solid.h})`).toEqual([solid.w, solid.h]);
   expect(gd.dark / solid.dark, `★다시 연 뒤 글자가 사라졌다 (${gd.dark} / ${solid.dark})`).toBeGreaterThan(0.8);
-  expect(noFb.dark / solid.dark, `★--tb-grad-fb 가 ★없는 ★옛 저장본에서 글자가 사라졌다 (${noFb.dark} / ${solid.dark}) — currentColor 로 내려앉지 않는다`).toBeGreaterThan(0.6);
+  expect(noFb.dark / solid.dark, `★--tb-grad-fb 가 ★남은 ★옛 저장본에서 글자가 사라졌다 (${noFb.dark} / ${solid.dark})`).toBeGreaterThan(0.6);
 });
 
 /* ══ ⑵ 형광펜 획 세로자리 ════════════════════════════════════════════════ */

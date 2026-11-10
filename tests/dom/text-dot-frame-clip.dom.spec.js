@@ -85,10 +85,12 @@ async function painted(page) {
 const premise = (page, id) => page.evaluate((i) => {
   const tb = document.getElementById(i); const fr = tb.closest('.frame-block');
   const sp = tb.querySelector('span.tb-dot'); const b = getComputedStyle(sp, '::before');
-  const sr = sp.getBoundingClientRect(); const fTop = fr.getBoundingClientRect().top;
+  const fTop = fr.getBoundingClientRect().top;
   const size = parseFloat(b.height); const bottom = parseFloat(b.bottom);
-  /* ::before 는 span 기준 absolute — 점 아래변 = span 아래변 − bottom */
-  const dotBottom = sr.bottom - bottom; const dotCy = dotBottom - size / 2;
+  /* ::before 는 ★span 의 offsetParent(= 가장 가까운 positioned 조상 · 텍스트 블럭) 기준 absolute — CSS 앵커로 제 글자에 붙는다(T4-02 · 2026-11-10).
+     ⚰️옛 판은 span 자신이 positioned 라 「점 아래변 = span 아래변 − bottom」이었다. 이제 bottom 은 그 조상 패딩 상자 아래변에서 잰 값이다. */
+  const cb = sp.offsetParent, cr = cb.getBoundingClientRect();
+  const dotBottom = cr.bottom - (parseFloat(getComputedStyle(cb).borderBottomWidth) || 0) - bottom; const dotCy = dotBottom - size / 2;
   return {
     nSpan: tb.querySelectorAll('span.tb-dot').length,
     nSel: document.querySelectorAll('#canvas .selected,#canvas .editing').length,
