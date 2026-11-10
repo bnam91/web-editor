@@ -856,14 +856,17 @@ async function pickText(page, sel, needle) {
   expect(got.ok, `전제 — ${needle} 를 Range 로 집었다 ${JSON.stringify(got)}`).toBe(true);
 }
 async function openEditSel(page, sel, id) {
-  let r = null;
+  /* ★int-3(261110 · fe-c 전수 HM3·HB4 2/3 빨강 · 부하 10) — 옛 판은 «cy 가 0~1200 이면» 멈췄다 ⇒ 줄 중심이 상단바(#topbar · y≈25) «밑»이어도 통과,
+     그 뒤 아래 단언이 「누르는 점이 줄 위」로 빨갰다(색 커밋 뒤 다시 그리기·스크롤이 부하에서 늦게 옴). ⇒ 멈춤 조건을 «그 점이 정말 줄을 맞힌다»로 — 같은 5회 한도 · 끝 단언 그대로. */
+  let r = null, hit = null;
   for (let k = 0; k < 5; k++) {
     await page.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'center', behavior: 'instant' }), sel);
     r = await waitStableRect(page, sel);
-    if (r.cy > 0 && r.cy < 1200) break;
+    hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); const w = document.querySelector(s);
+      return { on: !!(e && w && (e === w || w.contains(e))), at: String(e?.outerHTML || e).slice(0, 160), x, y }; }, [r.cx, r.cy, sel]);
+    if (hit.on) break;
+    console.log(`[openEditSel] 다시 잼 ${k + 1} — 점 (${Math.round(r.cx)},${Math.round(r.cy)}) 이 줄이 아님`);
   }
-  const hit = await page.evaluate(([x, y, s]) => { const e = document.elementFromPoint(x, y); const w = document.querySelector(s);
-    return { on: !!(e && w && (e === w || w.contains(e))), at: String(e?.outerHTML || e).slice(0, 160), x, y }; }, [r.cx, r.cy, sel]);
   expect(hit.on, `전제 — 누르는 점이 줄 위 ${JSON.stringify(hit)}`).toBe(true);
   await page.mouse.dblclick(r.cx, r.cy);
   try { await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', sel, { timeout: 5000 }); }
