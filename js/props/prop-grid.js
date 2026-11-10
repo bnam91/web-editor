@@ -3763,7 +3763,20 @@ function _grdWireLineSection(block, addr, host = null) {
     H.previewLine(r, c, li, { bg }, addr.np);
     H.mark(addr);     // 재렌더가 마커를 지웠다 — 다시 붙인다
   };
-  const end = () => { _gesture = false; window.scheduleAutoSave?.(); };
+  const end = () => {
+    _gesture = false; window.scheduleAutoSave?.();
+    /* ★PILL-RADIUS-ROW-NEEDS-RESELECT-AFTER-BG-01 — 「알약 둥글기」 줄은 배경이 «있을 때만» 그려진다(_grdLineSectionHtml).
+         배경을 켜거나 끈 «끝»에서 그 줄의 유무가 어긋나면 패널을 그 줄로 다시 보인다(↺ 기본과 같은 H.show).
+         ⛔input 도중엔 안 한다 — 열린 색상창·포커스가 끊긴다(위 ⛔updateGridBlock 주석의 그 까닭). */
+    /* ★다음 틱 — 이 확정을 부른 배선(wireHexText 의 Enter/blur 뒷정리)이 끝난 «뒤»에 다시 그린다(인텔 1차: 확정 도중 노드를 갈면 그 뒷정리가 사라진 칸에 걸린다).
+         그사이 패널이 이미 바뀌었으면(이 칸들이 떨어졌으면) 안 한다 — 사용자가 다른 것을 골랐다. */
+    setTimeout(() => {
+      if (!pick?.isConnected && !hexEl?.isConnected) return;
+      const cur = H.line(addr) || {};
+      const hasBg = typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim());
+      if (hasBg !== !!document.getElementById('grd-badge-radius')) H.show(addr);
+    }, 0);
+  };
 
   pick?.addEventListener('input', () => {
     paint(pick.value);
