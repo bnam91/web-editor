@@ -3,6 +3,8 @@
  * 현빈 2026-11-10: 목록과 분리 · 관리자만 보임 · 시작 토스트 없음 · 디스크 무이동.
  * ★관리자가 아니면 그 자리가 DOM 에 «아예» 없어야 한다(숨김이 아니라 없음).
  * 하네스 = 진짜 pages/projects.html · window.electronAPI 만 목(card-thumb-empty 와 같은 꼴). 앱 안 띄움.
+ * ★양성대조: pages/projects.html renderUnreadable 의 마지막 줄 `(document.getElementById('backup-zone') || …)?.after(zone);` 만 지우면 G1 빨강(자리 0) · G2·G3 초록.
+ *   ⛔첫 줄에 return 을 넣는 꼴은 안 된다 — 목을 안 불러 끝 신호(__unreadAsked)까지 끊겨 셋 다 시간 초과(약한 대조 · 인텔 1차).
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -71,7 +73,8 @@ test('G2 관리자 아님 → 자리가 DOM 에 아예 없다', async ({ page })
   await boot(page, { admin: false, unreadable: [BAD] });
   expect(await page.locator('#unreadable-zone').count()).toBe(0);
   expect(await page.locator('.unreadable-row').count()).toBe(0);
-  expect(await page.evaluate(() => document.body.textContent.includes('열 수 없는 프로젝트'))).toBe(false);
+  /* ★innerText(그려진 글자)로 잰다 — textContent 는 <body> 안 인라인 <script> 소스까지 세서 그 문구가 늘 들어 있다(인텔 1차 G2 빨강의 까닭) */
+  expect(await page.evaluate(() => document.body.innerText.includes('열 수 없는 프로젝트'))).toBe(false);
 });
 
 test('G3 관리자 + 0개 → 자리가 없다', async ({ page }) => {
