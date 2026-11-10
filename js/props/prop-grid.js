@@ -717,7 +717,10 @@ export function grdMergeAction(block, at) {
   const isExact = one && one.r === rng.r0 && one.c === rng.c0 && one.r + one.rs - 1 === rng.r1 && one.c + one.cs - 1 === rng.c1;
   /* ⛔머리띠가 합친 칸을 «걸쳐» 넓어졌으면 병합하지 않는다 — 보이는 상자(그 행/열) 밖 칸까지 비우게 된다. 칸을 끌어 고르면 된다. */
   const widened = rng0 && rng0.axis && (rng.r0 !== rng0.r0 || rng.c0 !== rng0.c0 || rng.r1 !== rng0.r1 || rng.c1 !== rng0.c1);
-  if (multi && !isExact && widened) return { kind: 'blocked' };
+  if (multi && !isExact && widened) {
+    if (at && Number.isInteger(at.r) && Number.isInteger(at.c) && window.gridMergeAt?.(block, at.r, at.c)) return { kind: 'unmerge', r: at.r, c: at.c };   // 우클릭한 칸이 합친 칸이면 해제는 된다
+    return { kind: 'blocked' };
+  }
   if (multi && !isExact) return { kind: 'merge', rng };
   const p = at || (rng ? { r: rng.r0, c: rng.c0 } : grdGetActiveLine(block));
   if (p && Number.isInteger(p.r) && Number.isInteger(p.c) && window.gridMergeAt?.(block, p.r, p.c)) return { kind: 'unmerge', r: p.r, c: p.c };

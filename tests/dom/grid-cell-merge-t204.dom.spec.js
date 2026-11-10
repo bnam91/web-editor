@@ -384,6 +384,8 @@ test('M11 합친 칸을 «걸친» 행 머리띠 ⌘M = 막고 토스트(상자 
   await selectGrid(page);
   await tapRowBand(page, 1);
   await page.keyboard.press('Meta+m');
+  /* 적대 리뷰 4회차: 그 머리띠 상자는 그려진다(열 0·2 는 한 칸짜리 트랙이 있다) */
+  expect(await page.evaluate(() => !!document.querySelector('#ss-handles-overlay > .grd-range-rect'))).toBe(true);
   await expect.poll(() => toast(page)).toContain('합친 칸에 걸쳐');
   expect((await model(page)).raw, '아무 칸도 안 바뀐다').toBe(before.raw);
   expect(errs).toEqual([]);
