@@ -43,9 +43,12 @@ test('B-1 짝: 표 같은 끌기(BLOCK_SEL 안 종)는 안 사라지고 ⌘Z 로
   expect((await marked(page)).par).toBe(null);
 });
 
-test('B-2 ⌘X → 다른 프레임 고름 → ⌘V 는 고른 프레임으로 간다', async ({ page }) => {
+/* 1109t1C1 규칙 ⑵(지디·현빈) — 깊이 2+ 프레임(GS = R>G1>GS)을 오브젝트로 골라 ⌘V 하면 그 «안»이 아니라 바로 «다음 자리»(옛: GS 안). */
+test('B-2 ⌘X → 안쪽 프레임을 오브젝트로 고름 → ⌘V 는 그 프레임 바로 다음(같은 부모 G1 · 좌표째 원본+20)', async ({ page }) => {
   const { ids } = await scene(page); await addBlock(page, 'addTableBlock', '.table-block', ids.sec, ids.GG); await J.settle(page);
   const src = await page.evaluate(() => document.querySelector('[data-j294l]').id);
+  const unitOf = (id) => page.evaluate((id) => { const e = document.getElementById(id); const u = e.closest('.frame-block[data-text-frame]') || (e.parentElement.classList.contains('row') ? e.parentElement : e); return [u.style.position, parseInt(u.style.left) || 0, parseInt(u.style.top) || 0]; }, id);
+  const o = await unitOf(src);
   const p = await layerRowCenter(page, src); await page.mouse.click(p[0], p[1]); await J.settle(page);
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+x'); await J.settle(page);
   expect(await marked(page)).toBe(null);
@@ -53,8 +56,12 @@ test('B-2 ⌘X → 다른 프레임 고름 → ⌘V 는 고른 프레임으로 �
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), ids.GS)).toBe(true);
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+v');
   /* ⌘V 는 paste 이벤트에 양보하느라 30ms 뒤에 붙는다(js/editor.js keydown). 두 rAF 만 기다리면 부하 때 붙기 전에 읽는다 */
-  await expect.poll(async () => (await marked(page))?.par).toBe(ids.GS);
+  await expect.poll(async () => (await marked(page))?.par).toBe(ids.G1);
   expect(await page.evaluate(() => document.querySelectorAll('[data-j294l]').length)).toBe(1);
+  const nid = await page.evaluate(() => document.querySelector('[data-j294l]').id);
+  expect(await page.evaluate(([GS, id]) => { const e = document.getElementById(id); const u = e.closest('.frame-block[data-text-frame]') || (e.parentElement.classList.contains('row') ? e.parentElement : e); return u.previousElementSibling?.id === GS; }, [ids.GS, nid]), 'GS 바로 다음').toBe(true);
+  const mx = await page.evaluate(([G1, id]) => { const e = document.getElementById(id); const u = e.closest('.frame-block[data-text-frame]') || (e.parentElement.classList.contains('row') ? e.parentElement : e); const g = document.getElementById(G1); return [Math.max(0, g.clientWidth - u.offsetWidth), Math.max(0, g.clientHeight - u.offsetHeight)]; }, [ids.G1, nid]);
+  expect(await unitOf(nid), '좌표째 · 원본+20 (G1 안으로 클램프)').toEqual(['absolute', Math.min(o[1] + 20, mx[0]), Math.min(o[2] + 20, mx[1])]);
 });
 
 test('B-6 값: 패널에서 프레임 행에 놓으면 지금은 섹션 직속으로 간다, ⌘Z 한 번에 돌아온다', async ({ page }) => {

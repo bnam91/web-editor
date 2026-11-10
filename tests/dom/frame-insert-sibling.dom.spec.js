@@ -1,4 +1,5 @@
 /* frame-insert-sibling.dom.spec.js — F1 (현빈 2026-10-03, 지디 결정): 프레임을 «마우스로 골라» 둔 채 ⌘V·g·⌘D 하면 «다음 형제»로 들어간다.
+ * ★1109t1C1 ⑴ 특례 제거(현빈 261110 «다 넣어») — 한때 C1 이 «밖에서 고른 맨 위 프레임 ⌘V = 그 안 끝»으로 바꿨던 기대를 이 판(F1 · 다음 자리)으로 되돌렸다. 안 끝은 «들어간» 프레임(㉢)만 — frame-paste-target-c1.
  * 키보드 입구(⌘V 일반·다중 폴백 · g→addGapBlock · ⌘D→duplicateSelected)만 — 패널 삽입(insertAfterSelected 기본·_insertToFlowFrame)은
  *   09-23 결정대로 «안»에 넣는 그대로다(frame-accepts-component-blocks F1 이 잠금 — 짝 시험). ⛔t 는 이 규칙에 넣지 않는다.
  * ★H11(2026-10-05): 09-23 결정 = 패널 삽입은 «안»(현빈 「그리드가 프레임에 안 들어간다」) → 10-05 재지시로 «밖»(현빈 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」) · 까닭 = drill-in 이 09-23 의 요구를 대신 채운다.

@@ -1522,14 +1522,14 @@ function _leafSelFrames() {
 /* ★294 t9-03(미카사 J294G) — 프레임 여럿을 고르면 복사·삭제 단위가 «첫 프레임 하나»였다(document.querySelector). 자유 프레임 안 자식을 ⇧로 더 고르면 부모도 .selected 라
    «부모»가 첫째가 되어, 고른 자식 대신 부모 통째가 자기 안에 복사되거나(앱 실측 3/3: 4→8) 부모째 지워졌다. 맨 위 프레임 둘은 첫째만 복사됐다.
    ⇒ 프레임이 둘 이상 골라졌으면(자손을 품은 조상은 맥락이라 뺀다) 그 묶음을 돌려준다 · 아니면 null(여태 길).
-   ★부모가 달라도 묶음이다(현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」 — 자리 규칙은 _pastePickedFrames). ⛔오버레이는 null. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
+   ★부모가 달라도 묶음이다(현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」 · 1109t1C1 들어간 프레임 → 그 안 끝 · 밖에서 고른 프레임 → 다음 자리 · 섹션만 고름 → 섹션 끝 — 자리 규칙은 _pasteTarget·_pastePickedFrames). ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거). ⛔오버레이는 null. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
 function _pickedFrames() {
   const picked = _leafSelFrames();
   if (picked.length < 2 || picked.some(f => f.dataset.overlayBlock === 'true')) return null;
   return picked;
 }
 
-/* 자유 프레임 안 프레임 «하나»도 묶음과 같은 자리 규칙을 탄다(안 골랐으면 원래 부모 안 원본 옆 +20 · FRAME-GROUP-PASTE-TARGET-RULE-01).
+/* 자유 프레임 안 프레임 «하나»도 묶음과 같은 자리 규칙을 탄다(안 골랐으면 원래 부모 안 원본 옆 +20 · FRAME-GROUP-PASTE-TARGET-RULE-01 · 1109t1C1 _pasteTarget).
    묶음(≥2)만 그 길이라 ⌘X 뒤 ⌘V 가 섹션 끝 흐름으로 갔다. 복사만의 일이다 — 삭제는 단건 길 그대로라 _pickedFrames 에 안 넣는다. */
 function _pickedFreeChildFrame() {
   const picked = _leafSelFrames();
@@ -1585,9 +1585,15 @@ function _deletePickedFrames() {
 window._leafSelFrames = _leafSelFrames;
 window._deletePickedFrames = _deletePickedFrames;
 
-let _copyForDuplicate = false;   // ⌘D 는 자유 프레임 하나의 자리 규칙 밖이다(t902-copy4 C3 · 시트 287) — 복사가 읽고 바로 끈다
+function _frameItem(f) {
+  const r = f.getBoundingClientRect(), k = (r.width / (f.offsetWidth || 1)) || 1;   // 묶음 상대 배치는 부모가 달라도 재야 해서 화면 값 ÷ 배율
+  return { html: f.outerHTML, srcId: f.id, parentId: f.parentElement.id || null, secId: f.closest('.section-block')?.id || null,
+    absAt: f.style.position === 'absolute' ? [parseInt(f.style.left) || 0, parseInt(f.style.top) || 0] : null, at: [r.left / k, r.top / k] };
+}
+
+let _copyForDuplicate = false;   // ⌘D 는 자유 프레임 하나의 자리 규칙 밖이다(t902-copy4 C3 · 시트 287) — 복사가 읽고, 뒤따르는 붙여넣기가 끈다(1109t1C1 — ⌘D 는 선택 자리 규칙도 밖)
 function copySelected() {
-  const duplicate = _copyForDuplicate; _copyForDuplicate = false;
+  const duplicate = _copyForDuplicate;
   // 내부 클립보드(섹션/블록) 복사 timestamp — OS 클립보드에 못 썼을 때의 옛 규칙(시각 비교)용
   window._internalClipboardTime = Date.now();
   _writeInternalClipboardToOS();
@@ -1615,13 +1621,16 @@ function copySelected() {
   if (allSel.length === 0) {
     const _picked = _pickedFrames() || (duplicate ? null : _pickedFreeChildFrame());   // ⌘D 는 제 규칙 그대로(t902-copy4 C3 · 시트 287)
     if (_picked) {
-      clipboard = { type: 'multi-block', frames: true, items: _picked.map(f => {
-        const r = f.getBoundingClientRect(), k = (r.width / (f.offsetWidth || 1)) || 1;   // 묶음 상대 배치는 부모가 달라도 재야 해서 화면 값 ÷ 배율
-        return { html: f.outerHTML, srcId: f.id, parentId: f.parentElement.id || null, secId: f.closest('.section-block')?.id || null,
-          absAt: f.style.position === 'absolute' ? [parseInt(f.style.left) || 0, parseInt(f.style.top) || 0] : null, at: [r.left / k, r.top / k] };
-      }) };
+      clipboard = { type: 'multi-block', frames: true, items: _picked.map(_frameItem) };
       return;
     }
+  }
+
+  /* ★1109t1C1 — 자유 프레임 안 글자 여럿은 «래퍼째·좌표째» 묶음(frames) 꼴로 담는다. 아래 멀티 갈래는 맨 글자만 담아 사본이 래퍼·absolute 를 잃고 흐름으로 떨어졌다. */
+  const _units = [...new Set(allSel.map(b => b.closest('.frame-block[data-text-frame]') || b))];
+  if (allSel.length > 1 && _units.every(u => u.style.position === 'absolute' && u.parentElement?.matches?.('.frame-block[data-free-layout]'))) {
+    clipboard = { type: 'multi-block', frames: true, items: _units.map(_frameItem) };
+    return;
   }
 
   if (allSel.length > 1) {
@@ -1715,7 +1724,7 @@ function copySelected() {
   } else if (selSS) {
     // 서브섹션은 row > col > frame-block 구조이므로 row 단위로 복사
     const rowEl = selSS.closest('.row') || selSS;
-    clipboard = { type: 'block', html: rowEl.outerHTML };
+    clipboard = { type: 'block', html: rowEl.outerHTML, srcId: selSS.id };   // 1109t1C1 — 제 프레임을 고른 채 ⌘V 는 «안»이 아니라 다음 자리(_pasteTarget)
   } else if (selRow) {
     clipboard = { type: 'block', html: selRow.outerHTML };
   } else if (selSection) {
@@ -2046,19 +2055,22 @@ function _stepPastedFreeChild(el) {
 }
 
 /* ★현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기 되어야 한다」 — 프레임 묶음의 자리.
-   다른 프레임을 골랐으면 거기(단건처럼 다음 자리 · 묶음 상대 배치 유지) · 안 골랐으면 각자 원래 부모 안 원본 옆(+20).
-   다른 섹션을 골랐으면 그 섹션(프레임을 안 고른 «선택된 곳»). 끌기 처리기가 position 으로 갈리니 자리는 바인드 «앞»에 정한다.
+   ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거).
+   들어간 프레임이면 그 안 끝(t.into · 1109t1C1 ㉢) · 프레임을 밖에서 골랐거나 자식을 골랐으면 그 다음 자리(묶음 상대 배치 유지 · ⑴ 특례 제거 261110) ·
+   안 골랐으면 각자 원래 부모 안 원본 옆(+20). 섹션만 골랐으면 그 섹션 끝(t.sec · 같은 섹션이어도) · 다른 섹션을 골랐으면 그 섹션. 끌기 처리기가 position 으로 갈리니 자리는 바인드 «앞»에 정한다.
    ★붙인 뒤 묶음의 원본 표를 사본으로 옮긴다 — ⌘V⌘V 가 사본 옆으로 계단을 이룬다. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
-function _pastePickedFrames() {
+function _pastePickedFrames(t) {
   const items = clipboard.items;
+  items.forEach(i => { while (i.back && !document.getElementById(i.srcId)) Object.assign(i, i.back); });   // ⌘Z 로 사본이 사라졌으면 옛 원본 표로(1109t1C1 — ⌘X⌘V⌘Z⌘V 도 원본 옆 +20)
+  const into = t?.into || null;   // 1109t1C1 ㉡㉢ — 그 프레임 안 끝
   const own = new Set(items.map(i => i.srcId));
   const sel = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')];
-  const other = sel.filter(f => !own.has(f.id) && !sel.some(o => o !== f && f.contains(o))).pop() || null;
+  const other = sel.filter(f => !own.has(f.id) && !f.querySelector('.selected')).pop() || null;   // 고른 것을 품은 프레임(글자 래퍼 포함)은 맥락이지 자리가 아니다
   const selSec = getSelectedSection();
-  let targetSec = other ? other.closest('.section-block') : (selSec && !items.some(i => i.secId === selSec.id) ? selSec : null);
+  let targetSec = into ? null : t?.sec || (other ? other.closest('.section-block') : (selSec && !items.some(i => i.secId === selSec.id) ? selSec : null));
   const secOf = (i) => document.getElementById(i.secId);
   const homeOf = (i) => document.getElementById(i.srcId)?.parentElement || (i.parentId && document.getElementById(i.parentId)) || secOf(i)?.querySelector(':scope > .section-inner') || null;
-  if (!targetSec && !items.some(homeOf)) targetSec = selSec || _pickVisibleSection() || document.querySelector('.section-block:last-child');   // 돌아갈 부모가 다 사라졌다
+  if (!into && !targetSec && !items.some(homeOf)) targetSec = selSec || _pickVisibleSection() || document.querySelector('.section-block:last-child');   // 돌아갈 부모가 다 사라졌다
   if (other) sel.forEach(f => { if (f !== other) f.classList.remove('selected'); });   // 고른 곳 하나만 남긴다 — 넣는 문이 «고른 프레임»을 읽는다
   const toAbs = (el, x, y) => { el.style.position = 'absolute'; el.style.left = x + 'px'; el.style.top = y + 'px'; el.dataset.offsetX = String(x); el.dataset.offsetY = String(y); };
   const lastAt = new Map();   // 부모 → 마지막 사본(같은 부모의 묶음은 A B A' B' 순서)
@@ -2069,15 +2081,16 @@ function _pastePickedFrames() {
     temp.innerHTML = item.html;
     const el = temp.firstElementChild;
     if (!el) return;
-    const home = targetSec ? null : homeOf(item);
+    const home = into || (targetSec ? null : homeOf(item));
     if (first && (targetSec || !home)) {
       lastAt.get(null).after(el);
     } else if (home) {
       if (lastAt.has(home)) lastAt.get(home).after(el);
       else {
-        const lastSrc = items.map(i => document.getElementById(i.srcId)).filter(f => f?.parentElement === home).pop();
+        const lastSrc = into ? null : items.map(i => document.getElementById(i.srcId)).filter(f => f?.parentElement === home).pop();
         if (lastSrc) lastSrc.after(el); else home.appendChild(el);
       }
+      if (into && !item.absAt) window.settleRowInFreeFrame?.(into, el, 'stack');   // 흐름에서 온 것이 자유 프레임에 들면 좌표 단위로(스택이면 거짓으로 빠진다)
     } else {
       const savedActive = window._activeFrame;
       window._activeFrame = null;
@@ -2086,7 +2099,7 @@ function _pastePickedFrames() {
     }
     window.followHostFrameHAlign?.(el);
     const inFree = !!el.parentElement?.closest('.frame-block[data-free-layout]');
-    if (inFree && targetSec) {
+    if (inFree && (targetSec || into)) {
       if (first) toAbs(el, (parseInt(first.style.left) || 0) + item.at[0] - firstItem.at[0], (parseInt(first.style.top) || 0) + item.at[1] - firstItem.at[1]);
       else { toAbs(el, parseInt(el.style.left) || 0, parseInt(el.style.top) || 0); if (item.absAt) _stepPastedFreeChild(el); }   // 첫째 자리는 넣는 문이 정했다(단건과 같다)
     } else if (inFree && item.absAt) {
@@ -2101,14 +2114,36 @@ function _pastePickedFrames() {
     roots.push(el);
     item.nextSrc = el;
   });
-  items.forEach(i => { const el = i.nextSrc; delete i.nextSrc; if (!el?.isConnected) return; i.srcId = el.id; i.parentId = el.parentElement.id || null; i.secId = el.closest('.section-block')?.id || null; i.absAt = el.style.position === 'absolute' ? [parseInt(el.style.left) || 0, parseInt(el.style.top) || 0] : null; });
+  items.forEach(i => { const el = i.nextSrc; delete i.nextSrc; if (!el?.isConnected) return; i.back = { srcId: i.srcId, parentId: i.parentId, secId: i.secId, absAt: i.absAt, back: i.back }; i.srcId = el.id; i.parentId = el.parentElement.id || null; i.secId = el.closest('.section-block')?.id || null; i.absAt = el.style.position === 'absolute' ? [parseInt(el.style.left) || 0, parseInt(el.style.top) || 0] : null; });
   _keepOnlyPastedSelected(roots);
   window.buildLayerPanel();
   _panelFollowsPasted(roots);
   pushHistory('붙여넣기');
 }
 
+/* ★1109t1C1 (현빈 「프레임 블럭 안에 잘라내기 및 복사 후 붙여넣기 할때 포커스가 어디에 되어있는 가에 따라 붙여넣기 되는 곳이 달라야함」 · 피그마식) — ⌘V 자리를 지금 선택으로 한 번 가른다.
+   {into:f} = 들어간 프레임에 아무것도 안 고름(㉢) → 그 안 끝 / {sec} = 섹션만 고름(㉣) → 섹션 끝 /
+   null = 옛 길(㉠ 블럭·프레임을 «밖에서» 골랐으면 그 다음 자리 · ㉤ 안 골랐으면 원본 옆 +20). g·⌘D 도 F1(다음 자리) 그대로. 시험: tests/dom/frame-paste-target-c1.dom.spec.js
+   ★⑴ 특례 제거(현빈 261110 «다 넣어») — 옛 ㉡ 「밖에서 고른 맨 위 프레임 → 그 안 끝(⌘V 만)」을 걷었다: 안 끝은 «진입해야»(㉢) · 밖에서 고른 채면 ⌘V·g·⌘D 셋 다 다음 자리. */
+function _pasteTarget(dup) {
+  if (dup || clipboard.type === 'section' || clipboard.type === 'multi-section') return null;
+  if (_sectionOnlySelection()) return { sec: document.querySelector('#canvas .section-block.selected') };
+  if (document.querySelector(MULTI_SEL)) return null;
+  const fr = _leafSelFrames();
+  const f = fr.length === 1 ? fr[0] : null;
+  if (!f || f.querySelector('.selected') || isShapeFrame(f) || f.dataset.bannerPreset || f.dataset.group === 'true') return null;
+  if ((clipboard.items ? clipboard.items.map(i => i.srcId) : [clipboard.srcId]).includes(f.id)) return null;   // 제 프레임을 고른 채 ⌘C⌘V = 다음 자리(frame-insert-sibling S1a)
+  return window._enteredFrame === f ? { into: f } : null;
+}
+/* into 면 그 프레임 끝(자유면 좌표 단위로 쌓기) · 아니면 키보드 입구 옛 문. */
+function _putIn(t, sec, el) {
+  if (!t?.into) { insertAfterSelectedAsSibling(sec, el); return; }
+  t.into.appendChild(el);
+  window.settleRowInFreeFrame?.(t.into, el, 'stack');
+}
+
 function pasteClipboard() {
+  const _dup = _copyForDuplicate; _copyForDuplicate = false;
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
   /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
      그리드 줄 선택(활성줄+마커)을 남기면 [원본(줄)+사본] 상태의 ⌫ 가 원본의 줄로 샜다. */
@@ -2117,7 +2152,8 @@ function pasteClipboard() {
   // (block-factory.js가 push-before라서 최신 N개 블록 상태가 히스토리에 없는 경우 대비)
   window.ensureHistoryCheckpoint?.('붙여넣기 전');
 
-  if (clipboard.frames) { _pastePickedFrames(); return; }
+  const _t = _pasteTarget(_dup);
+  if (clipboard.frames) { _pastePickedFrames(_t); return; }
 
   if (clipboard.type === 'multi-block') {
     const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
@@ -2165,11 +2201,12 @@ function pasteClipboard() {
       if (el.classList.contains('gradient-block')) { _pasteGradientIntoSection(el, sec); return; }
       if (lastEl) {
         lastEl.after(el);
+        if (_t?.into) window.settleRowInFreeFrame?.(_t.into, el, 'stack');   // 1109t1C1 — 자유 프레임 안 끝이면 둘째부터도 좌표 단위로(스택이면 거짓으로 빠진다)
       } else {
         const pasteHasSS = el.classList.contains('frame-block') || !!el.querySelector('.frame-block');
         const savedActiveSS = window._activeFrame;
         if (pasteHasSS) window._activeFrame = null;
-        if (anchor) anchor.after(el); else insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구: 프레임을 골라 뒀으면 «다음 형제»
+        if (anchor) anchor.after(el); else _putIn(_t, sec, el);   // 키보드 입구: 밖에서 고른 맨 위 프레임 → 그 안 끝(⌘V 만 · g·⌘D 는 다음 자리 F1) · 섹션만 고름 → 섹션 끝(1109t1C1)
         if (pasteHasSS) window._activeFrame = savedActiveSS;
       }
       window.followHostFrameHAlign?.(el);   // ★E135 — 정렬을 준 스택 프레임 안에 붙었으면 그 정렬(frame-geometry.js ⑤)
@@ -2226,7 +2263,8 @@ function pasteClipboard() {
     _spl = r.spl;
   } else if (clipboard.freeLayout) {
     /* free-layout 프레임 내 블록 붙여넣기 — 묶음(_pastePickedFrames)과 같은 자리 규칙(현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
-       고른 자유 프레임이면 그 안 · 고른 스택 프레임·다른 섹션이면 일반 경로 · 안 골랐으면 원래 부모 안 원본 옆 +20.
+       ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거).
+       들어간 프레임(아무것도 안 고름)이면 그 안 끝(1109t1C1 ㉢ · 자유면 좌표째 · 스택이면 흐름) · 프레임을 «밖에서» 오브젝트로 골랐으면 그 다음 자리(1109t1C1 ⑵ · ⑴ 특례 제거 261110 — 맨 위도) · 섹션만 고름·다른 섹션이면 그 섹션 끝 · 안 골랐으면 원래 부모 안 원본 옆 +20.
        duplicateSelected의 freeLayout 분기 미러. */
     // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
     const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
@@ -2234,12 +2272,16 @@ function pasteClipboard() {
     const _selFrames = [...document.querySelectorAll('#canvas .frame-block.selected:not([data-text-frame])')].filter(f => !isShapeFrame(f));
     const _picked = _selFrames.filter(f => !_selFrames.some(o => o !== f && f.contains(o))).pop() || null;
     const _selSec = getSelectedSection();
-    const _otherSec = !_picked && _srcFrame && _selSec && _selSec !== _srcFrame.closest('.section-block');
-    const frame = _otherSec ? null : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
+    const _otherSec = _t?.sec || (!_picked && _srcFrame && _selSec && _selSec !== _srcFrame.closest('.section-block'));   // 1109t1C1 ㉣ — 섹션만 골랐으면 같은 섹션이어도 그 끝
+    const _nestObj = !_t && _picked && window.frameSelectedAsObject(null) === _picked;   // 1109t1C1 ⑵ — 프레임을 «밖에서» 오브젝트로 골랐으면 안이 아니라 그 다음 자리(묶음·흐름 갈래와 같게) · ⑴ 특례 제거(261110) — 맨 위 프레임도 같다(안 끝은 들어갔을 때만 = _t.into)
+    const frame = (_otherSec || _nestObj) ? null : _t?.into ? _flFrame(_t.into) : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
     if (!frame) {
-      // 대상 프레임 못 찾음 → 일반 경로 폴백(섹션 끝에 삽입)
+      // 대상 프레임 못 찾음 → 스택 프레임(㉡㉢)이면 그 안 끝 흐름 · 아니면 일반 경로 폴백(섹션 끝에 삽입)
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
-      if (sec) { insertAfterSelected(sec, el); _bindPastedEl(el); _normalizePastedAbsolute(el); _keepOnlyPastedSelected([el]); }
+      if (_t?.into) { _t.into.appendChild(el); window.followHostFrameHAlign?.(el); }
+      else if (_nestObj) insertAfterSelectedAsSibling(sec, el);
+      else if (sec) insertAfterSelected(sec, el);
+      if (el.isConnected) { _bindPastedEl(el); _normalizePastedAbsolute(el); if (_nestObj) _stepPastedFreeChild(el); _keepOnlyPastedSelected([el]); }
     } else {
       /* ★216 — id 재발급(genId · actorId · 접두사 보존)·다시 묶기·다시 그리기는 아래 appendChild 뒤 _bindPastedEl(el) 한 문이 한다(손 절반 걷음). */
       const ox = parseInt(el.style.left || '0'), oy = parseInt(el.style.top || '0');
@@ -2335,12 +2377,13 @@ function pasteClipboard() {
       const savedActiveSS = window._activeFrame;
       const wasAbs = el.style.position === 'absolute';   // 넣는 문이 세운 좌표(settleRowInFreeFrame)는 원본 자리가 아니다
       if (pasteHasSS) window._activeFrame = null;
-      insertAfterSelectedAsSibling(sec, el);   // F1 — 키보드 입구
+      _putIn(_t, sec, el);   // 키보드 입구: 밖에서 고른 맨 위 프레임 → 그 안 끝(⌘V 만 · g·⌘D 는 다음 자리 F1) · 섹션만 고름 → 섹션 끝(1109t1C1)
       if (pasteHasSS) window._activeFrame = savedActiveSS;
       window.followHostFrameHAlign?.(el);   // ★E135
       _bindPastedEl(el);
       _normalizePastedAbsolute(el);
       if (wasAbs) _stepPastedFreeChild(el);
+      if (clipboard.srcId) clipboard.srcId = el.querySelector?.('.frame-block.selected')?.id || (el.matches('.frame-block') ? el.id : clipboard.srcId);   // ⌘V⌘V 가 막 붙인 사본 «안»으로 안 든다
       _keepOnlyPastedSelected([el]);
     }
   }

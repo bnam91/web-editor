@@ -1,5 +1,9 @@
 /* free-child-paste-target-b2 — 자유 프레임 안 블럭 한 개의 ⌘V 자리(S3 J294L B-2 · 현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
- * 고른 곳에 붙는다 · 안 골랐으면 원래 부모 안 원본 옆 +20. 프레임 묶음 규칙은 multi-frame-copy-294 가 잠근다. */
+ * 고른 곳에 붙는다 · 안 골랐으면 원래 부모 안 원본 옆 +20. 프레임 묶음 규칙은 multi-frame-copy-294 가 잠근다.
+ * ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거).
+ * ★1109t1C1 ⑴ 특례 제거 · 현빈 11-10 «진입 기반 일관»(⒜ 확정 · 지디·매니저):
+ *   0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 중 «다른 자유 프레임을 밖에서 클릭 → ⌘V 는 그 안» 칸만 뒤집혔다 → 그 프레임 «다음 자리»(⌘V·g·⌘D 같음).
+ *   «그 안»은 그 프레임에 «들어간» 뒤(여백 더블클릭 = enterFrame)다 — 아래 KINDS 세 칸이 그 길을 그대로 잰다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -31,11 +35,11 @@ const b0 = (cls) => (cls === 'text-block' ? 1 : 0);   // B 에 미리 있는 글
 const s2Own = (cls) => (cls === 'text-block' ? 1 : 0);   // 새 섹션의 기본 글자
 
 for (const [cls, entry] of KINDS) {
-  test(`${cls} ⌘X → 다른 자유 프레임 → ⌘V 는 그 프레임 안 · 저장 왕복 · ⌘Z 한 번에 빠진다`, async ({ page }) => {
+  test(`${cls} ⌘X → 다른 자유 프레임에 «들어가» → ⌘V 는 그 프레임 안 · 저장 왕복 · ⌘Z 한 번에 빠진다`, async ({ page }) => {
     await open(page); const s = await scene(page, cls, entry); await raf(page);
     const s2 = s2Own(cls) && await page.evaluate(([S2, c]) => document.getElementById(S2).querySelectorAll('.' + c).length, [s.S2, cls]);
     await pick(page, s); await page.keyboard.press('Meta+x'); await raf(page);
-    await clickFrame(page, s.B); await paste(page, cls);
+    await enterFrame(page, s.B); await paste(page, cls);   // ⑴ 제거 뒤 «안»은 진입해야(㉢)
     expect(await home(page, s, cls)).toEqual({ A: 0, B: b0(cls) + 1, C: 0, S2: s2 });
     await page.keyboard.press('Meta+z'); await raf(page);
     expect((await home(page, s, cls)).B, '⌘Z').toBe(b0(cls));
@@ -44,11 +48,24 @@ for (const [cls, entry] of KINDS) {
     expect(await home(page, s, cls), '저장 왕복').toEqual({ A: 0, B: b0(cls) + 1, C: 0, S2: s2 });
   });
 }
-test('⌘C → 다른 자유 프레임 → ⌘V 는 그 프레임 안 · 원본 그대로', async ({ page }) => {
+/* ★뒤집힌 칸(⒜) — 다른 자유 프레임을 «밖에서» 한 번 클릭(오브젝트)한 채 ⌘V = 그 프레임 «다음 자리»(안이 아니다).
+   ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거). */
+const nextOf = (page, s, cls) => page.evaluate(({ s, cls }) => { const n = document.getElementById(s.B).nextElementSibling; return !!n && (n.matches('.' + cls) || !!n.querySelector('.' + cls)); }, { s, cls });
+test('⌘C → 다른 자유 프레임을 밖에서 클릭 → ⌘V 는 그 프레임 «다음 자리» · 원본 그대로(⒜ 진입 기반)', async ({ page }) => {
   await open(page); const [cls, entry] = KINDS[1]; const s = await scene(page, cls, entry); await raf(page);
   await pick(page, s); await page.keyboard.press('Meta+c'); await raf(page);
   await clickFrame(page, s.B); await paste(page, cls);
-  expect(await home(page, s, cls)).toEqual({ A: 1, B: 1, C: 0, S2: 0 });
+  expect(await home(page, s, cls), '안으로 안 든다 · 원본 그대로').toEqual({ A: 1, B: 0, C: 0, S2: 0 });
+  expect(await nextOf(page, s, cls), 'B 바로 다음 자리').toBe(true);
+});
+test('⌘X(글자) → 다른 자유 프레임을 밖에서 클릭 → ⌘V 는 그 프레임 «다음 자리» · ⌘Z 한 번에 빠진다(⒜ 진입 기반)', async ({ page }) => {
+  await open(page); const [cls, entry] = KINDS[0]; const s = await scene(page, cls, entry); await raf(page);
+  await pick(page, s); await page.keyboard.press('Meta+x'); await raf(page);
+  await clickFrame(page, s.B); await paste(page, cls);
+  expect(await home(page, s, cls), '안으로 안 든다').toEqual({ A: 0, B: b0(cls), C: 0, S2: await page.evaluate(([S2, c]) => document.getElementById(S2).querySelectorAll('.' + c).length, [s.S2, cls]) });
+  expect(await nextOf(page, s, cls), 'B 바로 다음 자리').toBe(true);
+  await page.keyboard.press('Meta+z'); await raf(page);
+  expect(await nextOf(page, s, cls), '⌘Z 한 번에 빠진다').toBe(false);
 });
 test('⌘X → 아무것도 안 고름 → ⌘V 는 원래 부모 안 원본 옆 +20 · 다시 ⌘V 는 또 +20', async ({ page }) => {
   await open(page); const [cls, entry] = KINDS[0]; const s = await scene(page, cls, entry); await raf(page);

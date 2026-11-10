@@ -1,5 +1,7 @@
 /* multi-frame-copy-294 — 프레임 여럿을 골라 ⌘D·⌘C⌘V 하면 고른 것들이 복사된다(294 t9-03 · J294G).
- * 음성: 프레임 하나 ⌘D 는 +부분나무 하나. 자리 규칙 = 현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01. */
+ * 음성: 프레임 하나 ⌘D 는 +부분나무 하나. 자리 규칙 = 현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01.
+ * ★1109t1C1 ⑴ 특례 제거(현빈 261110 «다 넣어») — 한때 C1 이 «밖에서 고른 맨 위 프레임 ⌘V = 그 안 끝»으로 바꿨던 기대를 이 판(F1 · 다음 자리)으로 되돌렸다. 안 끝은 «들어간» 프레임(㉢)만 — frame-paste-target-c1.
+ */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const FR = '.frame-block:not([data-text-frame])';
