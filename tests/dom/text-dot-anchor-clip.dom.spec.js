@@ -116,8 +116,11 @@ test('S2 잘림 유지 — 자르는 상자 밖으로 민 점은 안 보인다 �
   await page.evaluate(() => document.getElementById('tA').style.setProperty('--tb-dot-y', '-60px'));
   const fr = await rectOf(page, '#frA');
   const bandA = { x: fr.x, y: fr.y - 110, w: fr.w, h: 100 };   // 프레임 위 띠(섹션 위 패딩 120 안)
+  const ov = () => page.evaluate(() => getComputedStyle(document.getElementById('frA')).overflow);
+  expect(await ov(), '★전제 — 둥근 프레임이 자르는 판이어야 한다(제품 computed overflow)').toBe('hidden');
   const a = await redIn(page, bandA);
   await page.evaluate(() => document.getElementById('frA').dataset.clipContent = 'false');
+  expect(await ov(), '★전제 — 자르기 끔이 먹었다(제품 computed overflow)').toBe('visible');
   const aOpen = await redIn(page, bandA);
   await page.evaluate(() => delete document.getElementById('frA').dataset.clipContent);
   // B·C — 섹션 가로 자르기 왼쪽 밖으로
