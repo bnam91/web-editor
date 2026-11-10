@@ -63,6 +63,7 @@
   let _peerForm = new Map();          // 보낼 글이 goya-asset 인 섹션의 원본 hash → { hash, bytes } (저장마다 파일을 다시 읽지 않게)
 
   let _cfg = null;                    // { projectId, collabId, actorId, seq, role }
+  let _lastSavedSnapAt = -Infinity;   // 마지막으로 받은 저장 알림의 스냅 시각 — 늦게 끝난 «옛 스냅» 알림이 새 것 뒤에 와 옛 본을 올리지 않게(FLUSH-EMPTY 리뷰 2 F1)
   let _serverSections = null;         // 마지막으로 받은 서버 목차(결손 판정의 기준)
   let _needIds = [];                  // «목차엔 있는데 나한테 없는» sectionId 들
   let _needTicks = 0;
@@ -874,6 +875,7 @@
     /* ★role 을 싣는다 — 시드 재푸시에 «오너만» 응답한다(serveNeeds).
      *   register 가 심는 collabRef.role='owner', 수락 경로(collab/accept.js)는 'member'. */
     _cfg = { projectId, collabId: ref.collabId, actorId: actorId(), seq: ref.seq || 0, role: ref.role || '' };
+    _lastSavedSnapAt = -Infinity;
     _seqSaved = _seqDurable = _owedSeq = ref.seq || 0;
     _baseHashes = ref.hashes || null; _durableHashes = ref.hashes || {};
     _owedSave = false; _saveFailed = false; _settling = false; _resumeOwed = false; _resumed = false;
@@ -924,6 +926,9 @@
     /* ★COLLAB-SYNC-OLD-GAPS ⑶ — 재개(서버 해시 심기) 전엔 _sent 가 비어 모든 섹션을 «바뀜»으로 올렸다(읽는 중 · 재개 받는 중 · 첫 재개 실패 뒤).
        편집은 안 잃는다 — 재개가 그때 프로젝트를 다시 직렬화해 진짜 차이만 올린다. */
     if (!_resumed) return;
+    /* ★FLUSH-EMPTY 리뷰 2 F1 — 저장 알림은 «끝난 순서»로 온다. ⌘S(flushSave)가 줄에서 기다리는 사이 타이머 저장이 더 새 스냅을 먼저 알리면,
+       ⌘S 알림이 뒤늦게 옛 스냅을 올려 상대 화면이 내 파일보다 옛 판이 된다 ⇒ 이미 받은 것보다 옛(같은) 스냅 시각이면 버린다. 시각이 없으면 옛 동작. */
+    if (Number.isFinite(d.snapAt)) { if (d.snapAt <= _lastSavedSnapAt) return; _lastSavedSnapAt = d.snapAt; }
     pushChanged(d.snap, d.snapAt);
   });
 

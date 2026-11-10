@@ -96,7 +96,8 @@ test('S-6 판정 선택자도 «한 파일»에서만 온다 — 성질(data-ass
 test('S-2 ⌘S 자리가 알림을 부른다', () => {
   const block = sliceBlock(SRC.editor, "if (e.key === 's' && !e.shiftKey)", '⌘S 분기');
   assert.match(block, /warnPendingVideoLossIf\s*\(/, '⌘S 에서 미확정 영상 알림을 안 부른다');
-  assert.match(block, /triggerAutoSave/, '⌘S 가 저장을 안 한다 — 분기를 잘못 잡았다');
+  /* ⌘S 는 «즉시» 저장 문(flushSave)을 부른다 — FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01 이 디바운스 예약(triggerAutoSave)에서 바꿨다(예약 사이 전체 삭제로 ⌘S 편집이 사라짐 · 미카사 R21b) */
+  assert.match(block, /flushSave/, '⌘S 가 저장을 안 한다 — 분기를 잘못 잡았다');
   assert.match(SRC.editor, /from '\.\/io\/pending-video-warn\.js'/, 'editor.js 가 단일 진실원을 import 안 한다');
 });
 
