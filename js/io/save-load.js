@@ -1509,6 +1509,7 @@ function rebindAll(opts = {}) {
          자리가 여럿이고(클린 클론·배송본), 그러면 새로고침 한 번에 조용히 꺼진다.
        ⇒ 정본은 dataset 이고, 클래스는 «여기서 다시 세운다». 무늬 값은 CSS 한 자리(.sec-bg-empty). */
     sec.classList.toggle('sec-bg-empty', sec.dataset.bgImgEmpty === '1' && !sec.dataset.bgImg);
+    sec.querySelectorAll('.frame-block[data-bg-img-empty="1"]').forEach(f => f.classList.toggle('sec-bg-empty', !f.dataset.bgImg));   // 프레임도 같은 정본(FRAME-BG-CHECKER-OPTIONS-01)
     /* ★T6 — 체커 톤이 dark 로 저장돼 있으면 섹션 «안» 글자 밝기를 다시 맞춘다(현빈 2026-10-07).
        ★여기가 두 호출 자리 중 하나다(다른 하나 = 토글 js/props/prop-section.js).
        ⛔클래스가 «살아 돌아온다»에 기대지 않는다 — 바로 위 주석이 같은 말을 한다. 다시 세운다. */

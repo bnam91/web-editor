@@ -237,6 +237,18 @@
   --goya-checker-asset-a: #7c7c7c;
   --goya-checker-asset-b: #949494;
 }
+/* ── «체크 배경»·«체커 어둡게» — ★프레임블럭마다 (NEW-현빈QA-FRAME-BG-CHECKER-OPTIONS-01 · 현빈 ⓑ 「섹션 배경 설정의 그 둘을 프레임에도」) ──
+   꼴은 위 에셋 쌍 그대로. ★섹션 쌍(secbg)을 같이 쓰지 않는 까닭: 어두운 섹션 «안» 프레임이 「끔」이어도 상속으로 어두워진다.
+   켜는 문 = js/props/prop-frame.js 의 라디오 하나 → ss.dataset.checkerTone. 무늬는 css/editor-blocks.css .frame-block.sec-bg-empty.
+   ⚠️안 잰 것: 어둡게 켠 프레임 «안»의 체크 배경 프레임은 상속으로 같이 어두워진다(에셋 쌍과 같은 한계). */
+:root {
+  --goya-checker-frame-a: var(--goya-checker-big-a);
+  --goya-checker-frame-b: var(--goya-checker-big-b);
+}
+.frame-block[data-checker-tone="dark"] {
+  --goya-checker-frame-a: #7c7c7c;
+  --goya-checker-frame-b: #949494;
+}
 
 /* 프리셋 스타일은 JS에서 inline CSS variables로 적용 (presets/*.json 기반)
    → applyPreset() 참고 */
