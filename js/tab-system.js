@@ -392,6 +392,9 @@ async function switchTab(id) {
       window.applyProjectData(JSON.parse(targetTab._cache));
       window.AutoSaveSuppress.end(_asTok);   // 캐시 분기: 예전 `= false` 와 «같은 자리»
       Promise.resolve(window.electronAPI?.projectFolderState?.(id)).then((s) => {   // 파일을 안 읽는 분기라 폴더가 없어도 모른다 — 탭을 막지 않고 묻는다
+        /* ★-02(미카사 int-3 R19 1:1) — 캐시로 연 탭도 폴더가 없으면 «남은 본»이다. 옛 판은 안내만 띄우고 표시를 안 달아,
+             폴더가 같은 자리로 돌아온 뒤 그 탭의 편집이 표시 없이 나가 돌아온 파일을 덮었다(안내·«폴더 없던 때» 0). 표시는 파일을 읽어야 걷힌다(아래 최초 로드). */
+        if (s === 'missing' && targetTab) targetTab._goneCopy = true;
         if (s === 'missing' && _getActId() === id) window.showStatusToast?.(window.missingFolderNotice?.(targetTab.name));
       }).catch(() => {});
       _runAfterLs(targetTab._afterLs);   // 첫 로드 직후 떠나 못 끝낸 복구 저장(앱 3/3)

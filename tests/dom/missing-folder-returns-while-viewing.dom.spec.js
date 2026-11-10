@@ -7,6 +7,7 @@
  * 칸(리뷰 2): V6 남긴 거절 뒤 LS 본을 지운다(남으면 다시 열기·다음 부팅이 그 본으로 덮는다) · V7 거절된 저장이 도는 사이 친 편집도 남긴다(다시 열기가 화면을 비우기 전에).
  * 칸(-02 · 미카사 int-3 실앱 2/2): V1 은 실앱 순서 — 폴더 없는 동안 남은 본 저장(자동저장)이 폴더를 다시 만들고 «그 뒤» 원래 폴더가 대치로 돌아와 편집한다
  *   (기준 int-3 은 다시 만든 저장 성공에 표시를 걷어 그 편집이 표시 없이 덮었다 = 빨강) · V1o 다시 만들기 없는 옛 순서 · V8 다시 만든 뒤 저장이 이어져도 표시를 단다.
+ * 칸(-02 · 미카사 R19 1:1): V9 전에 열어 둔 탭(캐시 갈래)을 폴더 없을 때 다시 누름 → 안내 → 폴더가 같은 자리로 돌아옴(mv) → 그 탭 편집 → 자동저장 — 기준 int-3 은 캐시 갈래가 표시를 안 달아 덮었다(빨강).
  * 대조: N1 폴더가 아직 없으면 그 본으로 폴더를 다시 만들고 그 뒤 저장도 막지 않는다 · N2 평범한 탭은 표시가 없다.
  * 변이: 회신의 값. */
 const { test, expect } = require('@playwright/test');
@@ -34,7 +35,7 @@ async function setup(page, { cached = false } = {}) {
     const f = window.showStatusToast; window.showStatusToast = (m) => { window.__toasts.push(m); f(m); };
     localStorage.setItem('web-editor-autosave__proj_b', JSON.stringify(B));
     localStorage.setItem('web-editor-ls-root__proj_b', 'acct_me');
-    window.openTabs = [{ id: 'proj_a', name: 'proj_a이름', _cache: JSON.stringify(A) }, { id: 'proj_b', name: 'proj_b이름' }];
+    window.openTabs = [{ id: 'proj_a', name: 'proj_a이름', _cache: JSON.stringify(A) }, { id: 'proj_b', name: 'proj_b이름', ...(cached ? { _cache: JSON.stringify(B) } : {}) }];   // cached = 전에 열어 둔 탭(메모리 캐시 갈래 · 미카사 R19)
     window.activeProjectId = 'proj_a';
     window.renderTabBar();
   }, { A: doc('proj_a', 'A'), B: doc('proj_b', '남은'), R: doc('proj_b', '돌아온'), cached });
@@ -183,5 +184,20 @@ test('V8 다시 만든 뒤 저장이 이어져도 표시를 단다 — 제 폴�
   await save(page, '남은본편집');
   expect((await wroteB(page)).length, '★대치로 돌아온 파일을 덮었다').toBe(2);
   expect(await page.evaluate(() => (window.__refused || []).length)).toBeGreaterThan(0);
+  expect(errs).toEqual([]);
+});
+
+test('V9 ★미카사 R19 1:1 — 전에 열어 둔 탭(캐시)을 폴더 없을 때 누름 → 안내 → 같은 자리로 돌아옴 → 그 탭 편집 자동저장: 안 덮고 알린다', async ({ page }) => {
+  const errs = await setup(page, { cached: true });
+  await page.waitForFunction(() => window.__toasts.some(t => /찾을 수 없/.test(t)), null, { timeout: 5000 });
+  expect(await page.evaluate(() => window.openTabs.find(t => t.id === 'proj_b')._goneCopy), '★캐시로 연 탭에 남은 본 표시가 없다').toBe(true);
+  await ret(page);   // mv 로 같은 자리에 되돌림(그사이 다시 만들기 없음)
+  await edit(page, 'R19 탭에서 고친 글');
+  await page.waitForFunction(() => window.__sent.some(s => s.id === 'proj_b'), null, { timeout: 15000 });
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1'), null, { timeout: 15000 }).catch(() => {});
+  expect(await wroteB(page), '★돌아온 파일을 덮었다(미카사 R19 2/2)').toEqual([]);
+  expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_b').every(s => s.gone)), '남은 본 표시').toBe(true);
+  expect((await page.evaluate(() => window.__toasts)).join(), '★안내 없음').toContain('폴더가 돌아와');
+  expect(await page.evaluate(() => (window.__refused || []).length), '거절한 본은 남긴다(main 이 버전 기록 핀)').toBeGreaterThan(0);
   expect(errs).toEqual([]);
 });
