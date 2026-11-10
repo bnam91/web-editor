@@ -2104,7 +2104,7 @@ function addFrameBlock(opts = {}) {
   /* ★T307 Q1·Q2(261109) — 깊이 판정은 다른 add* 와 같은 문지기(_insFrameGate → frameTakesInsert) 한 자리:
      오브젝트로 고른 프레임(방금 만든 빈 프레임 포함) → 다음 형제 · 들어간 흐름 프레임 → 고른 자식 다음(없으면 끝) — 둘 다 insertAfterSelected 가 놓는다. */
   const activeFrame = !opts.fullWidth && _insFrameGate(resolveInsertFrame(window._activeFrame));
-  /* ★t3-05(현빈) — 새 프레임 기본값: 섹션 바로 아래 #D9D9D9 · 프레임 안(깊이 무관) #FFFFFF ＋ 부모 안쪽 상자의 80%.
+  /* ★t3-05(현빈) — 새 프레임 기본값: 섹션 바로 아래 #EFEFEF(현빈 261110 · 옛 #D9D9D9) · 프레임 안(깊이 무관) #FFFFFF ＋ 부모 안쪽 상자의 80%.
      ★들어갈 부모 = insertAfterSelected 가 «안»에 넣는 그 조건(text-frame·banner 외곽은 안이 아니다). 넣기 «전»에 정한다 —
        자유배치 갈래의 growFrameToFitChildren 이 860×520 으로 부모를 키우기 전에. opts.bg 를 준 호출(MCP·runner)은 그 색 그대로. */
   if (!opts.fullWidth) {
@@ -2114,7 +2114,7 @@ function addFrameBlock(opts = {}) {
        오브젝트로 고른 프레임 다음 형제로 가면 그 프레임의 부모 프레임이 host. */
     const _sib = activeFrame ? null : frameSelectedAsObject(sec);
     const host = _okHost(activeFrame) || (_sib ? _okHost(_sib.parentElement?.closest('.frame-block:not([data-text-frame])')) : null);
-    if (opts.bg == null) { ss.dataset.bg = host ? '#FFFFFF' : '#D9D9D9'; ss.style.background = ss.dataset.bg; }
+    if (opts.bg == null) { ss.dataset.bg = host ? '#FFFFFF' : '#EFEFEF'; ss.style.background = ss.dataset.bg; }
     if (host) {
       const p = framePadding(host);
       /* ★지디(261109) 크기 규칙(축마다):

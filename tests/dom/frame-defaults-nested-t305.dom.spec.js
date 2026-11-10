@@ -1,6 +1,6 @@
-/* frame-defaults-nested-t305 — 현빈 t3-05: 섹션에 처음 만드는 프레임 = #D9D9D9 · 프레임 안에 만드는 자식 = #FFFFFF ＋ 부모 크기의 80%.
+/* frame-defaults-nested-t305 — 현빈 t3-05: 섹션에 처음 만드는 프레임 = #EFEFEF · 프레임 안에 만드는 자식 = #FFFFFF ＋ 부모 크기의 80%.
  * 규칙(팀장): 깊이 무관 «섹션 직속이 아니면» #FFFFFF · 크기 = 제 부모 안쪽 상자(clientW/H − padding)의 80%, 반올림.
- * ㉠(t3-07) 그대로: 한 번 클릭(오브젝트 선택) → 다음 형제 = 섹션 직속 = #D9D9D9.
+ * ㉠(t3-07) 그대로: 한 번 클릭(오브젝트 선택) → 다음 형제 = 섹션 직속 = #EFEFEF.
  * 하네스 = df-key-create 꼴(bootApp · 진짜 키·클릭 · rAF·expect.poll). */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
@@ -54,12 +54,12 @@ const want80 = (page, id) => page.evaluate((id) => { const f = document.getEleme
 const enter = async (page, id) => { await scrollTo(page, id);
   await until(page, () => page.evaluate((id) => window._enteredFrame?.id === id && !document.querySelector(`#${id} .selected`), id), async () => { const p = await emptyPoint(page, id); await page.mouse.dblclick(...p); }); };
 const section = (page) => page.evaluate(() => { window.deselectAll(); window._activeFrame = null; window.selectSection(document.getElementById('sH')); });
-const GRAY = { bg: '#D9D9D9', css: 'rgb(217, 217, 217)' };
+const GRAY = { bg: '#EFEFEF', css: 'rgb(239, 239, 239)' };   // 현빈 261110 — 옛 #D9D9D9
 const WHITE = { bg: '#FFFFFF', css: 'rgb(255, 255, 255)' };
 const expect80 = (r, w, tag) => { expect(Math.abs(r.w - w.w), `${tag} 폭 ${r.w} ≈ ${w.w}`).toBeLessThanOrEqual(1); expect(Math.abs(r.h - w.h), `${tag} 높이 ${r.h} ≈ ${w.h}`).toBeLessThanOrEqual(1); };
 
 for (const how of Object.keys(HOW)) {
-  test(`${how} · 섹션 선택 → #D9D9D9 · 860×520 그대로`, async ({ page }) => {
+  test(`${how} · 섹션 선택 → #EFEFEF · 860×520 그대로`, async ({ page }) => {
     const errs = await scene(page);
     await section(page);
     const r = await info(page, await make(page, how));
@@ -88,7 +88,7 @@ test('깊이 3 — 자식 프레임에 들어가 F → #FFFFFF · 그 자식의 
   expect(w, '부모가 480×160(=600×200 의 80%)').toEqual({ w: 384, h: 128 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
-test('㉠ — 프레임 한 번 클릭 → F = 다음 형제(섹션 직속) = #D9D9D9', async ({ page }) => {
+test('㉠ — 프레임 한 번 클릭 → F = 다음 형제(섹션 직속) = #EFEFEF', async ({ page }) => {
   const errs = await scene(page);
   await scrollTo(page, 'EF');
   await until(page, () => page.evaluate(() => document.getElementById('EF').classList.contains('selected') && window._enteredFrame?.id !== 'EF'),
