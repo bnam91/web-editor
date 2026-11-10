@@ -10,7 +10,7 @@ async function setup(page, ids) {
   await page.evaluate((ids) => {
     window.__saved = [];
     const real = window.electronAPI;
-    const p = (id) => ({ id, name: id + '이름', version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P', canvas: '<div class="section-block" id="s_' + id + '" data-section="1"><div class="section-hitzone"></div><div class="section-inner"></div></div>' }] });
+    const p = (id) => ({ id, name: id + '이름', version: 2, updatedAt: '2026-11-01T00:00:00.000Z', currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P', canvas: '<div class="section-block" id="s_' + id + '" data-section="1"><div class="section-hitzone"></div><div class="section-inner"></div></div>' }] });
     window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { window.__saved.push(x.id); return window.__refuse ? { ok: false, reason: 'project_deleted' } : { ok: true }; }
       : k === 'loadProject' ? async (id) => p(id) : t[k] });
     window.IS_ELECTRON = window.IS_ELECTRON;
@@ -107,6 +107,9 @@ test('L2 옆 탭 — 저장이 실패로 끝났으면 잃은 내용 문구를 �
   await dirty(page);
   await page.evaluate(async () => { const f = window.electronAPI; window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => { throw new Error('EACCES'); } : t[k] }); await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'proj_b' }); window.electronAPI = f; });
   await page.evaluate(() => { window.openTabs.find(t => t.id === 'proj_b')._cache = window.serializeProject(); });
+  /* ★실앱 전제 — 열 때 preload(_noteFileVersion)가 «마지막으로 안 판»을 적는다. 하네스엔 preload 가 없어 손으로 둔다.
+     없으면 TRASH-FLUSH(65acee6d7)가 «판 모름 = 밖에서 바뀜»으로 쳐 다시 쓰지 않고 비상 사본만 남긴다(그 갈래는 trash-flush-stale-cache 가 잰다). */
+  await page.evaluate(() => localStorage.setItem('web-editor-ls-base__proj_b', '2026-11-01T00:00:00.000Z'));
   await page.evaluate(() => window.flushProjectBeforeTrash('proj_b'));
   expect((await st(page)).saved, '★실패분을 다시 안 썼다').toEqual(['proj_b']);
   await page.evaluate(async () => { const f = window.electronAPI; window.electronAPI = new Proxy(f, { get: (t, k) => k === 'saveProject' ? async () => { throw new Error('EACCES'); } : t[k] }); await window.saveProjectToFile(window.serializeProject(), { skipThumbnail: true, projectId: 'proj_b' }); window.electronAPI = f; });
