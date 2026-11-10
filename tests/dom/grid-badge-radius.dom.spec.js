@@ -99,6 +99,10 @@ test('B3 ★패널에서 고치면 ★모델·화면이 ★같이 따라온다 (
   await page.evaluate(() => {
     const el = document.getElementById('grd-badge-radius');
     el.value = '20';
+    /* ★int-3(261110 · B3 이분 = HBQA-GRID-PILL-RADIUS 460b78ce4) — 이 칸은 이제 「슬라이더 + 숫자」 짝(bindSlider · 굵기 #grd-border-w 와 같은 배선)이라
+       값은 «input» 에서 먹고 change 는 확정(되쓰기·이력)이다. 사람이 치면 브라우저는 늘 input → change 순으로 쏜다 ⇒ 그 순서 그대로 쏜다
+       (옛 판은 이 칸만 change 하나로 먹는 따로 배선이었다 · 재는 것 «값 → 모델 → 화면»은 그대로). */
+    el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await page.waitForTimeout(150);
@@ -110,6 +114,7 @@ test('B3 ★패널에서 고치면 ★모델·화면이 ★같이 따라온다 (
   await page.evaluate(() => {
     const el = document.getElementById('grd-badge-radius');
     el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));   // 같은 순서(지우는 동안 input 은 0 을 미리 보이고 · change 가 «미설정»으로 확정)
     el.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await page.waitForTimeout(150);
