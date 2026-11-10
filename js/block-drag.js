@@ -162,6 +162,20 @@ function _resizeFrameToFitChildren(_block) {
 
 // 프레임 내부 블록 선택 시 프레임 selected 복원 헬퍼
 // deselectAll()이 frame-block.selected를 제거해 CSS pointer-events가 다시 차단되는 문제 방지
+/* ★놓은 «뒤» 따라오는 click 한 자리 (T2-01-DROP-KEEP-MULTISELECT-01 · 현빈 2026-11-10 «피그마처럼 놓은 뒤에도 끌던 것 전부 선택 유지»).
+ *   여럿을 끌었으면(peers 있음) — 그 click 을 먹고 끌던 것 «전부»를 고른 채 둔다(click 이 하나로 좁히던 것).
+ *   하나만 끌었으면 — 옛 동작 그대로: 놓은 점이 grab 밖일 때만 grab 으로 click 을 돌리고 원래 click 은 먹는다(S3 D-A).
+ *   ⚠️0ms 삼키기 호출은 이 파일에 «한 줄»(tests/unit/click-swallow-roster S4) — 갈래를 늘려도 이 함수로 모은다.
+ *   reselect = 누를 때 하나로 좁혀 둔 길(프레임 끌기)이 끌던 피어를 다시 고르는 손 — 블럭 끌기는 누를 때 안 좁혀 null. */
+function _afterDropClick(grab, upEv, peers, reselect) {
+  const keep = !!(peers && peers.length);
+  const outside = !!grab && !grab.contains(upEv.target);
+  if (!keep && !outside) return;
+  if (!keep) grab.click();
+  window.swallowNextClick({ on: document });
+  if (keep && reselect) peers.forEach(p => { if (!p.el.classList.contains('selected')) reselect(p.el); });
+}
+
 function _restoreParentFrameSelected(block) {
   const pf = _getParentFrame(block);
   if (!pf) return;
@@ -1087,7 +1101,7 @@ function bindBlock(block) {
       if (xNum) xNum.value = newLeft;
       if (yNum) yNum.value = newTop;
     }
-    function onUp() {
+    function onUp(upEv) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('dragend', onUp);
@@ -1181,6 +1195,7 @@ function bindBlock(block) {
         _resizeFrameToFitChildren(dragEl);
         multiPeers.forEach(p => _resizeFrameToFitChildren(p.el));
         window.pushHistory?.();
+        if (multiPeers.length && upEv?.type === 'mouseup') _afterDropClick(dragEl, upEv, multiPeers, null);   // T2-01-DROP — 놓은 뒤 click 이 하나로 좁히지 않게(누를 때 안 좁혔으니 다시 고를 것 없음)
       }
     }
     document.addEventListener('mousemove', onMove);
@@ -3641,7 +3656,7 @@ function bindFrameDropZone(ss) {
           window.pushHistory?.(); window.triggerAutoSave?.();
           /* 놓은 점이 ss 밖(부모가 잘라 낸 자리 등)이면 합성 click 이 공통 조상에서 나 그 조상이 선택된다(S3 D-A: 90도 돈 부모 안 G → 맨 위 R).
              click 은 지금 ss 를 고르는 일도 하므로(눌렀을 때 부모도 selected) 삼키지 않고 ss 로 돌린다. ss 안에서 난 click 은 그대로 둔다. */
-          if (!ss.contains(upEv.target)) { ss.click(); window.swallowNextClick({ on: document }); }
+          _afterDropClick(ss, upEv, multiPeers, (el) => window.toggleBlockSelect?.(el, el.closest('.section-block')));   // 여럿이면 끌던 것 전부 고른 채 · 하나면 옛 동작(S3 D-A)
         }
       };
 
