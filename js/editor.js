@@ -1522,7 +1522,7 @@ function _leafSelFrames() {
 /* ★294 t9-03(미카사 J294G) — 프레임 여럿을 고르면 복사·삭제 단위가 «첫 프레임 하나»였다(document.querySelector). 자유 프레임 안 자식을 ⇧로 더 고르면 부모도 .selected 라
    «부모»가 첫째가 되어, 고른 자식 대신 부모 통째가 자기 안에 복사되거나(앱 실측 3/3: 4→8) 부모째 지워졌다. 맨 위 프레임 둘은 첫째만 복사됐다.
    ⇒ 프레임이 둘 이상 골라졌으면(자손을 품은 조상은 맥락이라 뺀다) 그 묶음을 돌려준다 · 아니면 null(여태 길).
-   ★부모가 달라도 묶음이다(현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」 · 1109t1C1 밖에서 고른 맨 위 프레임 → 그 안 끝(⌘V 만 · g·⌘D 는 다음 자리) · 섹션만 고름 → 섹션 끝 — 자리 규칙은 _pasteTarget·_pastePickedFrames). ⛔오버레이는 null. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
+   ★부모가 달라도 묶음이다(현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」 · 1109t1C1 들어간 프레임 → 그 안 끝 · 밖에서 고른 프레임 → 다음 자리 · 섹션만 고름 → 섹션 끝 — 자리 규칙은 _pasteTarget·_pastePickedFrames). ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거). ⛔오버레이는 null. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
 function _pickedFrames() {
   const picked = _leafSelFrames();
   if (picked.length < 2 || picked.some(f => f.dataset.overlayBlock === 'true')) return null;
@@ -2055,6 +2055,7 @@ function _stepPastedFreeChild(el) {
 }
 
 /* ★현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기 되어야 한다」 — 프레임 묶음의 자리.
+   ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거).
    들어간 프레임이면 그 안 끝(t.into · 1109t1C1 ㉢) · 프레임을 밖에서 골랐거나 자식을 골랐으면 그 다음 자리(묶음 상대 배치 유지 · ⑴ 특례 제거 261110) ·
    안 골랐으면 각자 원래 부모 안 원본 옆(+20). 섹션만 골랐으면 그 섹션 끝(t.sec · 같은 섹션이어도) · 다른 섹션을 골랐으면 그 섹션. 끌기 처리기가 position 으로 갈리니 자리는 바인드 «앞»에 정한다.
    ★붙인 뒤 묶음의 원본 표를 사본으로 옮긴다 — ⌘V⌘V 가 사본 옆으로 계단을 이룬다. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
@@ -2262,6 +2263,7 @@ function pasteClipboard() {
     _spl = r.spl;
   } else if (clipboard.freeLayout) {
     /* free-layout 프레임 내 블록 붙여넣기 — 묶음(_pastePickedFrames)과 같은 자리 규칙(현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
+       ★2026-11-10 현빈 «진입 기반 일관»으로 FRAME-GROUP-PASTE-TARGET-RULE-01 의 이 칸 갱신(옛: 다른 자유 프레임 밖에서 클릭 = 안 → 새: 다음 자리 · «안»은 들어간 뒤 · 1109t1C1 ⑴ 제거).
        들어간 프레임(아무것도 안 고름)이면 그 안 끝(1109t1C1 ㉢ · 자유면 좌표째 · 스택이면 흐름) · 프레임을 «밖에서» 오브젝트로 골랐으면 그 다음 자리(1109t1C1 ⑵ · ⑴ 특례 제거 261110 — 맨 위도) · 섹션만 고름·다른 섹션이면 그 섹션 끝 · 안 골랐으면 원래 부모 안 원본 옆 +20.
        duplicateSelected의 freeLayout 분기 미러. */
     // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
