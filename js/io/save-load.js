@@ -512,7 +512,8 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
         _setAutosaveIndicator('error');
         return { ok: false, reason: saveResult.reason, kept: saveResult.kept };
       }
-      if (saveResult?.ok !== false) { const _t = openTabs.find(t => t.id === targetId); if (_t?._goneCopy) _t._goneCopy = false; }   // 폴더를 이 본으로 다시 만들었다 — 이제 파일이 그 본이다
+      /* ⚰️-01: 성공하면 여기서 _goneCopy 를 걷었다(«폴더를 이 본으로 다시 만들었다»). ★-02(미카사 int-3 실앱 2/2): 그 뒤 원래 폴더가 Finder 대치로 돌아오면
+         표시 없는 저장이 그 파일을 덮었다. ⇒ 표시는 파일을 «읽은» 뒤에만 걷는다(switchTab) · 그사이 저장은 표시를 달고 가고, main 이 제가 쓴 파일인지 도장으로 가른다(_goneStamp). */
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
         /* 안 기다린다 — 다음 탭에 줄 선 저장이 있으면 그 탭은 저장이 끝나길 기다리고, 줄은 이 저장의 finally 가 빼서 저장이 영영 멈췄다(앱 재현). */
