@@ -7,6 +7,7 @@
  *   S2 ⌘Z 한 번 = 원래 그림 · 같은 id
  *   S3 [음성] 아무것도 안 고름 → «먼저 선택» 안내 · 전송 0
  *   S4 [대조] 이미지 블럭과 스크래치를 같이 골랐으면 이미지 블럭이 먼저(옛 순서 그대로) · 스크래치 무변
+ *   S5 적대 리뷰 — 그룹·순서·선택·효과 표식이 그대로(그림만 바뀜) · ⌘Z 도 그 자리에서(옛 판은 지우고 다시 넣어 그룹이 풀리고 맨 위로 갔다)
  *   ★모의: electronAPI.removebgCutout(=main 의 fetch 앞 IPC 문)를 세는 가짜 — 실제 키·remove.bg 호출 0.
  * ★양성대조(지디 인텔): js/removebg-plugin.js _pickTarget 의 `'.scratch-item.scratch-selected'` 를 옛 `'.scratch-item.selected'` 로 → S1·S2 빨강 · S3·S4 초록. */
 const { test, expect } = require('@playwright/test');
@@ -109,5 +110,34 @@ test('S4 [대조] 이미지 블럭과 스크래치를 같이 골랐으면 이미
   await expect.poll(async () => (await state(page)).cuts).toBe(1);
   await expect.poll(async () => (await state(page)).assetSrc, '이미지 블럭 그림이 바뀌었다(결과는 grdAssetSrcFor 가 정한 꼴 — 프로젝트 없는 하네스면 data URL)').not.toBe(src0);
   expect((await state(page)).scratchSrc, '스크래치 그대로').toBe(src0);
+  expect(errs).toEqual([]);
+});
+
+test('S5 그룹 든 스크래치 — 결과 뒤에도 그룹·순서·선택 그대로 · ⌘Z 뒤에도', async ({ page }) => {
+  const { errs, src0 } = await setup(page);
+  await page.evaluate(async (SID) => {
+    const px = window._scratchGetItemById(SID).src;
+    await window._scratchRemoveById(SID);
+    await window._scratchAddAndSave(px, 1500, 120, 320, 'g_rb', SID);
+    await window._scratchAddAndSave(px, 1500, 520, 320, 'g_rb', 'sp_rbs2');
+    await window._scratchAddAndSave(px, 1900, 120, 320, undefined, 'sp_rbs3');   // 순서 확인용 — 그룹 밖 하나 더(맨 뒤)
+    window.clearHistory?.();
+  }, SID);
+  await pickScratch(page);
+  const look = () => page.evaluate(() => ({
+    order: [...document.querySelectorAll('.scratch-item')].map(e => e.dataset.scratchId),
+    groups: ['sp_rbs1', 'sp_rbs2'].map(id => window._scratchItemById(id)?.g ?? null),
+    sel: !!document.querySelector('.scratch-item[data-scratch-id="sp_rbs1"].scratch-selected'),
+  }));
+  const before = await look();
+  expect(before.groups, '[전제] 둘 다 그룹').toEqual(['g_rb', 'g_rb']);
+  await runPickRemoveBg(page);
+  await expect.poll(async () => (await state(page)).scratchSrc).toBe(OUT_PNG);
+  expect(await look(), '그룹·순서·선택 그대로').toEqual(before);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await state(page)).scratchSrc).toBe(src0);
+  const after = await look();
+  expect([after.order, after.groups], '⌘Z 뒤에도 그룹·순서 그대로').toEqual([before.order, before.groups]);
   expect(errs).toEqual([]);
 });

@@ -180,24 +180,22 @@
   }
 
   /* ── 결과를 «되돌려 넣는다» + undo ───────────────────────────────────
-     ★규율은 scratch-pad.js 의 _sliceItem 과 «같다» — 원본 id 를 유지해야
-       이동·리사이즈 history 스냅샷이 아이템을 찾는다(id 가 바뀌면 undo 체인이 끊긴다). */
+     ★스크래치는 «그 자리에서 그림만» 바꾼다(REMOVEBG-SCRATCH-SELECTION-NEVER-TARGETED-01 적대 리뷰).
+       옛 판은 지우고(_scratchRemoveById) 6인자로 다시 넣었다 — 그 길이 이번에 처음 열리며 드러난 것:
+       2장 그룹이 풀림(_dissolveLoneGroup) · fx·ocr·linkDy 사라짐 · 맨 위로 올라감 · 선택 빠짐 · ⌘Z 로도 안 돌아옴.
+     ⇒ 항목·id·순서·그룹·효과는 그대로 두고 src 만 — scratch-pad.js 외부화(upgradeSrcs 뒤 «s.src = url · img.src = url»)와 같은 꼴. 저장은 그 파일의 디바운스 문. */
   async function _applyScratch(target, newSrc) {
-    const before = { src: target.src, id: target.id };
-    const it = window._scratchItemById?.(target.id);
-    const x = it?.x, y = it?.y, w = it?.w;
-    await window._scratchRemoveById?.(target.id);
-    await window._scratchAddAndSave?.(newSrc, x, y, w, undefined, target.id);   // ★같은 id
-    window.pushHistory?.('배경 제거', {
-      onUndo: async () => {
-        await window._scratchRemoveById?.(before.id);
-        await window._scratchAddAndSave?.(before.src, x, y, w, undefined, before.id);
-      },
-      onRedo: async () => {
-        await window._scratchRemoveById?.(before.id);
-        await window._scratchAddAndSave?.(newSrc, x, y, w, undefined, before.id);
-      },
-    });
+    const set = (src) => {
+      const it = window._scratchItemById?.(target.id);
+      if (!it) return;
+      it.src = src;
+      const im = it.el?.querySelector(':scope > img');
+      if (im) im.src = src;
+      window._scratchSaveSoon?.();
+    };
+    const before = target.src;
+    set(newSrc);
+    window.pushHistory?.('배경 제거', { onUndo: () => set(before), onRedo: () => set(newSrc) });
   }
 
   function _applyAsset(target, newSrc) {
