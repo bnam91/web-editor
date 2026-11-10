@@ -124,7 +124,7 @@ test('B5·B6·B7 중첩 더블클릭은 한 단계씩 · 맨 안 자식 + ⇧밖
   await click(page, 'T4', 'Shift'); expectMulti(await look(page), ['WK0', 'WT4'], ['F', GB, GA]);
 });
 
-test('C1 그룹 둘을 끄는 동안 = 각자+전체, 핸들 0 · 놓으면 오늘처럼 잡은 하나', async ({ page }) => {
+test('C1 그룹 둘을 끄는 동안 = 각자+전체, 핸들 0 · 놓은 뒤에도 둘 다(T2-01-DROP 현빈 2026-11-10 «피그마처럼 유지»)', async ({ page }) => {
   test.setTimeout(90000); await build(page); const { GB, GC } = await groups(page);
   await click(page, 'K0'); await dbl(page, 'K0'); await click(page, 'K3', 'Shift');
   expectMulti(await look(page), [GB, GC]);
@@ -140,7 +140,7 @@ test('C1 그룹 둘을 끄는 동안 = 각자+전체, 핸들 0 · 놓으면 오�
   await page.mouse.up(); await raf(page);
   expect(moved, '[전제] 실제로 끌렸다').toBe(true);
   expectMulti(during, [GB, GC]);
-  expectSingle(await look(page), GB, 12);   // 놓은 뒤 click 이 하나로 좁힌다 — 오늘 동작 그대로(Q5 는 «끄는 동안»만)
+  expectMulti(await look(page), [GB, GC]);   /* ~~놓은 뒤 click 이 하나로 좁힌다 — 오늘 동작 그대로(Q5 는 «끄는 동안»만)~~ ⇒ 현빈 2026-11-10 결정(T2-01-DROP-KEEP-MULTISELECT-01) · ⛔이 줄 수를 늘리지 마라 — 아래 마키 칸이 dom-screen-px-census 명부 «:151» 이름이다 */
 });
 
 test('마키로 고른 것 = ⇧클릭으로 고른 것과 같은 모양', async ({ page }) => {
