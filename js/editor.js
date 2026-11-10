@@ -2685,8 +2685,9 @@ document.addEventListener('keydown', e => {
          토스트는 곧바로 「저장됨」이었다 ⇒ 그 사이 섹션을 다 지우면 예약이 빈 본으로 바뀌어 «빈 canvas 건너뜀», 탭 전환·종료도 빈 본이라 건너뛰어
          ⌘S 한 편집이 파일·LS 어디에도 안 갔다. 즉시 저장 문 flushSave(save-load.js · 같은 줄에 서는 _saveInLine · 빈 본 가드 그대로)로 — 새 저장 길 0.
          토스트는 «결과 뒤»: 실패면 _doSaveProjectToFile 이 이미 실패를 말했다 — 「저장됨」을 덧씌우지 않는다. */
-      Promise.resolve(window.flushSave?.()).then(() => {
-        if (window.projectLastSaveFailed?.(window.activeProjectId)) return;
+      const _sid = window.activeProjectId;   // 누른 순간의 프로젝트 — 끝날 때 읽으면 그새 바꾼 탭의 결과를 보고 «저장됨»을 덧씌웠다(리뷰 1 ⑤)
+      Promise.resolve(window.flushSave?.()).catch(() => {}).then(() => {
+        if (window.activeProjectId !== _sid || window.isReloadSealedFor?.(_sid) || window.projectLastSaveFailed?.(_sid) || window.hasUnsavedChanges?.()) return;   // 안 썼거나(빈 본·봉인·읽는 중 → 미저장 남음) 실패면 «저장됨» 아님
         /* ★T-032: ⌘S 는 «저장»이다 — 미확정 영상이 있으면 그 저장에서 원본이 빠진다.
            토스트는 #editor-toast 한 칸을 «덮어쓰는» 구조라(js/drag-utils.js showToast)
            '저장됨' 뒤에 경고를 얹으면 경고가 1프레임 만에 지워진다 ⇒ 둘 중 «더 중요한 쪽»만

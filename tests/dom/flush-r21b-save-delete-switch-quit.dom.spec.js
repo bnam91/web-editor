@@ -4,6 +4,9 @@
  *     예약이 서기 전 전체 삭제가 그 예약을 빈 본으로 바꿔 «빈 canvas 건너뜀» · 탭 전환은 지금(빈) 본이라 건너뜀 · 예약 타이머는 «탭 전환 감지»로 건너뜀 · 종료 flush 엔 줄 0.
  *   R1 ★손순서 그대로(진짜 ⌘S 키 · 0.15초 · 0.4초) → 종료 뒤 파일에 R21b 가 있다(⌘S 가 쓴 판)
  *   R2 ⌘S 의 «저장됨» 토스트는 파일에 쓴 «뒤»에만 — 저장 거절이면 안 뜬다(거짓 「저장됨」 0)
+ *   R3 [리뷰 1 ⓐ] 큰 본(LS 가 못 받는 크기)이어도 ⌘S 가 파일까지 간다 — 옛 flushSave 의 날 setItem 이 던져 파일 저장 전에 끝났다
+ *   R4 [리뷰 1 ⓑ] ⌘S 성공 뒤 gd:project-saved 한 번(협업 공유 — 타이머 길과 같은 꼴) · 실패면 0
+ *   R5 [지디 ③] 되돌림 봉인 중 ⌘S = 안 쓴다 · «저장됨» 안 띄움
  *   N1 [음성] ⌘S 없이 편집 → 전체 삭제 → 탭 → 종료: 파일은 그 이전 판(빈 본 보호 S11 그대로 — 이 고침 밖)
  *   ⚠️전체 삭제 = 섹션을 다 빼고 scheduleAutoSave(삭제 길이 끝에 하는 일) — deleteSection 은 마지막 하나를 안 지워 손 삭제를 그대로 못 탄다(실앱은 ⌘A·Delete).
  * 양성대조(지디 인텔): js/editor.js ⌘S 갈래의 `Promise.resolve(window.flushSave?.())` 를 옛 `window.triggerAutoSave?.(); Promise.resolve()` 로 → R1 빨강 · N1 초록.
@@ -104,5 +107,43 @@ test('N1 [음성] ⌘S 없이 편집 → 전체 삭제 → 탭 → 종료: 파�
   const w = await where(page);
   console.log('R21BROW N1 ' + JSON.stringify(w));
   expect(await page.evaluate((A) => JSON.stringify(window.__files.get(A)).includes(A + ' 제목'), A), '이전 판 그대로').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('R3 큰 본이어도 ⌘S 가 파일까지 — LS 쓰기가 던져도', async ({ page }) => {
+  const errs = await setup(page);
+  await typeTitle(page);
+  /* LS 가 이 본을 못 받는 꼴 — setItem 이 «autosave 본»에만 던진다(실앱 quota 흉내) */
+  await page.evaluate(() => { const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('web-editor-autosave__') && !String(k).endsWith('_ts')) { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; } return o.call(this, k, v); }; });
+  await cmdS(page);
+  await expect.poll(async () => (await where(page)).file, '★LS 가 못 받자 파일 저장까지 안 갔다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('R4 ⌘S 성공 뒤 gd:project-saved 한 번 · 실패면 0', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => { window.__saved = []; window.addEventListener('gd:project-saved', (e) => window.__saved.push(e.detail?.projectId)); });
+  await typeTitle(page);
+  await cmdS(page);
+  await expect.poll(() => page.evaluate(() => window.__saved.length)).toBeGreaterThan(0);
+  expect(await page.evaluate((A) => window.__saved.every(id => id === A), A)).toBe(true);
+  await page.evaluate(() => { window.__saved = []; window.__refuse = 'disk_full'; });
+  await typeTitle(page);
+  await cmdS(page);
+  await page.waitForFunction((A) => window.projectLastSaveFailed?.(A), A);
+  expect(await page.evaluate(() => window.__saved.length), '실패인데 공유를 쐈다').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('R5 되돌림 봉인 중 ⌘S = 안 쓴다 · «저장됨» 안 띄움', async ({ page }) => {
+  const errs = await setup(page);
+  await typeTitle(page);
+  await page.evaluate((A) => window.cancelPendingAutoSaveForReload(A), A);
+  await page.evaluate(() => { const t = document.getElementById('editor-toast'); if (t) t.textContent = ''; });
+  await cmdS(page);
+  await settle(page); await settle(page);
+  const w = await where(page);
+  expect(w.file, '봉인 중인데 썼다').toBe(false);
+  expect(w.toast).not.toContain('저장됨');
   expect(errs).toEqual([]);
 });

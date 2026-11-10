@@ -3258,7 +3258,8 @@ window.keepFailedCopyOnClose = async (id, name, cache, waitMs) => {   // waitMs:
 };
 /* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
 window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
-window.projectLastSaveFailed = (id) => _lastSaveFailed(id);   // 읽기만 — 협업이 «미저장 편집을 지키며 상대 패치를 미룰지»를 가른다(COLLAB-SYNC-OLD-GAPS ⑴)
+window.projectLastSaveFailed = (id) => _lastSaveFailed(id);
+window.isReloadSealedFor = (id) => _isReloadSealed(id);   // 읽기만 — ⌘S 가 «봉인이라 안 썼다»를 «저장됨»으로 말하지 않게(FLUSH-EMPTY · 지디 조건 ③)   // 읽기만 — 협업이 «미저장 편집을 지키며 상대 패치를 미룰지»를 가른다(COLLAB-SYNC-OLD-GAPS ⑴)
 window.loadProjectsList = loadProjectsList;
 window.getProjectName = getProjectName;
 window.setProjectName = setProjectName;
@@ -3285,23 +3286,34 @@ window.triggerAutoSave = scheduleAutoSave; // alias used by drag-drop.js, prop-l
 // saveProjectToFile 경로를 우회하고 IPC를 직접 호출해 _isSavingToFile 락 문제 방지
 window.flushSave = async function() {
   if (window.isTabFirstLoading?.(activeProjectId)) return;   // ★361 — saveProjectToFile 머리말 · 이 길은 그 함수를 안 탄다
+  /* ★FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01 — ⌘S 가 이 문을 부르게 되며(옛: «저장하기» 단추만) 자동저장 타이머 길과 «같은 문»으로 맞춘 넷(적대 리뷰 1):
+     ⓓ 되돌림 봉인 중엔 안 쓴다(타이머 길은 봉인 동안 억제돼 안 돌았다 — 여기서 옛 캔버스를 LS 에 새 시각으로 쓰면 다시 읽기가 그 본을 고른다)
+     ⓐ LS 는 safeLocalStorageSet(큰 본 건너뜀·자리 비우기) — 날 setItem 은 큰 본에서 던져 «파일 저장까지 못 가» ⌘S 편집을 그대로 잃었다
+     ⓑ 저장 «뒤» gd:project-saved(협업 공유 · 타이머 길 :2508 과 같은 꼴) — 안 쏘면 «미저장 없음»인데 공유도 안 돼 상대 패치가 ⌘S 편집을 덮었다
+     ⓒ 타이머를 걷었으니 그 «저장 대기» 붙들기(_holdBackground)도 끝에서 푼다(새 타이머가 걸렸으면 그쪽 몫) */
+  if (_isReloadSealed(activeProjectId)) return;
   clearTimeout(autoSaveTimer);
   autoSaveTimer = null;
-  let snap = serializeProject();
-  let data;
   try {
-    data = JSON.parse(snap);
-    if (_emptySaveBlocked(data, activeProjectId)) return;
-    if (applyAdoptedAssets(data, activeProjectId)) snap = JSON.stringify(data);   // 자동저장과 같은 까닭
-  } catch { return; }
-  localStorage.setItem(getSaveKey(), snap);
-  localStorage.setItem(getSaveTsKey(), String(Date.now()));
-  const _targetId = window.activeProjectId;
-  if (window.IS_ELECTRON && _targetId) {
-    const r = await _saveInLine(data, _targetId);
-    if (_isSaveFailure(r)) return;   // 실패 토스트는 _doSaveProjectToFile 이 띄웠다
+    const _snapAt = performance.now();
+    let snap = serializeProject();
+    let data;
+    try {
+      data = JSON.parse(snap);
+      if (_emptySaveBlocked(data, activeProjectId)) return;
+      if (applyAdoptedAssets(data, activeProjectId)) snap = JSON.stringify(data);   // 자동저장과 같은 까닭
+    } catch { return; }
+    if (safeLocalStorageSet(getSaveKey(), snap)) localStorage.setItem(getSaveTsKey(), String(Date.now()));
+    const _targetId = window.activeProjectId;
+    if (window.IS_ELECTRON && _targetId) {
+      const r = await _saveInLine(data, _targetId);
+      if (_isSaveFailure(r)) return;   // 실패 토스트는 _doSaveProjectToFile 이 띄웠다
+    }
+    _setAutosaveIndicator('saved');
+    try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _targetId, snap, snapAt: _snapAt } })); } catch (_) {}
+  } finally {
+    if (!autoSaveTimer) _holdBackground(false);
   }
-  _setAutosaveIndicator('saved');
 };
 /* 자동저장과 같은 줄에 서서 저장하고 그 프로젝트의 줄이 빌 때까지 기다린다 — 따로 읽고 쓰면 앞 저장의 옛 본이 뒤 저장을 덮는다(RENDERER-LOAD-SAVE-ROUNDTRIP · 앱 값).
    큐에 들어가면 결과가 undefined 라 드레인 뒤 마지막 결과를 읽는다. 상한을 넘기면 실패로 친다: 저장됐다고 말할 근거가 없다. */
