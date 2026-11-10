@@ -3161,7 +3161,10 @@ function _grdWirePadExclude(block) {
     block.dataset.fullBleed = cb.checked ? 'true' : 'false';
     /* ★t2-08 A — 너비 키(gridWidth)가 있으면 렌더러가 그 폭을 이기고 전폭 흔적을 걷는다 ⇒ 켠 효과가 다음 다시 그리기(편집·⌘Z·다시 열기)에 사라졌다.
          폭을 정하면 전폭을 끄는 규칙(grid-block.js _gridDropFullBleedForManualWidth)의 «반대 방향» — 전폭을 켜면 정한 폭을 뗀다. */
-    const _hadW = cb.checked && block.dataset.gridWidth !== undefined;
+    /* ★t2-08 ⓒ — 정한 폭은 «실제로 펴질 때만» 뗀다. 뚫을 패딩이 0 인 자리(자유 프레임 절대 자식·절대 row 안·패딩0 섹션)에서
+         떼면 폭만 100% 로 풀려 left 가 남은 채 프레임에 잘리거나(747→831 밀림) fit-content row 에 줄었다(737→608) — 수지맥 실물 실측.
+         판정은 applyBlockFullBleed 가 쓰는 같은 자(effectiveSectionPadX). */
+    const _hadW = cb.checked && block.dataset.gridWidth !== undefined && (window.effectiveSectionPadX?.(block) || 0) > 0;
     if (_hadW) { delete block.dataset.gridWidth; delete block.dataset.gridWidthAuto; window.renderGridBlock?.(block); }
     else if (cb.checked) window.applyBlockFullBleed?.(block);
     else window.clearBlockFullBleed?.(block);
