@@ -108,7 +108,7 @@ test('G7 그 뒤 파일로 돌아왔다가 또 없어지고 바뀐 채 돌아오
   fs.renameSync(dir(id), away(id));
   assert.equal((await H.invoke('projects:save', { ...proj(id, '첫저장'), _goneBase: true })).ok, true);
   assert.equal((await H.invoke('projects:save', proj(id, '평소'))).ok, true);   // 탭이 파일로 돌아왔다
-  fs.rmSync(dir(id), { recursive: true }); fs.renameSync(away(id), dir(id));   // 또 없어졌다가 옛 폴더가 돌아왔다(그사이 상태를 물었든 안 물었든)
+  fs.renameSync(dir(id), away(id) + '-2'); fs.renameSync(away(id), dir(id));   // 또 없어졌다가 옛 폴더가 돌아왔다(그사이 상태를 물었든 안 물었든) · 지우지 않고 옮긴다 — 임시물 치우기는 _tmproot 몫(tmproot-sole-owner)
   const r = await H.invoke('projects:save', { ...proj(id, '남은본편집'), _goneBase: true });
   assert.equal(r.reason, 'folder_returned', '★돌아온 폴더를 덮었다');
   assert.match(JSON.stringify(file(id)), /처음 머리/);
