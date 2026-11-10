@@ -33,9 +33,13 @@
       if (src) return { kind: 'asset', id: selBlock.id, el: selBlock, img, src };
     }
     // ⑵ 스크래치에서 «선택된» 것
-    const selScratch = document.querySelector('.scratch-item.selected');
-    if (selScratch?.id) {
-      const it = window._scratchGetItemById?.(selScratch.id);
+    /* ★REMOVEBG-SCRATCH-SELECTION-NEVER-TARGETED-01 — 스크래치 고르기 표식은 `.scratch-selected` + `data-scratch-id` 다
+       (scratch-pad.js 가 다는 것 · scratch-ocr.js·scratchpad-link.js 가 읽는 꼴 그대로). 옛 `.selected`·`el.id` 는 스크래치에 «한 번도» 안 붙어
+       스크래치 그림은 영영 대상이 안 됐다(t2-11 실앱 실측). 여럿 골랐으면 DOM 첫 것. */
+    const selScratch = document.querySelector('.scratch-item.scratch-selected');
+    const sid = selScratch?.dataset?.scratchId;
+    if (sid) {
+      const it = window._scratchGetItemById?.(sid);
       if (it?.src) return { kind: 'scratch', id: it.id, el: selScratch, src: it.src };
     }
     return null;
