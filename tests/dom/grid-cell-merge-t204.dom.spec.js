@@ -234,6 +234,10 @@ test('M5 PNG(제품 캡처 파이프라인) — 앵커 색 픽셀 ≈ 합친 넓
     const clone = await ex.prepareCloneForCapture(document.getElementById('sG'), 860, true);
     ex.renderComponentsInClone(clone);
     clone.id = '__t204clone'; clone.style.top = '0px'; clone.style.left = '0px'; clone.style.background = '#ffffff';
+    /* ★인텔 da14fdb71 덤프: 클론 앵커 상자(x32 w525)는 맞는데 PNG 의 x32~240 이 #181818(=앱 바탕 #1a1a1a/#1e1e1e 를 8 단위로 묶은 값) —
+       grid-save-export-axes 는 «빈 하네스»라 없던 앱 왼쪽 패널(고정)이 (0,0) 에 놓인 클론을 «찍을 때» 덮었다. 제품 PNG 엔 앱 패널이 없다 ⇒ 자 탓.
+       ⇒ 찍는 동안만 클론을 맨 위로 — 제품 캡처(CDP 로 클론만 찍음)와 같은 조건. */
+    clone.style.zIndex = '2147483647';
     window.__h = Math.ceil(clone.getBoundingClientRect().height);
     /* 넓이는 «클론 안»에서 잰다 — 캔버스는 배율이 걸려 있어 화면 상자와 PNG 픽셀의 자가 다르다 */
     const ar = (r, c) => { const b = clone.querySelector(`.grid-block .grd-cell[data-r="${r}"][data-c="${c}"]`).getBoundingClientRect(); return Math.round(b.width * b.height); };
