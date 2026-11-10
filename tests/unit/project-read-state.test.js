@@ -34,13 +34,14 @@ const GOOD = (id, extra = {}) => ({ id, name: '이름', createdAt: '2026-01-01T0
 function scene(kind) {
   const dir = mkTmpRoot('gdt-readstate-'); const id = 'proj_1775644888001'; const p = path.join(dir, id);
   fs.mkdirSync(p, { recursive: true });
-  fs.writeFileSync(path.join(p, 'proj_meta.json'), JSON.stringify({ id, listMetaV: 1, name: '메타 이름' }));
-  const old = new Date(Date.now() - 60000); fs.utimesSync(path.join(p, 'proj_meta.json'), old, old);   // 메타 빠른 길 못 탐(티켓 L1 칸)
+  if (kind !== 'none') {   // none = 폴더만 · 메타도 없음(만들고 지우지 않는다 — 임시물 치우기는 _tmproot 몫 · tmproot-sole-owner)
+    fs.writeFileSync(path.join(p, 'proj_meta.json'), JSON.stringify({ id, listMetaV: 1, name: '메타 이름' }));
+    const old = new Date(Date.now() - 60000); fs.utimesSync(path.join(p, 'proj_meta.json'), old, old);   // 메타 빠른 길 못 탐(티켓 L1 칸)
+  }
   const full = JSON.stringify(GOOD(id), null, 2);
   if (kind === 'corrupt' || kind === 'corrupt+backup') fs.writeFileSync(path.join(p, 'proj.json'), '{깨짐');
   if (kind === 'corrupt+backup') fs.writeFileSync(path.join(p, 'proj_backup.json'), full);
   if (kind === 'planning') fs.writeFileSync(path.join(p, 'proj.json'), JSON.stringify({ id, name: '기획', type: 'planning', plan: {} }));
-  if (kind === 'none') fs.rmSync(path.join(p, 'proj_meta.json'));
   if (kind === 'idmismatch') fs.writeFileSync(path.join(p, 'proj.json'), JSON.stringify(GOOD('proj_9999999999999'), null, 2));
   return { dir, id, p };
 }
