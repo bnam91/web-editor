@@ -3310,6 +3310,7 @@ window.flushSave = async function() {
       try { r = await _saveInLine(data, _targetId); } catch (_) { _setAutosaveIndicator('error'); return; }
       /* ★FLUSH-SAVE-STATUS-STUCK-SAVING-01(미카사 실앱) — 실패면 상태줄을 «⚠️ 저장 실패»로(타이머 길 _isSaveFailure ? 'error' 와 같음).
          옛: 토스트만 믿고 돌아가 편집 때 건 «저장 중...»이 그대로 남았다 — ⌘S 가 타이머를 지웠으니 아무도 안 걷어 사용자가 실패를 몰랐다. */
+      if (r && r.reason === 'save_wait_timeout') return;   // 줄 뒤에서 아직 도는 중 — «저장 중…»이 참이다(빨강을 걸면 나중에 성공해도 안 걷힌다 · 리뷰)
       if (_isSaveFailure(r)) { _setAutosaveIndicator('error'); return; }   // 실패 토스트는 _doSaveProjectToFile 이 띄웠다
       if (r && r.ok === false) { _setAutosaveIndicator('saved'); return; }   // 건너뜀(지운 프로젝트·봉인 등)은 공유 안 함 — 표시는 타이머 길처럼 «저장 중…»을 걷는다(타이머를 지웠으니 아무도 안 걷는다 · 리뷰 3)
     }

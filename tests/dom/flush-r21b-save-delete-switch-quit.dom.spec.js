@@ -41,7 +41,7 @@ async function setup(page) {
     Object.assign(window.__fake, {
       loadProject: async (id) => JSON.parse(JSON.stringify(files.get(id) || null)),
       /* 실앱처럼 쓰기에 시간이 든다(30ms) — 즉시 끝나는 가짜면 경합이 안 보인다 */
-      saveProject: async (p) => { await new Promise(r => setTimeout(r, 30)); if (window.__refuse) return { ok: false, reason: window.__refuse };
+      saveProject: async (p) => { await new Promise(r => setTimeout(r, 30)); if (window.__refuse === 'throw') { const e = new Error('EACCES: permission denied (555 흉내)'); e.code = 'EACCES'; throw e; } if (window.__refuse) return { ok: false, reason: window.__refuse };
         files.set(p.id, JSON.parse(JSON.stringify(p))); if (p.updatedAt != null) localStorage.setItem('web-editor-ls-base__' + p.id, String(p.updatedAt)); return { ok: true }; },
       saveProjectSync: (p) => { if (window.__refuse) return { ok: false, reason: window.__refuse }; files.set(p.id, JSON.parse(JSON.stringify(p))); return { ok: true }; },
       recordRefusedSave: (p, reason) => { window.__kept.push({ id: p.id, reason, body: JSON.stringify(p) }); return { ok: true }; },
@@ -156,7 +156,9 @@ test('R6 저장 막힌 ⌘S → 상태줄 «⚠️ 저장 실패»(«저장 중.
   const errs = await setup(page);
   await typeTitle(page);
   await expect.poll(() => indicator(page), '[전제] 편집 뒤 «저장 중...»').toContain('저장 중');
-  await page.evaluate(() => { window.__refuse = 'disk_full'; });
+  /* 실앱 555 = main 쓰기가 EACCES 로 «던진다»(IPC 거절) → _doSaveProjectToFile catch 의 {ok:false, reason:'exception'} 길 — 상태줄을 안 만지는 길이다.
+     ⛔{ok:false} 반환(거절 갈래)으로 흉내 내지 마라 — 그 갈래는 스스로 'error' 를 걸어 옛 판도 초록이었다(적대 리뷰). */
+  await page.evaluate(() => { window.__refuse = 'throw'; });
   await cmdS(page);
   await page.waitForFunction((A) => window.projectLastSaveFailed?.(A), A);
   await expect.poll(() => indicator(page), '★저장이 막혔는데 상태줄이 «저장 중...»에 멈췄다').toContain('저장 실패');
