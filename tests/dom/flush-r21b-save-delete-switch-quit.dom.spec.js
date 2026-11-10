@@ -7,6 +7,8 @@
  *   R3 [리뷰 1 ⓐ] 큰 본(LS 가 못 받는 크기)이어도 ⌘S 가 파일까지 간다 — 옛 flushSave 의 날 setItem 이 던져 파일 저장 전에 끝났다
  *   R4 [리뷰 1 ⓑ] ⌘S 성공 뒤 gd:project-saved 한 번(협업 공유 — 타이머 길과 같은 꼴) · 실패면 0
  *   R5 [지디 ③] 되돌림 봉인 중 ⌘S = 안 쓴다 · «저장됨» 안 띄움
+ *   R6 [FLUSH-SAVE-STATUS-STUCK-SAVING-01 · 미카사 실앱] 저장이 막힌(거절) ⌘S → 상태줄 «⚠️ 저장 실패»(타이머 길과 같음) — 이 가지 245e8b158~b9833e45d 는 «저장 중...»에 멈췄다
+ *   R7 같은 꼴 · 빈 캔버스 ⌘S(빈 본 건너뜀) → «저장 중...»에 안 멈춤(타이머 길처럼 걷음)
  *   N1 [음성] ⌘S 없이 편집 → 전체 삭제 → 탭 → 종료: 파일은 그 이전 판(빈 본 보호 S11 그대로 — 이 고침 밖)
  *   ⚠️전체 삭제 = 섹션을 다 빼고 scheduleAutoSave(삭제 길이 끝에 하는 일) — deleteSection 은 마지막 하나를 안 지워 손 삭제를 그대로 못 탄다(실앱은 ⌘A·Delete).
  * 양성대조(지디 인텔): js/editor.js ⌘S 갈래의 `Promise.resolve(window.flushSave?.())` 를 옛 `window.triggerAutoSave?.(); Promise.resolve()` 로 → R1 빨강 · N1 초록.
@@ -145,5 +147,27 @@ test('R5 되돌림 봉인 중 ⌘S = 안 쓴다 · «저장됨» 안 띄움', as
   const w = await where(page);
   expect(w.file, '봉인 중인데 썼다').toBe(false);
   expect(w.toast).not.toContain('저장됨');
+  expect(errs).toEqual([]);
+});
+
+const indicator = (page) => page.evaluate(() => document.getElementById('autosave-indicator')?.textContent || '');
+
+test('R6 저장 막힌 ⌘S → 상태줄 «⚠️ 저장 실패»(«저장 중...»에 안 멈춤)', async ({ page }) => {
+  const errs = await setup(page);
+  await typeTitle(page);
+  await expect.poll(() => indicator(page), '[전제] 편집 뒤 «저장 중...»').toContain('저장 중');
+  await page.evaluate(() => { window.__refuse = 'disk_full'; });
+  await cmdS(page);
+  await page.waitForFunction((A) => window.projectLastSaveFailed?.(A), A);
+  await expect.poll(() => indicator(page), '★저장이 막혔는데 상태줄이 «저장 중...»에 멈췄다').toContain('저장 실패');
+  expect(errs).toEqual([]);
+});
+
+test('R7 빈 캔버스 ⌘S(빈 본 건너뜀) → «저장 중...»에 안 멈춤', async ({ page }) => {
+  const errs = await setup(page);
+  await deleteAll(page);
+  await expect.poll(() => indicator(page), '[전제] «저장 중...»').toContain('저장 중');
+  await cmdS(page);
+  await expect.poll(() => indicator(page), '★빈 본 건너뜀인데 «저장 중...»에 멈췄다').not.toContain('저장 중');
   expect(errs).toEqual([]);
 });
