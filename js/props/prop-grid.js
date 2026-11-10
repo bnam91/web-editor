@@ -3042,14 +3042,17 @@ function _grdPadExcludeSectionHtml(block) {
    *     임시 폴더에 «필요한 것만» 복사·대역으로 불러서, import 를 늘리면 모듈 로드가 통째로 실패한다(실측 2026-10-01: 29건).
    *     그리드는 posElOf 가 «자기 자신»이라 떠 있는지는 dataset 으로 바로 본다. */
   const floating = block.dataset.overlayBlock === 'true';
+  /* ★t2-08 ⓐ(현빈 확정) — 펼 것이 없는 자리엔 스위치를 숨긴다(떠 있을 때와 «같은 꼴» — 이 파일 머리말 «못 거는 자리에 스위치를 두지 않는다»).
+       펼 것이 있다 = 자유 프레임 직속 자식(프레임 끝까지) · 또는 뚫을 패딩 > 0(섹션·스택 프레임 패딩 — applyBlockFullBleed 와 같은 자 effectiveSectionPadX). */
+  const hideBleed = floating || !(window.gridFreeFrameChild?.(block) || (window.effectiveSectionPadX?.(block) || 0) > 0);
   return `
     <div class="prop-section">
       ${_grdWidthRowHtml(block)}
       ${_grdCellPadYRowHtml(block)}
       <div class="prop-row" style="align-items:center;gap:6px;">
-        <span class="prop-label prop-label--auto"${floating ? ' style="display:none;"' : ''}
+        <span class="prop-label prop-label--auto"${hideBleed ? ' style="display:none;"' : ''}
               title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
-        <label class="prop-toggle"${floating ? ' style="display:none;"' : ''}>
+        <label class="prop-toggle"${hideBleed ? ' style="display:none;"' : ''}>
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
@@ -3201,8 +3204,14 @@ function _grdWirePadExclude(block) {
     block.dataset.fullBleed = cb.checked ? 'true' : 'false';
     /* ★t2-08 A — 너비 키(gridWidth)가 있으면 렌더러가 그 폭을 이기고 전폭 흔적을 걷는다 ⇒ 켠 효과가 다음 다시 그리기(편집·⌘Z·다시 열기)에 사라졌다.
          폭을 정하면 전폭을 끄는 규칙(grid-block.js _gridDropFullBleedForManualWidth)의 «반대 방향» — 전폭을 켜면 정한 폭을 뗀다. */
-    const _hadW = cb.checked && block.dataset.gridWidth !== undefined;
-    if (_hadW) { delete block.dataset.gridWidth; delete block.dataset.gridWidthAuto; window.renderGridBlock?.(block); }
+    /* ★t2-08 ⓒ — 정한 폭은 «실제로 펴질 때만» 뗀다. 뚫을 패딩이 0 인 자리(자유 프레임 절대 자식·절대 row 안·패딩0 섹션)에서
+         떼면 폭만 100% 로 풀려 left 가 남은 채 프레임에 잘리거나(747→831 밀림) fit-content row 에 줄었다(737→608) — 수지맥 실물 실측.
+         판정은 applyBlockFullBleed 가 쓰는 같은 자(effectiveSectionPadX). */
+    /* ★t2-08 ⓐ — 자유 프레임 자식은 키(너비·x)를 안 지우고 다시 그리기만 — 렌더러가 켜면 프레임 끝까지, 끄면 원래 x·너비(grid-block.js gridFreeFrameChild) */
+    const _free = !!window.gridFreeFrameChild?.(block);
+    const _hadW = !_free && cb.checked && block.dataset.gridWidth !== undefined && (window.effectiveSectionPadX?.(block) || 0) > 0;
+    if (_free) window.renderGridBlock?.(block);
+    else if (_hadW) { delete block.dataset.gridWidth; delete block.dataset.gridWidthAuto; window.renderGridBlock?.(block); }
     else if (cb.checked) window.applyBlockFullBleed?.(block);
     else window.clearBlockFullBleed?.(block);
     window.pushHistory?.();              // ★적용 먼저, 찍기 나중 (js/props 는 push-after 규약)
