@@ -343,7 +343,10 @@ function _onHandleMouseDown(e, ss, dir) {
   const secInner = ss.closest('.section-inner') || ss.closest('.section-block');
   const secInnerCS = secInner ? getComputedStyle(secInner) : null;
   const paddingH = secInnerCS ? parseFloat(secInnerCS.paddingLeft) + parseFloat(secInnerCS.paddingRight) : 0;
-  const maxW = secInner ? Math.round(secInner.clientWidth - paddingH) : 860;
+  /* ★NEW-현빈QA-NESTED-FRAME-WIDTH-CAP-01 ⒜(현빈 261110) — 상한은 «섹션 직속» 프레임만(섹션 안쪽 폭 · 옛 그대로). 프레임 «안» 프레임은 상한 없음 —
+     부모를 넘는 부분은 부모가 자른다(피그마 clip 꼴 · .frame-block overflow:hidden · 부모 크기 무변). CSS max-width:100% 도 아래 onMove 가 그 프레임에서만 푼다. */
+  const _nestParent = ss.parentElement?.closest('.frame-block:not([data-text-frame])') || null;
+  const maxW = _nestParent ? Infinity : (secInner ? Math.round(secInner.clientWidth - paddingH) : 860);
 
   // fullWidth 프레임(stack 모드, 자동 높이)은 핸들로 높이 조절 안 함 — 자식이 결정.
   const isFullWidth = ss.dataset.fullWidth === 'true';
@@ -420,6 +423,7 @@ function _onHandleMouseDown(e, ss, dir) {
        없으면 400→(손잡이)60→(입력)400 에서 자식이 ×6.67 로 부푼다(S3 D-B: G 폭 300→2000 · 왼쪽 40→267). 그룹·도형은 자식이 같이 변하므로 비켜 간다. */
     if (_keepChildScale && newW !== startW && !ss.dataset.childScaleW) ss.dataset.childScaleW = String(startW);
     ss.style.width  = `${newW}px`; ss.dataset.width  = String(newW);
+    if (_nestParent && newW !== startW) ss.style.maxWidth = 'none';   // ⒜ 중첩 — CSS·인라인 max-width:100%(=부모 폭 캡)를 이 프레임에서 푼다(바꿀 때만 · 옛 프로젝트는 열어도 그대로)
     /* ★★★「패딩 제외(full-bleed)」 규약의 ★★둘째 입구 (현빈 2026-10-11 「★리사이즈하면 ★패딩제외가 ★풀린다」)
        ★★규약 = ★★«제 폭을 ★먼저 정하고», ★마지막에 ★패딩제외를 ★덮는다. ★꺼져 있으면 ★no-op 이다.
        ★★★입구가 ★★둘이다 — ★이 명부를 ★여기와 ★그쪽에 ★같이 적는다:
