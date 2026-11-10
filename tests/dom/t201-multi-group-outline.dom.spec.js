@@ -140,8 +140,7 @@ test('C1 그룹 둘을 끄는 동안 = 각자+전체, 핸들 0 · 놓은 뒤에�
   await page.mouse.up(); await raf(page);
   expect(moved, '[전제] 실제로 끌렸다').toBe(true);
   expectMulti(during, [GB, GC]);
-  /* ~~놓은 뒤 click 이 하나로 좁힌다 — 오늘 동작 그대로(Q5 는 «끄는 동안»만)~~ ⇒ 현빈 2026-11-10 결정으로 바뀜(T2-01-DROP-KEEP-MULTISELECT-01 · 질문 줄 Q-t2-01-KEEP-MULTISELECT-AFTER-DROP) */
-  expectMulti(await look(page), [GB, GC]);
+  expectMulti(await look(page), [GB, GC]);   /* ~~놓은 뒤 click 이 하나로 좁힌다 — 오늘 동작 그대로(Q5 는 «끄는 동안»만)~~ ⇒ 현빈 2026-11-10 결정(T2-01-DROP-KEEP-MULTISELECT-01) · ⛔이 줄 수를 늘리지 마라 — 아래 마키 칸이 dom-screen-px-census 명부 «:151» 이름이다 */
 });
 
 test('마키로 고른 것 = ⇧클릭으로 고른 것과 같은 모양', async ({ page }) => {
