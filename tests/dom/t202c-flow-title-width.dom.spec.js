@@ -5,6 +5,9 @@
  * 장면(진짜 손): 새 섹션 · 흐름 제목(글자 프레임 width:100% · 72px) · 흐름 사각 도형 → 클릭·⌘클릭 → ⌘G → 손잡이 끌기.
  *   T1 se −40,+20 · T2 nw +40,−20 — 제목 폭 = 쥔 폭 × 묶음 비율(±2) · 100 근처로 안 무너짐 · 글자 크기 = 72×min(sx,sy)
  *   T3 ⌘Z 한 번 = 끌기 전
+ *   T4 [지디 덧붙임 · 늘리기] ⒜ 폭 가득(100%) 묶음을 se +40 → 안 늘어남 = 설계: 모든 프레임 손잡이가 섹션 안쪽 폭(maxW = section-inner clientWidth − 좌우 패딩 ·
+ *        overlay-handles.js _onHandleMouseDown)에서 멈춘다 — 흐름 블럭은 섹션 내용 상자보다 넓을 수 없다(% 폭 탓 아님 · 제목·사각도 그대로)
+ *      ⒝ 먼저 −80 줄인 뒤 +40 늘리기 → 제목 폭이 묶음 비율대로 늘어남(±2) — 고침이 늘리기에도 맞다
  *   C1 [대조] 제목 폭이 px(300)이면 옛 판도 맞다(태양 F 와 같은 꼴 — 고침 전후 초록)
  * 양성대조(지디 인텔): overlay-handles.js 묶음 스냅의 `w: _pxOr(c.style.width, c.offsetWidth, parseInt)` → 옛 `w: parseInt(c.style.width) || c.offsetWidth` → T1·T2 빨강 · T3·C1 초록(⌘Z 는 끌기가 뭘 썼든 되돌린다 — 적대 리뷰). */
 const { test, expect } = require('@playwright/test');
@@ -90,5 +93,26 @@ test('C1 [대조] 제목 폭이 px(300)이면 옛 판도 비율대로', async ({
   const b = await read(page);
   const sx = b.g[0] / a.g[0];
   expect(Math.abs(b.tfW - a.tfW * sx)).toBeLessThanOrEqual(2);
+  expect(errs).toEqual([]);
+});
+
+test('T4 늘리기 — ⒜ 폭 가득이면 섹션 안쪽 폭에서 멈춤(설계) · ⒝ 줄인 뒤 늘리면 제목이 묶음 비율대로', async ({ page }) => {
+  const { errs } = await grouped(page, { titleW: '100%' });
+  const a = await read(page);
+  const maxW = await page.evaluate(() => { const si = document.getElementById('sG').querySelector('.section-inner'); const cs = getComputedStyle(si); return Math.round(si.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)); });
+  expect(Math.abs(a.g[0] - maxW), `[전제] 흐름 묶음 폭 = 섹션 안쪽 폭(${a.g[0]} vs ${maxW})`).toBeLessThanOrEqual(1);
+  await drag(page, HANDLE('se'), 40, 0);
+  const b = await read(page);
+  console.log('T202CROW T4a ' + JSON.stringify({ a, b, maxW }));
+  expect(Math.abs(b.g[0] - a.g[0]), '⒜ 섹션 안쪽 폭에서 멈춘다(설계)').toBeLessThanOrEqual(1);
+  expect(Math.abs(b.tfW - a.tfW), '⒜ 제목 폭 그대로').toBeLessThanOrEqual(2);
+  await drag(page, HANDLE('se'), -80, 0);
+  const c = await read(page);
+  await drag(page, HANDLE('se'), 40, 0);
+  const d = await read(page);
+  const sx = d.g[0] / c.g[0];
+  console.log('T202CROW T4b ' + JSON.stringify({ c, d, sx }));
+  expect(d.g[0], '[전제] ⒝ 늘었다').toBeGreaterThan(c.g[0] + 30);
+  expect(Math.abs(d.tfW - c.tfW * sx), `★⒝ 늘리기에서 제목 폭 ${c.tfW}→${d.tfW} (기대 ${(c.tfW * sx).toFixed(1)})`).toBeLessThanOrEqual(2);
   expect(errs).toEqual([]);
 });
