@@ -7,7 +7,7 @@
  *   R3 hex 비워 끔 → 둥글기 줄이 사라진다 · 기준판 빨강(줄이 남는다)
  *   N1 [대조] 이미 배경 있을 때 색만 바꿈 → 패널 다시 안 그림(hex 칸 같은 노드)
  * ★양성대조: js/props/prop-grid.js 의 end() 안 «PILL-RADIUS…» 세 줄(cur·hasBg·H.show)을 지우면 R1·R2·R3 빨강 · N1 초록.
- * 하네스 = grid-badge-radius.dom.spec.js 의 build 와 같은 꼴(앱 안 띄움).
+ * 하네스 = grid-badge-radius.dom.spec.js 의 build 와 같은 꼴(앱 안 띄움) · 입력은 B3 처럼 값+이벤트(접힌 절이라 fill 불가).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -35,6 +35,10 @@ const read = (page) => page.evaluate(() => {
   return { row: !!document.getElementById('grd-badge-radius'), slider: !!document.getElementById('grd-badge-radius-slider'),
            badge: !!b.querySelector('.grd-badge'), bg: l0.bg ? String(l0.bg).toLowerCase() : null, hexVal: document.getElementById('grd-badge-hex')?.value ?? null };
 });
+/* ★값을 넣고 input·change 를 쏜다 — ⛔page.fill 금지: 이 칸은 DOM 에 있으나 패널 절이 접혀 «안 보여» fill 이 30s 시간초과(grid-badge-radius B3 머리말 · 인텔 1차 R1·R3·N1).
+   ★매번 getElementById 로 «지금» 노드를 잡는다 — 다시 그리면 노드가 갈린다. */
+const setHex = (page, v) => page.evaluate((v) => { const el = document.getElementById('grd-badge-hex'); el.value = v;
+  el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, v);
 const tagHex = (page) => page.evaluate(() => { document.getElementById('grd-badge-hex').__keep = 1; });
 const hexKept = (page) => page.evaluate(() => document.getElementById('grd-badge-hex')?.__keep === 1);
 
@@ -42,10 +46,9 @@ test('R1 hex 로 배경을 켜면 «알약 둥글기» 줄이 바로 생긴다(�
   const errs = await bootApp(page);
   await build(page, { type: 'body', text: '알약' });
   expect(await read(page), '전제 — 배경 없음 = 둥글기 줄 없음').toMatchObject({ row: false, badge: false, bg: null });
-  await page.fill('#grd-badge-hex', '2D6FE8');
-  await page.press('#grd-badge-hex', 'Enter');
+  await setHex(page, '2D6FE8');
   await expect.poll(() => read(page)).toMatchObject({ badge: true, bg: '#2d6fe8' });
-  expect((await read(page)).row, '★배경을 넣었는데 둥글기 줄이 안 나왔다 — 줄을 다시 골라야 나오던 결함').toBe(true);
+  await expect.poll(async () => (await read(page)).row, '★배경을 넣었는데 둥글기 줄이 안 나왔다 — 줄을 다시 골라야 나오던 결함').toBe(true);
   expect((await read(page)).slider).toBe(true);
   expect((await read(page)).hexVal, '다시 보인 패널이 같은 줄이다').toBe('2D6FE8');
   expect(errs).toEqual([]);
@@ -68,8 +71,7 @@ test('R3 hex 를 비워 배경을 끄면 둥글기 줄이 사라진다', async (
   await bootApp(page);
   await build(page, { type: 'body', text: '알약', bg: '#2d6fe8' });
   expect((await read(page)).row, '전제 — 배경 있음 = 둥글기 줄 있음').toBe(true);
-  await page.fill('#grd-badge-hex', '');
-  await page.press('#grd-badge-hex', 'Enter');
+  await setHex(page, '');
   await expect.poll(async () => (await read(page)).bg).toBe(null);
   await expect.poll(async () => (await read(page)).row, '★배경을 껐는데 둥글기 줄이 남았다(아무 일도 안 하는 칸)').toBe(false);
 });
@@ -78,9 +80,9 @@ test('N1 [대조] 이미 배경 있을 때 색만 바꾸면 패널을 다시 안
   await bootApp(page);
   await build(page, { type: 'body', text: '알약', bg: '#2d6fe8' });
   await tagHex(page);
-  await page.fill('#grd-badge-hex', 'E83A2D');
-  await page.press('#grd-badge-hex', 'Enter');
+  await setHex(page, 'E83A2D');
   await expect.poll(async () => (await read(page)).bg).toBe('#e83a2d');
+  await page.evaluate(() => new Promise(r => setTimeout(r, 50)));   // 다음 틱(고침의 setTimeout 0)을 지나서 본다
   expect(await hexKept(page), '★유무가 안 바뀌었는데 패널을 다시 그렸다(포커스가 끊긴다)').toBe(true);
   expect((await read(page)).row).toBe(true);
 });
