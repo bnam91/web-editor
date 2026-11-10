@@ -3258,8 +3258,8 @@ window.keepFailedCopyOnClose = async (id, name, cache, waitMs) => {   // waitMs:
 };
 /* 옆 탭에 저장 안 된 편집이 남았나 — 탭을 닫을 때 알림 문구에 쓴다. */
 window.projectSaveUnsettled = (id) => _lastSaveFailed(id) || _pendingSaves.has(id) || (_isSavingToFile && _savingOwnerId === id);
-window.projectLastSaveFailed = (id) => _lastSaveFailed(id);
-window.isReloadSealedFor = (id) => _isReloadSealed(id);   // 읽기만 — ⌘S 가 «봉인이라 안 썼다»를 «저장됨»으로 말하지 않게(FLUSH-EMPTY · 지디 조건 ③)   // 읽기만 — 협업이 «미저장 편집을 지키며 상대 패치를 미룰지»를 가른다(COLLAB-SYNC-OLD-GAPS ⑴)
+window.projectLastSaveFailed = (id) => _lastSaveFailed(id);   // 읽기만 — 협업이 «미저장 편집을 지키며 상대 패치를 미룰지»를 가른다(COLLAB-SYNC-OLD-GAPS ⑴)
+window.isReloadSealedFor = (id) => _isReloadSealed(id);   // 읽기만 — ⌘S 가 «봉인이라 안 썼다»를 «저장됨»으로 말하지 않게(FLUSH-EMPTY · 지디 조건 ③)
 window.loadProjectsList = loadProjectsList;
 window.getProjectName = getProjectName;
 window.setProjectName = setProjectName;
@@ -3308,6 +3308,7 @@ window.flushSave = async function() {
     if (window.IS_ELECTRON && _targetId) {
       const r = await _saveInLine(data, _targetId);
       if (_isSaveFailure(r)) return;   // 실패 토스트는 _doSaveProjectToFile 이 띄웠다
+      if (r && r.ok === false) return;   // 건너뜀(지운 프로젝트·봉인 등)도 «저장됨»·공유 아님 — 타이머 길과 같은 잣대(리뷰 2 F2)
     }
     _setAutosaveIndicator('saved');
     try { window.dispatchEvent(new CustomEvent('gd:project-saved', { detail: { projectId: _targetId, snap, snapAt: _snapAt } })); } catch (_) {}
