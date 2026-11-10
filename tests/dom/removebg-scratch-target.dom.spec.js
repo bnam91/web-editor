@@ -115,7 +115,7 @@ test('S4 [대조] 이미지 블럭과 스크래치를 같이 골랐으면 이미
   expect(errs).toEqual([]);
 });
 
-test('S5 그룹 든 스크래치 — 결과 뒤에도 그룹·순서·선택 그대로 · ⌘Z 뒤에도', async ({ page }) => {
+test('S5 그룹 든 스크래치(더블클릭으로 한 장) — 결과 뒤에도 그룹·순서·선택 그대로 · ⌘Z 뒤에도', async ({ page }) => {
   const { errs, src0 } = await setup(page);
   await page.evaluate(async (SID) => {
     const px = window._scratchGetItemById(SID).src;
@@ -125,7 +125,10 @@ test('S5 그룹 든 스크래치 — 결과 뒤에도 그룹·순서·선택 그
     await window._scratchAddAndSave(px, 1900, 120, 320, undefined, 'sp_rbs3');   // 순서 확인용 — 그룹 밖 하나 더(맨 뒤)
     window.clearHistory?.();
   }, SID);
-  await pickScratch(page);
+  /* 그룹 한 장만 고르는 길 = 더블클릭으로 그룹에 들어간다(scratch-pad.js _groupMode «단독 선택 강제» · 현빈 지정 표준 동작). 그냥 클릭은 둘 다 고른다(S6). */
+  await page.evaluate((s) => document.querySelector(`.scratch-item[data-scratch-id="${s}"]`).scrollIntoView({ block: 'center', inline: 'center' }), SID);
+  await page.locator(`.scratch-item[data-scratch-id="${SID}"]`).dblclick();
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('.scratch-item.scratch-selected')].map(e => e.dataset.scratchId)), '[전제] 그룹 안에서 한 장만').toEqual([SID]);
   const look = () => page.evaluate(() => ({
     order: [...document.querySelectorAll('.scratch-item')].map(e => e.dataset.scratchId),
     groups: ['sp_rbs1', 'sp_rbs2'].map(id => window._scratchItemById(id)?.g ?? null),
