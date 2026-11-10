@@ -979,25 +979,27 @@ function _renderAutoPanel(ss) {
     document.getElementById('ss-bg-pos-btn')?.remove();
     document.getElementById('ss-bg-img-clear')?.remove();
     window.scheduleAutoSave?.();
-    window.pushHistory?.();
     showFrameProperties(ss);   // 그림이 빠지면 «체크 배경» 단추가 다시 선다(섹션은 늘 다시 그린다)
+    window.pushHistory?.();    // 패널 규약 = 적용 먼저 · 기록 나중(tests/unit/prop-push-after PA-1)
   }
   if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
-  /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 sec-bg-img-empty·sec-checker-tone 배선과 같은 꼴(js/props/prop-section.js).
+  /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 sec-bg-img-empty·sec-checker-tone 배선과 같은 동작(js/props/prop-section.js).
+     ★기록 순서만 섹션과 다르다 — 섹션은 «찍고 나서 바꾸는» 옛 꼴이다. 패널 규약 = 적용 먼저 · pushHistory 나중
+       (tests/unit/prop-push-after PA-1 · 앞 편집이 push-after 면 ⌘Z 한 번에 두 편집이 같이 사라진다).
      ⛔checkerTone 은 체크 배경을 끌 때 «같이 지우지 마라» — 다시 켜면 고른 톤이 돌아와야 한다(섹션 주석 그대로). */
   document.getElementById('ss-bg-img-empty')?.addEventListener('click', () => {
     const on = ss.dataset.bgImgEmpty === '1';
-    window.pushHistory?.(on ? '프레임 체크 배경 끄기' : '프레임 체크 배경');
     if (on) delete ss.dataset.bgImgEmpty; else ss.dataset.bgImgEmpty = '1';
     ss.classList.toggle('sec-bg-empty', !on && !ss.dataset.bgImg);
     window.scheduleAutoSave?.();
     showFrameProperties(ss);
+    window.pushHistory?.(on ? '프레임 체크 배경 끄기' : '프레임 체크 배경');
   });
   const ckOn = document.getElementById('ss-checker-tone-on'), ckOff = document.getElementById('ss-checker-tone-off');
   if (ckOn && ckOff) {
     const applyTone = (dark) => {
-      window.pushHistory?.(dark ? '프레임 체커 어둡게' : '프레임 체커 밝게');
       if (dark) ss.dataset.checkerTone = 'dark'; else delete ss.dataset.checkerTone;
+      window.pushHistory?.(dark ? '프레임 체커 어둡게' : '프레임 체커 밝게');
       window.scheduleAutoSave?.();
     };
     ckOn.addEventListener('change',  () => { if (ckOn.checked)  applyTone(true);  });
