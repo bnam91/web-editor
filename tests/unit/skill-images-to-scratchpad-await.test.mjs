@@ -35,8 +35,8 @@ test('S2 옛 판(결과 없음)·ok:true 는 그대로 성공', async () => {
   assert.equal(saveFailed(r1.save), false);
 });
 
-test('S3 저장 약속을 기다린다 — 늦게 끝나는 저장의 결과가 실린다', async () => {
-  const r = await runPage(() => new Promise((res) => setTimeout(() => res({ ok: false, reason: 'loading' }), 30)));
+test('S3 저장 약속을 기다린다 — 늦게(다음 매크로태스크) 끝나는 저장의 결과가 실린다', async () => {
+  const r = await runPage(() => new Promise((res) => setTimeout(() => res({ ok: false, reason: 'loading' }), 0)));
   assert.equal(r?.save?.reason, 'loading');
 });
 
