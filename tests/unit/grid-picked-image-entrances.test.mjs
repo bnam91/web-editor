@@ -27,7 +27,7 @@ test('E91 ★prop-grid.js 의 readAsDataURL 은 grdPickedImageSrc 안 «하나»
 test('E91 ★block-factory.js(오른클릭 교체)는 readAsDataURL 0 — grdPickedImageSrc 를 부른다', () => {
   const src = read('js/block-factory.js');
   assert.equal((src.match(/readAsDataURL\(/g) || []).length, 0);
-  /* ★HBQA ㉠(2026-11-09) — 오른클릭 교체·추가는 파일창째 공용(prop-grid.js grdPickImageFile)으로 갔다. 그 함수가 grdPickedImageSrc 를 부른다. */
+  /* ★HBQA ㉠(2026-11-09) — 오른클릭 «교체»는 파일창째 공용(prop-grid.js grdPickImageFile)으로 갔다(추가는 현빈 261110 ⓑ 로 창 없이 빈 줄). 그 함수가 grdPickedImageSrc 를 부른다. */
   assert.ok(/window\.grdPickImageFile\(/.test(src), '[전제] 오른클릭 교체가 공용 파일창을 부른다');
   const pg = read('js/props/prop-grid.js');
   assert.ok(/export function grdPickImageFile\([\s\S]{0,1200}?grdPickedImageSrc\(file\)/.test(pg), '[전제] 공용 파일창이 grdPickedImageSrc 를 부른다');

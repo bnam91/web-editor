@@ -1489,7 +1489,7 @@ function _grdWireKindSelects(block, r, c, afterLi, host = null) {
       });
       return;
     }
-    if (kind === 'photo' || kind === 'circle') { grdAddImageLinePicked(block, { r, c }, afterLi, kind, H); return; }   // ★HBQA ㉠ 우클릭과 같은 규칙
+    if (kind === 'photo' || kind === 'circle') { grdAddImageLinePicked(block, { r, c }, afterLi, kind, H); return; }   // 우클릭과 같은 규칙(현빈 261110 ⓑ 빈 그림 줄만 · ~~HBQA ㉠ 창 먼저~~)
     const _spec = grdNewLineSpec(kind);   // ★①단축키·★버블/챗 단축키와 «같은 자»에서 뜬다 — 두 벌 금지
     grdToastImgFail(grdAddLine(block, { r, c }, afterLi, _spec, {}, H));
   });
