@@ -141,3 +141,64 @@ test('M1 우클릭 「이미지 삭제」 — 빈 자리엔 안 뜨고 · 그림
   expect([L.length, L[1].type, L[1].imgShape, L[1].imgSrc || ''], '그림만 비고 원 자리는 남는다').toEqual([2, 'image', 'circle', '']);
   expect(errs).toEqual([]);
 });
+
+/* ═══ D1⒜ · D2ⓐ (현빈 결정 261110) · EMPTY-CELL-HINT-LIGHTER ═══ */
+const FAINT = 'rgb(224, 224, 224)';   // --text-hint-canvas-faint = --p-gray-50 #e0e0e0 (옛 #ccc = rgb(204, 204, 204))
+const before = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const cs = getComputedStyle(e, '::before'); return { content: cs.content, color: cs.color, h: Math.round(e.getBoundingClientRect().height) }; }, sel);
+const EMPTY_COL = `${G} .grd-nested-col-empty[data-ncol="0"]`;
+
+test('E1 열 마지막 줄을 지우면 빈 열이 «누를 자리»로 남고 · 누르면 그 열에 줄 하나 · ⌘Z 한 걸음 · 산출물엔 안 나간다', async ({ page }) => {
+  const errs = await boot(page, SEC_HB);
+  await page.evaluate((G) => { const b = document.querySelector(G); const H = window.grdNestColHost(b, 1, 0, 0, 0); H.commitLines(1, 0, [{ type: 'body', text: '' }]); window.clearHistory?.(); }, G);
+  await f2(page);
+  await pick(page, NP('0.0'));
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Backspace'); await f2(page);
+  expect(kinds(await cols(page)), '[전제] 왼 열이 비었다(D1⒜ = 빈 열 유지)').toEqual([[], ['body']]);
+  const ph = await before(page, EMPTY_COL);
+  expect(ph, '빈 열에 누를 자리가 있다').not.toBeNull();
+  expect([ph.content, ph.color], '자리 표시 = 빈 칸과 같은 연한 안내').toEqual(['"+ 내용 추가"', FAINT]);
+  expect(ph.h, '누를 만한 높이').toBeGreaterThanOrEqual(24);
+  await expectOneUndoStep(page, async () => {
+    await click(page, EMPTY_COL);
+    expect(kinds(await cols(page)), '누르면 그 열에 글 줄 하나').toEqual([['body'], ['body']]);
+    expect(await active(page), '그 줄로 간다').toMatchObject({ r: 1, c: 0, li: 0, np: '0.0' });
+  }, '빈 열 자리 눌러 줄 추가');
+  expect(kinds(await cols(page)), '⌘Z 한 번에 다시 빈 열').toEqual([[], ['body']]);
+  // 산출물(에디터 CSS 의 #canvas 밖) — 글자 없음 · 높이 0
+  const out = await page.evaluate((G) => {
+    const host = document.createElement('div'); host.innerHTML = document.querySelector(G).outerHTML.replace(/id="[^"]*"/g, '');
+    document.body.appendChild(host); const e = host.querySelector('.grd-nested-col-empty'); const cs = getComputedStyle(e, '::before');
+    const r = { content: cs.content, h: e.getBoundingClientRect().height }; host.remove(); return r;
+  }, G);
+  expect(out, '#canvas 밖(산출물)엔 안내 글자·높이 0 — 오늘의 빈 열과 같다').toEqual({ content: 'none', h: 0 });
+  expect(errs).toEqual([]);
+});
+
+test('V1 열 세로 정렬(열마다) — 칸 세로 정렬과 같은 세 단추 · 그 열만 · ⌘Z 한 걸음 · 다시 열기', async ({ page }) => {
+  const errs = await boot(page, SEC_HB);
+  await pick(page, NP('1.0'));
+  await expect(page.locator('#grd-nest-valign-group [data-nva="bottom"]'), '두 칸 안 줄에 «열 세로» 세 단추').toBeVisible();
+  expect(await page.locator('#grd-nest-valign-group [data-nva]').count(), '단추 셋').toBe(3);
+  const jc = () => page.evaluate((G) => [...document.querySelectorAll(`${G} .grd-nested-col`)].map((c) => getComputedStyle(c).justifyContent), G);
+  const j0 = await jc();
+  await expectOneUndoStep(page, async () => {
+    await page.click('#grd-nest-valign-group [data-nva="bottom"]'); await f2(page);
+    expect(await page.evaluate((G) => window.getGridModel(document.querySelector(G)).cells[1][0].lines[0].cols.map((c) => c.valign ?? null), G), '오른 열만 bottom').toEqual([null, 'bottom']);
+    expect(await jc(), '오른 열 내용이 아래로').toEqual([j0[0], 'flex-end']);
+  }, '두 칸 열 세로 정렬');
+  await pick(page, NP('1.0'));
+  await page.click('#grd-nest-valign-group [data-nva="middle"]'); await f2(page);
+  await reopen(page); await f2(page);
+  expect(await jc(), '다시 열어도 오른 열 가운데').toEqual([j0[0], 'center']);
+  expect(errs).toEqual([]);
+});
+
+test('H1 빈 칸 안내 «+ 내용 추가 (T/G/K)» — 더 연한 색(토큰)', async ({ page }) => {
+  const errs = await boot(page, SEC_HB);
+  await page.evaluate((G) => window.updateGridBlock(document.querySelector(G).id, { patchCell: { r: 1, c: 1, lines: [] } }), G);
+  await f2(page);
+  const h = await before(page, `${G} .grd-cell-empty[data-r="1"][data-c="1"]`);
+  expect(h && [h.content, h.color], '빈 칸 안내 = 연한 토큰 색').toEqual(['"+ 내용 추가 (T/G/K)"', FAINT]);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--text-hint-canvas-faint').trim()), '토큰이 풀린다').not.toBe('');
+  expect(errs).toEqual([]);
+});

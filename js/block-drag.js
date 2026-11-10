@@ -2603,7 +2603,17 @@ function bindBlock(block) {
       if (showFn === 'showGridProperties') {
         /* ★_gridAddrAt — 줄(글자/이미지/갭)과 «진짜 빈 셀」을 모두 잡는다(위 정의).
            undefined 면 «기존 선택 유지」다(줄이 있는 셀의 여백 클릭 — D5 와 같은 보호). */
-        const _at = _gridAddrAt(e.target, block);
+        let _at = _gridAddrAt(e.target, block);
+        /* ★NEW-현빈QA-GRID-TWOCELL-ROW-DELETE-AND-ALIGN-01 D1⒜(현빈 261110) — 두 칸 안 «빈 열» 자리(.grd-nested-col-empty)를 누르면
+           (블럭이 이미 골라진 둘째 클릭 = 드릴다운 규약 그대로) 그 열에 글 줄 하나를 넣고 그 줄로 간다.
+           넣는 길 = 패널 「+ 줄 추가」와 같은 grdAddLine ＋ 중첩 열 주인(⌘Z 한 번). 빈 열엔 «고를 줄»이 없어 주소를 새로 만들지 않고 줄을 만든다. */
+        const _emptyCol = _grdWasSelected && e.target && e.target.closest ? e.target.closest('.grd-nested-col-empty[data-ncol]') : null;
+        if (_emptyCol && block.contains(_emptyCol)) {
+          const d = _emptyCol.dataset, r = Number(d.r), c = Number(d.c), H = window.grdNestColHost?.(block, r, c, Number(d.nroot), Number(d.ncol));
+          const res = H && window.grdAddLine?.(block, { r, c }, null, window.grdNewLineSpec?.('body') || { type: 'body', text: '' }, {}, H);
+          if (res && res.ok) _at = H.addrOf(r, c, res.li);
+          else window.grdToastImgFail?.(res);
+        }
         /* ★0918 grid: undefined 를 넘기지 않는다(= 옛 줄 되살리기). 칸 밖(테두리·패딩·gap)은
            null = 블럭 전체 선택, 줄 있는 칸의 여백은 직전 줄 유지(D5). 판정은 prop-grid.js 한 곳. */
         const _cellEl = e.target && e.target.closest ? e.target.closest('.grd-cell') : null;

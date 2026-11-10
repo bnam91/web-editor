@@ -1522,8 +1522,22 @@ function _grdSummaryText(r, c, li, line, host = null) {
  *  ★문구는 `.prop-hint` 로 싣는다 — ⛔`.prop-label` 은 56px 고정이라 잘린다
  *    (이 패널에 「29%만 읽히던」 전례가 있다). 같은 패널의 다른 안내문과 «같은 부품»이다.
  *  ★주소를 «보여 준다» — 다음 사람이 무엇을 가리켜야 하는지 화면에서 바로 읽게. */
-function _grdNestHintHtml(nestHit) {
+function _grdNestHintHtml(nestHit, block = null) {
   if (!nestHit) return '';
+  /* ★D2ⓐ(현빈 261110 · TWOCELL-ROW-DELETE-AND-ALIGN) — 이 줄이 든 «열»의 세로 자리. 칸 «세로 정렬»과 같은 세 단추(alignBtn object-v) · 값은 그 duo 줄의 cols[ci].valign(없으면 duo 전체 값 · 그것도 없으면 위). 깊이 1만. */
+  let colVa = '';
+  if (block && !nestHit.np.includes('/')) {
+    try { const duo = getGridModel(block).cells[nestHit.r][nestHit.c].lines[nestHit.li]; colVa = duo.cols[Number(nestHit.np.split('.')[0])].valign || duo.valign || 'top'; } catch (_) { colVa = ''; }
+  }
+  const colVaRow = colVa ? `
+      <div class="prop-row">
+        <span class="prop-label" title="이 열 안 내용의 세로 자리 — 두 칸 높이가 다를 때 보인다">열 세로</span>
+        <div class="prop-align-group" id="grd-nest-valign-group">
+          ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '이 열 위쪽 정렬', active: colVa === 'top', attrs: { 'data-nva': 'top' } })}
+          ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '이 열 가운데 정렬 (수직)', active: colVa === 'middle', attrs: { 'data-nva': 'middle' } })}
+          ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '이 열 아래쪽 정렬', active: colVa === 'bottom', attrs: { 'data-nva': 'bottom' } })}
+        </div>
+      </div>` : '';
   const kind = (nestHit.line && nestHit.line.type) || 'body';
   return `
     <div class="prop-section" id="grd-nest-hint">
@@ -1532,7 +1546,7 @@ function _grdNestHintHtml(nestHit) {
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">${nestHit.np.includes('/') ? '' : /* ★1109t1A2 깊이 1만 · 중첩 종류는 _GRD_KINDS 에 없다(E12/E13) · 사진/원은 우클릭(이미지 추가/원형 이미지 추가)과 같은 이름 · 만드는 꼴은 grdNewLineSpec('photo'|'circle') 한 곳 */
           _grdAddKindSelectHtml(_GRD_KINDS, _GRD_ADD_IMG_OPTS) + _GRD_DUP_DEL_BTNS}
         <button id="grd-nest-outer-btn" class="prop-btn-sm" title="이 칸을 품은 바깥 줄을 고릅니다 (Esc 와 같음)">바깥 줄 고르기</button>
-      </div>
+      </div>${colVaRow}
     </div>`;
 }
 const _grdEsc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -3930,7 +3944,7 @@ ${_flattenRowHtml(rows, cols)}
       </div>
       ${_alignWipes ? '<div class="prop-hint" style="text-align:left;padding:2px 0 4px;">칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)</div>' : ''}
     </div>
-    ${_grdNestHintHtml(_nestHit)}
+    ${_grdNestHintHtml(_nestHit, block)}
     ${_grdLineBarHtml(_anyHit, block)}
     ${_anyHit ? '' : _grdKidsAddSectionHtml()}
     ${_borderSectionHtml(_cellBorder)}
@@ -4032,6 +4046,17 @@ ${_flattenRowHtml(rows, cols)}
     const NS = { ..._grdGridHost(block), resolveAny: (a) => _grdResolveNestAddr(block, a) };   // 줄 꾸미기·Image 절 = 바깥 줄과 같은 절 · gridPreviewLine 이 np 로 그 줄에 쓴다(T-220)
     _grdWireLineSection(block, _curAddr, NS);
     _grdWireImageSection(block, _curAddr, NS);
+    /* ★D2ⓐ — 열 세로 정렬: 그 duo 줄의 cols[ci].valign 하나만 바꿔 바깥 줄 통째 한 문(⌘Z 한 번 · 줄 삭제·복사와 같은 길). */
+    propPanel.querySelectorAll('#grd-nest-valign-group [data-nva]').forEach((btn) => btn.addEventListener('click', () => {
+      const G = _grdGridHost(block), { r, c, li } = _nestHit;
+      let outer; try { outer = JSON.parse(JSON.stringify(G.getLines(r, c))); } catch (_) { return; }
+      const col = outer?.[li]?.cols?.[ci];
+      if (!col || col.valign === btn.dataset.nva) return;
+      col.valign = btn.dataset.nva;
+      const res = G.commitLines(r, c, outer);
+      if (res && res.ok === false) { _grdToastCellFail(res); return; }
+      showGridProperties(block, _curAddr);   // 같은 줄 그대로
+    }));
   }
   _grdWireDisclosure(block, 'rowh', 'grd-rowh-toggle', 'grd-rowh-body');   // t2-06
 

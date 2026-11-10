@@ -2603,11 +2603,16 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
            「왜 다른 이름인가」 참조). 대신 naddr 이 data-nroot/data-npath 를 싣는다.
          ★이 줄이 바깥 줄이면(addr 있음) 길이 시작되고, 이미 중첩 안이면(naddr 있음) 길이 이어진다.
            둘 다 없으면 null 이 내려가 산출이 예전과 «바이트 동일»이다(innercard 경로). */
-      const inner = (Array.isArray(c.lines) ? c.lines : [])
+      let inner = (Array.isArray(c.lines) ? c.lines : [])
         .map((l, ni) => _gridLineHtml(l, c.align || colAlign, depth + 1, null, useRoleColor,
           _gridNestAddr(addr, naddr, ci, ni))).join('');
+      /* ★NEW-현빈QA-GRID-TWOCELL-ROW-DELETE-AND-ALIGN-01 D1⒜(현빈 261110) — 줄을 다 지운 «빈 열»은 그대로 두고 «누를 자리»를 준다.
+         빈 div 하나(주소만 싣는다 · 안내 글자와 높이는 #canvas 스코프 CSS — 산출물엔 0 높이 = 오늘과 같은 빈 열). 깊이 1(바깥 줄 주소가 있을 때)만 — 누르면 block-drag.js 가 그 열에 줄 하나를 넣는다. */
+      if (!inner && addr && !naddr) inner = `<div class="grd-nested-col-empty" data-r="${addr.r}" data-c="${addr.c}" data-nroot="${addr.li}" data-ncol="${ci}"></div>`;
+      /* ★D2ⓐ(현빈 261110) — 열마다 세로 정렬(c.valign · top/middle/bottom) · 없으면 duo 전체 값(옛 산출 그대로). */
+      const cv = _gridEnum(_GRID_VALIGN, c.valign) || valign;
       // 바깥 duo 와 «같은» 정렬 축을 쓴다 — 컬럼은 stretch, 정렬은 컬럼 안 내용(justify-content).
-      return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${valign};">${inner}</div>`;
+      return `<div class="grd-nested-col" style="flex:${w};min-width:0;display:flex;flex-direction:column;justify-content:${cv};">${inner}</div>`;
     }).join('');
     return `<div${addrAttr} class="grd-nested" style="display:flex;gap:${gap}px;align-items:stretch;${mtCss}">${colsHtml}</div>`;
   }
