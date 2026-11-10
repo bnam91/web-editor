@@ -98,13 +98,19 @@ test('B-5 변환 직후 안쪽 stack 프레임의 블럭을 옆 stack 프레임�
   expect((await marked(page)).par).toBe(ids.GS);
   expect(await page.evaluate(() => document.querySelectorAll('[data-j294l]').length)).toBe(1);
 });
-test('B-4 값: 섹션 직속 블럭을 깊은 stack 프레임에 놓으면 변환 직후·다시 연 뒤 똑같이 맨 위 프레임으로 간다', async ({ page }) => {
+/* B-4 의 «잣대»는 «변환 직후 = 다시 연 뒤»(왕복 같음)다. 기대 프레임은 그때 «잰 값»이었다(b17ee24fc · 11-03: 그 무렵 길은 맨 위 R).
+ *   ~~맨 위 프레임(R)으로 간다~~ ⇒ t2-09b(df5a37b83 · 현빈 결정 «쌓기 프레임 위에 놓으면 = 그 안» · 미카사 발주10 4/22 ✅)가 «포인터 아래 가장 깊은 프레임»으로 넘겨
+ *   이제 GS 다(B-5 의 옆 stack 놓기와 같은 규칙). int-3 c7bf2580d 3/3 빨강의 까닭 = 이 낡은 기대값(INT3-B4-FRAME-MODE-ROUNDTRIP · 워커2).
+ *   ⛔잣대를 «아무 프레임이나»로 풀지 않았다 — 두 번 다 GS 이고 두 번이 같아야 한다. */
+test('B-4 값: 섹션 직속 블럭을 깊은 stack 프레임에 놓으면 변환 직후·다시 연 뒤 똑같이 그 프레임(GS)으로 간다', async ({ page }) => {
   const { ids } = await scene(page); await toStack(page, ids);
   const once = async () => { await addBlock(page, 'addAssetBlock', '.asset-block', ids.sec, null); await J.settle(page); const a = await marked(page); await page.mouse.click(a.x, a.y); await J.settle(page); const b = await marked(page); await drag(page, [b.x, b.y], await lowerMiddle(page, ids.GS)); return (await marked(page)).par; };
-  expect(await once()).toBe(ids.R);
+  const first = await once();
+  expect(first, '변환 직후 — 포인터 아래 가장 깊은 stack(GS)').toBe(ids.GS);
   await page.evaluate(() => document.querySelector('[data-j294l]').removeAttribute('data-j294l'));
   await J.reopen(page); await J.settle(page);
-  expect(await once()).toBe(ids.R);
+  const second = await once();
+  expect(second, '다시 연 뒤도 같은 곳(왕복 같음)').toBe(first);
 });
 
 /* B-6: 패널 안내선 ↔ 실제 놓임. 안내선 바로 다음 항목 앞에 놓여야 한다. 마지막에 한 번 더 움직여 dragover 를 받게 한다 */
