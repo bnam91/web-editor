@@ -2311,6 +2311,14 @@ window.flushProjectBeforeTrash = async (id) => {
   let data = null;
   try { data = JSON.parse(localStorage.getItem('web-editor-autosave__' + id)); } catch {}
   if (!data || !Array.isArray(data.pages)) return;
+  /* 이미 남은 사본이 있으면 또 안 남긴다(적대 리뷰 1) — 탭 닫기(keepFailedCopyOnClose)·떠날 때 save-sync 실패(_recordSyncSaveFailure)·지난 종료가 벌써 남겼을 수 있고,
+     비상 사본은 모든 프로젝트가 5칸을 나눠 써 겹치면 남의 하나뿐인 사본이 밀려 지워진다. 판정은 부팅 정리·releaseFailedProtection 과 «같은 규칙»:
+     저장 실패 기록 · 사본 있음 · 그 시각 ≥ LS 본 시각. 못 물으면 남긴다(잃는 쪽보다 겹치는 쪽). */
+  try {
+    const p = await window.electronAPI.recovery?.pending?.();
+    const lsTs = parseInt(localStorage.getItem('web-editor-autosave__' + id + '_ts') || '0') || Infinity;
+    if (p && Array.isArray(p.items) && p.items.some(x => x && x.kind === 'save-failure' && x.emergencyExists && x.projectId === id && (Date.parse(x.at) || 0) >= lsTs)) return;
+  } catch {}
   let r = null;
   try { r = await window.electronAPI.recordRefusedSave({ ...data, id, name: data.name || 'Untitled' }, 'save-failed'); }
   catch (e) { console.warn('[projects] 휴지통 전 비상 사본 실패:', e && e.message); }

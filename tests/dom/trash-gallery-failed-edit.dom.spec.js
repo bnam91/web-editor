@@ -12,6 +12,7 @@
  *     G1 ★실패 표지(web-editor-failed-save-ids)에 있는 프로젝트 → 비상 사본 1(LS 본 그대로 · 이름·사유) · 옮긴 뒤 LS 는 지워짐(사본이 있으니 잃음 0)
  *     G2 [음성] 실패 표지에 없는 프로젝트(저장 잘 된 LS 본) → 사본 0
  *     G3 사본도 못 남김(record ok:false) → 말한다(상태 토스트)
+ *     G4 [적대 리뷰 1] 그 편집의 사본이 이미 있다(복구 대기 · LS 본보다 새롭거나 같음) → 또 안 남긴다(5칸을 나눠 쓰는 남의 사본을 안 민다) · 사본이 LS 보다 낡았으면 남긴다
  * 판 = 섹션 셋 · 글 · 그림 둘(trash-flush-stale-cache 와 같은 꼴). 휴지통 «옮기기»는 main 몫이라 가짜 표로만.
  * 양성대조(지디 인텔): ⒜ js/io/save-load.js flushProjectBeforeTrash 의 `if (_active && !_lastSaveFailed(id)) {` 를 `if (_active) {` 로 → E1·E3 빨강 · E2·N1 초록
  *   ⒝ pages/projects.html window.flushProjectBeforeTrash 첫 줄 `return;` → G1·G3 빨강 · G2 초록 */
@@ -126,7 +127,7 @@ const REPO = path.join(__dirname, '..', '..');
 const ORIGIN = 'http://goditor.dom.test';
 const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
-function installGalleryMock({ A, recordOk }) {
+function installGalleryMock({ A, recordOk, pending }) {
   window.__kept = []; window.__trashed = []; window.__closed = [];
   const db = { projects: [{ id: A, name: '갤러리 지울 것', updatedAt: new Date().toISOString(), folderId: null }, { id: 'proj_keep', name: '남길 것', updatedAt: new Date().toISOString(), folderId: null }] };
   const api = {
@@ -135,6 +136,7 @@ function installGalleryMock({ A, recordOk }) {
     trashList: async () => ({ ok: true, items: [] }),
     getAuthState: async () => ({ signedIn: false }),
     folders: { list: async () => ({ ok: true, folders: [] }) },
+    recovery: { pending: async () => ({ ok: true, items: pending || [] }), ack: async () => ({ ok: true }) },
     recordRefusedSave: async (p, reason) => { window.__kept.push({ id: p.id, name: p.name, reason, body: JSON.stringify(p) }); return recordOk ? { ok: true } : { ok: false, reason: 'exception' }; },
     /* 진짜 main(projects:delete · 휴지통 갈래)의 순서 그대로: 모든 창에 flushProjectBeforeTrash → 옮김 → 모든 창에 closeDeletedProjectTab */
     deleteProject: async (id) => {
@@ -146,7 +148,7 @@ function installGalleryMock({ A, recordOk }) {
   };
   window.electronAPI = new Proxy(api, { get: (t, k) => (k in t ? t[k] : () => Promise.resolve(null)) });
 }
-async function bootGallery(page, { failed = true, recordOk = true } = {}) {
+async function bootGallery(page, { failed = true, recordOk = true, pending = [], lsTs = Date.now() } = {}) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e)));
   page.on('dialog', (d) => d.accept());   // 「휴지통으로 보낼까요?」 확인
@@ -156,7 +158,7 @@ async function bootGallery(page, { failed = true, recordOk = true } = {}) {
     if (!file.startsWith(REPO) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return route.fulfill({ status: 404, body: '' });
     return route.fulfill({ contentType: MIME[path.extname(file)] || 'text/plain', body: fs.readFileSync(file) });
   });
-  await page.addInitScript(installGalleryMock, { A, recordOk });
+  await page.addInitScript(installGalleryMock, { A, recordOk, pending });
   /* 편집기가 남긴 상태 — 저장 실패로 LS 에만 있는 본(섹션 셋 · 글 · 그림 둘) + 실패 표지 + 열린 탭 목록 */
   const body = { id: A, name: '갤러리 지울 것', version: 2, currentPageId: 'page_1', updatedAt: '2026-11-10T00:00:00.000Z',
     pages: [{ id: 'page_1', name: 'P1', pageSettings: {}, canvas:
@@ -164,7 +166,7 @@ async function bootGallery(page, { failed = true, recordOk = true } = {}) {
       + `<div class="section-block" data-section="2"><div class="section-inner"><div class="asset-block has-image" data-img-src="${RED}"><img class="asset-img" src="${RED}"></div></div></div>`
       + `<div class="section-block" data-section="3"><div class="section-inner"><div class="text-block"><div class="tb-body">본문</div></div><div class="asset-block has-image" data-img-src="${HALF}"><img class="asset-img" src="${HALF}"></div></div></div>` }] };
   const kv = {
-    [`web-editor-autosave__${A}`]: JSON.stringify(body), [`web-editor-autosave__${A}_ts`]: String(Date.now()),
+    [`web-editor-autosave__${A}`]: JSON.stringify(body), [`web-editor-autosave__${A}_ts`]: String(lsTs),
     'web-editor-open-tabs': JSON.stringify({ tabs: [{ id: A, name: '갤러리 지울 것' }], activeId: A }),
     ...(failed ? { 'web-editor-failed-save-ids': JSON.stringify([A]) } : {}),
   };
@@ -205,4 +207,20 @@ test('G3 사본도 못 남기면 말한다', async ({ page }) => {
   await clickX(page);
   await expect.poll(async () => (await gstate(page)).toast, '★사본을 못 남겼는데 말이 없다').toBe(true);
   expect(errs).toEqual([]);
+});
+
+test('G4 이미 남은 사본(LS 본보다 새롭거나 같음)이면 또 안 남긴다 · 사본이 LS 보다 낡았으면 남긴다', async ({ page, browser }) => {
+  const lsTs = Date.parse('2026-11-10T09:00:00.000Z');
+  const item = (at) => ({ id: 'rec1', kind: 'save-failure', projectId: A, projectName: '갤러리 지울 것', at, emergencyExists: true, emergencyPath: '/tmp/x.json' });
+  const errs = await bootGallery(page, { lsTs, pending: [item('2026-11-10T09:00:05.000Z')] });
+  await clickX(page);
+  expect((await gstate(page)).kept, '★이미 사본이 있는데 또 남겨 5칸을 민다').toEqual([]);
+  expect(errs).toEqual([]);
+  /* 반대쪽 — 사본이 LS 본보다 낡았다(그 뒤 편집이 더 있다) → 남긴다 */
+  const ctx = await browser.newContext(); const p2 = await ctx.newPage();
+  const errs2 = await bootGallery(p2, { lsTs, pending: [item('2026-11-10T08:00:00.000Z')] });
+  await clickX(p2);
+  expect((await gstate(p2)).kept.length).toBe(1);
+  expect(errs2).toEqual([]);
+  await ctx.close();
 });
