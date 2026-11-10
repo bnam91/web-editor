@@ -2685,8 +2685,8 @@ function _guardProjectName(incomingProject, prevPath) {
      그 뒤 저장 한 번에 옛 코드는 깨진 proj.json 을 «검사 없이» 백업으로 복사 → 디스크에 성한 판 0.
    ⛔다세대 백업 아님(다음 판). 저장 자체는 막지 않는다. 시험: tests/unit/rolling-backup-e169.test.js */
 function _rollBackup(prevPath, backupPath) {
-  let prev;
-  try { prev = JSON.parse(_SS().readTextRetry(prevPath)); }
+  let prev, raw;
+  try { raw = _SS().readTextRetry(prevPath); prev = JSON.parse(raw); }
   catch (e) {
     if (!(e instanceof SyntaxError)) {   // 못 읽었을 뿐 깨진 게 아니다 — 저장은 막지 않는다(성한 메모리)
       console.warn(`[rolling-backup] 직전 proj.json 을 못 읽어 백업을 그대로 둔다: ${e.message}`);
@@ -2699,7 +2699,11 @@ function _rollBackup(prevPath, backupPath) {
     console.warn('[rolling-backup] 직전 proj.json 이 «프로젝트 형태»가 아니라 백업을 그대로 둔다');
     return prev && prev.type === 'planning' ? { called: true, copied: false, reason: 'not_project', planning: true } : { called: true, copied: false, reason: 'not_project' };
   }
-  try { fs.copyFileSync(prevPath, backupPath); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
+  /* ★BACKUP-INHERITS-READONLY-FREEZES-01 — copyFileSync 는 원본 «권한»까지 복사한다(macOS copyfile). proj.json 이 444 이던 때 만든 백업은 444 로 태어나고,
+       그 뒤 백업은 읽기전용 대상 위 복사가 EACCES 로 실패해 «굳었다»(copy_failed · 미카사 발주9 곁).
+     ⇒ proj.json 과 같은 원자적 쓰기(임시 파일 → rename) — 새 파일은 늘 쓰기 되는 권한이고, rename 은 이미 굳은 444 백업도 갈아 끼운다.
+       바이트는 그대로다(방금 읽은 그 문자열 · 읽기와 파싱에 이미 썼다 = 추가 읽기 0). */
+  try { _atomicWriteFileSync(backupPath, raw); } catch (e) { return { called: true, copied: false, reason: 'copy_failed:' + (e && e.code) }; }
   return { called: true, copied: true };
 }
 
