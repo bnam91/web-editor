@@ -2410,7 +2410,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
             fxShadowBlur: line.fxShadowBlur, fxShadowColor: line.fxShadowColor, fxShadowOp: line.fxShadowOp })
         : '';
       const fxCss = _fxF ? `filter:${_fxF};` : '';
-      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
+      /* ★NEW-현빈QA-GRID-TWOCELL-ROW-DELETE-AND-ALIGN-01(261110) — 원 틀은 flex 항목으로 «안 줄어든다»(flex-shrink:0).
+         그림 든 원은 overflow:hidden 이라 flex 자동 최소 높이가 0 ⇒ 같은 열의 빈 사진 자리(height:100% — 열 높이만큼 요구)가 공간을 다투면
+         원만 눌려 타원(120×41)이 됐다(미카사 사본 실측 89×29). 폭은 max-width·aspect-ratio 가 지키니 높이만 막으면 정원이다.
+         ⛔사각 그림 틀엔 안 단다 — 그쪽은 «줄어드는 것»이 옛 규칙이다(아래 커밋 ① ㈐ 실측). */
+      const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;flex-shrink:0;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
       if (!line.imgSrc) return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}${lid ? 'overflow:hidden;' : ''}">${cTextHtml}</div>`;
       return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`

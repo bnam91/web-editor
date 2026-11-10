@@ -424,6 +424,15 @@ function _grdNestColHost(block, r, c, li, ci) {
       return G.commitLines(r, c, outer, opts);
     },
     addrOf: (r2, c2, i) => ({ r, c, li, np: `${ci}.${i}` }),
+    /* ★TWOCELL-ROW-DELETE-AND-ALIGN(261110) — 줄바(줄 복사·삭제·종류 바꾸기)가 이 주인으로 «그대로» 돈다: 열 안 번호 ↔ 중첩 주소만 바꾼다. */
+    resolveAny: (a) => {
+      const L = G.getLines(r, c)?.[li]?.cols?.[ci]?.lines || [];
+      const i = a && typeof a.np === 'string' ? Number(a.np.split('.')[1]) : Number(a?.li);
+      return Number.isInteger(i) && i >= 0 && i < L.length ? { r, c, li: i, line: L[i] } : null;
+    },
+    show: (a) => G.show(a && !a.np && Number.isInteger(a.li) ? { r, c, li, np: `${ci}.${a.li}` } : a),
+    patchLine: (r2, c2, i, fields) => window.updateGridBlock?.(block.id, { patchCell: { r, c, lineIndex: li, np: `${ci}.${i}`, ...fields } }),
+    outerAddr: { r, c, li },   // 열이 비면 품은 duo 줄로(editor.js ⌫ 와 같은 자리)
   };
 }
 if (typeof window !== 'undefined') window.grdNestColHost = _grdNestColHost;
@@ -1521,13 +1530,19 @@ function _grdNestHintHtml(nestHit) {
       <div class="prop-section-title">줄 (중첩 칸 안)</div>
       <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>${/* ★1109t1A 게이트(지디) — 「아직 고치는 건…다음 판」·「주소 r,c…」 두 줄은 사용자에게 개발자 말·약속이라 지웠다(불필요한 프롭힌트) */ ''}
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">${nestHit.np.includes('/') ? '' : /* ★1109t1A2 깊이 1만 · 중첩 종류는 _GRD_KINDS 에 없다(E12/E13) · 사진/원은 우클릭(이미지 추가/원형 이미지 추가)과 같은 이름 · 만드는 꼴은 grdNewLineSpec('photo'|'circle') 한 곳 */
-          _grdAddKindSelectHtml(_GRD_KINDS, _GRD_ADD_IMG_OPTS)}
+          _grdAddKindSelectHtml(_GRD_KINDS, _GRD_ADD_IMG_OPTS) + _GRD_DUP_DEL_BTNS}
         <button id="grd-nest-outer-btn" class="prop-btn-sm" title="이 칸을 품은 바깥 줄을 고릅니다 (Esc 와 같음)">바깥 줄 고르기</button>
       </div>
     </div>`;
 }
 const _grdEsc = (v) => String(v).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
+/* [줄 복사]·[줄 삭제] — 바깥 줄바와 «두 칸 안» 줄(_grdNestHintHtml)이 같은 단추·같은 배선(_grdWireLineBar)을 쓴다. ⛔두 벌로 적지 마라. */
+const _GRD_DUP_DEL_BTNS = `        <button id="grd-line-dup-btn" class="prop-btn-sm"
+                title="이 줄을 그대로 한 벌 더 만들어 «바로 아래»에 넣습니다 (⌘Z 로 복원)">줄 복사</button>
+        <button id="grd-line-del-btn" class="prop-btn-sm"
+                title="이 줄을 삭제합니다 — 마지막 줄까지 지우면 칸이 «빈 칸»이 됩니다 (단, 내용이 남은 마지막 칸은 비울 수 없습니다)">줄 삭제</button>
+`;
 function _grdLineBarHtml(anyHit, block, host = null) {
   const H = host || _grdGridHost(block);
   if (!anyHit) {
@@ -1593,11 +1608,7 @@ ${_grdAddKindSelectHtml(H.kinds, H.kind === 'grid' ? _GRD_ADD_IMG_OPTS : '')}${H
       </div>
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
 ${_grdAddKindSelectHtml(H.kinds, H.kind === 'grid' ? _GRD_ADD_IMG_OPTS : '')}
-        <button id="grd-line-dup-btn" class="prop-btn-sm"
-                title="이 줄을 그대로 한 벌 더 만들어 «바로 아래»에 넣습니다 (⌘Z 로 복원)">줄 복사</button>
-        <button id="grd-line-del-btn" class="prop-btn-sm"
-                title="이 줄을 삭제합니다 — 마지막 줄까지 지우면 칸이 «빈 칸»이 됩니다 (단, 내용이 남은 마지막 칸은 비울 수 없습니다)">줄 삭제</button>
-      </div>
+${_GRD_DUP_DEL_BTNS}      </div>
     </div>`;
 }
 
@@ -1670,7 +1681,7 @@ function _grdWireLineBar(block, addr, host = null) {
          상한(TOO_MANY_LINES)·모양(LINES_NOT_ARRAY)으로 여전히 거절될 수 있고,
          「거절인데 활성줄만 움직였다」가 이 레포의 고질이라 방어를 걷지 않는다. */
     const prevActive = grdGetActiveLine(block);
-    grdSetActiveLine(block, newLines.length ? { r, c, li: newLi } : null);
+    grdSetActiveLine(block, newLines.length ? (H.addrOf ? H.addrOf(r, c, newLi) : { r, c, li: newLi }) : (H.outerAddr || null));   // ★중첩 열 주인은 np 주소
     const res = H.commitLines(r, c, newLines);
     if (res && res.ok === false) grdSetActiveLine(block, prevActive);
     grdToastImgFail(res);
@@ -1873,7 +1884,7 @@ function _grdImageClipSectionHtml(anyHit, block) {
 
 function _grdWireImageSection(block, addr, host = null) {
   const foreign = !!host && host.kind !== 'grid';   // ★1013t1B2 C4 — 위 _grdImageSectionHtml 머리말
-  const hit = foreign ? host.resolveAny(addr) : _grdResolveAnyAddr(block, addr);
+  const hit = host ? host.resolveAny(addr) : _grdResolveAnyAddr(block, addr);   // 그리드 주인의 resolveAny = _grdResolveAnyAddr(같은 답) · 중첩 주인(NS)은 np 줄
   if (!hit || hit.li === null || !hit.line || hit.line.type !== 'image') return;
   const { r, c, li } = hit;
 
@@ -1892,7 +1903,7 @@ function _grdWireImageSection(block, addr, host = null) {
         /* ★1013t1B2 — 남의 주인은 «그 주인의 문»(patchLine)으로 쓴다. ⛔trusted 는 그리드 문의 문자열 캡(GRID_IMG_MAX_CHARS) 면제다 —
            남의 문엔 그 캡이 없다(laurel cellLines 는 MCP 에 안 열렸다 · 결정 B2-9). 게이트(grdImageFileOk)는 위에서 한 벌로 같이 지난다. */
         grdToastImgFail(foreign ? host.patchLine(r, c, li, { imgSrc: got.src }) : window.updateGridBlock?.(block.id,
-          { patchCell: { r, c, lineIndex: li, imgSrc: got.src } }, { trusted: true }));
+          { patchCell: { r, c, lineIndex: li, ...(addr.np ? { np: addr.np } : {}), imgSrc: got.src } }, { trusted: true }));
       });
     };
     input.click();
@@ -3540,7 +3551,7 @@ function _grdLineSectionHtml(anyHit, block, host = null) {
   void block;
   /* ★그림 줄은 «폭이 꽉 차면» 정렬이 안 보인다 — 렌더러의 wp<100 가드가 «의도»다.
      지금 그 줄이 실제로 꽉 차 있을 때만 말한다(늘 띄우면 잔소리가 되고 아무도 안 읽는다). */
-  const imgFull = (line.type === 'image') && !(Number(line.widthPct) < 100);
+  const imgFull = (line.type === 'image') && line.imgShape !== 'circle' && !(Number(line.widthPct) < 100);   // 원은 폭(%)을 안 읽고 지름 상자가 margin 으로 움직인다 ⇒ 「폭 100% 라 정렬 안 보임」은 원엔 거짓 안내(TWOCELL 261110 패널 대조)
   const isText = gridLineHasText(line);
   /* ⛔여기서 일찍 빠지지 마라 — 갭 줄에도 «종류 바꾸기»는 있어야 한다(되돌아갈 길). */
   /* ★갭·구분선 줄은 «손잡이가 높이/굵기뿐»이라 처음부터 펼친다(G3) — 접어 두면 그 한 칸을 찾아 펼쳐야 한다. */
@@ -3560,7 +3571,7 @@ function _grdLineSectionHtml(anyHit, block, host = null) {
   void r; void c;
   return `
     <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
-${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${li + 1}번째 줄`, open)}
+${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${(anyHit.np ? Number(anyHit.np.split('.')[1]) : li) + 1}번째 줄`, open)}
       <div id="grd-line-body" style="display:${open ? 'block' : 'none'};">
         <div class="prop-row">
           <span class="prop-label" title="이 줄의 종류를 바꾼다(글자 역할 · 아이콘 · 여백)">줄 종류</span>
@@ -3705,7 +3716,7 @@ function _grdWireLineSection(block, addr, host = null) {
       parse: (rawV) => (String(rawV ?? '').trim() === '' ? '' : parseHex6(rawV)),
       format: (v) => (v ? formatHex6(v) : ''),
       getCurrent: () => {
-        const cur = H.line({ r, c, li }) || {};
+        const cur = H.line({ r, c, li, ...(addr.np ? { np: addr.np } : {}) }) || {};
         return (typeof cur.color === 'string' && GRID_COLOR_RE.test(cur.color.trim()))
           ? swatchHex(cur.color.trim(), '') : '';
       },
@@ -3726,7 +3737,7 @@ function _grdWireLineSection(block, addr, host = null) {
     window.pushHistory?.();
     H.previewLine(r, c, li, cleared, addr.np);   // ★np — 중첩 안 줄도 같은 길로(T-220)
     window.scheduleAutoSave?.();
-    H.show({ r, c, li });
+    H.show({ r, c, li, ...(addr.np ? { np: addr.np } : {}) });   // np — 두 칸 안 줄도 그 줄로 다시 연다
   });
 
   /* ★알약 둥글기(현빈 2026-10-07) — 색 입력과 ★같은 길(H.previewLine = gridPreviewLine)을 쓴다.
@@ -3775,7 +3786,7 @@ function _grdWireLineSection(block, addr, host = null) {
     parse: (raw) => (String(raw ?? '').trim() === '' ? '' : parseHex6(raw)),
     format: (v) => (v ? formatHex6(v) : ''),
     getCurrent: () => {
-      const cur = H.line({ r, c, li }) || {};
+      const cur = H.line({ r, c, li, ...(addr.np ? { np: addr.np } : {}) }) || {};
       return (typeof cur.bg === 'string' && GRID_COLOR_RE.test(cur.bg.trim())) ? swatchHex(cur.bg.trim(), '') : '';
     },
     onApply: (v) => { paint(v || ''); if (v && pick) pick.value = v; },
@@ -3824,6 +3835,8 @@ export function showGridProperties(block, addrArg) {
        전수(editor.js ⌫ · overlay-handles 둘 · 이 파일 리졸버 둘)에 바일아웃을 박았다. */
   const _nestHit = _grdResolveNestAddr(block, _addrIn);
   const _anyHit = _nestHit ? null : _grdResolveAnyAddr(block, _addrIn);
+  /* ★TWOCELL-ROW-DELETE-AND-ALIGN(261110) — 깊이 1 «두 칸 안» 줄은 줄 꾸미기(줄 정렬·높이)·Image(지름·높이) 절을 바깥 줄과 «같은 절»로 띄운다(쓰기는 np 로 · 배선은 아래 NS 주인). 깊이 2+ 는 그대로 안내만. */
+  const _nestD1 = _nestHit && !_nestHit.np.includes('/') ? _nestHit : null;
   const _curAddr = _nestHit
     ? { r: _nestHit.r, c: _nestHit.c, li: _nestHit.li, np: _nestHit.np }
     : (_anyHit ? { r: _anyHit.r, c: _anyHit.c, li: _anyHit.li } : null);
@@ -3927,8 +3940,8 @@ ${_flattenRowHtml(rows, cols)}
     ${_grdPadExcludeSectionHtml(block)}
     ${_grdAllCellsSectionHtml(_anyHit, block)}
     ${_grdCellSectionHtml(_anyHit, block)}
-    ${_grdLineSectionHtml(_anyHit, block)}
-    ${_grdImageSectionHtml(_anyHit, block)}
+    ${_grdLineSectionHtml(_anyHit || _nestD1, block)}
+    ${_grdImageSectionHtml(_anyHit || _nestD1, block)}
     ${_grdTypoSectionsHtml(_hit, block)}`;
   /* ★2026-09-25 R1＋R5 — 여기 있던 마지막 절
        「글자는 «캔버스에서 줄을 더블클릭»해 고친다」
@@ -4014,8 +4027,11 @@ ${_flattenRowHtml(rows, cols)}
   _grdWireDisclosure(block, 'size', 'grd-size-toggle', 'grd-size-body');
   document.getElementById('grd-nest-outer-btn')?.addEventListener('click', () => grdSelectOuterLine(block));   // ★1109t1A1
   if (_nestHit && !_nestHit.np.includes('/')) {   // ★1109t1A2 — 중첩 열에 줄 추가: 같은 select 배선, 주인만 그 열
-    const [ci, i] = _nestHit.np.split('.').map(Number);
-    _grdWireKindSelects(block, _nestHit.r, _nestHit.c, i, _grdNestColHost(block, _nestHit.r, _nestHit.c, _nestHit.li, ci));
+    const ci = Number(_nestHit.np.split('.')[0]);
+    _grdWireLineBar(block, _curAddr, _grdNestColHost(block, _nestHit.r, _nestHit.c, _nestHit.li, ci));   // ★TWOCELL-ROW-DELETE — 줄 추가 select + [줄 복사]·[줄 삭제] 한 배선(안에서 _grdWireKindSelects 를 부른다)
+    const NS = { ..._grdGridHost(block), resolveAny: (a) => _grdResolveNestAddr(block, a) };   // 줄 꾸미기·Image 절 = 바깥 줄과 같은 절 · gridPreviewLine 이 np 로 그 줄에 쓴다(T-220)
+    _grdWireLineSection(block, _curAddr, NS);
+    _grdWireImageSection(block, _curAddr, NS);
   }
   _grdWireDisclosure(block, 'rowh', 'grd-rowh-toggle', 'grd-rowh-body');   // t2-06
 
