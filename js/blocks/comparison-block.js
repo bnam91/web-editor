@@ -425,7 +425,7 @@ function renderComparison(block, _lnNeed = null) {
       const hd = document.createElement('div');
       hd.className = 'cmp-hd'; hd.dataset.colIdx = idx;
       hd.textContent = c.title || '';
-      hd.style.cssText = `height:${hH}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
+      hd.style.cssText = `height:${hH}px;--cmp-h:${hH}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
         `font-size:${tFont}px;font-weight:${isFeat ? 800 : 700};color:${hdColor};${hdBg ? `background:${hdBg};` : ''}` +
         `padding:0 ${16 + insetR}px 0 ${16 + insetL}px;box-sizing:border-box;line-height:1.2;` +
         `white-space:pre-wrap;word-break:keep-all;`;   /* ★1017t1c2 — 캡션 모드(:392)와 ★같은 선언. Enter 줄바꿈이 헤더(header)에서도 그려지게 */
@@ -467,7 +467,7 @@ function renderComparison(block, _lnNeed = null) {
         r.innerHTML = lnLinesHtml(row.lines, ri, idx, 'center');
       } else {
         r.textContent = (row && row.text != null) ? row.text : '';
-        r.style.cssText = `height:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
+        r.style.cssText = `height:${effRowH}px;--cmp-h:${effRowH}px;margin-top:${gap}px;display:flex;align-items:center;justify-content:center;text-align:center;` +
           `font-size:${rFont}px;font-weight:${isFeat ? 600 : 400};color:${textColor};` +
           `padding:0 ${12 + insetR}px 0 ${12 + insetL}px;box-sizing:border-box;` +
           `white-space:pre-wrap;word-break:keep-all;`;   /* ★1017t1c2 — 캡션 헤더(:392)와 ★같은 선언. Enter 줄바꿈이 그려지게 */
