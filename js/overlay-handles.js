@@ -4844,4 +4844,4 @@ export {
 };
 
 /* 코인 마킹 다시 가두기 — 여럿(⌘G 묶음·전체 상자) 크기 조절 뒤. ★부르는 자리를 한 곳으로(coin-rekeep-call-shape K1: 파일마다 하나 · window._rekeepCoin?.( 꼴) */
-function _rekeepCoins(snaps) { snaps?.forEach(s => { if (s.sticker) window._rekeepCoin?.(s.el); }); }
+export function _rekeepCoins(snaps) { snaps?.forEach(s => { if (s.sticker) window._rekeepCoin?.(s.el); }); }
