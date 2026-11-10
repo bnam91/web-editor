@@ -2055,7 +2055,7 @@ function _stepPastedFreeChild(el) {
 }
 
 /* ★현빈 0.9.10 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기 되어야 한다」 — 프레임 묶음의 자리.
-   밖에서 고른 맨 위 프레임·들어간 프레임이면 그 안 끝(t.into · 1109t1C1 ⌘V 만 — g·⌘D 는 다음 자리) · 안쪽 프레임·자식을 골랐으면 그 다음 자리(묶음 상대 배치 유지) ·
+   들어간 프레임이면 그 안 끝(t.into · 1109t1C1 ㉢) · 프레임을 밖에서 골랐거나 자식을 골랐으면 그 다음 자리(묶음 상대 배치 유지 · ⑴ 특례 제거 261110) ·
    안 골랐으면 각자 원래 부모 안 원본 옆(+20). 섹션만 골랐으면 그 섹션 끝(t.sec · 같은 섹션이어도) · 다른 섹션을 골랐으면 그 섹션. 끌기 처리기가 position 으로 갈리니 자리는 바인드 «앞»에 정한다.
    ★붙인 뒤 묶음의 원본 표를 사본으로 옮긴다 — ⌘V⌘V 가 사본 옆으로 계단을 이룬다. 시험: tests/dom/multi-frame-copy-294.dom.spec.js */
 function _pastePickedFrames(t) {
@@ -2121,8 +2121,9 @@ function _pastePickedFrames(t) {
 }
 
 /* ★1109t1C1 (현빈 「프레임 블럭 안에 잘라내기 및 복사 후 붙여넣기 할때 포커스가 어디에 되어있는 가에 따라 붙여넣기 되는 곳이 달라야함」 · 피그마식) — ⌘V 자리를 지금 선택으로 한 번 가른다.
-   {into:f} = 밖에서 고른 맨 위 프레임(㉡) · 들어간 프레임에 아무것도 안 고름(㉢) → 그 안 끝 / {sec} = 섹션만 고름(㉣) → 섹션 끝 /
-   null = 옛 길(㉠ 블럭·안쪽 프레임을 골랐으면 그 다음 자리 · ㉤ 안 골랐으면 원본 옆 +20). ⌘V 만 — g·⌘D 는 F1(다음 자리) 그대로. 시험: tests/dom/frame-paste-target-c1.dom.spec.js */
+   {into:f} = 들어간 프레임에 아무것도 안 고름(㉢) → 그 안 끝 / {sec} = 섹션만 고름(㉣) → 섹션 끝 /
+   null = 옛 길(㉠ 블럭·프레임을 «밖에서» 골랐으면 그 다음 자리 · ㉤ 안 골랐으면 원본 옆 +20). g·⌘D 도 F1(다음 자리) 그대로. 시험: tests/dom/frame-paste-target-c1.dom.spec.js
+   ★⑴ 특례 제거(현빈 261110 «다 넣어») — 옛 ㉡ 「밖에서 고른 맨 위 프레임 → 그 안 끝(⌘V 만)」을 걷었다: 안 끝은 «진입해야»(㉢) · 밖에서 고른 채면 ⌘V·g·⌘D 셋 다 다음 자리. */
 function _pasteTarget(dup) {
   if (dup || clipboard.type === 'section' || clipboard.type === 'multi-section') return null;
   if (_sectionOnlySelection()) return { sec: document.querySelector('#canvas .section-block.selected') };
@@ -2131,7 +2132,7 @@ function _pasteTarget(dup) {
   const f = fr.length === 1 ? fr[0] : null;
   if (!f || f.querySelector('.selected') || isShapeFrame(f) || f.dataset.bannerPreset || f.dataset.group === 'true') return null;
   if ((clipboard.items ? clipboard.items.map(i => i.srcId) : [clipboard.srcId]).includes(f.id)) return null;   // 제 프레임을 고른 채 ⌘C⌘V = 다음 자리(frame-insert-sibling S1a)
-  return (window._enteredFrame === f || !window._innermostEntryFrame(f.parentElement)) ? { into: f } : null;
+  return window._enteredFrame === f ? { into: f } : null;
 }
 /* into 면 그 프레임 끝(자유면 좌표 단위로 쌓기) · 아니면 키보드 입구 옛 문. */
 function _putIn(t, sec, el) {
@@ -2261,7 +2262,7 @@ function pasteClipboard() {
     _spl = r.spl;
   } else if (clipboard.freeLayout) {
     /* free-layout 프레임 내 블록 붙여넣기 — 묶음(_pastePickedFrames)과 같은 자리 규칙(현빈 FRAME-GROUP-PASTE-TARGET-RULE-01 「선택된 곳에 붙여넣기」).
-       고른 자유 프레임이면 그 안(맨 위·들어간 것) · 안쪽 프레임을 오브젝트로 골랐으면 그 다음 자리(1109t1C1 ⑵) · 밖에서 고른 맨 위(또는 들어간) 스택 프레임이면 그 안 끝 흐름(1109t1C1) · 섹션만 고름·다른 섹션이면 그 섹션 끝 · 안 골랐으면 원래 부모 안 원본 옆 +20.
+       들어간 프레임(아무것도 안 고름)이면 그 안 끝(1109t1C1 ㉢ · 자유면 좌표째 · 스택이면 흐름) · 프레임을 «밖에서» 오브젝트로 골랐으면 그 다음 자리(1109t1C1 ⑵ · ⑴ 특례 제거 261110 — 맨 위도) · 섹션만 고름·다른 섹션이면 그 섹션 끝 · 안 골랐으면 원래 부모 안 원본 옆 +20.
        duplicateSelected의 freeLayout 분기 미러. */
     // ★세 후보 모두 resolveInsertFrame 을 통과 — 도형 래퍼(역시 data-free-layout)는 대상이 아니다(0918 A안)
     const _flFrame = (f) => { const r = resolveInsertFrame(f || null); return r?.dataset?.freeLayout ? r : null; };
@@ -2270,7 +2271,7 @@ function pasteClipboard() {
     const _picked = _selFrames.filter(f => !_selFrames.some(o => o !== f && f.contains(o))).pop() || null;
     const _selSec = getSelectedSection();
     const _otherSec = _t?.sec || (!_picked && _srcFrame && _selSec && _selSec !== _srcFrame.closest('.section-block'));   // 1109t1C1 ㉣ — 섹션만 골랐으면 같은 섹션이어도 그 끝
-    const _nestObj = !_t && _picked && window.frameSelectedAsObject(null) === _picked && !!window._innermostEntryFrame(_picked.parentElement);   // 1109t1C1 ⑵ — 안쪽 프레임을 오브젝트로 골랐으면 안이 아니라 그 다음 자리(묶음·흐름 갈래와 같게)
+    const _nestObj = !_t && _picked && window.frameSelectedAsObject(null) === _picked;   // 1109t1C1 ⑵ — 프레임을 «밖에서» 오브젝트로 골랐으면 안이 아니라 그 다음 자리(묶음·흐름 갈래와 같게) · ⑴ 특례 제거(261110) — 맨 위 프레임도 같다(안 끝은 들어갔을 때만 = _t.into)
     const frame = (_otherSec || _nestObj) ? null : _t?.into ? _flFrame(_t.into) : (_picked ? _flFrame(_picked) : (_flFrame(_srcFrame) || _flFrame(window._activeFrame)));
     if (!frame) {
       // 대상 프레임 못 찾음 → 스택 프레임(㉡㉢)이면 그 안 끝 흐름 · 아니면 일반 경로 폴백(섹션 끝에 삽입)

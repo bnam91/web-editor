@@ -1,5 +1,5 @@
 /* frame-paste-target-c1 — ⌘V 자리는 «지금 선택»을 따른다(1109t1C1 · 현빈 「프레임 블럭 안에 잘라내기 및 복사 후 붙여넣기 할때 포커스가 어디에 되어있는 가에 따라 붙여넣기 되는 곳이 달라야함」 · 피그마식).
- *   ㉠ 프레임 안 블럭(또는 안쪽 프레임)을 골랐다 → 그 다음 자리(같은 프레임)   ㉡ 밖에서 맨 위 프레임을 한 번 클릭 → 그 안 끝(⌘V 만 · g·⌘D 는 다음 자리 F1)
+ *   ㉠ 프레임 안 블럭(또는 안쪽 프레임)을 골랐다 → 그 다음 자리(같은 프레임)   ㉡ 밖에서 맨 위 프레임을 한 번 클릭 → ★그 프레임 «다음 자리»(⑴ 특례 제거 · 현빈 261110 «다 넣어» — 옛: 그 안 끝 · ⌘V 만)
  *   ㉢ 프레임에 들어가(여백 더블클릭) 아무것도 안 고름 → 그 안 끝        ㉣ 섹션만 골랐다 → 섹션 끝        ㉤ 아무것도 안 고름 → 원본 옆 +20
  *   자유 프레임 안이면 좌표째(첫째 원본+20 · 나머지는 간격 유지) · 스택 프레임이면 흐름 끝. ⌘C·⌘X 둘 다 · 하나·여럿 · ⌘Z 한 번 · 저장 왕복.
  * 장면: 섹션 S1 = 자유 F(글자 a1 a2 a3 @ (40,50)(300,50)(40,200)) · 스택 K(k1 k2 k3) · 자유 G(자식 프레임 g1 g2 g3) · 그리고 섹션 S2.
@@ -92,7 +92,13 @@ async function cell(page, { src, n, op, tgt, check, roundTrip }) {
   expect(await ids(page), `${tag} ⌘Z 한 번 = 붙이기 전`).toBe(before);
 }
 
-/* 기대 — 프레임 안 끝(㉡㉢) */
+/* 기대 — 고른 프레임 «다음 자리»(㉡ · ⑴ 특례 제거 261110: 안 끝은 «진입해야»(㉢) · 밖에서 고른 채면 ⌘V 도 g·⌘D 와 같은 다음 자리) */
+const afterHost = async (f, { s, tag, H }) => {
+  expect(f.map((u) => u.par), `${tag} 그 프레임과 같은 부모(섹션 S1 직속) — 안으로 안 든다`).toEqual(f.map(() => 'inner:' + s.S1));
+  expect(f[0].prev, `${tag} 고른 프레임 ${H} 바로 다음`).toBe(H);
+  if (f[1]) expect(f[1].prev, `${tag} 순서 유지`).toBe(f[0].id);
+};
+/* 기대 — 프레임 안 끝(㉢) */
 const intoEnd = (free) => async (f, { orig, last0, tag, H }) => {
   expect(f.map((u) => u.par), `${tag} 부모`).toEqual(f.map(() => H));
   expect(f[0].prev, `${tag} 맨 끝에 붙음(첫째 앞 = 붙이기 전 마지막)`).toBe(last0);
@@ -128,10 +134,10 @@ const afterChildStack = async (f, { tag }) => {
 
 const ROWS = [
   // [이름, 원본, 자리, 기대, 바뀌는 칸(양성대조에서 빨강이어야 할 칸)]
-  ['㉡ 자유 글자', 'a', { k: 'obj' }, intoEnd(true)],
-  ['㉡ 자유 안 프레임', 'g', { k: 'obj' }, intoEnd(true)],
-  ['㉡ 스택 글자', 'k', { k: 'obj' }, intoEnd(false)],
-  ['㉡ 자유 글자 → 스택 프레임(비지 않음)', 'a', { k: 'obj', host: 'K' }, intoEnd(false)],
+  ['㉡ 밖에서 고름 = 다음 자리 · 자유 글자', 'a', { k: 'obj' }, afterHost],
+  ['㉡ 밖에서 고름 = 다음 자리 · 자유 안 프레임', 'g', { k: 'obj' }, afterHost],
+  ['㉡ 밖에서 고름 = 다음 자리 · 스택 글자', 'k', { k: 'obj' }, afterHost],
+  ['㉡ 밖에서 고름 = 다음 자리 · 자유 글자 → 스택 프레임(비지 않음)', 'a', { k: 'obj', host: 'K' }, afterHost],
   ['㉢ 자유 글자', 'a', { k: 'enter' }, intoEnd(true)],
   ['㉢ 자유 안 프레임', 'g', { k: 'enter' }, intoEnd(true)],
   ['㉢ 스택 글자', 'k', { k: 'enter' }, intoEnd(false)],

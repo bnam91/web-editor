@@ -1,5 +1,5 @@
-/* frame-insert-sibling.dom.spec.js — F1 (현빈 2026-10-03, 지디 결정): 프레임을 «마우스로 골라» 둔 채 g·⌘D 하면 «다음 형제»로 들어간다.
- * ★1109t1C1(현빈 「포커스가 어디에 되어있는 가에 따라」) — ⌘V 만 바뀐다: 밖에서 고른 맨 위 프레임 → 그 «안» 끝(S1b) · 제 프레임을 고른 채 ⌘C⌘V 는 다음 자리 그대로(S1a). 전체 표 = frame-paste-target-c1.
+/* frame-insert-sibling.dom.spec.js — F1 (현빈 2026-10-03, 지디 결정): 프레임을 «마우스로 골라» 둔 채 ⌘V·g·⌘D 하면 «다음 형제»로 들어간다.
+ * ★1109t1C1 ⑴ 특례 제거(현빈 261110 «다 넣어») — 한때 C1 이 «밖에서 고른 맨 위 프레임 ⌘V = 그 안 끝»으로 바꿨던 기대를 이 판(F1 · 다음 자리)으로 되돌렸다. 안 끝은 «들어간» 프레임(㉢)만 — frame-paste-target-c1.
  * 키보드 입구(⌘V 일반·다중 폴백 · g→addGapBlock · ⌘D→duplicateSelected)만 — 패널 삽입(insertAfterSelected 기본·_insertToFlowFrame)은
  *   09-23 결정대로 «안»에 넣는 그대로다(frame-accepts-component-blocks F1 이 잠금 — 짝 시험). ⛔t 는 이 규칙에 넣지 않는다.
  * ★H11(2026-10-05): 09-23 결정 = 패널 삽입은 «안»(현빈 「그리드가 프레임에 안 들어간다」) → 10-05 재지시로 «밖»(현빈 「한 번 클릭 후에는 프레임 밖에 삽입되어야지」) · 까닭 = drill-in 이 09-23 의 요구를 대신 채운다.
@@ -80,7 +80,7 @@ for (const kind of ['free', 'flow']) {
     expect(a.rowAfterAfter).toBe('gAfter');
   });
 
-  test(`S1b-${kind} ★갭을 복사해 두고 맨 위 프레임을 골라 ⌘V → 갭이 프레임 «안» 끝(1109t1C1 ㉡ · ⌘V 만)`, async ({ page }) => {
+  test(`S1b-${kind} ★갭을 복사해 두고 프레임을 골라 ⌘V → 갭이 프레임 «밖 다음 형제»`, async ({ page }) => {
     const errs = await setup(page, kind);
     const [gx, gy] = await rectOf(page, 'gBefore', 0.5, 0.5);
     await page.mouse.click(gx, gy);
@@ -90,10 +90,9 @@ for (const kind of ['free', 'flow']) {
     await press(page, 'Meta+v');
     const a = await snap(page);
     expect(errs).toEqual([]);
-    expect(a.frameKids, '프레임 안으로 안 들어갔다').toBe(before.frameKids + 1);
+    expect(a.frameKids, '프레임 안으로 들어갔다').toBe(before.frameKids);
     expect(a.gaps).toBe(before.gaps + 1);
-    expect(await page.evaluate(() => document.getElementById('FR').lastElementChild?.matches('.gap-block') || !!document.getElementById('FR').lastElementChild?.querySelector('.gap-block')), '새 갭 = FR 의 마지막 자식').toBe(true);
-    expect(a.nextIsNew, '프레임 다음 자리는 그대로').toBe(false);
+    expect(a.nextIsNew).toBe(true);
   });
 
   test(`S2-${kind} ★프레임을 고르고 g → 갭이 프레임 «다음 형제», 프레임 자식 수 그대로`, async ({ page }) => {

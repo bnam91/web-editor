@@ -413,7 +413,7 @@ function settleRowInFreeFrame(frame, row, mode = 'stack') {
 }
 
 /* ★F1 (2026-10-03, 지디 결정) — 「프레임 «자체»가 오브젝트로 골라져 있나」.
- *   키보드 입구(g·⌘D · ⌘V 의 안쪽 프레임)가 이 판정으로 «다음 형제»를 가른다. ★1109t1C1 — ⌘V 는 밖에서 고른 «맨 위» 프레임이면 그 안 끝(editor.js _pasteTarget 이 먼저 가른다). 패널 삽입은 이걸 안 부른다(09-23 「안에 넣는다」 그대로 —
+ *   키보드 입구(⌘V·g·⌘D)가 이 판정으로 «다음 형제»를 가른다. ★1109t1C1 — ⌘V 는 «들어간» 프레임(아무것도 안 고름)이면 그 안 끝(editor.js _pasteTarget 이 먼저 가른다 · 밖에서 고른 프레임 특례는 261110 걷음). 패널 삽입은 이걸 안 부른다(09-23 「안에 넣는다」 그대로 —
  *   frame-accepts-component-blocks F1 이 잠근다). ⛔t(addTextBlock)는 이 규칙에 넣지 않는다.
  *   조건 셋 = 프레임에 .selected · 그 안에 «흐름 앵커»(선택된 자식 블럭)가 없다 · 그 안에 도형 선택이 없다.
  *   돌려주는 것 = 그 프레임(가장 안쪽의 골라진 것) 또는 null. 도형 래퍼·글자 래퍼·배너 외곽은 «프레임»이 아니라 null 쪽이다. */
@@ -528,7 +528,7 @@ function frameTakesInsert(frame) {
 }
 if (typeof window !== 'undefined') window.frameTakesInsert = frameTakesInsert;
 
-/* ⌘V 는 맨 위 프레임 오브젝트면 이 문 «앞»에서 editor.js _pasteTarget/_putIn 이 그 안 끝으로 뺀다(1109t1C1) — 여기 닿는 것은 g·⌘D·안쪽 프레임 ⌘V. */
+/* ⌘V 는 «들어간» 프레임이면 이 문 «앞»에서 editor.js _pasteTarget/_putIn 이 그 안 끝으로 뺀다(1109t1C1 ㉢) — 여기 닿는 것은 g·⌘D·밖에서 고른 프레임의 ⌘V. */
 function insertAfterSelectedAsSibling(section, el) {
   const picked = frameSelectedAsObject(section);
   if (picked) { _placeAfterFrameAsSibling(picked, el); return; }
