@@ -74,17 +74,14 @@ async function key(page, k) { await page.evaluate(() => document.activeElement?.
 /** 열 1 = [글자, 빈 사진] — 우클릭 「이미지 추가」(A2 길). 이력은 비운다. */
 async function withPhoto(page) {
   const s = await setup(page);
-  await rclickPick(page, INNER1(s.id), '#bcm-grid-img', null);   // ㉠ 파일창 → 취소 = 빈 사진(옛 길)
+  await rclickOnly(page, INNER1(s.id)); await clickAt(page, '#bcm-grid-img');   // 현빈 261110 ⓑ — 추가 = 빈 사진만(창 안 염) · ~~㉠ 파일창 → 취소~~
   await page.waitForSelector(NP(s.id, '1.1'), { timeout: COND_MS });
   await page.evaluate(() => { window.deselectAll?.(); document.activeElement?.blur?.(); window.clearHistory?.(); });
   return s;
 }
-/** ㉠ 우클릭 → 항목 → 파일창. files = 고를 파일 경로(null = 취소).
- *  ⚠️취소는 Playwright 가 «진짜로» 못 한다(가로챈 파일창엔 취소 API 가 없다) ⇒ 그 input 에 'cancel' 이벤트를 쏜다 — Chromium 이 취소 때 쏘는 그 이벤트다. */
-async function rclickPick(page, sel, item, files) {
-  await clickAt(page, sel); await clickAt(page, sel); await clickAt(page, sel, { button: 'right' });
-  await choose(page, () => clickAt(page, item), files);
-}
+/** 파일창을 여는 동작(교체·빈 슬롯 더블클릭)을 하고 그 창에 files 를 준다(null = 취소).
+ *  ⚠️취소는 Playwright 가 «진짜로» 못 한다(가로챈 파일창엔 취소 API 가 없다) ⇒ 그 input 에 'cancel' 이벤트를 쏜다 — Chromium 이 취소 때 쏘는 그 이벤트다.
+ *  (~~rclickPick: ㉠ «추가 = 파일창 먼저»~~ — 현빈 261110 ⓑ 로 추가는 창을 안 열어 지웠다) */
 async function choose(page, act, files) {
   const [fc] = await Promise.all([page.waitForEvent('filechooser', { timeout: COND_MS }), act()]);
   if (files) await fc.setFiles(files); else await fc.element().dispatchEvent('cancel');
@@ -172,7 +169,7 @@ test('H4 중첩 이미지 우클릭 「이미지 교체」 → 파일창 → 그
 
 test('H5 대조 — 바깥 줄 ⌫ · ⌘↑ · 「이미지 교체」 파일창은 그대로', async ({ page }) => {
   const { errs, id } = await setup(page);
-  await rclickPick(page, OUT(id, 0), '#bcm-grid-img', null);   // 바깥 [body, image(빈), duo] — 취소 = 빈 슬롯
+  await rclickOnly(page, OUT(id, 0)); await clickAt(page, '#bcm-grid-img');   // 바깥 [body, image(빈), duo] — 현빈 261110 ⓑ 추가 = 빈 슬롯(창 0) · ~~㉠ 창 → 취소~~
   await expect.poll(async () => (await model(page, id)).map(l => l.type)).toEqual(['body', 'image', 'duo']);
   await rclickOnly(page, OUT(id, 1));
   expect(await page.textContent('#bcm-grid-img-label')).toBe('이미지 교체');
@@ -214,57 +211,72 @@ test('H6 현빈 문서 사본 — 왼쪽 열 빈 원 하나 ⌫ → 모델이 �
   expect(errs).toEqual([]);
 });
 
-/* ═══ ㉠(지디 2026-11-09) — 글자 줄 우클릭 「이미지 추가」·「원형 이미지 추가」 = 파일창 먼저. 고르면 그림 줄 · 취소면 빈 슬롯. 바깥·중첩 왼/오른 열·패널 같은 규칙 ═══ */
+/* ═══ ~~㉠(지디 2026-11-09) — 「이미지 추가」·「원형 이미지 추가」 = 파일창 먼저 · 고르면 그림 줄 · 취소면 빈 슬롯~~
+ *  ⇒ ★현빈 261110 ⓑ(NEW-현빈QA-IMAGE-LINE-ADD-NO-AUTO-PICKER-01): 추가 = ★빈 그림 줄만 · 파일창 0 · 채우기는 그 빈 줄 더블클릭(에셋 블럭과 같음 · 아래 H 쪽 dblclick 길 그대로).
+ *  바깥·중첩 왼/오른 열·패널 같은 규칙 ═══ */
 const IMG = { type: 'image' };
-async function addCase(page, id, { sel, item, files, get, at, expectLine }) {
+/** 이 동작 동안 파일창이 몇 번 열리나 — Playwright 'filechooser' 를 센다(듣는 동안은 가로채 OS 창은 안 뜬다). */
+async function choosersDuring(page, act) {
+  let n = 0; const h = () => { n++; };
+  page.on('filechooser', h);
+  try { await act(); } finally { page.off('filechooser', h); }
+  return () => n;
+}
+async function addCase(page, id, { sel, item, get, at, expectLine }) {
   const m0 = await model(page, id);
   const n0 = (await get()).length;
-  await rclickPick(page, sel, item, files);
-  await expect.poll(async () => (await get()).length).toBe(n0 + 1);
+  const opened = await choosersDuring(page, async () => {
+    await rclickOnly(page, sel); await clickAt(page, item);
+    await expect.poll(async () => (await get()).length).toBe(n0 + 1);
+  });
+  expect(opened(), '★추가가 파일창을 열었다 — 현빈 261110 ⓑ 는 «빈 줄만»').toBe(0);
   const ln = (await get())[at];
   expect(ln, '누른 줄 «바로 다음»').toMatchObject(expectLine);
-  if (files) expect(ln.imgSrc, '고른 그림 src').toMatch(/^data:image\/png|^goya-asset:/); else expect(ln.imgSrc, '취소 = 빈 슬롯').toBe('');
+  expect(ln.imgSrc || '', '빈 그림 줄').toBe('');
   await key(page, 'Meta+z');
   await expect.poll(() => model(page, id), '⌘Z 한 번 = 그 줄이 없어진다').toEqual(m0);
 }
 const CIRCLE = { type: 'image', imgShape: 'circle' };
 
-test('A1 바깥 글자 줄 — 「이미지 추가」 고르면 그림 줄 · 취소면 빈 슬롯 · 각각 ⌘Z', async ({ page }) => {
+test('A1 바깥 글자 줄 — 「이미지 추가」 = 빈 그림 줄만(창 0) · ⌘Z', async ({ page }) => {
   const { errs, id } = await setup(page);
   const get = async () => model(page, id);
-  for (const files of [pngFile(), null]) await addCase(page, id, { sel: OUT(id, 0), item: '#bcm-grid-img', files, get, at: 1, expectLine: IMG });
+  await addCase(page, id, { sel: OUT(id, 0), item: '#bcm-grid-img', get, at: 1, expectLine: IMG });
   expect(errs).toEqual([]);
 });
 
-test('A2 중첩 왼쪽 열 · 오른쪽 열 — 「이미지 추가」 고르면/취소면 · 각각 ⌘Z', async ({ page }) => {
+test('A2 중첩(두 칸 안) 왼쪽 열 · 오른쪽 열 — 「이미지 추가」 = 빈 그림 줄만(창 0) · 각각 ⌘Z', async ({ page }) => {
   const { errs, id } = await setup(page);
   const colOf = (ci) => async () => (await model(page, id)).find(l => l.type === 'duo').cols[ci].lines;
-  for (const ci of [0, 1]) for (const files of [pngFile(), null]) {
-    await addCase(page, id, { sel: NP(id, `${ci}.0`), item: '#bcm-grid-img', files, get: colOf(ci), at: 1, expectLine: IMG });
+  for (const ci of [0, 1]) {
+    await addCase(page, id, { sel: NP(id, `${ci}.0`), item: '#bcm-grid-img', get: colOf(ci), at: 1, expectLine: IMG });
   }
   expect(errs).toEqual([]);
 });
 
-test('A3 「원형 이미지 추가」 — 고르면 원 + src · 취소면 빈 원 (중첩 왼쪽 열 · 바깥) · 각각 ⌘Z', async ({ page }) => {
+test('A3 「원형 이미지 추가」 = 빈 원만(창 0) (중첩 왼쪽 열 · 바깥) · 각각 ⌘Z', async ({ page }) => {
   const { errs, id } = await setup(page);
   const col0 = async () => (await model(page, id)).find(l => l.type === 'duo').cols[0].lines;
-  for (const files of [pngFile(), null]) await addCase(page, id, { sel: NP(id, '0.0'), item: '#bcm-grid-img-circle', files, get: col0, at: 1, expectLine: CIRCLE });
-  for (const files of [pngFile(), null]) await addCase(page, id, { sel: OUT(id, 0), item: '#bcm-grid-img-circle', files, get: () => model(page, id), at: 1, expectLine: CIRCLE });
+  await addCase(page, id, { sel: NP(id, '0.0'), item: '#bcm-grid-img-circle', get: col0, at: 1, expectLine: CIRCLE });
+  await addCase(page, id, { sel: OUT(id, 0), item: '#bcm-grid-img-circle', get: () => model(page, id), at: 1, expectLine: CIRCLE });
   expect(errs).toEqual([]);
 });
 
-test('A4 패널 「+ 줄 추가」 이미지·원형 이미지(중첩 줄) — 고르면/취소면 · 각각 ⌘Z', async ({ page }) => {
+test('A4 패널 「+ 이미지/+ 원형 이미지」(중첩 줄) = 빈 그림 줄만(창 0) · 각각 ⌘Z', async ({ page }) => {
   const { errs, id } = await setup(page);
   const col1 = async () => (await model(page, id)).find(l => l.type === 'duo').cols[1].lines;
-  for (const [kind, line] of [['photo', IMG], ['circle', CIRCLE]]) for (const files of [pngFile(), null]) {
+  for (const [kind, line] of [['photo', IMG], ['circle', CIRCLE]]) {
     const m0 = await model(page, id);
     await pick(page, INNER1(id));
     await page.waitForSelector('#grd-nest-hint #grd-line-add-kind', { timeout: COND_MS });
-    await choose(page, () => page.selectOption('#grd-line-add-kind', kind), files);
-    await expect.poll(async () => (await col1(page, id)).length).toBe(2);
+    const opened = await choosersDuring(page, async () => {
+      await page.selectOption('#grd-line-add-kind', kind);
+      await expect.poll(async () => (await col1(page, id)).length).toBe(2);
+    });
+    expect(opened(), `${kind} — 추가가 파일창을 열었다`).toBe(0);
     const ln = (await col1(page, id))[1];
     expect(ln).toMatchObject(line);
-    expect(!!ln.imgSrc, `${kind} ${files ? '고름' : '취소'}`).toBe(!!files);
+    expect(ln.imgSrc || '', `${kind} 빈 그림 줄`).toBe('');
     await key(page, 'Meta+z');
     await expect.poll(() => model(page, id)).toEqual(m0);
   }
@@ -299,17 +311,38 @@ test('A5 현빈 문서 사본 — 기존 글자 줄 «ㅇㄹㅅ» ⌫ · 추가�
   expect((await left())[0].type, '«ㅇㄹㅅ» 가 빠졌다').toBe('image');
   await key(page, 'Meta+z');
   await expect.poll(() => model(page, id)).toEqual(m0);
-  // ② 오른쪽 열 빈 글자 줄 다음에 그림 추가(고름) → 그 그림을 ⌘↑ 로 글자 위로
+  // ② 오른쪽 열 빈 글자 줄 다음에 그림 줄 추가(현빈 261110 ⓑ = 빈 그림 줄 · ~~㉠ 고름~~) → 그 줄을 ⌘↑ 로 글자 위로
   const sel10 = `#${id} [data-npath="1.0"]`;
   await page.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'center' }), sel10);
-  await rclickPick(page, sel10, '#bcm-grid-img', pngFile());
+  await rclickOnly(page, sel10); await clickAt(page, '#bcm-grid-img');
   await expect.poll(async () => (await right()).length).toBe(2);
   const m1 = await model(page, id);
   await enter('1.1');
   await key(page, 'Meta+ArrowUp');
   await expect.poll(async () => (await right()).map(l => l.type)).toEqual(['image', 'body']);
-  expect(!!(await right())[0].imgSrc).toBe(true);
+  expect((await right())[0].imgSrc || '', '옮긴 것은 그 빈 그림 줄').toBe('');
   await key(page, 'Meta+z');
   await expect.poll(() => model(page, id)).toEqual(m1);
+  expect(errs).toEqual([]);
+});
+
+/* ★E1 현빈 261110 ⓑ 끝에서 끝 — 바깥 칸: 우클릭 「이미지 추가」 = 빈 그림 줄(창 0) → 그 빈 줄 «더블클릭» = 파일창 → 고르면 그 줄에 그림.
+ *   (중첩은 H3 가 같은 길을 잰다 — withPhoto 가 이제 창 없이 넣고 H3 가 더블클릭으로 채운다.)
+ *   양성대조: js/props/prop-grid.js grdAddImageLinePicked 를 ~~㉠ 파일창 먼저~~ 판으로 되돌리면 E1 «창 0» · A1~A4 · grid-rclick ②③⑤ 빨강. */
+test('E1 바깥 「이미지 추가」 = 빈 줄(창 0) → 빈 줄 더블클릭 = 파일창 → 그림이 그 줄에', async ({ page }) => {
+  const { errs, id } = await setup(page);
+  const n0 = (await model(page, id)).length;
+  const opened = await choosersDuring(page, async () => {
+    await rclickOnly(page, OUT(id, 0)); await clickAt(page, '#bcm-grid-img');
+    await expect.poll(async () => (await model(page, id)).length).toBe(n0 + 1);
+  });
+  expect(opened(), '★추가가 파일창을 열었다').toBe(0);
+  expect((await model(page, id))[1]).toMatchObject({ type: 'image' });
+  expect((await model(page, id))[1].imgSrc || '').toBe('');
+  const slot = `#${id} .grd-cell[data-r="0"][data-c="0"] .grd-img-empty[data-line="1"]`;
+  await waitStableRect(page, slot);
+  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.locator(slot).dblclick()]);
+  await fc.setFiles(pngFile());
+  await expect.poll(async () => !!(await model(page, id))[1].imgSrc, '더블클릭으로 고른 그림이 그 줄에').toBe(true);
   expect(errs).toEqual([]);
 });

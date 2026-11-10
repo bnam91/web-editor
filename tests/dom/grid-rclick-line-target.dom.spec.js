@@ -183,10 +183,10 @@ test.describe('T-168 — 우클릭 이미지의 표적은 «누른 줄»이다',
     const m = await openMenuOnLine(page, 0, 0, 0);
     expect(m.err, m.err || '').toBeUndefined();
     const dialogs = await pickImage(page, BLUE);
-    /* ★★HBQA ㉠(지디 2026-11-09) — 계약이 «뒤집혔다»: 「이미지 추가」는 파일창을 «먼저» 연다. 고르면 그 그림 줄 · 취소면 빈 슬롯(옛 길, ⑤ 가 잰다).
-       ~~2026-09-26 계약 = 창을 «안» 연다 · 결과 ['body:글자 줄 A', 'image:', 'image:'+RED]~~ */
-    expect(dialogs, '★「이미지 추가」가 파일창을 안 열었다 — ㉠ 계약은 «먼저 연다»').toBe(1);
-    await expect.poll(() => linesOf(page, 0, 0)).toEqual(['body:글자 줄 A', 'image:' + BLUE, 'image:' + RED]);
+    /* ★★현빈 261110 ⓑ(NEW-현빈QA-IMAGE-LINE-ADD-NO-AUTO-PICKER-01) — 다시 «창을 안 연다»: 추가 = 빈 그림 줄만 · 파일창은 그 빈 줄 더블클릭(에셋 블럭과 같음).
+       ~~HBQA ㉠(지디 2026-11-09) 「이미지 추가」는 파일창을 «먼저» 연다 · 결과 ['body:글자 줄 A', 'image:'+BLUE, 'image:'+RED]~~ */
+    expect(dialogs, '★「이미지 추가」가 파일창을 열었다 — 현빈 261110 ⓑ 는 «빈 줄만»').toBe(0);
+    await expect.poll(() => linesOf(page, 0, 0)).toEqual(['body:글자 줄 A', 'image:', 'image:' + RED]);
     /* ⛔T-168 전엔 ['body:글자 줄 A', 'image:'+BLUE] 였고(RED 가 말없이 덮였다),
        2026-09-26 전엔 ['body:글자 줄 A', 'image:'+BLUE, 'image:'+RED] 였다(고른 그림이 들어갔다).
        이제 새 줄은 «빈» 이미지 줄이다 — BLUE 는 아무 데도 없어야 한다(창을 안 열었으니까). */
@@ -201,9 +201,8 @@ test.describe('T-168 — 우클릭 이미지의 표적은 «누른 줄»이다',
     expect(m.label).toBe('이미지 추가');
     expect(m.delShown).toBe(false);
     const dialogs = await pickImage(page, BLUE);
-    expect(dialogs, '★그림 줄이 없는 칸에서도 같은 한 문 — ㉠ 파일창 먼저').toBe(1);
-    // ⛔2026-09-26 전엔 'image:'+BLUE 였다 — 이제 «빈» 이미지 줄이다.
-    await expect.poll(() => linesOf(page, 0, 1)).toEqual(['body:내용을 입력하세요.', 'image:' + BLUE]);   // ~~㉠ 전: [..., 'image:'] (창 없이 빈 슬롯)~~
+    expect(dialogs, '★그림 줄이 없는 칸에서도 같은 한 문 — 현빈 261110 ⓑ 빈 줄만(창 0)').toBe(0);
+    await expect.poll(() => linesOf(page, 0, 1)).toEqual(['body:내용을 입력하세요.', 'image:']);   // ~~㉠(11-09~11-10): [..., 'image:'+BLUE] (창 먼저)~~
     expect(errs).toEqual([]);
   });
 
@@ -233,8 +232,8 @@ test.describe('T-168 — 우클릭 이미지의 표적은 «누른 줄»이다',
     await build(page, RED);
     const m = await openMenuOnLine(page, 0, 1, 0);   // 그림 줄이 «없는» 칸의 글자 줄
     expect(m.err, m.err || '').toBeUndefined();
-    const dialogs = await pickImage(page, null);   // ㉠ — 파일창을 «취소»하면 옛 빈 슬롯이 들어온다(이 검사가 그 빈 슬롯을 잰다)
-    expect(dialogs).toBe(1);
+    const dialogs = await pickImage(page, null);   // 현빈 261110 ⓑ — 창 없이 빈 슬롯이 들어온다(이 검사가 그 빈 슬롯을 잰다) · ~~㉠ 창 → 취소~~
+    expect(dialogs).toBe(0);
     await page.waitForSelector('.grd-img-empty[data-line]');
 
     const seen = await page.evaluate(() => {
