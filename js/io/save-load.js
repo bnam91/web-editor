@@ -506,13 +506,15 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       if (_savingSuperseded && targetId === _savingOwnerId) return { ok: true, skipped: true, reason: 'flushed' };
       const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId, opts._goneBase));
       if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
+        { const _t = openTabs.find(t => t.id === targetId); if (_t && !_t._goneCopy) _t._goneCopy = true; }   // -02b 표시 없던 탭(보는 동안 폴더가 빠져 앱이 다시 만든 탭)도 거절되면 남은 본이다 — 다시 열기·줄 선 저장 표시가 같은 길을 탄다
         if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId, saveResult.kept)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false, saveResult.kept)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다
           .catch(e => console.warn('[save-load] 돌아온 폴더 다시 열기 실패:', e && e.message));
         else window.showToast?.(_saveRefusedText(saveResult));
         _setAutosaveIndicator('error');
         return { ok: false, reason: saveResult.reason, kept: saveResult.kept };
       }
-      if (saveResult?.ok !== false) { const _t = openTabs.find(t => t.id === targetId); if (_t?._goneCopy) _t._goneCopy = false; }   // 폴더를 이 본으로 다시 만들었다 — 이제 파일이 그 본이다
+      /* ⚰️-01: 성공하면 여기서 _goneCopy 를 걷었다(«폴더를 이 본으로 다시 만들었다»). ★-02(미카사 int-3 실앱 2/2): 그 뒤 원래 폴더가 Finder 대치로 돌아오면
+         표시 없는 저장이 그 파일을 덮었다. ⇒ 표시는 파일을 «읽은» 뒤에만 걷는다(switchTab) · 그사이 저장은 표시를 달고 가고, main 이 제가 쓴 파일인지 도장으로 가른다(_goneStamp). */
       // main.js에서 페이지 수 감소 감지 시 { ok: false, reason: 'page_count_reduced' } 반환
       if (saveResult?.reason === 'project_deleted') {   // ★연 채 삭제 — 실패가 아니다. 탭을 닫고 알린다(closeDeletedProjectTab)
         /* 안 기다린다 — 다음 탭에 줄 선 저장이 있으면 그 탭은 저장이 끝나길 기다리고, 줄은 이 저장의 finally 가 빼서 저장이 영영 멈췄다(앱 재현). */

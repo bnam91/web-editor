@@ -37,7 +37,7 @@ function loadHandlerSrc() {
   return MAIN_SRC.slice(k, MAIN_SRC.indexOf(')', i) + 1) + ';';
 }
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel',
-  '_resolveMetaJsonPath', '_refreshListMeta', '_guardProjectName', '_rollBackup', '_saveProjectImpl', '_goneBaseRefusal']   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
+  '_resolveMetaJsonPath', '_refreshListMeta', '_guardProjectName', '_rollBackup', '_saveProjectImpl', '_goneBaseRefusal', '_goneStamp', '_goneForget']   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
   .filter(n => [`function ${n}(`, `const ${n} = `].some(p => MAIN_SRC.includes(p)));
 /** main 쪽 상태(표지)는 «한 앱 실행» 동안 산다 — 한 loader = 한 실행 */
 function app(projectsDir) {

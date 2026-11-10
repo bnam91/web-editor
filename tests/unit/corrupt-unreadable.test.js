@@ -25,7 +25,7 @@ const stmt = (A) => {
 };
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths',
   '_refreshListMeta', '_guardProjectName', '_SS', '_mtimeOr', 'readProjectWithFallback', '_savedAtLabel', '_rollBackup', '_saveProjectImpl',
-  ...(MAIN_SRC.includes('function _goneBaseRefusal(') ? ['_goneBaseRefusal'] : [])];   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
+  ...(MAIN_SRC.includes('function _goneBaseRefusal(') ? ['_goneBaseRefusal'] : []), ...(MAIN_SRC.includes('function _goneStamp(') ? ['_goneStamp', '_goneForget'] : [])];   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
 
 function load(dir) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);

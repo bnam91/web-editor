@@ -5,6 +5,10 @@
  * 칸(인텔 1): V4 닫는 탭 — 표시는 저장이 들어올 때 잡는다(보낼 때 찾으면 탭이 목록에 없어 덮었다 · Expected −1 / Received +3).
  * 칸(리뷰 1): V5 줄 선 저장도 표시를 단 채 나가 거절된다 — 첫 거절 뒤 다시 열기가 표시를 먼저 걷으면 그 저장이 덮었다.
  * 칸(리뷰 2): V6 남긴 거절 뒤 LS 본을 지운다(남으면 다시 열기·다음 부팅이 그 본으로 덮는다) · V7 거절된 저장이 도는 사이 친 편집도 남긴다(다시 열기가 화면을 비우기 전에).
+ * 칸(-02 · 미카사 int-3 실앱 2/2): V1 은 실앱 순서 — 폴더 없는 동안 남은 본 저장(자동저장)이 폴더를 다시 만들고 «그 뒤» 원래 폴더가 대치로 돌아와 편집한다
+ *   (기준 int-3 은 다시 만든 저장 성공에 표시를 걷어 그 편집이 표시 없이 덮었다 = 빨강) · V1o 다시 만들기 없는 옛 순서 · V8 다시 만든 뒤 저장이 이어져도 표시를 단다.
+ * 칸(-02 · 미카사 R19 1:1): V9 전에 열어 둔 탭(캐시 갈래)을 폴더 없을 때 다시 누름 → 안내 → 폴더가 같은 자리로 돌아옴(mv) → 그 탭 편집 → 자동저장 — 기준 int-3 은 캐시 갈래가 표시를 안 달아 덮었다(빨강).
+ * 칸(-02b): V10 파일로 연 탭을 보는 동안 폴더가 빠짐 → 표시 없는 자동저장이 다시 만듦 → Finder 대치로 원본이 돌아옴 → 편집: 표시가 없어도 안 덮고 알리고 파일로 다시 연다 — 가짜 main 은 «이번에 제가 다시 만든(__mine)» 계약.
  * 대조: N1 폴더가 아직 없으면 그 본으로 폴더를 다시 만들고 그 뒤 저장도 막지 않는다 · N2 평범한 탭은 표시가 없다.
  * 변이: 회신의 값. */
 const { test, expect } = require('@playwright/test');
@@ -15,37 +19,54 @@ const sec = (k, t) => `<div class="section-block" id="s_${k}" data-section="1"><
 const doc = (id, tag) => ({ id, name: id + '이름', version: 2, currentPageId: 'page_1', updatedAt: tag === '돌아온' ? '2026-11-10T00:00:00.000Z' : '2026-11-01T00:00:00.000Z',
   pages: [{ id: 'page_1', name: 'P', canvas: sec(tag + '1', tag + ' 머리') + sec(tag + '2', tag + ' 몸') + sec(tag + '3', tag + ' 끝') }] });
 
-async function setup(page, { cached = false } = {}) {
+async function setup(page, { cached = false, start = 'missing' } = {}) {
   const errs = await bootApp(page);
-  await page.evaluate(({ A, B, R, cached }) => {
-    window.__state = 'missing'; window.__written = []; window.__sent = []; window.__toasts = [];
+  await page.evaluate(({ A, B, R, F, cached, start }) => {
+    window.__state = start === 'file' ? 'ok' : 'missing'; window.__written = []; window.__sent = []; window.__toasts = [];
     const real = window.electronAPI;
-    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); if (x._goneBase && window.__state === 'ok') { (window.__refused ||= []).push(JSON.stringify(x.pages)); return { ok: false, reason: 'folder_returned', kept: 'history' }; } if (x.id === 'proj_b') window.__state = 'ok'; const { _goneBase, ...kept } = x; window.__written.push(kept); return { ok: true }; };   // main 처럼 표시를 떼고 «쓴다» — 붙은 채 두면 다음 저장이 읽어 합친 본에 표시가 따라 들어간다(인텔 N1 2≠1 · main 은 유닛 N1)
+    /* ★-02 main 계약: 표시 저장이 폴더를 다시 만들면 «제 폴더»(__own) — 그 뒤 표시 저장은 쓴다. 밖에서 돌아오면(ret · Finder 대치) 남의 것 → 거절. */
+    const write = (x) => { window.__sent.push({ id: x.id, gone: !!x._goneBase }); const _wasMissing = window.__state === 'missing'; if (x.id === 'proj_b' && window.__state === 'ok' && !window.__own && (x._goneBase || window.__mine)) { (window.__refused ||= []).push(JSON.stringify(x.pages)); return { ok: false, reason: 'folder_returned', kept: 'history' }; } if (x.id === 'proj_b') { if (_wasMissing) { window.__own = true; window.__mine = true; } window.__state = 'ok'; } const { _goneBase, ...kept } = x; window.__written.push(kept); return { ok: true }; };   // main 처럼 표시를 떼고 «쓴다» — 붙은 채 두면 다음 저장이 읽어 합친 본에 표시가 따라 들어간다(인텔 N1 2≠1 · main 은 유닛 N1)
     /* __hold: proj_b 의 첫 비동기 저장을 붙든다 — 그사이 폴더가 돌아오고 다음 저장이 줄에 선다(적대 리뷰 ①). 판정은 풀린 뒤에 한다. */
     window.electronAPI = new Proxy(real || {}, { get: (t, k) => k === 'saveProject' ? async (x) => { if (window.__hold && x.id === 'proj_b' && !window.__held) { window.__held = true; window.__sent.push({ id: 'held' }); await new Promise((r) => { window.__rel = r; }); window.__sent.pop(); } return write(x); }
       : k === 'saveProjectSync' ? (x) => write(x)
       : k === 'saveProjectMeta' ? async () => ({ ok: true })
-      : k === 'loadProject' ? async (id) => (id === 'proj_b' ? (window.__state === 'ok' ? (window.__written.filter(w => w.id === 'proj_b').at(-1) || R) : null) : A)
+      : k === 'loadProject' ? async (id, o) => (id === 'proj_b' && o?.open && (window.__mine = false), id === 'proj_b' ? (window.__state === 'ok' ? (window.__written.slice(window.__retAt || 0).filter(w => w.id === 'proj_b').at(-1) || (window.__retAt != null ? R : window.__written.filter(w => w.id === 'proj_b').at(-1)) || F) : null) : A)   // 돌아온 뒤엔 그 뒤 쓴 것 · 없으면 돌아온 원본(R)
       : k === 'projectFolderState' ? async (id) => (id === 'proj_b' ? window.__state : 'ok')
       : k === 'projectsRootKey' ? async () => 'acct_me' : t[k] });
     const f = window.showStatusToast; window.showStatusToast = (m) => { window.__toasts.push(m); f(m); };
     localStorage.setItem('web-editor-autosave__proj_b', JSON.stringify(B));
     localStorage.setItem('web-editor-ls-root__proj_b', 'acct_me');
-    window.openTabs = [{ id: 'proj_a', name: 'proj_a이름', _cache: JSON.stringify(A) }, { id: 'proj_b', name: 'proj_b이름' }];
+    window.openTabs = [{ id: 'proj_a', name: 'proj_a이름', _cache: JSON.stringify(A) }, { id: 'proj_b', name: 'proj_b이름', ...(cached ? { _cache: JSON.stringify(B) } : {}) }];   // cached = 전에 열어 둔 탭(메모리 캐시 갈래 · 미카사 R19)
     window.activeProjectId = 'proj_a';
     window.renderTabBar();
-  }, { A: doc('proj_a', 'A'), B: doc('proj_b', '남은'), R: doc('proj_b', '돌아온'), cached });
+  }, { A: doc('proj_a', 'A'), B: doc('proj_b', '남은'), R: doc('proj_b', '돌아온'), F: doc('proj_b', '처음'), cached, start });
   await page.evaluate(() => window.switchTab('proj_b'));
-  await page.waitForFunction(() => !!document.getElementById('s_남은1') && window.gdtProjectReady?.get?.()?.phase !== 'loading');
+  await page.waitForFunction((sel) => !!document.getElementById(sel) && window.gdtProjectReady?.get?.()?.phase !== 'loading', start === 'file' ? 's_처음1' : 's_남은1');
   return errs;
 }
-const ret = (page) => page.evaluate(() => { window.__state = 'ok'; });   // 앱 밖에서 폴더가 돌아왔다
+const ret = (page) => page.evaluate(() => { window.__state = 'ok'; window.__own = false; window.__retAt = window.__written.length; });   // 앱 밖에서 폴더가 돌아왔다(앱이 다시 만든 폴더가 있었으면 Finder 대치로 치워졌다)
 const edit = (page, t) => page.evaluate((t) => { document.querySelector('#canvas .text-block p').textContent = t; window.scheduleAutoSave(); }, t);
 /* 다른 저장이 돌면 saveProjectToFile 은 줄에만 세우고 곧장 돌아오고, 같은 id 의 줄은 최신 하나로 합쳐진다(인텔 cbef8dea4 N1 «2≠1») — 줄이 빠질 때까지 기다린다(고정 대기 아님 · 앱의 waitSavesFor). */
 const save = (page, t, id = 'proj_b') => page.evaluate(async ([t, id]) => { document.querySelector('#canvas .text-block p').textContent = t; await window.saveProjectToFile(window.serializeProject(), { projectId: id, skipThumbnail: true }); return window.waitSavesFor(id, 15000); }, [t, id]);
 const wroteB = (page) => page.evaluate(() => window.__written.filter(w => w.id === 'proj_b').map(w => JSON.stringify(w.pages)));
 
-test('V1 자동저장 길 — 돌아온 파일을 안 덮고, 알리고, 파일로 다시 연다', async ({ page }) => {
+test('V1 ★실앱 순서 — 다시 만든 저장 뒤 폴더가 대치로 돌아와도 돌아온 파일을 안 덮고, 알리고, 파일로 다시 연다', async ({ page }) => {
+  const errs = await setup(page);
+  expect(await save(page, '남은본자동'), '[전제] 폴더 없는 동안 자동저장이 끝났다').toBe(true);
+  expect((await wroteB(page)).length, '[전제] 그 저장이 폴더를 다시 만들었다').toBe(1);
+  await page.evaluate(() => { window.__sent.length = 0; });
+  await ret(page);
+  await edit(page, '남은본편집');
+  await page.waitForFunction(() => window.__sent.some(s => s.id === 'proj_b'), null, { timeout: 15000 });
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1'), null, { timeout: 15000 }).catch(() => {});
+  expect((await wroteB(page)).length, '★다시 만든 뒤 대치로 돌아온 파일을 남은 본으로 덮었다(int-3 실앱 2/2)').toBe(1);
+  expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_b').every(s => s.gone)), '★다시 만든 저장이 성공했다고 남은 본 표시를 걷었다').toBe(true);
+  expect(await page.evaluate(() => !!document.getElementById('s_돌아온1')), '★파일로 다시 안 열었다').toBe(true);
+  expect((await page.evaluate(() => window.__toasts)).join(), '★안내 없음').toContain('폴더가 돌아와');
+  expect(await page.evaluate(() => window.activeProjectId)).toBe('proj_b');
+  expect(errs).toEqual([]);
+});
+test('V1o 다시 만들기 없이 바로 돌아온 옛 순서 — 안 덮고, 알리고, 파일로 다시 연다', async ({ page }) => {
   const errs = await setup(page);
   await ret(page);
   await edit(page, '남은본편집');
@@ -90,8 +111,10 @@ test('N1 [대조] 폴더가 아직 없으면 그 본으로 다시 만들고, 그
   const s = await page.evaluate(() => ({ sent: window.__sent.filter(s => s.id === 'proj_b'), tab: window.openTabs.find(t => t.id === 'proj_b')._goneCopy }));
   expect(await wroteB(page).then(w => w.length), '[전제] 두 저장이 다 들어갔다').toBe(2);
   expect(s.sent[0].gone).toBe(true);
-  expect(s.sent.at(-1).gone, '★다시 만든 뒤에도 남은 본 표시 — 다음 저장이 거절된다').toBe(false);
-  expect(s.tab).toBe(false);
+  /* ★-02 계약(인텔 7f9a3b74b N1 빨강 = 이 칸이 옛 계약을 단언했다): 다시 만든 뒤에도 표시는 파일을 «읽을» 때까지 남는다(옛 판은 여기서 걷어 대치 뒤 덮었다 · V1·V8).
+       그 표시 저장은 main 이 «제 폴더»(도장 일치 · 가짜 main 의 __own)로 받는다 — 막지 않는다는 것은 위 «두 저장이 다 들어갔다»가 잰다. */
+  expect(s.sent.at(-1).gone, '다시 만든 뒤 저장도 표시를 단다(파일을 읽기 전)').toBe(true);
+  expect(s.tab, '파일을 읽기 전엔 남은 본 표시가 남는다').toBe(true);
   expect(errs).toEqual([]);
 });
 test('N2 [대조] 평범한 탭의 저장은 표시가 없다', async ({ page }) => {
@@ -151,5 +174,49 @@ test('V7 거절된 저장이 도는 사이 친 편집도 남긴다 — 다시 �
   await page.waitForFunction(() => !!document.getElementById('s_돌아온1') && window.gdtProjectReady?.get?.()?.phase !== 'loading', null, { timeout: 15000 }).catch(() => {});
   expect((await page.evaluate(() => window.__refused || [])).some(p => p.includes('도는사이편집')), '★도는 사이 친 편집이 어디에도 안 남았다').toBe(true);
   expect(await wroteB(page)).toEqual([]);
+  expect(errs).toEqual([]);
+});
+
+test('V8 다시 만든 뒤 저장이 이어져도 표시를 단다 — 제 폴더라 쓰이고, 대치로 돌아오면 거절된다', async ({ page }) => {
+  const errs = await setup(page);
+  for (const t of ['자동1', '자동2']) expect(await save(page, t)).toBe(true);
+  expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_b').map(s => s.gone)), '★다시 만든 뒤 표시를 걷었다').toEqual([true, true]);
+  expect((await wroteB(page)).length, '제 폴더 — 둘 다 쓰였다').toBe(2);
+  expect(await page.evaluate(() => window.openTabs.find(t => t.id === 'proj_b')._goneCopy), '파일을 읽기 전엔 표시가 남는다').toBe(true);
+  await ret(page);
+  await save(page, '남은본편집');
+  expect((await wroteB(page)).length, '★대치로 돌아온 파일을 덮었다').toBe(2);
+  expect(await page.evaluate(() => (window.__refused || []).length)).toBeGreaterThan(0);
+  expect(errs).toEqual([]);
+});
+
+test('V9 ★미카사 R19 1:1 — 전에 열어 둔 탭(캐시)을 폴더 없을 때 누름 → 안내 → 같은 자리로 돌아옴 → 그 탭 편집 자동저장: 안 덮고 알린다', async ({ page }) => {
+  const errs = await setup(page, { cached: true });
+  await page.waitForFunction(() => window.__toasts.some(t => /찾을 수 없/.test(t)), null, { timeout: 5000 });
+  expect(await page.evaluate(() => window.openTabs.find(t => t.id === 'proj_b')._goneCopy), '★캐시로 연 탭에 남은 본 표시가 없다').toBe(true);
+  await ret(page);   // mv 로 같은 자리에 되돌림(그사이 다시 만들기 없음)
+  await edit(page, 'R19 탭에서 고친 글');
+  await page.waitForFunction(() => window.__sent.some(s => s.id === 'proj_b'), null, { timeout: 15000 });
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1'), null, { timeout: 15000 }).catch(() => {});
+  expect(await wroteB(page), '★돌아온 파일을 덮었다(미카사 R19 2/2)').toEqual([]);
+  expect(await page.evaluate(() => window.__sent.filter(s => s.id === 'proj_b').every(s => s.gone)), '남은 본 표시').toBe(true);
+  expect((await page.evaluate(() => window.__toasts)).join(), '★안내 없음').toContain('폴더가 돌아와');
+  expect(await page.evaluate(() => (window.__refused || []).length), '거절한 본은 남긴다(main 이 버전 기록 핀)').toBeGreaterThan(0);
+  expect(errs).toEqual([]);
+});
+
+test('V10 ★보는 동안 폴더가 빠져 앱이 다시 만든 뒤 원본이 대치로 돌아옴 → 편집: 표시가 없어도 안 덮는다(-02b)', async ({ page }) => {
+  const errs = await setup(page, { start: 'file' });
+  expect(await page.evaluate(() => window.openTabs.find(t => t.id === 'proj_b')._goneCopy), '[전제] 파일로 연 평범한 탭').toBeFalsy();
+  await page.evaluate(() => { window.__state = 'missing'; });   // 보는 동안 폴더를 뺌
+  expect(await save(page, '보는중편집'), '[전제] 자동저장').toBe(true);
+  expect((await wroteB(page)).length, '[전제] 표시 없는 저장이 폴더를 다시 만들었다').toBe(1);
+  await ret(page);   // 원본이 Finder 대치로 돌아옴
+  await save(page, '대치뒤편집');
+  await page.waitForFunction(() => !!document.getElementById('s_돌아온1'), null, { timeout: 15000 }).catch(() => {});
+  expect((await wroteB(page)).length, '★대치로 돌아온 원본을 덮었다').toBe(1);
+  expect(await page.evaluate(() => (window.__refused || []).length), '거절한 본은 남긴다').toBeGreaterThan(0);
+  expect((await page.evaluate(() => window.__toasts)).join(), '★안내 없음').toContain('폴더가 돌아와');
+  expect(await page.evaluate(() => !!document.getElementById('s_돌아온1')), '★파일로 다시 안 열었다').toBe(true);
   expect(errs).toEqual([]);
 });

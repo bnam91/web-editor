@@ -45,7 +45,7 @@ function saveSyncSrc() {
 // ★_rollBackup 은 «있으면» 싣는다 — base 에는 없다(그래서 ⒜ 가 «동작으로» 빨갛다).
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath',
   '_ensureNewLayoutPaths', '_refreshListMeta', '_guardProjectName', '_SS', '_rollBackup', '_saveProjectImpl',
-  ...(MAIN_SRC.includes('function _goneBaseRefusal(') ? ['_goneBaseRefusal'] : [])];   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
+  ...(MAIN_SRC.includes('function _goneBaseRefusal(') ? ['_goneBaseRefusal'] : []), ...(MAIN_SRC.includes('function _goneStamp(') ? ['_goneStamp', '_goneForget'] : [])];   /* MISSING-FOLDER — 두 저장 길이 _goneBaseRefusal(최상위 _goneRecreated)을 부른다 — 있으면 같이 싣는다(옛 판엔 없다 · FOREIGN-ASSET ca2f1ae9 와 같은 꼴) */
 
 /** @param {{naive?:boolean}} o naive = 양성대조(공용 함수를 «검사 없이 복사»로 꺾음) */
 function load(projectsDir, { naive = false } = {}) {
