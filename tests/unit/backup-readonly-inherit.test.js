@@ -21,7 +21,8 @@ const sec = (k, t) => `<div class="section-block" id="sec_${k}" data-section="1"
 const proj = (id, tag) => ({ id, name: id, version: 2, currentPageId: 'page_1', pages: [{ id: 'page_1', name: 'P', canvas: sec('a', tag + ' 머리') + sec('b', tag + ' 몸') + sec('c', tag + ' 끝') }] });
 let n = 0;
 const P = (id, f) => path.join(H.projectsDir, id, f);
-const tagOf = (f) => (JSON.parse(fs.readFileSync(f, 'utf8')).pages[0].canvas.match(/>(\S+) 머리</) || [])[1];
+/* 판 이름 = «… 머리» 앞 글자. ⛔`>(\S+)` 로 잡지 마라 — 픽스처 캔버스가 `<p>판1 머리</p>` 라 앞 태그까지 «<p>판1» 로 먹는다(인텔 f6c9fd64b 빨강 3 = 이 자) */
+const tagOf = (f) => (JSON.parse(fs.readFileSync(f, 'utf8')).pages[0].canvas.match(/([^>\s]+) 머리</) || [])[1];
 const writable = (f) => (fs.statSync(f).mode & 0o200) !== 0;
 const saveBy = (sync) => (p) => (sync ? H.invokeSync('projects:save-sync', null, p) : H.invoke('projects:save', p));
 
