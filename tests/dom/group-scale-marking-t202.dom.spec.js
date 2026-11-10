@@ -7,6 +7,7 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const { expectOneUndoStep } = require('./_history-step.js');
+const { clickAt, freePointOn } = require('./_click-at.js');
 
 const HANDLE = (d) => `#ss-handles-overlay .ss-resize-handle.${d}`;
 const mid = (page, sel) => page.evaluate((s) => { const q = document.querySelector(s).getBoundingClientRect(); return [q.x + q.width / 2, q.y + q.height / 2]; }, sel);
@@ -37,11 +38,13 @@ async function scene(page, { extra = false } = {}) {
   return errs;
 }
 /** 진짜 마우스: 첫째 클릭 → 나머지 ⌘클릭 */
-async function pick(page, sels) {
-  let [x, y] = await mid(page, sels[0]); await page.mouse.click(x, y);
-  await page.keyboard.down('Meta');
-  for (const s of sels.slice(1)) { [x, y] = await mid(page, s); await page.mouse.click(x, y); }
-  await page.keyboard.up('Meta');
+async function pick(page, sels) {   // int-3: 누르는 점 = 그 블럭을 맞히는 곳(t2-02b 전체 상자 손잡이가 한가운데를 가릴 수 있다 · _click-at.js freePointOn) · 맞힌 것 단언
+  for (const [i, s] of sels.entries()) {
+    if (i === 1) await page.keyboard.down('Meta');
+    const [x, y] = await freePointOn(page, s);
+    await clickAt(page, x, y, { sel: s.replace(/^#([\w-]+)$/, '[id="$1"]') }, { label: `${i ? 'Meta' : 'plain'}→${s}` });
+  }
+  if (sels.length > 1) await page.keyboard.up('Meta');
 }
 const STK = (extra) => ['#m1', '#m2', ...(extra ? ['#ln', '#hl'] : [])];
 async function grouped(page, opts = {}) {
@@ -173,17 +176,29 @@ test('N1 [음성] 마킹 하나의 모서리 끌기는 그대로(br +30,+20 → 
   expect(errs).toEqual([]);
 });
 
-test('N2 [음성] 묶지 않은 복수 선택 — 도형 손잡이는 도형만 늘린다', async ({ page }) => {
+/* ★int-3(태양 · 261110) — 전제가 바뀌었다: t2-01(3e6e74997 · Q2·Q5)이 여럿 고르면 낱개 손잡이(.shape-handle 포함)를 display:none 으로 숨기고,
+   t2-02b(28b32eb8e)가 전체 상자 손잡이 8 로 «함께» 늘린다. 옛 N2(도형 제 손잡이로 도형만)는 숨은 손잡이(0×0)를 끌어 «안 커짐»으로 빨갰다 — 잴 것이 없어졌다.
+   ⇒ 같은 장면(묶지 않은 복수 선택 · 마킹+도형)에서 지금 계약을 잰다: ⑴ 도형 제 손잡이는 안 보인다 ⑵ 전체 상자 se 끌기 = 마킹도 t2-02 정본 키로
+   (sizeW·sizeH 비율 · offsetX 안 씀 · 다시 그려도 같은 상자) — t202b-union-resize M2(fixme)가 기다리던 칸. */
+test('N2 묶지 않은 복수 선택(마킹+도형) — 도형 제 손잡이는 숨고, 전체 상자 손잡이가 마킹을 정본 키로 늘린다', async ({ page }) => {
   const errs = await scene(page);
   await pick(page, ['#m1', '#sh1']);
-  const SH = '#ss-handles-overlay .shape-handle.se';
-  await page.locator(SH).waitFor({ state: 'attached' });
-  const m0 = await page.evaluate(() => ({ ...document.getElementById('m1').dataset }));
-  const w0 = await page.evaluate(() => parseInt(document.getElementById('shf').style.width));
-  await drag(page, SH, 40, 20);
-  const m1 = await page.evaluate(() => ({ ...document.getElementById('m1').dataset }));
-  const w1 = await page.evaluate(() => parseInt(document.getElementById('shf').style.width));
-  expect(w1, '[전제] 도형이 커졌다').toBeGreaterThan(w0);
-  expect(m1, '마킹은 그대로').toEqual(m0);
+  const U = '#ss-handles-overlay .ss-union-handle.se';
+  await page.locator(U).waitFor({ state: 'visible' });
+  expect(await page.locator('#ss-handles-overlay .shape-handle.se').isVisible(), '도형 제 손잡이는 숨는다(t2-01)').toBe(false);
+  const s0 = await page.evaluate(() => ({ w: parseInt(document.getElementById('shf').style.width), h: parseInt(document.getElementById('shf').style.height) }));
+  await drag(page, U, 60, 40);
+  const r = await page.evaluate(() => {
+    const m = document.getElementById('m1'), q = () => { const b = m.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round); };
+    const before = q(); window.renderStickerBlock(m);
+    return { d: { ...m.dataset }, before, after: q(), w: parseInt(document.getElementById('shf').style.width), h: parseInt(document.getElementById('shf').style.height) };
+  });
+  const sx = r.w / s0.w, sy = r.h / s0.h;
+  console.log('[N2] ' + JSON.stringify({ s0, r, sx, sy }));
+  expect(sx, '[전제] 도형이 전체 상자 비율로 커졌다').toBeGreaterThan(1.1);
+  expect(Math.abs(+r.d.sizeW - 60 * sx), `마킹 sizeW 가 같은 비율 ${JSON.stringify(r.d)}`).toBeLessThanOrEqual(1.5);
+  expect(Math.abs(+r.d.sizeH - 60 * sy), `마킹 sizeH 가 같은 비율 ${JSON.stringify(r.d)}`).toBeLessThanOrEqual(1.5);
+  expect(r.d.offsetX, '마킹에 offsetX 를 안 쓴다(정본은 dataset x·y)').toBeUndefined();
+  expect(r.after, '다시 그려도 같은 상자(정본이 맞다)').toEqual(r.before);
   expect(errs).toEqual([]);
 });

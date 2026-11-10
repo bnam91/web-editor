@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
-const { clickAt } = require('./_click-at.js');
+const { clickAt, freePointOn } = require('./_click-at.js');
 const { expectOneUndoStep } = require('./_history-step.js');
 
 const REPO = path.resolve(__dirname, '..', '..');
@@ -129,7 +129,8 @@ async function center(page, id, inner) {
 }
 /** 실제 마우스 클릭 — mod: 'Meta' | 'Shift' | null. 누르는 점이 그 블럭 위인지 clickAt 이 먼저 단언한다(전제). */
 async function clickBlock(page, id, mod, { inner, dbl } = {}) {
-  const [x, y] = await center(page, id, inner);
+  await center(page, id, inner);   // 스크롤만 — 누르는 점은 손잡이가 안 가린 곳(_click-at.js freePointOn · t2-02b 전체 상자 손잡이)
+  const [x, y] = await freePointOn(page, inner ? `[id="${id}"] ${inner}` : `[id="${id}"]`);
   if (mod) await page.keyboard.down(mod);
   try { await clickAt(page, x, y, { sel: `[id="${id}"]` }, { label: `${mod || 'plain'}→${id}`, dbl }); }
   finally { if (mod) await page.keyboard.up(mod); }
