@@ -174,7 +174,9 @@ function _afterDropClick(grab, upEv, peers, reselect) {
   if (!keep) grab.click();
   window.swallowNextClick({ on: document });
   if (keep && reselect) {
-    peers.forEach(p => { if (!p.el.classList.contains('selected')) reselect(p.el); });
+    /* ★int-3 위(t2-01 Q5): 끄는 첫 틱에 피어 .selected 를 «표식만» 되살려 둔다 — 그대로 두면 레이어 줄·여럿 패널·부모 프레임 표식이 안 따라온다.
+       ⇒ 표식을 걷고 ⇧클릭과 «같은 문»(toggleBlockSelect)으로 다시 고른다(그 문이 넣기 쪽으로 돈다 · 상태가 ⇧클릭 뒤와 같아진다). */
+    peers.forEach(p => { p.el.classList.remove('selected'); reselect(p.el); });
     window._activeFrame = grab;
     grab._layerItem?.classList.add('active');
   }
