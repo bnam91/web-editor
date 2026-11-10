@@ -2681,12 +2681,18 @@ document.addEventListener('keydown', e => {
     // 커밋 기능은 MVP 숨김(tb-hidden-mvp)이라 봉인된 데드 모달이 소환되던 버그 — commit-system은 봉인 유지.
     if (e.key === 's' && !e.shiftKey)   {
       e.preventDefault();
-      window.triggerAutoSave?.();
-      /* ★T-032: ⌘S 는 «저장»이다 — 미확정 영상이 있으면 그 저장에서 원본이 빠진다.
-         토스트는 #editor-toast 한 칸을 «덮어쓰는» 구조라(js/drag-utils.js showToast)
-         '저장됨' 뒤에 경고를 얹으면 경고가 1프레임 만에 지워진다 ⇒ 둘 중 «더 중요한 쪽»만
-         띄운다. 경고는 「저장됐다」를 이미 전제한 문장이라 정보가 줄지 않는다. */
-      if (!warnPendingVideoLossIf(canvasEl)) window.showToast?.('💾 저장됨');
+      /* ★FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01(미카사 int-3 실앱 R21b) — ⌘S 는 «지금» 쓴다. 옛 줄은 triggerAutoSave(=디바운스 «예약» 최대 1.5초)였는데
+         토스트는 곧바로 「저장됨」이었다 ⇒ 그 사이 섹션을 다 지우면 예약이 빈 본으로 바뀌어 «빈 canvas 건너뜀», 탭 전환·종료도 빈 본이라 건너뛰어
+         ⌘S 한 편집이 파일·LS 어디에도 안 갔다. 즉시 저장 문 flushSave(save-load.js · 같은 줄에 서는 _saveInLine · 빈 본 가드 그대로)로 — 새 저장 길 0.
+         토스트는 «결과 뒤»: 실패면 _doSaveProjectToFile 이 이미 실패를 말했다 — 「저장됨」을 덧씌우지 않는다. */
+      Promise.resolve(window.flushSave?.()).then(() => {
+        if (window.projectLastSaveFailed?.(window.activeProjectId)) return;
+        /* ★T-032: ⌘S 는 «저장»이다 — 미확정 영상이 있으면 그 저장에서 원본이 빠진다.
+           토스트는 #editor-toast 한 칸을 «덮어쓰는» 구조라(js/drag-utils.js showToast)
+           '저장됨' 뒤에 경고를 얹으면 경고가 1프레임 만에 지워진다 ⇒ 둘 중 «더 중요한 쪽»만
+           띄운다. 경고는 「저장됐다」를 이미 전제한 문장이라 정보가 줄지 않는다. */
+        if (!warnPendingVideoLossIf(canvasEl)) window.showToast?.('💾 저장됨');
+      });
       return;
     }
     if (e.key === 's' && e.shiftKey)    { e.preventDefault(); saveProjectAs(); return; }
