@@ -225,13 +225,17 @@ test('C5 ★원 + 맞닿은 이웃 동시선택 — 경계가 «한 줄»이다(
   await mountPair(page);
   const got = await page.evaluate(() => {
     const ra = window.__a.sb.getBoundingClientRect(), rb = window.__b.sb.getBoundingClientRect();
-    const ds = [...document.querySelectorAll('#ss-handles-overlay .ss-sel-layer path')].map(p => p.getAttribute('d'));
+    /* ★int-3(261110 · 이분 = t2-02b 머지 ffdef2088) — t2-01 이 «둘 이상 고르면» 전체 상자 경로(.ss-sel-union) 하나를 더 그린다(js/selection-overlay.js _render).
+       이 검사가 재는 것은 «블럭마다의 테두리»와 그 맞닿은 경계 dedupe 다 ⇒ 전체 상자는 따로 세고(정확히 1), 아래 넷·가로변 셈에선 뺀다(잣대 그대로). */
+    const ds = [...document.querySelectorAll('#ss-handles-overlay .ss-sel-layer path:not(.ss-sel-union)')].map(p => p.getAttribute('d'));
+    const nUnion = document.querySelectorAll('#ss-handles-overlay .ss-sel-layer path.ss-sel-union').length;
     const segs = d => [...d.matchAll(/M([-\d.]+) ([-\d.]+)L([-\d.]+) ([-\d.]+)/g)].map(m => m.slice(1).map(Number));
-    return { gap: rb.top - ra.bottom, ds, segs: ds.map(segs) };
+    return { gap: rb.top - ra.bottom, ds, nUnion, segs: ds.map(segs) };
   });
   expect(errs, `pageerror: ${errs.join(' | ')}`).toEqual([]);
   expect(Math.abs(got.gap), `두 블럭이 안 맞닿았다(gap ${got.gap}) — 이 검사의 전제가 깨졌다`).toBeLessThan(0.01);
   expect(got.ds.length, `경로가 4개(각 블럭 × 래퍼+도형)가 아니다: ${got.ds.length}`).toBe(4);
+  expect(got.nUnion, '둘을 골랐으니 전체 상자 경로가 정확히 하나(t2-01)').toBe(1);
   /* 맞닿은 경계에서 «중복 한 줄»이 지워졌는지 — 네 경로의 가로변 수 합이 8(=4×2)보다 «적어야» 한다.
      ⛔몇 줄이 지워지는지는 dedupe 의 몫이라 여기서 못박지 않는다(같은 상자 두 벌이 겹쳐 있으니
        구현이 어느 쪽을 지우는지는 DOM 순서에 달렸다). 「지워지긴 한다」만 못박는다. */
