@@ -5,6 +5,7 @@
  *   F2 톤 — 켬 → 그 프레임만 #7c7c7c/#949494 · 끔 → 밝게 · ★어두운 섹션 안 프레임은 «끔»이면 밝다(섹션 쌍 상속 차단)
  *   F3 내보내기 — 캡처 클론(stripEditorOnlyForCapture)·저장 직렬화 뒤: 클론엔 체커 0 · 저장본엔 키 둘이 실린다
  *   F4 다시 열기 — 클래스가 걷힌 저장본도 rebindAll 이 키로 체커를 다시 세운다 · 그림이 있으면 체커가 그림을 안 덮는다
+ *   F5 ⌘Z — 켜기·톤이 «한 칸씩»: 톤 켠 뒤 undo 한 번 = 톤만 · 한 번 더 = 체크 배경 꺼짐(적용 먼저 · 기록 나중)
  *   N1 [대조] 같은 문서 섹션 체크 배경·톤은 그대로(라디오 name 이 안 섞인다)
  * ★양성대조: js/props/prop-frame.js 의 ss-bg-img-empty 배선(클릭 처리기 한 덩이)을 지우면 F1·F2·F3 빨강 · css/editor-base.css 의
  *   .frame-block[data-checker-tone="dark"] 규칙을 지우면 F2 빨강 · save-load.js 프레임 복원 한 줄을 지우면 F4 빨강 · N1 은 늘 초록.
@@ -114,4 +115,19 @@ test('N1 [대조] 섹션 체크 배경·톤은 그대로 — 프레임 라디오
   expect(names[0]).not.toBe(names[1]);
   expect(await bg(page, 'S2'), '섹션 체커 톤이 바뀌었다').toContain(DARK);
   expect(await page.evaluate(() => document.getElementById('S2').dataset.checkerTone)).toBe('dark');
+});
+
+test('F5 ⌘Z — 체크 배경 켜기·톤이 한 칸씩 되돌아간다', async ({ page }) => {
+  await bootApp(page);
+  await build(page);
+  await page.evaluate(() => window.clearHistory?.());
+  await open(page, 'F');
+  await click(page, '#ss-bg-img-empty');
+  await radio(page, 'ss-checker-tone-on');
+  const st = () => page.evaluate(() => { const f = document.getElementById('F'); return { e: f.dataset.bgImgEmpty ?? null, t: f.dataset.checkerTone ?? null }; });
+  expect(await st(), '[전제]').toEqual({ e: '1', t: 'dark' });
+  await page.evaluate(() => window.undo());
+  expect(await st(), '★undo 한 번에 톤만 돌아가야 한다(두 편집이 같이 사라지면 빨강)').toEqual({ e: '1', t: null });
+  await page.evaluate(() => window.undo());
+  expect(await st(), 'undo 한 번 더 = 체크 배경 꺼짐').toEqual({ e: null, t: null });
 });
