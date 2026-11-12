@@ -475,8 +475,18 @@ function _bindInsertedTree(root) {
  *       ★★참값은 ★넷이고 ★★내가 ★쪽지엔 ★「네 자리」로 ★맞게 ★적었는데 ★★주석만 ★틀렸다.
  *       ⇒ ★★★주석의 ★수는 ★★다음 사람의 ★«전수 명부»가 된다 — ★「다섯」을 ★믿으면 ★★없는 ★하나를 ★찾아 ★헤맨다.
  *   ⛔새 함수를 ★만들지 ★않았다: ★★그 규약이 ★★「★내부 호출처가 ★여럿이다」라고 ★적혀 ★있다. */
+/* LEGACY-TPL-REOPEN-LEAVES-EMPTY-ROWS-01 ㉯ — 옛 공용 템플릿 11개(templates/canvas)에 저장 HTML 째 박힌 «죽은» 열 추가 단추
+   (만드는 코드는 c8aff4a06 col 제거 때 사라짐)를 넣는 순간 걷는다. 템플릿 원본은 안 고친다(지디). 단추 없는 템플릿은 문자열 그대로. */
+function _tplStripDeadColAdd(html) {
+  if (typeof html !== 'string' || !html.includes('row-col-add-btn')) return html;
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  t.content.querySelectorAll('.row-col-add-btn').forEach(b => b.remove());
+  return t.innerHTML;
+}
+
 async function insertTemplate(tpl, opts = {}) {
-  const canvas = await _loadCanvas(tpl.id);
+  const canvas = _tplStripDeadColAdd(await _loadCanvas(tpl.id));
   if (!canvas) {
     window.showToast?.('❌ 템플릿 불러오기 실패: 파일이 없거나 손상됐습니다.');
     return;
