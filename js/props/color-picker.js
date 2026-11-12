@@ -477,7 +477,8 @@ function _wireEvents(pop) {
       const { h, s, v } = rgbToHsv(r, g, b);
       _unhideTransparentOnColorPick();
       _state.h = h; _state.s = s; _state.v = v;
-      _applySolidAndEmit();
+      /* ★0912 — 스포이드 한 번 = 확정(드래그 아님). commit 이 없으면 change 가 안 나가 «change 에서만 커밋»하는 칸(그리드 칸 배경 등)은 견본만 칠하고 안 먹었다. */
+      _applySolidAndEmit({ commit: true });
     } catch (_) { /* user cancelled */ }
   });
 

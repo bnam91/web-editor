@@ -30,7 +30,11 @@
    ★대가 — 이 줄의 제목 padding 이 8/4 → 8/8 이라 ★절 머리 높이가 ★+4px 다(68 → 72 · 5곳).
    ★★「절이 길어졌다」면 ★아래 한 줄의 `8px 0` 을 ★`6px 0` 으로만 바꿔라(⒝안) — 높이 68 보존 ·
      수직 0.00 은 ★둘 다 같다(실측). ⛔두 벌을 같이 넣지 마라(명부가 둘이 된다). */
-.prop-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+/* ★0912 t2-03/t2-04 — 절이 «접혀» 머리줄만 남으면(Stroke 끔·Effects 빈) 머리줄 아래에만 6(margin)+4(.prop-section 아래 padding)=10px 이 남아
+   손잡이가 위아래 구분선 사이에서 5px 떠 보였다. ⇒ 머리줄 아래 margin 을 −4 로 두어 절 padding 4 를 상쇄하고(접힘=위아래 0/0),
+   펼침 간격 6 은 «다음 형제» margin-top 10 에서 나온다(10 + (−4) 상쇄 = 6, 고치기 전과 같다). display:none 형제의 margin 은 안 걸린다. */
+.prop-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: -4px; }
+.prop-section > .prop-section-title-row + * { margin-top: 10px; }
 .prop-section-title-row > .prop-section-title { padding: 8px 0; }     /* ★대칭(⒜안) — ⒝안이면 이 한 줄만 `6px 0` */
 .prop-section-title-row > .prop-action-btn { margin-top: 0; }         /* ★R2 끄기 — 위 머리말 R2 */
 .prop-row {
