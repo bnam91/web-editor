@@ -1703,7 +1703,8 @@ async function initScratchPad(projectId, pageId) {
     // ★A1 — 섹션·블럭 대상도 «시작 때 1회» 캐시(스크래치와 같은 방식). lazy 섹션도 높이는 유지된다(io/lazy-sections.js).
     const _toModel = (r) => ({ left: (r.left - scalerRect.left) / scale, top: (r.top - scalerRect.top) / scale,
                                right: (r.right - scalerRect.left) / scale, bottom: (r.bottom - scalerRect.top) / scale });
-    const canvasBoxes = _marqueeCanvasTargets().map(t => ({ ...t, ..._toModel(t.box.getBoundingClientRect()) }))
+    /* ⑦ 핀 섹션의 블럭은 «자르는 선»까지만 — 완전히 숨은 것은 면적 0 이라 아래 filter 가 뺀다(js/section-pin.js visibleRect) */
+    const canvasBoxes = _marqueeCanvasTargets().map(t => ({ ...t, ..._toModel((t.kind === 'block' && window.sectionPin?.visibleRect(t.box, t.sec)) || t.box.getBoundingClientRect()) }))
       .filter(b => b.right > b.left && b.bottom > b.top);   // 면적 0 = 안 보이는 것(숨은 시안 등) — 고르지 않는다
     let _hitEls = new Set();
 

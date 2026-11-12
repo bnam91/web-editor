@@ -267,6 +267,7 @@ function makeLayerBlockItem(block, dragTarget, sec, depth = 1) {
     window.syncSection(sec);
     window.highlightBlock(block, item);
     window.setBlockAnchor?.(block);
+    window.sectionPin?.revealFor(block);   // ⑦ 핀에 숨은 블럭이면 «전체 보기»를 켜고 스크롤(안 그러면 고른 것이 안 보인다)
     // 레이어 클릭 시 캔버스도 해당 블록으로 스크롤 (선택 아웃라인이 화면에 보이도록)
     const _wrap = document.getElementById('canvas-wrap');
     if (_wrap) {

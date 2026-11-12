@@ -41,7 +41,7 @@ const EDITOR_ONLY_SEL = new RegExp([
        「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
   '\\.frame-see-through',   /* t2-07(261112) 지나감 아웃라인 — 편집 전용 */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
-  '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
+  '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge', '(?<!:not\\()\\.pin-peek',   /* ⑦ «전체 보기가 켜는» 규칙만 — `:not(.pin-peek)`(핀 중 inner min-height:0)은 배송본에 남아야 한다(Codex r2 ②) */
   /* ★★★2026-10-24 — ★`ANNOT-CSS-FILTERED-01`. ★★★두 사람의 고침을 ★합쳤다.
      ★병 : ★옛 조각 ★둘(`\\.annotation` · `\\.annot-`)이 ★★콘텐츠 CSS 를 ★먹었다 —
        ★`.annotation-block`(★현빈 261022 ⒝ = ★최종 이미지에 ★보인다) · `.annot-label` · `.annot-svg`.

@@ -74,12 +74,17 @@ function getDragAfterElement(container, y) {
   const children = flatten(container).filter(el =>
     !el.classList.contains('drop-indicator') && !el.classList.contains('sp2c-insert-indicator') && el !== dragState.dragSrc
   );
-  return children.reduce((closest, child) => {
+  /* ⑦ 핀 섹션 — 후보는 «보이는» 자식만. 보이는 끝 아래로 끌면 첫 숨은 자식 앞(= 마지막 보이는 것 뒤)에 꽂는다
+     (맨 끝 append 면 놓은 블럭이 숨은 데로 빠진다 · 안내선도 숨은 데 그려진다 — Codex 검토). */
+  const _cut = window.sectionPin?.cutY(container.closest?.('.section-block'));
+  const _vis = _cut == null ? children : children.filter(c => c.getBoundingClientRect().top < _cut);
+  const _hit = _vis.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
     if (offset < 0 && offset > closest.offset) return { offset, element: child };
     return closest;
   }, { offset: Number.NEGATIVE_INFINITY }).element;
+  return _hit || (_cut == null ? undefined : children.find(c => c.getBoundingClientRect().top >= _cut));
 }
 
 function getSectionDragAfterEl(container, y) {

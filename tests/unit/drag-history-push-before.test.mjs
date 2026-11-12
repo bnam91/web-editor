@@ -39,6 +39,9 @@ const code = (rel) => { if (!SRC.has(rel)) SRC.set(rel, readCode(rel)); return S
 /* ── 로스터 — 「제스처마다 beginDragHistory 하나」. 파일 : 라벨 목록 ──────────────────
    라벨은 undo 버튼 툴팁에 그대로 뜨는 값이자, 이 검사가 자리를 찾는 열쇠다. */
 const ROSTER = {
+  /* 0.9.12 ⑦ — 섹션 바닥 손잡이(바닥 minHeight · 핀 height). 처음엔 onUp «한쪽 끝»만 찍어 합치기 뒤 ⌘Z 가 둘을 같이 먹었고(Codex r2 ①),
+     옛 값을 잠깐 되돌려 «전»만 찍게 고쳤더니 redo 꼬리를 못 잘랐다(Codex r3) ⇒ 정본(양쪽 끝)으로. 끝 표본은 tests/dom/section-height-pin P16·P17 이 잰다. */
+  'js/section-bottom-handle.js': ['섹션 높이'],
   'js/block-drag.js': ['도형 크기', '블록 이동', '블록 이동', '블록 이동'],
   'js/overlay-handles.js': [
     '프레임 회전', '프레임 크기',

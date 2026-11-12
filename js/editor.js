@@ -4409,6 +4409,7 @@ function deselectAll() {
   window.hideMeshCorners?.(); // ★t4-03 섹션 메시 모서리 점
   window.hideGradientLine?.(); // banner02/comparison 배경 그라데이션 온캔버스 라인 숨김
   // (.frame-block 의 .selected 는 clearSelectionMarks 의 일괄 제거가 이미 벗긴다)
+  window.sectionPin?.sweepSoon?.();   // ⑦ 섹션 핀 «전체 보기»는 선택이 풀리면 끈다(Delete·⌘Z 등 클릭 아닌 길도 — Codex r2 ④) · 한 틱 뒤라 곧 새 선택이 오면 남는다
   window.showPageProperties();
 }
 

@@ -1484,7 +1484,8 @@ for (let si = 0; si < sections.length; si++) {
   }
 
   // 186 — 캔버스 섹션 높이와 같게: 아래 여백을 더하고 바닥(min-height)이 더 크면 그 값. 옛 JSON 은 두 칸이 없다(= 0).
-  const secH = Math.max(blockY + (section.paddingBottom || 0), section.minHeight || 0);
+  // ⑦ 핀이면 그 높이 그대로 — 넘친 블럭은 섹션 프레임이 자른다(Q13 ⓕ 1차: 섹션 바닥에서만 · 아래패딩 띠까지 넘친 것은 보일 수 있다).
+  const secH = section.heightPin > 0 ? section.heightPin : Math.max(blockY + (section.paddingBottom || 0), section.minHeight || 0);
   run('resize_node', { nodeId: secFrame.id, width: canvasWidth, height: secH });
   console.log(`   → 섹션 높이: ${secH}px  ID: ${secFrame.id}\n`);
 

@@ -43,7 +43,9 @@ test('F2 읽는 차례 — 레이어 > 인라인 style > style 속성 글자 > d
 });
 test('F3 186 — 섹션 아래 여백·바닥을 싣는다(없으면 0)', () => {
   const box = fn(sliceBlock(EXP, 'function _sectionBox('), '_sectionBox');
-  assert.deepEqual([box(sec({ style: { paddingBottom: '48px', minHeight: '900px' } })), box(sec({}))], [{ paddingBottom: 48, minHeight: 900 }, { paddingBottom: 0, minHeight: 0 }]);
+  /* ⑦(0.9.12) — heightPin 칸이 늘었다(핀 아니면 0). 핀 섹션은 style.height 를 싣는다 · 표식 없이 height 만 있으면 0. */
+  assert.deepEqual([box(sec({ style: { paddingBottom: '48px', minHeight: '900px' } })), box(sec({}))], [{ paddingBottom: 48, minHeight: 900, heightPin: 0 }, { paddingBottom: 0, minHeight: 0, heightPin: 0 }]);
+  assert.deepEqual([box(sec({ style: { height: '300px' }, ds: { heightPin: 'true' } })), box(sec({ style: { height: '300px' } }))].map(b => b.heightPin), [300, 0]);
 });
 test('F4 빌더 _section 이 두 함수를 «실제로» 쓴다(구조 — 함수만 있고 안 부르면 빨강)', () => {
   const body = stripComments(sliceBlock(EXP, '  function _section('));

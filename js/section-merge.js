@@ -94,12 +94,18 @@ function mergeSectionInto(target, source) {
        모르는 속성이 나중에 생겨도 안 잃는다. */
   for (const k of source.style) {                       // 인라인으로 «실제로 적힌» 것만 순회
     if (k === 'padding-bottom' || k.startsWith('padding')) continue;   // 여백은 아래에서 따로
+    if (k === 'height') continue;   // ⑦ 핀 높이는 «섹션»의 것 — part 로 옮기면 inner 자르기 규칙 없이 고정높이만 남아 다음 내용 위로 샌다(값은 아래 data-pin-h 로 «잠재운다»)
     part.style.setProperty(k, source.style.getPropertyValue(k), source.style.getPropertyPriority(k));
   }
   for (const [k, v] of Object.entries(source.dataset)) {
     if (k === 'name' || k === 'variation' || k === 'variationGroup') continue;  // 섹션 «신원»은 안 옮긴다
+    if (k === 'heightPin') continue;   // ⑦ 위 height 와 짝
     part.dataset[k] = v;
   }
+  /* ⑦ 원본이 핀이면 그 높이를 part 에 «잠든» 표식으로 보관 — 분리(splitMergedPart)가 되살린다.
+     ★이름이 data-height-pin 이 아니라서 핀 CSS 가 안 걸린다(합친 상태에선 고정되지 않는다) · 속성이라 저장본에 실린다. */
+  if (source.dataset.heightPin === 'true' && /px$/.test(source.style.height || '')) part.dataset.pinH = String(parseFloat(source.style.height));
+
   /* ★분리(splitMergedPart)용 «기록»만 더한다 — 합치기 동작은 그대로(D1, 2026-10-01).
      위 루프가 버리는 섹션 이름을 따로 적어 둔다. 이 칸이 «있다»는 것 자체가 「새 합치기라 왕복 기록이 있다」는 표시다
      (그래서 이름이 없어도 빈 문자열로 «적는다»). */
@@ -268,7 +274,7 @@ function mergeSelectedSectionUp() {
      «absolute 직계»로 어림 — 그렇게 했다고 토스트로 알린다.
    ★묶기는 rebindAll 한 번 — 섹션 바인딩 목록을 여기 베끼지 않는다(addSection·insertTemplate 과 두 벌이 된다).
    ★히스토리: 합치기와 같은 규약(변경 «전»에 찍는다) ⇒ ⌘Z 한 번에 원복. */
-const _SPLIT_RECORD_KEYS = ['mergedFrom', 'padX', 'mergedName', 'mergedTailGapH'];
+const _SPLIT_RECORD_KEYS = ['mergedFrom', 'padX', 'mergedName', 'mergedTailGapH', 'pinH'];   // pinH = ⑦ 잠든 핀 높이(아래에서 되살린다)
 const _SPLIT_DEFAULT_GAP = 100;
 
 function splitMergedPart(part) {
@@ -295,6 +301,9 @@ function splitMergedPart(part) {
     sec.style.setProperty(k, part.style.getPropertyValue(k), part.style.getPropertyPriority(k));
   }
   for (const [k, v] of Object.entries(part.dataset)) if (!_SPLIT_RECORD_KEYS.includes(k)) sec.dataset[k] = v;
+  /* ⑦ 합칠 때 잠재운 핀을 되살린다(합치기→분리 왕복에서 핀이 풀리면 «설정 데이터 손실»이다 — Codex r1 P1-①) */
+  const _pinH = parseFloat(part.dataset.pinH);
+  if (_pinH > 0) { sec.style.minHeight = ''; sec.style.height = _pinH + 'px'; sec.dataset.heightPin = 'true'; }
 
   // 껍데기 — 머리(hitzone)·툴바는 원 섹션 것을 본떠 기본 단추만 남긴다(상태 단추는 rebind 가 다시 심는다)
   const hz = document.createElement('div');

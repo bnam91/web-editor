@@ -613,11 +613,15 @@ export function stripEditorOnlyForCapture(clone) {
     'item-selected', 'bn2-line-selected', 'bn2-line-empty',
     'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected',
     'row-active', 'col-active',
+    'pin-peek',                               // ⑦ 섹션 핀 «전체 보기» — 산출물은 늘 핀 높이(js/section-pin.js)
     'ln-cell-selected', 'cmp-cell-selected',   // ★1017t1c3 — 비교 「칸(글자/이미지)」 선택 표시, 둘 다 지금까지 빠져 있었다
     'frame-see-through',                       // t2-07(261112) 지나감 아웃라인 표식 — 저장 명부(section-serialize RUNTIME_MARKER_CLS)와 같이
   ];
   clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
     .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));
+  /* ⑦ 섹션 «자신»이 클론 루트인 PNG·썸네일 — 위 querySelectorAll 은 자손만 본다. 전체 보기(height:auto!important)가 루트에 남으면
+     늘어난 높이·숨은 내용이 찍힌다(Codex r1 P1-②). ⛔루트의 다른 상태(selected 등)는 이번 범위 밖 — 손대지 않는다. */
+  clone.classList?.remove('pin-peek');
   /* ★프라이버시(2026-09-15, a1-a3 지적+elementFromPoint 실측 확인 — T-027 z-index 수정
    * (editor-blocks.css .shape-block.shape-redact z-index:3)의 잔여 구멍): transform이
    * 걸린 조상은 «새 스태킹 컨텍스트»를 만든다 — 그 안의 redact 도형은 z-index:3이어도

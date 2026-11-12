@@ -637,6 +637,14 @@ ${blockHeaderHTML({
         <span class="prop-value-text" id="sec-height-value" style="font-variant-numeric:tabular-nums;" data-sec-id="${escHtml(sec.id || '')}">${
           (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '—' : h + 'px'; })()
         }</span>
+        <!-- ⑦ 높이 고정(핀) — js/section-pin.js. 켤 때 «지금 높이»로 고정 · 손잡이로 맞춘다(숫자칸은 1차 생략 · Q13 ⓖ) -->
+        <button type="button" class="prop-icon-btn" id="sec-pin-btn" data-sec-id="${escHtml(sec.id || '')}" aria-pressed="false" aria-label="높이 고정" style="margin-left:auto;">📌</button>
+      </div>
+      <!-- ⑦ 안전장치(현빈 Q10 요구 · 문구 최소) — 숨은 블럭이 있을 때만 보인다 -->
+      <div class="prop-row" id="sec-pin-hidden-row" style="display:none;gap:4px;">
+        <span class="prop-value-text" style="color:var(--ui-danger);white-space:nowrap;">숨은 블럭 <b class="sec-pin-hidden-n">0</b>개</span>
+        <button type="button" class="prop-action-btn secondary" id="sec-pin-peek-btn" aria-pressed="false" style="width:auto;flex:1;margin-top:0;">전체 보기</button>
+        <button type="button" class="prop-action-btn secondary" id="sec-pin-off-btn" style="width:auto;flex:1;margin-top:0;">핀 해제</button>
       </div>
     </div>
     <div class="prop-section">
@@ -1165,9 +1173,20 @@ ${blockHeaderHTML({
   // 내보내기 / 템플릿 저장
   _bindSectionExport(sec);
   _bindSectionTemplate(sec);
+  _bindSectionPin(sec);
 
   // 이스터에그: badge 섹션이면 전용 컨트롤 추가
   window.enhanceBadgePropPanel?.(sec);
+}
+
+/* ⑦ 섹션 높이 핀 — 📌 토글 · 전체 보기 · 핀 해제 (모델·규칙은 js/section-pin.js 한 곳) */
+function _bindSectionPin(sec) {
+  const P = window.sectionPin;
+  if (!P) return;
+  document.getElementById('sec-pin-btn')?.addEventListener('click', () => { P.isPinned(sec) ? P.unpin(sec) : P.pin(sec); P.refreshPanel(sec); });
+  document.getElementById('sec-pin-peek-btn')?.addEventListener('click', () => { P.peek(sec, !sec.classList.contains(P.PEEK)); P.refreshPanel(sec); });
+  document.getElementById('sec-pin-off-btn')?.addEventListener('click', () => { P.unpin(sec); P.refreshPanel(sec); });
+  P.refreshPanel(sec);
 }
 
 /* 섹션 내보내기 이벤트 바인딩 — showSectionProperties에서 분리 */
