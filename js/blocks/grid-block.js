@@ -4428,7 +4428,13 @@ function gridCopyRange(model, r0, c0, r1, c1) {
   const full = _gridFullCellsOf(model);
   const cells = [];
   for (let r = ra; r <= rb; r++) cells.push(full[r].slice(ca, cb + 1));
-  return { h: rb - ra + 1, w: cb - ca + 1, cells };
+  const out = { h: rb - ra + 1, w: cb - ca + 1, cells };
+  /* ★0.9.12 ⑥ — 범위 «안에 통째로 든» 병합만 클립 기준 자리로 싣는다(범위는 grdGetRange 가 이미 병합을 통째 덮게 넓혔다). 없으면 키 없음 = 옛 꼴. */
+  const mg = (Array.isArray(model.merges) ? model.merges : [])
+    .filter(m => m.r >= ra && m.c >= ca && m.r + m.rs - 1 <= rb && m.c + m.cs - 1 <= cb)
+    .map(m => ({ r: m.r - ra, c: m.c - ca, rs: m.rs, cs: m.cs }));
+  if (mg.length) out.merges = mg;
+  return out;
 }
 
 /** ★순수 — 범위 붙여넣기(확정 ② · 해-3). anchor = 붙일 범위의 왼쪽 위 칸.
@@ -4454,7 +4460,16 @@ function gridPasteRange(model, clip, anchor) {
       written++;
     }
   }
-  return { model: _gridModelFromFull(model.cols, model.rows, full), written, dropped };
+  const res = { model: _gridModelFromFull(model.cols, model.rows, full), written, dropped };
+  /* ★0.9.12 ⑥ — 병합 모양째 붙이기는 «단순한 경우»만: 클립이 그리드 안에 통째로 들고 · 대상 자리에 기존 병합이 하나도 안 걸칠 때.
+   *   shortcut: 기존 병합과 겹침·그리드 넘침은 옛 동작(모양 안 옮김) — 제품 결정(지디 보고) 뒤 넓힌다. */
+  const clipMg = Array.isArray(clip.merges) ? clip.merges.filter(m => m && [m.r, m.c, m.rs, m.cs].every(Number.isInteger)
+    && m.r >= 0 && m.c >= 0 && m.rs >= 1 && m.cs >= 1 && m.r + m.rs <= clip.h && m.c + m.cs <= clip.w) : [];
+  const rect = { r: anchor.r, c: anchor.c, rs: clip.h, cs: clip.w };
+  if (clipMg.length && anchor.r + clip.h <= R && anchor.c + clip.w <= C && !hidden.some(m => _gridMergeHits(m, rect))) {
+    res.merges = [...hidden, ...clipMg.map(m => ({ r: anchor.r + m.r, c: anchor.c + m.c, rs: m.rs, cs: m.cs }))];
+  }
+  return res;
 }
 
 /** ★확정 ⑤ — 열 이름 = 알파벳. 0→'A' … 25→'Z' · 26→'AA'(전단사 26진 · count-sticker-tool.js countStickerLabel 'alpha' 와 같은 셈).
@@ -4527,6 +4542,7 @@ function pasteGridRange(block, clip, anchor) {
   if (res.written > 0) {
     window.pushHistory?.();                    // ★범위 전체가 «한 수» — 칸마다 쌓지 않는다
     _gridWriteModelDirect(block, res.model, false);
+    if (res.merges) _gridSetMerges(block, res.merges);   // ★0.9.12 ⑥ — 같은 한 수 안(⌘Z 한 번에 같이 돌아온다)
     renderGridBlock(block);
     window.scheduleAutoSave?.();
   }

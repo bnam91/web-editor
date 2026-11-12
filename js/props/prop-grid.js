@@ -581,7 +581,7 @@ export function grdCopyRange() {
   const rng = grdGetRange(block);
   if (!rng) return false;                       // ★범위 없으면 손 0(음성대조②)
   let clip;
-  try { clip = window.gridCopyRange?.(getGridModel(block), rng.r0, rng.c0, rng.r1, rng.c1); } catch (_) { return false; }
+  try { clip = window.gridCopyRange?.({ ...getGridModel(block), merges: window.gridMerges?.(block) || [] }, rng.r0, rng.c0, rng.r1, rng.c1); } catch (_) { return false; }
   if (!clip) return false;
   _grdRangeClip = clip;
   /* ★G10 — «내 복사가 최신»을 OS 에도 알린다(안 하면 바깥에서 복사해 둔 이미지가 ⌘V 에 같이 붙는다 · 줄 클립과 같은 까닭). */
@@ -660,7 +660,7 @@ function _grdPasteRangeWrite() {
   let clip = full;
   if (rng && (rng.r1 > rng.r0 || rng.c1 > rng.c0)) {   // ★해-23 — 1×1 넘는 대상 범위 = 그 크기로 자른다
     const h = Math.min(full.h, rng.r1 - rng.r0 + 1), w = Math.min(full.w, rng.c1 - rng.c0 + 1);
-    clip = { h, w, cells: full.cells.slice(0, h).map(row => row.slice(0, w)) };
+    if (h < full.h || w < full.w) clip = { h, w, cells: full.cells.slice(0, h).map(row => row.slice(0, w)) };   // 실제로 잘릴 때만(안 잘리면 병합 모양째 · ⑥)
   }
   const res = window.pasteGridRange?.(block, clip, anchor) || { written: 0, dropped: 0 };
   if (!res.written) { window.showToast?.('⚠️ 붙일 칸이 그리드 밖이에요'); return; }
