@@ -1309,6 +1309,14 @@ function migrateColsFromDOM(canvasEl) {
       row.remove();
     }
   });
+  /* LEGACY-TPL-REOPEN-LEAVES-EMPTY-ROWS-01 ㉮ — 옛 공용 템플릿의 «죽은» 열 추가 단추(만드는 코드는 c8aff4a06 에서 사라짐)를 걷는다.
+     위 col 풀기·글 프레임 꺼내기 뒤 단추만 남아 row 가 안 지워졌다(회색 띠+«+» · ⌘[⌘] 가 한 칸으로 셈).
+     ★단추가 있던 row 만 «비면» row 째 지운다(의도된 빈 row 는 안 건드림) · 이미 그렇게 저장된 프로젝트도 다음 열기에 낫는다. */
+  canvasEl.querySelectorAll('.row-col-add-btn').forEach(btn => {
+    const row = btn.parentElement;
+    btn.remove();
+    if (row?.classList.contains('row') && !row.children.length && !row.textContent.trim()) row.remove();
+  });
 
   // freeLayout frame-block 직속 text-block → frame-block[data-text-frame] > text-block
   // absolute 위치/크기를 text-frame으로 이전, text-block은 flow 자식으로
