@@ -307,6 +307,21 @@ async function handleOpenInFinder(_e, { folderPath } = {}) {
   }
 }
 
+/* ★SEC-CLAUDEPM-SHELL-INTERP-01(감사 ①) — 폴더 경로를 셸 문자열에 «큰따옴표로» 넣지 않는다(큰따옴표 안 $( )·백틱은 실행된다).
+ *   darwin : Terminal.app 은 셸 명령 문자열만 받는다 ⇒ 경로는 POSIX 작은따옴표(terminal.js _shEscape 와 같은 꼴),
+ *            그 문자열은 AppleScript 리터럴이 아니라 osascript «인자(argv)»로 넘긴다(AppleScript 따옴표 이스케이프 0).
+ *   win32·linux : 경로는 spawn 의 cwd 로만 · 명령은 고정 인자(경로가 문자열에 안 들어간다).
+ *   ⚠️terminal.js 를 require 하지 않는다 — 맨 위에서 node-pty 를 싣는다. 그래서 같은 세 줄을 여기 둔다. */
+function _shQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
+function _terminalLaunch(platform, dir) {
+  if (platform === 'darwin') {
+    const sh = `cd ${_shQuote(dir)} && claude`;
+    return { cmd: 'osascript', args: ['-e', 'on run argv', '-e', 'tell application "Terminal" to do script (item 1 of argv)', '-e', 'end run', sh], opts: {}, mode: 'terminal.app', sh };
+  }
+  if (platform === 'win32') return { cmd: 'cmd', args: ['/c', 'start', 'cmd', '/k', 'claude'], opts: { cwd: dir }, mode: 'cmd' };
+  return { cmd: 'x-terminal-emulator', args: ['-e', 'bash', '-c', 'claude; exec bash'], opts: { cwd: dir }, mode: 'linux-terminal' };
+}
+
 async function handleSpawnClaudeTerminal(_e, { folderPath } = {}) {
   try {
     if (!folderPath) return { ok: false, error: 'folderPath 누락' };
@@ -314,31 +329,11 @@ async function handleSpawnClaudeTerminal(_e, { folderPath } = {}) {
     if (!fs.existsSync(expanded)) {
       return { ok: false, error: '폴더가 존재하지 않습니다.' };
     }
-
-    // 외부 Terminal.app 우선 (xterm 임베드는 Phase 3)
-    if (process.platform === 'darwin') {
-      // osascript로 Terminal.app에 cd && claude 명령 전달
-      const cmd = `cd "${expanded.replace(/"/g, '\\"')}" && claude`;
-      const osa = `tell application "Terminal" to do script "${cmd.replace(/"/g, '\\"')}"`;
-      const child = spawn('osascript', ['-e', osa], { detached: true, stdio: 'ignore' });
-      child.unref();
-      return { ok: true, mode: 'terminal.app' };
-    }
-    if (process.platform === 'win32') {
-      const child = spawn('cmd', ['/c', 'start', 'cmd', '/k', `cd /d "${expanded}" && claude`], {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
-      return { ok: true, mode: 'cmd' };
-    }
-    // linux fallback — x-terminal-emulator
-    const child = spawn('x-terminal-emulator', ['-e', `bash -c 'cd "${expanded}" && claude; exec bash'`], {
-      detached: true,
-      stdio: 'ignore',
-    });
+    // 외부 터미널(xterm 임베드는 Phase 3)
+    const L = _terminalLaunch(process.platform, expanded);
+    const child = spawn(L.cmd, L.args, { ...L.opts, detached: true, stdio: 'ignore' });
     child.unref();
-    return { ok: true, mode: 'linux-terminal' };
+    return { ok: true, mode: L.mode };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -700,6 +695,7 @@ module.exports = {
   syncClaudePmTitle,
   // MCP create_project(main.js _createProjectImpl)가 갤러리와 동일하게 PM 폴더를 보장할 때 직접 호출.
   handleEnsureClaudePMFolder,
+  _terminalLaunch,   // 단위 검사(sec-claudepm-terminal-shell)가 플랫폼마다 «무엇을 띄우나»를 잰다
   // 테스트/디버깅용 export
   _internal: {
     expandHome,
