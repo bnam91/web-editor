@@ -705,6 +705,7 @@ ${blockHeaderHTML({
         <select class="prop-select" id="sec-export-width" style="flex:2;min-width:0;">
           <option value="860">860px (기본)</option>
           <option value="780">780px (쿠팡)</option>
+          <option value="1000">1000px</option>
         </select>
       </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>

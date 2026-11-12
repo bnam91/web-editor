@@ -16,7 +16,9 @@
  *   그래서 ⑴잘림 0 ⑵상자 비율 = 화면 비율 ⑶cover 가 «새로» 깎는 양 0 을 폭 780·860·1000·640 에서 잰다.
  *   E1 860(등폭) — 아무 것도 안 바뀐다(기존 내보내기 회귀 방지)
  *   E2 ★780 — 두 경로(스크래치 드롭 · 패널 풀블리드) 다 비율 유지 + 새 잘림 0
- *   E3 ★임의폭 1000·640 — 같은 답(780 만 특별대우 아님)
+ *   E3 ★임의폭 640 — 같은 답(780 만 특별대우 아님)
+ *   E7 ★860 보다 «넓은» 폭(1000)은 «재배치하지 않는다» — 0.9.12 ③ 현빈 결정 Q1 ㉮(확대). 클론 = 860 배치 그대로.
+ *      (그 전엔 E3·E5·E6 이 1000 도 «재배치»로 쟀다 — 그 계약을 이 결정이 바꿨다. 확대 픽셀은 export-width-1000-upscale.)
  *   E4 음성대조 — 폭이 «안» 변하는 고정폭 그림(220px)은 높이도 «안» 변한다
  *   E5 ★두 경로가 «같은 답» — 스크래치와 패널 풀블리드의 축소배율이 일치
  *   E6 ★그리드 블럭의 이미지 줄(.grd-img)도 같은 답 — «상대폭 + 절대높이 + cover» 라는 기전이
@@ -197,10 +199,9 @@ test.describe('780px 내보내기 — 자르지 말고 줄인다 (현빈 결정 
     expect(r.blocks.ab_panel.h,   '세로가 비율대로 안 줄었다').toBeCloseTo(520, 0);
   });
 
-  test('E3 ★임의폭(1000·640)도 같은 답 — 780 만 특별대우가 아니다', async ({ page }) => {
+  test('E3 ★임의폭(640)도 같은 답 — 780 만 특별대우가 아니다', async ({ page }) => {
     await boot(page);
-    for (const [w, expScratch, expPanel] of [[1000, 645 * 1000 / 860, 573.33 * 1000 / 860],
-                                             [640,  645 * 640 / 860,  573.33 * 640 / 860]]) {
+    for (const [w, expScratch, expPanel] of [[640,  645 * 640 / 860,  573.33 * 640 / 860]]) {
       const r = await capture(page, w);
       expect(r.exportSecW).toBe(w);
       for (const id of ['ab_scratch', 'ab_panel']) {
@@ -214,6 +215,16 @@ test.describe('780px 내보내기 — 자르지 말고 줄인다 (현빈 결정 
     }
   });
 
+  test('E7 ★1000(860 보다 넓다)은 «다시 배치하지 않는다» — 클론 860 · 상자 전부 화면과 같다 (0.9.12 ③ ㉮)', async ({ page }) => {
+    await boot(page);
+    const r = await capture(page, 1000);
+    expect(r.exportSecW, '★1000 은 860 배치를 찍는다(확대는 캡처 배율로)').toBe(860);
+    expect(r.blocks.ab_scratch.h).toBeCloseTo(645, 1);
+    expect(r.blocks.ab_panel.h).toBeCloseTo(573.33, 1);
+    expect(r.blocks.ab_fixed.h).toBeCloseTo(165, 1);
+    expect(r.blocks.grd_img.h).toBeCloseTo(300, 1);
+  });
+
   test('E4 음성대조 — 폭이 «안» 변하는 고정폭(220px) 그림은 높이도 «안» 변한다', async ({ page }) => {
     await boot(page);
     for (const w of [780, 1000, 640]) {
@@ -225,7 +236,7 @@ test.describe('780px 내보내기 — 자르지 말고 줄인다 (현빈 결정 
 
   test('E5 ★스크래치 경로와 패널 풀블리드 경로가 «같은 답»을 낸다 (앞 QA 가 갈린다고 실측한 자리)', async ({ page }) => {
     await boot(page);
-    for (const w of [780, 1000, 640]) {
+    for (const w of [780, 640]) {
       const r = await capture(page, w);
       const s = r.blocks.ab_scratch, p = r.blocks.ab_panel;
       expect(s.w, `${w}px — 두 경로의 폭이 다르다`).toBeCloseTo(p.w, 1);
@@ -252,7 +263,7 @@ test('E6 ★그리드 이미지 줄도 «자르지 말고 줄인다» — 에셋
   const r860 = await capture(page, 860);
   expect(r860.blocks.grd_img.h, '860 인데 그리드 이미지 높이가 바뀌었다').toBeCloseTo(300, 1);
 
-  for (const w of [780, 1000, 640]) {
+  for (const w of [780, 640]) {
     const r = await capture(page, w);
     const g = r.blocks.grd_img;
     /* ⑵ 폭은 내보내기 폭을 따라간다(전제) — 안 따라가면 이 검사가 아무것도 안 본다.
