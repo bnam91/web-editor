@@ -5,7 +5,7 @@
  *     A2 assets:readFile — projectId '../outside' + blobPath 'assets/s.png' (옛 검사는 같은 id 로 루트를 지어 통과)
  *     A3 assets:readFile·deleteFile — 접두어 함정 blobPath 'assets-evil/s.png' (옛 검사 startsWith 에 구분자 없음)
  *     A4 ai:readImage·deleteImage — projectId '../outside' (옛 검사는 images/+sep 였지만 id 가 날것)
- *     A5 assets:readFile — assets/ 안 심볼릭 링크가 밖을 가리킴(realpath) · 링크를 못 만드는 곳(권한 없는 윈도우)엔 «없는 칸»
+ *     A5 assets:readFile — assets/ 안 정션(디렉터리 링크)이 밖을 가리킴(realpath) · 어디서나 «있는 칸»
  *     A6 claudePM:ensureFolder — 렌더러가 basePath 로 임의 폴더를 주면 거기에 CLAUDE.md·.mcp.json 을 만든다
  *   정상(지금도 초록이어야):
  *     N1 proj_·plan_ 프로젝트 assets 쓰기→읽기→지우기 · N2 AI 이미지 쓰기→읽기→지우기 · N3 ensureFolder 기본 자리
@@ -55,14 +55,18 @@ test('A4 AI 갤러리 — projectId ../outside 로 루트 밖 images/ 를 못 �
   assert.ok(fs.existsSync(f), '★루트 밖 이미지를 지웠다');
 });
 
-/* A5 — 링크를 만들 수 있는 곳에서만 «만든다»(skip 아님 · 없는 칸 · win-portability ③-3) */
-const LINK_DIR = path.join(H.projectsDir, 'proj_7002', 'assets');
-const LINK = path.join(LINK_DIR, 'l.png');
-const LINK_T = path.join(path.dirname(H.projectsDir), 'outside-link', 'linked.png');   // A1 이 재는 OUT 과 따로
-const canLink = (() => { try { put(LINK_T); fs.mkdirSync(LINK_DIR, { recursive: true }); fs.symlinkSync(LINK_T, LINK); return true; } catch (_) { return false; } })();
-if (canLink) test('A5 심볼릭 링크 — assets/ 안 링크가 루트 밖을 가리키면 안 읽는다 (realpath 경계)', async () => {
-  const r = await H.invoke('assets:readFile', { projectId: 'proj_7002', blobPath: 'assets/l.png' });
+/* A5 — 정션(디렉터리 링크 · 비승격 윈도우에서도 된다 · _link.js 정본 · win-portability Ⓒ-3). 못 만들면 «소리내어» 던진다(건너뛰지 않는다). */
+const { linkToDirOutside } = require('./_link');
+test('A5 링크 — assets/ 안 정션이 루트 밖 폴더를 가리키면 안 읽는다 (realpath 경계)', async () => {
+  const outDir = path.join(path.dirname(H.projectsDir), 'outside-link');      // A1 이 재는 OUT 과 따로
+  put(path.join(outDir, 'linked.png'));
+  const assets = path.join(H.projectsDir, 'proj_7002', 'assets');
+  fs.mkdirSync(assets, { recursive: true });
+  const link = linkToDirOutside(outDir, path.join(assets, 'lnk'));
+  assert.equal(fs.readFileSync(path.join(link, 'linked.png'), 'utf8'), 'SECRET', '[전제] 링크를 따라가면 밖 파일이 읽힌다');
+  const r = await H.invoke('assets:readFile', { projectId: 'proj_7002', blobPath: 'assets/lnk/linked.png' });
   assert.equal(r.ok, false, '★링크를 따라 루트 밖 파일을 읽었다');
+  assert.equal(r.error, 'path traversal', `경계에서 막혀야 한다: ${JSON.stringify(r)}`);
 });
 
 const PM = require('../../main/claude-pm/ipc');

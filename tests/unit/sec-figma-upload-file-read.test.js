@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { mkTmpRoot } = require('./_tmproot');
+const { linkToDirOutside } = require('./_link');
 const S = require('../../main/figma-upload-sanitize');
 
 const T = mkTmpRoot('sec-figma-');
@@ -36,11 +37,11 @@ test('F2 깊은 곳·대문자·앞 공백·file://localhost·이미지 확장�
   assert.deepEqual([o.a[0].rows[0].imgSrc, o.b, o.c, o.d], ['', '', '', '']);
 });
 
-test('F3 접두어 이웃 폴더(app-evil) · 앱 안 심링크가 밖을 가리킴 → 빈 칸', () => {
+test('F3 접두어 이웃 폴더(app-evil) · 앱 안 정션이 밖을 가리킴 → 빈 칸', () => {
   assert.equal(S.fileUrlToDataUri(u(evilPng), [APP]), '');
-  const link = path.join(APP, 'assets', 'l.png');
-  let linked = false; try { fs.symlinkSync(secretPng, link); linked = true; } catch (_) {}
-  if (linked) assert.equal(S.fileUrlToDataUri(u(link), [APP]), '', '★심링크를 따라 밖을 읽었다');
+  const link = linkToDirOutside(path.dirname(secretPng), path.join(APP, 'assets', 'lnk'));   // 정션 · 못 만들면 던진다(win-portability Ⓒ-3)
+  assert.equal(fs.readFileSync(path.join(link, 'x.png'), 'utf8'), 'MARK', '[전제] 링크를 따라가면 밖 파일');
+  assert.equal(S.fileUrlToDataUri(u(path.join(link, 'x.png')), [APP]), '', '★링크를 따라 밖을 읽었다');
 });
 
 test('F4 [정상] 앱 폴더 안 목업 PNG → 같은 바이트의 data: · data:/https/글자는 무변 · 이미지 아닌 확장자는 빈 칸', () => {
