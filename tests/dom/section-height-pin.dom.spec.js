@@ -20,7 +20,7 @@
  *   P8 레이어 클릭 — 숨은 블럭이면 전체 보기를 켜고 고른다(선택 중이라 안 꺼진다)
  *   P9 ★PNG(native) — 높이 300 · 숨은 표식(#ff00aa) 0 픽셀 · 전체 보기 중에도 · 780 도 / 잣대 양성대조: 핀 풀면 표식 > 0
  *   P10 PNG(html2canvas 길 = 웹·썸네일 엔진) — 같은 단언
- *   P11 단독 HTML — 핀 속성·자르기 규칙이 실리고 pin-peek 은 없다
+ *   P11 단독 HTML — 핀 속성·자르기 규칙 · `:not(.pin-peek)` 규칙은 실리고 «전체 보기가 켜는» 규칙은 없다(r2 ②)
  *   P12 Figma JSON — heightPin 300 · 핀 아닌 섹션 0
  *   P13 섹션 합치기 — 핀 섹션을 합쳐도 part 에 고정높이가 안 옮겨진다
  *   P14 ★합치기→분리 왕복 — 핀이 되살아난다(r1 ①)
@@ -449,10 +449,12 @@ test('P11 단독 HTML — 핀 속성·자르기 규칙이 실리고 pin-peek 은
     const urls = []; const o = URL.createObjectURL.bind(URL); URL.createObjectURL = (b) => { const u = o(b); urls.push(u); return u; }; URL.revokeObjectURL = () => {};
     await window.exportHTMLFile();
     const html = urls.length ? await (await fetch(urls[urls.length - 1])).text() : '';
-    return { n: urls.length, pin: /data-height-pin="true"/.test(html), rule: /\[data-height-pin="true"\]\s*>\s*\.section-inner/.test(html), peek: /pin-peek/.test(html) };
+    return { n: urls.length, pin: /data-height-pin="true"/.test(html), rule: /\[data-height-pin="true"\]\s*>\s*\.section-inner/.test(html),
+      peekOn: /\.pin-peek\[data-height-pin/.test(html), notPeek: /:not\(\.pin-peek\)\s*>\s*\.section-inner/.test(html) };
   });
   expect(r.n, '★전제 — HTML 이 나왔다').toBeGreaterThan(0);
-  expect(r).toMatchObject({ pin: true, rule: true, peek: false });
+  /* r2 ② — «전체 보기가 켜는» 규칙은 빠지고, `:not(.pin-peek)`(핀 중 inner min-height:0 · 배지 섹션)은 실려야 한다 */
+  expect(r).toMatchObject({ pin: true, rule: true, peekOn: false, notPeek: true });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
