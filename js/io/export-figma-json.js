@@ -114,7 +114,8 @@ function _sectionBgImgRaw(secEl) {
 /* ★186 — 섹션의 «아래 여백»(sec.style.paddingBottom · prop-section applyPadB)과 «바닥»(sec.style.minHeight · section-bottom-handle)을 싣는다.
  *   전엔 빌더가 둘 다 안 실어 Figma 에서 섹션 아래 빈 공간이 사라졌다(v0.9.8 에도 있던 흠). 값 없음 = 0. */
 function _sectionBox(secEl) {
-  return { paddingBottom: parseFloat(secEl.style.paddingBottom) || 0, minHeight: parseFloat(secEl.style.minHeight) || 0 };
+  return { paddingBottom: parseFloat(secEl.style.paddingBottom) || 0, minHeight: parseFloat(secEl.style.minHeight) || 0,
+           heightPin: secEl.dataset.heightPin === 'true' ? (parseFloat(secEl.style.height) || 0) : 0 };   // ⑦ 핀 높이(0 = 핀 아님)
 }
 
 function _shapeFigmaBlock(el) {
