@@ -6,7 +6,9 @@
  *
  * 칸
  *   P0  전제 — 아이콘 텍스트 블럭이 서고 .itb-icon 가운데를 누르면 그 점의 임자가 .itb-icon 이다
- *   O   진짜 마우스 클릭 → #grd-ifg-iconpop 이 뜨고(보임) 파일 선택창 0
+ *   O   진짜 마우스 «더블»클릭 → #grd-ifg-iconpop 이 뜨고(보임) 파일 선택창 0  (ICONTEXT-ICON-DBLCLICK-OPENS-PANEL-01 · 현빈 0.9.12: 열기 = 더블클릭)
+ *   S   진짜 마우스 «한 번» 클릭 → 블럭이 골라지고(.selected) 팝오버 0 · 글자 편집 진입 0
+ *       양성대조(S): js/block-drag.js 의 .itb-icon 'dblclick' 을 'click' 으로 되돌리면 S 빨강(팝오버 뜸 · 블럭 안 골라짐)
  *   K   팝오버 첫 아이콘 클릭 → 아이콘 칸에 svg 그림(data:image/svg+xml) · dataset.imgSrc 같은 값 · 팝오버 닫힘
  * 양성대조: GD1001_ROOT=<핀 ca702d40 사본> 이면 O 가 빨강(팝오버 0 · 파일 선택창 1).
  * ⛔고정 대기 없음 — waitForFunction / expect.poll 만. ⛔앱 무접촉(_root-harness.bootApp).
@@ -51,11 +53,11 @@ test('P0 전제 — 아이콘 칸 가운데의 임자가 .itb-icon 이다', asyn
   expect(errs).toEqual([]);
 });
 
-test('O 아이콘 클릭 → #grd-ifg-iconpop 이 뜨고 파일 선택창 0', async ({ page }) => {
+test('O 아이콘 더블클릭 → #grd-ifg-iconpop 이 뜨고 파일 선택창 0', async ({ page }) => {
   const errs = await setup(page);
   let chooser = 0; page.on('filechooser', () => { chooser++; });
   const c = await iconCenter(page);
-  await page.mouse.click(c.x, c.y);
+  await page.mouse.dblclick(c.x, c.y);
   await expect.poll(() => popState(page)).toEqual({ pop: true, shown: true });
   expect(chooser).toBe(0);
   expect(errs).toEqual([]);
@@ -64,12 +66,23 @@ test('O 아이콘 클릭 → #grd-ifg-iconpop 이 뜨고 파일 선택창 0', as
 test('K 팝오버 첫 아이콘 → 아이콘 칸에 svg 그림 · dataset.imgSrc 같은 값 · 팝오버 닫힘', async ({ page }) => {
   const errs = await setup(page);
   const c = await iconCenter(page);
-  await page.mouse.click(c.x, c.y);
+  await page.mouse.dblclick(c.x, c.y);
   await page.waitForFunction(() => !!document.querySelector('#grd-ifg-iconpop .grd-ifg-iconpop-grid button'));
   await page.click('#grd-ifg-iconpop .grd-ifg-iconpop-grid button');
   await page.waitForFunction(() => !!window.__itb.querySelector('.itb-icon img'));
   const r = await page.evaluate(() => ({ src: window.__itb.querySelector('.itb-icon img').getAttribute('src').slice(0, 26), same: window.__itb.querySelector('.itb-icon img').getAttribute('src') === window.__itb.dataset.imgSrc }));
   expect(r).toEqual({ src: 'data:image/svg+xml;base64,', same: true });
   expect(await popState(page)).toEqual({ pop: false, shown: false });
+  expect(errs).toEqual([]);
+});
+
+test('S 아이콘 한 번 클릭 → 블럭 선택만 · 팝오버 0 · 편집 0', async ({ page }) => {
+  const errs = await setup(page);
+  const c = await iconCenter(page);
+  expect(c.ownerIsIcon, '전제').toBe(true);
+  await page.mouse.click(c.x, c.y);
+  await expect.poll(() => page.evaluate(() => window.__itb.classList.contains('selected')), '블럭이 골라졌다').toBe(true);
+  expect(await popState(page), '팝오버 0').toEqual({ pop: false, shown: false });
+  expect(await page.evaluate(() => window.__itb.classList.contains('editing')), '글자 편집 진입 0').toBe(false);
   expect(errs).toEqual([]);
 });

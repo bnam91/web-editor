@@ -2496,7 +2496,9 @@ function bindBlock(block) {
        ★113 — 막혔던 사진 문을 팝오버 «안» 「사진 올리기」로 다시 연다: 넷째 인자 { onUpload } 는 «이 부르는 쪽만» 켠다
          (인포그래픽 칸 팝오버는 안 넘기므로 그 항목 0 — 현빈 「인포그라피 블럭에서는 이미지 넣을 일이 없어」).
          셋째 인자 look 은 인포그래픽 룩({set, variant})이라 여긴 undefined(기본 룩). */
-    block.querySelector('.itb-icon')?.addEventListener('click', e => {
+    /* ★ICONTEXT-ICON-DBLCLICK-OPENS-PANEL-01(현빈 0.9.12) — 아이콘 «한 번» 클릭 = 블럭 선택만(위 블럭 click 으로 흘려 보낸다) · «더블클릭» = 이 팝오버.
+       stopPropagation 은 블럭 dblclick(글자 편집 진입)으로 새지 않게. */
+    block.querySelector('.itb-icon')?.addEventListener('dblclick', e => {
       e.stopPropagation();
       const iconEl = block.querySelector('.itb-icon');
       const pop = window.openIfgIconPopover && iconEl

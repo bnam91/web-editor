@@ -8,7 +8,7 @@ const { bootApp } = require('./_root-harness.js');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
 /* add = 블럭 만들기, sel = 그 블럭, open = 그 입구의 파일 창 열기(b = 블럭) */
 const INLETS = {
-  '글 아이콘 사진': { add: () => window.addIconTextBlock(), sel: '.icon-text-block', open: async (b) => { b.querySelector('.itb-icon').click(); document.querySelector('[data-ifg-upload]').click(); } },
+  '글 아이콘 사진': { add: () => window.addIconTextBlock(), sel: '.icon-text-block', open: async (b) => { b.querySelector('.itb-icon').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); document.querySelector('[data-ifg-upload]').click(); } },
   '표 칸 빈 슬롯': { add: () => window.addGridBlock({ cols: [{ width: 1, lines: [{ type: 'image', imgSrc: '' }] }] }), sel: '.grid-block', dbl: '.grd-img-empty[data-line]' },
   '섹션 배경': { open: async (b) => { window.showSectionProperties(b); document.getElementById('sec-bg-img-btn').click(); } },
   '프레임 배경': { add: () => window.addFrameBlock(), sel: '.frame-block:not([data-text-frame])', open: async (b) => { window.showFrameProperties(b); document.getElementById('ss-bg-img-btn').click(); } },
