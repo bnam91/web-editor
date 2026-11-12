@@ -479,9 +479,14 @@ test('P11 단독 HTML — 핀 속성·자르기 규칙이 실리고 pin-peek 은
 
 test('P12 Figma JSON — heightPin 300 · 핀 아닌 섹션 0', async ({ page }) => {
   const errs = await setup(page);
-  const r = await page.evaluate(() => { const j = window.buildFigmaExportJSON();
-    const by = (id) => j.sections.find(s => s.id === id); return { p: by('pS')?.heightPin, n: by('nS')?.heightPin }; });
-  expect(r).toEqual({ p: 300, n: 0 });
+  /* ★빌더는 라이브 DOM 이 아니라 «저장 문자열»(state.pages[].canvas)을 읽는다 — 제품 호출처(figma-publish.js:196 · export-figma-json.js:189)처럼
+     먼저 flushCurrentPage. (인텔 2차: 안 해서 두 섹션이 다 없었다 = undefined 둘) */
+  const r = await page.evaluate(() => { window.flushCurrentPage(); const j = window.buildFigmaExportJSON(null);
+    const by = (id) => j.sections.find(s => s.id === id);
+    return { p: by('pS')?.heightPin, n: by('nS')?.heightPin, ids: j.sections.map(s => s.id) }; });
+  console.log('  P12:', JSON.stringify(r));
+  expect(r.ids, '★전제 — 두 섹션이 JSON 에 있다').toEqual(expect.arrayContaining(['pS', 'nS']));
+  expect({ p: r.p, n: r.n }).toEqual({ p: 300, n: 0 });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
