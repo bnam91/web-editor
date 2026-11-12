@@ -254,7 +254,7 @@ function _convertFreeLayoutToStack(ss) {
   const a = _analyzeFreeLayoutChildren(ss);
   const multiRows = a.rows.filter(r => r.items.length > 1);
   if (multiRows.length > 0) {
-    alert('나란히 놓인 자식이 있으면 stack 으로 바꿀 수 없습니다. 위아래로 옮긴 뒤 다시 눌러 주세요.');
+    window.showToast?.('나란히 놓인 자식이 있으면 stack 으로 바꿀 수 없습니다. 위아래로 옮긴 뒤 다시 눌러 주세요.');   // 네이티브 alert 은 렌더러를 얼리고 CDP 도 막는다
     return false;
   }
   if (a.rows.length === 0) {
