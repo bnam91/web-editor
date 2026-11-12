@@ -10,7 +10,8 @@
  *   M6 Figma JSON — 그리드는 일반 폴백(칸 배치를 안 싣는다 · 기존 한계) ⇒ 잴 수 있는 것만: 가려진 칸 글 없음 · 앵커 글 한 번 · 높이 = 화면 높이
  *   M7 행 지우기(병합 안) = 병합 줄어듦 · 열 옮기기(가로지름) = 막힘 + 토스트 · 범위가 합친 칸 일부만 걸치면 통째로 넓힘
  *   M8 MCP 입구(updateGridBlock merges) — 겹침·1×1·범위 밖 거절 · 가려진 칸 patchCell 거절 · 정상값은 가려진 칸 비움
- *   M9 적대 리뷰 1회차 — 가장자리에 닿은 병합 앞 행/열 지우기(모양 유지) · 범위 붙여넣기·MCP cells 는 가려진 칸에 안 씀
+ *   M9 적대 리뷰 1회차 — 가장자리에 닿은 병합 앞 행/열 지우기(모양 유지) · MCP cells 는 가려진 칸에 안 씀 ·
+ *      범위 붙여넣기가 병합을 통째 덮으면 풀고 클립 값을 다 씀(0.9.12 현빈 Q8 «엑셀처럼» 계약 변경 · 옛 «가려진 칸에 안 씀») — 범위 «밖» 칸은 그대로
  *   M10 적대 리뷰 2회차 — 합친 칸을 지나는 행 머리띠 고르기 → Delete = 그 행 지우기(병합 줄어듦) · MCP cells 가 가려진 칸에 준 글은 ignoredProps 로 말한다
  *   M11 적대 리뷰 3회차 — 합친 칸을 «걸친» 행 머리띠 ⌘M = 막고 토스트(보이는 상자 밖을 안 비움)
  *   M0 음성대조 — 병합 없는 그리드는 칸 수 R×C · style 에 grid-row 없음(옛 산출 그대로)
@@ -362,18 +363,23 @@ test('M8 MCP 입구 merges — 겹침·1×1·범위 밖·모르는 필드 거절
   expect(errs).toEqual([]);
 });
 
-test('M9 가장자리에 닿은 병합 — 앞 행/열을 지워도 모양 유지 · 붙여넣기·MCP cells 는 가려진 칸에 안 쓴다(해제 = 빈 칸)', async ({ page }) => {
+test('M9 가장자리에 닿은 병합 — 앞 행/열을 지워도 모양 유지 · MCP cells 는 가려진 칸에 안 쓴다(해제 = 빈 칸) · 붙여넣기는 통째 덮은 병합을 풀고(Q8) 밖 칸은 안 건드림', async ({ page }) => {
   const errs = await setup(page);
   const r = await page.evaluate(() => {
     const g = document.getElementById('gG');
     const out = {};
+    const txt = () => window.getGridModel(g).cells.map(row => row.map(c => (c.lines || []).map(l => l.text).join('+')));
     window.updateGridBlock('gG', { merges: [{ r: 1, c: 1, rs: 2, cs: 2 }] });       // 마지막 행·열에 닿는 2×2
+    /* 붙여넣기(0.9.12 Q8 계약 변경) — 2×2 클립을 병합 B2:C3 에 통째로 ⇒ 병합 풀림 · 넷 다 씀 · 행 0·열 0(범위 밖)은 그대로 */
+    const pclip = { h: 2, w: 2, cells: [[{ lines: [{ type: 'body', text: 'P1' }] }, { lines: [{ type: 'body', text: 'P2' }] }], [{ lines: [{ type: 'body', text: 'P3' }] }, { lines: [{ type: 'body', text: 'P4' }] }]] };
+    out.beforePaste = txt();
+    out.paste = window.pasteGridRange(g, pclip, { r: 1, c: 1 });
+    out.pasteMerges = g.dataset.merges ?? null;
+    out.afterPaste = txt();
+    window.updateGridBlock('gG', { merges: [{ r: 1, c: 1, rs: 2, cs: 2 }] });       // 다시 합쳐 아래 지우기·MCP 를 옛 꼴 그대로 잰다
     out.delRow = window.removeGridRow(g, 0) && g.dataset.merges;                   // → {r:0,c:1,rs:2,cs:2}
     out.delCol = window.removeGridCol(g, 0) && g.dataset.merges;                   // → {r:0,c:0,rs:2,cs:2}
-    const clip = { h: 2, w: 2, cells: [[{ lines: [{ type: 'body', text: 'P1' }] }, { lines: [{ type: 'body', text: 'P2' }] }], [{ lines: [{ type: 'body', text: 'P3' }] }, { lines: [{ type: 'body', text: 'P4' }] }]] };
-    out.paste = window.pasteGridRange(g, clip, { r: 0, c: 0 });
     const m = window.getGridModel(g);
-    out.afterPaste = m.cells.map(row => row.map(c => (c.lines || []).map(l => l.text).join('+')));
     const full = m.cells.map(row => row.map(c => ({ lines: [{ type: 'body', text: 'X' }] })));
     out.mcp = window.updateGridBlock('gG', { cells: full }).ok;
     out.afterMcp = window.getGridModel(g).cells.map(row => row.map(c => (c.lines || []).map(l => l.text).join('+')));
@@ -383,8 +389,11 @@ test('M9 가장자리에 닿은 병합 — 앞 행/열을 지워도 모양 유�
   });
   expect(r.delRow).toBe('[{"r":0,"c":1,"rs":2,"cs":2}]');
   expect(r.delCol).toBe('[{"r":0,"c":0,"rs":2,"cs":2}]');
-  expect(r.paste).toEqual({ written: 1, dropped: 3 });
-  expect(r.afterPaste).toEqual([['P1', ''], ['', '']]);
+  expect(r.paste).toEqual({ written: 4, dropped: 0 });
+  expect(r.pasteMerges, '통째 덮은 병합은 풀린다(Q8)').toBeNull();
+  expect(r.afterPaste.map(row => row.slice(1)).slice(1), '가려졌던 칸에도 클립 값').toEqual([['P1', 'P2'], ['P3', 'P4']]);
+  expect(r.afterPaste[0], '범위 밖 행 0 그대로').toEqual(r.beforePaste[0]);
+  expect(r.afterPaste.map(row => row[0]), '범위 밖 열 0 그대로').toEqual(r.beforePaste.map(row => row[0]));
   expect(r.mcp).toBe(true);
   expect(r.afterMcp).toEqual([['X', ''], ['', '']]);
   expect(r.afterUnmerge, '해제 = 나머지 빈 칸(숨은 글이 안 나온다)').toEqual([['X', ''], ['', '']]);
