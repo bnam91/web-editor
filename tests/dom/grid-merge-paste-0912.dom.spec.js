@@ -7,9 +7,12 @@
  *   P3 저장 왕복(serializeProject → 다시 띄움 → applyProjectData) — merges·칸 수·앵커 상자 같음
  *   N1 넘침(C2 에 1×2) — 열을 늘려 2칸 · 병합째 · ⌘Z 한 번 = 3×3
  *   N2 B2 에 2×1(B3 = 기존 병합의 가려진 칸) — 거절 토스트 · 모델 바이트 그대로
+ *   N3 A2 에 2×1(A3 = 기존 병합의 앵커만) — 거절(엑셀 · 지디 Q8 채점) · N4 A3 에 1×2(병합 통째 덮음) — 병합 풀림 · 두 칸 다 씀(Q8)
+ *   P4 B1 에 2×2 클립(병합 A3:B3 실림) — 기존 B1:B2 통째 덮음 ⇒ 풀림 + 클립 모양 B2:C2 · ⌘Z 한 번 · P5 그 저장 왕복
  * 양성대조(지디 인텔): grid-block.js pasteGridRange 의 `if (res.merges) _gridSetMerges(block, res.merges);` 한 줄 지우면 P1·P2·P3 빨강(N1 초록) /
  *   gridCopyRange 의 `if (mg.length) out.merges = mg;` 지워도 P1·P2·P3 빨강 /
- *   gridPasteRange 의 R·C 를 R0·C0 로 되돌리면(늘림 끔) N1 빨강 / `refused: 'merge'` return 줄을 지우면 N2 빨강. */
+ *   gridPasteRange 의 R·C 를 R0·C0 로 되돌리면(늘림 끔) N1 빨강 / `refused: 'merge'` return 줄을 지우면 N2·N3 빨강 / 그 줄 조건을 98d55c905 이전 꼴(겹친 병합의 «가려진 칸»이 범위에 들 때만 거절)로 되돌리면 N3 만 빨강(N2·N4 초록) /
+ *   gridPasteRange 의 `const kept = …` 를 `const kept = hidden;` 로 되돌리면(통째 덮은 병합 안 풂) N4·P4·P5 빨강 + t204 M9 빨강 · P1~P3·N1~N3 초록. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
@@ -61,9 +64,10 @@ async function selectGrid(page) {
   await clickAt(page, c.cx, c.cy, { sel: 'div#gG' }, { label: '그리드 고르기' });
   await page.waitForFunction(() => document.getElementById('gG').classList.contains('selected'));
 }
-async function clickLine(page, r, c) {
+/** fx = 줄 상자 안 가로 위치(0~1). ★병합 칸(가로로 합친)의 줄은 가운데가 열 경계 = 그리드 거터(.grd-gutter) 위라 0.5 면 거터를 맞힌다(N4 인텔 실측). */
+async function clickLine(page, r, c, fx = 0.5) {
   const l = await waitStableRect(page, lineSel(r, c));
-  await clickAt(page, l.cx, l.cy, { sel: lineSel(r, c) }, { label: `줄 ${r}${c}` });
+  await clickAt(page, l.left + l.width * fx, l.cy, { sel: lineSel(r, c) }, { label: `줄 ${r}${c}` });
   await page.waitForFunction(([r, c]) => { const a = window.grdGetActiveLine(document.getElementById('gG')); return !!a && +a.r === r && +a.c === c; }, [r, c]);
   await page.evaluate(() => document.activeElement?.blur?.());
 }
@@ -203,5 +207,89 @@ test('N2 기존 병합(A3:B3)의 가려진 칸 일부에 걸치는 붙이기 = �
   await pressPaste(page);
   await expect.poll(() => toast(page)).toMatch(/병합된 칸의 일부에는 붙일 수 없어요/);
   expect((await model(page)).raw).toBe(before.raw);
+  expect(errs).toEqual([]);
+});
+
+test('N3 기존 병합(A3:B3)의 «앵커 A3 만» 걸치는 붙이기도 통째 거절(엑셀 — 지디 Q8 실앱 채점) · 모델 바이트 그대로', async ({ page }) => {
+  const errs = await setup(page);
+  await mergeAndCopy(page);
+  await clickLine(page, 1, 2);
+  await dragRange(page, { r: 1, c: 2 }, { r: 2, c: 2 });
+  await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 1, c0: 2, r1: 2, c1: 2 });
+  await pressCopy(page);
+  const before = await model(page);
+  await clickLine(page, 1, 0);                         // A2 에 2×1 ⇒ A2·A3 — A3 = A3:B3 의 앵커(가려진 칸 B3 은 안 덮음)
+  await pressPaste(page);
+  await expect.poll(() => toast(page)).toMatch(/병합된 칸의 일부에는 붙일 수 없어요/);
+  expect((await model(page)).raw, 'A3 글이 덮이지 않았다').toBe(before.raw);
+  expect(errs).toEqual([]);
+});
+
+test('N4 기존 병합(A3:B3)을 «통째로» 덮는 붙이기(병합 없는 1×2) = 병합 풀림 · 두 칸 다 씀(엑셀 · 현빈 Q8)', async ({ page }) => {
+  const errs = await setup(page);
+  await mergeAndCopy(page);
+  await clickLine(page, 0, 1);
+  await dragRange(page, { r: 0, c: 1 }, { r: 0, c: 2 });
+  await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 0, c0: 1, r1: 0, c1: 2 });
+  await pressCopy(page);
+  await clickLine(page, 2, 0, 0.25);                   // A3 에 1×2 ⇒ A3:B3 통째 · 합친 줄 가운데는 A|B 거터라 왼쪽 1/4 을 누른다
+  await pressPaste(page);
+  await expect.poll(() => toast(page)).toMatch(/A3 에 칸 2개 붙임$/);
+  const m = await model(page);
+  expect(m.merges, '통째 덮은 병합은 풀린다').toBeNull();
+  expect(m.text[2]).toEqual(['B1', 'C1', 'C3']);
+  expect(m.n).toBe(9);
+  expect(errs).toEqual([]);
+});
+
+/** A3:B3 병합 → A2:B3(2×2 · 병합 하나 실림) ⌘C → 그 뒤에 B1:B2 세로 병합을 만든다(복사 뒤라야 범위가 안 넓어진다) · 이력 비움.
+ *  B1 에 붙이면 범위 B1:C2 가 B1:B2 를 통째로 덮는다. */
+const COVER = '[{"r":2,"c":0,"rs":1,"cs":2},{"r":0,"c":1,"rs":2,"cs":1}]';
+const COVERED = '[{"r":2,"c":0,"rs":1,"cs":2},{"r":1,"c":1,"rs":1,"cs":2}]';
+async function coverSetup(page) {
+  await mergeAndCopy(page);
+  await clickLine(page, 1, 0);
+  await dragRange(page, { r: 1, c: 0 }, { r: 2, c: 0 });
+  await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 1, c0: 0, r1: 2, c1: 1 });
+  await pressCopy(page);
+  await page.evaluate(() => { window.updateGridBlock('gG', { merges: [{ r: 2, c: 0, rs: 1, cs: 2 }, { r: 0, c: 1, rs: 2, cs: 1 }] }); window.clearHistory?.(); });
+  await expect.poll(async () => (await model(page)).merges).toBe(COVER);
+}
+async function coverPaste(page) {
+  await clickLine(page, 0, 1);
+  await pressPaste(page);
+  await expect.poll(() => toast(page)).toMatch(/B1 에 칸 4개 붙임$/);
+}
+
+test('P4 클립(병합 실림)으로 기존 병합(B1:B2)을 통째로 덮기 — 기존 병합 풀림 + 클립 모양(B2:C2) · 가려졌던 B2 에 클립 값 · 밖 칸 무변 · ⌘Z 한 번 = 원래', async ({ page }) => {
+  const errs = await setup(page);
+  await coverSetup(page);
+  const before = await model(page);
+  await coverPaste(page);
+  const m = await model(page);
+  expect(m.merges, '기존 B1:B2 풀림 · A3:B3 유지 · 클립 모양 B2:C2').toBe(COVERED);
+  expect(m.text[0]).toEqual(['A1+A1-sub', 'A2', 'B2+B2-h']);
+  expect(m.text[1]).toEqual(['A2', 'A3', '']);
+  expect(m.text[2], '범위 밖 행 무변').toEqual(before.text[2]);
+  expect(m.n, '9 − 가려진 칸 둘(B3 · C2)').toBe(7);
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await model(page)).raw, '⌘Z 한 번 = 원래 병합·글').toBe(before.raw);
+  expect(errs).toEqual([]);
+});
+
+test('P5 P4 를 저장 왕복 — merges·글·칸 수 같음', async ({ page }) => {
+  await setup(page);
+  await coverSetup(page);
+  await coverPaste(page);
+  const m0 = await model(page);
+  const snap = await page.evaluate(() => window.serializeProject());
+  const errs = await bootApp(page);
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  await page.evaluate((d) => { document.getElementById('canvas').innerHTML = ''; window.applyProjectData(JSON.parse(d)); }, snap);
+  await waitStableRect(page, '#gG');
+  const m1 = await model(page);
+  expect(m1.raw).toBe(m0.raw);
+  expect(m1.merges).toBe(COVERED);
+  expect(m1.n).toBe(7);
   expect(errs).toEqual([]);
 });
