@@ -28,6 +28,7 @@
  *   P18 ★열자마자 핀 → canUndo(r3)
  *   P19 ★합치기→수평만 끌기→⌘Z = 합치기만 풀림 · 바닥 300 그대로(r4 ①)
  *   P20 ★수평 뒤 세로 끌기→⌘Z = 바닥 300 복원 · 합치기 유지(r4 ②)
+ *   P21 ★쓴 뒤 원점 복귀(ΔY 0) → 놓기 = 시작값 · 기록 0 — 핀·바닥 두 길(r5)
  *   R1 ★저장→닫기→다시 열기 — 새 앱 인스턴스에 저장본을 실어도 핀·자르기·숨은 수가 그대로 · pin-peek 은 안 실림
  *   R2 ⌘Z — 핀 켜기 한 번이 ⌘Z 한 번으로 풀린다
  *   U1 ★우측 패널 — 📌 켬/끔 · 「숨은 블럭 N개」 줄은 N>0 때만 · 전체 보기/핀 해제 버튼 · 새 prop-hint 0
@@ -625,6 +626,37 @@ test('P20 ★수평 첫 틱 뒤 세로로 끌기 → ⌘Z = 바닥 300 복원(�
   const u = await undoState(page);
   console.log('  P20:', JSON.stringify({ b, after, u }));
   expect(u, '⌘Z 가 원래 바닥 300 을 못 되살렸다(또는 합치기까지 풀었다)').toEqual({ merged: true, min: '300px', hasB: false });
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+/* P21 — 쓴 뒤 «원점 복귀»(ΔY 0)로 놓으면 시작값 그대로 · 끝 표본 없음 (r5) — 핀(height)·평소(minHeight) 두 길 */
+const dragBack = (page, id) => page.evaluate((id) => {
+  window.clearHistory();                                         // 꼭대기 = 지금 상태 ⇒ 시작 표본은 무변화로 버려진다
+  const a = document.getElementById(id), h = a.querySelector(':scope > .section-bottom-handle');
+  const k = a.getBoundingClientRect().width / a.offsetWidth, r = h.getBoundingClientRect(), x0 = r.left + 5, y0 = r.top + 2;
+  const mv = (dy) => document.dispatchEvent(new PointerEvent('pointermove', { clientX: x0, clientY: y0 + dy * k, bubbles: true }));
+  h.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: x0, clientY: y0, bubbles: true, cancelable: true }));
+  mv(20); const mid = { h: a.style.height, min: a.style.minHeight };
+  mv(0);
+  document.dispatchEvent(new PointerEvent('pointerup', { clientX: x0, clientY: y0, bubbles: true }));
+  const t = window.getHistoryTip();
+  return { mid, end: { h: a.style.height, min: a.style.minHeight }, len: t.len, canUndo: t.canUndo };
+}, id);
+
+test('P21 ★쓴 뒤 원점 복귀 → 놓기 = 시작값 · 기록 0 — 핀(400→420→0)과 바닥(1300→1320→0) 두 길 (r5)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.waitForFunction(() => !!document.querySelector('#pS > .section-bottom-handle') && !!document.querySelector('#nS > .section-bottom-handle'));
+  await page.evaluate(() => { const p = document.getElementById('pS'); p.style.height = '400px';     // 핀 400
+    document.getElementById('nS').style.minHeight = '1300px'; });                                   // 바닥 1300 (내용 1200)
+  const pin = await dragBack(page, 'pS');
+  const floor = await dragBack(page, 'nS');
+  console.log('  P21:', JSON.stringify({ pin, floor }));
+  expect(pin.mid.h, '★전제 — 핀이 실제로 420 이 됐었다').toBe('420px');
+  expect(pin.end.h, '원점으로 돌아와 놓았는데 핀이 시작값이 아니다').toBe('400px');
+  expect({ len: pin.len, canUndo: pin.canUndo }, '바뀐 게 없는데 기록이 생겼다').toEqual({ len: 1, canUndo: false });
+  expect(floor.mid.min, '★전제 — 바닥이 실제로 1320 이 됐었다').toBe('1320px');
+  expect(floor.end.min, '원점으로 돌아와 놓았는데 바닥이 시작값이 아니다').toBe('1300px');
+  expect({ len: floor.len, canUndo: floor.canUndo }, '바뀐 게 없는데 기록이 생겼다').toEqual({ len: 1, canUndo: false });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

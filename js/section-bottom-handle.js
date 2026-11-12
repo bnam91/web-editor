@@ -87,17 +87,25 @@
        (r2 의 «onUp 에서 옛 값 잠깐 되돌려 찍기»는 끝 표본이 없어 redo 꼬리를 못 잘랐다 — Codex r3) */
     const _hist = window.beginDragHistory?.('섹션 높이');
 
+    let wrote = false;
     const onMove = (e) => {
       const dy = (e.clientY - y0) / scale;
-      /* ★수평만(ΔY=0) = 높이 무변 — 아무것도 안 쓴다(Codex r4: 바닥 300 < 내용 400 이면 v=h0=내용이라 아래 식이 바닥을 '' 로 «조용히» 지웠다 ·
-         시작 표본은 ΔY=0 이라 안 찍혀 ⌘Z 가 앞 조작(합치기)까지 풀었다). */
-      if (dy === 0) return;
-      const v = Math.round(h0 + dy);
-      /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 / ⑦ 핀이면 height · 하한 pinMin */
-      const next = pinned ? Math.max(pinMin, v) + 'px' : (v > nat ? v + 'px' : '');
+      let next;
+      if (dy === 0) {
+        /* ★ΔY=0 은 둘로 갈린다(Codex r4·r5):
+           ⒜ 아직 아무것도 안 썼다(수평 첫 이동) = 높이 무변 — 쓰지 않는다. (옛 식 v=h0 은 바닥 300 < 내용 400 이면 바닥을 '' 로 «조용히» 지웠다)
+           ⒝ 쓴 뒤 «원점 복귀» = 시작값 그대로 되돌린다 — 그래야 놓았을 때 시작값과 같아 끝 표본도 안 생긴다(r5: 400→420→0 이 420 으로 남았다). */
+        if (!wrote) return;
+        next = pinned ? ht0 : mh0;
+      } else {
+        const v = Math.round(h0 + dy);
+        /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 / ⑦ 핀이면 height · 하한 pinMin */
+        next = pinned ? Math.max(pinMin, v) + 'px' : (v > nat ? v + 'px' : '');
+      }
       if (next === (pinned ? sec.style.height : sec.style.minHeight)) return;   // 값이 안 바뀌면 쓰지도 기록하지도 않는다
-      _hist?.arm(0, dy);              // ★시작 표본 = «첫 실제 변경» 바로 앞(drag-history 정본) — 이 줄 아래가 쓰기
+      _hist?.arm(0, dy);              // ★시작 표본 = «첫 실제 변경» 바로 앞(drag-history 정본) — 이 줄 아래가 쓰기 (⒝ 는 이미 열려 있다)
       if (pinned) sec.style.height = next; else sec.style.minHeight = next;
+      wrote = true;
     };
     const end = () => {
       document.removeEventListener('pointermove', onMove);
