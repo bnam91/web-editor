@@ -64,14 +64,17 @@ async function buildFixture(page) {
       <div class="section-block" id="${id}" data-section="1" data-name="${n}" style="background-color:#ffffff">
         <div class="section-inner" style="padding-left:32px;padding-right:32px">
           <div class="row"><div class="gap-block" style="height:40px"></div></div>
+          <div class="row"><div id="${id}_mkA" style="width:100px;height:40px;background:#ff00aa"></div></div>
           <div class="row"><div class="text-block"><h2 class="tb-h2" style="font-size:40px;margin:0">${n} 제목 — 확대 내보내기</h2></div></div>
           <div class="row"><div class="text-block"><p style="font-size:18px;line-height:1.6;margin:0">${P}</p></div></div>
+          <div class="row"><div id="${id}_mkB" style="width:120px;height:30px;background:#00b4ff;margin-left:300px"></div></div>
           <div class="row" data-layout="stack">
             <div class="asset-block has-image" id="${id}_full" data-use-padx="true"
                  style="width:calc(100% + 64px);margin-left:-32px;margin-right:-32px;height:573.33px;">
               <div class="asset-img-clip"><img class="asset-img" src="${IMG}" style="object-fit:cover"></div>
             </div>
           </div>
+          <div class="row"><div id="${id}_mkC" style="width:80px;height:24px;background:#30d030;margin-left:600px"></div></div>
           <div class="row" data-layout="stack">
             <div class="asset-block has-image" id="${id}_fixed" style="width:220px;align-self:center;height:165px;">
               <div class="asset-img-clip"><img class="asset-img" src="${IMG}" style="object-fit:cover"></div>
@@ -115,18 +118,31 @@ test('U2·U3 ★섹션 PNG 1000 = 860 구도 그대로 확대 · dpr=1 에서도
     const u1000 = await window.exportSection(sec, 'png', 1000, { returnDataUrl: true });
     const a1000 = window.__asked.slice();
     const p860 = await dec(u860), p1000 = await dec(u1000);
-    /* 구도: 둘 다 1/10 로 내려(86폭 · 무늬 모아레는 지우고 «어디에 무엇이» 만 남긴다) 평균차 */
+    /* ★구도 자 = «표식 상자 좌표» (지디 261112 — 픽셀 평균차는 리샘플링·안티앨리어싱·무늬 모아레만으로 문턱을 넘어 «구도»를 못 가른다).
+       표식 셋: A(글 위) · B(본문 «뒤» — 줄바꿈이 바뀌면 y 가 바뀐다) · C(풀블리드 그림 «뒤» — 그림 높이가 바뀌면 y 가 바뀐다).
+       출력 PNG 에서 그 색의 순수 픽셀 상자를 찾아 1000 상자 = 860 상자 × 1000/860 (±2px) 인지 본다. */
+    const bbox = (cv, [R, G, Bc]) => { const { width: W, height: H } = cv; const D = cv.getContext('2d').getImageData(0, 0, W, H).data;
+      let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4;
+        if (Math.abs(D[i] - R) <= 12 && Math.abs(D[i + 1] - G) <= 12 && Math.abs(D[i + 2] - Bc) <= 12) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+      return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }; };
+    const MK = { A: [255, 0, 170], B: [0, 180, 255], C: [48, 208, 48] };
+    const marks = {}; for (const [k, c] of Object.entries(MK)) marks[k] = { b860: bbox(p860.cv, c), b1000: bbox(p1000.cv, c) };
+    /* 진단(단언 아님) — 옛 자의 8.40 이 어디서 나는지: 1/10 축소 평균차를 «글 띠(A~B)»·«그림 띠(B~C)» 로 갈라 찍는다 */
     const small = (cv) => { const d = document.createElement('canvas'); d.width = 86; d.height = Math.round(p860.h / 10);
       const dx = d.getContext('2d'); dx.imageSmoothingQuality = 'high'; dx.drawImage(cv, 0, 0, d.width, d.height); return dx.getImageData(0, 0, d.width, d.height).data; };
-    const A = small(p1000.cv), B = small(p860.cv);
-    let sum = 0; for (let i = 0; i < A.length; i += 4) sum += (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2])) / 3;
+    const SA = small(p1000.cv), SB = small(p860.cv);
+    const band = (ya, yb) => { let s = 0, n = 0; for (let y = Math.floor(ya / 10); y < Math.min(Math.ceil(yb / 10), Math.round(p860.h / 10)); y++) for (let x = 0; x < 86; x++) {
+      const i = (y * 86 + x) * 4; s += (Math.abs(SA[i] - SB[i]) + Math.abs(SA[i + 1] - SB[i + 1]) + Math.abs(SA[i + 2] - SB[i + 2])) / 3; n++; } return n ? +(s / n).toFixed(2) : null; };
+    const mA = marks.A.b860, mB = marks.B.b860, mC = marks.C.b860;
+    const diag = (mA && mB && mC) ? { all: band(0, p860.h), text: band(mA.y, mB.y), image: band(mB.y + mB.h, mC.y) } : null;
     /* 선명도 자: 860 PNG 를 1000 으로 «늘린» 그림과 1000 PNG 의 제곱기울기 합(번짐이 크면 작아진다) */
     const up = document.createElement('canvas'); up.width = p1000.w; up.height = p1000.h;
     const ux = up.getContext('2d'); ux.imageSmoothingQuality = 'high'; ux.drawImage(p860.cv, 0, 0, p1000.w, p1000.h);
     const energy = (cx, w, h) => { const D = cx.getImageData(0, 0, w, h).data; let e = 0;
       for (let y = 0; y < h; y++) for (let x = 1; x < w; x++) { const i = (y * w + x) * 4; const g = D[i] - D[i - 4]; e += g * g; } return e; };
     return { dpr: window.devicePixelRatio, w860: p860.w, h860: p860.h, w1000: p1000.w, h1000: p1000.h, a860, a1000,
-      meanDiff: sum / (A.length / 4),
+      marks, diag,
       eNative: energy(p1000.cv.getContext('2d'), p1000.w, p1000.h), eUp: energy(ux, p1000.w, p1000.h) };
   }, DECODE);
   console.log('  U2:', JSON.stringify({ ...r, a860: r.a860.map(a => [a.width, a.scale, a.rawW]), a1000: r.a1000.map(a => [a.width, a.scale, a.rawW]) }));
@@ -141,7 +157,13 @@ test('U2·U3 ★섹션 PNG 1000 = 860 구도 그대로 확대 · dpr=1 에서도
   expect(r.a860[0].scale ?? 1, '860 은 배율 1').toBe(1);
   /* U3 ★업스케일 아님 — 원본 PNG 가 이미 1000 폭(늘린 게 아니다) */
   expect(r.a1000[0].rawW, '★CDP 원본 폭이 1000 이 아니다 — 860 을 늘려 1000 을 만든다(흐림)').toBe(1000);
-  expect(r.meanDiff, `구도가 860 과 다르다(평균차 ${r.meanDiff.toFixed(2)})`).toBeLessThan(8);
+  for (const k of ['A', 'B', 'C']) {
+    const { b860, b1000 } = r.marks[k];
+    expect(b860 && b1000, `★전제 — 표식 ${k} 가 PNG 에 없다`).toBeTruthy();
+    for (const f of ['x', 'y', 'w', 'h']) {
+      expect(Math.abs(b1000[f] - b860[f] * K), `구도 — 표식 ${k}.${f}: 1000 ${b1000[f]} ≠ 860 ${b860[f]}×1000/860=${(b860[f] * K).toFixed(1)}`).toBeLessThanOrEqual(2);
+    }
+  }
   expect(r.eNative, `선명도 — 1000(${r.eNative}) 이 860 을 늘린 그림(${r.eUp})보다 날카롭지 않다`).toBeGreaterThan(r.eUp * 1.05);
   expect(errs, errs.join('\n')).toEqual([]);
 });
