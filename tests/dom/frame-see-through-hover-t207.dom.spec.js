@@ -58,11 +58,15 @@ test('T1 경계 — 투명 프레임 테두리 안쪽 4px: 지나가면 아웃�
   expect(await sel(page)).toEqual([ids.tr]);
 });
 
-test('T2 자식 충돌 — 투명 프레임 글자 위 더블클릭 → 글자만 selected', async ({ page }) => {
+/* T2 기대값 = 옛 동작(인텔 261112 첫 판 빨강 뒤 가름): 자식 위 더블클릭은 «진입 ＋ 자식 선택»이고 부모 프레임 .selected 는 남는다.
+   근거(스크래치 프로브 · 기준판 aded4a28a 와 고친 판 둘 다 · 투명·#EFEFEF 둘 다 같음): selected = [프레임, 글자] · 글자 래퍼(data-text-frame)는 안 골라짐 · 편집 아님.
+   OV-c(frame-dblclick-overlay)도 프레임 쪽은 단언하지 않는다. ⇒ 이 칸이 재는 것: 투명이어도 자식이 골라진다(＝불투명과 같은 결과). */
+test('T2 자식 충돌 — 투명 프레임 글자 위 더블클릭 → 글자 selected(＋부모 프레임 = 옛 동작) · 편집 아님', async ({ page }) => {
   const ids = await scene(page);
   const p = await pt(page, ids.tb, 0.3, 0.5);
   await page.mouse.dblclick(p.x, p.y); await page.waitForTimeout(650);
-  expect(await sel(page)).toEqual([ids.tb]);
+  expect((await sel(page)).sort()).toEqual([ids.tr, ids.tb].sort());
+  expect(await page.evaluate(() => !!document.activeElement?.isContentEditable), '한 번의 더블클릭이 편집까지 갔다').toBe(false);
 });
 
 test('T3 빈 영역 — 투명 프레임 빈 곳: 지나가면 아웃라인 · 누르면 프레임', async ({ page }) => {
@@ -83,8 +87,18 @@ test('T4 중첩 투명 — leaf 자리 지나가면 outer 만 긋는다 · 더�
   expect(await sel(page)).toEqual([ids.leaf]);
 });
 
+/* T5 준비 — 중첩 프레임 레이어 행은 접힌 채 그려진다(.layer-row-group.collapsed → .layer-row-children display:none). 사람이 하듯 outer → mid 의 꺾쇠를 실클릭으로 편다.
+   ⚠️꺾쇠는 svg 라 offsetParent 가 없다 — 보임은 rect 로 잰다(첫 판이 그걸 못 펴고 «[전제] 보인다»에서 늘 빨강이었다). */
 test('T5 레이어 패널 — leaf 항목 클릭 → leaf selected', async ({ page }) => {
   const ids = await scene(page);
+  for (const id of [ids.outer, ids.mid]) {
+    const c = await page.evaluate((id) => { const g = document.getElementById(id)?._layerItem?.closest('.layer-row-group');
+      const ch = g?.querySelector(':scope > .layer-row-header .layer-chevron'); if (!ch) return null;
+      if (!g.classList.contains('collapsed')) return { open: true };
+      ch.scrollIntoView({ block: 'center' }); const r = ch.getBoundingClientRect(); return r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; }, id);
+    expect(c, `[전제] ${id} 레이어 꺾쇠가 보인다`).not.toBeNull();
+    if (!c.open) { await page.mouse.click(c.x, c.y); await page.waitForTimeout(200); }
+  }
   const li = await page.evaluate((id) => { const l = document.getElementById(id)?._layerItem; if (!l || !l.offsetParent) return null; l.scrollIntoView({ block: 'center' });
     const r = l.getBoundingClientRect(); return { x: r.left + Math.min(60, r.width / 2), y: r.top + r.height / 2 }; }, ids.leaf);
   expect(li, '[전제] leaf 레이어 항목이 보인다').not.toBeNull();
