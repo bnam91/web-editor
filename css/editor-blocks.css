@@ -1257,6 +1257,21 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* 테두리 스타일 variants */
 .icb-circle[data-border="solid"]  { border: 3px solid var(--ui-border); }
 .icb-circle[data-border="dashed"] { border: 3px dashed var(--ui-border); }
+/* Q11(현빈 261112 「원 테두리는 남음」) — 「내용 자르기」 끔이면 넘친 그림(자손)이 원 자신의 border «위»에 칠해져 테두리를 덮는다
+   (켬일 땐 overflow 가 padding 상자에서 잘라 테두리가 보였다). ⇒ 같은 테두리를 그림보다 위 층 고리로 한 번 더 그린다
+   (래디얼 칸 고리처럼 «그림 밖» 층 · 선택 링 .icon-circle-block.selected::before 와 같은 꼴). 켬 = 규칙 안 걸림 = 옛 그림.
+   ⛔`inset` 단축 금지(html2canvas — 아래 G14 주석) · 두께·색·꼴은 원의 border 를 inherit(값 정본 = 위 두 줄). */
+.icon-circle-block[data-clip-content="false"] > .icb-circle[data-border="solid"]::after,
+.icon-circle-block[data-clip-content="false"] > .icb-circle[data-border="dashed"]::after {
+  content: '';
+  position: absolute;
+  top: -3px; left: -3px; right: -3px; bottom: -3px;
+  box-sizing: border-box;
+  border: inherit;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;   /* 그림·자식 그릇(.icb-children z 1) 위 */
+}
 
 /* ── G14 자식 그릇 — 「원형이 그릇이 된다」(js/icb-children.js) ─────────────────────────
    원 «위»에 얹히는 흐름 상자: 가운데 · 세로 쌓기 · 간격 8px · 폭 = 지름 × 1/√2(내접 정사각형).

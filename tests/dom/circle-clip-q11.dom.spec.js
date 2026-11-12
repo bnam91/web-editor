@@ -8,6 +8,7 @@
  *      ⚠️figma-renderer 는 clip 을 아직 안 읽는다(G17 border 와 같은 처지) — 이 칸은 «보내는 쪽»만 잰다.
  *   Q5 서클 이미지 편집 들어갔다 나와도 끔 유지 · 켬이면 도로 자름(편집 끝 applyIcbClip)
  *   Q6 패널 — 토글 줄 뒤에 안내 문구(prop-hint)를 새로 달지 않았다(현빈 261112 채점 게이트)
+ *   Q7 테두리 준 서클 끔 — 테두리 자리 = 테두리색(그림 위 고리) · 원 밖 = 그림 · 화면·PNG (지디 int-3 ✘ 「원 테두리는 남음」)
  * 자 = 픽셀: 1×1 스크린샷을 페이지 캔버스로 풀어 RGB 를 잰다(elementsFromPoint 는 조상의 둥근 자름을 무시해 못 쓴다 — 프로브 실측).
  * 양성대조: ㉮ grid-block.js cClipOn 을 늘 true → grid Q1·Q2·Q3 빨강 · ㉯ editor-blocks.css 의 `.grd-img-circle[data-clip-content="false"] > .grd-img{border-radius:0}` 삭제 → grid Q1 픽셀 빨강(캔버스만 원으로 남음)
  *   · ㉰ clip-content.js applyIcbClip 의 visible 줄 삭제 → icb Q1·Q2·Q3·Q5 빨강 · ㉱ radial-block.js _noClip 을 늘 false → radial Q1·Q2·Q3 빨강 · ㉲ export-figma-json.js 두 줄 삭제 → Q4 빨강. Q0·Q6 은 늘 초록.
@@ -182,4 +183,61 @@ test('Q6 [게이트] 토글 줄 뒤에 안내 문구(prop-hint)를 새로 달지
     expect(r, `[전제] ${k} 토글 줄이 있다`).not.toBeNull();
     expect(r, `${k} 토글에 안내 문구가 붙었다`).toEqual({ next: false, inRow: false });
   }
+});
+
+/* Q7 [지디 261112 int-3 ✘ «원 테두리는 남음»] 서클에 테두리(실선 3px · --ui-border #333)를 준 뒤 끔 — 넘친 그림이 원의 border 를 덮었다(테두리 자리 왼·위 = 그림색).
+ *   자 = 테두리 띠 한가운데(바깥에서 1.5px) 왼·위 두 점 + 원 밖 점(그림) · 화면 픽셀과 실앱 PNG(exportSection · CDP 캡처) 둘 다. 켬 = 같은 점이 테두리색(대조 · 옛 그림).
+ *   양성대조: editor-blocks.css 의 `.icon-circle-block[data-clip-content="false"] > .icb-circle[data-border=…]::after` 규칙 삭제 → 끔의 테두리 점 = 그림색(51,102,204) 빨강 · 켬 칸은 초록. */
+const RING = [51, 51, 51];
+async function installCdpCapture(page) {   /* checker-asset-tone T8 과 같은 손 — 실앱 PNG = main 'capture-section-cdp' */
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height }) => {
+    const r = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: 1 }, captureBeyondViewport: true, fromSurface: true });
+    return r.data;
+  });
+  await page.evaluate(() => { const old = window.electronAPI; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : old?.[k]) }); });
+}
+/* 원 상자(border 상자) 기준 상대 점 — 왼 = (1.5, h/2) · 위 = (w/2, 1.5) · 밖 = (w+10, h/2) */
+const ringPts = (r) => ({ left: [r.left + 1.5, r.top + r.height / 2], top: [r.left + r.width / 2, r.top + 1.5], out: [r.right + 10, r.top + r.height / 2] });
+async function ringLive(page) {
+  await page.evaluate(() => { window.deselectAll?.(); document.getElementById('sQ').scrollIntoView({ block: 'start' }); });
+  await page.mouse.move(2, 2); await waitStableRect(page, '#iQ .icb-circle'); await f2(page);
+  const P = ringPts(await page.evaluate(() => document.querySelector('#iQ .icb-circle').getBoundingClientRect().toJSON()));
+  const o = {}; for (const k of Object.keys(P)) o[k] = await pix(page, ...P[k]); return o;
+}
+async function ringPng(page) {
+  await page.evaluate(() => window.deselectAll?.()); await f2(page);
+  return page.evaluate(async () => {
+    const sec = document.getElementById('sQ'), S = sec.getBoundingClientRect(), C = document.querySelector('#iQ .icb-circle').getBoundingClientRect();
+    const url = await window.exportSection(sec, 'png', 860, { returnDataUrl: true });
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) return { err: String(url).slice(0, 80) };
+    const im = new Image(); im.src = url; await im.decode();
+    const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height; const g = cv.getContext('2d'); g.drawImage(im, 0, 0);
+    const k = im.width / S.width;   // 내보낸 폭 / 화면 섹션 폭
+    const at = (x, y) => [...g.getImageData(Math.floor((x - S.left) * k), Math.floor((y - S.top) * k), 1, 1).data].slice(0, 3);
+    const P = { left: [C.left + 1.5, C.top + C.height / 2], top: [C.left + C.width / 2, C.top + 1.5], out: [C.right + 10, C.top + C.height / 2] };
+    const o = {}; for (const key of Object.keys(P)) o[key] = at(...P[key]); return o;
+  });
+}
+
+test('Q7 테두리 준 서클 끔 — 테두리 자리 = 테두리색 · 원 밖 = 그림 (화면 · PNG)', async ({ page }) => {
+  const errs = await scene(page);
+  await installCdpCapture(page);
+  await page.evaluate(OPEN.icb); await until(page, () => !!document.querySelector('#icb-border-select'));
+  await page.selectOption('#icb-border-select', 'solid');
+  await until(page, () => document.querySelector('#iQ .icb-circle')?.dataset.border === 'solid');
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#iQ .icb-circle')).borderLeftWidth), '[전제] 테두리 3px').toBe('3px');
+  const onLive = await ringLive(page), onPng = await ringPng(page);
+  expect(near(onLive.left, RING) && near(onLive.top, RING), `[대조] 켬 화면 테두리 ${JSON.stringify(onLive)}`).toBe(true);
+  expect(near(onPng.left, RING) && near(onPng.top, RING), `[대조] 켬 PNG 테두리 ${JSON.stringify(onPng)}`).toBe(true);
+  await clickToggle(page, TOGGLE.icb, OPEN.icb);
+  expect(await page.evaluate(() => document.getElementById('iQ').getAttribute('data-clip-content')), '[전제] 끔이 섰다').toBe('false');
+  const offLive = await ringLive(page), offPng = await ringPng(page);
+  expect(near(offLive.left, RING), `끔 화면 테두리 왼 ${offLive.left} — 그림이 덮었다`).toBe(true);
+  expect(near(offLive.top, RING), `끔 화면 테두리 위 ${offLive.top} — 그림이 덮었다`).toBe(true);
+  expect(near(offLive.out, BLUE), `끔 화면 원 밖 ${offLive.out} — 그림이 안 보인다`).toBe(true);
+  expect(near(offPng.left, RING), `끔 PNG 테두리 왼 ${offPng.left}`).toBe(true);
+  expect(near(offPng.top, RING), `끔 PNG 테두리 위 ${offPng.top}`).toBe(true);
+  expect(near(offPng.out, BLUE), `끔 PNG 원 밖 ${offPng.out}`).toBe(true);
+  expect(errs).toEqual([]);
 });
