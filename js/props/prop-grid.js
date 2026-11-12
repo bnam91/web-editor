@@ -2723,7 +2723,7 @@ function _childGapRowHtml(block) {
 const _GRD_KID_KINDS = [['body', '텍스트'], ['h2', '제목'], ['image', '이미지'], ['gap', '여백']];
 function _grdKidsAddSectionHtml() {
   return `
-    <div class="prop-section" id="grd-kids-section" style="padding-bottom:4px;">
+    <div class="prop-section" id="grd-kids-section" style="padding-top:var(--ui-pad-panel);">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <select class="prop-select" id="grd-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
                 title="그리드 «밑»에 블럭을 넣는다 — 그리드가 그만큼 늘어난다">

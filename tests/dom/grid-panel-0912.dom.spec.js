@@ -98,3 +98,25 @@ test('t2-01 구분선 줄 — 선 색·줄 정렬 간격 = 굵기·너비 간격
   expect(got.std, '전제 — 표준 행 간격이 0 이 아니다(자가 0=0 초록 금지)').toBeGreaterThan(0);
   expect(got.gap, `선 색→줄 정렬 간격 ${got.gap}px ≠ 표준 ${got.std}px`).toBe(got.std);
 });
+
+/* ── t2-02 ── 「＋ 블럭 넣기」 절: 위 구분선(절 border-top) → 드롭다운 행 사이 여백 = 제목 있는 절의 구분선 → 제목 여백.
+ * 되돌리면 빨개지는 것: #grd-kids-section 의 padding-top 을 빼면(0 ≠ 8). */
+test('t2-02 블럭 넣기 드롭다운 — 위 구분선과의 여백 = 다른 절(.prop-section-title)과 같다', async ({ page }) => {
+  const errs = await boot(page);
+  const got = await page.evaluate((fx) => {
+    window.__mount(fx, null);                       // 블럭 단위 선택 — 이 절이 뜨는 상태
+    const sec = document.getElementById('grd-kids-section');
+    const sel = document.getElementById('grd-kid-add-kind');
+    const t = document.querySelector('#panel-right .panel-body .prop-section + .prop-section > .prop-section-title');
+    if (!sec || !sel || !t) return { ok: false };
+    const titled = t.parentElement.getBoundingClientRect().top;
+    return { ok: true, border: getComputedStyle(sec).borderTopWidth,
+      std: Math.round(t.getBoundingClientRect().top + parseFloat(getComputedStyle(t).paddingTop) - titled),
+      gap: Math.round(sel.closest('.prop-row').getBoundingClientRect().top - sec.getBoundingClientRect().top) };
+  }, FIX);
+  expect(errs).toEqual([]);
+  expect(got.ok, '전제 — 블럭 넣기 절·드롭다운·비교할 제목 절이 다 떴다').toBe(true);
+  expect(got.border, '전제 — 블럭 넣기 절 위에 구분선이 있다').toBe('1px');
+  expect(got.std, '전제 — 표준 여백이 0 이 아니다').toBeGreaterThan(0);
+  expect(got.gap, `구분선→드롭다운 ${got.gap}px ≠ 표준 ${got.std}px`).toBe(got.std);
+});
