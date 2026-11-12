@@ -8,12 +8,18 @@
  *   E1 넣은 직후 — 캔버스에 .row-col-add-btn 0 · 글 3                                          (㉯)
  *   E2 넣기 → 저장 왕복 — 프레임 직속 «element 자식 0» row 0 · 단추 0 · 글 3 그대로
  *   E3 넣기 → 프레임 밖 간격 편집 → ⌘Z(rebindAll 길) — E2 와 같은 단언
- *   E4 넣기 → 저장 왕복 → 셋째 글 프레임 골라 ⌘[ 한 번 — 글 순서가 실제로 바뀐다(가 다 나 → 가 나 다 의 둘째·셋째 맞바뀜)
+ *   E4 다시 연 판 · 가운데 글 «진짜 더블클릭»(→Esc) → ⌘] 1번 = 같은 프레임 안 순서 바뀜 · 프레임·섹션 차례 무변 · ⌘Z 1번 = 원래
+ *   E6 같은 손 ⌘[ 1번 = 위로 · 프레임·섹션 차례 무변
+ *   E7 끝 글 ⌘] · 첫 글 ⌘[ = 무변(프레임 밖으로 안 나감 — 템플릿 행 뒤에 간격 gEtail 을 둬 나가면 보이게)
+ *   E8 E4 처럼 옮긴 뒤 저장 왕복 — 순서·자리 그대로
  *   E5 옛 망가진 저장본 꼴(프레임 안 «단추만 남은 row») 픽스처를 저장 왕복으로 열면 그 row 가 사라진다 · 글은 남음      (㉮)
  *      음성: 단추 없는 «의도된» 빈 row 는 남는다 · 단추 + 다른 자식(간격) row 는 단추만 빠지고 남는다
- * 양성대조(지디 인텔): ㉮ 의 `canvasEl.querySelectorAll('.row-col-add-btn').forEach(…)` 를 끄면 E5 빨강(E1~E4 는 ㉯ 덕에 초록) /
- *   ㉯ 의 `_tplStripDeadColAdd(` 를 벗기면(= await _loadCanvas 그대로) E1 빨강(E2~E4 는 ㉮ 덕에 초록) / 둘 다 끄면 E1~E5 빨강.
- * ⚠️E4 의 «고르기»는 손 클릭이 아니라 selected + _activeFrame 을 직접 건다(프레임 갈래 moveSelectedBlocks 가 읽는 두 값).
+ * 양성대조(지디 인텔): ㉮ 의 `canvasEl.querySelectorAll('.row-col-add-btn').forEach(…)` 를 끄면 E5 빨강(E1~E3 은 ㉯ 덕에 초록 · E4·E6~E8 도 43e4941ce 있는 판에서 초록) /
+ *   ㉯ 의 `_tplStripDeadColAdd(` 를 벗기면(= await _loadCanvas 그대로) E1 빨강(E2·E3 은 ㉮ 덕에 초록 · E4·E6~E8 도 43e4941ce 있는 판에서 초록) / 둘 다 끄면 E1~E3·E5 빨강(+ 아래 ④).
+ * ★E4·E6·E7·E8 은 t2-06 고침 43e4941ce(editor.js moveSelectedBlocks getUnit = closest('.row, .frame-block[data-text-frame]'))이 «같이» 있어야 초록이다
+ *   (이 가지 단독 = 빨강 — getUnit 이 템플릿을 감싼 바깥 row 를 집어 프레임째 섹션 안에서 움직인다 · 미카사 t2-06 ❌ 합친 판 e3bac536a 에 43e4941ce 가 없었다).
+ *   양성대조 ③: 43e4941ce 의 그 한 줄을 옛 꼴 `(b.closest('.row') || b.closest('.frame-block[data-text-frame]'))` 로 → E4·E6·E7·E8 빨강(프레임째 움직임) · E1~E3·E5 초록.
+ *   양성대조 ④: ㉮·㉯ 둘 다 끄면(빈 row 남음) E4·E6 빨강(빈 row 를 한 칸으로 세서 글 순서 무변).
  */
 const fs = require('fs');
 const path = require('path');
@@ -46,6 +52,9 @@ async function setup(page) {
     const before = new Set([...document.querySelectorAll('.frame-block')].map(f => f.id));
     await window.insertTemplate({ id, name: '급하게 제품이 필요하신가요?', type: 'subsection' });
     const F = [...document.querySelectorAll('#sE .frame-block:not([data-text-frame])')].find(f => !before.has(f.id));
+    /* 템플릿 행 «뒤»에 간격 하나 — 프레임이 섹션 끝이 아니어야 «⌘] 가 프레임째 아래로 나감»을 잡는다(E7). */
+    S.querySelector('.section-inner').insertAdjacentHTML('beforeend', '<div class="gap-block" data-type="gap" id="gEtail" style="height:30px"></div>');
+    window.rebindAll?.();
     window.deselectAll?.();
     window.clearHistory?.();
     return { F: F ? F.id : null };
@@ -116,24 +125,92 @@ test('E3 넣기 → 프레임 밖 간격 편집 → ⌘Z(rebindAll 길) — 빈 
   expect(errs).toEqual([]);
 });
 
-test('E4 넣기 → 저장 왕복 → 셋째 글 프레임 ⌘[ 한 번 = 실제로 한 칸 위로(t2-06 ◑ 풀림)', async ({ page }) => {
+/** 섹션 안 차례(직속 자식 id) · 프레임이 부모 안 몇째인가 · 프레임 안 글 순서. */
+const layout = (page, F) => page.evaluate((id) => {
+  const f = document.getElementById(id), inner = document.querySelector('#sE > .section-inner');
+  return { sec: [...inner.children].map(c => c.id || c.className), fIdx: [...f.parentElement.children].indexOf(f), fParent: f.parentElement.id,
+    texts: [...f.querySelectorAll('.text-block')].map(tb => (tb.innerText || '').trim().slice(0, 12)) };
+}, F);
+/** 진짜 손: 프레임 안 i 째 글을 더블클릭(첫 클릭 = 프레임 · 둘째 = 글 · dblclick = 편집 진입) → Esc(편집 끝 · 글 선택 유지 — block-drag.js «Escape → 편집 종료, 블록 선택 상태 유지»).
+ *  ⚠️편집 «중»엔 ⌘[⌘] 가 일부러 안 먹는다(editor.js `.text-block.editing` 가드) — 사람도 Esc 뒤에 누른다. */
+async function dblPick(page, F, i) {
+  const box = await page.evaluate(([id, i]) => {
+    const tb = document.getElementById(id).querySelectorAll('.text-block')[i];
+    tb.scrollIntoView({ block: 'center' });
+    const r = (tb.querySelector('[contenteditable]') || tb).getBoundingClientRect();
+    return { x: r.left + Math.min(30, r.width / 2), y: r.top + r.height / 2, id: tb.id };
+  }, [F, i]);
+  expect(box.id, '[전제] 글 블럭 id').toBeTruthy();
+  await page.mouse.dblclick(box.x, box.y);
+  if (await page.evaluate(() => !!document.querySelector('.text-block.editing'))) {
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.text-block.editing'));
+  }
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), box.id), '[전제] 더블클릭으로 그 글이 골라졌다').toBe(true);
+  return box.id;
+}
+
+test('E4 다시 연 판 · 가운데 글 진짜 더블클릭 → ⌘] 한 번 = 같은 프레임 안 아래로 · 프레임·섹션 차례 무변 · ⌘Z 한 번 = 원래', async ({ page }) => {
   const { F } = await setup(page);
   const { errs } = await reopen(page);
-  const s0 = await frameRows(page, F);
-  expectClean(s0, 'E4 전');
-  const picked = await page.evaluate((id) => {
-    const tfs = [...document.getElementById(id).querySelectorAll(':scope > .frame-block[data-text-frame]')];
-    const tf = tfs[2];
-    if (!tf) return null;
-    window.deselectAll?.();
-    tf.classList.add('selected'); window._activeFrame = tf;
-    document.activeElement?.blur?.();
-    return tfs.length;
-  }, F);
-  expect(picked, '[전제] 프레임 직속 글 프레임 3').toBe(3);
+  const L0 = await layout(page, F);
+  expect(L0.texts.length, '[전제] 글 셋').toBe(3);
+  await dblPick(page, F, 1);
+  await page.keyboard.press('Meta+BracketRight');
+  await expect.poll(async () => (await layout(page, F)).texts, '가운데 글이 셋째 자리로').toEqual([L0.texts[0], L0.texts[2], L0.texts[1]]);
+  const L1 = await layout(page, F);
+  expect(L1.sec, '섹션 차례 무변(프레임째 안 움직임)').toEqual(L0.sec);
+  expect([L1.fParent, L1.fIdx], '프레임 자리 무변').toEqual([L0.fParent, L0.fIdx]);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await layout(page, F)).texts, '⌘Z 한 번 = 원래 순서').toEqual(L0.texts);
+  expect((await layout(page, F)).sec).toEqual(L0.sec);
+  expect(errs).toEqual([]);
+});
+
+test('E6 다시 연 판 · 가운데 글 더블클릭 → ⌘[ 한 번 = 같은 프레임 안 위로 · 프레임·섹션 차례 무변', async ({ page }) => {
+  const { F } = await setup(page);
+  const { errs } = await reopen(page);
+  const L0 = await layout(page, F);
+  await dblPick(page, F, 1);
   await page.keyboard.press('Meta+BracketLeft');
-  const want = [s0.texts[0], s0.texts[2], s0.texts[1]];
-  await expect.poll(async () => (await frameRows(page, F)).texts, '⌘[ 한 번에 셋째 글이 둘째 자리로').toEqual(want);
+  await expect.poll(async () => (await layout(page, F)).texts, '가운데 글이 첫째 자리로').toEqual([L0.texts[1], L0.texts[0], L0.texts[2]]);
+  const L1 = await layout(page, F);
+  expect(L1.sec, '섹션 차례 무변').toEqual(L0.sec);
+  expect([L1.fParent, L1.fIdx]).toEqual([L0.fParent, L0.fIdx]);
+  expect(errs).toEqual([]);
+});
+
+test('E7 다시 연 판 · 끝 글 더블클릭 → ⌘] = 무변(프레임 밖으로 안 나감 · 섹션 차례 무변) · 첫 글 ⌘[ 도 무변', async ({ page }) => {
+  const { F } = await setup(page);
+  const { errs } = await reopen(page);
+  const L0 = await layout(page, F);
+  expect(L0.sec[L0.sec.length - 1], '[전제] 프레임 행 뒤에 간격이 있다(나가면 보인다)').toBe('gEtail');
+  await dblPick(page, F, 2);
+  await page.keyboard.press('Meta+BracketRight');
+  await page.waitForTimeout(200);   // 무변을 재는 칸 — 바뀔 틈을 준다
+  expect(await layout(page, F), '끝 글 ⌘] = 아무것도 안 바뀜').toEqual(L0);
+  await dblPick(page, F, 0);
+  await page.keyboard.press('Meta+BracketLeft');
+  await page.waitForTimeout(200);
+  expect(await layout(page, F), '첫 글 ⌘[ = 아무것도 안 바뀜').toEqual(L0);
+  expect(errs).toEqual([]);
+});
+
+test('E8 E4 처럼 옮긴 뒤 저장 왕복 — 바뀐 글 순서·프레임 자리 그대로', async ({ page }) => {
+  const { F } = await setup(page);
+  await reopen(page);
+  const L0 = await layout(page, F);
+  await dblPick(page, F, 1);
+  await page.keyboard.press('Meta+BracketRight');
+  const want = [L0.texts[0], L0.texts[2], L0.texts[1]];
+  await expect.poll(async () => (await layout(page, F)).texts).toEqual(want);
+  const L1 = await layout(page, F);
+  const { errs } = await reopen(page);
+  const L2 = await layout(page, F);
+  expect(L2.texts).toEqual(want);
+  expect(L2.sec).toEqual(L1.sec);
+  expectClean(await frameRows(page, F), 'E8');
   expect(errs).toEqual([]);
 });
 
