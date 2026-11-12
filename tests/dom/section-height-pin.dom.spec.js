@@ -11,6 +11,7 @@
  *   P15 관찰 정리 — 핀 섹션만 · 해제·⌘Z 뒤 0(r2 ⑤)
  *   P3 ★전체 보기 — 다 보이고 · 높이 수는 핀 값 · 저장본·PNG 에 pin-peek 없음 · 선택 풀리면 꺼지고 · 선택 중이면 남는다
  *   P3b ★전체 보기 켠 채 h2c PNG·썸네일 입구 — 루트 pin-peek 이 안 샌다(r1 ②) · native PNG 는 P3 가 잰다
+ *   P3c ★Delete(클릭 아닌 선택 해제)에도 전체 보기 꺼짐(r2 ④)
  *   P4 핀 해제 — height 지움 · minHeight=핀값 · 내용만큼 늘어남 · 기록 1
  *   P5 ★바닥 손잡이 — 내용 밑으로 줄임 · 하한 아래패딩+20 · 취소 복원 · 더블클릭 = 내용에 맞춤 · 기록 각 1
  *   P6 드롭 기준 — 보이는 끝 아래로 끌면 «첫 숨은 자식 앞» (undefined = 맨 끝 append 가 아님)
@@ -251,6 +252,21 @@ test('P1b ★배지 섹션(inner 인라인 min-height:260) — 핀 100 이면 in
   console.log('  P1b:', JSON.stringify(r));
   expect(r.h).toBe(100);
   expect(Math.abs(r.innerBottom - r.cut), `inner 바닥 ${r.innerBottom} ≠ 자르는 선 ${r.cut} (min-height ${r.minH})`).toBeLessThanOrEqual(1);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P3c ★Delete 로 선택이 풀려도 전체 보기가 꺼진다 (r2 ④ · deselectAll 공용 길)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => {
+    window.buildLayerPanel?.();
+    [...document.querySelectorAll('.layer-item')].find(i => i.getAttribute('aria-label') === 'HIDDEN 레이어')?.click();
+  });
+  await expect.poll(() => page.evaluate(() => document.getElementById('pS').classList.contains('pin-peek')), { timeout: 2000 }).toBe(true);
+  expect(await page.evaluate(() => document.getElementById('pH')?.classList.contains('selected')), '★전제 — 숨은 칸을 골랐다').toBe(true);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Delete');
+  await expect.poll(() => page.evaluate(() => !document.getElementById('pH')), { timeout: 2000 }).toBe(true);   // ★전제 — 실제로 지워졌다
+  await expect.poll(() => page.evaluate(() => document.getElementById('pS').classList.contains('pin-peek')), { timeout: 2000 }).toBe(false);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

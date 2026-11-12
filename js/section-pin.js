@@ -194,8 +194,11 @@
       if (!keep) peek(sec, false);
     });
   }
-  document.addEventListener('click', () => setTimeout(sweepPeek, 0), true);
+  /* 한 틱 뒤 — 선택 해제 «직후» 같은 태스크에서 새 선택(레이어 클릭 = deselectAll → 블럭 고름)이 끝난 «뒤»에 본다.
+     부르는 곳: 문서 click · Escape · ★editor.js deselectAll 끝(Delete 등 클릭 아닌 해제 길 — Codex r2 ④). */
+  const sweepSoon = () => setTimeout(sweepPeek, 0);
+  document.addEventListener('click', sweepSoon, true);
   document.addEventListener('keyup', (e) => { if (e.key === 'Escape') setTimeout(sweepPeek, 0); }, true);
 
-  window.sectionPin = { _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
+  window.sectionPin = { sweepSoon, _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
 })();
