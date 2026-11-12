@@ -2209,6 +2209,7 @@ function exitCircleImageEditMode(icb) {
   }
   const circle = icb.querySelector('.icb-circle');
   if (circle) circle.style.overflow = ''; // 편집 모드 종료: 원형 마스크 복원
+  window.applyIcbClip?.(icb);   // Q11 — 「내용 자르기」 끔이면 편집 뒤에도 원 밖이 보이게(표 한 자리 · clip-content.js)
   if (icb._imgEditCleanup) { icb._imgEditCleanup(); icb._imgEditCleanup = null; }
   document.removeEventListener('click',   icb._exitImgEdit);
   document.removeEventListener('keydown', icb._exitImgEsc);

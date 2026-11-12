@@ -97,6 +97,10 @@ export const CLIP_DEFAULTS = Object.freeze({
                         ★까닭: ★크롭은 ★«프레임 안에서 원하는 부분만 보인다»(현빈 2026-09-25)가 ★뜻이라 ★자름이 ★그 뜻이다.
                         ⛔gridPlain 처럼 false 로 두면 ★크롭 프레임에서 ★표가 ★거짓말을 한다
                           (★실측 2026-10-12: clipsContent=false 인데 ★computed overflow=hidden) */
+  /* Q11(현빈 261112) — 원 계열 둘을 더했다(CLIP-ROSTER-MISSING-ICB-01 해소 · 래디얼은 현빈이 범위에 넣음). 끔 = 원 테두리 밖으로 그림이 보인다(테두리·바탕 원은 남는다).
+     기본값은 둘 다 «자름»(지금 동작) — 속성이 없으면 인라인을 안 쓴다(옛 바이트 동일). */
+  icb: true,         /* `.icon-circle-block` — 원 `.icb-circle { overflow: hidden }`(CSS) · 끔이면 applyIcbClip 이 인라인 visible */
+  radial: true,      /* `.radial-block` — 칸 `.rdl-cell { overflow: hidden }`(CSS) · 끔이면 렌더러(radial-block.js)가 칸에 인라인 visible */
 });
 
 /** ★그 요소가 ★★어느 계열인가. ⛔부르는 자가 ★손으로 ★가르지 ★마라. */
@@ -105,6 +109,8 @@ export function clipFamily(el) {
   const c = el.classList;
   if (c.contains('frame-block')) return 'frame';
   if (c.contains('asset-block')) return 'asset';
+  if (c.contains('icon-circle-block')) return 'icb';
+  if (c.contains('radial-block')) return 'radial';
   if (c.contains('grd-img-frame')) {
     if (c.contains('grd-img-circle')) return 'gridCircle';
     /* ★크롭 판정 = ★렌더러가 ★크롭일 때만 쓰는 꼴(★안쪽 그림 `position:absolute` · grid-block.js `innerCss`).
@@ -151,7 +157,21 @@ export function applyAssetClip(ab) {
   return !!on;
 }
 
+/** 서클 에셋블럭의 원 자름 — applyAssetClip 과 같은 꼴(속성 없으면 인라인 지움 = CSS 가 자른다 · 끔이면 visible).
+ *  부르는 자: 패널 토글(prop-icon-circle.js) · 이미지 편집 끝(image-handling.js — 편집 중엔 전체를 보이느라 visible 로 둔다). */
+export function applyIcbClip(icb) {
+  if (!icb || clipFamily(icb) !== 'icb') return false;
+  const circle = icb.querySelector(':scope > .icb-circle');
+  const on = clipsContent(icb);
+  if (circle) {
+    if (on) circle.style.removeProperty('overflow');
+    else circle.style.overflow = 'visible';
+  }
+  return !!on;
+}
+
 if (typeof window !== 'undefined') {
+  window.applyIcbClip = applyIcbClip;
   window.clipsContent = clipsContent;
   window.clipFamily = clipFamily;
   window.clipsContentFor = clipsContentFor;   /* ★그리드 렌더러가 ★import 없이 부른다(유닛 하네스 19벌이 grid-block 사본을 tmpdir 로 옮긴다) */

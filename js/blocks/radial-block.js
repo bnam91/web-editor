@@ -857,6 +857,10 @@ function _paintRadial(block, st, g) {
   const sel = Number.isInteger(block._rdlSel) ? block._rdlSel : -1;
   const dash = st.lineStyle === 'dashed' ? ` stroke-dasharray="${st.lineWidth * 3} ${st.lineWidth * 3}"` : '';
 
+  /* Q11(현빈 261112) «내용 자르기» 끔 = 칸 밖으로 그림이 보인다(칸 테두리·바탕은 남음). 판정은 표 한 자리(clip-content.js radial · 블럭 dataset.clipContent).
+     끔일 때만 인라인 overflow:visible 을 박는다(내보낸 HTML·캡처 클론이 CSS 없이도 들고 간다 · 켬 = 옛 바이트). */
+  const _noClip = (typeof window !== 'undefined' ? window.clipsContentFor?.('radial', block.dataset.clipContent) : undefined) === false;
+  const _cellOv = _noClip ? 'overflow:visible;' : '';
   const itemsHTML = pts.map((p, i) => {
     const it = st.items[i];
     const pic = isDot ? '' : _itemPic(it);
@@ -865,7 +869,7 @@ function _paintRadial(block, st, g) {
       /* ★t4-06(현빈 「안쪽은 서클이미지블럭처럼 단순히 체크패턴들어간 에셋블럭이면 된다」) — 빈 칸은 회색 바탕+그림 아이콘이 아니라
          체크 무늬(css/editor-radial.css .rdl-cell--empty · 서클이미지블럭 .icb-circle 과 같은 big 토큰 · 가운데 t4-05 와 같은 꼴).
          ★사람이 칸 색을 따로 골랐으면(기본값이 아니면) 그 색이 이긴다 — 서클이미지블럭 「배경색을 고르면 빈 원의 체커도 걷는다」와 같은 뜻. */
-      : `<div class="rdl-cell${pic ? '' : ' rdl-cell--empty'}" style="border-radius:${cellRadius};${(pic || st.cellFill !== RADIAL_DEFAULTS.cellFill) ? `background:${st.cellFill}` : ''}">${pic ? `<span class="rdl-cell-img">${pic}</span>` : ''}</div>`;
+      : `<div class="rdl-cell${pic ? '' : ' rdl-cell--empty'}" style="border-radius:${cellRadius};${(pic || st.cellFill !== RADIAL_DEFAULTS.cellFill) ? `background:${st.cellFill}` : ''}${_cellOv ? (pic || st.cellFill !== RADIAL_DEFAULTS.cellFill ? ';' : '') + _cellOv : ''}">${pic ? `<span class="rdl-cell-img"${_cellOv ? ` style="${_cellOv}"` : ''}>${pic}</span>` : ''}</div>`;
     return `<div class="rdl-item rdl-item--${st.labelPos}${isDot ? ' rdl-item--dot' : ''}${radialItemIsManual(it) ? ' rdl-item--manual' : ''}${i === sel ? ' rdl-cell-selected' : ''}" data-rdl-idx="${i}" style="left:${(p.x - half).toFixed(2)}px;top:${(p.y - half).toFixed(2)}px;width:${g.m}px;height:${g.m}px">`
       + cell
       + _labelHTML(st, g, p, it, i)

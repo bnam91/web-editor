@@ -2099,6 +2099,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔굵기는 --sel-outline-w(=1px×--inv-zoom) — 줌 40%에서도 화면상 같은 굵기. 새 토큰 없음. */
 #canvas .grid-block .grd-img-circle { position: relative; }
 #canvas .grid-block .grd-img-circle > .grd-img { border-radius: 50%; }
+/* Q11(현빈 261112) — 원 «내용 자르기» 끔이면 그림 자신의 반경도 뗀다. 안 떼면 캔버스는 원인데 내보내기(이 규칙이 #canvas 밖이라 안 실림)는 사각 = 둘이 달라진다. */
+#canvas .grid-block .grd-img-circle[data-clip-content="false"] > .grd-img { border-radius: 0; }
 #canvas .grid-block .grd-img-circle.grd-line-selected {
   box-shadow: none;          /* 휜 «왼쪽 막대» 대신 아래 링 */
   overflow: visible !important;   /* 인라인 overflow:hidden 을 선택 중에만 푼다 — 네모 선이 안 잘리게(그림은 <img> 반경이 자른다) */

@@ -2416,7 +2416,11 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
          ⛔사각 그림 틀엔 안 단다 — 그쪽은 «줄어드는 것»이 옛 규칙이다(아래 커밋 ① ㈐ 실측). */
       const box = `${dCss}max-width:100%;aspect-ratio:1/1;border-radius:50%;flex-shrink:0;${cAlignCss}${cBgCss}${posCss}${mtCss}${fxCss}`;
       if (!line.imgSrc) return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-empty grd-img-circle" style="${box}${lid ? 'overflow:hidden;' : ''}">${cTextHtml}</div>`;
-      return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle" style="${box}overflow:hidden;">`
+      /* Q11(현빈 261112) — 원 «내용 자르기» 끔 = 원 밖으로 그림(정사각)이 보인다 · 원 바탕·테두리는 그대로. 판정은 표(clip-content.js gridCircle) 한 자리.
+         끔이면 overflow 를 안 박고 data-clip-content="false" 를 찍는다(크롭 줄 clipAttr 과 같은 꼴) · 기본(켬)은 옛 바이트 그대로.
+         flex-shrink:0 이 위 box 에 있어 overflow 를 떼도 원이 안 눌린다(㈐ 의 붕괴는 사각 줄 얘기). 술어 없으면(유닛) undefined ⇒ 자른다. */
+      const cClipOn = (typeof window !== 'undefined' ? window.clipsContentFor?.('gridCircle', line.clipContent) : undefined) !== false;
+      return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle"${cClipOn ? '' : ' data-clip-content="false"'} style="${box}${cClipOn ? 'overflow:hidden;' : ''}">`
         + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
         + cTextHtml
         + `</div>`;

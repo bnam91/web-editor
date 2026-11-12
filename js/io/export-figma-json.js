@@ -608,6 +608,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         bgColor,
         src:     imgSrc,
       };
+      /* Q11(현빈 261112) — 「내용 자르기」 끔이면 clip:false 를 싣는다(켬 = 키 없음 = 옛 바이트). ⚠️figma-renderer circle 분기는 아직 «안 읽는다»
+         (원 = 둥근 프레임의 이미지 채움이라 밖으로 보일 자리가 없다 — G17 border 와 같은 처지 · 받는 쪽 미구현). */
+      if (window.clipsContent?.(el) === false) _circleOut.clip = false;
       /* ★G14 — «원 안» 자식(.icb-circle > .icb-children)이 있으면 원 + 자식을 «자유 프레임» 하나로 싸서 낸다.
          렌더러(figma-renderer) 무변경 — frame(free) 분기는 이미 있다(좁으면 가운데 · 자식은 x,y 절대). 원은 그 프레임의 (0,0)·폭 size.
          자식 좌표는 «살아 있는 문서»에서 잰다(G19 _gridKidBlocks 와 같은 수법 · 배율은 화면폭/레이아웃폭으로 나눈다).
@@ -1108,6 +1111,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
         svg: [...el.querySelectorAll('svg')].find(_notKid)?.outerHTML || '', texts,
       };
+      /* Q11(현빈 261112) — 래디얼 「내용 자르기」 끔이면 clip:false(켬 = 키 없음 = 옛 바이트). ⚠️figma-renderer generic 은 아직 «안 읽는다»(G17 border 와 같은 처지). */
+      if (window.clipFamily?.(el) === 'radial' && window.clipsContent?.(el) === false) out.clip = false;
       /* ★G17 그리드 «블럭 외곽선» — 키(data-block-outline)가 있을 때만 `border` 를 싣는다(없으면 JSON 바이트 그대로).
        *   값은 렌더러가 블럭 style 에 «이미 그은» 변을 그대로 읽는다(모델 해석을 여기서 다시 하지 않는다 — 두 벌 금지).
        *   ⚠️figma-renderer/sangpe_to_figma.mjs 의 generic 분기는 아직 `border` 를 «안 읽는다»(플러그인에 면별 stroke 명령 0).

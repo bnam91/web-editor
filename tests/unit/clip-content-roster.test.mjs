@@ -61,7 +61,9 @@ const el = (cls, ds) => ({ classList: { contains: (c) => cls.includes(c) }, data
 
 test('A1 ★★계열 표가 ★★이 파일 ★하나에 있다 — ★★기본값 ★다섯 (2026-10-12 gridCrop 추가)', () => {
   const { CLIP_DEFAULTS } = load();
-  assert.deepEqual(Object.keys(CLIP_DEFAULTS).sort(), ['asset', 'frame', 'gridCircle', 'gridCrop', 'gridPlain']);
+  assert.deepEqual(Object.keys(CLIP_DEFAULTS).sort(), ['asset', 'frame', 'gridCircle', 'gridCrop', 'gridPlain', 'icb', 'radial']);   /* Q11(261112) icb·radial 추가 */
+  assert.equal(CLIP_DEFAULTS.icb, true, '서클 에셋블럭 원 = 자름(.icb-circle overflow:hidden)');
+  assert.equal(CLIP_DEFAULTS.radial, true, '래디얼 칸 = 자름(.rdl-cell overflow:hidden)');
   assert.equal(CLIP_DEFAULTS.gridCrop, true,
     '★그리드 ★크롭 줄 = 자름(렌더러 인라인 clipCss · ★실측 2026-10-12 computed overflow hidden)');
   /* ★★★행위로 ★잰 값 ★그대로 — ⛔여기 수를 ★바꾸려면 ★★다시 재라 */
