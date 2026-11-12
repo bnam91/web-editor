@@ -278,6 +278,7 @@ const DROP_STRIP_ROSTER = {
     { sel: '.sec-bg-proxy',     kind: 'chrome', why: '섹션 배경 편집 프록시 — 배경 그림이 두 번 찍힌다' },
     { sel: '.img-edit-hint',    kind: 'chrome', why: '이미지 편집 안내' },
     { sel: '.img-boundary',     kind: 'chrome', why: '이미지 편집 경계 선' },
+    { sel: '.row-col-add-btn',  kind: 'chrome', why: '옛 템플릿에 박힌 죽은 «열 추가» 단추 — PNG 에 찍혔다(ROW-COL-ADD-BTN-IN-PNG-EXPORT-01 · 단독 HTML 은 export-html 이 이미 지움)' },
     /* ★★★R1 몫 ★아홉 — ★2026-10-22 ★지디 ★승인. ★★머지 `4ca3dc58`(아이맥 `45c0ad6b`)이 ★더한 것.
        ★까닭: ★「★안 막히는 칸」 ★47 중 ★R1 몫 ★16(= ★이 아홉 × capture·html ★두 길)이
          ★★★«편집 장식인데 ★캡처 겹에서 ★안 지워진다」였다 ⇒ ★내보낸 그림에 ★찍힐 수 ★있다.
