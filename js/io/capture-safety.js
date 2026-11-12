@@ -538,6 +538,9 @@ export function stripEditorOnlyForCapture(clone) {
   stripImageMemoForCapture(clone);
   // 편집 전용 임시 DOM — 캡처 클론에 새어 나가면 그림에 박힌다.
   clone.querySelectorAll('.sec-bg-proxy, .img-edit-hint, .img-boundary').forEach(el => el.remove());
+  /* ROW-COL-ADD-BTN-IN-PNG-EXPORT-01 — 옛 공용 템플릿 11개(templates/canvas)에 «죽은» 열 추가 단추가 저장 HTML 째 박혀 있다
+     (만드는 코드는 c8aff4a06 col 제거 때 사라짐). 단독 HTML 은 export-html.js 가 이미 걷는다 — PNG·썸네일도 같이. */
+  clone.querySelectorAll('.row-col-add-btn').forEach(el => el.remove());
   // 도형 «이미지 넣기 전» 바둑판(0918 picker) — 편집 전용 표시다. CSS 규칙이 data-shape-fill="image"
   //   (이미지 없음)에 걸리므로 클론에서 그 속성을 떼면 마지막 단색(svg color)으로 나간다. 이미지가
   //   실제로 들어간 도형(data-shape-image)은 인라인 div 라 그대로 둔다.
