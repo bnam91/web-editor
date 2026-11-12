@@ -574,14 +574,16 @@ test('P18 ★열자마자 첫 조작이 핀이어도 Undo 가 켜진다 (r3 · c
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-/* P19·P20 공용 — 바닥(minHeight) 300 인 섹션 A 에 B(갭 300)를 합쳐 내용 > 바닥이 된 판(Codex r4 재현 그대로) */
+/* P19·P20 공용 — 바닥(minHeight) 300 인 섹션 A 에 B 를 합쳐 내용 > 바닥이 된 판(Codex r4 재현 그대로).
+   ★갭이 아니라 «고정 높이 글 블럭»이다 — 합치기는 이음매의 꼬리 갭을 지운다(section-merge.js _lastGap · mergedTailGapH).
+     인텔 r4: A 의 유일한 갭(100)이 꼬리로 지워져 합친 내용 = 300 = 바닥 → 전제 실패. */
 async function mergedFloorBoard(page) {
   await page.evaluate(() => {
     const c = document.getElementById('canvas');
     c.innerHTML = '<div class="section-block" id="mA" data-section="1" data-name="A" style="background:#fff;min-height:300px"><div class="section-hitzone"><span class="section-label">A</span></div>'
-      + '<div class="section-inner"><div class="gap-block" data-type="gap" style="height:100px"></div></div></div>'
+      + '<div class="section-inner"><div class="row"><div class="text-block" id="mAt" style="height:100px;overflow:hidden"><p style="margin:0">A</p></div></div></div></div>'
       + '<div class="section-block" id="mB" data-section="2" data-name="B" style="background:#eee"><div class="section-hitzone"><span class="section-label">B</span></div>'
-      + '<div class="section-inner"><div class="gap-block" data-type="gap" style="height:300px"></div></div></div>';
+      + '<div class="section-inner"><div class="row"><div class="text-block" id="mBt" style="height:350px;overflow:hidden"><p style="margin:0">B</p></div></div></div></div>';
     window.rebindAll?.(); window.deselectAll?.(); window.clearHistory();
     window.mergeSectionInto(document.getElementById('mA'), document.getElementById('mB'));
   });
@@ -605,7 +607,7 @@ test('P19 ★합치기 → 손잡이를 «수평으로만» 끌고 놓기 → �
   const errs = await setup(page);
   const b = await mergedFloorBoard(page);
   expect(b.min, '★전제 — 바닥 300').toBe('300px');
-  expect(b.h, '★전제 — 합친 뒤 내용이 바닥보다 크다').toBeGreaterThan(300);
+  expect(b.h, `★전제 — 합친 뒤 내용(${b.h})이 바닥 300 보다 확실히 크다(≈450 기대)`).toBeGreaterThan(400);
   const after = await dragHandle(page, [[40, 0], [80, 0]]);
   expect(after, '수평 끌기가 바닥을 지웠다').toBe('300px');
   const u = await undoState(page);
