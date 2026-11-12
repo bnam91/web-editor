@@ -66,23 +66,35 @@ test('X3 [음성대조] 핸들러를 속성으로 «직접» 넣으면 sanitize 
   expect(errs).toEqual([]);
 });
 
-test('X2b ★② 편집 끝(blur) 갈래 — 비운 채 blur 하면 placeholder 가 HTML 로 실행되지 않는다 (block-drag.js _endTextEdit)', async ({ page }) => {
+test('X2b ★② 편집 끝(blur) 갈래 — 비운 채 편집을 끝내면 placeholder 가 HTML 로 실행되지 않는다 (block-drag.js _endTextEdit)', async ({ page }) => {
+  /* 인텔: 합성 focus/blur 로는 «복원 길» 전제가 안 섰다(고친 판·전 판 둘 다). ⇒ 사람 손 그대로:
+     더블클릭으로 편집 진입 → 실키 전체선택 + Backspace → 바깥(캔버스 왼쪽 빈 바닥) 실클릭. */
+  await page.setViewportSize({ width: 1700, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate((c) => window.applyProjectData({ canvas: c }),
-    SEC(`<div class="row"><div class="text-block" id="xE"><div class="tb-body" data-placeholder="${ENC('__pwned4')}">원래 글</div></div></div>`));
+    SEC(`<div class="row"><div class="text-block" id="xE"><div class="tb-body" data-placeholder="${ENC('__pwned4')}" style="font-size:32px">원래 글</div></div></div>`));
+  await page.evaluate(() => document.getElementById('xE').scrollIntoView({ block: 'center', inline: 'center' }));
+  const r0 = await waitStableRect(page, '#xE .tb-body');
+  await page.mouse.dblclick(r0.cx, r0.cy);
+  await expect.poll(() => page.evaluate(() => document.querySelector('#xE .tb-body').getAttribute('contenteditable')),
+    { message: '★전제 — 더블클릭으로 편집에 들어갔다', timeout: 3000 }).toBe('true');
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  expect(await page.evaluate(() => document.querySelector('#xE .tb-body').textContent.trim()), '★전제 — 글을 다 지웠다').toBe('');
+  const out = await page.evaluate(() => { const c = document.getElementById('canvas').getBoundingClientRect(); return { x: Math.max(5, c.left - 60), y: c.top + 40 }; });
+  await page.mouse.click(out.x, out.y);                         // 바깥 실클릭 → blur → _endTextEdit
+  await expect.poll(() => page.evaluate(() => document.querySelector('#xE .tb-body').dataset.isPlaceholder),
+    { message: '★전제 — 편집 끝이 placeholder 복원 길을 탔다', timeout: 3000 }).toBe('true');
   const r = await page.evaluate(async () => {
     const el = document.querySelector('#xE .tb-body');
-    el.setAttribute('contenteditable', 'true'); el.focus();
-    el.textContent = '';                                         // 사용자가 글을 다 지움
-    el.blur();                                                   // 편집 끝 → placeholder 복원 길
     const im = el.querySelector('img');
     if (im && !im.complete) await new Promise(r => { im.onload = im.onerror = () => setTimeout(r, 0); });
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    return { pwned: window.__pwned4 === 1, imgInDom: !!el.querySelector('img'), restored: el.dataset.isPlaceholder === 'true', text: el.textContent };
+    return { pwned: window.__pwned4 === 1, imgInDom: !!el.querySelector('img'), editable: el.getAttribute('contenteditable'), text: el.textContent.slice(0, 80) };
   });
-  console.log('  X2b:', JSON.stringify(r));
-  expect(r.restored, '★전제 — blur 가 placeholder 복원 길을 탔다').toBe(true);
-  expect(r.imgInDom).toBe(false);
+  console.log('  X2b:', JSON.stringify({ out, ...r }));
+  expect(r.editable, '★전제 — 편집이 끝났다').toBe('false');
+  expect(r.imgInDom, '편집 끝에 글 칸 안에 <img> 요소가 생겼다').toBe(false);
   expect(r.pwned, '★편집 끝(blur)에 placeholder 의 onerror 가 실행됐다').toBe(false);
   expect(errs.filter(e => !/pwned/.test(e))).toEqual([]);
 });
