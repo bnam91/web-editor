@@ -54,19 +54,21 @@ function findBun() {
   try { return spawnSync(exe, ['--version']).status === 0 ? exe : null; } catch (_) { return null; }
 }
 const BUN = findBun();
+const LIMIT = { timeout: 20000 };   // 상한은 러너가 쥔다(고정 잠 아님 · unit-fixed-sleep-census S1)
 
 function startRelay(script) {
   return new Promise((resolve, reject) => {
     const p = spawn(BUN, [script], { env: { ...process.env, FIGMA_RELAY_PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
-    const t = setTimeout(() => { p.kill(); reject(new Error('중계가 안 떴다: ' + out)); }, 15000);
+    // 고정 대기 없음 — 서버가 찍는 «listening» 줄 또는 프로세스 종료를 기다린다 · 상한은 node:test 의 timeout 옵션(LIMIT)
     const on = (b) => {
       out += b;
       const m = out.match(/running on port (\d+)/);
-      if (m) { clearTimeout(t); resolve({ port: Number(m[1]), stop: () => p.kill() }); }
+      if (m) resolve({ port: Number(m[1]), stop: () => p.kill() });
     };
     p.stdout.on('data', on); p.stderr.on('data', on);
-    p.on('exit', (c) => { clearTimeout(t); reject(new Error(`중계 종료 ${c}: ${out}`)); });
+    p.on('error', reject);
+    p.on('exit', (c) => reject(new Error(`중계 종료 ${c}: ${out}`)));
   });
 }
 
@@ -74,22 +76,23 @@ function startRelay(script) {
 function tryJoin(port, origin) {
   return new Promise((resolve) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`, origin === undefined ? {} : { origin });
-    const done = (r) => { clearTimeout(t); try { ws.terminate(); } catch (_) {} resolve(r); };
-    const t = setTimeout(() => done({ ok: false, status: 'timeout' }), 5000);
+    // 고정 대기 없음 — open/message/unexpected-response/error/close 중 먼저 오는 이벤트로 끝난다
+    const done = (r) => { try { ws.terminate(); } catch (_) {} resolve(r); };
     ws.on('unexpected-response', (_q, res) => done({ ok: false, status: res.statusCode }));
     ws.on('error', (e) => done({ ok: false, status: e.message }));
     ws.on('open', () => ws.send(JSON.stringify({ type: 'join', channel: 'sec-ch', id: 'j1' })));
     ws.on('message', (m) => { if (String(m).includes('Joined channel: sec-ch')) done({ ok: true, joined: true }); });
+    ws.on('close', (code) => done({ ok: false, status: `closed ${code}` }));   // 먼저 끝난 쪽이 이긴다(뒤 resolve 는 무시)
   });
 }
 
 if (BUN) {
   let relay;
-  test.before(async () => { relay = await startRelay(SOCKET); });
+  test.before(async () => { relay = await startRelay(SOCKET); }, LIMIT);
   test.after(() => relay && relay.stop());
 
   for (const k of ['W1', 'W2', 'W3']) {
-    test(`${k} [공격] Origin ${BAD[k][0]} 꼴(대소문자·끝 슬래시 포함) → 업그레이드 403 거절`, async () => {
+    test(`${k} [공격] Origin ${BAD[k][0]} 꼴(대소문자·끝 슬래시 포함) → 업그레이드 403 거절`, LIMIT, async () => {
       for (const o of BAD[k]) {
         const r = await tryJoin(relay.port, o);
         assert.deepEqual(r, { ok: false, status: 403 }, `★${o} 가 붙었다/다르게 끊겼다: ${JSON.stringify(r)}`);
@@ -97,15 +100,15 @@ if (BUN) {
     });
   }
 
-  test('W4 [정상] Origin 없음(노드 변환기·MCP) → 붙고 채널 가입', async () => {
+  test('W4 [정상] Origin 없음(노드 변환기·MCP) → 붙고 채널 가입', LIMIT, async () => {
     assert.deepEqual(await tryJoin(relay.port, undefined), { ok: true, joined: true });
   });
 
-  test("W5 [정상] Origin 'null'(Figma 플러그인 UI) → 붙고 채널 가입", async () => {
+  test("W5 [정상] Origin 'null'(Figma 플러그인 UI) → 붙고 채널 가입", LIMIT, async () => {
     assert.deepEqual(await tryJoin(relay.port, 'null'), { ok: true, joined: true });
   });
 
-  test('WP [양성대조] 검사 줄만 뺀 사본 중계엔 W1~W3 Origin 이 붙는다', async () => {
+  test('WP [양성대조] 검사 줄만 뺀 사본 중계엔 W1~W3 Origin 이 붙는다', LIMIT, async () => {
     const dir = mkTmpRoot('sec-relay-');
     const src = fs.readFileSync(SOCKET, 'utf8').replace(/\r\n/g, '\n');
     const cut = src.replace(GUARD_RE, '\n');
