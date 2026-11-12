@@ -6,6 +6,7 @@
  *   P1 ★자르기·쌓기 — 높이 300 고정 · inner overflow-y clip · 갭 50 그대로(안 줄어듦) · 숨은 블럭이 안 그려진다 · 다음 섹션이 안 밀린다
  *   P1b ★배지 섹션 inner min-height:260 — 핀 100 이면 inner 바닥 = 자르는 선(r1 ③)
  *   P2 ★넘침 갱신 — 섹션 크기가 그대로인 채 글이 늘면 배지 「숨은 블럭 N」이 따라 는다
+ *   P2b ★행 안 블럭만 커질 때(행 최소높이 600 · 행 크기 그대로) 숨은 수 갱신(r1 ④)
  *   P3 ★전체 보기 — 다 보이고 · 높이 수는 핀 값 · 저장본·PNG 에 pin-peek 없음 · 선택 풀리면 꺼지고 · 선택 중이면 남는다
  *   P3b ★전체 보기 켠 채 h2c PNG·썸네일 입구 — 루트 pin-peek 이 안 샌다(r1 ②) · native PNG 는 P3 가 잰다
  *   P4 핀 해제 — height 지움 · minHeight=핀값 · 내용만큼 늘어남 · 기록 1
@@ -131,6 +132,29 @@ test('P2 ★넘침 갱신 — 섹션 크기 그대로, 글이 늘면 배지 숨�
   expect(g.h, '섹션 높이는 그대로').toBe(300);
   expect(g.hidden.length, '★전제 — 숨은 수가 실제로 늘었다').toBeGreaterThan(n0);
   expect((await badge(page)).h).toContain('숨은 블럭 ' + g.hidden.length);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P2b ★행 안 블럭이 커져(행·섹션 크기 그대로) 아래 블럭이 잘리면 숨은 수·패널 줄이 따라온다 (r1 ④)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => {
+    const n = document.getElementById('nS'), inner = n.querySelector(':scope > .section-inner');
+    inner.innerHTML = '<div class="row" id="sRow" data-layout="stack" style="min-height:600px;flex-direction:column;align-items:stretch">'
+      + '<div class="text-block" id="sA" style="height:100px"><p style="margin:0">A</p></div>'
+      + '<div class="text-block" id="sB" style="height:100px"><p style="margin:0">B</p></div></div>';
+    n.style.height = '300px'; n.dataset.heightPin = 'true';
+  });
+  const nb = () => page.evaluate(() => document.querySelector('#nS > .section-hitzone > .section-height-badge')?.dataset.h || '');
+  await expect.poll(nb).toContain('📌');
+  const before = await page.evaluate(() => ({ hidden: window.sectionPin.hiddenBlocks(document.getElementById('nS')).map(b => b.id), rowH: document.getElementById('sRow').offsetHeight }));
+  expect(before.hidden, '★전제 — 처음엔 다 보인다').toEqual([]);
+  expect(await nb()).not.toContain('숨은');
+  await page.evaluate(() => { document.getElementById('sA').style.height = '250px'; });
+  await expect.poll(nb, { timeout: 2000 }).toContain('숨은 블럭 1');
+  const after = await page.evaluate(() => ({ hidden: window.sectionPin.hiddenBlocks(document.getElementById('nS')).map(b => b.id), rowH: document.getElementById('sRow').offsetHeight, secH: document.getElementById('nS').offsetHeight }));
+  expect(after.rowH, '★전제 — 행 크기 그대로(이 칸은 «행 안» 변화를 잰다)').toBe(before.rowH);
+  expect(after.secH).toBe(300);
+  expect(after.hidden).toEqual(['sB']);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

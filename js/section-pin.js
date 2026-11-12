@@ -116,8 +116,12 @@
   }
 
   /* ── 넘침이 바뀌면 다시 그린다 ─────────────────────────────────────────────
-     ★섹션 높이가 고정이라 section-height.js 의 섹션 RO 는 안 온다(Codex 지적) — 핀 섹션은 inner 의 «직계 자식» 크기와
-       inner childList 를 따로 본다. 걸기는 section-height 의 그리기 순회가 info() 로 부를 때(로드·⌘Z·삽입 모두 그 길). */
+     ★섹션 높이가 고정이라 section-height.js 의 섹션 RO 는 안 온다(Codex 지적) — 핀 섹션은 따로 본다:
+       RO = inner 직계 자식(행) «＋ 그 안 블럭»(blocksOf) · MO = inner subtree childList.
+       ★행 안 블럭까지 보는 까닭(Codex r1 P2-④): 행에 최소높이가 있으면 안의 글이 커져 아래 블럭이 잘려도 «행» 크기는 그대로다.
+       ⛔루프 없음: 콜백은 refreshSoon(한 틱 모음) → 높이 배지·패널만 쓴다(inner 밖) — 관찰 대상 크기를 안 바꾼다.
+       비용: 핀 섹션의 블럭 수만큼만 건다(핀 아닌 섹션 0) · 안내선(drop-indicator) 들락날락은 MO 에서 거른다.
+     걸기는 section-height 의 그리기 순회가 info() 로 부를 때(로드·⌘Z·삽입 모두 그 길). */
   let _ro = null;
   const _watched = new WeakSet();
   let _t = 0;
@@ -129,10 +133,15 @@
     const inner = sec.querySelector(':scope > .section-inner');
     if (!inner || typeof ResizeObserver !== 'function') return;
     if (!_ro) _ro = new ResizeObserver(refreshSoon);
-    [...inner.children].forEach((c) => { if (!_watched.has(c)) { _ro.observe(c); _watched.add(c); } });
+    [...inner.children, ...blocksOf(sec)].forEach((c) => { if (!_watched.has(c)) { _ro.observe(c); _watched.add(c); } });
     if (!_watched.has(inner)) {
       _watched.add(inner);
-      new MutationObserver(() => { watch(sec); refreshSoon(); }).observe(inner, { childList: true });
+      const isGuide = (n) => n.nodeType === 1 && (n.classList.contains('drop-indicator') || n.classList.contains('sp2c-insert-indicator'));
+      new MutationObserver((muts) => {
+        if (muts.every((m) => [...m.addedNodes, ...m.removedNodes].every(isGuide))) return;
+        if (isPinned(sec)) watch(sec);
+        refreshSoon();
+      }).observe(inner, { childList: true, subtree: true });
     }
   }
 
