@@ -1860,7 +1860,10 @@ function rebindAll(opts = {}) {
       if (_styleH > 0 && _styleH !== 520 && /px$/.test(ss.style.height)) ss.dataset.height = String(_styleH);
     }
     const _ssH = parseInt(ss.dataset.height) || parseInt(ss.style.minHeight) || 0;
-    if (_ssH) ss.style.height = _ssH + 'px';
+    /* ★LEGACY-TPL-FRAME-ROWS-COLLAPSE-ON-RELOAD-01 — 옛 «바닥» 꼴(style.height 없음 · minHeight == dataset.height · 비자유)은 내용 따라 크는 프레임이다.
+       height 를 박으면 그 바닥(옛 공용 템플릿 100)에 갇히고 안의 글프레임이 0 으로 줄었다. 지금 높이를 쓰는 길은 다 style.height 를 같이 쓴다 ⇒ 이 꼴만 좁게 뺀다. */
+    const _legacyFloor = !ss.style.height && ss.dataset.freeLayout !== 'true' && parseInt(ss.style.minHeight) === parseInt(ss.dataset.height);
+    if (_ssH && !_legacyFloor) ss.style.height = _ssH + 'px';
     /* ★도형 프레임은 minHeight 도 «세트로» 복원한다 (2026-09-21 최종통합 QA medium ③ 후속)
        .frame-block 엔 CSS 바닥이 있다 — css/editor-blocks.css `.frame-block { min-height: 60px }`.
        위 줄은 height 만 되돌려서, 60 아래로 줄여 둔 도형을 다시 열면 style.height 는 30 인데
