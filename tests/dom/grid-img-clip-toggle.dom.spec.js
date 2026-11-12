@@ -5,7 +5,7 @@
  *
  * 범위 = ★크롭 줄(h>0 ∧ imgSizePct/PosX/PosY). 넘침이 생기는 유일한 그리드 사각 장면이고, 그 줄은 이미 hidden 이다
  *   ⇒ 토글은 hidden 을 «떼는» 방향 ⇒ grid-block.js ㈐ 의 flex min-height 붕괴를 다시 열지 않는다(GC1 이 높이 무변을 잰다).
- *   크롭 없는 줄 = 그림 = 틀이라 잘릴 것이 없다 ⇒ 막고 까닭을 보인다(GC4). 원 = 자름이 곧 모양 ⇒ 토글 없음(GC5).
+ *   크롭 없는 줄 = 그림 = 틀이라 잘릴 것이 없다 ⇒ 막고 까닭을 보인다(GC4). 원 = Q11(261112)부터 토글 있음(GC5).
  *
  * 자 = 「밖 점」: 프레임 rect 오른쪽 +8px · 프레임 세로 가운데. 그 점이 «그림 rect 안»인지([전제])와
  *   `document.elementsFromPoint` 에 그 그림이 있나(hit)를 같이 잰다.
@@ -152,12 +152,14 @@ test('GC4 [새 것] 크롭 없는 줄 — 토글은 보이되 막히고 까닭�
   expect(errs).toEqual([]);
 });
 
-test('GC5 [새 것] 원형 줄 — 토글이 없다(자름이 곧 원 모양)', async ({ page }) => {
+/* ★GC5 뒤집힘(현빈 261112 Q11) — 옛 결정 「원 = 자름이 곧 모양 ⇒ 토글 없음」을 현빈이 바꿨다: 원 줄에도 토글 · 끔 = 원 밖으로 그림이 보임(원 바탕은 남음).
+   끔의 행위는 tests/dom/circle-clip-q11.dom.spec.js 가 잰다. 여기는 «보이고·켜져 있고·잠기지 않음»만. */
+test('GC5 원형 줄 — 토글이 보이고 기본 켬 · 잠기지 않음(Q11)', async ({ page }) => {
   const errs = await scene(page, { type: 'image', imgShape: 'circle', height: 120 });
   const pre = await page.evaluate(() => ({ circle: !!document.querySelector('#gC .grd-img-frame.grd-img-circle'), height: !!document.getElementById('grd-img-height') }));
-  expect(pre, '[전제] 원 줄이고 Image 절이 떴다 — 안 떴으면 「없다」는 아무것도 안 잰다').toEqual({ circle: true, height: true });
-  const el = await page.evaluate(() => { const i = document.getElementById('grd-img-clip-toggle'); return i ? !!i.closest('.prop-row').offsetParent : null; });
-  expect(el, '[새 것] 원 줄에 「내용 자르기」 토글이 보인다 — 끄면 원이 사각이 된다').not.toBe(true);
+  expect(pre, '[전제] 원 줄이고 Image 절이 떴다').toEqual({ circle: true, height: true });
+  const el = await page.evaluate(() => { const i = document.getElementById('grd-img-clip-toggle'); return i ? { vis: !!i.closest('.prop-row').offsetParent, on: i.checked, dis: i.disabled } : null; });
+  expect(el, '원 줄에 「내용 자르기」 토글이 없다').toEqual({ vis: true, on: true, dis: false });
   expect(errs).toEqual([]);
 });
 

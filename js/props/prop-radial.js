@@ -250,7 +250,14 @@ ${blockHeaderHTML({
       ${_pairRow('rdl-cell', '크기', st.cellSize, L.cellSize)}
       ${_typeRow('모양', 'rdl-cellshape', [['circle', '원'], ['round', '둥근사각']], st.cellShape)}
       ${st.cellShape === 'round' ? _numRow('rdl-cellradius-number', '모서리', st.cellRadius, L.cellRadius) : ''}
-      ${_colorRow('rdl-cellfill', '채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}`}
+      ${_colorRow('rdl-cellfill', '채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="rdl-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>`}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Center</div>
@@ -319,6 +326,13 @@ ${blockHeaderHTML({
   $('rdl-fullbleed-toggle')?.addEventListener('change', (e) => {
     if (e.target.checked) block.dataset.fullBleed = 'true';
     else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
+    rerender(); commit();
+  });
+  /* Q11(현빈 261112) «내용 자르기» — 값 = 블럭 dataset.clipContent(프레임·에셋과 같은 이름) · 기본값과 같으면 키를 지운다(옛 바이트) · 그리기는 렌더러.
+     이력은 이 패널 규약(push-after commit · 바로 위 패딩 제외와 같은 꼴). */
+  $('rdl-clip-toggle')?.addEventListener('change', (e) => {
+    if (e.target.checked === window.CLIP_DEFAULTS?.radial) delete block.dataset.clipContent;
+    else block.dataset.clipContent = e.target.checked ? 'true' : 'false';
     rerender(); commit();
   });
   const setItems = (items) => { block.dataset.items = JSON.stringify(items); };

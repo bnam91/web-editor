@@ -1941,11 +1941,11 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
  * ★원은 ★절째 안 낸다 — 원은 «자름이 곧 모양»이라 끄면 원이 사각이 된다.
  * ★크롭 없는 줄(gridPlain)은 그림 = 틀 크기라 잘릴 것이 없다 ⇒ 막고 까닭을 보인다(바로 위 「높이(px)」 hLocked 와 같은 꼴). */
 function _grdImageClipSectionHtml(anyHit, block) {
-  if (!anyHit || !anyHit.line || anyHit.line.imgShape === 'circle') return '';
+  if (!anyHit || !anyHit.line) return '';   /* Q11(현빈 261112) — 원도 절을 낸다: 끔 = 원 밖으로 그림이 보임(원 바탕은 남음). 옛 «원은 절째 안 낸다»를 바꿨다. */
   const { r, c, li } = anyHit;
   const frame = block?.querySelector?.(`.grd-img-frame[data-r="${r}"][data-c="${c}"][data-line="${li}"]`);
   const fam = frame ? window.clipFamily?.(frame) : null;
-  const locked = fam !== 'gridCrop';
+  const locked = fam !== 'gridCrop' && fam !== 'gridCircle';   /* 일반 줄(gridPlain)만 잠금 유지 */
   const on = !!(frame && window.clipsContent?.(frame));
   return `
     <div class="prop-section">
@@ -2026,7 +2026,11 @@ function _grdWireImageSection(block, addr, host = null) {
    *   ★push-after(적용 먼저, pushHistory 나중) — tests/unit/prop-push-after PA-1 규약 · 한 번 = 이력 한 걸음. */
   document.getElementById('grd-img-clip-toggle')?.addEventListener('change', (e) => {
     const want = !!e.target.checked;
-    const dflt = window.clipsContentFor?.('gridCrop', undefined);
+    const fr = block.querySelector(`.grd-img-frame[data-r="${r}"][data-c="${c}"][data-line="${li}"]`);
+    /* Q11 — 기본값은 «그 프레임의 계열»로 표에 묻는다(원 gridCircle · 크롭 gridCrop). ⛔계열을 손으로 들지 않는다(폴백 'gridCrop' 도 없앰 · clip-content-roster A6).
+       계열을 못 가르면 null ⇒ want 와 안 같아 값을 그대로 적는다(지우지 않는 쪽 = 안전). */
+    const fam = window.clipFamily?.(fr);
+    const dflt = window.clipsContentFor?.(fam, undefined);
     gridPreviewLine(block, r, c, li, { clipContent: want === dflt ? undefined : want }, addr.np);
     _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();

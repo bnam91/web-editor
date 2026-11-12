@@ -77,12 +77,26 @@ ${blockHeaderHTML({
       <button class="prop-action-btn secondary" id="icb-replace-btn">이미지 교체</button>
       <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
       ${window.circleSampleRowHTML?.(block) || ''}
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="icb-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
     </div>` : `
     <div class="prop-section">
       <div class="prop-section-title">Image</div>
       <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
       <div class="prop-hint" style="margin-top:6px;">또는 블록에 파일을 드래그</div>
       ${window.circleSampleRowHTML?.(block) || ''}
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="icb-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
     </div>`}
     <div class="prop-section">
       <div class="prop-section-title">Color</div>
@@ -191,6 +205,15 @@ ${blockHeaderHTML({
     if (_fillToggle.checked) { _paint(_lastFill); if (_bgRow) _bgRow.style.opacity = ''; }
     else { _paint('transparent'); if (_bgRow) _bgRow.style.opacity = '0.4'; }
     window.pushHistory();
+  });
+  /* Q11(현빈 261112) «내용 자르기» — 에셋(prop-asset.js asset-clip-toggle)과 같은 꼴: 기본값과 같으면 키를 지운다(옛 바이트) · 그리기는 applyIcbClip 한 자리. */
+  propPanel.querySelector('#icb-clip-toggle')?.addEventListener('change', e => {
+    window.pushHistory?.('서클 내용 자르기');
+    const want = !!e.target.checked;
+    if (want === window.CLIP_DEFAULTS?.icb) delete block.dataset.clipContent;
+    else block.dataset.clipContent = want ? 'true' : 'false';
+    window.applyIcbClip?.(block);
+    window.scheduleAutoSave?.();
   });
   /* G14 「＋ 블럭 넣기 ▾」 — 고르면 바로 넣고 머리로 되돌린다(G19 그리드 「＋ 블럭 넣기 ▾」와 같은 꼴). */
   const _kidAdd = propPanel.querySelector('#icb-kid-add-kind');

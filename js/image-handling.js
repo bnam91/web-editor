@@ -244,6 +244,29 @@ function enterImageEditMode(ab, opts = {}) {
   boundary.className = 'img-boundary';
   if (overlay) overlay.appendChild(boundary);
 
+  /* Q12(현빈 261112 · IMAGE-EDIT-MODE-RESIZE-CLIPPED-AGAIN-01) — 틀 «밖» 그림을 흐린 고스트로(Figma 크롭식).
+     배경 편집의 고스트(_enterBgEditMode · .sec-bg-ghost-wrap/.sec-bg-ghost)를 그대로 빌린다: 오버레이(#canvas 밖)에 살아
+     조상 프레임·섹션이 잘라도 보이고, 저장·내보내기 클론엔 애초에 없다. 래퍼 = 캔버스 뷰포트 · 구멍 = 틀(_punchOutPolygon).
+     ⛔배경 편집은 제 고스트가 있어 noGhost 로 빠진다. 영상(<video>)은 고스트를 안 만든다(그림 한 장을 못 뜬다). */
+  const _ghostSrc = (!opts.noGhost && overlay && img.tagName === 'IMG') ? (img.currentSrc || img.src || '') : '';
+  let ghostWrap = null, ghost = null, _ghostClip = null;
+  if (_ghostSrc) {
+    ghostWrap = document.createElement('div');
+    ghostWrap.className = 'sec-bg-ghost-wrap img-edit-ghost';
+    ghost = document.createElement('img');
+    ghost.className = 'sec-bg-ghost';
+    ghost.draggable = false;
+    ghost.src = _ghostSrc;
+    ghostWrap.appendChild(ghost);
+    overlay.appendChild(ghostWrap);
+    // 고스트를 잡아도 이동이 시작되게 — 배경 편집과 같은 꼴(같은 mousedown 을 그림으로 넘긴다)
+    ghost.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      img.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, buttons: 1, clientX: e.clientX, clientY: e.clientY }));
+    });
+  }
+
   // 핸들 + 회전존 + 경계선 위치 동기화 (회전 포함)
   const HS  = 3.5; // 핸들 절반 (7px/2)
   const RZS = 10;  // 회전존 절반 (20px/2)
@@ -289,6 +312,20 @@ function enterImageEditMode(ab, opts = {}) {
     boundary.style.height          = imgH + 'px';
     boundary.style.transform       = deg ? `rotate(${deg}deg)` : '';
     boundary.style.transformOrigin = 'center center';
+    if (ghostWrap && ghostWrap.isConnected) {
+      // Q12 — 고스트 = 그림 전체(경계선과 같은 상자·같은 각) · 래퍼 = 캔버스 뷰포트 · 구멍 = 틀(돌지 않는다 — 배경 편집과 같은 역할 나눔)
+      const cR = (document.getElementById('canvas-wrap') || overlay).getBoundingClientRect();
+      const wx = cR.left - oRect.left, wy = cR.top - oRect.top;
+      ghostWrap.style.left = wx + 'px'; ghostWrap.style.top = wy + 'px';
+      ghostWrap.style.width = cR.width + 'px'; ghostWrap.style.height = cR.height + 'px';
+      ghost.style.left = (cx - imgW / 2 - wx) + 'px'; ghost.style.top = (cy - imgH / 2 - wy) + 'px';
+      ghost.style.width = imgW + 'px'; ghost.style.height = imgH + 'px';
+      ghost.style.transformOrigin = 'center center';
+      ghost.style.transform = deg ? `rotate(${deg}deg)` : '';
+      const hR = (ab.querySelector(':scope > .asset-img-clip') || ab).getBoundingClientRect();
+      const clip = _punchOutPolygon(cR.width, cR.height, hR.left - oRect.left - wx, hR.top - oRect.top - wy, hR.width, hR.height);
+      if (clip !== _ghostClip) { ghostWrap.style.clipPath = clip; _ghostClip = clip; }
+    }
   }
   syncHandles();
 
@@ -483,6 +520,7 @@ function enterImageEditMode(ab, opts = {}) {
     img.removeEventListener('mousedown', onImgDown);
     Object.values(cornerEls).forEach(h => h.remove());
     Object.values(rotateZoneEls).forEach(h => h.remove());
+    ghostWrap?.remove();   // Q12 — 편집 끝 = 고스트 0
     hint.remove();
     img.draggable = false;
     ab.draggable = false;
@@ -522,7 +560,7 @@ function exitImageEditMode(ab) {
   // ★임시 DOM(프록시·고스트)을 쓰는 호출자는 여기서 «자기 표현으로 옮기고 치운다» —
   //   pushHistory «이전»이라 스냅샷에 편집용 DOM 이 애초에 들어가지 않는다(세척은 2중 방어).
   if (ab._imgEditCleanup) { ab._imgEditCleanup(); ab._imgEditCleanup = null; }
-  document.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone').forEach(el => el.remove());
+  document.querySelectorAll('.img-corner-handle, .img-edge-handle, .img-edit-hint, .img-boundary, .img-rotate-zone, .img-edit-ghost').forEach(el => el.remove());
   try { opts.beforeCommit?.(ab); } catch (err) { console.warn('[imgEdit] beforeCommit 실패', err); }
   // 편집 세션 종료 시 단일 커밋 — 입력/정렬/드래그/스케일 전부 포함 (undo·자동저장 choke point)
   window.pushHistory?.(opts.historyLabel || '이미지 위치/크기');
@@ -1432,6 +1470,7 @@ function _enterBgEditMode(host, ad) {
     });
 
     enterImageEditMode(proxy, {
+      noGhost: true,   // Q12 — 배경 편집은 제 고스트(위 ghostWrap)가 있다 · 편집기 고스트까지 서면 두 겹
       /* ★1017t1k1·k2(1017t1) — 현빈 「에셋블럭의 이미지 편집하는 것과 기능이 같아야」:
          회전·색보정을 ★더 끈다. 보이는 것(그리는 자)은 ★옵트인 레이어(js/bg-layer.js)로 갈린다
          — 키가 없으면 레이어도 없다. ⛔그리드 칸 크롭(js/image-handling.js:1552~ 근방)은
@@ -2209,6 +2248,7 @@ function exitCircleImageEditMode(icb) {
   }
   const circle = icb.querySelector('.icb-circle');
   if (circle) circle.style.overflow = ''; // 편집 모드 종료: 원형 마스크 복원
+  window.applyIcbClip?.(icb);   // Q11 — 「내용 자르기」 끔이면 편집 뒤에도 원 밖이 보이게(표 한 자리 · clip-content.js)
   if (icb._imgEditCleanup) { icb._imgEditCleanup(); icb._imgEditCleanup = null; }
   document.removeEventListener('click',   icb._exitImgEdit);
   document.removeEventListener('keydown', icb._exitImgEsc);
