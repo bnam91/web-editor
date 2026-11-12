@@ -908,9 +908,10 @@ test.describe('U2b 범위 복붙 @grid-reorder', () => {
     await pressCopy(page);
     await clickLine(page, 2, 2);
     await pressPaste(page);
-    await expect.poll(() => toast(page)).toMatch(/^⚠️ C3 에 칸 1개 붙임 · 1개는/);
+    await expect.poll(() => toast(page)).toMatch(/^C3 에 칸 2개 붙임$/);   // 0.9.12 ⑥ 현빈 Q8 — 넘치면 열을 늘린다(옛: 1개 붙임 · 1개 버림)
     const a = await model(page);
     expect(a.m.cells[2][2], 'C3 = 옛 A2 칸 통째').toEqual(b.m.cells[1][0]);
+    expect(a.m.cells[2][3], 'D3(늘린 열) = 옛 B2 칸 통째').toEqual(b.m.cells[1][1]);
     expect(linesOf(a.m, 2, 0), '줄 삽입 0').toEqual(['A3']);
     expect(errs, errs.join('\n')).toEqual([]);
   });
