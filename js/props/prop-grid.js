@@ -3676,7 +3676,7 @@ ${_grdKindSelectHtml(line, H.kinds)}
           <input type="range" class="prop-slider" id="grd-divider-w-slider" min="${IMG_MIN_PCT}" max="100" step="1" value="${gridNumOr(line.widthPct, 100)}">
           <input type="number" class="prop-number" id="grd-divider-w" min="${IMG_MIN_PCT}" max="100" placeholder="100" value="${gridNumOr(line.widthPct, '')}">
         </div>
-        <div class="prop-row" style="margin-bottom:0;">
+        <div class="prop-row">
           <span class="prop-label" title="구분선의 색. 비우면 기본 ${GRID_DIVIDER_DEFAULT_COLOR}">선 색</span>
           <div class="prop-color-swatch${dvRaw ? '' : ' swatch-none'}"${dvRaw ? ` style="background:${dvRaw}"` : ''}>
             <input type="color" id="grd-divider-color" value="${dvHex}">
