@@ -27,8 +27,12 @@ on:
     tags:
       - 'v*'
 
+# ★권한 좁히기(0.9.12 ④, 현빈 GO): 기본은 읽기. 쓰기는 «게시 잡»에만 준다.
+#   ⚠️한 잡이 «빌드(서명·공증)+게시(electron-builder --publish always)»를 한 번에 해서 잡을 쪼개면 게시 방식이 바뀐다(미검증) —
+#   그래서 잡 권한은 write 로 두되, ★토큰이 «빌드·검사 단계»에 안 닿게 한다: checkout 의 persist-credentials:false ⇒ .git/config 에 토큰이 안 남고,
+#   GITHUB_TOKEN 은 «Build & publish» 단계 env(GH_TOKEN) 에만 실린다. 리허설(dispatch publish=false)은 토큰이 어느 단계에도 없다.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-mac-${{ github.ref }}
@@ -36,6 +40,9 @@ concurrency:
 
 jobs:
   build-mac:
+    # 게시 단계(--publish always)가 릴리스 자산을 올리려면 write 가 필요하다. 토큰 노출 범위는 위 설명대로 게시 단계로 좁혔다.
+    permissions:
+      contents: write
     runs-on: macos-latest
     # ★★2026-10-19 — 60 → 120 (현빈 GO · msg 4697 「너의 제안 대로 … 서둘러서 배포」)
     #   ★왜: v0.9.8 에서 DOM 전수가 ★60분 벽에 ★두 번 잘렸다(attempt 1·2 둘 다 cancelled).
@@ -58,6 +65,7 @@ jobs:
           #   (tests/unit/grid-gap-clamp.test.js: git show 55f3a1a:js/blocks/grid-block.js).
           #   기본값 depth:1 이면 그 커밋이 없어 골든 11건이 전부 빨강이 된다(0.9.4 실측).
           fetch-depth: 0
+          persist-credentials: false   # 토큰을 .git/config 에 남기지 않는다 — 검사·빌드 단계(npm 스크립트 포함)가 못 쓴다
 
       - name: Setup Node
         uses: actions/setup-node@v7
