@@ -40,7 +40,7 @@ const EDITOR_ONLY_SEL = new RegExp([
      ★★증상은 ★클래스만 벗기면(capture-safety) ★안 보이지만, ★이 레포의 원칙은
        「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
-  '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
+  '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge', '\\.pin-peek',
   /* ★★★2026-10-24 — ★`ANNOT-CSS-FILTERED-01`. ★★★두 사람의 고침을 ★합쳤다.
      ★병 : ★옛 조각 ★둘(`\\.annotation` · `\\.annot-`)이 ★★콘텐츠 CSS 를 ★먹었다 —
        ★`.annotation-block`(★현빈 261022 ⒝ = ★최종 이미지에 ★보인다) · `.annot-label` · `.annot-svg`.

@@ -64,6 +64,8 @@
      ⛔다른 자를 끌어오지 마라 — 위 머리말의 배율 실측과 export-image.js:444 가 근거다. */
   function measureSectionHeight(sec) {
     if (!sec || !sec.classList || !sec.classList.contains('section-block')) return null;
+    /* ⑦ 핀 «전체 보기» 중엔 화면이 내용만큼 늘어나 있다 — 높이는 «핀 값»이다(산출물도 그 높이 · 전체 보기는 캡처에서 벗긴다). */
+    if (sec.classList.contains('pin-peek') && window.sectionPin?.isPinned(sec)) return Math.round(parseFloat(sec.style.height));
     const h = sec.offsetHeight;
     return Number.isFinite(h) ? Math.round(h) : null;
   }
@@ -104,7 +106,7 @@
   }
 
   /** 섹션 하나의 배지 — 멱등(없으면 만들고, 있으면 ★값(data-h)만 고친다). */
-  function renderOne(sec, hKnown) {
+  function renderOne(sec, hKnown, pinKnown) {
     const h = hKnown !== undefined ? hKnown : ruler(sec);   // ★공용 자(이미 잰 값이 오면 그대로 — renderSectionHeights 의 «먼저 다 읽기»)
     if (h == null) return null;
     const hz = sec.querySelector(':scope > .section-hitzone');
@@ -125,8 +127,12 @@
        「반사를 켰더니 섹션 글자가 달라졌다」가 된다(R5 가 잠근 불변식을 내가 깼다).
        ⇒ 가상요소 content 는 innerText·textContent 어느 쪽에도 안 들어간다. 보이는 것은 같고
          읽히는 것만 깨끗해진다. ⛔다시 textContent 로 되돌리지 마라. */
-    const txt = h + 'px';
-    if (badge.dataset.h !== txt) badge.dataset.h = txt;   // 같은 값 쓰기 생략(MutationObserver spam 방지 — save-load.js MUT-01 과 같은 이유)
+    /* ⑦ 핀 — 「📌」와 숨은 블럭 수(있으면 빨강). 값은 «읽기 단계»에서 잰 pinKnown(window.sectionPin.info) */
+    const pin = pinKnown !== undefined ? pinKnown : (window.sectionPin?.info(sec) || null);
+    const txt = h + 'px' + (pin ? ' 📌' + (pin.hidden ? ' · 숨은 블럭 ' + pin.hidden : '') : '');
+    if (badge.dataset.h !== txt) badge.dataset.h = txt;
+    if (pin && pin.hidden) { if (!badge.hasAttribute('data-pin-hidden')) badge.setAttribute('data-pin-hidden', ''); }
+    else if (badge.hasAttribute('data-pin-hidden')) badge.removeAttribute('data-pin-hidden');   // 같은 값 쓰기 생략(MutationObserver spam 방지 — save-load.js MUT-01 과 같은 이유)
     return h;
   }
 
@@ -171,6 +177,7 @@
         const txt = h == null ? '—' : h + 'px';
         if (cell.textContent !== txt) cell.textContent = txt;
         if (target.id) cell.dataset.secId = target.id;
+        window.sectionPin?.refreshPanel(target);   // ⑦ 📌 · 「숨은 블럭 N개」 줄
       }
     }
   }
@@ -181,9 +188,10 @@
     /* ★172 ㉮(지디 2026-10-27) — ★먼저 «다 읽고» 그다음 «다 쓴다». 섹션마다 «읽기(offsetHeight) → 배지 쓰기»를 번갈아 하면
        읽기마다 스타일 재계산·레이아웃이 다시 돈다(앱 실측 · 원 저장본 섹션 82: 강제 Layout 84 · 스타일 재계산 84 · ⌘Z 의 ≈815ms). */
     const hs = secs.map(s => ruler(s));        // ★공용 자 — 읽기만
+    const pins = secs.map(s => window.sectionPin?.info(s) || null);   // ⑦ 핀 넘침도 «읽기 단계»에서
     let total = 0;
     secs.forEach((s, i) => {
-      const h = renderOne(s, hs[i]);          // (다) 캔버스 — 쓰기만
+      const h = renderOne(s, hs[i], pins[i]); // (다) 캔버스 — 쓰기만
       if (h != null) total += h;              // (라) 는 ★그 수를 그대로 더한 것
       observeSection(s, hs[i]);
     });

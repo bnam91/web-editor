@@ -397,6 +397,19 @@
    clip 은 스크롤 컨테이너를 만들지 않으므로 overflow-y 가 visible 로 남는다(가로 클립은 그대로). */
 .section-inner { display: flex; flex-direction: column; overflow-x: clip; }
 
+/* ★0.9.12 ⑦ 섹션 높이 핀(js/section-pin.js) — 섹션은 `style.height` 로 고정, 자르기는 «inner»에서만
+   (섹션을 자르면 라벨·툴바·히트존·손잡이가 잘린다 · 아래패딩 띠는 inner 밖이라 그대로 남는다).
+   · overflow-y 는 hidden 이 아니라 clip — hidden 이면 스크롤 상자가 되어 숨은 글 포커스·scrollIntoView 가 inner 를 몰래 민다.
+   · 자식 flex-shrink:0 — 안 하면 높이가 모자랄 때 갭·행이 «먼저 줄어» «쌓이다 잘림»이 안 된다(Codex 검토).
+   · 배지 정렬(가운데·오른쪽)은 safe — 맞으면 원래 정렬, 넘치면 위부터 쌓는다(Q13 ⓔ).
+   · pin-peek = 「전체 보기」(런타임 클래스 · 저장·캡처에서 벗긴다). */
+.section-block[data-height-pin="true"] > .section-inner { height: 100%; overflow-y: clip; }
+.section-block[data-height-pin="true"] > .section-inner > * { flex-shrink: 0; }
+.section-block[data-height-pin="true"] > .section-inner.badge-align-center { justify-content: safe center !important; }
+.section-block[data-height-pin="true"] > .section-inner.badge-align-right  { justify-content: safe flex-end !important; }
+.section-block.pin-peek[data-height-pin="true"] { height: auto !important; }
+.section-block.pin-peek[data-height-pin="true"] > .section-inner { height: auto; overflow-y: visible; }
+
 /* ═══════════════════════════════════
    ROW — 레이아웃 컨테이너
    data-layout: "stack" | "flex" | "grid"

@@ -422,6 +422,8 @@ body.scratch-yield-drag .scratch-resize-sel { display: none; }
      켜고 끌 때마다 바뀌므로 「반사를 켰더니 섹션 «글자»가 달라졌다」가 된다
      (2026-10-07 실측 — tests/dom/effects-reflection.dom.spec.js R5 가 이걸 잡았다). */
 .section-height-badge::after { content: attr(data-h); }
+/* ⑦ 핀 섹션에 숨은 블럭이 있으면 빨강(js/section-pin.js · 값은 data-h 에 같이 실린다) */
+.section-height-badge[data-pin-hidden] { color: var(--danger, #e5484d); }
 /* 미리보기에는 안 나간다 — 라벨·툴바와 같은 규칙(css/editor-extra.css:120) */
 #preview-overlay .section-height-badge { display: none !important; }
 

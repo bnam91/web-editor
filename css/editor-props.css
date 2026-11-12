@@ -1108,6 +1108,7 @@
   flex-shrink: 0;
   transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
+.prop-icon-btn[aria-pressed="true"] { color: var(--ui-accent-primary); border-color: var(--ui-accent-primary); }   /* ⑦ 📌 켬 */
 .prop-icon-btn:hover {
   background: var(--ui-bg-hover);
   color: var(--ui-danger);

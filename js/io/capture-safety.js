@@ -610,6 +610,7 @@ export function stripEditorOnlyForCapture(clone) {
     'item-selected', 'bn2-line-selected', 'bn2-line-empty',
     'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected',
     'row-active', 'col-active',
+    'pin-peek',                               // ⑦ 섹션 핀 «전체 보기» — 산출물은 늘 핀 높이(js/section-pin.js)
     'ln-cell-selected', 'cmp-cell-selected',   // ★1017t1c3 — 비교 「칸(글자/이미지)」 선택 표시, 둘 다 지금까지 빠져 있었다
   ];
   clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
