@@ -17,7 +17,7 @@
  *        --config=tests/dom/playwright.dom.config.js --retries=0 --workers=1 tests/dom/sec-malicious-project-open.dom.spec.js
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const SEC = (inner) => `<div class="section-block" id="xS" data-section="1" data-name="X" style="background:#fff"><div class="section-inner">${inner}</div></div>`;
 /* 인코딩된 문자열 — 속성 «값»이라 sanitize 의 on* 속성 검사에 안 걸린다(감사 PoC 꼴 · 핸들러만 표식으로 바꿈) */
@@ -105,23 +105,33 @@ test('X5 표시 무변 — 평문 placeholder(기본·사용자 지정·불릿)�
   expect(errs).toEqual([]);
 });
 
-test('X4 ③ 캔버스 안 https 링크 클릭 — 렌더러가 최상위 이동을 «시도»하지 않는다 (가로채 끊음 · 네트워크 0)', async ({ page }) => {
+test('X4 ③ 캔버스 안 https 링크를 «일반 클릭 1번» — 렌더러가 최상위 이동을 «시도»하지 않는다 (가로채 끊음 · 네트워크 0)', async ({ page }) => {
+  /* 인텔 1차: page.click 이 «클릭 가능» 조건(보임·안정·덮개 없음)을 못 채워 30s 시간 초과 = 못 잼.
+     ⇒ 사람 손과 같은 «좌표 클릭»(page.mouse.click) 한 번 · 그 자리에서 실제로 무엇이 클릭을 받는지(덮개 여부)를 같이 찍는다. */
+  await page.setViewportSize({ width: 1700, height: 1100 });
   const errs = await bootApp(page);
-  const tried = [];
+  const tried = [], navs = [];
   await page.route('https://attacker.example/**', (route) => { tried.push(route.request().url()); return route.abort(); });
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs.push(f.url()); });
   const before = page.url();
   await page.evaluate((c) => window.applyProjectData({ canvas: c }),
-    SEC(`<div class="row"><div class="text-block" id="xL"><div class="tb-body"><a id="xA" href="https://attacker.example/p" style="font-size:40px">링크</a></div></div></div>`));
+    SEC(`<div class="row"><div class="text-block" id="xL"><div class="tb-body"><a id="xA" href="https://attacker.example/p" style="font-size:40px">링크링크링크</a></div></div></div>`));
   await page.waitForSelector('#xA');
   const kept = await page.evaluate(() => document.getElementById('xA')?.getAttribute('href'));
   expect(kept, '★전제 — 열기 뒤 링크 href 가 남아 있다(sanitize 는 https 를 안 건드린다)').toBe('https://attacker.example/p');
-  await page.evaluate(() => document.getElementById('xA').scrollIntoView({ block: 'center' }));
-  await page.click('#xA');                                  // 사람 손 그대로(선택 클릭)
-  await page.click('#xA');                                  // 두 번째 클릭(이미 고른 블럭 안 클릭)
-  /* «시도 없음»을 잴 창 — 고정 대기 대신: 다음 두 프레임 + 요청 가로채기 큐가 비는 동안 */
+  await page.evaluate(() => { document.getElementById('xA').scrollIntoView({ block: 'center', inline: 'center' }); });
+  const r0 = await waitStableRect(page, '#xA');
+  const hit = await page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); const a = document.getElementById('xA');
+    return { inView: x > 0 && y > 0 && x < innerWidth && y < innerHeight, isLink: !!el && (el === a || a.contains(el)),
+      top: el ? (el.id ? '#' + el.id : el.tagName + '.' + String(el.className || '').split(' ')[0]) : null }; }, [r0.cx, r0.cy]);
+  expect(hit.inView, '★전제 — 링크 자리가 화면 안').toBe(true);
+  await page.mouse.click(r0.cx, r0.cy);                       // ★일반 클릭 1번(사람 손 그대로 — 덮개가 있으면 덮개가 받는다)
+  /* «시도 없음»을 잴 창 — 고정 대기 대신: 300ms 뒤 한 프레임(요청 가로채기가 끝날 틈) */
   await page.waitForFunction(() => new Promise(r => setTimeout(() => requestAnimationFrame(() => r(true)), 300)));
-  console.log('  X4:', JSON.stringify({ tried, before, after: page.url() }));
+  console.log('  X4:', JSON.stringify({ hit, tried, navs, before, after: page.url() }),
+    hit.isLink ? '' : ' ← 클릭은 링크가 아니라 위 요소가 받았다(편집 화면의 덮개) — 일반 클릭으로는 링크에 안 닿음');
   expect(tried, '★링크 클릭이 외부 최상위 이동을 시도했다 — 막는 손은 main will-navigate 뿐(그 가드는 에디터 페이지 이름만 본다)').toEqual([]);
+  expect(navs.filter(u => /attacker\.example/.test(u)), '주 프레임이 외부로 이동했다').toEqual([]);
   expect(page.url()).toBe(before);
   expect(errs).toEqual([]);
 });
