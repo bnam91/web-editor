@@ -9469,7 +9469,7 @@ app.on('before-quit', (event) => {
       userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
       appVersion: app.getVersion(), log: (m) => console.log(m),
     });
-    quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code) });
+    quitSaveGuard.runBeforeQuit({ win, ipcMain, exit: (code) => app.exit(code), activeProject: _quitActiveProject });   // Q7 P1 — no-response 기록에 활성 프로젝트
   } catch (e) {
     // ★가드 자체가 터져도 «앱은 꺼져야 한다» — 이 폴백이 옛 동작이다.
     console.error('[quit-guard] 가드 기동 실패 — 옛 경로로 종료:', e && e.message);
@@ -9478,6 +9478,15 @@ app.on('before-quit', (event) => {
     setTimeout(() => app.exit(0), 3000);
   }
 });
+
+/* Q7 P1 — 종료 순간 활성 프로젝트(main 이 쥔 값 하나 · 새 IPC 없음). 이름은 그 프로젝트 meta(목록과 같은 해석기)에서 — 못 읽으면 null. */
+function _quitActiveProject() {
+  const id = global.currentActiveProjectId;
+  if (typeof id !== 'string' || !id) return null;
+  let name = null;
+  try { const mp = _resolveMetaJsonPath(id); if (mp) { const m = JSON.parse(fs.readFileSync(mp, 'utf8')); if (m && typeof m.name === 'string') name = m.name; } } catch (_) {}
+  return { id, name };
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

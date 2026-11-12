@@ -5,6 +5,10 @@
  *   H4 [음성대조] 비상 사본이 있음 / projectId 없음 / 파일 없음 → 그대로
  *   H5 flat 꼴(projects/<id>.json)도 같은 규칙
  *   H6 [계정 격리] 해석기가 가리키는 «지금 계정» 뿌리만 본다 — 다른 계정 뿌리의 더 새 파일로는 안 걷는다 · 해석기 없으면 0
+ *   P1 [Q7 P1 · 지디 261112 GO] «진짜» 종료 가드(runBeforeQuit)가 3초 상한(no-response)에 쓴 기록에 활성 프로젝트(id·이름)가 실린다 · 활성 없으면 null
+ *   P2 그 «진짜 기록» + 파일이 기록보다 새로움 → 걷힘(띠 안 뜸) · P3 [음성대조] 같은 기록 + 파일이 더 낡음 → 띠 유지
+ *   ★P 칸은 기록을 손으로 심지 않는다 — runBeforeQuit 을 짧은 상한으로 돌려 렌더러가 답을 안 한 «그 길»이 쓰게 한다.
+ *   양성대조(P1): save-guard.js 의 `..._activeOf(activeProject)` 를 `projectId: null, projectName: null` 로 되돌리면 P1·P2 빨강, P3 초록.
  * 해석기 = main.js _resolveProjectJsonPath 와 같은 꼴(신 → flat)을 여기서 흉내 낸다(recovery 는 뿌리를 조립하지 않는다 · M10).
  * 양성대조: recovery 의 `m > t` 조건을 `false` 로 바꾸면 H1·H5 빨강, H2~H4·H6 초록.
  */
@@ -90,4 +94,60 @@ test('H6 [계정 격리] 다른 계정 뿌리의 더 새 파일로는 안 걷는
   RES = resolverFor(path.join(ws, 'accounts', 'other', 'projects'));   // [대조] 같은 기록 · 해석기가 그쪽을 가리키면 걷힌다 = 자가 산다
   assert.equal(recovery.healSavedAfterUnknown({}).healed, 0, '해석기 없이 걷혔다');
   assert.equal(heal().healed, 1);
+});
+
+/* ── Q7 P1 — 진짜 종료 가드가 쓰는 no-response 기록 ───────────────────────── */
+async function quitNoResponse(ws, activeProject) {
+  const exits = [];
+  saveGuard._reset();
+  saveGuard.init({ userDataDir: ws, workspaceDir: ws, dialog: null, shell: null, appVersion: 'test', log: () => {} });
+  const win = { webContents: { send: () => {} } };          // 렌더러는 받기만 하고 답(quit-ready)을 안 한다 = no-response
+  const ipcMain = { once: () => {} };
+  /* 고정 잠 없이 — 가드가 «반드시» 부르는 exit 가 약속을 푼다(가드의 hardExitMs 가 그 «반드시»의 뒷받침 · unit-fixed-sleep-census S1) */
+  await new Promise((done) => saveGuard.runBeforeQuit({ win, ipcMain, exit: (c) => { exits.push(c); done(); }, activeProject,
+    timings: { saveWaitMs: 20, notifyMs: 200, hardExitMs: 1000, writeHoldMs: 1000 } }));
+  assert.equal(exits.length, 1, '[전제] 가드가 끝났다');
+  const r = saveGuard.readMarker()[0];
+  assert.equal(r && r.reason, 'no-response', '[전제] 3초 상한(no-response) 길이 기록했다');
+  return r;
+}
+function wsWith(files) {
+  const ws = mkTmpRoot('goya-q7p1-');
+  for (const [rel, mtime] of files) {
+    const p = path.join(ws, 'projects', rel); fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({ version: 2, pages: [{ id: 'page_1' }] }), 'utf8');
+    fs.utimesSync(p, new Date(mtime), new Date(mtime));
+  }
+  return ws;
+}
+const relink = (ws) => { recovery.init({ userDataDir: ws, workspaceDir: ws, saveGuard }); RES = resolverFor(path.join(ws, 'projects')); };
+
+test('P1 no-response 기록에 활성 프로젝트(id·이름)가 실린다 · 활성 없으면 null', async () => {
+  const a = await quitNoResponse(wsWith([]), () => ({ id: 'proj_live', name: '상세페이지 A' }));
+  assert.deepEqual([a.projectId, a.projectName, a.emergencyPath], ['proj_live', '상세페이지 A', null]);
+  const b = await quitNoResponse(wsWith([]), () => null);
+  assert.deepEqual([b.projectId, b.projectName], [null, null], '활성이 없는데 무엇인가 실렸다');
+  const c = await quitNoResponse(wsWith([]), () => { throw new Error('boom'); });
+  assert.deepEqual([c.projectId, c.projectName], [null, null], '활성 읽기가 던지면 null(가드는 그대로 끝난다)');
+});
+
+test('P2 진짜 no-response 기록 + 파일이 기록보다 새로움 → 걷힘(띠 안 뜸)', async () => {
+  const ws = wsWith([]);
+  const r = await quitNoResponse(ws, () => ({ id: 'proj_live', name: 'A' }));
+  const p = path.join(ws, 'projects', 'proj_live', 'proj.json'); fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, '{}'); const t = Date.parse(r.at) + 5000; fs.utimesSync(p, new Date(t), new Date(t));   // 그 뒤 저장이 끝났다
+  relink(ws);
+  assert.deepEqual(shown(), ['proj_live'], '[전제] 걷기 전엔 뜬다');
+  assert.equal(heal().healed, 1);
+  assert.deepEqual(shown(), []);
+});
+
+test('P3 [음성대조] 같은 진짜 기록 + 파일이 더 낡음(진짜 미저장) → 띠 유지', async () => {
+  const ws = wsWith([]);
+  const r = await quitNoResponse(ws, () => ({ id: 'proj_live', name: 'A' }));
+  const p = path.join(ws, 'projects', 'proj_live', 'proj.json'); fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, '{}'); const t = Date.parse(r.at) - 60000; fs.utimesSync(p, new Date(t), new Date(t));
+  relink(ws);
+  assert.equal(heal().healed, 0);
+  assert.deepEqual(shown(), ['proj_live']);
 });
