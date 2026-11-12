@@ -117,7 +117,14 @@ test('★상태 동거 — 선택과 «동시에» 걸리는 다른 표시를 �
   const IMPOSSIBLE = {
     'group-selected': '.group-block 은 group-selected 를 «대신» 받는다(selected 와 같이 안 붙는다)',
     'row-active':     '.row.row-active 는 활성 행 표시 — .row 는 오버레이 대상이지만 selected 를 안 받는다',
+    /* t2-07(261112) — 표식 클래스는 고른 프레임에도 남을 수 있지만 «그리는» 절이 :not(.selected) 라 선택 중엔 표시가 0 ⇒ 중화가 삼킬 것이 없다.
+       ⛔면제가 아니다 — 아래 단언이 그 근거(그리는 절마다 :not(.selected))를 매번 잰다. */
+    'frame-see-through': '지나감 아웃라인은 :not(.selected) 일 때만 그린다(css/editor-blocks.css t2-07) — 선택과 같이 «보이지» 않는다',
   };
+  const seeThroughRules = [...CSS.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+    .filter((m) => /\.frame-see-through\b/.test(m[1]) && /outline\s*:\s*(?!none)/.test(m[2]));
+  assert.ok(seeThroughRules.length > 0, '[전제] frame-see-through 를 그리는 절을 못 찾았다 — 위 IMPOSSIBLE 근거가 «안 재고» 있다');
+  for (const m of seeThroughRules) assert.match(m[1], /:not\(\.selected\)/, `frame-see-through 절이 선택 중에도 그린다 — 근거가 무너졌다: ${m[1].trim()}`);
   const missing = [...found].filter(s => !NOTS.includes(s) && !(s in IMPOSSIBLE));
   assert.deepEqual(missing, [],
     '이 상태들은 .selected 와 같이 붙을 수 있는데 중화가 색을 지운다 — 그 표시가 «사라진다»');
