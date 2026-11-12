@@ -13,7 +13,7 @@
  *   · ㉰ clip-content.js applyIcbClip 의 visible 줄 삭제 → icb Q1·Q2·Q3·Q5 빨강 · ㉱ radial-block.js _noClip 을 늘 false → radial Q1·Q2·Q3 빨강 · ㉲ export-figma-json.js 두 줄 삭제 → Q4 빨강. Q0·Q6 은 늘 초록.
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const BLUE = [51, 102, 204];
 /* 대기는 «조건»으로만(tests/unit/dom-fixed-wait-census W3) — f2 = 두 프레임 · until = 기대 상태를 최대 2초 기다린 뒤 «그래도» 단언한다(안 서면 단언이 제 말로 빨개진다). */
@@ -60,9 +60,17 @@ async function pix(page, x, y) {
 async function pixAll(page) {
   await page.evaluate(() => { window.deselectAll?.(); document.getElementById('sQ').scrollIntoView({ block: 'start' }); });
   await page.mouse.move(2, 2); await f2(page);
-  const P = await points(page); const o = {};
-  for (const k of Object.keys(P)) o[k] = await pix(page, ...P[k]);
-  return o;
+  /* ★1bbc056b3 인텔 빨강(Q0 grid 51,102,204) — 고정 400ms 를 f2 로 바꾸자 «자리가 아직 움직이는 중»에 점을 쟀다(제품 무변 판 · 앞 판 초록).
+     ⇒ 세 대상의 화면 사각형이 멈춘 뒤(waitStableRect · 하네스 정본) 점을 재고, 픽셀은 «두 번 연속 같을 때»까지 다시 읽는다(최대 10번 · f2 간격). */
+  for (const s of ['#gQ .grd-img-circle', '#iQ .icb-circle', '#rQ .rdl-cell']) await waitStableRect(page, s);
+  let prev = null;
+  for (let n = 0; n < 10; n++) {
+    const P = await points(page); const o = {};
+    for (const k of Object.keys(P)) o[k] = await pix(page, ...P[k]);
+    if (prev && JSON.stringify(prev) === JSON.stringify(o)) return o;
+    prev = o; await f2(page);
+  }
+  throw new Error('원 밖 픽셀이 10번 안에 멈추지 않았다 — 화면이 아직 바뀌는 중');
 }
 const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 6);
 const RADIAL_LEAF = [63, 166, 106];   // radial-samples leaf #3fa66a
