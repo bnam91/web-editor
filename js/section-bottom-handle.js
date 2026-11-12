@@ -88,11 +88,16 @@
     const _hist = window.beginDragHistory?.('섹션 높이');
 
     const onMove = (e) => {
-      _hist?.arm(0, (e.clientY - y0) / scale);
-      const v = Math.round(h0 + (e.clientY - y0) / scale);
-      if (pinned) { sec.style.height = Math.max(pinMin, v) + 'px'; return; }
-      /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 */
-      sec.style.minHeight = v > nat ? v + 'px' : '';
+      const dy = (e.clientY - y0) / scale;
+      /* ★수평만(ΔY=0) = 높이 무변 — 아무것도 안 쓴다(Codex r4: 바닥 300 < 내용 400 이면 v=h0=내용이라 아래 식이 바닥을 '' 로 «조용히» 지웠다 ·
+         시작 표본은 ΔY=0 이라 안 찍혀 ⌘Z 가 앞 조작(합치기)까지 풀었다). */
+      if (dy === 0) return;
+      const v = Math.round(h0 + dy);
+      /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 / ⑦ 핀이면 height · 하한 pinMin */
+      const next = pinned ? Math.max(pinMin, v) + 'px' : (v > nat ? v + 'px' : '');
+      if (next === (pinned ? sec.style.height : sec.style.minHeight)) return;   // 값이 안 바뀌면 쓰지도 기록하지도 않는다
+      _hist?.arm(0, dy);              // ★시작 표본 = «첫 실제 변경» 바로 앞(drag-history 정본) — 이 줄 아래가 쓰기
+      if (pinned) sec.style.height = next; else sec.style.minHeight = next;
     };
     const end = () => {
       document.removeEventListener('pointermove', onMove);

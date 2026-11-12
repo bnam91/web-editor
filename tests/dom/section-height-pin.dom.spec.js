@@ -26,6 +26,8 @@
  *   P14 ★합치기→분리 왕복 — 핀이 되살아난다(r1 ①)
  *   P17 ★편집→⌘Z→핀→⌘⇧Z = 핀 그대로 · 옛 미래 안 돌아옴(r3)
  *   P18 ★열자마자 핀 → canUndo(r3)
+ *   P19 ★합치기→수평만 끌기→⌘Z = 합치기만 풀림 · 바닥 300 그대로(r4 ①)
+ *   P20 ★수평 뒤 세로 끌기→⌘Z = 바닥 300 복원 · 합치기 유지(r4 ②)
  *   R1 ★저장→닫기→다시 열기 — 새 앱 인스턴스에 저장본을 실어도 핀·자르기·숨은 수가 그대로 · pin-peek 은 안 실림
  *   R2 ⌘Z — 핀 켜기 한 번이 ⌘Z 한 번으로 풀린다
  *   U1 ★우측 패널 — 📌 켬/끔 · 「숨은 블럭 N개」 줄은 N>0 때만 · 전체 보기/핀 해제 버튼 · 새 prop-hint 0
@@ -569,6 +571,58 @@ test('P18 ★열자마자 첫 조작이 핀이어도 Undo 가 켜진다 (r3 · c
   expect(r.t0, '★전제 — 막 연 상태는 Undo 불가').toBe(false);
   expect(r.t1, '첫 조작 핀 뒤 Undo 가 안 켜진다').toBe(true);
   expect(r.action).toBe('섹션 높이 고정');
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+/* P19·P20 공용 — 바닥(minHeight) 300 인 섹션 A 에 B(갭 300)를 합쳐 내용 > 바닥이 된 판(Codex r4 재현 그대로) */
+async function mergedFloorBoard(page) {
+  await page.evaluate(() => {
+    const c = document.getElementById('canvas');
+    c.innerHTML = '<div class="section-block" id="mA" data-section="1" data-name="A" style="background:#fff;min-height:300px"><div class="section-hitzone"><span class="section-label">A</span></div>'
+      + '<div class="section-inner"><div class="gap-block" data-type="gap" style="height:100px"></div></div></div>'
+      + '<div class="section-block" id="mB" data-section="2" data-name="B" style="background:#eee"><div class="section-hitzone"><span class="section-label">B</span></div>'
+      + '<div class="section-inner"><div class="gap-block" data-type="gap" style="height:300px"></div></div></div>';
+    window.rebindAll?.(); window.deselectAll?.(); window.clearHistory();
+    window.mergeSectionInto(document.getElementById('mA'), document.getElementById('mB'));
+  });
+  await page.waitForFunction(() => !!document.querySelector('#mA > .section-bottom-handle') && !!document.querySelector('#mA .section-merged-part'));
+  return page.evaluate(() => { const a = document.getElementById('mA'); return { min: a.style.minHeight, h: a.offsetHeight }; });
+}
+/* 손잡이를 (dx, dyModel) 단계로 끈다 — 단계마다 pointermove 한 번 */
+const dragHandle = (page, steps) => page.evaluate((steps) => {
+  const a = document.getElementById('mA'), h = a.querySelector(':scope > .section-bottom-handle');
+  const k = a.getBoundingClientRect().width / a.offsetWidth, r = h.getBoundingClientRect(), x0 = r.left + 5, y0 = r.top + 2;
+  h.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: x0, clientY: y0, bubbles: true, cancelable: true }));
+  let x = x0, y = y0;
+  for (const [dx, dy] of steps) { x = x0 + dx; y = y0 + dy * k; document.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y, bubbles: true })); }
+  document.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, bubbles: true }));
+  return a.style.minHeight;
+}, steps);
+const undoState = (page) => page.evaluate(async () => { window.undo(); await new Promise(r => setTimeout(r, 40));
+  const a = document.getElementById('mA'); return { merged: !!a?.querySelector('.section-merged-part'), min: a?.style.minHeight ?? null, hasB: !!document.getElementById('mB') }; });
+
+test('P19 ★합치기 → 손잡이를 «수평으로만» 끌고 놓기 → 바닥 그대로 · ⌘Z = 합치기만 풀림 (r4 ①)', async ({ page }) => {
+  const errs = await setup(page);
+  const b = await mergedFloorBoard(page);
+  expect(b.min, '★전제 — 바닥 300').toBe('300px');
+  expect(b.h, '★전제 — 합친 뒤 내용이 바닥보다 크다').toBeGreaterThan(300);
+  const after = await dragHandle(page, [[40, 0], [80, 0]]);
+  expect(after, '수평 끌기가 바닥을 지웠다').toBe('300px');
+  const u = await undoState(page);
+  console.log('  P19:', JSON.stringify({ b, after, u }));
+  expect(u, '⌘Z 한 번 = 합치기 풀기(바닥 300 은 그대로)').toEqual({ merged: false, min: '300px', hasB: true });
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P20 ★수평 첫 틱 뒤 세로로 끌기 → ⌘Z = 바닥 300 복원(빈 값 아님) · 합치기 유지 (r4 ②)', async ({ page }) => {
+  const errs = await setup(page);
+  const b = await mergedFloorBoard(page);
+  expect(b.min, '★전제 — 바닥 300').toBe('300px');
+  const after = await dragHandle(page, [[40, 0], [40, -10]]);       // 수평 → 위로 10(모델 px) = 내용보다 낮아 바닥을 «없앤다»
+  expect(after, '★전제 — 세로 끌기가 바닥을 바꿨다').not.toBe('300px');
+  const u = await undoState(page);
+  console.log('  P20:', JSON.stringify({ b, after, u }));
+  expect(u, '⌘Z 가 원래 바닥 300 을 못 되살렸다(또는 합치기까지 풀었다)').toEqual({ merged: true, min: '300px', hasB: false });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
