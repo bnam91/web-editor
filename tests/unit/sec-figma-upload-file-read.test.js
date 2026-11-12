@@ -11,6 +11,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { mkTmpRoot } = require('./_tmproot');
 const { linkToDirOutside } = require('./_link');
+const { sliceCall } = require('./_slice-block');
 const S = require('../../main/figma-upload-sanitize');
 
 const T = mkTmpRoot('sec-figma-');
@@ -57,9 +58,7 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '
 
 test('F5 [배선] main.js figma:upload — tmp 에 designJSON 을 쓰기 «전»에 sanitize 를 부른다 (빼면 빨강)', () => {
   const src = rd('main.js');
-  const i = src.indexOf("ipcMain.handle('figma:upload'");
-  assert.ok(i > 0, '[전제] figma:upload 핸들러');
-  const body = src.slice(i, src.indexOf('\n});\n', i));
+  const body = sliceCall(src, "ipcMain.handle('figma:upload'");   // 구간 끝은 균형괄호로(slice-block-shared SB-16) · 못 찾으면 던진다
   const a = body.search(/require\('\.\/main\/figma-upload-sanitize'\)\.sanitizeFigmaDesign\(designJSON, \[__dirname\]\)/);
   const b = body.indexOf('JSON.stringify(designJSON');
   assert.ok(a > 0 && b > a, `sanitize ${a} · write ${b}`);
