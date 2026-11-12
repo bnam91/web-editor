@@ -13,6 +13,7 @@ var logger = {
     console.error(`[ERROR] ${message}`, ...args);
   }
 };
+var { isAllowedRelayOrigin } = require("./relay-origin.js");
 var channels = /* @__PURE__ */ new Map();
 var stats = {
   totalConnections: 0,
@@ -63,7 +64,7 @@ function handleConnection(ws) {
   };
 }
 var server = Bun.serve({
-  port: 3055,
+  port: process.env.FIGMA_RELAY_PORT ? Number(process.env.FIGMA_RELAY_PORT) : 3055,  // 검사가 빈 포트(0)로 띄운다
   // uncomment this to allow connections in windows wsl
   // hostname: "0.0.0.0",
   fetch(req, server2) {
@@ -89,6 +90,10 @@ var server = Bun.serve({
           "Access-Control-Allow-Origin": "*"
         }
       });
+    }
+    if (!isAllowedRelayOrigin(req.headers.get("origin"))) {
+      logger.warn(`Rejected WebSocket upgrade from origin: ${req.headers.get("origin")}`);
+      return new Response("Forbidden origin", { status: 403 });
     }
     try {
       const success = server2.upgrade(req, {
