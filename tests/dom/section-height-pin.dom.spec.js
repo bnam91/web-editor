@@ -6,6 +6,7 @@
  *   P1 ★자르기·쌓기 — 높이 300 고정 · inner overflow-y clip · 갭 50 그대로(안 줄어듦) · 숨은 블럭이 안 그려진다 · 다음 섹션이 안 밀린다
  *   P2 ★넘침 갱신 — 섹션 크기가 그대로인 채 글이 늘면 배지 「숨은 블럭 N」이 따라 는다
  *   P3 ★전체 보기 — 다 보이고 · 높이 수는 핀 값 · 저장본·PNG 에 pin-peek 없음 · 선택 풀리면 꺼지고 · 선택 중이면 남는다
+ *   P3b ★전체 보기 켠 채 h2c PNG·썸네일 입구 — 루트 pin-peek 이 안 샌다(r1 ②) · native PNG 는 P3 가 잰다
  *   P4 핀 해제 — height 지움 · minHeight=핀값 · 내용만큼 늘어남 · 기록 1
  *   P5 ★바닥 손잡이 — 내용 밑으로 줄임 · 하한 아래패딩+20 · 취소 복원 · 더블클릭 = 내용에 맞춤 · 기록 각 1
  *   P6 드롭 기준 — 보이는 끝 아래로 끌면 «첫 숨은 자식 앞» (undefined = 맨 끝 append 가 아님)
@@ -157,6 +158,24 @@ test('P3 ★전체 보기 — 다 보임 · 높이 수=핀 · 저장본·PNG 에
     return document.getElementById('pS').classList.contains('pin-peek'); }, fn);
   expect(await peekAfterClick('() => {}'), '선택 중인데 꺼졌다').toBe(true);
   expect(await peekAfterClick("() => { window.deselectAll?.(); document.getElementById('pS').classList.remove('selected'); }"), '선택이 풀렸는데 안 꺼졌다').toBe(false);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P3b ★전체 보기 켠 채 내보내기 — PNG(h2c 길)·썸네일 입구(stripEditorOnlyForCapture 루트)에도 안 샌다 (r1 ②)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.waitForFunction(() => typeof window.html2canvas === 'function');
+  const r = await page.evaluate(async (STAT) => {
+    const sec = document.getElementById('pS'); window.sectionPin.peek(sec, true);
+    const { stripEditorOnlyForCapture } = await import('/js/io/capture-safety.js');
+    const c = sec.cloneNode(true); stripEditorOnlyForCapture(c);     // 썸네일(save-load captureThumbnail)이 «첫 섹션 클론»에 부르는 것과 같은 입구
+    const h2c = await eval(STAT)(await window.exportSection(sec, 'png', 860, { returnDataUrl: true, forceH2C: true }));
+    return { rootPeek: c.classList.contains('pin-peek'), h2c, live: sec.classList.contains('pin-peek') };
+  }, PNG_STAT);
+  console.log('  P3b:', JSON.stringify(r));
+  expect(r.live, '★전제 — 화면은 전체 보기 중').toBe(true);
+  expect(r.rootPeek, '썸네일 클론 루트에 pin-peek 이 남았다').toBe(false);
+  expect(r.h2c.h, 'h2c PNG 높이').toBe(300);
+  expect(r.h2c.mark, 'h2c PNG 에 숨은 칸').toBe(0);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
