@@ -3388,6 +3388,20 @@ function _placeInFreeFrame(el, { frame, x, y }, keep) {
   window.buildLayerPanel?.();
 }
 
+/* t2-07(현빈 261112 Q9 · Figma식) — 배경이 «안 보이는» 프레임 = 칠한 색이 투명(α0) 또는 순백(#FFFFFF·α1)이고 그림·그라데이션·체커 없음.
+   ★흰색 = «정확히 #FFFFFF»: 프레임 안 새 프레임 기본값이 #FFFFFF(block-factory addFrameBlock t3-05)라 흰 섹션·흰 부모 위에서 경계가 사라지는 바로 그 꼴.
+   has-bg-opacity 는 ::before 가 칠하므로 그쪽 색×opacity 로 잰다. 클릭 규칙은 안 바꾼다(보이기만). */
+function _frameIsSeeThrough(ss) {
+  if (ss.dataset.textFrame || ss.querySelector(':scope > .sec-bg-clip')) return false;
+  const paint = (cs) => { const m = (cs.backgroundColor.match(/[\d.]+/g) || []).map(Number);
+    return { rgb: m.slice(0, 3).join(','), a: m.length > 3 ? m[3] : (m.length ? 1 : 0), img: cs.backgroundImage !== 'none' }; };
+  let p = paint(getComputedStyle(ss));
+  if (ss.classList.contains('has-bg-opacity')) { const b = getComputedStyle(ss, '::before'); p = paint(b); p.a *= parseFloat(b.opacity); }
+  if (p.img) return false;
+  return p.a === 0 || (p.a === 1 && p.rgb === '255,255,255');
+}
+if (typeof window !== 'undefined') window._frameIsSeeThrough = _frameIsSeeThrough;
+
 function bindFrameDropZone(ss) {
   // fix(frame-p0#4): 붙여넣기/복제가 프레임이 아닌 맨몸 블록(class=asset-block 등)에
   // 이 함수를 걸면 프레임 정체성이 이식돼 선택이 영원히 불가능해진다 — class로 게이트.
@@ -3770,6 +3784,7 @@ function bindFrameDropZone(ss) {
 
   // 프레임 자체 hover → 레이어 패널 하이라이트
   ss.addEventListener('mouseenter', () => {
+    ss.classList.toggle('frame-see-through', _frameIsSeeThrough(ss));   // t2-07 — 지나갈 때 아웃라인(css .frame-see-through:hover) · 판정은 매번 live
     if (ss._layerItem && !ss._layerItem.classList.contains('active'))
       ss._layerItem.style.background = 'var(--ui-bg-card)';
   });
