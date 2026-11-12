@@ -41,16 +41,18 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
-const LONG = '고디터 섹션 높이 고정 검사용 본문입니다. 줄이 여러 개가 되도록 길게 씁니다. '.repeat(3);
 const SECS = `
 <div class="section-block" id="pS" data-section="1" data-name="P" style="background:#ffffff;height:300px" data-height-pin="true">
   <div class="section-hitzone"><span class="section-label">P</span></div>
   <div class="section-inner">
+    <!-- ★높이는 전부 «고정 px» — 폭·글꼴(인텔 헤드리스 1440 등)과 무관하게 내용 합(≈630) > 핀 300×2 (인텔 1차: 글 길이에 기대던 판이 300 을 못 넘었다) -->
     <div class="gap-block" data-type="gap" id="pGap" style="height:50px"></div>
-    <div class="row" id="pRow1"><div class="text-block" id="pT1"><p style="margin:0;font-size:16px;line-height:1.5">${LONG}</p></div></div>
-    <div class="row" id="pRowA"><div class="text-block" id="pA" style="height:150px;background:#33aa77"><p style="margin:0">보이는 칸</p></div></div>
-    <div class="row" id="pRowH"><div class="text-block" id="pH" data-layer-name="HIDDEN" style="height:120px;background:#ff00aa"><p style="margin:0">숨은 칸</p></div></div>
-    <div class="row" id="pRowT"><div class="text-block" id="pT2"><p style="margin:0">숨은 글</p></div></div>
+    <div class="row" id="pRow1"><div class="text-block" id="pT1" style="height:80px;overflow:hidden"><p style="margin:0">보이는 글</p></div></div>
+    <div class="row" id="pRowA"><div class="text-block" id="pA" style="height:100px;background:#33aa77"><p style="margin:0">보이는 칸</p></div></div>
+    <div class="row" id="pRowV"><div class="text-block" id="pV" style="height:40px;overflow:hidden"><p style="margin:0">보이는 끝</p></div></div>
+    <div class="gap-block" data-type="gap" id="pGap2" style="height:60px"></div>
+    <div class="row" id="pRowH"><div class="text-block" id="pH" data-layer-name="HIDDEN" style="height:200px;background:#ff00aa"><p style="margin:0">숨은 칸</p></div></div>
+    <div class="row" id="pRowT"><div class="text-block" id="pT2" style="height:100px;overflow:hidden"><p style="margin:0">숨은 글</p></div></div>
   </div>
 </div>
 <div class="section-block" id="nS" data-section="2" data-name="N" style="background:#eeeeee">
@@ -108,12 +110,12 @@ test('P1 ★자르기·쌓기 — 300 고정 · inner clip · 갭 안 줄어듦 
   const errs = await setup(page);
   const g = await geo(page);
   console.log('  P1:', JSON.stringify(g));
-  expect(g.natural, '★전제 — 내용이 핀보다 커야 한다').toBeGreaterThan(400);
+  expect(g.natural, `★전제 — 내용(${g.natural})이 핀 300 의 2배쯤이어야 한다`).toBeGreaterThan(550);
   expect(g.h).toBe(300);
   expect(g.ov, 'inner 가 세로로 안 자른다').toBe('clip');
   expect(Math.abs(g.innerBottom - g.cut), 'inner 바닥 = 자르는 선').toBeLessThanOrEqual(1);
   expect(g.gapH, '★갭이 줄었다(flex-shrink) — 쌓이다 잘리는 게 아니라 찌그러진다').toBe(50);
-  expect(g.pHtop, '★전제 — 표식 칸이 완전히 숨는 자리').toBeGreaterThanOrEqual(g.cut);
+  expect(g.pHtop, `★전제 — 표식 칸이 완전히 숨는 자리(top ${g.pHtop} · 자르는 선 ${g.cut})`).toBeGreaterThanOrEqual(g.cut);
   expect(g.hidden).toEqual(expect.arrayContaining(['pH', 'pT2']));
   expect(Math.abs(g.nextTop - g.secBottom), '다음 섹션이 숨은 내용에 밀렸다').toBeLessThanOrEqual(1);
   const paint = await page.evaluate(() => { const r = document.getElementById('pH').getBoundingClientRect();
@@ -130,11 +132,13 @@ test('P2 ★넘침 갱신 — 섹션 크기 그대로, 글이 늘면 배지 숨�
   const b0 = await badge(page);
   expect(b0 && b0.h, '배지').toContain('📌 · 숨은 블럭 ' + n0);
   expect(b0.red).toBe(true);
-  await page.evaluate(() => { document.querySelector('#pT1 p').textContent += ' 더'.repeat(400); });
+  expect(await page.evaluate(() => window.sectionPin.hiddenBlocks(document.getElementById('pS')).some(b => b.id === 'pT1')), '★전제 — pT1 은 처음엔 보인다').toBe(false);
+  await page.evaluate(() => { document.getElementById('pGap').style.height = '400px'; });   // 맨 위 갭을 키워 아래를 전부 밀어낸다(글꼴 무관)
   await expect.poll(async () => (await badge(page)).h, { timeout: 2000 }).not.toBe(b0.h);
   const g = await geo(page);
   expect(g.h, '섹션 높이는 그대로').toBe(300);
-  expect(g.hidden.length, '★전제 — 숨은 수가 실제로 늘었다').toBeGreaterThan(n0);
+  expect(g.hidden.length, `★전제 — 숨은 수가 실제로 늘었다(${n0} → ${g.hidden.length})`).toBeGreaterThan(n0);
+  expect(g.hidden).toContain('pT1');
   expect((await badge(page)).h).toContain('숨은 블럭 ' + g.hidden.length);
   expect(errs, errs.join('\n')).toEqual([]);
 });
@@ -446,9 +450,13 @@ test('P11 단독 HTML — 핀 속성·자르기 규칙이 실리고 pin-peek 은
   const errs = await setup(page);
   const r = await page.evaluate(async () => {
     window.sectionPin.peek(document.getElementById('pS'), true);
-    const urls = []; const o = URL.createObjectURL.bind(URL); URL.createObjectURL = (b) => { const u = o(b); urls.push(u); return u; }; URL.revokeObjectURL = () => {};
+    /* ★blob URL 을 fetch 하지 않는다(인텔 1차: 하네스에서 «Failed to fetch» — exportHTMLFile 이 click 직후 revoke 한다).
+       createObjectURL 에 넘어온 «Blob 자체»를 잡아 text() 로 읽는다. */
+    const blobs = []; const o = URL.createObjectURL.bind(URL); URL.createObjectURL = (b) => { blobs.push(b); return o(b); };
     await window.exportHTMLFile();
-    const html = urls.length ? await (await fetch(urls[urls.length - 1])).text() : '';
+    const hb = blobs.filter(b => b && /text\/html/.test(b.type || '')).pop();
+    const urls = blobs;
+    const html = hb ? await hb.text() : '';
     return { n: urls.length, pin: /data-height-pin="true"/.test(html), rule: /\[data-height-pin="true"\]\s*>\s*\.section-inner/.test(html),
       peekOn: /\.pin-peek\[data-height-pin/.test(html), notPeek: /:not\(\.pin-peek\)\s*>\s*\.section-inner/.test(html) };
   });
