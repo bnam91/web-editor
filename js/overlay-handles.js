@@ -3340,7 +3340,8 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     const dy = (ev.clientY - startY) / scale;
     if (!moved && Math.hypot(dx, dy) < 1) return;
     if (!moved) { moved = true; window.pushHistory?.('그리드 이미지 크기'); }
-    const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey });
+    /* GRID-CIRCLE-SHIFT-DRAG-NO-RESIZE-01 — 원은 늘 1:1(지름 = height)이라 Shift 비율 고정이 뜻이 없다. 걸면 폭(=셀 폭 상한)이 높이를 묶어 크기가 안 변했다 ⇒ 원은 Shift 를 무시(기본 끌기와 같은 규칙). */
+    const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey && !(line && line.imgShape === 'circle') });
     lastResult = result;
     /* ★원(imgShape circle)은 렌더러가 지름 = height 로 1:1 을 지킨다(놓을 때 onUp 의 gridPreviewLine 이 그 길이다).
        ⛔아래 폭%·높이px 를 따로 쓰면 끄는 동안 타원이 됐다(현빈QA) ⇒ 미리보기도 «같은 렌더»로 그린다. */
