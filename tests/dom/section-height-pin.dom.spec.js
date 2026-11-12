@@ -102,6 +102,8 @@ const geo = (page) => page.evaluate(() => {
   return { h: sec.offsetHeight, ov: getComputedStyle(inner).overflowY, innerBottom: inner.getBoundingClientRect().bottom, cut: P.cutY(sec),
     gapH: document.getElementById('pGap').offsetHeight, pHtop: pH.top, hidden: P.hiddenBlocks(sec).map(b => b.id),
     nextTop: document.getElementById('nS').getBoundingClientRect().top, secBottom: sec.getBoundingClientRect().bottom,
+    /* 섹션 사이 간격(#canvas gap = pageSettings.gap · 모델 px) × 화면 배율 — 다음 섹션은 «핀 바닥 + 이 간격»에 와야 한다 */
+    gapPx: (parseFloat(getComputedStyle(document.getElementById('canvas')).rowGap) || 0) * (sec.getBoundingClientRect().width / sec.offsetWidth),
     peek: sec.classList.contains('pin-peek'), measure: window.measureSectionHeight(sec), natural: P.naturalHeight(sec) };
 });
 const badge = (page) => page.evaluate(() => { const b = document.querySelector('#pS > .section-hitzone > .section-height-badge'); return b ? { h: b.dataset.h, red: b.hasAttribute('data-pin-hidden') } : null; });
@@ -117,7 +119,8 @@ test('P1 ★자르기·쌓기 — 300 고정 · inner clip · 갭 안 줄어듦 
   expect(g.gapH, '★갭이 줄었다(flex-shrink) — 쌓이다 잘리는 게 아니라 찌그러진다').toBe(50);
   expect(g.pHtop, `★전제 — 표식 칸이 완전히 숨는 자리(top ${g.pHtop} · 자르는 선 ${g.cut})`).toBeGreaterThanOrEqual(g.cut);
   expect(g.hidden).toEqual(expect.arrayContaining(['pH', 'pT2']));
-  expect(Math.abs(g.nextTop - g.secBottom), '다음 섹션이 숨은 내용에 밀렸다').toBeLessThanOrEqual(1);
+  /* 인텔 2차: 40 이 나왔다 = 섹션 간격(gap) 그대로였다 — 옛 단언이 간격을 0 으로 잘못 가정했다. 숨은 내용이 밀면 간격보다 «더» 벌어진다. */
+  expect(Math.abs((g.nextTop - g.secBottom) - g.gapPx), `다음 섹션이 숨은 내용에 밀렸다(벌어짐 ${(g.nextTop - g.secBottom).toFixed(1)} · 섹션 간격 ${g.gapPx.toFixed(1)})`).toBeLessThanOrEqual(1);
   const paint = await page.evaluate(() => { const r = document.getElementById('pH').getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2; const el = document.elementFromPoint(x, y);
     return { inView: y > 0 && y < innerHeight && x > 0 && x < innerWidth, hitsHidden: !!el && document.getElementById('pH').contains(el) }; });
