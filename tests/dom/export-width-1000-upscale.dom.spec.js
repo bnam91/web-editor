@@ -149,6 +149,14 @@ test('U2·U3 ★섹션 PNG 1000 = 860 구도 그대로 확대 · dpr=1 에서도
   expect(r.dpr, '전제 — 이 칸은 dpr=1 을 잰다').toBe(1);
   expect(r.w860).toBe(860);
   expect(r.w1000, '1000 내보내기 폭').toBe(1000);
+  /* ★구도 자를 «요청폭·배율» 단언보다 앞에 — 기준판(재배치)에서도 이 자가 스스로 빨강을 내게(양성대조 A.x: 32 vs 37.2) */
+  for (const k of ['A', 'B', 'C']) {
+    const { b860, b1000 } = r.marks[k];
+    expect(b860 && b1000, `★전제 — 표식 ${k} 가 PNG 에 없다`).toBeTruthy();
+    for (const f of ['x', 'y', 'w', 'h']) {
+      expect(Math.abs(b1000[f] - b860[f] * K), `구도 — 표식 ${k}.${f}: 1000 ${b1000[f]} ≠ 860 ${b860[f]}×1000/860=${(b860[f] * K).toFixed(1)}`).toBeLessThanOrEqual(2);
+    }
+  }
   expect(r.h1000, `높이가 860 높이(${r.h860}) × 1000/860 이 아니다 — 다시 배치됐다`).toBeGreaterThanOrEqual(Math.round(r.h860 * K) - 1);
   expect(r.h1000).toBeLessThanOrEqual(Math.round(r.h860 * K) + 1);
   expect(r.a1000.length, '캡처 요청 수').toBe(1);
@@ -157,13 +165,6 @@ test('U2·U3 ★섹션 PNG 1000 = 860 구도 그대로 확대 · dpr=1 에서도
   expect(r.a860[0].scale ?? 1, '860 은 배율 1').toBe(1);
   /* U3 ★업스케일 아님 — 원본 PNG 가 이미 1000 폭(늘린 게 아니다) */
   expect(r.a1000[0].rawW, '★CDP 원본 폭이 1000 이 아니다 — 860 을 늘려 1000 을 만든다(흐림)').toBe(1000);
-  for (const k of ['A', 'B', 'C']) {
-    const { b860, b1000 } = r.marks[k];
-    expect(b860 && b1000, `★전제 — 표식 ${k} 가 PNG 에 없다`).toBeTruthy();
-    for (const f of ['x', 'y', 'w', 'h']) {
-      expect(Math.abs(b1000[f] - b860[f] * K), `구도 — 표식 ${k}.${f}: 1000 ${b1000[f]} ≠ 860 ${b860[f]}×1000/860=${(b860[f] * K).toFixed(1)}`).toBeLessThanOrEqual(2);
-    }
-  }
   expect(r.eNative, `선명도 — 1000(${r.eNative}) 이 860 을 늘린 그림(${r.eUp})보다 날카롭지 않다`).toBeGreaterThan(r.eUp * 1.05);
   expect(errs, errs.join('\n')).toEqual([]);
 });
