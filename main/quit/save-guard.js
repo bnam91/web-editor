@@ -299,7 +299,18 @@ function holdForWrites(onDone, limitMs = TIMINGS.writeHoldMs) {
  * @param timings 상한 3종 덮어쓰기(테스트용)
  * @returns 진행 상태 객체(테스트가 들여다본다)
  */
-function runBeforeQuit({ win, ipcMain, exit, timings } = {}) {
+/* Q7 P1(지디 261112 GO) — activeProject: () => ({ id, name }) | null. main 이 «이미 쥔» 활성 프로젝트(global.currentActiveProjectId)를 넘긴다(새 IPC 없음).
+   3초 상한(no-response) 기록에 싣는다 — 그래야 다음 부팅 recovery.healSavedAfterUnknown 이 «그 뒤 저장됐나(파일이 기록보다 새로운가)»를 잴 수 있다.
+   활성이 없으면(목록 화면·아무것도 안 엶) null 그대로. 값은 남의 것이라 문자열·길이만 받는다(classify 와 같은 규약). */
+function _activeOf(getter) {
+  try {
+    const a = typeof getter === 'function' ? getter() : null;
+    const id = a && typeof a.id === 'string' && a.id ? a.id.slice(0, 128) : null;
+    return { projectId: id, projectName: id && typeof a.name === 'string' ? a.name.slice(0, 200) : null };
+  } catch (_) { return { projectId: null, projectName: null }; }
+}
+
+function runBeforeQuit({ win, ipcMain, exit, timings, activeProject } = {}) {
   if (_running && !_running.exited) return _running;   // 두 번째 before-quit 은 무시(핸들러 중복 방지)
   const t = { ...TIMINGS, ...(timings || {}) };
   const started = Date.now();
@@ -351,7 +362,7 @@ function runBeforeQuit({ win, ipcMain, exit, timings } = {}) {
   try { ipcMain.once('quit-ready', (_e, payload) => settle(classify(payload))); }
   catch (e) { _log(`[quit-guard] ipc 등록 실패: ${e && e.message}`); }
 
-  arm(() => settle({ ok: false, reason: 'no-response', projectId: null, projectName: null, error: null, snapshot: null }),
+  arm(() => settle({ ok: false, reason: 'no-response', ..._activeOf(activeProject), error: null, snapshot: null }),
       t.saveWaitMs);
 
   try {
