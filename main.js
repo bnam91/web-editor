@@ -4210,6 +4210,8 @@ const _devtoolsGate = require('./main/devtools-gate').createDevToolsGate({
   onChange: () => _rebuildAppMenu(),
 });
 _devtoolsGate.install(app);
+/* ★앱 창이 에디터 페이지 «밖»으로 바뀌는 길 전부 차단(SEC ③ · main/nav-guard.js) — devtools 가드처럼 createWindow 전 모듈 최상위에서 건다 */
+require('./main/nav-guard').install(app, __dirname);
 _devtoolsGate.registerIpc(ipcMain);
 
 /** 앱 메뉴를 «지금 판정»으로 다시 짓는다. 로그인·로그아웃·코드 해제 뒤에 부른다. */
