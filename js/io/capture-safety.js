@@ -529,6 +529,9 @@ export function stripEditorOnlyForCapture(clone) {
     if (row) row.remove(); else el.remove();
   });
   hidePlaceholderTextForCapture(clone);
+  /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — 그림 없는 아이콘텍스트 칸의 점선 네모+자리표시 svg 는 편집 전용 표식.
+     자리(폭)는 남겨야 글자 위치가 캔버스와 같다 ⇒ 지우지 않고 가시성만 끈다(위 안내문구와 같은 방식). */
+  clone.querySelectorAll?.('.itb-icon').forEach(el => { if (!el.querySelector('img')) el.style.visibility = 'hidden'; });
   /* 이미지 메모(data-memo, 2026-09-30) — 빈 칸의 «제작 지시» 쪽지. 위 [data-is-placeholder] 와 같은
      성격(편집 화면에서만 보이는 안내)이다. 쪽지는 CSS 가상요소라 속성만 떼면 그림에서 사라진다.
      ★저장 경로(serializeCleanRoot)엔 이 명부가 안 쓰인다 — 메모는 프로젝트에 «남아야» 한다. */

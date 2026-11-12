@@ -1106,7 +1106,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const out = {
         type: 'generic', id: el.id || '', kind: ds.type || '',
         width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
-        svg: [...el.querySelectorAll('svg')].find(_notKid)?.outerHTML || '', texts,
+        svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
       /* ★G17 그리드 «블럭 외곽선» — 키(data-block-outline)가 있을 때만 `border` 를 싣는다(없으면 JSON 바이트 그대로).
        *   값은 렌더러가 블럭 style 에 «이미 그은» 변을 그대로 읽는다(모델 해석을 여기서 다시 하지 않는다 — 두 벌 금지).
