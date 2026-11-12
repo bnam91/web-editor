@@ -256,6 +256,13 @@
   pointer-events: none;
   z-index: 100;
 }
+/* t2-07(현빈 261112 Q9) — 배경이 안 보이는(투명·순백) 프레임은 지나갈 때 경계 아웃라인(Figma식). 클릭 규칙 무변.
+   ★«맨 안쪽» 지나가는 프레임만 — 안에서 다른 프레임이 :hover 면 바깥은 안 긋는다(덮개 아래 자식은 pointer-events:none 이라 :hover 가 안 선다 = 클릭이 고를 그 프레임).
+   표식 .frame-see-through 은 js/block-drag.js _frameIsSeeThrough 가 mouseenter 때 단다. */
+.frame-block.frame-see-through:not([data-text-frame]):not(.selected):hover:not(:has(.frame-block:not([data-text-frame]):hover)) {
+  outline: var(--sel-outline-w) solid var(--sel-color);
+  outline-offset: calc(-1 * var(--sel-outline-w));
+}
 /* 미선택 상태: 자식 pointer-events 차단 → 자식 hover 완전 억제 (shape-block, text-frame 제외) */
 /* ★2026-10-08 실측(태양 · frame-dblclick-overlay OV-x1 · 고치기 전 판 ee614986 도 같은 값): «진짜 프레임 안» 도형에서는
      아래 shape-block 예외가 효력이 없다 — 도형 래퍼(frame-block)가 덮개를 받고 pointer-events 가 상속되기 때문이다(도형 pointer-events = none).

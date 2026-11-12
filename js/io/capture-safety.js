@@ -614,6 +614,7 @@ export function stripEditorOnlyForCapture(clone) {
     'grd-line-selected', 'grd-cell-selected', 'stb-line-selected', 'stb-step-selected',
     'row-active', 'col-active',
     'ln-cell-selected', 'cmp-cell-selected',   // ★1017t1c3 — 비교 「칸(글자/이미지)」 선택 표시, 둘 다 지금까지 빠져 있었다
+    'frame-see-through',                       // t2-07(261112) 지나감 아웃라인 표식 — 저장 명부(section-serialize RUNTIME_MARKER_CLS)와 같이
   ];
   clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
     .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));

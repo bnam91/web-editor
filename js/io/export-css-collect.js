@@ -39,6 +39,7 @@ const EDITOR_ONLY_SEL = new RegExp([
        (앞 글자가 `-` 다). ★그래서 ★조각으로 둔다 — ★위 `-line-selected` 와 같은 꼴.
      ★★증상은 ★클래스만 벗기면(capture-safety) ★안 보이지만, ★이 레포의 원칙은
        「★숨기는 CSS 한 줄로 ★때우지 마라 · ★있을 이유 없는 것은 ★버린다」이다. */
+  '\\.frame-see-through',   /* t2-07(261112) 지나감 아웃라인 — 편집 전용 */
   '\\.img-editing', '\\.img-edit-hint', '\\.img-boundary', '\\.img-corner-handle', '\\.img-edge-handle', '\\.img-rotate-zone',
   '\\.section-label', '\\.section-toolbar', '\\.section-hitzone', '\\.variation-badge', '\\.section-height-badge',
   /* ★★★2026-10-24 — ★`ANNOT-CSS-FILTERED-01`. ★★★두 사람의 고침을 ★합쳤다.
