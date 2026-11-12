@@ -9,10 +9,9 @@
  *   X2b ★② 편집 끝(blur) 갈래 — js/block-drag.js _endTextEdit 의 placeholder 복원(고침 3번째 자리)
  *   X5 표시 무변 — 평문 placeholder(기본·사용자 지정 & 포함·불릿)가 같은 글자(고치기 전에도 초록)
  *   X3 [음성대조 · 지키는 칸] 같은 핸들러를 «속성으로 직접» 넣으면 sanitizeCanvasHtml 이 벗긴다 — 우회가 «인코딩된 문자열 속성»이라는 증거
- *   X4 ③ 캔버스 안 <a href="https://…"> 를 사람처럼 클릭하면 렌더러가 «최상위 이동»을 시도하나(가로채서 끊는다)
- *        ⚠️하네스는 Electron 이 아니다 — main.js will-navigate 가드·preload 적용 범위는 «못 잰다».
- *          이 칸이 재는 것은 「렌더러 쪽에 링크 클릭을 막는 손이 있나」 하나다. 시도가 잡히면 막는 손은 main 의 가드뿐이고,
- *          그 가드(main.js:620)는 에디터 페이지 이름만 본다(정적 · 보고서 표).
+ *   X4·X4m·X4c ★③ 고침(현빈 결정 (가)) — 캔버스 안 링크 일반·조합키·가운데 클릭 = 외부 시도 0 · 새 창 0 (js/canvas-link-guard.js)
+ *   X4e [무변] 편집 중 링크 글자 편집 · X4p [양성대조] 캔버스 밖 같은 링크는 그물이 잡는다
+ *        ⚠️하네스는 Electron 이 아니다 — main 벽(main/nav-guard.js: will-navigate·setWindowOpenHandler)은 tests/unit/sec-nav-guard.test.js 가 잰다.
  * 실행: NODE_PRESERVE_SYMLINKS=1 node --preserve-symlinks-main node_modules/@playwright/test/cli.js test \
  *        --config=tests/dom/playwright.dom.config.js --retries=0 --workers=1 tests/dom/sec-malicious-project-open.dom.spec.js
  */
@@ -117,33 +116,91 @@ test('X5 표시 무변 — 평문 placeholder(기본·사용자 지정·불릿)�
   expect(errs).toEqual([]);
 });
 
-test('X4 ③ 캔버스 안 https 링크를 «일반 클릭 1번» — 렌더러가 최상위 이동을 «시도»하지 않는다 (가로채 끊음 · 네트워크 0)', async ({ page }) => {
-  /* 인텔 1차: page.click 이 «클릭 가능» 조건(보임·안정·덮개 없음)을 못 채워 30s 시간 초과 = 못 잼.
-     ⇒ 사람 손과 같은 «좌표 클릭»(page.mouse.click) 한 번 · 그 자리에서 실제로 무엇이 클릭을 받는지(덮개 여부)를 같이 찍는다. */
+/* ── X4 가족 ③ — 현빈 결정 (가) 261112: 캔버스 안 링크 클릭 = 앱 창 이동 0 · 새 창/외부 브라우저 0 · 아무 일 없음.
+ *   렌더러 첫 손 = js/canvas-link-guard.js(click·auxclick 의 기본 동작만 끊음) · 바깥 벽 = main/nav-guard.js(tests/unit/sec-nav-guard.test.js 가 잰다).
+ *   ⚠️window.open·location 대입은 «스크립트»라 렌더러가 못 막는다 — 그건 main 벽의 일이고 하네스(Chromium)에선 못 잰다 ⇒ 단위 N3. */
+const LINK = `<div class="row"><div class="text-block" id="xL"><div class="tb-body"><a id="xA" href="https://attacker.example/p" style="font-size:40px">링크링크링크</a></div></div></div>`;
+
+/** 링크 든 프로젝트를 열고, 외부 시도·주 프레임 이동·새 창을 잴 그물을 친 뒤 링크 가운데 좌표를 준다. */
+async function armLink(page) {
   await page.setViewportSize({ width: 1700, height: 1100 });
   const errs = await bootApp(page);
-  const tried = [], navs = [];
-  await page.route('https://attacker.example/**', (route) => { tried.push(route.request().url()); return route.abort(); });
-  page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs.push(f.url()); });
+  const net = { tried: [], navs: [], popups: [] };
+  await page.route('https://attacker.example/**', (route) => { net.tried.push(route.request().url()); return route.abort(); });
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) net.navs.push(f.url()); });
+  page.context().on('page', (p) => net.popups.push(p.url()));
   const before = page.url();
-  await page.evaluate((c) => window.applyProjectData({ canvas: c }),
-    SEC(`<div class="row"><div class="text-block" id="xL"><div class="tb-body"><a id="xA" href="https://attacker.example/p" style="font-size:40px">링크링크링크</a></div></div></div>`));
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), SEC(LINK));
   await page.waitForSelector('#xA');
-  const kept = await page.evaluate(() => document.getElementById('xA')?.getAttribute('href'));
-  expect(kept, '★전제 — 열기 뒤 링크 href 가 남아 있다(sanitize 는 https 를 안 건드린다)').toBe('https://attacker.example/p');
+  expect(await page.evaluate(() => document.getElementById('xA')?.getAttribute('href')),
+    '★전제 — 열기 뒤 링크 href 가 남아 있다(sanitize 는 https 를 안 건드린다)').toBe('https://attacker.example/p');
   await page.evaluate(() => { document.getElementById('xA').scrollIntoView({ block: 'center', inline: 'center' }); });
   const r0 = await waitStableRect(page, '#xA');
   const hit = await page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); const a = document.getElementById('xA');
-    return { inView: x > 0 && y > 0 && x < innerWidth && y < innerHeight, isLink: !!el && (el === a || a.contains(el)),
-      top: el ? (el.id ? '#' + el.id : el.tagName + '.' + String(el.className || '').split(' ')[0]) : null }; }, [r0.cx, r0.cy]);
+    return { inView: x > 0 && y > 0 && x < innerWidth && y < innerHeight, isLink: !!el && (el === a || a.contains(el)) }; }, [r0.cx, r0.cy]);
   expect(hit.inView, '★전제 — 링크 자리가 화면 안').toBe(true);
-  await page.mouse.click(r0.cx, r0.cy);                       // ★일반 클릭 1번(사람 손 그대로 — 덮개가 있으면 덮개가 받는다)
-  /* «시도 없음»을 잴 창 — 고정 대기 대신: 300ms 뒤 한 프레임(요청 가로채기가 끝날 틈) */
-  await page.waitForFunction(() => new Promise(r => setTimeout(() => requestAnimationFrame(() => r(true)), 300)));
-  console.log('  X4:', JSON.stringify({ hit, tried, navs, before, after: page.url() }),
-    hit.isLink ? '' : ' ← 클릭은 링크가 아니라 위 요소가 받았다(편집 화면의 덮개) — 일반 클릭으로는 링크에 안 닿음');
-  expect(tried, '★링크 클릭이 외부 최상위 이동을 시도했다 — 막는 손은 main will-navigate 뿐(그 가드는 에디터 페이지 이름만 본다)').toEqual([]);
-  expect(navs.filter(u => /attacker\.example/.test(u)), '주 프레임이 외부로 이동했다').toEqual([]);
+  return { errs, net, before, r0, hit };
+}
+/* «시도 없음»을 잴 창 — 고정 대기 대신: 300ms 뒤 한 프레임(요청 가로채기·새 창 생성이 끝날 틈) */
+const settle = (page) => page.waitForFunction(() => new Promise(r => setTimeout(() => requestAnimationFrame(() => r(true)), 300)));
+function expectNothing(page, { errs, net, before }, tag) {
+  expect(net.tried, `★${tag} — 링크 클릭이 외부 이동을 시도했다`).toEqual([]);
+  expect(net.popups, `★${tag} — 새 창(탭)이 열렸다`).toEqual([]);
+  expect(net.navs.filter(u => /attacker\.example/.test(u)), `${tag} — 주 프레임이 외부로 이동했다`).toEqual([]);
   expect(page.url()).toBe(before);
   expect(errs).toEqual([]);
+}
+
+test('X4 ③ 캔버스 안 https 링크 «일반 클릭 1번» = 아무 일 없음 (외부 시도 0 · 새 창 0)', async ({ page }) => {
+  const s = await armLink(page);
+  await page.mouse.click(s.r0.cx, s.r0.cy);
+  await settle(page);
+  console.log('  X4:', JSON.stringify({ hit: s.hit, ...s.net }));
+  expectNothing(page, s, 'X4 일반 클릭');
+});
+
+test('X4m ③ ⌘/Ctrl 클릭 · Shift 클릭 = 아무 일 없음 (새 창·새 탭 0)', async ({ page }) => {
+  const s = await armLink(page);
+  for (const mod of ['ControlOrMeta', 'Shift']) {
+    await page.keyboard.down(mod);
+    await page.mouse.click(s.r0.cx, s.r0.cy);
+    await page.keyboard.up(mod);
+  }
+  await settle(page);
+  console.log('  X4m:', JSON.stringify(s.net));
+  expectNothing(page, s, 'X4m 조합키 클릭');
+});
+
+test('X4c ③ 가운데 클릭 = 아무 일 없음 (새 창·새 탭 0)', async ({ page }) => {
+  const s = await armLink(page);
+  await page.mouse.click(s.r0.cx, s.r0.cy, { button: 'middle' });
+  await settle(page);
+  console.log('  X4c:', JSON.stringify(s.net));
+  expectNothing(page, s, 'X4c 가운데 클릭');
+});
+
+test('X4e [무변] 편집 중 링크 글자 편집은 그대로 — 더블클릭 진입 → 링크 가운데 클릭 → 글자 입력이 링크 안에 들어간다 · 이동 0', async ({ page }) => {
+  const s = await armLink(page);
+  await page.mouse.dblclick(s.r0.cx, s.r0.cy);
+  await expect.poll(() => page.evaluate(() => document.querySelector('#xL .tb-body').getAttribute('contenteditable')),
+    { message: '★전제 — 더블클릭으로 편집에 들어갔다', timeout: 3000 }).toBe('true');
+  await page.mouse.click(s.r0.cx, s.r0.cy);
+  await page.keyboard.type('Z');
+  const r = await page.evaluate(() => ({ link: document.getElementById('xA')?.textContent, href: document.getElementById('xA')?.getAttribute('href') }));
+  await settle(page);
+  console.log('  X4e:', JSON.stringify({ ...r, ...s.net }));
+  expect(r.link, '링크 글자 안에 입력이 안 들어갔다(편집이 막혔다)').toMatch(/^링크.*Z.*링크$/);
+  expect(r.href).toBe('https://attacker.example/p');
+  expectNothing(page, s, 'X4e 편집 중 클릭');
+});
+
+test('X4p [양성대조 · 자] 캔버스 «밖»에 같은 링크를 두고 같은 일반 클릭 → 그물이 외부 시도를 «잡는다»', async ({ page }) => {
+  /* 이 칸이 빨강이면 X4·X4m·X4c 의 초록은 «못 재서» 초록이다. 가드 «되돌림» 양성대조는 보고 참조(index.html 의 canvas-link-guard 줄 빼고 X4 빨강). */
+  const s = await armLink(page);
+  await page.evaluate(() => { const a = document.createElement('a'); a.id = 'xOut'; a.href = 'https://attacker.example/out';
+    a.textContent = '바깥링크'; a.style.cssText = 'position:fixed;left:8px;top:8px;z-index:2147483647;font-size:40px;background:#fff'; document.body.appendChild(a); });
+  const o = await waitStableRect(page, '#xOut');
+  await page.mouse.click(o.cx, o.cy);
+  await expect.poll(() => s.net.tried.length, { message: '★자가 외부 시도를 못 잡는다 — 이 그물로는 X4 초록이 아무 뜻이 없다', timeout: 3000 }).toBeGreaterThan(0);
+  console.log('  X4p:', JSON.stringify(s.net));
 });
