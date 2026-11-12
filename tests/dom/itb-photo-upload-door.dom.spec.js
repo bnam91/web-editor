@@ -104,7 +104,7 @@ async function openUploadChooser(page) {
 async function clickIcon(page) {
   const c = await iconCenter(page);
   expect(c.ownerIsIcon, '전제: 아이콘 칸 가운데의 임자가 .itb-icon').toBe(true);
-  await page.mouse.click(c.x, c.y);
+  await page.mouse.dblclick(c.x, c.y);   // 0.9.12 ICONTEXT-ICON-DBLCLICK — 팝오버 열기 = 더블클릭
 }
 
 test('U0 ⒞ 아이콘 클릭 → 팝오버에 「사진 올리기」 정확히 1개', async ({ page }) => {
@@ -169,7 +169,7 @@ test('U2 ⒝⒠ 폴백(팝오버 미적재) → 아이콘 클릭 → setInputFil
   expect(c.ownerIsIcon).toBe(true);
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    page.mouse.click(c.x, c.y),
+    page.mouse.dblclick(c.x, c.y),   // 0.9.12 — 폴백도 같은 입구(더블클릭)
   ]);
   expect((await popState(page)).pop).toBe(false);
   await chooser.setFiles(FILE);
