@@ -76,6 +76,7 @@ async function setup(page) {
   await page.evaluate(() => { const wrap = document.getElementById('canvas-wrap');
     wrap.scrollLeft += document.getElementById('canvas').getBoundingClientRect().left - (wrap.getBoundingClientRect().left + 200); });
   await frames(page);
+  await installPngStat(page);
   return errs;
 }
 
@@ -89,12 +90,14 @@ async function installCdpCapture(page) {
     window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : old[k]) });
   });
 }
-/* PNG dataURL → { w, h, mark = #ff00aa(±20) 픽셀 수 } */
-const PNG_STAT = `async (u) => { const im = new Image(); im.src = u; await im.decode();
-  const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
-  const d = x.getImageData(0, 0, c.width, c.height).data; let mark = 0;
-  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 255) <= 20 && d[i + 1] <= 20 && Math.abs(d[i + 2] - 170) <= 20) mark++;
-  return { w: c.width, h: c.height, mark }; }`;
+/* PNG dataURL → { w, h, mark = #ff00aa(±20) 픽셀 수 } — ★진짜 함수로 페이지에 심는다(문자열 eval 금지: 앱 CSP 에 unsafe-eval 없음 · 인텔 2차 P3b EvalError) */
+const installPngStat = (page) => page.evaluate(() => {
+  window.__pngStat = async (u) => { const im = new Image(); im.src = u; await im.decode();
+    const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data; let mark = 0;
+    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 255) <= 20 && d[i + 1] <= 20 && Math.abs(d[i + 2] - 170) <= 20) mark++;
+    return { w: c.width, h: c.height, mark }; };
+});
 
 const geo = (page) => page.evaluate(() => {
   const P = window.sectionPin, sec = document.getElementById('pS'), inner = sec.querySelector(':scope > .section-inner');
@@ -209,11 +212,11 @@ test('P3 ★전체 보기 — 다 보임 · 높이 수=핀 · 저장본·PNG 에
   expect(g.peek).toBe(true);
   expect(g.h, '전체 보기인데 안 늘어났다').toBeGreaterThan(300);
   expect(g.measure, '높이 수는 핀 값').toBe(300);
-  const r = await page.evaluate(async (STAT) => {
+  const r = await page.evaluate(async () => {
     const s = window.getSerializedCanvas();
-    const png = await eval(STAT)(await window.exportSection(document.getElementById('pS'), 'png', 860, { returnDataUrl: true }));
+    const png = await window.__pngStat(await window.exportSection(document.getElementById('pS'), 'png', 860, { returnDataUrl: true }));
     return { savedPeek: /pin-peek/.test(s), savedPin: /data-height-pin="true"/.test(s), png, stillPeek: document.getElementById('pS').classList.contains('pin-peek') };
-  }, PNG_STAT);
+  });
   expect(r.savedPin).toBe(true);
   expect(r.savedPeek, '저장본(=히스토리 스냅샷)에 pin-peek').toBe(false);
   expect(r.png.h, '전체 보기 중 PNG 높이').toBe(300);
@@ -221,24 +224,26 @@ test('P3 ★전체 보기 — 다 보임 · 높이 수=핀 · 저장본·PNG 에
   expect(r.stillPeek, '내보내기가 화면 상태를 바꿨다').toBe(true);
   /* ⓑ 선택 중이면 남고, 선택이 풀리면 꺼진다 */
   await page.evaluate(() => document.getElementById('pS').classList.add('selected'));
-  const peekAfterClick = (fn) => page.evaluate(async (src) => { eval(src)(); document.body.click();
+  const peekAfterClick = (unselect) => page.evaluate(async (unselect) => {
+    if (unselect) { window.deselectAll?.(); document.getElementById('pS').classList.remove('selected'); }
+    document.body.click();
     await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));   // sweepPeek 은 click «뒤» 한 틱
-    return document.getElementById('pS').classList.contains('pin-peek'); }, fn);
-  expect(await peekAfterClick('() => {}'), '선택 중인데 꺼졌다').toBe(true);
-  expect(await peekAfterClick("() => { window.deselectAll?.(); document.getElementById('pS').classList.remove('selected'); }"), '선택이 풀렸는데 안 꺼졌다').toBe(false);
+    return document.getElementById('pS').classList.contains('pin-peek'); }, unselect);
+  expect(await peekAfterClick(false), '선택 중인데 꺼졌다').toBe(true);
+  expect(await peekAfterClick(true), '선택이 풀렸는데 안 꺼졌다').toBe(false);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
 test('P3b ★전체 보기 켠 채 내보내기 — PNG(h2c 길)·썸네일 입구(stripEditorOnlyForCapture 루트)에도 안 샌다 (r1 ②)', async ({ page }) => {
   const errs = await setup(page);
   await page.waitForFunction(() => typeof window.html2canvas === 'function');
-  const r = await page.evaluate(async (STAT) => {
+  const r = await page.evaluate(async () => {
     const sec = document.getElementById('pS'); window.sectionPin.peek(sec, true);
     const { stripEditorOnlyForCapture } = await import('/js/io/capture-safety.js');
     const c = sec.cloneNode(true); stripEditorOnlyForCapture(c);     // 썸네일(save-load captureThumbnail)이 «첫 섹션 클론»에 부르는 것과 같은 입구
-    const h2c = await eval(STAT)(await window.exportSection(sec, 'png', 860, { returnDataUrl: true, forceH2C: true }));
+    const h2c = await window.__pngStat(await window.exportSection(sec, 'png', 860, { returnDataUrl: true, forceH2C: true }));
     return { rootPeek: c.classList.contains('pin-peek'), h2c, live: sec.classList.contains('pin-peek') };
-  }, PNG_STAT);
+  });
   console.log('  P3b:', JSON.stringify(r));
   expect(r.live, '★전제 — 화면은 전체 보기 중').toBe(true);
   expect(r.rootPeek, '썸네일 클론 루트에 pin-peek 이 남았다').toBe(false);
@@ -421,12 +426,12 @@ test('P8 레이어 클릭 — 숨은 블럭이면 전체 보기 켜고 고른다
 test('P9 ★PNG(native) — 높이 300 · 숨은 표식 0 · 780 도 / 잣대: 핀 풀면 표식이 찍힌다', async ({ page }) => {
   const errs = await setup(page);
   await installCdpCapture(page);
-  const r = await page.evaluate(async (STAT) => { const st = eval(STAT), sec = document.getElementById('pS');
+  const r = await page.evaluate(async () => { const st = window.__pngStat, sec = document.getElementById('pS');
     const a = await st(await window.exportSection(sec, 'png', 860, { returnDataUrl: true }));
     const b = await st(await window.exportSection(sec, 'png', 780, { returnDataUrl: true }));
     window.sectionPin.unpin(sec);
     const c = await st(await window.exportSection(sec, 'png', 860, { returnDataUrl: true }));
-    return { a, b, c }; }, PNG_STAT);
+    return { a, b, c }; });
   console.log('  P9:', JSON.stringify(r));
   expect(r.c.mark, '★잣대 — 핀 풀면 표식이 PNG 에 있어야 한다').toBeGreaterThan(5000);
   expect(r.a).toMatchObject({ w: 860, h: 300, mark: 0 });
@@ -437,11 +442,11 @@ test('P9 ★PNG(native) — 높이 300 · 숨은 표식 0 · 780 도 / 잣대: �
 test('P10 PNG(html2canvas 길 — 웹 PNG·썸네일 엔진) — 높이 300 · 숨은 표식 0', async ({ page }) => {
   const errs = await setup(page);
   await page.waitForFunction(() => typeof window.html2canvas === 'function');
-  const r = await page.evaluate(async (STAT) => { const st = eval(STAT), sec = document.getElementById('pS');
+  const r = await page.evaluate(async () => { const st = window.__pngStat, sec = document.getElementById('pS');
     const a = await st(await window.exportSection(sec, 'png', 860, { returnDataUrl: true, forceH2C: true }));
     window.sectionPin.unpin(sec);
     const c = await st(await window.exportSection(sec, 'png', 860, { returnDataUrl: true, forceH2C: true }));
-    return { a, c }; }, PNG_STAT);
+    return { a, c }; });
   console.log('  P10:', JSON.stringify(r));
   expect(r.c.mark, '★잣대 — 핀 풀면 표식이 찍혀야 한다').toBeGreaterThan(5000);
   expect(r.a.h).toBe(300);
