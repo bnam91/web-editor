@@ -49,8 +49,13 @@ function bodyOf(src, label) {
 test('S-1 내보내기는 «클론의 폭만» 바꾼다 (DOM 하네스가 흉내 내는 그 한 줄)', () => {
   const body = bodyOf(EXPORT_IMG, 'export async function prepareCloneForCapture');
   assert.match(body, /cloneNode\(true\)/, '★섹션을 복제하지 않는다 — 이 결함의 전제가 바뀌었다');
-  assert.match(body, /clone\.style\.cssText\s*\+=[^\n]*width:'\s*\+\s*w\s*\+\s*'px/,
-    '★클론 폭을 `width:` + w + `px` 로 두는 줄이 사라졌다 — DOM 스펙의 하네스도 같이 고쳐라');
+  /* ★0.9.12 ③ — 클론 폭은 captureLayoutWidth(w) 다: 860 이하(780 쿠팡)는 w 그대로 «재배치» · 860 초과(1000)는 860 배치를 «확대».
+     이 카드의 전제(좁은 폭에서 클론 폭이 w 로 바뀐다)는 «860 이하» 가지에서 그대로 산다 — 아래 둘째 단언이 그 가지를 못박는다. */
+  assert.match(body, /clone\.style\.cssText\s*\+=[^\n]*width:'\s*\+\s*captureLayoutWidth\(w\)\s*\+\s*'px/,
+    '★클론 폭을 `width:` + captureLayoutWidth(w) + `px` 로 두는 줄이 사라졌다 — DOM 스펙의 하네스도 같이 고쳐라');
+  const lay = bodyOf(EXPORT_IMG, 'export function captureLayoutWidth');
+  assert.match(lay, /w\s*>\s*CANVAS_W\s*\?\s*CANVAS_W\s*:\s*w/,
+    '★captureLayoutWidth 가 «860 이하면 w 그대로»가 아니다 — 780 재배치(이 카드의 전제)가 바뀌었다');
   /* ★내보내기가 «안쪽 블록들»을 배율로 다시 그리지 않는다는 것도 같이 못박는다.
      만약 언젠가 전체를 scale 로 줄이는 방식으로 바뀌면 절대 px 도 따라 줄어들어
      이 카드의 전제(=상대폭이어야 한다)가 사라진다. 그때는 이 검사부터 고쳐라. */
