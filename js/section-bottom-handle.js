@@ -72,7 +72,12 @@
 
     const y0 = ev.clientY;
     const mh0 = sec.style.minHeight;
-    const h0 = sec.offsetHeight;    /* 지금 높이 = max(블럭, 바닥) — 넘친 섹션도 «지금»에서 잡는다 */
+    /* ⑦ 핀 섹션 — 손잡이는 `style.height` 를 끈다 · 내용 밑으로도 줄인다(그래야 자르기가 뜻이 있다) · 하한 = 아래패딩 + 20 */
+    const pinned = !!window.sectionPin?.isPinned(sec);
+    const ht0 = sec.style.height;
+    if (pinned) window.sectionPin.peek(sec, false);   // 전체 보기(height:auto!important) 중엔 끌어도 안 보인다
+    const pinMin = pinned ? (parseFloat(getComputedStyle(sec).paddingBottom) || 0) + 20 : 0;
+    const h0 = pinned ? (parseFloat(ht0) || sec.offsetHeight) : sec.offsetHeight;    /* 지금 높이 = max(블럭, 바닥) — 넘친 섹션도 «지금»에서 잡는다 */
     const nat = naturalOf(sec);
     /* ★배율을 먹는다 — 캔버스가 40% 면 화면 1px 이 모델 2.5px 다.
        ⛔`window.zoom` 류를 손으로 읽지 마라 — 요소의 실제 배율에서 뽑는다. */
@@ -81,6 +86,7 @@
 
     const onMove = (e) => {
       const v = Math.round(h0 + (e.clientY - y0) / scale);
+      if (pinned) { sec.style.height = Math.max(pinMin, v) + 'px'; return; }
       /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 */
       sec.style.minHeight = v > nat ? v + 'px' : '';
     };
@@ -93,14 +99,14 @@
     const onUp = () => {
       end();
       armClickSwallow();
-      if (sec.style.minHeight !== mh0) {
+      if (sec.style.minHeight !== mh0 || sec.style.height !== ht0) {
         window.pushHistory?.();
         window.triggerAutoSave?.();
       }
     };
     /* ★취소(창 전환·터치 취소 등) = 끌기 전으로 되돌린다 · 기록 없음.
        ⛔안 걷으면 버튼을 뗀 뒤에도 마우스를 따라 값이 바뀐다(261027 괴롭히기 ×3 재현). */
-    const onCancel = () => { end(); sec.style.minHeight = mh0; };
+    const onCancel = () => { end(); sec.style.minHeight = mh0; sec.style.height = ht0; };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onCancel);
@@ -115,6 +121,15 @@
     if (!sec) return;
     ev.preventDefault();
     ev.stopPropagation();           /* ⛔섹션·블록의 더블클릭(편집 진입 등)으로 새지 않게 */
+    /* ⑦ 핀 섹션 — 더블클릭 = 내용 높이에 맞춤(핀 유지 · Q13 ⓓ). 이미 맞으면 기록 없음. */
+    if (window.sectionPin?.isPinned(sec)) {
+      const nat = window.sectionPin.naturalHeight(sec);
+      if (Math.round(parseFloat(sec.style.height)) === nat) return;
+      sec.style.height = nat + 'px';
+      window.pushHistory?.();
+      window.triggerAutoSave?.();
+      return;
+    }
     if (!sec.style.minHeight) return;
     sec.style.minHeight = '';
     window.pushHistory?.();
@@ -143,7 +158,7 @@
     if (!h) return;
     const r = sec.getBoundingClientRect();
     const band = 10 * (r.width / (sec.offsetWidth || 1) || 1);
-    const reaches = (t) => t.getBoundingClientRect().bottom > r.bottom - band;
+    const reaches = (t) => t.getBoundingClientRect().bottom > r.bottom - band && !window.sectionPin?.isFullyHidden(t, sec);   // ⑦ 핀에 완전히 숨은 블럭은 띠에 안 닿는다
     h.classList.toggle(OUT_CLS, [...sec.querySelectorAll('.text-block, .sticker-block')].some(reaches)
       || (roomBelow(sec, r, band) && [...sec.querySelectorAll('.frame-block')].some(reaches)));
   }, true);

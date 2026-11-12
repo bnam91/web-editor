@@ -94,10 +94,12 @@ function mergeSectionInto(target, source) {
        모르는 속성이 나중에 생겨도 안 잃는다. */
   for (const k of source.style) {                       // 인라인으로 «실제로 적힌» 것만 순회
     if (k === 'padding-bottom' || k.startsWith('padding')) continue;   // 여백은 아래에서 따로
+    if (k === 'height') continue;   // ⑦ 핀 높이는 «섹션»의 것 — part 로 옮기면 inner 자르기 규칙 없이 고정높이만 남아 다음 내용 위로 샌다
     part.style.setProperty(k, source.style.getPropertyValue(k), source.style.getPropertyPriority(k));
   }
   for (const [k, v] of Object.entries(source.dataset)) {
     if (k === 'name' || k === 'variation' || k === 'variationGroup') continue;  // 섹션 «신원»은 안 옮긴다
+    if (k === 'heightPin') continue;   // ⑦ 위 height 와 짝
     part.dataset[k] = v;
   }
   /* ★분리(splitMergedPart)용 «기록»만 더한다 — 합치기 동작은 그대로(D1, 2026-10-01).
