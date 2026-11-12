@@ -5,7 +5,7 @@
  * 고침(지디 ㉮): style.height 비고 · minHeight == dataset.height · 비자유 프레임 = 옛 바닥 꼴 → height 를 박지 않는다.
  * 칸
  *   L1 넣기 → 저장 왕복(serializeProject → 다시 띄움 → applyProjectData) — 프레임 style.height 없음 · 높이 > 100 · 글 셋 다 높이 > 0 · 프레임 안에 보임
- *   L2 넣기 → 프레임 골라 ⌘[ → ⌘Z(되돌리기 = rebindAll 길) — L1 과 같은 단언
+ *   L2 넣기 → 프레임 밖 간격 블럭 편집 → ⌘Z(되돌리기 = rebindAll 길) — L1 과 같은 단언
  *   N1 음성 — 사용자가 높이를 고정한 stack 프레임(style.height 300 · data-height 300)은 다시 열어도 300 고정
  *   N2 음성 — 자유(free) 프레임은 옛 꼴(min-height 만)이어도 다시 열면 height 를 박는다(무변)
  * 측정: 각 칸이 프레임 높이·글프레임 높이를 console.log(LTF0912 …)로 찍는다 — 고침 전 «글프레임 높이 0»(보고 때 추정한 고리)의 실제 값이 여기서 나온다.
@@ -15,7 +15,6 @@ const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
-const { clickAt } = require('./_click-at.js');
 
 const TPL_ID = 'tpl_1775031581782';
 const TPL_HTML = fs.readFileSync(path.join(__dirname, '../../templates/canvas', TPL_ID + '.html'), 'utf8');
@@ -92,19 +91,21 @@ test('L1 넣기 → 다시 열기 — 프레임이 100 에 안 갇히고 글 셋
   expect(errs).toEqual([]);
 });
 
-test('L2 넣기 → 프레임 골라 ⌘[ → ⌘Z — 되돌린 판도 L1 과 같다', async ({ page }) => {
+test('L2 넣기 → 프레임 밖 블럭 하나 편집(간격 40→80) → ⌘Z(rebindAll 길) — 되돌린 판도 L1 과 같다', async ({ page }) => {
   const { errs, F } = await setup(page);
-  const p = await page.evaluate((id) => { const f = document.getElementById(id); f.scrollIntoView({ block: 'center' }); const r = f.getBoundingClientRect();
-    for (let y = Math.round(r.bottom - 16); y > r.top; y -= 4) for (const x of [Math.round(r.right - 8), Math.round(r.left + 8)]) { if (document.elementFromPoint(x, y) === f) return [x, y]; } return null; }, F);
-  expect(p, '[전제] 프레임 빈 자리').toBeTruthy();
-  await clickAt(page, p[0], p[1], { sel: `#${F}` }, { label: '넣은 프레임' });
-  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('selected'), F)).toBe(true);
-  const order0 = await page.evaluate(() => [...document.querySelectorAll('#sT > .section-inner > *')].map(e => e.id || e.className.split(' ')[0]).join(','));
-  /* ⌘] 는 뒤로 보내는데 넣은 프레임이 섹션 맨 끝이라 할 일이 없다 ⇒ 같은 키 묶음의 ⌘[ 로 실제 변경 한 수를 만든다(되돌리기 길이 재는 대상) */
-  await page.keyboard.press('Meta+BracketLeft');
-  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#sT > .section-inner > *')].map(e => e.id || e.className.split(' ')[0]).join(',')), '[전제] ⌘[ 가 순서를 바꿨다').not.toBe(order0);
+  /* 편집 한 수 = 다른 편집 길과 같은 꼴(변경 전 표본 → 바꿈 → 끝 표본). 대상은 프레임 «밖» 간격 블럭 — 되돌리기가 캔버스를 통째로 다시 깔며 rebindAll 을 타는지가 재는 것.
+     ⛔⌘[ 는 못 쓴다: 넣은 프레임은 .row 안이라 프레임 갈래(editor.js moveSelectedBlocks)가 section-inner 직속 명부에서 못 찾아(-1) «위로»는 무동작이다(별건 FRAME-IN-ROW-BRACKET-JUMPS-TO-SECTION-TOP-01 · 인텔 실측). */
+  const gapH = () => page.evaluate(() => document.querySelector('#sT > .section-inner > .gap-block').style.height);
+  expect(await gapH(), '[전제] 간격 40').toBe('40px');
+  await page.evaluate(() => {
+    window.pushHistory?.();
+    document.querySelector('#sT > .section-inner > .gap-block').style.height = '80px';
+    window.pushHistory?.('간격 높이');
+  });
+  expect(await gapH(), '[전제] 간격 80 으로 바뀜').toBe('80px');
+  await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z');
-  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#sT > .section-inner > *')].map(e => e.id || e.className.split(' ')[0]).join(',')), '[전제] ⌘Z 로 되돌아왔다').toBe(order0);
+  await expect.poll(gapH, '[전제] ⌘Z 로 간격 40 으로 되돌아옴').toBe('40px');
   const s = await frameState(page, F);
   console.log('LTF0912 L2 ' + JSON.stringify(s));
   expectHealthy(s, 'L2');
