@@ -64,9 +64,10 @@ async function selectGrid(page) {
   await clickAt(page, c.cx, c.cy, { sel: 'div#gG' }, { label: '그리드 고르기' });
   await page.waitForFunction(() => document.getElementById('gG').classList.contains('selected'));
 }
-async function clickLine(page, r, c) {
+/** fx = 줄 상자 안 가로 위치(0~1). ★병합 칸(가로로 합친)의 줄은 가운데가 열 경계 = 그리드 거터(.grd-gutter) 위라 0.5 면 거터를 맞힌다(N4 인텔 실측). */
+async function clickLine(page, r, c, fx = 0.5) {
   const l = await waitStableRect(page, lineSel(r, c));
-  await clickAt(page, l.cx, l.cy, { sel: lineSel(r, c) }, { label: `줄 ${r}${c}` });
+  await clickAt(page, l.left + l.width * fx, l.cy, { sel: lineSel(r, c) }, { label: `줄 ${r}${c}` });
   await page.waitForFunction(([r, c]) => { const a = window.grdGetActiveLine(document.getElementById('gG')); return !!a && +a.r === r && +a.c === c; }, [r, c]);
   await page.evaluate(() => document.activeElement?.blur?.());
 }
@@ -231,7 +232,7 @@ test('N4 기존 병합(A3:B3)을 «통째로» 덮는 붙이기(병합 없는 1�
   await dragRange(page, { r: 0, c: 1 }, { r: 0, c: 2 });
   await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 0, c0: 1, r1: 0, c1: 2 });
   await pressCopy(page);
-  await clickLine(page, 2, 0);                         // A3 에 1×2 ⇒ A3:B3 통째
+  await clickLine(page, 2, 0, 0.25);                   // A3 에 1×2 ⇒ A3:B3 통째 · 합친 줄 가운데는 A|B 거터라 왼쪽 1/4 을 누른다
   await pressPaste(page);
   await expect.poll(() => toast(page)).toMatch(/A3 에 칸 2개 붙임$/);
   const m = await model(page);
