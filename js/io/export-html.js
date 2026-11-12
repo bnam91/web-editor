@@ -297,8 +297,14 @@ body{background:${bg};font-family:'Noto Sans KR',sans-serif;}
        같은 특이도면 뒤가 이긴다 ⇒ 「화면과 같은 그림」이 손글씨 추정값을 덮는다.
        CSSOM 이 막히면 appCss 가 빈 문자열이 되어 지금과 똑같이 동작한다(퇴행 없음).
      ⚠️매칭 판정은 클론이 아니라 «라이브 canvasEl» 에 한다 — 떼어낸 트리에선 조상이 없어
-       `#canvas .x` 류가 거짓 음성이 된다. 라이브 쪽이 클론의 상위집합이라 안전하다. */
-  const appCss = collectCanvasCss(canvasEl);
+       `#canvas .x` 류가 거짓 음성이 된다. 라이브 쪽이 클론의 상위집합이라 안전하다.
+     ⑦ 단 «전체 보기»(pin-peek)는 라이브에만 있고 클론엔 없다(capture-safety 가 벗김) — 켜진 채 재면 `:not(.pin-peek)` 규칙
+       (핀 중 inner min-height:0 · 배지 섹션)이 «안 맞아» 빠지고 배송본에 260 이 되살아난다(인텔 2차 P11). ⇒ 재는 동안만 끈다(같은 태스크 · 안 그려진다). */
+  const _peeked = [...canvasEl.querySelectorAll('.section-block.pin-peek')];
+  _peeked.forEach(s => s.classList.remove('pin-peek'));
+  let appCss;
+  try { appCss = collectCanvasCss(canvasEl); }
+  finally { _peeked.forEach(s => s.classList.add('pin-peek')); }
 
   /* 앱 CSS 뒤에 오는 «배송본 전용» 덮어쓰기 — 화면엔 있어야 하지만 배송본엔 없어야 하는 것.
      ⛔여기에 «화면 재현»용 규칙을 넣지 마라. 그건 위 수확이 할 일이다. */

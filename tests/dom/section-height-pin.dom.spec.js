@@ -466,9 +466,12 @@ test('P11 단독 HTML — 핀 속성·자르기 규칙이 실리고 pin-peek 은
     const urls = blobs;
     const html = hb ? await hb.text() : '';
     return { n: urls.length, pin: /data-height-pin="true"/.test(html), rule: /\[data-height-pin="true"\]\s*>\s*\.section-inner/.test(html),
-      peekOn: /\.pin-peek\[data-height-pin/.test(html), notPeek: /:not\(\.pin-peek\)\s*>\s*\.section-inner/.test(html) };
+      peekOn: /\.pin-peek\[data-height-pin/.test(html), notPeek: /:not\(\.pin-peek\)\s*>\s*\.section-inner/.test(html),
+      livePeekAfter: document.getElementById('pS').classList.contains('pin-peek') };
   });
+  console.log('  P11:', JSON.stringify(r));   // 인텔 2차: 어느 칸이 갈렸는지 실값으로 남긴다
   expect(r.n, '★전제 — HTML 이 나왔다').toBeGreaterThan(0);
+  expect(r.livePeekAfter, '내보내기가 화면의 전체 보기를 바꿨다').toBe(true);
   /* r2 ② — «전체 보기가 켜는» 규칙은 빠지고, `:not(.pin-peek)`(핀 중 inner min-height:0 · 배지 섹션)은 실려야 한다 */
   expect(r).toMatchObject({ pin: true, rule: true, peekOn: false, notPeek: true });
   expect(errs, errs.join('\n')).toEqual([]);
