@@ -16,6 +16,10 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
 const BLUE = [51, 102, 204];
+/* 대기는 «조건»으로만(tests/unit/dom-fixed-wait-census W3) — f2 = 두 프레임 · until = 기대 상태를 최대 2초 기다린 뒤 «그래도» 단언한다(안 서면 단언이 제 말로 빨개진다). */
+const f2 = (p) => p.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+const until = async (page, fn, arg) => { await page.waitForFunction(fn, arg, { timeout: 2000 }).catch(() => {}); await f2(page); };
+
 async function scene(page) {
   await page.setViewportSize({ width: 1500, height: 1300 });
   const errs = await bootApp(page);
@@ -41,7 +45,7 @@ async function scene(page) {
     window.applyZoom?.(100); window.deselectAll?.();
   });
   await page.waitForFunction(() => [...document.querySelectorAll('#gQ img, #iQ img')].every(i => i.complete && i.naturalWidth > 0));
-  await page.waitForTimeout(400);
+  await f2(page);
   return errs;
 }
 /* 원 밖 점 — 그리드: 원 상자 왼쪽 위 10%(원 밖 · 그림 정사각 안) · 서클: 원 오른쪽 10px(그림은 80px 넘친다) · 래디얼: 칸 상자 12%(원 밖 · 테두리 5px 안쪽) */
@@ -55,7 +59,7 @@ async function pix(page, x, y) {
 }
 async function pixAll(page) {
   await page.evaluate(() => { window.deselectAll?.(); document.getElementById('sQ').scrollIntoView({ block: 'start' }); });
-  await page.mouse.move(2, 2); await page.waitForTimeout(200);
+  await page.mouse.move(2, 2); await f2(page);
   const P = await points(page); const o = {};
   for (const k of Object.keys(P)) o[k] = await pix(page, ...P[k]);
   return o;
@@ -64,10 +68,10 @@ const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 6);
 const RADIAL_LEAF = [63, 166, 106];   // radial-samples leaf #3fa66a
 
 async function clickToggle(page, sel, open) {
-  await page.evaluate(open); await page.waitForTimeout(200);
+  await page.evaluate(open); await until(page, (s) => !!document.querySelector(s), sel);
   const p = await page.evaluate((s) => { const i = document.querySelector(s); if (!i) return null; const l = i.closest('label'); l.scrollIntoView({ block: 'center' }); const r = l.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
   expect(p, `[전제] ${sel} 토글이 패널에 있다`).not.toBeNull();
-  await page.mouse.click(p.x, p.y); await page.waitForTimeout(300);
+  await page.mouse.click(p.x, p.y); await until(page, (s) => document.querySelector(s)?.checked === false, sel);
 }
 const OPEN = {
   grid: () => { const b = document.getElementById('gQ'); window.grdSetActiveLine?.(b, { r: 0, c: 0, li: 0 }); window.showGridProperties?.(b, { r: 0, c: 0, li: 0 }); },
@@ -117,6 +121,10 @@ test('Q1 끔(토글 실클릭) — 원 밖에 그림이 보인다 · 값 false',
   const v = await page.evaluate(() => ({ grid: window.getGridModel(document.getElementById('gQ')).cells[0][0].lines[0].clipContent,
     icb: document.getElementById('iQ').dataset.clipContent, rad: document.getElementById('rQ').dataset.clipContent }));
   expect(v).toEqual({ grid: false, icb: 'false', rad: 'false' });
+  /* 끔이 «실제로» 문서에 섰나 — 렌더러·패널이 쓴 속성 자체를 잰다(frame-clip-axis-roster R2 가 세는 «그 값이 false 가 됐음» 꼴) */
+  expect(await page.evaluate(() => document.querySelector('#gQ .grd-img-circle').getAttribute('data-clip-content')), '그리드 원 틀에 끔 속성이 안 섰다').toBe('false');
+  expect(await page.evaluate(() => document.getElementById('iQ').getAttribute('data-clip-content')), '서클 블럭에 끔 속성이 안 섰다').toBe('false');
+  expect(await page.evaluate(() => document.getElementById('rQ').getAttribute('data-clip-content')), '래디얼 블럭에 끔 속성이 안 섰다').toBe('false');
   const px = await pixAll(page);
   expect(near(px.grid, BLUE), `그리드 원 밖 픽셀 ${px.grid} — 캔버스만 원으로 남았나(그림 반경)`).toBe(true);
   expect(near(px.icb, BLUE), `서클 원 밖 픽셀 ${px.icb}`).toBe(true);
@@ -160,7 +168,7 @@ test('Q5 서클 이미지 편집 들어갔다 나와도 «내용 자르기» 값
 test('Q6 [게이트] 토글 줄 뒤에 안내 문구(prop-hint)를 새로 달지 않았다', async ({ page }) => {
   await scene(page);
   for (const k of ['grid', 'icb', 'radial']) {
-    await page.evaluate(OPEN[k]); await page.waitForTimeout(150);
+    await page.evaluate(OPEN[k]); await until(page, (s) => !!document.querySelector(s), TOGGLE[k]);
     const r = await page.evaluate((s) => { const row = document.querySelector(s)?.closest('.prop-row'); if (!row) return null;
       return { next: row.nextElementSibling?.classList.contains('prop-hint') || false, inRow: !!row.querySelector('.prop-hint') }; }, TOGGLE[k]);
     expect(r, `[전제] ${k} 토글 줄이 있다`).not.toBeNull();
