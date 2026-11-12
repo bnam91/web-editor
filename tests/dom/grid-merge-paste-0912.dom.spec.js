@@ -7,9 +7,10 @@
  *   P3 저장 왕복(serializeProject → 다시 띄움 → applyProjectData) — merges·칸 수·앵커 상자 같음
  *   N1 넘침(C2 에 1×2) — 열을 늘려 2칸 · 병합째 · ⌘Z 한 번 = 3×3
  *   N2 B2 에 2×1(B3 = 기존 병합의 가려진 칸) — 거절 토스트 · 모델 바이트 그대로
+ *   N3 A2 에 2×1(A3 = 기존 병합의 앵커만) — 거절(엑셀 · 지디 Q8 채점) · N4 A3 에 1×2(병합 통째 덮음) — 붙음 · 병합 유지
  * 양성대조(지디 인텔): grid-block.js pasteGridRange 의 `if (res.merges) _gridSetMerges(block, res.merges);` 한 줄 지우면 P1·P2·P3 빨강(N1 초록) /
  *   gridCopyRange 의 `if (mg.length) out.merges = mg;` 지워도 P1·P2·P3 빨강 /
- *   gridPasteRange 의 R·C 를 R0·C0 로 되돌리면(늘림 끔) N1 빨강 / `refused: 'merge'` return 줄을 지우면 N2 빨강. */
+ *   gridPasteRange 의 R·C 를 R0·C0 로 되돌리면(늘림 끔) N1 빨강 / `refused: 'merge'` return 줄을 지우면 N2·N3 빨강 / 그 줄 조건에 `&& coversHid` 옛 꼴(가려진 칸 걸칠 때만)로 되돌리면 N3 만 빨강(N2·N4 초록). */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
@@ -203,5 +204,36 @@ test('N2 기존 병합(A3:B3)의 가려진 칸 일부에 걸치는 붙이기 = �
   await pressPaste(page);
   await expect.poll(() => toast(page)).toMatch(/병합된 칸의 일부에는 붙일 수 없어요/);
   expect((await model(page)).raw).toBe(before.raw);
+  expect(errs).toEqual([]);
+});
+
+test('N3 기존 병합(A3:B3)의 «앵커 A3 만» 걸치는 붙이기도 통째 거절(엑셀 — 지디 Q8 실앱 채점) · 모델 바이트 그대로', async ({ page }) => {
+  const errs = await setup(page);
+  await mergeAndCopy(page);
+  await clickLine(page, 1, 2);
+  await dragRange(page, { r: 1, c: 2 }, { r: 2, c: 2 });
+  await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 1, c0: 2, r1: 2, c1: 2 });
+  await pressCopy(page);
+  const before = await model(page);
+  await clickLine(page, 1, 0);                         // A2 에 2×1 ⇒ A2·A3 — A3 = A3:B3 의 앵커(가려진 칸 B3 은 안 덮음)
+  await pressPaste(page);
+  await expect.poll(() => toast(page)).toMatch(/병합된 칸의 일부에는 붙일 수 없어요/);
+  expect((await model(page)).raw, 'A3 글이 덮이지 않았다').toBe(before.raw);
+  expect(errs).toEqual([]);
+});
+
+test('N4 기존 병합(A3:B3)을 «통째로» 덮는 붙이기 = 붙는다(거절 아님 · 옛 동작 — 앵커만 쓰고 병합 유지)', async ({ page }) => {
+  const errs = await setup(page);
+  await mergeAndCopy(page);
+  await clickLine(page, 0, 1);
+  await dragRange(page, { r: 0, c: 1 }, { r: 0, c: 2 });
+  await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 0, c0: 1, r1: 0, c1: 2 });
+  await pressCopy(page);
+  await clickLine(page, 2, 0);                         // A3 에 1×2 ⇒ A3:B3 통째
+  await pressPaste(page);
+  await expect.poll(() => toast(page)).toMatch(/A3 에 칸 1개 붙임/);
+  const m = await model(page);
+  expect(m.text[2][0]).toBe('B1');
+  expect(m.merges).toBe(MERGED);
   expect(errs).toEqual([]);
 });

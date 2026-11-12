@@ -4459,11 +4459,10 @@ function gridPasteRange(model, clip, anchor) {
   const hidden = Array.isArray(model.merges) ? model.merges : [];   // ★t2-04 — 가려진 칸엔 안 쓴다(버린 수로 센다 · 해제 때 숨은 글이 나오지 않게)
   const isHid = (m, r, c) => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs && !(r === m.r && c === m.c);
   const rect = { r: anchor.r, c: anchor.c, rs: Math.max(0, Math.min(clip.h, R - anchor.r)), cs: Math.max(0, Math.min(clip.w, C - anchor.c)) };
-  /* ★엑셀 「We can't do that to a merged cell」 — 붙일 자리가 기존 병합의 «가려진 칸 일부»에 걸치면 통째로 거절(손 0).
-   *   shortcut: 병합의 왼쪽 위 칸에만 닿거나 병합을 통째로 덮는 경우는 옛 동작(앵커만 쓰고 가려진 칸은 건너뜀) — 엑셀 규칙 출처를 못 찾았다. */
+  /* ★엑셀 「We can't do that to a merged cell」 — 붙일 자리가 기존 병합과 겹치되 그 병합이 범위 안에 «통째로» 안 들면 거절(손 0).
+   *   앵커(왼쪽 위 칸)만 걸쳐도 거절이다(지디 Q8 실앱 채점 · 엑셀 같음). 병합을 통째로 덮으면 옛 동작(앵커만 쓰고 가려진 칸은 건너뜀). */
   const inRect = (m) => m.r >= rect.r && m.c >= rect.c && m.r + m.rs <= rect.r + rect.rs && m.c + m.cs <= rect.c + rect.cs;
-  const coversHid = (m) => { for (let r = rect.r; r < rect.r + rect.rs; r++) for (let c = rect.c; c < rect.c + rect.cs; c++) if (isHid(m, r, c)) return true; return false; };
-  if (rect.rs && rect.cs && hidden.some(m => _gridMergeHits(m, rect) && !inRect(m) && coversHid(m))) return { model, written: 0, dropped: 0, refused: 'merge' };
+  if (rect.rs && rect.cs && hidden.some(m => _gridMergeHits(m, rect) && !inRect(m))) return { model, written: 0, dropped: 0, refused: 'merge' };
   for (let i = 0; i < clip.h; i++) {
     for (let j = 0; j < clip.w; j++) {
       const r = anchor.r + i, c = anchor.c + j;
