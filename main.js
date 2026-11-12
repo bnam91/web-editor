@@ -9635,7 +9635,7 @@ function ensureRecovery() {
 ipcMain.handle('recovery:pending', () => {
   try {
     ensureRecovery();
-    recovery.healSavedAfterUnknown();   // Q7 — 그 뒤 저장된 «모름» 기록은 띠에서 뺀다
+    recovery.healSavedAfterUnknown({ resolveProjectJson: _resolveProjectJsonPath });   // Q7 — 그 뒤 저장된 «모름» 기록은 띠에서 뺀다(뿌리 = 지금 계정의 정본 해석기)
     const r = recovery.localItems();
     return { ok: true, items: r.items, counts: r.counts, degraded: r.degraded,
              reportLines: recovery.reportLines(r.items) };

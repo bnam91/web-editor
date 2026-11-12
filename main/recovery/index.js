@@ -361,24 +361,22 @@ function ack(ids, nowIso) {
    기록 시각보다 «새로우면» 그 뒤 저장이 됐다는 뜻이다 ⇒ handled 로 둔다(띠 안 뜸).
    ⛔파일이 더 낡거나 없거나 projectId 가 없으면 손대지 않는다 — 진짜 미저장일 수 있다. 원본은 안 지운다. */
 const UNKNOWN_SAVE_REASONS = new Set(['no-response', 'no-result', 'unconfirmed']);
-function _projFileMtime(id) {
-  if (typeof id !== 'string' || !/^[\w.-]+$/.test(id) || /^\.+$/.test(id)) return null;   // 경로 조작 차단
-  const root = path.join(_ws(), 'projects');
-  for (const p of [path.join(root, id, 'proj.json'), path.join(root, id + '.json')]) {
-    try { const st = fs.statSync(p); if (st.isFile()) return st.mtimeMs; } catch (_) {}
-  }
-  return null;
+/* ⛔projects 뿌리를 여기서 조립하지 않는다(계정 격리 · tests/unit/account-projects-root M10) — 부르는 자(main.js)가 정본 해석기
+   _resolveProjectJsonPath(id)(= 지금 계정의 PROJECTS_DIR · 신/flat 두 꼴)를 넘긴다. 안 넘기면 아무것도 안 걷는다(안전 쪽). */
+function _projFileMtime(id, resolve) {
+  if (typeof resolve !== 'function' || typeof id !== 'string' || !/^[\w.-]+$/.test(id) || /^\.+$/.test(id)) return null;   // 경로 조작 차단
+  try { const p = resolve(id); if (!p) return null; const st = fs.statSync(p); return st.isFile() ? st.mtimeMs : null; } catch (_) { return null; }
 }
-function healSavedAfterUnknown(nowIso) {
-  if (!_guard) return { healed: 0 };
+function healSavedAfterUnknown({ resolveProjectJson, nowIso } = {}) {
+  if (!_guard || typeof resolveProjectJson !== 'function') return { healed: 0 };
   const at = nowIso || new Date().toISOString();
   try {
     const p = _guard.markerPath();
-    const j = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
+    const j = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, ''));
     let healed = 0;
     for (const r of (j.records || [])) {
       if (!r || r.handled || !UNKNOWN_SAVE_REASONS.has(r.reason) || r.emergencyPath) continue;
-      const t = Date.parse(r.at), m = _projFileMtime(r.projectId);
+      const t = Date.parse(r.at), m = _projFileMtime(r.projectId, resolveProjectJson);
       if (Number.isFinite(t) && m != null && m > t) { r.handled = true; r.handledAt = at; r.handledWhy = 'saved-after'; healed++; }
     }
     if (healed) { const tmp = p + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(j, null, 2), 'utf8'); fs.renameSync(tmp, p); }
