@@ -4551,7 +4551,7 @@ function moveSelectedBlocks(direction) {
   // ★J4468B — 글자·말풍선은 .row 없이 글상자 프레임이 단위다. 안 넣으면 unitSet 이 비어 조용히 안 먹었다(앱 ×3)
   const getUnit = b => b.classList.contains('gap-block')
     ? (_isUnitParent(b.parentElement) ? b : b.closest('.row'))
-    : (b.closest('.row') || b.closest('.frame-block[data-text-frame]'));
+    : b.closest('.row, .frame-block[data-text-frame]');   // ★t2-06 가까운 쪽 — 템플릿 프레임은 row > 프레임이라 글자가 «바깥 row»(프레임 통째)를 집었다
 
   const unitSet = new Set();
   selBlocks.forEach(b => { const u = getUnit(b); if (u) unitSet.add(u); });
