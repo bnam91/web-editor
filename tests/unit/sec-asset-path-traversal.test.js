@@ -9,6 +9,8 @@
  *     A6 claudePM:ensureFolder — 렌더러가 basePath 로 임의 폴더를 주면 거기에 CLAUDE.md·.mcp.json 을 만든다
  *   정상(지금도 초록이어야):
  *     N1 proj_·plan_ 프로젝트 assets 쓰기→읽기→지우기 · N2 AI 이미지 쓰기→읽기→지우기 · N3 ensureFolder 기본 자리
+ *     N4 첫 실행 샘플 'proj_sample' 자산·AI 이미지 왕복 (회귀 · 수지맥 실앱 261113)
+ *   A7 proj_sample «닮은꼴»(proj_sample../x · proj_sample/../x · 대소문자 · 꼬리 글자)은 거절 — 예외는 정확히 한 글자열
  *   가드 되돌림 양성대조: main.js 의 _PAP 줄들(이 커밋 hunk)과 ipc.js ensureFolder 문을 되돌리면 A1~A6 빨강. */
 'use strict';
 const test = require('node:test');
@@ -110,4 +112,28 @@ test('N3 [정상] ensureFolder 기본 자리(<뿌리>/<id>/claude-pm) 는 그대
   const r = await pmH['claudePM:ensureFolder']({}, { projectId: 'proj_7004', projectName: '정상' });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(path.resolve(r.folderPath), path.join(path.resolve(pmRoot), 'proj_7004', 'claude-pm'));
+});
+
+test("N4 [정상·회귀] 첫 실행 샘플 'proj_sample' — 자산·AI 이미지 쓰기 → 읽기 → 지우기", async () => {
+  const pid = 'proj_sample';
+  const s = await H.invoke('assets:saveFile', { projectId: pid, b64: B64, mime: 'image/png' });
+  assert.equal(s.ok, true, `★샘플 프로젝트에 이미지를 못 넣는다: ${JSON.stringify(s)}`);
+  const r = await H.invoke('assets:readFile', { projectId: pid, blobPath: s.blobPath });
+  assert.equal(r.ok && r.dataUrl, 'data:image/png;base64,' + B64, JSON.stringify(r));
+  assert.equal((await H.invoke('assets:deleteFile', { projectId: pid, blobPath: s.blobPath })).ok, true);
+  assert.equal(fs.existsSync(path.join(H.projectsDir, pid, s.blobPath)), false);
+  const g = await H.invoke('ai:saveImage', { projectId: pid, b64: B64, mime: 'image/png' });
+  assert.equal(g.ok, true, JSON.stringify(g));
+  assert.equal((await H.invoke('ai:readImage', { projectId: pid, blobPath: g.blobPath })).ok, true);
+  assert.equal((await H.invoke('ai:deleteImage', { projectId: pid, blobPath: g.blobPath })).ok, true);
+});
+
+test('A7 proj_sample 닮은꼴은 거절 — 예외는 «정확히» proj_sample 하나', async () => {
+  const before = filesUnder(OUT).sort();          // A2·A4 가 심은 표식은 이미 있다 — «늘지 않음»을 잰다
+  for (const pid of ['proj_sample../outside', 'proj_sample/../../outside', '../outside/proj_sample', 'PROJ_SAMPLE', 'proj_sample ', 'proj_sample_1', 'proj_samplex', 'proj_sample\n']) {
+    const r = await H.invoke('assets:saveFile', { projectId: pid, b64: B64, mime: 'image/png' });
+    assert.equal(r.ok, false, `★${JSON.stringify(pid)} 를 받았다: ${JSON.stringify(r)}`);
+    assert.equal((await H.invoke('ai:saveImage', { projectId: pid, b64: B64, mime: 'image/png' })).ok, false, JSON.stringify(pid));
+  }
+  assert.deepEqual(filesUnder(OUT).sort(), before, '★프로젝트 루트 밖에 파일이 생겼다');
 });
