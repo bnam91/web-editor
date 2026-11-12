@@ -498,6 +498,8 @@ function _onHandleMouseDown(e, ss, dir) {
     _rekeepCoins(groupSnap);   // t2-02 — 코인 마킹은 줄어든 뒤 다시 가둔다(단일 모서리 끌기와 같게)
     window.pushHistory?.();
     window.resumeAutoSave?.();   // ★250B ① — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
+    /* FRAME-RESIZE-PANEL-WIDTH-STALE-01 — 패널 너비·높이 칸이 손잡이 값을 알게(그리드 손잡이 onUp 과 같은 꼴). 프레임 패널이 떠 있을 때만(여럿 고름 패널은 안 덮는다). */
+    if (ss.classList.contains('selected') && document.getElementById('ss-width-num')) window.showFrameProperties?.(ss);
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
