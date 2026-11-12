@@ -4,7 +4,8 @@
  *   O0~O2 [판정·배선] 어디서나 «있는 칸».
  *   W1~W5 [진짜 WS] bun 이 있는 곳에서만 «만든다»(skip 아님 · 없는 칸 · win-portability ③-3):
  *     진짜 socket.js 를 빈 포트(FIGMA_RELAY_PORT=0)로 띄워 ws 클라이언트로 붙는다 — 3055(사용자 중계)는 안 건드린다.
- *     W1 file:// 거절 · W2 https://attacker.example 거절 · W3 http://localhost:<포트> 페이지 거절 (각 대소문자·끝 슬래시 꼴 포함)
+ *     W1 헤더 글자가 'file://…' 인 Origin 거절 · W2 https://attacker.example 거절 · W3 http://localhost:<포트> 페이지 거절 (각 대소문자·끝 슬래시 꼴 포함)
+ *       ⚠️W1 은 «헤더 글자» 를 잰다 — Chrome/Electron 의 file:// 페이지는 실제로 'null' 을 보내 W5 와 구별이 안 된다(㉮ 의 한계 · e2e sec-relay-origin-electron E1·E2).
  *     W4 Origin 없음 허용 + 채널 가입 · W5 Origin 'null' 허용 + 채널 가입
  *     WP [양성대조] 같은 socket.js 에서 검사 줄만 뺀 사본을 띄우면 W1~W3 의 Origin 이 «붙는다» — 검사가 막고 있다는 증거. */
 'use strict';
