@@ -4,6 +4,7 @@
  *         ⓒ 해제 후 minHeight=핀값 · ⓓ 손잡이 더블클릭 = 내용 높이에 맞춤 · ⓔ 배지 safe 정렬 · ⓕ Figma 섹션 바닥에서만 자름
  *
  *   P1 ★자르기·쌓기 — 높이 300 고정 · inner overflow-y clip · 갭 50 그대로(안 줄어듦) · 숨은 블럭이 안 그려진다 · 다음 섹션이 안 밀린다
+ *   P1b ★배지 섹션 inner min-height:260 — 핀 100 이면 inner 바닥 = 자르는 선(r1 ③)
  *   P2 ★넘침 갱신 — 섹션 크기가 그대로인 채 글이 늘면 배지 「숨은 블럭 N」이 따라 는다
  *   P3 ★전체 보기 — 다 보이고 · 높이 수는 핀 값 · 저장본·PNG 에 pin-peek 없음 · 선택 풀리면 꺼지고 · 선택 중이면 남는다
  *   P3b ★전체 보기 켠 채 h2c PNG·썸네일 입구 — 루트 pin-peek 이 안 샌다(r1 ②) · native PNG 는 P3 가 잰다
@@ -176,6 +177,22 @@ test('P3b ★전체 보기 켠 채 내보내기 — PNG(h2c 길)·썸네일 입�
   expect(r.rootPeek, '썸네일 클론 루트에 pin-peek 이 남았다').toBe(false);
   expect(r.h2c.h, 'h2c PNG 높이').toBe(300);
   expect(r.h2c.mark, 'h2c PNG 에 숨은 칸').toBe(0);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P1b ★배지 섹션(inner 인라인 min-height:260) — 핀 100 이면 inner 도 자르는 선에서 끝난다 (r1 ③)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => {
+    const n = document.getElementById('nS'), inner = n.querySelector(':scope > .section-inner');
+    inner.classList.add('badge-align-center'); inner.style.display = 'flex'; inner.style.alignItems = 'center'; inner.style.minHeight = '260px';   // badge-transform.js 꼴
+    inner.innerHTML = '<div class="row"><div class="text-block" id="bA" style="height:80px"><p style="margin:0">배지</p></div></div>';
+    n.style.height = '100px'; n.dataset.heightPin = 'true';
+    const cut = window.sectionPin.cutY(n), ib = inner.getBoundingClientRect().bottom;
+    return { h: n.offsetHeight, cut, innerBottom: ib, minH: getComputedStyle(inner).minHeight };
+  });
+  console.log('  P1b:', JSON.stringify(r));
+  expect(r.h).toBe(100);
+  expect(Math.abs(r.innerBottom - r.cut), `inner 바닥 ${r.innerBottom} ≠ 자르는 선 ${r.cut} (min-height ${r.minH})`).toBeLessThanOrEqual(1);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

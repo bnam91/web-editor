@@ -405,6 +405,9 @@
    · pin-peek = 「전체 보기」(런타임 클래스 · 저장·캡처에서 벗긴다). */
 .section-block[data-height-pin="true"] > .section-inner { height: 100%; overflow-y: clip; }
 .section-block[data-height-pin="true"] > .section-inner > * { flex-shrink: 0; }
+/* 배지 섹션은 inner 에 인라인 min-height:260px 를 박는다(js/badge-transform.js) — 핀이 그보다 작으면 inner 가 핀 밖으로 나가
+   자르는 선·숨은 수·선택 경계가 갈린다(Codex r1 P2-③). 핀 중엔 inner 최소높이를 푼다(전체 보기 중엔 원래대로). */
+.section-block[data-height-pin="true"]:not(.pin-peek) > .section-inner { min-height: 0 !important; }
 .section-block[data-height-pin="true"] > .section-inner.badge-align-center { justify-content: safe center !important; }
 .section-block[data-height-pin="true"] > .section-inner.badge-align-right  { justify-content: safe flex-end !important; }
 .section-block.pin-peek[data-height-pin="true"] { height: auto !important; }
