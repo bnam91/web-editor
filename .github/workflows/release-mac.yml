@@ -147,7 +147,7 @@ jobs:
         run: npx electron-builder --mac --publish always
 
       - name: Upload artifact (backup)
-        if: always()
+        if: ${{ always() && (github.event_name == 'push' || inputs.publish) }}   # 리허설은 업로드 안 함(공개 레포)
         uses: actions/upload-artifact@v7
         with:
           name: mac-dist
