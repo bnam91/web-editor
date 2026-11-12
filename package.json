@@ -114,7 +114,10 @@
       "!.qa",
       "!tools",
       "!_context",
-      "!debug"
+      "!debug",
+      "!scripts/goditor_runner.js",
+      "!main/claude-pm/skills",
+      "!tests"
     ]
   },
   "repository": {
