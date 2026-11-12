@@ -498,6 +498,8 @@ function _onHandleMouseDown(e, ss, dir) {
     _rekeepCoins(groupSnap);   // t2-02 — 코인 마킹은 줄어든 뒤 다시 가둔다(단일 모서리 끌기와 같게)
     window.pushHistory?.();
     window.resumeAutoSave?.();   // ★250B ① — 미룬 동안 들어온 예약을 «한 번» 다시 건다(끝 표본 뒤)
+    /* FRAME-RESIZE-PANEL-WIDTH-STALE-01 — 패널 너비·높이 칸이 손잡이 값을 알게(그리드 손잡이 onUp 과 같은 꼴). 프레임 패널이 떠 있을 때만(여럿 고름 패널은 안 덮는다). */
+    if (ss.classList.contains('selected') && document.getElementById('ss-width-num')) window.showFrameProperties?.(ss);
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
@@ -3338,7 +3340,8 @@ function _onGridImageResizeHandleMouseDown(e, block, addr, dir) {
     const dy = (ev.clientY - startY) / scale;
     if (!moved && Math.hypot(dx, dy) < 1) return;
     if (!moved) { moved = true; window.pushHistory?.('그리드 이미지 크기'); }
-    const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey });
+    /* GRID-CIRCLE-SHIFT-DRAG-NO-RESIZE-01 — 원은 늘 1:1(지름 = height)이라 Shift 비율 고정이 뜻이 없다. 걸면 폭(=셀 폭 상한)이 높이를 묶어 크기가 안 변했다 ⇒ 원은 Shift 를 무시(기본 끌기와 같은 규칙). */
+    const result = resizeGridImage({ startW, startH, dir, dx, dy, cellW, aspect, lockAspect: ev.shiftKey && !(line && line.imgShape === 'circle') });
     lastResult = result;
     /* ★원(imgShape circle)은 렌더러가 지름 = height 로 1:1 을 지킨다(놓을 때 onUp 의 gridPreviewLine 이 그 길이다).
        ⛔아래 폭%·높이px 를 따로 쓰면 끄는 동안 타원이 됐다(현빈QA) ⇒ 미리보기도 «같은 렌더»로 그린다. */

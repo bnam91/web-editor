@@ -27,6 +27,7 @@ function _pairRow(id, label, value, min, max, step) {
 
 export function showZoomProperties(block) {
   const st = _st(block);
+  // ZOOM-PANEL-SIZE-FIELD-STALE-AFTER-GROUP-SCALE-01 — 크기 칸 = 가로. 손잡이·묶음 크기가 남긴 덧씌우개 w 가 있으면 그게 실제 가로(shapeHalf)
   const pinned = !!(window.readPinnedZoomShortEdge?.(block));
   const isChecker = st.fill === 'checker';
   // 체크패턴일 땐 색 피커에 «되돌아갈 색»을 보여준다(피커가 'checker' 를 못 읽는다).
@@ -128,7 +129,7 @@ ${blockHeaderHTML({
           </button>
         </div>
       </div>
-      ${_pairRow('zm-size', '크기', st.size, 20, 600, 2)}
+      ${_pairRow('zm-size', '크기', Math.round(st.w ?? st.size), 20, 600, 2)}
       <!-- ★회전° 슬라이더는 «남긴다» — 현빈 2026-09-09 의 말은 「회전 슬라이드«로만» 하니까
              그것 좀 고쳐줘」였다. 고칠 대상은 «로만»이지 슬라이더 자체가 아니다.
            ⇒ 캔버스 코너 바깥의 회전 핫존(.zm-rotate-handle)을 더해 「로만」을 없앴다.
