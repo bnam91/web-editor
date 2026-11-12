@@ -103,9 +103,9 @@ async function quitNoResponse(ws, activeProject) {
   saveGuard.init({ userDataDir: ws, workspaceDir: ws, dialog: null, shell: null, appVersion: 'test', log: () => {} });
   const win = { webContents: { send: () => {} } };          // 렌더러는 받기만 하고 답(quit-ready)을 안 한다 = no-response
   const ipcMain = { once: () => {} };
-  saveGuard.runBeforeQuit({ win, ipcMain, exit: (c) => exits.push(c), activeProject,
-    timings: { saveWaitMs: 20, notifyMs: 200, hardExitMs: 1000, writeHoldMs: 1000 } });
-  for (let i = 0; i < 100 && !exits.length; i++) await new Promise((r) => setTimeout(r, 10));
+  /* 고정 잠 없이 — 가드가 «반드시» 부르는 exit 가 약속을 푼다(가드의 hardExitMs 가 그 «반드시»의 뒷받침 · unit-fixed-sleep-census S1) */
+  await new Promise((done) => saveGuard.runBeforeQuit({ win, ipcMain, exit: (c) => { exits.push(c); done(); }, activeProject,
+    timings: { saveWaitMs: 20, notifyMs: 200, hardExitMs: 1000, writeHoldMs: 1000 } }));
   assert.equal(exits.length, 1, '[전제] 가드가 끝났다');
   const r = saveGuard.readMarker()[0];
   assert.equal(r && r.reason, 'no-response', '[전제] 3초 상한(no-response) 길이 기록했다');
