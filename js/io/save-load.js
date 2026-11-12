@@ -1668,7 +1668,10 @@ function rebindAll(opts = {}) {
     // bullet 변형: <ul>이 비어있으면 빈 <li> 하나는 보장
     if (inner.classList.contains('tb-bullet')) {
       if (!inner.querySelector('li')) {
-        inner.innerHTML = `<li>${inner.dataset.placeholder || ''}</li>`;
+        /* SEC-MALICIOUS-PROJECT-FILE-SANDBOX-01 ② — placeholder 는 «글자»다: innerHTML 로 넣으면 프로젝트 파일의 인코딩된 <img onerror> 가 열기만으로 실행된다(재현 tests/dom/sec-malicious-project-open X1·X2). 기본 placeholder 는 전부 평문이라 표시 무변. */
+        const _li = document.createElement('li');
+        _li.textContent = inner.dataset.placeholder || '';
+        inner.replaceChildren(_li);
         inner.dataset.isPlaceholder = 'true';
       }
       return;
@@ -1683,7 +1686,7 @@ function rebindAll(opts = {}) {
       const ph = inner.dataset.placeholder;
       const txt = inner.textContent.trim();
       if (ph && (txt === '' || txt === ph.trim())) {
-        if (txt === '') inner.innerHTML = ph; // 비어있으면 placeholder 텍스트 복원
+        if (txt === '') inner.textContent = ph; // 비어있으면 placeholder 텍스트 복원 — ★textContent(SEC ② · 위 불릿 갈래 주석)
         inner.dataset.isPlaceholder = 'true';
       }
     } else if (!blank) {

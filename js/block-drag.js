@@ -1397,10 +1397,13 @@ function bindBlock(block) {
       }
       if (ph && el.textContent.trim() === '' && !blank) {
         // tb-bullet: ul placeholder는 <li>로 감싸서 복원해야 list-style이 유지됨
+        /* SEC-MALICIOUS-PROJECT-FILE-SANDBOX-01 ② — placeholder 는 «글자»다: innerHTML 로 넣으면 프로젝트 파일의 인코딩된 <img onerror> 가 열기만으로 실행된다(재현 tests/dom/sec-malicious-project-open X1·X2). 기본 placeholder 는 전부 평문이라 표시 무변. */
         if (el.classList.contains('tb-bullet')) {
-          el.innerHTML = `<li>${ph}</li>`;
+          const _li = document.createElement('li');
+          _li.textContent = ph;
+          el.replaceChildren(_li);
         } else {
-          el.innerHTML = ph;
+          el.textContent = ph;
         }
         el.dataset.isPlaceholder = 'true';
       } else if (el.textContent.trim() !== '' && el.textContent.trim() !== (el.dataset.placeholder || '').trim()) {

@@ -1,10 +1,13 @@
 /* sec-malicious-project-open.dom.spec.js — SEC-MALICIOUS-PROJECT-FILE-SANDBOX-01 «재현» (지디 발주 261112 · Codex 정적 감사 ②·③)
+ *   ★② 고침(이 파일과 같은 가지) — save-load.js 2곳 · block-drag.js 1곳 innerHTML → textContent(불릿은 li 를 만들고 textContent).
  *   ★이 파일은 «재현» 이다 — 지금(aded4a28a) 빨강이 «결함이 있다»는 뜻이고, 고친 뒤 초록이 되게 적었다.
  *   ⛔진짜 키·외부 전송 0: 악성 핸들러는 window.__pwned* 표식만 세운다 · 외부 주소는 page.route 로 «가로채 끊는다»(네트워크 0).
  *
  *   X1 ★② 열기만으로 실행 — tb-body 의 data-placeholder 에 «인코딩된» <img onerror> → applyProjectData → rebindAll 이
  *        빈 글 칸에 placeholder 를 innerHTML 로 되넣는다(js/io/save-load.js:1678) → onerror 가 돈다?
  *   X2 ★② 같은 길의 불릿 갈래 — ul.tb-bullet 이 비면 `<li>${placeholder}</li>` 를 innerHTML 로(save-load.js:1663)
+ *   X2b ★② 편집 끝(blur) 갈래 — js/block-drag.js _endTextEdit 의 placeholder 복원(고침 3번째 자리)
+ *   X5 표시 무변 — 평문 placeholder(기본·사용자 지정 & 포함·불릿)가 같은 글자(고치기 전에도 초록)
  *   X3 [음성대조 · 지키는 칸] 같은 핸들러를 «속성으로 직접» 넣으면 sanitizeCanvasHtml 이 벗긴다 — 우회가 «인코딩된 문자열 속성»이라는 증거
  *   X4 ③ 캔버스 안 <a href="https://…"> 를 사람처럼 클릭하면 렌더러가 «최상위 이동»을 시도하나(가로채서 끊는다)
  *        ⚠️하네스는 Electron 이 아니다 — main.js will-navigate 가드·preload 적용 범위는 «못 잰다».
@@ -60,6 +63,45 @@ test('X3 [음성대조] 핸들러를 속성으로 «직접» 넣으면 sanitize 
   console.log('  X3:', JSON.stringify(r));
   expect(r.imgInDom, '★전제 — img 는 남는다(속성만 벗김)').toBe(true);
   expect(r.pwned, '직접 넣은 onerror 가 살아 있다 — sanitize 가 죽었다').toBe(false);
+  expect(errs).toEqual([]);
+});
+
+test('X2b ★② 편집 끝(blur) 갈래 — 비운 채 blur 하면 placeholder 가 HTML 로 실행되지 않는다 (block-drag.js _endTextEdit)', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }),
+    SEC(`<div class="row"><div class="text-block" id="xE"><div class="tb-body" data-placeholder="${ENC('__pwned4')}">원래 글</div></div></div>`));
+  const r = await page.evaluate(async () => {
+    const el = document.querySelector('#xE .tb-body');
+    el.setAttribute('contenteditable', 'true'); el.focus();
+    el.textContent = '';                                         // 사용자가 글을 다 지움
+    el.blur();                                                   // 편집 끝 → placeholder 복원 길
+    const im = el.querySelector('img');
+    if (im && !im.complete) await new Promise(r => { im.onload = im.onerror = () => setTimeout(r, 0); });
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return { pwned: window.__pwned4 === 1, imgInDom: !!el.querySelector('img'), restored: el.dataset.isPlaceholder === 'true', text: el.textContent };
+  });
+  console.log('  X2b:', JSON.stringify(r));
+  expect(r.restored, '★전제 — blur 가 placeholder 복원 길을 탔다').toBe(true);
+  expect(r.imgInDom).toBe(false);
+  expect(r.pwned, '★편집 끝(blur)에 placeholder 의 onerror 가 실행됐다').toBe(false);
+  expect(errs.filter(e => !/pwned/.test(e))).toEqual([]);
+});
+
+test('X5 표시 무변 — 평문 placeholder(기본·사용자 지정·불릿)는 고치기 전후 «같은 글자»로 보인다(지금도 초록이어야)', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), SEC(
+    '<div class="row"><div class="text-block" id="pA"><div class="tb-h2"></div></div></div>'                                   // 기본(_phTextMap)
+    + '<div class="row"><div class="text-block" id="pB"><div class="tb-body" data-placeholder="고객 후기 &amp; 설명 (2줄)"></div></div></div>'   // 사용자 지정 평문(& 포함)
+    + '<div class="row"><div class="text-block" id="pC"><ul class="tb-bullet"></ul></div></div>'));                             // 불릿 기본
+  const r = await page.evaluate(() => {
+    const q = (s) => document.querySelector(s);
+    const one = (el) => ({ text: el.textContent, ph: el.dataset.placeholder, kids: [...el.children].map(c => c.tagName), isPh: el.dataset.isPlaceholder });
+    return { a: one(q('#pA .tb-h2')), b: one(q('#pB .tb-body')), c: one(q('#pC .tb-bullet')) };
+  });
+  console.log('  X5:', JSON.stringify(r));
+  expect(r.a).toEqual({ text: '소제목을 입력하세요', ph: '소제목을 입력하세요', kids: [], isPh: 'true' });
+  expect(r.b).toEqual({ text: '고객 후기 & 설명 (2줄)', ph: '고객 후기 & 설명 (2줄)', kids: [], isPh: 'true' });
+  expect(r.c).toEqual({ text: '항목을 입력하세요', ph: '항목을 입력하세요', kids: ['LI'], isPh: 'true' });
   expect(errs).toEqual([]);
 });
 
