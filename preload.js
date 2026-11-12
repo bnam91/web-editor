@@ -331,8 +331,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   //   창 URL 폴백은 «여전히» 남겨 둔다 — 이게 아직 안 왔을 때를 받는다.
   setClaudePMActiveProject: (projectId)          => ipcRenderer.invoke('claudePM:setActiveProject', { projectId }),
   // 자동 PM 폴더 보장 — 신규 프로젝트 생성 직후 + 기존 프로젝트 활성화 시 호출
-  ensureClaudePMFolder: ({ projectId, projectName, basePath } = {}) =>
-                        ipcRenderer.invoke('claudePM:ensureFolder', { projectId, projectName, basePath }),
+  ensureClaudePMFolder: ({ projectId, projectName } = {}) =>   // basePath 는 안 넘긴다(SEC ⑤ — main 문도 버린다)
+                        ipcRenderer.invoke('claudePM:ensureFolder', { projectId, projectName }),
 
   // Claude PM Phase 3 (F8) — 내부 터미널 패널
   claudePMTerminalStart:  ({ folderPath, cols, rows, projectId } = {}) =>

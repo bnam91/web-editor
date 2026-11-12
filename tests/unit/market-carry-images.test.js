@@ -98,14 +98,14 @@ test('음성: blobPath 없는 프로젝트의 data 는 한 글자도 안 바뀐�
 test('갤러리 지우기·읽기 IPC 는 images/ 밖을 안 건드린다, 음성 images/ 안은 된다', () => {
   const src = readSrc(REPO, 'main.js'); const root = mkTmpRoot('goya-mkd-'); const h = {};
   const cut = (ch) => src.slice(src.indexOf("ipcMain.handle('" + ch + "'"), src.indexOf('});\n', src.indexOf("ipcMain.handle('" + ch + "'")) + 3);
-  new Function('fs', 'path', 'PROJECTS_DIR', 'ipcMain', cut('ai:readImage') + ';' + cut('ai:deleteImage') + ';')(fs, path, root, { handle: (c, f) => { h[c] = f; } });
-  const d = path.join(root, 'p1'); fs.mkdirSync(path.join(d, 'images'), { recursive: true });
+  new Function('fs', 'path', 'PROJECTS_DIR', 'ipcMain', '_PAP', cut('ai:readImage') + ';' + cut('ai:deleteImage') + ';')(fs, path, root, { handle: (c, f) => { h[c] = f; } }, require('../../main/project-asset-path'));   // SEC ⑤ 경로 문 · id 는 허용목록 모양
+  const d = path.join(root, 'proj_1'); fs.mkdirSync(path.join(d, 'images'), { recursive: true });
   const pj = path.join(d, 'proj.json'), g = path.join(d, 'images', 'g.png'); fs.writeFileSync(pj, '{}'); fs.writeFileSync(g, 'x');
-  for (const ch of ['ai:deleteImage', 'ai:readImage']) for (const bp of ['proj.json', 'images/../proj.json', '../p1/proj.json']) {
-    assert.strictEqual(h[ch](null, { projectId: 'p1', blobPath: bp }).ok, false, ch + ' ' + bp); assert.ok(fs.existsSync(pj));
+  for (const ch of ['ai:deleteImage', 'ai:readImage']) for (const bp of ['proj.json', 'images/../proj.json', '../proj_1/proj.json']) {
+    assert.strictEqual(h[ch](null, { projectId: 'proj_1', blobPath: bp }).ok, false, ch + ' ' + bp); assert.ok(fs.existsSync(pj));
   }
-  assert.strictEqual(h['ai:readImage'](null, { projectId: 'p1', blobPath: 'images/g.png' }).ok, true);
-  assert.strictEqual(h['ai:deleteImage'](null, { projectId: 'p1', blobPath: 'images/g.png' }).ok, true); assert.ok(!fs.existsSync(g));
+  assert.strictEqual(h['ai:readImage'](null, { projectId: 'proj_1', blobPath: 'images/g.png' }).ok, true);
+  assert.strictEqual(h['ai:deleteImage'](null, { projectId: 'proj_1', blobPath: 'images/g.png' }).ok, true); assert.ok(!fs.existsSync(g));
 });
 const reads = (fn) => { const o = fs.promises.readFile; const r = fs.readFileSync; const seen = []; fs.promises.readFile = (p, ...a) => { seen.push(String(p)); return o.call(fs.promises, p, ...a); }; fs.readFileSync = (p, ...a) => { seen.push(String(p)); return r.call(fs, p, ...a); }; return fn().finally(() => { fs.promises.readFile = o; fs.readFileSync = r; }).then((v) => ({ v, seen })); };
 test('한 장이 상한을 넘으면 읽기 전에 거절한다, 사람 말, blob·파일 0', async () => {

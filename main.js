@@ -2043,12 +2043,14 @@ function _listItemFor(id, projPath, metaFast) {
 /* ── IPC: AI Image Gen ──
    이미지는 projects/<id>/images/aig_xxx.png로 디스크 분리 저장 (프로젝트 JSON에 base64 금지).
    blobPath는 프로젝트 폴더 상대경로. */
+/* ★SEC ⑤ — 경로는 main/project-asset-path.js 한 문으로만 짓는다(projectId 허용목록 · 구분자 경계 · realpath). 허용 밖이면 null. */
+const _PAP = require('./main/project-asset-path');
 function _getProjectImagesDir(projectId) {
-  return path.join(PROJECTS_DIR, projectId, 'images');
+  return _PAP.projectSubDir(PROJECTS_DIR, projectId, 'images');
 }
 
 function _getProjectAssetsDir(projectId) {
-  return path.join(PROJECTS_DIR, projectId, 'assets');
+  return _PAP.projectSubDir(PROJECTS_DIR, projectId, 'assets');
 }
 
 /* ── IPC: Assets (사용자 자산 트리 — 이미지 디스크 저장) ──
@@ -2065,6 +2067,7 @@ ipcMain.handle('assets:saveFile', (_e, { projectId, b64, mime, originalName } = 
     else if (mime === 'image/webp') ext = 'webp';
     else if (mime === 'image/gif') ext = 'gif';
     const dir = _getProjectAssetsDir(projectId);
+    if (!dir) return { ok: false, error: 'bad projectId' };
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${id}.${ext}`;
     fs.writeFileSync(path.join(dir, filename), Buffer.from(b64, 'base64'));
@@ -2077,9 +2080,8 @@ ipcMain.handle('assets:saveFile', (_e, { projectId, b64, mime, originalName } = 
 ipcMain.handle('assets:readFile', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
-    const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
-    const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(safeRoot)) return { ok: false, error: 'path traversal' };
+    const full = _PAP.projectBlobFile(PROJECTS_DIR, projectId, 'assets', blobPath);
+    if (!full) return { ok: false, error: 'path traversal' };
     if (!fs.existsSync(full)) return { ok: false, error: 'not_found' };
     const buf = fs.readFileSync(full);
     let mime = 'image/png';
@@ -2109,9 +2111,8 @@ ipcMain.handle('assets:readBundled', (_e, { bundled } = {}) => {
 ipcMain.handle('assets:deleteFile', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
-    const safeRoot = path.join(PROJECTS_DIR, projectId, 'assets');
-    const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(safeRoot)) return { ok: false, error: 'path traversal' };
+    const full = _PAP.projectBlobFile(PROJECTS_DIR, projectId, 'assets', blobPath);
+    if (!full) return { ok: false, error: 'path traversal' };
     if (fs.existsSync(full)) fs.unlinkSync(full);
     return { ok: true };
   } catch (e) {
@@ -2132,6 +2133,7 @@ function _extFromMime(mime) {
 }
 ipcMain.handle('assets:saveCanvasImage', (_e, { projectId, b64, mime } = {}) => {
   if (!projectId) return { ok: false, error: 'projectId 필수' };
+  if (!_PAP.isProjectId(projectId)) return { ok: false, error: 'bad projectId' };
   if (_isProjectDeleted(projectId)) return { ok: false, error: 'project_deleted' };
   if (!b64) return { ok: false, error: 'b64 필수' };
   try {
@@ -2203,6 +2205,7 @@ ipcMain.handle('ai:saveImage', (_e, { projectId, b64, mime } = {}) => {
     const id = 'aig_' + Math.random().toString(36).slice(2, 8);
     const ext = (mime === 'image/jpeg' || mime === 'image/jpg') ? 'jpg' : 'png';
     const dir = _getProjectImagesDir(projectId);
+    if (!dir) return { ok: false, error: 'bad projectId' };
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${id}.${ext}`;
     fs.writeFileSync(path.join(dir, filename), Buffer.from(b64, 'base64'));
@@ -2231,8 +2234,8 @@ ipcMain.handle('ai:readLocalImage', (_e, filePath) => {
 ipcMain.handle('ai:readImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
-    const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(path.join(PROJECTS_DIR, projectId, 'images') + path.sep)) return { ok: false, error: 'path traversal' };   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3)
+    const full = _PAP.projectBlobFile(PROJECTS_DIR, projectId, 'images', blobPath);   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3) · SEC ⑤ id 허용목록
+    if (!full) return { ok: false, error: 'path traversal' };
     if (!fs.existsSync(full)) return { ok: false, error: 'not_found' };
     const buf = fs.readFileSync(full);
     const mime = full.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
@@ -2245,8 +2248,8 @@ ipcMain.handle('ai:readImage', (_e, { projectId, blobPath } = {}) => {
 ipcMain.handle('ai:deleteImage', (_e, { projectId, blobPath } = {}) => {
   if (!projectId || !blobPath) return { ok: false, error: 'projectId, blobPath 필수' };
   try {
-    const full = path.join(PROJECTS_DIR, projectId, blobPath);
-    if (!full.startsWith(path.join(PROJECTS_DIR, projectId, 'images') + path.sep)) return { ok: false, error: 'path traversal' };   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3)
+    const full = _PAP.projectBlobFile(PROJECTS_DIR, projectId, 'images', blobPath);   // 갤러리 파일은 images/ 뿐. 받은 blobPath=proj.json 이 받은 본을 지웠다(S3 MKT3) · SEC ⑤ id 허용목록
+    if (!full) return { ok: false, error: 'path traversal' };
     if (fs.existsSync(full)) fs.unlinkSync(full);
     return { ok: true };
   } catch (e) {

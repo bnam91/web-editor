@@ -687,7 +687,9 @@ function registerClaudePMIPC(ipcMain, isAllowed) {
   ipcMain.handle('claudePM:pingMcp', handlePingMcp);
   ipcMain.handle('claudePM:getMcpInfo', handleGetMcpInfo);
   ipcMain.handle('claudePM:setActiveProject', handleSetActiveProject);
-  ipcMain.handle('claudePM:ensureFolder', handleEnsureClaudePMFolder);
+  /* ★SEC ⑤ — 렌더러 문에서는 basePath(임의 폴더 override)를 «받지 않는다». 사용자가 고른 폴더는 관리자 문 createFolder(pickDirectory) 길뿐.
+       main 안쪽 호출(_createProjectImpl)은 함수를 직접 부른다(이 문을 안 지난다). */
+  ipcMain.handle('claudePM:ensureFolder', (e, { projectId, projectName } = {}) => handleEnsureClaudePMFolder(e, { projectId, projectName }));
 }
 
 module.exports = {
