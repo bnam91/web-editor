@@ -24,6 +24,8 @@
  *   P12 Figma JSON — heightPin 300 · 핀 아닌 섹션 0
  *   P13 섹션 합치기 — 핀 섹션을 합쳐도 part 에 고정높이가 안 옮겨진다
  *   P14 ★합치기→분리 왕복 — 핀이 되살아난다(r1 ①)
+ *   P17 ★편집→⌘Z→핀→⌘⇧Z = 핀 그대로 · 옛 미래 안 돌아옴(r3)
+ *   P18 ★열자마자 핀 → canUndo(r3)
  *   R1 ★저장→닫기→다시 열기 — 새 앱 인스턴스에 저장본을 실어도 핀·자르기·숨은 수가 그대로 · pin-peek 은 안 실림
  *   R2 ⌘Z — 핀 켜기 한 번이 ⌘Z 한 번으로 풀린다
  *   U1 ★우측 패널 — 📌 켬/끔 · 「숨은 블럭 N개」 줄은 N>0 때만 · 전체 보기/핀 해제 버튼 · 새 prop-hint 0
@@ -321,9 +323,13 @@ test('P16 ★합치기 → 핀 조작 → ⌘Z 한 번 = 핀만 되돌리고 합
 test('P4 핀 해제 — height 지움 · minHeight=핀값 · 내용만큼 늘어남 · 기록 1', async ({ page }) => {
   const errs = await setup(page);
   const nat = (await geo(page)).natural;
-  const r = await page.evaluate(() => { const sec = document.getElementById('pS'); window.__push = 0; window.sectionPin.unpin(sec);
-    return { height: sec.style.height, min: sec.style.minHeight, pin: sec.dataset.heightPin ?? null, h: sec.offsetHeight, push: window.__push }; });
-  expect(r).toEqual({ height: '', min: '300px', pin: null, h: nat, push: 1 });
+  /* ★기록은 «호출 수»가 아니라 «⌘Z 가 되돌리나»로 잰다 — r3 부터 양쪽 끝(시작·끝 표본)이라 호출 수는 뜻이 없다 */
+  const r = await page.evaluate(async () => { const sec = document.getElementById('pS'); window.sectionPin.unpin(sec);
+    const out = { height: sec.style.height, min: sec.style.minHeight, pin: sec.dataset.heightPin ?? null, h: sec.offsetHeight };
+    window.undo(); await new Promise(r => setTimeout(r, 30));
+    const b = document.getElementById('pS'); out.undo = { pin: b.dataset.heightPin ?? null, height: b.style.height };
+    return out; });
+  expect(r).toEqual({ height: '', min: '300px', pin: null, h: nat, undo: { pin: 'true', height: '300px' } });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
@@ -334,29 +340,28 @@ test('P5 ★바닥 손잡이 — 내용 밑으로 줄임 · 하한 · 취소 복
     const sec = document.getElementById('pS'), h = sec.querySelector(':scope > .section-bottom-handle');
     const k = sec.getBoundingClientRect().width / sec.offsetWidth;
     const y0 = h.getBoundingClientRect().top + 2;
-    const drag = (dyModel, end) => { window.__push = 0;
+    const drag = (dyModel, end) => {
       h.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientY: y0, bubbles: true, cancelable: true }));
       document.dispatchEvent(new PointerEvent('pointermove', { clientY: y0 + dyModel * k, bubbles: true }));
       document.dispatchEvent(new PointerEvent(end, { clientY: y0 + dyModel * k, bubbles: true }));
-      return { height: sec.style.height, push: window.__push }; };
+      return { height: sec.style.height }; };
     const out = {};
     out.shrink = drag(-100, 'pointerup');                       // 300 → 200 (내용 밑)
     out.floor = drag(-5000, 'pointerup');                       // 하한
     out.floorWant = (parseFloat(getComputedStyle(sec).paddingBottom) || 0) + 20;
     sec.style.height = '300px';
     out.cancel = drag(+250, 'pointercancel');                   // 취소 → 300 그대로 · 기록 0
-    window.__push = 0;
     h.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
-    out.dbl = { height: sec.style.height, push: window.__push, nat: window.sectionPin.naturalHeight(sec), pin: sec.dataset.heightPin };
+    out.dbl = { height: sec.style.height, nat: window.sectionPin.naturalHeight(sec), pin: sec.dataset.heightPin, canUndo: window.getHistoryTip().canUndo };
     return out;
   });
   console.log('  P5:', JSON.stringify(r));
-  expect(r.shrink).toEqual({ height: '200px', push: 1 });
-  expect(r.floor).toEqual({ height: r.floorWant + 'px', push: 1 });
-  expect(r.cancel).toEqual({ height: '300px', push: 0 });
+  expect(r.shrink).toEqual({ height: '200px' });
+  expect(r.floor).toEqual({ height: r.floorWant + 'px' });
+  expect(r.cancel).toEqual({ height: '300px' });
   expect(r.dbl.height, '더블클릭 = 내용 높이').toBe(r.dbl.nat + 'px');
   expect(r.dbl.pin, '핀 유지').toBe('true');
-  expect(r.dbl.push).toBe(1);
+  expect(r.dbl.canUndo).toBe(true);   // 기록의 뜻(⌘Z 왕복)은 P16·P17 이 잰다
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
@@ -526,6 +531,44 @@ test('P14 ★합치기→분리 왕복 — 핀이 안 풀린다(잠든 data-pin-
   expect(r.mid.saved, '저장본에 잠든 핀이 없다 — 저장→열기→분리에서 잃는다').toBe(true);
   expect(r.mid.partH, '합친 상태에서 part 가 핀 600 에 고정됐다(내용 갭 1200 이 다 보여야)').toBeGreaterThanOrEqual(1199);
   expect(r.back).toEqual({ height: '600px', pin: 'true', pinH: null, h: 600 });
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P17 ★일반 편집 → ⌘Z → 핀 켜기 → ⌘⇧Z = 핀 그대로 · 옛 «미래»가 안 돌아온다 (r3 · redo 꼬리)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(async () => {
+    const tick = () => new Promise(r => setTimeout(r, 30));
+    window.pushHistory('시작');
+    document.getElementById('pA').style.height = '111px'; window.pushHistory('일반 편집');   // push-after 꼴 일반 편집
+    window.undo(); await tick();
+    const afterUndo = document.getElementById('pA').style.height;
+    window.sectionPin.pin(document.getElementById('nS')); await tick();
+    const tip = window.getHistoryTip();
+    window.redo(); await tick();
+    return { afterUndo, canRedoAfterPin: tip.pos < tip.len - 1,
+      pinAfterRedo: document.getElementById('nS').dataset.heightPin ?? null, pA: document.getElementById('pA').style.height };
+  });
+  console.log('  P17:', JSON.stringify(r));
+  expect(r.afterUndo, '★전제 — ⌘Z 로 편집이 풀렸다').toBe('100px');
+  expect(r.canRedoAfterPin, '핀 뒤에도 redo 꼬리가 남았다').toBe(false);
+  expect(r.pinAfterRedo, '⌘⇧Z 가 새 핀을 지웠다').toBe('true');
+  expect(r.pA, '⌘⇧Z 가 옛 «미래»(111px)를 되살렸다').toBe('100px');
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P18 ★열자마자 첫 조작이 핀이어도 Undo 가 켜진다 (r3 · canUndo = 되돌리기 단추가 읽는 값)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => {
+    window.clearHistory();                                   // 프로젝트를 막 연 상태(초기 상태 한 칸)
+    const t0 = window.getHistoryTip();
+    window.sectionPin.pin(document.getElementById('nS'));
+    const t1 = window.getHistoryTip();
+    return { t0: t0.canUndo, t1: t1.canUndo, action: t1.action };
+  });
+  /* ⚠️#undo-btn 은 index.html 에 «없다»(history.js _updateUndoRedoBtns 가 찾는 단추 — 데드). 그 단추가 쓰는 값 = historyPos > 0 = canUndo 를 잰다. */
+  expect(r.t0, '★전제 — 막 연 상태는 Undo 불가').toBe(false);
+  expect(r.t1, '첫 조작 핀 뒤 Undo 가 안 켜진다').toBe(true);
+  expect(r.action).toBe('섹션 높이 고정');
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

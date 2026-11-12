@@ -83,8 +83,12 @@
        ⛔`window.zoom` 류를 손으로 읽지 마라 — 요소의 실제 배율에서 뽑는다. */
     const scale = sec.getBoundingClientRect().width / (sec.offsetWidth || 1) || 1;
     sec.classList.add('section-bottom-dragging');
+    /* ★히스토리 «양쪽 끝»(js/CLAUDE.md 정본 · drag-history.js) — 첫 실제 이동에 시작 표본 · onUp 에 끝 표본.
+       (r2 의 «onUp 에서 옛 값 잠깐 되돌려 찍기»는 끝 표본이 없어 redo 꼬리를 못 잘랐다 — Codex r3) */
+    const _hist = window.beginDragHistory?.('섹션 높이');
 
     const onMove = (e) => {
+      _hist?.arm(0, (e.clientY - y0) / scale);
       const v = Math.round(h0 + (e.clientY - y0) / scale);
       if (pinned) { sec.style.height = Math.max(pinMin, v) + 'px'; return; }
       /* ★블럭 높이까지만 줄인다 · 끝까지 줄이면 바닥을 없앤다(현빈 「없앤다」) · 상한 없음 */
@@ -100,12 +104,7 @@
       end();
       armClickSwallow();
       if (sec.style.minHeight !== mh0 || sec.style.height !== ht0) {
-        /* ★기록은 «변경 전» 상태로 찍는다(앱 규약 · section-pin.js pin 머리말 · Codex r2 ①) — 끌기는 이미 값을 바꿨으니
-           잠깐 옛 값으로 돌려 찍고 새 값을 다시 놓는다(같은 태스크 · 화면에 안 보인다). */
-        const mh1 = sec.style.minHeight, ht1 = sec.style.height;
-        sec.style.minHeight = mh0; sec.style.height = ht0;
-        window.pushHistory?.();
-        sec.style.minHeight = mh1; sec.style.height = ht1;
+        window.pushHistory?.('섹션 높이');   // 끝 표본(시작 표본은 onMove 첫 틱의 arm)
         window.triggerAutoSave?.();
       }
     };
@@ -130,14 +129,17 @@
     if (window.sectionPin?.isPinned(sec)) {
       const nat = window.sectionPin.naturalHeight(sec);
       if (Math.round(parseFloat(sec.style.height)) === nat) return;
-      window.pushHistory?.();        // ★변경 «전»
+      window.sectionPin.histStart('섹션 높이');   // ★양쪽 끝 — 시작 표본(section-pin.js pin 머리말)
       sec.style.height = nat + 'px';
+      window.pushHistory?.('섹션 높이');         // 끝 표본
       window.triggerAutoSave?.();
       return;
     }
     if (!sec.style.minHeight) return;
-    window.pushHistory?.();          // ★변경 «전»(⑦ 과 같은 규약)
+    const prev = window.getHistoryTip?.()?.action;
+    window.pushHistory?.(prev || '섹션 높이');   // ★양쪽 끝 — 시작 표본(⑦ 과 같은 규약)
     sec.style.minHeight = '';
+    window.pushHistory?.('섹션 높이');            // 끝 표본
     window.triggerAutoSave?.();
   }
 

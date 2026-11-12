@@ -82,15 +82,23 @@
     return true;
   }
 
-  /* ★기록은 «변경 전»에 찍는다 — 이 앱 히스토리 규약(section-merge.js 등 · 끝 상태는 ⌘Z 진입 때 ensureHistoryCheckpoint 가 담는다).
-     «변경 후»만 찍으면 앞 조작(예: 합치기)의 «전» 스냅샷과 이 조작 사이에 칸이 없어 ⌘Z 한 번이 둘을 같이 푼다(Codex r2 ①). */
+  /* ★기록은 «양쪽 끝»(js/CLAUDE.md 「히스토리 규약」의 정본 — 드래그와 같은 꼴 · js/drag-history.js pushStartSample).
+       ⑴ 시작 표본 = 바꾸기 «전» — 앞이 push-before(예: 합치기)면 빠진 칸을 메운다(Codex r2 ① · P16). 앞이 push-after 면 같은 상태라
+          pushHistory 무변화 차단이 버린다. 라벨은 «직전 항목 이름»을 물려받는다(되돌리기 툴팁 = [pos] 이름 · 복원은 [pos-1]).
+       ⑵ 끝 표본 = 바꾼 «뒤» — redo 꼬리를 자르고 historyPos 를 올린다(Codex r3 · P17 · P18).
+       ⛔«전»만 찍으면 ⑴의 표본이 꼭대기와 같아 버려질 때 꼬리도 안 잘리고 Undo 도 안 켜진다(r2 고침의 회귀). */
+  function histStart(label) {
+    const prev = window.getHistoryTip?.()?.action;
+    window.pushHistory?.(prev || label);
+  }
   function pin(sec) {
     if (!sec || isPinned(sec)) return;
-    window.pushHistory?.();
+    histStart('섹션 높이 고정');
     const h = sec.offsetHeight;
     sec.style.minHeight = '';
     sec.style.height = h + 'px';
     sec.dataset.heightPin = 'true';
+    window.pushHistory?.('섹션 높이 고정');
     window.triggerAutoSave?.();
     refreshSoon();
   }
@@ -98,13 +106,14 @@
   /** 핀 해제 — Q13 ⓒ 그 높이를 바닥(minHeight)으로 남긴다(내용이 더 크면 내용만큼 늘어난다 = 해제의 뜻). */
   function unpin(sec) {
     if (!sec || !isPinned(sec)) return;
-    window.pushHistory?.();          // ★변경 «전»(pin 머리말)
+    histStart('섹션 높이 고정 해제');   // ★양쪽 끝(pin 머리말)
     const h = pinH(sec);
     sec.classList.remove(PEEK);
     sec.style.height = '';
     delete sec.dataset.heightPin;
     sec.style.minHeight = h + 'px';
     unwatch(sec);
+    window.pushHistory?.('섹션 높이 고정 해제');
     window.triggerAutoSave?.();
     refreshSoon();
   }
@@ -202,5 +211,5 @@
   document.addEventListener('click', sweepSoon, true);
   document.addEventListener('keyup', (e) => { if (e.key === 'Escape') setTimeout(sweepPeek, 0); }, true);
 
-  window.sectionPin = { sweepSoon, _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
+  window.sectionPin = { histStart, sweepSoon, _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
 })();
