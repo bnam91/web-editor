@@ -356,6 +356,36 @@ function ack(ids, nowIso) {
   return { stamped, failed, ledgerUsed };
 }
 
+/* ── 거짓 띠 걷기 (Q7 · 현빈 261112 ⒜) ───────────────────────────────────
+   사유가 «모름»(no-response/no-result/unconfirmed)이고 비상 사본이 없는 기록은, 그 프로젝트 파일이
+   기록 시각보다 «새로우면» 그 뒤 저장이 됐다는 뜻이다 ⇒ handled 로 둔다(띠 안 뜸).
+   ⛔파일이 더 낡거나 없거나 projectId 가 없으면 손대지 않는다 — 진짜 미저장일 수 있다. 원본은 안 지운다. */
+const UNKNOWN_SAVE_REASONS = new Set(['no-response', 'no-result', 'unconfirmed']);
+function _projFileMtime(id) {
+  if (typeof id !== 'string' || !/^[\w.-]+$/.test(id) || /^\.+$/.test(id)) return null;   // 경로 조작 차단
+  const root = path.join(_ws(), 'projects');
+  for (const p of [path.join(root, id, 'proj.json'), path.join(root, id + '.json')]) {
+    try { const st = fs.statSync(p); if (st.isFile()) return st.mtimeMs; } catch (_) {}
+  }
+  return null;
+}
+function healSavedAfterUnknown(nowIso) {
+  if (!_guard) return { healed: 0 };
+  const at = nowIso || new Date().toISOString();
+  try {
+    const p = _guard.markerPath();
+    const j = JSON.parse(fs.readFileSync(p, 'utf8').replace(/^﻿/, ''));
+    let healed = 0;
+    for (const r of (j.records || [])) {
+      if (!r || r.handled || !UNKNOWN_SAVE_REASONS.has(r.reason) || r.emergencyPath) continue;
+      const t = Date.parse(r.at), m = _projFileMtime(r.projectId);
+      if (Number.isFinite(t) && m != null && m > t) { r.handled = true; r.handledAt = at; r.handledWhy = 'saved-after'; healed++; }
+    }
+    if (healed) { const tmp = p + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(j, null, 2), 'utf8'); fs.renameSync(tmp, p); }
+    return { healed };
+  } catch (_) { return { healed: 0 }; }   // 마커 없음·깨짐 = 할 일 없음(띠는 localItems 가 그대로 판단)
+}
+
 /** 곁장부가 무한히 자라지 않게 — 이미 사라진 파일 이름은 뺀다. */
 function pruneLedger(acked) {
   const out = {};
@@ -396,7 +426,7 @@ function readEmergencySnapshot(p) {
 }
 
 module.exports = {
-  init, localItems, reportLines, ack,
+  init, localItems, reportLines, ack, healSavedAfterUnknown,
   resolveEmergencyPath, readEmergencySnapshot,
   crashLabel,
   MAX_CRASH, MAX_REPORT_LINES, MAX_LINE_LEN,
