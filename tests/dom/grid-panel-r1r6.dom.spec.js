@@ -178,11 +178,12 @@ test('R3 ★정렬 단추의 파괴를 «지울 게 있을 때만» 예고하고
     return { clean, warned, kept1, kept3, warnedByLine };
   }, FIX);
   expect(errs).toEqual([]);
-  expect(got.clean, '★지울 것이 하나도 없는데 예고가 떴다 — 늘 띄우면 그게 또 소음이 된다').toEqual([]);
-  expect(got.warned.length, '★칸에 정렬 오버라이드가 «있는데» 예고가 0줄이다 — ' +
-    '정렬 단추 한 번에 말없이 지워진다').toBe(1);
-  expect(got.warnedByLine.length, '★«줄» 정렬 오버라이드만 있을 때 예고가 안 뜬다 — ' +
-    '그것도 같이 지워지는 대상이다').toBe(1);
+  /* ★0.9.12 t2-05(현빈) — 예고 문구 「칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)」를 «제품 결정으로» 지웠다.
+   *   그래서 «뜬다» 단언 둘을 «안 뜬다»로 뒤집었다(약화 아님 — 세 상태 모두 0줄을 정확히 잰다).
+   *   ★아래 kept1·kept3(패널을 그려도 데이터가 안 지워진다)은 그대로 둔다. */
+  expect(got.clean, '예고 문구는 지웠다(t2-05)').toEqual([]);
+  expect(got.warned, '예고 문구는 지웠다(t2-05) — 칸 오버라이드가 있어도 안 뜬다').toEqual([]);
+  expect(got.warnedByLine, '예고 문구는 지웠다(t2-05) — 줄 오버라이드가 있어도 안 뜬다').toEqual([]);
   expect(got.kept1, '★★예고를 «그리는» 것만으로 칸의 정렬이 지워졌다 — ' +
     '판정을 부작용 있는 호출로 했다(dryRun 을 빼먹었다)').toBe('center');
   expect(got.kept3, '★패널을 세 번 그렸더니 정렬이 사라졌다 — 같은 병, 더 늦게 드러나는 얼굴').toBe('center');
@@ -257,8 +258,8 @@ test('R5 ★「캔버스를 눌러라」 지시가 어느 상태에서도 «한 
     expect(lines.length, `★«${state}» 상태에서 같은 지시가 ${lines.length}줄이다 — 한 자리에 모아라.\n` +
       lines.map(t => '     · ' + t).join('\n')).toBeLessThanOrEqual(1);
   }
-  expect(got.blockOnly.length, '★칸/줄을 아직 안 고른 상태에 «어떻게 고르는지»가 한 줄도 없다 — ' +
-    '합치다가 통째로 잃었다').toBe(1);
+  /* ★0.9.12 t2-05(현빈) — 블록만 고른 상태의 안내 「칸을 한 번 더 누르면 …」을 «제품 결정으로» 지웠다 ⇒ 1 → 0. */
+  expect(got.blockOnly, '블록만 고른 상태의 «고르는 법» 안내는 지웠다(t2-05)').toEqual([]);
 });
 
 /* ── R6 ────────────────────────────────────────────────────────────────────

@@ -120,3 +120,36 @@ test('t2-02 블럭 넣기 드롭다운 — 위 구분선과의 여백 = 다른 �
   expect(got.std, '전제 — 표준 여백이 0 이 아니다').toBeGreaterThan(0);
   expect(got.gap, `구분선→드롭다운 ${got.gap}px ≠ 표준 ${got.std}px`).toBe(got.std);
 });
+
+/* ── t2-05 ── 그리드 패널의 안내 3개가 어느 상태에서도 안 뜨고, 그 자리에 «빈 절»(여백만 남은 .prop-section)도 안 남는다.
+ *   ★기능 유지 — 블럭 단위 선택에서 「＋ 블럭 넣기」·정렬 단추, 글자 줄 선택에서 Typography 크기 칸이 그대로 뜬다.
+ * 되돌리면 빨개지는 것: prop-grid.js 의 세 문구 중 하나를 되살리면(문구 단언) ·
+ *   그리드 noHitHint 만 '' 로 두고 _grdLineBarHtml 의 `H.noHitHint &&` 를 빼면(빈 절 단언). */
+const T205 = /칸·줄에 따로 준 정렬은 지워진다|글자 줄을 고르면 여기 뜬다|칸을 한 번 더 누르면 줄 편집/;
+test('t2-05 안내 3개 제거 — 문구 0 · 빈 절 0 · 손잡이는 그대로', async ({ page }) => {
+  const errs = await boot(page);
+  const got = await page.evaluate((fx) => {
+    const dirty = JSON.parse(JSON.stringify(fx));
+    dirty.cells[1][1].align = 'center';              // 옛 「따로 준 정렬」 예고가 뜨던 조건
+    dirty.cells[1][0].lines[0].align = 'right';
+    const body = () => document.querySelector('#panel-right .panel-body');
+    const R = {};
+    for (const [name, f, addr] of [['block', fx, null], ['blockDirty', dirty, null], ['text', fx, { r: 0, c: 0, li: 1 }],
+                                    ['image', fx, { r: 1, c: 0, li: 1 }], ['gap', fx, { r: 1, c: 0, li: 2 }], ['dirtyText', dirty, { r: 0, c: 0, li: 1 }]]) {
+      window.__mount(f, addr);
+      R[name] = {
+        hints: [...body().querySelectorAll('.prop-hint')].map(e => e.textContent.trim()),
+        empty: [...body().querySelectorAll('.prop-section')].filter(s => !s.children.length).length,
+        has: ['grd-kid-add-kind', 'grd-valign-group', 'grd-typo-size-number'].filter(id => document.getElementById(id)),
+      };
+    }
+    return R;
+  }, FIX);
+  expect(errs).toEqual([]);
+  for (const [state, r] of Object.entries(got)) {
+    expect(r.hints.filter(t => T205.test(t)), `«${state}» 지운 안내가 떴다`).toEqual([]);
+    expect(r.empty, `«${state}» 안내만 빠지고 빈 절(여백)이 남았다`).toBe(0);
+  }
+  expect(got.block.has, '블럭 선택 — 블럭 넣기·세로 정렬 손잡이는 그대로').toEqual(expect.arrayContaining(['grd-kid-add-kind', 'grd-valign-group']));
+  expect(got.text.has, '글자 줄 선택 — Typography 크기 칸은 그대로').toContain('grd-typo-size-number');
+});

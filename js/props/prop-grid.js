@@ -367,7 +367,7 @@ function _grdGridHost(block) {
     kinds: _GRD_KINDS,
     maxLines: MAX_CELL_LINES,
     limitLabel: '셀당',
-    noHitHint: '칸을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집',
+    noHitHint: '',   // ★0.9.12 t2-05 — 그리드는 안내 없음(현빈). 빈 값이면 절 통째로 안 그린다
     head: (r, c, li) => (li === null ? `${r + 1}행 ${c + 1}열 · 빈 칸` : `${r + 1}행 ${c + 1}열 · ${li + 1}번째 줄`),
     getLines: (r, c) => { try { return getGridModel(block).cells?.[r]?.[c]?.lines || []; } catch (_) { return []; } },
     commitLines: (r, c, lines, opts) => window.updateGridBlock?.(block.id, { patchCell: { r, c, lines } }, opts),
@@ -1623,7 +1623,7 @@ const _GRD_DUP_DEL_BTNS = `        <button id="grd-line-dup-btn" class="prop-btn
 function _grdLineBarHtml(anyHit, block, host = null) {
   const H = host || _grdGridHost(block);
   if (!anyHit) {
-    return `
+    return H.noHitHint && `
     <div class="prop-section">
       <div class="prop-hint">${H.noHitHint}</div>
     </div>`;
@@ -2583,22 +2583,6 @@ function _grdStripCellOverride(block, field, dryRun) {
   return hit;
 }
 
-/** cols 쪽에 «걷힐» 정렬이 있나 — 묻기만 한다(R3 예고용).
- *  ⛔왜 _grdStripCellOverride 로 못 묻나: 그건 dataset.cells 만 본다. cols 에도 걷히는 것이 둘 있다 —
- *    ⑴ 행 0 의 «줄 정렬»(cols[c].lines[].align — 행 0 의 줄은 cells 가 아니라 cols 에 산다)
- *    ⑵ 열 «세로정렬»(col.valign — [data-va] 핸들러가 지운다)
- *  ⛔여기서 걷지 않는다. 걷는 자리는 아래 [data-ha]/[data-va] 핸들러 그대로 한 곳뿐이다. */
-function _grdColsHaveAlignOverride(block, field) {
-  let cols;
-  try { cols = JSON.parse(block.dataset.cols || '[]'); } catch (_) { return false; }
-  if (!Array.isArray(cols)) return false;
-  return cols.some(col => {
-    if (!col || typeof col !== 'object') return false;
-    if (field === 'valign') return col.valign !== undefined;
-    return Array.isArray(col.lines) && col.lines.some(l => l && typeof l === 'object' && l.align !== undefined);
-  });
-}
-
 /* ── 컬럼 «비율» UI ────────────────────────────────────────────────────────
  * 렌더러(grid-block.js)는 이미 임의 비율을 지원한다 — 각 컬럼에 flex:(w/총합*100).
  * ★2026-09-04 P0: 슬라이더(2열 20~80 클램프 / 3열 칸별 슬라이더) → 테이블식 `1:1:1` 텍스트
@@ -3367,10 +3351,6 @@ function _grdTypoSectionsHtml(hit, block) {
     return `
     <div class="prop-section">
       <div class="prop-section-title">Typography</div>
-      <!-- ★2026-09-25 R5 — 옛 문구는 「캔버스에서 «글자 줄을 클릭»하면 …」이라 줄바의 안내와
-           «같은 지시»를 두 번째로 했다. 지시는 줄바 한 자리에 모았고(_grdLineBarHtml),
-           여기는 «이 절의 상태»만 말한다. ⛔빈 절 자체를 숨기는 것은 별건(R10)이다. -->
-      <div class="prop-hint">글자 줄을 고르면 여기 뜬다</div>
     </div>`;
   }
   const { line } = hit;
@@ -3955,17 +3935,6 @@ export function showGridProperties(block, addrArg) {
   // 가로 정렬은 컬럼 모델(col.align)에 산다. 컬럼마다 다르면(혼합) 어느 버튼도 active 로 켜지 않는다.
   const _aligns = cols.map(c => c.align || 'left');
   const halign = (_aligns.length && _aligns.every(a => a === _aligns[0])) ? _aligns[0] : '';
-  /* ★2026-09-25 R3 — 아래 정렬 단추는 «열을 단일 진실원으로» 만들려고 칸·줄에 따로 준 정렬을
-   *   전부 걷는다(그 설계는 그대로 둔다 — 아래 [data-ha]/[data-va] 주석이 까닭을 적어 뒀다).
-   *   그런데 같은 화면 안내문 아홉 줄 중 «이를 예고하는 문장이 0줄»이었다: 한 번 누르면
-   *   말없이 지워진다.
-   * ⇒ 「지울 게 있을 때만」 한 줄 예고한다 — 늘 띄우면 그게 또 소음이 되고, 피커가 이미
-   *   같은 꼴(「줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)」)로 파괴를 예고하고 있어서 꼴을 베꼈다.
-   * ⛔판정은 «걷는 그 루프»에 dryRun 으로 묻는다 — 사본을 만들면 예고와 실제가 갈린다. */
-  const _alignWipes = _grdStripCellOverride(block, 'align', true)
-                   || _grdStripCellOverride(block, 'valign', true)
-                   || _grdColsHaveAlignOverride(block, 'align')
-                   || _grdColsHaveAlignOverride(block, 'valign');
 
   /* ★「Grid (N×M)」 절도 접이식이다 — 기본 접힘 (2026-09-25 · 현빈 발주 「위를 접는다」).
    *   왜 — 이 절은 패널 «맨 위»에서 4×4 피커 격자만으로 세로를 크게 먹는데, «칸 수»는
@@ -4027,7 +3996,6 @@ ${_flattenRowHtml(rows, cols)}
           ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: valign === 'bottom', attrs: { 'data-va': 'bottom' } })}
         </div>
       </div>
-      ${_alignWipes ? '<div class="prop-hint" style="text-align:left;padding:2px 0 4px;">칸·줄에 따로 준 정렬은 지워진다 (⌘Z 복원)</div>' : ''}
     </div>
     ${_grdNestHintHtml(_nestHit)}${_grdNestColVAlignHtml(_nestHit, block)}
     ${_grdLineBarHtml(_anyHit, block)}
