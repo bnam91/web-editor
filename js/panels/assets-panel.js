@@ -669,7 +669,7 @@ function _renderTreeNode(node, depth, parentEl) {
   const _isProtectedFolder = node.type === 'folder' && (node.favorite === true || node.texture === true || node.locked === true);
   const btnRename = _isProtectedFolder ? '' : `<button data-act="rename" title="이름변경">✎</button>`;
   const btnSend = node.type === 'image' ? `<button data-act="send" title="캔버스로 보내기">↗</button>` : '';
-  const btnOpen = node.type === 'url' ? `<button data-act="open" title="링크 열기">↗</button>` : '';
+  /* URL 카드 «열기» 버튼 없음 — 현빈 원칙 «링크=아무것도 안함»(SEC ③ ㉡ 261112 · window.open 은 main/nav-guard 가 전부 deny 라 남기면 죽은 버튼) */
   // (U7) favorite/Texture 고정 보호 폴더는 삭제 버튼 숨김
   const _isFixedFolder = node.type === 'folder' && (node.favorite === true || node.texture === true || node.locked === true);
   const btnDel = _isFixedFolder ? '' : `<button data-act="delete" title="삭제">🗑</button>`;
@@ -681,7 +681,7 @@ function _renderTreeNode(node, depth, parentEl) {
       ? `<button data-act="view-toggle" title="리스트로" class="assets-view-icon active"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1" y="1" width="4" height="4"/><rect x="7" y="1" width="4" height="4"/><rect x="1" y="7" width="4" height="4"/><rect x="7" y="7" width="4" height="4"/></svg></button>`
       : `<button data-act="view-toggle" title="그리드로" class="assets-view-icon"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><line x1="2" y1="3" x2="10" y2="3"/><line x1="2" y1="6" x2="10" y2="6"/><line x1="2" y1="9" x2="10" y2="9"/></svg></button>`;
   }
-  actions.innerHTML = btnView + btnRename + btnSend + btnOpen + btnDel;
+  actions.innerHTML = btnView + btnRename + btnSend + btnDel;
   actions.addEventListener('click', e => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
@@ -689,9 +689,7 @@ function _renderTreeNode(node, depth, parentEl) {
     const act = btn.dataset.act;
     if (act === 'rename') _assetsBeginInlineRename(nameEl, node.id);
     else if (act === 'send') assetsSendToCanvas(node.id);
-    else if (act === 'open' && node.type === 'url') {
-      try { window.open(node.url, '_blank'); } catch (_) {}
-    } else if (act === 'delete') assetsDeleteNode(node.id);
+    else if (act === 'delete') assetsDeleteNode(node.id);
     else if (act === 'view-toggle' && node.type === 'folder') {
       node.viewMode = (node.viewMode === 'grid') ? 'list' : 'grid';
       if (node.viewMode === 'grid') {
@@ -1297,9 +1295,7 @@ function _buildGridCard(node) {
       const imgEl = card.querySelector('img');
       try { if (imgEl) e.dataTransfer.setDragImage(imgEl, 20, 20); } catch (_) {}
     });
-  } else if (node.type === 'url') {
-    card.addEventListener('dblclick', () => { try { window.open(node.url, '_blank'); } catch(_){} });
-  }
+  }   // URL 카드 더블클릭 = 아무 일 없음(SEC ③ ㉡ — 위 목록 줄 «열기» 버튼 주석)
   return card;
 }
 
