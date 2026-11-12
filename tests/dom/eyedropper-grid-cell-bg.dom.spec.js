@@ -77,3 +77,59 @@ test('K 칸을 고른 채 i → 그 칸 배경 = 고른 색 · 섹션 배경은 
   expect(await secBg(page), '섹션 배경은 안 바뀐다').toBe(sec0);
   expect(errs).toEqual([]);
 });
+
+/* ── 0912 현빈 Q2 「i 는 지금 열려 있는 색 대상에」 ──
+ * A 글자 줄(li≠null)을 고른 채(피커 닫힘) i ⇒ 그 줄 글자색 · 칸 배경은 그대로.
+ * P 같은 줄을 고른 채 «칸 꾸미기 배경색» 견본으로 피커를 연 뒤 i ⇒ 그 피커 대상(칸 배경) · 줄 글자색은 그대로(현빈이 겪은 길).
+ * 양성대조: A — editor.js 의 `gridLine` 갈래(patchLine)를 지우면 A 빨강(줄 color 없음).
+ *          P — editor.js 의 `_cpOpen` 갈래를 지우면 P 빨강(i 가 줄 갈래로 가 칸 bg 없음 · 줄 color 생김).
+ */
+async function pickTextLine(page) {
+  return page.evaluate(() => {
+    const b = document.querySelector('#secT .grid-block');
+    const lines = window.getGridModel(b).cells?.[0]?.[0]?.lines || [];
+    const H = window.grdLineUi.gridHost(b);
+    const li = lines.findIndex((_, i) => H.line({ r: 0, c: 0, li: i }));
+    if (li < 0) return -1;
+    const a = { r: 0, c: 0, li };
+    window.grdSetActiveLine(b, a);
+    window.showGridProperties(b, a);
+    document.activeElement?.blur?.();
+    return li;
+  });
+}
+const lineColor = (page, li) => page.evaluate((li) => {
+  const b = document.querySelector('#secT .grid-block');
+  return window.getGridModel(b).cells?.[0]?.[0]?.lines?.[li]?.color ?? null;
+}, li);
+
+test('A 글자 줄을 고른 채 i → 그 줄 글자색 · 칸 배경은 그대로', async ({ page }) => {
+  const errs = await setup(page);
+  const li = await pickTextLine(page);
+  expect(li, '전제: 칸(0,0)에 글자 줄이 있다').toBeGreaterThanOrEqual(0);
+  const c0 = await lineColor(page, li);
+  await page.keyboard.press('i');
+  await expect.poll(() => page.evaluate(() => window.__eyeOpened || 0)).toBe(1);
+  await expect.poll(() => lineColor(page, li), '줄 color').toBe(PICK);
+  expect(c0, '전제: 줄 색이 원래 PICK 이 아니다').not.toBe(PICK);
+  expect(await cellBg(page), '칸 배경은 안 바뀐다').toBeFalsy();
+  expect(errs).toEqual([]);
+});
+
+test('P 줄을 고른 채 칸 배경 견본으로 피커를 열고 i → 칸 배경 · 줄 글자색은 그대로', async ({ page }) => {
+  const errs = await setup(page);
+  const li = await pickTextLine(page);
+  expect(li).toBeGreaterThanOrEqual(0);
+  const c0 = await lineColor(page, li);
+  if (!(await page.locator('#grd-cell-bg').isVisible())) await page.click('#grd-cell-toggle');
+  await page.locator('.prop-color-swatch:has(#grd-cell-bg)').click();
+  await expect(page.locator('.goya-cp-popover:not([hidden]) [data-el="dropper"]')).toBeVisible();
+  await page.keyboard.press('i');
+  await expect.poll(() => page.evaluate(() => window.__eyeOpened || 0)).toBe(1);
+  await expect.poll(() => cellBg(page), '칸 모델 bg').toBeTruthy();
+  const got = await cellBg(page);
+  const ch = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  ch(got).forEach((v, i) => expect(Math.abs(v - ch(PICK)[i]), `채널 ${i}`).toBeLessThanOrEqual(1));
+  expect(await lineColor(page, li), '줄 글자색은 안 바뀐다').toBe(c0);
+  expect(errs).toEqual([]);
+});

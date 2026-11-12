@@ -2932,6 +2932,19 @@ document.addEventListener('keydown', e => {
   // #9 대상 확장: 텍스트(글자색) > 쉐이프(fill) > 섹션(배경색), 우선순위 단일 대상.
   // ⌘I(이탤릭)는 위 metaKey 분기에서 이미 소진되므로 여기는 modifier 없는 순수 i만 처리.
   if (e.code === 'KeyI' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    /* ★0912 현빈 Q2 「i 는 지금 열려 있는 색 대상에」 — 색 패널(공용 피커)이 열려 있으면 i = 그 피커의 스포이드 단추(대상·확정은 단추가 한다).
+       ⚠️아래 INPUT 거름보다 «앞»이다: 견본을 누르면 포커스가 견본 안 input[type=color] 에 남아 거름에 걸린다. 글자를 치는 칸만 거른다. */
+    const _cpOpen = document.querySelector('.goya-cp-popover:not([hidden])');
+    if (_cpOpen) {
+      const ae = document.activeElement;
+      const typing = ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT'
+        || (ae.tagName === 'INPUT' && !/^(color|checkbox|radio|range|button)$/i.test(ae.type)));
+      if (!typing && !document.querySelector('.text-block.editing')) {
+        const d = _cpOpen.querySelector('[data-el="dropper"]');
+        if (d && !d.disabled) { e.preventDefault(); d.click(); }
+        return;
+      }
+    }
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
     if (document.querySelector('.text-block.editing')) return;
@@ -2940,13 +2953,16 @@ document.addEventListener('keydown', e => {
     /* ★t7-07 — 프레임을 고른 채 i 를 누르면 «섹션» 배경이 바뀌었다(프레임 갈래가 없어 섹션 갈래로 떨어졌다).
        ⇒ 쉐이프 다음 · 섹션 앞에 프레임 갈래. 글자 프레임(data-text-frame)은 글자 갈래의 그릇이라 뺀다. */
     const frameTargets = (textTargets.length || shapeTargets.length) ? [] : Array.from(document.querySelectorAll('.frame-block.selected:not([data-text-frame="true"])'));
-    /* ★0912 GRID-CELL-BG-EYEDROPPER — 그리드 «칸»(줄 없음 · li===null)을 고른 채 i ⇒ 그 칸 배경. 게이트(단독선택·중첩 np 제외)는 ⌫ 줄 삭제 갈래와 같다.
-       ⛔줄(li≠null)을 고른 상태는 «글자색이냐 칸 배경이냐»가 미결이라 안 건드린다(종전대로 무동작). */
+    /* ★0912 그리드 — 게이트(단독선택·중첩 np 제외)는 ⌫ 줄 삭제 갈래와 같다. 현빈 Q2:
+       칸(li===null)을 고른 채 i ⇒ 그 칸 배경 · 글자 줄(li≠null)을 고른 채 i ⇒ 그 줄 글자색(패널 Fill 과 같은 문 patchLine).
+       그림·갭 줄은 글자색이 없어 무동작(H.line 이 글자 줄만 돌려준다). 피커가 열려 있으면 위 갈래가 먼저 가져간다. */
     const _gBlk = (textTargets.length || shapeTargets.length || frameTargets.length) ? null : document.querySelector('.grid-block.selected');
     const _gAddr = _gBlk && window.grdIsSoleSelected?.(_gBlk) ? window.grdGetActiveLine?.(_gBlk) : null;
     const gridCell = (_gAddr && _gAddr.li == null && !_gAddr.np) ? { block: _gBlk, r: _gAddr.r, c: _gAddr.c } : null;
-    const sectionTargets = (textTargets.length || shapeTargets.length || frameTargets.length || gridCell) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
-    if (textTargets.length || shapeTargets.length || frameTargets.length || gridCell || sectionTargets.length) {
+    const _gH = (_gAddr && _gAddr.li != null && !_gAddr.np) ? window.grdLineUi?.gridHost?.(_gBlk) : null;
+    const gridLine = _gH?.line?.(_gAddr) ? { H: _gH, r: _gAddr.r, c: _gAddr.c, li: _gAddr.li } : null;
+    const sectionTargets = (textTargets.length || shapeTargets.length || frameTargets.length || gridCell || gridLine) ? [] : Array.from(document.querySelectorAll('.section-block.selected'));
+    if (textTargets.length || shapeTargets.length || frameTargets.length || gridCell || gridLine || sectionTargets.length) {
       e.preventDefault();
       if (!window.EyeDropper) { window.showToast?.('이 브라우저는 스포이드 미지원'); return; }
       (async () => {
@@ -2989,6 +3005,8 @@ document.addEventListener('keydown', e => {
           } else if (gridCell) {
             /* 패널 「칸 꾸미기 · 배경색」 change 와 같은 문(updateGridBlock patchCell — 히스토리·패널 갱신을 스스로 한다) */
             window.updateGridBlock?.(gridCell.block.id, { patchCell: { r: gridCell.r, c: gridCell.c, bg: hex } });
+          } else if (gridLine) {
+            gridLine.H.patchLine(gridLine.r, gridLine.c, gridLine.li, { color: hex });
           } else {
             // prop-section.js 색 규약과 동일: dataset.bg + 인라인 배경(이미지 해제)
             // ★동일색 가드 + changed 조건화(고디터QA LOW — 섹션 분기는 가드 자체가 없어 빈 undo가 쌓였다).
