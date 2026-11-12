@@ -16,6 +16,7 @@
  *   P11 단독 HTML — 핀 속성·자르기 규칙이 실리고 pin-peek 은 없다
  *   P12 Figma JSON — heightPin 300 · 핀 아닌 섹션 0
  *   P13 섹션 합치기 — 핀 섹션을 합쳐도 part 에 고정높이가 안 옮겨진다
+ *   P14 ★합치기→분리 왕복 — 핀이 되살아난다(r1 ①)
  *   R1 ★저장→닫기→다시 열기 — 새 앱 인스턴스에 저장본을 실어도 핀·자르기·숨은 수가 그대로 · pin-peek 은 안 실림
  *   R2 ⌘Z — 핀 켜기 한 번이 ⌘Z 한 번으로 풀린다
  *   U1 ★우측 패널 — 📌 켬/끔 · 「숨은 블럭 N개」 줄은 N>0 때만 · 전체 보기/핀 해제 버튼 · 새 prop-hint 0
@@ -330,6 +331,29 @@ test('P13 섹션 합치기 — 핀 섹션을 합쳐도 part 에 고정높이가 
   expect(r.part).toBe(true);
   expect(r.h, 'part 에 고정높이가 옮겨졌다').toBe('');
   expect(r.pin).toBe(null);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P14 ★합치기→분리 왕복 — 핀이 안 풀린다(잠든 data-pin-h 가 저장본에 실리고 분리 때 되살아난다 · Codex r1 P1-①)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(() => {
+    const p = document.getElementById('pS'), n = document.getElementById('nS');
+    n.style.height = '600px'; n.dataset.heightPin = 'true';          // 원본(아래) = 핀 600 · 내용 1200
+    const contentH = (() => { const s = n.style.height, a = n.dataset.heightPin; n.style.height = ''; delete n.dataset.heightPin; const h = n.offsetHeight; n.style.height = s; n.dataset.heightPin = a; return h; })();
+    if (!window.mergeSectionInto(p, n)) return { merged: false };
+    const part = p.querySelector('.section-merged-part');
+    const mid = { pinH: part.dataset.pinH ?? null, partH: part.getBoundingClientRect().height / (p.getBoundingClientRect().width / p.offsetWidth),
+      saved: /data-pin-h="600"/.test(window.getSerializedCanvas()) };
+    window.splitMergedPart(part);
+    const back = [...document.querySelectorAll('#canvas > .section-block')].find(s => s !== p);
+    return { merged: true, contentH, mid, back: back ? { height: back.style.height, pin: back.dataset.heightPin ?? null, pinH: back.dataset.pinH ?? null, h: back.offsetHeight } : null };
+  });
+  console.log('  P14:', JSON.stringify(r));
+  expect(r.merged).toBe(true);
+  expect(r.mid.pinH, '합친 part 에 핀 높이를 보관 안 했다').toBe('600');
+  expect(r.mid.saved, '저장본에 잠든 핀이 없다 — 저장→열기→분리에서 잃는다').toBe(true);
+  expect(r.mid.partH, '합친 상태에서 part 가 핀 600 에 고정됐다(내용 갭 1200 이 다 보여야)').toBeGreaterThanOrEqual(1199);
+  expect(r.back).toEqual({ height: '600px', pin: 'true', pinH: null, h: 600 });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
