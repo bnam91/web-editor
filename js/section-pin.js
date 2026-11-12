@@ -82,13 +82,15 @@
     return true;
   }
 
+  /* ★기록은 «변경 전»에 찍는다 — 이 앱 히스토리 규약(section-merge.js 등 · 끝 상태는 ⌘Z 진입 때 ensureHistoryCheckpoint 가 담는다).
+     «변경 후»만 찍으면 앞 조작(예: 합치기)의 «전» 스냅샷과 이 조작 사이에 칸이 없어 ⌘Z 한 번이 둘을 같이 푼다(Codex r2 ①). */
   function pin(sec) {
     if (!sec || isPinned(sec)) return;
+    window.pushHistory?.();
     const h = sec.offsetHeight;
     sec.style.minHeight = '';
     sec.style.height = h + 'px';
     sec.dataset.heightPin = 'true';
-    window.pushHistory?.();
     window.triggerAutoSave?.();
     refreshSoon();
   }
@@ -96,13 +98,13 @@
   /** 핀 해제 — Q13 ⓒ 그 높이를 바닥(minHeight)으로 남긴다(내용이 더 크면 내용만큼 늘어난다 = 해제의 뜻). */
   function unpin(sec) {
     if (!sec || !isPinned(sec)) return;
+    window.pushHistory?.();          // ★변경 «전»(pin 머리말)
     const h = pinH(sec);
     sec.classList.remove(PEEK);
     sec.style.height = '';
     delete sec.dataset.heightPin;
     sec.style.minHeight = h + 'px';
     unwatch(sec);
-    window.pushHistory?.();
     window.triggerAutoSave?.();
     refreshSoon();
   }

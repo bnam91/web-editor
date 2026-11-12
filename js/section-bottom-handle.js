@@ -100,7 +100,12 @@
       end();
       armClickSwallow();
       if (sec.style.minHeight !== mh0 || sec.style.height !== ht0) {
+        /* ★기록은 «변경 전» 상태로 찍는다(앱 규약 · section-pin.js pin 머리말 · Codex r2 ①) — 끌기는 이미 값을 바꿨으니
+           잠깐 옛 값으로 돌려 찍고 새 값을 다시 놓는다(같은 태스크 · 화면에 안 보인다). */
+        const mh1 = sec.style.minHeight, ht1 = sec.style.height;
+        sec.style.minHeight = mh0; sec.style.height = ht0;
         window.pushHistory?.();
+        sec.style.minHeight = mh1; sec.style.height = ht1;
         window.triggerAutoSave?.();
       }
     };
@@ -125,14 +130,14 @@
     if (window.sectionPin?.isPinned(sec)) {
       const nat = window.sectionPin.naturalHeight(sec);
       if (Math.round(parseFloat(sec.style.height)) === nat) return;
+      window.pushHistory?.();        // ★변경 «전»
       sec.style.height = nat + 'px';
-      window.pushHistory?.();
       window.triggerAutoSave?.();
       return;
     }
     if (!sec.style.minHeight) return;
+    window.pushHistory?.();          // ★변경 «전»(⑦ 과 같은 규약)
     sec.style.minHeight = '';
-    window.pushHistory?.();
     window.triggerAutoSave?.();
   }
 

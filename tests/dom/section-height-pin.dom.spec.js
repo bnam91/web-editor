@@ -12,6 +12,7 @@
  *   P3 ★전체 보기 — 다 보이고 · 높이 수는 핀 값 · 저장본·PNG 에 pin-peek 없음 · 선택 풀리면 꺼지고 · 선택 중이면 남는다
  *   P3b ★전체 보기 켠 채 h2c PNG·썸네일 입구 — 루트 pin-peek 이 안 샌다(r1 ②) · native PNG 는 P3 가 잰다
  *   P3c ★Delete(클릭 아닌 선택 해제)에도 전체 보기 꺼짐(r2 ④)
+ *   P16 ★합치기→핀 해제/손잡이→⌘Z 1번 = 핀만 되돌림(r2 ① · 기록 «변경 전»)
  *   P4 핀 해제 — height 지움 · minHeight=핀값 · 내용만큼 늘어남 · 기록 1
  *   P5 ★바닥 손잡이 — 내용 밑으로 줄임 · 하한 아래패딩+20 · 취소 복원 · 더블클릭 = 내용에 맞춤 · 기록 각 1
  *   P6 드롭 기준 — 보이는 끝 아래로 끌면 «첫 숨은 자식 앞» (undefined = 맨 끝 append 가 아님)
@@ -267,6 +268,41 @@ test('P3c ★Delete 로 선택이 풀려도 전체 보기가 꺼진다 (r2 ④ �
   await page.keyboard.press('Delete');
   await expect.poll(() => page.evaluate(() => !document.getElementById('pH')), { timeout: 2000 }).toBe(true);   // ★전제 — 실제로 지워졌다
   await expect.poll(() => page.evaluate(() => document.getElementById('pS').classList.contains('pin-peek')), { timeout: 2000 }).toBe(false);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P16 ★합치기 → 핀 조작 → ⌘Z 한 번 = 핀만 되돌리고 합치기는 남는다 (r2 ① · 기록 «변경 전»)', async ({ page }) => {
+  const errs = await setup(page);
+  const r = await page.evaluate(async () => {
+    const tick = () => new Promise(r => setTimeout(r, 30));
+    const P = () => document.getElementById('pS');
+    const merged = () => !!P().querySelector('.section-merged-part');
+    if (!window.mergeSectionInto(P(), document.getElementById('nS'))) return { ok: false };
+    await tick();
+    const out = { ok: true, m0: merged(), pin0: P().dataset.heightPin ?? null };
+    window.sectionPin.unpin(P()); await tick();                       // 핀 조작 ①: 해제
+    out.afterUnpin = P().dataset.heightPin ?? null;
+    window.undo(); await tick();
+    out.u1 = { merged: merged(), pin: P().dataset.heightPin ?? null, height: P().style.height };
+    /* 핀 조작 ②: 손잡이 끌기(높이 300 → 200) → ⌘Z */
+    const h = P().querySelector(':scope > .section-bottom-handle');
+    const k = P().getBoundingClientRect().width / P().offsetWidth, y0 = h.getBoundingClientRect().top + 2;
+    h.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientY: y0, bubbles: true, cancelable: true }));
+    document.dispatchEvent(new PointerEvent('pointermove', { clientY: y0 - 100 * k, bubbles: true }));
+    document.dispatchEvent(new PointerEvent('pointerup', { clientY: y0 - 100 * k, bubbles: true }));
+    await tick();
+    out.dragged = P().style.height;
+    window.undo(); await tick();
+    out.u2 = { merged: merged(), height: P().style.height };
+    return out;
+  });
+  console.log('  P16:', JSON.stringify(r));
+  expect(r.ok && r.m0, '★전제 — 합쳤다').toBe(true);
+  expect(r.pin0).toBe('true');
+  expect(r.afterUnpin, '★전제 — 해제됐다').toBe(null);
+  expect(r.u1, '⌘Z 한 번이 합치기까지 풀었다').toEqual({ merged: true, pin: 'true', height: '300px' });
+  expect(r.dragged, '★전제 — 손잡이로 줄였다').toBe('200px');
+  expect(r.u2, '손잡이 ⌘Z 가 합치기까지 풀었다').toEqual({ merged: true, height: '300px' });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
