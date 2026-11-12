@@ -4317,6 +4317,8 @@ ipcMain.handle('figma:upload', (event, { channel, designJSON }) => {
   return new Promise((resolve) => {
     const tmpPath = path.join(os.tmpdir(), `sangpe_export_${Date.now()}.json`);
     try {
+      /* ★SEC ④ — file:// 는 main 이 걸러 앱 폴더 안 이미지만 data: 로 넘긴다(변환기는 file 을 안 읽는다 · main/figma-upload-sanitize.js) */
+      require('./main/figma-upload-sanitize').sanitizeFigmaDesign(designJSON, [__dirname]);
       fs.writeFileSync(tmpPath, JSON.stringify(designJSON, null, 2), 'utf8');
     } catch (err) {
       return resolve({ success: false, logs: '파일 쓰기 실패: ' + err.message });

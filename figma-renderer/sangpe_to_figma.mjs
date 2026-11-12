@@ -1251,8 +1251,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
               if (imf) {
                 let b64 = '';
                 try {
-                  if (src.startsWith('file://')) b64 = readFileSync(decodeURIComponent(src.replace('file://', ''))).toString('base64');
-                  else if (src.startsWith('data:')) b64 = src.split(',')[1];
+                  if (src.startsWith('data:')) b64 = src.split(',')[1];   // ★SEC ④ file:// 는 안 읽는다 — main(figma-upload-sanitize)이 허용된 것만 data: 로 바꿔 준다
                 } catch (e) {}
                 if (b64) run('set_image_fill', { nodeId: imf.id, imageSource: b64, sourceType: 'base64', scaleMode: (isObj && r.imgFit === 'contain') ? 'FIT' : 'FILL' }, { timeout: 25000 });
                 else run('set_fill_color', { nodeId: imf.id, color: { r: 1, g: 1, b: 1, a: 0 } });
@@ -1271,7 +1270,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     return totalH;
   }
 
-  // ── MOCKUP (mockup-block) : 디바이스 프레임 이미지 (file:// → fs로 base64) ──
+  // ── MOCKUP (mockup-block) : 디바이스 프레임 이미지 (main 이 file:// → data: 로 바꿔 준다 · SEC ④) ──
   if (block.type === 'mockup') {
     const w = block.width || 575;
     const h = block.height || 400;
@@ -1286,10 +1285,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     if (!frame) return h;
     let b64 = '';
     try {
-      if (block.imgSrc && block.imgSrc.startsWith('file://')) {
-        const p = decodeURIComponent(block.imgSrc.replace('file://', ''));
-        b64 = readFileSync(p).toString('base64');
-      } else if (block.imgSrc && block.imgSrc.startsWith('data:')) {
+      if (block.imgSrc && block.imgSrc.startsWith('data:')) {   // ★SEC ④ file:// 는 안 읽는다(위 비교표 칸 주석)
         b64 = block.imgSrc.split(',')[1];
       }
     } catch (e) {}
