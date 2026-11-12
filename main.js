@@ -4795,10 +4795,14 @@ ipcMain.handle('capture-section', async (event, { width, height }) => {
    기존 capture-section의 청크 캡쳐 동기화 버그(P1) 우회용.
    Page.captureScreenshot + captureBeyondViewport:true로 viewport 밖 영역까지
    한 번에 캡쳐 → clone.style.top 이동/청크 합성 불필요. */
-ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, height } = {}) => {
+ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, height, scale = 1 } = {}) => {
   const dbg = mainWindow.webContents.debugger;
   if (!dbg.isAttached()) dbg.attach('1.3');
-  // CDP clip.scale은 device pixel ratio가 아니라 **page zoom factor**. 항상 1로 고정.
+  // CDP clip.scale은 device pixel ratio가 아니라 **page zoom factor** — 그 배율로 «다시 그려» 찍는다.
+  // 기본 1. 860보다 넓은 내보내기(1000 = 확대 · export-image.js captureLayoutWidth)만 >1 을 넘긴다.
+  // ⛔렌더러가 준 값이라 범위를 막는다(0·음수·NaN·거대값 → 1, 상한 4).
+  const _s = Number(scale);
+  const clipScale = (_s > 0 && _s <= 4) ? _s : 1;
   // x/y는 페이지 좌표계 — clone이 off-screen(top:-99999px)이어도 그 좌표로 캡쳐 가능
   // (captureBeyondViewport:true가 viewport 밖 + 음수 좌표 영역 모두 허용).
   const res = await dbg.sendCommand('Page.captureScreenshot', {
@@ -4808,7 +4812,7 @@ ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, heigh
       y: Math.round(y),
       width:  Math.ceil(width),
       height: Math.ceil(height),
-      scale:  1,
+      scale:  clipScale,
     },
     captureBeyondViewport: true,
     fromSurface: true,

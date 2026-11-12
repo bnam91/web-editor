@@ -6,6 +6,12 @@ import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitFo
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
 
 const CANVAS_W = 860;
+/* ★0.9.12 ③ 현빈 결정(Q1 ㉮): 화면(860)보다 «넓은» 폭은 «다시 배치»가 아니라 «확대»다 —
+   860 배치(글자·줄바꿈·여백) 그대로 찍고 캡처 배율만 w/860 으로 키운다(1000 = ×1.163).
+   «좁은» 폭(780 쿠팡)은 지금처럼 그 폭으로 다시 흘린다(①-b syncImageBoxesToCaptureWidth).
+   ★export·truth(export-gate.js) 둘 다 prepareCloneForCapture/captureCloneToCanvas 안에서 이 한 함수로
+     정한다 ⇒ 두 그림의 크기·배치가 갈릴 수 없다(갈리면 «크기 불일치» 거짓 FAIL). */
+export function captureLayoutWidth(w) { return w > CANVAS_W ? CANVAS_W : w; }
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
 
 /* ─── GIF 유틸 ─────────────────────────────────────────────────────────
@@ -258,7 +264,7 @@ export async function prepareCloneForCapture(sec, w, useNative) {
 
   // CDP captureBeyondViewport로 off-screen 좌표도 캡쳐 가능 — clone을 화면 밖에 두어
   // export 중 사용자 화면에 큰 박스가 튀어나오는 "ghosting" 현상 제거
-  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + w + 'px;margin:0;outline:none;';
+  clone.style.cssText += ';position:fixed;top:-99999px;left:0;width:' + captureLayoutWidth(w) + 'px;margin:0;outline:none;';
 
   // P1 우회 부수 안정성: clone 자체를 stacking context로 격리
   // (sec_fdm1dzu처럼 자체 stacking context인 섹션 외에도 일관성 보장)
@@ -434,6 +440,8 @@ export function isNativeCapture(opts) {
    «빈 그림»일 수 있어 둘이 같아도 PASS 라고 말하면 안 된다(판정에서 unmeasured 로 간다).
    ══════════════════════════════════════════════════════════════════════════ */
 export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec) {
+    // ★w = «출력» 폭. 클론은 lw 로 배치돼 있다 — w>860 이면 k>1 로 «캡처 자체를» 키운다(업스케일 아님).
+    const lw = captureLayoutWidth(w), k = w / lw;
     // 모자이크 redact(js/effects/redact-mosaic.js)는 cloneNode에 캔버스 비트맵이 안 딸려온다.
     // native(CDP)든 html2canvas든 «둘 다» clone을 찍으므로, 어느 경로든 타기 전에 라이브
     // 캔버스를 clone에 구워 넣는다 — 실패 시 함수 내부에서 불투명 회색 안전실패(원본 미노출).
@@ -464,8 +472,9 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
         pngBase64 = await window.electronAPI.captureSectionCdp({
           x: Math.round(cloneRect.left),
           y: Math.round(cloneRect.top),
-          width: w,
+          width: lw,
           height: secH,
+          scale: k,   // ★1 이 아니면 브라우저가 그 배율로 «다시 그린다» — dpr=1 PC 에서도 1000 이 선명(860 을 늘리지 않는다)
         });
       } else {
         // 구버전 Electron(메인 프로세스 미업데이트) 호환을 위한 명시적 실패
@@ -478,7 +487,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
       // → 출력 캔버스를 CSS px(w×secH)로 고정하고 drawImage 시 다운스케일 → dpr 무관 결정적 1배.
       const outCanvas = document.createElement('canvas');
       outCanvas.width  = Math.round(w);
-      outCanvas.height = Math.round(secH);
+      outCanvas.height = Math.round(secH * k);
       const ctx = outCanvas.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
       await new Promise((res, rej) => {
@@ -501,7 +510,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
     try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[export] svg transform 올리기 실패:', e); }
     const _to2 = await _waitImagesReady(clone);
     const _h2c = await html2canvas(clone, {
-      scale: 1,
+      scale: k,
       useCORS: true,
       backgroundColor: bgColor,
       logging: false,

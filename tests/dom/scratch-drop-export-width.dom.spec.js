@@ -5,7 +5,8 @@
  *
  * ★기전 (이 스펙이 재는 것)
  *   내보내기는 섹션을 통째로 복제하고 «클론의 폭만» 바꾼다 —
- *     js/io/export-image.js prepareCloneForCapture: `clone.style.cssText += ';…width:' + w + 'px;…'`
+ *     js/io/export-image.js prepareCloneForCapture: `clone.style.cssText += ';…width:' + captureLayoutWidth(w) + 'px;…'`
+ *       (0.9.12 ③ — 860 이하는 w 그대로 · 860 초과는 860 배치 «확대». 이 스펙은 780·860 만 부르므로 행동 무변)
  *   그래서 폭이 «상대값»(calc(100% + …) / %)인 것은 따라 줄고, «절대 px»인 것은 안 줄어든다.
  *   스크래치 드롭(canvas-scratch-drop.js applyScratchWidth)은 넘침 밴드에서도 절대 px 를 박았다:
  *     860 캔버스 · padX=p → 콘텐츠폭 860−2p · 박힌 폭 860px · 좌우 마진 −p
