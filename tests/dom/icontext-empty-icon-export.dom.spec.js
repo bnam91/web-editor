@@ -92,6 +92,7 @@ test('IC3 Figma JSON — 빈 칸 블럭에 자리표시 svg 가 안 실린다', 
   const j = await page.evaluate(() => (window.flushCurrentPage?.(), window.buildFigmaExportJSON(null)));
   let hit = null; JSON.stringify(j, (k, v) => { if (v && v.id === ids.empty) hit = v; return v; });
   expect(hit, '전제: 빈 칸 블럭이 Figma JSON 에 없다').not.toBeNull();
-  expect(JSON.stringify(hit.texts || []), '전제: 글자는 실린다').toContain('빈 아이콘 칸');
+  /* ⛔「글자는 실린다」 전제를 뺐다(인텔 261112 빨강) — 수집기(export-figma-json.js texts)는 tb-*·.annot-label 만 보고 .itb-text 는 원래 안 싣는다(650a62f64 전부터).
+     그 빈자리는 별건 ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01 — 이 검사의 대상(svg 자리표시)과 무관. */
   expect(String(hit.svg || ''), 'Figma JSON 에 자리표시 svg 가 실렸다').not.toContain(PH_SVG);
 });
