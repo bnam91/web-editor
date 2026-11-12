@@ -7,6 +7,8 @@
  *   P1b ★배지 섹션 inner min-height:260 — 핀 100 이면 inner 바닥 = 자르는 선(r1 ③)
  *   P2 ★넘침 갱신 — 섹션 크기가 그대로인 채 글이 늘면 배지 「숨은 블럭 N」이 따라 는다
  *   P2b ★행 안 블럭만 커질 때(행 최소높이 600 · 행 크기 그대로) 숨은 수 갱신(r1 ④)
+ *   P2c ★자리(style.top)만 바뀌어 숨는 블럭도 숨은 수 갱신(r2 ③)
+ *   P15 관찰 정리 — 핀 섹션만 · 해제·⌘Z 뒤 0(r2 ⑤)
  *   P3 ★전체 보기 — 다 보이고 · 높이 수는 핀 값 · 저장본·PNG 에 pin-peek 없음 · 선택 풀리면 꺼지고 · 선택 중이면 남는다
  *   P3b ★전체 보기 켠 채 h2c PNG·썸네일 입구 — 루트 pin-peek 이 안 샌다(r1 ②) · native PNG 는 P3 가 잰다
  *   P4 핀 해제 — height 지움 · minHeight=핀값 · 내용만큼 늘어남 · 기록 1
@@ -155,6 +157,38 @@ test('P2b ★행 안 블럭이 커져(행·섹션 크기 그대로) 아래 블�
   expect(after.rowH, '★전제 — 행 크기 그대로(이 칸은 «행 안» 변화를 잰다)').toBe(before.rowH);
   expect(after.secH).toBe(300);
   expect(after.hidden).toEqual(['sB']);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P2c ★블럭 «자리»만 바뀌어(style.top · 크기 그대로) 숨어도 숨은 수가 따라온다 (r2 ③)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => {
+    const n = document.getElementById('nS'), inner = n.querySelector(':scope > .section-inner');
+    inner.innerHTML = '<div class="row" id="yRow"><div class="text-block" id="yB" style="position:relative;top:0px;height:60px"><p style="margin:0">Y</p></div></div>';
+    n.style.height = '300px'; n.dataset.heightPin = 'true';
+  });
+  const nb = () => page.evaluate(() => document.querySelector('#nS > .section-hitzone > .section-height-badge')?.dataset.h || '');
+  await expect.poll(nb).toContain('📌');
+  expect(await nb(), '★전제 — 처음엔 다 보인다').not.toContain('숨은');
+  const before = await page.evaluate(() => ({ w: document.getElementById('yB').offsetWidth, h: document.getElementById('yB').offsetHeight }));
+  await page.evaluate(() => { document.getElementById('yB').style.top = '400px'; });   // prop-text-wireup-position.js 의 Y 칸과 같은 손(style.top)
+  await expect.poll(nb, { timeout: 2000 }).toContain('숨은 블럭 1');
+  const after = await page.evaluate(() => ({ w: document.getElementById('yB').offsetWidth, h: document.getElementById('yB').offsetHeight }));
+  expect(after, '★전제 — 크기는 그대로(이 칸은 «자리»만 잰다)').toEqual(before);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('P15 관찰 정리 — 핀 섹션만 관찰 · 해제하면 즉시 0 · ⌘Z 로 DOM 이 갈려도 남지 않는다 (r2 ⑤)', async ({ page }) => {
+  const errs = await setup(page);
+  const c = () => page.evaluate(() => window.sectionPin._observedCount());
+  await expect.poll(c).toBe(1);                                        // pS 하나
+  await page.evaluate(() => window.sectionPin.unpin(document.getElementById('pS')));
+  expect(await c(), '해제했는데 관찰이 남았다').toBe(0);
+  await page.evaluate(() => { window.pushHistory(); window.sectionPin.pin(document.getElementById('nS')); });
+  await expect.poll(c).toBe(1);
+  await page.evaluate(() => { window.undo(); });                       // DOM 통째 교체 + nS 핀 풀림
+  await page.evaluate(() => window.renderSectionHeights());
+  expect(await c(), '⌘Z 뒤 떨어진/풀린 섹션 관찰이 남았다').toBe(0);
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

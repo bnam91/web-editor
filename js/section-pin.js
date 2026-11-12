@@ -101,6 +101,7 @@
     sec.style.height = '';
     delete sec.dataset.heightPin;
     sec.style.minHeight = h + 'px';
+    unwatch(sec);
     window.pushHistory?.();
     window.triggerAutoSave?.();
     refreshSoon();
@@ -122,31 +123,47 @@
        ⛔루프 없음: 콜백은 refreshSoon(한 틱 모음) → 높이 배지·패널만 쓴다(inner 밖) — 관찰 대상 크기를 안 바꾼다.
        비용: 핀 섹션의 블럭 수만큼만 건다(핀 아닌 섹션 0) · 안내선(drop-indicator) 들락날락은 MO 에서 거른다.
      걸기는 section-height 의 그리기 순회가 info() 로 부를 때(로드·⌘Z·삽입 모두 그 길). */
-  let _ro = null;
-  const _watched = new WeakSet();
+  /* ★관찰은 «핀 섹션마다 한 벌»(Codex r2 ⑤) — 핀이 풀리거나 섹션이 떨어져 나가면 disconnect · 핀 0 이면 관찰 0.
+     ★MO 는 style 속성도 본다(Codex r2 ③) — 텍스트 프레임 Y(style.top)·transform 처럼 «크기는 그대로·자리만» 바뀌어 숨는 길. */
+  const _obs = new Map();          // sec → { ro, mo, seen:WeakSet }
   let _t = 0;
   function refreshSoon() {
     if (_t) return;
     _t = setTimeout(() => { _t = 0; try { window.renderSectionHeights?.(); } catch (_) {} }, 0);
   }
+  function unwatch(sec) {
+    const o = _obs.get(sec);
+    if (!o) return;
+    o.ro.disconnect(); o.mo.disconnect();
+    _obs.delete(sec);
+  }
+  function prune() { for (const sec of [..._obs.keys()]) if (!sec.isConnected || !isPinned(sec)) unwatch(sec); }
   function watch(sec) {
     const inner = sec.querySelector(':scope > .section-inner');
-    if (!inner || typeof ResizeObserver !== 'function') return;
-    if (!_ro) _ro = new ResizeObserver(refreshSoon);
-    [...inner.children, ...blocksOf(sec)].forEach((c) => { if (!_watched.has(c)) { _ro.observe(c); _watched.add(c); } });
-    if (!_watched.has(inner)) {
-      _watched.add(inner);
+    if (!inner || typeof ResizeObserver !== 'function' || typeof MutationObserver !== 'function') return;
+    let o = _obs.get(sec);
+    if (o && o.inner !== inner) { unwatch(sec); o = null; }     // inner 가 갈렸다(재렌더) — 새로 건다
+    if (!o) {
       const isGuide = (n) => n.nodeType === 1 && (n.classList.contains('drop-indicator') || n.classList.contains('sp2c-insert-indicator'));
-      new MutationObserver((muts) => {
-        if (muts.every((m) => [...m.addedNodes, ...m.removedNodes].every(isGuide))) return;
-        if (isPinned(sec)) watch(sec);
+      const mo = new MutationObserver((muts) => {
+        if (!isPinned(sec) || !sec.isConnected) { unwatch(sec); refreshSoon(); return; }
+        const real = muts.some((m) => m.type === 'attributes'
+          ? !isGuide(m.target)
+          : [...m.addedNodes, ...m.removedNodes].some((n) => !isGuide(n)));
+        if (!real) return;
+        watch(sec);
         refreshSoon();
-      }).observe(inner, { childList: true, subtree: true });
+      });
+      mo.observe(inner, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'transform'] });
+      o = { ro: new ResizeObserver(refreshSoon), mo, inner, seen: new WeakSet() };
+      _obs.set(sec, o);
     }
+    [...inner.children, ...blocksOf(sec)].forEach((c) => { if (!o.seen.has(c)) { o.ro.observe(c); o.seen.add(c); } });
   }
 
-  /** section-height 그리기 순회가 «읽기 단계»에서 부른다 → { pinned, hidden }. */
+  /** section-height 그리기 순회가 «읽기 단계»에서 부른다 → { pinned, hidden }. 핀 아닌 섹션은 관찰을 걷는다. */
   function info(sec) {
+    prune();
     if (!isPinned(sec)) return null;
     watch(sec);
     return { pinned: true, hidden: hiddenBlocks(sec).length };
@@ -180,5 +197,5 @@
   document.addEventListener('click', () => setTimeout(sweepPeek, 0), true);
   document.addEventListener('keyup', (e) => { if (e.key === 'Escape') setTimeout(sweepPeek, 0); }, true);
 
-  window.sectionPin = { isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
+  window.sectionPin = { _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
 })();
