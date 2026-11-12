@@ -4428,7 +4428,13 @@ function gridCopyRange(model, r0, c0, r1, c1) {
   const full = _gridFullCellsOf(model);
   const cells = [];
   for (let r = ra; r <= rb; r++) cells.push(full[r].slice(ca, cb + 1));
-  return { h: rb - ra + 1, w: cb - ca + 1, cells };
+  const out = { h: rb - ra + 1, w: cb - ca + 1, cells };
+  /* ★0.9.12 ⑥ — 범위 «안에 통째로 든» 병합만 클립 기준 자리로 싣는다(범위는 grdGetRange 가 이미 병합을 통째 덮게 넓혔다). 없으면 키 없음 = 옛 꼴. */
+  const mg = (Array.isArray(model.merges) ? model.merges : [])
+    .filter(m => m.r >= ra && m.c >= ca && m.r + m.rs - 1 <= rb && m.c + m.cs - 1 <= cb)
+    .map(m => ({ r: m.r - ra, c: m.c - ca, rs: m.rs, cs: m.cs }));
+  if (mg.length) out.merges = mg;
+  return out;
 }
 
 /** ★순수 — 범위 붙여넣기(확정 ② · 해-3). anchor = 붙일 범위의 왼쪽 위 칸.
@@ -4439,22 +4445,45 @@ function gridPasteRange(model, clip, anchor) {
   if (!_gridIsObj(clip) || !Number.isInteger(clip.h) || !Number.isInteger(clip.w) || clip.h < 1 || clip.w < 1) return null;
   if (!Array.isArray(clip.cells) || clip.cells.length !== clip.h || !clip.cells.every(row => Array.isArray(row) && row.length === clip.w)) return null;
   if (!_gridIsObj(anchor) || !Number.isInteger(anchor.r) || !Number.isInteger(anchor.c) || anchor.r < 0 || anchor.c < 0) return null;
-  const R = model.rows.length, C = model.cols.length;
+  const R0 = model.rows.length, C0 = model.cols.length;
+  /* ★0.9.12 ⑥ 현빈 「엑셀/스프레드시트 붙여넣기와 같게」 — 넘치면 구글시트처럼 행·열을 늘린다(상한 MAX_ROWS×MAX_COLS · 그 밖은 옛대로 버림).
+   *   새 열 = 마지막 열 사본(폭 · 줄은 아래 full 이 정한다) · 새 행 = 'auto' · 새 칸 = 빈 칸(시트가 늘린 행·열은 비어 있다). */
+  const R = Math.min(MAX_ROWS, Math.max(R0, anchor.r + clip.h)), C = Math.min(MAX_COLS, Math.max(C0, anchor.c + clip.w));
+  const cols = model.cols.slice(), rows = model.rows.slice();
+  while (cols.length < C) cols.push(cols.length ? _gridDeep(cols[cols.length - 1]) : { width: 1 });
+  while (rows.length < R) rows.push({ height: 'auto' });
   const full = _gridFullCellsOf(model);
+  for (const row of full) while (row.length < C) row.push({ lines: [] });
+  while (full.length < R) full.push(Array.from({ length: C }, () => ({ lines: [] })));
   let written = 0, dropped = 0;
   const hidden = Array.isArray(model.merges) ? model.merges : [];   // ★t2-04 — 가려진 칸엔 안 쓴다(버린 수로 센다 · 해제 때 숨은 글이 나오지 않게)
+  const isHid = (m, r, c) => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs && !(r === m.r && c === m.c);
+  const rect = { r: anchor.r, c: anchor.c, rs: Math.max(0, Math.min(clip.h, R - anchor.r)), cs: Math.max(0, Math.min(clip.w, C - anchor.c)) };
+  /* ★엑셀 「We can't do that to a merged cell」 — 붙일 자리가 기존 병합의 «가려진 칸 일부»에 걸치면 통째로 거절(손 0).
+   *   shortcut: 병합의 왼쪽 위 칸에만 닿거나 병합을 통째로 덮는 경우는 옛 동작(앵커만 쓰고 가려진 칸은 건너뜀) — 엑셀 규칙 출처를 못 찾았다. */
+  const inRect = (m) => m.r >= rect.r && m.c >= rect.c && m.r + m.rs <= rect.r + rect.rs && m.c + m.cs <= rect.c + rect.cs;
+  const coversHid = (m) => { for (let r = rect.r; r < rect.r + rect.rs; r++) for (let c = rect.c; c < rect.c + rect.cs; c++) if (isHid(m, r, c)) return true; return false; };
+  if (rect.rs && rect.cs && hidden.some(m => _gridMergeHits(m, rect) && !inRect(m) && coversHid(m))) return { model, written: 0, dropped: 0, refused: 'merge' };
   for (let i = 0; i < clip.h; i++) {
     for (let j = 0; j < clip.w; j++) {
       const r = anchor.r + i, c = anchor.c + j;
       if (r >= R || c >= C) { dropped++; continue; }
-      if (hidden.some(m => r >= m.r && r < m.r + m.rs && c >= m.c && c < m.c + m.cs && !(r === m.r && c === m.c))) { dropped++; continue; }
+      if (hidden.some(m => isHid(m, r, c))) { dropped++; continue; }
       const cell = _gridIsObj(clip.cells[i][j]) ? _gridDeep(clip.cells[i][j]) : {};
       if (!Array.isArray(cell.lines)) cell.lines = [];
       full[r][c] = cell;   // ★통째로 «갈아 끼운다» — 옛 칸 꾸밈이 섞여 남지 않는다(엑셀 ⌘V)
       written++;
     }
   }
-  return { model: _gridModelFromFull(model.cols, model.rows, full), written, dropped };
+  const res = { model: _gridModelFromFull(cols, rows, full), written, dropped, grewRows: R > R0 };
+  /* ★0.9.12 ⑥ — 병합 모양째 붙이기: 클립이 (늘린) 그리드 안에 통째로 들고 · 대상 자리에 기존 병합이 하나도 안 걸칠 때.
+   *   shortcut: 기존 병합을 통째로 덮는 경우·상한(8×8) 넘침은 모양 안 옮김 — 엑셀/시트 규칙 출처를 못 찾았다. */
+  const clipMg = Array.isArray(clip.merges) ? clip.merges.filter(m => m && [m.r, m.c, m.rs, m.cs].every(Number.isInteger)
+    && m.r >= 0 && m.c >= 0 && m.rs >= 1 && m.cs >= 1 && m.r + m.rs <= clip.h && m.c + m.cs <= clip.w) : [];
+  if (clipMg.length && anchor.r + clip.h <= R && anchor.c + clip.w <= C && !hidden.some(m => _gridMergeHits(m, rect))) {
+    res.merges = [...hidden, ...clipMg.map(m => ({ r: anchor.r + m.r, c: anchor.c + m.c, rs: m.rs, cs: m.cs }))];
+  }
+  return res;
 }
 
 /** ★확정 ⑤ — 열 이름 = 알파벳. 0→'A' … 25→'Z' · 26→'AA'(전단사 26진 · count-sticker-tool.js countStickerLabel 'alpha' 와 같은 셈).
@@ -4524,9 +4553,11 @@ function pasteGridRange(block, clip, anchor) {
   if (!block || !block.dataset) return { written: 0, dropped: 0 };
   const res = gridPasteRange({ ...getGridModel(block), merges: gridMerges(block) }, clip, anchor);
   if (!res) return { written: 0, dropped: 0 };
+  if (res.refused) return { written: 0, dropped: 0, refused: res.refused };
   if (res.written > 0) {
     window.pushHistory?.();                    // ★범위 전체가 «한 수» — 칸마다 쌓지 않는다
-    _gridWriteModelDirect(block, res.model, false);
+    _gridWriteModelDirect(block, res.model, res.grewRows);   // ★⑥ 넘침으로 행이 늘면 rows 도 쓴다(열은 늘 쓴다)
+    if (res.merges) _gridSetMerges(block, res.merges);   // ★0.9.12 ⑥ — 같은 한 수 안(⌘Z 한 번에 같이 돌아온다)
     renderGridBlock(block);
     window.scheduleAutoSave?.();
   }
