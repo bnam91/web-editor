@@ -7,7 +7,7 @@
  *   양성③  옮긴 뒤 cells[to].lines ≡(깊이) 옮기기 전 cells[from].lines (확정 ③ · 자 = 태양 to-s6-grid-31)
  *   행 0 왕복 — 행 0 의 줄은 cols[c].lines 에만 산다 ⇒ 행 0 ↔ 행 2 를 갔다 오면 모델이 «그대로»(cols[c].lines 포함)
  *   열 이동 — cols(폭·열 꾸밈·행 0 줄)와 칸이 같이 · 열 0 ↔ 열 2 왕복 = 원본
- *   양성④  3×2 를 1×1 자리에 붙이면 written 1 · dropped 5 · 넉넉한 자리는 dropped 0 (확정 ②)
+ *   양성④  넘치면 행·열을 늘려 다 붙인다(0.9.12 ⑥ — 확정 ② «버림»을 현빈이 시트 꼴로 바꿈) · 상한 8×8 밖만 버림 · 넉넉한 자리는 dropped 0
  *   라벨⑤  열 = A·B·C · 행 = 1·2·3 (확정 ⑤)
  *   ★이미지 바이트(지디 덧 ⑵) — 20만 자(GRID_IMG_MAX_CHARS)를 넘는 imgSrc 줄이 행 이동·범위 복붙 뒤에도
  *       길이·sha256 이 그대로다. ★직접 쓰기 문(moveGridRow/pasteGridRange)을 가짜 블럭의 dataset 왕복으로도 잰다
@@ -199,17 +199,24 @@ test('열 이동 — cols(폭·열 꾸밈·행 0 줄)와 칸이 같이 · 열 0 
   assert.equal(n.hist, 2);
 });
 
-test('양성④ 3×2 를 1×1 자리에 붙이면 들어가는 만큼만(written 1 · dropped 5) · 넉넉하면 dropped 0', async () => {
+test('양성④ 넘치면 행·열을 늘려 다 붙인다(0.9.12 ⑥ 구글시트 꼴 · 상한 8×8 밖은 버림) · 넉넉하면 dropped 0', async () => {
   const { G } = await loadGrid();
   const base = G.getGridModel(makeBlock(G));
   const clip = G.gridCopyRange(base, 2, 1, 0, 0);   // 끝점 순서 무관
   assert.deepEqual([clip.h, clip.w], [3, 2]);
   assert.deepEqual(clip.cells[0][0].lines, base.cols[0].lines, '★행 0 칸 복사에 줄(cols 쪽)이 안 실렸다');
   const tight = G.gridPasteRange(base, clip, { r: 3, c: 2 });
-  assert.deepEqual([tight.written, tight.dropped], [1, 5], '★모자란 자리에서 셈이 틀렸다(확정 ②)');
-  assert.deepEqual(tight.model.cells[3][2], clip.cells[0][0], '★들어간 한 칸이 원본과 다르다');
-  assert.deepEqual(tight.model.cells.slice(0, 3), base.cells.slice(0, 3), '★범위 밖이 바뀌었다');
-  assert.equal(tight.model.rows.length, 4); assert.equal(tight.model.cols.length, 3);   // ⛔그리드를 늘리지 않는다
+  assert.deepEqual([tight.written, tight.dropped], [6, 0], '★넘침이 행·열을 안 늘렸다(⑥)');
+  assert.equal(tight.model.rows.length, 6); assert.equal(tight.model.cols.length, 4);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+    assert.deepEqual(tight.model.cells[3 + i][2 + j], clip.cells[i][j], `★(${3 + i},${2 + j}) 칸이 통째로 안 들어갔다`);
+  }
+  assert.deepEqual(tight.model.cells.slice(0, 3).map(r => r.slice(0, 3)), base.cells.slice(0, 3), '★범위 밖이 바뀌었다');
+  assert.equal(tight.model.cols[3].width, base.cols[2].width, '새 열 = 마지막 열 폭');
+  assert.deepEqual(tight.model.rows.slice(4), [{ height: 'auto' }, { height: 'auto' }]);
+  const cap = G.gridPasteRange(base, clip, { r: 7, c: 7 });
+  assert.deepEqual([cap.written, cap.dropped], [1, 5], '★상한(8×8) 밖은 버린다');
+  assert.equal(cap.model.rows.length, 8); assert.equal(cap.model.cols.length, 8);
   const roomy = G.gridPasteRange(base, clip, { r: 1, c: 1 });
   assert.deepEqual([roomy.written, roomy.dropped], [6, 0]);
   for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
@@ -226,7 +233,7 @@ test('양성④ 3×2 를 1×1 자리에 붙이면 들어가는 만큼만(written
   /* 직접 쓰기 — 한 수 · 반환 꼴 */
   const n = counters();
   const block = makeBlock(G);
-  assert.deepEqual(G.pasteGridRange(block, clip, { r: 3, c: 2 }), { written: 1, dropped: 5 });
+  assert.deepEqual(G.pasteGridRange(block, clip, { r: 3, c: 2 }), { written: 6, dropped: 0 });
   assert.deepEqual(G.getGridModel(block), tight.model);
   assert.deepEqual(G.pasteGridRange(block, clip, { r: 9, c: 9 }), { written: 0, dropped: 6 });
   assert.equal(n.hist, 1, '★범위 붙여넣기가 한 수가 아니거나, 0칸에도 히스토리를 쌓았다');

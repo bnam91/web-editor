@@ -663,6 +663,7 @@ function _grdPasteRangeWrite() {
     if (h < full.h || w < full.w) clip = { h, w, cells: full.cells.slice(0, h).map(row => row.slice(0, w)) };   // 실제로 잘릴 때만(안 잘리면 병합 모양째 · ⑥)
   }
   const res = window.pasteGridRange?.(block, clip, anchor) || { written: 0, dropped: 0 };
+  if (res.refused === 'merge') { window.showToast?.('⚠️ 병합된 칸의 일부에는 붙일 수 없어요 — 병합을 풀거나 병합 전체를 고르세요'); return; }   // 엑셀 「We can't do that to a merged cell」
   if (!res.written) { window.showToast?.('⚠️ 붙일 칸이 그리드 밖이에요'); return; }
   const dropped = full.h * full.w - res.written;
   const { rows, cols } = getGridModel(block);

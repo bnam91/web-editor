@@ -632,7 +632,7 @@ test.describe('U2a-fix D1·D2 @grid-reorder', () => {
  * ★드릴 = selectGrid(첫 클릭 = 블럭) 뒤 줄 «진짜 클릭» · 범위 끌기 = page.mouse down → move(steps 8) → up(누르기 직전 맞힌 칸을 찍는다).
  * ★⌘C = 진짜 키(page.keyboard) · ⌘V = keydown ＋ 이어지는 paste 이벤트(grid-line-paste-single 의 가짜 OS 클립보드 __os 꼴 —
  *   그 순간의 OS 내용이 paste 이벤트에 실린다). ⛔waitForTimeout 0 — 기다림은 waitForFunction · expect.poll 로만.
- * ★음성대조② = 범위가 없으면 블럭 복사·줄 복사 길은 손 0(T1 T2 T10 T12). 확정② = 모자라면 들어가는 만큼만 · 버린 수 보고(T3 T3b T5).
+ * ★음성대조② = 범위가 없으면 블럭 복사·줄 복사 길은 손 0(T1 T2 T10 T12). 확정② → 0.9.12 ⑥ 현빈: 그리드 끝을 넘치면 시트처럼 행·열을 늘린다(T3 T5 · 상한 8×8) · 대상 범위로 자르기는 그대로(T3b).
  * ★변이(레인 밖 사본 · GD1001_ROOT): M1 copyalways · M2 nodrop · M3 nohide · M4 noesc · M5 nostamp · M6 order · M7 intake ·
  *   M8 noswallow · M-notrim — 각자 «노린 칸만» 빨강(보고서). */
 const PNG1B64 = PNG1.toString('base64');
@@ -742,7 +742,7 @@ test.describe('U2b 범위 복붙 @grid-reorder', () => {
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test('T3 양성④ UI — 드릴 A2 → A2:C3 진짜 끌기 → ⌘C(3×2) → 줄 A3 → ⌘V ⇒ 행 3 = 옛 행 2 깊이 같음 · 행 1·2 무변 · 버린 3 보고 · 붙은 뒤 A3:C3 @grid-reorder', async ({ page }) => {
+  test('T3 양성④ UI — 드릴 A2 → A2:C3 진짜 끌기 → ⌘C(3×2) → 줄 A3 → ⌘V ⇒ 넘친 행은 늘려서(0.9.12 ⑥ 시트 꼴) 행 3·4 = 옛 행 2·3 · 행 1·2 무변 · 붙은 뒤 A3:C4 @grid-reorder', async ({ page }) => {
     const errs = await setup(page);
     await installOS(page);
     const b = await model(page);
@@ -764,11 +764,12 @@ test.describe('U2b 범위 복붙 @grid-reorder', () => {
     await clickLine(page, 2, 0);
     expect((await G_(page)).rng, '줄 클릭 = 범위 풀림').toBe(null);
     await pressPaste(page);
-    await expect.poll(() => toast(page), '붙임 보고(쓴 수 · 버린 수)').toMatch(/^⚠️ A3 에 칸 3개 붙임 · 3개는/);
+    await expect.poll(() => toast(page), '붙임 보고(버림 없음)').toMatch(/^A3 에 칸 6개 붙임$/);
     const a = await model(page);
-    expect(a.m.cells[2], '행 3 = 옛 행 2(칸 통째 깊이 같음)').toEqual(b.m.cells[1]);
-    expect([a.m.cells[0], a.m.cells[1], a.m.cols, a.m.rows], '행 1·2 · cols · rows 무변').toEqual([b.m.cells[0], b.m.cells[1], b.m.cols, b.m.rows]);
-    expect(await G_(page), '붙은 뒤 = 들어간 영역 범위 · 활성 줄 0').toMatchObject({ rng: { r0: 2, c0: 0, r1: 2, c1: 2 }, n: 1, name: 'A3:C3', al: null });
+    expect([a.m.cells[2], a.m.cells[3]], '행 3·4 = 옛 행 2·3(칸 통째 깊이 같음)').toEqual([b.m.cells[1], b.m.cells[2]]);
+    expect([a.m.cells[0], a.m.cells[1], a.m.cols], '행 1·2 · cols 무변').toEqual([b.m.cells[0], b.m.cells[1], b.m.cols]);
+    expect(a.m.rows, '행 하나 늘어남(새 행 = auto)').toEqual([...b.m.rows, { height: 'auto' }]);
+    expect(await G_(page), '붙은 뒤 = 들어간 영역 범위 · 활성 줄 0').toMatchObject({ rng: { r0: 2, c0: 0, r1: 3, c1: 2 }, n: 1, name: 'A3:C4', al: null });
     expect(await grids(page)).toBe(1);
     expect(errs, errs.join('\n')).toEqual([]);
   });
@@ -811,7 +812,7 @@ test.describe('U2b 범위 복붙 @grid-reorder', () => {
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test('T5 행 0 가장자리 — A2:B3 → C1 ⌘V ⇒ 행 0 칸 줄은 cols[2].lines 로 · 행 1 칸은 cells · 열 밖 2칸 버림 @grid-reorder', async ({ page }) => {
+  test('T5 행 0 가장자리 — A2:B3 → C1 ⌘V ⇒ 행 0 칸 줄은 cols[2].lines 로 · 행 1 칸은 cells · 넘친 열은 늘려서(0.9.12 ⑥) D 열에 @grid-reorder', async ({ page }) => {
     const errs = await setup(page);
     await installOS(page);
     const b = await model(page);
@@ -821,14 +822,16 @@ test.describe('U2b 범위 복붙 @grid-reorder', () => {
     await pressCopy(page);
     await clickLine(page, 0, 2);
     await pressPaste(page);
-    await expect.poll(() => toast(page)).toMatch(/^⚠️ C1 에 칸 2개 붙임 · 2개는/);
+    await expect.poll(() => toast(page)).toMatch(/^C1 에 칸 4개 붙임$/);
     const a = await model(page);
     expect(JSON.parse(a.raw.cols)[2].lines, '행 0 줄 = dataset cols[2].lines').toEqual(b.m.cells[1][0].lines);
+    expect(JSON.parse(a.raw.cols)[3].lines, '늘린 열 D 의 행 0 줄 = dataset cols[3].lines').toEqual(b.m.cells[1][1].lines);
     expect(a.m.cells[0][2], '행 0 칸 통째(모델)').toEqual(b.m.cells[1][0]);
-    expect(a.m.cells[1][2], '행 1 칸').toEqual(b.m.cells[2][0]);
-    expect([a.m.cells[0][0], a.m.cells[0][1], a.m.cells[1][0], a.m.cells[1][1], a.m.cells[2]], '나머지 무변')
+    expect([a.m.cells[0][3], a.m.cells[1][2], a.m.cells[1][3]], 'D1 · C2 · D2').toEqual([b.m.cells[1][1], b.m.cells[2][0], b.m.cells[2][1]]);
+    expect([a.m.cells[0][0], a.m.cells[0][1], a.m.cells[1][0], a.m.cells[1][1], a.m.cells[2].slice(0, 3)], '나머지 무변')
       .toEqual([b.m.cells[0][0], b.m.cells[0][1], b.m.cells[1][0], b.m.cells[1][1], b.m.cells[2]]);
-    expect((await G_(page)).name).toBe('C1:C2');
+    expect(a.m.cols.length, '열 하나 늘어남').toBe(b.m.cols.length + 1);
+    expect((await G_(page)).name).toBe('C1:D2');
     expect(errs, errs.join('\n')).toEqual([]);
   });
 

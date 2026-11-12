@@ -1,13 +1,15 @@
 /* grid-merge-paste-0912.dom.spec.js — 0.9.12 ⑥ GRID-MERGE-COPY-PASTE-SHAPE-01 (그리드 범위 복붙 때 병합 모양째 옮기기)
  *   이번 판 범위 = «단순한 경우»만: 붙일 자리가 그리드 안에 통째로 들고 · 그 자리에 기존 병합이 하나도 안 걸칠 때.
- *   겹침·넘침은 제품 결정 대기 → 옛 동작(모양 안 옮김) 그대로 — N1 이 그 «지금 상태»를 잠근다(결정 나면 이 단언을 바꿔라).
+ *   현빈 결정(0.9.12 «엑셀/스프레드시트와 같게»): 넘침 = 시트처럼 행·열을 늘림(상한 8×8) · 기존 병합의 가려진 칸 «일부»에 걸치면 = 엑셀처럼 통째 거절.
  * 길(진짜 손): 드릴 C... → 칸 끌기 → ⌘M(병합) → ⌘C → 줄 클릭 → ⌘V(keydown ＋ paste 이벤트 · grid-range-clip.dom 의 가짜 OS 꼴)
  *   P1 빈 자리(B1:C1)에 1×2 병합째 붙이기 — merges 에 새 병합 · 칸 수 9→7 · 앵커 상자 = 두 열 넓이 · 옆 그리드 무변
  *   P2 ⌘Z 한 번 = 붙이기 전(병합 하나) dataset 바이트 그대로
  *   P3 저장 왕복(serializeProject → 다시 띄움 → applyProjectData) — merges·칸 수·앵커 상자 같음
- *   N1 넘침(C2 에 1×2) — 옛 동작: 들어간 1칸만 · 새 병합 0
+ *   N1 넘침(C2 에 1×2) — 열을 늘려 2칸 · 병합째 · ⌘Z 한 번 = 3×3
+ *   N2 B2 에 2×1(B3 = 기존 병합의 가려진 칸) — 거절 토스트 · 모델 바이트 그대로
  * 양성대조(지디 인텔): grid-block.js pasteGridRange 의 `if (res.merges) _gridSetMerges(block, res.merges);` 한 줄 지우면 P1·P2·P3 빨강(N1 초록) /
- *   gridCopyRange 의 `if (mg.length) out.merges = mg;` 지워도 P1·P2·P3 빨강. */
+ *   gridCopyRange 의 `if (mg.length) out.merges = mg;` 지워도 P1·P2·P3 빨강 /
+ *   gridPasteRange 의 R·C 를 R0·C0 로 되돌리면(늘림 끔) N1 빨강 / `refused: 'merge'` return 줄을 지우면 N2 빨강. */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
@@ -173,14 +175,33 @@ test('P3 저장 왕복 — merges·칸 수·앵커 상자 같음', async ({ page
   expect(errs).toEqual([]);
 });
 
-test('N1 넘침(C2 에 1×2) — 지금은 옛 동작: 들어간 1칸만 · 새 병합 0 (제품 결정 대기)', async ({ page }) => {
+test('N1 넘침(C2 에 1×2) — 시트처럼 열을 늘려 병합째 붙인다(0.9.12 ⑥ 현빈 결정)', async ({ page }) => {
   const errs = await setup(page);
   await mergeAndCopy(page);
   await clickLine(page, 1, 2);
   await pressPaste(page);
-  await expect.poll(() => toast(page)).toMatch(/C2 에 칸 1개 붙임 · 1개는/);
+  await expect.poll(() => toast(page)).toMatch(/C2 에 칸 2개 붙임$/);
   const m = await model(page);
-  expect(m.merges).toBe(MERGED);
-  expect(m.text[1]).toEqual(['A2', 'B2+B2-h', 'A3']);
+  expect(m.merges).toBe('[{"r":2,"c":0,"rs":1,"cs":2},{"r":1,"c":2,"rs":1,"cs":2}]');
+  expect(m.text[1]).toEqual(['A2', 'B2+B2-h', 'A3', '']);
+  expect(m.n, '3×4 = 12 − 가려진 칸 둘(B3 · D2)').toBe(10);
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await model(page)).n, '⌘Z 한 번 = 3×3 · 병합 하나').toBe(8);
+  expect((await model(page)).merges).toBe(MERGED);
+  expect(errs).toEqual([]);
+});
+
+test('N2 기존 병합(A3:B3)의 가려진 칸 일부에 걸치는 붙이기 = 통째 거절(엑셀) · 모델 바이트 그대로', async ({ page }) => {
+  const errs = await setup(page);
+  await mergeAndCopy(page);
+  await clickLine(page, 1, 2);
+  await dragRange(page, { r: 1, c: 2 }, { r: 2, c: 2 });
+  await expect.poll(() => page.evaluate(() => window.grdGetRange(document.getElementById('gG')))).toEqual({ r0: 1, c0: 2, r1: 2, c1: 2 });
+  await pressCopy(page);
+  const before = await model(page);
+  await clickLine(page, 1, 1);                         // B2 에 2×1 ⇒ B2·B3 — B3 은 A3:B3 의 가려진 칸
+  await pressPaste(page);
+  await expect.poll(() => toast(page)).toMatch(/병합된 칸의 일부에는 붙일 수 없어요/);
+  expect((await model(page)).raw).toBe(before.raw);
   expect(errs).toEqual([]);
 });
