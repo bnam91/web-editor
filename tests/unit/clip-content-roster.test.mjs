@@ -178,8 +178,11 @@ test('A6 ★★그리드 ★크롭 줄 — ★계열을 ★«렌더러가 그린
     "★그리드 렌더러가 ★표의 술어(clipsContentFor('gridCrop', …))를 ★안 부른다 — ★판정이 ★두 벌이 된다");
   const pg = code('js/props/prop-grid.js');
   assert.match(pg, /grd-img-clip-toggle/, '★그리드 패널 토글이 ★없다');
-  assert.match(pg, /clipsContentFor\?\.\('gridCrop', undefined\)/,
-    '★패널이 ★기본값을 ★표에서 ★안 묻는다 — ⛔손으로 든 true/false 는 ★표와 따로 늙는다');
+  /* Q11(261112) — 원 줄도 같은 토글을 써서 계열이 둘(gridCrop·gridCircle)이 됐다 ⇒ 패널은 «그 프레임의 계열»을 인자로 표에 묻는다. 뜻은 같다: ⛔손으로 든 기본값·계열 금지 */
+  assert.match(pg, /const fam = window\.clipFamily\?\.\(fr\);\s*const dflt = window\.clipsContentFor\?\.\(fam, undefined\)/,
+    '★패널이 ★기본값을 ★표에서 ★안 묻는다(그 프레임 계열로) — ⛔손으로 든 true/false 는 ★표와 따로 늙는다');
+  assert.doesNotMatch(pg, /clipsContentFor\?\.\([^)]*\|\|\s*'grid\w+'/, '⛔계열 폴백을 손으로 들었다(표와 따로 늙는다)');
+  assert.doesNotMatch(pg, /const dflt = (?:true|false)\b/, '⛔기본값을 손으로 들었다');
 });
 
 test('A4 ★★에셋의 ★자름을 ★★«렌더러»가 ★먹인다 — ⛔`!important` 로 ★CSS 가 ★이기게 ★하지 ★않는다', () => {

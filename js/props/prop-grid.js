@@ -2026,7 +2026,10 @@ function _grdWireImageSection(block, addr, host = null) {
   document.getElementById('grd-img-clip-toggle')?.addEventListener('change', (e) => {
     const want = !!e.target.checked;
     const fr = block.querySelector(`.grd-img-frame[data-r="${r}"][data-c="${c}"][data-line="${li}"]`);
-    const dflt = window.clipsContentFor?.(window.clipFamily?.(fr) || 'gridCrop', undefined);   /* Q11 — 원(gridCircle)·크롭(gridCrop) 각자 표 기본값 */
+    /* Q11 — 기본값은 «그 프레임의 계열»로 표에 묻는다(원 gridCircle · 크롭 gridCrop). ⛔계열을 손으로 들지 않는다(폴백 'gridCrop' 도 없앰 · clip-content-roster A6).
+       계열을 못 가르면 null ⇒ want 와 안 같아 값을 그대로 적는다(지우지 않는 쪽 = 안전). */
+    const fam = window.clipFamily?.(fr);
+    const dflt = window.clipsContentFor?.(fam, undefined);
     gridPreviewLine(block, r, c, li, { clipContent: want === dflt ? undefined : want }, addr.np);
     _grdSyncLineMark(block, addr);   // 재렌더가 마커를 지웠다 — 다시 붙인다
     window.scheduleAutoSave?.();
