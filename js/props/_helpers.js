@@ -540,10 +540,11 @@ export function discSecToggle(block, key, dflt = false) {
   return next[key];
 }
 /** 접이식 절 머리글 HTML — ⛔산출 바이트를 바꾸지 마라(prop-grid.js 옛 `_grdDisclosureHtml`과 글자 그대로 같다 —
- *   tests/unit/disclosure-chevron-ssot.test.mjs 와 그리드 쪽 그물이 이 바이트를 지킨다). */
-export function disclosureSectionHtml(id, title, open) {
+ *   tests/unit/disclosure-chevron-ssot.test.mjs 와 그리드 쪽 그물이 이 바이트를 지킨다).
+ *   ★controls(몸통 id)를 주면 aria-expanded·aria-controls 를 더한다(_panel-frame.js 절 머리 · U0) — 안 주면 바이트 그대로. */
+export function disclosureSectionHtml(id, title, open, controls) {
   return `
-      <div class="prop-section-title" id="${id}" role="button" tabindex="0"
+      <div class="prop-section-title" id="${id}" role="button" tabindex="0"${controls ? ` aria-expanded="${open ? 'true' : 'false'}" aria-controls="${controls}"` : ''}
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"
            title="${open ? '접기' : '펼치기'}">
         ${disclosureChevronHtml(open)}

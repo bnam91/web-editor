@@ -35,12 +35,22 @@
    펼침 간격 6 은 «다음 형제» margin-top 10 에서 나온다(10 + (−4) 상쇄 = 6, 고치기 전과 같다). display:none 형제의 margin 은 안 걸린다. */
 .prop-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: -4px; }
 .prop-section > .prop-section-title-row + * { margin-top: 10px; }
-.prop-section-title-row > .prop-section-title { padding: 8px 0; }     /* ★대칭(⒜안) — ⒝안이면 이 한 줄만 `6px 0` */
+.prop-section-title-row > .prop-section-title { padding: var(--ui-sec-head-py) 0; }     /* ★대칭(⒜안) = 8px 0 — ⒝안이면 --ui-sec-head-py 를 6px 로 */
 .prop-section-title-row > .prop-action-btn { margin-top: 0; }         /* ★R2 끄기 — 위 머리말 R2 */
 /* ══ 패널 절(panel-frame) — panel-frame:BEGIN ═══════════════════════════════════════════════
    js/props/_panel-frame.js renderPanel() 이 그리는 절(.prop-section[data-sec]) 전용. (right-panel-unify U0)
    ⛔이 블록 안에는 색·px 리터럴 0 — 전부 var(--ui-*) (scripts/check-design-tokens.sh 하드게이트가 BEGIN/END 사이를 잰다).
    ★[data-sec] 로 한정한다 — 아직 프레임으로 안 옮긴 패널(U1~U5 몫)의 모양은 이 블록이 안 바꾼다. */
+.prop-section + .prop-section[data-sec] { border-top-color: var(--ui-sec-divider); }
+.prop-section[data-sec]:not(.is-collapsed) { padding-bottom: var(--ui-sec-body-pb); }
+.prop-section[data-sec]:not(.is-collapsed):last-child { padding-bottom: var(--ui-space-2); }
+.prop-sec-head > .prop-section-title {
+  flex: 1 1 auto; min-width: 0;
+  font-size: var(--ui-sec-title-fs); color: var(--ui-sec-title-color);
+}
+.prop-sec-head > .prop-section-title:hover { color: var(--ui-sec-title-color-hover); }
+.prop-sec-head > .prop-section-title:focus-visible { outline: var(--ui-focus-ring); }
+.prop-sec-body[hidden] { display: none; }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {
   display: flex; align-items: center; gap: 4px;

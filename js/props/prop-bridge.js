@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 // 브릿지(V 커버) 블록 프로퍼티 — 색상 + 꼬리(V홈) 모양(너비/깊이/곡률 슬라이더) + 블록 높이. 공용 prop 클래스 재사용.
@@ -17,32 +18,27 @@ export function showBridgeProperties(block) {
   const arc    = clamp(block.dataset.bridgeArc,  -200, 100,   0);
   const height = clamp(block.dataset.bridgeHeight, 20, 300,  90);
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><path d="M1 4 H4.5 Q5.2 4 6 7 Q6.8 4 7.5 4 H11"/></svg>`,
       name: block.dataset.layerName,
       defaultName: 'Bridge',
       crumb: window.getBlockBreadcrumb(block),
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Color</div>
+    }),
+    sections: [
+      sec('fill', `
       <div class="prop-color-row">
         ${colorFieldHTML({ idPrefix: 'brg', hex: color, alpha })}
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">크기</div>
+      </div>`),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="brg-h-slider" min="20" max="300" step="2" value="${height}">
         <input type="number" class="prop-number" id="brg-h-number" min="20" max="300" value="${height}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">꼬리 (V홈)</div>
+      </div>`),
+      // 옛 제목 「꼬리 (V홈)」 — 괄호·영문 금지 규칙(§2-2)으로 「꼬리」. V홈 모양 세 손잡이(너비·깊이·곡률)
+      sec('special', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="brg-w-slider" min="30" max="860" step="2" value="${width}">
@@ -57,8 +53,9 @@ ${blockHeaderHTML({
         <span class="prop-label">곡률</span>
         <input type="range" class="prop-slider" id="brg-a-slider" min="-200" max="100" step="1" value="${arc}">
         <input type="number" class="prop-number" id="brg-a-number" min="-200" max="100" value="${arc}">
-      </div>
-    </div>`;
+      </div>`, { title: '꼬리' }),
+    ],
+  });
 
   // 색상
   wireColorField('brg', {
