@@ -252,6 +252,10 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
     'rotation-input': 'position', 'stk-x': 'position', 'asset-width': 'size', 'fr-height-number': 'size',
     'grd-colrule-w': 'stroke', 'grd-rowrule-inset': 'stroke',
     'brg-h-slider': null, 'gap-preset-btn h 20': null, 'gap-slider': null,
+    /* U0b ⑦ 줄임 단어(블록 접두 뒤에서만): stk→stroke · sh→shadow */
+    'stk-t-stk-c-color color': 'stroke', 'stk-t-stk-w': 'stroke', 'stk-t-sh-x': 'effects', 'stk-t-sh-y': 'effects',
+    'stk-t-sh-num': 'effects', 'stk-t-sh-c-color color': 'effects',
+    'stk-t-fill-color color': 'fill', 'stk-color color': 'fill', 'stk-x': 'position',   // ★함정: 첫 단어 stk(스티커 접두)는 stroke 가 아니다
   };
   assert.deepEqual(Object.fromEntries(Object.keys(cases).map((k) => [k, F.ownerOf(k)])), cases);
   /* 컨트롤 꼴 — readPanel 이 넘기는 {id,type,data,pairedColor}. ★class 는 넘겨도 안 쓴다. */
@@ -271,6 +275,8 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
   assert.equal(F.ownerOf('icn-preset-newcat-input prop-color-hex'), 'fill', '[양성대조] class 단어가 들어가면 색으로 오판한다');
   for (const [, key] of F.OWNERSHIP) assert.ok(F.SECTION_ORDER.includes(key), `★표에 모르는 절 key: ${key}`);
   assert.deepEqual(Object.keys(F.OWNERSHIP_EXEMPT_SCOPES).sort(), ['grd-cell-body', 'grd-line-body', 'grd-rule-body']);
+  /* ★양성대조 — 줄임 단어를 첫 단어에도 걸었다면 스티커 채움 색이 stroke 로 갔다(그래서 i > 0 만) */
+  assert.equal(F.ownerOf('stroke color color'), 'stroke', '[양성대조] stk 를 첫 단어에도 풀면 stk-color 가 stroke 로 간다');
 });
 
 test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그릇 밖이면 소유 위반', () => {
@@ -283,4 +289,11 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   ] });
   assert.deepEqual(judgePanel(panel('grd-cell-body'), spec), [], '★하위 접기 그릇 안인데 빨갛다');
   assert.deepEqual(judgePanel(panel(null), spec), ['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다'], '★그릇 밖인데 안 잡는다');
+  /* U0b ⑦ 코인 금속색 — 색 칸 id 를 제외하면 그 짝(hex·alpha)도 빠진다 · 제외 밖 짝은 여전히 잡는다 */
+  const coin = (id, pairId) => ({ id, type: pairId ? 'text' : 'color', data: [], pairedColor: !!pairId, pairId, scope: null });
+  const special = (controls) => ({ hints: 0, secs: [{ sec: 'special', isHeader: false, title: 'Coin', labels: [], controls }] });
+  assert.deepEqual(judgePanel(special([coin('stk-coin-face-color'), coin('stk-coin-face-hex', 'stk-coin-face-color'),
+    coin('stk-coin-side-color'), coin('stk-coin-side-alpha', 'stk-coin-side-color')]), spec), [], '★코인 금속색(제외)이 빨갛다');
+  assert.deepEqual(judgePanel(special([coin('stk-coin-rim-hex', 'stk-coin-rim-color')]), spec),
+    ['소유 위반: stk-coin-rim-hex 는 fill 절 속성인데 special 절에 있다'], '[양성대조] 제외 밖 색짝은 잡는다');
 });

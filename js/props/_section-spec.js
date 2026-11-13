@@ -56,8 +56,13 @@ export const OWNERSHIP = Object.freeze([
   [['rotate', 'rotation', 'x', 'y'], 'position'],
   [['width', 'height', 'size'], 'size'],
 ]);
-/** 판정 제외 — { 컨트롤 id: '까닭' }. 단위(U1~U5)가 애매한 자리를 여기 적는다. */
-export const OWNERSHIP_EXEMPT = Object.freeze({});
+/** 판정 제외 — { 색/컨트롤 id: '까닭' }. 색 칸(input[type=color]) id 를 적으면 그 짝(hex·alpha)도 같이 빠진다(readPanel pairId). */
+export const OWNERSHIP_EXEMPT = Object.freeze({
+  'stk-coin-face-color': '코인 앞면 금속색 — 재질=custom 옆 special «Coin» 절에 일부러 둔다(U5)',
+  'stk-coin-side-color': '코인 옆면 금속색 — 재질=custom 옆 special «Coin» 절에 일부러 둔다(U5)',
+});
+/** 줄임 단어 → 뜻 단어. ★id 의 «첫 단어»(블록 접두 — 스티커 stk-·…)에는 안 건다: stk-t-STK-c-color 의 둘째 stk 만 stroke. */
+export const OWNERSHIP_ALIAS = Object.freeze({ stk: 'stroke', sh: 'shadow' });
 /** 판정 제외 그릇 — { 그릇 id: '까닭' }. 그 그릇 «안»의 컨트롤만 뺀다(같은 컨트롤이 그릇 밖이면 판정한다).
  *  그리드 하위 접기 몸통: 한 칸·한 줄·칸 사이 줄 스코프의 색·테두리·여백이 한 몸통에 섞여 사는 것이 설계다(§4-1 · U1). */
 export const OWNERSHIP_EXEMPT_SCOPES = Object.freeze({
@@ -76,7 +81,7 @@ export function controlWords(s) {
 }
 /** 컨트롤 식별 문자열(id·class·data-*) → 있어야 할 절 key, 모르면 null. */
 export function ownerOf(ident) {
-  const w = controlWords(ident);
+  const w = controlWords(ident).map((x, i) => (i > 0 && OWNERSHIP_ALIAS[x]) || x);
   const has = (p) => (p.endsWith('*') ? w.some((x) => x.startsWith(p.slice(0, -1)))
     : p.startsWith('*') ? w.some((x) => x.endsWith(p.slice(1)))
     : p.split('+').every((q) => w.includes(q)));
@@ -85,4 +90,4 @@ export function ownerOf(ident) {
 }
 
 /* ★window 로도 낸다 — 정적 import 없이 읽는 DOM 게이트·styleguide 용. Node vm 하네스에는 window 가 없다. */
-if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };
+if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, OWNERSHIP_ALIAS, controlIdent, ownerOf };

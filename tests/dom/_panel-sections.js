@@ -26,10 +26,10 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
     /* 소유 판정 재료 — 컨트롤마다 id · type · data-* · 색짝(같은 .prop-color-field 안 · 바로 앞 형제가 색 칸) · 제외 그릇 */
     controls: [...e.querySelectorAll('input, select, button, textarea')].map((c) => {
       const prev = c.previousElementSibling;
-      const pairedColor = c.type !== 'color' && !!(c.closest('.prop-color-field')?.querySelector('input[type="color"]')
-        || prev?.matches?.('input[type="color"]') || prev?.querySelector?.('input[type="color"]'));
+      const pair = c.type === 'color' ? null : (c.closest('.prop-color-field')?.querySelector('input[type="color"]')
+        || (prev?.matches?.('input[type="color"]') ? prev : prev?.querySelector?.('input[type="color"]')) || null);
       return {
-        id: c.id, type: c.type, pairedColor,
+        id: c.id, type: c.type, pairedColor: !!pair, pairId: pair?.id || null,
         data: [...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => [a.name.slice(5), a.value]),
         scope: scopes.find((sid) => document.getElementById(sid)?.contains(c)) || null,
       };
@@ -56,7 +56,7 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     else if (s.title !== spec.SECTION_TITLE[s.sec]) bad.push(`제목 불일치: ${s.sec} = 「${s.title}」 (정본 「${spec.SECTION_TITLE[s.sec]}」)`);
     if (s.labels.includes(s.title)) bad.push(`라벨이 절 제목을 되풀이: ${s.title}`);
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
-      if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT)) continue;   // 제외 그릇 «안» · 제외 id
+      if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
       const own = spec.ownerOf(spec.controlIdent(c));
       if (own && own !== s.sec) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${s.sec} 절에 있다`);
     }
