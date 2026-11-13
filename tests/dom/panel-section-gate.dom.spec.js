@@ -1,5 +1,5 @@
 /* panel-section-gate — 우측 패널 «절»이 정본(js/props/_section-spec.js)과 같은가. (right-panel-unify U0 · §6-1)
- * 분모 = _block-roster-294 rosterOf()(js/editor.js SECTION_BLOCK_TYPE_SEL 파생) ＋ 수동 5(page·section·frame·row·multisel).
+ * 분모 = _block-roster-294 rosterOf()(js/editor.js SECTION_BLOCK_TYPE_SEL 파생) ＋ 수동 6(page·section·frame·row·multisel·annotation-block — 로스터 밖).
  * 판정(_panel-sections.js judgePanel): ★소유(_section-spec.js OWNERSHIP — 컨트롤 id·class·data-* → 있어야 할 절) · SECTION_ORDER 부분열 · 중복 0 · 제목 == SECTION_TITLE(special 은 영어 Title Case 1~2단어 규칙) ·
  *   머리 없는 절은 맨 앞 header 만 · 라벨이 절 제목을 되풀이 0 · prop-hint ≤ 2 · data-sec 절 ≥ 1.
  * ★미이관은 UNMIGRATED 한 명단에만 둔다(test.skip) — 단위(U1~U5)가 자기 블록을 옮기면 그 줄을 지운다. U6 에서 0.
@@ -18,7 +18,7 @@ const UNMIGRATED = [
   'text-block', 'icon-text-block', 'speech-bubble-block', 'quote-block', 'label-group-block',     // U2
   'page', 'section', 'frame', 'row', 'multisel', 'canvas-block', 'modal-block',                   // U3
   'asset-block', 'shape-block', 'icon-circle-block', 'icon-block', 'vector-block', 'mockup-block',
-  'zoom-block', 'gradient-block', 'divider-block', 'joker-block',                                 // U4
+  'zoom-block', 'gradient-block', 'divider-block', 'joker-block', 'annotation-block',             // U4(annotation = 수동 입구 — U4 가 이관 머지 때 뺀다)
   'sticker-block', 'laurel-block', 'banner02-block', 'table-block', 'graph-block', 'step-block',
   'chat-block', 'comparison-block', 'coupon-block', 'infocard-block', 'innercard-block', 'qa-block',
   'radial-block',                                                                                 // U5
@@ -30,6 +30,8 @@ const MANUAL = {
   frame: null,
   row: null,
   multisel: null,
+  /* annotation-block 은 SECTION_BLOCK_TYPE_SEL 밖이라 로스터가 못 센다 — 펜 도구 대신 공용 생성기(makeAnnotationBlock)로 넣고 패널을 연다(annot-point-angle-leak 꼴) */
+  'annotation-block': () => { const a = window.makeAnnotationBlock({ points: [[20, 20], [160, 90]], text: 'GATE' }); window.__secEl().appendChild(a); window.deselectAll?.(); window.showAnnotationProperties(a); },
 };
 for (const k of UNMIGRATED) test.skip(`${k} — 미이관(UNMIGRATED)`, () => {});
 
@@ -50,12 +52,20 @@ async function openKind(page, kind) {
   return r;
 }
 
-test('G0 [전제] 명단이 낡지 않았다 — UNMIGRATED 의 이름은 전부 로스터나 수동 5 에 있다', async ({ page }) => {
+test('G0 [전제] 명단이 낡지 않았다 — UNMIGRATED 의 이름은 전부 로스터나 수동 입구에 있다 · 수동 입구는 패널을 연다', async ({ page }) => {
   await scene(page);
   const roster = await resolveRoster(page);
   const known = new Set([...roster.map((k) => k.cls), ...Object.keys(MANUAL)]);
   expect(UNMIGRATED.filter((k) => !known.has(k)), '★로스터에 없는 이름이 명단에 남았다').toEqual([]);
   expect(new Set(UNMIGRATED).size, '★명단 중복').toBe(UNMIGRATED.length);
+  /* ★수동 입구가 «실제로» 패널을 연다(미이관이어도 — 이관 단위가 명단에서 빼는 날 바로 잴 수 있게) */
+  for (const [name, open] of Object.entries(MANUAL)) {
+    if (!open) continue;
+    await page.evaluate(() => { document.querySelector('#panel-right .panel-body').innerHTML = ''; });
+    await page.evaluate(open);
+    expect(await page.locator('#panel-right .panel-body .prop-section').count(), `★수동 입구 ${name} 가 패널을 안 연다`).toBeGreaterThan(0);
+  }
+  expect(await page.evaluate(() => document.querySelectorAll('.annotation-block').length), '[전제] annotation 입구가 블록을 넣었다').toBeGreaterThan(0);
   /* ★모든 로스터 블록이 «실제» 넣기 함수로 풀린다(별칭 오타·사라진 입구 = 빨강) · 별칭 표가 낡지 않았다 */
   expect(roster.filter((k) => !k.entryOk).map((k) => `${k.cls} → ${k.entry}`), '★입구가 안 풀린다').toEqual([]);
   expect(Object.keys(ENTRY_ALIAS).filter((c) => !roster.some((k) => k.cls === c)), '★별칭 표에 로스터 밖 이름').toEqual([]);
