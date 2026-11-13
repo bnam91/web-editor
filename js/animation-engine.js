@@ -81,6 +81,8 @@ function _updateAnimConflictWarning() {
   const style = _getTextStyle(_animTb);
   const hasMultiline = style.text.includes('\n');
   warn.style.display = (conflictTypes.includes(_animType) && hasMultiline) ? 'flex' : 'none';
+  const rich = document.getElementById('anim-rich-warn');
+  if (rich) rich.style.display = _hasRichStyling(_animTb) ? 'flex' : 'none';
 }
 
 function restartAnimPreview() {
@@ -110,8 +112,20 @@ function _extractText(el) {
     .trim() || el.textContent?.trim() || 'Sample Text';
 }
 
+/** GIF 가 읽는 글 요소 — 그리기·경고가 같은 요소를 본다. */
+function _textEl(tb) {
+  return tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb.querySelector('div');
+}
+
+/* ⑸(DONE40 · 시트 GIF-V1 RICHTEXT) GIF 는 글 요소 «하나»의 스타일로 칠한다 — 글 «안» 조각 꾸밈(색·형광·굵기 등)은 사라진다.
+   본 고침은 V2(조각별 그리기). 지금은 꾸밈이 있으면 모달에 한 줄 경고(지디 결정 C). 글 요소 자체의 색은 실리므로 «안쪽»만 본다. */
+const _RICH_SEL = 'b, strong, i, em, u, s, mark, font, [style*="color"], [style*="background"], [style*="font-weight"], [style*="font-style"], [style*="text-decoration"]';
+function _hasRichStyling(tb) {
+  return !!_textEl(tb)?.querySelector(_RICH_SEL);
+}
+
 function _getTextStyle(tb) {
-  const el  = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb.querySelector('div');
+  const el  = _textEl(tb);
   if (!el) return { text: '', fontSize: 24, color: '#111111', fontFamily: 'sans-serif', fontWeight: '400', letterSpacing: 0, textAlign: 'left', lineHeight: 1.4, sectionBg: '#ffffff' };
   const cs  = window.getComputedStyle(el);
   const sec = tb.closest('.section-block');
