@@ -24,6 +24,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -267,6 +268,8 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
     'grd-size-number': 'size',   // 양성대조: typo 없는 grd-size 는 블록 크기
     /* 공용 빌더의 실제 접두(실측): txt · qt-typo · grd-typo · mdl-typo · chb-typo ⇒ 텍스트 패널은 txt-size-number · 점 지름은 <p>-dot-size(-num) */
     'txt-size-number': 'typography', 'qt-typo-size-number': 'typography', 'txt-dot-size': 'typography', 'chb-typo-dot-size-num': 'typography', 'txt-w-number': null,
+    /* U0c ⑱ txt-size 는 id 줄기(「txt-size」·「txt-size-」만) — 비슷한 이름은 안 삼킨다 · 접두가 다른 *-txt-size 도 아니다 */
+    'txt-size': 'typography', 'txt-sizer-w': null, 'txt-sizing-h': null, 'cmp-txt-size-w': 'size',
     /* U0c ⑤ export 단어 → Export 절 · 그냥 폭은 Size */
     /* U0c ⑥ bc(테두리 색) → Stroke — 색 칸의 짝(hex·alpha)도 같은 꼴 */
     'mdl-bc-color color': 'stroke', 'mdl-bc-hex color': 'stroke', 'mdl-bc-alpha color': 'stroke', 'bc-color color': 'fill',   // 첫 단어 bc 는 접두(바꾸지 않음)
@@ -395,4 +398,17 @@ test('F14 unwrapSection — 절 통째 → 몸 · 몸통만 → 그대로 · 제
   const strips = (fn) => fn(`<div class="prop-section"><div class="prop-section-title">T</div>${body}</div>`).body === body;
   assert.equal(strips(F.unwrapSection), true);
   assert.equal(strips((h) => ({ id: undefined, head: '', body: h })), false, '[양성대조] 가짜가 통과했다 — 판정이 안 잰다');
+});
+
+test('F15 ★txt-size 줄기 가드 — 텍스트 패널 소스에 «블록 크기»인 txt-size* id 가 없다(있으면 줄기가 삼킨다)', () => {
+  const files = ['js/props/_typo-section.js', 'js/props/text-type-class.js']
+    .concat(fs.readdirSync(path.join(ROOT, 'js/props')).filter((f) => /^prop-text.*\.js$/.test(f)).map((f) => `js/props/${f}`))
+    .filter((rel) => fs.existsSync(path.join(ROOT, rel)));
+  assert.ok(files.length >= 5, `[전제] 텍스트 패널 소스 ${files.length}개 — 글롭이 깨졌다`);
+  const ids = new Set();
+  for (const rel of files) for (const m of stripComments(readSrc(ROOT, rel)).matchAll(/['"`]txt-size[a-z0-9-]*['"`]|id="txt-size[a-z0-9-]*"/g)) ids.add(m[0].replace(/^id=|['"`]/g, ''));
+  const notFont = [...ids].filter((x) => !/^txt-size(-number)?$/.test(x));
+  assert.deepEqual(notFont, [], `★txt-size 줄기가 글자 크기 아닌 id 를 삼킨다: ${notFont}`);
+  /* ★양성대조 — 같은 판정이 가짜 블록 크기 id 를 잡는다 */
+  assert.deepEqual(['txt-size-w-number'].filter((x) => !/^txt-size(-number)?$/.test(x)), ['txt-size-w-number']);
 });

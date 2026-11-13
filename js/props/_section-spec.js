@@ -55,7 +55,7 @@ export const OWNERSHIP = Object.freeze([
   [['pad*'], 'padding'],
   [['shadow', 'glow'], 'effects'],
   // 'a>b' = a 바로 뒤 b. 글 부위 단어 바로 뒤 size = 글자 크기(stb-title-size · chb-typo-size · tbl-header-size · grb-pct-size · cpn-slot-size)
-  [['font', 'letter', 'line+height', 'title>size', 'desc>size', 'typo>size', 'header>size', 'pct>size', 'label>size', 'slot>size', 'txt>size', 'dot>size'], 'typography'],   // txt>size = 공용 빌더 p:'txt'(텍스트 패널) · dot>size = 점 찍기 지름(${p}-dot-size)
+  [['font', 'letter', 'line+height', 'title>size', 'desc>size', 'typo>size', 'header>size', 'pct>size', 'label>size', 'slot>size', 'dot>size'], 'typography'],   // dot>size = 점 찍기 지름(${p}-dot-size) · 텍스트 패널 글자 크기는 OWNERSHIP_ID_STEM 'txt-size'
   [['border', 'stroke'], 'stroke'],
   [['color', 'colour', 'fill', 'bg'], 'fill'],
   [['rotate', 'rotation', 'x', 'y'], 'position'],
@@ -69,6 +69,7 @@ export const OWNERSHIP_EXEMPT = Object.freeze({
 /** 꼴로는 못 가르는 id 줄기 → { 줄기: [절 key, 까닭] }. id 가 「줄기」 이거나 「줄기-」로 시작하면 이 절. ⛔드물게 — 규칙이 먼저다. */
 export const OWNERSHIP_ID_STEM = Object.freeze({
   'tbl-size': ['typography', '표 글자 크기(prop-table applySize → table.style.fontSize) — 접두 바로 뒤 size 라 «블록 크기»와 꼴이 같다'],
+  'txt-size': ['typography', '텍스트 글자 크기(공용 Typography 빌더 p:\'txt\' → txt-size-number) — 접두 txt 에 글 부위 단어가 없어 «블록 크기»와 꼴이 같다'],
 });
 /** 줄임 단어 → 뜻 단어. ★id 의 «첫 단어»(블록 접두 — 스티커 stk-·…)에는 안 건다: stk-t-STK-c-color 의 둘째 stk 만 stroke. */
 export const OWNERSHIP_ALIAS = Object.freeze({ stk: 'stroke', sh: 'shadow', bc: 'stroke', bdc: 'stroke', shc: 'shadow' });   // bc·bdc = 테두리 색(mdl-bc-* · zm-bdc-*) · shc = 효과 색(zm-shc-*)
