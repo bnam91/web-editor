@@ -526,11 +526,29 @@ function showColorAdjustPanel(host, opts = {}) {
   }
 
   panel.style.display = 'flex';
+  if (!_panelPos) _avoidHandles(panel, host);
 
   // 이미 적용된 필터가 있으면 SVG 필터 노드가 살아있는지 보장
   if (!_isDefault(adj)) _ensureSVGFilter(adj);
 
   _bindSliders(img);
+}
+
+/* IMAGE-EDIT-SE-HANDLE-UNDER-COLOR-PANEL-01 — 기본 자리(오른아래)가 편집 이미지의 모서리 손잡이를 덮으면 «위쪽»으로 비킨다.
+ *   손잡이 층은 #canvas-area 격리 안이라 z-index 로는 패널 위로 못 올린다(css/editor-blocks.css #ss-handles-overlay 주석).
+ *   위쪽도 덮으면 기본 자리 그대로(더 나빠지지 않게) · 사용자가 끌어 둔 자리(_panelPos)는 손대지 않는다(부르는 쪽이 거른다). */
+const _HANDLE_PAD = 8;   // 손잡이 7px 반 + 여유
+function _coversHandle(panel, host) {
+  const p = panel.getBoundingClientRect(), r = host.getBoundingClientRect();
+  return [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]].some(([x, y]) =>
+    x + _HANDLE_PAD > p.left && x - _HANDLE_PAD < p.right && y + _HANDLE_PAD > p.top && y - _HANDLE_PAD < p.bottom);
+}
+function _avoidHandles(panel, host) {
+  if (!_coversHandle(panel, host)) return;
+  const areaTop = document.getElementById('canvas-area')?.getBoundingClientRect().top || 0;
+  panel.style.top = Math.max(8, Math.round(areaTop + 12)) + 'px';
+  panel.style.bottom = 'auto';
+  if (_coversHandle(panel, host)) { panel.style.top = ''; panel.style.bottom = ''; }
 }
 
 function hideColorAdjustPanel() {
