@@ -34,6 +34,14 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
     isHeader: !!e.querySelector(':scope > .prop-block-label'),
     title: e.querySelector(':scope > .prop-sec-head > .prop-section-title')?.textContent.trim() ?? null,
     labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].map((l) => l.textContent.trim()),
+    /* 보이는 컨트롤 수 — 머리 손잡이 포함 · ★접힘(몸 hidden)은 «비었다»가 아니라서 몸 자신의 숨김은 건너뛴다 */
+    liveControls: [...e.querySelectorAll('input, select, button, textarea')].filter((c) => {
+      for (let n = c; n && n !== e; n = n.parentElement) {
+        if (n.classList.contains('prop-sec-body')) continue;
+        if (n.hidden || getComputedStyle(n).display === 'none') return false;
+      }
+      return true;
+    }).length,
     /* 소유 판정 재료 — 컨트롤마다 id · type · data-* · 색짝(같은 .prop-color-field 안 · 바로 앞 형제가 색 칸) · 제외 그릇 */
     controls: [...e.querySelectorAll('input, select, button, textarea')].map((c) => {
       const prev = c.previousElementSibling;
@@ -71,6 +79,7 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     if (s.sec === 'special') { if (!spec.isValidSectionTitle(s.title)) bad.push(`special 제목 규칙 위반: ${s.title}`); }
     else if (s.title !== spec.SECTION_TITLE[s.sec]) bad.push(`제목 불일치: ${s.sec} = 「${s.title}」 (정본 「${spec.SECTION_TITLE[s.sec]}」)`);
     if (s.labels.includes(s.title)) bad.push(`라벨이 절 제목을 되풀이: ${s.title}`);
+    if (s.liveControls === 0) bad.push(`빈 머리 절: ${skey(s)} — 보이는 컨트롤 0(렌더러가 그 절을 안 내야 한다)`);
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
       const sc = c.scope && spec.OWNERSHIP_EXEMPT_SCOPES[c.scope];
       const inScope = !!sc && (sc.sec == null || sc.sec === s.sec);   // 그릇이 제 절에 있을 때만 — 엉뚱한 절의 그릇은 판정

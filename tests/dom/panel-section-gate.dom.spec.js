@@ -189,6 +189,19 @@ test('G8 effects-registry 카드 칸 = Effects — 진짜 에셋 블록 + 그림
   expect(red, '[양성대조] 카드 목록이 Fill 절이면 빨강').toContain('소유 위반: asset-fxsh-color 는 effects 절 속성인데 fill 절에 있다');
 });
 
+test('G9 빈 머리 절 — 몸의 줄이 전부 display:none 이면 빨강 · 접힘은 빈 것이 아니다(진짜 DOM)', async ({ page }) => {
+  await scene(page);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  expect(judgePanel(await readPanel(page), SPEC), '[전제] 정본 판 통과').toEqual([]);
+  await page.locator('#psec-size-head').click();   // 접기 — 보이는 컨트롤이 «접혀 안 보이는» 것은 빈 머리가 아니다
+  await expect(page.locator('#psec-size-body')).toBeHidden();
+  expect(judgePanel(await readPanel(page), SPEC), '★접힌 절을 빈 머리로 셌다').toEqual([]);
+  await page.locator('#psec-size-head').click();
+  /* U4 실측 꼴(가림막 켠 Fill · 떠 있는 iconify 의 Layout): 몸의 줄이 전부 display:none */
+  await page.evaluate(() => document.querySelectorAll('#psec-size-body > *').forEach((r) => { r.style.display = 'none'; }));
+  expect(judgePanel(await readPanel(page), SPEC), '[양성대조] 줄이 다 숨은 절을 못 잡는다').toEqual(['빈 머리 절: size — 보이는 컨트롤 0(렌더러가 그 절을 안 내야 한다)']);
+});
+
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });

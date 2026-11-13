@@ -371,6 +371,10 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   assert.deepEqual(judgePanel(card('content', true), spec), [], '★Content 안 항목 카드인데 빨갛다');
   assert.deepEqual(judgePanel(card('appearance', true), spec), ['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 appearance 절에 있다'], '[양성대조] Appearance 의 카드는 판정');
   assert.deepEqual(judgePanel(card('content', false), spec), ['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 content 절에 있다'], '[양성대조] 카드 밖 Content 컨트롤은 판정');
+  /* U0c ⑳ 보이는 컨트롤 0 인 절 = 빈 머리(렌더러 몫) — liveControls 를 안 실은 합성 판은 판정 밖 */
+  const live = (n) => ({ hints: 0, secs: [{ sec: 'fill', isHeader: false, title: 'Fill', labels: [], controls: [], liveControls: n }] });
+  assert.deepEqual(judgePanel(live(0), spec), ['빈 머리 절: fill — 보이는 컨트롤 0(렌더러가 그 절을 안 내야 한다)']);
+  assert.deepEqual(judgePanel(live(1), spec), [], '[양성대조] 보이는 컨트롤 하나면 통과');
   /* U0b ⑦ 코인 금속색 — 색 칸 id 를 제외하면 그 짝(hex·alpha)도 빠진다 · 제외 밖 짝은 여전히 잡는다 */
   const coin = (id, pairId) => ({ id, type: pairId ? 'text' : 'color', data: [], pairedColor: !!pairId, pairId, scope: null });
   const special = (controls) => ({ hints: 0, secs: [{ sec: 'special', isHeader: false, title: 'Coin', labels: [], controls }] });
