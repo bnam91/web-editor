@@ -307,6 +307,14 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
     controls: [{ id: 'grd-line-color', type: 'color', data: [], pairedColor: false, scope }] }] });
   assert.deepEqual(judgePanel(gl('grd-line-body'), spec), [], '★그리드 글줄 색이 그릇 안인데 stroke 로 잡혔다');
   assert.deepEqual(judgePanel(gl(null), spec), ['소유 위반: grd-line-color 는 stroke 절 속성인데 typography 절에 있다'], '[양성대조] 그릇 밖이면 잡는다');
+  /* U0c ③ data-own 명시 덮어쓰기 — 건너뛰기가 아니라 «그 절이어야 한다» */
+  const rad = (sec, own, data = []) => ({ hints: 0, secs: [{ sec, isHeader: false, title: spec.SECTION_TITLE[sec], labels: [],
+    controls: [{ id: 'rdl-radius-slider', type: 'range', data, pairedColor: false, scope: null, own }] }] });
+  assert.deepEqual(judgePanel(rad('layout', null), spec), ['소유 위반: rdl-radius-slider 는 appearance 절 속성인데 layout 절에 있다'], '[양성대조] 덮어쓰기 없으면 radius = appearance');
+  assert.deepEqual(judgePanel(rad('layout', 'layout'), spec), [], '★조상 줄 data-own=layout 인데 빨갛다');
+  assert.deepEqual(judgePanel(rad('layout', null, [['own', 'layout']]), spec), [], '★컨트롤 자신의 data-own=layout 인데 빨갛다');
+  assert.deepEqual(judgePanel(rad('appearance', 'layout'), spec), ['소유 위반: rdl-radius-slider 는 layout 절 속성인데 appearance 절에 있다'], '★덮어쓰기가 판정을 건너뛰었다(여전히 재야 한다)');
+  assert.deepEqual(judgePanel(rad('layout', 'lay-out'), spec), ['data-own 이 모르는 절: rdl-radius-slider → lay-out']);
   /* U0b ⑦ 코인 금속색 — 색 칸 id 를 제외하면 그 짝(hex·alpha)도 빠진다 · 제외 밖 짝은 여전히 잡는다 */
   const coin = (id, pairId) => ({ id, type: pairId ? 'text' : 'color', data: [], pairedColor: !!pairId, pairId, scope: null });
   const special = (controls) => ({ hints: 0, secs: [{ sec: 'special', isHeader: false, title: 'Coin', labels: [], controls }] });

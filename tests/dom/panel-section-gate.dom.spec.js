@@ -113,6 +113,17 @@ test('G4 ★하위 접기 제외는 «그릇 안»만 — 그리드 칸 컨트�
   expect(judgePanel(await readPanel(page), SPEC), '★그릇 밖인데 못 잡는다').toEqual(['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다']);
 });
 
+test('G5 data-own 명시 덮어쓰기 — 조상 줄의 data-own 을 readPanel 이 읽고 «그 절»로 판정한다(진짜 DOM)', async ({ page }) => {
+  await scene(page);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  // radius 단어 = 규칙상 Appearance. Size 절 몸에 넣고 줄에 data-own="size" — 통과
+  await page.evaluate(() => { const r = document.createElement('div'); r.className = 'prop-row'; r.id = '__own-row'; r.dataset.own = 'size'; r.innerHTML = '<input type="range" id="xx-radius-slider">'; document.getElementById('psec-size-body').appendChild(r); });
+  expect(judgePanel(await readPanel(page), SPEC), '★data-own=size 줄 안인데 빨갛다').toEqual([]);
+  // 덮어쓰기를 걷으면 규칙대로 Appearance ⇒ 빨강
+  await page.evaluate(() => { delete document.getElementById('__own-row').dataset.own; });
+  expect(judgePanel(await readPanel(page), SPEC), '[양성대조] 덮어쓰기 없으면 잡는다').toEqual(['소유 위반: xx-radius-slider 는 appearance 절 속성인데 size 절에 있다']);
+});
+
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });

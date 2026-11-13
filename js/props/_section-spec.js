@@ -98,5 +98,13 @@ export function ownerOf(ident) {
   return null;
 }
 
+/** 컨트롤 → 있어야 할 절. ★명시 덮어쓰기: 컨트롤(또는 같은 절 안 조상 줄)의 data-own="<절 key>" 가 있으면 그 key —
+ *  «건너뛰기»가 아니라 «그 절이어야 한다»로 여전히 판정한다. 드물게 · 호출부에 까닭 주석 필수(DESIGN_SYSTEM §11-A).
+ *  예: 방사형 배치 반지름(rdl-radius) = 원 배치의 크기 → Layout(모서리 radius 가 아니다). */
+export function ownerOfControl(c) {
+  const own = c.own ?? (c.data || []).find(([n]) => n === 'own')?.[1];
+  return own != null && own !== '' ? own : ownerOf(controlIdent(c));
+}
+
 /* ★window 로도 낸다 — 정적 import 없이 읽는 DOM 게이트·styleguide 용. Node vm 하네스에는 window 가 없다. */
-if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, OWNERSHIP_ALIAS, OWNERSHIP_ID_STEM, controlIdent, ownerOf };
+if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, OWNERSHIP_ALIAS, OWNERSHIP_ID_STEM, controlIdent, ownerOf, ownerOfControl };

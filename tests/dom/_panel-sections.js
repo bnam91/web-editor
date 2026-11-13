@@ -12,7 +12,7 @@ function loadSectionSpec() {
   const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export\s+/gm, '');
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };', ctx);
+  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl };', ctx);
   return ctx.__S;
 }
 
@@ -30,6 +30,7 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
         || (prev?.matches?.('input[type="color"]') ? prev : prev?.querySelector?.('input[type="color"]')) || null);
       return {
         id: c.id, type: c.type, pairedColor: !!pair, pairId: pair?.id || null,
+        own: (() => { const o = c.closest('[data-own]'); return o && e.contains(o) ? o.dataset.own : null; })(),   // 명시 덮어쓰기(같은 절 안 조상 줄까지)
         data: [...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => [a.name.slice(5), a.value]),
         scope: scopes.find((sid) => document.getElementById(sid)?.contains(c)) || null,
       };
@@ -57,7 +58,8 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     if (s.labels.includes(s.title)) bad.push(`라벨이 절 제목을 되풀이: ${s.title}`);
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
       if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
-      const own = spec.ownerOf(spec.controlIdent(c));
+      const own = spec.ownerOfControl(c);
+      if (own && !spec.SECTION_ORDER.includes(own)) { bad.push(`data-own 이 모르는 절: ${c.id} → ${own}`); continue; }
       if (own && own !== s.sec) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${s.sec} 절에 있다`);
     }
   }
