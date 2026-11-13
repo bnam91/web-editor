@@ -796,8 +796,10 @@ export function floatPositionRowHTML({ prefix, posEl }) {
   if (!posEl || posEl.dataset.overlayBlock !== 'true') return '';
   const x = parseInt(posEl.dataset.offsetX) || 0;
   const y = parseInt(posEl.dataset.offsetY) || 0;
+  /* 윗줄 라벨 = 「X / Y」 — ⛔「Position」 이면 틀의 Position 절 제목을 되풀이한다(panel-section-gate 라벨=제목 0).
+     라벨 «자리»는 남긴다 — 패널마다 X/Y 줄 앞 형제가 같아야 grid-xy-position P1(에셋 꼴 == 그리드 꼴)이 선다. */
   return `
-      <span class="prop-field-label">Position</span>
+      <span class="prop-field-label">X / Y</span>
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
           <div class="prop-icon-input">
