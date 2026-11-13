@@ -544,9 +544,10 @@ export function discSecToggle(block, key, dflt = false) {
  *   ★controls(몸통 id)를 주면 «틀 판»(_panel-frame.js 절 머리 · U0): aria-expanded·aria-controls 를 달고
  *     인라인 style·title 툴팁을 뺀다 — 모양은 css/editor-props.css panel-frame 블록의 토큰이 맡는다(신규 층 리터럴 0). */
 export function disclosureSectionHtml(id, title, open, controls) {
+  /* 쉐브론은 한 벌(disclosureChevronHtml)을 쓰되 인라인 style 만 클래스로 바꾼다 — 회전·전이는 panel-frame CSS 가 aria-expanded 로 */
   if (controls) return `
       <div class="prop-section-title" id="${id}" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}" aria-controls="${controls}">
-        ${disclosureChevronHtml(open)}
+        ${disclosureChevronHtml(open).replace(/\n\s*style="[^"]*">/, ' class="prop-sec-chevron">')}
         <span class="prop-sec-title-text">${title}</span>
       </div>`;
   return `

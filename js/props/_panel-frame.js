@@ -92,9 +92,7 @@ function _toggle(head) {
   bodyEl.hidden = !open;
   section.classList.toggle('is-collapsed', !open);
   head.setAttribute('aria-expanded', String(open));   // 툴팁 없음 — 상태는 aria-expanded·쉐브론이 말한다
-  // ⛔각도 식은 disclosureChevronHtml 과 같은 값이어야 한다(갈리면 첫 클릭에 그림이 튄다)
-  const arrow = head.querySelector('svg');
-  if (arrow) arrow.style.transform = `rotate(${open ? 0 : -90}deg)`;
+  // 쉐브론 회전은 CSS(.prop-sec-chevron · aria-expanded)가 맡는다
   setSectionCollapsed(section.dataset.secState, !open);
 }
 

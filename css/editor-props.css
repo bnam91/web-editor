@@ -53,6 +53,8 @@
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--ui-space-1); cursor: pointer;
   font-size: var(--ui-sec-title-fs); color: var(--ui-sec-title-color);
 }
+.prop-sec-chevron { flex: 0 0 auto; transition: var(--ui-chevron-transition); }
+.prop-section-title[aria-expanded="false"] > .prop-sec-chevron { transform: rotate(-90deg); }
 .prop-sec-title-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prop-sec-head > .prop-section-title:hover { color: var(--ui-sec-title-color-hover); }
 .prop-sec-body[hidden] { display: none; }

@@ -178,6 +178,8 @@ test('③ ★가림막 절 전체에 잘린 요소 0건 (토글 on = 방식/강�
 /* ══ ④ 전역 .prop-label 은 그대로 56px — 다른 패널 세로 정렬 보호 ═════ */
 test('④ ★전역 .prop-label 폭 56px 불변 (전 패널 정렬의 출처)', async ({ page }) => {
   const css = fs.readFileSync(path.join(REPO, 'css/editor-props.css'), 'utf8');
-  expect(/\.prop-label \{[^}]*width:\s*56px/.test(css)).toBe(true);
+  /* U0(right-panel-unify) — 56px 리터럴이 토큰 var(--ui-form-label-w) 로 갔다. 값(56px)은 토큰 정의 파일에서 잰다. */
+  expect(/\.prop-label \{[^}]*width:\s*var\(--ui-form-label-w\)/.test(css), '전역 .prop-label 이 --ui-form-label-w 를 안 본다').toBe(true);
+  expect(/--ui-form-label-w:\s*56px/.test(fs.readFileSync(path.join(REPO, 'css/editor-base.css'), 'utf8')), '--ui-form-label-w 가 56px 이 아니다 — 전역 라벨 폭이 바뀌었다').toBe(true);
   expect(/\.prop-label--auto \{[^}]*width:\s*auto/.test(css)).toBe(true);
 });

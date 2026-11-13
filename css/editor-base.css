@@ -168,7 +168,8 @@
   --ui-sec-body-pb:          6px;                      /* 펼친 절 몸통 아래 여백 4 → 6 */
   --ui-hint-color:           var(--ui-text-dim);       /* .prop-hint #5a5a5a(2.4:1 ✗AA) → dim(≥4.5:1) */
   --ui-chip-h:               var(--ui-btn-h);          /* 스코프칩 높이 = 버튼 높이 별칭 */
-  --ui-focus-ring:           2px solid var(--ui-accent-primary, #2d6fe8);  /* 공용 키보드 포커스 링(아래 :focus-visible 규칙의 값 그대로) */
+  --ui-focus-ring:           2px solid var(--ui-accent-primary, #2d6fe8);
+  --ui-chevron-transition:   transform .12s;     /* 접기 쉐브론 회전 전이(disclosureChevronHtml 인라인 값 그대로) */  /* 공용 키보드 포커스 링(아래 :focus-visible 규칙의 값 그대로) */
 
   /* ── 미정의로 쓰이던 토큰 → canonical 별칭 (일관성 수정, 2026-05) ──
      이전엔 정의 없이 var() fallback으로만 쓰여 fallback이 파일마다 달라 색이 갈렸음.

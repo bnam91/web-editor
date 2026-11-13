@@ -162,7 +162,8 @@ test('F7 disclosureSectionHtml 3인자 = 바이트 그대로 · 4인자(틀 판)
     assert.match(four, new RegExp(`role="button" tabindex="0" aria-expanded="${open}" aria-controls="b">`));
     assert.doesNotMatch(four, /style=|title=/, '★틀 판 머리에 인라인 style·툴팁이 남았다');
     assert.match(four, /<span class="prop-sec-title-text">T<\/span>/);
-    assert.ok(four.includes(chev(open)), '★틀 판이 쉐브론 한 벌을 안 쓴다');
+    assert.ok(four.includes(chev(open).replace(/\n\s*style="[^"]*">/, ' class="prop-sec-chevron">')), '★틀 판이 쉐브론 한 벌(인라인 style→클래스)을 안 쓴다');
+    assert.match(four, /<path d="M1 3l4 4 4-4"\/>/);
   }
 });
 
