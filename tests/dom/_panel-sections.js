@@ -1,7 +1,7 @@
 /* _panel-sections — 우측 패널 «절» 판독·판정 공용 부품. (right-panel-unify U0 · §6-1)
  * 정본 표는 js/props/_section-spec.js 를 vm 으로 «읽어» 쓴다(⛔여기 순서표를 베끼지 않는다 — 두 벌은 갈라진다).
- *   loadSectionSpec()     → { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, ownerOf }
- *   readPanel(page)       → 지금 패널의 절 목록(브라우저에서 잰 값)
+ *   loadSectionSpec()     → { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, controlIdent, ownerOf }
+ *   readPanel(page)       → 지금 패널의 절 목록(브라우저에서 잰 값 · 컨트롤마다 id·type·data-*·색짝)
  *   judgePanel(list, spec, order?) → 위반 문자열 배열(빈 배열 = 통과). order 를 바꿔 넣으면 양성대조가 된다. */
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +12,7 @@ function loadSectionSpec() {
   const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export\s+/gm, '');
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, ownerOf };', ctx);
+  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, controlIdent, ownerOf };', ctx);
   return ctx.__S;
 }
 
@@ -23,11 +23,16 @@ const readPanel = (page) => page.evaluate(() => {
     isHeader: !!e.querySelector(':scope > .prop-block-label'),
     title: e.querySelector(':scope > .prop-sec-head > .prop-section-title')?.textContent.trim() ?? null,
     labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].map((l) => l.textContent.trim()),
-    /* 소유 판정 재료 — 컨트롤마다 id · class · data-*(이름과 값) */
-    controls: [...e.querySelectorAll('input, select, button, textarea')].map((c) => ({
-      id: c.id,
-      ident: [c.id, c.className, ...[...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => `${a.name.slice(5)} ${a.value}`)].join(' '),
-    })),
+    /* 소유 판정 재료 — 컨트롤마다 id · type · data-* · 색짝(같은 .prop-color-field 안 · 바로 앞 형제가 색 칸) */
+    controls: [...e.querySelectorAll('input, select, button, textarea')].map((c) => {
+      const prev = c.previousElementSibling;
+      const pairedColor = c.type !== 'color' && !!(c.closest('.prop-color-field')?.querySelector('input[type="color"]')
+        || prev?.matches?.('input[type="color"]') || prev?.querySelector?.('input[type="color"]'));
+      return {
+        id: c.id, type: c.type, pairedColor,
+        data: [...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => [a.name.slice(5), a.value]),
+      };
+    }),
   }));
   return { secs, hints: body.querySelectorAll('.prop-hint').length };
 });
@@ -51,8 +56,8 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     if (s.labels.includes(s.title)) bad.push(`라벨이 절 제목을 되풀이: ${s.title}`);
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
       if (c.id && c.id in spec.OWNERSHIP_EXEMPT) continue;
-      const own = spec.ownerOf(c.ident);
-      if (own && own !== s.sec) bad.push(`소유 위반: ${c.id || c.ident} 는 ${own} 절 속성인데 ${s.sec} 절에 있다`);
+      const own = spec.ownerOf(spec.controlIdent(c));
+      if (own && own !== s.sec) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${s.sec} 절에 있다`);
     }
   }
   if (hints > 2) bad.push(`prop-hint ${hints}개 > 2`);

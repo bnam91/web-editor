@@ -14,7 +14,7 @@
  *   F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0 — check-design-tokens.sh 하드게이트와 같은 정규식
  *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
  *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
- *   F12 소유 규칙 ownerOf — 컨트롤 id·class 단어 → 있어야 할 절(게이트의 본 칼날) · 표의 절 key 는 전부 정본에 있다
+ *   F12 소유 규칙 ownerOf/controlIdent — 컨트롤 id·data·«색이다» 표식 → 있어야 할 절(게이트의 본 칼날) · class 는 안 본다 · 표의 절 key 는 정본에 있다
  *   F8 정본 표 — SECTION_ORDER 와 SECTION_TITLE 가 special 외 1:1 · 모든 제목이 규칙을 지킨다
  *   F9 파일럿 — prop-gap.js · prop-bridge.js 는 propPanel.innerHTML 대신 renderPanel 을 쓴다
  *   N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판을 올리면 F1 의 기대가 깨진다
@@ -52,7 +52,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, ownerOf };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, controlIdent, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
@@ -242,16 +242,32 @@ test('N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판이면 F1 의 기대
   assert.equal(r.secs[0], 'template', '[전제] 뒤집힌 판이 실제로 올라갔다');
 });
 
-test('F12 소유 규칙 ownerOf — 컨트롤 식별 단어 → 있어야 할 절', () => {
+test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 할 절', () => {
   const F = loadFrame();
   const cases = {
-    'brg-color': 'fill', 'prop-color-hex': 'fill', 'mdl-bg-hex': 'fill', 'tb-border-color': 'stroke', 'stkStrokeColor': 'stroke',
+    'brg-color color': 'fill', 'mdl-bg-hex': 'fill', 'tb-border-color': 'stroke', 'stkStrokeColor': 'stroke',
     'frame-border-w': 'stroke', 'modal-radius': 'appearance', 'page-padx-number': 'padding', 'tb-pad-l': 'padding',
     'shadowBlur': 'effects', 'stk-glow-size': 'effects', 'tb-line-height': 'typography', 'letterSpacing': 'typography', 'font-picker': 'typography',
     'rotation-input': 'position', 'stk-x': 'position', 'asset-width': 'size', 'fr-height-number': 'size',
-    'brg-h-slider prop-slider': null, 'gap-preset-btn h 20': null, 'gap-slider prop-slider': null,
+    'grd-colrule-w': 'stroke', 'grd-rowrule-inset': 'stroke',
+    'brg-h-slider': null, 'gap-preset-btn h 20': null, 'gap-slider': null,
   };
-  const got = Object.fromEntries(Object.keys(cases).map((k) => [k, F.ownerOf(k)]));
-  assert.deepEqual(got, cases);
+  assert.deepEqual(Object.fromEntries(Object.keys(cases).map((k) => [k, F.ownerOf(k)])), cases);
+  /* 컨트롤 꼴 — readPanel 이 넘기는 {id,type,data,pairedColor}. ★class 는 넘겨도 안 쓴다. */
+  const ctl = {
+    'brg-color(type=color)': [{ id: 'brg-color', type: 'color' }, 'fill'],
+    'brg-hex(색짝)': [{ id: 'brg-hex', type: 'text', pairedColor: true, cls: 'prop-color-hex' }, 'fill'],
+    'brg-alpha(색짝)': [{ id: 'brg-alpha', type: 'text', pairedColor: true }, 'fill'],
+    'iconify 프리셋 이름칸(.prop-color-hex 껍데기)': [{ id: 'icn-preset-newcat-input', type: 'text', cls: 'prop-color-hex' }, null],
+    'iconify 저장 이름칸': [{ id: 'icn-preset-save-input', type: 'text', cls: 'prop-color-hex' }, null],
+    '그리드 칸 사이 줄 색(type=color)': [{ id: 'grd-colrule-color', type: 'color' }, 'stroke'],
+    '그리드 칸 사이 줄 hex(색짝)': [{ id: 'grd-rowrule-hex', type: 'text', pairedColor: true, cls: 'prop-color-hex' }, 'stroke'],
+    'data 로 말하는 칸': [{ id: 'x1', type: 'number', data: [['prop', 'radius']] }, 'appearance'],
+  };
+  assert.deepEqual(Object.fromEntries(Object.entries(ctl).map(([k, [c]]) => [k, F.ownerOf(F.controlIdent(c))])),
+    Object.fromEntries(Object.entries(ctl).map(([k, [, want]]) => [k, want])));
+  /* ★양성대조 — class 를 단어로 쳤다면 iconify 이름칸은 fill 로 갔다(그래서 controlIdent 가 class 를 버린다) */
+  assert.equal(F.ownerOf('icn-preset-newcat-input prop-color-hex'), 'fill', '[양성대조] class 단어가 들어가면 색으로 오판한다');
   for (const [, key] of F.OWNERSHIP) assert.ok(F.SECTION_ORDER.includes(key), `★표에 모르는 절 key: ${key}`);
 });
+
