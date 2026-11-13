@@ -265,6 +265,8 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
     /* U0c ⑪ 공용 Typography 빌더(_typo-section)의 글자 크기 칸 — 접두만 다르고 typo-size 꼴 하나 ⇒ 같은 규칙(그리드 제외 없이) */
     'grd-typo-size-number': 'typography', 'grd-typo-size-slider': 'typography', 'mdl-typo-size-number': 'typography', 'qte-typo-size-slider': 'typography',
     'grd-size-number': 'size',   // 양성대조: typo 없는 grd-size 는 블록 크기
+    /* 공용 빌더의 실제 접두(실측): txt · qt-typo · grd-typo · mdl-typo · chb-typo ⇒ 텍스트 패널은 txt-size-number · 점 지름은 <p>-dot-size(-num) */
+    'txt-size-number': 'typography', 'qt-typo-size-number': 'typography', 'txt-dot-size': 'typography', 'chb-typo-dot-size-num': 'typography', 'txt-w-number': null,
     /* U0c ⑤ export 단어 → Export 절 · 그냥 폭은 Size */
     /* U0c ⑥ bc(테두리 색) → Stroke — 색 칸의 짝(hex·alpha)도 같은 꼴 */
     'mdl-bc-color color': 'stroke', 'mdl-bc-hex color': 'stroke', 'mdl-bc-alpha color': 'stroke', 'bc-color color': 'fill',   // 첫 단어 bc 는 접두(바꾸지 않음)

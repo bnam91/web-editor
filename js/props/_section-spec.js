@@ -55,7 +55,7 @@ export const OWNERSHIP = Object.freeze([
   [['pad*'], 'padding'],
   [['shadow', 'glow'], 'effects'],
   // 'a>b' = a 바로 뒤 b. 글 부위 단어 바로 뒤 size = 글자 크기(stb-title-size · chb-typo-size · tbl-header-size · grb-pct-size · cpn-slot-size)
-  [['font', 'letter', 'line+height', 'title>size', 'desc>size', 'typo>size', 'header>size', 'pct>size', 'label>size', 'slot>size'], 'typography'],
+  [['font', 'letter', 'line+height', 'title>size', 'desc>size', 'typo>size', 'header>size', 'pct>size', 'label>size', 'slot>size', 'txt>size', 'dot>size'], 'typography'],   // txt>size = 공용 빌더 p:'txt'(텍스트 패널) · dot>size = 점 찍기 지름(${p}-dot-size)
   [['border', 'stroke'], 'stroke'],
   [['color', 'colour', 'fill', 'bg'], 'fill'],
   [['rotate', 'rotation', 'x', 'y'], 'position'],
