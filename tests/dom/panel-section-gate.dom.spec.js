@@ -135,6 +135,17 @@ test('G6 반복 항목 카드는 Content 안에서만 판정 밖 — 같은 카�
   expect(judgePanel(await readPanel(page), SPEC), '★Content 안 항목 카드인데 빨갛다').toEqual([]);
 });
 
+test('G7 simple-card 꼴 항목 카드([data-card-index] · id 없는 칸) — Content 안에서만 판정 밖(진짜 DOM)', async ({ page }) => {
+  await scene(page);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  /* prop-simple-card.js #cvb-card-items 의 꼴 그대로: .cvb-card-item[data-card-index] 안 input[type=color][data-card-index] (id 없음) */
+  await page.evaluate(() => { const k = document.createElement('div'); k.id = 'cvb-card-items'; k.innerHTML = '<div class="cvb-card-item" data-card-index="0"><input type="color" class="cvb-card-cell-bg" data-card-index="0"></div>'; document.getElementById('psec-size-body').appendChild(k); });
+  const red = judgePanel(await readPanel(page), SPEC);
+  expect(red, '[양성대조] Size 절의 카드는 판정 — 색 칸 소유 위반 1건').toEqual(['소유 위반: card-index 0 color 는 fill 절 속성인데 size 절에 있다']);
+  await page.evaluate(() => { const s = document.getElementById('psec-size'); s.dataset.sec = 'content'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Content'; });
+  expect(judgePanel(await readPanel(page), SPEC), '★Content 안 simple-card 항목 칸인데 빨갛다').toEqual([]);
+});
+
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });

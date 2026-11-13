@@ -30,7 +30,7 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
         || (prev?.matches?.('input[type="color"]') ? prev : prev?.querySelector?.('input[type="color"]')) || null);
       return {
         id: c.id, type: c.type, pairedColor: !!pair, pairId: pair?.id || null,
-        itemCard: (() => { const k = c.closest('[data-sec-item], .prop-cell-card'); return !!k && e.contains(k); })(),   // 반복 항목 카드(카드 n · 칸 n …)
+        itemCard: (() => { const k = c.closest('[data-sec-item], .prop-cell-card, [data-card-index]'); return !!k && e.contains(k); })(),   // 반복 항목 카드(카드 n · 칸 n …)
         own: (() => { const o = c.closest('[data-own]'); return o && e.contains(o) ? o.dataset.own : null; })(),   // 명시 덮어쓰기(같은 절 안 조상 줄까지)
         data: [...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => [a.name.slice(5), a.value]),
         scope: scopes.find((sid) => document.getElementById(sid)?.contains(c)) || null,
