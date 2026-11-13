@@ -43,6 +43,8 @@ const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.eval
     labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].map((l) => l.textContent.trim()),
     /* 보이는 컨트롤 수 — 머리 손잡이 포함 · ★접힘(몸 hidden)은 «비었다»가 아니라서 몸 자신의 숨김은 건너뛴다 */
     liveControls: [...e.querySelectorAll(live)].filter((c) => {
+      /* 절 «자기» 머리 제목은 내용이 아니다 — disclosureSectionHtml 이 role="button" 으로 그려 ⑴ 이 모든 절을 «안 빔»으로 셌다(G9 양성대조 빨강 · 94bbec1a3) */
+      if (c.classList.contains('prop-section-title') && c.parentElement?.classList.contains('prop-sec-head') && c.parentElement.parentElement === e) return false;
       for (let n = c; n && n !== e; n = n.parentElement) {
         if (n.classList.contains('prop-sec-body')) continue;
         if (n.hidden || getComputedStyle(n).display === 'none') return false;

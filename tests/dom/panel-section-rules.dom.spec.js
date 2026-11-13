@@ -17,7 +17,8 @@ const SPEC = loadSectionSpec();
 const EMPTY = (k) => `빈 머리 절: ${k} — 보이는 컨트롤 0(렌더러가 그 절을 안 내야 한다)`;
 
 /** 패널 몸만 있는 쪽 — 절 HTML 을 넣는다(틀과 같은 껍데기: data-sec · .prop-sec-head > .prop-section-title · .prop-sec-body). */
-const secHtml = (sec, title, body) => `<div class="prop-section" data-sec="${sec}"><div class="prop-sec-head"><div class="prop-section-title">${title}</div></div><div class="prop-sec-body">${body}</div></div>`;
+/* 머리 제목은 진짜 틀처럼 role="button"(disclosureSectionHtml) — 그래야 음성 칸(진짜 빈 절)이 «머리를 내용으로 세는» 실수를 잡는다(G9 · 94bbec1a3) */
+const secHtml = (sec, title, body) => `<div class="prop-section" data-sec="${sec}"><div class="prop-sec-head"><div class="prop-section-title" id="psec-${sec}-head" role="button" tabindex="0" aria-expanded="true">${title}</div></div><div class="prop-sec-body">${body}</div></div>`;
 async function fixture(page, sections) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e.message)));
