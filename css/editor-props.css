@@ -62,6 +62,8 @@
    숨은 꼬리([hidden] · 인라인 display:none — 예 cv-chips[hidden])는 건너뛴다(:has(~ 보이는 형제) 로 «뒤에 보이는 형제 없음»을 잰다). */
 .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))),
 .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))) > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))) { margin-bottom: 0; }
+/* ⑰ 몸에 보이는 자식이 없는 펼친 절(Stroke 끔 · 효과 0 · 머리만 절) — 아래 여백 0 ⇒ 머리 위아래가 --ui-sec-head-py 로 대칭(손잡이 가운데) */
+.prop-section[data-sec]:not(.is-collapsed):not(:has(> .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]))) { padding-bottom: 0; }
 /* 틀 절 몸 안의 옛 하위 절(.prop-section — 빌더가 절 통째를 줄 때) — 좌우 들임을 두 번 받지 않게(틀 절이 이미 들였다) */
 .prop-section[data-sec] > .prop-sec-body > .prop-section { padding-inline: 0; }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */

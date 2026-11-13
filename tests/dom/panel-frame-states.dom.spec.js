@@ -4,6 +4,7 @@
  * S3 넘침 — 좁은 패널 · 60자 블록 이름 · 긴 special 제목에도 패널·절에 가로 넘침 0 · 제목은 ellipsis
  * S4 겹침 0 — 절 머리 사각형끼리 안 겹치고 패널 안에 있다 · 제목 글자 ≥ --ui-fs-10
  * S6 몸 아래 여백 = --ui-sec-body-pb «하나»(마지막 보이는 자식 margin 0 · 숨은 꼬리 건너뜀) — 마지막 절 빼고 전부 · 양성대조: 꼬리 margin 을 되살리면 어긋난다
+ * S7 보이는 내용 없는 펼친 절(머리만 · 숨은 자식만) — 아래 여백 0 · 머리 위아래 틈 같음(손잡이 가운데) · 양성대조: 내용 있는 절은 pb
  * S5 틀 절 몸 안의 옛 하위 절(.prop-section)은 좌우 들임 0 — 그 안 첫 줄 왼쪽 == 틀 몸 왼쪽(±0.5) · 양성대조: 틀 밖 같은 마크업은 들여진다
  * 양성대조(사람이 돌린다): S1 = editor-base.css 의 --ui-sec-title-color-hover 줄 삭제 → 빨강 ·
  *   S2 = _panel-frame.js 의 panel.addEventListener('keydown' …) 제거 → 빨강 · S3 = editor-props.css .prop-sec-title-text 의 text-overflow:ellipsis 제거 → 빨강.
@@ -152,5 +153,28 @@ test('S6 몸 아래 여백 = --ui-sec-body-pb 하나 — 숨은 꼬리는 건너
   await page.addStyleTag({ content: '.prop-sec-body > .prop-row { margin-bottom: var(--ui-space-2) !important; }' });
   const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size');
   expect(bad.gap - pb, '[양성대조] margin 을 되살렸는데 틈이 그대로다').toBeGreaterThan(0.5);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S7 보이는 내용 없는 펼친 절 — 아래 여백 0 · 머리 가운데', async ({ page }) => {
+  const { errs, id } = await open(page, BRIDGE);
+  const pb = await tokenPx(page, '--ui-sec-body-pb');
+  const r = await page.evaluate(async (id) => {
+    const { renderPanel, sec } = await import('/js/props/_panel-frame.js');
+    renderPanel(document.getElementById(id), { sections: [
+      sec('effects', '', { headTools: '<select class="prop-select" id="__fx-add"><option>효과 추가…</option></select>' }),   // 머리만(효과 0)
+      sec('stroke', '<div class="prop-row" hidden>x</div>', { headTools: '<button class="prop-btn" id="__stk-on">끔</button>' }),   // 숨은 자식만(Stroke 끔)
+      sec('size', '<div class="prop-row"><span class="prop-label">높이</span></div>'),   // 양성대조: 내용 있음
+      sec('fill', '<div class="prop-row">y</div>'),
+    ] });
+    const m = (sid) => { const s = document.getElementById(sid), h = s.querySelector(':scope > .prop-sec-head'); const a = s.getBoundingClientRect(), b = h.getBoundingClientRect();
+      return { pb: parseFloat(getComputedStyle(s).paddingBottom), top: b.top - a.top - parseFloat(getComputedStyle(s).borderTopWidth), bottom: a.bottom - b.bottom }; };
+    return { fx: m('psec-effects'), stroke: m('psec-stroke'), size: m('psec-size') };
+  }, id);
+  for (const k of ['fx', 'stroke']) {
+    expect(r[k].pb, `★${k} — 보이는 내용 없는데 아래 여백이 있다`).toBe(0);
+    expect(Math.abs(r[k].top - r[k].bottom), `★${k} 머리가 가운데가 아니다(위 ${r[k].top} · 아래 ${r[k].bottom})`).toBeLessThanOrEqual(0.5);
+  }
+  expect(Math.abs(r.size.pb - pb), '[양성대조] 내용 있는 절은 pb 를 받는다').toBeLessThanOrEqual(0.5);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
