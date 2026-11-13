@@ -26,7 +26,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 const req = createRequire(import.meta.url);
-const { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT } = req('./_text-template-harness.js');
+const { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT, FX_STUB } = req('./_text-template-harness.js');
 const { loadSectionSpec, judgePanel } = req('../dom/_panel-sections.js');
 const BASE = '2040a3339';
 const FIX = path.join(ROOT, 'tests/fixtures');
@@ -36,10 +36,7 @@ const SPEC = loadSectionSpec();
 const readNow = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readBase = (rel) => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: ROOT, encoding: 'utf8' });
 const stripEsm = (src) => String(src).replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '').replace(/^export\s*\{[\s\S]*?\};\s*$/gm, '');
-/** 명부(지금 판)에 시험 식구 둘 — 그림자(옛 Shadow 절을 갈음 · t4-01) · 반사. fx1 이면 반사가 «걸린» 블럭. */
-const FX_STUB = `;registerFxType({ key: 'shadow', label: '그림자', replaces: 'txt-shadow-section', supports: () => true, has: () => false, add() {}, card: () => '', wire() {} });
-registerFxType({ key: 'reflect', label: '반사', supports: () => true, has: (el) => !!el.__fxReflect, add() {},
-  card: (el, P) => '\\n        <div class="prop-cell-card" id="' + P + '-fxrf-card"><input type="range" class="prop-slider" id="' + P + '-fxrf-gap"></div>', wire() {} });`;
+/* 시험 식구 둘(FX_STUB) = _text-template-harness.js 한 벌(U6 · T1 과 같은 것) */
 function load(files, { mutate } = {}) {
   const ctx = { window: { getBlockBreadcrumb: () => 'Section 1 / Row 1', addEventListener() {} }, console };
   vm.createContext(ctx);
@@ -212,8 +209,8 @@ const fails = runAll(buildNew);
 if (fails.length) { console.error('★판정 실패 — 골든을 쓰지 않는다:\n  ' + fails.join('\n  ')); process.exit(1); }
 console.log(`★판정 통과 — ${STATES.length} 상태 × J1·J2·J4·J5·J6`);
 
-/* ③ 골든 — 쓰는 것 == T1 이 견주는 것(J7). ★U6 R8: T1(typo-section-ssot)과 «같은 길»(_text-template-harness · 진짜 명부 · 식구 0)로 쓴다.
-   FX_STUB 은 fx0/fx1 판정 재료일 뿐 — 그걸로 쓰면 골든에만 Effects 절이 서서 T1 이 23351 ≠ 22367자로 빨강(r0913rp). */
+/* ③ 골든 — 쓰는 것 == T1 이 견주는 것(J7). ★U6: T1(typo-section-ssot)과 «같은 길»(_text-template-harness · 진짜 명부 + 같은 FX_STUB)로 쓴다.
+   (r0913rp·9ec2dcacc T1 23351 ≠ 22367 = 판정기만 식구를 싣고 하네스는 0 이던 어긋남 — 이제 식구는 하네스 한 벌.) */
 const GOLD = [['text-props-golden.html', GOLDEN_STATE], ['text-props-golden-mix.html', GOLDEN_STATE_MIX]];
 const buildGold = loadTextTemplate().buildTextPropsHtml;
 if (process.argv.includes('--write')) {

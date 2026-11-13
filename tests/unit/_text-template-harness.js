@@ -36,9 +36,15 @@ const HELPERS_REL = 'js/props/_helpers.js';
 const SPEC_REL = 'js/props/_section-spec.js';
 const FRAME_REL = 'js/props/_panel-frame.js';
 /* ★U2 — 텍스트 패널의 Effects 절은 fx 명부(effects-registry.js window.fxSectionParts)가 낸다 — 앱엔 늘 실려 있다.
-   ⛔템플릿에 «명부 없을 때» 갈래를 두지 않는다 ⇒ 하네스가 «진짜» 명부를 싣는다(import 0 · 식구 미등록 = 효과 종류 0 판).
-   그 판에선 머리 손잡이·몸 둘 다 비어 Effects 절이 안 선다(골든도 그렇다). 명부 끝의 window.addEventListener 는 대역. */
+   ⛔템플릿에 «명부 없을 때» 갈래를 두지 않는다 ⇒ 하네스가 «진짜» 명부를 싣는다. 명부 끝의 window.addEventListener 는 대역.
+   ★U6(지디 261113 · 인텔 9ec2dcacc T1 23351 ≠ 22367): 식구 0 판이면 Effects 절이 안 선다 — 앱(식구 늘 등록 · 계획 §2-1 Effects 절)과 다르고
+     ca61b210e 골든(판정기가 FX_STUB 으로 씀)과도 어긋났다 ⇒ 시험 식구 둘(FX_STUB)을 «여기 한 벌»에 두고 판정기도 이걸 가져다 쓴다.
+     반사·그림자 진짜 식구 파일은 DOM 을 만져 vm 에 못 싣는다 — 꼴만 같은 대역(카드는 fx1 상태에서만). */
 const FX_REL = 'js/effects-registry.js';
+/** 명부(지금 판)에 시험 식구 둘 — 그림자(옛 Shadow 절을 갈음 · t4-01) · 반사. tb.__fxReflect 이면 반사가 «걸린» 블럭. */
+const FX_STUB = `;registerFxType({ key: 'shadow', label: '그림자', replaces: 'txt-shadow-section', supports: () => true, has: () => false, add() {}, card: () => '', wire() {} });
+registerFxType({ key: 'reflect', label: '반사', supports: () => true, has: (el) => !!el.__fxReflect, add() {},
+  card: (el, P) => '\\n        <div class="prop-cell-card" id="' + P + '-fxrf-card"><input type="range" class="prop-slider" id="' + P + '-fxrf-gap"></div>', wire() {} });`;
 
 /** ESM 문법만 벗긴다(import 줄 · export 키워드). 본문은 그대로. */
 function stripEsm(src, what) {
@@ -65,7 +71,7 @@ function loadTextTemplate() {
   const typoPath = path.join(ROOT, TYPO_REL);
   if (fs.existsSync(typoPath)) parts.push(stripEsm(readSrc(ROOT, TYPO_REL), TYPO_REL));
 
-  parts.push(stripEsm(readSrc(ROOT, FX_REL), FX_REL));
+  parts.push(stripEsm(readSrc(ROOT, FX_REL), FX_REL) + FX_STUB);
   parts.push(stripEsm(readSrc(ROOT, TEMPLATE_REL), TEMPLATE_REL));
 
   const ctx = {
@@ -130,4 +136,4 @@ const GOLDEN_STATE_MIX = {
   isDot: false,
 };
 
-module.exports = { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT, TEMPLATE_REL, TYPO_REL, SPEC_REL, FRAME_REL };
+module.exports = { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT, TEMPLATE_REL, TYPO_REL, SPEC_REL, FRAME_REL, FX_STUB };
