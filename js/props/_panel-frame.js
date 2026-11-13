@@ -2,7 +2,7 @@
  *
  * ★블록 패널은 패널 전체를 글자로 짜 맞추지 않는다 — 절을 sec() 로 등록하고 renderPanel() 이 그린다:
  *     renderPanel(block, { header: blockHeaderHTML({...}), sections: [ sec('size', html), sec('fill', html), … ] })
- *   ⇒ 빈 html 절은 버리고 · _section-spec.js SECTION_ORDER 로 줄 세우고(special 은 선언순) · 같은 key 두 번이면 throw ·
+ *   ⇒ 빈 html 절은 버리고(단 headTools 가 있으면 머리만 그린다) · _section-spec.js SECTION_ORDER 로 줄 세우고(special 은 선언순) · 같은 key 두 번이면 throw ·
  *     절 머리 = _helpers.js disclosureSectionHtml(쉐브론 한 벌) · 접기 = 절 key 단위 전 블록 공통(localStorage 'gd-panel-collapsed').
  * ★renderPanel 은 동기다 — 호출 뒤 getElementById 배선 코드는 그대로 돈다(절 «안» 마크업·id·핸들러는 한 글자도 안 바뀐다).
  * ★접기 배선 = propPanel 위임 click + keydown(Enter/Space) 한 번(처음 renderPanel 때). 기본 = 전부 펼침.
@@ -60,7 +60,7 @@ export function buildPanelHTML({ header = '', sections = [] } = {}) {
   let nSpecial = 0;
   const body = sections
     .map((s, i) => ({ s, i }))
-    .filter(({ s }) => String(s.html).trim() !== '')
+    .filter(({ s }) => String(s.html).trim() !== '' || String(s.headTools ?? '').trim() !== '')   // 몸이 비어도 머리 손잡이(예: Effects 추가 목록)가 있으면 그린다
     .sort((a, b) => SECTION_ORDER.indexOf(a.s.key) - SECTION_ORDER.indexOf(b.s.key) || a.i - b.i)
     .map(({ s }) => {
       const id = s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`);

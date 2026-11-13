@@ -89,6 +89,10 @@ test('F3 빈 절 — 빈 문자열·공백 html 은 DOM 에 없다', () => {
   assert.deepEqual(secsOf(html), ['fill']);
   assert.match(html, /^\s*<div class="prop-section">\s*<div class="prop-block-label">H<\/div>/, '★header 가 맨 앞 머리 절(data-sec 없음)로 안 나온다');
   assert.equal(F.buildPanelHTML({ sections: [F.sec('kind', '')] }).trim(), '', '★절이 다 비면 빈 패널이어야 한다');
+  // U0b ② — 몸이 비어도 headTools 가 있으면 머리 + 빈 몸으로 그린다(Effects 효과 0개 = 추가 목록 한 줄) · 둘 다 비면 버린다
+  const ht = F.buildPanelHTML({ sections: [F.sec('effects', '', { headTools: '<select id="txt-fx-add"></select>', id: 'txt-fx-section' }), F.sec('fill', '', { headTools: '  ' })] });
+  assert.deepEqual(secsOf(ht), ['effects'], '★headTools 만 있는 절이 빠졌거나 · 공백 headTools 절이 남았다');
+  assert.match(ht, /id="txt-fx-section"[\s\S]*<\/div><select id="txt-fx-add"><\/select>\s*<\/div>\s*<div class="prop-sec-body" id="txt-fx-section-body">\s*<\/div>/, '★머리(+손잡이)·빈 몸 꼴이 아니다');
 });
 
 test('F4 제목 규칙 — special title 필수 · 규칙 밖 → throw · 모르는 key → throw', () => {
