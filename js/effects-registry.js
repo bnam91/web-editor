@@ -82,24 +82,34 @@ export const FX_ADD_HEAD_LABEL = '효과 추가…';
 /** 「Effects」 절 — 걸린 효과는 카드로, 아직 없는 효과는 «고르는 목록»으로.
  *  ★U3: 효과 0개 = 절 머리 한 줄 — 추가할 길이 늘 있다.
  *  ★U4: 절은 효과 카드 «목록»을 담는다 — 종류가 늘면 카드가 늘 뿐이다. */
-export function fxSectionHtml(el, prefix) {
+/** 「Effects」 절의 «조각» — 틀(_panel-frame.js)로 옮긴 패널은 sec('effects', body, { headTools, id }) 로 쓴다.
+ *  ★id 는 옛 절 id(#<P>-fx-section) 그대로 — 그 id 로 찾는 시험·배선이 안 깨진다. body 가 빈 문자열이어도
+ *    headTools(추가 목록)가 있으면 절은 그려진다(효과 0개 = 머리 한 줄 · U3). */
+export function fxSectionParts(el, prefix) {
   const P = prefix;
   const types = fxTypesFor(el);
   const present = types.filter(t => t.has(el));
   const missing = types.filter(t => !t.has(el) && typeof t.add === 'function');   /* ★E13 — 붙일 길 없는 종류는 안 보인다 */
-  const add = missing.length ? `
+  const headTools = missing.length ? `
         <select class="prop-select" id="${P}-fx-add" style="flex:0 1 104px;min-width:0;width:auto;"
                 title="고른 효과가 추가된다" aria-label="효과 추가">
           <option value="">${FX_ADD_HEAD_LABEL}</option>
           ${missing.map(t => `<option value="${t.key}">${t.label}</option>`).join('')}
         </select>` : '';
-  return `
-    <div class="prop-section" id="${P}-fx-section">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Effects</div>${add}
-      </div>${present.length ? `
+  const body = present.length ? `
       <div id="${P}-fx-list">${present.map(t => t.card(el, P)).join('')}
-      </div>` : ''}
+      </div>` : '';
+  return { headTools, body, id: `${P}-fx-section` };
+}
+
+/** 옛 꼴 그대로의 절 한 벌 — 아직 틀로 안 옮긴 패널용. ⛔산출 바이트 불변(tests/unit/fx-section-parts.test.mjs 골든). */
+export function fxSectionHtml(el, prefix) {
+  const { headTools, body, id } = fxSectionParts(el, prefix);
+  return `
+    <div class="prop-section" id="${id}">
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Effects</div>${headTools}
+      </div>${body}
     </div>`;
 }
 
@@ -134,7 +144,7 @@ export function watchAllFx(root = document) {
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     registerFxType, unregisterFxType, fxTypeKeys, fxTypesFor,
-    fxSectionHtml, wireFxSection, watchAllFx, FX_ADD_HEAD_LABEL, fxReplaces,
+    fxSectionHtml, fxSectionParts, wireFxSection, watchAllFx, FX_ADD_HEAD_LABEL, fxReplaces,
     fxIsCardOpen, fxSetCardOpen,
   });
   /* 문서가 열린 뒤 걸린 블럭을 감시에 올린다(로드는 캔버스를 통째로 갈아 끼운다 — 그 뒤 rebindAll 이 돈다).
