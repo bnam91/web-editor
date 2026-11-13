@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
 
@@ -15,9 +16,8 @@ export function showIconifyProperties(block) {
   const floating = block.dataset.overlayBlock === 'true';
   const isRaster = block.dataset.raster === '1'; // PNG/JPG(<img>) — currentColor 착색 불가 → 색 UI 비활성
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -27,11 +27,9 @@ ${blockHeaderHTML({
       defaultName: 'Icon',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Icon</div>
+    }),
+    sections: [
+      sec('content', `
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label" id="icn-name-label" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#888;"></span>
         <button class="prop-btn" id="icn-replace-btn" title="Iconify에서 교체"
@@ -39,20 +37,30 @@ ${blockHeaderHTML({
         <button class="prop-btn" id="icn-svg-file-btn" title="로컬 이미지 파일 불러오기 (SVG·PNG·JPG)"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">이미지 파일</button>
         <input type="file" id="icn-svg-file-input" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg" style="display:none">
+      </div>`),
+      // 플로팅 토글 = Position 절 머리 손잡이(§2-1 — 플로팅·X/Y·회전은 Position)
+      sec('position', `
+      ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
+      <div class="prop-align-group" id="icn-rotation-group">
+        <button class="prop-align-btn${rotation ===   0 ? ' active' : ''}" data-deg="0">0°</button>
+        <button class="prop-align-btn${rotation ===  90 ? ' active' : ''}" data-deg="90">90°</button>
+        <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
+        <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title prop-ph-header">
-        <span>Size</span>
-        ${window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || ''}
-      </div>
+      <div class="prop-row" style="margin-top:4px;">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="icn-rot-slider" min="-180" max="180" step="1" value="${rotation > 180 ? rotation - 360 : rotation}">
+        <input type="number" class="prop-number" id="icn-rot-number" min="-180" max="180" value="${rotation > 180 ? rotation - 360 : rotation}">
+      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
+      sec('size', `
       <div class="prop-row">
-        <span class="prop-label">Size</span>
+        <span class="prop-label">크기</span>
         <input type="range"  class="prop-slider" id="icn-size-slider" min="16" max="512" step="8"  value="${size}">
         <input type="number" class="prop-number" id="icn-size-number" min="16" max="512" value="${size}">
-      </div>
-      <div class="prop-row"${floating ? ' style="display:none"' : ''}>
+      </div>`),
+      // 플로팅이면 정렬이 뜻이 없다 ⇒ 절째 안 그린다(숨긴 줄만 든 빈 머리 금지)
+      sec('layout', floating ? '' : `
+      <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="icn-align-group">
           <button class="prop-align-btn${(block.dataset.align || 'center') === 'left'   ? ' active' : ''}" data-align="left"   title="좌측 정렬">
@@ -65,12 +73,8 @@ ${blockHeaderHTML({
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/><line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/></svg>
           </button>
         </div>
-      </div>
-      ${window.floatPositionRowHTML?.({ prefix: 'icn', posEl: block }) || ''}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Color</div>
+      </div>`),
+      sec('fill', `
       ${isRaster ? `
       <div class="prop-row">
         <span class="prop-label" style="font-size:10px;color:#888;line-height:1.4;">이미지(PNG/JPG)는 색을 바꿀 수 없어요</span>
@@ -78,26 +82,9 @@ ${blockHeaderHTML({
       <div class="prop-color-row">
         <span class="prop-label">Color</span>
         ${colorFieldHTML({ idPrefix: 'icn-color', hex: color, alpha: colorAlpha })}
-      </div>`}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Rotation</div>
-      <div class="prop-align-group" id="icn-rotation-group">
-        <button class="prop-align-btn${rotation ===   0 ? ' active' : ''}" data-deg="0">0°</button>
-        <button class="prop-align-btn${rotation ===  90 ? ' active' : ''}" data-deg="90">90°</button>
-        <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
-        <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
-      </div>
-      <div class="prop-row" style="margin-top:4px;">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="icn-rot-slider" min="-180" max="180" step="1" value="${rotation > 180 ? rotation - 360 : rotation}">
-        <input type="number" class="prop-number" id="icn-rot-number" min="-180" max="180" value="${rotation > 180 ? rotation - 360 : rotation}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">내 SVG 프리셋</div>
+      </div>`}`),
+      // 옛 「내 SVG 프리셋」 — 내 라이브러리(저장·불러오기). 블록 고유 절
+      sec('special', `
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label">카테고리</span>
         <select id="icn-preset-cat" class="prop-number" style="flex:1;width:auto;text-align:left;padding:0 6px;">
@@ -117,12 +104,10 @@ ${blockHeaderHTML({
         <input type="text" id="icn-preset-save-input" placeholder="이름 (Enter로 저장)" class="prop-color-hex" style="flex:1;">
         <button class="prop-btn" id="icn-preset-save-cancel" title="취소" style="width:24px;height:24px;padding:0;font-size:11px;">✕</button>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <button class="prop-btn-full" id="icn-open-modal-btn">Iconify에서 교체</button>
-    </div>
-  `;
+      <!-- 옛 자리 = 패널 맨 끝(따로 절) — 위 「교체」(작은 단추)와 붙지 않게 마지막 절 끝에 둔다 -->
+      <button class="prop-btn-full" id="icn-open-modal-btn">Iconify에서 교체</button>`, { title: 'Library' }),
+    ],
+  });
 
   /* ★아이콘 이름은 틀에 안 넣는다 (T-049) — 빈 칸 + 프로퍼티 쓰기. */
   const iconLabel = propPanel.querySelector('#icn-name-label');

@@ -2,6 +2,7 @@
 
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { checkerBg } from '../checker-tokens.js';
 import { captureSectionImage } from '../io/capture-safety.js';
 
@@ -14,9 +15,8 @@ export function showMockupProperties(block) {
   const devices = window.MOCKUP_DEVICES || {};
   const deviceLabel = devices[deviceKey]?.label || deviceKey;
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="1.5">
             <rect x="5" y="2" width="14" height="20" rx="2"/>
             <rect x="8" y="6" width="8" height="10" rx="0.5" fill="#888" stroke="none"/>
@@ -25,43 +25,32 @@ ${blockHeaderHTML({
       defaultName: 'Mockup',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <!-- 디바이스 선택 -->
-    <div class="prop-section">
-      <div class="prop-section-title">Device</div>
+    }),
+    sections: [
+      // 디바이스 선택
+      sec('kind', `
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex:1;font-size:10px;color:#888;">${deviceLabel}</span>
         <button class="prop-btn" id="mkp-change-device-btn"
           style="width:auto;height:auto;padding:3px 8px;font-size:10px;">변경</button>
-      </div>
-    </div>
-
-    <!-- 너비 -->
-    <div class="prop-section">
-      <div class="prop-section-title">Width</div>
+      </div>`),
+      // 너비
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">Width</span>
         <input type="range"  class="prop-slider" id="mkp-width-slider" min="100" max="860" step="10"
           value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
         <input type="number" class="prop-number" id="mkp-width-number" min="100" max="860"
           value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Rotation</div>
+      </div>`),
+      sec('position', `
       <div class="prop-row">
         <span class="prop-label">회전°</span>
         <input type="range" class="prop-slider" id="mkp-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
         <input type="number" class="prop-number" id="mkp-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>
-    </div>
-
-    <!-- 화면 이미지 -->
-    <div class="prop-section">
-      <div class="prop-section-title">Screen Image</div>
+      </div>`),
+      // 화면 이미지(옛 「Screen Image」)
+      sec('content', `
       <div class="prop-row" style="flex-direction:column;gap:4px;">
         <!-- 섹션 ID로 캡처 -->
         <div style="display:flex;gap:6px;align-items:center;">
@@ -83,19 +72,16 @@ ${blockHeaderHTML({
         <!-- 직접 이미지 업로드 -->
         <button class="prop-btn-full" id="mkp-upload-btn">이미지 파일 업로드</button>
         ${imgSrc ? `<div style="font-size:10px;color:#888;text-align:center;">이미지 등록됨 ✓</div>` : ''}
-      </div>
-    </div>
-
-    <!-- 그림자 -->
-    <div class="prop-section">
-      <div class="prop-section-title">Shadow</div>
+      </div>`),
+      // 그림자
+      sec('effects', `
       <div class="prop-align-group" id="mkp-shadow-group">
         <button class="prop-align-btn${shadow === 'none'  ? ' active' : ''}" data-val="none">없음</button>
         <button class="prop-align-btn${shadow === 'soft'  ? ' active' : ''}" data-val="soft">부드럽게</button>
         <button class="prop-align-btn${shadow === 'strong'? ' active' : ''}" data-val="strong">강하게</button>
-      </div>
-    </div>
-  `;
+      </div>`),
+    ],
+  });
 
   // 디바이스 변경
   propPanel.querySelector('#mkp-change-device-btn').addEventListener('click', () => {

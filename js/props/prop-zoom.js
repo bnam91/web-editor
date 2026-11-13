@@ -3,6 +3,7 @@
 //   prop-block-label > prop-block-icon + prop-block-info + prop-block-id
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 const D = () => (window.ZOOM_DEFAULTS || {});
@@ -94,9 +95,8 @@ export function showZoomProperties(block) {
   // const narrowRow = _pairRow('zm-narrow', '좁아짐%', st.narrow,    0, 100, 1);
   const narrowRow = '';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="3.5" width="5" height="5" rx="0.6"/>
             <path d="M6 4.6 L11 6 L6 7.4" stroke-linejoin="round"/>
@@ -105,11 +105,10 @@ ${blockHeaderHTML({
       defaultName: 'Zoom',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Shape</div>
+    }),
+    sections: [
+      // 옛 「Shape」 절 → 모양 단추=Type · 크기=Size · 회전=Position · 배경/색=Fill · 이미지=Content
+      sec('kind', `
       <div class="prop-row">
         <div class="prop-align-group" id="zm-shape-group">
           <button class="prop-align-btn${st.shape === 'rect' ? ' active' : ''}" data-shape="rect" title="사각형 (기본)">
@@ -128,29 +127,8 @@ ${blockHeaderHTML({
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.75" y="2" width="8.5" height="12" rx="1"/></svg>
           </button>
         </div>
-      </div>
-      ${_pairRow('zm-size', '크기', Math.round(st.w ?? st.size), 20, 600, 2)}
-      <!-- ★회전° 슬라이더는 «남긴다» — 현빈 2026-09-09 의 말은 「회전 슬라이드«로만» 하니까
-             그것 좀 고쳐줘」였다. 고칠 대상은 «로만»이지 슬라이더 자체가 아니다.
-           ⇒ 캔버스 코너 바깥의 회전 핫존(.zm-rotate-handle)을 더해 「로만」을 없앴다.
-           ★남긴 이유 둘: ⑴ 각도를 «정확히» 치는 길이 여기뿐이다(핸들은 45° 스냅 아니면 1° 반올림)
-                          ⑵ 캔버스에서 돌리면 이 두 입력이 «따라 움직인다»(overlay-handles.js
-                             _syncZoomRotUI). 지우면 그 동기가 갈 곳을 잃는다.
-           ⛔id 규약은 zm-rot · zm-rot-num 이다 — -slider / -number 가 «아니다».
-             asset-rotate.js 의 _syncNumSlider 가 찾는 이름과 다르다(그래서 전용 동기를 뒀다).
-           ⚠️여기는 템플릿 리터럴 «안»이라 이 주석에 백틱을 쓰면 리터럴이 끊긴다 — 실제로 끊었다. -->
-      ${_pairRow('zm-rot', '회전°', st.rot, -180, 180, 1)}
-      <div class="prop-row">
-        <span class="prop-label">배경</span>
-        <div class="prop-radio-group" id="zm-bg-group">
-          <label class="prop-radio"><input type="radio" name="zm-bg" value="checker"${isChecker ? ' checked' : ''}> 체크패턴</label>
-          <label class="prop-radio"><input type="radio" name="zm-bg" value="color"${isChecker ? '' : ' checked'}> 색</label>
-        </div>
-      </div>
-      <div class="prop-color-row" style="${dim(!isChecker || hasImg)}">
-        <span class="prop-label">색</span>
-        ${colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha })}
-      </div>
+      </div>`),
+      sec('content', `
       <div class="prop-row">
         <span class="prop-label" style="font-size:10px;color:var(--ui-text-muted);">
           ${hasImg ? '이미지 — 도형 «안»에 담긴다(모양·기하는 안 바뀐다)' : '이미지를 넣으면 도형 안을 채운다'}
@@ -166,16 +144,29 @@ ${blockHeaderHTML({
            ⛔위 드롭존은 «남긴다». 드래그앤드롭은 지금도 되는 길이라 버튼을 붙였다고
              막으면 기능이 하나 사라진다. 둘은 같은 _applyZoomImage 로 모인다. -->
       <button class="prop-action-btn secondary" id="zm-img-btn" style="width:100%;margin-top:6px;">이미지 선택...</button>
-      ${hasImg ? `<div class="prop-row"><button class="prop-action-btn" id="zm-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
-    </div>
-
+      ${hasImg ? `<div class="prop-row"><button class="prop-action-btn" id="zm-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}`),
+      sec('position', `
+      <!-- ★회전° 슬라이더는 «남긴다» — 현빈 2026-09-09 의 말은 「회전 슬라이드«로만» 하니까
+             그것 좀 고쳐줘」였다. 고칠 대상은 «로만»이지 슬라이더 자체가 아니다.
+           ⇒ 캔버스 코너 바깥의 회전 핫존(.zm-rotate-handle)을 더해 「로만」을 없앴다.
+           ★남긴 이유 둘: ⑴ 각도를 «정확히» 치는 길이 여기뿐이다(핸들은 45° 스냅 아니면 1° 반올림)
+                          ⑵ 캔버스에서 돌리면 이 두 입력이 «따라 움직인다»(overlay-handles.js
+                             _syncZoomRotUI). 지우면 그 동기가 갈 곳을 잃는다.
+           ⛔id 규약은 zm-rot · zm-rot-num 이다 — -slider / -number 가 «아니다».
+             asset-rotate.js 의 _syncNumSlider 가 찾는 이름과 다르다(그래서 전용 동기를 뒀다).
+           ⚠️여기는 템플릿 리터럴 «안»이라 이 주석에 백틱을 쓰면 리터럴이 끊긴다 — 실제로 끊었다. -->
+      ${_pairRow('zm-rot', '회전°', st.rot, -180, 180, 1)}`),
+      sec('size', `
+      ${_pairRow('zm-size', '크기', Math.round(st.w ?? st.size), 20, 600, 2)}`),
+      // 옛 「Text」 절 — 켬/끔·정렬·크기. 글자 색은 Fill 절(글자 꺼짐이면 흐리게)
+      sec('typography', `
     <!-- ⚠️이 주석은 템플릿 리터럴 «안»이다 — ⛔백틱을 쓰면 리터럴이 «거기서 끝나» 터진다.
            ★2026-10-19 에 ★내가 실제로 그랬다(발주 아이디를 백틱으로 감쌌다가 SyntaxError).
            ★이 파일이 아래 두 자리에 ★이미 같은 경고를 적어 뒀는데 ★그걸 읽고도 밟았다.
            ★잡아 준 자 = tests/unit/inspector-t17.test.mjs T5 ＋ renderer-js-parses.test.mjs P1.
          ★★글자 — 현빈 2026-10-18 1018t1-h8c 「기존의 줌블럭은 이미지 에셋블럭에 줌이 들어가는건데,
            ★모달블럭 처럼 텍스트를 넣을 수 있게도 해줄 것」.
-         ★자리 = Shape 바로 «뒤». 글자는 ★도형 «안»에 담긴다(이미지와 같은 층 위) ⇒ 도형의 식구다.
+         ★자리 = Typography 절(U4 · 옛 「Text」 절). 글자는 ★도형 «안»에 담긴다(이미지와 같은 층 위) ⇒ 도형의 식구다. 글자 색 줄은 Fill 절.
          ⛔«내용» 입력칸(textarea)을 ★두지 않았다 — ★이 레포의 ★선 결정이다:
            ① 모달에도 ★없다(js/props/prop-modal.js 의 Text 절 = 정렬 ＋ Typography 뿐 · 글은 캔버스에서 넣는다)
            ② 인용구엔 ★있었다가 ★현빈이 ★걷게 했다 — 1011t1a-2 「그리고 캔버스에서 바로 수정가능하니
@@ -183,8 +174,6 @@ ${blockHeaderHTML({
            ⇒ 글은 ★캔버스 더블클릭으로 넣는다. 이 절은 ★«입구(켬/끔)»와 ★«꾸밈»을 진다.
          ★켬/끔 라디오를 둔 까닭 = ★글자가 ★꺼져 있으면 ★더블클릭할 과녁이 ★없다(빈 확대블럭엔 글자 층이 0개).
            ⛔새 컨트롤이 아니다 — 줌 이펙트·테두리가 쓰는 ★그 라디오 꼴 그대로다. -->
-    <div class="prop-section">
-      <div class="prop-section-title">Text</div>
       <div class="prop-row">
         <span class="prop-label">글자</span>
         <div class="prop-radio-group" id="zm-tx-group">
@@ -194,7 +183,7 @@ ${blockHeaderHTML({
       </div>
       <div id="zm-tx-fields" style="${dim(txOn)}">
         <!-- ⛔안내문을 prop-label 안에 넣으면 «폭 56px 라벨 칸»에서 잘린다(이 파일 아래 실측 주석).
-             ⇒ 폭을 다 쓰는 행에 둔다 — 「손잡이」 절이 쓰는 그 꼴 그대로. -->
+             ⇒ 폭을 다 쓰는 행에 둔다 — Handles 절(옛 「손잡이」)이 쓰는 그 꼴 그대로. -->
         <div class="prop-row">
           <span style="font-size:10px;color:var(--ui-text-muted);line-height:1.5;">
             글은 캔버스에서 넣는다 — 도형을 더블클릭하면 글자가 열린다.
@@ -209,20 +198,49 @@ ${blockHeaderHTML({
           </div>
         </div>
         ${_pairRow('zm-txs', '크기', st.txs, 8, 200, 1)}
-        <div class="prop-color-row">
-          <span class="prop-label">색</span>
-          ${colorFieldHTML({ idPrefix: 'zm-txc', hex: st.txc, alpha: txcAlpha })}
+      </div>`),
+      sec('fill', `
+      <div class="prop-row">
+        <span class="prop-label">배경</span>
+        <div class="prop-radio-group" id="zm-bg-group">
+          <label class="prop-radio"><input type="radio" name="zm-bg" value="checker"${isChecker ? ' checked' : ''}> 체크패턴</label>
+          <label class="prop-radio"><input type="radio" name="zm-bg" value="color"${isChecker ? '' : ' checked'}> 색</label>
         </div>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <!-- ★제목·라벨만 «말을 바꿨다». 라디오 자체(name·value·id·핸들러)는 한 글자도 안 건드렸다.
-           ★이름 = 현빈 2026-09-09: 「이건 그림자랑 달라 zoom effect라고 우측패널에 바꿔줘」.
-           아래 「도형 그림자」가 현빈이 말한 «박스에 거는 드롭섀도»(x·y로 조절, 텍스트블럭 라디오와
+      <div class="prop-color-row" style="${dim(!isChecker || hasImg)}">
+        <span class="prop-label">색</span>
+        ${colorFieldHTML({ idPrefix: 'zm-fill', hex: fillHex, alpha: fillAlpha })}
+      </div>
+      <div style="${dim(txOn)}">
+        <div class="prop-color-row">
+          <span class="prop-label">글자 색</span>
+          ${colorFieldHTML({ idPrefix: 'zm-txc', hex: st.txc, alpha: txcAlpha })}
+        </div>
+      </div>`),
+      // 옛 「Border」 절. 테두리 색(zm-bdc)은 Stroke — 소유 별칭 bdc→stroke(U0c)
+      sec('stroke', `
+      <div class="prop-row">
+        <span class="prop-label">테두리</span>
+        <div class="prop-radio-group" id="zm-bd-group">
+          <label class="prop-radio"><input type="radio" name="zm-bd" value="on"${bdOn ? ' checked' : ''}> 켬</label>
+          <label class="prop-radio"><input type="radio" name="zm-bd" value="off"${bdOn ? '' : ' checked'}> 끔</label>
+        </div>
+      </div>
+      <div id="zm-bd-fields" style="${dim(bdOn)}">
+      ${_pairRow('zm-bdw', '두께', st.bdw, 0, 80, 1)}
+${bdrRow}
+      <div class="prop-color-row">
+        <span class="prop-label">색</span>
+        ${colorFieldHTML({ idPrefix: 'zm-bdc', hex: st.bdc, alpha: bdcAlpha })}
+      </div>
+      </div>`),
+      // 옛 「Zoom Effect」 + 「도형 그림자 (줌 이펙트와 별개)」 → Effects 한 절, 두 행 라벨(줌 이펙트 · 도형 그림자)로 가른다
+      sec('effects', `
+      <!-- ★라벨만 «말을 바꿨다». 라디오 자체(name·value·id·핸들러)는 한 글자도 안 건드렸다.
+           ★이름 = 현빈 2026-09-09: 「이건 그림자랑 달라 zoom effect라고 우측패널에 바꿔줘」 — 이제 절 제목은 Effects, 이 줄 라벨이 「줌 이펙트」.
+           같은 절 아래 줄 「도형 그림자」가 현빈이 말한 «박스에 거는 드롭섀도»(x·y로 조절, 텍스트블럭 라디오와
            같은 갈래 = CSS 그림자)다. 둘 다 「그림자」라 부르면 사람이 뭐가 뭔지 모른다.
            ⛔상태 키(st.shadow)와 id(zm-shadow*)는 그대로 둔다 — 바꾸면 저장된 프로젝트가 깨진다. -->
-      <div class="prop-section-title">Zoom Effect</div>
       <div class="prop-row">
         <span class="prop-label">줌 이펙트</span>
         <div class="prop-radio-group" id="zm-shadow-group">
@@ -241,32 +259,11 @@ ${angleRow}${lengthRow}
       ${_pairRow('zm-curve', '농도 곡선', st.curve, 10, 400, 1)}
 ${narrowRow}
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Border</div>
-      <div class="prop-row">
-        <span class="prop-label">테두리</span>
-        <div class="prop-radio-group" id="zm-bd-group">
-          <label class="prop-radio"><input type="radio" name="zm-bd" value="on"${bdOn ? ' checked' : ''}> 켬</label>
-          <label class="prop-radio"><input type="radio" name="zm-bd" value="off"${bdOn ? '' : ' checked'}> 끔</label>
-        </div>
-      </div>
-      <div id="zm-bd-fields" style="${dim(bdOn)}">
-      ${_pairRow('zm-bdw', '두께', st.bdw, 0, 80, 1)}
-${bdrRow}
-      <div class="prop-color-row">
-        <span class="prop-label">색</span>
-        ${colorFieldHTML({ idPrefix: 'zm-bdc', hex: st.bdc, alpha: bdcAlpha })}
-      </div>
-      </div>
-    </div>
-
     <!-- ★★도형 그림자 — 현빈 2026-09-08 「줌블럭에 쉐도우 온오프 기능도 «별도로»」.
          ★「광원」과 이것을 패널에서 가르는 법 = 세 겹으로 갈랐다:
-           ① 말   — 위는 「Zoom Effect」, 여기는 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
-           ② 자리 — 붙여 두면 헷갈린다. Border 를 사이에 끼워 «떨어뜨렸다».
-                    그리고 이건 도형의 «생김새»(테두리 옆)지 돋보기 장치가 아니다.
+           ① 말   — 위 줄 라벨은 「줌 이펙트」, 이 줄은 「도형 그림자」. 둘 다 '그림자'라 안 부른다.
+           ② 자리 — U4(right-panel-unify) 뒤로는 둘 다 Effects 절 «안»의 줄이다(§2-1 효과는 한 절).
+                    예전엔 Border 절을 사이에 끼워 떨어뜨렸지만, 이제 가르는 것은 ①의 줄 라벨과 ③의 컨트롤 모양이다.
            ③ 생김 — 광원은 «라디오 켬/끔»(두 갈래), 이건 «버튼 3단»(prop-align-group).
                     컨트롤 «모양»이 달라 눈으로도 다른 것임을 안다.
          ⛔체크박스로 만들면 안 된다 — 검사 ⓑ-14 가 이 파일에 체크박스 입력이 «없음»을 단언한다
@@ -275,28 +272,19 @@ ${bdrRow}
          ⚠️그 «금지된 문자열»을 여기 주석에 그대로 적으면 검사가 오발한다 — 실제로 한 번 물렸다.
            이 주석은 템플릿 리터럴 «안»이라 JS 주석 걷기가 못 걷어낸다. 말로만 적는다.
          ★어휘(없음/부드럽게/강하게 · none/soft/strong)는 prop-mockup.js:93-95 를 그대로 빌렸다. -->
-    <div class="prop-section">
-      <div class="prop-section-title">도형 그림자 (줌 이펙트와 별개)</div>
       <div class="prop-row">
+        <span class="prop-label prop-label--auto">도형 그림자</span>
         <div class="prop-align-group" id="zm-drop-group">
           <button class="prop-align-btn${st.dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
           <button class="prop-align-btn${st.dropShadow === 'soft'   ? ' active' : ''}" data-val="soft">부드럽게</button>
           <button class="prop-align-btn${st.dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
         </div>
-      </div>
-      <!-- ⛔여기에 «안내문 행»을 두면 안 된다 — 실앱 240px 에서 실측하고 뺐다.
-           prop-label 은 폭 ~56px 짜리 «라벨 칸»이라 문장이 「도형이 «자...」로 잘린다.
-           (같은 자리의 이미지 안내문도 「이미지를 넣...」으로 잘려 있다 — 기존 흠이다.)
-           ⇒ 가르는 말은 «절 제목»에 넣는다. 제목은 폭을 다 쓴다(실측 확인).
-           ⚠️이 주석은 템플릿 리터럴 «안»이다 — 백틱을 쓰면 리터럴이 «거기서 끝나» 터진다.
-             실제로 한 번 물렸다(ReferenceError: label is not defined). 백틱 금지. -->
-    </div>
-
-    <div class="prop-section">
+      </div>`),
+      // 옛 「손잡이 (빛 · a · b)」 → 블록 고유 절 «Handles»(괄호 금지 규칙). 빛·a·b 설명은 절 안 안내문이 진다
+      sec('special', `
       <!-- ★손잡이 셋 — 현빈 승인 2026-09-09. 색은 css/editor-blocks.css 가 칠한다(빨강 L · 보라 a·b).
            ⛔안내문을 prop-label 안에 넣으면 «폭 56px 라벨 칸»에서 잘린다(이 파일 아래 실측 주석 참조).
-             그래서 제목이 어휘를 지고, 안내문은 폭을 다 쓰는 행에 둔다. -->
-      <div class="prop-section-title">손잡이 (빛 · a · b)</div>
+             그래서 안내문(빛·a·b 뜻)은 폭을 다 쓰는 행에 둔다 — 절 제목은 이제 «Handles»(괄호 금지 규칙)라 어휘를 안 진다. -->
       <div class="prop-row" style="${dim(shadowOn)}">
         <span style="font-size:10px;color:var(--ui-text-muted);line-height:1.5;">
           빨간 점 = 빛. 짧은 변을 통째로 옮긴다.<br>
@@ -307,8 +295,9 @@ ${bdrRow}
       <div class="prop-row">
         <button class="prop-action-btn" id="zm-ab-reset" ${pinned ? '' : 'disabled'}
           style="width:100%;${pinned ? '' : 'opacity:0.4;pointer-events:none;'}">손잡이 자동으로 되돌리기</button>
-      </div>
-    </div>`;
+      </div>`, { title: 'Handles' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

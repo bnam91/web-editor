@@ -3,6 +3,7 @@ import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
          clampStarInner, STAR_INNER_MIN, STAR_INNER_MAX, STAR_INNER_DISPLAY,
@@ -149,20 +150,109 @@ export function showShapeProperties(block) {
   const floatPosEl     = posElOf(block);
   const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★Effects 절 — 효과 목록 그리개(js/effects-registry.js)는 한 벌. 틀 절의 몸통(카드 목록)·머리 손잡이(추가 목록)로 받는다. */
+  const _fx = window.fxSectionParts?.(block, 'shape');
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          ${iconSvg}`,
       name: block.dataset.layerName,
       defaultName: shapeName,
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: id,
-    })}
-    </div>
-
-    ${canRedact ? `
-    <div class="prop-section">
-      <div class="prop-section-title">가림막 (Redact)</div>
+    }),
+    sections: [
+      // 별 모양(꼭짓점·통통함) = Type
+      sec('kind', shapeType === 'star' ? `
+      <div class="prop-row">
+        <span class="prop-label">꼭짓점</span>
+        <input type="range" class="prop-slider" id="shape-star-slider" min="${STAR_MIN}" max="${STAR_MAX}" step="1" value="${starN}">
+        <input type="number" class="prop-number" id="shape-star-num" min="${STAR_MIN}" max="${STAR_MAX}" value="${starN}">
+      </div>
+      <!-- 별 «통통함»(현빈 2026-10-07 「별이 너무 뾰족해서 … 살짝 통통한 별로도」).
+           꼴은 새로 짓지 않았다 — 위 「꼭짓점」·「갯수」와 같은 slider+number 쌍이다.
+           ★미설정 = 옛 별이다(shape-star.js 머리말) ⇒ 초기 표시는 STAR_INNER_DISPLAY 지만
+             ★dataset 에는 안 쓴다. 사람이 그 칸을 만진 뒤부터 비로 계산한다. -->
+      <div class="prop-row">
+        <span class="prop-label">통통함</span>
+        <input type="range" class="prop-slider" id="shape-star-inner-slider" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" step="1" value="${starInner ?? STAR_INNER_DISPLAY}">
+        <input type="number" class="prop-number" id="shape-star-inner-num" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" value="${starInner ?? STAR_INNER_DISPLAY}">
+      </div>
+      <!-- 꼭짓점 둥글기(현빈 QA 261116 «star 도 꼭짓점 곡률») — 톱니 스탬프 «끝 둥글기 %»와 같은 꼴(slider+number) · 같은 깎기(roundPolyPoints) -->
+      <div class="prop-row">
+        <span class="prop-label">꼭짓점 둥글기 %</span>
+        <input type="range" class="prop-slider" id="shape-star-round-slider" min="${ROUND_MIN}" max="${ROUND_MAX}" step="1" value="${starRound}">
+        <input type="number" class="prop-number" id="shape-star-round-num" min="${ROUND_MIN}" max="${ROUND_MAX}" value="${starRound}">
+      </div>` : ''),
+      // 별점(평점) 켬·수
+      sec('content', shapeType === 'star' ? `
+      <!-- ★별 «평점»(별점) — 현빈 2026-10-10 1010t1b3 「★별점기능이 들어가야함 ★챗블럭에 ★이미 있는 기능인데
+           ★참고 (★별점기능을 하면 ★별이 ★5개로 구성)」 ⇒ ★꼴을 ★챗블럭에서 ★빌렸다(js/props/prop-chat.js
+           의 ★chb-prop-stars-row — ★체크박스 ＋ ★0~5 숫자칸 ＋ ★★ 미리보기 ★세 쪼가리 그대로).
+           ⛔슬라이더를 ★안 둔다 — ★챗이 ★숫자칸만 쓴다. ★「참고」의 뜻을 ★꼴에서도 지킨다.
+           ★★켜면 ★갯수가 ★5 로 ★잠긴다(지디 판정 ⑤) ⇒ ★위 ★갯수 두 칸에 ★disabled 가 붙고
+             ★아래 ★까닭 줄이 ★나타난다 — ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣).
+           ★끄면 ★잠금이 ★풀린다(되돌릴 수 있게 · 지디 판정 ⑤). -->
+      <div class="prop-row" id="shape-star-rating-row" style="gap:6px;font-size:11px;white-space:nowrap">
+        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다">
+          <input type="checkbox" id="shape-star-rating-toggle" ${ratingOn ? 'checked' : ''}>
+          <span>별점</span>
+        </label>
+        <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
+        <span id="shape-star-rating-preview" style="color:${ratingOnColor};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
+      </div>` : ''),
+      // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y · 회전
+      sec('position', `
+      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="shape-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.shapeRotation || '0')}">
+        <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
+      </div>`, { headTools: overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay }) }),
+      sec('size', `
+      <div class="prop-row">
+        <span class="prop-label">W</span>
+        <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">
+        <input type="number" class="prop-number" id="shape-w-num" min="10" max="860" value="${w}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">H</span>
+        <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
+        <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
+      </div>`),
+      // 원·별 «갯수»·«간격» = Layout
+      sec('layout', `
+      ${isEllipse ? `<!-- 1013t2A1 원 «갯수»·«간격» — 별의 「갯수」·「간격」과 같은 slider+number 쌍·같은 범위(1~10).
+           갯수를 늘리면 블록이 옆으로 넓어진다(원 크기 유지). 간격 줄은 갯수>1 일 때만. -->
+      <div class="prop-row">
+        <span class="prop-label">갯수</span>
+        <input type="range" class="prop-slider" id="shape-ellipse-count-slider" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" step="1" value="${ellCount}"${isRedact ? ' disabled' : ''}>
+        <input type="number" class="prop-number" id="shape-ellipse-count-num" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" value="${ellCount}"${isRedact ? ' disabled' : ''}>
+      </div>
+      ${isRedact ? `<div class="prop-hint" id="shape-ellipse-count-hint" style="margin-top:4px;">가림막이 켜져 있으면 원은 1개만 쓸 수 있습니다.</div>` : ''}
+      ${ellCount > 1 ? `<div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="range" class="prop-slider" id="shape-ellipse-gap-slider" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" step="1" value="${ellGap}">
+        <input type="number" class="prop-number" id="shape-ellipse-gap-num" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" value="${ellGap}">
+      </div>` : ''}` : ''}
+      ${shapeType === 'star' ? `
+      <!-- ★별 «갯수»(현빈 2026-10-06 「우측패널에 갯수추가하기하면 별 갯수가 여러개 추가되게」).
+           ★꼴은 새로 짓지 않았다 — 바로 위 「꼭짓점」·「W/H」·「두께」와 «같은» slider+number 쌍이다.
+           ★갯수를 늘리면 블록이 «옆으로» 넓어진다(별 크기 유지 — 현빈 판정). -->
+      <div class="prop-row">
+        <span class="prop-label">갯수</span>
+        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}"${ratingOn ? ' disabled' : ''}>
+        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}"${ratingOn ? ' disabled' : ''}>
+      </div>
+      ${starCount > 1 ? `<!-- 별 «간격»(현빈 2026-10-07 「별 간격 조절되면 좋겠고」).
+           ★갯수가 1 이면 이 줄을 안 그린다 — dx=0 이라 ★조용히 아무 일도 안 일어난다
+             (「조용히 아무 일 없음」을 만들지 않는다). 갯수를 2 이상으로 올리면 나타난다. -->
+      <div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="range" class="prop-slider" id="shape-star-gap-slider" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" step="1" value="${starGap}">
+        <input type="number" class="prop-number" id="shape-star-gap-num" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" value="${starGap}">
+      </div>` : ''}` : ''}`),
+      // 옛 「가림막 (Redact)」 → Appearance(§2-1 — 가림막은 모양 절)
+      sec('appearance', canRedact ? `
       <div class="prop-row">
         <!-- ★prop-label--auto: 「블러로 가리기」는 전역 .prop-label(56px)에 안 들어가 말줄임으로 잘렸다
              (2026-09-20 실측 sw60/cw56, 실물 앱은 더 잘림). 이 줄은 «라벨 하나 + 남는 폭을 쓰는 컨트롤»
@@ -197,22 +287,21 @@ ${blockHeaderHTML({
           <input type="range" class="prop-slider" id="shape-redact-blur-slider" min="2" max="20" step="1" value="${redactBlur}">
           <input type="number" class="prop-number" id="shape-redact-blur-num" min="2" max="20" value="${redactBlur}">
         </div>
+        <!-- 힌트 ≤2: 레거시 모자이크 고지가 뜨면 블러 설명 줄은 뺀다(고지가 같은 말을 한다) -->
         ${redactMode === 'mosaic' ? `
         <button type="button" class="prop-btn" id="shape-redact-mosaic-refresh" style="margin-top:8px;width:100%;">${window.isMosaicPending?.(block) ? '캡처 중…' : '지금 스냅샷 새로고침'}</button>
         <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 그 순간 밑 콘텐츠를 캡처해 픽셀 모자이크로 가립니다. 실시간 추적이 아니라 도형을 옮기거나(이동/리사이즈 종료) 편집을 마칠 때(mouseup) 자동으로 다시 찍습니다 — 안 맞으면 위 버튼으로 즉시 새로고침하세요. 채우기 색상은 무시됩니다.</div>
         ` : `
-        <div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>
+        ${legacyMosaic ? '' : `<div class="prop-hint" style="margin-top:4px;">도형을 얼굴·주민번호 등 위에 올리면 밑에 깔린 콘텐츠가 실시간으로 흐려집니다. 채우기 색상은 무시됩니다.</div>`}
         `}
-      </div>
-    </div>` : ''}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Color</div>
-      <div class="prop-color-row" id="shape-fill-row" style="${isRedact ? 'display:none' : ''}">
+      </div>` : ''),
+      // 가림막이 켜지면 채우기 색은 무시된다 ⇒ 절을 «안 그린다»(숨긴 줄만 든 빈 머리 금지 · 토글은 패널을 다시 그린다)
+      sec('fill', isRedact ? '' : `
+      <div class="prop-color-row" id="shape-fill-row">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'shape-color', hex: color, alpha: colorAlpha, gradientCss })}
       </div>
-      ${isEllipse ? `<div id="shape-ellipse-fx" style="${isRedact ? 'display:none' : ''}">
+      ${isEllipse ? `<div id="shape-ellipse-fx">
         ${ellCount > 1 ? `<!-- 1013t2A1 원마다 색 — 꼴은 바로 위 「색상」 줄(prop-color-row + colorFieldHTML)과 같다. 빈 칸 = 블록 색을 따른다. -->
         ${Array.from({ length: ellCount }, (_, i) => `<div class="prop-color-row" id="shape-ellipse-c${i}-row" style="margin-top:8px;">
           <span class="prop-label">${i + 1}번 원</span>
@@ -221,109 +310,8 @@ ${blockHeaderHTML({
         <div class="prop-row" style="margin-top:8px;">
           <button type="button" class="prop-btn" id="shape-ellipse-colors-reset" style="width:100%;">개별 색 지우기</button>
         </div>` : ''}
-        <div class="prop-row" style="margin-top:8px;">
-          <span class="prop-label prop-label--auto">이너 그림자</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="shape-ellipse-shadow-toggle" ${ellShadow !== null ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
-        ${ellShadow !== null ? `<div class="prop-row">
-          <span class="prop-label">세기</span>
-          <input type="range" class="prop-slider" id="shape-ellipse-shadow-slider" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" step="1" value="${ellShadow}">
-          <input type="number" class="prop-number" id="shape-ellipse-shadow-num" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" value="${ellShadow}">
-        </div>` : ''}
       </div>` : ''}
-      <div class="prop-color-row" style="margin-top:${isRedact ? '0' : '8px'};">
-        <span class="prop-label">외곽선</span>
-        ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
-      </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="shape-stroke-slider" min="0" max="20" step="1" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="shape-stroke-num" min="0" max="20" value="${strokeWidth}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title prop-ph-header">
-        <span>Size</span>
-        ${overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">W</span>
-        <input type="range" class="prop-slider" id="shape-w-slider" min="10" max="860" step="1" value="${w}">
-        <input type="number" class="prop-number" id="shape-w-num" min="10" max="860" value="${w}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">H</span>
-        <input type="range" class="prop-slider" id="shape-h-slider" min="10" max="860" step="1" value="${h}">
-        <input type="number" class="prop-number" id="shape-h-num" min="10" max="860" value="${h}">
-      </div>
-      ${isEllipse ? `<!-- 1013t2A1 원 «갯수»·«간격» — 별의 「갯수」·「간격」과 같은 slider+number 쌍·같은 범위(1~10).
-           갯수를 늘리면 블록이 옆으로 넓어진다(원 크기 유지). 간격 줄은 갯수>1 일 때만. -->
-      <div class="prop-row">
-        <span class="prop-label">갯수</span>
-        <input type="range" class="prop-slider" id="shape-ellipse-count-slider" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" step="1" value="${ellCount}"${isRedact ? ' disabled' : ''}>
-        <input type="number" class="prop-number" id="shape-ellipse-count-num" min="${ELLIPSE_COUNT_MIN}" max="${ELLIPSE_COUNT_MAX}" value="${ellCount}"${isRedact ? ' disabled' : ''}>
-      </div>
-      ${isRedact ? `<div class="prop-hint" id="shape-ellipse-count-hint" style="margin-top:4px;">가림막이 켜져 있으면 원은 1개만 쓸 수 있습니다.</div>` : ''}
-      ${ellCount > 1 ? `<div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="shape-ellipse-gap-slider" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" step="1" value="${ellGap}">
-        <input type="number" class="prop-number" id="shape-ellipse-gap-num" min="${ELLIPSE_GAP_MIN}" max="${ELLIPSE_GAP_MAX}" value="${ellGap}">
-      </div>` : ''}` : ''}
-      ${shapeType === 'star' ? `<div class="prop-row">
-        <span class="prop-label">꼭짓점</span>
-        <input type="range" class="prop-slider" id="shape-star-slider" min="${STAR_MIN}" max="${STAR_MAX}" step="1" value="${starN}">
-        <input type="number" class="prop-number" id="shape-star-num" min="${STAR_MIN}" max="${STAR_MAX}" value="${starN}">
-      </div>
-      <!-- ★별 «갯수»(현빈 2026-10-06 「우측패널에 갯수추가하기하면 별 갯수가 여러개 추가되게」).
-           ★꼴은 새로 짓지 않았다 — 바로 위 「꼭짓점」·「W/H」·「두께」와 «같은» slider+number 쌍이다.
-           ★갯수를 늘리면 블록이 «옆으로» 넓어진다(별 크기 유지 — 현빈 판정). -->
-      <div class="prop-row">
-        <span class="prop-label">갯수</span>
-        <input type="range" class="prop-slider" id="shape-star-count-slider" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" step="1" value="${starCount}"${ratingOn ? ' disabled' : ''}>
-        <input type="number" class="prop-number" id="shape-star-count-num" min="${STAR_COUNT_MIN}" max="${STAR_COUNT_MAX}" value="${starCount}"${ratingOn ? ' disabled' : ''}>
-      </div>
-      <!-- 별 «통통함»(현빈 2026-10-07 「별이 너무 뾰족해서 … 살짝 통통한 별로도」).
-           꼴은 새로 짓지 않았다 — 위 「꼭짓점」·「갯수」와 같은 slider+number 쌍이다.
-           ★미설정 = 옛 별이다(shape-star.js 머리말) ⇒ 초기 표시는 STAR_INNER_DISPLAY 지만
-             ★dataset 에는 안 쓴다. 사람이 그 칸을 만진 뒤부터 비로 계산한다. -->
-      <div class="prop-row">
-        <span class="prop-label">통통함</span>
-        <input type="range" class="prop-slider" id="shape-star-inner-slider" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" step="1" value="${starInner ?? STAR_INNER_DISPLAY}">
-        <input type="number" class="prop-number" id="shape-star-inner-num" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" value="${starInner ?? STAR_INNER_DISPLAY}">
-      </div>
-      <!-- 꼭짓점 둥글기(현빈 QA 261116 «star 도 꼭짓점 곡률») — 톱니 스탬프 «끝 둥글기 %»와 같은 꼴(slider+number) · 같은 깎기(roundPolyPoints) -->
-      <div class="prop-row">
-        <span class="prop-label">꼭짓점 둥글기 %</span>
-        <input type="range" class="prop-slider" id="shape-star-round-slider" min="${ROUND_MIN}" max="${ROUND_MAX}" step="1" value="${starRound}">
-        <input type="number" class="prop-number" id="shape-star-round-num" min="${ROUND_MIN}" max="${ROUND_MAX}" value="${starRound}">
-      </div>
-      ${starCount > 1 ? `<!-- 별 «간격»(현빈 2026-10-07 「별 간격 조절되면 좋겠고」).
-           ★갯수가 1 이면 이 줄을 안 그린다 — dx=0 이라 ★조용히 아무 일도 안 일어난다
-             (「조용히 아무 일 없음」을 만들지 않는다). 갯수를 2 이상으로 올리면 나타난다. -->
-      <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="shape-star-gap-slider" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" step="1" value="${starGap}">
-        <input type="number" class="prop-number" id="shape-star-gap-num" min="${STAR_GAP_MIN}" max="${STAR_GAP_MAX}" value="${starGap}">
-      </div>` : ''}
-      <!-- ★별 «평점»(별점) — 현빈 2026-10-10 1010t1b3 「★별점기능이 들어가야함 ★챗블럭에 ★이미 있는 기능인데
-           ★참고 (★별점기능을 하면 ★별이 ★5개로 구성)」 ⇒ ★꼴을 ★챗블럭에서 ★빌렸다(js/props/prop-chat.js
-           의 ★chb-prop-stars-row — ★체크박스 ＋ ★0~5 숫자칸 ＋ ★★ 미리보기 ★세 쪼가리 그대로).
-           ⛔슬라이더를 ★안 둔다 — ★챗이 ★숫자칸만 쓴다. ★「참고」의 뜻을 ★꼴에서도 지킨다.
-           ★★켜면 ★갯수가 ★5 로 ★잠긴다(지디 판정 ⑤) ⇒ ★위 ★갯수 두 칸에 ★disabled 가 붙고
-             ★아래 ★까닭 줄이 ★나타난다 — ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣).
-           ★끄면 ★잠금이 ★풀린다(되돌릴 수 있게 · 지디 판정 ⑤). -->
-      <div class="prop-row" id="shape-star-rating-row" style="gap:6px;font-size:11px;white-space:nowrap">
-        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다">
-          <input type="checkbox" id="shape-star-rating-toggle" ${ratingOn ? 'checked' : ''}>
-          <span>별점</span>
-        </label>
-        <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
-        <span id="shape-star-rating-preview" style="color:${ratingOnColor};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
-      </div>
+      ${shapeType === 'star' ? `
       ${ratingOn ? `<!-- ★★별점의 ★«두 색» (현빈 2026-10-11 「★빨강/회색 , ★파랑/연파랑 … ★내가 컨트롤 가능하게」)
            ★★자유색이다 — ⛔2택이 ★아니다. ★무효·빈 값이면 ★기본 두 색으로 ★폴백한다(starFillColor).
            ★꼴은 ★이 파일의 ★선례 ★그대로 — colorFieldHTML ＋ wireColorField (shape-star-one 과 ★같다).
@@ -349,19 +337,40 @@ ${blockHeaderHTML({
         <button type="button" class="prop-btn" id="shape-star-one-done">개별 선택 끝내기</button>
       </div>
       <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
-      ` : ''}
-      ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Rotation</div>
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="shape-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.shapeRotation || '0')}">
-        <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
+      ` : ''}`),
+      sec('stroke', `
+      <div class="prop-color-row">
+        <span class="prop-label">외곽선</span>
+        ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
       </div>
-    </div>
-    ${window.fxSectionHtml?.(block, 'shape') || ''}`;   /* ★E1 Effects — Rotation 아래(맨 끝 · 지디 승인) */
+      <div class="prop-row" style="margin-top:8px;">
+        <span class="prop-label">두께</span>
+        <input type="range" class="prop-slider" id="shape-stroke-slider" min="0" max="20" step="1" value="${strokeWidth}">
+        <input type="number" class="prop-number" id="shape-stroke-num" min="0" max="20" value="${strokeWidth}">
+      </div>`),
+      // 원 이너 그림자 + 효과 목록(Effects)
+      sec('effects', `${isEllipse && !isRedact ? `
+        <div id="shape-ellipse-shadow-wrap">
+        <div class="prop-row" style="margin-top:8px;">
+          <span class="prop-label prop-label--auto">이너 그림자</span>
+          <label class="prop-toggle">
+            <input type="checkbox" id="shape-ellipse-shadow-toggle" ${ellShadow !== null ? 'checked' : ''}>
+            <span class="prop-toggle-track"></span>
+          </label>
+        </div>
+        ${ellShadow !== null ? `<div class="prop-row">
+          <span class="prop-label">세기</span>
+          <input type="range" class="prop-slider" id="shape-ellipse-shadow-slider" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" step="1" value="${ellShadow}">
+          <input type="number" class="prop-number" id="shape-ellipse-shadow-num" min="${ELLIPSE_SHADOW_MIN}" max="${ELLIPSE_SHADOW_MAX}" value="${ellShadow}">
+        </div>` : ''}
+        </div>` : ''}${_fx?.body || ''}`, { headTools: _fx?.headTools || '', id: _fx?.id }),
+    ],
+  });
+  /* 막 생긴 «추가 줄»이 Fill 절에 떨어지면(별 하나 고름 → 「N번 별」 색 · 별점 켬 → 두 색 · 원 2개 이상 → 원마다 색) 접혀 있던 Fill 을 연다.
+     ★이전 그림과 견줘 «새로 생긴» 때만 — 사람이 그 뒤 Fill 을 접으면 다시 그려도 억지로 안 연다. (블록 JS 속성 — 직렬화 안 탄다) */
+  const _fillSig = [starSel, ratingOn, ellCount > 1].join('|');
+  if (block.__u4FillSig !== undefined && block.__u4FillSig !== _fillSig && (starSel !== null || ratingOn || ellCount > 1)) expandSection('fill');
+  block.__u4FillSig = _fillSig;
   window.wireFxSection?.(block, 'shape', () => showShapeProperties(block));
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
@@ -489,13 +498,8 @@ ${blockHeaderHTML({
     redactToggleEl.addEventListener('change', () => {
       const on = redactToggleEl.checked;
       applyRedact(on, redactBlur, redactMode);
-      const fillRow = document.getElementById('shape-fill-row');
-      if (fillRow) fillRow.style.display = on ? 'none' : '';
-      const ellFx = document.getElementById('shape-ellipse-fx');
-      if (ellFx) ellFx.style.display = on ? 'none' : '';
-      const controls = document.getElementById('shape-redact-controls');
-      if (controls) controls.style.display = on ? '' : 'none';
       window.pushHistory?.();
+      showShapeProperties(block);   // U4: 숨김 토글 대신 다시 그린다 — Fill·이너 그림자 절이 비면 머리째 빠진다(빈 머리 금지)
     });
   }
   const redactModeSeg = document.getElementById('shape-redact-mode-seg');

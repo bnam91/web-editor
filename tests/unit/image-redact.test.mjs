@@ -123,10 +123,10 @@ test('U5 배선 자리 — 패널·제거·스크래치·h2c·CSS·Figma', () =>
      ⇒ 옛 기대(「그레인 아래 · Effects 위」 따로 절 + prop-asset 의 wireRedactSection)를 «옛 절 0 + 명부 식구»로 바꿨다.
      ⛔약하게 만든 것이 아니다 — 같은 자리(prop-asset)를 «없어야 한다»로 재고, 새 입구를 따로 잰다. */
   const asset = readSrc(ROOT, 'js', 'props', 'prop-asset.js');
-  const iGrain = asset.indexOf('id="asset-grain-number"');
-  const iFx = asset.indexOf("window.fxSectionHtml?.(ab, 'asset')");
-  assert.ok(iGrain > 0 && iFx > 0, `하네스가 늙었다 — 자리를 못 찾았다 grain ${iGrain} fx ${iFx}`);
-  assert.ok(iGrain < iFx, 'Effects 절이 그레인 아래가 아니다');
+  /* U4(right-panel-unify): 절 순서는 틀(_section-spec)이 정한다 — 그레인 = Appearance 절 · 효과 목록 = Effects 절 몸통(fxSectionParts).
+     양성대조: 그레인 줄을 sec('fill' 쪽으로 옮기거나 Effects 절이 _fx.body 를 안 받으면 빨강. */
+  assert.match(asset, /sec\('appearance',[\s\S]*?id="asset-grain-number"[\s\S]*?\n      sec\('fill'/, '그레인이 Appearance 절 안에 없다');
+  assert.match(asset, /sec\('effects',[\s\S]*?_fx\?\.body/, 'Effects 절이 효과 목록(fxSectionParts 몸통)을 안 받는다');
   assert.doesNotMatch(asset, /redactSectionHTML|wireRedactSection/, '옛 «블러 (Redact)» 따로 절이 prop-asset 에 남았다(두 곳)');
   const fxb = readSrc(ROOT, 'js', 'effects-blur.js');
   assert.match(fxb, /registerFxType\(\{\s*key: 'blur',\s*label: '블러',/, '명부 식구 「블러」 가 없다');

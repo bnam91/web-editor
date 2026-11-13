@@ -82,7 +82,8 @@ test('LC1 패널 — 메뉴 로고에 「Collab」 절(콜라보·갯수 1~3) ·
   const p1 = await page.evaluate(() => {
     const sec = document.getElementById('asset-collab-section');
     const s = document.getElementById('asset-collab-count-slider');
-    return { sec: !!sec, title: sec?.querySelector('.prop-section-title')?.textContent.trim(),
+    /* U4: 절 제목은 틀 머리(.prop-sec-head .prop-sec-title-text) · special 절이다 */
+    return { sec: !!sec && sec.dataset.sec === 'special', title: sec?.querySelector(':scope > .prop-sec-head .prop-sec-title-text')?.textContent.trim(),
       labels: sec ? [...sec.querySelectorAll('.prop-label')].map((e) => e.textContent.trim()) : [],
       min: s?.min, max: s?.max, val: s?.value, toggle: !!document.getElementById('asset-collab-toggle') };
   });

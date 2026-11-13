@@ -919,7 +919,8 @@ test('ⓑ-3 [체크리스트③] js/props/prop-zoom.js 헤더가 «풀 구조»�
   const s = SRC.prop;
   assert.match(s, /import\s*\{[^}]*\bblockHeaderHTML\b[^}]*\}\s*from\s*['"]\.\/_helpers\.js['"]/,
     'prop-zoom.js 가 헤더 SSOT(_helpers.js blockHeaderHTML)를 import 하지 않는다');
-  assert.match(s, /\$\{blockHeaderHTML\(\{/, 'prop-zoom.js 가 헤더 SSOT 를 부르지 않는다');
+  // U4(right-panel-unify): 헤더는 틀(renderPanel)의 header 칸으로 넘긴다 — 옛 꼴은 템플릿 안 \${blockHeaderHTML({ … })}
+  assert.match(s, /header:\s*blockHeaderHTML\(\{/, 'prop-zoom.js 가 헤더 SSOT 를 틀의 header 칸으로 부르지 않는다');
   /* ★인자는 «호출 본문 안»에서만 찾는다 (2026-09-22, 검사자 지적).
      전엔 파일 전체에 `s.includes('name:')` 이었다 — 그건 «검사처럼 생긴 문장»이다.
      파일 아무 데나 그 글자가 있으면 통과하므로, 호출에서 이름 칸을 «빼도» 초록이 된다.
