@@ -49,6 +49,9 @@ test('R1b [새 것] 패널에 200 을 적으면 화면 200 · 저장 140(= 200 �
   const errs = await setup(page);
   await mk(page, { cols: [{ width: 1, lines: ONE }], rows: [{ height: 100 }, { height: 'auto' }], cellPadY: 30 });
   await showPanel(page);
+  /* U6: 「행 높이」 하위 접기는 기본 접힘(t2-06 · prop-grid.js _rowHeightHtml _grdSecOpen) — 새 spec 이 그 전제를 빠뜨려 fill 이 «not visible»(r0913rp).
+     사람처럼 머리를 눌러 편다(접힘 상태는 블록별 WeakMap 이라 Enter 뒤 다시 그려도 열린 채). 되돌리면 빨강: 이 클릭을 빼면 같은 not visible. */
+  await page.locator('#grd-rowh-toggle').click();
   await page.fill('.grd-row-h-item[data-ri="0"]', '200'); await page.press('.grd-row-h-item[data-ri="0"]', 'Enter');
   await expect.poll(() => rowPx(page).then(r => r[0]), { message: '★적은 값 = 화면 높이' }).toBe(200);
   expect(await stored(page)).toEqual([140, 'auto']);

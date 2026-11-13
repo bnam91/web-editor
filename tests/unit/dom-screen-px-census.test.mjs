@@ -94,7 +94,7 @@ const ROSTER_HOW = [
 ].join(' · ');
 
 const ROSTER = {
-  'coupon-presets.dom.spec.js:157': 'risky',
+  'coupon-presets.dom.spec.js:158': 'risky',   // U6: U5 가 위에 주석 한 줄을 더해 :157 → :158 (같은 자리 · 칩 높이 > 40)
   /* ★t2-07(태양 · 그리드 배경 코너 손잡이) — 자가 새로 잡았다 · 태양 triage(지디 t3-06 선례대로 · 지디 재판정 가능): ★risky.
      H4b 의 [전제] «배경 상자 높이(getBoundingClientRect · 화면 px) < 24» 를 절대 숫자 24 와 견준다 — 제품 규칙(24px 미만 상자는 점 넷 숨김)이 화면 px 라도
      «제품이 화면 px 로 정의했다 ≠ 자가 배율 무관»(t3-06 판정). 장면이 zoom 40 을 박아 둬 지금은 맞지만 배율이 바뀌면 전제가 흔들린다 = risky. */

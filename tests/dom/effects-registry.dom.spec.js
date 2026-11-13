@@ -80,7 +80,9 @@ test('A0 전제 — 명부 다리가 서고(window.fxTypeKeys 등) 식구에 반
   /* 효과 1개 = «새 파일 1 + index.html 1줄» 이 ★사실인지 — 패널 셋은 명부 다리만 부른다 */
   for (const f of ['js/props/prop-text-template.js', 'js/props/prop-asset.js', 'js/props/prop-shape.js']) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    expect(src.includes('fxSectionHtml') || src.includes('wireFxSection'), `${f} 가 명부 다리를 부른다`).toBe(true);
+    /* U6 · 계획 §3(틀): U0b/U2 가 텍스트 Effects 절을 틀 sec() 로 옮기며 fxSectionHtml(절 통째) → fxSectionParts({headTools, body, id}) 로 바꿨다 — 같은 명부 다리.
+       되돌리면 빨강: 패널이 세 다리 어느 것도 안 부르고 효과를 직접 그리면 거짓. */
+    expect(['fxSectionHtml', 'fxSectionParts', 'wireFxSection'].some((k) => src.includes(k)), `${f} 가 명부 다리를 부른다`).toBe(true);
     expect(/fxReflect|fxShadow/.test(src), `⛔${f} 가 «특정 효과»를 직접 알지 않는다`).toBe(false);
   }
   expect(errs).toEqual([]);

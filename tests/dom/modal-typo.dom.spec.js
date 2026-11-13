@@ -52,6 +52,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <div id="panel-right"><div class="panel-body"></div></div>
 <script src="/js/design-system.js"></script>
 <script type="module">
+  import '/js/effects-registry.js';                    // 앱엔 늘 실린 fx 명부 — 패널이 window.fxSectionParts 를 무가드로 부른다(U2 aa884717b 가 «명부 없음» 폴백을 뺐다)
   import { makeModalBlock, renderModalBlock } from '/js/blocks/modal-block.js';
   import { showModalProperties } from '/js/props/prop-modal.js';
   window.__mk = makeModalBlock;

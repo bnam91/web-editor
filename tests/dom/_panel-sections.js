@@ -27,7 +27,14 @@ function loadSectionSpec() {
   return ctx.__S;
 }
 
-const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => {
+/* «절 내용»으로 치는 것 — 빈 머리 절 판정(liveControls)의 자. U6(지디 261113):
+   ⑴ [role="button"] — div 로 된 하위 접기 머리(그리드 칸 «칸 꾸미기·모든 칸» 등)도 누르는 컨트롤이다.
+   ⑵ .prop-value-text — 읽기 전용 글(QA 전문 보기 · §2-1 14 Template=QA Ticket)도 절 내용이다.
+   옛 자 = 'input, select, button, textarea'(panel-section-rules.dom.spec 이 양성대조로 쓴다). */
+const LIVE_SEL = 'input, select, button, textarea, [role="button"], .prop-value-text';
+const LIVE_SEL_OLD = 'input, select, button, textarea';
+
+const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.evaluate(({ scopes, live }) => {
   const body = document.querySelector('#panel-right .panel-body');
   const secs = [...body.children].filter((e) => e.classList.contains('prop-section')).map((e) => ({
     sec: e.dataset.sec || null,
@@ -35,18 +42,19 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
     title: e.querySelector(':scope > .prop-sec-head > .prop-section-title')?.textContent.trim() ?? null,
     labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].map((l) => l.textContent.trim()),
     /* 보이는 컨트롤 수 — 머리 손잡이 포함 · ★접힘(몸 hidden)은 «비었다»가 아니라서 몸 자신의 숨김은 건너뛴다 */
-    liveControls: [...e.querySelectorAll('input, select, button, textarea')].filter((c) => {
+    liveControls: [...e.querySelectorAll(live)].filter((c) => {
       for (let n = c; n && n !== e; n = n.parentElement) {
         if (n.classList.contains('prop-sec-body')) continue;
         if (n.hidden || getComputedStyle(n).display === 'none') return false;
       }
       return true;
     }).length,
-    /* 소유 판정 재료 — 컨트롤마다 id · type · data-* · 색짝(같은 .prop-color-field 안 · 바로 앞 형제가 색 칸) · 제외 그릇 */
+    /* 소유 판정 재료 — 컨트롤마다 id · type · data-* · 색짝(같은 .prop-color-field 안 · 바로 앞 형제가 «색 칸 자신» 또는 .prop-color-swatch) · 제외 그릇
+       ⑶ U6: 옛 «앞 형제 «안에» 색 칸 하나라도» 는 색 든 목록 뒤 «추가» 단추(grb-add-item · bn2-line-add)를 색짝으로 끌어 Fill/Stroke 로 보냈다. */
     controls: [...e.querySelectorAll('input, select, button, textarea')].map((c) => {
       const prev = c.previousElementSibling;
       const pair = c.type === 'color' ? null : (c.closest('.prop-color-field')?.querySelector('input[type="color"]')
-        || (prev?.matches?.('input[type="color"]') ? prev : prev?.querySelector?.('input[type="color"]')) || null);
+        || (prev?.matches?.('input[type="color"]') ? prev : prev?.matches?.('.prop-color-swatch') ? prev.querySelector('input[type="color"]') : null) || null);
       return {
         id: c.id, type: c.type, pairedColor: !!pair, pairId: pair?.id || null,
         fxCard: (() => { const k = c.closest('[id$="-fx-list"]'); return !!k && e.contains(k); })(),   // effects-registry 카드 목록 안(그 효과의 칸)
@@ -58,7 +66,7 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
     }),
   }));
   return { secs, hints: body.querySelectorAll('.prop-hint').length };
-}, Object.keys(spec.OWNERSHIP_EXEMPT_SCOPES));
+}, { scopes: Object.keys(spec.OWNERSHIP_EXEMPT_SCOPES), live });
 
 function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
   const bad = [];
@@ -95,4 +103,4 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
   return bad;
 }
 
-module.exports = { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS };
+module.exports = { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS, LIVE_SEL, LIVE_SEL_OLD };

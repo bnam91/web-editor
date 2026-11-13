@@ -40,6 +40,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <script src="/js/block-edit.js"></script>
 <script src="/js/text-effect-transform.js"></script>
 <script type="module">
+  import '/js/effects-registry.js';                    // 앱엔 늘 실린 fx 명부 — 패널이 window.fxSectionParts 를 무가드로 부른다(U2 aa884717b 가 «명부 없음» 폴백을 뺐다)
   import '/js/props/color-picker.js';
   import { showTextProperties } from '/js/props/prop-text.js';
   window.pushHistory = () => {};

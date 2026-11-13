@@ -41,6 +41,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8"><style>
   window.buildLayerPanel = () => {}; window.showFrameHandles = () => {};
 </script>
 <script type="module">
+  import '/js/effects-registry.js';                    // 앱엔 늘 실린 fx 명부 — 패널이 window.fxSectionParts 를 무가드로 부른다(U2 aa884717b 가 «명부 없음» 폴백을 뺐다)
   import '/js/props/prop-frame.js';
   window.__ready = true;
 </script></body></html>`;

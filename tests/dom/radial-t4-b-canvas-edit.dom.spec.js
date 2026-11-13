@@ -204,6 +204,9 @@ function editHost(page, id) {
   }, id);
 }
 async function clickPanel(page, sel, label) {
+  /* U6 R2 — §2-1 순서로 Fill·special 절이 Typography·Effects 뒤로 내려가 컨트롤이 1100px 창 밖(y 1132~1604)에 선다.
+     사람처럼 패널을 굴려 보이게 한 뒤 잰다(맞힘 판정 clickAt 의 elementFromPoint 는 그대로). */
+  await page.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: "center" }), sel);
   const r = await stableTwice(page, sel);
   await clickAt(page, r.cx, r.cy, { sel }, { label });
 }

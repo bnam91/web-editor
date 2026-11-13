@@ -264,7 +264,9 @@ async function alignShot(page) {
   await expect.poll(() => page.evaluate(() => !document.querySelector('#grd-halign-group :hover, #grd-valign-group :hover')), { message: '마우스가 단추 밖으로 나가 hover 가 걷혔다', timeout: 10000 }).toBe(true);
   const rows = ['#grd-halign-group', '#grd-valign-group'];
   const shots = [];
-  for (const s of rows) shots.push(await (await page.locator(s).evaluateHandle(e => e.closest('.prop-row'))).asElement().screenshot({ type: 'png' }));
+  /* U6 · 계획 §4-1: 줄 라벨이 「가로 정렬」→「가로 정렬 · 모든 열」(스코프 표기)로 «일부러» 바뀌어 줄(.prop-row) 그림은 핀과 24px 다르다(r0913rp).
+     이 검사가 지키는 것 = 정렬 «단추 묶음» 그림 ⇒ 줄이 아니라 묶음(#grd-*align-group)을 찍는다. 되돌리면 빨강: 단추 아이콘·크기·간격을 바꾸면 픽셀 차이. */
+  for (const s of rows) shots.push(await page.locator(s).screenshot({ type: 'png' }));
   const html = await page.evaluate((S) => S.map(s => [...document.querySelectorAll(s)].map(b => b.outerHTML).join('\n')).join('\n'), ALIGN_SEL);
   return { shots, html };
 }

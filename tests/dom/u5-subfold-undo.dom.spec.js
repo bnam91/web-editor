@@ -15,14 +15,14 @@ async function scene(page) {
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.deselectAll?.(); window.selectSection(sec); window.clearHistory?.(); });
   return errs;
 }
-async function add(page, cls, entry) {
-  return page.evaluate(async ({ cls, entry }) => {
+async function add(page, cls, entry, opts) {
+  return page.evaluate(async ({ cls, entry, opts }) => {
     const before = new Set(document.querySelectorAll('.' + cls));
-    await window[entry]();
+    await window[entry](opts);
     const b = [...document.querySelectorAll('.' + cls)].find((x) => !before.has(x));
     window.selectBlock(b.id);
     return b.id;
-  }, { cls, entry });
+  }, { cls, entry, opts });
 }
 /** 기록 한 칸 → 블록에 무해한 표시 → 기록 → ⌘Z. 요소가 갈렸는지 돌려준다. */
 async function undoSwap(page, id) {
@@ -40,7 +40,9 @@ async function undoSwap(page, id) {
 
 test('U1 월계관 칸 카드 — 칸 1 을 펼친 채 ⌘Z 뒤에도 펼침(기본은 칸 0 만)', async ({ page }) => {
   const errs = await scene(page);
-  const id = await add(page, 'laurel-block', 'addLaurelBlock');
+  /* U6: makeLaurelBlock 기본 = 1×1(laurel-block.js gridCols||1) — 칸 1 을 펼치려면 칸 둘이 있어야 한다(새 spec 의 장면 빠짐 · r0913rp 칸 카드 1).
+     되돌리면 빨강: gridCols 를 빼면 [전제] 칸 카드 ≥ 2 가 다시 1. */
+  const id = await add(page, 'laurel-block', 'addLaurelBlock', { gridCols: 2 });
   const exp = () => page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-cell-card.expanded')].map((e) => e.dataset.cellIdx));
   expect(await page.locator('#panel-right .prop-cell-card').count(), '[전제] 칸 카드 ≥ 2').toBeGreaterThanOrEqual(2);
   expect(await exp(), '[전제] 기본 = 칸 0 만 펼침').toEqual(['0']);

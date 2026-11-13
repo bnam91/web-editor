@@ -212,7 +212,9 @@ test('C-PANEL1 ★정본 표가 쿠폰 패널을 연다 — selectBlock «만»�
     const known = window.hasPanelForBlock ? window.hasPanelForBlock(window.__block) : null;
     window.selectBlock?.(window.__block.id);
     const html = document.getElementById('panel-right').innerHTML;
-    return { known, hasHeader: /Coupon/.test(html), hasSlotList: /글자 칸/.test(html), len: html.length };
+    /* U6 · 계획 §2-1·§8: 옛 손 제목 「글자 칸 n」 → 틀의 Content 절(data-sec) — coupon-presets.dom.spec 과 같은 자.
+       되돌리면 빨강: prop-coupon.js 의 sec('content' …) 를 지우거나 칸 목록(_slotListHTML)을 다른 절로 옮기면 거짓. */
+    return { known, hasHeader: /Coupon/.test(html), hasSlotList: !!document.querySelector('#panel-right .prop-section[data-sec="content"] [data-cpn-open]'), len: html.length };
   });
   expect(r.known).toBe(true);
   expect(r.hasHeader).toBe(true);

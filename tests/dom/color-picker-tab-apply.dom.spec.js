@@ -51,6 +51,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 </div>
 <div id="plain-field" style="position:fixed;left:300px;top:60px;"></div>
 <script type="module">
+  import '/js/effects-registry.js';                    // 앱엔 늘 실린 fx 명부 — 패널이 window.fxSectionParts 를 무가드로 부른다(U2 aa884717b 가 «명부 없음» 폴백을 뺐다)
   import { wireColorField, colorFieldHTML } from '/js/props/color-picker.js';
   import { showShapeProperties } from '/js/props/prop-shape.js';
   import { wireCanvasBgControl, seedPageBgGradientPicker } from '/js/props/prop-page.js';

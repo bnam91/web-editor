@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { sliceBlock } from './_slice-block.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -18,13 +19,11 @@ const strip = (rel) => read(rel).replace(/^import[^\n]*\n/gm, '').replace(/^expo
 
 function build() {
   const frame = read('js/props/_panel-frame.js');
-  const a = frame.indexOf('export function unwrapSection(');
-  assert.ok(a > 0, '★unwrapSection 을 못 찾았다');
-  const b = frame.indexOf('\n}\n', a) + 2;
+  const fn = sliceBlock(frame, 'export function unwrapSection(', '★unwrapSection 을 못 찾았다');   // 끝은 괄호를 세어 찾는다(slice-block-shared SB-16)
   const ctx = { window: {}, console };
   vm.createContext(ctx);
   vm.runInContext(`${strip('js/props/prop-text-utils.js')}\n;${strip('js/props/_typo-section.js')}
-    ;${frame.slice(a, b).replace(/^export\s+/, '')}
+    ;${fn.replace(/^export\s+/, '')}
     ;globalThis.__RAW = [buildTypographySectionHtml({ p:'mdl-typo', font:'', weight:'', size:36, isBold:false, isItalic:false, isStrike:false, isHighlight:false, lh:1.7, ls:0, sizeMin:10, sizeMax:60 }),
                          buildFillSectionHtml({ p:'mdl-typo', colorHex:'#1c1c1e', alpha:100 })];
     ;globalThis.__OUT = __RAW.map((h) => unwrapSection(h));`, ctx, { filename: 'u3-unwrap-typo-fill' });

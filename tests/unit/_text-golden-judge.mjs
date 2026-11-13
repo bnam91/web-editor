@@ -26,7 +26,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 const req = createRequire(import.meta.url);
-const { GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT } = req('./_text-template-harness.js');
+const { loadTextTemplate, GOLDEN_STATE, GOLDEN_STATE_MIX, ROOT } = req('./_text-template-harness.js');
 const { loadSectionSpec, judgePanel } = req('../dom/_panel-sections.js');
 const BASE = '2040a3339';
 const FIX = path.join(ROOT, 'tests/fixtures');
@@ -99,7 +99,7 @@ function panelModel(html) {
         const prev = prevEl(c);
         const field = closest(c, (x) => has(x, 'prop-color-field'));
         const pair = type === 'color' ? null : ((field && all(field).find((k) => k.tag === 'input' && k.attrs.type === 'color'))
-          || (prev && prev.tag === 'input' && prev.attrs.type === 'color' ? prev : prev && all(prev).find((k) => k.tag === 'input' && k.attrs.type === 'color')) || null);
+          || (prev && prev.tag === 'input' && prev.attrs.type === 'color' ? prev : prev && has(prev, 'prop-color-swatch') ? all(prev).find((k) => k.tag === 'input' && k.attrs.type === 'color') : null) || null);   // U6 ⑶ — readPanel 과 같은 좁힌 색짝
         const ownEl = closest(c, (x) => x.attrs && 'data-own' in x.attrs);
         return {
           id: c.attrs.id || '', type, pairedColor: !!pair, pairId: pair?.attrs.id || null,
@@ -212,11 +212,13 @@ const fails = runAll(buildNew);
 if (fails.length) { console.error('★판정 실패 — 골든을 쓰지 않는다:\n  ' + fails.join('\n  ')); process.exit(1); }
 console.log(`★판정 통과 — ${STATES.length} 상태 × J1·J2·J4·J5·J6`);
 
-/* ③ 골든 — 쓰는 것 == 잰 것(J7) */
+/* ③ 골든 — 쓰는 것 == T1 이 견주는 것(J7). ★U6 R8: T1(typo-section-ssot)과 «같은 길»(_text-template-harness · 진짜 명부 · 식구 0)로 쓴다.
+   FX_STUB 은 fx0/fx1 판정 재료일 뿐 — 그걸로 쓰면 골든에만 Effects 절이 서서 T1 이 23351 ≠ 22367자로 빨강(r0913rp). */
 const GOLD = [['text-props-golden.html', GOLDEN_STATE], ['text-props-golden-mix.html', GOLDEN_STATE_MIX]];
+const buildGold = loadTextTemplate().buildTextPropsHtml;
 if (process.argv.includes('--write')) {
-  for (const [file, st] of GOLD) fs.writeFileSync(path.join(FIX, file), buildNew(st));
+  for (const [file, st] of GOLD) fs.writeFileSync(path.join(FIX, file), buildGold(st));
   console.log('골든 둘을 썼다(plain · liner+mix 상태 산출) — 같은 커밋에 넣고 이 출력을 메시지에');
 } else {
-  for (const [file, st] of GOLD) console.log(`${file}: ${fs.readFileSync(path.join(FIX, file), 'utf8') === buildNew(st) ? '이미 같다' : '다르다(--write 로 갱신)'}`);
+  for (const [file, st] of GOLD) console.log(`${file}: ${fs.readFileSync(path.join(FIX, file), 'utf8') === buildGold(st) ? '이미 같다' : '다르다(--write 로 갱신)'}`);
 }

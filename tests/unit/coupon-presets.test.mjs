@@ -296,14 +296,15 @@ test('C-P10 ★패널이 ★칩 그리개를 ★부르고 ★배선을 ★한 �
   assert.ok(src.includes('[data-cpn-preset]'), 'prop-coupon.js 가 ★칩 배선을 안 건다 — 칩이 안 눌린다');
   assert.ok(src.includes('window.applyCouponPreset'), 'prop-coupon.js 가 ★적용 문을 안 부른다');
 
-  /* ★★그리개 호출이 ★「Coupon」 절 ★안인가 — 제목 뒤, ★다음 절 제목 앞 */
-  const sec  = src.indexOf('>Coupon<');
+  /* ★★그리개 호출이 ★Type(kind) 절 ★안인가 — sec('kind' 뒤, ★다음 절 sec('content' 앞
+     (U6 · 계획 §2-1·§8: 옛 「Coupon」 절 → 틀의 Type 절 · 프리셋 = Type 소유. 옛 닻 '>Coupon<'·'글자 칸 ' 은 틀 이관으로 사라졌다) */
+  const sec  = src.indexOf("sec('kind',");
   const call = src.indexOf('couponPresetChipsHTML(block)');
-  const next = src.indexOf('글자 칸 ', sec);
-  assert.ok(sec > 0, '★전제: 「Coupon」 절 제목을 못 찾았다 — 이 검사가 자리를 못 잰다');
+  const next = src.indexOf("sec('content',", sec);
+  assert.ok(sec > 0, '★전제: Type(kind) 절을 못 찾았다 — 이 검사가 자리를 못 잰다');
   assert.ok(next > sec, '★전제: 다음 절을 못 찾았다 — 구간을 못 만든다');
   assert.ok(call > sec && call < next,
-    `★칩 호출이 ★「Coupon」 절 밖에 있다 (절 ${sec} · 호출 ${call} · 다음 절 ${next})`);
+    `★칩 호출이 ★Type(kind) 절 밖에 있다 (절 ${sec} · 호출 ${call} · 다음 절 ${next})`);
 
   /* ★한 자리인가 — ⛔두 자리에서 부르면 칩이 ★두 벌 뜬다 */
   const n = (src.match(/couponPresetChipsHTML\(block\)/g) || []).length;
