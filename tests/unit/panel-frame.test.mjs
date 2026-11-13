@@ -261,6 +261,8 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
     'tbl-header-size-slider': 'typography', 'grb-pct-size-number': 'typography', 'cpn-slot-size-slider': 'typography',
     'tbl-size-slider': 'typography', 'tbl-size-number': 'typography', 'stb-size-w': 'size', 'mck-size-h': 'size', 'tbl-sizer-w': null,   // 줄기 tbl-size 는 「tbl-size」·「tbl-size-」만 — tbl-sizer 는 아니다
     'stb-title-gap-size': 'size',   // title 바로 뒤가 size 가 아니다(인접 규칙)
+    /* U0c ⑤ export 단어 → Export 절 · 그냥 폭은 Size */
+    'sec-export-width': 'export', 'page-export-width': 'export', 'page-export-bg color': 'export', 'sec-width': 'size', 'mdl-width-number': 'size',
     /* U0c ② 선 = line + 색/두께 → Stroke(색짝 hex/alpha 포함) · line+height 는 그대로 Typography */
     'rdl-line-color color': 'stroke', 'rdl-line-hex color': 'stroke', 'rdl-line-alpha color': 'stroke', 'rdl-line-width': 'stroke',
     'tbl-line-color color': 'stroke', 'tbl-line-hex color': 'stroke', 'tb-line-height-number': 'typography', 'rdl-line-style': null,

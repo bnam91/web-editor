@@ -48,6 +48,7 @@ export function isValidSectionTitle(t) {
  *   카드가 다른 절에 있으면 여전히 판정한다(tests/dom/_panel-sections.js judgePanel).
  * ⛔애매한 컨트롤은 표를 비틀지 말고 OWNERSHIP_EXEMPT(id) 또는 OWNERSHIP_EXEMPT_SCOPES(그릇 id — 그 «안»만)에 까닭과 함께 뺀다. */
 export const OWNERSHIP = Object.freeze([
+  [['export'], 'export'],   // 내보내기 설정(sec-export-width · page-export-width) — 폭·색 단어보다 먼저
   [['border+color', 'stroke+color', '*rule', 'line+color', 'line+width'], 'stroke'],   // *rule = 그리드 「칸 사이 줄」 · line+color/width = 선 색·두께(rdl-line-* · tbl-line-*)
   // ⚠️그리드 「줄」(글줄)도 line 이지만 #grd-line-body 그릇 안이라 판정 밖(OWNERSHIP_EXEMPT_SCOPES) — 글줄 색이 stroke 로 오판되지 않는다
   [['radius'], 'appearance'],
