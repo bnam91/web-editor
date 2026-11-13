@@ -3,6 +3,7 @@
  * S2 키보드 — Tab 으로 절 머리 도달 · :focus-visible 링(outline ≠ none) · Enter/Space 토글 · aria-expanded 반전 · aria-controls == 몸통 id
  * S3 넘침 — 좁은 패널 · 60자 블록 이름 · 긴 special 제목에도 패널·절에 가로 넘침 0 · 제목은 ellipsis
  * S4 겹침 0 — 절 머리 사각형끼리 안 겹치고 패널 안에 있다 · 제목 글자 ≥ --ui-fs-10
+ * S5 틀 절 몸 안의 옛 하위 절(.prop-section)은 좌우 들임 0 — 그 안 첫 줄 왼쪽 == 틀 몸 왼쪽(±0.5) · 양성대조: 틀 밖 같은 마크업은 들여진다
  * 양성대조(사람이 돌린다): S1 = editor-base.css 의 --ui-sec-title-color-hover 줄 삭제 → 빨강 ·
  *   S2 = _panel-frame.js 의 panel.addEventListener('keydown' …) 제거 → 빨강 · S3 = editor-props.css .prop-sec-title-text 의 text-overflow:ellipsis 제거 → 빨강.
  * ⛔화면 px 를 상수와 견주지 않는다(dom-screen-px-census) — 사각형끼리만 비교한다. */
@@ -104,5 +105,24 @@ test('S4 겹침 0 — 절 머리끼리 안 겹치고 패널 안 · 제목 글자
   expect(r.overlap, '★절 머리 겹침').toEqual([]);
   expect(r.outside, '★패널 밖 절 머리').toBe(0);
   expect(r.small, '★--ui-fs-10 보다 작은 제목').toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S5 틀 절 몸 안 옛 하위 절 — 두 번 들이지 않는다(왼쪽 == 틀 몸 왼쪽 ±0.5)', async ({ page }) => {
+  const { errs } = await open(page, BRIDGE);
+  const r = await page.evaluate(() => {
+    const body = document.getElementById('psec-size-body');
+    const nest = document.createElement('div'); nest.className = 'prop-section'; nest.innerHTML = '<div class="prop-row" id="__nest-row">x</div>';
+    body.appendChild(nest);
+    /* 양성대조 — 같은 마크업을 틀 «밖»(패널 몸 끝의 맨 그릇)에 두면 .prop-section 들임을 그대로 받는다 */
+    const plain = document.createElement('div'); plain.id = '__plain';
+    plain.innerHTML = '<div class="prop-section"><div class="prop-row" id="__plain-row">x</div></div>';
+    document.querySelector('#panel-right .panel-body').appendChild(plain);
+    const L = (el) => el.getBoundingClientRect().left;
+    return { nested: L(document.getElementById('__nest-row')) - L(body),
+             plain: L(document.getElementById('__plain-row')) - L(plain) };
+  });
+  expect(Math.abs(r.nested), `★틀 몸 안 하위 절이 또 들여졌다(${r.nested})`).toBeLessThanOrEqual(0.5);
+  expect(r.plain, '[양성대조] 틀 밖 .prop-section 은 들여진다 — 이 칸이 무엇을 잰다').toBeGreaterThan(0.5);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -58,6 +58,8 @@
 .prop-sec-title-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prop-sec-head > .prop-section-title:hover { color: var(--ui-sec-title-color-hover); }
 .prop-sec-body[hidden] { display: none; }
+/* 틀 절 몸 안의 옛 하위 절(.prop-section — 빌더가 절 통째를 줄 때) — 좌우 들임을 두 번 받지 않게(틀 절이 이미 들였다) */
+.prop-section[data-sec] > .prop-sec-body > .prop-section { padding-inline: 0; }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {
   display: flex; align-items: center; gap: 4px;
