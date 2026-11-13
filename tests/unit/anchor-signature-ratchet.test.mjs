@@ -65,7 +65,8 @@ const SELF = 'unit/anchor-signature-ratchet.test.mjs';
 /* var 38→39: tests/unit/project-read-state.test.js 의 fnSrc(BOOT-CLEANUP-WIPES-CORRUPT-PROJECT-LS-01) — 위 corrupt-unreadable 과 같은 꼴, 변수에 든 것은 매개변수 없는 `function 이름(`·`const 이름 = ` 뿐(손으로 봄 · 서명 닻 아님 · sig·files 무변). */
 /* var 39→40(int-4 합침 · 두 가지가 따로 38→39): tests/unit/unreadable-projects-list.test.js 의 fnSrc — corrupt-unreadable 과 같은 꼴(⑵ 쪽 · 닻이 는 것 아님),
    변수 pat 에 드는 것은 `async function 이름(` · `function 이름(` · `const 이름 = ` 셋뿐 — 매개변수 없음(손으로 봄 · CORRUPT-PROJECT-NOT-FINDABLE-IN-APP-01). */
-const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 40 };
+/* var 40→41: tests/unit/save-sync-ok-after-write.test.js 의 fnSrc(SAVE-SYNC-FALSE-FAIL-AFTER-WRITE-01) — corrupt-unreadable 과 같은 꼴, pat 은 매개변수 없는 셋뿐(손으로 봄). */
+const BASELINE = { sig: 51, files: 18, name: 189, sel: 6, cond: 1, lit: 247, var: 41 };
 
 const CUTTERS = ['sliceBlock', 'bodyOf', 'arrowBodyOf', 'arrowBody', 'ruleOf', 'balanced'];
 const CALL = new RegExp(`(?:${CUTTERS.join('|')})\\(\\s*[A-Za-z_$][\\w$]*\\s*,\\s*'([^']+)'`, 'g');
