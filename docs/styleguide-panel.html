@@ -84,7 +84,7 @@ renderPanel(null, {
 });
 
 document.querySelector('#sgp-order tbody').innerHTML = SECTION_ORDER
-  .map((k, i) => `<tr><td>${i + 1}</td><td><code>${k}</code></td><td>${SECTION_TITLE[k] ?? '(블록 고유 · Title Case 1~2단어 · 선언순)'}</td></tr>`).join('');
+  .map((k, i) => `<tr><td>${i + 1}</td><td><code>${k}</code></td><td>${SECTION_TITLE[k] ?? '(블록 고유 · Title Case/약어 1~2단어 · 선언순)'}</td></tr>`).join('');
 const cs = getComputedStyle(document.documentElement);
 document.querySelector('#sgp-space tbody').innerHTML = [1, 2, 3, 4]
   .map((n) => { const v = cs.getPropertyValue(`--ui-space-${n}`).trim(); return `<tr><td><code>--ui-space-${n}</code></td><td>${v}</td><td><span class="sw" style="width:var(--ui-space-${n})"></span></td></tr>`; }).join('');

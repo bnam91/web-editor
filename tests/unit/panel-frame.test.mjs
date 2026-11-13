@@ -7,10 +7,13 @@
  *   F1 정렬 — SECTION_ORDER 순 · special 은 선언순
  *   F2 중복 — 같은 key 두 번 / 같은 special 제목 두 번 → throw
  *   F3 빈 절 — html 이 빈 문자열·공백이면 DOM 에 없다
- *   F4 제목 규칙 — special 은 title 필수 · Title Case 영어 1~2단어(+개수) 아니면(한글·괄호·기호) → throw · 모르는 key → throw
+ *   F4 제목 규칙 — special 은 title 필수 · 단어(Title Case 또는 약어 2~4자) 1~2개(+개수) 아니면(한글·괄호·기호) → throw · 모르는 key → throw
  *   F5 접기 저장/복원 — localStorage 'gd-panel-collapsed' · 새 모듈 판에서도 복원 · 저장소 없거나 막혀도 안 죽는다
  *   F6 기본 = 전부 펼침 · aria-expanded/aria-controls == 몸통 id
- *   F7 disclosureSectionHtml 3인자 산출은 바이트 그대로(그리드 골든 보호) — 4인자 = 3인자 + aria 치환«만»
+ *   F7 disclosureSectionHtml 3인자 산출은 바이트 그대로(그리드 골든 보호) — 4인자(틀 판) = aria · 인라인 style/title 없음
+ *   F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0 — check-design-tokens.sh 하드게이트와 같은 정규식
+ *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
+ *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
  *   F8 정본 표 — SECTION_ORDER 와 SECTION_TITLE 가 special 외 1:1 · 모든 제목이 규칙을 지킨다
  *   F9 파일럿 — prop-gap.js · prop-bridge.js 는 propPanel.innerHTML 대신 renderPanel 을 쓴다
  *   N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판을 올리면 F1 의 기대가 깨진다
@@ -48,12 +51,12 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
 const secsOf = (html) => [...html.matchAll(/data-sec="([a-z]+)"/g)].map((m) => m[1]);
-const titlesOf = (html) => [...html.matchAll(/text-overflow:ellipsis;white-space:nowrap;">([^<]*)<\/span>/g)].map((m) => m[1]);
+const titlesOf = (html) => [...html.matchAll(/<span class="prop-sec-title-text">([^<]*)<\/span>/g)].map((m) => m[1]);
 
 /** F1 의 기대 — 틀 판마다 다시 잰다(N1 이 같은 함수로 뒤집힌 판을 잰다). */
 function orderedAsExpected(F) {
@@ -87,15 +90,15 @@ test('F3 빈 절 — 빈 문자열·공백 html 은 DOM 에 없다', () => {
   assert.equal(F.buildPanelHTML({ sections: [F.sec('kind', '')] }).trim(), '', '★절이 다 비면 빈 패널이어야 한다');
 });
 
-test('F4 제목 규칙 — special title 필수 · 영문/괄호 → throw · 모르는 key → throw', () => {
+test('F4 제목 규칙 — special title 필수 · 규칙 밖 → throw · 모르는 key → throw', () => {
   const F = loadFrame();
   assert.throws(() => F.sec('special', 'x'), /title 이 필수/);
-  for (const t of ['꼬리', 'Tail (V)', 'size', 'Arrow line', 'Three Word Title', 'Stroke(Text)', 'Cards-3', 'Cards 3 4', 'SIZE', '[Cell]', '']) {
+  for (const t of ['꼬리', 'Tail (V)', 'size', 'Arrow line', 'Three Word Title', 'Stroke(Text)', 'Cards-3', 'Cards 3 4', 'SIZES', 'Q', 'qa', 'qA', 'QA-Ticket', 'FAQ Set Two', '3d', '[Cell]', '']) {
     assert.throws(() => F.sec('special', 'x', { title: t }), /규칙 위반|필수/, `★「${t}」 를 통과시켰다`);
   }
   assert.throws(() => F.sec('size', 'x', { title: '크기' }), /규칙 위반/, '★special 아닌 절도 제목 덮어쓰기는 같은 규칙');
   assert.throws(() => F.sec('nope', 'x'), /모르는 절/);
-  for (const t of ['Tail', 'Cards 3', 'Arrow Line', 'Arrow Line 2']) assert.doesNotThrow(() => F.sec('special', 'x', { title: t }), t);
+  for (const t of ['Tail', 'Cards 3', 'Arrow Line', 'Arrow Line 2', 'QA', 'FAQ', '3D', 'SVG', 'CTA', 'QA Ticket', 'SVG Presets', '3D Mockup', 'FAQ 2']) assert.doesNotThrow(() => F.sec('special', 'x', { title: t }), t);
 });
 
 test('F5 접기 저장/복원 — localStorage · 새 모듈 판 복원 · 저장소 없음/막힘에도 안 죽는다', () => {
@@ -141,15 +144,63 @@ test('F6 기본 = 전부 펼침 · aria-controls == 몸통 id · renderPanel 은
   assert.ok(p.innerHTML.includes('>Stroke</span>'), '★stroke 제목이 «Stroke» 가 아니다(§8 Q1 정정 — 영어 Figma 명명)');
 });
 
-test('F7 disclosureSectionHtml 3인자 = 바이트 그대로 · 4인자 = 3인자 + aria 치환«만»', () => {
+test('F7 disclosureSectionHtml 3인자 = 바이트 그대로 · 4인자(틀 판) = aria · 인라인 style/title 없음', () => {
   const F = loadFrame();
+  /* ★3인자 골든 — 판 2852c9f44 의 산출(그리드 6절·카드가 쓰는 꼴). ⛔한 자도 고치지 마라(bt2-grid-panel-golden.json 이 같은 바이트를 품는다) */
+  const chev = (open) => F.disclosureChevronHtml(open);   // 쉐브론 바이트는 disclosure-chevron-ssot 가 따로 잠근다
   for (const open of [true, false]) {
-    const three = F.disclosureSectionHtml('h', '제목', open);
-    assert.doesNotMatch(three, /aria-/, '★3인자 산출에 aria 가 섞였다 — 그리드 골든(bt2-grid-panel-golden.json)이 깨진다');
-    const four = F.disclosureSectionHtml('h', '제목', open, 'b');
-    const expect = three.replace('role="button" tabindex="0"', `role="button" tabindex="0" aria-expanded="${open}" aria-controls="b"`);
-    assert.equal(four, expect, '★4인자 산출이 «3인자 + aria 치환» 밖으로 달라졌다');
+    const three = F.disclosureSectionHtml('h', 'T', open);
+    assert.equal(three, `
+      <div class="prop-section-title" id="h" role="button" tabindex="0"
+           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
+           title="${open ? '접기' : '펼치기'}">
+        ${chev(open)}
+        <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">T</span>
+      </div>`, '★3인자 산출이 바뀌었다 — 그리드 골든이 깨진다');
+    const four = F.disclosureSectionHtml('h', 'T', open, 'b');
+    assert.match(four, new RegExp(`role="button" tabindex="0" aria-expanded="${open}" aria-controls="b">`));
+    assert.doesNotMatch(four, /style=|title=/, '★틀 판 머리에 인라인 style·툴팁이 남았다');
+    assert.match(four, /<span class="prop-sec-title-text">T<\/span>/);
+    assert.ok(four.includes(chev(open)), '★틀 판이 쉐브론 한 벌을 안 쓴다');
   }
+});
+
+/* scripts/check-design-tokens.sh 의 LIT_RE 와 같은 꼴(grep -E → JS) */
+const LIT_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|[0-9]+(px|r?em)\b/;
+
+test('F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0', () => {
+  const F = loadFrame({ storage: memStorage({ 'gd-panel-collapsed': '["fill"]' }) });
+  const html = F.buildPanelHTML({ sections: [F.sec('size', 'BODY'), F.sec('fill', 'BODY'), F.sec('special', 'BODY', { title: 'Tail' })] });
+  assert.ok(html.includes('hidden>'), '[전제] 접힌 판도 같이 쟀다');
+  const hit = html.split('\n').filter((l) => LIT_RE.test(l));
+  assert.deepEqual(hit, [], '★틀이 그린 마크업에 리터럴이 있다 — 토큰(css panel-frame 블록)으로');
+  assert.ok(LIT_RE.test('<div style="gap:6px">') && LIT_RE.test('hsl(0,0%,50%)') && LIT_RE.test('2rem'), '[양성대조] 정규식이 산다');
+});
+
+/** styleguide.html 정적 표 → [[key, title], …] */
+function styleguideRows(html) {
+  const i = html.indexOf('<section id="panel-frame">');
+  assert.ok(i > -1, '★styleguide.html 에 panel-frame 절이 없다');
+  const sec = html.slice(i, html.indexOf('</section>', i));
+  return [...sec.matchAll(/<tr><td>(\d+)<\/td><td><code>([a-z]+)<\/code><\/td><td><b>([^<]*)<\/b><\/td>/g)].map((m) => [m[2], m[3]]);
+}
+const styleguideMismatch = (rows, F) => {
+  const want = F.SECTION_ORDER.map((k) => [k, F.SECTION_TITLE[k] ?? '(호출부가 줌)']);
+  return JSON.stringify(rows) === JSON.stringify(want) ? null : { rows, want };
+};
+
+test('F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE', () => {
+  const F = loadFrame();
+  const rows = styleguideRows(readSrc(ROOT, 'docs/styleguide.html'));
+  assert.equal(rows.length, 14, `[전제] 표 ${rows.length}행`);
+  assert.equal(styleguideMismatch(rows, F), null, '★문서 표가 정본과 갈렸다 — docs/styleguide.html 패널 절 표를 고쳐라');
+});
+
+test('N2 ★양성대조 — 문서 표 두 행을 맞바꾸면 F11 판정이 빨강', () => {
+  const F = loadFrame();
+  const rows = styleguideRows(readSrc(ROOT, 'docs/styleguide.html'));
+  [rows[3], rows[4]] = [rows[4], rows[3]];
+  assert.notEqual(styleguideMismatch(rows, F), null, '★행을 바꿔도 같다 — F11 이 «안 재고» 있다');
 });
 
 test('F8 정본 표 — ORDER 와 TITLE 이 special 외 1:1 · 모든 제목이 규칙을 지킨다', () => {

@@ -3,7 +3,8 @@
 #   ① 미정의 --ui-* 토큰(사용됐지만 정의 없음) → exit 1
 #   ② 신규 패널 층(_panel-frame.js · _section-spec.js · editor-props.css 「패널 절」 블록)에
 #      색·px 리터럴(#hex · rgb(a)( · Npx — 인라인 style= 포함)이 1건이라도 → exit 1  (하드게이트)
-#   ③ 래칫: scripts/design-tokens.baseline.json 보다 늘면 → exit 1 (줄면 baseline 을 내려 커밋하라)
+#   ③ 래칫: scripts/design-tokens.baseline.json 보다 늘면 → exit 1. 줄면 안내만(rc 0) —
+#      운영: baseline 내림은 각 단위가 하지 않고 지디가 dev 머지 때 한 번에 한다(병렬 단위끼리 baseline 충돌 방지).
 # 런타임 토큰(--ui-scale, --inv-zoom)은 editor.js에서 set되므로 미정의 검사에서 제외.
 #
 # 사용: scripts/check-design-tokens.sh [추가-신규층-파일 ...]
@@ -19,8 +20,9 @@ while IFS= read -r f; do JS_FILES+=("$f"); done < <(find js -name '*.js' -type f
 PROPS_JS=()
 while IFS= read -r f; do PROPS_JS+=("$f"); done < <(find js/props -name '*.js' -type f | sort)
 RUNTIME_TOKENS='--ui-scale|--inv-zoom'
-LIT_RE='#[0-9a-fA-F]{3,8}\b|rgba?\(|[0-9]+px'
-BASELINE=scripts/design-tokens.baseline.json
+LIT_RE='#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|[0-9]+(px|r?em)\b'
+# PF_CSS · BASELINE 은 환경변수로 덮어쓸 수 있다(tests/unit/design-tokens-guard.test.mjs 양성대조 G4·G5 용)
+BASELINE=${BASELINE:-scripts/design-tokens.baseline.json}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/gd-tokens.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 STATUS=0
@@ -50,7 +52,7 @@ for f in ${NEW_LAYER[@]+"${NEW_LAYER[@]}"}; do
   { grep -nHoE "$LIT_RE" "$f" || true; } >> "$TMP/newlayer.txt"
 done
 # editor-props.css 의 「패널 절」 블록 — BEGIN/END 표식 사이만 (표식이 없으면 못 잰 것이다 ⇒ 실패)
-PF_CSS=css/editor-props.css
+PF_CSS=${PF_CSS:-css/editor-props.css}
 if grep -q 'panel-frame:BEGIN' "$PF_CSS" && grep -q 'panel-frame:END' "$PF_CSS"; then
   awk '/panel-frame:BEGIN/{on=1;next} /panel-frame:END/{on=0} on{print FILENAME":"NR":"$0}' "$PF_CSS" \
     | { grep -E "$LIT_RE" || true; } >> "$TMP/newlayer.txt"

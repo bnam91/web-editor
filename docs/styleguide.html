@@ -571,7 +571,7 @@
     <iframe src="styleguide-panel.html" title="패널 절 컴포넌트" loading="lazy"
             style="width:100%;height:1280px;border:1px solid var(--doc-border, #333);border-radius:8px;background:#1a1a1a"></iframe>
     <p class="note">ES 모듈이라 file:// 로는 비어 보인다 — 레포 루트를 <code>python3 -m http.server --bind 127.0.0.1 8765</code> 로 서빙해 <code>/docs/styleguide.html</code> 로 연다.
-      규칙: 신규 패널 층은 색·px 리터럴 0(<code>scripts/check-design-tokens.sh</code> 하드게이트) · 절 제목 영어 Title Case · 힌트 패널당 ≤2 · 기본 전부 펼침.</p>
+      규칙: 신규 패널 층은 색·px 리터럴 0(<code>scripts/check-design-tokens.sh</code> 하드게이트) · 절 제목 영어 1~2단어(Title Case 또는 약어) · 힌트 패널당 ≤2 · 기본 전부 펼침.</p>
     <table class="gtbl" style="margin-top:12px"><thead><tr><th>#</th><th>key</th><th>제목(라벨)</th><th>소유</th></tr></thead><tbody>
       <tr><td>1</td><td><code>kind</code></td><td><b>Type</b></td><td>Type · Variant · Shape · Device · Chart Type · Direction · Preset · Favorites</td></tr>
       <tr><td>2</td><td><code>content</code></td><td><b>Content</b></td><td>Text · Data · Messages · Layers · Cards · Cells · Icon · Image · Video · Profile · Path</td></tr>
@@ -588,7 +588,7 @@
       <tr><td>13</td><td><code>export</code></td><td><b>Export</b></td><td>Export · 참고 이미지</td></tr>
       <tr><td>14</td><td><code>template</code></td><td><b>Template</b></td><td>Template · Component · QA Ticket</td></tr>
     </tbody></table>
-    <p class="note">★제목 규칙(현빈 2026-11-13 정정): 영어 Title Case 1~2단어(Figma 명명) · 한글·괄호·기호 금지 · 개수는 <code>Cards 3</code> · 글자 윤곽선은 Stroke 절 안 행. 정본 = <code>js/props/_section-spec.js</code>(위 iframe 의 표는 그 파일에서 import — 이 정적 표와 갈리면 iframe 쪽이 맞다).</p>
+    <p class="note">★제목 규칙(현빈 2026-11-13 정정): 영어 1~2단어(Figma 명명) — 단어 = Title Case(<code>Tail</code>) 또는 약어 2~4자(<code>QA</code>·<code>FAQ</code>·<code>3D</code>·<code>SVG</code>·<code>CTA</code>) · 한글·괄호·기호 금지 · 개수는 <code>Cards 3</code> · 글자 윤곽선은 Stroke 절 안 행. 정본 = <code>js/props/_section-spec.js</code>(위 iframe 의 표는 그 파일에서 import — 이 정적 표와 갈리면 iframe 쪽이 맞다).</p>
   </section>
 
   <!-- ════════ USAGE RULES ════════ -->

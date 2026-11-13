@@ -20,12 +20,13 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const BASE = stripComments(readSrc(ROOT, 'css/editor-base.css'));
 const PROPS = stripComments(readSrc(ROOT, 'css/editor-props.css'));
 
-/** :root 토큰 표 — 첫 정의가 이긴다. */
+/** :root 토큰 표 — :root 블록을 «전부» 읽고 마지막 정의가 이긴다(캐스케이드와 같은 순서). */
 function tokens(css) {
-  const root = /:root\s*\{([\s\S]*?)\n\}/.exec(css);
-  assert.ok(root, '★editor-base.css 에서 :root 블록을 못 찾았다');
+  const roots = [...css.matchAll(/:root\s*\{([^}]*)\}/g)];
+  assert.ok(roots.length, '★editor-base.css 에서 :root 블록을 못 찾았다');
   const t = {};
-  for (const m of root[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) if (!(m[1] in t)) t[m[1]] = m[2].trim();
+  for (const r of roots) for (const m of r[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) t[m[1]] = m[2].trim();
+  assert.ok('--ui-bg-base' in t && '--ui-sec-title-color' in t, '★토큰 표가 비었다 — :root 파싱이 깨졌다');
   return t;
 }
 /** 값 → #rrggbb. var(--x[, fb]) 사슬을 끝까지 푼다. */

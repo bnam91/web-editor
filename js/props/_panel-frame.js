@@ -44,7 +44,7 @@ export function sec(key, html, { title, headTools = '', id } = {}) {
   if (!SECTION_ORDER.includes(key)) throw new Error(`[panel-frame] 모르는 절 key: ${key}`);
   const t = title ?? SECTION_TITLE[key];
   if (key === 'special' && !title) throw new Error('[panel-frame] special 절은 title 이 필수다');
-  if (!isValidSectionTitle(t)) throw new Error(`[panel-frame] 절 제목 규칙 위반(영어 Title Case 1~2단어 · 한글/괄호/기호 없음): ${t}`);
+  if (!isValidSectionTitle(t)) throw new Error(`[panel-frame] 절 제목 규칙 위반(영어 Title Case/약어 1~2단어 · 한글/괄호/기호 없음): ${t}`);
   return { key, html: html ?? '', title: t, headTools, id };
 }
 
@@ -91,8 +91,7 @@ function _toggle(head) {
   const open = bodyEl.hidden;   // 지금 닫혀 있으면 연다
   bodyEl.hidden = !open;
   section.classList.toggle('is-collapsed', !open);
-  head.setAttribute('aria-expanded', String(open));
-  head.title = open ? '접기' : '펼치기';
+  head.setAttribute('aria-expanded', String(open));   // 툴팁 없음 — 상태는 aria-expanded·쉐브론이 말한다
   // ⛔각도 식은 disclosureChevronHtml 과 같은 값이어야 한다(갈리면 첫 클릭에 그림이 튄다)
   const arrow = head.querySelector('svg');
   if (arrow) arrow.style.transform = `rotate(${open ? 0 : -90}deg)`;

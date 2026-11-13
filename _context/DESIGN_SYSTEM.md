@@ -562,7 +562,7 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 ```js
 renderPanel(block, {
   header: blockHeaderHTML({ … }),
-  sections: [ sec('size', html), sec('fill', html), sec('special', html, { title: '꼬리' }) ],
+  sections: [ sec('size', html), sec('fill', html), sec('special', html, { title: 'Tail' }) ],
 });   // 동기 — 뒤의 getElementById 배선은 그대로
 ```
 - 전역 순서(없는 절은 숨김 · 순서는 늘 이 표의 부분열 · 정본 `_section-spec.js`). 한 key 를 두 번 선언하면 throw. 빈 html 절은 DOM 에 없다.
@@ -584,7 +584,7 @@ renderPanel(block, {
 | 13 | `export` | **Export** | Export · 참고 이미지 |
 | 14 | `template` | **Template** | Template · Component · QA Ticket |
 
-- ★제목 규칙(현빈 2026-11-13 Q1 정정 — «한글»을 뒤집음): **영어 Title Case 1~2단어**(Figma 명명) · 한글·괄호·기호 금지 · 개수 접미는 `Cards 3` 꼴. 기계식 `/^[A-Z][a-z]+( [A-Z][a-z]+)?( \d+)?$/` 아니면 `sec()` 가 throw.
+- ★제목 규칙(현빈 2026-11-13 Q1 정정 — «한글»을 뒤집음): **영어 1~2단어**(Figma 명명) — 단어 = Title Case(`Tail`) 또는 약어 2~4자(`QA`·`FAQ`·`3D`·`SVG`·`CTA`) · 한글·괄호·기호 금지 · 개수 접미는 `Cards 3` 꼴. 기계식 `/^(?:[A-Z][a-z]+|[A-Z0-9]{2,4})( (?:[A-Z][a-z]+|[A-Z0-9]{2,4}))?( \d+)?$/` 아니면 `sec()` 가 throw. 글자 윤곽선은 Stroke 절 안 행(하위 제목 없음).
 - 마크업: `.prop-section[data-sec]` > `.prop-section-title-row.prop-sec-head` > `.prop-section-title[role=button][tabindex=0][aria-expanded][aria-controls]`(+headTools) / `.prop-sec-body`.
 - 접기: 절 key 단위 · 전 블록 공통 · `localStorage['gd-panel-collapsed']` · 기본 전부 펼침 · Enter/Space 로도 접힌다. 블록 «안» 하위 접기는 `_helpers.js` `discSec*` 그대로.
 - 조각: `fieldRowHTML(label, control)` · `hintHTML(text)`(패널당 ≤2) · `scopeChipsHTML(items, active)`.

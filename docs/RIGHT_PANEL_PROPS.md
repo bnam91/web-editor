@@ -69,7 +69,7 @@ renderPanel(block, { header: blockHeaderHTML({...}), sections: [sec('size', html
   <div class="prop-sec-body" id="psec-size-body"> …절 안 마크업(id·핸들러 그대로)… </div>
 </div>
 ```
-- 순서·제목 정본 = `js/props/_section-spec.js`: Type · Content · Position · Size · Layout · Padding · Appearance · Typography · Fill · Stroke · Effects · (블록 고유) · Export · Template. 제목은 영어 Title Case 1~2단어(Figma 명명) · 한글·괄호·기호 금지 · 개수는 `Cards 3`. 글자 윤곽선은 Stroke 절 안 행.
+- 순서·제목 정본 = `js/props/_section-spec.js`: Type · Content · Position · Size · Layout · Padding · Appearance · Typography · Fill · Stroke · Effects · (블록 고유) · Export · Template. 제목은 영어 1~2단어(Figma 명명 — 단어 = Title Case 또는 약어 2~4자 QA·FAQ·3D·SVG·CTA) · 한글·괄호·기호 금지 · 개수는 `Cards 3`. 글자 윤곽선은 Stroke 절 안 행.
 - 접기 = 절 key 단위 전 블록 공통(`localStorage['gd-panel-collapsed']`), 기본 전부 펼침. 상세: `_context/DESIGN_SYSTEM.md §11-A`.
 - 게이트: `tests/dom/panel-section-gate.dom.spec.js`(이관 안 된 블록은 그 파일 UNMIGRATED 명단). 이관 완료 = gap · bridge.
 
