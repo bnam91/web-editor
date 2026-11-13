@@ -292,15 +292,16 @@ test('P10 ★prop-section.js 가 ★그리개와 ★배선을 ★한 쌍으로 �
   const src = readSrc(REPO, 'js/props/prop-section.js');
   assert.ok(src.includes('window.secParticlesHTML'), 'prop-section.js 가 ★그리개를 안 부른다 — 칸이 안 뜬다');
   assert.ok(src.includes('window.wireSecParticles'), 'prop-section.js 가 ★배선을 안 부른다 — 칸이 안 눌린다');
-  /* ★★자리 — ★「Background」 절 ★안이다(지디 2026-10-07 Q1 판정 ⒞).
-     ★재는 법: ★그리개 호출이 ★Background 제목 ★뒤, ★그 다음 `prop-section` 제목 ★앞에 있다. */
-  const bg   = src.indexOf('>Background<');
+  /* ★★자리 — ★배경 절 ★안이다(지디 2026-10-07 Q1 판정 ⒞). ★U3(right-panel-unify) — 옛 「Background」 절은 틀의 Fill 절
+     (panelSec('fill', …))이 됐다. ★재는 법: ★그리개 호출이 ★Fill 절 등록 ★뒤, ★그 다음 절 등록(panelSec('export') ★앞에 있다.
+     ⇐ 되돌리면 빨강: 그리개 호출을 다른 절(예: appearance) 등록 안으로 옮기면 call < bg 가 된다. */
+  const bg   = src.indexOf("panelSec('fill'");
   const call = src.indexOf('window.secParticlesHTML');
-  const next = src.indexOf('prop-section-title">Text Color', bg);
-  assert.ok(bg > 0, '★전제: Background 절 제목을 못 찾았다 — 이 검사가 자리를 못 잰다');
-  assert.ok(next > bg, '★전제: Background 다음 절을 못 찾았다 — 구간을 못 만든다');
+  const next = src.indexOf("panelSec('export'", bg);
+  assert.ok(bg > 0, '★전제: Fill(배경) 절 등록을 못 찾았다 — 이 검사가 자리를 못 잰다');
+  assert.ok(next > bg, '★전제: Fill 다음 절을 못 찾았다 — 구간을 못 만든다');
   assert.ok(call > bg && call < next,
-    `★그리개 호출이 ★Background 절 밖에 있다 (Background ${bg} · 호출 ${call} · 다음 절 ${next})`);
+    `★그리개 호출이 ★Fill(배경) 절 밖에 있다 (Fill ${bg} · 호출 ${call} · 다음 절 ${next})`);
   /* ★index.html 이 ★칸을 ★싣는다 — ⛔배선 2줄이 빠져 앱에서 죽은 ★그 사고(aecd7545)의 자리다 */
   const html = readSrc(REPO, 'index.html');
   assert.ok(html.includes('js/props/prop-section-particles.js'),

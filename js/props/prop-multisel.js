@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { alignBtn } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 /* ★★말풍선의 ★«발신자 이름»을 ★데려가는 ★유일한 자 — ⛔여기서 ★`.tb-sender-name` 을 ★직접 ★만지지 ★마라.
    ★선례: ★`prop-text-wireup-align.js:50`(★단일선택) · ★`prop-page.js:683`(★페이지 일괄) ★둘이 ★이미 ★이렇게 ★쓴다. */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
@@ -231,15 +232,16 @@ export function showFreeLayoutMultiSelPanel() {
       <input type="${val === 'mixed' ? 'text' : 'number'}"
              id="msp-${id}"
              value="${val}"
-             placeholder="${val === 'mixed' ? 'mixed' : ''}"
+             placeholder="${val === 'mixed' ? 'Mix' : ''}"
              style="color:${val === 'mixed' ? '#888' : 'var(--ui-text)'}"
              data-field="${field}"
              ${val !== 'mixed' ? 'step="1"' : ''}>
     </div>`;
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-block-label" style="padding:2px 0 4px;">
+  /* ★U3(right-panel-unify) — 옛 Position / Size 절을 Position(X·Y)·Size(W·H)로, Spacing·Align 은 Layout 한 절로. */
+  renderPanel(null, {
+    header: `
+      <div class="prop-block-label">
         <div class="prop-block-icon">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="4" height="4" rx="0.5"/>
@@ -253,22 +255,21 @@ export function showFreeLayoutMultiSelPanel() {
           <span class="prop-breadcrumb">freeLayout 멀티셀렉</span>
         </div>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Position / Size</div>
+`,
+    sections: [
+      sec('position', `
       <div class="prop-row">
         ${mkInput('x', xVal, 'x', 'X')}
         ${mkInput('y', yVal, 'y', 'Y')}
       </div>
+`),
+      sec('size', `
       <div class="prop-row">
         ${mkInput('w', wVal, 'w', 'W')}
         ${mkInput('h', hVal, 'h', 'H')}
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Spacing</div>
+`),
+      sec('layout', `
       <div class="prop-row">
         <div class="prop-icon-input" style="flex:1;">
           <span style="font-size:9px;color:#666;padding:0 3px;flex-shrink:0;">gap</span>
@@ -276,10 +277,6 @@ export function showFreeLayoutMultiSelPanel() {
                  style="color:${spacing === 'mixed' ? '#888' : 'var(--ui-text)'};cursor:default;">
         </div>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Align</div>
       <div class="prop-row" style="gap:3px;justify-content:space-between;">
         ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-align': 'left' }, base: 'msp-align-btn' })}
         ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-align': 'hcenter' }, base: 'msp-align-btn' })}
@@ -289,8 +286,9 @@ export function showFreeLayoutMultiSelPanel() {
         ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { 'data-align': 'vcenter' }, base: 'msp-align-btn' })}
         ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { 'data-align': 'bottom' }, base: 'msp-align-btn' })}
       </div>
-    </div>
-  `;
+`),
+    ],
+  });
 
   // X/Y/W/H 입력 이벤트
   ['x', 'y', 'w', 'h'].forEach(field => {
@@ -406,17 +404,16 @@ function _applyOverlay(units, pos, label) {
 }
 export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
   if (!propPanel || !units || units.length < 2) return false;
-  propPanel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-block-label" style="padding:2px 0 4px;">
+  renderPanel(null, {
+    header: `
+      <div class="prop-block-label">
         <div class="prop-block-info">
           <span class="prop-block-name">${units.length}개 선택됨</span>
           <span class="prop-breadcrumb">떠 있는 블럭 — 서로 맞춤</span>
         </div>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Align</div>
+`,
+    sections: [sec('layout', `
       <div class="prop-row" style="gap:3px;justify-content:space-between;">
         ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { 'data-ov-align': 'left' }, base: 'msp-align-btn' })}
         ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { 'data-ov-align': 'hcenter' }, base: 'msp-align-btn' })}
@@ -430,7 +427,8 @@ export function showOverlayMultiSelPanel(units = getSelectedOverlayUnits()) {
         <button class="prop-btn-sm" data-ov-dist="h" title="가로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>가로 균등</button>
         <button class="prop-btn-sm" data-ov-dist="v" title="세로 간격 균등 (셋 이상)" style="flex:1;"${units.length < 3 ? ' disabled' : ''}>세로 균등</button>
       </div>
-    </div>`;
+`)],
+  });
   propPanel.querySelectorAll('[data-ov-align]').forEach(b => b.addEventListener('click', () =>
     _applyOverlay(units, alignPositions(units.map(_overlayGeom), b.dataset.ovAlign), '떠 있는 블럭 정렬')));
   propPanel.querySelectorAll('[data-ov-dist]').forEach(b => b.addEventListener('click', () =>
@@ -649,16 +647,18 @@ export function showFlowMultiSelPanel() {
   const fsVal = fsMix.mixed || fsMix.value == null ? '' : String(fsMix.value);
   const fsPh = fsMix.mixed ? 'Mix' : 'px';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-      <div class="prop-block-label" style="padding:2px 0 4px;">
+  /* ★U3(right-panel-unify) — 정렬·분배 = Layout · 글자 크기 = Typography(텍스트가 있을 때만 — 옛 display:none 절 대신 «없는 절»). */
+  renderPanel(null, {
+    header: `
+      <div class="prop-block-label">
         <div class="prop-block-info">
           <span class="prop-block-name">${blocks.length}개 선택됨</span>
           <span class="prop-breadcrumb">블록 멀티선택 · 정렬/분배</span>
         </div>
       </div>
-    </div>
-    <div class="prop-section">
+`,
+    sections: [
+      sec('layout', `
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group">
@@ -667,20 +667,21 @@ export function showFlowMultiSelPanel() {
           ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { 'data-align': 'right' } })}
         </div>
       </div>
-    </div>
-    <div class="prop-section" style="${textCount > 0 ? '' : 'display:none;'}">
-      <div class="prop-section-title">폰트 크기 (텍스트 ${textCount}개)</div>
+` + (canDistribute ? `
+      <span class="prop-field-label">분배</span>
+      <div class="prop-row" style="gap:3px;">
+        <button class="prop-btn-sm msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
+      </div>
+` : '')),
+      sec('typography', textCount > 0 ? `
+      <span class="prop-field-label">폰트 크기 · 텍스트 ${textCount}개</span>
       <div class="prop-row" style="gap:3px;">
         <input type="number" class="prop-number msp-fontsize-input" id="msp-font-size" min="1" max="800" value="${fsVal}" placeholder="${fsPh}" data-empty="invalid" style="flex:1;">
         <button class="prop-btn-sm msp-fontsize-btn" id="msp-font-size-apply" title="선택한 텍스트 블록에 일괄 적용">적용</button>
       </div>
-    </div>
-    <div class="prop-section" style="${canDistribute ? '' : 'display:none;'}">
-      <div class="prop-section-title">분배</div>
-      <div class="prop-row" style="gap:3px;">
-        <button class="prop-btn-sm msp-dist-btn" data-dist="v" title="세로 간격 균등">세로 균등</button>
-      </div>
-    </div>`;
+` : ''),
+    ],
+  });
 
   propPanel.querySelectorAll('.prop-align-btn[data-align]').forEach(btn => {
     btn.addEventListener('click', () => _applyFlowAlign(blocks, btn.dataset.align));

@@ -141,10 +141,10 @@ test('D0 ㉠ ★전제 — ★칸이 섹션 패널에 ★있고 ★창 안이며
   /* ★★⑷ ★자리 — ★「Background」 절 ★안인가 (지디 2026-10-07 Q1 판정 ⒞) */
   const where = await page.evaluate(() => {
     const el = document.getElementById('sec-fxpart-toggle');
-    const sect = el?.closest('.prop-section');
-    return { title: sect?.querySelector('.prop-section-title')?.textContent?.trim() || null };
+    const sect = el?.closest('.prop-section[data-sec]');   // ★U3 — 옛 「Background」 절 = 틀의 Fill 절(data-sec="fill")
+    return { title: sect?.dataset.sec || null };
   });
-  expect(where.title, '★칸이 ★Background 절 밖에 붙었다 — 지디 판정 ⒞ 의 자리가 아니다').toBe('Background');
+  expect(where.title, '★칸이 ★배경(Fill) 절 밖에 붙었다 — 지디 판정 ⒞ 의 자리가 아니다').toBe('fill');
 
   /* ★★⑸ ★끈 상태가 ★출발점이다 — ⛔이미 켜져 있으면 ★D1 의 「켜진다」가 ★항상 참이다 */
   const d = await drawn(page);
@@ -179,12 +179,13 @@ test('D0b ⑵ ★★«칸이 ★패널에 보인다» — ★섹션이면 ★있
     '★패널에 ★「파티클」 이라는 ★글이 ★안 보인다').toBeVisible();
 
   /* ★★⑵ ★자리 — ★「Background」 절 ★안인가 (★지디 2026-10-07 Q1 판정 ⒞ · ★앱에서 확인된 절 이름) */
+  /* ★U3(right-panel-unify) — 옛 「Background」 절 = 틀의 Fill 절. 제목 글자 대신 절 key(data-sec)로 잰다. */
   const sects = await page.evaluate(() =>
-    [...document.querySelectorAll('#panel-right .prop-section-title')].map((e) => e.textContent.trim()));
-  expect(sects, '★전제: 섹션 패널에 ★Background 절이 ★없다 — 자리를 못 잰다').toContain('Background');
+    [...document.querySelectorAll('#panel-right .prop-section[data-sec]')].map((e) => e.dataset.sec));
+  expect(sects, '★전제: 섹션 패널에 ★Fill(배경) 절이 ★없다 — 자리를 못 잰다').toContain('fill');
   const host = await page.evaluate(() => document.getElementById('sec-fxpart-toggle')
-    ?.closest('.prop-section')?.querySelector('.prop-section-title')?.textContent?.trim() || null);
-  expect(host, `★칸이 ★Background 절 ★밖에 있다 (지금 절=${host} · 패널 절 전수=${sects.join('/')})`).toBe('Background');
+    ?.closest('.prop-section[data-sec]')?.dataset.sec || null);
+  expect(host, `★칸이 ★Fill(배경) 절 ★밖에 있다 (지금 절=${host} · 패널 절 전수=${sects.join('/')})`).toBe('fill');
 
   /* ★★⑶ ★★음성대조 — ★블럭을 고르면 ★그 칸이 ★★없다(★파티클은 ★섹션 배경이다).
      ★★⛔「없다」를 ★고장난 계측기로 재지 않는다 ⇒ ★먼저 ★★«패널이 ★정말 블럭으로 바뀌었나»를 ★단언한다.

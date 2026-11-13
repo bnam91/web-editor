@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min/max = updateCanvasBlock 의 자
 import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { wireHexText, parseHex6OrTransparent, formatHex6OrTransparent } from './color-picker.js';   /* 색 코드 칸 배선은 «한 자리»(유닛 colorhex) */
 
 export function showCanvasProperties(block) {
@@ -52,9 +53,10 @@ export function showCanvasProperties(block) {
     return '';
   }).join('');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. Layers = Content(개수는 줄 라벨) · 회전 = Position · 반경 = Appearance(Q2) ·
+     옛 Card Spacing 은 Gap → Layout · 좌우 패딩 → Padding. */
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="2"/>
             <rect x="3" y="3" width="3" height="6" rx="0.5" fill="#888" stroke="none"/>
@@ -64,11 +66,21 @@ ${blockHeaderHTML({
       defaultName: 'Canvas Block',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+    }),
+    sections: [
+      /* 레이어 0개면 절을 안 낸다 — 보이는 컨트롤 0 인 머리만 남는다(게이트 G9 빈 머리 절) */
+      sec('content', layers.length === 0 ? '' : `
+      <span class="prop-field-label">Layers ${layers.length}</span>
+      <div id="cvb-layer-list">${layerRows || '<div style="color:var(--ui-text-muted);font-size:11px;padding:6px 0">레이어 없음</div>'}</div>
+`),
+      sec('position', `
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="cvb-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
+        <input type="number" class="prop-number" id="cvb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+      </div>
+`),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
@@ -80,15 +92,32 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="0" max="100" step="1" value="${imgRatio}">
         <input type="number" class="prop-number" id="cvb-img-ratio-number" min="0" max="100" value="${imgRatio}">
       </div>
+`),
+      sec('layout', `
       <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="cvb-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="cvb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+        <span class="prop-label">Gap</span>
+        <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${parseInt(block.dataset.cardGap ?? 12)}">
+        <input type="number" class="prop-number" id="cvb-gap-number" min="0" max="48" value="${parseInt(block.dataset.cardGap ?? 12)}">
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
+      <span class="prop-field-label">Insert Grid</span>
+      <div class="grid-picker" id="cvb-grid-picker"></div>
+      <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
+`),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${parseInt(block.dataset.padX ?? 0)}">
+        <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${parseInt(block.dataset.padX ?? 0)}">
+      </div>
+`),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">반경</span>
+        <input type="range" class="prop-slider" id="cvb-radius-slider" min="0" max="60" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
+      </div>
+`),
+      sec('fill', `
       <div class="prop-row">
         <span class="prop-label">색상</span>
         <div class="prop-color-swatch" style="background:${bg === 'transparent' ? '#fff' : bg}">
@@ -96,37 +125,9 @@ ${blockHeaderHTML({
         </div>
         <input type="text" class="prop-color-hex" id="cvb-bg-hex" value="${formatHex6OrTransparent(bg)}" maxlength="11" aria-label="Color">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">반경</span>
-        <input type="range" class="prop-slider" id="cvb-radius-slider" min="0" max="60" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Card Spacing</div>
-      <div class="prop-row">
-        <span class="prop-label">Gap</span>
-        <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${parseInt(block.dataset.cardGap ?? 12)}">
-        <input type="number" class="prop-number" id="cvb-gap-number" min="0" max="48" value="${parseInt(block.dataset.cardGap ?? 12)}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${parseInt(block.dataset.padX ?? 0)}">
-        <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${parseInt(block.dataset.padX ?? 0)}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Insert Grid</div>
-      <div class="grid-picker" id="cvb-grid-picker"></div>
-      <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Layers (${layers.length})</div>
-      <div id="cvb-layer-list">${layerRows || '<div style="color:var(--ui-text-muted);font-size:11px;padding:6px 0">레이어 없음</div>'}</div>
-    </div>`;
+`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -276,7 +277,7 @@ ${blockHeaderHTML({
   padxSlider.addEventListener('change', () => window.pushHistory?.());
 
   // ── 이미지 업로드 / 제거 ──────────────────────────────────────────────────
-  document.getElementById('cvb-layer-list').addEventListener('click', e => {
+  document.getElementById('cvb-layer-list')?.addEventListener('click', e => {
     const uploadBtn = e.target.closest('.cvb-img-upload-btn');
     const clearBtn  = e.target.closest('.cvb-img-clear-btn');
 
@@ -321,7 +322,7 @@ ${blockHeaderHTML({
   });
 
   // ── 레이어 색상 편집 ───────────────────────────────────────────────────────
-  document.getElementById('cvb-layer-list').addEventListener('input', e => {
+  document.getElementById('cvb-layer-list')?.addEventListener('input', e => {
     const pick = e.target.closest('.cvb-color-pick');
     if (!pick) return;
     const idx = parseInt(pick.dataset.index);
@@ -334,7 +335,7 @@ ${blockHeaderHTML({
       window.renderCanvas(block);
     }
   });
-  document.getElementById('cvb-layer-list').addEventListener('change', e => {
+  document.getElementById('cvb-layer-list')?.addEventListener('change', e => {
     if (e.target.closest('.cvb-color-pick')) window.pushHistory?.();
   });
 }

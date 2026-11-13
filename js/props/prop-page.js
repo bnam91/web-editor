@@ -3,6 +3,7 @@
 ═══════════════════════════════════ */
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { exportFormatOptionsHTML } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
+import { renderPanel, sec } from './_panel-frame.js';
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안은 세지 않는다 — export-image.js exportableSections 와 같은 셈 */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
@@ -317,8 +318,11 @@ export function showPageProperties() {
   /* ★보기 설정의 «색» — 정본은 위 모듈 최상위 한 곳(readPadHintColor·readGridColor). */
   const padHintColorHex = readPadHintColor();
   const gridColorHex    = readGridColor();
-  propPanel.innerHTML = `
-    <div class="prop-section">
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. 옛 Layout 의 패딩 셋 = Padding · 섹션 간격·Bulk Align(비활성) = Layout ·
+     옛 Grid 절(그리드 가이드 + 패딩 비주얼 + 칼럼/거터 — 「편집 보조」 한 절, 현빈 ②) = special Grid 그대로 · 참고 이미지 = Export 안(§2-1).
+     ⚠️Grid 절의 색 피커·패딩 비주얼 라디오는 소유 표(OWNERSHIP)로는 Fill/Padding 이라 게이트 면제가 필요하다(U0 OWNERSHIP_EXEMPT 요청). */
+  renderPanel(null, {
+    header: `
       <div class="prop-block-label">
         <div class="prop-block-icon">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -327,10 +331,17 @@ export function showPageProperties() {
         </div>
         <span class="prop-block-name">Page</span>
       </div>
-    </div>
-    <!-- 「Background」 안내 절은 제거했다(현빈 2026-09-05) — 캔버스 바탕색은 왼쪽 Design System 패널. -->
-    <div class="prop-section" style="opacity:0.4;pointer-events:none;" title="잘못 누르는 사고 방지로 일시 비활성 — 필요 시 prop-page.js에서 복구">
-      <div class="prop-section-title">Bulk Align (비활성)</div>
+`,
+    sections: [
+      sec('layout', `
+      <div class="prop-row">
+        <span class="prop-label">섹션 간격</span>
+        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="1" value="${gap}">
+        <input type="number" class="prop-number" id="section-gap-number" min="0" max="200" value="${gap}">
+      </div>
+      <!-- 「Background」 안내 절은 제거했다(현빈 2026-09-05) — 캔버스 바탕색은 왼쪽 Design System 패널. -->
+      <div style="opacity:var(--ui-disabled-opacity);pointer-events:none;" title="잘못 누르는 사고 방지로 일시 비활성 — 필요 시 prop-page.js에서 복구">
+      <span class="prop-field-label">Bulk Align (비활성)</span>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="page-align-left" disabled>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -351,14 +362,8 @@ export function showPageProperties() {
           </svg>
         </button>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Layout</div>
-      <div class="prop-row">
-        <span class="prop-label">섹션 간격</span>
-        <input type="range" class="prop-slider" id="section-gap-slider" min="0" max="200" step="1" value="${gap}">
-        <input type="number" class="prop-number" id="section-gap-number" min="0" max="200" value="${gap}">
-      </div>
+      </div>`),
+      sec('padding', `
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="1" value="${padX}">
@@ -375,12 +380,10 @@ export function showPageProperties() {
         </label>
       </div>
       <div class="prop-hint" style="font-size:11px;color:#888;">에셋 블록은 좌우 패딩 일괄 적용에서 제외됩니다.</div>
-    </div>
-    <!-- ★Grid 는 «기하»가 아니라 «보기 보조»라 Layout 에서 떼어냈다.
-         예전엔 그리드 3줄이 「좌우 패딩」과 「상하 패딩」 사이에 끼어 패딩 짝을 갈라놨다. -->
-    <div class="prop-section">
-      <div class="prop-section-title">Grid</div>
-      <div class="prop-row">
+`),
+      sec('special', `
+      <!-- data-own=special:Grid: 그리드 가이드 «보기 보조» 켬/끔·색 — 칠하는 색(Fill)이 아니다(현빈 ② Grid 한 절) -->
+      <div class="prop-row" data-own="special:Grid">
         <span class="prop-label prop-label--auto">그리드 가이드</span>
         <div class="prop-radio-group">
           <label class="prop-radio"><input type="radio" name="page-grid" id="page-grid-on" value="on"> 켬</label>
@@ -399,7 +402,8 @@ export function showPageProperties() {
            ⚠️어휘를 «섞지» 않는다: 이 절은 이미 체크박스를 쓴다. 옆에 라디오를 놓으면 한 절에 두 어휘가 된다.
              (줌 패널은 라디오가 강제된 자리지만 — zoom-block.test.js ⓑ-14 — 그건 prop-zoom.js 전용이고
               이 패널엔 그런 제약이 없다. 실제로 바로 위 줄이 체크박스다.) -->
-      <div class="prop-row">
+      <!-- data-own=special:Grid: 패딩 «보기 보조» 켬/끔·색 — 패딩 값(Padding)이 아니다(현빈 ② Grid 한 절) -->
+      <div class="prop-row" data-own="special:Grid">
         <span class="prop-label prop-label--auto">패딩 비주얼</span>
         <div class="prop-radio-group">
           <label class="prop-radio"><input type="radio" name="page-pad-hint" id="page-pad-hint-on" value="on"> 켬</label>
@@ -430,20 +434,14 @@ export function showPageProperties() {
         <span class="prop-label prop-label--narrow">거터</span>
         <input type="number" class="prop-number" id="page-grid-gut" min="0" max="80" value="10" title="칼럼 사이 간격(px)">
       </div>
-    </div>
-    <!-- ★라벨을 «안» 붙인다 — 절 제목이 이미 「참고 이미지」다. 같은 말을 두 번 하면
-         240px 패널(가용 ~212px)에서 라벨이 잘리고 버튼 둘이 서로 눌린다(실측).
-         개수는 A-2 와 같은 어휘로 prop-hint 에 내린다. -->
-    <div class="prop-section">
-      <div class="prop-section-title">참고 이미지</div>
+`, { title: 'Grid' }),
+      sec('export', `
+      <span class="prop-field-label">참고 이미지</span>
       <div class="prop-type-group">
         <button class="prop-type-btn" id="spl-collapse-all">접기</button>
         <button class="prop-type-btn" id="spl-expand-all">펼치기</button>
       </div>
       <div class="prop-hint" style="font-size:11px;color:#888;">연결된 참고 이미지 <span id="spl-link-count">0개</span></div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Export</div>
       <div class="prop-row">
         <span class="prop-label">형식</span>
         <select class="prop-select" id="page-export-format">
@@ -461,7 +459,9 @@ export function showPageProperties() {
         </select>
       </div>
       <button class="prop-export-btn" id="page-export-all-btn">전체 섹션 내보내기</button>
-    </div>`;
+`),
+    ],
+  });
 
 
   const gapSlider = document.getElementById('section-gap-slider');

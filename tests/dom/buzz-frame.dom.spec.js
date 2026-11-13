@@ -201,11 +201,13 @@ test('BZ-01 삽입 메뉴 「Buzz」 → 표식 붙은 자유배치 프레임 + 
   expect(st.selected, '프레임이 골라져 있다(마지막 모달이 아니다)').toBe(true);
   expect(await page.evaluate(() => document.querySelectorAll('#canvas .modal-block.selected').length), '모달은 안 골라졌다').toBe(0);
   await expect(page.locator('#panel-right .prop-block-name')).toHaveText('Buzz');
-  expect(await page.evaluate(() => document.querySelectorAll('#panel-right .prop-section')[1]?.id || null), '둘째 절(머리 다음)이 Buzz 절').toBe('bzf-section');
+  /* ★U3(right-panel-unify) — 절 순서는 전역 정본(_section-spec.js)이 정한다: Buzz = 블록 고유(special) 절 «Buzz» — 맨 위가 아니다. */
+  expect(await page.evaluate(() => { const s = document.getElementById('bzf-section')?.closest('.prop-section[data-sec]');
+    return s ? [s.dataset.sec, s.querySelector(':scope > .prop-sec-head .prop-sec-title-text')?.textContent.trim()] : null; }), 'Buzz 절 = special «Buzz»').toEqual(['special', 'Buzz']);
   expect(outsideOf(st), '모든 낱개가 프레임 안').toEqual([]);
   /* 패널 꼴(판정서 M4): 버즈 프레임에는 프레임의 Layout 절(free → stack)이 없다 · 단추 묶음과 다음 라벨이 붙지 않는다 */
-  const titles = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section-title')].map((e) => e.textContent.trim()));
-  expect([titles[0], titles.includes('Layout'), titles.includes('Background')], 'Buzz 절이 맨 위 · Layout 절 없음 · 나머지 프레임 절은 그대로').toEqual(['Buzz', false, true]);
+  /* ★U3 — 옛 「Layout 절 없음」은 «free → stack 단추 없음»이 뜻이었다(아래 줄이 잰다). Layout 절은 이제 Child Align·간격을 담아 있다. */
+  expect(await page.evaluate(() => !!document.querySelector('#panel-right .prop-section[data-sec="fill"] #ss-bg-color')), '나머지 프레임 절(배경 = Fill)은 그대로').toBe(true);
   await expect(page.locator('#ss-to-stack-btn'), '버즈 프레임에는 「stack」 변환 단추가 없다').toHaveCount(0);
   const gaps = await page.evaluate(() => {
     const top = (el) => el.getBoundingClientRect().top, bottom = (el) => el.getBoundingClientRect().bottom;
@@ -529,9 +531,11 @@ test('BZ-11 낱개 모달 패널의 Decoration — 꼬리 · 테이프가 «실�
   await pinSeed(page, fid, 1);   /* 회전 0 — 번호를 안 박으면 회전이 런마다 달라 아래 상자 값이 8.40 ~ −1.67 로 갈린다(시트 350) */
   const mid = (await stateOf(page, fid)).rows[0].mid;
   await pickModal(page, mid);
-  const titles = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section-title')].map((e) => e.textContent.trim()));
-  expect(titles.indexOf('Shadow') >= 0, `전제: Shadow 절이 있다 ${titles}`).toBe(true);
-  expect(titles[titles.indexOf('Shadow') + 1], 'Shadow 바로 다음이 Decoration').toBe('Decoration');
+  /* ★U3(right-panel-unify) — 그림자·장식은 Effects 절 한 곳(줄 라벨 Shadow → Decoration 차례). */
+  const fx = await page.evaluate(() => { const s = document.getElementById('mdl-drop-group'), d = document.getElementById('mdl-deco-tail-group');
+    return { sSec: s?.closest('.prop-section[data-sec]')?.dataset.sec, dSec: d?.closest('.prop-section[data-sec]')?.dataset.sec,
+      after: !!(s && d && (s.compareDocumentPosition(d) & Node.DOCUMENT_POSITION_FOLLOWING)) }; });
+  expect(fx, 'Shadow·Decoration 둘 다 Effects 절 · Decoration 이 Shadow 뒤').toEqual({ sSec: 'effects', dSec: 'effects', after: true });
   await expect(page.locator('#mdl-deco-tail-group .active')).toHaveText('없음');
   const deco = () => page.evaluate((id) => {
     const m = document.getElementById(id);

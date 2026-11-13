@@ -30,7 +30,7 @@ test('H1 프레임 패널 — 「…이 안으로 들어갑니다」 안내가 0
 
 test('H1-양성대조 — 안내를 되살린 소스에서는 빨개진다', () => {
   const raw = fs.readFileSync(SRC, 'utf8');
-  const at = raw.indexOf('${window.fxSectionHtml?.(ss');
+  const at = raw.indexOf("const _fx = window.fxSectionParts(ss, 'ss');");   // ★U3 — Effects 절이 틀에 등록되는 자리(변이를 꽂을 닻)
   assert.ok(at > 0, '양성대조 꽂을 자리를 못 찾았다');
   const restored = raw.slice(0, at) + '<div class="prop-section">\n      <div class="prop-hint">Frame 클릭 후 플로팅 패널에서 블록을 추가하면 이 안으로 들어갑니다.</div>\n    </div>\n    ' + raw.slice(at);
   assert.notEqual(restored, raw, '변이가 안 꽂혔다');

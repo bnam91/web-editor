@@ -15,7 +15,6 @@ const { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS } = r
 /* ★미이관 명단 — U1 그리드 · U2 텍스트 · U3 컨테이너 · U4 미디어/도형 · U5 조합/스티커. U0 이관 = gap-block · bridge-block. */
 const UNMIGRATED = [
   'text-block', 'icon-text-block', 'speech-bubble-block', 'quote-block', 'label-group-block',     // U2
-  'page', 'section', 'frame', 'row', 'multisel', 'canvas-block', 'modal-block',                   // U3
   'asset-block', 'shape-block', 'icon-circle-block', 'icon-block', 'vector-block', 'mockup-block',
   'zoom-block', 'gradient-block', 'divider-block', 'joker-block', 'annotation-block',             // U4(annotation = 수동 입구 — U4 가 이관 머지 때 뺀다)
   'sticker-block', 'laurel-block', 'banner02-block', 'table-block', 'graph-block', 'step-block',
@@ -26,9 +25,10 @@ const UNMIGRATED = [
 const MANUAL = {
   page: () => { window.deselectAll?.(); window.showPageProperties(); },
   section: () => { window.deselectAll?.(); window.selectSection(window.__secEl()); },
-  frame: null,
-  row: null,
-  multisel: null,
+  /* U3 — 섹션 직속 새 프레임 · 칸 둘 row · 글 둘 흐름 멀티선택(정렬·분배·글자 크기) */
+  frame: () => { window.deselectAll?.(); const s = window.__secEl(); window.selectSection(s); window.addFrameBlock(); window.showFrameProperties([...s.querySelectorAll('.frame-block:not([data-text-frame])')].pop()); },
+  row: () => { window.deselectAll?.(); const r = document.createElement('div'); r.className = 'row'; r.dataset.layout = 'flex'; r.innerHTML = '<div class="col" data-flex="1"></div><div class="col" data-flex="1"></div>'; window.__secEl().querySelector('.section-inner').appendChild(r); window.showRowProperties(r); },
+  multisel: () => { window.deselectAll?.(); const s = window.__secEl(); for (let i = 0; i < 2; i++) { window.selectSection(s); window.addTextBlock('body'); } const t = [...s.querySelectorAll('.text-block')].slice(-2); window.deselectAll?.(); t.forEach((b) => b.classList.add('selected')); window.showFlowMultiSelPanel(); },
   /* annotation-block 은 SECTION_BLOCK_TYPE_SEL 밖이라 로스터가 못 센다 — 펜 도구 대신 공용 생성기(makeAnnotationBlock)로 넣고 패널을 연다(annot-point-angle-leak 꼴) */
   'annotation-block': () => { const a = window.makeAnnotationBlock({ points: [[20, 20], [160, 90]], text: 'GATE' }); window.__secEl().appendChild(a); window.deselectAll?.(); window.showAnnotationProperties(a); },
 };

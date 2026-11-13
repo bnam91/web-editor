@@ -4,6 +4,7 @@
 
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 
 function showRowProperties(rowEl) {
   const layout = rowEl.dataset.layout || 'stack';
@@ -54,21 +55,19 @@ function showRowProperties(rowEl) {
     childRadiusVal = radii.every(r => r === radii[0]) ? radii[0] : '';
   }
 
+  /* 자식 일괄 — 높이는 Layout 절(Child Blocks) · radius 는 Appearance 절(Q2 모서리 = 모양) */
   const childBatchHTML = hasChildren ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Child Blocks</div>
       <div class="prop-row">
-        <span class="prop-label">높이</span>
+        <span class="prop-label">자식 높이</span>
         <input type="range" class="prop-slider" id="row-child-h-slider" min="0" max="600" step="4" value="${childHeightVal || 0}">
-        <input type="number" class="prop-number" id="row-child-h-number" min="0" max="600" value="${childHeightVal}" placeholder="auto">
-      </div>
-      ${allCards ? `
+        <input type="number" class="prop-number" id="row-child-h-number" min="0" max="600" value="${childHeightVal}" placeholder="자동">
+      </div>` : '';
+  const childRadiusHTML = allCards ? `
       <div class="prop-row">
-        <span class="prop-label">radius</span>
+        <span class="prop-label">자식 모서리</span>
         <input type="range" class="prop-slider" id="row-child-r-slider" min="0" max="40" step="2" value="${childRadiusVal || 0}">
         <input type="number" class="prop-number" id="row-child-r-number" min="0" max="40" value="${childRadiusVal}">
-      </div>` : ''}
-    </div>` : '';
+      </div>` : '';
 
 
   /* 컬럼 비율 HTML */
@@ -98,43 +97,37 @@ function showRowProperties(rowEl) {
       </div>`;
   }
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(rowEl, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="4" height="10" rx="0.5"/><rect x="7" y="1" width="4" height="10" rx="0.5"/>
           </svg>`,
       name: rowEl.dataset.layerName,
       defaultName: 'Grid',
       id: rowEl.id,
-    })}
-    </div>
-    ${layout !== 'stack' ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Column Ratio</div>
-      ${colRatioHTML}
-    </div>` : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">Size / Spacing</div>
+    }),
+    sections: [
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="row-height-slider" min="${minRowHeight}" max="1200" step="8" value="${rowHeight}">
-        <input type="number" class="prop-number" id="row-height-number" min="${minRowHeight}" max="1200" value="${rowHeight || ''}" placeholder="auto">
-      </div>
-      ${layout !== 'stack' ? `
+        <input type="number" class="prop-number" id="row-height-number" min="${minRowHeight}" max="1200" value="${rowHeight || ''}" placeholder="자동">
+      </div>`),
+      sec('layout', (layout !== 'stack' ? colRatioHTML + `
       <div class="prop-row">
         <span class="prop-label">gap</span>
         <input type="range" class="prop-slider" id="row-gap-slider" min="0" max="80" step="4" value="${currentGap}">
         <input type="number" class="prop-number" id="row-gap-number" min="0" max="80" value="${currentGap}">
-      </div>` : ''}
+      </div>` : '') + childBatchHTML),
+      sec('padding', `
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
-      </div>
-    </div>
-    ${childBatchHTML}
-    `;
+      </div>`),
+      sec('appearance', childRadiusHTML),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(rowEl.id);
 

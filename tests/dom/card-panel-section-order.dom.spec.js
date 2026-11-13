@@ -1,9 +1,11 @@
-/* card-panel-section-order.dom.spec.js — 1017t1d2: 카드 블럭 우측패널 「Card Grid」 절을
- * 그리드블럭처럼 ★맨 위로 올리고 ★접을 수 있게.
- *
- * ★기준선 a60d0c05 — 그 판의 「Card Grid (N×M)」 절은 ⑴ 「Card Size」보다 «아래»(line 512 vs 282)
- *   ⑵ 접이식 부품(id="cvb-grid-toggle")이 «없다»(평범한 .prop-section-title). 두 가지를 이 파일이
- *   기계로 증명한다 — N1 이 그 판의 소스를 그대로 실행해 ①②를 실측한다(손으로 베끼지 않는다).
+/* card-panel-section-order.dom.spec.js — 카드 블럭 우측패널 「Card Grid」(카드 수 c×r) 접이식.
+ * ★옛 발주 1017t1d2 는 「Card Grid 절을 그리드블럭처럼 맨 위로 + 접이식」이었다. ★U3(right-panel-unify, 2026-11-13) 이후 절 순서는
+ *   전역 정본(js/props/_section-spec.js — Size 가 Layout 앞)이 정하고, Card Grid 는 Layout 절 «안» 접이식(공용 discSec)이다.
+ *   (맨 위 자리를 되살릴지는 현빈 결정 대기 — 지디 경유 F3.)
+ * 지금 재는 것: C1 = #cvb-grid-toggle 접이식이 있다 · Layout 절(data-sec="layout") 안 · 기본 접힘 · 머리에 「1×1」 ·
+ *   C2 = 누르면 펼쳐지고 피커 16칸이 DOM 에 있다(지움이 아니라 접힘).
+ * ★기준선 a60d0c05 — 그 판엔 접이식 부품(id="cvb-grid-toggle")이 «없다»(평범한 .prop-section-title). N1 이 그 판의 소스를 그대로 실행해
+ *   그 사실을 실측한다(C1 의 접이식 단언이 실제로 재고 있다는 음성대조).
  * ⛔waitForTimeout 없음(ratchet tests/unit/dom-fixed-wait-census.test.mjs W3) — waitForFunction 로만 기다린다.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js card-panel-section-order
  */
@@ -51,15 +53,16 @@ const probe = (page) => page.evaluate(() => {
   };
 });
 
-test('C1 ★실측 — 「Card Grid」 절이 「Card Size」보다 위이고 기본 접힘', async ({ page }) => {
+test('C1 ★실측 — 「Card Grid」 접이식이 Layout 절 안에 있고 기본 접힘', async ({ page }) => {
+  /* ★U3(right-panel-unify) — 옛 C1 은 「Card Grid 절이 Card Size 절보다 위」를 쟀다(1017t1d2). 이제 절 순서는 전역 정본
+     (js/props/_section-spec.js — Size 가 Layout 앞)이 정하고, 카드 수는 배치라 Layout 절 «안» 접이식(공용 discSec)으로 산다.
+     ⇐ 되돌리면 빨강: 접이식을 빼면(hasDisclosure) · 다른 절로 옮기면(gridSec) · 기본을 펼침으로 바꾸면(bodyDisplay). */
   const { errs } = await setup(page);
   const p = await probe(page);
+  const gridSec = await page.evaluate(() => document.getElementById('cvb-grid-toggle')?.closest('.prop-section[data-sec]')?.dataset.sec || null);
   expect(errs, 'JS 오류 0건').toEqual([]);
-  expect(p.gridTitleIdx, `「Card Grid」 절이 없다 — 산 제목: ${JSON.stringify(p.titles)}`).toBeGreaterThanOrEqual(0);
-  expect(p.sizeTitleIdx, '「Card Size」 절이 없다').toBeGreaterThanOrEqual(0);
-  expect(p.gridTitleIdx, `★발주(1017t1d2) — Card Grid 가 Card Size 위에 있어야 한다. 제목 순서: ${JSON.stringify(p.titles)}`)
-    .toBeLessThan(p.sizeTitleIdx);
   expect(p.hasDisclosure, '접이식 쉐브론 머리(#cvb-grid-toggle)가 없다').toBe(true);
+  expect(gridSec, `「Card Grid」 접이식이 Layout 절 밖이다 — 산 제목: ${JSON.stringify(p.titles)}`).toBe('layout');
   expect(p.bodyDisplay, '★기본은 «접힘»이다(그리드 Grid(N×M) 절과 같은 dflt)').toBe('none');
   expect(p.headText, `접힌 제목이 지금 몇 칸인지 말해야 한다 (실제: "${p.headText}")`).toContain('1×1');
 });

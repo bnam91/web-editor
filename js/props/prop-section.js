@@ -2,6 +2,7 @@ import { propPanel } from '../globals.js';
 import { exportFormatOptionsHTML, isAnimFormat } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
+import { renderPanel, sec as panelSec } from './_panel-frame.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
@@ -703,9 +704,9 @@ async function showSectionProperties(sec) {
     `<option value="${escHtml(p.id)}"${p.id === currentPreset ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. Preset = Type · 높이/핀 = Size · Text Color 는 Fill 안 · 섹션 밖 보이기 = Appearance. */
+  renderPanel(sec, {
+    header: blockHeaderHTML({
       icon: `          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>
           </svg>`,
@@ -713,11 +714,15 @@ ${blockHeaderHTML({
       defaultName: 'Section',
       crumb: getBlockBreadcrumb(sec),
       id: sec.id,
-    })}
+    }),
+    sections: [
+      panelSec('kind', `
       <div class="prop-row">
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
       </div>
+`),
+      panelSec('size', `
       <!-- ★(다) 이 섹션의 «지금» 높이 — 현빈 2026-10-07. 표시 + 숫자칸(261114 — 치면 section-pin.js setHeight = «핀 + 그 높이»).
            ⛔수를 여기서 다시 계산하지 마라 — 캔버스 배지·합계와 ★같은 함수(window.measureSectionHeight)를
              부른다. 값의 출처가 둘이면 어느 날 갈린다(js/section-height.js 머리말).
@@ -737,28 +742,8 @@ ${blockHeaderHTML({
         <button type="button" class="prop-action-btn secondary" id="sec-pin-peek-btn" aria-pressed="false" style="width:auto;flex:1;margin-top:0;">전체 보기</button>
         <button type="button" class="prop-action-btn secondary" id="sec-pin-off-btn" style="width:auto;flex:1;margin-top:0;">핀 해제</button>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
-      </div>
-      ${meshHintHTML}
-      ${meshHTML}
-      <span class="prop-field-label" style="margin-top:8px">Background Image</span>
-      ${bgImgHTML}
-      <!-- ★무늬·효과 묶음 — 현빈 261116 «노트무늬를 파티클 켜기랑 같이 묶고 소제목을 바꿔(임시)». 소제목은 여기 한 자리
-           (secParticlesHTML 은 라벨을 안 낸다). 둘 다 비면(그림 있음 + 파티클 미탑재) 라벨도 안 낸다. -->
-      <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
-           ★칸의 몸은 js/props/prop-section-particles.js 한 자리다 — 효과가 늘어도 이 줄은 그대로다.
-           ⛔배경색·배경이미지 칸과 «섞이지» 않는다: 그 파일은 sec.style.background* 와 sec.dataset.bg* 를
-             한 번도 쓰지 않는다(현빈 2026-10-07 「배경색이 계속 바뀌면 안되는거 알지?」). -->
-      ${_fxGroupHTML(noteHTML, window.secParticlesHTML?.(sec) || '')}
-    </div>
-    ${colorRows ? `<div class="prop-section"><div class="prop-section-title">Text Color</div>${colorRows}</div>` : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">Bulk Align</div>
+`),
+      panelSec('layout', `
       <div class="prop-align-group">
         <button class="prop-align-btn" id="sec-align-left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -779,25 +764,42 @@ ${blockHeaderHTML({
           </svg>
         </button>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Padding</div>
+`),
+      panelSec('padding', `
       ${sliderRowHTML('좌우 패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
       <div class="prop-row">
         <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
       </div>
+`),
+      panelSec('appearance', `
       <div class="prop-row">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;" title="기본은 섹션 경계 밖이 잘립니다. 켜면 미리보기에서 경계 밖 요소도 보입니다. (내보내기 PNG는 항상 섹션 크기로 잘림)">
           <input type="checkbox" id="sec-overflow-visible" ${sec.dataset.overflowVisible === 'true' ? 'checked' : ''}>
           섹션 밖 보이기 (미리보기)
         </label>
       </div>
-    </div>
-    <!-- Memo: section-toolbar의 📝 버튼으로 popover 표시 (prop 패널 X) -->
-    <div class="prop-section">
-      <div class="prop-section-title">Export</div>
+`),
+      panelSec('fill', `
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
+      </div>
+      ${meshHintHTML}
+      ${meshHTML}
+      <span class="prop-field-label" style="margin-top:8px">Background Image</span>
+      ${bgImgHTML}
+      <!-- ★무늬·효과 묶음 — 현빈 261116 «노트무늬를 파티클 켜기랑 같이 묶고 소제목을 바꿔(임시)». 소제목은 여기 한 자리
+           (secParticlesHTML 은 라벨을 안 낸다). 둘 다 비면(그림 있음 + 파티클 미탑재) 라벨도 안 낸다. -->
+      <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
+           ★칸의 몸은 js/props/prop-section-particles.js 한 자리다 — 효과가 늘어도 이 줄은 그대로다.
+           ⛔배경색·배경이미지 칸과 «섞이지» 않는다: 그 파일은 sec.style.background* 와 sec.dataset.bg* 를
+             한 번도 쓰지 않는다(현빈 2026-10-07 「배경색이 계속 바뀌면 안되는거 알지?」). -->
+      ${_fxGroupHTML(noteHTML, window.secParticlesHTML?.(sec) || '')}
+` + (colorRows ? `
+      <span class="prop-field-label">Text Color</span>${colorRows}` : '')),
+      panelSec('export', `
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-export-format" style="flex:1;min-width:0;">
           ${/* ★t6-01 — ★꼴 명부 정본 한 자리에서 파생. ★섹션 쪽은 ★기억값이 ★없다(언제나 첫 꼴). */''}
@@ -810,9 +812,8 @@ ${blockHeaderHTML({
         </select>
       </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Template</div>
+`),
+      panelSec('template', `
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-tpl-folder" style="flex:1;min-width:0;">
           ${(()=>{
@@ -834,7 +835,9 @@ ${blockHeaderHTML({
       <!-- ★추천 태그 — 역할을 고르면 여기가 바뀐다. ⛔«가둠»이 아니다: 위 입력칸에 직접 쳐도 된다. -->
       <div id="sec-tpl-tag-recos" class="tpl-tag-recos" style="margin-bottom:4px;"></div>
       <button class="prop-action-btn primary" id="sec-tpl-save-btn">템플릿으로 저장</button>
-    </div>`;
+`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
 

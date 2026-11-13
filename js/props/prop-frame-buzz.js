@@ -112,15 +112,16 @@ function _profileRows(frame) {
       </div>` : ''}`;
 }
 
-/** Buzz 절 마크업. 버즈 프레임이 아니면 ''. */
+/** Buzz 절 «몸통» 마크업. 버즈 프레임이 아니면 ''. */
 export function buzzSectionHTML(frame) {
   if (!isBuzzFrame(frame)) return '';
   const style = frame.dataset.buzzStyle || '';
   const layout = getBuzz(frame, 'layout');
   const n = buzzRows(frame).length;
   const squeezed = buzzCrowded(frame);
-  return `<div class="prop-section" id="bzf-section">
-      <div class="prop-section-title">Buzz</div>
+  /* ★U3 — 절 껍데기·제목(Buzz)은 틀이 그린다(prop-frame.js sec('special', …, { title: 'Buzz' })). 여기는 몸통만 — #bzf-section 은 다시 그리기(outerHTML) 자리. */
+  /* data-own=special:Buzz — 버즈 묶음의 너비·배경·크기는 «버즈 카드들»의 것이지 프레임의 Size/Fill 이 아니다 */
+  return `<div id="bzf-section" data-own="special:Buzz">
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="bzf-style" aria-label="스타일">

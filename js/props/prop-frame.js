@@ -14,6 +14,7 @@ import { buzzSectionHTML, wireBuzzSection, refitBuzzOnResize } from './prop-fram
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
+import { renderPanel, sec, unwrapSection } from './_panel-frame.js';
 
 /* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
      ★★`enterFrameBgEditMode`(대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px)로 ★갈았다.
@@ -56,15 +57,12 @@ function _headerHTML(el, mode) {
   const isBuzz = !isBanner && isBuzzFrame(el);
   const icon = isBanner ? _BANNER_ICON : (isBuzz ? buzzIconSvg({ size: 12, stroke: '#888' }) : _FRAME_ICON);
   const defaultName = isBanner ? 'Banner' : (isBuzz ? 'Buzz' : 'Frame');
-  return `
-    <div class="prop-section">
-${blockHeaderHTML({
+  return blockHeaderHTML({
       icon: `          ${icon}`,
       name: el.dataset.layerName,
       defaultName: defaultName,
       id: id,
-    })}
-    </div>`;
+    });
 }
 
 /* ════════════════════════════════════════
@@ -258,7 +256,7 @@ function _convertFreeLayoutToStack(ss) {
     return false;
   }
   if (a.rows.length === 0) {
-    window.showToast?.('빈 프레임은 stack 으로 바꿀 수 없습니다. 자식을 넣은 뒤 다시 눌러 주세요.');   // 네이티브 alert 은 렌더러를 얼린다(위 나란히 자식과 같은 고침)
+    window.showToast?.('빈 프레임은 stack 으로 바꿀 수 없습니다. 자식을 넣은 뒤 다시 눌러 주세요.');   // 네이티브 alert 은 렌더러를 얼린다(FRAME-STACK-EMPTY-FRAME-NATIVE-ALERT-01)
     return false;
   }
 
@@ -392,11 +390,16 @@ function _renderAutoPanel(ss) {
      ★★까닭: ★`effectiveSectionPadX` 가 ★★«자르는 프레임 안»에서 ★★그 값을 ★★뚫을 패딩으로 ★쓰게 됐다(★현빈 ①)
        ⇒ ★★같은 수를 ★★두 자리가 ★따로 읽으면 ★★명부가 ★둘이다. ⇒ ★★한 자리에서 ★가져온다. */
   const padX   = framePadXData(ss);
-  const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
-  const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
+  /* 칸 = «그려진» 크기(FRAME-WIDTH-FIELD-SHOWS-UNCLAMPED-01 · LEGACY-TPL-FRAME-PANEL-HEIGHT-SHOWS-FLOOR-01):
+     data-width 는 max-width:100% 에 조여질 수 있고(860 → 716) 옛 템플릿 data-height 는 «바닥»(100 → 내용 345) — 칸이 그 값을 보이면 화면과 다르다.
+     안 그려진 때(offset 0 · 유닛 vm)만 저장값.
+     ★패딩 제외(full-bleed)면 그려진 폭은 그 기능(calc(100%+2·pad))이 정한다 — 칸이 움직이는 것은 «끄면 돌아갈» 저장 폭이라 칸 = 저장 폭
+       (그려진 폭을 보이면 max 860 을 넘는 수가 뜨고, 그 칸을 만져도 화면 폭은 안 바뀐다).
+     ★_shownW 한 자리 — applyWidth 의 «옛 폭»(자식 비율 기준)도 이것을 쓴다(U3 평가 F2: 칸=716 인데 비율이 저장 860 기준이면 자식이 ~16% 더 준다). */
+  const _shownW = () => (ss.dataset.fullBleed === 'true' ? 0 : ss.offsetWidth) || parseInt(ss.dataset.width) || (isShapeFrame ? 100 : 780);
+  const width  = _shownW();
+  const height = ss.offsetHeight || parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
-  const shownW = Math.round(panelRenderedPx(ss, 'width')) || width;   // 칸 = 그려진 폭(섹션 안쪽 상한에 조여진 716 · dataset 860 아님) — FRAME-WIDTH-FIELD-SHOWS-UNCLAMPED-01 · 안 그려졌으면(auto) dataset
-  const shownH = Math.round(panelRenderedPx(ss, 'height')) || height;   // 칸 = 그려진 높이(옛 템플릿 data-height=100 은 «바닥» · 글 따라 345) — LEGACY-TPL-FRAME-PANEL-HEIGHT-SHOWS-FLOOR-01 · 안 그려졌으면 dataset
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 배경 절의 «체크 배경»·«체커 어둡게»를 그대로(prop-section.js · 같은 키·문구·어휘 · id 만 ss-*). */
   const _bgEmpty = ss.dataset.bgImgEmpty === '1';
@@ -480,7 +483,7 @@ function _renderAutoPanel(ss) {
   const bannerInnerXMax = isBannerInner ? Math.max(0, bannerOuterW - (parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0)) : 0;
 
   /* 프로토 Z6-C — 「Radial Arrange」 절(문자열은 js/radial-arrange.js). 이미 배치된 프레임이면 Layout 바로 아래에, 아니면 Child Align 아래에 「배치 시작」 단추만 둔다. */
-  const _radialSec = (isFreeLayout && !isShapeFrame) ? (window.radialArrangeSectionHTML?.(ss) || '') : '';
+  const _radialSec = (isFreeLayout && !isShapeFrame && !isBuzzFrame(ss)) ? (window.radialArrangeSectionHTML?.(ss) || '') : '';   /* 버즈 프레임은 제 배치(흩어짐/스택)가 있다 — 원형 배치 시작 단추를 안 둔다(U3 평가 F4 · 힌트 ≤2) */
   const _radialTop = ss.dataset.radialArrange === '1';
   /* ★1020t2f1(현빈 「그룹설정된 블럭들도 오버레이할 수 있는 버튼」) — ⌘G 그룹(.frame-block[data-group])의 패널에도
      오버레이 단추를 단다. ★동작은 js/overlay-float.js 한 벌(wireFloatToggle → enterFloat/exitFloat) — 여기선 «겉모습»만.
@@ -488,41 +491,119 @@ function _renderAutoPanel(ss) {
      ⛔그룹 «아닌» 프레임엔 아직 안 단다 — 요청이 그룹이다(넓히려면 현빈 확인). */
   const _isGroupFrame = ss.dataset.group === 'true';
   const _groupFloat = _isGroupFrame && ss.dataset.overlayBlock === 'true';
-  propPanel.innerHTML = _headerHTML(ss, 'auto') + `
-    ${isBuzzFrame(ss) ? buzzSectionHTML(ss) : ''}
-    ${isBanner ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Banner Preset</div>
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록한다. 절 «안» 마크업·id 는 옛 그대로.
+     Radial Arrange 는 Layout 절 안(옛 자리: stack 아래 또는 Child Align 아래) · Buzz = special · 코너(radius) = Appearance(Q2). */
+  const _rad = unwrapSection(_radialSec);   /* radial-arrange 는 «절 통째»를 준다 — Layout 절 안에 몸통만(U0c unwrapSection) */
+  const _radialHTML = _rad.body ? `
+      <div id="${_rad.id || 'ss-radial-section'}" data-own="layout"><span class="prop-field-label">Radial Arrange</span>${_rad.body}</div>` : '';   /* data-own=layout: 원형 배치의 반지름·칸 크기는 배치(Layout)의 수 — 모서리 radius·블록 Size 가 아니다 */
+  const _fx = window.fxSectionParts(ss, 'ss');   /* ★1017a7 Effects — 조각(U0b effects-registry) · #ss-fx-section 유지 · 머리 select = headTools */
+  renderPanel(ss, {
+    header: _headerHTML(ss, 'auto'),
+    sections: [
+      sec('kind', isBanner ? `
       <select class="prop-select" id="ss-banner-preset" style="width:100%;height:28px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;font-size:11px;">
         ${bannerOptionsHTML}
       </select>
       <button class="prop-action-btn secondary" id="ss-banner-swap-btn" style="margin-top:6px;">좌우 바꾸기</button>
-    </div>
-    ` : ''}
-    ${isBannerInner ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Banner Position</div>
+` : ''),
+      sec('position', (isBannerInner ? `
       <div class="prop-row">
         <span class="prop-label">X</span>
         <input type="range" class="prop-slider" id="ss-banner-inner-x-slider" min="0" max="${bannerInnerXMax}" step="1" value="${bannerInnerX}">
         <input type="number" class="prop-number" id="ss-banner-inner-x-num" min="0" max="${bannerInnerXMax}" value="${bannerInnerX}">
       </div>
-    </div>
-    ` : ''}
-    ${isBuzzFrame(ss) ? '' : `
-    <div class="prop-section">
-      ${_isGroupFrame ? `<div class="prop-section-title prop-ph-header">
-        <span>Layout</span>
-        ${overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: '그룹을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' })}
-      </div>` : '<div class="prop-section-title">Layout</div>'}
+` : '') + `
+      <div class="prop-row" style="gap:4px;">
+        <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
+        <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${parseInt(ss.dataset.translateX) || 0}">
+        <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
+        <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${parseInt(ss.dataset.translateY) || 0}">
+      </div>
+      <div class="prop-row" style="gap:4px;">
+        <span class="prop-label" style="flex-shrink:0;">각도</span>
+        <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
+        <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>
+      </div>
+      <div class="prop-row" style="gap:3px;justify-content:flex-end;margin-top:2px;">
+        <button class="prop-align-btn" id="ss-rotate-90" title="90° 시계 방향 회전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M11.5 4.5A5 5 0 1 0 13 8"/><polyline stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="9,2 12,4.5 9.5,7.5"/></svg></button>
+        <button class="prop-align-btn" id="ss-flip-h" title="좌우 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4"/><path fill="currentColor" opacity=".35" d="M8 5v6l-4-3z"/></svg></button>
+        <button class="prop-align-btn" id="ss-flip-v" title="상하 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2"/><path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/></svg></button>
+      </div>
+`, {
+        /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
+        headTools: (_isGroupFrame && !isBuzzFrame(ss)) ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: '그룹을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' }) : '',
+      }),
+      sec('size', `
+      <div class="prop-row">
+        <span class="prop-label">너비</span>
+        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
+        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${width}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="ss-height-slider" min="100" max="1200" step="10" value="${height}">
+        <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${height}">
+      </div>
+`),
+      sec('layout', (isBuzzFrame(ss) ? '' : `
       <div class="prop-row" style="gap:4px;">
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         <button class="prop-action-btn secondary" id="${isFreeLayout ? 'ss-to-stack-btn' : 'ss-to-free-btn'}" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">${isFreeLayout ? 'stack' : 'free'}</button>
       </div>
-    </div>`}
-    ${_radialTop ? _radialSec : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
+`) + (_radialTop ? _radialHTML : '') + `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
+        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { id: 'ss-align-left' } })}
+        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { id: 'ss-align-hcenter' } })}
+        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { id: 'ss-align-right' } })}
+        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { id: 'ss-align-top' } })}
+        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { id: 'ss-align-vcenter' } })}
+        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { id: 'ss-align-bottom' } })}
+      </div>
+      <div class="prop-row" style="margin-top:8px;">
+        <span class="prop-label" style="width:40px;">간격</span>
+        <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.style.gap) || 0}">
+        <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
+      </div>
+` + (_radialTop ? '' : _radialHTML)),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
+        <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
+        <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
+      </div>
+      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
+      <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}${canFullBleed ? '' : ' disabled'}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      ${canFullBleed ? '' : `
+      <div class="prop-row" style="align-items:flex-start">
+        <span class="prop-hint" id="ss-fullbleed-why" style="font-size:10px;line-height:1.4;color:#8a8a8a">${_fbWhy}</span>
+      </div>
+      `}
+`),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">코너</span>
+        <input type="range" class="prop-slider" id="ss-radius-slider" min="0" max="80" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="ss-radius-num" min="0" max="80" value="${radius}">
+      </div>
+      <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
+           ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
+             ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
+           ⇒ ★★켬 판정의 ★참값은 ★★js/clip-content.js 의 ★술어 ★하나다(2026-10-10 c2 에서 ★한 자리로 모았다). -->
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="ss-clip-toggle" ${clipsContent(ss) ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+`),
+      sec('fill', `
       <div class="prop-color-row">
         <span class="prop-label">${bgAlpha === 0 ? '배경색 (투명)' : '배경색'}</span>
         ${colorFieldHTML({ idPrefix: 'ss-bg', hex: hexBg, alpha: bgAlpha, gradientCss: bgGradCss })}
@@ -532,9 +613,7 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-bgopa-slider" min="0" max="100" step="1" value="${bgOpacity}">
         <input type="number" class="prop-number" id="ss-bgopa-num" min="0" max="100" value="${bgOpacity}">
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Bg Image</div>
+      <span class="prop-field-label">Image</span>
       <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${ss.dataset.bgImg ? '' : `<div id="ss-bg-empty-box">
@@ -566,9 +645,8 @@ function _renderAutoPanel(ss) {
         <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
         <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Border</div>
+`),
+      sec('stroke', `
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="ss-border-w-slider" min="0" max="20" step="1" value="${borderWidth}">
@@ -586,95 +664,10 @@ function _renderAutoPanel(ss) {
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'ss-border', hex: hexBorderColor, alpha: borderAlpha })}
       </div>
-      <div class="prop-row">
-        <span class="prop-label">코너</span>
-        <input type="range" class="prop-slider" id="ss-radius-slider" min="0" max="80" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="ss-radius-num" min="0" max="80" value="${radius}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${shownW}">
-        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${shownW}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="ss-height-slider" min="100" max="1200" step="10" value="${shownH}">
-        <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${shownH}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
-        <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
-        <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
-      </div>
-      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
-      <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="ss-fullbleed-toggle" ${isFullBleed ? 'checked' : ''}${canFullBleed ? '' : ' disabled'}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      ${canFullBleed ? '' : `
-      <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-hint" id="ss-fullbleed-why" style="font-size:10px;line-height:1.4;color:#8a8a8a">${_fbWhy}</span>
-      </div>
-      `}
-      <!-- ★내용 자르기(현빈 2026-09-30 「피그마처럼 프레임마다 켬/끔, 기본은 끔」).
-           ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
-             ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
-           ⇒ ★★켬 판정의 ★참값은 ★★js/clip-content.js 의 ★술어 ★하나다(2026-10-10 c2 에서 ★한 자리로 모았다). -->
-      <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="ss-clip-toggle" ${clipsContent(ss) ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Position</div>
-      <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
-        <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${parseInt(ss.dataset.translateX) || 0}">
-        <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
-        <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${parseInt(ss.dataset.translateY) || 0}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Child Align</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
-        ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { id: 'ss-align-left' } })}
-        ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { id: 'ss-align-hcenter' } })}
-        ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', attrs: { id: 'ss-align-right' } })}
-        ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', attrs: { id: 'ss-align-top' } })}
-        ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { id: 'ss-align-vcenter' } })}
-        ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { id: 'ss-align-bottom' } })}
-      </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label" style="width:40px;">간격</span>
-        <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.style.gap) || 0}">
-        <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
-      </div>
-    </div>
-    ${_radialTop ? '' : _radialSec}
-    <div class="prop-section">
-      <div class="prop-section-title">Rotate / Flip</div>
-      <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="flex-shrink:0;">각도</span>
-        <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
-        <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>
-      </div>
-      <div class="prop-row" style="gap:3px;justify-content:flex-end;margin-top:2px;">
-        <button class="prop-align-btn" id="ss-rotate-90" title="90° 시계 방향 회전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M11.5 4.5A5 5 0 1 0 13 8"/><polyline stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="9,2 12,4.5 9.5,7.5"/></svg></button>
-        <button class="prop-align-btn" id="ss-flip-h" title="좌우 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4"/><path fill="currentColor" opacity=".35" d="M8 5v6l-4-3z"/></svg></button>
-        <button class="prop-align-btn" id="ss-flip-v" title="상하 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2"/><path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/></svg></button>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Component</div>
+`),
+      sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools }),
+      sec('special', isBuzzFrame(ss) ? buzzSectionHTML(ss) : '', { title: 'Buzz' }),
+      sec('template', `
       ${(() => {
         const allTemplates = window.loadTemplates?.() || [];
         const folders = window.listTemplateFolders?.(allTemplates) || [];
@@ -695,8 +688,9 @@ function _renderAutoPanel(ss) {
           <button class="prop-action-btn primary" id="ss-tpl-save-btn" style="margin-top:4px;">컴포넌트로 저장</button>
         `;
       })()}
-    </div>
-    ${window.fxSectionHtml?.(ss, 'ss') || ''}`;   /* ★1017a7 Effects — ★맨 끝(prop-shape.js:356 과 같은 자리 · 지디 승인분 그대로) */
+`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
   /* 프로토 Z6-C — 「Radial Arrange」 절 배선(절 문자열·동작은 js/radial-arrange.js · index.html 이 싣는다). 절이 없으면 아무 일도 안 한다. */
@@ -1117,11 +1111,11 @@ function _renderAutoPanel(ss) {
   // 너비
   const widthSlider = document.getElementById('ss-width-slider');
   const widthNum    = document.getElementById('ss-width-num');
-  const applyWidth  = (v) => {
-    const oldW = parseInt(ss.dataset.width) || ss.offsetWidth || (isShapeFrame ? 100 : 860);
+  const applyWidth  = (v, { scaleChildren = true } = {}) => {
+    const oldW = _shownW();   // ★칸이 보이는 그 값(위 머리말) — 저장값 먼저면 조여진 프레임에서 자식이 엉뚱한 비율로 준다
     const newW = parseInt(v);
     /* 손잡이로 폭만 바뀐 뒤면 자식은 그 전 폭에 맞아 있다 — 기준은 그 폭(js/overlay-handles.js onMove 가 남긴다). 한 번 맞추면 지운다. */
-    const ratio = newW / (parseInt(ss.dataset.childScaleW) || oldW);
+    const ratio = scaleChildren ? newW / (parseInt(ss.dataset.childScaleW) || oldW) : 1;
     delete ss.dataset.childScaleW;
     if (ratio !== 1) {
       ss.querySelectorAll(':scope > [style*="position: absolute"], :scope > [style*="position:absolute"]').forEach(block => {
@@ -1197,7 +1191,7 @@ function _renderAutoPanel(ss) {
       } else {
         delete ss.dataset.fullBleed;
         clearBlockFullBleed(ss);
-        applyWidth(parseInt(ss.dataset.width) || width);   // 자연 폭 복원은 호출부 몫
+        applyWidth(parseInt(ss.dataset.width) || width, { scaleChildren: false });   // 자연 폭 복원은 호출부 몫 · 폭을 «되돌리는» 것이라 자식 비율은 안 건드린다(옛 판도 저장/저장 = 1)
       }
       /* 버즈(1013t2 D1) — 새 버즈는 이 스위치가 켜진 채로 들어온다. 끄면 프레임이 패딩만큼 좁아지므로 밖으로 나간 말풍선이 있으면
          같은 무늬번호로 안에 다시 놓는다(안 나갔으면 무동작 · 높이 칸의 그 길과 같다 · 히스토리는 위의 한 칸에 같이 든다). */

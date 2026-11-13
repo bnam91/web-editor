@@ -123,12 +123,12 @@ test('M1 ★섹션 Background 절에 ★「메시 그라데이션」 단추가 �
   const r = await page.evaluate(() => {
     const b = document.getElementById('sec-bg-mesh');
     if (!b) return { found: false };
-    const sec = b.closest('.prop-section');
-    const title = sec?.querySelector('.prop-section-title')?.textContent?.trim() || '';
-    return { found: true, title, text: b.textContent.trim() };
+    /* ★U3(right-panel-unify) — 옛 「Background」 절 = 틀의 Fill 절(data-sec="fill"). 제목 글자 대신 절 key 로 잰다. */
+    const sec = b.closest('.prop-section[data-sec]');
+    return { found: true, title: sec?.dataset.sec || '', text: b.textContent.trim() };
   });
   expect(r.found, '`#sec-bg-mesh` 단추가 패널에 없다').toBe(true);
-  expect(r.title, `단추가 든 절의 제목 = "${r.title}"`).toBe('Background');
+  expect(r.title, `단추가 든 절의 key = "${r.title}"`).toBe('fill');
 });
 
 test('M2 ★켜면 ★네 모서리 색 칸이 ★«넷» 생긴다 (TL·TR·BR·BL)', async ({ page }) => {

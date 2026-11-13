@@ -320,12 +320,12 @@ function radialArrangeSectionHTML(ss) {
           ${shapeBtns.map(([k, ko]) => `<button class="prop-type-btn${k === active ? ' active' : ''}" id="ss-radial-shape-${k}" data-radial-shape="${k}" title="${k === 'circle' ? '원 — 항목 수를 자유롭게' : `${k}각형 — 항목 수 ${k}개`}" style="min-width:0;">${ko}</button>`).join('')}
         </div>
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${isPoly ? ' title="꼭짓점 수로 고정"' : ''}>
         <span class="prop-label">항목 수</span>
         <button class="prop-count-btn" id="ss-radial-count-minus" style="${isPoly || m.count <= countMin ? off : ''}">−</button>
         <span class="prop-count-val" id="ss-radial-count-val">${m.count}</span>
         <button class="prop-count-btn" id="ss-radial-count-plus" style="${isPoly || m.count >= countMax ? off : ''}">+</button>
-        ${isPoly ? '<span class="prop-hint" style="padding:0 0 0 6px;text-align:left;">꼭짓점 수로 고정</span>' : ''}
+        <!-- 「꼭짓점 수로 고정」은 줄 툴팁(위) — 패널당 힌트 ≤2(right-panel-unify U3 · 평가 F4) -->
       </div>
       ${_sliderRow('반지름', 'ss-radial-radius', RA_LIMITS.RADIUS_MIN, m.radiusMax, 2, m.radius)}
       ${_sliderRow('시작 각도°', 'ss-radial-start', G.LIMITS.START_MIN, G.LIMITS.START_MAX, 1, m.start)}
@@ -341,8 +341,7 @@ function radialArrangeSectionHTML(ss) {
       ${m.center === '1' ? _sliderRow('가운데 크기', 'ss-radial-centersize', RA_LIMITS.CENTER_MIN, RA_LIMITS.CENTER_MAX, 4, m.centerSize) : ''}
       <button class="prop-action-btn secondary" id="ss-radial-fill-samples">샘플 그림 채우기</button>
       <button class="prop-action-btn secondary" id="ss-radial-clear-images" style="${filled ? '' : off}">그림 비우기</button>
-      <button class="prop-action-btn primary" id="ss-radial-apply">다시 배치</button>
-      <div class="prop-hint">손으로 옮기거나 키운 칸은 처음 자리와 크기로 돌아갑니다 (⌘Z 복원)</div>
+      <button class="prop-action-btn primary" id="ss-radial-apply" title="손으로 옮기거나 키운 칸은 처음 자리와 크기로 돌아갑니다 (⌘Z 복원)">다시 배치</button>
     </div>`;
 }
 
