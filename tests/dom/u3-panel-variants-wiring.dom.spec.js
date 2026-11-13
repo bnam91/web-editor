@@ -64,8 +64,10 @@ for (const [name, prep] of Object.entries(FRAME)) {
 
 test('V-section — 섹션 패널(배경·파티클·메시 칸 포함) · 좌우 패딩이 쓴다', async ({ page }) => {
   const errs = await scene(page);
+  await run(page, () => window.selectSection(window.__S()));
+  /* showSectionProperties 는 async(_presetsReady 뒤 그린다) — 칸이 선 뒤에 쓴다(태양 판정 · 제품 결함 아님). */
+  await page.waitForFunction(() => document.getElementById('sec-padx-number'));
   const r = await run(page, () => {
-    window.selectSection(window.__S());
     window.__write('sec-padx-number', 24);
     return { padx: document.getElementById('sVi').dataset.paddingX, ptc: !!document.getElementById('sec-fxpart-toggle'), mesh: !!document.getElementById('sec-bg-mesh') };
   });

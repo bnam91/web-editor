@@ -5,7 +5,7 @@
  * 칸마다: [양성] 옛 자(LIVE_SEL_OLD / 옛 색짝 식)로 재면 그 꼴이 «걸린다» — 그래야 새 자의 초록이 공짜가 아니다.
  *         [음성] 새 자도 «진짜 빈 절» · «진짜 색짝»은 여전히 잡는다(규칙을 넓혀 눈멀지 않았다).
  * R1~R3 = 손 픽스처(setContent · 앱 무부팅) · R4 = 실제 그래프·배너02 패널(앱 부팅) — data-own 없이 ⑶ 만으로 소유 위반 0.
- *   (태양 가지 ui/rp-u6-fix 는 graph·banner02 추가 단추에 data-own=content 를 임시로 달았다 — 이 판(ca61b210e 위)엔 없다 ⇒ R4 가 «없어도 통과»를 보인다.)
+ *   (태양 가지 ui/rp-u6-fix 는 graph·banner02 추가 단추에 data-own=content 를 달았다 — R4 는 그 단추 속성만 걷고 «없어도 통과»를 보인다.)
  * ⛔고정 대기 0 · 앱 = bootApp(index.html + 레포 파일 · 크로미움).
  */
 const { test, expect } = require('@playwright/test');
@@ -91,6 +91,10 @@ for (const k of REAL) {
     expect(r.err, '[전제] 블록이 들어갔다').toBeUndefined();
     await page.evaluate((id) => window.selectBlock(id), r.id);
     await expect(page.locator(`#panel-right #${k.btn}`), '[전제] 추가 단추가 떴다').toBeAttached();
+    /* 제품(ui/rp-u6-fix db3a89c66)은 이 단추 «자신»에 data-own=content 를 달았다(없어도 됨) — 시험이 그 한 속성만 걷어 ⑶ 만 잰다.
+     * 조상 줄의 data-own 은 걷지 않는다: 남아 있으면 아래 [전제] own:false 가 빨개진다. */
+    const own0 = await page.evaluate((b) => { const e = document.getElementById(b); const v = e.getAttribute('data-own'); e.removeAttribute('data-own'); return v; }, k.btn);
+    expect([null, 'content'], `[전제] 단추 자신의 data-own 은 없거나 content — 받음 ${own0}`).toContain(own0);
     const pre = await page.evaluate((b) => { const e = document.getElementById(b); return { own: !!e.closest('[data-own]'), sec: e.closest('.prop-section[data-sec]')?.dataset.sec ?? null }; }, k.btn);
     expect(pre, '[전제] data-own 없음 · Content 절 안').toEqual({ own: false, sec: 'content' });
     expect(await oldPaired(page, k.btn), '[양성] 옛 식은 이 단추를 색짝으로 잡았다(앞 형제 안에 색 칸) — 아니면 이 칸은 ⑶ 을 안 잰다').toBe(true);

@@ -35,7 +35,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-props.css">
 <link rel="stylesheet" href="/css/color-picker.css">
 <link rel="stylesheet" href="/css/editor-blocks.css">
-<style>#panel-right{position:fixed;left:0;top:0;width:240px;} #canvas{position:absolute;left:600px;top:0;}</style>
+<style>#panel-right{position:fixed;left:0;top:0;bottom:0;width:240px;display:flex;flex-direction:column;} .panel-body{flex:1;overflow-y:auto;} #canvas{position:absolute;left:600px;top:0;}</style>
 </head><body>
 <div id="canvas"><div class="section-block"><div class="section-inner" id="host">
   ${SHAPE('shpA', 'rectangle', '#3366ff')}
