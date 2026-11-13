@@ -53,6 +53,26 @@
 </div>
 ```
 
+### 2-0. ★절은 틀이 그린다 — `sec()` / `renderPanel()` (right-panel-unify, 2026-11-13~)
+
+위 «손으로 짠 절»은 옛 꼴이다. 새 패널·이관한 패널은 `js/props/_panel-frame.js` 로 절을 등록한다:
+
+```js
+renderPanel(block, { header: blockHeaderHTML({...}), sections: [sec('size', html), sec('fill', html)] });
+```
+```html
+<div class="prop-section" data-sec="size" data-sec-state="size" id="psec-size">
+  <div class="prop-section-title-row prop-sec-head">
+    <div class="prop-section-title" id="psec-size-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-size-body">… 크기</div>
+    <!-- headTools(플로팅 토글 등) -->
+  </div>
+  <div class="prop-sec-body" id="psec-size-body"> …절 안 마크업(id·핸들러 그대로)… </div>
+</div>
+```
+- 순서·제목 정본 = `js/props/_section-spec.js`(종류·내용·위치·크기·배치·여백·모양·글자·채움·테두리·효과·(고유)·내보내기·템플릿). 제목은 한글, 괄호·영문 없음.
+- 접기 = 절 key 단위 전 블록 공통(`localStorage['gd-panel-collapsed']`), 기본 전부 펼침. 상세: `_context/DESIGN_SYSTEM.md §11-A`.
+- 게이트: `tests/dom/panel-section-gate.dom.spec.js`(이관 안 된 블록은 그 파일 UNMIGRATED 명단). 이관 완료 = gap · bridge.
+
 ### 2-1. 헤더 명명 규칙 (2026-05-21 명문화)
 
 블록 패널은 모두 `block.dataset.layerName || 'DefaultName'` 패턴으로 헤더 이름을 표시한다.
@@ -357,8 +377,8 @@ window.applyPagePadX(padX)
 - [ ] 블록 헤더 `.prop-block-label` → 아이콘(16px) + 이름 + ID 배지
 - [ ] 헤더 아이콘 → `width/height: 16px`, Figma `#` 경로 (섹션/서브섹션/페이지) 또는 블록 타입 아이콘
 - [ ] ID 배지 `.prop-block-id` → 클릭 시 클립보드 복사 (`navigator.clipboard.writeText`)
-- [ ] 섹션 제목 `.prop-section-title` → `font-size: 11px`, `color: var(--text-hint)`
-- [ ] 섹션 구분 `.prop-section` → 하단 border 또는 padding으로 구분
+- [ ] 섹션 제목 → 틀(`sec()`)이 그린다: `--ui-sec-title-fs`(11px) · `--ui-sec-title-color`(#aaa) · hover `--ui-sec-title-color-hover` (미이관 패널은 옛 `.prop-section-title` 10px·muted)
+- [ ] 섹션 구분 `.prop-section + .prop-section` 위 1px 선 — 틀 절은 `--ui-sec-divider`(#444)
 - [ ] `prop-block-name` 텍스트는 반드시 `block.dataset.layerName || 'DefaultName'`으로 읽어야 함 (하드코딩 금지)
 
 ### 4-2. 입력 컴포넌트

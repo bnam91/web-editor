@@ -280,6 +280,7 @@
     <a href="#shadow">Shadow</a>
     <div class="grp">예시</div>
     <a href="#components">컴포넌트</a>
+    <a href="#panel-frame">패널 절 컴포넌트</a>
     <div class="grp">명세 · 가이드</div>
     <a href="#usage">토큰 사용 규칙 (Do/Don't)</a>
     <a href="#contrast">배경별 텍스트 대비</a>
@@ -558,6 +559,19 @@
       <div class="g-toast"><span class="g-badge ok" style="font-size:9px">✓</span> 자동 저장됨</div>
     </div>
     <p class="note">패널 배경 #252525 · 라벨폭 56px · 행 gap 4px · input 높이 24px</p>
+  </section>
+
+  <!-- ════════ PANEL FRAME (right-panel-unify U0) ════════ -->
+  <section id="panel-frame">
+    <h2>패널 절 컴포넌트 (실제 CSS)</h2>
+    <p class="desc">우측 속성 패널의 절은 모두 <code>js/props/_panel-frame.js</code> 의 <code>sec(key, html)</code> → <code>renderPanel(block, {header, sections})</code> 로 그린다.
+      순서·제목의 정본은 <code>js/props/_section-spec.js</code> 하나 — 해당 없는 절은 숨김이지 자리 이동이 아니다.
+      아래 틀은 <b>앱 CSS(editor-base · editor-props)를 그대로 싣고 진짜 <code>renderPanel()</code> 로 그린</b> 페이지다(순서표도 그 파일에서 import).
+      접기·hover·Tab 포커스를 직접 해 볼 수 있다.</p>
+    <iframe src="styleguide-panel.html" title="패널 절 컴포넌트" loading="lazy"
+            style="width:100%;height:1280px;border:1px solid var(--doc-border, #333);border-radius:8px;background:#1a1a1a"></iframe>
+    <p class="note">ES 모듈이라 file:// 로는 비어 보인다 — 레포 루트를 <code>python3 -m http.server --bind 127.0.0.1 8765</code> 로 서빙해 <code>/docs/styleguide.html</code> 로 연다.
+      규칙: 신규 패널 층은 색·px 리터럴 0(<code>scripts/check-design-tokens.sh</code> 하드게이트) · 절 제목 한글(괄호·영문 없음) · 힌트 패널당 ≤2 · 기본 전부 펼침.</p>
   </section>
 
   <!-- ════════ USAGE RULES ════════ -->

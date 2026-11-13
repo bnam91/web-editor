@@ -555,16 +555,23 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ## 11. 패널 공통 구조 + 타이포·대비 규칙
 
-### 11-A. 패널 공통 구조
-> 상세는 `docs/RIGHT_PANEL_PROPS.md §2` (단일 출처). 여기선 핵심만.
+### 11-A. 패널 공통 구조 — `sec()` / `renderPanel()` (right-panel-unify, 2026-11-13~)
+> 정본 = `js/props/_panel-frame.js` + `js/props/_section-spec.js`. 실물 = `docs/styleguide-panel.html`(앱 CSS + 진짜 renderPanel).
+> 이관 중: 파일럿 gap·bridge 만 틀을 쓴다(U0). 나머지는 U1~U5 가 옮기고 `tests/dom/panel-section-gate.dom.spec.js` 의 UNMIGRATED 명단에서 지운다.
 
-```html
-<div class="prop-section">
-  <div class="prop-section-title">제목</div>
-  <div class="prop-row"><span class="prop-label">…</span> …입력…</div>
-</div>
+```js
+renderPanel(block, {
+  header: blockHeaderHTML({ … }),
+  sections: [ sec('size', html), sec('fill', html), sec('special', html, { title: '꼬리' }) ],
+});   // 동기 — 뒤의 getElementById 배선은 그대로
 ```
-- 모든 우측 프로퍼티 패널은 `prop-section`(블록 단위) → `prop-section-title` → `prop-row`(라벨+컨트롤) 구조.
+- 전역 순서(없는 절은 숨김 · 순서는 늘 이 표의 부분열): 종류 · 내용 · 위치 · 크기 · 배치 · 여백 · 모양 · 글자 · 채움 · 테두리 · 효과 · (블록 고유) · 내보내기 · 템플릿.
+  key 는 `_section-spec.js` SECTION_ORDER. 한 key 를 두 번 선언하면 throw. 빈 html 절은 DOM 에 없다.
+- 제목 = 한글(괄호·영문 없음). special 은 title 필수. `stroke`=«테두리» — 글자 윤곽선은 그 절 안 «외곽선» 줄.
+- 마크업: `.prop-section[data-sec]` > `.prop-section-title-row.prop-sec-head` > `.prop-section-title[role=button][tabindex=0][aria-expanded][aria-controls]`(+headTools) / `.prop-sec-body`.
+- 접기: 절 key 단위 · 전 블록 공통 · `localStorage['gd-panel-collapsed']` · 기본 전부 펼침 · Enter/Space 로도 접힌다. 블록 «안» 하위 접기는 `_helpers.js` `discSec*` 그대로.
+- 조각: `fieldRowHTML(label, control)` · `hintHTML(text)`(패널당 ≤2) · `scopeChipsHTML(items, active)`.
+- 모양은 `css/editor-props.css` `panel-frame:BEGIN~END` 블록 — 토큰만(`--ui-sec-*` · `--ui-space-*` · `--ui-focus-ring`).
 - 토글 버튼: `.prop-align-btn` (`flex:1; height:24px`) — **버튼그룹 전용**. 단독 텍스트 토글로 쓸 땐 `flex:0 0 auto` 필수(안 그러면 늘어남).
 - 색 입력: `colorFieldHTML()` + `wireColorField()` (solid `onApply` / 그라데이션 `onGradient`).
 
