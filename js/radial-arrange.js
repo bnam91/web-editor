@@ -14,7 +14,8 @@
  * 파일창 · 네트워크 · 타이머 · 대화상자를 쓰지 않는다. 쓰는 전역은 전부 호출 시점에 window 에서 읽는다. */
 import './radial-geom.js';
 import './radial-samples.js';
-import { growFrameToFitChildren } from './frame-geometry.js';   // ★261020 이식: dev 는 window 에 안 올리고 export 로만 둔다(frame-geometry.js:435)
+import { growFrameToFitChildren } from './frame-geometry.js';
+import { fieldRowHTML } from './props/_panel-frame.js';   // 샘플 줄 = 틀의 필드 줄(⛔절 안에 절 제목을 두지 않는다)   // ★261020 이식: dev 는 window 에 안 올리고 export 로만 둔다(frame-geometry.js:435)
 
 const RA_DEFAULTS = Object.freeze({
   shape: 'circle', count: 6, radius: 250, start: -90, cell: 160, center: '1', centerSize: 220,
@@ -430,12 +431,12 @@ function circleSampleRowHTML(block) {
   const cur = block.classList.contains('has-image') ? (block.dataset.radialSample || '') : '';
   const box = 'width:24px;height:24px;padding:0;border-radius:6px;overflow:hidden;cursor:pointer;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--ui-bg-input);color:var(--ui-text-dim);font-size:var(--ui-fs-10);';
   const edge = on => `border:${on ? '2px solid var(--ui-accent-primary)' : '1px solid var(--ui-border-mid)'};`;
-  return `
-      <div class="prop-section-title" style="padding-top:10px;">샘플 그림</div>
-      <div id="icb-sample-row" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">
+  /* ★옛 꼴은 Content 절 «안»에 .prop-section-title(샘플 그림)을 한 번 더 둬 절 안 절이 됐다 ⇒ 라벨 + 단추 묶음 한 줄(fieldRowHTML). */
+  return fieldRowHTML('샘플 그림', `
+      <div id="icb-sample-row" style="display:flex;flex-wrap:wrap;gap:4px;flex:1 1 auto;min-width:0;">
         ${S.KEYS.map(k => `<button id="icb-sample-${k}" data-sample="${k}" title="${S.label(k)}" style="${box}${edge(cur === k)}">${S.svg(k)}</button>`).join('')}
         <button id="icb-sample-none" data-sample="" title="그림 비우기" style="${box}${edge(false)}">✕</button>
-      </div>`;
+      </div>`);
 }
 
 function wireCircleSampleRow(block, reopen) {
