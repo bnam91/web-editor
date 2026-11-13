@@ -3,6 +3,7 @@
  * S2 키보드 — Tab 으로 절 머리 도달 · :focus-visible 링(outline ≠ none) · Enter/Space 토글 · aria-expanded 반전 · aria-controls == 몸통 id
  * S3 넘침 — 좁은 패널 · 60자 블록 이름 · 긴 special 제목에도 패널·절에 가로 넘침 0 · 제목은 ellipsis
  * S4 겹침 0 — 절 머리 사각형끼리 안 겹치고 패널 안에 있다 · 제목 글자 ≥ --ui-fs-10
+ * S6 몸 아래 여백 = --ui-sec-body-pb «하나»(마지막 보이는 자식 margin 0 · 숨은 꼬리 건너뜀) — 마지막 절 빼고 전부 · 양성대조: 꼬리 margin 을 되살리면 어긋난다
  * S5 틀 절 몸 안의 옛 하위 절(.prop-section)은 좌우 들임 0 — 그 안 첫 줄 왼쪽 == 틀 몸 왼쪽(±0.5) · 양성대조: 틀 밖 같은 마크업은 들여진다
  * 양성대조(사람이 돌린다): S1 = editor-base.css 의 --ui-sec-title-color-hover 줄 삭제 → 빨강 ·
  *   S2 = _panel-frame.js 의 panel.addEventListener('keydown' …) 제거 → 빨강 · S3 = editor-props.css .prop-sec-title-text 의 text-overflow:ellipsis 제거 → 빨강.
@@ -124,5 +125,32 @@ test('S5 틀 절 몸 안 옛 하위 절 — 두 번 들이지 않는다(왼쪽 =
   });
   expect(Math.abs(r.nested), `★틀 몸 안 하위 절이 또 들여졌다(${r.nested})`).toBeLessThanOrEqual(0.5);
   expect(r.plain, '[양성대조] 틀 밖 .prop-section 은 들여진다 — 이 칸이 무엇을 잰다').toBeGreaterThan(0.5);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/** 토큰 길이를 px 로(브라우저가 var() 를 푼다). */
+const tokenPx = (page, name) => page.evaluate((name) => { const p = document.createElement('div'); p.style.paddingBottom = `var(${name})`; document.body.appendChild(p); const v = parseFloat(getComputedStyle(p).paddingBottom); p.remove(); return v; }, name);
+/** 펼친 data-sec 절마다(마지막 절 빼고) 몸 아래 틈 = 절 아래 − 몸의 마지막 «보이는» 자식 아래. */
+const bottomGaps = (page) => page.evaluate(() => {
+  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]:not(.is-collapsed)')];
+  return secs.slice(0, -1).map((s) => {
+    const kids = [...s.querySelector(':scope > .prop-sec-body').children].filter((k) => k.getClientRects().length);
+    const last = kids[kids.length - 1];
+    return { id: s.id, gap: last ? s.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom : null };
+  });
+});
+
+test('S6 몸 아래 여백 = --ui-sec-body-pb 하나 — 숨은 꼬리는 건너뛴다', async ({ page }) => {
+  const { errs } = await open(page, BRIDGE);
+  const pb = await tokenPx(page, '--ui-sec-body-pb');
+  /* 숨은 꼬리 둘(속성 hidden · 인라인 display:none) — 이것들이 «마지막 자식»이어도 그 앞 보이는 줄의 margin 이 꺼져야 한다 */
+  await page.evaluate(() => { const b = document.getElementById('psec-size-body'); b.insertAdjacentHTML('beforeend', '<div class="cv-chips" hidden></div><div class="prop-row" style="display:none">x</div>'); });
+  const g = await bottomGaps(page);
+  expect(g.length, '[전제] 마지막 빼고 잴 절이 있다(브릿지 Size · Fill)').toBeGreaterThanOrEqual(2);
+  for (const x of g) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
+  /* 양성대조 — 꼬리 줄의 margin 을 되살리면(=고치기 전) 틈이 pb 보다 커진다: 이 칸이 무엇을 잰다 */
+  await page.addStyleTag({ content: '.prop-sec-body > .prop-row { margin-bottom: var(--ui-space-2) !important; }' });
+  const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size');
+  expect(bad.gap - pb, '[양성대조] margin 을 되살렸는데 틈이 그대로다').toBeGreaterThan(0.5);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
