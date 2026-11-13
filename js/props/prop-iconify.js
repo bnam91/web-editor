@@ -191,7 +191,7 @@ export function showIconifyProperties(block) {
   };
 
   const loadPresets = async () => {
-    const res = await window.electronAPI?.svgPresets?.list();
+    const res = await window.electronAPI?.svgPresets?.list?.();
     if (!res?.ok) {
       presetCatSelect.innerHTML = '<option value="">(불러오기 실패)</option>';
       return;
