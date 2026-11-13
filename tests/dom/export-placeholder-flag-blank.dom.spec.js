@@ -35,6 +35,8 @@
  *   T5 빈 글자를 쓰면 표식을 «떼지 않는다» — 도로 안내문구 상태다.
  *   T6 ★진단 한 줄 — 글자가 통째로 안 그려지는 클론이면 [export-blank] 를 한 번 찍는다.
  *      (T-039 는 신고→원인이 일주일 걸렸다. 앱이 백지를 내면서 «아무 말도 안 했기» 때문이다.)
+ *      ★안내문구뿐이면 placeholderOnly:true + «안내문구뿐 — 정상 백지» (EXPORT-BLANK-WARN-EMPTY-SUBTITLE-SECTION-01)
+ *   T6b 양성대조 — 안내문구 아닌 글자가 숨어 백지면 placeholderOnly:false + 결함 문구
  *   T7 음성대조 — 정상 섹션에선 그 줄이 «안» 찍힌다(늘 찍히면 진단이 아니라 소음이다).
  *
  * ⛔앱을 «안» 띄운다 — index.html + 레포 파일만 크로미움에 얹는다.
@@ -263,6 +265,25 @@ test.describe('T-039 — 안내문구 표식이 내보내기를 백지로 만든
     expect(r.info.hiddenSample.length).toBeGreaterThan(0);
     expect(r.info.hiddenSample.every(h => h.ph !== null && h.txt === h.ph),
       '이 표본은 «안내문구뿐»이다 — 진단 줄만 보고 T-039 와 갈릴 수 있어야 한다').toBe(true);
+    /* EXPORT-BLANK-WARN-EMPTY-SUBTITLE-SECTION-01 — 안내문구뿐이면 «정상 백지»로 표시한다(줄은 그대로 한 줄) */
+    expect(r.info.placeholderOnly, '★안내문구뿐인데 결함처럼 말한다').toBe(true);
+    expect(r.lines[0]).toContain('안내문구뿐 — 정상 백지');
+    expect(errs).toEqual([]);
+  });
+
+  test('T6b [양성대조] 안내문구 «아닌» 글자가 숨어 백지면 placeholderOnly:false + 결함 문구', async ({ page }) => {
+    const errs = await boot(page);
+    test.skip(!(await page.evaluate(() => !!window.__warnBlank)), '진단은 고친 판에만 있다');
+    await plant(page);
+    await page.evaluate(() => {
+      document.querySelector('#sec1 thead')?.remove();
+      document.querySelector('#sec1').insertAdjacentHTML('beforeend', '<div class="text-block" id="tb9"><div class="tb-body" style="visibility:hidden">숨은 본문</div></div>');
+    });
+    const r = await diagnose(page);
+    expect(r.lines.length).toBe(1);
+    expect(r.info.placeholderOnly, '★진짜 글자가 숨었는데 «정상 백지»라 한다 — 표시가 아무것도 못 가른다').toBe(false);
+    expect(r.lines[0]).toContain('산출물이 백지가 된다');
+    expect(r.info.hiddenSample.some(h => h.ph === null && h.txt === '숨은 본문')).toBe(true);
     expect(errs).toEqual([]);
   });
 

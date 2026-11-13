@@ -418,9 +418,17 @@ export function warnIfCaptureTextVanished(clone, ctx) {
         ph:  el.dataset?.placeholder ?? null,     // null 이면 안내문구가 «아닌» 것이 숨은 것이다
         txt: (el.textContent || '').trim().slice(0, 24),
       }));
+    /* EXPORT-BLANK-WARN-EMPTY-SUBTITLE-SECTION-01 — 가진 글자가 «전부» 아직 안내문구면(빈 소제목뿐 섹션 등) 백지가 정상이다.
+       원인은 여전히 안 고른다: 줄은 찍되 placeholderOnly 로 «정상 백지»를 표시한다(맨 바깥 안내문구 요소만 센다 · 겹셈 0). */
+    const phChars = [...clone.querySelectorAll('[data-is-placeholder="true"]')]
+      .filter(el => !el.parentElement?.closest('[data-is-placeholder="true"]') && isStillPlaceholderText(el))
+      .reduce((n, el) => n + (el.textContent || '').replace(/\s+/g, '').length, 0);
+    const placeholderOnly = phChars === held.length;
     const info = { section: ctx?.sectionId || clone.id || '?', heldChars: held.length,
-                   shownChars: 0, hiddenSample: hidden };
-    console.warn('[export-blank] 캡처 클론에 글자가 하나도 «안 그려진다» — 산출물이 백지가 된다:', info);
+                   shownChars: 0, placeholderOnly, hiddenSample: hidden };
+    console.warn(placeholderOnly
+      ? '[export-blank] 안내문구뿐 — 정상 백지(입력 안 한 섹션):'
+      : '[export-blank] 캡처 클론에 글자가 하나도 «안 그려진다» — 산출물이 백지가 된다:', info);
     return info;
   } catch (_) { return null; }   // 진단이 내보내기를 깨뜨리면 안 된다
 }
