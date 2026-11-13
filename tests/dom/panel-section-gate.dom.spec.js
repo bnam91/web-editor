@@ -101,6 +101,18 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   expect(v.filter((x) => !x.startsWith('소유 위반')), '[전제] 소유 «만» 틀린 가짜다').toEqual([]);
 });
 
+test('G4 ★하위 접기 제외는 «그릇 안»만 — 그리드 칸 컨트롤이 그릇 밖이면 소유 위반(진짜 DOM 가짜 렌더)', async ({ page }) => {
+  await scene(page);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  expect(judgePanel(await readPanel(page), SPEC), '[전제] 정본 판은 통과').toEqual([]);
+  // 그리드 「칸 꾸미기」 몸통(#grd-cell-body) 안의 색 칸 — Size 절에 있어도 제외
+  await page.evaluate(() => { const w = document.createElement('div'); w.id = 'grd-cell-body'; w.innerHTML = '<input type="color" id="grd-cell-bg-color">'; document.getElementById('psec-size-body').appendChild(w); });
+  expect(judgePanel(await readPanel(page), SPEC), '★그릇 안 컨트롤이 빨갛다(제외가 안 먹는다)').toEqual([]);
+  // 같은 컨트롤을 그릇 «밖»(Size 절 몸 바로 아래)으로 — 빨강이어야 한다
+  await page.evaluate(() => { const c = document.getElementById('grd-cell-bg-color'); document.getElementById('psec-size-body').appendChild(c); document.getElementById('grd-cell-body').remove(); });
+  expect(judgePanel(await readPanel(page), SPEC), '★그릇 밖인데 못 잡는다').toEqual(['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다']);
+});
+
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });

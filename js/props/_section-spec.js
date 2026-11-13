@@ -44,7 +44,7 @@ export function isValidSectionTitle(t) {
  * ★class 는 안 본다 — `.prop-color-hex` 가 «작은 글칸 껍데기»로도 쓰여(iconify 프리셋 이름칸 등) class 로 재면 색 아닌 칸이 fill 로 간다.
  *   «색이다»는 input[type=color] 이거나 그 짝(같은 .prop-color-field 안 · 바로 앞 형제가 색 칸)일 때만(readPanel 이 잰다).
  * ★위에서부터 첫 일치가 이긴다. 'a+b' = 두 단어 다 · 'pad*' = 그 접두 단어 · '*rule' = 그 접미 단어. 어느 줄에도 안 걸리면 판정 밖(null).
- * ⛔애매한 컨트롤은 표를 비틀지 말고 OWNERSHIP_EXEMPT(id)에 까닭과 함께 뺀다. */
+ * ⛔애매한 컨트롤은 표를 비틀지 말고 OWNERSHIP_EXEMPT(id) 또는 OWNERSHIP_EXEMPT_SCOPES(그릇 id — 그 «안»만)에 까닭과 함께 뺀다. */
 export const OWNERSHIP = Object.freeze([
   [['border+color', 'stroke+color', '*rule'], 'stroke'],   // *rule = 그리드 「칸 사이 줄」(grd-colrule-*/grd-rowrule-*)
   [['radius'], 'appearance'],
@@ -58,6 +58,14 @@ export const OWNERSHIP = Object.freeze([
 ]);
 /** 판정 제외 — { 컨트롤 id: '까닭' }. 단위(U1~U5)가 애매한 자리를 여기 적는다. */
 export const OWNERSHIP_EXEMPT = Object.freeze({});
+/** 판정 제외 그릇 — { 그릇 id: '까닭' }. 그 그릇 «안»의 컨트롤만 뺀다(같은 컨트롤이 그릇 밖이면 판정한다).
+ *  그리드 하위 접기 몸통: 한 칸·한 줄·칸 사이 줄 스코프의 색·테두리·여백이 한 몸통에 섞여 사는 것이 설계다(§4-1 · U1). */
+export const OWNERSHIP_EXEMPT_SCOPES = Object.freeze({
+  'grd-cell-body': '그리드 「칸 꾸미기」 하위 접기 — 이 칸의 배경·테두리·여백이 한 몸통',
+  'grd-line-body': '그리드 「줄 꾸미기」 하위 접기 — 이 글줄의 글자·채움·테두리가 한 몸통',
+  'grd-rule-body': '그리드 「칸 사이 줄」 하위 접기 — 줄 굵기·들임·색이 한 몸통',
+});
+
 /** 컨트롤 → 판정 단어열. c = { id, type, data: [[이름, 값]…], pairedColor }. ⛔class 는 받아도 안 쓴다(위 머리말). */
 export function controlIdent(c) {
   return [c.id || '', ...(c.data || []).map(([n, v]) => `${n} ${v}`), (c.type === 'color' || c.pairedColor) ? 'color' : ''].join(' ').trim();
@@ -77,4 +85,4 @@ export function ownerOf(ident) {
 }
 
 /* ★window 로도 낸다 — 정적 import 없이 읽는 DOM 게이트·styleguide 용. Node vm 하네스에는 window 가 없다. */
-if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, controlIdent, ownerOf };
+if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };

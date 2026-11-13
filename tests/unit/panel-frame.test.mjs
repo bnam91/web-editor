@@ -15,6 +15,7 @@
  *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
  *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
  *   F12 소유 규칙 ownerOf/controlIdent — 컨트롤 id·data·«색이다» 표식 → 있어야 할 절(게이트의 본 칼날) · class 는 안 본다 · 표의 절 key 는 정본에 있다
+ *   F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그릇 밖이면 소유 위반(judgePanel · tests/dom/_panel-sections.js)
  *   F8 정본 표 — SECTION_ORDER 와 SECTION_TITLE 가 special 외 1:1 · 모든 제목이 규칙을 지킨다
  *   F9 파일럿 — prop-gap.js · prop-bridge.js 는 propPanel.innerHTML 대신 renderPanel 을 쓴다
  *   N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판을 올리면 F1 의 기대가 깨진다
@@ -52,7 +53,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, controlIdent, ownerOf };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
@@ -269,5 +270,17 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
   /* ★양성대조 — class 를 단어로 쳤다면 iconify 이름칸은 fill 로 갔다(그래서 controlIdent 가 class 를 버린다) */
   assert.equal(F.ownerOf('icn-preset-newcat-input prop-color-hex'), 'fill', '[양성대조] class 단어가 들어가면 색으로 오판한다');
   for (const [, key] of F.OWNERSHIP) assert.ok(F.SECTION_ORDER.includes(key), `★표에 모르는 절 key: ${key}`);
+  assert.deepEqual(Object.keys(F.OWNERSHIP_EXEMPT_SCOPES).sort(), ['grd-cell-body', 'grd-line-body', 'grd-rule-body']);
 });
 
+test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그릇 밖이면 소유 위반', () => {
+  const { loadSectionSpec, judgePanel } = _req('../dom/_panel-sections.js');
+  const spec = loadSectionSpec();
+  const c = (scope) => ({ id: 'grd-cell-bg-color', type: 'color', data: [], pairedColor: false, scope });
+  const panel = (scope) => ({ hints: 0, secs: [
+    { sec: null, isHeader: true, title: null, labels: [], controls: [] },
+    { sec: 'size', isHeader: false, title: 'Size', labels: [], controls: [c(scope)] },
+  ] });
+  assert.deepEqual(judgePanel(panel('grd-cell-body'), spec), [], '★하위 접기 그릇 안인데 빨갛다');
+  assert.deepEqual(judgePanel(panel(null), spec), ['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다'], '★그릇 밖인데 안 잡는다');
+});
