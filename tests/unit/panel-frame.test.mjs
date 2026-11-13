@@ -14,6 +14,7 @@
  *   F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0 — check-design-tokens.sh 하드게이트와 같은 정규식
  *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
  *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
+ *   F12 소유 규칙 ownerOf — 컨트롤 id·class 단어 → 있어야 할 절(게이트의 본 칼날) · 표의 절 key 는 전부 정본에 있다
  *   F8 정본 표 — SECTION_ORDER 와 SECTION_TITLE 가 special 외 1:1 · 모든 제목이 규칙을 지킨다
  *   F9 파일럿 — prop-gap.js · prop-bridge.js 는 propPanel.innerHTML 대신 renderPanel 을 쓴다
  *   N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판을 올리면 F1 의 기대가 깨진다
@@ -51,7 +52,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
@@ -234,4 +235,18 @@ test('N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판이면 F1 의 기대
   const r = orderedAsExpected(loadFrame({ specPatch: (s) => s.replace(ANCHOR, rev) }));
   assert.notDeepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template'], '★순서를 뒤집어도 같은 결과 — F1 이 순서를 안 잰다');
   assert.equal(r.secs[0], 'template', '[전제] 뒤집힌 판이 실제로 올라갔다');
+});
+
+test('F12 소유 규칙 ownerOf — 컨트롤 식별 단어 → 있어야 할 절', () => {
+  const F = loadFrame();
+  const cases = {
+    'brg-color': 'fill', 'prop-color-hex': 'fill', 'mdl-bg-hex': 'fill', 'tb-border-color': 'stroke', 'stkStrokeColor': 'stroke',
+    'frame-border-w': 'stroke', 'modal-radius': 'appearance', 'page-padx-number': 'padding', 'tb-pad-l': 'padding',
+    'shadowBlur': 'effects', 'stk-glow-size': 'effects', 'tb-line-height': 'typography', 'letterSpacing': 'typography', 'font-picker': 'typography',
+    'rotation-input': 'position', 'stk-x': 'position', 'asset-width': 'size', 'fr-height-number': 'size',
+    'brg-h-slider prop-slider': null, 'gap-preset-btn h 20': null, 'gap-slider prop-slider': null,
+  };
+  const got = Object.fromEntries(Object.keys(cases).map((k) => [k, F.ownerOf(k)]));
+  assert.deepEqual(got, cases);
+  for (const [, key] of F.OWNERSHIP) assert.ok(F.SECTION_ORDER.includes(key), `★표에 모르는 절 key: ${key}`);
 });

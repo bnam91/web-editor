@@ -1,11 +1,12 @@
 /* panel-section-gate — 우측 패널 «절»이 정본(js/props/_section-spec.js)과 같은가. (right-panel-unify U0 · §6-1)
  * 분모 = _block-roster-294 rosterOf()(js/editor.js SECTION_BLOCK_TYPE_SEL 파생) ＋ 수동 5(page·section·frame·row·multisel).
- * 판정(_panel-sections.js judgePanel): SECTION_ORDER 부분열 · 중복 0 · 제목 == SECTION_TITLE(special 은 영어 Title Case 1~2단어 규칙) ·
+ * 판정(_panel-sections.js judgePanel): ★소유(_section-spec.js OWNERSHIP — 컨트롤 id·class·data-* → 있어야 할 절) · SECTION_ORDER 부분열 · 중복 0 · 제목 == SECTION_TITLE(special 은 영어 Title Case 1~2단어 규칙) ·
  *   머리 없는 절은 맨 앞 header 만 · 라벨이 절 제목을 되풀이 0 · prop-hint ≤ 2 · data-sec 절 ≥ 1.
  * ★미이관은 UNMIGRATED 한 명단에만 둔다(test.skip) — 단위(U1~U5)가 자기 블록을 옮기면 그 줄을 지운다. U6 에서 0.
  *   명단에도 없고 이관도 안 된 «새 블록»은 판정에 들어가 빨강이 된다(조용히 빠지지 않는다).
  * 양성대조(내장 G2): 실제로 잰 브릿지 패널을 «뒤집은 SECTION_ORDER»·«틀린 제목 표»로 재면 위반이 나와야 한다.
- *   바깥 양성대조: prop-bridge.js 의 sec('fill' …) 을 sec('effects' …) 로 바꾸면 G1 빨강(순서 위반). */
+ *   바깥 양성대조: prop-bridge.js 의 sec('fill' …) 을 sec('effects' …) 로 바꾸면 G1 빨강(소유 위반 — brg-color 는 fill 절 속성).
+ *   ⚠️순서 위반은 이관 블록에선 «날 수 없다»(renderPanel 이 정렬한다) — 그래서 소유가 이 게이트의 본 칼날이다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 const { rosterOf, addKind } = require('./_block-roster-294.js');
@@ -91,6 +92,13 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   expect(judgePanel(panel, wrongTitles).join(' | '), '★틀린 제목을 못 잡는다').toContain('제목 불일치');
   const dup = { ...panel, secs: [...panel.secs, panel.secs.find((s) => s.sec === 'size')] };
   expect(judgePanel(dup, SPEC).join(' | '), '★중복을 못 잡는다').toContain('중복 절');
+  // ★소유 — 진짜 DOM 에서 색 필드 절을 effects 로 바꾼 가짜 렌더(순서·제목은 정본 그대로 맞춰 «소유»만 틀리게)
+  await page.evaluate(() => { const s = document.getElementById('psec-fill'); s.dataset.sec = 'effects'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Effects'; });
+  const moved = await readPanel(page);
+  expect(moved.secs.find((s) => s.sec === 'effects')?.controls.length, '[전제] 색 컨트롤이 effects 절로 갔다').toBeGreaterThan(0);
+  const v = judgePanel(moved, SPEC);
+  expect(v.join(' | '), '★색 필드가 effects 절에 있는데 못 잡는다').toContain('소유 위반: brg-color');
+  expect(v.filter((x) => !x.startsWith('소유 위반')), '[전제] 소유 «만» 틀린 가짜다').toEqual([]);
 });
 
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {

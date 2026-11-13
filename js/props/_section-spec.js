@@ -37,5 +37,36 @@ export function isValidSectionTitle(t) {
   return typeof t === 'string' && /^(?:[A-Z][a-z]+|[A-Z0-9]{2,4})( (?:[A-Z][a-z]+|[A-Z0-9]{2,4}))?( \d+)?$/.test(t);
 }
 
+/* ── 소유 규칙(OWNERSHIP) — «이 속성은 이 절에 산다». (U0 · 지디 2026-11-13)
+ * ★왜: renderPanel 이 SECTION_ORDER 로 «정렬해 주므로» 이관된 패널은 순서 위반을 낼 수 없다.
+ *   진짜 위험은 속성을 엉뚱한 절에 넣는 것 ⇒ 게이트(tests/dom/panel-section-gate)가 절 안 input/select/button/textarea 의
+ *   id · class · data-* 를 단어로 쪼개(-_·camelCase · 소문자) 이 표로 «있어야 할 절»을 정하고, 다른 절이면 빨강.
+ * ★위에서부터 첫 일치가 이긴다. 'a+b' = 두 단어 다 있음 · 'pad*' = 그 접두 단어. 어느 줄에도 안 걸리면 판정 밖(null).
+ * ⛔애매한 컨트롤은 표를 비틀지 말고 OWNERSHIP_EXEMPT 에 id 와 «까닭»을 적어 뺀다. */
+export const OWNERSHIP = Object.freeze([
+  [['border+color', 'stroke+color'], 'stroke'],
+  [['radius'], 'appearance'],
+  [['pad*'], 'padding'],
+  [['shadow', 'glow'], 'effects'],
+  [['font', 'letter', 'line+height'], 'typography'],
+  [['border', 'stroke'], 'stroke'],
+  [['color', 'colour', 'fill', 'bg'], 'fill'],
+  [['rotate', 'rotation', 'x', 'y'], 'position'],
+  [['width', 'height', 'size'], 'size'],
+]);
+/** 판정 제외 — { 컨트롤 id: '까닭' }. 단위(U1~U5)가 애매한 자리를 여기 적는다. */
+export const OWNERSHIP_EXEMPT = Object.freeze({});
+
+export function controlWords(s) {
+  return String(s).replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+/** 컨트롤 식별 문자열(id·class·data-*) → 있어야 할 절 key, 모르면 null. */
+export function ownerOf(ident) {
+  const w = controlWords(ident);
+  const has = (p) => (p.endsWith('*') ? w.some((x) => x.startsWith(p.slice(0, -1))) : p.split('+').every((q) => w.includes(q)));
+  for (const [pats, key] of OWNERSHIP) if (pats.some(has)) return key;
+  return null;
+}
+
 /* ★window 로도 낸다 — 정적 import 없이 읽는 DOM 게이트·styleguide 용. Node vm 하네스에는 window 가 없다. */
-if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle };
+if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, ownerOf };

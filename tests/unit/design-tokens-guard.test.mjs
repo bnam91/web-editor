@@ -7,15 +7,16 @@
  *   G3 ★음성대조 — 같은 자리 깨끗한 파일(var(--ui-*) 만)은 rc 0 (G2 가 «인자 경로 자체가 실패»라서 빨간 게 아님을 증명)
  *   G4 ★양성대조 — PF_CSS=tmp CSS(panel-frame:BEGIN~END 안 color:#123) → rc 1 · 같은 꼴 토큰만이면 rc 0
  *   G5 ★양성대조 — BASELINE=tmp json(props-inline-hardcoded = 현재−1) → rc 1 · 현재값 그대로면 rc 0
- * ⛔tmp 파일은 os.tmpdir() 에만 만들고 finally 로 지운다(레포 안에 부산물 금지).
+ * ⛔tmp 는 공용 자 tests/unit/_tmproot.js mkTmpRoot 로만 만든다 — 우산 폴더가 종료·다음 실행에 회수한다(손으로 rmSync 안 함 · tmproot-sole-owner).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import cp from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const { mkTmpRoot } = createRequire(import.meta.url)('./_tmproot.js');
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SCRIPT = path.join(ROOT, 'scripts/check-design-tokens.sh');
@@ -23,9 +24,9 @@ const run = (...args) => cp.spawnSync('bash', [SCRIPT, ...args], { encoding: 'ut
 const runEnv = (env) => cp.spawnSync('bash', [SCRIPT], { encoding: 'utf8', cwd: ROOT, env: { ...process.env, ...env } });
 
 function withTmp(body, fn, name = 'fake-new-layer.js') {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gd-tokens-guard-'));
-  const f = path.join(dir, name);
-  try { fs.writeFileSync(f, body); return fn(f); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  const f = path.join(mkTmpRoot('gd-tokens-guard-'), name);
+  fs.writeFileSync(f, body);
+  return fn(f);
 }
 
 test('G1 레포 그대로 check-design-tokens.sh rc 0', () => {

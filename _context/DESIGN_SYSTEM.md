@@ -586,6 +586,7 @@ renderPanel(block, {
 
 - ★제목 규칙(현빈 2026-11-13 Q1 정정 — «한글»을 뒤집음): **영어 1~2단어**(Figma 명명) — 단어 = Title Case(`Tail`) 또는 약어 2~4자(`QA`·`FAQ`·`3D`·`SVG`·`CTA`) · 한글·괄호·기호 금지 · 개수 접미는 `Cards 3` 꼴. 기계식 `/^(?:[A-Z][a-z]+|[A-Z0-9]{2,4})( (?:[A-Z][a-z]+|[A-Z0-9]{2,4}))?( \d+)?$/` 아니면 `sec()` 가 throw. 글자 윤곽선은 Stroke 절 안 행(하위 제목 없음).
 - 마크업: `.prop-section[data-sec]` > `.prop-section-title-row.prop-sec-head` > `.prop-section-title[role=button][tabindex=0][aria-expanded][aria-controls]`(+headTools) / `.prop-sec-body`.
+- ★소유: 속성은 제 절에 산다 — `_section-spec.js` `OWNERSHIP`(컨트롤 id·class·data-* 단어 → 절 key; 예 radius→Appearance · pad→Padding · shadow/glow→Effects · font/letter/line-height→Typography · border-color·stroke-color/border/stroke→Stroke · color/fill/bg→Fill · rotate/x/y→Position · width/height/size→Size). renderPanel 이 순서를 정렬해 주므로 순서 위반은 날 수 없고, 게이트(`panel-section-gate`)의 본 칼날은 이 소유 검사다. 애매하면 `OWNERSHIP_EXEMPT` 에 id 와 까닭.
 - 접기: 절 key 단위 · 전 블록 공통 · `localStorage['gd-panel-collapsed']` · 기본 전부 펼침 · Enter/Space 로도 접힌다. 블록 «안» 하위 접기는 `_helpers.js` `discSec*` 그대로.
 - 조각: `fieldRowHTML(label, control)` · `hintHTML(text)`(패널당 ≤2) · `scopeChipsHTML(items, active)`.
 - 모양은 `css/editor-props.css` `panel-frame:BEGIN~END` 블록 — 토큰만(`--ui-sec-*` · `--ui-space-*` · `--ui-focus-ring`).
