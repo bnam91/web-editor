@@ -46,7 +46,8 @@ export function isValidSectionTitle(t) {
  * ★위에서부터 첫 일치가 이긴다. 'a+b' = 두 단어 다 · 'pad*' = 그 접두 단어 · '*rule' = 그 접미 단어. 어느 줄에도 안 걸리면 판정 밖(null).
  * ⛔애매한 컨트롤은 표를 비틀지 말고 OWNERSHIP_EXEMPT(id) 또는 OWNERSHIP_EXEMPT_SCOPES(그릇 id — 그 «안»만)에 까닭과 함께 뺀다. */
 export const OWNERSHIP = Object.freeze([
-  [['border+color', 'stroke+color', '*rule'], 'stroke'],   // *rule = 그리드 「칸 사이 줄」(grd-colrule-*/grd-rowrule-*)
+  [['border+color', 'stroke+color', '*rule', 'line+color', 'line+width'], 'stroke'],   // *rule = 그리드 「칸 사이 줄」 · line+color/width = 선 색·두께(rdl-line-* · tbl-line-*)
+  // ⚠️그리드 「줄」(글줄)도 line 이지만 #grd-line-body 그릇 안이라 판정 밖(OWNERSHIP_EXEMPT_SCOPES) — 글줄 색이 stroke 로 오판되지 않는다
   [['radius'], 'appearance'],
   [['pad*'], 'padding'],
   [['shadow', 'glow'], 'effects'],

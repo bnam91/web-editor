@@ -261,6 +261,9 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
     'tbl-header-size-slider': 'typography', 'grb-pct-size-number': 'typography', 'cpn-slot-size-slider': 'typography',
     'tbl-size-slider': 'typography', 'tbl-size-number': 'typography', 'stb-size-w': 'size', 'mck-size-h': 'size', 'tbl-sizer-w': null,   // 줄기 tbl-size 는 「tbl-size」·「tbl-size-」만 — tbl-sizer 는 아니다
     'stb-title-gap-size': 'size',   // title 바로 뒤가 size 가 아니다(인접 규칙)
+    /* U0c ② 선 = line + 색/두께 → Stroke(색짝 hex/alpha 포함) · line+height 는 그대로 Typography */
+    'rdl-line-color color': 'stroke', 'rdl-line-hex color': 'stroke', 'rdl-line-alpha color': 'stroke', 'rdl-line-width': 'stroke',
+    'tbl-line-color color': 'stroke', 'tbl-line-hex color': 'stroke', 'tb-line-height-number': 'typography', 'rdl-line-style': null,
   };
   assert.deepEqual(Object.fromEntries(Object.keys(cases).map((k) => [k, F.ownerOf(k)])), cases);
   /* 컨트롤 꼴 — readPanel 이 넘기는 {id,type,data,pairedColor}. ★class 는 넘겨도 안 쓴다. */
@@ -285,6 +288,8 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
   /* ★양성대조(U0c ①) — 인접 규칙이 없던 판이면 stb-title-size 는 Size 로 갔다: 같은 단어열에서 title 을 떼면 Size */
   assert.equal(F.ownerOf('stb-size-slider'), 'size', '[양성대조] 글 부위 단어가 없으면 Size');
   assert.equal(F.ownerOf('stb-title-x-size'), 'position', '[양성대조] 인접이 아니면 title>size 가 안 걸린다');
+  /* ★양성대조(U0c ②) — line 없는 같은 색 칸은 Fill(규칙이 «line» 에 걸려 있다) */
+  assert.equal(F.ownerOf('rdl-fill-color color'), 'fill');
 });
 
 test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그릇 밖이면 소유 위반', () => {
@@ -297,6 +302,11 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   ] });
   assert.deepEqual(judgePanel(panel('grd-cell-body'), spec), [], '★하위 접기 그릇 안인데 빨갛다');
   assert.deepEqual(judgePanel(panel(null), spec), ['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다'], '★그릇 밖인데 안 잡는다');
+  /* U0c ② 그리드 「줄」(글줄)의 색 칸 — 규칙상 line+color = stroke 지만 #grd-line-body 그릇 안이면 판정 밖 · 그릇 밖이면 잡힌다 */
+  const gl = (scope) => ({ hints: 0, secs: [{ sec: 'typography', isHeader: false, title: 'Typography', labels: [],
+    controls: [{ id: 'grd-line-color', type: 'color', data: [], pairedColor: false, scope }] }] });
+  assert.deepEqual(judgePanel(gl('grd-line-body'), spec), [], '★그리드 글줄 색이 그릇 안인데 stroke 로 잡혔다');
+  assert.deepEqual(judgePanel(gl(null), spec), ['소유 위반: grd-line-color 는 stroke 절 속성인데 typography 절에 있다'], '[양성대조] 그릇 밖이면 잡는다');
   /* U0b ⑦ 코인 금속색 — 색 칸 id 를 제외하면 그 짝(hex·alpha)도 빠진다 · 제외 밖 짝은 여전히 잡는다 */
   const coin = (id, pairId) => ({ id, type: pairId ? 'text' : 'color', data: [], pairedColor: !!pairId, pairId, scope: null });
   const special = (controls) => ({ hints: 0, secs: [{ sec: 'special', isHeader: false, title: 'Coin', labels: [], controls }] });
