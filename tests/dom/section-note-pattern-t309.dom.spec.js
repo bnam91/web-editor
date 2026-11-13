@@ -281,11 +281,27 @@ test('N6 하위호환 — 옛 노트패널 고정 SVG(bgImg) 섹션은 왕복 �
     await window.rebindAll?.();
     const m = (id) => { const s = document.getElementById(id), cs = getComputedStyle(s);
       return { img: s.dataset.bgImg === imgBefore, url: /url\(/.test(cs.backgroundImage), lin: (cs.backgroundImage.match(/linear-gradient\(/g) || []).length, note: s.dataset.bgNote ?? null }; };
-    return { a: m(a), b: m(b) };
+    /* 진단(r0914t309 N6 pickSection 8s 시간초과): 인라인을 걷은 꼴의 섹션 높이·클릭 자리에 무엇이 있나 */
+    sa.scrollIntoView?.({ block: 'center' });
+    const ra = document.getElementById(a).getBoundingClientRect();
+    const hit = document.elementFromPoint(ra.left + 8, ra.top + ra.height / 2);
+    const diag = { h: Math.round(ra.height), hit: hit ? `${hit.tagName}.${hit.className}#${hit.id}` : null };
+    return { a: m(a), b: m(b), html, diag };
   }, [A, B, SPEC]);
+  console.log('[N6] 걷은 꼴 진단', JSON.stringify(r.diag));
   expect(r.a, `옛 섹션 왕복 ${JSON.stringify(r)}`).toEqual({ img: true, url: true, lin: 0, note: null });
-  expect([r.b.url, r.b.lin], `그림 + bgNote → 그림만 ${JSON.stringify(r)}`).toEqual([true, 0]);
-  /* 패널: 그림이 있으면 노트 줄을 안 띄운다(같은 자리를 다투지 않게) */
+  expect([r.b.url, r.b.lin], `그림 + bgNote → 그림만 ${JSON.stringify({ a: r.a, b: r.b })}`).toEqual([true, 0]);
+  /* 패널: 그림이 있으면 노트 줄을 안 띄운다(같은 자리를 다투지 않게).
+     ★261114 r0914t309 — 옛 판은 «인라인을 걷은» 캔버스에서 바로 pickSection 해 8s 시간초과. 걷은 꼴은 dataset 정본만 재려는 시험 장치라
+       섹션 min-height·패딩 인라인까지 없다(진짜 열기엔 없는 상태) ⇒ 고르기는 «진짜 열기 꼴»(저장본 그대로 innerHTML + rebindAll)에서 한다.
+       이 열기 뒤 고르기가 빨강이면 그건 제품(다시 연 섹션을 못 고른다)이다. */
+  const reopened = await page.evaluate(async ([html, a]) => {
+    document.getElementById('canvas').innerHTML = html;
+    await window.rebindAll?.();
+    const s = document.getElementById(a);
+    return { img: !!s?.dataset.bgImg, url: s ? /url\(/.test(getComputedStyle(s).backgroundImage) : false };
+  }, [r.html, A]);
+  expect(reopened, '[전제] 저장본 그대로 다시 열면 그림 섹션').toEqual({ img: true, url: true });
   await pickSection(page, A);
   expect(await page.evaluate(() => !!document.getElementById('sec-bg-note')), '그림 섹션에 노트 단추').toBe(false);
   expect(errs, JSON.stringify(errs)).toEqual([]);
