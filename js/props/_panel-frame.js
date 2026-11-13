@@ -120,6 +120,21 @@ export function renderPanel(block, { header = '', sections = [] } = {}) {
   return propPanel;
 }
 
+/** «절 통째»(.prop-section + 제목줄) 빌더 산출을 틀(sec)에 넣으려고 껍데기만 벗긴다 → { id, head, body }.
+ *  id = 바깥 절 id(있으면) · head = 제목줄의 손잡이(제목 뒤 형제) · body = 몸. 이미 몸통만이면 { id: undefined, head: '', body: 그대로 }.
+ *  ★한 벌 — prop-frame.js · prop-modal.js 의 _unwrapSec 두 벌을 여기로 올렸다(U0c ⑨ · 같은 몸).
+ *  shortcut: 빌더 산출의 «문자열 꼴»에 기댄다 — fxSectionHtml · radialArrangeSectionHTML · _typo-section 빌더가 모두
+ *  몸통 API(fxSectionParts 꼴)를 내면 U6 에서 걷는다. */
+export function unwrapSection(html) {
+  const m = /^\s*<div class="prop-section"(?: id="([^"]*)")?>([\s\S]*)<\/div>\s*$/.exec(html || '');
+  if (!m) return { id: undefined, head: '', body: html || '' };
+  let inner = m[2], head = '';
+  const row = /^\s*<div class="prop-section-title-row">\s*<div class="prop-section-title">[^<]*<\/div>([\s\S]*?)<\/div>/.exec(inner);
+  if (row) { head = row[1].trim(); inner = inner.slice(row[0].length); }
+  else inner = inner.replace(/^\s*<div class="prop-section-title">[^<]*<\/div>/, '');
+  return { id: m[1], head, body: inner };
+}
+
 /* ── 공용 조각(A-2) — 절 «안» 마크업. 기존 .prop-row/.prop-hint/.prop-type-* 클래스를 그대로 쓴다 ── */
 
 /** 라벨 + 컨트롤 한 줄. */

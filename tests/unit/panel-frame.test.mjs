@@ -15,6 +15,7 @@
  *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
  *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
  *   F12 소유 규칙 ownerOf/controlIdent — 컨트롤 id·data·«색이다» 표식 → 있어야 할 절(게이트의 본 칼날) · class 는 안 본다 · 표의 절 key 는 정본에 있다
+ *   F14 unwrapSection — 절 통째 → 몸 · 몸통만 → 그대로(U0c ⑨ · shortcut — U6 에서 걷는다)
  *   F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그릇 밖이면 소유 위반(judgePanel · tests/dom/_panel-sections.js)
  *   F8 정본 표 — SECTION_ORDER 와 SECTION_TITLE 가 special 외 1:1 · 모든 제목이 규칙을 지킨다
  *   F9 파일럿 — prop-gap.js · prop-bridge.js 는 propPanel.innerHTML 대신 renderPanel 을 쓴다
@@ -53,7 +54,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, unwrapSection, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
@@ -344,4 +345,24 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
     coin('stk-coin-side-color'), coin('stk-coin-side-alpha', 'stk-coin-side-color')]), spec), [], '★코인 금속색(제외)이 빨갛다');
   assert.deepEqual(judgePanel(special([coin('stk-coin-rim-hex', 'stk-coin-rim-color')]), spec),
     ['소유 위반: stk-coin-rim-hex 는 fill 절 속성인데 special:Coin 절에 있다'], '[양성대조] 제외 밖 색짝은 잡는다');
+});
+
+test('F14 unwrapSection — 절 통째 → 몸 · 몸통만 → 그대로 · 제목줄 손잡이·id 를 돌려준다', () => {
+  const F = loadFrame();
+  const body = '\n      <div class="prop-row"><span class="prop-label">A</span></div>\n    ';
+  assert.deepEqual({ ...F.unwrapSection(`\n    <div class="prop-section">\n      <div class="prop-section-title">Typography</div>${body}</div>`) },
+    { id: undefined, head: '', body }, '★제목만 있는 절 통째에서 몸을 못 꺼냈다');
+  const withRow = F.unwrapSection(`<div class="prop-section" id="txt-fx-section">
+      <div class="prop-section-title-row">
+        <div class="prop-section-title">Effects</div><select id="txt-fx-add"></select>
+      </div>${body}</div>`);
+  assert.deepEqual({ ...withRow }, { id: 'txt-fx-section', head: '<select id="txt-fx-add"></select>', body });
+  for (const only of [body, '<div class="prop-row">x</div>', '', '<div class="prop-section" style="x">a</div>']) {
+    assert.equal(F.unwrapSection(only).body, only, `★몸통만(또는 꼴 밖) 입력이 바뀌었다: ${only}`);
+  }
+  assert.equal(F.unwrapSection(undefined).body, '');
+  /* ★양성대조 — 같은 판정을 «껍데기를 안 벗기는» 가짜(입력 그대로)에 걸면 거짓이 나와야 이 칸이 무엇을 잰다 */
+  const strips = (fn) => fn(`<div class="prop-section"><div class="prop-section-title">T</div>${body}</div>`).body === body;
+  assert.equal(strips(F.unwrapSection), true);
+  assert.equal(strips((h) => ({ id: undefined, head: '', body: h })), false, '[양성대조] 가짜가 통과했다 — 판정이 안 잰다');
 });
