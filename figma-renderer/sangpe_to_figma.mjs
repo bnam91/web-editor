@@ -1472,6 +1472,10 @@ for (let si = 0; si < sections.length; si++) {
     const src = section.bgImage.startsWith('data:') ? section.bgImage.split(',')[1] : section.bgImage;
     run('set_image_fill', { nodeId: secFrame.id, imageSource: src, sourceType: st, scaleMode: 'FILL' }, { timeout: 20000 });
   }
+  // t3-09 노트 무늬(줄눈·모눈·점모눈) — 블록보다 «먼저» 만들어 맨 아래 층이 된다 · 섹션 프레임이 넘친 부분을 자른다.
+  if (section.bgNoteSvg) {
+    run('create_node_from_svg', { svg: section.bgNoteSvg, parentId: secFrame.id, x: 0, y: 0 }, { timeout: 15000 });
+  }
 
   let blockY = 0;
   for (const block of section.blocks) {

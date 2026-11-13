@@ -1511,7 +1511,13 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const name = secEl.dataset.name
       || secEl.querySelector('.section-label')?.textContent?.trim()
       || 'Section';
-    return { id: secEl.id || '', name, background, bgImage, ..._sectionBox(secEl), blocks };   // ★186 — 아래 여백·바닥(min-height)
+    /* ★t3-09 노트 무늬 — 섹션 그라데이션은 Figma 에서 한 색으로 떨어진다(MESH-FIGMA-* 카드) ⇒ 노트는 같은 값의 SVG 를 따로 싣는다.
+       그림이 있으면 그림이 주인(_applySectionBg 와 같은 규칙) · 크기는 라이브 섹션(없으면 캔버스 폭·최소 높이). */
+    const _noteSpec = !bgImage && !secEl.dataset.bgMesh ? secEl.dataset.bgNote : '';
+    const bgNoteSvg = _noteSpec && window.sectionNoteSvg
+      ? window.sectionNoteSvg(_noteSpec, _liveEl?.offsetWidth || CANVAS_W || 860, _liveEl?.offsetHeight || parseFloat(secEl.style.minHeight) || 400)
+      : '';
+    return { id: secEl.id || '', name, background, bgImage, ...(bgNoteSvg ? { bgNoteSvg } : {}), ..._sectionBox(secEl), blocks };   // ★186 — 아래 여백·바닥(min-height)
   }
 
   const parser = new DOMParser();

@@ -337,6 +337,59 @@ window.meshGeoOf = meshGeoOf;
 window.setMeshCornerGeo = setMeshCornerGeo;
 window.meshCornersOf = meshCornersOf;
 
+/* ★t3-09 노트 배경 — 고정 SVG 6종(js/data/note-bg-patterns.js) 대신 «조절되는» 줄눈·모눈·점모눈.
+   정본 = `sec.dataset.bgNote` 한 칸 `kind|gap|#rrggbb|width|opacity` (메시와 같은 «dataset 한 칸·없으면 끔»).
+   그리기는 `_applySectionBg` 한 자리(CSS 그라데이션 = 이미지 0) · Figma 는 같은 값으로 SVG(sectionNoteSvg). */
+export const NOTE_KINDS = Object.freeze(['lines', 'grid', 'dots']);
+const NOTE_LABEL = Object.freeze({ lines: '줄눈', grid: '모눈', dots: '점모눈' });
+export const NOTE_RANGE = Object.freeze({ gap: [4, 200], width: [1, 20], opacity: [0, 100] });
+export const NOTE_DEFAULT = 'lines|28|#9ca3af|1|100';
+const NOTE_RE = /^(lines|grid|dots)\|(\d{1,3})\|(#[0-9a-f]{6})\|(\d{1,2})\|(\d{1,3})$/i;
+const _noteIn = (v, [lo, hi]) => v >= lo && v <= hi;
+/** 저장 글자 → {kind,gap,color,width,opacity}. 꼴·범위가 틀리면 null(= 안 그린다). 선이 칸보다 굵으면(width >= gap) null. */
+export function noteParse(spec) {
+  const m = NOTE_RE.exec(String(spec || '').trim());
+  if (!m) return null;
+  const n = { kind: m[1].toLowerCase(), gap: +m[2], color: m[3].toLowerCase(), width: +m[4], opacity: +m[5] };
+  const R = NOTE_RANGE;
+  return _noteIn(n.gap, R.gap) && _noteIn(n.width, R.width) && _noteIn(n.opacity, R.opacity) && n.width < n.gap ? n : null;
+}
+/** 값 → 저장 글자(범위로 자른다 · 선은 칸보다 1 가늘게). kind 가 틀리면 lines. */
+export function noteSpecOf(n) {
+  const cl = (v, [lo, hi]) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
+  const kind = NOTE_KINDS.includes(n.kind) ? n.kind : 'lines';
+  const gap = cl(n.gap, NOTE_RANGE.gap);
+  const width = Math.min(cl(n.width, NOTE_RANGE.width), gap - 1);
+  const color = /^#[0-9a-f]{6}$/i.test(n.color) ? n.color.toLowerCase() : '#9ca3af';
+  return `${kind}|${gap}|${color}|${width}|${cl(n.opacity, NOTE_RANGE.opacity)}`;
+}
+const _noteRgba = (hex, op) => `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, ${op / 100})`;
+/** 저장 글자 → 그릴 CSS {image,size,layers}. 꼴이 틀리면 null.
+    ⛔repeating-*·두 위치 정지점은 안 쓴다 — 동봉 html2canvas 1.4.1(PNG 폴백)이 «한 칸 그라데이션 + background-size 반복»만 확실히 그린다. */
+export function sectionNoteCss(spec) {
+  const n = noteParse(spec);
+  if (!n) return null;
+  const c = _noteRgba(n.color, n.opacity), w = n.width, g = n.gap;
+  const band = (dir) => `linear-gradient(${dir}, ${c} 0px, ${c} ${w}px, transparent ${w}px, transparent 100%)`;
+  if (n.kind === 'lines') return { image: band('to bottom'), size: `100% ${g}px`, layers: 1 };
+  if (n.kind === 'grid') return { image: `${band('to bottom')}, ${band('to right')}`, size: `${g}px ${g}px, ${g}px ${g}px`, layers: 2 };
+  return { image: `radial-gradient(circle, ${c} 0px, ${c} ${w}px, transparent ${w}px, transparent 100%)`, size: `${g}px ${g}px`, layers: 1 };
+}
+/** 같은 값 → W×H SVG 글자(Figma 렌더러 create_node_from_svg 가 받는다). 꼴이 틀리면 ''. CSS 와 같은 자리(칸 위쪽·왼쪽 띠, 점은 칸 가운데). */
+export function sectionNoteSvg(spec, w, h) {
+  const n = noteParse(spec);
+  if (!n) return '';
+  const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h)), g = n.gap, s = n.width;
+  const fill = `fill="${n.color}" fill-opacity="${n.opacity / 100}"`;
+  const tile = n.kind === 'dots' ? `<circle cx="${g / 2}" cy="${g / 2}" r="${s}" ${fill}/>`
+    : `<rect width="${g}" height="${s}" ${fill}/>` + (n.kind === 'grid' ? `<rect width="${s}" height="${g}" ${fill}/>` : '');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>`
+    + `<pattern id="gdnote" width="${g}" height="${g}" patternUnits="userSpaceOnUse">${tile}</pattern>`
+    + `</defs><rect width="${W}" height="${H}" fill="url(#gdnote)"/></svg>`;
+}
+window.sectionNoteCss = sectionNoteCss;
+window.sectionNoteSvg = sectionNoteSvg;
+
 function _applySectionBg(sec) {
   /* ★체크 배경(빈 이미지 자리) — 무늬는 CSS 한 자리(.sec-bg-empty)가 준다.
      ⛔인라인으로 박지 마라: 저장본(.gdt)·배송 HTML 에 무늬가 그대로 실린다
@@ -385,7 +438,15 @@ function _applySectionBg(sec) {
        ★배경색은 ★언제나 ★그림 ★«아래»라 ★가릴 일이 없고, ★그림이 ★못 뜨면 ★그 색이 ★받쳐 준다. */
   /* ★★prev-06 메시 — ★그림이 ★없을 때만. ★그림이 있으면 ★그 합성이 ★주인이다(아래 분기 그대로). */
   const mesh = img ? null : sectionMeshCss(sec.dataset.bgMesh, meshGeoOf(sec));
-  if (mesh) {
+  /* ★t3-09 노트 — 그림·메시가 없을 때만. 배경색(dataset.bg)은 무늬 «아래» 받침(그라데이션이면 맨 아래 겹). */
+  const note = (img || mesh) ? null : sectionNoteCss(sec.dataset.bgNote);
+  if (note) {
+    sec.style.backgroundImage = note.image + (grad ? `, ${color}` : '');
+    sec.style.backgroundColor = grad ? '' : color;
+    sec.style.backgroundSize = note.size + (grad ? ', 100% 100%' : '');
+    sec.style.backgroundPosition = '0px 0px';
+    sec.style.backgroundRepeat = 'repeat';
+  } else if (mesh) {
     sec.style.backgroundImage = mesh.image;
     sec.style.backgroundBlendMode = mesh.blend;
     sec.style.backgroundColor = mesh.base;   /* ★가운데를 받치는 네 색의 평균 */
@@ -532,6 +593,28 @@ async function showSectionProperties(sec) {
     </div>`).join('') + `
     <div class="goya-cp-grad-hint">모서리마다 · 더블클릭으로 스톱 추가 · 드래그로 위치 이동 · 위 색 칸 = 고른 스톱</div>` : ''}
   `;
+  /* ★t3-09 노트 배경 — 그림이 있으면 안 뜬다(메시와 같은 까닭: 그림이 주인이라 켜도 안 그려진다).
+     칸은 기존 부품만 쓴다: 켜기 = .prop-action-btn(메시 선례) · 종류 = .prop-select · 수 = sliderRowHTML · 선색 = colorFieldHTML. */
+  const noteVal = noteParse(sec.dataset.bgNote);
+  const noteHTML = hasBgImg ? '' : `
+    <button class="prop-action-btn ${noteVal ? 'primary' : 'secondary'}" id="sec-bg-note" style="margin-top:6px;"
+      title="줄눈·모눈·점모눈을 이미지 없이 그립니다 — 배경색은 무늬 아래에 깔립니다">
+      ${noteVal ? '노트 무늬 끄기' : '노트 무늬'}</button>
+    ${noteVal ? `
+    <div class="prop-row">
+      <span class="prop-label">종류</span>
+      <select class="prop-select" id="sec-note-kind">
+        ${NOTE_KINDS.map((k) => `<option value="${k}" ${noteVal.kind === k ? 'selected' : ''}>${NOTE_LABEL[k]}</option>`).join('')}
+      </select>
+    </div>
+    ${sliderRowHTML(noteVal.kind === 'lines' ? '줄 간격' : '격자 크기', 'sec-note-gap-slider', 'sec-note-gap-number', { min: NOTE_RANGE.gap[0], max: NOTE_RANGE.gap[1], step: 1, value: noteVal.gap })}
+    ${sliderRowHTML(noteVal.kind === 'dots' ? '점 크기' : '선 두께', 'sec-note-width-slider', 'sec-note-width-number', { min: NOTE_RANGE.width[0], max: NOTE_RANGE.width[1], step: 1, value: noteVal.width })}
+    ${sliderRowHTML('투명도', 'sec-note-opacity-slider', 'sec-note-opacity-number', { min: 0, max: 100, step: 1, value: noteVal.opacity })}
+    <div class="prop-color-row">
+      <span class="prop-label">선 색</span>
+      ${colorFieldHTML({ idPrefix: 'sec-note', hex: noteVal.color, alpha: 100 })}
+    </div>` : ''}
+  `;
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
       <span class="prop-label">사이즈</span>
@@ -656,6 +739,7 @@ ${blockHeaderHTML({
       </div>
       ${meshHintHTML}
       ${meshHTML}
+      ${noteHTML}
       <span class="prop-field-label" style="margin-top:8px">Background Image</span>
       ${bgImgHTML}
       <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
@@ -835,7 +919,7 @@ ${blockHeaderHTML({
        ★피커 팝오버가 ★닫혀 ★한 번에 한 색만 고를 수 있게 된다. */
   document.getElementById('sec-bg-mesh')?.addEventListener('click', () => {
     if (meshColorsOf(sec.dataset.bgMesh)) delete sec.dataset.bgMesh;
-    else sec.dataset.bgMesh = meshSpecOf(MESH_DEFAULT);
+    else { sec.dataset.bgMesh = meshSpecOf(MESH_DEFAULT); delete sec.dataset.bgNote; }   /* ★t3-09 — 메시와 노트는 같은 자리를 다툰다 · 켠 쪽이 이긴다 */
     delete sec.dataset.bgMeshGeo;   /* ★t4-03 — 켤 때도 지운다(옛 판이 남긴 고아 geo 가 되살아나지 않게) */
     _applySectionBg(sec);
     _syncSecGradLine(sec);
@@ -991,6 +1075,46 @@ ${blockHeaderHTML({
       },
       onCommit: () => pushHistory(),
     });
+  });
+
+  /* ★t3-09 노트 무늬 — 켜기/끄기·종류는 패널을 다시 그린다(칸·이름이 바뀐다) · 수·색은 제자리(피커가 안 닫히게 — 메시와 같은 까닭).
+     ★매번 «지금 값»에서 다시 읽어 쓴다(칸 넷이 dataset.bgNote 한 줄을 공유한다). 끌기는 change 에서 ⌘Z 한 걸음. */
+  const _noteWrite = (patch) => {
+    const cur = noteParse(sec.dataset.bgNote);
+    if (!cur) return;
+    sec.dataset.bgNote = noteSpecOf({ ...cur, ...patch });
+    _applySectionBg(sec);
+  };
+  document.getElementById('sec-bg-note')?.addEventListener('click', () => {
+    if (noteParse(sec.dataset.bgNote)) delete sec.dataset.bgNote;
+    else { sec.dataset.bgNote = NOTE_DEFAULT; delete sec.dataset.bgMesh; delete sec.dataset.bgMeshGeo; }
+    _applySectionBg(sec);
+    _syncSecGradLine(sec);
+    pushHistory();
+    showSectionProperties(sec);
+  });
+  document.getElementById('sec-note-kind')?.addEventListener('change', (e) => {
+    _noteWrite({ kind: e.target.value });
+    pushHistory();
+    showSectionProperties(sec);
+  });
+  ['gap', 'width', 'opacity'].forEach((key) => {
+    const sl = document.getElementById(`sec-note-${key}-slider`);
+    const nu = document.getElementById(`sec-note-${key}-number`);
+    if (!sl || !nu) return;
+    const sync = () => { const v = noteParse(sec.dataset.bgNote)?.[key]; if (v != null) { sl.value = v; nu.value = v; } };   // 자른 값을 칸에 되돌려 보인다
+    sl.addEventListener('input', () => { _noteWrite({ [key]: parseInt(sl.value, 10) }); sync(); });
+    sl.addEventListener('change', () => pushHistory());
+    nu.addEventListener('change', () => { _noteWrite({ [key]: parseInt(nu.value, 10) }); sync(); pushHistory(); });
+  });
+  wireColorField('sec-note', {
+    onApply: (c) => {
+      const m = /^#([0-9a-f]{6})$/i.exec(c);
+      const r = m ? null : /^rgba?\((\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})/i.exec(String(c));
+      if (!m && !r) return;
+      _noteWrite({ color: m ? '#' + m[1] : '#' + _hex2(+r[1]) + _hex2(+r[2]) + _hex2(+r[3]) });   /* 투명도는 «투명도» 칸이 주인 */
+    },
+    onCommit: () => pushHistory(),
   });
 
   /* ★1013t2E1 — 고르면(패널이 서면) 배경 그라데이션의 캔버스 바를 띄운다(배너02 showBanner02Properties 끝 두 줄과 같은 자리 · 같은 일) */
