@@ -39,12 +39,12 @@ export function setSectionCollapsed(key, collapsed) {
   _saveCollapsed(s);
 }
 
-/** 절 하나 등록. title 은 special 에 필수, 그 밖엔 SECTION_TITLE 기본(주면 같은 한글 규칙으로 검사). */
+/** 절 하나 등록. title 은 special 에 필수, 그 밖엔 SECTION_TITLE 기본(주면 같은 영어 Title Case 규칙으로 검사). */
 export function sec(key, html, { title, headTools = '', id } = {}) {
   if (!SECTION_ORDER.includes(key)) throw new Error(`[panel-frame] 모르는 절 key: ${key}`);
   const t = title ?? SECTION_TITLE[key];
   if (key === 'special' && !title) throw new Error('[panel-frame] special 절은 title 이 필수다');
-  if (!isValidSectionTitle(t)) throw new Error(`[panel-frame] 절 제목 규칙 위반(한글 · 영문/괄호 없음): ${t}`);
+  if (!isValidSectionTitle(t)) throw new Error(`[panel-frame] 절 제목 규칙 위반(영어 Title Case 1~2단어 · 한글/괄호/기호 없음): ${t}`);
   return { key, html: html ?? '', title: t, headTools, id };
 }
 

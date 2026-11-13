@@ -37,7 +37,7 @@ export function showBridgeProperties(block) {
         <input type="range" class="prop-slider" id="brg-h-slider" min="20" max="300" step="2" value="${height}">
         <input type="number" class="prop-number" id="brg-h-number" min="20" max="300" value="${height}">
       </div>`),
-      // 옛 제목 「꼬리 (V홈)」 — 괄호·영문 금지 규칙(§2-2)으로 「꼬리」. V홈 모양 세 손잡이(너비·깊이·곡률)
+      // 옛 제목 「꼬리 (V홈)」 — 절 제목 규칙(영어 Title Case · 괄호 금지)으로 «Tail». V홈 모양 세 손잡이(너비·깊이·곡률)
       sec('special', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -53,7 +53,7 @@ export function showBridgeProperties(block) {
         <span class="prop-label">곡률</span>
         <input type="range" class="prop-slider" id="brg-a-slider" min="-200" max="100" step="1" value="${arc}">
         <input type="number" class="prop-number" id="brg-a-number" min="-200" max="100" value="${arc}">
-      </div>`, { title: '꼬리' }),
+      </div>`, { title: 'Tail' }),
     ],
   });
 

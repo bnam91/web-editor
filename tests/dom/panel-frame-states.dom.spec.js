@@ -74,7 +74,7 @@ test('S3 넘침 — 좁은 패널 · 긴 이름 · 긴 special 제목에도 가�
     const { blockHeaderHTML } = await import('/js/props/_helpers.js');
     document.getElementById('panel-right').style.width = '240px';
     const b = document.getElementById(id);
-    const longTitle = '아주 긴 블록 고유 절 제목이 패널 폭을 넘어서는 경우를 봅니다';
+    const longTitle = 'Supercalifragilisticexpialidocious Antidisestablishmentarianism';   // 규칙(Title Case 2단어) 안에서 가장 긴 꼴
     renderPanel(b, { header: blockHeaderHTML({ name: '가'.repeat(60), id: b.id }), sections: [sec('size', '<div class="prop-row"><span class="prop-label">높이</span></div>'), sec('special', '<div class="prop-row">x</div>', { title: longTitle })] });
     const body = document.querySelector('#panel-right .panel-body');
     const over = [body, ...body.querySelectorAll(':scope > .prop-section')].filter((e) => e.scrollWidth > e.clientWidth).map((e) => e.id || e.className);

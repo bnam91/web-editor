@@ -69,7 +69,7 @@ const body = {
   appearance: row('모서리'),
   typography: row('글꼴'),
   fill: row('색'),
-  stroke: row('두께') + row('외곽선'),
+  stroke: row('두께') + row('글자 윤곽'),   // 블록 테두리·글자 윤곽선 = 같은 Stroke 절의 행
   effects: row('그림자'),
   export: hintHTML('예시 힌트 — 패널당 둘까지'),
   template: row('이름'),
@@ -78,21 +78,21 @@ renderPanel(null, {
   header: blockHeaderHTML({ name: '예시 블록', crumb: '섹션 1 · 행 1' }),
   sections: [
     ...SECTION_ORDER.filter((k) => k !== 'special').map((k) => sec(k, body[k])),
-    sec('special', row('너비'), { title: '꼬리' }),
-    sec('special', row('값'), { title: '아주 긴 블록 고유 절 제목이 패널 폭을 넘어서 말줄임으로 접히는 경우' }),
+    sec('special', row('너비'), { title: 'Tail' }),
+    sec('special', row('값'), { title: 'Supercalifragilisticexpialidocious Antidisestablishmentarianism' }),
   ],
 });
 
 document.querySelector('#sgp-order tbody').innerHTML = SECTION_ORDER
-  .map((k, i) => `<tr><td>${i + 1}</td><td><code>${k}</code></td><td>${SECTION_TITLE[k] ?? '(블록 고유 · 한글 규칙 · 선언순)'}</td></tr>`).join('');
+  .map((k, i) => `<tr><td>${i + 1}</td><td><code>${k}</code></td><td>${SECTION_TITLE[k] ?? '(블록 고유 · Title Case 1~2단어 · 선언순)'}</td></tr>`).join('');
 const cs = getComputedStyle(document.documentElement);
 document.querySelector('#sgp-space tbody').innerHTML = [1, 2, 3, 4]
   .map((n) => { const v = cs.getPropertyValue(`--ui-space-${n}`).trim(); return `<tr><td><code>--ui-space-${n}</code></td><td>${v}</td><td><span class="sw" style="width:var(--ui-space-${n})"></span></td></tr>`; }).join('');
 const tryIt = (what, f) => { try { f(); return `<tr><td>${what}</td><td class="bad">throw 없음 ✗</td></tr>`; } catch (e) { return `<tr><td>${what}</td><td class="ok">${e.message}</td></tr>`; } };
 document.querySelector('#sgp-err tbody').innerHTML = [
   tryIt('같은 key 두 번', () => buildPanelHTML({ sections: [sec('size', 'a'), sec('size', 'b')] })),
-  tryIt('special 제목 「Coin」', () => sec('special', 'a', { title: 'Coin' })),
-  tryIt('special 제목 「꼬리 (V홈)」', () => sec('special', 'a', { title: '꼬리 (V홈)' })),
+  tryIt('special 제목 「꼬리」(한글)', () => sec('special', 'a', { title: '꼬리' })),
+  tryIt('special 제목 「Tail (V)」(괄호)', () => sec('special', 'a', { title: 'Tail (V)' })),
 ].join('');
 </script>
 </body>

@@ -7,7 +7,7 @@
  *   F1 정렬 — SECTION_ORDER 순 · special 은 선언순
  *   F2 중복 — 같은 key 두 번 / 같은 special 제목 두 번 → throw
  *   F3 빈 절 — html 이 빈 문자열·공백이면 DOM 에 없다
- *   F4 제목 규칙 — special 은 title 필수 · 영문/괄호 제목 → throw · 모르는 key → throw
+ *   F4 제목 규칙 — special 은 title 필수 · Title Case 영어 1~2단어(+개수) 아니면(한글·괄호·기호) → throw · 모르는 key → throw
  *   F5 접기 저장/복원 — localStorage 'gd-panel-collapsed' · 새 모듈 판에서도 복원 · 저장소 없거나 막혀도 안 죽는다
  *   F6 기본 = 전부 펼침 · aria-expanded/aria-controls == 몸통 id
  *   F7 disclosureSectionHtml 3인자 산출은 바이트 그대로(그리드 골든 보호) — 4인자 = 3인자 + aria 치환«만»
@@ -58,8 +58,8 @@ const titlesOf = (html) => [...html.matchAll(/text-overflow:ellipsis;white-space
 /** F1 의 기대 — 틀 판마다 다시 잰다(N1 이 같은 함수로 뒤집힌 판을 잰다). */
 function orderedAsExpected(F) {
   const html = F.buildPanelHTML({ sections: [
-    F.sec('fill', 'f'), F.sec('size', 's'), F.sec('special', 'a', { title: '첫째' }),
-    F.sec('kind', 'k'), F.sec('special', 'b', { title: '둘째' }), F.sec('template', 't'),
+    F.sec('fill', 'f'), F.sec('size', 's'), F.sec('special', 'a', { title: 'First' }),
+    F.sec('kind', 'k'), F.sec('special', 'b', { title: 'Second' }), F.sec('template', 't'),
   ] });
   return { html, secs: secsOf(html), titles: titlesOf(html) };
 }
@@ -67,16 +67,16 @@ function orderedAsExpected(F) {
 test('F1 정렬 — SECTION_ORDER 순 · special 은 선언순', () => {
   const r = orderedAsExpected(loadFrame());
   assert.deepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template']);
-  assert.deepEqual(r.titles, ['종류', '크기', '채움', '첫째', '둘째', '템플릿']);
-  assert.match(r.html, /id="psec-special-0"[\s\S]*첫째[\s\S]*id="psec-special-1"[\s\S]*둘째/, '★special id 가 선언순으로 안 붙는다');
+  assert.deepEqual(r.titles, ['Type', 'Size', 'Fill', 'First', 'Second', 'Template']);
+  assert.match(r.html, /id="psec-special-0"[\s\S]*First[\s\S]*id="psec-special-1"[\s\S]*Second/, '★special id 가 선언순으로 안 붙는다');
 });
 
 test('F2 중복 — 같은 key 두 번 · 같은 special 제목 두 번 → throw', () => {
   const F = loadFrame();
   assert.throws(() => F.buildPanelHTML({ sections: [F.sec('size', 'a'), F.sec('size', 'b')] }), /두 번/);
   assert.throws(() => F.buildPanelHTML({ sections: [F.sec('size', 'a'), F.sec('size', '')] }), /두 번/, '★빈 절이라도 두 번 선언은 결함이다');
-  assert.throws(() => F.buildPanelHTML({ sections: [F.sec('special', 'a', { title: '꼬리' }), F.sec('special', 'b', { title: '꼬리' })] }), /두 번/);
-  assert.doesNotThrow(() => F.buildPanelHTML({ sections: [F.sec('special', 'a', { title: '꼬리' }), F.sec('special', 'b', { title: '손잡이' })] }));
+  assert.throws(() => F.buildPanelHTML({ sections: [F.sec('special', 'a', { title: 'Tail' }), F.sec('special', 'b', { title: 'Tail' })] }), /두 번/);
+  assert.doesNotThrow(() => F.buildPanelHTML({ sections: [F.sec('special', 'a', { title: 'Tail' }), F.sec('special', 'b', { title: 'Handles' })] }));
 });
 
 test('F3 빈 절 — 빈 문자열·공백 html 은 DOM 에 없다', () => {
@@ -90,12 +90,12 @@ test('F3 빈 절 — 빈 문자열·공백 html 은 DOM 에 없다', () => {
 test('F4 제목 규칙 — special title 필수 · 영문/괄호 → throw · 모르는 key → throw', () => {
   const F = loadFrame();
   assert.throws(() => F.sec('special', 'x'), /title 이 필수/);
-  for (const t of ['Coin', '꼬리 (V홈)', 'Size', '외곽선(Stroke)', '[칸]', '']) {
+  for (const t of ['꼬리', 'Tail (V)', 'size', 'Arrow line', 'Three Word Title', 'Stroke(Text)', 'Cards-3', 'Cards 3 4', 'SIZE', '[Cell]', '']) {
     assert.throws(() => F.sec('special', 'x', { title: t }), /규칙 위반|필수/, `★「${t}」 를 통과시켰다`);
   }
-  assert.throws(() => F.sec('size', 'x', { title: 'Size' }), /규칙 위반/, '★special 아닌 절도 제목 덮어쓰기는 같은 규칙');
+  assert.throws(() => F.sec('size', 'x', { title: '크기' }), /규칙 위반/, '★special 아닌 절도 제목 덮어쓰기는 같은 규칙');
   assert.throws(() => F.sec('nope', 'x'), /모르는 절/);
-  for (const t of ['꼬리', '카드 3', '가로 정렬 · 이 줄']) assert.doesNotThrow(() => F.sec('special', 'x', { title: t }), t);
+  for (const t of ['Tail', 'Cards 3', 'Arrow Line', 'Arrow Line 2']) assert.doesNotThrow(() => F.sec('special', 'x', { title: t }), t);
 });
 
 test('F5 접기 저장/복원 — localStorage · 새 모듈 판 복원 · 저장소 없음/막힘에도 안 죽는다', () => {
@@ -114,10 +114,10 @@ test('F5 접기 저장/복원 — localStorage · 새 모듈 판 복원 · 저�
   B.setSectionCollapsed('size', false);
   assert.deepEqual(JSON.parse(ls.getItem('gd-panel-collapsed')), []);
   // special 은 제목별로 따로 접힌다
-  B.setSectionCollapsed('special:꼬리', true);
-  const h2 = B.buildPanelHTML({ sections: [B.sec('special', 'a', { title: '꼬리' }), B.sec('special', 'b', { title: '손잡이' })] });
-  assert.match(h2, /class="prop-section is-collapsed" data-sec="special" data-sec-state="special:꼬리"/);
-  assert.match(h2, /class="prop-section" data-sec="special" data-sec-state="special:손잡이"/);
+  B.setSectionCollapsed('special:Tail', true);
+  const h2 = B.buildPanelHTML({ sections: [B.sec('special', 'a', { title: 'Tail' }), B.sec('special', 'b', { title: 'Handles' })] });
+  assert.match(h2, /class="prop-section is-collapsed" data-sec="special" data-sec-state="special:Tail"/);
+  assert.match(h2, /class="prop-section" data-sec="special" data-sec-state="special:Handles"/);
   // 저장소 없음(유닛 vm) — typeof 가드 · 메모리 대역
   const N = loadFrame();
   N.setSectionCollapsed('fill', true);
@@ -138,7 +138,7 @@ test('F6 기본 = 전부 펼침 · aria-controls == 몸통 id · renderPanel 은
     assert.match(p.innerHTML, new RegExp(`<div class="prop-sec-body" id="psec-${k}-body">`));
   }
   assert.match(p.innerHTML, /<div class="prop-section-title-row prop-sec-head">/, '★절 머리가 title-row 안에 없다(손잡이 정렬 규칙 밖)');
-  assert.ok(p.innerHTML.includes('>테두리</span>'), '★stroke 제목이 «테두리» 가 아니다(§8 Q1)');
+  assert.ok(p.innerHTML.includes('>Stroke</span>'), '★stroke 제목이 «Stroke» 가 아니다(§8 Q1 정정 — 영어 Figma 명명)');
 });
 
 test('F7 disclosureSectionHtml 3인자 = 바이트 그대로 · 4인자 = 3인자 + aria 치환«만»', () => {
@@ -157,6 +157,10 @@ test('F8 정본 표 — ORDER 와 TITLE 이 special 외 1:1 · 모든 제목이 
   assert.equal(F.SECTION_ORDER.length, 14);
   assert.deepEqual([...F.SECTION_ORDER].filter((k) => k !== 'special').sort(), Object.keys(F.SECTION_TITLE).sort());
   for (const [k, t] of Object.entries(F.SECTION_TITLE)) assert.ok(F.isValidSectionTitle(t), `${k}: ${t}`);
+  /* ★현빈 확정 라벨(2026-11-13 Q1 정정 · 지디 확정값) — 바꾸려면 현빈 결정이 먼저다 */
+  assert.deepEqual({ ...F.SECTION_TITLE }, { kind: 'Type', content: 'Content', position: 'Position', size: 'Size', layout: 'Layout',
+    padding: 'Padding', appearance: 'Appearance', typography: 'Typography', fill: 'Fill', stroke: 'Stroke', effects: 'Effects',
+    export: 'Export', template: 'Template' });
   assert.equal(new Set(Object.values(F.SECTION_TITLE)).size, 13, '★제목이 겹친다');
 });
 

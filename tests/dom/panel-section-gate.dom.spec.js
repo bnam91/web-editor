@@ -1,6 +1,6 @@
 /* panel-section-gate — 우측 패널 «절»이 정본(js/props/_section-spec.js)과 같은가. (right-panel-unify U0 · §6-1)
  * 분모 = _block-roster-294 rosterOf()(js/editor.js SECTION_BLOCK_TYPE_SEL 파생) ＋ 수동 5(page·section·frame·row·multisel).
- * 판정(_panel-sections.js judgePanel): SECTION_ORDER 부분열 · 중복 0 · 제목 == SECTION_TITLE(special 은 한글 규칙) ·
+ * 판정(_panel-sections.js judgePanel): SECTION_ORDER 부분열 · 중복 0 · 제목 == SECTION_TITLE(special 은 영어 Title Case 1~2단어 규칙) ·
  *   머리 없는 절은 맨 앞 header 만 · 라벨이 절 제목을 되풀이 0 · prop-hint ≤ 2 · data-sec 절 ≥ 1.
  * ★미이관은 UNMIGRATED 한 명단에만 둔다(test.skip) — 단위(U1~U5)가 자기 블록을 옮기면 그 줄을 지운다. U6 에서 0.
  *   명단에도 없고 이관도 안 된 «새 블록»은 판정에 들어가 빨강이 된다(조용히 빠지지 않는다).
@@ -84,10 +84,10 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   const r = await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
   expect(r.err, '[전제] 브릿지를 넣었다').toBeUndefined();
   const panel = await readPanel(page);
-  expect(panel.secs.filter((s) => s.sec).map((s) => s.sec), '[전제] 브릿지 = 크기·채움·꼬리').toEqual(['size', 'fill', 'special']);
+  expect(panel.secs.filter((s) => s.sec).map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Tail').toEqual(['size', 'fill', 'special']);
   expect(judgePanel(panel, SPEC), '[전제] 정본으론 통과').toEqual([]);
   expect(judgePanel(panel, SPEC, [...SPEC.SECTION_ORDER].reverse()).join(' | '), '★뒤집은 순서를 못 잡는다').toContain('순서 위반');
-  const wrongTitles = { ...SPEC, SECTION_TITLE: { ...SPEC.SECTION_TITLE, size: 'Size' } };
+  const wrongTitles = { ...SPEC, SECTION_TITLE: { ...SPEC.SECTION_TITLE, size: 'Dimensions' } };
   expect(judgePanel(panel, wrongTitles).join(' | '), '★틀린 제목을 못 잡는다').toContain('제목 불일치');
   const dup = { ...panel, secs: [...panel.secs, panel.secs.find((s) => s.sec === 'size')] };
   expect(judgePanel(dup, SPEC).join(' | '), '★중복을 못 잡는다').toContain('중복 절');

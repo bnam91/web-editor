@@ -63,13 +63,13 @@ renderPanel(block, { header: blockHeaderHTML({...}), sections: [sec('size', html
 ```html
 <div class="prop-section" data-sec="size" data-sec-state="size" id="psec-size">
   <div class="prop-section-title-row prop-sec-head">
-    <div class="prop-section-title" id="psec-size-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-size-body">… 크기</div>
+    <div class="prop-section-title" id="psec-size-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-size-body">… Size</div>
     <!-- headTools(플로팅 토글 등) -->
   </div>
   <div class="prop-sec-body" id="psec-size-body"> …절 안 마크업(id·핸들러 그대로)… </div>
 </div>
 ```
-- 순서·제목 정본 = `js/props/_section-spec.js`(종류·내용·위치·크기·배치·여백·모양·글자·채움·테두리·효과·(고유)·내보내기·템플릿). 제목은 한글, 괄호·영문 없음.
+- 순서·제목 정본 = `js/props/_section-spec.js`: Type · Content · Position · Size · Layout · Padding · Appearance · Typography · Fill · Stroke · Effects · (블록 고유) · Export · Template. 제목은 영어 Title Case 1~2단어(Figma 명명) · 한글·괄호·기호 금지 · 개수는 `Cards 3`. 글자 윤곽선은 Stroke 절 안 행.
 - 접기 = 절 key 단위 전 블록 공통(`localStorage['gd-panel-collapsed']`), 기본 전부 펼침. 상세: `_context/DESIGN_SYSTEM.md §11-A`.
 - 게이트: `tests/dom/panel-section-gate.dom.spec.js`(이관 안 된 블록은 그 파일 UNMIGRATED 명단). 이관 완료 = gap · bridge.
 
@@ -377,7 +377,7 @@ window.applyPagePadX(padX)
 - [ ] 블록 헤더 `.prop-block-label` → 아이콘(16px) + 이름 + ID 배지
 - [ ] 헤더 아이콘 → `width/height: 16px`, Figma `#` 경로 (섹션/서브섹션/페이지) 또는 블록 타입 아이콘
 - [ ] ID 배지 `.prop-block-id` → 클릭 시 클립보드 복사 (`navigator.clipboard.writeText`)
-- [ ] 섹션 제목 → 틀(`sec()`)이 그린다: `--ui-sec-title-fs`(11px) · `--ui-sec-title-color`(#aaa) · hover `--ui-sec-title-color-hover` (미이관 패널은 옛 `.prop-section-title` 10px·muted)
+- [ ] 섹션 제목 → 틀(`sec()`)이 그린다(영어 Title Case 라벨): `--ui-sec-title-fs`(11px) · `--ui-sec-title-color`(#aaa) · hover `--ui-sec-title-color-hover` (미이관 패널은 옛 `.prop-section-title` 10px·muted)
 - [ ] 섹션 구분 `.prop-section + .prop-section` 위 1px 선 — 틀 절은 `--ui-sec-divider`(#444)
 - [ ] `prop-block-name` 텍스트는 반드시 `block.dataset.layerName || 'DefaultName'`으로 읽어야 함 (하드코딩 금지)
 

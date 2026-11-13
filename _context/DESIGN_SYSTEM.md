@@ -565,9 +565,26 @@ renderPanel(block, {
   sections: [ sec('size', html), sec('fill', html), sec('special', html, { title: '꼬리' }) ],
 });   // 동기 — 뒤의 getElementById 배선은 그대로
 ```
-- 전역 순서(없는 절은 숨김 · 순서는 늘 이 표의 부분열): 종류 · 내용 · 위치 · 크기 · 배치 · 여백 · 모양 · 글자 · 채움 · 테두리 · 효과 · (블록 고유) · 내보내기 · 템플릿.
-  key 는 `_section-spec.js` SECTION_ORDER. 한 key 를 두 번 선언하면 throw. 빈 html 절은 DOM 에 없다.
-- 제목 = 한글(괄호·영문 없음). special 은 title 필수. `stroke`=«테두리» — 글자 윤곽선은 그 절 안 «외곽선» 줄.
+- 전역 순서(없는 절은 숨김 · 순서는 늘 이 표의 부분열 · 정본 `_section-spec.js`). 한 key 를 두 번 선언하면 throw. 빈 html 절은 DOM 에 없다.
+
+| # | key | 제목(라벨) | 소유 |
+|---|---|---|---|
+| 1 | `kind` | **Type** | Type · Variant · Shape · Device · Chart Type · Direction · Preset · Favorites |
+| 2 | `content` | **Content** | Text · Data · Messages · Layers · Cards · Cells · Icon · Image · Video · Profile · Path |
+| 3 | `position` | **Position** | Position · X/Y · 플로팅 · Rotation · Rotate/Flip |
+| 4 | `size` | **Size** | Size · Width · Height · Card Size · 치수선 |
+| 5 | `layout` | **Layout** | Layout · Align · Spacing · Gap · Column Ratio · Rows/Cols · 행 높이 · 분배 |
+| 6 | `padding` | **Padding** | Padding 류 전부 |
+| 7 | `appearance` | **Appearance** | 모서리(radius) · 투명도 · 그레인 · 가림막 · 이미지 표시 |
+| 8 | `typography` | **Typography** | Typography(SSOT) · Tag Style · Bubble Style · Icon Text |
+| 9 | `fill` | **Fill** | Fill · Color(s) · Background · Bg Image · Text Color · Color Stops |
+| 10 | `stroke` | **Stroke** | 블록 테두리 · 글자 윤곽선 · Line Style · Highlight Line · 칸 사이 줄 — 한 절 안 «행»(하위 제목 없음) |
+| 11 | `effects` | **Effects** | Shadow · Glow · Zoom Effect · Text Overlay · Decoration · Buzz · Marking |
+| 12 | `special` | **(호출부가 줌)** | 블록 고유 — 같은 규칙 · 선언순 (예: Tail · Coin · Arrow Line · Cards 3) |
+| 13 | `export` | **Export** | Export · 참고 이미지 |
+| 14 | `template` | **Template** | Template · Component · QA Ticket |
+
+- ★제목 규칙(현빈 2026-11-13 Q1 정정 — «한글»을 뒤집음): **영어 Title Case 1~2단어**(Figma 명명) · 한글·괄호·기호 금지 · 개수 접미는 `Cards 3` 꼴. 기계식 `/^[A-Z][a-z]+( [A-Z][a-z]+)?( \d+)?$/` 아니면 `sec()` 가 throw.
 - 마크업: `.prop-section[data-sec]` > `.prop-section-title-row.prop-sec-head` > `.prop-section-title[role=button][tabindex=0][aria-expanded][aria-controls]`(+headTools) / `.prop-sec-body`.
 - 접기: 절 key 단위 · 전 블록 공통 · `localStorage['gd-panel-collapsed']` · 기본 전부 펼침 · Enter/Space 로도 접힌다. 블록 «안» 하위 접기는 `_helpers.js` `discSec*` 그대로.
 - 조각: `fieldRowHTML(label, control)` · `hintHTML(text)`(패널당 ≤2) · `scopeChipsHTML(items, active)`.
