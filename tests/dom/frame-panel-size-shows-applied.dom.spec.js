@@ -8,6 +8,9 @@
  *   양성대조: 폴백(`|| parseInt(ss.dataset.width)` · `|| parseInt(ss.dataset.height)`)을 지우면 W2 빨강(780/520 기본값이 뜬다).
  * W3 [U3 평가 F2] 조여진 프레임(저장 860 · 그려진 ~716)의 너비를 «보이는 값 + 4» 로 — 자유배치 자식 폭 비율 ≈ (보이는+4)/보이는.
  *   양성대조: applyWidth 의 옛 폭을 저장값 먼저(parseInt(ss.dataset.width) || ss.offsetWidth)로 되돌리면 W3 빨강(자식 ~16% 더 준다).
+ * 장면 = 섹션 안쪽 좌우 패딩 72(실앱 꼴). U3 도입 때 이게 빠져 W1·W3 전제가 안 섰다(r0914meas · 9e64f9f56 부터 빨강).
+ *   양성대조(장면이 서고 제품을 잰다): js/props/prop-frame.js 만 9e64f9f56^ 판으로 → W3 빨강(옛 폭 = 저장 860 기준) ·
+ *   02126da9d^ 판으로 → W1 빨강(칸 860). 각각 HEAD 로 되돌린다.
  * W4 패딩 제외(full-bleed) 프레임 — 그려진 폭은 그 기능이 정하므로 칸 = «끄면 돌아갈» 저장 폭(860 넘는 그려진 폭을 안 보인다).
  *   양성대조: _shownW 의 fullBleed 갈래를 지우면 W4 빨강(칸 = 그려진 폭).
  */
@@ -22,7 +25,9 @@ async function scene(page) {
     c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend',
       '<div class="section-block" data-section="1" id="sS"><div class="section-hitzone"></div>' +
-      '<div class="section-inner"><div class="gap-block" data-type="gap" style="height:40px"></div></div></div>');
+      /* ★좌우 패딩 72 = 실앱 섹션의 꼴(미카사 860 → 716 · W4 의 calc(100% + 144px) 와 같은 수). ⛔빼면 inner 가 860 이라 «조여진 프레임» 장면이 안 선다
+         (r0914meas PROBE-W1: padding 0 · ow 860 — HTML 로 꽂은 섹션은 addSection 의 페이지 padX 를 안 탄다). */
+      '<div class="section-inner" data-padding-x="72" style="padding-left:72px;padding-right:72px"><div class="gap-block" data-type="gap" style="height:40px"></div></div></div>');
     window.rebindAll?.();
     const S = document.getElementById('sS');
     window.selectSection(S); window.addFrameBlock();
