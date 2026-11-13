@@ -5,6 +5,7 @@
  * S4 겹침 0 — 절 머리 사각형끼리 안 겹치고 패널 안에 있다 · 제목 글자 ≥ --ui-fs-10
  * S6 몸 아래 여백 = --ui-sec-body-pb «하나»(마지막 보이는 자식 margin 0 · 숨은 꼬리 건너뜀) — 마지막 절 빼고 전부 · 양성대조: 꼬리 margin 을 되살리면 어긋난다
  * S7 보이는 내용 없는 펼친 절(머리만 · 숨은 자식만) — 아래 여백 0 · 머리 위아래 틈 같음(손잡이 가운데) · 양성대조: 내용 있는 절은 pb
+ * S8 접힌 Effects 에 효과를 더하면 Effects 가 열리고 새 카드가 보인다(expandSection) · 양성대조: 그 문을 끄면 접힌 채 남는다
  * S5 틀 절 몸 안의 옛 하위 절(.prop-section)은 좌우 들임 0 — 그 안 첫 줄 왼쪽 == 틀 몸 왼쪽(±0.5) · 양성대조: 틀 밖 같은 마크업은 들여진다
  * 양성대조(사람이 돌린다): S1 = editor-base.css 의 --ui-sec-title-color-hover 줄 삭제 → 빨강 ·
  *   S2 = _panel-frame.js 의 panel.addEventListener('keydown' …) 제거 → 빨강 · S3 = editor-props.css .prop-sec-title-text 의 text-overflow:ellipsis 제거 → 빨강.
@@ -176,5 +177,43 @@ test('S7 보이는 내용 없는 펼친 절 — 아래 여백 0 · 머리 가운
     expect(Math.abs(r[k].top - r[k].bottom), `★${k} 머리가 가운데가 아니다(위 ${r[k].top} · 아래 ${r[k].bottom})`).toBeLessThanOrEqual(0.5);
   }
   expect(Math.abs(r.size.pb - pb), '[양성대조] 내용 있는 절은 pb 를 받는다').toBeLessThanOrEqual(0.5);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S8 접힌 Effects 에 효과 추가 → Effects 가 열리고 새 카드가 보인다', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });
+  const r = await addKind(page, { cls: 'asset-block', entry: 'addAssetBlock' });
+  expect(r.err, '[전제] 에셋 블록').toBeUndefined();
+  /* 틀로 그린 에셋 Effects 절 + 진짜 배선(wireFxSection — 다시 그리기 = 같은 그리기) */
+  const opts = await page.evaluate(async (id) => {
+    const { renderPanel, sec } = await import('/js/props/_panel-frame.js');
+    const ab = document.getElementById(id);
+    const draw = () => { const p = window.fxSectionParts(ab, 'asset');
+      renderPanel(ab, { sections: [sec('size', '<div class="prop-row"><input type="number" id="__sz"></div>'), sec('effects', p.body, { headTools: p.headTools, id: p.id })] });
+      window.wireFxSection(ab, 'asset', draw); };
+    draw();
+    return [...document.querySelectorAll('#asset-fx-add option')].map((o) => o.value).filter(Boolean);
+  }, r.id);
+  expect(opts.length, '[전제] 더할 효과가 둘 이상').toBeGreaterThanOrEqual(2);
+  const body = page.locator('#asset-fx-section-body');
+  const collapse = async () => { if (await body.isVisible()) await page.locator('#asset-fx-section-head').click(); await expect(body).toBeHidden(); };
+  /* 양성대조 — 여는 문을 끈 판: 접힌 채 효과를 더하면 카드가 닫힌 절에 들어간다(고치기 전 꼴) */
+  await collapse();
+  await page.evaluate(() => { window.__realExpand = window.expandPanelSection; window.expandPanelSection = () => {}; });
+  await page.selectOption('#asset-fx-add', opts[0]);
+  await expect(page.locator('#asset-fx-list'), '[전제] 카드가 생겼다').toBeAttached();
+  await expect(body, '[양성대조] 문을 끄면 Effects 가 접힌 채다').toBeHidden();
+  /* 진짜 문 */
+  await page.evaluate(() => { window.expandPanelSection = window.__realExpand; });
+  await collapse();
+  const n0 = await page.locator('#asset-fx-list > *').count();
+  const next = await page.evaluate(() => [...document.querySelectorAll('#asset-fx-add option')].map((o) => o.value).find(Boolean));
+  await page.selectOption('#asset-fx-add', next);
+  await expect(body, '★효과를 더했는데 Effects 가 접힌 채다').toBeVisible();
+  await expect(page.locator('#asset-fx-section-head')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#asset-fx-list > *')).toHaveCount(n0 + 1);
+  await expect(page.locator('#asset-fx-list > *').last(), '★새 카드가 안 보인다').toBeVisible();
   expect(errs, errs.join(' | ')).toEqual([]);
 });

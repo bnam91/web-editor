@@ -55,7 +55,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, unwrapSection, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, unwrapSection, expandSection, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
@@ -415,4 +415,23 @@ test('F15 ★txt-size 줄기 가드 — 텍스트 패널 소스에 «블록 크�
   assert.deepEqual(notFont, [], `★txt-size 줄기가 글자 크기 아닌 id 를 삼킨다: ${notFont}`);
   /* ★양성대조 — 같은 판정이 가짜 블록 크기 id 를 잡는다 */
   assert.deepEqual(['txt-size-w-number'].filter((x) => !/^txt-size(-number)?$/.test(x)), ['txt-size-w-number']);
+});
+
+test('F16 expandSection — 저장 상태를 펼침으로 · 효과 추가 문이 부른다(접힌 Effects 에 카드가 숨어 들어가지 않게)', () => {
+  const ls = memStorage();
+  const F = loadFrame({ storage: ls });
+  F.setSectionCollapsed('effects', true);
+  F.setSectionCollapsed('fill', true);
+  assert.equal(F.isSectionCollapsed('effects'), true, '[전제] 접혀 있다');
+  F.expandSection('effects');
+  assert.equal(F.isSectionCollapsed('effects'), false, '★expandSection 이 저장 상태를 안 열었다');
+  assert.equal(F.isSectionCollapsed('fill'), true, '★다른 절까지 열었다');
+  assert.match(F.buildPanelHTML({ sections: [F.sec('effects', 'x')] }), /id="psec-effects-body">/, '★다시 그려도 펼침이어야 한다');
+  /* 배선 — effects-registry 의 추가 select change 가 다시 그리기(again) «전»에 Effects 를 연다 */
+  const reg = stripComments(readSrc(ROOT, 'js/effects-registry.js'));
+  const m = /sel\?\.addEventListener\('change'[\s\S]*?\n {2}\}\);/.exec(reg);
+  assert.ok(m, '★추가 select 배선을 못 찾았다');
+  assert.match(m[0], /window\.expandPanelSection\?\.\('effects'\);[\s\S]*again\(\)/, '★효과 추가가 Effects 를 안 연다(또는 다시 그린 뒤에 연다)');
+  /* ★양성대조 — 그 한 줄을 뺀 판이면 위 단언이 거짓 */
+  assert.doesNotMatch(m[0].replace(/window\.expandPanelSection\?\.\('effects'\);/, ''), /expandPanelSection/);
 });

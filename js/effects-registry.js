@@ -128,6 +128,7 @@ export function wireFxSection(el, prefix, rerender) {
     t.add(el);   /* add 는 push-before — 「막 켠」 상태를 안 찍는다 */
     /* ★끝 표본(js/insert-history.js T-131 과 같은 이음매) — 없으면 다음 패널 편집(push-after)의 ⌘Z 한 번이 효과 켜기까지 같이 푼다. 켜기만 하고 ⌘Z 는 무변화 차단·ensure 가 여전히 한 걸음으로 둔다. */
     window.pushHistory?.('효과 켬');
+    window.expandPanelSection?.('effects');   /* ★Effects 절이 접혀 있으면 연다 — 새 카드가 닫힌 절에 들어가면 «아무 일도 안 한 것처럼» 보인다(U0c ㉑) */
     fxSetCardOpen(el, t.key, true); again();
   });
   for (const t of types) if (t.has(el)) t.wire(el, P, again);

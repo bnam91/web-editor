@@ -84,17 +84,33 @@ ${header}
 const HEAD_SEL = '.prop-section[data-sec] > .prop-sec-head > .prop-section-title';
 let _wiredPanel = null;
 
+/** 그려진 절 하나를 열거나 닫는다 — DOM(몸 hidden · is-collapsed · aria-expanded) + 저장 상태. */
+function _setOpen(section, open) {
+  const bodyEl = section?.querySelector(':scope > .prop-sec-body');
+  const head = section?.querySelector(':scope > .prop-sec-head > .prop-section-title');
+  if (!section || !bodyEl) return;
+  bodyEl.hidden = !open;
+  section.classList.toggle('is-collapsed', !open);
+  head?.setAttribute('aria-expanded', String(open));   // 툴팁 없음 — 상태는 aria-expanded·쉐브론이 말한다(회전은 CSS)
+  setSectionCollapsed(section.dataset.secState, !open);
+}
 function _toggle(head) {
   const section = head.closest('.prop-section[data-sec]');
   const bodyEl = section?.querySelector(':scope > .prop-sec-body');
-  if (!section || !bodyEl) return;
-  const open = bodyEl.hidden;   // 지금 닫혀 있으면 연다
-  bodyEl.hidden = !open;
-  section.classList.toggle('is-collapsed', !open);
-  head.setAttribute('aria-expanded', String(open));   // 툴팁 없음 — 상태는 aria-expanded·쉐브론이 말한다
-  // 쉐브론 회전은 CSS(.prop-sec-chevron · aria-expanded)가 맡는다
-  setSectionCollapsed(section.dataset.secState, !open);
+  if (bodyEl) _setOpen(section, bodyEl.hidden);   // 지금 닫혀 있으면 연다
 }
+
+/** 절을 연다 — 저장 상태를 «펼침»으로 두고, 지금 패널에 그 절이 있으면 그 자리에서 연다.
+ *  ★「줄을 더하는」 동작(효과 추가 · 별 색 줄 보이기 …)은 이걸 먼저 부른다 — 접힌 절에 새 줄이 들어가면 «아무 일도 안 한 것처럼» 보인다.
+ *  key = 절 접기 단위(SECTION_ORDER key · special 은 'special:<제목>'). */
+export function expandSection(key) {
+  setSectionCollapsed(key, false);
+  const section = typeof document !== 'undefined'
+    ? [...(propPanel?.querySelectorAll?.('.prop-section[data-sec]') || [])].find((s) => s.dataset.secState === key) : null;
+  if (section) _setOpen(section, true);
+}
+/* window 다리 — effects-registry.js 는 import 0 규약이라(단위 하네스가 단독으로 싣는다) 이 이름으로 부른다. */
+if (typeof window !== 'undefined') window.expandPanelSection = expandSection;
 
 function _wire(panel) {
   if (!panel || _wiredPanel === panel) return;
