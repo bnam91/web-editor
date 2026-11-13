@@ -12,7 +12,7 @@ function loadSectionSpec() {
   const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export\s+/gm, '');
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl };', ctx);
+  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl, explicitOwnOf };', ctx);
   return ctx.__S;
 }
 
@@ -50,6 +50,8 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
   if (idx.some((v) => v < 0)) bad.push(`모르는 key: ${keyed.filter((s, i) => idx[i] < 0).map((s) => s.sec)}`);
   for (let i = 1; i < idx.length; i++) if (idx[i] < idx[i - 1]) bad.push(`순서 위반: ${keyed[i - 1].sec} 뒤에 ${keyed[i].sec}`);
   const seen = new Set();
+  const skey = (s) => (s.sec === 'special' ? `special:${s.title}` : s.sec);   // 절 정체 — 블록 고유 절은 제목까지
+  const panelKeys = new Set(keyed.map(skey));
   for (const s of keyed) {
     const k = s.sec === 'special' ? `special:${s.title}` : s.sec;
     if (seen.has(k)) bad.push(`중복 절: ${k}`);
@@ -60,9 +62,10 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
       if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;
       if (c.itemCard && s.sec === 'content') continue;   // Content 안 반복 항목 카드는 한 항목의 색·크기·글이 한 몸 — 다른 절의 카드는 여전히 판정   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
-      const own = spec.ownerOfControl(c);
-      if (own && !spec.SECTION_ORDER.includes(own)) { bad.push(`data-own 이 모르는 절: ${c.id} → ${own}`); continue; }
-      if (own && own !== s.sec) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${s.sec} 절에 있다`);
+      const explicit = spec.explicitOwnOf(c);
+      if (explicit && !panelKeys.has(explicit)) { bad.push(`data-own 이 이 패널에 없는 절: ${c.id} → ${explicit}`); continue; }
+      const own = explicit ?? spec.ownerOf(spec.controlIdent(c));
+      if (own && own !== skey(s)) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${skey(s)} 절에 있다`);
     }
   }
   if (hints > 2) bad.push(`prop-hint ${hints}개 > 2`);

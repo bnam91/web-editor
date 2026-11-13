@@ -319,8 +319,18 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   assert.deepEqual(judgePanel(rad('layout', null), spec), ['소유 위반: rdl-radius-slider 는 appearance 절 속성인데 layout 절에 있다'], '[양성대조] 덮어쓰기 없으면 radius = appearance');
   assert.deepEqual(judgePanel(rad('layout', 'layout'), spec), [], '★조상 줄 data-own=layout 인데 빨갛다');
   assert.deepEqual(judgePanel(rad('layout', null, [['own', 'layout']]), spec), [], '★컨트롤 자신의 data-own=layout 인데 빨갛다');
-  assert.deepEqual(judgePanel(rad('appearance', 'layout'), spec), ['소유 위반: rdl-radius-slider 는 layout 절 속성인데 appearance 절에 있다'], '★덮어쓰기가 판정을 건너뛰었다(여전히 재야 한다)');
-  assert.deepEqual(judgePanel(rad('layout', 'lay-out'), spec), ['data-own 이 모르는 절: rdl-radius-slider → lay-out']);
+  const two = { hints: 0, secs: [{ sec: 'layout', isHeader: false, title: 'Layout', labels: [], controls: [] },
+    { sec: 'appearance', isHeader: false, title: 'Appearance', labels: [], controls: [{ id: 'rdl-radius-slider', type: 'range', data: [], own: 'layout' }] }] };
+  assert.deepEqual(judgePanel(two, spec), ['소유 위반: rdl-radius-slider 는 layout 절 속성인데 appearance 절에 있다'], '★덮어쓰기가 판정을 건너뛰었다(여전히 재야 한다)');
+  assert.deepEqual(judgePanel(rad('layout', 'lay-out'), spec), ['data-own 이 이 패널에 없는 절: rdl-radius-slider → lay-out'], '★오타 key 를 못 잡는다');
+  assert.deepEqual(judgePanel(rad('layout', 'appearance'), spec), ['data-own 이 이 패널에 없는 절: rdl-radius-slider → appearance'], '★패널에 없는 정본 key 를 못 잡는다');
+  /* U0c ⑦ 블록 고유 절 key — data-own="special:<제목>" (페이지 Grid 보기 도우미 · Buzz …) */
+  const grid = (own, title = 'Grid') => ({ hints: 0, secs: [{ sec: 'special', isHeader: false, title, labels: [],
+    controls: [{ id: 'page-grid-color', type: 'color', data: [], own }, { id: 'page-pad-hint-color', type: 'color', data: [], own }] }] });
+  assert.deepEqual(judgePanel(grid('special:Grid'), spec), [], '★special 절 key 덮어쓰기가 안 먹는다');
+  assert.deepEqual(judgePanel(grid(null), spec), ['소유 위반: page-grid-color 는 fill 절 속성인데 special:Grid 절에 있다',
+    '소유 위반: page-pad-hint-color 는 padding 절 속성인데 special:Grid 절에 있다'], '[양성대조] 덮어쓰기 없으면 fill');
+  assert.deepEqual(judgePanel(grid('special:Gird'), spec).length, 2, '★special 오타를 못 잡는다');
   /* U0c ④ 반복 항목 카드 — Content 안이면 판정 밖 · 같은 카드가 다른 절(Appearance)이면 판정 */
   const card = (sec, itemCard) => ({ hints: 0, secs: [{ sec, isHeader: false, title: spec.SECTION_TITLE[sec], labels: [],
     controls: [{ id: 'cmp-card-0-bg-color', type: 'color', data: [], pairedColor: false, scope: null, own: null, itemCard }] }] });
@@ -333,5 +343,5 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   assert.deepEqual(judgePanel(special([coin('stk-coin-face-color'), coin('stk-coin-face-hex', 'stk-coin-face-color'),
     coin('stk-coin-side-color'), coin('stk-coin-side-alpha', 'stk-coin-side-color')]), spec), [], '★코인 금속색(제외)이 빨갛다');
   assert.deepEqual(judgePanel(special([coin('stk-coin-rim-hex', 'stk-coin-rim-color')]), spec),
-    ['소유 위반: stk-coin-rim-hex 는 fill 절 속성인데 special 절에 있다'], '[양성대조] 제외 밖 색짝은 잡는다');
+    ['소유 위반: stk-coin-rim-hex 는 fill 절 속성인데 special:Coin 절에 있다'], '[양성대조] 제외 밖 색짝은 잡는다');
 });
