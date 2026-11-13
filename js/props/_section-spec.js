@@ -109,7 +109,8 @@ export function ownerOf(ident) {
  *  «건너뛰기»가 아니라 «그 절이어야 한다»로 여전히 판정한다. 드물게 · 호출부에 까닭 주석 필수(DESIGN_SYSTEM §11-A).
  *  예: 방사형 배치 반지름(rdl-radius) = 원 배치의 크기 → Layout(모서리 radius 가 아니다). */
 export function ownerOfControl(c) {
-  return explicitOwnOf(c) ?? ownerOf(controlIdent(c));
+  // fxCard = effects-registry 의 카드 목록(#<P>-fx-list · fxSectionParts 의 body) 안 — 카드 안 색·x/y·크기는 전부 그 효과의 것 ⇒ Effects
+  return explicitOwnOf(c) ?? (c.fxCard ? 'effects' : ownerOf(controlIdent(c)));
 }
 /** 명시 덮어쓰기 값(없으면 null). 값 = 절 key(SECTION_ORDER) 또는 블록 고유 절 'special:<제목>'(예 'special:Grid' · 'special:Buzz').
  *  게이트는 그 절이 «이 패널에 실제로 있나»도 잰다 — 오타면 빨강. */

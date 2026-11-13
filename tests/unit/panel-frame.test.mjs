@@ -327,6 +327,18 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
     controls: [{ id: 'grd-cellall-bg-color', type: 'color', data: [], scope: 'grd-cellall-body' }] }] });
   assert.deepEqual(judgePanel(all('content'), spec), []);
   assert.deepEqual(judgePanel(all('stroke'), spec), ['소유 위반: grd-cellall-bg-color 는 fill 절 속성인데 stroke 절에 있다']);
+  /* U0c ⑮ effects-registry 카드 목록(#<P>-fx-list) 안 칸 = Effects — 단어 하나짜리 fxsh/fxgl 를 규칙으로 읽으면 fill/position/size 로 샌다 */
+  const FX = [['asset-fxsh-color', 'color'], ['asset-fxsh-color-hex', 'text', true], ['frm-fxsh-x-number', 'number'], ['frm-fxsh-y-slider', 'range'],
+    ['grd-fxgl-color', 'color'], ['grd-fxgl-size-number', 'number'], ['txt-fxbl-amount', 'range'], ['txt-fxft-reset', 'button']];
+  const fx = (sec, fxCard) => ({ hints: 0, secs: [{ sec, isHeader: false, title: spec.SECTION_TITLE[sec], labels: [],
+    controls: FX.map(([id, type, paired]) => ({ id, type, data: [], pairedColor: !!paired, fxCard })) }] });
+  assert.deepEqual(judgePanel(fx('effects', true), spec), [], '★Effects 안 효과 카드 칸이 빨갛다');
+  assert.deepEqual(judgePanel(fx('fill', true), spec).length, FX.length, '[양성대조] 카드 목록이 엉뚱한 절(Fill)이면 칸마다 빨강 — 건너뛰기가 아니다');
+  assert.deepEqual(judgePanel(fx('effects', false), spec), [
+    '소유 위반: asset-fxsh-color 는 fill 절 속성인데 effects 절에 있다', '소유 위반: asset-fxsh-color-hex 는 fill 절 속성인데 effects 절에 있다',
+    '소유 위반: frm-fxsh-x-number 는 position 절 속성인데 effects 절에 있다', '소유 위반: frm-fxsh-y-slider 는 position 절 속성인데 effects 절에 있다',
+    '소유 위반: grd-fxgl-color 는 fill 절 속성인데 effects 절에 있다', '소유 위반: grd-fxgl-size-number 는 size 절 속성인데 effects 절에 있다',
+  ], '[양성대조] 카드 표식이 없으면 규칙이 낱말 하나(fxsh/fxgl)를 못 읽어 샌다 — 그래서 그릇으로 가린다');
   /* U0c ② 그리드 「줄」(글줄)의 색 칸 — 규칙상 line+color = stroke 지만 #grd-line-body 그릇 안이면 판정 밖 · 그릇 밖이면 잡힌다 */
   const gl = (scope) => ({ hints: 0, secs: [{ sec: 'typography', isHeader: false, title: 'Typography', labels: [],
     controls: [{ id: 'grd-line-color', type: 'color', data: [], pairedColor: false, scope }] }] });

@@ -41,6 +41,7 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
         || (prev?.matches?.('input[type="color"]') ? prev : prev?.querySelector?.('input[type="color"]')) || null);
       return {
         id: c.id, type: c.type, pairedColor: !!pair, pairId: pair?.id || null,
+        fxCard: (() => { const k = c.closest('[id$="-fx-list"]'); return !!k && e.contains(k); })(),   // effects-registry 카드 목록 안(그 효과의 칸)
         itemCard: (() => { const k = c.closest('[data-sec-item], .prop-cell-card, [data-card-index]'); return !!k && e.contains(k); })(),   // 반복 항목 카드(카드 n · 칸 n …)
         own: (() => { const o = c.closest('[data-own]'); return o && e.contains(o) ? o.dataset.own : null; })(),   // 명시 덮어쓰기(같은 절 안 조상 줄까지)
         data: [...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => [a.name.slice(5), a.value]),
@@ -77,7 +78,7 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
       if (c.itemCard && s.sec === 'content') continue;   // Content 안 반복 항목 카드는 한 항목의 색·크기·글이 한 몸 — 다른 절의 카드는 여전히 판정   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
       const explicit = spec.explicitOwnOf(c);
       if (explicit && !panelKeys.has(explicit)) { bad.push(`data-own 이 이 패널에 없는 절: ${c.id} → ${explicit}`); continue; }
-      const own = explicit ?? spec.ownerOf(spec.controlIdent(c));
+      const own = spec.ownerOfControl(c);   // 명시 ?? fx 카드(effects) ?? 규칙
       if (own && own !== skey(s)) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${skey(s)} 절에 있다`);
     }
   }

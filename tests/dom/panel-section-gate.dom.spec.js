@@ -157,6 +157,28 @@ test('G7 simple-card 꼴 항목 카드([data-card-index] · id 없는 칸) — C
   expect(judgePanel(await readPanel(page), SPEC), '★Content 안 simple-card 항목 칸인데 빨갛다').toEqual([]);
 });
 
+test('G8 effects-registry 카드 칸 = Effects — 진짜 에셋 블록 + 그림자 카드(fxSectionParts) 를 틀로 그려 잰다', async ({ page }) => {
+  await scene(page);
+  const r = await addKind(page, { cls: 'asset-block', entry: 'addAssetBlock' });
+  expect(r.err, '[전제] 에셋 블록').toBeUndefined();
+  const draw = (key) => page.evaluate(async ({ id, key }) => {
+    const { renderPanel, sec } = await import('/js/props/_panel-frame.js');
+    const ab = document.getElementById(id);
+    const t = window.fxTypesFor(ab).find((x) => x.key === 'shadow');
+    if (t && !t.has(ab)) t.add(ab);
+    const p = window.fxSectionParts(ab, 'asset');
+    renderPanel(ab, { sections: [sec(key, p.body, { headTools: p.headTools, id: p.id })] });
+    return !!document.getElementById('asset-fxsh-color');
+  }, { id: r.id, key });
+  expect(await draw('effects'), '[전제] 그림자 카드의 색 칸이 그려졌다').toBe(true);
+  const ok = await readPanel(page);
+  expect(ok.secs.find((s) => s.sec === 'effects').controls.filter((c) => c.fxCard).length, '[전제] 카드 칸을 fx 목록 안으로 읽었다').toBeGreaterThan(2);
+  expect(judgePanel(ok, SPEC), '★Effects 안 그림자 카드 칸이 빨갛다').toEqual([]);
+  await draw('fill');   // 같은 카드 목록을 Fill 절에 — 판정이 «effects 여야 한다»로 빨개져야 한다
+  const red = judgePanel(await readPanel(page), SPEC);
+  expect(red, '[양성대조] 카드 목록이 Fill 절이면 빨강').toContain('소유 위반: asset-fxsh-color 는 effects 절 속성인데 fill 절에 있다');
+});
+
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });
