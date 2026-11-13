@@ -2,27 +2,21 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedPx } from './_panel-rendered.js';
+import {
+  LABEL_BUILTIN_PRESETS, LABEL_USER_PREFIX, listLabelUserPresets, addLabelUserPreset, updateLabelUserPreset, removeLabelUserPreset,
+  resolveLabelPreset, readLabelStyle, applyLabelStyleToItem, applyLabelStyleToBlock,
+} from '../label-presets.js';
 
-// 라벨 스타일 프리셋 정의
-const LABEL_STYLE_PRESETS = {
-  Default: { bg: '#111111', color: '#ffffff', border: 'none' },
-  Filled:  { bg: '#333333', color: '#ffffff', border: 'none' },
-  Outline: { bg: 'transparent', color: '#111111', border: '1.5px solid #111111' },
-  Ghost:   { bg: 'rgba(0,0,0,0.06)', color: '#333333', border: 'none' },
-};
-
-/** 단일 label-item에 스타일 프리셋 적용 */
+/** 단일 label-item에 스타일 프리셋 적용 — 기본 4종 또는 'user:<id>'(t3-01 내 프리셋) */
 function _applyPresetToItem(item, presetName) {
-  const p = LABEL_STYLE_PRESETS[presetName];
-  if (!p) return;
-  item.style.backgroundColor = p.bg;
-  item.style.color = p.color;
-  item.style.border = p.border;
+  const s = resolveLabelPreset(presetName);
+  if (!s) return;
   // B1 — 프리셋을 «직접» 입히면 라벨 모양 변수 연결은 끊는다(값을 손으로 정한 것이 이긴다 · 변수가 나중에 덮지 않게)
   if (item.dataset.labelShape) { delete item.dataset.labelShape; item.style.clipPath = ''; }
-  item.dataset.bg    = p.bg;
-  item.dataset.color = p.color;
+  applyLabelStyleToItem(item, s);
 }
+/* t3-01 — 패널을 다시 그려도 마지막에 고른 프리셋을 select 에 남긴다(저장·이름 변경 뒤 그 항목을 계속 가리키게). */
+let _lgLastPreset = 'Default';
 
 function showLabelGroupProperties(block, selectedItem) {
   const isAbsolute = block.style.position === 'absolute';
@@ -50,6 +44,7 @@ function showLabelGroupProperties(block, selectedItem) {
   const _shapeNames = Object.keys(_shapes);
   const boundName  = selectedItem?.dataset.labelShape && _shapes[selectedItem.dataset.labelShape] ? selectedItem.dataset.labelShape : null;
   const _shapeOpts = (cur) => _shapeNames.map((n) => `<option value="${escHtml(n)}"${n === cur ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+  const userPresets = listLabelUserPresets();
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -69,14 +64,27 @@ ${blockHeaderHTML({
       <div class="prop-row">
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="lg-style-select">
-          <option value="Default">Default</option>
-          <option value="Filled">Filled</option>
-          <option value="Outline">Outline</option>
-          <option value="Ghost">Ghost</option>
+          <optgroup label="기본">${Object.keys(LABEL_BUILTIN_PRESETS).map((k) => `
+            <option value="${k}">${k}</option>`).join('')}
+          </optgroup>${userPresets.length ? `
+          <optgroup label="내 프리셋">${userPresets.map((p) => `
+            <option value="${LABEL_USER_PREFIX}${escHtml(p.id)}">★ ${escHtml(p.name)}</option>`).join('')}
+          </optgroup>` : ''}
         </select>
       </div>
       <div class="prop-row">
         <button class="prop-action-btn primary" id="lg-apply-all-btn">전체 적용</button>
+        <button class="prop-action-btn secondary" id="lg-preset-save-btn" title="고른 태그(없으면 첫 태그)의 꼴을 내 프리셋으로 저장">현재 꼴 저장</button>
+      </div>
+      <div class="prop-row" id="lg-preset-user-row" style="display:none">
+        <button class="prop-action-btn secondary" id="lg-preset-overwrite-btn" title="이 프리셋을 지금 꼴로 덮어쓴다">덮어쓰기</button>
+        <button class="prop-action-btn secondary" id="lg-preset-rename-btn">이름 변경</button>
+        <button class="prop-action-btn danger" id="lg-preset-delete-btn">삭제</button>
+      </div>
+      <div class="prop-row" id="lg-preset-name-row" style="display:none">
+        <input type="text" class="prop-text" id="lg-preset-name-input" maxlength="40" placeholder="프리셋 이름" aria-label="프리셋 이름">
+        <button class="prop-action-btn primary" id="lg-preset-name-ok" style="flex:0 0 52px;margin-top:0">확인</button>
+        <button class="prop-action-btn secondary" id="lg-preset-name-cancel" style="flex:0 0 52px;margin-top:0">취소</button>
       </div>
     </div>
     <div class="prop-section">
@@ -234,13 +242,14 @@ ${blockHeaderHTML({
     const bgHex2    = document.getElementById('lg-item-bg-hex');
     const colorPicker2 = document.getElementById('lg-item-color-color');
     const colorHex2    = document.getElementById('lg-item-color-hex');
-    const p = LABEL_STYLE_PRESETS[styleSelect.value];
+    const p = resolveLabelPreset(styleSelect.value);
     if (p) {
-      const bgVal = p.bg.startsWith('rgba') || p.bg === 'transparent' ? '#ffffff' : p.bg;
+      const hex6 = (v) => (/^#[0-9a-f]{6}$/i.test(v) ? v : '#ffffff');   // rgba·transparent 는 색 칸이 못 받는다(옛 동작 그대로)
+      const bgVal = hex6(p.bg), colorVal = hex6(p.color);
       if (bgPicker2) bgPicker2.value = bgVal;
       if (bgHex2)    bgHex2.value    = bgVal.replace('#','').toUpperCase();
-      if (colorPicker2) colorPicker2.value = p.color;
-      if (colorHex2)    colorHex2.value    = p.color.replace('#','').toUpperCase();
+      if (colorPicker2) colorPicker2.value = colorVal;
+      if (colorHex2)    colorHex2.value    = colorVal.replace('#','').toUpperCase();
     }
   });
 
@@ -252,8 +261,11 @@ ${blockHeaderHTML({
     canvas.querySelectorAll('.label-group-block .label-item').forEach(item => {
       _applyPresetToItem(item, presetName);
     });
-    // CSS 변수도 업데이트 (design-system 연동)
-    const p = LABEL_STYLE_PRESETS[presetName];
+    // t3-01 내 프리셋은 블럭 꼴(모양·간격)까지 — 기본 4종엔 그 키가 없어 무동작
+    const userStyle = presetName.startsWith(LABEL_USER_PREFIX) ? resolveLabelPreset(presetName) : null;
+    if (userStyle) canvas.querySelectorAll('.label-group-block').forEach(b => applyLabelStyleToBlock(b, userStyle));
+    // CSS 변수도 업데이트 (design-system 연동) — 기본 4종만(내 프리셋은 디자인 토큰을 안 바꾼다)
+    const p = LABEL_BUILTIN_PRESETS[presetName];
     if (p && window.DesignSystem) {
       const tokens = {
         '--preset-label-bg':    p.bg === 'transparent' ? 'transparent' : p.bg,
@@ -263,6 +275,8 @@ ${blockHeaderHTML({
       document.documentElement.style.setProperty('--preset-label-color', tokens['--preset-label-color']);
     }
   });
+
+  _wireLabelUserPresets(block, selectedItem, styleSelect);
 
   if (!selectedItem) return;
 
@@ -345,6 +359,72 @@ ${blockHeaderHTML({
     yNum?.addEventListener('input', () => { block.style.top  = (parseInt(yNum.value) || 0) + 'px'; });
     yNum?.addEventListener('change', () => window.pushHistory?.());
   }
+}
+
+/* ── t3-01 내 프리셋: 등록·덮어쓰기·이름 변경·삭제 ─────────────────────────
+ * 문서 변경이 아니라 «앱 설정» 쓰기라 pushHistory 하지 않는다(⌘Z 대상 아님) · prompt()/confirm() 금지(렌더러 멈춤) — 인라인 이름 줄 · 삭제는 두 번 눌러 확인. */
+function _wireLabelUserPresets(block, selectedItem, styleSelect) {
+  const $ = (id) => document.getElementById(id);
+  const userRow = $('lg-preset-user-row'), nameRow = $('lg-preset-name-row'), nameInput = $('lg-preset-name-input');
+  const delBtn = $('lg-preset-delete-btn');
+  if (!styleSelect || !userRow || !nameRow || !nameInput) return;
+  if ([...styleSelect.options].some((o) => o.value === _lgLastPreset)) styleSelect.value = _lgLastPreset;
+  const curUserId = () => (styleSelect.value.startsWith(LABEL_USER_PREFIX) ? styleSelect.value.slice(LABEL_USER_PREFIX.length) : null);
+  const syncUserRow = () => {
+    userRow.style.display = curUserId() ? '' : 'none';
+    if (delBtn) { delBtn.textContent = '삭제'; delBtn.dataset.armed = ''; }
+  };
+  syncUserRow();
+  styleSelect.addEventListener('change', () => { _lgLastPreset = styleSelect.value; syncUserRow(); });
+
+  const source = () => selectedItem || block.querySelector('.label-item');
+  const rerender = (keep) => { _lgLastPreset = keep; window.showLabelGroupProperties(block, selectedItem); };
+  const failToast = () => window.showToast?.('프리셋을 저장하지 못했습니다(저장소 쓰기 실패)');
+  let mode = null;   // 'add' | 'rename'
+  const openName = (m, value) => { mode = m; nameRow.style.display = ''; nameInput.value = value; nameInput.focus(); nameInput.select(); };
+  const closeName = () => { mode = null; nameRow.style.display = 'none'; };
+  const submit = () => {
+    const name = nameInput.value.trim();
+    if (!name) { window.showToast?.('이름을 입력하세요'); nameInput.focus(); return; }
+    if (mode === 'add') {
+      const it = source();
+      if (!it) { window.showToast?.('태그가 없어 저장할 꼴이 없습니다'); return; }
+      const p = addLabelUserPreset(name, readLabelStyle(it, block));
+      if (!p) { failToast(); return; }
+      window.showToast?.(`내 프리셋 «${p.name}» 저장`);
+      rerender(LABEL_USER_PREFIX + p.id);
+    } else if (mode === 'rename') {
+      const id = curUserId();
+      if (!id || !updateLabelUserPreset(id, { name })) { failToast(); return; }
+      rerender(LABEL_USER_PREFIX + id);
+    }
+  };
+  $('lg-preset-save-btn')?.addEventListener('click', () => openName('add', ''));
+  $('lg-preset-rename-btn')?.addEventListener('click', () => {
+    const id = curUserId();
+    const cur = listLabelUserPresets().find((p) => p.id === id);
+    if (cur) openName('rename', cur.name);
+  });
+  $('lg-preset-name-ok')?.addEventListener('click', submit);
+  $('lg-preset-name-cancel')?.addEventListener('click', closeName);
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeName(); }
+    e.stopPropagation();   // 이름 치는 동안 캔버스 단축키(⌫ 삭제 등)가 안 먹게
+  });
+  $('lg-preset-overwrite-btn')?.addEventListener('click', () => {
+    const id = curUserId(); const it = source();
+    if (!id || !it) return;
+    if (!updateLabelUserPreset(id, { style: readLabelStyle(it, block) })) { failToast(); return; }
+    window.showToast?.('내 프리셋을 지금 꼴로 덮어썼습니다');
+  });
+  delBtn?.addEventListener('click', () => {
+    const id = curUserId();
+    if (!id) return;
+    if (delBtn.dataset.armed !== '1') { delBtn.dataset.armed = '1'; delBtn.textContent = '삭제?'; return; }
+    if (!removeLabelUserPreset(id)) { failToast(); return; }
+    rerender('Default');
+  });
 }
 
 window.showLabelGroupProperties = showLabelGroupProperties;
