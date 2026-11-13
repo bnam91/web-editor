@@ -1106,7 +1106,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
            ⒝ ★`translate:<dx>px <dy>px`(사용자가 ★끌어 ★옮긴 ★몫 · `:547`).
            ⇒ ★이름 = `ANNOT-LABEL-ANCHOR-TRANSFORM-NOT-IN-FIGMA-01` (★미측정 · ★수신측 영향 안 쟀다)
          ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` A1 · A5 */
-      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label').forEach(t => {
+      /* ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01 — 아이콘텍스트 글자(.itb-text)도 싣는다(옛: tb-·annot-label 만 봐서 빠졌다).
+         x·y 는 인라인 left/top 이 없어 0 — generic 프레임엔 아이콘(img)이 안 그려져 겹칠 것이 없다. */
+      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text').forEach(t => {
         if (!_notKid(t)) return;
         /* ★1012t1H5 — 인용구 줄(.tb-qt-line) «안»의 효과 span(tb-dot 글자마다 · tb-hl · tb-glow)은 줄이 이미 실은 글자다.
            안 거르면 점을 켠 순간 글자가 한 자씩 또 실린다. ⛔줄 자신과 줄 밖(.tb-qt-body·부호)은 그대로(옛 JSON 바이트 동일). */

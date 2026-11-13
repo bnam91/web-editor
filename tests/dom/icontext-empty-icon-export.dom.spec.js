@@ -5,6 +5,8 @@
  *   IC1 PNG·썸네일 공용 겹(stripEditorOnlyForCapture): 빈 칸 가시성 끔 · 자리(폭) 그대로 · 그림 든 칸은 그대로(음성대조)
  *   IC2 단독 HTML 배송본을 렌더: 빈 칸 안 보임 · 그림 든 칸 보임
  *   IC3 Figma JSON: 빈 칸 블럭의 svg 에 자리표시가 안 실린다
+ *   IC4 Figma JSON: 아이콘텍스트 글자(.itb-text)가 texts 에 «한 번» 실린다 (ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01)
+ *        양성대조: export-figma-json.js 수집기 셀렉터에서 `, .itb-text` 만 빼면 IC4 빨강.
  * 양성대조: 고친 두 줄(capture-safety.js · export-figma-json.js)만 되돌리면 IC1~IC3 빨강, IC0 초록.
  */
 const { test, expect } = require('@playwright/test');
@@ -93,6 +95,17 @@ test('IC3 Figma JSON — 빈 칸 블럭에 자리표시 svg 가 안 실린다', 
   let hit = null; JSON.stringify(j, (k, v) => { if (v && v.id === ids.empty) hit = v; return v; });
   expect(hit, '전제: 빈 칸 블럭이 Figma JSON 에 없다').not.toBeNull();
   /* ⛔「글자는 실린다」 전제를 뺐다(인텔 261112 빨강) — 수집기(export-figma-json.js texts)는 tb-*·.annot-label 만 보고 .itb-text 는 원래 안 싣는다(650a62f64 전부터).
-     그 빈자리는 별건 ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01 — 이 검사의 대상(svg 자리표시)과 무관. */
+     그 빈자리는 별건 ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01(고침 · IC4 가 잰다) — 이 검사의 대상(svg 자리표시)과 무관. */
   expect(String(hit.svg || ''), 'Figma JSON 에 자리표시 svg 가 실렸다').not.toContain(PH_SVG);
+});
+
+test('IC4 Figma JSON — 아이콘텍스트 글자가 texts 에 한 번 실린다 (ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01)', async ({ page }) => {
+  const ids = await setup(page);
+  const j = await page.evaluate(() => (window.flushCurrentPage?.(), window.buildFigmaExportJSON(null)));
+  const hits = {}; JSON.stringify(j, (k, v) => { if (v && (v.id === ids.empty || v.id === ids.filled)) hits[v.id] = v; return v; });
+  for (const [id, want] of [[ids.empty, '빈 아이콘 칸'], [ids.filled, '그림 든 칸']]) {
+    expect(hits[id], '전제: 블럭이 Figma JSON 에 없다').toBeTruthy();
+    const ts = (hits[id].texts || []).map(t => t.t);
+    expect(ts, `★아이콘텍스트 글자가 Figma JSON 에 없다/두 번 실렸다 (${id})`).toEqual([want]);
+  }
 });
