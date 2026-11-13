@@ -7,6 +7,17 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { ROOT } = require('./_root-harness.js');
+const { rosterOf } = require('./_block-roster-294.js');
+
+/* 로스터 입구 별칭 — 이름 파생(add<클래스>Block)이 실제 입구와 다른 블록. ⛔드물게 · 까닭 한 줄.
+   icon-block 은 addIconifyBlock 이 넣는다(addIconBlock 은 없다 · js/block-factory.js window.addIconifyBlock). */
+const ENTRY_ALIAS = Object.freeze({ 'icon-block': 'addIconifyBlock' });
+/** rosterOf + 별칭 → [{ cls, entry, entryOk }] — entryOk = 그 이름이 window 의 실제 함수인가(별칭 오타도 여기서 거짓). */
+async function resolveRoster(page) {
+  const roster = (await rosterOf(page)).map((k) => ({ ...k, entry: k.entry || ENTRY_ALIAS[k.cls] || null }));
+  const real = await page.evaluate((names) => names.map((n) => !!n && typeof window[n] === 'function'), roster.map((k) => k.entry));
+  return roster.map((k, i) => ({ ...k, entryOk: real[i] }));
+}
 
 function loadSectionSpec() {
   const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export\s+/gm, '');
@@ -72,4 +83,4 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
   return bad;
 }
 
-module.exports = { loadSectionSpec, readPanel, judgePanel };
+module.exports = { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS };

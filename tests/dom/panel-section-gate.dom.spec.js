@@ -9,8 +9,8 @@
  *   ⚠️순서 위반은 이관 블록에선 «날 수 없다»(renderPanel 이 정렬한다) — 그래서 소유가 이 게이트의 본 칼날이다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
-const { rosterOf, addKind } = require('./_block-roster-294.js');
-const { loadSectionSpec, readPanel, judgePanel } = require('./_panel-sections.js');
+const { addKind } = require('./_block-roster-294.js');
+const { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS } = require('./_panel-sections.js');
 
 /* ★미이관 명단 — U1 그리드 · U2 텍스트 · U3 컨테이너 · U4 미디어/도형 · U5 조합/스티커. U0 이관 = gap-block · bridge-block. */
 const UNMIGRATED = [
@@ -52,18 +52,24 @@ async function openKind(page, kind) {
 
 test('G0 [전제] 명단이 낡지 않았다 — UNMIGRATED 의 이름은 전부 로스터나 수동 5 에 있다', async ({ page }) => {
   await scene(page);
-  const roster = await rosterOf(page);
+  const roster = await resolveRoster(page);
   const known = new Set([...roster.map((k) => k.cls), ...Object.keys(MANUAL)]);
   expect(UNMIGRATED.filter((k) => !known.has(k)), '★로스터에 없는 이름이 명단에 남았다').toEqual([]);
   expect(new Set(UNMIGRATED).size, '★명단 중복').toBe(UNMIGRATED.length);
+  /* ★모든 로스터 블록이 «실제» 넣기 함수로 풀린다(별칭 오타·사라진 입구 = 빨강) · 별칭 표가 낡지 않았다 */
+  expect(roster.filter((k) => !k.entryOk).map((k) => `${k.cls} → ${k.entry}`), '★입구가 안 풀린다').toEqual([]);
+  expect(Object.keys(ENTRY_ALIAS).filter((c) => !roster.some((k) => k.cls === c)), '★별칭 표에 로스터 밖 이름').toEqual([]);
+  expect(roster.find((k) => k.cls === 'icon-block')?.entry, '[전제] icon-block = addIconifyBlock').toBe('addIconifyBlock');
+  /* ★양성대조 — 별칭 오타는 같은 판정으로 거짓이 된다 */
+  expect(await page.evaluate(() => typeof window.addIconifyBlok), '[양성대조] 오타 이름은 함수가 아니다').toBe('undefined');
 });
 
 test('G1 이관된 블록 패널 — 절 순서·제목·중복·머리·라벨·힌트가 정본과 같다', async ({ page }) => {
   const errs = await scene(page);
-  const roster = await rosterOf(page);
+  const roster = await resolveRoster(page);
   const judged = []; const fails = [];
   for (const kind of roster.filter((k) => !UNMIGRATED.includes(k.cls))) {
-    if (!kind.entry) { fails.push(`${kind.cls}: 입구 없음`); continue; }
+    if (!kind.entryOk) { fails.push(`${kind.cls}: 입구 없음(${kind.entry})`); continue; }
     const r = await openKind(page, kind);
     if (r.err) { fails.push(`${kind.cls}: ${r.err}`); continue; }
     const bad = judgePanel(await readPanel(page), SPEC);
