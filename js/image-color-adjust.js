@@ -538,17 +538,36 @@ function showColorAdjustPanel(host, opts = {}) {
  *   손잡이 층은 #canvas-area 격리 안이라 z-index 로는 패널 위로 못 올린다(css/editor-blocks.css #ss-handles-overlay 주석).
  *   위쪽도 덮으면 기본 자리 그대로(더 나빠지지 않게) · 사용자가 끌어 둔 자리(_panelPos)는 손대지 않는다(부르는 쪽이 거른다). */
 const _HANDLE_PAD = 8;   // 손잡이 7px 반 + 여유
+/* ★D4(발주30) — 손잡이는 «편집 그림»의 네 꼭지에 선다(image-handling.js syncHandles: 그림 중심 · offset 크기×줌 · ab.dataset.imgRotate 회전).
+   옛 판은 host(에셋 블럭) 꼭지로 재서 그림이 블럭보다 짧거나 클 때 엉뚱한 자리를 피했다. 그림이 없으면 host 꼭지(옛 그대로). */
+function _handleCorners(host) {
+  const img = findAdjTarget(host) || host;
+  const r = img.getBoundingClientRect();
+  const deg = parseFloat(host.closest?.('.asset-block')?.dataset.imgRotate || 0) || 0;
+  if (!deg || !img.offsetWidth) return [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+  const zs = (window.currentZoom || 100) / 100, hw = img.offsetWidth * zs / 2, hh = img.offsetHeight * zs / 2;
+  const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2, c = Math.cos(deg * Math.PI / 180), s = Math.sin(deg * Math.PI / 180);
+  return [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]].map(([x, y]) => [cx + x * c - y * s, cy + x * s + y * c]);
+}
 function _coversHandle(panel, host) {
-  const p = panel.getBoundingClientRect(), r = host.getBoundingClientRect();
-  return [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]].some(([x, y]) =>
+  const p = panel.getBoundingClientRect();
+  return _handleCorners(host).some(([x, y]) =>
     x + _HANDLE_PAD > p.left && x - _HANDLE_PAD < p.right && y + _HANDLE_PAD > p.top && y - _HANDLE_PAD < p.bottom);
 }
+/* 오른쪽 자리는 CSS 그대로 두고 세로만 고른다 — ⑴ 캔버스 위 ⑵ 위 손잡이 바로 아래 ⑶ 아래 손잡이 바로 위(큰 그림이면 두 줄 손잡이 «사이»).
+   다 덮으면 기본 자리 그대로(더 나빠지지 않게). */
 function _avoidHandles(panel, host) {
   if (!_coversHandle(panel, host)) return;
+  const h = panel.getBoundingClientRect().height;
+  const ys = _handleCorners(host).map(c => c[1]);
   const areaTop = document.getElementById('canvas-area')?.getBoundingClientRect().top || 0;
-  panel.style.top = Math.max(8, Math.round(areaTop + 12)) + 'px';
-  panel.style.bottom = 'auto';
-  if (_coversHandle(panel, host)) { panel.style.top = ''; panel.style.bottom = ''; }
+  const tops = [areaTop + 12, Math.min(...ys) + _HANDLE_PAD + 4, Math.max(...ys) - _HANDLE_PAD - 4 - h];
+  for (const t of tops) {
+    const top = Math.round(Math.min(Math.max(8, t), window.innerHeight - h - 8));
+    panel.style.top = top + 'px'; panel.style.bottom = 'auto';
+    if (!_coversHandle(panel, host)) return;
+  }
+  panel.style.top = ''; panel.style.bottom = '';
 }
 
 function hideColorAdjustPanel() {

@@ -71,3 +71,36 @@ test('P2 [사용자 자리 존중] 헤더를 끌어 옮긴 뒤엔 겹쳐도 그 
   expect({ left: r.p.left, top: r.p.top }, '★사용자가 옮긴 자리를 덮어썼다').toEqual(moved);
   expect(r.covered, '전제: 이 칸은 «겹쳐도» 그대로인지를 잰다').toBeGreaterThan(0);
 });
+
+/* ── D4(발주30 · 수지맥 실앱 발주28 2번) — 손잡이는 «편집 그림» 꼭지에 선다. 옛 판은 host(블럭) 꼭지로 재서
+ *   ⒜ 그림이 블럭보다 짧을 때(블럭 위 꼭지가 «위로 비킨 자리»를 덮는다고 보고 되돌림) ⒝ 그림이 커서 위·아래 손잡이가 다 패널 세로줄에 들 때
+ *   패널이 안 비키고 se 를 덮었다. ⒞ 꽉 찬 그림(블럭 = 그림)은 옛 판도 맞았다 — 무변 확인.
+ *   양성대조: _coversHandle 의 `_handleCorners(host)` 를 host 사각형 꼭지로 되돌리면 D4-a·D4-b 빨강 · D4-c 초록. */
+const openImg = (page, x, y, hostH, imgTop, imgH) => page.evaluate(([x, y, hostH, imgTop, imgH]) => {
+  const host = document.getElementById('adjHost'), img = host.querySelector('img');
+  Object.assign(host.style, { left: x + 'px', top: y + 'px', height: hostH + 'px', overflow: 'visible' });
+  Object.assign(img.style, { position: 'absolute', left: '0px', top: imgTop + 'px', width: '300px', height: imgH + 'px' });
+  window.hideColorAdjustPanel();
+  window.showColorAdjustPanel(host);
+  const p = document.getElementById('color-adjust-panel').getBoundingClientRect(), r = img.getBoundingClientRect();
+  const covered = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]]
+    .filter(([cx, cy]) => cx + 4 > p.left && cx - 4 < p.right && cy + 4 > p.top && cy - 4 < p.bottom).length;
+  return { p: [p.left, p.top, p.right, p.bottom].map(Math.round), img: [r.left, r.top, r.right, r.bottom].map(Math.round), covered };
+}, [x, y, hostH, imgTop, imgH]);
+
+for (const [name, shape] of [
+  ['D4-a 짧은 그림(블럭 위 꼭지는 위로 비킨 자리 안 · 그림 se 는 기본 패널 한가운데)', (d, cx, cy) => ({ hostTop: 300, imgTop: cy - 344 - 300, imgH: 344, hostH: (cy + 40) - 300 })],
+  ['D4-b 큰 그림(위·아래 손잡이가 다 패널 세로줄 · 그 «사이»가 비어 있다)', (d, cx, cy) => ({ hostTop: 200, imgTop: 0, imgH: cy - 200, hostH: cy - 200 })],
+  ['D4-c 꽉 찬 그림(블럭 = 그림 · 옛 판도 맞음)', (d, cx, cy) => ({ hostTop: cy - 200, imgTop: 0, imgH: 200, hostH: 200 })],
+]) {
+  test(name + ' — 패널이 편집 그림 손잡이를 하나도 안 덮는다', async ({ page }) => {
+    await setup(page);
+    const d = await defaultRect(page);
+    const cx = Math.round((d.left + d.right) / 2), cy = Math.round((d.top + d.bottom) / 2);
+    const s = shape(d, cx, cy);
+    const r = await openImg(page, cx - 300, s.hostTop, s.hostH, s.imgTop, s.imgH);
+    console.log('  ' + name.slice(0, 4) + ':', JSON.stringify({ d, s, r }));
+    expect(r.img[3], '전제: 그림 se 가 기본 패널 세로 범위 안').toBeGreaterThan(d.top);
+    expect(r.covered, '★패널이 편집 그림 손잡이를 덮는다 — se 를 못 잡는다(D4)').toBe(0);
+  });
+}
