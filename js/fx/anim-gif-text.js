@@ -1,4 +1,4 @@
-/* anim-gif-text.js — 애니메이션 GIF(js/animation-engine.js)의 «글자·숫자 계산»만. DOM·캔버스 없음 ⇒ 단위에서 바로 실린다.
+/* fx/anim-gif-text.js — (ESM · js/fx/package.json 의 "type":"module" 로 단위가 named import — homography.js 와 같은 자리) 애니메이션 GIF(js/animation-engine.js)의 «글자·숫자 계산»만. DOM·캔버스 없음 ⇒ 단위에서 바로 실린다.
  * 실앱 재현(DONE40 · 아이맥 2852c9f44)으로 확인된 V1 결함의 계산 쪽 고침:
  *   ⑴ 카운트업이 «첫 숫자 묶음»만 셌다(12,345 → 0,345…12,345 · 3.5 → 0.5…3.5) ⇒ 콤마·소수까지 한 수로 잡는다.
  *   ⑵·X3 슬롯머신이 자리별 릴이 아니었고 «첫 묶음+10» 잔상이 보였다 ⇒ 자리마다 도는 릴 값.

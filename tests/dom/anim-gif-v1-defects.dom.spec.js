@@ -10,6 +10,7 @@
  * G5 ⑷ 클래스 배경 섹션 — GIF 바탕 = 그 색(옛: 인라인만 읽어 흰색)
  * G5b [지킴] 인라인 단색 배경 — 그대로 그 색
  * G6 ⑹ 생성 실패 — 네이티브 대화상자 0 · 토스트로 알린다(옛: alert 가 창을 막음)
+ * 전제(r0914gif 뒤): 가짜 rAF 는 엔진이 건 것만 잡는다 · 프레임마다 «엔진 rAF 가 걸렸다»를 조건 대기로 확인한다.
  * 양성대조: js/animation-engine.js 만 부모 판으로(git checkout <이 커밋>^ -- js/animation-engine.js) → G1·G1b·G2·G3·G4·G5·G6 빨강 · G5b 초록 → git checkout HEAD -- js/animation-engine.js
  * ⛔남은 것(이 파일이 안 잰다): ⑷ 그라데이션·이미지·메시 배경의 «모양» · ⑸ 리치텍스트 꾸밈 — 지디 결정 대기.
  */
@@ -33,9 +34,15 @@ async function scene(page, { text, align, secClass, secInlineBg } = {}) {
     ce.textContent = text;
     if (align) ce.style.textAlign = align;
     window.__tb = tb;
-    /* 손으로 돌리는 rAF + fillText 받아 적기(미리보기 캔버스만) */
-    window.requestAnimationFrame = (cb) => { window.__cb = cb; return 1; };
-    window.cancelAnimationFrame = () => {};
+    /* 손으로 돌리는 rAF — ★엔진(animation-engine.js)이 건 것만 잡는다. 앱의 다른 rAF(js/ 55곳)는 진짜 rAF 로 보낸다
+       (r0914gif: 전부 잡았더니 앱 콜백이 엔진 tick 을 덮어 fillText 0 · 다음엔 __cb null). + fillText 받아 적기(미리보기 캔버스만) */
+    const realRaf = window.requestAnimationFrame.bind(window), realCaf = window.cancelAnimationFrame.bind(window);
+    window.__appRaf = 0;
+    window.requestAnimationFrame = (cb) => {
+      if ((new Error().stack || '').includes('animation-engine.js')) { window.__cb = cb; return -1; }
+      window.__appRaf++; return realRaf(cb);
+    };
+    window.cancelAnimationFrame = (id) => { if (id === -1) window.__cb = null; else realCaf(id); };
     const orig = CanvasRenderingContext2D.prototype.fillText;
     window.__calls = [];
     CanvasRenderingContext2D.prototype.fillText = function (s, x, y, ...rest) {
@@ -43,6 +50,7 @@ async function scene(page, { text, align, secClass, secInlineBg } = {}) {
       return orig.call(this, s, x, y, ...rest);
     };
     window.__frame = (t) => { window.__calls = []; const cb = window.__cb; window.__cb = null; cb(1000 + 1200 * t); return window.__calls; };   // 속도 1× = 1200ms
+    window.__rafState = () => ({ engineCb: typeof window.__cb, appRaf: window.__appRaf, modal: document.getElementById('anim-gif-modal')?.style.display, active: document.querySelector('#anim-list .anim-item.active')?.dataset.id ?? null });
     window.openAnimModal(tb);
   }, { text, align, secClass, secInlineBg });
   return errs;
@@ -50,9 +58,17 @@ async function scene(page, { text, align, secClass, secInlineBg } = {}) {
 /** 효과를 고르고(진짜 목록 클릭) 그 효과의 t=0 을 먼저 그린다(시작 시각을 박는다). */
 async function pick(page, id) {
   await page.click(`#anim-list .anim-item[data-id="${id}"]`);
-  await page.evaluate(() => window.__frame(0));
+  await frame(page, 0);
 }
-const frame = (page, t) => page.evaluate((t) => window.__frame(t), t);
+/** 전제: 엔진이 rAF 를 «걸었다» — 안 걸렸으면 무엇이 안 걸렸는지 찍고 빨강(고정 대기 아님 · 조건 대기). */
+async function frame(page, t) {
+  const ok = await page.waitForFunction(() => typeof window.__cb === 'function', null, { timeout: 5000 }).then(() => true, () => false);
+  if (!ok) {
+    const st = await page.evaluate(() => window.__rafState());
+    expect(st.engineCb, `★전제: t=${t} 를 그리려는데 엔진 rAF 가 안 걸렸다 — ${JSON.stringify(st)} (modal≠flex = 모달 안 열림 · active≠고른 효과 = 클릭 안 먹음 · appRaf 만 늘면 엔진이 미리보기를 안 돌림)`).toBe('function');
+  }
+  return page.evaluate((t) => window.__frame(t), t);
+}
 const leftOf = (c) => (c.align === 'center' ? c.x - c.w / 2 : c.align === 'right' || c.align === 'end' ? c.x - c.w : c.x);
 
 test('G1 ⑴ 카운트업 «12,345» — 0 부터 센다', async ({ page }) => {

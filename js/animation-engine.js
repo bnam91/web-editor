@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
-import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './anim-gif-text.js';
+import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [

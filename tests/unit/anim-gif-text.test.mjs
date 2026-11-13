@@ -1,9 +1,9 @@
-/* anim-gif-text.test.mjs — js/anim-gif-text.js(애니메이션 GIF 의 글자·숫자 계산)를 수로 잠근다.
+/* anim-gif-text.test.mjs — js/fx/anim-gif-text.js(애니메이션 GIF 의 글자·숫자 계산)를 수로 잠근다.
  * 행위(실제 모달·미리보기)는 tests/dom/anim-gif-v1-defects.dom.spec.js 가 잰다 — 여기는 경계값.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { numToken, formatLike, countUpLine, reelDigit, lineStartX, typedLines } from '../../js/anim-gif-text.js';
+import { numToken, formatLike, countUpLine, reelDigit, lineStartX, typedLines } from '../../js/fx/anim-gif-text.js';
 
 const easeOut = (p) => 1 - Math.pow(1 - p, 3);
 
