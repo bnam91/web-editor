@@ -13,35 +13,52 @@
         <span class="prop-block-id" title="클릭하여 복사" data-copy-id="tb_golden2">tb_golden2</span>
       </div>
     </div>
-
-    <div class="prop-section" id="type-section" style="display:none">
-      <div class="prop-section-title">Type</div>
-      <div class="prop-type-group">
-        <button class="prop-type-btn "      data-cls="tb-h1">H1</button>
-        <button class="prop-type-btn "      data-cls="tb-h2">H2</button>
-        <button class="prop-type-btn "      data-cls="tb-h3">H3</button>
-        <button class="prop-type-btn active"    data-cls="tb-body">Body</button>
-        <button class="prop-type-btn " data-cls="tb-caption">Cap</button>
-        <button class="prop-type-btn "   data-cls="tb-label">Tag</button>
-        <button class="prop-type-btn "  data-cls="tb-bullet">List</button>
+    <div class="prop-section" data-sec="position" data-sec-state="position" id="psec-position">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-position-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-position-body">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" class="prop-sec-chevron">
+          <path d="M1 3l4 4 4-4"/>
+        </svg>
+        <span class="prop-sec-title-text">Position</span>
       </div>
-      <!-- ★1017t1m1(현빈 「텍스트블럭에서 quato블럭으로 바꿀수도 있게 위에 type절에 넣기」) —
-           ★data-cls 를 ★안 준다. 주면 js/props/prop-text-wireup-type.js 의 .prop-type-btn 루프가
-           ★클래스 교체로 처리해 ★조용히 반쪽 동작한다(quote 는 ★다른 블럭 타입이라 ★블럭 교체가 필요하다).
-           ★별도 리스너 = wireTextToQuote(js/props/prop-text-wireup-type.js). -->
-      <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
+      </div>
+      <div class="prop-sec-body" id="psec-position-body">
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" id="txt-x-number" value="12" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" id="txt-y-number" value="34" aria-label="Y position">
+          </div>
+        </div>
+      </div>
+      <span class="prop-field-label">Rotation</span>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="15">
+        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="15">
+      </div>
+      </div>
     </div>
-
-    <div class="prop-section">
-      <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라
-           "Position" «섹션 제목과 같은 줄», 오른쪽 끝이었다(Figma 레퍼런스 스크린샷 재확인).
-           id·클릭 배선(prop-text-wireup-overlay.js wireOverlaySection)은 그대로 — 자리만 옮긴다. -->
-      <div class="prop-section-title prop-ph-header" style="margin-bottom:0">
-        <span>Position</span>
-        
+    <div class="prop-section" data-sec="layout" data-sec-state="layout" id="psec-layout">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-layout-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-layout-body">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" class="prop-sec-chevron">
+          <path d="M1 3l4 4 4-4"/>
+        </svg>
+        <span class="prop-sec-title-text">Layout</span>
       </div>
+      </div>
+      <div class="prop-sec-body" id="psec-layout-body">
       <span class="prop-field-label">Alignment</span>
-      <div class="prop-align-group" style="margin-bottom:6px">
+      <div class="prop-align-group" id="txt-align-group">
           <button class="prop-align-btn " data-align="left">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
               <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
@@ -61,32 +78,19 @@
             </svg>
           </button>
       </div>
-      <span class="prop-field-label">Position</span>
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">X</span>
-            <input type="number" id="txt-x-number" value="12" aria-label="X position">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">Y</span>
-            <input type="number" id="txt-y-number" value="34" aria-label="Y position">
-          </div>
-        </div>
-      </div>
-      <span class="prop-field-label" style="margin-top:6px">Rotation</span>
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="15">
-        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="15">
       </div>
     </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Typography</div>
-
+    <div class="prop-section" data-sec="typography" data-sec-state="typography" id="psec-typography">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-typography-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-typography-body">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" class="prop-sec-chevron">
+          <path d="M1 3l4 4 4-4"/>
+        </svg>
+        <span class="prop-sec-title-text">Typography</span>
+      </div>
+      </div>
+      <div class="prop-sec-body" id="psec-typography-body">
       <span class="prop-field-label">Font</span>
       <div class="font-picker" id="txt-font-picker">
         <button class="font-picker-trigger" id="txt-font-trigger" type="button">
@@ -142,10 +146,19 @@
         </div>
       </div>
 
+      </div>
     </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Fill</div>
+    <div class="prop-section" data-sec="fill" data-sec-state="fill" id="psec-fill">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-fill-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-fill-body">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" class="prop-sec-chevron">
+          <path d="M1 3l4 4 4-4"/>
+        </svg>
+        <span class="prop-sec-title-text">Fill</span>
+      </div>
+      </div>
+      <div class="prop-sec-body" id="psec-fill-body">
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         <div class="prop-color-field">
@@ -161,192 +174,23 @@
       </div>
       <div class="cv-chips" id="txt-color-chips" hidden></div>
       <div class="cv-chips ts-recent-row" id="txt-grad-recent-row" hidden></div>
-    </div>
-
-    <div class="prop-section" id="txt-shadow-section">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Shadow</div>
-        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="txt-shadow-on" checked>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div id="txt-shadow-controls" style="display:block">
-        <div class="prop-row">
-          <span class="prop-label">X</span>
-          <input type="range" class="prop-slider" id="txt-shadow-x-slider" min="-20" max="20" step="1" value="3">
-          <input type="number" class="prop-number" id="txt-shadow-x-number" min="-20" max="20" value="3">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">Y</span>
-          <input type="range" class="prop-slider" id="txt-shadow-y-slider" min="-20" max="20" step="1" value="3">
-          <input type="number" class="prop-number" id="txt-shadow-y-number" min="-20" max="20" value="3">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">Blur</span>
-          <input type="range" class="prop-slider" id="txt-shadow-blur-slider" min="0" max="40" step="1" value="6">
-          <input type="number" class="prop-number" id="txt-shadow-blur-number" min="0" max="40" value="6">
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">색상</span>
-          <div class="prop-color-field">
-            <div class="prop-color-swatch" style="background:rgba(17,34,51,0.4)">
-              <input type="color" id="txt-shadow-color" value="#112233">
-            </div>
-            <input type="text" class="prop-color-hex" id="txt-shadow-color-hex" value="112233" maxlength="7" aria-label="Shadow color">
-            <label class="prop-color-alpha" title="Opacity">
-              <input type="text" class="prop-color-alpha-input" id="txt-shadow-color-alpha" value="40" aria-label="Shadow opacity">
-              <span class="prop-color-alpha-suffix">%</span>
-            </label>
-          </div>
-        </div>
       </div>
     </div>
-
-    <div class="prop-section" style="display:none">
-      <div class="prop-section-title">Size</div>
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="1" value="300">
-        <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="300">
-      </div>
-    </div>
-
-    <div class="prop-section" style="display:none">
-      <div class="prop-section-title">Padding</div>
-      <div id="txt-label-padx-wrap" style="display:none">
-      <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="txt-label-padx-slider" min="0" max="100" step="2" value="0">
-        <input type="number" class="prop-number" id="txt-label-padx-number" min="0" max="100" value="0">
-      </div>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">상하</span>
-        <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="4">
-        <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="4">
-      </div>
-      <div class="prop-ph-header">
-        <span class="prop-section-title" style="margin-bottom:0">L/R</span>
-        <button class="prop-chain-btn" id="txt-ph-chain" title="좌우 연동">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-            <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
-            <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
-            <line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:60px">왼쪽 패딩</span>
-        <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="6">
-        <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="6">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:60px">오른쪽 패딩</span>
-        <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="8">
-        <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="8">
-      </div>
-    </div>
-
-    <div id="label-style-section" style="display:none">
-      <div class="prop-section">
-        <div class="prop-section-title">Tag Style</div>
-        <div class="prop-row" style="gap:4px">
-          <button class="prop-btn-full" id="label-shape-pill">Pill</button>
-          <button class="prop-btn-full" id="label-shape-box">Box</button>
-          <button class="prop-btn-full" id="label-shape-outline">Outline</button>
-          <button class="prop-btn-full" id="label-shape-circle">Circle</button>
-          <button class="prop-btn-full" id="label-shape-oval">Oval</button>
-          <button class="prop-btn-full" id="label-shape-text">Text</button>
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch" style="background:#ffffff">
-            <input type="color" id="label-bg-color" value="#ffffff">
-          </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="FFFFFF" maxlength="7" placeholder="없음" aria-label="Color">
-          <label class="prop-none-check"><input type="checkbox" id="label-bg-none" >없음</label>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">모서리</span>
-          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="4">
-          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="4">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">높이</span>
-          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="24">
-          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="24">
-        </div>
-      </div>
-    </div>
-
-    <div id="bubble-style-section" style="display:none">
-      <div class="prop-section">
-        <div class="prop-section-title">Bubble Style</div>
-        <div class="prop-row">
-          <span class="prop-label">스타일</span>
-          <select class="prop-select" id="bubble-style-select">
-            <option value="default" >기본</option>
-            <option value="imessage" >iMessage</option>
-            <option value="apple" >Apple</option>
-          </select>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">말꼬리</span>
-          <div class="prop-align-group">
-            <button class="prop-align-btn active" id="bubble-tail-left" title="왼쪽 말꼬리">←</button>
-            <button class="prop-align-btn " id="bubble-tail-center" title="말꼬리 없음 / 중앙">—</button>
-            <button class="prop-align-btn " id="bubble-tail-right" title="오른쪽 말꼬리">→</button>
-          </div>
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch" style="background:#ffffff">
-            <input type="color" id="bubble-bg-color" value="#ffffff">
-          </div>
-          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="FFFFFF" maxlength="7" aria-label="Color">
-        </div>
-        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소(모달 패널의 너비 고정·높이 최소와 같은 뜻) -->
-        <div class="prop-row">
-          <span class="prop-label">크기</span>
-          <div class="prop-type-group" id="bubble-size-group">
-            <button class="prop-type-btn active" data-bsz="auto">자동</button>
-            <button class="prop-type-btn " data-bsz="fixed">고정</button>
-          </div>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">너비</span>
-          <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="" disabled>
-          <span class="prop-label" style="margin-left:6px">높이</span>
-          <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="" disabled>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">발신자 이름</span>
-          <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
-            <input type="checkbox" id="bubble-show-sender" >
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div id="icon-text-style-section" style="display:none">
-      <div class="prop-section">
-        <div class="prop-section-title">Icon Text</div>
-        <div class="prop-row">
-          <span class="prop-label">아이콘-텍스트 간격</span>
-          <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="8">
-          <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="8">
-        </div>
-      </div>
-    </div>
-
-    <div class="prop-section prop-section--anim" style="display:none">
-      <button class="prop-anim-btn" id="open-anim-btn">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
-          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
+    <div class="prop-section" data-sec="effects" data-sec-state="effects" id="txt-fx-section">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="txt-fx-section-head" role="button" tabindex="0" aria-expanded="true" aria-controls="txt-fx-section-body">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" class="prop-sec-chevron">
+          <path d="M1 3l4 4 4-4"/>
         </svg>
-        애니메이션 GIF 만들기
-      </button>
+        <span class="prop-sec-title-text">Effects</span>
+      </div>
+        <select class="prop-select" id="txt-fx-add" style="flex:0 1 104px;min-width:0;width:auto;"
+                title="고른 효과가 추가된다" aria-label="효과 추가">
+          <option value="">효과 추가…</option>
+          <option value="shadow">그림자</option><option value="reflect">반사</option>
+        </select>
+      </div>
+      <div class="prop-sec-body" id="txt-fx-section-body">
+      </div>
     </div>
