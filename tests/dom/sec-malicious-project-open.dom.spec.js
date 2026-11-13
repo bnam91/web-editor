@@ -204,3 +204,78 @@ test('X4p [양성대조 · 자] 캔버스 «밖»에 같은 링크를 두고 같
   await expect.poll(() => s.net.tried.length, { message: '★자가 외부 시도를 못 잡는다 — 이 그물로는 X4 초록이 아무 뜻이 없다', timeout: 3000 }).toBeGreaterThan(0);
   console.log('  X4p:', JSON.stringify(s.net));
 });
+
+/* ── V 가족 — SEC-VECTOR-SVG-RAW-01 «재현» (지디 261113 · 지혜 t3-06 곁가지) ──────────────────────────────
+ *   벡터 블록은 data-svg «문자열»을 renderVector 가 inner.innerHTML 로 넣는다(js/blocks/vector-block.js:39) — sanitize-svg 를 안 탄다.
+ *   로드 세척(sanitizeCanvasHtml)은 DOM 의 on* 만 벗기고 data-* «값 안의 문자열»은 안 본다(X3 와 같은 성질 · sanitize-svg.js 머리말).
+ *   MCP update 는 <script 만 막는다(:177). ⇒ 저장본/MCP 가 준 <svg onload> · <image onerror> 가 «그릴 때» 산다?
+ *   ⚠️열기 «만»으로는 renderVector 가 안 돈다(save-load 는 저장된 inner 를 그대로 쓴다 · 그 inner 는 세척된다) —
+ *     그래서 V1 은 «열기 → 일상 편집 1회(패널 폭 칸)»까지 간다. 열기 직후 표식도 따로 찍는다(open 칸).
+ *   표식만 세운다(window.__pwnedV*) · 외부 주소 0(data: 만).
+ *   V0 [자 · 양성대조] 이 하네스에서 innerHTML 로 넣은 <svg onload>·<image onerror> 가 «정말 돈다» — 빨강이면 V1~V3 초록은 못 재서 초록
+ *   V1 ★열기 → 벡터 고르기(실클릭) → 패널 폭 칸 바꾸기 = renderVector → 실행되지 않는다
+ *   V2 ★MCP 길 updateVectorBlock(id, {svg}) — <script 없는 악성 svg → 실행되지 않는다
+ *   V3 ★만들기 길 makeVectorBlock(data) — 붙여넣기·복원이 data 로 부르는 자리 → 실행되지 않는다 */
+const VEC_EVIL = (flag) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" onload="window.${flag}=1">`
+  + `<image href="data:," onerror="window.${flag}=1"/><rect width="10" height="10" fill="#000000"/></svg>`;
+const VEC_OK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="100%" height="100%"><rect width="10" height="10" fill="#000000"/></svg>';
+/** 벡터 블록 든 섹션 — data-svg 는 setAttribute 로(인코딩은 브라우저가) · 저장된 inner 는 무해한 그림. */
+const vecCanvas = (page, svg) => page.evaluate(([sec, svg]) => {
+  const d = document.createElement('div'); d.innerHTML = sec;
+  d.querySelector('.vector-block').setAttribute('data-svg', svg);
+  return d.innerHTML;
+}, [SEC(`<div class="row" data-layout="stack"><div class="vector-block" data-type="vector" id="vbX" draggable="true" data-color="#000000" data-w="120" data-h="120" data-layer-name="Vector" style="width:120px;height:120px"><div class="vb-inner">${VEC_OK}</div></div></div>`), svg]);
+
+test('V0 [자 · 양성대조] innerHTML 로 넣은 <svg onload>·<image onerror> 는 이 하네스에서 «돈다»', async ({ page }) => {
+  await bootApp(page);
+  await page.evaluate((h) => { const d = document.createElement('div'); document.body.appendChild(d); d.innerHTML = h; }, VEC_EVIL('__vctl'));
+  await expect.poll(() => page.evaluate(() => window.__vctl === 1),
+    { message: '★자가 svg 핸들러 실행을 못 잡는다 — V1~V3 초록은 아무 뜻이 없다', timeout: 3000 }).toBe(true);
+});
+
+test('V1 ★열기 → 벡터 고르기 → 폭 바꾸기(renderVector) — data-svg 의 핸들러가 실행되지 않는다', async ({ page }) => {
+  await page.setViewportSize({ width: 1700, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), await vecCanvas(page, VEC_EVIL('__pwnedV1')));
+  await page.waitForSelector('#vbX');
+  await settle(page);
+  const atOpen = await page.evaluate(() => window.__pwnedV1 === 1);
+  await page.evaluate(() => document.getElementById('vbX').scrollIntoView({ block: 'center', inline: 'center' }));
+  const r0 = await waitStableRect(page, '#vbX');
+  await page.mouse.click(r0.cx, r0.cy);
+  await page.waitForSelector('#vb-w', { timeout: 5000 });          // ★전제 — 벡터 패널이 떴다
+  await page.locator('#vb-w').fill('140');
+  await page.locator('#vb-w').press('Tab');                          // change → renderVector
+  await expect.poll(() => page.evaluate(() => document.getElementById('vbX').dataset.w),
+    { message: '★전제 — 폭 바꾸기가 renderVector 길을 탔다', timeout: 3000 }).toBe('140');
+  await settle(page);
+  const r = await page.evaluate(() => ({ pwned: window.__pwnedV1 === 1, inner: document.querySelector('#vbX .vb-inner').innerHTML.slice(0, 200) }));
+  console.log('  V1:', JSON.stringify({ atOpen, ...r }));
+  expect(atOpen, '★열기만으로 실행됐다').toBe(false);
+  expect(r.pwned, '★열기 → 폭 바꾸기 한 번에 data-svg 의 핸들러가 실행됐다').toBe(false);
+  expect(errs.filter(e => !/pwned/.test(e))).toEqual([]);
+});
+
+test('V2 ★MCP 길 updateVectorBlock — <script 없는 악성 svg 의 핸들러가 실행되지 않는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), await vecCanvas(page, VEC_OK));
+  await page.waitForSelector('#vbX');
+  const res = await page.evaluate((svg) => window.updateVectorBlock('vbX', { svg }), VEC_EVIL('__pwnedV2'));
+  await settle(page);
+  const r = await page.evaluate(() => ({ pwned: window.__pwnedV2 === 1, inner: document.querySelector('#vbX .vb-inner').innerHTML.slice(0, 200) }));
+  console.log('  V2:', JSON.stringify({ res, ...r }));
+  expect(r.pwned, '★MCP update 로 넣은 svg 의 핸들러가 실행됐다').toBe(false);
+  expect(errs.filter(e => !/pwned/.test(e))).toEqual([]);
+});
+
+test('V3 ★만들기 길 makeVectorBlock(data) — data.svg 의 핸들러가 실행되지 않는다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), await vecCanvas(page, VEC_OK));
+  await page.waitForSelector('#vbX');
+  await page.evaluate((svg) => { const { row } = window.makeVectorBlock({ svg }); document.querySelector('#xS .section-inner').appendChild(row); }, VEC_EVIL('__pwnedV3'));
+  await settle(page);
+  const r = await page.evaluate(() => ({ pwned: window.__pwnedV3 === 1 }));
+  console.log('  V3:', JSON.stringify(r));
+  expect(r.pwned, '★makeVectorBlock(data) 로 만든 블록의 svg 핸들러가 실행됐다').toBe(false);
+  expect(errs.filter(e => !/pwned/.test(e))).toEqual([]);
+});
