@@ -74,3 +74,29 @@ test('S3 상자가 닫히면 다시 평소', { skip: !MAC && '독 반짝은 맥 
   secondLaunch();
   assert.equal(rec.bounce.length, 0, '상자가 닫혔는데 아직 떠 있는 것으로 셌다');
 });
+
+/* S4·S5 — def26 D1(실기기 4/4 ❌): 맥에서 부모 없는 상자는 «닫힐 때까지 showMessageBox 호출이 안 돌아온다»(중첩 모달 루프).
+ *   위 S1 의 가짜 상자는 곧바로 Promise 를 돌려줘 이 꼴을 못 흉내 냈다 → 호출 «안»에서 second-instance 를 쏴 잰다.
+ *   양성대조: save-guard.js 의 `_dialogOpen++` 를 showMessageBox 호출 «뒤»로 되돌리면 S4 빨강. */
+test('S4 ★상자 호출이 아직 안 돌아온 동안(맥 중첩 모달) 두 번째 실행 — 떠 있는 것으로 센다 + 독 반짝', { skip: !MAC && '독 반짝은 맥 길' }, async () => {
+  const rec = reset();
+  const inside = {};
+  H.stub.dialog.showMessageBox = () => {
+    rec.dialogs++;
+    inside.open = saveGuard.failureDialogOpen();
+    secondLaunch();
+    inside.bounce = rec.bounce.length;
+    return Promise.resolve({ response: 0 });   // 사람이 닫은 뒤에야 돌아온다
+  };
+  await quitWithDialog(rec, 'proj_sl4');
+  assert.equal(inside.open, true, '⛔상자 호출 안(떠 있는 동안)에 failureDialogOpen()=false — 두 번째 실행이 «상자 없음» 갈래로 간다');
+  assert.ok(inside.bounce >= 1, '⛔상자가 떠 있는 동안 두 번째 실행에 독 반짝 0');
+  assert.equal(saveGuard.failureDialogOpen(), false, '상자가 닫혔는데 아직 떠 있는 것으로 셌다');
+});
+
+test('S5 상자 호출이 던져도 카운터가 남지 않는다', async () => {
+  const rec = reset();
+  H.stub.dialog.showMessageBox = () => { rec.dialogs++; throw new Error('가짜 상자 실패'); };
+  await quitWithDialog(rec, 'proj_sl5');
+  assert.equal(saveGuard.failureDialogOpen(), false, '던진 상자를 떠 있는 것으로 남겼다');
+});

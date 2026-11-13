@@ -245,11 +245,14 @@ function showFailureDialog(win, outcome, saved) {
      (tools/hardening README §3 H3 와 같은 규약). 「화면에 떴나」의 유일한 기계 증거다. */
   _log(`[quit-guard] dialog shown — 저장 실패(${outcome.reason}) project=${outcome.projectId || '?'} ` +
        `emergency=${saved.record.emergencyPath || 'none'}`);
+  /* ★부르기 «전»에 센다 — 맥에서 부모 없는 상자는 닫힐 때까지 이 호출이 안 돌아오고, 그 사이에 second-instance 가 온다
+     (돌아온 뒤 세면 떠 있는 동안 failureDialogOpen()=false · suji-grade def26 D1 실기기 4/4). 내리기는 던짐·닫힘 어느 길이든 한 번. */
+  _dialogOpen++;
+  const closed = () => { _dialogOpen = Math.max(0, _dialogOpen - 1); };
   let p;
   try { p = _dialog.showMessageBox(win || null, opts); }
-  catch (e) { _log(`[quit-guard] 다이얼로그 호출 실패: ${e && e.message}`); return Promise.resolve({ shown: false }); }
-  _dialogOpen++;
-  return Promise.resolve(p).finally(() => { _dialogOpen = Math.max(0, _dialogOpen - 1); }).then((r) => {
+  catch (e) { closed(); _log(`[quit-guard] 다이얼로그 호출 실패: ${e && e.message}`); return Promise.resolve({ shown: false }); }
+  return Promise.resolve(p).finally(closed).then((r) => {
     if (canReveal && r && r.response === 1) { try { _shell.showItemInFolder(saved.record.emergencyPath); } catch (_) {} }
     return { shown: true, response: r && r.response };
   }).catch((e) => { _log(`[quit-guard] 다이얼로그 대기 실패: ${e && e.message}`); return { shown: false }; });
