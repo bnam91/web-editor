@@ -71,7 +71,7 @@ export const OWNERSHIP_ID_STEM = Object.freeze({
   'tbl-size': ['typography', '표 글자 크기(prop-table applySize → table.style.fontSize) — 접두 바로 뒤 size 라 «블록 크기»와 꼴이 같다'],
 });
 /** 줄임 단어 → 뜻 단어. ★id 의 «첫 단어»(블록 접두 — 스티커 stk-·…)에는 안 건다: stk-t-STK-c-color 의 둘째 stk 만 stroke. */
-export const OWNERSHIP_ALIAS = Object.freeze({ stk: 'stroke', sh: 'shadow' });
+export const OWNERSHIP_ALIAS = Object.freeze({ stk: 'stroke', sh: 'shadow', bc: 'stroke' });   // bc = border colour(mdl-bc-*)
 /** 판정 제외 그릇 — { 그릇 id: '까닭' }. 그 그릇 «안»의 컨트롤만 뺀다(같은 컨트롤이 그릇 밖이면 판정한다).
  *  그리드 하위 접기 몸통: 한 칸·한 줄·칸 사이 줄 스코프의 색·테두리·여백이 한 몸통에 섞여 사는 것이 설계다(§4-1 · U1). */
 export const OWNERSHIP_EXEMPT_SCOPES = Object.freeze({
