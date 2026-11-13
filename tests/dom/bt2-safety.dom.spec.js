@@ -179,9 +179,79 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
   const MUT = process.env.BT2_T6_MUT;
   if (MUT === 'del') got.block = got.block.replace(/<div class="prop-row"[\s\S]*?<\/div>/, '');   // 시험용 — 줄 하나 «뺌»
   if (MUT === 'add') got.block = got.block + '<div class="prop-row" id="zz-t6-added"></div>';      // 시험용 — 줄 하나 «더함»
+  if (MUT === 'aria') got.block = got.block.replace(/(<(?:input|button|select|textarea)\b[^>]*?) aria-label="[^"]*"/, '$1');                       // 시험용 — 컨트롤의 aria-label 하나 «뺌»(U1 ③-aria 양성대조)
   expect(Object.keys(got).length, '전제: 상태 8개').toBe(8);
   expect(got.h2.includes('grd-line-summary'), '전제: 줄을 고르면 줄바 요약이 뜬다').toBe(true);
-  golden('grid-panel', got, { guardDeletes: true });
+  /* ★U1(right-panel-unify · 2026-11-13) 골든 재생성 «판정식»(플랜 §6-2) — 옛 골든 → 새 산출의 차이가 «아래 뜻한 꼴뿐»일 때만 쓴다(덮어쓰기 아님).
+   *   뜻한 차이(U1 명세):
+   *   ① 틀 껍데기 — 맨 위 절이 .prop-section[data-sec] + 머리(.prop-sec-head) 로 바뀐다 → 비교 «밖»(껍데기는 panel-section-gate 가 잰다).
+   *   ② 머리에 스코프칩 넷(#grd-scope-block/col/row/line) «더함» — 컨트롤 비교에서 그 넷만 더해도 된다.
+   *   ③ 컨트롤(input/select/button/textarea)의 {태그·id·type·data-*·checked·disabled·value·placeholder} 다중집합은 «같다»
+   *      (data-scope 는 새 표식이라 뺀다 · 이름만 바뀐 data: bbg-x/y → bbg-h/v · cpos-x/y → cpos-h/v · ★title 만 비교 밖 — 까닭 문구가 title 로 옮겨 갔다).
+   *      placeholder 뜻한 바뀜은 PH_CHANGE 한 줄뿐: 행 높이 칸(.grd-row-h-item) 「auto」 → 「자동」/「자동 · <n>」(⑦-A 실측 높이).
+   *      aria-* — 짝지은 컨트롤마다 옛 aria 는 새것에 «같은 값»으로 남아야 한다(지움·값 바뀜 = 빨강) · 새로 «더한» aria 만 허용.
+   *   ④ 라벨 — 같은 줄 첫 컨트롤로 짝지어 글자가 같다. 스코프 표기로 바뀐 여섯만 예외(LABEL_TO).
+   *   ⑤ 하위 제목(틀 머리 밖 .prop-section-title · 순서 무관 다중집합) — 옛 것에서 「Layout」(틀 머리가 맡는다)과 «컨트롤 0개인» 「Typography」(빈 절 · 시트 티켓)만 빠진다. 더해지는 것 0.
+   *   ⑥ prop-hint — 새 ⊆ 옛 · 빠진 것은 전부 HINT_GONE 정규식에 걸린다 · 새 산출 상태마다 ≤ 2 · data-sec 절 ≥ 1.
+   *   양성대조: BT2_T6_MUT=del(첫 prop-row 뺌) → ③ 빨강(컨트롤 사라짐) · BT2_T6_MUT=aria(aria-label 하나 뺌) → ③-aria 빨강 · 둘 다 갱신 거절.
+   *            BT2_T6_MUT=add 는 ③ 통과(id 있는 빈 줄 — 컨트롤 0). */
+  const T6_SPEC = {
+    added: ['grd-scope-block', 'grd-scope-col', 'grd-scope-row', 'grd-scope-line'],
+    PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
+    dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
+    LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
+    HINT_GONE: ['^가로×세로 칸 수를 고른다$', '^줄이면 잘린 칸 내용은 사라진다', '^예: 1:1:2', '^행/열 사이 간격', '^격자와 아래 블럭 사이', '^칸 하나만 바꾸려면', '^이 칸에만 적용된다', '^칸과 칸 «사이»', '^자르기 전에는', '^그림 폭이 100%', '^비우면 자동', '행을 열 \\d+개의', '^이 열에 기본값이 걸려'],   // 마지막 = 칸 꾸미기 접기 제목 「· 열 기본값 있음」으로(M4 예산)
+  };
+  if (UPDATE && fs.existsSync(GOLD('grid-panel'))) {
+    const old = JSON.parse(fs.readFileSync(GOLD('grid-panel'), 'utf8'));
+    const bad = await page.evaluate(({ old, got, S }) => {
+      const parse = (h) => new DOMParser().parseFromString(`<div id="__r">${h}</div>`, 'text/html').getElementById('__r');
+      const ph = (c) => {   // 뜻한 placeholder 바뀜은 «같은 토큰»으로 접는다 — 그 밖의 placeholder 는 글자 그대로 견준다
+        const v = c.getAttribute('placeholder');
+        const ch = S.PH_CHANGE.find(x => c.matches(x.sel) && v !== null && (new RegExp(x.from).test(v) || new RegExp(x.to).test(v)));
+        return ch ? `«${ch.sel}»` : (v ?? '');
+      };
+      const ctrlKey = (c) => {
+        const data = [...c.attributes].filter(a => a.name.startsWith('data-') && a.name !== 'data-scope').map(a => `${S.dataRename[a.name] || a.name}=${a.value}`).sort();
+        return JSON.stringify([c.tagName, c.id, c.getAttribute('type') || '', data, c.hasAttribute('checked'), c.hasAttribute('disabled'), c.getAttribute('value') ?? '', ph(c)]);
+      };
+      const aria = (c) => Object.fromEntries([...c.attributes].filter(a => a.name.startsWith('aria-')).map(a => [a.name, a.value]));
+      const rowKey = (l) => { const c = l.closest('.prop-row, .prop-color-row')?.querySelector('input,select,button,textarea'); if (!c) return null; if (c.id) return c.id; const d = [...c.attributes].find(a => a.name.startsWith('data-') && a.name !== 'data-scope'); return d ? d.name : null; };
+      const subTitles = (r) => [...r.querySelectorAll('.prop-section-title')].filter(t => !t.closest('.prop-sec-head')).map(t => ({ text: t.textContent.trim(), n: t.closest('.prop-section').querySelectorAll('input,select,button,textarea').length }));
+      const out = [];
+      for (const k of Object.keys(old)) {
+        const a = parse(old[k]), b = parse(got[k] || '');
+        // ③ 컨트롤
+        /* 짝짓기 — 같은 키끼리 문서 순서로(같은 키가 여럿이면 n 번째끼리). 짝마다 aria 를 견준다. */
+        const pool = new Map();
+        for (const c of b.querySelectorAll('input,select,button,textarea')) { if (S.added.includes(c.id)) continue; const key = ctrlKey(c); if (!pool.has(key)) pool.set(key, []); pool.get(key).push(c); }
+        for (const ca of a.querySelectorAll('input,select,button,textarea')) {
+          const key = ctrlKey(ca), q = pool.get(key);
+          if (!q || !q.length) { out.push(`${k} ③ 컨트롤 사라짐/바뀜 ${key}`); continue; }
+          const cb = q.shift(), ab = aria(cb);
+          for (const [n, v] of Object.entries(aria(ca))) if (ab[n] !== v) out.push(`${k} ③-aria ${key} ${n}: 「${v}」 → ${n in ab ? `「${ab[n]}」` : '(지워짐)'}`);
+        }
+        for (const [key, q] of pool) q.forEach(() => out.push(`${k} ③ 컨트롤 더해짐 ${key}`));
+        if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
+        // ④ 라벨
+        const lb = new Map([...b.querySelectorAll('.prop-label')].map(l => [rowKey(l), l.textContent.trim()]));
+        for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key) continue; const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
+        // ⑤ 하위 제목
+        const ta = subTitles(a).filter(t => !(t.text === 'Layout' || (t.text === 'Typography' && t.n === 0))).map(t => t.text).sort();   // 순서는 틀이 정한다(SECTION_ORDER) — 집합만 견준다
+        const tb = subTitles(b).map(t => t.text).sort();
+        if (JSON.stringify(ta) !== JSON.stringify(tb)) out.push(`${k} ⑤ 하위 제목 ${JSON.stringify(ta)} → ${JSON.stringify(tb)}`);
+        // ⑥ 힌트
+        const ha = [...a.querySelectorAll('.prop-hint')].map(h => h.textContent.trim()), hb = [...b.querySelectorAll('.prop-hint')].map(h => h.textContent.trim());
+        hb.filter(h => !ha.includes(h)).forEach(h => out.push(`${k} ⑥ 새 힌트 ${h}`));
+        ha.filter(h => !hb.includes(h) && !S.HINT_GONE.some(re => new RegExp(re).test(h))).forEach(h => out.push(`${k} ⑥ 명부 밖 힌트가 빠졌다 ${h}`));
+        if (hb.length > 2) out.push(`${k} ⑥ prop-hint ${hb.length} > 2`);
+        if (!b.querySelector('[data-sec]')) out.push(`${k} ① data-sec 절 0`);
+      }
+      return out;
+    }, { old, got, S: T6_SPEC });
+    expect(bad, '★갱신 거절 — 옛 골든 → 새 산출의 차이가 U1 뜻한 꼴(①~⑥) 밖이다').toEqual([]);
+  }
+  golden('grid-panel', got, { guardDeletes: false });   // ⛔토막 지움 가드 대신 바로 위 U1 판정식(①~⑥)
 });
 
 // ─────────── T5r BT2 가 만들 위험 — editMessage 가 lines 를 지운다(지금 모양) ───────────

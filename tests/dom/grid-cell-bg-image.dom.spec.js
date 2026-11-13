@@ -158,9 +158,9 @@ test('C3 ★패널(진짜 마우스) — 자산 길: goya-asset URL 만 칸에(d
   expect(icons.da, '⛔data-align 이 붙으면 텍스트 정렬 배선이 잡는다').toBe(0);
   await page.click('#grd-cell-fit-group [data-cell-fit="contain"]'); await page.waitForTimeout(250);
   await openCell();
-  await page.click('#grd-cell-pos-x [data-cpos-x="left"]'); await page.waitForTimeout(250);
+  await page.click('#grd-cell-pos-x [data-cpos-h="left"]'); await page.waitForTimeout(250);
   await openCell();
-  await page.click('#grd-cell-pos-y [data-cpos-y="top"]'); await page.waitForTimeout(250);
+  await page.click('#grd-cell-pos-y [data-cpos-v="top"]'); await page.waitForTimeout(250);
   expect((await model(page))[0][0]).toMatchObject({ bgFit: 'contain', bgPos: 'left top' });
   // 폴백 — IPC 가 없으면 data URL
   await page.evaluate(() => { window.electronAPI = new Proxy({}, { get: () => (() => Promise.resolve(null)) }); });

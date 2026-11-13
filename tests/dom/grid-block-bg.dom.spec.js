@@ -324,11 +324,11 @@ test('B5 위치 단추 — ALIGN_ICONS(object-h/object-v) 그림 그대로 · da
   expect(icons.x).toEqual(icons.ex);
   expect(icons.y).toEqual(icons.ey);
   expect(icons.dataAlign, '⛔data-align 이 붙으면 텍스트 정렬 배선이 잡는다').toBe(0);
-  await clickEl(page, '#grd-bbg-pos-x [data-bbg-x="right"]');
-  await clickEl(page, '#grd-bbg-pos-y [data-bbg-y="bottom"]');
+  await clickEl(page, '#grd-bbg-pos-x [data-bbg-h="right"]');
+  await clickEl(page, '#grd-bbg-pos-y [data-bbg-v="bottom"]');
   expect(await page.evaluate(() => document.getElementById('gG').dataset.blockBgPos)).toBe('right bottom');
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#gG > .grd-bg')).backgroundPosition)).toBe('100% 100%');
-  expect(await page.evaluate(() => document.querySelector('#grd-bbg-pos-x .active')?.dataset.bbgX)).toBe('right');
+  expect(await page.evaluate(() => document.querySelector('#grd-bbg-pos-x .active')?.dataset.bbgH)).toBe('right');
   // 칸 선택 상태(두 번째 클릭 = 칸) — 절이 없다(G2 골든 장면)
   const [x, y] = await page.evaluate(() => { const c = document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-line'); const r = c.getBoundingClientRect(); return [r.left + 4, r.top + r.height / 2]; });
   await page.mouse.click(x, y); await page.waitForTimeout(300);

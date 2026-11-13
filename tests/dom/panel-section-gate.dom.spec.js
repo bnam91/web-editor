@@ -14,7 +14,6 @@ const { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS } = r
 
 /* ★미이관 명단 — U1 그리드 · U2 텍스트 · U3 컨테이너 · U4 미디어/도형 · U5 조합/스티커. U0 이관 = gap-block · bridge-block. */
 const UNMIGRATED = [
-  'grid-block',                                                                                  // U1
   'text-block', 'icon-text-block', 'speech-bubble-block', 'quote-block', 'label-group-block',     // U2
   'page', 'section', 'frame', 'row', 'multisel', 'canvas-block', 'modal-block',                   // U3
   'asset-block', 'shape-block', 'icon-circle-block', 'icon-block', 'vector-block', 'mockup-block',

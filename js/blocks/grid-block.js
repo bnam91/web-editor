@@ -2745,6 +2745,13 @@ export function gridTrackMin(H, bgBase, padY) {
   const base = (typeof bgBase === 'number' && bgBase >= 0) ? bgBase : ((typeof H === 'number' && H >= 0) ? H : null);
   return base === null ? null : base + 2 * (Number(padY) || 0);
 }
+/* ★⑦-A «적은 값 = 실제 높이»(현빈 2026-11-13 · right-panel-unify U1) — ★패널(UI)에서만 바꾼다. 저장 rows[].height 는 «옛 뜻»(칸 위아래 여백 뺀 몫) 그대로.
+ *   까닭(지디 평가 H1·M1): 저장 뜻을 바꾸면 rebindAll 을 안 지나는 넣기 문(붙여넣기·템플릿·섹션 변주·스크래치·MCP)과 옛 판 앱이
+ *   2·padY 만큼 조용히 틀린다. 그래서 보이는 높이 = 저장 + 2·cellPadY(아래 gridTrackMin 한 식 그대로) 이고, 패널이 그 «보이는 높이»를 보이고 받는다.
+ *   ⛔이 둘 밖에서 2·padY 를 더하고 빼지 마라 — 렌더(gridTrackMin)·끌기(overlay-handles 시작값)·패널이 같은 식을 쓴다.
+ *   ⚠️MCP/API 의 rows[].height 는 저장 뜻(여백 뺀 몫)이다 — padY>0 이면 패널 숫자와 2·padY 다르다(의도). */
+export function gridRowFullH(block, stored) { return Number(stored) + 2 * getGridCellPadY(block); }
+export function gridRowStoredH(block, full) { return Math.max(0, Number(full) - 2 * getGridCellPadY(block)); }
 const _gridTrack = (H, bgBase, padY) => { const m = gridTrackMin(H, bgBase, padY); return m === null ? 'auto' : `minmax(${m}px, auto)`; };
 
 /* ★그림 원 비율 캐시 «한 자리» — src → 높이/폭. 모르면 읽고(decode) 다 되면 그 그림을 기다리던 그리드만 다시 그린다(처음엔 H+2Y 로 섰다가 한 번 바뀜).
@@ -4796,7 +4803,8 @@ window.applyGridCellPadY = applyGridCellPadY;   // 제4안 — 끄는 동안(높
 window.getGridCellPadY = getGridCellPadY;       // 제4안 — 읽는 문(패널·손잡이)
 window.GRID_CELL_PAD_Y_MAX = GRID_CELL_PAD_Y_MAX; // 제4안 — 패널 칸 상한(같은 수 한 자리)
 window.whenGridRatiosSettled = whenGridRatiosSettled;   // ★E157 — 내보내기·캡처 입구 공용 대기
-window.gridTrackMin = gridTrackMin;                     // ★한 식(진단·시험용 읽기)
+window.gridTrackMin = gridTrackMin;
+window.gridRowFullH = gridRowFullH; window.gridRowStoredH = gridRowStoredH;   // ★⑦-A 패널 환산(보이는 높이 ↔ 저장)                     // ★한 식(진단·시험용 읽기)
 window.syncAutoGridWidth = syncAutoGridWidth;   // F3 후속 — 옮긴 뒤 자동 폭을 새 자리에 맞춘다(떠나면 100%)
 window.fitGridWidthToFreeFrame = fitGridWidthToFreeFrame;   // F3 — 자유배치 프레임 입구 셋이 부른다(drag-utils·block-drag 는 이 파일을 import 안 함)
 window.fitKeylessFreeFrameGridsOnOpen = fitKeylessFreeFrameGridsOnOpen;   // E129 — 열기 길 셋(save-load.js)이 applyPageSettings 뒤에 부른다

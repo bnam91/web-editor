@@ -136,6 +136,10 @@ before(async () => {
      ⛔안 복사하면 ERR_MODULE_NOT_FOUND 로 이 파일의 검사 ★전부가 빨개진다 —
        위 gap-limits.js 주석이 적어 둔 ★그 꼴 그대로다(한 줄이 28건으로 보인다). */
   fs.copyFileSync(path.join(ROOT, 'js', 'props', 'prop-text-utils.js'), path.join(TMP, 'props', 'prop-text-utils.js'));
+  /* ★여섯째·일곱째(right-panel-unify U1 · 2026-11-13) — prop-grid.js 가 패널 틀(_panel-frame.js · renderPanel/sec/scopeChipsHTML)을 import 한다.
+     틀은 globals(스텁)·_helpers(스텁)·_section-spec.js(실물 — 순서·제목 정본)를 import 한다. ⛔안 복사하면 이 파일 전부 ERR_MODULE_NOT_FOUND. */
+  fs.copyFileSync(path.join(ROOT, 'js', 'props', '_panel-frame.js'), path.join(TMP, 'props', '_panel-frame.js'));
+  fs.copyFileSync(path.join(ROOT, 'js', 'props', '_section-spec.js'), path.join(TMP, 'props', '_section-spec.js'));
 
   // ★UI 전용 의존 — grdAddLine 이 안 쓰는 것들만 최소 스텁.
   fs.writeFileSync(path.join(TMP, 'globals.js'),

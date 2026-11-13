@@ -3643,7 +3643,7 @@ function _registerDefaultTools() {
     },
     {
       description: 'Add a grid block (grd_xxx) — a column grid (1~8 columns × 1~8 rows) where each cell holds text. '
-        + 'cols = column widths (array, 1~8). rows = row heights, 1~8 entries ([{height:"auto"|number}]). '
+        + 'cols = column widths (array, 1~8). rows = row heights, 1~8 entries ([{height:"auto"|number}]) — number = CONTENT height in px, i.e. excluding cellPadY: the drawn row is height + 2×cellPadY (the editor panel shows that drawn total). '
         + 'cells = cell contents, row-major. gap = px between cells (both axes). rowGap/colGap = per-axis '
         + 'override (0~200px, optional — omit to use gap for both). valign = top|middle|bottom. '
         + '★To make a TABLE (spec/compare/price): set cellBorderWidth (px) — every cell gets a line. '
@@ -3676,7 +3676,7 @@ function _registerDefaultTools() {
               + '★cols[c] 의 꾸밈(align/valign/bg/padding/radius) = 그 열의 «기본값»이다 — '
               + '자기 값이 없는 칸들이 «모든 행에서» 이 값을 따른다. 「행 0 칸 하나만」 칠하려면 '
               + 'cells[0][c] 또는 update_grid_block{patchCell:{r:0,c,bg}} 를 써라.' },
-          rows: { type: 'array', description: 'row heights — [{height:"auto"|0~N}]' },
+          rows: { type: 'array', description: 'row heights — [{height:"auto"|0~N}] · N = content height px EXCLUDING cellPadY (drawn row = N + 2×cellPadY, which is what the editor panel displays)' },
           cells: { type: 'array',
             description: '★2차원 배열 (행 × 열) — «행 0 포함». 평평한 배열을 주면 «행 N개»로 읽힌다(실측으로 데었다). '
               + '각 칸은 {lines:[{type,text}], align?, valign?, bg?, padding?, radius?} 꼴. '

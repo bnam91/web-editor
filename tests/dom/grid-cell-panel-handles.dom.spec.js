@@ -1572,3 +1572,21 @@ test('G2 ★델타 — 순증·줄바 밀림·가로 잘림·색칸 폭이 기�
   // ⑸ 줄바 단추가 «한 줄»을 유지한다.
   expect(now.barBtnRows, `★줄바 단추가 ${now.barBtnRows}줄로 갈라졌다 (기준선 ${g.barBtnRows}줄).\n${report}`).toBeLessThanOrEqual(g.barBtnRows);
 });
+
+/* ★G2-inv(right-panel-unify U1 · 2026-11-13) — G2 의 «나빠지면 안 되는» 셋을 «기준선 파일과 무관한» 상수로 다시 건다.
+ *   까닭: U1(틀 이관)로 G2 기준선(grid-panel-golden.json)을 재촬영한다 — 재촬영본이 나쁜 값을 품으면 G2 의 Δ 단언(⑶⑷⑸)이 그 값을 «정상»으로 삼는다.
+ *   상수 출처 = 재촬영 «전» 기준선 51dae124 의 metrics(colorFieldMinW 149 · barBtnRows 1 · bodyScrollW−bodyClientW 0 · overflowRight 0).
+ *   ⛔이 상수를 재촬영 값으로 고치지 마라 — 고칠 일이 생기면 그건 «기능이 나빠졌다»는 뜻이다(현빈 판단).
+ *   양성대조: 색 칸 하나를 128px 로 좁히거나(.prop-color-field width) 줄바 단추를 하나 더 넣어 두 줄이 되면 빨강. */
+const G2_FLOOR = Object.freeze({ colorFieldMinW: 149, barBtnRows: 1 });
+test('G2-inv ★기준선 무관 — 가로 잘림 0 · 색 칸 최소폭 ≥ 149 · 줄바 단추 한 줄', async ({ page }) => {
+  const errs = await boot(page);
+  const now = await measurePanel(page);
+  expect(errs).toEqual([]);
+  expect(now.lineBarAnchor, '[전제] 줄바 닻을 찾았다(못 찾으면 아래가 못 잰 값)').not.toBe('MISSING');
+  expect(now.colorFieldN, '[전제] 색 칸이 하나 이상 있다').toBeGreaterThan(0);
+  expect(now.bodyScrollW - now.bodyClientW, '★패널 본문 가로 넘침').toBeLessThanOrEqual(0);
+  expect(now.overflowRight, '★패널 오른쪽 밖으로 나간 요소').toBe(0);
+  expect(now.colorFieldMinW, `★색 칸 최소폭 < ${G2_FLOOR.colorFieldMinW}(51dae124 기준선)`).toBeGreaterThanOrEqual(G2_FLOOR.colorFieldMinW);
+  expect(now.barBtnRows, '★줄바 단추가 한 줄을 넘는다').toBe(G2_FLOOR.barBtnRows);
+});
