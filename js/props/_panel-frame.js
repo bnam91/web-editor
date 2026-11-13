@@ -130,7 +130,11 @@ function _wire(panel) {
 }
 
 /** 패널을 그린다 — 동기. block 은 지금 그리는 대상(배선 코드가 이어서 쓴다 · 틀은 아직 안 읽는다). */
+/* 패널 그리기 세대 — 비동기 렌더러(showSectionProperties 의 await)가 «기다리는 사이 다른 패널이 그려졌나»를 잰다(U6 R9). */
+let _renderGen = 0;
+export const panelRenderGen = () => _renderGen;
 export function renderPanel(block, { header = '', sections = [] } = {}) {
+  _renderGen++;
   propPanel.innerHTML = buildPanelHTML({ header, sections });
   _wire(propPanel);
   return propPanel;

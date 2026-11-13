@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { exportFormatOptionsHTML, isAnimFormat } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
 import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
-import { renderPanel, sec as panelSec } from './_panel-frame.js';
+import { renderPanel, sec as panelSec, panelRenderGen } from './_panel-frame.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
@@ -535,10 +535,15 @@ async function showSectionProperties(sec) {
        호출자가 있다(js/image-handling.js · 이 파일의 재렌더 3자리). 그래서 「부를 때는
        선택돼 있었는데 기다리는 사이 아니게 된 경우」만 접는다. */
   const _wasSelected = !!sec?.classList?.contains('selected');
+  const _gen0 = panelRenderGen();
   // race condition 방지: Electron readPresets() IPC가 완료될 때까지 대기 후 PRESETS 사용
   await _presetsReady;
   if (!sec || !sec.isConnected) return;
   if (_wasSelected && !sec.classList.contains('selected')) return;   // 더 최신 선택이 패널 주인이다
+  /* ★U6 R9 — 위 줄은 «섹션이 아직 골라져 있으면» 그린다. 그런데 섹션 안 블럭을 고르면 섹션도 .selected 로 남는다(selectShapeBlock 등) ⇒
+     같은 태스크에서 selectSection → 블럭 추가·선택(MCP·프리셋·검사 손)이면 늦게 온 섹션 패널이 «더 최신인 블럭 패널»을 덮었다
+     (rp-u4-panel-hygiene H1·H2·X1 — 도형 패널이 섹션 패널로 갈림). ⇒ 기다리는 사이 다른 패널이 그려졌으면 그쪽이 주인이다. */
+  if (panelRenderGen() !== _gen0) return;
   // dataset.bg(헬퍼가 기록한 색)를 우선, 없으면 인라인 스타일에서 추출
   const meshCols = meshColorsOf(sec.dataset.bgMesh);
   const meshOn   = !!meshCols;
