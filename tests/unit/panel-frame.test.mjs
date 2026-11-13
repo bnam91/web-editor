@@ -315,6 +315,12 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   assert.deepEqual(judgePanel(rad('layout', null, [['own', 'layout']]), spec), [], '★컨트롤 자신의 data-own=layout 인데 빨갛다');
   assert.deepEqual(judgePanel(rad('appearance', 'layout'), spec), ['소유 위반: rdl-radius-slider 는 layout 절 속성인데 appearance 절에 있다'], '★덮어쓰기가 판정을 건너뛰었다(여전히 재야 한다)');
   assert.deepEqual(judgePanel(rad('layout', 'lay-out'), spec), ['data-own 이 모르는 절: rdl-radius-slider → lay-out']);
+  /* U0c ④ 반복 항목 카드 — Content 안이면 판정 밖 · 같은 카드가 다른 절(Appearance)이면 판정 */
+  const card = (sec, itemCard) => ({ hints: 0, secs: [{ sec, isHeader: false, title: spec.SECTION_TITLE[sec], labels: [],
+    controls: [{ id: 'cmp-card-0-bg-color', type: 'color', data: [], pairedColor: false, scope: null, own: null, itemCard }] }] });
+  assert.deepEqual(judgePanel(card('content', true), spec), [], '★Content 안 항목 카드인데 빨갛다');
+  assert.deepEqual(judgePanel(card('appearance', true), spec), ['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 appearance 절에 있다'], '[양성대조] Appearance 의 카드는 판정');
+  assert.deepEqual(judgePanel(card('content', false), spec), ['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 content 절에 있다'], '[양성대조] 카드 밖 Content 컨트롤은 판정');
   /* U0b ⑦ 코인 금속색 — 색 칸 id 를 제외하면 그 짝(hex·alpha)도 빠진다 · 제외 밖 짝은 여전히 잡는다 */
   const coin = (id, pairId) => ({ id, type: pairId ? 'text' : 'color', data: [], pairedColor: !!pairId, pairId, scope: null });
   const special = (controls) => ({ hints: 0, secs: [{ sec: 'special', isHeader: false, title: 'Coin', labels: [], controls }] });

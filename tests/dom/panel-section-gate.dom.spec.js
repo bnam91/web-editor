@@ -124,6 +124,17 @@ test('G5 data-own 명시 덮어쓰기 — 조상 줄의 data-own 을 readPanel �
   expect(judgePanel(await readPanel(page), SPEC), '[양성대조] 덮어쓰기 없으면 잡는다').toEqual(['소유 위반: xx-radius-slider 는 appearance 절 속성인데 size 절에 있다']);
 });
 
+test('G6 반복 항목 카드는 Content 안에서만 판정 밖 — 같은 카드가 다른 절이면 판정(진짜 DOM)', async ({ page }) => {
+  await scene(page);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  // 브릿지 Size 절 몸에 항목 카드(.prop-cell-card) + 색 칸 — Size 절이라 판정 ⇒ 빨강
+  await page.evaluate(() => { const k = document.createElement('div'); k.className = 'prop-cell-card'; k.innerHTML = '<input type="color" id="cmp-card-0-bg-color">'; document.getElementById('psec-size-body').appendChild(k); });
+  expect(judgePanel(await readPanel(page), SPEC), '[양성대조] Content 밖 카드는 판정').toEqual(['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 size 절에 있다']);
+  // 그 절을 Content 로(data-sec·제목만 — 순서는 content < fill < special 이라 정본 부분열) ⇒ 카드 안이라 판정 밖
+  await page.evaluate(() => { const s = document.getElementById('psec-size'); s.dataset.sec = 'content'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Content'; });
+  expect(judgePanel(await readPanel(page), SPEC), '★Content 안 항목 카드인데 빨갛다').toEqual([]);
+});
+
 test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });

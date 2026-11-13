@@ -44,6 +44,8 @@ export function isValidSectionTitle(t) {
  * ★class 는 안 본다 — `.prop-color-hex` 가 «작은 글칸 껍데기»로도 쓰여(iconify 프리셋 이름칸 등) class 로 재면 색 아닌 칸이 fill 로 간다.
  *   «색이다»는 input[type=color] 이거나 그 짝(같은 .prop-color-field 안 · 바로 앞 형제가 색 칸)일 때만(readPanel 이 잰다).
  * ★위에서부터 첫 일치가 이긴다. 'a+b' = 두 단어 다 · 'pad*' = 그 접두 단어 · '*rule' = 그 접미 단어. 어느 줄에도 안 걸리면 판정 밖(null).
+ * ★Content 절 안 반복 항목 카드([data-sec-item] · .prop-cell-card) 속 컨트롤은 판정 밖(한 항목의 색·크기·글이 한 몸 — §3-2).
+ *   카드가 다른 절에 있으면 여전히 판정한다(tests/dom/_panel-sections.js judgePanel).
  * ⛔애매한 컨트롤은 표를 비틀지 말고 OWNERSHIP_EXEMPT(id) 또는 OWNERSHIP_EXEMPT_SCOPES(그릇 id — 그 «안»만)에 까닭과 함께 뺀다. */
 export const OWNERSHIP = Object.freeze([
   [['border+color', 'stroke+color', '*rule', 'line+color', 'line+width'], 'stroke'],   // *rule = 그리드 「칸 사이 줄」 · line+color/width = 선 색·두께(rdl-line-* · tbl-line-*)

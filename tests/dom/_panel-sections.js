@@ -30,6 +30,7 @@ const readPanel = (page, spec = loadSectionSpec()) => page.evaluate((scopes) => 
         || (prev?.matches?.('input[type="color"]') ? prev : prev?.querySelector?.('input[type="color"]')) || null);
       return {
         id: c.id, type: c.type, pairedColor: !!pair, pairId: pair?.id || null,
+        itemCard: (() => { const k = c.closest('[data-sec-item], .prop-cell-card'); return !!k && e.contains(k); })(),   // 반복 항목 카드(카드 n · 칸 n …)
         own: (() => { const o = c.closest('[data-own]'); return o && e.contains(o) ? o.dataset.own : null; })(),   // 명시 덮어쓰기(같은 절 안 조상 줄까지)
         data: [...c.attributes].filter((a) => a.name.startsWith('data-')).map((a) => [a.name.slice(5), a.value]),
         scope: scopes.find((sid) => document.getElementById(sid)?.contains(c)) || null,
@@ -57,7 +58,8 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     else if (s.title !== spec.SECTION_TITLE[s.sec]) bad.push(`제목 불일치: ${s.sec} = 「${s.title}」 (정본 「${spec.SECTION_TITLE[s.sec]}」)`);
     if (s.labels.includes(s.title)) bad.push(`라벨이 절 제목을 되풀이: ${s.title}`);
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
-      if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
+      if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;
+      if (c.itemCard && s.sec === 'content') continue;   // Content 안 반복 항목 카드는 한 항목의 색·크기·글이 한 몸 — 다른 절의 카드는 여전히 판정   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
       const own = spec.ownerOfControl(c);
       if (own && !spec.SECTION_ORDER.includes(own)) { bad.push(`data-own 이 모르는 절: ${c.id} → ${own}`); continue; }
       if (own && own !== s.sec) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 ${s.sec} 절에 있다`);
