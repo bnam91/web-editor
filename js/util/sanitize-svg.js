@@ -45,6 +45,9 @@ export const SVG_ALLOWED_TAGS = [
 ];
 /** 입력 상한 — 넘으면 ''. 아이콘 svg 는 수 KB 다(상한이 크면 손댄 저장본이 그릴 때마다 그만큼 읽힌다). */
 export const SVG_MAX_LEN = 20000;
+/** opts.maxLen 의 천장(SEC-VECTOR-SVG-RAW-01 · 지디 261113 결정 A) — 벡터 블록은 MCP 상한(200000 · vector-block.js updateVectorBlock)·긴 펜 경로가 있어 아이콘 상한으로는 빈 그림이 된다.
+    ⛔이 수를 «기본»으로 올리지 마라 — 아이콘 소비자는 20000 그대로다(올리는 쪽만 opts 로 연다). 선형 시간(D1)이라 상한은 읽는 시간만 늘린다. */
+export const SVG_MAX_LEN_CEIL = 200000;
 
 const _SVG_CANON = Object.create(null);
 SVG_ALLOWED_TAGS.forEach((t) => { _SVG_CANON[t.toLowerCase()] = t; });
@@ -157,11 +160,16 @@ function _svgReadTag(src, i) {
  * opts.idPrefix(3차 · N2) = 남기는 id 와 그것을 가리키는 url(#…) 에 붙일 접두사([A-Za-z][A-Za-z0-9_-]* 꼴만 받는다).
  *   같은 아이콘을 든 블럭이 한 문서에 여럿이면 id 가 겹쳐 뒤 블럭의 url(#g) 가 앞 블럭 것을 가리킨다 — 그리는 쪽이 블럭마다 다른 접두사를 준다.
  *   ⚠️접두사를 준 결과는 «그 자리에서 그릴 것»이다 — dataset 에 되쓰면 걸 때마다 접두사가 자란다(쓰는 길은 이 옵션을 안 준다).
- * @param {{ root?: Record<string,string>, idPrefix?: string }} [opts]  root = 뿌리 <svg> 에 «덮어쓸» 속성(같은 이름은 바꾸고 없으면 더한다 — 값은 이스케이프된다)
+ * opts.maxLen = 입력 상한(정수 · SVG_MAX_LEN_CEIL 이 천장 · 없거나 틀리면 SVG_MAX_LEN).
+ * opts.dropped = 배열을 주면 «버린 태그 이름»(맨 바깥 것만 · 소문자 · 중복 없음)을 넣어 준다 — 부르는 쪽이 손실을 알리게(조용히 버리지 않게).
+ * @param {{ root?: Record<string,string>, idPrefix?: string, maxLen?: number, dropped?: string[] }} [opts]  root = 뿌리 <svg> 에 «덮어쓸» 속성(같은 이름은 바꾸고 없으면 더한다 — 값은 이스케이프된다)
  */
 export function sanitizeSvgString(input, opts) {
   if (typeof input !== 'string') return '';
-  if (input.length > SVG_MAX_LEN) return '';
+  const maxLen = (opts && Number.isInteger(opts.maxLen) && opts.maxLen > 0) ? Math.min(opts.maxLen, SVG_MAX_LEN_CEIL) : SVG_MAX_LEN;
+  if (input.length > maxLen) return '';
+  const dropped = (opts && Array.isArray(opts.dropped)) ? opts.dropped : null;
+  const drop = (nm) => { if (dropped && dropped.indexOf(nm) < 0) dropped.push(nm); };
   const src = input;
   const len = src.length;
   let lowerSrc = null;      // script/style 의 닫는 자리를 찾을 때만 한 번 만든다
@@ -237,6 +245,7 @@ export function sanitizeSvgString(input, opts) {
     }
     const canon = _SVG_CANON[lower];
     if (!canon) {
+      drop(lower);
       if (tag.selfClose) continue;
       if (lower === 'script' || lower === 'style') {     // 날글자 요소 — 안의 '<' 를 태그로 읽지 않고 닫는 자리까지 건너뛴다
         if (lowerSrc === null) lowerSrc = src.toLowerCase();

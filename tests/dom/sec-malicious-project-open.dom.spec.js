@@ -279,3 +279,64 @@ test('V3 ★만들기 길 makeVectorBlock(data) — data.svg 의 핸들러가 �
   expect(r.pwned, '★makeVectorBlock(data) 로 만든 블록의 svg 핸들러가 실행됐다').toBe(false);
   expect(errs.filter(e => !/pwned/.test(e))).toEqual([]);
 });
+
+/* ── V4~V6 고침의 «무변·손실 알림» 칸 (SEC-VECTOR-SVG-RAW-01 ② · 지디 결정 A: 상한만 벡터용 200000 · 허용태그 그대로) ──
+ *   V4 펜 블록 정상 렌더 — rebuildPenSvg 꼴 svg 의 path(d·stroke·두께·이음) 가 그대로 · 뿌리 100%
+ *   V5 text 든 벡터 — text 만 빠지고 나머지 모양(rect·circle)은 남는다 · console.warn 한 줄(조용히 안 버린다) · data-svg 도 걸러 되쓴다
+ *   V6 긴 벡터(아이콘 상한 20000 밖) — 빈 그림이 아니다(maxLen 이 하중을 진다 · 빼면 빨강) */
+const mountVec = (page, svg, extra = {}) => page.evaluate(([svg, extra]) => {
+  const { row, block } = window.makeVectorBlock({ svg, ...extra });
+  document.querySelector('#xS .section-inner').appendChild(row);
+  return block.id;
+}, [svg, extra]);
+
+test('V4 펜 블록 정상 렌더 — path 가 같은 d·stroke 로 그려진다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), await vecCanvas(page, VEC_OK));
+  const D = 'M 10 10 C 30 0 60 40 90 20 L 110 90';
+  const PEN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100" width="120" height="100"><path d="${D}" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  const id = await mountVec(page, PEN, { w: 120, h: 100, color: '#1a1a1a', penNodes: '[]', strokeWidth: 3, penFill: 'none' });
+  const r = await page.evaluate((id) => {
+    const svg = document.querySelector(`#${id} .vb-inner svg`);
+    const p = svg?.querySelectorAll('path') || [];
+    const a = (n) => p[0]?.getAttribute(n);
+    return { n: p.length, d: a('d'), stroke: a('stroke'), sw: a('stroke-width'), lj: a('stroke-linejoin'), lc: a('stroke-linecap'), fill: a('fill'),
+             w: svg?.getAttribute('width'), h: svg?.getAttribute('height'), vb: svg?.getAttribute('viewBox'), bw: Math.round(svg?.getBoundingClientRect().width || 0) };
+  }, id);
+  console.log('  V4:', JSON.stringify(r));
+  expect(r).toEqual({ n: 1, d: D, stroke: '#1a1a1a', sw: '3', lj: 'round', lc: 'round', fill: 'none', w: '100%', h: '100%', vb: '0 0 120 100', bw: r.bw });
+  expect(r.bw, '★그려진 폭이 0 — 빈 그림').toBeGreaterThan(0);
+  expect(errs).toEqual([]);
+});
+
+test('V5 text 든 벡터 — text 만 빠지고 모양은 남는다 · 경고 한 줄 · data-svg 도 걸러 되쓴다', async ({ page }) => {
+  const warns = [];
+  page.on('console', (m) => { if (m.type() === 'warning' && /\[vector\]/.test(m.text())) warns.push(m.text()); });
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), await vecCanvas(page, VEC_OK));
+  const id = await mountVec(page, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><rect width="40" height="40" fill="#000000"/><text x="50" y="30">가격</text><circle cx="80" cy="20" r="10"/></svg>');
+  await expect.poll(() => warns.length, { message: '버린 태그 경고(console.warn [vector])가 없다 — 손실이 조용하다', timeout: 3000 }).toBeGreaterThan(0);
+  const r = await page.evaluate((id) => {
+    const b = document.getElementById(id);
+    const svg = b.querySelector('.vb-inner svg');
+    return { tags: [...(svg?.children || [])].map((e) => e.tagName.toLowerCase()), ds: b.dataset.svg };
+  }, id);
+  console.log('  V5:', JSON.stringify({ r, warns }));
+  expect(r.tags, 'text 만 빠지고 rect·circle 은 남아야').toEqual(['rect', 'circle']);
+  expect(r.ds, 'data-svg 에 text 가 남았다(다음 그리기마다 경고)').not.toMatch(/<text/i);
+  expect(warns[0]).toMatch(new RegExp(`\\[vector\\] ${id} .*text`));
+  expect(warns.length, '경고는 한 번(되쓴 뒤엔 버릴 것이 없다)').toBe(1);
+  expect(errs).toEqual([]);
+});
+
+test('V6 긴 벡터(> 20000자) — 빈 그림이 아니다', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate((c) => window.applyProjectData({ canvas: c }), await vecCanvas(page, VEC_OK));
+  const LONG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M0 0' + ' L50 50 L0 100'.repeat(2500) + '" stroke="#000000" fill="none"/></svg>';
+  const id = await mountVec(page, LONG);
+  const r = await page.evaluate((id) => ({ n: document.querySelectorAll(`#${id} .vb-inner svg path`).length, len: document.getElementById(id).dataset.svg.length }), id);
+  console.log('  V6:', JSON.stringify({ src: LONG.length, ...r }));
+  expect(LONG.length, '★전제 — 아이콘 상한 밖').toBeGreaterThan(20000);
+  expect(r.n, '긴 벡터가 빈 그림이 됐다(상한이 아이콘 값 그대로)').toBe(1);
+  expect(errs).toEqual([]);
+});

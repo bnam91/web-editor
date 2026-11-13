@@ -8,9 +8,24 @@
 
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+/* ★SEC-VECTOR-SVG-RAW-01 (지디 261113 · 결정 A) — svg 문자열 거르개 한 벌(js/util/sanitize-svg.js)을 벡터도 탄다.
+   상한만 벡터용으로 연다(SVG_MAX_LEN_CEIL · MCP 상한과 같다) · 허용태그는 아이콘과 같다(text·use·image·style·foreignObject 는 버린다). */
+import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
+
+/** data-svg 를 한 번 걸러 «되쓴다» — 다음 그리기엔 버릴 것이 없다(경고는 한 번). 버린 태그는 조용히 두지 않는다(console.warn). */
+function _cleanVectorSvg(block) {
+  const raw = block.dataset.svg || '';
+  if (!raw) return '';
+  const dropped = [];
+  const clean = sanitizeSvgString(raw, { maxLen: SVG_MAX_LEN_CEIL, dropped });
+  if (clean !== raw) block.dataset.svg = clean;
+  if (dropped.length) console.warn(`[vector] ${block.id || '(새 블록)'} 세척으로 버린 태그: ${dropped.join(', ')}`);
+  return clean;
+}
 
 function renderVector(block) {
-  const svgStr = block.dataset.svg   || '';
+  /* ★렌더가 «유일한» innerHTML 자리다 — 열기 뒤 편집·MCP update·makeVectorBlock(data)·펜 재빌드가 전부 여기로 온다. */
+  const svgStr = _cleanVectorSvg(block);
   const color  = block.dataset.color || '#000000';
   const w      = parseInt(block.dataset.w) || 120;
   const h      = parseInt(block.dataset.h) || 120;
@@ -28,15 +43,11 @@ function renderVector(block) {
     .replace(/fill="#000"/gi,         `fill="${color}"`)
     .replace(/fill="currentColor"/gi, `fill="${color}"`);
 
-  // SVG 자체에 width/height 100% 강제 적용
-  processed = processed.replace(/<svg([^>]*)>/i, (match, attrs) => {
-    let a = attrs
-      .replace(/\s*width="[^"]*"/gi, '')
-      .replace(/\s*height="[^"]*"/gi, '');
-    return `<svg${a} width="100%" height="100%">`;
-  });
-
-  inner.innerHTML = processed;
+  /* SVG 자체에 width/height 100% 강제 — 뿌리 덮어쓰기(opts.root)로.
+     ★색 치환 «뒤»에 한 번 더 거른다: data-color 도 저장본에서 오는 값이라 `"><image onerror…` 가 치환으로 다시 끼어들 수 있다. */
+  inner.innerHTML = processed
+    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: { width: '100%', height: '100%' } })
+    : '';
 
 }
 
@@ -176,6 +187,10 @@ function updateVectorBlock(blockId, partial = {}) {
     // XSS 가드: <script> 차단 (SVG raw → innerHTML 경로)
     if (/<script[\s>]/i.test(partial.svg)) {
       return { ok: false, code: 'INVALID', message: 'svg contains <script> (blocked)' };
+    }
+    /* ★SEC-VECTOR-SVG-RAW-01 — 거르개가 비우는 것(뿌리가 <svg> 아님 등)은 «조용히 빈 그림»이 아니라 거절. 핸들러·버린 태그는 renderVector 가 걷고 알린다. */
+    if (partial.svg && !sanitizeSvgString(partial.svg, { maxLen: SVG_MAX_LEN_CEIL })) {
+      return { ok: false, code: 'INVALID', message: 'svg rejected by sanitizer (root must be <svg>)' };
     }
   }
   if (partial.color !== undefined && partial.color !== null) {

@@ -14,6 +14,8 @@
  *   S13 style 은 통째로 · 역슬래시(CSS 이스케이프) · image-set/var 같은 함수 · 이름에 ':' 가 든 속성(xml:base …)이 사라진다
  *   S14 class · data-* 는 사라지고 id 는 url(#…) 가 가리키는 태그에만 남는다
  *   ── 3차(이벨류에이터 N2) ──
+ *   ── SEC-VECTOR-SVG-RAW-01(지디 261113 결정 A) ──
+ *   S16 opts.maxLen — 벡터만 상한을 연다(천장 SVG_MAX_LEN_CEIL · 기본은 그대로) · opts.dropped — 버린 맨 바깥 태그 이름을 알려 준다
  *   S15 idPrefix — 남는 id 와 그것을 가리키는 url(#…) 에 같은 접두사가 붙는다(블럭마다 다른 접두사 = 문서에서 id 가 안 겹친다)
  * ★기대값은 «글자로» 박았다. 출력 전체를 공통 술어(noDanger)로도 한 번 더 훑는다.
  * ⛔앱 0 · 네트워크 0. 이 모듈은 순수 문자열 함수라 export 만 걷어 그대로 돌린다(variant-ship-leak 과 같은 꼴 —
@@ -34,10 +36,10 @@ const MOD = 'js/util/sanitize-svg.js';
 function load() {
   const src = readSrc(REPO, MOD);
   const names = [...src.matchAll(/export\s+(?:const|function)\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]);
-  assert.deepEqual(names.sort(), ['SVG_ALLOWED_TAGS', 'SVG_MAX_LEN', 'sanitizeSvgString'], '★전제: 내보내는 이름 셋');
+  assert.deepEqual(names.sort(), ['SVG_ALLOWED_TAGS', 'SVG_MAX_LEN', 'SVG_MAX_LEN_CEIL', 'sanitizeSvgString'], '★전제: 내보내는 이름 넷(SEC-VECTOR-SVG-RAW-01 이 천장 상수를 더했다)');
   return new Function(src.replace(/\bexport\s+/g, '') + `\n;return { ${names.join(', ')} };`)();
 }
-const { sanitizeSvgString: clean, SVG_ALLOWED_TAGS, SVG_MAX_LEN } = load();
+const { sanitizeSvgString: clean, SVG_ALLOWED_TAGS, SVG_MAX_LEN, SVG_MAX_LEN_CEIL } = load();
 
 /* 출력 어디에도 없어야 하는 것 — 태그 여는 꼴의 script/foreignObject, 속성 꼴의 on*, href, javascript: */
 function noDanger(out, label) {
@@ -250,4 +252,22 @@ test('S15 idPrefix — 남는 id 와 url(#…) 참조에 같은 접두사가 붙
   /* 접두사 꼴이 아니면 안 받는다(값으로 속성을 못 깬다) */
   for (const bad of ['"><script>', 'a b', '1abc', '', 'x"y']) assert.equal(clean(SRC, { idPrefix: bad }), plainOut, `접두사 «${bad}» 는 무시`);
   assert.equal(clean(SRC, { idPrefix: 7 }), plainOut, '문자열이 아닌 접두사는 무시');
+});
+
+test('S16 maxLen(벡터 상한) · dropped(버린 태그 알림)', () => {
+  const long = '<svg viewBox="0 0 10 10"><path d="M0 0' + ' L1 1'.repeat(6000) + '"/></svg>';   // 30,000자 남짓 — 아이콘 상한 밖
+  assert.ok(long.length > SVG_MAX_LEN && long.length < SVG_MAX_LEN_CEIL, `전제: 길이 ${long.length}`);
+  /* 양성대조: 옵션 없이는 '' (= maxLen 이 하중을 진다 — 렌더에서 빼면 긴 펜 경로가 빈 그림) */
+  assert.equal(clean(long), '', '기본 상한은 그대로 20000');
+  assert.match(clean(long, { maxLen: SVG_MAX_LEN_CEIL }), /^<svg viewBox="0 0 10 10"><path d="M0 0 L1 1/);
+  assert.equal(clean('<svg>' + 'x'.repeat(SVG_MAX_LEN_CEIL) + '</svg>', { maxLen: 10 ** 9 }), '', '천장 위로는 못 연다');
+  for (const bad of [0, -5, 1.5, '200000', null]) assert.equal(clean(long, { maxLen: bad }), '', `maxLen ${String(bad)} 는 무시(기본 상한)`);
+  /* dropped — 맨 바깥 버린 태그만 · 소문자 · 중복 없음 · 안의 것(foreignObject 안 div)은 안 센다 */
+  const dropped = [];
+  const out = clean('<svg><rect width="1" height="1"/><text>hi</text><text>yo</text><foreignObject><div>x</div></foreignObject><image href="data:,"/><circle r="1"/></svg>', { dropped });
+  assert.deepEqual(dropped, ['text', 'foreignobject', 'image']);
+  assert.equal(out, '<svg><rect width="1" height="1"/><circle r="1"/></svg>', 'text 만 빠지고 나머지 모양은 남는다');
+  const none = [];
+  clean('<svg><rect width="1" height="1"/></svg>', { dropped: none });
+  assert.deepEqual(none, [], '버린 것이 없으면 빈 배열');
 });
