@@ -160,15 +160,12 @@ test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 
   const read = () => page.evaluate(() => {
     const panel = document.getElementById('panel-right');
     const tg = document.querySelector('#panel-right .prop-row > .prop-toggle');
-    const ti = [...document.querySelectorAll('#panel-right .prop-section-title')]
-      .find((e) => !e.parentElement.classList.contains('prop-section-title-row'));   /* ★제목줄 ★밖 = 아직 틀 밖 패널 쪽 */
     const fh = document.querySelector('#panel-right .prop-sec-head > .prop-section-title');   /* 틀 머리 제목 */
     const ro = document.querySelector('#panel-right .prop-row');
     const g = (e) => (e ? getComputedStyle(e) : null);
     return {
       panelW: g(panel).width,
       toggleSize: tg ? [g(tg).width, g(tg).height].join('|') : null, toggleDisplay: tg ? g(tg).display : null,
-      titleOutside: ti ? [g(ti).paddingTop, g(ti).paddingBottom, g(ti).fontSize].join('|') : null,
       frameHead: fh ? [g(fh).paddingTop, g(fh).paddingBottom].join('|') : null,
       headTok: getComputedStyle(document.documentElement).getPropertyValue('--ui-sec-head-py').trim(),
       row: ro ? [g(ro).display, g(ro).alignItems, g(ro).minHeight].join('|') : null,
@@ -187,6 +184,12 @@ test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 
   expect(t.headTok, '★전제: --ui-sec-head-py 가 읽힌다').not.toBe('');
   expect(t.frameHead, `★틀 머리 제목 padding 위|아래 = 토큰 ${t.headTok}`).toBe(`${t.headTok}|${t.headTok}`);
   expect(t.row, '★.prop-row — flex/center/24px 가 아니다').toBe('flex|center|24px');
+  /* ★내장 양성대조 — 같은 자(read)로 틀 머리 아래 padding 을 1px 비틀면 «위|아래 = 토큰» 단언이 깨져야 한다(자가 살아 있다).
+     지금 열린 패널(텍스트 스티커 — U5 로 틀에 있다)의 머리에서 한다. */
+  expect(k.frameHead, '[전제] 스티커 패널도 틀 머리').not.toBeNull();
+  await page.evaluate(() => { document.querySelector('#panel-right .prop-sec-head > .prop-section-title').style.paddingBottom = 'calc(var(--ui-sec-head-py) + 1px)'; });
+  const bent = await read();
+  expect(bent.frameHead, '★양성대조 — 비튼 머리를 자가 «토큰과 같다»고 읽는다(자가 죽었다)').not.toBe(`${bent.headTok}|${bent.headTok}`);
   expect(t.toggleSize ?? k.toggleSize, '★.prop-toggle 의 32×18 — css/editor-props.css 의 그 한 규칙이 안 물렸다(⇒ 아래 0.00 은 「안 재고 있다」다)').toBe('32px|18px');
   expect(errs).toEqual([]);
 });

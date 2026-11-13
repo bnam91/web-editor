@@ -47,7 +47,8 @@ function padTopBottom(v) {
 /* ★제품 마크업에서 title-row 를 쓰는 자리 — ⛔tests/·docs/ 는 제품이 아니라 분모 밖이다. */
 /* ★U2·U5(right-panel-unify) — 텍스트·인용구의 Stroke·Shadow(U2)와 스티커의 Favorites·Shadow(U5) 머리줄은 «틀»(_panel-frame.js) 한 자리 + headTools 로 갔다
    ⇒ 틀 파일을 분모에 넣는다(prop-text-template.js · prop-sticker.js 는 0곳). */
-const MARKUP_FILES = ['js/props/prop-sticker.js', 'js/props/prop-text-template.js', 'js/effects-registry.js', 'js/props/_panel-frame.js'];
+/* ★prop-banner02.js — 줄 카드 머리(하위 접기 · 종류 select)가 손 title-row 를 쓴다 ⇒ 분모에 넣는다(빠져 있었다 · U2 병합 재계수 2026-11-13). */
+const MARKUP_FILES = ['js/props/prop-sticker.js', 'js/props/prop-text-template.js', 'js/effects-registry.js', 'js/props/_panel-frame.js', 'js/props/prop-banner02.js'];
 
 test('T0 ★전제 — `.prop-section-title` 블록을 찾았고 그 안에 padding 이 있다 (⛔못 찾으면 ★죽는다)', () => {
   const css = read('css/editor-props.css');
@@ -90,8 +91,9 @@ test('T4 마크업 — `class="prop-section-title-row"` 가 ★5곳이고 ★인
   /* ⛔`== 5` 로만 닫지 않는다 — 「★명부 ⊇ 실패집합 ＋ ★명부 밖 0건」 꼴로 적는다.
      절이 늘면 ★늘어난 자리를 ★메시지에 ★찍어 사람이 보게 한다(수만 보고 지나치지 않게). */
   /* ★핀 a42d76d5 에서 ★행위로 센 수는 5(스티커 2 · 텍스트 템플릿 2 · effects-registry 1).
-     ★U2+U5 의도 갱신: 템플릿 2·스티커 2 → 0 · 틀 +2(머리 마크업 1 + 옛 머리줄을 읽어 headTools 로 옮기는 정규식 1 — grep 이 같이 센다) ⇒ 3. */
-  const BASE = 3;
+     ★U1~U5 병합 판 재계수(grep -c '<div class="prop-section-title-row' MARKUP_FILES): 스티커 0 · 텍스트 템플릿 0 · effects-registry 1
+       · _panel-frame 2(머리 마크업 1 + 옛 머리줄을 읽어 headTools 로 옮기는 정규식 1 — 같은 글자라 같이 센다) · banner02 1(줄 카드 머리) ⇒ 4. */
+  const BASE = 4;
   const found = [];
   const withStyle = [];
   for (const f of MARKUP_FILES) {
