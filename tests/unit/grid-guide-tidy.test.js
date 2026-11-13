@@ -101,7 +101,10 @@ test('T-G2 ★칼럼·프리셋·거터가 «같은 .prop-row» 안에 있다', 
   const PROPS_CSS = stripComments(readSrc(ROOT, 'css', 'editor-props.css'));
   assert.match(PROPS_CSS, /\.prop-label--narrow\s*\{[^}]*width:\s*28px/,
     '★.prop-label--narrow 정의가 없거나 28px 이 아니다 (34px 은 여유 0 — 실측)');
-  assert.match(PROPS_CSS, /\.prop-label \{[^}]*width:\s*56px/,
+  /* U0(right-panel-unify) — 56px 리터럴이 토큰으로 갔다. 값은 토큰 정의(editor-base.css)에서 잰다. */
+  assert.match(PROPS_CSS, /\.prop-label \{[^}]*width:\s*var\(--ui-form-label-w\)/,
+    '★전역 .prop-label 이 --ui-form-label-w 를 안 본다');
+  assert.match(readSrc(ROOT, 'css', 'editor-base.css'), /--ui-form-label-w:\s*56px/,
     '★전역 .prop-label 의 56px 이 바뀌었다 — 한정 클래스로 좁히랬지 전역을 내리랬던 게 아니다');
 });
 

@@ -152,6 +152,24 @@
   --ui-chevron:      10px;   /* 접기/펼치기 토글 화살표 (좌측 패널 12/10 혼재 → 10 통일, 2026-09-04) */
   --ui-disabled-opacity: 0.5; /* 비활성 흐림 (8값→0.5) */
 
+  /* ── 패널 절(panel-frame) 토큰 (right-panel-unify U0, 2026-11-13) — 우측 패널 절 머리·몸·힌트·칩의 «한 자리».
+     ★신규 패널 층(js/props/_panel-frame.js · editor-props.css 「패널 절」 블록)은 여기 토큰만 쓴다 — 색·px 리터럴 0
+       (scripts/check-design-tokens.sh 하드게이트). 라이트 테마가 생기면 이 묶음만 덮으면 패널이 따라온다.
+     ⛔재발명 금지: --ui-form-label-w · --ui-row-gap · --ui-pad-panel · --ui-chevron · --ui-btn-h 는 위에 이미 있다. */
+  --ui-space-1: 4px;    /* 간격 스케일(DESIGN_SYSTEM §10 제안값의 실체화) — --ui-row-gap 과 같은 값 */
+  --ui-space-2: 8px;    /* --ui-pad-panel 과 같은 값 */
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-sec-divider:          var(--ui-border-strong);  /* 절 사이 구분선 (#333 → #444) */
+  --ui-sec-title-fs:         var(--ui-fs-base);        /* 절 제목 10px → 11px */
+  --ui-sec-title-color:      var(--ui-text-sub);       /* 절 제목 muted → sub (7.1:1) */
+  --ui-sec-title-color-hover: var(--ui-text);          /* 절 제목 hover */
+  --ui-sec-head-py:          var(--ui-space-2);        /* 절 머리 위아래 대칭 8px (prop-title-row-align ⒜안) */
+  --ui-sec-body-pb:          6px;                      /* 펼친 절 몸통 아래 여백 4 → 6 */
+  --ui-hint-color:           var(--ui-text-dim);       /* .prop-hint #5a5a5a(2.4:1 ✗AA) → dim(≥4.5:1) */
+  --ui-chip-h:               var(--ui-btn-h);          /* 스코프칩 높이 = 버튼 높이 별칭 */
+  --ui-focus-ring:           2px solid var(--ui-accent-primary, #2d6fe8);  /* 공용 키보드 포커스 링(아래 :focus-visible 규칙의 값 그대로) */
+
   /* ── 미정의로 쓰이던 토큰 → canonical 별칭 (일관성 수정, 2026-05) ──
      이전엔 정의 없이 var() fallback으로만 쓰여 fallback이 파일마다 달라 색이 갈렸음.
      아래 별칭으로 한 톤으로 통일. (신규 코드는 위 canonical 토큰을 직접 쓸 것) */
@@ -984,8 +1002,9 @@ button:focus-visible,
 .cv-chip:focus-visible,
 .prop-slider:focus-visible,
 [role="button"]:focus-visible,
-[role="tab"]:focus-visible {
-  outline: 2px solid var(--ui-accent-primary, #2d6fe8);
+[role="tab"]:focus-visible,
+.prop-section-title:focus-visible {
+  outline: var(--ui-focus-ring);
   outline-offset: 1px;
 }
 /* a11y(N8): overflow:hidden 컨테이너(.layer-children/.layer-row-* 등) 안의 항목은

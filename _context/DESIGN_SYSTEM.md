@@ -529,27 +529,22 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ---
 
-## 10. 간격·반경 스케일 (`--space-*` / `--radius-*`)
+## 10. 간격·반경 스케일 (`--ui-space-*` / `--ui-radius-*`)
 
-⚠️⚠️**이 토큰은 존재하지 않는다 — 쓰려면 먼저 만들어라.**
-> 정의 **0건** · 사용 **0건** (2026-10-11 내가 쟀다 — `grep -rn -- '--space-[0-9] *:' css/` ＋
-> `--radius-\(sm\|md\|lg\)`, 둘 다 0. `css/design-tokens.css` 안 「space」 글자도 **0**.
-> 양성대조: 같은 자로 `--bg-app`·`--text-sub`·`--color-accent` 등 13종은 전부 정의=1 ⇒ 자는 산다).
-> ⚠️**이 절의 거짓이 이미 사람을 속였다** — 2026-10-11 디자인시스템 일관성 대조에서 내가
-> 아래 코드블록을 읽고 「`--space-1: 4px` 가 있다」고 적어, `css/editor-extra.css:1011`
-> `margin-left:4px` 를 「토큰을 쓸 수 있는데 숫자로 박았다」는 흠으로 올렸다. 쓸 토큰이 없었다.
-> ★손대기 전 이 파일 = blob `3a548c60` · 23195바이트 · 512행 (★저술 mtime 2026-10-10 09:45:16 · ⛔내 워크트리 체크아웃이 파일 mtime 을 덮었으므로 정체는 blob 으로 적는다)
+✅**2026-11-13 실체화(right-panel-unify U0)** — 간격 스케일은 `--space-*` 가 아니라 **`--ui-space-*`** 로 만들었다
+(`css/editor-base.css :root` 「패널 절」 묶음 · `scripts/check-design-tokens.sh` 의 미정의 검사망 안에 들게 `--ui-` 접두).
+반경은 이미 있던 `--ui-radius-sm/md/lg`(4/6/10px)를 쓴다 — ⛔`--radius-*` 를 새로 만들지 마라(두 벌).
 
-~~`css/design-tokens.css` 정의.~~ **신규 UI 크롬** 코드의 padding/gap/margin/border-radius를
-이 토큰으로 쓰려면 **먼저 `css/design-tokens.css` 에 정의를 만들어야 한다**(미결 — 판정 대기).
-
-⚠️**아래는 «실재하는 정의»가 아니라 «제안된 값»이다 — 코드에 이 줄은 없다(2026-10-11 실측).**
 ```css
-/* ⚠️⚠️ 미구현 — 이 10종은 css/ 어디에도 정의가 없다. 아래를 var() 로 쓰면 빈 값이 된다 */
---space-0: 2px;  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
---space-4: 16px; --space-5: 24px; --space-6: 32px;
---radius-sm: 4px; --radius-md: 6px; --radius-lg: 10px;
+/* css/editor-base.css :root — 실재하는 정의 */
+--ui-space-1: 4px;  --ui-space-2: 8px;  --ui-space-3: 12px;  --ui-space-4: 16px;
+--ui-radius-sm: 4px; --ui-radius-md: 6px; --ui-radius-lg: 10px;
 ```
+- 의미 별칭은 그대로 둔다: `--ui-row-gap`(=4) · `--ui-pad-panel`(=8). 새 코드는 의미가 있으면 별칭, 없으면 스케일.
+- 패널 절 토큰(같은 묶음): `--ui-sec-divider` · `--ui-sec-title-fs` · `--ui-sec-title-color(-hover)` · `--ui-sec-head-py` ·
+  `--ui-sec-body-pb` · `--ui-hint-color` · `--ui-chip-h` · `--ui-focus-ring`(공용 `:focus-visible` 링 값의 토큰화).
+- ⚠️옛 기록: 2026-10-11 까지 이 절은 `--space-0..6` 을 «있는 것처럼» 적어 사람을 속였다(정의 0건). 그 제안값 중
+  4/8/12/16 만 실체화했다 — 2·24·32 는 쓰는 자리가 생길 때 만든다(죽은 토큰 금지).
 
 **정책**
 - 현재 CSS엔 px 리터럴 3078개 (흔한 값 4/8/6/10/12px 군집 + 5·11·3·7 난립). → **점진 이관** 대상이지 일괄 치환 X.
@@ -593,9 +588,14 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ## 12. 가드레일 (일관성 회귀 방지)
 
-`scripts/check-design-tokens.sh` — 신규 미정의 `--ui-*` 토큰 / 신규 UI 크롬 하드코딩 색 검출.
-- 사용된 `var(--ui-*)` ∖ 정의된 `--ui-*` = 미정의 (런타임 `--ui-scale`/`--inv-zoom` 제외)
-- 정의/사용 토큰 수, 하드코딩 색·px 카운트 출력 (회귀 추세 모니터)
+`scripts/check-design-tokens.sh` — rc 1 이면 빨강. `tests/unit/design-tokens-guard.test.mjs` 가 rc 0 을 단언하므로 **npm test 에 배선**돼 있다
+(양성대조: tmp 가짜 파일 `style="color:#123456"` 를 인자로 주면 rc 1).
+- ① 미정의 `--ui-*`: 사용된 `var(--ui-*)` ∖ 정의된 `--ui-*` (런타임 `--ui-scale`/`--inv-zoom` 제외). css/·js/ 는 `find` 로 재귀(⛔globstar — macOS bash 3.2 에 없다).
+- ② **신규 패널 층 하드게이트**: `js/props/_panel-frame.js` · `js/props/_section-spec.js` · `css/editor-props.css` 의
+  `panel-frame:BEGIN`~`END` 블록에 `#hex` · `rgb(a)(` · `Npx` 리터럴(인라인 `style=` 포함)이 1건이라도 있으면 실패. 전부 `var(--ui-*)`.
+- ③ **래칫**: `scripts/design-tokens.baseline.json` — `props-inline-hardcoded`(js/props 인라인 style 중 리터럴 품은 것) · `css-px` · `css-color`.
+  현재 > 기준 ⇒ 실패. 줄었으면 기준을 그 값으로 내려 같은 커밋에 넣는다. 첫 기준(2026-11-13, 스크립트 자신으로 잼): 388 · 3954 · 1640.
+- 대비: `tests/unit/panel-contrast.test.mjs` — 절 제목·힌트·라벨 토큰 × (`--ui-bg-base` · `--ui-bg-card`) ≥ 4.5:1.
 
 ---
 

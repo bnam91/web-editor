@@ -385,7 +385,7 @@ window.applyPagePadX(padX)
 
 ### 4-5. 힌트 텍스트
 
-- [ ] `.prop-hint` → `font-size: 11px`, `color: #999`, 안내 문구용
+- [ ] `.prop-hint` → `font-size: var(--ui-fs-10)`, `color: var(--ui-hint-color)`(= `--ui-text-dim`, AA ≥4.5:1 · 옛 `#5a5a5a` 2.4:1 폐기), 안내 문구용 · 패널당 ≤2
 
 ---
 
