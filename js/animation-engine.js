@@ -34,6 +34,7 @@ function openAnimModal(tb) {
   _buildAnimList();
   // _selectAnim은 _buildAnimList 후에 호출 (active 토글 + preview 시작)
   _selectAnim('slide-up');
+  _applyEmptyGate(document.querySelector('.anim-export-btn'));
 
   // BUG-FIX: 오버레이 바깥 클릭으로 닫기 (한 번만 등록)
   if (!modal._overlayClickBound) {
@@ -122,6 +123,21 @@ function _textEl(tb) {
 const _RICH_SEL = 'b, strong, i, em, u, s, mark, font, [style*="color"], [style*="background"], [style*="font-weight"], [style*="font-style"], [style*="text-decoration"]';
 function _hasRichStyling(tb) {
   return !!_textEl(tb)?.querySelector(_RICH_SEL);
+}
+
+/* X2(GIF-V1-EMPTY-TEXT-SAMPLE-01) 빈 글이면 «Sample Text» GIF 가 성공 토스트와 함께 나갔다(_extractText 대체값)
+   ⇒ 저장 단추를 끄고 까닭을 툴팁으로(지디 결정 A · 단추 모양은 기존 .anim-export-btn:disabled). */
+const _EMPTY_TITLE = '글이 비어 있어 GIF 를 만들 수 없습니다 — 글을 먼저 입력하세요';
+function _isEmptyText(tb) {
+  const el = tb && _textEl(tb);
+  return !el || !(el.textContent || '').trim();
+}
+function _applyEmptyGate(btn) {
+  if (!btn) return;
+  const empty = _isEmptyText(_animTb);
+  btn.disabled = empty;
+  if (empty) { btn.setAttribute('aria-disabled', 'true'); btn.title = _EMPTY_TITLE; }
+  else { btn.removeAttribute('aria-disabled'); btn.title = ''; }
 }
 
 function _getTextStyle(tb) {
@@ -430,8 +446,8 @@ function _easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
 const _GIF_BTN_HTML = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 1v7M3 5l3 4 3-4"/><path d="M1 10h10"/></svg> GIF 저장`;
 
 function _restoreGifBtn(btn) {
-  btn.disabled  = false;
   btn.innerHTML = _GIF_BTN_HTML;
+  _applyEmptyGate(btn);   // 다시 켤 때도 빈 글이면 꺼 둔다
 }
 
 /* ⑹(DONE40) 실패를 네이티브 alert 로 띄워 앱 창이 막혔다 ⇒ 앱의 다른 알림처럼 토스트(창을 안 막는다). */
@@ -443,8 +459,8 @@ async function exportAnimGif() {
   if (!_animTb) return;
 
   const btn = document.querySelector('.anim-export-btn');
-  // 중복 클릭 방지: 이미 비활성화 상태면 무시
-  if (btn.disabled) return;
+  // 중복 클릭 방지: 이미 비활성화 상태면 무시 · 빈 글은 만들지 않는다(콘솔 호출 길 포함)
+  if (btn.disabled || _isEmptyText(_animTb)) return;
 
   btn.disabled    = true;
   btn.textContent = '생성 중...';
