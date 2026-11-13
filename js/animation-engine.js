@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════════════════
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
+import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './anim-gif-text.js';
+import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
   { id: 'slide-up',     label: '슬라이드업',     desc: '아래→위로 올라오며 등장' },
@@ -113,7 +115,9 @@ function _getTextStyle(tb) {
   if (!el) return { text: '', fontSize: 24, color: '#111111', fontFamily: 'sans-serif', fontWeight: '400', letterSpacing: 0, textAlign: 'left', lineHeight: 1.4, sectionBg: '#ffffff' };
   const cs  = window.getComputedStyle(el);
   const sec = tb.closest('.section-block');
-  const bg  = sec ? (sec.style.backgroundColor || sec.style.background || '#ffffff') : '#ffffff';
+  /* ⑷(DONE40) 인라인 style 만 읽어 클래스·테마 배경 섹션이 흰색으로 나갔다 ⇒ 정지 이미지 내보내기와 같은 규칙(computed · 투명이면 페이지 배경).
+     shortcut: 그라데이션·이미지·메시 배경은 아직 «바탕색»만 깐다 — 그 모양을 깔지는 지디 결정 뒤. */
+  const bg  = sec ? sectionBgColor(sec) : '#ffffff';
   return {
     text:          _extractText(el),
     fontSize:      parseFloat(cs.fontSize)      || 24,
@@ -260,32 +264,26 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
 
     /* ── 타이핑 ── */
     case 'typewriter': {
-      const n            = Math.floor(t * style.text.length);
-      const partial      = style.text.slice(0, n);
-      const partialLines = partial.split('\n');
-      const totalH       = (lines.length - 1) * lineH;
+      /* ⑶·X1(DONE40) 원문(줄바꿈 전)을 잘라 매 프레임 다시 정렬했다 ⇒ 가운데 정렬이면 친 글자가 왼쪽으로 밀리고, 긴 글은 폭을 넘었다.
+         ⇒ 다른 효과와 같은 줄(wrapLine 뒤 lines)에서 치고, 줄 시작 x 는 «그 줄 전체» 폭으로 고정한다. */
+      const shown  = typedLines(lines, t);
+      const totalH = (lines.length - 1) * lineH;
       ctx.fillStyle = style.color;
-      partialLines.forEach((line, i) => {
-        ctx.fillText(line, anchorX, cy - totalH / 2 + i * lineH);
+      ctx.textAlign = 'left';
+      let curX = null, curY = null;
+      shown.forEach((part, i) => {
+        const x = lineStartX(style.textAlign, anchorX, ctx.measureText(lines[i]).width);
+        const y = cy - totalH / 2 + i * lineH;
+        ctx.fillText(part, x, y);
+        curX = x + ctx.measureText(part).width + 2; curY = y;
       });
-      // cursor blink
-      if (t < 1) {
-        const lastLine = partialLines[partialLines.length - 1];
-        const lastY    = cy - totalH / 2 + (partialLines.length - 1) * lineH;
-        const tw       = ctx.measureText(lastLine).width;
-        let curX;
-        if (style.textAlign === 'left')       curX = anchorX + tw + 2;
-        else if (style.textAlign === 'right') curX = anchorX - tw - 2;
-        else                                  curX = anchorX + tw / 2 + 2;
-        ctx.fillRect(curX, lastY - displaySize * 0.45, 2, displaySize * 0.9);
-      }
+      if (t < 1 && curX != null) ctx.fillRect(curX, curY - displaySize * 0.45, 2, displaySize * 0.9);   // 커서
       break;
     }
 
     /* ── 슬롯머신 (줄바꿈 시 첫줄만) ── */
     case 'slot-machine': {
-      const numMatch = firstLine.match(/\d+/);
-      if (!numMatch) {
+      if (!numToken(firstLine)) {
         const offset = (1 - _easeOut(t)) * H * 0.4;
         ctx.save(); ctx.globalAlpha = t;
         ctx.fillStyle = style.color;
@@ -293,18 +291,29 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
         ctx.restore();
         break;
       }
-      const target  = parseInt(numMatch[0]);
-      const current = Math.floor(target * _easeOut(t));
-      const display = firstLine.replace(/\d+/, current.toString());
-      const rollY   = (1 - _easeOut(t)) * displaySize * 1.5;
+      /* ⑵·X3(DONE40) 숫자 교체 + 줄 통째 슬라이드 + «첫 묶음+10» 잔상이었다(릴 아님 · 없는 숫자가 보임)
+         ⇒ 수(콤마·소수 포함)의 «자리마다» 릴이 돌고 오른쪽 자리일수록 늦게 멈춘다. 숫자 아닌 글자는 제자리. */
+      const tok    = numToken(firstLine);
+      const nDig   = tok.raw.replace(/\D/g, '').length;
+      const step   = displaySize * 1.2;
+      const startX = lineStartX(style.textAlign, anchorX, ctx.measureText(firstLine).width);
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, cy - displaySize, W, displaySize * 2);
+      ctx.rect(0, cy - displaySize * 0.6, W, displaySize * 1.2);
       ctx.clip();
       ctx.fillStyle = style.color;
-      ctx.fillText(display, anchorX, cy + rollY);
-      ctx.globalAlpha = 0.3 * (1 - t);
-      ctx.fillText(firstLine.replace(/\d+/, (target + 10).toString()), anchorX, cy + rollY - displaySize * 1.2);
+      let order = 0;   // 왼쪽 자리부터 0 — 오른쪽 자리일수록 늦게 멈춘다
+      for (let i = 0; i < firstLine.length; i++) {
+        const ch = firstLine[i];
+        const x  = startX + ctx.measureText(firstLine.slice(0, i)).width;
+        const inNum = i >= tok.index && i < tok.index + tok.raw.length && ch >= '0' && ch <= '9';
+        if (!inNum) { ctx.textAlign = 'left'; ctx.fillText(ch, x, cy); continue; }
+        const r  = reelDigit(+ch, order++, nDig, t, _easeOut);
+        const mx = x + ctx.measureText(ch).width / 2;
+        ctx.textAlign = 'center';
+        ctx.fillText(String(r.cur), mx, cy - r.frac * step);
+        if (r.frac) ctx.fillText(String(r.next), mx, cy + (1 - r.frac) * step);
+      }
       ctx.restore();
       break;
     }
@@ -386,10 +395,8 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
 
     /* ── 카운트업 (줄바꿈 시 첫줄만) ── */
     case 'count-up': {
-      const numMatch = firstLine.match(/\d+/);
-      const target   = numMatch ? parseInt(numMatch[0]) : 100;
-      const current  = Math.floor(target * _easeOut(t));
-      const display  = numMatch ? firstLine.replace(/\d+/, current.toString()) : current.toString();
+      /* ⑴(DONE40) 첫 숫자 묶음만 셌다(12,345 → 0,345…) ⇒ 콤마·소수까지 한 수로 0 부터 센다. 수가 없으면 옛 꼴(0→100). */
+      const display  = countUpLine(firstLine, t >= 1 ? 1 : _easeOut(t)) ?? Math.floor(100 * _easeOut(t)).toString();
       const scale    = t === 1 ? 1 : (1 + 0.05 * Math.sin(t * Math.PI * 8) * (1 - t));
       ctx.save();
       ctx.translate(anchorX, cy);
@@ -411,6 +418,11 @@ const _GIF_BTN_HTML = `<svg width="11" height="11" viewBox="0 0 12 12" fill="non
 function _restoreGifBtn(btn) {
   btn.disabled  = false;
   btn.innerHTML = _GIF_BTN_HTML;
+}
+
+/* ⑹(DONE40) 실패를 네이티브 alert 로 띄워 앱 창이 막혔다 ⇒ 앱의 다른 알림처럼 토스트(창을 안 막는다). */
+function _gifFail(err) {
+  window.showToast?.('⚠️ GIF 생성 중 오류가 발생했습니다: ' + (err && err.message ? err.message : err));
 }
 
 async function exportAnimGif() {
@@ -503,7 +515,7 @@ async function exportAnimGif() {
     // BUG-FIX: gif.on('error') 없으면 Worker 에러 시 EventEmitter가 uncaught error throw → 앱 크래시
     gif.on('error', err => {
       console.error('[GIF] Worker error:', err);
-      alert('GIF 생성 중 오류가 발생했습니다: ' + (err && err.message ? err.message : err));
+      _gifFail(err);
       _restoreGifBtn(btn);
     });
 
@@ -511,7 +523,7 @@ async function exportAnimGif() {
 
   } catch (err) {
     console.error('GIF export error:', err);
-    alert('GIF 생성 중 오류가 발생했습니다: ' + err.message);
+    _gifFail(err);
     _restoreGifBtn(btn);
   }
 }
