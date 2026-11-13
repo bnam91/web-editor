@@ -48,7 +48,8 @@ import { blockHeaderHTML, escHtml as _esc, alignBtn } from './_helpers.js';
    (`js/props/_typo-section.js` 머리말 · `tests/unit/typo-section-ssot.test.mjs` 가 그 정본을 잠근다).
    ★폰트 ★위젯도 ★같은 벌이다(`_font-picker.js` `wireFontPicker`) — 우리는 ★«적용»만 준다. */
 import { buildTypographySectionHtml } from './_typo-section.js';
-import { buildStrokeSectionHtml } from './prop-text-template.js';   /* ★1012t1H5 Stroke 절 마크업 — 텍스트 패널과 한 벌 */
+import { strokeSection } from './prop-text-template.js';   /* ★1012t1H5 Stroke 절 — 텍스트 패널과 한 벌 */
+import { renderPanel, sec, hintHTML } from './_panel-frame.js';
 import { wireFontPicker } from './_font-picker.js';
 /* ★1012t1H5 — Fill VAR·최근 줄 / Stroke 절은 텍스트·모달 패널과 «같은 벌»을 부른다(⛔제 사본 0). */
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
@@ -198,35 +199,21 @@ export function showQuoteProperties(block) {
         <button class="prop-align-btn" id="qt-shape-add" title="부호 직접 더하기"
                 aria-label="부호 더하기">＋</button>`;
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
-    icon: _ICON,
-    name: block.dataset.layerName,
-    defaultName: 'Quote',
-    crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
-    id: block.id,
-  })}
-    </div>
-
-    <div class="prop-section" id="qt-type-section">
-      <div class="prop-section-title">Type</div>
-      <!-- ★1017t1m1ⓑ — 텍스트 블럭 Type 절의 「Quote」(#txt-to-quote)의 «되돌림». 현빈 「👉 되돌리기도 가능하게 해줄래?」 -->
-      <button class="prop-type-btn" id="qt-to-text" title="텍스트 블럭으로 되돌리기 — 인용 부호·꾸밈은 사라집니다">Text</button>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">인용구(쉼표)</div>
-      <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-label">모양</span>
-        <div class="prop-align-group" id="qt-shape-group">${shapeBtns}</div>
-      </div>
-${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.max)}
-      <div class="prop-row">
-        <span class="prop-label">부호 색</span>
-        ${colorFieldHTML({ idPrefix: 'qt-markcol', hex: _swatchHex(markColor, QUOTE_DEFAULTS.markColor), alpha: parseAlphaFromColor(markColor) })}
-      </div>
-${_pairRow('qt-markdy', '부호 y', markDy, L.markDy.min, L.markDy.max)}
+  /* ★U2(right-panel-unify) — 절은 틀이 그린다(_panel-frame.js). 옛 「인용구(쉼표)」 한 절을 소유대로 갈랐다:
+     부호 모양·크기·y·켜기 = special 「Marks」 · 간격·꼴·정렬 = Layout · 부호 색 = Fill(글자색 옆). id·data-* 는 그대로. */
+  renderPanel(block, {
+    header: blockHeaderHTML({
+      icon: _ICON,
+      name: block.dataset.layerName,
+      defaultName: 'Quote',
+      crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
+      id: block.id,
+    }),
+    sections: [
+      /* ★1017t1m1ⓑ — 텍스트 블럭 Type 절의 「Quote」(#txt-to-quote)의 «되돌림». */
+      sec('kind', `
+      <button class="prop-type-btn" id="qt-to-text" title="텍스트 블럭으로 되돌리기 — 인용 부호·꾸밈은 사라집니다">Text</button>`, { id: 'qt-type-section' }),
+      sec('layout', `
 ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
       <div class="prop-row">
         <span class="prop-label">꼴</span>
@@ -235,8 +222,7 @@ ${_pairRow('qt-gap', '간격', gap, L.gap.min, L.gap.max)}
           <button class="prop-type-btn${layout === 'stack' ? ' active' : ''}" data-qt-layout="stack">스택</button>
         </div>
       </div>
-      <!-- 1012t1H4 — 「정렬」 아이콘은 바로 밑 「세로 정렬」과 같은 꼴('object-h' ↔ 'object-v': 같은 사전·크기 14·viewBox 16·칠 그림).
-           옛 'text'(선 4줄)는 문단 정렬 그림인데 이 칸은 «부호+글 덩이»의 가로 자리를 옮긴다. -->
+      <!-- 1012t1H4 — 「정렬」 아이콘은 바로 밑 「세로 정렬」과 같은 꼴('object-h' ↔ 'object-v'). -->
       <div class="prop-row">
         <span class="prop-label">정렬</span>
         <div class="prop-align-group" id="qt-align-group">
@@ -254,7 +240,44 @@ ${layout === 'inline' ? `
           ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬',        title: '아래쪽 정렬',        active: vAlign === 'bottom', attrs: { 'data-qv': 'bottom' } })}
         </div>
       </div>` : `
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5"><b>세로 정렬</b>은 스택에서 쓰지 않습니다 — 축이 돌아 부호가 글 <b>위·아래</b>에 차례로 서므로 밀 틈이 없습니다. 세로로 밀려면 위의 <b>부호 y</b>를 쓰세요.</div>`}
+      ${hintHTML('<b>세로 정렬</b>은 스택에서 쓰지 않습니다 — 축이 돌아 부호가 글 <b>위·아래</b>에 차례로 서므로 밀 틈이 없습니다. 세로로 밀려면 <b>Marks</b> 의 <b>부호 y</b>를 쓰세요.')}`}`),
+      sec('typography', buildTypographySectionHtml({
+        p: 'qt-typo', bare: true,
+        font: fontFamily, weight: String(weight), size: fontSize,
+        isBold: bold, isItalic: italic, isStrike: strike,
+        /* ★1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 ⇒ 텍스트블럭과 같은 7개(B I U S H 점 글로우).
+           ★단추만 켠다 — 색·높이·크기·세기 «옵션 칸»(show*Opts)은 안 켠다: 그 칸의 배선은 텍스트 글자칸(부분 span) 전제라
+             인용구 dataset 모델로 옮기는 일은 따로다(⛔칸만 떠서 「눌리는데 안 먹는」 것을 만들지 않는다). 그리는 값 = CSS 기본값. */
+        isUnderline: underline, showUnderline: true,
+        isHighlight: highlight, showHighlight: true,
+        isDot: dot, showDots: true,
+        isGlow: glow, showGlow: true,
+        lh: lineHeight, ls: letterSpacing,
+        /* ★범위는 ★리터럴이 ★아니다 — `QUOTE_LIMITS` ★한 표에서 온다(이 파일 머리말의 그 규약) */
+        sizeMin: L.fontSize.min, sizeMax: L.fontSize.max,
+      })),
+      sec('fill', `
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
+      </div>
+      <!-- 1012t1H5 VAR 줄 — 최근 줄(.cv-recent-row)은 wireColorVarChips 가 바로 밑에 붙인다(텍스트·모달 패널과 같은 벌) -->
+      <div class="cv-chips" id="qt-textcol-chips" hidden></div>
+      <div class="prop-row">
+        <span class="prop-label">부호 색</span>
+        ${colorFieldHTML({ idPrefix: 'qt-markcol', hex: _swatchHex(markColor, QUOTE_DEFAULTS.markColor), alpha: parseAlphaFromColor(markColor) })}
+      </div>`),
+      strokeSection({
+        p: 'qt', stroke,
+        colorHtml: colorFieldHTML({ idPrefix: 'qt-stroke-color', hex: _swatchHex(stroke.color, '#000000'), alpha: parseAlphaFromColor(stroke.color) || 100 }),
+      }),
+      sec('special', `
+      <div class="prop-row" style="align-items:flex-start">
+        <span class="prop-label">모양</span>
+        <div class="prop-align-group" id="qt-shape-group">${shapeBtns}</div>
+      </div>
+${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.max)}
+${_pairRow('qt-markdy', '부호 y', markDy, L.markDy.min, L.markDy.max)}
       <div class="prop-row">
         <span class="prop-label">부호 켜기</span>
         <label class="prop-none-check" title="앞쪽 부호를 보일지">
@@ -263,41 +286,9 @@ ${layout === 'inline' ? `
         <label class="prop-none-check" title="뒤쪽 부호를 보일지">
           <input type="checkbox" id="qt-post-on"${postOn ? ' checked' : ''} aria-label="뒤 부호"> 뒤
         </label>
-      </div>
-    </div>
-
-${buildTypographySectionHtml({
-    p: 'qt-typo',
-    font: fontFamily, weight: String(weight), size: fontSize,
-    isBold: bold, isItalic: italic, isStrike: strike,
-    /* ★1012t1H5 현빈 「[B I S] 이것도 왜이리 적니?」 ⇒ 텍스트블럭과 같은 7개(B I U S H 점 글로우).
-       ★단추만 켠다 — 색·높이·크기·세기 «옵션 칸»(show*Opts)은 안 켠다: 그 칸의 배선은 텍스트 글자칸(부분 span) 전제라
-         인용구 dataset 모델로 옮기는 일은 따로다(⛔칸만 떠서 「눌리는데 안 먹는」 것을 만들지 않는다). 그리는 값 = CSS 기본값. */
-    isUnderline: underline, showUnderline: true,
-    isHighlight: highlight, showHighlight: true,
-    isDot: dot, showDots: true,
-    isGlow: glow, showGlow: true,
-    lh: lineHeight, ls: letterSpacing,
-    /* ★범위는 ★리터럴이 ★아니다 — `QUOTE_LIMITS` ★한 표에서 온다(이 파일 머리말의 그 규약) */
-    sizeMin: L.fontSize.min, sizeMax: L.fontSize.max,
-    /* ⚰️1012t1H5 — 옛 판은 여기서 `showHighlight: false` 로 형광펜을 껐다(까닭: 모달 형광펜 «색 명부»의 셋째 사본이 될까 봐).
-       이제 형광펜은 ★텍스트블럭의 .tb-hl(기본색 var(--ui-highlight))을 그대로 쓴다 ⇒ 명부 사본이 안 생긴다. */
-  })}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Fill</div>
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
-        ${colorFieldHTML({ idPrefix: 'qt-textcol', hex: _swatchHex(textColor, QUOTE_DEFAULTS.textColor), alpha: parseAlphaFromColor(textColor) })}
-      </div>
-      <!-- 1012t1H5 VAR 줄 — 최근 줄(.cv-recent-row)은 wireColorVarChips 가 바로 밑에 붙인다(텍스트·모달 패널과 같은 벌) -->
-      <div class="cv-chips" id="qt-textcol-chips" hidden></div>
-    </div>
-
-${buildStrokeSectionHtml({
-    p: 'qt', stroke,
-    colorHtml: colorFieldHTML({ idPrefix: 'qt-stroke-color', hex: _swatchHex(stroke.color, '#000000'), alpha: parseAlphaFromColor(stroke.color) || 100 }),
-  })}`;
+      </div>`, { title: 'Marks', id: 'qt-marks-section' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

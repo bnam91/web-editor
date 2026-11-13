@@ -51,16 +51,22 @@ test('V1 접힌 Stroke(꺼짐)·Effects(빈) — 손잡이가 위아래 구분�
   expect(errs).toEqual([]);
 });
 
-test('V2 펼친 Stroke — 머리줄 아래 ↔ 내용 위 간격 6px 그대로(펼침 리듬 불변)', async ({ page }) => {
+/* ★U2(right-panel-unify) 의도 갱신 — 틀(_panel-frame.js)에서 머리↔몸 간격 = 제목 아래 padding «하나»(--ui-sec-head-py · U0 결정).
+   옛 6px(title-row 음수 margin + 다음 형제 margin-top)은 틀이 껐다 ⇒ «제목 글자 상자 아래 ↔ 내용 위» = 그 토큰이어야 한다.
+   양성대조: editor-props.css 의 `.prop-section[data-sec] > .prop-sec-head + .prop-sec-body { margin-top: 0 }` 를 지우면 간격이 토큰보다 커져 빨강. */
+test('V2 펼친 Stroke — 제목 글자 상자 아래 ↔ 내용 위 = --ui-sec-head-py (틀의 펼침 리듬)', async ({ page }) => {
   const errs = await setupText(page);
   await page.locator('#txt-stroke-section .prop-toggle').click();
   await expect(page.locator('#txt-stroke-controls')).toBeVisible();
-  const gap = await page.evaluate(() => {
-    const row = document.querySelector('#txt-stroke-section > .prop-section-title-row').getBoundingClientRect();
+  const m = await page.evaluate(() => {
+    const t = document.querySelector('#txt-stroke-section > .prop-section-title-row > .prop-section-title');
+    const tr = t.getBoundingClientRect(), cs = getComputedStyle(t);
     const c = document.getElementById('txt-stroke-controls').getBoundingClientRect();
-    return Math.round((c.top - row.bottom) * 100) / 100;
+    const tok = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-sec-head-py'));
+    return { gap: Math.round((c.top - (tr.bottom - parseFloat(cs.paddingBottom) - parseFloat(cs.borderBottomWidth))) * 100) / 100, tok };
   });
-  console.log('[V2] 펼침 간격 ' + gap);
-  expect(gap).toBeCloseTo(6, 1);
+  console.log('[V2] 펼침 간격 ' + JSON.stringify(m));
+  expect(m.tok, '★전제 — 토큰이 읽힌다').toBeGreaterThan(0);
+  expect(m.gap).toBeCloseTo(m.tok, 1);
   expect(errs).toEqual([]);
 });

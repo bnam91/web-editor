@@ -24,6 +24,7 @@ import {
   withTextSelection, getSavedTextSelection, clearTextSelection, spanExactlyCovering, applyStyleToRange,
 } from './_text-selection.js';
 import { panelRenderedWeight } from './_panel-rendered.js';
+import { expandSection } from './_panel-frame.js';
 import {
   applyTextGradient, clearTextGradient, getTextGradient, hasTextGradient,
   textGradientBlockedReason,
@@ -714,6 +715,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       const e = document.getElementById(k);
       if (e) e.style.display = on ? 'flex' : 'none';
     }
+    if (on) expandSection('typography');   // U2 — 드러낸 하위 칸 줄이 접힌 Typography 절 안에 숨지 않게(틀 expandSection)
   };
   const hlBtn = document.getElementById('txt-highlight-btn');
   if (hlBtn) {
@@ -876,6 +878,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       const e = document.getElementById(k);
       if (e) e.style.display = on ? 'flex' : 'none';
     }
+    if (on) expandSection('typography');   // U2 — 드러낸 하위 칸 줄이 접힌 Typography 절 안에 숨지 않게(틀 expandSection)
   };
   wireDecoBtn({ btnId: 'txt-strike-btn',    cmd: 'strikeThrough', token: 'line-through', tagSel: 'strike, s' });
   wireDecoBtn({ btnId: 'txt-underline-btn', cmd: 'underline',     token: 'underline',    tagSel: 'u',
@@ -1019,6 +1022,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       const e = document.getElementById(k);
       if (e) e.style.display = on ? 'flex' : 'none';
     }
+    if (on) expandSection('typography');   // U2 — 드러낸 하위 칸 줄이 접힌 Typography 절 안에 숨지 않게(틀 expandSection)
   };
   const dotBtn = document.getElementById('txt-dot-btn');
   if (dotBtn) {
@@ -1128,6 +1132,7 @@ export function wireTextEditSection({ tb, ctx, currentColorAlpha }) {
       const e = document.getElementById(k);
       if (e) e.style.display = on ? 'flex' : 'none';
     }
+    if (on) expandSection('typography');   // U2 — 드러낸 하위 칸 줄이 접힌 Typography 절 안에 숨지 않게(틀 expandSection)
   };
   const glowBtn = document.getElementById('txt-glow-btn');
   if (glowBtn) {

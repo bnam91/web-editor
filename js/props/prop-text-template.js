@@ -1,10 +1,12 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { sec, buildPanelHTML } from './_panel-frame.js';
+import { SECTION_ORDER } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
-export function buildTextPropsHtml(state) {
+export function buildTextPanelSpec(state) {
   const {
     tb, isOverlayTb, currentClass, currentAlign,
     currentX, currentY, currentRotation = 0, currentW, currentFont, currentWeight, currentSize,
@@ -29,24 +31,17 @@ export function buildTextPropsHtml(state) {
     dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     showGlow, isGlow, glowColorHtml, glowK,      /* ★1012t1E2 범위 글로우 — prop-text.js 가 showGlow:true 로 켠다. 없으면 단추·칸 0 ⇒ 골든 바이트 동일 */
     isOverlayBlock,
+    showAnimGif,   /* ★U2 — GIF 단추가 보일 판(킬스위치 ∧ 어드민 · prop-text.js 가 가른다). 거짓이면 Export 절째 없음 */
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
   const _sh = shadow || { enabled:false, x:2, y:2, blur:4, color:'#000000', alpha:50 };
-  /* ★t4-01 — 그림자는 Effects 「효과 추가」의 «그림자» 카드로 산다(js/effects-shadow.js 텍스트 갈래 · 블러 1012t1C1 와 같은 옮김).
-     ⛔두 벌 금지 — Effects 절이 그림자를 품는 블럭에선 옛 「Shadow」 절을 안 그린다. 품지 못하는 블럭(말풍선·라벨·아이콘텍스트·명부 없는 단위 하네스)은 옛 절 그대로(골든 바이트 동일). */
-  const _shInFx = !isSpeechBubble && !isLabel && !isIconText && !!window.fxReplaces?.(tb, 'txt-shadow-section');   /* 어느 식구가 갈음하는지는 명부가 안다(A0) */
+  /* ★t4-01 — 보통 텍스트의 그림자는 Effects 「효과 추가」의 «그림자» 카드로 산다(js/effects-shadow.js · 명부 effects-registry 는 앱에 늘 실린다).
+     말풍선·태그·아이콘텍스트는 fx 대상 밖 — 옛 그림자 조절칸이 그들의 Effects 절이다. ⛔명부가 없을 때의 대체 갈래를 두지 마라(앱엔 그런 판이 없다 · 단위 하네스가 명부를 싣는다). */
+  const _plainText = !isSpeechBubble && !isLabel && !isIconText;
 
-  /* ═══ ★1012t1E1 Stroke(외곽선) 절 — Fill 과 Shadow 사이(피그마 순서 Fill → Stroke → Effects) ═══
-   * ★«stroke 가 안 넘어오면 빈 문자열» ⇒ 단위 골든(typo-section-ssot T1)의 산출이 바이트 동일하다.
-   *   ⛔템플릿 «안»에 조건식을 줄로 넣지 마라(위 _bulletSec 머리말과 같은 까닭).
-   * 대상 밖 = 말풍선·라벨(Tag)·아이콘텍스트·곡선(liner) — Effects 절과 같은 조건 ＋ liner.
-   * 꼴 = 이웃 Shadow 절(제목 줄 + 토글) · 두께 = 스티커 Stroke 절(0.5 단계) · 위치 = prop-select(이웃 굵기·스타일 select 와 같은 꼴). */
-  /* ★1012t1H5 — 절 마크업은 이 파일 끝 buildStrokeSectionHtml 한 벌(인용구 패널도 같은 것을 부른다).
-   *   앞 개행 둘 + 그 함수 산출 = 옛 산출과 바이트 동일(그 함수가 옛 들여쓰기 4칸을 그대로 낸다). */
-  const _strokeSec = (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? '' : `
-
-${buildStrokeSectionHtml({ p: 'txt', stroke, colorHtml: strokeColorHtml })}`;
+  /* ★1012t1E1 Stroke(외곽선) 절 — Fill 다음(피그마 순서 Fill → Stroke → Effects · 순서는 이제 틀이 정한다).
+   * 대상 밖 = 말풍선·라벨(Tag)·아이콘텍스트·곡선(liner). 마크업 = 이 파일 끝 strokeSection 한 벌(인용구 패널도 같은 것). */
 
   // Figma "Mix" 정책: 자식들의 스타일이 섞여있으면 input 을 빈 값 + placeholder="Mix" 로 표시
   const _mix = mix || { color:{mixed:false}, fontSize:{mixed:false}, fontWeight:{mixed:false} };
@@ -65,56 +60,58 @@ ${buildStrokeSectionHtml({ p: 'txt', stroke, colorHtml: strokeColorHtml })}`;
     const _ul = tb?.querySelector?.('ul.tb-bullet');
     const _cur = _ul ? bulletListStyleOf(_ul) : '';
     return `
-    <div class="prop-section" id="bullet-style-section">
-      <div class="prop-section-title">글머리</div>
       <div class="prop-type-group prop-preset-group">
         ${BULLET_LIST_STYLES.map(x => `<button class="prop-preset-btn${(_cur || 'disc') === x.v ? ' active' : ''}" data-lst="${x.v}" title="${x.title}">${x.label}</button>`).join('\n        ')}
       </div>
-      <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>
-    </div>`;
+      <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>`;
   })();
 
-  return `
-    <div class="prop-section">
-${blockHeaderHTML({
-      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
-            <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
-          </svg>`,
-      name: tb.dataset.layerName,
-      defaultName: (isOverlayTb ? 'Overlay Text' : 'Text Block'),
-      crumb: window.getBlockBreadcrumb(tb),
-      id: tb.id,
-    })}
-    </div>
+  /* ═══ right-panel-unify U2(2026-11-13) — 절은 틀(_panel-frame.js)이 그린다 ═══
+   * ★여기는 «절 몸통»만 낸다: sec(key, 몸통) — 순서·제목·접기·머리 = 틀(_section-spec.js SECTION_ORDER).
+   * ★id·data-*·핸들러가 붙는 칸은 한 글자도 안 바꿨다(배선·spec 이 #id 로 잰다). 바뀐 것 = «어느 절에 사나»:
+   *   정렬 → Layout · 회전/X/Y → Position · 태그 모서리 → Appearance · 태그 배경 → Fill · 태그 높이·아이콘 크기 → Size ·
+   *   아이콘텍스트 방향/세로/간격 → Layout · 그림자/Effects → Effects 한 절(한 패널 한 key · fx 는 window.fxSectionParts).
+   * ★없는 절은 «빈 문자열» ⇒ 틀이 버린다(옛 display:none 껍데기 폐지). 타입을 바꾸면 패널을 다시 그린다
+   *   (prop-text-wireup-type.js — 태그 절들이 그때 서고 걷힌다).
+   * ★말풍선(Bubble)은 special 한 절에 모은다 — ⛔Typography/Fill 에 넣지 마라: 줄 모드(js/blocks/line-host.js
+   *   _hideBlockTypo)가 «#txt-font-picker·#txt-color 가 든 절 통째»를 숨겨 말풍선 손잡이까지 사라진다. */
+  const _typo = buildTypographySectionHtml({
+      p: 'txt', bare: true,
+      font: currentFont, weight: currentWeight, size: currentSize,
+      isBold, isItalic, isStrike, isHighlight, isUnderline,
+      lh: currentLH, ls: currentLS,
+      sizeMin: 8, sizeMax: 800,
+      showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
+      /* ★텍스트 패널만 형광펜 색·바 높이 칸을 갖는다 — 배선(wireTextEditSection)이 여기에만 있다.
+         ⛔모달(prop-modal.js)·그리드(prop-grid.js)는 기본값 false 라 마크업이 «바이트 동일»이다. */
+      showHighlightOpts: !isLiner, hlColorHtml, hlH, hlY,
+      /* ★밑줄(U) 단추·«색·두께·위치» 칸은 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다.
+         ★isLiner 는 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다(점 칸과 같은 까닭). */
+      showUnderline: true,
+      showUnderlineOpts: !isLiner, ulColorHtml, ulThick, ulOffset,
+      /* ★점 찍기(⑥)도 ★텍스트 패널만 — 모달·그리드·챗은 기본 false ⇒ «바이트 동일». isLiner 는 손잡이 칸을 안 준다. */
+      showDots: true, showDotOpts: !isLiner, isDot, dotColorHtml, dotSize, dotGap, dotX, dotY,
+      /* ★범위 글로우(1012t1E2)도 ★텍스트 패널만 — 배선이 wireTextEditSection 에만 있다. */
+      showGlow: !!showGlow, showGlowOpts: !!showGlow && !isLiner, isGlow: !!isGlow, glowColorHtml: glowColorHtml || '', glowK: glowK ?? 70,
+      mix: _mix,
+    });
+  /* ★「최근 그라데이션」 줄도 ★텍스트 패널만 — 글자 그라데이션 배선이 wireTextEditSection 에만 있다. */
+  const _fill = buildFillSectionHtml({ p: 'txt', bare: true, colorHex: currentColor, alpha: currentColorAlpha, mix: _mix, showGradRecent: true });
 
-    <div class="prop-section" id="type-section" style="display:${(isLiner || isIconText)?'none':'block'}">
-      <div class="prop-section-title">Type</div>
-      <div class="prop-type-group">
-        <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
-        <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
-        <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
-        <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
-        <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
-        <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
-        <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
-      </div>
-      <!-- ★1017t1m1(현빈 「텍스트블럭에서 quato블럭으로 바꿀수도 있게 위에 type절에 넣기」) —
-           ★data-cls 를 ★안 준다. 주면 js/props/prop-text-wireup-type.js 의 .prop-type-btn 루프가
-           ★클래스 교체로 처리해 ★조용히 반쪽 동작한다(quote 는 ★다른 블럭 타입이라 ★블럭 교체가 필요하다).
-           ★별도 리스너 = wireTextToQuote(js/props/prop-text-wireup-type.js). -->
-      <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
-    </div>${_bulletSec}
+  /* Effects — 한 절 key. 보통 텍스트 = fx 명부(window.fxSectionParts → {headTools, body, id}) · 말풍선·태그·아이콘텍스트 = 그림자 조절칸. */
+  const _shadowOn = `
+        <label class="prop-toggle" title="그림자 켜기/끄기">
+          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>`;
+  const _fx = _plainText ? window.fxSectionParts(tb, 'txt') : null;
+  const _effects = _fx
+    ? sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools })
+    : sec('effects', `\n${textShadowControlsHtml(_sh)}`, { id: 'txt-shadow-section', headTools: _shadowOn });
 
-    <div class="prop-section">
-      <!-- ★2026-09-16g 현빈 정정(T-001) — Ignore Auto Layout 토글은 Alignment 줄이 아니라
-           "Position" «섹션 제목과 같은 줄», 오른쪽 끝이었다(Figma 레퍼런스 스크린샷 재확인).
-           id·클릭 배선(prop-text-wireup-overlay.js wireOverlaySection)은 그대로 — 자리만 옮긴다. -->
-      <div class="prop-section-title prop-ph-header" style="margin-bottom:0">
-        <span>Position</span>
-        ${isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock })}
-      </div>
+  const _alignBtns = `
       <span class="prop-field-label">Alignment</span>
-      <div class="prop-align-group" style="margin-bottom:6px">
+      <div class="prop-align-group" id="txt-align-group">
           <button class="prop-align-btn ${currentAlign==='left'||currentAlign===''?'active':''}" data-align="left">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
               <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
@@ -133,83 +130,52 @@ ${blockHeaderHTML({
               <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
             </svg>
           </button>
-      </div>
-      <span class="prop-field-label">Position</span>
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">X</span>
-            <input type="number" id="txt-x-number" value="${currentX}" aria-label="X position">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label">Y</span>
-            <input type="number" id="txt-y-number" value="${currentY}" aria-label="Y position">
-          </div>
-        </div>
-      </div>
-      <span class="prop-field-label" style="margin-top:6px">Rotation</span>
+      </div>`;
+
+  /* ★Icon Text — 방향·아이콘 세로·간격 = Layout · 아이콘 크기 = Size (OWNERSHIP: size). 아이콘텍스트일 때만. */
+  const _itbLayout = !isIconText ? '' : `
       <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="${currentRotation}">
-        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="${currentRotation}">
-      </div>
-    </div>
+        <span class="prop-label">방향</span>
+        <div class="prop-align-group" id="itb-dir-group">
+          <button class="prop-align-btn${!itbVertical?' active':''}" data-dir="horizontal" title="가로 — 아이콘 왼쪽 · 글 오른쪽">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
+            가로
+          </button>
+          <button class="prop-align-btn${itbVertical?' active':''}" data-dir="vertical" title="세로 — 아이콘 위 · 글 아래">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="1" x2="7" y2="13"/></svg>
+            세로
+          </button>
+        </div>
+      </div>${itbVertical ? '' : /* ★ICONTEXT-VALIGN-SLIDER-01(261110) — 아이콘 세로 = 슬라이더+숫자칸. 가로 방향에서만(세로 방향엔 뜻이 없다). */ `
+      <div class="prop-row">
+        <span class="prop-label" title="글 기준 아이콘 세로 자리 — 가운데 0 · 왼쪽 끝 = 글 위쪽 · 오른쪽 끝 = 글 아래쪽">아이콘 세로</span>
+        <input type="range" class="prop-slider" id="itb-dy-slider" min="${window.iconTextDyRange?.(tb).min ?? -60}" max="${window.iconTextDyRange?.(tb).max ?? 60}" step="0.1" value="${window.iconTextDyOf?.(tb) ?? 0}">
+        <input type="number" class="prop-number" id="itb-dy-number" min="${window.iconTextDyRange?.(tb).min ?? -60}" max="${window.iconTextDyRange?.(tb).max ?? 60}" step="0.1" value="${window.iconTextDyOf?.(tb) ?? 0}">
+      </div>`}
+      <div class="prop-row">
+        <span class="prop-label">아이콘-텍스트 간격</span>
+        <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
+        <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="${currentItbGap}">
+      </div>`;
 
-    ${buildTypographySectionHtml({
-      p: 'txt',
-      font: currentFont, weight: currentWeight, size: currentSize,
-      isBold, isItalic, isStrike, isHighlight, isUnderline,
-      lh: currentLH, ls: currentLS,
-      sizeMin: 8, sizeMax: 800,
-      showStyleGroup: !isLiner, showLetterSpacing: !isLiner, showSize: !isLiner,
-      /* ★텍스트 패널만 형광펜 색·바 높이 칸을 갖는다 — 배선(wireTextEditSection)이 여기에만 있다.
-         ⛔모달(prop-modal.js)·그리드(prop-grid.js)는 기본값 false 라 마크업이 «바이트 동일»이다. */
-      showHighlightOpts: !isLiner, hlColorHtml, hlH, hlY,
-      /* ★밑줄(U) 단추는 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다.
-         ⛔모달·그리드·챗은 기본값 false 라 마크업이 «바이트 동일»이다(형광펜 색 칸과 ★같은 규약).
-         ★켜는 쪽이 배선을 옮기고 ★공유 골든(tests/dom/fixtures/*.json)을 같이 떠야 한다. */
-      showUnderline: true,
-      /* ★밑줄 «색·두께·위치» 칸도 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다.
-         ★isLiner 는 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다(점 칸과 같은 까닭). */
-      showUnderlineOpts: !isLiner, ulColorHtml, ulThick, ulOffset,
-      /* ★점 찍기(⑥)도 ★텍스트 패널만 — 배선(wireTextEditSection)이 여기에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일».
-         ★isLiner(곡선 텍스트)는 손잡이 칸을 안 준다 — 서식 그룹 자체가 숨는 판이라 칸만 떠 있으면 「눌리는데 아무 일 없음」이 된다. */
-      showDots: true, showDotOpts: !isLiner, isDot, dotColorHtml, dotSize, dotGap, dotX, dotY,
-      /* ★범위 글로우(1012t1E2)도 ★텍스트 패널만 — 배선이 wireTextEditSection 에만 있다. 모달·그리드·챗은 기본 false ⇒ «바이트 동일». */
-      showGlow: !!showGlow, showGlowOpts: !!showGlow && !isLiner, isGlow: !!isGlow, glowColorHtml: glowColorHtml || '', glowK: glowK ?? 70,
-      mix: _mix,
-    })}
-
-    ${buildFillSectionHtml({ p: 'txt', colorHex: currentColor, alpha: currentColorAlpha, mix: _mix,
-      /* ★「최근 그라데이션」 줄도 ★텍스트 패널만 — 글자 그라데이션 배선이 wireTextEditSection 에만 있다.
-         ⛔모달은 기본 false 라 마크업이 «바이트 동일»이다(형광펜 칸·밑줄 칸과 ★같은 규약). */
-      showGradRecent: true })}${_strokeSec}
-
-${_shInFx ? '' : `    <div class="prop-section" id="txt-shadow-section">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Shadow</div>
-        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-${textShadowControlsHtml(_sh)}
-    </div>`}${/* ★E1 Effects(바닥 반사) — Shadow 바로 아래(지디 승인) · 말풍선·라벨·아이콘텍스트는 대상 밖. ⛔줄바꿈을 더하지 마라 — 절이 없을 때 산출이 추출 전 골든과 같아야 한다(typo-section-ssot T1). */
-      (!isSpeechBubble && !isLabel && !isIconText) ? (window.fxSectionHtml?.(tb, 'txt') || '') : ''}
-
-    <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">Size</div>
+  const _sizeHtml = (isOverlayTb ? '' : `
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="1" value="${currentW}">
         <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}">
-      </div>
-    </div>
+      </div>`) + (!isLabel ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
+        <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
+      </div>`) + (!isIconText ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">아이콘 크기</span>
+        <input type="range" class="prop-slider" id="itb-icon-size-slider" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" step="2" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
+        <input type="number" class="prop-number" id="itb-icon-size-number" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
+      </div>`);
 
-    <div class="prop-section" style="${isOverlayTb ? 'display:none' : ''}">
-      <div class="prop-section-title">Padding</div>
+  const _paddingHtml = isOverlayTb ? '' : `
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
       ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>
@@ -217,12 +183,10 @@ ${textShadowControlsHtml(_sh)}
         <span class="prop-label">상하</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
-      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he 「상하패딩 → 말꼬리 분리 → 상하패딩 비활성화」 — 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다(실측 −10 → +14px).
-            칸은 «숨기지 않고» 막고 까닭을 보이게 적는다(호버만으론 안 보인다). 이미 상하 여백이 있는 말풍선은 그대로 둔다(문서 무변).
-            ⛔줄바꿈은 «말풍선 문자열 안»에만 — 밖에 두면 보통 텍스트 패널 산출이 7자 늘어 골든(typo-section-ssot T1)이 깨진다(10-06 실측 17994 → 18001). */
+      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다. 칸은 «숨기지 않고» 막고 까닭을 보이게 적는다. */
          isSpeechBubble ? '\n      <div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
       <div class="prop-ph-header">
-        <span class="prop-section-title" style="margin-bottom:0">L/R</span>
+        <span class="prop-field-label">L/R</span>
         <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
@@ -232,21 +196,22 @@ ${textShadowControlsHtml(_sh)}
         </button>
       </div>
       <div class="prop-row">
-        <span class="prop-label" style="width:60px">왼쪽 패딩</span>
+        <span class="prop-label">왼쪽</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
       <div class="prop-row">
-        <span class="prop-label" style="width:60px">오른쪽 패딩</span>
+        <span class="prop-label">오른쪽</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
-      </div>
-    </div>
+      </div>`;
 
-    <div id="label-style-section" style="display:${isLabel?'block':'none'}">
-      <div class="prop-section">
-        <div class="prop-section-title">Tag Style</div>
-        <div class="prop-row" style="gap:4px">
+  /* ★태그(Tag) — 모양 단추 = Typography(#label-style-section · 기존 spec 이 이 id 안의 .prop-btn-full 을 잰다) ·
+     배경 = Fill · 모서리 = Appearance · 높이 = Size. 태그일 때만. */
+  const _tagShape = !isLabel ? '' : `
+      <div id="label-style-section">
+        <span class="prop-field-label">Tag Style</span>
+        <div class="prop-row">
           <button class="prop-btn-full${labelShape==='pill'?' active':''}" id="label-shape-pill">Pill</button>
           <button class="prop-btn-full${labelShape==='box'?' active':''}" id="label-shape-box">Box</button>
           <button class="prop-btn-full${labelShape==='outline'?' active':''}" id="label-shape-outline">Outline</button>
@@ -254,30 +219,27 @@ ${textShadowControlsHtml(_sh)}
           <button class="prop-btn-full${labelShape==='oval'?' active':''}" id="label-shape-oval">Oval</button>
           <button class="prop-btn-full${labelShape==='text'?' active':''}" id="label-shape-text">Text</button>
         </div>
-        <div class="prop-color-row">
-          <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
-            <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
-          </div>
-          <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor.replace('#','').toUpperCase()}" maxlength="7" placeholder="없음" aria-label="Color">
-          <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
+      </div>`;
+  const _tagBg = !isLabel ? '' : `
+      <div class="prop-color-row">
+        <span class="prop-label">배경색</span>
+        <div class="prop-color-swatch${currentBgColor==='transparent'?' swatch-none':''}" style="background:${currentBgColor==='transparent'?'transparent':currentBgColor}">
+          <input type="color" id="label-bg-color" value="${currentBgColor==='transparent'?'#111111':currentBgColor}">
         </div>
-        <div class="prop-row">
-          <span class="prop-label">모서리</span>
-          <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
-          <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">높이</span>
-          <input type="range" class="prop-slider" id="label-pill-height-slider" min="0" max="120" step="2" value="${labelPillH}">
-          <input type="number" class="prop-number" id="label-pill-height-number" min="0" max="120" value="${labelPillH}">
-        </div>
-      </div>
-    </div>
+        <input type="text" class="prop-color-hex" id="label-bg-hex" value="${currentBgColor==='transparent'?'':currentBgColor.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
+        <label class="prop-none-check"><input type="checkbox" id="label-bg-none" ${currentBgColor==='transparent'?'checked':''}>없음</label>
+      </div>`;
+  const _tagRadius = !isLabel ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="label-radius-slider" min="0" max="40" step="1" value="${currentRadius}">
+        <input type="number" class="prop-number" id="label-radius-number" min="0" max="40" value="${currentRadius}">
+      </div>`;
 
-    <div id="bubble-style-section" style="display:${isSpeechBubble?'block':'none'}">
-      <div class="prop-section">
-        <div class="prop-section-title">Bubble Style</div>
+  /* ★말풍선 — special 「Bubble」 한 절(위 머리말: 줄 모드가 Typography/Fill 절을 통째로 숨긴다).
+     ★배경색(bubble-bg-*)은 소유표상 fill 이라 그 줄에 data-own="special:Bubble"(U0c 명시 덮어쓰기 · 블록 고유 절은 제목까지). */
+  const _bubble = !isSpeechBubble ? '' : `
+      <div id="bubble-style-section">
         <div class="prop-row">
           <span class="prop-label">스타일</span>
           <select class="prop-select" id="bubble-style-select">
@@ -294,14 +256,15 @@ ${textShadowControlsHtml(_sh)}
             <button class="prop-align-btn ${currentTail==='right'?'active':''}" id="bubble-tail-right" title="오른쪽 말꼬리">→</button>
           </div>
         </div>
-        <div class="prop-color-row">
+        <!-- data-own="special:Bubble": 말풍선 배경은 Bubble 절에 둔다 — 줄 모드(line-host _hideBlockTypo)가 Fill 절을 통째 숨겨 같이 사라지지 않게 -->
+        <div class="prop-color-row" data-own="special:Bubble">
           <span class="prop-label">배경색</span>
           <div class="prop-color-swatch" style="background:${bubbleBgHex}">
             <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
           </div>
           <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
         </div>
-        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소(모달 패널의 너비 고정·높이 최소와 같은 뜻) -->
+        <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소 -->
         <div class="prop-row">
           <span class="prop-label">크기</span>
           <div class="prop-type-group" id="bubble-size-group">
@@ -312,7 +275,7 @@ ${textShadowControlsHtml(_sh)}
         <div class="prop-row">
           <span class="prop-label">너비</span>
           <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'}>
-          <span class="prop-label" style="margin-left:6px">높이</span>
+          <span class="prop-label prop-label--auto">높이</span>
           <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'}>
         </div>
         <div class="prop-row">
@@ -322,78 +285,116 @@ ${textShadowControlsHtml(_sh)}
             <span class="prop-toggle-track"></span>
           </label>
         </div>
-      </div>
-    </div>
+      </div>`;
 
-    <div id="icon-text-style-section" style="display:${isIconText?'block':'none'}">
-      <div class="prop-section">
-        <div class="prop-section-title">Icon Text</div>${isIconText ? /* ★S3V(2026-10-04) 방향 — 구분선 패널(prop-divider.js #dvd-dir-group)과 «같은 꼴·같은 그림»(지디 ⓑ).
-             data-align 이 없어 정렬 배선은 건너뛴다. Icon Text 일 때만 «빈 문자열 밖»으로 나온다 — 다른 블럭 텍스트 패널 HTML 은 한 글자도 안 바뀐다(typo-section-ssot T1 골든). */ `
-        <div class="prop-row">
-          <span class="prop-label">방향</span>
-          <div class="prop-align-group" id="itb-dir-group">
-            <button class="prop-align-btn${!itbVertical?' active':''}" data-dir="horizontal" title="가로 — 아이콘 왼쪽 · 글 오른쪽">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
-              가로
-            </button>
-            <button class="prop-align-btn${itbVertical?' active':''}" data-dir="vertical" title="세로 — 아이콘 위 · 글 아래">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="1" x2="7" y2="13"/></svg>
-              세로
-            </button>
-          </div>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">아이콘 크기</span>
-          <input type="range" class="prop-slider" id="itb-icon-size-slider" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" step="2" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
-          <input type="number" class="prop-number" id="itb-icon-size-number" min="${window.ITB_ICON_SIZE?.min ?? 16}" max="${window.ITB_ICON_SIZE?.max ?? 200}" value="${window.iconTextIconSizeOf?.(tb) ?? 40}">
-        </div>${itbVertical ? '' : /* ★ICONTEXT-VALIGN-SLIDER-01(261110) — 아이콘 세로 = 슬라이더+숫자칸(옛 위·가운데·아래 3단추 대체 · 아이콘 크기 줄과 같은 꼴). 가로 방향에서만(세로 방향엔 뜻이 없다). */ `
-        <div class="prop-row">
-          <span class="prop-label" title="글 기준 아이콘 세로 자리 — 가운데 0 · 왼쪽 끝 = 글 위쪽 · 오른쪽 끝 = 글 아래쪽">아이콘 세로</span>
-          <input type="range" class="prop-slider" id="itb-dy-slider" min="${window.iconTextDyRange?.(tb).min ?? -60}" max="${window.iconTextDyRange?.(tb).max ?? 60}" step="0.1" value="${window.iconTextDyOf?.(tb) ?? 0}">
-          <input type="number" class="prop-number" id="itb-dy-number" min="${window.iconTextDyRange?.(tb).min ?? -60}" max="${window.iconTextDyRange?.(tb).max ?? 60}" step="0.1" value="${window.iconTextDyOf?.(tb) ?? 0}">
-        </div>`}` : ''}
-        <div class="prop-row">
-          <span class="prop-label">아이콘-텍스트 간격</span>
-          <input type="range" class="prop-slider" id="itb-gap-slider" min="0" max="80" step="4" value="${currentItbGap}">
-          <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="${currentItbGap}">
-        </div>
-      </div>
-    </div>
-
-    <div class="prop-section prop-section--anim" style="${isOverlayTb ? 'display:none' : ''}">
+  const _anim = (isOverlayTb || !showAnimGif) ? '' : `
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="3" width="12" height="8" rx="1.5"/>
           <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
         </svg>
         애니메이션 GIF 만들기
-      </button>
-    </div>`;
+      </button>`;
+
+  return {
+    header: blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
+            <line x1="1" y1="3" x2="11" y2="3"/><line x1="1" y1="6" x2="11" y2="6"/><line x1="1" y1="9" x2="7" y2="9"/>
+          </svg>`,
+      name: tb.dataset.layerName,
+      defaultName: (isOverlayTb ? 'Overlay Text' : 'Text Block'),
+      crumb: window.getBlockBreadcrumb(tb),
+      id: tb.id,
+    }),
+    sections: [
+      sec('kind', (isLiner || isIconText) ? '' : `
+      <div class="prop-type-group">
+        <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
+        <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
+        <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
+        <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
+        <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
+        <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
+        <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
+      </div>
+      <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
+      <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>`, { id: 'type-section' }),
+      sec('content', _bulletSec, { id: 'bullet-style-section' }),
+      /* ★2026-09-16g(T-001) — Ignore Auto Layout 토글은 Position «절 머리» 오른쪽 끝(Figma). id·배선 그대로 — 자리 = headTools. */
+      sec('position', `
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" id="txt-x-number" value="${currentX}" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" id="txt-y-number" value="${currentY}" aria-label="Y position">
+          </div>
+        </div>
+      </div>
+      <span class="prop-field-label">Rotation</span>
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="${currentRotation}">
+        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="${currentRotation}">
+      </div>`, { headTools: isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock }) }),
+      sec('size', _sizeHtml),
+      sec('layout', _alignBtns + _itbLayout),
+      sec('padding', _paddingHtml),
+      sec('appearance', _tagRadius),
+      sec('typography', _typo + _tagShape),
+      sec('fill', _fill + _tagBg),
+      /* ★1012t1E1/E1 — Stroke(글자 윤곽선 — §8 「Stroke 절 안 행」) · Effects. 대상 밖 = 말풍선·태그·아이콘텍스트(+liner 는 Stroke 만). */
+      (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? sec('stroke', '') : strokeSection({ p: 'txt', stroke, colorHtml: strokeColorHtml }),
+      _effects,
+      sec('special', _bubble, { title: 'Bubble', id: 'txt-bubble-section' }),
+      sec('export', _anim, { id: 'txt-anim-section' }),   /* GIF 만들기 = 내보내기(§2-1 export) */
+    ],
+  };
 }
 
+/** 텍스트 패널 HTML(문자열) — 골든(tests/unit/typo-section-ssot T1)·유닛이 본다. 패널은 prop-text.js 가 renderPanel(buildTextPanelSpec(…)) 로 그린다. */
+export function buildTextPropsHtml(state) {
+  return buildPanelHTML(buildTextPanelSpec(state));
+}
+
+/** 클래식 증강(곡선 텍스트 liner-transform.js · 텍스트 효과 text-effect-transform.js)이 텍스트 패널에 절을 얹는 «한 자리». (U2)
+ *  틀(sec · buildPanelHTML) 경유 ⇒ 머리·접기·data-sec 가 이관 절과 같고, 자리는 SECTION_ORDER 대로(⛔'beforeend' 로 끝에 붙이지 않는다).
+ *  effects 는 «한 패널 한 key» — 이미 Effects 절이 있으면 그 몸에 덧붙인다. id 가 있으면 옛 절을 걷고 다시 놓는다.
+ *  (클래식 스크립트라 window.placeTextPanelSection 으로 닿는다 · 여러 블럭 종류가 쓰게 되면 _panel-frame.js 로 올린다) */
+export function placeTextPanelSection(panel, key, html, { title, id } = {}) {
+  if (!panel) return;
+  if (key === 'effects') {
+    const body = panel.querySelector(':scope > .prop-section[data-sec="effects"] > .prop-sec-body');
+    if (body) { body.insertAdjacentHTML('beforeend', html); return; }
+  }
+  if (id) panel.querySelector(`:scope > #${id}`)?.remove();
+  const out = buildPanelHTML({ sections: [sec(key, html, { title, id })] });
+  const want = SECTION_ORDER.indexOf(key);
+  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => SECTION_ORDER.indexOf(e.dataset.sec) > want);
+  if (next) next.insertAdjacentHTML('beforebegin', out); else panel.insertAdjacentHTML('beforeend', out);
+}
+if (typeof window !== 'undefined') window.placeTextPanelSection = placeTextPanelSection;
+
 /**
- * Stroke(외곽선) 절 — 켜기 토글 · 두께 · 색상 · 위치(내부/가운데/외부). (1012t1E1 텍스트 패널에서 뽑음 · 1012t1H5)
- * ★배선은 prop-text-wireup-stroke.js wireStrokeSection({ p }) 한 벌이다.
- * ★자리가 _typo-section.js 가 아니라 여기인 까닭: tests/unit/prop-title-row-align.test.mjs T4 가 이 파일의
- *   `prop-section-title-row` 자리(텍스트 «Stroke»)를 센다 — 옮기면 그 명부에서 한 자리가 사라진다.
- * ★산출의 첫 글자는 들여쓰기 4칸 — 텍스트 패널이 앞에 개행 둘을 붙여 옛 산출과 «바이트 동일»하게 둔다.
+ * Stroke 절 — 켜기 토글(절 머리 headTools) · 두께 · 색상 · 위치(내부/가운데/외부). (1012t1E1 · 1012t1H5 · U2 틀 이관)
+ * ★배선은 prop-text-wireup-stroke.js wireStrokeSection({ p }) 한 벌 — id 는 옛 판과 같다(`${p}-stroke-section` = 절 id).
+ * ★§8 — 글자 윤곽선은 «Stroke 절 안 행»이다(별도 절 없음).
  *
  * @param {object} o
  * @param {string} o.p          id 접두사 ('txt' | 'qt')
  * @param {{on:boolean,width:number,align:string}} o.stroke  지금 상태
  * @param {string} o.colorHtml  색 칸 마크업(부르는 쪽이 colorFieldHTML 로 만든다 — 단위 하네스가 color-picker 를 안 올린다)
+ * @returns 틀 절(sec) — renderPanel/buildPanelHTML 의 sections 에 넣는다
  */
-export function buildStrokeSectionHtml({ p, stroke, colorHtml } = {}) {
+export function strokeSection({ p, stroke, colorHtml } = {}) {
   const _al = stroke.align || 'outside';
   const _opt = (v, t) => `<option value="${v}"${_al === v ? ' selected' : ''}>${t}</option>`;
-  return `    <div class="prop-section" id="${p}-stroke-section">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Stroke</div>
-        <label class="prop-toggle" title="외곽선 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
+  return sec('stroke', `
       <div id="${p}-stroke-controls" style="display:${stroke.on ? 'block' : 'none'}">
         <div class="prop-row">
           <span class="prop-label">두께</span>
@@ -412,8 +413,14 @@ export function buildStrokeSectionHtml({ p, stroke, colorHtml } = {}) {
             ${_opt('outside', '외부')}
           </select>
         </div>
-      </div>
-    </div>`;
+      </div>`, {
+    id: `${p}-stroke-section`,
+    headTools: `
+        <label class="prop-toggle" title="외곽선 켜기/끄기">
+          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>`,
+  });
 }
 
 /** ★t4-01 — 텍스트 그림자 조절칸(X·Y·Blur·색상) 마크업 «한 벌». 옛 「Shadow」 절과 Effects 「그림자」 카드(js/effects-shadow.js)가 같이 부른다 — id 그대로라 배선은 wireShadowSection 하나. */

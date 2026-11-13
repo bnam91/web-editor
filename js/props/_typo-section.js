@@ -96,6 +96,7 @@ export function buildTypographySectionHtml({
   isGlow = false, showGlow = false, showGlowOpts = false, glowColorHtml = '', glowK = 70,
   sizePh, lhPh, lsPh,
   mix,
+  bare = false,
 } = {}) {
   const _mix = mix || _NO_MIX;
   const _sizeVal = _mix.fontSize.mixed ? '' : size;
@@ -114,6 +115,9 @@ export function buildTypographySectionHtml({
      ★왜 이 셋이 필요했나 — 챗 블럭이 네 번째 소비자로 들어왔는데(2026-10-06), 렌더러(chat-block.js)가 읽는 것은
        dataset.fontSize «하나»다. 안 읽는 칸을 펴 두면 「눌리는데 아무 일도 안 난다」가 된다(prop-grid.js 머리말의 그 고질). */
   const _hide = (show) => (show ? '' : ' style="display:none"');
+  /* ★data-own="typography"(U2 · 절 게이트 소유 덮어쓰기) — 형광펜/점/밑줄/글로우 «서식 단추가 켜는 하위 칸»(색·x/y·글로우 세기 — 점 크기는 소유표 dot>size 가 잡는다)과
+     글로우 단추는 이 글자 서식의 일부라 Typography 절에 산다. 소유표 단어(color·size·x/y·glow)로 읽으면 fill/size/position/effects 로 오판된다.
+     ⛔이 표식은 show*Opts·showGlow 분기 «안»에만 — 모달·그리드·챗 기본 산출은 바이트 동일(T1-e·공유 골든). */
   const _weightMixed = _mix.fontWeight.mixed;
 
   /* ★★서식 단추 ★순서 = B · I · ★U · S · H · 점 (2026-10-08) — ★아래 `${p}-style-group` 의 그 줄.
@@ -178,9 +182,7 @@ export function buildTypographySectionHtml({
        ★칸 꼴은 형광펜과 같다: colorFieldHTML(색＋불투명도%) ＋ range/number 쌍(세기 0~100 → --tb-glow-k 0~1).
        ⚠️240px 패널 폭: 단추 7개 × 28px ＋ 간격 6 × 4px = 220px · 섹션 좌우 패딩 8+8 을 빼면 224px 남는다(★코드로만 셌다 — 안 쟀다.
          스크롤바·상위 여백은 안 셌다. 모자라면 flex 기본 shrink 로 단추가 줄어든다 — 넘치지는 않을 것으로 «읽었다»). */
-  return `<div class="prop-section">
-      <div class="prop-section-title">Typography</div>
-
+  const _body = `
       <span class="prop-field-label"${_hide(showFont)}>Font</span>
       <div class="font-picker" id="${p}-font-picker"${_hide(showFont)}>
         <button class="font-picker-trigger" id="${p}-font-trigger" type="button">
@@ -217,14 +219,14 @@ export function buildTypographySectionHtml({
         <button class="prop-style-btn ${isStrike?'active':''}" id="${p}-strike-btn" title="취소선 (⌘⇧X)"><s>S</s></button>${showHighlight ? `
         <button class="prop-style-btn ${isHighlight?'active':''}" id="${p}-highlight-btn" title="형광펜 (글자 길이만큼 — 선택이 있으면 그 글자만)">H</button>` : ''}${showDots ? `
         <button class="prop-style-btn ${isDot?'active':''}" id="${p}-dot-btn" title="글자 위 점 찍기 (글자마다 하나 — 선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><circle cx="6.5" cy="2.1" r="1.9" fill="currentColor"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}${showGlow ? `
-        <button class="prop-style-btn ${isGlow?'active':''}" id="${p}-glow-btn" title="글로우 (선택이 있으면 그 글자만)"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><path d="M6.5 1v2.2M2.4 2.5l1.2 1.2M10.6 2.5 9.4 3.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
+        <button class="prop-style-btn ${isGlow?'active':''}" id="${p}-glow-btn" title="글로우 (선택이 있으면 그 글자만)" data-own="typography"><svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true"><path d="M6.5 1v2.2M2.4 2.5l1.2 1.2M10.6 2.5 9.4 3.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 13.4 6.5 6.6l4.5 6.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.1 11.1h4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
       </div>
 ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현빈 tb_5bkw8dq: 「색변경 및 하이라이트 바 높이 조절가능하게」).
            ★H 단추 «바로 아래» — 그 단추가 켜는 것을 고치는 칸이라 같은 자리가 맞다.
            ★형광펜이 꺼져 있으면 «없다» — 정할 것이 없다(섹션 체커 톤 라디오와 같은 규약).
            ⛔칸 꼴을 새로 만들지 않는다: 스티커 형광펜(prop-sticker.js stk-hl-*)이 쓰는
              colorFieldHTML ＋ range/number 쌍을 ★그대로 쓴다. -->
-      <div class="prop-color-row" id="${p}-hl-color-row" style="margin-top:6px;display:${isHighlight?'flex':'none'}">
+      <div class="prop-color-row" id="${p}-hl-color-row" style="margin-top:6px;display:${isHighlight?'flex':'none'}" data-own="typography">
         <span class="prop-label">형광펜</span>
         ${hlColorHtml}
       </div>
@@ -233,7 +235,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-hl-h" min="5" max="100" step="1" value="${hlH}">
         <input type="number" class="prop-number" id="${p}-hl-h-num" min="5" max="100" value="${hlH}">
       </div>
-      <div class="prop-row" id="${p}-hl-y-row" style="display:${isHighlight?'flex':'none'}" title="획을 위아래로 비껴 놓기(px). 양수 = 아래로 · 음수 = 위로">
+      <div class="prop-row" id="${p}-hl-y-row" style="display:${isHighlight?'flex':'none'}" title="획을 위아래로 비껴 놓기(px). 양수 = 아래로 · 음수 = 위로" data-own="typography">
         <span class="prop-label">획 위치</span>
         <input type="range" class="prop-slider" id="${p}-hl-y" min="-40" max="40" step="1" value="${hlY}">
         <input type="number" class="prop-number" id="${p}-hl-y-num" min="-40" max="40" value="${hlY}">
@@ -260,7 +262,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
            ★꺼져 있으면 «없다» — 정할 것이 없다.
            ⛔칸 꼴을 새로 만들지 않는다: 형광펜(txt-hl-* 쪽)이 쓰는 colorFieldHTML ＋ range/number 쌍,
              그리고 Position 절의 X/Y 꼴(prop-text-template.js)을 ★그대로 쓴다. -->
-      <div class="prop-color-row" id="${p}-dot-color-row" style="margin-top:6px;display:${isDot?'flex':'none'}">
+      <div class="prop-color-row" id="${p}-dot-color-row" style="margin-top:6px;display:${isDot?'flex':'none'}" data-own="typography">
         <span class="prop-label">점 색</span>
         ${dotColorHtml}
       </div>
@@ -274,7 +276,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-dot-gap" min="-20" max="40" step="1" value="${dotGap}">
         <input type="number" class="prop-number" id="${p}-dot-gap-num" min="-20" max="40" value="${dotGap}">
       </div>
-      <div class="prop-row" id="${p}-dot-xy-row" style="display:${isDot?'flex':'none'}" title="점 위치 미세조정(px) — 글자 위에서 얼마나 비껴 놓을지">
+      <div class="prop-row" id="${p}-dot-xy-row" style="display:${isDot?'flex':'none'}" title="점 위치 미세조정(px) — 글자 위에서 얼마나 비껴 놓을지" data-own="typography">
         <span class="prop-label">점 위치</span>
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">X</span>
@@ -291,7 +293,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <button type="button" class="prop-icon-btn" id="${p}-dot-code-copy" title="번호 복사" aria-label="점 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-dot-recent-row" hidden></div>
-` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}">
+` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}" data-own="typography">
         <span class="prop-label">밑줄 색</span>
         ${ulColorHtml}
       </div>
@@ -299,11 +301,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <span class="prop-label">밑줄</span>
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">두께</span>
-          <input type="number" id="${p}-ul-thick" min="1" max="12" step="0.5" value="${ulThick}" placeholder="auto" aria-label="밑줄 두께">
+          <input type="number" id="${p}-ul-thick" min="1" max="12" step="0.5" value="${ulThick}" placeholder="자동" aria-label="밑줄 두께">
         </div>
         <div class="prop-icon-input" style="flex:1;min-width:0">
           <span class="prop-xy-label">위치</span>
-          <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="auto" aria-label="밑줄 위치">
+          <input type="number" id="${p}-ul-offset" min="-10" max="20" step="1" value="${ulOffset}" placeholder="자동" aria-label="밑줄 위치">
         </div>
       </div>
       <div class="prop-row ts-code-row" id="${p}-ul-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
@@ -312,11 +314,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <button type="button" class="prop-icon-btn" id="${p}-ul-code-copy" title="번호 복사" aria-label="밑줄 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>
-` : ''}${showGlowOpts ? `      <div class="prop-color-row" id="${p}-glow-color-row" style="margin-top:6px;display:${isGlow?'flex':'none'}">
+` : ''}${showGlowOpts ? `      <div class="prop-color-row" id="${p}-glow-color-row" style="margin-top:6px;display:${isGlow?'flex':'none'}" data-own="typography">
         <span class="prop-label">글로우</span>
         ${glowColorHtml}
       </div>
-      <div class="prop-row" id="${p}-glow-k-row" style="display:${isGlow?'flex':'none'}" title="빛 번짐 세기(%). 100 = 가장 큰 겹 28px · 0 = 빛 없음">
+      <div class="prop-row" id="${p}-glow-k-row" style="display:${isGlow?'flex':'none'}" title="빛 번짐 세기(%). 100 = 가장 큰 겹 28px · 0 = 빛 없음" data-own="typography">
         <span class="prop-label">세기</span>
         <input type="range" class="prop-slider" id="${p}-glow-k" min="0" max="100" step="1" value="${glowK}">
         <input type="number" class="prop-number" id="${p}-glow-k-num" min="0" max="100" value="${glowK}">
@@ -339,7 +341,13 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
           </div>
         </div>
       </div>
-
+`;
+  /* ★bare(right-panel-unify U2) — 틀(_panel-frame.js sec('typography', …))에 넣을 «몸통»만. 껍데기(절·제목)는 틀이 그린다.
+     ⛔기본(bare 없음)은 옛 산출과 «바이트 동일» — 모달·그리드·챗(아직 틀 밖)의 골든이 그대로다. */
+  if (bare) return _body;
+  return `<div class="prop-section">
+      <div class="prop-section-title">Typography</div>
+${_body}
     </div>`;
 }
 
@@ -356,7 +364,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
  * @param {boolean} o.showGradRecent ★「최근 그라데이션」 줄 표시. ⛔기본 false = 이전과 «바이트 동일»
  *                              (텍스트 패널만 true — 글자 그라데이션 배선이 wireTextEditSection 에만 있다)
  */
-export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false } = {}) {
+export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false } = {}) {
   const _mix = mix || _NO_MIX;
   /* ★스와치(colorHex)와 hex 칸(colorHexVal)이 «다른 것»을 말할 수 있다 — 층이 다르기 때문이다:
      스와치는 「지금 무슨 색인가」(진실), hex 칸은 「누가 그 색을 정했나」(명시/역할 기본).
@@ -366,8 +374,7 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
   const _colorSwatchBg = _mix.color.mixed ? 'linear-gradient(135deg,#bbb 25%,#777 25%,#777 50%,#bbb 50%,#bbb 75%,#777 75%)' : colorHex;
   const _swatchExtraClass = _mix.color.mixed ? ' swatch-mix' : '';
 
-  return `<div class="prop-section">
-      <div class="prop-section-title">Fill</div>
+  const _body = `
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         <div class="prop-color-field">
@@ -382,6 +389,9 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
         </div>
       </div>
       <div class="cv-chips" id="${p}-color-chips" hidden></div>${showGradRecent ? `
-      <div class="cv-chips ts-recent-row" id="${p}-grad-recent-row" hidden></div>` : ''}
+      <div class="cv-chips ts-recent-row" id="${p}-grad-recent-row" hidden></div>` : ''}`;
+  if (bare) return _body;   /* ★bare — 위 Typography 와 같은 규약(틀이 껍데기를 그린다 · 기본은 바이트 동일) */
+  return `<div class="prop-section">
+      <div class="prop-section-title">Fill</div>${_body}
     </div>`;
 }

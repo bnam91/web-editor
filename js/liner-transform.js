@@ -464,41 +464,37 @@ function enhanceLinerPropPanel(block) {
     .map(p => `<option value="${p.value}" ${p.value === cfg.preset ? 'selected' : ''}>${p.label}</option>`)
     .join('');
 
+  /* ★U2(right-panel-unify) — 블록 고유 절 special 「Curve」(틀 경유 window.placeTextPanelSection · 자리 = SECTION_ORDER).
+     꼴 = 표준 .prop-row/.prop-label/.prop-select(옛 인라인 색·px 폐지). id·배선 그대로. */
   const html = `
-    <div class="prop-section" id="liner-controls-section">
-      <div class="prop-section-title">곡선 텍스트 〰️</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">글자크기</span>
-        <input type="range" class="prop-slider" id="lnr-fontsize" min="${LNR_FONT_MIN}" max="${LNR_FONT_MAX}" step="1" value="${curFont}" style="flex:2;">
-        <span id="lnr-fontsize-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${curFont}</span>
+      <div class="prop-row">
+        <span class="prop-label">글자크기</span>
+        <input type="range" class="prop-slider" id="lnr-fontsize" min="${LNR_FONT_MIN}" max="${LNR_FONT_MAX}" step="1" value="${curFont}">
+        <span id="lnr-fontsize-val">${curFont}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">프리셋</span>
-        <select id="lnr-preset" style="flex:2;padding:5px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
+      <div class="prop-row">
+        <span class="prop-label">프리셋</span>
+        <select class="prop-select" id="lnr-preset">
           ${presetOpts}
         </select>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;" id="lnr-curvature-label">${cfg.preset === 'circle' ? '원 크기' : '곡률'}</span>
-        <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}" style="flex:2;">
-        <span id="lnr-curvature-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.curvature}</span>
+      <div class="prop-row">
+        <span class="prop-label" id="lnr-curvature-label">${cfg.preset === 'circle' ? '원 크기' : '곡률'}</span>
+        <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}">
+        <span id="lnr-curvature-val">${cfg.curvature}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">자간</span>
-        <input type="range" class="prop-slider" id="lnr-letterspacing" min="${LINER_LS_MIN}" max="${LINER_LS_MAX}" step="0.5" value="${cfg.letterSpacing}" style="flex:2;">
-        <span id="lnr-letterspacing-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.letterSpacing}</span>
+      <div class="prop-row">
+        <span class="prop-label">자간</span>
+        <input type="range" class="prop-slider" id="lnr-letterspacing" min="${LINER_LS_MIN}" max="${LINER_LS_MAX}" step="0.5" value="${cfg.letterSpacing}">
+        <span id="lnr-letterspacing-val">${cfg.letterSpacing}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">시작 위치</span>
-        <input type="range" class="prop-slider" id="lnr-startangle" min="0" max="360" step="1" value="${cfg.startAngle}" style="flex:2;">
-        <span id="lnr-startangle-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.startAngle}°</span>
-      </div>
-    </div>
-  `;
+      <div class="prop-row">
+        <span class="prop-label">시작 위치</span>
+        <input type="range" class="prop-slider" id="lnr-startangle" min="0" max="360" step="1" value="${cfg.startAngle}">
+        <span id="lnr-startangle-val">${cfg.startAngle}°</span>
+      </div>`;
 
-  const existing = propPanel.querySelector('#liner-controls-section');
-  if (existing) existing.outerHTML = html;
-  else propPanel.insertAdjacentHTML('beforeend', html);
+  window.placeTextPanelSection?.(propPanel, 'special', html, { title: 'Curve', id: 'liner-controls-section' });
 
   const read = () => {
     const next = {

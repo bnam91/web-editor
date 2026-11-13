@@ -190,7 +190,7 @@ test('QC3 ★★★인용구 ★안의 ★텍스트를 고르면 ★★밑줄(U)
     u: document.querySelectorAll('#txt-underline-btn').length,
     h: document.querySelectorAll('#txt-highlight-btn').length,
     d: document.querySelectorAll('#txt-dot-btn').length,
-    titles: [...document.querySelectorAll('#panel-right .prop-section-title')].map((e) => e.textContent.trim()),
+    titles: [...document.querySelectorAll('#panel-right .prop-section[data-sec]')].map((e) => e.dataset.sec),   /* ★U2 — 절 key */
     selectedIsKid: !!document.querySelector('#qcC .qt-children .text-block.selected'),
   }));
   console.log('★QC3 잰 것 = ' + JSON.stringify(tPanel));
@@ -200,7 +200,7 @@ test('QC3 ★★★인용구 ★안의 ★텍스트를 고르면 ★★밑줄(U)
     `★★★인용구 ★안의 ★텍스트를 고르면 ★★밑줄(U)·형광펜(H)·점이 ★★«다시 만들 것 없이» ★와야 한다 —`
     + ` ★그게 ★현빈이 ★ㄷ 를 ★고른 ★까닭이다. 잰 값 ${JSON.stringify(tPanel)}`).toEqual({ u: 1, h: 1, d: 1 });
   expect(tPanel.selectedIsKid, '★고른 것이 ★그 자식 텍스트다').toBe(true);
-  expect(tPanel.titles.includes('Typography'),
+  expect(tPanel.titles.includes('typography'),
     `★그 패널에 ★Typography 절이 ★있다. 잰 제목 ${JSON.stringify(tPanel.titles)}`).toBe(true);
 
   expect(errs.map((e) => String(e)), '★오류 0').toEqual([]);

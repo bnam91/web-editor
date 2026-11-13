@@ -14,7 +14,6 @@ const { loadSectionSpec, readPanel, judgePanel, resolveRoster, ENTRY_ALIAS } = r
 
 /* ★미이관 명단 — U1 그리드 · U2 텍스트 · U3 컨테이너 · U4 미디어/도형 · U5 조합/스티커. U0 이관 = gap-block · bridge-block. */
 const UNMIGRATED = [
-  'text-block', 'icon-text-block', 'speech-bubble-block', 'quote-block', 'label-group-block',     // U2
 ];
 /* 수동 5 — 로스터 밖 패널의 입구. null = 아직 입구를 안 적었다(그 단위가 UNMIGRATED 에서 뺄 때 채운다 — 비어 있으면 빨강). */
 const MANUAL = {
