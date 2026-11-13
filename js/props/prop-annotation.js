@@ -530,7 +530,8 @@ export function showAnnotationProperties(block) {
       </div>`),
       // 옛 「시작점」/「양끝」 → 블록 고유 절 «Endpoints». 끝 크기(annot-anchor-size)는 data-own 으로 Endpoints 소유
       sec('special', `
-      <div class="prop-row">
+      <!-- data-own: 끝 «모양» 고르개 — data-shape="glow" 는 끝 모양 이름이지 Glow 효과가 아니다(소유 표의 glow 단어가 Effects 로 끈다) -->
+      <div class="prop-row" data-own="special:Endpoints">
         <div class="prop-align-group" id="annot-shape-group">${shapeBtns}</div>
       </div>
       <!-- data-own: 끝 모양의 크기는 그 모양 고르개 바로 아래가 집(Endpoints) — size 단어가 Size 절로 끌어도 여기 둔다 -->

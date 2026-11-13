@@ -234,7 +234,7 @@ export function showBanner02Properties(block, activeIdxArg) {
       </div>` : '';
 
   const linesHTML = chipStrip + lines.map((l, i) => (activeIdx === null || activeIdx === i) ? lineRow(l, i) : '').join('') + `
-      <button class="prop-btn" id="bn2-line-add" style="width:100%;">+ 텍스트 줄 추가</button>`;
+      <button class="prop-btn" id="bn2-line-add" data-own="content" style="width:100%;">+ 텍스트 줄 추가</button>`;   /* data-own: 줄 «추가» 단추 — 바로 앞 형제(줄 칸)에 글 색 칸이 들어 있어 게이트 색짝 어림이 line+color=Stroke 로 끈다 */
 
   /* right-panel-unify U5 — 옛 절(Variant · 좌우 바꾸기 · Size · Background · Text Lines · 줄 카드 · Image · Text Align)을 정본 절로.
      좌우 바꾸기 = 배치 구조 → Layout(Text Align 과 같은 절) · 패딩 제외 → Padding · 반경 → Appearance · 배경색 → Fill · 줄(칩·카드·추가)과 이미지 → Content. */

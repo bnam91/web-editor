@@ -96,12 +96,7 @@ function _slotListHTML(block, openKey) {
         <span class="prop-value-text" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>
       </div>`;
   }).join('');
-  const note = stubRoom ? '' : `
-      <div class="prop-hint" style="padding:4px 8px;line-height:1.5">
-        ⛔지금은 「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할을 켜거나 절취선을 켜십시오.
-        <span style="opacity:.7">(분할·절취선 조절은 2단계)</span>
-      </div>`;
-  return rows + note;
+  return rows;   // 스텁 자리 없음 안내는 Content 머리 힌트 한 줄에 접었다(절 힌트 ≤ 2 · panel-section-gate G1 · u5-variants-combo V-K)
 }
 
 /* ══ 고른 칸 ★하나 ═══════════════════════════════════════════════════════════
@@ -179,7 +174,8 @@ export function showCouponProperties(block, slotKey) {
     sections: [
       sec('kind', couponPresetChipsHTML(block)),
       sec('content', `
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다. 지금은 ${openKey ? `<b>${_esc(openKey)}</b> 칸이 열려 있습니다.` : '아무 칸도 펼치지 않은 상태입니다.'}</div>
+      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다. 지금은 ${openKey ? `<b>${_esc(openKey)}</b> 칸이 열려 있습니다.` : '아무 칸도 펼치지 않은 상태입니다.'}${couponStubHasRoom(block) ? '' : `
+        <br>⛔지금은 「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할을 켜거나 절취선을 켜십시오. <span style="opacity:.7">(분할·절취선 조절은 2단계)</span>`}</div>
 ${_slotListHTML(block, openKey)}
 ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
       sec('size', `

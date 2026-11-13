@@ -562,7 +562,7 @@ export function showGraphProperties(block) {
             ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
           </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
       </div>
-      <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>`),
+      <button class="prop-btn-full" id="grb-add-item" data-own="content">+ 항목 추가</button>`),   /* data-own: 항목 «추가» 단추 — 바로 앞 형제(항목 목록)에 항목 색 칸이 들어 있어 게이트의 색짝 어림이 Fill 로 끈다(_panel-sections readPanel prev.querySelector) */
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">높이</span>

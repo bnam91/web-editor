@@ -39,7 +39,7 @@ export function wireStyleCodeFold(propPanel, p = 'txt') {
     const open = _readOpen();
     head.setAttribute('aria-expanded', open ? 'true' : 'false');
     head.title = open ? '스타일 번호 칸 접기' : '스타일 번호 칸 펼치기';
-    head.innerHTML = `${disclosureChevronHtml(open)}<span style="flex:1 1 auto;">스타일 번호</span><span class="prop-hint" style="flex:0 0 auto;">${rows.length}</span>`;
+    head.innerHTML = `${disclosureChevronHtml(open)}<span style="flex:1 1 auto;">스타일 번호</span><span class="prop-count-val" style="flex:0 0 auto;">${rows.length}</span>`;
     rows.forEach((r) => { r.style.display = open ? '' : 'none'; });
   };
   const toggle = () => { _writeOpen(!_readOpen()); paint(); };
