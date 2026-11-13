@@ -277,7 +277,7 @@ export function showTextProperties(tb) {
   // ★1012t1E1 외곽선 — 읽기만 한다(레거시 API 외곽선은 «외부 · W/2» 로 해석 · 화면 무변화)
   const stroke = readStrokeState(contentEl);
 
-  /* ★U2 — GIF 단추가 안 보일 판이면 Export 절을 «아예» 안 그린다(죽은 단추를 둘러싼 절 머리 금지). 가르는 자리 = 아래 _animVisible 하나. */
+  /* GIF 단추 «눌림» 판정 = 아래 _animVisible 하나(킬스위치 ∧ 어드민). 단추는 덧칠 글이 아니면 늘 그린다 — 안 되면 «보이되 안 눌림 + 까닭»(U6 · 지디 261113 되돌림). */
   const _adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);
   const _animVisible = () => (window.animGifVisible
     ? !!window.animGifVisible(window.ANIM_GIF_ENABLED, _adminState())
@@ -319,7 +319,7 @@ export function showTextProperties(tb) {
     showGlow: true, isGlow, glowK,
     glowColorHtml: colorFieldHTML({ idPrefix: 'txt-glow-color', hex: glowColor, alpha: parseAlphaFromColor(glowColor) || 100 }),
     isOverlayBlock,
-    showAnimGif: !isOverlayTb && _animVisible(),
+    showAnimGif: !isOverlayTb,   /* U6 — 보이되 안 눌림(현빈 08-28 「보이되 안 눌린다」 · 261021 「어드민용으로만 공개」) · U2 의 «안 보이면 절째 없음»을 되돌림 */
   }));
 
   if (window.setRpIdBadge) window.setRpIdBadge(tb.id || null);
@@ -348,17 +348,42 @@ export function showTextProperties(tb) {
   if (!isOverlayTb) wireOverlaySection({ tb });
 
   /* 애니메이션 GIF 버튼 — ★261021 현빈 「gif는 우선 ★어드민용으로만 ★공개」(킬스위치 ∧ 어드민 · 술어 한 자리 = 위 _animVisible).
-   * ★U2 — 안 보일 판이면 단추·절이 «없다»(옛 판: 보이되 disabled + 사유 툴팁). 보이면 여기서 연다.
+   * ★«보이되 안 눌린다»(현빈 2026-08-28 — Figma·개발자·협업과 같은 방식: 감추면 「있었다」는 것조차 사라진다).
+   *   U2(d9579f489)가 «안 보이면 단추·절째 없음»으로 바꿨던 것을 U6 에서 되돌렸다(지디 261113 · 현빈 결정 존중).
+   *   disabled 단추도 «보이는 컨트롤»이라 Export 절은 빈 머리가 아니다.
    * ⛔isAdmin 을 손으로 다시 판정하지 않는다 — ★둘째 명부가 된다.
-   * ★어드민 상태는 ★늦게 온다(로그인 직후·세션 재검증 뒤). 캐시가 ∅ 이면 «아님»으로 그리고, ★한 번 당겨 와서
-   *   보이게 됐으면 패널을 다시 그린다(그때는 캐시가 차 있어 다시 당기지 않는다 — 고리 없음). 그 사이 다른 블럭을 골랐으면 안 그린다. */
+   * ★어드민 상태는 ★늦게 온다(로그인 직후·세션 재검증 뒤). 캐시가 ∅ 면 «아님»으로 그리고,
+   *   ★한 번 당겨 와서 ★이 버튼만 다시 칠한다(패널 전체를 다시 그리지 않는다). 버튼이 이미 떨어졌으면 아무것도 안 한다. */
   const animBtn = document.getElementById('open-anim-btn');
-  if (animBtn) animBtn.onclick = () => window.openAnimModal(tb);
-  else if (!isOverlayTb && window.ANIM_GIF_ENABLED === true && !_adminState()
-      && window.__admin && typeof window.__admin.refresh === 'function') {
-    Promise.resolve(window.__admin.refresh())
-      .then(() => { if (_animVisible() && tb.isConnected && tb.classList.contains('selected')) showTextProperties(tb); })
-      .catch(() => {});
+  if (animBtn) {
+    const _applyAnimGate = (btn) => {
+      if (_animVisible()) {
+        btn.onclick = () => window.openAnimModal(tb);
+        btn.disabled = false;
+        btn.removeAttribute('aria-disabled');
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+        btn.title = '';
+        return;
+      }
+      btn.onclick = null;
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      btn.style.opacity = 'var(--ui-disabled-opacity)';
+      btn.style.cursor = 'default';
+      /* ★「왜 안 눌리나」를 가려서 적는다 — 스위치가 꺼진 것과 «내 계정이 아닌 것»은 할 일이 다르다. */
+      btn.title = window.ANIM_GIF_ENABLED === true
+        ? '어드민 계정에서만 사용할 수 있습니다'
+        : '이번 버전에서는 사용할 수 없습니다';
+    };
+    _applyAnimGate(animBtn);
+    /* ★캐시가 ∅ 일 때만 한 번 당긴다(매 패널 렌더마다 IPC 를 때리지 않는다). */
+    if (window.ANIM_GIF_ENABLED === true && !_adminState()
+        && window.__admin && typeof window.__admin.refresh === 'function') {
+      Promise.resolve(window.__admin.refresh())
+        .then(() => { if (animBtn.isConnected) _applyAnimGate(animBtn); })
+        .catch(() => {});
+    }
   }
 
   window.bindLayoutInput?.(tb);

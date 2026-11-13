@@ -31,7 +31,7 @@ export function buildTextPanelSpec(state) {
     dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     showGlow, isGlow, glowColorHtml, glowK,      /* ★1012t1E2 범위 글로우 — prop-text.js 가 showGlow:true 로 켠다. 없으면 단추·칸 0 ⇒ 골든 바이트 동일 */
     isOverlayBlock,
-    showAnimGif,   /* ★U2 — GIF 단추가 보일 판(킬스위치 ∧ 어드민 · prop-text.js 가 가른다). 거짓이면 Export 절째 없음 */
+    showAnimGif,   /* GIF 단추를 «그릴» 판(U6 — 덧칠 글이 아니면 참 · 눌림은 prop-text.js 가 어드민 게이트로 disabled+까닭). 거짓이면 Export 절째 없음 */
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
