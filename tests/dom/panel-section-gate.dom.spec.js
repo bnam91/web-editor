@@ -117,6 +117,11 @@ test('G4 ★하위 접기 제외는 «그릇 안»만 — 그리드 칸 컨트�
   // 같은 컨트롤을 그릇 «밖»(Size 절 몸 바로 아래)으로 — 빨강이어야 한다
   await page.evaluate(() => { const c = document.getElementById('grd-cell-bg-color'); document.getElementById('psec-size-body').appendChild(c); document.getElementById('grd-cell-body').remove(); });
   expect(judgePanel(await readPanel(page), SPEC), '★그릇 밖인데 못 잡는다').toEqual(['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다']);
+  // U0c ⑭ 절에 묶인 그릇 — #grd-bbg-section(Fill 몫) 안 여백 칸: Fill 절이면 통과 · Size 절로 옮기면 빨강
+  await page.evaluate(() => { document.getElementById('grd-cell-bg-color').remove(); const w = document.createElement('div'); w.id = 'grd-bbg-section'; w.innerHTML = '<input type="number" id="grd-bbg-pad-number">'; document.getElementById('psec-fill-body').appendChild(w); });
+  expect(judgePanel(await readPanel(page), SPEC), '★Fill 안 블럭 배경 그릇인데 빨갛다').toEqual([]);
+  await page.evaluate(() => document.getElementById('psec-size-body').appendChild(document.getElementById('grd-bbg-section')));
+  expect(judgePanel(await readPanel(page), SPEC), '[양성대조] 그릇이 엉뚱한 절(Size)이면 판정').toEqual(['소유 위반: grd-bbg-pad-number 는 padding 절 속성인데 size 절에 있다']);
 });
 
 test('G5 data-own 명시 덮어쓰기 — 조상 줄의 data-own 을 readPanel 이 읽고 «그 절»로 판정한다(진짜 DOM)', async ({ page }) => {

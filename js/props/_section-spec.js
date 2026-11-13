@@ -72,12 +72,16 @@ export const OWNERSHIP_ID_STEM = Object.freeze({
 });
 /** 줄임 단어 → 뜻 단어. ★id 의 «첫 단어»(블록 접두 — 스티커 stk-·…)에는 안 건다: stk-t-STK-c-color 의 둘째 stk 만 stroke. */
 export const OWNERSHIP_ALIAS = Object.freeze({ stk: 'stroke', sh: 'shadow', bc: 'stroke', bdc: 'stroke', shc: 'shadow' });   // bc·bdc = 테두리 색(mdl-bc-* · zm-bdc-*) · shc = 효과 색(zm-shc-*)
-/** 판정 제외 그릇 — { 그릇 id: '까닭' }. 그 그릇 «안»의 컨트롤만 뺀다(같은 컨트롤이 그릇 밖이면 판정한다).
+/** 판정 제외 그릇 — { 그릇 id: { sec, why } }. 그 그릇 «안»의 컨트롤만 뺀다(같은 컨트롤이 그릇 밖이면 판정한다).
+ *  sec = 그 그릇이 «있어야 할 절»(null = 어느 절이든). 그릇이 다른 절에 있으면 그 안 컨트롤도 판정한다.
  *  그리드 하위 접기 몸통: 한 칸·한 줄·칸 사이 줄 스코프의 색·테두리·여백이 한 몸통에 섞여 사는 것이 설계다(§4-1 · U1). */
 export const OWNERSHIP_EXEMPT_SCOPES = Object.freeze({
-  'grd-cell-body': '그리드 「칸 꾸미기」 하위 접기 — 이 칸의 배경·테두리·여백이 한 몸통',
-  'grd-line-body': '그리드 「줄 꾸미기」 하위 접기 — 이 글줄의 글자·채움·테두리가 한 몸통',
-  'grd-rule-body': '그리드 「칸 사이 줄」 하위 접기 — 줄 굵기·들임·색이 한 몸통',
+  'grd-cell-body': { sec: null, why: '그리드 「칸 꾸미기」 하위 접기 — 이 칸의 배경·테두리·여백이 한 몸통' },
+  'grd-line-body': { sec: null, why: '그리드 「줄 꾸미기」 하위 접기 — 이 글줄의 글자·채움·테두리가 한 몸통' },
+  'grd-rule-body': { sec: null, why: '그리드 「칸 사이 줄」 하위 접기 — 줄 굵기·들임·색이 한 몸통' },
+  'grd-cellall-body': { sec: 'content', why: '그리드 「칸 꾸미기 · 모든 칸」 — 모든 칸의 배경·테두리·여백이 한 몸통(Content 안)' },
+  'grd-img-section': { sec: 'content', why: '그리드 그림 묶음 — 칸 그림의 크기·모양·여백이 한 몸통(Content 안 · U1 이 그릇 id 를 단다)' },
+  'grd-bbg-section': { sec: 'fill', why: '그리드 블럭 배경 — 배경 상자 자기 여백·모서리가 배경과 한 몸(Fill 안)' },
 });
 
 /** 컨트롤 → 판정 단어열. c = { id, type, data: [[이름, 값]…], pairedColor }. ⛔class 는 받아도 안 쓴다(위 머리말). */

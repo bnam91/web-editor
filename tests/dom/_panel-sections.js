@@ -71,7 +71,9 @@ function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
     else if (s.title !== spec.SECTION_TITLE[s.sec]) bad.push(`제목 불일치: ${s.sec} = 「${s.title}」 (정본 「${spec.SECTION_TITLE[s.sec]}」)`);
     if (s.labels.includes(s.title)) bad.push(`라벨이 절 제목을 되풀이: ${s.title}`);
     for (const c of s.controls || []) {   // 소유 — 속성이 제 절에 사는가
-      if (c.scope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;
+      const sc = c.scope && spec.OWNERSHIP_EXEMPT_SCOPES[c.scope];
+      const inScope = !!sc && (sc.sec == null || sc.sec === s.sec);   // 그릇이 제 절에 있을 때만 — 엉뚱한 절의 그릇은 판정
+      if (inScope || (c.id && c.id in spec.OWNERSHIP_EXEMPT) || (c.pairId && c.pairId in spec.OWNERSHIP_EXEMPT)) continue;
       if (c.itemCard && s.sec === 'content') continue;   // Content 안 반복 항목 카드는 한 항목의 색·크기·글이 한 몸 — 다른 절의 카드는 여전히 판정   // 제외 그릇 «안» · 제외 id · 제외 색 칸의 짝
       const explicit = spec.explicitOwnOf(c);
       if (explicit && !panelKeys.has(explicit)) { bad.push(`data-own 이 이 패널에 없는 절: ${c.id} → ${explicit}`); continue; }

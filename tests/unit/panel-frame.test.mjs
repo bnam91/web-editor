@@ -294,7 +294,11 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
   /* ★양성대조 — class 를 단어로 쳤다면 iconify 이름칸은 fill 로 갔다(그래서 controlIdent 가 class 를 버린다) */
   assert.equal(F.ownerOf('icn-preset-newcat-input prop-color-hex'), 'fill', '[양성대조] class 단어가 들어가면 색으로 오판한다');
   for (const [, key] of F.OWNERSHIP) assert.ok(F.SECTION_ORDER.includes(key), `★표에 모르는 절 key: ${key}`);
-  assert.deepEqual(Object.keys(F.OWNERSHIP_EXEMPT_SCOPES).sort(), ['grd-cell-body', 'grd-line-body', 'grd-rule-body']);
+  assert.deepEqual(Object.keys(F.OWNERSHIP_EXEMPT_SCOPES).sort(), ['grd-bbg-section', 'grd-cell-body', 'grd-cellall-body', 'grd-img-section', 'grd-line-body', 'grd-rule-body']);
+  for (const [id, v] of Object.entries(F.OWNERSHIP_EXEMPT_SCOPES)) {
+    assert.ok(v.sec === null || F.SECTION_ORDER.includes(v.sec), `${id}: 모르는 절 ${v.sec}`);
+    assert.ok(typeof v.why === 'string' && v.why.length > 5, `${id}: 까닭이 없다`);
+  }
   /* ★양성대조 — 줄임 단어를 첫 단어에도 걸었다면 스티커 채움 색이 stroke 로 갔다(그래서 i > 0 만) */
   assert.equal(F.ownerOf('stroke color color'), 'stroke', '[양성대조] stk 를 첫 단어에도 풀면 stk-color 가 stroke 로 간다');
   /* ★양성대조(U0c ①) — 인접 규칙이 없던 판이면 stb-title-size 는 Size 로 갔다: 같은 단어열에서 title 을 떼면 Size */
@@ -314,6 +318,15 @@ test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그�
   ] });
   assert.deepEqual(judgePanel(panel('grd-cell-body'), spec), [], '★하위 접기 그릇 안인데 빨갛다');
   assert.deepEqual(judgePanel(panel(null), spec), ['소유 위반: grd-cell-bg-color 는 fill 절 속성인데 size 절에 있다'], '★그릇 밖인데 안 잡는다');
+  /* U0c ⑭ 절에 묶인 그릇 — 제 절이면 판정 밖 · 엉뚱한 절이면 그 안 컨트롤도 판정 */
+  const bbg = (sec) => ({ hints: 0, secs: [{ sec, isHeader: false, title: spec.SECTION_TITLE[sec], labels: [],
+    controls: [{ id: 'grd-bbg-pad-number', type: 'number', data: [], scope: 'grd-bbg-section' }] }] });
+  assert.deepEqual(judgePanel(bbg('fill'), spec), [], '★Fill 안 블럭 배경 그릇의 여백 칸이 빨갛다');
+  assert.deepEqual(judgePanel(bbg('size'), spec), ['소유 위반: grd-bbg-pad-number 는 padding 절 속성인데 size 절에 있다'], '[양성대조] 그릇이 엉뚱한 절이면 판정');
+  const all = (sec) => ({ hints: 0, secs: [{ sec, isHeader: false, title: spec.SECTION_TITLE[sec], labels: [],
+    controls: [{ id: 'grd-cellall-bg-color', type: 'color', data: [], scope: 'grd-cellall-body' }] }] });
+  assert.deepEqual(judgePanel(all('content'), spec), []);
+  assert.deepEqual(judgePanel(all('stroke'), spec), ['소유 위반: grd-cellall-bg-color 는 fill 절 속성인데 stroke 절에 있다']);
   /* U0c ② 그리드 「줄」(글줄)의 색 칸 — 규칙상 line+color = stroke 지만 #grd-line-body 그릇 안이면 판정 밖 · 그릇 밖이면 잡힌다 */
   const gl = (scope) => ({ hints: 0, secs: [{ sec: 'typography', isHeader: false, title: 'Typography', labels: [],
     controls: [{ id: 'grd-line-color', type: 'color', data: [], pairedColor: false, scope }] }] });
