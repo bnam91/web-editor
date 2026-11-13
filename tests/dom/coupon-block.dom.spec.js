@@ -647,14 +647,21 @@ test('C-EXPORT ★알려진 결함 — 피그마 내보내기에 쿠폰 «배경
   const errs = await boot(page);
   await mount(page);
   const r = await page.evaluate(async () => {
+    /* U6(지디 261113 · 태양 읽기): 옛 입구 이름 buildFigmaJson 은 js 전체 0건 — export-figma-json.js 는 buildFigmaExportJSON 만 낸다(:1573~1585)
+       ⇒ 옛 칸은 늘 «입구 못 찾음»으로 실패 = test.fail 이 결함을 안 재고 있었다. 진짜 입구로 부른다(null = 전부 · T12-gridcol-probe 와 같은 꼴).
+       되돌리면: 이름을 옛것으로 돌리면 다시 noFn 으로만 실패(재지 않는 칸). */
     const m = await import('/js/io/export-figma-json.js');
-    const fn = m.buildFigmaJson || m.default || window.buildFigmaJson;
+    const fn = m.buildFigmaExportJSON;
     if (typeof fn !== 'function') return { noFn: true };
-    const out = JSON.stringify(await fn());
-    return { noFn: false, hasPath: /"type"\s*:\s*"(VECTOR|coupon)"/.test(out) || /couponPath|cpn-bg/.test(out) };
+    const t0 = document.querySelector('.coupon-block [class^="tb-"], .coupon-block [class*=" tb-"]')?.textContent.trim() || '';
+    const out = JSON.stringify(await fn(null));
+    return { noFn: false, t0, hasText: !!t0 && out.includes(JSON.stringify(t0).slice(1, -1)),
+      hasPath: /"type"\s*:\s*"(VECTOR|coupon)"/.test(out) || /couponPath|cpn-bg/.test(out) };
   });
   /* ★전제 — 내보내기 함수를 ★실제로 불렀나. 못 불렀으면 이 칸은 «못 쟀다»지 «결함»이 아니다. */
   expect(r.noFn, '★내보내기 입구를 못 찾았다 — 이 칸은 결함을 재고 있지 않다').toBe(false);
+  /* ★전제 — 내보내기가 이 쿠폰을 «지나갔다»(글자는 tb- 폴백으로 산다 · 머리말). 여기서 실패하면 결함이 아니라 장면 문제다 — error-context 로 가른다. */
+  expect(r.hasText, `★쿠폰 글자(${JSON.stringify(r.t0)})가 내보내기에 없다 — 이 칸이 쿠폰을 안 지났다`).toBe(true);
   expect(r.hasPath, '★쿠폰 배경이 내보내기에 실렸다').toBe(true);
   expect(errs).toEqual([]);
 });

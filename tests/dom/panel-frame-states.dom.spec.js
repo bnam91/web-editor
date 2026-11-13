@@ -186,6 +186,10 @@ test('S8 접힌 Effects 에 효과 추가 → Effects 가 열리고 새 카드�
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });
   const r = await addKind(page, { cls: 'asset-block', entry: 'addAssetBlock' });
   expect(r.err, '[전제] 에셋 블록').toBeUndefined();
+  /* [전제] 이 하네스의 localStorage 가 정상 — 쓴 값이 돌아온다(태양 261113: setItem 실패·getItem null 환경이면 _panel-frame 접힘이 기억에만 남아 다시 그릴 때 풀린다).
+     _root-harness 는 저장소를 스텁하지 않는다(http://goditor.dom.test 진짜 origin) — 여기서 빨강이면 하네스부터 본다. */
+  expect(await page.evaluate(() => { try { localStorage.setItem('__s8_ls', '1'); const v = localStorage.getItem('__s8_ls'); localStorage.removeItem('__s8_ls'); return v; } catch (e) { return 'throw:' + e.name; } }),
+    '[전제] localStorage setItem → getItem 이 돌아온다').toBe('1');
   /* 틀로 그린 에셋 Effects 절 + 진짜 배선(wireFxSection — 다시 그리기 = 같은 그리기) */
   const opts = await page.evaluate(async (id) => {
     const { renderPanel, sec } = await import('/js/props/_panel-frame.js');
@@ -198,7 +202,16 @@ test('S8 접힌 Effects 에 효과 추가 → Effects 가 열리고 새 카드�
   }, r.id);
   expect(opts.length, '[전제] 더할 효과가 둘 이상').toBeGreaterThanOrEqual(2);
   const body = page.locator('#asset-fx-section-body');
-  const collapse = async () => { if (await body.isVisible()) await page.locator('#asset-fx-section-head').click(); await expect(body).toBeHidden(); };
+  /* U6([S8-DOOR] 측정 261113): 효과 0 이면 Effects 몸이 비어 높이 0 → isVisible 거짓 → 머리를 «안 눌렀다». 접힘이 화면에만 있고 저장(gd-panel-collapsed)엔 없어
+     효과 추가 뒤 다시 그리기(renderPanel)가 기본값(펼침)으로 그려 양성대조가 visible 로 빨강이었다. ⇒ 접힘은 aria-expanded 로 판단해 «진짜 머리 클릭»(저장까지 타는 길)으로 하고,
+     [전제] 저장에 effects 가 들었는지 확인한다. 되돌리면: isVisible 판단으로 돌리면 [전제] 저장 단언이 빨강(접기를 안 탔다). */
+  const head = page.locator('#asset-fx-section-head');
+  const collapse = async () => {
+    if ((await head.getAttribute('aria-expanded')) !== 'false') await head.click();
+    await expect(head, '[전제] 머리가 접힘').toHaveAttribute('aria-expanded', 'false');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('gd-panel-collapsed') || '[]')), '[전제] 접힘이 저장(gd-panel-collapsed)에 들었다 — 다시 그려도 접힌 채').toContain('effects');
+    await expect(body).toBeHidden();
+  };
   /* 양성대조 — 여는 문을 끈 판: 접힌 채 효과를 더하면 카드가 닫힌 절에 들어간다(고치기 전 꼴) */
   await collapse();
   await page.evaluate(() => { window.__realExpand = window.expandPanelSection; window.expandPanelSection = () => {}; });
