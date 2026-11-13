@@ -209,8 +209,9 @@ test('K2 패널 구성 — 행 순서 · 기본 절과 Shape 는 숨고 · 크�
     const all = [...sec.querySelectorAll(':scope > .prop-row')].map(nameOf);
     const chips = [...sec.querySelectorAll('#stk-coin-glyphs [data-coin-glyph]')];
     const rowH = (el) => Math.round(el.closest('.prop-row').getBoundingClientRect().height);
-    const shapeSec = [...document.querySelectorAll('.prop-section')].find((s) => s.querySelector('.prop-section-title')?.textContent.trim() === 'Shape');
-    return { title: sec.querySelector('.prop-section-title').textContent.trim(), rows, all,
+    const shapeSec = document.getElementById('stk-shape-section');   // U5: 「Shape」 제목 절 → Type 절 안 감싸개(id 그대로)
+    /* U5: #stk-coin-section 은 틀 절(special 「Coin」) 안 감싸개 — 제목은 감싼 절 머리에서 읽는다 */
+    return { title: sec.closest('.prop-section[data-sec]').querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent.trim(), rows, all,
       shape: vis(shapeSec), text: vis(document.getElementById('stk-text-section')), image: vis(document.getElementById('stk-image-section')), mode: vis(document.getElementById('stk-mode-section')),
       metals: [...sec.querySelectorAll('#stk-coin-metal [data-coin-metal]')].map((b) => b.textContent.trim() + (b.classList.contains('active') ? '*' : '')),
       glyphs: [...sec.querySelectorAll('#stk-coin-glyphs [data-coin-glyph]')].map((b) => b.textContent.trim() + (b.classList.contains('active') ? '*' : '')),

@@ -1,12 +1,13 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
-import { countSectionHTML, wireCountSection, syncCountGroup } from './prop-sticker-count.js';
-import { coinSectionHTML, wireCoinSection } from './prop-sticker-coin.js';
-import { arrowSectionHTML, wireArrowSection } from './prop-sticker-arrow.js';
+import { countSections, wireCountSection, syncCountGroup } from './prop-sticker-count.js';
+import { coinSections, wireCoinSection } from './prop-sticker-coin.js';
+import { arrowSections, wireArrowSection } from './prop-sticker-arrow.js';
 import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS, clampRound, ROUND_MIN, ROUND_MAX } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
 
 function _esc(s) {
@@ -190,73 +191,16 @@ export function showStickerProperties(block) {
     || (shape === 'highlightB' ? panelRenderedColor(block.querySelector('svg [stroke]'), 'stroke') : panelRenderedColor(block, 'backgroundColor'))
     || 'rgba(255, 235, 70, 0.7)';
   const _stkIconShown = block.dataset.iconColor || panelRenderedColor(block, 'color') || '#222222';
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
-      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,
-      name: block.dataset.layerName,
-      defaultName: isCount ? 'Marking' : 'Sticker',   // 1013t2B1 — 마킹 블럭(data-count)은 자기 이름으로. data-layer-name 이 있으면 그것이 이긴다
-      crumb: window.getBlockBreadcrumb?.(block) || '',
-      id: block.id,
-    })}
-    </div>
-    <div class="prop-section" id="stk-fav-section">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Favorites (즐겨찾기)</div>
-        <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
-          style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>
-      </div>
-      <div class="stk-fav-grid" id="stk-fav-grid"></div>
-    </div>
-    <div class="prop-section" id="stk-icon-section" style="display:${isIcon ? 'block' : 'none'};">
-      <div class="prop-section-title">Icon</div>
-      <div class="prop-row">
-        <button class="prop-action-btn secondary" id="stk-icon-replace" style="width:100%;">아이콘 교체</button>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="stk-icon-size" min="16" max="300" step="2" value="${parseInt(block.dataset.size) || 64}">
-        <input type="number" class="prop-number" id="stk-icon-size-num" min="16" max="600" value="${parseInt(block.dataset.size) || 64}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="stk-icon-rot" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
-        <input type="number" class="prop-number" id="stk-icon-rot-num" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
-      </div>
-      <div class="prop-color-row" style="margin-top:6px;">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-icon-color', hex: _stkIconShown, alpha: parseAlphaFromColor(_stkIconShown) })}
-      </div>
-      <div class="prop-hint" style="font-size:11px;color:#888;margin-top:4px;">SVG가 currentColor를 쓰는 아이콘만 색상이 반영됩니다.</div>
-    </div>
-    <div class="prop-section" id="stk-mode-section" style="display:${(hideBasic || isCount) ? 'none' : 'block'};">
-      <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
-          <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
-          이미지 모드
-        </label>
-      </div>
-    </div>
-    <div class="prop-section" id="stk-text-section" style="display:${(hideBasic || isCount) ? 'none' : (block.dataset.mode === 'image' && !isText ? 'none' : 'block')};">
-      <div class="prop-section-title">Text</div>
-      <div class="prop-row">
-        <textarea class="prop-textarea" id="stk-text" rows="2" placeholder="텍스트"></textarea>
-      </div>
-    </div>
-    <div class="prop-section" id="stk-image-section" style="display:${(hideBasic || isCount) ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none')};">
-      <div class="prop-section-title">Image</div>
-      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:11px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
-        ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
-        <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
-      </div>
-      ${block.dataset.imgSrc ? `<div class="prop-row"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
-    </div>
-    ${isGlow ? glowSectionHTML(block) : ''}
-    ${isCount ? countSectionHTML(block) : ''}
-    ${isCoin ? coinSectionHTML(block) : ''}
-    ${isArrow ? arrowSectionHTML(block) : ''}
-    <div class="prop-section" id="stk-shape-section" style="display:${(isGlow || isCount || isCoin || isArrow) ? 'none' : 'block'};">
-      <div class="prop-section-title">Shape</div>
+  /* ★right-panel-unify U5 — 절은 _section-spec 순서·제목(영어)으로 프레임이 그린다. 모양(shape)마다 «있는 칸만» 낸다 —
+     모양을 바꾸면 패널을 통째로 다시 그린다(아래 stk-shape-group 핸들러) ⇒ 머리만 남은 빈 절이 안 생긴다.
+     옛 절 id(stk-*-section)는 절 «안» 감싸개로 남긴다(배선·spec 이 id 로 찾는다). 한 key 는 한 절 — 조각을 key 별로 모은다. */
+  const P = {};
+  const put = (key, html) => { if (html) P[key] = (P[key] || '') + html; };
+  const basic = !hideBasic;   // circle/square(+카운트)
+  put('kind', `
+      <div class="stk-fav-grid" id="stk-fav-grid"></div>`);
+  if (!(isGlow || isCount || isCoin || isArrow)) put('kind', `
+    <div id="stk-shape-section">
       <div class="prop-row">
         <div class="prop-align-group" id="stk-shape-group">
           <button class="prop-align-btn${shape === 'circle' ? ' active' : ''}" data-shape="circle" title="원형">
@@ -281,28 +225,72 @@ ${blockHeaderHTML({
           </button>
         </div>
       </div>
-    </div>
-    ${shape === 'burst' && !isCount ? `<div class="prop-section" id="stk-burst-section">
-      <div class="prop-section-title">Burst</div>
-      ${sliderRowHTML('톱니 수', 'stk-burst-teeth', 'stk-burst-teeth-num', { min: BURST_LIMITS.teeth.min, max: BURST_LIMITS.teeth.max, step: 1, value: clampBurst({ teeth: block.dataset.burstTeeth }).teeth })}
-      ${sliderRowHTML('톱니 깊이 %', 'stk-burst-depth', 'stk-burst-depth-num', { min: BURST_LIMITS.depth.min, max: BURST_LIMITS.depth.max, step: 1, value: clampBurst({ depth: block.dataset.burstDepth }).depth })}
-      ${sliderRowHTML('끝 둥글기 %', 'stk-burst-round', 'stk-burst-round-num', { min: ROUND_MIN, max: ROUND_MAX, step: 1, value: clampRound(block.dataset.burstRound) })}
-      <div class="prop-row">
-        <span class="prop-label">안쪽 링</span>
-        <label class="prop-toggle"><input type="checkbox" id="stk-burst-ring" ${(block.dataset.burstRing ?? 'on') === 'on' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+    </div>`);
+  if (isHlB) put('kind', `
+    <div id="stk-hlb-doodle-section">
+      <div class="prop-type-group prop-preset-group" id="stk-hlb-doodle-group">
+        ${(window.DoodleLine?.STYLES || []).map(k => `<button class="prop-preset-btn${block.dataset.lineStyle === k ? ' active' : ''}" data-doodle="${k}" title="${_HLB_DOODLE_TITLE[k] || ''}">
+          <svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${_HLB_DOODLE_ICON[k] || ''}</svg><span>${window.DoodleLine.LABELS[k] || k}</span>
+        </button>`).join('')}
       </div>
-    </div>` : ''}
-    ${(shape === 'circle' || shape === 'burst') && !isCount ? `<div class="prop-section" id="stk-mark-section">
-      <div class="prop-section-title">Mark</div>
-      <div class="prop-hint" style="padding:2px 8px">인증마크·보증 배지 — 원 둘레 글자 · 테두리 · 작은 줄. 공인 인증 로고를 흉내 내지 마세요(내 파일은 이미지 모드로).</div>
-      <div class="prop-row"><span class="prop-label">둘레 글자</span><input type="text" class="prop-input" id="stk-ring-text" maxlength="80" value="${escHtml(block.dataset.ringText || '')}" placeholder="예: TEST COMPLETED" style="flex:1;min-width:0"></div>
-      ${sliderRowHTML('둘레 글자 크기', 'stk-ring-size', 'stk-ring-size-num', { min: 5, max: 16, step: 1, value: Math.round(parseFloat(block.dataset.ringTextSize) || 9) })}
-      ${sliderRowHTML('테두리', 'stk-ring-bw', 'stk-ring-bw-num', { min: 0, max: 12, step: 1, value: Math.round(parseFloat(block.dataset.ringBorderW) || 0) })}
-      <div class="prop-color-row"><span class="prop-label">테두리·둘레색</span>${colorFieldHTML({ idPrefix: 'stk-ring-bc', hex: block.dataset.ringBorderColor || block.dataset.textColor || '#ffffff' })}</div>
-      <div class="prop-row"><span class="prop-label">작은 줄</span><input type="text" class="prop-input" id="stk-sub-text" maxlength="60" value="${escHtml(block.dataset.subText || '')}" placeholder="예: COMPLETED" style="flex:1;min-width:0"></div>
-    </div>` : ''}
-    <div class="prop-section" id="stk-hl-section" style="display:${shape === 'highlight' ? 'block' : 'none'};">
-      <div class="prop-section-title">Highlight Size</div>
+    </div>`);
+  if (isText) put('kind', `
+    <div id="stk-text-presets-section">
+      <div class="prop-row">
+        <select class="prop-select" id="stk-preset-select" style="flex:1;min-width:0;">
+          <option value="">프리셋 선택...</option>
+          ${TEXT_PRESETS.map((p, i) => `<option value="${i}">${_esc(p.name)}</option>`).join('')}
+        </select>
+      </div>
+    </div>`);
+  if (isIcon) {
+    put('content', `
+      <div class="prop-row">
+        <button class="prop-action-btn secondary" id="stk-icon-replace" style="width:100%;">아이콘 교체</button>
+      </div>`);
+    put('position', `
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="stk-icon-rot" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
+        <input type="number" class="prop-number" id="stk-icon-rot-num" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
+      </div>`);
+    put('size', `
+      <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="stk-icon-size" min="16" max="300" step="2" value="${parseInt(block.dataset.size) || 64}">
+        <input type="number" class="prop-number" id="stk-icon-size-num" min="16" max="600" value="${parseInt(block.dataset.size) || 64}">
+      </div>`);
+    put('fill', `
+      <div class="prop-color-row">
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'stk-icon-color', hex: _stkIconShown, alpha: parseAlphaFromColor(_stkIconShown) })}
+      </div>
+      <div class="prop-hint">SVG가 currentColor를 쓰는 아이콘만 색상이 반영됩니다.</div>`);
+  }
+  if (basic && !isCount) put('content', `
+    <div id="stk-mode-section">
+      <div class="prop-row">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
+          <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
+          이미지 모드
+        </label>
+      </div>
+    </div>
+    <div id="stk-text-section" style="display:${block.dataset.mode === 'image' ? 'none' : 'block'};">
+      <div class="prop-row">
+        <textarea class="prop-textarea" id="stk-text" rows="2" placeholder="텍스트"></textarea>
+      </div>
+    </div>
+    <div id="stk-image-section" style="display:${block.dataset.mode === 'image' ? 'block' : 'none'};">
+      <div id="stk-img-drop" style="border:2px dashed #444;border-radius:6px;padding:18px 10px;text-align:center;color:#888;font-size:11px;cursor:pointer;background:#1a1a1a;transition:border-color .15s,background .15s;">
+        ${block.dataset.imgSrc ? `<img src="${block.dataset.imgSrc}" style="max-width:80px;max-height:80px;object-fit:contain;display:block;margin:0 auto 6px;">` : ''}
+        <div>이미지 드래그앤드롭<br>또는 클릭해서 선택</div>
+      </div>
+      ${block.dataset.imgSrc ? `<div class="prop-row"><button class="prop-action-btn" id="stk-img-clear" style="width:100%;">이미지 제거</button></div>` : ''}
+    </div>`);
+  if (isHl) {
+    put('size', `
+    <div id="stk-hl-section">
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="stk-hl-w" min="20" max="800" step="2" value="${parseInt(block.dataset.hlW) || 160}">
@@ -313,13 +301,16 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="stk-hl-h" min="6" max="200" step="1" value="${parseInt(block.dataset.hlH) || 28}">
         <input type="number" class="prop-number" id="stk-hl-h-num" min="4" max="400" value="${parseInt(block.dataset.hlH) || 28}">
       </div>
-      <div class="prop-color-row" style="margin-top:6px;">
+    </div>`);
+    put('fill', `
+      <div class="prop-color-row">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'stk-hl-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
-      </div>
-    </div>
-    <div class="prop-section" id="stk-hlb-section" style="display:${shape === 'highlightB' ? 'block' : 'none'};">
-      <div class="prop-section-title">Highlight Line</div>
+      </div>`);
+  }
+  if (isHlB) {
+    put('stroke', `
+    <div id="stk-hlb-section">
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <div class="prop-align-group" id="stk-hlb-style-group" style="flex:1;">
@@ -349,26 +340,23 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="stk-hlb-period" min="10" max="100" step="1" value="${parseFloat(block.dataset.period) || 30}">
         <input type="number" class="prop-number" id="stk-hlb-period-num" min="6" max="200" value="${parseFloat(block.dataset.period) || 30}">
       </div>
-      <div class="prop-color-row" style="margin-top:6px;">
+    </div>`);
+    put('fill', `
+      <div class="prop-color-row">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'stk-hlb-color', hex: _stkHlShown, alpha: parseAlphaFromColor(_stkHlShown) })}
-      </div>
-    </div>
-    <div class="prop-section" id="stk-hlb-doodle-section" style="display:${shape === 'highlightB' ? 'block' : 'none'};">
-      <div class="prop-section-title">Doodle Presets</div>
-      <div class="prop-type-group prop-preset-group" id="stk-hlb-doodle-group">
-        ${(window.DoodleLine?.STYLES || []).map(k => `<button class="prop-preset-btn${block.dataset.lineStyle === k ? ' active' : ''}" data-doodle="${k}" title="${_HLB_DOODLE_TITLE[k] || ''}">
-          <svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${_HLB_DOODLE_ICON[k] || ''}</svg><span>${window.DoodleLine.LABELS[k] || k}</span>
-        </button>`).join('')}
-      </div>
-    </div>
-    <div class="prop-section" id="stk-size-section" style="display:${hideBasic ? 'none' : 'block'};">
-      <div class="prop-section-title">Size</div>
-      <div class="prop-row" id="stk-size-row" style="display:${isCount ? 'none' : 'flex'};">
+      </div>`);
+  }
+  if (basic) {
+    if (!isCount) put('size', `
+    <div id="stk-size-section">
+      <div class="prop-row" id="stk-size-row">
         <span class="prop-label">크기</span>
         <input type="range" class="prop-slider" id="stk-size" min="20" max="300" step="2" value="${size}">
         <input type="number" class="prop-number" id="stk-size-num" min="10" max="600" value="${size}">
       </div>
+    </div>`);
+    put('typography', `
       <div class="prop-row">
         <span class="prop-label">폰트 크기</span>
         <input type="range" class="prop-slider" id="stk-fs" min="8" max="72" step="1" value="${fontSize}">
@@ -399,10 +387,9 @@ ${blockHeaderHTML({
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11.5 4.5 C11 3.4 9.7 2.8 8 2.8 C6 2.8 4.8 3.8 4.8 5.1 C4.8 5.7 5 6.2 5.6 6.6"/><path d="M4.5 11.5 C5 12.6 6.3 13.2 8 13.2 C10 13.2 11.2 12.2 11.2 10.9 C11.2 10.5 11.1 10.1 10.9 9.8"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>
           </button>
         </div>
-      </div>
-    </div>
-    <div class="prop-section" id="stk-colors-section" style="display:${hideBasic ? 'none' : 'block'};">
-      <div class="prop-section-title">Colors</div>
+      </div>`);
+    put('fill', `
+    <div id="stk-colors-section">
       <div class="prop-color-row">
         <span class="prop-label">${isCountNone ? '숫자색' : '배경색'}</span>
         ${colorFieldHTML({ idPrefix: 'stk-bg', hex: bgColor, alpha: bgAlpha })}
@@ -411,9 +398,11 @@ ${blockHeaderHTML({
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'stk-txt', hex: textColor, alpha: txtAlpha })}
       </div>
-    </div>
-    <div class="prop-section" id="stk-text-sticker-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Typography</div>
+    </div>`);
+  }
+  if (isText) {
+    put('typography', `
+    <div id="stk-text-sticker-section">
       <div class="prop-row">
         <span class="prop-label">폰트</span>
         <select class="prop-select" id="stk-t-ff">
@@ -477,6 +466,8 @@ ${blockHeaderHTML({
           </button>
         </div>
       </div>
+    </div>`);
+    put('size', `
       <div class="prop-row">
         <span class="prop-label">박스 너비</span>
         <label class="prop-toggle" title="고정 너비 켜기(끄면 내용맞춤)" style="display:inline-flex;align-items:center;gap:4px">
@@ -488,19 +479,9 @@ ${blockHeaderHTML({
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="stk-t-boxw" min="40" max="1000" step="2" value="${tBoxWVal}">
         <input type="number" class="prop-number" id="stk-t-boxw-num" min="20" max="2000" step="1" value="${tBoxWVal}">
-      </div>
-    </div>
-    <div class="prop-section" id="stk-text-presets-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Text Presets</div>
-      <div class="prop-row">
-        <select class="prop-select" id="stk-preset-select" style="flex:1;min-width:0;">
-          <option value="">프리셋 선택...</option>
-          ${TEXT_PRESETS.map((p, i) => `<option value="${i}">${_esc(p.name)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="prop-section" id="stk-text-colors-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Colors</div>
+      </div>`);
+    put('fill', `
+    <div id="stk-text-colors-section">
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'stk-t-color', hex: textColor, alpha: txtAlpha })}
@@ -509,9 +490,9 @@ ${blockHeaderHTML({
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'stk-t-bg', hex: (bgColor === 'transparent' ? '#ffffff' : bgColor), alpha: (bgColor === 'transparent' ? 0 : bgAlpha) })}
       </div>
-    </div>
-    <div class="prop-section" id="stk-text-stroke-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Stroke (외곽선)</div>
+    </div>`);
+    put('stroke', `
+    <div id="stk-text-stroke-section">
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="stk-t-stk-w" min="0" max="20" step="0.5" value="${tStrokeWidth}">
@@ -521,15 +502,8 @@ ${blockHeaderHTML({
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'stk-t-stk-c', hex: tStrokeColor, alpha: tStrokeAlpha })}
       </div>
-    </div>
-    <div class="prop-section" id="stk-text-shadow-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title-row">
-        <div class="prop-section-title">Shadow</div>
-        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="stk-t-shadow-on" ${tShadowOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
+    </div>`);
+    put('effects', `
       <div id="stk-t-shadow-detail">
         <div class="prop-row">
           <span class="prop-label">X</span>
@@ -550,10 +524,9 @@ ${blockHeaderHTML({
           <span class="prop-label">색상</span>
           ${colorFieldHTML({ idPrefix: 'stk-t-sh-c', hex: tShadowColor, alpha: tShadowAlpha })}
         </div>
-      </div>
-    </div>
-    <div class="prop-section" id="stk-text-pad-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Padding (박스 크기)</div>
+      </div>`);
+    put('padding', `
+    <div id="stk-text-pad-section">
       <div class="prop-row">
         <span class="prop-label">좌우</span>
         <input type="range" class="prop-slider" id="stk-t-pad-x" min="0" max="200" step="1" value="${tPadX}">
@@ -564,20 +537,67 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="stk-t-pad-y" min="0" max="200" step="1" value="${tPadY}">
         <input type="number" class="prop-number" id="stk-t-pad-y-num" min="0" max="400" step="1" value="${tPadY}">
       </div>
+    </div>`);
+    put('appearance', `
       <div class="prop-row">
         <span class="prop-label">코너 라운드</span>
         <input type="range" class="prop-slider" id="stk-t-radius" min="0" max="60" step="1" value="${tCornerR}">
         <input type="number" class="prop-number" id="stk-t-radius-num" min="0" max="400" step="1" value="${tCornerR}">
-      </div>
-    </div>
-    <div class="prop-section" id="stk-text-rot-section" style="display:${isText ? 'block' : 'none'};">
-      <div class="prop-section-title">Rotation</div>
+      </div>`);
+    put('position', `
+    <div id="stk-text-rot-section">
       <div class="prop-row">
         <span class="prop-label">회전°</span>
         <input type="range" class="prop-slider" id="stk-t-rot" min="-180" max="180" step="1" value="${tRotation}">
         <input type="number" class="prop-number" id="stk-t-rot-num" min="-180" max="180" step="1" value="${tRotation}">
       </div>
-    </div>`;
+    </div>`);
+  }
+  if (isGlow) put('effects', glowSectionHTML(block));
+  const extra = isCount ? countSections(block) : isCoin ? coinSections(block) : isArrow ? arrowSections(block) : {};
+  for (const [k, html] of Object.entries(extra)) if (k !== 'special') put(k, html);
+  /* dev B2·B3(톱니 스탬프 · 인증마크) — U5 틀 위로 옮겨 심음: 블록 고유 절(special)로, 옛 절 id 는 sec id 로 남긴다(배선이 id 로 찾는다). */
+  const _stkSpecials = [];
+  if (shape === 'burst' && !isCount) _stkSpecials.push(sec('special', `
+      ${sliderRowHTML('톱니 수', 'stk-burst-teeth', 'stk-burst-teeth-num', { min: BURST_LIMITS.teeth.min, max: BURST_LIMITS.teeth.max, step: 1, value: clampBurst({ teeth: block.dataset.burstTeeth }).teeth })}
+      ${sliderRowHTML('톱니 깊이 %', 'stk-burst-depth', 'stk-burst-depth-num', { min: BURST_LIMITS.depth.min, max: BURST_LIMITS.depth.max, step: 1, value: clampBurst({ depth: block.dataset.burstDepth }).depth })}
+      ${sliderRowHTML('끝 둥글기 %', 'stk-burst-round', 'stk-burst-round-num', { min: ROUND_MIN, max: ROUND_MAX, step: 1, value: clampRound(block.dataset.burstRound) })}
+      <div class="prop-row">
+        <span class="prop-label">안쪽 링</span>
+        <label class="prop-toggle"><input type="checkbox" id="stk-burst-ring" ${(block.dataset.burstRing ?? 'on') === 'on' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+      </div>`, { title: 'Burst', id: 'stk-burst-section' }));
+  if ((shape === 'circle' || shape === 'burst') && !isCount) _stkSpecials.push(sec('special', `
+      <div class="prop-hint" style="padding:2px 8px">인증마크·보증 배지 — 원 둘레 글자 · 테두리 · 작은 줄. 공인 인증 로고를 흉내 내지 마세요(내 파일은 이미지 모드로).</div>
+      <div class="prop-row"><span class="prop-label">둘레 글자</span><input type="text" class="prop-input" id="stk-ring-text" maxlength="80" value="${escHtml(block.dataset.ringText || '')}" placeholder="예: TEST COMPLETED" style="flex:1;min-width:0"></div>
+      ${sliderRowHTML('둘레 글자 크기', 'stk-ring-size', 'stk-ring-size-num', { min: 5, max: 16, step: 1, value: Math.round(parseFloat(block.dataset.ringTextSize) || 9) })}
+      ${sliderRowHTML('테두리', 'stk-ring-bw', 'stk-ring-bw-num', { min: 0, max: 12, step: 1, value: Math.round(parseFloat(block.dataset.ringBorderW) || 0) })}
+      <div class="prop-color-row"><span class="prop-label">테두리·둘레색</span>${colorFieldHTML({ idPrefix: 'stk-ring-bc', hex: block.dataset.ringBorderColor || block.dataset.textColor || '#ffffff' })}</div>
+      <div class="prop-row"><span class="prop-label">작은 줄</span><input type="text" class="prop-input" id="stk-sub-text" maxlength="60" value="${escHtml(block.dataset.subText || '')}" placeholder="예: COMPLETED" style="flex:1;min-width:0"></div>`, { title: 'Mark', id: 'stk-mark-section' }));
+  const KEYS = ['kind', 'content', 'position', 'size', 'padding', 'appearance', 'typography', 'fill', 'stroke', 'effects'];
+  const OPTS = {
+    kind: { id: 'stk-fav-section', headTools: `
+        <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
+          style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>` },
+    effects: isText ? { id: 'stk-text-shadow-section', headTools: `
+        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
+          <input type="checkbox" id="stk-t-shadow-on" ${tShadowOn ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>` } : {},
+  };
+  renderPanel(block, {
+    header: blockHeaderHTML({
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><circle cx="6" cy="6" r="4.5"/></svg>`,
+      name: block.dataset.layerName,
+      defaultName: isCount ? 'Marking' : 'Sticker',   // 1013t2B1 — 마킹 블럭(data-count)은 자기 이름으로. data-layer-name 이 있으면 그것이 이긴다
+      crumb: window.getBlockBreadcrumb?.(block) || '',
+      id: block.id,
+    }),
+    sections: [
+      ...KEYS.map((k) => sec(k, P[k], OPTS[k])),
+      ...(extra.special || []).map(([title, html, o]) => sec('special', html, { title, ...o })),
+      ..._stkSpecials,
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -602,20 +622,22 @@ ${blockHeaderHTML({
   //   초깃값은 HTML 본문 주입 대신 value 할당 — <input type=text>의 \n strip 함정 회피 +
   //   textarea 본문 주입 시 선두 개행 소실/이스케이프 함정도 회피.
   const txt = propPanel.querySelector('#stk-text');
-  txt.value = text;
-  txt.addEventListener('keydown', ev => {
-    // 멀티라인은 text shape 전용 — circle/square 등은 Enter=커밋(인라인 편집과 동일 규칙, 개행 미주입)
-    if (ev.key === 'Enter' && block.dataset.shape !== 'text') { ev.preventDefault(); txt.blur(); }
-  });
-  txt.addEventListener('input', () => {
-    block.dataset.text = txt.value;
-    // [v0.8 #6b] 패널 텍스트박스로 «평문» 편집 시 리치텍스트(dataset.textHtml)를 지운다 —
-    //   안 지우면 다음 renderStickerBlock(리로드·리사이즈)에서 stale textHtml이 되살아나 이 편집을 shadow(U6b 지적).
-    delete block.dataset.textHtml;
-    const t = block.querySelector('.sticker-text');
-    if (t) t.textContent = txt.value;
-  });
-  txt.addEventListener('change', () => { window.pushHistory?.('스티커 텍스트'); window.scheduleAutoSave?.(); });
+  if (txt) {   // ★U5: 글자 칸은 원·사각(비마킹)에만 그린다 — 다른 모양엔 없다
+    txt.value = text;
+    txt.addEventListener('keydown', ev => {
+      // 멀티라인은 text shape 전용 — circle/square 등은 Enter=커밋(인라인 편집과 동일 규칙, 개행 미주입)
+      if (ev.key === 'Enter' && block.dataset.shape !== 'text') { ev.preventDefault(); txt.blur(); }
+    });
+    txt.addEventListener('input', () => {
+      block.dataset.text = txt.value;
+      // [v0.8 #6b] 패널 텍스트박스로 «평문» 편집 시 리치텍스트(dataset.textHtml)를 지운다 —
+      //   안 지우면 다음 renderStickerBlock(리로드·리사이즈)에서 stale textHtml이 되살아나 이 편집을 shadow(U6b 지적).
+      delete block.dataset.textHtml;
+      const t = block.querySelector('.sticker-text');
+      if (t) t.textContent = txt.value;
+    });
+    txt.addEventListener('change', () => { window.pushHistory?.('스티커 텍스트'); window.scheduleAutoSave?.(); });
+  }
 
   // 텍스트 스티커 — 폰트 패밀리
   propPanel.querySelector('#stk-t-ff')?.addEventListener('change', e => {
@@ -817,7 +839,6 @@ ${blockHeaderHTML({
       const _isHl  = newShape === 'highlight';
       const _isHlB = newShape === 'highlightB';
       const _isTxt = newShape === 'text';
-      const _isAnyHl = _isHl || _isHlB;
 
       // 'text' shape으로 전환 시 텍스트 스티커 dataset 초기화 (없으면)
       if (_isTxt) {
@@ -846,36 +867,6 @@ ${blockHeaderHTML({
         block.style.removeProperty('transform-origin');
       }
 
-      // 전체 패널 재렌더 (text/icon shape는 별도 섹션 구성이라 단순 토글로는 부족)
-      // B2 — 톱니로 갈 때 기본 톱니 값 · 톱니 절이 생기고 사라지므로 패널을 다시 그린다
-      if (newShape === 'burst') {
-        if (block.dataset.burstTeeth === undefined) block.dataset.burstTeeth = String(BURST_DEFAULTS.teeth);
-        if (block.dataset.burstDepth === undefined) block.dataset.burstDepth = String(BURST_DEFAULTS.depth);
-        if (block.dataset.burstRing === undefined) block.dataset.burstRing = BURST_DEFAULTS.ring;
-      }
-      if (_isTxt || prevShape === 'text' || newShape === 'icon' || prevShape === 'icon' || newShape === 'burst' || prevShape === 'burst') {
-        rerender();
-        window.pushHistory?.('스티커 모양'); window.scheduleAutoSave?.();
-        showStickerProperties(block);
-        return;
-      }
-
-      const hlSec   = propPanel.querySelector('#stk-hl-section');
-      const hlbSec  = propPanel.querySelector('#stk-hlb-section');
-      const txtSec  = propPanel.querySelector('#stk-text-section');
-      const imgSec  = propPanel.querySelector('#stk-image-section');
-      const modeSec = propPanel.querySelector('#stk-mode-section');
-      if (hlSec)  hlSec.style.display  = _isHl  ? 'block' : 'none';
-      if (hlbSec) hlbSec.style.display = _isHlB ? 'block' : 'none';
-      const dlSec = propPanel.querySelector('#stk-hlb-doodle-section');   // ★1012t1J2 두들 칩 절도 같이
-      if (dlSec) dlSec.style.display = _isHlB ? 'block' : 'none';
-      if (txtSec) txtSec.style.display = _isAnyHl ? 'none' : (block.dataset.mode === 'image' ? 'none' : 'block');
-      if (imgSec) imgSec.style.display = _isAnyHl ? 'none' : (block.dataset.mode === 'image' ? 'block' : 'none');
-      if (modeSec) modeSec.style.display = _isAnyHl ? 'none' : 'block';
-      const sizeSec = propPanel.querySelector('#stk-size-section');
-      const colSec  = propPanel.querySelector('#stk-colors-section');
-      if (sizeSec) sizeSec.style.display = _isAnyHl ? 'none' : 'block';
-      if (colSec)  colSec.style.display  = _isAnyHl ? 'none' : 'block';
       // highlightB로 전환 시 dataset 초기화 (없으면)
       if (_isHlB && !block.dataset.x1) {
         const baseX = parseInt(block.dataset.x) || 40;
@@ -888,8 +879,16 @@ ${blockHeaderHTML({
         block.dataset.hlColor   = block.dataset.hlColor   || 'rgba(255, 235, 70, 0.7)';
         window._syncLineStickerPos?.(block);   // ★W2D-06d — 끝점을 새로 박았으니 자리도 같은 식으로
       }
+      // B2 — 톱니로 갈 때 기본 톱니 값(절은 아래 통째 다시 그리기가 낸다)
+      if (newShape === 'burst') {
+        if (block.dataset.burstTeeth === undefined) block.dataset.burstTeeth = String(BURST_DEFAULTS.teeth);
+        if (block.dataset.burstDepth === undefined) block.dataset.burstDepth = String(BURST_DEFAULTS.depth);
+        if (block.dataset.burstRing === undefined) block.dataset.burstRing = BURST_DEFAULTS.ring;
+      }
       rerender();
       window.pushHistory?.('스티커 모양'); window.scheduleAutoSave?.();
+      // ★U5: 모양마다 절 구성이 다르다(빈 절은 프레임이 안 그린다) — 단순 표시 토글 대신 패널을 통째로 다시 그린다
+      showStickerProperties(block);
     });
   });
 
@@ -1002,6 +1001,7 @@ ${blockHeaderHTML({
   const bindNumPair = (sliderId, numberId, key, min, max, syncKeys) => {
     const s = propPanel.querySelector('#' + sliderId);
     const n = propPanel.querySelector('#' + numberId);
+    if (!s || !n) return;   // ★U5: 이 모양엔 없는 칸(마킹엔 stk-size 없음 · 글자/형광/아이콘…엔 둘 다 없음)
     const apply = v => {
       v = Math.min(max, Math.max(min, v));
       block.dataset[key] = v;
@@ -1021,7 +1021,7 @@ ${blockHeaderHTML({
   bindNumPair('stk-fs',   'stk-fs-num',   'fontSize', 6,  150);
 
   // Font weight
-  propPanel.querySelector('#stk-fw').addEventListener('change', e => {
+  propPanel.querySelector('#stk-fw')?.addEventListener('change', e => {
     block.dataset.fontWeight = e.target.value;
     rerender();
     syncGroup(['fontWeight']);

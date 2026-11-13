@@ -11,7 +11,7 @@
  *   K1 adj 행 → data-adj-* · filter url · 재렌더 · 저장 왕복(serializeProject → applyProjectData) 생존
  *   K2 내보내기 클론(renderComponentsInClone) → ADJ_DIRTY_SEL 이 칸을 집고 bake 가 배경을 구운 PNG 로 · neutralize 가 블러 칸을 덮개로
  *   K3 redact 보임 — C1 asset-redact 와 같은 자(::after blur(12px) + 가로줄 B 채널 sd · 여러 줄의 최댓값) · 색보정과 공존(둘 다 생존 · 그래도 흐림)
- *   K4 패널 — 「Image」 절 바로 아래 「블러 (Redact)」 · 슬라이더 → 모델 · undo 1번 = 꺼짐 · 편집기(더블클릭) 색보정 슬라이더 → 모델 · Esc = 패널 닫힘
+ *   K4 패널 — 그림은 Content 절 · 블러 줄은 Appearance 절(U5 · 틀) · 슬라이더 → 모델 · undo 1번 = 꺼짐 · 편집기(더블클릭) 색보정 슬라이더 → 모델 · Esc = 패널 닫힘
  *   K5 0/기본값 = 흔적 0(속성·변수·필터·모델 키·outerHTML)
  *   K6 문(MCP/AI) cols 교체 뒤 redact·adj 생존 · 범위 밖 클램프 · adj 꼴 아님 = INVALID
  *   K8 띠 누출 없음 — 높이 2~98% 일곱 줄 모두 on/off sd 비 < LEAK_RATIO (두 칼럼 · 색보정 동시)
@@ -27,7 +27,7 @@
  *   · css/editor-layout.css 비교 칸 막의 `inset: calc(-3 * …)` → `inset: 0` 또는 filter 를 backdrop-filter 로   ⇒ K8 빨강(가장자리/띠)
  *   · js/effects/image-redact.js REDACT_HOST_SEL 에서 비교 칸 빼기                        ⇒ K2(neutralize 덮개) 빨강
  *   · comparison-block.js CMP_ROW_KEEP 의 `redact:` 줄 지우기                              ⇒ K6(cols 교체 생존) 빨강
- *   · prop-comparison.js `${imgSection}${redactSection}` → `${imgSection}`                  ⇒ K4 빨강
+ *   · prop-comparison.js Appearance 절의 `${redactSection}` 제거                              ⇒ K4 빨강
  *   · export-figma-json.js _cmpRow 의 `if (rd > 0) return …` 줄 지우기                     ⇒ K7 빨강
  *
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js cmp-img-fx
@@ -235,12 +235,18 @@ test('K4 패널 — Image 절 아래 블러 절 · 슬라이더 → 모델 · un
     const img = document.getElementById('cmp-img-section');
     const red = document.getElementById('cmp-cell-redact-section');
     const rs = document.getElementById('cmp-cell-redact-slider');
-    return { nextIsRedact: !!img && img.nextElementSibling === red,
-             title: red?.querySelector('.prop-section-title')?.textContent || null,
+    /* U5 — 가림막은 Appearance 절(§2-1 · 틀): 옛 「Image 바로 다음 「블러 (Redact)」 절」 → Image 는 Content 절 · 블러 줄은 Appearance 절 안.
+       ⇐ 되돌리기: prop-comparison.js 의 ${redactSection} 을 Content 절로 옮기거나 껍데기 벗기기를 지우면 빨강 */
+    const secOf = (el) => el?.closest('.prop-section[data-sec]');
+    return { imgSec: secOf(img)?.dataset.sec || null, redSec: secOf(red)?.dataset.sec || null,
+             nested: red ? red.querySelectorAll('.prop-section-title').length + (red.classList.contains('prop-section') ? 1 : 0) : -1,
+             label: red?.querySelector('.prop-label')?.textContent || null,
              range: [rs?.type, rs?.min, rs?.max], inlineStyles: red ? red.querySelectorAll('[style]').length : -1 };
   });
-  expect(p.nextIsRedact, '블러 절이 「Image」 절 «바로 다음»이 아니다').toBe(true);
-  expect(p.title).toBe('블러 (Redact)');
+  expect(p.imgSec, '그림 고르기는 Content 절').toBe('content');
+  expect(p.redSec, '블러는 Appearance 절').toBe('appearance');
+  expect(p.nested, '옛 절 껍데기(prop-section·제목)가 남았다 — 절 안에 절').toBe(0);
+  expect(p.label).toBe('블러');
   expect(p.range).toEqual(['range', '0', '100']);
   expect(p.inlineStyles, '인라인 style 이 생겼다(디자인시스템)').toBe(0);
   await page.evaluate(() => window.pushHistory?.('K4 기준'));

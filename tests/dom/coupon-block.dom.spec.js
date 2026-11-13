@@ -251,11 +251,13 @@ test('C-PANEL3 ★캔버스 글자를 누르면 «그 칸만» 열리고, 또 �
   await page.locator('[data-cpn-slot="num"]').click();
   const one = await page.evaluate(() => ({
     open: document.querySelectorAll('#cpn-slot-text').length,
-    title: document.querySelector('.prop-section-title:last-of-type')?.textContent || '',
+    title: document.querySelector('#cpn-slot-text')?.closest('.prop-section[data-sec]')?.querySelector('.prop-sec-title-text')?.textContent || '',   // U5: 고른 칸은 Content 절 안
     which: window.__block._cpnOpenSlot,
   }));
   expect(one.open).toBe(1);                   // ★한 칸만
   expect(one.which).toBe('num');
+  // U5 ⇐ 되돌리기: _slotPanelHTML 을 Content 절 밖(제 절)으로 빼면 빨강
+  expect(one.title, '고른 칸은 Content 절 안에 열린다').toBe('Content');
   /* ★같은 것을 또 누르면 «닫힌다» — 시안 setSel 의 토글. */
   await page.locator('[data-cpn-slot="num"]').click();
   const zero = await page.evaluate(() => ({
@@ -323,7 +325,7 @@ test('C-PANEL5 ★칸 목록의 라벨·토글·체크박스가 «한 줄»에 �
     const split = [], seen = [];
     for (const row of rows) {
       for (const el of [...row.children]) {
-        if (el.classList.contains('prop-hint')) continue;   // ★일부러 줄임표로 자르는 칸
+        if (el.classList.contains('prop-hint') || el.classList.contains('prop-value-text')) continue;   // ★일부러 줄임표로 자르는 칸(U5: 미리보기 = .prop-value-text — 패널 힌트 ≤2)
         const txt = (el.textContent || '').trim();
         if (!txt) continue;                                  // 글자가 없으면 「읽히나」가 뜻이 없다
         const rg = document.createRange();

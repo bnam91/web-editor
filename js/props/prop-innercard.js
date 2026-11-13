@@ -2,6 +2,7 @@
    라인 구조 변경(추가/삭제/이미지)은 updateInnerCardBlock API 영역. */
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 export function showInnerCardProperties(block) {
@@ -13,9 +14,8 @@ export function showInnerCardProperties(block) {
   const shadow = block.dataset.shadow || 'none';
   const _esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1.5" y="1.5" width="9" height="9" rx="2"/><path d="M4 5 H8 M4 7 H6.5"/>
           </svg>`,
@@ -23,21 +23,30 @@ ${blockHeaderHTML({
       defaultName: 'Inner Card',
       crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Card</div>
-      <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>
+    }),
+    // 옛 「Card」 절 하나 → 소유 절로 나눔(배경=Fill · 모서리=Appearance · 패딩=Padding · 그림자=Effects)
+    sections: [
+      sec('content', `${lines.map((l, li) => (l.type === 'image' || l.type === 'gap') ? '' : `
       <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="icd-radius-slider" min="0" max="60" step="2" value="${radius}">
-        <input type="number" class="prop-number" id="icd-radius-number" min="0" max="60" value="${radius}">
-      </div>
+        <span class="prop-label">${_esc(l.type || 'body')}</span>
+        <input type="text" class="prop-input icd-line-input" data-line="${li}" value="${_esc(l.text || '')}" style="flex:1;min-width:0">
+      </div>`).join('')}
+      <div class="prop-row"><span class="prop-label" style="opacity:.6">라인 추가/삭제는 updateInnerCardBlock API</span></div>`),
+      sec('padding', `
       <div class="prop-row">
         <span class="prop-label">패딩</span>
         <input type="range" class="prop-slider" id="icd-pad-slider" min="0" max="120" step="4" value="${padding}">
         <input type="number" class="prop-number" id="icd-pad-number" min="0" max="120" value="${padding}">
-      </div>
+      </div>`),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="icd-radius-slider" min="0" max="60" step="2" value="${radius}">
+        <input type="number" class="prop-number" id="icd-radius-number" min="0" max="60" value="${radius}">
+      </div>`),
+      sec('fill', `
+      <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'icd-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>`),
+      sec('effects', `
       <div class="prop-row">
         <span class="prop-label">그림자</span>
         <div class="prop-type-group">
@@ -45,17 +54,9 @@ ${blockHeaderHTML({
           <button class="prop-type-btn ${shadow === 'soft' ? 'active' : ''}" data-sh="soft">소프트</button>
           <button class="prop-type-btn ${shadow === 'strong' ? 'active' : ''}" data-sh="strong">강하게</button>
         </div>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Content</div>
-      ${lines.map((l, li) => (l.type === 'image' || l.type === 'gap') ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">${_esc(l.type || 'body')}</span>
-        <input type="text" class="prop-input icd-line-input" data-line="${li}" value="${_esc(l.text || '')}" style="flex:1;min-width:0">
-      </div>`).join('')}
-      <div class="prop-row"><span class="prop-label" style="opacity:.6">라인 추가/삭제는 updateInnerCardBlock API</span></div>
-    </div>`;
+      </div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

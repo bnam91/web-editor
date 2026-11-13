@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { alignBtn, blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 
 function _stepToken(name, fallback) {
   if (typeof getComputedStyle !== 'function') return fallback;
@@ -50,7 +51,7 @@ export function showStepProperties(block, activeIdxArg) {
 
   function stepsHtml() {
     return steps.map((s, i) => (activeIdx === null || activeIdx === i) ? `
-      <div class="stb-prop-item" data-idx="${i}">
+      <div class="stb-prop-item" data-sec-item data-idx="${i}">
         <div class="prop-row" style="align-items:center">
           <span class="prop-label" style="font-weight:600">스텝 ${i + 1}</span>
           <button class="prop-btn prop-btn-danger stb-del-btn" data-idx="${i}" style="margin-left:auto" title="삭제"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><polyline points="1,3 10,3"/><path d="M2.5,3V9.5h6V3"/><line x1="4" y1="3" x2="4" y2="1.5"/><line x1="7" y1="3" x2="7" y2="1.5"/><line x1="4" y1="1.5" x2="7" y2="1.5"/></svg></button>
@@ -85,9 +86,8 @@ export function showStepProperties(block, activeIdxArg) {
   const stepPadR    = parseInt(block.dataset.stepPadR ?? block.dataset.stepPadX) || 0;
   const badgeFormat = block.dataset.badgeFormat || 'number';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="2.5" cy="2.5" r="1.5"/>
             <line x1="4.5" y1="2.5" x2="11" y2="2.5"/>
@@ -100,118 +100,48 @@ ${blockHeaderHTML({
       defaultName: 'Step Block',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Direction</div>
+    }),
+    /* 옛 절 → 틀 절: Direction·Style → Type · Steps → Content · Badge 크기 → Size · Align·간격·연결선 → Layout ·
+       L/R Padding → Padding · 글자 크기 → Typography · 색 전부(카드 배경·배지·제목·설명) → Fill · 배지 시작·형식 → Badge */
+    sections: [
+      sec('kind', `
       <div class="prop-align-group" id="stb-orient-group">
         <button class="prop-align-btn${stepOrient === 'vertical'   ? ' active' : ''}" data-orient="vertical"   style="flex:1">세로</button>
         <button class="prop-align-btn${stepOrient === 'horizontal' ? ' active' : ''}" data-orient="horizontal" style="flex:1">가로</button>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Style</div>
       <div class="prop-align-group" id="stb-style-group">
         <button class="prop-align-btn${stepStyle === 'default' ? ' active' : ''}" data-style="default" style="flex:1">기본</button>
         <button class="prop-align-btn${stepStyle === 'card'    ? ' active' : ''}" data-style="card"    style="flex:1">카드</button>
         <button class="prop-align-btn${stepStyle === 'circle'  ? ' active' : ''}" data-style="circle"  style="flex:1">원형</button>
         <button class="prop-align-btn${stepStyle === 'number'  ? ' active' : ''}" data-style="number"  style="flex:1">번호</button>
-      </div>
-      <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
-        <span class="prop-label">카드 배경</span>
-        ${colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) })}
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Align</div>
+      </div>`),
+      sec('content', `
+      ${chipStrip}
+      <div id="stb-steps-list">${stepsHtml()}</div>`, {
+        headTools: `<button class="prop-btn" id="stb-add-step" style="padding:3px 6px;line-height:0" title="스텝 추가"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg></button>`,
+      }),
+      sec('size', `
+      <div class="prop-row">
+        <span class="prop-label">배지</span>
+        <input type="range" class="prop-slider" id="stb-num-size-slider" min="20" max="80" step="2" value="${numSize}">
+        <input type="number" class="prop-number" id="stb-num-size-number" min="20" max="80" value="${numSize}">
+      </div>`),
+      sec('layout', `
       <div class="prop-align-group" id="stb-align-group">
         ${alignBtn('arrow-h', 'left',   { label: '왼쪽 정렬',   active: stepAlign === 'left',   attrs: { 'data-align': 'left'   }, style: 'flex:1' })}
         ${alignBtn('arrow-h', 'center', { label: '가운데 정렬', active: stepAlign === 'center', attrs: { 'data-align': 'center' }, style: 'flex:1' })}
         ${alignBtn('arrow-h', 'right',  { label: '오른쪽 정렬', active: stepAlign === 'right',  attrs: { 'data-align': 'right'  }, style: 'flex:1' })}
         ${alignBtn('arrow-h', 'stack',  { label: '세로로 쌓기', active: stepAlign === 'stack',  attrs: { 'data-align': 'stack'  }, style: 'flex:1' })}
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Badge</div>
-      <div class="prop-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'stb-num-bg', hex: numBg, alpha: parseAlphaFromColor(numBg) })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">글자색</span>
-        ${colorFieldHTML({ idPrefix: 'stb-num-color', hex: numColor, alpha: parseAlphaFromColor(numColor) })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="stb-num-size-slider" min="20" max="80" step="2" value="${numSize}">
-        <input type="number" class="prop-number" id="stb-num-size-number" min="20" max="80" value="${numSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">배지 간격</span>
-        <input type="range" class="prop-slider" id="stb-badge-gap-slider" min="4" max="200" step="4" value="${badgeGap}">
-        <input type="number" class="prop-number" id="stb-badge-gap-number" min="4" max="200" value="${badgeGap}">
-      </div>
-      <div class="prop-row" title="시작: 이 step-block의 첫 번호 (다른 step-block과 01/02/03 순차 표시) · 형식: 배지 표기 방식">
-        <span class="prop-label" style="width:auto;flex:0 0 auto">시작</span>
-        <input type="number" class="prop-number" id="stb-start-number" min="1" max="99" value="${parseInt(block.dataset.startNumber) || 1}" style="width:44px;flex:0 0 auto">
-        <select id="stb-badge-fmt-select" class="prop-select" style="flex:1;min-width:0;margin-left:4px">
-          <option value="number"  ${badgeFormat === 'number'  ? 'selected' : ''}>1, 2, 3</option>
-          <option value="padded"  ${badgeFormat === 'padded'  ? 'selected' : ''}>01, 02, 03</option>
-          <option value="alpha"   ${badgeFormat === 'alpha'   ? 'selected' : ''}>A, B, C</option>
-          <option value="step"    ${badgeFormat === 'step'    ? 'selected' : ''}>STEP 01</option>
-          <option value="point"   ${badgeFormat === 'point'   ? 'selected' : ''}>POINT 01</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Text</div>
-      <div class="prop-row">
-        <span class="prop-label">제목 색</span>
-        ${colorFieldHTML({ idPrefix: 'stb-title-color', hex: titleColor, alpha: parseAlphaFromColor(titleColor) })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">설명 색</span>
-        ${colorFieldHTML({ idPrefix: 'stb-desc-color', hex: descColor, alpha: parseAlphaFromColor(descColor) })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">제목 크기</span>
-        <input type="range" class="prop-slider" id="stb-title-size-slider" min="12" max="80" step="1" value="${titleSize}">
-        <input type="number" class="prop-number" id="stb-title-size-number" min="12" max="80" value="${titleSize}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">설명 크기</span>
-        <input type="range" class="prop-slider" id="stb-desc-size-slider" min="10" max="64" step="1" value="${descSize}">
-        <input type="number" class="prop-number" id="stb-desc-size-number" min="10" max="64" value="${descSize}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Layout</div>
       <div class="prop-row">
         <span class="prop-label">간격</span>
         <input type="range" class="prop-slider" id="stb-gap-slider" min="8" max="200" step="4" value="${gap}">
         <input type="number" class="prop-number" id="stb-gap-number" min="8" max="200" value="${gap}">
       </div>
-      <div class="prop-ph-header">
-        <span class="prop-section-title" style="margin-bottom:0">L/R Padding</span>
-        <button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 연동">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>
-        </button>
-      </div>
       <div class="prop-row">
-        <span class="prop-label" style="width:60px">왼쪽</span>
-        <input type="range" class="prop-slider" id="stb-padl-slider" min="0" max="300" step="4" value="${stepPadL}">
-        <input type="number" class="prop-number" id="stb-padl-number" min="0" max="300" value="${stepPadL}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:60px">오른쪽</span>
-        <input type="range" class="prop-slider" id="stb-padr-slider" min="0" max="300" step="4" value="${stepPadR}">
-        <input type="number" class="prop-number" id="stb-padr-number" min="0" max="300" value="${stepPadR}">
+        <span class="prop-label">배지 간격</span>
+        <input type="range" class="prop-slider" id="stb-badge-gap-slider" min="4" max="200" step="4" value="${badgeGap}">
+        <input type="number" class="prop-number" id="stb-badge-gap-number" min="4" max="200" value="${badgeGap}">
       </div>
       <div class="prop-row">
         <span class="prop-label">연결선</span>
@@ -227,18 +157,68 @@ ${blockHeaderHTML({
           <option value="arrow"   ${connectorStyle === 'arrow'   ? 'selected' : ''}>화살표</option>
           <option value="divider" ${connectorStyle === 'divider' ? 'selected' : ''}>가로 구분선</option>
         </select>
+      </div>`),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">왼쪽</span>
+        <input type="range" class="prop-slider" id="stb-padl-slider" min="0" max="300" step="4" value="${stepPadL}">
+        <input type="number" class="prop-number" id="stb-padl-number" min="0" max="300" value="${stepPadL}">
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div style="display:flex;align-items:center;margin-bottom:4px">
-        <span class="prop-section-title" style="margin-bottom:0;flex:1">Steps</span>
-        <button class="prop-btn" id="stb-add-step" style="padding:3px 6px;line-height:0" title="스텝 추가"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="5.5" y1="1" x2="5.5" y2="10"/><line x1="1" y1="5.5" x2="10" y2="5.5"/></svg></button>
+      <div class="prop-row">
+        <span class="prop-label">오른쪽</span>
+        <input type="range" class="prop-slider" id="stb-padr-slider" min="0" max="300" step="4" value="${stepPadR}">
+        <input type="number" class="prop-number" id="stb-padr-number" min="0" max="300" value="${stepPadR}">
+      </div>`, {
+        headTools: `<button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 연동">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>
+        </button>`,
+      }),
+      sec('typography', `
+      <div class="prop-row">
+        <span class="prop-label">제목 크기</span>
+        <input type="range" class="prop-slider" id="stb-title-size-slider" min="12" max="80" step="1" value="${titleSize}">
+        <input type="number" class="prop-number" id="stb-title-size-number" min="12" max="80" value="${titleSize}">
       </div>
-      ${chipStrip}
-      <div id="stb-steps-list">${stepsHtml()}</div>
-    </div>
-  `;
+      <div class="prop-row">
+        <span class="prop-label">설명 크기</span>
+        <input type="range" class="prop-slider" id="stb-desc-size-slider" min="10" max="64" step="1" value="${descSize}">
+        <input type="number" class="prop-number" id="stb-desc-size-number" min="10" max="64" value="${descSize}">
+      </div>`),
+      sec('fill', `
+      <div class="prop-row" id="stb-card-bg-row" style="display:${stepStyle === 'card' ? 'flex' : 'none'}">
+        <span class="prop-label">카드 배경</span>
+        ${colorFieldHTML({ idPrefix: 'stb-card-bg', hex: stepCardBg, alpha: parseAlphaFromColor(stepCardBg) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">배지 배경</span>
+        ${colorFieldHTML({ idPrefix: 'stb-num-bg', hex: numBg, alpha: parseAlphaFromColor(numBg) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">배지 글자</span>
+        ${colorFieldHTML({ idPrefix: 'stb-num-color', hex: numColor, alpha: parseAlphaFromColor(numColor) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">제목 색</span>
+        ${colorFieldHTML({ idPrefix: 'stb-title-color', hex: titleColor, alpha: parseAlphaFromColor(titleColor) })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">설명 색</span>
+        ${colorFieldHTML({ idPrefix: 'stb-desc-color', hex: descColor, alpha: parseAlphaFromColor(descColor) })}
+      </div>`),
+      sec('special', `
+      <div class="prop-row" title="시작: 이 step-block의 첫 번호 (다른 step-block과 01/02/03 순차 표시) · 형식: 배지 표기 방식">
+        <span class="prop-label" style="width:auto;flex:0 0 auto">시작</span>
+        <input type="number" class="prop-number" id="stb-start-number" min="1" max="99" value="${parseInt(block.dataset.startNumber) || 1}" style="width:44px;flex:0 0 auto">
+        <select id="stb-badge-fmt-select" class="prop-select" style="flex:1;min-width:0;margin-left:4px">
+          <option value="number"  ${badgeFormat === 'number'  ? 'selected' : ''}>1, 2, 3</option>
+          <option value="padded"  ${badgeFormat === 'padded'  ? 'selected' : ''}>01, 02, 03</option>
+          <option value="alpha"   ${badgeFormat === 'alpha'   ? 'selected' : ''}>A, B, C</option>
+          <option value="step"    ${badgeFormat === 'step'    ? 'selected' : ''}>STEP 01</option>
+          <option value="point"   ${badgeFormat === 'point'   ? 'selected' : ''}>POINT 01</option>
+        </select>
+      </div>`, { title: 'Badge' }),
+    ],
+  });
 
   // ⚠️renderStepBlock은 innerHTML을 통째로 갈아끼운다 → 선택 스텝 아웃라인 마커도 같이 날아간다.
   //   모든 재렌더 경로가 이 헬퍼를 통과하므로 여기서 한 번만 복구한다(bn2 rerender와 동일 규약).
@@ -462,6 +442,7 @@ ${blockHeaderHTML({
   });
 
   propPanel.querySelector('#stb-add-step').addEventListener('click', () => {
+    expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
     // ★UI도 API(updateStepBlock, step-block.js:419)와 같은 상한(10) — QA 실측(적대적 QA)
     //   에서 UI만 무제한이라 36개까지 만들어져 상태 불일치가 났다(2026-09-15).
     if (steps.length >= 10) { window.showToast?.('스텝은 최대 10개까지입니다'); return; }

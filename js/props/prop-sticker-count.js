@@ -106,7 +106,8 @@ function glyphButtonsHTML(active) {
           </button>`).join('');
 }
 
-export function countSectionHTML(block) {
+/** 절 조각 — { key: html, special: [[제목, html, opts]] } (prop-sticker.js 가 key 별로 모은다 · U5) */
+export function countSections(block) {
   const d = block.dataset;
   const style = styleOf(d.countStyle);
   const isIcon = style === 'icon';
@@ -121,15 +122,11 @@ export function countSectionHTML(block) {
   const labelPos = lk.pos, labelSize = clamp(lk.size, FS_MIN, FS_MAX), labelColor = lk.color, labelWeight = lk.weight;
   /* 사각 모서리(data-count-radius = 한 변의 % · 없으면 옛 고정 8px) — 칸에는 지금 그려진 값에 가장 가까운 % 를 보인다 */
   const radiusPct = radiusOf(block);
-  return `
-    <div class="prop-section" id="stk-count-section">
-      <div class="prop-section-title">Marking</div>
-      <div class="prop-row"><span class="prop-label">섹션 전체</span>
-        <label class="prop-toggle" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)">
-          <input type="checkbox" id="stk-count-group" aria-label="섹션 전체에 적용"${_groupOn ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
+  /* ★U5 — 옛 한 절(Marking + Label)을 속성마다 제 절로 나눈다(_section-spec OWNERSHIP). 번호 매기기 동작(섹션 전체·시작 번호·
+     다시 매기기)만 블록 고유 «Marking» 절로 남긴다 — 절 id 는 옛 그대로(stk-count-section). 라벨 칸은 다른 절의 같은 이름 행과
+     갈리게 「라벨 ~」 으로 부른다. */
+  return {
+    kind: `
       <div class="prop-row"><span class="prop-label">표기</span>
         <div class="prop-align-group" id="stk-count-style">
           <button class="prop-align-btn${on(style === 'num')}" data-count-style="num" title="숫자 (1 · 2 · 3)">1</button>
@@ -160,23 +157,6 @@ export function countSectionHTML(block) {
           </button>
         </div>
       </div>
-      <div class="prop-row" id="stk-count-radius-row" style="display:${shape === 'square' ? 'flex' : 'none'};"><span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="stk-count-radius" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="1" value="${radiusPct}" title="사각 모서리의 둥글기 — 짧은 변의 % (50 = 반원 끝)">
-        <input type="number" class="prop-number" id="stk-count-radius-num" min="${RADIUS_MIN}" max="${RADIUS_MAX}" value="${radiusPct}" aria-label="모서리 %">
-      </div>
-      <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
-        <input type="number" class="prop-number" id="stk-count-start" min="${START_MIN}" max="${START_MAX}" step="1" value="${start}" title="이 섹션의 첫 번호 (알파벳 표기에서는 1 = A)">
-      </div>
-      <div class="prop-row"><span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="stk-count-size" min="${SIZE_MIN}" max="${SIZE_MAX}" step="1" value="${size}">
-        <input type="number" class="prop-number" id="stk-count-size-num" min="${SIZE_MIN}" max="${SIZE_MAX}" value="${size}">
-      </div>
-      <div class="prop-row" id="stk-count-renumber-row" style="display:${isIcon ? 'none' : 'flex'};">
-        <!-- ★1017t1j3 — 사람의 삭제 경로(마커 하나 Delete · ⌘A→Delete · deleteBlock)는 이제 자동으로 당긴다
-             (js/count-sticker-tool.js countStickerRenumberSections). 이 단추는 그 경로가 못 닿는 자리를
-             위해 ⛔지우지 않고 남긴다 — 붙여넣기·되돌리기·옛 저장본처럼 번호가 비어 «남은» 경우용. -->
-        <button class="prop-action-btn" id="stk-count-renumber" title="붙여넣기·되돌리기·옛 저장본처럼 번호가 비어 남았을 때 1부터 다시 매긴다">번호 다시 매기기</button>
-      </div>
       <!-- ★프리셋 title 은 ★값의 둘째 명부다(1013t2 D2 이후 한 번 썩었다 — 코드는 고치고 title 은 안 고쳤다).
            ★값은 js/count-sticker-tool.js COUNT_STK_PRESETS 가 정본 — 여기 title 은 그 값을 «말로」 베낀 것뿐이니
            프리셋 값을 고치면 이 title 도 같이 고쳐라(tests/unit/marking-glyph.test.mjs G5 가 둘을 맞댄다). -->
@@ -187,10 +167,9 @@ export function countSectionHTML(block) {
         <button class="prop-preset-btn" data-count-preset="point" title="포인트 — 둥근 네모(모서리 25%) · 검정 배경 · 흰 꺾쇠 아이콘 + 흰 라벨 글자(라벨이 없을 때) (이 섹션의 마킹 전부)">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><polyline points="7 5.5 9.5 8 7 10.5"/></svg><span>포인트</span>
         </button>
-      </div>
-    </div>
-    <div class="prop-section" id="stk-count-label-section">
-      <div class="prop-section-title">Label</div>
+      </div>`,
+    content: `
+    <div id="stk-count-label-section">
       <div class="prop-row">
         <textarea class="prop-textarea" id="stk-count-label" rows="2" placeholder="마커 옆에 붙는 글자 (비우면 라벨 없음)" aria-label="라벨 글자"></textarea>
       </div>
@@ -210,21 +189,51 @@ export function countSectionHTML(block) {
           </button>
         </div>
       </div>
+    </div>`,
+    size: `
       <div class="prop-row"><span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="stk-count-size" min="${SIZE_MIN}" max="${SIZE_MAX}" step="1" value="${size}">
+        <input type="number" class="prop-number" id="stk-count-size-num" min="${SIZE_MIN}" max="${SIZE_MAX}" value="${size}">
+      </div>`,
+    // 모서리는 사각에만 — 원·투명이면 절째 없다(빈 Appearance 머리 방지 · 모양 칩이 패널을 다시 그린다)
+    appearance: shape !== 'square' ? '' : `
+      <div class="prop-row" id="stk-count-radius-row"><span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="stk-count-radius" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="1" value="${radiusPct}" title="사각 모서리의 둥글기 — 짧은 변의 % (50 = 반원 끝)">
+        <input type="number" class="prop-number" id="stk-count-radius-num" min="${RADIUS_MIN}" max="${RADIUS_MAX}" value="${radiusPct}" aria-label="모서리 %">
+      </div>`,
+    typography: `
+      <div class="prop-row"><span class="prop-label">라벨 크기</span>
         <input type="range" class="prop-slider" id="stk-count-label-size" min="${FS_MIN}" max="${FS_MAX}" step="1" value="${labelSize}">
         <input type="number" class="prop-number" id="stk-count-label-size-num" min="${FS_MIN}" max="${FS_MAX}" value="${labelSize}">
       </div>
-      <div class="prop-row"><span class="prop-label">굵기</span>
+      <div class="prop-row"><span class="prop-label">라벨 굵기</span>
         <select class="prop-select" id="stk-count-label-weight" aria-label="라벨 굵기">
           ${labelWeightOptions(labelWeight)
             .map(([w, t]) => `<option value="${w}"${labelWeight === w ? ' selected' : ''}>${t}</option>`).join('')}
         </select>
-      </div>
+      </div>`,
+    fill: `
       <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
+        <span class="prop-label">라벨 색</span>
         ${colorFieldHTML({ idPrefix: 'stk-clabel', hex: labelColor, alpha: parseAlphaFromColor(labelColor) })}
+      </div>`,
+    special: [['Marking', `
+      <div class="prop-row"><span class="prop-label">섹션 전체</span>
+        <label class="prop-toggle" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)">
+          <input type="checkbox" id="stk-count-group" aria-label="섹션 전체에 적용"${_groupOn ? ' checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
-    </div>`;
+      <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
+        <input type="number" class="prop-number" id="stk-count-start" min="${START_MIN}" max="${START_MAX}" step="1" value="${start}" title="이 섹션의 첫 번호 (알파벳 표기에서는 1 = A)">
+      </div>
+      <div class="prop-row" id="stk-count-renumber-row" style="display:${isIcon ? 'none' : 'flex'};">
+        <!-- ★1017t1j3 — 사람의 삭제 경로(마커 하나 Delete · ⌘A→Delete · deleteBlock)는 이제 자동으로 당긴다
+             (js/count-sticker-tool.js countStickerRenumberSections). 이 단추는 그 경로가 못 닿는 자리를
+             위해 ⛔지우지 않고 남긴다 — 붙여넣기·되돌리기·옛 저장본처럼 번호가 비어 «남은» 경우용. -->
+        <button class="prop-action-btn" id="stk-count-renumber" title="붙여넣기·되돌리기·옛 저장본처럼 번호가 비어 남았을 때 1부터 다시 매긴다">번호 다시 매기기</button>
+      </div>`, { id: 'stk-count-section' }]],
+  };
 }
 
 /** @param {HTMLElement} panel  propPanel · @param {Function} rerender  renderStickerBlock + rememberStickerStyle */

@@ -55,16 +55,16 @@ function syncCoinPosFields(block) {
 }
 if (typeof window !== 'undefined') window._syncCoinPosFields = syncCoinPosFields;
 
-export function coinSectionHTML(block) {
+/** 절 조각 — { position, special: [[제목, html]] } (prop-sticker.js 가 key 별로 모은다 · U5). 옛 절 id 는 안쪽 감싸개로 남긴다 */
+export function coinSections(block) {
   const d = block.dataset;
   const seed = seedOf(d.seed) ?? 1;
   const locked = isLocked(block);
   const off = locked ? ' disabled' : '';
   const [x, y] = posOf(block), r = keepRange(block);
   const hint = '섹션 밖으로 나가도 코인의 10% 는 섹션 안에 남는다 · 밖으로 나간 부분은 잘려 보인다';
-  return `
-    <div class="prop-section" id="stk-coin-pos-section">
-      <div class="prop-section-title">Position</div>
+  const position = `
+    <div id="stk-coin-pos-section">
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
           <div class="prop-icon-input" title="${hint}">
@@ -79,9 +79,9 @@ export function coinSectionHTML(block) {
           </div>
         </div>
       </div>
-    </div>
-    <div class="prop-section" id="stk-coin-section">
-      <div class="prop-section-title">Coin</div>
+    </div>`;
+  const special = `
+    <div id="stk-coin-section">
       <div class="prop-row">
         <button class="prop-action-btn" id="stk-coin-reroll" style="width:100%;" title="보는 각도만 새로 뽑는다(자리·크기·색은 그대로)"${off}>다시뽑기</button>
       </div>
@@ -96,6 +96,7 @@ ${coinLookHTML('stk-coin', lookOf(d))}
         </label>
       </div>
     </div>`;
+  return { position, special: [['Coin', special]] };
 }
 
 /** @param {HTMLElement} panel  propPanel · @param {Function} rerender  renderStickerBlock + rememberStickerStyle */

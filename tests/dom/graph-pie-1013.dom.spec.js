@@ -1357,7 +1357,8 @@ test('J16 안내 줄은 다른 블럭의 숫자로 덮이지 않는다 — A(숨
 
 /* ── C7 그림자(dataset.dropShadow 'soft' / 'strong' · 없음 = 키 없음) ── 칠하는 자리 = CSS(.grb-pie-svg 의 filter). 그림(innerHTML)은 안 바뀐다. */
 const filterOf = (page, id, sel = '.grb-pie-svg') => page.evaluate(([id, sel]) => { const e = document.getElementById(id).querySelector(sel); return e ? getComputedStyle(e).filter : null; }, [id, sel]);
-const dropGroup = (page) => page.evaluate(() => { const g = document.getElementById('grb-drop-group'); return g ? { title: g.closest('.prop-section').querySelector('.prop-section-title').textContent.trim(),
+/* ★right-panel-unify U5(261113) — 그림자는 정본 «Effects» 절(data-sec=effects)에 산다(옛 제목 「Shadow」). 양성대조: prop-graph.js 의 sec('effects', … pieShadowSectionHTML) 를 다른 key 로 바꾸면 빨강. */
+const dropGroup = (page) => page.evaluate(() => { const g = document.getElementById('grb-drop-group'); return g ? { title: g.closest('.prop-section[data-sec]')?.dataset.sec ?? null,
   btns: [...g.querySelectorAll('.prop-align-btn')].map(b => [b.dataset.val, b.textContent.trim()]), active: [...g.querySelectorAll('.prop-align-btn.active')].map(b => b.dataset.val) } : null; });
 test('K1 그림자 — Shadow 절의 없음/부드럽게/강하게가 svg 에 그림자를 건다 · 없음 = 키 삭제 · 그림(innerHTML)은 한 글자도 안 바뀐다 · ⌘Z · 저장본에 키가 실린다', async ({ page }) => {
   const { errs, id } = await setup(page, { type: 'pie', items: V3 });
@@ -1365,7 +1366,7 @@ test('K1 그림자 — Shadow 절의 없음/부드럽게/강하게가 svg 에 �
   expect(await filterOf(page, id), '전제: 그림자 없음').toBe('none');
   const html0 = await htmlOf(page, id);
   await openPanel(page, id);
-  expect(await dropGroup(page), 'Shadow 절 — 세 단계 · 「없음」이 켜져 있다').toEqual({ title: 'Shadow', btns: [['none', '없음'], ['soft', '부드럽게'], ['strong', '강하게']], active: ['none'] });
+  expect(await dropGroup(page), 'Shadow 절 — 세 단계 · 「없음」이 켜져 있다').toEqual({ title: 'effects', btns: [['none', '없음'], ['soft', '부드럽게'], ['strong', '강하게']], active: ['none'] });
   await page.locator('#grb-drop-group .prop-align-btn[data-val="soft"]').click();
   await expect.poll(() => ds(page, id, 'dropShadow')).toBe('soft');
   const fSoft = await filterOf(page, id);

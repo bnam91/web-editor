@@ -7,7 +7,7 @@
  *   B7-0 키 없으면 «고치기 전 판(36cbe872)이 낸 innerHTML» 과 바이트까지 같다 — 골든 fixtures/graph-vpair-pin-golden.json(핀에서 뽑음)
  *        ★E99 U26 ⒜(2026-10-05 지디): 두께 키가 없어도 막대 24px — 골든을 새 판에서 다시 뽑았다. 옛 골든과의 차이는 «추가뿐»
  *        (막대 `width:24px;max-width:100%;margin:0 auto;` · 칸 ` style="min-width:0;"`) — 판정기 tests/dom/_u26-delta.js 로 단언(손눈 대조 아님).
- *   B7-1 절·줄: «Bar Settings» 절 하나 · 늘 있는 줄 넷(두께·좌우 패딩·항목 간격·숫자 크기) · 조건부 줄 둘(마디 간격·경계 물결 — 세로 막대에서만 · 02feabc5 · prop-graph.js barSettingsHTML segGap != null) · 바 색상은 bar-v 에만 / pair 는 #grb-bar-color «하나»(Pair Settings 것)
+ *   B7-1 절·줄(★U5 261113 의도 갱신 — 정본 절로 나뉨): «Bar Settings» 절 하나 · 늘 있는 줄 넷(두께·좌우 패딩·항목 간격·숫자 크기) · 조건부 줄 둘(마디 간격·경계 물결 — 세로 막대에서만 · 02feabc5 · prop-graph.js barSettingsHTML segGap != null) · 바 색상은 bar-v 에만 / pair 는 #grb-bar-color «하나»(Pair Settings 것)
  *   B7-2 computed — gap·padding·fill 폭·값 글자 크기가 입력대로 (세로·비교 둘)
  *   B7-3 저장 왕복 — 직렬화→복원 뒤에도 dataset·computed 유지
  *   B7-4 PNG 픽셀 — 제품 캡처 파이프라인을 지나 바 색 화소 수가 두께대로 는다(선례 grid-export-nested-depth2 exportPixels)
@@ -75,30 +75,30 @@ for (const type of TYPES) {
     expect(errs, errs.join('\n')).toEqual([]);
   });
 
-  test(`B7-1 [${type}] 패널 — Bar Settings 절 하나·줄 넷, 바 색상은 ${type === 'bar-v' ? '있다' : '없다(#grb-bar-color 는 Pair Settings 의 하나뿐)'}`, async ({ page }) => {
+  /* ★right-panel-unify U5(261113) «의도 갱신» — 옛 「Bar Settings」 한 절은 속성의 정본 절로 나뉘었다(두께 = size · 좌우 패딩 = padding ·
+   *   항목/마디 간격·경계 물결 = layout · 숫자 크기 = typography · 바 색상 = fill). 지키는 뜻은 그대로: 줄 넷은 늘 있고, 조건부 둘은 세로 막대에만,
+   *   #grb-bar-color 는 패널에 하나(세로 = 막대 색 · 비교 = Pair 의 색상 A), 중복 id 0.
+   * 양성대조: ⑴ prop-graph.js barSettingsHTML 의 padding 조각을 size 로 합치면 secs 단언 빨강 ⑵ segGap 조건(_segOn)을 떼면 비교 막대의 조건부 줄 단언 빨강. */
+  test(`B7-1 [${type}] 패널 — 막대 줄 넷이 제 절에 · 조건부 줄 둘은 세로에만 · 바 색상은 ${type === 'bar-v' ? 'Fill 에 하나' : '없다(#grb-bar-color 는 Pair 색상 A 하나뿐)'}`, async ({ page }) => {
     const errs = await setup(page, type);
     await openPanel(page);
     const r = await page.evaluate(() => {
-      const titles = [...document.querySelectorAll('#panel-right .prop-section-title')].filter(t => t.textContent.trim() === 'Bar Settings');
-      const sec = titles[0]?.closest('.prop-section');
-      const labels = sec ? [...sec.querySelectorAll('.prop-label')].map(l => l.textContent.trim()) : [];
+      const secOf = (id) => document.getElementById(id)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null;
       return {
-        n: titles.length, labels,
-        colorInSec: sec ? sec.querySelectorAll('#grb-bar-color').length : -1,
+        secs: ['grb-bar-thickness-slider', 'grb-padx-slider', 'grb-item-gap-slider', 'grb-pct-size-slider'].map(secOf),
+        seg: ['grb-seg-gap-slider', 'grb-seg-wave-toggle'].map(secOf),
         colorAll: document.querySelectorAll('#grb-bar-color').length,
+        colorSec: secOf('grb-bar-color'),
+        barRowLabel: document.getElementById('grb-bar-color')?.closest('.prop-row')?.querySelector('.prop-label')?.textContent.trim() ?? null,
         dupIds: [...document.querySelectorAll('#panel-right [id]')].map(e => e.id).filter((id, i, a) => a.indexOf(id) !== i),
-        sliders: ['grb-bar-thickness-slider', 'grb-padx-slider', 'grb-item-gap-slider', 'grb-pct-size-slider'].map(id => !!document.getElementById(id)),
       };
     });
-    expect(r.n, 'Bar Settings 절이 하나여야 한다').toBe(1);
-    /* ★늘 있는 줄과 조건부 줄을 갈라 잰다 — 조건부 둘은 세로 막대(_segOn)에서만 뜬다 · 비교 막대엔 0 이 음성대조. */
-    const SEG_ROWS = ['마디 간격', '경계 물결'];
-    expect(r.labels.filter(l => !SEG_ROWS.includes(l)).slice(0, 4), '늘 있는 줄 넷').toEqual(['두께', '좌우 패딩', '항목 간격', '숫자 크기']);
-    expect(r.labels.filter(l => SEG_ROWS.includes(l)), type === 'bar-v' ? '세로: 조건부 줄 둘' : '비교: 조건부 줄 0').toEqual(type === 'bar-v' ? SEG_ROWS : []);
-    expect(r.sliders).toEqual([true, true, true, true]);
+    expect(r.secs, '늘 있는 줄 넷 — 두께·좌우 패딩·항목 간격·숫자 크기가 제 절에').toEqual(['size', 'padding', 'layout', 'typography']);
+    expect(r.seg, type === 'bar-v' ? '세로: 조건부 줄 둘(Layout)' : '비교: 조건부 줄 0').toEqual(type === 'bar-v' ? ['layout', 'layout'] : [null, null]);
     expect(r.dupIds, '중복 id').toEqual([]);
     expect(r.colorAll, '#grb-bar-color 는 패널 전체에서 하나').toBe(1);
-    expect(r.colorInSec, type === 'bar-v' ? '세로: Bar Settings 안에 바 색상' : '비교: Bar Settings 안엔 바 색상 없음').toBe(type === 'bar-v' ? 1 : 0);
+    expect(r.colorSec, '#grb-bar-color 는 Fill 절').toBe('fill');
+    expect(r.barRowLabel, type === 'bar-v' ? '세로: 막대 색 줄' : '비교: Pair 의 색상 A').toBe(type === 'bar-v' ? '바 색상' : '색상 A');
     expect(errs, errs.join('\n')).toEqual([]);
   });
 

@@ -21,8 +21,7 @@ export function glowSectionHTML(block) {
   const raysOn = kind !== 'dot';
   const kinds = (window.GlowFx && window.GlowFx.KINDS) || ['star', 'flare', 'dot'];
   return `
-    <div class="prop-section" id="stk-glow-section">
-      <div class="prop-section-title">Glow</div>
+    <div id="stk-glow-section">
       <div class="prop-row">
         <div class="prop-align-group" id="stk-glow-kind">
           ${kinds.map(k => `<button class="prop-align-btn${k === kind ? ' active' : ''}" data-fx-kind="${k}" title="${KIND_LABEL[k] || k}">${KIND_LABEL[k] || k}</button>`).join('')}

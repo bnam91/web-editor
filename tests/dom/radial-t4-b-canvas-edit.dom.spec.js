@@ -305,7 +305,7 @@ test.describe('S6 t4 ⒝ radial 캔버스 편집 · 가운데 지우기 · 체�
     expect(errs, 'pageerror').toEqual([]);
   });
 
-  test('B3 패널에 Data 절이 없다 · 전체 되돌리기는 Shape 절로', async ({ page }) => {
+  test('B3 패널에 Data 절이 없다 · 전체 되돌리기는 모양(Type) 절로', async ({ page }) => {
     const { errs, id } = await makeRadial(page);
     await scene('패널 머리 id = 블럭 · #rdl-shape-group 있음', async () => {
       expect(await page.evaluate(() => document.querySelector('#panel-right .prop-block-id')?.dataset.copyId), '패널 머리 id').toBe(id);
@@ -317,13 +317,14 @@ test.describe('S6 t4 ⒝ radial 캔버스 편집 · 가운데 지우기 · 체�
         const ra = [...P.querySelectorAll('#rdl-reset-all')];
         return { titles: [...P.querySelectorAll('.prop-section-title')].map((t) => t.textContent.trim()),
           list: P.querySelectorAll('#rdl-data-list').length, add: P.querySelectorAll('#rdl-add-item').length, ra: ra.length,
-          raSec: ra[0]?.closest('.prop-section')?.querySelector('.prop-section-title')?.textContent.trim() || null,
+          raSec: ra[0]?.closest('.prop-section[data-sec]')?.dataset.sec || null,   // U5: 옛 「Shape」 절 = 틀의 kind(Type) 절
           hint: (P.textContent.match(new RegExp(hint.replace(/[()]/g, '\\$&'), 'g')) || []).length };
       }, OLD_DATA_HINT);
       expect(m.titles.filter((t) => t === 'Data'), '「Data」 절 제목 0').toEqual([]);
       expect([m.list, m.add], '#rdl-data-list 0 · #rdl-add-item 0').toEqual([0, 0]);
       expect(m.ra, '#rdl-reset-all 정확히 1').toBe(1);
-      expect(m.raSec, '#rdl-reset-all 이 「Shape」 절 안').toBe('Shape');
+      // ⇐ 되돌리기(U5): prop-radial.js 의 reset-all 줄을 다른 sec(...) 로 옮기면 빨강
+      expect(m.raSec, '#rdl-reset-all 이 모양(kind · Type) 절 안').toBe('kind');
       expect(m.hint, 'Data 힌트 0').toBe(0);
     });
     expect(errs, 'pageerror').toEqual([]);

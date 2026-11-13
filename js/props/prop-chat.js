@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { buildTypographySectionHtml } from './_typo-section.js';   // ⛔글자 크기 칸을 «손으로» 만들지 마라 — 정본은 여기 하나다(tests/unit/typo-section-ssot.test.mjs T2)
 import { CHAT_NUM_BOUNDS } from '../blocks/chat-bounds.js';
@@ -135,7 +136,7 @@ export function showChatProperties(block) {
           <input type="file" class="chb-profile-file" data-idx="${i}" accept="image/*" style="display:none">
         </div>` : '';
       return `
-      <div class="chb-prop-item" data-idx="${i}"
+      <div class="chb-prop-item" data-sec-item data-idx="${i}"
         style="margin-bottom:8px;padding:8px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px">
         <div style="display:flex;align-items:center;gap:6px">
           <div style="display:flex;gap:2px">
@@ -156,9 +157,11 @@ export function showChatProperties(block) {
     }).join('');
   }
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* U5 — 공용 Typography 절은 아직 자기 껍데기(prop-section·제목)를 들고 온다(_typo-section.js · U2 몫) — 틀 절 안에선 몸통만.
+     shortcut: 문자열 벗기기 · U2 가 몸통만 내게 바꾸면 이 replace 는 아무 일도 안 한다(그때 지운다). */
+  const _bodyOnly = (h) => h.replace(/^\s*<div class="prop-section">\s*<div class="prop-section-title">[^<]*<\/div>/, '<div>');
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <path d="M1 2a1 1 0 011-1h8a1 1 0 011 1v6a1 1 0 01-1 1H7l-2 2V9H2a1 1 0 01-1-1V2z"/>
           </svg>`,
@@ -166,48 +169,31 @@ ${blockHeaderHTML({
       defaultName: 'Chat Block',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    ${/* ★⒝(2026-10-06 · 지디 GO) — 「폰트 크기」가 여기 «손으로 만든 숫자칸»이었다(min 10 · max 60).
-          ⛔그게 ㉡ 복사본이었다: 절의 정본은 _typo-section.js 하나이고 텍스트·모달·그리드가 그걸 쓴다.
-            챗만 날 <input> 을 들고 있어서 ⑴슬라이더도 폰트도 굵기도 없고 ⑵모델이 받는 4~400 중 «10~60 만» 열려 있었다
-            (chat-block.js :503 `_setInt('fontSize','fontSize',4,400)`). ⇒ 사람은 60 까지, MCP 는 400 까지 — 패널이 340 을 가렸다.
-          ★★왜 아무 검사도 안 빨개졌나 — typo-section-ssot 의 PANELS 가 «셋»이었고 `assert.equal(PANELS.length, 3)` 이
-            그 셋을 못박았다. prop-chat.js 는 ★분모 밖이라, 「절을 베끼지 마라」 검사가 초록인 채로 사본이 살았다.
-            ⇒ 그 명부에 챗을 넣었다(이제 넷). ★「검사가 있다」는 «그 분모 안에서만» 참이다.
-          ⛔renderChatBlock 이 읽는 글자 값은 dataset.fontSize «하나»다(chat-block.js :47 → :127 의 font-size).
-            그래서 Font 피커·굵기·B/I/S/H·줄간격·자간을 «끈다» — 펴 두면 「눌리는데 아무 일도 안 난다」가 된다
-            (그리드의 showHighlight:false 가 같은 까닭으로 같은 일을 한다 — prop-grid.js).
-            ⇒ 그 넷을 켜려면 렌더러가 새 dataset 키를 «읽기 시작»해야 한다. 그건 별건 발주다. */''}
-    ${buildTypographySectionHtml({
-      p: 'chb-typo',
-      size: fontSize,
-      sizeMin: CHB_FONT_MIN, sizeMax: CHB_FONT_MAX,
-      showFont: false, showWeight: false, showStyleGroup: false,
-      showLetterSpacing: false, showLineHeight: false, showHighlight: false,
-    })}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Style</div>
-      <div class="prop-row">
-        <span class="prop-label">말풍선 곡률</span>
-        <input type="number" id="chb-radius" class="prop-color-hex" value="${radius}" min="${B.radius.min}" max="${B.radius.max}" style="width:60px">
+    }),
+    /* 옛 Style·Color·Profile·Messages → 소유 절: 메시지·프로필 켜기 = Content · 말풍선 폭·꼬리·프로필 크기 = Size · 프로필 Y = Position ·
+       간격 = Layout · 패딩 = Padding · 곡률 = Appearance · 색 넷 = Fill */
+    sections: [
+      sec('content', `
+      <div class="prop-row" style="gap:12px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="chb-show-profile" ${showProfile ? 'checked' : ''}>
+          <span>프로필 이미지</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
+          <input type="checkbox" id="chb-show-name" ${showName ? 'checked' : ''}>
+          <span>이름 표시</span>
+        </label>
       </div>
+      <div id="chb-msg-list">${msgListHtml()}</div>
+      <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>`),
+      sec('position', `
       <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="number" id="chb-gap" class="prop-color-hex" value="${gap}" min="${B.gap.min}" max="${B.gap.max}" style="width:60px">
+        <span class="prop-label">프로필 Y</span>
+        <input type="range" class="prop-slider" id="chb-profile-y-range" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" value="${profileOffsetY}">
+        <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" style="width:54px">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">패딩</span>
-        <input type="range" class="prop-slider" id="chb-padding-range" min="${B.padding.min}" max="${B.padding.max}" value="${padding}">
-        <input type="number" class="prop-number" id="chb-padding-val" min="${B.padding.min}" max="${B.padding.max}" value="${padding}" style="width:54px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">말풍선 패딩</span>
-        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}">
-        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}" style="width:54px">
-      </div>
+`),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">말풍선 최대폭</span>
         <input type="range" class="prop-slider" id="chb-bubble-maxw-range" min="${B.bubbleMaxW.min}" max="${B.bubbleMaxW.max}" value="${bubbleMaxW}">
@@ -219,16 +205,66 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="chb-tail-val" min="${B.tailScale.min}" max="${B.tailScale.max}" value="${tailScale}" style="width:54px">
       </div>
       <div class="prop-row">
+        <span class="prop-label">프로필</span>
+        <input type="range" class="prop-slider" id="chb-profile-size-range" min="${B.profileSize.min}" max="${B.profileSize.max}" value="${profileSize}">
+        <input type="number" id="chb-profile-size-num" class="prop-number" value="${profileSize}" min="${B.profileSize.min}" max="${B.profileSize.max}" style="width:54px">
+      </div>
+`),
+      sec('layout', `
+      <div class="prop-row">
+        <span class="prop-label">간격</span>
+        <input type="number" id="chb-gap" class="prop-color-hex" value="${gap}" min="${B.gap.min}" max="${B.gap.max}" style="width:60px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">프로필 간격</span>
+        <input type="range" class="prop-slider" id="chb-profile-gap-range" min="${B.profileGap.min}" max="${B.profileGap.max}" value="${profileGap}">
+        <input type="number" id="chb-profile-gap-num" class="prop-number" value="${profileGap}" min="${B.profileGap.min}" max="${B.profileGap.max}" style="width:54px">
+      </div>
+`),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">패딩</span>
+        <input type="range" class="prop-slider" id="chb-padding-range" min="${B.padding.min}" max="${B.padding.max}" value="${padding}">
+        <input type="number" class="prop-number" id="chb-padding-val" min="${B.padding.min}" max="${B.padding.max}" value="${padding}" style="width:54px">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">말풍선 패딩</span>
+        <input type="range" class="prop-slider" id="chb-bubble-padding-range" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}">
+        <input type="number" class="prop-number" id="chb-bubble-padding-val" min="${B.bubblePadding.min}" max="${B.bubblePadding.max}" value="${bubblePadding}" style="width:54px">
+      </div>
+      <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
           <input type="checkbox" id="chb-fullbleed-toggle" ${fullBleed ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Color</div>
+`),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">말풍선 곡률</span>
+        <input type="number" id="chb-radius" class="prop-color-hex" value="${radius}" min="${B.radius.min}" max="${B.radius.max}" style="width:60px">
+      </div>
+`),
+      /* ★⒝(2026-10-06 · 지디 GO) — 「폰트 크기」가 여기 «손으로 만든 숫자칸»이었다(min 10 · max 60).
+          ⛔그게 ㉡ 복사본이었다: 절의 정본은 _typo-section.js 하나이고 텍스트·모달·그리드가 그걸 쓴다.
+            챗만 날 <input> 을 들고 있어서 ⑴슬라이더도 폰트도 굵기도 없고 ⑵모델이 받는 4~400 중 «10~60 만» 열려 있었다
+            (chat-block.js :503 `_setInt('fontSize','fontSize',4,400)`). ⇒ 사람은 60 까지, MCP 는 400 까지 — 패널이 340 을 가렸다.
+          ★★왜 아무 검사도 안 빨개졌나 — typo-section-ssot 의 PANELS 가 «셋»이었고 `assert.equal(PANELS.length, 3)` 이
+            그 셋을 못박았다. prop-chat.js 는 ★분모 밖이라, 「절을 베끼지 마라」 검사가 초록인 채로 사본이 살았다.
+            ⇒ 그 명부에 챗을 넣었다(이제 넷). ★「검사가 있다」는 «그 분모 안에서만» 참이다.
+          ⛔renderChatBlock 이 읽는 글자 값은 dataset.fontSize «하나»다(chat-block.js :47 → :127 의 font-size).
+            그래서 Font 피커·굵기·B/I/S/H·줄간격·자간을 «끈다» — 펴 두면 「눌리는데 아무 일도 안 난다」가 된다
+            (그리드의 showHighlight:false 가 같은 까닭으로 같은 일을 한다 — prop-grid.js).
+            ⇒ 그 넷을 켜려면 렌더러가 새 dataset 키를 «읽기 시작»해야 한다. 그건 별건 발주다. */
+      sec('typography', _bodyOnly(`${buildTypographySectionHtml({
+      p: 'chb-typo',
+      size: fontSize,
+      sizeMin: CHB_FONT_MIN, sizeMax: CHB_FONT_MAX,
+      showFont: false, showWeight: false, showStyleGroup: false,
+      showLetterSpacing: false, showLineHeight: false, showHighlight: false,
+    })}`)),
+      sec('fill', `
       <div class="prop-row">
         <span class="prop-label">좌측 배경</span>
         ${colorFieldHTML({ idPrefix: 'chb-bg-left', hex: bgLeft, alpha: bgLeftAlpha })}
@@ -244,44 +280,9 @@ ${blockHeaderHTML({
       <div class="prop-row">
         <span class="prop-label">우측 글자</span>
         ${colorFieldHTML({ idPrefix: 'chb-color-right', hex: colorRight, alpha: parseAlphaFromColor(colorRight) })}
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Profile</div>
-      <div class="prop-row" style="gap:12px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
-          <input type="checkbox" id="chb-show-profile" ${showProfile ? 'checked' : ''}>
-          <span>프로필 이미지</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
-          <input type="checkbox" id="chb-show-name" ${showName ? 'checked' : ''}>
-          <span>이름 표시</span>
-        </label>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="chb-profile-size-range" min="${B.profileSize.min}" max="${B.profileSize.max}" value="${profileSize}">
-        <input type="number" id="chb-profile-size-num" class="prop-number" value="${profileSize}" min="${B.profileSize.min}" max="${B.profileSize.max}" style="width:54px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">Y 위치</span>
-        <input type="range" class="prop-slider" id="chb-profile-y-range" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" value="${profileOffsetY}">
-        <input type="number" id="chb-profile-y-num" class="prop-number" value="${profileOffsetY}" min="${B.profileOffsetY.min}" max="${B.profileOffsetY.max}" style="width:54px">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">간격</span>
-        <input type="range" class="prop-slider" id="chb-profile-gap-range" min="${B.profileGap.min}" max="${B.profileGap.max}" value="${profileGap}">
-        <input type="number" id="chb-profile-gap-num" class="prop-number" value="${profileGap}" min="${B.profileGap.min}" max="${B.profileGap.max}" style="width:54px">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Messages</div>
-      <div id="chb-msg-list">${msgListHtml()}</div>
-      <button class="prop-btn-full" id="chb-add-msg" style="margin-top:6px">+ 대화 추가하기</button>
-    </div>
-  `;
+      </div>`),
+    ],
+  });
   fillProfileNames(propPanel);
 
   // ─── 프로필 토글 ───────────────────────────────────────────
@@ -590,6 +591,7 @@ ${blockHeaderHTML({
 
   // ─── 대화 추가 ───────────────────────────────────────────────
   propPanel.querySelector('#chb-add-msg').addEventListener('click', () => {
+    expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
     window.pushHistory?.();
     const lastAlign = messages.length ? messages[messages.length - 1].align : 'left';
     messages.push({ text: '새 대화', align: lastAlign === 'left' ? 'right' : 'left' });

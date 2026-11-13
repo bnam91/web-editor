@@ -45,7 +45,8 @@ function padTopBottom(v) {
 }
 
 /* ★제품 마크업에서 title-row 를 쓰는 자리 — ⛔tests/·docs/ 는 제품이 아니라 분모 밖이다. */
-const MARKUP_FILES = ['js/props/prop-sticker.js', 'js/props/prop-text-template.js', 'js/effects-registry.js'];
+/* ★U5(right-panel-unify): 스티커의 두 자리(Favorites·Shadow)는 틀(_panel-frame.js) 머리 한 자리 + headTools 로 옮겼다 ⇒ 틀 파일을 분모에 넣는다. */
+const MARKUP_FILES = ['js/props/prop-sticker.js', 'js/props/prop-text-template.js', 'js/effects-registry.js', 'js/props/_panel-frame.js'];
 
 test('T0 ★전제 — `.prop-section-title` 블록을 찾았고 그 안에 padding 이 있다 (⛔못 찾으면 ★죽는다)', () => {
   const css = read('css/editor-props.css');
@@ -87,12 +88,12 @@ test('T3 `… > .prop-action-btn { margin-top: 0 }` ★와 `.prop-action-btn { m
 test('T4 마크업 — `class="prop-section-title-row"` 가 ★5곳이고 ★인라인 style 을 쓰는 곳은 ★0 (★핀에서는 5건)', () => {
   /* ⛔`== 5` 로만 닫지 않는다 — 「★명부 ⊇ 실패집합 ＋ ★명부 밖 0건」 꼴로 적는다.
      절이 늘면 ★늘어난 자리를 ★메시지에 ★찍어 사람이 보게 한다(수만 보고 지나치지 않게). */
-  const BASE = 5;                       // ★핀 a42d76d5 에서 ★행위로 센 수 (grep -rn 'prop-section-title-row' js/)
+  const BASE = 4;                       // ★핀 a42d76d5 의 5 − 스티커 2(틀 headTools 로 이관 · U5) + 틀 머리 1 (grep -rn 'prop-section-title-row' js/)
   const found = [];
   const withStyle = [];
   for (const f of MARKUP_FILES) {
     const src = read(f);
-    for (const m of src.matchAll(/<div class="prop-section-title-row"([^>]*)>/g)) {
+    for (const m of src.matchAll(/<div class="prop-section-title-row(?: [^"]*)?"([^>]*)>/g)) {
       const after = m[1];
       /* 바로 뒤 제목 글자를 같이 집어 ★어느 절인지 이름으로 적는다(⛔줄번호로 가리키지 않는다). */
       const tail = src.slice(m.index, m.index + 260);

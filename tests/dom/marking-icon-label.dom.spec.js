@@ -811,8 +811,10 @@ test('M7b 살아남기(빈 길) — ⌘C⌘V · A/B 변형 · 섹션 템플릿 �
 
 test('M9c 모서리·라벨 굵기 — 패널에서 바꿀 수 있다(모서리 = 한 변의 % · 라벨 굵기는 마커 굵기와 따로)', async ({ page }) => {
   await three(page);
-  const rowShown = () => page.evaluate(() => getComputedStyle(document.getElementById('stk-count-radius-row')).display);
-  expect(await rowShown(), '★전제: 원 모양일 때 「모서리」 행은 숨어 있다').toBe('none');
+  /* U5: 원이면 「모서리」 행은 «없다»(절째 안 그린다) — 빈 Appearance 머리도 없어야 한다 */
+  const rowShown = () => page.evaluate(() => { const r = document.getElementById('stk-count-radius-row'); return r ? getComputedStyle(r).display : 'absent'; });
+  expect(await rowShown(), '★전제: 원 모양일 때 「모서리」 행은 없다').toBe('absent');
+  expect(await page.locator('#panel-right .prop-section[data-sec="appearance"]').count(), '원: 빈 Appearance 절 머리가 없다').toBe(0);
   await page.click('#stk-count-shape [data-count-shape="square"]');
   expect(await rowShown(), '사각이면 「모서리」 행이 보인다').toBe('flex');
   const radii = () => page.evaluate(() => [...document.querySelectorAll('#secA .sticker-block[data-count]')].map((b) => [getComputedStyle(b).borderRadius, b.dataset.countRadius ?? null]));
