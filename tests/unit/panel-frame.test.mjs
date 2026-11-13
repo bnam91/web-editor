@@ -256,6 +256,11 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
     'stk-t-stk-c-color color': 'stroke', 'stk-t-stk-w': 'stroke', 'stk-t-sh-x': 'effects', 'stk-t-sh-y': 'effects',
     'stk-t-sh-num': 'effects', 'stk-t-sh-c-color color': 'effects',
     'stk-t-fill-color color': 'fill', 'stk-color color': 'fill', 'stk-x': 'position',   // ★함정: 첫 단어 stk(스티커 접두)는 stroke 가 아니다
+    /* U0c ① 글 부위 단어 바로 뒤 size = 글자 크기 · 표 글자 크기는 id 줄기 · 그냥 블록 size-w/h 는 Size */
+    'stb-title-size-slider': 'typography', 'stb-desc-size-number': 'typography', 'chb-typo-size-number': 'typography',
+    'tbl-header-size-slider': 'typography', 'grb-pct-size-number': 'typography', 'cpn-slot-size-slider': 'typography',
+    'tbl-size-slider': 'typography', 'tbl-size-number': 'typography', 'stb-size-w': 'size', 'mck-size-h': 'size', 'tbl-sizer-w': null,   // 줄기 tbl-size 는 「tbl-size」·「tbl-size-」만 — tbl-sizer 는 아니다
+    'stb-title-gap-size': 'size',   // title 바로 뒤가 size 가 아니다(인접 규칙)
   };
   assert.deepEqual(Object.fromEntries(Object.keys(cases).map((k) => [k, F.ownerOf(k)])), cases);
   /* 컨트롤 꼴 — readPanel 이 넘기는 {id,type,data,pairedColor}. ★class 는 넘겨도 안 쓴다. */
@@ -277,6 +282,9 @@ test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 
   assert.deepEqual(Object.keys(F.OWNERSHIP_EXEMPT_SCOPES).sort(), ['grd-cell-body', 'grd-line-body', 'grd-rule-body']);
   /* ★양성대조 — 줄임 단어를 첫 단어에도 걸었다면 스티커 채움 색이 stroke 로 갔다(그래서 i > 0 만) */
   assert.equal(F.ownerOf('stroke color color'), 'stroke', '[양성대조] stk 를 첫 단어에도 풀면 stk-color 가 stroke 로 간다');
+  /* ★양성대조(U0c ①) — 인접 규칙이 없던 판이면 stb-title-size 는 Size 로 갔다: 같은 단어열에서 title 을 떼면 Size */
+  assert.equal(F.ownerOf('stb-size-slider'), 'size', '[양성대조] 글 부위 단어가 없으면 Size');
+  assert.equal(F.ownerOf('stb-title-x-size'), 'position', '[양성대조] 인접이 아니면 title>size 가 안 걸린다');
 });
 
 test('F13 하위 접기 제외는 «그릇 안»만 — 같은 컨트롤이 그릇 밖이면 소유 위반', () => {

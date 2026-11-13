@@ -50,7 +50,8 @@ export const OWNERSHIP = Object.freeze([
   [['radius'], 'appearance'],
   [['pad*'], 'padding'],
   [['shadow', 'glow'], 'effects'],
-  [['font', 'letter', 'line+height'], 'typography'],
+  // 'a>b' = a 바로 뒤 b. 글 부위 단어 바로 뒤 size = 글자 크기(stb-title-size · chb-typo-size · tbl-header-size · grb-pct-size · cpn-slot-size)
+  [['font', 'letter', 'line+height', 'title>size', 'desc>size', 'typo>size', 'header>size', 'pct>size', 'label>size', 'slot>size'], 'typography'],
   [['border', 'stroke'], 'stroke'],
   [['color', 'colour', 'fill', 'bg'], 'fill'],
   [['rotate', 'rotation', 'x', 'y'], 'position'],
@@ -60,6 +61,10 @@ export const OWNERSHIP = Object.freeze([
 export const OWNERSHIP_EXEMPT = Object.freeze({
   'stk-coin-face-color': '코인 앞면 금속색 — 재질=custom 옆 special «Coin» 절에 일부러 둔다(U5)',
   'stk-coin-side-color': '코인 옆면 금속색 — 재질=custom 옆 special «Coin» 절에 일부러 둔다(U5)',
+});
+/** 꼴로는 못 가르는 id 줄기 → { 줄기: [절 key, 까닭] }. id 가 「줄기」 이거나 「줄기-」로 시작하면 이 절. ⛔드물게 — 규칙이 먼저다. */
+export const OWNERSHIP_ID_STEM = Object.freeze({
+  'tbl-size': ['typography', '표 글자 크기(prop-table applySize → table.style.fontSize) — 접두 바로 뒤 size 라 «블록 크기»와 꼴이 같다'],
 });
 /** 줄임 단어 → 뜻 단어. ★id 의 «첫 단어»(블록 접두 — 스티커 stk-·…)에는 안 건다: stk-t-STK-c-color 의 둘째 stk 만 stroke. */
 export const OWNERSHIP_ALIAS = Object.freeze({ stk: 'stroke', sh: 'shadow' });
@@ -81,13 +86,16 @@ export function controlWords(s) {
 }
 /** 컨트롤 식별 문자열(id·class·data-*) → 있어야 할 절 key, 모르면 null. */
 export function ownerOf(ident) {
+  const id0 = String(ident).trim().split(/\s+/)[0] || '';
+  for (const [stem, [key]] of Object.entries(OWNERSHIP_ID_STEM)) if (id0 === stem || id0.startsWith(stem + '-')) return key;
   const w = controlWords(ident).map((x, i) => (i > 0 && OWNERSHIP_ALIAS[x]) || x);
   const has = (p) => (p.endsWith('*') ? w.some((x) => x.startsWith(p.slice(0, -1)))
     : p.startsWith('*') ? w.some((x) => x.endsWith(p.slice(1)))
+    : p.includes('>') ? w.some((x, i) => x === p.split('>')[0] && w[i + 1] === p.split('>')[1])
     : p.split('+').every((q) => w.includes(q)));
   for (const [pats, key] of OWNERSHIP) if (pats.some(has)) return key;
   return null;
 }
 
 /* ★window 로도 낸다 — 정적 import 없이 읽는 DOM 게이트·styleguide 용. Node vm 하네스에는 window 가 없다. */
-if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, OWNERSHIP_ALIAS, controlIdent, ownerOf };
+if (typeof window !== 'undefined') window.__panelSectionSpec = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, OWNERSHIP_ALIAS, OWNERSHIP_ID_STEM, controlIdent, ownerOf };
