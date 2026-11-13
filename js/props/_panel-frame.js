@@ -14,11 +14,16 @@ import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle } from './_section-sp
 
 const LS_KEY = 'gd-panel-collapsed';
 let _memCollapsed = [];   // localStorage 가 없거나(유닛 vm) 막혔을 때의 대역
+let _lsWriteFailed = false;   // 마지막 저장이 던졌나 — 그때만 «키 없음(null)»을 기억으로 메운다
 
 function _loadCollapsed() {
   try {
     if (typeof localStorage !== 'undefined') {
-      const v = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+      /* ★쓰기가 막혀(setItem 던짐) 기억에만 둔 접기를 getItem 의 null 이 «빈 집합»으로 덮어 다음 그리기에서 풀렸다(U6 · S8 측정 «LS null · 쓰기 0»).
+         ⇒ 마지막 저장이 실패했고 키가 없을 때만 기억으로 간다. 정상 저장소(쓰기 성공)는 옛 길 그대로 — 키가 지워지면(clear) 전부 펼침. */
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw == null && _lsWriteFailed) return new Set(_memCollapsed);
+      const v = JSON.parse(raw || '[]');
       if (Array.isArray(v)) return new Set(v);
     }
   } catch { /* 막힌 저장소 — 아래 대역 */ }
@@ -26,7 +31,7 @@ function _loadCollapsed() {
 }
 function _saveCollapsed(set) {
   _memCollapsed = [...set];
-  try { if (typeof localStorage !== 'undefined') localStorage.setItem(LS_KEY, JSON.stringify(_memCollapsed)); } catch { /* 대역만 */ }
+  try { if (typeof localStorage !== 'undefined') { localStorage.setItem(LS_KEY, JSON.stringify(_memCollapsed)); _lsWriteFailed = false; } } catch { _lsWriteFailed = true; /* 대역만 */ }
 }
 
 /** 접기 상태 단위 — 절 key(전 블록 공통). special 은 제목별. */

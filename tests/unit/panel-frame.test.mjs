@@ -109,6 +109,27 @@ test('F4 제목 규칙 — special title 필수 · 규칙 밖 → throw · 모�
   for (const t of ['Tail', 'Cards 3', 'Arrow Line', 'Arrow Line 2', 'QA', 'FAQ', '3D', 'SVG', 'CTA', 'QA Ticket', 'SVG Presets', '3D Mockup', 'FAQ 2']) assert.doesNotThrow(() => F.sec('special', 'x', { title: t }), t);
 });
 
+/* F5b — setItem 은 던지고 getItem 은 null 인 저장소(쿼터·막힌 쓰기): 접기는 기억(_memCollapsed)에 남아 다음 그리기에서도 접힌 채여야 한다.
+ *   양성대조: _panel-frame.js _loadCollapsed 를 옛 꼴(JSON.parse(getItem(...) || '[]') 이 배열이면 그대로)로 되돌리면 빨강(접기가 풀림). */
+test('F5b 쓰기만 막힌 저장소 — 접기가 다음 그리기에서 풀리지 않는다 · 정상 저장소 무변', () => {
+  const writeBlocked = { getItem: () => null, setItem: () => { throw new Error('QuotaExceededError'); } };
+  const W = loadFrame({ storage: writeBlocked });
+  assert.equal(W.isSectionCollapsed('effects'), false, '[전제] 기본 펼침');
+  W.setSectionCollapsed('effects', true);   // setItem 이 던진다 — 안 죽어야 한다
+  assert.equal(W.isSectionCollapsed('effects'), true, '★쓰기가 막히면 접기가 바로 풀린다(getItem 의 null 이 기억을 덮는다)');
+  const html = W.buildPanelHTML({ sections: [W.sec('effects', 'e'), W.sec('size', 's')] });
+  assert.match(html, /id="psec-effects-body" hidden>/, '★다시 그리면 접힌 절이 펼쳐진다');
+  assert.match(html, /id="psec-size-body">/, '★다른 절까지 접혔다');
+  /* 정상 저장소 — 저장된 값이 기억보다 이긴다(무변) */
+  const ls = memStorage({ 'gd-panel-collapsed': JSON.stringify(['fill']) });
+  const N = loadFrame({ storage: ls });
+  assert.equal(N.isSectionCollapsed('fill'), true);
+  assert.equal(N.isSectionCollapsed('effects'), false, '★정상 저장소에서 기억이 새어 들었다');
+  /* 정상 저장소에서 키가 지워지면(clear) 옛 길대로 전부 펼침 — 기억이 남아 접힌 채면 «정상 저장소 무변»이 깨진 것 */
+  N.setSectionCollapsed('size', true); ls._m.delete('gd-panel-collapsed');
+  assert.equal(N.isSectionCollapsed('size'), false, '★정상 저장소에서 키를 지웠는데 기억이 접기를 붙들었다');
+});
+
 test('F5 접기 저장/복원 — localStorage · 새 모듈 판 복원 · 저장소 없음/막힘에도 안 죽는다', () => {
   const ls = memStorage();
   const A = loadFrame({ storage: ls });
