@@ -1,4 +1,4 @@
-/* cert-block.js — A4 용지 스택(보이는 이름 «A4 Stack» · 내부 클래스는 cert-block 그대로) (A · 현빈 GO 261114 → reframe 같은 날)
+/* cert-block.js — A4 용지 스택(보이는 이름 «Documents» · 현빈 261114 · 내부 클래스는 cert-block 그대로) (A · 현빈 GO 261114 → reframe 같은 날)
  *   현빈: «인증서라고 생각하지 말고 A4 용지들을 배치하는 거라고 생각해.» ⇒ 본질 = 세로 A4(1:1.414) 용지를 겹쳐 세운 «스택» 하나.
  *   ★슬롯 = 에셋 블럭처럼: 파일을 끌어다 놓기(drop) · 더블클릭 = 파일창(prop-grid.js grdPickImageFile — 기존 길) · 빈 칸 = 체크무늬(checkerBg 정본)
  *   ★배치 = cert-layout.js collageLayout · 기본 fan(부채처럼 겹쳐 세움) · s17/stair/pile/auto 는 같은 스택의 다른 겹침
@@ -179,7 +179,7 @@ function makeCertBlock(opts = {}) {
   block.className = 'cert-block';
   block.id = genId('crt');
   block.dataset.type = 'cert';
-  block.dataset.layerName = opts.layerName || 'A4 Stack';
+  block.dataset.layerName = opts.layerName || 'Documents';
   block.dataset.certs = JSON.stringify(Array.isArray(opts.certs) ? opts.certs : CERT_DEFAULT_CERTS);
   for (const k of ['headline', 'sub', 'preset', 'seed', 'jitter', 'sheetW', 'callouts', 'curl']) block.dataset[k] = String(opts[k] ?? CERT_DEFAULTS[k]);
   renderCertBlock(block);

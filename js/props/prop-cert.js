@@ -1,4 +1,4 @@
-/* prop-cert.js — A4 용지 스택(cert-block · 보이는 이름 «A4 Stack») 우측 패널 (A · 261114 reframe)
+/* prop-cert.js — A4 용지 스택(cert-block · 보이는 이름 «Documents») 우측 패널 (A · 261114 reframe)
  *   dev 관례 그대로: prop-section · sliderRowHTML · colorFieldHTML/wireColorField · .prop-btn · .prop-select · .prop-input · .prop-toggle(새 CSS 0)
  *   ⚠️우측패널 틀(_panel-frame)은 dev 에 없다(hold 가지) — 그 묶음이 머지되면 이 패널도 틀로 옮길 목록에 든다.
  *   용지 그림 = 캔버스에서 끌어 놓기·더블클릭(cert-block.js) + 여기 «그림 넣기»(prop-grid.js grdPickImageFile — 기존 파일창) · 새 업로드 길 0.
@@ -46,7 +46,7 @@ export function showCertProperties(block) {
   const withCallouts = st.callouts === 'on';
   propPanel.innerHTML = `
     <div class="prop-section">
-${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'A4 Stack', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
+${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Documents', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
     </div>
     <div class="prop-section">
       <div class="prop-section-title">Stack</div>

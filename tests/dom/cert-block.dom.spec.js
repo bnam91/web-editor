@@ -1,6 +1,6 @@
-/* cert-block.dom.spec.js — A4 용지 스택(cert-block · 보이는 이름 «A4 Stack») (A · 현빈 261114 reframe «A4 용지들을 배치»)
- *   K1 진짜 메뉴(컴포넌트 ▾ → «A4 Stack») → 고른 섹션에 블럭 · 세로 A4 4장(그려진 세로/가로 ≈ 1.414) · 빈 칸 = 체크무늬 ·
- *      콜아웃·지시선 0(기본 끔) · 말림 0(기본 끔) · 위 제목 0(비움) · 원형 마크·낙관·그리드·액자 0 · 층 이름 «A4 Stack»
+/* cert-block.dom.spec.js — A4 용지 스택(cert-block · 보이는 이름 «Documents» — 현빈 261114) (A · 현빈 261114 reframe «A4 용지들을 배치»)
+ *   K1 진짜 메뉴(컴포넌트 ▾ → «Documents») → 고른 섹션에 블럭 · 세로 A4 4장(그려진 세로/가로 ≈ 1.414) · 빈 칸 = 체크무늬 ·
+ *      콜아웃·지시선 0(기본 끔) · 말림 0(기본 끔) · 위 제목 0(비움) · 원형 마크·낙관·그리드·액자 0 · 층 이름 «Documents»
  *   K2 부채 스택(기본) — 왼→오 회전각이 커진다(atan2) · 이웃끼리 겹친다(화면 사각형)
  *   K3 끌어 놓기 — 용지 칸에 그림 파일을 drop → 그 칸이 img(data:image/png) · 다른 칸은 체크무늬 그대로
  *   K4 더블클릭 = 파일창(진짜 filechooser) → 그 칸 img
@@ -44,7 +44,7 @@ async function openPanel(page, id) {
 }
 const toggle = (page, id) => page.click(`label.prop-toggle:has(#${id})`);
 
-test('K1 메뉴 «A4 Stack» — 세로 A4 4장 · 체크무늬 · 옵션 다 끔', async ({ page }) => {
+test('K1 메뉴 «Documents» — 세로 A4 4장 · 체크무늬 · 옵션 다 끔', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
   const r = await page.evaluate((id) => { const b = document.getElementById(id); const q = (s) => b.querySelectorAll(s).length;
@@ -53,7 +53,7 @@ test('K1 메뉴 «A4 Stack» — 세로 A4 4장 · 체크무늬 · 옵션 다 �
       checker: /conic-gradient/.test(sh.style.background || sh.style.backgroundImage || getComputedStyle(sh).backgroundImage),
       callouts: q('.cert-callout'), lines: q('.cert-line'), curl: q('.cert-curl'), head: q('.cert-head'),
       extra: q('.cert-frame, .cert-grid, .cert-f-seal'), layer: b.dataset.layerName }; }, id);
-  expect(r).toEqual({ sheets: 4, ph: 4, ratioOk: true, checker: true, callouts: 0, lines: 0, curl: 0, head: 0, extra: 0, layer: 'A4 Stack' });
+  expect(r).toEqual({ sheets: 4, ph: 4, ratioOk: true, checker: true, callouts: 0, lines: 0, curl: 0, head: 0, extra: 0, layer: 'Documents' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
