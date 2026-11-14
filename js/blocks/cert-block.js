@@ -202,12 +202,12 @@ function setCertList(block, certs) {
   block.dataset.certs = JSON.stringify(certs.slice(0, CERT_MAX_SHEETS).map((c) => ({ title: c.title || '', desc: c.desc || '', img: certImgOk(c.img) ? c.img : '', status: CERT_STATUSES.includes(c.status) ? c.status : '', fx: normFx(c.fx) })));
   renderCertBlock(block);
 }
-/** 슬롯 i 에 그림 — 기록·저장·(골라져 있으면) 패널 새로. */
-function setCertSlotImage(block, i, src) {
+/** 슬롯 i 에 그림 — 기록·저장·(골라져 있으면) 패널 새로. record:false = 부르는 쪽이 한 걸음을 직접 쌓는다(스크래치 끌어오기 — canvas-scratch-drop 호출자). */
+function setCertSlotImage(block, i, src, { record = true } = {}) {
   if (!block?.isConnected) return false;
   const certs = readCertState(block).certs;
   if (!certs[i] || !certImgOk(src)) return false;
-  window.pushHistory?.('A4 용지 그림');
+  if (record) window.pushHistory?.('A4 용지 그림');
   certs[i] = { ...certs[i], img: src };
   setCertList(block, certs);
   window.scheduleAutoSave?.();
@@ -276,5 +276,6 @@ window.makeCertBlock = makeCertBlock;
 window.addCertBlock = addCertBlock;
 window.renderCertBlock = renderCertBlock;
 window.certOutputNotice = certOutputNotice;
+window.setCertSlotImage = setCertSlotImage;   // 스크래치패드 끌어오기(js/canvas-scratch-drop.js certslot)
 
 export { certOutputNotice, CERT_MODES, CERT_SHADOWS, CERT_FX_DEFAULT, normFx, sheetTransform, CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };

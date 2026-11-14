@@ -22,6 +22,10 @@
  *   H5 내보내기 직전 알림 — certOutputNotice → «빈 용지 2장» 토스트(비차단)
  *   양성대조: cert-block.js renderCertBlock 의 forOutput 갈래(`if (forOutput) { … }`)를 지우면 H1·H2·H4 빨강 · capture-safety.js 의 그 한 줄을 지우면 H1·H2 빨강
  *            · preview.js enterPreview 의 그 한 줄을 지우면 H4 빨강
+ *   ── 스크래치패드 끌어오기(현빈 결정 ④) — js/canvas-scratch-drop.js 의 진짜 판정·실행(scratch-pad onUp 이 부르는 그 둘) ──
+ *   S1 용지 칸 위 좌표 → previewScratchDropAt = 'certslot' · 안내 «용지 그림으로» · commitScratchDropAt → 그 칸 img · 다른 칸 그대로 · 새 에셋 블럭 0
+ *   S2 그림 주소가 data:image/ 가 아니면(javascript:) 안 들어간다(형식 문 certImgOk)
+ *   양성대조: canvas-scratch-drop.js «케이스 A1» 판정(`const certSheet = …` 덩이)을 지우면 S1 빨강(«사이에 새 에셋 삽입»으로 떨어진다)
  *   ── 이펙트(현빈 «이펙트» 절 · 용지마다: 회전·기울기·끝말림·그림자) ──
  *   E1 대상 «모든 용지» — 끝말림 켬 → 용지 4장 모두 .cert-curl · 그림자 «진하게» → 4장 모두 진한 그림자
  *   E2 대상 «용지 2» — 회전 20 → 그 장만 20° 더 돈다(나머지 각도 그대로)
@@ -355,5 +359,37 @@ test('H5 내보내기 직전 알림', async ({ page }) => {
   const n = await page.evaluate(() => window.certOutputNotice(document.getElementById('canvas')));
   expect(n).toBe(2);
   await expect(page.locator('#editor-toast')).toContainText('빈 용지 2장');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+async function sheetCenter(page, id, idx) {
+  return page.evaluate(({ id, idx }) => { const r = document.querySelector(`#${id} .cert-sheet[data-idx="${idx}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, { id, idx });
+}
+
+test('S1 스크래치 끌어오기 — 그 칸 그림', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await page.evaluate((id) => document.querySelector(`#${id} .cert-sheet[data-idx="3"]`).scrollIntoView({ block: 'center' }), id);
+  const p = await sheetCenter(page, id, 3);   // 맨 위(오른쪽) 장 가운데 — 다른 장에 안 가림
+  const assets0 = await page.locator('#canvas .asset-block').count();
+  const kind = await page.evaluate(({ x, y }) => window.previewScratchDropAt(x, y), p);
+  expect(kind).toBe('certslot');
+  await expect(page.locator(`#${id} .cert-sheet[data-idx="3"] .sp2c-badge`)).toHaveText('용지 그림으로');
+  const ok = await page.evaluate(({ x, y, src }) => { const r = window.commitScratchDropAt(x, y, src); window.clearScratchDropGuides?.(); return r; }, { ...p, src: DATA_PNG });
+  expect(ok).toBe(true);
+  const r = await page.evaluate((id) => ({ img: !!document.querySelector(`#${id} .cert-sheet[data-idx="3"] img.cert-img`), ph: document.querySelectorAll(`#${id} .cert-sheet.cert-ph`).length }), id);
+  expect(r).toEqual({ img: true, ph: 3 });
+  expect(await page.locator('#canvas .asset-block').count(), '★새 에셋 블럭이 생겼다(칸 대신 섹션에 삽입)').toBe(assets0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S2 스크래치 — 이상한 주소는 안 들어간다', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await page.evaluate((id) => document.querySelector(`#${id} .cert-sheet[data-idx="3"]`).scrollIntoView({ block: 'center' }), id);
+  const p = await sheetCenter(page, id, 3);
+  const ok = await page.evaluate(({ x, y }) => { const r = window.commitScratchDropAt(x, y, 'javascript:window.__pwnS=1'); window.clearScratchDropGuides?.(); return r; }, p);
+  expect(ok).toBe(false);
+  expect(await page.locator(`#${id} .cert-sheet.cert-ph`).count()).toBe(4);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

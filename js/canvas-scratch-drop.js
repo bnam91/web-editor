@@ -122,6 +122,14 @@ function _classifyDrop(clientX, clientY) {
     return { kind: 'replace', ab };
   }
 
+  /* 케이스 A1: Documents(A4 용지 묶음 · cert-block) 용지 칸 → 그 칸 그림 (현빈 결정 ④ 261114 · 스크래치 끌어오기 받음).
+     rowLike(insert) 판정보다 먼저 — 블럭이 row 안에 있어 순서가 바뀌면 «사이에 새 에셋 삽입»으로 오분류된다(카드 A2 와 같은 까닭). */
+  const certSheet = hit.closest('.cert-block .cert-sheet');
+  if (certSheet) {
+    const cb = certSheet.closest('.cert-block');
+    if (cb && cb.closest('#canvas-scaler')) return { kind: 'certslot', block: cb, cell: certSheet, idx: parseInt(certSheet.dataset.idx) };
+  }
+
   // 케이스 A2: 카드 캔버스(cvb) 셀 → 해당 카드 이미지 교체 (현빈 요청: 스크래치→카드).
   // rowLike(insert) 판정보다 먼저 — cvb는 row 안에 있어 순서 바뀌면 insert로 오분류.
   const cvbCell = hit.closest('[data-cvb-card-idx]');
@@ -214,6 +222,15 @@ function _renderGuide(decision) {
     _activeReplaceAb = decision.ab;
     return;
   }
+  if (decision.kind === 'certslot') {
+    // 카드와 같은 시각 언어(.sp2c-replace-target) · 같은 활성 슬롯(정리 경로 동일)
+    if (_activeReplaceAb === decision.cell) return;
+    _clearGuides();
+    decision.cell.classList.add('sp2c-replace-target');
+    _addBadge(decision.cell, '용지 그림으로', false);
+    _activeReplaceAb = decision.cell;
+    return;
+  }
   if (decision.kind === 'cvbcard') {
     // replace와 동일 시각 언어(.sp2c-replace-target) 재사용 — 활성 슬롯도 공유(정리 경로 동일)
     if (_activeReplaceAb === decision.cell) return;
@@ -268,7 +285,7 @@ function _renderGuide(decision) {
 // 아밍 비교 기준이 되는 타깃 엘리먼트 산출
 function _decisionTarget(decision) {
   if (decision.kind === 'replace') return decision.ab;
-  if (decision.kind === 'cvbcard') return decision.cell;
+  if (decision.kind === 'cvbcard' || decision.kind === 'certslot') return decision.cell;
   if (decision.kind === 'gridimg') return decision.frame;
   if (decision.kind === 'insert' || decision.kind === 'sectionbg') return decision.sec;
   if (decision.kind === 'newsection') return document.getElementById('canvas-scaler');
@@ -463,6 +480,9 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
     }
     window.setAssetImageFromSrc(decision.ab, src);
     reapplyPadX(decision.ab.closest('.section-inner'));
+  } else if (decision.kind === 'certslot') {
+    // 같은 문 setCertSlotImage(형식 문 certImgOk · 다시 그리기 · 저장) · 기록은 호출자(scratch-pad onUp)가 한 걸음으로 쌓는다
+    if (!window.setCertSlotImage?.(decision.block, decision.idx, src, { record: false })) return false;
   } else if (decision.kind === 'cvbcard') {
     // 카드 imgSrc 교체 — dataset.cards JSON 갱신 후 재렌더. 아이콘이 이미지보다 우선
     // 렌더되므로(card.icon && card.icon.svg 선판정) 드롭 의도=이미지 표시 → 아이콘 해제.
