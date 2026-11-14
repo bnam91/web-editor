@@ -71,7 +71,10 @@ test('M4 작은 줄 — 편집 span 밖 · 편집 뒤 본문에 안 섞임', asy
   expect(inside, '★작은 줄이 편집 span 안에 있다').toBe(false);
   await expect(page.locator(`#${id} .sticker-sub`)).toHaveText('COMPLETED');
   await page.dblclick(`#${id} .sticker-text`);
-  await page.keyboard.press('End');
+  await expect(page.locator(`#${id} .sticker-text`)).toHaveAttribute('contenteditable', 'true');
+  /* 캐럿을 글 끝으로 «직접» — 더블클릭은 누른 자리에 캐럿을 둔다(sticker-select.js _enterStickerEdit caretRangeFromPoint)
+     · macOS 의 End 는 캐럿을 안 옮기고 문서를 굴린다(인텔 62365fd02: «저자!극»). 이 칸이 재는 것은 «작은 줄이 본문에 안 섞임»이다. */
+  await page.evaluate((id) => { const t = document.querySelector(`#${id} .sticker-text`); const r = document.createRange(); r.selectNodeContents(t); r.collapse(false); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }, id);
   await page.keyboard.type('!');
   await page.evaluate(() => document.activeElement?.blur());
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).dataset.text, id)).toBe('저자극!');

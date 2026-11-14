@@ -55,7 +55,9 @@ test('Z2 패널 — 톱니 수·깊이·링', async ({ page }) => {
   await expect(page.locator('#stk-burst-section')).toHaveCount(1);
   await page.fill('#stk-burst-teeth-num', '12'); await page.dispatchEvent('#stk-burst-teeth-num', 'change');
   await page.fill('#stk-burst-depth-num', '30'); await page.dispatchEvent('#stk-burst-depth-num', 'change');
-  await page.uncheck('#stk-burst-ring');
+  // 체크박스는 .prop-toggle 안에 숨어 있다(css/editor-props.css:242 opacity 0 · width 0) — 다른 스펙처럼 라벨을 누른다
+  await page.click('label.prop-toggle:has(#stk-burst-ring)');
+  await expect(page.locator('#stk-burst-ring')).not.toBeChecked();
   const r = await read(page, id);
   expect([r.n, r.valley, r.ring]).toEqual([24, 35, 0]);
   expect(errs, errs.join(' | ')).toEqual([]);
