@@ -36,7 +36,8 @@
  * ★소비자 — 늘면 여기 적어라
  *   ⑴ js/blocks/sticker-block.js — 마킹 블럭의 커스텀 아이콘을 «그릴 때»(뿌리 속성 덮어쓰기 포함) + window._sanitizeSvgString 알리아스
  *   ⑵ js/count-sticker-tool.js(고전 스크립트 · 그 알리아스로) — dataset 에 «쓸 때»
- *   ⚠️아이콘 스티커(shape:'icon')의 data-icon-svg 는 아직 날것으로 들어간다(기존 · 이번 범위 밖 — 같은 함수 한 줄로 막을 수 있다).
+ *   ⑶ js/blocks/sticker-block.js — 아이콘 스티커(shape:'icon')의 data-icon-svg 를 «그릴 때»(261114 · 예전엔 날것)
+ *   ⑷ js/props/prop-iconify.js — SVG 프리셋 라이브러리 미리보기·적용(261114 · 예전엔 날것)
  */
 
 export const SVG_ALLOWED_TAGS = [

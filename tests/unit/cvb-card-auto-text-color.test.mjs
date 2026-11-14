@@ -80,6 +80,8 @@ before(async () => {
     ["import { effSectionPadX as _effSectionPadX } from './outer-pad.js';", 'const _effSectionPadX = () => 0;'],
     /* t5-16(261026) — canvas-block 이 카드 높이 자 card-limits.js 를 import 한다. 잎 모듈(값만)이라 스텁 대신 «진짜 파일»의 글을 그 자리에 싣는다(export 만 뗀다 · 값 사본 0 · .js 는 CJS 로 읽혀 URL import 가 안 된다). */
     ["import { CVB_H_MIN, CVB_H_MAX } from './card-limits.js';", fs.readFileSync(path.join(__dirname, '../../js/blocks/card-limits.js'), 'utf8').replace(/^export /gm, '')],
+    /* SEC 261114 — canvas-block 이 카드 아이콘 svg 를 그릴 때 거르려고 sanitize-svg.js 를 import 한다. 잎 모듈(import 0)이라 «진짜 파일»의 글을 그 자리에(card-limits 와 같은 꼴 · 스텁 아님 — 세척을 걷으면 안 된다). */
+    ["import { sanitizeSvgString } from '../util/sanitize-svg.js';", fs.readFileSync(path.join(__dirname, '../../js/util/sanitize-svg.js'), 'utf8').replace(/^export /gm, '')],
     ["import { lnHasLines, lnLinesHtml, lnValidateLines, lnRemark, LN_KINDS } from './line-host.js';",
      "const lnHasLines = () => false; const lnLinesHtml = () => ''; const lnValidateLines = () => null; const lnRemark = () => {}; const LN_KINDS = [];"],
   ], 'cvb-auto-text-color');

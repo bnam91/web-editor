@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { sanitizeSvgString } from '../util/sanitize-svg.js';
 
 export function showIconifyProperties(block) {
   const iconName = block.dataset.iconName || '';
@@ -149,7 +150,7 @@ ${blockHeaderHTML({
       // 비동기 미리보기 로드 — SVG 색은 어두운 회색(흰 배경에서 잘 보임)
       window.electronAPI?.svgPresets?.read({ category: catName, file: it.file }).then(res => {
         if (res?.ok && res.svg) {
-          cell.innerHTML = res.svg;
+          cell.innerHTML = sanitizeSvgString(res.svg);   // ★라이브러리 파일은 사용자 폴더에 있어 손댈 수 있다 — 그릴 때 거른다(SEC · 피그마 에셋 가져오기 앞 단독 커밋)
           const svg = cell.querySelector('svg');
           if (svg) { svg.setAttribute('width', '28'); svg.setAttribute('height', '28'); svg.style.color = '#222'; }
         }
@@ -157,7 +158,8 @@ ${blockHeaderHTML({
       cell.addEventListener('click', async () => {
         const res = await window.electronAPI?.svgPresets?.read({ category: catName, file: it.file });
         if (!res?.ok) { window.showToast?.('SVG 로드 실패: ' + (res?.error || '')); return; }
-        const svg = res.svg.trim();
+        const svg = sanitizeSvgString(res.svg);   // ★같은 까닭 — 블럭에 넣고 dataset 에 남기는 것도 세척본
+        if (!svg) { window.showToast?.('SVG 를 읽을 수 없습니다(안전하지 않거나 그림이 아님)'); return; }
         const existingSvg = block.querySelector('svg');
         if (existingSvg) existingSvg.remove();
         const existingImg = block.querySelector('img'); // 래스터(PNG)였다면 <img> 제거

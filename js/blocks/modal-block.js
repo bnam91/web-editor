@@ -10,6 +10,7 @@
 //   글자도 dataset(titleText/textText/cell1/cell2)에 산다 — 재렌더가 타이핑을 지우지 않게.
 //
 import { sanitizeRichTextHtml, richTextHasFormatting } from '../util/sanitize-rich-text.js';
+import { sanitizeSvgString } from '../util/sanitize-svg.js';
 /* ★1017a5 — 배경이미지 값·이름의 정본은 js/frame-bg.js «하나»다(⛔사본 금지 · 그 머리말 :22).
    ★읽는 자만 빌린다(frameBgSize/frameBgPos/FRAME_BG_SIZE_DEFAULT) — 그리는 자는 이 파일(cssText)이다. */
 import { frameBgSize, frameBgPos, FRAME_BG_SIZE_DEFAULT } from '../frame-bg.js';
@@ -642,7 +643,7 @@ function _modalIconHtml(block, variant = '') {
   }
   const svg = block.dataset.iconSvg || '';
   const inner = svg
-    ? svg
+    ? sanitizeSvgString(svg)   // ★저장된 아이콘 svg — 그릴 때 거른다(SEC 261114 · 저장 데이터는 그대로)
     : `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
   return `<div ${_modalIconAttrs(block, size, `color:${_esc(color)};`, variant)}>${inner}</div>`;
 }

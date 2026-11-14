@@ -1,4 +1,5 @@
 // Iconify Panel — 아이콘 검색 모달 + 삽입
+import { sanitizeSvgString } from '../util/sanitize-svg.js';   // index.html:1232 type=module
 
 const ICONIFY_API = 'https://api.iconify.design';
 
@@ -167,7 +168,7 @@ function _renderFavGrid() {
     const { p } = favs[k];
     const holder = cell.querySelector('.iconify-fav-svg');
     if (holder && p.iconSvg) {
-      holder.innerHTML = p.iconSvg;
+      holder.innerHTML = sanitizeSvgString(p.iconSvg);   // ★즐겨찾기 svg — 그릴 때 거른다(SEC 261114)
       const svg = holder.querySelector('svg');
       if (svg) { svg.setAttribute('width', 24); svg.setAttribute('height', 24); svg.style.pointerEvents = 'none'; }
     }
@@ -408,7 +409,7 @@ function _updateSelectedPreview(sel) {
     // 즐겨찾기 — 저장된 svg 인라인 렌더 (네트워크 불필요, 오프라인 동작)
     preview.innerHTML = `<span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:${_escAttr(sel.iconColor || '#ddd')};"></span>`;
     const holder = preview.firstElementChild;
-    holder.innerHTML = sel.svg;
+    holder.innerHTML = sanitizeSvgString(sel.svg);   // ★같은 까닭(고른 즐겨찾기 미리보기)
     const svg = holder.querySelector('svg');
     if (svg) { svg.setAttribute('width', 22); svg.setAttribute('height', 22); svg.style.pointerEvents = 'none'; }
   } else {

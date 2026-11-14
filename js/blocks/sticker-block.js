@@ -329,7 +329,7 @@ function _renderStickerBlockInner(block) {
       // URL인 경우 img로 (fetch 실패 fallback 등)
       block.innerHTML = `<img class="sticker-icon-img" src="${iconSvg}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;" draggable="false">`;
     } else if (iconSvg) {
-      block.innerHTML = iconSvg;
+      block.innerHTML = sanitizeSvgString(iconSvg);   // ★아이콘 스티커 svg 도 그릴 때 거른다(sanitize-svg.js 머리말의 «기존 구멍» · 저장본·라이브러리에서 온다)
       const svg = block.querySelector('svg');
       if (svg) {
         svg.setAttribute('width', sizeW);
