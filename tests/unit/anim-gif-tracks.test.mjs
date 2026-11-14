@@ -106,3 +106,15 @@ test('T7 새 효과의 시작·끝 프레임(실제로 그림) — 시작 = 흐�
     assert.deepEqual([last.s, last.x, last.f, last.tf, last.a], ['네!', L.segs[0].x0, 'none', 0, 1], `${fx} 끝 프레임`);
   }
 });
+
+test('T8 F3 저장 꼴 — 왕복 · 소독(허용 목록·범위·없는 줄) · 못 읽으면 perLine false · 정해진 키만', async () => {
+  const { parseAnimGif, serializeAnimGif, scaleTracks } = await import('../../js/fx/anim-gif-tracks.js');
+  const tracks = [{ line: 0, fx: 'typewriter', at: 0, dur: 1000 }, { line: 1, fx: 'stamp', at: 1100, dur: 560 }];
+  const s = serializeAnimGif({ tracks, speed: 1.5, repeat: 2 });
+  assert.deepEqual(parseAnimGif(s, 2), { perLine: true, tracks, speed: 1.5, repeat: 2 });
+  const evil = JSON.stringify({ v: 2, tracks: [{ line: 0, fx: '<img src=x onerror=alert(1)>', at: -9, dur: 1e9, html: '<b>' }, { line: 7, fx: 'stamp' }], speed: 99, repeat: -3, extra: 1 });
+  assert.deepEqual(parseAnimGif(evil, 2), { perLine: true, tracks: [{ line: 0, fx: 'fade-in', at: 0, dur: 5000 }, { line: 1, fx: 'fade-in', at: 5000, dur: 5000 }], speed: 3, repeat: 1 });
+  for (const bad of ['', 'x{', '{"v":1,"tracks":[]}', 'null', '[]']) assert.equal(parseAnimGif(bad, 2).perLine, false, bad);
+  assert.deepEqual(Object.keys(JSON.parse(serializeAnimGif({ tracks: [{ line: 0, fx: 'stamp', at: 0, dur: 500, junk: 1 }] }))), ['v', 'tracks', 'speed', 'repeat']);
+  assert.deepEqual(scaleTracks(tracks, 2)[1], { line: 1, fx: 'stamp', at: 550, dur: 280 });
+});

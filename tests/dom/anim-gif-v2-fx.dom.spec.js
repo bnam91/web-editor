@@ -6,6 +6,15 @@
  * V2 흐림 B1 «흐림→선명» 시작 흐림 · 끝 선명
  * V3 휩   W1 «블러 휩» 중간 = 한 줄에 여러 번(잔상) + 본 글이 끝 자리보다 왼쪽 · 끝 = 줄마다 한 번 · 제자리
  * V4 [지킴] V1 «페이드인» 은 옛 길 그대로 — 끝 프레임 두 줄 · filter 없음
+ * ── F3 줄마다 따로 ──
+ * L1 P076 — «줄마다 따로» 진짜 클릭 → 행 2 · 줄0 타이핑 0/1000 · 줄1 도장 1100/560 을 진짜 입력 → data-anim-gif 그대로 ·
+ *    미리보기 τ=500 엔 «네!» 0(답은 시작 전) · τ=1660 엔 두 줄 선명
+ * L2 저장 — 닫고 다시 열면 켜짐·값 그대로 · ⌘Z 한 번 = 직전 값(이력 한 칸씩)
+ * L3 남이 준 저장본 — fx 에 «<img onerror>» · 범위 밖 수 · 없는 줄 → 소독(fade-in · 5000 등) · 행 안에 img 0 · pageerror 0
+ * 양성대조(F3):
+ *   · animation-engine.js _plan 의 `if (_perLine && _tracks) {` → `if (false) {` ⇒ L1(τ=500 에 «네!» 보임) 빨강
+ *   · _loadAnimGif 를 openAnimModal 에서 빼면 ⇒ L2(다시 열면 꺼짐) 빨강
+ * 셀렉터 대조(F3): #anim-per-line · #anim-tracks(index.html) · .anim-track-row/.anim-track-fx/.anim-track-at/.anim-track-dur(animation-engine.js _renderTrackRows className)
  * 양성대조:
  *   · js/animation-engine.js _plan 의 V2 갈래를 지우면(`if (!V2_FX.includes(_animType))` → `if (true)`) V1·V2·V3 빨강(옛 _drawFrame 에 새 효과 갈래 없음 = 글 0) · V4 초록
  *   · js/fx/anim-gif-tracks.js FX.stamp 의 `_blur(ctx, m.blur)` 삭제 → V1(시작 흐림) 빨강
@@ -92,5 +101,64 @@ test('V4 [지킴] V1 페이드인은 옛 길 — 끝 두 줄 · 흐림 없음', 
   const fz = await at(page, 1200);
   expect(fz.map((c) => c.s)).toEqual(['오늘 주문하면?', '네!']);
   expect(fz.every((c) => c.f === 'none')).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+async function setRow(page, i, { fx, at, dur }) {
+  const row = `#anim-tracks .anim-track-row[data-line="${i}"]`;
+  await page.selectOption(`${row} .anim-track-fx`, fx);
+  await page.fill(`${row} .anim-track-at`, String(at)); await page.dispatchEvent(`${row} .anim-track-at`, 'change');
+  await page.fill(`${row} .anim-track-dur`, String(dur)); await page.dispatchEvent(`${row} .anim-track-dur`, 'change');
+}
+const P076 = [{ line: 0, fx: 'typewriter', at: 0, dur: 1000 }, { line: 1, fx: 'stamp', at: 1100, dur: 560 }];
+
+test('L1 P076 — 줄마다 따로 · 질문 타이핑 · 답 도장(1100ms 부터)', async ({ page }) => {
+  const errs = await scene(page, TWO);
+  await page.check('#anim-per-line');
+  await expect(page.locator('#anim-tracks .anim-track-row')).toHaveCount(2);
+  await setRow(page, 0, P076[0]);
+  await setRow(page, 1, P076[1]);
+  expect(await page.evaluate(() => JSON.parse(window.__tb.dataset.animGif).tracks)).toEqual(P076);
+  await at(page, 0);
+  const mid = await at(page, 500);
+  expect(mid.length, '[전제] 질문은 치는 중').toBeGreaterThan(0);
+  expect(mid.some((c) => c.s === '네!'), '★답이 시작 전에 보인다').toBe(false);
+  const end = await at(page, 1660);
+  expect(end.filter((c) => c.s === '오늘 주문하면?' || c.s === '네!').map((c) => [c.s, c.f])).toEqual([['오늘 주문하면?', 'none'], ['네!', 'none']]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('L2 저장 — 다시 열면 그대로 · ⌘Z 한 번 = 직전 값', async ({ page }) => {
+  const errs = await scene(page, TWO);
+  await page.check('#anim-per-line');
+  await setRow(page, 1, P076[1]);
+  const before = await page.evaluate(() => window.__tb.dataset.animGif);
+  await setRow(page, 1, { ...P076[1], dur: 800 });
+  const after = await page.evaluate(() => window.__tb.dataset.animGif);
+  expect(after).not.toBe(before);
+  await page.evaluate(() => { window.closeAnimModal(); window.openAnimModal(window.__tb); });
+  await expect(page.locator('#anim-per-line')).toBeChecked();
+  expect(await page.inputValue('#anim-tracks .anim-track-row[data-line="1"] .anim-track-dur')).toBe('800');
+  await page.evaluate(() => { window.closeAnimModal(); document.activeElement?.blur?.(); });   // 숨은 입력칸에 포커스가 남으면 ⌘Z 가 그 칸의 글자 되돌리기로 간다
+  const id = await page.evaluate(() => window.__tb.id);
+  await page.keyboard.press('Meta+z');
+  await page.waitForFunction(({ id, before }) => document.getElementById(id)?.dataset.animGif === before, { id, before }, { timeout: 5000 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('L3 남이 준 저장본 — 소독 · 행 안에 img 0', async ({ page }) => {
+  const errs = await scene(page, TWO);
+  await page.evaluate(() => {
+    window.closeAnimModal();
+    window.__tb.dataset.animGif = JSON.stringify({ v: 2, tracks: [{ line: 0, fx: '<img src=x onerror="window.__pwn=1">', at: -5, dur: 1e9 }, { line: 9, fx: 'stamp' }], speed: 99, repeat: 0 });
+    window.openAnimModal(window.__tb);
+  });
+  await expect(page.locator('#anim-per-line')).toBeChecked();
+  const r = await page.evaluate(() => ({
+    fx: [...document.querySelectorAll('#anim-tracks .anim-track-fx')].map((s) => s.value),
+    at: [...document.querySelectorAll('#anim-tracks .anim-track-at')].map((s) => s.value),
+    img: document.querySelectorAll('#anim-tracks img').length, pwn: window.__pwn ?? 0, speed: document.getElementById('anim-speed').value,
+  }));
+  expect(r).toEqual({ fx: ['fade-in', 'fade-in'], at: ['0', '5000'], img: 0, pwn: 0, speed: '3' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

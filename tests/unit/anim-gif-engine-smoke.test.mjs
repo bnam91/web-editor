@@ -2,6 +2,7 @@
  * 렌더 실행 단위다(e32eabd44 교훈) — DOM 스펙은 srv 에서 못 돈다. 엔진의 V2 연결(_plan)은 여기서만 srv 에서 실행된다.
  *   · 엔진·fx 두 파일을 공용 임시 우산(mkTmpRoot)에 .mjs 로 복사(js/ 의 .js 는 node 가 CommonJS 로 읽는다) · file: URL(win-portability ②-4).
  *   · export-image.js 하나만 대역(sectionBgColor) · 모달 DOM 은 엔진이 쓰는 만큼만 가짜.
+ * F3 E3: 저장된 줄별 트랙(P076 꼴)으로 모달을 열면 미리보기가 «줄마다» 돈다 · «줄마다 따로» 켜기 = data-anim-gif 를 쓴다(한 번 · 같은 값이면 안 씀).
  * 양성대조(실측은 커밋 메시지): _plan 의 V2 갈래를 지우면(모두 _drawFrame 로) E1(흐림 0 — _drawFrame 엔 stamp 갈래가 없어 아무것도 안 그림) 빨강 ·
  *   _plan duration 을 1200/speed 로 되돌리면 E2(GIF 프레임 수) 빨강.
  */
@@ -27,7 +28,9 @@ function fakeCtx() {
 }
 function fakeEl(extra = {}) {
   const el = {
-    style: {}, dataset: {}, _l: {}, _html: '', value: '', textContent: '', disabled: false, title: '',
+    style: {}, dataset: {}, _l: {}, _html: '', value: '', textContent: '', disabled: false, title: '', checked: false,
+    classList: { _s: new Set(), toggle(c, on) { (on ?? !this._s.has(c)) ? this._s.add(c) : this._s.delete(c); }, contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } },
+    append(...a) { (this._kids ??= []).push(...a); }, appendChild(a) { (this._kids ??= []).push(a); return a; },
     addEventListener(t, f) { (el._l[t] ??= []).push(f); }, setAttribute() {}, removeAttribute() {},
     querySelector: () => null, querySelectorAll: () => [],
     set innerHTML(v) { el._html = String(v); }, get innerHTML() { return el._html; },
@@ -115,4 +118,32 @@ test('E2 GIF 프레임 수 = 도장 한 바퀴(560ms · 20fps) + 끝 멈춤 1.5�
   items.find((it) => it.dataset.id === 'stamp')._l.click[0]();
   await window.exportAnimGif();
   assert.equal(E.frames(), (Math.ceil((560 / 1000) * 20) + 1) + Math.ceil(20 * 1.5));
+});
+
+test('E3 F3 줄마다 따로 — 저장본 P076(질문 타이핑 0~1000 · 답 도장 1100~1660)으로 열면 τ=500 엔 질문만 · 끝엔 둘 다 선명 · 켜기 = data-anim-gif 쓰기', async () => {
+  const E = await loadEngine();
+  E.tb.dataset.animGif = JSON.stringify({ v: 2, tracks: [{ line: 0, fx: 'typewriter', at: 0, dur: 1000 }, { line: 1, fx: 'stamp', at: 1100, dur: 560 }], speed: 1, repeat: 1 });
+  let pushes = 0; globalThis.pushHistory = () => { pushes++; };
+  window.openAnimModal(E.tb);
+  assert.equal(E.els['anim-per-line'].checked, true, '저장본이 있으면 «줄마다 따로» 켜짐');
+  assert.equal(E.els['anim-list'].classList.contains('is-off'), true, '왼쪽 목록은 쉰다');
+  const tick = (ms) => { E.ctx.calls.length = 0; E.rafs.at(-1)(ms); return E.ctx.calls.map((c) => [c.s, c.f]); };
+  tick(1000);                       // 시작 시각을 박는다(τ = 0)
+  const mid = tick(1000 + 500);
+  assert.ok(mid.length && mid.every(([s]) => s !== '네!'), `★답이 시작 전에 보인다 ${JSON.stringify(mid)}`);
+  const end = tick(1000 + 1660);
+  assert.deepEqual(end.filter(([s]) => s === '오늘 주문하면?' || s === '네!'), [['오늘 주문하면?', 'none'], ['네!', 'none']]);
+  window.closeAnimModal();
+  assert.equal(pushes, 0, '안 바꾸고 닫으면 이력 0');
+  // 저장본 없는 블럭에서 켜기
+  const F = await loadEngine();
+  let p2 = 0; globalThis.pushHistory = () => { p2++; };
+  window.openAnimModal(F.tb);
+  assert.equal(F.tb.dataset.animGif, undefined, '[전제] 처음엔 저장 0');
+  window.setAnimPerLine(true);
+  const saved = JSON.parse(F.tb.dataset.animGif);
+  assert.deepEqual(saved.tracks.map((t) => [t.line, t.at]), [[0, 0], [1, 1000]], '켜면 줄마다 차례로(앞 줄 끝에 시작)');
+  assert.equal(p2, 1, '이력 한 칸');
+  window.setAnimPerLine(false);
+  assert.equal(F.tb.dataset.animGif, undefined, '끄면 저장 지움');
 });

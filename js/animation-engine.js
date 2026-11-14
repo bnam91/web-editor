@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -23,6 +23,12 @@ const ANIM_LIST = [
  *  k = 배율(블럭 1px = 캔버스 k px) — 흐림·흔들림 px 를 미리보기·GIF 에서 같은 «눈 크기»로. */
 const _V2_DUR = { stamp: 560, 'blur-in': 900, 'blur-whip': 700 };
 function _plan(style, speed, k) {
+  /* F3 줄마다 따로 — 저장된 트랙(글 줄 수에 다시 맞춤) · 속도는 at·dur 를 나눈다 · 한 바퀴 = 가장 늦게 끝나는 줄 */
+  if (_perLine && _tracks) {
+    const tr = scaleTracks(normTracks(_tracks, String(style.text || '').split('\n').length), speed);
+    const dur = Math.max(1, totalMs(tr));
+    return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, style, size, tr, t * dur, k) };
+  }
   if (!V2_FX.includes(_animType)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, style, size, _animType, t) };
   const dur = Math.round(_V2_DUR[_animType] / speed);
   const tracks = String(style.text || '').split('\n').map((_, i) => ({ line: i, fx: _animType, at: 0, dur }));
@@ -35,6 +41,75 @@ let _animRafId     = null;
 let _animTimeoutId = null;   // setTimeout 전용 (cancelAnimationFrame과 분리)
 let _animStart     = null;
 let _animLoops     = 0;
+let _perLine       = false;   // F3 «줄마다 따로»
+let _tracks        = null;    // F3 줄별 트랙(normTracks 결과) — 블럭 data-anim-gif 와 같은 값
+
+/* ══ F3 줄마다 따로(현빈 GO 261114 · P076 = 질문 «타이핑» · 답 «도장») ══
+   저장 = 텍스트 블럭 data-anim-gif(js/fx/anim-gif-tracks.js parseAnimGif/serializeAnimGif — 글 내용은 저장 안 함) · 값이 바뀔 때만 쓰고 이력 한 칸.
+   «줄» = 글의 명시 줄바꿈 한 줄(화면에서 접힌 조각은 같은 트랙) · 줄 글은 textContent 로만 보인다. */
+const _fxLabel = (id) => (ANIM_LIST.find((a) => a.id === id) || {}).label || id;
+function _lineTexts() { return _animTb ? String(_getTextStyle(_animTb).text || '').split('\n') : ['']; }
+function _loadAnimGif() {
+  const r = parseAnimGif(_animTb?.dataset.animGif, _lineTexts().length);
+  _perLine = r.perLine; _tracks = r.tracks;
+  if (r.perLine) {
+    const sp = document.getElementById('anim-speed'), rp = document.getElementById('anim-repeat');
+    if (sp) { sp.value = String(r.speed); const v = document.getElementById('anim-speed-val'); if (v) v.textContent = r.speed + 'x'; }
+    if (rp) { rp.value = String(r.repeat); const v = document.getElementById('anim-repeat-val'); if (v) v.textContent = r.repeat + '회'; }
+  }
+  const cb = document.getElementById('anim-per-line');
+  if (cb) cb.checked = _perLine;
+  _renderTrackRows();
+}
+function _saveAnimGif() {
+  if (!_animTb) return;
+  const next = (_perLine && _tracks)
+    ? serializeAnimGif({ tracks: _tracks, speed: parseFloat(document.getElementById('anim-speed')?.value) || 1, repeat: parseInt(document.getElementById('anim-repeat')?.value) || 1 })
+    : null;
+  if ((_animTb.dataset.animGif ?? null) === next) return;   // 안 바뀌면 이력도 안 쌓는다
+  if (next) _animTb.dataset.animGif = next; else delete _animTb.dataset.animGif;
+  window.pushHistory?.('GIF 줄별 효과');
+  window.scheduleAutoSave?.();
+}
+function setAnimPerLine(on) {
+  _perLine = !!on;
+  if (_perLine && !_tracks) _tracks = normTracks(null, _lineTexts().length, { fx: TRACK_FX.includes(_animType) ? _animType : 'fade-in', dur: 1000 });
+  _renderTrackRows();
+  _saveAnimGif();
+  restartAnimPreview();
+}
+function _renderTrackRows() {
+  const box = document.getElementById('anim-tracks');
+  const list = document.getElementById('anim-list');
+  if (list) list.classList.toggle('is-off', _perLine);   // 줄마다 따로일 땐 왼쪽 목록(블럭 전체 한 효과)은 쉰다
+  if (!box) return;
+  box.style.display = _perLine ? '' : 'none';
+  box.textContent = '';
+  if (!_perLine || !_tracks) return;
+  const texts = _lineTexts();
+  _tracks = normTracks(_tracks, texts.length);
+  const T = Math.max(1, totalMs(_tracks));
+  _tracks.forEach((tr, i) => {
+    const row = document.createElement('div'); row.className = 'anim-track-row'; row.dataset.line = String(i);
+    const lab = document.createElement('span'); lab.className = 'anim-track-label'; lab.textContent = (texts[i] || '').slice(0, 12) || '(빈 줄)'; lab.title = texts[i] || '';
+    const sel = document.createElement('select'); sel.className = 'anim-track-fx';
+    for (const id of TRACK_FX) { const o = document.createElement('option'); o.value = id; o.textContent = _fxLabel(id); o.selected = id === tr.fx; sel.appendChild(o); }
+    const num = (cls, v, min, max, title) => { const n = document.createElement('input'); n.type = 'number'; n.className = cls; n.min = String(min); n.max = String(max); n.step = '50'; n.value = String(v); n.title = title; return n; };
+    const atIn = num('anim-track-at', tr.at, 0, AT_MAX, '시작(ms)'), durIn = num('anim-track-dur', tr.dur, DUR_MIN, DUR_MAX, '길이(ms)');
+    const bar = document.createElement('div'); bar.className = 'anim-track-bar';
+    const seg = document.createElement('span'); seg.className = 'anim-track-seg';
+    seg.style.left = `${(tr.at / T) * 100}%`; seg.style.width = `${(tr.dur / T) * 100}%`;
+    bar.appendChild(seg);
+    const apply = () => {
+      _tracks[i] = { line: i, fx: sel.value, at: Number(atIn.value), dur: Number(durIn.value) };
+      _tracks = normTracks(_tracks, texts.length);   // 범위 고정(소독과 같은 문)
+      _renderTrackRows(); _saveAnimGif(); restartAnimPreview();
+    };
+    sel.addEventListener('change', apply); atIn.addEventListener('change', apply); durIn.addEventListener('change', apply);
+    row.append(lab, sel, atIn, durIn, bar);
+    box.appendChild(row);
+  });
+}
 
 function openAnimModal(tb) {
   // BUG-FIX: tb null 가드 — null/undefined면 모달 열지 않음
@@ -46,6 +121,7 @@ function openAnimModal(tb) {
   // BUG-FIX: _animType을 먼저 초기화하고 buildAnimList 호출해야
   // _buildAnimList 내부 active 표시가 올바른 초기값을 반영함
   _animType = 'slide-up';
+  _loadAnimGif();   // F3 — 저장된 줄별 효과가 있으면 그것으로(미리보기도)
   _buildAnimList();
   // _selectAnim은 _buildAnimList 후에 호출 (active 토글 + preview 시작)
   _selectAnim('slide-up');
@@ -61,6 +137,7 @@ function openAnimModal(tb) {
 }
 
 function closeAnimModal() {
+  _saveAnimGif();   // F3 — 속도·반복을 바꾼 채 닫으면 그 값도(안 바뀌었으면 무동작)
   document.getElementById('anim-gif-modal').style.display = 'none';
   _stopAnimPreview();
 }
@@ -579,4 +656,5 @@ window.openAnimModal    = openAnimModal;
 // BUG-FIX: openAnimGifModal 별칭 추가 (외부에서 다른 이름으로 호출하는 경우 대비)
 window.openAnimGifModal = openAnimModal;
 window.closeAnimModal   = closeAnimModal;
+window.setAnimPerLine   = setAnimPerLine;
 window.exportAnimGif    = exportAnimGif;

@@ -189,3 +189,20 @@ export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
   }
   return drawn;   // 시험용 — 이 프레임에 그린 줄 번호
 }
+
+/* ── F3 저장 꼴(텍스트 블럭 data-anim-gif) — 글 내용은 저장하지 않는다(블럭 글에서 읽는다 · ROADMAP 3-1 과 같은 뜻) ── */
+export const SPEED_MIN = 0.5, SPEED_MAX = 3, REPEAT_MIN = 1, REPEAT_MAX = 5;
+const _clampNum = (v, lo, hi, d) => (Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Number(v))) : d);
+/** 저장 문자열 → { perLine, tracks(줄 수 n 에 맞춤 · 소독), speed, repeat } · 못 읽으면 perLine false. ⛔남이 준 프로젝트에서 올 수 있다 — 값은 전부 허용 목록·범위로만. */
+export function parseAnimGif(str, n) {
+  let o = null;
+  try { o = JSON.parse(String(str || '')); } catch (_) { o = null; }
+  if (!o || typeof o !== 'object' || o.v !== 2 || !Array.isArray(o.tracks)) return { perLine: false, tracks: null, speed: 1, repeat: 1 };
+  return { perLine: true, tracks: normTracks(o.tracks, n), speed: _clampNum(o.speed, SPEED_MIN, SPEED_MAX, 1), repeat: Math.round(_clampNum(o.repeat, REPEAT_MIN, REPEAT_MAX, 1)) };
+}
+/** 저장 꼴로 — 정해진 키만(다른 키를 실어 나르지 않는다). */
+export const serializeAnimGif = ({ tracks, speed = 1, repeat = 1 }) => JSON.stringify({
+  v: 2, tracks: tracks.map(({ line, fx, at, dur }) => ({ line, fx, at, dur })), speed, repeat,
+});
+/** 속도 배율 — at·dur 를 나눈다(미리보기·GIF 가 같은 값을 쓴다). */
+export const scaleTracks = (tracks, speed) => tracks.map((t) => ({ ...t, at: t.at / speed, dur: t.dur / speed }));

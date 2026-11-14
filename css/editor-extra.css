@@ -329,6 +329,15 @@ body.preview-mode #preview-navigator { display: flex; }
   flex-shrink: 0;
 }
 
+/* GIF V2 F3 «줄마다 따로» — 줄 한 행 = 글 앞부분 · 효과 · 시작 · 길이 · 막대(전체 한 바퀴 중 그 줄의 자리) */
+.anim-list.is-off { opacity: 0.4; pointer-events: none; }
+.anim-tracks { display: flex; flex-direction: column; gap: var(--ui-row-gap); margin-top: var(--ui-row-gap); }
+.anim-track-row { display: grid; grid-template-columns: 72px 1fr 56px 56px; grid-template-rows: auto 4px; gap: 2px var(--ui-row-gap); align-items: center; }
+.anim-track-label { font-size: var(--ui-fs-base); color: var(--ui-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anim-track-fx, .anim-track-at, .anim-track-dur { min-width: 0; height: 22px; background: var(--ui-bg-input); color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm); font-size: var(--ui-fs-base); }
+.anim-track-bar { grid-column: 1 / -1; position: relative; height: 4px; background: var(--ui-border); border-radius: 2px; }
+.anim-track-seg { position: absolute; top: 0; bottom: 0; background: var(--ui-accent-primary); border-radius: 2px; }
+
 /* 푸터 */
 .anim-modal-footer {
   padding-top: 4px;

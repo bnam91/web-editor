@@ -1315,6 +1315,11 @@
               oninput="document.getElementById('anim-repeat-val').textContent=this.value+'회'; restartAnimPreview()">
             <span class="anim-opt-val" id="anim-repeat-val">1회</span>
           </div>
+          <div class="anim-opt-row">
+            <label class="anim-opt-label" for="anim-per-line">줄마다 따로</label>
+            <input type="checkbox" id="anim-per-line" onchange="setAnimPerLine(this.checked)" title="줄마다 효과·시작 시각을 따로(예: 질문은 타이핑 · 답은 도장)">
+          </div>
+          <div id="anim-tracks" class="anim-tracks" style="display:none"></div>
         </div>
 
         <div class="anim-modal-footer">
