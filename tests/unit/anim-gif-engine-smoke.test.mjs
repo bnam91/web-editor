@@ -148,3 +148,17 @@ test('E3 F3 줄마다 따로 — 저장본 P076(질문 타이핑 0~1000 · 답 �
   window.setAnimPerLine(false);
   assert.equal(F.tb.dataset.animGif, undefined, '끄면 저장 지움');
 });
+
+test('E4 다시 열면 «저장값»을 읽는다 — 닫은 뒤 저장만 바꾸면(메모리와 다르게) 그 값으로 한 바퀴가 선다', async () => {
+  const E = await loadEngine();
+  globalThis.pushHistory = () => {};
+  E.tb.dataset.animGif = JSON.stringify({ v: 2, tracks: [{ line: 0, fx: 'typewriter', at: 0, dur: 1000 }, { line: 1, fx: 'stamp', at: 1100, dur: 800 }], speed: 1, repeat: 1 });
+  window.openAnimModal(E.tb);
+  assert.equal(E.els['anim-loop-info'].textContent, `한 바퀴 1.90초 · GIF ${Math.ceil(1.9 * 20) + 1 + 30}프레임`, '[전제] 처음 열기 = 저장값');
+  window.closeAnimModal();
+  const o = JSON.parse(E.tb.dataset.animGif); o.tracks[1].dur = 900; o.speed = 2;
+  E.tb.dataset.animGif = JSON.stringify(o);
+  window.openAnimModal(E.tb);
+  assert.equal(E.els['anim-speed'].value, '2', '속도 = 저장값');
+  assert.equal(E.els['anim-loop-info'].textContent, `한 바퀴 1.00초 · GIF ${Math.ceil(1.0 * 20) + 1 + 30}프레임`, '★다시 열 때 저장값을 안 읽었다(메모리 1.90초)');
+});
