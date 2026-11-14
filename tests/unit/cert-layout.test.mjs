@@ -1,0 +1,80 @@
+/* cert-layout.test.mjs — js/blocks/cert-layout.js (인증서 블럭 A · 261114) · 글을 읽어 export 만 걷고 돌린다(루트 commonjs)
+ *   L1 s17 4장 — 장마다 각도·위치가 다르다(대칭 부채 아님: 각도 모두 다름 · 좌우 대칭 아님) · 서로 겹친다(이웃 종이 상자 교차)
+ *   L2 지시선 — 위쪽 글이면 종이 위끝에서 위로 · 아래 글이면 아래끝에서 아래로 · 세로선(x 같음) · 모든 좌표 ≥ 0 · 높이 안
+ *   L3 시드 — 같은 시드·같은 입력 = 같은 배치 · jitter>0 이면 시드가 다르면 다르다 · jitter 0 이면 시드 무관(프리셋 그대로)
+ *   L4 장 수 1~6 · 프리셋과 수가 다르면 auto · 상한 6 · 위/아래 번갈아
+ *   L5 gridLayout — 열·간격대로 · 마지막 줄 가운데 · 높이
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const { readSrc } = require('./_srcread.js');
+const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../');
+const src = readSrc(REPO, 'js/blocks/cert-layout.js');
+assert.doesNotMatch(src, /^\s*import\s/m, '★전제: 순수 모듈(import 0)');
+const names = [...src.matchAll(/export\s+(?:const|function)\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]);
+const M = new Function(src.replace(/\bexport\s+/g, '') + `\n;return { ${names.join(', ')} };`)();
+
+const box = (s) => ({ l: s.cx - s.w / 2, r: s.cx + s.w / 2, t: s.cy - s.h / 2, b: s.cy + s.h / 2 });
+const hit = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+
+test('L1 s17 — 제각각 각도·위치 · 겹친다', () => {
+  const L = M.collageLayout({ n: 4, width: 600, preset: 's17', seed: 1 });
+  const rots = L.sheets.map((s) => s.rot);
+  assert.equal(new Set(rots).size, 4, '각도가 모두 다르다');
+  const xs = L.sheets.map((s) => s.cx).sort((a, b) => a - b);
+  assert.notDeepEqual(xs.map((x) => Math.round(600 - x)).sort((a, b) => a - b), xs.map(Math.round), '좌우 대칭이 아니다');
+  const overl = L.sheets.some((a, i) => L.sheets.some((b, j) => i < j && hit(box(a), box(b))));
+  assert.ok(overl, '서로 겹치는 종이가 있다');
+  assert.deepEqual(L.sheets.map((s) => s.side), ['bottom', 'top', 'top', 'bottom']);
+  assert.deepEqual([...new Set(L.sheets.map((s) => s.z))].sort(), [1, 2, 3, 4]);
+});
+
+test('L2 지시선 — 위/아래 · 세로 · 영역 안', () => {
+  const L = M.collageLayout({ n: 4, width: 600, preset: 's17', seed: 1, lineLen: 50, labelH: 48 });
+  for (const s of L.sheets) {
+    assert.equal(s.line.x, s.cx);
+    if (s.side === 'top') { assert.ok(s.line.y2 < s.line.y1); assert.ok(s.line.y1 < s.cy); assert.ok(s.label.y < s.line.y2); assert.ok(s.label.y - 48 >= 0, 'top 글 덩이가 영역 안'); }
+    else { assert.ok(s.line.y2 > s.line.y1); assert.ok(s.line.y1 > s.cy); assert.ok(s.label.y > s.line.y2); assert.ok(s.label.y + 48 <= L.height, 'bottom 글 덩이가 영역 안'); }
+    assert.ok(Math.abs(s.line.y2 - s.line.y1) >= 46);
+  }
+  assert.ok(L.sheets.every((s) => s.cy - s.h / 2 > -s.h * 0.2));
+});
+
+test('L3 시드 · jitter', () => {
+  const a = M.collageLayout({ preset: 's17', seed: 7, jitter: 0.6 });
+  assert.deepEqual(M.collageLayout({ preset: 's17', seed: 7, jitter: 0.6 }), a);
+  assert.notDeepEqual(M.collageLayout({ preset: 's17', seed: 8, jitter: 0.6 }), a);
+  assert.deepEqual(M.collageLayout({ preset: 's17', seed: 1 }).sheets.map((s) => s.rot), M.collageLayout({ preset: 's17', seed: 99 }).sheets.map((s) => s.rot));
+  let r = M.seededRandom(3); const v = [r(), r(), r()]; r = M.seededRandom(3);
+  assert.deepEqual([r(), r(), r()], v);
+  assert.ok(v.every((x) => x >= 0 && x < 1));
+});
+
+test('L4 장 수', () => {
+  for (const n of [1, 2, 3, 5, 6]) {
+    const L = M.collageLayout({ n, preset: 's17', seed: 2 });
+    assert.equal(L.sheets.length, n);
+    assert.equal(new Set(L.sheets.map((s) => s.z)).size, n);
+    assert.ok(L.sheets.every((s) => s.cx - s.w / 2 >= -0.01 && s.cx + s.w / 2 <= 600.01), `n=${n} 가로 안`);
+  }
+  assert.equal(M.collageLayout({ n: 9 }).sheets.length, 6);
+  assert.deepEqual(M.collageLayout({ n: 4, preset: 'auto', seed: 2 }).sheets.map((s) => s.side), ['bottom', 'top', 'bottom', 'top']);
+  assert.ok(M.CERT_PRESET_NAMES.includes('auto') && M.CERT_PRESET_NAMES.includes('s17'));
+});
+
+test('L5 gridLayout', () => {
+  const g = M.gridLayout({ n: 5, width: 600, cols: 3, gap: 12, captionH: 40 });
+  assert.equal(g.cells.length, 5);
+  const w = (600 - 24) / 3;
+  assert.equal(g.cells[0].w, w);
+  assert.equal(g.cells[1].x, w + 12);
+  const rowH = w * M.CERT_SHEET_RATIO + 40 + 12;
+  assert.equal(g.cells[3].y, rowH);
+  assert.equal(g.cells[3].x, (w + 12) / 2, '마지막 줄 2칸 = 가운데로 반 칸 민다');
+  assert.equal(g.height, Math.ceil(2 * rowH - 12));
+});
