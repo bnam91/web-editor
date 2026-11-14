@@ -2575,7 +2575,8 @@ function _freeNudgeTargets() {
 function _yieldsUndoToNative(cmd) {
   const ae = document.activeElement;
   if (!ae?.isContentEditable) return false;
-  if (!ae.closest('.text-block[data-tf-corners]')) return true;
+  /* .annot-label — 세 클릭 치수선·펜이 라벨 편집을 바로 연다 ⇒ 손 안 댄 채 ⌘Z 가 네이티브(되돌릴 것 없음)로 가 «먹통 한 칸»이었다(ANNOT-PREVIEW-LEFT-AFTER-UNDO-01 ② · 261114) */
+  if (!ae.closest('.text-block[data-tf-corners], .annot-label')) return true;
   if (!document.queryCommandEnabled(cmd)) return false;
   return cmd !== 'undo' || ae !== _nativeUndoEntry?.el || ae.innerHTML !== _nativeUndoEntry.html;
 }

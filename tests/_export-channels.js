@@ -425,6 +425,7 @@ const CAPTURE_VERDICT = {
   '.mesh-corner-overlay': _Y('메시 그라데이션 모서리 점 편집 오버레이 — js/mesh-corner-overlay.js(#canvas-scaler 에 appendChild · 섹션 밖) · 저장은 section-serialize 가 지운다 · 산출물 쓰레기'),
   '.grad-line-overlay':   _Y('그라데이션 선 편집 오버레이 — js/gradient-line-overlay.js:20 「section-serialize 가 저장 시 제거」 · 편집 중 표시'),
   '.vpen-preview':        _Y('펜툴 «그리는 중» 미리보기 — 섹션 안 appendChild(js/pen-tool.js:336) · 캡처가 .annot-preview 를 같은 까닭으로 지운다(설계 제외)'),
+  '.annot-preview':       _Y('주석·치수선 «그리는 중» 미리보기 — 섹션 안 appendChild(js/annotation-tool.js:270) · 캡처는 capture-safety.js:523 이 이미 지운다 · 저장 줄은 261114 ANNOT-PREVIEW-LEFT-AFTER-UNDO-01'),
   '.vpen-edit-overlay':   _Y('펜툴 편집 오버레이 — js/pen-tool.js:603 `wrap.className = \'vpen-edit-overlay\'` · 편집 중 표시'),
   '.drop-indicator':      _Y('드래그가 잠깐 심는 껍데기 — js/overlay-float.js:383 주석'),
   '.block-resize-handle': { v: 'unmeasured', why: '만드는 자리를 js/ 에서 못 찾았다(grep 0 — 옛 이름일 수 있다)' },
