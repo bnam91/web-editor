@@ -2590,6 +2590,9 @@ document.addEventListener('keydown', e => {
   // (단, Escape는 element 레벨에서 stopPropagation으로 처리 / Cmd 단축키는 통과)
   if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;
 
+  /* Tab = 고른 텍스트 블럭의 «글자 크기» 칸으로 (현빈 261114) — 편집 중·표 칸(위 줄 · block-drag 칸 Tab 은 stopPropagation)·입력칸·패널 위 Tab 은 안 건드린다 */
+  if (e.key === 'Tab' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && _tabToFontSize()) { e.preventDefault(); return; }
+
   // ⌘, (Comma) — 환경설정 모달 열기 (시스템 표준)
   if ((e.metaKey || e.ctrlKey) && e.code === 'Comma' && !e.shiftKey && !e.altKey) {
     e.preventDefault();
@@ -3521,6 +3524,32 @@ document.addEventListener('keydown', e => {
     return;
   }
 });
+
+/* Tab → 글자 크기 칸 (현빈 261114) — 텍스트 블럭 «하나만» 골랐을 때만 · 여러 개면 패널이 다른 칸(prop-multisel #msp-font-size)이라 안 간다 */
+function _tabToFontSize() {
+  const ae = document.activeElement;
+  if (ae && ae !== document.body && (!ae.closest?.('#canvas') || /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return false;
+  if (document.querySelector('.text-block.editing, .label-group-block.editing')) return false;
+  if (document.body.classList.contains('preview-mode')) return false;
+  const sel = [...document.querySelectorAll(CANVAS_SEL_BLOCKS_AND_SHAPE)].filter(b => b.closest('#canvas'));
+  if (sel.length !== 1 || !sel[0].classList.contains('text-block')) return false;
+  const fs = document.getElementById('txt-size-number');
+  if (!fs || fs.disabled || !fs.getClientRects().length) return false;   // 패널이 닫혔거나 칸이 없다
+  fs._tabFromCanvas = true;
+  fs.focus();
+  fs.select?.();
+  return true;
+}
+/* Tab 으로 온 칸은 Enter·Esc 로 끝나면 캔버스로 돌아간다(블럭은 골라진 채).
+   ★window 캡처 = 커밋 가드(prop-number-commit-guard.js · document 캡처)보다 «먼저» 표만 하고, blur 는 한 틱 뒤 —
+     가드가 Enter 커밋 뒤 칸에 포커스를 되돌리는 것(블럭 지움 사고 방지)은 Tab 으로 온 경우에만 여기서 푼다. */
+window.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (!el?._tabFromCanvas || (e.key !== 'Enter' && e.key !== 'Escape')) return;
+  el._tabFromCanvas = false;
+  setTimeout(() => { if (document.activeElement === el) el.blur(); }, 0);
+}, true);
+document.addEventListener('focusout', (e) => { if (e.target?._tabFromCanvas) e.target._tabFromCanvas = false; });
 
 /* ══ 그리드 칸 «안의 줄»을 ⌘↑/↓ 로 옮긴다 — 0926 ═══════════════════════════
  * ★게이트는 deleteSelectedFromCanvas(⌫)의 그 꼴을 «그대로» 따른다 — 같은 주소(grdGetActiveLine)를
