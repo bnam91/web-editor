@@ -36,6 +36,7 @@ window._stickerHtmlHasFormatting = richTextHasFormatting;
  *   그릴 때는 여기서 직접 부르고, 고전 스크립트(js/count-sticker-tool.js)는 dataset 에 «쓸 때» 아래 알리아스로 부른다(사본이 아니라 같은 함수). */
 import { sanitizeSvgString, sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { burstPoints, burstRingR, BURST_DEFAULTS } from './burst-geometry.js';   // B2 톱니 스탬프(261114) — 자체 제작 도형
+import { escHtml } from '../props/_helpers.js';   // HTML 이스케이프 정본 한 벌(사본 금지 — name-axes-to-markup X9)
 window._sanitizeSvgString = sanitizeSvgString;
 
 /* 마킹 블럭(data-count)의 아이콘 표기(data-count-style="icon") — .sticker-text 자리에 들어갈 마크업. (1013t2B5)
@@ -518,8 +519,13 @@ function _renderStickerBlockInner(block) {
           ? `<circle cx="50" cy="50" r="${burstRingR({ depth: block.dataset.burstDepth })}" fill="none" stroke="${_escAttrBurst(textColor)}" stroke-width="1.2" stroke-opacity="0.6" vector-effect="non-scaling-stroke"/>` : '')
         + `</svg>`
       : '';
-    block.innerHTML = _burstSvg + (_cntIconHTML
-      || `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};${_isBurst ? 'position:relative;' : ''}">${bInner}</span>`)
+    /* B3(261114) — 커스텀 인증마크: 원형·톱니 배지에 «둘레 글자»(원 따라 도는 글) · «테두리 링» · «작은 둘째 줄»(실측: 셋 다 없었다 —
+       부분 서식은 font-size 를 안 받는다 · 공용 세척기를 넓히지 않고 칸을 따로 둔다). 마킹(data-count)은 제외. */
+    const _mark = !block.dataset.count && (shape === 'circle' || _isBurst) ? _markLayers(block, { isBurst: _isBurst, textColor, fontSize }) : { svg: '', sub: '' };
+    const _mainSpan = `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};${(_isBurst || _mark.svg) ? 'position:relative;' : ''}">${bInner}</span>`;
+    // 작은 줄은 편집 span(.sticker-text) «밖» 형제 — 안에 두면 더블클릭 편집이 끝날 때 본문 글에 섞인다
+    const _textPart = _mark.sub ? `<div class="stk-mark-stack" style="position:relative;display:flex;flex-direction:column;align-items:center;line-height:1.1;">${_mainSpan}${_mark.sub}</div>` : _mainSpan;
+    block.innerHTML = _burstSvg + _mark.svg + (_cntIconHTML || _textPart)
       + _countLabelHTML(block);   // 마킹 블럭의 옆 라벨(없으면 '') — 1013t2B5
   }
 }
@@ -667,6 +673,31 @@ function _relightCoinAfterRotate() {
   });
 }
 document.addEventListener('mouseup', _relightCoinAfterRotate, true);
+
+/* B3 — 인증마크 층. 둘레 글자 = svg textPath(원 지름 = 상자) · 테두리 = 원/톱니 위 선 · 작은 줄 = 본문 아래 작은 글.
+   글은 평문으로 escHtml(정본) · 색은 _escAttrBurst · 수치는 범위로 묶는다. textPath id 는 블럭마다(stkr-<id>). */
+function _markLayers(block, { isBurst, textColor, fontSize }) {
+  const d = block.dataset;
+  const ring = stripCtlChars(d.ringText || '').slice(0, 80);
+  const bw = Math.max(0, Math.min(12, parseFloat(d.ringBorderW) || 0));
+  const bc = _escAttrBurst(d.ringBorderColor || textColor);
+  const rc = _escAttrBurst(d.ringTextColor || textColor);
+  const rs = Math.max(5, Math.min(16, parseFloat(d.ringTextSize) || 9));   // 100 상자 단위
+  const sub = stripCtlChars(d.subText || '').slice(0, 60);
+  let svg = '';
+  if (ring || bw) {
+    const id = `stkr-${String(block.id || 'x').replace(/[^A-Za-z0-9_-]/g, '')}`;
+    const r = isBurst ? 30 : 50 - rs * 0.75 - bw * 0.5 - 2;   // 글 줄 반지름 — 테두리 안쪽
+    svg = `<svg class="stk-mark" viewBox="0 0 100 100" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;">`
+      + (bw && !isBurst ? `<circle cx="50" cy="50" r="${(50 - bw / 2).toFixed(2)}" fill="none" stroke="${bc}" stroke-width="${bw}"/>` : '')
+      + (bw && isBurst ? `<circle cx="50" cy="50" r="${(burstRingR({ depth: d.burstDepth }) + 4).toFixed(2)}" fill="none" stroke="${bc}" stroke-width="${bw}"/>` : '')
+      + (ring ? `<defs><path id="${id}" d="M 50,50 m -${r},0 a ${r},${r} 0 1,1 ${r * 2},0 a ${r},${r} 0 1,1 -${r * 2},0"/></defs>`
+        + `<text font-size="${rs}" font-weight="700" fill="${rc}" letter-spacing="1"><textPath href="#${id}" startOffset="25%" text-anchor="middle">${escHtml(ring)}</textPath></text>` : '')
+      + `</svg>`;
+  }
+  const subHtml = sub ? `<span class="sticker-sub" style="display:block;font-size:${Math.max(8, Math.round(fontSize * 0.42))}px;font-weight:600;opacity:0.85;margin-top:0.25em;letter-spacing:0.04em;">${escHtml(sub)}</span>` : '';
+  return { svg, sub: subHtml };
+}
 
 /** 톱니 svg 속성값 — 색 문자열이 «블럭 데이터»라 속성 이스케이프(색이 아니면 빈 값 대신 검정). */
 function _escAttrBurst(v) {

@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
@@ -48,7 +48,7 @@ function _stickerStyleFromBlock(block) {
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
      'bgColor', 'padX', 'padY', 'cornerRadius'].forEach(put);
   } else { // circle / square / burst(B2 — 톱니 키는 burst 에만 있다)
-    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'burstTeeth', 'burstDepth', 'burstRing'].forEach(put);
+    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'burstTeeth', 'burstDepth', 'burstRing', 'ringText', 'ringTextSize', 'ringBorderW', 'ringBorderColor', 'ringTextColor', 'subText'].forEach(put);
   }
   return preset;
 }
@@ -290,6 +290,15 @@ ${blockHeaderHTML({
         <span class="prop-label">안쪽 링</span>
         <label class="prop-toggle"><input type="checkbox" id="stk-burst-ring" ${(block.dataset.burstRing ?? 'on') === 'on' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
       </div>
+    </div>` : ''}
+    ${(shape === 'circle' || shape === 'burst') && !isCount ? `<div class="prop-section" id="stk-mark-section">
+      <div class="prop-section-title">Mark</div>
+      <div class="prop-hint" style="padding:2px 8px">인증마크·보증 배지 — 원 둘레 글자 · 테두리 · 작은 줄. 공인 인증 로고를 흉내 내지 마세요(내 파일은 이미지 모드로).</div>
+      <div class="prop-row"><span class="prop-label">둘레 글자</span><input type="text" class="prop-input" id="stk-ring-text" maxlength="80" value="${escHtml(block.dataset.ringText || '')}" placeholder="예: TEST COMPLETED" style="flex:1;min-width:0"></div>
+      ${sliderRowHTML('둘레 글자 크기', 'stk-ring-size', 'stk-ring-size-num', { min: 5, max: 16, step: 1, value: Math.round(parseFloat(block.dataset.ringTextSize) || 9) })}
+      ${sliderRowHTML('테두리', 'stk-ring-bw', 'stk-ring-bw-num', { min: 0, max: 12, step: 1, value: Math.round(parseFloat(block.dataset.ringBorderW) || 0) })}
+      <div class="prop-color-row"><span class="prop-label">테두리·둘레색</span>${colorFieldHTML({ idPrefix: 'stk-ring-bc', hex: block.dataset.ringBorderColor || block.dataset.textColor || '#ffffff' })}</div>
+      <div class="prop-row"><span class="prop-label">작은 줄</span><input type="text" class="prop-input" id="stk-sub-text" maxlength="60" value="${escHtml(block.dataset.subText || '')}" placeholder="예: COMPLETED" style="flex:1;min-width:0"></div>
     </div>` : ''}
     <div class="prop-section" id="stk-hl-section" style="display:${shape === 'highlight' ? 'block' : 'none'};">
       <div class="prop-section-title">Highlight Size</div>
@@ -1119,6 +1128,18 @@ ${blockHeaderHTML({
   // B2 — 톱니 스탬프
   _bindTPair('stk-burst-teeth', 'stk-burst-teeth-num', 'burstTeeth', BURST_LIMITS.teeth.min, BURST_LIMITS.teeth.max, 1);
   _bindTPair('stk-burst-depth', 'stk-burst-depth-num', 'burstDepth', BURST_LIMITS.depth.min, BURST_LIMITS.depth.max, 1);
+  // B3 — 인증마크(둘레 글자·테두리·작은 줄)
+  for (const [id, key] of [['stk-ring-text', 'ringText'], ['stk-sub-text', 'subText']]) {
+    const el = propPanel.querySelector('#' + id); if (!el) continue;
+    el.addEventListener('input', () => { block.dataset[key] = el.value; rerender(); });
+    el.addEventListener('change', () => { window.pushHistory?.('인증마크 글'); window.scheduleAutoSave?.(); });
+  }
+  _bindTPair('stk-ring-size', 'stk-ring-size-num', 'ringTextSize', 5, 16, 1);
+  _bindTPair('stk-ring-bw', 'stk-ring-bw-num', 'ringBorderW', 0, 12, 1);
+  if (propPanel.querySelector('#stk-ring-bc-color')) wireColorField('stk-ring-bc', {
+    onApply: (c) => { block.dataset.ringBorderColor = c; block.dataset.ringTextColor = c; rerender(); },
+    onCommit: () => { window.pushHistory?.('인증마크 색'); window.scheduleAutoSave?.(); },
+  });
   propPanel.querySelector('#stk-burst-ring')?.addEventListener('change', (e) => {
     block.dataset.burstRing = e.target.checked ? 'on' : 'off'; rerender(); window.pushHistory?.('톱니 링'); window.scheduleAutoSave?.();
   });
