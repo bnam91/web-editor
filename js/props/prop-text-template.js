@@ -251,6 +251,7 @@ ${textShadowControlsHtml(_sh)}
           <button class="prop-btn-full${labelShape==='box'?' active':''}" id="label-shape-box">Box</button>
           <button class="prop-btn-full${labelShape==='outline'?' active':''}" id="label-shape-outline">Outline</button>
           <button class="prop-btn-full${labelShape==='circle'?' active':''}" id="label-shape-circle">Circle</button>
+          <button class="prop-btn-full${labelShape==='oval'?' active':''}" id="label-shape-oval">Oval</button>
           <button class="prop-btn-full${labelShape==='text'?' active':''}" id="label-shape-text">Text</button>
         </div>
         <div class="prop-color-row">

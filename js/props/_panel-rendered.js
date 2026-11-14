@@ -29,6 +29,7 @@ export function labelShapeFromRendered(el) {
   const h = el.offsetHeight;   // 레이아웃 px(배율 무관) — 계산된 radius 와 같은 단위
   if (border > 0) return 'outline';
   if (!filled) return radius === 0 ? 'text' : null;
+  if (/%/.test(cs.borderTopLeftRadius)) return 'oval';   // Oval 단추의 50% — 계산값이 «%» 로 남는다(px 로 읽으면 50 = 알약으로 오판)
   if (h > 0 && radius >= h / 2) return 'pill';
   return 'box';
 }

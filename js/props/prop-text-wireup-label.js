@@ -226,6 +226,18 @@ export function wireLabelSection({ ctx }) {
     if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
     window.scheduleAutoSave?.();
   });
+  /* Oval(타원) — 폭은 글자대로 두고 border-radius:50% = 가로로 긴 타원(Circle 은 64×64 정원 · Pill 은 999px 반원 끝).
+     ⚠️B1 «라벨 모양 변수»(q/cert-* · label-group · LABEL_SHAPE_KINDS.ellipse)와 별개의 텍스트 라벨 기본 프리셋이다. */
+  document.getElementById('label-shape-oval')?.addEventListener('click', () => {
+    window.pushHistory?.();
+    _resetLabelInline();
+    ctx.contentEl.style.borderRadius = '50%';
+    ctx.contentEl.style.padding       = '11px 36px';
+    const rSlider2 = document.getElementById('label-radius-slider');
+    const rNumber2 = document.getElementById('label-radius-number');
+    if (rSlider2) { rSlider2.value = 999; rNumber2.value = 999; }
+    window.scheduleAutoSave?.();
+  });
   document.getElementById('label-shape-text')?.addEventListener('click', () => {
     window.pushHistory?.();
     _resetLabelInline();
@@ -243,7 +255,7 @@ export function wireLabelSection({ ctx }) {
 
   /* ★U7(E121 · 2026-10-05): Tag Style 켜짐 표시 — 형태 단추가 인라인을 쓴 «뒤» 그려진 모양으로 다시 판정한다
      (위 핸들러들 뒤에 등록 = 같은 요소의 리스너는 등록 순서대로 돈다). 판정 한 자리 = _panel-rendered.js. */
-  const _SHAPES = ['pill', 'box', 'outline', 'circle', 'text'];
+  const _SHAPES = ['pill', 'box', 'outline', 'circle', 'oval', 'text'];
   const _markShape = () => {
     const cur = labelShapeFromRendered(ctx.contentEl);
     _SHAPES.forEach(k => document.getElementById('label-shape-' + k)?.classList.toggle('active', k === cur));
