@@ -28,6 +28,8 @@
  *      양성대조: cert-block.js 격자 칸 `aspect-ratio:100 / ${st.sheetH}` 를 `210 / 297` 로 → SH1(격자) 빨강 · collageLayout 호출의 `ratio: st.sheetH / 100,` 삭제 → SH1(스택) 빨강
  *   OV1 겹침 순서(⑬ · crt-overlap) — 간격 −40 · «왼쪽이 위» → 가로 겹친 곳 = 왼쪽 칸(0) · 세로 겹친 곳 = 위 행 칸(0) · 출력 클론도 같은 z
  *      양성대조: cert-block.js _renderGridStage 의 `(st.overlap === 'left' ? \`z-index:…\` : '')` 를 `''` 로 → OV1 빨강
+ *   SN1 «용지 높이» 자석 턱(⑭) — 슬라이더 끌기 139·143·145 → 141 · 130·146 → 그대로 · 숫자 칸 직접 139 → 139 · 트랙에 턱 눈금
+ *      양성대조: prop-cert.js wireNum('crt-sheeth', …) 의 `, { snap: { to: CERT_SHEET_H.def, tol: 4 } }` 삭제 → SN1 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -585,5 +587,23 @@ test('OV1 겹침 순서 «왼쪽이 위»(⑬)', async ({ page }) => {
   }, id);
   expect(out.length).toBe(4);
   expect(out[0] > out[1] && out[0] > out[2] && out[1] > out[3], `출력 클론도 같은 z(앞 칸이 위) ${out}`).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('SN1 용지 높이 자석 턱 141(⑭)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await stackMode(page, id);
+  const drag = (v) => page.evaluate(({ id, v }) => { const s = document.getElementById('crt-sheeth-slider'); s.value = String(v); s.dispatchEvent(new Event('input', { bubbles: true }));
+    return [+document.getElementById('crt-sheeth-number').value, +document.getElementById(id).dataset.sheetH, +s.value]; }, { id, v });
+  expect(await drag(139)).toEqual([141, 141, 141]);
+  expect(await drag(143)).toEqual([141, 141, 141]);
+  expect(await drag(145), '경계 ±4 포함').toEqual([141, 141, 141]);
+  expect(await drag(130)).toEqual([130, 130, 130]);
+  expect(await drag(146)).toEqual([146, 146, 146]);
+  await page.fill('#crt-sheeth-number', '139');
+  await page.dispatchEvent('#crt-sheeth-number', 'change');
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.sheetH, id), '숫자 칸 직접 입력엔 턱 없음').toBe('139');
+  expect(await page.evaluate(() => document.getElementById('crt-sheeth-slider').style.background), '턱 눈금').toMatch(/linear-gradient/);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

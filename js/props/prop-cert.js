@@ -16,6 +16,8 @@ const PICK_COLS = 4, PICK_ROWS = 3;   // 그리드 피커 4×3 = CERT_MAX_GRID
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="3.5" y="1" width="6" height="8.5" rx="0.5"/><path d="M2.5 2.5v8.5h6"/></svg>`;
 const PRESET_LABEL = { fan: '부채(기본)', s17: '흩뿌림', stair: '계단', pile: '쌓기', auto: '자동' };
 
+/** ⑭ 자석 턱 — v 가 target ±tol 안이면 target 으로(슬라이더 끌기 전용 · 숫자 칸 직접 입력엔 안 씀). */
+const _snapNear = (v, target, tol) => (Math.abs(v - target) <= tol ? target : v);
 const _toggleRow = (id, label, on, title = '') => `<div class="prop-row"${title ? ` title="${escHtml(title)}"` : ''}>
         <span class="prop-label">${label}</span>
         <label class="prop-toggle"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
@@ -140,17 +142,21 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
       commit(); reopen();
     });
   }
-  const wireNum = (id, key, min, max, { scale = 1 } = {}) => {
+  const wireNum = (id, key, min, max, { scale = 1, snap = null } = {}) => {
     const s = $(`${id}-slider`), n = $(`${id}-number`);
     if (!s || !n) return;
     const apply = (v) => { const x = Math.min(max, Math.max(min, Number.isFinite(v) ? v : min)); block.dataset[key] = String(x * scale); rerender(); s.value = x; n.value = x; };
-    s.addEventListener('input', () => apply(parseFloat(s.value)));
+    s.addEventListener('input', () => { const v = parseFloat(s.value); apply(snap ? _snapNear(v, snap.to, snap.tol) : v); });
     s.addEventListener('change', commit);
     n.addEventListener('change', () => { apply(parseFloat(n.value)); commit(); });
   };
   wireNum('crt-jitter', 'jitter', 0, 100, { scale: 0.01 });
   wireNum('crt-sheetw', 'sheetW', 20, 45, { scale: 0.01 });
-  wireNum('crt-sheeth', 'sheetH', CERT_SHEET_H.min, CERT_SHEET_H.max);
+  wireNum('crt-sheeth', 'sheetH', CERT_SHEET_H.min, CERT_SHEET_H.max, { snap: { to: CERT_SHEET_H.def, tol: 4 } });   // ⑭ 141(A4) 자석 턱 ±4
+  { // 턱 눈금 — 트랙(.prop-slider 배경 = --ui-border) 위 141 자리에 1px 선(--ui-text-muted) · 엄지 12px 반폭 보정
+    const sl = $('crt-sheeth-slider'), p = (CERT_SHEET_H.def - CERT_SHEET_H.min) / (CERT_SHEET_H.max - CERT_SHEET_H.min);
+    if (sl) sl.style.background = `linear-gradient(var(--ui-text-muted), var(--ui-text-muted)) no-repeat calc(6px + (100% - 12px) * ${p.toFixed(4)}) 50% / 1px 9px, var(--ui-border)`;
+  }
   wireNum('crt-gap', 'gap', -80, 80);   // ⑦ 음수 = 겹침
   wireNum('crt-titlesize', 'titleSize', 10, 48);
   wireNum('crt-descsize', 'descSize', 9, 32);
