@@ -10,11 +10,16 @@
  *   K8 [보안] 손댄 dataset — 글은 글자로 · 이상한 그림 주소는 빈 칸 · 핸들러 0(콜아웃 켬)
  *   K9 저장→열기 왕복(applyProjectData) — dataset 에서 다시 그린다
  *   K10 장 수 6
+ *   ── 격자 모드(A4 칸 · 현빈 결정 «스택 ＋ 격자») ──
+ *   G1 모드 «격자» → .cert-grid · 칸 4 · 세로 A4 · 빈 칸 체크무늬 · 회전 0
+ *   G2 열 수 2 → 열 2개
+ *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  * 양성대조:
  *   · js/blocks/cert-block.js _bindSlotInput 의 drop 리스너(`block.addEventListener('drop', …)`)를 지우면 K3 빨강
  *   · 같은 파일 `transform:rotate(${s.rot.toFixed(2)}deg);` 를 지우면 K2 빨강
  *   · 같은 파일 `if (st.curl === 'on') s.appendChild(…)` 를 지우면 K7 빨강
  *   · js/blocks/cert-layout.js collageLayout 의 `preset === 'fan' ? _fanSlots(n) :` 를 지우면 K2 빨강(기본이 auto 로 떨어져 각도 ± 번갈아)
+ *   · js/blocks/cert-block.js renderCertBlock 의 `if (st.mode === 'grid') { … }` 갈래를 지우면 G1·G2·G3 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-curl/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
  *   · #crt-preset/#crt-count-number/#crt-curl/#crt-callouts/.crt-img-pick/.crt-img-clear/.crt-status(prop-cert.js) · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
@@ -175,5 +180,48 @@ test('K10 장 수 6', async ({ page }) => {
   await page.fill('#crt-count-number', '6');
   await page.dispatchEvent('#crt-count-number', 'change');
   await expect(page.locator(`#${id} .cert-sheet`)).toHaveCount(6);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G1 격자 모드 — A4 칸 4', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector(`#${id} .cert-grid`);
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); const sh = b.querySelector('.cert-grid .cert-sheet');
+    return { cells: b.querySelectorAll('.cert-grid .cert-cell').length, ratioOk: Math.abs(sh.offsetHeight / sh.offsetWidth - 297 / 210) < 0.02,
+      checker: /conic-gradient/.test(sh.style.background || getComputedStyle(sh).backgroundImage), rot: getComputedStyle(sh).transform }; }, id);
+  expect(r).toEqual({ cells: 4, ratioOk: true, checker: true, rot: 'none' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G2 격자 열 2', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector('#crt-cols-number');
+  await page.fill('#crt-cols-number', '2');
+  await page.dispatchEvent('#crt-cols-number', 'change');
+  const cols = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .cert-grid`)).gridTemplateColumns.split(' ').length, id);
+  expect(cols).toBe(2);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G3 격자 — 끌어 놓기 · 칸 아래 글', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector(`#${id} .cert-grid`);
+  const dt = await page.evaluateHandle((b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const d = new DataTransfer(); d.items.add(new File([u], 'a4.png', { type: 'image/png' })); return d; }, PNG.toString('base64'));
+  await page.dispatchEvent(`#${id} .cert-sheet[data-idx="1"]`, 'drop', { dataTransfer: dt });
+  await page.waitForFunction((id) => !!document.querySelector(`#${id} .cert-grid .cert-sheet[data-idx="1"] img.cert-img`), id, { timeout: 5000 });
+  await toggle(page, 'crt-callouts');
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); const cap = b.querySelector('.cert-cell .cert-callout'); const sh = cap?.parentElement.querySelector('.cert-sheet');
+    return { caps: b.querySelectorAll('.cert-grid .cert-callout').length, lines: b.querySelectorAll('.cert-line').length, below: !!(cap && sh && cap.getBoundingClientRect().top >= sh.getBoundingClientRect().bottom - 1) }; }, id);
+  expect(r).toEqual({ caps: 4, lines: 0, below: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

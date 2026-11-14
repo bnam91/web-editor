@@ -1,7 +1,7 @@
 /* cert-block.js — A4 용지 스택(보이는 이름 «Documents» · 현빈 261114 · 내부 클래스는 cert-block 그대로) (A · 현빈 GO 261114 → reframe 같은 날)
  *   현빈: «인증서라고 생각하지 말고 A4 용지들을 배치하는 거라고 생각해.» ⇒ 본질 = 세로 A4(1:1.414) 용지를 겹쳐 세운 «스택» 하나.
  *   ★슬롯 = 에셋 블럭처럼: 파일을 끌어다 놓기(drop) · 더블클릭 = 파일창(prop-grid.js grdPickImageFile — 기존 길) · 빈 칸 = 체크무늬(checkerBg 정본)
- *   ★배치 = cert-layout.js collageLayout · 기본 fan(부채처럼 겹쳐 세움) · s17/stair/pile/auto 는 같은 스택의 다른 겹침
+ *   ★모드 = stack(cert-layout.js collageLayout · 기본 fan · s17/stair/pile/auto 는 같은 스택의 다른 겹침) · grid(A4 칸 · 열·간격)
  *   ★옵션(기본 끔): 지시선 콜아웃(+상태 칩) · 종이 끝 말림(curl) · 위 제목/부제(비우면 안 그림)
  *   ⛔원형 인증마크·낙관 슬롯은 «안 둔다»(사용자가 스티커/마크로 따로 올린다) · 상표 로고 번들 0
  *   ★데이터 = dataset 하나(저장 = outerHTML) · 그림은 renderCertBlock 이 매번 다시(로드 때도 save-load.js 표) · 보이는 꼴은 인라인(내보내기 규약)
@@ -14,11 +14,14 @@ import { checkerBg } from '../checker-tokens.js';
 import { grdImageFileOk, grdPickedImageSrc, grdPickImageFile } from '../props/prop-grid.js';
 import { collageLayout, CERT_MAX_SHEETS, CERT_PRESET_NAMES } from './cert-layout.js';
 
+const CERT_MODES = ['stack', 'grid'];   // 현빈 결정 261114 — 스택(부채 등 겹침) + 격자(A4 칸 · A 원판 grid 를 되살림)
+
 const CERT_STATUSES = ['', '등록', '출원', '진행중'];
 const U = 1000;   // 배치 단위 폭
 const _onOff = (v, d) => (v === 'on' || v === 'off' ? v : d);
 
 const CERT_DEFAULTS = Object.freeze({
+  mode: 'stack', cols: 4, gap: 16,
   headline: '', sub: '',
   preset: 'fan', seed: 1, jitter: 0, sheetW: 0.32,
   callouts: 'off', curl: 'off',
@@ -45,6 +48,8 @@ function readCertState(block) {
   const D = CERT_DEFAULTS;
   return {
     certs,
+    mode: CERT_MODES.includes(d.mode) ? d.mode : D.mode,
+    cols: Math.max(1, Math.min(CERT_MAX_SHEETS, Math.round(_num(d.cols, D.cols)))), gap: Math.max(0, Math.min(80, _num(d.gap, D.gap))),
     headline: d.headline ?? D.headline, sub: d.sub ?? D.sub,
     preset: CERT_PRESET_NAMES.includes(d.preset) ? d.preset : D.preset,
     seed: Math.round(_num(d.seed, D.seed)), jitter: Math.max(0, Math.min(1, _num(d.jitter, D.jitter))),
@@ -100,10 +105,33 @@ function _head(st) {
   return h;
 }
 
+/* 격자(A4 칸) — 열·간격 · 칸 = 세로 A4 · 지시선 글을 켜면 칸 «아래»에 제목·설명(+상태) */
+function _renderGridStage(st) {
+  const cols = Math.min(st.cols, st.certs.length);
+  const stage = _el('div', 'cert-stage cert-grid', `display:grid;grid-template-columns:repeat(${cols}, 1fr);gap:${st.gap}px;align-items:start;`);
+  st.certs.forEach((c, i) => {
+    const cell = _el('div', 'cert-cell', 'min-width:0;');
+    const sh = _sheet(c, i, st);
+    sh.style.cssText = _sheetCss(c, 'position:relative;width:100%;aspect-ratio:210 / 297;');
+    cell.appendChild(sh);
+    if (st.callouts === 'on') { const cap = _caption(st, c, 'center'); cap.dataset.idx = String(i); cap.style.marginTop = '12px'; cell.appendChild(cap); }
+    stage.appendChild(cell);
+  });
+  return stage;
+}
+
 function renderCertBlock(block) {
   if (!block) return;
   const st = readCertState(block);
+  block.dataset.mode = st.mode;
   block.querySelectorAll(':scope > .cert-head, :scope > .cert-stage').forEach((n) => n.remove());
+  if (st.mode === 'grid') {
+    const head = _head(st);
+    if (head) block.append(head);
+    block.append(_renderGridStage(st));
+    _bindSlotInput(block);
+    return;
+  }
   const withCallouts = st.callouts === 'on';
   const L = collageLayout({ n: st.certs.length, width: U, sheetW: st.sheetW, preset: st.preset, seed: st.seed, jitter: st.jitter,
     lineLen: 56, labelH: 64, pad: 12, labels: withCallouts });
@@ -181,7 +209,7 @@ function makeCertBlock(opts = {}) {
   block.dataset.type = 'cert';
   block.dataset.layerName = opts.layerName || 'Documents';
   block.dataset.certs = JSON.stringify(Array.isArray(opts.certs) ? opts.certs : CERT_DEFAULT_CERTS);
-  for (const k of ['headline', 'sub', 'preset', 'seed', 'jitter', 'sheetW', 'callouts', 'curl']) block.dataset[k] = String(opts[k] ?? CERT_DEFAULTS[k]);
+  for (const k of ['mode', 'cols', 'gap', 'headline', 'sub', 'preset', 'seed', 'jitter', 'sheetW', 'callouts', 'curl']) block.dataset[k] = String(opts[k] ?? CERT_DEFAULTS[k]);
   renderCertBlock(block);
   const row = document.createElement('div');
   row.className = 'row';
@@ -208,4 +236,4 @@ window.makeCertBlock = makeCertBlock;
 window.addCertBlock = addCertBlock;
 window.renderCertBlock = renderCertBlock;
 
-export { CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };
+export { CERT_MODES, CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };

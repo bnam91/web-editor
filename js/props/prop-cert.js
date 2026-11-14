@@ -9,6 +9,7 @@ import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { readCertState, setCertList, setCertSlotImage, CERT_STATUSES } from '../blocks/cert-block.js';
+const MODE_LABEL = { stack: '스택(겹침)', grid: '격자(A4 칸)' };
 import { CERT_PRESET_NAMES, CERT_MAX_SHEETS } from '../blocks/cert-layout.js';
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="3.5" y="1" width="6" height="8.5" rx="0.5"/><path d="M2.5 2.5v8.5h6"/></svg>`;
@@ -49,12 +50,17 @@ export function showCertProperties(block) {
 ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Documents', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">Stack</div>
-      <div class="prop-row"><span class="prop-label">배치</span><select class="prop-select" id="crt-preset">
+      <div class="prop-section-title">Documents</div>
+      <div class="prop-row"><span class="prop-label">모드</span><select class="prop-select" id="crt-mode">
+        ${Object.entries(MODE_LABEL).map(([k, v]) => `<option value="${k}"${k === st.mode ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+      ${st.mode === 'grid'
+    ? sliderRowHTML('열 수', 'crt-cols-slider', 'crt-cols-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.cols })
+      + sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: 0, max: 80, step: 2, value: st.gap })
+    : `<div class="prop-row"><span class="prop-label">배치</span><select class="prop-select" id="crt-preset">
         ${CERT_PRESET_NAMES.map((k) => `<option value="${k}"${k === st.preset ? ' selected' : ''}>${PRESET_LABEL[k] || k}</option>`).join('')}</select></div>
       ${sliderRowHTML('흩뿌림', 'crt-jitter-slider', 'crt-jitter-number', { min: 0, max: 100, step: 5, value: Math.round(st.jitter * 100) })}
       <div class="prop-row"><button class="prop-btn" id="crt-reshuffle" style="width:100%" title="흩뿌림이 0 보다 클 때 다른 배치로">다시 섞기</button></div>
-      ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}
+      ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}`}
       ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}
       <div class="prop-hint" style="padding:2px 8px">용지 칸에 그림 파일을 끌어다 놓거나 더블클릭하세요(내 파일만).</div>
       ${st.certs.map((c, i) => _slotCardHTML(c, i, withCallouts)).join('')}
@@ -77,6 +83,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
   const reopen = () => showCertProperties(block);
   const $ = (id) => document.getElementById(id);
 
+  $('crt-mode')?.addEventListener('change', (e) => { block.dataset.mode = e.target.value; rerender(); commit(); reopen(); });
   $('crt-preset')?.addEventListener('change', (e) => { block.dataset.preset = e.target.value; rerender(); commit(); });
   $('crt-reshuffle')?.addEventListener('click', () => {
     block.dataset.seed = String((parseInt(block.dataset.seed, 10) || 1) + 1);
@@ -101,6 +108,8 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
   };
   wireNum('crt-jitter', 'jitter', 0, 100, { scale: 0.01 });
   wireNum('crt-sheetw', 'sheetW', 20, 45, { scale: 0.01 });
+  wireNum('crt-cols', 'cols', 1, CERT_MAX_SHEETS);
+  wireNum('crt-gap', 'gap', 0, 80);
   wireNum('crt-headsize', 'headSize', 16, 80);
   wireNum('crt-titlesize', 'titleSize', 10, 48);
   wireNum('crt-descsize', 'descSize', 9, 32);
