@@ -2,7 +2,8 @@
  *   L1 s17 4장 — 장마다 각도·위치가 다르다(대칭 부채 아님: 각도 모두 다름 · 좌우 대칭 아님) · 서로 겹친다(이웃 종이 상자 교차)
  *   L2 지시선 — 위쪽 글이면 종이 위끝에서 위로 · 아래 글이면 아래끝에서 아래로 · 세로선(x 같음) · 모든 좌표 ≥ 0 · 높이 안
  *   L3 시드 — 같은 시드·같은 입력 = 같은 배치 · jitter>0 이면 시드가 다르면 다르다 · jitter 0 이면 시드 무관(프리셋 그대로)
- *   L4 장 수 1~6 · 프리셋과 수가 다르면 auto · 상한 6 · 위/아래 번갈아
+ *   L4 장 수 1~CERT_MAX_SHEETS(8 · ⑨) · 프리셋과 수가 다르면 auto · 상한 = 상수 · 위/아래 번갈아
+ *   L8 4·6·7·8장(⑨) — 모든 배치(fan·s17·stair·pile·auto · 흩뿌림 0/1)에서 가로 밖 0 · 위·아래 밖 0(높이 안) · 부채는 이웃 겹침·각도 단조
  *   L5 gridLayout — 열·간격대로 · 마지막 줄 가운데 · 높이
  *   L7 labels:false — 높이 = 종이만(콜아웃 끔 · A4 스택 기본) · 켜면 더 크다
  *   L6 fan(기본 · reframe «A4 스택») — 왼→오 각도가 커지고 좌우 대칭 · 이웃끼리 겹친다 · 오른쪽이 위 · 프리셋 미지정 = fan
@@ -58,13 +59,14 @@ test('L3 시드 · jitter', () => {
 });
 
 test('L4 장 수', () => {
-  for (const n of [1, 2, 3, 5, 6]) {
+  for (const n of [1, 2, 3, 5, 6, 7, 8]) {
     const L = M.collageLayout({ n, preset: 's17', seed: 2 });
     assert.equal(L.sheets.length, n);
     assert.equal(new Set(L.sheets.map((s) => s.z)).size, n);
     assert.ok(L.sheets.every((s) => s.cx - s.w / 2 >= -0.01 && s.cx + s.w / 2 <= 600.01), `n=${n} 가로 안`);
   }
-  assert.equal(M.collageLayout({ n: 9 }).sheets.length, 6);
+  assert.equal(M.CERT_MAX_SHEETS, 8, '⑨ 상한 8');
+  assert.equal(M.collageLayout({ n: 99 }).sheets.length, M.CERT_MAX_SHEETS);
   assert.deepEqual(M.collageLayout({ n: 4, preset: 'auto', seed: 2 }).sheets.map((s) => s.side), ['bottom', 'top', 'bottom', 'top']);
   assert.ok(M.CERT_PRESET_NAMES.includes('auto') && M.CERT_PRESET_NAMES.includes('s17'));
 });
@@ -82,7 +84,7 @@ test('L5 gridLayout', () => {
 });
 
 test('L6 fan — 기본 · 각도 단조·대칭 · 이웃 겹침 · 오른쪽 위', () => {
-  for (const n of [2, 3, 4, 5, 6]) {
+  for (const n of [2, 3, 4, 5, 6, 7, 8]) {
     const L = M.collageLayout({ n, width: 600 });
     const S = [...L.sheets].sort((a, b) => a.cx - b.cx);
     for (let i = 1; i < n; i++) {
@@ -102,4 +104,17 @@ test('L7 labels:false — 종이만큼', () => {
   assert.ok(off.height < on.height, `${off.height} < ${on.height}`);
   const ext = Math.max(...off.sheets.map((s) => s.cy + (s.w / 2) * Math.abs(Math.sin(s.rot * Math.PI / 180)) + (s.h / 2) * Math.cos(s.rot * Math.PI / 180)));
   assert.ok(Math.abs(off.height - Math.ceil(ext + 12)) <= 1, `${off.height} vs ${ext}`);
+});
+
+test('L8 7·8장 — 모든 배치에서 화면 밖 0', () => {
+  for (const n of [4, 6, 7, 8]) for (const preset of M.CERT_PRESET_NAMES) for (const jitter of [0, 1]) for (const labels of [false, true]) {
+    const L = M.collageLayout({ n, width: 600, preset, seed: 3, jitter, labels });
+    assert.equal(L.sheets.length, n);
+    for (const s of L.sheets) {
+      const r = Math.abs(s.rot * Math.PI / 180);
+      const ex = (s.w / 2) * Math.cos(r) + (s.h / 2) * Math.sin(r), ey = (s.w / 2) * Math.sin(r) + (s.h / 2) * Math.cos(r);
+      assert.ok(s.cx - ex >= -0.5 && s.cx + ex <= 600.5, `${preset} n=${n} j=${jitter} 가로 밖(회전한 모서리까지) cx=${s.cx.toFixed(1)}`);
+      assert.ok(s.cy - ey >= -0.5 && s.cy + ey <= L.height + 0.5, `${preset} n=${n} 세로 밖`);
+    }
+  }
 });

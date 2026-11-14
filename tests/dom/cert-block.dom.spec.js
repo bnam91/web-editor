@@ -10,7 +10,8 @@
  *   K7 → E1 로 옮김(말림은 «이펙트» 절 · 용지마다)
  *   K8 [보안] 손댄 dataset — 글은 글자로 · 이상한 그림 주소는 빈 칸 · 핸들러 0(콜아웃 켬)
  *   K9 저장→열기 왕복(applyProjectData) — dataset 에서 다시 그린다
- *   K10 장 수 6
+ *   K10 장 수 6 · K11 장 수 8(⑨ 상한 6 → 8) — 둘 다 스택 명시(⑩ 기본이 격자)
+ *   ⑩ 새 블럭 기본 = 격자 — 스택을 재는 칸(K2·K6·K10·K11·H1·U1·E3)은 패널 «모드»로 스택을 명시(stackMode) · K1 은 기본 격자를 잰다
  *   ── 격자 모드(A4 칸 · 현빈 결정 «스택 ＋ 격자») ──
  *   G1 모드 «격자» → .cert-grid · 칸 4 · 세로 A4 · 빈 칸 체크무늬 · 회전 0
  *   G2 그리드 피커 2×2(현빈 261114 «그리드 피커» · .grid-picker 관례) → 열 2개 · 용지 4
@@ -75,8 +76,14 @@ async function openPanel(page, id) {
   await page.waitForSelector('#crt-preset');
 }
 const toggle = (page, id) => page.click(`label.prop-toggle:has(#${id})`);
+/** ⑩ 새 블럭 기본 = 격자 — 스택을 재는 칸은 패널 «모드»로 스택을 «명시»하고 잰다(단언 그대로). */
+async function stackMode(page, id) {
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'stack');
+  await page.waitForFunction((id) => document.getElementById(id).dataset.mode === 'stack' && !!document.querySelector(`#${id} .cert-stage:not(.cert-grid)`), id);
+}
 
-test('K1 메뉴 «Documents» — 세로 A4 4장 · 체크무늬 · 옵션 다 끔', async ({ page }) => {
+test('K1 메뉴 «Documents» — 기본 격자(⑩) · 세로 A4 4장 · 체크무늬 · 옵션 다 끔', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
   const r = await page.evaluate((id) => { const b = document.getElementById(id); const q = (s) => b.querySelectorAll(s).length;
@@ -84,14 +91,15 @@ test('K1 메뉴 «Documents» — 세로 A4 4장 · 체크무늬 · 옵션 다 �
     return { sheets: q('.cert-sheet'), ph: q('.cert-sheet.cert-ph'), ratioOk: Math.abs(sh.offsetHeight / sh.offsetWidth - 297 / 210) < 0.02,   // 픽셀 반올림 여유
       checker: /conic-gradient/.test(sh.style.background || sh.style.backgroundImage || getComputedStyle(sh).backgroundImage),
       callouts: q('.cert-callout'), lines: q('.cert-line'), curl: q('.cert-curl'), head: q('.cert-head'),
-      extra: q('.cert-frame, .cert-grid, .cert-f-seal'), layer: b.dataset.layerName }; }, id);
-  expect(r).toEqual({ sheets: 4, ph: 4, ratioOk: true, checker: true, callouts: 0, lines: 0, curl: 0, head: 0, extra: 0, layer: 'Documents' });
+      extra: q('.cert-frame, .cert-f-seal'), mode: b.dataset.mode, grid: q('.cert-grid'), layer: b.dataset.layerName }; }, id);
+  expect(r).toEqual({ sheets: 4, ph: 4, ratioOk: true, checker: true, callouts: 0, lines: 0, curl: 0, head: 0, extra: 0, mode: 'grid', grid: 1, layer: 'Documents' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
 test('K2 부채 스택 — 회전 단조 · 이웃 겹침', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
+  await stackMode(page, id);
   const r = await page.evaluate((id) => {
     const S = [...document.querySelectorAll(`#${id} .cert-sheet`)].map((s) => { const m = new DOMMatrix(getComputedStyle(s).transform); const rc = s.getBoundingClientRect();
       return { deg: Math.atan2(m.b, m.a) * 180 / Math.PI, cx: rc.left + rc.width / 2, rc }; }).sort((a, b) => a.cx - b.cx);
@@ -140,7 +148,7 @@ test('K5 패널에 용지 카드 없음(⑥)', async ({ page }) => {
 test('K6 옵션 «지시선 글» · 상태 칩', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
-  await openPanel(page, id);
+  await stackMode(page, id);   // 지시선은 스택에서만
   await toggle(page, 'crt-callouts');
   await expect(page.locator(`#${id} .cert-callout`)).toHaveCount(4);
   await expect(page.locator(`#${id} .cert-line`)).toHaveCount(4);
@@ -195,7 +203,7 @@ test('K9 저장→열기 — dataset 에서 다시 그린다', async ({ page }) 
 test('K10 장 수 6', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
-  await openPanel(page, id);
+  await stackMode(page, id);   // «장 수» 슬라이더는 스택(격자는 피커)
   await page.fill('#crt-count-number', '6');
   await page.dispatchEvent('#crt-count-number', 'change');
   await expect(page.locator(`#${id} .cert-sheet`)).toHaveCount(6);
@@ -279,6 +287,7 @@ test('E2 용지 2 만 회전 +20', async ({ page }) => {
 test('E3 기울기 25 → 3D 원근', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
+  await stackMode(page, id);   // 전제 «기울기 0 = 2D matrix» 는 회전이 있는 스택에서 잰다(격자 무회전 = none)
   const t0 = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .cert-sheet`)).transform, id);
   expect(t0.startsWith('matrix('), '[전제] 기울기 0 = 2D').toBe(true);
   await openPanel(page, id);
@@ -321,6 +330,7 @@ async function captureClone(page, id) {
 test('H1 캡처 클론 — 빈 칸 빼고 2장 부채', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
+  await stackMode(page, id);
   await seed(page, id, [DATA_PNG, '', DATA_PNG, '']);
   const r = await captureClone(page, id);
   expect([r.sheets, r.ph, r.degs]).toEqual([2, 0, [-4, 4]]);
@@ -419,7 +429,7 @@ test('G5 그리드 피커 3×3 — 9장', async ({ page }) => {
 test('U1 패널 — 안내문·위 제목 없음 · 지시선 글 = 장 수 바로 아래', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
-  await openPanel(page, id);
+  await stackMode(page, id);   // «장 수» 행은 스택
   const r = await page.evaluate(() => {
     const P = document.getElementById('crt-mode').closest('.prop-section').parentElement;
     const nextHas = (el, sel) => !!el?.nextElementSibling?.querySelector(sel);
@@ -470,5 +480,19 @@ test('G6 격자 음수 간격 — 이웃 칸이 겹친다(편집·출력)', asyn
     return { n: R.length, h: R[0].right > R[1].left + 1, v: R[0].bottom > R[2].top + 1 };
   }, id);
   expect(out).toEqual({ n: 4, h: true, v: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('K11 장 수 8(⑨)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await stackMode(page, id);
+  expect(await page.getAttribute('#crt-count-number', 'max'), '슬라이더 상한 = CERT_MAX_SHEETS').toBe('8');
+  await page.fill('#crt-count-number', '8');
+  await page.dispatchEvent('#crt-count-number', 'change');
+  await expect(page.locator(`#${id} .cert-sheet`)).toHaveCount(8);
+  const r = await page.evaluate((id) => { const b = document.getElementById(id).getBoundingClientRect();
+    return [...document.querySelectorAll(`#${id} .cert-sheet`)].every((s) => { const q = s.getBoundingClientRect(); return q.left >= b.left - 1 && q.right <= b.right + 1; }); }, id);
+  expect(r, '★8장 중 블럭 가로 밖으로 나간 종이가 있다(회전 모서리 포함)').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

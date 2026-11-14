@@ -9,7 +9,7 @@
 
 /** 증서 종이 세로/가로 = A4(297/210). */
 export const CERT_SHEET_RATIO = 297 / 210;
-export const CERT_MAX_SHEETS = 6;
+export const CERT_MAX_SHEETS = 8;   // ⑨ 6 → 8(현빈 261114) — 패널 «장 수» 슬라이더·단위 시험이 이 상수를 읽는다
 /** 격자 모드 상한 — 그리드 피커 4열 × 3행(현빈 261114 «그리드 피커») · 스택은 CERT_MAX_SHEETS(겹침이 6장 넘으면 안 읽힌다). */
 export const CERT_MAX_GRID = 12;
 /** 배치 프리셋 — 장 i 의 중심(폭 비율 cx · 밴드 비율 cy)·각도·글 위치·쌓임 순서. 4장 기준 · 장 수가 다르면 'auto' 규칙으로 짓는다. */
@@ -98,9 +98,12 @@ export function collageLayout(o = {}) {
     const jx = jitter ? (rand() - 0.5) * 0.12 * jitter : 0;
     const jy = jitter ? (rand() - 0.5) * 0.18 * jitter : 0;
     const jr = jitter ? (rand() - 0.5) * 10 * jitter : 0;
-    const cx = Math.max(w / 2, Math.min(width - w / 2, (s.cx + jx) * width));
-    const cy = (s.cy + jy) * band;
     const rot = s.rot + jr;
+    // 가로 안 — 회전한 종이의 «바깥 상자» 반폭으로 묶는다(w/2 로 묶으면 돌아간 모서리가 블럭 밖으로 나간다 · ⑨ 8장 단위 L8 이 잰다)
+    const rr = Math.abs((rot * Math.PI) / 180);
+    const exX = Math.min(width / 2, (w / 2) * Math.cos(rr) + (h / 2) * Math.sin(rr));
+    const cx = Math.max(exX, Math.min(width - exX, (s.cx + jx) * width));
+    const cy = (s.cy + jy) * band;
     // 회전한 종이의 위·아래 끝(세로 지시선이 닿는 자리) — 가운데 세로선 위에서 잰다: h/2 ÷ cos
     const half = (h / 2) / Math.cos((rot * Math.PI) / 180);
     const top = cy - half, bottom = cy + half;

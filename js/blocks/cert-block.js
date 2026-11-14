@@ -34,7 +34,7 @@ const U = 1000;   // 배치 단위 폭
 const _onOff = (v, d) => (v === 'on' || v === 'off' ? v : d);
 
 const CERT_DEFAULTS = Object.freeze({
-  mode: 'stack', cols: 4, gap: 16,
+  mode: 'grid', cols: 4, gap: 16,   // ⑩ 새 블럭 기본 = 격자(현빈 261114) · 저장된 블럭은 dataset.mode 그대로(렌더가 매번 박는다)
   headline: '', sub: '',
   preset: 'fan', seed: 1, jitter: 0, sheetW: 0.32,
   callouts: 'off',
@@ -54,7 +54,7 @@ function readCertState(block) {
   let certs = [];
   try { const a = JSON.parse(d.certs || '[]'); if (Array.isArray(a)) certs = a; } catch (_) { certs = []; }
   const mode = CERT_MODES.includes(d.mode) ? d.mode : CERT_DEFAULTS.mode;
-  certs = certs.slice(0, mode === 'grid' ? CERT_MAX_GRID : CERT_MAX_SHEETS).map((c) => ({   // 스택 6 · 격자 12(저장은 12까지 — 모드를 바꿔도 안 지운다)
+  certs = certs.slice(0, mode === 'grid' ? CERT_MAX_GRID : CERT_MAX_SHEETS).map((c) => ({   // 스택 CERT_MAX_SHEETS(8) · 격자 12(저장은 12까지 — 모드를 바꿔도 안 지운다)
     title: String(c?.title ?? ''), desc: String(c?.desc ?? ''),
     img: certImgOk(c?.img) ? c.img : '', status: CERT_STATUSES.includes(c?.status) ? c.status : '',
     fx: normFx(c?.fx),
