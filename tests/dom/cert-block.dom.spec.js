@@ -26,7 +26,7 @@
  *              · 같은 곳 `(c.img ? c : …)` 를 `({ ...c, img: CERT_SAMPLE_DOCS[…], sample: true })`(무조건 덮기)로 → SM1(안 덮음) 빨강
  *   SH1 «용지 높이»(⑫ · crt-sheeth) — 스택 200 → 용지 높이/폭 2.0 · 슬라이더 = «용지 크기» 바로 아래 / 격자 60 → 0.6 · 캡처 클론(출력)도 같은 비율
  *      양성대조: cert-block.js 격자 칸 `aspect-ratio:100 / ${st.sheetH}` 를 `210 / 297` 로 → SH1(격자) 빨강 · collageLayout 호출의 `ratio: st.sheetH / 100,` 삭제 → SH1(스택) 빨강
- *   OV1 겹침 순서(⑬ · crt-overlap) — 간격 −40 · «왼쪽이 위» → 가로 겹친 곳 = 왼쪽 칸(0) · 세로 겹친 곳 = 위 행 칸(0) · 출력 클론도 같은 z
+ *   OV1 겹침 순서(⑬ · ⑮ 기본 «왼쪽이 위») — 간격 −40 · 기본 → 겹친 곳 = 왼쪽 칸(0)·위 행 칸(0) · 출력 클론도 같은 z · «오른쪽이 위» 명시 → 칸 1·칸 2
  *      양성대조: cert-block.js _renderGridStage 의 `(st.overlap === 'left' ? \`z-index:…\` : '')` 를 `''` 로 → OV1 빨강
  *   SN1 «용지 높이» 자석 턱(⑭) — 슬라이더 끌기 139·143·145 → 141 · 130·146 → 그대로 · 숫자 칸 직접 139 → 139 · 트랙에 턱 눈금
  *      양성대조: prop-cert.js wireNum('crt-sheeth', …) 의 `, { snap: { to: CERT_SHEET_H.def, tol: 4 } }` 삭제 → SN1 빨강
@@ -83,7 +83,7 @@ async function addViaMenu(page) {
 }
 async function openPanel(page, id) {
   await page.evaluate((id) => window.showCertProperties(document.getElementById(id)), id);
-  await page.waitForSelector('#crt-preset');
+  await page.waitForSelector('#crt-mode');   // ⑩ 뒤 기본이 격자 — #crt-preset 은 스택에만 있다(두 모드 공통 = #crt-mode)
 }
 const toggle = (page, id) => page.click(`label.prop-toggle:has(#${id})`);
 /** ⑩ 새 블럭 기본 = 격자 — 스택을 재는 칸은 패널 «모드»로 스택을 «명시»하고 잰다(단언 그대로). */
@@ -559,7 +559,7 @@ test('SH1 용지 높이 — 스택·격자·출력', async ({ page }) => {
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('OV1 겹침 순서 «왼쪽이 위»(⑬)', async ({ page }) => {
+test('OV1 겹침 순서 — 기본 왼쪽이 위(⑮) · 오른쪽 명시', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
   await openPanel(page, id);
@@ -568,7 +568,7 @@ test('OV1 겹침 순서 «왼쪽이 위»(⑬)', async ({ page }) => {
   await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
   await page.fill('#crt-gap-number', '-40');
   await page.dispatchEvent('#crt-gap-number', 'change');
-  expect(await page.inputValue('#crt-overlap'), '저장본에 없으면 지금 동작').toBe('right');
+  expect(await page.inputValue('#crt-overlap'), '⑮ 기본 = 왼쪽이 위').toBe('left');
   expect(await page.evaluate(() => document.getElementById('crt-gap-number').closest('.prop-row').nextElementSibling?.querySelector('#crt-overlap') != null), '«간격» 바로 아래').toBe(true);
   const top = () => page.evaluate((id) => {
     const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
@@ -576,9 +576,7 @@ test('OV1 겹침 순서 «왼쪽이 위»(⑬)', async ({ page }) => {
     const at = (x, y) => C.indexOf(document.elementFromPoint(x, y)?.closest('.cert-cell'));
     return { h: at((R[0].right + R[1].left) / 2, R[0].top + R[0].height / 2), v: at(R[0].left + R[0].width / 2, (R[0].bottom + R[2].top) / 2) };
   }, id);
-  expect(await top(), '[전제] 기본 = 오른쪽·아래가 위').toEqual({ h: 1, v: 2 });
-  await page.selectOption('#crt-overlap', 'left');
-  expect(await top(), '★왼쪽·위가 위가 아니다').toEqual({ h: 0, v: 0 });
+  expect(await top(), '★기본인데 왼쪽·위가 위가 아니다').toEqual({ h: 0, v: 0 });
   await seed(page, id, [DATA_PNG, DATA_PNG, DATA_PNG, DATA_PNG]);
   const out = await page.evaluate(async (id) => {
     const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
@@ -587,6 +585,9 @@ test('OV1 겹침 순서 «왼쪽이 위»(⑬)', async ({ page }) => {
   }, id);
   expect(out.length).toBe(4);
   expect(out[0] > out[1] && out[0] > out[2] && out[1] > out[3], `출력 클론도 같은 z(앞 칸이 위) ${out}`).toBe(true);
+  await openPanel(page, id);
+  await page.selectOption('#crt-overlap', 'right');
+  expect(await top(), '★«오른쪽이 위» 를 골랐는데 오른쪽·아래가 위가 아니다').toEqual({ h: 1, v: 2 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

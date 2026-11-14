@@ -72,7 +72,7 @@ function readCertState(block) {
     sheetW: Math.max(0.2, Math.min(0.45, _num(d.sheetW, D.sheetW))),
     sheetH: Math.max(CERT_SHEET_H.min, Math.min(CERT_SHEET_H.max, Math.round(_num(d.sheetH, D.sheetH)))),   // ⑫ 용지 높이 % · 저장본에 없으면 141
     callouts: _onOff(d.callouts, D.callouts),
-    overlap: d.overlap === 'left' ? 'left' : 'right',   // ⑬ 격자 겹침 순서 · 저장본에 없으면 지금 동작(뒤 칸 = 오른쪽·아래가 위)
+    overlap: d.overlap === 'right' ? 'right' : 'left',   // ⑬ 격자 겹침 순서 · ⑮ 기본 = 왼쪽(위 행)이 위 · 값 없는 저장본은 미배포 판(738cb9074~)뿐 ⇒ 새 기본으로 읽음
     headSize: _num(d.headSize, D.headSize), subSize: _num(d.subSize, D.subSize), titleSize: _num(d.titleSize, D.titleSize), descSize: _num(d.descSize, D.descSize),
     headColor: _color(d.headColor, D.headColor), subColor: _color(d.subColor, D.subColor), titleColor: _color(d.titleColor, D.titleColor),
     descColor: _color(d.descColor, D.descColor), lineColor: _color(d.lineColor, D.lineColor),
