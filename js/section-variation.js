@@ -139,6 +139,9 @@ function createVariation(sec) {
   if (window.bindSectionDropZone) window.bindSectionDropZone(clone);
   _bindVariantClone(clone);   // ★0.9.6(lane-drag) — 손 명부 14 종 → 정본 명부 + 프레임
   bindVariationToolbarBtn(clone);
+  /* T906-AB-BUTTON-LABEL-AFTER-REDO-01 — 위 sec 묶기는 그룹이 «하나»일 때라 (0+1)%1 = «▷ A» 로 남았다 ⇒ 둘이 된 뒤 다시(addVariation·toggle 처럼).
+     안 하면 만든 직후 A 단추만 틀리고 ⌘Z·⌘⇧Z(rebindAll)가 «▷ B» 로 고쳐 그 차이가 redo 빨강 56칸으로 보였다. */
+  bindVariationToolbarBtn(sec);
   if (window.buildLayerPanel) window.buildLayerPanel();
   /* ⛔[#16-DUP] 스크래치 사본의 undo 는 «안 배선했다» — 배선하려다 실물에서 깨뜨렸다(2026-09-09 실측).
      시도: 붙여넣기처럼 pushHistory 를 «꼬리»로 옮기고 _spl.sideEffects 를 실었다.
