@@ -1,0 +1,150 @@
+/* fx/anim-gif-tracks.js — 애니메이션 GIF V2 «줄별 타임라인»(ESM · js/fx/package.json "type":"module" · DOM 0 ⇒ 단위가 가짜 ctx 로 «실제로 그려» 본다).
+ * 현빈 GO 261114(GIF V2 · 브리프 BRIEF-ty-gif-v2-261114): 한 텍스트 블럭 안에서 줄마다 다른 효과·시작 시각(P076 = 질문 «타이핑» · 답 «도장»).
+ *   트랙 = 줄(글의 명시 줄바꿈 한 줄)마다 { line, fx, at, dur }(ms). 화면에서 접힌 조각(wrap)은 그 줄의 트랙을 같이 쓴다.
+ *   시계: 전체 T = max(at + dur) · 줄마다 local = clamp((τ − at) / dur) · τ < at = 아직 안 나옴(안 그림).
+ * ★V1 «블럭 전체 한 효과»(animation-engine.js _drawFrame)는 손대지 않는다 — 트랙이 없으면 엔진이 옛 길로 그린다(회귀 0).
+ *   여기의 V1 효과들은 «한 줄 몫»으로 다시 쓴 것이다(같은 곡선 · 같은 도우미 anim-gif-text.js).
+ */
+import { countUpLine, numToken, reelDigit, lineStartX } from './anim-gif-text.js';
+
+export const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+/** 효과 목록(허용 목록 · 저장본 소독의 정본) — V1 7 + V2 새 효과는 F1·F2 에서 이 표에 더한다. */
+export const TRACK_FX = ['slide-up', 'typewriter', 'slot-machine', 'fade-in', 'word-pop', 'glow-pulse', 'count-up'];
+export const AT_MAX = 10000, DUR_MIN = 120, DUR_MAX = 5000;
+
+/** 저장본 → 줄 수 n 에 맞춘 트랙 n 개. 없거나 이상한 칸은 «앞 줄 효과 · 앞 줄 끝에 시작»으로 메운다(첫 줄은 fallback · 0).
+ *  남는 트랙(줄이 줄었을 때)은 버린다 · fx 는 허용 목록만 · 숫자는 고정 범위. */
+export function normTracks(raw, n, { fx = 'fade-in', dur = 1200 } = {}) {
+  const byLine = new Map();
+  for (const t of Array.isArray(raw) ? raw : []) {
+    const line = Number(t?.line);
+    if (!Number.isInteger(line) || line < 0 || line >= n || byLine.has(line)) continue;
+    byLine.set(line, t);
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const r = byLine.get(i), prev = out[i - 1];
+    const f = TRACK_FX.includes(r?.fx) ? r.fx : (prev ? prev.fx : (TRACK_FX.includes(fx) ? fx : 'fade-in'));
+    const d = Number.isFinite(Number(r?.dur)) ? Math.max(DUR_MIN, Math.min(DUR_MAX, Math.round(Number(r.dur)))) : (prev ? prev.dur : Math.max(DUR_MIN, Math.min(DUR_MAX, dur)));
+    const a = Number.isFinite(Number(r?.at)) ? Math.max(0, Math.min(AT_MAX, Math.round(Number(r.at)))) : (prev ? prev.at + prev.dur : 0);
+    out.push({ line: i, fx: f, at: a, dur: d });
+  }
+  return out;
+}
+
+/** 한 바퀴 길이(ms) = 가장 늦게 끝나는 줄. */
+export const totalMs = (tracks) => tracks.reduce((m, t) => Math.max(m, t.at + t.dur), 0);
+/** τ(ms)에서 그 트랙의 진행(0~1) · 시작 전은 음수 대신 null(= 안 그림). */
+export const localT = (tr, tau) => (tau < tr.at ? null : clamp01((tau - tr.at) / tr.dur));
+
+/** 배치 — _drawFrame 과 같은 규칙(좌우 여백 5% · 단어 단위 접기 · 줄 높이 · 세로 가운데). 반환 조각마다 src(원래 줄 번호)를 단다. */
+export function layoutLines(ctx, style, W, H, size) {
+  const paddingX = Math.round(W * 0.05);
+  const align = style.textAlign === 'right' || style.textAlign === 'left' ? style.textAlign : 'center';
+  const anchorX = align === 'left' ? paddingX : align === 'right' ? W - paddingX : W / 2;
+  const maxW = W - paddingX * 2;
+  const wrap = (text) => {
+    if (!text) return [''];
+    const res = []; let cur = '';
+    for (const word of text.split(' ')) {
+      const test = cur ? cur + ' ' + word : word;
+      if (ctx.measureText(test).width > maxW && cur) { res.push(cur); cur = word; } else cur = test;
+    }
+    if (cur) res.push(cur);
+    return res.length ? res : [''];
+  };
+  const segs = [];
+  String(style.text || '').split('\n').forEach((line, src) => wrap(line).forEach((text) => segs.push({ src, text })));
+  const lineH = size * (style.lineHeight || 1.4);
+  const top = H / 2 - ((segs.length - 1) * lineH) / 2;
+  segs.forEach((s, i) => { s.y = top + i * lineH; s.w = ctx.measureText(s.text).width; s.x0 = lineStartX(align, anchorX, s.w); });
+  return { segs, align, anchorX, lineH, srcCount: String(style.text || '').split('\n').length };
+}
+
+/* ── 줄 한 몫 효과 — (ctx, segs(그 줄의 조각들), p(0~1), env) ── */
+const _plain = (ctx, segs, env) => segs.forEach((s) => ctx.fillText(s.text, s.x0, s.y));
+export const FX = {
+  'fade-in': (ctx, segs, p, env) => { ctx.globalAlpha = easeInOut(p); _plain(ctx, segs, env); },
+  'slide-up': (ctx, segs, p, env) => {
+    ctx.globalAlpha = easeInOut(p);
+    const dy = (1 - easeOut(p)) * env.lineH * 1.2;
+    segs.forEach((s) => ctx.fillText(s.text, s.x0, s.y + dy));
+  },
+  'glow-pulse': (ctx, segs, p, env) => {
+    const g = 0.5 + 0.5 * Math.sin(p * Math.PI * 4);
+    ctx.shadowColor = env.color; ctx.shadowBlur = (4 + 32 * g) * env.k; ctx.globalAlpha = 0.6 + 0.4 * g;
+    _plain(ctx, segs, env);
+  },
+  typewriter: (ctx, segs, p, env) => {
+    const total = segs.reduce((n, s) => n + s.text.length, 0);
+    let left = Math.floor(p * total), cur = null;
+    for (const s of segs) {
+      if (left <= 0 && cur) break;
+      const part = s.text.slice(0, Math.max(0, left));
+      ctx.fillText(part, s.x0, s.y);
+      cur = { x: s.x0 + ctx.measureText(part).width + 2, y: s.y };
+      left -= s.text.length;
+    }
+    if (p < 1 && cur) ctx.fillRect(cur.x, cur.y - env.size * 0.45, 2, env.size * 0.9);   // 커서
+  },
+  'word-pop': (ctx, segs, p, env) => {
+    const words = segs.flatMap((s) => { let x = s.x0; const sp = ctx.measureText(' ').width;
+      return s.text.split(' ').filter(Boolean).map((w) => { const ww = ctx.measureText(w).width; const o = { w, x, y: s.y, ww }; x += ww + sp; return o; }); });
+    words.forEach((o, i) => {
+      const q = clamp01(p * words.length - i);
+      if (q <= 0) return;
+      const sc = 0.6 + 0.4 * easeOut(q);
+      ctx.save(); ctx.globalAlpha = q; ctx.translate(o.x + o.ww / 2, o.y); ctx.scale(sc, sc); ctx.fillText(o.w, -o.ww / 2, 0); ctx.restore();
+    });
+  },
+  'count-up': (ctx, segs, p, env) => {
+    segs.forEach((s) => {
+      const text = countUpLine(s.text, p >= 1 ? 1 : easeOut(p)) ?? s.text;
+      ctx.fillText(text, lineStartX(env.align, env.anchorX, ctx.measureText(text).width), s.y);
+    });
+  },
+  'slot-machine': (ctx, segs, p, env) => {
+    segs.forEach((s) => {
+      const tok = numToken(s.text);
+      if (!tok) { ctx.globalAlpha = p; ctx.fillText(s.text, s.x0, s.y + (1 - easeOut(p)) * env.lineH); ctx.globalAlpha = 1; return; }
+      const nDig = tok.raw.replace(/\D/g, '').length, step = env.size * 1.2;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, s.y - env.size * 0.6, env.W, env.size * 1.2); ctx.clip();
+      let order = 0;
+      for (let i = 0; i < s.text.length; i++) {
+        const ch = s.text[i], x = s.x0 + ctx.measureText(s.text.slice(0, i)).width;
+        const inNum = i >= tok.index && i < tok.index + tok.raw.length && ch >= '0' && ch <= '9';
+        if (!inNum) { ctx.fillText(ch, x, s.y); continue; }
+        const r = reelDigit(+ch, order++, nDig, p, easeOut);
+        ctx.fillText(String(r.cur), x, s.y - r.frac * step);
+        if (r.frac) ctx.fillText(String(r.next), x, s.y + (1 - r.frac) * step);
+      }
+      ctx.restore();
+    });
+  },
+};
+
+/** 한 프레임 — 배경은 부르는 쪽이 깐다(엔진과 같은 순서). tracks 는 normTracks 결과 · tau = ms.
+ *  env.k = 미리보기/내보내기 배율(효과의 px 값을 같은 «눈 크기»로 맞춘다 · 블럭 1px = k 캔버스 px). */
+export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
+  ctx.font = `${style.fontWeight} ${size}px ${style.fontFamily}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';   // 조각마다 x0(줄 시작) 로 그린다 — 정렬은 배치가 이미 풀었다
+  try { ctx.letterSpacing = (style.letterSpacing || 0) + 'px'; } catch (_) { /* 옛 캔버스 */ }
+  const L = layoutLines(ctx, style, W, H, size);
+  const env = { W, H, size, k, lineH: L.lineH, align: L.align, anchorX: L.anchorX, color: style.color };
+  const drawn = [];
+  for (const tr of tracks) {
+    const p = localT(tr, tau);
+    const segs = L.segs.filter((s) => s.src === tr.line);
+    if (p == null || !segs.length || !FX[tr.fx]) continue;
+    ctx.save();
+    ctx.fillStyle = style.color;
+    FX[tr.fx](ctx, segs, p, env);
+    ctx.restore();
+    drawn.push(tr.line);
+  }
+  return drawn;   // 시험용 — 이 프레임에 그린 줄 번호
+}
