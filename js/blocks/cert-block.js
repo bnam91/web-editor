@@ -134,16 +134,29 @@ function _renderGridStage(st) {
   return stage;
 }
 
-function renderCertBlock(block) {
+/* ★출력(미리보기·내보내기 · 현빈 결정 R1 261114) — 빈 용지는 «안 그린다» · 채워진 장 수로 다시 배치(구멍 0) · 전부 비면 블럭째 숨김(그 줄도).
+   편집 화면은 체크무늬 자리표시 그대로 · 저장본(dataset) 무변 — 출력 클론/미리보기 사본에서만 부른다
+   (js/io/capture-safety.js stripEditorOnlyForCapture = PNG·HTML·썸네일 공용 · js/preview.js). */
+function renderCertBlock(block, { forOutput = false } = {}) {
   if (!block) return;
-  const st = readCertState(block);
+  let st = readCertState(block);
   block.dataset.mode = st.mode;
   block.querySelectorAll(':scope > .cert-head, :scope > .cert-stage').forEach((n) => n.remove());
+  if (forOutput) {
+    const filled = st.certs.filter((c) => c.img);
+    if (!filled.length) {
+      block.style.display = 'none';
+      const row = block.parentElement;
+      if (row?.classList.contains('row') && row.children.length === 1) row.style.display = 'none';   // 위아래 간격도 안 남김
+      return;
+    }
+    st = { ...st, certs: filled };
+  }
   if (st.mode === 'grid') {
     const head = _head(st);
     if (head) block.append(head);
     block.append(_renderGridStage(st));
-    _bindSlotInput(block);
+    if (!forOutput) _bindSlotInput(block);
     return;
   }
   const withCallouts = st.callouts === 'on';
@@ -168,7 +181,20 @@ function renderCertBlock(block) {
   const head = _head(st);
   if (head) block.append(head);
   block.append(stage);
-  _bindSlotInput(block);
+  if (!forOutput) _bindSlotInput(block);
+}
+
+/** 내보내기 직전 알림(비차단) — root 안 Documents 블럭들의 빈 용지 수. 같은 알림이 3초 안에 또 오면 건너뛴다(전체 내보내기가 섹션마다 부를 때). */
+let _certNoticeAt = 0;
+function certOutputNotice(root) {
+  let empty = 0;
+  (root || document).querySelectorAll?.('.cert-block').forEach((b) => { empty += readCertState(b).certs.filter((c) => !c.img).length; });
+  if (!empty) return 0;
+  const now = Date.now();
+  if (now - _certNoticeAt < 3000) return empty;
+  _certNoticeAt = now;
+  window.showToast?.(`Documents 의 빈 용지 ${empty}장은 내보내기에서 빠집니다`);
+  return empty;
 }
 
 /** 용지 배열을 고쳐 쓰고 다시 그린다(패널·끌어 놓기 공용 · 저장소 = dataset.certs 하나). */
@@ -249,5 +275,6 @@ function addCertBlock(opts = {}) {
 window.makeCertBlock = makeCertBlock;
 window.addCertBlock = addCertBlock;
 window.renderCertBlock = renderCertBlock;
+window.certOutputNotice = certOutputNotice;
 
-export { CERT_MODES, CERT_SHADOWS, CERT_FX_DEFAULT, normFx, sheetTransform, CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };
+export { certOutputNotice, CERT_MODES, CERT_SHADOWS, CERT_FX_DEFAULT, normFx, sheetTransform, CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };

@@ -543,6 +543,7 @@ export function sectionBgColor(sec) {
    ⛔가장 안쪽인 이 함수에 둔다. 전체 내보내기(exportAllSections)도 여길 지나므로
      경로가 늘어도 새지 않는다 — 바깥에 두면 새 경로가 생길 때마다 빠뜨린다. */
 async function exportSection(sec, format, width, opts) {
+  window.certOutputNotice?.(sec);   // Documents 빈 용지 — 내보내기 직전 비차단 알림(현빈 R1 · 전체 내보내기는 3초 안 중복 생략)
   /* ★가드 몸은 «한 벌» — capture-safety.js withGuideOff(썸네일도 같은 함수를 부른다, L1). */
   return withGuideOff(() => _exportSectionNoGuide(sec, format, width, opts));
 }
@@ -1014,6 +1015,7 @@ async function _exportSectionInner(sec, format, width, opts) {
 }
 
 async function exportAllSections(format, width, onProgress, opts) {
+  window.certOutputNotice?.(document.getElementById('canvas'));   // Documents 빈 용지 — 내보내기 직전 비차단 알림(현빈 R1 · 전체 내보내기는 3초 안 중복 생략)
   // 전체 export 시작 전 lazy 언로드 섹션 전부 복원 (개별 exportSection도 호출하지만,
   // 섹션 목록 산정/순회 전에 한 번 더 보장)
   if (window.materializeAllSections) window.materializeAllSections();

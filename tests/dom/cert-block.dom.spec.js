@@ -14,6 +14,14 @@
  *   G1 모드 «격자» → .cert-grid · 칸 4 · 세로 A4 · 빈 칸 체크무늬 · 회전 0
  *   G2 열 수 2 → 열 2개
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
+ *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
+ *   H1 캡처 클론(stripEditorOnlyForCapture = PNG·HTML·썸네일 공용) — 채움 2·빔 2 → 클론 용지 2 · 빈 칸 0 · 각도 = 부채(2장) ±4°
+ *   H2 전부 빔 → 클론 블럭 display:none · 그 줄(.row)도 숨김
+ *   H3 편집 화면·저장본 무변 — 캡처 뒤에도 라이브 용지 4(빈 2) · dataset.certs 그대로
+ *   H4 미리보기(enterPreview) — 미리보기 사본 용지 2 · 편집 화면 4 그대로
+ *   H5 내보내기 직전 알림 — certOutputNotice → «빈 용지 2장» 토스트(비차단)
+ *   양성대조: cert-block.js renderCertBlock 의 forOutput 갈래(`if (forOutput) { … }`)를 지우면 H1·H2·H4 빨강 · capture-safety.js 의 그 한 줄을 지우면 H1·H2 빨강
+ *            · preview.js enterPreview 의 그 한 줄을 지우면 H4 빨강
  *   ── 이펙트(현빈 «이펙트» 절 · 용지마다: 회전·기울기·끝말림·그림자) ──
  *   E1 대상 «모든 용지» — 끝말림 켬 → 용지 4장 모두 .cert-curl · 그림자 «진하게» → 4장 모두 진한 그림자
  *   E2 대상 «용지 2» — 회전 20 → 그 장만 20° 더 돈다(나머지 각도 그대로)
@@ -277,5 +285,75 @@ test('E4 격자에서도 회전', async ({ page }) => {
   await page.fill('#crt-fx-rot-number', '-8');
   await page.dispatchEvent('#crt-fx-rot-number', 'change');
   expect(await angles(page, id)).toEqual([-8, -8, -8, -8]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const DATA_PNG = 'data:image/png;base64,' + PNG.toString('base64');
+async function seed(page, id, imgs) {
+  await page.evaluate(({ id, imgs }) => { const b = document.getElementById(id);
+    b.dataset.certs = JSON.stringify(imgs.map((img, i) => ({ title: `제목 ${i + 1}`, desc: '설명', img, status: '' }))); window.renderCertBlock(b); }, { id, imgs });
+}
+async function captureClone(page, id) {
+  return page.evaluate(async (id) => {
+    const sec = document.getElementById(id).closest('.section-block');
+    const clone = sec.cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const b = clone.querySelector('.cert-block');
+    const degs = [...b.querySelectorAll('.cert-sheet')].map((s) => { const m = new DOMMatrix(getComputedStyle(s).transform); return +(Math.atan2(m.b, m.a) * 180 / Math.PI).toFixed(1); }).sort((a, c) => a - c);
+    const out = { sheets: b.querySelectorAll('.cert-sheet').length, ph: b.querySelectorAll('.cert-ph').length, degs, display: b.style.display, rowDisplay: b.parentElement.style.display };
+    clone.remove(); return out;
+  }, id);
+}
+
+test('H1 캡처 클론 — 빈 칸 빼고 2장 부채', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', DATA_PNG, '']);
+  const r = await captureClone(page, id);
+  expect([r.sheets, r.ph, r.degs]).toEqual([2, 0, [-4, 4]]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H2 전부 빔 — 블럭째 숨김', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  const r = await captureClone(page, id);
+  expect([r.display, r.rowDisplay]).toEqual(['none', 'none']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H3 편집 화면·저장본 무변', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', DATA_PNG, '']);
+  const before = await page.evaluate((id) => document.getElementById(id).dataset.certs, id);
+  await captureClone(page, id);
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); return { sheets: b.querySelectorAll('.cert-sheet').length, ph: b.querySelectorAll('.cert-ph').length, certs: b.dataset.certs, display: b.style.display }; }, id);
+  expect([r.sheets, r.ph, r.display]).toEqual([4, 2, '']);
+  expect(r.certs).toBe(before);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H4 미리보기 — 빈 칸 빠짐 · 편집 화면 그대로', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', '', DATA_PNG]);
+  await page.evaluate(() => window.enterPreview());   // enterPreview 가 현재 쪽을 먼저 flushCurrentPage 한다(preview.js:12)
+  await page.waitForFunction(() => document.body.classList.contains('preview-mode'));
+  const n = await page.evaluate(() => [...document.querySelectorAll('#preview-content .cert-block')].map((b) => [b.querySelectorAll('.cert-sheet').length, b.querySelectorAll('.cert-ph').length]));
+  expect(n, '[전제] 미리보기에 Documents 가 실렸다').toHaveLength(1);
+  expect(n[0]).toEqual([2, 0]);
+  await page.evaluate(() => window.exitPreview());
+  expect(await page.locator(`#${id} .cert-sheet`).count()).toBe(4);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H5 내보내기 직전 알림', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', DATA_PNG, '']);
+  const n = await page.evaluate(() => window.certOutputNotice(document.getElementById('canvas')));
+  expect(n).toBe(2);
+  await expect(page.locator('#editor-toast')).toContainText('빈 용지 2장');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -493,6 +493,10 @@ export function isStillPlaceholderText(el) {
  *   · js/io/export-html.js exportHTMLFile(단독 HTML) · 이 파일 captureSectionImage(목업 찍기 · 194 R3 에서 더함) */
 export function stripEditorOnlyForCapture(clone) {
   if (!clone) return;
+  /* Documents(A4 용지 묶음 · cert-block) — 출력에선 빈 용지를 빼고 채워진 장으로 다시 배치 · 전부 비면 블럭째 숨김(현빈 결정 R1 261114).
+     ★PNG(prepareCloneForCapture)·단독 HTML(export-html.js)·썸네일(save-load.js)이 다 이 함수를 지나므로 «한 자리». 클론에서만 — 라이브·저장본 무변.
+     (renderComponentsInClone 은 이 블럭을 다시 그리지 않는다 — 출력 꼴이 덮이지 않는다) */
+  if (typeof window !== 'undefined' && window.renderCertBlock) clone.querySelectorAll?.('.cert-block').forEach((b) => window.renderCertBlock(b, { forOutput: true }));
   /* ★★★R1 261023 — ★«편집 전용 UI»는 ★★저장 정본에서 ★파생한다. ⛔아래 제 손 줄들에 ★베껴 쓰지 마라.
      ★★까닭 : ★이 함수가 ★제 손 명부를 들고 ★자라는 동안, ★저장 쪽 상수(`NON_CONTENT_UI_SELECTOR`)에
        ★이미 있던 ★★14종을 ★여기서 ★안 지우고 있었다 — ★★고른 채 ★PNG·썸네일·단독 HTML 을 내보내면
