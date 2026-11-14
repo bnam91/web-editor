@@ -359,10 +359,6 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset 
     : window.makeAnnotationBlock({ points, text: '텍스트', labelRadius: 0 });
   sec.appendChild(block);
 
-  // 라벨 즉시 편집 진입 — ★1013t2C6 더블클릭과 «같은 한 벌»(annotation-select.js annotBeginLabelEdit)
-  const label = block.querySelector('.annot-label');
-  if (label && enterLabelEdit) window.annotBeginLabelEdit?.(block, label);
-
   window.bindAnnotationSelect?.(block);
   _cancelPending();
   /* ★1013t1A1 — 좌측 레이어 패널에 행을 «바로» 세운다. 섹션 직속 플로팅 블럭(그라데이션·확대)은
@@ -374,6 +370,12 @@ function _finalizeAnnotation({ enterLabelEdit = true, silent = false, dimOffset 
      ⛔맨 위 push 를 옮기지 마라(js/CLAUDE.md 2026-09-20 회귀) — «더하기»다. 선례 js/editor.js duplicateSelected 의 '복제 완료'.
      ⛔_cancelPending 앞에 두지 마라 — 미리보기가 찍혀 라이브와 어긋나 ⌘Z 먹통 한 칸이 생긴다(실측). 게이트 tests/unit/insert-seam-roster.test.mjs C1 */
   if (!enterLabelEdit && typeof window.pushHistory === 'function') window.pushHistory(asDim ? '치수선 추가 완료' : '어노테이션 추가 완료');
+  /* 라벨 즉시 편집 진입 — ★1013t2C6 더블클릭과 «같은 한 벌»(annotation-select.js annotBeginLabelEdit).
+     ★맨 끝에서 연다(ANNOT-PREVIEW-LEFT-AFTER-UNDO-01 ② · 261114): 그 안의 ensureHistoryCheckpoint 가 이 길의 «끝 표본»이다.
+       ⛔옛 자리(블럭 넣은 바로 뒤)는 묶기·미리보기 걷기·레이어 «전»의 반쯤 만든 캔버스를 찍어, 세 클릭 뒤 곧바로 ⌘Z 가
+         그 칸(눈엔 같은 화면)에 머물렀다 — 인텔 진단 43113db25: tip «어노테이션 글 편집 전» · liveIsTop false · 블럭 1. */
+  const label = block.querySelector('.annot-label');
+  if (label && enterLabelEdit) window.annotBeginLabelEdit?.(block, label);
   window.scheduleAutoSave?.();
   if (!silent) window.showToast?.(asDim ? '📐 치수선 생성 — 다음 것도 바로 찍을 수 있다 · ESC로 종료' : '✏️ 펜 모드 유지 중 — ESC로 종료');
 }

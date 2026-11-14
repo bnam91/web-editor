@@ -271,7 +271,10 @@ test('C1 ★도구 길 _finalizeAnnotation 은 붙이기 «전»에 찍고, 라�
   const at = body.indexOf('sec.appendChild(block)'), cancel = body.indexOf('_cancelPending();', at);
   assert.ok(at > 0 && cancel > at, '붙이는 자리·미리보기 치우는 자리를 못 찾았다 — 입구가 바뀌었으면 이 검사를 그 꼴로 고쳐라');
   assert.match(body.slice(0, at), /window\.pushHistory\(/, '시작 표본(push-before)이 없다 — ⛔옮기지 마라(js/CLAUDE.md 2026-09-20 회귀)');
-  assert.match(body.slice(at, cancel), /annotBeginLabelEdit/, '라벨 편집 길의 체크포인트(끝 표본 몫)가 사라졌다');
+  /* 라벨 편집 길의 체크포인트(annotBeginLabelEdit 안 ensureHistoryCheckpoint)도 «끝 표본»이라 같은 규칙 — 미리보기·묶기 «뒤».
+     ⛔옛 판은 붙인 바로 뒤에 두라고 잠갔다 → 반쯤 만든 캔버스를 찍어 세 클릭 뒤 곧바로 ⌘Z 가 그 칸에 머물렀다(ANNOT-PREVIEW-LEFT-AFTER-UNDO-01 ② · 인텔 진단 43113db25). */
+  assert.doesNotMatch(body.slice(at, cancel), /annotBeginLabelEdit/, '라벨 편집(체크포인트)을 미리보기 치우기 «전»에 열면 ⌘Z 먹통 한 칸이 생긴다');
+  assert.match(body.slice(cancel), /annotBeginLabelEdit/, '라벨 편집 길의 체크포인트(끝 표본 몫)가 사라졌다');
   assert.doesNotMatch(body.slice(at, cancel), /window\.pushHistory\(/, '미리보기를 치우기 전에 찍으면 ⌘Z 먹통 한 칸이 생긴다');
   assert.match(body.slice(cancel), /!enterLabelEdit\s*&&[^\n]*window\.pushHistory\(/, '끝 표본이 없다 — 두 점+Esc·V 길에서 블럭이 든 칸이 안 남는다(행 229)');
 });

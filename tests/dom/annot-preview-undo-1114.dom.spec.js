@@ -17,6 +17,9 @@
  *   N1 음성 — 세 클릭 뒤 라벨에 글을 치고 ⌘Z = 네이티브(글만 되돌림 · 블럭 1)
  * 양성대조: ⑴ section-serialize.js 의 `.annot-preview, ` 를 걷으면 U1·U2·U3·S1 빨강(미리보기 1 · 직렬화에 실림) · N1 초록
  *   ⑵ editor.js 의 `, .annot-label` 을 걷으면 U3 빨강(블럭 1 = 먹통) · U1·U2·S1·N1 초록
+ *   ⑶ (인텔 진단 43113db25 뒤 · 뿌리 ⑵ 의 둘째 몫) annotation-tool.js _finalizeAnnotation 에서 annotBeginLabelEdit 를 옛 자리(sec.appendChild(block) 바로 뒤)로
+ *      되돌리면 U3 빨강 — 그 체크포인트가 반쯤 만든 캔버스를 찍어 첫 ⌘Z 가 그 칸(블럭 1)에 머문다. 진단 줄(실패 메시지에만)은 남겨 둔다.
+ *   ⚠️⑵ 는 진단상 필요(qce=false · ae=.annot-label → 고친 판은 앱 undo 로 간다 · 걷으면 네이티브로 가 먹통) — ⑶ 가 들어간 지금 U3 가 초록이어야 대조가 유효.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
@@ -83,8 +86,6 @@ test('U3 세 클릭 치수선 → 곧바로 ⌘Z = 만들기 되돌림(먹통 �
   const post = await page.evaluate((B) => ({ dz: window.__dz, tip: window.getHistoryTip?.(), n: document.querySelectorAll(B).length,
     gate: window.getHistoryStripStats?.().lastUndoGate, ae: document.activeElement?.className || document.activeElement?.tagName }), B);
   const diag = JSON.stringify({ pre, post });
-  test.info().annotations.push({ type: 'U3 진단', description: diag });
-  console.log('[U3 진단]', diag);
   await expect.poll(() => st(page), '★⌘Z 가 먹통(블럭 1) 또는 미리보기 되살림 — 진단 ' + diag).toEqual({ n: 0, pv: 0 });
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+Shift+z');
