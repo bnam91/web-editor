@@ -3019,6 +3019,7 @@ function initApp() {
         window.DesignSystem?.restoreColorVarsFromMeta?.(activeProjectId);
         window.DesignSystem?.restoreColorHistoryFromMeta?.(activeProjectId);   // 최근 쓴 색 — 프로젝트별(meta 에 없으면 빈 목록)
         window.DesignSystem?.restoreTextStyleHistoryFromMeta?.(activeProjectId); // 최근 «효과» — ★같은 자리·같은 규약(meta 에 없으면 빈 목록)
+        window.DesignSystem?.restoreLabelShapesFromMeta?.(activeProjectId);     // 라벨 «모양 변수»(B1) — 같은 자리·같은 규약(meta 에 없으면 빈 목록)
         window.DesignSystem?.restoreQuoteShapesFromMeta?.(activeProjectId);     // 인용구 ★사용자 부호 — ★같은 자리·같은 규약(meta 에 없으면 빈 목록)
         if (proj) {
           // GAP-004: proj.json 손상 복구 통지는 loadProjectForOpen 이 «한 곳»에서 한다(★E170 — 탭 열기 길도 같은 글).

@@ -469,6 +469,13 @@
             <button class="ds-new-preset-btn" id="ds-colorvar-add-btn" onclick="DesignSystem.addColorVarFromPanel()">＋ 변수 추가</button>
           </div>
 
+          <!-- 라벨 «모양 변수»(B1 · 261114) — 기본(★)으로 정하면 새 라벨 블럭마다 그 모양 · 우측 패널에 «변수 사용 중» -->
+          <div class="ds-section-label">라벨 모양 변수</div>
+          <div id="ds-labelshapes-list" class="ds-colorvars-list"></div>
+          <div class="ds-base-row">
+            <button class="ds-new-preset-btn" id="ds-labelshape-add-btn" onclick="DesignSystem.addLabelShapeFromPanel()">＋ 라벨 모양 추가</button>
+          </div>
+
           <!-- Font -->
           <div class="ds-section-label">Font</div>
           <div class="ds-token-row">
@@ -1198,6 +1205,7 @@
 <script type="module" src="js/blocks/laurel-block.js"></script>
 <script type="module" src="js/blocks/coupon-block.js"></script>
 <script type="module" src="js/blocks/cert-block.js"></script>
+<script type="module" src="js/util/label-shape.js"></script>
 <script type="module" src="js/props/prop-cert.js"></script>
 <script type="module" src="js/blocks/coupon-presets.js"></script>
 <script type="module" src="js/blocks/quote-block.js"></script>

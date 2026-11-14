@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
@@ -18,6 +18,8 @@ function _applyPresetToItem(item, presetName) {
   item.style.backgroundColor = p.bg;
   item.style.color = p.color;
   item.style.border = p.border;
+  // B1 — 프리셋을 «직접» 입히면 라벨 모양 변수 연결은 끊는다(값을 손으로 정한 것이 이긴다 · 변수가 나중에 덮지 않게)
+  if (item.dataset.labelShape) { delete item.dataset.labelShape; item.style.clipPath = ''; }
   item.dataset.bg    = p.bg;
   item.dataset.color = p.color;
 }
@@ -43,6 +45,11 @@ function showLabelGroupProperties(block, selectedItem) {
   const itemPadT   = Math.round(panelRenderedPx(selectedItem, 'paddingTop'));      // E112
   const itemPadB   = Math.round(panelRenderedPx(selectedItem, 'paddingBottom'));
   const itemH      = itemPadT + itemPadB;
+  /* B1 — 라벨 «모양 변수»(좌측 Design System) — 고른 칸이 변수를 쓰면 배경·글자·모서리 대신 «변수 ‹이름› 사용 중 · 끊기 · 바꾸기» */
+  const _shapes    = window.DesignSystem?.getLabelShapes?.().shapes || {};
+  const _shapeNames = Object.keys(_shapes);
+  const boundName  = selectedItem?.dataset.labelShape && _shapes[selectedItem.dataset.labelShape] ? selectedItem.dataset.labelShape : null;
+  const _shapeOpts = (cur) => _shapeNames.map((n) => `<option value="${escHtml(n)}"${n === cur ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
 
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -115,6 +122,13 @@ ${blockHeaderHTML({
     ${selectedItem ? `
     <div class="prop-section">
       <div class="prop-section-title">Selected Tag</div>
+      ${boundName ? `
+      <div class="prop-row" id="lg-shape-bound" data-shape="${escHtml(boundName)}">
+        <span class="prop-hint" style="flex:1;padding:0">모양: 변수 <b>${escHtml(boundName)}</b> 사용 중</span>
+        <button class="prop-btn" id="lg-shape-unlink" style="width:auto;padding:0 8px" title="지금 모양 그대로 이 칸에 박고 변수 연결을 끊는다(끊어야 색·모서리를 따로 고칠 수 있다)">끊기</button>
+      </div>
+      ${_shapeNames.length > 1 ? `<div class="prop-row"><span class="prop-label">바꾸기</span><select class="prop-select" id="lg-shape-switch">${_shapeOpts(boundName)}</select></div>` : ''}
+      ` : `
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'lg-item-bg', hex: itemBg, alpha: itemBgAlpha })}
@@ -128,6 +142,8 @@ ${blockHeaderHTML({
         <input type="range"  class="prop-slider" id="lg-item-radius-slider" min="0" max="50" step="1" value="${itemRadius}">
         <input type="number" class="prop-number"  id="lg-item-radius-number" min="0" max="50" value="${itemRadius}">
       </div>
+      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}
+      `}
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range"  class="prop-slider" id="lg-item-height-slider" min="0" max="120" step="2" value="${itemH}">
@@ -280,6 +296,18 @@ ${blockHeaderHTML({
     rSlider.value = v;
   });
   rNumber?.addEventListener('change', () => window.pushHistory?.());
+
+  // B1 — 모양 변수 끊기·바꾸기·연결 (변수 값은 좌측 Design System 에서 고친다)
+  const _rebind = (name) => {
+    window.pushHistory?.();
+    if (name) window.LabelShape?.bindLabelItem(selectedItem, name, _shapes[name]);
+    else if (boundName) window.LabelShape?.unbindLabelItem(selectedItem, _shapes[boundName]);
+    window.scheduleAutoSave?.();
+    showLabelGroupProperties(block, selectedItem);
+  };
+  document.getElementById('lg-shape-unlink')?.addEventListener('click', () => _rebind(null));
+  document.getElementById('lg-shape-switch')?.addEventListener('change', (e) => _rebind(e.target.value));
+  document.getElementById('lg-shape-link')?.addEventListener('change', (e) => { if (e.target.value) _rebind(e.target.value); });
 
   // 태그 높이 (상하 패딩으로 조절)
   const iHSlider = document.getElementById('lg-item-height-slider');

@@ -2017,6 +2017,9 @@ function bindBlock(block) {
         const lastColor  = first?.dataset.color  || '#333333';
         const lastRadius = parseInt(first?.dataset.radius) || 40;
         const newItem = makeLabelItem('Tag', lastBg, lastColor, lastRadius);
+        // B1 — 첫 칸이 라벨 모양 변수를 쓰면 새 칸도 같은 변수에 건다(지금 값 복사가 아니라 «참조»)
+        const _ls = first?.dataset.labelShape, _spec = _ls && window.DesignSystem?.getLabelShapes?.().shapes[_ls];
+        if (_spec) window.LabelShape?.bindLabelItem(newItem, _ls, _spec);
         block.querySelector('.label-group-add-btn').before(newItem);
         block.querySelectorAll('.label-item').forEach(i => i.classList.remove('item-selected'));
         newItem.classList.add('item-selected');

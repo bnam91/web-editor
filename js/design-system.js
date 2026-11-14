@@ -19,7 +19,8 @@ const DesignSystem = (() => {
      ⚠️시안의 8 은 패널 여백을 흉내 낸 판에서 잰 수다(실제 패널이 아님). 폭·칩 크기가 바뀌면 같은 법으로 다시 재서 바꿔라. */
   const COLOR_HISTORY_MAX = 7;
   const STORAGE_TEXTSTYLE_KEY = 'we_text_style_history_v1';   // 텍스트 «효과» 히스토리 작업 캐시 — 정본은 meta.textStyleHistory
-  const STORAGE_QUOTE_SHAPES_KEY = 'we_quote_shapes_v1';   // 인용구 ★사용자 부호 작업 캐시 — 정본은 meta.quoteShapes
+  const STORAGE_QUOTE_SHAPES_KEY = 'we_quote_shapes_v1';
+  const STORAGE_LABEL_SHAPES_KEY = 'we_label_shapes_v1';   // 라벨 «모양 변수» 작업 캐시 — 정본은 meta.labelShapes(B1 · 261114)   // 인용구 ★사용자 부호 작업 캐시 — 정본은 meta.quoteShapes
   /* ★사용자가 더한 부호의 ★개수 상한 — ⚠️★안 쟀다. 위 둘(7·5)은 ★줄 폭을 ★재서 넣은 수인데
      이 목록은 ★제품 8종과 ★같은 `.prop-align-group`(wrap · 여러 줄)에 ★같이 서므로 ★한 줄 법이 ★안 맞는다.
      ⇒ ★지금은 ★«저장본이 무한정 커지지 않게» 하는 ★울타리일 뿐이다(⛔UI 가 잰 수가 ★아니다).
@@ -763,6 +764,144 @@ const DesignSystem = (() => {
     return list;
   }
 
+
+  // ── 라벨 «모양 변수»(B1 · 현빈 261114) ─────────────────────────────────────────
+  //   { shapes: { <이름>: {kind, radius, bg, color, borderColor, borderWidth} }, defaultName: <이름>|null }
+  //   정본 = meta.labelShapes(프로젝트별) · 캐시 = localStorage · :root 에 --lshape-<이름>-* (js/util/label-shape.js 가 꼴을 정한다)
+  //   ★meta 에 없으면 «빈 목록»으로 연다(컬러 변수의 «직전 프로젝트 것이 남는» 결함을 물려받지 않는다 — 최근 색과 같은 쪽).
+  function _LS() { return window.LabelShape || null; }
+  function getLabelShapes() {
+    try {
+      const o = JSON.parse(localStorage.getItem(STORAGE_LABEL_SHAPES_KEY) || 'null');
+      if (o && typeof o === 'object' && o.shapes && typeof o.shapes === 'object') {
+        const L = _LS(); const shapes = {};
+        for (const [k, v] of Object.entries(o.shapes)) if (!L || L.isLabelShapeName(k)) shapes[k] = L ? L.normalizeLabelShape(v) : v;
+        return { shapes, defaultName: (o.defaultName && shapes[o.defaultName]) ? o.defaultName : null };
+      }
+    } catch {}
+    return { shapes: {}, defaultName: null };
+  }
+  function _setLabelShapes(state, { persist = true } = {}) {
+    try { localStorage.setItem(STORAGE_LABEL_SHAPES_KEY, JSON.stringify(state)); } catch {}
+    if (persist) _mergeProjectMeta({ labelShapes: state });
+    applyLabelShapes();
+    document.dispatchEvent(new CustomEvent('labelshapes-changed', { detail: { state } }));
+  }
+  /** :root 변수 + 이미 걸린 칸들의 대체값을 지금 값으로(내보내기·변수 없는 환경도 같은 꼴). 지운 변수를 쓰던 칸은 지금 값으로 박고 뗀다. */
+  function applyLabelShapes() {
+    const L = _LS(); if (!L) return;
+    const { shapes } = getLabelShapes();
+    const root = document.documentElement;
+    for (const [name, spec] of Object.entries(shapes)) for (const [k, v] of L.labelShapeVarDecls(name, spec)) root.style.setProperty(k, v);
+    document.querySelectorAll('#canvas .label-item[data-label-shape]').forEach((item) => {
+      const spec = shapes[item.dataset.labelShape];
+      if (spec) L.bindLabelItem(item, item.dataset.labelShape, spec);
+      else L.unbindLabelItem(item, { kind: 'round', radius: parseFloat(item.dataset.radius) || 0, bg: item.dataset.bg, color: item.dataset.color });
+    });
+  }
+  function setLabelShape(name, spec) {
+    const L = _LS(); if (!L || !L.isLabelShapeName(name)) return null;
+    const st = getLabelShapes();
+    st.shapes[name] = L.normalizeLabelShape(spec);
+    _setLabelShapes(st);
+    return st.shapes[name];
+  }
+  function removeLabelShape(name) {
+    const st = getLabelShapes();
+    if (!(name in st.shapes)) return;
+    const spec = st.shapes[name];
+    // 쓰던 칸은 «지금 모양 그대로» 박고 뗀다(겉모양 무변 — 지우기가 라벨을 망가뜨리지 않게)
+    document.querySelectorAll(`#canvas .label-item[data-label-shape="${name}"]`).forEach((item) => _LS()?.unbindLabelItem(item, spec));
+    delete st.shapes[name];
+    if (st.defaultName === name) st.defaultName = null;
+    _setLabelShapes(st);
+  }
+  function setDefaultLabelShape(name) {
+    const st = getLabelShapes();
+    st.defaultName = (name && st.shapes[name]) ? name : null;
+    _setLabelShapes(st);
+  }
+  /** 새 라벨 블럭 — 기본 모양 변수가 있으면 그 블럭의 칸 전부에 건다. @returns {string|null} 건 이름 */
+  function applyDefaultLabelShape(block) {
+    const L = _LS(); if (!L || !block) return null;
+    const { shapes, defaultName } = getLabelShapes();
+    if (!defaultName) return null;
+    block.querySelectorAll('.label-item').forEach((item) => L.bindLabelItem(item, defaultName, shapes[defaultName]));
+    return defaultName;
+  }
+  async function restoreLabelShapesFromMeta(projectId) {
+    const pid = projectId || window.activeProjectId;
+    let state = { shapes: {}, defaultName: null };
+    try {
+      if (pid && window.electronAPI?.loadProjectMeta) {
+        const meta = await window.electronAPI.loadProjectMeta(pid).catch(() => null);
+        if (meta?.labelShapes && typeof meta.labelShapes === 'object') state = meta.labelShapes;
+      }
+    } catch (e) { console.warn('[DesignSystem] restoreLabelShapesFromMeta 실패:', e); }
+    try { localStorage.setItem(STORAGE_LABEL_SHAPES_KEY, JSON.stringify(state)); } catch {}
+    _setLabelShapes(getLabelShapes(), { persist: false });   /* 열 때 읽기만 — 다시 쓰지 않는다 · 정규화된 꼴로 */
+    return getLabelShapes();
+  }
+  function renderLabelShapes() {
+    const list = document.getElementById('ds-labelshapes-list');
+    const L = _LS();
+    if (!list || !L) return;
+    const { shapes, defaultName } = getLabelShapes();
+    list.textContent = '';
+    const names = Object.keys(shapes);
+    if (!names.length) {
+      const empty = document.createElement('div');
+      empty.className = 'ds-colorvars-empty';
+      empty.textContent = '라벨 모양 변수가 없습니다. 기본으로 정하면 새 라벨 블럭마다 그 모양이 들어갑니다.';
+      list.appendChild(empty);
+      return;
+    }
+    for (const name of names) {
+      const spec = shapes[name];
+      const row = document.createElement('div');
+      row.className = 'ds-token-row ds-labelshape-row';
+      row.dataset.name = name;
+      const prev = document.createElement('span');
+      prev.className = 'ds-labelshape-preview';
+      const st = L.shapeStyle(spec);
+      prev.style.cssText = `display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:16px;padding:0 6px;font-size:9px;background:${st.bg};color:${st.color};border-radius:${st.radius};${st.clip !== 'none' ? `clip-path:${st.clip};` : ''}${st.border !== 'none' ? `border:${st.border};` : ''}`;
+      prev.textContent = 'Tag';
+      const label = document.createElement('span');
+      label.className = 'ds-token-label ds-colorvar-name';
+      label.textContent = name; label.title = name;
+      const kind = document.createElement('select');
+      kind.className = 'ds-font-select ds-labelshape-kind';
+      for (const k of L.LABEL_SHAPE_KINDS) { const o = document.createElement('option'); o.value = k; o.textContent = L.LABEL_SHAPE_KIND_LABEL[k]; o.selected = k === spec.kind; kind.appendChild(o); }
+      kind.addEventListener('change', () => setLabelShape(name, { ...spec, kind: kind.value }));
+      const bg = document.createElement('input'); bg.type = 'color'; bg.className = 'ds-token-picker ds-labelshape-bg'; bg.title = '배경';
+      bg.value = /^#[0-9a-fA-F]{6}$/.test(spec.bg) ? spec.bg : '#111111';
+      bg.addEventListener('change', () => setLabelShape(name, { ...getLabelShapes().shapes[name], bg: bg.value }));
+      const fg = document.createElement('input'); fg.type = 'color'; fg.className = 'ds-token-picker ds-labelshape-fg'; fg.title = '글자';
+      fg.value = /^#[0-9a-fA-F]{6}$/.test(spec.color) ? spec.color : '#ffffff';
+      fg.addEventListener('change', () => setLabelShape(name, { ...getLabelShapes().shapes[name], color: fg.value }));
+      const def = document.createElement('button'); def.type = 'button'; def.className = 'ds-colorvar-del ds-labelshape-default';
+      def.textContent = name === defaultName ? '★' : '☆'; def.title = name === defaultName ? '기본(새 라벨 블럭에 자동) — 누르면 해제' : '기본으로(새 라벨 블럭에 자동)';
+      def.addEventListener('click', () => setDefaultLabelShape(name === defaultName ? null : name));
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'ds-colorvar-del'; del.title = '삭제(쓰던 라벨은 지금 모양 그대로 남는다)'; del.textContent = '×';
+      del.addEventListener('click', () => { if (window.confirm(`'${name}' 라벨 모양 변수를 지울까요?\n쓰던 라벨은 지금 모양 그대로 남습니다.`)) removeLabelShape(name); });
+      row.append(prev, label, kind, bg, fg, def, del);
+      list.appendChild(row);
+    }
+  }
+  function addLabelShapeFromPanel() {
+    const btn = document.getElementById('ds-labelshape-add-btn');
+    _openInlineNameForm(btn?.closest('.ds-base-row') || btn?.parentElement, {
+      id: 'ds-labelshape-name', placeholder: '라벨 모양 이름 (영문·숫자·_- · 예: oval)',
+      onSubmit: (raw) => {
+        const name = (raw || '').trim();
+        if (!_LS()?.isLabelShapeName(name)) { window.showToast?.('이름은 영문·숫자·_- 32자까지'); return false; }
+        if (getLabelShapes().shapes[name]) { window.showToast?.(`'${name}' 이(가) 이미 있어요`); return false; }
+        setLabelShape(name, { kind: 'ellipse', bg: '#111111', color: '#ffffff' });
+        return true;
+      },
+    });
+  }
+
   async function restoreColorVarsFromMeta(projectId) {
     const pid = projectId || window.activeProjectId;
     try {
@@ -920,6 +1059,10 @@ const DesignSystem = (() => {
 
     // 컬러 변수 섹션 초기화 (이벤트 바인딩 + 초기 렌더)
     _initColorVars();
+    // 라벨 모양 변수(B1) — 목록 그리기 · :root 변수
+    document.addEventListener('labelshapes-changed', () => renderLabelShapes());
+    applyLabelShapes();
+    renderLabelShapes();
   }
 
   document.addEventListener('DOMContentLoaded', init);
@@ -937,6 +1080,9 @@ const DesignSystem = (() => {
     getQuoteShapes, addQuoteShape, removeQuoteShape, restoreQuoteShapesFromMeta, QUOTE_SHAPES_MAX,
     openInlineNameForm: (...a) => _openInlineNameForm(...a),
     addColorVarFromPanel, renderColorVars,
+    // 라벨 «모양 변수»(B1 · 261114) — 좌측 패널이 쓰고 · 라벨 블럭(새로 만들 때)·우측 패널이 읽는다
+    getLabelShapes, setLabelShape, removeLabelShape, setDefaultLabelShape, applyDefaultLabelShape, applyLabelShapes,
+    restoreLabelShapesFromMeta, renderLabelShapes, addLabelShapeFromPanel,
   };
 })();
 

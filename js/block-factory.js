@@ -278,12 +278,19 @@ function _applyLabelGroupOpts(block, opts) {
   }
 }
 
+/* B1(261114) — 새 라벨 블럭에 «기본 라벨 모양 변수»(좌측 Design System)를 건다. 부르는 쪽이 꼴(bg·color·shape·칸별 색)을 «직접» 준 경우는
+   그 뜻이 이긴다(MCP·템플릿) — 꼴 옵션이 없을 때(툴바 추가)만. */
+function _labelDefaultShape(block, opts) {
+  const styled = opts && (opts.bg || opts.color || opts.shape || (Array.isArray(opts.labels) && opts.labels.some((l) => l && typeof l === 'object' && (l.bg || l.color))));
+  if (!styled) window.DesignSystem?.applyDefaultLabelShape?.(block);
+}
 function addLabelGroupBlock(opts = {}) {
   const overlay = getSelectedOverlay();
   if (overlay) {
     window.pushHistory();
     const { row, block } = makeLabelGroupBlock();
     _applyLabelGroupOpts(block, opts);
+    _labelDefaultShape(block, opts);
     insertIntoOverlay(overlay, row);
     bindBlock(block);
     window.buildLayerPanel();
@@ -292,6 +299,7 @@ function addLabelGroupBlock(opts = {}) {
   if (_insertToFlowFrame(() => {
     const { row, block } = makeLabelGroupBlock();
     _applyLabelGroupOpts(block, opts);
+    _labelDefaultShape(block, opts);
     return { row, block };
   })) return;
   const sec = window.getSelectedSection();
@@ -299,6 +307,7 @@ function addLabelGroupBlock(opts = {}) {
   window.pushHistory();
   const { row, block } = makeLabelGroupBlock();
   _applyLabelGroupOpts(block, opts);
+  _labelDefaultShape(block, opts);
   insertAfterSelected(sec, row);
   bindBlock(block);
   window.buildLayerPanel();
