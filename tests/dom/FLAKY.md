@@ -364,3 +364,23 @@ tpl-pagepad-e81.dom.spec.js:215 T6      1/11 (판 6b239a24) · 0/11 (판 d163b6c
 | 검사·갈래 | 가지(측정 전용) | 관측 |
 |---|---|---|
 | `q2274-handle-leak-userpath.dom.spec.js` U3(밖 클릭 → 블럭 클릭 → Delete) | `taeyang/q2274-handle-size-s3` | `28aee7d9` 판 a 에서 Delete 안 먹음 **1/3** · 원본 판 `74388784` main-a·b·c **0/3**(안 나옴) |
+
+## 2026-11-14 · DEV-BASELINE-RED-4-01 (시트 99행) — 기존 빨강 4칸, 차단 사유 아님 (매니저 판정)
+- 판 = `293833ec7` (origin/dev `2852c9f44` + 보안 20) · 전수 7857건/879파일 → 7799 passed · 54 skipped · **4 failed**
+- 대조 = `3c2a3e708` (옛 로컬 dev + 같은 보안 20) 전수에서는 **0 failed** → 보안 20 이 만든 빨강 아님. 원인은 적지 않는다.
+
+| spec · 칸 | 293833ec7 전수 |
+|---|---|
+| `frame-stack-to-free-296.dom.spec.js:200` N5 | 빨강 |
+| `icontext-icon-size-valign.dom.spec.js:179` I6 horizontal | 빨강 |
+| `icontext-icon-size-valign.dom.spec.js:179` I6 vertical | 빨강 |
+| `migrate-stack-col-removed.dom.spec.js:134` M3 | 빨강 |
+
+- ★게이트(`run-complete.gate.js`)는 **이 파일을 읽지 않는다.** 게이트가 아는 «일부러 빨강» 목록은 spec 안의 `test.fail(` 에서 뽑는다. 그래서 네 칸에 `test.fail(true, 'DEV-BASELINE-RED-4-01 …')` 를 달았다. 고치면 «예상 밖 통과»로 빨개지니, 그때 떼라.
+- I6 은 루프 안 `test(\`… ${dir} …\`)` 라 정의 자리 이름이 로그 이름과 안 맞았다. 그래서 게이트가 위쪽 `for (const dir of ['horizontal', 'vertical'])` 의 값으로 **전체 이름 2개**를 펼쳐 명부에 넣게 했다(`expandLoopName`).
+  - 접두로 넓히지 않는다. 못 펼치면 아무것도 넣지 않아, 그 빨강은 명부 밖으로 드러난다.
+- 재평가(같은 로그를 다시 돌리지 않고 갱신된 자로만):
+  - 새 자 + 새 spec → **명부 밖 빨강 0 · rc 0**
+  - 새 자 + 옛 spec → 4건 · rc 1 (양성)
+  - 옛 자 + 새 spec → I6 2건 · rc 1
+  - 넓힘 닫힘: 가짜 `I6 … — diagonal …` 빨강 1줄을 얹은 로그 → 명부 밖 1건 · rc 1

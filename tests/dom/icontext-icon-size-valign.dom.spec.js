@@ -177,6 +177,7 @@ async function pngIconTop(page, id) {
 }
 for (const dir of ['horizontal', 'vertical']) {
   test(`I6 PNG(html2canvas) — ${dir} · 오프셋 +30 · 아이콘 윗변 화면 = PNG`, async ({ page }) => {
+    test.fail(true, '★DEV-BASELINE-RED-4-01(시트 99행) — origin/dev 2852c9f44(0.9.12 통합)에 원래 있는 빨강·보안20 무관(매니저 판정 261114). 고치면 이 표시가 빨개진다 — 그때 떼라.');
     const id = await setup(page);
     await page.evaluate(([id, dir]) => { const b = document.getElementById(id); b.querySelector('.itb-icon').style.background = '#ff0000'; if (dir === 'vertical') window.setIconTextDirection?.(b, 'vertical'); window.setIconTextDy(b, 30); }, [id, dir]);
     await page.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));

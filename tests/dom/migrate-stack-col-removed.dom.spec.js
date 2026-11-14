@@ -132,6 +132,7 @@ test('M2 ★★음성대조 — ★`migrateColsFromDOM` 을 ★안 부르면 ★
 });
 
 test('M3 ★★★`migrateColsFromDOM` 의 ★★«크기»를 수로 박는다 — ★호출 ★29 · 줄 ★151 (★`…SWEEP-01`)', () => {
+  test.fail(true, '★DEV-BASELINE-RED-4-01(시트 99행) — origin/dev 2852c9f44(0.9.12 통합)에 원래 있는 빨강·보안20 무관(매니저 판정 261114). 고치면 이 표시가 빨개진다 — 그때 떼라.');
   /* ★★왜 — ★`MIGRATE-MISREADS-NEW-STRUCTURE-SWEEP-01`(261025) 의 ★★진짜 ★크기를 ★적는다.
      ★이 함수는 ★`rebindAll`(save-load.js:1457 이 아니라 ★그 위 :941 정의) 안에서 ★★로드·⌘Z·
        페이지 전환마다 ★돌고, ★★그 안에서 ★«구조»를 ★여러 번 ★바꾼다.

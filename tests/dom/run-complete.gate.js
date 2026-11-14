@@ -92,6 +92,23 @@ if (bad.length) {
    ⛔★명부를 ★손으로 ★박지 않는다 — ★★`test.fail(` 줄에서 ★위로 올라가 ★가장 가까운 `test('…'`/`it('…'` 의
      ★이름을 ★뽑아 ★★«정의 자리»에서 ★파생한다(★「명부가 둘이면 파생시켜 하나로」).
    ★★그리고 ★이 자도 ★자기 전제를 ★단언한다 — ★명부가 ★0칸이면 ★«파서가 깨졌다»로 ★터진다(⛔0 을 «없다»로 안 읽는다). */
+/* 261114 I6 — 루프 안 test(`… ${dir} …`) 는 정의 자리 이름에 ${dir} 가 남아 로그 이름과 안 맞는다.
+   위쪽 `for (const dir of ['a', 'b'])` 의 «문자열 값»으로 펼쳐 전체 이름을 하나씩 넣는다(접두로 넓히지 않는다).
+   못 펼치면 아무것도 안 넣는다 — 명부 밖 빨강으로 드러나게(조용히 흡수하지 않는다). */
+function expandLoopName(name, lines, at) {
+  const vars = [...name.matchAll(/\$\{\s*(\w+)\s*\}/g)].map((x) => x[1]);
+  if (!vars.length) return [name];
+  if (new Set(vars).size !== 1) return [];
+  const v = vars[0];
+  for (let i = at; i >= 0; i--) {
+    const f = lines[i].match(new RegExp(`for\\s*\\(\\s*const\\s+${v}\\s+of\\s+\\[([^\\]]*)\\]`));
+    if (!f) continue;
+    const vals = [...f[1].matchAll(/'([^']*)'|"([^"]*)"/g)].map((x) => x[1] ?? x[2]);
+    return vals.map((val) => name.replace(new RegExp(`\\$\\{\\s*${v}\\s*\\}`, 'g'), val));
+  }
+  return [];
+}
+
 function deriveKnownReds(dir) {
   const names = new Set();
   let files = 0;
@@ -105,7 +122,7 @@ function deriveKnownReds(dir) {
       if (!/^\s*test\.fail\(/.test(lines[i])) continue;      // ⛔주석 속 test.fail 은 안 센다(들여쓰기 뒤 바로)
       for (let j = i; j >= 0; j--) {
         const m = lines[j].match(/^\s*(?:test|it)\(\s*(['"`])([\s\S]*?)\1/);
-        if (m) { names.add(m[2].trim()); break; }
+        if (m) { for (const n of expandLoopName(m[2].trim(), lines, j)) names.add(n); break; }
       }
     }
   }
