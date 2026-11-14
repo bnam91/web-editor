@@ -37,6 +37,11 @@
  *   RH1 ⑯ 모서리 손잡이(.crt-overlay-handle · 쿠폰 꼴) — 블럭 고르면 4개 · se 를 진짜 마우스로 왼쪽 80 끌기 → dataset.width·화면 폭 줄어듦(가운데 정렬)
  *       · 출력 클론 같은 폭 · ⌘Z 한 번 = 원래 폭 · 패딩 제외 켜면 손잡이 0
  *      양성대조: overlay-handles.js 선택 분기의 `showCertResizeHandles(block);` 삭제 → RH1 빨강 · cert-block.js renderCertBlock 의 `applyCertWidth(block);` 삭제 → RH1(출력 클론 폭) 빨강
+ *   U2 ⑰ⓒ·⑱ 격자 순서 피커 → 용지 높이 → 가로 간격 → 세로 간격 → 겹침 순서 · 옛 #crt-gap 0 · ⑰ⓐ «샘플넣기»
+ *   G7 ⑱ 축 따로 — 가로만 −40 → 가로 겹침 O·세로 겹침 X · 세로만 −40 → 반대 · 옛 저장본 gap 하나(gapX·Y 없음) → 둘 다 그 값
+ *      양성대조: readCertState 의 gapY 를 `_num(d.gapX, …)` 로(가로 값 재사용) → G7 빨강
+ *   OL1 ⑰ⓑ 오버레이 단추(#crt-float-toggle · overlay-float.js 한 벌) — 켬 = overlayBlock·absolute · X 칸 → left · 모서리 손잡이 4 · 출력 클론 absolute 유지 · 끔 = 흐름 복귀
+ *      양성대조: prop-cert.js 의 `wireFloatToggle({ block, buttonId: 'crt-float-toggle', … })` 삭제 → OL1 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -66,7 +71,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/.crt-overlay-handle/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/.crt-overlay-handle/#crt-gapx-number/#crt-gapy-number/#crt-float-toggle/#crt-x-number/#crt-callouts-section/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -443,21 +448,39 @@ test('G5 그리드 피커 3×3 — 9장', async ({ page }) => {
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('U1 패널 — 안내문·위 제목 없음 · 지시선 글 = 장 수 바로 아래', async ({ page }) => {
+test('U1 패널 — 안내문·위 제목 없음 · 지시선 글 = 패널 맨 아래(⑰ⓓ · 켜면 바로 아래 Callouts 줄)', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
-  await stackMode(page, id);   // «장 수» 행은 스택
-  const r = await page.evaluate(() => {
+  const where = () => page.evaluate(() => {
     const P = document.getElementById('crt-mode').closest('.prop-section').parentElement;
-    const nextHas = (el, sel) => !!el?.nextElementSibling?.querySelector(sel);
+    const secs = [...P.children].filter((n) => n.classList.contains('prop-section'));
+    const sec = document.getElementById('crt-callouts')?.closest('.prop-section');
+    const rows = sec ? [...sec.querySelectorAll(':scope > .prop-row')] : [];
     return { hint: /끌어다 놓거나/.test(P.textContent), head: P.querySelectorAll('#crt-headline, #crt-sub').length,
-      afterCount: nextHas(document.getElementById('crt-count-number').closest('.prop-row'), '#crt-callouts') };
+      lastSec: !!sec && secs[secs.length - 1] === sec, firstRow: !!rows[0]?.querySelector('#crt-callouts'), sizeAfter: !!sec?.querySelector('#crt-titlesize-number') };
   });
-  expect(r).toEqual({ hint: false, head: 0, afterCount: true });
-  await page.selectOption('#crt-mode', 'grid');
-  await page.waitForSelector('#crt-grid-picker');
-  const g = await page.evaluate(() => document.getElementById('crt-grid-picker-label').nextElementSibling?.querySelector('#crt-callouts') != null);
-  expect(g, '격자: 지시선 글 = 피커 바로 아래').toBe(true);
+  await openPanel(page, id);   // 기본 격자
+  expect(await where()).toEqual({ hint: false, head: 0, lastSec: true, firstRow: true, sizeAfter: false });
+  await stackMode(page, id);
+  expect(await where(), '스택도 같은 자리').toEqual({ hint: false, head: 0, lastSec: true, firstRow: true, sizeAfter: false });
+  await toggle(page, 'crt-callouts');
+  await page.waitForSelector('#crt-titlesize-number');
+  expect(await where(), '켜면 크기·색이 «그 바로 아래»(같은 맨 아래 절)').toEqual({ hint: false, head: 0, lastSec: true, firstRow: true, sizeAfter: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('U2 격자 패널 순서 — 피커 → 용지 높이 → 가로 간격 → 세로 간격 → 겹침 순서(⑰ⓒ·⑱) · «샘플넣기»(⑰ⓐ)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  const r = await page.evaluate(() => {
+    const row = (sel) => document.querySelector(sel)?.closest('.prop-row, .grid-picker-label');
+    const order = ['#crt-grid-picker-label', '#crt-sheeth-number', '#crt-gapx-number', '#crt-gapy-number', '#crt-overlap'].map(row);
+    return { allThere: order.every(Boolean), chain: order.every((el, i) => i === 0 || order[i - 1]?.nextElementSibling === el),
+      pickerFirst: document.getElementById('crt-grid-picker')?.nextElementSibling === order[0], oldGap: !!document.getElementById('crt-gap-number'),
+      sample: document.getElementById('crt-samples')?.closest('.prop-row')?.textContent.trim() };
+  });
+  expect(r).toEqual({ allThere: true, chain: true, pickerFirst: true, oldGap: false, sample: '샘플넣기' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -481,8 +504,7 @@ test('G6 격자 음수 간격 — 이웃 칸이 겹친다(편집·출력)', asyn
   await page.selectOption('#crt-mode', 'grid');
   await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
   await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
-  await page.fill('#crt-gap-number', '-40');
-  await page.dispatchEvent('#crt-gap-number', 'change');
+  for (const ax of ['x', 'y']) { await page.fill(`#crt-gap${ax}-number`, '-40'); await page.dispatchEvent(`#crt-gap${ax}-number`, 'change'); }   // ⑱ 가로·세로 둘 다
   const live = await page.evaluate((id) => { const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
     const R = [...b.querySelectorAll('.cert-cell')].map((c) => c.getBoundingClientRect());
     const mid = [(R[0].right + R[1].left) / 2, R[0].top + R[0].height / 2];
@@ -573,10 +595,9 @@ test('OV1 겹침 순서 — 기본 왼쪽이 위(⑮) · 오른쪽 명시', asyn
   await page.selectOption('#crt-mode', 'grid');
   await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
   await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
-  await page.fill('#crt-gap-number', '-40');
-  await page.dispatchEvent('#crt-gap-number', 'change');
+  for (const ax of ['x', 'y']) { await page.fill(`#crt-gap${ax}-number`, '-40'); await page.dispatchEvent(`#crt-gap${ax}-number`, 'change'); }   // ⑱ 가로·세로 둘 다
   expect(await page.inputValue('#crt-overlap'), '⑮ 기본 = 왼쪽이 위').toBe('left');
-  expect(await page.evaluate(() => document.getElementById('crt-gap-number').closest('.prop-row').nextElementSibling?.querySelector('#crt-overlap') != null), '«간격» 바로 아래').toBe(true);
+  expect(await page.evaluate(() => document.getElementById('crt-gapy-number').closest('.prop-row').nextElementSibling?.querySelector('#crt-overlap') != null), '«세로 간격» 바로 아래(⑱)').toBe(true);
   const top = () => page.evaluate((id) => {
     const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
     const C = [...b.querySelectorAll('.cert-cell')], R = C.map((c) => c.getBoundingClientRect());
@@ -683,5 +704,53 @@ test('RH1 모서리 손잡이로 폭 조절 · ⌘Z', async ({ page }) => {
   await page.evaluate((id) => { const b = document.getElementById(id); b.dataset.fullBleed = 'true'; window.renderCertBlock(b); }, id);
   await page.click(`#${id}`, { position: { x: 4, y: 4 } });
   await expect(page.locator('.crt-overlay-handle'), '패딩 제외 켜짐 = 손잡이 0(그쪽이 폭을 정한다)').toHaveCount(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G7 가로·세로 간격 따로(⑱) · 옛 gap 호환', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
+  await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
+  const ov = () => page.evaluate((id) => { const R = [...document.querySelectorAll(`#${id} .cert-cell`)].map((c) => c.getBoundingClientRect());
+    return { h: R[0].right > R[1].left + 1, v: R[0].bottom > R[2].top + 1 }; }, id);
+  const set = async (ax, v) => { await page.fill(`#crt-gap${ax}-number`, String(v)); await page.dispatchEvent(`#crt-gap${ax}-number`, 'change'); };
+  await set('x', -40); await set('y', 16);
+  expect(await ov(), '가로만 음수').toEqual({ h: true, v: false });
+  await set('x', 16); await set('y', -40);
+  expect(await ov(), '세로만 음수').toEqual({ h: false, v: true });
+  const old = await page.evaluate((id) => { const b = document.getElementById(id); delete b.dataset.gapX; delete b.dataset.gapY; b.dataset.gap = '-30'; window.renderCertBlock(b);
+    const R = [...b.querySelectorAll('.cert-cell')].map((c) => c.getBoundingClientRect()); return { h: R[0].right > R[1].left + 1, v: R[0].bottom > R[2].top + 1 }; }, id);
+  expect(old, '옛 저장본 gap 하나 = 둘 다').toEqual({ h: true, v: true });
+  await openPanel(page, id);
+  expect([await page.inputValue('#crt-gapx-number'), await page.inputValue('#crt-gapy-number')]).toEqual(['-30', '-30']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('OL1 오버레이 단추(⑰ⓑ) — 켬·자리·손잡이·출력·끔', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await page.click(`#${id}`, { position: { x: 4, y: 4 } });
+  await openPanel(page, id);
+  await page.click('#crt-float-toggle');
+  await page.waitForFunction((id) => document.getElementById(id).dataset.overlayBlock === 'true', id, { timeout: 5000 });
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).position, id)).toBe('absolute');
+  await page.waitForSelector('#crt-x-number');
+  await page.fill('#crt-x-number', '30');
+  await page.dispatchEvent('#crt-x-number', 'change');
+  expect(await page.evaluate((id) => document.getElementById(id).style.left, id), 'X 칸 → left').toBe('30px');
+  await page.click(`#${id}`, { position: { x: 4, y: 4 } });
+  await expect(page.locator('.crt-overlay-handle'), '떠 있어도 모서리 손잡이 4').toHaveCount(4);
+  const out = await page.evaluate(async (id) => {
+    const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const b = clone.querySelector('.cert-block'); const v = [b.style.position, b.style.left, b.querySelectorAll('.cert-sheet').length]; clone.remove(); return v;
+  }, id);
+  expect(out.slice(0, 2), '출력 클론도 떠 있는 자리 그대로').toEqual(['absolute', '30px']);
+  await openPanel(page, id);
+  await page.click('#crt-float-toggle');
+  await page.waitForFunction((id) => document.getElementById(id).dataset.overlayBlock !== 'true', id, { timeout: 5000 });
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).position, id), '끄면 흐름으로').not.toBe('absolute');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

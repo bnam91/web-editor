@@ -5,7 +5,8 @@
  *   ⛔값은 escHtml 로 속성에 싣는다(블럭 데이터는 남이 준 프로젝트에서 올 수 있다).
  */
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, overlayToggleBtnHTML } from './_helpers.js';
+import { wireFloatToggle, wireFloatPosition, floatPositionRowHTML, posElOf, isFloat } from '../overlay-float.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { readCertState, setCertList, CERT_SHADOWS } from '../blocks/cert-block.js';
 const SHADOW_LABEL = { none: '없음', soft: '부드럽게', strong: '진하게' };
@@ -34,7 +35,10 @@ export function showCertProperties(block) {
   const rows = Math.ceil(st.certs.length / st.cols);
   // 패딩 제외 — 섹션에 좌우 패딩이 있거나 이미 켜져 있을 때만(월계수 _lrlCanFB 와 같은 조건)
   const canFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
-  /* ⑫ 용지 높이(세로/가로 %) — 스택은 «용지 크기» 바로 아래 · 격자는 «용지 크기» 행이 없어 «간격» 아래 */
+  /* ⑫ 용지 높이(세로/가로 %) — 스택은 «용지 크기» 바로 아래 · 격자는 ⑰ⓒ «피커 → 용지 높이 → 가로 간격 → 세로 간격» */
+  /* ⑰ⓑ 오버레이(플로팅) — 공용 js/overlay-float.js 한 벌(모달·아이콘과 같은 겉모습·배선) · 떠 있나 = 공용 isFloat */
+  const _crtPosEl = posElOf(block);
+  const _crtIsFloat = !!(_crtPosEl && isFloat(_crtPosEl));
   const sheetHRow = sliderRowHTML('용지 높이', 'crt-sheeth-slider', 'crt-sheeth-number', { min: CERT_SHEET_H.min, max: CERT_SHEET_H.max, step: 1, value: st.sheetH });
   const calloutsRow = _toggleRow('crt-callouts', '지시선 글', withCallouts, st.mode === 'grid' ? '용지마다 아래 제목·설명(+상태 칩)' : '용지마다 세로 지시선 + 제목·설명(+상태 칩)');
   propPanel.innerHTML = `
@@ -42,26 +46,26 @@ export function showCertProperties(block) {
 ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Documents', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
     </div>
     <div class="prop-section">
-      <div class="prop-section-title">Documents</div>
+      <div class="prop-section-title prop-ph-header"><span>Documents</span>${overlayToggleBtnHTML({ id: 'crt-float-toggle', active: _crtIsFloat })}</div>
+      ${floatPositionRowHTML({ prefix: 'crt', posEl: _crtPosEl })}
       <div class="prop-row"><span class="prop-label">모드</span><select class="prop-select" id="crt-mode">
         ${Object.entries(MODE_LABEL).map(([k, v]) => `<option value="${k}"${k === st.mode ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
       ${st.mode === 'grid'
     ? `<div class="grid-picker" id="crt-grid-picker" title="열 × 행 — 장 수 = 열 × 행"></div>
       <div class="grid-picker-label" id="crt-grid-picker-label">${st.cols} × ${rows}</div>
-      ${calloutsRow}
-      ${sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: -80, max: 80, step: 2, value: st.gap })}
+      ${sheetHRow}
+      ${sliderRowHTML('가로 간격', 'crt-gapx-slider', 'crt-gapx-number', { min: -80, max: 80, step: 2, value: st.gapX })}
+      ${sliderRowHTML('세로 간격', 'crt-gapy-slider', 'crt-gapy-number', { min: -80, max: 80, step: 2, value: st.gapY })}
       <div class="prop-row" title="간격이 음수일 때 겹친 칸의 위아래"><span class="prop-label">겹침 순서</span><select class="prop-select" id="crt-overlap">
-        <option value="right"${st.overlap === 'left' ? '' : ' selected'}>오른쪽이 위</option><option value="left"${st.overlap === 'left' ? ' selected' : ''}>왼쪽이 위</option></select></div>
-      ${sheetHRow}`
+        <option value="right"${st.overlap === 'left' ? '' : ' selected'}>오른쪽이 위</option><option value="left"${st.overlap === 'left' ? ' selected' : ''}>왼쪽이 위</option></select></div>`
     : `<div class="prop-row"><span class="prop-label">배치</span><select class="prop-select" id="crt-preset">
         ${CERT_PRESET_NAMES.map((k) => `<option value="${k}"${k === st.preset ? ' selected' : ''}>${PRESET_LABEL[k] || k}</option>`).join('')}</select></div>
       ${sliderRowHTML('흩뿌림', 'crt-jitter-slider', 'crt-jitter-number', { min: 0, max: 100, step: 5, value: Math.round(st.jitter * 100) })}
       <div class="prop-row"><button class="prop-btn" id="crt-reshuffle" style="width:100%" title="흩뿌림이 0 보다 클 때 다른 배치로">다시 섞기</button></div>
       ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}
       ${sheetHRow}
-      ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}
-      ${calloutsRow}`}
-      ${_toggleRow('crt-samples', '샘플 넣어보기', block.dataset.samples === 'on', '빈 칸에 샘플 문서를 보여 줌(넣은 그림은 안 덮음 · 저장·내보내기엔 안 들어감)')}
+      ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}`}
+      ${_toggleRow('crt-samples', '샘플넣기', block.dataset.samples === 'on', '빈 칸에 샘플 문서를 보여 줌(넣은 그림은 안 덮음 · 저장·내보내기엔 안 들어감)')}
       ${canFB ? _toggleRow('crt-fullbleed', '패딩 제외', block.dataset.fullBleed === 'true', '섹션 좌우 패딩을 무시하고 끝까지') : ''}
     </div>
     <div class="prop-section" id="crt-fx-section">
@@ -74,12 +78,13 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
       <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="crt-fx-shadow">
         ${Object.keys(CERT_SHADOWS).map((k) => `<option value="${k}"${k === fx.shadow ? ' selected' : ''}>${SHADOW_LABEL[k]}</option>`).join('')}</select></div>
     </div>
-    ${withCallouts ? `<div class="prop-section">
+    <div class="prop-section" id="crt-callouts-section">
       <div class="prop-section-title">Callouts</div>
+      ${calloutsRow}
       ${withCallouts ? sliderRowHTML('제목 크기', 'crt-titlesize-slider', 'crt-titlesize-number', { min: 10, max: 48, step: 1, value: st.titleSize })
         + sliderRowHTML('설명 크기', 'crt-descsize-slider', 'crt-descsize-number', { min: 9, max: 32, step: 1, value: st.descSize })
         + _colorRow('crt-title', '제목색', st.titleColor) + _colorRow('crt-desc', '설명색', st.descColor) + _colorRow('crt-line', '지시선색', st.lineColor) : ''}
-    </div>` : ''}`;
+    </div>`;   /* ⑰ⓓ «지시선 글» 토글 = 패널 맨 아래 절 첫 줄 · 켜면 그 바로 아래에 크기·색 */
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   const rerender = () => window.renderCertBlock?.(block);
@@ -157,7 +162,10 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
     const sl = $('crt-sheeth-slider'), p = (CERT_SHEET_H.def - CERT_SHEET_H.min) / (CERT_SHEET_H.max - CERT_SHEET_H.min);
     if (sl) sl.style.background = `linear-gradient(var(--ui-text-muted), var(--ui-text-muted)) no-repeat calc(6px + (100% - 12px) * ${p.toFixed(4)}) 50% / 1px 9px, var(--ui-border)`;
   }
-  wireNum('crt-gap', 'gap', -80, 80);   // ⑦ 음수 = 겹침
+  wireNum('crt-gapx', 'gapX', -80, 80);   // ⑦ 음수 = 겹침 · ⑱ 가로(열 사이)
+  wireNum('crt-gapy', 'gapY', -80, 80);   // ⑱ 세로(행 사이)
+  wireFloatToggle({ block, buttonId: 'crt-float-toggle', rerender: () => { window.renderCertBlock?.(block); showCertProperties(block); window.showHandlesFor?.(block); } });
+  wireFloatPosition({ block, xId: 'crt-x-number', yId: 'crt-y-number' });
   wireNum('crt-titlesize', 'titleSize', 10, 48);
   wireNum('crt-descsize', 'descSize', 9, 32);
   // 장 수 — 늘리면 빈 용지를 덧붙이고, 줄이면 뒤에서 뺀다(있던 그림·글은 남는 장에 그대로)

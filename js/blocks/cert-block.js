@@ -65,7 +65,10 @@ function readCertState(block) {
     certs,
     mode,
     cols: Math.max(1, Math.min(4, Math.round(_num(d.cols, D.cols)))),   // 그리드 피커 4열
-    gap: Math.max(-80, Math.min(80, _num(d.gap, D.gap))),   // ⑦ 음수 = 용지끼리 겹침(현빈 261114)
+    gap: Math.max(-80, Math.min(80, _num(d.gap, D.gap))),   // ⑦ 음수 = 용지끼리 겹침(현빈 261114) · ⑱ 뒤로는 옛 저장본 호환값
+    /* ⑱ 가로(열 사이)·세로(행 사이) 간격 따로 — 값 없으면 옛 gap 하나를 둘 다로(호환) */
+    gapX: Math.max(-80, Math.min(80, _num(d.gapX, _num(d.gap, D.gap)))),
+    gapY: Math.max(-80, Math.min(80, _num(d.gapY, _num(d.gap, D.gap)))),
     headline: d.headline ?? D.headline, sub: d.sub ?? D.sub,
     preset: CERT_PRESET_NAMES.includes(d.preset) ? d.preset : D.preset,
     seed: Math.round(_num(d.seed, D.seed)), jitter: Math.max(0, Math.min(1, _num(d.jitter, D.jitter))),
@@ -137,12 +140,13 @@ function _renderGridStage(st) {
   const rows = Math.ceil(st.certs.length / cols);
   /* ⑦ 음수 간격 = 겹침 — CSS grid gap 은 음수를 안 받는다 ⇒ gap 0 + 칸을 translate 로 (열×g, 행×g) 당기고 가운데 맞춤 · 아래 남는 띠는 margin-bottom 으로 걷는다.
      translate 는 칸 크기·트랙을 안 바꾼다(용지 크기 그대로) · 겹치면 뒤 칸이 위(DOM 순서 = 앞 칸이 아래). 출력(forOutput) 사본도 이 함수라 같은 겹침. */
-  const g = st.gap, neg = g < 0;
-  const stage = _el('div', 'cert-stage cert-grid', `display:grid;grid-template-columns:repeat(${cols}, 1fr);gap:${neg ? 0 : g}px;align-items:start;`
-    + (neg && rows > 1 ? `margin-bottom:${(rows - 1) * g}px;` : ''));
+  /* ⑱ 축마다 따로 — 가로(gx · 열 사이)·세로(gy · 행 사이) 각각 음수면 그 축만 gap 0 + translate(겹침 순서 규칙은 같음) */
+  const gx = st.gapX, gy = st.gapY, negX = gx < 0, negY = gy < 0;
+  const stage = _el('div', 'cert-stage cert-grid', `display:grid;grid-template-columns:repeat(${cols}, 1fr);gap:${negY ? 0 : gy}px ${negX ? 0 : gx}px;align-items:start;`
+    + (negY && rows > 1 ? `margin-bottom:${(rows - 1) * gy}px;` : ''));
   st.certs.forEach((c, i) => {
     const k = i % cols, r = Math.floor(i / cols);
-    const cell = _el('div', 'cert-cell', 'min-width:0;' + (st.overlap === 'left' ? `z-index:${st.certs.length - i};` : '') + (neg ? `position:relative;transform:translate(${(k - (cols - 1) / 2) * g}px, ${r * g}px);` : ''));
+    const cell = _el('div', 'cert-cell', 'min-width:0;' + (st.overlap === 'left' ? `z-index:${st.certs.length - i};` : '') + ((negX || negY) ? `position:relative;transform:translate(${negX ? (k - (cols - 1) / 2) * gx : 0}px, ${negY ? r * gy : 0}px);` : ''));
     const sh = _sheet(c, i, st);
     sh.style.cssText = _sheetCss(c, `position:relative;width:100%;aspect-ratio:100 / ${st.sheetH};transform:${sheetTransform(0, c.fx)};`);
     cell.appendChild(sh);
@@ -169,7 +173,7 @@ function renderCertBlock(block, { forOutput = false, showSamples = !forOutput } 
   block.dataset.mode = st.mode;
   /* «패딩 제외»(현빈 261114 · dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(배너2·월계수와 같은 자리 · 키 없으면 no-op) */
   applyCertWidth(block);   // ⑯ 손잡이 폭(dataset.width) — 패딩 제외가 켜지면 그쪽이 폭을 정한다(아래 줄)
-  window.applyBlockFullBleed?.(block);
+  if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);   // ⑰ⓑ 떠 있을 땐 음수 마진을 다시 안 씌운다(overlay-float 가 띄우는 동안 걷어 둔다)
   block.querySelectorAll(':scope > .cert-head, :scope > .cert-stage').forEach((n) => n.remove());
   /* ⑪ «샘플 넣어보기» — 빈 칸에만 차례로(사용자 그림은 안 덮음) · 미리보기는 showSamples:true · 내보내기(캡처)는 기본 false = 빈 칸 취급(현빈 답 전 안전기본값) */
   if (block.dataset.samples === 'on' && showSamples) {
