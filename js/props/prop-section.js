@@ -628,16 +628,17 @@ ${blockHeaderHTML({
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
       </div>
-      <!-- ★(다) 이 섹션의 «지금» 높이 — 현빈 2026-10-07. 읽기 전용(여기서 높이를 «정하지» 않는다).
+      <!-- ★(다) 이 섹션의 «지금» 높이 — 현빈 2026-10-07. 표시 + 숫자칸(261114 — 치면 section-pin.js setHeight = «핀 + 그 높이»).
            ⛔수를 여기서 다시 계산하지 마라 — 캔버스 배지·합계와 ★같은 함수(window.measureSectionHeight)를
              부른다. 값의 출처가 둘이면 어느 날 갈린다(js/section-height.js 머리말).
            갱신은 js/section-height.js 가 #sec-height-value 를 찾아서 한다(섹션 높이가 바뀌는 동안 패널이 열려 있을 수 있다). -->
       <div class="prop-row" title="내보내기 기준 레이아웃 px — 캔버스 배율에 흔들리지 않습니다">
         <span class="prop-label">높이</span>
-        <span class="prop-value-text" id="sec-height-value" style="font-variant-numeric:tabular-nums;" data-sec-id="${escHtml(sec.id || '')}">${
-          (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '—' : h + 'px'; })()
-        }</span>
-        <!-- ⑦ 높이 고정(핀) — js/section-pin.js. 켤 때 «지금 높이»로 고정 · 손잡이로 맞춘다(숫자칸은 1차 생략 · Q13 ⓖ) -->
+        <input type="number" class="prop-number" id="sec-height-value" style="width:64px;font-variant-numeric:tabular-nums;" min="1" max="20000" step="1" placeholder="—" aria-label="섹션 높이(px)" data-sec-id="${escHtml(sec.id || '')}" value="${
+          (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '' : h; })()
+        }">
+        <span class="prop-value-text">px</span>
+        <!-- ⑦ 높이 고정(핀) — js/section-pin.js. 켤 때 «지금 높이»로 고정 · 손잡이로 맞춘다 · 숫자칸에 치면(Enter/blur) 그 높이로 핀(Q13 ⓖ · 현빈 261114) -->
         <button type="button" class="prop-icon-btn" id="sec-pin-btn" data-sec-id="${escHtml(sec.id || '')}" aria-pressed="false" aria-label="높이 고정" style="margin-left:auto;">📌</button>
       </div>
       <!-- ⑦ 안전장치(현빈 Q10 요구 · 문구 최소) — 숨은 블럭이 있을 때만 보인다 -->
@@ -1186,6 +1187,20 @@ function _bindSectionPin(sec) {
   document.getElementById('sec-pin-btn')?.addEventListener('click', () => { P.isPinned(sec) ? P.unpin(sec) : P.pin(sec); P.refreshPanel(sec); });
   document.getElementById('sec-pin-peek-btn')?.addEventListener('click', () => { P.peek(sec, !sec.classList.contains(P.PEEK)); P.refreshPanel(sec); });
   document.getElementById('sec-pin-off-btn')?.addEventListener('click', () => { P.unpin(sec); P.refreshPanel(sec); });
+  /* 숫자칸 — change(blur·Enter·스핀) 로 확정 · Esc 는 되돌린다 · 범위로 깎인 수를 칸에 바로 보인다(포커스 중엔 section-height.js 가 안 덮는다) */
+  const hIn = document.getElementById('sec-height-value');
+  const curH = () => String(window.measureSectionHeight?.(sec) ?? '');
+  let esc = false;   // Esc 의 blur 가 일으키는 change 는 버린다(안 버리면 꺼진 섹션이 «지금 높이»로 핀된다)
+  hIn?.addEventListener('change', () => {
+    if (esc) return;
+    const h = hIn.value.trim() === '' ? null : P.setHeight(sec, hIn.value);
+    hIn.value = h == null ? curH() : String(h);
+    P.refreshPanel(sec);
+  });
+  hIn?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); hIn.blur(); }
+    else if (e.key === 'Escape') { esc = true; hIn.value = curH(); hIn.blur(); esc = false; }
+  });
   P.refreshPanel(sec);
 }
 

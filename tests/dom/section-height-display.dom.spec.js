@@ -188,11 +188,11 @@ test('D3 (다) 패널 — 섹션 절 「높이」 칸이 캔버스 배지와 ★
   await page.evaluate(() => window.showSectionProperties(document.getElementById('hS2')));
   await page.waitForSelector('#sec-height-value', { state: 'attached' });
   const r = await page.evaluate(() => ({
-    cell: document.getElementById('sec-height-value').textContent.trim(),
+    cell: document.getElementById('sec-height-value').value,
     badge: document.querySelector('#hS2 .section-height-badge').dataset.h,
     secId: document.getElementById('sec-height-value').dataset.secId,
   }));
-  expect(r.cell, `패널=${r.cell} 배지=${r.badge}`).toBe('140px');
+  expect(r.cell, `패널=${r.cell} 배지=${r.badge}`).toBe('140');   // 숫자칸(261114) — 단위 px 는 옆 글자
   expect(r.badge).toBe('140px');
   expect(r.secId).toBe('hS2');
 });
@@ -237,9 +237,9 @@ test('P1 ★공용 함수 하나 — 무력화하면 (다)·(라)·패널 ★셋
   const before = await page.evaluate(() => ({
     badge: document.querySelector('#hS1 .section-height-badge').dataset.h,
     total: document.getElementById('rp-height-total').querySelector('.rp-ht-val').textContent,
-    cell:  document.getElementById('sec-height-value').textContent.trim(),
+    cell:  document.getElementById('sec-height-value').value,
   }));
-  expect(before, JSON.stringify(before)).toEqual({ badge: '300px', total: '440px', cell: '300px' });
+  expect(before, JSON.stringify(before)).toEqual({ badge: '300px', total: '440px', cell: '300' });
 
   // ★양성대조 — 공용 자 하나를 0 으로 바꾼다. 「둘째 명부」가 있으면 그쪽은 ★안 바뀐다.
   const after = await page.evaluate(() => {
@@ -248,12 +248,12 @@ test('P1 ★공용 함수 하나 — 무력화하면 (다)·(라)·패널 ★셋
     return {
       badge: document.querySelector('#hS1 .section-height-badge').dataset.h,
       total: document.getElementById('rp-height-total').querySelector('.rp-ht-val').textContent,
-      cell:  document.getElementById('sec-height-value').textContent.trim(),
+      cell:  document.getElementById('sec-height-value').value,
     };
   });
   expect(after.badge, `(다) 캔버스가 공용 자를 안 쓴다 — 받은 값 ${after.badge}`).toBe('0px');
   expect(after.total, `(라) 합계가 ★파생이 아니다 — 받은 값 ${after.total}`).toBe('0px');
-  expect(after.cell,  `(다) 패널 칸이 공용 자를 안 쓴다 — 받은 값 ${after.cell}`).toBe('0px');
+  expect(after.cell,  `(다) 패널 칸이 공용 자를 안 쓴다 — 받은 값 ${after.cell}`).toBe('0');
 });
 
 test('U1 갱신 — 섹션 ★추가 (addSection 실경로) 하면 배지가 생기고 합계가 커진다', async ({ page }) => {

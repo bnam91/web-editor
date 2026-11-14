@@ -174,8 +174,8 @@
         : secs.find(s => s.id && s.id === cell.dataset.secId) || null;
       if (target) {
         const h = ruler(target);              // ★공용 자
-        const txt = h == null ? '—' : h + 'px';
-        if (cell.textContent !== txt) cell.textContent = txt;
+        const v = h == null ? '' : String(h);   // ★숫자칸(prop-section.js) — 치는 중(포커스)엔 덮지 않는다
+        if (document.activeElement !== cell && cell.value !== v) cell.value = v;
         if (target.id) cell.dataset.secId = target.id;
         window.sectionPin?.refreshPanel(target);   // ⑦ 📌 · 「숨은 블럭 N개」 줄
       }

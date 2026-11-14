@@ -103,6 +103,25 @@
     refreshSoon();
   }
 
+  /** 숫자칸(패널 «높이») — 그 높이로 «핀 켜기 + 그 높이»(꺼져 있었으면 켠다) · 하한 = 손잡이와 같은 minH · 기록 한 걸음.
+   *  돌려준다: 실제로 쓴 px(무변이면 그 값 · 못 쓰면 null). */
+  const MAX_H = 20000;   // shortcut: 손잡이엔 상한이 없다 — 오타(0 하나 더) 막는 안전값 · 큰 섹션 요구가 오면 올려라
+  const minH = (sec) => (parseFloat(getComputedStyle(sec).paddingBottom) || 0) + 20;   // = section-bottom-handle.js pinMin
+  function setHeight(sec, px) {
+    const v = Math.round(Number(px));
+    if (!sec || !Number.isFinite(v)) return null;
+    const h = Math.min(MAX_H, Math.max(minH(sec), v));
+    if (isPinned(sec) && pinH(sec) === h) return h;
+    histStart('섹션 높이');   // ★양쪽 끝(pin 머리말)
+    sec.style.minHeight = '';
+    sec.style.height = h + 'px';
+    sec.dataset.heightPin = 'true';
+    window.pushHistory?.('섹션 높이');
+    window.triggerAutoSave?.();
+    refreshSoon();
+    return h;
+  }
+
   /** 핀 해제 — Q13 ⓒ 그 높이를 바닥(minHeight)으로 남긴다(내용이 더 크면 내용만큼 늘어난다 = 해제의 뜻). */
   function unpin(sec) {
     if (!sec || !isPinned(sec)) return;
@@ -211,5 +230,5 @@
   document.addEventListener('click', sweepSoon, true);
   document.addEventListener('keyup', (e) => { if (e.key === 'Escape') setTimeout(sweepPeek, 0); }, true);
 
-  window.sectionPin = { histStart, sweepSoon, _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
+  window.sectionPin = { histStart, sweepSoon, _observedCount: () => _obs.size, isPinned, cutY, hiddenBlocks, visibleRect, isFullyHidden, peek, revealFor, pin, unpin, setHeight, minH, MAX_H, naturalHeight, info, refreshPanel, sweepPeek, PEEK };
 })();
