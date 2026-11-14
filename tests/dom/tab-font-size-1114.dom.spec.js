@@ -35,7 +35,7 @@ async function setup(page) {
     window.deselectAll?.(); document.activeElement?.blur?.();
     return { t1, t2, tbl };
   }, SEC);
-  await page.waitForTimeout(250);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));   // 고정 대기 대신 두 프레임
   return { errs, ...ids };
 }
 
@@ -43,7 +43,7 @@ async function clickCenter(page, sel) {
   await page.locator(sel).first().scrollIntoViewIfNeeded();
   const b = await page.locator(sel).first().boundingBox();
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
-  await page.waitForTimeout(250);
+  await page.waitForFunction((sel) => document.querySelector(sel)?.classList.contains('selected'), sel);
 }
 
 const st = (page, id) => page.evaluate((id) => {
@@ -87,7 +87,7 @@ test('N1 음성 — 글자 편집 중 Tab 은 칸으로 안 간다', async ({ pa
   await clickCenter(page, '#' + t1);
   const b = await page.locator('#' + t1).boundingBox();
   await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
-  await page.waitForTimeout(250);
+  await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('editing'), t1);
   const s0 = await st(page, t1);
   expect(s0.editing, '[전제] 편집 중').toBe(true);
   await page.keyboard.press('Tab');
@@ -103,7 +103,7 @@ test('N2 음성 — 표 칸 편집 중 Tab 은 다음 칸으로(기존)', async 
   const cell = page.locator(`#${tbl} td, #${tbl} th`).first();
   const b = await cell.boundingBox();
   await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
-  await page.waitForTimeout(250);
+  await page.waitForFunction((id) => !!document.activeElement?.closest?.(`#${id} th, #${id} td`), tbl);
   const first = await page.evaluate((id) => { const all = [...document.querySelectorAll(`#${id} th, #${id} td`)]; return all.indexOf(document.activeElement); }, tbl);
   expect(first, '[전제] 칸 편집 중').toBeGreaterThanOrEqual(0);
   await page.keyboard.press('Tab');

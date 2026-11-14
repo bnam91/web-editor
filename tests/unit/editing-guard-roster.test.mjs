@@ -79,7 +79,11 @@ const KNOWN = {
                              /* ★45 → 46 (261112 · 워커2 · 스포이드 가지 671db7db0) — js/editor.js 의 i(스포이드) 핸들러에
                                 «색 피커가 열려 있으면 i = 그 피커 스포이드» 갈래를 더하며 `!document.querySelector('.text-block.editing')` ★한 줄이 늘었다.
                                 files 는 9 그대로(이미 명부에 있는 파일). 받침 = 아래 `js/editor.js` 칸(같은 줄에 activeElement 일반검사 `typing` 이 먼저 선다 · 핸들러 첫 문장 B1). */
-  sites: 46,
+                             /* ★46 → 47 (261115 · 워커2 · Tab→글자 크기 가지 581125d68) — js/editor.js _tabToFontSize 에
+                                `if (document.querySelector('.text-block.editing, .label-group-block.editing')) return false;` 한 줄.
+                                files 는 9 그대로(이미 명부에 있는 파일). 받침 = 아래 `js/editor.js` 칸 — Tab 갈래는 keydown 핸들러 첫 문장(B1) «뒤»라
+                                편집 중(contentEditable 초점)의 Tab(⌘ 없음)은 B1 이 먼저 막고, 함수 첫 줄이 activeElement 일반검사(INPUT·TEXTAREA·SELECT·캔버스 밖)다. */
+  sites: 47,
   files: 9,
   union: ['asset', 'grid', 'icon-text', 'label-group', 'liner', 'modal', 'quote', 'text'],
 };
@@ -96,6 +100,9 @@ const KNOWN_GAPS = {
         + ' ⇒ ★타입 이름(`.text-block`)이 ★빠져도 ★그 다음 줄이 ★받는다. ⛔이름 명부로 ★닫는 자리가 ★아니다.'
         + ' ★261112 추가(워커2) — i 스포이드의 «피커 열림» 갈래 `if (!typing && !document.querySelector(\'.text-block.editing\'))` 도 그 꼴이다:'
         + ' ★바로 윗줄 `typing` 이 isContentEditable·TEXTAREA·SELECT·글 INPUT 일반검사이고 핸들러 첫 문장(B1)이 ⌘ 없는 i 를 편집 중에 먼저 막는다'
+        + ' ⇒ 타입 이름이 빠져도 받는다.'
+        + ' ★261115 추가(워커2) — Tab→글자 크기 `_tabToFontSize` 의 `.text-block.editing, .label-group-block.editing` 줄도 그 꼴이다:'
+        + ' Tab 갈래가 핸들러 첫 문장(B1) 뒤라 편집 중(⌘ 없는 Tab)은 B1 이 먼저 막고, 함수 첫 줄이 activeElement 일반검사(입력칸·캔버스 밖이면 false)다'
         + ' ⇒ 타입 이름이 빠져도 받는다.',
     구분: '㉠', 까닭: 'B1 일반 관문(keydown 첫 문장)이 타입 명부보다 먼저 막는다 ⇒ 이름을 더해도 그 키들에 닿지 않는다 — B1 이 사는 동안 영구',
     근거: ['js/editor.js', 'if (document.activeElement?.isContentEditable && !e.metaKey && !e.ctrlKey) return;'],
