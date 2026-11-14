@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -280,6 +280,8 @@ function _startAnimPreview() {
   const W = canvas.width, H = canvas.height;
   const plan        = _plan(style, speed, scale);
   const duration    = plan.duration; // ms for one cycle
+  const info = document.getElementById('anim-loop-info');   // F4 한 바퀴 길이·GIF 프레임 수(내보내기와 같은 셈)
+  if (info) info.textContent = loopInfoText(duration);
 
   _animLoops = 0;
 
@@ -581,7 +583,7 @@ async function exportAnimGif() {
     const displaySize = Math.round(style.fontSize * scale);
     const plan        = _plan(style, speed, scale);
     const duration    = plan.duration; // ms
-    const fps         = 20;
+    const fps         = GIF_FPS;   // F4 — 안내 한 줄(loopInfoText)과 같은 수
     const frames      = Math.ceil((duration / 1000) * fps);
     const delay       = Math.round(1000 / fps);
 
@@ -605,7 +607,7 @@ async function exportAnimGif() {
       gif.addFrame(ctx, { copy: true, delay });
     }
     // 마지막 값에서 1.5초 정지 (카운트업 등 UX)
-    const holdFrames = Math.ceil(fps * 1.5);
+    const holdFrames = Math.ceil(fps * GIF_HOLD_S);
     for (let i = 0; i < holdFrames; i++) {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = style.sectionBg || '#ffffff';

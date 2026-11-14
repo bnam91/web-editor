@@ -118,6 +118,7 @@ test('E2 GIF 프레임 수 = 도장 한 바퀴(560ms · 20fps) + 끝 멈춤 1.5�
   items.find((it) => it.dataset.id === 'stamp')._l.click[0]();
   await window.exportAnimGif();
   assert.equal(E.frames(), (Math.ceil((560 / 1000) * 20) + 1) + Math.ceil(20 * 1.5));
+  assert.equal(E.els['anim-loop-info'].textContent, `한 바퀴 0.56초 · GIF ${E.frames()}프레임`, 'F4 안내 = 실제 GIF 프레임 수');
 });
 
 test('E3 F3 줄마다 따로 — 저장본 P076(질문 타이핑 0~1000 · 답 도장 1100~1660)으로 열면 τ=500 엔 질문만 · 끝엔 둘 다 선명 · 켜기 = data-anim-gif 쓰기', async () => {

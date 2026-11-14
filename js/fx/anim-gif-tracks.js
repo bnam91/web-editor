@@ -206,3 +206,9 @@ export const serializeAnimGif = ({ tracks, speed = 1, repeat = 1 }) => JSON.stri
 });
 /** 속도 배율 — at·dur 를 나눈다(미리보기·GIF 가 같은 값을 쓴다). */
 export const scaleTracks = (tracks, speed) => tracks.map((t) => ({ ...t, at: t.at / speed, dur: t.dur / speed }));
+
+/* ── F4 한 바퀴 안내 — 모달 한 줄과 GIF 내보내기가 «같은 셈»을 쓴다(둘이 갈리지 않게) ── */
+export const GIF_FPS = 20, GIF_HOLD_S = 1.5;
+/** GIF 프레임 수 = 한 바퀴(0~끝 포함) + 끝 멈춤 1.5초 — animation-engine.js exportAnimGif 의 루프 두 개와 같은 수. */
+export const gifFrameCount = (durMs) => (Math.ceil((durMs / 1000) * GIF_FPS) + 1) + Math.ceil(GIF_FPS * GIF_HOLD_S);
+export const loopInfoText = (durMs) => `한 바퀴 ${(durMs / 1000).toFixed(2)}초 · GIF ${gifFrameCount(durMs)}프레임`;

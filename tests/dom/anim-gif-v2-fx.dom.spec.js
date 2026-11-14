@@ -11,6 +11,8 @@
  *    미리보기 τ=500 엔 «네!» 0(답은 시작 전) · τ=1660 엔 두 줄 선명
  * L2 저장 — 닫고 다시 열면 켜짐·값 그대로 · ⌘Z 한 번 = 직전 값(이력 한 칸씩)
  * L3 남이 준 저장본 — fx 에 «<img onerror>» · 범위 밖 수 · 없는 줄 → 소독(fade-in · 5000 등) · 행 안에 img 0 · pageerror 0
+ * ── F4 ── I1 한 바퀴 안내 — V1 슬라이드업 «한 바퀴 1.20초 · GIF 55프레임»(1200ms · 20fps 25 + 끝 멈춤 30) · 도장 «0.56초 · 43» · P076 줄별 «1.66초 · 65»
+ *   양성대조: anim-gif-tracks.js gifFrameCount 의 «+ 1» 삭제 → I1 빨강(단위 E2 도 — srv 실측)
  * 양성대조(F3):
  *   · animation-engine.js _plan 의 `if (_perLine && _tracks) {` → `if (false) {` ⇒ L1(τ=500 에 «네!» 보임) 빨강
  *   · _loadAnimGif 를 openAnimModal 에서 빼면 ⇒ L2(다시 열면 꺼짐) 빨강
@@ -160,5 +162,18 @@ test('L3 남이 준 저장본 — 소독 · 행 안에 img 0', async ({ page }) 
     img: document.querySelectorAll('#anim-tracks img').length, pwn: window.__pwn ?? 0, speed: document.getElementById('anim-speed').value,
   }));
   expect(r).toEqual({ fx: ['fade-in', 'fade-in'], at: ['0', '5000'], img: 0, pwn: 0, speed: '3' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('I1 한 바퀴 안내 — 효과·줄별 길이와 GIF 프레임 수', async ({ page }) => {
+  const errs = await scene(page, TWO);
+  await pick(page, 'slide-up');
+  await expect(page.locator('#anim-loop-info')).toHaveText('한 바퀴 1.20초 · GIF 55프레임');
+  await pick(page, 'stamp');
+  await expect(page.locator('#anim-loop-info')).toHaveText('한 바퀴 0.56초 · GIF 43프레임');
+  await page.check('#anim-per-line');
+  await setRow(page, 0, P076[0]);
+  await setRow(page, 1, P076[1]);
+  await expect(page.locator('#anim-loop-info')).toHaveText('한 바퀴 1.66초 · GIF 65프레임');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
