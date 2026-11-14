@@ -30,6 +30,10 @@
  *      양성대조: cert-block.js _renderGridStage 의 `(st.overlap === 'left' ? \`z-index:…\` : '')` 를 `''` 로 → OV1 빨강
  *   SN1 «용지 높이» 자석 턱(⑭) — 슬라이더 끌기 139·143·145 → 141 · 130·146 → 그대로 · 숫자 칸 직접 139 → 139 · 트랙에 턱 눈금
  *      양성대조: prop-cert.js wireNum('crt-sheeth', …) 의 `, { snap: { to: CERT_SHEET_H.def, tol: 4 } }` 삭제 → SN1 빨강
+ *   IE1 안 2 — 그림 든 칸 더블클릭 = 틀 안 그림 편집(공용 편집기 · 코너 핸들) · 끌기 → certs[0].crop(％) · 틀 크기 그대로 · 출력 클론도 같은 crop
+ *       · ⌘Z 한 번 = 크롭 전(그림은 남음) · 다시 열어 «원래대로» = crop 없음(cover) · (빈 칸 더블클릭 = 파일창은 K4)
+ *      양성대조: cert-block.js 더블클릭의 `if (readCertState(block).certs[i]?.img) { enterCertImageEditMode(block, i); return; }` 삭제 → IE1 빨강
+ *              · setCertList 의 `if (cr) o.crop = cr;` 삭제 → IE1(crop 저장) 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -59,7 +63,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -606,5 +610,47 @@ test('SN1 용지 높이 자석 턱 141(⑭)', async ({ page }) => {
   await page.dispatchEvent('#crt-sheeth-number', 'change');
   expect(await page.evaluate((id) => document.getElementById(id).dataset.sheetH, id), '숫자 칸 직접 입력엔 턱 없음').toBe('139');
   expect(await page.evaluate(() => document.getElementById('crt-sheeth-slider').style.background), '턱 눈금').toMatch(/linear-gradient/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('IE1 그림 든 칸 더블클릭 = 틀 안 그림 편집(안 2)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', '', '']);
+  await page.evaluate(() => window.pushHistory('IE1 seed'));   // ⌘Z 가 돌아갈 «크롭 전» 칸
+  const sheet = `#${id} .cert-sheet[data-idx="0"]`;
+  const frame0 = await page.locator(sheet).boundingBox();
+  await page.dblclick(sheet);
+  await page.waitForFunction(() => document.querySelectorAll('.cert-img-edit-proxy').length === 1 && document.querySelectorAll('.img-corner-handle').length > 0, null, { timeout: 5000 });
+  await expect(page.locator('#crt-img-crop-done')).toHaveCount(1);
+  const box = await page.locator('.cert-img-edit-proxy img.asset-img').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 30, box.y + box.height / 2 - 20, { steps: 8 });
+  await page.mouse.up();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.cert-img-edit-proxy, .img-corner-handle').length === 0, null, { timeout: 5000 });
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); const c = JSON.parse(b.dataset.certs)[0];
+    return { crop: c.crop ?? null, img: !!c.img, pos: b.querySelector('.cert-sheet[data-idx="0"] img.cert-img').style.position }; }, id);
+  expect(r.img).toBe(true);
+  expect(r.crop, '★크롭이 저장 안 됐다').not.toBeNull();
+  expect([r.crop.size, r.crop.x, r.crop.y].every(Number.isFinite)).toBe(true);
+  expect(r.pos, '그림이 ％ 자리로 그려진다').toBe('absolute');
+  const frame1 = await page.locator(sheet).boundingBox();
+  expect(Math.abs(frame1.width - frame0.width) + Math.abs(frame1.height - frame0.height), '★틀 크기가 바뀌었다(안 2 = 틀 고정)').toBeLessThan(1);
+  const out = await page.evaluate(async (id) => {
+    const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const im = clone.querySelector('.cert-block .cert-sheet img.cert-img'); const v = im && [im.style.left, im.style.width]; clone.remove(); return v;
+  }, id);
+  expect(out, '출력 클론도 같은 crop').toEqual([`${r.crop.x}%`, `${r.crop.size}%`]);
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.waitForFunction((id) => { const c = JSON.parse(document.getElementById(id)?.dataset.certs || '[]')[0]; return c && !c.crop && !!c.img; }, id, { timeout: 5000 });
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await page.waitForFunction((id) => !!JSON.parse(document.getElementById(id)?.dataset.certs || '[]')[0]?.crop, id, { timeout: 5000 });
+  await page.dblclick(sheet);
+  await page.waitForSelector('#crt-img-crop-reset');
+  await page.click('#crt-img-crop-reset');
+  await page.waitForFunction((id) => { const c = JSON.parse(document.getElementById(id).dataset.certs)[0]; return !c.crop && !!c.img; }, id, { timeout: 5000 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -57,7 +57,7 @@ function readCertState(block) {
   certs = certs.slice(0, mode === 'grid' ? CERT_MAX_GRID : CERT_MAX_SHEETS).map((c) => ({   // 스택 CERT_MAX_SHEETS(8) · 격자 12(저장은 12까지 — 모드를 바꿔도 안 지운다)
     title: String(c?.title ?? ''), desc: String(c?.desc ?? ''),
     img: certImgOk(c?.img) ? c.img : '', status: CERT_STATUSES.includes(c?.status) ? c.status : '',
-    fx: normFx(c?.fx),
+    fx: normFx(c?.fx), crop: normCrop(c?.crop),
   }));
   if (!certs.length) certs = CERT_DEFAULT_CERTS.map((c) => ({ ...c, fx: normFx() }));
   const D = CERT_DEFAULTS;
@@ -86,6 +86,14 @@ function _el(tag, cls, css, text) {
   if (text != null) e.textContent = text;
   return e;
 }
+/** 안 2 틀 안 크롭 {size,x,y}(％ · 폭 기준 size·x, 높이 기준 y) — 숫자 아니면 null(= cover). 범위는 편집기가 낼 수 있는 값보다 넉넉히. */
+function normCrop(c) {
+  if (!c || typeof c !== 'object') return null;
+  const size = Number(c.size), x = Number(c.x), y = Number(c.y);
+  if (![size, x, y].every(Number.isFinite) || size <= 0) return null;
+  const k = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  return { size: k(size, 1, 2000), x: k(x, -2000, 2000), y: k(y, -2000, 2000) };
+}
 const SHEET_LOOK = 'background:#ffffff;overflow:hidden;border-radius:2px;box-sizing:border-box;';
 const IMG_LOOK = 'display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;';
 
@@ -97,7 +105,9 @@ function _sheet(c, i, st) {
   const s = _el('div', c.sample ? 'cert-sheet cert-sample' : 'cert-sheet');
   s.dataset.idx = String(i);
   if (c.img) {
-    const img = _el('img', 'cert-img', IMG_LOOK); img.alt = ''; img.draggable = false; img.src = c.img;
+    const img = _el('img', 'cert-img', c.crop
+      ? `display:block;position:absolute;left:${c.crop.x}%;top:${c.crop.y}%;width:${c.crop.size}%;height:auto;max-width:none;pointer-events:none;`   // 안 2 — 틀 고정 · 그림만(그리드 칸 크롭과 같은 ％ 꼴)
+      : IMG_LOOK); img.alt = ''; img.draggable = false; img.src = c.img;
     s.appendChild(img);
   } else {
     s.classList.add('cert-ph');
@@ -214,7 +224,12 @@ function certOutputNotice(root) {
 
 /** 용지 배열을 고쳐 쓰고 다시 그린다(패널·끌어 놓기 공용 · 저장소 = dataset.certs 하나). */
 function setCertList(block, certs) {
-  block.dataset.certs = JSON.stringify(certs.slice(0, CERT_MAX_GRID).map((c) => ({ title: c.title || '', desc: c.desc || '', img: certImgOk(c.img) ? c.img : '', status: CERT_STATUSES.includes(c.status) ? c.status : '', fx: normFx(c.fx) })));
+  block.dataset.certs = JSON.stringify(certs.slice(0, CERT_MAX_GRID).map((c) => {
+    const o = { title: c.title || '', desc: c.desc || '', img: certImgOk(c.img) ? c.img : '', status: CERT_STATUSES.includes(c.status) ? c.status : '', fx: normFx(c.fx) };
+    const cr = o.img ? normCrop(c.crop) : null;   // 안 2 틀 안 크롭 — 그림이 있을 때만
+    if (cr) o.crop = cr;
+    return o;
+  }));
   renderCertBlock(block);
 }
 /** 슬롯 i 에 그림 — 기록·저장·(골라져 있으면) 패널 새로. record:false = 부르는 쪽이 한 걸음을 직접 쌓는다(스크래치 끌어오기 — canvas-scratch-drop 호출자). */
@@ -223,11 +238,33 @@ function setCertSlotImage(block, i, src, { record = true } = {}) {
   const certs = readCertState(block).certs;
   if (!certs[i] || !certImgOk(src)) return false;
   if (record) window.pushHistory?.('A4 용지 그림');
-  certs[i] = { ...certs[i], img: src };
+  certs[i] = { ...certs[i], img: src, crop: null };   // 새 그림 = 크롭 없음(cover)
   setCertList(block, certs);
   window.scheduleAutoSave?.();
   if (block.classList.contains('selected')) window.showCertProperties?.(block);
   return true;
+}
+
+/** 안 2 — 그림 든 칸 더블클릭 = «틀 안 그림» 크기·위치(image-handling.js 공용 몸 _enterFrameImageEdit · 그리드 칸과 같은 편집기).
+ *  틀(용지 비율·회전·기울기)은 그대로 · certs[i].crop(％) 에 저장 · 내보내기·R1 재배치도 같은 _sheet 가 그린다.
+ *  ⌘Z 한 걸음 = 편집기 exitImageEditMode 의 pushHistory(커밋 뒤 한 번). */
+function enterCertImageEditMode(block, i) {
+  const c = readCertState(block).certs[i];
+  const frame = block?.querySelector(`.cert-sheet[data-idx="${i}"]`);
+  if (!c?.img || !frame || typeof window.enterFrameImageEdit !== 'function') return;
+  window.enterFrameImageEdit({
+    host: block, key: '_certImgEdit', frame, realImg: frame.querySelector('img.cert-img'), src: c.img, crop: c.crop,
+    keepPositioned: true, proxyClass: 'grd-img-edit-proxy cert-img-edit-proxy', historyLabel: 'A4 용지 그림 크롭', tag: 'certImgCrop',
+    ids: { done: 'crt-img-crop-done', reset: 'crt-img-crop-reset' },
+    commit: (geo) => {
+      const certs = readCertState(block).certs;
+      if (!certs[i]) return;
+      certs[i] = { ...certs[i], crop: geo };   // null = «원래대로»(cover)
+      setCertList(block, certs);
+      window.scheduleAutoSave?.();
+    },
+    afterExit: () => { if (block.classList.contains('selected')) window.showCertProperties?.(block); },
+  });
 }
 
 /* 슬롯 입력 — 에셋 블럭처럼 «파일 끌어 놓기» · «더블클릭 = 파일창». 블럭에 한 번만 위임(다시 그려도 안 겹친다). */
@@ -253,6 +290,8 @@ function _bindSlotInput(block) {
     if (!sheet) return;
     e.stopPropagation();
     const i = +sheet.dataset.idx;
+    // 안 2(현빈 확정) — 그림 든 칸 = 틀 안 그림 편집 · 빈 칸(샘플 칸 포함 — 샘플은 데이터가 아니다) = 파일 넣기
+    if (readCertState(block).certs[i]?.img) { enterCertImageEditMode(block, i); return; }
     grdPickImageFile((src) => setCertSlotImage(block, i, src));
   });
 }
@@ -291,6 +330,7 @@ window.makeCertBlock = makeCertBlock;
 window.addCertBlock = addCertBlock;
 window.renderCertBlock = renderCertBlock;
 window.certOutputNotice = certOutputNotice;
-window.setCertSlotImage = setCertSlotImage;   // 스크래치패드 끌어오기(js/canvas-scratch-drop.js certslot)
+window.setCertSlotImage = setCertSlotImage;
+window.enterCertImageEditMode = enterCertImageEditMode;   // 스크래치패드 끌어오기(js/canvas-scratch-drop.js certslot)
 
 export { CERT_MAX_GRID, certOutputNotice, CERT_MODES, CERT_SHADOWS, CERT_FX_DEFAULT, normFx, sheetTransform, CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };

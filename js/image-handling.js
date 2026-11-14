@@ -1668,7 +1668,7 @@ function _enterFrameImageEdit(a) {
   // 프레임을 «담는 그릇»으로 만든다(끝나면 되돌린다) — 프록시가 inset:0 으로 앉을 수 있게.
   const hadPosition = !!frame.style.position;
   const prevPosition = frame.style.position;
-  frame.style.position = 'relative';
+  if (!a.keepPositioned) frame.style.position = 'relative';   // keepPositioned = 틀이 이미 자리 잡힘(Documents 스택 용지는 absolute — relative 로 바꾸면 무너진다)
 
   const proxy = document.createElement('div');
   proxy.className = a.proxyClass;
@@ -1855,6 +1855,7 @@ function enterGridImageEditMode(block, addr) {
   });
 }
 window.enterGridImageEditMode = enterGridImageEditMode;
+window.enterFrameImageEdit = _enterFrameImageEdit;   // Documents(cert-block.js) 어댑터가 부른다
 window.teardownGridImageEditMode = (block) => _teardownGridImgEdit(block);
 window.applyImageTransform = applyImageTransform;
 window.triggerAssetUpload = triggerAssetUpload;
