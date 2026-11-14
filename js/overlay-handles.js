@@ -1501,6 +1501,100 @@ function _onCouponResizeHandleMouseDown(e, block, dir) {
 window.showCouponResizeHandles = showCouponResizeHandles;
 window.hideCouponResizeHandles = hideCouponResizeHandles;
 
+/* ══ Documents(cert-block) «폭» 손잡이 — 현빈 261114 ⑯ «다른 블럭들처럼 모서리 핸들» ══════════════════
+   ★쿠폰 꼴 그대로(바로 위): 네 모서리 · 수평 성분만 · 가운데 고정(Δ=2·dx) · dataset.width(px) 한 값이 진실.
+   ★높이는 따로 없다 — Documents 무대는 ％·aspect-ratio 라 폭을 따라 비율로 선다(용지 크기·간격은 «그 안 비율»으로 그대로).
+   ★«패딩 제외»(dataset.fullBleed) 가 켜져 있으면 손잡이를 안 준다 — 그쪽이 폭을 정한다(renderCertBlock 도 그때 width 를 안 씀).
+   ⛔`.cpn-overlay-handle` 을 빌리지 않는다 — hideCouponResizeHandles 의 일괄 remove 에 쓸려 나간다. */
+const CRT_WIDTH_MIN = 200;
+let _crtResizeBlock = null;
+let _crtResizeRafId = null;
+
+function showCertResizeHandles(block) {
+  if (_crtResizeBlock === block) return;
+  hideCertResizeHandles();
+  if (block?.dataset.fullBleed === 'true') return;
+  _crtResizeBlock = block;
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  CORNER_DIRS.forEach(dir => {
+    const h = document.createElement('div');
+    h.className = `crt-overlay-handle ${dir}`;
+    h.dataset.certResizeDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', e => _onCertResizeHandleMouseDown(e, block, dir));
+  });
+  _updateCertResizeHandlePositions();
+  const loop = () => {
+    if (!_crtResizeBlock) return;
+    if (!_crtResizeBlock.isConnected || !_crtResizeBlock.classList.contains('selected') || _crtResizeBlock.dataset.fullBleed === 'true') {
+      hideCertResizeHandles();
+      return;
+    }
+    _updateCertResizeHandlePositions();
+    _crtResizeRafId = requestAnimationFrame(loop);
+  };
+  _crtResizeRafId = requestAnimationFrame(loop);
+}
+
+function hideCertResizeHandles() {
+  if (_crtResizeRafId) { cancelAnimationFrame(_crtResizeRafId); _crtResizeRafId = null; }
+  _crtResizeBlock = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('.crt-overlay-handle').forEach(h => h.remove());
+}
+
+function _updateCertResizeHandlePositions() {
+  const overlay = _getOverlay();
+  if (!overlay || !_crtResizeBlock) return;
+  const HALF = 3.5;
+  overlay.querySelectorAll('.crt-overlay-handle').forEach(h => {
+    const c = _cornerScreen(_crtResizeBlock, h.dataset.certResizeDir);
+    h.style.top  = (c.y - HALF) + 'px';
+    h.style.left = (c.x - HALF) + 'px';
+  });
+}
+
+function _onCertResizeHandleMouseDown(e, block, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  // 상한 = 부모 내용 폭(레이아웃 px · 배율 무관) — 넘게 저장하면 max-width:100% 에 막혀 «죽은 구간»이 생긴다
+  const par = block.parentElement;
+  const pcs = par ? getComputedStyle(par) : null;
+  const maxW = par ? Math.max(CRT_WIDTH_MIN, par.clientWidth - (parseFloat(pcs.paddingLeft) || 0) - (parseFloat(pcs.paddingRight) || 0)) : Infinity;
+  const clamp = (v) => Math.min(maxW, Math.max(CRT_WIDTH_MIN, Math.round(v)));
+  const startW = clamp(Number(block.dataset.width) || block.offsetWidth);   // 모델 먼저(offsetWidth 는 레이아웃 px — 배율 무관)
+  const sx = dir.includes('e') ? 1 : -1;
+  let moved = false;
+  const _hist = window.beginDragHistory?.('Documents 크기');
+  function onMove(ev) {
+    const scale = _canvasScaleNow();
+    const dx = (ev.clientX - startX) / scale;
+    const dy = (ev.clientY - startY) / scale;
+    if (!moved) {
+      if (Math.hypot(dx, dy) < 1) return;
+      _hist?.arm(dx, dy);   // 시작 상태 1회(쿠폰과 같은 까닭 — js/drag-history.js)
+      moved = true;
+    }
+    const newW = clamp(startW + sx * dx * 2);
+    block.dataset.width = String(newW);   // ★dataset 이 진실
+    window.applyCertWidth?.(block);       // 인라인 폭만(무대는 ％라 다시 그릴 것 없음)
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    window.pushHistory?.();   // 끝 상태 — ⌘Z 한 번 = 끌기 전
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+window.showCertResizeHandles = showCertResizeHandles;
+window.hideCertResizeHandles = hideCertResizeHandles;
+
 /* ═══════════════════════════════════
    ICON-CIRCLE BLOCK RESIZE HANDLE (overlay, east-only, square-constrained)
 ═══════════════════════════════════ */
@@ -4808,6 +4902,8 @@ function showHandlesFor(block) {
   } else if (block.classList.contains('modal-block')) {
     showModalRadiusHandles(block);
     showModalResizeHandles(block);
+  } else if (block.classList.contains('cert-block')) {
+    showCertResizeHandles(block);   // ⑯ 폭 하나(쿠폰 꼴) · 패딩 제외 켜짐이면 안에서 안 준다
   } else if (block.classList.contains('coupon-block')) {
     /* ★폭 하나다 — 모서리 라디우스 손잡이는 ★안 준다(쿠폰의 모서리는 ★배경 SVG 가
        그리므로 손잡이를 주면 CSS border-radius 와 ★두 벌이 된다. 패널 슬라이더로만). */
@@ -4850,6 +4946,8 @@ export {
   showModalResizeHandles,
   showCouponResizeHandles,
   hideCouponResizeHandles,
+  showCertResizeHandles,
+  hideCertResizeHandles,
   hideModalResizeHandles,
   showIconCircleResizeHandle,
   hideIconCircleResizeHandle,

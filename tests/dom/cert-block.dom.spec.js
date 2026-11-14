@@ -34,6 +34,9 @@
  *       · ⌘Z 한 번 = 크롭 전(그림은 남음) · 다시 열어 «원래대로» = crop 없음(cover) · (빈 칸 더블클릭 = 파일창은 K4)
  *      양성대조: cert-block.js 더블클릭의 `if (readCertState(block).certs[i]?.img) { enterCertImageEditMode(block, i); return; }` 삭제 → IE1 빨강
  *              · setCertList 의 `if (cr) o.crop = cr;` 삭제 → IE1(crop 저장) 빨강
+ *   RH1 ⑯ 모서리 손잡이(.crt-overlay-handle · 쿠폰 꼴) — 블럭 고르면 4개 · se 를 진짜 마우스로 왼쪽 80 끌기 → dataset.width·화면 폭 줄어듦(가운데 정렬)
+ *       · 출력 클론 같은 폭 · ⌘Z 한 번 = 원래 폭 · 패딩 제외 켜면 손잡이 0
+ *      양성대조: overlay-handles.js 선택 분기의 `showCertResizeHandles(block);` 삭제 → RH1 빨강 · cert-block.js renderCertBlock 의 `applyCertWidth(block);` 삭제 → RH1(출력 클론 폭) 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -63,7 +66,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/.crt-overlay-handle/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -652,5 +655,33 @@ test('IE1 그림 든 칸 더블클릭 = 틀 안 그림 편집(안 2)', async ({ 
   await page.waitForSelector('#crt-img-crop-reset');
   await page.click('#crt-img-crop-reset');
   await page.waitForFunction((id) => { const c = JSON.parse(document.getElementById(id).dataset.certs)[0]; return !c.crop && !!c.img; }, id, { timeout: 5000 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('RH1 모서리 손잡이로 폭 조절 · ⌘Z', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await page.click(`#${id}`, { position: { x: 4, y: 4 } });
+  await expect(page.locator('.crt-overlay-handle'), '블럭을 고르면 모서리 손잡이 4개').toHaveCount(4);
+  const w0 = await page.evaluate((id) => document.getElementById(id).offsetWidth, id);
+  const h = await page.locator('.crt-overlay-handle.se').boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 - 80, h.y + h.height / 2, { steps: 8 });
+  await page.mouse.up();
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); return { dw: Number(b.dataset.width), ow: b.offsetWidth }; }, id);
+  expect(r.dw, '★폭이 안 줄었다').toBeLessThan(w0 - 40);
+  expect(Math.abs(r.ow - r.dw), '화면 폭 = dataset.width').toBeLessThan(2);
+  const out = await page.evaluate(async (id) => {
+    const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const v = clone.querySelector('.cert-block').style.width; clone.remove(); return v;
+  }, id);
+  expect(out, '출력 클론도 같은 폭').toBe(`${r.dw}px`);
+  await page.keyboard.press('Meta+z');
+  await page.waitForFunction(({ id, w0 }) => { const b = document.getElementById(id); return b && !b.dataset.width && Math.abs(b.offsetWidth - w0) < 2; }, { id, w0 }, { timeout: 5000 });
+  await page.evaluate((id) => { const b = document.getElementById(id); b.dataset.fullBleed = 'true'; window.renderCertBlock(b); }, id);
+  await page.click(`#${id}`, { position: { x: 4, y: 4 } });
+  await expect(page.locator('.crt-overlay-handle'), '패딩 제외 켜짐 = 손잡이 0(그쪽이 폭을 정한다)').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

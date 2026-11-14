@@ -56,6 +56,9 @@ const ROSTER = {
          ⛔명부 끝에 붙이면 이 검사가 «순서가 다르다»로 빨개진다(실측으로 물렸다).
        끝 표본은 tests/dom/coupon-block.dom.spec.js C-HANDLE2 가 이웃으로 잰다. */
     '쿠폰 크기',
+    /* 2026-11-14 ⑯ Documents «폭» 손잡이(.crt-overlay-handle) — 쿠폰 절 «바로 뒤»(소스 등장 순서) · 쿠폰과 같은 양쪽 끝 규약(arm + onUp pushHistory).
+       끝 표본은 tests/dom/cert-block.dom.spec.js RH1 이 ⌘Z 로 잰다. */
+    'Documents 크기',
     '아이콘서클 크기',
     '카드 모서리', '카드 크기', '벡터 크기',
     /* 2026-09-20 통합(int/0920b) — T-068 오버레이 텍스트 모서리. 원래는 «시작 표본만» 찍는

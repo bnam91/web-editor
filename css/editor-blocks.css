@@ -403,7 +403,7 @@
    손잡이는 #ss-handles-overlay·#canvas 안에서만 만들어지므로 그릇 한정을 빼도 걸리는 자리는 같다. */
 body.sel-multi :is(
   .ss-resize-handle, .ss-radius-handle, .ss-rotate-handle,
-  .asset-overlay-handle, .asset-radius-handle, .mdl-overlay-handle, .mdl-radius-handle, .cpn-overlay-handle, .icb-overlay-handle,
+  .asset-overlay-handle, .asset-radius-handle, .mdl-overlay-handle, .mdl-radius-handle, .cpn-overlay-handle, .crt-overlay-handle, .icb-overlay-handle,
   .canvas-overlay-handle, .canvas-radius-handle, .vector-overlay-handle, .grd-overlay-handle, .grd-img-overlay-handle,
   .tfo-overlay-handle, .gradient-corner-handle,
   .frame-resize-handle, .zoom-handle, .annot-handle, .annot-rot-handle, .hlb-handle, .hlb-thickness-handle,
@@ -555,7 +555,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ⛔`.grd-img-overlay-handle`(칸 안 이미지 크기)과 이름이 비슷하지만 «다른 손잡이»다 — 그건 줄 하나, 이건 블럭 폭. */
 /* ★`.cpn-overlay-handle`(쿠폰 «폭» 손잡이, 2026-10-07)도 같은 규칙에 얹는다 — 일곱 번째다.
  * ⛔`.mdl-overlay-handle` 을 빌리지 않는다 — hideModalResizeHandles() 의 일괄 remove 에 쓸려 나간다. */
+/* ★`.crt-overlay-handle`(Documents «폭» 손잡이, 2026-11-14 현빈 ⑯)도 같은 규칙에 얹는다 — 쿠폰 꼴 그대로(⛔.cpn 을 빌리지 않는다 — hideCouponResizeHandles 일괄 remove). */
 .cpn-overlay-handle,
+.crt-overlay-handle,
 .tfo-overlay-handle,
 .grd-img-overlay-handle,
 .grd-overlay-handle {
@@ -623,10 +625,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      (2026-09-09 현빈 실측: 「모달블럭 > 모서리 핸들 마우스 커서 모양 안 바뀜」).
    ⚠️모양 규칙(:253)엔 얹혀 있는데 «커서만» 안 얹혀서, 손잡이는 보이는데 커서가 화살표 그대로였다.
    ⇒ ★다음에 오버레이 손잡이를 가진 블록을 만들면 «여기도» 더해라. 검사가 이 짝을 못박는다. */
-.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .cpn-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
-.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .cpn-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
-.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .cpn-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
-.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .cpn-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
+.asset-overlay-handle.nw, .icb-overlay-handle.nw, .zm-overlay-handle.nw, .mdl-overlay-handle.nw, .cpn-overlay-handle.nw, .crt-overlay-handle.nw, .grd-img-overlay-handle.nw, .tfo-overlay-handle.nw { cursor: nw-resize; }
+.asset-overlay-handle.ne, .icb-overlay-handle.ne, .zm-overlay-handle.ne, .mdl-overlay-handle.ne, .cpn-overlay-handle.ne, .crt-overlay-handle.ne, .grd-img-overlay-handle.ne, .tfo-overlay-handle.ne { cursor: ne-resize; }
+.asset-overlay-handle.sw, .icb-overlay-handle.sw, .zm-overlay-handle.sw, .mdl-overlay-handle.sw, .cpn-overlay-handle.sw, .crt-overlay-handle.sw, .grd-img-overlay-handle.sw, .tfo-overlay-handle.sw { cursor: sw-resize; }
+.asset-overlay-handle.se, .icb-overlay-handle.se, .zm-overlay-handle.se, .mdl-overlay-handle.se, .cpn-overlay-handle.se, .crt-overlay-handle.se, .grd-img-overlay-handle.se, .tfo-overlay-handle.se { cursor: se-resize; }
 /* ★그리드 폭 손잡이는 네 모서리 «모두» 좌우 화살표 — 폭만 바뀌고 높이는 내용이 정한다(대각 커서는 거짓말이 된다). */
 /* 10-05 제4안으로 높이도 바뀌어 방향별로 — 모서리 = 폭+높이(대각) · e/w = 폭(좌우) · n/s = 높이(칸 위아래 여백 · 위아래). */
 .grd-overlay-handle { cursor: ew-resize; }

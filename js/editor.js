@@ -4414,6 +4414,7 @@ function deselectAll() {
   /* ★쿠폰 폭 손잡이 — 빠지면 모듈 변수 _cpnResizeBlock 이 «해제된 블럭»을 계속 가리켜
      같은 블럭 재클릭이 동일블럭 빗장에 걸려 no-op 이 된다(위 아이콘원형이 실제로 밟은 사고). */
   window.hideCouponResizeHandles?.();
+  window.hideCertResizeHandles?.();   // ⑯ 같은 까닭(모듈 변수 _crtResizeBlock 이 해제된 블럭을 붙잡지 않게)
   /* ★아이콘원형 핸들도 «여기서» 정리한다 — 빠져 있었다.
    * 빠져 있으면 모듈 내부의 `_icbResizeBlock` 이 «선택 해제된 블록»을 계속 가리킨 채 남고,
    * 같은 블록을 다시 클릭하면 `showIconCircleResizeHandle` 의 동일블록 가드에 걸려 no-op 이 된다.

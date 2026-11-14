@@ -155,11 +155,20 @@ function _renderGridStage(st) {
 /* ★출력(미리보기·내보내기 · 현빈 결정 R1 261114) — 빈 용지는 «안 그린다» · 채워진 장 수로 다시 배치(구멍 0) · 전부 비면 블럭째 숨김(그 줄도).
    편집 화면은 체크무늬 자리표시 그대로 · 저장본(dataset) 무변 — 출력 클론/미리보기 사본에서만 부른다
    (js/io/capture-safety.js stripEditorOnlyForCapture = PNG·HTML·썸네일 공용 · js/preview.js). */
+/** ⑯ 블럭 폭(dataset.width px · 모서리 손잡이) — 가운데 정렬 · 부모보다 넓지 않게. 패딩 제외 켜짐 / 값 없음 = 안 건드림. */
+function applyCertWidth(block) {
+  const w = Number(block?.dataset.width);
+  if (block?.dataset.fullBleed === 'true') { block.style.removeProperty('max-width'); return; }   // 패딩 제외의 calc(100% + 2·pad) 를 막지 않게
+  if (!(w > 0)) return;
+  Object.assign(block.style, { width: `${Math.round(w)}px`, maxWidth: '100%', marginLeft: 'auto', marginRight: 'auto' });
+}
+
 function renderCertBlock(block, { forOutput = false, showSamples = !forOutput } = {}) {
   if (!block) return;
   let st = readCertState(block);
   block.dataset.mode = st.mode;
   /* «패딩 제외»(현빈 261114 · dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(배너2·월계수와 같은 자리 · 키 없으면 no-op) */
+  applyCertWidth(block);   // ⑯ 손잡이 폭(dataset.width) — 패딩 제외가 켜지면 그쪽이 폭을 정한다(아래 줄)
   window.applyBlockFullBleed?.(block);
   block.querySelectorAll(':scope > .cert-head, :scope > .cert-stage').forEach((n) => n.remove());
   /* ⑪ «샘플 넣어보기» — 빈 칸에만 차례로(사용자 그림은 안 덮음) · 미리보기는 showSamples:true · 내보내기(캡처)는 기본 false = 빈 칸 취급(현빈 답 전 안전기본값) */
@@ -329,6 +338,7 @@ function addCertBlock(opts = {}) {
 window.makeCertBlock = makeCertBlock;
 window.addCertBlock = addCertBlock;
 window.renderCertBlock = renderCertBlock;
+window.applyCertWidth = applyCertWidth;
 window.certOutputNotice = certOutputNotice;
 window.setCertSlotImage = setCertSlotImage;
 window.enterCertImageEditMode = enterCertImageEditMode;   // 스크래치패드 끌어오기(js/canvas-scratch-drop.js certslot)
