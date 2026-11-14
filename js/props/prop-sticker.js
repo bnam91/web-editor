@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
-import { sanitizeSvgString } from '../util/sanitize-svg.js';
+import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
 import { countSectionHTML, wireCountSection, syncCountGroup } from './prop-sticker-count.js';
 import { coinSectionHTML, wireCoinSection } from './prop-sticker-coin.js';
@@ -1035,7 +1035,7 @@ ${blockHeaderHTML({
       if (p && p.shape === 'icon' && p.iconSvg) {
         const holder = sw.querySelector('.stk-fav-icon');
         if (holder) {
-          holder.innerHTML = sanitizeSvgString(p.iconSvg);   // ★즐겨찾기(localStorage)의 svg — 그릴 때 거른다(SEC 261114)
+          holder.innerHTML = sanitizeIconMarkup(p.iconSvg);   // ★즐겨찾기(localStorage)의 svg — 그릴 때 거른다(SEC 261114)
           const svg = holder.querySelector('svg');
           if (svg) { svg.setAttribute('width', 18); svg.setAttribute('height', 18); svg.style.pointerEvents = 'none'; }
         }

@@ -38,6 +38,7 @@
  *   ⑵ js/count-sticker-tool.js(고전 스크립트 · 그 알리아스로) — dataset 에 «쓸 때»
  *   ⑶ js/blocks/sticker-block.js — 아이콘 스티커(shape:'icon')의 data-icon-svg 를 «그릴 때»(261114 · 예전엔 날것)
  *   ⑷ js/props/prop-iconify.js — SVG 프리셋 라이브러리 미리보기·적용(261114 · 예전엔 날것)
+ *   ⑸ sanitizeIconMarkup(아래) — 저장된 «아이콘»(svg 또는 iconify <img> 폴백)을 그리는 6곳: 아이콘 스티커 · 스티커 즐겨찾기 · 아이콘 창 즐겨찾기·고른 미리보기 · 모달 아이콘 · 카드 아이콘
  */
 
 export const SVG_ALLOWED_TAGS = [
@@ -292,4 +293,42 @@ export function sanitizeSvgString(input, opts) {
   if (!started) return '';
   while (open.length) out += '</' + open.pop() + '>';
   return out;
+}
+
+/** 아이콘 «그리기» 한 벌(SEC 261114 2차 · 인텔 전수 modal-icon-img-fallback 회귀) — 저장된 아이콘은 svg 만이 아니다:
+ *  아이콘 창이 svg 를 못 받으면 «<img src=https://api.iconify.design/…svg …>» 를 그대로 블럭 iconSvg 에 저장한다(js/panels/iconify-panel.js 폴백 ·
+ *  실사용자 프로젝트에 실재). sanitizeSvgString 은 그것을 '' 로 만들어 아이콘이 빈칸이 됐다(표시 손실).
+ *  ⇒ svg 면 sanitizeSvgString · «<img> 하나»면 다시 짓는다(src 는 https: 만 · width/height 수 · alt · style 은 display 만 · 나머지·on* 버림) · 그 밖 ''.
+ *  ⛔저장 데이터는 안 바꾼다 — «그릴 때» 쓴다. 라이브러리(svg-presets) 파일은 svg 만이라 거기선 sanitizeSvgString 그대로. */
+export function sanitizeIconMarkup(input, opts) {
+  if (typeof input !== 'string') return '';
+  const s = input.trim();
+  if (!/^<img[\s/>]/i.test(s)) return sanitizeSvgString(input, opts);
+  if (s.length > 4096) return '';
+  const t = _svgReadTag(s, 1);
+  if (!t || t === _SVG_EOF || t.name.toLowerCase() !== 'img') return '';
+  if (s.slice(t.end).replace(/^\s*<\/img\s*>/i, '').trim() !== '') return '';   // <img> 하나만
+  const seen = Object.create(null);
+  let out = '<img';
+  for (const [n, raw] of t.attrs) {
+    const k = n.toLowerCase();
+    if (seen[k]) continue;
+    const v = _svgDecode(raw).trim();
+    if (k === 'src') {
+      let u; try { u = new URL(v); } catch (_) { return ''; }
+      if (u.protocol !== 'https:') return '';
+      out += ` src="${_svgEsc(u.href)}"`;
+    } else if (k === 'width' || k === 'height') {
+      if (!/^\d{1,4}(?:\.\d+)?$/.test(v)) continue;
+      out += ` ${k}="${v}"`;
+    } else if (k === 'alt') {
+      out += ` alt="${_svgEsc(v.slice(0, 200))}"`;
+    } else if (k === 'style') {
+      const d = /(?:^|;)\s*display\s*:\s*(block|inline-block|inline)\s*(?:;|$)/i.exec(v);
+      if (!d) continue;
+      out += ` style="display:${d[1].toLowerCase()};"`;
+    } else continue;
+    seen[k] = 1;
+  }
+  return seen.src ? out + '>' : '';
 }

@@ -10,7 +10,7 @@
 import { genId, showNoSelectionHint, insertAfterSelected, colorLuminance } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { checkerBg } from '../checker-tokens.js';
-import { sanitizeSvgString } from '../util/sanitize-svg.js';
+import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { CVB_H_MIN, CVB_H_MAX } from './card-limits.js';   // 카드 높이 자 = 한 자리(끌기·패널과 같은 값)
 import { effSectionPadX as _effSectionPadX } from './outer-pad.js';   // ⛔사본을 되만들지 마라 — 챗과 «한 글자도 안 다른» 두 벌이었다(그 파일 머리말)
 /* ★1017t1d1 — 심플카드가 line-host 의 «다섯 번째 주인». comparison-block.js·laurel-block.js·chat-block.js 가
@@ -219,7 +219,7 @@ function _fillCardIcon(div, card, areaSize, opts) {
   const iconSize = Math.round(Math.max(12, (areaSize || 80) * scale));
   const wrap = document.createElement('div');
   wrap.style.cssText = `width:${iconSize}px;height:${iconSize}px;display:flex;align-items:center;justify-content:center;pointer-events:none;`;
-  wrap.innerHTML = sanitizeSvgString(card.icon.svg);   // ★카드 아이콘 svg — 그릴 때 거른다(SEC 261114)
+  wrap.innerHTML = sanitizeIconMarkup(card.icon.svg);   // ★카드 아이콘 svg — 그릴 때 거른다(SEC 261114)
   const svg = wrap.querySelector('svg');
   if (svg) {
     svg.setAttribute('width', iconSize);

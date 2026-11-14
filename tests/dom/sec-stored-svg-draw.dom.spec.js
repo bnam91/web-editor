@@ -5,6 +5,11 @@
  *   P4 prop-sticker.js 스티커 즐겨찾기 미리보기 · P5 iconify-panel.js 아이콘 창 즐겨찾기 칸 · P6 같은 창 «고른 아이콘» 미리보기
  *   P7 modal-block.js 모달 아이콘 · P8 canvas-block.js 카드 아이콘
  *   G1 [지킴] 멀쩡한 아이콘식 svg(g·path·defs·linearGradient·stop-color 속성)는 세척 뒤에도 도형·그라데이션 수가 같다(P3 길)
+ *   ── 2차(인텔 전수 modal-icon-img-fallback I0·I1·I3 회귀 · 지디 261114) — 저장된 아이콘이 iconify «<img src=https://…> 폴백»일 수 있다 ──
+ *   P9  모달 아이콘 · P10 아이콘 스티커 — <img> 폴백에 onerror·onload 를 심어도: img 는 «그려진다»(https src 그대로) · on* 0 · 표식 0
+ *       고침: 6곳(P3~P8)이 sanitizeIconMarkup(svg 면 sanitizeSvgString · <img> 하나면 다시 지음 · 그 밖 '')
+ *       양성대조: modal-block.js `? sanitizeIconMarkup(svg)` → `? sanitizeSvgString(svg)` 면 P9 ＋ modal-icon-img-fallback I0·I1·I3 빨강
+ *                · sticker-block.js `sanitizeIconMarkup(iconSvg)` → `sanitizeSvgString(iconSvg)` 면 P10 빨강
  * 칸마다 단언(그 그릇 안 svg 들만): on* 속성 0 · image/script/foreignObject/img 0 · ★멀쩡한 path 는 남는다(빈 그림 초록 금지) · pageerror 0.
  *   표식(window.__pwn*)은 덤 — 비동기(onerror)는 고정 대기 없이는 못 기다리므로 판정은 «DOM 에 핸들러가 없다»가 본체다.
  * 양성대조: 그 칸의 한 줄에서 sanitizeSvgString( … ) 를 걷으면(날것으로 되돌리면) 그 칸만 빨강.
@@ -182,4 +187,51 @@ test('G1 [지킴] 멀쩡한 아이콘식 svg 는 세척 뒤에도 같은 모양(
   }, GOOD);
   expect(r).toEqual({ path: 2, circle: 1, stop: 2, grad: 1, gradFill: 'url(#qg)' });
   expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const IMG_EVIL = '<img src="https://api.iconify.design/qa/warn.svg" onerror="window.__pwnE=1" onload="window.__pwnL=1" width="24" height="24" style="display:block;">';
+const OK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><rect width="24" height="24" fill="#c00"/></svg>';
+async function imgCheck(page, sel) {
+  await page.waitForFunction((sel) => { const i = document.querySelector(sel + ' img'); return !!i && i.complete; }, sel, { timeout: 5000 }).catch(() => {});
+  return page.evaluate((sel) => {
+    const root = document.querySelector(sel); const img = root?.querySelector('img');
+    return { missing: !root, img: !!img, src: img?.getAttribute('src') || null, natural: img?.naturalWidth || 0,
+      onAttrs: [...(root?.querySelectorAll('*') || [])].filter((e) => [...e.attributes].some((a) => /^on/i.test(a.name))).length,
+      flags: ['__pwnE', '__pwnL'].filter((k) => window[k]) };
+  }, sel);
+}
+function judgeImg(r, errs, label) {
+  expect(r.missing, `[전제] ${label} 그릇`).toBe(false);
+  expect(r.img, `★${label} <img> 폴백 아이콘이 빈칸이 됐다(표시 손실)`).toBe(true);
+  expect(r.src).toBe('https://api.iconify.design/qa/warn.svg');
+  expect(r.natural, `[전제] ${label} 그림이 실제로 실렸다(route 고정 svg)`).toBeGreaterThan(0);
+  expect(r.onAttrs, `★${label} on* 핸들러가 DOM 에 남았다`).toBe(0);
+  expect(r.flags, `★${label} 핸들러가 실행됐다`).toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+}
+
+test('P9 [2차] 모달 아이콘 — <img> 폴백은 그리고 핸들러는 0', async ({ page }) => {
+  const errs = await boot(page);
+  // ★boot() 가 api.iconify.design/** 를 abort 로 건다 — Playwright 는 «나중에 건» route 가 먼저 먹으므로 이 fulfill 은 boot «뒤»(인텔 5bff7331f: 앞에 걸어 natural 0)
+  await page.route('https://api.iconify.design/qa/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: OK_SVG }));
+  await page.evaluate((img) => {
+    const { row, block } = window.makeModalBlock({ variant: 'icon' });
+    block.id = 'qaM2'; block.dataset.iconSvg = img;
+    document.querySelector('#canvas .section-block .section-inner').appendChild(row || block);
+    window.renderModalBlock(block);
+  }, IMG_EVIL);
+  judgeImg(await imgCheck(page, '#qaM2'), errs, 'P9');
+});
+
+test('P10 [2차] 아이콘 스티커 — <img> 폴백은 그리고 핸들러는 0', async ({ page }) => {
+  const errs = await boot(page);
+  // ★boot() 가 api.iconify.design/** 를 abort 로 건다 — Playwright 는 «나중에 건» route 가 먼저 먹으므로 이 fulfill 은 boot «뒤»(인텔 5bff7331f: 앞에 걸어 natural 0)
+  await page.route('https://api.iconify.design/qa/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml', body: OK_SVG }));
+  await page.evaluate((img) => {
+    const sec = document.querySelector('#canvas .section-block');
+    const before = new Set(sec.querySelectorAll('.sticker-block'));
+    window.addStickerBlock({ shape: 'icon', iconSvg: img });
+    [...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x)).id = 'qaS2';
+  }, IMG_EVIL);
+  judgeImg(await imgCheck(page, '#qaS2'), errs, 'P10');
 });

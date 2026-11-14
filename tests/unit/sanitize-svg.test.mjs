@@ -36,10 +36,10 @@ const MOD = 'js/util/sanitize-svg.js';
 function load() {
   const src = readSrc(REPO, MOD);
   const names = [...src.matchAll(/export\s+(?:const|function)\s+([A-Za-z0-9_$]+)/g)].map((m) => m[1]);
-  assert.deepEqual(names.sort(), ['SVG_ALLOWED_TAGS', 'SVG_MAX_LEN', 'SVG_MAX_LEN_CEIL', 'sanitizeSvgString'], '★전제: 내보내는 이름 넷(SEC-VECTOR-SVG-RAW-01 이 천장 상수를 더했다)');
+  assert.deepEqual(names.sort(), ['SVG_ALLOWED_TAGS', 'SVG_MAX_LEN', 'SVG_MAX_LEN_CEIL', 'sanitizeIconMarkup', 'sanitizeSvgString'], '★전제: 내보내는 이름 넷(SEC-VECTOR-SVG-RAW-01 이 천장 상수를 더했다)');
   return new Function(src.replace(/\bexport\s+/g, '') + `\n;return { ${names.join(', ')} };`)();
 }
-const { sanitizeSvgString: clean, SVG_ALLOWED_TAGS, SVG_MAX_LEN, SVG_MAX_LEN_CEIL } = load();
+const { sanitizeSvgString: clean, sanitizeIconMarkup: icon, SVG_ALLOWED_TAGS, SVG_MAX_LEN, SVG_MAX_LEN_CEIL } = load();
 
 /* 출력 어디에도 없어야 하는 것 — 태그 여는 꼴의 script/foreignObject, 속성 꼴의 on*, href, javascript: */
 function noDanger(out, label) {
@@ -270,4 +270,21 @@ test('S16 maxLen(벡터 상한) · dropped(버린 태그 알림)', () => {
   const none = [];
   clean('<svg><rect width="1" height="1"/></svg>', { dropped: none });
   assert.deepEqual(none, [], '버린 것이 없으면 빈 배열');
+});
+
+test('S17 sanitizeIconMarkup — svg 는 sanitizeSvgString 그대로 · iconify <img> 폴백은 다시 지어 남긴다 · 그 밖 \'\'(SEC 261114 2차)', () => {
+  const FALLBACK = '<img src="https://api.iconify.design/material-symbols/warning-rounded.svg" width="64" height="64" style="display:block;">';
+  assert.equal(icon(FALLBACK), FALLBACK, '실사용자 저장본 꼴(iconify-panel.js 폴백)은 글자 그대로 남는다');
+  const svg = '<svg viewBox="0 0 24 24" onload="x()"><path d="M1 1h2"/></svg>';
+  assert.equal(icon(svg), clean(svg));
+  const evil = icon('<img src="https://api.iconify.design/a.svg" onerror="window.__p=1" onload=y() width="24" height="24x" alt="a&quot;b" style="display:block;background:url(https://x)" class="k" data-x="1">');
+  assert.equal(evil, '<img src="https://api.iconify.design/a.svg" width="24" alt="a&quot;b" style="display:block;">');
+  noDanger(evil.replace(/^<img /, '<x '), 'S17 evil');
+  for (const bad of ['<img src="javascript:alert(1)">', '<img src="http://api.iconify.design/a.svg">', '<img src="data:image/svg+xml,<svg onload=x()>">',
+    '<img src="/local.svg">', '<img width="10">', '<img src="https://a.b/c.svg"><script>x()</script>', '<img src="https://a.b/c.svg"><img src="https://a.b/d.svg">', '<iframe src="https://a.b">', 'plain']) {
+    assert.equal(icon(bad), '', bad);
+  }
+  assert.equal(icon('<IMG SRC="https://a.b/c.svg"/>'), '<img src="https://a.b/c.svg">');
+  assert.equal(icon('  <img src="https://a.b/c.svg"></img> '), '<img src="https://a.b/c.svg">');
+  assert.equal(icon(null), '');
 });

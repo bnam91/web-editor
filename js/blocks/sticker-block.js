@@ -34,7 +34,7 @@ window._sanitizeStickerHtml     = sanitizeRichTextHtml;
 window._stickerHtmlHasFormatting = richTextHasFormatting;
 /* ★svg 문자열 거르개 한 벌 = js/util/sanitize-svg.js (1013t2B5 · 마킹 블럭의 커스텀 아이콘).
  *   그릴 때는 여기서 직접 부르고, 고전 스크립트(js/count-sticker-tool.js)는 dataset 에 «쓸 때» 아래 알리아스로 부른다(사본이 아니라 같은 함수). */
-import { sanitizeSvgString } from '../util/sanitize-svg.js';
+import { sanitizeSvgString, sanitizeIconMarkup } from '../util/sanitize-svg.js';
 window._sanitizeSvgString = sanitizeSvgString;
 
 /* 마킹 블럭(data-count)의 아이콘 표기(data-count-style="icon") — .sticker-text 자리에 들어갈 마크업. (1013t2B5)
@@ -329,7 +329,7 @@ function _renderStickerBlockInner(block) {
       // URL인 경우 img로 (fetch 실패 fallback 등)
       block.innerHTML = `<img class="sticker-icon-img" src="${iconSvg}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;" draggable="false">`;
     } else if (iconSvg) {
-      block.innerHTML = sanitizeSvgString(iconSvg);   // ★아이콘 스티커 svg 도 그릴 때 거른다(sanitize-svg.js 머리말의 «기존 구멍» · 저장본·라이브러리에서 온다)
+      block.innerHTML = sanitizeIconMarkup(iconSvg);   // svg 또는 iconify <img> 폴백(SEC 2차)   // ★아이콘 스티커 svg 도 그릴 때 거른다(sanitize-svg.js 머리말의 «기존 구멍» · 저장본·라이브러리에서 온다)
       const svg = block.querySelector('svg');
       if (svg) {
         svg.setAttribute('width', sizeW);
