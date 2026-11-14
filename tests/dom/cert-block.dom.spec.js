@@ -6,7 +6,7 @@
  *   K4 더블클릭 = 파일창(진짜 filechooser) → 그 칸 img
  *   K5 패널 «그림 넣기»(파일창) → 그 칸 img · «빼기» → 다시 체크무늬
  *   K6 옵션 «지시선 글» 켬 → 콜아웃·지시선 4 · 상태 «출원» → 칩
- *   K7 옵션 «종이 끝 말림» 켬 → 용지마다 .cert-curl
+ *   K7 → E1 로 옮김(말림은 «이펙트» 절 · 용지마다)
  *   K8 [보안] 손댄 dataset — 글은 글자로 · 이상한 그림 주소는 빈 칸 · 핸들러 0(콜아웃 켬)
  *   K9 저장→열기 왕복(applyProjectData) — dataset 에서 다시 그린다
  *   K10 장 수 6
@@ -14,14 +14,21 @@
  *   G1 모드 «격자» → .cert-grid · 칸 4 · 세로 A4 · 빈 칸 체크무늬 · 회전 0
  *   G2 열 수 2 → 열 2개
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
+ *   ── 이펙트(현빈 «이펙트» 절 · 용지마다: 회전·기울기·끝말림·그림자) ──
+ *   E1 대상 «모든 용지» — 끝말림 켬 → 용지 4장 모두 .cert-curl · 그림자 «진하게» → 4장 모두 진한 그림자
+ *   E2 대상 «용지 2» — 회전 20 → 그 장만 20° 더 돈다(나머지 각도 그대로)
+ *   E3 기울기 25(모든 용지) → 3D 원근(matrix3d) · 0 이면 2D 그대로
+ *   E4 격자에서도 이펙트(회전) 가 먹는다
+ *   양성대조: cert-block.js sheetTransform 의 `base + fx.rot` 를 `base` 로 → E2·E4 빨강 · `fx.tilt ?` 갈래를 지우면 E3 빨강
+ *            · _sheetCss 의 `box-shadow:${CERT_SHADOWS[c.fx.shadow]}` 를 지우면 E1 빨강
  * 양성대조:
  *   · js/blocks/cert-block.js _bindSlotInput 의 drop 리스너(`block.addEventListener('drop', …)`)를 지우면 K3 빨강
  *   · 같은 파일 `transform:rotate(${s.rot.toFixed(2)}deg);` 를 지우면 K2 빨강
- *   · 같은 파일 `if (st.curl === 'on') s.appendChild(…)` 를 지우면 K7 빨강
+ *   · 같은 파일 `if (c.fx.curl === 'on') s.appendChild(…)` 를 지우면 E1 빨강
  *   · js/blocks/cert-layout.js collageLayout 의 `preset === 'fan' ? _fanSlots(n) :` 를 지우면 K2 빨강(기본이 auto 로 떨어져 각도 ± 번갈아)
  *   · js/blocks/cert-block.js renderCertBlock 의 `if (st.mode === 'grid') { … }` 갈래를 지우면 G1·G2·G3 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-curl/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-preset/#crt-count-number/#crt-curl/#crt-callouts/.crt-img-pick/.crt-img-clear/.crt-status(prop-cert.js) · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-cols-number/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-curl/#crt-fx-shadow/.crt-img-pick/.crt-img-clear/.crt-status(prop-cert.js) · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -123,14 +130,6 @@ test('K6 옵션 «지시선 글» · 상태 칩', async ({ page }) => {
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('K7 옵션 «종이 끝 말림»', async ({ page }) => {
-  const errs = await boot(page);
-  const id = await addViaMenu(page);
-  await openPanel(page, id);
-  await toggle(page, 'crt-curl');
-  await expect(page.locator(`#${id} .cert-sheet .cert-curl`)).toHaveCount(4);
-  expect(errs, errs.join(' | ')).toEqual([]);
-});
 
 test('K8 [보안] 손댄 dataset', async ({ page }) => {
   const errs = await boot(page);
@@ -223,5 +222,60 @@ test('G3 격자 — 끌어 놓기 · 칸 아래 글', async ({ page }) => {
   const r = await page.evaluate((id) => { const b = document.getElementById(id); const cap = b.querySelector('.cert-cell .cert-callout'); const sh = cap?.parentElement.querySelector('.cert-sheet');
     return { caps: b.querySelectorAll('.cert-grid .cert-callout').length, lines: b.querySelectorAll('.cert-line').length, below: !!(cap && sh && cap.getBoundingClientRect().top >= sh.getBoundingClientRect().bottom - 1) }; }, id);
   expect(r).toEqual({ caps: 4, lines: 0, below: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const angles = (page, id) => page.evaluate((id) => [...document.querySelectorAll(`#${id} .cert-sheet`)].sort((a, b) => a.dataset.idx - b.dataset.idx)
+  .map((s) => { const m = new DOMMatrix(getComputedStyle(s).transform); return +(Math.atan2(m.b, m.a) * 180 / Math.PI).toFixed(1); }), id);
+
+test('E1 모든 용지 — 끝말림·그림자', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await expect(page.locator('#crt-fx-target')).toHaveValue('all');
+  await toggle(page, 'crt-fx-curl');
+  await expect(page.locator(`#${id} .cert-sheet .cert-curl`)).toHaveCount(4);
+  await page.selectOption('#crt-fx-shadow', 'strong');
+  const sh = await page.evaluate((id) => [...document.querySelectorAll(`#${id} .cert-sheet`)].map((s) => /0\.32/.test(getComputedStyle(s).boxShadow)), id);
+  expect(sh).toEqual([true, true, true, true]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('E2 용지 2 만 회전 +20', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  const before = await angles(page, id);
+  await openPanel(page, id);
+  await page.selectOption('#crt-fx-target', '1');
+  await page.fill('#crt-fx-rot-number', '20');
+  await page.dispatchEvent('#crt-fx-rot-number', 'change');
+  const after = await angles(page, id);
+  const d = after.map((a, i) => +(a - before[i]).toFixed(1));
+  expect(d).toEqual([0, 20, 0, 0]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('E3 기울기 25 → 3D 원근', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  const t0 = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .cert-sheet`)).transform, id);
+  expect(t0.startsWith('matrix('), '[전제] 기울기 0 = 2D').toBe(true);
+  await openPanel(page, id);
+  await page.fill('#crt-fx-tilt-number', '25');
+  await page.dispatchEvent('#crt-fx-tilt-number', 'change');
+  const t = await page.evaluate((id) => [...document.querySelectorAll(`#${id} .cert-sheet`)].map((s) => getComputedStyle(s).transform.startsWith('matrix3d(')), id);
+  expect(t).toEqual([true, true, true, true]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('E4 격자에서도 회전', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector(`#${id} .cert-grid`);
+  await page.fill('#crt-fx-rot-number', '-8');
+  await page.dispatchEvent('#crt-fx-rot-number', 'change');
+  expect(await angles(page, id)).toEqual([-8, -8, -8, -8]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

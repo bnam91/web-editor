@@ -8,7 +8,8 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
-import { readCertState, setCertList, setCertSlotImage, CERT_STATUSES } from '../blocks/cert-block.js';
+import { readCertState, setCertList, setCertSlotImage, CERT_STATUSES, CERT_SHADOWS } from '../blocks/cert-block.js';
+const SHADOW_LABEL = { none: '없음', soft: '부드럽게', strong: '진하게' };
 const MODE_LABEL = { stack: '스택(겹침)', grid: '격자(A4 칸)' };
 import { CERT_PRESET_NAMES, CERT_MAX_SHEETS } from '../blocks/cert-layout.js';
 
@@ -45,6 +46,9 @@ export function showCertProperties(block) {
   if (!block) return;
   const st = readCertState(block);
   const withCallouts = st.callouts === 'on';
+  /* 이펙트 대상 — 블럭에 기억(패널을 다시 그려도 유지) · 'all' = 모든 용지(표시 값은 용지 1) */
+  const fxTarget = (block._crtFxTarget === 'all' || (+block._crtFxTarget >= 0 && +block._crtFxTarget < st.certs.length)) ? String(block._crtFxTarget) : 'all';
+  const fx = st.certs[fxTarget === 'all' ? 0 : +fxTarget].fx;
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Documents', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
@@ -65,9 +69,19 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
       <div class="prop-hint" style="padding:2px 8px">용지 칸에 그림 파일을 끌어다 놓거나 더블클릭하세요(내 파일만).</div>
       ${st.certs.map((c, i) => _slotCardHTML(c, i, withCallouts)).join('')}
     </div>
+    <div class="prop-section" id="crt-fx-section">
+      <div class="prop-section-title">Effects</div>
+      <div class="prop-row"><span class="prop-label">대상</span><select class="prop-select" id="crt-fx-target">
+        <option value="all"${fxTarget === 'all' ? ' selected' : ''}>모든 용지</option>
+        ${st.certs.map((_, i) => `<option value="${i}"${String(i) === fxTarget ? ' selected' : ''}>용지 ${i + 1}</option>`).join('')}</select></div>
+      ${sliderRowHTML('회전°', 'crt-fx-rot-slider', 'crt-fx-rot-number', { min: -30, max: 30, step: 1, value: Math.round(fx.rot) })}
+      ${sliderRowHTML('기울기°', 'crt-fx-tilt-slider', 'crt-fx-tilt-number', { min: -40, max: 40, step: 1, value: Math.round(fx.tilt) })}
+      ${_toggleRow('crt-fx-curl', '끝말림', fx.curl === 'on', '오른쪽 아래 모서리를 살짝 말아 올린 꼴')}
+      <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="crt-fx-shadow">
+        ${Object.keys(CERT_SHADOWS).map((k) => `<option value="${k}"${k === fx.shadow ? ' selected' : ''}>${SHADOW_LABEL[k]}</option>`).join('')}</select></div>
+    </div>
     <div class="prop-section">
       <div class="prop-section-title">Options</div>
-      ${_toggleRow('crt-curl', '종이 끝 말림', st.curl === 'on', '오른쪽 아래 모서리를 살짝 말아 올린 꼴')}
       ${_toggleRow('crt-callouts', '지시선 글', withCallouts, '용지마다 세로 지시선 + 제목·설명(+상태 칩)')}
       ${_textRow('crt-headline', '위 제목', st.headline, true)}
       ${_textRow('crt-sub', '위 부제', st.sub, true)}
@@ -90,7 +104,24 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
     if (!(parseFloat(block.dataset.jitter) > 0)) block.dataset.jitter = '0.5';   // 0 이면 섞어도 같은 그림 — 섞기를 누르면 흔들림을 켠다
     rerender(); commit(); reopen();
   });
-  for (const [id, key] of [['crt-curl', 'curl'], ['crt-callouts', 'callouts']]) {
+  // 이펙트 — 대상(모든 용지 / 용지 n)에 같은 값
+  $('crt-fx-target')?.addEventListener('change', (e) => { block._crtFxTarget = e.target.value; reopen(); });
+  const applyFx = (patch, record) => {
+    const certs = readCertState(block).certs;
+    const idx = fxTarget === 'all' ? certs.map((_, i) => i) : [+fxTarget];
+    for (const i of idx) certs[i] = { ...certs[i], fx: { ...certs[i].fx, ...patch } };
+    setCertList(block, certs);
+    if (record) commit();
+  };
+  for (const [id, key] of [['crt-fx-rot', 'rot'], ['crt-fx-tilt', 'tilt']]) {
+    const sl = $(`${id}-slider`), nu = $(`${id}-number`);
+    sl?.addEventListener('input', () => { nu.value = sl.value; applyFx({ [key]: +sl.value }); });
+    sl?.addEventListener('change', commit);
+    nu?.addEventListener('change', () => { sl.value = nu.value; applyFx({ [key]: +nu.value }, true); });
+  }
+  $('crt-fx-curl')?.addEventListener('change', (e) => applyFx({ curl: e.target.checked ? 'on' : 'off' }, true));
+  $('crt-fx-shadow')?.addEventListener('change', (e) => applyFx({ shadow: e.target.value }, true));
+  for (const [id, key] of [['crt-callouts', 'callouts']]) {
     $(id)?.addEventListener('change', (e) => { block.dataset[key] = e.target.checked ? 'on' : 'off'; rerender(); commit(); reopen(); });
   }
   for (const [id, key] of [['crt-headline', 'headline'], ['crt-sub', 'sub']]) {
