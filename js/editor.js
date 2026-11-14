@@ -3709,6 +3709,13 @@ function _splReleaseSections(secs) {
 function deleteSelectedFromCanvas({ isCut = false } = {}) {
   let consumed = false;
     // 이미지 편집 모드 중이면 이미지 삭제
+    /* ⑲ⓑ Documents 그림 편집(안 2 · 프록시 .cert-img-edit-proxy.img-editing) 안 ⌫ = 그 칸 비우기 — 블럭 선택 ⌫(블럭 삭제)는 아래 그대로 */
+    const certImgEdit = document.querySelector('.cert-img-edit-proxy.img-editing');
+    if (certImgEdit && window.clearCertEditingSlot) {
+      consumed = true;
+      window.clearCertEditingSlot(certImgEdit);
+      return consumed;
+    }
     const imgEditBlock = document.querySelector('.asset-block.img-editing');
     if (imgEditBlock) {
       consumed = true;

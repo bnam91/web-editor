@@ -910,7 +910,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   border: 1px solid rgba(255,255,255,0.1);
   box-shadow: 0 2px 12px rgba(0,0,0,0.5);
 }
-.asset-overlay-clear {
+.asset-overlay-clear,
+.cert-sheet-clear {   /* ⑲ Documents 용지 ✕ — 에셋과 같은 겉모습 */
   position: absolute;
   top: 10px;
   right: 10px;
@@ -930,6 +931,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .asset-block.has-image:hover .asset-overlay-clear,
 .asset-block.has-image.selected .asset-overlay-clear { opacity: 1; }
+.cert-block .cert-sheet:hover > .cert-sheet-clear { opacity: 1; z-index: 2; }   /* ⑲ 그 용지에 마우스를 올렸을 때만(여러 장이라 «선택됨»으로 다 띄우지 않는다) */
 .asset-block.drag-over { outline: 2px dashed var(--sel-color) !important; outline-offset: -3px; }
 
 /* T-012: GIF 재생/정지 토글 — .asset-overlay-clear와 같은 비주얼 어휘(반투명 검정 필+흰 글자),

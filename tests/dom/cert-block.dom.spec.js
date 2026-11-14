@@ -42,6 +42,10 @@
  *      양성대조: readCertState 의 gapY 를 `_num(d.gapX, …)` 로(가로 값 재사용) → G7 빨강
  *   OL1 ⑰ⓑ 오버레이 단추(#crt-float-toggle · overlay-float.js 한 벌) — 켬 = overlayBlock·absolute · X 칸 → left · 모서리 손잡이 4 · 출력 클론 absolute 유지 · 끔 = 흐름 복귀
  *      양성대조: prop-cert.js 의 `wireFloatToggle({ block, buttonId: 'crt-float-toggle', … })` 삭제 → OL1 빨강
+ *   XC1 ⑲ⓐ 용지 ✕(.cert-sheet-clear · 에셋 ✕ 꼴) — 그림 든 용지에만 · 마우스 올리면 보임 · 누르면 그 칸만 체크무늬 · ⌘Z 복귀 · 캡처 클론·미리보기에 ✕ 0
+ *      양성대조: cert-block.js _sheet 의 `if (!forOutput && !c.sample)` 를 `if (!c.sample)` 로 → XC1(출력 ✕ 0) 빨강 · clearCertSlot 의 `img: ''` 를 `img: certs[i].img` 로 → XC1 빨강
+ *   BK1 ⑲ⓑ 그림 편집 모드 안 ⌫ = 그 칸 비우기(블럭 그대로) · 블럭 통째 선택 ⌫ = 블럭 삭제(옛 동작 그대로)
+ *      양성대조: editor.js deleteSelectedFromCanvas 의 Documents 갈래(`.cert-img-edit-proxy.img-editing`) 삭제 → BK1 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -71,7 +75,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/.crt-overlay-handle/#crt-gapx-number/#crt-gapy-number/#crt-float-toggle/#crt-x-number/#crt-callouts-section/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/.crt-overlay-handle/#crt-gapx-number/#crt-gapy-number/#crt-float-toggle/#crt-x-number/#crt-callouts-section/.cert-sheet-clear/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -752,5 +756,51 @@ test('OL1 오버레이 단추(⑰ⓑ) — 켬·자리·손잡이·출력·끔', 
   await page.click('#crt-float-toggle');
   await page.waitForFunction((id) => document.getElementById(id).dataset.overlayBlock !== 'true', id, { timeout: 5000 });
   expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).position, id), '끄면 흐름으로').not.toBe('absolute');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('XC1 용지 ✕ — 그 칸만 비움 · ⌘Z · 출력 ✕ 0(⑲ⓐ)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, DATA_PNG, '', '']);
+  await page.evaluate(() => window.pushHistory('XC1 seed'));
+  await expect(page.locator(`#${id} .cert-sheet-clear`), '그림 든 용지에만').toHaveCount(2);
+  const x0 = page.locator(`#${id} .cert-sheet[data-idx="0"] .cert-sheet-clear`);
+  expect(await x0.evaluate((el) => getComputedStyle(el).opacity), '[전제] 평소엔 안 보임').toBe('0');
+  await page.hover(`#${id} .cert-sheet[data-idx="0"]`);
+  await expect.poll(() => x0.evaluate((el) => getComputedStyle(el).opacity), { message: '마우스 올리면 보임' }).toBe('1');
+  await x0.click();
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); const c = JSON.parse(b.dataset.certs);
+    return { imgs: c.map((x) => !!x.img), ph0: b.querySelector('.cert-sheet[data-idx="0"]').classList.contains('cert-ph'), alive: !!b.isConnected }; }, id);
+  expect(r).toEqual({ imgs: [false, true, false, false], ph0: true, alive: true });
+  await page.keyboard.press('Meta+z');
+  await page.waitForFunction((id) => !!JSON.parse(document.getElementById(id)?.dataset.certs || '[]')[0]?.img, id, { timeout: 5000 });
+  const cap = await page.evaluate(async (id) => {
+    const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const v = [clone.querySelectorAll('.cert-block .cert-sheet').length, clone.querySelectorAll('.cert-sheet-clear').length]; clone.remove(); return v;
+  }, id);
+  expect(cap, '캡처 클론: 2장 · ✕ 0').toEqual([2, 0]);
+  await page.evaluate(() => window.enterPreview());
+  await page.waitForFunction(() => document.body.classList.contains('preview-mode'));
+  expect(await page.evaluate(() => document.querySelectorAll('#preview-content .cert-sheet-clear').length), '미리보기 ✕ 0').toBe(0);
+  await page.evaluate(() => window.exitPreview());
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('BK1 그림 편집 모드 ⌫ = 칸 비우기 · 블럭 선택 ⌫ = 블럭 삭제(⑲ⓑ)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', '', '']);
+  await page.dblclick(`#${id} .cert-sheet[data-idx="0"]`);
+  await page.waitForFunction(() => document.querySelectorAll('.cert-img-edit-proxy.img-editing').length === 1, null, { timeout: 5000 });
+  await page.keyboard.press('Backspace');
+  await page.waitForFunction(() => document.querySelectorAll('.cert-img-edit-proxy').length === 0, null, { timeout: 5000 });
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); return { alive: !!b, img0: !!JSON.parse(b?.dataset.certs || '[]')[0]?.img }; }, id);
+  expect(r, '★편집 모드 ⌫ 가 칸이 아니라 다른 걸 지웠다').toEqual({ alive: true, img0: false });
+  await page.click(`#${id}`, { position: { x: 4, y: 4 } });
+  await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected'), id);
+  await page.keyboard.press('Backspace');
+  await page.waitForFunction((id) => !document.getElementById(id), id, { timeout: 5000 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

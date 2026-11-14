@@ -104,7 +104,7 @@ const IMG_LOOK = 'display:block;width:100%;height:100%;object-fit:cover;pointer-
 /* ⑪ 샘플 문서(지디 자체 제작 · 기관명·로고 0 · «SAMPLE» 워터마크) — 보이기만 · 칸 데이터(dataset.certs)엔 안 쓴다 */
 const CERT_SAMPLE_DOCS = Array.from({ length: 8 }, (_, i) => `assets/sample-docs/sample-doc-${i + 1}.webp`);
 
-function _sheet(c, i, st) {
+function _sheet(c, i, st, forOutput = false) {
   const s = _el('div', c.sample ? 'cert-sheet cert-sample' : 'cert-sheet');
   s.dataset.idx = String(i);
   if (c.img) {
@@ -112,6 +112,15 @@ function _sheet(c, i, st) {
       ? `display:block;position:absolute;left:${c.crop.x}%;top:${c.crop.y}%;width:${c.crop.size}%;height:auto;max-width:none;pointer-events:none;`   // 안 2 — 틀 고정 · 그림만(그리드 칸 크롭과 같은 ％ 꼴)
       : IMG_LOOK); img.alt = ''; img.draggable = false; img.src = c.img;
     s.appendChild(img);
+    /* ⑲ⓐ 그림 지우기 «✕» — 에셋 .asset-overlay-clear 와 같은 겉모습·자리(오른쪽 위 · 마우스 올리면 보임 · css/editor-blocks.css)
+       편집 화면 전용: 출력(forOutput — 캡처·미리보기·R1)은 이 갈래를 안 지나 ✕ 0 · 샘플 칸(데이터 아님)엔 안 단다 */
+    if (!forOutput && !c.sample) {
+      const x = _el('button', 'cert-sheet-clear');
+      x.type = 'button'; x.title = '그림 빼기(빈 칸으로)'; x.textContent = '✕';
+      x.addEventListener('mousedown', (e) => e.stopPropagation());   // 블럭 끌기·선택으로 안 번지게
+      x.addEventListener('click', (e) => { e.stopPropagation(); const b = x.closest('.cert-block'); if (b) clearCertSlot(b, i); });
+      s.appendChild(x);
+    }
   } else {
     s.classList.add('cert-ph');
   }
@@ -147,7 +156,7 @@ function _renderGridStage(st) {
   st.certs.forEach((c, i) => {
     const k = i % cols, r = Math.floor(i / cols);
     const cell = _el('div', 'cert-cell', 'min-width:0;' + (st.overlap === 'left' ? `z-index:${st.certs.length - i};` : '') + ((negX || negY) ? `position:relative;transform:translate(${negX ? (k - (cols - 1) / 2) * gx : 0}px, ${negY ? r * gy : 0}px);` : ''));
-    const sh = _sheet(c, i, st);
+    const sh = _sheet(c, i, st, forOutput);
     sh.style.cssText = _sheetCss(c, `position:relative;width:100%;aspect-ratio:100 / ${st.sheetH};transform:${sheetTransform(0, c.fx)};`);
     cell.appendChild(sh);
     if (st.callouts === 'on') { const cap = _caption(st, c, 'center'); cap.dataset.idx = String(i); cap.style.marginTop = '12px'; cell.appendChild(cap); }
@@ -205,7 +214,7 @@ function renderCertBlock(block, { forOutput = false, showSamples = !forOutput } 
   const pct = (v, of) => `${(v / of) * 100}%`;
   for (const s of L.sheets) {
     const c = st.certs[s.i];
-    const sh = _sheet(c, s.i, st);
+    const sh = _sheet(c, s.i, st, forOutput);
     sh.style.cssText = _sheetCss(c, `position:absolute;left:${pct(s.cx - s.w / 2, U)};top:${pct(s.cy - s.h / 2, H)};width:${pct(s.w, U)};height:${pct(s.h, H)};transform:${sheetTransform(s.rot, c.fx)};z-index:${s.z};`);
     stage.appendChild(sh);
     if (!withCallouts) continue;
@@ -245,6 +254,29 @@ function setCertList(block, certs) {
   }));
   renderCertBlock(block);
 }
+/** ⑲ 슬롯 i 비우기(체크무늬로) — ✕ 단추 · 그림 편집 모드 안 ⌫/Delete(editor.js deleteSelectedFromCanvas). 이력 = 양쪽 끝(⌘Z 한 번 = 그림 복귀). */
+function clearCertSlot(block, i) {
+  if (!block?.isConnected) return false;
+  const certs = readCertState(block).certs;
+  if (!certs[i]?.img) return false;
+  if (typeof window.pushHistoryStartSample === 'function') window.pushHistoryStartSample('A4 용지 그림 빼기');
+  else window.pushHistory?.('A4 용지 그림 빼기');
+  certs[i] = { ...certs[i], img: '', crop: null };
+  setCertList(block, certs);
+  window.pushHistory?.('A4 용지 그림 빼기');
+  window.scheduleAutoSave?.();
+  if (block.classList.contains('selected')) window.showCertProperties?.(block);
+  return true;
+}
+/** ⑲ⓑ 그림 편집 모드(안 2) 안에서 ⌫/Delete — 편집을 닫고(크롭 커밋 규칙 그대로) 그 칸을 비운다. 블럭 통째 선택의 ⌫(블럭 삭제)는 안 건드린다. */
+function clearCertEditingSlot(proxy) {
+  const block = proxy?.closest?.('.cert-block');
+  const i = Number(block?._certImgEdit?.frame?.dataset.idx);
+  if (!block || !Number.isInteger(i)) return false;
+  window.exitImageEditMode?.(proxy);
+  return clearCertSlot(block, i);
+}
+
 /** 슬롯 i 에 그림 — 기록·저장·(골라져 있으면) 패널 새로. record:false = 부르는 쪽이 한 걸음을 직접 쌓는다(스크래치 끌어오기 — canvas-scratch-drop 호출자). */
 function setCertSlotImage(block, i, src, { record = true } = {}) {
   if (!block?.isConnected) return false;
@@ -345,6 +377,8 @@ window.renderCertBlock = renderCertBlock;
 window.applyCertWidth = applyCertWidth;
 window.certOutputNotice = certOutputNotice;
 window.setCertSlotImage = setCertSlotImage;
-window.enterCertImageEditMode = enterCertImageEditMode;   // 스크래치패드 끌어오기(js/canvas-scratch-drop.js certslot)
+window.enterCertImageEditMode = enterCertImageEditMode;
+window.clearCertSlot = clearCertSlot;
+window.clearCertEditingSlot = clearCertEditingSlot;   // 스크래치패드 끌어오기(js/canvas-scratch-drop.js certslot)
 
 export { CERT_MAX_GRID, certOutputNotice, CERT_MODES, CERT_SHADOWS, CERT_FX_DEFAULT, normFx, sheetTransform, CERT_STATUSES, CERT_DEFAULTS, CERT_DEFAULT_CERTS, certImgOk, readCertState, renderCertBlock, makeCertBlock, addCertBlock, setCertList, setCertSlotImage };
