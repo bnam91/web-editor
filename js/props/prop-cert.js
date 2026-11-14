@@ -10,7 +10,7 @@ import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { readCertState, setCertList, CERT_SHADOWS } from '../blocks/cert-block.js';
 const SHADOW_LABEL = { none: '없음', soft: '부드럽게', strong: '진하게' };
 const MODE_LABEL = { stack: '스택(겹침)', grid: '격자(A4 칸)' };
-import { CERT_PRESET_NAMES, CERT_MAX_SHEETS, CERT_MAX_GRID } from '../blocks/cert-layout.js';
+import { CERT_PRESET_NAMES, CERT_MAX_SHEETS, CERT_MAX_GRID, CERT_SHEET_H } from '../blocks/cert-layout.js';
 const PICK_COLS = 4, PICK_ROWS = 3;   // 그리드 피커 4×3 = CERT_MAX_GRID
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="3.5" y="1" width="6" height="8.5" rx="0.5"/><path d="M2.5 2.5v8.5h6"/></svg>`;
@@ -32,6 +32,8 @@ export function showCertProperties(block) {
   const rows = Math.ceil(st.certs.length / st.cols);
   // 패딩 제외 — 섹션에 좌우 패딩이 있거나 이미 켜져 있을 때만(월계수 _lrlCanFB 와 같은 조건)
   const canFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
+  /* ⑫ 용지 높이(세로/가로 %) — 스택은 «용지 크기» 바로 아래 · 격자는 «용지 크기» 행이 없어 «간격» 아래 */
+  const sheetHRow = sliderRowHTML('용지 높이', 'crt-sheeth-slider', 'crt-sheeth-number', { min: CERT_SHEET_H.min, max: CERT_SHEET_H.max, step: 1, value: st.sheetH });
   const calloutsRow = _toggleRow('crt-callouts', '지시선 글', withCallouts, st.mode === 'grid' ? '용지마다 아래 제목·설명(+상태 칩)' : '용지마다 세로 지시선 + 제목·설명(+상태 칩)');
   propPanel.innerHTML = `
     <div class="prop-section">
@@ -45,12 +47,14 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
     ? `<div class="grid-picker" id="crt-grid-picker" title="열 × 행 — 장 수 = 열 × 행"></div>
       <div class="grid-picker-label" id="crt-grid-picker-label">${st.cols} × ${rows}</div>
       ${calloutsRow}
-      ${sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: -80, max: 80, step: 2, value: st.gap })}`
+      ${sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: -80, max: 80, step: 2, value: st.gap })}
+      ${sheetHRow}`
     : `<div class="prop-row"><span class="prop-label">배치</span><select class="prop-select" id="crt-preset">
         ${CERT_PRESET_NAMES.map((k) => `<option value="${k}"${k === st.preset ? ' selected' : ''}>${PRESET_LABEL[k] || k}</option>`).join('')}</select></div>
       ${sliderRowHTML('흩뿌림', 'crt-jitter-slider', 'crt-jitter-number', { min: 0, max: 100, step: 5, value: Math.round(st.jitter * 100) })}
       <div class="prop-row"><button class="prop-btn" id="crt-reshuffle" style="width:100%" title="흩뿌림이 0 보다 클 때 다른 배치로">다시 섞기</button></div>
       ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}
+      ${sheetHRow}
       ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}
       ${calloutsRow}`}
       ${_toggleRow('crt-samples', '샘플 넣어보기', block.dataset.samples === 'on', '빈 칸에 샘플 문서를 보여 줌(넣은 그림은 안 덮음 · 저장·내보내기엔 안 들어감)')}
@@ -143,6 +147,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
   };
   wireNum('crt-jitter', 'jitter', 0, 100, { scale: 0.01 });
   wireNum('crt-sheetw', 'sheetW', 20, 45, { scale: 0.01 });
+  wireNum('crt-sheeth', 'sheetH', CERT_SHEET_H.min, CERT_SHEET_H.max);
   wireNum('crt-gap', 'gap', -80, 80);   // ⑦ 음수 = 겹침
   wireNum('crt-titlesize', 'titleSize', 10, 48);
   wireNum('crt-descsize', 'descSize', 9, 32);

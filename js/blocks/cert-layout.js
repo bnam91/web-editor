@@ -9,6 +9,9 @@
 
 /** 증서 종이 세로/가로 = A4(297/210). */
 export const CERT_SHEET_RATIO = 297 / 210;
+/** ⑫ 용지 높이(세로/가로 %) — 패널 «용지 높이» 범위 · 기본 141 ≈ A4(현빈 261114) */
+export const CERT_SHEET_H = Object.freeze({ min: 60, max: 200, def: 141 });
+const _ratio = (r) => (Number.isFinite(r) && r > 0 ? r : CERT_SHEET_RATIO);
 export const CERT_MAX_SHEETS = 8;   // ⑨ 6 → 8(현빈 261114) — 패널 «장 수» 슬라이더·단위 시험이 이 상수를 읽는다
 /** 격자 모드 상한 — 그리드 피커 4열 × 3행(현빈 261114 «그리드 피커») · 스택은 CERT_MAX_SHEETS(겹침이 6장 넘으면 안 읽힌다). */
 export const CERT_MAX_GRID = 12;
@@ -92,7 +95,7 @@ export function collageLayout(o = {}) {
   const slots = preset === 'fan' ? _fanSlots(n) : (base && base.length === n) ? base.map((s) => ({ ...s })) : _autoSlots(n, rand);
 
   const w = width * sheetW;
-  const h = w * CERT_SHEET_RATIO;
+  const h = w * _ratio(o.ratio);   // ⑫ 블럭이 «용지 높이»를 넘긴다 · 없으면 A4
   const band = h * 1.6;   // 중심이 오르내리는 밴드 높이 — S17 은 종이 높이의 약 1.5~1.7배
   const sheets = slots.map((s, i) => {
     const jx = jitter ? (rand() - 0.5) * 0.12 * jitter : 0;
@@ -127,12 +130,12 @@ export function collageLayout(o = {}) {
 }
 
 /** 스캔 그리드(CB2) — 열 수·간격·캡션 높이 → 칸 자리. */
-export function gridLayout({ n = 4, width = 600, cols = 4, gap = 16, captionH = 52 } = {}) {
+export function gridLayout({ n = 4, width = 600, cols = 4, gap = 16, captionH = 52, ratio } = {}) {
   const c = Math.max(1, Math.min(CERT_MAX_SHEETS, Math.round(cols)));
   const g = Math.max(0, gap);
   const cnt = Math.max(1, Math.min(CERT_MAX_SHEETS, Math.round(n)));
   const w = (width - g * (c - 1)) / c;
-  const h = w * CERT_SHEET_RATIO;
+  const h = w * _ratio(ratio);
   const rowH = h + captionH + g;
   const cells = [];
   for (let i = 0; i < cnt; i++) {

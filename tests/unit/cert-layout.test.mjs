@@ -3,6 +3,7 @@
  *   L2 지시선 — 위쪽 글이면 종이 위끝에서 위로 · 아래 글이면 아래끝에서 아래로 · 세로선(x 같음) · 모든 좌표 ≥ 0 · 높이 안
  *   L3 시드 — 같은 시드·같은 입력 = 같은 배치 · jitter>0 이면 시드가 다르면 다르다 · jitter 0 이면 시드 무관(프리셋 그대로)
  *   L4 장 수 1~CERT_MAX_SHEETS(8 · ⑨) · 프리셋과 수가 다르면 auto · 상한 = 상수 · 위/아래 번갈아
+ *   L9 용지 높이(⑫ ratio) — 없으면 A4 · 0.6/2.0 에서 h = w×ratio · 8장 모든 배치 가로·세로 밖 0 · gridLayout 도 같은 값
  *   L8 4·6·7·8장(⑨) — 모든 배치(fan·s17·stair·pile·auto · 흩뿌림 0/1)에서 가로 밖 0 · 위·아래 밖 0(높이 안) · 부채는 이웃 겹침·각도 단조
  *   L5 gridLayout — 열·간격대로 · 마지막 줄 가운데 · 높이
  *   L7 labels:false — 높이 = 종이만(콜아웃 끔 · A4 스택 기본) · 켜면 더 크다
@@ -116,5 +117,25 @@ test('L8 7·8장 — 모든 배치에서 화면 밖 0', () => {
       assert.ok(s.cx - ex >= -0.5 && s.cx + ex <= 600.5, `${preset} n=${n} j=${jitter} 가로 밖(회전한 모서리까지) cx=${s.cx.toFixed(1)}`);
       assert.ok(s.cy - ey >= -0.5 && s.cy + ey <= L.height + 0.5, `${preset} n=${n} 세로 밖`);
     }
+  }
+});
+
+test('L9 용지 높이 ratio(⑫)', () => {
+  const a4 = M.collageLayout({ n: 4, width: 600 }).sheets[0];
+  assert.ok(Math.abs(a4.h / a4.w - M.CERT_SHEET_RATIO) < 1e-9, '없으면 A4');
+  assert.deepEqual([M.CERT_SHEET_H.min, M.CERT_SHEET_H.max, M.CERT_SHEET_H.def], [60, 200, 141]);
+  for (const ratio of [0.6, 2.0]) {
+    for (const preset of M.CERT_PRESET_NAMES) for (const labels of [false, true]) {
+      const L = M.collageLayout({ n: 8, width: 600, preset, seed: 3, jitter: 1, labels, ratio });
+      for (const s of L.sheets) {
+        assert.ok(Math.abs(s.h / s.w - ratio) < 1e-9, `${preset} h/w = ${ratio}`);
+        const r = Math.abs(s.rot * Math.PI / 180);
+        const ex = (s.w / 2) * Math.cos(r) + (s.h / 2) * Math.sin(r), ey = (s.w / 2) * Math.sin(r) + (s.h / 2) * Math.cos(r);
+        assert.ok(s.cx - ex >= -0.5 && s.cx + ex <= 600.5, `${preset} r=${ratio} 가로 밖`);
+        assert.ok(s.cy - ey >= -0.5 && s.cy + ey <= L.height + 0.5, `${preset} r=${ratio} 세로 밖`);
+      }
+    }
+    const g = M.gridLayout({ n: 4, width: 600, cols: 2, gap: 0, captionH: 0, ratio });
+    assert.ok(Math.abs(g.cells[0].h / g.cells[0].w - ratio) < 1e-9, 'gridLayout ratio');
   }
 });

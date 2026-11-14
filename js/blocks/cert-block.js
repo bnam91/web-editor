@@ -12,7 +12,7 @@ import { genId, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import { checkerBg } from '../checker-tokens.js';
 import { grdImageFileOk, grdPickedImageSrc, grdPickImageFile } from '../props/prop-grid.js';
-import { collageLayout, CERT_MAX_SHEETS, CERT_MAX_GRID, CERT_PRESET_NAMES } from './cert-layout.js';
+import { collageLayout, CERT_MAX_SHEETS, CERT_MAX_GRID, CERT_PRESET_NAMES, CERT_SHEET_H } from './cert-layout.js';
 
 const CERT_MODES = ['stack', 'grid'];   // 현빈 결정 261114 — 스택(부채 등 겹침) + 격자(A4 칸 · A 원판 grid 를 되살림)
 
@@ -36,7 +36,7 @@ const _onOff = (v, d) => (v === 'on' || v === 'off' ? v : d);
 const CERT_DEFAULTS = Object.freeze({
   mode: 'grid', cols: 4, gap: 16,   // ⑩ 새 블럭 기본 = 격자(현빈 261114) · 저장된 블럭은 dataset.mode 그대로(렌더가 매번 박는다)
   headline: '', sub: '',
-  preset: 'fan', seed: 1, jitter: 0, sheetW: 0.32,
+  preset: 'fan', seed: 1, jitter: 0, sheetW: 0.32, sheetH: CERT_SHEET_H.def,
   callouts: 'off',
   headSize: 40, subSize: 18, titleSize: 22, descSize: 15,
   headColor: '#111111', subColor: '#888888', titleColor: '#111111', descColor: '#777777', lineColor: '#9a9a9a',
@@ -70,6 +70,7 @@ function readCertState(block) {
     preset: CERT_PRESET_NAMES.includes(d.preset) ? d.preset : D.preset,
     seed: Math.round(_num(d.seed, D.seed)), jitter: Math.max(0, Math.min(1, _num(d.jitter, D.jitter))),
     sheetW: Math.max(0.2, Math.min(0.45, _num(d.sheetW, D.sheetW))),
+    sheetH: Math.max(CERT_SHEET_H.min, Math.min(CERT_SHEET_H.max, Math.round(_num(d.sheetH, D.sheetH)))),   // ⑫ 용지 높이 % · 저장본에 없으면 141
     callouts: _onOff(d.callouts, D.callouts),
     headSize: _num(d.headSize, D.headSize), subSize: _num(d.subSize, D.subSize), titleSize: _num(d.titleSize, D.titleSize), descSize: _num(d.descSize, D.descSize),
     headColor: _color(d.headColor, D.headColor), subColor: _color(d.subColor, D.subColor), titleColor: _color(d.titleColor, D.titleColor),
@@ -132,7 +133,7 @@ function _renderGridStage(st) {
     const k = i % cols, r = Math.floor(i / cols);
     const cell = _el('div', 'cert-cell', 'min-width:0;' + (neg ? `position:relative;transform:translate(${(k - (cols - 1) / 2) * g}px, ${r * g}px);` : ''));
     const sh = _sheet(c, i, st);
-    sh.style.cssText = _sheetCss(c, `position:relative;width:100%;aspect-ratio:210 / 297;transform:${sheetTransform(0, c.fx)};`);
+    sh.style.cssText = _sheetCss(c, `position:relative;width:100%;aspect-ratio:100 / ${st.sheetH};transform:${sheetTransform(0, c.fx)};`);
     cell.appendChild(sh);
     if (st.callouts === 'on') { const cap = _caption(st, c, 'center'); cap.dataset.idx = String(i); cap.style.marginTop = '12px'; cell.appendChild(cap); }
     stage.appendChild(cell);
@@ -173,7 +174,7 @@ function renderCertBlock(block, { forOutput = false, showSamples = !forOutput } 
     return;
   }
   const withCallouts = st.callouts === 'on';
-  const L = collageLayout({ n: st.certs.length, width: U, sheetW: st.sheetW, preset: st.preset, seed: st.seed, jitter: st.jitter,
+  const L = collageLayout({ n: st.certs.length, width: U, sheetW: st.sheetW, ratio: st.sheetH / 100, preset: st.preset, seed: st.seed, jitter: st.jitter,
     lineLen: 56, labelH: 64, pad: 12, labels: withCallouts });
   const H = L.height;
   const stage = _el('div', 'cert-stage', `position:relative;width:100%;aspect-ratio:${U} / ${H};`);

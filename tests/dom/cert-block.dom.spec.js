@@ -24,6 +24,8 @@
  *       · 캡처(내보내기) 클론 = 샘플도 빈 칸 취급(R1 — 1장만) · 끔 = 체크무늬 3 으로
  *      양성대조: cert-block.js renderCertBlock 의 `{ forOutput = false, showSamples = !forOutput }` 를 `showSamples = true` 로 → SM1(캡처 1장) 빨강
  *              · 같은 곳 `(c.img ? c : …)` 를 `({ ...c, img: CERT_SAMPLE_DOCS[…], sample: true })`(무조건 덮기)로 → SM1(안 덮음) 빨강
+ *   SH1 «용지 높이»(⑫ · crt-sheeth) — 스택 200 → 용지 높이/폭 2.0 · 슬라이더 = «용지 크기» 바로 아래 / 격자 60 → 0.6 · 캡처 클론(출력)도 같은 비율
+ *      양성대조: cert-block.js 격자 칸 `aspect-ratio:100 / ${st.sheetH}` 를 `210 / 297` 로 → SH1(격자) 빨강 · collageLayout 호출의 `ratio: st.sheetH / 100,` 삭제 → SH1(스택) 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -53,7 +55,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -524,5 +526,31 @@ test('SM1 샘플 넣어보기 — 빈 칸만 · 저장 0 · 미리보기 보임 
   await toggle(page, 'crt-samples');
   await expect(page.locator(`#${id} .cert-sample`)).toHaveCount(0);
   await expect(page.locator(`#${id} .cert-ph`)).toHaveCount(3);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('SH1 용지 높이 — 스택·격자·출력', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  const ratio = (root) => page.evaluate(({ id, root }) => [...document.querySelectorAll(root ? `${root} .cert-block .cert-sheet` : `#${id} .cert-sheet`)].map((s) => +(s.offsetHeight / s.offsetWidth).toFixed(2)), { id, root });
+  await stackMode(page, id);
+  expect(await page.inputValue('#crt-sheeth-number'), '저장본에 값 없음 = 141(A4)').toBe('141');
+  expect(await page.evaluate(() => document.getElementById('crt-sheetw-number').closest('.prop-row').nextElementSibling?.querySelector('#crt-sheeth-number') != null), '«용지 크기» 바로 아래').toBe(true);
+  await page.fill('#crt-sheeth-number', '200');
+  await page.dispatchEvent('#crt-sheeth-number', 'change');
+  for (const r of await ratio()) expect(Math.abs(r - 2), `스택 h/w ${r}`).toBeLessThan(0.03);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector('#crt-sheeth-number');
+  await page.fill('#crt-sheeth-number', '60');
+  await page.dispatchEvent('#crt-sheeth-number', 'change');
+  for (const r of await ratio()) expect(Math.abs(r - 0.6), `격자 h/w ${r}`).toBeLessThan(0.03);
+  await seed(page, id, [DATA_PNG, DATA_PNG, '', '']);
+  const out = await page.evaluate(async (id) => {
+    const sec = document.getElementById(id).closest('.section-block'); const clone = sec.cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const R = [...clone.querySelectorAll('.cert-block .cert-sheet')].map((s) => +(s.offsetHeight / s.offsetWidth).toFixed(2)); clone.remove(); return R;
+  }, id);
+  expect(out.length).toBe(2);
+  for (const r of out) expect(Math.abs(r - 0.6), `출력 h/w ${r}`).toBeLessThan(0.03);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
