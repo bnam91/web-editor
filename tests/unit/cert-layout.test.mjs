@@ -4,6 +4,8 @@
  *   L3 시드 — 같은 시드·같은 입력 = 같은 배치 · jitter>0 이면 시드가 다르면 다르다 · jitter 0 이면 시드 무관(프리셋 그대로)
  *   L4 장 수 1~6 · 프리셋과 수가 다르면 auto · 상한 6 · 위/아래 번갈아
  *   L5 gridLayout — 열·간격대로 · 마지막 줄 가운데 · 높이
+ *   L7 labels:false — 높이 = 종이만(콜아웃 끔 · A4 스택 기본) · 켜면 더 크다
+ *   L6 fan(기본 · reframe «A4 스택») — 왼→오 각도가 커지고 좌우 대칭 · 이웃끼리 겹친다 · 오른쪽이 위 · 프리셋 미지정 = fan
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -77,4 +79,27 @@ test('L5 gridLayout', () => {
   assert.equal(g.cells[3].y, rowH);
   assert.equal(g.cells[3].x, (w + 12) / 2, '마지막 줄 2칸 = 가운데로 반 칸 민다');
   assert.equal(g.height, Math.ceil(2 * rowH - 12));
+});
+
+test('L6 fan — 기본 · 각도 단조·대칭 · 이웃 겹침 · 오른쪽 위', () => {
+  for (const n of [2, 3, 4, 5, 6]) {
+    const L = M.collageLayout({ n, width: 600 });
+    const S = [...L.sheets].sort((a, b) => a.cx - b.cx);
+    for (let i = 1; i < n; i++) {
+      assert.ok(S[i].rot > S[i - 1].rot, `n=${n} 각도 단조`);
+      assert.ok(hit(box(S[i - 1]), box(S[i])), `n=${n} 이웃 ${i - 1}·${i} 겹침`);
+      assert.ok(S[i].z > S[i - 1].z, `n=${n} 오른쪽이 위`);
+    }
+    assert.ok(Math.abs(S[0].rot + S[n - 1].rot) < 1e-9, `n=${n} 좌우 대칭 각`);
+  }
+  assert.deepEqual(M.collageLayout({ n: 4 }), M.collageLayout({ n: 4, preset: 'fan' }));
+  assert.equal(M.CERT_PRESET_NAMES[0], 'fan');
+  assert.equal(M.collageLayout({ n: 1 }).sheets[0].rot, 0);
+});
+
+test('L7 labels:false — 종이만큼', () => {
+  const on = M.collageLayout({ n: 4 }), off = M.collageLayout({ n: 4, labels: false });
+  assert.ok(off.height < on.height, `${off.height} < ${on.height}`);
+  const ext = Math.max(...off.sheets.map((s) => s.cy + (s.w / 2) * Math.abs(Math.sin(s.rot * Math.PI / 180)) + (s.h / 2) * Math.cos(s.rot * Math.PI / 180)));
+  assert.ok(Math.abs(off.height - Math.ceil(ext + 12)) <= 1, `${off.height} vs ${ext}`);
 });

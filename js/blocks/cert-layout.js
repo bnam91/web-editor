@@ -1,4 +1,5 @@
-/* cert-layout.js — 인증서 블럭(cert-block)의 «배치»만: 흩뿌린 콜라주(CB3)·스캔 그리드(CB2)의 자리와 지시선 (인증서 블럭 A · 261114)
+/* cert-layout.js — A4 용지 스택(cert-block)의 «배치»만: 세로 A4 를 겹쳐 세운 자리와 (선택) 지시선 (A · 261114 · 현빈 reframe «A4 용지들을 배치»)
+ *   ★기본 = fan(부채처럼 겹쳐 세움 · 장 수에 맞춰 계산 — 현빈 노트 ① 인증서샘플). s17·stair·pile = 같은 «스택»의 다른 겹침.
  *   ★순수 함수만 — window·DOM 0. 단위(tests/unit/cert-layout.test.mjs)가 글을 읽어 그대로 돌린다(루트가 commonjs).
  *   ★CB3 참값 = 실물 S17(벨누크 · ~/Downloads/goditor-t3/cert-pilot/rep4/r3.jpg): 증서 4장이 «제각각» 각도·위치로 겹친다(대칭 부채 아님)
  *     · 장마다 세로 지시선 + 굵은 인증명 + 회색 설명 · 위쪽에 놓인 종이는 글이 위, 아래쪽 종이는 글이 아래.
@@ -30,7 +31,17 @@ export const CERT_PRESETS = Object.freeze({
     { cx: 0.50, cy: 0.40, rot: -3, side: 'top', z: 4 },
   ],
 });
-export const CERT_PRESET_NAMES = Object.keys(CERT_PRESETS).concat('auto');
+export const CERT_PRESET_NAMES = ['fan'].concat(Object.keys(CERT_PRESETS), 'auto');
+
+/** 부채 스택 — 가로로 겹쳐 늘어서고(이웃과 약 45% 겹침) 각도가 왼→오로 고르게 커진다 · 바깥 장은 살짝 아래 · 오른쪽이 위에 쌓인다. */
+function _fanSlots(n) {
+  const maxRot = Math.min(14, 4 * (n - 1));
+  const span = n === 1 ? 0 : Math.min(0.56, 0.14 * (n - 1));
+  return Array.from({ length: n }, (_, i) => {
+    const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1;   // −1 … +1
+    return { cx: 0.5 + (span / 2) * t, cy: 0.5 + 0.06 * t * t, rot: maxRot * t, side: i % 2 ? 'top' : 'bottom', z: i + 1 };
+  });
+}
 
 /** 시드 난수(mulberry32) — 같은 시드 = 같은 흩뿌림(저장·재그리기·내보내기가 같은 그림). */
 export function seededRandom(seed) {
@@ -61,6 +72,7 @@ function _autoSlots(n, rand) {
  * 흩뿌린 콜라주 배치.
  * @param {{n?:number, width?:number, sheetW?:number, preset?:string, seed?:number, jitter?:number, lineLen?:number, labelH?:number, pad?:number}} o
  *   sheetW = 종이 폭(블럭 폭 비율 0.2~0.45) · jitter = 흩뿌림 정도(0~1 · 프리셋 위에 시드 흔들림) · lineLen 지시선 길이(px) · labelH 글 덩이 높이(px)
+ *   labels = false 면 높이에 글 덩이 자리를 안 넣는다(콜아웃 끔)
  * @returns {{height:number, sheets:Array<{i,cx,cy,w,h,rot,z,side, line:{x,y1,y2}, label:{x,y,anchor:'top'|'bottom'}}>}}
  *   label.y = 글 덩이의 «지시선에 붙는 쪽» y(side top → 덩이 아래끝 · bottom → 덩이 위끝) · 모든 좌표는 높이 계산 뒤 위로 당겨 0 부터.
  */
@@ -73,8 +85,9 @@ export function collageLayout(o = {}) {
   const labelH = Math.max(20, o.labelH ?? 52);
   const pad = Math.max(0, o.pad ?? 12);
   const rand = seededRandom(o.seed ?? 1);
-  const base = CERT_PRESETS[o.preset];
-  const slots = (base && base.length === n) ? base.map((s) => ({ ...s })) : _autoSlots(n, rand);
+  const preset = o.preset ?? 'fan';
+  const base = CERT_PRESETS[preset];
+  const slots = preset === 'fan' ? _fanSlots(n) : (base && base.length === n) ? base.map((s) => ({ ...s })) : _autoSlots(n, rand);
 
   const w = width * sheetW;
   const h = w * CERT_SHEET_RATIO;
@@ -99,8 +112,9 @@ export function collageLayout(o = {}) {
   for (const s of sheets) {
     const r = Math.abs((s.rot * Math.PI) / 180);
     const ext = (s.w / 2) * Math.sin(r) + (s.h / 2) * Math.cos(r);
-    minY = Math.min(minY, s.cy - ext, s.side === 'top' ? s.label.y - labelH : Infinity);
-    maxY = Math.max(maxY, s.cy + ext, s.side === 'bottom' ? s.label.y + labelH : -Infinity);
+    const lab = o.labels !== false;   // 콜아웃을 안 그리면(A4 스택 기본) 글 자리를 높이에 안 넣는다
+    minY = Math.min(minY, s.cy - ext, lab && s.side === 'top' ? s.label.y - labelH : Infinity);
+    maxY = Math.max(maxY, s.cy + ext, lab && s.side === 'bottom' ? s.label.y + labelH : -Infinity);
   }
   const dy = pad - minY;
   for (const s of sheets) { s.cy += dy; s.line.y1 += dy; s.line.y2 += dy; s.label.y += dy; }
