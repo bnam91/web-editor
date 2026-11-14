@@ -43,6 +43,8 @@ test('RG-1 렌더러 사망 → 그 창을 부모로 «화면이 멈췄습니다
   assert.equal(h.calls[0].parent, h.win);
   assert.equal(h.calls[0].opts.message, '화면이 멈췄습니다');
   assert.deepEqual(h.calls[0].opts.buttons, ['다시 불러오기', '닫기']);
+  assert.equal(h.calls[0].opts.defaultId, 0, 'Enter = 다시 불러오기(기본 단추)');
+  assert.equal(h.calls[0].opts.cancelId, 0, '★Esc = 다시 불러오기 — 닫기(메인 창이면 앱 종료)로 가면 안 된다');
   assert.match(h.calls[0].opts.detail, /사라졌을 수 있습니다/, '저장 안 된 편집 유실 가능성 문구');
   assert.equal(h.wc.reloads, 1);
   assert.equal(h.win.closes, 0);
@@ -67,6 +69,7 @@ test(`RG-3 ${crash.RELOAD_WINDOW_MS / 1000}초 안 반복 사망 — reload 는 
     assert.equal(h.calls.length, 3, '세 번째도 «말은» 한다');
     assert.equal(h.wc.reloads, 2, '★상한을 넘어 reload 했다 — 무한 재시도');
     assert.deepEqual(h.calls[2].opts.buttons, ['닫기']);
+    assert.deepEqual([h.calls[2].opts.defaultId, h.calls[2].opts.cancelId], [0, 0], '상한 뒤 Enter·Esc = 유일한 닫기');
     assert.equal(h.win.closes, 1, '상한 뒤 응답 0 = 유일한 단추 «닫기»');
     t += crash.RELOAD_WINDOW_MS + 1;
     await h.gone();

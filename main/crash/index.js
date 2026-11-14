@@ -95,7 +95,9 @@ function offerReload(wc, details, o) {
   const buttons = canReload ? ['다시 불러오기', '닫기'] : ['닫기'];
   return Promise.resolve(dialog.showMessageBox(win, {
     type: 'warning', title: 'GODITOR', message: '화면이 멈췄습니다', detail,
-    buttons, defaultId: 0, cancelId: buttons.length - 1, noLink: true,
+    /* Enter = 다시 불러오기(기본 · 파란 단추). ★Esc 도 다시 불러오기(cancelId 0) — «닫기»는 메인 창이면 앱 종료라
+       Esc 한 번에 앱이 꺼지지 않게 한다. 닫기는 단추를 눌러야만. 상한 뒤엔 단추가 닫기 하나라 둘 다 닫기. */
+    buttons, defaultId: 0, cancelId: 0, noLink: true,
   })).then((r) => {
     if (typeof wc.isDestroyed === 'function' && wc.isDestroyed()) return 'gone';
     if (canReload && r && r.response === 0) { wc.reload(); return 'reload'; }
