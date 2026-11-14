@@ -500,11 +500,13 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
                                      //   ⑴ 렌더 함수가 폭을 다시 박지 않는다(프레임과 같다) ⑵ 끄기 = 프레임 패널의 그 스위치(prop-frame.js) ⑶ 프레임의 기본은 여전히 «꺼짐» —
                                      //   켜는 것은 addBuzzBlock 한 자리뿐이고 이미 저장된 버즈는 안 건드린다(tests/dom/buzz-frame.dom.spec.js BZ-27 · BZ-28)
     'js/blocks/canvas-block.js',     // 카드  — renderCanvas 가 통합 처리
+    'js/blocks/cert-block.js',       // Documents(A4 · 2026-11-14 현빈) — ⑴ renderCertBlock 안 applyBlockFullBleed(매 렌더) ⑵ 끄기 = 패널이 clearBlockFullBleed 후 다시 그림 ⑶ 키 없으면 no-op(기본 끔)
     'js/blocks/chat-block.js',       // 채팅  — renderChatBlock 안에서 적용
     'js/blocks/grid-block.js',       // 그리드 — renderGridBlock 안에서 적용 (2026-10-01 — 렌더가 width=100% 를 다시 박아 배너2 와 같은 병이 났다, grd_ts0he_lvy913j)
     'js/blocks/laurel-block.js',     // 월계수 — renderLaurelBlock 안에서 적용 (2026-10-26 t5-10 S3 · ⑴렌더 안 ⑵패널 끄기 = clearBlockFullBleed 후 다시 그림 ⑶키 없으면 no-op)
     'js/blocks/radial-block.js',     // 라디알 — renderRadialBlock «맨 앞»에서 적용(호 배치가 블럭 폭을 잰다) (2026-10-26 t7-01 S3 · ⑴⑵⑶ 월계수와 같다)
     'js/props/prop-banner02.js',     // 배너2 패널 (2026-09-10 신규)
+    'js/props/prop-cert.js',         // Documents 패널 — «패딩 제외» 토글(섹션 좌우 패딩 있을 때만 · 월계수 조건과 같다)
     'js/props/prop-chat.js',         // 채팅 패널
     'js/props/prop-frame.js',        // 프레임 — 패널이 «직접» 적용(렌더 함수가 없다) (2026-09-10 신규)
     'js/props/prop-grid.js',         // 그리드 — 티켓 ⑥ (2026-09-28 신규 · 0929 에 자체 구현에서 이 한 벌로 합쳤다)

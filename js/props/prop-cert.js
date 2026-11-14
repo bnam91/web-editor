@@ -1,17 +1,17 @@
 /* prop-cert.js — A4 용지 스택(cert-block · 보이는 이름 «Documents») 우측 패널 (A · 261114 reframe)
  *   dev 관례 그대로: prop-section · sliderRowHTML · colorFieldHTML/wireColorField · .prop-btn · .prop-select · .prop-input · .prop-toggle(새 CSS 0)
  *   ⚠️우측패널 틀(_panel-frame)은 dev 에 없다(hold 가지) — 그 묶음이 머지되면 이 패널도 틀로 옮길 목록에 든다.
- *   용지 그림 = 캔버스에서 끌어 놓기·더블클릭(cert-block.js) + 여기 «그림 넣기»(prop-grid.js grdPickImageFile — 기존 파일창) · 새 업로드 길 0.
+ *   용지 그림 = 캔버스에서만(끌어 놓기·더블클릭·스크래치 끌기 — cert-block.js · canvas-scratch-drop.js) · 패널 용지 카드는 현빈 261114 ⑥ 으로 뺐다.
  *   ⛔값은 escHtml 로 속성에 싣는다(블럭 데이터는 남이 준 프로젝트에서 올 수 있다).
  */
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
-import { grdPickImageFile } from './prop-grid.js';
-import { readCertState, setCertList, setCertSlotImage, CERT_STATUSES, CERT_SHADOWS } from '../blocks/cert-block.js';
+import { readCertState, setCertList, CERT_SHADOWS } from '../blocks/cert-block.js';
 const SHADOW_LABEL = { none: '없음', soft: '부드럽게', strong: '진하게' };
 const MODE_LABEL = { stack: '스택(겹침)', grid: '격자(A4 칸)' };
-import { CERT_PRESET_NAMES, CERT_MAX_SHEETS } from '../blocks/cert-layout.js';
+import { CERT_PRESET_NAMES, CERT_MAX_SHEETS, CERT_MAX_GRID } from '../blocks/cert-layout.js';
+const PICK_COLS = 4, PICK_ROWS = 3;   // 그리드 피커 4×3 = CERT_MAX_GRID
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="3.5" y="1" width="6" height="8.5" rx="0.5"/><path d="M2.5 2.5v8.5h6"/></svg>`;
 const PRESET_LABEL = { fan: '부채(기본)', s17: '흩뿌림', stair: '계단', pile: '쌓기', auto: '자동' };
@@ -20,27 +20,7 @@ const _toggleRow = (id, label, on, title = '') => `<div class="prop-row"${title 
         <span class="prop-label">${label}</span>
         <label class="prop-toggle"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
       </div>`;
-const _textRow = (id, label, val, multi = false) => `<div class="prop-row">
-        <span class="prop-label">${label}</span>
-        ${multi ? `<textarea class="prop-input" id="${id}" rows="2" style="flex:1;resize:vertical">${escHtml(val)}</textarea>`
-    : `<input type="text" class="prop-input" id="${id}" value="${escHtml(val)}" style="flex:1;min-width:0">`}
-      </div>`;
 const _colorRow = (prefix, label, hex) => `<div class="prop-row"><span class="prop-label">${label}</span>${colorFieldHTML({ idPrefix: prefix, hex })}</div>`;
-
-function _slotCardHTML(c, i, withCallouts) {
-  return `<div class="prop-cell-card crt-card" data-card-index="${i}" style="margin:6px 8px;padding:8px;border:1px solid var(--ui-border-strong);border-radius:6px">
-      <div class="prop-row" style="justify-content:space-between"><span class="prop-label">용지 ${i + 1}</span>
-        <span style="display:flex;gap:4px">
-          <button class="prop-btn crt-img-pick" data-idx="${i}" style="width:auto;padding:0 8px">${c.img ? '그림 바꾸기' : '그림 넣기'}</button>
-          ${c.img ? `<button class="prop-btn crt-img-clear" data-idx="${i}" style="width:auto;padding:0 8px" title="그림 빼기(빈 칸으로)">빼기</button>` : ''}
-        </span></div>
-      ${withCallouts ? `
-      <div class="prop-row"><span class="prop-label">제목</span><input type="text" class="prop-input crt-title" data-idx="${i}" value="${escHtml(c.title)}" style="flex:1;min-width:0"></div>
-      <div class="prop-row"><span class="prop-label">설명</span><input type="text" class="prop-input crt-desc" data-idx="${i}" value="${escHtml(c.desc)}" style="flex:1;min-width:0"></div>
-      <div class="prop-row"><span class="prop-label">상태</span><select class="prop-select crt-status" data-idx="${i}" title="출원·진행 중인 것을 «인증»으로 보이지 않게">
-        ${CERT_STATUSES.map((s) => `<option value="${s}"${s === c.status ? ' selected' : ''}>${s || '표시 안 함'}</option>`).join('')}</select></div>` : ''}
-    </div>`;
-}
 
 export function showCertProperties(block) {
   if (!block) return;
@@ -49,6 +29,10 @@ export function showCertProperties(block) {
   /* 이펙트 대상 — 블럭에 기억(패널을 다시 그려도 유지) · 'all' = 모든 용지(표시 값은 용지 1) */
   const fxTarget = (block._crtFxTarget === 'all' || (+block._crtFxTarget >= 0 && +block._crtFxTarget < st.certs.length)) ? String(block._crtFxTarget) : 'all';
   const fx = st.certs[fxTarget === 'all' ? 0 : +fxTarget].fx;
+  const rows = Math.ceil(st.certs.length / st.cols);
+  // 패딩 제외 — 섹션에 좌우 패딩이 있거나 이미 켜져 있을 때만(월계수 _lrlCanFB 와 같은 조건)
+  const canFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
+  const calloutsRow = _toggleRow('crt-callouts', '지시선 글', withCallouts, st.mode === 'grid' ? '용지마다 아래 제목·설명(+상태 칩)' : '용지마다 세로 지시선 + 제목·설명(+상태 칩)');
   propPanel.innerHTML = `
     <div class="prop-section">
 ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Documents', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
@@ -58,16 +42,18 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
       <div class="prop-row"><span class="prop-label">모드</span><select class="prop-select" id="crt-mode">
         ${Object.entries(MODE_LABEL).map(([k, v]) => `<option value="${k}"${k === st.mode ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
       ${st.mode === 'grid'
-    ? sliderRowHTML('열 수', 'crt-cols-slider', 'crt-cols-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.cols })
-      + sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: 0, max: 80, step: 2, value: st.gap })
+    ? `<div class="grid-picker" id="crt-grid-picker" title="열 × 행 — 장 수 = 열 × 행"></div>
+      <div class="grid-picker-label" id="crt-grid-picker-label">${st.cols} × ${rows}</div>
+      ${calloutsRow}
+      ${sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: -80, max: 80, step: 2, value: st.gap })}`
     : `<div class="prop-row"><span class="prop-label">배치</span><select class="prop-select" id="crt-preset">
         ${CERT_PRESET_NAMES.map((k) => `<option value="${k}"${k === st.preset ? ' selected' : ''}>${PRESET_LABEL[k] || k}</option>`).join('')}</select></div>
       ${sliderRowHTML('흩뿌림', 'crt-jitter-slider', 'crt-jitter-number', { min: 0, max: 100, step: 5, value: Math.round(st.jitter * 100) })}
       <div class="prop-row"><button class="prop-btn" id="crt-reshuffle" style="width:100%" title="흩뿌림이 0 보다 클 때 다른 배치로">다시 섞기</button></div>
-      ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}`}
+      ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}
       ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}
-      <div class="prop-hint" style="padding:2px 8px">용지 칸에 그림 파일을 끌어다 놓거나 더블클릭하세요(내 파일만).</div>
-      ${st.certs.map((c, i) => _slotCardHTML(c, i, withCallouts)).join('')}
+      ${calloutsRow}`}
+      ${canFB ? _toggleRow('crt-fullbleed', '패딩 제외', block.dataset.fullBleed === 'true', '섹션 좌우 패딩을 무시하고 끝까지') : ''}
     </div>
     <div class="prop-section" id="crt-fx-section">
       <div class="prop-section-title">Effects</div>
@@ -76,20 +62,15 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
         ${st.certs.map((_, i) => `<option value="${i}"${String(i) === fxTarget ? ' selected' : ''}>용지 ${i + 1}</option>`).join('')}</select></div>
       ${sliderRowHTML('회전°', 'crt-fx-rot-slider', 'crt-fx-rot-number', { min: -30, max: 30, step: 1, value: Math.round(fx.rot) })}
       ${sliderRowHTML('기울기°', 'crt-fx-tilt-slider', 'crt-fx-tilt-number', { min: -40, max: 40, step: 1, value: Math.round(fx.tilt) })}
-      ${_toggleRow('crt-fx-curl', '끝말림', fx.curl === 'on', '오른쪽 아래 모서리를 살짝 말아 올린 꼴')}
       <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="crt-fx-shadow">
         ${Object.keys(CERT_SHADOWS).map((k) => `<option value="${k}"${k === fx.shadow ? ' selected' : ''}>${SHADOW_LABEL[k]}</option>`).join('')}</select></div>
     </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Options</div>
-      ${_toggleRow('crt-callouts', '지시선 글', withCallouts, '용지마다 세로 지시선 + 제목·설명(+상태 칩)')}
-      ${_textRow('crt-headline', '위 제목', st.headline, true)}
-      ${_textRow('crt-sub', '위 부제', st.sub, true)}
+    ${withCallouts ? `<div class="prop-section">
+      <div class="prop-section-title">Callouts</div>
       ${withCallouts ? sliderRowHTML('제목 크기', 'crt-titlesize-slider', 'crt-titlesize-number', { min: 10, max: 48, step: 1, value: st.titleSize })
         + sliderRowHTML('설명 크기', 'crt-descsize-slider', 'crt-descsize-number', { min: 9, max: 32, step: 1, value: st.descSize })
         + _colorRow('crt-title', '제목색', st.titleColor) + _colorRow('crt-desc', '설명색', st.descColor) + _colorRow('crt-line', '지시선색', st.lineColor) : ''}
-      ${(st.headline || st.sub) ? sliderRowHTML('위 제목 크기', 'crt-headsize-slider', 'crt-headsize-number', { min: 16, max: 80, step: 1, value: st.headSize }) + _colorRow('crt-head', '위 제목색', st.headColor) : ''}
-    </div>`;
+    </div>` : ''}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   const rerender = () => window.renderCertBlock?.(block);
@@ -119,15 +100,37 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
     sl?.addEventListener('change', commit);
     nu?.addEventListener('change', () => { sl.value = nu.value; applyFx({ [key]: +nu.value }, true); });
   }
-  $('crt-fx-curl')?.addEventListener('change', (e) => applyFx({ curl: e.target.checked ? 'on' : 'off' }, true));
   $('crt-fx-shadow')?.addEventListener('change', (e) => applyFx({ shadow: e.target.value }, true));
   for (const [id, key] of [['crt-callouts', 'callouts']]) {
     $(id)?.addEventListener('change', (e) => { block.dataset[key] = e.target.checked ? 'on' : 'off'; rerender(); commit(); reopen(); });
   }
-  for (const [id, key] of [['crt-headline', 'headline'], ['crt-sub', 'sub']]) {
-    const el = $(id); if (!el) continue;
-    el.addEventListener('input', () => { block.dataset[key] = el.value; rerender(); });
-    el.addEventListener('change', () => { commit(); reopen(); });
+  /* 패딩 제외 — 켜기는 renderCertBlock 의 applyBlockFullBleed 가 매 렌더 씌운다 · 끄기는 흔적 지우기 먼저(월계수·배너2 와 같은 순서) */
+  $('crt-fullbleed')?.addEventListener('change', (e) => {
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
+    rerender(); commit();
+  });
+  /* 그리드 피커(prop-laurel.js·canvas 의 .grid-picker 꼴 그대로) — 열 × 행 → 열 수 · 장 수(늘면 빈 용지를 덧붙이고 줄면 뒤에서 뺀다) */
+  const picker = $('crt-grid-picker'), pickerLabel = $('crt-grid-picker-label');
+  if (picker) {
+    for (let r = 1; r <= PICK_ROWS; r++) for (let c = 1; c <= PICK_COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-picker-cell'; cell.dataset.r = r; cell.dataset.c = c;
+      if (c <= st.cols && r <= rows) cell.classList.add('active');
+      picker.appendChild(cell);
+    }
+    const paint = (cc, rr) => picker.querySelectorAll('.grid-picker-cell').forEach((cl) => cl.classList.toggle('active', +cl.dataset.c <= cc && +cl.dataset.r <= rr));
+    picker.addEventListener('mouseover', (e) => { const cl = e.target.closest('.grid-picker-cell'); if (!cl) return; paint(+cl.dataset.c, +cl.dataset.r); pickerLabel.textContent = `${cl.dataset.c} × ${cl.dataset.r}`; });
+    picker.addEventListener('mouseleave', () => { paint(st.cols, rows); pickerLabel.textContent = `${st.cols} × ${rows}`; });
+    picker.addEventListener('click', (e) => {
+      const cl = e.target.closest('.grid-picker-cell'); if (!cl) return;
+      const cc = +cl.dataset.c, n = Math.min(CERT_MAX_GRID, cc * +cl.dataset.r);
+      const certs = readCertState(block).certs;
+      while (certs.length < n) certs.push({ title: `제목 ${certs.length + 1}`, desc: '설명 한 줄', img: '', status: '' });
+      block.dataset.cols = String(cc);
+      setCertList(block, certs.slice(0, n));
+      commit(); reopen();
+    });
   }
   const wireNum = (id, key, min, max, { scale = 1 } = {}) => {
     const s = $(`${id}-slider`), n = $(`${id}-number`);
@@ -139,9 +142,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
   };
   wireNum('crt-jitter', 'jitter', 0, 100, { scale: 0.01 });
   wireNum('crt-sheetw', 'sheetW', 20, 45, { scale: 0.01 });
-  wireNum('crt-cols', 'cols', 1, CERT_MAX_SHEETS);
-  wireNum('crt-gap', 'gap', 0, 80);
-  wireNum('crt-headsize', 'headSize', 16, 80);
+  wireNum('crt-gap', 'gap', -80, 80);   // ⑦ 음수 = 겹침
   wireNum('crt-titlesize', 'titleSize', 10, 48);
   wireNum('crt-descsize', 'descSize', 9, 32);
   // 장 수 — 늘리면 빈 용지를 덧붙이고, 줄이면 뒤에서 뺀다(있던 그림·글은 남는 장에 그대로)
@@ -158,26 +159,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
     s?.addEventListener('change', () => { commit(); reopen(); });
     n?.addEventListener('change', () => { apply(parseFloat(n.value)); commit(); reopen(); });
   }
-  const patchCert = (i, patch, { record = false, reopenAfter = false } = {}) => {
-    const certs = readCertState(block).certs;
-    if (!certs[i]) return;
-    certs[i] = { ...certs[i], ...patch };
-    setCertList(block, certs);
-    if (record) commit();
-    if (reopenAfter) reopen();
-  };
-  propPanel.querySelectorAll('.crt-title, .crt-desc').forEach((el) => {
-    const key = el.classList.contains('crt-title') ? 'title' : 'desc';
-    el.addEventListener('input', () => patchCert(+el.dataset.idx, { [key]: el.value }));
-    el.addEventListener('change', commit);
-  });
-  propPanel.querySelectorAll('.crt-status').forEach((el) => el.addEventListener('change', () => patchCert(+el.dataset.idx, { status: el.value }, { record: true })));
-  propPanel.querySelectorAll('.crt-img-pick').forEach((el) => el.addEventListener('click', () => {
-    const i = +el.dataset.idx;
-    grdPickImageFile((src) => { if (setCertSlotImage(block, i, src)) reopen(); });
-  }));
-  propPanel.querySelectorAll('.crt-img-clear').forEach((el) => el.addEventListener('click', () => patchCert(+el.dataset.idx, { img: '' }, { record: true, reopenAfter: true })));
-  for (const [prefix, key] of [['crt-head', 'headColor'], ['crt-title', 'titleColor'], ['crt-desc', 'descColor'], ['crt-line', 'lineColor']]) {
+  for (const [prefix, key] of [['crt-title', 'titleColor'], ['crt-desc', 'descColor'], ['crt-line', 'lineColor']]) {
     if (!$(`${prefix}-color`)) continue;
     wireColorField(prefix, { onApply: (c) => { block.dataset[key] = c; rerender(); }, onCommit: commit });
   }

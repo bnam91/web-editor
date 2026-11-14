@@ -4,15 +4,22 @@
  *   K2 부채 스택(기본) — 왼→오 회전각이 커진다(atan2) · 이웃끼리 겹친다(화면 사각형)
  *   K3 끌어 놓기 — 용지 칸에 그림 파일을 drop → 그 칸이 img(data:image/png) · 다른 칸은 체크무늬 그대로
  *   K4 더블클릭 = 파일창(진짜 filechooser) → 그 칸 img
- *   K5 패널 «그림 넣기»(파일창) → 그 칸 img · «빼기» → 다시 체크무늬
- *   K6 옵션 «지시선 글» 켬 → 콜아웃·지시선 4 · 상태 «출원» → 칩
+ *   K5 패널에 용지 카드 0(현빈 261114 ⑥ «용지별 카드 전부 제거» · 그림은 캔버스로만 — K3 끌어 놓기·K4 더블클릭·S1 스크래치가 그 길을 잰다)
+ *      ⚠️카드와 함께 잃은 길(다른 입구 없음 · 실측): «그림 빼기» · 지시선 글의 용지별 제목·설명·상태 편집 — 대안은 현빈 답 뒤(K5 는 그래서 «없음»을 잠근다)
+ *   K6 «지시선 글» 켬 → 콜아웃·지시선 4 · 상태 «출원»(dataset — 패널 카드가 없어져 입구는 현빈 답 뒤) → 칩
  *   K7 → E1 로 옮김(말림은 «이펙트» 절 · 용지마다)
  *   K8 [보안] 손댄 dataset — 글은 글자로 · 이상한 그림 주소는 빈 칸 · 핸들러 0(콜아웃 켬)
  *   K9 저장→열기 왕복(applyProjectData) — dataset 에서 다시 그린다
  *   K10 장 수 6
  *   ── 격자 모드(A4 칸 · 현빈 결정 «스택 ＋ 격자») ──
  *   G1 모드 «격자» → .cert-grid · 칸 4 · 세로 A4 · 빈 칸 체크무늬 · 회전 0
- *   G2 열 수 2 → 열 2개
+ *   G2 그리드 피커 2×2(현빈 261114 «그리드 피커» · .grid-picker 관례) → 열 2개 · 용지 4
+ *   G5 그리드 피커 3×3 → 열 3 · 용지 9(격자 상한 12 · 스택 6) · 라벨 «3 × 3»
+ *   ── 현빈 실물 피드백(261114 · srv 9500) ──
+ *   U1 패널 — 끌어 놓기 안내문(prop-hint) 0 · «위 제목/부제» 칸 0 · «지시선 글» 행 = «장 수» 행 바로 아래(격자면 피커 바로 아래)
+ *   G6 격자 간격 −40(⑦ 음수 = 겹침) → 이웃 칸(열·행) 사각형이 겹친다 · 뒤 칸이 위 · 출력 사본(forOutput)도 겹친다
+ *      양성대조: cert-block.js _renderGridStage 의 음수 갈래(`(neg ? \`position:relative;transform:translate(…)\` : '')`)를 `''` 로 → G6 빨강
+ *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
  *   H1 캡처 클론(stripEditorOnlyForCapture = PNG·HTML·썸네일 공용) — 채움 2·빔 2 → 클론 용지 2 · 빈 칸 0 · 각도 = 부채(2장) ±4°
@@ -27,7 +34,7 @@
  *   S2 그림 주소가 data:image/ 가 아니면(javascript:) 안 들어간다(형식 문 certImgOk)
  *   양성대조: canvas-scratch-drop.js «케이스 A1» 판정(`const certSheet = …` 덩이)을 지우면 S1 빨강(«사이에 새 에셋 삽입»으로 떨어진다)
  *   ── 이펙트(현빈 «이펙트» 절 · 용지마다: 회전·기울기·끝말림·그림자) ──
- *   E1 대상 «모든 용지» — 끝말림 켬 → 용지 4장 모두 .cert-curl · 그림자 «진하게» → 4장 모두 진한 그림자
+ *   E1 대상 «모든 용지» — 그림자 «진하게» → 4장 모두 진한 그림자 · (⑧ 끝말림 제거) 저장본에 fx.curl:'on' 이 있어도 .cert-curl 0
  *   E2 대상 «용지 2» — 회전 20 → 그 장만 20° 더 돈다(나머지 각도 그대로)
  *   E3 기울기 25(모든 용지) → 3D 원근(matrix3d) · 0 이면 2D 그대로
  *   E4 격자에서도 이펙트(회전) 가 먹는다
@@ -36,11 +43,12 @@
  * 양성대조:
  *   · js/blocks/cert-block.js _bindSlotInput 의 drop 리스너(`block.addEventListener('drop', …)`)를 지우면 K3 빨강
  *   · 같은 파일 `transform:rotate(${s.rot.toFixed(2)}deg);` 를 지우면 K2 빨강
- *   · 같은 파일 `if (c.fx.curl === 'on') s.appendChild(…)` 를 지우면 E1 빨강
  *   · js/blocks/cert-layout.js collageLayout 의 `preset === 'fan' ? _fanSlots(n) :` 를 지우면 K2 빨강(기본이 auto 로 떨어져 각도 ± 번갈아)
  *   · js/blocks/cert-block.js renderCertBlock 의 `if (st.mode === 'grid') { … }` 갈래를 지우면 G1·G2·G3 빨강
- * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-curl/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-cols-number/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-curl/#crt-fx-shadow/.crt-img-pick/.crt-img-clear/.crt-status(prop-cert.js) · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
+ *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
+ * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -118,15 +126,14 @@ test('K4 더블클릭 = 파일창', async ({ page }) => {
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('K5 패널 «그림 넣기» · «빼기»', async ({ page }) => {
+test('K5 패널에 용지 카드 없음(⑥)', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
   await openPanel(page, id);
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('.crt-img-pick[data-idx="1"]')]);
-  await chooser.setFiles({ name: 'a4.png', mimeType: 'image/png', buffer: PNG });
-  await page.waitForFunction((id) => !!document.querySelector(`#${id} .cert-sheet[data-idx="1"] img.cert-img`), id, { timeout: 5000 });
-  await page.click('.crt-img-clear[data-idx="1"]');
-  await expect(page.locator(`#${id} .cert-sheet[data-idx="1"].cert-ph`)).toHaveCount(1);
+  const r = await page.evaluate(() => ({ cards: document.querySelectorAll('.crt-card, .crt-img-pick, .crt-img-clear, .crt-status, .crt-title, .crt-desc').length }));
+  expect(r.cards, '★용지별 카드가 남았다').toBe(0);
+  await toggle(page, 'crt-callouts');   // 지시선 글을 켜도 카드는 안 생긴다
+  expect(await page.evaluate(() => document.querySelectorAll('.crt-card, .crt-status').length)).toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -137,7 +144,8 @@ test('K6 옵션 «지시선 글» · 상태 칩', async ({ page }) => {
   await toggle(page, 'crt-callouts');
   await expect(page.locator(`#${id} .cert-callout`)).toHaveCount(4);
   await expect(page.locator(`#${id} .cert-line`)).toHaveCount(4);
-  await page.selectOption('.crt-status[data-idx="0"]', '출원');
+  // 상태는 데이터로(패널 카드 입구는 ⑥ 으로 빠짐 · 대안 입구는 현빈 답 뒤)
+  await page.evaluate((id) => { const b = document.getElementById(id); const c = JSON.parse(b.dataset.certs); c[0].status = '출원'; b.dataset.certs = JSON.stringify(c); window.renderCertBlock(b); }, id);
   await expect(page.locator(`#${id} .cert-callout[data-idx="0"] .cert-status`)).toHaveText('출원');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -207,16 +215,15 @@ test('G1 격자 모드 — A4 칸 4', async ({ page }) => {
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('G2 격자 열 2', async ({ page }) => {
+test('G2 그리드 피커 2×2', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
   await openPanel(page, id);
   await page.selectOption('#crt-mode', 'grid');
-  await page.waitForSelector('#crt-cols-number');
-  await page.fill('#crt-cols-number', '2');
-  await page.dispatchEvent('#crt-cols-number', 'change');
-  const cols = await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .cert-grid`)).gridTemplateColumns.split(' ').length, id);
-  expect(cols).toBe(2);
+  await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
+  await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
+  const r = await page.evaluate((id) => ({ cols: getComputedStyle(document.querySelector(`#${id} .cert-grid`)).gridTemplateColumns.split(' ').length, n: document.querySelectorAll(`#${id} .cert-sheet`).length }), id);
+  expect(r).toEqual({ cols: 2, n: 4 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -245,8 +252,10 @@ test('E1 모든 용지 — 끝말림·그림자', async ({ page }) => {
   const id = await addViaMenu(page);
   await openPanel(page, id);
   await expect(page.locator('#crt-fx-target')).toHaveValue('all');
-  await toggle(page, 'crt-fx-curl');
-  await expect(page.locator(`#${id} .cert-sheet .cert-curl`)).toHaveCount(4);
+  // ⑧ 끝말림 제거 — 저장본에 fx.curl 이 있어도 안 그린다(호환)
+  await page.evaluate((id) => { const b = document.getElementById(id); const c = JSON.parse(b.dataset.certs); c.forEach((x) => { x.fx = { ...(x.fx || {}), curl: 'on' }; }); b.dataset.certs = JSON.stringify(c); window.renderCertBlock(b); }, id);
+  await expect(page.locator(`#${id} .cert-curl`)).toHaveCount(0);
+  await expect(page.locator('#crt-fx-curl')).toHaveCount(0);
   await page.selectOption('#crt-fx-shadow', 'strong');
   const sh = await page.evaluate((id) => [...document.querySelectorAll(`#${id} .cert-sheet`)].map((s) => /0\.32/.test(getComputedStyle(s).boxShadow)), id);
   expect(sh).toEqual([true, true, true, true]);
@@ -391,5 +400,75 @@ test('S2 스크래치 — 이상한 주소는 안 들어간다', async ({ page }
   const ok = await page.evaluate(({ x, y }) => { const r = window.commitScratchDropAt(x, y, 'javascript:window.__pwnS=1'); window.clearScratchDropGuides?.(); return r; }, p);
   expect(ok).toBe(false);
   expect(await page.locator(`#${id} .cert-sheet.cert-ph`).count()).toBe(4);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G5 그리드 피커 3×3 — 9장', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
+  await page.click('#crt-grid-picker .grid-picker-cell[data-c="3"][data-r="3"]');
+  await expect(page.locator(`#${id} .cert-grid .cert-sheet`)).toHaveCount(9);
+  await expect(page.locator('#crt-grid-picker-label')).toHaveText('3 × 3');
+  expect(await page.evaluate((id) => getComputedStyle(document.querySelector(`#${id} .cert-grid`)).gridTemplateColumns.split(' ').length, id)).toBe(3);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('U1 패널 — 안내문·위 제목 없음 · 지시선 글 = 장 수 바로 아래', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  const r = await page.evaluate(() => {
+    const P = document.getElementById('crt-mode').closest('.prop-section').parentElement;
+    const nextHas = (el, sel) => !!el?.nextElementSibling?.querySelector(sel);
+    return { hint: /끌어다 놓거나/.test(P.textContent), head: P.querySelectorAll('#crt-headline, #crt-sub').length,
+      afterCount: nextHas(document.getElementById('crt-count-number').closest('.prop-row'), '#crt-callouts') };
+  });
+  expect(r).toEqual({ hint: false, head: 0, afterCount: true });
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector('#crt-grid-picker');
+  const g = await page.evaluate(() => document.getElementById('crt-grid-picker-label').nextElementSibling?.querySelector('#crt-callouts') != null);
+  expect(g, '격자: 지시선 글 = 피커 바로 아래').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('FB1 패딩 제외 켜고 끄기', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await page.evaluate((id) => { const inner = document.getElementById(id).closest('.section-inner'); inner.dataset.paddingX = '40'; inner.style.paddingLeft = inner.style.paddingRight = '40px'; }, id);
+  await openPanel(page, id);
+  await expect(page.locator('#crt-fullbleed'), '[전제] 섹션 패딩이 있으면 토글이 보인다').toHaveCount(1);
+  await toggle(page, 'crt-fullbleed');
+  expect(await page.evaluate((id) => [document.getElementById(id).dataset.fullBleed, document.getElementById(id).style.marginLeft], id)).toEqual(['true', '-40px']);
+  await toggle(page, 'crt-fullbleed');
+  expect(await page.evaluate((id) => [document.getElementById(id).dataset.fullBleed ?? null, document.getElementById(id).style.marginLeft], id)).toEqual([null, '']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G6 격자 음수 간격 — 이웃 칸이 겹친다(편집·출력)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
+  await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
+  await page.fill('#crt-gap-number', '-40');
+  await page.dispatchEvent('#crt-gap-number', 'change');
+  const live = await page.evaluate((id) => { const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
+    const R = [...b.querySelectorAll('.cert-cell')].map((c) => c.getBoundingClientRect());
+    const mid = [(R[0].right + R[1].left) / 2, R[0].top + R[0].height / 2];
+    return { h: R[0].right > R[1].left + 1, v: R[0].bottom > R[2].top + 1, top: document.elementFromPoint(mid[0], mid[1])?.closest('.cert-cell') === b.querySelectorAll('.cert-cell')[1] }; }, id);
+  expect(live, '★편집 화면에서 안 겹친다').toEqual({ h: true, v: true, top: true });
+  // 출력(forOutput) 사본도 같은 겹침 — 칸에 그림 넣고(출력은 빈 칸을 뺀다) 캡처 클론에서 잰다
+  await seed(page, id, [DATA_PNG, DATA_PNG, DATA_PNG, DATA_PNG]);
+  const out = await page.evaluate(async (id) => {
+    const sec = document.getElementById(id).closest('.section-block'); const clone = sec.cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const R = [...clone.querySelectorAll('.cert-block .cert-cell')].map((c) => c.getBoundingClientRect()); clone.remove();
+    return { n: R.length, h: R[0].right > R[1].left + 1, v: R[0].bottom > R[2].top + 1 };
+  }, id);
+  expect(out).toEqual({ n: 4, h: true, v: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

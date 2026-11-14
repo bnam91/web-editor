@@ -10,6 +10,8 @@
 /** 증서 종이 세로/가로 = A4(297/210). */
 export const CERT_SHEET_RATIO = 297 / 210;
 export const CERT_MAX_SHEETS = 6;
+/** 격자 모드 상한 — 그리드 피커 4열 × 3행(현빈 261114 «그리드 피커») · 스택은 CERT_MAX_SHEETS(겹침이 6장 넘으면 안 읽힌다). */
+export const CERT_MAX_GRID = 12;
 /** 배치 프리셋 — 장 i 의 중심(폭 비율 cx · 밴드 비율 cy)·각도·글 위치·쌓임 순서. 4장 기준 · 장 수가 다르면 'auto' 규칙으로 짓는다. */
 export const CERT_PRESETS = Object.freeze({
   s17: [
