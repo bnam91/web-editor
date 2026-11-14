@@ -9,7 +9,7 @@
  * 양성대조: ⑴ setHeight 의 `sec.dataset.heightPin = 'true'` 를 지우면 H1 빨강(핀 꺼짐 · 📌 안 눌림)
  *   ⑵ setHeight 의 Math.min/Math.max 깎기를 걷으면 H2 빨강(5px·99999px)
  *   ⑶ section-height.js 의 `document.activeElement !== cell &&` 를 지우면 H3 빨강(치던 77 이 덮인다)
- *   (참고) prop-section.js 의 `if (esc) return;` 은 Esc→blur 가 change 를 낼 때만 뜻이 있다 — 크롬이 내면 걷을 때 H3 빨강(pin 'true') · 안 내면 초록(대조 아님 · 인텔 실측)
+ *   (참고) prop-section.js 의 `if (cancelled) return;` 은 Esc→blur 가 change 를 낼 때만 뜻이 있다 — 크롬이 내면 걷을 때 H3 빨강(pin 'true') · 안 내면 초록(대조 아님 · 인텔 실측)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');

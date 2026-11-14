@@ -634,7 +634,7 @@ ${blockHeaderHTML({
            갱신은 js/section-height.js 가 #sec-height-value 를 찾아서 한다(섹션 높이가 바뀌는 동안 패널이 열려 있을 수 있다). -->
       <div class="prop-row" title="내보내기 기준 레이아웃 px — 캔버스 배율에 흔들리지 않습니다">
         <span class="prop-label">높이</span>
-        <input type="number" class="prop-number" id="sec-height-value" style="width:64px;font-variant-numeric:tabular-nums;" min="1" max="20000" step="1" placeholder="—" aria-label="섹션 높이(px)" data-sec-id="${escHtml(sec.id || '')}" value="${
+        <input type="number" class="prop-number" id="sec-height-value" style="width:64px;font-variant-numeric:tabular-nums;" min="1" max="20000" step="1" placeholder="—" data-empty="invalid" aria-label="섹션 높이(px)" data-sec-id="${escHtml(sec.id || '')}" value="${
           (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '' : h; })()
         }">
         <span class="prop-value-text">px</span>
@@ -1190,16 +1190,16 @@ function _bindSectionPin(sec) {
   /* 숫자칸 — change(blur·Enter·스핀) 로 확정 · Esc 는 되돌린다 · 범위로 깎인 수를 칸에 바로 보인다(포커스 중엔 section-height.js 가 안 덮는다) */
   const hIn = document.getElementById('sec-height-value');
   const curH = () => String(window.measureSectionHeight?.(sec) ?? '');
-  let esc = false;   // Esc 의 blur 가 일으키는 change 는 버린다(안 버리면 꺼진 섹션이 «지금 높이»로 핀된다)
+  let cancelled = false;   // Esc 의 blur 가 일으키는 change 는 버린다(안 버리면 꺼진 섹션이 «지금 높이»로 핀된다)
   hIn?.addEventListener('change', () => {
-    if (esc) return;
-    const h = hIn.value.trim() === '' ? null : P.setHeight(sec, hIn.value);
+    if (cancelled) return;
+    const h = hIn.value ? P.setHeight(sec, hIn.value) : null;   // 빈 값은 커밋 가드가 되돌린다(data-empty="invalid") — 여긴 안전망
     hIn.value = h == null ? curH() : String(h);
     P.refreshPanel(sec);
   });
   hIn?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); hIn.blur(); }
-    else if (e.key === 'Escape') { esc = true; hIn.value = curH(); hIn.blur(); esc = false; }
+    else if (e.key === 'Escape') { cancelled = true; hIn.value = curH(); hIn.blur(); cancelled = false; }
   });
   P.refreshPanel(sec);
 }
