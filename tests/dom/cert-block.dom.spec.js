@@ -509,6 +509,7 @@ test('G6 격자 음수 간격 — 이웃 칸이 겹친다(편집·출력)', asyn
   await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
   await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
   for (const ax of ['x', 'y']) { await page.fill(`#crt-gap${ax}-number`, '-40'); await page.dispatchEvent(`#crt-gap${ax}-number`, 'change'); }   // ⑱ 가로·세로 둘 다
+  await page.selectOption('#crt-overlap', 'right');   // ⑮ 기본이 «왼쪽이 위»가 됐다 — 이 칸의 «뒤 칸이 위» 단언은 «오른쪽이 위»를 명시해 잰다(기본 쪽은 OV1)
   const live = await page.evaluate((id) => { const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
     const R = [...b.querySelectorAll('.cert-cell')].map((c) => c.getBoundingClientRect());
     const mid = [(R[0].right + R[1].left) / 2, R[0].top + R[0].height / 2];
@@ -699,8 +700,11 @@ test('RH1 모서리 손잡이로 폭 조절 · ⌘Z', async ({ page }) => {
   expect(Math.abs(r.ow - r.dw), '화면 폭 = dataset.width').toBeLessThan(2);
   const out = await page.evaluate(async (id) => {
     const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
+    /* ★폭은 «데이터에서 다시» 나와야 한다 — 끌기 핸들러가 산 블럭에 인라인 폭을 직접 얹어, 사본이 그걸 «베껴»만 와도 초록이었다(인텔 P27 = applyCertWidth 를 빼도 RH1 초록).
+       ⇒ 사본의 인라인 폭을 지우고 출력 다듬기(renderCertBlock forOutput)를 지나게 한다 — dataset.width 에서 다시 세워야 같은 폭 */
+    const cb = clone.querySelector('.cert-block'); cb.style.width = ''; cb.style.maxWidth = '';
     const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
-    const v = clone.querySelector('.cert-block').style.width; clone.remove(); return v;
+    const v = cb.style.width; clone.remove(); return v;
   }, id);
   expect(out, '출력 클론도 같은 폭').toBe(`${r.dw}px`);
   await page.keyboard.press('Meta+z');

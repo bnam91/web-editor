@@ -4,6 +4,7 @@
  * 무엇: 최소 가짜 DOM 위에서 makeCertBlock(메뉴 추가와 같은 길) + renderCertBlock 을 모드 2 × 출력 2 × 간격 2 로 실제로 부른다.
  *   · 바깥 import 네 줄(drag-utils · drag-drop · checker-tokens · prop-grid)만 작은 대역으로 바꾸고 cert-layout.js 는 진짜를 쓴다.
  *   · 바꾼 소스와 cert-layout.js(.mjs 로 — node 는 .js 를 CommonJS 로 읽는다)를 공용 임시 우산(mkTmpRoot)에 쓰고 file: URL 로 싣는다(win-portability ②-4 · tmproot).
+ * ⑯ 폭: 매 렌더(출력 포함)가 dataset.width 로 블럭 폭을 세운다 — renderCertBlock 의 applyCertWidth 를 빼면 S2 빨강(인텔 P27 이 DOM RH1 을 못 빨갛게 한 그 줄).
  * 양성대조: e32eabd44 의 cert-block.js(= `_renderGridStage(st)` 가 forOutput 을 안 받던 판)로 돌리면 S1·S2 빨강(실측 · ReferenceError 5건).
  */
 import { test } from 'node:test';
@@ -87,5 +88,6 @@ test('S2 모드 2 × 출력 2 × 간격(양·음) — 던지지 않음 · ✕ �
     globalThis.renderCertBlock(b, { forOutput });
     const x = b.querySelectorAll('.cert-sheet-clear').length;
     assert.equal(x, forOutput ? 0 : 2, `${mode} forOutput=${forOutput} gap=${gap}: ✕ ${x}`);
+    assert.equal(b.style.width, '500px', `${mode} forOutput=${forOutput}: ⑯ 폭은 dataset.width 에서 렌더가 세운다(인라인을 베끼지 않고)`);
   }
 });
