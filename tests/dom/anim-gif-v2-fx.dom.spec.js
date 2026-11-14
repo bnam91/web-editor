@@ -38,6 +38,7 @@ async function scene(page, html) {
     const ce = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-body');
     ce.innerHTML = html;
     ce.style.textAlign = 'center';
+    window.__tb = tb;   // ★L·I 칸이 이 블럭을 읽는다(6d7a9ed85 에서 빠져 L1~L3 «undefined.dataset»)
     const realRaf = window.requestAnimationFrame.bind(window), realCaf = window.cancelAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb) => { if ((new Error().stack || '').includes('animation-engine.js')) { window.__cb = cb; return -1; } return realRaf(cb); };
     window.cancelAnimationFrame = (id) => { if (id === -1) window.__cb = null; else realCaf(id); };
