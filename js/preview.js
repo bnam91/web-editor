@@ -47,7 +47,7 @@ function enterPreview() {
 
     inner.innerHTML = page.canvas || '';
     // Documents(cert-block) — 미리보기도 출력 규칙(R1): 빈 용지 빼고 다시 배치 · 전부 비면 숨김(편집 화면·저장본 무변)
-    inner.querySelectorAll('.cert-block').forEach((b) => window.renderCertBlock?.(b, { forOutput: true }));
+    inner.querySelectorAll('.cert-block').forEach((b) => window.renderCertBlock?.(b, { forOutput: true, showSamples: true }));
 
     block.appendChild(inner);
     content.appendChild(block);
@@ -242,7 +242,7 @@ function _renderSBSPanel(side, pageIdx, presetVars) {
   inner.style.gap = gap + 'px';
   inner.setAttribute('style', (inner.getAttribute('style') || '') + ';--inv-zoom:1;' + presetVars);
   inner.innerHTML = page.canvas || '';
-  inner.querySelectorAll('.cert-block').forEach((b) => window.renderCertBlock?.(b, { forOutput: true }));   // Documents 출력 규칙(R1) — 나란히 보기도 같게
+  inner.querySelectorAll('.cert-block').forEach((b) => window.renderCertBlock?.(b, { forOutput: true, showSamples: true }));   // Documents 출력 규칙(R1) — 나란히 보기도 같게
 
   block.appendChild(inner);
   wrap.appendChild(block);

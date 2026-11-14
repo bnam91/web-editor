@@ -20,6 +20,10 @@
  *   U1 패널 — 끌어 놓기 안내문(prop-hint) 0 · «위 제목/부제» 칸 0 · «지시선 글» 행 = «장 수» 행 바로 아래(격자면 피커 바로 아래)
  *   G6 격자 간격 −40(⑦ 음수 = 겹침) → 이웃 칸(열·행) 사각형이 겹친다 · 뒤 칸이 위 · 출력 사본(forOutput)도 겹친다
  *      양성대조: cert-block.js _renderGridStage 의 음수 갈래(`(neg ? \`position:relative;transform:translate(…)\` : '')`)를 `''` 로 → G6 빨강
+ *   SM1 «샘플 넣어보기»(⑪) — 켬 = 빈 칸 3에 샘플(번들 그림 실제 로드) · 넣은 그림 안 덮음 · dataset.certs 에 샘플 주소 0 · 미리보기 샘플 보임
+ *       · 캡처(내보내기) 클론 = 샘플도 빈 칸 취급(R1 — 1장만) · 끔 = 체크무늬 3 으로
+ *      양성대조: cert-block.js renderCertBlock 의 `{ forOutput = false, showSamples = !forOutput }` 를 `showSamples = true` 로 → SM1(캡처 1장) 빨강
+ *              · 같은 곳 `(c.img ? c : …)` 를 `({ ...c, img: CERT_SAMPLE_DOCS[…], sample: true })`(무조건 덮기)로 → SM1(안 덮음) 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -49,7 +53,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -494,5 +498,31 @@ test('K11 장 수 8(⑨)', async ({ page }) => {
   const r = await page.evaluate((id) => { const b = document.getElementById(id).getBoundingClientRect();
     return [...document.querySelectorAll(`#${id} .cert-sheet`)].every((s) => { const q = s.getBoundingClientRect(); return q.left >= b.left - 1 && q.right <= b.right + 1; }); }, id);
   expect(r, '★8장 중 블럭 가로 밖으로 나간 종이가 있다(회전 모서리 포함)').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('SM1 샘플 넣어보기 — 빈 칸만 · 저장 0 · 미리보기 보임 · 내보내기 빈 칸', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await seed(page, id, [DATA_PNG, '', '', '']);
+  await openPanel(page, id);
+  await toggle(page, 'crt-samples');
+  await expect(page.locator(`#${id} .cert-sheet.cert-sample`)).toHaveCount(3);
+  await page.waitForFunction((id) => [...document.querySelectorAll(`#${id} .cert-sample img`)].every((i) => i.complete && i.naturalWidth > 0), id);   // 번들 경로가 실제로 열린다
+  const r = await page.evaluate((id) => { const b = document.getElementById(id);
+    return { flag: b.dataset.samples, leak: /sample-docs/.test(b.dataset.certs), ph: b.querySelectorAll('.cert-ph').length,
+      first: b.querySelector('.cert-sheet[data-idx="0"]').classList.contains('cert-sample') }; }, id);
+  expect(r).toEqual({ flag: 'on', leak: false, ph: 0, first: false });
+  expect(await page.evaluate(({ id, src }) => document.querySelector(`#${id} .cert-sheet[data-idx="0"] img`).getAttribute('src') === src, { id, src: DATA_PNG }), '★넣은 그림을 덮었다').toBe(true);
+  const cap = await captureClone(page, id);
+  expect([cap.sheets, cap.ph], '★내보내기에 샘플이 나갔다(안전기본값 = 빈 칸 취급)').toEqual([1, 0]);
+  await page.evaluate(() => window.enterPreview());
+  await page.waitForFunction(() => document.body.classList.contains('preview-mode'));
+  expect(await page.evaluate(() => [...document.querySelectorAll('#preview-content .cert-block')].map((b) => [b.querySelectorAll('.cert-sheet').length, b.querySelectorAll('.cert-sample').length])), '미리보기 = 샘플 보임').toEqual([[4, 3]]);
+  await page.evaluate(() => window.exitPreview());
+  await openPanel(page, id);
+  await toggle(page, 'crt-samples');
+  await expect(page.locator(`#${id} .cert-sample`)).toHaveCount(0);
+  await expect(page.locator(`#${id} .cert-ph`)).toHaveCount(3);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

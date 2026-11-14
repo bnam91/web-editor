@@ -53,6 +53,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
       ${sliderRowHTML('용지 크기', 'crt-sheetw-slider', 'crt-sheetw-number', { min: 20, max: 45, step: 1, value: Math.round(st.sheetW * 100) })}
       ${sliderRowHTML('장 수', 'crt-count-slider', 'crt-count-number', { min: 1, max: CERT_MAX_SHEETS, step: 1, value: st.certs.length })}
       ${calloutsRow}`}
+      ${_toggleRow('crt-samples', '샘플 넣어보기', block.dataset.samples === 'on', '빈 칸에 샘플 문서를 보여 줌(넣은 그림은 안 덮음 · 저장·내보내기엔 안 들어감)')}
       ${canFB ? _toggleRow('crt-fullbleed', '패딩 제외', block.dataset.fullBleed === 'true', '섹션 좌우 패딩을 무시하고 끝까지') : ''}
     </div>
     <div class="prop-section" id="crt-fx-section">
@@ -101,7 +102,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
     nu?.addEventListener('change', () => { sl.value = nu.value; applyFx({ [key]: +nu.value }, true); });
   }
   $('crt-fx-shadow')?.addEventListener('change', (e) => applyFx({ shadow: e.target.value }, true));
-  for (const [id, key] of [['crt-callouts', 'callouts']]) {
+  for (const [id, key] of [['crt-callouts', 'callouts'], ['crt-samples', 'samples']]) {   // ⑪ samples = 토글 상태만 저장
     $(id)?.addEventListener('change', (e) => { block.dataset[key] = e.target.checked ? 'on' : 'off'; rerender(); commit(); reopen(); });
   }
   /* 패딩 제외 — 켜기는 renderCertBlock 의 applyBlockFullBleed 가 매 렌더 씌운다 · 끄기는 흔적 지우기 먼저(월계수·배너2 와 같은 순서) */

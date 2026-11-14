@@ -88,8 +88,11 @@ const SHEET_LOOK = 'background:#ffffff;overflow:hidden;border-radius:2px;box-siz
 const IMG_LOOK = 'display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;';
 
 /** 용지 한 장 — 그림이 있으면 img, 없으면 체크무늬 빈 칸(인라인 배경 · _sheetCss). */
+/* ⑪ 샘플 문서(지디 자체 제작 · 기관명·로고 0 · «SAMPLE» 워터마크) — 보이기만 · 칸 데이터(dataset.certs)엔 안 쓴다 */
+const CERT_SAMPLE_DOCS = Array.from({ length: 8 }, (_, i) => `assets/sample-docs/sample-doc-${i + 1}.webp`);
+
 function _sheet(c, i, st) {
-  const s = _el('div', 'cert-sheet');
+  const s = _el('div', c.sample ? 'cert-sheet cert-sample' : 'cert-sheet');
   s.dataset.idx = String(i);
   if (c.img) {
     const img = _el('img', 'cert-img', IMG_LOOK); img.alt = ''; img.draggable = false; img.src = c.img;
@@ -140,13 +143,18 @@ function _renderGridStage(st) {
 /* ★출력(미리보기·내보내기 · 현빈 결정 R1 261114) — 빈 용지는 «안 그린다» · 채워진 장 수로 다시 배치(구멍 0) · 전부 비면 블럭째 숨김(그 줄도).
    편집 화면은 체크무늬 자리표시 그대로 · 저장본(dataset) 무변 — 출력 클론/미리보기 사본에서만 부른다
    (js/io/capture-safety.js stripEditorOnlyForCapture = PNG·HTML·썸네일 공용 · js/preview.js). */
-function renderCertBlock(block, { forOutput = false } = {}) {
+function renderCertBlock(block, { forOutput = false, showSamples = !forOutput } = {}) {
   if (!block) return;
   let st = readCertState(block);
   block.dataset.mode = st.mode;
   /* «패딩 제외»(현빈 261114 · dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(배너2·월계수와 같은 자리 · 키 없으면 no-op) */
   window.applyBlockFullBleed?.(block);
   block.querySelectorAll(':scope > .cert-head, :scope > .cert-stage').forEach((n) => n.remove());
+  /* ⑪ «샘플 넣어보기» — 빈 칸에만 차례로(사용자 그림은 안 덮음) · 미리보기는 showSamples:true · 내보내기(캡처)는 기본 false = 빈 칸 취급(현빈 답 전 안전기본값) */
+  if (block.dataset.samples === 'on' && showSamples) {
+    let k = 0;
+    st = { ...st, certs: st.certs.map((c) => (c.img ? c : { ...c, img: CERT_SAMPLE_DOCS[k++ % CERT_SAMPLE_DOCS.length], sample: true })) };
+  }
   if (forOutput) {
     const filled = st.certs.filter((c) => c.img);
     if (!filled.length) {
