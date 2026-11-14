@@ -68,8 +68,24 @@ for (const [name, tool] of [['U1 치수', 'toggleDimMode'], ['U2 펜', 'togglePe
 test('U3 세 클릭 치수선 → 곧바로 ⌘Z = 만들기 되돌림(먹통 아님) · ⌘⇧Z = 돌아옴 · 미리보기 0', async ({ page }) => {
   const { errs, sr } = await setup(page);
   await threeClicks(page, sr);
+  /* 진단(지디 261114 — 고친 판 인텔 U3 n:1): ⌘Z 가 어디로 갔나.
+     window 캡처 = 키가 들어왔나 · document 거품(편집기 핸들러 «뒤»에 건 것) = 거기까지 왔나 + defaultPrevented(앱 undo 길만 preventDefault)
+     · 앞뒤 기록 꼭대기(pos/len/action) · 초점 요소 · 라벨 innerHTML · queryCommandEnabled('undo') · undo 의 마지막 관문 */
+  const pre = await page.evaluate((B) => {
+    window.__dz = { cap: null, bub: null };
+    window.addEventListener('keydown', (e) => { if (e.metaKey && e.key === 'z') { const a = document.activeElement; window.__dz.cap = { tgt: e.target?.className || e.target?.tagName, ae: a?.className || a?.tagName, ce: !!a?.isContentEditable, html: a?.innerHTML?.slice(0, 80) }; } }, true);
+    document.addEventListener('keydown', (e) => { if (e.metaKey && e.key === 'z') window.__dz.bub = { prevented: e.defaultPrevented }; });
+    const l = document.querySelector(B + ' .annot-label');
+    return { tip: window.getHistoryTip?.(), html: l?.innerHTML?.slice(0, 80), qce: document.queryCommandEnabled('undo') };
+  }, B);
   await page.keyboard.press('Meta+z');
-  await expect.poll(() => st(page), '★⌘Z 가 먹통(블럭 1) 또는 미리보기 되살림').toEqual({ n: 0, pv: 0 });
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const post = await page.evaluate((B) => ({ dz: window.__dz, tip: window.getHistoryTip?.(), n: document.querySelectorAll(B).length,
+    gate: window.getHistoryStripStats?.().lastUndoGate, ae: document.activeElement?.className || document.activeElement?.tagName }), B);
+  const diag = JSON.stringify({ pre, post });
+  test.info().annotations.push({ type: 'U3 진단', description: diag });
+  console.log('[U3 진단]', diag);
+  await expect.poll(() => st(page), '★⌘Z 가 먹통(블럭 1) 또는 미리보기 되살림 — 진단 ' + diag).toEqual({ n: 0, pv: 0 });
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+Shift+z');
   await expect.poll(() => st(page), '⌘⇧Z').toEqual({ n: 1, pv: 0 });
