@@ -48,6 +48,8 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
       <div class="grid-picker-label" id="crt-grid-picker-label">${st.cols} × ${rows}</div>
       ${calloutsRow}
       ${sliderRowHTML('간격', 'crt-gap-slider', 'crt-gap-number', { min: -80, max: 80, step: 2, value: st.gap })}
+      <div class="prop-row" title="간격이 음수일 때 겹친 칸의 위아래"><span class="prop-label">겹침 순서</span><select class="prop-select" id="crt-overlap">
+        <option value="right"${st.overlap === 'left' ? '' : ' selected'}>오른쪽이 위</option><option value="left"${st.overlap === 'left' ? ' selected' : ''}>왼쪽이 위</option></select></div>
       ${sheetHRow}`
     : `<div class="prop-row"><span class="prop-label">배치</span><select class="prop-select" id="crt-preset">
         ${CERT_PRESET_NAMES.map((k) => `<option value="${k}"${k === st.preset ? ' selected' : ''}>${PRESET_LABEL[k] || k}</option>`).join('')}</select></div>
@@ -85,6 +87,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Do
 
   $('crt-mode')?.addEventListener('change', (e) => { block.dataset.mode = e.target.value; rerender(); commit(); reopen(); });
   $('crt-preset')?.addEventListener('change', (e) => { block.dataset.preset = e.target.value; rerender(); commit(); });
+  $('crt-overlap')?.addEventListener('change', (e) => { block.dataset.overlap = e.target.value; rerender(); commit(); });   // ⑬ 격자만
   $('crt-reshuffle')?.addEventListener('click', () => {
     block.dataset.seed = String((parseInt(block.dataset.seed, 10) || 1) + 1);
     if (!(parseFloat(block.dataset.jitter) > 0)) block.dataset.jitter = '0.5';   // 0 이면 섞어도 같은 그림 — 섞기를 누르면 흔들림을 켠다

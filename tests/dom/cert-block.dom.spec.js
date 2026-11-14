@@ -26,6 +26,8 @@
  *              · 같은 곳 `(c.img ? c : …)` 를 `({ ...c, img: CERT_SAMPLE_DOCS[…], sample: true })`(무조건 덮기)로 → SM1(안 덮음) 빨강
  *   SH1 «용지 높이»(⑫ · crt-sheeth) — 스택 200 → 용지 높이/폭 2.0 · 슬라이더 = «용지 크기» 바로 아래 / 격자 60 → 0.6 · 캡처 클론(출력)도 같은 비율
  *      양성대조: cert-block.js 격자 칸 `aspect-ratio:100 / ${st.sheetH}` 를 `210 / 297` 로 → SH1(격자) 빨강 · collageLayout 호출의 `ratio: st.sheetH / 100,` 삭제 → SH1(스택) 빨강
+ *   OV1 겹침 순서(⑬ · crt-overlap) — 간격 −40 · «왼쪽이 위» → 가로 겹친 곳 = 왼쪽 칸(0) · 세로 겹친 곳 = 위 행 칸(0) · 출력 클론도 같은 z
+ *      양성대조: cert-block.js _renderGridStage 의 `(st.overlap === 'left' ? \`z-index:…\` : '')` 를 `''` 로 → OV1 빨강
  *   FB1 «패딩 제외» — 섹션 좌우 패딩 40 → 토글 보임 · 켬 = 블럭 margin −40 · 끔 = 원래대로(흔적 0)
  *   G3 격자에서도 끌어 놓기 · 지시선 글 켜면 칸 «아래» 글(지시선 0)
  *   ── 빈 용지 숨김(현빈 결정 R1 · 편집 = 체크무늬 · 출력 = 빈 칸 빼고 다시 배치 · 전부 비면 블럭째 숨김 · 저장본 무변) ──
@@ -55,7 +57,7 @@
  *   · js/props/prop-cert.js 피커 click 리스너(`picker.addEventListener('click', …)`)를 지우면 G2·G5 빨강
  *   · js/blocks/cert-block.js renderCertBlock 의 `window.applyBlockFullBleed?.(block);` 를 지우면 FB1 빨강
  * 셀렉터 대조(제품 소스 grep): #fp-add-cert(index.html) · .fp-dropdown-trigger(#fp-component-dropdown) · .cert-sheet/.cert-ph/.cert-img/.cert-callout/.cert-line/.cert-status/.cert-stage(cert-block.js)
- *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
+ *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -552,5 +554,36 @@ test('SH1 용지 높이 — 스택·격자·출력', async ({ page }) => {
   }, id);
   expect(out.length).toBe(2);
   for (const r of out) expect(Math.abs(r - 0.6), `출력 h/w ${r}`).toBeLessThan(0.03);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('OV1 겹침 순서 «왼쪽이 위»(⑬)', async ({ page }) => {
+  const errs = await boot(page);
+  const id = await addViaMenu(page);
+  await openPanel(page, id);
+  await page.selectOption('#crt-mode', 'grid');
+  await page.waitForSelector('#crt-grid-picker .grid-picker-cell');
+  await page.click('#crt-grid-picker .grid-picker-cell[data-c="2"][data-r="2"]');
+  await page.fill('#crt-gap-number', '-40');
+  await page.dispatchEvent('#crt-gap-number', 'change');
+  expect(await page.inputValue('#crt-overlap'), '저장본에 없으면 지금 동작').toBe('right');
+  expect(await page.evaluate(() => document.getElementById('crt-gap-number').closest('.prop-row').nextElementSibling?.querySelector('#crt-overlap') != null), '«간격» 바로 아래').toBe(true);
+  const top = () => page.evaluate((id) => {
+    const b = document.getElementById(id); b.scrollIntoView({ block: 'center' });
+    const C = [...b.querySelectorAll('.cert-cell')], R = C.map((c) => c.getBoundingClientRect());
+    const at = (x, y) => C.indexOf(document.elementFromPoint(x, y)?.closest('.cert-cell'));
+    return { h: at((R[0].right + R[1].left) / 2, R[0].top + R[0].height / 2), v: at(R[0].left + R[0].width / 2, (R[0].bottom + R[2].top) / 2) };
+  }, id);
+  expect(await top(), '[전제] 기본 = 오른쪽·아래가 위').toEqual({ h: 1, v: 2 });
+  await page.selectOption('#crt-overlap', 'left');
+  expect(await top(), '★왼쪽·위가 위가 아니다').toEqual({ h: 0, v: 0 });
+  await seed(page, id, [DATA_PNG, DATA_PNG, DATA_PNG, DATA_PNG]);
+  const out = await page.evaluate(async (id) => {
+    const clone = document.getElementById(id).closest('.section-block').cloneNode(true); document.body.appendChild(clone);
+    const mod = await import('/js/io/capture-safety.js'); mod.stripEditorOnlyForCapture(clone);
+    const z = [...clone.querySelectorAll('.cert-block .cert-cell')].map((c) => +getComputedStyle(c).zIndex || 0); clone.remove(); return z;
+  }, id);
+  expect(out.length).toBe(4);
+  expect(out[0] > out[1] && out[0] > out[2] && out[1] > out[3], `출력 클론도 같은 z(앞 칸이 위) ${out}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

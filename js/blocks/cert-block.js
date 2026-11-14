@@ -72,6 +72,7 @@ function readCertState(block) {
     sheetW: Math.max(0.2, Math.min(0.45, _num(d.sheetW, D.sheetW))),
     sheetH: Math.max(CERT_SHEET_H.min, Math.min(CERT_SHEET_H.max, Math.round(_num(d.sheetH, D.sheetH)))),   // ⑫ 용지 높이 % · 저장본에 없으면 141
     callouts: _onOff(d.callouts, D.callouts),
+    overlap: d.overlap === 'left' ? 'left' : 'right',   // ⑬ 격자 겹침 순서 · 저장본에 없으면 지금 동작(뒤 칸 = 오른쪽·아래가 위)
     headSize: _num(d.headSize, D.headSize), subSize: _num(d.subSize, D.subSize), titleSize: _num(d.titleSize, D.titleSize), descSize: _num(d.descSize, D.descSize),
     headColor: _color(d.headColor, D.headColor), subColor: _color(d.subColor, D.subColor), titleColor: _color(d.titleColor, D.titleColor),
     descColor: _color(d.descColor, D.descColor), lineColor: _color(d.lineColor, D.lineColor),
@@ -131,7 +132,7 @@ function _renderGridStage(st) {
     + (neg && rows > 1 ? `margin-bottom:${(rows - 1) * g}px;` : ''));
   st.certs.forEach((c, i) => {
     const k = i % cols, r = Math.floor(i / cols);
-    const cell = _el('div', 'cert-cell', 'min-width:0;' + (neg ? `position:relative;transform:translate(${(k - (cols - 1) / 2) * g}px, ${r * g}px);` : ''));
+    const cell = _el('div', 'cert-cell', 'min-width:0;' + (st.overlap === 'left' ? `z-index:${st.certs.length - i};` : '') + (neg ? `position:relative;transform:translate(${(k - (cols - 1) / 2) * g}px, ${r * g}px);` : ''));
     const sh = _sheet(c, i, st);
     sh.style.cssText = _sheetCss(c, `position:relative;width:100%;aspect-ratio:100 / ${st.sheetH};transform:${sheetTransform(0, c.fx)};`);
     cell.appendChild(sh);
