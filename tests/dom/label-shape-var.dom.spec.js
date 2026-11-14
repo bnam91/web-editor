@@ -35,8 +35,9 @@ async function openDs(page) {
 }
 async function addShape(page, name) {
   await page.click('#ds-labelshape-add-btn');
-  await page.fill('#ds-labelshape-name', name);
-  await page.press('#ds-labelshape-name', 'Enter');
+  // 입력칸 id = «id + '-input'»(js/design-system.js _openInlineNameForm — 폼은 '-form') · 인텔 961de8832: '#ds-labelshape-name' 로 기다리다 30s
+  await page.fill('#ds-labelshape-name-input', name);
+  await page.press('#ds-labelshape-name-input', 'Enter');
   await page.waitForSelector(`#ds-labelshapes-list .ds-labelshape-row[data-name="${name}"]`);
 }
 async function addTags(page) {
