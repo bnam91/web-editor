@@ -174,7 +174,7 @@ function _isPackagedBuild() {
      그 밖의 모든 초기화보다 «앞»이어야 그 사이에 난 예외를 듣는다.
    ⛔이 호출이 실패해도 앱은 뜬다 — 기록기가 앱을 못 막게 한다. */
 try {
-  require('./main/crash').install({ app, ipcMain });
+  require('./main/crash').install({ app, ipcMain, dialog, BrowserWindow });
 } catch (e) {
   console.error('[crash-recorder] 설치 실패:', e && e.message);
 }

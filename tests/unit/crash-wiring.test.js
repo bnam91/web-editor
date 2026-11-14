@@ -53,3 +53,28 @@ test('U-H2-W4 메인 console.warn/error 가 logs/main.log 로도 흐른다', () 
   assert.ok(txt.includes('[U-H2-W4]'), '메인이 «스스로 말한 것»이 파일에 안 남는다');
   assert.ok(!txt.includes(require('os').homedir()), '홈 경로가 그대로 남았다');
 });
+
+/* RENDERER-GONE-BLANK-WINDOW-NO-RECOVERY-01 — main.js 가 dialog·BrowserWindow 를 «넘겨야» 안내가 뜬다.
+   변이: main.js install({ app, ipcMain }) 로 되돌리면 빨강(모듈은 dialog 없음 = 기록만). */
+test('U-H2-W5 main.js 적재본에서 렌더러가 죽으면 «화면이 멈췄습니다» 대화상자가 그 창에 뜬다', async () => {
+  const wc = { id: 99, isDestroyed: () => false, reload() { this.n = (this.n || 0) + 1; } };
+  const win = { isVisible: () => true, close() {} };
+  const st = H.stub;
+  const saved = { from: st.BrowserWindow.fromWebContents, box: st.dialog.showMessageBox };
+  const calls = [];
+  st.BrowserWindow.fromWebContents = (w) => (w === wc ? win : null);
+  st.dialog.showMessageBox = async (parent, opts) => { calls.push({ parent, opts }); return { response: 0 }; };
+  try {
+    const fn = H.appHandlers.get('render-process-gone');
+    assert.equal(typeof fn, 'function', 'render-process-gone 핸들러가 main.js 적재본에 없다');
+    fn({}, wc, { reason: 'crashed', exitCode: 133 });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(calls.length, 1, '★main.js 가 dialog 를 안 넘겼다 — 빈 창만 남는다');
+    assert.equal(calls[0].parent, win);
+    assert.equal(calls[0].opts.message, '화면이 멈췄습니다');
+    assert.equal(wc.n, 1, 'reload');
+  } finally {
+    st.BrowserWindow.fromWebContents = saved.from;
+    st.dialog.showMessageBox = saved.box;
+  }
+});
