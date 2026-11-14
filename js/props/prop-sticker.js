@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
@@ -7,6 +7,7 @@ import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
 import { countSectionHTML, wireCountSection, syncCountGroup } from './prop-sticker-count.js';
 import { coinSectionHTML, wireCoinSection } from './prop-sticker-coin.js';
 import { arrowSectionHTML, wireArrowSection } from './prop-sticker-arrow.js';
+import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -16,7 +17,7 @@ function _esc(s) {
 const FAV_KEY = 'goditor.stickerFavorites';
 const FAV_MAX = 30;
 // 위치 종속 shape(highlightB)는 프리셋 부적합 — circle/square/text/highlight/icon만 대상.
-const FAV_ALLOWED_SHAPES = ['circle', 'square', 'text', 'highlight', 'icon'];
+const FAV_ALLOWED_SHAPES = ['circle', 'square', 'burst', 'text', 'highlight', 'icon'];
 
 function listStickerFavorites() {
   try {
@@ -46,8 +47,8 @@ function _stickerStyleFromBlock(block) {
     ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'textColor', 'strokeWidth', 'strokeColor',
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
      'bgColor', 'padX', 'padY', 'cornerRadius'].forEach(put);
-  } else { // circle / square
-    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration'].forEach(put);
+  } else { // circle / square / burst(B2 — 톱니 키는 burst 에만 있다)
+    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'burstTeeth', 'burstDepth', 'burstRing'].forEach(put);
   }
   return preset;
 }
@@ -264,6 +265,9 @@ ${blockHeaderHTML({
           <button class="prop-align-btn${shape === 'square' ? ' active' : ''}" data-shape="square" title="사각">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
           </button>
+          <button class="prop-align-btn${shape === 'burst' ? ' active' : ''}" data-shape="burst" title="톱니 스탬프">
+            <svg width="14" height="14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="7"><polygon points="${burstPoints({ teeth: 12, depth: 18 })}"/></svg>
+          </button>
           <button class="prop-align-btn${isText ? ' active' : ''}" data-shape="text" title="텍스트 스티커">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 4 L13 4 M8 4 L8 13" stroke-linecap="round"/></svg>
           </button>
@@ -278,6 +282,15 @@ ${blockHeaderHTML({
         </div>
       </div>
     </div>
+    ${shape === 'burst' && !isCount ? `<div class="prop-section" id="stk-burst-section">
+      <div class="prop-section-title">Burst</div>
+      ${sliderRowHTML('톱니 수', 'stk-burst-teeth', 'stk-burst-teeth-num', { min: BURST_LIMITS.teeth.min, max: BURST_LIMITS.teeth.max, step: 1, value: clampBurst({ teeth: block.dataset.burstTeeth }).teeth })}
+      ${sliderRowHTML('톱니 깊이 %', 'stk-burst-depth', 'stk-burst-depth-num', { min: BURST_LIMITS.depth.min, max: BURST_LIMITS.depth.max, step: 1, value: clampBurst({ depth: block.dataset.burstDepth }).depth })}
+      <div class="prop-row">
+        <span class="prop-label">안쪽 링</span>
+        <label class="prop-toggle"><input type="checkbox" id="stk-burst-ring" ${(block.dataset.burstRing ?? 'on') === 'on' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+      </div>
+    </div>` : ''}
     <div class="prop-section" id="stk-hl-section" style="display:${shape === 'highlight' ? 'block' : 'none'};">
       <div class="prop-section-title">Highlight Size</div>
       <div class="prop-row">
@@ -824,7 +837,13 @@ ${blockHeaderHTML({
       }
 
       // 전체 패널 재렌더 (text/icon shape는 별도 섹션 구성이라 단순 토글로는 부족)
-      if (_isTxt || prevShape === 'text' || newShape === 'icon' || prevShape === 'icon') {
+      // B2 — 톱니로 갈 때 기본 톱니 값 · 톱니 절이 생기고 사라지므로 패널을 다시 그린다
+      if (newShape === 'burst') {
+        if (block.dataset.burstTeeth === undefined) block.dataset.burstTeeth = String(BURST_DEFAULTS.teeth);
+        if (block.dataset.burstDepth === undefined) block.dataset.burstDepth = String(BURST_DEFAULTS.depth);
+        if (block.dataset.burstRing === undefined) block.dataset.burstRing = BURST_DEFAULTS.ring;
+      }
+      if (_isTxt || prevShape === 'text' || newShape === 'icon' || prevShape === 'icon' || newShape === 'burst' || prevShape === 'burst') {
         rerender();
         window.pushHistory?.('스티커 모양'); window.scheduleAutoSave?.();
         showStickerProperties(block);
@@ -1097,6 +1116,12 @@ ${blockHeaderHTML({
   // icon size / rotation — _bindTPair 패턴 재사용 (rerender 기반)
   _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
   _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
+  // B2 — 톱니 스탬프
+  _bindTPair('stk-burst-teeth', 'stk-burst-teeth-num', 'burstTeeth', BURST_LIMITS.teeth.min, BURST_LIMITS.teeth.max, 1);
+  _bindTPair('stk-burst-depth', 'stk-burst-depth-num', 'burstDepth', BURST_LIMITS.depth.min, BURST_LIMITS.depth.max, 1);
+  propPanel.querySelector('#stk-burst-ring')?.addEventListener('change', (e) => {
+    block.dataset.burstRing = e.target.checked ? 'on' : 'off'; rerender(); window.pushHistory?.('톱니 링'); window.scheduleAutoSave?.();
+  });
   // icon color (currentColor SVG에 반영)
   wireColorField('stk-icon-color', {
     initialAlpha: parseAlphaFromColor(_stkIconShown),

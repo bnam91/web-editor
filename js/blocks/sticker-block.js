@@ -35,6 +35,7 @@ window._stickerHtmlHasFormatting = richTextHasFormatting;
 /* ★svg 문자열 거르개 한 벌 = js/util/sanitize-svg.js (1013t2B5 · 마킹 블럭의 커스텀 아이콘).
  *   그릴 때는 여기서 직접 부르고, 고전 스크립트(js/count-sticker-tool.js)는 dataset 에 «쓸 때» 아래 알리아스로 부른다(사본이 아니라 같은 함수). */
 import { sanitizeSvgString, sanitizeIconMarkup } from '../util/sanitize-svg.js';
+import { burstPoints, burstRingR, BURST_DEFAULTS } from './burst-geometry.js';   // B2 톱니 스탬프(261114) — 자체 제작 도형
 window._sanitizeSvgString = sanitizeSvgString;
 
 /* 마킹 블럭(data-count)의 아이콘 표기(data-count-style="icon") — .sticker-text 자리에 들어갈 마크업. (1013t2B5)
@@ -472,7 +473,10 @@ function _renderStickerBlockInner(block) {
   const _cntRadRaw = block.dataset.count ? parseFloat(block.dataset.countRadius) : NaN;
   /* ★% 를 CSS 에 그대로 주지 않는다(3차 · N3) — border-radius 의 % 는 가로·세로를 따로 재서 비정사각(코너 드래그로 120×56)에서 타원 모서리가 된다.
      «짧은 변 × %» 를 px 로 구워 어느 비율에서도 둥근 네모가 되게 한다. */
-  const radius = shape === 'circle' ? '50%'
+  /* B2(261114) — 톱니 스탬프: 바탕을 CSS 가 아니라 svg 다각형으로 그린다(clip-path 는 섹션 밖 크롭 --sec-clip 이 쓴다 — 겹치면 하나가 죽는다).
+     마킹(data-count)은 circle/square 만 쓰므로 여기 안 들어온다. */
+  const _isBurst = shape === 'burst' && !block.dataset.count;
+  const radius = shape === 'circle' ? '50%' : _isBurst ? (mode === 'image' && imgSrc ? '50%' : '0')
     : (Number.isFinite(_cntRadRaw) ? `${Math.round(Math.min(sizeW, sizeH) * Math.min(50, Math.max(0, _cntRadRaw)) / 100)}px` : '8px');
   if (mode === 'image' && imgSrc) {
     // 이미지 모드 — 배경 색 무시, 이미지로 채움
@@ -491,7 +495,7 @@ function _renderStickerBlockInner(block) {
     // 카운트 스티커(1012t1Z4)의 «투명» 모양 — 배경을 비우고 숫자를 배경색(bgColor)으로 칠한다.
     //   모양은 dataset.countShape 가 든다(circle|square|none). none 일 때도 dataset.shape 는 circle/square 그대로다.
     const _cntNone = !!block.dataset.count && block.dataset.countShape === 'none';
-    const _bBg  = _cntNone ? 'transparent' : bgColor;
+    const _bBg  = (_cntNone || _isBurst) ? 'transparent' : bgColor;
     const _bCol = _cntNone ? bgColor : textColor;
     block.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${sizeW}px;height:${sizeH}px;`
       + `background:${_bBg};color:${_bCol};border-radius:${radius};`
@@ -507,8 +511,15 @@ function _renderStickerBlockInner(block) {
     const bInner = block.dataset.textHtml ? _sanitizeStickerHtml(block.dataset.textHtml) : text;
     /* 마킹 블럭의 아이콘 표기(1013t2B5) — 번호 글자 대신 아이콘. 못 그리면(null) 아래 옛 글자 길 그대로. */
     const _cntIconHTML = (block.dataset.count && block.dataset.countStyle === 'icon') ? _countIconHTML(block, fontSize, _bCol) : null;
-    block.innerHTML = (_cntIconHTML
-      || `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};">${bInner}</span>`)
+    const _burstSvg = _isBurst
+      ? `<svg class="stk-burst" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;">`
+        + `<polygon points="${burstPoints({ teeth: block.dataset.burstTeeth, depth: block.dataset.burstDepth })}" fill="${_escAttrBurst(bgColor)}"/>`
+        + ((block.dataset.burstRing ?? BURST_DEFAULTS.ring) === 'on'
+          ? `<circle cx="50" cy="50" r="${burstRingR({ depth: block.dataset.burstDepth })}" fill="none" stroke="${_escAttrBurst(textColor)}" stroke-width="1.2" stroke-opacity="0.6" vector-effect="non-scaling-stroke"/>` : '')
+        + `</svg>`
+      : '';
+    block.innerHTML = _burstSvg + (_cntIconHTML
+      || `<span class="sticker-text" style="text-align:center;padding:4px;outline:none;text-decoration:${bTextDeco};${_isBurst ? 'position:relative;' : ''}">${bInner}</span>`)
       + _countLabelHTML(block);   // 마킹 블럭의 옆 라벨(없으면 '') — 1013t2B5
   }
 }
@@ -657,6 +668,12 @@ function _relightCoinAfterRotate() {
 }
 document.addEventListener('mouseup', _relightCoinAfterRotate, true);
 
+/** 톱니 svg 속성값 — 색 문자열이 «블럭 데이터»라 속성 이스케이프(색이 아니면 빈 값 대신 검정). */
+function _escAttrBurst(v) {
+  const s = String(v ?? '');
+  return /^(#[0-9a-fA-F]{3,8}|rgba?\([\d.,\s%]+\)|transparent|[a-z]{3,20})$/i.test(s.trim()) ? s.trim() : '#000000';
+}
+
 function makeStickerBlock(opts = {}) {
   const block = document.createElement('div');
   block.className = 'sticker-block';
@@ -664,7 +681,12 @@ function makeStickerBlock(opts = {}) {
   block.dataset.type       = 'sticker';
   block.dataset.shape      = opts.shape      ?? STICKER_DEFAULTS.shape;
   block.dataset.size       = opts.size       ?? STICKER_DEFAULTS.size;
-  block.dataset.text       = opts.text       ?? STICKER_DEFAULTS.text;
+  block.dataset.text       = opts.text       ?? (opts.shape === 'burst' ? 'BEST' : STICKER_DEFAULTS.text);
+  if (opts.shape === 'burst') {   // B2 — 톱니 스탬프 기본(자체 도형 · 글자 «BEST» 는 사용자가 바꾼다)
+    block.dataset.burstTeeth = String(opts.burstTeeth ?? BURST_DEFAULTS.teeth);
+    block.dataset.burstDepth = String(opts.burstDepth ?? BURST_DEFAULTS.depth);
+    block.dataset.burstRing  = opts.burstRing === 'off' ? 'off' : BURST_DEFAULTS.ring;
+  }
   block.dataset.bgColor    = opts.bgColor    ?? STICKER_DEFAULTS.bgColor;
   block.dataset.textColor  = opts.textColor  ?? STICKER_DEFAULTS.textColor;
   block.dataset.fontSize   = opts.fontSize   ?? STICKER_DEFAULTS.fontSize;
