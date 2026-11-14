@@ -144,7 +144,7 @@ function _head(st) {
 }
 
 /* 격자(A4 칸) — 열·간격 · 칸 = 세로 A4 · 지시선 글을 켜면 칸 «아래»에 제목·설명(+상태) */
-function _renderGridStage(st) {
+function _renderGridStage(st, forOutput = false) {   // ⑲ ✕ 를 출력에서 빼려면 여기까지 내려와야 한다(e32eabd44 에서 빠져 ReferenceError)
   const cols = Math.min(st.cols, st.certs.length);
   const rows = Math.ceil(st.certs.length / cols);
   /* ⑦ 음수 간격 = 겹침 — CSS grid gap 은 음수를 안 받는다 ⇒ gap 0 + 칸을 translate 로 (열×g, 행×g) 당기고 가운데 맞춤 · 아래 남는 띠는 margin-bottom 으로 걷는다.
@@ -202,7 +202,7 @@ function renderCertBlock(block, { forOutput = false, showSamples = !forOutput } 
   if (st.mode === 'grid') {
     const head = _head(st);
     if (head) block.append(head);
-    block.append(_renderGridStage(st));
+    block.append(_renderGridStage(st, forOutput));
     if (!forOutput) _bindSlotInput(block);
     return;
   }
