@@ -1,0 +1,118 @@
+/* anim-gif-engine-smoke.test.mjs — animation-engine.js 를 «실제로 돌린다»(모달 열기 → 효과 고르기 → 미리보기 몇 프레임 → GIF 프레임 수).
+ * 렌더 실행 단위다(e32eabd44 교훈) — DOM 스펙은 srv 에서 못 돈다. 엔진의 V2 연결(_plan)은 여기서만 srv 에서 실행된다.
+ *   · 엔진·fx 두 파일을 공용 임시 우산(mkTmpRoot)에 .mjs 로 복사(js/ 의 .js 는 node 가 CommonJS 로 읽는다) · file: URL(win-portability ②-4).
+ *   · export-image.js 하나만 대역(sectionBgColor) · 모달 DOM 은 엔진이 쓰는 만큼만 가짜.
+ * 양성대조(실측은 커밋 메시지): _plan 의 V2 갈래를 지우면(모두 _drawFrame 로) E1(흐림 0 — _drawFrame 엔 stamp 갈래가 없어 아무것도 안 그림) 빨강 ·
+ *   _plan duration 을 1200/speed 로 되돌리면 E2(GIF 프레임 수) 빨강.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { mkTmpRoot } from './_tmproot.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+
+function fakeCtx() {
+  const calls = [];
+  const ctx = {
+    calls, filter: 'none', globalAlpha: 1, font: '', fillStyle: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '',
+    measureText: (s) => ({ width: String(s).length * 10 }),
+    fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter }),
+    fillRect() {}, clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
+  };
+  return ctx;
+}
+function fakeEl(extra = {}) {
+  const el = {
+    style: {}, dataset: {}, _l: {}, _html: '', value: '', textContent: '', disabled: false, title: '',
+    addEventListener(t, f) { (el._l[t] ??= []).push(f); }, setAttribute() {}, removeAttribute() {},
+    querySelector: () => null, querySelectorAll: () => [],
+    set innerHTML(v) { el._html = String(v); }, get innerHTML() { return el._html; },
+    ...extra,
+  };
+  return el;
+}
+
+async function loadEngine() {
+  const dir = mkTmpRoot('anim-gif-engine-smoke-');
+  fs.writeFileSync(path.join(dir, 'anim-gif-text.mjs'), read('js/fx/anim-gif-text.js'));
+  const tracks = read('js/fx/anim-gif-tracks.js');
+  assert.match(tracks, /from '\.\/anim-gif-text\.js'/, '[전제] tracks import 꼴');
+  fs.writeFileSync(path.join(dir, 'anim-gif-tracks.mjs'), tracks.replace("from './anim-gif-text.js'", "from './anim-gif-text.mjs'"));
+  let eng = read('js/animation-engine.js');
+  const subs = [
+    ["from './fx/anim-gif-text.js'", "from './anim-gif-text.mjs'"],
+    ["from './fx/anim-gif-tracks.js'", "from './anim-gif-tracks.mjs'"],
+    ["import { sectionBgColor } from './io/export-image.js';", "const sectionBgColor = () => '#ffffff';"],
+  ];
+  for (const [a, b] of subs) { assert.ok(eng.includes(a), `[전제] 엔진 import 꼴: ${a}`); eng = eng.replace(a, b); }
+  fs.writeFileSync(path.join(dir, 'engine.mjs'), eng);
+
+  // 가짜 문서 — 엔진이 쓰는 만큼
+  const els = {};
+  const ctx = fakeCtx();
+  els['anim-preview-canvas'] = fakeEl({ width: 0, height: 0, getContext: () => ctx });
+  els['anim-speed'] = fakeEl({ value: '1' });
+  els['anim-repeat'] = fakeEl({ value: '1' });
+  els['anim-list'] = fakeEl();
+  els['anim-list'].querySelectorAll = () => [...els['anim-list']._html.matchAll(/data-id="([^"]+)"/g)].map((m) => {
+    const it = fakeEl({ dataset: { id: m[1] }, classList: { toggle() {} } });
+    it.querySelector = () => fakeEl();
+    return it;
+  });
+  const btn = fakeEl({ textContent: 'GIF 저장' });
+  const rafs = [];
+  globalThis.document = {
+    getElementById: (id) => (els[id] ??= fakeEl()),
+    querySelector: (s) => (s === '.anim-export-btn' ? btn : null),
+    querySelectorAll: () => [],
+    createElement: () => fakeEl({ getContext: () => ctx }),
+    body: fakeEl({ appendChild() {}, removeChild() {} }),
+  };
+  globalThis.window = globalThis;
+  globalThis.requestAnimationFrame = (f) => { rafs.push(f); return rafs.length; };
+  globalThis.cancelAnimationFrame = () => {};
+  globalThis.getComputedStyle = () => ({ fontSize: '24px', color: '#111', fontFamily: 'sans-serif', fontWeight: '700', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px' });
+  globalThis.showToast = () => {};
+  let gifFrames = 0;
+  globalThis.GIF = class { constructor() {} addFrame() { gifFrames++; } on() {} render() {} };
+  await import(pathToFileURL(path.join(dir, 'engine.mjs')).href);
+  const textEl = fakeEl({ innerHTML: '오늘 주문하면?<br>네!', textContent: '오늘 주문하면?네!' });
+  textEl.innerHTML = '오늘 주문하면?<br>네!';
+  const tb = fakeEl({ offsetWidth: 400, offsetHeight: 120, closest: () => null, querySelector: (s) => (s === '[contenteditable]' ? textEl : null) });
+  return { ctx, rafs, els, tb, frames: () => gifFrames };
+}
+
+test('E1 모달 → «도장 찍기» 고름 → 미리보기 프레임이 «실제로» 그려진다(앞 = 흐림 · 끝 = 선명 · 두 줄)', async () => {
+  const E = await loadEngine();
+  // _selectAnim 은 모듈 안 — 항목 클릭과 같은 길: 목록을 그리게 한 뒤 엔진이 그 항목에 건 click 리스너를 부른다
+  const items = [];
+  E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+  window.openAnimModal(E.tb);
+  const stampItem = items.find((it) => it.dataset.id === 'stamp');
+  assert.ok(stampItem?._l.click?.length, '[전제] 항목에 click 리스너');
+  stampItem._l.click[0]();
+  E.ctx.calls.length = 0;
+  const tick = E.rafs.at(-1);
+  assert.equal(typeof tick, 'function', '[전제] 미리보기 rAF');
+  tick(1000);              // 시작 프레임(τ = 0)
+  const first = E.ctx.calls.slice();
+  E.ctx.calls.length = 0;
+  E.rafs.at(-1)(1000 + 5000);   // 한 바퀴 뒤(끝 프레임)
+  const last = E.ctx.calls.slice();
+  assert.ok(first.length && first.every((c) => /^blur\(/.test(c.f)), `시작 = 흐림 ${JSON.stringify(first.map((c) => c.f))}`);
+  assert.deepEqual(last.map((c) => [c.s, c.f]), [['오늘 주문하면?', 'none'], ['네!', 'none']], '끝 = 두 줄 선명');
+});
+
+test('E2 GIF 프레임 수 = 도장 한 바퀴(560ms · 20fps) + 끝 멈춤 1.5초 — V1(1200ms)과 다르다', async () => {
+  const E = await loadEngine();
+  const items = [];
+  E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+  window.openAnimModal(E.tb);
+  items.find((it) => it.dataset.id === 'stamp')._l.click[0]();
+  await window.exportAnimGif();
+  assert.equal(E.frames(), (Math.ceil((560 / 1000) * 20) + 1) + Math.ceil(20 * 1.5));
+});

@@ -2,6 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
+import { drawTracks, V2_FX } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -12,7 +13,21 @@ const ANIM_LIST = [
   { id: 'word-pop',     label: '단어별 순차등장', desc: '단어 하나씩 팝인' },
   { id: 'glow-pulse',   label: '글로우 펄스',     desc: '빛이 번쩍이며 강조' },
   { id: 'count-up',     label: '카운트업',        desc: '0부터 목표 숫자까지 카운팅' },
+  /* GIF V2(현빈 GO 261114) — 줄별 타임라인 엔진(js/fx/anim-gif-tracks.js)으로 그린다 · 위 7종은 옛 _drawFrame 그대로 */
+  { id: 'stamp',        label: '도장 찍기',       desc: '크고 흐리게 내려와 «쾅» 선명하게' },
+  { id: 'blur-in',      label: '흐림→선명',       desc: '흐릿하게 시작해 또렷해짐' },
+  { id: 'blur-whip',    label: '블러 휩',         desc: '옆에서 잔상을 끌며 휙 들어옴' },
 ];
+
+/** 한 바퀴 계획 — V1 7종 = 옛 길(_drawFrame · 1200ms/속도) · V2 효과 = 줄별 타임라인(블럭 전체 = 모든 줄 같은 효과 · 0ms 동시 시작).
+ *  k = 배율(블럭 1px = 캔버스 k px) — 흐림·흔들림 px 를 미리보기·GIF 에서 같은 «눈 크기»로. */
+const _V2_DUR = { stamp: 560, 'blur-in': 900, 'blur-whip': 700 };
+function _plan(style, speed, k) {
+  if (!V2_FX.includes(_animType)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, style, size, _animType, t) };
+  const dur = Math.round(_V2_DUR[_animType] / speed);
+  const tracks = String(style.text || '').split('\n').map((_, i) => ({ line: i, fx: _animType, at: 0, dur }));
+  return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, style, size, tracks, t * dur, k) };
+}
 
 let _animTb        = null;
 let _animType      = 'slide-up';
@@ -186,7 +201,8 @@ function _startAnimPreview() {
   const scale       = CANVAS_PREVIEW_W / bW;
   const displaySize = Math.round(style.fontSize * scale);
   const W = canvas.width, H = canvas.height;
-  const duration    = 1200 / speed; // ms for one cycle
+  const plan        = _plan(style, speed, scale);
+  const duration    = plan.duration; // ms for one cycle
 
   _animLoops = 0;
 
@@ -198,7 +214,7 @@ function _startAnimPreview() {
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = style.sectionBg || '#ffffff';
     ctx.fillRect(0, 0, W, H);
-    _drawFrame(ctx, W, H, style, displaySize, _animType, t);
+    plan.draw(ctx, W, H, displaySize, t);
 
     if (t < 1) {
       _animRafId = requestAnimationFrame(tick);
@@ -486,7 +502,8 @@ async function exportAnimGif() {
 
     const scale       = W / bW;
     const displaySize = Math.round(style.fontSize * scale);
-    const duration    = 1200 / speed; // ms
+    const plan        = _plan(style, speed, scale);
+    const duration    = plan.duration; // ms
     const fps         = 20;
     const frames      = Math.ceil((duration / 1000) * fps);
     const delay       = Math.round(1000 / fps);
@@ -507,7 +524,7 @@ async function exportAnimGif() {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = style.sectionBg || '#ffffff';
       ctx.fillRect(0, 0, W, H);
-      _drawFrame(ctx, W, H, style, displaySize, _animType, t);
+      plan.draw(ctx, W, H, displaySize, t);
       gif.addFrame(ctx, { copy: true, delay });
     }
     // 마지막 값에서 1.5초 정지 (카운트업 등 UX)
@@ -516,7 +533,7 @@ async function exportAnimGif() {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = style.sectionBg || '#ffffff';
       ctx.fillRect(0, 0, W, H);
-      _drawFrame(ctx, W, H, style, displaySize, _animType, 1);
+      plan.draw(ctx, W, H, displaySize, 1);
       gif.addFrame(ctx, { copy: true, delay });
     }
 

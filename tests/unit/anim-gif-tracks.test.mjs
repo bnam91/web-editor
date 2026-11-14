@@ -1,20 +1,24 @@
 /* anim-gif-tracks.test.mjs — GIF V2 «줄별 타임라인»(js/fx/anim-gif-tracks.js)을 «실제로 그려» 잠근다(가짜 ctx = 호출 기록기).
  * 렌더 실행 단위다 — node --check 는 스코프 밖 이름을 못 잡는다(e32eabd44 교훈 · 브리프 운영 규칙).
+ * F1·F2(도장 · 흐림→선명 · 블러 휩): T6 곡선 수 · T7 끝 프레임 = 제자리·흐림 없음·변형 없음 · 시작 = 흐림.
+ *   양성대조(실측은 커밋 메시지): stampParams 의 «쾅» 갈래(p ≥ 0.7)를 지우면 T6 빨강 · FX.stamp 의 `_blur(ctx, m.blur)` 삭제 → T7(시작 흐림) 빨강.
  * 양성대조(예측): drawTracks 의 `if (p == null || …) continue;` 를 지우면 T4(아직 안 나온 줄이 그려짐) 빨강 ·
  *   normTracks 의 «앞 줄 끝에 시작»(prev.at + prev.dur) 을 0 으로 → T1 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normTracks, totalMs, localT, layoutLines, drawTracks, TRACK_FX, FX } from '../../js/fx/anim-gif-tracks.js';
+import { normTracks, totalMs, localT, layoutLines, drawTracks, TRACK_FX, FX, V2_FX, stampParams, blurInParams, whipParams } from '../../js/fx/anim-gif-tracks.js';
 
 function fakeCtx() {
   const calls = [];
   const ctx = {
     calls, font: '', textBaseline: '', textAlign: '', fillStyle: '', globalAlpha: 1, shadowColor: '', shadowBlur: 0, filter: 'none', letterSpacing: '0px',
     measureText: (s) => ({ width: String(s).length * 10 }),
-    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha }),
+    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf }),
     fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h }),
-    save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
+    _tf: 0, _stack: [],
+    save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha] = ctx._stack.pop(); },
+    translate() { ctx._tf++; }, scale() { ctx._tf++; }, beginPath() {}, rect() {}, clip() {},
   };
   return ctx;
 }
@@ -73,4 +77,32 @@ test('T5 모든 효과가 «실제로 돈다» — 줄 2 × p 표본(0 · 0.3 ·
   const end = fakeCtx();
   drawTracks(end, 480, 200, style, 24, normTracks([{ line: 0, fx: 'count-up', at: 0, dur: 1000 }], 2), 1000);
   assert.ok(end.calls.some((c) => c.s === '할인 12,345원'), '카운트업 끝 = 원문');
+});
+
+test('T6 F1·F2 곡선 — 도장 2.2배·흐림10 → 70% 에서 1·선명 → 눌림 0.94 → 1 · 흐림→선명 14→0 · 휩 끝 = 제자리·잔상 0', () => {
+  assert.deepEqual(V2_FX, ['stamp', 'blur-in', 'blur-whip']);
+  const s0 = stampParams(0), s70 = stampParams(0.7), sq = stampParams(0.7 + 0.3 * 0.35), s1 = stampParams(1);
+  assert.deepEqual([s0.scale, s0.blur, s0.alpha], [2.2, 10, 0]);
+  assert.ok(Math.abs(s70.scale - 1) < 1e-9 && s70.blur === 0 && s70.alpha === 1, '70% = 찍힘');
+  assert.ok(Math.abs(sq.scale - 0.94) < 1e-9, '«쾅» 눌림 0.94');
+  assert.ok(Math.abs(s1.scale - 1) < 1e-9 && Math.abs(s1.dx) < 1e-9, '끝 = 원래 크기·제자리');
+  for (let p = 0; p < 0.7; p += 0.05) assert.ok(stampParams(p + 0.05 > 0.7 ? 0.7 : p + 0.05).scale <= stampParams(p).scale + 1e-9, '내려오는 동안 작아지기만');
+  assert.equal(stampParams(0.5, 2).blur, 2 * stampParams(0.5, 1).blur, '배율 k 만큼 흐림 px');
+  assert.deepEqual([blurInParams(0).blur, blurInParams(0).alpha, blurInParams(1).blur, blurInParams(1).alpha], [14, 0.2, 0, 1]);
+  const w1 = whipParams(1, 1, 480);
+  assert.deepEqual([w1.dx === 0 || Object.is(w1.dx, -0), w1.ghosts, w1.blur, w1.alpha], [true, 0, 0, 1]);
+  assert.ok(whipParams(0.2, 1, 480).dx < 0 && whipParams(0.2).ghosts === 5, '들어오는 중 = 왼쪽 · 잔상 5');
+});
+
+test('T7 새 효과의 시작·끝 프레임(실제로 그림) — 시작 = 흐림 · 끝 = 제자리 x0 · 흐림 none · 변형 0', () => {
+  const style = { ...STYLE, text: '네!' };
+  for (const fx of V2_FX) {
+    const tracks = [{ line: 0, fx, at: 0, dur: 500 }];
+    const a = fakeCtx(); drawTracks(a, 480, 200, style, 24, tracks, 50);
+    assert.ok(a.calls.some((c) => c.op === 'text' && /^blur\(/.test(c.f)), `${fx} 시작에 흐림이 없다`);
+    const z = fakeCtx(); drawTracks(z, 480, 200, style, 24, tracks, 500);
+    const L = layoutLines(fakeCtx(), style, 480, 200, 24);
+    const last = z.calls.filter((c) => c.op === 'text').pop();
+    assert.deepEqual([last.s, last.x, last.f, last.tf, last.a], ['네!', L.segs[0].x0, 'none', 0, 1], `${fx} 끝 프레임`);
+  }
 });

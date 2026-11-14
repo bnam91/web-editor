@@ -11,8 +11,30 @@ export const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-/** 효과 목록(허용 목록 · 저장본 소독의 정본) — V1 7 + V2 새 효과는 F1·F2 에서 이 표에 더한다. */
-export const TRACK_FX = ['slide-up', 'typewriter', 'slot-machine', 'fade-in', 'word-pop', 'glow-pulse', 'count-up'];
+/** 효과 목록(허용 목록 · 저장본 소독의 정본) — V1 7 + V2 새 효과 3(F1 도장 · F2 흐림→선명 · 블러 휩). */
+export const TRACK_FX = ['slide-up', 'typewriter', 'slot-machine', 'fade-in', 'word-pop', 'glow-pulse', 'count-up', 'stamp', 'blur-in', 'blur-whip'];
+/** V2 에서 새로 생긴 것 — 엔진은 이것들을 «블럭 전체» 모드에서도 이 파일(drawTracks)로 그린다(V1 7종은 옛 _drawFrame 그대로). */
+export const V2_FX = ['stamp', 'blur-in', 'blur-whip'];
+
+/* ── V2 새 효과의 «곡선»(순수 · 단위가 수로 잠근다) — k = 배율(블럭 1px = 캔버스 k px) ── */
+/** F1 도장 찍기(현빈: P076 «네!») — 0~70% 크게·흐리게(2.2배 · 흐림 10px)에서 가속하며 내려와 «쾅» · 70~100% 눌림 0.94 → 되튐 1 + 2px 감쇠 흔들림. */
+export function stampParams(p, k = 1) {
+  if (p < 0.7) {
+    const q = p / 0.7;
+    return { scale: 2.2 - 1.2 * q * q, blur: 10 * k * (1 - q), alpha: clamp01(p / 0.4), dx: 0 };
+  }
+  const r = (p - 0.7) / 0.3;
+  const scale = r < 0.35 ? 1 - 0.06 * (r / 0.35) : 0.94 + 0.06 * easeOut((r - 0.35) / 0.65);
+  return { scale, blur: 0, alpha: 1, dx: 2 * k * Math.sin(r * Math.PI * 4) * (1 - r) };
+}
+/** F2 흐림→선명 — 흐림 14px → 0 · 알파 0.2 → 1(easeOut). */
+export const blurInParams = (p, k = 1) => ({ blur: 14 * k * (1 - easeOut(p)), alpha: 0.2 + 0.8 * easeOut(p) });
+/** F2 블러 휩 — 왼쪽에서 빠르게 들어와 멈춤 · 움직이는 동안 뒤로 잔상 5장(알파 감쇠) + 흐림 6px → 0. */
+export function whipParams(p, k = 1, W = 480) {
+  const e = easeOut(p);
+  return { dx: -(1 - e) * W * 0.35, blur: 6 * k * (1 - p), alpha: clamp01(p * 3), ghosts: p < 1 ? 5 : 0, ghostStep: (1 - e) * W * 0.05, ghostAlpha: 0.35 * (1 - p) };
+}
+const _blur = (ctx, px) => { ctx.filter = px > 0.05 ? `blur(${px.toFixed(2)}px)` : 'none'; };
 export const AT_MAX = 10000, DUR_MIN = 120, DUR_MAX = 5000;
 
 /** 저장본 → 줄 수 n 에 맞춘 트랙 n 개. 없거나 이상한 칸은 «앞 줄 효과 · 앞 줄 끝에 시작»으로 메운다(첫 줄은 fallback · 0).
@@ -67,6 +89,25 @@ export function layoutLines(ctx, style, W, H, size) {
 /* ── 줄 한 몫 효과 — (ctx, segs(그 줄의 조각들), p(0~1), env) ── */
 const _plain = (ctx, segs, env) => segs.forEach((s) => ctx.fillText(s.text, s.x0, s.y));
 export const FX = {
+  stamp: (ctx, segs, p, env) => {
+    const m = stampParams(p, env.k);
+    const cx = segs.reduce((a, s) => a + s.x0 + s.w / 2, 0) / segs.length, cy = segs.reduce((a, s) => a + s.y, 0) / segs.length;
+    ctx.globalAlpha = m.alpha; _blur(ctx, m.blur);
+    // 끝 프레임은 «변형 없음» 으로 — 0.94 + 0.06 이 1.0000000000000002 가 되어 근소 변형이 남는다(T7)
+    if (Math.abs(m.scale - 1) > 1e-6 || Math.abs(m.dx) > 1e-6) { ctx.translate(cx + m.dx, cy); ctx.scale(m.scale, m.scale); ctx.translate(-cx, -cy); }
+    _plain(ctx, segs, env);
+  },
+  'blur-in': (ctx, segs, p, env) => { const m = blurInParams(p, env.k); ctx.globalAlpha = m.alpha; _blur(ctx, m.blur); _plain(ctx, segs, env); },
+  'blur-whip': (ctx, segs, p, env) => {
+    const m = whipParams(p, env.k, env.W);
+    _blur(ctx, m.blur);
+    for (let g = m.ghosts; g >= 1; g--) {   // 뒤(왼쪽)로 갈수록 옅게
+      ctx.globalAlpha = m.ghostAlpha * (1 - g / (m.ghosts + 1));
+      segs.forEach((s) => ctx.fillText(s.text, s.x0 + m.dx - g * m.ghostStep, s.y));
+    }
+    ctx.globalAlpha = m.alpha;
+    segs.forEach((s) => ctx.fillText(s.text, s.x0 + m.dx, s.y));
+  },
   'fade-in': (ctx, segs, p, env) => { ctx.globalAlpha = easeInOut(p); _plain(ctx, segs, env); },
   'slide-up': (ctx, segs, p, env) => {
     ctx.globalAlpha = easeInOut(p);
