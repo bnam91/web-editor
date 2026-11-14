@@ -1640,9 +1640,9 @@ function _grdImgLine(block, addr) {
 }
 
 /** 임시 DOM·상태를 «완전히» 되돌린다. 여러 번 불러도 안전(멱등). */
-function _teardownGridImgEdit(block) {
-  if (!block) return;
-  const st = block._grdImgEdit;
+function _teardownFrameImgEdit(host, key) {
+  if (!host) return;
+  const st = host[key];
   if (!st) return;
   st.proxy?.remove();
   if (st.realImg) st.realImg.style.opacity = st.realOpacity;
@@ -1650,21 +1650,17 @@ function _teardownGridImgEdit(block) {
     if (st.hadPosition) st.frame.style.position = st.prevPosition;
     else st.frame.style.removeProperty('position');
   }
-  block._grdImgEdit = null;
+  host[key] = null;
 }
+function _teardownGridImgEdit(block) { _teardownFrameImgEdit(block, '_grdImgEdit'); }
 
-function enterGridImageEditMode(block, addr) {
-  if (!block || !addr || block._grdImgEdit) return;
-  let line = _grdImgLine(block, addr);
-  if (!line || line.type !== 'image' || !line.imgSrc) return;
-
-  /* ★E2E3-crop-a(2026-10-06 · APPROVED_BY: 지디 E2E3-crop-a ⒜) — 여는 길은 문서를 «안» 건드린다.
-     옛: 높이 키가 없으면 «지금 보이는 높이»를 {height} 혼자 patch 로 먼저 못박았다. E157(크롭 없는 그림 줄은 height 를
-     그릴 때 무시) 뒤 그 patch 는 T-122 가드에 INVALID 가 되어 편집기가 «말없이 안 열렸다»(0ff05430 ok ↔ a8f60da1 INVALID).
-     ⇒ 높이는 «커밋 때» 크롭 세 값과 «한 patch» 로 쓴다(아래 beforeCommit · H = 커밋 직전에 잰 보이는 틀 높이). */
-  const frame = _grdImgFrameEl(block, addr);
-  if (!frame) return;
-  const realImg = frame.querySelector('img.grd-img');
+/* ★틀 안 그림 편집 — «공용 몸»(2026-11-14 · Documents 안 2 를 위해 그리드에서 떼어 냄 · 동작 무변).
+ *   어댑터가 주는 것: host·key(편집 상태를 매다는 곳 — 그리드는 block._grdImgEdit 그대로) · frame · realImg · src
+ *     · crop {size,x,y}(％ · 없으면 null = 지금 보이는 cover) · commit(geo|null, {Wc,Hc})(null = «원래대로») · afterExit
+ *     · proxyClass · historyLabel · tag(경고 머리) · ids {done, reset}(패널 단추). 몸은 px↔％ 통역·안 움직이면 안 씀·임시 DOM 정리만. */
+function _enterFrameImageEdit(a) {
+  const { host, key, frame, realImg } = a;
+  if (!host || !frame || host[key]) return;
 
   const W = frame.offsetWidth, H = frame.offsetHeight;
   if (!(W > 0) || !(H > 0)) return;
@@ -1675,14 +1671,14 @@ function enterGridImageEditMode(block, addr) {
   frame.style.position = 'relative';
 
   const proxy = document.createElement('div');
-  proxy.className = 'grd-img-edit-proxy';
+  proxy.className = a.proxyClass;
   proxy.dataset.grdImgProxy = '1';
   proxy.style.cssText = 'position:absolute;inset:0;border-radius:inherit;';
   proxy.innerHTML = '<div class="asset-img-clip"><img class="asset-img" draggable="false"></div>';
   const img = proxy.querySelector('.asset-img');
   frame.appendChild(proxy);
 
-  block._grdImgEdit = {
+  host[key] = {
     proxy, frame, realImg,
     realOpacity: realImg ? realImg.style.opacity : '',
     hadPosition, prevPosition,
@@ -1690,20 +1686,21 @@ function enterGridImageEditMode(block, addr) {
   if (realImg) realImg.style.opacity = '0';   // 그리는 것은 프록시 쪽 한 장뿐
 
   const start = () => {
-    if (!block._grdImgEdit || !proxy.isConnected) return;
+    if (!host[key] || !proxy.isConnected) return;
     const nw = img.naturalWidth || W, nh = img.naturalHeight || H;
     const ratio = (nw && nh) ? nh / nw : 1;
 
     /* 지금 상태를 px 로 «되돌려» 편집기에 넘긴다.
        · 크롭이 이미 있으면 그 ％를 px 로
        · 없으면 화면이 쓰고 있는 object-fit:cover 를 px 로 (k = max(W/nw, H/nh)) */
-    const hasCrop = [line.imgSizePct, line.imgPosX, line.imgPosY].some(v => Number.isFinite(Number(v)));
+    const cr = a.crop || {};
+    const hasCrop = !!a.crop;
     let dw, x0, y0;
     if (hasCrop) {
-      const sz = Number.isFinite(Number(line.imgSizePct)) ? Number(line.imgSizePct) : 100;
+      const sz = Number.isFinite(Number(cr.size)) ? Number(cr.size) : 100;
       dw = W * sz / 100;
-      x0 = W * (Number.isFinite(Number(line.imgPosX)) ? Number(line.imgPosX) : 0) / 100;
-      y0 = H * (Number.isFinite(Number(line.imgPosY)) ? Number(line.imgPosY) : 0) / 100;
+      x0 = W * (Number.isFinite(Number(cr.x)) ? Number(cr.x) : 0) / 100;
+      y0 = H * (Number.isFinite(Number(cr.y)) ? Number(cr.y) : 0) / 100;
     } else {
       const k = Math.max(W / nw, H / nh);
       dw = nw * k;
@@ -1726,7 +1723,7 @@ function enterGridImageEditMode(block, addr) {
       noRotate: true,        // 크롭 모델에 회전 축이 없다 — 있는 척하면 돌려 놓고 저장이 안 된다
       noColorAdjust: true,   // 색보정은 에셋 <img> 전용 경로다(그리드 줄엔 그 필드가 없다)
       keepAliveSel: '#panel-right',
-      historyLabel: '그리드 이미지 크롭',
+      historyLabel: a.historyLabel,
       beforeCommit: () => {
         // style.width 가 정본 (dataset.imgW 는 exitImageEditMode 가 offsetWidth 로 반올림해 둔 값)
         const w = parseFloat(img.style.width) || parseFloat(proxy.dataset.imgW) || dw;
@@ -1735,8 +1732,80 @@ function enterGridImageEditMode(block, addr) {
         /* ★E2E3 ⒜ — H(와 W)는 «커밋 직전»에 다시 잰다(열 때 쥔 값 금지 — 그 사이 무엇이 틀을 바꿨어도 «보이는 틀» 그대로 못박는다).
            offsetWidth/Height = 레이아웃 px(줌 전환의 transform 과 무관 — 섞인 자 병 금지). */
         const Wc = frame.offsetWidth || W, Hc = frame.offsetHeight || H;
-        _teardownGridImgEdit(block);          // ★patch/pushHistory «전»에 임시 DOM 을 0 으로
-        if (cropResetWanted) {
+        _teardownFrameImgEdit(host, key);     // ★patch/pushHistory «전»에 임시 DOM 을 0 으로
+        if (cropResetWanted) { a.commit(null, { Wc, Hc }); return; }   // «원래대로» — 지우는 법은 어댑터가 안다
+        /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
+           (렌더러가 left:…% / top:…% 를 그렇게 푼다 — CSS 의 기준과 같다). */
+        /* ★E2E3 ⒜ — 안 움직였으면(크기·자리 0.5px 안) 문서를 안 건드린다: 열고 닫기만 하면 바이트 그대로.
+           ★height:Hc 를 «같은 patch» 에 — 크롭 줄은 height 를 «틀 높이»로 읽으니(E157) 가드를 지나고, 보이던 틀 높이
+             그대로라 커밋하는 순간 틀이 안 튄다(옛: 남아 있던 height 200 으로 튐 — E2). */
+        if (Math.abs(w - startGeo.w) < 0.5 && Math.abs(x - startGeo.x) < 0.5 && Math.abs(y - startGeo.y) < 0.5) return;
+        a.commit({ size: _r1g(w / Wc * 100), x: _r1g(x / Wc * 100), y: _r1g(y / Hc * 100) }, { Wc, Hc });
+      },
+      afterExit: () => {
+        _teardownFrameImgEdit(host, key);     // 멱등 — beforeCommit 이 실패해도 잔여 0
+        a.afterExit?.();
+      },
+    });
+
+    /* 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(섹션 배경과 같은 꼴)
+     * ★2026-09-25 「원래대로」를 «여기» 둔다 — 현빈이 정한 자리다(「크롭 초기화 …
+     *   에셋블록에도 같은 기능이 있으면 «편집모드 안으로 옮기고»…」).
+     *   한 번은 패널의 «크롭 초기화»를 통째로 없앴었다(e04d29f). 그때 판단은 「⌘Z 가
+     *   되돌려 준다」였는데, 실기가 그것을 «반증»했다 — 크롭을 연달아 두 번 하면 ⌘Z 가
+     *   한 칸만 물러나고 멈춰(실측 115.607→138.226→160.77, ⌘Z 뒤 138.226 에서 고착)
+     *   사용자가 «중간 값»에 갇힌다. ⇒ 되돌릴 길이 «정말로» 없어서 되살린다.
+     * ⛔패널(prop-grid.js 이미지 절)로는 되돌리지 «마라» — 거기서 없애라신 뜻은 그대로다.
+     * ⛔「⌘Z 가 두 번째부터 안 먹는다」는 이 단추가 고치는 것이 «아니다» — 그건 제품 전체의
+     *   되돌리기 문제이고 별건으로 섰다. 그 버그가 고쳐져도 이 단추는 계속 쓸모가 있다
+     *   (⌘Z 는 «한 칸 뒤»로 가고, 이 단추는 «크롭 없음»으로 간다 — 목적지가 다르다). */
+    const pp = document.querySelector('#panel-right .panel-body');
+    if (pp) {
+      const box = document.createElement('div');
+      box.className = 'prop-section';
+      box.innerHTML =
+        `<button class="prop-action-btn secondary" id="${a.ids.done}">크롭 완료</button>` +
+        `<button class="prop-action-btn" id="${a.ids.reset}" style="margin-top:6px;"` +
+        ' title="맞춰 둔 크롭을 지우고 «프레임에 꽉 채우기»로 되돌립니다">원래대로</button>';
+      pp.appendChild(box);
+      box.querySelector(`#${a.ids.done}`).addEventListener('click', () => exitImageEditMode(proxy));
+      box.querySelector(`#${a.ids.reset}`).addEventListener('click', () => {
+        cropResetWanted = true;       // ★깃발을 먼저 — 나가는 길 위의 beforeCommit 이 이걸 읽는다
+        exitImageEditMode(proxy);
+      });
+    }
+  };
+
+  img.src = a.src;
+  if (img.complete && img.naturalWidth) start();
+  else img.addEventListener('load', start, { once: true });
+  img.addEventListener('error', () => {
+    console.warn(`[${a.tag}] 이미지 로드 실패`);
+    _teardownFrameImgEdit(host, key);
+  }, { once: true });
+}
+
+
+/* 그리드 칸 그림 — 공용 몸(_enterFrameImageEdit)의 «그리드 어댑터». 주소·모델 읽기·patch 쓰기·패널 복귀만 여기. */
+function enterGridImageEditMode(block, addr) {
+  if (!block || !addr || block._grdImgEdit) return;
+  let line = _grdImgLine(block, addr);
+  if (!line || line.type !== 'image' || !line.imgSrc) return;
+
+  /* ★E2E3-crop-a(2026-10-06 · APPROVED_BY: 지디 E2E3-crop-a ⒜) — 여는 길은 문서를 «안» 건드린다.
+     옛: 높이 키가 없으면 «지금 보이는 높이»를 {height} 혼자 patch 로 먼저 못박았다. E157(크롭 없는 그림 줄은 height 를
+     그릴 때 무시) 뒤 그 patch 는 T-122 가드에 INVALID 가 되어 편집기가 «말없이 안 열렸다»(0ff05430 ok ↔ a8f60da1 INVALID).
+     ⇒ 높이는 «커밋 때» 크롭 세 값과 «한 patch» 로 쓴다(아래 beforeCommit · H = 커밋 직전에 잰 보이는 틀 높이). */
+  const frame = _grdImgFrameEl(block, addr);
+  if (!frame) return;
+  _enterFrameImageEdit({
+    host: block, key: '_grdImgEdit', frame, realImg: frame.querySelector('img.grd-img'), src: line.imgSrc,
+    crop: [line.imgSizePct, line.imgPosX, line.imgPosY].some(v => Number.isFinite(Number(v)))
+      ? { size: line.imgSizePct, x: line.imgPosX, y: line.imgPosY } : null,
+    proxyClass: 'grd-img-edit-proxy', historyLabel: '그리드 이미지 크롭', tag: 'grdImgCrop',
+    ids: { done: 'grd-img-crop-done', reset: 'grd-img-crop-reset' },
+    commit: (geo, { Wc, Hc }) => {
+      if (!geo) {
           /* ★「원래대로」 — 세 값을 «지운다»(cover 로 복귀). `undefined` 가 「이 필드를 없앤다」는
              뜻이다 — `''`(강제로 없앰)도 `0`(값)도 아니다(_gridMergeLine 의 pick 계약).
              ⛔셋을 «한 번에» 지워야 렌더러가 cover 로 돌아간다. 하나라도 남으면 프레임이
@@ -1765,70 +1834,26 @@ function enterGridImageEditMode(block, addr) {
               },
             });
           }
-          return;
-        }
-        /* ★px → ％ 통역. 가로는 프레임 폭, 세로는 프레임 높이가 기준이다
-           (렌더러가 left:…% / top:…% 를 그렇게 푼다 — CSS 의 기준과 같다). */
-        /* ★E2E3 ⒜ — 안 움직였으면(크기·자리 0.5px 안) 문서를 안 건드린다: 열고 닫기만 하면 바이트 그대로.
-           ★height:Hc 를 «같은 patch» 에 — 크롭 줄은 height 를 «틀 높이»로 읽으니(E157) 가드를 지나고, 보이던 틀 높이
-             그대로라 커밋하는 순간 틀이 안 튄다(옛: 남아 있던 height 200 으로 튐 — E2). */
-        if (Math.abs(w - startGeo.w) < 0.5 && Math.abs(x - startGeo.x) < 0.5 && Math.abs(y - startGeo.y) < 0.5) return;
-        const pinned = Number(line.height) !== Hc;
-        const res = window.updateGridBlock?.(block.id, {
-          patchCell: {
-            r: addr.r, c: addr.c, lineIndex: addr.li,
-            imgSizePct: _r1g(w / Wc * 100),
-            imgPosX:    _r1g(x / Wc * 100),
-            imgPosY:    _r1g(y / Hc * 100),
-            height: Hc,
-          },
-        });
-        if (pinned && res && res.ok) window.showToast?.(`프레임 높이를 ${Hc}px 로 고정했습니다`);
-      },
-      afterExit: () => {
-        _teardownGridImgEdit(block);          // 멱등 — beforeCommit 이 실패해도 잔여 0
-        window.showGridProperties?.(block, addr);
-        window.showGridImageResizeHandle?.(block);
-      },
-    });
-
-    /* 우측 패널이 «이미지 편집»으로 교체된 뒤 — 같은 자리에 종료 버튼(섹션 배경과 같은 꼴)
-     * ★2026-09-25 「원래대로」를 «여기» 둔다 — 현빈이 정한 자리다(「크롭 초기화 …
-     *   에셋블록에도 같은 기능이 있으면 «편집모드 안으로 옮기고»…」).
-     *   한 번은 패널의 «크롭 초기화»를 통째로 없앴었다(e04d29f). 그때 판단은 「⌘Z 가
-     *   되돌려 준다」였는데, 실기가 그것을 «반증»했다 — 크롭을 연달아 두 번 하면 ⌘Z 가
-     *   한 칸만 물러나고 멈춰(실측 115.607→138.226→160.77, ⌘Z 뒤 138.226 에서 고착)
-     *   사용자가 «중간 값»에 갇힌다. ⇒ 되돌릴 길이 «정말로» 없어서 되살린다.
-     * ⛔패널(prop-grid.js 이미지 절)로는 되돌리지 «마라» — 거기서 없애라신 뜻은 그대로다.
-     * ⛔「⌘Z 가 두 번째부터 안 먹는다」는 이 단추가 고치는 것이 «아니다» — 그건 제품 전체의
-     *   되돌리기 문제이고 별건으로 섰다. 그 버그가 고쳐져도 이 단추는 계속 쓸모가 있다
-     *   (⌘Z 는 «한 칸 뒤»로 가고, 이 단추는 «크롭 없음»으로 간다 — 목적지가 다르다). */
-    const pp = document.querySelector('#panel-right .panel-body');
-    if (pp) {
-      const box = document.createElement('div');
-      box.className = 'prop-section';
-      box.innerHTML =
-        '<button class="prop-action-btn secondary" id="grd-img-crop-done">크롭 완료</button>' +
-        '<button class="prop-action-btn" id="grd-img-crop-reset" style="margin-top:6px;"' +
-        ' title="맞춰 둔 크롭을 지우고 «프레임에 꽉 채우기»로 되돌립니다">원래대로</button>';
-      pp.appendChild(box);
-      box.querySelector('#grd-img-crop-done').addEventListener('click', () => exitImageEditMode(proxy));
-      box.querySelector('#grd-img-crop-reset').addEventListener('click', () => {
-        cropResetWanted = true;       // ★깃발을 먼저 — 나가는 길 위의 beforeCommit 이 이걸 읽는다
-        exitImageEditMode(proxy);
+        return;
+      }
+      const pinned = Number(line.height) !== Hc;
+      const res = window.updateGridBlock?.(block.id, {
+        patchCell: {
+          r: addr.r, c: addr.c, lineIndex: addr.li,
+          imgSizePct: geo.size,
+          imgPosX:    geo.x,
+          imgPosY:    geo.y,
+          height: Hc,
+        },
       });
-    }
-  };
-
-  img.src = line.imgSrc;
-  if (img.complete && img.naturalWidth) start();
-  else img.addEventListener('load', start, { once: true });
-  img.addEventListener('error', () => {
-    console.warn('[grdImgCrop] 이미지 로드 실패');
-    _teardownGridImgEdit(block);
-  }, { once: true });
+      if (pinned && res && res.ok) window.showToast?.(`프레임 높이를 ${Hc}px 로 고정했습니다`);
+    },
+    afterExit: () => {
+      window.showGridProperties?.(block, addr);
+      window.showGridImageResizeHandle?.(block);
+    },
+  });
 }
-
 window.enterGridImageEditMode = enterGridImageEditMode;
 window.teardownGridImageEditMode = (block) => _teardownGridImgEdit(block);
 window.applyImageTransform = applyImageTransform;

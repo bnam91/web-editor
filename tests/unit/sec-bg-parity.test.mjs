@@ -56,7 +56,10 @@ test('P1 ★배경이미지 편집(_enterBgEditMode)은 noRotate·noColorAdjust 
   assert.equal((bgBody.match(/noColorAdjust\s*:/g) || []).length, 0, '★배경 편집에 noColorAdjust 가 남아 있다');
   /* ★음성대조 — 같은 파일 ★그리드 칸 크롭(enterGridImageEditMode)에는 ★여전히 1건씩 남아 있다.
      ⛔음성 없이 양성만 두면 ★전역 삭제(크롭 쪽까지 지움)가 ★초록으로 통과한다. */
-  const gridBody = sliceFnBody(c, 'function enterGridImageEditMode(');
+  /* ★2026-11-14 그리드 크롭의 편집기 호출은 «공용 몸» _enterFrameImageEdit 로 옮겼다(Documents 안 2 · 동작 무변) —
+     그래서 음성대조는 그 몸을 잰다 + 그리드 어댑터가 그 몸을 «부른다»를 함께 잠근다(안 부르면 그리드 크롭이 편집기를 잃는다). */
+  assert.match(sliceFnBody(c, 'function enterGridImageEditMode('), /_enterFrameImageEdit\(/, '★그리드 크롭이 공용 몸을 안 부른다');
+  const gridBody = sliceFnBody(c, 'function _enterFrameImageEdit(');
   assert.equal((gridBody.match(/noRotate\s*:/g) || []).length, 1, '★그리드 크롭의 noRotate 가 사라졌다(별건 — 지우면 안 된다)');
   assert.equal((gridBody.match(/noColorAdjust\s*:/g) || []).length, 1, '★그리드 크롭의 noColorAdjust 가 사라졌다(별건 — 지우면 안 된다)');
   /* ⇒ 「둘 다 지웠다」가 아니라 «배경 쪽만 켰다»를 — 파일 전체로도 각 리터럴이 정확히 1건(그리드 크롭분)뿐이다 */
