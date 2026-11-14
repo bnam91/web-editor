@@ -98,6 +98,7 @@ const ROSTER = {
   'js/blocks/canvas-block.js':     ['row'],
   'js/blocks/chat-block.js':       ['row'],
   'js/blocks/comparison-block.js': ['row'],
+  'js/blocks/cert-block.js':       ['row'],   // 2026-11-14 인증서 — makeCertBlock 이 만들 때 genId('row') 를 준다
   'js/blocks/coupon-block.js':     ['row'],   // 2026-10-07 쿠폰 — makeCouponBlock 이 만들 때 genId('row') 를 준다
   'js/blocks/quote-block.js':      ['row'],   // 2026-10-07 인용구(QT1) — makeQuoteBlock 이 만들 때 genId('row') 를 준다
   'js/blocks/radial-block.js':     ['row'],   // 2026-10-13 프로토 Z6-A 방사형 블럭 — makeRadialBlock 이 만들 때 genId('row') 를 준다

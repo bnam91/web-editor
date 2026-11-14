@@ -61,6 +61,7 @@ const SRC_FILES = [
   'js/blocks/comparison-block.js',
   'js/blocks/laurel-block.js',
   'js/blocks/coupon-block.js',   // 2026-10-07 쿠폰 — addCouponBlock 이 showNoSelectionHint 를 쓴다
+  'js/blocks/cert-block.js',     // 2026-11-14 인증서 — addCertBlock 이 showNoSelectionHint 를 쓴다
   'js/blocks/quote-block.js',    // 2026-10-07 인용구(QT1) — addQuoteBlock 이 showNoSelectionHint 를 쓴다
   'js/blocks/radial-block.js',   // 2026-10-13 프로토 Z6-A 방사형 블럭 — addRadialBlock 이 showNoSelectionHint 를 쓴다
   'js/blocks/buzz-frame.js',     // 1012t1Z5 버즈 — addBuzzBlock 이 showNoSelectionHint 를 쓴다

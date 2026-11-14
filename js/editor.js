@@ -19,7 +19,7 @@ const CANVAS_SEL_BLOCKS =
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, ' +
   '.canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.mockup-block.selected, .icon-block.selected, .vector-block.selected, ' +
-  '.step-block.selected, .coupon-block.selected, .quote-block.selected, .radial-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
+  '.step-block.selected, .coupon-block.selected, .cert-block.selected, .quote-block.selected, .radial-block.selected, .laurel-block.selected, .zoom-block.selected, .gradient-block.selected, ' +
   '.sticker-block.selected, .joker-block.selected, .chat-block.selected, ' +
   '.speech-bubble-block.selected, .qa-block.selected';  // 버블(sb_): 복수선택/복사/삭제/⌘X 대상 편입 (#7)
 // shape-block은 ss/row 단위 별도 삭제 경로(allSelShapes)라 위 목록에 포함하지 않음.
@@ -63,7 +63,7 @@ const SECTION_BLOCK_TYPE_SEL = [
   '.bridge-block', '.grid-block', '.infocard-block', '.innercard-block', '.modal-block',
   '.shape-block', '.speech-bubble-block', '.banner02-block', '.comparison-block',
   '.mockup-block', '.vector-block', '.step-block', '.joker-block', '.canvas-block',
-  '.chat-block', '.coupon-block', '.quote-block', '.radial-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
+  '.chat-block', '.coupon-block', '.cert-block', '.quote-block', '.radial-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
   '.qa-block',
 ].join(', ');
 if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL = SECTION_BLOCK_TYPE_SEL;
@@ -1132,7 +1132,7 @@ function _openSoleBlockPanel() {
    ⚠️프레임은 «조상»으로도 .selected 가 켜진다(restoreFrameSelectionFor ·
      _restoreFreeLayoutFrameSelected · selectShapeBlock). 그래서 목록이 아니라 «성질»로 거른다
      — 아래 _isFlowMultiSelUnit. */
-const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .sticker-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected, .coupon-block.selected, .quote-block.selected, .radial-block.selected, .frame-block.selected';
+const FLOW_BLOCK_SEL_SELECTED = '.text-block.selected, .asset-block.selected, .gap-block.selected, .icon-circle-block.selected, .table-block.selected, .label-group-block.selected, .graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, .icon-block.selected, .vector-block.selected, .step-block.selected, .laurel-block.selected, .gradient-block.selected, .zoom-block.selected, .sticker-block.selected, .chat-block.selected, .speech-bubble-block.selected, .qa-block.selected, .coupon-block.selected, .cert-block.selected, .quote-block.selected, .radial-block.selected, .frame-block.selected';
 
 /* ★사본 금지 — js/props/prop-multisel.js 가 «이 상수»를 읽는다(옛날엔 리터럴을 한 벌 더 갖고
  *   있었고, 둘 다 주석에 「SSOT」라 적혀 있었다. 확대블럭이 한쪽에만 들어가 «2개 선택하면
@@ -1440,7 +1440,7 @@ const MULTI_SEL = '.text-block.selected, .asset-block.selected, .gap-block.selec
   '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
   '.icon-text-block.selected, .icon-block.selected, .shape-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, ' +
   '.sticker-block.selected, .chat-block.selected, .step-block.selected, ' +
-  '.coupon-block.selected, .quote-block.selected, .radial-block.selected, .laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected, ' +
+  '.coupon-block.selected, .cert-block.selected, .quote-block.selected, .radial-block.selected, .laurel-block.selected, .zoom-block.selected, .joker-block.selected, .speech-bubble-block.selected, ' +
   '.mockup-block.selected, .vector-block.selected, .gradient-block.selected';
 
 /* 같은 타입 목록이되 «.selected 여부 무관» — 한 행 안의 블록이 «전부» 선택됐는지 판정할 때 쓴다. */
@@ -1746,7 +1746,7 @@ function _bindPastedEl(el) {
   //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
   window.migrateGridIdentity?.(el);
   const rand = () => Math.random().toString(36).slice(2, 9);
-  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .quote-block, .radial-block'; /* bind-list:PASTE */
+  const BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .icon-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .step-block, .mockup-block, .gradient-block, .speech-bubble-block, .qa-block, .coupon-block, .cert-block, .quote-block, .radial-block'; /* bind-list:PASTE */
 
   // 모든 ID 재생성 — 원본과 ID 충돌 방지
   // ★215(BINDPASTED-ISSUES-IDS-WITHOUT-ACTORID-01) — 붙여넣기·복제도 «새 블록»이다 ⇒ 전역 genId(prefix_<actorId>_<rand> · drag-utils.js)로
@@ -4332,7 +4332,7 @@ function clearSelectionMarks(root) {
     a.classList.remove('selected');
     window.exitImageEditMode?.(a);
   });
-  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block, .qa-block, .coupon-block, .quote-block, .radial-block').forEach(b => {
+  canvas.querySelectorAll('.gap-block, .icon-circle-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .joker-block, .shape-block, .canvas-block, .banner02-block, .comparison-block, .mockup-block, .icon-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .annotation-block, .sticker-block, .qa-block, .coupon-block, .cert-block, .quote-block, .radial-block').forEach(b => {
     b.classList.remove('selected');
     // 어노테이션은 핸들도 함께 정리
     if (b.classList.contains('annotation-block')) b.querySelectorAll('.annot-handle').forEach(h => h.remove());
@@ -4768,7 +4768,7 @@ document.getElementById('canvas-wrap').addEventListener('click', e => {
 
 
 /* ── Static 블록 초기 바인딩 ── */
-document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block, .radial-block').forEach(b => window.bindBlock(b)); /* bind-list:BOOT_STATIC */
+document.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .vector-block, .step-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .cert-block, .quote-block, .radial-block').forEach(b => window.bindBlock(b)); /* bind-list:BOOT_STATIC */
 
 /* ═══════════════════════════════════
    BLOCK / SECTION 추가

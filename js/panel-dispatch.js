@@ -61,6 +61,7 @@ const _PANEL_BY_CLASS = [
      (현빈: 「우측 패널은 캔버스에서 고른 칸만 열린다」). ⛔여기서 칸을 고르지 않는다 —
        이 표는 «블럭을 골랐을 때»의 입구고, 칸을 넘기면 블럭 선택만으로 한 칸이 펼쳐진다. */
   ['coupon-block',      (el) => window.showCouponProperties?.(el)],
+  ['cert-block',        (el) => window.showCertProperties?.(el)],      // 인증서 블럭(261114)
   /* ★인용구(2026-10-07 · QT1 · 현빈 발주) — 부호 8종·크기·간격·앞뒤 끄기는 ★전부 우측 패널이다. */
   ['quote-block',       (el) => window.showQuoteProperties?.(el)],
   ['radial-block',      (el) => window.showRadialProperties?.(el)],   /* 프로토 Z6-A 방사형 블럭 */

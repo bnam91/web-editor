@@ -72,8 +72,9 @@ test('B3 ★앱에 «있는데 정본에 없는» 블록을 «세어» 남긴다
              ⇒ grid 가 그랬던 것처럼 «읽기 이름»만 준다. 도구가 생기면 여기서 빼라.
      cpn_  = ★쿠폰블럭(2026-10-07 신설). zmb_ 와 ★같은 처지다 — 앱엔 있는데 MCP 에 add_/update_
              도구가 «없다»(1단계 범위 밖 · 2단계). 도구 없이 BLOCK_TYPES 에 넣으면 정본이
-             «있지도 않은 도구»를 광고한다. ⇒ «읽기 이름»만 준다. 도구가 생기면 여기서 빼라. */
-  const known = { row_: 'row', duo_: 'grid', zmb_: 'zoom', cpn_: 'coupon' };
+             «있지도 않은 도구»를 광고한다. ⇒ «읽기 이름»만 준다. 도구가 생기면 여기서 빼라.
+     crt_  = 인증서 블럭(2026-11-14 신설). 쿠폰과 같은 처지(MCP 도구 없음) ⇒ «읽기 이름»만. */
+  const known = { row_: 'row', duo_: 'grid', zmb_: 'zoom', cpn_: 'coupon', crt_: 'cert' };
   const unexpected = onlyCopy.filter(([p]) => !(p in known));
   assert.deepStrictEqual(unexpected, [],
     `★읽기 표에만 있는 접두가 늘었다 — 정본에 넣을지 여기서 뺄지 정해라:\n  ${unexpected.map(([p, t]) => `${p} = ${t}`).join('\n  ')}`);

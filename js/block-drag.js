@@ -804,6 +804,7 @@ function bindBlock(block) {
   const isInnerCard   = block.classList.contains('innercard-block');
   const isModal       = block.classList.contains('modal-block');
   const isCoupon      = block.classList.contains('coupon-block');   // ★쿠폰(2026-10-07 현빈 발주)
+  const isCert        = block.classList.contains('cert-block');     // 인증서 블럭(261114)
   const isQuote       = block.classList.contains('quote-block');    // ★인용구(2026-10-07 · QT1)
   const isRadial      = block.classList.contains('radial-block');   // 프로토 Z6-A 방사형 블럭
   const isJoker      = block.classList.contains('joker-block');
@@ -2576,7 +2577,7 @@ function bindBlock(block) {
   /* grid/infocard: bridge와 동일한 클릭-선택 (dataset 모델 정적 블록)
      ★쿠폰도 ★여기에 얹는다(2026-10-07) — ⛔제 핸들러를 새로 만들지 않는다. 그러면 프레임 안 선택·
        ⌘/⇧ 다중선택·레이어 하이라이트·showHandlesFor 가 ★한 벌 더 생겨 조용히 갈라진다. */
-  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isQuote, 'showQuoteProperties'], [isRadial, 'showRadialProperties'], [isTableB, 'showTableProperties']]) {
+  for (const [flag, showFn] of [[isGrid, 'showGridProperties'], [isInfoCard, 'showInfoCardProperties'], [isInnerCard, 'showInnerCardProperties'], [isModal, 'showModalProperties'], [isQA, 'showQAProperties'], [isCoupon, 'showCouponProperties'], [isCert, 'showCertProperties'], [isQuote, 'showQuoteProperties'], [isRadial, 'showRadialProperties'], [isTableB, 'showTableProperties']]) {
     if (!flag) continue;
     block.addEventListener('click', e => {
       e.stopPropagation();
@@ -3497,7 +3498,8 @@ function bindFrameDropZone(ss) {
     const CHILD_BLOCK_SEL = '.text-block, .asset-block, .gap-block, .icon-circle-block, ' +
       '.icon-block, ' +
       '.table-block, .label-group-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, ' +
-      '.icon-text-block, .shape-block, .mockup-block';
+      '.icon-text-block, .shape-block, .mockup-block, ' +
+      '.cert-block';   // 2026-11-14 인증서 블럭 — 프레임 안에서 누르면 블럭이 받는다(새 블럭은 이 명부에 든다 · block-selector-roster)
 
     ss.addEventListener('mousedown', e => {
       if (e.button !== 0) return;

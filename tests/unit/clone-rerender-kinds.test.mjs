@@ -33,6 +33,7 @@ const WANT = [
   ['gradient-block', ['renderGradientBlock']],
   ['laurel-block', ['renderLaurelBlock']],
   ['coupon-block', ['renderCouponBlock']],
+  ['cert-block', ['renderCertBlock']],   // 2026-11-14 인증서 블럭 — 그림을 dataset 에서 다시 짓는다(save-load.js 표)
   ['quote-block', ['renderQuoteBlock']],
   ['radial-block', ['renderRadialBlock']],
   ['graph-block', ['renderGraph']],

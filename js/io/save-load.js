@@ -1363,6 +1363,7 @@ const RERENDER_KINDS = [
   /* 쿠폰: 저장본 HTML 은 «그때의 그림»이다 — 배경 SVG·글자 자리·글자 크기가 전부 dataset ＋ 폭 비율에서 다시 나온다.
      ⛔재렌더를 빼면 로드 뒤 «옛 폭으로 그린 그림»이 새 dataset 과 어긋난다(laurel/zoom 과 같은 패턴). V4 변이가 이 줄을 잰다. */
   ['coupon-block',        (b) => { window.renderCouponBlock?.(b); }],
+  ['cert-block',          (b) => { window.renderCertBlock?.(b); }],   // 인증서 — 그림은 dataset 에서 다시(옛 판 그림을 믿지 않는다)
   ['quote-block',         (b) => { window.renderQuoteBlock?.(b); }],
   /* 프로토 Z6 — 방사형 블럭(A)은 dataset 에서 통째로 다시 그린다(칸 누르기 _bindCellHit 도 여기서 걸린다). */
   ['radial-block',        (b) => { window.renderRadialBlock?.(b); }],
@@ -1777,7 +1778,7 @@ function rebindAll(opts = {}) {
     window.bindGradientSelect?.(block);
   });
 
-  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .quote-block, .radial-block').forEach(b => { // bind-list:REBIND_ALL
+  canvasEl.querySelectorAll('.text-block, .asset-block, .gap-block, .icon-circle-block, .table-block, .label-group-block, .card-block, .graph-block, .divider-block, .bridge-block, .grid-block, .infocard-block, .innercard-block, .modal-block, .icon-text-block, .shape-block, .joker-block, .canvas-block, .banner02-block, .comparison-block, .icon-block, .mockup-block, .step-block, .vector-block, .chat-block, .laurel-block, .zoom-block, .qa-block, .coupon-block, .cert-block, .quote-block, .radial-block').forEach(b => { // bind-list:REBIND_ALL
     if (!b.id) {
       const prefix = b.classList.contains('text-block') ? 'tb'
         : b.classList.contains('asset-block') ? 'ab'
@@ -1801,6 +1802,7 @@ function rebindAll(opts = {}) {
         : b.classList.contains('grid-block') ? 'grd'   /* ★'grid' 아니다 — GRID_ID_PREFIXES=['grd_','duo_'] 와 같은 토큰이어야 한다(적대검수 C1) */
         : b.classList.contains('infocard-block') ? 'ifc'
         : b.classList.contains('innercard-block') ? 'icd'
+        : b.classList.contains('cert-block') ? 'crt'   /* 인증서 — genId('crt') 와 같은 토큰 */
         : b.classList.contains('coupon-block') ? 'cpn'   /* ★쿠폰 — genId('cpn') 과 ★같은 토큰이어야 한다(js/blocks/coupon-block.js) */
         : b.classList.contains('radial-block') ? 'rdl'  /* 프로토 Z6-A — genId('rdl') 과 같은 토큰(js/blocks/radial-block.js) */
         : b.classList.contains('quote-block') ? 'qt'     /* ★인용구 — genId('qt') 과 ★같은 토큰이어야 한다(js/blocks/quote-block.js) */

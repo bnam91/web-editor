@@ -74,7 +74,7 @@ const at = (k) => `${k}${LINES.has(k) ? ` (${LINES.get(k)}행)` : ''}`;
 
 /* ★★손으로 박은 참 명부 — ⛔코드에서 구하지 않는다(위 ⒝ 참조) */
 const ALL_SEEN = [
-  'asset-block', 'banner02-block', 'bridge-block', 'canvas-block', 'chat-block',
+  'asset-block', 'banner02-block', 'bridge-block', 'canvas-block', 'cert-block', 'chat-block',   /* cert-block — 2026-11-14 인증서 블럭 */
   'comparison-block', 'coupon-block', 'divider-block', 'frame-block', 'gap-block',
   'gradient-block', 'graph-block', 'grid-block', 'icon-block', 'icon-circle-block',
   'icon-text-block', 'infocard-block', 'innercard-block', 'joker-block', 'label-group-block',
