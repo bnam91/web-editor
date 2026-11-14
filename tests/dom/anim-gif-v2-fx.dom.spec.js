@@ -9,7 +9,7 @@
  * ── F3 줄마다 따로 ──
  * L1 P076 — «줄마다 따로» 진짜 클릭 → 행 2 · 줄0 타이핑 0/1000 · 줄1 도장 1100/560 을 진짜 입력 → data-anim-gif 그대로 ·
  *    미리보기 τ=500 엔 «네!» 0(답은 시작 전) · τ=1660 엔 두 줄 선명
- * L2 저장 — 닫은 뒤 저장값만 바꿔(메모리와 다르게) 다시 열면 그 값(길이 900 · 속도 2) · ⌘Z 한 번 = 직전 값 · 저장 없는 다른 블럭 = 꺼짐
+ * L2 저장 — ⓑ 모달 안에서 바꾼 값 ⌘Z 한 번 = 직전 값 · ⓐ 닫은 뒤 저장값만 바꿔(메모리와 다르게, 이력 단언 없음) 다시 열면 그 값(900·2) · 저장 없는 다른 블럭 = 꺼짐
  * L3 남이 준 저장본 — fx 에 «<img onerror>» · 범위 밖 수 · 없는 줄 → 소독(fade-in · 5000 등) · 행 안에 img 0 · pageerror 0
  * ── F4 ── I1 한 바퀴 안내 — V1 슬라이드업 «한 바퀴 1.20초 · GIF 55프레임»(1200ms · 20fps 25 + 끝 멈춤 30) · 도장 «0.56초 · 43» · P076 줄별 «1.66초 · 65»
  *   양성대조: anim-gif-tracks.js gifFrameCount 의 «+ 1» 삭제 → I1 빨강(단위 E2 도 — srv 실측)
@@ -131,31 +131,31 @@ test('L1 P076 — 줄마다 따로 · 질문 타이핑 · 답 도장(1100ms 부�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('L2 저장 — 다시 열면 그대로 · ⌘Z 한 번 = 직전 값', async ({ page }) => {
+test('L2 저장 — ⓑ 모달 안에서 바꾼 값 ⌘Z 한 번 = 직전 값 · ⓐ 다시 열면 «저장값»을 읽는다(메모리와 다르게) · 저장 없는 블럭 = 꺼짐', async ({ page }) => {
   const errs = await scene(page, TWO);
+  // ⓑ 이력 — 모달 «안에서» 바꿔 이력에 싣고 ⌘Z (손으로 고친 dataset 은 이력 밖이라 이 축에 섞지 않는다)
   await page.check('#anim-per-line');
   await setRow(page, 1, P076[1]);
   const before = await page.evaluate(() => window.__tb.dataset.animGif);
   await setRow(page, 1, { ...P076[1], dur: 800 });
-  const after = await page.evaluate(() => window.__tb.dataset.animGif);
-  expect(after).not.toBe(before);
-  /* ★«다시 열면 저장값을 읽는다»를 재려면 메모리와 저장값을 «다르게» 둬야 한다 — 모듈 변수(_tracks·_perLine)가 닫아도 남아,
-     같은 값이면 저장을 안 읽어도 초록이었다(인텔 G4 = _loadAnimGif 빼도 L2 초록). ⇒ 닫은 뒤 저장값만 바꾼다(길이 800 → 900 · 속도 2). */
-  await page.evaluate(() => {
-    window.closeAnimModal();
-    const o = JSON.parse(window.__tb.dataset.animGif); o.tracks[1].dur = 900; o.speed = 2;
-    window.__tb.dataset.animGif = JSON.stringify(o);
-    window.openAnimModal(window.__tb);
-  });
-  await expect(page.locator('#anim-per-line')).toBeChecked();
-  expect(await page.inputValue('#anim-tracks .anim-track-row[data-line="1"] .anim-track-dur'), '★다시 열 때 저장값을 안 읽었다(메모리 800)').toBe('900');
-  expect(await page.inputValue('#anim-speed'), '속도도 저장값에서').toBe('2');
+  expect(await page.evaluate(() => window.__tb.dataset.animGif)).not.toBe(before);
   await page.evaluate(() => { window.closeAnimModal(); document.activeElement?.blur?.(); });   // 숨은 입력칸에 포커스가 남으면 ⌘Z 가 그 칸의 글자 되돌리기로 간다
   const id = await page.evaluate(() => window.__tb.id);
   await page.keyboard.press('Meta+z');
   await page.waitForFunction(({ id, before }) => document.getElementById(id)?.dataset.animGif === before, { id, before }, { timeout: 5000 });
-  // 저장 없는 다른 블럭을 열면 «꺼짐» — 앞 블럭의 메모리를 끌고 오지 않는다(이것도 저장값을 읽어야 참)
+  // ⓐ 다시 열기 — 저장값만 바꿔(메모리 _tracks·_perLine 과 다르게) 연다 · 이력 단언 없음
+  //   (모듈 변수가 닫아도 남아, 같은 값이면 저장을 안 읽어도 초록이었다 — 인텔 G4 = _loadAnimGif 빼도 옛 L2 초록)
+  const r = await page.evaluate((id) => {
+    const tb = document.getElementById(id); window.__tb = tb;   // ⌘Z 가 블럭을 갈아 끼웠을 수 있다 — id 로 다시 잡는다
+    const o = JSON.parse(tb.dataset.animGif); o.tracks[1].dur = 900; o.speed = 2;
+    tb.dataset.animGif = JSON.stringify(o);
+    window.openAnimModal(tb);
+    return { checked: document.getElementById('anim-per-line').checked, dur: document.querySelector('#anim-tracks .anim-track-row[data-line="1"] .anim-track-dur')?.value, speed: document.getElementById('anim-speed').value };
+  }, id);
+  expect(r, '★다시 열 때 저장값을 안 읽었다').toEqual({ checked: true, dur: '900', speed: '2' });
+  // 저장 없는 다른 블럭 = 꺼짐(앞 블럭 메모리를 끌고 오지 않는다 — 이것도 저장값을 읽어야 참)
   const off = await page.evaluate(() => {
+    window.closeAnimModal();
     const sec = document.querySelector('#canvas .section-block'); window.selectSection(sec); window.addTextBlock('body');
     const tb2 = [...sec.querySelectorAll('.text-block')].pop(); (tb2.querySelector('[contenteditable]') || tb2.querySelector('.tb-body')).textContent = '다른 글';
     window.openAnimModal(tb2);
