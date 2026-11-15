@@ -17,6 +17,8 @@
  *   양성대조(실측은 커밋 메시지): 엔진 _runStyle 의 장식 거슬러 올라가기(for n = host …) 삭제 → E9 빨강.
  * E10(RICHTEXT C4): 범위 글로우 span(계산된 text-shadow 3겹) → 그 조각만 그림자 3층 · 블럭 전체 그림자(글 요소 text-shadow) → 모든 조각 · 미리보기 배율 29/24(그리는 글자 크기 비) · GIF 저장 배율 2.
  *   양성대조(아이맥 실측 예정): fillStyled 의 `_shadows(…)` 호출 줄 삭제 → E10 빨강.
+ * E11(RICHTEXT C5): 글자마다 span.tb-dot(::before 계산 크기·색·transform) → 미리보기·GIF 저장에 그 글자마다 점 하나(배율 29/24 · 2).
+ *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → E11 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +36,8 @@ function fakeCtx() {
     calls, filter: 'none', globalAlpha: 1, font: '', fillStyle: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '',
     measureText: (s) => ({ width: String(s).length * 10 }),
     fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter, fill: ctx.fillStyle, font: ctx.font, sc: ctx.shadowColor, sox: ctx.shadowOffsetX, soy: ctx.shadowOffsetY, sb: ctx.shadowBlur }),
-    rects: [], fillRect: (x, y, w, h) => ctx.rects.push({ x, y, w, h, fill: ctx.fillStyle }), clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
+    rects: [], fillRect: (x, y, w, h) => ctx.rects.push({ x, y, w, h, fill: ctx.fillStyle }), clearRect() {},
+    arcs: [], arc: (x, y, r) => ctx.arcs.push({ x, y, r, fill: ctx.fillStyle }), fill() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
   };
   return ctx;
 }
@@ -329,4 +332,30 @@ test('E10 RICHTEXT C4 — 범위 글로우 span → 그 조각만 그림자 3층
     assert.deepEqual(layers(tail, '글로우').at(-1), ['rgb(255, 0, 255)', 11.76, 0, 0], '★GIF 저장 = 배율 2');
     window.closeAnimModal();
   }
+});
+
+test('E11 RICHTEXT C5 — 글자마다 span.tb-dot → 그 글자마다 점(계산된 ::before 크기·색) · 다른 글자 점 0 · 미리보기·GIF 저장', async () => {
+  const E = await loadEngine();
+  const txt = (d) => ({ nodeType: 3, data: d });
+  const mk = (d) => { const n = { nodeType: 1, tagName: 'SPAN', childNodes: [txt(d)], parentElement: E.textEl }; n.closest = (sel) => (sel === '.tb-dot' ? n : null); return n; };
+  const d1 = mk('방'), d2 = mk('점');
+  E.textEl.contains = (n) => n === d1 || n === d2;
+  E.textEl.innerHTML = '<span>방</span><span>점</span> 평글';
+  E.textEl.childNodes = [d1, d2, txt(' 평글')];
+  const base = { fontSize: '24px', color: 'rgb(17, 17, 17)', fontFamily: 'sans-serif', fontWeight: '400', fontStyle: 'normal', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px', textDecorationLine: 'none', backgroundColor: 'rgba(0, 0, 0, 0)', textShadow: 'none' };
+  const before = { width: '4px', backgroundColor: 'rgb(255, 0, 0)', transform: 'matrix(1, 0, 0, 1, -2, 0)', content: '""' };
+  globalThis.getComputedStyle = (e, pseudo) => (pseudo === '::before' && (e === d1 || e === d2) ? before : base);
+  const items = [];
+  E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+  window.openAnimModal(E.tb);
+  items.find((it) => it.dataset.id === 'fade-in')._l.click[0]();
+  E.rafs.at(-1)(1000); E.ctx.arcs.length = 0; E.rafs.at(-1)(1000 + 5000);
+  const k = Math.round(24 * 480 / 400) / 24;
+  assert.deepEqual(E.ctx.arcs.map((a) => [a.fill, +a.r.toFixed(6)]), [['rgb(255, 0, 0)', +(2 * k).toFixed(6)], ['rgb(255, 0, 0)', +(2 * k).toFixed(6)]], `★미리보기 점 ${JSON.stringify(E.ctx.arcs)}`);
+  const xs = E.ctx.arcs.map((a) => a.x), t = E.ctx.calls.filter((c) => c.s === '방' || c.s === '점');
+  assert.ok(xs[0] < xs[1] && Math.abs(xs[0] - (t.find((c) => c.s === '방').x + 12)) < 30, '점 = 제 글자 위');
+  E.ctx.arcs.length = 0;
+  await window.exportAnimGif();
+  assert.deepEqual(E.ctx.arcs.slice(-2).map((a) => a.r), [4, 4], '★GIF 저장 점(배율 2)');
+  window.closeAnimModal();
 });

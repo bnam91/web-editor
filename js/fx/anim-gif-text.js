@@ -71,7 +71,8 @@ export function typedLines(lines, t) {
  * cs = 글자마다 하나(글과 같은 길이) · null = 블럭 기본 스타일 · 같은 요소의 글자는 «같은 객체»(묶음 = 객체 동일성).
  * 모든 효과는 글을 fillStyled 로 그린다 — 미리보기·GIF 저장·V1·V2 가 한 함수. 조각(같은 스타일 묶음)마다 따로 그리는 자리다
  * (조각별 변형·알파는 지금 0 — 지디 ③ «자리만 막지 마라»).
- * st 필드: C2 color · weight · italic · sizeK(블럭 글자 크기 대비) · C3 ul/lt {color, thick, off} · hl {color, h{pct|px}, y} · bg · C4 shadows [{color,x,y,blur}](계산된 text-shadow = 범위 글로우 · 블럭 글로우 · Shadow 절). */
+ * st 필드: C2 color · weight · italic · sizeK(블럭 글자 크기 대비) · C3 ul/lt {color, thick, off} · hl {color, h{pct|px}, y} · bg · C4 shadows [{color,x,y,blur}](계산된 text-shadow = 범위 글로우 · 블럭 글로우 · Shadow 절) ·
+ * C5 dot {color, size, tx, ty}(span.tb-dot::before 계산값 · 글자마다 span 하나라 조각도 글자 하나). */
 
 const _plainCs = (cs) => !cs || !cs.some(Boolean);
 /** 같은 스타일 객체가 이어진 글자 묶음 = 조각. */
@@ -101,13 +102,20 @@ function _decor(ctx, p, x, baseline, env, over) {
   const st = p.st, ps = env.size * (st.sizeK || 1), k = env.size / (env.style.fontSize || env.size);
   const thick = (l) => (l.thick > 0 ? l.thick * k : Math.max(1, ps / 16));
   const sb = ctx.shadowBlur; ctx.shadowBlur = 0;
+  const b0 = ctx.textBaseline; ctx.textBaseline = 'alphabetic';
+  const m = ctx.measureText(p.text); ctx.textBaseline = b0;
+  const asc = Number.isFinite(m.fontBoundingBoxAscent) ? m.fontBoundingBoxAscent : ps * 0.8;
+  const desc = Number.isFinite(m.fontBoundingBoxDescent) ? m.fontBoundingBoxDescent : ps * 0.2;
   if (over) {
     if (st.lt) { ctx.fillStyle = st.lt.color; ctx.fillRect(x, baseline - ps * 0.3 - thick(st.lt) / 2, p.w, thick(st.lt)); }
+    /* 방점(C5) — CSS: 점 아래끝 = 글자 상자 윗변(bottom:anchor(top)) · 가운데 = 글자 가운데(left:anchor(center)) · 그 뒤 translate(tx, ty)
+       (tx 에 -50%(= −size/2) 가 이미 들어 있다 — 계산된 ::before transform). */
+    if (st.dot) {
+      const r = (st.dot.size * k) / 2;
+      ctx.fillStyle = st.dot.color; ctx.beginPath();
+      ctx.arc(x + p.w / 2 + st.dot.tx * k + r, baseline - asc + st.dot.ty * k - r, r, 0, Math.PI * 2); ctx.fill();
+    }
   } else {
-    const b0 = ctx.textBaseline; ctx.textBaseline = 'alphabetic';
-    const m = ctx.measureText(p.text); ctx.textBaseline = b0;
-    const asc = Number.isFinite(m.fontBoundingBoxAscent) ? m.fontBoundingBoxAscent : ps * 0.8;
-    const desc = Number.isFinite(m.fontBoundingBoxDescent) ? m.fontBoundingBoxDescent : ps * 0.2;
     if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, baseline - asc, p.w, asc + desc); }
     if (st.hl && st.hl.color) {
       const band = st.hl.h.pct != null ? (asc + desc) * st.hl.h.pct : st.hl.h.px * k;
@@ -161,7 +169,7 @@ export function fillStyled(ctx, text, cs, x, y, env) {
   let px = base.align === 'center' ? x - total / 2 : base.align === 'right' || base.align === 'end' ? x - total : x;
   ctx.font = base.font;
   const mixed = ps.some((p) => p.st && (p.st.sizeK || 1) !== 1) && base.bl === 'middle';
-  const decor = ps.some((p) => p.st && (p.st.ul || p.st.lt || p.st.hl || p.st.bg));
+  const decor = ps.some((p) => p.st && (p.st.ul || p.st.lt || p.st.hl || p.st.bg || p.st.dot));
   const off = mixed || decor ? _baseOff(ctx) : 0;
   const by = mixed ? y + off : y;
   const baseline = mixed ? by : y + off;   // 장식(배경·형광·밑줄·취소선)이 재는 글자 바닥선

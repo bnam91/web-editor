@@ -12,6 +12,8 @@
  *   양성대조(실측은 커밋 메시지): fillStyled 의 `if (p.st) _decor(…, false)` 줄 삭제 → T13 빨강.
  * T14(RICHTEXT C4): 계산된 text-shadow 읽기 · 그림자는 맨 뒤 것부터 «화면 밖 글 + 옮긴 그림자» · 글은 그 위에 원래 그림자 상태로.
  *   양성대조(아이맥 실측 예정): _shadows 첫 줄 return → T14 빨강.
+ * T15(RICHTEXT C5): 방점 = 그 글자 가운데 + ::before transform · 아래끝 = 글자 상자 윗변 + ty · 지름 = size × 배율 · 그림자 0.
+ *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → T15 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -27,7 +29,8 @@ function fakeCtx() {
     fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h, fill: ctx.fillStyle, sb: ctx.shadowBlur }),
     _tf: 0, _stack: [],
     save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha] = ctx._stack.pop(); },
-    translate() { ctx._tf++; }, scale() { ctx._tf++; }, beginPath() {}, rect() {}, clip() {},
+    translate() { ctx._tf++; }, scale() { ctx._tf++; }, beginPath() {}, rect() {}, clip() {}, fill() {},
+    arc: (x, y, r) => calls.push({ op: 'arc', x, y, r, fill: ctx.fillStyle, sb: ctx.shadowBlur }),
   };
   return ctx;
 }
@@ -223,4 +226,16 @@ test('T14 RICHTEXT C4 — parseTextShadow · 조각 그림자 = 맨 뒤 것부�
     ['g', 'rgb(255, 0, 255)', 4, -10000, 10000, 0],
     ['g', 'keep', 0, 'x', 0, 0],
   ], `★그림자 층 ${JSON.stringify(t)}`);
+});
+
+test('T15 RICHTEXT C5 — 방점: 그 글자 가운데 + transform(tx 에 −size/2 포함) · 아래끝 = 글자 상자 윗변 + ty · 지름 size · 그림자 0 · 다른 글자엔 점 0', () => {
+  const D = Object.freeze({ color: '#111', weight: '700', italic: false, sizeK: 1, dot: { color: '#ff0000', size: 4, tx: -2 + 3, ty: -1 } });
+  const ctx = fakeCtx(); ctx.shadowBlur = 7;
+  drawTracks(ctx, 480, 200, { ...STYLE, text: 'a점b', cs: [null, D, null], fontSize: 20 }, 20, [{ line: 0, fx: 'glow-pulse', at: 0, dur: 100 }], 100);
+  const arcs = ctx.calls.filter((c) => c.op === 'arc'), t = ctx.calls.filter((c) => c.op === 'text' && c.s === '점')[0];
+  assert.equal(arcs.length, 1, `★점 수 ${JSON.stringify(arcs)}`);
+  const a = arcs[0];
+  assert.deepEqual([a.fill, a.r, a.sb], ['#ff0000', 2, 0]);
+  assert.ok(Math.abs(a.x - (t.x + 10 / 2 + 1 + 2)) < 1e-9, `점 x = 글자 가운데 + tx + r (${a.x} vs ${t.x})`);
+  assert.ok(Math.abs(a.y - (t.y - 20 * 0.8 - 1 - 2)) < 1e-9, `점 y = 상자 윗변 + ty − r (${a.y} vs ${t.y})`);
 });

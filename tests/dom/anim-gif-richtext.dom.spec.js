@@ -10,6 +10,9 @@
  * C4 R4 범위 글로우 span.tb-glow(자홍 --tb-glow-color · k 1) → 캔버스에 자홍빛 번짐 · 블럭 전체 그림자(글 요소 text-shadow 초록) → 초록빛 번짐
  *   양성대조(예측): js/fx/anim-gif-text.js fillStyled 의 `if (p.st && p.st.shadows) _shadows(…)` 줄 삭제 → R4 빨강(단위 T14·E10 도)
  *   셀렉터: .tb-glow(prop-text-wireup-text-edit.js GLOW_CLASS) · --tb-glow-color/-k(css/editor-layout.css .tb-glow)
+ * C5 R5 방점 span.tb-dot(글자마다 · 빨강 6px) → 캔버스에 빨강 점 · 글자 가운데 줄보다 위 · 방점 없는 글엔 빨강 0
+ *   양성대조(예측): js/fx/anim-gif-text.js _decor 의 `if (st.dot) {` → `if (false) {` → R5 빨강(단위 T15·E11 도)
+ *   셀렉터: .tb-dot(prop-text-wireup-text-edit.js DOT_CLASS) · --tb-dot-color/-size(css/editor-layout.css .tb-dot::before)
  * 셀렉터·전역 대조(제품 소스 grep): window.addSection · window.selectSection(editor.js:5271) · window.addTextBlock · .text-block [contenteditable] ·
  *   #anim-list .anim-item[data-id](animation-engine.js _buildAnimList) · #anim-preview-canvas(index.html) · window.openAnimModal(엔진 끝) — 전부 anim-gif-v2-fx 가 이미 쓰는 것
  */
@@ -137,5 +140,18 @@ test('R4 글로우·그림자 — 범위 글로우 span.tb-glow 자홍 번짐 ·
   await pick(page, 'fade-in');
   await at(page, 5000);
   expect(await huePixels(page, 'green'), '★블럭 전체 그림자 번짐 0').toBeGreaterThan(200);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R5 방점 — 글자마다 span.tb-dot 빨강 점이 글자 위에', async ({ page }) => {
+  const dot = (ch) => `<span class="tb-dot" style="--tb-dot-color: rgb(255, 0, 0); --tb-dot-size: 6px">${ch}</span>`;
+  const errs = await scene(page, `${dot('방')}${dot('점')} 평글`);
+  await pick(page, 'fade-in');
+  const f = await at(page, 5000);
+  const ch = f.find((c) => c.s === '방');
+  expect(ch, `[전제] «방» 한 조각 ${JSON.stringify(f.map((c) => c.s))}`).toBeTruthy();
+  const red = await colorPixels(page, [255, 0, 0], 60);
+  expect(red.n, '★방점 빨강 0').toBeGreaterThan(10);
+  expect(red.y1, '점은 글자 가운데 줄보다 위').toBeLessThan(ch.y);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
