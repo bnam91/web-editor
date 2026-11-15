@@ -395,6 +395,7 @@ function _renderAutoPanel(ss) {
   const width  = parseInt(ss.dataset.width)  || (isShapeFrame ? 100 : 780);
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
+  const shownW = Math.round(panelRenderedPx(ss, 'width')) || width;   // 칸 = 그려진 폭(섹션 안쪽 상한에 조여진 716 · dataset 860 아님) — FRAME-WIDTH-FIELD-SHOWS-UNCLAMPED-01 · 안 그려졌으면(auto) dataset
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 배경 절의 «체크 배경»·«체커 어둡게»를 그대로(prop-section.js · 같은 키·문구·어휘 · id 만 ss-*). */
   const _bgEmpty = ss.dataset.bgImgEmpty === '1';
@@ -594,8 +595,8 @@ function _renderAutoPanel(ss) {
       <div class="prop-section-title">Size</div>
       <div class="prop-row">
         <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${width}">
-        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${width}">
+        <input type="range" class="prop-slider" id="ss-width-slider" min="${minWidth}" max="860" step="10" value="${shownW}">
+        <input type="number" class="prop-number" id="ss-width-num" min="${minWidth}" max="860" value="${shownW}">
       </div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
