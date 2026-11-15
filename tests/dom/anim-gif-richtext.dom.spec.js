@@ -15,6 +15,8 @@
  *   셀렉터: .tb-dot(prop-text-wireup-text-edit.js DOT_CLASS) · --tb-dot-color/-size(css/editor-layout.css .tb-dot::before)
  * C6 R6 슬롯머신 — 숫자 «5» 의 방점(파랑)이 끝 프레임에 다 보인다: 같은 방점을 fade-in 으로 그린 픽셀 수(기준)의 80% 이상(멈춘 자리는 줄 띠로 안 자름) · 빨강 «원» 조각 유지
  *   양성대조(예측): 두 슬롯(엔진 V1 `if (r.frac) { ctx.save(); … clip` · 줄별 `const roll = r.frac > 0`)을 «늘 자름»으로 → R6 빨강(단위 T16·E12 도)
+ * ⑫ R7 글자 그라데이션(글 요소 background-clip:text · 90deg 빨강→파랑) → 캔버스 글이 왼쪽 빨강빛·오른쪽 파랑빛(빨강 픽셀 평균 x < 파랑 픽셀 평균 x)
+ *   양성대조(예측): js/fx/anim-gif-tracks.js withGradFill 첫 줄 `return style;` → R7 빨강(파랑 0 — 첫 스탑 단색) · 단위 T17·E13 도
  * 셀렉터·전역 대조(제품 소스 grep): window.addSection · window.selectSection(editor.js:5271) · window.addTextBlock · .text-block [contenteditable] ·
  *   #anim-list .anim-item[data-id](animation-engine.js _buildAnimList) · #anim-preview-canvas(index.html) · window.openAnimModal(엔진 끝) — 전부 anim-gif-v2-fx 가 이미 쓰는 것
  */
@@ -172,5 +174,31 @@ test('R6 슬롯머신 — 멈춘 숫자의 방점이 끝 프레임에 «다 보�
   expect(f.some((c) => c.s === '원' && c.fill === '#ff0000'), `★빨강 조각 ${JSON.stringify(f.map((c) => [c.s, c.fill]))}`).toBe(true);
   const n = (await colorPixels(page, [0, 0, 255], 60)).n;
   expect(n, `★멈춘 숫자의 방점이 잘렸다(슬롯 ${n} · 기준 fade-in ${ref})`).toBeGreaterThanOrEqual(Math.ceil(ref * 0.8));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R7 글자 그라데이션 — 90deg 빨강→파랑: 글 왼쪽 빨강빛 · 오른쪽 파랑빛', async ({ page }) => {
+  const errs = await scene(page, '그라데이션 글자 확인');
+  await page.evaluate(() => {
+    window.closeAnimModal();
+    const ce = window.__tb.querySelector('[contenteditable]') || window.__tb.querySelector('.tb-body');
+    Object.assign(ce.style, { backgroundImage: 'linear-gradient(90deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%)', webkitBackgroundClip: 'text', backgroundClip: 'text', webkitTextFillColor: 'transparent', color: 'rgb(255, 0, 0)' });
+    window.openAnimModal(window.__tb);
+  });
+  await pick(page, 'fade-in');
+  await at(page, 5000);
+  const m = await page.evaluate(() => {
+    const cv = document.getElementById('anim-preview-canvas');
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let rn = 0, rx = 0, bn = 0, bx = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], b = d[i + 2], x = (i / 4) % cv.width;
+      if (r - b > 80) { rn++; rx += x; } else if (b - r > 80) { bn++; bx += x; }
+    }
+    return { rn, bn, rx: rx / (rn || 1), bx: bx / (bn || 1) };
+  });
+  expect(m.rn, `빨강빛 ${JSON.stringify(m)}`).toBeGreaterThan(30);
+  expect(m.bn, `★파랑빛 0 = 그라데이션이 안 실렸다 ${JSON.stringify(m)}`).toBeGreaterThan(30);
+  expect(m.rx, '빨강은 왼쪽 · 파랑은 오른쪽').toBeLessThan(m.bx);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

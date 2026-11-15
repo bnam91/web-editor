@@ -21,6 +21,8 @@
  *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → E11 빨강.
  * E12(RICHTEXT C6): 효과 전부(V1 일곱 · V2 셋 · 줄마다 따로 슬롯) 끝 프레임에서 꾸밈 유지 — 빨강 조각 · 방점(안 잘림) · 글로우 층.
  *   양성대조(아이맥 실측 예정): 줄별 slot-machine 의 `const roll = r.frac > 0;` → `true` → E12(줄마다 따로 슬롯) 빨강.
+ * E13(RICHTEXT ⑫): 글 요소 background-clip:text 그라데이션(제품 gradient-model.js 를 window.GradientModel 로) → 미리보기·GIF 저장 글 채움 = 캔버스 그라데이션(스탑 그대로) ·
+ *   부분 단색 span(-webkit-text-fill-color) 은 단색 유지. 양성대조(아이맥 실측 예정): withGradFill 첫 줄 `return style;` → E13 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -390,4 +392,41 @@ test('E12 RICHTEXT C6 — 효과 전부(V1 7 · V2 3 · 줄마다 따로 슬롯)
     assert.ok(t.some((c) => c.s === '할' && c.sox), `★${id} 글로우 층`);
     window.closeAnimModal();
   }
+});
+
+test('E13 RICHTEXT ⑫ — 글자 그라데이션 블럭 → 미리보기·GIF 저장 글 채움 = 캔버스 그라데이션 · 부분 단색 span 은 단색', async () => {
+  const E = await loadEngine();
+  const dir = mkTmpRoot('anim-gif-grad-smoke-');
+  fs.writeFileSync(path.join(dir, 'gradient-model.mjs'), read('js/props/gradient-model.js'));
+  await import(pathToFileURL(path.join(dir, 'gradient-model.mjs')).href);   // window.GradientModel 을 세운다(window = globalThis)
+  assert.equal(typeof window.GradientModel?.parseGradient, 'function', '[전제] window.GradientModel');
+  const made = [];
+  E.ctx.createLinearGradient = (x0, y0, x1, y1) => { const g = { x0, y0, x1, y1, stops: [], addColorStop(o, c) { this.stops.push([o, c]); } }; made.push(g); return g; };
+  E.ctx.createRadialGradient = () => { throw new Error('radial 아님'); };
+  const txt = (d) => ({ nodeType: 3, data: d });
+  const solid = { nodeType: 1, tagName: 'SPAN', childNodes: [txt('단색')], parentElement: E.textEl, closest: () => null };
+  E.textEl.innerHTML = '그라 <span>단색</span>';
+  E.textEl.childNodes = [txt('그라 '), solid];
+  const base = { fontSize: '24px', color: 'rgb(255, 0, 0)', fontFamily: 'sans-serif', fontWeight: '400', fontStyle: 'normal', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px',
+    textDecorationLine: 'none', backgroundColor: 'rgba(0, 0, 0, 0)', textShadow: 'none', webkitTextFillColor: 'rgba(0, 0, 0, 0)',
+    backgroundClip: 'text', webkitBackgroundClip: 'text', backgroundImage: 'linear-gradient(90deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%)' };
+  globalThis.getComputedStyle = (e) => (e === solid ? { ...base, color: 'rgb(0, 200, 0)', webkitTextFillColor: 'rgb(0, 200, 0)' } : base);
+  try {
+    const items = [];
+    E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+    window.openAnimModal(E.tb);
+    items.find((it) => it.dataset.id === 'fade-in')._l.click[0]();
+    E.rafs.at(-1)(1000); E.ctx.calls.length = 0; made.length = 0; E.rafs.at(-1)(1000 + 5000);
+    assert.ok(made.length >= 1, '★캔버스 그라데이션을 안 만들었다');
+    const g = made.at(-1);
+    assert.deepEqual(g.stops, [[0, 'rgb(255, 0, 0)'], [1, 'rgb(0, 0, 255)']]);
+    const by = (s) => E.ctx.calls.find((c) => c.s === s);
+    assert.ok(by('그라 ') && made.includes(by('그라 ').fill), `★글 채움이 그라데이션이 아니다 ${JSON.stringify(E.ctx.calls.map((c) => [c.s, typeof c.fill]))}`);
+    assert.equal(by('단색').fill, 'rgb(0, 200, 0)', '부분 단색 span 은 단색');
+    assert.ok(g.x0 < g.x1 && Math.abs(g.y0 - g.y1) < 1e-6, '90deg = 왼→오른 가로선');
+    E.ctx.calls.length = 0; made.length = 0;
+    await window.exportAnimGif();
+    assert.ok(made.length >= 1 && made.includes(E.ctx.calls.filter((c) => c.s === '그라 ').at(-1).fill), '★GIF 저장 글 채움 = 그라데이션');
+    window.closeAnimModal();
+  } finally { delete globalThis.GradientModel; delete globalThis.getGradientTarget; }
 });

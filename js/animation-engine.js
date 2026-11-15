@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs, parseTextShadow } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines, withGradFill } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -23,16 +23,17 @@ const ANIM_LIST = [
  *  k = 배율(블럭 1px = 캔버스 k px) — 흐림·흔들림 px 를 미리보기·GIF 에서 같은 «눈 크기»로. */
 const _V2_DUR = { stamp: 560, 'blur-in': 900, 'blur-whip': 700 };
 function _plan(style, speed, k) {
+  const paint = (ctx, W, H, size) => withGradFill(ctx, style, W, H, size);   // ⑫ 글자 그라데이션 = 기본 채움색(없으면 style 그대로)
   /* F3 줄마다 따로 — 저장된 트랙(글 줄 수에 다시 맞춤) · 속도는 at·dur 를 나눈다 · 한 바퀴 = 가장 늦게 끝나는 줄 */
   if (_perLine && _tracks) {
     const tr = scaleTracks(normTracks(_tracks, String(style.text || '').split('\n').length), speed);
     const dur = Math.max(1, totalMs(tr));
-    return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, style, size, tr, t * dur, k) };
+    return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tr, t * dur, k) };
   }
-  if (!V2_FX.includes(_animType)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, style, size, _animType, t) };
+  if (!V2_FX.includes(_animType)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, paint(ctx, W, H, size), size, _animType, t) };
   const dur = Math.round(_V2_DUR[_animType] / speed);
   const tracks = String(style.text || '').split('\n').map((_, i) => ({ line: i, fx: _animType, at: 0, dur }));
-  return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, style, size, tracks, t * dur, k) };
+  return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tracks, t * dur, k) };
 }
 
 let _animTb        = null;
@@ -235,6 +236,9 @@ function _extractCs(el, text) {
    C4 그림자(shadows · text-shadow 는 상속 ⇒ host 의 계산값 하나가 범위 글로우 span.tb-glow · 블럭 글로우 · Shadow 절을 다 담는다) ·
    C5 방점(dot · span.tb-dot::before 의 «계산된» 크기·색·transform — 변수·currentColor·-50% 가 이미 px 로 풀려 있다). */
 const _italic = (cs) => /italic|oblique/.test(cs.fontStyle || '');
+/* 글자 «칠» — 채움색(-webkit-text-fill-color)이 있으면 그것(그라데이션 블럭의 부분 단색 span 이 이걸로 단색을 지킨다) ·
+   투명이면 null(= 블럭 그라데이션을 받는다 ⑫) · 없으면 color. */
+const _paint = (c) => { const f = c.webkitTextFillColor; return f && /^(transparent|rgba\(0, 0, 0, 0\))$/.test(f) ? null : f || c.color; };
 const _cssVar = (c, name) => String((c.getPropertyValue && c.getPropertyValue(name)) || '').trim();
 const _line = (c) => ({
   color: c.textDecorationColor || c.color,
@@ -244,7 +248,7 @@ const _line = (c) => ({
 function _runStyle(host, el) {
   const h = window.getComputedStyle(host), b = window.getComputedStyle(el);
   const sizeK = (parseFloat(h.fontSize) || 0) / (parseFloat(b.fontSize) || 1) || 1;
-  const st = { color: h.color, weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK, ul: null, lt: null, hl: null, bg: null, shadows: parseTextShadow(h.textShadow), dot: null };
+  const st = { color: _paint(h), weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK, ul: null, lt: null, hl: null, bg: null, shadows: parseTextShadow(h.textShadow), dot: null };
   // 장식선은 상속되지 않고 «그은 요소»가 그 안 글 전체에 긋는다 ⇒ host 에서 el 까지 거슬러 그 요소의 색·두께·위치
   for (let n = host; n; n = n === el ? null : n.parentElement) {
     const c = n === host ? h : n === el ? b : window.getComputedStyle(n), line = c.textDecorationLine || '';
@@ -264,7 +268,7 @@ function _runStyle(host, el) {
     const [tx, ty] = mt ? mt[1].split(',').slice(4).map(Number) : [-size / 2, 0];
     if (size > 0 && c.content !== 'none') st.dot = { color: c.backgroundColor, size, tx: tx || 0, ty: ty || 0 };
   }
-  if (st.color === b.color && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1 && !st.ul && !st.lt && !st.hl && !st.bg && !st.shadows && !st.dot) return null;
+  if (st.color === _paint(b) && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1 && !st.ul && !st.lt && !st.hl && !st.bg && !st.shadows && !st.dot) return null;
   return Object.freeze(st);
 }
 
@@ -291,6 +295,13 @@ function _applyEmptyGate(btn) {
   else { btn.removeAttribute('aria-disabled'); btn.title = ''; }
 }
 
+function _textGrad(cs) {
+  const clip = `${cs.backgroundClip || ''} ${cs.webkitBackgroundClip || ''}`, GM = window.GradientModel;
+  if (!/\btext\b/.test(clip) || !/gradient\(/i.test(cs.backgroundImage || '') || !GM) return {};
+  const grad = GM.parseGradient(cs.backgroundImage);
+  return grad && grad.stops && grad.stops.length >= 2 ? { grad, gradLine: GM.gradientLine } : {};
+}
+
 function _getTextStyle(tb) {
   const el  = _textEl(tb);
   if (!el) return { text: '', fontSize: 24, color: '#111111', fontFamily: 'sans-serif', fontWeight: '400', letterSpacing: 0, textAlign: 'left', lineHeight: 1.4, sectionBg: '#ffffff' };
@@ -311,6 +322,8 @@ function _getTextStyle(tb) {
     textAlign:     el.style.textAlign || (cs.textAlign === 'start' ? 'left' : cs.textAlign) || 'left',
     lineHeight:    parseFloat(cs.lineHeight) / (parseFloat(cs.fontSize) || 1) || 1.4,
     sectionBg:     bg || '#ffffff',
+    // ⑫ 글자 그라데이션 — background-clip:text + 그라데이션이면 제품 파서·선 기하(window.GradientModel · gradient-model.js)로 넘긴다
+    ...(_textGrad(cs)),
     // 블럭 글 안쪽 폭(em) — 캔버스가 블럭과 같은 곳에서 접게(textBox). clientWidth 는 zoom 영향 없음 · 0 이면 옛 규칙
     wrapEm:        (el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)) / (parseFloat(cs.fontSize) || 24) || undefined,
   };
@@ -548,7 +561,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       const phase = t * Math.PI * 4;
       const glow  = 0.5 + 0.5 * Math.sin(phase);
       ctx.save();
-      ctx.shadowColor = style.color;
+      ctx.shadowColor = style.solid || style.color;   // 그라데이션이면 대체 단색(그림자는 CanvasGradient 를 못 받는다)
       ctx.shadowBlur  = 4 + 32 * glow;
       ctx.globalAlpha = 0.6 + 0.4 * glow;
       ctx.fillStyle   = style.color;

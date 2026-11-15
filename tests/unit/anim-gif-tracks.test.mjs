@@ -16,6 +16,8 @@
  *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → T15 빨강.
  * T16(RICHTEXT C6): 줄별 효과 10개 전부 끝 프레임에서 꾸밈 유지(색 조각 · 방점 · 글로우 층) · 슬롯머신도 멈춘 자리의 방점이 안 잘린다.
  *   양성대조(아이맥 실측 예정): 줄별 slot-machine 의 `const roll = r.frac > 0;` → `const roll = true;` → T16(slot-machine) 빨강.
+ * T17(RICHTEXT ⑫): 글자 그라데이션 → 캔버스 그라데이션(제품 gradientLine · 글 테두리 상자) = 기본 채움색 · 대체 단색 solid · 그라데이션 없으면 style 그대로.
+ *   양성대조(아이맥 실측 예정): withGradFill 첫 줄을 `return style;` → T17 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -257,4 +259,28 @@ test('T16 RICHTEXT C6 — 줄별 효과 10개 끝 프레임: 빨강 조각 · �
     assert.ok(arcs.length === 1 && !arcs[0].clip, `★${fx} 방점(안 잘림) ${JSON.stringify(arcs)}`);
     assert.ok(t.some((c) => c.s === '할' && c.sox), `★${fx} 글로우 층`);
   }
+});
+
+test('T17 RICHTEXT ⑫ — withGradFill: 90deg 그라데이션 = 글 왼끝→오른끝(가운데 줄) · 스탑 그대로 · 글 채움 = 그 그라데이션 · solid = 원래 색', async () => {
+  const fs = await import('node:fs'), path = await import('node:path'), url = await import('node:url');
+  const { mkTmpRoot } = await import('./_tmproot.js');
+  const { withGradFill } = await import('../../js/fx/anim-gif-tracks.js');
+  const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
+  const dir = mkTmpRoot('anim-gif-grad-');   // 제품 gradient-model.js(js/props · .js = CommonJS 로 읽힘)를 .mjs 로 — 파서·선 기하는 제품 것 그대로
+  fs.writeFileSync(path.join(dir, 'gradient-model.mjs'), fs.readFileSync(path.join(root, 'js/props/gradient-model.js'), 'utf8'));
+  const { parseGradient, gradientLine } = (await import(url.pathToFileURL(path.join(dir, 'gradient-model.mjs')).href)).default;
+  const grad = parseGradient('linear-gradient(90deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%)');
+  const ctx = fakeCtx(); const made = [];
+  ctx.createLinearGradient = (x0, y0, x1, y1) => { const g = { kind: 'lin', x0, y0, x1, y1, stops: [], addColorStop(o, c) { this.stops.push([o, c]); } }; made.push(g); return g; };
+  const style = { ...STYLE, text: 'aaaa', grad, gradLine: gradientLine };
+  const out = withGradFill(ctx, style, 480, 200, 20);
+  assert.equal(made.length, 1, '★캔버스 그라데이션을 안 만들었다');
+  const g = made[0];
+  const near = (a, b) => Math.abs(a - b) < 1e-6;   // 90deg 의 cos = 6e-17 — 정확히 같진 않다
+  assert.ok(near(g.x0, 220) && near(g.x1, 260) && near(g.y0, 100) && near(g.y1, 100), `선 = 글 왼끝→오른끝 · 가운데 줄 ${JSON.stringify(g)}`);
+  assert.deepEqual(g.stops, [[0, 'rgb(255, 0, 0)'], [1, 'rgb(0, 0, 255)']]);
+  assert.deepEqual([out.color, out.solid], [g, '#111']);
+  drawTracks(ctx, 480, 200, out, 20, [{ line: 0, fx: 'fade-in', at: 0, dur: 100 }], 100);
+  assert.ok(ctx.calls.filter((c) => c.op === 'text').every((c) => c.fill === g), '★글 채움 = 그라데이션');
+  assert.equal(withGradFill(ctx, STYLE, 480, 200, 20), STYLE, '그라데이션 없으면 style 그대로');
 });

@@ -124,6 +124,26 @@ export function fitCanvasH(ctx, style, W, H, size) {
   return Math.max(H, Math.ceil(L.totalH));
 }
 
+/** 글자 그라데이션(⑫) — 블럭 글 요소의 background-clip:text 그라데이션을 캔버스 그라데이션으로 바꿔 «기본 채움색»으로 준다.
+ *  CSS 는 칠 구간을 «글자 덩어리»(가장 긴 줄 폭 · 정렬 자리 — text-block-color.js syncTextGradGeometry) × 글 상자 높이에 깐다 ⇒ 캔버스도 배치된 글의 테두리 상자.
+ *  선 기하는 제품의 gradientLine(style.gradLine = GradientModel.gradientLine, space 'css') 그대로. 그라데이션이 없으면 style 그대로.
+ *  style.solid = 대체 단색(그림자 색 등 CanvasGradient 를 못 받는 자리). shortcut: 글이 «변형 없이» 움직이는 효과(slide-up 등)에선
+ *  그라데이션이 캔버스에 고정이라 움직이는 동안만 구간이 어긋난다 — 끝 프레임은 맞다. 움직임에도 붙이려면 효과별 translate 로. */
+export function withGradFill(ctx, style, W, H, size) {
+  if (!style.grad || !style.gradLine || !ctx.createLinearGradient) return style;
+  ctx.font = `${style.fontWeight} ${size}px ${style.fontFamily}`;
+  try { ctx.letterSpacing = (style.letterSpacing || 0) + 'px'; } catch (_) { /* 옛 캔버스 */ }
+  const L = layoutLines(ctx, style, W, H, size);
+  const x0 = Math.min(...L.segs.map((s) => s.x0)), x1 = Math.max(...L.segs.map((s) => s.x0 + s.w));
+  const top = H / 2 - L.totalH / 2, w = Math.max(1, x1 - x0), h = Math.max(1, L.totalH);
+  const ln = style.gradLine(style.grad, { space: 'css', w, h });
+  const P = (q) => [x0 + q.x * w, top + q.y * h];
+  const [ax, ay] = P(ln.p0), [bx, by] = P(ln.p1);
+  const g = ln.radial ? ctx.createRadialGradient(ax, ay, 0, ax, ay, Math.hypot(bx - ax, by - ay)) : ctx.createLinearGradient(ax, ay, bx, by);
+  for (const st of style.grad.stops) g.addColorStop(Math.max(0, Math.min(1, st.offset)), st.color);
+  return { ...style, color: g, solid: style.color };
+}
+
 /* ── 줄 한 몫 효과 — (ctx, segs(그 줄의 조각들), p(0~1), env) ── */
 const _plain = (ctx, segs, env) => segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y, env));
 export const FX = {
@@ -214,7 +234,7 @@ export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
   ctx.textAlign = 'left';   // 조각마다 x0(줄 시작) 로 그린다 — 정렬은 배치가 이미 풀었다
   try { ctx.letterSpacing = (style.letterSpacing || 0) + 'px'; } catch (_) { /* 옛 캔버스 */ }
   const L = layoutLines(ctx, style, W, H, size);
-  const env = { W, H, size, k, style, lineH: L.lineH, align: L.align, anchorX: L.anchorX, color: style.color };
+  const env = { W, H, size, k, style, lineH: L.lineH, align: L.align, anchorX: L.anchorX, color: style.solid || style.color };   // env.color = 그림자 색(단색)
   const drawn = [];
   for (const tr of tracks) {
     const p = localT(tr, tau);
