@@ -28,8 +28,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
 
 /* 레인의 관용구 — 플레인 스크립트를 창 더미에 실어 «부른다»(tests/unit/marking-glyph.test.mjs load()). */
-function loadFlags() {
-  const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
+function loadFlags(extra = {}) {
+  const ctx = { ...extra }; ctx.window = ctx; vm.createContext(ctx);
   vm.runInContext(read('js/feature-flags.js'), ctx);
   return ctx;
 }
@@ -139,4 +139,31 @@ test('A5 ★술어의 ★집을 가리키는 줄이 ★전부 참 집이다 — 
   const bad = FILES.flatMap((f) => homeMisses(read(f).split('\n')).map((h) => `${f}:${h}`));
   assert.deepEqual(bad, [],
     `★술어의 집을 ★틀리게 가리키는 줄 ${bad.length}건 (참 집 = js/${ANIM_HOME}):\n  ${bad.join('\n  ')}`);
+});
+
+/* ═══ A6·A7 ADMIN-BUTTON-LOCKED-01 — ADMIN 배지가 보이는 판(앱 관리자 모드 = electronAPI.isAdmin true)이면 열림 ══════
+   배지(index.html #logo-admin-badge)와 «같은 질문»을 쓴다(보이는 것과 동작 일치 · 지디 결정). 깃발은 여전히 먼저다.
+   양성대조(아이맥 실측 예정): feature-flags.js 의 `|| appAdmin === true` 삭제 → A6 빨강. */
+const flush = () => new Promise((r) => setImmediate(r));
+
+test('A6 ★양성 — 앱 관리자 모드(ADMIN 배지 판)면 서버 role 몰라도 열림 · 깃발 꺼지면 닫힘', async () => {
+  const { animGifVisible } = loadFlags({ electronAPI: { isAdmin: () => Promise.resolve(true) } });
+  await flush();
+  assert.equal(animGifVisible(true, null), true, '★ADMIN 배지가 보이는데 GIF 단추가 꺼져 있다(신고 그대로)');
+  assert.equal(animGifVisible(true, { isAdmin: false }), true, '서버 role 이 일반이어도 배지 판이면 열림');
+  assert.equal(animGifVisible(false, null), false, '깃발 꺼짐이면 배지 판이어도 닫힘');
+  assert.equal(animGifVisible(undefined, { isAdmin: true }), false, '깃발 === true 그대로');
+});
+
+test('A7 ★음성 — 앱 관리자 아님·실패·던짐·truthy 1·없음 = 닫힘(좁은 쪽 그대로)', async () => {
+  const cases = [
+    ['isAdmin false',   { electronAPI: { isAdmin: () => Promise.resolve(false) } }],
+    ['isAdmin 실패',     { electronAPI: { isAdmin: () => Promise.reject(new Error('x')) } }],
+    ['isAdmin 던짐',     { electronAPI: { isAdmin: () => { throw new Error('x'); } } }],
+    ['isAdmin truthy 1', { electronAPI: { isAdmin: () => Promise.resolve(1) } }],
+    ['electronAPI 없음', {}],
+  ];
+  const bad = [];
+  for (const [n, extra] of cases) { const { animGifVisible } = loadFlags(extra); await flush(); if (animGifVisible(true, null) !== false) bad.push(n); }
+  assert.deepEqual(bad, [], `★이 칸이 열리면 현빈 말보다 넓다: ${bad.join(' · ')}`);
 });

@@ -220,7 +220,7 @@
  *   ⇒ 현빈 원문이 「공개」였으니 그 말 그대로 «화면에 보이는 범위»만 좁힌다.
  *   ⛔이 함수를 «권한 검사»라 부르지 마라 — 그렇게 읽으면 다음 사람이 서버 검사를 뺀다.
  *
- * ★`adminState` = `window.__admin.state()` 의 ★캐시(★로그인 전·조회 전엔 `null`).
+ * ★`adminState` = `window.__admin.state()` 의 ★캐시(★로그인 전·조회 전엔 `null`). ★또는 앱 관리자 모드(ADMIN 배지와 같은 electronAPI.isAdmin · 아래 ADMIN-BUTTON-LOCKED-01).
  *   ⇒ ★모르면 «아님»(좁은 쪽). 「모르니 일단 보여주자」는 현빈 말보다 ★넓어진다.
  * ★`hasRoleField` 3값(true=일반 / false=구버전 서버 / null=못 봄)은 ⛔여기서 안 쓴다 —
  *   보일지는 `isAdmin === true` 하나로 족하고 「왜 안 보이나」는 settings-admin 이 이미 가려 남긴다.
@@ -228,8 +228,18 @@
  * ★깃발을 ★인자로 받는 까닭 = ⑴순수해서 단위에서 재진다 ⑵깃발의 ★정본이 둘이 되지 않는다.
  * ★쓰는 자리 = `js/props/prop-text.js` 의 `_applyAnimGate` 한 자리. */
 (function (w) {
+  /* ★ADMIN-BUTTON-LOCKED-01(시트 0.9.x · 현빈 실앱): ADMIN 배지가 보이는 판인데 GIF 단추가 꺼져 있었다 —
+     배지(index.html #logo-admin-badge)는 «앱 관리자 모드»(electronAPI.isAdmin = main isAdminAuthorized · admin 인자·허용파일)를 보고
+     이 술어는 서버 role(__admin.state().isAdmin)만 봤다. ⇒ 지디 결정: 배지가 보이면 열림(보이는 것과 동작 일치).
+     같은 IPC 를 로드 때 한 번 당겨 캐시 — 오기 전·실패·없음 = «아님»(좁은 쪽 그대로).
+     shortcut: 캐시가 오기 전에 그려진 단추는 다음 패널 그리기 때 열린다(로드 직후 IPC 라 실사용에선 패널보다 먼저 옴). */
+  let appAdmin = false;
+  try {
+    const p = w.electronAPI && typeof w.electronAPI.isAdmin === 'function' ? w.electronAPI.isAdmin() : null;
+    if (p && typeof p.then === 'function') p.then((v) => { appAdmin = v === true; }, () => {});
+  } catch (_) { /* «아님» */ }
   w.animGifVisible = function (enabled, adminState) {
     if (enabled !== true) return false;
-    return !!(adminState && adminState.isAdmin === true);
+    return !!(adminState && adminState.isAdmin === true) || appAdmin === true;
   };
 })(window);
