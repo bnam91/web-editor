@@ -258,7 +258,7 @@ function _convertFreeLayoutToStack(ss) {
     return false;
   }
   if (a.rows.length === 0) {
-    alert('빈 프레임은 stack 으로 바꿀 수 없습니다. 자식을 넣은 뒤 다시 눌러 주세요.');
+    window.showToast?.('빈 프레임은 stack 으로 바꿀 수 없습니다. 자식을 넣은 뒤 다시 눌러 주세요.');   // 네이티브 alert 은 렌더러를 얼린다(위 나란히 자식과 같은 고침)
     return false;
   }
 
