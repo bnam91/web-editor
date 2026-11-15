@@ -527,7 +527,10 @@ function showColorAdjustPanel(host, opts = {}) {
 
   panel.style.display = 'flex';
   if (!_panelPos) _avoidHandles(panel, host);
-  _reavoidAvoidedPk = null;   // 진입 비키기가 새 기준 — 옛 판의 «비킨 자리 기준»을 들고 오지 않는다
+  /* 진입 비키기가 이 판의 «기준» — 앞 판의 표(배율·스크롤)·정착 창·비킨 기준을 들고 오지 않는다.
+     ★hide→show 가 한 작업 안에 이어지면 rAF 가 «숨은 프레임»을 못 봐 상태가 안 비워진다 ⇒ 진입 직전 배율 변화가 «진입 뒤 변화»로 읽혀
+       250ms 정착 창이 열리고, 그 안의 그림 끌기에 패널이 튀었다(7650b38f1 Z2 빨강 · 지디 261116). */
+  _reavoidZk = null; _reavoidSettling = false; _reavoidPk = null; _reavoidAvoidedPk = null;
   if (!_reavoidRaf) _reavoidRaf = requestAnimationFrame(_reavoidTick);
 
   // 이미 적용된 필터가 있으면 SVG 필터 노드가 살아있는지 보장

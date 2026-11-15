@@ -183,8 +183,11 @@ test('Z1 ★편집 중 배율을 바꾸면 패널이 다시 비켜 손잡이 여
 
 test('Z2 [음성] 배율·스크롤 무변(그림만 옮김) — 패널은 그 자리 그대로', async ({ page }) => {
   const { d, h, cx } = await zoomScene(page);
+  const zk = () => page.evaluate(() => { const w = document.getElementById('canvas-wrap'); return `${window.currentZoom}|${w?.scrollTop}|${w?.scrollLeft}`; });
+  const zk0 = await zk();
   await moveHost(page, cx - 300, d.top - 40, h + 80);
   await raf(page, 10);
+  expect(await zk(), '[전제] 옮기는 동안 배율·스크롤 표가 정말 안 바뀌었다(진입 «뒤» 무변 — 진입 «직전» applyZoom(40) 은 이 판의 기준에 든다)').toBe(zk0);
   const r = await page.evaluate(() => { const p = document.getElementById('color-adjust-panel'); return [p.style.top, p.style.bottom]; });
   expect(r, '배율·스크롤이 안 바뀌었는데 패널이 움직였다(끄는 중 튐)').toEqual(['', '']);
   expect(await coveredNow(page), '[전제] 이 칸은 «덮였는데도» 그대로인지를 잰다').toEqual(['rc']);
