@@ -170,6 +170,9 @@ function applyAdoptedAssets(data, projectId) {
   }
   return changed;
 }
+/* 이번 세션에 이 프로젝트로 옮긴 다른 프로젝트 그림의 «새 주소» — 라이브 DOM 은 옛 주소(goya-asset://A/…)를 그대로 들고 있어서,
+   그 주소로만 읽는 길(HTML 내보내기 재인라인)은 원본 A 가 아주 지워지면(휴지통 비움·영구 삭제) 그림을 못 싣는다(FOREIGN-ASSET-ADOPT-GAPS-01 ①). 없으면 null. */
+function adoptedUrlFor(projectId, url) { return _adopted.get(`${projectId}|${url}`) || null; }
 async function adoptForeignAssets(data, projectId) {
   const api = window.electronAPI;
   if (!data || !Array.isArray(data.pages) || !projectId || !api?.assetsReadAsDataUri || !api?.assetsSaveCanvasImage) return;
@@ -322,4 +325,4 @@ window.recordExternalizeBaseline = recordExternalizeBaseline;
 window.optimizeProjectImages = optimizeProjectImages;
 window.inlineAssetsForPeer = inlineAssetsForPeer;
 
-export { externalizeCanvasHtml, externalizeProjectData, adoptForeignAssets, applyAdoptedAssets, stopAdoptingForQuit, recordExternalizeBaseline, optimizeProjectImages };
+export { externalizeCanvasHtml, externalizeProjectData, adoptForeignAssets, applyAdoptedAssets, adoptedUrlFor, stopAdoptingForQuit, recordExternalizeBaseline, optimizeProjectImages };

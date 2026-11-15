@@ -5,6 +5,7 @@ import { textGradShadowDefsMarkup } from '../props/text-block-color.js';
 import { strokeDefsMarkup } from '../props/text-stroke-filter.js';   /* ★1012t1E1 내부 외곽선 필터 정의 */
 import { neutralizeRedactForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, restRuntimeForArtifact } from './capture-safety.js';
 import { collectCanvasCss } from './export-css-collect.js';
+import { adoptedUrlFor } from './asset-externalize.js';
 
 const CANVAS_W = 860;
 
@@ -47,8 +48,13 @@ async function inlineGoyaAssets(root) {
   const resolve = async (url) => {
     if (cache.has(url)) return cache.get(url);
     let data = null;
-    try { data = await _goyaAssetToDataUri(url); }
-    catch (err) { console.warn('[export-html] asset 인라인 실패, URL 유지:', url, err); }
+    /* 다른 프로젝트에서 붙인 그림을 이 프로젝트로 이미 옮겼으면(저장 때 adopt) 그 사본부터 읽는다 — 원본이 아주 지워져도 싣는다(FOREIGN-ASSET-ADOPT-GAPS-01 ①) */
+    const own = adoptedUrlFor(window.activeProjectId, url);
+    if (own) { try { data = await _goyaAssetToDataUri(own); } catch (_) { data = null; } }
+    if (!data) {
+      try { data = await _goyaAssetToDataUri(url); }
+      catch (err) { console.warn('[export-html] asset 인라인 실패, URL 유지:', url, err); }
+    }
     cache.set(url, data);
     return data;
   };
