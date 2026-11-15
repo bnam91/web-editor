@@ -1070,6 +1070,7 @@
   padding: 8px;
   margin-bottom: 10px;
 }
+.prop-cell-card:last-child { margin-bottom: 6px; }   /* 절 끝 = .prop-row(6)+절 padding 4 = 10 — 카드 사이 10 은 위 규칙 그대로 (PROP-SECTION-EXPANDED-BOTTOM-GAP-14-VS-10-01 · 현빈/지디 ㉠) */
 .prop-cell-card-header {
   display: flex;
   align-items: center;
