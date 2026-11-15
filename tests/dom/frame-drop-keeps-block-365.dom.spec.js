@@ -33,10 +33,12 @@ const reopen = async (page) => { await page.evaluate(() => { const d = JSON.pars
 const where = (page, id, free) => page.evaluate(([id, free]) => { const e = document.getElementById(id), f = document.getElementById(free); return e && { inFree: f.contains(e), abs: e.style.position === 'absolute', w: e.offsetWidth, h: e.offsetHeight, l: parseInt(e.style.left), t: parseInt(e.style.top) }; }, [id, free]);
 
 for (const host of ['section', 'stack']) {
-  test(`33종 어느 것도 자유 프레임에 놓아 사라지지 않고 빠졌던 6종은 안에 든다 — ${host}`, async ({ page }) => {
+  test(`34종 어느 것도 자유 프레임에 놓아 사라지지 않고 빠졌던 6종·cert 는 안에 든다 — ${host}`, async ({ page }) => {
     test.setTimeout(240000); await open(page);
     const roster = await rosterOf(page);
-    expect(roster.length, '정본 33종').toBe(33);
+    /* 2026-11-16 cert-block(Documents · 261114)이 정본에 들어 34종(2차 열차 07f8be554 빨강) — 루프가 cert 를 실제로 끌어 놓는다.
+       cert 는 입구가 insertAfterSelected 로 row 째 넣는 종(6종과 같은 row 경로)이라 «안에 든다»까지 잰다. */
+    expect(roster.length, '정본 34종').toBe(34);
     expect(roster.filter((r) => !r.entry).map((r) => r.cls), '입구 없음').toEqual([]);
     const bad = [];
     for (const kind of roster) {
@@ -46,7 +48,7 @@ for (const host of ['section', 'stack']) {
       const n1 = await count(page, kind.cls), w = await where(page, id, s.free);
       await reopen(page);
       const n2 = await count(page, kind.cls);
-      if (n1 !== n0 || n2 !== n0 || (LOST_6.includes(kind.cls) && !(w && w.inFree && w.abs && w.w > 0 && w.h > 0))) bad.push(`${kind.cls} ${n0}→${n1}→${n2} ${JSON.stringify(w)}`);
+      if (n1 !== n0 || n2 !== n0 || ([...LOST_6, 'cert-block'].includes(kind.cls) && !(w && w.inFree && w.abs && w.w > 0 && w.h > 0))) bad.push(`${kind.cls} ${n0}→${n1}→${n2} ${JSON.stringify(w)}`);
     }
     expect(bad).toEqual([]);
   });

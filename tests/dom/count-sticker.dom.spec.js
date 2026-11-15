@@ -4,7 +4,7 @@
  *   C1 찍기(실제 메뉴 → 실제 마우스) · C2 찍힌 자리 = 누른 자리(배율을 먹는다) · C3 번호는 섹션별
  *   C4 표기 A/B/C(묶음) · C5 시작 번호(묶음) · C6 모양 원·사각·투명(「섹션 전체」 스위치를 끈 채 = 고른 것만) · C7 크기(폰트 비례)
  *   C8 ⌘Z 한 번 = 스티커 하나 · C9 Esc 종료 · C10 다시 그려도 같은 글자(리로드·undo 와 같은 길)
- *   C11 번호 다시 매기기 · C12 더블클릭해도 글자 편집이 안 열린다 · C13 일반 스티커 패널 무회귀(C13b 짝: A 블럭이면 Shape 5)
+ *   C11 번호 다시 매기기 · C12 더블클릭해도 글자 편집이 안 열린다 · C13 일반 스티커 패널 무회귀(C13b 짝: A 블럭이면 Shape 6 · 톱니 포함)
  *   C14·C15 크기를 키로 한 칸씩 바꿔도 폰트 비례 · C16·C17 다른 찍는 도구와 안 겹친다 · C18 키 리스너 짝·한 번에 하나
  *   C19 모서리를 찍어도 섹션 안 · C20 메뉴 재클릭·우클릭·⌘⇧Z · C21 시작 번호 칸은 확정 때 모델 값으로
  *   C23~C25 Esc(1013t2B2) — 패널 칸(슬라이더·숫자칸·색 hex)에 포커스가 있어도 한 번에 꺼진다 · 임자가 따로 있는 Esc(패널 밖 칸·인라인 편집·색 팝오버)는 안 끈다 · 선택은 둘째 Esc 가 푼다
@@ -401,14 +401,16 @@ test('C13 무회귀 — 일반 스티커 패널엔 Count 절이 없고 Shape·�
     const vis = (el) => !!el && getComputedStyle(el).display !== 'none';
     return { count: !!document.getElementById('stk-count-section'), shape: vis(document.getElementById('stk-shape-section')),
       shapeBtns: document.querySelectorAll('#stk-shape-group .prop-align-btn').length,
+      burst: document.querySelectorAll('#stk-shape-group .prop-align-btn[data-shape="burst"]').length,
       sizeRow: vis(document.getElementById('stk-size-row')), text: vis(document.getElementById('stk-text-section')),
       mode: vis(document.getElementById('stk-mode-section')), txtRow: vis(document.getElementById('stk-txt-row')),
       label: document.querySelector('#stk-colors-section .prop-label')?.textContent.trim(),
       hasCount: 'count' in b.dataset, text0: b.dataset.text };
   });
   // ★1012t1J1(S4) 뒤 — Shape 의 형광펜 A(면) 단추는 «A 블럭일 때만» 보인다(새로 A 로 바꾸는 입구는 닫고, 옛 A 는 자기 자리를 본다).
-  //   그래서 일반 스티커에선 4. 짝 칸 C13b 가 «A 블럭이면 5» 를 잰다.
-  expect(r).toEqual({ count: false, shape: true, shapeBtns: 4, sizeRow: true, text: true, mode: true, txtRow: true, label: '배경색', hasCount: false, text0: 'NEW' });
+  //   그래서 일반 스티커에선 원·네모·텍스트 3 + 톱니(B2 burst · 261114) = 4 → 5. 짝 칸 C13b 가 «A 블럭이면 6» 를 잰다.
+  //   (2026-11-16 2차 열차 07f8be554 빨강 = 톱니 단추 하나 늘어남 · burst 1 로 그 단추를 이름으로 잰다)
+  expect(r).toEqual({ count: false, shape: true, shapeBtns: 5, burst: 1, sizeRow: true, text: true, mode: true, txtRow: true, label: '배경색', hasCount: false, text0: 'NEW' });
   // 카운트 스티커를 만든 뒤에도 일반 「Sticker」의 «마지막 스타일»은 안 물든다
   await toolOn(page);
   await stamp(page, SEC_A, 0.6, 0.5);
@@ -490,7 +492,7 @@ test('C15 크기 키 단계(슬라이더) — ArrowRight 로 한 칸씩 · 중�
   expect((await readSizeFs(page)).fs, '올렸다 내리면 폰트도 제자리').toBe(FS0);
 });
 
-test('C13b 짝 — 형광펜 A(면) 블럭을 고르면 Shape 단추가 5개(A 단추가 보인다), 일반 스티커는 4개', async ({ page }) => {
+test('C13b 짝 — 형광펜 A(면) 블럭을 고르면 Shape 단추가 6개(A 단추가 보인다), 일반 스티커는 5개(톱니 포함)', async ({ page }) => {
   await bootApp(page);
   await setup(page);
   const r = await page.evaluate(() => {
@@ -501,15 +503,17 @@ test('C13b 짝 — 형광펜 A(면) 블럭을 고르면 Shape 단추가 5개(A �
       return { shape: b.dataset.shape,
         btns: document.querySelectorAll('#stk-shape-group .prop-align-btn').length,
         aBtn: document.querySelectorAll('#stk-shape-group .prop-align-btn[data-shape="highlight"]').length,
+        burst: document.querySelectorAll('#stk-shape-group .prop-align-btn[data-shape="burst"]').length,
         hlSec: !!document.getElementById('stk-hl-section') && getComputedStyle(document.getElementById('stk-hl-section')).display !== 'none' };
     };
     return { a: pick({ shape: 'highlight' }), circle: pick({ shape: 'circle' }) };
   });
   expect(r.a.shape, '★전제: A(면 형광펜) 블럭이 만들어졌다').toBe('highlight');
   expect(r.a.hlSec, '★전제: A 패널(Highlight Size)이 열렸다').toBe(true);
-  expect(r, 'A 블럭이면 A 단추 포함 5, 일반 스티커면 4').toEqual({
-    a: { shape: 'highlight', btns: 5, aBtn: 1, hlSec: true },
-    circle: { shape: 'circle', btns: 4, aBtn: 0, hlSec: false },
+  // 톱니(B2 burst · 261114) 단추가 둘 다에 하나씩 늘었다(2026-11-16 2차 열차 빨강) — 5/4 → 6/5
+  expect(r, 'A 블럭이면 A 단추 포함 6, 일반 스티커면 5(둘 다 톱니 1)').toEqual({
+    a: { shape: 'highlight', btns: 6, aBtn: 1, burst: 1, hlSec: true },
+    circle: { shape: 'circle', btns: 5, aBtn: 0, burst: 1, hlSec: false },
   });
 });
 
