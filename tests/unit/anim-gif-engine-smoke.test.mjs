@@ -11,6 +11,8 @@
  *   양성대조(실측은 커밋 메시지): textBox 를 옛 규칙(좌우 5%)만 쓰게 하면 E6 한 줄 칸 빨강.
  * E7(GIF-SPEED-REPEAT-SLIDER-REFERENCEERROR-01): index.html GIF 모달의 인라인 on* 이 부르는 함수 = 엔진이 window 에 붙인 함수(모듈이라 안 붙이면 ReferenceError).
  *   양성대조(실측은 커밋 메시지): window.restartAnimPreview 줄 삭제 → E7 빨강.
+ * E8(RICHTEXT C2): 블럭 DOM 의 부분 꾸밈 span(색·굵기·기울임·크기) → 계산된 스타일 → 미리보기·GIF 저장 조각 그리기(실엔진 · V1 fade-in · V2 stamp).
+ *   양성대조(실측은 커밋 메시지): 엔진 _runStyle 이 늘 null → E8 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,7 +29,7 @@ function fakeCtx() {
   const ctx = {
     calls, filter: 'none', globalAlpha: 1, font: '', fillStyle: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '',
     measureText: (s) => ({ width: String(s).length * 10 }),
-    fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter }),
+    fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter, fill: ctx.fillStyle, font: ctx.font }),
     fillRect() {}, clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
   };
   return ctx;
@@ -240,4 +242,31 @@ test('E7 GIF 모달 인라인 on* 이 부르는 함수는 전부 window 에 있�
   assert.equal(E.rafs.length, before + 1, '미리보기 rAF 다시 걸림');
   assert.match(E.els['anim-loop-info'].textContent, /^한 바퀴 0\.60초/, '속도 2 = 1200ms/2 로 다시 셈');
   window.closeAnimModal();
+});
+
+test('E8 RICHTEXT C2 — 블럭 DOM 부분 꾸밈(span 색·굵기·기울임·크기 · <b>) → 미리보기·GIF 저장이 조각마다 제 스타일(V1 fade-in · V2 stamp)', async () => {
+  for (const fx of ['fade-in', 'stamp']) {
+    const E = await loadEngine();
+    const txt = (d) => ({ nodeType: 3, data: d });
+    const red = { nodeType: 1, tagName: 'SPAN', childNodes: [txt('빨강')] };
+    const bold = { nodeType: 1, tagName: 'B', childNodes: [txt('굵게')] };
+    E.textEl.innerHTML = '평글 <span>빨강</span> <b>굵게</b><br>둘째';
+    E.textEl.childNodes = [txt('평글 '), red, txt(' '), bold, { nodeType: 1, tagName: 'BR', childNodes: [] }, txt('둘째')];
+    const base = { fontSize: '24px', color: 'rgb(17, 17, 17)', fontFamily: 'sans-serif', fontWeight: '400', fontStyle: 'normal', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px' };
+    globalThis.getComputedStyle = (e) => (e === red ? { ...base, color: 'rgb(255, 0, 0)', fontStyle: 'italic', fontSize: '36px' } : e === bold ? { ...base, fontWeight: '700' } : base);
+    const items = [];
+    E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+    window.openAnimModal(E.tb);
+    items.find((it) => it.dataset.id === fx)._l.click[0]();
+    E.rafs.at(-1)(1000); E.ctx.calls.length = 0; E.rafs.at(-1)(1000 + 5000);
+    const k = 480 / 400, sz = Math.round(24 * k);
+    const want = [['평글 ', 'rgb(17, 17, 17)', `400 ${sz}px sans-serif`], ['빨강', 'rgb(255, 0, 0)', `italic 400 ${sz * 1.5}px sans-serif`], [' ', 'rgb(17, 17, 17)', `400 ${sz}px sans-serif`], ['굵게', 'rgb(17, 17, 17)', `700 ${sz}px sans-serif`], ['둘째', 'rgb(17, 17, 17)', `400 ${sz}px sans-serif`]];
+    const got = E.ctx.calls.map((c) => [c.s, c.fill, c.font]);
+    assert.deepEqual(got, want, `★${fx} 미리보기 조각 스타일 ${JSON.stringify(got)}`);
+    E.ctx.calls.length = 0;
+    await window.exportAnimGif();
+    const last = E.ctx.calls.slice(-5).map((c) => [c.s, c.fill]);
+    assert.deepEqual(last, want.map((w) => [w[0], w[1]]), `★${fx} GIF 저장 조각 스타일 ${JSON.stringify(last)}`);
+    window.closeAnimModal();
+  }
 });

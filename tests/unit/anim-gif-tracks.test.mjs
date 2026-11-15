@@ -6,6 +6,8 @@
  *   normTracks 의 «앞 줄 끝에 시작»(prev.at + prev.dur) 을 0 으로 → T1 빨강.
  * T10·T11(RICHTEXT C1): 조각 스타일 cs 가 접힌 줄마다 제 글자에 붙는다 · 카운트업처럼 글이 바뀌어도 앞뒤 글자는 제 스타일.
  *   양성대조(실측은 커밋 메시지): layoutLines 의 `off += line.length + 1` 삭제 → T10 빨강.
+ * T12(RICHTEXT C2): 조각마다 제 글자색·굵기·기울임·크기로 이어 그림 · 큰 조각 줄은 줄높이도 큼 · 굵은 조각은 제 폭으로 접음.
+ *   양성대조(실측은 커밋 메시지): fillStyled 첫 줄을 늘 평글로(`if (true)`) → T12 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -17,7 +19,7 @@ function fakeCtx() {
   const ctx = {
     calls, font: '', textBaseline: '', textAlign: '', fillStyle: '', globalAlpha: 1, shadowColor: '', shadowBlur: 0, filter: 'none', letterSpacing: '0px',
     measureText: (s) => ({ width: String(s).length * 10 }),
-    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf }),
+    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf, font: ctx.font, fill: ctx.fillStyle }),
     fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h }),
     _tf: 0, _stack: [],
     save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha] = ctx._stack.pop(); },
@@ -153,4 +155,30 @@ test('T11 RICHTEXT C1 — remapCs: 카운트업 «12,345원» → «3,086원» �
   assert.deepEqual(r, [null, null, null, N, N, N, N, N, W]);
   assert.equal(remapCs(src, null, out), null);
   assert.equal(remapCs(src, cs, src), cs);
+});
+
+test('T12 RICHTEXT C2 — 조각마다 제 색·굵기·기울임·크기 · 이어 붙음(x) · 가운데 정렬 유지 · 큰 조각 줄높이 · 제 폭으로 접기', () => {
+  const R = Object.freeze({ color: '#ff0000', weight: '900', italic: true, sizeK: 1.5 });
+  const text = 'aa bb cc';
+  const cs = [...text].map((_, i) => (i >= 3 && i <= 4 ? R : null));
+  const ctx = fakeCtx(); ctx.measureText = (s) => ({ width: String(s).length * (parseFloat(/([\d.]+)px/.exec(ctx.font)?.[1]) || 20) * 0.5 });
+  const style = { ...STYLE, text, cs, textAlign: 'center' };
+  drawTracks(ctx, 480, 200, style, 20, [{ line: 0, fx: 'fade-in', at: 0, dur: 100 }], 100);
+  const t = ctx.calls.filter((c) => c.op === 'text');
+  assert.deepEqual(t.map((c) => [c.s, c.fill, c.font]), [
+    ['aa ', '#111', '700 20px sans-serif'],
+    ['bb', '#ff0000', 'italic 900 30px sans-serif'],
+    [' cc', '#111', '700 20px sans-serif'],
+  ], '★조각 스타일이 안 실렸다');
+  const w = 3 * 10 + 2 * 15 + 3 * 10;   // 조각마다 제 글자 크기로 잰 폭
+  assert.equal(t[0].x, 240 - w / 2, '가운데 정렬 = 조각 폭 합 기준');
+  assert.equal(t[1].x, t[0].x + 30); assert.equal(t[2].x, t[1].x + 30);
+  const L = layoutLines(ctx, { ...style, text: 'aa bb cc\nzz' }, 480, 200, 20);
+  assert.ok(Math.abs((L.segs[1].y - L.segs[0].y) - (20 * 1.4 * 1.5 / 2 + 20 * 1.4 / 2)) < 1e-9, '큰 조각 줄 = 줄높이 1.5배');
+  assert.equal(L.totalH, 20 * 1.4 * 1.5 + 20 * 1.4);
+  // 굵게·크게 한 조각이 폭을 넘기면 접힌다(평글 폭이면 한 줄)
+  const wide = 'aaaa bbbb', wcs = [...wide].map((_, i) => (i >= 5 ? R : null));
+  const nar = layoutLines(ctx, { ...STYLE, text: wide, wrapEm: (40 + 10 + 40 + 2) / 20 }, 480, 200, 20).segs.length;
+  const fat = layoutLines(ctx, { ...STYLE, text: wide, cs: wcs, wrapEm: (40 + 10 + 40 + 2) / 20 }, 480, 200, 20).segs.length;
+  assert.deepEqual([nar, fat], [1, 2], '★크게 한 조각을 평글 폭으로 쟀다');
 });

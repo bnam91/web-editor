@@ -71,16 +71,60 @@ export function typedLines(lines, t) {
  * cs = 글자마다 하나(글과 같은 길이) · null = 블럭 기본 스타일 · 같은 요소의 글자는 «같은 객체»(묶음 = 객체 동일성).
  * 모든 효과는 글을 fillStyled 로 그린다 — 미리보기·GIF 저장·V1·V2 가 한 함수. 조각(같은 스타일 묶음)마다 따로 그리는 자리다
  * (조각별 변형·알파는 지금 0 — 지디 ③ «자리만 막지 마라»).
- * C1: cs 를 나르기만 하고 그리기는 옛 fillText 그대로(바이트 동일). C2~ 가 조각 스타일을 읽는다. */
+ * st 필드(C2): color · weight · italic · sizeK(블럭 글자 크기 대비). */
 
-/** 글 text(그 cs) 를 x,y 에 — 정렬은 ctx.textAlign 그대로. env = { style, size }. */
-export function fillStyled(ctx, text, cs, x, y, env) {   // eslint-disable-line no-unused-vars
-  ctx.fillText(text, x, y);
+const _plainCs = (cs) => !cs || !cs.some(Boolean);
+/** 같은 스타일 객체가 이어진 글자 묶음 = 조각. */
+function _pieces(text, cs) {
+  const out = [];
+  for (let i = 0; i < text.length; i++) {
+    const st = cs[i] || null, last = out[out.length - 1];
+    if (last && last.st === st) last.text += text[i]; else out.push({ text: text[i], st });
+  }
+  return out;
+}
+/** 조각 글꼴 — 블럭 글꼴에 조각의 기울임·굵기·크기 비(sizeK). st 없으면 null(지금 ctx.font 그대로). */
+const _font = (env, st) => (st ? `${st.italic ? 'italic ' : ''}${st.weight || env.style.fontWeight} ${env.size * (st.sizeK || 1)}px ${env.style.fontFamily}` : null);
+/* 크기 다른 조각이 있으면 «글자 바닥선(alphabetic)»을 맞춘다 — middle 로 그리면 작은 글자가 가운데로 뜬다(블럭은 바닥선 정렬). */
+function _baseOff(ctx) {
+  const b = ctx.textBaseline;
+  ctx.textBaseline = 'middle'; const a1 = ctx.measureText('H').fontBoundingBoxAscent;
+  ctx.textBaseline = 'alphabetic'; const a2 = ctx.measureText('H').fontBoundingBoxAscent;
+  ctx.textBaseline = b;
+  return Number.isFinite(a1) && Number.isFinite(a2) ? a2 - a1 : 0;
+}
+
+/** 글 text(그 cs) 를 x,y 에 — 정렬은 ctx.textAlign 그대로 · 블럭 기본 글꼴·색은 지금 ctx 의 것. env = { style, size }.
+ *  꾸밈 없으면 옛 fillText 한 번(바이트 동일). 있으면 조각마다 제 글꼴·색으로 이어 그린다. */
+export function fillStyled(ctx, text, cs, x, y, env) {
+  if (_plainCs(cs)) { ctx.fillText(text, x, y); return; }
+  const base = { font: ctx.font, fill: ctx.fillStyle, align: ctx.textAlign, bl: ctx.textBaseline };
+  const ps = _pieces(text, cs);
+  let total = 0;
+  for (const p of ps) { ctx.font = _font(env, p.st) || base.font; p.w = ctx.measureText(p.text).width; total += p.w; }
+  let px = base.align === 'center' ? x - total / 2 : base.align === 'right' || base.align === 'end' ? x - total : x;
+  ctx.font = base.font;
+  const mixed = ps.some((p) => p.st && (p.st.sizeK || 1) !== 1) && base.bl === 'middle';
+  const by = mixed ? y + _baseOff(ctx) : y;
+  ctx.textAlign = 'left';
+  if (mixed) ctx.textBaseline = 'alphabetic';
+  for (const p of ps) {   // 조각 하나 = 따로 그리는 자리
+    ctx.font = _font(env, p.st) || base.font;
+    ctx.fillStyle = (p.st && p.st.color) || base.fill;
+    ctx.fillText(p.text, px, by);
+    px += p.w;
+  }
+  ctx.font = base.font; ctx.fillStyle = base.fill; ctx.textAlign = base.align; ctx.textBaseline = base.bl;
 }
 
 /** fillStyled 와 같은 셈의 폭. */
-export function measureStyled(ctx, text, cs, env) {   // eslint-disable-line no-unused-vars
-  return ctx.measureText(text).width;
+export function measureStyled(ctx, text, cs, env) {
+  if (_plainCs(cs)) return ctx.measureText(text).width;
+  const f0 = ctx.font;
+  let w = 0;
+  for (const p of _pieces(text, cs)) { ctx.font = _font(env, p.st) || f0; w += ctx.measureText(p.text).width; }
+  ctx.font = f0;
+  return w;
 }
 
 /** 글이 바뀌었을 때(카운트업 0 → 12,345) 새 글의 cs — 앞뒤 같은 글자는 제 스타일, 바뀐 가운데는 그 첫 글자 스타일. */

@@ -232,9 +232,14 @@ function _extractCs(el, text) {
   const cs = c.slice(a, c.length - b);
   return cs.some(Boolean) ? cs : null;
 }
-/* 한 요소의 조각 스타일 — C1: 자리만(그리기는 아직 평글). null = 블럭 기본과 같음. */
-function _runStyle(host, el) {   // eslint-disable-line no-unused-vars
-  return Object.freeze({});
+/* 한 요소의 조각 스타일(계산된 스타일) — 글자색·굵기·기울임·크기 비. 블럭 글 요소와 다 같으면 null. */
+const _italic = (cs) => /italic|oblique/.test(cs.fontStyle || '');
+function _runStyle(host, el) {
+  const h = window.getComputedStyle(host), b = window.getComputedStyle(el);
+  const sizeK = (parseFloat(h.fontSize) || 0) / (parseFloat(b.fontSize) || 1) || 1;
+  const st = { color: h.color, weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK };
+  if (st.color === b.color && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1) return null;
+  return Object.freeze(st);
 }
 
 /** GIF 가 읽는 글 요소 — 그리기·경고가 같은 요소를 본다. */
@@ -381,13 +386,11 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
   const segs      = layoutLines(ctx, style, W, H, displaySize).segs;
   const lines     = segs.map(s => s.text);
   const env       = { style, size: displaySize };
-  const lineH     = displaySize * (style.lineHeight || 1.4);
   const firstLine = lines[0];
 
   // draw all lines centered vertically around baseY
   const drawLines = (linesArr, baseY, drawFn) => {
-    const totalH = (linesArr.length - 1) * lineH;
-    linesArr.forEach((line, i) => drawFn(line, anchorX, baseY - totalH / 2 + i * lineH, i));
+    linesArr.forEach((line, i) => drawFn(line, anchorX, segs[i].y + (baseY - cy), i));   // 줄 y = layoutLines(줄마다 높이 다를 수 있음)
   };
 
   switch (animType) {
@@ -408,14 +411,13 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       /* ⑶·X1(DONE40) 원문(줄바꿈 전)을 잘라 매 프레임 다시 정렬했다 ⇒ 가운데 정렬이면 친 글자가 왼쪽으로 밀리고, 긴 글은 폭을 넘었다.
          ⇒ 다른 효과와 같은 줄(wrapLine 뒤 lines)에서 치고, 줄 시작 x 는 «그 줄 전체» 폭으로 고정한다. */
       const shown  = typedLines(lines, t);
-      const totalH = (lines.length - 1) * lineH;
       ctx.fillStyle = style.color;
       ctx.textAlign = 'left';
       let curX = null, curY = null;
       shown.forEach((part, i) => {
         const pcs = segs[i].cs && segs[i].cs.slice(0, part.length);
         const x = lineStartX(style.textAlign, anchorX, measureStyled(ctx, lines[i], segs[i].cs, env));
-        const y = cy - totalH / 2 + i * lineH;
+        const y = segs[i].y;
         fillStyled(ctx, part, pcs, x, y, env);
         curX = x + measureStyled(ctx, part, pcs, env) + 2; curY = y;
       });
@@ -486,8 +488,6 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       if (!wordEntries.length) break;
 
       const totalWords = wordEntries.length;
-      const totalH = wrappedLines.length * lineH;
-      const startY = cy - totalH / 2 + lineH / 2;
 
       wrappedLines.forEach((line, lineIdx) => {
         const lineEntries = wordEntries.filter(e => e.lineIdx === lineIdx);
@@ -499,7 +499,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
         else if (style.textAlign === 'right') x = anchorX - lineW;
         else                                  x = cx - lineW / 2;
 
-        const y = startY + lineIdx * lineH;
+        const y = segs[lineIdx].y;
         // 이 줄의 첫 단어가 전체에서 몇 번째인지
         const lineStartIdx = wordEntries.findIndex(e => e.lineIdx === lineIdx);
 

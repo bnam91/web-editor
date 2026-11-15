@@ -78,12 +78,14 @@ export function layoutLines(ctx, style, W, H, size) {
   const { paddingX, maxW } = textBox(W, size, style);
   const align = style.textAlign === 'right' || style.textAlign === 'left' ? style.textAlign : 'center';
   const anchorX = align === 'left' ? paddingX : align === 'right' ? W - paddingX : W / 2;
-  const wrap = (text) => {
+  const env = { style, size };
+  const wrap = (text, lcs) => {   // lcs = 이 줄의 조각 스타일 — 굵기·크기 다른 조각은 제 폭으로 잰다
     if (!text) return [''];
-    const res = []; let cur = '';
+    const res = []; let cur = '', c0 = 0, at = 0;
     for (const word of text.split(' ')) {
-      const test = cur ? cur + ' ' + word : word;
-      if (ctx.measureText(test).width > maxW && cur) { res.push(cur); cur = word; } else cur = test;
+      const test = cur ? cur + ' ' + word : word, s0 = cur ? c0 : at;
+      if (measureStyled(ctx, test, lcs && lcs.slice(s0, s0 + test.length), env) > maxW && cur) { res.push(cur); cur = word; c0 = at; } else { cur = test; c0 = s0; }
+      at += word.length + 1;
     }
     if (cur) res.push(cur);
     return res.length ? res : [''];
@@ -92,7 +94,7 @@ export function layoutLines(ctx, style, W, H, size) {
   let off = 0;   // 원문(style.text) 안 줄 시작 — 조각 스타일 cs 를 접힌 조각마다 잘라 붙인다
   String(style.text || '').split('\n').forEach((line, src) => {
     let pos = 0;
-    wrap(line).forEach((text) => {
+    wrap(line, style.cs && style.cs.slice(off, off + line.length)).forEach((text) => {
       const at = line.indexOf(text, pos);
       segs.push({ src, text, cs: style.cs && at >= 0 ? style.cs.slice(off + at, off + at + text.length) : null });
       if (at >= 0) pos = at + text.length;
@@ -100,9 +102,17 @@ export function layoutLines(ctx, style, W, H, size) {
     off += line.length + 1;
   });
   const lineH = size * (style.lineHeight || 1.4);
+  // 줄높이 = 그 줄에서 가장 큰 조각 크기만큼(블럭 줄 상자처럼) · 다 같으면 옛 셈 그대로
+  const lhs = segs.map((s) => lineH * Math.max(1, ...(s.cs || []).map((c) => (c && c.sizeK) || 1)));
+  const uniform = lhs.every((h) => h === lineH);
+  const totalH = uniform ? segs.length * lineH : lhs.reduce((a, h) => a + h, 0);
   const top = H / 2 - ((segs.length - 1) * lineH) / 2;
-  segs.forEach((s, i) => { s.y = top + i * lineH; s.w = ctx.measureText(s.text).width; s.x0 = lineStartX(align, anchorX, s.w); });
-  return { segs, align, anchorX, lineH, srcCount: String(style.text || '').split('\n').length };
+  let acc = H / 2 - totalH / 2;
+  segs.forEach((s, i) => {
+    s.y = uniform ? top + i * lineH : acc + lhs[i] / 2; acc += lhs[i];
+    s.w = measureStyled(ctx, s.text, s.cs, env); s.x0 = lineStartX(align, anchorX, s.w);
+  });
+  return { segs, align, anchorX, lineH, totalH, srcCount: String(style.text || '').split('\n').length };
 }
 
 /** 캔버스 높이 — 블럭 비율 H 와 «캔버스가 접은 줄 수 × 줄높이» 중 큰 쪽.
@@ -111,7 +121,7 @@ export function fitCanvasH(ctx, style, W, H, size) {
   ctx.font = `${style.fontWeight} ${size}px ${style.fontFamily}`;
   try { ctx.letterSpacing = (style.letterSpacing || 0) + 'px'; } catch (_) { /* 옛 캔버스 */ }
   const L = layoutLines(ctx, style, W, H, size);
-  return Math.max(H, Math.ceil(L.segs.length * L.lineH));
+  return Math.max(H, Math.ceil(L.totalH));
 }
 
 /* ── 줄 한 몫 효과 — (ctx, segs(그 줄의 조각들), p(0~1), env) ── */
