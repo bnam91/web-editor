@@ -149,7 +149,12 @@ const _plain = (ctx, segs, env) => segs.forEach((s) => fillStyled(ctx, s.text, s
 export const FX = {
   stamp: (ctx, segs, p, env) => {
     const m = stampParams(p, env.k);
-    const cx = segs.reduce((a, s) => a + s.x0 + s.w / 2, 0) / segs.length, cy = segs.reduce((a, s) => a + s.y, 0) / segs.length;
+    let cx = segs.reduce((a, s) => a + s.x0 + s.w / 2, 0) / segs.length;
+    const cy = segs.reduce((a, s) => a + s.y, 0) / segs.length;
+    if (m.scale > 1 + 1e-6) {   // 확대 기준점을 «커진 글이 캔버스 안» 쪽으로만 민다 — 왼쪽 정렬·패딩 0 이면 x0≈1 이라 가운데 기준 2.2배가 왼쪽 밖으로 잘렸다(0.9.12 «네!» 45%)
+      const x0 = Math.min(...segs.map((s) => s.x0)), x1 = Math.max(...segs.map((s) => s.x0 + s.w)), k1 = m.scale / (m.scale - 1);
+      cx = Math.min(Math.max(cx, k1 * x1 - env.W / (m.scale - 1)), k1 * x0);   // 왼끝 ≥ 0 이 우선(둘 다 못 맞추는 긴 줄은 오른쪽이 잘림)
+    }
     ctx.globalAlpha = m.alpha; _blur(ctx, m.blur);
     // 끝 프레임은 «변형 없음» 으로 — 0.94 + 0.06 이 1.0000000000000002 가 되어 근소 변형이 남는다(T7)
     if (Math.abs(m.scale - 1) > 1e-6 || Math.abs(m.dx) > 1e-6) { ctx.translate(cx + m.dx, cy); ctx.scale(m.scale, m.scale); ctx.translate(-cx, -cy); }

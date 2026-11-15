@@ -18,6 +18,9 @@
  *   양성대조(아이맥 실측 예정): 줄별 slot-machine 의 `const roll = r.frac > 0;` → `const roll = true;` → T16(slot-machine) 빨강.
  * T17(RICHTEXT ⑫): 글자 그라데이션 → 캔버스 그라데이션(제품 gradientLine · 글 테두리 상자) = 기본 채움색 · 대체 단색 solid · 그라데이션 없으면 style 그대로.
  *   양성대조(아이맥 실측 예정): withGradFill 첫 줄을 `return style;` → T17 빨강.
+ * T18(0.9.12 GIF-STAMP-START-CLIPPED-AT-LEFT-EDGE-01 · 지디 «네!» 45% 프레임 왼쪽 잘림): 왼쪽·오른쪽 정렬 패딩 0(wrapEm = W/size) 블럭 도장 «내려오는» 프레임(0~70%)마다
+ *   그려진 글 상자(가로 변형 적용)가 캔버스 [0, W] 안 · 가운데 정렬 짧은 글은 확대 기준점 = 줄 가운데 그대로 · 끝 프레임 = 제자리(T7 과 같은 값).
+ *   양성대조(아이맥 실측 예정): FX.stamp 의 `if (m.scale > 1 + 1e-6) {` → `if (false) {` → T18 빨강(왼쪽 정렬 글 왼끝 < 0).
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -283,4 +286,41 @@ test('T17 RICHTEXT ⑫ — withGradFill: 90deg 그라데이션 = 글 왼끝→�
   drawTracks(ctx, 480, 200, out, 20, [{ line: 0, fx: 'fade-in', at: 0, dur: 100 }], 100);
   assert.ok(ctx.calls.filter((c) => c.op === 'text').every((c) => c.fill === g), '★글 채움 = 그라데이션');
   assert.equal(withGradFill(ctx, STYLE, 480, 200, 20), STYLE, '그라데이션 없으면 style 그대로');
+});
+
+test('T18 도장 — 왼쪽·오른쪽 정렬 패딩 0 블럭: 내려오는 프레임마다 글 상자가 캔버스 안 · 가운데 짧은 글은 기준점 그대로 · 끝 = 제자리', () => {
+  const W = 480, H = 200, size = 24, dur = 560;
+  // 가로 변형(배율·이동)을 따라가는 기록기 — 글 한 번 그릴 때 캔버스 위 왼끝·오른끝
+  const mk = () => {
+    const c = fakeCtx(); let m = [1, 0]; const st = [], boxes = [];
+    Object.assign(c, {
+      translate(x) { c._tf++; m = [m[0], m[1] + m[0] * x]; }, scale(a) { c._tf++; m = [m[0] * a, m[1]]; },
+      save() { st.push([m, c.filter, c._tf, c.globalAlpha]); }, restore() { [m, c.filter, c._tf, c.globalAlpha] = st.pop(); },
+      fillText(s, x) { const w = c.measureText(s).width; boxes.push({ s: String(s), l: m[1] + m[0] * x, r: m[1] + m[0] * (x + w), k: m[0] }); },
+    });
+    return { c, boxes, reset: () => { m = [1, 0]; } };
+  };
+  for (const textAlign of ['left', 'right']) {
+    const style = { ...STYLE, text: '네!', textAlign, wrapEm: W / size };   // 패딩 0 = 블럭 안쪽 폭 = 캔버스 폭
+    const L = layoutLines(fakeCtx(), style, W, H, size);
+    assert.ok(textAlign === 'left' ? L.segs[0].x0 <= 1 : L.segs[0].x0 + L.segs[0].w >= W - 1, `[전제] ${textAlign} 글이 캔버스 가장자리에 붙음`);
+    let zoomed = 0;
+    for (let tau = 0; tau < dur * 0.7; tau += 14) {
+      const { c, boxes } = mk(); drawTracks(c, W, H, style, size, [{ line: 0, fx: 'stamp', at: 0, dur }], tau);
+      const b = boxes.find((x) => x.s.includes('네'));
+      assert.ok(b, `[전제] ${tau}ms 글이 그려짐`);
+      if (b.k > 1.5) zoomed++;
+      assert.ok(b.l >= -1e-6 && b.r <= W + 1e-6, `★${textAlign} ${tau}ms 글 상자 ${b.l.toFixed(1)}~${b.r.toFixed(1)} 가 캔버스 0~${W} 밖`);
+    }
+    assert.ok(zoomed >= 5, `[전제] ${textAlign} 크게 확대된 프레임(>1.5배)을 쟀다 — ${zoomed}`);
+    const { c, boxes } = mk(); drawTracks(c, W, H, style, size, [{ line: 0, fx: 'stamp', at: 0, dur }], dur);
+    const e = boxes.find((x) => x.s.includes('네'));
+    assert.deepEqual([e.l, e.k], [L.segs[0].x0, 1], `${textAlign} 끝 프레임 = 제자리`);
+  }
+  // 가운데 정렬 짧은 글 — 확대해도 안 넘친다 ⇒ 기준점(줄 가운데) 그대로: 커진 상자의 가운데 = 줄 가운데
+  const style = { ...STYLE, text: '네!', wrapEm: W / size };
+  const s0 = layoutLines(fakeCtx(), style, W, H, size).segs[0];
+  const { c, boxes } = mk(); drawTracks(c, W, H, style, size, [{ line: 0, fx: 'stamp', at: 0, dur }], 0);
+  const b = boxes.find((x) => x.s.includes('네'));
+  assert.ok(b.k > 2 && Math.abs((b.l + b.r) / 2 - (s0.x0 + s0.w / 2)) < 1e-6, `가운데 정렬 기준점이 움직였다 — ${b.l}~${b.r}`);
 });
