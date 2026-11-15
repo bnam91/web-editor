@@ -150,6 +150,29 @@
   var _pieTagOk = function (t) { return t === 'on' || t === 'off'; };
   var VLABEL_OFFSET_KEYS = ['vDx', 'vDy'];   // ★1017t1f5 — 꺾은선 값 라벨 개별 위치(js/drag-utils.js _startVLabelOffsetDrag)
   var _vOffsetNum = function (v) { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; var n = Math.round(Number(v)); return Number.isFinite(n) ? n : null; };
+  /* ── 옛 항목 짝짓기(GRAPH-MCP-ITEMS-REPLACE-KEEPS-SHAPE-BY-INDEX-01) — items 를 통째로 다시 쓸 때 덧필드(모양·마디·조각 키…)를 «누구»에게서 옮기나.
+   * 옛 판은 늘 같은 순번(prev[i]) — 항목을 빼거나 순서를 바꾸면 살아남은 옛 B 의 모양이 그 번호에 온 새 항목에 붙었다(UI ✕ 길은 picker G6 에서 이미 고침).
+   * pairPrevItems(prev, incoming) → incoming 과 같은 길이의 배열(짝이 없으면 undefined):
+   *   ① 같은 라벨의 옛 항목(앞에서부터 · 한 번씩) — 살아남은 항목은 자기 덧필드를 따라간다.
+   *   ② 라벨 짝이 없는 새 항목은 같은 순번의 옛 항목에서 — 단 그 옛 항목의 라벨이 새 목록에 «없을 때만»(= 이름만 바뀐 자리 · 1012t1G4·1013 H2 계약).
+   *      그 라벨이 새 목록에 있으면 그건 다른 자리로 옮겨 간 항목이라 남의 번호에 주지 않는다. */
+  function pairPrevItems(prev, incoming) {
+    prev = Array.isArray(prev) ? prev : []; incoming = Array.isArray(incoming) ? incoming : [];
+    var lab = function (x) { return (x && typeof x === 'object' && typeof x.label === 'string') ? x.label : null; };
+    var used = prev.map(function () { return false; }), inNew = Object.create(null);
+    incoming.forEach(function (it) { var l = lab(it); if (l !== null) inNew[l] = true; });
+    var out = incoming.map(function (it) {
+      var l = lab(it); if (l === null) return undefined;
+      for (var j = 0; j < prev.length; j++) if (!used[j] && lab(prev[j]) === l) { used[j] = true; return prev[j]; }
+      return undefined;
+    });
+    incoming.forEach(function (it, i) {
+      if (out[i] !== undefined || i >= prev.length || used[i]) return;
+      var pl = lab(prev[i]); if (pl !== null && inNew[pl]) return;
+      used[i] = true; out[i] = prev[i];
+    });
+    return out;
+  }
   function carryItemExtras(out, prev, incoming) {
     prev = (prev && typeof prev === 'object') ? prev : {};
     incoming = (incoming && typeof incoming === 'object') ? incoming : {};
@@ -442,7 +465,7 @@
 
   var GRAPH_SHAPE = Object.freeze({ GRAPH_SHAPE_PRESETS: GRAPH_SHAPE_PRESETS, fillRatio: fillRatio, segRatios: segRatios, segSum: segSum, segAlpha: segAlpha,
     shapeAspect: shapeAspect, shapeMaskUrl: shapeMaskUrl, shapeSvgOf: shapeSvgOf, shapeOn: shapeOn, usesShape: usesShape, fillMaxOf: fillMaxOf, fillPlan: fillPlan,
-    normSegments: normSegments, carryItemExtras: carryItemExtras, fitSegments: fitSegments, reconcileItems: reconcileItems, shapeColsHTML: shapeColsHTML, sanitizeShapeSvg: sanitizeShapeSvg, setGraphShape: setGraphShape, graphFillModel: graphFillModel });
+    normSegments: normSegments, carryItemExtras: carryItemExtras, pairPrevItems: pairPrevItems, fitSegments: fitSegments, reconcileItems: reconcileItems, shapeColsHTML: shapeColsHTML, sanitizeShapeSvg: sanitizeShapeSvg, setGraphShape: setGraphShape, graphFillModel: graphFillModel });
   if (typeof module !== 'undefined' && module.exports) module.exports = GRAPH_SHAPE;
   if (root) { root.GRAPH_SHAPE = GRAPH_SHAPE; root.setGraphShape = setGraphShape; root.graphFillModel = graphFillModel; }
 })(typeof window !== 'undefined' ? window : null);

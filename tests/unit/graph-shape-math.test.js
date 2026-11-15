@@ -309,3 +309,23 @@ test('GS-U carryItemExtras 원형 조각 키 — 옛 항목의 pieGrow/piePull/p
   /* 조각 키가 없는 항목은 한 글자도 안 변한다(옛 호출부 무변) */
   assert.deepEqual(carryItemExtras({ label: 'n', value: 9 }, { label: 'p', value: 1 }, {}), { label: 'n', value: 9 });
 });
+
+/* GRAPH-MCP-ITEMS-REPLACE-KEEPS-SHAPE-BY-INDEX-01 — items 통째 교체(MCP update_graph_block)의 덧필드 짝. 옛 판은 늘 같은 순번이라
+ *   항목을 빼거나 순서를 바꾸면 살아남은 옛 B 의 모양이 그 번호의 새 항목에 붙었다. 양성대조: CTL-G.patch(block-factory 가 다시 _prevItems[i]) → DOM spec R1·R2 빨강 · 이 칸은 pairPrevItems 규칙을 잰다. */
+test('U-PAIR pairPrevItems — 같은 라벨이 먼저 · 번호는 «이름만 바뀐» 자리만', () => {
+  const { pairPrevItems } = GS;
+  const A = { label: 'A' }, B = { label: 'B', shape: 'drop' }, C = { label: 'C' };
+  const lbl = (r) => r.map((p) => (p ? p.label : null));
+  assert.deepEqual(lbl(pairPrevItems([A, B, C], [{ label: 'A' }, { label: 'C' }])), ['A', 'C'], '★가운데를 빼면 C 가 B 의 모양을 받으면 안 된다');
+  assert.deepEqual(lbl(pairPrevItems([A, B, C], [{ label: 'B' }, { label: 'A' }, { label: 'C' }])), ['B', 'A', 'C'], '★순서를 바꾸면 모양이 항목을 따라간다');
+  assert.deepEqual(lbl(pairPrevItems([A, B], [{ label: 'U' }, { label: 'V' }])), ['A', 'B'], '전부 이름만 바뀌면 같은 순번(1012t1G4 계약)');
+  assert.deepEqual(lbl(pairPrevItems([B, C], [{ label: 'N' }, { label: 'B' }])), [null, 'B'], '★새 N(0번)은 옮겨 간 옛 B 를 받지 않는다');
+  assert.deepEqual(lbl(pairPrevItems([A, B], [{ label: 'X' }, { label: 'A' }])), [null, 'A'], '0번 옛 A 는 1번으로 옮겨 갔다 — X 에 안 준다');
+  assert.deepEqual(lbl(pairPrevItems([A, B, C], [{ label: 'A' }, { label: 'Q' }, { label: 'C' }])), ['A', 'B', 'C'], '가운데만 이름이 바뀌면 그 자리');
+  const d0 = { label: 'D', n: 0 }, d1 = { label: 'D', n: 1, shape: 'star' };
+  assert.deepEqual(pairPrevItems([d0, d1], [{ label: 'D' }, { label: 'D' }]).map((p) => p.n), [0, 1], '같은 라벨 둘은 앞에서부터 한 번씩');
+  assert.deepEqual(lbl(pairPrevItems([A], [{ label: 'A' }, { label: 'Z' }])), ['A', null], '새 항목이 더 많으면 짝 없음');
+  assert.deepEqual(pairPrevItems(null, [{ label: 'A' }]), [undefined]);
+  assert.deepEqual(pairPrevItems([A], null), []);
+  assert.deepEqual(lbl(pairPrevItems([{ label: 'constructor', shape: 'drop' }], [{ label: 'N' }])), ['constructor'], '라벨 «constructor» 를 Object 원형 키로 오인해 «새 목록에 있다»로 읽으면 안 된다(이름만 바뀐 자리)');
+});

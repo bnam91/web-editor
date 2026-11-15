@@ -4667,6 +4667,7 @@ function updateGraphBlock(blockId, partial = {}) {
     }
     const norm = [];
     let _prevItems = []; try { _prevItems = JSON.parse(block.dataset.items || '[]'); } catch (_) {}
+    const _prevFor = window.GRAPH_SHAPE.pairPrevItems(_prevItems, partial.items);   // 같은 라벨 우선 · 번호는 이름만 바뀐 자리만(GRAPH-MCP-ITEMS-REPLACE-KEEPS-SHAPE-BY-INDEX-01)
     for (let i = 0; i < partial.items.length; i++) {
       const it = partial.items[i];
       if (!it || typeof it !== 'object') {
@@ -4686,8 +4687,8 @@ function updateGraphBlock(blockId, partial = {}) {
       if (v < 0 || v > 9999) {
         return { ok: false, code: 'INVALID', message: `items[${i}].value out of range [0,9999]` };
       }
-      // 1012t1G4 — 마디·항목 모양 유실 방지(같은 순번의 옛 항목에서 옮긴다 · 규칙은 js/graph-shape.js carryItemExtras 한 자리)
-      norm.push(window.GRAPH_SHAPE.carryItemExtras({ label, value: v }, _prevItems[i], it));
+      // 1012t1G4 — 마디·항목 모양 유실 방지(짝지은 옛 항목에서 옮긴다 · 짝 = js/graph-shape.js pairPrevItems · 옮기기 = carryItemExtras)
+      norm.push(window.GRAPH_SHAPE.carryItemExtras({ label, value: v }, _prevFor[i], it));
     }
     block.dataset.items = JSON.stringify(norm);
     applied.items = norm;
