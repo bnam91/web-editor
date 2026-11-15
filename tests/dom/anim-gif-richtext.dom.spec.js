@@ -13,6 +13,8 @@
  * C5 R5 방점 span.tb-dot(글자마다 · 빨강 6px) → 캔버스에 빨강 점 · 글자 가운데 줄보다 위 · 방점 없는 글엔 빨강 0
  *   양성대조(예측): js/fx/anim-gif-text.js _decor 의 `if (st.dot) {` → `if (false) {` → R5 빨강(단위 T15·E11 도)
  *   셀렉터: .tb-dot(prop-text-wireup-text-edit.js DOT_CLASS) · --tb-dot-color/-size(css/editor-layout.css .tb-dot::before)
+ * C6 R6 슬롯머신 — 숫자 «5» 의 방점(파랑)이 끝 프레임에 다 보인다: 같은 방점을 fade-in 으로 그린 픽셀 수(기준)의 80% 이상(멈춘 자리는 줄 띠로 안 자름) · 빨강 «원» 조각 유지
+ *   양성대조(예측): 두 슬롯(엔진 V1 `if (r.frac) { ctx.save(); … clip` · 줄별 `const roll = r.frac > 0`)을 «늘 자름»으로 → R6 빨강(단위 T16·E12 도)
  * 셀렉터·전역 대조(제품 소스 grep): window.addSection · window.selectSection(editor.js:5271) · window.addTextBlock · .text-block [contenteditable] ·
  *   #anim-list .anim-item[data-id](animation-engine.js _buildAnimList) · #anim-preview-canvas(index.html) · window.openAnimModal(엔진 끝) — 전부 anim-gif-v2-fx 가 이미 쓰는 것
  */
@@ -153,5 +155,22 @@ test('R5 방점 — 글자마다 span.tb-dot 빨강 점이 글자 위에', async
   const red = await colorPixels(page, [255, 0, 0], 60);
   expect(red.n, '★방점 빨강 0').toBeGreaterThan(10);
   expect(red.y1, '점은 글자 가운데 줄보다 위').toBeLessThan(ch.y);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R6 슬롯머신 — 멈춘 숫자의 방점이 끝 프레임에 «다 보인다»(같은 방점을 fade-in 으로 그린 픽셀 수와 견줌) · 빨강 조각 유지', async ({ page }) => {
+  const errs = await scene(page, '할인 12,34<span class="tb-dot" style="--tb-dot-color: rgb(0, 0, 255); --tb-dot-size: 6px">5</span><span style="color: rgb(255, 0, 0)">원</span>');
+  /* 문턱을 고정 수(> 10)로 두면 미리보기 배율에서 방점 하나(지름 몇 px)의 순색 픽셀이 8 이라 고친 판도 빨강이었다(아이맥 f33c65318+C6 · R5 는 방점 둘이라 통과).
+     ⇒ 같은 블럭·같은 방점을 잘림 없는 fade-in 으로 먼저 그려 «기준 수»를 재고, 슬롯 끝 프레임이 그 수에 가까운지 본다(잘리면 0 근처). */
+  await pick(page, 'fade-in');
+  await at(page, 5000);
+  const ref = (await colorPixels(page, [0, 0, 255], 60)).n;
+  expect(ref, '[전제] fade-in 으로 그린 방점 픽셀(기준)').toBeGreaterThan(0);
+  await page.evaluate(() => { window.closeAnimModal(); window.openAnimModal(window.__tb); });
+  await pick(page, 'slot-machine');
+  const f = await at(page, 5000);
+  expect(f.some((c) => c.s === '원' && c.fill === '#ff0000'), `★빨강 조각 ${JSON.stringify(f.map((c) => [c.s, c.fill]))}`).toBe(true);
+  const n = (await colorPixels(page, [0, 0, 255], 60)).n;
+  expect(n, `★멈춘 숫자의 방점이 잘렸다(슬롯 ${n} · 기준 fade-in ${ref})`).toBeGreaterThanOrEqual(Math.ceil(ref * 0.8));
   expect(errs, errs.join(' | ')).toEqual([]);
 });

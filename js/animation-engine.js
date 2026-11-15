@@ -471,9 +471,6 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       const fcs    = segs[0].cs;
       const startX = lineStartX(style.textAlign, anchorX, measureStyled(ctx, firstLine, fcs, env));
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, cy - displaySize * 0.6, W, displaySize * 1.2);
-      ctx.clip();
       ctx.fillStyle = style.color;
       let order = 0;   // 왼쪽 자리부터 0 — 오른쪽 자리일수록 늦게 멈춘다
       for (let i = 0; i < firstLine.length; i++) {
@@ -485,8 +482,10 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
         const r  = reelDigit(+ch, order++, nDig, t, _easeOut);
         const mx = x + measureStyled(ctx, ch, c1, env) / 2;
         ctx.textAlign = 'center';
+        // 도는 자리만 줄 띠로 자른다(위·아래 숫자 숨김) — 멈춘 자리·숫자 아닌 글자는 안 잘라 방점·글로우·형광이 산다(RICHTEXT C6)
+        if (r.frac) { ctx.save(); ctx.beginPath(); ctx.rect(0, cy - displaySize * 0.6, W, displaySize * 1.2); ctx.clip(); }
         fillStyled(ctx, String(r.cur), c1, mx, cy - r.frac * step, env);
-        if (r.frac) fillStyled(ctx, String(r.next), c1, mx, cy + (1 - r.frac) * step, env);
+        if (r.frac) { fillStyled(ctx, String(r.next), c1, mx, cy + (1 - r.frac) * step, env); ctx.restore(); }
       }
       ctx.restore();
       break;

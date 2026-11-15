@@ -14,6 +14,8 @@
  *   양성대조(아이맥 실측 예정): _shadows 첫 줄 return → T14 빨강.
  * T15(RICHTEXT C5): 방점 = 그 글자 가운데 + ::before transform · 아래끝 = 글자 상자 윗변 + ty · 지름 = size × 배율 · 그림자 0.
  *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → T15 빨강.
+ * T16(RICHTEXT C6): 줄별 효과 10개 전부 끝 프레임에서 꾸밈 유지(색 조각 · 방점 · 글로우 층) · 슬롯머신도 멈춘 자리의 방점이 안 잘린다.
+ *   양성대조(아이맥 실측 예정): 줄별 slot-machine 의 `const roll = r.frac > 0;` → `const roll = true;` → T16(slot-machine) 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -25,12 +27,12 @@ function fakeCtx() {
   const ctx = {
     calls, font: '', textBaseline: '', textAlign: '', fillStyle: '', globalAlpha: 1, shadowColor: '', shadowBlur: 0, filter: 'none', letterSpacing: '0px',
     measureText: (s) => ({ width: String(s).length * 10 }),
-    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf, font: ctx.font, fill: ctx.fillStyle, sc: ctx.shadowColor, sb: ctx.shadowBlur, sox: ctx.shadowOffsetX, soy: ctx.shadowOffsetY }),
+    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf, font: ctx.font, fill: ctx.fillStyle, sc: ctx.shadowColor, sb: ctx.shadowBlur, sox: ctx.shadowOffsetX, soy: ctx.shadowOffsetY, clip: ctx._clip }),
     fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h, fill: ctx.fillStyle, sb: ctx.shadowBlur }),
     _tf: 0, _stack: [],
-    save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha] = ctx._stack.pop(); },
-    translate() { ctx._tf++; }, scale() { ctx._tf++; }, beginPath() {}, rect() {}, clip() {}, fill() {},
-    arc: (x, y, r) => calls.push({ op: 'arc', x, y, r, fill: ctx.fillStyle, sb: ctx.shadowBlur }),
+    _clip: false, save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha, ctx._clip]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha, ctx._clip] = ctx._stack.pop(); },
+    translate() { ctx._tf++; }, scale() { ctx._tf++; }, beginPath() {}, rect() {}, clip() { ctx._clip = true; }, fill() {},
+    arc: (x, y, r) => calls.push({ op: 'arc', x, y, r, fill: ctx.fillStyle, sb: ctx.shadowBlur, clip: ctx._clip }),
   };
   return ctx;
 }
@@ -238,4 +240,21 @@ test('T15 RICHTEXT C5 — 방점: 그 글자 가운데 + transform(tx 에 −siz
   assert.deepEqual([a.fill, a.r, a.sb], ['#ff0000', 2, 0]);
   assert.ok(Math.abs(a.x - (t.x + 10 / 2 + 1 + 2)) < 1e-9, `점 x = 글자 가운데 + tx + r (${a.x} vs ${t.x})`);
   assert.ok(Math.abs(a.y - (t.y - 20 * 0.8 - 1 - 2)) < 1e-9, `점 y = 상자 윗변 + ty − r (${a.y} vs ${t.y})`);
+});
+
+test('T16 RICHTEXT C6 — 줄별 효과 10개 끝 프레임: 빨강 조각 · 방점(안 잘림) · 글로우 층 유지(슬롯머신 멈춘 자리 포함)', async () => {
+  const { parseTextShadow } = await import('../../js/fx/anim-gif-text.js');
+  const text = '할인 12,345원';   // 할0 인1 ␠2 1 2 , 3 4 5(8) 원(9)
+  const G = Object.freeze({ color: '#111', weight: '700', italic: false, sizeK: 1, shadows: parseTextShadow('rgb(255, 0, 255) 0px 0px 6px') });
+  const D = Object.freeze({ color: '#111', weight: '700', italic: false, sizeK: 1, dot: { color: '#0000ff', size: 4, tx: -2, ty: 0 } });
+  const R = Object.freeze({ color: '#ff0000', weight: '700', italic: false, sizeK: 1 });
+  const cs = [...text].map((_, i) => (i === 0 ? G : i === 8 ? D : i === 9 ? R : null));
+  for (const fx of TRACK_FX) {
+    const ctx = fakeCtx();
+    drawTracks(ctx, 480, 200, { ...STYLE, text, cs, fontSize: 24 }, 24, [{ line: 0, fx, at: 0, dur: 1000 }], 1000);
+    const t = ctx.calls.filter((c) => c.op === 'text'), arcs = ctx.calls.filter((c) => c.op === 'arc');
+    assert.ok(t.some((c) => c.s === '원' && c.fill === '#ff0000'), `★${fx} 빨강 조각 ${JSON.stringify(t.map((c) => [c.s, c.fill]))}`);
+    assert.ok(arcs.length === 1 && !arcs[0].clip, `★${fx} 방점(안 잘림) ${JSON.stringify(arcs)}`);
+    assert.ok(t.some((c) => c.s === '할' && c.sox), `★${fx} 글로우 층`);
+  }
 });

@@ -190,17 +190,18 @@ export const FX = {
       const tok = numToken(s.text);
       if (!tok) { ctx.globalAlpha = p; fillStyled(ctx, s.text, s.cs, s.x0, s.y + (1 - easeOut(p)) * env.lineH, env); ctx.globalAlpha = 1; return; }
       const nDig = tok.raw.replace(/\D/g, '').length, step = env.size * 1.2;
-      ctx.save(); ctx.beginPath(); ctx.rect(0, s.y - env.size * 0.6, env.W, env.size * 1.2); ctx.clip();
       let order = 0;
       for (let i = 0; i < s.text.length; i++) {
         const ch = s.text[i], c1 = s.cs && [s.cs[i]], x = s.x0 + measureStyled(ctx, s.text.slice(0, i), s.cs && s.cs.slice(0, i), env);
         const inNum = i >= tok.index && i < tok.index + tok.raw.length && ch >= '0' && ch <= '9';
         if (!inNum) { fillStyled(ctx, ch, c1, x, s.y, env); continue; }
         const r = reelDigit(+ch, order++, nDig, p, easeOut);
+        // 도는 자리만 줄 띠로 자른다 — 멈춘 자리·숫자 아닌 글자는 안 잘라 방점·글로우·형광이 산다(RICHTEXT C6 · 엔진 V1 과 같은 규칙)
+        const roll = r.frac > 0;
+        if (roll) { ctx.save(); ctx.beginPath(); ctx.rect(0, s.y - env.size * 0.6, env.W, env.size * 1.2); ctx.clip(); }
         fillStyled(ctx, String(r.cur), c1, x, s.y - r.frac * step, env);
-        if (r.frac) fillStyled(ctx, String(r.next), c1, x, s.y + (1 - r.frac) * step, env);
+        if (roll) { fillStyled(ctx, String(r.next), c1, x, s.y + (1 - r.frac) * step, env); ctx.restore(); }
       }
-      ctx.restore();
     });
   },
 };

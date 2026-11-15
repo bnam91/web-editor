@@ -19,6 +19,8 @@
  *   양성대조(아이맥 실측 예정): fillStyled 의 `_shadows(…)` 호출 줄 삭제 → E10 빨강.
  * E11(RICHTEXT C5): 글자마다 span.tb-dot(::before 계산 크기·색·transform) → 미리보기·GIF 저장에 그 글자마다 점 하나(배율 29/24 · 2).
  *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → E11 빨강.
+ * E12(RICHTEXT C6): 효과 전부(V1 일곱 · V2 셋 · 줄마다 따로 슬롯) 끝 프레임에서 꾸밈 유지 — 빨강 조각 · 방점(안 잘림) · 글로우 층.
+ *   양성대조(아이맥 실측 예정): 줄별 slot-machine 의 `const roll = r.frac > 0;` → `true` → E12(줄마다 따로 슬롯) 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,9 +37,9 @@ function fakeCtx() {
   const ctx = {
     calls, filter: 'none', globalAlpha: 1, font: '', fillStyle: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '',
     measureText: (s) => ({ width: String(s).length * 10 }),
-    fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter, fill: ctx.fillStyle, font: ctx.font, sc: ctx.shadowColor, sox: ctx.shadowOffsetX, soy: ctx.shadowOffsetY, sb: ctx.shadowBlur }),
+    fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter, fill: ctx.fillStyle, font: ctx.font, sc: ctx.shadowColor, sox: ctx.shadowOffsetX, soy: ctx.shadowOffsetY, sb: ctx.shadowBlur, clip: ctx._clip }),
     rects: [], fillRect: (x, y, w, h) => ctx.rects.push({ x, y, w, h, fill: ctx.fillStyle }), clearRect() {},
-    arcs: [], arc: (x, y, r) => ctx.arcs.push({ x, y, r, fill: ctx.fillStyle }), fill() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
+    arcs: [], arc: (x, y, r) => ctx.arcs.push({ x, y, r, fill: ctx.fillStyle, clip: ctx._clip }), fill() {}, _clip: false, _cs: [], save() { ctx._cs.push(ctx._clip); }, restore() { ctx._clip = ctx._cs.pop() ?? false; }, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() { ctx._clip = true; },
   };
   return ctx;
 }
@@ -358,4 +360,34 @@ test('E11 RICHTEXT C5 — 글자마다 span.tb-dot → 그 글자마다 점(계�
   await window.exportAnimGif();
   assert.deepEqual(E.ctx.arcs.slice(-2).map((a) => a.r), [4, 4], '★GIF 저장 점(배율 2)');
   window.closeAnimModal();
+});
+
+test('E12 RICHTEXT C6 — 효과 전부(V1 7 · V2 3 · 줄마다 따로 슬롯) 끝 프레임: 빨강 조각 · 방점(안 잘림) · 글로우 층', async () => {
+  const E = await loadEngine();
+  const txt = (d) => ({ nodeType: 3, data: d });
+  const mk = (d) => ({ nodeType: 1, tagName: 'SPAN', childNodes: [txt(d)], parentElement: E.textEl, closest: () => null });
+  const g = mk('할'), d = mk('5'), r = mk('원');
+  d.closest = (sel) => (sel === '.tb-dot' ? d : null);
+  E.textEl.contains = (n) => n === d;
+  E.textEl.innerHTML = '<span>할</span>인 12,34<span>5</span><span>원</span>';
+  E.textEl.childNodes = [g, txt('인 12,34'), d, r];
+  const base = { fontSize: '24px', color: 'rgb(17, 17, 17)', fontFamily: 'sans-serif', fontWeight: '400', fontStyle: 'normal', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px', textDecorationLine: 'none', backgroundColor: 'rgba(0, 0, 0, 0)', textShadow: 'none' };
+  const before = { width: '4px', backgroundColor: 'rgb(0, 0, 255)', transform: 'matrix(1, 0, 0, 1, -2, 0)', content: '""' };
+  globalThis.getComputedStyle = (e, pseudo) => (pseudo === '::before' ? (e === d ? before : base)
+    : e === g ? { ...base, textShadow: 'rgb(255, 0, 255) 0px 0px 6px' } : e === r ? { ...base, color: 'rgb(255, 0, 0)' } : base);
+  globalThis.pushHistory = () => {};
+  for (const id of ['slide-up', 'typewriter', 'slot-machine', 'fade-in', 'word-pop', 'glow-pulse', 'count-up', 'stamp', 'blur-in', 'blur-whip', '줄마다:slot-machine']) {
+    const items = [];
+    E.els['anim-list'].querySelectorAll = ((orig) => () => { const x = orig(); items.push(...x); return x; })(E.els['anim-list'].querySelectorAll);
+    if (id.startsWith('줄마다')) E.tb.dataset.animGif = JSON.stringify({ v: 2, tracks: [{ line: 0, fx: 'slot-machine', at: 0, dur: 900 }], speed: 1, repeat: 1 });
+    else delete E.tb.dataset.animGif;
+    window.openAnimModal(E.tb);
+    if (!id.startsWith('줄마다')) items.find((it) => it.dataset.id === id)._l.click[0]();
+    E.rafs.at(-1)(1000); E.ctx.calls.length = 0; E.ctx.arcs.length = 0; E.rafs.at(-1)(1000 + 5000);
+    const t = E.ctx.calls;
+    assert.ok(t.some((c) => c.s === '원' && c.fill === 'rgb(255, 0, 0)'), `★${id} 빨강 조각 ${JSON.stringify(t.map((c) => [c.s, c.fill]))}`);
+    assert.ok(E.ctx.arcs.length === 1 && !E.ctx.arcs[0].clip, `★${id} 방점(안 잘림) ${JSON.stringify(E.ctx.arcs)}`);
+    assert.ok(t.some((c) => c.s === '할' && c.sox), `★${id} 글로우 층`);
+    window.closeAnimModal();
+  }
 });
