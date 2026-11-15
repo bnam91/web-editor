@@ -243,8 +243,12 @@ test('E6 블럭과 같은 줄바꿈 — 716 폭 72px: 블럭 한 줄(9.6em ≤ �
 test('E7 GIF 모달 인라인 on* 이 부르는 함수는 전부 window 에 있다(속도·반복 슬라이더 restartAnimPreview 포함) · 부르면 미리보기가 다시 선다', async () => {
   const E = await loadEngine();
   const html = read('index.html');
-  const modal = html.slice(html.indexOf('id="anim-gif-modal"'), html.indexOf('anim-export-btn') + 200);
-  assert.ok(modal.length > 500, '[전제] index.html 에서 GIF 모달 조각을 찾음');
+  /* 모달 조각 = 여는 <div id="anim-gif-modal"> 부터 짝 닫는 </div> 까지(div 깊이) — 고정 창(«+ 200») 금지(fixed-window-census W1 · 2차 열차 07f8be554 빨강) */
+  const s0 = html.lastIndexOf('<div', html.indexOf('id="anim-gif-modal"'));
+  let depth = 0, end = -1;
+  for (const m of html.slice(s0).matchAll(/<\/?div\b/g)) { depth += m[0][1] === '/' ? -1 : 1; if (!depth) { end = s0 + m.index; break; } }
+  const modal = html.slice(s0, end);
+  assert.ok(s0 >= 0 && end > s0 && modal.includes('anim-export-btn') && modal.includes('anim-play-canvas-btn'), '[전제] index.html 에서 GIF 모달 조각(짝 닫는 div 까지)을 찾음');
   const handlers = [...modal.matchAll(/\son\w+="([^"]*)"/g)].map((m) => m[1]);
   const called = new Set(handlers.flatMap((h) => [...h.matchAll(/(?:^|[;\s])([A-Za-z_$][\w$]*)\(/g)].map((m) => m[1])));
   assert.ok(called.has('restartAnimPreview'), `[전제] 슬라이더 인라인이 restartAnimPreview 를 부른다 ${[...called]}`);
