@@ -7,6 +7,8 @@
  *   _plan duration 을 1200/speed 로 되돌리면 E2(GIF 프레임 수) 빨강.
  * E5(0.9.12 QA GIF-PREVIEW-CLIPPED-01): 72px 한 줄 블럭(716×83)을 캔버스가 두 줄로 접으면 높이가 블럭 비율(480×56)이라 위아래가 잘렸다.
  *   양성대조(예측): fitCanvasH 가 H 를 그대로 돌려주면(return H) E5 빨강(미리보기 56 · 줄 위끝 < 0).
+ * E6(같은 신고 후속 · 화면 == 내보낸 것): 블럭 글 안쪽 폭에서 접는다 — 블럭에서 한 줄이면 미리보기·GIF 도 한 줄 · 두 줄 블럭은 두 줄(음성).
+ *   양성대조(실측은 커밋 메시지): textBox 를 옛 규칙(좌우 5%)만 쓰게 하면 E6 한 줄 칸 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -189,6 +191,33 @@ test('E5 잘림 0 — 72px 한 줄 블럭(716×83)이 캔버스에서 두 줄로
     await window.exportAnimGif();
     assert.equal(E.gifOpts().width, 1432, '[전제] 저장 폭 = 블럭 2배');
     inside(E.ctx.calls.slice(-2), E.gifOpts().height, 144, 'GIF 저장');
+    window.closeAnimModal();
+  }
+});
+
+test('E6 블럭과 같은 줄바꿈 — 716 폭 72px: 블럭 한 줄(9.6em ≤ 안쪽 9.67em)은 미리보기·GIF 저장 한 줄 · 블럭 두 줄(13.8em)은 두 줄 유지(V1 fade-in · V2 stamp)', async () => {
+  const cases = [['aaaaaaa bbbbbbbb', 1], ['aaaaa bbbbb ccccc ddddd', 2]];   // 글자 폭 0.6em ⇒ 16자 = 9.6em · 23자 = 13.8em
+  for (const fx of ['fade-in', 'stamp']) for (const [text, want] of cases) {
+    const E = await loadEngine();
+    globalThis.getComputedStyle = () => ({ fontSize: '72px', color: '#111', fontFamily: 'sans-serif', fontWeight: '700', letterSpacing: '0px', textAlign: 'center', lineHeight: '83px', paddingLeft: '10px', paddingRight: '10px' });
+    E.ctx.measureText = (s) => ({ width: String(s).length * (parseFloat(/([\d.]+)px/.exec(E.ctx.font)?.[1]) || 10) * 0.6 });
+    E.textEl.innerHTML = text;
+    E.textEl.clientWidth = 716;   // 안쪽 = 716 − 20 = 696px = 9.67em
+    E.tb.offsetWidth = 716; E.tb.offsetHeight = want === 1 ? 83 : 166;
+    const items = [];
+    E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+    window.openAnimModal(E.tb);
+    items.find((it) => it.dataset.id === fx)._l.click[0]();
+    E.rafs.at(-1)(1000);
+    E.ctx.calls.length = 0;
+    E.rafs.at(-1)(1000 + 5000);   // 끝 프레임
+    const prev = E.ctx.calls.map((c) => c.s);
+    assert.equal(prev.length, want, `★${fx} «${text}» 미리보기 줄 수 ≠ 블럭(${want}) ${JSON.stringify(prev)}`);
+    assert.equal(prev.join(' '), text, `${fx} 글 그대로`);
+    E.ctx.calls.length = 0;
+    await window.exportAnimGif();
+    const out = E.ctx.calls.slice(-want).map((c) => c.s);   // 끝 멈춤 프레임의 마지막 want 조각 — 줄 수가 다르면 이어 붙인 글이 원문과 달라진다
+    assert.equal(out.join(' '), text, `★${fx} «${text}» GIF 저장 줄 ≠ 블럭 ${JSON.stringify(E.ctx.calls.slice(-3).map((c) => c.s))}`);
     window.closeAnimModal();
   }
 });

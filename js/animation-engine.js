@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -250,6 +250,8 @@ function _getTextStyle(tb) {
     textAlign:     el.style.textAlign || (cs.textAlign === 'start' ? 'left' : cs.textAlign) || 'left',
     lineHeight:    parseFloat(cs.lineHeight) / (parseFloat(cs.fontSize) || 1) || 1.4,
     sectionBg:     bg || '#ffffff',
+    // 블럭 글 안쪽 폭(em) — 캔버스가 블럭과 같은 곳에서 접게(textBox). clientWidth 는 zoom 영향 없음 · 0 이면 옛 규칙
+    wrapEm:        (el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)) / (parseFloat(cs.fontSize) || 24) || undefined,
   };
 }
 
@@ -328,7 +330,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
   try { ctx.letterSpacing = style.letterSpacing + 'px'; } catch(e) {}
 
   // textAlign & x-anchor
-  const paddingX = Math.round(W * 0.05);
+  const { paddingX, maxW: maxTextW } = textBox(W, displaySize, style);   // 블럭과 같은 줄바꿈(layoutLines 와 같은 함수)
   let anchorX;
   if (style.textAlign === 'left') {
     anchorX = paddingX;
@@ -342,7 +344,6 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
   }
 
   // word-wrap: 긴 줄을 maxWidth 안에 맞게 자동 분할
-  const maxTextW = W - paddingX * 2;
   function wrapLine(text) {
     if (!text) return [''];
     const words = text.split(' ');

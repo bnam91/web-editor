@@ -63,11 +63,19 @@ export const totalMs = (tracks) => tracks.reduce((m, t) => Math.max(m, t.at + t.
 export const localT = (tr, tau) => (tau < tr.at ? null : clamp01((tau - tr.at) / tr.dur));
 
 /** 배치 — _drawFrame 과 같은 규칙(좌우 여백 5% · 단어 단위 접기 · 줄 높이 · 세로 가운데). 반환 조각마다 src(원래 줄 번호)를 단다. */
+/** 글 상자(가로) — 블럭과 같은 줄바꿈: 접는 폭 = 블럭 글 안쪽 폭(em) × 그리는 글자 크기 · 가운데 둔다.
+ *  wrapEm 이 없으면(블럭 못 잼) 옛 규칙 좌우 5%. 0.9.12 QA: 716 폭 한 줄 블럭이 5% 여백(432)에 접혀 두 줄이 됐다.
+ *  shortcut: 좌우 패딩이 다르면 안쪽 폭만 맞고 위치는 가운데 기준, 비대칭 패딩 블럭이 나오면 padL/padR 로. */
+export function textBox(W, size, style) {
+  if (!(style.wrapEm > 0)) { const p = Math.round(W * 0.05); return { paddingX: p, maxW: W - p * 2 }; }
+  const maxW = style.wrapEm * size;
+  return { paddingX: Math.max(0, (W - maxW) / 2), maxW };
+}
+
 export function layoutLines(ctx, style, W, H, size) {
-  const paddingX = Math.round(W * 0.05);
+  const { paddingX, maxW } = textBox(W, size, style);
   const align = style.textAlign === 'right' || style.textAlign === 'left' ? style.textAlign : 'center';
   const anchorX = align === 'left' ? paddingX : align === 'right' ? W - paddingX : W / 2;
-  const maxW = W - paddingX * 2;
   const wrap = (text) => {
     if (!text) return [''];
     const res = []; let cur = '';
