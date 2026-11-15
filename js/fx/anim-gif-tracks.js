@@ -86,6 +86,15 @@ export function layoutLines(ctx, style, W, H, size) {
   return { segs, align, anchorX, lineH, srcCount: String(style.text || '').split('\n').length };
 }
 
+/** 캔버스 높이 — 블럭 비율 H 와 «캔버스가 접은 줄 수 × 줄높이» 중 큰 쪽.
+ *  캔버스는 좌우 여백 5% 로 블럭보다 좁게 접는다 ⇒ 한 줄 블럭이 두 줄로 그려져 위아래가 잘렸다(0.9.12 QA GIF-PREVIEW-CLIPPED-01). */
+export function fitCanvasH(ctx, style, W, H, size) {
+  ctx.font = `${style.fontWeight} ${size}px ${style.fontFamily}`;
+  try { ctx.letterSpacing = (style.letterSpacing || 0) + 'px'; } catch (_) { /* 옛 캔버스 */ }
+  const L = layoutLines(ctx, style, W, H, size);
+  return Math.max(H, Math.ceil(L.segs.length * L.lineH));
+}
+
 /* ── 줄 한 몫 효과 — (ctx, segs(그 줄의 조각들), p(0~1), env) ── */
 const _plain = (ctx, segs, env) => segs.forEach((s) => ctx.fillText(s.text, s.x0, s.y));
 export const FX = {

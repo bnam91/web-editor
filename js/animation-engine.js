@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -271,12 +271,11 @@ function _startAnimPreview() {
   const bH = Math.max(_animTb.offsetHeight, 1);
   const CANVAS_PREVIEW_W = 480;
   const ratio    = bH / bW;
-  canvas.width   = CANVAS_PREVIEW_W;
-  canvas.height  = Math.round(CANVAS_PREVIEW_W * ratio);
-
   // 폰트 크기도 비율에 맞게 스케일
   const scale       = CANVAS_PREVIEW_W / bW;
   const displaySize = Math.round(style.fontSize * scale);
+  canvas.width   = CANVAS_PREVIEW_W;
+  canvas.height  = fitCanvasH(ctx, style, CANVAS_PREVIEW_W, Math.round(CANVAS_PREVIEW_W * ratio), displaySize);
   const W = canvas.width, H = canvas.height;
   const plan        = _plan(style, speed, scale);
   const duration    = plan.duration; // ms for one cycle
@@ -573,14 +572,14 @@ async function exportAnimGif() {
     const bW = Math.max(_animTb.offsetWidth,  1);
     const bH = Math.max(_animTb.offsetHeight, 1);
     const W = Math.max(320, Math.round(bW * 2));
-    const H = Math.max(80,  Math.round(bH * 2));
     const offCanvas  = document.createElement('canvas');
-    offCanvas.width  = W;
-    offCanvas.height = H;
     const ctx = offCanvas.getContext('2d');
 
     const scale       = W / bW;
     const displaySize = Math.round(style.fontSize * scale);
+    const H = fitCanvasH(ctx, style, W, Math.max(80, Math.round(bH * 2)), displaySize);   // 미리보기와 같은 셈
+    offCanvas.width  = W;
+    offCanvas.height = H;
     const plan        = _plan(style, speed, scale);
     const duration    = plan.duration; // ms
     const fps         = GIF_FPS;   // F4 — 안내 한 줄(loopInfoText)과 같은 수

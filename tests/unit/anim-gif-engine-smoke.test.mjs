@@ -5,6 +5,8 @@
  * F3 E3: 저장된 줄별 트랙(P076 꼴)으로 모달을 열면 미리보기가 «줄마다» 돈다 · «줄마다 따로» 켜기 = data-anim-gif 를 쓴다(한 번 · 같은 값이면 안 씀).
  * 양성대조(실측은 커밋 메시지): _plan 의 V2 갈래를 지우면(모두 _drawFrame 로) E1(흐림 0 — _drawFrame 엔 stamp 갈래가 없어 아무것도 안 그림) 빨강 ·
  *   _plan duration 을 1200/speed 로 되돌리면 E2(GIF 프레임 수) 빨강.
+ * E5(0.9.12 QA GIF-PREVIEW-CLIPPED-01): 72px 한 줄 블럭(716×83)을 캔버스가 두 줄로 접으면 높이가 블럭 비율(480×56)이라 위아래가 잘렸다.
+ *   양성대조(예측): fitCanvasH 가 H 를 그대로 돌려주면(return H) E5 빨강(미리보기 56 · 줄 위끝 < 0).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,13 +82,13 @@ async function loadEngine() {
   globalThis.cancelAnimationFrame = () => {};
   globalThis.getComputedStyle = () => ({ fontSize: '24px', color: '#111', fontFamily: 'sans-serif', fontWeight: '700', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px' });
   globalThis.showToast = () => {};
-  let gifFrames = 0;
-  globalThis.GIF = class { constructor() {} addFrame() { gifFrames++; } on() {} render() {} };
+  let gifFrames = 0, gifOpts = null;
+  globalThis.GIF = class { constructor(o) { gifOpts = o; } addFrame() { gifFrames++; } on() {} render() {} };
   await import(pathToFileURL(path.join(dir, 'engine.mjs')).href);
   const textEl = fakeEl({ innerHTML: '오늘 주문하면?<br>네!', textContent: '오늘 주문하면?네!' });
   textEl.innerHTML = '오늘 주문하면?<br>네!';
   const tb = fakeEl({ offsetWidth: 400, offsetHeight: 120, closest: () => null, querySelector: (s) => (s === '[contenteditable]' ? textEl : null) });
-  return { ctx, rafs, els, tb, frames: () => gifFrames };
+  return { ctx, rafs, els, tb, textEl, frames: () => gifFrames, gifOpts: () => gifOpts };
 }
 
 test('E1 모달 → «도장 찍기» 고름 → 미리보기 프레임이 «실제로» 그려진다(앞 = 흐림 · 끝 = 선명 · 두 줄)', async () => {
@@ -161,4 +163,32 @@ test('E4 다시 열면 «저장값»을 읽는다 — 닫은 뒤 저장만 바�
   window.openAnimModal(E.tb);
   assert.equal(E.els['anim-speed'].value, '2', '속도 = 저장값');
   assert.equal(E.els['anim-loop-info'].textContent, `한 바퀴 1.00초 · GIF ${Math.ceil(1.0 * 20) + 1 + 30}프레임`, '★다시 열 때 저장값을 안 읽었다(메모리 1.90초)');
+});
+
+test('E5 잘림 0 — 72px 한 줄 블럭(716×83)이 캔버스에서 두 줄로 접혀도 미리보기·GIF 저장 둘 다 글 위아래가 캔버스 안(V1 fade-in · V2 stamp)', async () => {
+  for (const fx of ['fade-in', 'stamp']) {
+    const E = await loadEngine();
+    globalThis.getComputedStyle = () => ({ fontSize: '72px', color: '#111', fontFamily: 'sans-serif', fontWeight: '700', letterSpacing: '0px', textAlign: 'center', lineHeight: '83px' });
+    E.ctx.measureText = (s) => ({ width: String(s).length * (parseFloat(/([\d.]+)px/.exec(E.ctx.font)?.[1]) || 10) * 0.6 });   // 글자 폭 = 0.6em
+    E.textEl.innerHTML = 'aaaaa bbbbb ccccc ddddd';
+    E.tb.offsetWidth = 716; E.tb.offsetHeight = 83;
+    const items = [];
+    E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+    window.openAnimModal(E.tb);
+    items.find((it) => it.dataset.id === fx)._l.click[0]();
+    const inside = (calls, H, size, where) => {
+      assert.equal(calls.length, 2, `[전제] ${fx} ${where}: 캔버스가 두 줄로 접는다 ${JSON.stringify(calls)}`);
+      for (const c of calls) assert.ok(c.y - size / 2 >= 0 && c.y + size / 2 <= H, `★${fx} ${where} 잘림: y=${c.y} size=${size} H=${H}`);
+    };
+    const cv = E.els['anim-preview-canvas'];
+    E.rafs.at(-1)(1000);
+    E.ctx.calls.length = 0;
+    E.rafs.at(-1)(1000 + 5000);   // 끝 프레임
+    inside(E.ctx.calls.slice(), cv.height, Math.round(72 * 480 / 716), '미리보기');
+    E.ctx.calls.length = 0;
+    await window.exportAnimGif();
+    assert.equal(E.gifOpts().width, 1432, '[전제] 저장 폭 = 블럭 2배');
+    inside(E.ctx.calls.slice(-2), E.gifOpts().height, 144, 'GIF 저장');
+    window.closeAnimModal();
+  }
 });
