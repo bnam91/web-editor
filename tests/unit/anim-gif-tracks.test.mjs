@@ -4,6 +4,8 @@
  *   양성대조(실측은 커밋 메시지): stampParams 의 «쾅» 갈래(p ≥ 0.7)를 지우면 T6 빨강 · FX.stamp 의 `_blur(ctx, m.blur)` 삭제 → T7(시작 흐림) 빨강.
  * 양성대조(예측): drawTracks 의 `if (p == null || …) continue;` 를 지우면 T4(아직 안 나온 줄이 그려짐) 빨강 ·
  *   normTracks 의 «앞 줄 끝에 시작»(prev.at + prev.dur) 을 0 으로 → T1 빨강.
+ * T10·T11(RICHTEXT C1): 조각 스타일 cs 가 접힌 줄마다 제 글자에 붙는다 · 카운트업처럼 글이 바뀌어도 앞뒤 글자는 제 스타일.
+ *   양성대조(실측은 커밋 메시지): layoutLines 의 `off += line.length + 1` 삭제 → T10 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -128,4 +130,27 @@ test('T9 블럭 줄바꿈 폭이 캔버스보다 넓어도(글자 크기 반올�
   const L = layoutLines(ctx, style, 480, 200, 49);
   for (const s of L.segs) assert.ok(s.x0 >= 0 && s.x0 + s.w <= 480 - 0.5, `★캔버스 밖: «${s.text}» ${s.x0}..${s.x0 + s.w}`);
   assert.equal(L.segs.length, 2, '[전제] 캔버스 폭에서 접힘');
+});
+
+test('T10 RICHTEXT C1 — 조각 스타일 cs 가 접힌 줄마다 제 글자에 붙는다(\n 뒤 줄 포함)', () => {
+  const B = { b: 1 }, D = { d: 1 }, E = { e: 1 };
+  const text = 'aaaa bbbb cccc dddd\nee';
+  const cs = [...text].map((_, i) => (i >= 5 && i <= 8 ? B : i >= 15 && i <= 18 ? D : i >= 20 ? E : null));
+  const L = layoutLines(fakeCtx(), { ...STYLE, text, cs }, 200, 300, 20);   // 폭 200 · 여백 10 ⇒ 18글자
+  assert.deepEqual(L.segs.map((s) => s.text), ['aaaa bbbb cccc', 'dddd', 'ee'], '[전제] 접힘');
+  assert.deepEqual(L.segs[0].cs, [null, null, null, null, null, B, B, B, B, null, null, null, null, null]);
+  assert.deepEqual(L.segs[1].cs, [D, D, D, D]);
+  assert.deepEqual(L.segs[2].cs, [E, E], '★\n 뒤 줄의 스타일이 어긋났다');
+  assert.deepEqual(layoutLines(fakeCtx(), { ...STYLE, text }, 200, 300, 20).segs.map((s) => s.cs), [null, null, null], '꾸밈 없으면 null(평글)');
+});
+
+test('T11 RICHTEXT C1 — remapCs: 카운트업 «12,345원» → «3,086원» · 앞뒤 같은 글자는 제 스타일 · 바뀐 가운데는 첫 글자 스타일', async () => {
+  const { remapCs } = await import('../../js/fx/anim-gif-text.js');
+  const N = { n: 1 }, W = { w: 1 };
+  const src = '할인 12,345원', cs = [...src].map((ch) => (ch === '원' ? W : /[\d,]/.test(ch) ? N : null));
+  const out = '할인 3,086원', r = remapCs(src, cs, out);
+  assert.equal(r.length, out.length);
+  assert.deepEqual(r, [null, null, null, N, N, N, N, N, W]);
+  assert.equal(remapCs(src, null, out), null);
+  assert.equal(remapCs(src, cs, src), cs);
 });

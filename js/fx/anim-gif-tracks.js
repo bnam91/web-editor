@@ -5,7 +5,7 @@
  * ★V1 «블럭 전체 한 효과»(animation-engine.js _drawFrame)는 손대지 않는다 — 트랙이 없으면 엔진이 옛 길로 그린다(회귀 0).
  *   여기의 V1 효과들은 «한 줄 몫»으로 다시 쓴 것이다(같은 곡선 · 같은 도우미 anim-gif-text.js).
  */
-import { countUpLine, numToken, reelDigit, lineStartX } from './anim-gif-text.js';
+import { countUpLine, numToken, reelDigit, lineStartX, fillStyled, measureStyled, remapCs } from './anim-gif-text.js';
 
 export const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -89,7 +89,16 @@ export function layoutLines(ctx, style, W, H, size) {
     return res.length ? res : [''];
   };
   const segs = [];
-  String(style.text || '').split('\n').forEach((line, src) => wrap(line).forEach((text) => segs.push({ src, text })));
+  let off = 0;   // 원문(style.text) 안 줄 시작 — 조각 스타일 cs 를 접힌 조각마다 잘라 붙인다
+  String(style.text || '').split('\n').forEach((line, src) => {
+    let pos = 0;
+    wrap(line).forEach((text) => {
+      const at = line.indexOf(text, pos);
+      segs.push({ src, text, cs: style.cs && at >= 0 ? style.cs.slice(off + at, off + at + text.length) : null });
+      if (at >= 0) pos = at + text.length;
+    });
+    off += line.length + 1;
+  });
   const lineH = size * (style.lineHeight || 1.4);
   const top = H / 2 - ((segs.length - 1) * lineH) / 2;
   segs.forEach((s, i) => { s.y = top + i * lineH; s.w = ctx.measureText(s.text).width; s.x0 = lineStartX(align, anchorX, s.w); });
@@ -106,7 +115,7 @@ export function fitCanvasH(ctx, style, W, H, size) {
 }
 
 /* ── 줄 한 몫 효과 — (ctx, segs(그 줄의 조각들), p(0~1), env) ── */
-const _plain = (ctx, segs, env) => segs.forEach((s) => ctx.fillText(s.text, s.x0, s.y));
+const _plain = (ctx, segs, env) => segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y, env));
 export const FX = {
   stamp: (ctx, segs, p, env) => {
     const m = stampParams(p, env.k);
@@ -122,16 +131,16 @@ export const FX = {
     _blur(ctx, m.blur);
     for (let g = m.ghosts; g >= 1; g--) {   // 뒤(왼쪽)로 갈수록 옅게
       ctx.globalAlpha = m.ghostAlpha * (1 - g / (m.ghosts + 1));
-      segs.forEach((s) => ctx.fillText(s.text, s.x0 + m.dx - g * m.ghostStep, s.y));
+      segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0 + m.dx - g * m.ghostStep, s.y, env));
     }
     ctx.globalAlpha = m.alpha;
-    segs.forEach((s) => ctx.fillText(s.text, s.x0 + m.dx, s.y));
+    segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0 + m.dx, s.y, env));
   },
   'fade-in': (ctx, segs, p, env) => { ctx.globalAlpha = easeInOut(p); _plain(ctx, segs, env); },
   'slide-up': (ctx, segs, p, env) => {
     ctx.globalAlpha = easeInOut(p);
     const dy = (1 - easeOut(p)) * env.lineH * 1.2;
-    segs.forEach((s) => ctx.fillText(s.text, s.x0, s.y + dy));
+    segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y + dy, env));
   },
   'glow-pulse': (ctx, segs, p, env) => {
     const g = 0.5 + 0.5 * Math.sin(p * Math.PI * 4);
@@ -143,43 +152,43 @@ export const FX = {
     let left = Math.floor(p * total), cur = null;
     for (const s of segs) {
       if (left <= 0 && cur) break;
-      const part = s.text.slice(0, Math.max(0, left));
-      ctx.fillText(part, s.x0, s.y);
-      cur = { x: s.x0 + ctx.measureText(part).width + 2, y: s.y };
+      const part = s.text.slice(0, Math.max(0, left)), pcs = s.cs && s.cs.slice(0, part.length);
+      fillStyled(ctx, part, pcs, s.x0, s.y, env);
+      cur = { x: s.x0 + measureStyled(ctx, part, pcs, env) + 2, y: s.y };
       left -= s.text.length;
     }
     if (p < 1 && cur) ctx.fillRect(cur.x, cur.y - env.size * 0.45, 2, env.size * 0.9);   // 커서
   },
   'word-pop': (ctx, segs, p, env) => {
     const words = segs.flatMap((s) => { let x = s.x0; const sp = ctx.measureText(' ').width;
-      return s.text.split(' ').filter(Boolean).map((w) => { const ww = ctx.measureText(w).width; const o = { w, x, y: s.y, ww }; x += ww + sp; return o; }); });
+      return [...s.text.matchAll(/[^ ]+/g)].map((m) => { const w = m[0], cs = s.cs && s.cs.slice(m.index, m.index + w.length), ww = measureStyled(ctx, w, cs, env); const o = { w, cs, x, y: s.y, ww }; x += ww + sp; return o; }); });
     words.forEach((o, i) => {
       const q = clamp01(p * words.length - i);
       if (q <= 0) return;
       const sc = 0.6 + 0.4 * easeOut(q);
-      ctx.save(); ctx.globalAlpha = q; ctx.translate(o.x + o.ww / 2, o.y); ctx.scale(sc, sc); ctx.fillText(o.w, -o.ww / 2, 0); ctx.restore();
+      ctx.save(); ctx.globalAlpha = q; ctx.translate(o.x + o.ww / 2, o.y); ctx.scale(sc, sc); fillStyled(ctx, o.w, o.cs, -o.ww / 2, 0, env); ctx.restore();
     });
   },
   'count-up': (ctx, segs, p, env) => {
     segs.forEach((s) => {
-      const text = countUpLine(s.text, p >= 1 ? 1 : easeOut(p)) ?? s.text;
-      ctx.fillText(text, lineStartX(env.align, env.anchorX, ctx.measureText(text).width), s.y);
+      const text = countUpLine(s.text, p >= 1 ? 1 : easeOut(p)) ?? s.text, cs = remapCs(s.text, s.cs, text);
+      fillStyled(ctx, text, cs, lineStartX(env.align, env.anchorX, measureStyled(ctx, text, cs, env)), s.y, env);
     });
   },
   'slot-machine': (ctx, segs, p, env) => {
     segs.forEach((s) => {
       const tok = numToken(s.text);
-      if (!tok) { ctx.globalAlpha = p; ctx.fillText(s.text, s.x0, s.y + (1 - easeOut(p)) * env.lineH); ctx.globalAlpha = 1; return; }
+      if (!tok) { ctx.globalAlpha = p; fillStyled(ctx, s.text, s.cs, s.x0, s.y + (1 - easeOut(p)) * env.lineH, env); ctx.globalAlpha = 1; return; }
       const nDig = tok.raw.replace(/\D/g, '').length, step = env.size * 1.2;
       ctx.save(); ctx.beginPath(); ctx.rect(0, s.y - env.size * 0.6, env.W, env.size * 1.2); ctx.clip();
       let order = 0;
       for (let i = 0; i < s.text.length; i++) {
-        const ch = s.text[i], x = s.x0 + ctx.measureText(s.text.slice(0, i)).width;
+        const ch = s.text[i], c1 = s.cs && [s.cs[i]], x = s.x0 + measureStyled(ctx, s.text.slice(0, i), s.cs && s.cs.slice(0, i), env);
         const inNum = i >= tok.index && i < tok.index + tok.raw.length && ch >= '0' && ch <= '9';
-        if (!inNum) { ctx.fillText(ch, x, s.y); continue; }
+        if (!inNum) { fillStyled(ctx, ch, c1, x, s.y, env); continue; }
         const r = reelDigit(+ch, order++, nDig, p, easeOut);
-        ctx.fillText(String(r.cur), x, s.y - r.frac * step);
-        if (r.frac) ctx.fillText(String(r.next), x, s.y + (1 - r.frac) * step);
+        fillStyled(ctx, String(r.cur), c1, x, s.y - r.frac * step, env);
+        if (r.frac) fillStyled(ctx, String(r.next), c1, x, s.y + (1 - r.frac) * step, env);
       }
       ctx.restore();
     });
@@ -194,7 +203,7 @@ export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
   ctx.textAlign = 'left';   // 조각마다 x0(줄 시작) 로 그린다 — 정렬은 배치가 이미 풀었다
   try { ctx.letterSpacing = (style.letterSpacing || 0) + 'px'; } catch (_) { /* 옛 캔버스 */ }
   const L = layoutLines(ctx, style, W, H, size);
-  const env = { W, H, size, k, lineH: L.lineH, align: L.align, anchorX: L.anchorX, color: style.color };
+  const env = { W, H, size, k, style, lineH: L.lineH, align: L.align, anchorX: L.anchorX, color: style.color };
   const drawn = [];
   for (const tr of tracks) {
     const p = localT(tr, tau);

@@ -66,3 +66,29 @@ export function typedLines(lines, t) {
   }
   return out;
 }
+
+/* ── 부분 꾸밈(RICHTEXT-EFFECTS-01) — 글 «조각 스타일» cs ─────────────────────────
+ * cs = 글자마다 하나(글과 같은 길이) · null = 블럭 기본 스타일 · 같은 요소의 글자는 «같은 객체»(묶음 = 객체 동일성).
+ * 모든 효과는 글을 fillStyled 로 그린다 — 미리보기·GIF 저장·V1·V2 가 한 함수. 조각(같은 스타일 묶음)마다 따로 그리는 자리다
+ * (조각별 변형·알파는 지금 0 — 지디 ③ «자리만 막지 마라»).
+ * C1: cs 를 나르기만 하고 그리기는 옛 fillText 그대로(바이트 동일). C2~ 가 조각 스타일을 읽는다. */
+
+/** 글 text(그 cs) 를 x,y 에 — 정렬은 ctx.textAlign 그대로. env = { style, size }. */
+export function fillStyled(ctx, text, cs, x, y, env) {   // eslint-disable-line no-unused-vars
+  ctx.fillText(text, x, y);
+}
+
+/** fillStyled 와 같은 셈의 폭. */
+export function measureStyled(ctx, text, cs, env) {   // eslint-disable-line no-unused-vars
+  return ctx.measureText(text).width;
+}
+
+/** 글이 바뀌었을 때(카운트업 0 → 12,345) 새 글의 cs — 앞뒤 같은 글자는 제 스타일, 바뀐 가운데는 그 첫 글자 스타일. */
+export function remapCs(src, cs, out) {
+  if (!cs) return null;
+  if (out === src) return cs;
+  let a = 0; while (a < src.length && a < out.length && src[a] === out[a]) a++;
+  let b = 0; while (b < src.length - a && b < out.length - a && src[src.length - 1 - b] === out[out.length - 1 - b]) b++;
+  const mid = cs[Math.min(a, src.length - 1)] ?? null;
+  return [...cs.slice(0, a), ...Array(out.length - a - b).fill(mid), ...cs.slice(src.length - b)];
+}

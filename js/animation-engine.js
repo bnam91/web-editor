@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
-import { countUpLine, numToken, reelDigit, lineStartX, typedLines } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox } from './fx/anim-gif-tracks.js';
+import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs } from './fx/anim-gif-text.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -205,6 +205,38 @@ function _extractText(el) {
     .trim() || el.textContent?.trim() || 'Sample Text';
 }
 
+/* 조각 스타일 cs(RICHTEXT-EFFECTS-01) — _extractText 와 «같은 글»을 DOM 을 걸어 만들고, 글자마다 그 글자를 감싼 요소의 스타일.
+   같은 규칙: br = 줄바꿈 · div/p 앞 줄바꿈 · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 공백 깎기. 결과 글이 text 와 다르면 null(평글로 그린다). */
+function _extractCs(el, text) {
+  if (!el.childNodes) return null;
+  const memo = new Map();
+  const st = (host) => { if (!host) return null; if (!memo.has(host)) memo.set(host, _runStyle(host, el)); return memo.get(host); };
+  let raw = '';
+  const rc = [];
+  const walk = (node, host) => {
+    for (const n of node.childNodes) {
+      if (n.nodeType === 3) { const d = n.data.replace(/\u00a0/g, ' '); raw += d; for (let i = 0; i < d.length; i++) rc.push(st(host)); }
+      else if (n.nodeType === 1) {
+        if (n.tagName === 'BR') { raw += '\n'; rc.push(null); continue; }
+        if (n.tagName === 'DIV' || n.tagName === 'P') { raw += '\n'; rc.push(null); }
+        walk(n, n);
+      }
+    }
+  };
+  walk(el, null);
+  let t = '';
+  const c = [];
+  for (let i = 0; i < raw.length; i++) { if (raw[i] === '\n' && t.endsWith('\n\n')) continue; t += raw[i]; c.push(rc[i]); }
+  const a = t.length - t.trimStart().length, b = t.length - t.trimEnd().length;
+  if (t.trim() !== text) return null;
+  const cs = c.slice(a, c.length - b);
+  return cs.some(Boolean) ? cs : null;
+}
+/* 한 요소의 조각 스타일 — C1: 자리만(그리기는 아직 평글). null = 블럭 기본과 같음. */
+function _runStyle(host, el) {   // eslint-disable-line no-unused-vars
+  return Object.freeze({});
+}
+
 /** GIF 가 읽는 글 요소 — 그리기·경고가 같은 요소를 본다. */
 function _textEl(tb) {
   return tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb.querySelector('div');
@@ -240,8 +272,10 @@ function _getTextStyle(tb) {
   /* ⑷(DONE40) 인라인 style 만 읽어 클래스·테마 배경 섹션이 흰색으로 나갔다 ⇒ 정지 이미지 내보내기와 같은 규칙(computed · 투명이면 페이지 배경).
      shortcut: 그라데이션·이미지·메시 배경은 아직 «바탕색»만 깐다 — 그 모양을 깔지는 지디 결정 뒤. */
   const bg  = sec ? sectionBgColor(sec) : '#ffffff';
+  const text = _extractText(el);
   return {
-    text:          _extractText(el),
+    text,
+    cs:            _extractCs(el, text),
     fontSize:      parseFloat(cs.fontSize)      || 24,
     color:         cs.color                     || '#111111',
     fontFamily:    cs.fontFamily                || 'sans-serif',
@@ -330,7 +364,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
   try { ctx.letterSpacing = style.letterSpacing + 'px'; } catch(e) {}
 
   // textAlign & x-anchor
-  const { paddingX, maxW: maxTextW } = textBox(W, displaySize, style);   // 블럭과 같은 줄바꿈(layoutLines 와 같은 함수)
+  const { paddingX } = textBox(W, displaySize, style);   // 블럭과 같은 줄바꿈(layoutLines 와 같은 함수)
   let anchorX;
   if (style.textAlign === 'left') {
     anchorX = paddingX;
@@ -343,35 +377,17 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
     ctx.textAlign = 'center';
   }
 
-  // word-wrap: 긴 줄을 maxWidth 안에 맞게 자동 분할
-  function wrapLine(text) {
-    if (!text) return [''];
-    const words = text.split(' ');
-    const result = [];
-    let cur = '';
-    for (const word of words) {
-      const test = cur ? cur + ' ' + word : word;
-      if (ctx.measureText(test).width > maxTextW && cur) {
-        result.push(cur);
-        cur = word;
-      } else {
-        cur = test;
-      }
-    }
-    if (cur) result.push(cur);
-    return result.length ? result : [''];
-  }
-
-  // multiline support (explicit \n + word-wrap)
-  const rawLines  = style.text.split('\n');
-  const lines     = rawLines.flatMap(l => wrapLine(l));
+  // 줄바꿈(\n + 폭 접기) — V2 와 같은 layoutLines(같은 textBox 폭 · 조각 스타일 cs 를 줄마다 잘라 붙임)
+  const segs      = layoutLines(ctx, style, W, H, displaySize).segs;
+  const lines     = segs.map(s => s.text);
+  const env       = { style, size: displaySize };
   const lineH     = displaySize * (style.lineHeight || 1.4);
   const firstLine = lines[0];
 
   // draw all lines centered vertically around baseY
   const drawLines = (linesArr, baseY, drawFn) => {
     const totalH = (linesArr.length - 1) * lineH;
-    linesArr.forEach((line, i) => drawFn(line, anchorX, baseY - totalH / 2 + i * lineH));
+    linesArr.forEach((line, i) => drawFn(line, anchorX, baseY - totalH / 2 + i * lineH, i));
   };
 
   switch (animType) {
@@ -382,7 +398,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       ctx.save();
       ctx.globalAlpha = _easeInOut(t);
       ctx.fillStyle   = style.color;
-      drawLines(lines, cy + offset, (line, x, y) => ctx.fillText(line, x, y));
+      drawLines(lines, cy + offset, (line, x, y, i) => fillStyled(ctx, line, segs[i].cs, x, y, env));
       ctx.restore();
       break;
     }
@@ -397,10 +413,11 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       ctx.textAlign = 'left';
       let curX = null, curY = null;
       shown.forEach((part, i) => {
-        const x = lineStartX(style.textAlign, anchorX, ctx.measureText(lines[i]).width);
+        const pcs = segs[i].cs && segs[i].cs.slice(0, part.length);
+        const x = lineStartX(style.textAlign, anchorX, measureStyled(ctx, lines[i], segs[i].cs, env));
         const y = cy - totalH / 2 + i * lineH;
-        ctx.fillText(part, x, y);
-        curX = x + ctx.measureText(part).width + 2; curY = y;
+        fillStyled(ctx, part, pcs, x, y, env);
+        curX = x + measureStyled(ctx, part, pcs, env) + 2; curY = y;
       });
       if (t < 1 && curX != null) ctx.fillRect(curX, curY - displaySize * 0.45, 2, displaySize * 0.9);   // 커서
       break;
@@ -412,7 +429,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
         const offset = (1 - _easeOut(t)) * H * 0.4;
         ctx.save(); ctx.globalAlpha = t;
         ctx.fillStyle = style.color;
-        ctx.fillText(firstLine, anchorX, cy + offset);
+        fillStyled(ctx, firstLine, segs[0].cs, anchorX, cy + offset, env);
         ctx.restore();
         break;
       }
@@ -421,7 +438,8 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       const tok    = numToken(firstLine);
       const nDig   = tok.raw.replace(/\D/g, '').length;
       const step   = displaySize * 1.2;
-      const startX = lineStartX(style.textAlign, anchorX, ctx.measureText(firstLine).width);
+      const fcs    = segs[0].cs;
+      const startX = lineStartX(style.textAlign, anchorX, measureStyled(ctx, firstLine, fcs, env));
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, cy - displaySize * 0.6, W, displaySize * 1.2);
@@ -430,14 +448,15 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       let order = 0;   // 왼쪽 자리부터 0 — 오른쪽 자리일수록 늦게 멈춘다
       for (let i = 0; i < firstLine.length; i++) {
         const ch = firstLine[i];
-        const x  = startX + ctx.measureText(firstLine.slice(0, i)).width;
+        const c1 = fcs && [fcs[i]];
+        const x  = startX + measureStyled(ctx, firstLine.slice(0, i), fcs && fcs.slice(0, i), env);
         const inNum = i >= tok.index && i < tok.index + tok.raw.length && ch >= '0' && ch <= '9';
-        if (!inNum) { ctx.textAlign = 'left'; ctx.fillText(ch, x, cy); continue; }
+        if (!inNum) { ctx.textAlign = 'left'; fillStyled(ctx, ch, c1, x, cy, env); continue; }
         const r  = reelDigit(+ch, order++, nDig, t, _easeOut);
-        const mx = x + ctx.measureText(ch).width / 2;
+        const mx = x + measureStyled(ctx, ch, c1, env) / 2;
         ctx.textAlign = 'center';
-        ctx.fillText(String(r.cur), mx, cy - r.frac * step);
-        if (r.frac) ctx.fillText(String(r.next), mx, cy + (1 - r.frac) * step);
+        fillStyled(ctx, String(r.cur), c1, mx, cy - r.frac * step, env);
+        if (r.frac) fillStyled(ctx, String(r.next), c1, mx, cy + (1 - r.frac) * step, env);
       }
       ctx.restore();
       break;
@@ -448,7 +467,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       ctx.save();
       ctx.globalAlpha = _easeInOut(t);
       ctx.fillStyle   = style.color;
-      drawLines(lines, cy, (line, x, y) => ctx.fillText(line, x, y));
+      drawLines(lines, cy, (line, x, y, i) => fillStyled(ctx, line, segs[i].cs, x, y, env));
       ctx.restore();
       break;
     }
@@ -462,9 +481,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       // 전체 단어 목록 (줄 순서 유지, 줄 정보 포함)
       const wordEntries = [];
       wrappedLines.forEach((line, lineIdx) => {
-        line.split(' ').filter(w => w).forEach(word => {
-          wordEntries.push({ word, lineIdx });
-        });
+        for (const m of line.matchAll(/[^ ]+/g)) wordEntries.push({ word: m[0], lineIdx, cs: segs[lineIdx].cs && segs[lineIdx].cs.slice(m.index, m.index + m[0].length) });
       });
       if (!wordEntries.length) break;
 
@@ -473,8 +490,9 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       const startY = cy - totalH / 2 + lineH / 2;
 
       wrappedLines.forEach((line, lineIdx) => {
-        const lineWords = line.split(' ').filter(w => w);
-        const lineWidths = lineWords.map(w => ctx.measureText(w).width);
+        const lineEntries = wordEntries.filter(e => e.lineIdx === lineIdx);
+        const lineWords = lineEntries.map(e => e.word);
+        const lineWidths = lineEntries.map(e => measureStyled(ctx, e.word, e.cs, env));
         const lineW = lineWidths.reduce((s, w) => s + w, 0) + spaceW * (lineWords.length - 1);
         let x;
         if (style.textAlign === 'left')       x = anchorX;
@@ -496,7 +514,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
           ctx.translate(wx, y);
           ctx.scale(sc, sc);
           ctx.fillStyle = style.color;
-          ctx.fillText(word, -lineWidths[wi] / 2, 0);
+          fillStyled(ctx, word, lineEntries[wi].cs, -lineWidths[wi] / 2, 0, env);
           ctx.restore();
           x += lineWidths[wi] + spaceW;
         });
@@ -513,7 +531,7 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
       ctx.shadowBlur  = 4 + 32 * glow;
       ctx.globalAlpha = 0.6 + 0.4 * glow;
       ctx.fillStyle   = style.color;
-      drawLines(lines, cy, (line, x, y) => ctx.fillText(line, x, y));
+      drawLines(lines, cy, (line, x, y, i) => fillStyled(ctx, line, segs[i].cs, x, y, env));
       ctx.restore();
       break;
     }
@@ -522,12 +540,13 @@ function _drawFrame(ctx, W, H, style, displaySize, animType, t) {
     case 'count-up': {
       /* ⑴(DONE40) 첫 숫자 묶음만 셌다(12,345 → 0,345…) ⇒ 콤마·소수까지 한 수로 0 부터 센다. 수가 없으면 옛 꼴(0→100). */
       const display  = countUpLine(firstLine, t >= 1 ? 1 : _easeOut(t)) ?? Math.floor(100 * _easeOut(t)).toString();
+      const dcs      = remapCs(firstLine, segs[0].cs, display);
       const scale    = t === 1 ? 1 : (1 + 0.05 * Math.sin(t * Math.PI * 8) * (1 - t));
       ctx.save();
       ctx.translate(anchorX, cy);
       ctx.scale(scale, scale);
       ctx.fillStyle = style.color;
-      ctx.fillText(display, 0, 0);
+      fillStyled(ctx, display, dcs, 0, 0, env);
       ctx.restore();
       break;
     }
