@@ -3,6 +3,7 @@ import { exportMimeOf, exportExtOf, isGifFormat, isAnimFormat } from './export-f
 import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, warnIfCaptureAnnotVanished, withGuideOff } from './capture-safety.js';
+import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안 = 화면에 없음 = 내보내기 대상 아님(EXPORT-ALL-INCLUDES-HIDDEN-AB-VARIANT-01) */
 import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
 
 const CANVAS_W = 860;
@@ -567,13 +568,18 @@ async function _exportSectionNoGuide(sec, format, width, opts) {
   }
 }
 
+/** 내보낼 섹션 = 화면에 보이는 것 — ghost·숨긴 A/B 시안 제외. 전체·한 섹션·Export 메뉴가 이 한 셈을 쓴다
+ *  (숨긴 시안은 display:none 이라 넣으면 «0 height» 실패 + 진행 n 이 부푼다). */
+function exportableSections() {
+  return [...canvasEl.querySelectorAll('.section-block:not([data-ghost])' + NOT_HIDDEN_VARIATION)];
+}
 /** 라이브 캔버스에서의 섹션 «순번». 예외 경로는 exportSection 이 idx 를 못 돌려준다. */
 function _liveIdx(sec) {
-  try { return [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')].indexOf(sec) + 1; }
+  try { return exportableSections().indexOf(sec) + 1; }
   catch (_) { return 0; }
 }
 function _runTotal() {
-  try { return canvasEl.querySelectorAll('.section-block:not([data-ghost])').length; }
+  try { return exportableSections().length; }
   catch (_) { return 0; }
 }
 
@@ -815,7 +821,7 @@ async function _exportSectionInner(sec, format, width, opts) {
   // 진짜 투명(alpha=0)일 때만 pageSettings.bg 폴백.
   const bgColor = sectionBgColor(sec);
 
-  const secList = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
+  const secList = exportableSections();
   const idx     = secList.indexOf(sec) + 1;
   const name    = (sec._name || `section-${String(idx).padStart(2,'0')}`).replace(/\s+/g, '-');
 
@@ -1020,7 +1026,7 @@ async function exportAllSections(format, width, onProgress, opts) {
   // 섹션 목록 산정/순회 전에 한 번 더 보장)
   if (window.materializeAllSections) window.materializeAllSections();
 
-  const sections = [...canvasEl.querySelectorAll('.section-block:not([data-ghost])')];
+  const sections = exportableSections();
   const failed = [];
   const results = [];
   /* ★한 «판»을 연다 — 22섹션이 다 실패해도 링버퍼(20칸)를 다 먹지 않게 상한을 걸고,
@@ -1028,7 +1034,7 @@ async function exportAllSections(format, width, onProgress, opts) {
   beginRun(sections.length, format || 'png', width || CANVAS_W);
   try {
   for (let i = 0; i < sections.length; i++) {
-    onProgress?.(i + 1, sections.length);
+    onProgress?.(i + 1, sections.length, sections[i]);   // 셋째 = 그 섹션(부르는 쪽이 다시 세어 어긋나지 않게)
     try {
       const r = await exportSection(sections[i], format, width, opts);
       results.push(r && typeof r === 'object'
@@ -1059,7 +1065,7 @@ async function exportAllSections(format, width, onProgress, opts) {
 //      Page 속성패널 깊숙이에만 두지 않고 Export 메뉴 1급 항목으로 노출.
 //      (실제 렌더는 Page 속성패널과 동일하게 exportAllSections 재사용)
 async function exportAllImagesPNG() {
-  const n = canvasEl.querySelectorAll('.section-block:not([data-ghost])').length;
+  const n = exportableSections().length;
   if (!n) { window.showToast?.('내보낼 섹션이 없습니다.'); return; }
   /* ⛔네이티브 confirm() 금지 — 렌더러가 멈춘다(EXPORT-ALL-SECTIONS-NATIVE-CONFIRM-FREEZE-01). 진행은 아래 스피너 모달이 말한다. */
   /* ★진행은 «토스트»가 아니라 스피너 패널로 보인다 — 현빈: 「스피너가 돌면서 처리 중이다
@@ -1067,8 +1073,7 @@ async function exportAllImagesPNG() {
    * 그 패널은 결과 모달이 열릴 때 «스스로» 닫힌다(창이 둘 뜨지 않게). */
   window.showExportProgress?.(n, { format: 'png', width: 860 });
   try {
-    const res = await window.exportAllSections('png', 860, (i, t) => {
-      const sec = canvasEl.querySelectorAll('.section-block:not([data-ghost])')[i - 1];
+    const res = await window.exportAllSections('png', 860, (i, t, sec) => {
       window.stepExportProgress?.(i, t, sec?._name || sec?.dataset?.name || '');
     });
     // ★결과는 «모달 하나»로만 말한다 — 2초 토스트에 담을 정보가 아니다(현빈 「결과 모달도 떠야」).

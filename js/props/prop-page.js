@@ -4,6 +4,7 @@
 import { propPanel, canvasEl, state } from '../globals.js';   /* ★canvasWrap 은 뺐다 — 깔때기(applyCanvasBackground)만 쓰므로 «바인딩 자체»를 없앤다(직접 대입 재유입 방지) */
 import { exportFormatOptionsHTML } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { applyBubbleSenderAlign } from './prop-text-wireup-align.js';
+import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안은 세지 않는다 — export-image.js exportableSections 와 같은 셈 */
 import { applyCanvasBackground } from '../canvas-contrast.js';   /* 캔버스 배경은 «이 문 하나»로만 칠한다(검사 B1) */
 import { wireHexText, parseHex6, formatHex6, alphaFromText, noticeAlphaText } from './color-picker.js';
 /* 색 코드 칸 배선은 «한 자리»에서만 온다(유닛 colorhex) */
@@ -808,7 +809,7 @@ export function showPageProperties() {
        본다 — js/io/save-load.js 의 autosave 가 이미 쓰는 그 방식이다. */
   const pageExportBtn = document.getElementById('page-export-all-btn');
   if (pageExportBtn) {
-    const _secCount = () => canvasEl.querySelectorAll('.section-block:not([data-ghost])').length;
+    const _secCount = () => canvasEl.querySelectorAll('.section-block:not([data-ghost])' + NOT_HIDDEN_VARIATION).length;
     /* ★내보내는 «동안»은 동기화를 멈춘다 — export 경로가 캔버스를 만진다
        (materializeAllSections 가 lazy 언로드 섹션을 라이브 DOM 에 되살린다) ⇒ 옵저버가 깨어나
        「섹션이 있으니 활성」으로 되돌려 버튼이 «내보내는 중»에 다시 눌린다. */
@@ -844,9 +845,8 @@ export function showPageProperties() {
       pageExportBtn.textContent = '내보내는 중...';
       window.showExportProgress?.(secCount, { format: fmt, width: w });
       try {
-        const res = await window.exportAllSections(fmt, w, (i, total) => {
+        const res = await window.exportAllSections(fmt, w, (i, total, sec) => {
           pageExportBtn.textContent = `내보내는 중... (${i}/${total})`;
-          const sec = canvasEl.querySelectorAll('.section-block:not([data-ghost])')[i - 1];
           window.stepExportProgress?.(i, total, sec?._name || sec?.dataset?.name || '');
         });
         // ★결과는 «모달 하나»로만 말한다(현빈 「결과 모달도 떠야」).
