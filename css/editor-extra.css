@@ -361,6 +361,18 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 .anim-export-btn:hover { background: #3878f0; }
 .anim-export-btn:disabled { background: var(--ui-border); color: var(--ui-text-dim); cursor: not-allowed; }
+.anim-play-canvas-btn {   /* PLAY-ON-CANVAS-01 — GIF 저장 위 보조 단추(테두리만) */
+  width: 100%;
+  margin-bottom: var(--ui-row-gap);
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-13);
+  cursor: pointer;
+}
+.anim-play-canvas-btn:hover { border-color: var(--ui-accent-primary); }
 .anim-conflict-warn {
   display: none;
   align-items: flex-start;

@@ -21,6 +21,9 @@
  *   양성대조(아이맥 실측 예정): _decor 의 `if (st.dot) {` → `if (false) {` → E11 빨강.
  * E12(RICHTEXT C6): 효과 전부(V1 일곱 · V2 셋 · 줄마다 따로 슬롯) 끝 프레임에서 꾸밈 유지 — 빨강 조각 · 방점(안 잘림) · 글로우 층.
  *   양성대조(아이맥 실측 예정): 줄별 slot-machine 의 `const roll = r.frac > 0;` → `true` → E12(줄마다 따로 슬롯) 빨강.
+ * E14(PLAY-ON-CANVAS-01): «캔버스에서 보기» — 모달 닫힘 · 덮개 캔버스는 document.body 에(블럭 안 X) · 크기 = 블럭 × 2 · 매 프레임 블럭 자리 · 같은 엔진 그림 ·
+ *   아무 키 = 멈춤(덮개 걷힘 · 리스너 해제 · rAF 끊김 · 그 키는 막고 끊음) · 클릭 = 멈춤 + 따라오는 mousedown/mouseup/click 한 번 삼킴 · 블럭이 사라지면 스스로 멈춤 · 글 DOM 무변.
+ *   양성대조(아이맥 실측 예정): playAnimOnCanvas 의 `document.body.appendChild(cv)` → `tb.appendChild(cv)` → E14 빨강(DOM P1 도).
  * E13(RICHTEXT ⑫): 글 요소 background-clip:text 그라데이션(제품 gradient-model.js 를 window.GradientModel 로) → 미리보기·GIF 저장 글 채움 = 캔버스 그라데이션(스탑 그대로) ·
  *   부분 단색 span(-webkit-text-fill-color) 은 단색 유지. 양성대조(아이맥 실측 예정): withGradFill 첫 줄 `return style;` → E13 빨강.
  */
@@ -429,4 +432,61 @@ test('E13 RICHTEXT ⑫ — 글자 그라데이션 블럭 → 미리보기·GIF �
     assert.ok(made.length >= 1 && made.includes(E.ctx.calls.filter((c) => c.s === '그라 ').at(-1).fill), '★GIF 저장 글 채움 = 그라데이션');
     window.closeAnimModal();
   } finally { delete globalThis.GradientModel; delete globalThis.getGradientTarget; }
+});
+
+test('E14 PLAY-ON-CANVAS — 덮개는 body 에 · 블럭×2 · 블럭 자리 · 같은 엔진 그림 · 키 = 멈춤 · 블럭 사라지면 멈춤 · 글 DOM 무변', async () => {
+  const E = await loadEngine();
+  const appended = [], listeners = {};
+  document.body.appendChild = (n) => { appended.push(n); n.isInBody = true; return n; };
+  globalThis.addEventListener = (t, f) => { (listeners[t] ??= new Set()).add(f); };   // window = globalThis — 멈춤 리스너는 window capture
+  globalThis.removeEventListener = (t, f) => { listeners[t]?.delete(f); };
+  E.tb.appendChild = () => { throw new Error('★덮개를 블럭 안에 넣었다(글 DOM 변경)'); };
+  E.tb.isConnected = true;
+  E.tb.getBoundingClientRect = () => ({ left: 30, top: 70, width: 200, height: 60 });
+  const html0 = E.textEl.innerHTML;
+  const items = [];
+  E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+  window.openAnimModal(E.tb);
+  items.find((it) => it.dataset.id === 'fade-in')._l.click[0]();
+  window.playAnimOnCanvas();
+  assert.equal(E.els['anim-gif-modal'].style.display, 'none', '모달 닫힘');
+  const cv = appended.find((n) => n.id === 'anim-canvas-play');
+  assert.ok(cv && cv.isInBody, '★덮개가 body 에 없다');
+  assert.deepEqual([cv.width, cv.height], [800, 240], '덮개 = 블럭(400×120) × 2');
+  let removed = 0; cv.remove = () => { removed++; };
+  E.ctx.calls.length = 0;
+  E.rafs.at(-1)(1000); E.rafs.at(-1)(1000 + 5000);
+  assert.deepEqual([cv.style.left, cv.style.top, cv.style.width, cv.style.height], ['30px', '70px', '200px', '60px'], '블럭 자리·크기');
+  assert.deepEqual(E.ctx.calls.slice(-2).map((c) => c.s), ['오늘 주문하면?', '네!'], '같은 엔진 그림(두 줄)');
+  assert.equal(E.textEl.innerHTML, html0, '글 DOM 무변');
+  assert.ok(listeners.keydown?.size === 1 && listeners.pointerdown?.size === 1, '[전제] 멈춤 리스너');
+  const nRaf = E.rafs.length;
+  const ev = (type) => { const e = { type, key: 'Escape', blocked: 0 }; e.preventDefault = () => { e.blocked++; }; e.stopImmediatePropagation = () => { e.blocked++; }; return e; };
+  const esc = ev('keydown');
+  [...listeners.keydown][0](esc);
+  assert.equal(removed, 1, '★키로 안 멈춘다(덮개 남음)');
+  assert.equal(esc.blocked, 2, '★멈춘 Esc 가 에디터로 넘어간다(선택 해제 등)');
+  assert.ok(!listeners.keydown.size && !listeners.pointerdown.size, '리스너 해제');
+  E.rafs.at(-1)(9000);
+  assert.equal(E.rafs.length, nRaf, '멈춘 뒤 rAF 0');
+  // 블럭이 사라지면 스스로 멈춘다
+  window.openAnimModal(E.tb);
+  window.playAnimOnCanvas();
+  const cv2 = appended.filter((n) => n.id === 'anim-canvas-play').at(-1);
+  let removed2 = 0; cv2.remove = () => { removed2++; };
+  E.tb.isConnected = false;
+  E.rafs.at(-1)(1000);
+  assert.equal(removed2, 1, '블럭이 사라지면 덮개도');
+  // 클릭으로 멈춤 — 그 클릭의 mousedown/mouseup/click 은 에디터로 안 간다(한 번)
+  E.tb.isConnected = true;
+  window.openAnimModal(E.tb);
+  window.playAnimOnCanvas();
+  appended.filter((n) => n.id === 'anim-canvas-play').at(-1).remove = () => {};
+  const pd = ev('pointerdown');
+  [...listeners.pointerdown][0](pd);
+  assert.equal(pd.blocked, 2, '★멈춘 클릭이 에디터로 넘어간다');
+  for (const t of ['mousedown', 'mouseup']) { const e = ev(t); [...listeners[t]][0](e); assert.equal(e.blocked, 2, `★${t} 를 안 삼켰다`); }
+  const ck = ev('click'); [...listeners.click][0](ck);
+  assert.ok(ck.blocked === 2 && !listeners.click.size && !listeners.mousedown.size, '클릭까지 삼키고 풀림');
+  delete globalThis.addEventListener; delete globalThis.removeEventListener;
 });

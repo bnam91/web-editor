@@ -30,7 +30,8 @@ function _plan(style, speed, k) {
     const dur = Math.max(1, totalMs(tr));
     return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tr, t * dur, k) };
   }
-  if (!V2_FX.includes(_animType)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, paint(ctx, W, H, size), size, _animType, t) };
+  const type = _animType;   // 계획 = 지금 효과로 고정(캔버스에서 보기가 모달을 닫은 뒤에도 같은 효과)
+  if (!V2_FX.includes(type)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, paint(ctx, W, H, size), size, type, t) };
   const dur = Math.round(_V2_DUR[_animType] / speed);
   const tracks = String(style.text || '').split('\n').map((_, i) => ({ line: i, fx: _animType, at: 0, dur }));
   return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tracks, t * dur, k) };
@@ -141,6 +142,71 @@ function closeAnimModal() {
   _saveAnimGif();   // F3 — 속도·반복을 바꾼 채 닫으면 그 값도(안 바뀌었으면 무동작)
   document.getElementById('anim-gif-modal').style.display = 'none';
   _stopAnimPreview();
+}
+
+/* ══ PLAY-ON-CANVAS-01 캔버스에서 보기(현빈: «gif 효과가 섹션에서 어울리는지 보기 위해서») ══
+   모달을 닫고 그 블럭 «자리»에 같은 엔진(_plan · 줄바꿈·부분 꾸밈 그대로)으로 그린 캔버스를 덮어 반복 재생.
+   ⛔글 DOM 무변 · 덮개는 #canvas 밖(document.body · position:fixed) ⇒ 저장(serializeProject)·PNG/Figma·⌘Z 에 흔적 0.
+   매 프레임 블럭 getBoundingClientRect 로 자리·크기를 맞춘다 ⇒ 배율(줌)·스크롤에도 붙어 있다.
+   클릭(pointerdown)·아무 키(Esc 포함) = 멈춤·원상 «만»(에디터로 안 넘김) — 내보내기 단추·단축키를 누르면 먼저 걷히고(그 입력은 멈춤에 쓰임) 다시 눌러 실행.
+   shortcut: 회전·자유변형 블럭은 기울지 않은 테두리 상자에 덮는다 · 바탕은 섹션 단색(GIF 와 같은 규칙) — 필요해지면 transform 복사. */
+const _PLAY_K = 2;   // GIF 저장과 같은 배율(블럭 1px = 2 캔버스 px)
+let _onCanvas = null;
+function playAnimOnCanvas() {
+  if (!_animTb || _isEmptyText(_animTb)) return;
+  const tb = _animTb, style = _getTextStyle(tb);
+  const speed = parseFloat(document.getElementById('anim-speed')?.value) || 1;
+  const plan = _plan(style, speed, _PLAY_K);   // 닫기 전에 — 지금 효과·줄별 트랙으로 고정
+  closeAnimModal();
+  stopAnimOnCanvas();
+  const cv = document.createElement('canvas');
+  cv.id = 'anim-canvas-play';
+  cv.width = Math.round(Math.max(tb.offsetWidth, 1) * _PLAY_K);
+  cv.height = Math.round(Math.max(tb.offsetHeight, 1) * _PLAY_K);
+  cv.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483000;';
+  document.body.appendChild(cv);
+  const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + 1500;   // 끝에서 1.5초 멈춤(미리보기와 같음)
+  let t0 = null;
+  const tick = (ts) => {
+    if (!tb.isConnected) { stopAnimOnCanvas(); return; }
+    const r = tb.getBoundingClientRect();
+    Object.assign(cv.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    if (t0 == null) t0 = ts;
+    const t = Math.min(((ts - t0) % cycle) / plan.duration, 1);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = style.sectionBg || '#ffffff';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    plan.draw(ctx, cv.width, cv.height, size, t);
+    if (_onCanvas) _onCanvas.raf = requestAnimationFrame(tick);
+  };
+  /* 멈추는 입력은 «멈춤만» — 에디터로 안 넘긴다(Esc 가 선택 해제까지 타서 #canvas HTML 이 바뀌었다 · 아이맥 001ae0374+C9 P1).
+     window capture = 가장 먼저 · 막고 끊는다. 누른 뒤 따라오는 mousedown/mouseup/click 도 한 번 삼킨다(선택·끌기 시작 0). */
+  const stop = (e) => {
+    e.preventDefault(); e.stopImmediatePropagation();
+    stopAnimOnCanvas();
+    if (e.type === 'pointerdown') _swallowClickOnce();
+  };
+  window.addEventListener('pointerdown', stop, true);
+  window.addEventListener('keydown', stop, true);
+  _onCanvas = { cv, stop, raf: 0 };
+  _onCanvas.raf = requestAnimationFrame(tick);
+}
+function stopAnimOnCanvas() {
+  if (!_onCanvas) return;
+  const { cv, stop, raf } = _onCanvas;
+  _onCanvas = null;
+  cancelAnimationFrame(raf);
+  window.removeEventListener('pointerdown', stop, true);
+  window.removeEventListener('keydown', stop, true);
+  cv.remove();
+}
+const _CLICK_TAIL = ['mousedown', 'mouseup', 'click'];
+function _swallowClickOnce() {
+  let tm = 0;
+  const done = () => { _CLICK_TAIL.forEach((t) => window.removeEventListener(t, eat, true)); clearTimeout(tm); };
+  const eat = (e) => { e.preventDefault(); e.stopImmediatePropagation(); if (e.type === 'click') done(); };
+  _CLICK_TAIL.forEach((t) => window.addEventListener(t, eat, true));
+  tm = setTimeout(done, 1000);   // 끌다 놓아 click 이 안 오면 1초 뒤 풀린다
 }
 
 function _buildAnimList() {
@@ -713,4 +779,6 @@ window.openAnimGifModal = openAnimModal;
 window.closeAnimModal   = closeAnimModal;
 window.setAnimPerLine   = setAnimPerLine;
 window.exportAnimGif    = exportAnimGif;
-window.restartAnimPreview = restartAnimPreview;   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)
+window.restartAnimPreview = restartAnimPreview;
+window.playAnimOnCanvas  = playAnimOnCanvas;
+window.stopAnimOnCanvas  = stopAnimOnCanvas;   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)
