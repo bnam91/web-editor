@@ -29,6 +29,7 @@ function reset() {
   try { saveGuard._reset(); } catch (_) {}
   H.exits.length = 0;
   H.stub.BrowserWindow.getAllWindows = () => [];
+  H.stub.BrowserWindow.fromWebContents = () => null;
   const rec = { dialogs: 0, focus: [], bounce: [] };
   H.stub.dialog.showMessageBox = () => { rec.dialogs++; return new Promise((r) => { closeDialog = () => r({ response: 0 }); }); };   // 사람이 안 닫은 상자
   H.stub.app.focus = (o) => { rec.focus.push(o || null); };
@@ -101,26 +102,89 @@ test('S5 상자 호출이 던져도 카운터가 남지 않는다', async () => 
   assert.equal(saveGuard.failureDialogOpen(), false, '던진 상자를 떠 있는 것으로 남겼다');
 });
 
-/* S6 — 미카사 261113 아이맥 0/3(1116 재발주): 창을 닫은 뒤 종료(창 없음 길) → 부모 없는 상자. 맥 Electron 은 부모 없는 상자를
- *   [NSAlert runModal] 로 띄운다(비동기 API 라도) — 그 중첩 루프 동안 메인 루프 일이 안 돌아 단일 인스턴스 ACK·상한 타이머가 멈추고,
- *   두 번째 실행이 20초 뒤 첫 실행을 SIGKILL 하고 잠금을 가져간다. ⇒ 맥에선 받침 창을 띄워 «시트»(부모 있는 상자)로 단다.
- *   잼: 상자 호출의 부모가 null 이 아니고 «이번에 새로 만든» 창이다 · 그 창이 보이고(show) 크기가 상자를 받칠 만하다 · 두 번째 실행은 그대로 반짝.
- *   양성대조: main.js 창-없음 길의 `win: _quitDialogHost()` 를 지우면 S6 빨강(부모 null = runModal). */
-test('S6 ★맥 창-없음 종료 상자는 받침 창의 시트로 뜬다(부모 null = runModal 이면 루프가 멈춘다)', { skip: !MAC && '맥 runModal 길' }, async () => {
+/* ══ 1116 근본 — 규칙 «부모 없는 모달을 띄우지 않는다»(현빈: 빈 받침 창 ✗ · 알림으로 낮추기 ✗ · 모달 유지) ══════════════
+ *   뿌리: 맥 Electron 은 부모 없는 상자를 [NSAlert runModal] 로 띄운다(shell/browser/ui/message_box_mac.mm) — 그동안 메인 루프가 멈춰
+ *   두 번째 실행의 단일 인스턴스 ACK 를 못 하고, 두 번째 실행이 20초 뒤 첫 실행을 SIGKILL 하고 잠금을 가져갔다(미카사 261113 0/3).
+ *   ⑴ 창을 닫는 중 저장 실패 → 닫기 보류 → «그 창»에 시트 → 확인 뒤 닫힘 · ⑵ 창이 이미 없으면 진짜 메인 창(createWindow)을 다시 만들어 시트.
+ *   «루프가 안 멈춘다»는 단위로 못 잰다(네이티브 runModal) — 대신 «부모가 있다»(= 시트 = 비동기)와 상자가 떠 있는 동안 두 번째 실행이 처리되는지 잰다.
+ * 양성대조
+ *   CTL1: main.js before-quit 창-없음 길을 옛 꼴 `notifyWindowGone({ pending, exit })`(창 다시 만들기 없음)로 → S6 빨강(부모 null)
+ *   CTL2: main.js app:hold-close-on-save-failure 의 `win._gdClosing &&` 를 지우면 → S8 빨강(새로고침도 보류) · 또는 preload 줄을 지우면 S9 빨강 */
+const parentsOf = () => { const ps = []; H.stub.dialog.showMessageBox = (win) => { ps.push(win); return new Promise((r) => { closeDialog = () => r({ response: 0 }); }); }; return ps; };
+
+test('S6 ★⑵ 창이 없는 종료의 저장 실패 상자 — 다시 만든 메인 창의 시트(부모 null 0) · 두 번째 실행 처리', { skip: !MAC && '맥 길' }, async () => {
   const rec = reset();
-  const parents = [];
-  H.stub.dialog.showMessageBox = (win) => { rec.dialogs++; parents.push(win); return new Promise((r) => { closeDialog = () => r({ response: 0 }); }); };
+  const parents = parentsOf();
   const before = H.stub.__windows.length;
-  await quitWithDialog(rec, 'proj_sl6');
+  const dir = denyWrite('proj_sl6');
+  try { H.invokeSync('projects:save-sync', {}, proj('proj_sl6')); } finally { undeny(dir); }
+  H.appHandlers.get('before-quit')({ preventDefault() {} });
+  await wait(150);
   const made = H.stub.__windows.slice(before);
-  assert.equal(made.length, 1, `[전제] 받침 창 ${made.length}개 — 하나여야 한다`);
-  assert.ok(parents[0], '⛔부모 없는 상자(null) — 맥에선 runModal 이라 두 번째 실행 ACK·상한 타이머가 멈춘다');
-  assert.equal(parents[0], made[0], '상자 부모가 이번에 만든 받침 창이 아니다');
-  const o = made[0].__opts;
-  assert.ok(o.show !== false && o.width >= 400 && o.height >= 200, '받침 창이 안 보이거나 너무 작다: ' + JSON.stringify({ show: o.show, w: o.width, h: o.height }));
-  assert.equal(o.webPreferences && o.webPreferences.nodeIntegration, false, '받침 창에 node 를 열었다');
-  rec.bounce.length = 0;
+  assert.equal(parents.length, 1, '[전제] 저장 실패 상자가 안 떴다');
+  assert.ok(parents[0], '⛔부모 없는 상자(null) — 맥에선 runModal 이라 루프가 멈춘다');
+  assert.ok(made.includes(parents[0]), '상자 부모가 이번에 다시 만든 메인 창이 아니다');
+  assert.equal(made[0].__opts.width, 1440, '다시 만든 창이 평소 메인 창(createWindow)이 아니다(빈 받침 창 ✗)');
+  rec.bounce.length = 0; rec.focus.length = 0;
   secondLaunch();
-  assert.ok(rec.bounce.length >= 1, '받침 창 길에서 두 번째 실행에 반짝 0');
+  assert.ok(rec.bounce.length >= 1 && rec.focus.some((o) => o && o.steal), '상자가 떠 있는 동안 두 번째 실행이 처리되지 않았다');
   closeDialog?.();
+});
+
+function closingWin({ closing }) {
+  const once = {};
+  const win = { _gdClosing: closing, destroyed: false, isDestroyed() { return this.destroyed; }, destroy() { this.destroyed = true; },
+    webContents: { once: (ev, fn) => { once[ev] = fn; } } };
+  H.stub.BrowserWindow.fromWebContents = () => win;
+  return { win, once };
+}
+async function failSync(id) { const dir = denyWrite(id); try { H.invokeSync('projects:save-sync', {}, proj(id)); } finally { undeny(dir); } }
+
+test('S7 ★⑴ 창을 닫는 중 저장 실패 — 닫기 보류 → 그 창에 시트 → 확인 뒤 닫힘 · 종료 아님', async () => {
+  const rec = reset();
+  const parents = parentsOf();
+  const { win, once } = closingWin({ closing: true });
+  await failSync('proj_sl7');
+  const ev = {};
+  H.invokeSync('app:hold-close-on-save-failure', ev);
+  assert.equal(ev.returnValue, true, '⛔닫는 중 저장 실패인데 닫기를 보류하지 않았다(창이 사라진 뒤 부모 없는 상자로 간다)');
+  assert.equal(typeof once['will-prevent-unload'], 'function', '[전제] 닫기 취소를 기다리지 않는다');
+  once['will-prevent-unload']();
+  await wait(30);
+  assert.equal(parents.length, 1, '보류한 창에 상자가 안 떴다');
+  assert.equal(parents[0], win, '⛔상자 부모가 닫으려던 그 창이 아니다');
+  assert.equal(saveGuard.peekPendingSyncFailure(), null, '알린 실패가 남아 종료 때 또 뜬다');
+  assert.equal(win.destroyed, false, '상자를 닫기 전에 창을 없앴다');
+  if (MAC) { rec.bounce.length = 0; secondLaunch(); assert.ok(rec.bounce.length >= 1, '시트가 떠 있는 동안 두 번째 실행에 반짝 0'); }
+  closeDialog?.();
+  await wait(30);
+  assert.equal(win.destroyed, true, '확인 뒤 창이 안 닫혔다');
+  assert.equal(H.exits.length, 0, '창 닫기인데 앱을 끝냈다');
+});
+
+test('S8 [음성] 닫는 중이 아니면(새로고침·이동) 보류 안 함 · 실패 기록은 종료 몫으로 남는다', async () => {
+  const rec = reset();
+  const parents = parentsOf();
+  const { once } = closingWin({ closing: false });
+  await failSync('proj_sl8');
+  const ev = {};
+  H.invokeSync('app:hold-close-on-save-failure', ev);
+  assert.equal(ev.returnValue, false, '닫는 중이 아닌데 보류했다(새로고침이 막힌다)');
+  assert.equal(once['will-prevent-unload'], undefined);
+  assert.equal(parents.length, 0);
+  assert.ok(saveGuard.peekPendingSyncFailure(), '실패 기록을 지웠다 — 종료 때 알릴 게 없어진다');
+  assert.equal(rec.dialogs, 0);
+});
+
+test('S9 배선 — preload 가 묻고 beforeunload 가 실패 때만 취소한다 · 저장·종료 길 상자 호출에 null 부모 리터럴 없음', () => {
+  const pre = fs.readFileSync(path.join(ROOT, 'preload.js'), 'utf8');
+  assert.match(pre, /holdCloseOnSaveFailure:\s*\(\)\s*=>\s*ipcRenderer\.sendSync\('app:hold-close-on-save-failure'\)\s*===\s*true/, 'preload 에 닫기 보류 질문이 없다');
+  const sl = fs.readFileSync(path.join(ROOT, 'js/io/save-load.js'), 'utf8');
+  const i = sl.indexOf("console.warn('[save-load:beforeunload] sync 저장 거부:'");
+  assert.ok(i > 0, '[전제] beforeunload 실패 갈래');
+  assert.match(sl.slice(i, i + 600), /holdCloseOnSaveFailure\?\.\(\)\)\s*\{\s*ev\?\.preventDefault\?\.\(\);\s*if \(ev\) ev\.returnValue = /, 'beforeunload 가 실패 때 닫기를 취소하지 않는다');
+  const sg = fs.readFileSync(path.join(ROOT, 'main/quit/save-guard.js'), 'utf8');
+  assert.doesNotMatch(sg, /showFailureDialog\(null\b/, '저장·종료 길에 부모 null 상자 호출이 남았다');
+  const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
+  assert.doesNotMatch(main, /notifyWindowGone\(\{\s*pending,\s*exit/, '창-없음 길이 창 없이 상자를 띄운다');
 });

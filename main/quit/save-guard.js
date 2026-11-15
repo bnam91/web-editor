@@ -429,7 +429,7 @@ function peekPendingSyncFailure() { return _pendingSync; }
 /**
  * 창이 없는 채로 온 before-quit — 이미 남긴 기록을 «말하고» 종료한다.
  * ★반드시 exit 가 불린다. 상한 두 겹(notifyMs·hardExitMs)이 어느 경로로 새도 앱을 꺼준다.
- * @param {{pending:object, exit:function, timings?:object, win?:object}} o   win = 상자를 시트로 받칠 창(맥 · main.js _quitDialogHost)
+ * @param {{pending:object, exit:function, timings?:object, win?:object}} o   win = 상자를 시트로 받칠 메인 창(main.js _saveFailureHostWindow)
  */
 function notifyWindowGone({ pending, exit, timings, win } = {}) {
   const bail = () => { try { exit(0); } catch (_) {} };
@@ -454,13 +454,19 @@ function notifyWindowGone({ pending, exit, timings, win } = {}) {
   };
   arm(() => finish(0, 'hard-deadline'), t.hardExitMs);
   arm(() => finish(0, 'notify-deadline'), t.notifyMs);
-  /* ★부모 창이 «없다» — win 은 main 이 맥에서만 띄우는 받침 창(부모 없는 맥 상자는 runModal 이라 루프가 멈춘다 · main.js _quitDialogHost).
-     없으면(윈도우) 부모 없는 상자 — 윈도우 상자는 따로 도는 스레드라 루프가 산다. */
+  /* ★부모 없는 상자 금지(맥 runModal = 루프 멈춤) — main 이 다시 만든 메인 창(win)의 시트로. SECOND-LAUNCH-…-01 ⑵ */
   showFailureDialog(win || null, state.outcome, state.saved).then((d) => {
     state.dialog = d;
     finish(0, d && d.shown ? 'dialog-dismissed' : 'no-dialog');
   });
   return state;
+}
+
+/** ⑴ 창을 닫는 중 동기 저장 실패 — 닫기를 보류한 «그 창»에 시트로 알린다. 종료가 아니라 exit 없음 · 상한 없음(사용자가 반드시 본다).
+ *  @returns Promise<{shown, response?}> — 절대 던지지 않는다. */
+function showPendingOnWindow(win, pending) {
+  if (!pending || !pending.outcome || !win) return Promise.resolve({ shown: false });
+  return showFailureDialog(win, pending.outcome, pending.saved);
 }
 
 /** 다음 실행이 읽을 «흔적». H3(복구 다이얼로그)이 이 함수를 쓴다 — 여기서 UI 를 만들지 않는다. */
@@ -476,7 +482,7 @@ module.exports = {
   // 검사·도구용
   classify, writeFailureRecord, failureText, readMarker, markerPath, emergencyDir,
   TIMINGS, MAX_RECORDS, MAX_EMERGENCY_FILES,
-  recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone, failureDialogOpen,
+  recordSyncSaveFailure, takePendingSyncFailure, peekPendingSyncFailure, notifyWindowGone, failureDialogOpen, showPendingOnWindow,
   isNoSaveScreen, trackWrite, holdForWrites,
   _reset() { _running = null; _pendingSync = null; _dialogOpen = 0; _writes.clear(); _holding = false; },
 };

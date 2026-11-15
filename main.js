@@ -434,6 +434,7 @@ function getGitBranch() {
 }
 
 let _t32Quitting = false;   /* ★T-032: 종료(before-quit) 중이면 «창 닫기» 알림을 걸지 않는다 — 아래 close 핸들러가 읽는다 */
+let _winOnceIpcDone = false;   // createWindow 안 «한 번만» IPC 블록 표시
 function createWindow() {
   const isMac = process.platform === 'darwin';
   const gitBranch = getGitBranch();
@@ -469,7 +470,8 @@ function createWindow() {
   // 다운로드(섹션 내보내기 등)는 다이얼로그 없이 Downloads에 바로 저장.
   // 핸들러가 없으면 Electron 기본 저장 다이얼로그에 의존 — 창이 가려진/숨겨진
   // 상태에서는 다이얼로그가 못 떠서 다운로드가 조용히 유실된다.
-  mainWindow.webContents.session.on('will-download', _makeWillDownload({   // ▼DL_FINALIZE 블록 — 여기선 fs 를 동기로 안 만진다
+  // 기본 세션은 창끼리 같다 — 두 번째 createWindow 가 또 걸면 다운로드 하나를 둘이 처리한다(아래 «한 번만» 표시와 같은 몫)
+  if (!_winOnceIpcDone) mainWindow.webContents.session.on('will-download', _makeWillDownload({   // ▼DL_FINALIZE 블록 — 여기선 fs 를 동기로 안 만진다
     dirFor: (c) => (c && c.outDir)
       || _downloadsDir(process.env, () => app.getPath('downloads'), path.isAbsolute, (d) => fs.promises.mkdir(d, { recursive: true }).catch(() => {})),   // DOWNLOADS_DIR — 읽는 자리 하나(위 ▼ 블록)
     stagingDir: path.join(app.getPath('userData'), 'downloads-staging'),
@@ -498,80 +500,85 @@ function createWindow() {
   // 로그인 상태 체크 후 페이지 결정
   checkAuthAndLoad();
 
-  ipcMain.handle('get-version', () => app.getVersion());
-  ipcMain.handle('app:git-branch', () => getGitBranch());
-  ipcMain.handle('app:is-admin', () => isAdminAuthorized());
-  ipcMain.handle('app:debug-port', () => {
-    /* ★배포본·main 에는 «값 자체»를 안 준다
-     *   (현빈 지시 2026-09-07: 「admin 아니어도 되게 / 앱 배포나 메인브랜치에서만 안 보이면 돼」).
-     * ⛔왜 여기냐 — 이전 판은 «렌더러의 표시 조건»(index.html 의 isAdmin 게이트)으로만 막았다.
-     *   표시 조건은 화면을 손대는 사람이 언제든 바꾼다. 그러면 «조용히» 열린다.
-     *   값이 안 나가면 화면 코드가 무엇을 하든 못 그린다 — 검사가 아니라 «구조»로 닫는다.
-     * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
-     *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
-     *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
-    if (_isPackagedBuild()) return null;
-    if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
-    const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
-    return a ? a.split('=')[1] : null;
-  });
-  // Unit B-2 — MCP 접속 토큰 노출/재발급. ★admin 게이팅 해제:
-  //   MCP를 일반 사용자에게 개방하려면 사용자가 자기 토큰을 꺼낼 수 있어야 한다
-  //   (환경설정 → 개발자 탭). 토큰은 메모리 + userData 0600 파일에만 있다.
-  ipcMain.handle('app:mcp-token', () => (getMcpToken ? getMcpToken() : currentMcpToken));
-  ipcMain.handle('mcp:regenerate-token', () => (currentMcpToken = regenerateMcpToken()));
+  /* ★창마다가 아니라 «한 번만» 거는 IPC — createWindow 가 두 번째 불리면(맥 독 클릭 activate · 저장 실패 알림 창 SECOND-LAUNCH-…-01 ⑵)
+     ipcMain.handle 이 «second handler» 로 던져 그 뒤 창 배선(닫기·did-finish-load…)이 안 걸린 채 남았다. */
+  if (!_winOnceIpcDone) {
+    _winOnceIpcDone = true;
+    ipcMain.handle('get-version', () => app.getVersion());
+    ipcMain.handle('app:git-branch', () => getGitBranch());
+    ipcMain.handle('app:is-admin', () => isAdminAuthorized());
+    ipcMain.handle('app:debug-port', () => {
+      /* ★배포본·main 에는 «값 자체»를 안 준다
+       *   (현빈 지시 2026-09-07: 「admin 아니어도 되게 / 앱 배포나 메인브랜치에서만 안 보이면 돼」).
+       * ⛔왜 여기냐 — 이전 판은 «렌더러의 표시 조건»(index.html 의 isAdmin 게이트)으로만 막았다.
+       *   표시 조건은 화면을 손대는 사람이 언제든 바꾼다. 그러면 «조용히» 열린다.
+       *   값이 안 나가면 화면 코드가 무엇을 하든 못 그린다 — 검사가 아니라 «구조»로 닫는다.
+       * ⚠️그리고 이 줄은 «우연에 기대지 않겠다»는 뜻이다: 오늘 기준 배포본은 CDP 를 스스로 안 켜니
+       *   argv 에도 없어서 어차피 null 이다. 하지만 「오늘 argv 에 없다」는 «안전장치»가 아니다.
+       *   포장 여부를 직접 물어야 다음에 누가 CDP 를 켜도 이 창구는 닫혀 있다. */
+      if (_isPackagedBuild()) return null;
+      if (getGitBranch() === 'main') return null;   // ★main = 배포 상태. 거기선 안 보인다
+      const a = process.argv.find(a => a.startsWith('--remote-debugging-port='));
+      return a ? a.split('=')[1] : null;
+    });
+    // Unit B-2 — MCP 접속 토큰 노출/재발급. ★admin 게이팅 해제:
+    //   MCP를 일반 사용자에게 개방하려면 사용자가 자기 토큰을 꺼낼 수 있어야 한다
+    //   (환경설정 → 개발자 탭). 토큰은 메모리 + userData 0600 파일에만 있다.
+    ipcMain.handle('app:mcp-token', () => (getMcpToken ? getMcpToken() : currentMcpToken));
+    ipcMain.handle('mcp:regenerate-token', () => (currentMcpToken = regenerateMcpToken()));
 
-  // AI 섹션 텍스트 채우기 (Gemini)
-  ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
-  ipcMain.handle('ai:ocrImage', (_e, payload) => {
-    const model = String(payload?.model || '').toLowerCase();   // 공급자 가르기는 aiFillSectionTexts 와 같다
-    if (model.startsWith('gpt-')) return openaiOcr({ ...payload, apiKey: getApiKey('openai') });
-    if (model.startsWith('claude-')) return anthropicOcr({ ...payload, apiKey: getApiKey('anthropic') });
-    return geminiOcr({ ...payload, apiKey: getApiKey('gemini') });
-  });
+    // AI 섹션 텍스트 채우기 (Gemini)
+    ipcMain.handle('ai:fillSectionTexts', (_e, payload) => aiFillSectionTexts(payload));
+    ipcMain.handle('ai:ocrImage', (_e, payload) => {
+      const model = String(payload?.model || '').toLowerCase();   // 공급자 가르기는 aiFillSectionTexts 와 같다
+      if (model.startsWith('gpt-')) return openaiOcr({ ...payload, apiKey: getApiKey('openai') });
+      if (model.startsWith('claude-')) return anthropicOcr({ ...payload, apiKey: getApiKey('anthropic') });
+      return geminiOcr({ ...payload, apiKey: getApiKey('gemini') });
+    });
 
-  // 사용자별 Preferences (settings.json: API 키 + 단축키)
-  ipcMain.handle('settings:get',      () => readSettings());
-  ipcMain.handle('settings:set',      (_e, patch) => writeSettings(patch || {}));
-  ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
-  // t2-03: Higgsfield 키는 settings.json 이 아니라 safeStorage 암호 파일에 — 렌더러엔 ••••끝4 만 간다.
-  require('./main/higgsfield-key').createHiggsfieldKey({
-    safeStorage: require('electron').safeStorage, fs,
-    filePath: path.join(app.getPath('userData'), 'higgsfield.key.bin'),
-  }).registerIpc(ipcMain);
+    // 사용자별 Preferences (settings.json: API 키 + 단축키)
+    ipcMain.handle('settings:get',      () => readSettings());
+    ipcMain.handle('settings:set',      (_e, patch) => writeSettings(patch || {}));
+    ipcMain.handle('settings:test-key', (_e, provider, key) => testApiKey(provider, key));
+    // t2-03: Higgsfield 키는 settings.json 이 아니라 safeStorage 암호 파일에 — 렌더러엔 ••••끝4 만 간다.
+    require('./main/higgsfield-key').createHiggsfieldKey({
+      safeStorage: require('electron').safeStorage, fs,
+      filePath: path.join(app.getPath('userData'), 'higgsfield.key.bin'),
+    }).registerIpc(ipcMain);
 
-  // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
-  // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
-  registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
-  // ★PM 폴더도 «계정별 프로젝트 뿌리»를 따라가야 한다(경로 조립기가 둘이 되면 어긋난다).
-  try { setPmProjectsRoot(() => PROJECTS_DIR); }
-  catch (e) { console.error('[projects] ★PM 폴더 뿌리 주입 실패 — PM 폴더가 안 만들어진다:', (e && e.message) || e); }
+    // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
+    // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).
+    registerClaudePMIPC(ipcMain, () => isAdminAuthorized());
+    // ★PM 폴더도 «계정별 프로젝트 뿌리»를 따라가야 한다(경로 조립기가 둘이 되면 어긋난다).
+    try { setPmProjectsRoot(() => PROJECTS_DIR); }
+    catch (e) { console.error('[projects] ★PM 폴더 뿌리 주입 실패 — PM 폴더가 안 만들어진다:', (e && e.message) || e); }
 
-  // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
-  registerTerminalIPC(ipcMain, () => isAdminAuthorized());
+    // Claude PM (Phase 3 F8) — 내부 터미널 패널 PTY 백엔드
+    registerTerminalIPC(ipcMain, () => isAdminAuthorized());
 
-  // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
-  ipcMain.handle('clipboard:writeText', (_e, text) => {
-    try {
-      require('electron').clipboard.writeText(String(text || ''));
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
-  });
+    // Clipboard write — 렌더러의 navigator.clipboard 권한 거부 우회용 IPC 브리지
+    ipcMain.handle('clipboard:writeText', (_e, text) => {
+      try {
+        require('electron').clipboard.writeText(String(text || ''));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    });
 
-  // Clipboard image write — PNG dataURL을 nativeImage로 변환해 OS 클립보드에 기록
-  ipcMain.handle('clipboard:writeImage', (_e, dataUrl) => {
-    try {
-      const { clipboard, nativeImage } = require('electron');
-      const img = nativeImage.createFromDataURL(String(dataUrl || ''));
-      if (img.isEmpty()) return { ok: false, error: 'empty image' };
-      clipboard.writeImage(img);
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
-  });
+    // Clipboard image write — PNG dataURL을 nativeImage로 변환해 OS 클립보드에 기록
+    ipcMain.handle('clipboard:writeImage', (_e, dataUrl) => {
+      try {
+        const { clipboard, nativeImage } = require('electron');
+        const img = nativeImage.createFromDataURL(String(dataUrl || ''));
+        if (img.isEmpty()) return { ok: false, error: 'empty image' };
+        clipboard.writeImage(img);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    });
+  }
 
   // HTML <title>이 덮어씌우지 않도록 로드 완료 후 타이틀 강제 설정
   mainWindow.webContents.on('did-finish-load', () => {
@@ -588,6 +595,9 @@ function createWindow() {
      회귀: tests/unit/video-pending-warn.test.mjs (S-3) */
   let _t32CloseAsked = false;
   mainWindow.on('close', (event) => {
+    /* ★SECOND-LAUNCH-…-01 ⑴ — 이 창이 «진짜로» 닫히는 중(두 번째 close · 종료 아님)이라는 표시. 렌더러 beforeunload 동기 저장이
+       실패하면 app:hold-close-on-save-failure 가 이 표시를 보고 닫기를 보류시킨다(그 창에 시트로 알린다 · 부모 없는 상자 금지). */
+    if (_t32CloseAsked && !_t32Quitting && mainWindow) mainWindow._gdClosing = true;
     if (_t32CloseAsked || _t32Quitting) return;
     const wc = mainWindow.webContents;
     if (!wc || wc.isDestroyed()) return;
@@ -2977,6 +2987,47 @@ ipcMain.on('projects:save-sync', (event, project) => {
     event.returnValue = { ok: false, reason: 'exception', message: e.message };
   }
 });
+
+/* ★SECOND-LAUNCH-SILENT-EXIT-DURING-QUIT-DIALOG-01 — 규칙: «부모 없는 모달을 띄우지 않는다».
+   맥 Electron 은 부모 없는 상자를 [NSAlert runModal](shell/browser/ui/message_box_mac.mm)로 띄워 그동안 메인 루프가 멈춘다
+   → 상한 타이머·두 번째 실행 ACK 가 죽고, 두 번째 실행이 20초 뒤 이 프로세스를 SIGKILL 하고 잠금을 가져갔다(미카사 261113 0/3).
+   ⑴ 창을 닫는 중(beforeunload) 동기 저장이 실패하면: 렌더러가 이걸 묻고 → true 면 beforeunload 를 취소 → will-prevent-unload 에서
+      «그 창»에 시트로 상자 → 확인 뒤 창을 닫는다(destroy — beforeunload 를 다시 돌려 또 실패하지 않게). 기록·비상 사본은 이미 디스크에 있다.
+   ⑵ 창이 이미 없을 때는 before-quit 이 메인 창을 다시 만들어 그 창에 단다(_saveFailureHostWindow). */
+ipcMain.on('app:hold-close-on-save-failure', (event) => {
+  let hold = false;
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    hold = !!(win && !win.isDestroyed() && win._gdClosing && quitSaveGuard.peekPendingSyncFailure());
+    if (hold) {
+      win.webContents.once('will-prevent-unload', () => {   // preventDefault 안 함 = 닫기 취소 그대로
+        const pending = quitSaveGuard.takePendingSyncFailure();
+        win._gdClosing = false;
+        quitSaveGuard.init({ userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell, appVersion: app.getVersion(), log: (m) => console.log(m) });
+        quitSaveGuard.showPendingOnWindow(win, pending).then(() => { if (!win.isDestroyed()) win.destroy(); });
+      });
+    }
+  } catch (e) { console.warn('[quit-guard] 닫기 보류 판정 실패 — 그냥 닫는다:', e && e.message); hold = false; }
+  event.returnValue = hold;
+});
+
+/** ⑵ 창이 없는 종료에서 저장 실패를 알릴 «진짜 메인 창»(빈 상자 창이 아니다) — 평소 실행과 같은 createWindow.
+    그 프로젝트를 편집기로 다시 열지는 않는다: 디스크 본은 실패 «전» 판이고 못 쓴 편집은 비상 사본에만 있다 — 편집기에 옛 본을 띄우면
+    그게 최신처럼 보이고, 쓰기가 막힌 그 폴더에 또 저장을 건다. 갤러리 창 위 시트가 «비상 사본 위치 열기»를 준다. */
+function _saveFailureHostWindow() {
+  try {
+    createWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    try { mainWindow.show?.(); app.focus({ steal: true }); } catch (_) {}   // 종료를 누른 사용자에게 실패를 보여야 한다
+    return mainWindow;
+  } catch (e) {
+    /* 창 자체는 만들어졌는데 그 뒤 배선이 던졌다면 그 창에 단다(시트는 네이티브 창만 있으면 된다). 창도 없으면 상자 생략. */
+    console.warn('[quit-guard] 메인 창 만들기 중 오류:', e && e.message);
+    if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+    console.warn('[quit-guard] 알릴 메인 창이 없다 — 상자 생략(기록·비상 사본은 디스크 · 다음 실행 복구가 알린다)');
+    return null;
+  }
+}
 
 /** [W-3] 동기 저장 실패를 H4 가드에 넘겨 «마커 + 비상 사본»으로 남긴다.
  *  ⛔여기서 다이얼로그를 띄우면 안 된다 — 렌더러 unload 를 막고 도는 동기 IPC 안이다.
@@ -9462,7 +9513,10 @@ app.on('before-quit', (event) => {
         userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
         appVersion: app.getVersion(), log: (m) => console.log(m),
       });
-      quitSaveGuard.notifyWindowGone({ pending, win: _quitDialogHost(), exit: (code) => app.exit(code) });
+      /* ⑵ 부모 없는 상자 금지 — 메인 창을 다시 만들어 그 창의 시트로. 못 만들면 상자 없이 끝낸다(기록은 디스크 · 다음 실행 복구). */
+      const host = _saveFailureHostWindow();
+      if (host) quitSaveGuard.notifyWindowGone({ pending, win: host, exit: (code) => app.exit(code) });
+      else app.exit(0);
     } catch (e) {
       /* ★통지가 터져도 «앱은 꺼져야 한다» — 안 꺼지는 앱은 조용한 종료보다 나쁘다. */
       console.error('[quit-guard] 창-없음 통지 실패 — 그냥 종료:', e && e.message);
@@ -9485,25 +9539,6 @@ app.on('before-quit', (event) => {
     setTimeout(() => app.exit(0), 3000);
   }
 });
-
-/* SECOND-LAUNCH-SILENT-EXIT-DURING-QUIT-DIALOG-01 — 맥에서 «부모 없는» 상자는 Electron 이 [NSAlert runModal] 로 띄운다
-   (shell/browser/ui/message_box_mac.mm · 비동기 showMessageBox 라도 같다 = 사실상 Sync). 그 중첩 루프 동안 메인 루프 일이 안 돈다 ⇒
-   ⑴ 상한 타이머(notify 6s·hard 12s)가 안 돌아 상자가 안 닫힌다 ⑵ 두 번째 실행의 단일 인스턴스 소켓 «ACK» 를 못 한다(HandleMessage 는 UI 일)
-   → 두 번째 실행이 20초 기다린 뒤 이 프로세스를 SIGKILL 하고 SingletonLock 을 가져가 새 창으로 뜬다(미카사 261113 0/3 · 곁 «20~30초 뒤 A 사라짐»).
-   ⇒ 맥에서만 작은 창을 하나 띄워 상자를 그 창의 시트로 단다(시트 = 비동기 · 루프가 돈다). 윈도우 상자는 따로 도는 스레드라 그대로. */
-function _quitDialogHost() {
-  if (process.platform !== 'darwin') return null;
-  try {
-    const w = new BrowserWindow({ width: 480, height: 240, show: true, center: true, resizable: false, minimizable: false,
-      maximizable: false, fullscreenable: false, title: app.getName(),
-      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
-    try { app.focus({ steal: true }); } catch (_) {}   // runModal 이 하던 것 — 사용자가 방금 종료를 눌렀고 실패를 알려야 한다
-    return w;
-  } catch (e) {
-    console.warn('[quit-guard] 상자 받칠 창을 못 만들었다 — 부모 없는 상자로:', e && e.message);
-    return null;
-  }
-}
 
 /* Q7 P1 — 종료 순간 활성 프로젝트(main 이 쥔 값 하나 · 새 IPC 없음). 이름은 그 프로젝트 meta(목록과 같은 해석기)에서 — 못 읽으면 null. */
 function _quitActiveProject() {

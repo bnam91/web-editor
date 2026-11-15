@@ -2538,7 +2538,7 @@ function scheduleAutoSave() {
 }
 
 // 새로고침/탭 닫기 시 항상 localStorage에 flush (autoSaveTimer 여부 무관)
-window.addEventListener('beforeunload', () => {
+window.addEventListener('beforeunload', (ev) => {
   _flushUnfinishedSavesSync();   // 활성 탭과 무관 — 아래 어느 갈래로 나가도 먼저(실패는 메인이 기록한다)
   // BUG-12: activeProjectId 없으면 undefined 키 오염 방지
   if (!activeProjectId) return;
@@ -2578,6 +2578,8 @@ window.addEventListener('beforeunload', () => {
       if (result?.reason !== 'project_deleted') _noteFailedSave(activeProjectId, !_unloadFiled);
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
+        /* SECOND-LAUNCH-…-01 ⑴ — 창을 닫는 중이면 닫기를 보류한다(main 이 이 창에 시트로 알리고 확인 뒤 닫는다). 새로고침·이동은 main 이 false. */
+        if (window.electronAPI?.holdCloseOnSaveFailure?.()) { ev?.preventDefault?.(); if (ev) ev.returnValue = 'save-failed'; }
       }
     } catch (e) {
       console.error('[save-load:beforeunload] sync 저장 실패:', e);
