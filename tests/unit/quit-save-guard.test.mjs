@@ -35,7 +35,7 @@ const { mkTmpRoot } = require_('./_tmproot.js');
 const guard = require_('../../main/quit/save-guard.js');
 
 /* 상한 세 겹을 «작게» 줄여 쓴다 — 재는 것은 «순서와 상한»이지 초 단위가 아니다. */
-const FAST = { saveWaitMs: 60, notifyMs: 120, hardExitMs: 300 };
+const FAST = { saveWaitMs: 60, hardExitMs: 300 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** 상한 있는 대기 — ⛔조건 대기에 상한이 없으면 이 파일 자체가 «행»이 된다. */
 async function until(fn, { timeout = 3000, interval = 10, label = '조건' } = {}) {
@@ -196,15 +196,22 @@ test('U-H4-C2 ★실패하면 «말하고» 흔적을 남기고 죽는다', asyn
   assert.match(d.detail, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '사본 위치를 사용자에게 안 알려준다');
 });
 
-test('U-H4-C3 ★★사용자가 다이얼로그를 «영영 안 닫아도» 앱은 꺼진다 (행 금지)', async () => {
-  /* 이 단위에서 가장 위험한 회귀. 「말하고 죽는다」가 「말하다가 안 죽는다」가 되면 반려다. */
-  const R = rig({ dialogImpl: () => new Promise(() => {}) });   // 영원히 안 닫히는 다이얼로그
-  R.run();
+test('U-H4-C3 ★★저장 실패 상자는 «확인을 눌러야» 닫힌다 — 떠 있는 동안 상한 자동 종료 0 · 확인 뒤 종료 (현빈 261116)', async (t) => {
+  /* 옛 판: notify 상한(6초)이 사용자가 안 닫아도 앱을 껐다 — 저장 실패를 못 보고 지나갈 수 있었다. 이제 상자는 늘 부모 창의 시트(비동기)라
+     떠 있는 동안 루프는 살고, 종료는 확인 «뒤»다. 양성대조: save-guard.js runBeforeQuit 의 disarmIfShown(state) 삭제 → 이 칸 빨강. */
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let close = null;
+  const R = rig({ dialogImpl: () => new Promise((r) => { close = () => r({ response: 0 }); }) });
+  const st = R.run();
   R.reply({ ok: false, reason: 'exception', snapshot: '{}' });
-  await until(() => R.exits.length === 1, { timeout: 2000, label: '알림 상한 뒤 exit' });
-  assert.deepEqual(R.exits, [0]);
-  const took = R.logs.join('\n');
-  assert.match(took, /notify-deadline/, '알림 상한이 아니라 다른 경로로 꺼졌다');
+  assert.equal(R.dialogCalls.length, 1, '[전제] 저장 실패 상자');
+  t.mock.timers.tick(10 * 60 * 1000);   // 10분 — 옛 notify(6초)·hard(12초) 상한을 한참 넘긴다
+  assert.deepEqual(R.exits, [], '⛔상자가 떠 있는데 상한이 앱을 껐다(사용자가 저장 실패를 못 본다)');
+  assert.equal(st.timers.length, 0, '상자가 떴는데 상한 타이머가 남았다');
+  close();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(R.exits, [0], '확인 뒤 종료가 안 됐다');
+  assert.match(R.logs.join('\n'), /dialog-dismissed/);
 });
 
 test('U-H4-C4 ★렌더러가 아예 답을 안 해도 «말하고» 죽는다 (옛 코드는 조용히 죽었다)', async () => {
@@ -215,12 +222,14 @@ test('U-H4-C4 ★렌더러가 아예 답을 안 해도 «말하고» 죽는다 (
   assert.equal(R.marker().records[0].reason, 'no-response');
 });
 
-test('U-H4-C5 ★맨 바깥 상한 — 알림 상한이 «고장나도» 앱은 꺼진다', async () => {
-  /* notifyMs 를 hardExitMs 보다 크게 줘서 «알림 상한이 없는 것과 같은» 상태를 만든다. */
-  const R = rig({ dialogImpl: () => new Promise(() => {}) });
-  R.run({ notifyMs: 60000, hardExitMs: 250 });
-  R.reply({ ok: false, reason: 'exception', snapshot: '{}' });
-  await until(() => R.exits.length === 1, { timeout: 3000, label: 'hard-deadline' });
+test('U-H4-C5 ★맨 바깥 상한 — 상자가 뜨기 «전»에 멈추면 hardExitMs 가 끈다(행 금지는 그대로)', async (t) => {
+  /* saveWaitMs 를 hardExitMs 보다 크게 = 판정이 안 나 상자까지 못 간 상태. 상자가 없으니 상한이 살아 있어야 한다. */
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const R = rig();
+  R.run({ saveWaitMs: 60000, hardExitMs: 250 });   // reply 안 함
+  t.mock.timers.tick(300);
+  assert.deepEqual(R.exits, [0], '상자 전 멈춤인데 안 꺼졌다');
+  assert.equal(R.dialogCalls.length, 0);
   assert.match(R.logs.join('\n'), /hard-deadline/);
 });
 

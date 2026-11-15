@@ -188,3 +188,22 @@ test('S9 배선 — preload 가 묻고 beforeunload 가 실패 때만 취소한�
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   assert.doesNotMatch(main, /notifyWindowGone\(\{\s*pending,\s*exit/, '창-없음 길이 창 없이 상자를 띄운다');
 });
+
+/* S10 — 현빈 261116 «저장 실패는 반드시 봐야»: 진짜 before-quit 창-없음 길(⑵ 다시 만든 메인 창의 시트) — 떠 있는 동안 자동 종료 0 · 두 번째 실행 처리 · 확인 뒤 종료.
+ *   ⌘Q 창 있음 길(runBeforeQuit)은 quit-save-guard U-H4-C3 이 같은 축을 잰다. 양성대조: CTL4(disarmIfShown 두 곳 삭제) → S10·U-H4-C3·U-W3-6 빨강. */
+test('S10 ★저장 실패 상자는 확인 전엔 안 닫힌다(상한 0) · 그동안 두 번째 실행 처리 · 확인 뒤 종료', async (t) => {
+  const rec = reset();
+  const parents = parentsOf();
+  await failSync('proj_sl10');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  H.appHandlers.get('before-quit')({ preventDefault() {} });
+  assert.equal(parents.length, 1, '[전제] 저장 실패 상자');
+  assert.ok(parents[0], '[전제] 부모 있는 시트');
+  t.mock.timers.tick(10 * 60 * 1000);
+  assert.equal(H.exits.length, 0, '⛔상자가 떠 있는데 상한이 앱을 껐다');
+  assert.equal(saveGuard.failureDialogOpen(), true, '상자가 닫힌 것으로 셌다');
+  if (MAC) { rec.bounce.length = 0; secondLaunch(); assert.ok(rec.bounce.length >= 1, '상자 중 두 번째 실행 처리 0'); }
+  closeDialog?.();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(H.exits, [0], '확인 뒤 종료가 안 됐다');
+});

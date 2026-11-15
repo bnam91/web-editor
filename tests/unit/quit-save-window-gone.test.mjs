@@ -231,22 +231,27 @@ test('U-W3-5c 목록 화면에서 비동기 쓰기가 도는 중이면 끝날 �
   } finally { H.stub.app.quit = quit0; H.stub.BrowserWindow.getAllWindows = () => []; }
 });
 
-test('U-W3-6 ★다이얼로그가 «안 닫혀도» 앱은 꺼진다 (상한 타이머 — 안 꺼지는 앱 금지)', async () => {
+test('U-W3-6 ★창 없음 길 저장 실패 상자 — 확인 전 자동 종료 0 · 확인 뒤 종료 (현빈 261116 «반드시 봐야»)', async (t) => {
+  /* 옛 판은 상자를 안 닫아도 notify/hard 상한이 껐다. 이제 상자는 다시 만든 메인 창의 시트(비동기)라 루프가 살고, 종료는 확인 뒤.
+     양성대조: save-guard.js notifyWindowGone 의 disarmIfShown(state) 삭제 → 이 칸 빨강. */
   reset();
-  // 영원히 안 끝나는 다이얼로그 = 사용자가 확인을 안 누른 상태
-  H.stub.dialog.showMessageBox = () => new Promise(() => {});
+  let close = null;
+  H.stub.dialog.showMessageBox = () => new Promise((r) => { close = () => r({ response: 0 }); });
   saveGuard.init({ userDataDir: H.userData, dialog: H.stub.dialog, appVersion: 'test' });
   const pending = saveGuard.recordSyncSaveFailure({
-    projectId: 'proj_w3_hang', projectName: '멈춘 다이얼로그',
+    projectId: 'proj_w3_hang', projectName: '안 닫은 상자',
     snapshot: JSON.stringify({ id: 'proj_w3_hang', pages: [] }), reason: 'exception', error: 'EPERM',
   });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const exits = [];
-  const st = saveGuard.notifyWindowGone({
-    pending, exit: (c) => exits.push(c), timings: { notifyMs: 60, hardExitMs: 200 },
-  });
-  await wait(220);
-  assert.equal(exits.length, 1, `⛔exit ${exits.length}회 — 상한이 안 돌았거나 두 번 죽었다`);
-  assert.ok(['notify-deadline', 'hard-deadline'].includes(st.exitReason), '상한이 아닌 이유로 꺼졌다: ' + st.exitReason);
+  const st = saveGuard.notifyWindowGone({ pending, win: {}, exit: (c) => exits.push(c), timings: { hardExitMs: 200 } });
+  t.mock.timers.tick(10 * 60 * 1000);
+  assert.equal(exits.length, 0, `⛔상자가 떠 있는데 exit ${exits.length}회 — 상한이 저장 실패 상자를 닫았다`);
+  assert.equal(st.timers.length, 0, '상자가 떴는데 상한 타이머가 남았다');
+  close();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(exits, [0], '확인 뒤 종료가 안 됐다');
+  assert.equal(st.exitReason, 'dialog-dismissed');
 });
 
 test('U-W3-7 ★소비형 — 같은 실패로 두 번 말하지 않는다', () => {

@@ -17,10 +17,12 @@
      ⛔「저장이 성공할 때까지 기다린다」가 아니다. 안 꺼지는 앱은 조용한 종료보다 나쁘다.
        ⇒ 여기 있는 모든 대기에는 «상한»이 있고, 맨 바깥에 무조건 죽는 상한이 하나 더 있다.
 
-   ★상한 세 겹 (전부 setTimeout — 어느 경로로 새도 결국 exit 로 모인다)
+   ★상한 (전부 setTimeout — 상자가 뜨기 «전»까지 어느 경로로 새도 결국 exit 로 모인다)
        saveWaitMs  3000ms  렌더러 응답 대기(기존 동작과 «같은» 값 — 종료 지연 회귀 없음)
-       notifyMs    6000ms  실패를 «알리는» 창(사용자가 다이얼로그를 안 닫아도 여기서 끝)
-       hardExitMs 12000ms  ★맨 바깥. 위 둘이 어떤 이유로든 안 돌아도 여기서 죽는다.
+       hardExitMs 12000ms  ★맨 바깥. 상자가 뜨기 전 어디서 멈춰도 여기서 죽는다.
+     ★저장 실패 상자가 «떠 있는 동안»은 상한이 없다(현빈 261116 «저장 실패는 반드시 봐야» · SECOND-LAUNCH-…-01) —
+       사용자가 확인을 눌러야 닫히고, 종료는 그 뒤다. 상자는 늘 부모 창의 시트(비동기)라 그동안 메인 루프·두 번째 실행 신호는 산다.
+       (옛 notifyMs 6000ms 「안 닫아도 끝」은 없앴다 · 상자를 못 띄우면 상한이 그대로 남아 꺼준다.)
      ⛔dialog.showMessageBoxSync 를 쓰면 안 된다 — 메인 루프를 막아 위 타이머가 «안 돈다»
        (=사용자가 다이얼로그를 안 닫으면 앱이 영영 안 꺼진다). 반드시 비동기 판을 쓴다.
 
@@ -40,7 +42,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const TIMINGS = { saveWaitMs: 3000, notifyMs: 6000, hardExitMs: 12000, writeHoldMs: 180000 };
+const TIMINGS = { saveWaitMs: 3000, hardExitMs: 12000, writeHoldMs: 180000 };
 /** 마커에 남기는 실패 기록 수. 오래된 것부터 버린다. */
 const MAX_RECORDS = 10;
 /** 비상 사본 보관 개수. 코퍼스가 40MB 급이라 무한히 쌓으면 디스크를 먹는다. */
@@ -345,9 +347,9 @@ function runBeforeQuit({ win, ipcMain, exit, timings, activeProject } = {}) {
     state.saved = saved;
     _log(`[quit-guard] 저장 실패 기록: ${saved.markerError ? `마커 실패(${saved.markerError})` : saved.markerPath}` +
          ` · 비상 사본 ${saved.record.emergencyPath || `없음(${saved.record.emergencyError})`}`);
-    /* 알리는 창에도 상한이 있다 — 사용자가 다이얼로그를 안 닫아도 앱은 꺼진다. */
-    arm(() => finish(0, 'notify-deadline'), t.notifyMs);
-    showFailureDialog(win, outcome, saved).then((d) => {
+    const shown = showFailureDialog(win, outcome, saved);
+    disarmIfShown(state);   // 상자가 떴다 — 확인을 눌러야 닫힌다(상한 없음) · 종료는 그 뒤
+    shown.then((d) => {
       state.dialog = d;
       finish(0, d && d.shown ? 'dialog-dismissed' : 'no-dialog');
     });
@@ -428,7 +430,7 @@ function peekPendingSyncFailure() { return _pendingSync; }
 
 /**
  * 창이 없는 채로 온 before-quit — 이미 남긴 기록을 «말하고» 종료한다.
- * ★반드시 exit 가 불린다. 상한 두 겹(notifyMs·hardExitMs)이 어느 경로로 새도 앱을 꺼준다.
+ * ★상자를 못 띄우면 hardExitMs 가 앱을 꺼준다. 상자가 뜨면 상한 없음 — 확인 뒤 exit.
  * @param {{pending:object, exit:function, timings?:object, win?:object}} o   win = 상자를 시트로 받칠 메인 창(main.js _saveFailureHostWindow)
  */
 function notifyWindowGone({ pending, exit, timings, win } = {}) {
@@ -453,13 +455,23 @@ function notifyWindowGone({ pending, exit, timings, win } = {}) {
     try { exit(code); } catch (e) { _log(`[quit-guard] exit 실패: ${e && e.message}`); }
   };
   arm(() => finish(0, 'hard-deadline'), t.hardExitMs);
-  arm(() => finish(0, 'notify-deadline'), t.notifyMs);
   /* ★부모 없는 상자 금지(맥 runModal = 루프 멈춤) — main 이 다시 만든 메인 창(win)의 시트로. SECOND-LAUNCH-…-01 ⑵ */
-  showFailureDialog(win || null, state.outcome, state.saved).then((d) => {
+  const shown = showFailureDialog(win || null, state.outcome, state.saved);
+  disarmIfShown(state);   // 상자가 떴다 — 확인 전 종료 없음
+  shown.then((d) => {
     state.dialog = d;
     finish(0, d && d.shown ? 'dialog-dismissed' : 'no-dialog');
   });
   return state;
+}
+
+/* 저장 실패 상자가 지금 떠 있으면(호출이 던지지 않았다 = _dialogOpen>0) 남은 상한을 전부 거둔다 — 확인 전 자동 종료 0.
+   못 띄웠으면(던짐·dialog 미주입) 상한이 그대로 남아 앱을 꺼준다. */
+function disarmIfShown(state) {
+  if (_dialogOpen <= 0) return;
+  for (const h of state.timers) { try { clearTimeout(h); } catch (_) {} }
+  state.timers.length = 0;
+  state.deadlinesCleared = true;
 }
 
 /** ⑴ 창을 닫는 중 동기 저장 실패 — 닫기를 보류한 «그 창»에 시트로 알린다. 종료가 아니라 exit 없음 · 상한 없음(사용자가 반드시 본다).
