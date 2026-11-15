@@ -518,9 +518,10 @@
 }
 /* 원형 라벨 안전망(U5 .icb-circle/.itb-icon와 같은 철학) — 인라인 padding 누락에 의존하지 않고
  * 정원을 강제해 이미 저장된 블록(인라인 padding 없는 케이스)까지 회복. data-shape 마커가 1순위,
- * data-shape 없는 레거시 저장 블록은 보조 셀렉터([style*="border-radius: 50%"])로 OR 포함. */
+ * data-shape 없는 레거시 저장 블록은 보조 셀렉터([style*="border-radius: 50%"])로 OR 포함.
+ * 보조 셀렉터는 :not([data-shape]) 로 좁힌다 — Oval(data-shape="oval")도 인라인 50% 라 걸리면 정원·padding 0 이 된다. */
 .text-block .tb-label[data-shape="circle"],
-.text-block[data-type="label"] .tb-label[style*="border-radius: 50%"] {
+.text-block[data-type="label"] .tb-label:not([data-shape])[style*="border-radius: 50%"] {
   aspect-ratio: 1 / 1;
   padding: 0 !important;          /* base padding 11px 36px 무력화 → min-content가 width 밀지 못함 */
   box-sizing: border-box;

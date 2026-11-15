@@ -231,6 +231,7 @@ export function wireLabelSection({ ctx }) {
   document.getElementById('label-shape-oval')?.addEventListener('click', () => {
     window.pushHistory?.();
     _resetLabelInline();
+    ctx.contentEl.dataset.shape = 'oval';   // 마커 = 레거시 원형 안전망(css/editor-layout.css «:not([data-shape])»)에서 빠지는 표
     ctx.contentEl.style.borderRadius = '50%';
     ctx.contentEl.style.padding       = '11px 36px';
     const rSlider2 = document.getElementById('label-radius-slider');

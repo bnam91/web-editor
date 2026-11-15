@@ -15,12 +15,12 @@ export function panelRenderedPx(el, prop) {
 }
 
 /** 라벨 알약의 «지금 그려진» 모양 — Tag Style 단추 켜짐 판정용.
- *  원형만 표식(data-shape)이 있고 나머지는 형태 단추가 쓴 인라인으로만 갈린다. 맨 라벨(인라인 없음)은 CSS 기본
+ *  원형·타원만 표식(data-shape)이 있고 나머지는 형태 단추가 쓴 인라인으로만 갈린다. 맨 라벨(인라인 없음)은 CSS 기본
  *  (radius 8 · 채움 · 테두리 없음)이라 Box 와 같은 모습이다 ⇒ 'box'.
  *  어느 단추와도 안 맞으면(예: 채움 없음 + 둥근 모서리) null — «아무것도 안 켠다»(거짓 켜짐 금지). */
 export function labelShapeFromRendered(el) {
   if (!el) return null;
-  if (el.dataset.shape === 'circle') return 'circle';
+  if (el.dataset.shape === 'circle' || el.dataset.shape === 'oval') return el.dataset.shape;
   const cs = getComputedStyle(el);
   const radius = panelRenderedPx(el, 'borderTopLeftRadius');
   const border = panelRenderedPx(el, 'borderTopWidth');
@@ -29,7 +29,7 @@ export function labelShapeFromRendered(el) {
   const h = el.offsetHeight;   // 레이아웃 px(배율 무관) — 계산된 radius 와 같은 단위
   if (border > 0) return 'outline';
   if (!filled) return radius === 0 ? 'text' : null;
-  if (/%/.test(cs.borderTopLeftRadius)) return 'oval';   // Oval 단추의 50% — 계산값이 «%» 로 남는다(px 로 읽으면 50 = 알약으로 오판)
+  if (/%/.test(cs.borderTopLeftRadius)) return 'circle';   // 표식 없는 % = 레거시 원형 저장본(CSS 안전망이 정원으로 그린다) · px 로 읽으면 50 = 알약 오판
   if (h > 0 && radius >= h / 2) return 'pill';
   return 'box';
 }
