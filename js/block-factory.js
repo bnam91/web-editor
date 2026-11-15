@@ -4688,7 +4688,10 @@ function updateGraphBlock(blockId, partial = {}) {
         return { ok: false, code: 'INVALID', message: `items[${i}].value out of range [0,9999]` };
       }
       // 1012t1G4 — 마디·항목 모양 유실 방지(짝지은 옛 항목에서 옮긴다 · 짝 = js/graph-shape.js pairPrevItems · 옮기기 = carryItemExtras)
-      norm.push(window.GRAPH_SHAPE.carryItemExtras({ label, value: v }, _prevFor[i], it));
+      const _o = { label, value: v };
+      const _pc = _prevFor[i] && _prevFor[i].color;   // GRAPH-MCP-UPDATE-DROPS-ITEM-COLOR-01 — 개별 색(단색·그라데이션 · 모델 값)도 짝지은 옛 항목에서(패널 syncItems·AI 채움과 같은 몫)
+      if (typeof _pc === 'string' && _pc) _o.color = _pc;
+      norm.push(window.GRAPH_SHAPE.carryItemExtras(_o, _prevFor[i], it));
     }
     block.dataset.items = JSON.stringify(norm);
     applied.items = norm;
