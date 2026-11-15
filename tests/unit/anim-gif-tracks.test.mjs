@@ -4,6 +4,7 @@
  *   양성대조(실측은 커밋 메시지): stampParams 의 «쾅» 갈래(p ≥ 0.7)를 지우면 T6 빨강 · FX.stamp 의 `_blur(ctx, m.blur)` 삭제 → T7(시작 흐림) 빨강.
  * 양성대조(예측): drawTracks 의 `if (p == null || …) continue;` 를 지우면 T4(아직 안 나온 줄이 그려짐) 빨강 ·
  *   normTracks 의 «앞 줄 끝에 시작»(prev.at + prev.dur) 을 0 으로 → T1 빨강.
+ * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -117,4 +118,14 @@ test('T8 F3 저장 꼴 — 왕복 · 소독(허용 목록·범위·없는 줄) �
   for (const bad of ['', 'x{', '{"v":1,"tracks":[]}', 'null', '[]']) assert.equal(parseAnimGif(bad, 2).perLine, false, bad);
   assert.deepEqual(Object.keys(JSON.parse(serializeAnimGif({ tracks: [{ line: 0, fx: 'stamp', at: 0, dur: 500, junk: 1 }] }))), ['v', 'tracks', 'speed', 'repeat']);
   assert.deepEqual(scaleTracks(tracks, 2)[1], { line: 1, fx: 'stamp', at: 550, dur: 280 });
+});
+
+test('T9 블럭 줄바꿈 폭이 캔버스보다 넓어도(글자 크기 반올림) 글 오른끝 ≤ 캔버스 − 여유 · 왼끝 ≥ 0', async () => {
+  const { textBox, TEXT_SLACK } = await import('../../js/fx/anim-gif-tracks.js');
+  const style = { ...STYLE, text: 'aaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbb', wrapEm: 9.876 };   // 9.876em × 49px = 483.9 > 480
+  assert.ok(textBox(480, 49, style).maxW <= 480 - TEXT_SLACK, '접는 폭 ≤ 캔버스 − 여유');
+  const ctx = fakeCtx(); ctx.measureText = (s) => ({ width: String(s).length * 10.05 });   // 48자 = 482.4 — 483.9 엔 한 줄 · 478 엔 두 줄
+  const L = layoutLines(ctx, style, 480, 200, 49);
+  for (const s of L.segs) assert.ok(s.x0 >= 0 && s.x0 + s.w <= 480 - 0.5, `★캔버스 밖: «${s.text}» ${s.x0}..${s.x0 + s.w}`);
+  assert.equal(L.segs.length, 2, '[전제] 캔버스 폭에서 접힘');
 });

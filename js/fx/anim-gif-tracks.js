@@ -66,10 +66,12 @@ export const localT = (tr, tau) => (tau < tr.at ? null : clamp01((tau - tr.at) /
 /** 글 상자(가로) — 블럭과 같은 줄바꿈: 접는 폭 = 블럭 글 안쪽 폭(em) × 그리는 글자 크기 · 가운데 둔다.
  *  wrapEm 이 없으면(블럭 못 잼) 옛 규칙 좌우 5%. 0.9.12 QA: 716 폭 한 줄 블럭이 5% 여백(432)에 접혀 두 줄이 됐다.
  *  shortcut: 좌우 패딩이 다르면 안쪽 폭만 맞고 위치는 가운데 기준, 비대칭 패딩 블럭이 나오면 padL/padR 로. */
+export const TEXT_SLACK = 2;
 export function textBox(W, size, style) {
   if (!(style.wrapEm > 0)) { const p = Math.round(W * 0.05); return { paddingX: p, maxW: W - p * 2 }; }
-  const maxW = style.wrapEm * size;
-  return { paddingX: Math.max(0, (W - maxW) / 2), maxW };
+  // 캔버스 폭을 못 넘게(글자 크기 반올림으로 em×size 가 W 를 넘었다 · G4 481.49>480) + measureText 오차 여유 2px
+  const maxW = Math.min(W, style.wrapEm * size) - TEXT_SLACK;
+  return { paddingX: (W - maxW) / 2, maxW };
 }
 
 export function layoutLines(ctx, style, W, H, size) {
