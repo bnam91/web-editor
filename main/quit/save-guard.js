@@ -429,9 +429,9 @@ function peekPendingSyncFailure() { return _pendingSync; }
 /**
  * 창이 없는 채로 온 before-quit — 이미 남긴 기록을 «말하고» 종료한다.
  * ★반드시 exit 가 불린다. 상한 두 겹(notifyMs·hardExitMs)이 어느 경로로 새도 앱을 꺼준다.
- * @param {{pending:object, exit:function, timings?:object}} o
+ * @param {{pending:object, exit:function, timings?:object, win?:object}} o   win = 상자를 시트로 받칠 창(맥 · main.js _quitDialogHost)
  */
-function notifyWindowGone({ pending, exit, timings } = {}) {
+function notifyWindowGone({ pending, exit, timings, win } = {}) {
   const bail = () => { try { exit(0); } catch (_) {} };
   if (!pending || !pending.outcome) { bail(); return null; }
   if (_running && !_running.exited) return _running;   // 두 번째 before-quit 은 무시
@@ -454,8 +454,9 @@ function notifyWindowGone({ pending, exit, timings } = {}) {
   };
   arm(() => finish(0, 'hard-deadline'), t.hardExitMs);
   arm(() => finish(0, 'notify-deadline'), t.notifyMs);
-  /* ★부모 창이 «없다» — 부모 없는 다이얼로그로 띄운다(윈도우·맥 모두 독립 창으로 뜬다). */
-  showFailureDialog(null, state.outcome, state.saved).then((d) => {
+  /* ★부모 창이 «없다» — win 은 main 이 맥에서만 띄우는 받침 창(부모 없는 맥 상자는 runModal 이라 루프가 멈춘다 · main.js _quitDialogHost).
+     없으면(윈도우) 부모 없는 상자 — 윈도우 상자는 따로 도는 스레드라 루프가 산다. */
+  showFailureDialog(win || null, state.outcome, state.saved).then((d) => {
     state.dialog = d;
     finish(0, d && d.shown ? 'dialog-dismissed' : 'no-dialog');
   });

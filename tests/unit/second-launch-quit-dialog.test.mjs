@@ -100,3 +100,27 @@ test('S5 상자 호출이 던져도 카운터가 남지 않는다', async () => 
   await quitWithDialog(rec, 'proj_sl5');
   assert.equal(saveGuard.failureDialogOpen(), false, '던진 상자를 떠 있는 것으로 남겼다');
 });
+
+/* S6 — 미카사 261113 아이맥 0/3(1116 재발주): 창을 닫은 뒤 종료(창 없음 길) → 부모 없는 상자. 맥 Electron 은 부모 없는 상자를
+ *   [NSAlert runModal] 로 띄운다(비동기 API 라도) — 그 중첩 루프 동안 메인 루프 일이 안 돌아 단일 인스턴스 ACK·상한 타이머가 멈추고,
+ *   두 번째 실행이 20초 뒤 첫 실행을 SIGKILL 하고 잠금을 가져간다. ⇒ 맥에선 받침 창을 띄워 «시트»(부모 있는 상자)로 단다.
+ *   잼: 상자 호출의 부모가 null 이 아니고 «이번에 새로 만든» 창이다 · 그 창이 보이고(show) 크기가 상자를 받칠 만하다 · 두 번째 실행은 그대로 반짝.
+ *   양성대조: main.js 창-없음 길의 `win: _quitDialogHost()` 를 지우면 S6 빨강(부모 null = runModal). */
+test('S6 ★맥 창-없음 종료 상자는 받침 창의 시트로 뜬다(부모 null = runModal 이면 루프가 멈춘다)', { skip: !MAC && '맥 runModal 길' }, async () => {
+  const rec = reset();
+  const parents = [];
+  H.stub.dialog.showMessageBox = (win) => { rec.dialogs++; parents.push(win); return new Promise((r) => { closeDialog = () => r({ response: 0 }); }); };
+  const before = H.stub.__windows.length;
+  await quitWithDialog(rec, 'proj_sl6');
+  const made = H.stub.__windows.slice(before);
+  assert.equal(made.length, 1, `[전제] 받침 창 ${made.length}개 — 하나여야 한다`);
+  assert.ok(parents[0], '⛔부모 없는 상자(null) — 맥에선 runModal 이라 두 번째 실행 ACK·상한 타이머가 멈춘다');
+  assert.equal(parents[0], made[0], '상자 부모가 이번에 만든 받침 창이 아니다');
+  const o = made[0].__opts;
+  assert.ok(o.show !== false && o.width >= 400 && o.height >= 200, '받침 창이 안 보이거나 너무 작다: ' + JSON.stringify({ show: o.show, w: o.width, h: o.height }));
+  assert.equal(o.webPreferences && o.webPreferences.nodeIntegration, false, '받침 창에 node 를 열었다');
+  rec.bounce.length = 0;
+  secondLaunch();
+  assert.ok(rec.bounce.length >= 1, '받침 창 길에서 두 번째 실행에 반짝 0');
+  closeDialog?.();
+});

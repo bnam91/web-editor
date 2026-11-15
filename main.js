@@ -9462,7 +9462,7 @@ app.on('before-quit', (event) => {
         userDataDir: app.getPath('userData'), workspaceDir: _accountWorkspaceDir, dialog, shell,
         appVersion: app.getVersion(), log: (m) => console.log(m),
       });
-      quitSaveGuard.notifyWindowGone({ pending, exit: (code) => app.exit(code) });
+      quitSaveGuard.notifyWindowGone({ pending, win: _quitDialogHost(), exit: (code) => app.exit(code) });
     } catch (e) {
       /* ★통지가 터져도 «앱은 꺼져야 한다» — 안 꺼지는 앱은 조용한 종료보다 나쁘다. */
       console.error('[quit-guard] 창-없음 통지 실패 — 그냥 종료:', e && e.message);
@@ -9485,6 +9485,25 @@ app.on('before-quit', (event) => {
     setTimeout(() => app.exit(0), 3000);
   }
 });
+
+/* SECOND-LAUNCH-SILENT-EXIT-DURING-QUIT-DIALOG-01 — 맥에서 «부모 없는» 상자는 Electron 이 [NSAlert runModal] 로 띄운다
+   (shell/browser/ui/message_box_mac.mm · 비동기 showMessageBox 라도 같다 = 사실상 Sync). 그 중첩 루프 동안 메인 루프 일이 안 돈다 ⇒
+   ⑴ 상한 타이머(notify 6s·hard 12s)가 안 돌아 상자가 안 닫힌다 ⑵ 두 번째 실행의 단일 인스턴스 소켓 «ACK» 를 못 한다(HandleMessage 는 UI 일)
+   → 두 번째 실행이 20초 기다린 뒤 이 프로세스를 SIGKILL 하고 SingletonLock 을 가져가 새 창으로 뜬다(미카사 261113 0/3 · 곁 «20~30초 뒤 A 사라짐»).
+   ⇒ 맥에서만 작은 창을 하나 띄워 상자를 그 창의 시트로 단다(시트 = 비동기 · 루프가 돈다). 윈도우 상자는 따로 도는 스레드라 그대로. */
+function _quitDialogHost() {
+  if (process.platform !== 'darwin') return null;
+  try {
+    const w = new BrowserWindow({ width: 480, height: 240, show: true, center: true, resizable: false, minimizable: false,
+      maximizable: false, fullscreenable: false, title: app.getName(),
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+    try { app.focus({ steal: true }); } catch (_) {}   // runModal 이 하던 것 — 사용자가 방금 종료를 눌렀고 실패를 알려야 한다
+    return w;
+  } catch (e) {
+    console.warn('[quit-guard] 상자 받칠 창을 못 만들었다 — 부모 없는 상자로:', e && e.message);
+    return null;
+  }
+}
 
 /* Q7 P1 — 종료 순간 활성 프로젝트(main 이 쥔 값 하나 · 새 IPC 없음). 이름은 그 프로젝트 meta(목록과 같은 해석기)에서 — 못 읽으면 null. */
 function _quitActiveProject() {

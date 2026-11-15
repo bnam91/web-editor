@@ -104,6 +104,7 @@ const NOT_TMPROOT = {
   'tests/unit/migrate-files-vanish.test.js':  '★파일이 ★사라지는 장면을 ★만든다 — ★주제다',
   'tests/unit/migrator-vanish.test.js':       '★같은 축 — ★사라짐이 ★주제다',
   'tests/unit/quit-save-window-gone.test.mjs':'★`reset()` — ★시험 사이 ★상태 파일 씻기',
+  'tests/unit/second-launch-quit-dialog.test.mjs': '★`reset()` — ★시험 사이 ★상태 파일 씻기(quit-save-window-gone 과 같은 하네스 · 같은 까닭)',
   'tests/unit/recovery-collect.test.mjs':     '★★«사본이 없을 때»를 만들려 ★픽스처를 지운다 — ★주제다',
 };
 
