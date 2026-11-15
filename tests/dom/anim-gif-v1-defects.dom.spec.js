@@ -9,24 +9,28 @@
  * G4 X1 타이핑 긴 글 — 줄바꿈해서 캔버스 폭 안(옛: 한 줄로 넘침)
  * G5 ⑷ 클래스 배경 섹션 — GIF 바탕 = 그 색(옛: 인라인만 읽어 흰색)
  * G5b [지킴] 인라인 단색 배경 — 그대로 그 색
+ * G5c 그라데이션 배경 섹션(앱 저장 꼴: setSectionBg → dataset.bg = 그라데이션 CSS · style.backgroundImage) — GIF 바탕 = 블럭 자리의 섹션 그라데이션
+ *     (지디 실앱: linear-gradient rgb(30,42,68) 섹션 → (1,1)=119,119,119). G5c 한 색 그라데이션 (1,1) = 30,42,68 · G5d 90deg 빨강→파랑 — 캔버스 왼위·오른위 픽셀 = 그 자리 섹션 색(±4)
+ *     양성대조(예측): js/animation-engine.js _secGrad 첫 줄에 `return null;` → G5c·G5d 빨강 · G5·G5b 초록
  * G6 ⑹ 생성 실패 — 네이티브 대화상자 0 · 토스트로 알린다(옛: alert 가 창을 막음)
  * 전제(r0914gif 뒤): 가짜 rAF 는 엔진이 건 것만 잡는다 · 프레임마다 «엔진 rAF 가 걸렸다»를 조건 대기로 확인한다.
  * 양성대조: js/animation-engine.js 만 부모 판으로(git checkout <이 커밋>^ -- js/animation-engine.js) → G1·G1b·G2·G3·G4·G5·G6 빨강 · G5b 초록 → git checkout HEAD -- js/animation-engine.js
- * ⛔남은 것(이 파일이 안 잰다): ⑷ 그라데이션·이미지·메시 배경의 «모양» · ⑸ 리치텍스트 꾸밈 — 지디 결정 대기.
+ * ⛔남은 것(이 파일이 안 잰다): ⑷ 이미지·메시 배경의 «모양»(그라데이션은 G5c) · ⑸ 리치텍스트 꾸밈은 anim-gif-richtext.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
-async function scene(page, { text, align, secClass, secInlineBg } = {}) {
+async function scene(page, { text, align, secClass, secInlineBg, secGrad } = {}) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
-  await page.evaluate(async ({ text, align, secClass, secInlineBg }) => {
+  await page.evaluate(async ({ text, align, secClass, secInlineBg, secGrad }) => {
     if (secClass) { const st = document.createElement('style'); st.textContent = `.${secClass}{background:#1e2a44 !important}`; document.head.appendChild(st); }
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     await window.addSection();
     const sec = c.querySelector('.section-block');
     if (secClass) sec.classList.add(secClass);
     if (secInlineBg) sec.style.backgroundColor = secInlineBg;
+    if (secGrad) window.setSectionBg(sec, secGrad);   // 앱 길 — 패널 _setSecBg 와 같이 dataset.bg + _applySectionBg
     window.selectSection(sec);
     window.addTextBlock('body');
     const tb = [...sec.querySelectorAll('.text-block')].pop();
@@ -52,7 +56,7 @@ async function scene(page, { text, align, secClass, secInlineBg } = {}) {
     window.__frame = (t) => { window.__calls = []; const cb = window.__cb; window.__cb = null; cb(1000 + 1200 * t); return window.__calls; };   // 속도 1× = 1200ms
     window.__rafState = () => ({ engineCb: typeof window.__cb, appRaf: window.__appRaf, modal: document.getElementById('anim-gif-modal')?.style.display, active: document.querySelector('#anim-list .anim-item.active')?.dataset.id ?? null });
     window.openAnimModal(tb);
-  }, { text, align, secClass, secInlineBg });
+  }, { text, align, secClass, secInlineBg, secGrad });
   return errs;
 }
 /** 효과를 고르고(진짜 목록 클릭) 그 효과의 t=0 을 먼저 그린다(시작 시각을 박는다). */
@@ -141,6 +145,36 @@ test('G5b [지킴] 인라인 단색 배경 — 그대로', async ({ page }) => {
   await pick(page, 'fade-in');
   await frame(page, 0.5);
   expect(await corner(page)).toEqual([255, 224, 178]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G5c 그라데이션 배경 섹션(지디 실앱 값 한 색) — GIF 바탕 = 섹션 그라데이션 색', async ({ page }) => {
+  const SOLID = 'linear-gradient(180deg, rgb(30, 42, 68) 0%, rgb(30, 42, 68) 100%)';
+  const errs = await scene(page, { text: '배경 확인', secGrad: SOLID });
+  const saved = await page.evaluate(() => { const sec = window.__tb.closest('.section-block'); return { bg: sec.dataset.bg, img: sec.style.backgroundImage, col: sec.style.backgroundColor }; });
+  expect(saved.bg, '[전제] 앱 저장 꼴 = dataset.bg 에 그라데이션 CSS').toMatch(/^linear-gradient\(/);
+  expect(saved.img, '[전제] 그리기 = style.backgroundImage').toMatch(/^linear-gradient\(/);
+  await pick(page, 'fade-in');
+  await frame(page, 0.5);
+  expect(await corner(page), '★GIF 바탕이 섹션 그라데이션 색이 아니다').toEqual([30, 42, 68]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G5d 가로 그라데이션 섹션 — 블럭 자리까지: 왼위·오른위 픽셀 = 그 자리 섹션 색', async ({ page }) => {
+  const errs = await scene(page, { text: '배경 확인', secGrad: 'linear-gradient(90deg, rgb(255, 0, 0) 0%, rgb(0, 0, 255) 100%)' });
+  await pick(page, 'fade-in');
+  await frame(page, 0.5);
+  const r = await page.evaluate(() => {
+    const tb = window.__tb, sec = tb.closest('.section-block'), sr = sec.getBoundingClientRect(), br = tb.getBoundingClientRect(), z = br.width / tb.offsetWidth;
+    const cv = document.getElementById('anim-preview-canvas'), k = cv.width / tb.offsetWidth, ox = (br.left - sr.left) / z, sw = sr.width / z;
+    const at = (x) => { const t = (ox + (x + 0.5) / k) / sw; return { got: [...cv.getContext('2d').getImageData(x, 1, 1, 1).data].slice(0, 3), want: [255 * (1 - t), 0, 255 * t].map(Math.round), t: +t.toFixed(3) }; };
+    return { L: at(1), R: at(cv.width - 2), ox, sw };
+  });
+  expect(r.R.t - r.L.t, `[전제] 블럭이 섹션 폭의 일부를 덮는다 — ox ${r.ox} · 섹션 ${r.sw}`).toBeGreaterThan(0.2);
+  for (const [name, c] of [['왼위', r.L], ['오른위', r.R]]) {
+    const d = Math.max(...c.got.map((v, i) => Math.abs(v - c.want[i])));
+    expect(d, `★${name} GIF ${c.got} ≠ 섹션 ${c.want}(t ${c.t})`).toBeLessThanOrEqual(4);
+  }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

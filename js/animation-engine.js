@@ -174,8 +174,7 @@ function playAnimOnCanvas() {
     if (t0 == null) t0 = ts;
     const t = Math.min(((ts - t0) % cycle) / plan.duration, 1);
     ctx.clearRect(0, 0, cv.width, cv.height);
-    ctx.fillStyle = style.sectionBg || '#ffffff';
-    ctx.fillRect(0, 0, cv.width, cv.height);
+    _fillBg(ctx, style, cv.width, cv.height);
     plan.draw(ctx, cv.width, cv.height, size, t);
     if (_onCanvas) _onCanvas.raf = requestAnimationFrame(tick);
   };
@@ -368,13 +367,41 @@ function _textGrad(cs) {
   return grad && grad.stops && grad.stops.length >= 2 ? { grad, gradLine: GM.gradientLine } : {};
 }
 
+/** 섹션 배경 그라데이션 — 앱은 dataset.bg 에 그라데이션 CSS 를 두고 style.backgroundImage 로 그린다(prop-section.js _applySectionBg · backgroundColor 는 비움)
+ *  ⇒ computed backgroundColor 만 읽던 GIF 바탕이 기본 바탕색이 됐다(지디 실앱 (1,1)=119,119,119). 선 = 섹션 상자 기준 제품 gradientLine(space 'css')
+ *  → 블럭 왼위 원점·블럭 px(배율 무관: 화면 사각형 ÷ zoom). 겹이 하나인 그라데이션만(메시·그림 합성은 여러 겹 = 바탕색만). */
+function _secGrad(sec, tb) {
+  const GM = window.GradientModel, img = String(window.getComputedStyle(sec).backgroundImage || '').trim();
+  if (!GM || !/^(linear|radial)-gradient\(/i.test(img) || (img.match(/gradient\(/gi) || []).length !== 1) return null;
+  const grad = GM.parseGradient(img);
+  if (!grad || !grad.stops || grad.stops.length < 2) return null;
+  const bw = Math.max(tb.offsetWidth, 1), sr = sec.getBoundingClientRect(), br = tb.getBoundingClientRect(), z = br.width / bw || 1;
+  const sw = sr.width / z, sh = sr.height / z, ox = (br.left - sr.left) / z, oy = (br.top - sr.top) / z;
+  const ln = GM.gradientLine(grad, { space: 'css', w: sw, h: sh });
+  const P = (q) => ({ x: q.x * sw - ox, y: q.y * sh - oy });
+  return { stops: grad.stops, p0: P(ln.p0), p1: P(ln.p1), radial: !!ln.radial, bw };
+}
+/** GIF 한 프레임 바탕 — 섹션 바탕색(반투명 정지점 받침) + 그라데이션 섹션이면 그 블럭 자리 그라데이션. 캔버스 px = 블럭 px × (W / 블럭 폭). */
+function _fillBg(ctx, style, W, H) {
+  ctx.fillStyle = style.sectionBg || '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  const g = style.secGrad;
+  if (!g || !ctx.createLinearGradient) return;
+  const k = W / g.bw, ax = g.p0.x * k, ay = g.p0.y * k, bx = g.p1.x * k, by = g.p1.y * k;
+  const cg = g.radial ? ctx.createRadialGradient(ax, ay, 0, ax, ay, Math.hypot(bx - ax, by - ay)) : ctx.createLinearGradient(ax, ay, bx, by);
+  for (const st of g.stops) cg.addColorStop(Math.max(0, Math.min(1, st.offset)), st.color);
+  ctx.fillStyle = cg;
+  ctx.fillRect(0, 0, W, H);
+}
+
 function _getTextStyle(tb) {
   const el  = _textEl(tb);
   if (!el) return { text: '', fontSize: 24, color: '#111111', fontFamily: 'sans-serif', fontWeight: '400', letterSpacing: 0, textAlign: 'left', lineHeight: 1.4, sectionBg: '#ffffff' };
   const cs  = window.getComputedStyle(el);
   const sec = tb.closest('.section-block');
   /* ⑷(DONE40) 인라인 style 만 읽어 클래스·테마 배경 섹션이 흰색으로 나갔다 ⇒ 정지 이미지 내보내기와 같은 규칙(computed · 투명이면 페이지 배경).
-     shortcut: 그라데이션·이미지·메시 배경은 아직 «바탕색»만 깐다 — 그 모양을 깔지는 지디 결정 뒤. */
+     그라데이션 섹션은 그 위에 블럭 자리만큼 그라데이션을 깐다(secGrad · GIF-V1-SECTION-BG-INLINE-ONLY-01).
+     shortcut: 이미지·메시(여러 겹) 배경은 아직 «바탕색»만 — 그 모양이 필요해지면 _secGrad 옆에. */
   const bg  = sec ? sectionBgColor(sec) : '#ffffff';
   const text = _extractText(el);
   return {
@@ -388,6 +415,7 @@ function _getTextStyle(tb) {
     textAlign:     el.style.textAlign || (cs.textAlign === 'start' ? 'left' : cs.textAlign) || 'left',
     lineHeight:    parseFloat(cs.lineHeight) / (parseFloat(cs.fontSize) || 1) || 1.4,
     sectionBg:     bg || '#ffffff',
+    secGrad:       sec ? _secGrad(sec, tb) : null,
     // ⑫ 글자 그라데이션 — background-clip:text + 그라데이션이면 제품 파서·선 기하(window.GradientModel · gradient-model.js)로 넘긴다
     ...(_textGrad(cs)),
     // 블럭 글 안쪽 폭(em) — 캔버스가 블럭과 같은 곳에서 접게(textBox). clientWidth 는 zoom 영향 없음 · 0 이면 옛 규칙
@@ -432,8 +460,7 @@ function _startAnimPreview() {
     const t       = Math.min(elapsed / duration, 1);
 
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = style.sectionBg || '#ffffff';
-    ctx.fillRect(0, 0, W, H);
+    _fillBg(ctx, style, W, H);
     plan.draw(ctx, W, H, displaySize, t);
 
     if (t < 1) {
@@ -720,8 +747,7 @@ async function exportAnimGif() {
     for (let i = 0; i <= frames; i++) {
       const t = i / frames;
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = style.sectionBg || '#ffffff';
-      ctx.fillRect(0, 0, W, H);
+      _fillBg(ctx, style, W, H);
       plan.draw(ctx, W, H, displaySize, t);
       gif.addFrame(ctx, { copy: true, delay });
     }
@@ -729,8 +755,7 @@ async function exportAnimGif() {
     const holdFrames = Math.ceil(fps * GIF_HOLD_S);
     for (let i = 0; i < holdFrames; i++) {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = style.sectionBg || '#ffffff';
-      ctx.fillRect(0, 0, W, H);
+      _fillBg(ctx, style, W, H);
       plan.draw(ctx, W, H, displaySize, 1);
       gif.addFrame(ctx, { copy: true, delay });
     }
