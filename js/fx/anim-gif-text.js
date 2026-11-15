@@ -71,7 +71,7 @@ export function typedLines(lines, t) {
  * cs = 글자마다 하나(글과 같은 길이) · null = 블럭 기본 스타일 · 같은 요소의 글자는 «같은 객체»(묶음 = 객체 동일성).
  * 모든 효과는 글을 fillStyled 로 그린다 — 미리보기·GIF 저장·V1·V2 가 한 함수. 조각(같은 스타일 묶음)마다 따로 그리는 자리다
  * (조각별 변형·알파는 지금 0 — 지디 ③ «자리만 막지 마라»).
- * st 필드: C2 color · weight · italic · sizeK(블럭 글자 크기 대비) · C3 ul/lt {color, thick, off} · hl {color, h{pct|px}, y} · bg. */
+ * st 필드: C2 color · weight · italic · sizeK(블럭 글자 크기 대비) · C3 ul/lt {color, thick, off} · hl {color, h{pct|px}, y} · bg · C4 shadows [{color,x,y,blur}](계산된 text-shadow = 범위 글로우 · 블럭 글로우 · Shadow 절). */
 
 const _plainCs = (cs) => !cs || !cs.some(Boolean);
 /** 같은 스타일 객체가 이어진 글자 묶음 = 조각. */
@@ -118,6 +118,38 @@ function _decor(ctx, p, x, baseline, env, over) {
   ctx.shadowBlur = sb;
 }
 
+/** 계산된 text-shadow → [{color, x, y, blur}](CSS 순서 = 맨 앞 그림자 먼저) · 'none'/빈 값 = null. */
+export function parseTextShadow(str) {
+  const v = String(str || '').trim();
+  if (!v || v === 'none') return null;
+  const parts = []; let depth = 0, cur = '';
+  for (const ch of v) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && !depth) { parts.push(cur); cur = ''; } else cur += ch; }
+  parts.push(cur);
+  const out = parts.map((p) => {
+    const color = (/(rgba?\([^)]*\)|hsla?\([^)]*\)|#[0-9a-f]{3,8}\b)/i.exec(p) || [])[0];
+    const nums = (p.replace(color || '', '').match(/-?[\d.]+(?=px|\s|$)/g) || []).map(Number);
+    return color ? { color, x: nums[0] || 0, y: nums[1] || 0, blur: nums[2] || 0 } : null;
+  }).filter(Boolean);
+  return out.length ? out : null;
+}
+
+/* 조각 그림자(글로우 · Shadow 절) — CSS 처럼 맨 뒤 그림자부터 깔고 글은 그 위에.
+   캔버스 그림자는 글도 같이 그리므로 글을 화면 밖(−BIG)에 그리고 그림자만 제자리로 옮긴다. 그림자 오프셋·흐림은 변형을 안 타서
+   지금 변형의 배율(a·d)을 곱한다(효과는 회전 없음). shortcut: 회전 변형이 생기면 a·b·c·d 로 옮김 계산. */
+const _BIG = 10000;
+function _shadows(ctx, p, x, y, env) {
+  const k = env.size / (env.style.fontSize || env.size);
+  const m = ctx.getTransform ? ctx.getTransform() : { a: 1, d: 1 };
+  const keep = [ctx.shadowColor, ctx.shadowBlur, ctx.shadowOffsetX, ctx.shadowOffsetY];
+  for (let i = p.st.shadows.length - 1; i >= 0; i--) {
+    const sh = p.st.shadows[i];
+    ctx.shadowColor = sh.color; ctx.shadowBlur = sh.blur * k * Math.abs(m.a);
+    ctx.shadowOffsetX = (_BIG + sh.x * k) * m.a; ctx.shadowOffsetY = sh.y * k * m.d;
+    ctx.fillText(p.text, x - _BIG, y);
+  }
+  [ctx.shadowColor, ctx.shadowBlur, ctx.shadowOffsetX, ctx.shadowOffsetY] = keep;
+}
+
 /** 글 text(그 cs) 를 x,y 에 — 정렬은 ctx.textAlign 그대로 · 블럭 기본 글꼴·색은 지금 ctx 의 것. env = { style, size }.
  *  꾸밈 없으면 옛 fillText 한 번(바이트 동일). 있으면 조각마다 제 글꼴·색으로 이어 그린다. */
 export function fillStyled(ctx, text, cs, x, y, env) {
@@ -139,6 +171,7 @@ export function fillStyled(ctx, text, cs, x, y, env) {
     ctx.font = _font(env, p.st) || base.font;
     if (p.st) _decor(ctx, p, px, baseline, env, false);
     ctx.fillStyle = (p.st && p.st.color) || base.fill;
+    if (p.st && p.st.shadows) _shadows(ctx, p, px, by, env);
     ctx.fillText(p.text, px, by);
     if (p.st) _decor(ctx, p, px, baseline, env, true);
     px += p.w;

@@ -7,6 +7,9 @@
  * C3 R3 밑줄(파랑) · 취소선(청록) · 배경색(초록) · 형광펜 span.tb-hl(자홍 --tb-hl-color) → 캔버스에 그 색 픽셀 · 형광 띠는 글자 아래쪽 절반에(--tb-hl-h 40%)
  *   양성대조(예측): js/fx/anim-gif-text.js fillStyled 의 `if (p.st) _decor(ctx, p, px, baseline, env, false);` 삭제 → R3 밑줄·배경·형광 빨강(단위 T13 srv)
  *   셀렉터: .tb-hl(prop-text-wireup-text-edit.js HL_CLASS) · --tb-hl-color/-h/-y(css/editor-layout.css .tb-hl)
+ * C4 R4 범위 글로우 span.tb-glow(자홍 --tb-glow-color · k 1) → 캔버스에 자홍빛 번짐 · 블럭 전체 그림자(글 요소 text-shadow 초록) → 초록빛 번짐
+ *   양성대조(예측): js/fx/anim-gif-text.js fillStyled 의 `if (p.st && p.st.shadows) _shadows(…)` 줄 삭제 → R4 빨강(단위 T14·E10 도)
+ *   셀렉터: .tb-glow(prop-text-wireup-text-edit.js GLOW_CLASS) · --tb-glow-color/-k(css/editor-layout.css .tb-glow)
  * 셀렉터·전역 대조(제품 소스 grep): window.addSection · window.selectSection(editor.js:5271) · window.addTextBlock · .text-block [contenteditable] ·
  *   #anim-list .anim-item[data-id](animation-engine.js _buildAnimList) · #anim-preview-canvas(index.html) · window.openAnimModal(엔진 끝) — 전부 anim-gif-v2-fx 가 이미 쓰는 것
  */
@@ -109,5 +112,30 @@ test('R3 밑줄·취소선·배경색·형광펜 — 캔버스에 그 색 장식
   expect(mag.n, '★형광펜(자홍) 0').toBeGreaterThan(50);
   expect(mag.y1 - mag.y0, '형광 띠 높이 < 배경 상자 높이(아래 40%)').toBeLessThan(green.y1 - green.y0);
   expect(mag.y1, '형광 띠는 상자 아래쪽에 붙는다').toBeGreaterThanOrEqual(green.y1 - 3);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/** 색이 «기운» 픽셀 수 — pred(r,g,b). 흰 바탕 위 번짐은 옅으니 색 차이로 센다. */
+const huePixels = (page, kind) => page.evaluate((kind) => {
+  const cv = document.getElementById('anim-preview-canvas');
+  const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+  let n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    if (kind === 'magenta' ? r - g > 40 && b - g > 40 : g - r > 40 && g - b > 40) n++;
+  }
+  return n;
+}, kind);
+
+test('R4 글로우·그림자 — 범위 글로우 span.tb-glow 자홍 번짐 · 블럭 전체 text-shadow 초록 번짐', async ({ page }) => {
+  const errs = await scene(page, '평글 <span class="tb-glow" style="--tb-glow-color: rgb(255, 0, 255); --tb-glow-k: 1">글로우</span>');
+  await pick(page, 'fade-in');
+  await at(page, 5000);
+  expect(await huePixels(page, 'magenta'), '★범위 글로우 번짐 0').toBeGreaterThan(200);
+  expect(await huePixels(page, 'green'), '[지킴] 블럭 그림자 안 켰는데 초록').toBe(0);
+  await page.evaluate(() => { window.closeAnimModal(); window.__tb.querySelector('[contenteditable]').style.textShadow = 'rgb(0, 200, 0) 0px 0px 8px'; window.openAnimModal(window.__tb); });
+  await pick(page, 'fade-in');
+  await at(page, 5000);
+  expect(await huePixels(page, 'green'), '★블럭 전체 그림자 번짐 0').toBeGreaterThan(200);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

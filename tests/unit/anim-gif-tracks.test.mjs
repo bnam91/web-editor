@@ -10,6 +10,8 @@
  *   양성대조(실측은 커밋 메시지): fillStyled 첫 줄을 늘 평글로(`if (true)`) → T12 빨강.
  * T13(RICHTEXT C3): 배경색·형광펜 띠·밑줄은 글 «앞»(뒤에 깔림) · 취소선은 글 «뒤» · 조각 폭 그대로 · 형광 띠 = 글꼴 상자 아래 h% · 그림자 0.
  *   양성대조(실측은 커밋 메시지): fillStyled 의 `if (p.st) _decor(…, false)` 줄 삭제 → T13 빨강.
+ * T14(RICHTEXT C4): 계산된 text-shadow 읽기 · 그림자는 맨 뒤 것부터 «화면 밖 글 + 옮긴 그림자» · 글은 그 위에 원래 그림자 상태로.
+ *   양성대조(아이맥 실측 예정): _shadows 첫 줄 return → T14 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -21,7 +23,7 @@ function fakeCtx() {
   const ctx = {
     calls, font: '', textBaseline: '', textAlign: '', fillStyle: '', globalAlpha: 1, shadowColor: '', shadowBlur: 0, filter: 'none', letterSpacing: '0px',
     measureText: (s) => ({ width: String(s).length * 10 }),
-    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf, font: ctx.font, fill: ctx.fillStyle }),
+    fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf, font: ctx.font, fill: ctx.fillStyle, sc: ctx.shadowColor, sb: ctx.shadowBlur, sox: ctx.shadowOffsetX, soy: ctx.shadowOffsetY }),
     fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h, fill: ctx.fillStyle, sb: ctx.shadowBlur }),
     _tf: 0, _stack: [],
     save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha] = ctx._stack.pop(); },
@@ -203,4 +205,22 @@ test('T13 RICHTEXT C3 — 배경색·형광펜·밑줄은 글 앞에(뒤로 깔�
   assert.ok(Math.abs(rects[2].h - 20 * 0.4) < 1e-9 && Math.abs(rects[2].y + rects[2].h - (texts[0].y + 20 * 0.2)) < 1e-9, '형광 띠 = 상자(0.8em/0.2em) 아래 40%');
   assert.equal(rects[1].h, 2, '취소선 두께 = CSS px × 배율(1)');
   assert.ok(rects.every((r) => r.sb === 0), '장식엔 그림자 0');
+});
+
+test('T14 RICHTEXT C4 — parseTextShadow · 조각 그림자 = 맨 뒤 것부터 화면 밖 글 + 옮긴 그림자 · 글은 마지막에 원래 상태', async () => {
+  const { parseTextShadow } = await import('../../js/fx/anim-gif-text.js');
+  assert.deepEqual(parseTextShadow('rgb(255, 0, 255) 0px 0px 5.88px, rgba(0, 0, 0, 0.5) 2px -3px 14px'), [
+    { color: 'rgb(255, 0, 255)', x: 0, y: 0, blur: 5.88 }, { color: 'rgba(0, 0, 0, 0.5)', x: 2, y: -3, blur: 14 }]);
+  for (const v of ['none', '', undefined]) assert.equal(parseTextShadow(v), null);
+  const G = Object.freeze({ color: '#111', weight: '700', italic: false, sizeK: 1, shadows: parseTextShadow('rgb(255, 0, 255) 0px 0px 4px, rgb(0, 0, 255) 1px 2px 10px') });
+  const ctx = fakeCtx(); ctx.shadowColor = 'keep'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+  drawTracks(ctx, 480, 200, { ...STYLE, text: 'a g', cs: [null, null, G], fontSize: 20 }, 20, [{ line: 0, fx: 'fade-in', at: 0, dur: 100 }], 100);
+  const t = ctx.calls.filter((c) => c.op === 'text');
+  const gx = t.at(-1).x;
+  assert.deepEqual(t.map((c) => [c.s, c.sc, c.sb, c.x === gx ? 'x' : c.x - gx, c.sox, c.soy]), [
+    ['a ', 'keep', 0, t[0].x - gx, 0, 0],
+    ['g', 'rgb(0, 0, 255)', 10, -10000, 10001, 2],
+    ['g', 'rgb(255, 0, 255)', 4, -10000, 10000, 0],
+    ['g', 'keep', 0, 'x', 0, 0],
+  ], `★그림자 층 ${JSON.stringify(t)}`);
 });

@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
-import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs } from './fx/anim-gif-text.js';
+import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs, parseTextShadow } from './fx/anim-gif-text.js';
 import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
@@ -233,7 +233,8 @@ function _extractCs(el, text) {
   return cs.some(Boolean) ? cs : null;
 }
 /* 한 요소의 조각 스타일(계산된 스타일) — 블럭 글 요소와 다 같으면 null.
-   C2 글자색·굵기·기울임·크기 비 · C3 밑줄(ul)·취소선(lt)·형광펜(hl · span.tb-hl 변수)·배경색(bg · 옛 hiliteColor span). */
+   C2 글자색·굵기·기울임·크기 비 · C3 밑줄(ul)·취소선(lt)·형광펜(hl · span.tb-hl 변수)·배경색(bg · 옛 hiliteColor span) ·
+   C4 그림자(shadows · text-shadow 는 상속 ⇒ host 의 계산값 하나가 범위 글로우 span.tb-glow · 블럭 글로우 · Shadow 절을 다 담는다). */
 const _italic = (cs) => /italic|oblique/.test(cs.fontStyle || '');
 const _cssVar = (c, name) => String((c.getPropertyValue && c.getPropertyValue(name)) || '').trim();
 const _line = (c) => ({
@@ -244,7 +245,7 @@ const _line = (c) => ({
 function _runStyle(host, el) {
   const h = window.getComputedStyle(host), b = window.getComputedStyle(el);
   const sizeK = (parseFloat(h.fontSize) || 0) / (parseFloat(b.fontSize) || 1) || 1;
-  const st = { color: h.color, weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK, ul: null, lt: null, hl: null, bg: null };
+  const st = { color: h.color, weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK, ul: null, lt: null, hl: null, bg: null, shadows: parseTextShadow(h.textShadow) };
   // 장식선은 상속되지 않고 «그은 요소»가 그 안 글 전체에 긋는다 ⇒ host 에서 el 까지 거슬러 그 요소의 색·두께·위치
   for (let n = host; n; n = n === el ? null : n.parentElement) {
     const c = n === host ? h : n === el ? b : window.getComputedStyle(n), line = c.textDecorationLine || '';
@@ -257,7 +258,7 @@ function _runStyle(host, el) {
     const c = window.getComputedStyle(hl), hv = _cssVar(c, '--tb-hl-h');
     st.hl = { color: _cssVar(c, '--tb-hl-color'), h: hv.endsWith('%') ? { pct: parseFloat(hv) / 100 } : { px: parseFloat(hv) || 0 }, y: parseFloat(_cssVar(c, '--tb-hl-y')) || 0 };
   }
-  if (st.color === b.color && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1 && !st.ul && !st.lt && !st.hl && !st.bg) return null;
+  if (st.color === b.color && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1 && !st.ul && !st.lt && !st.hl && !st.bg && !st.shadows) return null;
   return Object.freeze(st);
 }
 
