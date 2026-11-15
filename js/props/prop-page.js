@@ -837,13 +837,17 @@ export function showPageProperties() {
       /* ★이중 안전장치 — 버튼이 어떤 이유로든 낡은 채 활성으로 남아도 «0개를 내보냅니다»를
          묻지는 않는다. 조용히 끝내지 않고 이유를 말한다. */
       if (secCount === 0) { _exportSync(); window.showToast?.('내보낼 섹션이 없습니다'); return; }
-      if (!confirm(`전체 ${secCount}개 섹션을 내보냅니다. 계속할까요?`)) return;
+      /* ⛔네이티브 confirm() 금지 — 렌더러가 멈춘다(EXPORT-ALL-SECTIONS-NATIVE-CONFIRM-FREEZE-01 · 현빈 261115).
+         묻지 않고 바로 시작하고, 진행은 앱 안 스피너 모달(export-result-modal.js — 섹션·Export 메뉴와 같은 창)로 보인다. */
       _exporting = true;
       pageExportBtn.disabled = true;
       pageExportBtn.textContent = '내보내는 중...';
+      window.showExportProgress?.(secCount, { format: fmt, width: w });
       try {
         const res = await window.exportAllSections(fmt, w, (i, total) => {
           pageExportBtn.textContent = `내보내는 중... (${i}/${total})`;
+          const sec = canvasEl.querySelectorAll('.section-block:not([data-ghost])')[i - 1];
+          window.stepExportProgress?.(i, total, sec?._name || sec?.dataset?.name || '');
         });
         // ★결과는 «모달 하나»로만 말한다(현빈 「결과 모달도 떠야」).
         //   2초짜리 토스트에 「어느 섹션이 왜」를 담을 수 없다 — 담으면 사라진 뒤 행동이 안 남는다.
@@ -852,6 +856,7 @@ export function showPageProperties() {
         console.error('[export] 전체 내보내기 실패:', err);
         window.showToast?.('⚠️ 내보내기 실패: ' + (err?.message || err));
       } finally {
+        window.closeExportProgress?.();   // 결과 모달이 스스로 닫지만, 예외·결과 모달 부재에서도 스피너를 남기지 않는다
         pageExportBtn.textContent = '전체 섹션 내보내기';
         _exporting = false;
         _exportSync();   // ★«무조건 false» 로 되돌리지 않는다 — 내보내는 사이 섹션이 다 지워졌을 수 있다

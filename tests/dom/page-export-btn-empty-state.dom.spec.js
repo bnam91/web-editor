@@ -17,6 +17,10 @@
  *   T4 ★버튼이 낡은 채 활성이어도 confirm 「0개를 내보냅니다」는 안 뜬다(이중 안전장치).
  *   T5 옵저버가 쌓이지 않는다 — 패널을 여러 번 열어도 하나만 산다.
  *   T6 ★내보내는 «동안»엔 옵저버가 버튼을 다시 켜지 않는다(export 경로가 캔버스를 만진다).
+ *   T7 ★네이티브 대화상자 0회 + 앱 안 스피너 모달이 «1/3 → 2/3 → 3/3» 갱신 · 끝나면 닫힘 · 실패면 토스트+닫힘
+ *      (EXPORT-ALL-SECTIONS-NATIVE-CONFIRM-FREEZE-01 · 현빈 261115 — confirm() 이 렌더러를 멈췄다)
+ *      양성대조: prop-page.js 에 confirm(...) 줄을 되살리면 dialogs 1 · 진행 0칸으로 빨강 ·
+ *                showExportProgress 줄을 빼면 진행 칸이 null 로 빨강.
  *
  * ⛔앱을 «안» 띄운다 — index.html + 레포 파일만 크로미움에 얹는다.
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js page-export-btn-empty-state
@@ -184,5 +188,43 @@ test('T6 ★내보내는 «동안»에는 옵저버가 버튼을 다시 켜지 �
   expect(r.midText).toBe('내보내는 중...');
   expect(r.after, '끝난 뒤에는 지금 섹션 수 기준으로 되살아난다').toBe(false);
   expect(r.afterText).toBe('전체 섹션 내보내기');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('T7 ★네이티브 대화상자 0회 — 진행은 앱 안 스피너 모달(1/3→3/3) · 끝나면 닫힘 · 실패면 토스트+닫힘', async ({ page }) => {
+  const errs = await boot(page);
+  const dialogs = [];
+  page.on('dialog', (d) => { dialogs.push(d.type() + ':' + d.message()); d.dismiss().catch(() => {}); });   // ★진짜 네이티브 대화상자를 센다(가짜 confirm 대입 아님)
+  await page.addScriptTag({ url: '/js/export-result-modal.js' });   // 하네스가 <script> 를 걷었다 — 공용 진행 모달만 얹는다
+  await setSections(page, 3);
+  const run = (mode) => page.evaluate(async (mode) => {
+    const b = document.getElementById('page-export-all-btn');
+    const steps = [], toasts = [];
+    window.showToast = (m) => toasts.push(String(m));
+    window.exportAllSections = async (_f, _w, onP) => {
+      for (let i = 1; i <= 3; i++) {
+        onP(i, 3);
+        steps.push(document.querySelector('#exres-progress .exres-progtext')?.textContent ?? null);
+        await new Promise(r => requestAnimationFrame(r));
+      }
+      if (mode === 'fail') throw new Error('T7-boom');
+      return { total: 3, failed: [], results: [] };
+    };
+    b.click();
+    await new Promise((res) => { const t = () => (b.textContent === '전체 섹션 내보내기' ? res() : requestAnimationFrame(t)); requestAnimationFrame(t); });
+    return { steps, toasts, progressLeft: !!document.getElementById('exres-progress') };
+  }, mode);
+  const ok = await run('ok');
+  console.log('  T7 ok:', ok, dialogs);
+  expect(dialogs, '★네이티브 대화상자가 떴다 — 렌더러가 멈춘다').toEqual([]);
+  expect(ok.steps, '앱 안 진행 표시가 섹션마다 갱신').toEqual(['1 / 3 처리 중', '2 / 3 처리 중', '3 / 3 처리 중']);
+  expect(ok.progressLeft, '끝났는데 스피너가 남았다').toBe(false);
+  expect(ok.toasts.filter(t => /실패/.test(t)), '성공 길에 실패 토스트').toEqual([]);
+  await page.evaluate(() => document.getElementById('exres-modal')?.remove());
+  const bad = await run('fail');
+  console.log('  T7 fail:', bad, dialogs);
+  expect(dialogs).toEqual([]);
+  expect(bad.progressLeft, '실패했는데 스피너가 남았다').toBe(false);
+  expect(bad.toasts.some(t => t.includes('내보내기 실패') && t.includes('T7-boom')), '실패는 앱 안 토스트로').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
