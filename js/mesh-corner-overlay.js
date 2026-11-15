@@ -5,7 +5,6 @@
 // 붙이는 자리·동기화는 gradient-line-overlay.js 와 같다: #canvas-scaler 끝의 포털(섹션 안에 붙이면 자식 블록 밑에 깔린다),
 //   rAF 로 상자를 따라가고, 크기는 --inv-zoom 을 곱한다. 끌기 한 번 = ⌘Z 한 걸음(beginDragHistory).
 const SQ2 = Math.SQRT2;
-const BAND = 10;   // section-bottom-handle 높이(캔버스 px · css/section-bottom-handle.css) — 아래 두 점은 그 띠 위로 비켜 그린다
 
 (function injectStyle() {
   if (document.getElementById('mesh-corner-overlay-style')) return;
@@ -55,7 +54,7 @@ function _panelMark(k, cls) {
 function _render() {
   const { sec, ov } = S;
   const host = ov.parentElement;
-  const s = _scale(host), inv = 1 / s;
+  const s = _scale(host);
   const hr = host.getBoundingClientRect(), br = sec.getBoundingClientRect();
   const w = sec.offsetWidth, h = sec.offsetHeight;
   ov.style.left = (br.left - hr.left) / s + 'px';
@@ -64,11 +63,12 @@ function _render() {
   ov.style.height = h + 'px';
   const geo = window.meshGeoOf(sec);
   const corners = window.meshCornersOf(sec.dataset.bgMesh);
-  const r = 8 * inv;
   S.pts = geo.map((g, i) => {
     const x = g.x / 100 * w;
-    let y = g.y / 100 * h;
-    if (y + r > h - BAND && y - r < h) y = h - BAND - r;   // 지디 위험 대응 — 바닥 높이 손잡이 띠와 겹치지 않게 안쪽으로(값은 그대로)
+    /* 아래 점도 위 점처럼 값 자리(섹션 경계)에 그린다 — 현빈 261115 «아래 점도 위 점처럼 맞춰라»(MESH-BOTTOM-HANDLES-ABOVE-EDGE-01).
+       ⚰️옛: 바닥 높이 손잡이 띠(10px)와 겹치지 않게 h − 10 − 8/줌 으로 비켜 그려 12~18px 위에 떴다. 점(z 120 포털)이 덮는 건 점 지름만큼이고
+       띠의 나머지는 손잡이가 그대로 받는다(DOM C8). */
+    const y = g.y / 100 * h;
     const d = S.dots[i];
     d.style.left = x + 'px';
     d.style.top = y + 'px';
@@ -81,7 +81,7 @@ function _render() {
   S.rad.hidden = S.ring.hidden = i == null;
   if (i != null) {
     const g = geo[i], { x: cx, y: cy } = S.pts[i], rx = g.rx / 100 * w, ry = g.ry / 100 * h;
-    // 고리·□ 는 비켜 그린 점 자리(S.pts)를 따른다 · □ = 타원 위 45° 자리(상자 가운데 쪽) — 끌면 rx·ry 가 따로 움직인다
+    // 고리·□ 는 그린 점 자리(S.pts)를 따른다 · □ = 타원 위 45° 자리(상자 가운데 쪽) — 끌면 rx·ry 가 따로 움직인다
     S.rad.style.left = cx + (g.x <= 50 ? 1 : -1) * rx / SQ2 + 'px';
     S.rad.style.top = cy + (g.y <= 50 ? 1 : -1) * ry / SQ2 + 'px';
     Object.assign(S.ring.style, { left: cx - rx + 'px', top: cy - ry + 'px', width: 2 * rx + 'px', height: 2 * ry + 'px' });

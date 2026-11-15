@@ -8,7 +8,7 @@
  * C5 끌기 한 번 = ⌘Z 한 걸음 (끌기 둘 = 두 걸음)
  * C6 저장 → 다시 열기: geo·그림 그대로 · 오버레이 0 · data-bg-mesh 무변
  * C7 Delete = 고른 모서리만 기본 · 섹션 안 지워짐 · 모두 기본이면 속성이 사라지고 CSS 가 옛 글자
- * C8 아래 두 점이 섹션 바닥 손잡이와 안 겹친다(점을 띠 위로 비켜 그림)
+ * C8 아래 두 점도 위 두 점처럼 섹션 경계에(현빈 261115 · 옛 «띠 위로 비켜 그림» 뒤집음) · 바닥 손잡이는 점 밖에서 그대로 · 아래 점 클릭 = 그 점
  * C9 메시를 끄는 네 길(배경색 · setSectionBg · 그라데이션 어댑터 · 메시 단추)이 geo 도 지운다
  * C10 틀린 geo 는 버리고 기본 모서리로 그린다(메시는 4겹 그대로)
  * 하네스 = _root-harness bootApp. ⛔waitForTimeout 금지.
@@ -189,20 +189,25 @@ test('C7 Delete = 고른 모서리만 기본 · 섹션 그대로 · 모두 기�
   expect(errs).toEqual([]);
 });
 
-test('C8 아래 두 점은 섹션 바닥 손잡이와 안 겹친다 — 겹치던 자리는 손잡이가 받는다', async ({ page }) => {
+test('C8 아래 두 점도 위 두 점처럼 섹션 경계에 — 점 중심 = 모서리 ±1px · 바닥 손잡이는 점 밖에서 그대로 받는다 · 아래 점을 누르면 그 점', async ({ page }) => {
+  /* 현빈 261115 «아래 점도 위 점처럼 맞춰라»(MESH-BOTTOM-HANDLES-ABOVE-EDGE-01) — 옛 C8(«아래 점은 손잡이 띠 위로 비켜 그림»)을 결정이 뒤집어 반대로 바꿨다.
+     양성대조(예측): mesh-corner-overlay.js _render 에 옛 줄 `if (y + r > h - BAND && y - r < h) y = h - BAND - r;` 을 되살리면 → C8(bl·br 12~18px 위) 빨강 · R1 전제도 빨강 */
   const { errs, A } = await setup(page);
   await meshOn(page, A);
-  for (const k of ['bl', 'br']) {
-    const r = await page.evaluate((k) => {
-      const d = document.querySelector(`.mesh-corner-dot[data-mesh-corner="${k}"]`).getBoundingClientRect();
-      const h = document.querySelector('.section-block.selected > .section-bottom-handle').getBoundingClientRect();
-      const x = Math.max(h.left + 1, Math.min(h.right - 1, d.left + d.width / 2));
-      const hit = document.elementFromPoint(x, h.top + h.height / 2);
-      return { gap: h.top - d.bottom, hit: hit?.className || '', dot: d.toJSON(), handle: h.toJSON() };
-    }, k);
-    expect(r.gap >= 0, `${k} 점 아래 끝이 손잡이 띠 위 (gap ${r.gap}) ${JSON.stringify(r)}`).toBe(true);
-    expect(r.hit, `${k} 점 아래 띠 = 손잡이`).toContain('section-bottom-handle');
+  const sr = await page.evaluate((i) => document.getElementById(i).getBoundingClientRect().toJSON(), A);
+  const want = { tl: [sr.left, sr.top], tr: [sr.right, sr.top], br: [sr.right, sr.bottom], bl: [sr.left, sr.bottom] };
+  for (const k of K) {
+    const p = await dotPt(page, k);
+    expect(near(p.x, want[k][0], 1) && near(p.y, want[k][1], 1), `★${k} 점 ${p.x.toFixed(1)},${p.y.toFixed(1)} · 모서리 ${want[k].map((v) => v.toFixed(1))}`).toBe(true);
   }
+  const hit = await page.evaluate(() => {
+    const h = document.querySelector('.section-block.selected > .section-bottom-handle').getBoundingClientRect();
+    return document.elementFromPoint(h.left + h.width / 2, h.top + h.height / 2)?.className || '';
+  });
+  expect(hit, '바닥 손잡이 띠 가운데(점 밖) = 손잡이').toContain('section-bottom-handle');
+  const bl = await dotPt(page, 'bl');
+  await page.mouse.click(bl.x, bl.y);
+  await expect.poll(() => selCorner(page), '아래 점을 누르면 그 점이 잡힌다(손잡이 아님)').toBe('bl');
   expect(errs).toEqual([]);
 });
 
@@ -283,12 +288,12 @@ test('F1 패널 입력칸에 포커스가 있어도 점을 누른 뒤 Delete = �
   expect(errs).toEqual([]);
 });
 
-test('R1 비켜 그린 아래 점: 고리 중심과 □ 가 그린 점을 따른다(±1px) · 값은 그대로', async ({ page }) => {
+test('R1 아래 점(섹션 바닥 경계): 고리 중심과 □ 가 그린 점을 따른다(±1px) · 값은 그대로', async ({ page }) => {
   const { errs, A } = await setup(page);
   await meshOn(page, A);
   const p = await dotPt(page, 'bl');
   const sb = await page.evaluate((i) => document.getElementById(i).getBoundingClientRect().bottom, A);
-  expect(sb - p.y > 5, `전제: bl 점이 바닥에서 비켜 그려졌다 (${sb - p.y})`).toBe(true);
+  expect(near(p.y, sb, 1), `전제: bl 점이 바닥 경계에 그려졌다 (${sb - p.y})`).toBe(true);   // 옛 전제(비켜 그림 > 5px)는 C8 결정으로 뒤집힘
   await page.mouse.click(p.x, p.y);
   await expect.poll(() => selCorner(page)).toBe('bl');
   await raf2(page);
