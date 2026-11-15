@@ -396,6 +396,7 @@ function _renderAutoPanel(ss) {
   const height = parseInt(ss.dataset.height) || (isShapeFrame ? 100 : 520);
   const minWidth = minVisibleWidth(ss, width);   /* ★그 술어 하나에서 — ⛔여기 수를 적지 않는다 */
   const shownW = Math.round(panelRenderedPx(ss, 'width')) || width;   // 칸 = 그려진 폭(섹션 안쪽 상한에 조여진 716 · dataset 860 아님) — FRAME-WIDTH-FIELD-SHOWS-UNCLAMPED-01 · 안 그려졌으면(auto) dataset
+  const shownH = Math.round(panelRenderedPx(ss, 'height')) || height;   // 칸 = 그려진 높이(옛 템플릿 data-height=100 은 «바닥» · 글 따라 345) — LEGACY-TPL-FRAME-PANEL-HEIGHT-SHOWS-FLOOR-01 · 안 그려졌으면 dataset
   const hasBgImg = ss.style.backgroundImage && ss.style.backgroundImage !== 'none';
   /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 배경 절의 «체크 배경»·«체커 어둡게»를 그대로(prop-section.js · 같은 키·문구·어휘 · id 만 ss-*). */
   const _bgEmpty = ss.dataset.bgImgEmpty === '1';
@@ -600,8 +601,8 @@ function _renderAutoPanel(ss) {
       </div>
       <div class="prop-row">
         <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="ss-height-slider" min="100" max="1200" step="10" value="${height}">
-        <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${height}">
+        <input type="range" class="prop-slider" id="ss-height-slider" min="100" max="1200" step="10" value="${shownH}">
+        <input type="number" class="prop-number" id="ss-height-num" min="100" max="1200" value="${shownH}">
       </div>
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
