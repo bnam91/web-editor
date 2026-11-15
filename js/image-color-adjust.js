@@ -527,6 +527,7 @@ function showColorAdjustPanel(host, opts = {}) {
 
   panel.style.display = 'flex';
   if (!_panelPos) _avoidHandles(panel, host);
+  _reavoidAvoidedPk = null;   // 진입 비키기가 새 기준 — 옛 판의 «비킨 자리 기준»을 들고 오지 않는다
   if (!_reavoidRaf) _reavoidRaf = requestAnimationFrame(_reavoidTick);
 
   // 이미 적용된 필터가 있으면 SVG 필터 노드가 살아있는지 보장
@@ -587,20 +588,24 @@ function _avoidHandles(panel, host) {
 
 /* IMAGE-EDIT-PANEL-NOT-REAVOID-ON-ZOOM-01 — 패널이 떠 있는 동안 배율·스크롤이 바뀌면 같은 비키기 셈(_avoidHandles)을 다시 부른다
    (옛 판은 진입 때만 자리를 정해 40→55% 로 키우면 rc 손잡이가 패널 아래로 들어갔다).
-   배율 직후엔 #canvas-scaler transform 보간(.15s) 중이라 rect 가 중간값 ⇒ 바뀐 뒤 손잡이 자리가 «멈출 때까지» 프레임마다 다시 잰다.
+   ★정착은 «시간 기준»(지디 261116 실측 ⑵): #canvas-scaler transform 보간(.15s)은 applyZoom 직후 첫 두 프레임이 «같은 값»이고
+     (13ms·15ms 954,198 → 20ms 부터 움직임) 프레임 간격이 100ms 까지 벌어진다 ⇒ «한 프레임 안 바뀜 = 멈춤»으로 끝내면 보간 전에 끝났다(c1d291a02 경합).
+     ⇒ 마지막 표(배율·스크롤) 변화 뒤 _REAVOID_SETTLE_MS 가 지나고 «그 프레임에도» 손잡이 자리가 안 바뀌었을 때만 끝낸다.
+     그동안 손잡이 자리가 «마지막으로 비킨 자리 기준»과 달라지는 프레임마다 다시 비킨다. 스크롤만 바뀐 경우(보간 없음)도 같은 길.
    그림 끌기·크기 바꾸기(배율·스크롤 무변)엔 안 움직인다(끄는 중 패널이 튀지 않게) · 사용자가 옮긴 자리(_panelPos)는 안 건드린다. */
-let _reavoidRaf = null, _reavoidZk = null, _reavoidPk = null, _reavoidSettling = false;
-function _reavoidTick() {
+const _REAVOID_SETTLE_MS = 250;   // 보간 .15s + 프레임 간격 여유(실측 최대 ~100ms 벌어짐)
+let _reavoidRaf = null, _reavoidZk = null, _reavoidZkAt = 0, _reavoidPk = null, _reavoidAvoidedPk = null, _reavoidSettling = false;
+function _reavoidTick(now) {
   const panel = document.getElementById('color-adjust-panel');
   if (!panel || panel.style.display === 'none' || !_currentAb) { _reavoidRaf = null; _reavoidZk = null; _reavoidSettling = false; return; }
   const wrap = document.getElementById('canvas-wrap');
   const zk = `${window.currentZoom}|${wrap?.scrollTop}|${wrap?.scrollLeft}`;
-  if (_reavoidZk !== null && zk !== _reavoidZk) _reavoidSettling = true;
+  if (_reavoidZk !== null && zk !== _reavoidZk) { _reavoidSettling = true; _reavoidZkAt = now; }
   _reavoidZk = zk;
   if (_reavoidSettling && !_panelPos) {
     const pk = _handleCorners(_currentAb).map(([x, y]) => Math.round(x) + ',' + Math.round(y)).join(' ');
-    if (pk !== _reavoidPk) { panel.style.top = ''; panel.style.bottom = ''; _avoidHandles(panel, _currentAb); }
-    else _reavoidSettling = false;   // 손잡이가 멈췄다 — 직전 프레임의 비키기가 지금 자리 기준이다
+    if (pk !== _reavoidAvoidedPk) { panel.style.top = ''; panel.style.bottom = ''; _avoidHandles(panel, _currentAb); _reavoidAvoidedPk = pk; }
+    if (now - _reavoidZkAt >= _REAVOID_SETTLE_MS && pk === _reavoidPk) _reavoidSettling = false;
     _reavoidPk = pk;
   }
   _reavoidRaf = requestAnimationFrame(_reavoidTick);

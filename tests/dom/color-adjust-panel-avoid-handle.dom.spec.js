@@ -189,3 +189,71 @@ test('Z2 [음성] 배율·스크롤 무변(그림만 옮김) — 패널은 그 �
   expect(r, '배율·스크롤이 안 바뀌었는데 패널이 움직였다(끄는 중 튐)').toEqual(['', '']);
   expect(await coveredNow(page), '[전제] 이 칸은 «덮였는데도» 그대로인지를 잰다').toEqual(['rc']);
 });
+
+/* ── Z3 (지디 261116 실앱 ❌ 재발주) — c1d291a02 의 «한 프레임 안 바뀜 = 정착» 은 #canvas-scaler transform 보간(.15s)의 첫 두 프레임이
+ *   같은 값이라 보간 «전에» 끝났다(경합 · Z1 은 fixed 대역이라 보간이 없어 못 잡았다).
+ *   여기선 그림을 «캔버스 안»(#canvas-scaler 아래)에 둬 진짜 보간을 그대로 탄다 — [전제] transition-duration 0.15s 실값.
+ *   단계(지디 실앱 순서): 40→55→65→80→100 → (100 에서 스크롤만 +300 · 보간 없음) → 80→55. 단계마다 «정착»(scaler 애니메이션 0 + 그림 rect 8 프레임 무변)
+ *   직후 패널 top/bottom 이 «그 자리에서 새로 연 셈»(hide→show = 진입 비키기)과 정확히 같아야 한다.
+ *   양성대조(IMAGE-ZOOM2-CTL.patch = c1d291a02 의 _reavoidTick 으로 되돌림): 어느 단계에서 패널이 보간 중 자리에 남아 Z3 빨강 · Z1·Z2 초록. */
+test('Z3 ★실제 보간(.15s) 그대로 — 배율·스크롤 단계마다 정착 직후 자리 = 새로 연 셈', async ({ page }) => {
+  test.setTimeout(120000);
+  await setup(page);
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const pre = await page.evaluate((PNG1) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    c.insertAdjacentHTML('beforeend', `<div class="section-block" id="zS" data-section="1"><div class="section-hitzone"></div><div class="section-inner">
+      <div class="row" data-layout="stack"><div class="asset-block has-image" id="zA" style="width:780px;height:1400px"><div class="asset-img-clip">
+      <img class="asset-img" src="${PNG1}" style="width:100%;height:100%;object-fit:cover"></div></div></div></div></div>`);
+    window.rebindAll?.(); window.applyZoom(40);
+    window.hideColorAdjustPanel(); window.showColorAdjustPanel(document.getElementById('zA'));
+    return { dur: getComputedStyle(document.getElementById('canvas-scaler')).transitionDuration, img: !!document.querySelector('#zA .asset-img') };
+  }, PNG1);
+  expect(pre, '[전제] 보간 실값 0.15s · 그림 있음').toEqual({ dur: '0.15s', img: true });
+
+  /* 정착 — scaler 애니메이션 0 이고 그림 rect 가 8 프레임 연속 같을 때까지 rAF 로 잰다(고정 대기 아님) */
+  const settle = () => page.evaluate(() => new Promise((res) => {
+    const sc = document.getElementById('canvas-scaler'), im = document.querySelector('#zA .asset-img');
+    let last = '', same = 0;
+    const f = () => {
+      const r = im.getBoundingClientRect(), k = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
+      same = (k === last && sc.getAnimations().length === 0) ? same + 1 : 0; last = k;
+      if (same >= 8) res(); else requestAnimationFrame(f);
+    };
+    requestAnimationFrame(f);
+  }));
+  /* 지금 패널 자리 · 기본 자리에서 덮는 수 · «새로 연 셈» 자리 */
+  const judge = () => page.evaluate(() => {
+    const panel = document.getElementById('color-adjust-panel'), host = document.getElementById('zA');
+    const cnt = () => {
+      const p = panel.getBoundingClientRect(), r = host.querySelector('.asset-img').getBoundingClientRect();
+      const k = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]], m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      return [...k, m(k[0], k[1]), m(k[1], k[3]), m(k[2], k[3]), m(k[0], k[2])]
+        .filter(([x, y]) => x + 4 > p.left && x - 4 < p.right && y + 4 > p.top && y - 4 < p.bottom).length;
+    };
+    const now = { top: panel.style.top, bottom: panel.style.bottom, covered: cnt() };
+    const keep = [panel.style.top, panel.style.bottom];
+    panel.style.top = ''; panel.style.bottom = ''; const defCov = cnt(); [panel.style.top, panel.style.bottom] = keep;
+    window.hideColorAdjustPanel(); window.showColorAdjustPanel(host);   // 같은 자리에서 진입 비키기 = 기준
+    return { now, fresh: { top: panel.style.top, bottom: panel.style.bottom, covered: cnt() }, defCov, zoom: window.currentZoom, scroll: document.getElementById('canvas-wrap').scrollTop };
+  });
+
+  await settle();
+  const log = [];
+  const steps = [['zoom', 55], ['zoom', 65], ['zoom', 80], ['zoom', 100], ['scroll', 300], ['zoom', 80], ['zoom', 55]];
+  for (const [kind, v] of steps) {
+    const s0 = await page.evaluate(() => document.getElementById('canvas-wrap').scrollTop);
+    if (kind === 'zoom') await page.evaluate((z) => window.applyZoom(z), v);
+    else await page.evaluate((dy) => { document.getElementById('canvas-wrap').scrollTop += dy; }, v);
+    await settle();
+    const j = await judge();
+    log.push({ kind, v, s0, ...j });
+    await settle();   // judge 의 hide→show 뒤 — 다음 단계는 정착한 자리에서 시작
+  }
+  console.log('  Z3:', JSON.stringify(log));
+  expect(log.find((l) => l.kind === 'scroll').scroll, '[전제] 스크롤 단계가 실제로 스크롤했다').not.toBe(log.find((l) => l.kind === 'scroll').s0);
+  expect(log.some((l) => l.defCov > 0), '[전제] 기본 자리가 손잡이를 덮는 단계가 하나 이상(비키기가 실제로 일한다)').toBe(true);
+  for (const l of log) {
+    expect({ top: l.now.top, bottom: l.now.bottom }, `★${l.kind} ${l.v}: 정착 직후 자리 ≠ 새로 연 셈 ${JSON.stringify(l)}`).toEqual({ top: l.fresh.top, bottom: l.fresh.bottom });
+  }
+});
