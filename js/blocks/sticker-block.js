@@ -691,8 +691,9 @@ function _markLayers(block, { isBurst, textColor, fontSize }) {
     svg = `<svg class="stk-mark" viewBox="0 0 100 100" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;">`
       + (bw && !isBurst ? `<circle cx="50" cy="50" r="${(50 - bw / 2).toFixed(2)}" fill="none" stroke="${bc}" stroke-width="${bw}"/>` : '')
       + (bw && isBurst ? `<circle cx="50" cy="50" r="${(burstRingR({ depth: d.burstDepth }) + 4).toFixed(2)}" fill="none" stroke="${bc}" stroke-width="${bw}"/>` : '')
-      + (ring ? `<defs><path id="${id}" d="M 50,50 m -${r},0 a ${r},${r} 0 1,1 ${r * 2},0 a ${r},${r} 0 1,1 -${r * 2},0"/></defs>`
-        + `<text font-size="${rs}" font-weight="700" fill="${rc}" letter-spacing="1"><textPath href="#${id}" startOffset="25%" text-anchor="middle">${escHtml(ring)}</textPath></text>` : '')
+      /* 경로 시작 = 6시 · 12시 = 50% — 9시 시작 + 25% 면 글 반 길이 > 둘레 25% 일 때 첫 글자가 경로 앞(음수)으로 빠져 안 그려졌다(톱니 «PREMIUM QUALITY» → «REMIUM…») · liner-transform 원형과 같은 꼴 */
+      + (ring ? `<defs><path id="${id}" d="M 50,50 m 0,${r} a ${r},${r} 0 1,1 0,-${r * 2} a ${r},${r} 0 1,1 0,${r * 2}"/></defs>`
+        + `<text font-size="${rs}" font-weight="700" fill="${rc}" letter-spacing="1"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${escHtml(ring)}</textPath></text>` : '')
       + `</svg>`;
   }
   const subHtml = sub ? `<span class="sticker-sub" style="display:block;font-size:${Math.max(8, Math.round(fontSize * 0.42))}px;font-weight:600;opacity:0.85;margin-top:0.25em;letter-spacing:0.04em;">${escHtml(sub)}</span>` : '';
