@@ -951,7 +951,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     // ── MOCKUP (mockup-block) : 디바이스 프레임 이미지 ──
     if (el.classList.contains('mockup-block')) {
       const img = el.querySelector('img');
-      return {
+      const out = {
         type: 'mockup', id: el.id || '',
         imgSrc: img ? img.src : '',
         width: parseInt(el.dataset.width) || 575,
@@ -959,6 +959,16 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         offsetY: parseInt(el.dataset.offsetY) || 0,
         height: Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 400),
       };
+      /* FIGMA-EXPORT-MOCKUP-SCREEN-MISSING-01 — 화면 그림은 <img> 가 아니라 .mkp-screen 배경(applyMockupScreenImage · 정본 dataset.imgSrc)이라
+         위 img(틀 PNG)만 실려 Figma 화면이 검었다. 그림이 있을 때만 screen 을 싣는다(없으면 옛 바이트) · 자리 = .mkp-screen 의 % 상자 그대로.
+         goya-asset:// 는 inlineGoyaAssetsInJSON(모든 문자열을 돈다)이 data URI 로 바꾼다. */
+      const _scr = el.querySelector('.mkp-screen');
+      if (el.dataset.imgSrc && _scr) {
+        const pct = (v) => parseFloat(v) || 0;
+        out.screen = { src: el.dataset.imgSrc, l: pct(_scr.style.left), t: pct(_scr.style.top), w: pct(_scr.style.width), h: pct(_scr.style.height),
+          radius: String(_scr.style.borderRadius || '') };
+      }
+      return out;
     }
     // ── LINER (liner-block) : 곡선텍스트 → 렌더된 SVG 그대로 임베드 ──
     if (el.classList.contains('liner-block')) {
@@ -1112,6 +1122,20 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         width: w, height: h || 0, bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
         svg: [...el.querySelectorAll('svg')].find(s => _notKid(s) && !s.closest('.itb-icon'))?.outerHTML || '', texts,   /* ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01 — .itb-icon 안 svg 는 편집 자리표시뿐(고른 아이콘·사진은 img) */
       };
+      /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(<img class="grd-img">)은 위 svg·texts 어디에도 안 실려 Figma 엔 빈 프레임이었다.
+         그리드일 때만 · 그림이 있을 때만 images 를 싣는다(없으면 옛 바이트). 자리는 «살아 있는 문서»에서 블럭 왼위 기준 레이아웃 px(화면 사각형 ÷ 배율)
+         — 자식(G19 그릇 안) 그림은 자식 블럭이 따로 싣는다(살아 있는 그릇 _lkb 로 거름). 원 모양은 circle. */
+      if (el.classList.contains('grid-block')) {
+        const _lg = el.id ? document.getElementById(el.id) : null;
+        const _gr = _lg && _lg.getBoundingClientRect(), _gz = _gr ? (_gr.width / (_lg.offsetWidth || 1)) || 1 : 1;
+        const _lkb = _lg && _kidsBoxOf(_lg);   // el 은 복제본일 수 있다 — 자식 그릇은 살아 있는 그리드에서 다시 찾는다
+        const images = _lg ? [..._lg.querySelectorAll('img.grd-img')].filter((im) => (!_lkb || !_lkb.contains(im)) && im.getAttribute('src')).map((im) => {
+          const r = (im.closest('.grd-img-frame') || im).getBoundingClientRect();
+          return { src: im.getAttribute('src'), x: Math.round((r.left - _gr.left) / _gz), y: Math.round((r.top - _gr.top) / _gz),
+            w: Math.round(r.width / _gz), h: Math.round(r.height / _gz), circle: !!im.closest('.grd-img-circle') };
+        }) : [];
+        if (images.length) out.images = images;
+      }
       /* Q11(현빈 261112) — 래디얼 「내용 자르기」 끔이면 clip:false(켬 = 키 없음 = 옛 바이트). ⚠️figma-renderer generic 은 아직 «안 읽는다»(G17 border 와 같은 처지). */
       if (window.clipFamily?.(el) === 'radial' && window.clipsContent?.(el) === false) out.clip = false;
       /* ★G17 그리드 «블럭 외곽선» — 키(data-block-outline)가 있을 때만 `border` 를 싣는다(없으면 JSON 바이트 그대로).

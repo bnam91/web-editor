@@ -1281,6 +1281,19 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       const _sbg = run('create_frame', { x: mx, y: y + (block.offsetY || 0), width: w, height: h, name: `mockup_screenbg_${block.id || ''}`, parentId });
       if (_sbg) run('set_fill_color', { nodeId: _sbg.id, color: { r: 0.07, g: 0.07, b: 0.07, a: 1 } });
     }
+    /* FIGMA-EXPORT-MOCKUP-SCREEN-MISSING-01 — 화면 그림(보내는 쪽 block.screen · .mkp-screen 의 % 상자)을 틀 «아래» 층에 채운다.
+       shortcut: 화면 쪽은 CSS «top center / cover» 인데 Figma FILL 은 가운데 기준 자르기 — 화면보다 긴 그림이면 위아래 자르는 자리가 다르다. */
+    const _scr = block.screen;
+    if (_scr && typeof _scr.src === 'string' && _scr.src.startsWith('data:')) {
+      const sw = Math.max(1, Math.round(w * (_scr.w || 0) / 100)), sh = Math.max(1, Math.round(h * (_scr.h || 0) / 100));
+      const sn = run('create_frame', { x: mx + Math.round(w * (_scr.l || 0) / 100), y: y + (block.offsetY || 0) + Math.round(h * (_scr.t || 0) / 100), width: sw, height: sh, name: `mockup_screen_${block.id || ''}`, parentId });
+      if (sn) {
+        run('set_image_fill', { nodeId: sn.id, imageSource: _scr.src.split(',')[1], sourceType: 'base64', scaleMode: 'FILL' }, { timeout: 25000 });
+        const rr = String(_scr.radius || ''), rv = parseFloat(rr) || 0;
+        const rad = /%$/.test(rr) ? Math.round(Math.min(sw, sh) * rv / 100) : rv;   // shortcut: % 둥글기는 짧은 변 기준 한 값(CSS 는 가로·세로 따로)
+        if (rad > 0) run('set_corner_radius', { nodeId: sn.id, radius: rad });
+      }
+    }
     const frame = run('create_frame', { x: mx, y: y + (block.offsetY || 0), width: w, height: h, name: `mockup_${block.id || ''}`, parentId });
     if (!frame) return h;
     let b64 = '';
@@ -1368,6 +1381,15 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       if (bgc.startsWith('#') || bgc.startsWith('rgb')) run('set_fill_color', { nodeId: frame.id, color: hex(bgc) });
       else run('set_fill_color', { nodeId: frame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
+      /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(보내는 쪽 block.images · 블럭 왼위 기준 레이아웃 px)을 글 «아래» 층에 채운다 */
+      (block.images || []).forEach((im, i) => {
+        if (!im || typeof im.src !== 'string' || !im.src.startsWith('data:')) return;
+        const iw = Math.max(1, im.w || 1), ih = Math.max(1, im.h || 1);
+        const n = run('create_frame', { x: im.x || 0, y: im.y || 0, width: iw, height: ih, name: `gimg_${i}`, parentId: frame.id });
+        if (!n) return;
+        run('set_image_fill', { nodeId: n.id, imageSource: im.src.split(',')[1], sourceType: 'base64', scaleMode: 'FILL' }, { timeout: 25000 });
+        if (im.circle) run('set_corner_radius', { nodeId: n.id, radius: Math.round(Math.min(iw, ih) / 2) });
+      });
       const font = loadFontSafe('Pretendard', 'Regular');
       (block.texts || []).forEach((t, i) => {
         const tx = Math.max(0, t.x || 0), ty = Math.max(0, (typeof t.y === 'number' && t.y) ? t.y : i * 44);
