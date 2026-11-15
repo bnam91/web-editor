@@ -117,7 +117,20 @@
       "!debug",
       "!scripts/goditor_runner.js",
       "!main/claude-pm/skills",
-      "!tests"
+      "!tests",
+    "!docs",
+    "!scripts",
+    "!test-results",
+    "!playwright.config.js",
+    "!cdp-qa.mjs",
+    "!proto",
+    "!.review",
+    "!.userlens",
+    "!.claude",
+    "!.github",
+    "!.guard",
+    "!.tmp_removed",
+    "!js/CLAUDE.md"
     ]
   },
   "repository": {
