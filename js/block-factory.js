@@ -4689,8 +4689,12 @@ function updateGraphBlock(blockId, partial = {}) {
       }
       // 1012t1G4 — 마디·항목 모양 유실 방지(짝지은 옛 항목에서 옮긴다 · 짝 = js/graph-shape.js pairPrevItems · 옮기기 = carryItemExtras)
       const _o = { label, value: v };
-      const _pc = _prevFor[i] && _prevFor[i].color;   // GRAPH-MCP-UPDATE-DROPS-ITEM-COLOR-01 — 개별 색(단색·그라데이션 · 모델 값)도 짝지은 옛 항목에서(패널 syncItems·AI 채움과 같은 몫)
-      if (typeof _pc === 'string' && _pc) _o.color = _pc;
+      /* 짝지은 옛 항목의 모델 값 — 패널 syncItems(prop-graph.js)가 보존하는 것과 같은 몫. 그릴 때 각 렌더가 거른다.
+         color = 개별 색(단색·그라데이션 · GRAPH-MCP-UPDATE-DROPS-ITEM-COLOR-01) · value2 = bar-pair 둘째 시리즈 · img = 방사형 마커 샘플 키 */
+      const _pv = _prevFor[i] || {};
+      if (typeof _pv.color === 'string' && _pv.color) _o.color = _pv.color;
+      if (_pv.value2 !== undefined) _o.value2 = _pv.value2;
+      if (typeof _pv.img === 'string' && _pv.img) _o.img = _pv.img;
       norm.push(window.GRAPH_SHAPE.carryItemExtras(_o, _prevFor[i], it));
     }
     block.dataset.items = JSON.stringify(norm);
