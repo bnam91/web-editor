@@ -660,3 +660,4 @@ window.openAnimGifModal = openAnimModal;
 window.closeAnimModal   = closeAnimModal;
 window.setAnimPerLine   = setAnimPerLine;
 window.exportAnimGif    = exportAnimGif;
+window.restartAnimPreview = restartAnimPreview;   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)

@@ -20,6 +20,9 @@
  * 양성대조:
  *   · js/animation-engine.js _plan 의 V2 갈래를 지우면(`if (!V2_FX.includes(_animType))` → `if (true)`) V1·V2·V3 빨강(옛 _drawFrame 에 새 효과 갈래 없음 = 글 0) · V4 초록
  *   · js/fx/anim-gif-tracks.js FX.stamp 의 `_blur(ctx, m.blur)` 삭제 → V1(시작 흐림) 빨강
+ * S1 (GIF-SPEED-REPEAT-SLIDER-REFERENCEERROR-01) 진짜 속도 슬라이더 키보드 → 1.5x · 한 바퀴 0.80초 · 미리보기 rAF 새로 · 반복 fill(3) → 3회 · pageerror 0
+ *   양성대조: animation-engine.js `window.restartAnimPreview = …` 줄 삭제 → S1 빨강(pageerror «restartAnimPreview is not defined») · 단위 E7 도(srv 실측)
+ *   셀렉터: #anim-speed/#anim-speed-val/#anim-repeat/#anim-repeat-val/#anim-loop-info(index.html) · window.__cb(이 스펙 scene)
  * 셀렉터 대조(제품 소스 grep): #anim-list .anim-item[data-id](animation-engine.js _buildAnimList `data-id="${a.id}"`) · #anim-preview-canvas(index.html · 엔진 getElementById) · window.openAnimModal(엔진 끝)
  */
 const { test, expect } = require('@playwright/test');
@@ -192,5 +195,20 @@ test('I1 한 바퀴 안내 — 효과·줄별 길이와 GIF 프레임 수', asyn
   await setRow(page, 0, P076[0]);
   await setRow(page, 1, P076[1]);
   await expect(page.locator('#anim-loop-info')).toHaveText('한 바퀴 1.66초 · GIF 65프레임');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S1 속도·반복 슬라이더 — 진짜 키보드·fill 입력 뒤 pageerror 0 · 미리보기 다시 섬', async ({ page }) => {
+  const errs = await scene(page, TWO);
+  await pick(page, 'slide-up');
+  await expect(page.locator('#anim-loop-info'), '[전제] 속도 1 = 1200ms').toHaveText(/^한 바퀴 1\.20초/);
+  await page.evaluate(() => { window.__cbOld = window.__cb; });
+  await page.focus('#anim-speed');
+  await page.keyboard.press('ArrowRight');   // step 0.5 ⇒ 1.5
+  await expect(page.locator('#anim-speed-val')).toHaveText('1.5x');
+  await expect(page.locator('#anim-loop-info'), '★속도를 바꿨는데 미리보기가 다시 안 섰다').toHaveText(/^한 바퀴 0\.80초/);
+  expect(await page.evaluate(() => typeof window.__cb === 'function' && window.__cb !== window.__cbOld), '미리보기 rAF 새로').toBe(true);
+  await page.fill('#anim-repeat', '3');
+  await expect(page.locator('#anim-repeat-val')).toHaveText('3회');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

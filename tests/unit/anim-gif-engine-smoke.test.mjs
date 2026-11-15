@@ -9,6 +9,8 @@
  *   양성대조(예측): fitCanvasH 가 H 를 그대로 돌려주면(return H) E5 빨강(미리보기 56 · 줄 위끝 < 0).
  * E6(같은 신고 후속 · 화면 == 내보낸 것): 블럭 글 안쪽 폭에서 접는다 — 블럭에서 한 줄이면 미리보기·GIF 도 한 줄 · 두 줄 블럭은 두 줄(음성).
  *   양성대조(실측은 커밋 메시지): textBox 를 옛 규칙(좌우 5%)만 쓰게 하면 E6 한 줄 칸 빨강.
+ * E7(GIF-SPEED-REPEAT-SLIDER-REFERENCEERROR-01): index.html GIF 모달의 인라인 on* 이 부르는 함수 = 엔진이 window 에 붙인 함수(모듈이라 안 붙이면 ReferenceError).
+ *   양성대조(실측은 커밋 메시지): window.restartAnimPreview 줄 삭제 → E7 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -220,4 +222,22 @@ test('E6 블럭과 같은 줄바꿈 — 716 폭 72px: 블럭 한 줄(9.6em ≤ �
     assert.equal(out.join(' '), text, `★${fx} «${text}» GIF 저장 줄 ≠ 블럭 ${JSON.stringify(E.ctx.calls.slice(-3).map((c) => c.s))}`);
     window.closeAnimModal();
   }
+});
+
+test('E7 GIF 모달 인라인 on* 이 부르는 함수는 전부 window 에 있다(속도·반복 슬라이더 restartAnimPreview 포함) · 부르면 미리보기가 다시 선다', async () => {
+  const E = await loadEngine();
+  const html = read('index.html');
+  const modal = html.slice(html.indexOf('id="anim-gif-modal"'), html.indexOf('anim-export-btn') + 200);
+  assert.ok(modal.length > 500, '[전제] index.html 에서 GIF 모달 조각을 찾음');
+  const handlers = [...modal.matchAll(/\son\w+="([^"]*)"/g)].map((m) => m[1]);
+  const called = new Set(handlers.flatMap((h) => [...h.matchAll(/(?:^|[;\s])([A-Za-z_$][\w$]*)\(/g)].map((m) => m[1])));
+  assert.ok(called.has('restartAnimPreview'), `[전제] 슬라이더 인라인이 restartAnimPreview 를 부른다 ${[...called]}`);
+  for (const name of called) assert.equal(typeof window[name], 'function', `★인라인이 부르는 ${name} 이 window 에 없다(ReferenceError)`);
+  window.openAnimModal(E.tb);
+  const before = E.rafs.length;
+  E.els['anim-speed'].value = '2';
+  window.restartAnimPreview();
+  assert.equal(E.rafs.length, before + 1, '미리보기 rAF 다시 걸림');
+  assert.match(E.els['anim-loop-info'].textContent, /^한 바퀴 0\.60초/, '속도 2 = 1200ms/2 로 다시 셈');
+  window.closeAnimModal();
 });
