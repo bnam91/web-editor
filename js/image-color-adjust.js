@@ -544,30 +544,44 @@ function _handleCorners(host) {
   const img = findAdjTarget(host) || host;
   const r = img.getBoundingClientRect();
   const deg = parseFloat(host.closest?.('.asset-block')?.dataset.imgRotate || 0) || 0;
-  if (!deg || !img.offsetWidth) return [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
-  const zs = (window.currentZoom || 100) / 100, hw = img.offsetWidth * zs / 2, hh = img.offsetHeight * zs / 2;
-  const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2, c = Math.cos(deg * Math.PI / 180), s = Math.sin(deg * Math.PI / 180);
-  return [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]].map(([x, y]) => [cx + x * c - y * s, cy + x * s + y * c]);
+  let k;   // 꼭지 넷 [tl, tr, bl, br]
+  if (!deg || !img.offsetWidth) k = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+  else {
+    const zs = (window.currentZoom || 100) / 100, hw = img.offsetWidth * zs / 2, hh = img.offsetHeight * zs / 2;
+    const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2, c = Math.cos(deg * Math.PI / 180), s = Math.sin(deg * Math.PI / 180);
+    k = [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]].map(([x, y]) => [cx + x * c - y * s, cy + x * s + y * c]);
+  }
+  /* 변 손잡이 넷(tc·rc·bc·lc)도 손잡이다 — syncHandles 대로 «꼭지 사이 가운데». 꼭지만 재면 오른쪽 변 가운데(rc)를 덮었다
+     (IMAGE-EDIT-COLOR-PANEL-COVERS-EDGE-HANDLE-01). 세로 후보(_avoidHandles 의 min/max y)는 꼭지가 정하므로 무변. */
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  return [...k, mid(k[0], k[1]), mid(k[1], k[3]), mid(k[2], k[3]), mid(k[0], k[2])];
 }
-function _coversHandle(panel, host) {
+/** 패널이 덮는 손잡이 «수». */
+function _coveredCount(panel, host) {
   const p = panel.getBoundingClientRect();
-  return _handleCorners(host).some(([x, y]) =>
-    x + _HANDLE_PAD > p.left && x - _HANDLE_PAD < p.right && y + _HANDLE_PAD > p.top && y - _HANDLE_PAD < p.bottom);
+  return _handleCorners(host).filter(([x, y]) =>
+    x + _HANDLE_PAD > p.left && x - _HANDLE_PAD < p.right && y + _HANDLE_PAD > p.top && y - _HANDLE_PAD < p.bottom).length;
 }
 /* 오른쪽 자리는 CSS 그대로 두고 세로만 고른다 — ⑴ 캔버스 위 ⑵ 위 손잡이 바로 아래 ⑶ 아래 손잡이 바로 위(큰 그림이면 두 줄 손잡이 «사이»).
-   다 덮으면 기본 자리 그대로(더 나빠지지 않게). */
+   다 덮으면 «가장 적게 덮는» 자리 — 기본 자리보다 «적을 때만» 옮긴다(같으면 기본 · 더 나빠지지 않게).
+   ★변 손잡이를 세면서 «0 아니면 기본»으로 두면 큰 그림(D4-b)은 어느 세로 자리든 rc 를 덮어 기본(se 덮음)으로 돌아간다 ⇒ 최소 수로 고른다. */
 function _avoidHandles(panel, host) {
-  if (!_coversHandle(panel, host)) return;
+  let best = _coveredCount(panel, host);
+  if (!best) return;
   const h = panel.getBoundingClientRect().height;
   const ys = _handleCorners(host).map(c => c[1]);
   const areaTop = document.getElementById('canvas-area')?.getBoundingClientRect().top || 0;
   const tops = [areaTop + 12, Math.min(...ys) + _HANDLE_PAD + 4, Math.max(...ys) - _HANDLE_PAD - 4 - h];
+  let bestTop = null;
   for (const t of tops) {
     const top = Math.round(Math.min(Math.max(8, t), window.innerHeight - h - 8));
     panel.style.top = top + 'px'; panel.style.bottom = 'auto';
-    if (!_coversHandle(panel, host)) return;
+    const n = _coveredCount(panel, host);
+    if (n < best) { best = n; bestTop = top; }
+    if (!n) return;
   }
-  panel.style.top = ''; panel.style.bottom = '';
+  if (bestTop === null) { panel.style.top = ''; panel.style.bottom = ''; }
+  else { panel.style.top = bestTop + 'px'; panel.style.bottom = 'auto'; }
 }
 
 function hideColorAdjustPanel() {
