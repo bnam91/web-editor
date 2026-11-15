@@ -71,7 +71,7 @@ export function typedLines(lines, t) {
  * cs = 글자마다 하나(글과 같은 길이) · null = 블럭 기본 스타일 · 같은 요소의 글자는 «같은 객체»(묶음 = 객체 동일성).
  * 모든 효과는 글을 fillStyled 로 그린다 — 미리보기·GIF 저장·V1·V2 가 한 함수. 조각(같은 스타일 묶음)마다 따로 그리는 자리다
  * (조각별 변형·알파는 지금 0 — 지디 ③ «자리만 막지 마라»).
- * st 필드(C2): color · weight · italic · sizeK(블럭 글자 크기 대비). */
+ * st 필드: C2 color · weight · italic · sizeK(블럭 글자 크기 대비) · C3 ul/lt {color, thick, off} · hl {color, h{pct|px}, y} · bg. */
 
 const _plainCs = (cs) => !cs || !cs.some(Boolean);
 /** 같은 스타일 객체가 이어진 글자 묶음 = 조각. */
@@ -94,6 +94,30 @@ function _baseOff(ctx) {
   return Number.isFinite(a1) && Number.isFinite(a2) ? a2 - a1 : 0;
 }
 
+/* 조각 장식 — over=false: 글 «뒤»(배경색 · 형광펜 띠 · 밑줄) · over=true: 글 «위»(취소선). 글꼴은 이미 그 조각 것.
+   상자 = 글꼴 상자(fontBoundingBox · 못 재면 0.8em/0.2em) = CSS 인라인 배경이 까는 곳. CSS px 값은 캔버스 배율(size/블럭 글자 크기)로.
+   그림자(글로우 펄스)는 장식에 안 건다 — 글만 빛난다. */
+function _decor(ctx, p, x, baseline, env, over) {
+  const st = p.st, ps = env.size * (st.sizeK || 1), k = env.size / (env.style.fontSize || env.size);
+  const thick = (l) => (l.thick > 0 ? l.thick * k : Math.max(1, ps / 16));
+  const sb = ctx.shadowBlur; ctx.shadowBlur = 0;
+  if (over) {
+    if (st.lt) { ctx.fillStyle = st.lt.color; ctx.fillRect(x, baseline - ps * 0.3 - thick(st.lt) / 2, p.w, thick(st.lt)); }
+  } else {
+    const b0 = ctx.textBaseline; ctx.textBaseline = 'alphabetic';
+    const m = ctx.measureText(p.text); ctx.textBaseline = b0;
+    const asc = Number.isFinite(m.fontBoundingBoxAscent) ? m.fontBoundingBoxAscent : ps * 0.8;
+    const desc = Number.isFinite(m.fontBoundingBoxDescent) ? m.fontBoundingBoxDescent : ps * 0.2;
+    if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, baseline - asc, p.w, asc + desc); }
+    if (st.hl && st.hl.color) {
+      const band = st.hl.h.pct != null ? (asc + desc) * st.hl.h.pct : st.hl.h.px * k;
+      ctx.fillStyle = st.hl.color; ctx.fillRect(x, baseline + desc - band + st.hl.y * k, p.w, band);
+    }
+    if (st.ul) { ctx.fillStyle = st.ul.color; ctx.fillRect(x, baseline + (st.ul.off != null ? st.ul.off * k : ps * 0.1), p.w, thick(st.ul)); }
+  }
+  ctx.shadowBlur = sb;
+}
+
 /** 글 text(그 cs) 를 x,y 에 — 정렬은 ctx.textAlign 그대로 · 블럭 기본 글꼴·색은 지금 ctx 의 것. env = { style, size }.
  *  꾸밈 없으면 옛 fillText 한 번(바이트 동일). 있으면 조각마다 제 글꼴·색으로 이어 그린다. */
 export function fillStyled(ctx, text, cs, x, y, env) {
@@ -105,13 +129,18 @@ export function fillStyled(ctx, text, cs, x, y, env) {
   let px = base.align === 'center' ? x - total / 2 : base.align === 'right' || base.align === 'end' ? x - total : x;
   ctx.font = base.font;
   const mixed = ps.some((p) => p.st && (p.st.sizeK || 1) !== 1) && base.bl === 'middle';
-  const by = mixed ? y + _baseOff(ctx) : y;
+  const decor = ps.some((p) => p.st && (p.st.ul || p.st.lt || p.st.hl || p.st.bg));
+  const off = mixed || decor ? _baseOff(ctx) : 0;
+  const by = mixed ? y + off : y;
+  const baseline = mixed ? by : y + off;   // 장식(배경·형광·밑줄·취소선)이 재는 글자 바닥선
   ctx.textAlign = 'left';
   if (mixed) ctx.textBaseline = 'alphabetic';
   for (const p of ps) {   // 조각 하나 = 따로 그리는 자리
     ctx.font = _font(env, p.st) || base.font;
+    if (p.st) _decor(ctx, p, px, baseline, env, false);
     ctx.fillStyle = (p.st && p.st.color) || base.fill;
     ctx.fillText(p.text, px, by);
+    if (p.st) _decor(ctx, p, px, baseline, env, true);
     px += p.w;
   }
   ctx.font = base.font; ctx.fillStyle = base.fill; ctx.textAlign = base.align; ctx.textBaseline = base.bl;

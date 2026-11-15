@@ -8,6 +8,8 @@
  *   양성대조(실측은 커밋 메시지): layoutLines 의 `off += line.length + 1` 삭제 → T10 빨강.
  * T12(RICHTEXT C2): 조각마다 제 글자색·굵기·기울임·크기로 이어 그림 · 큰 조각 줄은 줄높이도 큼 · 굵은 조각은 제 폭으로 접음.
  *   양성대조(실측은 커밋 메시지): fillStyled 첫 줄을 늘 평글로(`if (true)`) → T12 빨강.
+ * T13(RICHTEXT C3): 배경색·형광펜 띠·밑줄은 글 «앞»(뒤에 깔림) · 취소선은 글 «뒤» · 조각 폭 그대로 · 형광 띠 = 글꼴 상자 아래 h% · 그림자 0.
+ *   양성대조(실측은 커밋 메시지): fillStyled 의 `if (p.st) _decor(…, false)` 줄 삭제 → T13 빨강.
  * T9(G4 481.49>480): textBox 가 캔버스 폭으로 안 자르면(Math.min(W, …) 삭제) T9 빨강(실측은 커밋 메시지).
  */
 import { test } from 'node:test';
@@ -20,7 +22,7 @@ function fakeCtx() {
     calls, font: '', textBaseline: '', textAlign: '', fillStyle: '', globalAlpha: 1, shadowColor: '', shadowBlur: 0, filter: 'none', letterSpacing: '0px',
     measureText: (s) => ({ width: String(s).length * 10 }),
     fillText: (s, x, y) => calls.push({ op: 'text', s: String(s), x, y, a: ctx.globalAlpha, f: ctx.filter, tf: ctx._tf, font: ctx.font, fill: ctx.fillStyle }),
-    fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h }),
+    fillRect: (x, y, w, h) => calls.push({ op: 'rect', x, y, w, h, fill: ctx.fillStyle, sb: ctx.shadowBlur }),
     _tf: 0, _stack: [],
     save() { ctx._stack.push([ctx.filter, ctx._tf, ctx.globalAlpha]); }, restore() { [ctx.filter, ctx._tf, ctx.globalAlpha] = ctx._stack.pop(); },
     translate() { ctx._tf++; }, scale() { ctx._tf++; }, beginPath() {}, rect() {}, clip() {},
@@ -181,4 +183,24 @@ test('T12 RICHTEXT C2 — 조각마다 제 색·굵기·기울임·크기 · 이
   const nar = layoutLines(ctx, { ...STYLE, text: wide, wrapEm: (40 + 10 + 40 + 2) / 20 }, 480, 200, 20).segs.length;
   const fat = layoutLines(ctx, { ...STYLE, text: wide, cs: wcs, wrapEm: (40 + 10 + 40 + 2) / 20 }, 480, 200, 20).segs.length;
   assert.deepEqual([nar, fat], [1, 2], '★크게 한 조각을 평글 폭으로 쟀다');
+});
+
+test('T13 RICHTEXT C3 — 배경색·형광펜·밑줄은 글 앞에(뒤로 깔림) · 취소선은 글 뒤에 · 조각 폭 · 형광 띠 = 상자 아래 40% · 장식엔 그림자 0', () => {
+  const U = Object.freeze({ color: '#111', weight: '700', italic: false, sizeK: 1, ul: { color: '#0000ff', thick: 0, off: null }, lt: null, hl: null, bg: null });
+  const S = Object.freeze({ ...U, ul: null, lt: { color: '#ff0000', thick: 2, off: null } });
+  const Hh = Object.freeze({ ...U, ul: null, hl: { color: 'rgba(255, 230, 0, 0.6)', h: { pct: 0.4 }, y: 0 } });
+  const G = Object.freeze({ ...U, ul: null, bg: '#00ff00' });
+  const text = 'u s h g';
+  const cs = [U, null, S, null, Hh, null, G];
+  const ctx = fakeCtx(); ctx.shadowBlur = 9;
+  drawTracks(ctx, 480, 200, { ...STYLE, text, cs, fontSize: 20 }, 20, [{ line: 0, fx: 'glow-pulse', at: 0, dur: 100 }], 100);
+  const seq = ctx.calls.map((c) => (c.op === 'text' ? `T:${c.s}` : `R:${c.fill}`));
+  assert.deepEqual(seq.filter((x) => x !== 'T: '), ['R:#0000ff', 'T:u', 'T:s', 'R:#ff0000', 'R:rgba(255, 230, 0, 0.6)', 'T:h', 'R:#00ff00', 'T:g'], `★장식 순서·색 ${JSON.stringify(seq)}`);
+  const rects = ctx.calls.filter((c) => c.op === 'rect');
+  const texts = ctx.calls.filter((c) => c.op === 'text');
+  const xOf = (s) => texts.find((c) => c.s === s).x;
+  for (const [r, s] of [[rects[0], 'u'], [rects[1], 's'], [rects[2], 'h'], [rects[3], 'g']]) assert.deepEqual([r.x, r.w], [xOf(s), 10], `${s} 장식 = 그 조각 자리·폭`);
+  assert.ok(Math.abs(rects[2].h - 20 * 0.4) < 1e-9 && Math.abs(rects[2].y + rects[2].h - (texts[0].y + 20 * 0.2)) < 1e-9, '형광 띠 = 상자(0.8em/0.2em) 아래 40%');
+  assert.equal(rects[1].h, 2, '취소선 두께 = CSS px × 배율(1)');
+  assert.ok(rects.every((r) => r.sb === 0), '장식엔 그림자 0');
 });

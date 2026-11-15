@@ -223,7 +223,7 @@ function _extractCs(el, text) {
       }
     }
   };
-  walk(el, null);
+  walk(el, el);   // 글 요소에 바로 든 글도 el 의 장식(블럭 전체 밑줄 등)을 읽는다 — 나머지는 el 과 같아 null
   let t = '';
   const c = [];
   for (let i = 0; i < raw.length; i++) { if (raw[i] === '\n' && t.endsWith('\n\n')) continue; t += raw[i]; c.push(rc[i]); }
@@ -232,13 +232,32 @@ function _extractCs(el, text) {
   const cs = c.slice(a, c.length - b);
   return cs.some(Boolean) ? cs : null;
 }
-/* 한 요소의 조각 스타일(계산된 스타일) — 글자색·굵기·기울임·크기 비. 블럭 글 요소와 다 같으면 null. */
+/* 한 요소의 조각 스타일(계산된 스타일) — 블럭 글 요소와 다 같으면 null.
+   C2 글자색·굵기·기울임·크기 비 · C3 밑줄(ul)·취소선(lt)·형광펜(hl · span.tb-hl 변수)·배경색(bg · 옛 hiliteColor span). */
 const _italic = (cs) => /italic|oblique/.test(cs.fontStyle || '');
+const _cssVar = (c, name) => String((c.getPropertyValue && c.getPropertyValue(name)) || '').trim();
+const _line = (c) => ({
+  color: c.textDecorationColor || c.color,
+  thick: parseFloat(c.textDecorationThickness) || 0,                                              // 0 = auto
+  off: c.textUnderlineOffset && c.textUnderlineOffset !== 'auto' ? parseFloat(c.textUnderlineOffset) || 0 : null,   // null = auto
+});
 function _runStyle(host, el) {
   const h = window.getComputedStyle(host), b = window.getComputedStyle(el);
   const sizeK = (parseFloat(h.fontSize) || 0) / (parseFloat(b.fontSize) || 1) || 1;
-  const st = { color: h.color, weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK };
-  if (st.color === b.color && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1) return null;
+  const st = { color: h.color, weight: h.fontWeight, italic: _italic(h), sizeK: Math.abs(sizeK - 1) < 1e-3 ? 1 : sizeK, ul: null, lt: null, hl: null, bg: null };
+  // 장식선은 상속되지 않고 «그은 요소»가 그 안 글 전체에 긋는다 ⇒ host 에서 el 까지 거슬러 그 요소의 색·두께·위치
+  for (let n = host; n; n = n === el ? null : n.parentElement) {
+    const c = n === host ? h : n === el ? b : window.getComputedStyle(n), line = c.textDecorationLine || '';
+    if (!st.ul && /underline/.test(line)) st.ul = _line(c);
+    if (!st.lt && /line-through/.test(line)) st.lt = _line(c);
+    if (!st.bg && n !== el && c.backgroundColor && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(c.backgroundColor)) st.bg = c.backgroundColor;
+  }
+  const hl = host.closest && host.closest('.tb-hl');
+  if (hl && hl !== el && el.contains(hl)) {
+    const c = window.getComputedStyle(hl), hv = _cssVar(c, '--tb-hl-h');
+    st.hl = { color: _cssVar(c, '--tb-hl-color'), h: hv.endsWith('%') ? { pct: parseFloat(hv) / 100 } : { px: parseFloat(hv) || 0 }, y: parseFloat(_cssVar(c, '--tb-hl-y')) || 0 };
+  }
+  if (st.color === b.color && st.weight === b.fontWeight && st.italic === _italic(b) && st.sizeK === 1 && !st.ul && !st.lt && !st.hl && !st.bg) return null;
   return Object.freeze(st);
 }
 

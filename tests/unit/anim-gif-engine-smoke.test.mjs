@@ -13,6 +13,8 @@
  *   양성대조(실측은 커밋 메시지): window.restartAnimPreview 줄 삭제 → E7 빨강.
  * E8(RICHTEXT C2): 블럭 DOM 의 부분 꾸밈 span(색·굵기·기울임·크기) → 계산된 스타일 → 미리보기·GIF 저장 조각 그리기(실엔진 · V1 fade-in · V2 stamp).
  *   양성대조(실측은 커밋 메시지): 엔진 _runStyle 이 늘 null → E8 빨강.
+ * E9(RICHTEXT C3): <u>(밑줄 색) · <s> · span.tb-hl(변수 색·높이) · 배경색 span → 미리보기·GIF 저장에 그 색 장식(실엔진 · fade-in).
+ *   양성대조(실측은 커밋 메시지): 엔진 _runStyle 의 장식 거슬러 올라가기(for n = host …) 삭제 → E9 빨강.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,7 +32,7 @@ function fakeCtx() {
     calls, filter: 'none', globalAlpha: 1, font: '', fillStyle: '', textAlign: '', textBaseline: '', shadowBlur: 0, shadowColor: '',
     measureText: (s) => ({ width: String(s).length * 10 }),
     fillText: (s, x, y) => calls.push({ s: String(s), x, y, f: ctx.filter, fill: ctx.fillStyle, font: ctx.font }),
-    fillRect() {}, clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
+    rects: [], fillRect: (x, y, w, h) => ctx.rects.push({ x, y, w, h, fill: ctx.fillStyle }), clearRect() {}, save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, rect() {}, clip() {},
   };
   return ctx;
 }
@@ -269,4 +271,33 @@ test('E8 RICHTEXT C2 — 블럭 DOM 부분 꾸밈(span 색·굵기·기울임·�
     assert.deepEqual(last, want.map((w) => [w[0], w[1]]), `★${fx} GIF 저장 조각 스타일 ${JSON.stringify(last)}`);
     window.closeAnimModal();
   }
+});
+
+test('E9 RICHTEXT C3 — <u> 파랑 밑줄 · <s> 취소선 · span.tb-hl 형광 · 배경색 span → 미리보기·GIF 저장 장식 색', async () => {
+  const E = await loadEngine();
+  const txt = (d) => ({ nodeType: 3, data: d });
+  const mk = (tag, d) => ({ nodeType: 1, tagName: tag, childNodes: [txt(d)], parentElement: E.textEl, closest: () => null });
+  const u = mk('U', '밑줄'), st = mk('S', '취소'), hl = mk('SPAN', '형광'), bg = mk('SPAN', '배경');
+  hl.closest = (sel) => (sel === '.tb-hl' ? hl : null);
+  E.textEl.contains = (n) => [u, st, hl, bg].includes(n);
+  E.textEl.innerHTML = '<u>밑줄</u> <s>취소</s> <span>형광</span> <span>배경</span>';
+  E.textEl.childNodes = [u, txt(' '), st, txt(' '), hl, txt(' '), bg];
+  const base = { fontSize: '24px', color: 'rgb(17, 17, 17)', fontFamily: 'sans-serif', fontWeight: '400', fontStyle: 'normal', letterSpacing: '0px', textAlign: 'center', lineHeight: '33.6px', textDecorationLine: 'none', backgroundColor: 'rgba(0, 0, 0, 0)' };
+  const vars = { '--tb-hl-color': 'rgba(255, 230, 0, 0.6)', '--tb-hl-h': '40%', '--tb-hl-y': '0px' };
+  globalThis.getComputedStyle = (e) => (e === u ? { ...base, textDecorationLine: 'underline', textDecorationColor: 'rgb(0, 0, 255)' }
+    : e === st ? { ...base, textDecorationLine: 'line-through', textDecorationColor: 'rgb(17, 17, 17)' }
+    : e === hl ? { ...base, getPropertyValue: (k) => vars[k] || '' }
+    : e === bg ? { ...base, backgroundColor: 'rgb(0, 255, 0)' } : base);
+  const items = [];
+  E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
+  window.openAnimModal(E.tb);
+  items.find((it) => it.dataset.id === 'fade-in')._l.click[0]();
+  E.rafs.at(-1)(1000); E.ctx.rects.length = 0; E.rafs.at(-1)(1000 + 5000);
+  const want = ['rgb(0, 0, 255)', 'rgb(17, 17, 17)', 'rgba(255, 230, 0, 0.6)', 'rgb(0, 255, 0)'];
+  const deco = () => E.ctx.rects.filter((r) => !(r.x === 0 && r.y === 0));   // 프레임 바탕(캔버스 전체) 빼고
+  assert.deepEqual(deco().map((r) => r.fill), want, `★미리보기 장식 ${JSON.stringify(E.ctx.rects)}`);
+  E.ctx.rects.length = 0;
+  await window.exportAnimGif();
+  assert.deepEqual(deco().slice(-4).map((r) => r.fill), want, '★GIF 저장 장식');
+  window.closeAnimModal();
 });
