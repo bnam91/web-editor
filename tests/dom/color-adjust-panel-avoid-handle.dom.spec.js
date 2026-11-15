@@ -139,3 +139,53 @@ test('E1 ★오른쪽 변 가운데(rc)만 기본 패널 안 — 패널이 비�
   expect(r.ir.top, '[전제] «캔버스 위» 후보 자리(패널 높이)에 그림이 안 닿는다').toBeGreaterThan(r.areaTop + 12 + h + 8);
   expect(covered, '★패널이 변 손잡이를 덮는다 — 오른쪽으로 폭을 못 바꾼다').toEqual([]);
 });
+
+/* ── Z (IMAGE-EDIT-PANEL-NOT-REAVOID-ON-ZOOM-01 · 지디 261116) — 편집 «중» 배율·스크롤이 바뀌면 같은 비키기 셈을 다시 부른다.
+ *   옛 판은 진입 때만 자리를 정해, 배율을 키워 손잡이가 패널 아래로 들어가도 안 비켰다.
+ *   대역: host(fixed)를 «배율이 키운 뒤 자리»로 옮기고 applyZoom 으로 배율 눈금만 바꾼다 — 패널이 보는 것은 손잡이 화면 자리 + 배율·스크롤 표.
+ *   Z1 ★편집 중 applyZoom 뒤 → 손잡이 여덟 다 안 덮음(rAF 로 손잡이가 멈출 때까지 다시 잼)
+ *   Z2 [음성] 배율·스크롤 무변(그림만 옮김 = 끌기 꼴) → 패널 자리 그대로(끄는 중 튀지 않음)
+ *   양성대조(srv 미실행 · IMAGE-ZOOM-CTL.patch): showColorAdjustPanel 의 `_reavoidRaf = requestAnimationFrame(_reavoidTick)` 줄을 빼면 Z1 빨강(rc 덮음) · Z2 초록. */
+const raf = (page, n = 3) => page.evaluate((n) => new Promise((r) => { const f = (k) => (k ? requestAnimationFrame(() => f(k - 1)) : r()); f(n); }), n);
+const zoomScene = async (page) => {
+  await setup(page);
+  await page.setViewportSize({ width: 1500, height: 1600 });
+  const d = await defaultRect(page);
+  const h = d.bottom - d.top, cx = Math.round((d.left + d.right) / 2);
+  /* 처음 = 패널과 먼 자리(왼위)에서 연다 · «뒤» = E1 의 rc-만-덮는 자리(그림 오른쪽 변 = 패널 가운데 x · 위아래 40 씩 길게) */
+  await page.evaluate(() => {
+    const host = document.getElementById('adjHost');
+    Object.assign(host.style, { left: '0px', top: '0px', width: '300px', height: '200px' });
+    window.applyZoom?.(40); window.hideColorAdjustPanel(); window.showColorAdjustPanel(host);
+  });
+  await raf(page);
+  const before = await page.evaluate(() => { const p = document.getElementById('color-adjust-panel'); return [p.style.top, p.style.bottom]; });
+  expect(before, '[전제] 처음엔 안 겹쳐 기본 자리').toEqual(['', '']);
+  return { d, h, cx };
+};
+const moveHost = (page, x, top, H) => page.evaluate(([x, top, H]) => {
+  Object.assign(document.getElementById('adjHost').style, { left: x + 'px', top: top + 'px', height: H + 'px' });
+}, [x, top, H]);
+const coveredNow = (page) => page.evaluate(() => {
+  const p = document.getElementById('color-adjust-panel').getBoundingClientRect(), r = document.getElementById('adjHost').querySelector('img').getBoundingClientRect();
+  const k = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]];
+  const m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const pts = { tl: k[0], tr: k[1], bl: k[2], br: k[3], tc: m(k[0], k[1]), rc: m(k[1], k[3]), bc: m(k[2], k[3]), lc: m(k[0], k[2]) };
+  return Object.keys(pts).filter((n) => { const [x, y] = pts[n]; return x + 4 > p.left && x - 4 < p.right && y + 4 > p.top && y - 4 < p.bottom; });
+});
+
+test('Z1 ★편집 중 배율을 바꾸면 패널이 다시 비켜 손잡이 여덟 다 안 덮는다', async ({ page }) => {
+  const { d, h, cx } = await zoomScene(page);
+  await moveHost(page, cx - 300, d.top - 40, h + 80);
+  await page.evaluate(() => window.applyZoom(55));
+  await expect.poll(() => coveredNow(page), '★배율 뒤 패널이 손잡이를 덮는다 — 다시 안 비켰다').toEqual([]);
+});
+
+test('Z2 [음성] 배율·스크롤 무변(그림만 옮김) — 패널은 그 자리 그대로', async ({ page }) => {
+  const { d, h, cx } = await zoomScene(page);
+  await moveHost(page, cx - 300, d.top - 40, h + 80);
+  await raf(page, 10);
+  const r = await page.evaluate(() => { const p = document.getElementById('color-adjust-panel'); return [p.style.top, p.style.bottom]; });
+  expect(r, '배율·스크롤이 안 바뀌었는데 패널이 움직였다(끄는 중 튐)').toEqual(['', '']);
+  expect(await coveredNow(page), '[전제] 이 칸은 «덮였는데도» 그대로인지를 잰다').toEqual(['rc']);
+});

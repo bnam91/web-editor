@@ -527,6 +527,7 @@ function showColorAdjustPanel(host, opts = {}) {
 
   panel.style.display = 'flex';
   if (!_panelPos) _avoidHandles(panel, host);
+  if (!_reavoidRaf) _reavoidRaf = requestAnimationFrame(_reavoidTick);
 
   // 이미 적용된 필터가 있으면 SVG 필터 노드가 살아있는지 보장
   if (!_isDefault(adj)) _ensureSVGFilter(adj);
@@ -582,6 +583,27 @@ function _avoidHandles(panel, host) {
   }
   if (bestTop === null) { panel.style.top = ''; panel.style.bottom = ''; }
   else { panel.style.top = bestTop + 'px'; panel.style.bottom = 'auto'; }
+}
+
+/* IMAGE-EDIT-PANEL-NOT-REAVOID-ON-ZOOM-01 — 패널이 떠 있는 동안 배율·스크롤이 바뀌면 같은 비키기 셈(_avoidHandles)을 다시 부른다
+   (옛 판은 진입 때만 자리를 정해 40→55% 로 키우면 rc 손잡이가 패널 아래로 들어갔다).
+   배율 직후엔 #canvas-scaler transform 보간(.15s) 중이라 rect 가 중간값 ⇒ 바뀐 뒤 손잡이 자리가 «멈출 때까지» 프레임마다 다시 잰다.
+   그림 끌기·크기 바꾸기(배율·스크롤 무변)엔 안 움직인다(끄는 중 패널이 튀지 않게) · 사용자가 옮긴 자리(_panelPos)는 안 건드린다. */
+let _reavoidRaf = null, _reavoidZk = null, _reavoidPk = null, _reavoidSettling = false;
+function _reavoidTick() {
+  const panel = document.getElementById('color-adjust-panel');
+  if (!panel || panel.style.display === 'none' || !_currentAb) { _reavoidRaf = null; _reavoidZk = null; _reavoidSettling = false; return; }
+  const wrap = document.getElementById('canvas-wrap');
+  const zk = `${window.currentZoom}|${wrap?.scrollTop}|${wrap?.scrollLeft}`;
+  if (_reavoidZk !== null && zk !== _reavoidZk) _reavoidSettling = true;
+  _reavoidZk = zk;
+  if (_reavoidSettling && !_panelPos) {
+    const pk = _handleCorners(_currentAb).map(([x, y]) => Math.round(x) + ',' + Math.round(y)).join(' ');
+    if (pk !== _reavoidPk) { panel.style.top = ''; panel.style.bottom = ''; _avoidHandles(panel, _currentAb); }
+    else _reavoidSettling = false;   // 손잡이가 멈췄다 — 직전 프레임의 비키기가 지금 자리 기준이다
+    _reavoidPk = pk;
+  }
+  _reavoidRaf = requestAnimationFrame(_reavoidTick);
 }
 
 function hideColorAdjustPanel() {
