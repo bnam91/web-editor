@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { sliceBlock } = require('./_slice-block.js');
+const { sliceBlock, findBlockEnd } = require('./_slice-block.js');
 const { stripComments } = require('./_strip-comments.js');
 
 const ROOT = process.env.GD1001_ROOT || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -50,5 +50,14 @@ test('F3 186 — 섹션 아래 여백·바닥을 싣는다(없으면 0)', () => 
 test('F4 빌더 _section 이 두 함수를 «실제로» 쓴다(구조 — 함수만 있고 안 부르면 빨강)', () => {
   const body = stripComments(sliceBlock(EXP, '  function _section('));
   assert.match(body, /const\s+bgImgRaw\s*=\s*_sectionBgImgRaw\(secEl\)/, '_section 의 배경 원문 = _sectionBgImgRaw(secEl)');
-  assert.match(body, /return\s*\{[^}]*\.\.\._sectionBox\(secEl\)/, '_section 의 반환 칸에 ..._sectionBox(secEl)');
+  /* 반환 객체를 «중괄호 짝»으로 떠서(findBlockEnd) 그 «최상위» 칸만 본다 — 옛 정규식 [^}]* 은 반환 안에 중괄호가 하나만 들어와도
+     (t3-09 의 ...(bgNoteSvg ? { bgNoteSvg } : {})) 거기서 끊겨 «제품은 그대로인데 빨강»이었다. 중첩 객체 안의 _sectionBox 는 안 친다. */
+  const tops = [...body.matchAll(/\breturn\s*\{/g)].map((m) => {
+    const from = m.index + m[0].length - 1, end = findBlockEnd(body, m.index, '_section return');
+    let depth = 0, top = '';
+    for (const ch of body.slice(from + 1, end)) { if (ch === '{') depth++; else if (ch === '}') depth--; else if (depth === 0) top += ch; }
+    return top;
+  });
+  assert.ok(tops.length > 0, '[전제] _section 에 return { … } 가 있다');
+  assert.ok(tops.some((t) => /\.\.\._sectionBox\(secEl\)/.test(t)), '_section 의 반환 객체 «최상위» 칸에 ..._sectionBox(secEl)');
 });
