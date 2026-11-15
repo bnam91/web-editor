@@ -568,25 +568,45 @@ function _coveredCount(panel, host) {
     x + _HANDLE_PAD > p.left && x - _HANDLE_PAD < p.right && y + _HANDLE_PAD > p.top && y - _HANDLE_PAD < p.bottom).length;
 }
 /* 오른쪽 자리는 CSS 그대로 두고 세로만 고른다 — ⑴ 캔버스 위 ⑵ 위 손잡이 바로 아래 ⑶ 아래 손잡이 바로 위(큰 그림이면 두 줄 손잡이 «사이»).
-   다 덮으면 «가장 적게 덮는» 자리 — 기본 자리보다 «적을 때만» 옮긴다(같으면 기본 · 더 나빠지지 않게).
+   ★세로 셋이 «다» 덮으면 가로도 본다(IMAGE-EDIT-PANEL-NOT-REAVOID-ON-ZOOM-01 ◑ · 지디 261116 실앱: 손잡이 x 954 가 패널 왼끝 952 에 걸쳐
+     세로 후보 셋이 tr·rc·rc 를 하나씩 덮었다 · 오른쪽 여유는 캔버스 영역 끝까지 12px 뿐):
+     ⒜ 손잡이 «전부»의 왼쪽 바깥(그림 밖 · 그림을 안 가림) ⒝ 손잡이 «전부»의 오른쪽(캔버스 영역 안에 들 때만 — 오른쪽 속성 패널을 안 덮게)
+     ⒞ 오른쪽 손잡이 줄 바로 왼쪽(그림 «안쪽»을 가림 · 손잡이는 안 가림) — 각 가로 자리 × (기본 세로 + 세로 셋).
+     고르기 = 덮는 손잡이 수 최소 → 같으면 «그림을 가리는 넓이» 최소(현빈 기준 없음 · 지디 «가장 적게 가리는 쪽»).
+   기본 자리보다 손잡이를 «적게» 덮을 때만 옮긴다(같으면 기본 · 더 나빠지지 않게).
    ★변 손잡이를 세면서 «0 아니면 기본»으로 두면 큰 그림(D4-b)은 어느 세로 자리든 rc 를 덮어 기본(se 덮음)으로 돌아간다 ⇒ 최소 수로 고른다. */
+function _imgCoverArea(panel, host) {
+  const p = panel.getBoundingClientRect(), r = (findAdjTarget(host) || host).getBoundingClientRect();
+  return Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) * Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
+}
 function _avoidHandles(panel, host) {
-  let best = _coveredCount(panel, host);
-  if (!best) return;
-  const h = panel.getBoundingClientRect().height;
-  const ys = _handleCorners(host).map(c => c[1]);
-  const areaTop = document.getElementById('canvas-area')?.getBoundingClientRect().top || 0;
-  const tops = [areaTop + 12, Math.min(...ys) + _HANDLE_PAD + 4, Math.max(...ys) - _HANDLE_PAD - 4 - h];
-  let bestTop = null;
-  for (const t of tops) {
-    const top = Math.round(Math.min(Math.max(8, t), window.innerHeight - h - 8));
-    panel.style.top = top + 'px'; panel.style.bottom = 'auto';
-    const n = _coveredCount(panel, host);
-    if (n < best) { best = n; bestTop = top; }
-    if (!n) return;
-  }
-  if (bestTop === null) { panel.style.top = ''; panel.style.bottom = ''; }
-  else { panel.style.top = bestTop + 'px'; panel.style.bottom = 'auto'; }
+  const base = _coveredCount(panel, host);
+  if (!base) return;
+  const pr = panel.getBoundingClientRect(), h = pr.height, w = pr.width;
+  const pts = _handleCorners(host), ys = pts.map(c => c[1]), xs = pts.map(c => c[0]);
+  const area = document.getElementById('canvas-area')?.getBoundingClientRect();
+  const areaTop = area?.top || 0, areaLeft = area?.left || 0, areaRight = area?.right || window.innerWidth;
+  const tops = [areaTop + 12, Math.min(...ys) + _HANDLE_PAD + 4, Math.max(...ys) - _HANDLE_PAD - 4 - h]
+    .map(t => Math.round(Math.min(Math.max(8, t), window.innerHeight - h - 8)));
+  const place = (left, top) => {
+    panel.style.left = left === null ? '' : left + 'px'; panel.style.right = left === null ? '' : 'auto';
+    panel.style.top = top === null ? '' : top + 'px'; panel.style.bottom = top === null ? '' : 'auto';
+  };
+  /* ① 세로 셋(오른쪽 자리 그대로) — 첫 0 이면 거기(옛 그대로) */
+  let best = { n: base, a: Infinity, left: null, top: null };
+  const tryAt = (left, top) => {
+    place(left, top);
+    const n = _coveredCount(panel, host), a = _imgCoverArea(panel, host);
+    if (n < best.n || (n === best.n && n < base && a < best.a)) best = { n, a, left, top };
+    return n;
+  };
+  for (const t of tops) if (!tryAt(null, t)) return;
+  /* ② 가로 셋 × (기본 세로 + 세로 셋) — 캔버스 영역 안에 드는 자리만 */
+  const rightCol = Math.max(...xs);
+  const lefts = [Math.min(...xs) - _HANDLE_PAD - 1 - w, rightCol + _HANDLE_PAD + 1, rightCol - _HANDLE_PAD - 1 - w]
+    .map(Math.round).filter(l => l >= areaLeft + 8 && l + w <= areaRight);
+  for (const l of lefts) for (const t of [null, ...tops]) tryAt(l, t);
+  place(best.n < base ? best.left : null, best.n < base ? best.top : null);
 }
 
 /* IMAGE-EDIT-PANEL-NOT-REAVOID-ON-ZOOM-01 — 패널이 떠 있는 동안 배율·스크롤이 바뀌면 같은 비키기 셈(_avoidHandles)을 다시 부른다
@@ -607,7 +627,7 @@ function _reavoidTick(now) {
   _reavoidZk = zk;
   if (_reavoidSettling && !_panelPos) {
     const pk = _handleCorners(_currentAb).map(([x, y]) => Math.round(x) + ',' + Math.round(y)).join(' ');
-    if (pk !== _reavoidAvoidedPk) { panel.style.top = ''; panel.style.bottom = ''; _avoidHandles(panel, _currentAb); _reavoidAvoidedPk = pk; }
+    if (pk !== _reavoidAvoidedPk) { panel.style.left = ''; panel.style.right = ''; panel.style.top = ''; panel.style.bottom = ''; _avoidHandles(panel, _currentAb); _reavoidAvoidedPk = pk; }
     if (now - _reavoidZkAt >= _REAVOID_SETTLE_MS && pk === _reavoidPk) _reavoidSettling = false;
     _reavoidPk = pk;
   }

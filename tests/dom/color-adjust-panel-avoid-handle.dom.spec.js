@@ -234,11 +234,12 @@ test('Z3 ★실제 보간(.15s) 그대로 — 배율·스크롤 단계마다 정
       return [...k, m(k[0], k[1]), m(k[1], k[3]), m(k[2], k[3]), m(k[0], k[2])]
         .filter(([x, y]) => x + 4 > p.left && x - 4 < p.right && y + 4 > p.top && y - 4 < p.bottom).length;
     };
-    const now = { top: panel.style.top, bottom: panel.style.bottom, covered: cnt() };
-    const keep = [panel.style.top, panel.style.bottom];
-    panel.style.top = ''; panel.style.bottom = ''; const defCov = cnt(); [panel.style.top, panel.style.bottom] = keep;
+    const pos = () => ({ left: panel.style.left, right: panel.style.right, top: panel.style.top, bottom: panel.style.bottom });
+    const now = { ...pos(), covered: cnt() };
+    const keep = pos();
+    Object.assign(panel.style, { left: '', right: '', top: '', bottom: '' }); const defCov = cnt(); Object.assign(panel.style, keep);
     window.hideColorAdjustPanel(); window.showColorAdjustPanel(host);   // 같은 자리에서 진입 비키기 = 기준
-    return { now, fresh: { top: panel.style.top, bottom: panel.style.bottom, covered: cnt() }, defCov, zoom: window.currentZoom, scroll: document.getElementById('canvas-wrap').scrollTop };
+    return { now, fresh: { ...pos(), covered: cnt() }, defCov, zoom: window.currentZoom, scroll: document.getElementById('canvas-wrap').scrollTop };
   });
 
   await settle();
@@ -257,6 +258,45 @@ test('Z3 ★실제 보간(.15s) 그대로 — 배율·스크롤 단계마다 정
   expect(log.find((l) => l.kind === 'scroll').scroll, '[전제] 스크롤 단계가 실제로 스크롤했다').not.toBe(log.find((l) => l.kind === 'scroll').s0);
   expect(log.some((l) => l.defCov > 0), '[전제] 기본 자리가 손잡이를 덮는 단계가 하나 이상(비키기가 실제로 일한다)').toBe(true);
   for (const l of log) {
-    expect({ top: l.now.top, bottom: l.now.bottom }, `★${l.kind} ${l.v}: 정착 직후 자리 ≠ 새로 연 셈 ${JSON.stringify(l)}`).toEqual({ top: l.fresh.top, bottom: l.fresh.bottom });
+    const at = (o) => ({ left: o.left, right: o.right, top: o.top, bottom: o.bottom });   // 가로 비키기(H1) 뒤로 left/right 도 잰다
+    expect(at(l.now), `★${l.kind} ${l.v}: 정착 직후 자리 ≠ 새로 연 셈 ${JSON.stringify(l)}`).toEqual(at(l.fresh));
   }
+});
+
+/* ── H1 (IMAGE-EDIT-PANEL-NOT-REAVOID-ON-ZOOM-01 ◑ · 지디 261116 실앱 기하) — 세로 후보 셋이 «다» 손잡이를 하나씩 덮는 자리.
+ *   실앱: 패널 [952,550,1188,872] · 손잡이 tr(954,266) rc(954,600) br(954,935) · innerHeight 900 · 캔버스 영역 오른끝 1200(오른쪽 여유 12px).
+ *   대역: 넓은 그림(1000 · 왼쪽 손잡이는 화면 밖 = «그림 왼쪽 바깥» 후보 없음) · 오른쪽 변 x = 기본 패널 왼끝 + 2(±PAD 안) ·
+ *     위끝 = 캔버스 영역 위 + 40 · 높이 = 패널 높이 + 300(세로 후보 셋이 tr·rc·rc 를 덮는 꼴) · 뷰포트 높이 900.
+ *   기대: 손잡이 여덟 다 안 덮음(가로로 비킴 — 손잡이 오른쪽 또는 오른쪽 손잡이 줄 왼쪽, 덮는 수 → 그림 가리는 넓이 순).
+ *   양성대조(IMAGE-ZOOM4-CTL.patch = _avoidHandles 를 세로만 보던 3판으로): H1 빨강(덮음 1 · 기본 자리) · 나머지 초록. */
+test('H1 ★세로 후보가 다 덮는 기하(손잡이 x = 패널 왼끝 ±PAD) — 가로로 비켜 손잡이 여덟 다 안 덮는다', async ({ page }) => {
+  await setup(page);
+  await page.setViewportSize({ width: 1500, height: 900 });
+  const d = await defaultRect(page);
+  const r = await page.evaluate(([d]) => {
+    const h = d.bottom - d.top, area = document.getElementById('canvas-area').getBoundingClientRect();
+    const right = d.left + 2, top = Math.round(area.top) + 40, H = h + 300;
+    const host = document.getElementById('adjHost'), img = host.querySelector('img');
+    Object.assign(host.style, { left: (right - 1000) + 'px', top: top + 'px', width: '1000px', height: H + 'px', overflow: '' });
+    Object.assign(img.style, { position: '', left: '', top: '', width: '100%', height: '100%' });
+    window.hideColorAdjustPanel(); window.showColorAdjustPanel(host);
+    const panel = document.getElementById('color-adjust-panel');
+    const ir = img.getBoundingClientRect(), k = [[ir.left, ir.top], [ir.right, ir.top], [ir.left, ir.bottom], [ir.right, ir.bottom]];
+    const m = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const pts = { tl: k[0], tr: k[1], bl: k[2], br: k[3], tc: m(k[0], k[1]), rc: m(k[1], k[3]), bc: m(k[2], k[3]), lc: m(k[0], k[2]) };
+    const cov = (q) => Object.keys(pts).filter((n) => { const [x, y] = pts[n]; return x + 4 > q.left && x - 4 < q.right && y + 4 > q.top && y - 4 < q.bottom; });
+    /* [전제] 계산 — 기본 자리 · 세로 후보 셋(오른쪽 자리 그대로)이 각각 무엇을 덮나 (제품 _avoidHandles 의 세로 셋과 같은 식 · PAD 8) */
+    const ys = Object.values(pts).map((p) => p[1]);
+    const vt = [area.top + 12, Math.min(...ys) + 12, Math.max(...ys) - 12 - h].map((t) => Math.round(Math.min(Math.max(8, t), window.innerHeight - h - 8)));
+    const pad8 = (q) => Object.keys(pts).filter((n) => { const [x, y] = pts[n]; return x + 8 > q.left && x - 8 < q.right && y + 8 > q.top && y - 8 < q.bottom; });
+    const p = panel.getBoundingClientRect();
+    return { area: [area.left, area.top, area.right].map(Math.round), img: [ir.left, ir.top, ir.right, ir.bottom].map(Math.round),
+      defaultCov: pad8(d), verticalCov: vt.map((t) => pad8({ left: d.left, right: d.right, top: t, bottom: t + h })),
+      panel: [p.left, p.top, p.right, p.bottom].map(Math.round), style: { left: panel.style.left, top: panel.style.top }, covered: cov(p) };
+  }, [d]);
+  console.log('  H1:', JSON.stringify({ d, ...r }));
+  expect(Math.abs(r.img[2] - d.left), '[전제] 손잡이 x = 기본 패널 왼끝 ±PAD').toBeLessThanOrEqual(8);
+  expect(r.defaultCov.length, '[전제] 기본 자리가 손잡이를 덮는다').toBeGreaterThan(0);
+  expect(r.verticalCov.every((c) => c.length > 0), `[전제] 세로 후보 셋이 다 덮는다 ${JSON.stringify(r.verticalCov)}`).toBe(true);
+  expect(r.covered, '★갈 자리가 있는데 손잡이를 덮었다(가로로 안 비킴)').toEqual([]);
 });
