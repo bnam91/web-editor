@@ -174,8 +174,6 @@ function _updateAnimConflictWarning() {
   const style = _getTextStyle(_animTb);
   const hasMultiline = style.text.includes('\n');
   warn.style.display = (conflictTypes.includes(_animType) && hasMultiline) ? 'flex' : 'none';
-  const rich = document.getElementById('anim-rich-warn');
-  if (rich) rich.style.display = _hasRichStyling(_animTb) ? 'flex' : 'none';
 }
 
 function restartAnimPreview() {
@@ -275,12 +273,8 @@ function _textEl(tb) {
   return tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1, .tb-h2, .tb-h3, .tb-body, .tb-caption, .tb-label') || tb.querySelector('div');
 }
 
-/* ⑸(DONE40 · 시트 GIF-V1 RICHTEXT) GIF 는 글 요소 «하나»의 스타일로 칠한다 — 글 «안» 조각 꾸밈(색·형광·굵기 등)은 사라진다.
-   본 고침은 V2(조각별 그리기). 지금은 꾸밈이 있으면 모달에 한 줄 경고(지디 결정 C). 글 요소 자체의 색은 실리므로 «안쪽»만 본다. */
-const _RICH_SEL = 'b, strong, i, em, u, s, mark, font, [style*="color"], [style*="background"], [style*="font-weight"], [style*="font-style"], [style*="text-decoration"]';
-function _hasRichStyling(tb) {
-  return !!_textEl(tb)?.querySelector(_RICH_SEL);
-}
+/* ⑸(DONE40 · 시트 GIF-V1 RICHTEXT) 옛 «꾸밈은 GIF 에 안 실립니다» 경고(#anim-rich-warn · 지디 결정 C)는 RICHTEXT-EFFECTS-01 C7 에서 지웠다 —
+   부분 꾸밈을 이제 GIF 에 그린다(C1~C6 · _extractCs/_runStyle → fillStyled · 현빈 결정 «화면 == 내보낸 것»). */
 
 /* X2(GIF-V1-EMPTY-TEXT-SAMPLE-01) 빈 글이면 «Sample Text» GIF 가 성공 토스트와 함께 나갔다(_extractText 대체값)
    ⇒ 저장 단추를 끄고 까닭을 툴팁으로(지디 결정 A · 단추 모양은 기존 .anim-export-btn:disabled). */
