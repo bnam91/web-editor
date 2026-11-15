@@ -63,8 +63,11 @@ const SECTION_BLOCK_TYPE_SEL = [
   '.bridge-block', '.grid-block', '.infocard-block', '.innercard-block', '.modal-block',
   '.shape-block', '.speech-bubble-block', '.banner02-block', '.comparison-block',
   '.mockup-block', '.vector-block', '.step-block', '.joker-block', '.canvas-block',
-  '.chat-block', '.coupon-block', '.cert-block', '.quote-block', '.radial-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
+  '.chat-block', '.coupon-block', '.quote-block', '.radial-block', '.gradient-block', '.sticker-block', '.laurel-block', '.zoom-block',
   '.qa-block',
+  /* 새 종은 끝에 — 쓰는 곳은 전부 querySelector(All)/closest 라 순서는 동작과 무관(결과는 문서 순서) · 가운데 끼우면 t904 칸 표의 페어와이즈(종 번호)가
+     뒤 종들까지 밀린다(2차 열차 07f8be554 · 지디 결정 261116). */
+  '.cert-block',
 ].join(', ');
 if (typeof window !== 'undefined') window.SECTION_BLOCK_TYPE_SEL = SECTION_BLOCK_TYPE_SEL;
 
@@ -1348,7 +1351,9 @@ function duplicateSelected() {
        ⚠️이 목록은 MULTI_SEL(:1294)·_ALL_BLOCK_SEL(아래) 과 «세 번째 사본»이다.
          셋이 갈려 있고, 여기엔 아직 canvas·banner02·comparison·sticker·chat·step·
          laurel·joker·speech-bubble 이 빠져 있다(MULTI_SEL 에는 있다). 별건으로 남긴다. */
-    '.zoom-block.selected'
+    '.zoom-block.selected, ' +
+    /* 2026-11-16 Documents(cert) — 자유 프레임 안 절대배치 cert 의 ⌘D 가 이 정상 경로(+20px·id 재발급)를 타게(t904 결손 dup 0 · 지디 결정) */
+    '.cert-block.selected'
   );
   const selSS = window._leafSelFrames?.()[0] || document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');

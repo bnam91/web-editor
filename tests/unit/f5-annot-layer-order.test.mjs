@@ -18,12 +18,13 @@ const AS = readFileSync(join(ROOT, 'js/annotation-select.js'), 'utf8');
 const ST = readFileSync(join(ROOT, 'js/sticker-select.js'), 'utf8');
 
 /* 5e4256d1 의 값 — 손으로 바꾸지 마라(바뀌면 그 까닭을 적고 같이 고친다)
-   ★2026-11-14 — 인증서 블럭(.cert-block)이 SECTION_BLOCK_TYPE_SEL 에 들어왔다(새 블럭 1종 · .coupon-block 바로 뒤). .annotation-block 은 여전히 0. */
+   ★2026-11-14 — 인증서 블럭(.cert-block)이 SECTION_BLOCK_TYPE_SEL 에 들어왔다(새 블럭 1종 · .coupon-block 바로 뒤). .annotation-block 은 여전히 0.
+   ★2026-11-16 — .cert-block 을 «끝»으로 옮겼다(순서는 동작 무관 · t904 페어와이즈가 뒤 7종까지 밀리지 않게 · 지디 결정). */
 const SECTION_SEL_AT_5E4256D1 = ['.text-block', '.asset-block', '.gap-block', '.icon-circle-block', '.icon-text-block', '.icon-block',
   '.table-block', '.label-group-block', '.graph-block', '.divider-block', '.bridge-block', '.grid-block', '.infocard-block', '.innercard-block',
   '.modal-block', '.shape-block', '.speech-bubble-block', '.banner02-block', '.comparison-block', '.mockup-block', '.vector-block', '.step-block',
-  '.joker-block', '.canvas-block', '.chat-block', '.coupon-block', '.cert-block', '.quote-block', '.radial-block', '.gradient-block', '.sticker-block',
-  '.laurel-block', '.zoom-block', '.qa-block'];
+  '.joker-block', '.canvas-block', '.chat-block', '.coupon-block', '.quote-block', '.radial-block', '.gradient-block', '.sticker-block',
+  '.laurel-block', '.zoom-block', '.qa-block', '.cert-block'];
 
 test('F1 ⛔SECTION_BLOCK_TYPE_SEL 무접촉 — 값 그대로 · .annotation-block 0', () => {
   const a = ED.indexOf('const SECTION_BLOCK_TYPE_SEL = [');
