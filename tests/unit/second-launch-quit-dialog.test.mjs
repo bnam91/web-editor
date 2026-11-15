@@ -16,6 +16,7 @@ import { denyWrite as denyWriteDir } from '../../tools/hardening/lib/denywrite.c
 import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
+const { sliceBlock } = require('./_slice-block.js');
 const { loadMain } = require('./_ipc-harness.js');
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const saveGuard = require(path.join(ROOT, 'main/quit/save-guard'));
@@ -180,9 +181,10 @@ test('S9 배선 — preload 가 묻고 beforeunload 가 실패 때만 취소한�
   const pre = fs.readFileSync(path.join(ROOT, 'preload.js'), 'utf8');
   assert.match(pre, /holdCloseOnSaveFailure:\s*\(\)\s*=>\s*ipcRenderer\.sendSync\('app:hold-close-on-save-failure'\)\s*===\s*true/, 'preload 에 닫기 보류 질문이 없다');
   const sl = fs.readFileSync(path.join(ROOT, 'js/io/save-load.js'), 'utf8');
-  const i = sl.indexOf("console.warn('[save-load:beforeunload] sync 저장 거부:'");
-  assert.ok(i > 0, '[전제] beforeunload 실패 갈래');
-  assert.match(sl.slice(i, i + 600), /holdCloseOnSaveFailure\?\.\(\)\)\s*\{\s*ev\?\.preventDefault\?\.\(\);\s*if \(ev\) ev\.returnValue = /, 'beforeunload 가 실패 때 닫기를 취소하지 않는다');
+  /* 구조로 뜬다(fixed-window-census W1 — 고정 창 금지): beforeunload 동기 저장의 실패 갈래 «한 덩이» */
+  const failBranch = sliceBlock(sl, 'if (result && result.ok === false) {', 'beforeunload 동기 저장 실패 갈래');
+  assert.ok(failBranch.includes("console.warn('[save-load:beforeunload] sync 저장 거부:'"), '[전제] 뜬 덩이가 beforeunload 실패 갈래가 아니다');
+  assert.match(failBranch, /holdCloseOnSaveFailure\?\.\(\)\)\s*\{\s*ev\?\.preventDefault\?\.\(\);\s*if \(ev\) ev\.returnValue = /, 'beforeunload 가 실패 때 닫기를 취소하지 않는다');
   const sg = fs.readFileSync(path.join(ROOT, 'main/quit/save-guard.js'), 'utf8');
   assert.doesNotMatch(sg, /showFailureDialog\(null\b/, '저장·종료 길에 부모 null 상자 호출이 남았다');
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
