@@ -311,7 +311,8 @@ test('GS-U carryItemExtras 원형 조각 키 — 옛 항목의 pieGrow/piePull/p
 });
 
 /* GRAPH-MCP-ITEMS-REPLACE-KEEPS-SHAPE-BY-INDEX-01 — items 통째 교체(MCP update_graph_block)의 덧필드 짝. 옛 판은 늘 같은 순번이라
- *   항목을 빼거나 순서를 바꾸면 살아남은 옛 B 의 모양이 그 번호의 새 항목에 붙었다. 양성대조: CTL-G.patch(block-factory 가 다시 _prevItems[i]) → DOM spec R1·R2 빨강 · 이 칸은 pairPrevItems 규칙을 잰다. */
+ *   항목을 빼거나 순서를 바꾸면 살아남은 옛 B 의 모양이 그 번호의 새 항목에 붙었다. 양성대조: CTL-G.patch(block-factory 가 다시 _prevItems[i]) → DOM spec R1·R2 빨강 ·
+ *   CTL-G2.patch(pairPrevItems ② 의 `|| used[i]` 삭제) → 이 칸 빨강(옮겨 간 B·A 를 새 0번에 또 준다). */
 test('U-PAIR pairPrevItems — 같은 라벨이 먼저 · 번호는 «이름만 바뀐» 자리만', () => {
   const { pairPrevItems } = GS;
   const A = { label: 'A' }, B = { label: 'B', shape: 'drop' }, C = { label: 'C' };
@@ -327,5 +328,6 @@ test('U-PAIR pairPrevItems — 같은 라벨이 먼저 · 번호는 «이름만 
   assert.deepEqual(lbl(pairPrevItems([A], [{ label: 'A' }, { label: 'Z' }])), ['A', null], '새 항목이 더 많으면 짝 없음');
   assert.deepEqual(pairPrevItems(null, [{ label: 'A' }]), [undefined]);
   assert.deepEqual(pairPrevItems([A], null), []);
-  assert.deepEqual(lbl(pairPrevItems([{ label: 'constructor', shape: 'drop' }], [{ label: 'N' }])), ['constructor'], '라벨 «constructor» 를 Object 원형 키로 오인해 «새 목록에 있다»로 읽으면 안 된다(이름만 바뀐 자리)');
+  assert.deepEqual(pairPrevItems([d0, d1], [{ label: 'D' }, { label: 'N' }]).map((p) => p && p.n), [0, 1], '남아도는 같은 라벨(옛 둘째 D)은 그 자리의 새 N 으로 — 이름만 바뀐 자리');
+  assert.deepEqual(lbl(pairPrevItems([{ label: 'constructor', shape: 'drop' }], [{ label: 'N' }])), ['constructor'], '라벨이 «constructor» 여도 이름만 바뀐 자리로 옮긴다');
 });
