@@ -10,6 +10,10 @@
  * M5 저장 왕복: 스와이프 · 오른쪽 → data-anim-fx·data-anim-slide 저장 · serializeProject → applyProjectData 뒤 그대로 + 첫 장면 img 2 ·
  *    글자 블럭 GIF 패널은 옛 그대로(글자 효과 목록 · 슬라이드 칸 숨김 · 줄마다 칸 보임)
  * M6 Figma: 첫 장면 카드 그림이 images 로 실림(지디 결정 ⓒ)
+ * M7 세로(2단계 ② 세로 스크롤): 세로 흐름 고르면 첫 장면 세로 쌓임 · 방향 글 위로/아래로 · 세로 넘김 = 머무름 칸 · 미리보기 사진이 y 로 움직임 ·
+ *    Figma images 가 y 로 · ⌘Z 두 번 = 가로로 · 다시 세로 고르고 저장 왕복(그림 지운 채) 뒤에도 세로
+ *   양성대조(2단계 · 예측): CTL1 renderSlideBlock `const vert = …` → `const vert = false` → M7 빨강(첫 장면) · CTL2 drawSlides `const y = false` → S6·M7 빨강(미리보기 y 안 움직임) ·
+ *    CTL3 엔진 고른 효과 뒤 renderSlideBlock 줄 삭제 → M7 빨강(첫 장면 안 바뀜) · CTL4 export-figma `const _v = …` → `const _v = false` → M7 빨강(Figma)
  * 양성대조(예측 · CTL 패치): ① save-load.js RERENDER_KINDS 의 slide-block 줄 삭제 → M5 빨강(왕복 뒤 첫 장면 0)
  *   ② animation-engine.js _buildAnimList 의 `const LIST = _kindList();` → `const LIST = ANIM_LIST;` → M2 빨강(글자 효과 목록)
  *   ③ slide-block.js _dataUriOf 첫 줄 뒤에 `return src;`(IPC 안 거치고 goya-asset 그대로) → M2·M3 빨강(사진이 안 그려짐)
@@ -17,7 +21,7 @@
  * 셀렉터·전역 대조(제품 소스 grep): #fp-component-dropdown .fp-dropdown-trigger · #fp-add-slide(index.html) · .slide-block .sld-img(slide-block.js) ·
  *   #sld-add · .sld-photo-row .sld-down/.sld-del(prop-slide.js) · #open-anim-btn(prop-slide.js) · #anim-list .anim-item[data-id] · #anim-slide-row · #anim-slide-dwell-row ·
  *   #anim-stamp-s0-row · #anim-per-line · #anim-loop-info · #anim-preview-canvas · .anim-export-btn · #anim-tb-play · #anim-canvas-play(animation-engine.js) ·
- *   window.addSection · selectSection · flushCurrentPage · addTextBlock · openAnimModal · closeAnimModal · serializeProject · applyProjectData · buildFigmaExportJSON · __admin(state)
+ *   window.addSection · selectSection · selectBlock · flushCurrentPage · #anim-slide-dir option(animation-engine.js _syncKindRows) · addTextBlock · openAnimModal · closeAnimModal · serializeProject · applyProjectData · buildFigmaExportJSON · __admin(state)
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -72,9 +76,9 @@ async function withPhotos(page) {
 const colors = (page, sel) => page.evaluate((sel) => {
   const cv = document.querySelector(sel); if (!cv) return null;
   const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, W = cv.width;
-  let red = false, blue = false, bx = Infinity;
-  for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2]; if (r > 200 && g < 60 && b < 60) red = true; if (b > 200 && r < 60 && g < 60) { blue = true; bx = Math.min(bx, (i / 4) % W); } }
-  return { red, blue, bx };
+  let red = false, blue = false, bx = Infinity, by = Infinity;
+  for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2]; if (r > 200 && g < 60 && b < 60) red = true; if (b > 200 && r < 60 && g < 60) { blue = true; bx = Math.min(bx, (i / 4) % W); by = Math.min(by, Math.floor(i / 4 / W)); } }
+  return { red, blue, bx, by };
 }, sel);
 
 test('M1 추가 메뉴(관리자) · 오른쪽 패널 사진 넣기·순서·빼기 · ⌘Z', async ({ page }) => {
@@ -103,7 +107,7 @@ test('M2 GIF 버튼 → GIF 패널: 슬라이드 효과만 · 글자 칸 숨김 
   const s = await withPhotos(page);
   await page.click('#open-anim-btn');
   await expect(page.locator('#anim-gif-modal'), '[전제] GIF 패널').toBeVisible();
-  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe']);
+  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep']);   // 2단계에서 세로 둘 더함(같은 정확 일치)
   await expect(page.locator('#anim-stamp-s0-row'), '글자 칸(도장 시작) 숨김').toBeHidden();
   await expect(page.locator('#anim-per-line'), '글자 칸(줄마다 따로) 숨김').toBeHidden();
   await expect(page.locator('#anim-slide-row'), '방향 칸 보임').toBeVisible();
@@ -193,5 +197,42 @@ test('M6 Figma — 첫 장면 카드 그림이 images 로', async ({ page }) => 
   });
   expect(imgs?.[0], `★Figma 에 첫 장면 그림이 없다 — ${JSON.stringify(imgs)}`).toEqual(['r.png', 0, true]);
   expect(imgs?.[1]?.[0], '둘째 카드 = b.png').toBe('b.png');
+  expect(s.errs, s.errs.join(' | ')).toEqual([]);
+});
+
+test('M7 세로 — 고르면 첫 장면 세로 · 위로/아래로 · 미리보기 y 로 움직임 · Figma y · ⌘Z 가로 · 왕복', async ({ page }) => {
+  const s = await withPhotos(page);
+  const cards = () => page.evaluate(() => [...document.querySelectorAll('#canvas .slide-block .sld-card')].map((c) => { const r = c.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
+  const [h0, h1] = await cards();
+  expect(h1[0] > h0[0] && h1[1] === h0[1], `[전제] 가로 첫 장면 — ${JSON.stringify([h0, h1])}`).toBe(true);
+  await page.click('#open-anim-btn');
+  await page.click('#anim-list .anim-item[data-id="slide-vflow"]');
+  const [v0, v1] = await cards();
+  expect(v1[1] > v0[1] && v1[0] === v0[0], `★세로 흐름을 골랐는데 첫 장면이 세로로 안 쌓인다 — ${JSON.stringify([v0, v1])}`).toBe(true);
+  expect(await page.evaluate(() => [...document.getElementById('anim-slide-dir').options].map((o) => o.textContent)), '방향 글').toEqual(['↑ 위로', '↓ 아래로']);
+  await expect(page.locator('#anim-slide-dwell-row'), '세로 흐름엔 머무름 없음').toBeHidden();
+  await expect.poll(() => colors(page, '#anim-preview-canvas'), { timeout: 10000 }).toMatchObject({ blue: true });
+  const y0 = (await colors(page, '#anim-preview-canvas')).by;
+  await expect.poll(async () => (await colors(page, '#anim-preview-canvas'))?.by, { timeout: 10000, message: '★미리보기 사진이 세로로 안 움직인다' }).not.toBe(y0);
+  await page.click('#anim-list .anim-item[data-id="slide-vstep"]');
+  await expect(page.locator('#anim-slide-dwell-row'), '세로 넘김 = 머무름 칸').toBeVisible();
+  await page.evaluate(() => window.closeAnimModal());
+  const fig = await page.evaluate(() => {
+    const id = document.querySelector('#canvas .slide-block').id; let node = null;
+    const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); };
+    window.flushCurrentPage(); walk(window.buildFigmaExportJSON?.(null));
+    return node && node.images ? node.images.map((m) => [m.src.split('/').pop(), m.x, m.y > 0]) : node;
+  });
+  expect(fig, `★Figma 세로 자리 — ${JSON.stringify(fig)}`).toEqual([['r.png', 0, false], ['b.png', 0, true]]);
+  const isVert = async () => { const [a, b] = (await cards()) || []; return a && b ? (b[1] > a[1] && b[0] === a[0] ? 'v' : b[0] > a[0] && b[1] === a[1] ? 'h' : '?') : '없음'; };
+  await page.keyboard.press('Meta+z');   // 세로 넘김 → 세로 흐름
+  await page.keyboard.press('Meta+z');   // 세로 흐름 → 가로 흐름(고른 «뒤» pushHistory 라 한 번에 한 칸)
+  await expect.poll(isVert, { message: '★⌘Z 로 가로 첫 장면에 안 돌아간다' }).toBe('h');
+  await page.evaluate(() => window.selectBlock(document.querySelector('#canvas .slide-block').id));   // 가운데 클릭은 ▶ 단추와 겹칠 수 있어 함수로
+  await page.click('#open-anim-btn');
+  await page.click('#anim-list .anim-item[data-id="slide-vflow"]');
+  await page.evaluate(() => window.closeAnimModal());
+  await page.evaluate(() => { document.querySelector('#canvas .slide-block').replaceChildren(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  await expect.poll(isVert, { message: '★저장 왕복 뒤 세로가 풀렸다' }).toBe('v');
   expect(s.errs, s.errs.join(' | ')).toEqual([]);
 });

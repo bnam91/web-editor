@@ -1172,13 +1172,14 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          블럭 폭 밖 카드는 뺌 · 걸친 카드는 보이는 폭까지(shortcut: 잘린 카드는 그 폭에 cover 로 다시 맞춰져 화면과 크롭이 조금 다름 — 맞추려면 받는 쪽에 크롭 칸을 더한다). */
       if (el.classList.contains('slide-block') && typeof window.readSlideState === 'function') {
         const _ls = el.id ? document.getElementById(el.id) : null;
-        const _bw = Math.round((_ls && _ls.offsetWidth) || el.offsetWidth || w || 0);
-        const { slides, layout } = window.readSlideState(el);
-        const _cw = (_bw * layout.cardW) / 100;
+        const { slides, layout, fx } = window.readSlideState(el);
+        const _v = window.slideAxis?.(fx) === 'y';   // 2단계 세로 — 같은 셈을 y 로(카드 크기 % = 높이의 %)
+        const _bw = Math.round((_ls && _ls.offsetWidth) || el.offsetWidth || w || 0), _L = _v ? Math.round(layout.h) : _bw;
+        const _cw = (_L * layout.cardW) / 100;
         const images = slides.map((sl, i) => {
-          const x = Math.round(i * (_cw + layout.gap));
-          return { src: sl.src, x, y: 0, w: Math.min(Math.round(_cw), _bw - x), h: Math.round(layout.h), circle: false };
-        }).filter((m) => m.x < _bw && m.w > 0);
+          const p = Math.round(i * (_cw + layout.gap)), len = Math.min(Math.round(_cw), _L - p);
+          return _v ? { src: sl.src, x: 0, y: p, w: _bw, h: len, circle: false } : { src: sl.src, x: p, y: 0, w: len, h: Math.round(layout.h), circle: false };
+        }).filter((m) => (_v ? m.y : m.x) < _L && (_v ? m.h : m.w) > 0);
         if (images.length) out.images = images;
       }
       /* Q11(현빈 261112) — 래디얼 「내용 자르기」 끔이면 clip:false(켬 = 키 없음 = 옛 바이트). ⚠️figma-renderer generic 은 아직 «안 읽는다»(G17 border 와 같은 처지). */

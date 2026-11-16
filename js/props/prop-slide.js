@@ -8,7 +8,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { readSlideState, setSlideList, setSlideLayout } from '../blocks/slide-block.js';
-import { SLIDE_MAX } from '../fx/slide-motion.js';
+import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="1" y="3" width="6" height="6" rx="0.5"/><path d="M8.5 3.5v5M10.5 4.5v3"/></svg>`;
 const _adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);
@@ -32,7 +32,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Sl
       <div class="prop-section-title">Slides</div>
       ${photoRows || '<div class="prop-row"><span class="prop-label">사진 없음</span></div>'}
       <div class="prop-row"><button class="prop-btn" id="sld-add" style="width:100%"${full ? ' disabled' : ''} title="${full ? `최대 ${SLIDE_MAX}장` : '사진 파일 고르기'}">+ 사진 넣기 (${st.slides.length}/${SLIDE_MAX})</button></div>
-      ${sliderRowHTML('카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
+      ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}
       ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}
     </div>

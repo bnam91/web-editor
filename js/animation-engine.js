@@ -119,7 +119,10 @@ let _animKind      = 'text';   // 'text' | 'slide'
 const SLIDE_LIST = [
   { id: 'slide-flow',  label: '가로 흐름', desc: '사진 줄이 끊김 없이 한 방향으로 흐름' },
   { id: 'slide-swipe', label: '스와이프',  desc: '한 장씩 넘기고 잠깐 머무름' },
+  { id: 'slide-vflow', label: '세로 흐름', desc: '사진이 세로로 쌓여 끊김 없이 위·아래로 흐름' },   // 2단계
+  { id: 'slide-vstep', label: '세로 넘김', desc: '세로로 한 장씩 올리고 잠깐 머무름' },
 ];
+const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep']);
 const _isSlide = (el) => !!(el && el.classList && el.classList.contains('slide-block'));
 const _kindList = () => (_animKind === 'slide' ? SLIDE_LIST : ANIM_LIST);
 const _slideBgStyle = (tb) => ({ sectionBg: window.slideBg ? window.slideBg(tb) : '#ffffff', fontSize: 1 });
@@ -131,7 +134,10 @@ function _syncKindRows() {
   if (slide) for (const id of ['anim-tracks', 'anim-fx-opts', 'anim-conflict-warn']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
   const dirRow = document.getElementById('anim-slide-row'), dwRow = document.getElementById('anim-slide-dwell-row');
   if (dirRow) dirRow.style.display = slide ? '' : 'none';
-  if (dwRow) dwRow.style.display = slide && _animType === 'slide-swipe' ? '' : 'none';
+  if (dwRow) dwRow.style.display = slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep') ? '' : 'none';
+  /* 방향 값은 그대로(left = 줄이 음의 쪽으로) — 세로 효과면 글만 위로/아래로 */
+  const dirSel = document.getElementById('anim-slide-dir'), v = _SLIDE_VERT.has(_animType);
+  if (slide && dirSel) for (const o of dirSel.options) o.textContent = o.value === 'right' ? (v ? '↓ 아래로' : '→ 오른쪽으로') : (v ? '↑ 위로' : '← 왼쪽으로');
 }
 /** GIF 패널 지금 값(슬라이드) — 방향·머무름·속도. */
 function _slideAnimNow() {
@@ -506,6 +512,7 @@ function _buildAnimList() {
       if (!_animTb) return;
       const had = _animTb.dataset.animFx ?? null;
       _animTb.dataset.animFx = el.dataset.id;
+      if (_animKind === 'slide' && had !== el.dataset.id) window.renderSlideBlock?.(_animTb);   // 2단계 — 가로↔세로면 정적 첫 장면도 바뀐다
       const optChanged = _animKind === 'text' ? _saveBlockOpt() : false;   // 옵션은 그 효과가 받는 키만 남긴다(슬라이드엔 글자 옵션 없음)
       _commitGif(had !== el.dataset.id || optChanged);
     });

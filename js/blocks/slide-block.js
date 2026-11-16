@@ -1,7 +1,7 @@
 /* slide-block.js — 슬라이드 블럭(사진·카드 여러 장 + 움직임) · 0.9.13 MOTION-SLIDE-BLOCK-01(현빈 261116 · 설계 DESIGN-ty-0913-motion-261116.md · 지디 GO)
  *   ★본 = cert-block.js(가장 최근 새 블럭 · 같은 등록 길): 데이터 = dataset 하나(저장 = outerHTML) · 그림은 renderSlideBlock 이 매번 다시(로드·⌘Z·붙여넣기 = save-load.js RERENDER_KINDS)
  *   ★현빈 결정: 움직임 설정 입구 = «GIF 버튼 → GIF 패널» 하나(animation-engine.js 가 블럭 종류로 효과 목록을 바꿈) · 오른쪽 패널(prop-slide.js) = 내용만(사진·카드 폭·간격·높이)
- *   데이터: data-slides='[{"src":…}]'(≤12) · data-slide-layout='{"cardW","gap","h"}'(기본이면 키 없음) · data-anim-fx(slide-flow|slide-swipe) · data-anim-slide='{"dir","dwell","speed"}'(기본이면 키 없음)
+ *   데이터: data-slides='[{"src":…}]'(≤12) · data-slide-layout='{"cardW","gap","h"}'(기본이면 키 없음) · data-anim-fx(slide-flow|slide-swipe|slide-vflow|slide-vstep) · data-anim-slide='{"dir","dwell","speed"}'(기본이면 키 없음)
  *   정적 «첫 장면» = .sld-track flex 줄(<img> · 인라인 꼴) — PNG/HTML/Figma 가 이걸 찍는다 · 움직임은 캔버스 재생(#canvas 밖 덮개)과 GIF 에서만.
  *   ⛔그림 주소 = data:image/ · goya-asset: 만(https 는 캔버스 오염 — 안 받음).
  *   ★캔버스에 그릴 그림 = assets:readAsDataUri IPC 로 받은 data URL(goya-asset 을 캔버스에 바로 그리면 오염 가능 — crossOrigin/corsEnabled 로 풀지 않는다 · 지디 261116).
@@ -11,7 +11,7 @@ import { genId, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis,
 } from '../fx/slide-motion.js';
 
 const slideImgOk = (s) => typeof s === 'string' && s.length <= 8_000_000 && /^(data:image\/(png|jpe?g|webp|gif);base64,|goya-asset:\/\/)/i.test(s);
@@ -50,19 +50,20 @@ export const slideHasPhotos = (block) => readSlideState(block).slides.length > 0
 /** 정적 첫 장면 — 카드 i 왼끝 = i × (카드 폭 + 간격)(slide-motion drawSlides offset 0 과 같은 자리). 빈 블럭 = 체크무늬 카드 3. */
 export function renderSlideBlock(block) {
   if (!block) return;
-  const { slides, layout } = readSlideState(block);
+  const { slides, layout, fx } = readSlideState(block);
+  const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
   block.style.overflow = 'hidden';
   const track = document.createElement('div');
   track.className = 'sld-track';
-  track.style.cssText = `display:flex;gap:${layout.gap}px;width:100%;height:100%;`;
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;height:100%;`;
   const cards = slides.length ? slides : [null, null, null];
   cards.forEach((s, i) => {
     const c = document.createElement('div');
     c.className = 'sld-card';
     c.dataset.idx = String(i);
     if (!s) c.classList.add('sld-card-empty');   // 빈 카드 체커 = CSS 클래스(card-empty-export 조건①: 인라인이면 저장본에 실림)
-    c.style.cssText = `flex:0 0 ${layout.cardW}%;height:100%;overflow:hidden;`;
+    c.style.cssText = `flex:0 0 ${layout.cardW}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;`;
     if (s) {
       const img = document.createElement('img');
       img.className = 'sld-img';
@@ -109,11 +110,11 @@ export function slideBg(block) {
 export function slidePlan(block, anim, fxOverride) {
   const st = readSlideState(block);
   const A = normAnim(anim || st.anim), fx = SLIDE_FX.includes(fxOverride) ? fxOverride : st.fx;
-  const bw = Math.max(1, block.offsetWidth), geom = slideGeom(bw, st.slides.length || 3, st.layout);
+  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, st.slides.length || 3, st.layout);
   const sec = loopSec(fx, geom, A);
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec), gif: gifPlan(sec), fx, anim: A,
-    draw: (ctx, W, H, _size, t) => drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, slideOffset(fx, geom, A, t), A.dir, W / bw),
+    draw: (ctx, W, H, _size, t) => drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, slideOffset(fx, geom, A, t), A.dir, (axis === 'y' ? H : W) / bw, undefined, axis),
   };
 }
 
@@ -164,3 +165,4 @@ window.slideBg = slideBg;
 window.slideHasPhotos = slideHasPhotos;
 window.setSlideAnim = setSlideAnim;
 window.readSlideState = readSlideState;
+window.slideAxis = slideAxis;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

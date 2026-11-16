@@ -4,11 +4,13 @@
  * S3 GIF 60 상한: 짧은 바퀴 = 20fps 그대로 · 긴 바퀴(12초) = 60프레임 · 5fps 로 낮춤 + 안내 줄이 몇 fps 인지 말함(지디 결정 ⓑ)
  * S4 그림 자리: offset 0 = 카드 i 왼끝 i×(카드 폭+간격)×k(정적 첫 장면 flex 줄과 같은 자리) · 오른쪽 흐름 = 반대 부호 · 주기 끝에서도 화면 폭을 다 덮음
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
+ * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
+ *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
  * 양성대조(예측 · CTL): slideOffset 첫 줄 `const tt = ((t % 1) + 1) % 1;` → `const tt = t;`(한 바퀴 감기 없앰) → S1 빨강(t 1 ≠ 0) · 스와이프 `: 1;` → `: 0;` → S2 빨강 · gifPlan 의 `Math.min(GIF_FRAMES_MAX, …)` 를 `Math.round(s * GIF_FPS_MAX)` 로 → S3 빨강
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault,
+import { slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
   SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
@@ -76,4 +78,28 @@ test('S5 소독 · 기본값 = 키 없음', () => {
   assert.deepEqual(normAnim({ dir: '<b>', dwell: 99, speed: 0 }), { dir: 'left', dwell: 4, speed: 0.25 });
   assert.deepEqual(diffFromDefault(normAnim({}), SLIDE_ANIM_DEFAULT), {});
   assert.deepEqual(diffFromDefault(normAnim({ dir: 'right' }), SLIDE_ANIM_DEFAULT), { dir: 'right' });
+});
+
+test('S6 세로 — 흐름·넘김 셈은 가로와 같고 그림은 y 축', () => {
+  assert.deepEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep'].map(slideAxis), ['x', 'x', 'y', 'y']);
+  const A = { dwell: 1.5, speed: 1 };
+  assert.equal(loopSec('slide-vflow', G, A), loopSec('slide-flow', G, A));
+  assert.equal(loopSec('slide-vstep', G, A), loopSec('slide-swipe', G, A));
+  for (const t of [0, 0.1, 0.37, 0.8]) {
+    assert.equal(slideOffset('slide-vflow', G, A, t), slideOffset('slide-flow', G, A, t));
+    assert.equal(slideOffset('slide-vstep', G, A, t), slideOffset('slide-swipe', G, A, t), `넘김 t ${t}`);
+  }
+  const k = 0.5, W = 180, H = 400;   // 세로: 움직임 축 = H
+  const c0 = fakeCtx(); c0.fillRect = (x, y, w, h) => c0.calls.push({ op: 'rect', x, y, w, h });
+  c0.drawImage = (im, sx, sy, sw, sh, dx, dy, dw, dh) => c0.calls.push({ op: 'img', id: im.id, x: dx, y: dy, w: dw, h: dh });
+  drawSlides(c0, W, H, IM, G, 0, 'left', k, undefined, 'y');
+  const first = c0.calls.filter((c) => c.op === 'img' && c.y > -1 && c.y < H).map((c) => [c.id, c.x, c.y, c.w, c.h]).sort((a, b) => a[2] - b[2]);
+  assert.deepEqual(first, [[0, 0, 0, 180, 200], [1, 0, 210, 180, 200]], '★카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭');
+  for (const off of [0, 400, 1679]) {
+    const c = fakeCtx(); c.drawImage = (im, sx, sy, sw, sh, dx, dy, dw, dh) => c.calls.push({ op: 'img', y: dy, h: dh });
+    drawSlides(c, W, H, IM, G, off, 'right', k, undefined, 'y');
+    const spans = c.calls.map((q) => [Math.max(0, q.y), Math.min(H, q.y + q.h)]).filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
+    let reach = 0; for (const [a, b] of spans) { if (a > reach + G.gap * k + 0.01) break; reach = Math.max(reach, b); }
+    assert.ok(reach >= H - 0.01, `★offset ${off} 에서 아래가 비었다(${reach})`);
+  }
 });
