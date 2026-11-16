@@ -2153,9 +2153,28 @@ function _putIn(t, sec, el) {
   window.settleRowInFreeFrame?.(t.into, el, 'stack');
 }
 
+/* ★ASSET-CONTENT-COPY-PASTE-TO-SCRATCH(현빈 261116) — 그림 편집 모드(더블클릭) 안의 ⌘C 는 «그 그림» 복사다 → ⌘V 는 스크래치 항목으로.
+   출처는 복사 때 표시하고(type 'img-edit') 붙일 때 가른다. ⌘D·⌘X 는 이 표시를 안 거쳐 옛 그대로(블럭).
+   src 는 dataset 주소(goya-asset://) 그대로 — data URL 로 바꾸지 않는다. OS 클립보드 글자·시각은 바로 앞 copySelected 가 이미 썼다. */
+function _markImgEditCopy() {
+  const ab = document.querySelector('#canvas .asset-block.img-editing');
+  const src = ab?._imgEditing && (ab.dataset.imgSrc || ab.querySelector('.asset-img')?.getAttribute('src'));
+  if (src) clipboard = { type: 'img-edit', src, w: Math.min(400, Math.round(ab.offsetWidth) || 220) };   // 폭 상한 = 스크래치로 옮기기(_moveAssetToScratch)와 같다
+}
+function _pasteImgEditToScratch({ src, w }) {
+  const scaler = document.getElementById('canvas-scaler'), wrap = document.getElementById('canvas-wrap');
+  if (!scaler || !wrap || typeof window._scratchAddAndSave !== 'function') { window.showToast?.('⚠️ 스크래치 패드를 찾지 못했어요'); return; }
+  // 자리 = 보이는 화면 가운데(OS 이미지 붙여넣기와 같은 규칙) · 배율 = 화면 폭 ÷ 레이아웃 폭
+  const sr = scaler.getBoundingClientRect(), wr = wrap.getBoundingClientRect(), k = sr.width / (scaler.offsetWidth || sr.width) || 1;
+  const x = Math.round((wr.left + wr.width / 2 - sr.left) / k - w / 2), y = Math.round((wr.top + wr.height / 2 - sr.top) / k - 60);
+  window._scratchAddAndSave(src, x, y, w)
+    .then(() => window.showToast?.('📋 그림을 스크래치 패드에 넣었어요'))
+    .catch(err => window.showToast?.('❌ 스크래치에 넣지 못했어요: ' + (err?.message || err)));
+}
 function pasteClipboard() {
   const _dup = _copyForDuplicate; _copyForDuplicate = false;
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
+  if (clipboard.type === 'img-edit') { _pasteImgEditToScratch(clipboard); return; }
   /* ★0918r2 T-058 — 붙여넣으면 선택이 «블럭 단위»로 바뀐다(사본이 selected 로 들어와 원본과 함께 잡힌다).
      그리드 줄 선택(활성줄+마커)을 남기면 [원본(줄)+사본] 상태의 ⌫ 가 원본의 줄로 샜다. */
   window.grdDropLineSelection?.(canvasEl);
@@ -2815,6 +2834,7 @@ document.addEventListener('keydown', e => {
       if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
       if (window.grdCopySelectedLines?.()) return;
       copySelected();
+      _markImgEditCopy();
       return;
     }
     if (e.key === 'v') {
