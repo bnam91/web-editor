@@ -324,3 +324,40 @@ test('T18 도장 — 왼쪽·오른쪽 정렬 패딩 0 블럭: 내려오는 프�
   const b = boxes.find((x) => x.s.includes('네'));
   assert.ok(b.k > 2 && Math.abs((b.l + b.r) / 2 - (s0.x0 + s0.w / 2)) < 1e-6, `가운데 정렬 기준점이 움직였다 — ${b.l}~${b.r}`);
 });
+
+/* T19 NEW-현빈QA-GIF-CANVAS-STAMP-CLIPPED-BY-FRAME-01 — 캔버스(= 블럭 W×H · 화면 «캔버스에서 보기»와 저장 GIF 가 같은 drawTracks) 안에 커진 글 상자가 «가로·세로 둘 다» 든다.
+ *   ⑴ 높이 딱 맞는 한 줄(H = 줄높이) ⑵ 블럭 폭을 거의 채운 긴 줄 — 둘 다 옛 판(가로 기준점만 밀기)은 위아래·오른쪽이 잘렸다.
+ *   ⑶ 현빈 안내 «블럭에 위아래 여백을 주면 쾅이 커진다» — 같은 글 · H 를 3배로 하면 최대 배율이 커진다(상한 = 들어가는 만큼).
+ *   양성대조(예측 · CTL): FX.stamp 의 배율 상한 줄(`sc = Math.min(sc, …)`) 삭제 + cy 밀기 삭제 → ⑴⑵ 빨강 · ⑶ 빨강(두 높이 최대 배율이 같은 2.2). */
+test('T19 도장 — 커진 글 상자가 캔버스 안(가로·세로) · 그래도 확대는 한다 · 높이를 늘리면 최대 배율이 커진다', () => {
+  const size = 24, dur = 560;
+  const mk = () => {   // 가로·세로 변형을 따라가는 기록기 — 글 한 번 그릴 때 캔버스 위 상자(글자 높이 = size)
+    const c = fakeCtx(); let m = [1, 0, 0]; const st = [], boxes = [];
+    Object.assign(c, {
+      translate(x, y) { c._tf++; m = [m[0], m[1] + m[0] * x, m[2] + m[0] * y]; }, scale(a) { c._tf++; m = [m[0] * a, m[1], m[2]]; },
+      save() { st.push([m, c.filter, c._tf, c.globalAlpha]); }, restore() { [m, c.filter, c._tf, c.globalAlpha] = st.pop(); },
+      fillText(s, x, y) { const w = c.measureText(s).width; boxes.push({ s: String(s), l: m[1] + m[0] * x, r: m[1] + m[0] * (x + w), t: m[2] + m[0] * (y - size / 2), b: m[2] + m[0] * (y + size / 2), k: m[0] }); },
+    });
+    return { c, boxes };
+  };
+  const run = (W, H, text) => {
+    const style = { ...STYLE, text, wrapEm: W / size };
+    let kmax = 0;
+    for (let tau = 0; tau < dur * 0.7; tau += 14) {
+      const { c, boxes } = mk(); drawTracks(c, W, H, style, size, [{ line: 0, fx: 'stamp', at: 0, dur }], tau);
+      assert.ok(boxes.length, `[전제] ${W}×${H} ${tau}ms 글이 그려짐`);
+      for (const b of boxes) {
+        kmax = Math.max(kmax, b.k);
+        assert.ok(b.l >= -1e-6 && b.r <= W + 1e-6 && b.t >= -1e-6 && b.b <= H + 1e-6,
+          `★${W}×${H} «${text}» ${tau}ms 글 상자 x ${b.l.toFixed(1)}~${b.r.toFixed(1)} · y ${b.t.toFixed(1)}~${b.b.toFixed(1)} 가 캔버스 밖`);
+      }
+    }
+    return kmax;
+  };
+  const tight = run(480, Math.round(size * 1.4), '네!');            // ⑴ 높이 딱 맞는 한 줄
+  assert.ok(tight > 1.3, `그래도 확대는 한다(높이 딱 맞음 · 최대 ${tight.toFixed(2)}배)`);
+  const long = run(480, 200, '가'.repeat(46));   // ⑵ 폭을 거의 채운 긴 줄(46자×10px)
+  assert.ok(long >= 1 && long < 1.1, `[전제] 긴 줄은 상한이 거의 1 — ${long.toFixed(3)}`);
+  const tall = run(480, Math.round(size * 1.4) * 3, '네!');          // ⑶ 같은 글 · 위아래 여백(높이 3배)
+  assert.ok(tall > tight + 0.5, `★높이를 늘려도 최대 배율이 안 커진다 — ${tight.toFixed(2)} → ${tall.toFixed(2)}`);
+});

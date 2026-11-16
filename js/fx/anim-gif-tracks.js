@@ -149,15 +149,22 @@ const _plain = (ctx, segs, env) => segs.forEach((s) => fillStyled(ctx, s.text, s
 export const FX = {
   stamp: (ctx, segs, p, env) => {
     const m = stampParams(p, env.k);
+    let sc = m.scale;
     let cx = segs.reduce((a, s) => a + s.x0 + s.w / 2, 0) / segs.length;
-    const cy = segs.reduce((a, s) => a + s.y, 0) / segs.length;
-    if (m.scale > 1 + 1e-6) {   // 확대 기준점을 «커진 글이 캔버스 안» 쪽으로만 민다 — 왼쪽 정렬·패딩 0 이면 x0≈1 이라 가운데 기준 2.2배가 왼쪽 밖으로 잘렸다(0.9.12 «네!» 45%)
-      const x0 = Math.min(...segs.map((s) => s.x0)), x1 = Math.max(...segs.map((s) => s.x0 + s.w)), k1 = m.scale / (m.scale - 1);
-      cx = Math.min(Math.max(cx, k1 * x1 - env.W / (m.scale - 1)), k1 * x0);   // 왼끝 ≥ 0 이 우선(둘 다 못 맞추는 긴 줄은 오른쪽이 잘림)
+    let cy = segs.reduce((a, s) => a + s.y, 0) / segs.length;
+    if (sc > 1 + 1e-6) {
+      /* 커진 글 상자가 캔버스(= 블럭 W×H · 화면 «캔버스에서 보기»와 저장 GIF 같은 크기) 안에 들게 — ⑴ 배율 상한 = 상자가 들어가는 만큼 ⑵ 기준점을 안쪽으로만 민다.
+         0.9.12 «네!» 왼쪽 잘림(가로 밀기만) → 현빈 QA 261116 긴 줄·높이 딱 맞는 블럭은 여전히 블럭 경계에서 잘림. 블럭에 위아래 여백을 주면 상한이 그만큼 커진다. */
+      const hk = Math.max(1, ...segs.flatMap((s) => (s.cs || []).map((c) => (c && c.sizeK) || 1)));   // 글 상자 높이 = 글자 크기(가장 큰 조각)
+      const x0 = Math.min(...segs.map((s) => s.x0)), x1 = Math.max(...segs.map((s) => s.x0 + s.w));
+      const y0 = Math.min(...segs.map((s) => s.y)) - env.size * hk / 2, y1 = Math.max(...segs.map((s) => s.y)) + env.size * hk / 2;
+      sc = Math.min(sc, Math.max(1, env.W / Math.max(1e-6, x1 - x0)), Math.max(1, env.H / Math.max(1e-6, y1 - y0)));
+      const fit = (c, a0, a1, L) => { const k1 = sc / (sc - 1); return Math.min(Math.max(c, k1 * a1 - L / (sc - 1)), k1 * a0); };
+      if (sc > 1 + 1e-6) { cx = fit(cx, x0, x1, env.W); cy = fit(cy, y0, y1, env.H); } else sc = 1;
     }
     ctx.globalAlpha = m.alpha; _blur(ctx, m.blur);
     // 끝 프레임은 «변형 없음» 으로 — 0.94 + 0.06 이 1.0000000000000002 가 되어 근소 변형이 남는다(T7)
-    if (Math.abs(m.scale - 1) > 1e-6 || Math.abs(m.dx) > 1e-6) { ctx.translate(cx + m.dx, cy); ctx.scale(m.scale, m.scale); ctx.translate(-cx, -cy); }
+    if (Math.abs(sc - 1) > 1e-6 || Math.abs(m.dx) > 1e-6) { ctx.translate(cx + m.dx, cy); ctx.scale(sc, sc); ctx.translate(-cx, -cy); }
     _plain(ctx, segs, env);
   },
   'blur-in': (ctx, segs, p, env) => { const m = blurInParams(p, env.k); ctx.globalAlpha = m.alpha; _blur(ctx, m.blur); _plain(ctx, segs, env); },
