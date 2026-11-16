@@ -86,10 +86,12 @@ export function layoutLines(ctx, style, W, H, size) {
   const env = { style, size };
   const wrap = (text, lcs) => {   // lcs = 이 줄의 조각 스타일 — 굵기·크기 다른 조각은 제 폭으로 잰다
     if (!text) return [''];
-    const res = []; let cur = '', c0 = 0, at = 0;
+    /* cur = null «아직 줄 없음» · '' = 줄 앞 빈칸이 쌓이는 중 — 앞 빈칸(&nbsp;)을 버리지 않는다(GIF-HL-LEADING-SPACE-LOST-01 · 옛 truthy 판정은 ' 안녕' 을 '안녕' 으로 접었다).
+       접힌 자리 뒤 빈 단어(겹빈칸)는 옛처럼 버린다(cur = word || null). */
+    const res = []; let cur = null, c0 = 0, at = 0;
     for (const word of text.split(' ')) {
-      const test = cur ? cur + ' ' + word : word, s0 = cur ? c0 : at;
-      if (measureStyled(ctx, test, lcs && lcs.slice(s0, s0 + test.length), env) > maxW && cur) { res.push(cur); cur = word; c0 = at; } else { cur = test; c0 = s0; }
+      const test = cur !== null ? cur + ' ' + word : word, s0 = cur !== null ? c0 : at;
+      if (measureStyled(ctx, test, lcs && lcs.slice(s0, s0 + test.length), env) > maxW && cur) { res.push(cur); cur = word || null; c0 = at; } else { cur = test; c0 = s0; }
       at += word.length + 1;
     }
     if (cur) res.push(cur);

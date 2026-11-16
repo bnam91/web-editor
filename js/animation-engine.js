@@ -397,16 +397,18 @@ function _extractText(el) {
     .replace(/<div/gi, '\n<div')         // <div> 앞에 줄바꿈 삽입
     .replace(/<p(?=[\s>])/gi, '\n<p')    // <p> 앞에 줄바꿈 삽입
     .replace(/<[^>]+>/g, '')             // 모든 태그 제거
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&nbsp;/g, '\u00a0')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')          // 3개 이상 연속 줄바꿈 → 최대 2개
-    .trim() || el.textContent?.trim() || 'Sample Text';
+    .replace(_EDGE_WS, '')                // 앞뒤 «접히는» 공백만 깎는다 — &nbsp; 는 화면에 자리를 차지하므로 남김(NEW-현빈QA-GIF-HL-LEADING-SPACE-LOST-01 · 옛 .trim() 은 \u00a0 도 깎아 앞 빈칸 형광펜이 빠졌다)
+    .replace(/\u00a0/g, ' ') || el.textContent?.trim() || 'Sample Text';
 }
 
+const _EDGE_WS = /^[ \t\r\n]+|[ \t\r\n]+$/g;   // 접히는 공백(빈칸·탭·줄바꿈) — \u00a0 은 빼고
 /* 조각 스타일 cs(RICHTEXT-EFFECTS-01) — _extractText 와 «같은 글»을 DOM 을 걸어 만들고, 글자마다 그 글자를 감싼 요소의 스타일.
-   같은 규칙: br = 줄바꿈 · div/p 앞 줄바꿈 · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 공백 깎기. 결과 글이 text 와 다르면 null(평글로 그린다). */
+   같은 규칙: br = 줄바꿈 · div/p 앞 줄바꿈 · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 «접히는» 공백만 깎기(nbsp 는 남김). 결과 글이 text 와 다르면 null(평글로 그린다). */
 function _extractCs(el, text) {
   if (!el.childNodes) return null;
   const memo = new Map();
@@ -415,7 +417,7 @@ function _extractCs(el, text) {
   const rc = [];
   const walk = (node, host) => {
     for (const n of node.childNodes) {
-      if (n.nodeType === 3) { const d = n.data.replace(/\u00a0/g, ' '); raw += d; for (let i = 0; i < d.length; i++) rc.push(st(host)); }
+      if (n.nodeType === 3) { const d = n.data; raw += d; for (let i = 0; i < d.length; i++) rc.push(st(host)); }
       else if (n.nodeType === 1) {
         if (n.tagName === 'BR') { raw += '\n'; rc.push(null); continue; }
         if (n.tagName === 'DIV' || n.tagName === 'P') { raw += '\n'; rc.push(null); }
@@ -427,8 +429,8 @@ function _extractCs(el, text) {
   let t = '';
   const c = [];
   for (let i = 0; i < raw.length; i++) { if (raw[i] === '\n' && t.endsWith('\n\n')) continue; t += raw[i]; c.push(rc[i]); }
-  const a = t.length - t.trimStart().length, b = t.length - t.trimEnd().length;
-  if (t.trim() !== text) return null;
+  const a = t.length - t.replace(/^[ \t\r\n]+/, '').length, b = t.length - t.replace(/[ \t\r\n]+$/, '').length;
+  if (t.slice(a, Math.max(a, t.length - b)).replace(/\u00a0/g, ' ') !== text) return null;
   const cs = c.slice(a, c.length - b);
   return cs.some(Boolean) ? cs : null;
 }
