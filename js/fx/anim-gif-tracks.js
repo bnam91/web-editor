@@ -18,10 +18,13 @@ export const V2_FX = ['stamp', 'blur-in', 'blur-whip'];
 
 /* ── V2 새 효과의 «곡선»(순수 · 단위가 수로 잠근다) — k = 배율(블럭 1px = 캔버스 k px) ── */
 /** F1 도장 찍기(현빈: P076 «네!») — 0~70% 크게·흐리게(2.2배 · 흐림 10px)에서 가속하며 내려와 «쾅» · 70~100% 눌림 0.94 → 되튐 1 + 2px 감쇠 흔들림. */
-export function stampParams(p, k = 1) {
+/* 도장 «시작 크기»(현빈 재QA 261116 «시작 크기를 줄이란 게 아니었어 · GIF 에서 조절») — 블럭 전체 = 블럭 data-anim-stamp-s0 · 줄마다 = 트랙 s0. 기본 2.2(옛 곡선). */
+export const S0_MIN = 1, S0_MAX = 4, S0_DEFAULT = 2.2;
+export const clampS0 = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? S0_DEFAULT : Math.round(Math.max(S0_MIN, Math.min(S0_MAX, Number(v))) * 10) / 10);
+export function stampParams(p, k = 1, s0 = S0_DEFAULT) {
   if (p < 0.7) {
     const q = p / 0.7;
-    return { scale: 2.2 - 1.2 * q * q, blur: 10 * k * (1 - q), alpha: clamp01(p / 0.4), dx: 0 };
+    return { scale: s0 - (s0 - 1) * q * q, blur: 10 * k * (1 - q), alpha: clamp01(p / 0.4), dx: 0 };
   }
   const r = (p - 0.7) / 0.3;
   const scale = r < 0.35 ? 1 - 0.06 * (r / 0.35) : 0.94 + 0.06 * easeOut((r - 0.35) / 0.65);
@@ -52,7 +55,9 @@ export function normTracks(raw, n, { fx = 'fade-in', dur = 1200 } = {}) {
     const f = TRACK_FX.includes(r?.fx) ? r.fx : (prev ? prev.fx : (TRACK_FX.includes(fx) ? fx : 'fade-in'));
     const d = Number.isFinite(Number(r?.dur)) ? Math.max(DUR_MIN, Math.min(DUR_MAX, Math.round(Number(r.dur)))) : (prev ? prev.dur : Math.max(DUR_MIN, Math.min(DUR_MAX, dur)));
     const a = Number.isFinite(Number(r?.at)) ? Math.max(0, Math.min(AT_MAX, Math.round(Number(r.at)))) : (prev ? prev.at + prev.dur : 0);
-    out.push({ line: i, fx: f, at: a, dur: d });
+    const o = { line: i, fx: f, at: a, dur: d };
+    if (f === 'stamp' && r && r.s0 != null && r.s0 !== '' && Number.isFinite(Number(r.s0))) o.s0 = clampS0(r.s0);   // 줄마다 도장 시작 크기(없으면 블럭 값)
+    out.push(o);
   }
   return out;
 }
@@ -148,17 +153,18 @@ export function withGradFill(ctx, style, W, H, size) {
 const _plain = (ctx, segs, env) => segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y, env));
 export const FX = {
   stamp: (ctx, segs, p, env) => {
-    const m = stampParams(p, env.k);
+    const m = stampParams(p, env.k, env.tr && env.tr.s0 != null ? env.tr.s0 : S0_DEFAULT);
     let sc = m.scale;
     let cx = segs.reduce((a, s) => a + s.x0 + s.w / 2, 0) / segs.length;
     let cy = segs.reduce((a, s) => a + s.y, 0) / segs.length;
     if (sc > 1 + 1e-6) {
-      /* 커진 글 상자가 캔버스(= 블럭 W×H · 화면 «캔버스에서 보기»와 저장 GIF 같은 크기) 안에 들게 — ⑴ 배율 상한 = 상자가 들어가는 만큼 ⑵ 기준점을 안쪽으로만 민다.
-         0.9.12 «네!» 왼쪽 잘림(가로 밀기만) → 현빈 QA 261116 긴 줄·높이 딱 맞는 블럭은 여전히 블럭 경계에서 잘림. 블럭에 위아래 여백을 주면 상한이 그만큼 커진다. */
+      /* 커진 글 상자가 캔버스(= 블럭 W×H · 화면 «캔버스에서 보기»와 저장 GIF 같은 크기) 안에 들게 — 기준점을 안쪽으로만 민다.
+         세로는 배율을 안 줄인다 — 모자란 높이는 블럭을 늘려 담는다(stampNeedH · 엔진 _fitStampHeight · 현빈 재QA 261116 «시작 크기를 줄이란 게 아니었어»).
+         가로 상한만 남긴다: 폭은 레이아웃이 정해 늘릴 수 없다 — 줄 폭 × 시작 크기가 블럭 폭을 넘는 긴 줄만 그 폭까지(잘림 0). */
       const hk = Math.max(1, ...segs.flatMap((s) => (s.cs || []).map((c) => (c && c.sizeK) || 1)));   // 글 상자 높이 = 글자 크기(가장 큰 조각)
       const x0 = Math.min(...segs.map((s) => s.x0)), x1 = Math.max(...segs.map((s) => s.x0 + s.w));
       const y0 = Math.min(...segs.map((s) => s.y)) - env.size * hk / 2, y1 = Math.max(...segs.map((s) => s.y)) + env.size * hk / 2;
-      sc = Math.min(sc, Math.max(1, env.W / Math.max(1e-6, x1 - x0)), Math.max(1, env.H / Math.max(1e-6, y1 - y0)));
+      sc = Math.min(sc, Math.max(1, env.W / Math.max(1e-6, x1 - x0)));
       const fit = (c, a0, a1, L) => { const k1 = sc / (sc - 1); return Math.min(Math.max(c, k1 * a1 - L / (sc - 1)), k1 * a0); };
       if (sc > 1 + 1e-6) { cx = fit(cx, x0, x1, env.W); cy = fit(cy, y0, y1, env.H); } else sc = 1;
     }
@@ -254,6 +260,7 @@ export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
     if (p == null || !segs.length || !FX[tr.fx]) continue;
     ctx.save();
     ctx.fillStyle = style.color;
+    env.tr = tr;   // 효과가 제 트랙 값(도장 s0)을 읽는다
     FX[tr.fx](ctx, segs, p, env);
     ctx.restore();
     drawn.push(tr.line);
@@ -273,8 +280,24 @@ export function parseAnimGif(str, n) {
 }
 /** 저장 꼴로 — 정해진 키만(다른 키를 실어 나르지 않는다). */
 export const serializeAnimGif = ({ tracks, speed = 1, repeat = 1 }) => JSON.stringify({
-  v: 2, tracks: tracks.map(({ line, fx, at, dur }) => ({ line, fx, at, dur })), speed, repeat,
+  v: 2, tracks: tracks.map(({ line, fx, at, dur, s0 }) => (s0 != null ? { line, fx, at, dur, s0 } : { line, fx, at, dur })), speed, repeat,
 });
+/** 도장이 담기려면 블럭(글 상자) 높이가 얼마여야 하나 — 블럭 px. 줄 글자 높이(가장 큰 조각) × 그 줄 시작 크기의 최댓값 · 도장 줄 없으면 0.
+ *  FX.stamp 가 세로 기준점을 안쪽으로 미므로 «글자 상자 × s0 ≤ 높이» 면 어느 줄이든 안 잘린다. tracks = 그릴 트랙(s0 채운 것) · size = 블럭 글자 px. */
+export function stampNeedH(style, tracks, size) {
+  const cs = style.cs || [];
+  const lines = String(style.text || '').split('\n');
+  let off = 0, need = 0;
+  lines.forEach((line, i) => {
+    const t = (tracks || []).find((x) => x.line === i && x.fx === 'stamp');
+    if (t) {
+      const hk = Math.max(1, ...cs.slice(off, off + line.length).map((c) => (c && c.sizeK) || 1));
+      need = Math.max(need, size * hk * (t.s0 != null ? t.s0 : S0_DEFAULT));
+    }
+    off += line.length + 1;
+  });
+  return Math.ceil(need);
+}
 /** 속도 배율 — at·dur 를 나눈다(미리보기·GIF 가 같은 값을 쓴다). */
 export const scaleTracks = (tracks, speed) => tracks.map((t) => ({ ...t, at: t.at / speed, dur: t.dur / speed }));
 

@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs, parseTextShadow } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines, withGradFill } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines, withGradFill, S0_MIN, S0_MAX, S0_DEFAULT, clampS0, stampNeedH } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -22,19 +22,37 @@ const ANIM_LIST = [
 /** 한 바퀴 계획 — V1 7종 = 옛 길(_drawFrame · 1200ms/속도) · V2 효과 = 줄별 타임라인(블럭 전체 = 모든 줄 같은 효과 · 0ms 동시 시작).
  *  k = 배율(블럭 1px = 캔버스 k px) — 흐림·흔들림 px 를 미리보기·GIF 에서 같은 «눈 크기»로. */
 const _V2_DUR = { stamp: 560, 'blur-in': 900, 'blur-whip': 700 };
-function _plan(style, speed, k) {
+/** 그릴 트랙에 도장 시작 크기를 채운다 — 줄 값이 없으면 블럭 값(s0). 높이 셈(_fitStampHeight)과 그리기가 같은 값을 쓴다. */
+const _withS0 = (tracks, s0) => tracks.map((t) => (t.fx === 'stamp' && t.s0 == null ? { ...t, s0 } : t));
+/** st = { perLine, tracks, type, s0 } — 모달 지금 값(_plan) 또는 블럭에 저장된 값(_savedState · 블럭 ▶ 단추). */
+function _planOf(st, style, speed, k) {
   const paint = (ctx, W, H, size) => withGradFill(ctx, style, W, H, size);   // ⑫ 글자 그라데이션 = 기본 채움색(없으면 style 그대로)
+  const n = String(style.text || '').split('\n').length;
   /* F3 줄마다 따로 — 저장된 트랙(글 줄 수에 다시 맞춤) · 속도는 at·dur 를 나눈다 · 한 바퀴 = 가장 늦게 끝나는 줄 */
-  if (_perLine && _tracks) {
-    const tr = scaleTracks(normTracks(_tracks, String(style.text || '').split('\n').length), speed);
+  if (st.perLine && st.tracks) {
+    const tr = _withS0(scaleTracks(normTracks(st.tracks, n), speed), st.s0);
     const dur = Math.max(1, totalMs(tr));
     return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tr, t * dur, k) };
   }
-  const type = _animType;   // 계획 = 지금 효과로 고정(캔버스에서 보기가 모달을 닫은 뒤에도 같은 효과)
+  const type = st.type;   // 계획 = 지금 효과로 고정(캔버스에서 보기가 모달을 닫은 뒤에도 같은 효과)
   if (!V2_FX.includes(type)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, paint(ctx, W, H, size), size, type, t) };
-  const dur = Math.round(_V2_DUR[_animType] / speed);
-  const tracks = String(style.text || '').split('\n').map((_, i) => ({ line: i, fx: _animType, at: 0, dur }));
+  const dur = Math.round(_V2_DUR[type] / speed);
+  const tracks = _withS0(Array.from({ length: n }, (_, i) => ({ line: i, fx: type, at: 0, dur })), st.s0);
   return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tracks, t * dur, k) };
+}
+function _plan(style, speed, k) { return _planOf({ perLine: _perLine, tracks: _tracks, type: _animType, s0: _stampS0() }, style, speed, k); }
+/* 도장 시작 크기(블럭 전체 값) — 모달 슬라이더(#anim-stamp-s0)가 정본 · 저장은 블럭 data-anim-stamp-s0(기본이면 키 없음) */
+function _stampS0() {
+  const el = document.getElementById('anim-stamp-s0');
+  return clampS0(el && el.value !== undefined && el.value !== '' ? el.value : _animTb?.dataset.animStampS0);
+}
+const _ANIM_IDS = () => ANIM_LIST.map((a) => a.id);
+/** 블럭에 저장된 GIF 설정 — 블럭 ▶ 단추(모달 없이)가 이것으로 그린다. */
+function _savedState(tb) {
+  const n = String(_getTextStyle(tb).text || '').split('\n').length;
+  const r = parseAnimGif(tb.dataset.animGif, n);
+  const type = _ANIM_IDS().includes(tb.dataset.animFx) ? tb.dataset.animFx : 'slide-up';
+  return { perLine: r.perLine, tracks: r.tracks, type, s0: clampS0(tb.dataset.animStampS0), speed: r.perLine ? r.speed : 1 };
 }
 
 let _animTb        = null;
@@ -63,21 +81,63 @@ function _loadAnimGif() {
   if (cb) cb.checked = _perLine;
   _renderTrackRows();
 }
-function _saveAnimGif() {
-  if (!_animTb) return;
+function _saveAnimGif(push = true) {
+  if (!_animTb) return false;
   const next = (_perLine && _tracks)
     ? serializeAnimGif({ tracks: _tracks, speed: parseFloat(document.getElementById('anim-speed')?.value) || 1, repeat: parseInt(document.getElementById('anim-repeat')?.value) || 1 })
     : null;
-  if ((_animTb.dataset.animGif ?? null) === next) return;   // 안 바뀌면 이력도 안 쌓는다
+  if ((_animTb.dataset.animGif ?? null) === next) return false;   // 안 바뀌면 이력도 안 쌓는다
   if (next) _animTb.dataset.animGif = next; else delete _animTb.dataset.animGif;
-  window.pushHistory?.('GIF 줄별 효과');
-  window.scheduleAutoSave?.();
+  if (push) { window.pushHistory?.('GIF 줄별 효과'); window.scheduleAutoSave?.(); }
+  return true;
+}
+/** 효과·줄별·도장 크기를 바꾼 «한 동작» = 이력 한 칸 — 저장 꼴 + 블럭 높이 늘림(_fitStampHeight)을 같이 찍는다(⌘Z 한 걸음에 둘 다 돌아감). */
+function _commitGif(changed = false) {
+  const a = _saveAnimGif(false), b = _fitStampHeight();
+  if (changed || a || b) { window.pushHistory?.('GIF 효과'); window.scheduleAutoSave?.(); }
+}
+/* ══ 도장이 블럭을 넘으면 블럭 높이를 늘려 담는다(현빈 재QA 261116 «시작 크기가 커지면 블럭의 높이도 커지게») ══
+   화면 «캔버스에서 보기»·저장 GIF 둘 다 블럭 W×H 캔버스 ⇒ 블럭이 커지면 둘이 같이 커진다(화면==GIF · 잘림 0 · 약해짐 0).
+   늘림 = 위아래 패딩을 같은 만큼 더함(글 가운데 그대로) · 더한 몫은 data-anim-gif-grow(한쪽 px)에 적어 다음 셈에서 빼고 다시 잰다 ⇒ 효과를 바꾸거나 크기를 줄이면 도로 줄어든다.
+   부르는 자리 = 사람이 효과·줄별·도장 크기를 바꿀 때만(_commitGif) — 모달을 열기만 해서는 안 바뀐다. 가로는 못 늘린다(폭 = 레이아웃) — FX.stamp 가 긴 줄만 폭까지. */
+function _fitStampHeight() {
+  const tb = _animTb;
+  if (!tb) return false;
+  const style = _getTextStyle(tb), n = String(style.text || '').split('\n').length, s0 = _stampS0();
+  const trs = _perLine && _tracks ? _withS0(normTracks(_tracks, n), s0) : (_animType === 'stamp' ? Array.from({ length: n }, (_, i) => ({ line: i, fx: 'stamp', s0 })) : []);
+  const need = stampNeedH(style, trs, style.fontSize);
+  const g0 = Math.max(0, parseInt(tb.dataset.animGifGrow, 10) || 0);
+  const h0 = Math.max(0, (tb.offsetHeight || 0) - 2 * g0);
+  const g = need > h0 ? Math.ceil((need - h0) / 2) : 0;
+  _showGrow(g);
+  if (g === g0) return false;
+  const cs = getComputedStyle(tb);
+  tb.style.paddingTop = `${Math.max(0, (parseFloat(cs.paddingTop) || 0) - g0 + g)}px`;
+  tb.style.paddingBottom = `${Math.max(0, (parseFloat(cs.paddingBottom) || 0) - g0 + g)}px`;
+  if (g) tb.dataset.animGifGrow = String(g); else delete tb.dataset.animGifGrow;
+  return true;
+}
+function _showGrow(g) {
+  const el = document.getElementById('anim-stamp-grow');
+  if (el) el.textContent = g ? `블럭 높이 +${g * 2}px — 도장 시작 크기에 맞춰 늘림(⌘Z 로 되돌림)` : '';
+}
+/** 모달 «도장 시작» 슬라이더 — 끄는 동안(commit false)은 미리보기만 · 놓으면 저장 + 높이 + 이력 한 칸. */
+function setAnimStampS0(v, commit) {
+  const s0 = clampS0(v);
+  const lab = document.getElementById('anim-stamp-s0-val');
+  if (lab) lab.textContent = s0 + '배';
+  if (_perLine && _tracks) _renderTrackRows();   // 줄 칸의 «블럭 값» 표시도
+  restartAnimPreview();
+  if (!commit || !_animTb) return;
+  const key = s0 === S0_DEFAULT ? null : String(s0), had = _animTb.dataset.animStampS0 ?? null;
+  if (key) _animTb.dataset.animStampS0 = key; else delete _animTb.dataset.animStampS0;
+  _commitGif(had !== key);
 }
 function setAnimPerLine(on) {
   _perLine = !!on;
   if (_perLine && !_tracks) _tracks = normTracks(null, _lineTexts().length, { fx: TRACK_FX.includes(_animType) ? _animType : 'fade-in', dur: 1000 });
   _renderTrackRows();
-  _saveAnimGif();
+  _commitGif();
   restartAnimPreview();
 }
 function _renderTrackRows() {
@@ -98,17 +158,20 @@ function _renderTrackRows() {
     for (const id of TRACK_FX) { const o = document.createElement('option'); o.value = id; o.textContent = _fxLabel(id); o.selected = id === tr.fx; sel.appendChild(o); }
     const num = (cls, v, min, max, title) => { const n = document.createElement('input'); n.type = 'number'; n.className = cls; n.min = String(min); n.max = String(max); n.step = '50'; n.value = String(v); n.title = title; return n; };
     const atIn = num('anim-track-at', tr.at, 0, AT_MAX, '시작(ms)'), durIn = num('anim-track-dur', tr.dur, DUR_MIN, DUR_MAX, '길이(ms)');
+    let s0In = null;   // 도장 줄만 — 그 줄 시작 크기(비우면 블럭 값)
+    if (tr.fx === 'stamp') { s0In = num('anim-track-s0', tr.s0 ?? '', S0_MIN, S0_MAX, `도장 시작 크기(배) — 비우면 블럭 값 ${_stampS0()}배`); s0In.step = '0.1'; s0In.placeholder = String(_stampS0()); }
     const bar = document.createElement('div'); bar.className = 'anim-track-bar';
     const seg = document.createElement('span'); seg.className = 'anim-track-seg';
     seg.style.left = `${(tr.at / T) * 100}%`; seg.style.width = `${(tr.dur / T) * 100}%`;
     bar.appendChild(seg);
     const apply = () => {
-      _tracks[i] = { line: i, fx: sel.value, at: Number(atIn.value), dur: Number(durIn.value) };
+      _tracks[i] = { line: i, fx: sel.value, at: Number(atIn.value), dur: Number(durIn.value), s0: s0In && s0In.value !== '' ? Number(s0In.value) : undefined };
       _tracks = normTracks(_tracks, texts.length);   // 범위 고정(소독과 같은 문)
-      _renderTrackRows(); _saveAnimGif(); restartAnimPreview();
+      _renderTrackRows(); _commitGif(); restartAnimPreview();
     };
     sel.addEventListener('change', apply); atIn.addEventListener('change', apply); durIn.addEventListener('change', apply);
-    row.append(lab, sel, atIn, durIn, bar);
+    if (s0In) s0In.addEventListener('change', apply);
+    row.append(lab, sel, atIn, durIn, ...(s0In ? [s0In] : []), bar);
     box.appendChild(row);
   });
 }
@@ -122,11 +185,16 @@ function openAnimModal(tb) {
 
   // BUG-FIX: _animType을 먼저 초기화하고 buildAnimList 호출해야
   // _buildAnimList 내부 active 표시가 올바른 초기값을 반영함
-  _animType = 'slide-up';
+  _animType = _ANIM_IDS().includes(tb.dataset.animFx) ? tb.dataset.animFx : 'slide-up';   // 블럭 전체 효과도 블럭에 남긴다(data-anim-fx · 블럭 ▶ 단추가 읽는다)
+  const s0El = document.getElementById('anim-stamp-s0'), s0 = clampS0(tb.dataset.animStampS0);
+  if (s0El) s0El.value = String(s0);
+  const s0Lab = document.getElementById('anim-stamp-s0-val');
+  if (s0Lab) s0Lab.textContent = s0 + '배';
+  _showGrow(Math.max(0, parseInt(tb.dataset.animGifGrow, 10) || 0));
   _loadAnimGif();   // F3 — 저장된 줄별 효과가 있으면 그것으로(미리보기도)
   _buildAnimList();
   // _selectAnim은 _buildAnimList 후에 호출 (active 토글 + preview 시작)
-  _selectAnim('slide-up');
+  _selectAnim(_animType);
   _applyEmptyGate(document.querySelector('.anim-export-btn'));
 
   // BUG-FIX: 오버레이 바깥 클릭으로 닫기 (한 번만 등록)
@@ -237,7 +305,13 @@ function _buildAnimList() {
   list.querySelectorAll('.anim-item').forEach((el, i) => {
     el.querySelector('.anim-item-name').textContent = ANIM_LIST[i].label;
     el.querySelector('.anim-item-desc').textContent = ANIM_LIST[i].desc;
-    el.addEventListener('click', () => _selectAnim(el.dataset.id));
+    el.addEventListener('click', () => {   // 사람이 고름 = 블럭에 남김(data-anim-fx) + 도장이면 높이 맞춤 · 이력 한 칸
+      _selectAnim(el.dataset.id);
+      if (!_animTb) return;
+      const had = _animTb.dataset.animFx ?? null;
+      _animTb.dataset.animFx = el.dataset.id;
+      _commitGif(had !== el.dataset.id);
+    });
   });
 }
 
@@ -822,4 +896,5 @@ window.setAnimPerLine   = setAnimPerLine;
 window.exportAnimGif    = exportAnimGif;
 window.restartAnimPreview = restartAnimPreview;
 window.playAnimOnCanvas  = playAnimOnCanvas;
-window.stopAnimOnCanvas  = stopAnimOnCanvas;   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)
+window.stopAnimOnCanvas  = stopAnimOnCanvas;
+window.setAnimStampS0    = setAnimStampS0;   // index.html «도장 시작» 슬라이더 인라인 oninput/onchange   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)
