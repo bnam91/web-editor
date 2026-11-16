@@ -1766,6 +1766,9 @@ function _bindPastedEl(el) {
     const prefix = el.id.split('_')[0] || 'el';
     el.id = _newId(prefix);
   }
+  /* ★ASSET-BLOCK-CANNOT-DELETE(현빈 261116) — 그림 편집 중 ⌘D·⌘C 는 outerHTML 째 담아 사본이 img-editing 표만 품고 온다(짝 _imgEditing 은 JS 속성이라 안 온다).
+     표만 있는 사본은 편집 끝내기가 못 푼다(플래그부터 본다) → ⌫ 가 영영 «그 사본 그림 비우기»로 가서 그림만 사라지고 블럭은 안 지워졌다. */
+  [el, ...el.querySelectorAll('.img-editing')].forEach(n => n.classList?.remove('img-editing'));
 
   /* 스티커는 그림 안의 id 를 «제 블럭 id»에서 짓는다(코인 gradient·clipPath 'coin-<id>…' · 글로우 필터 'fxg-<id>' · 마커 필터).
      위에서 블럭 id 와 안쪽 id 를 따로따로 다시 지었으니 url(#…) 참조가 제 것을 못 가리킨다 — 원본의 것을 빌려 그리다가
