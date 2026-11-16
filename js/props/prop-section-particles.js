@@ -279,7 +279,6 @@ export function secParticlesHTML(sec) {
 
   if (!_isOn(sec)) {
     return `
-      <span class="prop-field-label" style="margin-top:8px">Particles</span>
       <button class="prop-action-btn secondary" id="sec-fxpart-toggle" style="margin-top:4px;"
               title="이 섹션 배경에 파티클을 깝니다 — 배경색은 바뀌지 않습니다">파티클 켜기</button>`;
   }
@@ -315,7 +314,6 @@ export function secParticlesHTML(sec) {
        ⛔남긴 하나 = 아래 「섹션 크기를 아직 못 재서…」 — 힌트가 아니라 ★그림이 미뤄졌다는 ★상태 알림이다
        (그림이 났으면 안 뜬다). 이것까지 빼라면 ★그 줄 하나만 지우면 된다. */
   return `
-      <span class="prop-field-label" style="margin-top:8px">Particles</span>
       <div class="prop-cell-card${open ? ' expanded' : ''}" id="sec-fxpart-card" data-fx-type="particles">
         <div class="prop-cell-card-header" id="sec-fxpart-head">
           <button class="prop-icon-btn" id="sec-fxpart-toggle" title="파티클 끄기"
