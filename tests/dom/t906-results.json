@@ -581,6 +581,26 @@
 {"kind": "cert-block", "place": "section", "op": "ab", "route": "entry", "measured": true, "red": [{"check": "A/B ⌘⇧Z", "detail": [{"path": ">DIV>sec_5g48f_bcxb1gt>DIV>st-btn st-ab-btn", "kind": "attr:title", "a": "A안으로 전환", "b": "B안으로 전환"}, {"path": ">DIV>sec_5g48f_bcxb1gt>DIV>BUTTON", "kind": "text", "a": "▷ A", "b": "▷ B"}]}], "repro": {"scene": "빈 섹션 → section 그릇 + 옆 자유 프레임 O → cert-block 입구(_activeFrame) → 줌 30", "op": "섹션 createVariation, ⌘Z, ⌘⇧Z", "then": "⌘Z ⌘⇧Z 저장 열기 ⌫ 판정", "spec": "T906_OP=ab T906_KIND=cert-block npx playwright test --config tests/dom/playwright.dom.config.js t906-axis2"}},
 {"kind": "cert-block", "place": "stack", "op": "ab", "route": "entry", "measured": true, "red": [{"check": "A/B ⌘⇧Z", "detail": [{"path": ">DIV>sec_5g48f_1w14dpz>DIV>st-btn st-ab-btn", "kind": "attr:title", "a": "A안으로 전환", "b": "B안으로 전환"}, {"path": ">DIV>sec_5g48f_1w14dpz>DIV>BUTTON", "kind": "text", "a": "▷ A", "b": "▷ B"}]}], "repro": {"scene": "빈 섹션 → stack 그릇 + 옆 자유 프레임 O → cert-block 입구(_activeFrame) → 줌 30", "op": "섹션 createVariation, ⌘Z, ⌘⇧Z", "then": "⌘Z ⌘⇧Z 저장 열기 ⌫ 판정", "spec": "T906_OP=ab T906_KIND=cert-block npx playwright test --config tests/dom/playwright.dom.config.js t906-axis2"}},
 {"kind": "cert-block", "place": "free", "op": "framebg", "route": "entry", "measured": true},
-{"kind": "cert-block", "place": "deep2", "op": "framebg", "route": "entry", "measured": true}
+{"kind": "cert-block", "place": "deep2", "op": "framebg", "route": "entry", "measured": true},
+{"kind": "slide-block", "place": "free", "op": "ab", "route": "entry", "measured": true},
+{"kind": "slide-block", "place": "deep2", "op": "ab", "route": "entry", "measured": true},
+{"kind": "slide-block", "place": "free", "op": "clip", "route": "entry", "measured": true, "attr": "false"},
+{"kind": "slide-block", "place": "deep2", "op": "clip", "route": "entry", "measured": true, "attr": "false"},
+{"kind": "slide-block", "place": "section", "op": "effects", "route": "entry", "measured": true, "red": [{"check": "명부엔 있는데 패널에 효과 절이 없다", "detail": ["reflect"]}], "repro": {"scene": "빈 섹션 → section 그릇 + 옆 자유 프레임 O → slide-block 입구(_activeFrame) → 줌 30", "op": "고른 뒤 효과 목록(그릇 15° 회전)", "then": "⌘Z ⌘⇧Z 저장 열기 ⌫ 판정", "spec": "T906_OP=effects T906_KIND=slide-block npx playwright test --config tests/dom/playwright.dom.config.js t906-axis2"}, "reg": ["reflect"]},
+{"kind": "slide-block", "place": "stack", "op": "effects", "route": "entry", "measured": true, "red": [{"check": "명부엔 있는데 패널에 효과 절이 없다", "detail": ["reflect"]}], "repro": {"scene": "빈 섹션 → stack 그릇 + 옆 자유 프레임 O → slide-block 입구(_activeFrame) → 줌 30", "op": "고른 뒤 효과 목록(그릇 15° 회전)", "then": "⌘Z ⌘⇧Z 저장 열기 ⌫ 판정", "spec": "T906_OP=effects T906_KIND=slide-block npx playwright test --config tests/dom/playwright.dom.config.js t906-axis2"}, "reg": ["reflect"]},
+{"kind": "slide-block", "place": "section", "op": "framebg", "route": "entry", "measured": false, "na": true, "why": "그릇 프레임이 없다"},
+{"kind": "slide-block", "place": "stack", "op": "framebg", "route": "entry", "measured": true},
+{"kind": "slide-block", "place": "section", "op": "freestack", "route": "entry", "measured": false, "na": true, "why": "그릇 프레임이 없다"},
+{"kind": "slide-block", "place": "stack", "op": "freestack", "route": "entry", "measured": true, "red": [{"check": "⌘⇧Z", "detail": [{"path": ">DIV>sec_alc9v_n9ncjgz>DIV>ss_alc9v_v0ovpiv", "kind": "attr:style", "a": "background: rgb(239, 239, 239); padding: 0px; width: 780px; max-width: 100%; margin: 0px auto; align-self: center; height: 1259.59px; min-height: 1259.59px;", "b": "background: rgb(239, 239, 239); padding: 0px; width: 780px; max-width: 100%; margin: 0px auto; align-self: center; height: 1260px; min-height: 1259.59px;"}]}], "repro": {"scene": "빈 섹션 → stack 그릇 + 옆 자유 프레임 O → slide-block 입구(_activeFrame) → 줌 30", "op": "그릇을 고르고 전환 단추", "then": "⌘Z ⌘⇧Z 저장 열기 ⌫ 판정", "spec": "T906_OP=freestack T906_KIND=slide-block npx playwright test --config tests/dom/playwright.dom.config.js t906-axis2"}, "dir": "stack→free", "toast": "", "dialogs": []},
+{"kind": "slide-block", "place": "free", "op": "group", "route": "entry", "measured": true, "grouped": false},
+{"kind": "slide-block", "place": "deep2", "op": "group", "route": "entry", "measured": true, "grouped": false},
+{"kind": "slide-block", "place": "section", "op": "layerorder", "route": "entry", "measured": true, "changed": false, "sameBytes": false},
+{"kind": "slide-block", "place": "stack", "op": "layerorder", "route": "entry", "measured": true, "changed": true, "sameBytes": false},
+{"kind": "slide-block", "place": "free", "op": "multipanel", "route": "entry", "measured": true, "sel": {"block": true, "text": true}},
+{"kind": "slide-block", "place": "deep2", "op": "multipanel", "route": "entry", "measured": true, "sel": {"block": true, "text": true}},
+{"kind": "slide-block", "place": "free", "op": "panel", "route": "entry", "measured": true, "fields": {"ss-radius-num": [], "ss-bgopa-num": [], "ss-border-w-num": ["x", "y"], "ss-pady-num": []}},
+{"kind": "slide-block", "place": "deep2", "op": "panel", "route": "entry", "measured": true, "fields": {"ss-radius-num": [], "ss-bgopa-num": [], "ss-border-w-num": ["x", "y"], "ss-pady-num": []}},
+{"kind": "slide-block", "place": "section", "op": "scratch", "route": "entry", "measured": true, "scratchAdded": 0, "gone": 0},
+{"kind": "slide-block", "place": "stack", "op": "scratch", "route": "entry", "measured": true, "scratchAdded": 0, "gone": 0}
 ]
 }
