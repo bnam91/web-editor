@@ -563,3 +563,33 @@ export function wireDisclosureSection(block, key, headId, bodyId, dflt = false) 
     head.title = open ? '접기' : '펼치기';
   });
 }
+
+/* ── 움직임 블럭 GIF 단추(0.9.13 MOTION · 슬라이드·그리드 신호등 공용) — 텍스트 패널(prop-text.js _applyAnimGate)과 같은 꼴·판정·«왜 안 눌리나» 글.
+ *   노출 = animGifVisible(feature-flags.js 한 자리 · 관리자). 클래스 = 텍스트 패널 단추와 같은 prop-anim-btn(새 CSS 0). */
+export function animGifBtnHTML() {
+  return `<div class="prop-section prop-section--anim">
+      <button class="prop-anim-btn" id="open-anim-btn">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
+          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
+        </svg>
+        애니메이션 GIF 만들기
+      </button>
+    </div>`;
+}
+export function wireAnimGifBtn(btn, block) {
+  const adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);
+  const gate = () => {
+    if (!btn?.isConnected) return;
+    const visible = window.animGifVisible ? window.animGifVisible(window.ANIM_GIF_ENABLED, adminState()) : false;
+    btn.disabled = !visible;
+    btn.onclick = visible ? () => window.openAnimModal(block) : null;
+    if (visible) { btn.removeAttribute('aria-disabled'); btn.style.opacity = ''; btn.style.cursor = ''; btn.title = ''; return; }
+    btn.setAttribute('aria-disabled', 'true'); btn.style.opacity = '0.4'; btn.style.cursor = 'default';
+    btn.title = window.ANIM_GIF_ENABLED === true ? '어드민 계정에서만 사용할 수 있습니다' : '이번 버전에서는 사용할 수 없습니다';
+  };
+  gate();
+  if (window.ANIM_GIF_ENABLED === true && !adminState() && window.__admin && typeof window.__admin.refresh === 'function') {
+    Promise.resolve(window.__admin.refresh()).then(gate).catch(() => {});
+  }
+}

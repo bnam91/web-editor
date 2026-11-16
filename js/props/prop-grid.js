@@ -2,7 +2,7 @@
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
 import { parseRatio, parseRatioStrict, noticeRatioRejected, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML,
-  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure } from './_helpers.js';
+  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
@@ -4360,6 +4360,8 @@ ${_flattenRowHtml(rows, cols)}
   window.showGridLineGrip?.(block);
   /* ★마커는 «맨 끝»에 다시 붙인다 — 이 함수가 불리는 모든 경로(클릭·레이어패널·MCP·
      updateGridBlock 후 재표시)에서 재렌더가 innerHTML 을 갈아끼웠을 수 있다(bn2 :22~26 과 동형). */
+  /* 0.9.13 MOTION 3단계 ③ 신호등 — 블럭만 고른 상태(줄 주소 없음)에서 GIF 단추(슬라이드·텍스트와 같은 단추·판정 · _helpers.js 한 벌). 줄 편집 중엔 안 띄운다. */
+  if (!_curAddr) { propPanel.insertAdjacentHTML('beforeend', animGifBtnHTML()); wireAnimGifBtn(document.getElementById('open-anim-btn'), block); }
   _grdSyncLineMark(block, _curAddr);
 }
 

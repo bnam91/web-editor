@@ -5,13 +5,12 @@
  *   ⛔그림 주소는 escHtml 로 속성에(남이 준 프로젝트에서 올 수 있다).
  */
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { readSlideState, setSlideList, setSlideLayout } from '../blocks/slide-block.js';
 import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="1" y="3" width="6" height="6" rx="0.5"/><path d="M8.5 3.5v5M10.5 4.5v3"/></svg>`;
-const _adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);
 
 export function showSlideProperties(block) {
   if (!block) return;
@@ -36,15 +35,7 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Sl
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}
       ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}
     </div>
-    <div class="prop-section prop-section--anim">
-      <button class="prop-anim-btn" id="open-anim-btn">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
-          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
-        </svg>
-        애니메이션 GIF 만들기
-      </button>
-    </div>`;
+    ${animGifBtnHTML()}`;
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
@@ -75,20 +66,6 @@ ${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Sl
     nu?.addEventListener('change', () => { sl.value = nu.value; setSlideLayout(block, { [key]: +nu.value }); commit(); });
   }
 
-  /* GIF 단추 — 텍스트 패널(prop-text.js _applyAnimGate)과 같은 판정 함수 · 같은 «왜 안 눌리나» 글 */
-  const btn = $('open-anim-btn');
-  const gate = () => {
-    if (!btn?.isConnected) return;
-    const visible = window.animGifVisible ? window.animGifVisible(window.ANIM_GIF_ENABLED, _adminState()) : false;
-    btn.disabled = !visible;
-    btn.onclick = visible ? () => window.openAnimModal(block) : null;
-    if (visible) { btn.removeAttribute('aria-disabled'); btn.style.opacity = ''; btn.style.cursor = ''; btn.title = ''; return; }
-    btn.setAttribute('aria-disabled', 'true'); btn.style.opacity = '0.4'; btn.style.cursor = 'default';
-    btn.title = window.ANIM_GIF_ENABLED === true ? '어드민 계정에서만 사용할 수 있습니다' : '이번 버전에서는 사용할 수 없습니다';
-  };
-  gate();
-  if (window.ANIM_GIF_ENABLED === true && !_adminState() && window.__admin && typeof window.__admin.refresh === 'function') {
-    Promise.resolve(window.__admin.refresh()).then(gate).catch(() => {});
-  }
+  wireAnimGifBtn(document.getElementById('open-anim-btn'), block);   // 텍스트 패널(prop-text.js _applyAnimGate)과 같은 판정·글 — _helpers.js 한 벌(슬라이드·그리드 공용)
 }
 window.showSlideProperties = showSlideProperties;
