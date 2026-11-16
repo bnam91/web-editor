@@ -114,3 +114,19 @@ export function edgePointAt(h, side, t, W, H) {
   const w = h[6] * mx + h[7] * my + 1;
   return [(h[0] * mx + h[1] * my + h[2]) / w, (h[3] * mx + h[4] * my + h[5]) / w];
 }
+
+/** 네 점(nw·ne·se·sw 순)이 «엄격히 볼록»인가 — 이웃 변 외적 넷의 부호가 모두 같고 0 이 아니다.
+ *  ★141 ㉯(현빈 QA 261116 · 지디 Q2 막기): 오목·나비꼴이면 무한원 선이 글 사각형을 지나 손잡이·격자·글자가 윤곽 밖으로 튄다
+ *    ⇒ 바꾸는 문(setFxFreeTransform)이 이것으로 거절한다. ⛔위 셈(homography 등)은 안 건드린다 — 새 함수만.
+ *  @param {number[][]} C 네 점 @returns {boolean} */
+export function isConvexQuad(C) {
+  if (!Array.isArray(C) || C.length !== 4 || !C.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) return false;
+  let sign = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = C[i], b = C[(i + 1) % 4], c = C[(i + 2) % 4];
+    const z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (Math.abs(z) < 1e-9) return false;
+    if (sign === 0) sign = Math.sign(z); else if (Math.sign(z) !== sign) return false;
+  }
+  return true;
+}

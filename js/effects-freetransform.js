@@ -60,7 +60,7 @@
          tests/dom/text-freetransform.dom.spec.js(이 파일 · U2 단언 15 ＋ 현빈 QA 두 칸)
    ═══════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
-import { homography, cornerMatrix3d, normalizeCorners, boxFromCorners } from './fx/homography.js';
+import { homography, cornerMatrix3d, normalizeCorners, boxFromCorners, isConvexQuad } from './fx/homography.js';
 import { ALIGN_SELF_OF } from './props/prop-text-wireup-align.js';   /* t7-03 — 가로 정렬 → align-self 사상표 한 자리 */
 
 /** ★정본 키 — ★하나다. ✕ = 이 키를 지움 ⇒ 켜기 전 바이트(반사·글로우와 같은 규약). */
@@ -420,7 +420,24 @@ export function applyFxFreeTransform(tb) {
      ⛔정규화는 그대로 둔다(박스 하한·ft-maxwidth-cap·D_floor_keeps_base 가 그 자리를 잠근다).
      ⛔`margin-left` 로 하지 마라 — 글자 프레임의 margin-left 는 프레임 안 X 자리(prop-frame.js)라 겹친다.
      ★세로(mny)는 이 처방 밖이다 — 위로 나간 몫은 섹션이 아래로 자라 손잡이가 안 나간다(FT3-VERTICAL 실측) · 별건. */
-  tb.style.translate = mnx < 0 ? `${mnx}px 0px` : '';
+  /* ★141 FREE-TRANSFORM-HANDLES-OFF-OUTLINE(현빈 QA 261116 · 지디 ㉮) — 위 보정은 ⑴ tb 에만 걸려 파란 선(selection-overlay 호스트 = 글 프레임)이
+       안 따라가 보라가 |mnx| 왼쪽으로 어긋났고 ⑵ «프레임 왼쪽 고정»을 가정해, 가운데·오른 정렬(프레임이 폭 증가를 양쪽·왼쪽으로 받는다)에선
+       보정이 겹쳐 대칭으로 벌려도 왼쪽으로 치우쳤다.
+     ⇒ 글 프레임이 있으면 «프레임»을 민다 · 값 = mnx + a·(B − B0) (a = 정렬 기준 왼0·가운데½·오른1 · B 상자폭 · B0 바탕폭) ⇒ 원 글자 원점(C.x=0)이 화면에서 제자리.
+       왼쪽 정렬이면 a=0 ⇒ 옛 값 그대로(FT-3b ft3-left-drag-and-pullin L). 옛 저장본의 tb translate 는 다시 그릴 때 걷힌다(지디 Q1 허용 · 릴리스 노트).
+     shortcut: a 는 그릴 때 읽는다 — 정렬을 바꾸는 자리 중 패널 단추(applyTextAlignToBlock)만 다시 그린다, 다른 alignSelf 쓰기가 FT 글상자에 닿으면 그 자리에도 applyFxFreeTransform. */
+  const m = Math.min(mnx, 0);
+  if (tf) {
+    const cs = getComputedStyle(tf);
+    let as = cs.alignSelf;
+    if ((as === 'auto' || as === 'normal') && tf.parentElement) as = getComputedStyle(tf.parentElement).alignItems;
+    const a = (cs.position === 'absolute' || cs.position === 'fixed') ? 0 : as === 'center' ? 0.5 : /end|right/.test(as) ? 1 : 0;
+    const t = m + a * (box.w - Math.max(st.W + st.OX, 1));
+    tf.style.translate = Math.abs(t) > 0.005 ? `${+t.toFixed(3)}px 0px` : '';
+    tb.style.translate = '';
+  } else {
+    tb.style.translate = m < 0 ? `${m}px 0px` : '';
+  }
   /* ★U3 — 그린 뒤 손잡이를 ★그 자리로. ⛔import 하지 않는다(순환) — 이 파일이 이미 쓰는
      `window.pushHistory?.()`·`window.scheduleAutoSave?.()` 와 ★같은 관용구다. 없으면 아무 일도 안 난다. */
   window.ftHandlesSync?.(tb);
@@ -466,7 +483,7 @@ function _strip(tb) {
   if (ce) { ce.style.transform = ''; ce.style.transformOrigin = ''; ce.style.width = ''; _dropEmptyStyle(ce); }
   tb.style.width = ''; tb.style.minHeight = ''; tb.style.translate = '';
   if (tf) {
-    tf.style.width = st && st.tfW0 != null ? st.tfW0 : '';
+    tf.style.width = st && st.tfW0 != null ? st.tfW0 : ''; tf.style.translate = '';   /* ★141 ㉮ — 보정이 프레임으로 옮겨 왔다 */
     /* ★t7-03 — 켤 때 «내가» 쓴 alignSelf 만 걷는다(그 뒤 패널·사용자가 바꿨으면 그대로) ⇒ ✕ 뒤 켜기 전 바이트. */
     if (st && st.alignSetByFt && tf.style.alignSelf === st.alignSetByFt) tf.style.alignSelf = '';
     _dropEmptyStyle(tf);
@@ -484,6 +501,9 @@ function _strip(tb) {
  *  ★이력: 부르기 «전»에 pushHistory(push-before · 반사·그림자·글로우와 같은 규약) — 한 제스처 한 걸음. */
 export function setFxFreeTransform(tb, C, { history = true, touched = true } = {}) {
   if (!tb || !tb.dataset || !tb.classList || !tb.classList.contains('text-block')) return { ok: false, code: 'NOT_FOUND' };
+  /* ★141 ㉯(지디 Q2 막기) — 오목·나비꼴 네 점은 받지 않는다: 무한원 선이 글 사각형을 지나 변 손잡이·격자·글자가 윤곽 밖으로 튄다.
+     이력 «전»에 거절 ⇒ 빈 걸음 0 · 손잡이 끌기는 마지막 볼록 자리에 멈춘다(_bind 가 ok 일 때만 다시 놓는다). */
+  if (Array.isArray(C) && C.length === 4 && !isConvexQuad(C)) return { ok: false, code: 'NON_CONVEX' };
   if (history) window.pushHistory?.('효과');
   if (C === null) {
     FX_FT_KEYS.forEach(k => { delete tb.dataset[k]; });

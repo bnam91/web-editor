@@ -1,11 +1,14 @@
 /* ft-frame-no-clip-outside-box.dom.spec.js — PNG72 자유변형 글자는 선택을 풀어도·HTML 내보내기에서도 글상자 프레임에 안 잘린다.
- * 자 ↔ 양: 글자 프레임 computed overflow ↔ 자르나 · 글자 범위 왼쪽 − 프레임 왼쪽 ↔ 밖으로 나갔나(전제) · offsetHeight ↔ 레이아웃.
+ * 자 ↔ 양: 글자 프레임 computed overflow ↔ 자르나 · 글자 범위가 프레임 왼·오른 변을 넘은 큰 쪽 ↔ 밖으로 나갔나(전제) · offsetHeight ↔ 레이아웃.
  * PNG·편집 화면의 픽셀은 앱 값으로 잰다(이 판 하네스는 네이티브 캡처가 없다).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
 const OUT_LEFT = [[60, 0], [395, 0], [395, 124], [-200, 124]];
+/* ★141 ㉮(wk1/ft-handles) 뒤 F1 전제를 바꿨다 — 왼쪽으로 나간 몫(mnx<0)은 이제 «글 프레임째» 민다(파란 선이 보라를 감싸게) ⇒ OUT_LEFT 의 글자는 프레임 안이다.
+   글자가 여전히 프레임 밖으로 나가는 꼴 = 상자가 섹션 폭을 넘어 프레임이 max-width:100% 로 캡되는 꼴(effects-freetransform.js ⚠️ 주석 · final7·final8 공통) ⇒ 오른쪽 밖. */
+const OUT_CAP = [[0, 0], [1400, 0], [1400, 124], [0, 124]];
 const frames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
 async function scene(page, C, frameData) {
@@ -29,14 +32,15 @@ async function scene(page, C, frameData) {
 const read = (page) => page.evaluate(() => {
   const tb = document.getElementById('p1'), f = tb.closest('.frame-block[data-text-frame]');
   const g = document.createRange(); g.selectNodeContents(tb.querySelector('[contenteditable]').firstChild);
-  return { ov: getComputedStyle(f).overflow, out: f.getBoundingClientRect().left - g.getBoundingClientRect().left, fH: f.offsetHeight, secH: f.closest('.section-block').offsetHeight };
+  const fr = f.getBoundingClientRect(), gr = g.getBoundingClientRect();
+  return { ov: getComputedStyle(f).overflow, out: Math.max(fr.left - gr.left, gr.right - fr.right), fH: f.offsetHeight, secH: f.closest('.section-block').offsetHeight };
 });
 
 test('F1 밖으로 나간 자유변형 글자 — 선택을 풀어도 프레임이 안 자른다 · 레이아웃은 그대로', async ({ page }) => {
   await bootApp(page);
-  await scene(page, OUT_LEFT);
+  await scene(page, OUT_CAP);
   const a = await read(page);
-  expect(a.out, '전제: 글자가 프레임 왼쪽 밖').toBeGreaterThan(20);
+  expect(a.out, '전제: 글자가 프레임 밖(캡된 오른쪽)').toBeGreaterThan(20);
   expect(a.ov).toBe('visible');
   await page.evaluate(() => { document.getElementById('p1').closest('.frame-block[data-text-frame]').style.overflow = 'hidden'; });
   const forced = await read(page);
