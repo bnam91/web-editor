@@ -7,7 +7,7 @@ import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
 import { countSectionHTML, wireCountSection, syncCountGroup } from './prop-sticker-count.js';
 import { coinSectionHTML, wireCoinSection } from './prop-sticker-coin.js';
 import { arrowSectionHTML, wireArrowSection } from './prop-sticker-arrow.js';
-import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
+import { burstPoints, clampBurst, BURST_LIMITS, BURST_DEFAULTS, clampRound, ROUND_MIN, ROUND_MAX } from '../blocks/burst-geometry.js';   // B2 톱니 스탬프
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -48,7 +48,7 @@ function _stickerStyleFromBlock(block) {
      'letterSpacing', 'textAlign', 'shadowOn', 'shadowX', 'shadowY', 'shadowBlur', 'shadowColor',
      'bgColor', 'padX', 'padY', 'cornerRadius'].forEach(put);
   } else { // circle / square / burst(B2 — 톱니 키는 burst 에만 있다)
-    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'burstTeeth', 'burstDepth', 'burstRing', 'ringText', 'ringTextSize', 'ringBorderW', 'ringBorderColor', 'ringTextColor', 'subText'].forEach(put);
+    ['size', 'bgColor', 'textColor', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'burstTeeth', 'burstDepth', 'burstRound', 'burstRing', 'ringText', 'ringTextSize', 'ringBorderW', 'ringBorderColor', 'ringTextColor', 'subText'].forEach(put);
   }
   return preset;
 }
@@ -286,6 +286,7 @@ ${blockHeaderHTML({
       <div class="prop-section-title">Burst</div>
       ${sliderRowHTML('톱니 수', 'stk-burst-teeth', 'stk-burst-teeth-num', { min: BURST_LIMITS.teeth.min, max: BURST_LIMITS.teeth.max, step: 1, value: clampBurst({ teeth: block.dataset.burstTeeth }).teeth })}
       ${sliderRowHTML('톱니 깊이 %', 'stk-burst-depth', 'stk-burst-depth-num', { min: BURST_LIMITS.depth.min, max: BURST_LIMITS.depth.max, step: 1, value: clampBurst({ depth: block.dataset.burstDepth }).depth })}
+      ${sliderRowHTML('끝 둥글기 %', 'stk-burst-round', 'stk-burst-round-num', { min: ROUND_MIN, max: ROUND_MAX, step: 1, value: clampRound(block.dataset.burstRound) })}
       <div class="prop-row">
         <span class="prop-label">안쪽 링</span>
         <label class="prop-toggle"><input type="checkbox" id="stk-burst-ring" ${(block.dataset.burstRing ?? 'on') === 'on' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
@@ -1128,6 +1129,7 @@ ${blockHeaderHTML({
   // B2 — 톱니 스탬프
   _bindTPair('stk-burst-teeth', 'stk-burst-teeth-num', 'burstTeeth', BURST_LIMITS.teeth.min, BURST_LIMITS.teeth.max, 1);
   _bindTPair('stk-burst-depth', 'stk-burst-depth-num', 'burstDepth', BURST_LIMITS.depth.min, BURST_LIMITS.depth.max, 1);
+  _bindTPair('stk-burst-round', 'stk-burst-round-num', 'burstRound', ROUND_MIN, ROUND_MAX, 1);   // 현빈 QA 261116 «너무 뾰족 — 곡률»
   // B3 — 인증마크(둘레 글자·테두리·작은 줄)
   for (const [id, key] of [['stk-ring-text', 'ringText'], ['stk-sub-text', 'subText']]) {
     const el = propPanel.querySelector('#' + id); if (!el) continue;

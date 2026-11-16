@@ -514,7 +514,7 @@ function _renderStickerBlockInner(block) {
     const _cntIconHTML = (block.dataset.count && block.dataset.countStyle === 'icon') ? _countIconHTML(block, fontSize, _bCol) : null;
     const _burstSvg = _isBurst
       ? `<svg class="stk-burst" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;">`
-        + `<polygon points="${burstPoints({ teeth: block.dataset.burstTeeth, depth: block.dataset.burstDepth })}" fill="${_escAttrBurst(bgColor)}"/>`
+        + `<polygon points="${burstPoints({ teeth: block.dataset.burstTeeth, depth: block.dataset.burstDepth, round: block.dataset.burstRound })}" fill="${_escAttrBurst(bgColor)}"/>`
         + ((block.dataset.burstRing ?? BURST_DEFAULTS.ring) === 'on'
           ? `<circle cx="50" cy="50" r="${burstRingR({ depth: block.dataset.burstDepth })}" fill="none" stroke="${_escAttrBurst(textColor)}" stroke-width="1.2" stroke-opacity="0.6" vector-effect="non-scaling-stroke"/>` : '')
         + `</svg>`
