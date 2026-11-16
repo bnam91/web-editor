@@ -4,6 +4,9 @@
  *    글로우 펄스 = 가이드·글로우·깜빡임 셋 · 슬라이드업 = 칸 0(옵션 없는 효과 · 저장 키 지움) · 형광펜 없는 글엔 형광펜 고르기 0
  * V2 줄마다 따로: 첫 줄 효과를 타이핑으로 → 그 줄 칸에 커서 칸 → 끔 = data-anim-gif 첫 트랙 o {"cursor":false}
  * V3 형광펜 칠한 글(span.tb-hl): 형광펜 고르기 = 네 갈래(기본·고정·긋기·글 고정+띠만 긋기) · «형광펜 긋기» = data-anim-opt {"hl":"draw"} · 「한 글자씩 부드럽게」 효과가 목록에 있고 고르면 미리보기가 그려진다(빈 캔버스 아님)
+ * V4(0.9.13 NEW-현빈QA-GIF-HL-SELECT-CSS-01 «형광펜 드롭다운이 브라우저 기본 모양이라 혼자 튄다»): 형광펜 글 + 줄마다 따로 → 첫 줄의 형광펜 고르기 class = 같은 줄 효과 고르기 class ·
+ *    계산된 높이·바탕·테두리·글 크기도 같음 · 블럭 전체 칸의 형광펜 고르기도 같은 class
+ *    양성대조(예측 · CTL): _optControls 의 `sel.className = 'anim-track-fx';` 삭제 → V4 빨강
  * 양성대조(예측 · CTL): animation-engine.js _selectAnim 의 `_renderBlockOpts();` 줄 삭제 → V1·V3 빨강(칸이 안 선다) · V2 초록(줄 칸은 _renderTrackRows)
  * 셀렉터·전역 대조(제품 소스 grep): #anim-gif-modal · #anim-list .anim-item[data-id] · #anim-fx-opts(index.html) · [data-opt](animation-engine.js _optControls) ·
  *   #anim-per-line · #anim-tracks .anim-track-row .anim-track-fx(_renderTrackRows) · #anim-preview-canvas · .tb-hl(prop-text-wireup-text-edit.js) · window.openAnimModal/closeAnimModal
@@ -77,3 +80,23 @@ test('V3 형광펜 칠한 글 — 형광펜 고르기 세 갈래 · 긋기 저�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
+test('V4 형광펜 고르기 꼴 = 형제 효과 고르기(공용 class · 계산된 꼴 같음)', async ({ page }) => {
+  const errs = await scene(page, '누적 <span class="tb-hl" style="--tb-hl-color: rgb(255, 0, 255); --tb-hl-h: 40%; --tb-hl-y: 0px">20,000</span>장<br>네!');
+  await pick(page, 'fade-in');
+  const blockSel = page.locator('#anim-fx-opts select[data-opt="hl"]');
+  await expect(blockSel, '[전제] 블럭 전체 칸에 형광펜 고르기').toHaveCount(1);
+  await page.check('#anim-per-line');
+  const row0 = page.locator('#anim-tracks .anim-track-row[data-line="0"]');
+  await expect(row0.locator('select[data-opt="hl"]'), '[전제] 형광펜 글 줄에 형광펜 고르기').toHaveCount(1);
+  const r = await page.evaluate(() => {
+    const row = document.querySelector('#anim-tracks .anim-track-row[data-line="0"]');
+    const fx = row.querySelector('select:not([data-opt])'), hl = row.querySelector('select[data-opt="hl"]');
+    const look = (e) => { const c = getComputedStyle(e); return [c.height, c.backgroundColor, c.borderTopColor, c.borderTopWidth, c.borderRadius, c.fontSize, c.color]; };
+    return { fxCls: fx.className, hlCls: hl.className, fxLook: look(fx), hlLook: look(hl) };
+  });
+  expect([r.hlCls, r.hlLook], `★형광펜 고르기가 형제 효과 고르기와 꼴이 다르다 — ${JSON.stringify(r)}`).toEqual([r.fxCls, r.fxLook]);
+  expect(r.fxCls, '[전제] 형제 효과 고르기 class').toBe('anim-track-fx');
+  await page.uncheck('#anim-per-line');
+  await expect(blockSel, '블럭 전체 칸도 같은 class').toHaveClass('anim-track-fx');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

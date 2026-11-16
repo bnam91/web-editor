@@ -69,7 +69,7 @@ function _optControls(fx, o, onChange, hl) {
     box.appendChild(lab); box.optCount++;
   }
   if (hl) {
-    const sel = document.createElement('select'); sel.dataset.opt = 'hl'; sel.title = '형광펜(칠한 글)';
+    const sel = document.createElement('select'); sel.className = 'anim-track-fx'; sel.dataset.opt = 'hl'; sel.title = '형광펜(칠한 글)';   // 줄 효과 고르기와 같은 공용 꼴(NEW-현빈QA-GIF-HL-SELECT-CSS-01 · 새 CSS 0) — 같은 줄에서 효과 고르기는 :not([data-opt]) 로 가린다
     for (const [v, t] of [['', '형광펜: 글과 같이'], ['fixed', '형광펜 고정 + 글만'], ['draw', '형광펜 긋기'], ['sweep', '글 고정 + 띠만 긋기']]) { const op = document.createElement('option'); op.value = v; op.textContent = t; op.selected = (optOf(o, 'hl') || '') === v; sel.appendChild(op); }
     sel.addEventListener('change', () => onChange('hl', HL_MODES.includes(sel.value) ? sel.value : null));
     box.appendChild(sel); box.optCount++;
