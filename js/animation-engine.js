@@ -165,14 +165,25 @@ function playAnimOnCanvas() {
   cv.height = Math.round(Math.max(tb.offsetHeight, 1) * _PLAY_K);
   cv.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483000;';
   document.body.appendChild(cv);
+  /* 멈춤/재생 토글(현빈 QA 261116 «계속 재생되게 하거나 스탑을») — 덮개 오른쪽 위 · 누르면 그 자리에서 멈추고 다시 누르면 이어서 돈다. 끝내기는 Esc·다른 곳 클릭 그대로. */
+  const btn = document.createElement('button');
+  btn.id = 'anim-canvas-play-toggle';
+  btn.className = 'settings-btn settings-btn-secondary';
+  btn.style.cssText = 'position:fixed;z-index:2147483001;';
+  const label = () => { const p = !!(_onCanvas && _onCanvas.paused); btn.textContent = p ? '▶ 재생' : '⏸ 멈춤'; btn.title = p ? '이어서 재생' : '이 자리에서 멈춤 (끝내기 = Esc · 다른 곳 클릭)'; };
+  document.body.appendChild(btn);
   const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + 1500;   // 끝에서 1.5초 멈춤(미리보기와 같음)
-  let t0 = null;
+  let last = null, el = 0;   // el = 재생한 시간(멈춘 동안은 안 흐른다)
   const tick = (ts) => {
+    if (!_onCanvas || _onCanvas.cv !== cv) return;   // 이 재생이 이미 끝났다(멈춘 뒤 늦게 온 프레임 · 다음 재생으로 바뀜) — 그리지 않는다
     if (!tb.isConnected) { stopAnimOnCanvas(); return; }
     const r = tb.getBoundingClientRect();
     Object.assign(cv.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    if (t0 == null) t0 = ts;
-    const t = Math.min(((ts - t0) % cycle) / plan.duration, 1);
+    Object.assign(btn.style, { left: `${r.right - (btn.offsetWidth || 0)}px`, top: `${Math.max(0, r.top - (btn.offsetHeight || 0) - 4)}px` });
+    if (last != null && !_onCanvas.paused) el += ts - last;
+    last = ts;
+    cv.dataset.loops = String(Math.floor(el / cycle));   // 몇 바퀴 돌았나(시험이 «반복»을 읽는다 · 덮개는 body 라 저장 0)
+    const t = Math.min((el % cycle) / plan.duration, 1);
     ctx.clearRect(0, 0, cv.width, cv.height);
     _fillBg(ctx, style, cv.width, cv.height);
     plan.draw(ctx, cv.width, cv.height, size, t);
@@ -181,23 +192,28 @@ function playAnimOnCanvas() {
   /* 멈추는 입력은 «멈춤만» — 에디터로 안 넘긴다(Esc 가 선택 해제까지 타서 #canvas HTML 이 바뀌었다 · 아이맥 001ae0374+C9 P1).
      window capture = 가장 먼저 · 막고 끊는다. 누른 뒤 따라오는 mousedown/mouseup/click 도 한 번 삼킨다(선택·끌기 시작 0). */
   const stop = (e) => {
+    if (e.type === 'keydown' && _MOD_KEYS.includes(e.key)) return;   // ⌘·⇧ 만 누름(스크린샷 ⌘⇧4 등)은 멈춤 아님 — 한 바퀴 뒤 «멈췄다»로 보였다
     e.preventDefault(); e.stopImmediatePropagation();
-    stopAnimOnCanvas();
     if (e.type === 'pointerdown') _swallowClickOnce();
+    if (e.type === 'pointerdown' && e.target === btn) { _onCanvas.paused = !_onCanvas.paused; label(); return; }
+    stopAnimOnCanvas();
   };
   window.addEventListener('pointerdown', stop, true);
   window.addEventListener('keydown', stop, true);
-  _onCanvas = { cv, stop, raf: 0 };
+  _onCanvas = { cv, btn, stop, raf: 0, paused: false };
+  label();
   _onCanvas.raf = requestAnimationFrame(tick);
 }
+const _MOD_KEYS = ['Meta', 'Shift', 'Control', 'Alt', 'CapsLock'];
 function stopAnimOnCanvas() {
   if (!_onCanvas) return;
-  const { cv, stop, raf } = _onCanvas;
+  const { cv, btn, stop, raf } = _onCanvas;
   _onCanvas = null;
   cancelAnimationFrame(raf);
   window.removeEventListener('pointerdown', stop, true);
   window.removeEventListener('keydown', stop, true);
   cv.remove();
+  btn.remove();
 }
 const _CLICK_TAIL = ['mousedown', 'mouseup', 'click'];
 function _swallowClickOnce() {

@@ -53,7 +53,7 @@ function fakeEl(extra = {}) {
     style: {}, dataset: {}, _l: {}, _html: '', value: '', textContent: '', disabled: false, title: '', checked: false,
     classList: { _s: new Set(), toggle(c, on) { (on ?? !this._s.has(c)) ? this._s.add(c) : this._s.delete(c); }, contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } },
     append(...a) { (this._kids ??= []).push(...a); }, appendChild(a) { (this._kids ??= []).push(a); return a; },
-    addEventListener(t, f) { (el._l[t] ??= []).push(f); }, setAttribute() {}, removeAttribute() {},
+    addEventListener(t, f) { (el._l[t] ??= []).push(f); }, setAttribute() {}, removeAttribute() {}, remove() {},   // remove — 캔버스에서 보기 멈춤/재생 단추를 끝낼 때 뗀다(덮개 remove 를 세는 칸은 제 것으로 덮어쓴다)
     querySelector: () => null, querySelectorAll: () => [],
     set innerHTML(v) { el._html = String(v); }, get innerHTML() { return el._html; },
     ...extra,

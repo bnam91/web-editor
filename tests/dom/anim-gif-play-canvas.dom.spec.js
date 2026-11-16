@@ -3,6 +3,9 @@
  * P1 단추 → 모달 닫힘 · 덮개 #anim-canvas-play 하나 · #canvas 밖(body) · 블럭 자리에 붙음 · 재생 중 serializeProject·캔버스 HTML·이력 무변 ·
  *    배율 50% 로 바꿔도 블럭 자리를 따라감 · Esc → 덮개 0 · 캔버스 HTML·이력 그대로(Esc 는 멈춤에만 — 아이맥 001ae0374+C9 첫 판은 Esc 가 선택 해제까지 타서 2줄 다름) · pageerror 0
  * P2 재생 중 캔버스 위 마우스 클릭 → 덮개 0 · 캔버스 HTML 그대로(그 클릭은 멈춤에만 쓰인다 — 선택 해제 0)
+ * P3 NEW-현빈QA-GIF-CANVAS-PREVIEW-LOOP-STOP-01 — 계속 반복(덮개 data-loops 가 2 이상) · 진짜 ⇧·⌘ 키는 안 멈춘다 · 진짜 ⏸ 단추 클릭 → 멈춤(바퀴·그림 고정 · 덮개 남음 · 단추 «▶ 재생») ·
+ *    다시 클릭 → 이어서 돈다 · Esc → 덮개·단추 0 · 캔버스 HTML 그대로
+ *    양성대조(예측 · CTL): stop 의 `_MOD_KEYS` 줄 삭제 + 단추 갈래 `e.target === btn` → `false` → P3 빨강 · P1·P2 초록
  * 양성대조(예측): js/animation-engine.js playAnimOnCanvas 의 `document.body.appendChild(cv)` → `tb.appendChild(cv)` → P1 빨강(#canvas 안 · 저장에 섞임 · 캔버스 HTML 바뀜) · 단위 E14 도
  * 셀렉터·전역 대조(제품 소스 grep): .anim-play-canvas-btn(index.html 모달 꼬리) · #anim-canvas-play(animation-engine.js playAnimOnCanvas cv.id) · #anim-gif-modal ·
  *   window.serializeProject(save-load.js:3299) · window.historyStack(history.js 읽기 전용) · window.applyZoom(editor.js:5275 · % 단위 — _t905-ops 의 applyZoom(30)) ·
@@ -67,5 +70,34 @@ test('P2 재생 중 마우스 클릭 → 멈춤', async ({ page }) => {
   await expect(page.locator('#anim-canvas-play'), '★클릭으로 안 멈춘다').toHaveCount(0);
   const after = await snap(page);
   expect(after.html === before.html, `★클릭이 멈춤 말고 에디터까지 탔다 — ${firstDiff(before.html, after.html)}`).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('P3 계속 반복 · ⇧⌘ 는 안 멈춤 · ⏸ 단추로 멈춤/재생 · Esc 로 끝', async ({ page }) => {
+  const errs = await scene(page);
+  await page.click('#anim-gif-modal .anim-play-canvas-btn');
+  await expect(page.locator('#anim-canvas-play')).toHaveCount(1);
+  const btn = page.locator('#anim-canvas-play-toggle');
+  await expect(btn, '[전제] 멈춤/재생 단추').toHaveText('⏸ 멈춤');
+  const loops = () => page.evaluate(() => Number(document.getElementById('anim-canvas-play')?.dataset.loops ?? -1));
+  const html0 = await page.evaluate(() => document.getElementById('canvas').innerHTML);
+  await page.keyboard.press('Shift');
+  await page.keyboard.press('Meta');
+  await expect(page.locator('#anim-canvas-play'), '★⇧·⌘ 만 눌렀는데 멈췄다').toHaveCount(1);
+  await expect.poll(loops, { timeout: 15000, message: '★한 바퀴 돌고 멈춘다(반복 안 함)' }).toBeGreaterThanOrEqual(2);
+  await btn.click();
+  await expect(btn, '★단추로 안 멈춘다').toHaveText('▶ 재생');
+  await expect(page.locator('#anim-canvas-play'), '멈춤 = 덮개는 남는다').toHaveCount(1);
+  const frame = () => page.evaluate(() => { const cv = document.getElementById('anim-canvas-play'); return cv.dataset.loops + ':' + cv.toDataURL().length + ':' + cv.toDataURL().slice(-64); });
+  const f0 = await frame();
+  await page.evaluate(() => new Promise((r) => { let n = 0; const s = () => (++n >= 30 ? r() : requestAnimationFrame(s)); requestAnimationFrame(s); }));   // 30 프레임 흘려 보낸다(고정 잠 아님)
+  expect(await frame(), '★멈췄는데 그림·바퀴가 흐른다').toBe(f0);
+  const l1 = await loops();
+  await btn.click();
+  await expect(btn).toHaveText('⏸ 멈춤');
+  await expect.poll(loops, { timeout: 15000, message: '★다시 눌러도 안 돈다' }).toBeGreaterThan(l1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#anim-canvas-play, #anim-canvas-play-toggle'), 'Esc → 덮개·단추 0').toHaveCount(0);
+  expect(await page.evaluate(() => document.getElementById('canvas').innerHTML) === html0, '캔버스 HTML 그대로').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
