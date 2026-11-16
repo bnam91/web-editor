@@ -241,6 +241,7 @@ test('V4 ★저장본은 안 바뀐다 — 숨김 술어를 아는 파일이 «�
     'js/io/export-figma-json.js',
     'js/io/export-html.js',
     'js/io/export-image.js',   // PNG 배송(전체·한 섹션·Export 메뉴) — 숨긴 시안을 찍으려다 «0 height» 실패(EXPORT-ALL-INCLUDES-HIDDEN-AB-VARIANT-01)
+    'js/io/figma-publish.js',  // Figma 업로드 모달의 섹션 체크 목록 — 업로드 JSON 이 숨긴 시안을 빼므로 목록도 같은 셈(저장 경로 아님)
     'js/props/prop-page.js',   // 그 PNG 배송의 «전체 내보내기» 단추 개수 — export-image 와 같은 셈(저장 경로 아님)
     'js/variation-visibility.js',
   ], '★숨김 술어가 «배송·표시» 밖으로 번졌다. 저장 경로(section-serialize·save-load·canvas-state)가 ' +

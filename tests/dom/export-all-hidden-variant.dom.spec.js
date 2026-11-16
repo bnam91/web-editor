@@ -94,3 +94,25 @@ test('H3 ★전환하면 B 가 나간다 — 숨은 쪽을 빼는 것이지 B �
   expect(r.steps.map((s) => s[3]), '전환 뒤 S2 자리 = B').toEqual([null, 'B', null]);
   expect(errs, errs.join('\n')).toEqual([]);
 });
+
+/* H4 Figma 업로드 모달의 섹션 체크 목록 — 업로드 JSON(buildFigmaExportJSON)은 숨긴 시안을 빼는데 목록엔 «체크된 채» 떠서
+ *   «4개 고름 → 3개 올라감»이 됐다(figma-publish.js _buildFigmaSectionList). 목록도 같은 셈.
+ *   양성대조: figma-publish.js 의 `+ NOT_HIDDEN_VARIATION` 을 빼면(EXPORT-HIDDEN-FIGMA-CTL.patch) H4 빨강(행 4 · 숨긴 B id 포함). */
+test('H4 Figma 업로드 목록 — 보이는 섹션만(3) · 숨긴 B 행 없음 · 전환하면 B 가 대신', async ({ page }) => {
+  const errs = await setup(page);
+  const rows = () => page.evaluate(async () => {
+    await window.openFigmaUploadModal();
+    const ids = [...document.querySelectorAll('#figma-section-list .figma-sec-cb')].map((cb) => cb.dataset.secId);
+    const hiddenIds = [...document.querySelectorAll('#canvas .section-block[data-variation-active="0"]')].map((s) => s.id);
+    const visB = document.querySelector('#canvas .section-block[data-variation="B"]')?.id;
+    window.closeFigmaUploadModal();
+    return { n: ids.length, leaked: ids.filter((id) => hiddenIds.includes(id)), hasHidden: hiddenIds.length, hasB: ids.includes(visB) };
+  });
+  const r1 = await rows();
+  expect(r1.hasHidden, '[전제] 캔버스에 숨긴 시안 1').toBe(1);
+  expect(r1, '★숨긴 B 가 업로드 목록에 체크된 채 뜬다').toMatchObject({ n: 3, leaked: [], hasB: false });
+  await page.evaluate(() => window.toggleVariation(document.getElementById('hS2')));
+  const r2 = await rows();
+  expect(r2, '전환 뒤 — B 가 목록에(숨은 쪽을 빼는 것)').toMatchObject({ n: 3, leaked: [], hasB: true });
+  expect(errs, errs.join('\n')).toEqual([]);
+});
