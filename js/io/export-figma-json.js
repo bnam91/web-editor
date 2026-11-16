@@ -387,6 +387,10 @@ function getTextWithLineBreaks(el) {
 }
 
 function buildFigmaExportJSON(selectedIds, nodeMap) {
+  /* FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 r4(지디 261117 실앱) — 아래 순회는 라이브 캔버스가 아니라 «저장 문자열»(page.canvas)을 읽는다.
+     지금 페이지를 먼저 굳히지 않으면 마지막 저장 뒤의 편집(예: 「내용 자르기」 끔)이 빠진다. 업로드(figma-publish)는 이미 부르고 있었지만
+     직접 부르는 자리(콘솔·MCP)는 빠졌다 ⇒ 빌더가 스스로 굳힌다(두 번 불러도 같은 값). */
+  window.flushCurrentPage?.();
   // sangpe_to_figma.mjs 가 기대하는 포맷으로 빌드
   // sections[].blocks[] — gap / text / image / { columns:[{width,blocks}] }
 
