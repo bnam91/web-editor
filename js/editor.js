@@ -2162,11 +2162,14 @@ function _markImgEditCopy() {
   if (src) clipboard = { type: 'img-edit', src, w: Math.min(400, Math.round(ab.offsetWidth) || 220) };   // 폭 상한 = 스크래치로 옮기기(_moveAssetToScratch)와 같다
 }
 function _pasteImgEditToScratch({ src, w }) {
-  const scaler = document.getElementById('canvas-scaler'), wrap = document.getElementById('canvas-wrap');
-  if (!scaler || !wrap || typeof window._scratchAddAndSave !== 'function') { window.showToast?.('⚠️ 스크래치 패드를 찾지 못했어요'); return; }
-  // 자리 = 보이는 화면 가운데(OS 이미지 붙여넣기와 같은 규칙) · 배율 = 화면 폭 ÷ 레이아웃 폭
+  const scaler = document.getElementById('canvas-scaler'), wrap = document.getElementById('canvas-wrap'), cv = document.getElementById('canvas');
+  if (!scaler || !wrap || !cv || typeof window._scratchAddAndSave !== 'function') { window.showToast?.('⚠️ 스크래치 패드를 찾지 못했어요'); return; }
+  /* 자리 = 캔버스 «오른쪽 바깥»(가로) · 보이는 화면 가운데(세로). 배율 = 화면 폭 ÷ 레이아웃 폭.
+     ⛔화면 가운데(가로)에 두지 않는다(현빈 261117 139행 ◑) — 방금 복사한 블럭이 대개 화면 가운데라 항목(z 100)이 그 블럭을 덮어,
+       «같은 블럭 클릭 → ⌘C → ⌘V» 의 클릭이 스크래치 항목을 골랐다(캔버스 .selected 0 → ⌘C 가 아무것도 안 담아 편집 복사 표가 남음 → 또 스크래치).
+     shortcut: 배율이 커서 오른쪽 여백이 화면 밖이면 항목이 안 보인다(토스트만) — 그런 보고가 오면 보이는 오른쪽 끝으로 당긴다. */
   const sr = scaler.getBoundingClientRect(), wr = wrap.getBoundingClientRect(), k = sr.width / (scaler.offsetWidth || sr.width) || 1;
-  const x = Math.round((wr.left + wr.width / 2 - sr.left) / k - w / 2), y = Math.round((wr.top + wr.height / 2 - sr.top) / k - 60);
+  const x = cv.offsetLeft + cv.offsetWidth + 40, y = Math.round((wr.top + wr.height / 2 - sr.top) / k - 60);
   window._scratchAddAndSave(src, x, y, w)
     .then(() => window.showToast?.('📋 그림을 스크래치 패드에 넣었어요'))
     .catch(err => window.showToast?.('❌ 스크래치에 넣지 못했어요: ' + (err?.message || err)));

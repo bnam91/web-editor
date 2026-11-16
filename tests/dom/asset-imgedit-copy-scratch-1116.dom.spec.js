@@ -5,7 +5,12 @@
  * 칸
  *   S1 편집 중 ⌘C → Esc → ⌘V = 에셋 블럭 수 그대로 · 스크래치 항목 +1 · 그 항목 src = 에셋의 goya-asset 주소 «그대로»(data URL 아님)
  *   S2 [지킴] 평소(편집 아님) ⌘C → ⌘V = 옛 그대로 캔버스에 에셋 사본 · 스크래치 +0
+ *   S3 (현빈 261117 139행 ◑) S1 «직후» 같은 블럭 클릭 → ⌘C → ⌘V = 캔버스 사본(에셋 1→2) · 스크래치 +0.
+ *      블럭을 화면(wrap) 가운데에 둔 장면(실앱 그대로 · wrap 을 직접 밀고 [전제]로 잰다). 클릭 점 = 항목∩블럭 겹친 자리 가운데(겹침 0 이면 블럭 가운데) ·
+ *      클릭 자리 맨 위 = 블럭 · 겹침 넓이 = 0 을 단언(옛 판 = scratch-item · 겹침 >0). 옛 판은 스크래치 항목이 화면 가운데에 떨어져 그 블럭을 덮었다 →
+ *      클릭이 항목을 골라 캔버스 .selected 0 → ⌘C 가 아무것도 안 담아 편집 복사 표가 남음 → 또 스크래치.
  * 양성대조: CTL — ⌘C 갈래의 `_markImgEditCopy();` 줄 삭제 → S1 빨강(에셋 1→2 · 스크래치 +0). S2 는 초록(지킴).
+ *   CTL-S3 — _pasteImgEditToScratch 의 x 를 옛 «화면 가운데» 식으로 되돌림 → S3 빨강(클릭 자리 맨 위 = scratch-item · 겹침 >0). S1·S2 초록.
  * 안 잰 것: 실앱(일렉트론)·실 goya-asset 그림 표시(하네스는 그 주소를 못 읽어 항목이 scratch-missing 으로 뜬다 — 주소 문자열만 잰다) ·
  *   바깥 앱 이미지가 OS 클립보드에서 더 최신인 경우(옛 규칙 clipboardPrefersInternal 그대로) · ⌘Z(스크래치 붙여넣기는 원래 이력을 안 쌓는다).
  */
@@ -77,5 +82,76 @@ test('S2 [지킴] 평소 ⌘C → ⌘V = 캔버스에 에셋 사본 · 스크래
   const s1 = await st(page);
   expect(s1.assets, '평소 붙여넣기가 캔버스 사본을 안 만들었다').toBe(2);
   expect(s1.scratch.length, '평소 붙여넣기가 스크래치로 샜다').toBe(s0.scratch.length);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('S3 편집 복사 → 스크래치 «직후» 같은 블럭 클릭 → ⌘C → ⌘V = 캔버스 사본 · 스크래치 +0', async ({ page }) => {
+  const { errs, a1 } = await scene(page);
+  // 블럭을 화면 가운데에 둘 수 있게 위아래로 긴 틈(실앱 = 긴 페이지 가운데 블럭)
+  await page.evaluate((id) => { const ab = document.getElementById(id); const g = '<div class="gap-block" data-type="gap" style="height:1500px"></div>';
+    const unit = ab.closest('.row') || ab; unit.insertAdjacentHTML('beforebegin', g); unit.insertAdjacentHTML('afterend', g); }, a1);
+  await f2(page);
+  /* 블럭 가운데 = #canvas-wrap 가운데(옛 판 놓는 식과 «같은 기준»)로 wrap 을 직접 민다.
+     scrollIntoView 는 가로를 'nearest'(=안 움직임)로 둬서 블럭이 wrap 가운데에 안 왔다 — 첫 S3 가 옛 판에서도 초록이던 까닭(지디 261117 아이맥). */
+  const centerInWrap = (id) => page.evaluate((id) => {
+    const wrap = document.getElementById('canvas-wrap'), el = document.getElementById(id);
+    let w = wrap.getBoundingClientRect(), r = el.getBoundingClientRect();
+    wrap.scrollLeft += (r.left + r.width / 2) - (w.left + w.width / 2);
+    wrap.scrollTop  += (r.top + r.height / 2) - (w.top + w.height / 2);
+    w = wrap.getBoundingClientRect(); r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, dx: (r.left + r.width / 2) - (w.left + w.width / 2), dy: (r.top + r.height / 2) - (w.top + w.height / 2) };
+  }, id);
+  let c = await centerInWrap(a1);
+  await f2(page);
+  expect(Math.abs(c.dx) <= 4 && Math.abs(c.dy) <= 4, `[전제] 블럭 가운데가 화면(wrap) 가운데(dx ${c.dx} · dy ${c.dy})`).toBe(true);
+  await page.mouse.click(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('selected'), a1);
+  await page.mouse.dblclick(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('img-editing'), a1);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('img-editing'), a1), '[전제] 더블클릭으로 편집 모드').toBe(true);
+  const s0 = await st(page);
+  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('Escape');
+  await until(page, (id) => !document.getElementById(id).classList.contains('img-editing'), a1);
+  await page.keyboard.press('Meta+v');
+  await until(page, (n) => document.querySelectorAll('.scratch-item').length > n, s0.scratch.length);
+  expect((await st(page)).scratch.length, '[전제] 편집 복사 ⌘V = 스크래치 +1(S1 과 같다)').toBe(s0.scratch.length + 1);
+  // 항목 높이가 서기를 기다린다 — 그림이 뜨거나(실앱) 못 읽어 scratch-missing(하네스 · 최소 높이 80 레이아웃 px = k 0.6 에서 화면 48) 이 될 때까지. 그 전엔 img 최소 높이 20 뿐이다.
+  await until(page, () => { const it = [...document.querySelectorAll('.scratch-item')].pop(); const im = it?.querySelector('img');
+    return !!it && (it.classList.contains('scratch-missing') || (im?.complete && im.naturalWidth > 0)); });
+  expect(await page.evaluate(() => { const it = [...document.querySelectorAll('.scratch-item')].pop(); const im = it?.querySelector('img');
+    return it.classList.contains('scratch-missing') || (im.complete && im.naturalWidth > 0); }), '[전제] 스크래치 항목 높이가 섰다(그림 뜸 또는 scratch-missing)').toBe(true);
+  /* 같은 블럭 다시 — 스크롤은 안 건드린다. 클릭 점 = 스크래치 항목과 블럭이 «겹친 자리»의 가운데(실사용자는 블럭 아무 데나 누른다),
+     겹침이 없으면(고친 판) 블럭 가운데. 지디 261117 S3-DIAG: 하네스 항목은 그림이 안 떠 높이 48(=missing 최소 80 × k 0.6)뿐이라
+     블럭 가운데(y 746)가 항목(y 586~634) «아래»를 찍어 옛 판에서도 블럭을 맞혔다. */
+  const ov = await page.evaluate((id) => {
+    const b = document.getElementById(id).getBoundingClientRect(), i = [...document.querySelectorAll('.scratch-item')].pop().getBoundingClientRect();
+    const l = Math.max(b.left, i.left), r = Math.min(b.right, i.right), t = Math.max(b.top, i.top), btm = Math.min(b.bottom, i.bottom);
+    const area = Math.max(0, r - l) * Math.max(0, btm - t);
+    return { area: Math.round(area), x: area > 0 ? (l + r) / 2 : b.left + b.width / 2, y: area > 0 ? (t + btm) / 2 : b.top + b.height / 2 };
+  }, a1);
+  c = { x: ov.x, y: ov.y };
+  const top = await page.evaluate(({ x, y }) => { const el = document.elementFromPoint(x, y); return el?.closest('.scratch-item') ? 'scratch-item' : (el?.closest('.asset-block')?.id || el?.id || el?.className || ''); }, c);
+  // [S3-DIAG] 통과해도 «늘» 찍는다(지디 261117 — 옛 판이 왜 안 덮나 숫자로). 단언 아님.
+  const diag = await page.evaluate(({ id, c }) => {
+    const R = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; };
+    const tag = (el) => el ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : ''}` : null;
+    const scaler = document.getElementById('canvas-scaler'), wrap = document.getElementById('canvas-wrap'), it = [...document.querySelectorAll('.scratch-item')].pop();
+    const hit = document.elementFromPoint(c.x, c.y), cs = it && getComputedStyle(it);
+    return { block: R(document.getElementById(id)), item: R(it), itemStyle: it?.style.cssText, itemZ: cs?.zIndex, itemPos: cs?.position, itemDisplay: cs?.display, itemPE: cs?.pointerEvents,
+      itemParent: tag(it?.parentElement), itemCls: it?.className, click: { x: Math.round(c.x), y: Math.round(c.y) }, hit: tag(hit), hitChain: [hit, hit?.parentElement, hit?.parentElement?.parentElement].map(tag),
+      k: scaler ? scaler.getBoundingClientRect().width / (scaler.offsetWidth || 1) : null, scaler: R(scaler), scalerTf: scaler && getComputedStyle(scaler).transform,
+      wrap: R(wrap), scroll: wrap && { l: wrap.scrollLeft, t: wrap.scrollTop }, bodyCls: document.body.className, vp: { w: innerWidth, h: innerHeight } };
+  }, { id: a1, c });
+  console.log('[S3-DIAG] ' + JSON.stringify({ ...diag, overlapArea: ov.area }));
+  expect(top, 'S3 — 붙인 스크래치 항목이 방금 복사한 블럭(화면 가운데)을 덮었다 — 클릭 자리 맨 위가 블럭이 아니다').toBe(a1);
+  expect(ov.area, 'S3 — 붙인 스크래치 항목이 방금 복사한 블럭과 겹친다(겹침 넓이 px²) — 고친 판은 캔버스 밖이라 0').toBe(0);
+  await page.mouse.click(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('selected'), a1);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a1), `S3 — 붙인 뒤 같은 블럭 클릭이 블럭을 못 골랐다(클릭 자리 맨 위 = ${top})`).toBe(true);
+  const s1 = await st(page);
+  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('Meta+v');
+  await until(page, () => document.querySelectorAll('#canvas .asset-block').length === 2);
+  const s2 = await st(page);
+  expect(s2.assets, 'S3 — 평소 ⌘C → ⌘V 가 캔버스 사본을 안 만들었다').toBe(2);
+  expect(s2.scratch.length, 'S3 — 평소 붙여넣기가 또 스크래치로 갔다(편집 복사 표가 남았다)').toBe(s1.scratch.length);
   expect(errs, errs.join('\n')).toEqual([]);
 });
