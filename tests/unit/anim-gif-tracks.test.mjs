@@ -25,7 +25,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normTracks, totalMs, localT, layoutLines, drawTracks, TRACK_FX, FX, V2_FX, stampParams, blurInParams, whipParams } from '../../js/fx/anim-gif-tracks.js';
+import { normTracks, totalMs, localT, layoutLines, drawTracks, TRACK_FX, FX, V2_FX, stampParams, blurInParams, whipParams, stampNeedH } from '../../js/fx/anim-gif-tracks.js';
 
 function fakeCtx() {
   const calls = [];
@@ -325,11 +325,12 @@ test('T18 도장 — 왼쪽·오른쪽 정렬 패딩 0 블럭: 내려오는 프�
   assert.ok(b.k > 2 && Math.abs((b.l + b.r) / 2 - (s0.x0 + s0.w / 2)) < 1e-6, `가운데 정렬 기준점이 움직였다 — ${b.l}~${b.r}`);
 });
 
-/* T19 NEW-현빈QA-GIF-CANVAS-STAMP-CLIPPED-BY-FRAME-01 — 캔버스(= 블럭 W×H · 화면 «캔버스에서 보기»와 저장 GIF 가 같은 drawTracks) 안에 커진 글 상자가 «가로·세로 둘 다» 든다.
- *   ⑴ 높이 딱 맞는 한 줄(H = 줄높이) ⑵ 블럭 폭을 거의 채운 긴 줄 — 둘 다 옛 판(가로 기준점만 밀기)은 위아래·오른쪽이 잘렸다.
- *   ⑶ 현빈 안내 «블럭에 위아래 여백을 주면 쾅이 커진다» — 같은 글 · H 를 3배로 하면 최대 배율이 커진다(상한 = 들어가는 만큼).
- *   양성대조(예측 · CTL): FX.stamp 의 배율 상한 줄(`sc = Math.min(sc, …)`) 삭제 + cy 밀기 삭제 → ⑴⑵ 빨강 · ⑶ 빨강(두 높이 최대 배율이 같은 2.2). */
-test('T19 도장 — 커진 글 상자가 캔버스 안(가로·세로) · 그래도 확대는 한다 · 높이를 늘리면 최대 배율이 커진다', () => {
+/* T19 NEW-현빈QA-GIF-CANVAS-STAMP-CLIPPED-BY-FRAME-01 2판 — ★뒤집음: 1판 T19 «높이 딱 맞는 블럭은 배율을 줄여 담는다(최대 ≈1.42)» → 현빈 재QA 261116 «시작 크기를 줄이란 게 아니었어».
+ *   이제: 세로는 배율을 안 줄인다(블럭을 늘려 담는다 — 엔진 _fitStampHeight · 높이 = stampNeedH) · 가로 상한만(폭은 못 늘림).
+ *   ⑴ 높이 = stampNeedH 로 늘린 블럭: 시작 배율 그대로 2.2(약해짐 0) · 글 상자 캔버스 안(잘림 0) ⑵ 폭 채운 긴 줄: 가로 상한으로 캔버스 안
+ *   ⑶ 줄 시작 크기 3.0 → 최대 배율 3.0 · 높이 = stampNeedH(3배) 면 안 잘림 ⑷ 늘리지 않은 높이 딱 맞는 블럭은 배율 2.2 그대로(옛 상한 없음 — 그 블럭은 엔진이 늘린다)
+ *   양성대조(예측 · CTL): FX.stamp 상한에 세로를 되살림(옛 1판 꼴 `Math.max(1, env.H / …)` 를 min 에 다시 더함) → ⑷ 빨강(안 늘린 블럭에서 배율이 ≈1.42 로 줄어든다 · ⑴⑶ 은 높이를 딱 맞춰 늘린 값이라 상한이 s0 이상 → 초록). */
+test('T19 도장 2판 — 세로 배율 안 줄임 · 늘린 높이면 안 잘림 · 줄 시작 크기 · 긴 줄 가로 상한', () => {
   const size = 24, dur = 560;
   const mk = () => {   // 가로·세로 변형을 따라가는 기록기 — 글 한 번 그릴 때 캔버스 위 상자(글자 높이 = size)
     const c = fakeCtx(); let m = [1, 0, 0]; const st = [], boxes = [];
@@ -340,24 +341,45 @@ test('T19 도장 — 커진 글 상자가 캔버스 안(가로·세로) · 그�
     });
     return { c, boxes };
   };
-  const run = (W, H, text) => {
+  const run = (W, H, text, s0, { inside = true } = {}) => {
     const style = { ...STYLE, text, wrapEm: W / size };
+    const tr = [{ line: 0, fx: 'stamp', at: 0, dur, ...(s0 != null ? { s0 } : {}) }];
     let kmax = 0;
     for (let tau = 0; tau < dur * 0.7; tau += 14) {
-      const { c, boxes } = mk(); drawTracks(c, W, H, style, size, [{ line: 0, fx: 'stamp', at: 0, dur }], tau);
+      const { c, boxes } = mk(); drawTracks(c, W, H, style, size, tr, tau);
       assert.ok(boxes.length, `[전제] ${W}×${H} ${tau}ms 글이 그려짐`);
       for (const b of boxes) {
         kmax = Math.max(kmax, b.k);
-        assert.ok(b.l >= -1e-6 && b.r <= W + 1e-6 && b.t >= -1e-6 && b.b <= H + 1e-6,
+        if (inside) assert.ok(b.l >= -1e-6 && b.r <= W + 1e-6 && b.t >= -1e-6 && b.b <= H + 1e-6,
           `★${W}×${H} «${text}» ${tau}ms 글 상자 x ${b.l.toFixed(1)}~${b.r.toFixed(1)} · y ${b.t.toFixed(1)}~${b.b.toFixed(1)} 가 캔버스 밖`);
       }
     }
-    return kmax;
+    return { kmax, need: stampNeedH(style, tr, size) };
   };
-  const tight = run(480, Math.round(size * 1.4), '네!');            // ⑴ 높이 딱 맞는 한 줄
-  assert.ok(tight > 1.3, `그래도 확대는 한다(높이 딱 맞음 · 최대 ${tight.toFixed(2)}배)`);
-  const long = run(480, 200, '가'.repeat(46));   // ⑵ 폭을 거의 채운 긴 줄(46자×10px)
-  assert.ok(long >= 1 && long < 1.1, `[전제] 긴 줄은 상한이 거의 1 — ${long.toFixed(3)}`);
-  const tall = run(480, Math.round(size * 1.4) * 3, '네!');          // ⑶ 같은 글 · 위아래 여백(높이 3배)
-  assert.ok(tall > tight + 0.5, `★높이를 늘려도 최대 배율이 안 커진다 — ${tight.toFixed(2)} → ${tall.toFixed(2)}`);
+  const g = run(480, Math.ceil(size * 2.2), '네!');                       // ⑴ 높이 = stampNeedH(2.2배)
+  assert.equal(g.need, Math.ceil(size * 2.2), 'stampNeedH = 글자 높이 × 2.2');
+  assert.ok(Math.abs(g.kmax - 2.2) < 1e-9, `★늘린 블럭인데 배율이 줄었다 — ${g.kmax}`);
+  const long = run(480, 200, '가'.repeat(46));                             // ⑵ 폭을 거의 채운 긴 줄(46자×10px)
+  assert.ok(long.kmax >= 1 && long.kmax < 1.1, `긴 줄은 가로 상한 — ${long.kmax.toFixed(3)}`);
+  const big = run(480, Math.ceil(size * 3), '네!', 3);                     // ⑶ 줄 시작 크기 3
+  assert.deepEqual([big.need, Math.abs(big.kmax - 3) < 1e-9], [Math.ceil(size * 3), true], `★줄 시작 크기 3 — 최대 ${big.kmax}`);
+  const tight = run(480, Math.round(size * 1.4), '네!', null, { inside: false });   // ⑷ 안 늘린 블럭(엔진이 늘릴 몫)
+  assert.ok(Math.abs(tight.kmax - 2.2) < 1e-9, `★세로 때문에 배율을 줄였다(옛 1판 상한) — ${tight.kmax}`);
+  assert.ok(tight.need > Math.round(size * 1.4), '[전제] 이 블럭은 늘려야 한다');
+});
+
+test('T20 도장 시작 크기 저장 꼴 — 도장 줄만 s0 · 범위 1~4(0.1) · 다른 효과 줄엔 안 실림 · 없으면 옛 바이트 · stampNeedH 큰 조각·줄', async () => {
+  const { parseAnimGif, serializeAnimGif } = await import('../../js/fx/anim-gif-tracks.js');
+  const r = parseAnimGif(JSON.stringify({ v: 2, tracks: [{ line: 0, fx: 'typewriter', at: 0, dur: 500, s0: 3 }, { line: 1, fx: 'stamp', at: 500, dur: 560, s0: 9.87 }, { line: 2, fx: 'stamp', at: 0, dur: 560, s0: 'x' }], speed: 1, repeat: 1 }), 3);
+  assert.deepEqual(r.tracks.map((t) => t.s0), [undefined, 4, undefined], '도장 줄만 · 범위 고정 · 못 읽으면 없음');
+  assert.ok(!('s0' in r.tracks[0]) && !('s0' in r.tracks[2]), '키 자체가 없다(옛 꼴)');
+  assert.equal(stampParams(0, 1, 3).scale, 3, '시작 = s0');
+  assert.ok(Math.abs(stampParams(0.7, 1, 3).scale - 1) < 1e-9, '70% = 찍힘(s0 무관)');
+  const old = { tracks: [{ line: 0, fx: 'stamp', at: 0, dur: 560 }] };
+  assert.equal(serializeAnimGif(old), '{"v":2,"tracks":[{"line":0,"fx":"stamp","at":0,"dur":560}],"speed":1,"repeat":1}', 's0 없으면 옛 바이트');
+  assert.equal(JSON.parse(serializeAnimGif({ tracks: [{ line: 0, fx: 'stamp', at: 0, dur: 560, s0: 3 }] })).tracks[0].s0, 3);
+  const st = { ...STYLE, text: '가\n나다', cs: [{ sizeK: 1 }, null, { sizeK: 2 }, { sizeK: 1 }] };
+  assert.equal(stampNeedH(st, [{ line: 0, fx: 'stamp' }], 20), 44, '첫 줄 = 20 × 2.2');
+  assert.equal(stampNeedH(st, [{ line: 1, fx: 'stamp', s0: 2 }], 20), 80, '둘째 줄 = 큰 조각(2배) × s0 2');
+  assert.equal(stampNeedH(st, [{ line: 0, fx: 'fade-in' }], 20), 0, '도장 없으면 0');
 });
