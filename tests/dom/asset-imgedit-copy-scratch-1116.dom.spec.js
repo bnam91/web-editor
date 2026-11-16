@@ -5,7 +5,11 @@
  * 칸
  *   S1 편집 중 ⌘C → Esc → ⌘V = 에셋 블럭 수 그대로 · 스크래치 항목 +1 · 그 항목 src = 에셋의 goya-asset 주소 «그대로»(data URL 아님)
  *   S2 [지킴] 평소(편집 아님) ⌘C → ⌘V = 옛 그대로 캔버스에 에셋 사본 · 스크래치 +0
+ *   S3 (현빈 261117 139행 ◑) S1 «직후» 같은 블럭 클릭 → ⌘C → ⌘V = 캔버스 사본(에셋 1→2) · 스크래치 +0.
+ *      블럭을 화면 가운데에 둔 장면(실앱 그대로). 옛 판은 스크래치 항목이 화면 가운데에 떨어져 그 블럭을 덮었다 →
+ *      클릭이 항목을 골라 캔버스 .selected 0 → ⌘C 가 아무것도 안 담아 편집 복사 표가 남음 → 또 스크래치.
  * 양성대조: CTL — ⌘C 갈래의 `_markImgEditCopy();` 줄 삭제 → S1 빨강(에셋 1→2 · 스크래치 +0). S2 는 초록(지킴).
+ *   CTL-S3 — _pasteImgEditToScratch 의 x 를 옛 «화면 가운데» 식으로 되돌림 → S3 빨강(클릭 자리 = 스크래치 항목 · 에셋 .selected 아님). S1·S2 초록.
  * 안 잰 것: 실앱(일렉트론)·실 goya-asset 그림 표시(하네스는 그 주소를 못 읽어 항목이 scratch-missing 으로 뜬다 — 주소 문자열만 잰다) ·
  *   바깥 앱 이미지가 OS 클립보드에서 더 최신인 경우(옛 규칙 clipboardPrefersInternal 그대로) · ⌘Z(스크래치 붙여넣기는 원래 이력을 안 쌓는다).
  */
@@ -77,5 +81,37 @@ test('S2 [지킴] 평소 ⌘C → ⌘V = 캔버스에 에셋 사본 · 스크래
   const s1 = await st(page);
   expect(s1.assets, '평소 붙여넣기가 캔버스 사본을 안 만들었다').toBe(2);
   expect(s1.scratch.length, '평소 붙여넣기가 스크래치로 샜다').toBe(s0.scratch.length);
+  expect(errs, errs.join('\n')).toEqual([]);
+});
+
+test('S3 편집 복사 → 스크래치 «직후» 같은 블럭 클릭 → ⌘C → ⌘V = 캔버스 사본 · 스크래치 +0', async ({ page }) => {
+  const { errs, a1 } = await scene(page);
+  // 블럭을 화면 가운데에 둘 수 있게 위아래로 긴 틈(실앱 = 긴 페이지 가운데 블럭)
+  await page.evaluate((id) => { const ab = document.getElementById(id); const g = '<div class="gap-block" data-type="gap" style="height:1500px"></div>';
+    const unit = ab.closest('.row') || ab; unit.insertAdjacentHTML('beforebegin', g); unit.insertAdjacentHTML('afterend', g); }, a1);
+  await f2(page);
+  let c = await center(page, a1);
+  await page.mouse.click(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('selected'), a1);
+  await page.mouse.dblclick(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('img-editing'), a1);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('img-editing'), a1), '[전제] 더블클릭으로 편집 모드').toBe(true);
+  const s0 = await st(page);
+  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('Escape');
+  await until(page, (id) => !document.getElementById(id).classList.contains('img-editing'), a1);
+  await page.keyboard.press('Meta+v');
+  await until(page, (n) => document.querySelectorAll('.scratch-item').length > n, s0.scratch.length);
+  expect((await st(page)).scratch.length, '[전제] 편집 복사 ⌘V = 스크래치 +1(S1 과 같다)').toBe(s0.scratch.length + 1);
+  // 같은 블럭 다시 — 스크롤은 안 건드린다(center 가 이미 가운데면 그대로) · 클릭 자리의 맨 위 요소를 같이 적는다(원인 줄)
+  c = await center(page, a1);
+  const top = await page.evaluate(({ x, y }) => { const el = document.elementFromPoint(x, y); return el?.closest('.scratch-item') ? 'scratch-item' : (el?.closest('.asset-block')?.id || el?.id || el?.className || ''); }, c);
+  await page.mouse.click(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('selected'), a1);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a1), `S3 — 붙인 뒤 같은 블럭 클릭이 블럭을 못 골랐다(클릭 자리 맨 위 = ${top})`).toBe(true);
+  const s1 = await st(page);
+  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('Meta+v');
+  await until(page, () => document.querySelectorAll('#canvas .asset-block').length === 2);
+  const s2 = await st(page);
+  expect(s2.assets, 'S3 — 평소 ⌘C → ⌘V 가 캔버스 사본을 안 만들었다').toBe(2);
+  expect(s2.scratch.length, 'S3 — 평소 붙여넣기가 또 스크래치로 갔다(편집 복사 표가 남았다)').toBe(s1.scratch.length);
   expect(errs, errs.join('\n')).toEqual([]);
 });
