@@ -11,6 +11,9 @@
  * 칸: F1 가운데+채점판 사본 네 점 → 보라가 파란 안 · F2c 가운데 대칭 벌림 → 위 모서리 제자리 · F2l [지킴 FT-3b] 왼쪽 같은 조작 제자리 ·
  *     F3 나비꼴 set → 거절·네 점 그대로·변 손잡이 제 변 위 · F4 nw 손잡이를 아래로 실제 끌기(밑변 너머) → 네 점 볼록 유지 ·
  *     F5 변형 뒤 패널 정렬 왼→가운데 → 보라가 파란 안(다시 그림)
+ *     F6c·F6r [141 곁 발견 · 지디 261117 «재현 먼저»] 가운데·오른 정렬 + 상자가 섹션 폭을 넘음(프레임 max-width:100% 캡) → 원 글자 원점(nw) 제자리
+ *       뿌리 예측: ㉮ 식 t = m + a·(box.w − B0) 이 프레임 «실제» 폭을 box.w 로 가정 — 캡되면 실폭 S < box.w ⇒ nw 가 a·(box.w − S)·z 만큼 오른쪽(빨강 메시지에 실측·예측 둘 다)
+ *       처방: box.w → 프레임 computed width(캡된 실폭) · FTH6-CTL(되돌림) → F6c·F6r 빨강 · 나머지 무변
  * 양성대조(srv 미실행 · 예측): FTH-CTL1(㉮ 되돌림 = 옛 tb translate 한 줄) → F1·F2c·F5 빨강 · F2l·F3·F4 초록 /
  *   FTH-CTL2(㉯ 되돌림 = setFxFreeTransform 거절 줄 삭제) → F3·F4 빨강 · 나머지 초록.
  * 픽스처 수: F1 = 9501 채점판 사본 proj_history/1794835295982.json(스샷 22초 뒤) 네 점 · F3 = 스샷 맞춤 nw(112,380) ne(296,-2) se(307,362) sw(-80,374).
@@ -21,7 +24,7 @@ const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const f2 = (p) => p.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-async function setup(page, { center = true } = {}) {
+async function setup(page, { center = true, align = center ? 'center' : null } = {}) {
   await page.setViewportSize({ width: 1400, height: 1000 });
   const errs = await bootApp(page);
   const id = await page.evaluate(async () => {
@@ -36,9 +39,9 @@ async function setup(page, { center = true } = {}) {
   const r = await waitStableRect(page, '#' + id);
   await page.mouse.click(r.cx, r.cy);
   await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && !!document.querySelector('#panel-right .prop-align-btn[data-align="center"]'), id, { timeout: 3000 });
-  if (center) {
-    await page.click('#panel-right .prop-align-btn[data-align="center"]');
-    await page.waitForFunction((id) => (document.getElementById(id).querySelector('[contenteditable]') || document.getElementById(id).querySelector('.tb-h1')).style.textAlign === 'center', id, { timeout: 3000 });
+  if (align) {
+    await page.click(`#panel-right .prop-align-btn[data-align="${align}"]`);
+    await page.waitForFunction(([id, align]) => (document.getElementById(id).querySelector('[contenteditable]') || document.getElementById(id).querySelector('.tb-h1')).style.textAlign === align, [id, align], { timeout: 3000 });
   }
   /* 켜기(바탕 네모 · 만짐) — 손잡이와 같은 문(setFxFreeTransform) */
   await page.evaluate(async (id) => { const ft = await import('/js/effects-freetransform.js'); ft.setFxFreeTransform(document.getElementById(id), undefined, { history: false }); }, id);
@@ -136,3 +139,22 @@ test('F5 ★변형 뒤 패널 정렬 왼→가운데 — 보라가 파란 안(±
   expect(out.l <= 1.5 && out.r <= 1.5, `★보라가 파란 밖 l=${out.l} r=${out.r}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+const F6_WB = 1400, F6_CAP_MIN = 20;   // 모델 px — 섹션 폭(기본 796 안팎)을 넉넉히 넘기는 상자 · 캡 전제 하한
+for (const align of ['center', 'right']) {
+  test(`F6${align[0]} ★${align === 'center' ? '가운데' : '오른'} 정렬 + 상자가 섹션 폭을 넘음(프레임 캡) — 원 글자 원점(nw)은 제자리(±1)`, async ({ page }) => {
+    const { errs, id } = await setup(page, { align });
+    const m0 = await M(page, id);
+    expect({ tf: m0.tfAS, st: !!m0.st }, '[전제] 정렬·잰 값').toEqual({ tf: align === 'center' ? 'center' : 'flex-end', st: true });
+    const { H } = m0.st, WB = F6_WB;
+    await setC(page, id, [[0, 0], [WB, 0], [WB, H], [0, H]]);
+    const m1 = await M(page, id);
+    const g = await page.evaluate((id) => { const tb = document.getElementById(id), tf = tb.closest('.frame-block[data-text-frame="true"]');
+      return { boxW: parseFloat(tb.style.width), S: parseFloat(getComputedStyle(tf).width), B0: W0(tb), tfT: tf.style.translate || '' };
+      function W0(tb) { const s = window.ftStateOf?.(tb); return s ? s.W + s.OX : null; } }, id);
+    expect(g.boxW - g.S > F6_CAP_MIN, `[전제] 프레임이 캡됐다 box.w=${g.boxW} S=${g.S}`).toBe(true);
+    const a = align === 'center' ? 0.5 : 1, dx = +(m1.hc.nw[0] - m0.hc.nw[0]).toFixed(1), pred = +(a * (g.boxW - g.S) * m1.z).toFixed(1);
+    expect(Math.abs(dx) <= 1, `★nw 이동 실측 dx=${dx} · 예측 빨강 a·(box.w−S)·z=${pred} (a=${a} box.w=${g.boxW} S=${g.S} B0=${g.B0} z=${m1.z.toFixed(3)} tf.translate=${g.tfT})`).toBe(true);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}

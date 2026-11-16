@@ -432,7 +432,7 @@ export function applyFxFreeTransform(tb) {
     let as = cs.alignSelf;
     if ((as === 'auto' || as === 'normal') && tf.parentElement) as = getComputedStyle(tf.parentElement).alignItems;
     const a = (cs.position === 'absolute' || cs.position === 'fixed') ? 0 : as === 'center' ? 0.5 : /end|right/.test(as) ? 1 : 0;
-    const t = m + a * (box.w - Math.max(st.W + st.OX, 1));
+    const t = m + a * ((parseFloat(cs.width) || box.w) - Math.max(st.W + st.OX, 1));   /* ★F6 — B = 프레임 «실»폭(max-width:100% 캡이면 box.w 보다 좁다) */
     tf.style.translate = Math.abs(t) > 0.005 ? `${+t.toFixed(3)}px 0px` : '';
     tb.style.translate = '';
   } else {
