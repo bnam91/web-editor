@@ -1166,6 +1166,21 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         }) : [];
         if (images.length) out.images = images;
       }
+      /* 0.9.13 MOTION 슬라이드 블럭 — Figma = 정적 «첫 장면»(카드 그림 · 지디 결정 ⓒ) · 그리드와 같은 images 꼴(받는 쪽 sangpe_to_figma 가 FILL 로 채움).
+         자리 = 블럭 데이터(readSlideState)에서 셈 — 카드 i 왼끝 = i × (카드 폭 + 간격)(renderSlideBlock flex 줄 · slideGeom 과 같은 식).
+         <img> 사각형을 재지 않는 까닭: 그림이 아직 안 떴거나 깨지면 사각형이 0 이 되어 통째로 빠졌다(MOTION1 M6 실측 null).
+         블럭 폭 밖 카드는 뺌 · 걸친 카드는 보이는 폭까지(shortcut: 잘린 카드는 그 폭에 cover 로 다시 맞춰져 화면과 크롭이 조금 다름 — 맞추려면 받는 쪽에 크롭 칸을 더한다). */
+      if (el.classList.contains('slide-block') && typeof window.readSlideState === 'function') {
+        const _ls = el.id ? document.getElementById(el.id) : null;
+        const _bw = Math.round((_ls && _ls.offsetWidth) || el.offsetWidth || w || 0);
+        const { slides, layout } = window.readSlideState(el);
+        const _cw = (_bw * layout.cardW) / 100;
+        const images = slides.map((sl, i) => {
+          const x = Math.round(i * (_cw + layout.gap));
+          return { src: sl.src, x, y: 0, w: Math.min(Math.round(_cw), _bw - x), h: Math.round(layout.h), circle: false };
+        }).filter((m) => m.x < _bw && m.w > 0);
+        if (images.length) out.images = images;
+      }
       /* Q11(현빈 261112) — 래디얼 「내용 자르기」 끔이면 clip:false(켬 = 키 없음 = 옛 바이트). ⚠️figma-renderer generic 은 아직 «안 읽는다»(G17 border 와 같은 처지). */
       if (window.clipFamily?.(el) === 'radial' && window.clipsContent?.(el) === false) out.clip = false;
       /* ★G17 그리드 «블럭 외곽선» — 키(data-block-outline)가 있을 때만 `border` 를 싣는다(없으면 JSON 바이트 그대로).

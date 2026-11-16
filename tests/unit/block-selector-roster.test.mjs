@@ -79,7 +79,7 @@ const ALL_SEEN = [
   'gradient-block', 'graph-block', 'grid-block', 'icon-block', 'icon-circle-block',
   'icon-text-block', 'infocard-block', 'innercard-block', 'joker-block', 'label-group-block',
   'laurel-block', 'mockup-block', 'modal-block', 'qa-block', 'quote-block', 'radial-block',
-  'shape-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'table-block',
+  'shape-block', 'slide-block', 'speech-bubble-block', 'step-block', 'sticker-block', 'table-block',   /* slide-block — 0.9.13 MOTION 슬라이드 블럭 */
   'text-block', 'vector-block', 'zoom-block',
 ];
 

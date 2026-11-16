@@ -31,6 +31,7 @@ export const K_BIND = Object.freeze([
   'coupon-block', 'quote-block',
   'radial-block',
   'cert-block',   // 2026-11-14 인증서 블럭 — addCertBlock 이 bindBlock 을 건다(js/blocks/cert-block.js) · 정본 js/block-bind-kinds.js 에도 넣음 = 32
+  'slide-block',  // 0.9.13 MOTION 슬라이드 블럭 — addSlideBlock 이 bindBlock 을 건다(js/blocks/slide-block.js) · 정본에도 = 33
 ]);
 
 // OWN_BINDER — 제 바인더를 따로 쓰는 종류. 정본(CANON)에 들면 안 된다(js/block-bind-kinds.js 머리말 ⛔ · rebindAll 이 따로 묶음).

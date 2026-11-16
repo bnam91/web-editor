@@ -454,7 +454,7 @@ test('E14 PLAY-ON-CANVAS 3판 — 덮개·단추 #canvas-scaler 층(scaler 좌�
   E.tb.getBoundingClientRect = () => ({ left: 30, top: 70, width: 200, height: 60, right: 230 });
   const html0 = E.textEl.innerHTML;
   const q0 = document.querySelector;
-  document.querySelector = (sel) => (sel === '#canvas .text-block.selected' ? E.tb : q0(sel));   // 고른 블럭 = 단추 대상(135행 · 재생 중에도 «고르거나 올렸을 때만»)
+  document.querySelector = (sel) => (String(sel).includes('#canvas .text-block.selected') ? E.tb : q0(sel));   // 0.9.13 MOTION: 고른 블럭 질의에 .slide-block.selected 가 붙었다(같은 «고른 GIF 블럭» 규칙)   // 고른 블럭 = 단추 대상(135행 · 재생 중에도 «고르거나 올렸을 때만»)
   const items = [];
   E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
   window.openAnimModal(E.tb);

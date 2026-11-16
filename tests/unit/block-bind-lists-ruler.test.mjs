@@ -279,7 +279,7 @@ const fmtCands = (cs) => cs.map((c) => `  ${c.site} (${c.kinds}종 · ${c.scope}
 
 test('R0 정의표 무결 — 이름 하나씩 · 칸 다 있음 · K_BIND 와 OWN_BINDER 안 겹침 · 닻 한 번 · js 가 정의표를 안 읽음', () => {
   assert.equal(new Set(K_BIND).size, K_BIND.length, 'K_BIND 에 겹친 종류');
-  assert.equal(K_BIND.length, 32, `K_BIND ${K_BIND.length} 종(정본 30 + radial 1 + cert 1(2026-11-14 인증서 블럭) = 32 이어야)`);
+  assert.equal(K_BIND.length, 33, `K_BIND ${K_BIND.length} 종(정본 30 + radial 1 + cert 1(2026-11-14 인증서 블럭) + slide 1(0.9.13 MOTION) = 33 이어야)`);
   assert.deepEqual(K_BIND.filter((k) => OWN_BINDER.includes(k)), [], 'K_BIND ∩ OWN_BINDER ≠ ∅');
   const names = LISTS.map((l) => l.name);
   assert.equal(new Set(names).size, names.length, `명부 이름 겹침 ${JSON.stringify(names)}`);

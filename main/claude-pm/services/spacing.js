@@ -85,6 +85,7 @@ const WEIGHT = Object.freeze({
   infocard: 3,      // .infocard-block — 카드
   innercard: 3,     // .innercard-block — 카드 안 카드
   modal: 3,         // .modal-block — 컨테이너 + 텍스트(현빈 발주 2026-09-08). 카드와 같은 «덩어리»다
+  slide: 3,         // .slide-block — 슬라이드(사진 카드 줄 · 0.9.13 MOTION) · 인증서와 같은 «덩어리» 판단
   cert: 3,          // .cert-block — 인증서(헤드라인 + 증서 묶음 · 261114)
   coupon: 3,        // .coupon-block — 배경 SVG 그릇 ＋ 글자 다섯(현빈 발주 2026-10-07). 모달과 같은 «덩어리»다
   /* ★인용구(QT1 · 현빈 발주 2026-10-07) — ⚠️«실측 근거 없음 · 판단»이다(머리말의 다섯과 같은 꼴).
