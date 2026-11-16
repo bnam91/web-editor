@@ -33,6 +33,15 @@ async function scene(page) {
 const snap = (page) => page.evaluate(() => ({ html: document.getElementById('canvas').innerHTML, hist: window.historyStack.length, ser: window.serializeProject() }));
 /** 두 HTML 의 첫 다른 줄(실패 메시지용 — 무엇이 바뀌었는지 바로 보이게). */
 const firstDiff = (a, b) => { const x = a.split('\n'), y = b.split('\n'); for (let i = 0; i < Math.max(x.length, y.length); i++) if (x[i] !== y[i]) return `줄 ${i}: «${(x[i] || '').trim().slice(0, 200)}» → «${(y[i] || '').trim().slice(0, 200)}»`; return '같음'; };
+/** 캔버스가 멈출 때까지(배율 transform 전환 0.15초 · 맞춤·스크롤) — 재고 나서 누르는 사이에 움직이면 좌표가 낡는다.
+ *  수지맥(M4) 런에서 부트 직후 전환 중에 재 P3·L3 가 빨강(배율 0.4364 = 전환 중간값 · 아이맥 초록) — 창·배율에 안 기대게 «멈춤»을 먼저 본다. */
+const settle = (page) => expect.poll(() => page.evaluate(() => new Promise((res) => {
+  const s = document.getElementById('canvas-scaler'), r0 = window.__tb.getBoundingClientRect();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const r1 = window.__tb.getBoundingClientRect(), busy = (s.getAnimations ? s.getAnimations() : []).length;
+    res(!busy && ['x', 'y', 'width', 'height'].every((k) => Math.abs(r0[k] - r1[k]) < 0.01));
+  }));
+})), { timeout: 10000, message: '[전제] 캔버스 배율·자리가 멈춤' }).toBe(true);
 const overlayVsBlock = (page) => page.evaluate(() => {
   const cv = document.getElementById('anim-canvas-play'), a = cv && cv.getBoundingClientRect(), b = window.__tb.getBoundingClientRect();
   return cv ? Math.max(Math.abs(a.left - b.left), Math.abs(a.top - b.top), Math.abs(a.width - b.width), Math.abs(a.height - b.height)) : -1;
@@ -79,6 +88,7 @@ test('P3 블럭 ▶/⏸ — 에셋 ✕ 자리 · 재생·끝 · 편집 들어가
   await page.click('#anim-gif-modal .anim-item[data-id="fade-in"]');   // 고름 = 블럭에 효과가 남는다(data-anim-fx)
   await page.evaluate(() => window.closeAnimModal());
   expect(await page.evaluate(() => window.__tb.dataset.animFx), '[전제] 효과가 블럭에').toBe('fade-in');
+  await settle(page);
   const tbBox = await page.evaluate(() => { const r = window.__tb.getBoundingClientRect(), s = document.getElementById('canvas-scaler'); return { x: r.left + r.width / 2, y: r.top + r.height / 2, right: r.right, top: r.top, k: s.getBoundingClientRect().width / s.offsetWidth }; });
   await page.mouse.move(tbBox.x, tbBox.y);
   const btn = page.locator('#anim-tb-play');
@@ -102,7 +112,9 @@ test('P3 블럭 ▶/⏸ — 에셋 ✕ 자리 · 재생·끝 · 편집 들어가
   await expect(btn).toHaveText('▶');
   await btn.click();
   await expect(page.locator('#anim-canvas-play')).toHaveCount(1);
-  await page.mouse.dblclick(tbBox.x, tbBox.y);   // 블럭 편집
+  await settle(page);
+  const tb2 = await page.evaluate(() => { const r = window.__tb.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.dblclick(tb2.x, tb2.y);   // 블럭 편집(누르기 직전 자리)
   await expect(page.locator('#anim-canvas-play'), '★편집 들어갔는데 재생이 남았다').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

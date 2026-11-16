@@ -34,11 +34,20 @@ async function scene(page) {
   expect(await page.evaluate(() => window.__tb.dataset.animFx), '[전제] 효과가 블럭에').toBe('fade-in');
   return errs;
 }
-/** 블럭 화면 자리 + 배율 k(scaler 화면 폭 / 원래 폭) */
-const geo = (page) => page.evaluate(() => {
+/** 캔버스가 멈출 때까지(배율 transform 전환 0.15초 · 맞춤·스크롤) — 재고 나서 누르는 사이에 움직이면 좌표가 낡는다.
+ *  수지맥(M4) 런에서 부트 직후 전환 중에 재 P3·L3 가 빨강(배율 0.4364 = 전환 중간값 · 아이맥 초록) — 창·배율에 안 기대게 «멈춤»을 먼저 본다. */
+const settle = (page) => expect.poll(() => page.evaluate(() => new Promise((res) => {
+  const s = document.getElementById('canvas-scaler'), r0 = window.__tb.getBoundingClientRect();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const r1 = window.__tb.getBoundingClientRect(), busy = (s.getAnimations ? s.getAnimations() : []).length;
+    res(!busy && ['x', 'y', 'width', 'height'].every((k) => Math.abs(r0[k] - r1[k]) < 0.01));
+  }));
+})), { timeout: 10000, message: '[전제] 캔버스 배율·자리가 멈춤' }).toBe(true);
+/** 블럭 화면 자리 + 배율 k(scaler 화면 폭 / 원래 폭) — 늘 멈춘 뒤에 잰다 */
+const geo = async (page) => { await settle(page); return page.evaluate(() => {
   const r = window.__tb.getBoundingClientRect(), s = document.getElementById('canvas-scaler');
   return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, right: r.right, top: r.top, k: s.getBoundingClientRect().width / s.offsetWidth };
-});
+}); };
 /** 같은 배율의 에셋 ✕ 크기 — 같은 CSS 절을 scaler 안에 잠깐 세워 잰다 */
 const xSize = (page) => page.evaluate(() => {
   const b = document.createElement('button'); b.className = 'asset-overlay-clear'; document.getElementById('canvas-scaler').appendChild(b);
@@ -94,8 +103,9 @@ test('L3 재생 중 블럭 클릭 → 골라짐 · 선택 테두리가 덮개 �
   await expect(page.locator('#anim-canvas-play')).toHaveCount(1);
   await page.evaluate(() => window.deselectAll());
   expect(await page.evaluate(() => window.__tb.classList.contains('selected')), '[전제] 안 골라진 채로 시작').toBe(false);
-  await page.mouse.click(g.cx, g.cy);
-  await expect.poll(() => page.evaluate(() => window.__tb.classList.contains('selected')), { message: '★재생 중 클릭으로 블럭이 안 골라진다' }).toBe(true);
+  const g3 = await geo(page);   // 누르기 직전에 다시 잰다(재생 시작·선택 해제 사이 캔버스가 움직였을 수 있다)
+  await page.mouse.click(g3.cx, g3.cy);
+  await expect.poll(() => page.evaluate(() => window.__tb.classList.contains('selected')), { message: `★재생 중 클릭으로 블럭이 안 골라진다 — 누른 곳 ${g3.cx.toFixed(1)},${g3.cy.toFixed(1)}` }).toBe(true);
   const order = await page.evaluate(([x, y]) => {
     const cv = document.getElementById('anim-canvas-play'), ov = document.getElementById('ss-handles-overlay');
     const k1 = cv.style.pointerEvents, k2 = ov.style.pointerEvents;
@@ -103,7 +113,7 @@ test('L3 재생 중 블럭 클릭 → 골라짐 · 선택 테두리가 덮개 �
     const list = document.elementsFromPoint(x, y);
     cv.style.pointerEvents = k1; ov.style.pointerEvents = k2;
     return { cv: list.indexOf(cv), ov: list.indexOf(ov), sel: (window.__selOverlay?.targets() || []).length };
-  }, [g.cx, g.cy]);
+  }, [g3.cx, g3.cy]);
   expect([order.cv >= 0, order.sel > 0], `[전제] 덮개가 그 자리 · 선택 테두리 대상 있음 — ${JSON.stringify(order)}`).toEqual([true, true]);
   expect(order.ov >= 0 && order.ov < order.cv, `★선택 테두리 층이 재생 덮개 아래(덮여서 안 골라진 것처럼 보인다) — ${JSON.stringify(order)}`).toBe(true);
   await expect(page.locator('#anim-canvas-play'), '클릭은 재생을 안 끝낸다').toHaveCount(1);
@@ -124,7 +134,8 @@ test('L4 재생 중에도 ▶/⏸ 는 올렸을 때만 — 빼면 숨김 · 재�
   await expect(btn, '★재생 중 마우스를 뺐는데 ⏸ 가 늘 떠 있다').toBeHidden();
   const l0 = await page.evaluate(() => Number(document.getElementById('anim-canvas-play').dataset.loops));
   await expect.poll(() => page.evaluate(() => Number(document.getElementById('anim-canvas-play')?.dataset.loops ?? -1)), { timeout: 15000, message: '★단추 숨김과 같이 재생이 멈췄다' }).toBeGreaterThan(l0);
-  await page.mouse.move(g.cx, g.cy);
+  const g4 = await geo(page);
+  await page.mouse.move(g4.cx, g4.cy);
   await expect(btn, '다시 올리면 보임').toBeVisible();
   await expect(btn).toHaveText('⏸');
   expect(errs, errs.join(' | ')).toEqual([]);
