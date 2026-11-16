@@ -213,10 +213,11 @@ function closeAnimModal() {
 }
 
 /* ══ PLAY-ON-CANVAS-01 캔버스에서 보기(현빈: «gif 효과가 섹션에서 어울리는지 보기 위해서») ══
-   모달을 닫고 그 블럭 «자리»에 같은 엔진(_plan · 줄바꿈·부분 꾸밈 그대로)으로 그린 캔버스를 덮어 반복 재생.
-   ⛔글 DOM 무변 · 덮개는 #canvas 밖(document.body · position:fixed) ⇒ 저장(serializeProject)·PNG/Figma·⌘Z 에 흔적 0.
+   그 블럭 «자리»에 같은 엔진(_planOf · 줄바꿈·부분 꾸밈 그대로)으로 그린 캔버스를 덮어 «끝없이» 반복 재생(현빈 재QA 261116 «계속 플레이되면 좋겠고»).
+   ⛔글 DOM 무변 · 덮개·단추는 #canvas 밖(document.body · position:fixed) ⇒ 저장(serializeProject)·PNG/HTML/Figma·GIF·⌘Z 에 흔적 0.
    매 프레임 블럭 getBoundingClientRect 로 자리·크기를 맞춘다 ⇒ 배율(줌)·스크롤에도 붙어 있다.
-   클릭(pointerdown)·아무 키(Esc 포함) = 멈춤·원상 «만»(에디터로 안 넘김) — 내보내기 단추·단축키를 누르면 먼저 걷히고(그 입력은 멈춤에 쓰임) 다시 눌러 실행.
+   끝 = 블럭 ⏸ 단추 · Esc(멈춤에만 쓰고 에디터로 안 넘김) · 블럭 편집(더블클릭 → .editing) · 블럭이 사라짐. 다른 곳 클릭은 안 끝낸다(에디터로 그대로).
+   시작 = 모달 «캔버스에서 보기»(모달 지금 값) · 블럭 ▶ 단추(블럭에 저장된 값 · _savedState).
    shortcut: 회전·자유변형 블럭은 기울지 않은 테두리 상자에 덮는다 · 바탕은 섹션 단색(GIF 와 같은 규칙) — 필요해지면 transform 복사. */
 const _PLAY_K = 2;   // GIF 저장과 같은 배율(블럭 1px = 2 캔버스 px)
 let _onCanvas = null;
@@ -226,6 +227,17 @@ function playAnimOnCanvas() {
   const speed = parseFloat(document.getElementById('anim-speed')?.value) || 1;
   const plan = _plan(style, speed, _PLAY_K);   // 닫기 전에 — 지금 효과·줄별 트랙으로 고정
   closeAnimModal();
+  _startCanvasPlay(tb, plan, style);
+}
+/** 블럭 ▶/⏸ — 그 블럭이 재생 중이면 끝, 아니면 저장된 설정으로 시작. */
+function toggleAnimOnCanvas(tb) {
+  if (!tb) return;
+  if (_onCanvas && _onCanvas.tb === tb) { stopAnimOnCanvas(); return; }
+  if (_isEmptyText(tb)) return;
+  const style = _getTextStyle(tb), st = _savedState(tb);
+  _startCanvasPlay(tb, _planOf(st, style, st.speed, _PLAY_K), style);
+}
+function _startCanvasPlay(tb, plan, style) {
   stopAnimOnCanvas();
   const cv = document.createElement('canvas');
   cv.id = 'anim-canvas-play';
@@ -233,64 +245,81 @@ function playAnimOnCanvas() {
   cv.height = Math.round(Math.max(tb.offsetHeight, 1) * _PLAY_K);
   cv.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483000;';
   document.body.appendChild(cv);
-  /* 멈춤/재생 토글(현빈 QA 261116 «계속 재생되게 하거나 스탑을») — 덮개 오른쪽 위 · 누르면 그 자리에서 멈추고 다시 누르면 이어서 돈다. 끝내기는 Esc·다른 곳 클릭 그대로. */
-  const btn = document.createElement('button');
-  btn.id = 'anim-canvas-play-toggle';
-  btn.className = 'settings-btn settings-btn-secondary';
-  btn.style.cssText = 'position:fixed;z-index:2147483001;';
-  const label = () => { const p = !!(_onCanvas && _onCanvas.paused); btn.textContent = p ? '▶ 재생' : '⏸ 멈춤'; btn.title = p ? '이어서 재생' : '이 자리에서 멈춤 (끝내기 = Esc · 다른 곳 클릭)'; };
-  document.body.appendChild(btn);
   const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + 1500;   // 끝에서 1.5초 멈춤(미리보기와 같음)
-  let last = null, el = 0;   // el = 재생한 시간(멈춘 동안은 안 흐른다)
+  let t0 = null;
   const tick = (ts) => {
     if (!_onCanvas || _onCanvas.cv !== cv) return;   // 이 재생이 이미 끝났다(멈춘 뒤 늦게 온 프레임 · 다음 재생으로 바뀜) — 그리지 않는다
-    if (!tb.isConnected) { stopAnimOnCanvas(); return; }
+    if (!tb.isConnected || tb.classList.contains('editing')) { stopAnimOnCanvas(); return; }   // 블럭이 사라짐 · 편집 들어감 = 끝
     const r = tb.getBoundingClientRect();
     Object.assign(cv.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-    Object.assign(btn.style, { left: `${r.right - (btn.offsetWidth || 0)}px`, top: `${Math.max(0, r.top - (btn.offsetHeight || 0) - 4)}px` });
-    if (last != null && !_onCanvas.paused) el += ts - last;
-    last = ts;
-    cv.dataset.loops = String(Math.floor(el / cycle));   // 몇 바퀴 돌았나(시험이 «반복»을 읽는다 · 덮개는 body 라 저장 0)
-    const t = Math.min((el % cycle) / plan.duration, 1);
+    if (t0 == null) t0 = ts;
+    cv.dataset.loops = String(Math.floor((ts - t0) / cycle));   // 몇 바퀴 돌았나(시험이 «끝없는 반복»을 읽는다 · 덮개는 body 라 저장 0)
+    const t = Math.min(((ts - t0) % cycle) / plan.duration, 1);
     ctx.clearRect(0, 0, cv.width, cv.height);
     _fillBg(ctx, style, cv.width, cv.height);
     plan.draw(ctx, cv.width, cv.height, size, t);
-    if (_onCanvas) _onCanvas.raf = requestAnimationFrame(tick);
+    _placePlayBtn();
+    _onCanvas.raf = requestAnimationFrame(tick);
   };
-  /* 멈추는 입력은 «멈춤만» — 에디터로 안 넘긴다(Esc 가 선택 해제까지 타서 #canvas HTML 이 바뀌었다 · 아이맥 001ae0374+C9 P1).
-     window capture = 가장 먼저 · 막고 끊는다. 누른 뒤 따라오는 mousedown/mouseup/click 도 한 번 삼킨다(선택·끌기 시작 0). */
+  /* Esc 만 끝 — 멈춤에만 쓰고 에디터로 안 넘긴다(Esc 가 선택 해제까지 타서 #canvas HTML 이 바뀌었다 · 아이맥 001ae0374+C9 P1). 다른 키·클릭은 그대로 에디터로. */
   const stop = (e) => {
-    if (e.type === 'keydown' && _MOD_KEYS.includes(e.key)) return;   // ⌘·⇧ 만 누름(스크린샷 ⌘⇧4 등)은 멈춤 아님 — 한 바퀴 뒤 «멈췄다»로 보였다
+    if (e.key !== 'Escape') return;
     e.preventDefault(); e.stopImmediatePropagation();
-    if (e.type === 'pointerdown') _swallowClickOnce();
-    if (e.type === 'pointerdown' && e.target === btn) { _onCanvas.paused = !_onCanvas.paused; label(); return; }
     stopAnimOnCanvas();
   };
-  window.addEventListener('pointerdown', stop, true);
   window.addEventListener('keydown', stop, true);
-  _onCanvas = { cv, btn, stop, raf: 0, paused: false };
-  label();
+  _onCanvas = { cv, tb, stop, raf: 0 };
   _onCanvas.raf = requestAnimationFrame(tick);
+  _placePlayBtn();
 }
-const _MOD_KEYS = ['Meta', 'Shift', 'Control', 'Alt', 'CapsLock'];
 function stopAnimOnCanvas() {
   if (!_onCanvas) return;
-  const { cv, btn, stop, raf } = _onCanvas;
+  const { cv, stop, raf } = _onCanvas;
   _onCanvas = null;
   cancelAnimationFrame(raf);
-  window.removeEventListener('pointerdown', stop, true);
   window.removeEventListener('keydown', stop, true);
   cv.remove();
-  btn.remove();
+  _placePlayBtn();
 }
-const _CLICK_TAIL = ['mousedown', 'mouseup', 'click'];
-function _swallowClickOnce() {
-  let tm = 0;
-  const done = () => { _CLICK_TAIL.forEach((t) => window.removeEventListener(t, eat, true)); clearTimeout(tm); };
-  const eat = (e) => { e.preventDefault(); e.stopImmediatePropagation(); if (e.type === 'click') done(); };
-  _CLICK_TAIL.forEach((t) => window.addEventListener(t, eat, true));
-  tm = setTimeout(done, 1000);   // 끌다 놓아 click 이 안 오면 1초 뒤 풀린다
+
+/* ══ 블럭 ▶/⏸ 단추(현빈 재QA 261116 «에셋블럭 x버튼 위치에 플레이/퍼즈 버튼» · 지디 판정 (나)) ══
+   GIF 효과가 있는 텍스트 블럭(data-anim-fx · data-anim-gif)에 마우스를 올리거나 골랐을 때 · 재생 중인 블럭엔 늘 — 블럭 오른쪽 위.
+   겉모습 = 에셋 ✕(.asset-overlay-clear 절 · css/editor-blocks.css 에 .anim-tb-play 를 같이 걸었다) · 자리 = 블럭 오른쪽 위 10px.
+   ⛔블럭 DOM 에 안 넣는다 — body 의 단추 하나를 옮겨 다닌다(텍스트 블럭은 글을 textContent·AI 채우기·직렬화로 읽는다 ⇒ 안에 넣으면 거기 다 섞인다). 그래서 저장·PNG·HTML·Figma·GIF 에 구조적으로 0. */
+let _playBtn = null, _hoverTb = null;
+const _hasGif = (tb) => !!(tb && tb.isConnected && (tb.dataset.animFx || tb.dataset.animGif));
+function _playTarget() {
+  if (_onCanvas) return _onCanvas.tb;
+  if (_hasGif(_hoverTb)) return _hoverTb;
+  const sel = document.querySelector('#canvas .text-block.selected');
+  return _hasGif(sel) ? sel : null;
 }
+function _placePlayBtn() {
+  const tb = _playTarget();
+  if (!tb) { if (_playBtn) _playBtn.style.display = 'none'; return; }
+  if (!_playBtn) {
+    _playBtn = document.createElement('button');
+    _playBtn.id = 'anim-tb-play';
+    _playBtn.className = 'anim-tb-play';
+    _playBtn.type = 'button';
+    _playBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });   // 선택 해제·끌기로 안 번지게
+    _playBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleAnimOnCanvas(_playBtn._tb); });
+    document.body.appendChild(_playBtn);
+  }
+  const playing = !!(_onCanvas && _onCanvas.tb === tb);
+  _playBtn._tb = tb;
+  _playBtn.textContent = playing ? '⏸' : '▶';
+  _playBtn.title = playing ? '캔버스 재생 끝 (Esc)' : '캔버스에서 반복 재생';
+  const r = tb.getBoundingClientRect();
+  Object.assign(_playBtn.style, { display: 'flex', position: 'fixed', zIndex: '2147483001', opacity: '1', left: `${r.right - 40}px`, top: `${r.top + 10}px`, right: 'auto' });
+}
+/* 마우스가 블럭 위로 — 단추 자체 위에선 대상 유지(누르러 가는 길에 사라지지 않게) · 스크롤·휠·클릭 뒤 자리·대상 다시 */
+document.addEventListener?.('pointermove', (e) => {
+  if (_playBtn && e.target === _playBtn) return;
+  _hoverTb = e.target && e.target.closest ? e.target.closest('#canvas .text-block') : null;
+  _placePlayBtn();
+}, true);
+for (const t of ['scroll', 'wheel', 'pointerup', 'click', 'keyup']) document.addEventListener?.(t, () => _placePlayBtn(), true);
 
 function _buildAnimList() {
   const list = document.getElementById('anim-list');
@@ -897,4 +926,5 @@ window.exportAnimGif    = exportAnimGif;
 window.restartAnimPreview = restartAnimPreview;
 window.playAnimOnCanvas  = playAnimOnCanvas;
 window.stopAnimOnCanvas  = stopAnimOnCanvas;
+window.toggleAnimOnCanvas = toggleAnimOnCanvas;
 window.setAnimStampS0    = setAnimStampS0;   // index.html «도장 시작» 슬라이더 인라인 oninput/onchange   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)

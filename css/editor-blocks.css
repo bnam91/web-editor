@@ -911,7 +911,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   box-shadow: 0 2px 12px rgba(0,0,0,0.5);
 }
 .asset-overlay-clear,
-.cert-sheet-clear {   /* ⑲ Documents 용지 ✕ — 에셋과 같은 겉모습 */
+.cert-sheet-clear,   /* ⑲ Documents 용지 ✕ — 에셋과 같은 겉모습 */
+.anim-tb-play {      /* GIF 텍스트 블럭 ▶/⏸(현빈 재QA 261116 «에셋블럭 x버튼 위치에») — body 의 단추 하나 · 자리·보임은 animation-engine.js _placePlayBtn 이 인라인으로 */
   position: absolute;
   top: 10px;
   right: 10px;

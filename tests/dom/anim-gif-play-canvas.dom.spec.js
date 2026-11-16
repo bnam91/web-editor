@@ -2,10 +2,10 @@
  * ★잰다: 실제 텍스트 블럭 · 실제 모달 · 진짜 «캔버스에서 보기» 단추 클릭 · 진짜 키보드 Esc · 진짜 마우스 클릭 · 실제 배율(applyZoom).
  * P1 단추 → 모달 닫힘 · 덮개 #anim-canvas-play 하나 · #canvas 밖(body) · 블럭 자리에 붙음 · 재생 중 serializeProject·캔버스 HTML·이력 무변 ·
  *    배율 50% 로 바꿔도 블럭 자리를 따라감 · Esc → 덮개 0 · 캔버스 HTML·이력 그대로(Esc 는 멈춤에만 — 아이맥 001ae0374+C9 첫 판은 Esc 가 선택 해제까지 타서 2줄 다름) · pageerror 0
- * P2 재생 중 캔버스 위 마우스 클릭 → 덮개 0 · 캔버스 HTML 그대로(그 클릭은 멈춤에만 쓰인다 — 선택 해제 0)
- * P3 NEW-현빈QA-GIF-CANVAS-PREVIEW-LOOP-STOP-01 — 계속 반복(덮개 data-loops 가 2 이상) · 진짜 ⇧·⌘ 키는 안 멈춘다 · 진짜 ⏸ 단추 클릭 → 멈춤(바퀴·그림 고정 · 덮개 남음 · 단추 «▶ 재생») ·
- *    다시 클릭 → 이어서 돈다 · Esc → 덮개·단추 0 · 캔버스 HTML 그대로
- *    양성대조(예측 · CTL): stop 의 `_MOD_KEYS` 줄 삭제 + 단추 갈래 `e.target === btn` → `false` → P3 빨강 · P1·P2 초록
+ * P2 ★뒤집음(현빈 재QA 261116 «계속 플레이되면 좋겠고» · 지디 판정 (나)): 옛 P2 «재생 중 캔버스 클릭 → 멈춤» → 클릭은 안 끝낸다(덮개 남고 계속 돈다 · 에디터로 그대로) · Esc 로 끝
+ * P3 ★바꿈: 옛 P3(덮개 위 «⏸ 멈춤/▶ 재생» 단추)는 걷었다 → 블럭 ▶/⏸ 단추(#anim-tb-play · 에셋 ✕ 자리·꼴): 고른 GIF 블럭에 마우스 → 오른쪽 위(블럭 오른끝−40 · 위+10) ▶ ·
+ *    진짜 클릭 → 재생(⏸) · 바퀴 ≥2 · 단추·덮개는 #canvas 밖 · serializeProject·캔버스 HTML·Figma JSON 에 0 · ⏸ 클릭 → 끝(▶) · 다시 ▶ → 재생 중 더블클릭(편집) → 끝
+ *    양성대조(예측 · CTL): animation-engine.js tick 의 `|| tb.classList.contains('editing')` 삭제 + _placePlayBtn 의 `_playBtn.textContent = playing ? '⏸' : '▶'` → `'▶'` → P3 빨강 · P2 는 CTL 의 keydown 갈래와 무관
  * 양성대조(예측): js/animation-engine.js playAnimOnCanvas 의 `document.body.appendChild(cv)` → `tb.appendChild(cv)` → P1 빨강(#canvas 안 · 저장에 섞임 · 캔버스 HTML 바뀜) · 단위 E14 도
  * 셀렉터·전역 대조(제품 소스 grep): .anim-play-canvas-btn(index.html 모달 꼬리) · #anim-canvas-play(animation-engine.js playAnimOnCanvas cv.id) · #anim-gif-modal ·
  *   window.serializeProject(save-load.js:3299) · window.historyStack(history.js 읽기 전용) · window.applyZoom(editor.js:5275 · % 단위 — _t905-ops 의 applyZoom(30)) ·
@@ -60,44 +60,49 @@ test('P1 캔버스에서 보기 — 덮개는 #canvas 밖 · 블럭 자리 · �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('P2 재생 중 마우스 클릭 → 멈춤', async ({ page }) => {
+test('P2 재생 중 다른 곳 클릭은 안 끝낸다 — 계속 돈다 · Esc 로 끝', async ({ page }) => {
   const errs = await scene(page);
   await page.click('#anim-gif-modal .anim-play-canvas-btn');
   await expect(page.locator('#anim-canvas-play')).toHaveCount(1);
-  const before = await snap(page);
   const box = await page.evaluate(() => { const r = document.getElementById('canvas').getBoundingClientRect(); return { x: r.left + 5, y: r.top + 5 }; });
-  await page.mouse.click(box.x, box.y);   // 캔버스 위 클릭 — 멈춤만 하고 선택 해제 등은 안 탄다
-  await expect(page.locator('#anim-canvas-play'), '★클릭으로 안 멈춘다').toHaveCount(0);
-  const after = await snap(page);
-  expect(after.html === before.html, `★클릭이 멈춤 말고 에디터까지 탔다 — ${firstDiff(before.html, after.html)}`).toBe(true);
+  await page.mouse.click(box.x, box.y);
+  await page.keyboard.press('Shift');
+  await expect(page.locator('#anim-canvas-play'), '★클릭·⇧ 로 끝났다').toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => Number(document.getElementById('anim-canvas-play')?.dataset.loops ?? -1)), { timeout: 15000, message: '★계속 안 돈다' }).toBeGreaterThanOrEqual(2);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#anim-canvas-play'), 'Esc = 끝').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('P3 계속 반복 · ⇧⌘ 는 안 멈춤 · ⏸ 단추로 멈춤/재생 · Esc 로 끝', async ({ page }) => {
+test('P3 블럭 ▶/⏸ — 에셋 ✕ 자리 · 재생·끝 · 편집 들어가면 끝 · 저장·HTML·Figma 0', async ({ page }) => {
   const errs = await scene(page);
-  await page.click('#anim-gif-modal .anim-play-canvas-btn');
+  await page.click('#anim-gif-modal .anim-item[data-id="fade-in"]');   // 고름 = 블럭에 효과가 남는다(data-anim-fx)
+  await page.evaluate(() => window.closeAnimModal());
+  expect(await page.evaluate(() => window.__tb.dataset.animFx), '[전제] 효과가 블럭에').toBe('fade-in');
+  const tbBox = await page.evaluate(() => { const r = window.__tb.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, right: r.right, top: r.top }; });
+  await page.mouse.move(tbBox.x, tbBox.y);
+  const btn = page.locator('#anim-tb-play');
+  await expect(btn, '★GIF 블럭에 올렸는데 ▶ 가 없다').toBeVisible();
+  await expect(btn).toHaveText('▶');
+  const bb = await btn.boundingBox();
+  expect([Math.abs(bb.x - (tbBox.right - 40)) <= 1, Math.abs(bb.y - (tbBox.top + 10)) <= 1], `블럭 오른쪽 위(에셋 ✕ 자리) — ${JSON.stringify(bb)}`).toEqual([true, true]);
+  await btn.click();
+  await expect(page.locator('#anim-canvas-play'), '★▶ 로 재생 안 됨').toHaveCount(1);
+  await expect(btn).toHaveText('⏸');
+  await expect.poll(() => page.evaluate(() => Number(document.getElementById('anim-canvas-play')?.dataset.loops ?? -1)), { timeout: 15000 }).toBeGreaterThanOrEqual(2);
+  const leak = await page.evaluate(() => {
+    const all = []; const walk = (o) => { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === 'object') Object.values(o).forEach(walk); else if (typeof o === 'string') all.push(o); };
+    window.flushCurrentPage?.(); walk(window.buildFigmaExportJSON?.(null) ?? null);
+    const re = /anim-tb-play|anim-canvas-play/;
+    return { inCanvas: !!document.querySelector('#canvas #anim-tb-play, #canvas #anim-canvas-play'), ser: re.test(window.serializeProject()), html: re.test(document.getElementById('canvas').innerHTML), fig: all.some((x) => re.test(x)) };
+  });
+  expect(leak, '★편집 전용 단추·덮개가 문서·저장·Figma 에 섞였다').toEqual({ inCanvas: false, ser: false, html: false, fig: false });
+  await btn.click();
+  await expect(page.locator('#anim-canvas-play'), '★⏸ 로 안 끝남').toHaveCount(0);
+  await expect(btn).toHaveText('▶');
+  await btn.click();
   await expect(page.locator('#anim-canvas-play')).toHaveCount(1);
-  const btn = page.locator('#anim-canvas-play-toggle');
-  await expect(btn, '[전제] 멈춤/재생 단추').toHaveText('⏸ 멈춤');
-  const loops = () => page.evaluate(() => Number(document.getElementById('anim-canvas-play')?.dataset.loops ?? -1));
-  const html0 = await page.evaluate(() => document.getElementById('canvas').innerHTML);
-  await page.keyboard.press('Shift');
-  await page.keyboard.press('Meta');
-  await expect(page.locator('#anim-canvas-play'), '★⇧·⌘ 만 눌렀는데 멈췄다').toHaveCount(1);
-  await expect.poll(loops, { timeout: 15000, message: '★한 바퀴 돌고 멈춘다(반복 안 함)' }).toBeGreaterThanOrEqual(2);
-  await btn.click();
-  await expect(btn, '★단추로 안 멈춘다').toHaveText('▶ 재생');
-  await expect(page.locator('#anim-canvas-play'), '멈춤 = 덮개는 남는다').toHaveCount(1);
-  const frame = () => page.evaluate(() => { const cv = document.getElementById('anim-canvas-play'); return cv.dataset.loops + ':' + cv.toDataURL().length + ':' + cv.toDataURL().slice(-64); });
-  const f0 = await frame();
-  await page.evaluate(() => new Promise((r) => { let n = 0; const s = () => (++n >= 30 ? r() : requestAnimationFrame(s)); requestAnimationFrame(s); }));   // 30 프레임 흘려 보낸다(고정 잠 아님)
-  expect(await frame(), '★멈췄는데 그림·바퀴가 흐른다').toBe(f0);
-  const l1 = await loops();
-  await btn.click();
-  await expect(btn).toHaveText('⏸ 멈춤');
-  await expect.poll(loops, { timeout: 15000, message: '★다시 눌러도 안 돈다' }).toBeGreaterThan(l1);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('#anim-canvas-play, #anim-canvas-play-toggle'), 'Esc → 덮개·단추 0').toHaveCount(0);
-  expect(await page.evaluate(() => document.getElementById('canvas').innerHTML) === html0, '캔버스 HTML 그대로').toBe(true);
+  await page.mouse.dblclick(tbBox.x, tbBox.y);   // 블럭 편집
+  await expect(page.locator('#anim-canvas-play'), '★편집 들어갔는데 재생이 남았다').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
