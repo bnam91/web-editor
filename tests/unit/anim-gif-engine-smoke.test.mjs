@@ -24,6 +24,7 @@
  * E14(PLAY-ON-CANVAS-01): «캔버스에서 보기» — 모달 닫힘 · 덮개 캔버스는 document.body 에(블럭 안 X) · 크기 = 블럭 × 2 · 매 프레임 블럭 자리 · 같은 엔진 그림 ·
  *   아무 키 = 멈춤(덮개 걷힘 · 리스너 해제 · rAF 끊김 · 그 키는 막고 끊음) · 클릭 = 멈춤 + 따라오는 mousedown/mouseup/click 한 번 삼킴 · 블럭이 사라지면 스스로 멈춤 · 글 DOM 무변.
  *   양성대조(아이맥 실측 예정): playAnimOnCanvas 의 `document.body.appendChild(cv)` → `tb.appendChild(cv)` → E14 빨강(DOM P1 도).
+ *   3판(GIF-PLAY-OVERLAY-LAYER-SIZE-01 · 예측 · CTL): _startCanvasPlay 의 `_canvasLayer().appendChild(cv)` → `document.body.appendChild(cv)` → E14 빨강(body 던짐).
  * E13(RICHTEXT ⑫): 글 요소 background-clip:text 그라데이션(제품 gradient-model.js 를 window.GradientModel 로) → 미리보기·GIF 저장 글 채움 = 캔버스 그라데이션(스탑 그대로) ·
  *   부분 단색 span(-webkit-text-fill-color) 은 단색 유지. 양성대조(아이맥 실측 예정): withGradFill 첫 줄 `return style;` → E13 빨강.
  */
@@ -438,17 +439,22 @@ test('E13 RICHTEXT ⑫ — 글자 그라데이션 블럭 → 미리보기·GIF �
   } finally { delete globalThis.GradientModel; delete globalThis.getGradientTarget; }
 });
 
-test('E14 PLAY-ON-CANVAS 2판 — 덮개 body · 블럭×2 · 블럭 자리 · 같은 엔진 · 끝없는 반복 · Esc 만 끝(에디터로 안 넘김) · 다른 키·클릭은 안 끝냄 · 편집·블럭 사라짐 = 끝 · 늦은 프레임 무시 · 글 DOM 무변', async () => {
+test('E14 PLAY-ON-CANVAS 3판 — 덮개·단추 #canvas-scaler 층(scaler 좌표) · 블럭×2 · 블럭 자리 · 같은 엔진 · 끝없는 반복 · Esc 만 끝(에디터로 안 넘김) · 다른 키·클릭은 안 끝냄 · 편집·블럭 사라짐 = 끝 · 늦은 프레임 무시 · 글 DOM 무변', async () => {
   /* ★뒤집음(현빈 재QA 261116 «계속 플레이되면 좋겠고» · 지디 판정 (나)): 1판 E14 «아무 키·클릭 = 멈춤 + 그 클릭 삼킴» → 이제 끝 = Esc · 블럭 ⏸ · 편집 · 블럭 사라짐. pointerdown 리스너 0. */
   const E = await loadEngine();
   const appended = [], listeners = {};
-  document.body.appendChild = (n) => { appended.push(n); n.isInBody = true; return n; };
+  /* ★뒤집음(현빈 QA 스샷 #47 · GIF-PLAY-OVERLAY-LAYER-SIZE-01): 2판 «덮개 body 직속 fixed» → 패널 위로 뜨고 선택 테두리를 덮었다 · 단추 배율 무관.
+     이제 #canvas-scaler(줌 transform 안 · #canvas 밖) — 가짜 scaler: 화면 왼쪽 10·위 20 · 줌 50%(화면 폭 500 / 원래 1000). */
+  document.body.appendChild = () => { throw new Error('★덮개·단추를 body 에 넣었다(패널 위로 뜬다)'); };
+  E.els['canvas-scaler'] = fakeEl({ offsetWidth: 1000, getBoundingClientRect: () => ({ left: 10, top: 20, width: 500, height: 900 }), appendChild: (n) => { appended.push(n); n.isInLayer = true; return n; } });
   globalThis.addEventListener = (t, f) => { (listeners[t] ??= new Set()).add(f); };   // window = globalThis — 끝 리스너는 window capture
   globalThis.removeEventListener = (t, f) => { listeners[t]?.delete(f); };
   E.tb.appendChild = () => { throw new Error('★덮개를 블럭 안에 넣었다(글 DOM 변경)'); };
   E.tb.isConnected = true;
   E.tb.getBoundingClientRect = () => ({ left: 30, top: 70, width: 200, height: 60, right: 230 });
   const html0 = E.textEl.innerHTML;
+  const q0 = document.querySelector;
+  document.querySelector = (sel) => (sel === '#canvas .text-block.selected' ? E.tb : q0(sel));   // 고른 블럭 = 단추 대상(135행 · 재생 중에도 «고르거나 올렸을 때만»)
   const items = [];
   E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
   window.openAnimModal(E.tb);
@@ -457,12 +463,16 @@ test('E14 PLAY-ON-CANVAS 2판 — 덮개 body · 블럭×2 · 블럭 자리 · �
   window.playAnimOnCanvas();
   assert.equal(E.els['anim-gif-modal'].style.display, 'none', '모달 닫힘');
   const cv = appended.find((n) => n.id === 'anim-canvas-play');
-  assert.ok(cv && cv.isInBody, '★덮개가 body 에 없다');
+  assert.ok(cv && cv.isInLayer, '★덮개가 #canvas-scaler 층에 없다');
   assert.deepEqual([cv.width, cv.height], [800, 240], '덮개 = 블럭(400×120) × 2');
   let removed = 0; cv.remove = () => { removed++; };
   E.ctx.calls.length = 0;
   E.rafs.at(-1)(1000); E.rafs.at(-1)(1000 + 5000);
-  assert.deepEqual([cv.style.left, cv.style.top, cv.style.width, cv.style.height], ['30px', '70px', '200px', '60px'], '블럭 자리·크기');
+  /* 가짜 style 은 평범한 객체라 엔진의 `cv.style.cssText = 'position:absolute;…'` 가 position 칸으로 안 풀린다(아이맥 PLAYLAYER 1판 빨강 = undefined) — cssText 를 읽는다 */
+  assert.match(cv.style.cssText || '', /position:\s*absolute/, '★덮개가 scaler 안 absolute 가 아니다(1판 = fixed)');
+  assert.deepEqual([cv.style.left, cv.style.top, cv.style.width, cv.style.height], ['40px', '100px', '400px', '120px'], '★블럭 자리·크기 = scaler 좌표(화면 30,70 · 200×60 ÷ 줌 0.5)');
+  const pb = appended.find((n) => n.id === 'anim-tb-play');
+  assert.deepEqual([!!(pb && pb.isInLayer), pb && pb.style.position, pb && pb.style.left, pb && pb.style.top], [true, 'absolute', '400px', '110px'], '★▶/⏸ 단추 = 같은 층 · 에셋 ✕ 자리(캔버스 px 오른끝−40 · 위+10)');
   assert.deepEqual(E.ctx.calls.slice(-2).map((c) => c.s), ['오늘 주문하면?', '네!'], '같은 엔진 그림(두 줄)');
   E.rafs.at(-1)(1000 + 60000);
   assert.ok(Number(cv.dataset.loops) >= 20 && removed === 0, `★끝없는 반복이 아니다 — 바퀴 ${cv.dataset.loops} · 걷힘 ${removed}`);
@@ -493,5 +503,6 @@ test('E14 PLAY-ON-CANVAS 2판 — 덮개 body · 블럭×2 · 블럭 자리 · �
   const c3 = appended.filter((n) => n.id === 'anim-canvas-play').at(-1); let r3 = 0; c3.remove = () => { r3++; };
   window.toggleAnimOnCanvas(E.tb);
   assert.equal(r3, 1, '★⏸ = 끝');
+  document.querySelector = q0;
   delete globalThis.addEventListener; delete globalThis.removeEventListener;
 });

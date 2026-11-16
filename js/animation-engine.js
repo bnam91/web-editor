@@ -214,13 +214,22 @@ function closeAnimModal() {
 
 /* ══ PLAY-ON-CANVAS-01 캔버스에서 보기(현빈: «gif 효과가 섹션에서 어울리는지 보기 위해서») ══
    그 블럭 «자리»에 같은 엔진(_planOf · 줄바꿈·부분 꾸밈 그대로)으로 그린 캔버스를 덮어 «끝없이» 반복 재생(현빈 재QA 261116 «계속 플레이되면 좋겠고»).
-   ⛔글 DOM 무변 · 덮개·단추는 #canvas 밖(document.body · position:fixed) ⇒ 저장(serializeProject)·PNG/HTML/Figma·GIF·⌘Z 에 흔적 0.
-   매 프레임 블럭 getBoundingClientRect 로 자리·크기를 맞춘다 ⇒ 배율(줌)·스크롤에도 붙어 있다.
+   ⛔글 DOM 무변 · 덮개·단추는 #canvas 밖 ⇒ 저장(serializeProject)·PNG/HTML/Figma·GIF·⌘Z 에 흔적 0.
+   ★뒤집음(현빈 QA 스샷 #47 · NEW-현빈QA-GIF-PLAY-OVERLAY-LAYER-SIZE-01): 1판 body 직속 fixed z 2147483000 → 중앙 플로팅·우측 패널 위로 뜨고
+   선택 테두리 층(#ss-handles-overlay · #canvas-area 격리 안 z 9990)까지 덮어 «재생 중 블럭이 안 골라지는» 것처럼 보였다 · 단추는 배율 무관 30px.
+   ⇒ 이제 #canvas-scaler 층(_canvasLayer · 캔버스 줌 transform 안 · #canvas 형제): 배율 따라 크기(에셋 ✕ 와 같은 30 캔버스px) · 캔버스 스크롤·자르기 ·
+   패널 아래 · 선택 테두리가 그 위. 매 프레임 블럭 자리를 scaler 좌표로 맞춘다(_toLayer).
    끝 = 블럭 ⏸ 단추 · Esc(멈춤에만 쓰고 에디터로 안 넘김) · 블럭 편집(더블클릭 → .editing) · 블럭이 사라짐. 다른 곳 클릭은 안 끝낸다(에디터로 그대로).
    시작 = 모달 «캔버스에서 보기»(모달 지금 값) · 블럭 ▶ 단추(블럭에 저장된 값 · _savedState).
    shortcut: 회전·자유변형 블럭은 기울지 않은 테두리 상자에 덮는다 · 바탕은 섹션 단색(GIF 와 같은 규칙) — 필요해지면 transform 복사. */
 const _PLAY_K = 2;   // GIF 저장과 같은 배율(블럭 1px = 2 캔버스 px)
 let _onCanvas = null;
+const _canvasLayer = () => document.getElementById('canvas-scaler');
+/** 화면 사각형 → #canvas-scaler 안 좌표(줌 전 캔버스 px · section-search.js 깜빡이 덮개와 같은 셈). */
+function _toLayer(r) {
+  const sr = _canvasLayer().getBoundingClientRect(), sw = _canvasLayer().offsetWidth, k = sw ? sr.width / sw : 1;
+  return { x: (r.left - sr.left) / k, y: (r.top - sr.top) / k, w: r.width / k, h: r.height / k };
+}
 function playAnimOnCanvas() {
   if (!_animTb || _isEmptyText(_animTb)) return;
   const tb = _animTb, style = _getTextStyle(tb);
@@ -243,17 +252,17 @@ function _startCanvasPlay(tb, plan, style) {
   cv.id = 'anim-canvas-play';
   cv.width = Math.round(Math.max(tb.offsetWidth, 1) * _PLAY_K);
   cv.height = Math.round(Math.max(tb.offsetHeight, 1) * _PLAY_K);
-  cv.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483000;';
-  document.body.appendChild(cv);
+  cv.style.cssText = 'position:absolute;pointer-events:none;z-index:80;';   // scaler 안 — 섹션(z 2) 위 · 연결선(90)·스크래치(100) 아래
+  _canvasLayer().appendChild(cv);
   const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + 1500;   // 끝에서 1.5초 멈춤(미리보기와 같음)
   let t0 = null;
   const tick = (ts) => {
     if (!_onCanvas || _onCanvas.cv !== cv) return;   // 이 재생이 이미 끝났다(멈춘 뒤 늦게 온 프레임 · 다음 재생으로 바뀜) — 그리지 않는다
     if (!tb.isConnected || tb.classList.contains('editing')) { stopAnimOnCanvas(); return; }   // 블럭이 사라짐 · 편집 들어감 = 끝
-    const r = tb.getBoundingClientRect();
-    Object.assign(cv.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    const r = _toLayer(tb.getBoundingClientRect());
+    Object.assign(cv.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
     if (t0 == null) t0 = ts;
-    cv.dataset.loops = String(Math.floor((ts - t0) / cycle));   // 몇 바퀴 돌았나(시험이 «끝없는 반복»을 읽는다 · 덮개는 body 라 저장 0)
+    cv.dataset.loops = String(Math.floor((ts - t0) / cycle));   // 몇 바퀴 돌았나(시험이 «끝없는 반복»을 읽는다 · 덮개는 #canvas 밖이라 저장 0)
     const t = Math.min(((ts - t0) % cycle) / plan.duration, 1);
     ctx.clearRect(0, 0, cv.width, cv.height);
     _fillBg(ctx, style, cv.width, cv.height);
@@ -283,16 +292,18 @@ function stopAnimOnCanvas() {
 }
 
 /* ══ 블럭 ▶/⏸ 단추(현빈 재QA 261116 «에셋블럭 x버튼 위치에 플레이/퍼즈 버튼» · 지디 판정 (나)) ══
-   GIF 효과가 있는 텍스트 블럭(data-anim-fx · data-anim-gif)에 마우스를 올리거나 골랐을 때 · 재생 중인 블럭엔 늘 — 블럭 오른쪽 위.
+   GIF 효과가 있는 텍스트 블럭(data-anim-fx · data-anim-gif)에 마우스를 올리거나 골랐을 때만(재생 중도 같음 · 에셋 ✕ 규칙) — 블럭 오른쪽 위.
    겉모습 = 에셋 ✕(.asset-overlay-clear 절 · css/editor-blocks.css 에 .anim-tb-play 를 같이 걸었다) · 자리 = 블럭 오른쪽 위 10px.
-   ⛔블럭 DOM 에 안 넣는다 — body 의 단추 하나를 옮겨 다닌다(텍스트 블럭은 글을 textContent·AI 채우기·직렬화로 읽는다 ⇒ 안에 넣으면 거기 다 섞인다). 그래서 저장·PNG·HTML·Figma·GIF 에 구조적으로 0. */
+   ⛔블럭 DOM 에 안 넣는다 — #canvas-scaler 의 단추 하나를 옮겨 다닌다(배율 따라 크기 = 에셋 ✕)(텍스트 블럭은 글을 textContent·AI 채우기·직렬화로 읽는다 ⇒ 안에 넣으면 거기 다 섞인다). 그래서 저장·PNG·HTML·Figma·GIF 에 구조적으로 0. */
 let _playBtn = null, _hoverTb = null;
 const _hasGif = (tb) => !!(tb && tb.isConnected && (tb.dataset.animFx || tb.dataset.animGif));
+/* ★뒤집음(현빈 추가 261116 · 135행): 재생 중에도 «늘» 띄우던 갈래를 걷었다 — 에셋 ✕ 와 같은 노출(올렸을 때 · 골랐을 때)만.
+   재생 중인 블럭은 GIF 키가 없어도(모달 «캔버스에서 보기») 대상 — 올리면 ⏸ 로 끝낼 수 있게. */
 function _playTarget() {
-  if (_onCanvas) return _onCanvas.tb;
-  if (_hasGif(_hoverTb)) return _hoverTb;
+  const ok = (t) => _hasGif(t) || !!(_onCanvas && t === _onCanvas.tb && t.isConnected);
+  if (ok(_hoverTb)) return _hoverTb;
   const sel = document.querySelector('#canvas .text-block.selected');
-  return _hasGif(sel) ? sel : null;
+  return ok(sel) ? sel : null;
 }
 function _placePlayBtn() {
   const tb = _playTarget();
@@ -304,14 +315,14 @@ function _placePlayBtn() {
     _playBtn.type = 'button';
     _playBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });   // 선택 해제·끌기로 안 번지게
     _playBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleAnimOnCanvas(_playBtn._tb); });
-    document.body.appendChild(_playBtn);
+    _canvasLayer().appendChild(_playBtn);
   }
   const playing = !!(_onCanvas && _onCanvas.tb === tb);
   _playBtn._tb = tb;
   _playBtn.textContent = playing ? '⏸' : '▶';
   _playBtn.title = playing ? '캔버스 재생 끝 (Esc)' : '캔버스에서 반복 재생';
-  const r = tb.getBoundingClientRect();
-  Object.assign(_playBtn.style, { display: 'flex', position: 'fixed', zIndex: '2147483001', opacity: '1', left: `${r.right - 40}px`, top: `${r.top + 10}px`, right: 'auto' });
+  const r = _toLayer(tb.getBoundingClientRect());   // 에셋 ✕ 와 같은 캔버스 px 자리(오른끝−40 · 위+10) — 크기 30 은 CSS 절 그대로 줌에 따라
+  Object.assign(_playBtn.style, { display: 'flex', position: 'absolute', zIndex: '81', opacity: '1', left: `${r.x + r.w - 40}px`, top: `${r.y + 10}px`, right: 'auto' });
 }
 /* 마우스가 블럭 위로 — 단추 자체 위에선 대상 유지(누르러 가는 길에 사라지지 않게) · 스크롤·휠·클릭 뒤 자리·대상 다시 */
 document.addEventListener?.('pointermove', (e) => {

@@ -3,7 +3,7 @@
  * P1 단추 → 모달 닫힘 · 덮개 #anim-canvas-play 하나 · #canvas 밖(body) · 블럭 자리에 붙음 · 재생 중 serializeProject·캔버스 HTML·이력 무변 ·
  *    배율 50% 로 바꿔도 블럭 자리를 따라감 · Esc → 덮개 0 · 캔버스 HTML·이력 그대로(Esc 는 멈춤에만 — 아이맥 001ae0374+C9 첫 판은 Esc 가 선택 해제까지 타서 2줄 다름) · pageerror 0
  * P2 ★뒤집음(현빈 재QA 261116 «계속 플레이되면 좋겠고» · 지디 판정 (나)): 옛 P2 «재생 중 캔버스 클릭 → 멈춤» → 클릭은 안 끝낸다(덮개 남고 계속 돈다 · 에디터로 그대로) · Esc 로 끝
- * P3 ★바꿈: 옛 P3(덮개 위 «⏸ 멈춤/▶ 재생» 단추)는 걷었다 → 블럭 ▶/⏸ 단추(#anim-tb-play · 에셋 ✕ 자리·꼴): 고른 GIF 블럭에 마우스 → 오른쪽 위(블럭 오른끝−40 · 위+10) ▶ ·
+ * P3 ★바꿈: 옛 P3(덮개 위 «⏸ 멈춤/▶ 재생» 단추)는 걷었다 → 블럭 ▶/⏸ 단추(#anim-tb-play · 에셋 ✕ 자리·꼴): 고른 GIF 블럭에 마우스 → 오른쪽 위(블럭 오른끝−40 · 위+10 — ★3판: 화면px 가 아니라 캔버스px × 배율, GIF-PLAY-OVERLAY-LAYER-SIZE-01 · 크기·층은 anim-gif-play-layer L1~L3) ▶ ·
  *    진짜 클릭 → 재생(⏸) · 바퀴 ≥2 · 단추·덮개는 #canvas 밖 · serializeProject·캔버스 HTML·Figma JSON 에 0 · ⏸ 클릭 → 끝(▶) · 다시 ▶ → 재생 중 더블클릭(편집) → 끝
  *    양성대조(예측 · CTL): animation-engine.js tick 의 `|| tb.classList.contains('editing')` 삭제 + _placePlayBtn 의 `_playBtn.textContent = playing ? '⏸' : '▶'` → `'▶'` → P3 빨강 · P2 는 CTL 의 keydown 갈래와 무관
  * 양성대조(예측): js/animation-engine.js playAnimOnCanvas 의 `document.body.appendChild(cv)` → `tb.appendChild(cv)` → P1 빨강(#canvas 안 · 저장에 섞임 · 캔버스 HTML 바뀜) · 단위 E14 도
@@ -79,13 +79,13 @@ test('P3 블럭 ▶/⏸ — 에셋 ✕ 자리 · 재생·끝 · 편집 들어가
   await page.click('#anim-gif-modal .anim-item[data-id="fade-in"]');   // 고름 = 블럭에 효과가 남는다(data-anim-fx)
   await page.evaluate(() => window.closeAnimModal());
   expect(await page.evaluate(() => window.__tb.dataset.animFx), '[전제] 효과가 블럭에').toBe('fade-in');
-  const tbBox = await page.evaluate(() => { const r = window.__tb.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, right: r.right, top: r.top }; });
+  const tbBox = await page.evaluate(() => { const r = window.__tb.getBoundingClientRect(), s = document.getElementById('canvas-scaler'); return { x: r.left + r.width / 2, y: r.top + r.height / 2, right: r.right, top: r.top, k: s.getBoundingClientRect().width / s.offsetWidth }; });
   await page.mouse.move(tbBox.x, tbBox.y);
   const btn = page.locator('#anim-tb-play');
   await expect(btn, '★GIF 블럭에 올렸는데 ▶ 가 없다').toBeVisible();
   await expect(btn).toHaveText('▶');
   const bb = await btn.boundingBox();
-  expect([Math.abs(bb.x - (tbBox.right - 40)) <= 1, Math.abs(bb.y - (tbBox.top + 10)) <= 1], `블럭 오른쪽 위(에셋 ✕ 자리) — ${JSON.stringify(bb)}`).toEqual([true, true]);
+  expect([Math.abs(bb.x - (tbBox.right - 40 * tbBox.k)) <= 1, Math.abs(bb.y - (tbBox.top + 10 * tbBox.k)) <= 1], `블럭 오른쪽 위(에셋 ✕ 자리 · 캔버스px × 배율 ${tbBox.k}) — ${JSON.stringify(bb)}`).toEqual([true, true]);
   await btn.click();
   await expect(page.locator('#anim-canvas-play'), '★▶ 로 재생 안 됨').toHaveCount(1);
   await expect(btn).toHaveText('⏸');
