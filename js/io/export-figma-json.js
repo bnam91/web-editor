@@ -139,18 +139,8 @@ function _shapeFigmaBlock(el) {
     }
   }
   const redact = el.dataset.shapeRedact === 'true';
-  /* ══ ★★«안 재고 있다»를 ★기록으로 남긴다 (t1bstar 2026-10-10 · 1010t1b ⑦ · 지디 판정) ══
-   * ★★★별의 ★`starCount`·`starGap`·`starInner`(＋1010t1b3 의 ★`starRating`)가 ★★여기서 ★0건이다.
-   *   ⇒ ★★별 ★5개·간격·통통함·평점이 ★★피그마로는 ★★«별 ★하나 ＋ ★색 ★하나»로 ★간다.
-   * ★★이것은 ★★1010t1b 가 ★만든 흠이 ★아니다 — ★★오늘 ★이미 그렇다(★실측: 아래 out 의 필드 전수에 ★없다).
-   *   ★왜 적나 — ★★«표의 ★빈칸은 ★«없는 경우»가 ★아니라 ★«안 잰 경우»다».
-   *     ⛔주석이 ★없으면 ★다음 사람이 ★이 자리를 ★«별은 다 된다»로 ★읽는다.
-   * ★★그리고 ★주석 ★하나로는 ★안 고쳐진다 ⇒ ★★별건 ★티켓으로 ★올렸다(지디가 TICKETS 에 적는다).
-   * ★★왜 ★이 묶음에서 ★안 고쳤나 — ★1010t1b 는 ★«우측패널·캔버스»의 일이고 ★★내보내기는 ★다른 축이다.
-   *   ⇒ ★범위를 ★넓히지 ★않았다(지디 판정 ⑦). ⛔「고쳤다」로 ★읽지 ★마라.
-   * ★참고 — ★★`js/io/export-html.js` 는 ★다르다: ★캔버스를 ★cloneNode 해 ★innerHTML 을 뱉으므로
-   *   ★★살아있는 DOM 이 ★그대로 나간다 ⇒ ★별 ★N개·간격·평점 칠이 ★★HTML 에서는 ★살아남는다.
-   *   ★★이 둘의 ★갈림이 ★★여기 적힌 ★까닭이다. (★이건 ★소스 독해다 — ★내보내기를 ★돌려 본 것이 ★아니다) */
+  /* 별의 갯수·간격·통통함·꼭짓점 둥글기·별마다 배율·평점 칠 — 옛 판은 여기서 0건이라 Figma 엔 «별 하나 + 색 하나»로 갔다(t1bstar 2026-10-10 기록).
+   ⇒ 261117 SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01 이 아래 starViewBox·starPolygons 로 고쳤다(캔버스가 이미 그린 SVG 를 그대로 싣는다). */
   const out = {
     type: 'shape', id: el.id || '',
     shapeType: el.dataset.shapeType || 'rect',
@@ -161,6 +151,21 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  /* ★SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01(현빈 0.9.12 131) — 별은 캔버스가 «이미 그린» SVG(viewBox + polygon 점·칠)를 그대로 싣는다.
+     갯수·간격·통통함·꼭짓점 둥글기·별마다 배율이 다 points 에, 평점·별마다 색이 polygon fill 에 녹아 있다(prop-shape _applyStarGeom) — 식을 여기서 다시 짓지 않는다.
+     옛 별 하나(기본 viewBox · polygon 1 · 칠 없음 · 옛 점)면 안 싣는다 = 옛 JSON 바이트. 칠은 단색만 — url(#…) 그라데이션은 gradientDef(면 칠)가 맡는다. */
+  if (out.shapeType === 'star' && svg && !redact && typeof svg.querySelectorAll === 'function') {
+    const polys = [...svg.querySelectorAll('polygon')].map((p) => {
+      const o = { points: String(p.getAttribute('points') || '').trim().replace(/\s+/g, ' ') };
+      const f = String(p.getAttribute('fill') || '').trim();
+      if (/^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(f)) o.fill = f;
+      return o;
+    }).filter((p) => p.points);
+    const vb = String(svg.getAttribute('viewBox') || '').trim().replace(/\s+/g, ' ');
+    const OLD = '100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70';   // block-factory SHAPE_DEFS.star · shape-star OLD_POINTS
+    const plain = polys.length === 1 && !polys[0].fill && polys[0].points === OLD && vb === '0 0 200 190';
+    if (polys.length && vb && !plain) { out.starViewBox = vb; out.starPolygons = polys; }
+  }
   /* ★1013t2A1 원 «갯수·간격·원마다 색·이너 그림자» — 켜진 것만 싣는다(꺼져 있으면 필드 0 = 옛 JSON 바이트 그대로).
      ⚠️렌더러(sangpe_to_figma)는 아직 이 필드를 안 읽는다 ⇒ 피그마에는 «원 1개 + 색 하나»로 간다(별과 같은 기존 흠).
      ⛔「피그마도 된다」로 읽지 마라 — 렌더러를 고칠지는 별건 판정이다. (그래프 G2 선례와 같은 꼴) */

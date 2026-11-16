@@ -1019,7 +1019,13 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       polygon:   { vb: '0 0 200 180', fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
       star:      { vb: '0 0 200 190', fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
     };
-    const def = DEFS[type] || DEFS.rectangle;
+    let def = DEFS[type] || DEFS.rectangle;
+    /* ★SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01 — 별은 보내는 쪽이 실어 준 캔버스 SVG(viewBox + polygon 점·별마다 칠)로 그린다(갯수·간격·통통함·둥글기).
+       없거나 꼴이 틀리면 옛 별 하나 그대로. 글자를 SVG 에 꽂으므로 숫자·색 꼴만 받는다. */
+    if (type === 'star' && /^0 0 \d+(\.\d+)? \d+(\.\d+)?$/.test(block.starViewBox || '') && Array.isArray(block.starPolygons) && block.starPolygons.length
+        && block.starPolygons.every((p) => p && /^[-\d.,\s]+$/.test(p.points || '') && (p.fill === undefined || /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(p.fill)))) {
+      def = { vb: block.starViewBox, fill: true, inner: block.starPolygons.map((p) => `<polygon points="${p.points}"${p.fill ? ` fill="${p.fill}"` : ''}/>`).join('') };
+    }
     const [vbW, vbH] = def.vb.split(/\s+/).slice(2).map(Number);
     const cxv = vbW / 2, cyv = vbH / 2;
     // ★0919 QA: 그라데이션 = export 가 실어 준 캔버스 SVG def(id="g")를 그대로 — CSS 문자열을 fill 에 넣으면 무효 paint → 검정.

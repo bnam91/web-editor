@@ -5,7 +5,7 @@
  * 양성대조(예측 · CTL): js/props/prop-shape.js _applyStarGeom 의 `block.dataset.starScales, block.dataset.starRound` 에서 `, block.dataset.starRound` 삭제 → S1·S2 빨강
  * 셀렉터·전역 대조(제품 소스 grep): window.addShapeBlock · window.showShapeProperties · #shape-star-round-num/-slider(prop-shape.js 별 패널) · #shape-star-count-num(같은 패널) ·
  *   window.serializeProject · window.applyProjectData(save-load.js) · .shape-block svg polygon
- * Figma: 별은 내보내기가 오늘도 «별 하나 고정 꼴»이다(export-figma-json.js «안 재고 있다» 주석 — 갯수·통통함 0건) — 둥글기도 같은 빈칸 · 별건 티켓 몫.
+ * Figma: 옛 판은 별 내보내기가 «별 하나 고정 꼴»이었다(갯수·통통함·둥글기 0건) → 261117 SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01 이 캔버스 SVG 를 싣게 고쳤다(tests/unit/figma-star-export-0912).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
