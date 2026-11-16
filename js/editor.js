@@ -1747,6 +1747,9 @@ function copySelected() {
 
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
+  /* ★NEW-현빈QA-ASSET-OVERLAY-COPY-PASTE-01 — 에셋 오버레이 글(.overlay-tb)은 «그 막 위»에서만 흰 글자·흰 점선이다(editor-layout.css).
+     막 밖(섹션)에 붙으면 흰 바탕 위 흰 글자라 «붙여넣기가 안 된 듯» 보였다 ⇒ 막 밖에 놓인 것만 보통 글로. 사본 에셋 «안»의 막 글은 그대로. */
+  [el, ...el.querySelectorAll('.overlay-tb')].forEach(n => { if (n.classList?.contains('overlay-tb') && !n.closest('.asset-overlay')) n.classList.remove('overlay-tb'); });
   // ★rebindAll 을 «안 지나는» 문 — 승격을 여기서 직접 한다(el 자신이 블록일 수 있다).
   //   ⛔아래 id 재생성보다 «먼저» 부르지만, 승격은 id 를 건드리지 않으므로 순서 무관하다.
   window.migrateGridIdentity?.(el);
