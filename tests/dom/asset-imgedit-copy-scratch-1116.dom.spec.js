@@ -121,6 +121,18 @@ test('S3 편집 복사 → 스크래치 «직후» 같은 블럭 클릭 → ⌘C
   // 같은 블럭 다시 — 스크롤은 안 건드리고 자리만 다시 잰다 · 클릭 자리의 맨 위 요소를 «먼저» 단언한다(옛 판 = scratch-item)
   c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, a1);
   const top = await page.evaluate(({ x, y }) => { const el = document.elementFromPoint(x, y); return el?.closest('.scratch-item') ? 'scratch-item' : (el?.closest('.asset-block')?.id || el?.id || el?.className || ''); }, c);
+  // [S3-DIAG] 통과해도 «늘» 찍는다(지디 261117 — 옛 판이 왜 안 덮나 숫자로). 단언 아님.
+  const diag = await page.evaluate(({ id, c }) => {
+    const R = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return { l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; };
+    const tag = (el) => el ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : ''}` : null;
+    const scaler = document.getElementById('canvas-scaler'), wrap = document.getElementById('canvas-wrap'), it = [...document.querySelectorAll('.scratch-item')].pop();
+    const hit = document.elementFromPoint(c.x, c.y), cs = it && getComputedStyle(it);
+    return { block: R(document.getElementById(id)), item: R(it), itemStyle: it?.style.cssText, itemZ: cs?.zIndex, itemPos: cs?.position, itemDisplay: cs?.display, itemPE: cs?.pointerEvents,
+      itemParent: tag(it?.parentElement), itemCls: it?.className, click: { x: Math.round(c.x), y: Math.round(c.y) }, hit: tag(hit), hitChain: [hit, hit?.parentElement, hit?.parentElement?.parentElement].map(tag),
+      k: scaler ? scaler.getBoundingClientRect().width / (scaler.offsetWidth || 1) : null, scaler: R(scaler), scalerTf: scaler && getComputedStyle(scaler).transform,
+      wrap: R(wrap), scroll: wrap && { l: wrap.scrollLeft, t: wrap.scrollTop }, bodyCls: document.body.className, vp: { w: innerWidth, h: innerHeight } };
+  }, { id: a1, c });
+  console.log('[S3-DIAG] ' + JSON.stringify(diag));
   expect(top, 'S3 — 붙인 스크래치 항목이 방금 복사한 블럭(화면 가운데)을 덮었다 — 클릭 자리 맨 위가 블럭이 아니다').toBe(a1);
   await page.mouse.click(c.x, c.y); await until(page, (id) => document.getElementById(id).classList.contains('selected'), a1);
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), a1), `S3 — 붙인 뒤 같은 블럭 클릭이 블럭을 못 골랐다(클릭 자리 맨 위 = ${top})`).toBe(true);
