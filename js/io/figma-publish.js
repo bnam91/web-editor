@@ -1,5 +1,6 @@
 import { canvasEl, state } from '../globals.js';
 import './import-figma-json.js';
+import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안은 업로드 JSON(buildFigmaExportJSON)에서 빠진다 — 목록도 같은 셈(EXPORT-ALL-INCLUDES-HIDDEN-AB-VARIANT-01) */
 
 /* ── Publish Dropdown ── */
 function togglePublishDropdown(e) {
@@ -99,7 +100,7 @@ async function _buildFigmaSectionList() {
   const parser = new DOMParser();
   state.pages.forEach((pg, pgIdx) => {
     const doc = parser.parseFromString(`<div id="c">${pg.canvas || ''}</div>`, 'text/html');
-    doc.querySelectorAll('#c > .section-block:not([data-ghost])').forEach((sec, secIdx) => {
+    doc.querySelectorAll('#c > .section-block:not([data-ghost])' + NOT_HIDDEN_VARIATION).forEach((sec, secIdx) => {
       const id   = sec.id || '';
       const name = sec.dataset.name
         || sec.querySelector('.section-label')?.textContent?.trim()
