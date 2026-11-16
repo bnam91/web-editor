@@ -121,6 +121,12 @@ function _showGrow(g) {
   const el = document.getElementById('anim-stamp-grow');
   if (el) el.textContent = g ? `블럭 높이 +${g * 2}px — 도장 시작 크기에 맞춰 늘림(⌘Z 로 되돌림)` : '';
 }
+/* «도장 시작» 줄은 도장일 때만(현빈 재QA 261116 «왜 다른 효과에도 있냐») — 블럭 효과 = 도장 · 또는 줄마다 따로에 도장 줄이 하나라도.
+   숨김만 — 저장 키(data-anim-stamp-s0)·슬라이더 값은 그대로(도장으로 돌아오면 그 값). 미리보기 시작마다 부른다(효과·줄 효과·줄마다 켬/끔이 다 거기로 온다). */
+function _syncStampRow() {
+  const row = document.getElementById('anim-stamp-s0-row');
+  if (row) row.style.display = (_perLine ? (_tracks || []).some((t) => t.fx === 'stamp') : _animType === 'stamp') ? '' : 'none';
+}
 /** 모달 «도장 시작» 슬라이더 — 끄는 동안(commit false)은 미리보기만 · 놓으면 저장 + 높이 + 이력 한 칸. */
 function setAnimStampS0(v, commit) {
   const s0 = clampS0(v);
@@ -214,13 +220,22 @@ function closeAnimModal() {
 
 /* ══ PLAY-ON-CANVAS-01 캔버스에서 보기(현빈: «gif 효과가 섹션에서 어울리는지 보기 위해서») ══
    그 블럭 «자리»에 같은 엔진(_planOf · 줄바꿈·부분 꾸밈 그대로)으로 그린 캔버스를 덮어 «끝없이» 반복 재생(현빈 재QA 261116 «계속 플레이되면 좋겠고»).
-   ⛔글 DOM 무변 · 덮개·단추는 #canvas 밖(document.body · position:fixed) ⇒ 저장(serializeProject)·PNG/HTML/Figma·GIF·⌘Z 에 흔적 0.
-   매 프레임 블럭 getBoundingClientRect 로 자리·크기를 맞춘다 ⇒ 배율(줌)·스크롤에도 붙어 있다.
+   ⛔글 DOM 무변 · 덮개·단추는 #canvas 밖 ⇒ 저장(serializeProject)·PNG/HTML/Figma·GIF·⌘Z 에 흔적 0.
+   ★뒤집음(현빈 QA 스샷 #47 · NEW-현빈QA-GIF-PLAY-OVERLAY-LAYER-SIZE-01): 1판 body 직속 fixed z 2147483000 → 중앙 플로팅·우측 패널 위로 뜨고
+   선택 테두리 층(#ss-handles-overlay · #canvas-area 격리 안 z 9990)까지 덮어 «재생 중 블럭이 안 골라지는» 것처럼 보였다 · 단추는 배율 무관 30px.
+   ⇒ 이제 #canvas-scaler 층(_canvasLayer · 캔버스 줌 transform 안 · #canvas 형제): 배율 따라 크기(에셋 ✕ 와 같은 30 캔버스px) · 캔버스 스크롤·자르기 ·
+   패널 아래 · 선택 테두리가 그 위. 매 프레임 블럭 자리를 scaler 좌표로 맞춘다(_toLayer).
    끝 = 블럭 ⏸ 단추 · Esc(멈춤에만 쓰고 에디터로 안 넘김) · 블럭 편집(더블클릭 → .editing) · 블럭이 사라짐. 다른 곳 클릭은 안 끝낸다(에디터로 그대로).
    시작 = 모달 «캔버스에서 보기»(모달 지금 값) · 블럭 ▶ 단추(블럭에 저장된 값 · _savedState).
    shortcut: 회전·자유변형 블럭은 기울지 않은 테두리 상자에 덮는다 · 바탕은 섹션 단색(GIF 와 같은 규칙) — 필요해지면 transform 복사. */
 const _PLAY_K = 2;   // GIF 저장과 같은 배율(블럭 1px = 2 캔버스 px)
 let _onCanvas = null;
+const _canvasLayer = () => document.getElementById('canvas-scaler');
+/** 화면 사각형 → #canvas-scaler 안 좌표(줌 전 캔버스 px · section-search.js 깜빡이 덮개와 같은 셈). */
+function _toLayer(r) {
+  const sr = _canvasLayer().getBoundingClientRect(), sw = _canvasLayer().offsetWidth, k = sw ? sr.width / sw : 1;
+  return { x: (r.left - sr.left) / k, y: (r.top - sr.top) / k, w: r.width / k, h: r.height / k };
+}
 function playAnimOnCanvas() {
   if (!_animTb || _isEmptyText(_animTb)) return;
   const tb = _animTb, style = _getTextStyle(tb);
@@ -243,17 +258,17 @@ function _startCanvasPlay(tb, plan, style) {
   cv.id = 'anim-canvas-play';
   cv.width = Math.round(Math.max(tb.offsetWidth, 1) * _PLAY_K);
   cv.height = Math.round(Math.max(tb.offsetHeight, 1) * _PLAY_K);
-  cv.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483000;';
-  document.body.appendChild(cv);
+  cv.style.cssText = 'position:absolute;pointer-events:none;z-index:80;';   // scaler 안 — 섹션(z 2) 위 · 연결선(90)·스크래치(100) 아래
+  _canvasLayer().appendChild(cv);
   const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + 1500;   // 끝에서 1.5초 멈춤(미리보기와 같음)
   let t0 = null;
   const tick = (ts) => {
     if (!_onCanvas || _onCanvas.cv !== cv) return;   // 이 재생이 이미 끝났다(멈춘 뒤 늦게 온 프레임 · 다음 재생으로 바뀜) — 그리지 않는다
     if (!tb.isConnected || tb.classList.contains('editing')) { stopAnimOnCanvas(); return; }   // 블럭이 사라짐 · 편집 들어감 = 끝
-    const r = tb.getBoundingClientRect();
-    Object.assign(cv.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    const r = _toLayer(tb.getBoundingClientRect());
+    Object.assign(cv.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
     if (t0 == null) t0 = ts;
-    cv.dataset.loops = String(Math.floor((ts - t0) / cycle));   // 몇 바퀴 돌았나(시험이 «끝없는 반복»을 읽는다 · 덮개는 body 라 저장 0)
+    cv.dataset.loops = String(Math.floor((ts - t0) / cycle));   // 몇 바퀴 돌았나(시험이 «끝없는 반복»을 읽는다 · 덮개는 #canvas 밖이라 저장 0)
     const t = Math.min(((ts - t0) % cycle) / plan.duration, 1);
     ctx.clearRect(0, 0, cv.width, cv.height);
     _fillBg(ctx, style, cv.width, cv.height);
@@ -283,16 +298,18 @@ function stopAnimOnCanvas() {
 }
 
 /* ══ 블럭 ▶/⏸ 단추(현빈 재QA 261116 «에셋블럭 x버튼 위치에 플레이/퍼즈 버튼» · 지디 판정 (나)) ══
-   GIF 효과가 있는 텍스트 블럭(data-anim-fx · data-anim-gif)에 마우스를 올리거나 골랐을 때 · 재생 중인 블럭엔 늘 — 블럭 오른쪽 위.
+   GIF 효과가 있는 텍스트 블럭(data-anim-fx · data-anim-gif)에 마우스를 올리거나 골랐을 때만(재생 중도 같음 · 에셋 ✕ 규칙) — 블럭 오른쪽 위.
    겉모습 = 에셋 ✕(.asset-overlay-clear 절 · css/editor-blocks.css 에 .anim-tb-play 를 같이 걸었다) · 자리 = 블럭 오른쪽 위 10px.
-   ⛔블럭 DOM 에 안 넣는다 — body 의 단추 하나를 옮겨 다닌다(텍스트 블럭은 글을 textContent·AI 채우기·직렬화로 읽는다 ⇒ 안에 넣으면 거기 다 섞인다). 그래서 저장·PNG·HTML·Figma·GIF 에 구조적으로 0. */
+   ⛔블럭 DOM 에 안 넣는다 — #canvas-scaler 의 단추 하나를 옮겨 다닌다(배율 따라 크기 = 에셋 ✕)(텍스트 블럭은 글을 textContent·AI 채우기·직렬화로 읽는다 ⇒ 안에 넣으면 거기 다 섞인다). 그래서 저장·PNG·HTML·Figma·GIF 에 구조적으로 0. */
 let _playBtn = null, _hoverTb = null;
 const _hasGif = (tb) => !!(tb && tb.isConnected && (tb.dataset.animFx || tb.dataset.animGif));
+/* ★뒤집음(현빈 추가 261116 · 135행): 재생 중에도 «늘» 띄우던 갈래를 걷었다 — 에셋 ✕ 와 같은 노출(올렸을 때 · 골랐을 때)만.
+   재생 중인 블럭은 GIF 키가 없어도(모달 «캔버스에서 보기») 대상 — 올리면 ⏸ 로 끝낼 수 있게. */
 function _playTarget() {
-  if (_onCanvas) return _onCanvas.tb;
-  if (_hasGif(_hoverTb)) return _hoverTb;
+  const ok = (t) => _hasGif(t) || !!(_onCanvas && t === _onCanvas.tb && t.isConnected);
+  if (ok(_hoverTb)) return _hoverTb;
   const sel = document.querySelector('#canvas .text-block.selected');
-  return _hasGif(sel) ? sel : null;
+  return ok(sel) ? sel : null;
 }
 function _placePlayBtn() {
   const tb = _playTarget();
@@ -304,14 +321,14 @@ function _placePlayBtn() {
     _playBtn.type = 'button';
     _playBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });   // 선택 해제·끌기로 안 번지게
     _playBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleAnimOnCanvas(_playBtn._tb); });
-    document.body.appendChild(_playBtn);
+    _canvasLayer().appendChild(_playBtn);
   }
   const playing = !!(_onCanvas && _onCanvas.tb === tb);
   _playBtn._tb = tb;
   _playBtn.textContent = playing ? '⏸' : '▶';
   _playBtn.title = playing ? '캔버스 재생 끝 (Esc)' : '캔버스에서 반복 재생';
-  const r = tb.getBoundingClientRect();
-  Object.assign(_playBtn.style, { display: 'flex', position: 'fixed', zIndex: '2147483001', opacity: '1', left: `${r.right - 40}px`, top: `${r.top + 10}px`, right: 'auto' });
+  const r = _toLayer(tb.getBoundingClientRect());   // 에셋 ✕ 와 같은 캔버스 px 자리(오른끝−40 · 위+10) — 크기 30 은 CSS 절 그대로 줌에 따라
+  Object.assign(_playBtn.style, { display: 'flex', position: 'absolute', zIndex: '81', opacity: '1', left: `${r.x + r.w - 40}px`, top: `${r.y + 10}px`, right: 'auto' });
 }
 /* 마우스가 블럭 위로 — 단추 자체 위에선 대상 유지(누르러 가는 길에 사라지지 않게) · 스크롤·휠·클릭 뒤 자리·대상 다시 */
 document.addEventListener?.('pointermove', (e) => {
@@ -377,19 +394,22 @@ function _extractText(el) {
   const html = el.innerHTML || '';
   return html
     .replace(/<br\s*\/?>/gi, '\n')       // <br> → 줄바꿈
-    .replace(/<div/gi, '\n<div')         // <div> 앞에 줄바꿈 삽입
-    .replace(/<p(?=[\s>])/gi, '\n<p')    // <p> 앞에 줄바꿈 삽입
+    .replace(/<div/gi, '\u0001<div')     // <div>·<p> 시작 = «새 줄 시작» 표(아래에서 줄바꿈으로)
+    .replace(/<p(?=[\s>])/gi, '\u0001<p')
     .replace(/<[^>]+>/g, '')             // 모든 태그 제거
-    .replace(/&nbsp;/g, ' ')
+    .replace(/(^|\n)\u0001+/g, '$1').replace(/\u0001+/g, '\n')   // 블럭 시작은 «이미 줄 처음이면» 줄바꿈 0 · 겹 div(<div><div>) = 하나(NEW-현빈QA-GIF-BROKEN-AFTER-LINEBREAK-EDIT-01 · 옛: 겹마다 \n 이라 빈 줄이 생겨 캔버스 재생 두 줄이 벌어지고 잘렸다)
+    .replace(/&nbsp;/g, '\u00a0')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')          // 3개 이상 연속 줄바꿈 → 최대 2개
-    .trim() || el.textContent?.trim() || 'Sample Text';
+    .replace(_EDGE_WS, '')                // 앞뒤 «접히는» 공백만 깎는다 — &nbsp; 는 화면에 자리를 차지하므로 남김(NEW-현빈QA-GIF-HL-LEADING-SPACE-LOST-01 · 옛 .trim() 은 \u00a0 도 깎아 앞 빈칸 형광펜이 빠졌다)
+    .replace(/\u00a0/g, ' ') || el.textContent?.trim() || 'Sample Text';
 }
 
+const _EDGE_WS = /^[ \t\r\n]+|[ \t\r\n]+$/g;   // 접히는 공백(빈칸·탭·줄바꿈) — \u00a0 은 빼고
 /* 조각 스타일 cs(RICHTEXT-EFFECTS-01) — _extractText 와 «같은 글»을 DOM 을 걸어 만들고, 글자마다 그 글자를 감싼 요소의 스타일.
-   같은 규칙: br = 줄바꿈 · div/p 앞 줄바꿈 · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 공백 깎기. 결과 글이 text 와 다르면 null(평글로 그린다). */
+   같은 규칙: br = 줄바꿈 · div/p 시작 = 줄 처음이 아니면 줄바꿈(겹 div 는 하나) · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 «접히는» 공백만 깎기(nbsp 는 남김). 결과 글이 text 와 다르면 null(평글로 그린다). */
 function _extractCs(el, text) {
   if (!el.childNodes) return null;
   const memo = new Map();
@@ -398,10 +418,10 @@ function _extractCs(el, text) {
   const rc = [];
   const walk = (node, host) => {
     for (const n of node.childNodes) {
-      if (n.nodeType === 3) { const d = n.data.replace(/\u00a0/g, ' '); raw += d; for (let i = 0; i < d.length; i++) rc.push(st(host)); }
+      if (n.nodeType === 3) { const d = n.data; raw += d; for (let i = 0; i < d.length; i++) rc.push(st(host)); }
       else if (n.nodeType === 1) {
         if (n.tagName === 'BR') { raw += '\n'; rc.push(null); continue; }
-        if (n.tagName === 'DIV' || n.tagName === 'P') { raw += '\n'; rc.push(null); }
+        if ((n.tagName === 'DIV' || n.tagName === 'P') && raw && !raw.endsWith('\n')) { raw += '\n'; rc.push(null); }   // _extractText 의 블럭 시작 표와 같은 규칙
         walk(n, n);
       }
     }
@@ -410,8 +430,8 @@ function _extractCs(el, text) {
   let t = '';
   const c = [];
   for (let i = 0; i < raw.length; i++) { if (raw[i] === '\n' && t.endsWith('\n\n')) continue; t += raw[i]; c.push(rc[i]); }
-  const a = t.length - t.trimStart().length, b = t.length - t.trimEnd().length;
-  if (t.trim() !== text) return null;
+  const a = t.length - t.replace(/^[ \t\r\n]+/, '').length, b = t.length - t.replace(/[ \t\r\n]+$/, '').length;
+  if (t.slice(a, Math.max(a, t.length - b)).replace(/\u00a0/g, ' ') !== text) return null;
   const cs = c.slice(a, c.length - b);
   return cs.some(Boolean) ? cs : null;
 }
@@ -546,6 +566,7 @@ function _startAnimPreview() {
   _stopAnimPreview();
   if (!_animTb) return;
   _updateAnimConflictWarning();
+  _syncStampRow();
   const canvas = document.getElementById('anim-preview-canvas');
   // BUG-FIX: canvas 없으면 에러 대신 조용히 리턴
   if (!canvas) { console.warn('[AnimGif] anim-preview-canvas not found'); return; }

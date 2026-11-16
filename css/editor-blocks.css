@@ -912,7 +912,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 }
 .asset-overlay-clear,
 .cert-sheet-clear,   /* ⑲ Documents 용지 ✕ — 에셋과 같은 겉모습 */
-.anim-tb-play {      /* GIF 텍스트 블럭 ▶/⏸(현빈 재QA 261116 «에셋블럭 x버튼 위치에») — body 의 단추 하나 · 자리·보임은 animation-engine.js _placePlayBtn 이 인라인으로 */
+.anim-tb-play {      /* GIF 텍스트 블럭 ▶/⏸(현빈 재QA 261116 «에셋블럭 x버튼 위치에») — #canvas-scaler 의 단추 하나(배율 따라 ✕ 와 같은 크기) · 자리·보임은 animation-engine.js _placePlayBtn 이 인라인으로 */
   position: absolute;
   top: 10px;
   right: 10px;
