@@ -465,11 +465,14 @@ async function createFrame(params) {
     fillColor,
     strokeColor,
     strokeWeight,
+    clipsContent,
   } = params || {};
 
   const frame = figma.createFrame();
   frame.resize(width, height);
   frame.name = name;
+  // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 내용 자르기를 늘 명시한다(false 만 끔 · 그 밖은 옛 동작과 같은 true). Figma 기본값에 기대지 않는다.
+  frame.clipsContent = clipsContent !== false;
 
   // Set fill color if provided
   if (fillColor) {

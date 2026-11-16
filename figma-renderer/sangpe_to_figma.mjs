@@ -732,6 +732,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       height: imgH,
       name: `image_${block.id}`,
       parentId,
+      clipsContent: block.clip !== false,   // ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — «내용 자르기» 끔 = false · 늘 명시(Figma 기본값 true 에 기대지 않는다)
     });
     if (node) {
       if (block.redact) {
@@ -749,8 +750,18 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           sourceType   = 'url';
           imageSource  = block.src;
         }
+        /* ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 크롭(보내는 쪽 crop = 블럭 상자에 대한 그림 상자 비)이 있으면 그림을 «자식 프레임»에 칠한다.
+           프레임 자기 칠은 clipsContent 와 상관없이 늘 제 상자로 잘리므로, 자르기 끔이 보이려면 그림이 자식이어야 한다. 상자 비가 원본 비라 FILL 이 더 자르지 않는다. */
+        const _cr = block.crop;
+        let _fillId = node.id;
+        if (_cr && ['x', 'y', 'w', 'h'].every((k) => Number.isFinite(_cr[k])) && _cr.w > 0 && _cr.h > 0) {
+          run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+          const _cf = run('create_frame', { x: Math.round(_cr.x * imgW), y: Math.round(_cr.y * imgH), width: Math.max(1, Math.round(_cr.w * imgW)), height: Math.max(1, Math.round(_cr.h * imgH)),
+            name: `imgcrop_${block.id}`, parentId: node.id, clipsContent: true });
+          if (_cf) _fillId = _cf.id;
+        }
         const fillResult = run('set_image_fill', {
-          nodeId: node.id,
+          nodeId: _fillId,
           imageSource,
           sourceType,
           scaleMode: 'FILL',
@@ -1019,7 +1030,13 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       polygon:   { vb: '0 0 200 180', fill: true,  inner: `<polygon points="100,8 194,172 6,172"/>` },
       star:      { vb: '0 0 200 190', fill: true,  inner: `<polygon points="100,8 122,70 188,70 135,110 155,172 100,132 45,172 65,110 12,70 78,70"/>` },
     };
-    const def = DEFS[type] || DEFS.rectangle;
+    let def = DEFS[type] || DEFS.rectangle;
+    /* ★SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01 — 별은 보내는 쪽이 실어 준 캔버스 SVG(viewBox + polygon 점·별마다 칠)로 그린다(갯수·간격·통통함·둥글기).
+       없거나 꼴이 틀리면 옛 별 하나 그대로. 글자를 SVG 에 꽂으므로 숫자·색 꼴만 받는다. */
+    if (type === 'star' && /^0 0 \d+(\.\d+)? \d+(\.\d+)?$/.test(block.starViewBox || '') && Array.isArray(block.starPolygons) && block.starPolygons.length
+        && block.starPolygons.every((p) => p && /^[-\d.,\s]+$/.test(p.points || '') && (p.fill === undefined || /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(p.fill)))) {
+      def = { vb: block.starViewBox, fill: true, inner: block.starPolygons.map((p) => `<polygon points="${p.points}"${p.fill ? ` fill="${p.fill}"` : ''}/>`).join('') };
+    }
     const [vbW, vbH] = def.vb.split(/\s+/).slice(2).map(Number);
     const cxv = vbW / 2, cyv = vbH / 2;
     // ★0919 QA: 그라데이션 = export 가 실어 준 캔버스 SVG def(id="g")를 그대로 — CSS 문자열을 fill 에 넣으면 무효 paint → 검정.
