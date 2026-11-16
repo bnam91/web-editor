@@ -12,9 +12,28 @@ export const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 /** 효과 목록(허용 목록 · 저장본 소독의 정본) — V1 7 + V2 새 효과 3(F1 도장 · F2 흐림→선명 · 블러 휩). */
-export const TRACK_FX = ['slide-up', 'typewriter', 'slot-machine', 'fade-in', 'word-pop', 'glow-pulse', 'count-up', 'stamp', 'blur-in', 'blur-whip'];
+export const TRACK_FX = ['slide-up', 'typewriter', 'slot-machine', 'fade-in', 'word-pop', 'glow-pulse', 'count-up', 'stamp', 'blur-in', 'blur-whip', 'fade-char'];
 /** V2 에서 새로 생긴 것 — 엔진은 이것들을 «블럭 전체» 모드에서도 이 파일(drawTracks)로 그린다(V1 7종은 옛 _drawFrame 그대로). */
-export const V2_FX = ['stamp', 'blur-in', 'blur-whip'];
+export const V2_FX = ['stamp', 'blur-in', 'blur-whip', 'fade-char'];   // fade-char = GIF V3 «한 글자씩 부드럽게»(P035 형식)
+
+/* ══ GIF V3 효과 옵션(현빈 261116 «티켓 등록 후 진행» · 0.9.13 19~23행) — 한 꼴 { guide, cursor, glow, pulse, hl } ══
+   guide = 최종 글을 제 글 색 28%(GUIDE_ALPHA)로 먼저 깔고 그 위에 효과(도장·타이핑·펄스 공용 — drawTracks 한 군데) · cursor false = 타이핑 커서 숨김 ·
+   glow false = 글로우 없는 깜빡임 · pulse false = 깜빡임 끔 · hl = 형광펜(#txt-highlight-btn 이 입힌 띠) 'fixed' 고정+글만 / 'draw' 긋기(뒤에 글) — 어느 효과든.
+   효과마다 허용 키만 · 기본값이면 키를 안 둔다(옛 GIF·저장 바이트 무변) · 남이 준 프로젝트에서 올 수 있다 — 불(boolean)·허용 글만. */
+export const OPT_KEYS = Object.freeze({ stamp: ['guide'], typewriter: ['guide', 'cursor'], 'glow-pulse': ['guide', 'glow', 'pulse'] });
+export const HL_MODES = Object.freeze(['fixed', 'draw']);
+const OPT_DEFAULT = Object.freeze({ guide: false, cursor: true, glow: true, pulse: true });
+export function normOpt(raw, fx) {
+  const o = {};
+  if (!raw || typeof raw !== 'object') return o;
+  for (const k of OPT_KEYS[fx] || []) if (typeof raw[k] === 'boolean' && raw[k] !== OPT_DEFAULT[k]) o[k] = raw[k];
+  if (HL_MODES.includes(raw.hl)) o.hl = raw.hl;
+  return o;
+}
+/** 옵션 값(없으면 기본) — hl 은 없으면 null(옛: 띠가 글과 같이 움직임). */
+export const optOf = (o, k) => (o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : (k === 'hl' ? null : OPT_DEFAULT[k]));
+export const GUIDE_ALPHA = 0.28;       // 가이드 = 제 글 색 28% 불투명 — 바탕·글 색 어디서나 보인다(★뒤집음: 고정 #c8c8c8 은 어두운 바탕·밝은 회색 글에서 안 보임 · 지디 261116)
+export const HL_DRAW = 0.4;            // 형광펜 «긋기»: 트랙 앞 40% 동안 왼→오 · 나머지 60% 에 그 줄 효과
 
 /* ── V2 새 효과의 «곡선»(순수 · 단위가 수로 잠근다) — k = 배율(블럭 1px = 캔버스 k px) ── */
 /** F1 도장 찍기(현빈: P076 «네!») — 0~70% 크게·흐리게(2.2배 · 흐림 10px)에서 가속하며 내려와 «쾅» · 70~100% 눌림 0.94 → 되튐 1 + 2px 감쇠 흔들림. */
@@ -57,6 +76,8 @@ export function normTracks(raw, n, { fx = 'fade-in', dur = 1200 } = {}) {
     const a = Number.isFinite(Number(r?.at)) ? Math.max(0, Math.min(AT_MAX, Math.round(Number(r.at)))) : (prev ? prev.at + prev.dur : 0);
     const o = { line: i, fx: f, at: a, dur: d };
     if (f === 'stamp' && r && r.s0 != null && r.s0 !== '' && Number.isFinite(Number(r.s0))) o.s0 = clampS0(r.s0);   // 줄마다 도장 시작 크기(없으면 블럭 값)
+    const op = normOpt(r && r.o, f);
+    if (Object.keys(op).length) o.o = op;   // GIF V3 줄 옵션(없으면 키 없음)
     out.push(o);
   }
   return out;
@@ -193,9 +214,25 @@ export const FX = {
     segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y + dy, env));
   },
   'glow-pulse': (ctx, segs, p, env) => {
-    const g = 0.5 + 0.5 * Math.sin(p * Math.PI * 4);
-    ctx.shadowColor = env.color; ctx.shadowBlur = (4 + 32 * g) * env.k; ctx.globalAlpha = 0.6 + 0.4 * g;
+    const o = env.tr && env.tr.o, pulse = optOf(o, 'pulse');
+    const g = pulse ? 0.5 + 0.5 * Math.sin(p * Math.PI * 4) : 1;
+    if (optOf(o, 'glow')) { ctx.shadowColor = env.color; ctx.shadowBlur = (4 + 32 * g) * env.k; ctx.globalAlpha = pulse ? 0.6 + 0.4 * g : 1; }
+    else ctx.globalAlpha = g;   // 글로우 없는 깜빡임(P252 형식) — 0 까지 사라진다(가이드 켜면 옅은 글이 남는다)
     _plain(ctx, segs, env);
+  },
+  /* 한 글자씩 부드럽게(P035 형식) — 글자 i 는 i/n×(1−W) 에 시작해 W 동안 투명→선명 · 끝(p=1)은 줄 통째로(글자별 폭 합 오차 0) */
+  'fade-char': (ctx, segs, p, env) => {
+    if (p >= 1) { _plain(ctx, segs, env); return; }
+    const n = segs.reduce((a, s) => a + s.text.length, 0) || 1, W = 0.35;
+    let i = 0;
+    for (const s of segs) {
+      let x = s.x0;
+      for (let j = 0; j < s.text.length; j++, i++) {
+        const ch = s.text[j], cs = s.cs && s.cs.slice(j, j + 1), a = clamp01((p - (i / n) * (1 - W)) / W);
+        if (a > 0) { ctx.globalAlpha = a; fillStyled(ctx, ch, cs, x, s.y, env); }
+        x += measureStyled(ctx, ch, cs, env);
+      }
+    }
   },
   typewriter: (ctx, segs, p, env) => {
     const total = segs.reduce((n, s) => n + s.text.length, 0);
@@ -207,7 +244,7 @@ export const FX = {
       cur = { x: s.x0 + measureStyled(ctx, part, pcs, env) + 2, y: s.y };
       left -= s.text.length;
     }
-    if (p < 1 && cur) ctx.fillRect(cur.x, cur.y - env.size * 0.45, 2, env.size * 0.9);   // 커서
+    if (p < 1 && cur && optOf(env.tr && env.tr.o, 'cursor')) ctx.fillRect(cur.x, cur.y - env.size * 0.45, 2, env.size * 0.9);   // 커서(옵션 cursor false = 숨김)
   },
   'word-pop': (ctx, segs, p, env) => {
     const words = segs.flatMap((s) => { let x = s.x0; const sp = ctx.measureText(' ').width;
@@ -259,15 +296,42 @@ export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
   for (const tr of tracks) {
     const p = localT(tr, tau);
     const segs = L.segs.filter((s) => s.src === tr.line);
-    if (p == null || !segs.length || !FX[tr.fx]) continue;
+    if (!segs.length || !FX[tr.fx]) continue;
+    const o = tr.o, hlm = optOf(o, 'hl');
+    /* GIF V3 공용 두 겹 — 효과보다 먼저 · 변형 없이 최종 자리(줄이 시작하기 «전»에도 깐다 — «먼저 깔리고»). 옵션 없으면 이 두 갈래를 안 탄다(옛 바이트). */
+    if (optOf(o, 'guide')) { ctx.save(); ctx.globalAlpha = GUIDE_ALPHA; ctx.fillStyle = env.color; segs.forEach((s) => fillStyled(ctx, s.text, _guideCs(s.cs), s.x0, s.y, env)); ctx.restore(); }
+    if (hlm) {
+      const wipe = hlm === 'draw' ? clamp01((p == null ? 0 : p) / HL_DRAW) : 1;
+      if (wipe > 0) {
+        ctx.save();
+        if (wipe < 1) { const x0 = Math.min(...segs.map((s) => s.x0)), x1 = Math.max(...segs.map((s) => s.x0 + s.w)); ctx.beginPath(); ctx.rect(x0, -H, (x1 - x0) * wipe, 3 * H); ctx.clip(); }
+        segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y, env, 'only'));
+        ctx.restore();
+      }
+    }
+    const pp = p == null ? null : hlm === 'draw' ? (p < HL_DRAW ? null : (p - HL_DRAW) / (1 - HL_DRAW)) : p;
+    if (pp == null) continue;
     ctx.save();
     ctx.fillStyle = style.color;
-    env.tr = tr;   // 효과가 제 트랙 값(도장 s0)을 읽는다
-    FX[tr.fx](ctx, segs, p, env);
+    env.tr = tr;   // 효과가 제 트랙 값(도장 s0 · V3 옵션)을 읽는다
+    FX[tr.fx](ctx, hlm ? segs.map((s) => ({ ...s, cs: _noHlCs(s.cs) })) : segs, pp, env);   // 형광펜은 위 고정 겹이 그렸다 — 글엔 띠 빼고
     ctx.restore();
     drawn.push(tr.line);
   }
   return drawn;   // 시험용 — 이 프레임에 그린 줄 번호
+}
+
+/* 가이드 글 cs — 조각 글자색·글꼴(굵기·기울임·크기)만 남기고 장식·그림자 뺌(옅은 한 벌 · 그라데이션 글은 env.color = 대체 단색) · 같은 원본 = 같은 결과 객체(조각 묶음 그대로) */
+function _guideCs(cs) {
+  if (!cs) return cs;
+  const m = new Map();
+  return cs.map((c) => { if (!c) return c; if (!m.has(c)) m.set(c, { color: c.color, weight: c.weight, italic: c.italic, sizeK: c.sizeK }); return m.get(c); });
+}
+/* 형광펜 띠만 뺀 cs(고정 겹이 따로 그렸을 때) — 다른 꾸밈은 그대로 */
+function _noHlCs(cs) {
+  if (!cs) return cs;
+  const m = new Map();
+  return cs.map((c) => { if (!c || !c.hl) return c; if (!m.has(c)) { const { hl, ...rest } = c; m.set(c, rest); } return m.get(c); });
 }
 
 /* ── F3 저장 꼴(텍스트 블럭 data-anim-gif) — 글 내용은 저장하지 않는다(블럭 글에서 읽는다 · ROADMAP 3-1 과 같은 뜻) ── */
@@ -282,7 +346,7 @@ export function parseAnimGif(str, n) {
 }
 /** 저장 꼴로 — 정해진 키만(다른 키를 실어 나르지 않는다). */
 export const serializeAnimGif = ({ tracks, speed = 1, repeat = 1 }) => JSON.stringify({
-  v: 2, tracks: tracks.map(({ line, fx, at, dur, s0 }) => (s0 != null ? { line, fx, at, dur, s0 } : { line, fx, at, dur })), speed, repeat,
+  v: 2, tracks: tracks.map(({ line, fx, at, dur, s0, o }) => ({ line, fx, at, dur, ...(s0 != null ? { s0 } : {}), ...(o && Object.keys(o).length ? { o } : {}) })), speed, repeat,
 });
 /** 도장이 담기려면 블럭(글 상자) 높이가 얼마여야 하나 — 블럭 px. 줄 글자 높이(가장 큰 조각) × 그 줄 시작 크기의 최댓값 · 도장 줄 없으면 0.
  *  FX.stamp 가 세로 기준점을 안쪽으로 미므로 «글자 상자 × s0 ≤ 높이» 면 어느 줄이든 안 잘린다. tracks = 그릴 트랙(s0 채운 것) · size = 블럭 글자 px. */
