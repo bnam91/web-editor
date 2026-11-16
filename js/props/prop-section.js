@@ -515,6 +515,13 @@ function setRpIdBadge(id) {
   }
 }
 
+/* 무늬·효과 묶음 = 소제목 + 노트 무늬 + 파티클. 둘 다 비면(그림 있음 + 파티클 미탑재) 소제목도 안 낸다.
+   ⚠️그리개(파티클 칸 HTML) 호출은 Background 절 «안» 템플릿 자리에 둔다 — fx-particles-panel P10 이 그 자리를 잰다. */
+function _fxGroupHTML(noteHTML, particlesHTML) {
+  if (!noteHTML.trim() && !particlesHTML) return '';
+  return '<span class="prop-field-label" id="sec-fx-group-label" style="margin-top:8px">Pattern &amp; Effects</span>' + noteHTML + particlesHTML;
+}
+
 async function showSectionProperties(sec) {
   /* ★«기다리는 사이 선택이 옮겨갔나»를 먼저 기억한다 (2026-09-22 T-084).
      이 함수는 async 다 — 아래 await 한 줄이 패널 쓰기를 «다음 마이크로태스크»로 미룬다.
@@ -615,7 +622,6 @@ async function showSectionProperties(sec) {
       ${colorFieldHTML({ idPrefix: 'sec-note', hex: noteVal.color, alpha: 100 })}
     </div>` : ''}
   `;
-  const particlesHTML = window.secParticlesHTML?.(sec) || '';
   const bgImgHTML = hasBgImg ? `
     <div class="prop-row">
       <span class="prop-label">사이즈</span>
@@ -744,13 +750,11 @@ ${blockHeaderHTML({
       ${bgImgHTML}
       <!-- ★무늬·효과 묶음 — 현빈 261116 «노트무늬를 파티클 켜기랑 같이 묶고 소제목을 바꿔(임시)». 소제목은 여기 한 자리
            (secParticlesHTML 은 라벨을 안 낸다). 둘 다 비면(그림 있음 + 파티클 미탑재) 라벨도 안 낸다. -->
-      ${(noteHTML.trim() || particlesHTML) ? '<span class="prop-field-label" id="sec-fx-group-label" style="margin-top:8px">Pattern &amp; Effects</span>' : ''}
-      ${noteHTML}
       <!-- ★파티클 — 섹션 «배경»이라 이 절에 산다(지디 2026-10-07 Q1 판정 ⒞ · js/effects-particles.js:8~15).
            ★칸의 몸은 js/props/prop-section-particles.js 한 자리다 — 효과가 늘어도 이 줄은 그대로다.
            ⛔배경색·배경이미지 칸과 «섞이지» 않는다: 그 파일은 sec.style.background* 와 sec.dataset.bg* 를
              한 번도 쓰지 않는다(현빈 2026-10-07 「배경색이 계속 바뀌면 안되는거 알지?」). -->
-      ${particlesHTML}
+      ${_fxGroupHTML(noteHTML, window.secParticlesHTML?.(sec) || '')}
     </div>
     ${colorRows ? `<div class="prop-section"><div class="prop-section-title">Text Color</div>${colorRows}</div>` : ''}
     <div class="prop-section">
