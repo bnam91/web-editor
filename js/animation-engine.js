@@ -121,6 +121,12 @@ function _showGrow(g) {
   const el = document.getElementById('anim-stamp-grow');
   if (el) el.textContent = g ? `블럭 높이 +${g * 2}px — 도장 시작 크기에 맞춰 늘림(⌘Z 로 되돌림)` : '';
 }
+/* «도장 시작» 줄은 도장일 때만(현빈 재QA 261116 «왜 다른 효과에도 있냐») — 블럭 효과 = 도장 · 또는 줄마다 따로에 도장 줄이 하나라도.
+   숨김만 — 저장 키(data-anim-stamp-s0)·슬라이더 값은 그대로(도장으로 돌아오면 그 값). 미리보기 시작마다 부른다(효과·줄 효과·줄마다 켬/끔이 다 거기로 온다). */
+function _syncStampRow() {
+  const row = document.getElementById('anim-stamp-s0-row');
+  if (row) row.style.display = (_perLine ? (_tracks || []).some((t) => t.fx === 'stamp') : _animType === 'stamp') ? '' : 'none';
+}
 /** 모달 «도장 시작» 슬라이더 — 끄는 동안(commit false)은 미리보기만 · 놓으면 저장 + 높이 + 이력 한 칸. */
 function setAnimStampS0(v, commit) {
   const s0 = clampS0(v);
@@ -557,6 +563,7 @@ function _startAnimPreview() {
   _stopAnimPreview();
   if (!_animTb) return;
   _updateAnimConflictWarning();
+  _syncStampRow();
   const canvas = document.getElementById('anim-preview-canvas');
   // BUG-FIX: canvas 없으면 에러 대신 조용히 리턴
   if (!canvas) { console.warn('[AnimGif] anim-preview-canvas not found'); return; }

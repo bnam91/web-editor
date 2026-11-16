@@ -2,6 +2,10 @@
  *   실제 텍스트 블럭 · 실제 모달 · 진짜 «도장 찍기» 클릭 · 진짜 «도장 시작» 슬라이더 · 진짜 ⌘Z.
  * G1 도장 고름 + 시작 크기 4배 → 블럭 높이 ≥ 글자 × 4(블럭이 늘어 담는다) · 늘어난 px = 패널 «블럭 높이 +Npx» 와 같음 · data-anim-gif-grow = N/2 · data-anim-stamp-s0 4 ·
  *    캔버스 보기 덮개 높이 = 늘어난 블럭 × 2(화면 = GIF 와 같은 캔버스) · ⌘Z 한 번 = 시작 크기 바꿈 전(높이·키) · 다른 효과(fade-in) 고르면 원래 높이·늘림 키 0 · pageerror 0
+ * G2(현빈 재QA 261116 «도장 시작 슬라이더가 왜 다른 효과에도 있냐»): «도장 시작» 줄 = 블럭 효과가 도장일 때만 · 줄마다 따로면 도장 줄이 하나라도 있을 때만 ·
+ *    효과 바꾸면 바로 숨김/보임 · 숨겨도 저장 키·슬라이더 값 그대로(도장으로 돌아오면 그 값) · pageerror 0
+ *    양성대조(예측 · CTL = animation-engine.js 1판 되돌림 · _startAnimPreview 의 `_syncStampRow();` 가 빠짐) → G2 빨강(슬라이드업인데 보임)
+ *    셀렉터 대조: #anim-stamp-s0-row(index.html 도장 시작 줄) · #anim-per-line · #anim-tracks .anim-track-row[data-line] .anim-track-fx(_renderTrackRows)
  * 양성대조(예측 · CTL): js/animation-engine.js _fitStampHeight 의 `const g = need > h0 ? Math.ceil((need - h0) / 2) : 0;` → `const g = 0;` → G1 빨강(높이 안 늘어남)
  * 셀렉터·전역 대조(제품 소스 grep): #anim-gif-modal · .anim-item[data-id](animation-engine.js _buildAnimList) · #anim-stamp-s0 · #anim-stamp-grow(index.html GIF 옵션) · #anim-canvas-play(_startCanvasPlay) ·
  *   window.openAnimModal · window.closeAnimModal · window.playAnimOnCanvas · window.addSection · window.selectSection · window.addTextBlock
@@ -46,5 +50,45 @@ test('G1 도장 시작 크기 4배 → 블럭이 늘어 담는다 · 패널 px �
   await page.click('#anim-gif-modal .anim-item[data-id="fade-in"]');
   const back = await st();
   expect([back.h, back.grow, back.note], '다른 효과 = 원래 높이 · 늘림 0').toEqual([base.h0, null, '']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('G2 «도장 시작» 줄은 도장일 때만 — 효과 바꾸면 즉시 · 줄마다 따로는 도장 줄 있을 때만 · 숨겨도 값 그대로', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection();
+    window.selectSection(c.querySelector('.section-block'));
+    window.addTextBlock('body');
+    const tb = [...c.querySelectorAll('.text-block')].pop();
+    (tb.querySelector('[contenteditable]') || tb.querySelector('.tb-body')).innerHTML = '오늘 주문하면?<br>네!';
+    window.__tb = tb;
+    window.deselectAll?.();
+    window.openAnimModal(tb);
+  });
+  const row = page.locator('#anim-stamp-s0-row'), s0 = page.locator('#anim-stamp-s0');
+  const key = () => page.evaluate(() => window.__tb.dataset.animStampS0 ?? null);
+  const pick = (id) => page.click(`#anim-gif-modal .anim-item[data-id="${id}"]`);
+  await expect(row, '★기본(슬라이드 업)인데 도장 시작이 보인다').toBeHidden();
+  await pick('stamp');
+  await expect(row, '도장 = 보임').toBeVisible();
+  await s0.fill('3');   // range 진짜 입력 = input + change
+  expect(await key(), '[전제] 도장 시작 3배 저장').toBe('3');
+  await pick('fade-in');
+  await expect(row, '★다른 효과로 바꿨는데 그대로 보인다').toBeHidden();
+  expect(await key(), '숨겨도 저장 키 그대로').toBe('3');
+  await pick('stamp');
+  await expect(row).toBeVisible();
+  expect(await s0.inputValue(), '도장으로 돌아오면 그 값').toBe('3');
+  await pick('fade-in');
+  await page.check('#anim-per-line');
+  await expect(row, '줄마다 따로 · 도장 줄 0 = 숨김').toBeHidden();
+  const fx1 = page.locator('#anim-tracks .anim-track-row[data-line="1"] .anim-track-fx');
+  await fx1.selectOption('stamp');
+  await expect(row, '★둘째 줄을 도장으로 — 도장 시작이 안 보인다').toBeVisible();
+  await page.locator('#anim-tracks .anim-track-row[data-line="1"] .anim-track-fx').selectOption('fade-in');
+  await expect(row, '도장 줄 다시 0 = 숨김').toBeHidden();
+  expect(await key(), '끝까지 저장 키 그대로').toBe('3');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
