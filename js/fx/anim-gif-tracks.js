@@ -18,10 +18,10 @@ export const V2_FX = ['stamp', 'blur-in', 'blur-whip', 'fade-char'];   // fade-c
 
 /* ══ GIF V3 효과 옵션(현빈 261116 «티켓 등록 후 진행» · 0.9.13 19~23행) — 한 꼴 { guide, cursor, glow, pulse, hl } ══
    guide = 최종 글을 제 글 색 28%(GUIDE_ALPHA)로 먼저 깔고 그 위에 효과(도장·타이핑·펄스 공용 — drawTracks 한 군데) · cursor false = 타이핑 커서 숨김 ·
-   glow false = 글로우 없는 깜빡임 · pulse false = 깜빡임 끔 · hl = 형광펜(#txt-highlight-btn 이 입힌 띠) 'fixed' 고정+글만 / 'draw' 긋기(뒤에 글) — 어느 효과든.
+   glow false = 글로우 없는 깜빡임 · pulse false = 깜빡임 끔 · hl = 형광펜(#txt-highlight-btn 이 입힌 띠) 'fixed' 고정+글만 / 'draw' 긋기(뒤에 글) / 'sweep' 글 고정 + 띠만 긋기(트랙 내내 왼→오 · 글 효과 없음 · 0.9.13 24행 GIF-HL-SWEEP-TEXT-FIXED-01) — 어느 효과든.
    효과마다 허용 키만 · 기본값이면 키를 안 둔다(옛 GIF·저장 바이트 무변) · 남이 준 프로젝트에서 올 수 있다 — 불(boolean)·허용 글만. */
 export const OPT_KEYS = Object.freeze({ stamp: ['guide'], typewriter: ['guide', 'cursor'], 'glow-pulse': ['guide', 'glow', 'pulse'] });
-export const HL_MODES = Object.freeze(['fixed', 'draw']);
+export const HL_MODES = Object.freeze(['fixed', 'draw', 'sweep']);
 const OPT_DEFAULT = Object.freeze({ guide: false, cursor: true, glow: true, pulse: true });
 export function normOpt(raw, fx) {
   const o = {};
@@ -301,13 +301,18 @@ export function drawTracks(ctx, W, H, style, size, tracks, tau, k = 1) {
     /* GIF V3 공용 두 겹 — 효과보다 먼저 · 변형 없이 최종 자리(줄이 시작하기 «전»에도 깐다 — «먼저 깔리고»). 옵션 없으면 이 두 갈래를 안 탄다(옛 바이트). */
     if (optOf(o, 'guide')) { ctx.save(); ctx.globalAlpha = GUIDE_ALPHA; ctx.fillStyle = env.color; segs.forEach((s) => fillStyled(ctx, s.text, _guideCs(s.cs), s.x0, s.y, env)); ctx.restore(); }
     if (hlm) {
-      const wipe = hlm === 'draw' ? clamp01((p == null ? 0 : p) / HL_DRAW) : 1;
+      const wipe = hlm === 'draw' ? clamp01((p == null ? 0 : p) / HL_DRAW) : hlm === 'sweep' ? clamp01(p == null ? 0 : p) : 1;
       if (wipe > 0) {
         ctx.save();
         if (wipe < 1) { const x0 = Math.min(...segs.map((s) => s.x0)), x1 = Math.max(...segs.map((s) => s.x0 + s.w)); ctx.beginPath(); ctx.rect(x0, -H, (x1 - x0) * wipe, 3 * H); ctx.clip(); }
         segs.forEach((s) => fillStyled(ctx, s.text, s.cs, s.x0, s.y, env, 'only'));
         ctx.restore();
       }
+    }
+    if (hlm === 'sweep') {   // 글 고정 — 줄 시작 전부터 최종 자리 평글(띠 빼고) · 효과는 안 탄다 · 띠만 위 겹에서 긋는다
+      ctx.save(); ctx.fillStyle = style.color; _plain(ctx, segs.map((s) => ({ ...s, cs: _noHlCs(s.cs) })), env); ctx.restore();
+      drawn.push(tr.line);
+      continue;
     }
     const pp = p == null ? null : hlm === 'draw' ? (p < HL_DRAW ? null : (p - HL_DRAW) / (1 - HL_DRAW)) : p;
     if (pp == null) continue;

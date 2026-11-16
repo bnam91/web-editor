@@ -400,6 +400,7 @@ test('T21 V3 옵션 소독 — 효과마다 허용 키 · 불만 · 기본값이
   assert.deepEqual(normOpt({ guide: false, cursor: true, glow: true, pulse: true }, 'glow-pulse'), {}, '기본값 = 키 없음');
   assert.deepEqual(normOpt({ guide: 'yes', glow: 0, hl: '<b>' }, 'glow-pulse'), {}, '불·허용 글만');
   assert.deepEqual(normOpt({ hl: 'fixed', guide: true }, 'fade-in'), { hl: 'fixed' }, '형광펜은 어느 효과든 · 가이드는 도장·타이핑·펄스만');
+  assert.deepEqual(normOpt({ hl: 'sweep' }, 'stamp'), { hl: 'sweep' }, '셋째 갈래 sweep(0.9.13 24행) 도 저장');
   assert.deepEqual([optOf(undefined, 'cursor'), optOf({}, 'guide'), optOf({}, 'hl')], [true, false, null]);
   const r = parseAnimGif(JSON.stringify({ v: 2, tracks: [{ line: 0, fx: 'typewriter', at: 0, dur: 900, o: { cursor: false, evil: 1 } }, { line: 1, fx: 'fade-in', at: 0, dur: 900, o: { guide: true } }], speed: 1, repeat: 1 }), 2);
   assert.deepEqual([r.tracks[0].o, 'o' in r.tracks[1]], [{ cursor: false }, false]);
@@ -467,4 +468,23 @@ test('T26 형광펜 — 고정+글만 = 띠는 처음부터 다 · 글엔 띠 �
   assert.deepEqual([band(dr2).length, band(dr2)[0].clip, texts(dr2).length > 0], [1, false, true], '긋기 뒤: 띠 다 · 글 등장');
   const old = rec(); drawTracks(old, 480, 200, st, 24, T3('fade-in'), 0);
   assert.ok(band(old).length === 1 && texts(old).length > 0, '옛: 띠가 글 그리기 안에서(같이)');
+});
+
+/* T27(0.9.13 24행 GIF-HL-SWEEP-TEXT-FIXED-01 · 현빈 «글 고정 + 형광펜 띠만 긋기»): hl 'sweep' = 글은 줄 시작 전부터 최종 자리 평글(효과 안 탐 · 알파 1 · 변형 0 · 글엔 띠 없음) ·
+ *   띠만 트랙 내내 왼→오(자르기 폭 = 진행 × 줄 폭) · 끝 = 자르기 없이 다.
+ *   양성대조(예측 · CTL): drawTracks 의 `if (hlm === 'sweep') {` → `if (false) {` → T27 빨강(fade-in 첫 프레임 글 알파 0 · 시작 전 글 0). */
+test('T27 형광펜 «글 고정 + 띠만 긋기» — 글은 처음부터 그대로 · 띠는 트랙 내내 왼→오', () => {
+  const HL = { hl: { color: '#ffeb3b', h: { pct: 0.4 }, y: 0 } };
+  const st = { ...ST1, cs: [HL, HL] };
+  const rec = () => { const c = fakeCtx(); c.clips = []; c.fillRect = (x, y, w, h) => c.calls.push({ op: 'rect', x, y, w, h, fill: c.fillStyle, clip: c._clip }); c.rect = (x, y, w) => c.clips.push(w); return c; };
+  const band = (c) => c.calls.filter((x) => x.op === 'rect' && x.fill === '#ffeb3b');
+  const L = layoutLines(fakeCtx(), st, 480, 200, 24), x0 = L.segs[0].x0, lw = L.segs[0].w;
+  const pre = rec(); drawTracks(pre, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }, { at: 500 }), 100);
+  assert.deepEqual([texts(pre).map((c) => [c.s, c.a, c.tf, c.x]), band(pre).length], [[['네!', 1, 0, x0]], 0], '★줄 시작 전: 글 고정(최종 자리 · 알파 1) · 띠 0');
+  const z = rec(); drawTracks(z, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }), 0);
+  assert.deepEqual([texts(z).map((c) => c.a), band(z).length], [[1], 0], '★첫 프레임: 페이드 인이어도 글 알파 1(효과 안 탐) · 띠 아직 0');
+  const m = rec(); drawTracks(m, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }), 500);
+  assert.deepEqual([band(m).length, band(m)[0].clip, m.clips.at(-1), texts(m).map((c) => [c.a, c.tf])], [1, true, lw * 0.5, [[1, 0]]], '★반: 띠를 줄 폭 절반까지 잘라 그음 · 글 그대로');
+  const e = rec(); drawTracks(e, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }), 1000);
+  assert.deepEqual([band(e).length, band(e)[0].clip, band(e)[0].x], [1, false, x0], '끝: 띠 다(자르기 없음)');
 });
