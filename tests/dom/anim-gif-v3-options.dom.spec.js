@@ -7,9 +7,13 @@
  * V4(0.9.13 NEW-현빈QA-GIF-HL-SELECT-CSS-01 «형광펜 드롭다운이 브라우저 기본 모양이라 혼자 튄다»): 형광펜 글 + 줄마다 따로 → 첫 줄의 형광펜 고르기 class = 같은 줄 효과 고르기 class ·
  *    계산된 높이·바탕·테두리·글 크기도 같음 · 블럭 전체 칸의 형광펜 고르기도 같은 class
  *    양성대조(예측 · CTL): _optControls 의 `sel.className = 'anim-track-fx';` 삭제 → V4 빨강
+ * V5(같은 표 재작업 · 지디 9500 실측 css25-overlap «줄마다 따로면 줄 옵션·형광펜 고르기가 줄 이름 위에 겹치고 마지막 것이 안내 글을 덮음»):
+ *    타이핑 + 형광펜 글 두 줄 + 줄마다 따로 → 줄 칸 모든 부품(이름·효과·시작·길이·옵션 체크·형광펜 고르기·막대) + 안내 글 사각형이 서로 안 겹침 · 줄 칸 밖으로 안 넘침
+ *    + 줄 옵션 칸(.anim-fx-opt-set) 좌우 = 줄 칸 좌우(첫 칸 72px 에 갇히지 않음) · 옵션 체크·형광펜 고르기가 한 줄(세로 가운데 차 ≤2px)
+ *    양성대조(예측 · CTL): editor-extra.css `.anim-track-row > .anim-fx-opt-set {…}` 줄 삭제 → V5 빨강 · `.anim-track-row` 에 `grid-template-rows: auto 4px;` 되살림 → V5 빨강
  * 양성대조(예측 · CTL): animation-engine.js _selectAnim 의 `_renderBlockOpts();` 줄 삭제 → V1·V3 빨강(칸이 안 선다) · V2 초록(줄 칸은 _renderTrackRows)
  * 셀렉터·전역 대조(제품 소스 grep): #anim-gif-modal · #anim-list .anim-item[data-id] · #anim-fx-opts(index.html) · [data-opt](animation-engine.js _optControls) ·
- *   #anim-per-line · #anim-tracks .anim-track-row .anim-track-fx(_renderTrackRows) · #anim-preview-canvas · .tb-hl(prop-text-wireup-text-edit.js) · window.openAnimModal/closeAnimModal
+ *   #anim-per-line · #anim-tracks .anim-track-row .anim-track-fx .anim-track-label .anim-track-at .anim-track-dur .anim-track-bar(_renderTrackRows) · .anim-fx-opt-set(_optControls) · #anim-loop-info(index.html) · #anim-preview-canvas · .tb-hl(prop-text-wireup-text-edit.js) · window.openAnimModal/closeAnimModal
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -98,5 +102,37 @@ test('V4 형광펜 고르기 꼴 = 형제 효과 고르기(공용 class · 계�
   expect(r.fxCls, '[전제] 형제 효과 고르기 class').toBe('anim-track-fx');
   await page.uncheck('#anim-per-line');
   await expect(blockSel, '블럭 전체 칸도 같은 class').toHaveClass('anim-track-fx');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('V5 줄마다 따로 — 줄 옵션·형광펜 고르기가 줄 이름·효과·시작/길이·안내 글과 안 겹침', async ({ page }) => {
+  const errs = await scene(page, '<span class="tb-hl" style="--tb-hl-color: rgb(255, 235, 59); --tb-hl-h: 100%; --tb-hl-y: 0px">안녕하세요</span><br>반갑습니다.');
+  await pick(page, 'typewriter');
+  await page.check('#anim-per-line');
+  await expect(page.locator('#anim-tracks .anim-track-row'), '[전제] 줄 칸 둘').toHaveCount(2);
+  await expect(page.locator('#anim-tracks .anim-track-row .anim-fx-opt-set select[data-opt="hl"]'), '[전제] 줄마다 형광펜 고르기').toHaveCount(2);
+  const r = await page.evaluate(() => {
+    const box = (e, name) => { const b = e.getBoundingClientRect(); return { name, l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+    const parts = [], rows = [...document.querySelectorAll('#anim-tracks .anim-track-row')];
+    rows.forEach((row, i) => [...row.children].forEach((c) => {
+      const kids = c.classList.contains('anim-fx-opt-set') ? [...c.children] : [c];
+      kids.forEach((k) => parts.push({ ...box(k, `${i}:${k.dataset.opt || k.querySelector('[data-opt]')?.dataset.opt || k.className}`), row: box(row, 'row') }));
+    }));
+    const info = box(document.getElementById('anim-loop-info'), 'info');
+    const all = [...parts, info], hit = [], spill = [], empty = [];
+    for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
+      const A = all[a], B = all[b];
+      if (Math.min(A.r, B.r) - Math.max(A.l, B.l) > 0.5 && Math.min(A.b, B.b) - Math.max(A.t, B.t) > 0.5) hit.push(`${A.name}×${B.name}`);
+    }
+    parts.forEach((p) => { if (p.r - p.l < 1 || p.b - p.t < 1) empty.push(p.name); if (p.t < p.row.t - 0.5 || p.b > p.row.b + 0.5) spill.push(p.name); });
+    const lanes = rows.map((row, i) => { const set = row.querySelector('.anim-fx-opt-set'), R = row.getBoundingClientRect(), S = set.getBoundingClientRect();
+      const mids = [...set.children].map((k) => { const q = k.getBoundingClientRect(); return (q.top + q.bottom) / 2; });
+      return { i, wide: Math.abs(S.left - R.left) <= 1 && Math.abs(S.right - R.right) <= 1, oneLine: Math.max(...mids) - Math.min(...mids) <= 2, setW: Math.round(S.width), rowW: Math.round(R.width) }; });
+    return { n: parts.length, hit, spill, empty, lanes };
+  });
+  expect(r.n, `[전제] 줄마다 부품 8(이름·효과·시작·길이·가이드·커서·형광펜·막대) — ${JSON.stringify(r)}`).toBe(16);
+  expect(r.empty, '[전제] 크기 0 부품 없음').toEqual([]);
+  expect([r.hit, r.spill], '★줄 칸 부품이 겹치거나 줄 칸 밖으로 넘친다').toEqual([[], []]);
+  expect(r.lanes.map((l) => [l.wide, l.oneLine]), `★줄 옵션이 줄 칸 폭 통째가 아니다(첫 칸 72px 에 갇혀 체크·형광펜 고르기가 접힘) — ${JSON.stringify(r.lanes)}`).toEqual([[true, true], [true, true]]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

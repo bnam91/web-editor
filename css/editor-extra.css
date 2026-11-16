@@ -332,7 +332,8 @@ body.preview-mode #preview-navigator { display: flex; }
 /* GIF V2 F3 «줄마다 따로» — 줄 한 행 = 글 앞부분 · 효과 · 시작 · 길이 · 막대(전체 한 바퀴 중 그 줄의 자리) */
 .anim-list.is-off { opacity: 0.4; pointer-events: none; }
 .anim-tracks { display: flex; flex-direction: column; gap: var(--ui-row-gap); margin-top: var(--ui-row-gap); }
-.anim-track-row { display: grid; grid-template-columns: 72px 1fr 56px 56px; grid-template-rows: auto 4px; gap: 2px var(--ui-row-gap); align-items: center; }
+.anim-track-row { display: grid; grid-template-columns: 72px 1fr 56px 56px; gap: 2px var(--ui-row-gap); align-items: center; }   /* 행 높이 = 내용(막대는 제 높이 4px) — 고정 4px 둘째 행에 옵션 칸이 들어가 위아래로 넘쳐 겹쳤다(NEW-현빈QA-GIF-HL-SELECT-CSS-01) */
+.anim-track-row > .anim-fx-opt-set { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-row-gap); }   /* GIF V3 줄 옵션 = 제 줄 통째(72px 첫 칸에 끼지 않게) */
 .anim-track-label { font-size: var(--ui-fs-base); color: var(--ui-text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .anim-track-fx, .anim-track-at, .anim-track-dur { min-width: 0; height: 22px; background: var(--ui-bg-input); color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm); font-size: var(--ui-fs-base); }
 .anim-track-bar { grid-column: 1 / -1; position: relative; height: 4px; background: var(--ui-border); border-radius: 2px; }
