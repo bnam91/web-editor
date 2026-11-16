@@ -118,6 +118,24 @@ function _sectionBox(secEl) {
            heightPin: secEl.dataset.heightPin === 'true' ? (parseFloat(secEl.style.height) || 0) : 0 };   // ⑦ 핀 높이(0 = 핀 아님)
 }
 
+/* ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01(현빈 0.9.12 134) — 단일 에셋 그림의 «내용 자르기»와 크롭을 싣는다.
+   clip  : 끔일 때만 false(켬 = 키 없음 = 옛 바이트). 렌더러가 Figma clipsContent 를 이 값으로 «늘 명시»한다.
+   crop  : 그림 편집(dataset.imgW)이 있을 때만 — 그림 상자를 블럭 상자에 대한 비(0~1 밖도 된다)로. 높이 = imgW × 원본 세로/가로(applyImageTransform 의 height:auto 와 같은 식).
+   shortcut: 그림 회전(imgRotate)·object-position·블럭 안쪽 padding 은 안 싣는다 — 그런 보고가 오면 그때 더한다. */
+function _assetFigmaClipCrop(el) {
+  const out = {};
+  if (window.clipsContent?.(el) === false) out.clip = false;
+  const live = (el.id && document.getElementById(el.id)) || el;
+  const img = live.querySelector?.('.asset-img');
+  const iw = parseFloat(el.dataset.imgW), W = live.offsetWidth, H = live.offsetHeight;
+  const nw = img?.naturalWidth, nh = img?.naturalHeight;
+  if (iw > 0 && W > 0 && H > 0 && nw > 0 && nh > 0) {
+    const r4 = (v) => Math.round(v * 10000) / 10000;
+    out.crop = { x: r4((parseFloat(el.dataset.imgX) || 0) / W), y: r4((parseFloat(el.dataset.imgY) || 0) / H), w: r4(iw / W), h: r4(iw * nh / nw / H) };
+  }
+  return out;
+}
+
 function _shapeFigmaBlock(el) {
   const live = (el.id && document.getElementById(el.id)) || el;
   const frame = live.parentElement && live.parentElement.classList?.contains('frame-block') ? live.parentElement : null;
@@ -585,6 +603,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           return redact ? { src: null, redact } : {};
         })(),
       };
+      if (!el.dataset.collab) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
       return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }
     if (el.classList.contains('icon-circle-block')) {

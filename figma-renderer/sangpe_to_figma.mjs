@@ -732,6 +732,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       height: imgH,
       name: `image_${block.id}`,
       parentId,
+      clipsContent: block.clip !== false,   // ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — «내용 자르기» 끔 = false · 늘 명시(Figma 기본값 true 에 기대지 않는다)
     });
     if (node) {
       if (block.redact) {
@@ -749,8 +750,18 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           sourceType   = 'url';
           imageSource  = block.src;
         }
+        /* ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 크롭(보내는 쪽 crop = 블럭 상자에 대한 그림 상자 비)이 있으면 그림을 «자식 프레임»에 칠한다.
+           프레임 자기 칠은 clipsContent 와 상관없이 늘 제 상자로 잘리므로, 자르기 끔이 보이려면 그림이 자식이어야 한다. 상자 비가 원본 비라 FILL 이 더 자르지 않는다. */
+        const _cr = block.crop;
+        let _fillId = node.id;
+        if (_cr && ['x', 'y', 'w', 'h'].every((k) => Number.isFinite(_cr[k])) && _cr.w > 0 && _cr.h > 0) {
+          run('set_fill_color', { nodeId: node.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+          const _cf = run('create_frame', { x: Math.round(_cr.x * imgW), y: Math.round(_cr.y * imgH), width: Math.max(1, Math.round(_cr.w * imgW)), height: Math.max(1, Math.round(_cr.h * imgH)),
+            name: `imgcrop_${block.id}`, parentId: node.id, clipsContent: true });
+          if (_cf) _fillId = _cf.id;
+        }
         const fillResult = run('set_image_fill', {
-          nodeId: node.id,
+          nodeId: _fillId,
           imageSource,
           sourceType,
           scaleMode: 'FILL',
