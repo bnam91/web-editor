@@ -53,7 +53,7 @@ function fakeEl(extra = {}) {
     style: {}, dataset: {}, _l: {}, _html: '', value: '', textContent: '', disabled: false, title: '', checked: false,
     classList: { _s: new Set(), toggle(c, on) { (on ?? !this._s.has(c)) ? this._s.add(c) : this._s.delete(c); }, contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } },
     append(...a) { (this._kids ??= []).push(...a); }, appendChild(a) { (this._kids ??= []).push(a); return a; },
-    addEventListener(t, f) { (el._l[t] ??= []).push(f); }, setAttribute() {}, removeAttribute() {}, remove() {},   // remove — 캔버스에서 보기 멈춤/재생 단추를 끝낼 때 뗀다(덮개 remove 를 세는 칸은 제 것으로 덮어쓴다)
+    addEventListener(t, f) { (el._l[t] ??= []).push(f); }, setAttribute() {}, removeAttribute() {}, remove() {},   // remove — 덮개를 세지 않는 칸에서 끝낼 때(세는 칸은 제 것으로 덮어쓴다)
     querySelector: () => null, querySelectorAll: () => [],
     set innerHTML(v) { el._html = String(v); }, get innerHTML() { return el._html; },
     ...extra,
@@ -438,20 +438,22 @@ test('E13 RICHTEXT ⑫ — 글자 그라데이션 블럭 → 미리보기·GIF �
   } finally { delete globalThis.GradientModel; delete globalThis.getGradientTarget; }
 });
 
-test('E14 PLAY-ON-CANVAS — 덮개는 body 에 · 블럭×2 · 블럭 자리 · 같은 엔진 그림 · 키 = 멈춤 · 블럭 사라지면 멈춤 · 글 DOM 무변', async () => {
+test('E14 PLAY-ON-CANVAS 2판 — 덮개 body · 블럭×2 · 블럭 자리 · 같은 엔진 · 끝없는 반복 · Esc 만 끝(에디터로 안 넘김) · 다른 키·클릭은 안 끝냄 · 편집·블럭 사라짐 = 끝 · 늦은 프레임 무시 · 글 DOM 무변', async () => {
+  /* ★뒤집음(현빈 재QA 261116 «계속 플레이되면 좋겠고» · 지디 판정 (나)): 1판 E14 «아무 키·클릭 = 멈춤 + 그 클릭 삼킴» → 이제 끝 = Esc · 블럭 ⏸ · 편집 · 블럭 사라짐. pointerdown 리스너 0. */
   const E = await loadEngine();
   const appended = [], listeners = {};
   document.body.appendChild = (n) => { appended.push(n); n.isInBody = true; return n; };
-  globalThis.addEventListener = (t, f) => { (listeners[t] ??= new Set()).add(f); };   // window = globalThis — 멈춤 리스너는 window capture
+  globalThis.addEventListener = (t, f) => { (listeners[t] ??= new Set()).add(f); };   // window = globalThis — 끝 리스너는 window capture
   globalThis.removeEventListener = (t, f) => { listeners[t]?.delete(f); };
   E.tb.appendChild = () => { throw new Error('★덮개를 블럭 안에 넣었다(글 DOM 변경)'); };
   E.tb.isConnected = true;
-  E.tb.getBoundingClientRect = () => ({ left: 30, top: 70, width: 200, height: 60 });
+  E.tb.getBoundingClientRect = () => ({ left: 30, top: 70, width: 200, height: 60, right: 230 });
   const html0 = E.textEl.innerHTML;
   const items = [];
   E.els['anim-list'].querySelectorAll = ((orig) => () => { const r = orig(); items.push(...r); return r; })(E.els['anim-list'].querySelectorAll);
   window.openAnimModal(E.tb);
   items.find((it) => it.dataset.id === 'fade-in')._l.click[0]();
+  assert.equal(E.tb.dataset.animFx, 'fade-in', '고른 효과가 블럭에 남는다(블럭 ▶ 단추가 읽는다)');
   window.playAnimOnCanvas();
   assert.equal(E.els['anim-gif-modal'].style.display, 'none', '모달 닫힘');
   const cv = appended.find((n) => n.id === 'anim-canvas-play');
@@ -462,35 +464,34 @@ test('E14 PLAY-ON-CANVAS — 덮개는 body 에 · 블럭×2 · 블럭 자리 ·
   E.rafs.at(-1)(1000); E.rafs.at(-1)(1000 + 5000);
   assert.deepEqual([cv.style.left, cv.style.top, cv.style.width, cv.style.height], ['30px', '70px', '200px', '60px'], '블럭 자리·크기');
   assert.deepEqual(E.ctx.calls.slice(-2).map((c) => c.s), ['오늘 주문하면?', '네!'], '같은 엔진 그림(두 줄)');
+  E.rafs.at(-1)(1000 + 60000);
+  assert.ok(Number(cv.dataset.loops) >= 20 && removed === 0, `★끝없는 반복이 아니다 — 바퀴 ${cv.dataset.loops} · 걷힘 ${removed}`);
   assert.equal(E.textEl.innerHTML, html0, '글 DOM 무변');
-  assert.ok(listeners.keydown?.size === 1 && listeners.pointerdown?.size === 1, '[전제] 멈춤 리스너');
+  assert.ok(listeners.keydown?.size === 1 && !listeners.pointerdown?.size, '[전제] 끝 리스너 = keydown 하나 · ★클릭(pointerdown)으로는 안 끝낸다');
+  const ev = (key) => { const e = { type: 'keydown', key, blocked: 0 }; e.preventDefault = () => { e.blocked++; }; e.stopImmediatePropagation = () => { e.blocked++; }; return e; };
+  for (const k of ['a', 'Meta', 'Shift', 'Enter']) { const e = ev(k); [...listeners.keydown][0](e); assert.deepEqual([removed, e.blocked], [0, 0], `★${k} 로 끝났거나 에디터로 안 넘겼다`); }
   const nRaf = E.rafs.length;
-  const ev = (type) => { const e = { type, key: 'Escape', blocked: 0 }; e.preventDefault = () => { e.blocked++; }; e.stopImmediatePropagation = () => { e.blocked++; }; return e; };
-  const esc = ev('keydown');
+  const esc = ev('Escape');
   [...listeners.keydown][0](esc);
-  assert.equal(removed, 1, '★키로 안 멈춘다(덮개 남음)');
-  assert.equal(esc.blocked, 2, '★멈춘 Esc 가 에디터로 넘어간다(선택 해제 등)');
-  assert.ok(!listeners.keydown.size && !listeners.pointerdown.size, '리스너 해제');
-  E.rafs.at(-1)(9000);
-  assert.equal(E.rafs.length, nRaf, '멈춘 뒤 rAF 0');
-  // 블럭이 사라지면 스스로 멈춘다
-  window.openAnimModal(E.tb);
-  window.playAnimOnCanvas();
-  const cv2 = appended.filter((n) => n.id === 'anim-canvas-play').at(-1);
-  let removed2 = 0; cv2.remove = () => { removed2++; };
-  E.tb.isConnected = false;
-  E.rafs.at(-1)(1000);
-  assert.equal(removed2, 1, '블럭이 사라지면 덮개도');
-  // 클릭으로 멈춤 — 그 클릭의 mousedown/mouseup/click 은 에디터로 안 간다(한 번)
-  E.tb.isConnected = true;
-  window.openAnimModal(E.tb);
-  window.playAnimOnCanvas();
-  appended.filter((n) => n.id === 'anim-canvas-play').at(-1).remove = () => {};
-  const pd = ev('pointerdown');
-  [...listeners.pointerdown][0](pd);
-  assert.equal(pd.blocked, 2, '★멈춘 클릭이 에디터로 넘어간다');
-  for (const t of ['mousedown', 'mouseup']) { const e = ev(t); [...listeners[t]][0](e); assert.equal(e.blocked, 2, `★${t} 를 안 삼켰다`); }
-  const ck = ev('click'); [...listeners.click][0](ck);
-  assert.ok(ck.blocked === 2 && !listeners.click.size && !listeners.mousedown.size, '클릭까지 삼키고 풀림');
+  assert.deepEqual([removed, esc.blocked], [1, 2], '★Esc = 끝 · 에디터로 안 넘김');
+  assert.ok(!listeners.keydown.size, '리스너 해제');
+  E.rafs.at(-1)(99000);
+  assert.equal(E.rafs.length, nRaf, '끝난 뒤 늦은 프레임 = rAF 0 · 그림 0');
+  // 블럭이 사라지면 · 편집 들어가면 스스로 끝
+  for (const how of ['gone', 'editing']) {
+    window.toggleAnimOnCanvas(E.tb);   // 블럭 ▶ — 저장된 data-anim-fx 로
+    const c2 = appended.filter((n) => n.id === 'anim-canvas-play').at(-1);
+    assert.ok(c2 && c2 !== cv, `[전제] ${how}: 블럭 ▶ 로 새 재생`);
+    let r2 = 0; c2.remove = () => { r2++; };
+    if (how === 'gone') E.tb.isConnected = false; else E.tb.classList.add('editing');
+    E.rafs.at(-1)(1000);
+    assert.equal(r2, 1, `★${how} 인데 안 끝났다`);
+    E.tb.isConnected = true; E.tb.classList.remove('editing');
+  }
+  // 블럭 ▶ 를 두 번 = 시작·끝
+  window.toggleAnimOnCanvas(E.tb);
+  const c3 = appended.filter((n) => n.id === 'anim-canvas-play').at(-1); let r3 = 0; c3.remove = () => { r3++; };
+  window.toggleAnimOnCanvas(E.tb);
+  assert.equal(r3, 1, '★⏸ = 끝');
   delete globalThis.addEventListener; delete globalThis.removeEventListener;
 });
