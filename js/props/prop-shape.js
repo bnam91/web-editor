@@ -13,7 +13,8 @@ import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starViewBoxWidth, starFrameWidthFor,
          starFillsFor, starColorList, starColorsAttr,
          starScaleList, starScalesAttr, clampStarScale,
-         STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT } from '../shape-star.js';
+         STAR_SCALE_MIN, STAR_SCALE_MAX, STAR_SCALE_DEFAULT,
+         clampRound, ROUND_MIN, ROUND_MAX } from '../shape-star.js';
 import { starSelectedIndex, starModeBlock, exitStarMode } from '../star-select.js';
 import { clampEllipseCount, ELLIPSE_COUNT_MIN, ELLIPSE_COUNT_MAX,
          clampEllipseGap, ELLIPSE_GAP_MIN, ELLIPSE_GAP_MAX, ELLIPSE_GAP_DEFAULT,
@@ -99,6 +100,7 @@ export function showShapeProperties(block) {
   const starN       = clampStarN(block.dataset.starPoints);
   const starCount   = clampStarCount(block.dataset.starCount);   // ★별 «갯수»(현빈 2026-10-06) — 없으면 1 = 옛 별
   const starInner   = clampStarInner(block.dataset.starInner);   // ★null = ★미설정 = ★옛 별(특례)
+  const starRound   = clampRound(block.dataset.starRound);       // 꼭짓점 둥글기 % — 없으면 0 = 뾰족(옛 별)
   const starGap     = clampStarGap(block.dataset.starGap);       // ★없으면 0 = 옛 간격(틀 폭 그대로)
   const starRating  = clampStarRating(block.dataset.starRating); // ★null = ★미설정 = ★평점 아님(1010t1b3)
   const ratingOn    = starRating !== null;                       // ★켜져 있으면 ★갯수가 ★5 로 ★잠긴다
@@ -292,6 +294,12 @@ ${blockHeaderHTML({
         <span class="prop-label">통통함</span>
         <input type="range" class="prop-slider" id="shape-star-inner-slider" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" step="1" value="${starInner ?? STAR_INNER_DISPLAY}">
         <input type="number" class="prop-number" id="shape-star-inner-num" min="${STAR_INNER_MIN}" max="${STAR_INNER_MAX}" value="${starInner ?? STAR_INNER_DISPLAY}">
+      </div>
+      <!-- 꼭짓점 둥글기(현빈 QA 261116 «star 도 꼭짓점 곡률») — 톱니 스탬프 «끝 둥글기 %»와 같은 꼴(slider+number) · 같은 깎기(roundPolyPoints) -->
+      <div class="prop-row">
+        <span class="prop-label">꼭짓점 둥글기 %</span>
+        <input type="range" class="prop-slider" id="shape-star-round-slider" min="${ROUND_MIN}" max="${ROUND_MAX}" step="1" value="${starRound}">
+        <input type="number" class="prop-number" id="shape-star-round-num" min="${ROUND_MIN}" max="${ROUND_MAX}" value="${starRound}">
       </div>
       ${starCount > 1 ? `<!-- 별 «간격»(현빈 2026-10-07 「별 간격 조절되면 좋겠고」).
            ★갯수가 1 이면 이 줄을 안 그린다 — dx=0 이라 ★조용히 아무 일도 안 일어난다
@@ -781,7 +789,7 @@ ${blockHeaderHTML({
     const inner = clampStarInner(block.dataset.starInner);
     /* ★★`starColors`·`starScales` 를 ★읽는 자는 ★★이 함수 ★하나다(지디 ⑧ 의 ★조건).
        ⇒ ★읽는 자가 ★둘이 되면 ★그때 ★명부가 ★참으로 ★둘이 된다. ⛔다른 곳에서 ★읽지 ★마라. */
-    const list = starPointsList(n, count, gap, inner, block.dataset.starScales);
+    const list = starPointsList(n, count, gap, inner, block.dataset.starScales, block.dataset.starRound);
     const vb = starViewBox(count, gap);
     if (svg.getAttribute('viewBox') !== vb) svg.setAttribute('viewBox', vb);
     const polys = [...svg.querySelectorAll('polygon')];
@@ -925,6 +933,24 @@ ${blockHeaderHTML({
     starInSlider.addEventListener('change', () => window.pushHistory?.());
     starInNum.addEventListener('input',  () => { if (starInNum.value !== '') applyStarInner(starInNum.value); });
     starInNum.addEventListener('change', () => { applyStarInner(starInNum.value); window.pushHistory?.(); });
+  }
+
+  /* 꼭짓점 둥글기 — 통통함과 같은 배선(_applyStarGeom + 이미지 clip). 0 이면 키를 지운다(옛 바이트). */
+  const starRSlider = document.getElementById('shape-star-round-slider');
+  const starRNum    = document.getElementById('shape-star-round-num');
+  if (starRSlider && starRNum) {
+    const applyStarRound = (raw) => {
+      const v = clampRound(raw);
+      starRSlider.value = v; starRNum.value = v;
+      if (v) { if (block.dataset.starRound !== String(v)) block.dataset.starRound = String(v); } else delete block.dataset.starRound;
+      _applyStarGeom();
+      _syncShapeImageClip(block);
+      window.scheduleAutoSave?.();
+    };
+    starRSlider.addEventListener('input',  () => applyStarRound(starRSlider.value));
+    starRSlider.addEventListener('change', () => window.pushHistory?.());
+    starRNum.addEventListener('input',  () => { if (starRNum.value !== '') applyStarRound(starRNum.value); });
+    starRNum.addEventListener('change', () => { applyStarRound(starRNum.value); window.pushHistory?.(); });
   }
 
   const starGSlider = document.getElementById('shape-star-gap-slider');
@@ -1493,7 +1519,7 @@ function _syncShapeImageClip(block) {
      올릴 때 이미 풀지만(prop-shape applyStarCount), 저장본·다른 입구로 둘이 함께 들어와도
      «조용한 반쪽 동작»이 되지 않게 여기서도 막는다. */
   if (type === 'star' && clampStarCount(block.dataset.starCount) > 1) { _clearShapeImage(block); return; }
-  const clip = type === 'star' ? starClipPath(block.dataset.starPoints, block.dataset.starInner) : (SHAPE_IMG_CLIP[type] || '');
+  const clip = type === 'star' ? starClipPath(block.dataset.starPoints, block.dataset.starInner, block.dataset.starRound) : (SHAPE_IMG_CLIP[type] || '');
   if (clip) img.style.clipPath = clip; else img.style.removeProperty('clip-path');
 }
 

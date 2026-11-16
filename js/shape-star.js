@@ -139,19 +139,24 @@ export function clampStarGap(g) {
  *      ⇒ ★★별 갯수·간격·통통함이 ★★오늘 ★이미 ★피그마에선 ★별 ★하나로 간다(★기존 결함 · ★이 묶음과 무관).
  *      ★★이건 ★소스 독해다 — ★내보내기를 ★돌려 ★산출물을 ★본 것이 ★아니다. */
 
-export function starPoints(n, inner) {
+export function starPoints(n, inner, round) {
   const k = clampStarN(n);
   const ip = clampStarInner(inner);
+  if (clampRound(round)) {   // 꼭짓점 둥글기 — 아래 옛 꼴(뾰족)의 점을 깎는다 · 0/미설정이면 이 갈래를 안 탄다(옛 바이트)
+    const base = starPoints(k, inner).split(' ').map((q) => q.split(',').map(Number));
+    return roundPolyPoints(base, round).map(([x, y]) => r2(x) + ',' + r2(y)).join(' ');
+  }
   /* ★미설정 ＋ n===5 = ★옛 별 «그대로»(바이트 동일). ⛔계산 결과로 바꾸지 마라. */
   if (ip === null && k === 5) return OLD_POINTS;
   return _coords(k, _rIn(ip)).map(([x, y]) => x + ',' + y).join(' ');
 }
 
-export function starClipPath(n, inner) {
+export function starClipPath(n, inner, round) {
   const k = clampStarN(n);
   const ip = clampStarInner(inner);
-  if (ip === null && k === 5) return OLD_CLIP;
   const p = (v, d) => r2(v / d * 100) + '%';
+  if (clampRound(round)) return 'polygon(' + starPoints(k, inner, round).split(' ').map((q) => { const [x, y] = q.split(',').map(Number); return p(x, STAR_VB_W) + ' ' + p(y, STAR_VB_H); }).join(', ') + ')';
+  if (ip === null && k === 5) return OLD_CLIP;
   return 'polygon(' + _coords(k, _rIn(ip)).map(([x, y]) => p(x, STAR_VB_W) + ' ' + p(y, STAR_VB_H)).join(', ') + ')';
 }
 
@@ -216,8 +221,8 @@ export function starFrameWidthFor(curW, prevCount, prevGap, nextCount, nextGap) 
 /** i 번째(0부터) 별의 points — 별 하나의 좌표를 가로로 i·(200＋간격) 만큼 옮긴 것.
  *  ★`scale`(1010t1b2 · ％)이 있으면 ★«그 별의 중심»에서 ★배율을 ★points 에 ★녹인다.
  *  ★★배율 미설정·100 이면 ★★옛 길을 ★그대로 탄다 — ★계산을 ★안 타므로 ★바이트가 ★동일하다. */
-export function starPointsAt(n, i = 0, gap, inner, scale) {
-  const base = starPoints(n, inner);
+export function starPointsAt(n, i = 0, gap, inner, scale, round) {
+  const base = starPoints(n, inner, round);
   const dx = (STAR_VB_W + clampStarGap(gap)) * Math.max(0, Math.round(Number(i)) || 0);
   const s = clampStarScale(scale);
   /* ★★옛 길 — ⛔배율이 없으면 ★한 글자도 ★다른 계산을 ★타지 않는다(바이트 보존의 자리) */
@@ -240,10 +245,10 @@ export function starPointsAt(n, i = 0, gap, inner, scale) {
 
 /** 별 count 개의 polygon points 배열. count=1 이면 [starPoints(n)] — 옛 한 벌 그대로.
  *  ★`scales` = `data-star-scales` 문자열(1010t1b2) — ★미설정이면 ★전부 옛 길이다. */
-export function starPointsList(n, count, gap, inner, scales) {
+export function starPointsList(n, count, gap, inner, scales, round) {
   const k = clampStarCount(count);
   const sl = starScaleList(scales, k);
-  return Array.from({ length: k }, (_, i) => starPointsAt(n, i, gap, inner, sl ? sl[i] : null));
+  return Array.from({ length: k }, (_, i) => starPointsAt(n, i, gap, inner, sl ? sl[i] : null, round));
 }
 
 /* ══ 별 «평점»(별점) (현빈 2026-10-10 · 1010t1b3) ═══════════════════════════════
@@ -454,4 +459,28 @@ export function starScalesAttr(list) {
   if (!norm.some(v => v !== null)) return null;
   while (norm.length && norm[norm.length - 1] === null) norm.pop();
   return norm.map(v => (v === null ? '' : String(v))).join(STAR_COLORS_SEP);
+}
+
+/* ══ 꼭짓점 둥글기(현빈 QA 261116 «톱니 끝이 너무 뾰족 — 곡률» · «star 도 꼭짓점 곡률») ══
+ *   꼭짓점마다 양옆 변을 따라 d = round% × (짧은 변의 반) 들어간 두 점을 그 꼭짓점을 조절점으로 한 2차 곡선으로 잇고 점 ROUND_SEG 개로 쪼갠다
+ *   ⇒ 여전히 «점 목록»(<polygon>·CSS polygon()) — 읽는 쪽(별 고르기·별마다 색·이미지 clip·PNG·Figma generic svg)이 그대로.
+ *   round 0(미설정) = 받은 점 그대로(옛 바이트). ⚠️같은 몸통이 js/blocks/burst-geometry.js · js/shape-star.js 두 곳 —
+ *   둘 다 단위가 «파일 하나만» 불러 재서(import 0 단언 · 임시폴더 홀로 import) 묶지 못했다. tests/unit/poly-round-twin.test.mjs 가 같은 출력을 잠근다. */
+export const ROUND_MIN = 0, ROUND_MAX = 100, ROUND_SEG = 6;
+export function clampRound(v) { const k = Math.round(Number(v)); return Number.isFinite(k) ? Math.min(ROUND_MAX, Math.max(ROUND_MIN, k)) : 0; }
+export function roundPolyPoints(pts, round) {
+  const t = clampRound(round) / 100, n = pts.length;
+  if (!t || n < 3) return pts;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+    const la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]), d = (t * Math.min(la, lb)) / 2;
+    if (!d) { out.push(p); continue; }
+    const p1 = [p[0] + ((a[0] - p[0]) * d) / la, p[1] + ((a[1] - p[1]) * d) / la], p2 = [p[0] + ((b[0] - p[0]) * d) / lb, p[1] + ((b[1] - p[1]) * d) / lb];
+    for (let s = 0; s <= ROUND_SEG; s++) {
+      const u = s / ROUND_SEG, w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u;
+      out.push([w0 * p1[0] + w1 * p[0] + w2 * p2[0], w0 * p1[1] + w1 * p[1] + w2 * p2[1]]);
+    }
+  }
+  return out;
 }
