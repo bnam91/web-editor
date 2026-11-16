@@ -68,6 +68,8 @@ export function applyTextAlignToBlock(tb, contentEl, align) {
     layoutEl.style.alignSelf = ALIGN_SELF_OF[align] || 'flex-start';   // 사상표 = 이 파일 위 ALIGN_SELF_OF 한 자리(t7-03)
     window.scheduleAutoSave?.();
   }
+  /* ★141 ㉮ — 자유변형 보정(글 프레임 translate)은 정렬 기준을 먹는다 ⇒ 정렬이 바뀌면 그리기 문 하나로 다시 그린다 */
+  if (tb.dataset?.tfCorners) window.applyFxFreeTransform?.(tb);
 }
 
 export function wireAlignSection({ tb, ctx, propPanel, isIconText }) {

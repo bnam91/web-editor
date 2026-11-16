@@ -258,8 +258,8 @@ function _bind(el, tb, name, kind) {
         C[b] = [C0[b][0] + n[0] * t, C0[b][1] + n[1] * t];
       }
       const r = setFxFreeTransform(tb, C, { history: first, touched: true });
-      first = false;
-      if (r && r.ok) ftHandlesSync(tb);
+      /* ★141 ㉯ — 볼록이 아니면 거절(NON_CONVEX) ⇒ 마지막 볼록 자리에 멈춘다. first 는 «받힌» 첫 걸음에서만 내린다(거절된 move 가 이력 한 걸음을 먹지 않게). */
+      if (r && r.ok) { first = false; ftHandlesSync(tb); }
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
