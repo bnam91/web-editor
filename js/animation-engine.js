@@ -394,9 +394,10 @@ function _extractText(el) {
   const html = el.innerHTML || '';
   return html
     .replace(/<br\s*\/?>/gi, '\n')       // <br> → 줄바꿈
-    .replace(/<div/gi, '\n<div')         // <div> 앞에 줄바꿈 삽입
-    .replace(/<p(?=[\s>])/gi, '\n<p')    // <p> 앞에 줄바꿈 삽입
+    .replace(/<div/gi, '\u0001<div')     // <div>·<p> 시작 = «새 줄 시작» 표(아래에서 줄바꿈으로)
+    .replace(/<p(?=[\s>])/gi, '\u0001<p')
     .replace(/<[^>]+>/g, '')             // 모든 태그 제거
+    .replace(/(^|\n)\u0001+/g, '$1').replace(/\u0001+/g, '\n')   // 블럭 시작은 «이미 줄 처음이면» 줄바꿈 0 · 겹 div(<div><div>) = 하나(NEW-현빈QA-GIF-BROKEN-AFTER-LINEBREAK-EDIT-01 · 옛: 겹마다 \n 이라 빈 줄이 생겨 캔버스 재생 두 줄이 벌어지고 잘렸다)
     .replace(/&nbsp;/g, '\u00a0')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -408,7 +409,7 @@ function _extractText(el) {
 
 const _EDGE_WS = /^[ \t\r\n]+|[ \t\r\n]+$/g;   // 접히는 공백(빈칸·탭·줄바꿈) — \u00a0 은 빼고
 /* 조각 스타일 cs(RICHTEXT-EFFECTS-01) — _extractText 와 «같은 글»을 DOM 을 걸어 만들고, 글자마다 그 글자를 감싼 요소의 스타일.
-   같은 규칙: br = 줄바꿈 · div/p 앞 줄바꿈 · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 «접히는» 공백만 깎기(nbsp 는 남김). 결과 글이 text 와 다르면 null(평글로 그린다). */
+   같은 규칙: br = 줄바꿈 · div/p 시작 = 줄 처음이 아니면 줄바꿈(겹 div 는 하나) · nbsp = 빈칸 · 줄바꿈 셋 이상 = 둘 · 앞뒤 «접히는» 공백만 깎기(nbsp 는 남김). 결과 글이 text 와 다르면 null(평글로 그린다). */
 function _extractCs(el, text) {
   if (!el.childNodes) return null;
   const memo = new Map();
@@ -420,7 +421,7 @@ function _extractCs(el, text) {
       if (n.nodeType === 3) { const d = n.data; raw += d; for (let i = 0; i < d.length; i++) rc.push(st(host)); }
       else if (n.nodeType === 1) {
         if (n.tagName === 'BR') { raw += '\n'; rc.push(null); continue; }
-        if (n.tagName === 'DIV' || n.tagName === 'P') { raw += '\n'; rc.push(null); }
+        if ((n.tagName === 'DIV' || n.tagName === 'P') && raw && !raw.endsWith('\n')) { raw += '\n'; rc.push(null); }   // _extractText 의 블럭 시작 표와 같은 규칙
         walk(n, n);
       }
     }
