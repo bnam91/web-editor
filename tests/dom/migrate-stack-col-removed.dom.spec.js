@@ -131,8 +131,11 @@ test('M2 ★★음성대조 — ★`migrateColsFromDOM` 을 ★안 부르면 ★
   ).toBe(before.cols);
 });
 
-test('M3 ★★★`migrateColsFromDOM` 의 ★★«크기»를 수로 박는다 — ★호출 ★29 · 줄 ★151 (★`…SWEEP-01`)', () => {
-  test.fail(true, '★DEV-BASELINE-RED-4-01(시트 99행) — origin/dev 2852c9f44(0.9.12 통합)에 원래 있는 빨강·보안20 무관(매니저 판정 261114). 고치면 이 표시가 빨개진다 — 그때 떼라.');
+test('M3 ★★★`migrateColsFromDOM` 의 ★★«크기»를 수로 박는다 — ★호출 ★31 · 줄 ★160 (★`…SWEEP-01`)', () => {
+  /* ★DEV-BASELINE-RED-4-01(261117 재기) — 29→31 · 151→160. 늘어난 둘을 아래 지시대로 «새 구조를 오인하나» 봤다:
+       ⑴ window.renderCertBlock?.(b) — 1a9504810(인증서 블럭) · RERENDER_KINDS 한 칸 = 다시 그리기만 · 구조 판정 없음 → 오인 자리 아님
+       ⑵ canvasEl.querySelectorAll('.row-col-add-btn') — 484220824(LEGACY-TPL-REOPEN-LEAVES-EMPTY-ROWS-01) · 죽은 단추(만드는 코드 c8aff4a06 에서 사라짐)만 걷고 그 단추가 있던 row 가 «비었을 때만» row 를 지움 → 새 구조엔 그 단추가 없다
+       실측(git show 판마다 같은 자): cc76d771e 151·29 → 484220824 159·30 → 1a9504810 160·31 = bdb4171f1. 다른 변화 0. */
   /* ★★왜 — ★`MIGRATE-MISREADS-NEW-STRUCTURE-SWEEP-01`(261025) 의 ★★진짜 ★크기를 ★적는다.
      ★이 함수는 ★`rebindAll`(save-load.js:1457 이 아니라 ★그 위 :941 정의) 안에서 ★★로드·⌘Z·
        페이지 전환마다 ★돌고, ★★그 안에서 ★«구조»를 ★여러 번 ★바꾼다.
@@ -172,13 +175,13 @@ test('M3 ★★★`migrateColsFromDOM` 의 ★★«크기»를 수로 박는다 
      ⇒ ★★늘었으면 ★★「★그것도 ★새 구조를 ★오인하나」를 ★★재고 ★이 수를 ★고쳐라.
      ⇒ ★줄었으면 ★어느 갈래가 ★죽었나 보라(★죽은 갈래는 ★무해하지만 ★주석이 ★거짓이 된다). */
   expect(touches.length,
-    `★호출 수가 ★29 가 아니다 (${touches.length}) — ★늘었으면 ★★「그것도 ★새 구조를 ★오인하나」를 재고 ★이 수를 고쳐라` +
-    `\n  ★줄 수 ${body.split('\n').length} (★261025 실측 151)\n  ` + touches.slice(0, 12).join('\n  ')
-  ).toBe(29);
+    `★호출 수가 ★31 가 아니다 (${touches.length}) — ★늘었으면 ★★「그것도 ★새 구조를 ★오인하나」를 재고 ★이 수를 고쳐라` +
+    `\n  ★줄 수 ${body.split('\n').length} (★261025 실측 151 · 261117 160)\n  ` + touches.slice(0, 12).join('\n  ')
+  ).toBe(31);
   /* ★★줄 수도 ★같이 — ★호출 수는 ★같은데 ★몸통만 자라는 꼴을 ★잡는다 */
   expect(body.split('\n').length,
-    `★줄 수가 ★151 이 아니다 (${body.split('\n').length}) — ★그 함수가 ★자랐다(또는 줄었다)`
-  ).toBe(151);
+    `★줄 수가 ★160 이 아니다 (${body.split('\n').length}) — ★그 함수가 ★자랐다(또는 줄었다)`
+  ).toBe(160);
   /* ★★그리고 ★★«오늘 고친 둘»이 ★이 함수 ★안에 있나 — ★★한 자리에 ★모여 있음을 ★못박는다 */
   expect(/migrateLegacyGradientBlocks/.test(src),
     '★`migrateLegacyGradientBlocks` 호출이 사라졌다 — GRAD-GROUP 고침의 자리가 바뀌었나').toBe(true);
