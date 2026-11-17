@@ -64,6 +64,9 @@ test('L4 묶음별 내용', () => {
   assert.ok(qr, 'QR·바코드 묶음');
   assert.equal(qr.items.filter((i) => i.file.startsWith('qr_')).length, 7);
   assert.equal(qr.items.filter((i) => i.file.startsWith('bar_')).length, 6);
+  const sb = col('storyboard');   // #18 t3-05
+  assert.deepEqual(sb && sb.items.map((i) => i.file), ['sb-01-interview.jpg', 'sb-02-factory-wide.jpg', 'sb-03-manufacturing.jpg']);
+  assert.match(sb.note, /워터마크/, '워터마크 사실을 출처 줄에');
 });
 
 test('L5 배선 — 플러그인 패널 단추 · 모듈 script', () => {

@@ -2,6 +2,7 @@
  * 장면은 앱의 제 문으로: 섹션 하나 고름 → 하단 Plugins(#fp-plugin-btn) → «내장 라이브러리»(#plugin-library) → 칸 클릭.
  * D1 모달: 묶음 칸 수 = 명부 · 그림이 실제로 읽힘(naturalWidth > 0) · 출처·라이선스 줄
  * D2 넣기: 칸 클릭 → 고른 섹션에 에셋 블럭 하나 더 · 그 그림 = 동봉 PNG 의 data URL · 폭 = 명부 w · 높이 = 그림 비율
+ * D3 탭: 묶음 둘 이상이면 탭 · 스토리보드 탭 → 3칸 · JPEG 넣기(폭 = 섹션 안쪽 상한 · 높이 = 1408:780 비율)
  * 자 = dataset·style 글자(화면 px 아님 · 배율 무관). ⛔고정 대기 0(조건 대기).
  * 양성대조(예측 · CTL): library-panel.js _insert 의 addAssetBlock 호출 줄을 지우면 → D2 빨강(블럭 수 그대로) · D1 초록
  */
@@ -42,7 +43,28 @@ test('D2 넣기 — QR 칸 클릭 → 에셋 블럭 · 동봉 PNG data URL · 24
   await expect(page.locator('#lib-modal')).toBeHidden();
   const got = await page.evaluate(() => {
     const ab = [...window.getSelectedSection().querySelectorAll('.asset-block')].pop();
-    return { src: (ab.dataset.imgSrc || '').slice(0, 30), w: ab.style.width, h: ab.style.height };
+    return { src: (ab.dataset.imgSrc || '').slice(0, 31), w: ab.style.width, h: ab.style.height };
   });
   expect(got).toEqual({ src: 'data:image/png;base64,iVBORw0KG', w: '240px', h: '240px' });
+});
+
+test('D3 탭 — 스토리보드 3칸 · JPEG 넣기 · 폭 상한·비율', async ({ page }) => {
+  await setup(page);
+  await openLibrary(page);
+  await page.click('.lib-tab[data-col="storyboard"]');
+  await expect(page.locator('.lib-tab[data-col="storyboard"]')).toHaveClass(/active/);
+  await expect(page.locator('#lib-grid .lib-item')).toHaveCount(3);
+  await expect(page.locator('#lib-credit')).toContainText('워터마크');
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item img')].filter((i) => i.naturalWidth > 0).length)).toBe(3);
+  const before = await assetCount(page);
+  await page.click('#lib-grid .lib-item[title="공장 전경"]');
+  await expect.poll(() => assetCount(page)).toBe(before + 1);
+  const got = await page.evaluate(() => {
+    const ab = [...window.getSelectedSection().querySelectorAll('.asset-block')].pop();
+    return { src: (ab.dataset.imgSrc || '').slice(0, 27), w: parseInt(ab.style.width, 10), h: parseInt(ab.style.height, 10) };
+  });
+  expect(got.src).toBe('data:image/jpeg;base64,/9j/');
+  expect(got.w).toBeGreaterThan(0);
+  expect(got.w).toBeLessThanOrEqual(860);
+  expect(Math.abs(got.h - Math.round((got.w * 780) / 1408))).toBeLessThanOrEqual(1);
 });
