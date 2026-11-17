@@ -109,6 +109,7 @@ export function showLaurelProperties(block) {
   const _lrlCanFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
   /* right-panel-unify U5 — 옛 절 Grid (c×r) · All Cells (일괄) · Cells (n) 을 정본 절로 나눴다.
      ★U6(수지 발주32) — 일괄 줄은 칸 카드와 «같은 이름표»라 어느 쪽이 일괄인지 사라졌다 ⇒ 그리드 범위 표기(「가로 정렬 · 모든 열」 · data-scope)와 같은 꼴로 「… · 모든 칸」 + data-scope="all" + title(56px 라벨에서 잘려도 전문).
+     ★RP-LAUREL-SCOPE-LABEL-TRUNCATED-01(현빈 ⓑ 261117) — «잎 크기 · 모든 칸» 은 56px 라벨에서 «잎 크기 · …» 로 잘려 범위가 안 읽혔다 ⇒ 이름표를 «일괄 크기·간격·채움·색상» 으로 짧게(범위 낱말이 맨 앞) · title 전문·data-scope 그대로.
      「일괄」 값은 그 속성의 절(간격=Layout · 잎 크기=Size · 잎 채움/색=Fill)에, 칸 카드(per-cell)는 Content 한 절 안(§3-2 반복 항목). */
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -126,7 +127,7 @@ export function showLaurelProperties(block) {
 `),
       sec('size', `
       <div class="prop-row" data-scope="all">
-        <span class="prop-label" title="잎 크기 · 모든 칸(일괄)">잎 크기 · 모든 칸</span>
+        <span class="prop-label" title="잎 크기 · 모든 칸(일괄)">일괄 크기</span>
         <input type="range" class="prop-slider" id="lrl-all-height" min="40" max="320" step="4" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
         <input type="number" class="prop-number" id="lrl-all-height-num" min="20" max="600" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
       </div>
@@ -135,7 +136,7 @@ export function showLaurelProperties(block) {
       <div class="grid-picker" id="lrl-grid-picker"></div>
       <div class="grid-picker-label" id="lrl-grid-picker-label">${cols} × ${rows}</div>
       <div class="prop-row" data-scope="all">
-        <span class="prop-label" title="잎 간격 · 모든 칸(일괄)">잎 간격 · 모든 칸</span>
+        <span class="prop-label" title="잎 간격 · 모든 칸(일괄)">일괄 간격</span>
         <input type="range" class="prop-slider" id="lrl-all-gap" min="0" max="800" step="4" value="${cells[0]?.gap ?? 24}">
         <input type="number" class="prop-number" id="lrl-all-gap-num" min="0" max="2000" value="${cells[0]?.gap ?? 24}">
       </div>
@@ -164,7 +165,7 @@ export function showLaurelProperties(block) {
       </div>` : ''),
       sec('fill', `
       <div class="prop-row" data-scope="all">
-        <span class="prop-label" title="잎 채움 · 모든 칸(일괄)">잎 채움 · 모든 칸</span>
+        <span class="prop-label" title="잎 채움 · 모든 칸(일괄)">일괄 채움</span>
         <select class="prop-select" id="lrl-all-fill">
           <option value="solid"          ${(cells[0]?.leafFill || 'solid') === 'solid' ? 'selected' : ''}>Solid (단색)</option>
           <optgroup label="Classic">
@@ -190,7 +191,7 @@ export function showLaurelProperties(block) {
         </select>
       </div>
       <div class="prop-color-row" data-solid-only data-scope="all" style="${(cells[0]?.leafFill && cells[0].leafFill !== 'solid') ? 'opacity:0.4;pointer-events:none;' : ''}">
-        <span class="prop-label" title="잎 색상 · 모든 칸(일괄)">잎 색상 · 모든 칸</span>
+        <span class="prop-label" title="잎 색상 · 모든 칸(일괄)">일괄 색상</span>
         ${colorFieldHTML({ idPrefix: 'lrl-all-leaf', hex: cells[0]?.leafColor || '#1a1a1a', alpha: parseAlphaFromColor(cells[0]?.leafColor || '#1a1a1a') })}
       </div>
 `),
