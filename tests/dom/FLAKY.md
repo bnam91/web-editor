@@ -387,3 +387,7 @@ tpl-pagepad-e81.dom.spec.js:215 T6      1/11 (판 6b239a24) · 0/11 (판 d163b6c
 
 ## 2026-11-17 · W06D O4 (0.9.12 마지막 관문) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `w2d06d-line-sticker-pos.dom.spec.js:251` O4 Highlight 두께 손잡이 끌기 — 아이맥 workers1 spec 통째 ×3: final7 1/3 · final9 1/3 · final10 1/3 · final11 3/3 · final12 2/3 빨강 · O4 단독 ×15: final10 2/15 · final11 1/15 · 인텔 전수 final12(9cda110c3) 빨강 · srv(M) 단독 ×30 + 통째 ×14 + CPU 6배 ×15 = 0 빨강.
+
+## 2026-11-17 · t403a E1 (0.9.12 마지막 관문 둘째) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `section-mesh-corners-t403a.dom.spec.js:260` E1 더블클릭 뒤 고른 점 «tr» ← null — 인텔 전수 final13(bdb4171f1) 빨강 · final7·final12 전수 초록 · 아이맥 workers1 spec 통째 ×3: final13 0/3 · final12 1/3 빨강.
+- 진단 기록(단언 무변): 실패 메시지·`[E1-DIAG]` 로그에 창 capture 사건(대상·defaultPrevented·그때 rAF 수) · is-sel(rAF 로 그림) ↔ 패널 줄 is-mesh-active(동기) · 오버레이 갈림 · 섹션 선택 · raf2 뒤 같은 값.

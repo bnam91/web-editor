@@ -261,9 +261,29 @@ test('E1 피커가 열렸으면 Esc 는 피커를 닫고 고른 점은 그대로
   const { errs, A } = await setup(page);
   await meshOn(page, A);
   const p = await dotPt(page, 'tr');
+  /* 흔들림 진단(0912 E1 · 기록만 · 단언·대기·timeout 무변) — 빨강(«tr» ← null)이 나면 가른다:
+     ⒜ 누름·더블클릭이 어느 요소에 닿았나(창 capture · defaultPrevented) ⒝ 고른 상태가 «있는데 아직 안 그렸나»
+       — is-sel 은 _tick(rAF)이 다음 프레임에 단다 · 패널 줄 .is-mesh-active 는 _select 가 «동기»로 단다 · 읽는 순간까지 흐른 rAF 수
+     ⒞ 오버레이가 갈렸나(다시 만들면 sel=null) — 더블클릭 전 오버레이에 표를 붙여 둔다 ⒟ 섹션 선택·점 수·피커. */
+  await page.evaluate(() => {
+    const tag = (e) => (e && e.nodeType === 1) ? (e.id ? '#' + e.id : '') + '.' + String(e.className?.baseVal ?? e.className ?? e.tagName).split(' ')[0] + (e.dataset?.meshCorner ? `[${e.dataset.meshCorner}]` : '') : String(e);
+    window.__e1 = { ev: [], frames: 0 };
+    for (const t of ['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick']) window.addEventListener(t, (e) => { window.__e1.ev.push([t, Math.round(e.clientX), Math.round(e.clientY), tag(e.target), e.defaultPrevented, window.__e1.frames]); }, true);
+    const f = () => { window.__e1.frames++; requestAnimationFrame(f); }; requestAnimationFrame(f);
+    document.querySelector('.mesh-corner-overlay').dataset.e1 = 'before';
+  });
+  const snap = () => page.evaluate(() => ({ sel: document.querySelector('.mesh-corner-dot.is-sel')?.dataset.meshCorner ?? null,
+    panelActive: [...document.querySelectorAll('[data-mesh-corner].is-mesh-active:not(.mesh-corner-dot)')].map(e => e.dataset.meshCorner),
+    overlays: document.querySelectorAll('.mesh-corner-overlay').length, sameOverlay: document.querySelector('.mesh-corner-overlay')?.dataset.e1 === 'before',
+    dots: document.querySelectorAll('.mesh-corner-dot').length, secSelected: [...document.querySelectorAll('.section-block.selected')].map(e => e.id),
+    cp: !!document.querySelector('.goya-cp-popover:not([hidden])'), frames: window.__e1.frames, ev: window.__e1.ev }));
   await page.mouse.dblclick(p.x, p.y);
   await expect.poll(() => cpOpen(page), '더블클릭 = 피커').toBe(true);
-  expect(await selCorner(page)).toBe('tr');
+  const s0 = await snap();   // ⚠️s0.sel = 옛 단언이 읽던 그 한 번(같은 자리 · 같은 셀렉터)
+  await raf2(page);
+  const s1 = await snap();
+  console.log('[E1-DIAG] ' + JSON.stringify({ p: { x: Math.round(p.x), y: Math.round(p.y) }, s0, s1: { ...s1, ev: undefined } }));
+  expect(s0.sel, `더블클릭 뒤 고른 점 · 진단 ${JSON.stringify({ p: { x: Math.round(p.x), y: Math.round(p.y) }, s0, s1: { ...s1, ev: undefined } })}`).toBe('tr');
   await page.keyboard.press('Escape');
   await expect.poll(() => cpOpen(page), 'Esc 한 번 = 피커 닫힘').toBe(false);
   expect(await selCorner(page), '고른 점 그대로').toBe('tr');
