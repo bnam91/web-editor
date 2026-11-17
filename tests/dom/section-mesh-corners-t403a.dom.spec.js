@@ -283,7 +283,11 @@ test('E1 피커가 열렸으면 Esc 는 피커를 닫고 고른 점은 그대로
   await raf2(page);
   const s1 = await snap();
   console.log('[E1-DIAG] ' + JSON.stringify({ p: { x: Math.round(p.x), y: Math.round(p.y) }, s0, s1: { ...s1, ev: undefined } }));
-  expect(s0.sel, `더블클릭 뒤 고른 점 · 진단 ${JSON.stringify({ p: { x: Math.round(p.x), y: Math.round(p.y) }, s0, s1: { ...s1, ev: undefined } })}`).toBe('tr');
+  /* ③ 고침(아이맥 2b6165a53 E1 단독 ×20 중 1 빨강 진단: s0.sel=null · panelActive=['tr','tr'] · frames 0 · 사건 전부 점[tr] · s1.sel='tr'(3프레임 뒤) · 오버레이 같음)
+     = 검사가 «그리기 전에» 읽었다 — 고른 상태는 mousedown 의 _select 가 동기로 세우고(패널 표) 점의 is-sel 은 _tick(rAF) 다음 프레임에 그린다.
+     ⇒ 상태는 그 자리에서 단언(패널 표 · 동기) · 그림은 «그려진 상태»를 조건 대기로(값 그대로 'tr'). */
+  expect(s0.panelActive, `더블클릭 뒤 고른 점(상태 · 패널 표) · 진단 ${JSON.stringify({ p: { x: Math.round(p.x), y: Math.round(p.y) }, s0, s1: { ...s1, ev: undefined } })}`).toEqual(['tr', 'tr']);
+  await expect.poll(() => selCorner(page), `더블클릭 뒤 고른 점(그림 · is-sel) · 진단 ${JSON.stringify({ s0: { ...s0, ev: undefined } })}`).toBe('tr');
   await page.keyboard.press('Escape');
   await expect.poll(() => cpOpen(page), 'Esc 한 번 = 피커 닫힘').toBe(false);
   expect(await selCorner(page), '고른 점 그대로').toBe('tr');
