@@ -23,6 +23,10 @@ const MSG1 = '⚠️ 그림 1개를 못 실었습니다 — 그 자리는 빈 �
 async function scene(page) {
   await page.setViewportSize({ width: 1500, height: 1200 });
   const errs = await bootApp(page);
+  /* r2(지디 아이맥 d7660f0f0 ◑) — 하네스 electronAPI 는 «모든 키가 함수»인 Proxy 라 captureSection·captureSectionCdp 가 «있는 척» 한다
+     ⇒ 전체 내보내기가 네이티브 갈래로 가 captureSectionCdp(null) → 'data:image/png;base64,null' → export-image.js:520 ci.onerror=rej 로 [object Event] 실패 ·
+       isGateSupported() 도 참이라 검사 캡처가 같은 꼴로 죽는다. CDP 가 없는 하네스의 참모습(웹 빌드)대로 그 두 키만 «없다»로 둔다 — 나머지 IPC 는 그대로(null). */
+  await page.evaluate(() => { const P = window.electronAPI; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSection' || k === 'captureSectionCdp') ? undefined : P[k] }); });
   await page.evaluate((GOYA) => {
     const cv = document.createElement('canvas'); cv.width = 300; cv.height = 150; const g = cv.getContext('2d'); g.fillStyle = '#3366cc'; g.fillRect(0, 0, 300, 150);
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
@@ -36,6 +40,9 @@ async function scene(page) {
       ab.id = 'ab_' + id;
       window.setAssetImageFromSrc(ab, cv.toDataURL('image/png'));
     }
+    /* r2 — exportFigmaJSON(파일 저장)의 옛 수집기는 «.row > .col > .asset-block» 만 읽는다(parseRow · 지금 에셋은 .row 바로 밑).
+       sMISS 에셋을 제품의 칸 꼴(img1 레이아웃 = block-factory.js «col»)에 넣어 그 수집기가 보는 자리에 둔다. */
+    { const ab = document.getElementById('ab_sMISS'), col = document.createElement('div'); col.className = 'col'; col.dataset.width = '100'; ab.parentElement.insertBefore(col, ab); col.appendChild(ab); }
     window.deselectAll?.();
     /* 토스트 기록 · 다운로드 막기(파일은 안 본다 — 재는 것은 «알림») */
     window.__toasts = []; const _t = window.showToast; window.showToast = (m) => { window.__toasts.push(String(m)); return _t?.(m); };
@@ -46,8 +53,9 @@ async function scene(page) {
   await page.evaluate((GOYA) => { const ab = document.getElementById('ab_sMISS'); ab.dataset.imgSrc = GOYA; ab.querySelector('img').setAttribute('src', GOYA); }, GOYA);
   await page.waitForFunction(() => { const i = document.querySelector('#ab_sMISS img'); return i.complete && i.naturalWidth === 0; });
   await f2(page);
-  const pre = await page.evaluate(() => ({ ok: document.querySelector('#ab_sOK img').naturalWidth > 0, miss: document.querySelector('#ab_sMISS img').naturalWidth }));
-  expect(pre, '[전제] sOK 그림은 그려졌고 sMISS 그림은 못 읽었다').toEqual({ ok: true, miss: 0 });
+  const pre = await page.evaluate(() => ({ ok: document.querySelector('#ab_sOK img').naturalWidth > 0, miss: document.querySelector('#ab_sMISS img').naturalWidth,
+    cdp: !!window.electronAPI.captureSection || !!window.electronAPI.captureSectionCdp, col: !!document.querySelector('#sMISS .row > .col > #ab_sMISS') }));
+  expect(pre, '[전제] sOK 그림은 그려졌고 sMISS 그림은 못 읽었다 · 하네스 CDP 없음(h2c·검사 꺼짐) · sMISS 에셋은 칸(col) 안').toEqual({ ok: true, miss: 0, cdp: false, col: true });
   return errs;
 }
 const modalText = (page) => page.evaluate(() => { const m = document.getElementById('exres-modal'); return m ? m.innerText : null; });
@@ -71,7 +79,6 @@ test('E1 못 읽은 그림 든 섹션 PNG = imgMissing 1 · 결과 모달이 말
 
 test('E3 전체 PNG — 결과 모달 요약에 «그림 1개» · 그림 못 실은 섹션 줄은 sMISS 하나', async ({ page }) => {
   const errs = await scene(page);
-  await page.evaluate(() => { const _e = window.exportSection; window.exportSection = (s, f, w, o) => _e(s, f, w, { ...(o || {}), forceH2C: true }); });
   await page.evaluate(() => window.exportAllImagesPNG());
   await page.waitForFunction(() => !!document.getElementById('exres-modal'), null, { timeout: 60000 }).catch(() => {});
   const r = await page.evaluate(() => { const m = document.getElementById('exres-modal');
