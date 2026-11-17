@@ -81,7 +81,7 @@ test('F1 정렬 — SECTION_ORDER 순 · special 은 선언순', () => {
 test('F1b 순서 예외 — panel 이름이 SECTION_ORDER_EXCEPT 에 있으면 그 first 가 맨 앞(섹션 = 현빈 261118 D5 ①) · 없으면 전역 · data-order 표식', () => {
   const F = loadFrame();
   const mk = (panel) => F.buildPanelHTML({ panel, sections: [F.sec('kind', 'k'), F.sec('size', 's'), F.sec('fill', 'f')] });
-  const want = F.sectionOrderFor('section').filter((k) => ['kind', 'size', 'fill'].includes(k));   // 기대는 예외표에서 — 순서를 여기 박지 않는다
+  const want = [...F.sectionOrderFor('section')].filter((k) => ['kind', 'size', 'fill'].includes(k));   // 기대는 예외표에서 — 순서를 여기 박지 않는다 · [...] = vm(다른 realm) 배열을 이 realm 배열로(assert/strict 는 프로토타입까지 견준다 — 이 파일의 [...F.SECTION_ORDER] 꼴)
   assert.deepEqual(secsOf(mk('section')), want);
   assert.equal(want[0], F.SECTION_ORDER_EXCEPT.section.first[0], '★예외 first 가 맨 앞이 아니다');
   assert.notDeepEqual(want, ['kind', 'size', 'fill'], '[전제] 예외가 전역 순서와 실제로 다르다');
