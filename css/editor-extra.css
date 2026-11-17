@@ -43,7 +43,7 @@ body.preview-mode #preview-topbar.visible {
   pointer-events: auto;
   transform: translateY(0);
 }
-.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; gap: 6px; }
+.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; gap: var(--ui-row-gap); }
 .preview-tb-center { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .preview-tb-right { justify-content: flex-end; }
 
