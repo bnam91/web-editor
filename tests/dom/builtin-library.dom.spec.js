@@ -89,7 +89,7 @@ test('D4 관리자 폴더 — 일반 계정엔 미모지 탭 없음 · 관리자
   await page.click('.lib-tab[data-col="admin-memoji"]');
   await expect(page.locator('#lib-grid .lib-item')).toHaveCount(22);
   await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item img')].filter((i) => i.complete && i.naturalWidth > 0).length)).toBe(22);
-  await expect(page.locator('#lib-credit')).toContainText('관리자 개인용');
+  await expect(page.locator('#lib-credit')).toContainText('관리자 탭에만 보임');
 });
 
 test('D5 Fluent Emoji — 제 단추 → 30칸만 · MIT 줄 · 라이브러리 탭엔 없음 · 160×160 넣기', async ({ page }) => {

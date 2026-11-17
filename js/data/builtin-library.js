@@ -1,7 +1,7 @@
 /* builtin-library.js — 앱 «내장 라이브러리» 명부(manifest) · 0.9.13 현빈 결정 261117(handoff/hyunbin-decisions-261117.md)
  *   파일 = assets/library/<dir>/<file> — 앱에 동봉(package.json build.files 가 assets/** 를 싣는다).
  *   읽기 = IPC assets:readBundled(가드 main/bundled-asset.js · assets/library/ 안 · 이미지 확장자만) → data URL → 에셋 블럭.
- *   묶음 칸: id · name · dir · w(넣을 때 폭 px · 없으면 그림 폭 · 섹션 안쪽 폭 상한) · admin(관리자 계정만 보임 · 앱 내장 아님 = 개인용 폴더) · plugin(Plugins 패널의 제 단추로만 엶 · 내장 라이브러리 탭엔 없음) · source · license · note · items[{ file, name, w? }]
+ *   묶음 칸: id · name · dir · w(넣을 때 폭 px · 없으면 그림 폭 · 섹션 안쪽 폭 상한) · admin(관리자 계정에게만 탭이 보임 · 공개 범위일 뿐 · 파일은 앱에 동봉 = asar 에 실림) · plugin(Plugins 패널의 제 단추로만 엶 · 내장 라이브러리 탭엔 없음) · source · license · note · items[{ file, name, w? }]
  *   ⚠️import 0 — 단위 검사(tests/unit/builtin-library.test.mjs)가 이 파일 하나만 복사해 싣는다.
  */
 export const LIBRARY_ROOT = 'assets/library';
@@ -91,7 +91,7 @@ export const LIBRARY = [
   {
     id: 'admin-memoji', name: '관리자 폴더 · 미모지', dir: 'admin-memoji', w: 200, admin: true,
     source: 'Microsoft Fluent Emoji 3D(github.com/microsoft/fluentui-emoji) Man/Woman 직업·포즈 22장(Default 피부 · 256×256 · Fluent 묶음 30과 겹침 0) — 261117 Apple Memoji 모양 샘플 2장(t3-07 Figma 복사본)은 걷음',
-    license: 'MIT © Microsoft Corporation(고지 = assets/library/fluent-emoji/LICENSE.txt) — 관리자 개인용 · 앱 내장 아님',
+    license: 'MIT © Microsoft Corporation(고지 = assets/library/fluent-emoji/LICENSE.txt) — 관리자 탭에만 보임(일반 계정엔 탭 없음) · 파일은 앱에 동봉(build.files **/* 로 asar 에 실림)',
     items: [
       { file: 'fluent-woman-technologist.png', name: '여성 개발자' },
       { file: 'fluent-man-technologist.png', name: '남성 개발자' },

@@ -86,7 +86,7 @@ test('L4 묶음별 내용', () => {
   assert.ok(ar && !ar.admin && !ar.plugin, '화살표 = 앱 내장');
   assert.equal(ar.items.length, 20); assert.ok(ar.items.every((i) => /^arrow-.+\.svg$/.test(i.file)));
   assert.equal(ar.license, '자체 제작');
-  const mm = col('admin-memoji');   // 미모지류 = 관리자 폴더(앱 내장 아님)
+  const mm = col('admin-memoji');   // 미모지류 = 관리자 탭에만 보임(파일은 앱에 동봉)
   assert.ok(mm && mm.admin === true, '미모지 = 관리자 전용');
   const mmFl = mm.items.filter((i) => i.file.startsWith('fluent-'));   // 261117 ③ Fluent 3D 사람 20+
   assert.ok(mmFl.length >= 20, 'Fluent 사람 20+');
