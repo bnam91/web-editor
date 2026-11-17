@@ -9,6 +9,8 @@ let _previewSBS            = false;
 let _sbsResizeHandler      = null;
 let _previewHz             = false;   // ⇆ 가로 — 섹션을 왼→오 한 줄(페이지마다 한 줄 · SBS 와 배타)
 let _previewSecJump        = null;
+let _hzPan                 = null;    // ⇆ 가로 스페이스+드래그 팬 처리기 묶음(켤 때 걸고 끌 때·나갈 때 뗀다)
+let _hzDown                = null;    // 마지막 mousedown 자리 — 끈 뒤 click 이 섹션 점프로 새지 않게
 
 function enterPreview() {
   flushCurrentPage();
@@ -93,6 +95,7 @@ function enterPreview() {
     if (!_previewHz) return;
     const sec = e.target.closest?.('#preview-content .section-block');
     if (!sec) return;
+    if (_hzDown && (_hzDown.panned || Math.hypot(e.clientX - _hzDown.x, e.clientY - _hzDown.y) > 5)) return;   // 끌기(팬·그냥 끌기) 끝의 click 은 점프 아님
     const page = window.state.pages[+sec.closest('.preview-page-block')?.dataset.pageIdx];
     const id = sec.id;
     exitPreview();
@@ -216,7 +219,72 @@ function togglePreviewHorizontal(force) {
   document.getElementById('preview-hz-btn')?.classList.toggle('active', on);
   document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => setSectionRowLayout(el, on));
   if (!on && _previewZoom < PREVIEW_ZOOM_MIN) _previewZoom = PREVIEW_ZOOM_MIN;   // 세로로 돌아가면 세로 하한으로
-  _applyPreviewZoom();   // 줌을 옮겨 건다(가로 = 줄 zoom · 세로 = 통째 transform)
+  if (!on) document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => { el.style.paddingLeft = el.style.paddingRight = ''; });
+  _bindHzPan(on);
+  _applyPreviewZoom();   // 줌을 옮겨 건다(가로 = 줄 zoom · 세로 = 통째 transform) + 앞뒤 여유
+  if (on) document.querySelectorAll('#preview-content .preview-page-block').forEach(b => { b.scrollLeft = 0; });   // 켤 때 = 스크롤 0 = 첫 섹션이 그릇 가운데(앞 여유가 그만큼이라 자연히)
+}
+
+/* ⇆ 가로 앞뒤 여유(현빈 r3 «첫 섹션을 화면 가운데로 · 끝 섹션도») — 줄 앞뒤에 «그릇 폭 반 − 섹션 반 폭»을 둔다.
+   줄은 CSS zoom 안이라 그 단위로 적는다(화면 px ÷ z) · 줌·창 크기 바뀔 때마다 다시. 그릇 = .preview-page-block(가로 스크롤 영역). */
+function _hzEdgeRoom() {
+  if (!_previewHz) return;
+  const z = _previewZoom / 100;
+  document.querySelectorAll('#preview-content .preview-page-block').forEach(b => {
+    const inner = b.querySelector(':scope > .preview-page-inner');
+    if (!inner) return;
+    const secW = parseFloat(inner.style.getPropertyValue('--row-sec-w')) || 860;
+    const pad = Math.max(0, b.clientWidth / 2 / z - secW / 2);
+    inner.style.paddingLeft = inner.style.paddingRight = pad + 'px';
+  });
+}
+
+/* ⇆ 가로 스페이스+드래그 팬 — 편집 캔버스 팬(editor.js «CANVAS PAN»)과 같은 손맛: 스페이스 = 손바닥 · 누른 채 끌면 «절대 델타»로 스크롤(콘텐츠가 손끝을 따라감).
+   가로 = 손 아래 페이지 줄(.preview-page-block) scrollLeft · 세로 = #preview-overlay scrollTop.
+   ★스페이스는 window 캡처에서 먹는다 — 편집 캔버스 팬(document keydown)·오버레이 기본 스크롤로 안 샌다. 가로가 아닐 땐 손대지 않는다. */
+function _bindHzPan(on) {
+  const overlay = document.getElementById('preview-overlay');
+  if (_hzPan) {
+    window.removeEventListener('keydown', _hzPan.kd, true);
+    window.removeEventListener('keyup', _hzPan.ku, true);
+    overlay.removeEventListener('mousedown', _hzPan.md, true);
+    window.removeEventListener('mousemove', _hzPan.mm);
+    window.removeEventListener('mouseup', _hzPan.mu);
+    window.removeEventListener('resize', _hzPan.rs);
+    overlay.classList.remove('pv-pan-mode', 'pv-panning');
+    _hzPan = null;
+  }
+  if (!on) return;
+  const typing = () => { const a = document.activeElement; return a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
+  const st = { held: false, drag: null };
+  const end = () => { st.drag = null; overlay.classList.remove('pv-panning'); };
+  _hzPan = {
+    kd: e => { if (e.code !== 'Space' || typing()) return; e.preventDefault(); e.stopImmediatePropagation(); st.held = true; overlay.classList.add('pv-pan-mode'); },
+    ku: e => { if (e.code !== 'Space') return; e.preventDefault(); e.stopImmediatePropagation(); st.held = false; overlay.classList.remove('pv-pan-mode'); end(); },
+    md: e => {
+      _hzDown = { x: e.clientX, y: e.clientY, panned: false };
+      if (!st.held || e.button !== 0) return;
+      const b = e.target.closest?.('.preview-page-block') || document.querySelector('#preview-content .preview-page-block');
+      st.drag = { b, x: e.clientX, y: e.clientY, left: b ? b.scrollLeft : 0, top: overlay.scrollTop };
+      _hzDown.panned = true;
+      overlay.classList.add('pv-panning');
+      e.preventDefault(); e.stopPropagation();
+    },
+    mm: e => {
+      const d = st.drag;
+      if (!d) return;
+      if (d.b) d.b.scrollLeft = d.left - (e.clientX - d.x);
+      overlay.scrollTop = d.top - (e.clientY - d.y);
+    },
+    mu: end,
+    rs: () => _hzEdgeRoom(),
+  };
+  window.addEventListener('keydown', _hzPan.kd, true);
+  window.addEventListener('keyup', _hzPan.ku, true);
+  overlay.addEventListener('mousedown', _hzPan.md, true);
+  window.addEventListener('mousemove', _hzPan.mm);
+  window.addEventListener('mouseup', _hzPan.mu);
+  window.addEventListener('resize', _hzPan.rs);
 }
 
 function _sbsGetScale() {
@@ -324,6 +392,7 @@ function _applyPreviewZoom() {
     content.style.transform       = _previewHz ? '' : `scale(${z})`;
     content.style.transformOrigin = _previewHz ? '' : 'top center';
     content.querySelectorAll('.preview-page-inner').forEach(el => { el.style.zoom = _previewHz ? String(z) : ''; });
+    _hzEdgeRoom();
   }
   const zd = document.getElementById('preview-zoom-display');
   if (zd) zd.textContent = _previewZoom + '%';

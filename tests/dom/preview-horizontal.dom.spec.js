@@ -9,7 +9,10 @@
  *   H6 가로에서 섹션 누르면 편집으로 돌아가 그 섹션이 골라진다(같은 페이지)
  *   H7 [r2 · 9500 실측 ◑] 섹션 11개 + 긴 섹션 · 줌 100·50·25 — 첫 섹션 왼끝 ≥ 그릇 왼끝(스크롤 0) · 끝까지 스크롤하면 마지막 섹션이 그릇 안
  *   H8 [r2] 가로 그릇(.preview-page-block) 폭 = 미리보기 창 폭(스크롤바 뺀 clientWidth) — 줌 25 에서도(transform 통째 줄임이면 창의 z 배로 갇힌다)
+ *   H10 [r3] 첫·끝 섹션을 각각 그릇 가운데까지 스크롤로 옮길 수 있다(중심 ±2 · 줌 100·25) · 켤 때 = 스크롤 0 에 첫 섹션이 가운데
+ *   H11 [r3] 스페이스+드래그 → 그릇 scrollLeft 가 끈 만큼(손끝 따라감) · 편집 캔버스 팬으로 안 샘 · 섹션 점프 안 남 / [음성] 스페이스 없이 끌면 scrollLeft 그대로 · 미리보기 그대로
  *   H9 [r2] 가로 줌 하한 10(50 밑으로 내려간다) · 세로로 돌아가면 50 으로 · 세로 하한은 50 그대로 · 줌 표시 숫자 맞음
+ * 양성대조 r3: _patches/PVH-CTL3-no-edge-pan.patch(_hzEdgeRoom 본문 return · 스페이스 keydown 처리 끔) → H10·H11 빨강.
  * 양성대조 r2: _patches/PVH-CTL2-zoom-transform.patch(가로도 옛 통째 transform 줌) → srv 실측 H8 만 빨강 · H7 은 초록(헤드리스 1440 창에선 9500 의 음수 x 가 재현 안 됨 — 옛 꼴도 첫 섹션이 그릇 왼끝·끝까지 닿음) · H9 초록(하한은 따로).
  * 양성대조: _patches/PVH-CTL-no-row.patch(setSectionRowLayout 의 class 켜는 한 줄 삭제) → H1·H2·H3·H4 빨강(H3 은 줄 수 단언) · H5·H6 초록.
  * ⛔고정 대기 0 · 자리는 offsetLeft/offsetTop(레이아웃 px · 줌 transform 무관) · 화면 px 는 비율로만.
@@ -167,5 +170,46 @@ test('H9 가로 줌 하한 10 · 세로로 돌아가면 50 · 세로 하한 50 �
   expect({ d: await disp(), t: await page.evaluate(() => document.getElementById('preview-content').style.transform) }, '세로로 돌아가면 50 · 통째 transform').toEqual({ d: '50%', t: 'scale(0.5)' });
   await page.evaluate(() => window.previewZoomStep(-500));
   expect(await disp(), '세로 하한 50 그대로').toBe('50%');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const centerGap = (page, which) => page.evaluate((which) => {
+  const b = document.querySelector('#preview-content .preview-page-block'), ss = [...b.querySelectorAll('.preview-page-inner > .section-block')], sec = which === 'first' ? ss[0] : ss.at(-1);
+  const off = () => { const B = b.getBoundingClientRect(), S = sec.getBoundingClientRect(); return (S.left + S.width / 2) - (B.left + b.clientLeft + b.clientWidth / 2); };
+  b.scrollLeft += off();
+  return Math.abs(off());
+}, which);
+
+test('H10 첫·끝 섹션을 그릇 가운데까지 — 줌 100·25 · 켤 때 첫 섹션이 가운데', async ({ page }) => {
+  const errs = await longScene(page);
+  const init = await page.evaluate(() => { const b = document.querySelector('#preview-content .preview-page-block'), S = b.querySelector('.preview-page-inner > .section-block').getBoundingClientRect(), B = b.getBoundingClientRect(); return { sl: b.scrollLeft, gap: Math.abs((S.left + S.width / 2) - (B.left + b.clientWidth / 2)) }; });
+  expect(init.sl, '켤 때 스크롤 0').toBe(0);
+  expect(init.gap, '★켤 때 첫 섹션이 그릇 가운데').toBeLessThanOrEqual(2);
+  for (const z of [100, 25]) {
+    await zoomTo(page, z);
+    expect(await centerGap(page, 'first'), `★줌 ${z}% 첫 섹션 가운데까지`).toBeLessThanOrEqual(2);
+    expect(await centerGap(page, 'last'), `★줌 ${z}% 끝 섹션 가운데까지`).toBeLessThanOrEqual(2);
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H11 스페이스+드래그 = 가로 팬 · 편집 캔버스로 안 샘 / 스페이스 없이 끌면 그대로', async ({ page }) => {
+  const errs = await longScene(page);
+  const sl = () => page.evaluate(() => document.querySelector('#preview-content .preview-page-block').scrollLeft);
+  await page.evaluate(() => { document.querySelector('#preview-content .preview-page-block').scrollLeft = 1000; });
+  const c = await page.evaluate(() => { const q = document.querySelector('#preview-content .preview-page-block').getBoundingClientRect(); return [q.left + q.width / 2, Math.min(q.top + 200, q.bottom - 20)]; });
+  // [음성] 스페이스 없이 끌기
+  const s0 = await sl();
+  await page.mouse.move(c[0], c[1]); await page.mouse.down(); await page.mouse.move(c[0] - 150, c[1], { steps: 6 }); await page.mouse.up();
+  expect({ d: (await sl()) - s0, preview: await page.locator('body.preview-mode').count() }, '[음성] 스페이스 없이 = 안 움직임 · 미리보기 그대로(점프 안 남)').toEqual({ d: 0, preview: 1 });
+  // 스페이스+드래그
+  await page.mouse.move(c[0], c[1]);
+  await page.keyboard.down('Space');
+  const leak = await page.evaluate(() => ({ pan: document.getElementById('canvas-wrap').classList.contains('pan-mode'), grab: document.getElementById('preview-overlay').classList.contains('pv-pan-mode') }));
+  await page.mouse.down(); await page.mouse.move(c[0] - 200, c[1], { steps: 8 }); await page.mouse.up();
+  await page.keyboard.up('Space');
+  expect(leak, '★스페이스 = 미리보기 손바닥 · 편집 캔버스 팬 모드 안 켜짐').toEqual({ pan: false, grab: true });
+  expect((await sl()) - s0, '★끈 만큼(왼쪽으로 200 → 스크롤 +200)').toBe(200);
+  expect(await page.locator('body.preview-mode').count(), '팬 끝 click 이 섹션 점프로 안 샘').toBe(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

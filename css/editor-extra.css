@@ -106,6 +106,9 @@ body.preview-mode #preview-navigator { display: flex; }
 .section-row-layout { flex-direction: row; align-items: flex-start; width: max-content; }
 .section-row-layout > .section-block { flex: 0 0 var(--row-sec-w, 860px); width: var(--row-sec-w, 860px); }
 .preview-page-block:has(> .section-row-layout) { overflow-x: auto; }
+/* ⇆ 가로 스페이스 팬(js/preview.js _bindHzPan) — 손바닥 커서 · 섹션 등 자식의 cursor:default 를 덮는다 */
+#preview-overlay.pv-pan-mode, #preview-overlay.pv-pan-mode * { cursor: grab !important; }
+#preview-overlay.pv-panning, #preview-overlay.pv-panning * { cursor: grabbing !important; }
 
 /* Suppress all editor-chrome inside preview */
 #preview-overlay .section-block {
