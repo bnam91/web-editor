@@ -232,6 +232,17 @@ function buildLayerSectionRow(sec, si, panel, collapsedSections) {
       }
       if (child.classList.contains('gap-block')) {
         children.appendChild(makeLayerBlockItem(child, child, sec, 1));
+      } else if (child.classList.contains('badge-hologram-row')) {
+        /* BADGE-SECTION-LAYER-TREE-STALE-01 — 배지 줄(badge-transform.js · -block 클래스 없음)은 아래 갈래 어디에도 안 걸려
+           배지로 바꾼 섹션이 트리에서 «빈 섹션»으로 보였다. 배지 설정은 섹션 패널(enhanceBadgePropPanel)이 받는다 ⇒ 누르면 그 섹션을 고른다. */
+        const it = document.createElement('div');
+        it.className = 'layer-item';
+        it.dataset.layerType = 'badge';
+        it.innerHTML = `${layerIcons.body}<span class="layer-item-name">Badge</span><span class="layer-item-type">Badge</span>`;
+        it.prepend(makeIndents(1));   // 포커스·role·Enter 는 아래 a11y 후처리(role 없는 행)가 단다
+        it.addEventListener('click', e => { e.stopPropagation(); window.deselectAll?.(); window.selectSection?.(sec); });
+        it._dragTarget = child;   // 레이어 끌기는 행의 _dragTarget 을 옮긴다 — section-inner 직속이라 gap 과 같은 자리
+        children.appendChild(it);
       } else if (child.classList.contains('row')) {
         appendRowToLayer(child, children);
       } else if (child.classList.contains('group-block')) {
