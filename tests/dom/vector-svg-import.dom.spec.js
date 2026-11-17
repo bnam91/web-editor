@@ -10,6 +10,8 @@
  *   V6 200000 자 넘는 SVG 붙여넣기 → 벡터 0 · 알림(빈 블럭 0)
  *   V7 에셋 SVG 항목 «크게 보기» → 「+ 벡터로 넣기」 단추(실마우스) → 벡터 블럭 · 창 닫힘 · 이름 = 항목 이름
  *   V8 [음성] 에셋 PNG 항목 «크게 보기» → 「+ 벡터로 넣기」 단추 없음
+ *   V9 ⌘Z 한 번 = 넣기 전으로(벡터 0 · 섹션 자식 수 그대로) — insert-history EXTRA 'addVectorFromSvgText'(insert-seam-roster A1)
+ * 양성대조: _patches/VEC-CTL3-drop-extra.patch(EXTRA 에서 그 이름 뺌) → 단위 insert-seam-roster A1 빨강.
  * 양성대조: _patches/VEC-CTL-no-import.patch(addVectorFromSvgText 가 아무것도 안 넣음) → V1·V4·V7 빨강 · 음성칸 초록.
  * ⛔고정 대기 0(expect.poll · 조건 대기) · 화면 px 를 숫자와 견주지 않는다(크기는 dataset).
  */
@@ -131,5 +133,18 @@ test('V8 [음성] 에셋 PNG 항목 → 「+ 벡터로 넣기」 없음 · 「+ 
   expect(await page.evaluate(() => window.assetsOpenPreview('img_png'))).toBe(true);
   await expect(page.locator('.tpl-preview-backdrop.asset-preview [data-asset-insert]'), '[전제] 옛 단추').toBeVisible();
   expect(await page.locator('[data-asset-insert-vector]').count()).toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('V9 SVG 붙여넣기 뒤 ⌘Z 한 번 = 넣기 전', async ({ page }) => {
+  const { errs, sid } = await scene(page);
+  const kids = () => page.evaluate((s) => document.getElementById(s).querySelectorAll('.section-inner > *').length, sid);
+  const k0 = await kids();
+  await paste(page, { text: EVIL });
+  await expect.poll(() => vecs(page, sid).then((v) => v.length), '[전제] 벡터 블럭 하나').toBe(1);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((s) => document.getElementById(s)?.querySelectorAll('.vector-block').length ?? -1, sid), '★⌘Z 한 번에 벡터가 빠진다').toBe(0);
+  expect(await kids(), '섹션 자식 수 = 넣기 전').toBe(k0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
