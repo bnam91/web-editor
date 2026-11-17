@@ -198,10 +198,12 @@ test('F14 간격 없이 붙은 자식 — 왕복이 «나란히» 로 안 막힌
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 test('N5 [음성] 정말 겹친 자식(2px 이상)은 여전히 나란함 — alert · free 그대로', async ({ page }) => {
-  test.fail(true, '★DEV-BASELINE-RED-4-01(시트 99행) — origin/dev 2852c9f44(0.9.12 통합)에 원래 있는 빨강·보안20 무관(매니저 판정 261114). 고치면 이 표시가 빨개진다 — 그때 떼라.');
   const { errs, root, k } = await adjScene(page); const dialogs = []; page.on('dialog', (d) => { dialogs.push(d.message()); d.dismiss(); });
   await toFree(page); await page.evaluate((id) => { const e = document.getElementById(id); e.style.top = (parseFloat(e.style.top) - 2) + 'px'; }, k);
-  await page.locator('#ss-to-stack-btn').click(); await expect.poll(() => dialogs.length, 'alert').toBe(1); expect(dialogs[0]).toContain('나란히');
+  /* ★DEV-BASELINE-RED-4-01 — 경고는 90f24acfd(FRAME-STACK-BUTTON-NATIVE-ALERT-01)부터 네이티브 alert 이 아니라 앱 안 토스트(#editor-toast) — frame-stack-sidebyside-toast SB1 과 같은 자로 잰다 */
+  await page.locator('#ss-to-stack-btn').click();
+  await expect.poll(() => page.evaluate(() => { const e = document.getElementById('editor-toast'); return e?.classList.contains('show') ? e.textContent : ''; }), '나란히 토스트').toContain('나란히');
+  expect(dialogs, '네이티브 대화창 0').toEqual([]);
   expect((await snap(page, root)).mode).toBe('true');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

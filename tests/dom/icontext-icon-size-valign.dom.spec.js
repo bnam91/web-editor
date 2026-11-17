@@ -177,9 +177,11 @@ async function pngIconTop(page, id) {
 }
 for (const dir of ['horizontal', 'vertical']) {
   test(`I6 PNG(html2canvas) — ${dir} · 오프셋 +30 · 아이콘 윗변 화면 = PNG`, async ({ page }) => {
-    test.fail(true, '★DEV-BASELINE-RED-4-01(시트 99행) — origin/dev 2852c9f44(0.9.12 통합)에 원래 있는 빨강·보안20 무관(매니저 판정 261114). 고치면 이 표시가 빨개진다 — 그때 떼라.');
     const id = await setup(page);
-    await page.evaluate(([id, dir]) => { const b = document.getElementById(id); b.querySelector('.itb-icon').style.background = '#ff0000'; if (dir === 'vertical') window.setIconTextDirection?.(b, 'vertical'); window.setIconTextDy(b, 30); }, [id, dir]);
+    /* ★DEV-BASELINE-RED-4-01 — 빈 아이콘 칸(점선 자리표시)은 650a62f64(ICONTEXT-EMPTY-ICON-PLACEHOLDER-IN-EXPORT-01)부터 내보내기에서 가시성을 끈다(의도) ⇒ 그 칸을 빨강 배경으로 칠하면 PNG 빨강 0.
+       진짜 아이콘(빨강 그림 · 앱 입구 updateIconTextBlock imgSrc)을 넣고 그 윗변을 잰다 — 문턱 1.5 그대로. */
+    const RED = 'data:image/svg+xml;base64,' + Buffer.from("<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'><rect width='10' height='10' fill='#ff0000'/></svg>").toString('base64');
+    expect(await page.evaluate(async ([id, dir, src]) => { const b = document.getElementById(id); const ur = window.updateIconTextBlock(id, { imgSrc: src }); const im = b.querySelector('.itb-icon img'); if (im && !im.complete) await new Promise((r) => { im.onload = im.onerror = r; }); if (dir === 'vertical') window.setIconTextDirection?.(b, 'vertical'); window.setIconTextDy(b, 30); return { ok: ur.ok, img: !!im }; }, [id, dir, RED]), '[전제] 빨강 아이콘 그림이 들어갔다').toEqual({ ok: true, img: true });
     await page.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
     const g = await geo(page, id);
     if (dir === 'horizontal') expect(Math.abs(g.mid - 30), '[전제] 화면에 +30').toBeLessThanOrEqual(0.6);
