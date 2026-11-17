@@ -67,6 +67,12 @@ test('L4 묶음별 내용', () => {
   const sb = col('storyboard');   // #18 t3-05
   assert.deepEqual(sb && sb.items.map((i) => i.file), ['sb-01-interview.jpg', 'sb-02-factory-wide.jpg', 'sb-03-manufacturing.jpg']);
   assert.match(sb.note, /워터마크/, '워터마크 사실을 출처 줄에');
+  const dd = col('doodle');   // #10·#20 t3-07 두들·화살표 = 앱 내장 · 라이선스 대기
+  assert.ok(dd && !dd.admin, '두들 = 앱 내장(관리자 전용 아님)');
+  assert.match(dd.license, /^unknown/, '라이선스 모르면 unknown');
+  const mm = col('admin-memoji');   // 미모지류 = 관리자 폴더(앱 내장 아님)
+  assert.ok(mm && mm.admin === true, '미모지 = 관리자 전용');
+  assert.equal(LIBRARY.filter((c) => c.admin).map((c) => c.id).includes('doodle'), false);
 });
 
 test('L5 배선 — 플러그인 패널 단추 · 모듈 script', () => {
@@ -76,4 +82,5 @@ test('L5 배선 — 플러그인 패널 단추 · 모듈 script', () => {
   const js = readSrc(ROOT, 'js/panels/library-panel.js');
   assert.match(js, /window\.openLibraryModal = openLibraryModal;/);
   assert.match(js, /from '\.\.\/data\/builtin-library\.js'/);
+  assert.match(js, /window\.animGifVisible\(true, /, '관리자 판정 = feature-flags 한 자리 재사용');
 });

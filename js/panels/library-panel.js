@@ -9,9 +9,14 @@ const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'im
 const FONT = 'font-family:Pretendard,-apple-system,sans-serif;';
 let _modal = null;
 
-/** 보일 묶음 — only 를 주면 그 묶음 하나(따로 단추로 여는 묶음). */
+/* 관리자 판정 = feature-flags.js animGifVisible 한 자리(ADMIN 배지와 같은 앱 관리자 ∨ 서버 role · 모르면 «아님»).
+   ⛔여기서 따로 판정하지 않는다(둘째 명부). 이름은 GIF 지만 깃발 자리에 true 를 주면 «관리자인가» 그 자체다. */
+const _isAdmin = () => (window.animGifVisible ? window.animGifVisible(true, window.__admin?.state?.() ?? null) : false);
+
+/** 보일 묶음 — only 를 주면 그 묶음 하나(따로 단추로 여는 묶음) · admin 묶음은 관리자에게만(공개 범위 · 접근통제 아님). */
 export function libraryCollections(only) {
-  return LIBRARY.filter((c) => (only ? c.id === only : !c.plugin));
+  const admin = _isAdmin();
+  return LIBRARY.filter((c) => (only ? c.id === only : !c.plugin) && (!c.admin || admin));
 }
 
 /** 동봉 그림 → data URL. 데스크톱 = IPC(asar 안도 읽음) · 브라우저 판(electronAPI 없음·null) = fetch.

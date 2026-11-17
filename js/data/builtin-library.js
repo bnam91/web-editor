@@ -1,7 +1,7 @@
 /* builtin-library.js — 앱 «내장 라이브러리» 명부(manifest) · 0.9.13 현빈 결정 261117(handoff/hyunbin-decisions-261117.md)
  *   파일 = assets/library/<dir>/<file> — 앱에 동봉(package.json build.files 가 assets/** 를 싣는다).
  *   읽기 = IPC assets:readBundled(가드 main/bundled-asset.js · assets/library/ 안 · 이미지 확장자만) → data URL → 에셋 블럭.
- *   묶음 칸: id · name · dir · w(넣을 때 폭 px · 없으면 그림 폭 · 섹션 안쪽 폭 상한) · source · license · note · items[{ file, name, w? }]
+ *   묶음 칸: id · name · dir · w(넣을 때 폭 px · 없으면 그림 폭 · 섹션 안쪽 폭 상한) · admin(관리자 계정만 보임 · 앱 내장 아님 = 개인용 폴더) · source · license · note · items[{ file, name, w? }]
  *   ⚠️import 0 — 단위 검사(tests/unit/builtin-library.test.mjs)가 이 파일 하나만 복사해 싣는다.
  */
 export const LIBRARY_ROOT = 'assets/library';
@@ -37,6 +37,27 @@ export const LIBRARY = [
       { file: 'sb-01-interview.jpg', name: '인터뷰 컷' },
       { file: 'sb-02-factory-wide.jpg', name: '공장 전경' },
       { file: 'sb-03-manufacturing.jpg', name: '제조 장면' },
+    ],
+  },
+  {
+    id: 'doodle', name: '두들·화살표', dir: 'doodle', w: 200,
+    source: 't3-07(261113) Figma «피그마익스포트» 화살표·두들 페이지 — 샘플 4종(전량 화살표 34·두들 120 은 아직 안 뽑음)',
+    license: 'unknown — 라이선스 대기(커뮤니티 파일 복사본 추정 · 현빈 확인 중)',
+    note: '화살표 = 벡터 SVG 를 3배로 PNG · 두들 = 원본 PNG',
+    items: [
+      { file: 'arrow-1.png', name: '곡선 화살표', w: 188 },
+      { file: 'arrow-2.png', name: '굵은 화살표', w: 121 },
+      { file: 'doodle-1.png', name: '별 두들' },
+      { file: 'doodle-2.png', name: '꽃 두들' },
+    ],
+  },
+  {
+    id: 'admin-memoji', name: '관리자 폴더 · 미모지', dir: 'admin-memoji', w: 200, admin: true,
+    source: 't3-07(261113) Figma «미모지_참고레퍼런스»(Inclusive Memoji Collection) — 샘플 2장',
+    license: 'unknown — Apple Memoji 모양 · 상업 이용 미확인(관리자 개인용 · 앱 내장 아님)',
+    items: [
+      { file: 'memoji-1.png', name: '미모지 1' },
+      { file: 'memoji-2.png', name: '미모지 2' },
     ],
   },
 ];
