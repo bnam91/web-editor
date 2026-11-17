@@ -2899,12 +2899,16 @@ async function _saveProjectImpl(project) {
   }
 
   _atomicWriteFileSync(filePath, JSON.stringify(project, null, 2));
-  _seenProjects.add(String(project.id));
-  if (_returned === 'recreate' || _returned === 'own' || _recreated) { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }   // _recreated = 표시 없는 다시 만들기(-02b)
-  if (_recreated) _callEachWindow(`window.noteProjectFolderRecreated?.(${JSON.stringify(project.id)})`, 3000);   // 안 기다린다 — 저장 줄을 말 띄우기에 묶지 않는다
-  _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
-  // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
-  _refreshListMeta(project.id, project);
+  /* ★SAVE-SYNC-FALSE-FAIL-AFTER-WRITE-01(비동기 쪽) — 여기부터는 이미 디스크에 들어간 뒤다. 후처리가 던지면 invoke 가 거절돼 성공한 저장이 실패로 보였다.
+     후처리 예외는 경고만 하고 ok 를 지킨다 · ⛔쓰기 자체(위 줄까지)의 실패는 그대로 던진다(거절 무변). */
+  try {
+    _seenProjects.add(String(project.id));
+    if (_returned === 'recreate' || _returned === 'own' || _recreated) { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }   // _recreated = 표시 없는 다시 만들기(-02b)
+    if (_recreated) _callEachWindow(`window.noteProjectFolderRecreated?.(${JSON.stringify(project.id)})`, 3000);   // 안 기다린다 — 저장 줄을 말 띄우기에 묶지 않는다
+    _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — 성한 저장 뒤엔 «그 뒤 작업은 없을 수 있습니다»가 거짓
+    // [b8] 목록 메타 캐시 갱신 — proj.json 직후 기록해 meta.mtime >= proj.mtime 불변식 유지(목록 풀파싱 회피)
+    _refreshListMeta(project.id, project);
+  } catch (e) { console.warn('[projects:save] 쓰기 뒤 후처리 실패(저장은 정상):', e && e.message); }
   // [version-history] 버전 스냅샷 — «지금 저장되는 객체»를 정규형(goya-asset)으로 기록 + 계층 프룬.
   //   ★proj.json 을 «쓴 뒤»여야 한다: updateCurrent 가 새 mtime/size 를 읽어 목록 신선도 판정에 쓴다.
   //   ★스냅샷 실패가 저장 실패로 번지면 안 된다 — 전체를 삼킨다(현행 백업 로직과 같은 규율).
@@ -2970,9 +2974,15 @@ ipcMain.on('projects:save-sync', (event, project) => {
       if (rb.planning) { _recordSyncSaveFailure({ ...incoming, name: project.name }, 'planning_not_editor'); event.returnValue = { ok: false, reason: 'planning_not_editor' }; return; }
     }
     _atomicWriteFileSync(paths.proj, JSON.stringify(project, null, 2));
-    if (_returned === 'recreate' || _returned === 'own' || _recreatedSync) { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }
-    _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
-    _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
+    /* ★SAVE-SYNC-FALSE-FAIL-AFTER-WRITE-01 — 여기부터는 «이미 디스크에 들어간 뒤» 후처리다. 던지면 바깥 catch 가 ok:false + 실패 기록(마커·비상 사본)으로
+       성공한 저장을 실패로 보고했다(종료 때 거짓 실패 상자 · 렌더러가 LS 본을 «못 들어감»으로 남김). 후처리 예외는 경고만 하고 ok:true 를 지킨다.
+       ⛔쓰기 자체(위 줄까지)의 실패는 그대로 바깥 catch — 데이터 손실 쪽 가드는 무변.
+       (열차 이식 261117: 원 가지의 _clearStalePendingFor 줄은 f0b3b07a8 QUIT-STALE-FAILURE-RECORD-FALSE-DIALOG-01 몫이라 이 base 엔 함수가 없다 — 안 옮김.) */
+    try {
+      if (_returned === 'recreate' || _returned === 'own' || _recreatedSync) { _goneForget(String(project.id)); const _st = _goneStamp(String(project.id)); if (_st) _goneRecreated.add(_st); }
+      _recentRecovery.delete(_safeSeg(String(project.id)));   // ★E170 표지 수명 — save 와 같은 규칙
+      _refreshListMeta(project.id, project); // [b8] 목록 메타 캐시 동기 갱신 (mtime 불변식 유지)
+    } catch (e) { console.warn('[projects:save-sync] 쓰기 뒤 후처리 실패(저장은 정상):', e && e.message); }
     // [version-history/Q4] ★새로고침·탭닫기 순간에도 버전을 남긴다 — 사고가 제일 잦은 순간인데
     //   여태 이 경로엔 슬롯이 «전혀» 안 생겼다(롤링 백업만). 같은 10분 간격 게이트를 타므로
     //   종료가 매번 느려지지 않는다(실측: 게이트에 막히면 0.1ms, 생성될 때만 39.6MB 기준 230ms).
