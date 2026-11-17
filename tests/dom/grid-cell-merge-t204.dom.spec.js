@@ -7,7 +7,7 @@
  *   M3 ⌘M 병합 → ⌘M 해제(나머지 빈 칸 · 앵커 글 그대로) → ⌘Z 한 번 = 다시 병합
  *   M4 저장→다시 열기 — merges 키·앵커 상자 크기(블럭 기준) 같음
  *   M5 PNG(제품 캡처 파이프라인 prepareCloneForCapture → 브라우저 래스터) — 앵커 색 픽셀 = 합친 넓이 · 가려진 칸 색 0
- *   M6 Figma JSON — 그리드는 일반 폴백(칸 배치를 안 싣는다 · 기존 한계) ⇒ 잴 수 있는 것만: 가려진 칸 글 없음 · 앵커 글 한 번 · 높이 = 화면 높이
+ *   M6 Figma JSON — 그리드는 일반 폴백 ⇒ 가려진 칸 글 없음 · 앵커 글 한 번(0.9.12 칸 글 내보내기) · 높이 = 화면 높이
  *   M7 행 지우기(병합 안) = 병합 줄어듦 · 열 옮기기(가로지름) = 막힘 + 토스트 · 범위가 합친 칸 일부만 걸치면 통째로 넓힘
  *   M8 MCP 입구(updateGridBlock merges) — 겹침·1×1·범위 밖 거절 · 가려진 칸 patchCell 거절 · 정상값은 가려진 칸 비움
  *   M9 적대 리뷰 1회차 — 가장자리에 닿은 병합 앞 행/열 지우기(모양 유지) · MCP cells 는 가려진 칸에 안 씀 ·
@@ -284,8 +284,9 @@ test('M5 PNG(제품 캡처 파이프라인) — 앵커 색 픽셀 ≈ 합친 넓
 /* ★M6 진단(인텔 875363566: toBe 불일치) — 코드 읽기 근거: Figma 일반 폴백은 글자를 `[class^="tb-"]`·`.annot-label` 로만 줍는다(export-figma-json.js:1099)
  *   그런데 그리드 줄 HTML 에는 tb- 클래스가 없다(grid-block.js 의 tb- 는 tb-hl·tb-dot 리치텍스트 명부뿐) ⇒ 그리드 칸 글은 «원래» Figma 로 안 나간다(기존 한계 · 병합과 무관).
  *   ⇒ 옛 단언 「B2 정확히 한 번」은 없는 능력을 전제한 자였다. 덤프 T204DIAG M6 이 그 값을(texts·JSON 전체에 B2/C2 등장 수) 보여 준다.
- *   남기는 단언(병합이 바꿀 수 있는 것만): 그리드가 나간다 · 높이 = 화면 높이 · 가려진 칸 글(C2)은 JSON 어디에도 없다. */
-test('M6 Figma JSON — 그리드가 나가고 높이 = 화면 높이 · 가려진 칸 글 없음(그리드 칸 글은 원래 Figma 로 안 나감 — 기존 한계)', async ({ page }) => {
+ *   남기는 단언(병합이 바꿀 수 있는 것만): 그리드가 나간다 · 높이 = 화면 높이 · 가려진 칸 글(C2)은 JSON 어디에도 없다.
+ *   ★0.9.12(현빈 결정 #4 · FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01): 칸 글(.grd-line)이 나가게 됐다 ⇒ 옛 단언 「B2 정확히 한 번」을 되살린다. */
+test('M6 Figma JSON — 그리드가 나가고 높이 = 화면 높이 · 가려진 칸 글 없음 · 앵커 글 한 번', async ({ page }) => {
   const errs = await setup(page);
   await drill(page, 1, 1);
   await dragRange(page, { r: 1, c: 1 }, { r: 1, c: 2 });
@@ -298,12 +299,18 @@ test('M6 Figma JSON — 그리드가 나가고 높이 = 화면 높이 · 가려�
     const json = window.buildFigmaExportJSON(null);
     const g = json.sections[0].blocks.find(b => b.kind === 'grid');
     const flat = JSON.stringify(json);
-    return { g, liveH: document.querySelector('#gG').offsetHeight, nB2: flat.split('"B2"').length - 1, nC2: flat.split('C2').length - 1, nB1: flat.split('"B1"').length - 1, kinds: json.sections[0].blocks.map(b => b.type + ':' + (b.kind || '')) };
+    /* 0.9.12 — 칸 글이 나가면서 옆 섹션 그리드 gH(같은 SCENE · 병합 안 함)의 C2·B2 도 «화면 그대로» 실린다 ⇒ 병합 그리드 gG 몫은 gG 블럭 안에서 센다 */
+    const gH = json.sections[1] && json.sections[1].blocks.find(b => b.kind === 'grid');
+    const inG = JSON.stringify(g || {}), inH = JSON.stringify(gH || {});
+    return { g, liveH: document.querySelector('#gG').offsetHeight, nB2: inG.split('"B2"').length - 1, nC2: inG.split('C2').length - 1, nB1: inG.split('"B1"').length - 1,
+      nC2all: flat.split('C2').length - 1, nC2H: inH.split('"C2"').length - 1, kinds: json.sections[0].blocks.map(b => b.type + ':' + (b.kind || '')) };
   });
   const texts = (r.g?.texts || []).map(t => t.t);
-  console.log('T204DIAG M6 ' + JSON.stringify({ texts, h: r.g?.height, liveH: r.liveH, nB2: r.nB2, nB1: r.nB1, nC2: r.nC2, kinds: r.kinds }));
+  console.log('T204DIAG M6 ' + JSON.stringify({ texts, h: r.g?.height, liveH: r.liveH, nB2: r.nB2, nB1: r.nB1, nC2: r.nC2, nC2H: r.nC2H, nC2all: r.nC2all, kinds: r.kinds }));
   expect(r.g, '[전제] 그리드가 나갔다').toBeTruthy();
-  expect(r.nC2, '가려진 칸 글은 JSON 어디에도 없다').toBe(0);
+  expect(r.nC2, '가려진 칸 글은 병합 그리드(gG) 어디에도 없다').toBe(0);
+  expect([r.nC2H, r.nC2all], '[지킴] 옆 그리드 gH(병합 안 함)의 C2 는 «한 번»만 — JSON 전체의 C2 도 그 하나뿐').toEqual([1, 1]);
+  expect(r.nB2, '합친 칸(앵커) 글은 JSON 에 정확히 한 번 — 0.9.12 FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 로 칸 글이 나간다').toBe(1);
   expect(close(r.g.height, r.liveH, 1), `높이 ${r.g.height} vs 화면 ${r.liveH}`).toBe(true);
   expect(errs).toEqual([]);
 });
