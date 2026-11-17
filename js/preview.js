@@ -321,6 +321,7 @@ function _bindHzPan(on) {
       _hzDown = { x: e.clientX, y: e.clientY, panned: false };
       if (!st.held || e.button !== 0) return;
       st.drag = { x: e.clientX, y: e.clientY, left: overlay.scrollLeft, top: overlay.scrollTop };   // r5 — 스크롤러 하나(#preview-overlay)
+      window.getSelection?.()?.removeAllRanges();   // r5b — 남은 글 선택 위에서 누르면 맥은 «선택 끌기»(네이티브 drag)가 시작돼 mousemove 가 안 온다 · 팬 시작 전에 걷는다
       _hzDown.panned = true;
       overlay.classList.add('pv-panning');
       e.preventDefault(); e.stopPropagation();
