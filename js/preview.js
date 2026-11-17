@@ -215,6 +215,8 @@ function togglePreviewHorizontal(force) {
   _previewHz = on;
   document.getElementById('preview-hz-btn')?.classList.toggle('active', on);
   document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => setSectionRowLayout(el, on));
+  if (!on && _previewZoom < PREVIEW_ZOOM_MIN) _previewZoom = PREVIEW_ZOOM_MIN;   // 세로로 돌아가면 세로 하한으로
+  _applyPreviewZoom();   // 줌을 옮겨 건다(가로 = 줄 zoom · 세로 = 통째 transform)
 }
 
 function _sbsGetScale() {
@@ -303,16 +305,25 @@ function _renderSBSPanel(side, pageIdx, presetVars) {
 
 /* ── Preview Zoom ── */
 let _previewZoom = 100;
+/* 줌 하한 — 세로 미리보기는 옛 50 그대로(현빈 미문의) · ⇆ 가로는 긴 줄을 한눈에 보게 10 까지(현빈 261117 «50% 보다 더 낮출 수 없나») */
+const PREVIEW_ZOOM_MIN = 50, PREVIEW_ZOOM_MIN_HZ = 10;
 function previewZoomStep(delta) {
-  _previewZoom = Math.min(200, Math.max(50, _previewZoom + delta));
+  _previewZoom = Math.min(200, Math.max(_previewHz ? PREVIEW_ZOOM_MIN_HZ : PREVIEW_ZOOM_MIN, _previewZoom + delta));
+  _applyPreviewZoom();
+}
+/* 줌을 지금 배치에 맞게 건다.
+   · SBS = 패널 zoom(종전) · 세로 = #preview-content 통째 transform(종전 · top center)
+   · ⇆ 가로 = #preview-content 는 안 줄이고(그릇이 창 폭 전부 = 가로 스크롤 영역) «섹션 줄»(.preview-page-inner)에만 CSS zoom
+     — zoom 은 레이아웃 크기를 바꾸므로 줄 왼끝 = 스크롤 0 · scrollWidth = 줄 실제 폭(transform 가운데 기준이면 줄이 왼쪽 음수로 넘치고 그릇이 창의 z 배로 갇혔다). */
+function _applyPreviewZoom() {
+  const z = _previewZoom / 100;
+  const content = document.getElementById('preview-content');
   if (_previewSBS) {
     _sbsUpdateScale();
-  } else {
-    const content = document.getElementById('preview-content');
-    if (content) {
-      content.style.transform       = `scale(${_previewZoom / 100})`;
-      content.style.transformOrigin = 'top center';
-    }
+  } else if (content) {
+    content.style.transform       = _previewHz ? '' : `scale(${z})`;
+    content.style.transformOrigin = _previewHz ? '' : 'top center';
+    content.querySelectorAll('.preview-page-inner').forEach(el => { el.style.zoom = _previewHz ? String(z) : ''; });
   }
   const zd = document.getElementById('preview-zoom-display');
   if (zd) zd.textContent = _previewZoom + '%';

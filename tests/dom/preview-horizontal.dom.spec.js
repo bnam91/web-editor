@@ -7,6 +7,10 @@
  *   H4 줌 — 가로에서 previewZoomStep(−50) 하면 섹션 화면 폭이 반 · 가로 그대로
  *   H5 Esc 로 나가면 정리 — 단추 꺼짐 · 다시 들어가면 세로
  *   H6 가로에서 섹션 누르면 편집으로 돌아가 그 섹션이 골라진다(같은 페이지)
+ *   H7 [r2 · 9500 실측 ◑] 섹션 11개 + 긴 섹션 · 줌 100·50·25 — 첫 섹션 왼끝 ≥ 그릇 왼끝(스크롤 0) · 끝까지 스크롤하면 마지막 섹션이 그릇 안
+ *   H8 [r2] 가로 그릇(.preview-page-block) 폭 = 미리보기 창 폭(스크롤바 뺀 clientWidth) — 줌 25 에서도(transform 통째 줄임이면 창의 z 배로 갇힌다)
+ *   H9 [r2] 가로 줌 하한 10(50 밑으로 내려간다) · 세로로 돌아가면 50 으로 · 세로 하한은 50 그대로 · 줌 표시 숫자 맞음
+ * 양성대조 r2: _patches/PVH-CTL2-zoom-transform.patch(가로도 옛 통째 transform 줌) → srv 실측 H8 만 빨강 · H7 은 초록(헤드리스 1440 창에선 9500 의 음수 x 가 재현 안 됨 — 옛 꼴도 첫 섹션이 그릇 왼끝·끝까지 닿음) · H9 초록(하한은 따로).
  * 양성대조: _patches/PVH-CTL-no-row.patch(setSectionRowLayout 의 class 켜는 한 줄 삭제) → H1·H2·H3·H4 빨강(H3 은 줄 수 단언) · H5·H6 초록.
  * ⛔고정 대기 0 · 자리는 offsetLeft/offsetTop(레이아웃 px · 줌 transform 무관) · 화면 px 는 비율로만.
  */
@@ -108,5 +112,60 @@ test('H6 가로에서 섹션 누르면 편집으로 돌아가 그 섹션이 골�
   await page.mouse.click(c[0], c[1]);
   await expect(page.locator('body.preview-mode'), '★편집으로 돌아감').toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.getSelectedSection()?.id), '★그 섹션이 골라짐').toBe(ids[2]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+async function longScene(page) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove());
+    for (let i = 0; i < 11; i++) await window.addSection();
+    document.querySelectorAll('#canvas .section-block')[3].querySelector('.section-inner').style.minHeight = '2400px';   // 긴 섹션
+    window.flushCurrentPage(); window.enterPreview(); window.togglePreviewHorizontal(true);
+  });
+  return errs;
+}
+const zoomTo = (page, z) => page.evaluate((z) => { const cur = parseInt(document.getElementById('preview-zoom-display').textContent); window.previewZoomStep(z - cur); return document.getElementById('preview-zoom-display').textContent; }, z);
+const reach = (page) => page.evaluate(() => {
+  const b = document.querySelector('#preview-content .preview-page-block'), ss = [...b.querySelectorAll('.preview-page-inner > .section-block')];
+  b.scrollLeft = 0;
+  const B0 = b.getBoundingClientRect(), F = ss[0].getBoundingClientRect();
+  const firstGap = F.left - B0.left;
+  b.scrollLeft = b.scrollWidth;
+  const B1 = b.getBoundingClientRect(), L = ss.at(-1).getBoundingClientRect();
+  const lastIn = L.left - B1.left >= -1 && B1.right - L.right >= -1;
+  b.scrollLeft = 0;
+  return { n: ss.length, firstIn: firstGap >= -1, lastIn, overflow: b.scrollWidth > b.clientWidth };
+});
+
+test('H7 섹션 11 + 긴 섹션 · 줌 100·50·25 — 첫 섹션이 스크롤 0 에 보이고 끝까지 닿는다', async ({ page }) => {
+  const errs = await longScene(page);
+  for (const z of [100, 50, 25]) {
+    expect(await zoomTo(page, z), `[전제] 줌 표시 ${z}`).toBe(z + '%');
+    expect(await reach(page), `★줌 ${z}%`).toEqual({ n: 11, firstIn: true, lastIn: true, overflow: true });
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H8 가로 그릇 폭 = 미리보기 창 폭 — 줌 25 에서도', async ({ page }) => {
+  const errs = await longScene(page);
+  const gap = () => page.evaluate(() => { const o = document.getElementById('preview-overlay'), b = document.querySelector('#preview-content .preview-page-block'); return Math.abs(b.getBoundingClientRect().width - o.clientWidth); });
+  for (const z of [100, 25]) {
+    await zoomTo(page, z);
+    expect(await gap(), `★줌 ${z}% 그릇 폭 − 창 폭`).toBeLessThanOrEqual(1);
+  }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H9 가로 줌 하한 10 · 세로로 돌아가면 50 · 세로 하한 50 그대로', async ({ page }) => {
+  const errs = await longScene(page);
+  const disp = () => page.evaluate(() => document.getElementById('preview-zoom-display').textContent);
+  await page.evaluate(() => window.previewZoomStep(-500));
+  expect(await disp(), '★가로 하한 10%').toBe('10%');
+  await hz(page, false);
+  expect({ d: await disp(), t: await page.evaluate(() => document.getElementById('preview-content').style.transform) }, '세로로 돌아가면 50 · 통째 transform').toEqual({ d: '50%', t: 'scale(0.5)' });
+  await page.evaluate(() => window.previewZoomStep(-500));
+  expect(await disp(), '세로 하한 50 그대로').toBe('50%');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
