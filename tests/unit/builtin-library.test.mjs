@@ -1,6 +1,6 @@
 /* builtin-library — 0.9.13 내장 라이브러리 명부(js/data/builtin-library.js) · 동봉 파일 · main 가드 · 배선(현빈 결정 261117).
  * L1 명부 꼴: 묶음 id 겹침 0 · 칸(name·dir·source·license·items) 빈 것 0 · 파일 이름 겹침 0
- * L2 동봉 파일: 명부의 파일이 전부 레포에 있고 PNG/JPEG 머리 · main 가드(resolveBundledAsset)가 받아들임
+ * L2 동봉 파일: 명부의 파일이 전부 레포에 있고 PNG/JPEG/SVG 머리 · main 가드(resolveBundledAsset)가 받아들임 · SVG 는 정사각 256·활성 내용 0
  * L3 가드: assets/library 밖·꼼수 경로는 거절(옛 textures 는 그대로 받아들임)
  * L4 묶음별 내용(항목 커밋마다 한 줄씩 는다)
  * L5 배선(소스): 플러그인 패널 단추 → openLibraryModal · 모듈 script 태그
@@ -43,11 +43,16 @@ test('L2 동봉 파일 — 전부 있고 그림 머리 · 가드가 받아들임
     const r = rel(c, it), full = path.join(ROOT, r);
     assert.ok(fs.existsSync(full), `없음: ${r}`);
     const b = fs.readFileSync(full);
-    const png = b[0] === 0x89 && b[1] === 0x50, jpg = b[0] === 0xff && b[1] === 0xd8;
-    assert.ok(png || jpg, `${r} PNG/JPEG 아님`);
+    const png = b[0] === 0x89 && b[1] === 0x50, jpg = b[0] === 0xff && b[1] === 0xd8, svg = b.subarray(0, 5).toString() === '<svg ';
+    assert.ok(png || jpg || svg, `${r} PNG/JPEG/SVG 아님`);
     const g = resolveBundledAsset(ROOT, r);
     assert.equal(g.ok, true, `${r}: ${g.error}`);
-    assert.equal(g.mime, png ? 'image/png' : 'image/jpeg', `${r} 확장자와 내용이 다름`);
+    assert.equal(g.mime, png ? 'image/png' : jpg ? 'image/jpeg' : 'image/svg+xml', `${r} 확장자와 내용이 다름`);
+    if (svg) {   // 동봉 SVG = 크기 일정(정사각 256) · 활성 내용 0
+      const t = b.toString('utf8');
+      assert.match(t, /^<svg width="256" height="256" viewBox="[-\d.]+ [-\d.]+ ([\d.]+) \1"/, `${r} 정사각 256 아님`);
+      assert.doesNotMatch(t, /<script|href=|<image|foreignObject|\son\w+=/i, `${r} 활성 내용`);
+    }
   }
 });
 
@@ -66,9 +71,13 @@ test('L4 묶음별 내용', () => {
   assert.equal(qr.items.filter((i) => i.file.startsWith('bar_')).length, 6);
   assert.equal(col('storyboard'), undefined, '스토리보드 묶음 = 현빈 261117 제거(#18 철회)');   // #18 t3-05
   assert.equal(fs.existsSync(path.join(ROOT, LIBRARY_ROOT, 'storyboard')), false, '동봉 폴더도 같이 걷음');
-  const dd = col('doodle');   // #10·#20 t3-07 두들·화살표 = 앱 내장 · 라이선스 대기
+  const dd = col('doodle');   // #10·#20 t3-07 두들 = 앱 내장 · 261117 Figma 복사본 샘플 → CC0 Doodle Icons 24
   assert.ok(dd && !dd.admin, '두들 = 앱 내장(관리자 전용 아님)');
-  assert.match(dd.license, /^unknown/, '라이선스 모르면 unknown');
+  assert.ok(dd.items.length >= 20 && dd.items.every((i) => i.file.endsWith('.svg')), '두들 20+ · SVG');
+  assert.match(dd.license, /^CC0/); assert.match(dd.source, /khushmeen\.com\/icons/);
+  const ddLic = fs.readFileSync(path.join(ROOT, LIBRARY_ROOT, dd.dir, 'LICENSE.txt'), 'utf8');
+  assert.match(ddLic, /CC0 1\.0/); assert.match(ddLic, /https:\/\/khushmeen\.com\/icons\.html/); assert.match(ddLic, /MIT License/);
+  assert.equal(fs.readdirSync(path.join(ROOT, LIBRARY_ROOT, dd.dir)).filter((f) => /\.png$/.test(f)).length, 0, 'Figma 복사본 샘플(라이선스 대기) 걷음');
   const mm = col('admin-memoji');   // 미모지류 = 관리자 폴더(앱 내장 아님)
   assert.ok(mm && mm.admin === true, '미모지 = 관리자 전용');
   assert.equal(LIBRARY.filter((c) => c.admin).map((c) => c.id).includes('doodle'), false);

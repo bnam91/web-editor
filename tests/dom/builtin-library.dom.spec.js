@@ -6,6 +6,7 @@
  * D4 관리자 폴더: 일반 계정 = 미모지 탭 없음(두들 탭은 있음) · 관리자(__admin._forceState) = 미모지 탭 2칸
  * D5 Fluent Emoji: 제 단추(#plugin-fluent-emoji) → 그 묶음 30칸만(탭 없음) · MIT 줄 · 내장 라이브러리 탭엔 없음 · 넣기 160×160
  * D6 제품 스케치컷 샘플: 일반 계정 = 탭 없음 · 관리자 = 8칸 · 그림 8장 다 읽힘
+ * D7 두들(CC0 SVG): 일반 계정 탭 → 24칸 다 읽힘 · CC0 줄 · 넣기 = SVG data URL 200×200
  * 자 = dataset·style 글자(화면 px 아님 · 배율 무관). ⛔고정 대기 0(조건 대기).
  * 양성대조(예측 · CTL): library-panel.js _insert 의 addAssetBlock 호출 줄을 지우면 → D2 빨강(블럭 수 그대로) · D1 초록
  */
@@ -119,4 +120,21 @@ test('D6 제품 스케치컷 샘플 — 일반 계정엔 탭 없음 · 관리자
   await page.click('.lib-tab[data-col="product-sketch"]');
   await expect(page.locator('#lib-grid .lib-item')).toHaveCount(8);
   await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item img')].filter((i) => i.naturalWidth > 0).length)).toBe(8);
+});
+
+test('D7 두들 — 24칸 다 읽힘 · CC0 줄 · SVG 넣기 200×200', async ({ page }) => {
+  await setup(page);
+  await openLibrary(page);
+  await page.click('.lib-tab[data-col="doodle"]');
+  await expect(page.locator('#lib-grid .lib-item')).toHaveCount(24);
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item img')].filter((i) => i.complete && i.naturalWidth > 0).length)).toBe(24);
+  await expect(page.locator('#lib-credit')).toContainText('CC0');
+  const before = await assetCount(page);
+  await page.click('#lib-grid .lib-item[title="로켓"]');
+  await expect.poll(() => assetCount(page)).toBe(before + 1);
+  const got = await page.evaluate(() => {
+    const ab = [...window.getSelectedSection().querySelectorAll('.asset-block')].pop();
+    return { src: (ab.dataset.imgSrc || '').slice(0, 26), w: ab.style.width, h: ab.style.height };
+  });
+  expect(got).toEqual({ src: 'data:image/svg+xml;base64,', w: '200px', h: '200px' });
 });
