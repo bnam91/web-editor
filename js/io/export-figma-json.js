@@ -1137,15 +1137,32 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          ★재는 자 = `tests/dom/annot-same-as-other-blocks.dom.spec.js` A1 · A5 */
       /* ICONTEXT-TEXT-NOT-IN-FIGMA-TEXTS-01 — 아이콘텍스트 글자(.itb-text)도 싣는다(옛: tb-·annot-label 만 봐서 빠졌다).
          x·y 는 인라인 left/top 이 없어 0 — generic 프레임엔 아이콘(img)이 안 그려져 겹칠 것이 없다. */
-      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text').forEach(t => {
+      /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 그리드 칸 글(.grd-line · 원 안 글 .grd-img-circle-text)도 싣는다.
+         이 셋(_LIVE_TXT)은 인라인 left/top 이 없다 ⇒ 살아 있는 문서가 있으면 그 자리·폭·정렬을 블럭 왼위 기준 레이아웃 px 로 싣는다
+         (그리드 칸 그림 images 와 같은 셈). 살아 있는 짝이 없으면(다른 페이지) 글만 — 옛 꼴(x·y 0). */
+      const _LIVE_TXT = '.itb-text, .grd-line, .grd-img-circle-text';
+      const _lt = el.id ? document.getElementById(el.id) : null;
+      const _ltr = _lt && _lt.getBoundingClientRect(), _ltz = _ltr ? (_ltr.width / (_lt.offsetWidth || 1)) || 1 : 1;
+      const _ltCopy = [...el.querySelectorAll(_LIVE_TXT)], _ltLive = _lt ? [..._lt.querySelectorAll(_LIVE_TXT)] : [];
+      const _ltPos = (t) => {
+        const i = _ltLive.length === _ltCopy.length ? _ltCopy.indexOf(t) : -1;
+        const lv = i >= 0 ? _ltLive[i] : null; if (!lv) return null;
+        const r = lv.getBoundingClientRect(), lcs = window.getComputedStyle(lv), al = lcs.textAlign;   // 사본은 안 그려져 computed 가 비었다 — 크기·색도 살아 있는 짝에서
+        return { fs: parseInt(lcs.fontSize) || 24, color: lcs.color || '#111111',
+          x: Math.round((r.left - _ltr.left) / _ltz), y: Math.round((r.top - _ltr.top) / _ltz), w: Math.round(r.width / _ltz),
+          align: al === 'center' ? 'CENTER' : (al === 'right' || al === 'end') ? 'RIGHT' : 'LEFT' };
+      };
+      el.querySelectorAll('[class^="tb-"], [class*=" tb-"], .annot-label, .itb-text, .grd-line, .grd-img-circle-text').forEach(t => {
         if (!_notKid(t)) return;
+        { const g = t.closest('.grid-block'); if (g && g !== el && el.contains(g)) return; }   // 원 위에 얹힌 자식 그리드의 글은 그 자식 몫
         /* ★1012t1H5 — 인용구 줄(.tb-qt-line) «안»의 효과 span(tb-dot 글자마다 · tb-hl · tb-glow)은 줄이 이미 실은 글자다.
            안 거르면 점을 켠 순간 글자가 한 자씩 또 실린다. ⛔줄 자신과 줄 밖(.tb-qt-body·부호)은 그대로(옛 JSON 바이트 동일). */
         if (t.parentElement && t.parentElement.closest('.tb-qt-line')) return;
+        if (t.parentElement && t.parentElement.closest(_LIVE_TXT)) return;   // 칸 글·아이콘텍스트 «안»의 서식 span(tb-hl 등)은 그 줄이 이미 실었다
         const tx = (t.innerText || '').trim();
         if (tx) { const cs = (typeof window.getComputedStyle === 'function') ? window.getComputedStyle(t) : {};
           texts.push({ t: tx, fs: parseInt(cs.fontSize) || 24, color: cs.color || '#111111',
-            x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0 }); }
+            x: parseFloat(t.style.left) || 0, y: parseFloat(t.style.top) || 0, ...(t.matches(_LIVE_TXT) ? _ltPos(t) : null) }); }
       });
       const ds = el.dataset || {};
       const out = {

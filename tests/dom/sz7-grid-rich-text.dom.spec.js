@@ -503,7 +503,7 @@ test('P4 ★★조건⒞ 음성대조 — 넓힌 자리가 «구멍»이 되지 
    ⇒ ★★그래서 ★부분 서식 마크업도 ★샐 ★자리가 없다. ★그 사실을 ★행위로 잠근다.
    ⛔「그래야 한다」가 아니라 ★「2026-10-08 에 그렇다」다 — ★누가 그리드 줄 글자를 ★export 에
      싣기 시작하면 ★이 칸이 ★빨개진다. ★그때 ★«평문이냐 sanitized HTML 이냐»를 ★정해야 한다. */
-test('G8 ★⒢ export — 그리드 줄 글자는 figma export 에 안 실린다 ⇒ 마크업도 샐 자리가 없다', async ({ page }) => {
+test('G8 ★⒢ export — 그리드 줄 글자는 figma export 에 «평문 한 번» 실린다 · 마크업은 안 샌다', async ({ page }) => {
   const errs = await setup(page);
   const id = await addGrid(page);
   await editAndFormatTail3(page, id, ['ControlOrMeta+b']);
@@ -553,7 +553,9 @@ test('G8 ★⒢ export — 그리드 줄 글자는 figma export 에 안 실린�
                             ['tb-hl·tb-dot', /tb-hl|tb-dot/i]]) {
     expect(re.test(out), `★★«${name}» 가 ★export 에 ★샜다 — 피그마 빌더가 ★그 글자를 ★평문으로 찍어 ★태그가 ★화면에 보인다. 길이 ${out.length}`).toBe(false);
   }
-  /* ★★그 통로가 ★줄 글자를 ★아예 안 나른다 — ★위 「없다」가 ★«왜» 공짜가 아닌지의 ★까닭 */
-  expect(out.includes(TXT), `★★그리드 줄 글자가 ★export 에 ★실리기 시작했다("${TXT}" 가 있다) — ⛔그냥 고치지 마라. ★평문이냐 ★sanitized HTML 이냐를 ★먼저 정해라(발주서 §5⒢).`).toBe(false);
+  /* ★0.9.12 현빈 결정 #4(261117 · FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01) — 그리드 줄 글자가 export 에 «실린다».
+     정한 것(발주서 §5⒢ 의 물음): «평문»이다 — 수집기는 .grd-line 의 innerText 를 싣는다(다른 generic 글과 같은 꼴). ⇒ 위 마크업 다섯은 여전히 «없다»가 참이고
+     그것이 공짜가 아닌 까닭 = 아래 «글자는 실렸다(한 번)». 굵게 범위(ranges)는 안 싣는다(generic 의 옛 한계 · 미구현). */
+  expect(out.split(TXT).length - 1, `★그리드 줄 글자 "${TXT}" 가 export 에 «평문 한 번» 실려야 한다(0 = 옛 결함 · 2+ = 서식 span 이 한 번 더 실렸다). 길이 ${out.length}`).toBe(1);
   expect(errs).toEqual([]);
 });

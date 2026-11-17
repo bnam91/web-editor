@@ -1409,8 +1409,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       });
       const font = loadFontSafe('Pretendard', 'Regular');
       (block.texts || []).forEach((t, i) => {
-        const tx = Math.max(0, t.x || 0), ty = Math.max(0, (typeof t.y === 'number' && t.y) ? t.y : i * 44);
-        const tn = run('create_text', { x: tx, y: ty, width: Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: 400, fontColor: hex(t.color || '#111111'), textAlignHorizontal: 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
+        /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 보내는 쪽이 화면에서 잰 폭(t.w)을 실었으면 그 자리·폭·정렬 그대로(y 0 도 참값). 없으면 옛 셈. */
+        const sized = typeof t.w === 'number' && t.w > 0;
+        const tx = Math.max(0, t.x || 0), ty = Math.max(0, sized ? (t.y || 0) : (typeof t.y === 'number' && t.y) ? t.y : i * 44);
+        const tn = run('create_text', { x: tx, y: ty, width: sized ? t.w : Math.max(20, w - tx), text: t.t, fontSize: t.fs || 24, fontWeight: 400, fontColor: hex(t.color || '#111111'), textAlignHorizontal: sized && ['CENTER', 'RIGHT'].includes(t.align) ? t.align : 'LEFT', textAutoResize: 'HEIGHT', name: `gtext_${i}`, parentId: frame.id });
         if (tn) { run('set_font_name', { nodeId: tn.id, family: font.family, style: font.style }); applyTextRanges(tn.id, t.ranges, font.family, { run, loadFontSafe, hex }); }
       });
     }
