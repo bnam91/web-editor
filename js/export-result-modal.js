@@ -29,6 +29,8 @@
      ★★이 파일은 ★ESM 이 ★아니라(import 줄 0) ★import 를 ★못 한다 ⇒ ★전역을 쓴다.
      ★★⛔최상위에서 ★읽지 마라 — ★로드 순서에 따라 ★`undefined` 다. ★그래서 ★함수로 둔다.
      ⛔여기에 ★꼴 이름을 ★다시 적지 마라(★그게 ★이번에 걷어낸 ★여섯째 명부였다). */
+  /* HTML-EXPORT-MISSING-IMAGE-NOTICE-DECISION-01(현빈 결정 #11) — «못 실은 그림» 문구는 이 한 자리. 모든 내보내기(PNG·JPG·GIF·HTML·Figma)가 이 글을 쓴다. */
+  const missingImageText = (n) => `⚠️ 그림 ${n}개를 못 실었습니다 — 그 자리는 빈 채로 나갔습니다`;
   const fmtShort = (id) => {
     const L = (typeof window !== 'undefined' && window.EXPORT_FORMATS) || [];
     const f = L.find(x => x.id === id);
@@ -55,11 +57,13 @@
     const unk  = rows.filter(r => r && !r.failed && (!r.gate || r.gate.tier === 'unmeasured'));
     const fail = rows.filter(r => r && r.failed);
     const okN  = rows.length - bad.length - unk.length - fail.length;
+    const miss = rows.filter(r => r && !r.failed && r.imgMissing > 0);
+    const missN = miss.reduce((a, r) => a + r.imgMissing, 0);
 
     if (other) {
-      window.showToast?.(fail.length || bad.length
+      window.showToast?.((fail.length || bad.length
         ? `내보내기 결과 — 확인이 필요한 섹션 ${bad.length + fail.length}개`
-        : '내보내기를 마쳤습니다. 다운로드 폴더를 확인하세요');
+        : '내보내기를 마쳤습니다. 다운로드 폴더를 확인하세요') + (missN ? ` · ${missingImageText(missN)}` : ''));
       progressClose();
       return;
     }
@@ -85,7 +89,7 @@
 
     const badge = overlay.querySelector('.exres-badge');
     badge.textContent = `${fmtShort(M.format)} · ${M.width || 860}px`;
-    badge.classList.add(bad.length || fail.length ? 'tb-badge--warn'
+    badge.classList.add(bad.length || fail.length || missN ? 'tb-badge--warn'
                       : unk.length ? 'tb-badge--muted' : 'tb-badge--accent');
 
     const list = overlay.querySelector('.exres-list');
@@ -101,6 +105,7 @@
       ? `성공 ${okN}건`
       : `성공 ${okN}건 · 확인 필요 ${badN}건`;
     list.appendChild(sum);
+    if (missN) { const m = document.createElement('p'); m.className = 'exres-sum'; m.textContent = missingImageText(missN); list.appendChild(m); }
 
     /* ★그룹 «제목»을 두지 않는다 — 현빈 「더 심플하게, 알럿 같은 느낌」(2026-09-05).
      * 어느 부류인지는 «줄 안의 한 마디»로 이미 드러난다(「내보내지 못했습니다: …」 / 「확인이 필요합니다」).
@@ -116,6 +121,7 @@
         why.className = 'exres-reason';
         why.textContent = kind === 'failed'
           ? `내보내지 못했습니다: ${r.error || '알 수 없는 오류'}`
+          : kind === 'missing' ? missingImageText(r.imgMissing)
           : reasonText(r.gate && r.gate.reasons);
         row.append(nm, why);
         list.appendChild(row);
@@ -124,6 +130,7 @@
     group('확인이 필요한 섹션', bad, 'mismatch');
     group('검사하지 못한 섹션', unk, 'unmeasured');
     group('내보내지 못한 섹션', fail, 'failed');
+    group('그림을 못 실은 섹션', miss, 'missing');
 
     /* ⛔「접힌 설명」·「다시 내보내기」를 두지 않는다 — 현빈 지시(2026-09-05):
      *   「그냥 몇 개 성공 / 실패 n건, n건 리스트는 무엇인지 이렇게 간단하게만. 알럿처럼.
@@ -146,6 +153,7 @@
   function openOne(r, meta) {
     const tier = r && r.gate && r.gate.tier;
     if (!r || r.failed) { open({ results: [r], total: 1 }, meta); return; }
+    if (r.imgMissing > 0) { open({ results: [r], total: 1 }, meta); return; }   // 못 실은 그림은 «같다» 토스트로 덮지 않는다
     if (tier === 'same' || tier === 'minor') {
       window.showToast?.('내보냈습니다 · 캔버스와 같습니다');
       return;
@@ -207,4 +215,5 @@
 
   window.showExportResultModal = open;
   window.showExportResultOne   = openOne;
+  window.missingImageText      = missingImageText;
 })();

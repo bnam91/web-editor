@@ -199,7 +199,7 @@ async function doFigmaUpload() {
   // 읽기 실패분은 원본 URL 그대로(업로드는 진행) + 토스트로 정직하게 알린다.
   const _built = await window.buildFigmaExportJSONInlined(selectedIds, nodeMap);
   const designJSON = _built.json;
-  if (_built.unresolvedAssets) window.showToast?.(`⚠️ 이미지 ${_built.unresolvedAssets}개를 읽지 못해 피그마에서 빠질 수 있습니다`);
+  if (_built.unresolvedAssets) window.showToast?.(window.missingImageText?.(_built.unresolvedAssets));   // #11 — 내보내기 공용 문구(결과 모달 한 자리)
 
   function showDone(success, text) {
     spinnerEl.style.display = 'none';

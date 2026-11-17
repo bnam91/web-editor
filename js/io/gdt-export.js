@@ -58,7 +58,8 @@ async function exportCurrentProjectToGdt() {
       window.showToast?.(`⚠️ 내보내기 실패: ${result?.error || '알 수 없는 오류'}`);
       return;
     }
-    const warn = result.fonts?.length ? ` · 폰트 ${result.fonts.join(', ')}` : '';
+    const _miss = Array.isArray(result.missingAssets) ? result.missingAssets.length : 0;   // #11 — main 이 올린 «동봉 못 한 그림»(export.js:559)을 사용자에게
+    const warn = (result.fonts?.length ? ` · 폰트 ${result.fonts.join(', ')}` : '') + (_miss ? ` · ${window.missingImageText?.(_miss)}` : '');
     window.showToast?.(
       `✅ 내보냄 — ${_fmtMB(result.bytes)} · 이미지 ${result.images}장 · ${(result.elapsedMs / 1000).toFixed(1)}초${warn}`
     );

@@ -233,6 +233,28 @@ async function _waitImagesReady(root, timeoutMs = 8000) {
   return _timedOut;
 }
 
+/* HTML-EXPORT-MISSING-IMAGE-NOTICE-DECISION-01(현빈 결정 #11) — 대기(_waitImagesReady) «뒤»에도 못 그린 그림 수.
+   <img src> 가 비었거나 깨졌으면 1 · 인라인 background url(data: 밖)은 다시 읽어 못 읽으면 1(대기에서 이미 캐시라 빠르다 · 한 개 3초 상한).
+   ⛔_waitImagesReady 반환(타임아웃 true/false)은 검사(게이트)가 쓴다 — 바꾸지 않고 따로 센다. */
+async function _countMissingImages(root) {
+  let n = 0;
+  root.querySelectorAll('img').forEach(im => { if (im.getAttribute('src') && !(im.complete && im.naturalWidth > 0)) n++; });
+  const urlRe = /url\(["']?([^"')]+)["']?\)/g, urls = new Set();
+  [root, ...root.querySelectorAll('[style*="background"]')].forEach(el => {
+    const bg = el.style && el.style.backgroundImage;
+    if (!bg || bg === 'none') return;
+    let m; urlRe.lastIndex = 0;
+    while ((m = urlRe.exec(bg)) !== null) if (m[1] && !m[1].startsWith('data:')) urls.add(m[1]);
+  });
+  const bad = await Promise.all([...urls].map(u => new Promise(res => {
+    const pi = new Image(), t = setTimeout(() => res(1), 3000);
+    pi.onload = () => { clearTimeout(t); res(pi.naturalWidth > 0 ? 0 : 1); };
+    pi.onerror = () => { clearTimeout(t); res(1); };
+    pi.src = u;
+  })));
+  return bad.reduce((a, b) => a + b, n);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    ① 캡처용 클론 준비 — export 와 truth 가 «같이» 쓴다.
    ★스트립 목록은 «이 함수에만» 존재한다. 사본을 두면 어긋남이 «검출»로 둔갑한다
@@ -460,6 +482,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
       }
       await document.fonts.ready;
       const _to = await _waitImagesReady(clone); // goya-asset 이미지 디코드 대기(콜드 캐시 빈 캡처 방지)
+      const _miss = await _countMissingImages(clone);
       clone.getBoundingClientRect();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       /* ★EXPORT-HEIGHT 회색 줄 — offsetHeight 는 소수 높이를 «반올림»한다(627.9375→628). 클립은 정수인데 클론은
@@ -497,7 +520,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
         ci.onerror = rej;
         ci.src = 'data:image/png;base64,' + pngBase64;
       });
-      return { canvas: outCanvas, imgTimedOut: _to, native: true };
+      return { canvas: outCanvas, imgTimedOut: _to, native: true, imgMissing: _miss };
     }
     // html2canvas 폴백 — CDP 가 없는 빌드(웹). 검사는 여기서 «안» 돈다(isGateSupported=false).
     // ⚠️ 이 분기에서만 neutralize한다 — 위 native 분기는 clone을 그대로 CDP로 스크린샷하므로
@@ -510,13 +533,14 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
        ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */
     try { liftSvgTransformsForH2C(clone); } catch (e) { console.warn('[export] svg transform 올리기 실패:', e); }
     const _to2 = await _waitImagesReady(clone);
+    const _miss2 = await _countMissingImages(clone);
     const _h2c = await html2canvas(clone, {
       scale: k,
       useCORS: true,
       backgroundColor: bgColor,
       logging: false,
     });
-    return { canvas: _h2c, imgTimedOut: _to2, native: false };
+    return { canvas: _h2c, imgTimedOut: _to2, native: false, imgMissing: _miss2 };
 }
 
 /** 섹션 배경색 — export 와 truth 가 «같은 값»을 써야 한다(하나만 회색으로 찍히면 그게 차이로 잡힌다).
@@ -1017,7 +1041,8 @@ async function _exportSectionInner(sec, format, width, opts) {
       sectionId:    sec.id,
     });
   }
-  return { name, idx, sectionId: sec.id, format: fmt, width: w, gate };
+  const imgMissing = _lastCap ? _lastCap.imgMissing : 0;   // #11 — 0 이면 키 없음(옛 결과 꼴 그대로)
+  return { name, idx, sectionId: sec.id, format: fmt, width: w, gate, ...(imgMissing > 0 ? { imgMissing } : {}) };
 }
 
 async function exportAllSections(format, width, onProgress, opts) {

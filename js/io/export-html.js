@@ -84,6 +84,7 @@ async function inlineGoyaAssets(root) {
       if (data) el.setAttribute(attr, data);
     }
   }
+  return [...cache.values()].filter(v => !v).length;   // #11 — 못 읽은 그림(서로 다른 URL) 수
 }
 
 async function exportHTMLFile() {
@@ -198,7 +199,7 @@ async function exportHTMLFile() {
   neutralizeRedactForH2C(clone);
 
   // goya-asset:// 참조를 base64로 재인라인 → 내보낸 HTML이 일반 브라우저에서도 portable
-  await inlineGoyaAssets(clone);
+  const _missImg = await inlineGoyaAssets(clone);
 
   const fontLink = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -353,6 +354,7 @@ ${clone.innerHTML}
   a.download = 'export.html';
   a.click();
   URL.revokeObjectURL(a.href);
+  if (_missImg) window.showToast?.(window.missingImageText?.(_missImg));   // HTML-EXPORT-MISSING-IMAGE-NOTICE-DECISION-01 — 문구는 결과 모달 한 자리
 }
 
 /* ── Publish Dropdown ── */

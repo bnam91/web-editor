@@ -370,6 +370,7 @@ async function exportFigmaJSON() {
   a.download = 'sangpe_export.json';
   a.click();
   URL.revokeObjectURL(a.href);
+  if (unresolvedAssets) window.showToast?.(window.missingImageText?.(unresolvedAssets));   // #11 — 내보내기 공용 «못 실은 그림» 문구
 }
 
 
