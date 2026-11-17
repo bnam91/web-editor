@@ -80,6 +80,10 @@ test('L4 묶음별 내용', () => {
   const lic = fs.readFileSync(path.join(ROOT, LIBRARY_ROOT, fl.dir, 'LICENSE.txt'), 'utf8');
   assert.match(lic, /MIT License/); assert.match(lic, /Copyright \(c\) Microsoft Corporation/); assert.match(lic, /THE SOFTWARE IS PROVIDED "AS IS"/);
   assert.deepEqual(LIBRARY.filter((c) => c.plugin).map((c) => c.id), ['fluent-emoji'], '다른 후보(DiceBear·Noto·Twemoji 등)는 등록 안 함');
+  const ps = col('product-sketch');   // #22 t3-10 — 현빈이 볼 수 있게(관리자 탭)
+  assert.ok(ps && ps.admin === true, '샘플 = 관리자 탭');
+  assert.equal(ps.items.length, 8);
+  assert.deepEqual(LIBRARY.filter((c) => c.admin).map((c) => c.id), ['admin-memoji', 'product-sketch']);
 });
 
 test('L5 배선 — 플러그인 패널 단추 · 모듈 script', () => {

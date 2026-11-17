@@ -97,4 +97,20 @@ export const LIBRARY = [
       { file: 'obj_wrapped_gift.png', name: 'wrapped gift' },
     ],
   },
+  {
+    id: 'product-sketch', name: '제품 스케치컷 샘플', dir: 'product-sketch', w: 400, admin: true,
+    source: 't3-10(261114) 제품 스케치컷 방식 비교 샘플 — 가상 제품 «휴대용 손선풍기» · A 원본/A1 로컬 필터/A2 AI 스케치화 · B AI 스케치컷 · C 선화+블럭 시안',
+    license: '시안 보기용 — Gemini 생성(워터마크 있음) · C 시안엔 라이선스 대기 두들 포함',
+    note: '현빈 검토용으로 보이게만(기능 구현 아님) · 권장 = A1 이미지 블럭 스케치 필터 · B 개발 스토리 템플릿',
+    items: [
+      { file: 'A-original-photo.jpg', name: 'A 원본 사진' },
+      { file: 'A-filter-pencil-gray.jpg', name: 'A1 연필 필터(회색)' },
+      { file: 'A-filter-pencil-color.jpg', name: 'A1 연필 필터(색)' },
+      { file: 'A-ai-sketchified.jpg', name: 'A2 AI 스케치화' },
+      { file: 'A-compare.jpg', name: 'A 비교 한 장', w: 860 },
+      { file: 'B-ai-product-sketch-fan.jpg', name: 'B AI 스케치컷' },
+      { file: 'C-ai-lineart-fan.jpg', name: 'C 선화' },
+      { file: 'C-sketch-block-mock.jpg', name: 'C 스케치 블럭 시안', w: 600 },
+    ],
+  },
 ];

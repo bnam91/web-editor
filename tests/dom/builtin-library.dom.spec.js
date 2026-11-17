@@ -5,6 +5,7 @@
  * D3 탭: 묶음 둘 이상이면 탭 · 스토리보드 탭 → 3칸 · JPEG 넣기(폭 = 섹션 안쪽 상한 · 높이 = 1408:780 비율)
  * D4 관리자 폴더: 일반 계정 = 미모지 탭 없음(두들 탭은 있음) · 관리자(__admin._forceState) = 미모지 탭 2칸
  * D5 Fluent Emoji: 제 단추(#plugin-fluent-emoji) → 그 묶음 30칸만(탭 없음) · MIT 줄 · 내장 라이브러리 탭엔 없음 · 넣기 160×160
+ * D6 제품 스케치컷 샘플: 일반 계정 = 탭 없음 · 관리자 = 8칸 · 그림 8장 다 읽힘
  * 자 = dataset·style 글자(화면 px 아님 · 배율 무관). ⛔고정 대기 0(조건 대기).
  * 양성대조(예측 · CTL): library-panel.js _insert 의 addAssetBlock 호출 줄을 지우면 → D2 빨강(블럭 수 그대로) · D1 초록
  */
@@ -102,4 +103,17 @@ test('D5 Fluent Emoji — 제 단추 → 30칸만 · MIT 줄 · 라이브러리 
     return { src: (ab.dataset.imgSrc || '').slice(0, 22), w: ab.style.width, h: ab.style.height };
   });
   expect(got).toEqual({ src: 'data:image/png;base64,', w: '160px', h: '160px' });
+});
+
+test('D6 제품 스케치컷 샘플 — 일반 계정엔 탭 없음 · 관리자엔 8장 다 읽힘', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => window.__admin._forceState({ ok: true, isAdmin: false, hasRoleField: true }));
+  await openLibrary(page);
+  await expect(page.locator('.lib-tab[data-col="product-sketch"]')).toHaveCount(0);
+  await page.click('#lib-modal-close');
+  await page.evaluate(() => window.__admin._forceState({ ok: true, isAdmin: true }));
+  await openLibrary(page);
+  await page.click('.lib-tab[data-col="product-sketch"]');
+  await expect(page.locator('#lib-grid .lib-item')).toHaveCount(8);
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item img')].filter((i) => i.naturalWidth > 0).length)).toBe(8);
 });
