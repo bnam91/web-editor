@@ -1,6 +1,7 @@
 {
   "_how": "scripts/check-design-tokens.sh ③ 래칫 기준 — 그 스크립트 자신으로 잰 값(2026-11-13 U0, right-panel-unify). 늘면 exit 1, 줄면 이 값을 내려 커밋한다.",
+  "_how_css-px-261118": "css-px 3962→3966 = +2 css/editor-blocks.css .sld-card-empty «0 0 / 16px 16px»(체커 칸 · 맞는 토큰 없음) · +3 css/editor-props.css .sld-thumb 44/28/3px(인라인→클래스 이동분 · props-inline 은 그만큼 0) · −1 css/editor-extra.css 옛 grid-template-rows 4px · 261118 지디 판단",
   "props-inline-hardcoded": 336,
-  "css-px": 3962,
+  "css-px": 3966,
   "css-color": 1636
 }
