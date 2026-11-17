@@ -280,6 +280,7 @@
     <a href="#shadow">Shadow</a>
     <div class="grp">예시</div>
     <a href="#components">컴포넌트</a>
+    <a href="#panel-frame">패널 절 컴포넌트</a>
     <div class="grp">명세 · 가이드</div>
     <a href="#usage">토큰 사용 규칙 (Do/Don't)</a>
     <a href="#contrast">배경별 텍스트 대비</a>
@@ -558,6 +559,36 @@
       <div class="g-toast"><span class="g-badge ok" style="font-size:9px">✓</span> 자동 저장됨</div>
     </div>
     <p class="note">패널 배경 #252525 · 라벨폭 56px · 행 gap 4px · input 높이 24px</p>
+  </section>
+
+  <!-- ════════ PANEL FRAME (right-panel-unify U0) ════════ -->
+  <section id="panel-frame">
+    <h2>패널 절 컴포넌트 (실제 CSS)</h2>
+    <p class="desc">우측 속성 패널의 절은 모두 <code>js/props/_panel-frame.js</code> 의 <code>sec(key, html)</code> → <code>renderPanel(block, {header, sections})</code> 로 그린다.
+      순서·제목의 정본은 <code>js/props/_section-spec.js</code> 하나 — 해당 없는 절은 숨김이지 자리 이동이 아니다.
+      아래 틀은 <b>앱 CSS(editor-base · editor-props)를 그대로 싣고 진짜 <code>renderPanel()</code> 로 그린</b> 페이지다(순서표도 그 파일에서 import).
+      접기·hover·Tab 포커스를 직접 해 볼 수 있다.</p>
+    <iframe src="styleguide-panel.html" title="패널 절 컴포넌트" loading="lazy"
+            style="width:100%;height:1280px;border:1px solid var(--doc-border, #333);border-radius:8px;background:#1a1a1a"></iframe>
+    <p class="note">ES 모듈이라 file:// 로는 비어 보인다 — 레포 루트를 <code>python3 -m http.server --bind 127.0.0.1 8765</code> 로 서빙해 <code>/docs/styleguide.html</code> 로 연다.
+      규칙: 신규 패널 층은 색·px 리터럴 0(<code>scripts/check-design-tokens.sh</code> 하드게이트) · 절 제목 영어 1~2단어(Title Case 또는 약어) · 힌트 패널당 ≤2 · 기본 전부 펼침.</p>
+    <table class="gtbl" style="margin-top:12px"><thead><tr><th>#</th><th>key</th><th>제목(라벨)</th><th>소유</th></tr></thead><tbody>
+      <tr><td>1</td><td><code>kind</code></td><td><b>Type</b></td><td>Type · Variant · Shape · Device · Chart Type · Direction · Preset · Favorites</td></tr>
+      <tr><td>2</td><td><code>content</code></td><td><b>Content</b></td><td>Text · Data · Messages · Layers · Cards · Cells · Icon · Image · Video · Profile · Path</td></tr>
+      <tr><td>3</td><td><code>position</code></td><td><b>Position</b></td><td>Position · X/Y · 플로팅 · Rotation · Rotate/Flip</td></tr>
+      <tr><td>4</td><td><code>size</code></td><td><b>Size</b></td><td>Size · Width · Height · Card Size · 치수선</td></tr>
+      <tr><td>5</td><td><code>layout</code></td><td><b>Layout</b></td><td>Layout · Align · Spacing · Gap · Column Ratio · Rows/Cols · 행 높이 · 분배</td></tr>
+      <tr><td>6</td><td><code>padding</code></td><td><b>Padding</b></td><td>Padding 류 전부</td></tr>
+      <tr><td>7</td><td><code>appearance</code></td><td><b>Appearance</b></td><td>모서리(radius) · 투명도 · 그레인 · 가림막 · 이미지 표시</td></tr>
+      <tr><td>8</td><td><code>typography</code></td><td><b>Typography</b></td><td>Typography(SSOT) · Tag Style · Bubble Style · Icon Text</td></tr>
+      <tr><td>9</td><td><code>fill</code></td><td><b>Fill</b></td><td>Fill · Color(s) · Background · Bg Image · Text Color · Color Stops</td></tr>
+      <tr><td>10</td><td><code>stroke</code></td><td><b>Stroke</b></td><td>블록 테두리 · 글자 윤곽선 · Line Style · Highlight Line · 칸 사이 줄 — 한 절 안 «행»(하위 제목 없음)</td></tr>
+      <tr><td>11</td><td><code>effects</code></td><td><b>Effects</b></td><td>Shadow · Glow · Zoom Effect · Text Overlay · Decoration · Buzz · Marking</td></tr>
+      <tr><td>12</td><td><code>special</code></td><td><b>(호출부가 줌)</b></td><td>블록 고유 — 같은 규칙 · 선언순 (예: Tail · Coin · Arrow Line · Cards 3)</td></tr>
+      <tr><td>13</td><td><code>export</code></td><td><b>Export</b></td><td>Export · 참고 이미지</td></tr>
+      <tr><td>14</td><td><code>template</code></td><td><b>Template</b></td><td>Template · Component · QA Ticket</td></tr>
+    </tbody></table>
+    <p class="note">★제목 규칙(현빈 2026-11-13 정정): 영어 1~2단어(Figma 명명) — 단어 = Title Case(<code>Tail</code>) 또는 약어 2~4자(<code>QA</code>·<code>FAQ</code>·<code>3D</code>·<code>SVG</code>·<code>CTA</code>) · 한글·괄호·기호 금지 · 개수는 <code>Cards 3</code> · 글자 윤곽선은 Stroke 절 안 행. 정본 = <code>js/props/_section-spec.js</code>(위 iframe 의 표는 그 파일에서 import — 이 정적 표와 갈리면 iframe 쪽이 맞다).</p>
   </section>
 
   <!-- ════════ USAGE RULES ════════ -->

@@ -595,8 +595,15 @@ test.describe('T-011 저장 → 불러오기 왕복', () => {
     const st1 = await page.evaluate(() => ({
       assetType: window.__ab.dataset.assetType,
       videoEl: !!window.__ab.querySelector('video.asset-video'),
-      trimSections: [...document.querySelectorAll('#panel-right .prop-section')]
-        .filter(s => /Video/i.test(s.querySelector('.prop-section-title')?.textContent || '')).length,
+      /* U4(right-panel-unify): 옛 「Video」·「Video 트림」 제목 → Content 절(교체/제거) + 블록 고유 절 «Trim». 제목 대신 절 key·내용으로 센다 */
+      /* 메타데이터 전이면 트림 자리 = Content 끝의 「불러오는 중」 안내(컨트롤 0 인 Trim 절은 안 낸다 — 빈 머리 금지) */
+      trimSections: (() => {
+        const secs = [...document.querySelectorAll('#panel-right .prop-section[data-sec]')];
+        const content = secs.find(s => s.dataset.sec === 'content' && s.querySelector('#asset-replace-btn'));
+        const trim = secs.some(s => s.dataset.sec === 'special' && s.querySelector(':scope > .prop-sec-head .prop-sec-title-text')?.textContent.trim() === 'Trim')
+          || /영상 정보를 불러오는 중/.test(content?.textContent || '');
+        return (content ? 1 : 0) + (trim ? 1 : 0);
+      })(),
     }));
     expect(st1.assetType, '배경을 건드리자 영상 상태가 풀렸다').toBe('video-pending');
     expect(st1.videoEl, '배경을 건드리자 video 엘리먼트가 사라졌다').toBe(true);

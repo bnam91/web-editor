@@ -357,6 +357,13 @@ tpl-pagepad-e81.dom.spec.js:215 T6      1/11 (판 6b239a24) · 0/11 (판 d163b6c
 ⛔«머지 판이 초록이다» 로 읽지 마라 — 아직 세는 중이다
 ```
 
+## 2026-11-14 · u6m 전수에서 빨강 → workers 1 단독에선 초록 (이름 ＋ 수 ＋ 분모 · ⛔까닭 안 붙임 · 인텔)
+
+```
+ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수 · 판 f1bc677d1)
+                                                          빨강 0/5 (r0914meas · workers 1 · 판 2852c9f44 · aded4a28a · 9e64f9f56 · bc69ffa72 · f1bc677d1 각 1회 · 같은 파일 X1·X2 도 0/5)
+```
+
 ## ⛔측정 가지 전용 — 이 절의 이름은 레포 바닥에 없다 · 게이트 분모에서 뺀다
 ★이 절은 «명부» 가 아니다. 측정 가지(레포 dev 에 안 들어간 spec)에서 본 흔들림을 ★이름 ＋ 수로만 남긴다(⛔원인 라벨 없이).
 ★tests/dom/flaky-roster.gate.js 의 rosterSpecs 는 이 절 «안» 의 이름을 명부로 세지 않는다 — 레포에 없는 spec 이 «명부 안» 으로 읽혀 거짓 초록이 되지 않게(지디 261029 14:5x ⒞).

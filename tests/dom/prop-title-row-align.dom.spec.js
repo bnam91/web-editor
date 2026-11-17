@@ -154,38 +154,43 @@ test('D0 전제 — 텍스트 패널에 절 머리줄이 떴다(수를 로그에
    ★기대값은 ★소스에서 ★손으로 읽어 박았다 — ★계측 대상과 ★다른 경로다(⇒ 항등식이 아니다).
    ★★`.prop-section-title` 의 ★전역 padding 은 ★8px/4px ★그대로여야 한다 — 내 처방은 ★`.prop-section-title-row >`
      ★한정 규칙으로만 덮는다(239/244 자리는 ★안 건드린다). ⇒ ★이 칸이 ★그 경계를 ★같이 잠근다. */
-test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 32×18 · ★제목줄 ★밖 제목 padding 8/4 ★그대로 · row flex/center/24)', async ({ page }) => {
+test('D0a ★PREMISE — 레포 CSS 가 물렸다(패널 240px · 실물 toggle 32×18 · 틀 머리 = --ui-sec-head-py · row flex/center/24)', async ({ page }) => {
   const errs = await setup(page);
-  await addBodyText(page);                 /* ★전제는 ★실물에서 읽는다 — ⛔빈 그릇에 ★가짜 div 를 넣어 재지 않는다 */
-  /* ★★2026-10-20 실측으로 ★고친 자리 — 플래너의 격리 하네스는 이 칸의 기대값을 `.prop-toggle = inline-block`
-     으로 두었는데 ★실앱에서는 ★`block` 이다. 까닭: `.panel { display: flex }`(css/panels/_panel-shell.css:54)
-     이고 `.prop-row` 도 flex 라 ★.prop-toggle 은 ★언제나 ★flex 항목이다 ⇒ CSS 가 ★inline-block 을 ★블록화한다.
-     ⇒ ★`display` 는 ★판정에 안 쓴다(로그에만). ★CSS 가 물렸다는 신호는 ★32×18 ★치수다(그 한 규칙에서만 온다).
-     ⛔격리 하네스의 수를 ★그대로 옮겨 적으면 ★이 칸이 ★거짓 빨강을 낸다 — 내가 ★한 번 밟았다. */
-  const pre = await page.evaluate(() => {
+  /* ★★2026-10-20 실측 — .prop-toggle 은 flex 항목이라 display 는 판정에 안 쓴다(로그만). CSS 가 물린 신호 = 32×18 치수. */
+  const read = () => page.evaluate(() => {
     const panel = document.getElementById('panel-right');
     const tg = document.querySelector('#panel-right .prop-row > .prop-toggle');
-    const ti = [...document.querySelectorAll('#panel-right .prop-section-title')]
-      .find((e) => !e.parentElement.classList.contains('prop-section-title-row'));   /* ★제목줄 ★밖 = 239곳 쪽 */
+    const fh = document.querySelector('#panel-right .prop-sec-head > .prop-section-title');   /* 틀 머리 제목 */
     const ro = document.querySelector('#panel-right .prop-row');
     const g = (e) => (e ? getComputedStyle(e) : null);
-    const st = g(tg), sti = g(ti), sro = g(ro);
     return {
       panelW: g(panel).width,
-      foundToggle: !!tg, foundTitleOutside: !!ti, foundRow: !!ro,
-      toggleSize: st ? [st.width, st.height].join('|') : null,
-      toggleDisplay: st ? st.display : null,          /* ★로그만 — flex 항목이라 블록화된다 */
-      titleOutside: sti ? [sti.paddingTop, sti.paddingBottom, sti.fontSize].join('|') : null,
-      row: sro ? [sro.display, sro.alignItems, sro.minHeight].join('|') : null,
+      toggleSize: tg ? [g(tg).width, g(tg).height].join('|') : null, toggleDisplay: tg ? g(tg).display : null,
+      frameHead: fh ? [g(fh).paddingTop, g(fh).paddingBottom].join('|') : null,
+      headTok: getComputedStyle(document.documentElement).getPropertyValue('--ui-sec-head-py').trim(),
+      row: ro ? [g(ro).display, g(ro).alignItems, g(ro).minHeight].join('|') : null,
     };
   });
-  console.log('[D0a PREMISE] ' + JSON.stringify(pre));
-  expect(pre.foundToggle && pre.foundTitleOutside && pre.foundRow,
-    `★전제의 ★전제: 실물 부품을 찾았다 — ${JSON.stringify(pre)}`).toBe(true);
-  expect(pre.panelW, '★우측 패널 너비 240px — css/editor-panels.css(panels/_panel-shell.css)가 안 물렸다').toBe('240px');
-  expect(pre.toggleSize, '★.prop-toggle 의 32×18 — css/editor-props.css 의 그 한 규칙이 안 물렸다(⇒ 아래 0.00 은 「안 재고 있다」다)').toBe('32px|18px');
-  expect(pre.titleOutside, '★★제목줄 ★밖 .prop-section-title 의 padding 이 8px/4px 가 ★아니다 — 내 처방이 ★239곳까지 ★번졌거나 CSS 가 안 물렸다').toBe('8px|4px|10px');
-  expect(pre.row, '★.prop-row — flex/center/24px 가 아니다').toBe('flex|center|24px');
+  /* ⑴ 텍스트 패널(U2 = 틀) — 틀 머리 제목 위·아래 padding 이 둘 다 토큰(대칭 R1 이 틀에서 안 되살아났다 · 값의 출처가 토큰) */
+  await addBodyText(page);
+  const t = await read();
+  /* ⑵ ⚰️「제목줄 밖 제목 padding 8/4 그대로」 전제는 걷었다 — 미이관 명단이 0(U0~U5 병합 · panel-section-gate UNMIGRATED=[])이라
+     잴 패널이 없다(그 전역 규칙을 쓰는 «틀 밖» 절 머리가 남지 않았다). 스티커 패널은 토글 32×18 의 두 번째 출처로만 연다. */
+  await addTextSticker(page);
+  const k = await read();
+  console.log('[D0a PREMISE] text=' + JSON.stringify(t) + ' sticker=' + JSON.stringify(k));
+  expect(t.panelW, '★우측 패널 너비 240px — css/editor-panels.css(panels/_panel-shell.css)가 안 물렸다').toBe('240px');
+  expect(t.frameHead, '★전제: 텍스트 패널에 틀 머리 제목이 있다').not.toBeNull();
+  expect(t.headTok, '★전제: --ui-sec-head-py 가 읽힌다').not.toBe('');
+  expect(t.frameHead, `★틀 머리 제목 padding 위|아래 = 토큰 ${t.headTok}`).toBe(`${t.headTok}|${t.headTok}`);
+  expect(t.row, '★.prop-row — flex/center/24px 가 아니다').toBe('flex|center|24px');
+  /* ★내장 양성대조 — 같은 자(read)로 틀 머리 아래 padding 을 1px 비틀면 «위|아래 = 토큰» 단언이 깨져야 한다(자가 살아 있다).
+     지금 열린 패널(텍스트 스티커 — U5 로 틀에 있다)의 머리에서 한다. */
+  expect(k.frameHead, '[전제] 스티커 패널도 틀 머리').not.toBeNull();
+  await page.evaluate(() => { document.querySelector('#panel-right .prop-sec-head > .prop-section-title').style.paddingBottom = 'calc(var(--ui-sec-head-py) + 1px)'; });
+  const bent = await read();
+  expect(bent.frameHead, '★양성대조 — 비튼 머리를 자가 «토큰과 같다»고 읽는다(자가 죽었다)').not.toBe(`${bent.headTok}|${bent.headTok}`);
+  expect(t.toggleSize ?? k.toggleSize, '★.prop-toggle 의 32×18 — css/editor-props.css 의 그 한 규칙이 안 물렸다(⇒ 아래 0.00 은 「안 재고 있다」다)').toBe('32px|18px');
   expect(errs).toEqual([]);
 });
 

@@ -65,7 +65,9 @@ const probe = (page) => page.evaluate((sel) => {
 const toggle = (page) => page.evaluate(() => {
   const i = document.getElementById('grd-img-clip-toggle');
   const row = i && i.closest('.prop-row');
-  const hint = document.getElementById('grd-img-clip-hint');
+  /* ★U1(right-panel-unify · prop-hint ≤2) 의도 갱신 — 까닭은 막힌 토글(label.prop-toggle)의 title(문구 그대로). 양성대조: 그 title 을 빼면 :146 빨강. */
+  const tg = i && i.closest('label.prop-toggle');
+  const hint = tg && tg.title ? { textContent: tg.title, offsetParent: tg.offsetParent } : null;
   return i ? {
     shown: !!(row && row.offsetParent), checked: i.checked, disabled: i.disabled,
     label: row.querySelector('.prop-label')?.textContent.trim(),

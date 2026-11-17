@@ -3,7 +3,8 @@
  *          Particles 안에 ‘파티클 켜기’랑 같이 ‘노트무늬’가 묶이면 좋겠는데 그럼 소제목(Particles)을 바꾸는 거 어때? 일단 임시로».
  *   고침: prop-section.js — 노트 무늬를 Background Image 뒤 «Pattern & Effects» 소제목 아래로(파티클과 같은 묶음).
  *         소제목은 prop-section.js 한 자리 · prop-section-particles.js 의 «Particles» 라벨 2곳은 걷음. 부품은 기존 .prop-field-label.
- * 칸 (묶음 = 그 칸에서 .prop-section 직속 형제를 거슬러 처음 만나는 .prop-field-label 글자)
+ * 칸 (묶음 = 그 칸에서 절 몸통 직속 형제를 거슬러 처음 만나는 .prop-field-label 글자 — 몸통 = 틀 절의 .prop-sec-body(U3 이후) · 옛 절은 .prop-section 자신)
+ *   ★rp-on-dev(261118 ⓑ): 우측 패널 통일 U3 로 섹션 «Background» 절 = 틀의 «Fill» 절(data-sec="fill") · 내용은 .prop-sec-body 한 겹 안 — 셀렉터만 따라감(재는 뜻 같음).
  *   G1 기본(그림 없음·파티클 끔) — 노트 단추·파티클 켜기 = «Pattern & Effects» · 이미지 선택 = «Background Image» · «Particles» 라벨 0 · 소제목 1
  *   G2 진짜 클릭으로 파티클 켬(패널 다시 그림) — 파티클 카드·노트 단추가 여전히 같은 묶음
  *   G3 진짜 클릭으로 노트 켬 — 노트 하위 칸(종류)도 같은 묶음 · 파티클도 그대로
@@ -39,7 +40,7 @@ const groups = (page) => page.evaluate(() => {
   const groupOf = (el) => {
     if (!el) return undefined;
     let n = el;
-    while (n.parentElement && !n.parentElement.classList.contains('prop-section')) n = n.parentElement;
+    while (n.parentElement && !n.parentElement.classList.contains('prop-section') && !n.parentElement.classList.contains('prop-sec-body')) n = n.parentElement;
     for (let p = n.previousElementSibling; p; p = p.previousElementSibling) if (p.classList.contains('prop-field-label')) return p.textContent.trim();
     return null;
   };
@@ -50,7 +51,7 @@ const groups = (page) => page.evaluate(() => {
     fx: groupOf(document.getElementById('sec-fxpart-card') || document.getElementById('sec-fxpart-toggle')),
     img: groupOf(document.getElementById('sec-bg-img-btn')),
     sameSection: !!note && note.closest('.prop-section') === document.getElementById('sec-fxpart-toggle')?.closest('.prop-section'),
-    title: note?.closest('.prop-section')?.querySelector('.prop-section-title')?.textContent.trim() ?? null,
+    title: note?.closest('.prop-section[data-sec]')?.dataset.sec ?? null,   // ★U3 선례(fx-particles-panel) — 제목 글자 대신 절 key
     nGroupLabel: labels.filter(t => t === 'Pattern & Effects').length, nParticles: labels.filter(t => t === 'Particles').length,
   };
 });
@@ -60,7 +61,7 @@ test('G1 기본 — 노트 무늬·파티클 켜기가 «Pattern & Effects» 한
   const g = await groups(page);
   expect(g.note, '[전제] 노트 단추 있음').not.toBeUndefined();
   expect(g.fx, '[전제] 파티클 칸 있음').not.toBeUndefined();
-  expect(g, '★노트 무늬가 파티클과 다른 묶음').toMatchObject({ note: LABEL, fx: LABEL, img: 'Background Image', sameSection: true, title: 'Background', nGroupLabel: 1, nParticles: 0 });
+  expect(g, '★노트 무늬가 파티클과 다른 묶음').toMatchObject({ note: LABEL, fx: LABEL, img: 'Background Image', sameSection: true, title: 'fill', nGroupLabel: 1, nParticles: 0 });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

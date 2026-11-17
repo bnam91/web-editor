@@ -111,16 +111,18 @@ test('C2-a Position 절 — Coin 절 위 · 텍스트 Position 과 같은 꼴 ·
   await pick(page, id);
   await page.evaluate(() => window.pushHistory?.('준비'));              // 코드로 넣은 코인을(고른 채로) 히스토리 꼭대기에 올린다 — ⌘Z 가 돌아갈 자리
   const p = await page.evaluate(() => {
+    /* U5: 두 id 는 틀 절(Position · special 「Coin」) 안 감싸개 — 제목·꼴은 감싼 절 머리에서 읽는다 */
     const pos = document.getElementById('stk-coin-pos-section'), coin = document.getElementById('stk-coin-section');
+    const head = (el) => el.closest('.prop-section[data-sec]').querySelector(':scope > .prop-sec-head > .prop-section-title');
     const sig = (inp) => { const w = inp.closest('.prop-icon-input'); return [inp.type, w?.className, w?.querySelector('.prop-xy-label')?.textContent, w?.parentElement.className, w?.parentElement.parentElement.className, inp.getAttribute('aria-label')]; };
-    return { before: !!(pos.compareDocumentPosition(coin) & Node.DOCUMENT_POSITION_FOLLOWING), label: pos.querySelector(':scope > .prop-section-title')?.textContent.trim(), coinTitle: coin.querySelector(':scope > .prop-section-title')?.className,
-      posTitle: pos.querySelector(':scope > .prop-section-title')?.className,
+    return { before: !!(pos.compareDocumentPosition(coin) & Node.DOCUMENT_POSITION_FOLLOWING), label: head(pos)?.textContent.trim(), coinTitle: head(coin)?.className,
+      posTitle: head(pos)?.className, distinct: head(pos) !== head(coin),
       x: sig(document.getElementById('stk-coin-x')), y: sig(document.getElementById('stk-coin-y')),
       vals: [document.getElementById('stk-coin-x').value, document.getElementById('stk-coin-y').value],
       h: [...pos.querySelectorAll('.prop-icon-input')].map((e) => Math.round(e.getBoundingClientRect().height)),
       w: [...pos.querySelectorAll('.prop-icon-input')].map((e) => Math.round(e.getBoundingClientRect().width)) };
   });
-  expect([p.before, p.label], 'Position 절이 Coin 절 위에 있다').toEqual([true, 'Position']);
+  expect([p.before, p.label, p.distinct], 'Position 절이 Coin 절 위에 있다(서로 다른 절)').toEqual([true, 'Position', true]);
   expect(p.posTitle, 'Position 절의 제목이 바로 아래 Coin 절의 제목과 같은 꼴이다').toBe(p.coinTitle);
   /* 텍스트 패널 Position 칸(js/props/prop-text-template.js)과 같은 꼴: .prop-lhls-row > .prop-lhls-col > .prop-icon-input > .prop-xy-label + input[type=number] */
   expect(p.x).toEqual(['number', 'prop-icon-input', 'X', 'prop-lhls-col', 'prop-lhls-row', 'X position']);

@@ -5,9 +5,10 @@
 import { setTextTypeClass, afterTextTypeChange, BULLET_LIST_STYLE_VALUES } from './text-type-class.js';
 import { markLabelAutoColor, dropLabelAutoColor } from './label-auto-color.js';
 
-export function wireTypeSection({ tb, propPanel, ctx }) {
+export function wireTypeSection({ tb, propPanel, ctx, rerender }) {
   const typeMap2 = { 'tb-h1':'heading','tb-h2':'heading','tb-h3':'heading','tb-body':'body','tb-caption':'caption','tb-label':'label','tb-bullet':'bullet' };
-  propPanel.querySelectorAll('.prop-type-btn').forEach(btn => {
+  /* ★[data-cls] 한정 — 말풍선 크기 단추(data-bsz)·Quote(#txt-to-quote)도 .prop-type-btn 이라, 전역으로 잡으면 cls=undefined 로 물린다 */
+  propPanel.querySelectorAll('.prop-type-btn[data-cls]').forEach(btn => {
     btn.addEventListener('click', () => {
       window.pushHistory?.();
       const cls = btn.dataset.cls;
@@ -42,7 +43,7 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
         setTextTypeClass(contentEl, cls);   // 0920r4 texttype: className 통째 대입 금지(효과 클래스 유실)
       }
       tb.dataset.type = typeMap2[cls];
-      propPanel.querySelectorAll('.prop-type-btn').forEach(b => b.classList.toggle('active', b===btn));
+      propPanel.querySelectorAll('.prop-type-btn[data-cls]').forEach(b => b.classList.toggle('active', b===btn));
 
       const labelSection = document.getElementById('label-style-section');
       if (labelSection) labelSection.style.display = cls === 'tb-label' ? 'block' : 'none';
@@ -90,6 +91,13 @@ export function wireTypeSection({ tb, propPanel, ctx }) {
       //   (불릿 경로는 replaceWith 로 붙은 «뒤»라 여기서 부른다 — 떨어진 노드는 무시됨)
       afterTextTypeChange(contentEl);
       _cp?.__textGradRegate?.();
+      /* ★U2(right-panel-unify) — 태그 전용 칸이 Fill·Appearance·Size 절로 흩어졌다(틀 · 한 절 한 key) ⇒ display 토글로는
+         절 머리가 남는다. 타입이 바뀌면 패널을 통째로 다시 그린다(접힘은 틀이 기억한다). 위 display 토글은 rerender 없는 호출용. */
+      if (rerender) {
+        rerender();
+        /* a11y — 다시 그리면 누른 단추가 새 노드라 포커스가 body 로 샌다 ⇒ 같은 타입 단추로 돌려놓는다(키보드 사용자가 자리를 잃지 않게) */
+        propPanel.querySelector(`.prop-type-btn[data-cls="${cls}"]`)?.focus();
+      }
     });
   });
 }

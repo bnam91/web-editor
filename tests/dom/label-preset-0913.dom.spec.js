@@ -10,6 +10,8 @@
  *   P7 (dev 꼴) 새 줄은 옛 «Style» 절 안에만 산다 — 절 수·절 제목 순서 무변 · 기존 id(lg-style-select·lg-apply-all-btn 등) 그대로
  *      ★우측패널 가지판(36cb754d8)의 P7 은 패널 틀 게이트(judgePanel)였다 — dev 엔 그 틀(_panel-frame·_panel-sections)이 없어
  *        해당 없음 ⇒ dev 의 옛 패널 모양을 직접 단언한다.
+ *      ★rp-on-dev(261118 ⓑ): 우측 패널 통일(U2) 로 틀이 들어와 절 = data-sec key — 옛 제목 → 절 key 로 셀렉터만 따라감(재는 뜻 같음):
+ *        Style → kind · Align+Spacing → layout · Height (All) → size · Selected Tag → size(태그 높이)·appearance(모서리)·fill(색). 머리(블록 헤더) = data-sec 없는 절 = null.
  *   P8 (0.9.12 열차 이식 · 충돌 «양쪽 다 살림» 지킴) 모양 변수(B1)에 묶인 칸에 기본 프리셋 → 묶임 끊김(data-label-shape 없음)
  *      · clipPath 비움(var 참조 떨어짐) · 프리셋 값이 그려짐 · 그 뒤 변수를 고쳐도 그 칸은 안 따라감
  *      ⇒ CTL: prop-label-group.js _applyPresetToItem 의 `if (item.dataset.labelShape) { delete … clipPath = ''; }` 줄을 지우면 P8 빨강
@@ -173,20 +175,20 @@ test('P6 기본 프리셋 무손상', async ({ page }) => {
   expect(errs).toEqual([]);
 });
 
-test('P7 (dev 꼴) 새 줄은 Style 절 안 · 절 구성 무변', async ({ page }) => {
+test('P7 (dev 꼴 → 틀) 새 줄은 Kind(옛 Style) 절 안 · 절 구성 무변', async ({ page }) => {
   const errs = await setup(page);
   await openPanel(page, 'lgA', 'tA');
   const sections = () => page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section')]
-    .map((e) => e.querySelector(':scope > .prop-section-title')?.textContent.trim() ?? null));
+    .map((e) => e.dataset.sec ?? null));
   const before = await sections();
-  expect(before, '[전제] 옛 패널 절').toEqual([null, 'Style', 'Align', 'Spacing', 'Height (All)', 'Selected Tag']);
+  expect(before, '[전제] 틀 패널 절(옛 Style·Align·Spacing·Height (All)·Selected Tag)').toEqual([null, 'kind', 'size', 'layout', 'appearance', 'fill']);
   await saveAs(page, '모양');
   await page.click('#lg-preset-rename-btn');
   await expect(page.locator('#lg-preset-name-row')).toBeVisible();
   expect(await sections(), '★새 절이 안 생긴다').toEqual(before);
   const home = await page.evaluate(() => ['lg-style-select', 'lg-apply-all-btn', 'lg-preset-save-btn', 'lg-preset-user-row', 'lg-preset-name-row']
-    .map((id) => document.getElementById(id)?.closest('.prop-section')?.querySelector(':scope > .prop-section-title')?.textContent.trim() ?? null));
-  expect(home, '★프리셋 줄은 전부 Style 절 안').toEqual(['Style', 'Style', 'Style', 'Style', 'Style']);
+    .map((id) => document.getElementById(id)?.closest('.prop-section[data-sec]')?.dataset.sec ?? null));
+  expect(home, '★프리셋 줄은 전부 Kind(옛 Style) 절 안').toEqual(['kind', 'kind', 'kind', 'kind', 'kind']);
   expect(errs).toEqual([]);
 });
 

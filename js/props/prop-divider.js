@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
@@ -17,9 +18,8 @@ export function showDividerProperties(block) {
   const fullW = Math.max(40, Math.round((block.clientWidth || 860) - padH * 2));
   const lineWidth = Math.min(fullW, parseInt(block.dataset.lineWidth) || fullW);
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <line x1="1" y1="6" x2="11" y2="6"/>
           </svg>`,
@@ -27,10 +27,9 @@ ${blockHeaderHTML({
       defaultName: 'Divider',
       crumb: window.getBlockBreadcrumb(block),
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Direction</div>
+    }),
+    sections: [
+      sec('kind', `
       <div class="prop-align-group" id="dvd-dir-group">
         <button class="prop-align-btn${!isVertical?' active':''}" data-dir="horizontal">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="7" x2="13" y2="7"/></svg>
@@ -40,14 +39,14 @@ ${blockHeaderHTML({
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="7" y1="1" x2="7" y2="13"/></svg>
           세로
         </button>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Line Style</div>
+      </div>`),
+      // 옛 「Line Style」 한 절 → 소유 규칙대로 셋: 색=Fill · 스타일/두께=Stroke · 너비/길이=Size
+      sec('fill', `
       <div class="prop-color-row">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'dvd', hex: lineColor, alpha: lineAlpha })}
-      </div>
+      </div>`),
+      sec('stroke', `
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="dvd-style">
@@ -61,7 +60,8 @@ ${blockHeaderHTML({
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="dvd-weight-slider" min="1" max="24" step="1" value="${lineWeight}">
         <input type="number" class="prop-number" id="dvd-weight-number" min="1" max="24" value="${lineWeight}">
-      </div>
+      </div>`),
+      sec('size', `
       <div class="prop-row" id="dvd-width-row" style="display:${isVertical?'none':'flex'}">
         <span class="prop-label" title="가로 선의 너비 — 끝까지 올리면 전폭">너비</span>
         <input type="range" class="prop-slider" id="dvd-width-slider" min="20" max="${fullW}" step="4" value="${lineWidth}">
@@ -71,10 +71,8 @@ ${blockHeaderHTML({
         <span class="prop-label">길이</span>
         <input type="range" class="prop-slider" id="dvd-length-slider" min="20" max="400" step="4" value="${lineLength}">
         <input type="number" class="prop-number" id="dvd-length-number" min="20" max="400" value="${lineLength}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Padding</div>
+      </div>`),
+      sec('padding', `
       <div class="prop-row">
         <span class="prop-label">상하 패딩</span>
         <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">
@@ -84,8 +82,9 @@ ${blockHeaderHTML({
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="2000" step="4" value="${padH}">
         <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="2000" value="${padH}">
-      </div>
-    </div>`;
+      </div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

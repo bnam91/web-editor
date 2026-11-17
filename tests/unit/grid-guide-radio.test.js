@@ -80,7 +80,9 @@ test('R-5 ⛔공용 규칙을 «볼모로 잡지 않았다» — 프리셋 6개�
 });
 
 test('R-6 ⛔전역 .prop-label(56px)은 «그대로»다 — 새 변형만 더했다', () => {
-  assert.ok(/\.prop-label \{[^}]*width:\s*56px/.test(CSS), '전역 라벨 폭이 바뀌었다 — 패널 세로 정렬이 깨진다');
+  /* U0(right-panel-unify) — 56px 리터럴이 토큰 var(--ui-form-label-w) 로 갔다. 값(56px)은 토큰 정의에서 잰다. */
+  assert.ok(/\.prop-label \{[^}]*width:\s*var\(--ui-form-label-w\)/.test(CSS), '전역 라벨 폭이 토큰을 안 본다 — 패널 세로 정렬이 깨진다');
+  assert.ok(/--ui-form-label-w:\s*56px/.test(readSrc('css/editor-base.css')), '★--ui-form-label-w 가 56px 이 아니다 — 전역 라벨 폭이 바뀌었다');
   assert.ok(/\.prop-label--auto \{[^}]*width:\s*auto/.test(CSS),
     '★prop-label--auto 가 없다 — 「그리드 가이드」(60px 필요)가 56px 라벨에서 잘린다(실측)');
 });

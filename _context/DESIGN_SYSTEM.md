@@ -529,27 +529,22 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ---
 
-## 10. 간격·반경 스케일 (`--space-*` / `--radius-*`)
+## 10. 간격·반경 스케일 (`--ui-space-*` / `--ui-radius-*`)
 
-⚠️⚠️**이 토큰은 존재하지 않는다 — 쓰려면 먼저 만들어라.**
-> 정의 **0건** · 사용 **0건** (2026-10-11 내가 쟀다 — `grep -rn -- '--space-[0-9] *:' css/` ＋
-> `--radius-\(sm\|md\|lg\)`, 둘 다 0. `css/design-tokens.css` 안 「space」 글자도 **0**.
-> 양성대조: 같은 자로 `--bg-app`·`--text-sub`·`--color-accent` 등 13종은 전부 정의=1 ⇒ 자는 산다).
-> ⚠️**이 절의 거짓이 이미 사람을 속였다** — 2026-10-11 디자인시스템 일관성 대조에서 내가
-> 아래 코드블록을 읽고 「`--space-1: 4px` 가 있다」고 적어, `css/editor-extra.css:1011`
-> `margin-left:4px` 를 「토큰을 쓸 수 있는데 숫자로 박았다」는 흠으로 올렸다. 쓸 토큰이 없었다.
-> ★손대기 전 이 파일 = blob `3a548c60` · 23195바이트 · 512행 (★저술 mtime 2026-10-10 09:45:16 · ⛔내 워크트리 체크아웃이 파일 mtime 을 덮었으므로 정체는 blob 으로 적는다)
+✅**2026-11-13 실체화(right-panel-unify U0)** — 간격 스케일은 `--space-*` 가 아니라 **`--ui-space-*`** 로 만들었다
+(`css/editor-base.css :root` 「패널 절」 묶음 · `scripts/check-design-tokens.sh` 의 미정의 검사망 안에 들게 `--ui-` 접두).
+반경은 이미 있던 `--ui-radius-sm/md/lg`(4/6/10px)를 쓴다 — ⛔`--radius-*` 를 새로 만들지 마라(두 벌).
 
-~~`css/design-tokens.css` 정의.~~ **신규 UI 크롬** 코드의 padding/gap/margin/border-radius를
-이 토큰으로 쓰려면 **먼저 `css/design-tokens.css` 에 정의를 만들어야 한다**(미결 — 판정 대기).
-
-⚠️**아래는 «실재하는 정의»가 아니라 «제안된 값»이다 — 코드에 이 줄은 없다(2026-10-11 실측).**
 ```css
-/* ⚠️⚠️ 미구현 — 이 10종은 css/ 어디에도 정의가 없다. 아래를 var() 로 쓰면 빈 값이 된다 */
---space-0: 2px;  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
---space-4: 16px; --space-5: 24px; --space-6: 32px;
---radius-sm: 4px; --radius-md: 6px; --radius-lg: 10px;
+/* css/editor-base.css :root — 실재하는 정의 */
+--ui-space-1: 4px;  --ui-space-2: 8px;  --ui-space-3: 12px;  --ui-space-4: 16px;
+--ui-radius-sm: 4px; --ui-radius-md: 6px; --ui-radius-lg: 10px;
 ```
+- 의미 별칭은 그대로 둔다: `--ui-row-gap`(=4) · `--ui-pad-panel`(=8). 새 코드는 의미가 있으면 별칭, 없으면 스케일.
+- 패널 절 토큰(같은 묶음): `--ui-sec-divider` · `--ui-sec-title-fs` · `--ui-sec-title-color(-hover)` · `--ui-sec-head-py` ·
+  `--ui-sec-body-pb` · `--ui-hint-color` · `--ui-chip-h` · `--ui-focus-ring`(공용 `:focus-visible` 링 값의 토큰화).
+- ⚠️옛 기록: 2026-10-11 까지 이 절은 `--space-0..6` 을 «있는 것처럼» 적어 사람을 속였다(정의 0건). 그 제안값 중
+  4/8/12/16 만 실체화했다 — 2·24·32 는 쓰는 자리가 생길 때 만든다(죽은 토큰 금지).
 
 **정책**
 - 현재 CSS엔 px 리터럴 3078개 (흔한 값 4/8/6/10/12px 군집 + 5·11·3·7 난립). → **점진 이관** 대상이지 일괄 치환 X.
@@ -560,16 +555,42 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ## 11. 패널 공통 구조 + 타이포·대비 규칙
 
-### 11-A. 패널 공통 구조
-> 상세는 `docs/RIGHT_PANEL_PROPS.md §2` (단일 출처). 여기선 핵심만.
+### 11-A. 패널 공통 구조 — `sec()` / `renderPanel()` (right-panel-unify, 2026-11-13~)
+> 정본 = `js/props/_panel-frame.js` + `js/props/_section-spec.js`. 실물 = `docs/styleguide-panel.html`(앱 CSS + 진짜 renderPanel).
+> 이관 중: 파일럿 gap·bridge 만 틀을 쓴다(U0). 나머지는 U1~U5 가 옮기고 `tests/dom/panel-section-gate.dom.spec.js` 의 UNMIGRATED 명단에서 지운다.
 
-```html
-<div class="prop-section">
-  <div class="prop-section-title">제목</div>
-  <div class="prop-row"><span class="prop-label">…</span> …입력…</div>
-</div>
+```js
+renderPanel(block, {
+  header: blockHeaderHTML({ … }),
+  sections: [ sec('size', html), sec('fill', html), sec('special', html, { title: 'Tail' }) ],
+});   // 동기 — 뒤의 getElementById 배선은 그대로
 ```
-- 모든 우측 프로퍼티 패널은 `prop-section`(블록 단위) → `prop-section-title` → `prop-row`(라벨+컨트롤) 구조.
+- 전역 순서(없는 절은 숨김 · 순서는 늘 이 표의 부분열 · 정본 `_section-spec.js`). 한 key 를 두 번 선언하면 throw. 빈 html 절은 DOM 에 없다.
+
+| # | key | 제목(라벨) | 소유 |
+|---|---|---|---|
+| 1 | `kind` | **Type** | Type · Variant · Shape · Device · Chart Type · Direction · Preset · Favorites |
+| 2 | `content` | **Content** | Text · Data · Messages · Layers · Cards · Cells · Icon · Image · Video · Profile · Path |
+| 3 | `position` | **Position** | Position · X/Y · 플로팅 · Rotation · Rotate/Flip |
+| 4 | `size` | **Size** | Size · Width · Height · Card Size · 치수선 |
+| 5 | `layout` | **Layout** | Layout · Align · Spacing · Gap · Column Ratio · Rows/Cols · 행 높이 · 분배 |
+| 6 | `padding` | **Padding** | Padding 류 전부 |
+| 7 | `appearance` | **Appearance** | 모서리(radius) · 투명도 · 그레인 · 가림막 · 이미지 표시 |
+| 8 | `typography` | **Typography** | Typography(SSOT) · Tag Style · Bubble Style · Icon Text |
+| 9 | `fill` | **Fill** | Fill · Color(s) · Background · Bg Image · Text Color · Color Stops |
+| 10 | `stroke` | **Stroke** | 블록 테두리 · 글자 윤곽선 · Line Style · Highlight Line · 칸 사이 줄 — 한 절 안 «행»(하위 제목 없음) |
+| 11 | `effects` | **Effects** | Shadow · Glow · Zoom Effect · Text Overlay · Decoration · Buzz · Marking |
+| 12 | `special` | **(호출부가 줌)** | 블록 고유 — 같은 규칙 · 선언순 (예: Tail · Coin · Arrow Line · Cards 3) |
+| 13 | `export` | **Export** | Export · 참고 이미지 |
+| 14 | `template` | **Template** | Template · Component · QA Ticket |
+
+- ★제목 규칙(현빈 2026-11-13 Q1 정정 — «한글»을 뒤집음): **영어 1~2단어**(Figma 명명) — 단어 = Title Case(`Tail`) 또는 약어 2~4자(`QA`·`FAQ`·`3D`·`SVG`·`CTA`) · 한글·괄호·기호 금지 · 개수 접미는 `Cards 3` 꼴. 기계식 `/^(?:[A-Z][a-z]+|[A-Z0-9]{2,4})( (?:[A-Z][a-z]+|[A-Z0-9]{2,4}))?( \d+)?$/` 아니면 `sec()` 가 throw. 글자 윤곽선은 Stroke 절 안 행(하위 제목 없음).
+- 마크업: `.prop-section[data-sec]` > `.prop-section-title-row.prop-sec-head` > `.prop-section-title[role=button][tabindex=0][aria-expanded][aria-controls]`(+headTools) / `.prop-sec-body`.
+- ★소유: 속성은 제 절에 산다 — `_section-spec.js` `OWNERSHIP`(컨트롤 id·class·data-* 단어 → 절 key; 예 radius→Appearance · pad→Padding · shadow/glow→Effects · font/letter/line-height→Typography · border-color·stroke-color/border/stroke→Stroke · color/fill/bg→Fill · rotate/x/y→Position · width/height/size→Size). renderPanel 이 순서를 정렬해 주므로 순서 위반은 날 수 없고, 게이트(`panel-section-gate`)의 본 칼날은 이 소유 검사다. 애매하면 `OWNERSHIP_EXEMPT` 에 id 와 까닭.
+  - ★명시 덮어쓰기 `data-own="<절 key>"`(컨트롤 또는 같은 절 안 조상 줄): 게이트가 «그 절이어야 한다»로 여전히 판정한다(건너뛰기 아님). **드물게만 · 호출부에 까닭 주석 필수.** 예: 방사형 배치 반지름 `rdl-radius-*` → `layout`(원 배치 크기 — 모서리 radius 아님). 블록 고유 절은 `data-own="special:<제목>"`(예 `special:Grid` · `special:Buzz`). 게이트는 그 절이 패널에 실제로 있는지도 잰다(오타 = 빨강).
+- 접기: 절 key 단위 · 전 블록 공통 · `localStorage['gd-panel-collapsed']` · 기본 전부 펼침 · Enter/Space 로도 접힌다. 블록 «안» 하위 접기는 `_helpers.js` `discSec*` 그대로.
+- 조각: `fieldRowHTML(label, control)` · `hintHTML(text)`(패널당 ≤2) · `scopeChipsHTML(items, active)`.
+- 모양은 `css/editor-props.css` `panel-frame:BEGIN~END` 블록 — 토큰만(`--ui-sec-*` · `--ui-space-*` · `--ui-focus-ring`).
 - 토글 버튼: `.prop-align-btn` (`flex:1; height:24px`) — **버튼그룹 전용**. 단독 텍스트 토글로 쓸 땐 `flex:0 0 auto` 필수(안 그러면 늘어남).
 - 색 입력: `colorFieldHTML()` + `wireColorField()` (solid `onApply` / 그라데이션 `onGradient`).
 
@@ -593,9 +614,14 @@ transform-origin: left center; /* 또는 맥락에 맞게 */
 
 ## 12. 가드레일 (일관성 회귀 방지)
 
-`scripts/check-design-tokens.sh` — 신규 미정의 `--ui-*` 토큰 / 신규 UI 크롬 하드코딩 색 검출.
-- 사용된 `var(--ui-*)` ∖ 정의된 `--ui-*` = 미정의 (런타임 `--ui-scale`/`--inv-zoom` 제외)
-- 정의/사용 토큰 수, 하드코딩 색·px 카운트 출력 (회귀 추세 모니터)
+`scripts/check-design-tokens.sh` — rc 1 이면 빨강. `tests/unit/design-tokens-guard.test.mjs` 가 rc 0 을 단언하므로 **npm test 에 배선**돼 있다
+(양성대조: tmp 가짜 파일 `style="color:#123456"` 를 인자로 주면 rc 1).
+- ① 미정의 `--ui-*`: 사용된 `var(--ui-*)` ∖ 정의된 `--ui-*` (런타임 `--ui-scale`/`--inv-zoom` 제외). css/·js/ 는 `find` 로 재귀(⛔globstar — macOS bash 3.2 에 없다).
+- ② **신규 패널 층 하드게이트**: `js/props/_panel-frame.js` · `js/props/_section-spec.js` · `css/editor-props.css` 의
+  `panel-frame:BEGIN`~`END` 블록에 `#hex` · `rgb(a)(` · `Npx` 리터럴(인라인 `style=` 포함)이 1건이라도 있으면 실패. 전부 `var(--ui-*)`.
+- ③ **래칫**: `scripts/design-tokens.baseline.json` — `props-inline-hardcoded`(js/props 인라인 style 중 리터럴 품은 것) · `css-px` · `css-color`.
+  현재 > 기준 ⇒ 실패. 줄었으면 기준을 그 값으로 내려 같은 커밋에 넣는다. 첫 기준(2026-11-13, 스크립트 자신으로 잼): 388 · 3954 · 1640.
+- 대비: `tests/unit/panel-contrast.test.mjs` — 절 제목·힌트·라벨 토큰 × (`--ui-bg-base` · `--ui-bg-card`) ≥ 4.5:1.
 
 ---
 

@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, discSecOpen, discSecToggle, disclosureChevronHtml } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
 
@@ -78,20 +79,13 @@ export function showLaurelProperties(block) {
   const cols  = Math.max(1, parseInt(block.dataset.gridCols) || 1);
   const rows  = Math.max(1, parseInt(block.dataset.gridRows) || 1);
 
-  // ── 셀 expanded 상태 보존 (showLaurelProperties는 다양한 이벤트로 재호출됨) ──
-  // block._laurelCellExpanded는 cell idx → bool 맵. 최초 호출 시 cell 0만 true.
-  if (!block._laurelCellExpanded || typeof block._laurelCellExpanded !== 'object') {
-    block._laurelCellExpanded = { 0: true };
-  }
-  // 현재 cells 개수 범위 밖 키 청소 (그리드 축소 시)
-  Object.keys(block._laurelCellExpanded).forEach(k => {
-    if (parseInt(k) >= cells.length) delete block._laurelCellExpanded[k];
-  });
+  // ── 셀 카드 펼침 = 공용 블록별 접기(_helpers discSec* · 블록 id 키 ⇒ ⌘Z 로 블록이 갈려도 유지 · U5).
+  //    기본 = 칸 0 만 펼침. 키 'lrl-cell-<i>'.
+  const _cellKey = (i) => `lrl-cell-${i}`;
   /* ★1013t1B2 — 캔버스에서 칸/줄을 고르면 그 칸 카드를 펼친다(결정 B2-7). */
   const _act = window.grdGetActiveLine?.(block);
-  if (_act && Number.isInteger(_act.r) && _act.r >= 0 && _act.r < cells.length) block._laurelCellExpanded[_act.r] = true;
-  const expandedMap = block._laurelCellExpanded;
-  const isExpanded = (i) => !!expandedMap[i];
+  if (_act && Number.isInteger(_act.r) && _act.r >= 0 && _act.r < cells.length && !discSecOpen(block, _cellKey(_act.r), _act.r === 0)) discSecToggle(block, _cellKey(_act.r), _act.r === 0);
+  const isExpanded = (i) => discSecOpen(block, _cellKey(i), i === 0);
 
   const cellsHtml = cells.map((cell, i) => {
     const r = Math.floor(i / cols) + 1;
@@ -102,7 +96,7 @@ export function showLaurelProperties(block) {
         <div class="prop-cell-card-header">
           <span class="prop-cell-card-title">Cell ${i + 1} <span style="color:var(--ui-text-muted);">(${c},${r})</span></span>
           <button class="prop-icon-btn lrl-cell-toggle" title="펼치기/접기" aria-expanded="${exp ? 'true' : 'false'}">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,3.5 5,6.5 8,3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ${disclosureChevronHtml(exp)}
           </button>
         </div>
         <div class="prop-cell-card-body" ${exp ? '' : 'hidden'}>
@@ -113,9 +107,12 @@ export function showLaurelProperties(block) {
 
   /* ★t5-10 「패딩 제외」 — 배너2 패널(js/props/prop-banner02.js _bn2CanFullBleed)과 같은 판정(뚫을 수 없는 자리면 안 보인다 · 켜져 있으면 보인다). */
   const _lrlCanFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* right-panel-unify U5 — 옛 절 Grid (c×r) · All Cells (일괄) · Cells (n) 을 정본 절로 나눴다.
+     ★U6(수지 발주32) — 일괄 줄은 칸 카드와 «같은 이름표»라 어느 쪽이 일괄인지 사라졌다 ⇒ 그리드 범위 표기(「가로 정렬 · 모든 열」 · data-scope)와 같은 꼴로 「… · 모든 칸」 + data-scope="all" + title(56px 라벨에서 잘려도 전문).
+     ★RP-LAUREL-SCOPE-LABEL-TRUNCATED-01(현빈 ⓑ 261117) — «잎 크기 · 모든 칸» 은 56px 라벨에서 «잎 크기 · …» 로 잘려 범위가 안 읽혔다 ⇒ 이름표를 «일괄 크기·간격·채움·색상» 으로 짧게(범위 낱말이 맨 앞) · title 전문·data-scope 그대로.
+     「일괄」 값은 그 속성의 절(간격=Layout · 잎 크기=Size · 잎 채움/색=Fill)에, 칸 카드(per-cell)는 Content 한 절 안(§3-2 반복 항목). */
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <path d="M3 10c0-3 0-6 3-8M9 10c0-3 0-6-3-8" stroke-linecap="round"/>
           </svg>`,
@@ -123,34 +120,25 @@ ${blockHeaderHTML({
       defaultName: 'Laurel',
       crumb: window.getBlockBreadcrumb(block),
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Grid (${cols}×${rows})</div>
-      <div class="grid-picker" id="lrl-grid-picker"></div>
-      <div class="grid-picker-label" id="lrl-grid-picker-label">—</div>
-      ${_lrlCanFB ? `
-      <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="lrl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>` : ''}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">All Cells (일괄)</div>
-      <div class="prop-row">
-        <span class="prop-label">잎 간격</span>
-        <input type="range" class="prop-slider" id="lrl-all-gap" min="0" max="800" step="4" value="${cells[0]?.gap ?? 24}">
-        <input type="number" class="prop-number" id="lrl-all-gap-num" min="0" max="2000" value="${cells[0]?.gap ?? 24}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">잎 크기</span>
+    }),
+    sections: [
+      sec('content', `
+      <div id="lrl-cells-container">${cellsHtml}</div>
+`),
+      sec('size', `
+      <div class="prop-row" data-scope="all">
+        <span class="prop-label" title="잎 크기 · 모든 칸(일괄)">일괄 크기</span>
         <input type="range" class="prop-slider" id="lrl-all-height" min="40" max="320" step="4" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
         <input type="number" class="prop-number" id="lrl-all-height-num" min="20" max="600" value="${parseInt(cells[0]?.height) > 0 ? parseInt(cells[0].height) : 140}">
+      </div>
+`),
+      sec('layout', `
+      <div class="grid-picker" id="lrl-grid-picker"></div>
+      <div class="grid-picker-label" id="lrl-grid-picker-label">${cols} × ${rows}</div>
+      <div class="prop-row" data-scope="all">
+        <span class="prop-label" title="잎 간격 · 모든 칸(일괄)">일괄 간격</span>
+        <input type="range" class="prop-slider" id="lrl-all-gap" min="0" max="800" step="4" value="${cells[0]?.gap ?? 24}">
+        <input type="number" class="prop-number" id="lrl-all-gap-num" min="0" max="2000" value="${cells[0]?.gap ?? 24}">
       </div>
       ${cols > 1 ? `
       <div class="prop-row">
@@ -166,8 +154,18 @@ ${blockHeaderHTML({
         <input type="number" class="prop-number" id="lrl-grid-row-gap-num" min="0" max="400" value="${gridNumOr(parseInt(block.dataset.gridRowGap), 24)}">
       </div>
       ` : ''}
+`),
+      sec('padding', _lrlCanFB ? `
       <div class="prop-row">
-        <span class="prop-label">잎 채움</span>
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="lrl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>` : ''),
+      sec('fill', `
+      <div class="prop-row" data-scope="all">
+        <span class="prop-label" title="잎 채움 · 모든 칸(일괄)">일괄 채움</span>
         <select class="prop-select" id="lrl-all-fill">
           <option value="solid"          ${(cells[0]?.leafFill || 'solid') === 'solid' ? 'selected' : ''}>Solid (단색)</option>
           <optgroup label="Classic">
@@ -192,16 +190,13 @@ ${blockHeaderHTML({
           </optgroup>
         </select>
       </div>
-      <div class="prop-color-row" data-solid-only style="${(cells[0]?.leafFill && cells[0].leafFill !== 'solid') ? 'opacity:0.4;pointer-events:none;' : ''}">
-        <span class="prop-label">잎 색상</span>
+      <div class="prop-color-row" data-solid-only data-scope="all" style="${(cells[0]?.leafFill && cells[0].leafFill !== 'solid') ? 'opacity:0.4;pointer-events:none;' : ''}">
+        <span class="prop-label" title="잎 색상 · 모든 칸(일괄)">일괄 색상</span>
         ${colorFieldHTML({ idPrefix: 'lrl-all-leaf', hex: cells[0]?.leafColor || '#1a1a1a', alpha: parseAlphaFromColor(cells[0]?.leafColor || '#1a1a1a') })}
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Cells (${cells.length})</div>
-      <div id="lrl-cells-container">${cellsHtml}</div>
-    </div>`;
+`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -243,9 +238,10 @@ ${blockHeaderHTML({
       const r = parseInt(cl.dataset.r), c = parseInt(cl.dataset.c);
       cl.classList.toggle('active', c <= cols && r <= rows);
     });
-    pickerLabel.textContent = '—';
+    pickerLabel.textContent = `${cols} × ${rows}`;   // 쉴 때 = 지금 c×r (옛 절 제목 「Grid (c×r)」 자리 · 제목엔 수 하나만 허용 · U5)
   });
   picker.addEventListener('click', e => {
+    expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
     const cell = e.target.closest('.grid-picker-cell');
     if (!cell) return;
     const newCols = parseInt(cell.dataset.c);
@@ -263,16 +259,14 @@ ${blockHeaderHTML({
     if (!card) return;
     const body = card.querySelector('.prop-cell-card-body');
     const btn = card.querySelector('.lrl-cell-toggle');
-    const expanded = btn?.getAttribute('aria-expanded') === 'true';
-    const next = !expanded;
+    const idx = parseInt(card.dataset.cellIdx);
+    if (Number.isNaN(idx)) return;
+    const next = discSecToggle(block, _cellKey(idx), idx === 0);   // 다음 재그리기·⌘Z 에도 보존
     btn?.setAttribute('aria-expanded', String(next));
     card.classList.toggle('expanded', next);
-    if (body) body.hidden = expanded;
-    // ── 다음 showLaurelProperties 재호출에도 보존 ──
-    const idx = parseInt(card.dataset.cellIdx);
-    if (!Number.isNaN(idx) && block._laurelCellExpanded) {
-      block._laurelCellExpanded[idx] = next;
-    }
+    if (body) body.hidden = !next;
+    const arrow = btn?.querySelector('svg');
+    if (arrow) arrow.style.transform = `rotate(${next ? 0 : -90}deg)`;   // disclosureChevronHtml 과 같은 각도 식
   };
   // 버튼 자체 클릭 (명시적)
   propPanel.querySelectorAll('.lrl-cell-toggle').forEach(btn => {

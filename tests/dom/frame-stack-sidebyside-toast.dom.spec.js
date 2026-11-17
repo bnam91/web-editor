@@ -2,14 +2,17 @@
  * 나란히 놓인 자식이 있는 자유 프레임에서 「stack」 단추를 누르면 네이티브 alert 이 떠 앱이 얼고 CDP 도 막혔다.
  * 이제 앱 안 토스트(#editor-toast)로 알리고 프레임은 자유배치 그대로.
  * SB1 [새 것] 대화창 0 · 토스트 문구 · 바뀌지 않음.  SB2 [지킴] 위아래로 놓인 자식은 그대로 stack 으로 바뀐다(음성대조).
+ * SB3 [새 것 · FRAME-STACK-EMPTY-FRAME-NATIVE-ALERT-01 · 미카사 261112] «빈» 자유 프레임에서 stack — 같은 꼴의 둘째 alert.
+ *   대화창 0 · 토스트 「빈 프레임」 · 자유배치 그대로. 양성대조: prop-frame.js 의 빈 프레임 갈래를 alert(…) 로 되돌리면 SB3 빨강(대화창 1).
+ *   SB2 가 짝(자식이 있으면 토스트 없이 바뀐다 — 토스트가 아무 때나 뜨는 것이 아니다).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
-async function scene(page, sideBySide) {
+async function scene(page, sideBySide, nKids = 3) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   await bootApp(page);
-  return page.evaluate((sideBySide) => {
+  return page.evaluate(([sideBySide, nKids]) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="sSB" data-section="1"><div class="section-hitzone"><span class="section-label">sSB</span></div><div class="section-inner"><div class="gap-block" data-type="gap" style="height:40px"></div></div></div>`);
     window.rebindAll?.(); window.applyZoom?.(60);
@@ -17,7 +20,7 @@ async function scene(page, sideBySide) {
     const made = (sel, fn) => { const b = new Set([...document.querySelectorAll('#canvas ' + sel)].map(e => e.id)); fn(); return [...document.querySelectorAll('#canvas ' + sel)].find(e => !b.has(e.id)); };
     window.deselectAll?.(); window._activeFrame = null; window.selectSection?.(sec);
     const fr = made('.frame-block:not([data-text-frame])', () => window.addFrameBlock());
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < nKids; i++) {
       window.deselectAll?.(); window._activeFrame = fr;
       const t = made('.text-block', () => window.addTextBlock('body'));
       const ed = t.querySelector('[contenteditable]') || t.querySelector('[class^="tb-"]'); if (ed) ed.textContent = '글자 ' + (i + 1);
@@ -30,7 +33,7 @@ async function scene(page, sideBySide) {
     fr.style.height = '420px'; fr.style.minHeight = '420px';
     window.deselectAll?.(); window._activeFrame = null;
     return fr.id;
-  }, sideBySide);
+  }, [sideBySide, nKids]);
 }
 async function pressStack(page, fr) {
   const dialogs = [];
@@ -59,4 +62,16 @@ test('SB2 [지킴] 위아래로 놓인 자식 — 대화창·토스트 없이 st
   expect(dialogs).toEqual([]);
   await page.waitForFunction((id) => document.getElementById(id).dataset.freeLayout !== 'true', fr, { timeout: 5000 });
   expect(await page.evaluate(() => document.getElementById('editor-toast')?.textContent || '')).not.toContain('나란히');
+});
+
+test('SB3 «빈» 자유 프레임 — 네이티브 대화창 없이 앱 안 토스트 · 프레임은 자유배치 그대로', async ({ page }) => {
+  const fr = await scene(page, false, 0);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll(':scope > [style*="absolute"]').length, fr), '전제: 자식 0').toBe(0);
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.freeLayout, fr), '전제: 자유배치 프레임').toBe('true');
+  const dialogs = await pressStack(page, fr);
+  expect(dialogs, '네이티브 alert/confirm 이 떴다').toEqual([]);
+  const t = await page.evaluate(() => { const e = document.getElementById('editor-toast'); return e ? { txt: e.textContent, show: e.classList.contains('show') } : null; });
+  expect(t && t.show, '토스트가 안 떴다').toBe(true);
+  expect(t.txt).toContain('빈 프레임');
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.freeLayout, fr), '바뀌지 않았다').toBe('true');
 });

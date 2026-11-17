@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
 import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js';   /* ★「내용 자르기」 한 자리(2026-10-10 c2) */
@@ -115,8 +116,6 @@ export function showAssetProperties(ab) {
      살아서 계속 칠해지는데 «닿는 문»만 없는 막다른 골목). ⇒ hasImage 분기 «밖»에 둔다.
      선례: prop-icon-circle.js 의 Color/배경 절도 hasImage 삼항 밖에 있다. */
   const bgSection = `
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
@@ -139,10 +138,8 @@ export function showAssetProperties(ab) {
         </div>
       </div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
-    </div>`;
+  `;
   const imageSection = hasImage ? `
-    <div class="prop-section">
-      <div class="prop-section-title">${isVideo ? 'Video' : 'Image'}</div>
       <div class="prop-row">
         <span class="prop-label">Fit</span>
         <div class="prop-align-group" id="asset-fit-group">
@@ -152,15 +149,9 @@ export function showAssetProperties(ab) {
       </div>
       ${(isVideo || ab.dataset.collab) ? '' : '<button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>'}<!-- ★1013t2A2 콜라보면 숨김 — 위치 조절 틀이 블록 전체 폭을 잰다 -->
       <button class="prop-action-btn secondary" id="asset-replace-btn">${isVideo ? '영상' : '이미지'} 교체</button>
-      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>
-    </div>
-    ${isVideo ? videoTrimSectionHTML(ab) : ''}` : `
-    <div class="prop-section">
-      <div class="prop-section-title">Image</div>
-      <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하여 이미지 추가</div>
-      <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>
-      <div class="prop-hint" style="text-align:center;margin-top:4px;">또는 파일을 블록에 드래그</div>
-    </div>`;
+      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>` : `
+      <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하거나 파일을 블록에 드래그해 이미지 추가</div>
+      <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>`;   // U4: 힌트 둘 → 하나(패널당 ≤2)
 
   /* ★1013t2A2 「Collab」 절 — 로고 블록(켜짐 ∪ data-preset=logo ∪ 200×64)에만. 꼴 = 별 「갯수」(prop-shape.js) 그대로. */
   const showCollab = isLogoBlock(ab);
@@ -181,8 +172,6 @@ export function showAssetProperties(ab) {
     return h;
   };
   const collabSection = showCollab ? `
-    <div class="prop-section" id="asset-collab-section">
-      <div class="prop-section-title">Collab</div>
       <div class="prop-row">
         <span class="prop-label">콜라보</span>
         <label class="prop-toggle">
@@ -206,16 +195,20 @@ export function showAssetProperties(ab) {
         <input type="range" class="prop-slider" id="asset-collab-xsize-slider" min="${COLLAB_X_MIN}" max="${COLLAB_X_MAX}" step="1" value="${cp.x}">
         <input type="number" class="prop-number" id="asset-collab-xsize-num" min="${COLLAB_X_MIN}" max="${COLLAB_X_MAX}" value="${cp.x}">
       </div>
-      <div class="prop-color-row">
+      <!-- data-own: 로고 사이 «×» 글자 색 — 콜라보 꾸밈의 한 줄이라 Collab 절에 둔다(color 단어가 Fill 로 끌어도) -->
+      <div class="prop-color-row" data-own="special:Collab">
         <span class="prop-label">X 색</span>
         ${colorFieldHTML({ idPrefix: 'asset-collab-xcolor', hex: collabXHex, alpha: 100 })}
       </div>
       ${collabSlotRows()}` : ''}
-    </div>` : '';
+  ` : '';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★Effects 절 — 효과 목록 그리개(js/effects-registry.js)는 한 벌. 틀 절의 몸통(카드 목록)·머리 손잡이(추가 목록)로 받는다. */
+  const _fx = window.fxSectionParts?.(ab, 'asset');
+  const _vdur = ab.querySelector('.asset-video')?.duration;
+  const trimReady = Number.isFinite(_vdur) && _vdur > 0;   // asset-video-trim.js videoTrimSectionHTML 의 ready 판정과 같은 식
+  renderPanel(ab, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="1"/>
             <circle cx="4" cy="4" r="1"/>
@@ -225,10 +218,10 @@ ${blockHeaderHTML({
       defaultName: 'Asset Block',
       crumb: window.getBlockBreadcrumb(ab),
       id: ab.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Preset</div>
+    }),
+    sections: [
+      // 옛 「Preset」
+      sec('kind', `
       <div class="prop-type-group">
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="780">Standard</button>
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="860">Square</button>
@@ -236,22 +229,14 @@ ${blockHeaderHTML({
         <button class="prop-preset-btn prop-type-btn" data-w="860" data-h="575">Wide</button>
         <button class="prop-preset-btn prop-type-btn" data-preset="logo" data-w="200" data-h="64">Logo</button>
         <button class="prop-preset-btn prop-type-btn" data-preset="a4" data-w="410" data-h="580">A4</button>
-      </div>
-    </div>
-    ${collabSection}
-    <div class="prop-section">
-      <div class="prop-section-title prop-ph-header">
-        <span>Size</span>
-        ${overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※아래 「Text Overlay」(이미지 위 어두운 막)와는 다른 기능입니다.' })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">정렬</span>
-        <div class="prop-align-group" id="asset-align-group">
-          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
-          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
-          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
-        </div>
-      </div>
+      </div>`),
+      // 옛 「Image」/「Video」(Fit·교체·제거 / 올리기)
+      // 영상 메타데이터 전(트림 준비 안 됨)엔 「불러오는 중」 안내만 있다 — 컨트롤 0 인 Trim 절(빈 머리)을 내지 않고 Content 끝에 붙인다
+      sec('content', imageSection + (hasImage && isVideo && !trimReady ? videoTrimSectionHTML(ab) : '')),
+      // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
+      sec('position', `
+      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※Effects 절의 「텍스트 막」(이미지 위 어두운 막)과는 다른 기능입니다.' }) }),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="asset-w-slider" min="${ASSET_W_MIN}" max="860" step="10" value="${currentW}">
@@ -261,18 +246,30 @@ ${blockHeaderHTML({
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="asset-h-slider" min="${H_MIN}" max="1600" step="10" value="${currentH}">
         <input type="number" class="prop-number" id="asset-h-number" min="${H_MIN}" max="1600" value="${currentH}">
-      </div>
+      </div>`),
+      sec('layout', `
       <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="120" step="2" value="${currentR}">
-        <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
-      </div>
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group" id="asset-align-group">
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
+        </div>
+      </div>`),
+      sec('padding', `
       <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
           <input type="checkbox" id="asset-padx-toggle" ${usePadX ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
+      </div>`),
+      // 모서리(radius)는 어디서나 Appearance(§8 Q2) · 내용 자르기 · 옛 「그레인」
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="120" step="2" value="${currentR}">
+        <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
       </div>
       <!-- ★★2026-10-10 (현빈 1010t1c2 「이미지 삽입할 수 있는 상황에서 ‘내용자르기’ 기능이 있으면 좋겠다」)
            ★★이름·값꼴은 ★프레임과 ★★같다(★data-clip-content) — ⛔새 이름 ★금지.
@@ -285,11 +282,16 @@ ${blockHeaderHTML({
           <input type="checkbox" id="asset-clip-toggle" ${clipsContent(ab) ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Border</div>
+      </div>${hasImage ? `
+      <div class="prop-row">
+        <span class="prop-label">그레인</span>
+        <input type="range" class="prop-slider" id="asset-grain-slider" min="0" max="100" step="1" value="${grainIntensity}">
+        <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
+      </div>` : ''}`),
+      // 옛 「Background」
+      sec('fill', bgSection),
+      // 옛 「Border」
+      sec('stroke', `
       <div class="prop-color-row">
         <span class="prop-label">외곽선</span>
         ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
@@ -298,35 +300,18 @@ ${blockHeaderHTML({
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
         <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
-      </div>
-    </div>
-    ${bgSection}
-    ${imageSection}
-    ${hasImage ? `
-    <div class="prop-section">
-      <div class="prop-section-title">그레인</div>
+      </div>`),
+      /* 옛 「Text Overlay」(이미지 위 어두운 막) + 효과 목록. ★개명 안 한 id(asset-overlay-toggle)는 .guard/FEATURE_REGISTRY.md 계약 —
+         플로팅(asset-float-toggle · Position 절)과 갈라 보이게 줄 라벨을 「텍스트 막」(어두운 막 + 글 담는 그릇)으로(옛 설명 힌트 한 줄 대신 — 힌트 ≤2) */
+      sec('effects', `
       <div class="prop-row">
-        <span class="prop-label">강도</span>
-        <input type="range" class="prop-slider" id="asset-grain-slider" min="0" max="100" step="1" value="${grainIntensity}">
-        <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
-      </div>
-    </div>` : ''}
-    ${window.fxSectionHtml?.(ab, 'asset') || ''}<!-- ★E1 Effects — 그레인 아래(지디 승인) · ★블러(Redact)는 이 절의 드롭다운 「블러」로 옮겼다(1012t1C1 · js/effects-blur.js — 옛 따로 절은 지움) -->
-    <div class="prop-section">
-      <div class="prop-section-title">Text Overlay</div>
-      <!-- ★2026-09-20 픽스라운드(low④) — 같은 패널에 「오버레이」가 두 뜻으로 보인다:
-           여기(이미지 위 어두운 막)와 위 Size 절의 오버레이(플로팅). 개명은
-           .guard/FEATURE_REGISTRY.md 계약(id·dataset)을 건드리므로 승인 대상이라,
-           지금은 «설명 한 줄»만 붙여 화면에서 가를 수 있게 한다. -->
-      <div class="prop-hint" style="margin:-2px 0 6px;">이미지 «위에» 어두운 막을 씌웁니다 — 위 Size 절의 «오버레이(플로팅)» 버튼과는 다른 기능입니다.</div>
-      <div class="prop-row">
-        <span class="prop-label">활성화</span>
+        <span class="prop-label">텍스트 막</span>
         <label class="prop-toggle">
           <input type="checkbox" id="asset-overlay-toggle" ${overlayOn ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
       </div>
-      <div id="asset-overlay-controls" style="${overlayOn ? '' : 'display:none'}">
+      <div id="asset-overlay-controls" style="${overlayOn ? '' : 'display:none'}" title="이 블록 선택 후 중앙 패널로 블록 추가">
         <div class="prop-row">
           <span class="prop-label">불투명</span>
           <input type="range" class="prop-slider" id="asset-overlay-opacity" min="0" max="100" step="1" value="${Math.round(overlayOpacity * 100)}">
@@ -340,9 +325,14 @@ ${blockHeaderHTML({
             ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-end', attrs: { 'data-pos': 'flex-end' } })}
           </div>
         </div>
-        <div class="prop-hint" style="margin-top:2px;">이 블록 선택 후 중앙 패널로 블록 추가</div>
-      </div>
-    </div>`;
+        <!-- 옛 힌트 「이 블록 선택 후 중앙 패널로 블록 추가」 → 위 묶음 title(패널당 힌트 ≤2) -->
+      </div>${_fx?.body || ''}`, { headTools: _fx?.headTools || '', id: _fx?.id }),
+      // 영상 트림(옛 「Video 트림」)
+      sec('special', hasImage && isVideo && trimReady ? videoTrimSectionHTML(ab) : '', { title: 'Trim' }),
+      // 로고 콜라보(옛 「Collab」) — id 보존(asset-collab-section). X 색(asset-collab-xcolor)은 data-own 으로 Collab 소유
+      sec('special', collabSection, { title: 'Collab', id: 'asset-collab-section' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(ab.id || null);
 

@@ -80,13 +80,13 @@ test('F1 Fill VAR 칩을 누르면 인용구 글자색이 var(--color-*) 로 묶
     const fill = box && box.closest('.prop-section');
     return {
       box: !!box, hidden: box ? box.hidden : null,
-      inFill: fill ? (fill.querySelector('.prop-section-title')?.textContent || '').trim() : null,
+      inFill: fill ? (fill.dataset.sec ?? null) : null,   /* ★U2 — 절은 data-sec 로 잰다 */
       chips: box ? [...box.querySelectorAll('.cv-chip[data-cv-name]')].map(c => c.dataset.cvName) : [],
       label: box?.querySelector('.cv-chips-label')?.textContent.trim() || null,
     };
   });
   expect(cen.box, '#qt-textcol-chips(VAR 줄)가 있어야 한다').toBe(true);
-  expect(cen.inFill, 'VAR 줄은 Fill 절 안').toBe('Fill');
+  expect(cen.inFill, 'VAR 줄은 Fill 절 안').toBe('fill');
   expect(cen.hidden, 'VAR 줄이 보인다(기본 변수 3종)').toBe(false);
   expect(cen.label).toBe('VAR');
   expect(cen.chips.length >= 1, `칩 수 ${JSON.stringify(cen.chips)}`).toBe(true);
@@ -116,13 +116,13 @@ test('F2 Fill 「최근」 줄을 누르면 인용구 글자색이 그 색으로
     const row = document.querySelector('#panel-right .cv-recent-row');
     return {
       row: !!row, hidden: row ? row.hidden : null,
-      inFill: row ? (row.closest('.prop-section')?.querySelector('.prop-section-title')?.textContent || '').trim() : null,
+      inFill: row ? (row.closest('.prop-section')?.dataset.sec ?? null) : null,   /* ★U2 — data-sec */
       label: row?.querySelector('.cv-recent-label')?.textContent.trim() || null,
       has: !!row?.querySelector('.cv-chip.recent[data-cv-recent="#12ab34"]'),
     };
   });
   expect(cen.row, '최근 줄이 있어야 한다').toBe(true);
-  expect(cen.inFill).toBe('Fill');
+  expect(cen.inFill).toBe('fill');
   expect(cen.hidden).toBe(false);
   expect(cen.label).toBe('최근');
   expect(cen.has, '쌓아 둔 #12ab34 칩').toBe(true);
@@ -138,11 +138,11 @@ test('F3 Stroke 절을 켜면 인용구 글자에 외곽선이 생기고 두께�
   await openPanel(page);
   const sec = await page.evaluate(() => {
     const s = document.getElementById('qt-stroke-section');
-    const titles = [...document.querySelectorAll('#panel-right .prop-section-title')].map(e => e.textContent.trim());
+    const titles = [...document.querySelectorAll('#panel-right .prop-section[data-sec]')].map(e => e.dataset.sec);   /* ★U2 — 절 key */
     return { has: !!s, titles, on: document.getElementById('qt-stroke-on')?.checked ?? null };
   });
   expect(sec.has, `Stroke 절이 있어야 한다. 절 제목 ${JSON.stringify(sec.titles)}`).toBe(true);
-  expect(sec.titles.indexOf('Stroke') > sec.titles.indexOf('Fill'), 'Stroke 는 Fill 뒤(텍스트블럭과 같은 순서)').toBe(true);
+  expect(sec.titles.indexOf('stroke') > sec.titles.indexOf('fill') && sec.titles.indexOf('fill') >= 0, 'Stroke 는 Fill 뒤(텍스트블럭과 같은 순서)').toBe(true);
   expect(sec.on).toBe(false);
   expect((await lineInfo(page)).strokeW, '켜기 전 외곽선 0').toBe('0px');
 

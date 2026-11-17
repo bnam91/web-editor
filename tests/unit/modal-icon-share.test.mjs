@@ -166,7 +166,8 @@ test('I3 모달 아이콘 패널이 아이콘블럭 패널을 «부른다» (이
   // ⑵ 그 패널에 «실제로» 이미지 파일 버튼과 프리셋 절이 있다 (부른 곳에 물건이 있는가)
   assert.match(propIcon, /id="icn-svg-file-btn"/, '아이콘블럭 패널에 이미지 파일 버튼이 없다');
   assert.match(propIcon, /id="icn-preset-grid"/,  '아이콘블럭 패널에 SVG 프리셋 절이 없다');
-  assert.match(propIcon, /내 SVG 프리셋/,          '아이콘블럭 패널에 프리셋 절 제목이 없다');
+  // U4(right-panel-unify): 옛 제목 「내 SVG 프리셋」 → 블록 고유 절 «Library»(영어 Title Case 규칙). 양성대조: title 을 빼면 빨강
+  assert.match(propIcon, /sec\('special',[\s\S]*?id="icn-preset-grid"[\s\S]*?\{ title: 'Library' \}\)/, '아이콘블럭 패널에 프리셋 절(Library)이 없다');
 
   // ⑶ 슬롯이 아이콘블럭의 «계약»을 갖춰야 그 패널이 동작한다(updateIconifyBlock 이 class 를 본다)
   assert.match(propModal, /slot\.classList\.add\('icon-block'\)/,

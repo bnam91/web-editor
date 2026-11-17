@@ -127,6 +127,11 @@ before(async () => {
          .map(n => `const ${n} = () => "";`).join(' ')],
       /* lane-b2(2026-10-05) E118 — 심플카드 패널이 빈 글자색을 «그려진 색»으로 읽는다(_panel-rendered.js panelRenderedColor).
          이 검사는 패널 색을 안 잰다 → _helpers 와 같은 꼴(정규식 · 이름 전부)로 '' 더블 = 옛 대체값 그대로. 그려진 색 표시는 panel-shows-rendered(DOM)가 잰다. */
+      /* ★U3(right-panel-unify, 2026-11-13) — 패널이 틀(_panel-frame.js renderPanel/sec)로 그려진다. 이 검사는 패널 마크업을 안 잰다
+         (cvbCardFold 만) → _helpers 와 같은 꼴(정규식 · 이름 전부)로 더블. ⛔없으면 상대경로 import 가 남아 이 파일 21개가 통째로 빨강. */
+      [/import \{([^}]*)\} from '\.\/_panel-frame\.js';/,
+       (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
+         .map(n => `const ${n} = () => "";`).join(' ')],
       [/import \{([^}]*)\} from '\.\/_panel-rendered\.js';/,
        (_m, names) => names.split(',').map(n => n.trim()).filter(Boolean)
          .map(n => `const ${n} = () => "";`).join(' ')],

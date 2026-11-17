@@ -9,6 +9,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import {
   radialStateOf, radialSetCount, RADIAL_LIMITS, RADIAL_DEFAULTS, RADIAL_ARC_PRESET, RADIAL_LOOK_KEYS,
   radialNormDeg, radialAutoDegs, radialItemIsManual, radialResetPlacement,
@@ -163,18 +164,20 @@ export function showRadialProperties(block, idx) {
   /* ★t7-01 「패딩 제외」 — 배너2 패널(js/props/prop-banner02.js _bn2CanFullBleed)과 같은 판정:
      ⛔뚫을 수 없는 자리(자르는 프레임 안 등)에선 토글을 안 보인다(켜도 아무 일 없는 스위치는 「고장」으로 읽힌다). 이미 켜져 있으면 보인다. */
   const _rdlCanFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
-    icon: _ICON,
-    name: block.dataset.layerName,
-    defaultName: 'Radial Block',
-    crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
-    id: block.id,
-  })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Shape</div>
+  /* U5 — 옛 Shape·Layout·Asset·Center·Label·「선택한 항목」 → 틀 절. 모양·마커 = Type · 고른 항목 = Content · 칸/점/아이콘 크기 = Size ·
+     반지름·각도·원 중심 = Layout · 좌우 패딩·패딩 제외 = Padding · 칸 모서리·자르기 = Appearance · 라벨 크기·굵기 = Typography ·
+     색 전부 = Fill · 연결선 = Stroke · 가운데·라벨 자리 = special(Center · Label).
+     힌트는 패널당 ≤2(게이트) — 설명 글은 그 컨트롤의 title 로 옮겼다. 남는 힌트 = 배경 투명 안내 · SVG 거부 사유(그때만). */
+  renderPanel(block, {
+    header: blockHeaderHTML({
+      icon: _ICON,
+      name: block.dataset.layerName,
+      defaultName: 'Radial Block',
+      crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
+      id: block.id,
+    }),
+    sections: [
+      sec('kind', `
       <div id="rdl-shape-group">
       <div class="prop-row">
         <span class="prop-label">모양</span>
@@ -190,17 +193,55 @@ ${blockHeaderHTML({
         </div>
       </div>
       </div>
-      <div class="prop-row">
+      <div class="prop-row"${isPoly ? ' title="다각형은 항목 수가 꼭짓점 수로 고정됩니다 — 위에서 각 수를 고르세요."' : ''}>
         <span class="prop-label">항목 수</span>
         <button class="prop-count-btn" id="rdl-count-minus"${isPoly ? ` disabled style="${off}"` : ''}>−</button>
         <span class="prop-count-val" id="rdl-count-val">${st.count}</span>
         <button class="prop-count-btn" id="rdl-count-plus"${isPoly ? ` disabled style="${off}"` : ''}>+</button>
       </div>
-      ${isPoly ? `<div class="prop-hint" style="padding:2px 8px;line-height:1.5">다각형은 항목 수가 <b>꼭짓점 수</b>로 고정됩니다 — 위에서 각 수를 고르세요.</div>` : ''}
       <button class="prop-btn-full" id="rdl-reset-all" style="margin-top:6px"${anyManual ? '' : ' disabled'}>전체 자동 배치로 되돌리기</button>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Layout</div>
+      ${_typeRow('마커', 'rdl-marker', [['cell', '그림 칸'], ['dot', '점']], st.marker)}
+      ${isDot ? '' : _typeRow('칸 모양', 'rdl-cellshape', [['circle', '원'], ['round', '둥근사각']], st.cellShape)}`),
+      sec('content', selItem ? `
+    <div id="rdl-item-section">
+      <div class="prop-row" id="rdl-item-which" title="캔버스에서 끌면 호(원)를 따라 움직입니다. 라벨만 옮기려면 Alt+끌기 또는 라벨 옆 파란 손잡이를 끄세요.">
+        <span class="prop-label">항목</span><span class="prop-value-text">${sel + 1}</span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">라벨</span>
+        <textarea class="prop-textarea" id="rdl-item-label" rows="3" style="flex:1;min-width:0" title="줄바꿈 그대로 여러 줄이 됩니다. **굵게** 처럼 별표 둘로 감싸면 그 부분만 굵어집니다.">${_esc(selItem.label)}</textarea>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">각도</span>
+        <input type="text" inputmode="decimal" class="prop-input" id="rdl-item-deg" value="${selItem.deg !== undefined ? selItem.deg : ''}" placeholder="자동 ${autoDeg}" title="−180~180 · 비우면 자동 배치" style="flex:1;min-width:0">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">라벨 간격</span>
+        <input type="number" class="prop-number" id="rdl-item-dx" min="${L.labelDx.min}" max="${L.labelDx.max}" step="1" value="${selItem.labelDx || 0}" title="가로(dx)">
+        <input type="number" class="prop-number" id="rdl-item-dy" min="${L.labelDy.min}" max="${L.labelDy.max}" step="1" value="${selItem.labelDy || 0}" title="세로(dy)">
+      </div>
+      <button class="prop-btn-full" id="rdl-item-reset"${radialItemIsManual(selItem) ? '' : ' disabled'}>이 항목 자동 배치로 되돌리기</button>
+      <div class="prop-row" title="샘플 고르기"><span class="prop-label">${isDot ? '아이콘' : '칸 그림'}</span>${selItem.svg ? '<span class="prop-value-text">붙여넣은 SVG</span>' : ''}</div>
+      ${_samplesHTML('rdl-item-samples', selItem.svg ? '\u0000' : selItem.img, true)}
+      <div class="prop-row">
+        <textarea class="prop-textarea" id="rdl-item-svg" rows="3" style="flex:1;min-width:0;font-family:monospace" maxlength="${RADIAL_ICON_SVG_MAX * 4}" placeholder="&lt;svg …&gt; 코드를 붙여 넣으세요" title="SVG 는 소독해서 넣습니다(스크립트 · 이벤트 속성 · 외부 주소는 걸러집니다). currentColor 를 쓰면 라벨 색을 따릅니다.">${_esc(selItem.svg || '')}</textarea>
+      </div>
+      <button class="prop-btn-full" id="rdl-item-svg-apply">SVG 적용</button>
+      <div id="rdl-item-svg-msg" role="status"></div>
+    </div>` : ''),
+      sec('size', isDot ? `
+      ${_pairRow('rdl-dot', '점 크기', st.dotSize, L.dotSize)}
+      ${_pairRow('rdl-icon', '아이콘', st.iconSize, L.iconSize).replace('<div class="prop-row">', '<div class="prop-row" title="점 마커에서는 항목의 샘플 그림이 라벨 위 아이콘으로 섭니다.">')}` : `
+      ${_pairRow('rdl-cell', '칸 크기', st.cellSize, L.cellSize)}`),
+      sec('layout', `
+      ${/* data-own: 원 배치의 반지름(항목이 도는 원) — 모서리 radius 가 아니라 Layout */ _pairRow('rdl-radius', '반지름', st.radius, L.radius).replace('<div class="prop-row">', '<div class="prop-row" data-own="layout">')}
+      ${_pairRow('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
+      ${isArc ? `
+      ${_pairRow('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
+      ${_pairRowWide('rdl-cx', '원 중심 X', st.centerX, L.centerX, L.centerX.step)}
+      <button class="prop-btn-full" id="rdl-angle-reset" style="margin-top:4px">각도 처음으로 되돌리기</button>
+` : ''}`),
+      sec('padding', `
       ${_rdlCanFB ? `
       <div class="prop-row">
         <span class="prop-label">패딩 제외</span>
@@ -209,14 +250,30 @@ ${blockHeaderHTML({
           <span class="prop-toggle-track"></span>
         </label>
       </div>` : ''}
-      ${_pairRow('rdl-padx', '좌우 패딩', st.padX, L.padX, L.padX.step)}
-      ${_pairRow('rdl-radius', '반지름', st.radius, L.radius)}
-      ${_pairRow('rdl-start', '시작 각도', st.startDeg, L.startDeg)}
-      ${isArc ? `
-      ${_pairRow('rdl-end', '끝 각도', st.endDeg, L.endDeg)}
-      ${_pairRowWide('rdl-cx', '원 중심 X', st.centerX, L.centerX, L.centerX.step)}
-      <button class="prop-btn-full" id="rdl-angle-reset" style="margin-top:4px">각도 처음으로 되돌리기</button>
-` : ''}
+      ${_pairRow('rdl-padx', '좌우 패딩', st.padX, L.padX, L.padX.step)}`),
+      sec('appearance', isDot ? '' : `
+      ${st.cellShape === 'round' ? _numRow('rdl-cellradius-number', '모서리', st.cellRadius, L.cellRadius) : ''}
+      <div class="prop-row">
+        <span class="prop-label">내용 자르기</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="rdl-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>`),
+      sec('typography', st.labelPos === 'none' ? '' : `
+      ${_pairRow('rdl-labelsize', '라벨 크기', st.labelSize, L.labelSize)}
+      ${_typeRow('라벨 굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}`),
+      sec('fill', `
+      ${_colorRow('rdl-bg', '블럭 배경', st.bg || '#ffffff', '#ffffff')}
+      ${st.bg
+    ? `<button class="prop-btn-full" id="rdl-bg-clear">배경 지우기 (투명)</button>`
+    : `<div class="prop-hint" style="padding:2px 8px;line-height:1.5">지금은 배경이 <b>투명</b>입니다 — 색을 고르면 블럭 배경이 칠해집니다.</div>`}
+      ${isDot ? _colorRow('rdl-dotcolor', '점 색', st.dotColor, RADIAL_DEFAULTS.dotColor) : _colorRow('rdl-cellfill', '칸 채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
+      ${st.centerMode === 'text' ? `
+      ${/* 블럭 배경 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '가운데 배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
+      ${_colorRow('rdl-center-color', '가운데 글자', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
+      ${st.labelPos === 'none' ? '' : _colorRow('rdl-labelcolor', '라벨 색', st.labelColor, RADIAL_DEFAULTS.labelColor)}`),
+      sec('stroke', `
       <div class="prop-row">
         <span class="prop-label">연결선</span>
         <select class="prop-select" id="rdl-line-select">
@@ -233,86 +290,24 @@ ${blockHeaderHTML({
         </select>
       </div>
       ${_numRow('rdl-line-width', '선 두께', st.lineWidth, L.lineWidth, L.lineWidth.step)}
-      ${isArc && lineCur === 'orbit' ? _numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend) : ''}`}
-      ${_colorRow('rdl-bg', '블럭 배경', st.bg || '#ffffff', '#ffffff')}
-      ${st.bg
-    ? `<button class="prop-btn-full" id="rdl-bg-clear">배경 지우기 (투명)</button>`
-    : `<div class="prop-hint" style="padding:2px 8px;line-height:1.5">지금은 배경이 <b>투명</b>입니다 — 색을 고르면 블럭 배경이 칠해집니다.</div>`}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Asset</div>
-      ${_typeRow('마커', 'rdl-marker', [['cell', '그림 칸'], ['dot', '점']], st.marker)}
-      ${isDot ? `
-      ${_pairRow('rdl-dot', '점 크기', st.dotSize, L.dotSize)}
-      ${_colorRow('rdl-dotcolor', '점 색', st.dotColor, RADIAL_DEFAULTS.dotColor)}
-      ${_pairRow('rdl-icon', '아이콘', st.iconSize, L.iconSize)}
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">점 마커에서는 항목의 샘플 그림이 <b>라벨 위 아이콘</b>으로 섭니다.</div>` : `
-      ${_pairRow('rdl-cell', '크기', st.cellSize, L.cellSize)}
-      ${_typeRow('모양', 'rdl-cellshape', [['circle', '원'], ['round', '둥근사각']], st.cellShape)}
-      ${st.cellShape === 'round' ? _numRow('rdl-cellradius-number', '모서리', st.cellRadius, L.cellRadius) : ''}
-      ${_colorRow('rdl-cellfill', '채움', st.cellFill, RADIAL_DEFAULTS.cellFill)}
-      <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="rdl-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>`}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Center</div>
+      ${isArc && lineCur === 'orbit' ? _numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend) : ''}`}`),
+      sec('special', `
       ${_typeRow('가운데', 'rdl-center', _CENTER_OPTS, st.centerMode)}
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-center', '크기', st.centerSize, L.centerSize)}
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-centerdx', '가로 밀기', st.centerDx, L.centerDx)}
-      ${st.centerMode === 'text' ? `
-      ${/* 블럭 배경(:192) 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
-      ${_colorRow('rdl-center-color', '글자 색', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
       ${st.centerMode === 'image' ? `
       ${_typeRow('자르기', 'rdl-centerclip', [['circle', '원형'], ['none', '없음 (네모)']], st.centerClip)}
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">샘플 그림 고르기</div>
-      <div class="prop-row">
+      <div class="prop-row" title="샘플 그림 고르기">
         <div class="rdl-samples" id="rdl-center-samples">
           ${radialCenterKeys().map((k) => `<button class="rdl-sample-btn${st.centerImg === k ? ' active' : ''}${S.has(k) ? '' : ' rdl-sample-btn--plain'}" data-sample="${k}" title="${_esc(radialCenterLabel(k))}">${radialCenterSvg(k)}</button>`).join('')}
         </div>
-      </div>` : ''}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Label</div>
+      </div>` : ''}`, { title: 'Center' }),
+      sec('special', `
       ${_typeRow('위치', 'rdl-label', _LABEL_OPTS, st.labelPos)}
-      ${st.labelPos === 'none' ? '' : `
-      ${_pairRow('rdl-labelsize', '크기', st.labelSize, L.labelSize)}
-      ${_colorRow('rdl-labelcolor', '색', st.labelColor, RADIAL_DEFAULTS.labelColor)}
-      ${_typeRow('굵기', 'rdl-labelweight', [['bold', '굵게'], ['normal', '보통']], st.labelWeight)}
-      ${st.labelPos === 'inside' ? '' : _numRow('rdl-labelgap-number', '간격', st.labelGap, L.labelGap)}
-      ${st.labelPos === 'outside' ? _numRow('rdl-labelwidth-number', '최대 폭', st.labelWidth, L.labelWidth) : ''}`}
-    </div>
-    ${selItem ? `
-    <div class="prop-section" id="rdl-item-section">
-      <div class="prop-section-title">선택한 항목</div>
-      <div class="prop-hint" id="rdl-item-which" style="padding:2px 8px;line-height:1.5"><b>항목 ${sel + 1}</b> — 캔버스에서 끌면 호(원)를 따라 움직입니다. 라벨만 옮기려면 <b>Alt+끌기</b> 또는 라벨 옆 파란 손잡이를 끄세요.</div>
-      <div class="prop-row">
-        <span class="prop-label">라벨</span>
-        <textarea class="prop-textarea" id="rdl-item-label" rows="3" style="flex:1;min-width:0">${_esc(selItem.label)}</textarea>
-      </div>
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">줄바꿈 그대로 여러 줄이 됩니다. <b>**굵게**</b> 처럼 별표 둘로 감싸면 그 부분만 굵어집니다.</div>
-      <div class="prop-row">
-        <span class="prop-label">각도</span>
-        <input type="text" inputmode="decimal" class="prop-input" id="rdl-item-deg" value="${selItem.deg !== undefined ? selItem.deg : ''}" placeholder="자동 ${autoDeg}" title="−180~180 · 비우면 자동 배치" style="flex:1;min-width:0">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">라벨 간격</span>
-        <input type="number" class="prop-number" id="rdl-item-dx" min="${L.labelDx.min}" max="${L.labelDx.max}" step="1" value="${selItem.labelDx || 0}" title="가로(dx)">
-        <input type="number" class="prop-number" id="rdl-item-dy" min="${L.labelDy.min}" max="${L.labelDy.max}" step="1" value="${selItem.labelDy || 0}" title="세로(dy)">
-      </div>
-      <button class="prop-btn-full" id="rdl-item-reset"${radialItemIsManual(selItem) ? '' : ' disabled'}>이 항목 자동 배치로 되돌리기</button>
-      <div class="prop-hint" style="padding:6px 8px 2px;line-height:1.5">${isDot ? '아이콘' : '칸 그림'} — 샘플 고르기${selItem.svg ? ' (지금은 <b>붙여넣은 SVG</b>)' : ''}</div>
-      ${_samplesHTML('rdl-item-samples', selItem.svg ? '\u0000' : selItem.img, true)}
-      <div class="prop-row">
-        <textarea class="prop-textarea" id="rdl-item-svg" rows="3" style="flex:1;min-width:0;font-family:monospace" maxlength="${RADIAL_ICON_SVG_MAX * 4}" placeholder="&lt;svg …&gt; 코드를 붙여 넣으세요">${_esc(selItem.svg || '')}</textarea>
-      </div>
-      <button class="prop-btn-full" id="rdl-item-svg-apply">SVG 적용</button>
-      <div class="prop-hint" id="rdl-item-svg-msg" style="padding:2px 8px;line-height:1.5">SVG 는 소독해서 넣습니다(스크립트 · 이벤트 속성 · 외부 주소는 걸러집니다). currentColor 를 쓰면 라벨 색을 따릅니다.</div>
-    </div>` : ''}`;
+      ${st.labelPos === 'none' || st.labelPos === 'inside' ? '' : _numRow('rdl-labelgap-number', '간격', st.labelGap, L.labelGap)}
+      ${st.labelPos === 'outside' ? _numRow('rdl-labelwidth-number', '최대 폭', st.labelWidth, L.labelWidth) : ''}`, { title: 'Label' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -552,7 +547,7 @@ ${blockHeaderHTML({
     } else {
       if (raw === items[sel].svg) return;
       const r = radialSanitizeSvg(raw);
-      if (!r.ok) { if (svgMsg) { svgMsg.textContent = `넣지 못했습니다 — ${_SVG_ERR[r.code] || r.code}`; svgMsg.dataset.err = r.code; } return; }
+      if (!r.ok) { if (svgMsg) { svgMsg.className = 'prop-hint'; svgMsg.textContent = `넣지 못했습니다 — ${_SVG_ERR[r.code] || r.code}`; svgMsg.dataset.err = r.code; } return; }
       items[sel].svg = r.svg;
     }
     setItems(items);

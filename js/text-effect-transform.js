@@ -175,54 +175,55 @@ function enhanceTextEffectPropPanel(tb, opts = {}) {
     .map(t => `<option value="${t.value}" ${t.value === cfg.texture ? 'selected' : ''}>${t.label}</option>`)
     .join('');
 
+  /* ★U2(right-panel-unify) — 패널의 «Effects» 절 안 한 묶음(한 패널 한 key · 틀 경유 window.placeTextPanelSection).
+     data-own="effects": 메인/네온 컬러는 소유표상 fill 이지만 이 효과의 일부다. 꼴 = 표준 .prop-row/.prop-label/.prop-select(옛 인라인 색·px 폐지). */
   const html = `
-    <div class="prop-section" id="text-effect-controls-section">
-      <div class="prop-section-title">텍스트 효과 ✨</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">프리셋</span>
-        <select id="tfx-preset" style="flex:2;padding:5px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
-          ${presetOpts}
-        </select>
-      </div>
-      <div id="tfx-texture-row" style="display:${showTexture ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">텍스처</span>
-        <select id="tfx-texture" style="flex:2;padding:5px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
-          ${textureOpts}
-        </select>
-      </div>
-      <div id="tfx-color-row" style="display:${showColor ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">메인 컬러</span>
-        <input type="color" id="tfx-color" value="${cfg.color}"
-               style="width:32px;height:24px;border:none;padding:0;cursor:pointer;background:transparent;">
-        <input type="text" id="tfx-color-hex" class="prop-color-hex" value="${_tfxHexBox(cfg.color)}" maxlength="7" aria-label="메인 컬러"
-               style="flex:1;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
-      </div>
-      <div id="tfx-glow-color-row" style="display:${showGlowColor ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">네온색</span>
-        <input type="color" id="tfx-glow-color" value="${cfg.glowColor || cfg.color}"
-               style="width:32px;height:24px;border:none;padding:0;cursor:pointer;background:transparent;">
-        <input type="text" id="tfx-glow-color-hex" class="prop-color-hex" value="${_tfxHexBox(cfg.glowColor || cfg.color)}" maxlength="7" aria-label="네온색"
-               style="flex:1;padding:3px 6px;font-size:12px;background:#1a1a1a;color:#ddd;border:1px solid #333;border-radius:4px;">
-      </div>
-      <div id="tfx-intensity-row" style="display:${showIntensity ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">강도</span>
-        <input type="range" class="prop-slider" id="tfx-intensity" min="0" max="100" value="${cfg.intensity}" style="flex:2;">
-        <span id="tfx-intensity-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.intensity}%</span>
-      </div>
-      <div id="tfx-grain-row" style="display:${showGrain ? 'flex' : 'none'};align-items:center;gap:8px;margin-top:6px;">
-        <span style="flex:1;font-size:11px;color:#999;">그레인 강도</span>
-        <input type="range" class="prop-slider" id="tfx-grain" min="0" max="100" value="${cfg.grain}" style="flex:2;">
-        <span id="tfx-grain-val" style="width:32px;font-size:11px;color:#999;text-align:right;">${cfg.grain}%</span>
-      </div>
-      <button id="tfx-remove" style="margin-top:10px;width:100%;padding:6px;font-size:11px;background:#2a1a1a;color:#c66;border:1px solid #553;border-radius:4px;cursor:pointer;">효과 제거</button>
-    </div>
-  `;
+      <div id="text-effect-controls-section" data-own="effects">
+        <span class="prop-field-label">Text Effect</span>
+        <div class="prop-row">
+          <span class="prop-label">프리셋</span>
+          <select class="prop-select" id="tfx-preset">
+            ${presetOpts}
+          </select>
+        </div>
+        <div class="prop-row" id="tfx-texture-row" style="display:${showTexture ? 'flex' : 'none'}">
+          <span class="prop-label">텍스처</span>
+          <select class="prop-select" id="tfx-texture">
+            ${textureOpts}
+          </select>
+        </div>
+        <div class="prop-color-row" id="tfx-color-row" style="display:${showColor ? 'flex' : 'none'}">
+          <span class="prop-label">메인 컬러</span>
+          <div class="prop-color-swatch" style="background:${cfg.color}"><input type="color" id="tfx-color" value="${cfg.color}"></div>
+          <input type="text" id="tfx-color-hex" class="prop-color-hex" value="${_tfxHexBox(cfg.color)}" maxlength="7" aria-label="메인 컬러">
+        </div>
+        <div class="prop-color-row" id="tfx-glow-color-row" style="display:${showGlowColor ? 'flex' : 'none'}">
+          <span class="prop-label">네온색</span>
+          <div class="prop-color-swatch" style="background:${cfg.glowColor || cfg.color}"><input type="color" id="tfx-glow-color" value="${cfg.glowColor || cfg.color}"></div>
+          <input type="text" id="tfx-glow-color-hex" class="prop-color-hex" value="${_tfxHexBox(cfg.glowColor || cfg.color)}" maxlength="7" aria-label="네온색">
+        </div>
+        <div class="prop-row" id="tfx-intensity-row" style="display:${showIntensity ? 'flex' : 'none'}">
+          <span class="prop-label">강도</span>
+          <input type="range" class="prop-slider" id="tfx-intensity" min="0" max="100" value="${cfg.intensity}">
+          <span id="tfx-intensity-val">${cfg.intensity}%</span>
+        </div>
+        <div class="prop-row" id="tfx-grain-row" style="display:${showGrain ? 'flex' : 'none'}">
+          <span class="prop-label">그레인 강도</span>
+          <input type="range" class="prop-slider" id="tfx-grain" min="0" max="100" value="${cfg.grain}">
+          <span id="tfx-grain-val">${cfg.grain}%</span>
+        </div>
+        <div class="prop-row">
+          <button class="prop-btn-full" id="tfx-remove">효과 제거</button>
+        </div>
+      </div>`;
 
   const existing = propPanel.querySelector('#text-effect-controls-section');
   if (existing) existing.outerHTML = html;
-  else propPanel.insertAdjacentHTML('beforeend', html);
+  else window.placeTextPanelSection?.(propPanel, 'effects', html);
 
   const read = () => {
+    /* U2 — 색 칸이 스와치 안이라 스와치 배경도 따라 칠한다(모든 색 경로가 read() 를 지난다) */
+    for (const pid of ['#tfx-color', '#tfx-glow-color']) { const pk = propPanel.querySelector(pid); const sw = pk?.closest('.prop-color-swatch'); if (sw) sw.style.background = pk.value; }
     const next = {
       preset:    propPanel.querySelector('#tfx-preset').value,
       color:     propPanel.querySelector('#tfx-color').value,

@@ -429,3 +429,27 @@ test('T11 줄 모드 말풍선 — 다중선택 글자 크기·숫자키 종류�
   /* ⑶ 페이지 «일괄 정렬»은 시험하지 않는다 — 앱에서 «비활성»이다(js/props/prop-page.js 「Bulk Align (비활성)」: 단추 disabled · pointer-events:none).
      사용자가 닿을 수 없는 길이라 거기 막는 코드도 안 넣었다(닿지 않는 방어 = 시험할 수 없는 코드). 다시 켜면 그때 이 시험에 ⑶ 을 넣어라. */
 });
+
+// ─────────── T12 ★U2 — 줄 모드 말풍선은 블럭 정렬(Layout 절 #txt-align-group)도 숨긴다(D6) ───────────
+/* 틀 이관(U2)으로 정렬이 Position → Layout 절로 갔다. line-host _hideBlockTypo 가 옛 자리(Position 안 .prop-align-group)만 보면
+   줄 모드에서 «안 먹는» 블럭 정렬이 다시 보인다.
+   양성대조: js/blocks/line-host.js _hideBlockTypo 의 `hide(grp)` 줄을 지우면 ⒝ 빨강. ⒜ 는 «줄 없을 땐 보인다»(공짜 초록 방지). */
+test('T12 줄 모드 말풍선 — 블럭 정렬(#txt-align-group)과 빈 Layout 절이 숨는다 · 줄 없을 땐 보인다', async ({ page }) => {
+  const errs = await fresh(page);
+  const sb = await addBubble(page);
+  await selectBlock(page, sb, '.tb-bubble');
+  const vis = () => page.evaluate(() => {
+    const g = document.getElementById('txt-align-group');
+    const sec = g?.closest('.prop-section');
+    const shown = (e) => !!e && getComputedStyle(e).display !== 'none' && e.getClientRects().length > 0;
+    return { grp: g ? shown(g) : null, layout: sec ? shown(sec) : null, typo: shown(document.getElementById('txt-font-picker')?.closest('.prop-section')) };
+  });
+  expect(await vis(), '⒜ 줄 없는 말풍선 — 정렬·Layout·Typography 가 보인다').toEqual({ grp: true, layout: true, typo: true });
+  await addKind(page, 'h2');
+  expect((await linesOf(page, sb))?.length, '[전제] 줄 모드가 됐다').toBeGreaterThan(1);
+  await selectBlock(page, sb, '.tb-bubble');
+  const v = await vis();
+  expect(v.typo, '[전제] _hideBlockTypo 가 돌았다(Typography 숨김)').toBe(false);
+  expect({ grp: v.grp, layout: v.layout }, '⒝ 줄 모드 — 블럭 정렬과 빈 Layout 절이 숨는다').toEqual({ grp: false, layout: false });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

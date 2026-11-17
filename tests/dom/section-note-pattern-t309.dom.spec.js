@@ -5,6 +5,7 @@
  *
  * 칸:
  *   N0 전제 — 앱·섹션 둘·진짜 클릭으로 섹션 패널 · 노트 단추가 Background 절에 있다
+ *      ★rp-on-dev(261118 ⓑ): 우측 패널 통일 U3 로 섹션 «Background» 절 = 틀의 «Fill» 절 — 절 key(data-sec="fill")로 잼 · 셀렉터만 따라감(재는 뜻 같음).
  *   N1 화면 — 켜면 기본값 · 줄눈 1겹 / 모눈 2겹 · 간격 칸이 dataset 에 쓴다(기존 슬라이더 꼴) · B 는 무변(음성)
  *   N2 PNG ⒜ 클론 스크린샷(주 경로 대역) ⒝ html2canvas 폴백 — 띠 위·띠 사이 픽셀이 주기대로 · 무늬 없는 B 는 빨강 0(음성)
  *   N3 HTML — 진짜 exportHTMLFile(Blob 가로채기) 산출을 sandbox iframe 에 띄워 계산 스타일로 겹을 잰다 · 켜기 전 0(음성)
@@ -93,11 +94,11 @@ test('N0 전제 — 앱·섹션 둘·진짜 클릭으로 섹션 패널 · 「노
   const r = await page.evaluate(() => {
     const b = document.getElementById('sec-bg-note');
     return { bgField: !!document.getElementById('sec-bg-color'), found: !!b,
-             title: b?.closest('.prop-section')?.querySelector('.prop-section-title')?.textContent?.trim() || '' };
+             title: b?.closest('.prop-section[data-sec]')?.dataset.sec || '' };   // ★U3 선례(fx-particles-panel) — 제목 글자 대신 절 key
   });
   expect(r.bgField, '섹션 패널 기존 「배경색」 칸이 없다 — 패널이 안 떴다 ⇒ 아래 전부 무효').toBe(true);
   expect(r.found, '#sec-bg-note 가 없다').toBe(true);
-  expect(r.title, `노트 단추가 든 절 = "${r.title}"`).toBe('Background');
+  expect(r.title, `노트 단추가 든 절 = "${r.title}" (옛 Background = 틀 fill)`).toBe('fill');
   expect(errs, JSON.stringify(errs)).toEqual([]);
 });
 

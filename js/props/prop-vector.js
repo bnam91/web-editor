@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
@@ -19,9 +20,8 @@ export function showVectorProperties(block) {
   const penFill     = block.dataset.penFill || 'none';
   const fillOn      = penFill && penFill !== 'none';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <path d="M6 1L11 4.5L9 11H3L1 4.5Z" stroke-linejoin="round"/>
             <line x1="1" y1="4.5" x2="11" y2="4.5"/>
@@ -32,50 +32,39 @@ ${blockHeaderHTML({
       defaultName: 'Vector',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+    }),
+    sections: [
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="vb-w" value="${w}" min="10" max="1200">
         <span class="prop-label" style="margin-left:8px">H</span>
         <input type="number" class="prop-number" id="vb-h" value="${h}" min="10" max="2000">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Color</div>
-      <div class="prop-row">
-        <span class="prop-label">Fill</span>
-        ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
-      </div>
-    </div>
-
-    ${hasPen ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Path</div>
+      </div>`),
+      // 옛 「Path」 절 → 패스 편집=Content · 선 두께=Stroke · 닫힌 패스 채움=Fill(색 옆)
+      sec('content', hasPen ? `
       <div class="prop-row">
         <button class="prop-btn-full" id="vb-pen-edit">패스 편집</button>
-      </div>
-      <div class="prop-row" style="margin-top:6px;">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${strokeWidth}">
-      </div>
-      ${penClosed ? `
+      </div>` : ''),
+      sec('fill', `
+      <div class="prop-row">
+        <span class="prop-label">색</span>
+        ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
+      </div>${hasPen && penClosed ? `
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">채움</span>
         <label class="prop-toggle" title="닫힌 패스 채움 토글" style="margin-left:auto;">
           <input type="checkbox" id="vb-pen-fill" ${fillOn ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>` : ''}
-    </div>` : ''}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Rotate / Flip</div>
+      </div>` : ''}`),
+      sec('stroke', hasPen ? `
+      <div class="prop-row">
+        <span class="prop-label">선 두께</span>
+        <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${strokeWidth}">
+        <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${strokeWidth}">
+      </div>` : ''),
+      sec('position', `
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
         <input type="number" class="prop-number" id="vb-rotate-deg" style="width:56px;" min="-360" max="360" value="${rotateDeg}">
@@ -100,9 +89,9 @@ ${blockHeaderHTML({
             <path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/>
           </svg>
         </button>
-      </div>
-    </div>
-  `;
+      </div>`),
+    ],
+  });
 
   // ── transform 적용 ────────────────────────────────────────────────────────────
   function applyTransform() {

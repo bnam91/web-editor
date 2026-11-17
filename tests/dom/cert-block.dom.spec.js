@@ -459,7 +459,7 @@ test('U1 패널 — 안내문·위 제목 없음 · 지시선 글 = 패널 맨 �
     const P = document.getElementById('crt-mode').closest('.prop-section').parentElement;
     const secs = [...P.children].filter((n) => n.classList.contains('prop-section'));
     const sec = document.getElementById('crt-callouts')?.closest('.prop-section');
-    const rows = sec ? [...sec.querySelectorAll(':scope > .prop-row')] : [];
+    const rows = sec ? [...sec.querySelectorAll(':scope > .prop-row, :scope > .prop-sec-body > .prop-row')] : [];   // ★rp-on-dev ⓐ — 틀 절은 줄이 .prop-sec-body 한 겹 안(재는 뜻 같음: 그 절의 첫 줄)
     return { hint: /끌어다 놓거나/.test(P.textContent), head: P.querySelectorAll('#crt-headline, #crt-sub').length,
       lastSec: !!sec && secs[secs.length - 1] === sec, firstRow: !!rows[0]?.querySelector('#crt-callouts'), sizeAfter: !!sec?.querySelector('#crt-titlesize-number') };
   });

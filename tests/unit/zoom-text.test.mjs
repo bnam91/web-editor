@@ -251,7 +251,9 @@ test('Z13 ★이동 드래그가 글자 편집을 «삼키지 않는다» — .e
 
 test('Z14 ★패널 — 켬/끔·정렬·크기·색이 있고 ★배선이 «짝»으로 있다', () => {
   const p = read('js/props/prop-zoom.js');
-  assert.match(p, /<div class="prop-section-title">Text<\/div>/, 'Text 절이 없다');
+  // U4(right-panel-unify): 옛 「Text」 절 → 틀의 Typography 절(켬/끔 라디오가 그 안 첫 줄). 양성대조: sec('typography' 를 지우면 빨강
+  // 다음 sec( 를 넘지 않는다 — 켬/끔 라디오가 «Typography 절 안»에 있어야 한다(다른 절로 옮기면 빨강)
+  assert.match(p, /sec\('typography',(?:(?!\n\s*sec\()[\s\S])*?name="zm-tx"/, 'Typography(옛 Text) 절에 켬/끔 라디오가 없다');
   for (const [id, 이름] of [['zm-tx-group', '켬/끔'], ['zm-txa-group', '정렬'],
                             ['zm-txs', '크기'], ['zm-txc', '색']]) {
     assert.ok(p.includes(id), `${이름}(${id}) 컨트롤이 패널에 없다`);

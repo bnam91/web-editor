@@ -689,11 +689,13 @@ function _hideBlockTypo() {
   hide(panel.querySelector('#type-section'));
   hide(panel.querySelector('#txt-font-picker')?.closest('.prop-section'));
   hide(panel.querySelector('#txt-color')?.closest('.prop-section'));
-  const pos = panel.querySelector('#txt-x-number')?.closest('.prop-section');
-  if (pos) {
-    const grp = pos.querySelector('.prop-align-group');
-    hide(grp); hide(grp?.previousElementSibling?.classList.contains('prop-field-label') ? grp.previousElementSibling : null);
-  }
+  /* ★U2(right-panel-unify) — 블럭 정렬은 Position 이 아니라 Layout 절의 #txt-align-group 이다(틀 이관). 라벨째 숨기고,
+     그 절에 보일 것이 안 남으면(말풍선 Layout = 정렬뿐) 절 머리도 숨긴다 — 빈 「Layout」 머리만 떠 있지 않게. */
+  const grp = panel.querySelector('#txt-align-group');
+  hide(grp); hide(grp?.previousElementSibling?.classList.contains('prop-field-label') ? grp.previousElementSibling : null);
+  const lay = grp?.closest('.prop-section');
+  const body = lay?.querySelector(':scope > .prop-sec-body');
+  if (body && ![...body.children].some((e) => e.style.display !== 'none')) hide(lay);
 }
 
 export function lnAugmentBubblePanel(tb) {

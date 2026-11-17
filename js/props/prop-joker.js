@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 
 export function showJokerProperties(jb) {
   const isAbsolute = jb.style.position === 'absolute';
@@ -11,9 +12,8 @@ export function showJokerProperties(jb) {
     : parseInt(jb.dataset.offsetY || '0');
   const label = jb.dataset.label || 'Joker';
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(jb, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <circle cx="6" cy="6" r="4.5"/>
             <text x="6" y="9" font-size="7" text-anchor="middle" fill="#888" stroke="none">♠</text>
@@ -22,10 +22,8 @@ ${blockHeaderHTML({
       defaultName: label,
       crumb: window.getBlockBreadcrumb?.(jb) || '',
       id: jb.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Position</div>
+    }),
+    sections: [sec('position', `
       <div class="prop-row">
         <span class="prop-label">X</span>
         <input type="range" class="prop-slider" id="joker-x-slider" min="0" max="860" step="1" value="${currentX}">
@@ -35,8 +33,8 @@ ${blockHeaderHTML({
         <span class="prop-label">Y</span>
         <input type="range" class="prop-slider" id="joker-y-slider" min="-500" max="500" step="1" value="${currentY}">
         <input type="number" class="prop-number" id="joker-y-number" min="-500" max="500" value="${currentY}">
-      </div>
-    </div>`;
+      </div>`)],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(jb.id || null);
 

@@ -2,6 +2,7 @@
 // 프리셋 / 선 / 시작점 / 라벨 (디자인 시스템 공용 컴포넌트 사용)
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 /* ★1017t1h3 — 「고른 글자만」 한 벌. ⛔선택을 여기서 따로 저장하지 않는다(_text-selection.js 머리말 ⛔). */
 import { getSavedTextSelection, withTextSelection, applyStyleToRange } from './_text-selection.js';
@@ -333,9 +334,8 @@ export function showAnnotationProperties(block) {
   // ★1013t2C7 시작점 회전 — 삼각형·화살촉만(다른 모양엔 «방향»이 없다). 모양을 바꿔도 데이터는 남는다.
   const rotatable = st.anchorShape === 'triangle' || st.anchorShape === 'arrowhead';
 
-  propPanel.innerHTML = `
-    <div class="prop-section" data-prop-panel="annotation">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3" stroke-linecap="round">
             <circle cx="3" cy="9" r="1.5" fill="#888" stroke="none"/>
             <line x1="4" y1="8" x2="9.5" y2="2.5"/>
@@ -345,15 +345,56 @@ ${blockHeaderHTML({
       defaultName: st.annotKind === 'dim' ? 'Dimension' : 'Annotation',   /* ★261021 현빈 — 치수선은 ★Annotation 이 아니다 */
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: id,
-    })}
-    </div>
-
-    ${st.annotKind === 'dim' ? `
+    }),
+    sections: [
+      // 옛 「프리셋」. ★패널 표식(data-prop-panel) — hideAnnotationProperties·DOM spec 이 찾는다. 머리 마크업에 기대지 않게 절 몸통 첫 칸에 [hidden] 으로 둔다
+      sec('kind', `
+      <span hidden data-prop-panel="annotation"></span>
+      <div class="prop-row">
+        <select class="prop-select" id="annot-preset-select" style="flex:1;min-width:0;">
+          <option value="">프리셋 선택...</option>
+          ${presetOptions}
+        </select>
+      </div>`),
+      // 옛 「라벨」 절의 꼴(텍스트/이미지)·안내·이미지 올리기
+      sec('content', `
+      <div class="prop-row">
+        <div class="prop-align-group" id="annot-label-mode-group">
+          <button class="prop-align-btn ${st.labelMode === 'text' ? 'active' : ''}" data-mode="text" title="텍스트">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><text x="8" y="12" text-anchor="middle" font-size="12" font-weight="700" font-family="system-ui">Aa</text></svg>
+          </button>
+          <button class="prop-align-btn ${st.labelMode === 'image' ? 'active' : ''}" data-mode="image" title="이미지">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1"/><circle cx="6" cy="7" r="1.2" fill="currentColor"/><path d="M2 11 L6 8 L9 10 L14 6" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+      ${st.labelMode === 'text' ? `
+      <div class="prop-hint">캔버스에서 라벨을 더블클릭해 글을 고칩니다 · Enter 줄바꿈 · ⌘Enter/Esc 마침</div>` : `
+      <div class="prop-row">
+        <button class="prop-btn" id="annot-label-img-upload" style="width:100%;padding:8px 12px;">
+          ${st.labelImageSrc ? '이미지 변경' : '이미지 업로드'}
+        </button>
+      </div>
+      ${st.labelImageSrc ? `
+      <div class="prop-row" style="justify-content:center;">
+        <img src="${st.labelImageSrc}" style="max-width:100%;max-height:120px;border-radius:4px;border:1px solid var(--ui-border);" draggable="false">
+      </div>
+      <div class="prop-row">
+        <button class="prop-btn" id="annot-label-img-remove" style="width:100%;padding:6px 12px;font-size:12px;color:var(--ui-text-muted);">이미지 제거</button>
+      </div>
+      ` : ''}`}`),
+      // 옛 「라벨 위치」 — id 보존(annot-label-pos-section)
+      sec('position', `
+      <div class="prop-row">
+        <input type="number" class="prop-number" id="annot-label-dx" min="${LIM.labelDx.min}" max="${LIM.labelDx.max}" step="1" value="${st.labelDx}" title="가로(dx)">
+        <input type="number" class="prop-number" id="annot-label-dy" min="${LIM.labelDy.min}" max="${LIM.labelDy.max}" step="1" value="${st.labelDy}" title="세로(dy)">
+      </div>
+      <button class="prop-btn-full" id="annot-label-reset"${manual ? '' : ' disabled'}>자동 배치로 되돌리기</button>`, { id: 'annot-label-pos-section' }),
+      // 옛 「치수선」(치수선만) + 라벨 이미지 크기 / 라벨 너비
+      sec('size', `${st.annotKind === 'dim' ? `
     <!-- ★★t3-01 사이즈 스티커(치수선) — ★이 절은 ★annotKind==='dim' 일 때만 그린다.
          ⛔일반 어노테이션에는 ★한 줄도 안 뜬다(회귀 0 — 검사가 그 축을 잰다).
          ★현빈 「패널 간소화」 — 겉에 ★방향 하나, 나머지는 ★「자세히」 안으로. -->
-    <div class="prop-section" data-prop-panel="annot-dim">
-      <div class="prop-section-title">치수선</div>
       <div class="prop-row">
         <span class="prop-label">크기</span>
         <input type="text" class="prop-text" id="annot-dim-val" placeholder="수치입력" value="${_dimValOf(st)}" style="flex:1;min-width:0">
@@ -403,110 +444,73 @@ ${blockHeaderHTML({
           <input type="range" class="prop-slider" id="annot-dim-lift" min="0" max="40" step="1" value="${st.dimLabelLift}">
           <input type="number" class="prop-number" id="annot-dim-lift-num" min="0" max="40" step="1" value="${st.dimLabelLift}">
         </div>
-      </details>
-    </div>` : ''}
-
-    <div class="prop-section">
-      <div class="prop-section-title">프리셋</div>
-      <div class="prop-row">
-        <select class="prop-select" id="annot-preset-select" style="flex:1;min-width:0;">
-          <option value="">프리셋 선택...</option>
-          ${presetOptions}
-        </select>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">선</div>
-      <div class="prop-color-row">
-        <span class="prop-label">색</span>
-        ${colorFieldHTML({ idPrefix: 'annot-stroke', hex: _hex(st.strokeColor), alpha: strokeAlpha })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="annot-stroke-w" min="0.5" max="8" step="0.5" value="${st.strokeWidth}">
-        <input type="number" class="prop-number" id="annot-stroke-w-num" min="0.5" max="8" step="0.5" value="${st.strokeWidth}">
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">${st.annotKind === 'dim' ? '양끝' : '시작점'}</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="annot-shape-group">${shapeBtns}</div>
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">${st.annotKind === 'dim' ? '길이' : '크기'}</span>
-        <input type="range" class="prop-slider" id="annot-anchor-size" min="2" max="24" step="1" value="${st.anchorSize}">
-        <input type="number" class="prop-number" id="annot-anchor-size-num" min="2" max="24" step="1" value="${st.anchorSize}">
-      </div>
-      ${rotatable ? `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="annot-anchor-rot" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
-        <input type="number" class="prop-number" id="annot-anchor-rot-num" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
-      </div>
-      <button class="prop-btn-full" id="annot-anchor-rot-reset"${st.anchorRot !== 0 ? '' : ' disabled'}>자동 방향으로 되돌리기</button>
-      ` : ''}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">라벨</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="annot-label-mode-group">
-          <button class="prop-align-btn ${st.labelMode === 'text' ? 'active' : ''}" data-mode="text" title="텍스트">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><text x="8" y="12" text-anchor="middle" font-size="12" font-weight="700" font-family="system-ui">Aa</text></svg>
-          </button>
-          <button class="prop-align-btn ${st.labelMode === 'image' ? 'active' : ''}" data-mode="image" title="이미지">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1"/><circle cx="6" cy="7" r="1.2" fill="currentColor"/><path d="M2 11 L6 8 L9 10 L14 6" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-      </div>
-      ${st.labelMode === 'text' ? `
-      <div class="prop-hint">캔버스에서 라벨을 더블클릭해 글을 고칩니다 · Enter 줄바꿈 · ⌘Enter/Esc 마침</div>
-      <div class="prop-row">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="annot-font-size" min="8" max="48" step="1" value="${st.labelFontSize}">
-        <input type="number" class="prop-number" id="annot-font-size-num" min="8" max="48" step="1" value="${st.labelFontSize}">
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
-        ${colorFieldHTML({ idPrefix: 'annot-label-color', hex: _hex(st.labelColor), alpha: labelColorAlpha })}
-      </div>
-      ` : `
-      <div class="prop-row">
-        <button class="prop-btn" id="annot-label-img-upload" style="width:100%;padding:8px 12px;">
-          ${st.labelImageSrc ? '이미지 변경' : '이미지 업로드'}
-        </button>
-      </div>
-      ${st.labelImageSrc ? `
-      <div class="prop-row" style="justify-content:center;">
-        <img src="${st.labelImageSrc}" style="max-width:100%;max-height:120px;border-radius:4px;border:1px solid var(--ui-border);" draggable="false">
-      </div>
-      <div class="prop-row">
-        <button class="prop-btn" id="annot-label-img-remove" style="width:100%;padding:6px 12px;font-size:12px;color:var(--ui-text-muted);">이미지 제거</button>
-      </div>
-      ` : ''}
+      </details>` : ''}${st.labelMode === 'text' ? '' : `
       <div class="prop-row">
         <span class="prop-label">크기(정사각)</span>
         <input type="range" class="prop-slider" id="annot-img-size" min="40" max="400" step="4" value="${st.labelImageSize}">
         <input type="number" class="prop-number" id="annot-img-size-num" min="20" max="800" step="1" value="${st.labelImageSize}">
+      </div>`}
+      ${st.labelMode !== 'image' ? `
+      <div class="prop-row">
+        <span class="prop-label">너비</span>
+        <input type="number" class="prop-number" id="annot-label-w" min="${LIM.labelWidth.min}" max="${LIM.labelWidth.max}" step="1" value="${st.labelWidth ?? ''}" placeholder="자동" title="라벨 너비(px) — 비우면 글 길이만큼">
+        <button class="prop-btn" id="annot-label-w-auto" type="button"${st.labelWidth == null ? ' disabled' : ''} title="글 길이만큼">자동</button>
       </div>
+      ` : ''}`),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">여백</span>
+        <input type="range" class="prop-slider" id="annot-label-pad" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
+        <input type="number" class="prop-number" id="annot-label-pad-num" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
+      </div>`),
+      // 모서리(radius)는 어디서나 Appearance(§8 Q2) — 라벨 이미지 라운드 · 치수선 라벨 모서리
+      sec('appearance', `${st.labelMode === 'text' ? '' : `
       <div class="prop-row">
         <span class="prop-label">라운드</span>
         <input type="range" class="prop-slider" id="annot-img-radius" min="0" max="50" step="1" value="${st.labelImageRadius}">
         <input type="number" class="prop-number" id="annot-img-radius-num" min="0" max="50" step="1" value="${st.labelImageRadius}">
-      </div>
-      `}
+      </div>`}
+      ${st.annotKind === 'dim' ? `
+      <!-- ★합침 261026 — 모서리 칸은 택일5 그대로 «치수선만»(그쪽 G2 「일반 어노테이션엔 칸 없음」). 1013t2C6 ⓒ 는 «처음 0» 만 바랐다(칸은 그때 S7 이 덧붙인 것 — 걷었다).
+           ★택일5(msg5223 «라벨 모서리 라운드» · 현빈 ⒝ 조절칸 · «기본값은 지금처럼 유지») — ★치수선만. 꼴 = 라벨그룹 «모서리»(prop-label-group.js lg-item-radius · 0~50 px).
+           처음 값 4 = CSS 기본(.annot-label border-radius:4px) — 안 건드리면 키 0(바이트 보존). -->
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range"  class="prop-slider" id="annot-label-radius" min="0" max="50" step="1" value="${st.labelRadius ?? 4}">
+        <input type="number" class="prop-number" id="annot-label-radius-num" min="0" max="50" value="${st.labelRadius ?? 4}">
+      </div>` : ''}`),
+      sec('typography', st.labelMode === 'text' ? `
+      <div class="prop-row">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="annot-font-size" min="8" max="48" step="1" value="${st.labelFontSize}">
+        <input type="number" class="prop-number" id="annot-font-size-num" min="8" max="48" step="1" value="${st.labelFontSize}">
+      </div>` : ''),
+      sec('fill', `${st.labelMode === 'text' ? `
+      <div class="prop-color-row">
+        <span class="prop-label">글자색</span>
+        ${colorFieldHTML({ idPrefix: 'annot-label-color', hex: _hex(st.labelColor), alpha: labelColorAlpha })}
+      </div>` : ''}
       <div class="prop-color-row">
         <span class="prop-label">배경</span>
         ${colorFieldHTML({ idPrefix: 'annot-label-bg', hex: _hex(st.labelBg), alpha: labelBgAlpha, placeholder: '없음' })}
+      </div>`),
+      // 옛 「선」 + 라벨 테두리
+      sec('stroke', `
+      <div class="prop-color-row">
+        <span class="prop-label">선 색</span>
+        ${colorFieldHTML({ idPrefix: 'annot-stroke', hex: _hex(st.strokeColor), alpha: strokeAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">선 두께</span>
+        <input type="range" class="prop-slider" id="annot-stroke-w" min="0.5" max="8" step="0.5" value="${st.strokeWidth}">
+        <input type="number" class="prop-number" id="annot-stroke-w-num" min="0.5" max="8" step="0.5" value="${st.strokeWidth}">
       </div>
       <div class="prop-color-row">
         <span class="prop-label">테두리</span>
         ${colorFieldHTML({ idPrefix: 'annot-label-border', hex: _hex(st.labelBorderColor), alpha: labelBorderAlpha, placeholder: '없음' })}
       </div>
       <div class="prop-row">
-        <span class="prop-label">선 스타일</span>
+        <span class="prop-label">테두리 선</span>
         <div class="prop-align-group" id="annot-border-style-group">
           <button class="prop-align-btn ${st.labelBorderStyle === 'solid' ? 'active' : ''}" data-style="solid" title="실선">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="1" y1="7" x2="13" y2="7"/></svg>
@@ -520,42 +524,32 @@ ${blockHeaderHTML({
         </div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">선 두께</span>
+        <span class="prop-label">테두리 폭</span>
         <input type="range" class="prop-slider" id="annot-border-w" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
         <input type="number" class="prop-number" id="annot-border-w-num" min="0" max="8" step="0.5" value="${st.labelBorderWidth}">
+      </div>`),
+      // 옛 「시작점」/「양끝」 → 블록 고유 절 «Endpoints». 끝 크기(annot-anchor-size)는 data-own 으로 Endpoints 소유
+      sec('special', `
+      <!-- data-own: 끝 «모양» 고르개 — data-shape="glow" 는 끝 모양 이름이지 Glow 효과가 아니다(소유 표의 glow 단어가 Effects 로 끈다) -->
+      <div class="prop-row" data-own="special:Endpoints">
+        <div class="prop-align-group" id="annot-shape-group">${shapeBtns}</div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">여백</span>
-        <input type="range" class="prop-slider" id="annot-label-pad" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
-        <input type="number" class="prop-number" id="annot-label-pad-num" min="0" max="24" step="1" value="${st.labelPad ?? 8}">
+      <!-- data-own: 끝 모양의 크기는 그 모양 고르개 바로 아래가 집(Endpoints) — size 단어가 Size 절로 끌어도 여기 둔다 -->
+      <div class="prop-row" data-own="special:Endpoints">
+        <span class="prop-label">${st.annotKind === 'dim' ? '길이' : '크기'}</span>
+        <input type="range" class="prop-slider" id="annot-anchor-size" min="2" max="24" step="1" value="${st.anchorSize}">
+        <input type="number" class="prop-number" id="annot-anchor-size-num" min="2" max="24" step="1" value="${st.anchorSize}">
       </div>
-      ${st.labelMode !== 'image' ? `
+      ${rotatable ? `
       <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="number" class="prop-number" id="annot-label-w" min="${LIM.labelWidth.min}" max="${LIM.labelWidth.max}" step="1" value="${st.labelWidth ?? ''}" placeholder="자동" title="라벨 너비(px) — 비우면 글 길이만큼">
-        <button class="prop-btn" id="annot-label-w-auto" type="button"${st.labelWidth == null ? ' disabled' : ''} title="글 길이만큼">자동</button>
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="annot-anchor-rot" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
+        <input type="number" class="prop-number" id="annot-anchor-rot-num" min="${LIM.anchorRot.min}" max="${LIM.anchorRot.max}" step="1" value="${st.anchorRot}">
       </div>
-      ` : ''}
-      ${st.annotKind === 'dim' ? `
-      <!-- ★합침 261026 — 모서리 칸은 택일5 그대로 «치수선만»(그쪽 G2 「일반 어노테이션엔 칸 없음」). 1013t2C6 ⓒ 는 «처음 0» 만 바랐다(칸은 그때 S7 이 덧붙인 것 — 걷었다).
-           ★택일5(msg5223 «라벨 모서리 라운드» · 현빈 ⒝ 조절칸 · «기본값은 지금처럼 유지») — ★치수선만. 꼴 = 라벨그룹 «모서리»(prop-label-group.js lg-item-radius · 0~50 px).
-           처음 값 4 = CSS 기본(.annot-label border-radius:4px) — 안 건드리면 키 0(바이트 보존). -->
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range"  class="prop-slider" id="annot-label-radius" min="0" max="50" step="1" value="${st.labelRadius ?? 4}">
-        <input type="number" class="prop-number" id="annot-label-radius-num" min="0" max="50" value="${st.labelRadius ?? 4}">
-      </div>` : ''}
-    </div>
-
-    <div class="prop-section" id="annot-label-pos-section">
-      <div class="prop-section-title">라벨 위치</div>
-      <div class="prop-row">
-        <input type="number" class="prop-number" id="annot-label-dx" min="${LIM.labelDx.min}" max="${LIM.labelDx.max}" step="1" value="${st.labelDx}" title="가로(dx)">
-        <input type="number" class="prop-number" id="annot-label-dy" min="${LIM.labelDy.min}" max="${LIM.labelDy.max}" step="1" value="${st.labelDy}" title="세로(dy)">
-      </div>
-      <button class="prop-btn-full" id="annot-label-reset"${manual ? '' : ' disabled'}>자동 배치로 되돌리기</button>
-    </div>
-  `;
+      <button class="prop-btn-full" id="annot-anchor-rot-reset"${st.anchorRot !== 0 ? '' : ' disabled'}>자동 방향으로 되돌리기</button>
+      ` : ''}`, { title: 'Endpoints' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(id || null);
 
@@ -915,7 +909,7 @@ export function hideAnnotationProperties() {
   // 현재 패널이 annotation 마커인 경우에만 비움 (다른 블록 선택 중 충돌 방지)
   if (!propPanel) return;
   if (propPanel.querySelector('[data-prop-panel="annotation"]')) {
-    propPanel.innerHTML = '';
+    renderPanel(null, {});   // 비우기도 틀로(패널 직접 쓰기 0 — U6 센서스)
     window.showPageProperties?.();
   }
 }

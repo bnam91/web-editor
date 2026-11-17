@@ -250,11 +250,13 @@ test('C7 크기 — 크기 칸이 폭·높이와 폰트를 같은 비율로 바�
   await stamp(page, SEC_A, 0.5, 0.5);
   const read = () => page.evaluate(() => { const b = document.querySelector('#secA .sticker-block[data-count]');
     return { sizeW: b.dataset.sizeW, sizeH: b.dataset.sizeH, size: b.dataset.size, fs: b.dataset.fontSize, w: b.offsetWidth, h: b.offsetHeight,
-      drawnFs: getComputedStyle(b).fontSize, sizeRow: getComputedStyle(document.getElementById('stk-size-row')).display,
+      drawnFs: getComputedStyle(b).fontSize, sizeRow: ((e) => (e ? getComputedStyle(e).display : 'absent'))(document.getElementById('stk-size-row')),
       num: document.getElementById('stk-count-size-num').value, slider: document.getElementById('stk-count-size').value }; });
   const r0 = await read();
   expect([r0.sizeW, r0.sizeH, r0.fs, r0.w], '★전제: 기본 크기 56 · 폰트 26').toEqual(['56', '56', '26', 56]);
-  expect(r0.sizeRow, '일반 「크기」 행은 숨는다(Count 절의 크기 행이 대신한다)').toBe('none');
+  /* U6 · 계획 §2-3(안 쓰는 절·행은 DOM 에 없다): 옛 = display:none 으로 그림 → 새 = 안 그림(prop-sticker.js `if (!isCount) put('size'`).
+     되돌리면 빨강: !isCount 가드를 빼면 행이 서서 'flex' · 옛처럼 숨겨 그리면 'none'. */
+  expect(r0.sizeRow, '일반 「크기」 행은 그리지 않는다(Count 절의 크기 행이 대신한다)').toBe('absent');
   await typeNumber(page, '#stk-count-size-num', 112);
   await expect.poll(async () => (await read()).sizeW).toBe('112');
   const r1 = await read();

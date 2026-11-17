@@ -286,11 +286,13 @@ test('B1 ★토글(진짜 마우스) — 끄면 제목 한 줄뿐 · 켜면 줄�
   await selectGrid(page);
   const a = await snap();
   const t0 = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section'); return s && { title: s.querySelector('.prop-section-title').textContent.trim(), n: s.querySelectorAll('.prop-row, .prop-color-row').length,
-    after: s.previousElementSibling?.querySelector('#grd-outline-group') ? 'outline' : null }; });
+    sec: s.closest('.prop-section[data-sec]')?.dataset.sec ?? null, outlineSec: document.getElementById('grd-outline-group')?.closest('.prop-section[data-sec]')?.dataset.sec ?? null }; });
   expect(t0, '「블럭 배경」 절이 있다').not.toBeNull();
   expect(t0.title).toBe('블럭 배경');
   expect(t0.n, '끄면 아래 줄 0').toBe(0);
-  expect(t0.after, '자리 = 「블럭 외곽선」 바로 아래').toBe('outline');
+  /* U6 · 계획 §2-1(Background → Fill · 외곽선 → Stroke): 옛 = 「블럭 외곽선」 바로 아래 형제 → 새 = 블럭 배경은 Fill 절(prop-grid.js sec('fill' … _grdBlockBgSectionHtml) · 외곽선은 Stroke 절.
+     되돌리면 빨강: _grdBlockBgSectionHtml 을 sec('stroke' 로 되돌리면 sec 'stroke' · 외곽선을 Fill 로 옮기면 outlineSec 'fill'. */
+  expect([t0.sec, t0.outlineSec], '자리 = 블럭 배경 Fill 절 · 블럭 외곽선 Stroke 절').toEqual(['fill', 'stroke']);
   expect(await rowsShown(page)).toEqual([]);
   await clickEl(page, '#grd-bbg-section .prop-toggle');
   expect(await page.evaluate(() => document.getElementById('gG').dataset.blockBgOn)).toBe('1');
@@ -324,11 +326,11 @@ test('B5 위치 단추 — ALIGN_ICONS(object-h/object-v) 그림 그대로 · da
   expect(icons.x).toEqual(icons.ex);
   expect(icons.y).toEqual(icons.ey);
   expect(icons.dataAlign, '⛔data-align 이 붙으면 텍스트 정렬 배선이 잡는다').toBe(0);
-  await clickEl(page, '#grd-bbg-pos-x [data-bbg-x="right"]');
-  await clickEl(page, '#grd-bbg-pos-y [data-bbg-y="bottom"]');
+  await clickEl(page, '#grd-bbg-pos-x [data-bbg-h="right"]');
+  await clickEl(page, '#grd-bbg-pos-y [data-bbg-v="bottom"]');
   expect(await page.evaluate(() => document.getElementById('gG').dataset.blockBgPos)).toBe('right bottom');
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#gG > .grd-bg')).backgroundPosition)).toBe('100% 100%');
-  expect(await page.evaluate(() => document.querySelector('#grd-bbg-pos-x .active')?.dataset.bbgX)).toBe('right');
+  expect(await page.evaluate(() => document.querySelector('#grd-bbg-pos-x .active')?.dataset.bbgH)).toBe('right');
   // 칸 선택 상태(두 번째 클릭 = 칸) — 절이 없다(G2 골든 장면)
   const [x, y] = await page.evaluate(() => { const c = document.querySelector('#gG .grd-cell[data-r="0"][data-c="0"] .grd-line'); const r = c.getBoundingClientRect(); return [r.left + 4, r.top + r.height / 2]; });
   await page.mouse.click(x, y); await page.waitForTimeout(300);

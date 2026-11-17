@@ -1,6 +1,7 @@
 // prop-banner02.js — banner02 블록 우측 프로퍼티 패널 (prop-canvas 패턴 미러링)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
@@ -8,12 +9,7 @@ import { effectiveSectionPadX, clearBlockFullBleed } from '../drag-utils.js';
 // ⑧ 줄 선택 상태 — 배너 안 «어느 줄»을 보고 있는지. 블록별로 기억한다(패널 재생성에도 유지).
 //   activeIdx = null 이면 «전체 보기»(옛 동작: 모든 줄을 한꺼번에 펼침).
 const _bn2ActiveLine = new WeakMap();
-// ⑴⑵ 줄 편집칸 펼침 상태 — 블록별 «펼친 줄 인덱스» 집합. 디스크에 안 남긴다(UI 상태).
-const _bn2ExpandedLines = new WeakMap();
-function _bn2Expanded(block) {
-  if (!_bn2ExpandedLines.has(block)) _bn2ExpandedLines.set(block, new Set());
-  return _bn2ExpandedLines.get(block);
-}
+// ⑴⑵ 줄 편집칸 펼침 상태 — 공용 discSec*(js/props/_helpers.js · 블록 id 별 Map ⇒ ⌘Z 교체에도 유지 · 디스크에 안 남는다). 키 = 'bn2-line-<idx>'.
 export function bn2SetActiveLine(block, idx) { _bn2ActiveLine.set(block, idx); }
 export function bn2GetActiveLine(block) { return _bn2ActiveLine.has(block) ? _bn2ActiveLine.get(block) : 0; }
 if (typeof window !== 'undefined') {
@@ -152,43 +148,27 @@ export function showBanner02Properties(block, activeIdxArg) {
     //   ⚠️단 «빈 줄»은 자동으로 펼친다 — 글자가 없으면 캔버스에서 겨냥하기 어려워
     //     우측이 사실상 유일한 복구 수단이 되는 순간이 있다(⑸의 min-height 와 한 쌍).
     const _isEmpty = !String(line.text || '').trim();
-    const _open = _isEmpty || _bn2Expanded(block).has(idx);
+    const _open = _isEmpty || discSecOpen(block, `bn2-line-${idx}`);
     const _preview = _isEmpty ? '(빈 줄)' : String(line.text).replace(/\s+/g, ' ').slice(0, 24);
     return `
-    <div class="prop-section" data-line-row="${idx}">
+    <div data-line-row="${idx}" data-sec-item>
       <!-- ★줄 머리 한 줄에 «역할 · 번호 · 미리보기 · 삭제» 를 모은다.
            ⑴ textarea 는 뺐다 — 캔버스에서 더블클릭으로 «이미» 편집된다(banner02-block.js:149).
-              같은 일을 두 곳에서 하면 패널만 길어진다. 「뭐라고 쓰나」는 캔버스, 「어떻게 보이나」는 패널.
-           ⑵ 「종류」는 «글자 내용»이 아니라 «줄의 역할»(Label/Title/Subtitle)이고 ★캔버스에 대응 경로가
-              없다 — 지우면 한번 만든 줄의 역할을 영영 못 바꾼다. 그래서 남기되, 역할이니 자리는 줄 머리다.
-           ⑶ 미리보기도 남긴다 — 줄 3개가 전부 Label 이면 「Label #1」만으론 «구분이 안 된다».
-              폭이 모자라면 ellipsis 로 줄인다(min-width:0 이 있어야 flex 안에서 실제로 줄어든다). -->
-      <div class="prop-section-title" data-line-toggle="${idx}"
-           style="display:flex;align-items:center;gap:6px;cursor:pointer;"
-           title="${_open ? '접기' : '펼치기'}">
-        <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
-             (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
-             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
-             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
-             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
-             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
-             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
-               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
-               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
-             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
-        ${disclosureChevronHtml(_open)}
-        <select class="prop-select" data-line-kind="${idx}" onclick="event.stopPropagation()"
+           ⑵ 「종류」는 «줄의 역할»(Label/Title/Subtitle)이고 캔버스에 대응 경로가 없다 — 그래서 줄 머리에 남긴다.
+           ⑶ 미리보기도 남긴다 — 줄 3개가 전부 Label 이면 「Label #1」만으론 구분이 안 된다.
+           ★머리 = 공용 접이 머리 disclosureSectionHtml(3인자 · 쉐브론 한 벌 · right-panel-unify U5 — 옛 자작 머리를 걷었다).
+           ⛔이 주석에 백틱을 쓰지 마라 — 템플릿 리터럴 안이다. -->
+      <div class="prop-section-title-row">${disclosureSectionHtml(`bn2-line-head-${idx}`, `<select class="prop-select" data-line-kind="${idx}" onclick="event.stopPropagation()"
                 style="flex:0 0 auto;width:auto;font-size:11px;padding:1px 4px;">
           ${KIND_OPTS.map(k => `<option value="${k}"${line.kind === k ? ' selected' : ''}>${KIND_LABELS[k] || k}</option>`).join('')}
         </select>
-        <span style="flex:0 0 auto;font-size:10px;color:var(--ui-text-muted);">#${idx + 1}</span>
-        <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escAttr(_preview)}</span>
+        <span style="color:var(--ui-text-muted);">#${idx + 1}</span>
+        <span style="color:var(--ui-text-muted);">${_escAttr(_preview)}</span>`, _open).replace('role="button"', `role="button" aria-expanded="${_open}"`)}
         <button class="prop-btn prop-btn-danger" data-line-remove="${idx}" title="줄 삭제"
                 onclick="event.stopPropagation()"
                 style="flex:0 0 auto;padding:2px 8px;font-size:11px;${lines.length <= 1 ? 'opacity:0.4;pointer-events:none;' : ''}">×</button>
       </div>
       <div data-line-editor="${idx}" style="display:${_open ? 'block' : 'none'};">
-      <div class="prop-section-title">Typography</div>
       <span class="prop-field-label">Font</span>
       <div class="prop-row">
         <span class="prop-label">폰트</span>
@@ -218,7 +198,6 @@ export function showBanner02Properties(block, activeIdxArg) {
         <input type="number" class="prop-number" data-line-gap="${idx}" min="0" max="400" value="${line.gapTop}">
       </div>
 
-      <div class="prop-section-title">Fill</div>
       <div class="prop-color-row">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'bn2-line-' + idx + '-col', hex: line.color || '#000000' })}
@@ -237,8 +216,6 @@ export function showBanner02Properties(block, activeIdxArg) {
 
   // 줄 선택 칩 — 기존 정렬 세그먼트(.prop-align-group/.prop-align-btn)를 그대로 쓴다(신규 룩 없음).
   const chipStrip = lines.length ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Text Lines</div>
       <div class="prop-align-group" id="bn2-line-chips">
         ${(() => {
           // 칩 라벨은 «짧게» — 흔한 3줄(Label/Title/Sub)에서 한 행에 들어가야 한다(4칩이 두 행이면
@@ -254,38 +231,33 @@ export function showBanner02Properties(block, activeIdxArg) {
           }).join('');
         })()}
         <button class="prop-align-btn${activeIdx === null ? ' active' : ''}" data-line-chip="all" style="flex:0 1 auto;min-width:0;font-size:11px;padding:2px 8px;white-space:nowrap;" title="모든 줄을 한꺼번에 펼칩니다">전체</button>
-      </div>
-    </div>` : '';
+      </div>` : '';
 
   const linesHTML = chipStrip + lines.map((l, i) => (activeIdx === null || activeIdx === i) ? lineRow(l, i) : '').join('') + `
-    <div class="prop-section">
-      <button class="prop-btn" id="bn2-line-add" style="width:100%;">+ 텍스트 줄 추가</button>
-    </div>`;
+      <button class="prop-btn" id="bn2-line-add" data-own="content" style="width:100%;">+ 텍스트 줄 추가</button>`;   /* data-own: 줄 «추가» 단추 — 바로 앞 형제(줄 칸)에 글 색 칸이 들어 있어 게이트 색짝 어림이 line+color=Stroke 로 끈다 */
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* right-panel-unify U5 — 옛 절(Variant · 좌우 바꾸기 · Size · Background · Text Lines · 줄 카드 · Image · Text Align)을 정본 절로.
+     좌우 바꾸기 = 배치 구조 → Layout(Text Align 과 같은 절) · 패딩 제외 → Padding · 반경 → Appearance · 배경색 → Fill · 줄(칩·카드·추가)과 이미지 → Content. */
+  renderPanel(block, {
+    header: blockHeaderHTML({
       name: d.layerName,
       defaultName: 'Banner',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Variant</div>
-      <div class="prop-align-group" id="bn2-variant-group" style="display:flex;gap:4px;">${variantBtns}</div>
-    </div>
-
-    <div class="prop-section">
-      <!-- ⑺ 좌우 바꾸기는 «이미지 속성»이 아니라 배치 구조다(텍스트 위치도 같이 바뀐다) → Variant 와 같은 층.
-           단 Variant 는 «형태 선택»(2택 토글)이고 이건 «지금 형태를 뒤집기»(1회 동작)라 성격이 달라,
-           같은 섹션에 넣지 않고 제목 없는 prop-section 으로 층을 나눈다(새 CSS·새 마진 규약 0). -->
-      <button class="prop-btn" id="bn2-swap" style="width:100%;">↔ 이미지·텍스트 좌우 바꾸기</button>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+    }),
+    sections: [
+      sec('kind', `
+      <div class="prop-align-group" id="bn2-variant-group" style="display:flex;gap:4px;">${variantBtns}</div>`),
+      sec('content', `${linesHTML}
+      <div class="prop-row" style="gap:4px;">
+        <button class="prop-btn" id="bn2-img-upload" style="flex:1;">${d.imgSrc ? '교체' : '추가'}</button>
+        ${d.imgSrc ? '<button class="prop-btn prop-btn-danger" id="bn2-img-clear" style="flex:1;">제거</button>' : ''}
+      </div>
+      <div class="prop-align-group" id="bn2-fit-group" style="display:flex;gap:4px;margin-top:4px;">
+        <button class="prop-align-btn${(d.imgFit || 'cover') === 'cover' ? ' active' : ''}" data-fit="cover" style="flex:1;font-size:11px;">꽉 채우기</button>
+        <button class="prop-align-btn${d.imgFit === 'contain' ? ' active' : ''}" data-fit="contain" style="flex:1;font-size:11px;">원본 비율</button>
+      </div>`),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="bn2-w" value="${parseInt(d.bannerW) || 780}" min="100" max="1600">
@@ -302,49 +274,11 @@ ${blockHeaderHTML({
         <span class="prop-label">텍스트 Y</span>
         <input type="number" class="prop-number" id="bn2-ty" value="${d.textYTuned === '1' ? (parseInt(d.textY) || 0) : ''}" placeholder="${parseInt(d.textY) || 0}" min="0" max="1200" title="비우면 프리셋 기본값">
       </div>
-      ${_bn2CanFullBleed ? `
-      <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="bn2-fullbleed-toggle" ${_bn2IsFullBleed ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      ` : ''}
       <div class="prop-row" id="bn2-hint-row" style="display:none">
         <span class="prop-hint" id="bn2-hint"></span>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
-      <div class="prop-color-row">
-        <span class="prop-label">색/그라데이션</span>
-        ${colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' })}
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">반경</span>
-        <input type="range" class="prop-slider" id="bn2-radius" min="0" max="60" step="1" value="${parseInt(d.radius) || 0}">
-        <input type="number" class="prop-number" id="bn2-radius-num" min="0" max="60" value="${parseInt(d.radius) || 0}">
-      </div>
-    </div>
-
-    ${linesHTML}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Image</div>
-      <div class="prop-row" style="gap:4px;">
-        <button class="prop-btn" id="bn2-img-upload" style="flex:1;">${d.imgSrc ? '교체' : '추가'}</button>
-        ${d.imgSrc ? '<button class="prop-btn prop-btn-danger" id="bn2-img-clear" style="flex:1;">제거</button>' : ''}
-      </div>
-      <div class="prop-align-group" id="bn2-fit-group" style="display:flex;gap:4px;margin-top:4px;">
-        <button class="prop-align-btn${(d.imgFit || 'cover') === 'cover' ? ' active' : ''}" data-fit="cover" style="flex:1;font-size:11px;">꽉 채우기</button>
-        <button class="prop-align-btn${d.imgFit === 'contain' ? ' active' : ''}" data-fit="contain" style="flex:1;font-size:11px;">원본 비율</button>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Text Align</div>
+      </div>`),
+      sec('layout', `
+      <div class="prop-row"><button class="prop-btn" id="bn2-swap" style="width:100%;">↔ 이미지·텍스트 좌우 바꾸기</button></div>
       <div class="prop-align-group" id="bn2-align-group">
         <button class="prop-align-btn${(d.align || 'left') === 'left' ? ' active' : ''}" data-align="left" title="왼쪽 정렬">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -364,8 +298,30 @@ ${blockHeaderHTML({
               <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
           </svg>
         </button>
+      </div>`),
+      sec('padding', _bn2CanFullBleed ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="bn2-fullbleed-toggle" ${_bn2IsFullBleed ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>
-    </div>`;
+` : ''),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">반경</span>
+        <input type="range" class="prop-slider" id="bn2-radius" min="0" max="60" step="1" value="${parseInt(d.radius) || 0}">
+        <input type="number" class="prop-number" id="bn2-radius-num" min="0" max="60" value="${parseInt(d.radius) || 0}">
+      </div>`),
+      sec('fill', `
+      <div class="prop-color-row">
+        <span class="prop-label">색/그라데이션</span>
+        ${colorFieldHTML({ idPrefix: 'bn2-bg', hex: bgIsGrad ? '#f3f4f6' : (d.bg || '#f3f4f6'), gradientCss: bgIsGrad ? d.bg : '' })}
+      </div>
+`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   // ⚠️renderBanner02 는 배너 내부를 새로 그린다 → 선택 줄 아웃라인 마커도 같이 날아간다.
@@ -551,13 +507,12 @@ ${blockHeaderHTML({
   });
 
   // ⑴⑵ 요약 줄 클릭 → 편집칸 펼침/접힘 (빈 줄은 항상 펼침이라 접어도 다시 열린다 — 의도)
-  propPanel.querySelectorAll('[data-line-toggle]').forEach(el => {
-    el.addEventListener('click', () => {
-      const i = parseInt(el.dataset.lineToggle, 10);
-      const set = _bn2Expanded(block);
-      set.has(i) ? set.delete(i) : set.add(i);
-      showBanner02Properties(block);
-    });
+  //   ★상태 = 공용 discSecToggle(블록 id 별 · ⌘Z 교체에도 유지). 다시 그려서 연다(빈 줄 «항상 펼침» 규칙이 렌더 진입부 한 곳에 산다).
+  propPanel.querySelectorAll('[id^="bn2-line-head-"]').forEach(el => {
+    const i = parseInt(el.id.slice('bn2-line-head-'.length), 10);
+    const flip = () => { discSecToggle(block, `bn2-line-${i}`); showBanner02Properties(block); };
+    el.addEventListener('click', flip);
+    el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); flip(); } });
   });
 
   // ⑧ 줄 선택 칩
@@ -570,6 +525,7 @@ ${blockHeaderHTML({
 
   // 줄 추가 버튼
   propPanel.querySelector('#bn2-line-add')?.addEventListener('click', () => {
+    expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
     const v = window.BANNER02_VARIANTS?.[block.dataset.variant] || window.BANNER02_VARIANTS?.frame_8 || {};
     /* ★두 라운드가 «같은 줄»을 서로 다른 이유로 고쳤다 — 둘 다 필요해서 합쳤다(2026-09-21 합치기).
        ⑴ ul-placeholder: 기본문구를 «여기서 짓지 않는다» — banner02-block.js 의 정본

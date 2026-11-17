@@ -1,7 +1,8 @@
 // prop-simple-card.js
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, disclosureChevronHtml, discSecOpen, wireDisclosureSection, disclosureSectionHtml } from './_helpers.js';
+import { blockHeaderHTML, discSecOpen, discSecToggle, wireDisclosureSection, disclosureSectionHtml } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
 import { wireHexText, parseHex6, formatHex6, parseHex6OrTransparent, formatHex6OrTransparent, isCssBackgroundValue } from './color-picker.js';
@@ -19,10 +20,14 @@ import { CVB_H_MIN, CVB_H_MAX } from '../blocks/card-limits.js';   // #cvb-h min
    transparent 등 이 패널이 실제로 담는 값)은 원문 그대로. ⛔무턱대고 '#' 만 떼면 gradient 가 깨진다. */
 const _hexBox = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? formatHex6(v) : String(v ?? ''));
 
-const _cvbExpandedCards = new WeakMap();
+/* 카드 글 접기 상태 = 공용 discSec(js/props/_helpers.js · 블록 id 별 Map — ⌘Z 로 블록이 갈려도 남는다). 키 = 'cardtext<i>'.
+   cvbCardFold 는 .has(i) 만 본다(단위시험 계약 그대로). */
+const _cvbTextKey = (i) => 'cardtext' + i;
 function _cvbExpanded(block) {
-  if (!_cvbExpandedCards.has(block)) _cvbExpandedCards.set(block, new Set());
-  return _cvbExpandedCards.get(block);
+  return { has: (i) => discSecOpen(block, _cvbTextKey(i)) };
+}
+function _cvbSetExpanded(block, i, open) {
+  if (discSecOpen(block, _cvbTextKey(i)) !== open) discSecToggle(block, _cvbTextKey(i));
 }
 
 // ② 접힘 판정 — 이 «하나»가 (펼칠까 / 미리보기에 뭘 쓸까)를 다 정한다. 렌더 안에 두면
@@ -75,7 +80,7 @@ function _applyCvbLabelMode(block, newMode) {
   window.pushHistory?.('라벨 모드');
   window.scheduleAutoSave?.();
   // prop UI 재렌더 (위치 버튼·체크박스가 모드에 따라 달라지므로)
-  // ★이 호출이 propPanel.innerHTML 을 통째로 갈아끼운다 ⇒ 호출 전에 overlay-h/w-row 의
+  // ★이 호출이 패널(renderPanel)을 통째로 갈아끼운다 ⇒ 호출 전에 overlay-h/w-row 의
   //   style.display 를 손으로 쓰던 옛 코드는 «덮어써지는 죽은 코드»였다 → 옮기며 제거.
   window.showSimpleCardProperties(block);
 }
@@ -85,8 +90,8 @@ function _applyCvbLabelMode(block, newMode) {
 //   null  = 전부 접는다
 //   생략  = 기억값 그대로 (updateCanvasBlock 의 패널 갱신이 이 경로다 → 펼침이 유지된다)
 function showSimpleCardProperties(block, expandCardArg) {
-  if (expandCardArg === null) _cvbExpanded(block).clear();
-  else if (Number.isInteger(expandCardArg)) _cvbExpanded(block).add(expandCardArg);
+  if (expandCardArg === null) JSON.parse(block.dataset.cards || '[]').forEach((_, i) => _cvbSetExpanded(block, i, false));
+  else if (Number.isInteger(expandCardArg)) _cvbSetExpanded(block, expandCardArg, true);
   const w         = parseInt(block.dataset.canvasW)  || 360;
   const h         = parseInt(block.dataset.canvasH)  || 480;
   const radius    = parseInt(block.dataset.radius)   || 12;
@@ -209,25 +214,11 @@ function showSimpleCardProperties(block, expandCardArg) {
         <input type="number" class="cvb-card-border-width" data-card-index="${i}" value="${card.borderWidth || 0}" min="0" max="20">
         <span class="cvb-card-meta">px</span>
       </div>
-      <!-- ② 텍스트 접기 머리 — 새 룩을 만들지 않는다. prop-banner02.js:87 의 줄 머리와 «같은»
-           마크업(prop-section-title + 8px 쉐브론 + prop-hint 미리보기)이다. 같은 패널 안에서
-           같은 동작이 다르게 생기면 그 자체가 새 룩이다. -->
-      <div class="prop-section-title cvb-card-text-toggle" data-card-text-toggle="${i}"
-           style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:4px;"
-           title="${fold.open ? '접기' : '펼치기'}">
-        <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
-             (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
-             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
-             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
-             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
-             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
-             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
-               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
-               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
-             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
-        ${disclosureChevronHtml(fold.open)}
-        <span style="flex:0 0 auto;">텍스트</span>
-        <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escHtml(fold.preview)}</span>
+      <!-- ② 텍스트 접기 머리 — ★U3: 손으로 베낀 머리(쉐브론+제목+미리보기) → 공용 접이식 머리(js/props/_helpers.js
+           disclosureSectionHtml · 그리드 칸/줄과 같은 부품). 상태도 공용(discSecOpen/discSecToggle · 블록 id 별 — ⌘Z 뒤에도 남는다).
+           미리보기는 제목 줄 안 메타 글(.cvb-card-meta) — .prop-hint 가 아니다(패널당 힌트 ≤2). 누름 배선 = 아래 [data-card-text-toggle] 위임. -->
+      <div class="cvb-card-text-toggle" data-card-text-toggle="${i}">
+${disclosureSectionHtml(`cvb-card-text-head-${i}`, `텍스트 <span class="cvb-card-meta">${_escHtml(fold.preview)}</span>`, fold.open)}
       </div>
       ${!fold.open ? '' : isBoth ? `
       <div class="cvb-slot-block" style="border-left:2px solid var(--ui-border, #ddd);padding-left:6px;margin-bottom:6px;">
@@ -268,9 +259,12 @@ function showSimpleCardProperties(block, expandCardArg) {
      의 공용 WeakMap(블록별로 갈린다 — 그리드 블럭과 섞이지 않는다). */
   const _cardGridOpen = discSecOpen(block, 'cardgrid', false);
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. 옛 절(Card Grid·Card Size·아이콘·Text Area·Card Spacing·Cards)은
+     속성마다 제 절로 갈랐다: 카드 수 = Layout 안 접이식(공용 discSec) · 라벨 모드/위치·글 세로 위치·정렬 = Layout · 이미지 모양·모서리 = Appearance ·
+     색 = Fill · 글 크기 = Typography. 숨김 모드에서 글 칸이 흐려지는 것은 칸마다(옛 #cvb-text-area-controls 는 Fill 쪽 첫 칸). */
+  const _taDim = `${textHide ? 'opacity:0.35;pointer-events:none;' : ''}`;
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="2"/>
             <rect x="3" y="3" width="3" height="6" rx="0.5" fill="#888" stroke="none"/>
@@ -280,22 +274,14 @@ ${blockHeaderHTML({
       defaultName: 'Card',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <!-- ★1017t1d2 — 「Card Grid」 절을 블럭머리 바로 뒤로(그리드블럭 Grid(N×M) 절과 같은 자리) +
-         접이식(그리드와 같은 부품 — js/props/_helpers.js disclosureSectionHtml/wireDisclosureSection,
-         prop-grid.js 가 2026-09-24 세운 것을 2026-10-17 공용으로 올렸다). ⛔복사본 금지. -->
-    <div class="prop-section"${_cardGridOpen ? '' : ' style="padding-bottom:0;"'}>
-${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})`, _cardGridOpen)}
-      <div id="cvb-grid-body" style="display:${_cardGridOpen ? 'block' : 'none'};">
-        <div class="grid-picker" id="cvb-grid-picker"></div>
-        <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Card Size</div>
+    }),
+    sections: [
+      sec('content', `
+      <span class="prop-field-label">Cards ${cards.length}</span>
+      <div class="prop-hint">캔버스에서 ＋ 로 줄 추가 · 더블클릭으로 수정</div>
+      <div id="cvb-card-items">${cardItemsHtml}</div>
+`),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
         <input type="number" class="prop-number" id="cvb-w" value="${w}" min="100" max="1200">
@@ -307,16 +293,21 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         <input type="range" class="prop-slider" id="cvb-img-ratio-slider" min="20" max="90" step="1" value="${imgRatio}">
         <input type="number" class="prop-number" id="cvb-img-ratio-number" min="20" max="90" value="${imgRatio}">
       </div>
+` + (iconMode ? `
       <div class="prop-row">
-        <span class="prop-label">이미지 모양</span>
-        <div class="prop-align-group" id="cvb-img-shape-group">
-          <button class="prop-align-btn${imgShape === 'rect' ? ' active' : ''}" data-shape="rect" title="사각">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
-          </button>
-          <button class="prop-align-btn${imgShape === 'circle' ? ' active' : ''}" data-shape="circle" title="원형">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/></svg>
-          </button>
-        </div>
+        <span class="prop-label">아이콘 크기</span>
+        <input type="range" class="prop-slider" id="cvb-icon-size-slider" min="10" max="90" step="1" value="${iconScale}">
+        <input type="number" class="prop-number" id="cvb-icon-size-number" min="10" max="90" value="${iconScale}">
+      </div>
+` : '')),
+      sec('layout', `
+    <!-- ★1017t1d2 — 「Card Grid」 절을 블럭머리 바로 뒤로(그리드블럭 Grid(N×M) 절과 같은 자리) +
+         접이식(그리드와 같은 부품 — js/props/_helpers.js disclosureSectionHtml/wireDisclosureSection,
+         prop-grid.js 가 2026-09-24 세운 것을 2026-10-17 공용으로 올렸다). ⛔복사본 금지. -->
+${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`, _cardGridOpen)}
+      <div id="cvb-grid-body" style="display:${_cardGridOpen ? 'block' : 'none'};">
+        <div class="grid-picker" id="cvb-grid-picker"></div>
+        <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
       </div>
       <div class="prop-row">
         <span class="prop-label">이미지 배경</span>
@@ -374,6 +365,86 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         <input type="range" class="prop-slider" id="cvb-overlay-w-slider" min="10" max="100" step="1" value="${overlayWidth}">
         <input type="number" class="prop-number" id="cvb-overlay-w-number" min="10" max="100" value="${overlayWidth}">
       </div>
+      <div class="cvb-text-area-dim" style="${_taDim}">
+      <div class="prop-row">
+        <span class="prop-label">세로 위치</span>
+        <input type="range" class="prop-slider" id="cvb-tvoffset-slider" min="0" max="100" step="2" value="${textVOffset}">
+        <input type="number" class="prop-number" id="cvb-tvoffset-number" min="0" max="100" value="${textVOffset}">
+      </div>
+      <span class="prop-field-label">Text Align</span>
+      <div class="prop-align-group" id="cvb-align-group">
+        <button class="prop-align-btn${textAlign==='left'?' active':''}"   data-align="left">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
+            <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
+          </svg>
+        </button>
+        <button class="prop-align-btn${textAlign==='center'?' active':''}" data-align="center">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
+            <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
+          </svg>
+        </button>
+        <button class="prop-align-btn${textAlign==='right'?' active':''}"  data-align="right">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
+            <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
+            <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
+          </svg>
+        </button>
+      </div>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Gap</span>
+        <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${cardGap}">
+        <input type="number" class="prop-number" id="cvb-gap-number" min="0" max="48" value="${cardGap}">
+      </div>
+`),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">좌우 패딩</span>
+        <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${padX}">
+        <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${padX}">
+      </div>
+      <div class="prop-row" title="켜면 카드가 섹션 좌우 패딩을 무시하고 가장자리까지 확장됩니다">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="cvb-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+`),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">이미지 모양</span>
+        <div class="prop-align-group" id="cvb-img-shape-group">
+          <button class="prop-align-btn${imgShape === 'rect' ? ' active' : ''}" data-shape="rect" title="사각">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg>
+          </button>
+          <button class="prop-align-btn${imgShape === 'circle' ? ' active' : ''}" data-shape="circle" title="원형">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="cvb-radius-slider" min="0" max="60" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
+      </div>
+`),
+      sec('typography', `
+      <div class="cvb-text-area-dim" style="${_taDim}">
+      <div class="prop-row">
+        <span class="prop-label">제목 크기</span>
+        <input type="range" class="prop-slider" id="cvb-title-slider" min="12" max="80" step="1" value="${titleSize}">
+        <input type="number" class="prop-number" id="cvb-title-number" min="12" max="80" value="${titleSize}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">설명 크기</span>
+        <input type="range" class="prop-slider" id="cvb-desc-slider" min="10" max="40" step="1" value="${descSize}">
+        <input type="number" class="prop-number" id="cvb-desc-number" min="10" max="40" value="${descSize}">
+      </div>
+      </div>`),
+      sec('fill', `
       <div class="prop-color-row">
         <span class="prop-label">라벨 배경</span>
         <div class="prop-color-swatch" id="cvb-text-bg-swatch" style="background:${(block.dataset.textBg || 'transparent').replace(/"/g, '&quot;')}" title="클릭해서 단색 선택">
@@ -386,7 +457,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         <div class="prop-color-swatch" id="cvb-text-bg-top-swatch" style="background:${(block.dataset.textBgTop || 'transparent').replace(/"/g, '&quot;')}">
           <input type="color" id="cvb-text-bg-top-pick" value="${/^#[0-9a-fA-F]{6}$/.test(block.dataset.textBgTop || '') ? block.dataset.textBgTop : '#ffffff'}">
         </div>
-        <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="비우면 상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
+        <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
         <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
       </div>
       <div class="prop-row" style="padding-left:60px;gap:4px;">
@@ -406,41 +477,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         <input type="range" class="prop-slider" id="cvb-grad-stop-slider" min="0" max="100" step="1" value="${gradStopPos}">
         <input type="number" class="prop-number" id="cvb-grad-stop-number" min="0" max="100" value="${gradStopPos}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="cvb-radius-slider" min="0" max="60" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="cvb-radius-number" min="0" max="60" value="${radius}">
-      </div>
-    </div>
-
-    ${iconMode ? `
-    <div class="prop-section">
-      <div class="prop-section-title">아이콘 (이스터에그)</div>
-      <div class="prop-row">
-        <span class="prop-label">아이콘 크기</span>
-        <input type="range" class="prop-slider" id="cvb-icon-size-slider" min="10" max="90" step="1" value="${iconScale}">
-        <input type="number" class="prop-number" id="cvb-icon-size-number" min="10" max="90" value="${iconScale}">
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">아이콘 색</span>
-        <div class="prop-color-swatch" style="background:${iconColor}">
-          <input type="color" id="cvb-icon-color-pick" value="${iconColor}">
-        </div>
-        <input type="text" class="prop-color-hex" id="cvb-icon-color-hex" value="${_hexBox(iconColor)}" maxlength="7" aria-label="Color">
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">아이콘 배경</span>
-        <div class="prop-color-swatch" style="background:${isIconBgTransparent ? 'transparent' : iconBg}; ${isIconBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
-          <input type="color" id="cvb-iconbg-pick" value="${iconBg}" ${isIconBgTransparent ? 'disabled' : ''}>
-        </div>
-        <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : _hexBox(iconBg)}" maxlength="11" aria-label="Color" ${isIconBgTransparent ? 'disabled' : ''}>
-        <button class="prop-align-btn prop-align-btn--aux${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn">투명</button>
-      </div>
-    </div>` : ''}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Text Area</div>
-      <div id="cvb-text-area-controls" style="${textHide ? 'opacity:0.35;pointer-events:none;' : ''}">
+      <div id="cvb-text-area-controls" style="${_taDim}">
       <div class="prop-color-row">
         <span class="prop-label">배경색 (일괄)</span>
         <div class="prop-color-swatch" style="background:${isTextBgTransparent ? 'transparent' : textBg}; ${isTextBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
@@ -463,72 +500,25 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
         </div>
         <input type="text" class="prop-color-hex" id="cvb-desc-color-hex" value="${_hexBox(descColor)}" maxlength="7" aria-label="Color">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">제목 크기</span>
-        <input type="range" class="prop-slider" id="cvb-title-slider" min="12" max="80" step="1" value="${titleSize}">
-        <input type="number" class="prop-number" id="cvb-title-number" min="12" max="80" value="${titleSize}">
+      </div>` + (iconMode ? `
+      <div class="prop-color-row">
+        <span class="prop-label">아이콘 색</span>
+        <div class="prop-color-swatch" style="background:${iconColor}">
+          <input type="color" id="cvb-icon-color-pick" value="${iconColor}">
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-icon-color-hex" value="${_hexBox(iconColor)}" maxlength="7" aria-label="Color">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">설명 크기</span>
-        <input type="range" class="prop-slider" id="cvb-desc-slider" min="10" max="40" step="1" value="${descSize}">
-        <input type="number" class="prop-number" id="cvb-desc-number" min="10" max="40" value="${descSize}">
+      <div class="prop-color-row">
+        <span class="prop-label">아이콘 배경</span>
+        <div class="prop-color-swatch" style="background:${isIconBgTransparent ? 'transparent' : iconBg}; ${isIconBgTransparent ? 'background-image:repeating-conic-gradient(#888 0% 25%,#555 0% 50%);background-size:8px 8px;' : ''}">
+          <input type="color" id="cvb-iconbg-pick" value="${iconBg}" ${isIconBgTransparent ? 'disabled' : ''}>
+        </div>
+        <input type="text" class="prop-color-hex" id="cvb-iconbg-hex" value="${isIconBgTransparent ? 'transparent' : _hexBox(iconBg)}" maxlength="11" aria-label="Color" ${isIconBgTransparent ? 'disabled' : ''}>
+        <button class="prop-align-btn prop-align-btn--aux${isIconBgTransparent ? ' active' : ''}" id="cvb-iconbg-transparent-btn">투명</button>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">세로 위치</span>
-        <input type="range" class="prop-slider" id="cvb-tvoffset-slider" min="0" max="100" step="2" value="${textVOffset}">
-        <input type="number" class="prop-number" id="cvb-tvoffset-number" min="0" max="100" value="${textVOffset}">
-      </div>
-      <div class="prop-section-title" style="margin-top:6px;">Text Align</div>
-      <div class="prop-align-group" id="cvb-align-group">
-        <button class="prop-align-btn${textAlign==='left'?' active':''}"   data-align="left">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="1" y1="6" x2="9" y2="6"/>
-            <line x1="1" y1="9" x2="11" y2="9"/><line x1="1" y1="12" x2="7" y2="12"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn${textAlign==='center'?' active':''}" data-align="center">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="3" y1="6" x2="11" y2="6"/>
-            <line x1="2" y1="9" x2="12" y2="9"/><line x1="4" y1="12" x2="10" y2="12"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn${textAlign==='right'?' active':''}"  data-align="right">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-            <line x1="1" y1="3" x2="13" y2="3"/><line x1="5" y1="6" x2="13" y2="6"/>
-            <line x1="3" y1="9" x2="13" y2="9"/><line x1="7" y1="12" x2="13" y2="12"/>
-          </svg>
-        </button>
-      </div>
-      </div><!-- /cvb-text-area-controls -->
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Card Spacing</div>
-      <div class="prop-row">
-        <span class="prop-label">Gap</span>
-        <input type="range" class="prop-slider" id="cvb-gap-slider" min="0" max="48" step="2" value="${cardGap}">
-        <input type="number" class="prop-number" id="cvb-gap-number" min="0" max="48" value="${cardGap}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="cvb-padx-slider" min="0" max="80" step="4" value="${padX}">
-        <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${padX}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="cvb-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div class="prop-hint" style="margin-top:2px;">켜면 카드가 섹션 좌우 패딩을 무시하고 가장자리까지 확장됩니다</div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Cards (${cards.length})</div>
-      <div class="prop-hint">캔버스에서 ＋ 로 줄 추가 · 더블클릭으로 수정</div>
-      <div id="cvb-card-items">${cardItemsHtml}</div>
-    </div>`;
+` : '')),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -567,6 +557,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
     const rows  = parseInt(cell.dataset.r);
     const total = cols * rows;
     const curCards = JSON.parse(block.dataset.cards || '[]');
+    if (curCards.length < total) expandSection('content');   // 카드 줄이 Content 절에 늘어난다 — 접혀 있으면 «아무 일 없는» 것처럼 보인다(U0c expandSection)
     while (curCards.length < total) curCards.push({ title: '카드 제목', desc: '', imgSrc: '', cellBg: '' });
     while (curCards.length > total) curCards.pop();
     block.dataset.cards    = JSON.stringify(curCards);
@@ -1333,17 +1324,26 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid (${gridCols}×${gridRows})
     }
   });
 
+  // ② 텍스트칸 펼침/접힘 — 상태만 뒤집고 패널을 다시 그린다(빈 카드는 _cardFold 가 다시 펼친다 — 의도).
+  const toggleCardText = (foldToggle, refocus) => {
+    const i = parseInt(foldToggle.dataset.cardTextToggle, 10);
+    discSecToggle(block, _cvbTextKey(i));
+    showSimpleCardProperties(block);
+    if (refocus) document.getElementById(`cvb-card-text-head-${i}`)?.focus();   // 다시 그리면 포커스가 날아간다 — 키보드로 연 사람은 그 머리에 남는다
+  };
+  /* 머리는 role=button·tabindex=0 — Enter/Space 도 같은 토글(평가 F7). Space 가 패널을 스크롤하지 않게 막는다. */
+  cardItemsEl.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const head = e.target.closest?.('[data-card-text-toggle] > .prop-section-title');
+    if (!head) return;
+    e.preventDefault(); e.stopPropagation();
+    toggleCardText(head.parentElement, true);
+  });
+
   // 이미지 업로드 / 제거 버튼
   cardItemsEl.addEventListener('click', e => {
-    // ② 텍스트칸 펼침/접힘 — 상태만 뒤집고 패널을 다시 그린다(빈 카드는 _cardFold 가 다시 펼친다 — 의도).
     const foldToggle = e.target.closest('[data-card-text-toggle]');
-    if (foldToggle) {
-      const i = parseInt(foldToggle.dataset.cardTextToggle, 10);
-      const set = _cvbExpanded(block);
-      set.has(i) ? set.delete(i) : set.add(i);
-      showSimpleCardProperties(block);
-      return;
-    }
+    if (foldToggle) { toggleCardText(foldToggle, false); return; }
     const imgBtn   = e.target.closest('.cvb-card-img-btn');
     const clearBtn = e.target.closest('.cvb-card-img-clear');
     const iconBtn   = e.target.closest('.cvb-card-icon-btn');

@@ -257,16 +257,39 @@ async function bootWith(page, overlay) {
   return setup(page, overlay ? pinnedBoot(overlay) : bootApp);
 }
 const ALIGN_SEL = ['#grd-halign-group [data-ha]', '#grd-valign-group [data-va]'];
-async function alignShot(page) {
+/** 묶음 위쪽을 화면 y=top 에 놓는다 — 묶음이 그보다 위에 있으면 패널 몸 맨 앞에 빈 띠(spacer)를 넣어 «아래로» 민다.
+    ★r0914g18: 스크롤로 끌어올리기(작은 쪽 y)는 지금 판에서 안 먹었다(508 그대로 — 스크롤 여유/대상 문제). 띠는 스크롤 한계가 없다.
+    묶음 자신의 마크업·스타일은 안 건드린다(자리만 옮긴다). 스크롤 앵커링을 끄고 몇 번 고쳐 맞춘다. 돌려준 top ≠ top 이면 아래 전제가 빨개진다. */
+const placeGroupAt = (page, top) => page.evaluate(async (t) => {
+  const raf = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const g = document.getElementById('grd-halign-group');
+  const body = g.closest('.panel-body') || g.parentElement;
+  for (let el = body; el; el = el.parentElement) el.style.overflowAnchor = 'none';
+  let sp = document.getElementById('__g18spacer');
+  for (let n = 0; n < 4; n++) {
+    const d = Math.round(t - g.getBoundingClientRect().top);
+    if (!d) break;
+    if (!sp) { sp = document.createElement('div'); sp.id = '__g18spacer'; body.insertBefore(sp, body.firstChild); }
+    sp.style.height = Math.max(0, (parseFloat(sp.style.height) || 0) + d) + 'px';
+    await raf();
+  }
+  return g.getBoundingClientRect().top;
+}, top);
+async function alignShot(page, top) {
   await selectGrid(page);
   await page.evaluate(() => document.getElementById('grd-halign-group').scrollIntoView({ block: 'center' }));
+  if (top != null) await placeGroupAt(page, top);
   await page.mouse.move(5, 5);
   await expect.poll(() => page.evaluate(() => !document.querySelector('#grd-halign-group :hover, #grd-valign-group :hover')), { message: '마우스가 단추 밖으로 나가 hover 가 걷혔다', timeout: 10000 }).toBe(true);
   const rows = ['#grd-halign-group', '#grd-valign-group'];
   const shots = [];
-  for (const s of rows) shots.push(await (await page.locator(s).evaluateHandle(e => e.closest('.prop-row'))).asElement().screenshot({ type: 'png' }));
+  /* U6 · 계획 §4-1: 줄 라벨이 「가로 정렬」→「가로 정렬 · 모든 열」(스코프 표기)로 «일부러» 바뀌어 줄(.prop-row) 그림은 핀과 24px 다르다(r0913rp).
+     이 검사가 지키는 것 = 정렬 «단추 묶음» 그림 ⇒ 줄이 아니라 묶음(#grd-*align-group)을 찍는다. 되돌리면 빨강: 단추 아이콘·크기·간격을 바꾸면 픽셀 차이. */
+  for (const s of rows) shots.push(await page.locator(s).screenshot({ type: 'png' }));
+  /* 진단(u6m 줄 1 에 1픽셀): 묶음의 소수 좌표 — 핀·지금이 다르면 서브픽셀 자리 차이(그림 변화 아님) 쪽 근거. */
+  const rects = await page.evaluate((R) => R.map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => +v.toFixed(3)); }), rows);
   const html = await page.evaluate((S) => S.map(s => [...document.querySelectorAll(s)].map(b => b.outerHTML).join('\n')).join('\n'), ALIGN_SEL);
-  return { shots, html };
+  return { shots, html, rects };
 }
 async function decode(page, buf) {
   return page.evaluate(async (b64) => {
@@ -284,20 +307,48 @@ test('G18-0 전제 — 핀 판 덮개가 «실제로 다른 판»을 싣는다(�
   else expect(ov.size, '★이 브랜치는 핀과 달라야 한다(아니면 대조가 공짜 초록)').toBeGreaterThan(0);
 });
 
-test('G18-1 ★그리드 정렬 단추 두 줄이 핀 판과 «픽셀 0 차이» · 마크업 동일', async ({ browser }) => {
+/** 두 그림의 다른 픽셀 수(+ 처음 몇 개 좌표·값 로그). */
+function pxDiff(pa, pb, tag) {
+  let diff = 0; for (let k = 0; k < pa.d.length; k += 4) if (pa.d[k] !== pb.d[k] || pa.d[k + 1] !== pb.d[k + 1] || pa.d[k + 2] !== pb.d[k + 2] || pa.d[k + 3] !== pb.d[k + 3]) diff++;
+  if (diff) for (let k = 0, n = 0; k < pa.d.length && n < 5; k += 4) if (pa.d.slice(k, k + 4).join() !== pb.d.slice(k, k + 4).join()) { n++; console.log(`[G18-1] ${tag}   (${(k / 4) % pa.w},${Math.floor(k / 4 / pa.w)}) 지금 ${pa.d.slice(k, k + 4)} · 핀 ${pb.d.slice(k, k + 4)}`); }
+  return diff;
+}
+
+/* ★261114 r0914u6n — 옛 꼴(각 판을 scrollIntoView center 그대로 찍기)은 핀·지금이 «세로 201px 다른 자리»(508 vs 307)에서 찍었고
+     줄 1 에 픽셀 1개 · 채널 1(69 vs 68) 차이가 났다. 패널 위쪽 절이 U6 에서 길어져 핀 판은 스크롤 바닥(0)에 막혀 center 에 못 온다.
+   ⇒ 이제 두 판을 «같은 화면 y»(둘의 자연 위치 중 큰 쪽 — 위에 있는 판을 패널 몸 맨 앞 빈 띠로 내린다)에 놓고 잰다. 합격선은 그대로 0(허용오차 없음).
+     자연 위치 비교는 «로그로만» 남긴다 — 「자리 차 vs 그림 차」를 런 로그 한 줄로 가르기 위해서다.
+   양성대조(같은 y): 지금 판 세로 정렬 묶음에 opacity .98 을 걸면 같은 자로 다른 픽셀 > 0 — 같은 y 로 옮긴 자가 미세한 그림 차를 여전히 본다. */
+test('G18-1 ★그리드 정렬 단추 두 줄이 핀 판과 «같은 화면 y 에서» 픽셀 0 차이 · 마크업 동일 (+양성대조)', async ({ browser }) => {
   const ctxA = await browser.newContext(); const ctxB = await browser.newContext();
   const a = await ctxA.newPage(); const b = await ctxB.newPage();
   await bootWith(a, null); await bootWith(b, pinOverlay());
-  const A = await alignShot(a); const B = await alignShot(b);
+  /* ⑴ 자연 위치(옛 꼴) — 로그만 */
+  const A0 = await alignShot(a); const B0 = await alignShot(b);
+  for (let i = 0; i < A0.shots.length; i++) {
+    const d = pxDiff(await decode(a, A0.shots[i]), await decode(a, B0.shots[i]), `자연 줄 ${i}`);
+    console.log(`[G18-1] 자연 줄 ${i} 다른 픽셀 ${d} · rect 지금 ${A0.rects[i]} / 핀 ${B0.rects[i]}`);
+  }
+  /* ⑵ 같은 y — 판정. 큰 쪽 y 로 맞춘다(위에 있는 판을 띠로 내린다 — r0914g18: 작은 쪽으로 끌어올리기는 스크롤 여유가 없어 실패) */
+  const top = Math.max(A0.rects[0][1], B0.rects[0][1]);
+  const A = await alignShot(a, top); const B = await alignShot(b, top);
+  expect([A.rects[0][1], B.rects[0][1]], `[전제] 두 판 묶음이 같은 화면 y=${top} 에 놓였다`).toEqual([top, top]);
   for (let i = 0; i < A.shots.length; i++) {
     const pa = await decode(a, A.shots[i]); const pb = await decode(a, B.shots[i]);
     expect([pa.w, pa.h], `줄 ${i} 크기`).toEqual([pb.w, pb.h]);
-    let diff = 0; for (let k = 0; k < pa.d.length; k += 4) if (pa.d[k] !== pb.d[k] || pa.d[k + 1] !== pb.d[k + 1] || pa.d[k + 2] !== pb.d[k + 2] || pa.d[k + 3] !== pb.d[k + 3]) diff++;
-    console.log(`[G18-1] 줄 ${i} ${pa.w}x${pa.h} 다른 픽셀 ${diff}`);
-    expect(diff, `★정렬 줄 ${i} 에서 핀과 다른 픽셀 ${diff}개`).toBe(0);
+    const diff = pxDiff(pa, pb, `같은y 줄 ${i}`);
+    console.log(`[G18-1] 같은y 줄 ${i} ${pa.w}x${pa.h} 다른 픽셀 ${diff} · rect 지금 ${A.rects[i]} / 핀 ${B.rects[i]}`);
+    expect(diff, `★정렬 줄 ${i} 에서 (같은 y) 핀과 다른 픽셀 ${diff}개`).toBe(0);
   }
   /* 마크업은 픽셀 «뒤»에 잰다 — 앞에 두면 그림 변이가 마크업에서 먼저 걸려 픽셀 자가 빨개질 수 있는지를 못 본다. */
   expect(A.html, '단추 마크업(outerHTML)이 핀과 다르다').toBe(B.html);
+  /* ⑶ 양성대조 — 같은 y·같은 자에 미세한 그림 차 하나 */
+  await a.evaluate(() => { const st = document.createElement('style'); st.id = '__g18pos'; st.textContent = '#grd-valign-group svg{opacity:.98}'; document.head.appendChild(st); });
+  const P = await alignShot(a, top);
+  expect(P.rects[0][1], '[전제] 양성대조도 같은 y').toBe(top);
+  const pos = pxDiff(await decode(a, P.shots[1]), await decode(a, B.shots[1]), '양성');
+  console.log(`[G18-1] 양성대조 줄 1 다른 픽셀 ${pos}`);
+  expect(pos, '★양성대조 — opacity .98 을 걸어도 0 이면 이 자는 아무것도 안 잰다').toBeGreaterThan(0);
   await ctxA.close(); await ctxB.close();
 });
 

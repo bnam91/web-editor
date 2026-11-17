@@ -72,6 +72,7 @@ window.addGridBlock({ gap: 32, valign: 'middle', cols: [
 //   · dataset.cells            = «행 0 포함 전체 rows×cols». cells[0][c] 는 「행 0 «그 칸»의 꾸밈」.
 //     ⛔cells[0][*] 에는 `lines` 키가 «절대» 없다(행 0 의 줄은 cols[c].lines 하나뿐).
 //   · rows(px 최소높이, 'auto' 허용). rows 를 안 주면 옛 1행 그리드와 byte-identical.
+//   · ★rows[].height = «내용 높이»(칸 위아래 여백 cellPadY 뺀 몫). 화면 행 = height + 2×cellPadY — 우측 패널은 그 «화면 높이»를 보이고 받는다(⑦-A · 2026-11-13).
 //   ⚠️저장 포맷이 바뀌었다 — T-178 «이전» 저장본의 dataset.cells(행 1~)는 한 행 위로 읽힌다.
 //     마이그레이션은 범위 밖(현빈 승인).
 window.addGridBlock({

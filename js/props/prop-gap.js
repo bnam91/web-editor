@@ -1,12 +1,12 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 
 export function showGapProperties(gb) {
   const currentH = gb.offsetHeight;
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(gb, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <line x1="1" y1="4" x2="11" y2="4" stroke-dasharray="2,1"/>
             <line x1="1" y1="8" x2="11" y2="8" stroke-dasharray="2,1"/>
@@ -15,10 +15,8 @@ ${blockHeaderHTML({
       defaultName: 'Gap Block',
       crumb: window.getBlockBreadcrumb(gb),
       id: gb.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+    }),
+    sections: [sec('size', `
       <div class="prop-row">
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="gap-slider" min="${GAP_MIN}" max="${GAP_MAX}" step="4" value="${currentH}">
@@ -26,8 +24,8 @@ ${blockHeaderHTML({
       </div>
       <div class="prop-row gap-preset-row">
         ${[20,40,80,120,160,200,240,280].map(h => `<button class="gap-preset-btn${currentH===h?' active':''}" data-h="${h}">${h}</button>`).join('')}
-      </div>
-    </div>`;
+      </div>`)],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(gb.id || null);
 

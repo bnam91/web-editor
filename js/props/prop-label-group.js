@@ -1,5 +1,6 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { renderPanel, sec, hintHTML } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 import {
@@ -46,9 +47,10 @@ function showLabelGroupProperties(block, selectedItem) {
   const _shapeOpts = (cur) => _shapeNames.map((n) => `<option value="${escHtml(n)}"${n === cur ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
   const userPresets = listLabelUserPresets();
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★U2(right-panel-unify) — 절은 틀이 그린다. 옛 「Selected Tag」 한 절을 소유대로 갈랐다(고른 태그 배경·글자 = Fill ·
+     모서리 = Appearance · 높이 = Size) — 라벨에 「태그」를 붙여 «전체» 높이와 가른다. id 는 그대로. */
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="3" width="4" height="6" rx="3"/>
             <rect x="7" y="3" width="4" height="6" rx="3"/>
@@ -57,10 +59,9 @@ ${blockHeaderHTML({
       defaultName: 'Tags',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Style</div>
+    }),
+    sections: [
+      sec('kind', `
       <div class="prop-row">
         <span class="prop-label">Preset</span>
         <select class="prop-select" id="lg-style-select">
@@ -85,10 +86,40 @@ ${blockHeaderHTML({
         <input type="text" class="prop-text" id="lg-preset-name-input" maxlength="40" placeholder="프리셋 이름" aria-label="프리셋 이름">
         <button class="prop-action-btn primary" id="lg-preset-name-ok" style="flex:0 0 52px;margin-top:0">확인</button>
         <button class="prop-action-btn secondary" id="lg-preset-name-cancel" style="flex:0 0 52px;margin-top:0">취소</button>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Align</div>
+      </div>${selectedItem ? '' : `
+      ${hintHTML('Click a tag to change its color')}`}`),   /* 안 골랐을 땐 Fill 절이 없다(컨트롤 0 절 금지 · 게이트 빈 머리 검사) — 안내는 여기 */
+      sec('position', !isAbsolute ? '' : `
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" id="lg-x-number" value="${currentX}" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" id="lg-y-number" value="${currentY}" aria-label="Y position">
+          </div>
+        </div>
+      </div>`),
+      sec('size', (!isAbsolute ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">Width</span>
+        <input type="range"  class="prop-slider" id="lg-width-slider" min="40" max="860" step="4" value="${currentW}">
+        <input type="number" class="prop-number"  id="lg-width-number" min="40" max="860" value="${currentW}">
+      </div>`) + `
+      <div class="prop-row">
+        <span class="prop-label">전체 높이</span>
+        <input type="range"  class="prop-slider" id="lg-all-height-slider" min="0" max="120" step="2" value="${allItemH}">
+        <input type="number" class="prop-number"  id="lg-all-height-number" min="0" max="120" value="${allItemH}">
+      </div>` + (!selectedItem ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">태그 높이</span>
+        <input type="range"  class="prop-slider" id="lg-item-height-slider" min="0" max="120" step="2" value="${itemH}">
+        <input type="number" class="prop-number"  id="lg-item-height-number" min="0" max="120" value="${itemH}">
+      </div>`)),
+      sec('layout', `
       <div class="prop-align-group">
         <button class="prop-align-btn ${align==='left'?'active':''}" data-align="left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -109,79 +140,35 @@ ${blockHeaderHTML({
           </svg>
         </button>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Spacing</div>
       <div class="prop-row">
         <span class="prop-label">Gap</span>
         <input type="range"  class="prop-slider" id="lg-gap-slider" min="0" max="60" step="2" value="${gap}">
         <input type="number" class="prop-number"  id="lg-gap-number" min="0" max="60" value="${gap}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Height (All)</div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range"  class="prop-slider" id="lg-all-height-slider" min="0" max="120" step="2" value="${allItemH}">
-        <input type="number" class="prop-number"  id="lg-all-height-number" min="0" max="120" value="${allItemH}">
-      </div>
-    </div>
-
-    ${selectedItem ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Selected Tag</div>
-      ${boundName ? `
+      </div>`),
+      /* B1(dev) — 고른 태그가 «모양 변수»를 쓰면 모서리·색 대신 «변수 사용 중 · 끊기 · 바꾸기»(모양 = Appearance) · 색 칸은 끊어야 생긴다 */
+      sec('appearance', !selectedItem ? '' : boundName ? `
       <div class="prop-row" id="lg-shape-bound" data-shape="${escHtml(boundName)}">
         <span class="prop-hint" style="flex:1;padding:0">모양: 변수 <b>${escHtml(boundName)}</b> 사용 중</span>
         <button class="prop-btn" id="lg-shape-unlink" style="width:auto;padding:0 8px" title="지금 모양 그대로 이 칸에 박고 변수 연결을 끊는다(끊어야 색·모서리를 따로 고칠 수 있다)">끊기</button>
       </div>
-      ${_shapeNames.length > 1 ? `<div class="prop-row"><span class="prop-label">바꾸기</span><select class="prop-select" id="lg-shape-switch">${_shapeOpts(boundName)}</select></div>` : ''}
-      ` : `
-      <div class="prop-color-row">
-        <span class="prop-label">배경색</span>
-        ${colorFieldHTML({ idPrefix: 'lg-item-bg', hex: itemBg, alpha: itemBgAlpha })}
-      </div>
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
-        ${colorFieldHTML({ idPrefix: 'lg-item-color', hex: itemColor, alpha: itemColorAlpha })}
-      </div>
+      ${_shapeNames.length > 1 ? `<div class="prop-row"><span class="prop-label">바꾸기</span><select class="prop-select" id="lg-shape-switch">${_shapeOpts(boundName)}</select></div>` : ''}` : `
       <div class="prop-row">
-        <span class="prop-label">모서리</span>
+        <span class="prop-label">태그 모서리</span>
         <input type="range"  class="prop-slider" id="lg-item-radius-slider" min="0" max="50" step="1" value="${itemRadius}">
         <input type="number" class="prop-number"  id="lg-item-radius-number" min="0" max="50" value="${itemRadius}">
       </div>
-      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}
-      `}
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range"  class="prop-slider" id="lg-item-height-slider" min="0" max="120" step="2" value="${itemH}">
-        <input type="number" class="prop-number"  id="lg-item-height-number" min="0" max="120" value="${itemH}">
+      ${_shapeNames.length ? `<div class="prop-row"><span class="prop-label">모양 변수</span><select class="prop-select" id="lg-shape-link"><option value="">연결 안 함</option>${_shapeOpts('')}</select></div>` : ''}`),
+      sec('fill', (!selectedItem || boundName) ? '' : `
+      <div class="prop-color-row">
+        <span class="prop-label">태그 배경</span>
+        ${colorFieldHTML({ idPrefix: 'lg-item-bg', hex: itemBg, alpha: itemBgAlpha })}
       </div>
-    </div>
-    ` : `
-    <div class="prop-hint">Click a tag to change its color</div>
-    `}
-
-    ${isAbsolute ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Width</div>
-      <div class="prop-row">
-        <span class="prop-label">Width</span>
-        <input type="range"  class="prop-slider" id="lg-width-slider" min="40" max="860" step="4" value="${currentW}">
-        <input type="number" class="prop-number"  id="lg-width-number" min="40" max="860" value="${currentW}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Position</div>
-      <div class="prop-row">
-        <span class="prop-label" style="width:16px">X</span>
-        <input type="number" class="prop-number" id="lg-x-number" value="${currentX}" style="width:72px">
-        <span class="prop-label" style="width:16px;margin-left:8px">Y</span>
-        <input type="number" class="prop-number" id="lg-y-number" value="${currentY}" style="width:72px">
-      </div>
-    </div>
-    ` : ''}
-  `;
+      <div class="prop-color-row">
+        <span class="prop-label">태그 글자</span>
+        ${colorFieldHTML({ idPrefix: 'lg-item-color', hex: itemColor, alpha: itemColorAlpha })}
+      </div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

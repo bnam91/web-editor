@@ -44,16 +44,16 @@ function chipGroup(id, attr, list, ui, cur) {
         </div>`;
 }
 
-export function arrowSectionHTML(block) {
+/** 절 조각 — { special: [[제목, html]], fill } (prop-sticker.js 가 key 별로 모아 renderPanel 에 넘긴다 · U5) */
+export function arrowSections(block) {
   const d = block.dataset, def = D(), lim = LIM();
   const kind = d.arrowKind || def.kind;
   const T = parseFloat(d.thickness), B = parseFloat(d.arrowBend);
   const t = Number.isFinite(T) ? T : def.thickness;
   const b = Number.isFinite(B) ? B : def.bend;
   const color = d.arrowColor || def.color;
-  return `
-    <div class="prop-section" id="stk-arrow-section">
-      <div class="prop-section-title">Arrow Line</div>
+  const special = `
+    <div id="stk-arrow-section">
       <div class="prop-row"><span class="prop-label">종류</span>
         ${chipGroup('stk-arrow-kind', 'arrow-kind', listOf('KINDS', ['straight', 'curve', 'elbow', 'hand']), KIND_UI, kind)}
       </div>
@@ -74,14 +74,16 @@ export function arrowSectionHTML(block) {
         <input type="range" class="prop-slider" id="stk-arrow-bend" min="${lim.bend[0]}" max="${lim.bend[1]}" step="1" value="${b}">
         <input type="number" class="prop-number" id="stk-arrow-bend-num" min="${lim.bend[0]}" max="${lim.bend[1]}" value="${b}">
       </div>
-      <div class="prop-color-row" style="margin-top:6px;">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'stk-arrow-color', hex: color, alpha: parseAlphaFromColor(color) })}
-      </div>
       <div class="prop-row" id="stk-arrow-reroll-row" style="display:${kind === 'hand' ? 'flex' : 'none'};">
         <button class="prop-action-btn" id="stk-arrow-reroll" style="width:100%;" title="손그림 흔들림만 새로 섞는다(끝점·색·두께는 그대로)">다시 섞기</button>
       </div>
     </div>`;
+  const fill = `
+      <div class="prop-color-row">
+        <span class="prop-label">색상</span>
+        ${colorFieldHTML({ idPrefix: 'stk-arrow-color', hex: color, alpha: parseAlphaFromColor(color) })}
+      </div>`;
+  return { special: [['Arrow Line', special]], fill };
 }
 
 /** @param {HTMLElement} panel  propPanel · @param {Function} rerender  renderStickerBlock + rememberStickerStyle */

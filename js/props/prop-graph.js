@@ -1,6 +1,7 @@
 import '../graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML, escHtml } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { isBlurIntoPanel, parkEditing } from './_text-selection.js';
 import { graphFieldShown } from '../canvas-contrast.js';   // E149 — 색 칸 «보일 값»의 한 자리
@@ -26,7 +27,7 @@ function overlayTogglesHTML(block) {
           <input type="checkbox" id="${t.id}" ${block.dataset[t.key] === '1' ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>${t.key === 'showGrid' ? gridColorRowHTML(block) : ''}`).join('');
+      </div>`).join('');   // 격자선 색 줄(gridColorRowHTML)은 Fill 절로(right-panel-unify U5)
 }
 /* H7(현빈 2026-10-05) — 격자선 색 칸. 비어 있으면(키 없음) «지금 그려진» 색 = 블럭 글자색(currentColor) · 투명도 20(렌더 기본 그대로).
    ⛔기본값을 새로 박지 않는다 — 렌더(drag-utils.js _barVPlotGeom)가 키 없을 때 currentColor×0.2 를 그리고, 칸은 그 계산값을 보인다. */
@@ -44,21 +45,25 @@ function gridColorRowHTML(block) {
       </div>`;
 }
 
-/* 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
-function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, overlayToggles = '', hideThickness = false, segGap = null, segWave = false }) {
-  return `
-    <div class="prop-section">
-      <div class="prop-section-title">Bar Settings</div>${hideThickness ? '' : `
+/* right-panel-unify U5 — 옛 「Bar Settings」 한 절을 속성의 절로 나눠 «조각»을 돌려준다(정본 순서는 renderPanel 이 세운다):
+ *   size = 두께 · padding = 좌우 패딩 · layout = 항목 간격(+마디 간격·경계 물결) · typography = 숫자 크기 · fill = 바 색상(bar-pair 는 없음 — Pair 의 #grb-bar 하나).
+ * 1012t1G2 — hideThickness: 모양(실루엣)이 켜지면 «두께» 줄을 뺀다(폭은 실루엣의 비가 정한다 — 두께 키는 안 지운다). */
+function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS_MAX, padX, itemGap, pctSize, pctMin, barColor, barAlpha, hideThickness = false, segGap = null, segWave = false }) {
+  return {
+    size: hideThickness ? '' : `
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="grb-bar-thickness-slider" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" step="2" value="${barThickness}">
         <input type="number" class="prop-number" id="grb-bar-thickness-number" min="${BAR_THICKNESS_MIN}" max="${thicknessMax}" value="${barThickness}">
-      </div>`}
+      </div>`,
+    padding: `
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
       </div>
+`,
+    layout: `
       <div class="prop-row">
         <span class="prop-label">항목 간격</span>
         <input type="range" class="prop-slider" id="grb-item-gap-slider" min="8" max="80" step="4" value="${itemGap}">
@@ -76,18 +81,21 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
           <span class="prop-toggle-track"></span>
         </label>
       </div>`}
+`,
+    typography: `
       <div class="prop-row">
         <span class="prop-label">숫자 크기</span>
         <input type="range" class="prop-slider" id="grb-pct-size-slider" min="${pctMin}" max="120" step="2" value="${pctSize}">
         <input type="number" class="prop-number" id="grb-pct-size-number" min="${pctMin}" max="120" value="${pctSize}">
       </div>
-      ${chartType === 'bar-pair' ? '' : `
+`,
+    fill: chartType === 'bar-pair' ? '' : `
       <div class="prop-row">
         <span class="prop-label">바 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
       </div>
-      `}${overlayToggles}
-    </div>`;
+      `,
+  };
 }
 
 const _isGrad = (c) => typeof c === 'string' && /gradient\(/i.test(c);
@@ -165,7 +173,7 @@ function pieSliceRowsHTML(item) {   // 조각별 설정 줄 — 줄을 더하면
         <input type="range" class="prop-slider" id="grb-pie-pull-slider" min="0" max="${PIE_PULL_MAX}" step="1" value="${pull}">
         <input type="number" class="prop-number" id="grb-pie-pull-number" min="0" max="${PIE_PULL_MAX}" value="${pull}">
       </div>
-      <div class="prop-row" title="이 조각 안의 순위·이름 라벨. 자동 = 조각이 넉넉할 때만 보인다(Pie Settings 의 순위·이름 표시가 켜져 있어야 한다)">
+      <div class="prop-row" title="이 조각 안의 순위·이름 라벨. 자동 = 조각이 넉넉할 때만 보인다(Pie 절의 순위·이름 표시가 켜져 있어야 한다)">
         <span class="prop-label">라벨</span>
         <select class="prop-select" id="grb-pie-tag-select">
           ${tagOpt('', '자동')}${tagOpt('on', '항상')}${tagOpt('off', '숨김')}
@@ -196,8 +204,6 @@ function pieShadowSectionHTML(ds) {
   const cur = _pieDropOf(ds);
   const sh = _pieShOf(ds);
   return `
-    <div class="prop-section">
-      <div class="prop-section-title">Shadow</div>
       <div class="prop-row">
         <span class="prop-label">그림자</span>
         <div class="prop-align-group" id="grb-drop-group">
@@ -222,8 +228,7 @@ function pieShadowSectionHTML(ds) {
       <div class="prop-row">
         <span class="prop-label">색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-pie-sh', hex: sh.color, alpha: sh.alpha })}
-      </div>` : ''}
-    </div>`;
+      </div>` : ''}`;   // Effects 절 몸통(right-panel-unify U5) — 절 껍데기는 renderPanel
 }
 /* 1013t1C4 고침 2 — 조각 표식이 걷혔는데 패널이 다시 안 그려지는 길(같은 블럭을 ⌘클릭해 푼 때 — editor.js toggleBlockSelect 의 해제 가지는 어느 블럭 종류든 패널을 그대로 둔다)에서
  *   Slice 절이 남아 «풀린 블럭»에 썼다. 두 겹으로 막는다:
@@ -254,13 +259,10 @@ function _syncPieSliceSolo(items, sel) {
 function pieSliceSectionHTML(items, sel) {
   if (!(sel >= 0 && sel < items.length)) return '';
   return `
-    <div class="prop-section" id="grb-pie-slice-section" data-slice="${sel}">
-      <div class="prop-section-title">Slice</div>
       <div class="prop-row" title="고른 조각 — 아래 설정은 이 조각에만 걸린다">
         <span class="prop-label">조각</span>
         <span class="prop-value-text grb-slice-name" id="grb-pie-slice-name">${escHtml(_sliceName(items, sel))}</span>
-      </div>${pieSliceRowsHTML(items[sel] || {})}
-    </div>`;
+      </div>${pieSliceRowsHTML(items[sel] || {})}`;   // 몸통만 — 절(special 「Slice」 · id grb-pie-slice-section · data-slice)은 showGraphProperties 가 세운다
 }
 
 /* 1012t1G4 — 마디(막대·실루엣을 비율별로 나눈 조각) 편집 줄. 항목 줄 아래 같은 꼴의 줄(라벨 · 값 · ✕ · 색) + 「+ 마디 추가」.
@@ -273,7 +275,7 @@ const _segSum = (segs) => window.GRAPH_SHAPE.segSum(segs);
 function segListHTML(item, i) {
   const segs = _segsOf(item);
   return `
-          <div class="grb-data-list grb-seg-list" data-item="${i}">
+          <div class="grb-data-list grb-seg-list" data-item="${i}" data-sec-item>
             ${segs.map((sg, j) => `
             <div class="grb-data-item grb-seg-item" data-item="${i}" data-seg="${j}">
               <input type="text" class="grb-data-label-input" value="${escHtml(sg && sg.label)}" placeholder="마디 라벨">
@@ -297,9 +299,8 @@ function shapeSectionHTML(block) {
   const tk = _trackColorShown(block);
   const presets = window.GRAPH_SHAPE.GRAPH_SHAPE_PRESETS;
   const opt = (v, label) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${label}</option>`;
-  return `
-    <div class="prop-section">
-      <div class="prop-section-title">Shape</div>
+  /* right-panel-unify U5 — 실루엣 고르기·파일·최대값 = Type 절 · 트랙 색 = Fill 절 */
+  return { kind: `
       <div class="prop-row" title="막대를 실루엣으로 바꾼다. 값만큼 아래부터 차오른다">
         <span class="prop-label">모양</span>
         <select class="prop-select" id="grb-shape-select">
@@ -314,12 +315,11 @@ function shapeSectionHTML(block) {
       <div class="prop-row" title="실루엣이 꽉 차는 값. 비우면 ${SHAPE_FILL_MAX_DEFAULT}">
         <span class="prop-label">최대값</span>
         <input type="number" class="prop-number" id="grb-fillmax-number" min="1" max="${FILL_MAX_LIMIT}" placeholder="${SHAPE_FILL_MAX_DEFAULT}" value="${fm > 0 ? fm : ''}">
-      </div>
+      </div>` : ''}`, fill: cur ? `
       <div class="prop-row" title="안 찬 부분의 색(비우면 채움과 같은 색 · 투명도 ${Math.round(SHAPE_TRACK_OPACITY * 100)}%)">
         <span class="prop-label">트랙 색</span>
         ${colorFieldHTML({ idPrefix: 'grb-track', hex: tk.c, alpha: tk.a })}
-      </div>` : ''}
-    </div>`;
+      </div>` : '' };
 }
 
 /* 1013t1C3 고침 2 — Pie Settings 「이름 표시」 줄 아래의 안내 한 줄: 「좁아서 이름 n개 숨김」. n = 라벨을 잰 쪽(drag-utils.js grbPieFitTags)이 센 수(window.grbPieHiddenNames —
@@ -492,9 +492,24 @@ export function showGraphProperties(block) {
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
   const pieLegGap    = (g => Number.isFinite(g) ? Math.min(PIE_LEG_GAP_MAX, Math.max(PIE_LEG_GAP_MIN, g)) : PIE_LEG_GAP_DEFAULT)(parseInt(block.dataset.pieLegendGap));   // 1017t1f1
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* right-panel-unify U5 — 옛 절(Size · Chart Type · Shape · Pair/Line/Pie Settings · Slice · Shadow · Bar Settings · Data)을 정본 절로.
+     유형 단추·실루엣 → Type · 값/카테고리 표시·축/격자/꺾은선 토글·시리즈 이름·Data → Content · 높이·두께 → Size · 항목/마디 간격 → Layout ·
+     좌우 패딩 → Padding · 라벨/숫자 크기 → Typography · 모든 색(라벨·막대·시리즈·선·면·격자·트랙) → Fill · 선 두께 → Stroke · 원형 그림자 → Effects ·
+     꺾은선 점(Line) · 원형(Pie) · 고른 조각(Slice) · 방사형(Radial) = special. 막대 조각은 barSettingsHTML 이 절별로 돌려준다. */
+  const _isBar = chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair';
+  const _bar = _isBar ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), hideThickness: _shapeOn,
+      /* 1020t2g1ⓐ — 마디는 세로 막대에서만 산다(_segOn) ⇒ 그때만 «마디 간격» 줄 */
+      segGap: _segOn ? (g => Number.isFinite(g) ? Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, g)) : SEG_GAP_DEFAULT)(parseInt(block.dataset.segGap)) : null,
+      segWave: block.dataset.segWave === '1' }) : {};
+  const _shape = chartType === 'bar-v' ? shapeSectionHTML(block) : {};
+  /* 프로토 Z6-B — 방사형 절은 js/graph-radial.js 가 «옛 꼴»(prop-section + 제목)로 낸다 — 껍데기만 벗겨 special 몸통으로(그 파일은 안 건드린다). */
+  const _radial = chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '')
+    .replace('<div class="prop-section" id="grb-radial-section">', '<div id="grb-radial-section">')
+    .replace(/\s*<div class="prop-section-title">Radial Settings<\/div>/, '')
+    // 반지름 줄 = 방사형 «배치 반지름»(스테이지 대비 %)이지 모서리(radius → Appearance)가 아니다 ⇒ 소유를 이 절로 못 박는다
+    .replace('<div class="prop-row" title="스테이지 한 변 대비 %', '<div class="prop-row" data-own="special:Radial" title="스테이지 한 변 대비 %') : '';
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="5" width="2" height="6" rx="0.5"/>
             <rect x="5" y="2" width="2" height="9" rx="0.5"/>
@@ -504,33 +519,13 @@ ${blockHeaderHTML({
       defaultName: 'Graph Block',
       crumb: window.getBlockBreadcrumb(block),
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
-      <div class="prop-row">
-        <span class="prop-label">높이</span>
-        <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="2000" step="8" value="${chartH}">
-        <input type="number" class="prop-number" id="grb-h-number" min="80" max="2000" value="${chartH}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">라벨</span>
-        <input type="range" class="prop-slider" id="grb-label-slider" min="${LABEL_SIZE_MIN}" max="28" step="1" value="${labelSize}">
-        <input type="number" class="prop-number" id="grb-label-number" min="${LABEL_SIZE_MIN}" max="28" value="${labelSize}">
-      </div>
-      <div class="prop-row" title="값 라벨(숫자) + 카테고리 라벨 둘 다 일괄 적용. 아래 항목별로 따로 설정 가능">
-        <span class="prop-label">라벨 색상</span>
-        ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
-      </div>
-      <div class="prop-row" title="값 라벨(숫자)만 별도 색상"${_rdHide}>
-        <span class="prop-label">값 색상</span>
-        ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: _vlabelShown, alpha: parseAlphaFromColor(_vlabelShown) })}
-      </div>
-      <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
-      <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
-        <span class="prop-label prop-label--auto">카테고리 색상</span>
-        ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: _xlabelShown, alpha: parseAlphaFromColor(_xlabelShown) })}
-      </div>
+    }),
+    sections: [
+      sec('kind', `
+      <div class="prop-type-group">
+        ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${(chartType === t.type || (t.type === 'pie' && chartType === 'donut')) ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
+      </div>${_shape.kind || ''}`),
+      sec('content', `
       <div class="prop-row"${_rdHide}>
         <span class="prop-label">값 표시</span>
         <label class="prop-toggle">
@@ -544,70 +539,81 @@ ${blockHeaderHTML({
           <input type="checkbox" id="grb-show-xlabel" ${showXLabel ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Chart Type</div>
-      <div class="prop-type-group">
-        ${GRAPH_TYPES.map(t => `<button class="prop-preset-btn prop-type-btn ${(chartType === t.type || (t.type === 'pie' && chartType === 'donut')) ? 'active' : ''}" id="${t.id}">${t.label}</button>`).join('\n        ')}
-      </div>
-    </div>
-    ${chartType === 'bar-v' ? shapeSectionHTML(block) : ''}
+      </div>${chartType === 'bar-v' ? overlayTogglesHTML(block) : ''}
     ${chartType === 'bar-pair' ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Pair Settings</div>
       <div class="prop-row">
         <span class="prop-label">시리즈 A</span>
         <input type="text" class="prop-input" id="grb-series-a" value="${(block.dataset.seriesA || '').replace(/"/g, '&quot;')}" placeholder="예: 우리" style="flex:1;min-width:0">
       </div>
       <div class="prop-row">
-        <span class="prop-label">색상 A</span>
-        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
-      </div>
-      <div class="prop-row">
         <span class="prop-label">시리즈 B</span>
         <input type="text" class="prop-input" id="grb-series-b" value="${(block.dataset.seriesB || '').replace(/"/g, '&quot;')}" placeholder="예: A사" style="flex:1;min-width:0">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">색상 B</span>
-        ${colorFieldHTML({ idPrefix: 'grb-bar2', hex: _bar2Shown, alpha: parseAlphaFromColor(_bar2Shown) })}
+` : ''}
+      <div class="grb-data-list" id="grb-data-list">
+        ${items.map((item, i) => `
+          <div class="grb-data-item" data-index="${i}" data-sec-item>
+            <input type="text" class="grb-data-label-input" value="${escHtml(item.label)}" placeholder="라벨">
+            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}${_rdHide}>
+            ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
+            <button class="grb-data-del-btn" data-index="${i}">✕</button>
+            ${_isPie ? `<button class="grb-data-icon-btn ${_sliceSel === i ? 'active' : ''}" data-slice-index="${i}" title="${_sliceSel === i ? '조각 고르기 풀기' : '이 조각 고르기(조각별 설정)'}">${ITEM_SLICE_ICON}</button>` : ''}
+            ${_shapeOn ? `<button class="grb-data-icon-btn ${item.shape ? 'active' : ''}" data-shape-index="${i}" title="${item.shape ? '이 항목만 쓰는 모양 지우기(블럭 모양으로)' : '이 항목만 SVG 불러오기'}">${ITEM_SHAPE_ICON}</button>` : ''}
+            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
+          </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
       </div>
-    </div>` : ''}
+      <button class="prop-btn-full" id="grb-add-item" data-own="content">+ 항목 추가</button>`),   /* data-own: 항목 «추가» 단추 — 바로 앞 형제(항목 목록)에 항목 색 칸이 들어 있어 게이트의 색짝 어림이 Fill 로 끈다(_panel-sections readPanel prev.querySelector) */
+      sec('size', `
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="grb-h-slider" min="80" max="2000" step="8" value="${chartH}">
+        <input type="number" class="prop-number" id="grb-h-number" min="80" max="2000" value="${chartH}">
+      </div>
+${_bar.size || ''}`),
+      sec('layout', _bar.layout || ''),
+      sec('padding', `${_bar.padding || ''}
     ${chartType === 'line' ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Line Settings</div>
-      <div class="prop-row">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="grb-stroke-slider" min="1" max="12" step="1" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="grb-stroke-number" min="1" max="12" value="${strokeWidth}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">점 크기</span>
-        <input type="range" class="prop-slider" id="grb-point-slider" min="0" max="16" step="1" value="${pointRadius}">
-        <input type="number" class="prop-number" id="grb-point-number" min="0" max="16" value="${pointRadius}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">점 모양</span>
-        <select class="prop-select" id="grb-pointstyle-select">
-          <option value="" ${block.dataset.pointStyle !== 'hollow' ? 'selected' : ''}>채움</option>
-          <option value="hollow" ${block.dataset.pointStyle === 'hollow' ? 'selected' : ''}>속빈</option>
-        </select>
-      </div>
       <div class="prop-row">
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
       </div>
+` : ''}`),
+      sec('typography', `
+      <div class="prop-row">
+        <span class="prop-label">라벨</span>
+        <input type="range" class="prop-slider" id="grb-label-slider" min="${LABEL_SIZE_MIN}" max="28" step="1" value="${labelSize}">
+        <input type="number" class="prop-number" id="grb-label-number" min="${LABEL_SIZE_MIN}" max="28" value="${labelSize}">
+      </div>
+${_bar.typography || ''}`),
+      sec('fill', `
+      <div class="prop-row" title="값 라벨(숫자) + 카테고리 라벨 둘 다 일괄 적용. 아래 항목별로 따로 설정 가능">
+        <span class="prop-label">라벨 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-label', hex: labelColor, alpha: labelAlpha })}
+      </div>
+      <div class="prop-row" title="값 라벨(숫자)만 별도 색상"${_rdHide}>
+        <span class="prop-label">값 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-vlabel', hex: _vlabelShown, alpha: parseAlphaFromColor(_vlabelShown) })}
+      </div>
+      <!-- ★E103 U27(2026-10-05): 「카테고리 색상」·「카테고리 표시」는 56px 고정 라벨에서 잘렸다(sw60/cw56 실측) — 기존 변형 .prop-label--auto(css/editor-props.css, 「그리드 가이드」 선례)를 쓴다. 전역 56px 은 안 건드린다. -->
+      <div class="prop-row" title="카테고리 라벨(7차 입고 등)만 별도 색상">
+        <span class="prop-label prop-label--auto">카테고리 색상</span>
+        ${colorFieldHTML({ idPrefix: 'grb-xlabel', hex: _xlabelShown, alpha: parseAlphaFromColor(_xlabelShown) })}
+      </div>
+${_bar.fill || ''}
+    ${chartType === 'bar-pair' ? `
+      <div class="prop-row">
+        <span class="prop-label">색상 A</span>
+        ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">색상 B</span>
+        ${colorFieldHTML({ idPrefix: 'grb-bar2', hex: _bar2Shown, alpha: parseAlphaFromColor(_bar2Shown) })}
+      </div>` : ''}
+    ${chartType === 'line' ? `
       <div class="prop-row">
         <span class="prop-label">선 색상</span>
         ${colorFieldHTML({ idPrefix: 'grb-bar', hex: barColor, alpha: barAlpha })}
-      </div>
-      <div class="prop-row" title="Catmull-Rom 곡선 보간 — 온도 곡선 등 부드러운 추세선">
-        <span class="prop-label">곡선(스무드)</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="grb-smooth-toggle" ${block.dataset.lineSmooth === '1' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
       </div>
       <div class="prop-row">
         <span class="prop-label">면 채우기</span>
@@ -624,11 +630,37 @@ ${blockHeaderHTML({
         <span class="prop-label">투명도</span>
         <input type="range" class="prop-slider" id="grb-fillalpha-slider" min="0" max="100" step="1" value="${fillAlpha}">
         <input type="number" class="prop-number" id="grb-fillalpha-number" min="0" max="100" value="${fillAlpha}">
+      </div>` : ''}${chartType === 'bar-v' ? gridColorRowHTML(block) : ''}${_shape.fill || ''}`),
+      sec('stroke', chartType === 'line' ? `
+      <div class="prop-row">
+        <span class="prop-label">선 두께</span>
+        <input type="range" class="prop-slider" id="grb-stroke-slider" min="1" max="12" step="1" value="${strokeWidth}">
+        <input type="number" class="prop-number" id="grb-stroke-number" min="1" max="12" value="${strokeWidth}">
       </div>
-    </div>` : ''}
-    ${_isPie ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Pie Settings</div>
+` : ''),
+      sec('effects', _isPie ? pieShadowSectionHTML(block.dataset) : ''),
+      sec('special', chartType === 'line' ? `
+      <div class="prop-row">
+        <span class="prop-label">점 크기</span>
+        <input type="range" class="prop-slider" id="grb-point-slider" min="0" max="16" step="1" value="${pointRadius}">
+        <input type="number" class="prop-number" id="grb-point-number" min="0" max="16" value="${pointRadius}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">점 모양</span>
+        <select class="prop-select" id="grb-pointstyle-select">
+          <option value="" ${block.dataset.pointStyle !== 'hollow' ? 'selected' : ''}>채움</option>
+          <option value="hollow" ${block.dataset.pointStyle === 'hollow' ? 'selected' : ''}>속빈</option>
+        </select>
+      </div>
+      <div class="prop-row" title="Catmull-Rom 곡선 보간 — 온도 곡선 등 부드러운 추세선">
+        <span class="prop-label">곡선(스무드)</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="grb-smooth-toggle" ${block.dataset.lineSmooth === '1' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+` : '', { title: 'Line' }),
+      sec('special', _isPie ? `
       <div class="prop-row" title="가운데를 뚫어 도너츠 모양으로">
         <span class="prop-label">도너츠</span>
         <label class="prop-toggle">
@@ -677,29 +709,12 @@ ${pieTagTypoRowsHTML(block)}
           <input type="checkbox" id="grb-pie-legend-toggle" ${block.dataset.pieLegendOff !== '1' ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>
-    </div>${pieSliceSectionHTML(items, _sliceSel)}${pieShadowSectionHTML(block.dataset)}` : ''}
-    ${chartType === 'radial' ? (window.graphRadialSectionHTML?.(block) || '') : ''}
-    ${(chartType === 'bar-h' || chartType === 'bar-v' || chartType === 'bar-pair') ? barSettingsHTML({ chartType, barThickness, thicknessMax: _thkMax, padX, itemGap, pctSize: barPctSize, pctMin: barPctMin, barColor: _barSetColor, barAlpha: parseAlphaFromColor(_barSetColor), overlayToggles: chartType === 'bar-v' ? overlayTogglesHTML(block) : '', hideThickness: _shapeOn,
-      /* 1020t2g1ⓐ — 마디는 세로 막대에서만 산다(_segOn) ⇒ 그때만 «마디 간격» 줄 */
-      segGap: _segOn ? (g => Number.isFinite(g) ? Math.min(SEG_GAP_MAX, Math.max(SEG_GAP_MIN, g)) : SEG_GAP_DEFAULT)(parseInt(block.dataset.segGap)) : null,
-      segWave: block.dataset.segWave === '1' }) : ''}
-    <div class="prop-section">
-      <div class="prop-section-title">Data</div>
-      <div class="grb-data-list" id="grb-data-list">
-        ${items.map((item, i) => `
-          <div class="grb-data-item" data-index="${i}">
-            <input type="text" class="grb-data-label-input" value="${escHtml(item.label)}" placeholder="라벨">
-            <input type="number" class="grb-data-val-input" value="${_segOn && _segsOf(item).length ? _segSum(item.segments) : escHtml(item.value)}" min="0" max="9999"${_segOn && _segsOf(item).length ? ' readonly title="마디 값의 합"' : ''}${_rdHide}>
-            ${chartType === 'bar-pair' ? `<input type="number" class="grb-data-val-input grb-data-val2-input" value="${escHtml(item.value2 ?? 0)}" min="0" max="9999" title="시리즈 B 값">` : ''}
-            <button class="grb-data-del-btn" data-index="${i}">✕</button>
-            ${_isPie ? `<button class="grb-data-icon-btn ${_sliceSel === i ? 'active' : ''}" data-slice-index="${i}" title="${_sliceSel === i ? '조각 고르기 풀기' : '이 조각 고르기(조각별 설정)'}">${ITEM_SLICE_ICON}</button>` : ''}
-            ${_shapeOn ? `<button class="grb-data-icon-btn ${item.shape ? 'active' : ''}" data-shape-index="${i}" title="${item.shape ? '이 항목만 쓰는 모양 지우기(블럭 모양으로)' : '이 항목만 SVG 불러오기'}">${ITEM_SHAPE_ICON}</button>` : ''}
-            ${(chartType === 'bar-v' || chartType === 'bar-h') ? itemColorFieldHTML(item, i) : (_isPie ? itemColorFieldHTML(item, i, { solidOnly: true }) : '')}
-          </div>${_segOn ? segListHTML(item, i) : ''}`).join('')}
-      </div>
-      <button class="prop-btn-full" id="grb-add-item">+ 항목 추가</button>
-    </div>`;
+      </div>` : '', { title: 'Pie' }),
+      sec('special', _isPie ? pieSliceSectionHTML(items, _sliceSel) : '', { title: 'Slice', id: 'grb-pie-slice-section' }),
+      sec('special', _radial, { title: 'Radial' }),
+    ],
+  });
+  document.getElementById('grb-pie-slice-section')?.setAttribute('data-slice', String(_sliceSel));   // 고른 조각 색인 — 옛 절 껍데기에 있던 표식(시험·배선이 읽는다)
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   if (chartType === 'radial') window.wireGraphRadialSection?.(block, () => showGraphProperties(block));   // 프로토 Z6-B
@@ -968,6 +983,7 @@ ${pieTagTypoRowsHTML(block)}
   if (_segOn) items.forEach((it, i) => _segsOf(it).forEach((_, j) => _wireSegColor(i, j)));
 
   document.getElementById('grb-add-item').addEventListener('click', () => {
+    expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
     const curItems = JSON.parse(block.dataset.items || '[]');
     curItems.push({ label: '항목 ' + (curItems.length + 1), value: 50 });
     block.dataset.items = JSON.stringify(curItems);

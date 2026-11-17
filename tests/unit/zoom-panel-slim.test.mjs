@@ -170,7 +170,7 @@ test('T3 ★방향°·길이·좁아짐% 는 패널에 «없다» — 그러나 
   for (const alive of ['zm-spread', 'zm-maxop', 'zm-curve', 'zm-size', 'zm-rot', 'zm-bdw']) {
     assert.ok(pairRowArgs(p, alive), `전제가 깨졌다 — «남아야 할» ${alive} 가 패널에서 사라졌다`);
   }
-  assert.ok(p.includes('prop-section-title'), '패널 마크업이 통째로 비었다');
+  assert.ok(/renderPanel\(block,\s*\{[\s\S]*sec\('effects'/.test(p), '패널 마크업이 통째로 비었다(renderPanel·Effects 절 없음)');   // U4: 틀 이관 뒤 절 껍데기는 renderPanel 이 그린다
 
   for (const [id, 이름] of [['zm-angle', '방향°'], ['zm-length', '길이'], ['zm-narrow', '좁아짐%']]) {
     // ⑴ 거른 소스(주석 제거본)에 «없어야» 가린 것이다

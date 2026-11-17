@@ -25,7 +25,7 @@ const HARNESS = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/css/editor-props.css">
 <link rel="stylesheet" href="/css/color-picker.css">
 <link rel="stylesheet" href="/css/editor-blocks.css">
-<style>#panel-right{position:fixed;left:0;top:0;width:240px;} #canvas{position:absolute;left:600px;top:0;width:600px;}</style>
+<style>#panel-right{position:fixed;left:0;top:0;width:240px;height:100vh;overflow-y:auto;} #canvas{position:absolute;left:600px;top:0;width:600px;}</style><!-- U6 R2: 앱 패널처럼 굴러야 §2-1 순서로 아래로 간 Fill 절 컨트롤에 닿는다 -->
 </head><body>
 <div id="canvas"><div class="section-block"><div class="section-inner" id="host">
   <div class="text-block" id="tb1" data-type="body"><div class="tb-body" contenteditable="false" style="font-size:40px;color:#cc2244">그라데이션 글자</div></div>

@@ -1,6 +1,7 @@
 // prop-comparison.js — 비교 블록 우측 프로퍼티 패널 (N칼럼: 1:1, 1:1:1 …)
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { _num, getComparisonCols, getComparisonFeaturedIdx, setComparisonCols, cmpEmptyRow, cmpEmptyRows, CMP_HD_HINT, cmpGetActiveCell, cmpPickRowImage, cmpRowHeights } from '../blocks/comparison-block.js';
 /* ★1017t1c4 — 행 높이의 바닥·천장과 «쓰는 한 벌». 캔버스 행 경계 드래그(overlay-handles.js)와 ★같은 함수·같은 수를 쓴다.
@@ -70,22 +71,26 @@ export function showComparisonProperties(block) {
     const hdBgVal = (typeof col.titleBg === 'string' && col.titleBg) || (bgIsGrad ? '#ffffff' : bgVal);
     const hdTextVal = (typeof col.titleColor === 'string' && col.titleColor) || panelRenderedColor(_hdEl, 'color') || textVal;
     const canDelete = N > 2;
-    return `
-      <div class="prop-section">
-        <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">
-          <span>칼럼 ${idx + 1}${idx === featuredIdx ? ' ★' : ''}</span>
-          ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;">×</button>` : ''}
+    const colName = `칼럼 ${idx + 1}${idx === featuredIdx ? ' ★' : ''}`;
+    /* U5 — 칼럼 하나가 두 절로 갈린다: 행 편집(Content) · 색 넷(Fill). 칼럼 이름 줄이 두 절에서 무리를 나눈다. */
+    return { content: `
+      <div data-sec-item>
+        <div class="prop-row">
+          <span class="prop-label">${colName}</span>
+          ${canDelete ? `<button class="prop-btn prop-btn-danger cmp-col-del" data-col="${idx}" title="칼럼 삭제" style="width:24px;margin-left:auto;">×</button>` : ''}
         </div>
+        <div>${rowInputs}</div>
+        <button class="prop-btn cmp-row-add" data-col="${idx}" style="width:100%;margin-top:6px;">+ 행 추가</button>
+      </div>`,
+      fill: `
+        <div class="prop-row"><span class="prop-label">${colName}</span></div>
         <div class="prop-color-row"><span class="prop-label">헤더 배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdBg', hex: hdBgVal })}</div>
         <div class="prop-color-row"><span class="prop-label">헤더 글자</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'HdText', hex: hdTextVal })}</div>
         <div class="prop-color-row--aux">
           <button class="prop-align-btn prop-align-btn--aux cmp-hd-color-clear" data-col="${idx}" title="헤더 색 초기화 — 칼럼 색을 따른다">초기화</button>
         </div>
         <div class="prop-color-row"><span class="prop-label">배경</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Bg', hex: bgIsGrad ? '#ffffff' : bgVal, gradientCss: bgIsGrad ? bgVal : '' })}</div>
-        <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: textVal })}</div>
-        <div style="margin-top:6px;">${rowInputs}</div>
-        <button class="prop-btn cmp-row-add" data-col="${idx}" style="width:100%;margin-top:6px;">+ 행 추가</button>
-      </div>`;
+        <div class="prop-color-row"><span class="prop-label">텍스트</span>${colorFieldHTML({ idPrefix: 'cmp-c' + idx + 'Text', hex: textVal })}</div>` };
   };
 
   /* ★1012t1D3 — 캔버스에서 «이미지 칸»을 골랐으면(2번째 클릭 · block-drag.js) 블럭 헤더 «바로 아래»에 「Image」 절.
@@ -98,8 +103,7 @@ export function showComparisonProperties(block) {
     const fit = _actRow.imgFit === 'contain' ? 'contain' : 'cover';
     const sc = Math.min(400, Math.max(100, Number(_actRow.imgScale) || 100));
     return `
-    <div class="prop-section" id="cmp-img-section">
-      <div class="prop-section-title">Image</div>
+    <div id="cmp-img-section">
       <div class="prop-row">
         <button id="cmp-img-pick-btn" class="prop-btn-full">${_actRow.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
       </div>
@@ -117,8 +121,12 @@ export function showComparisonProperties(block) {
   })() : '';
   /* ★1012t1D4 — 「Image」 절 바로 아래 「블러 (Redact)」(에셋 패널의 그림 → 블러 순서 · 같은 함수 한 벌). 그림이 든 칸에만(에셋 hasImage 와 같은 조건).
      색보정은 에셋·카드처럼 «편집기(더블클릭)에 들어가면» 뜨는 플로팅 패널이다(js/blocks/comparison-img-edit.js) — 우측 패널 자리 0. */
+  /* U5 — 가림막은 Appearance 절(§2-1). 공용 HTML 의 옛 절 껍데기(prop-section·제목)만 벗기고 id 는 안쪽 div 로 남긴다 · 라벨 「강도」→「블러」(제목이 하던 말).
+     shortcut: 문자열 벗기기 — redactSectionHTML 에 body 전용 출력이 생기면 그걸로 바꾼다. */
   const redactSection = (imgSection && _actRow.imgSrc)
-    ? redactSectionHTML({ idPrefix: 'cmp-cell', value: normalizeRedact(_actRow.redact) }) : '';
+    ? redactSectionHTML({ idPrefix: 'cmp-cell', value: normalizeRedact(_actRow.redact) })
+        .replace(/<div class="prop-section" (id="[^"]*")>\s*<div class="prop-section-title">[^<]*<\/div>/, '<div $1>')
+        .replace('<span class="prop-label">강도</span>', '<span class="prop-label">블러</span>') : '';
 
   // ★flex:1 은 basis 0 이라 «축소»가 아니라 «균등분배»를 한다 — 칼럼이 «6개 이상»이면 각자 몫이
   //   글자보다 좁아져 「칼럼 N」이 잘린다(comparison-block.js:480 이 상한을 8 로 허용한다).
@@ -133,52 +141,60 @@ export function showComparisonProperties(block) {
   const featBtns = cols.map((c, i) =>
     `<button class="prop-align-btn${i === featuredIdx ? ' active' : ''}" data-feat="${i}" style="flex:1 0 auto;">칼럼 ${i + 1}</button>`).join('');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  const colParts = cols.map((c, i) => colSection(c, i));
+  renderPanel(block, {
+    header: blockHeaderHTML({
       name: d.layerName,
       defaultName: 'Comparison',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>${imgSection}${redactSection}
-    <div class="prop-section">
-      <div class="prop-section-title prop-ph-header">
-        <span>강조 칼럼 (떠보이는 쪽)</span>
-        ${window.overlayToggleBtnHTML?.({ id: 'cmp-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
-      </div>
-      <div class="prop-align-group" id="cmp-feat-group" style="display:flex;gap:4px;flex-wrap:wrap;">${featBtns}</div>
-      <button class="prop-btn" id="cmp-col-add" style="width:100%;margin-top:6px;">+ 칼럼 추가</button>
-      <div class="prop-row"><span class="prop-label">강조 크기</span>
-        <input type="range" class="prop-slider" id="cmp-scale" min="1" max="1.5" step="0.05" value="${parseFloat(d.featScale) || 1.2}">
-        <input type="number" class="prop-number" id="cmp-scale-num" min="1" max="1.5" step="0.05" value="${parseFloat(d.featScale) || 1.2}"></div>
+    }),
+    /* 옛 「강조 칼럼 (떠보이는 쪽)」 한 절 → 소유 절로 나눔(§2-1 플로팅 토글 ∈ 위치) */
+    sections: [
+      sec('content', `${imgSection}
+      <button class="prop-btn" id="cmp-col-add" style="width:100%;margin-bottom:6px;">+ 칼럼 추가</button>
+      ${colParts.map(x => x.content).join('')}`),
+      // 띄우기 토글 = Position 절 머리 손잡이(안 띄웠으면 머리만 남는다) · 공용 X/Y 줄 라벨은 U0b 가 「X / Y」로 고쳤다(걷기 불필요)
+      sec('position', window.floatPositionRowHTML?.({ prefix: 'cmp', posEl: block }) || '', {
+        headTools: window.overlayToggleBtnHTML?.({ id: 'cmp-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || '',
+      }),
+      sec('layout', `
       <div class="prop-row"><span class="prop-label">겹침</span>
         <input type="range" class="prop-slider" id="cmp-ovl" min="0" max="80" step="2" value="${_num(d.overlap, 32)}">
         <input type="number" class="prop-number" id="cmp-ovl-num" min="0" max="80" value="${_num(d.overlap, 32)}"></div>
-      <div class="prop-row"><span class="prop-label">반경</span>
-        <input type="range" class="prop-slider" id="cmp-rad" min="0" max="40" step="1" value="${_num(d.radius, 20)}">
-        <input type="number" class="prop-number" id="cmp-rad-num" min="0" max="40" value="${_num(d.radius, 20)}"></div>
-      <div class="prop-row"><span class="prop-label">좌우 패딩</span>
-        <input type="range" class="prop-slider" id="cmp-padx" min="0" max="160" step="2" value="${parseInt(d.padX) || 0}">
-        <input type="number" class="prop-number" id="cmp-padx-num" min="0" max="160" value="${parseInt(d.padX) || 0}"></div>
-      <div class="prop-row"><span class="prop-label">상하 패딩</span>
-        <input type="range" class="prop-slider" id="cmp-pady" min="0" max="80" step="2" value="${parseInt(d.padY) || 0}">
-        <input type="number" class="prop-number" id="cmp-pady-num" min="0" max="80" value="${parseInt(d.padY) || 0}"></div>
-      <div class="prop-row"><span class="prop-label">제목 크기</span>
-        <input type="range" class="prop-slider" id="cmp-tfont" min="12" max="56" step="1" value="${parseInt(d.titleFont) || 26}">
-        <input type="number" class="prop-number" id="cmp-tfont-num" min="12" max="56" value="${parseInt(d.titleFont) || 26}"></div>
-      <div class="prop-row"><span class="prop-label">내용 크기</span>
-        <input type="range" class="prop-slider" id="cmp-rfont" min="10" max="40" step="1" value="${parseInt(d.rowFont) || 18}">
-        <input type="number" class="prop-number" id="cmp-rfont-num" min="10" max="40" value="${parseInt(d.rowFont) || 18}"></div>
       <div class="prop-row"><span class="prop-label">행 높이</span>
         <input type="range" class="prop-slider" id="cmp-rowh" min="24" max="140" step="2" value="${parseInt(d.rowH) || 64}">
         <input type="number" class="prop-number" id="cmp-rowh-num" min="24" max="140" value="${parseInt(d.rowH) || 64}"></div>
       <div class="prop-row"><span class="prop-label">행 간격</span>
         <input type="range" class="prop-slider" id="cmp-rowgap" min="0" max="40" step="1" value="${_num(d.rowGap, 8)}">
-        <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${_num(d.rowGap, 8)}"></div>
-      ${window.floatPositionRowHTML?.({ prefix: 'cmp', posEl: block }) || ''}
-    </div>
-    ${cols.map((c, i) => colSection(c, i)).join('')}`;
+        <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${_num(d.rowGap, 8)}"></div>`),
+      sec('padding', `
+      <div class="prop-row"><span class="prop-label">좌우</span>
+        <input type="range" class="prop-slider" id="cmp-padx" min="0" max="160" step="2" value="${parseInt(d.padX) || 0}">
+        <input type="number" class="prop-number" id="cmp-padx-num" min="0" max="160" value="${parseInt(d.padX) || 0}"></div>
+      <div class="prop-row"><span class="prop-label">상하</span>
+        <input type="range" class="prop-slider" id="cmp-pady" min="0" max="80" step="2" value="${parseInt(d.padY) || 0}">
+        <input type="number" class="prop-number" id="cmp-pady-num" min="0" max="80" value="${parseInt(d.padY) || 0}"></div>`),
+      sec('appearance', `
+      <div class="prop-row"><span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="cmp-rad" min="0" max="40" step="1" value="${_num(d.radius, 20)}">
+        <input type="number" class="prop-number" id="cmp-rad-num" min="0" max="40" value="${_num(d.radius, 20)}"></div>${redactSection}`),
+      sec('typography', `
+      <div class="prop-row"><span class="prop-label">제목 크기</span>
+        <input type="range" class="prop-slider" id="cmp-tfont" min="12" max="56" step="1" value="${parseInt(d.titleFont) || 26}">
+        <input type="number" class="prop-number" id="cmp-tfont-num" min="12" max="56" value="${parseInt(d.titleFont) || 26}"></div>
+      <div class="prop-row"><span class="prop-label">내용 크기</span>
+        <input type="range" class="prop-slider" id="cmp-rfont" min="10" max="40" step="1" value="${parseInt(d.rowFont) || 18}">
+        <input type="number" class="prop-number" id="cmp-rfont-num" min="10" max="40" value="${parseInt(d.rowFont) || 18}"></div>`),
+      sec('fill', colParts.map(x => x.fill).join('')),
+      // 옛 「강조 칼럼 (떠보이는 쪽)」 — 어느 칼럼을 띄울지 ＋ 얼마나
+      sec('special', `
+      <div class="prop-align-group" id="cmp-feat-group" style="display:flex;gap:4px;flex-wrap:wrap;">${featBtns}</div>
+      <div class="prop-row"><span class="prop-label">강조 크기</span>
+        <input type="range" class="prop-slider" id="cmp-scale" min="1" max="1.5" step="0.05" value="${parseFloat(d.featScale) || 1.2}">
+        <input type="number" class="prop-number" id="cmp-scale-num" min="1" max="1.5" step="0.05" value="${parseFloat(d.featScale) || 1.2}"></div>`, { title: 'Featured' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   const rerender = () => window.renderComparison?.(block);
@@ -192,6 +208,7 @@ ${blockHeaderHTML({
 
   // 칼럼 추가 (왼쪽에 삽입)
   propPanel.querySelector('#cmp-col-add')?.addEventListener('click', () => {
+    expandSection('content');   // 새 항목은 Content 절에 생긴다 — 접혀 있으면 펼쳐 보인다(U5 · 틀 expandSection)
     const c = getCols();
     const prevFeat = getComparisonFeaturedIdx(block.dataset, c.length);
     const rowCount = Math.max(1, ...c.map(x => (x.rows || []).length));

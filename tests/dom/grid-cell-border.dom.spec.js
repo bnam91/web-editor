@@ -299,7 +299,9 @@ test('S7 ★짝 검사 — 테두리를 «켠» 패널도 가로로 안 삐져�
         const q = el.getBoundingClientRect();
         return (q.width || q.height) && q.right > rb.right + 0.5;
       }).map(el => el.id || el.className || el.tagName);
-      const sw = document.querySelector('#panel-right .panel-body .prop-color-swatch');
+      /* U6 · 계획 §2-1: Fill(9) 이 Stroke(10) 앞에 서서 패널의 «첫» 스와치는 Fill 것이 됐다(r0913rp 색칸 폭 0) — 이 검사가 재는 «테두리 선 색» 스와치를 id 로 집는다.
+         되돌리면 빨강: 테두리 색칸이 눌려 사라지면(폭 0) 또는 #grd-border-color 를 스와치 밖으로 빼면 -1. */
+      const sw = document.getElementById('grd-border-color')?.closest('.prop-color-swatch') || null;
       const hex = document.getElementById('grd-border-color-hex');
       const selEl = document.getElementById('grd-border-style');
       const w = (el) => (el ? Math.round(el.getBoundingClientRect().width) : -1);
@@ -404,7 +406,8 @@ test('S4 ★양성대조 — 테두리를 dataset 아닌 «JS 속성»에 두면
 
 const MUT_NO_PANEL = (src, pathname) => {
   if (pathname !== '/js/props/prop-grid.js') return src;
-  const out = src.replace('    ${_borderSectionHtml(_cellBorder)}\n', '');
+  /* U6: 틀 이관(U1)으로 호출이 sec('stroke', `${_borderSectionHtml(_cellBorder)}…`) 안으로 들어가 옛 닻(4칸 들여쓰기 + 개행)이 사라졌다 — 호출식만 뺀다(한 자리 · 아래 throw 가 지킨다) */
+  const out = src.replace('${_borderSectionHtml(_cellBorder)}', '');
   if (out === src) throw new Error('★S5 닻이 빗나갔다 — 패널의 테두리 절 호출을 못 찾았다');
   return out;
 };

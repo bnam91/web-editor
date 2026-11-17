@@ -92,7 +92,7 @@ test('T-H7 prop-quote.js 코드에 「부호만 위아래로…」가 0건이고
     '1017t1a1 이 지운 안내가 아직 코드에 있다');
   assert.equal(code.split('세로 정렬').length - 1 >= 1 && code.split('스택에서 쓰지 않습니다').length - 1 >= 1, true,
     '★남기기로 한 안내(스택 전용 세로 정렬)가 사라졌다 — 너무 많이 지웠다');
-  const hintCount = code.split('class="prop-hint').length - 1;
+  const hintCount = code.split('class="prop-hint').length - 1 + code.split('hintHTML(').length - 1;   /* ★U2 — 힌트는 틀 부품 hintHTML 로도 낸다 */
   assert.equal(hintCount, 1, `prop-quote.js 안 살아 있는 prop-hint 가 1 이어야 한다(남은 것 하나). 잰 값 ${hintCount}`);
 });
 
@@ -101,7 +101,7 @@ test('T-H7 prop-quote.js 코드에 「부호만 위아래로…」가 0건이고
 test('T-H5 prop-quote.js 의 Fill 절이 Typography 뒤에서 qt-textcol 을 담고, 「글」 절은 없다', () => {
   const code = propCode();
   const iTypo = code.indexOf('buildTypographySectionHtml({');
-  const iFill = code.indexOf('prop-section-title">Fill<');
+  const iFill = code.indexOf("sec('fill'");   /* ★U2 — 절은 틀(sec)로 등록한다(제목 글자는 _section-spec.js) */
   const iCol = code.indexOf("idPrefix: 'qt-textcol'");
   assert.ok(iTypo > 0 && iFill > 0 && iCol > 0, `입력이 죽었다: typo ${iTypo} fill ${iFill} col ${iCol}`);
   assert.ok(iFill > iTypo, 'Fill 절이 Typography 절 앞에 있다 — 텍스트블럭은 Typography 바로 다음이다');

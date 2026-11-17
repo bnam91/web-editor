@@ -1418,7 +1418,7 @@ test('Q18 ★★타이포그래피 절 — ★정본에서 나오고(명부) ★
     const p = document.getElementById('panel-right');
     const titles = [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
     const sec = [...p.querySelectorAll('.prop-section')]
-      .find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === 'Typography') || null;
+      .find(s => s.dataset.sec === 'typography') || null;   /* ★U2 — 절은 data-sec 로 집는다(제목 글자는 _section-spec.js 가 정한다) */
     const ids = sec ? [...sec.querySelectorAll('input, select, button')].map(e => e.id) : [];
     return {
       titles, has: !!sec, ids,
@@ -1766,7 +1766,7 @@ test('Q20 ★★«내용» 입력칸은 ★0개 · 그런데 ★글 넣는 ★�
     /* ★★절을 ★이름으로 집는다 — ⛔몇째 절인지로 ★세지 않는다(절이 늘면 ★썩는다) */
     /* ★1012t1H5 — 글자색은 «글» 절이 아니라 ★`Fill` 절 안에 산다(텍스트블럭과 같은 자리) */
     const sec = [...p.querySelectorAll('.prop-section')]
-      .find(s => (s.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill') || null;
+      .find(s => s.dataset.sec === 'fill') || null;   /* ★U2 — data-sec 로 집는다 */
     return {
       hasGlSec: !!sec && !!sec.querySelector('#qt-textcol-color'),
       titles: [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim()),
@@ -1820,8 +1820,9 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
       addOpts: [...p.querySelectorAll('select option')].filter(o => /블럭 넣기/.test(o.textContent)).length,
       selects: p.querySelectorAll('select').length,
       titles: [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim()),
+      secs: [...p.querySelectorAll('.prop-section[data-sec]')].map(e => e.dataset.sec),   /* ★U2 — 순서는 절 key 로 잰다 */
       fill: (() => {
-        const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
+        const f = [...p.querySelectorAll('.prop-section[data-sec="fill"]')][0];
         return f ? { labels: [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()), hasColor: !!f.querySelector('#qt-textcol-color'), colorRow: !!f.querySelector('.prop-color-row') } : null;
       })(),
       al: (() => {
@@ -1867,11 +1868,12 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
      패널 DOM 이 아니라 block 자체와 renderQuoteBlock 만 쓴다). */
   await setup(page, { text: '안녕' });
   /* ⑵ H5 — 글자색 = Typography 바로 다음의 Fill 절(텍스트블럭과 같은 자리 · 같은 라벨) */
-  const iq = pn.titles.indexOf('Typography');
-  expect(iq, `★전제 — Typography 절이 있다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBeGreaterThanOrEqual(0);
-  expect(pn.titles[iq + 1], `★H5 — Fill 이 Typography 바로 다음이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe('Fill');
-  expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」 하나, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
-    .toEqual({ labels: ['글자색'], hasColor: true, colorRow: true });
+  const iq = pn.secs.indexOf('typography');
+  expect(iq, `★전제 — Typography 절이 있다. 잰 절 ${JSON.stringify(pn.secs)}`).toBeGreaterThanOrEqual(0);
+  expect(pn.secs[iq + 1], `★H5 — Fill 이 Typography 바로 다음이다. 잰 절 ${JSON.stringify(pn.secs)}`).toBe('fill');
+  /* ★U2(right-panel-unify) 의도 갱신 — 「부호 색」이 옛 「인용구(쉼표)」 절에서 Fill 로 왔다(OWNERSHIP: 색 = fill). 글자색이 «먼저». */
+  expect(pn.fill, `★H5 — Fill 절 안 라벨은 「글자색」·「부호 색」, 글자색 칸과 .prop-color-row 가 있다. 잰 값 ${JSON.stringify(pn.fill)}`)
+    .toEqual({ labels: ['글자색', '부호 색'], hasColor: true, colorRow: true });
   expect(pn.titles.includes('글'), `★H5 — 「글」 절은 0 이다. 잰 제목 ${JSON.stringify(pn.titles)}`).toBe(false);
   /* 기준이 살아 있다 — 텍스트블럭 패널도 같은 술어(Fill 절 안 라벨 = 인용구와 같은 「글자색」 하나 · .prop-color-row)를 만족한다.
      ★173(261027 · 지디) — 텍스트블럭 쪽 «위치» 단언(Fill 이 Typography 바로 다음)을 «내용»으로 좁혔다.
@@ -1887,16 +1889,16 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
   await page.evaluate(() => { window.deselectAll && window.deselectAll(); });
   const tr = await waitStableRect(page, '[data-pnl2="1"]');
   await clickAt(page, tr.cx, tr.cy, { sel: '[data-pnl2="1"]' }, { label: 'Q21 텍스트블럭 고르기' });
-  await page.waitForFunction(() => [...document.querySelectorAll('#panel-right .prop-section-title')].some(e => e.textContent.trim() === 'Typography'), null, { timeout: 5000 });
+  await page.waitForFunction(() => !!document.querySelector('#panel-right .prop-section[data-sec="typography"]'), null, { timeout: 5000 });
   const tx = await page.evaluate(() => {
     const p = document.getElementById('panel-right');
     const titles = [...p.querySelectorAll('.prop-section-title')].map(e => e.textContent.trim());
-    const f = [...p.querySelectorAll('.prop-section')].find(x => (x.querySelector('.prop-section-title')?.textContent || '').trim() === 'Fill');
+    const f = p.querySelector('.prop-section[data-sec="fill"]');
     return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null, colorRow: !!(f && f.querySelector('.prop-color-row')) };
   });
   expect(tx.fillLabels, `★H5 기준 — 텍스트블럭에 Fill 절이 있다. 잰 제목 ${JSON.stringify(tx.titles)}`).not.toBeNull();
   expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구와 같은 라벨(「글자색」 하나) · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
-    .toEqual({ labels: pn.fill.labels, colorRow: true });
+    .toEqual({ labels: pn.fill.labels.filter((l) => l !== '부호 색'), colorRow: true });   /* ★U2 — 부호 색은 인용구 고유 */
   /* ⑶ H4 — 「정렬」 아이콘 셋이 「세로 정렬」 아이콘 셋과 같은 꼴(viewBox·크기·칠 그림 · 선 0) */
   expect({ nh: pn.al.h.length, nv: pn.al.v.length }, `★전제 — 정렬 3 · 세로 정렬 3 아이콘이 있다(inline). 잰 값 ${JSON.stringify(pn.al)}`).toEqual({ nh: 3, nv: 3 });
   const ref = pn.al.v[0];

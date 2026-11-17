@@ -140,7 +140,7 @@ test('AN5 우측 패널에 글 입력칸이 없다 — 글은 캔버스 더블�
   await setup(page);
   const id = await makeAnnotation(page);
   const lr = await selectByLabel(page, id);
-  expect(await page.evaluate(() => ({ ta: document.querySelectorAll('#panel-right #annot-text, #panel-right [data-prop-panel="annotation"] ~ .prop-section textarea').length,
+  expect(await page.evaluate(() => ({ ta: document.querySelectorAll('#panel-right #annot-text, #panel-right .prop-section[data-sec] textarea').length,
     hint: [...document.querySelectorAll('#panel-right .prop-hint')].some(h => h.textContent.includes('더블클릭')) })), '입력칸 0 · 안내 한 줄').toEqual({ ta: 0, hint: true });
   await page.mouse.dblclick(lr.cx, lr.cy);
   await expect.poll(() => page.evaluate((id) => { const l = document.querySelector(`[id="${id}"] .annot-label`); return l.getAttribute('contenteditable') === 'true' && document.activeElement === l; }, id),

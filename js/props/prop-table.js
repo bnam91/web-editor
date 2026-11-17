@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureChevronHtml } from './_helpers.js';
+import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
 import { panelRenderedPx } from './_panel-rendered.js';
 
@@ -227,10 +228,8 @@ function _revertTableRowToImg(tr) {
 }
 window.__revertTableRowToImg = _revertTableRowToImg;
 
-// ③ 「행별 높이」 절 접힘 상태 — 기본 «접힘». 패널 재생성(showTableProperties 재호출) 사이에만
-//    살아있으면 되므로 WeakMap 에 둔다(prop-banner02.js:9 _bn2ExpandedLines 와 같은 방식).
+// ③ 「행별 높이」 절 접힘 상태 — 기본 «접힘». 공용 discSec*(js/props/_helpers.js · 키 'tbl-rowh' · 블록 id 별 ⇒ ⌘Z 교체에도 유지).
 //    ⚠️dataset 에 두지 않는 이유: UI 상태가 사용자 문서(저장 HTML)에 새어 들어가면 안 된다.
-const _tblRowHOpen = new WeakMap();
 
 export function showTableProperties(block) {
   const table    = block.querySelector('.tb-table');
@@ -296,29 +295,10 @@ export function showTableProperties(block) {
       </div>`;
     }).join('');
     // ③ 행이 많으면 이 목록만으로 패널이 길어진다 → 기본 «접힘», 필요할 때 펼친다(2026-09-03 현빈).
-    //    ⚠️새 접기 UI 를 만들지 않았다 — prop-banner02.js:87 의 «prop-section-title + 쉐브론 +
-    //      본문 display:none» 한 벌을 그대로 쓴다(회전각·transition·stroke 폭까지 동일).
-    //      aria-expanded/role=button 은 prop-laurel.js:159·design-system.js:394 규율을 따랐다.
     //    ⚠️hidden 속성 대신 style.display 를 쓴다 — hidden 은 display 클래스에 진다(MEMORY).
-    const _open = _tblRowHOpen.get(block) === true;
-    return `<div class="prop-section-title" id="tbl-rowh-toggle" role="button" tabindex="0"
-                 aria-expanded="${_open ? 'true' : 'false'}"
-                 style="display:flex;align-items:center;gap:6px;cursor:pointer;"
-                 title="${_open ? '접기' : '펼치기'}">
-        <!-- ★쉐브론 규격 = js/props/_typo-section.js:80 · css/editor-props.css 의 .prop-select
-             (M1 1l4 4 4-4 · 잉크 1.5px · 선끝 round). ⛔여기서 «따로» 그리지 마라 — 이 절 머리는
-             ~~prop-grid·prop-table·prop-banner02·prop-simple-card 네 곳에 같은 마크업으로 산다.~~
-             ★[T-234 · 2026-09-27] ★그 네 벌을 «한 벌»로 모았다 — js/props/_helpers.js 의
-             disclosureChevronHtml(open). ⛔여기에 다시 인라인으로 그리지 마라(그 말이 원래 이 자리에
-             적혀 있었고, 이제 «자리»가 생겼다). ★산출은 옛 마크업과 «바이트 동일»이다(272/274자).
-             ⛔★이 주석에 «백틱»을 쓰지 마라 — 여기는 HTML 주석이지만 «템플릿 리터럴 안»이라
-               백틱이 리터럴을 닫아 파일이 통째로 SyntaxError 가 된다(2026-09-27 실측: 검사 21개가
-               한꺼번에 빨강). 이 저장소엔 같은 전례가 있다(주석 블록 밖 「* …」로 11개 빨강).
-             지키는 그물: tests/unit/disclosure-chevron-ssot.test.mjs ＋ tests/dom/grid-panel-icon-spec.dom.spec.js -->
-        ${disclosureChevronHtml(_open)}
-        <span style="flex:1 1 auto;">행별 높이</span>
-        <span class="prop-hint" style="flex:0 0 auto;">${rows.length}행</span>
-      </div>
+    //    ★머리 = 공용 접이 머리 disclosureSectionHtml(3인자 · 쉐브론 한 벌 · right-panel-unify U5 — 옛 자작 머리를 걷었다).
+    const _open = discSecOpen(block, 'tbl-rowh');
+    return `${disclosureSectionHtml('tbl-rowh-toggle', `행별 높이 · ${rows.length}행`, _open)}
       <div id="tbl-rowh-body" style="display:${_open ? 'block' : 'none'};">
         <div class="prop-row" style="align-items:flex-start;">
           <div class="tbl-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
@@ -359,9 +339,12 @@ export function showTableProperties(block) {
     window.pushHistory();
   };
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* right-panel-unify U5 — 옛 절(Rows / Cols · Column Ratio · Header Merge · Column Colors · Image Row Heights · Header · Style · Borders)을 정본 절로.
+     테마 → Type · 헤더 켜기 → Content · 이미지 행 높이 → Size · 행/열·비율·병합·정렬·행 높이 → Layout · 셀 패딩·좌우 여백 → Padding ·
+     폰트·글자 크기(본문·헤더) → Typography · 글자색·헤더 배경·칼럼 색 → Fill · 선 → Stroke. 헤더 하위 칸 둘은 «헤더 켜짐» 때만(.tbl-header-ctl).
+     prop-hint 는 패널당 ≤2(게이트) — 나머지 안내는 그 칸의 title 로 옮겼다. */
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="1" width="10" height="10" rx="1"/>
             <line x1="1" y1="4" x2="11" y2="4"/>
@@ -371,10 +354,47 @@ ${blockHeaderHTML({
       defaultName: 'Table',
       crumb: window.getBlockBreadcrumb(block),
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Rows / Cols</div>
+    }),
+    sections: [
+      sec('kind', `
+      <div class="prop-row">
+        <span class="prop-label">테마</span>
+        <select class="prop-select" id="tbl-style-select">
+          <option value="first-col-bold" ${curStyle==='first-col-bold'?'selected':''}>첫 칼럼 볼드</option>
+          <option value="default"    ${curStyle==='default'   ?'selected':''}>기본</option>
+          <option value="stripe"     ${curStyle==='stripe'    ?'selected':''}>스트라이프</option>
+          <option value="borderless" ${curStyle==='borderless'?'selected':''}>보더리스</option>
+          <option value="colored"    ${curStyle==='colored'   ?'selected':''}>컬럼별 컬러</option>
+        </select>
+      </div>
+`),
+      sec('content', `
+      <div class="prop-row">
+        <span class="prop-label">헤더</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="tbl-show-header" ${curShowHeader ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <div class="prop-hint">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>`),
+      sec('size', `    ${(() => {
+      const imgRows = Array.from(table.querySelectorAll('tr[data-row-img="true"]'));
+      if (!imgRows.length) return '';
+      return `
+      <div id="tbl-img-rows-section">
+        ${imgRows.map((tr, i) => {
+          const curH = parseInt(tr.dataset.imgH) || 0;
+          return `
+          <div class="prop-row">
+            <span class="prop-label">이미지 행 ${i + 1}</span>
+            <input type="range" class="prop-slider" id="tbl-img-h-slider-${i}" min="0" max="600" step="1" value="${curH}">
+            <input type="number" class="prop-number" id="tbl-img-h-num-${i}" min="0" max="600" value="${curH}" title="이미지 행 높이(px) · 0 = 정사각형 자동">
+          </div>`;
+        }).join('')}
+      </div>`;
+    })()}
+`),
+      sec('layout', `
       <div class="prop-row">
         <span class="prop-label">행</span>
         <button class="prop-count-btn" id="tbl-row-minus">−</button>
@@ -387,95 +407,16 @@ ${blockHeaderHTML({
         <span class="prop-count-val" id="tbl-col-count">${colCount}</span>
         <button class="prop-count-btn" id="tbl-col-plus">+</button>
       </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Column Ratio</div>
       <div class="prop-row">
         <span class="prop-label">비율</span>
         <input type="text" class="prop-input" id="tbl-col-ratio" placeholder="1:1:1" value="${curColRatio}" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
         <button id="tbl-col-ratio-reset" style="height:24px;flex:0 0 auto;padding:0 10px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">균등</button>
       </div>
       <div class="prop-hint">예: 1:1:2 → 25/25/50%</div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Header Merge</div>
       <div class="prop-row">
         <span class="prop-label">병합</span>
-        <input type="text" class="prop-input" id="tbl-merge-headers" placeholder="0:2,3:2" value="${curMergesStr}" title="형식: start:span 쉼표구분. 예) 0:2,3:2 = col0~1, col3~4 그룹화" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+        <input type="text" class="prop-input" id="tbl-merge-headers" placeholder="0:2,3:2" value="${curMergesStr}" title="헤더 가로 병합 (start:span, 0-base) · 쉼표구분. 예) 0:2,3:2 = 첫 2칸 + 4~5칸 그룹(col0~1, col3~4)" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
         <button id="tbl-merge-headers-clear" style="height:24px;flex:0 0 auto;padding:0 10px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">지우기</button>
-      </div>
-      <div class="prop-hint">헤더 가로 병합 (start:span, 0-base). 예) 0:2,3:2 — 첫 2칸 + 4~5칸 그룹</div>
-    </div>
-    ${curStyle === 'colored' ? `
-    <div class="prop-section" id="tbl-col-colors-section">
-      <div class="prop-section-title">Column Colors</div>
-      ${Array.from({ length: colCount }, (_, i) => `
-        <div class="prop-row" style="gap:4px;">
-          <span class="prop-label" style="width:48px;">컬럼 ${i + 1}</span>
-          <input type="color" class="prop-color-input" id="tbl-col-bg-${i}"
-                 value="${curColBgs[i] || _tblTok('--preset-table-col-bg', '#f5f5f5')}"
-                 title="배경"
-                 style="width:32px;height:24px;padding:0;border:1px solid #333;background:transparent;cursor:pointer;">
-          <input type="color" class="prop-color-input" id="tbl-col-fg-${i}"
-                 value="${curColFgs[i] || _tblTok('--preset-table-text', '#222222')}"
-                 title="글자색"
-                 style="width:32px;height:24px;padding:0;border:1px solid #333;background:transparent;cursor:pointer;">
-        </div>
-      `).join('')}
-      <div class="prop-hint">왼쪽: 배경 / 오른쪽: 글자색</div>
-    </div>
-    ` : ''}
-    ${(() => {
-      const imgRows = Array.from(table.querySelectorAll('tr[data-row-img="true"]'));
-      if (!imgRows.length) return '';
-      return `
-      <div class="prop-section" id="tbl-img-rows-section">
-        <div class="prop-section-title">Image Row Heights</div>
-        ${imgRows.map((tr, i) => {
-          const curH = parseInt(tr.dataset.imgH) || 0;
-          return `
-          <div class="prop-row">
-            <span class="prop-label">Row ${i + 1}</span>
-            <input type="range" class="prop-slider" id="tbl-img-h-slider-${i}" min="0" max="600" step="1" value="${curH}">
-            <input type="number" class="prop-number" id="tbl-img-h-num-${i}" min="0" max="600" value="${curH}">
-          </div>`;
-        }).join('')}
-        <div class="prop-hint">0 = 정사각형 자동</div>
-      </div>`;
-    })()}
-    <div class="prop-section">
-      <div class="prop-section-title">Header</div>
-      <div class="prop-row">
-        <span class="prop-label">헤더</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="tbl-show-header" ${curShowHeader ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div id="tbl-header-controls" style="display:${curShowHeader ? '' : 'none'}">
-        <div class="prop-row">
-          <span class="prop-label">글자크기</span>
-          <input type="range" class="prop-slider" id="tbl-header-size-slider" min="0" max="60" step="2" value="${curHeaderSize}">
-          <input type="number" class="prop-number" id="tbl-header-size-number" min="0" max="60" value="${curHeaderSize}">
-        </div>
-        <div class="prop-hint">0 = 본문 크기 상속</div>
-        <div class="prop-color-row" style="margin-top:6px;">
-          <span class="prop-label">배경색</span>
-          ${colorFieldHTML({ idPrefix: 'tbl-header-bg', hex: _rgbToHex(curHeaderBg), alpha: curHeaderAlpha })}
-        </div>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Style</div>
-      <div class="prop-row">
-        <span class="prop-label">테마</span>
-        <select class="prop-select" id="tbl-style-select">
-          <option value="first-col-bold" ${curStyle==='first-col-bold'?'selected':''}>첫 칼럼 볼드</option>
-          <option value="default"    ${curStyle==='default'   ?'selected':''}>기본</option>
-          <option value="stripe"     ${curStyle==='stripe'    ?'selected':''}>스트라이프</option>
-          <option value="borderless" ${curStyle==='borderless'?'selected':''}>보더리스</option>
-          <option value="colored"    ${curStyle==='colored'   ?'selected':''}>컬럼별 컬러</option>
-        </select>
       </div>
       <div class="prop-row">
         <span class="prop-label">정렬</span>
@@ -501,6 +442,25 @@ ${blockHeaderHTML({
         </div>
       </div>
       <div class="prop-row">
+        <span class="prop-label">행 높이</span>
+        <input type="range" class="prop-slider" id="tbl-rowh-slider" min="0" max="160" step="2" value="${curRowH}">
+        <input type="number" class="prop-number"  id="tbl-rowh-number" min="0" max="160" value="${curRowH}">
+      </div>
+      ${_perRowHeightHTML()}
+`),
+      sec('padding', `
+      <div class="prop-row">
+        <span class="prop-label">셀 패딩</span>
+        <input type="range" class="prop-slider" id="tbl-pad-slider" min="0" max="40" step="2" value="${curPad}">
+        <input type="number" class="prop-number"  id="tbl-pad-number" min="0" max="40" value="${curPad}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">좌우 여백</span>
+        <input type="range" class="prop-slider" id="tbl-padx-slider" min="0" max="120" step="2" value="${curTablePadX}">
+        <input type="number" class="prop-number"  id="tbl-padx-number" min="0" max="120" value="${curTablePadX}">
+      </div>`),
+      sec('typography', `
+      <div class="prop-row">
         <span class="prop-label">폰트</span>
         <select class="prop-select" id="tbl-font-family" style="flex:1;">
           <option value=""                                                 ${curFontFamily===''?'selected':''}>기본</option>
@@ -520,29 +480,41 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="tbl-size-slider" min="12" max="60" step="2" value="${curSize}">
         <input type="number" class="prop-number"  id="tbl-size-number" min="12" max="60" value="${curSize}">
       </div>
+      <div class="tbl-header-ctl" style="display:${curShowHeader ? '' : 'none'}">
+        <div class="prop-row">
+          <span class="prop-label">헤더 크기</span>
+          <input type="range" class="prop-slider" id="tbl-header-size-slider" min="0" max="60" step="2" value="${curHeaderSize}">
+          <input type="number" class="prop-number" id="tbl-header-size-number" min="0" max="60" value="${curHeaderSize}" title="0 = 본문 크기 상속">
+        </div>
+      </div>`),
+      sec('fill', `
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">글자색</span>
         ${colorFieldHTML({ idPrefix: 'tbl-text', hex: _rgbToHex(curTextColor), alpha: curTextAlpha })}
       </div>
-      <div class="prop-row">
-        <span class="prop-label">셀 패딩</span>
-        <input type="range" class="prop-slider" id="tbl-pad-slider" min="0" max="40" step="2" value="${curPad}">
-        <input type="number" class="prop-number"  id="tbl-pad-number" min="0" max="40" value="${curPad}">
+      <div class="tbl-header-ctl" style="display:${curShowHeader ? '' : 'none'}">
+        <div class="prop-color-row" style="margin-top:6px;">
+          <span class="prop-label">헤더 배경</span>
+          ${colorFieldHTML({ idPrefix: 'tbl-header-bg', hex: _rgbToHex(curHeaderBg), alpha: curHeaderAlpha })}
+        </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">행 높이</span>
-        <input type="range" class="prop-slider" id="tbl-rowh-slider" min="0" max="160" step="2" value="${curRowH}">
-        <input type="number" class="prop-number"  id="tbl-rowh-number" min="0" max="160" value="${curRowH}">
-      </div>
-      ${_perRowHeightHTML()}
-      <div class="prop-row">
-        <span class="prop-label">좌우 여백</span>
-        <input type="range" class="prop-slider" id="tbl-padx-slider" min="0" max="120" step="2" value="${curTablePadX}">
-        <input type="number" class="prop-number"  id="tbl-padx-number" min="0" max="120" value="${curTablePadX}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Borders</div>
+    ${curStyle === 'colored' ? `
+      <div id="tbl-col-colors-section">
+      ${Array.from({ length: colCount }, (_, i) => `
+        <div class="prop-row" style="gap:4px;">
+          <span class="prop-label" style="width:48px;">컬럼 ${i + 1}</span>
+          <input type="color" class="prop-color-input" id="tbl-col-bg-${i}"
+                 value="${curColBgs[i] || _tblTok('--preset-table-col-bg', '#f5f5f5')}"
+                 title="왼쪽: 배경"
+                 style="width:32px;height:24px;padding:0;border:1px solid #333;background:transparent;cursor:pointer;">
+          <input type="color" class="prop-color-input" id="tbl-col-fg-${i}"
+                 value="${curColFgs[i] || _tblTok('--preset-table-text', '#222222')}"
+                 title="오른쪽: 글자색"
+                 style="width:32px;height:24px;padding:0;border:1px solid #333;background:transparent;cursor:pointer;">
+        </div>
+      `).join('')}
+      </div>` : ''}`),
+      sec('stroke', `
       <div class="prop-toggle-grid">
         <div class="prop-row">
           <span class="prop-label">세로선</span>
@@ -581,9 +553,9 @@ ${blockHeaderHTML({
       <div class="prop-color-row" style="margin-top:6px;">
         <span class="prop-label">선 색</span>
         ${colorFieldHTML({ idPrefix: 'tbl-line', hex: _rgbToHex(curLineColor), alpha: curLineAlpha })}
-      </div>
-    </div>
-    <div class="prop-hint">셀을 더블클릭하면 텍스트를 편집할 수 있습니다.</div>`;
+      </div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -593,8 +565,7 @@ ${blockHeaderHTML({
     block.dataset.showHeader = show ? 'true' : 'false';
     if (thead) thead.style.display = show ? '' : 'none';
     // 헤더 OFF면 하위 컨트롤(글자크기/배경색) 숨김 — 섹션 펼쳐볼 필요 없이 토글식
-    const hc = document.getElementById('tbl-header-controls');
-    if (hc) hc.style.display = show ? '' : 'none';
+    propPanel.querySelectorAll('.tbl-header-ctl').forEach(hc => { hc.style.display = show ? '' : 'none'; });
     window.pushHistory();
   });
 
@@ -890,18 +861,18 @@ ${blockHeaderHTML({
   /* ③ 「행별 높이」 절 펼침/접힘 — 재렌더 없이 그 자리에서 토글(입력값·포커스 보존) */
   const _rowhToggle = document.getElementById('tbl-rowh-toggle');
   if (_rowhToggle) {
+    _rowhToggle.setAttribute('aria-expanded', String(discSecOpen(block, 'tbl-rowh')));   // 공용 3인자 머리엔 aria 가 없다 — 이 절은 원래 달았다(접근성 유지)
     const _flip = () => {
       const body = document.getElementById('tbl-rowh-body');
       if (!body) return;
-      const next = body.style.display === 'none';
+      const next = discSecToggle(block, 'tbl-rowh');   // 행 추가/삭제·⌘Z 로 패널이 재생성돼도 유지
       body.style.display = next ? 'block' : 'none';
       _rowhToggle.setAttribute('aria-expanded', String(next));
       _rowhToggle.title = next ? '접기' : '펼치기';
       const sv = _rowhToggle.querySelector('svg');
-      /* ⛔각도 식은 위 절 머리 마크업과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
+      /* ⛔각도 식은 disclosureChevronHtml(_helpers.js)과 «같은 값»이어야 한다 — 갈리면 첫 클릭에 그림이 튄다.
          쉐브론이 «아래» 그림이라 접힘 = -90°(오른쪽) · 펼침 = 0°(아래). */
       if (sv) sv.style.transform = `rotate(${next ? 0 : -90}deg)`;
-      _tblRowHOpen.set(block, next);   // 행 추가/삭제로 패널이 재생성돼도 유지
     };
     _rowhToggle.addEventListener('click', _flip);
     _rowhToggle.addEventListener('keydown', e => {

@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
@@ -36,43 +37,35 @@ export function showIconCircleProperties(block) {
 
   const hasImage = block.classList.contains('has-image');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: gridCircleIconSvg({ size: 12, stroke: '#888' }),   // 그리드 칸 원형 이미지 svg 와 «같은 상수»(S2 2026-10-04)
       name: block.dataset.layerName,
       defaultName: 'Asset-Circle',
       crumb: window.getBlockBreadcrumb(block),
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title prop-ph-header">
-        <span>Size</span>
-        ${window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || ''}
-      </div>
+    }),
+    sections: [
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">지름</span>
         <input type="range" class="prop-slider" id="icb-size-slider" min="40" max="860" step="4" value="${size}">
         <input type="number" class="prop-number"  id="icb-size-number" min="40" max="860" value="${size}">
-      </div>
+      </div>`),
+      sec('padding', `
       <div class="prop-row" style="${_padXOff}"${_padXTitle}>
         <span class="prop-label">좌우 패딩</span>
         <input type="range" class="prop-slider" id="icb-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Rotation</div>
+      </div>`),
+      sec('position', `
       <div class="prop-row">
         <span class="prop-label">회전°</span>
         <input type="range" class="prop-slider" id="icb-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
         <input type="number" class="prop-number" id="icb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>
-    </div>
-    ${hasImage ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Image</div>
+      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || '' }),   // 플로팅 = Position(§2-1)
+      // 옛 「Image」 절 + 원 안 블럭 넣기 = Content
+      sec('content', `${hasImage ? `
       <button class="prop-action-btn secondary" id="icb-pos-btn">이미지 위치 조절</button>
       <button class="prop-action-btn secondary" id="icb-replace-btn">이미지 교체</button>
       <button class="prop-action-btn danger"    id="icb-remove-btn">이미지 제거</button>
@@ -83,10 +76,7 @@ ${blockHeaderHTML({
           <input type="checkbox" id="icb-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>
-    </div>` : `
-    <div class="prop-section">
-      <div class="prop-section-title">Image</div>
+      </div>` : `
       <button class="prop-action-btn primary" id="icb-upload-btn">이미지 선택</button>
       <div class="prop-hint" style="margin-top:6px;">또는 블록에 파일을 드래그</div>
       ${window.circleSampleRowHTML?.(block) || ''}
@@ -96,10 +86,17 @@ ${blockHeaderHTML({
           <input type="checkbox" id="icb-clip-toggle" ${window.clipsContent?.(block) !== false ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
+      </div>`}
+      <div id="icb-kids-section">
+      <div class="prop-row" style="align-items:center;gap:6px;">
+        <select class="prop-select" id="icb-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
+                title="원 «안»에 블럭을 넣는다 — 글자는 원 안에서 고친다">
+          <option value="">＋ 블럭 넣기 (원 안)…</option>
+          ${_ICB_KID_KINDS.map(([k, ko]) => `<option value="${k}">+ ${ko}</option>`).join('')}
+        </select>
       </div>
-    </div>`}
-    <div class="prop-section">
-      <div class="prop-section-title">Color</div>
+      </div>`),
+      sec('fill', `
       <div class="prop-row">
         <span class="prop-label">채움</span>
         <label class="prop-toggle" title="끄면 원 바탕이 비어 있다(편집 화면에선 체크무늬 · 내보내기에선 투명)">
@@ -110,19 +107,8 @@ ${blockHeaderHTML({
       <div class="prop-color-row" id="icb-bg-row" style="${_fillOn ? '' : 'opacity:0.4;'}">
         <span class="prop-label">배경</span>
         ${colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha })}
-      </div>
-    </div>
-    <div class="prop-section" id="icb-kids-section" style="padding-bottom:4px;">
-      <div class="prop-row" style="align-items:center;gap:6px;">
-        <select class="prop-select" id="icb-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
-                title="원 «안»에 블럭을 넣는다 — 글자는 원 안에서 고친다">
-          <option value="">＋ 블럭 넣기 (원 안)…</option>
-          ${_ICB_KID_KINDS.map(([k, ko]) => `<option value="${k}">+ ${ko}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Border</div>
+      </div>`),
+      sec('stroke', `
       <div class="prop-row">
         <span class="prop-label">스타일</span>
         <select class="prop-select" id="icb-border-select">
@@ -130,8 +116,9 @@ ${blockHeaderHTML({
           <option value="solid"  ${borderV==='solid'  ?'selected':''}>실선</option>
           <option value="dashed" ${borderV==='dashed' ?'selected':''}>점선</option>
         </select>
-      </div>
-    </div>`;
+      </div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   /* B1 — 오버레이(플로팅) 토글: prop-iconify.js 와 «같은» 공용 길(js/overlay-float.js · posElOf = 서클 «자기 자신»).

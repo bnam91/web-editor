@@ -16,10 +16,13 @@ import { gridRows, getGridModel, gridPreviewLine, gridLineHasText, GRID_ROLES, G
          GRID_CELL_FIELDS, GRID_NESTED_LINE_TYPE, GRID_WIDTH_MIN, GRID_WIDTH_MAX, gridResizeTo,
          gridCollapseToColumns,   /* ★T12 — 2×2 → 독립 칼럼 */
          gridNumOr, GRID_NESTED_GAP, GRID_GAP_LINE_H,   /* ★t6-04b — 0 을 살려 읽는 문 · 기본값 정본 */
+         gridRowFullH, gridRowStoredH,   /* ★⑦-A — 패널은 «보이는 높이»(저장 + 2·cellPadY)를 보이고 받는다 */
          gridBlockBg, GRID_BLOCK_BG_PAD_Y_MAX, GRID_BLOCK_BG_PAD_X_MAX, GRID_BLOCK_BG_RADIUS_MAX, GRID_BG_FIT_VALUES } from '../blocks/grid-block.js';
 import { GAP_MIN, GAP_MAX } from '../blocks/gap-limits.js';
 import { showGridGutters, hideGridGutters } from '../overlay-handles.js';
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
+/* ★right-panel-unify U1 — 패널 껍데기는 틀(renderPanel·sec)이 그린다 · 스코프칩(⑥)도 틀 부품. */
+import { renderPanel, sec, scopeChipsHTML, expandSection } from './_panel-frame.js';
 import { wireFontPicker } from './_font-picker.js';
 /* ★⑵ — 새 글자 줄의 글꼴을 «모달 ㉠ 과 같은 출처»에서 받는다(아래 grdNewLineFontFamily). */
 import { fontChain } from './prop-text-utils.js';
@@ -1498,6 +1501,7 @@ function _grdWireKindSelects(block, r, c, afterLi, host = null) {
     const kind = addSel.value;
     addSel.value = '';                       // 「+ 줄 추가…」로 되돌린다(다음에 또 고를 수 있게)
     if (!kind) return;
+    expandSection('content');                // ★U0d — 새 줄이 사는 Content 절이 접혀 있으면 편다(더한 것이 안 보이면 「안 됐다」로 읽힌다)
     if (kind === 'image') {
       // 아이콘은 피커가 비동기다 — 「+ 아이콘 (K)」 단추와 «같은 길»로 보낸다(두 벌 금지).
       window.openIconifyModal?.((picked) => {
@@ -1583,9 +1587,9 @@ function _grdNestColVAlignHtml(nestHit, block) {
     try { const nestLine = getGridModel(block).cells[nestHit.r][nestHit.c].lines[nestHit.li]; colVa = nestLine.cols[Number(nestHit.np.split('.')[0])].valign || nestLine.valign || 'top'; } catch (_) { colVa = ''; }
   }
   return colVa ? `
-    <div class="prop-section">
+    <div class="prop-section" data-scope="col">
       <div class="prop-row" style="margin-bottom:0;">
-        <span class="prop-label" title="이 열 안 내용의 세로 자리 — 두 칸 높이가 다를 때 보인다">열 세로</span>
+        <span class="prop-label" title="이 열 안 내용의 세로 자리 — 두 칸 높이가 다를 때 보인다">세로 정렬 · 이 열</span>
         <div class="prop-align-group" id="grd-nest-valign-group">
           ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: colVa === 'top', attrs: { 'data-nva': 'top' } })}
           ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: colVa === 'middle', attrs: { 'data-nva': 'middle' } })}
@@ -1604,7 +1608,7 @@ function _grdNestHintHtml(nestHit) {
   if (!nestHit) return '';
   const kind = (nestHit.line && nestHit.line.type) || 'body';
   return `
-    <div class="prop-section" id="grd-nest-hint">
+    <div class="prop-section" id="grd-nest-hint" data-scope="line">
       <div class="prop-section-title">줄 (중첩 칸 안)</div>
       <div class="prop-hint">이 줄입니다 — 중첩 칸 «안»의 ${_grdEsc(kind)} 줄</div>${/* ★1109t1A 게이트(지디) — 「아직 고치는 건…다음 판」·「주소 r,c…」 두 줄은 사용자에게 개발자 말·약속이라 지웠다(불필요한 프롭힌트) */ ''}
       <div class="prop-row" style="align-items:center;gap:6px;flex-wrap:wrap;">${nestHit.np.includes('/') ? '' : /* ★1109t1A2 깊이 1만 · 중첩 종류는 _GRD_KINDS 에 없다(E12/E13) · 사진/원은 우클릭(이미지 추가/원형 이미지 추가)과 같은 이름 · 만드는 꼴은 grdNewLineSpec('photo'|'circle') 한 곳 */
@@ -1625,7 +1629,7 @@ function _grdLineBarHtml(anyHit, block, host = null) {
   const H = host || _grdGridHost(block);
   if (!anyHit) {
     return H.noHitHint && `
-    <div class="prop-section">
+    <div class="prop-section" data-scope="line">
       <div class="prop-hint">${H.noHitHint}</div>
     </div>`;
   }
@@ -1637,7 +1641,7 @@ function _grdLineBarHtml(anyHit, block, host = null) {
          짝으로 눈에 보여야 하고, tests/dom/grid-cell-panel-handles.dom.spec.js E0-c 가
          이 자리를 «하네스 자가점검»의 기준점으로 쓴다(그 id 가 없으면 그 검사가 눈이 먼다). */
     return `
-    <div class="prop-section" style="padding-bottom:4px;">
+    <div class="prop-section" data-scope="line" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" style="flex:1;min-width:0;">${H.head(r, c, null)}</span>
       </div>
@@ -1679,7 +1683,7 @@ ${_grdAddKindSelectHtml(H.kinds, H.kind === 'grid' ? _GRD_ADD_IMG_OPTS : '')}${H
        ⇒ 요약은 폭을 되찾는다(123 → 211). 긴 글자는 그대로 말줄임으로 흘린다. */
   void line;
   return `
-    <div class="prop-section" style="padding-bottom:4px;">
+    <div class="prop-section" data-scope="line" style="padding-bottom:4px;">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" id="grd-line-summary" title="${summary}"
               style="flex:1 1 0;min-width:0;padding:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${summary}</span>
@@ -1700,6 +1704,7 @@ function _grdWireLineBar(block, addr, host = null) {
   if (li === null) {
     _grdWireKindSelects(block, r, c, null, H);
     document.getElementById('grd-cell-add-icon-btn')?.addEventListener('click', () => {
+      expandSection('content');              // ★U0d — 아이콘 줄이 들어갈 Content 절을 편다
       window.openIconifyModal?.((picked) => {
         const imgSrc = _grdSvgToDataUri(picked.svg);
         grdToastImgFail(grdAddLine(block, { r, c }, null, { type: 'image', imgSrc, height: picked.size || 64 }, {}, H));
@@ -1805,8 +1810,12 @@ function _grdFxProxyOf(block, r, c, li, np, line) {
   return px;
 }
 
-function _grdImageSectionHtml(anyHit, block, host = null) {
-  if (!anyHit || anyHit.li === null || !anyHit.line || anyHit.line.type !== 'image') return '';
+const _GRD_IMG_H_LOCK = '자르기 전에는 높이를 정할 수 없습니다 — 그림 비율로 그려집니다';
+const _GRD_IMG_CLIP_LOCK = '자르기 전에는 그림이 틀에 꼭 맞아 잘릴 것이 없습니다';
+/** coreOnly — 그리드 자신(U1 틀)은 Image 절 «몸»만 받고 원 효과(Effects)·내용 자르기(Appearance)는 제 절로 따로 낸다. 줄 주인 빌려주기(line-host)는 옛 꼴 그대로. */
+const _grdIsImgHit = (h) => !!(h && h.li !== null && h.line && h.line.type === 'image');
+function _grdImageSectionHtml(anyHit, block, host = null, coreOnly = false) {
+  if (!_grdIsImgHit(anyHit)) return '';
   const foreign = !!host && host.kind !== 'grid';
   const { r, c, line } = anyHit;
   /* ★158(현빈 직접 GO 2026-10-27 · GRID-IMG-HEIGHT-ZERO-IS-AUTO-BY-CONTRACT-01) — 「0 = auto」는 «계약»이다.
@@ -1903,7 +1912,7 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
    *         — image-handling.js beforeCommit 이 세 값을 «항상» 쓴다). 되살릴 일이 생기면
    *         현빈 조건대로 «편집모드 안»에 넣어라. 이 절로 되돌리지 마라. */
   return `
-    <div class="prop-section">
+    <div class="prop-section" id="grd-img-section" data-scope="line">
       <div class="prop-section-title">Image</div>
       <div class="prop-row">
         <button id="grd-img-pick-btn" class="prop-btn-full">${line.imgSrc ? '이미지 교체…' : '이미지 선택…'}</button>
@@ -1914,12 +1923,12 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
       </div>
       <div class="prop-row">
         <span class="prop-label">${circle ? '지름(px)' : '높이(px)'}</span>
-        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : foreign ? (host.imgDefaultH || 'auto') : 'auto'}" value="${h}"${hLocked ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+        <input type="number" class="prop-number" id="grd-img-height" min="0" placeholder="${circle ? GRID_IMG_CIRCLE_D : foreign ? (host.imgDefaultH || 'auto') : 'auto'}" value="${h}"${hLocked ? ` disabled title="${_GRD_IMG_H_LOCK}" style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"` : ''}>
       </div>${/* ★panel-height-disable(2026-10-06 · APPROVED_BY: 지디 panel-height-disable) — E157 뒤 크롭 없는 그림 줄은 height 를 «그릴 때 무시»한다.
             칸이 열려 있으면 넣은 값이 «저장만» 되고 화면은 안 바뀐다(실측 B1: 645→645 · height:300 저장). ⇒ 막고 까닭을 보인다(말풍선 상하 여백 칸 선례 —
             prop-text-template.js txt-pv-bubble-hint). ⛔크롭 길로 커밋하는 ⒥ 는 새 동작 — 다음 판. 원(지름)·크롭된 줄은 그대로 읽으니 안 막는다.
             ⛔까닭 줄은 «막을 때만» 넣는다 — 다른 상태의 패널 바이트는 한 글자도 안 바뀐다. */
-         hLocked ? '\n      <div class="prop-hint" id="grd-img-height-hint">자르기 전에는 높이를 정할 수 없습니다 — 그림 비율로 그려집니다</div>' : ''}
+         /* ★U1(right-panel-unify · prop-hint ≤2) — 까닭 줄(#grd-img-height-hint)은 «막힌 칸의 title» 로 옮겼다(문구 그대로 · _GRD_IMG_H_LOCK). */ ''}
       <div class="prop-row"${circle ? ' style="display:none"' : ''}>
         <span class="prop-label">모서리 반경(px)</span>${/* ★T4④-⒝ — placeholder 는 «렌더러가 실제로 쓰는 폴백»이다. ⛔「0」을 손으로 적지 마라:
              빈 슬롯은 radius 가 비면 GRID_IMG_EMPTY_RADIUS(8)로 그려지는데 패널만 0 이라 말해서
@@ -1927,7 +1936,16 @@ function _grdImageSectionHtml(anyHit, block, host = null) {
              (바로 위 높이 칸이 GRID_IMG_CIRCLE_D 로 같은 꼴을 이미 쓴다 — 새 관용구 0.) */ ''}
         <input type="number" class="prop-number" id="grd-img-radius" min="0" placeholder="${line.imgSrc ? 0 : GRID_IMG_EMPTY_RADIUS}" value="${rad}">
       </div>${circleRows}
-    </div>${(circle && !foreign) ? (window.fxSectionHtml?.(_grdFxProxyOf(block, r, c, anyHit.li, anyHit.np, line), 'grdc') || '') : ''}${foreign ? '' : _grdImageClipSectionHtml(anyHit, block)}`;
+    </div>${coreOnly ? '' : _grdCircleFxHtml(anyHit, block, host) + (foreign ? '' : _grdImageClipSectionHtml(anyHit, block))}`;
+}
+/** 원 그림 줄의 효과(그림자 등 — effects-registry fxSectionHtml 'grdc'). 원이 아니거나 남의 주인이면 빈 문자열. */
+function _grdCircleFxHtml(anyHit, block, host = null) {
+  if (!_grdIsImgHit(anyHit) || (host && host.kind !== 'grid') || anyHit.line.imgShape !== 'circle') return '';
+  return window.fxSectionHtml?.(_grdFxProxyOf(block, anyHit.r, anyHit.c, anyHit.li, anyHit.np, anyHit.line), 'grdc') || '';
+}
+/** 그림 줄의 「이미지 표시 · 내용 자르기」 — 그림 줄일 때만. */
+function _grdImageClipOfHit(anyHit, block) {
+  return _grdIsImgHit(anyHit) ? _grdImageClipSectionHtml(anyHit, block) : '';
 }
 
 /* ══ ★1012t1 B1 「내용 자르기」 (현빈 1010t1c2 ㈁ — 그리드 이미지줄) ═══════════════════════
@@ -1948,16 +1966,16 @@ function _grdImageClipSectionHtml(anyHit, block) {
   const locked = fam !== 'gridCrop' && fam !== 'gridCircle';   /* 일반 줄(gridPlain)만 잠금 유지 */
   const on = !!(frame && window.clipsContent?.(frame));
   return `
-    <div class="prop-section">
+    <div class="prop-section" data-scope="line">
       <div class="prop-section-title">이미지 표시</div>
       <div class="prop-row">
         <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle"${locked ? ' style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
+        <label class="prop-toggle"${locked ? ` title="${_GRD_IMG_CLIP_LOCK}" style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"` : ''}>
           <input type="checkbox" id="grd-img-clip-toggle" ${on ? 'checked' : ''}${locked ? ' disabled' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>${locked ? '\n      <div class="prop-hint" id="grd-img-clip-hint">자르기 전에는 그림이 틀에 꼭 맞아 잘릴 것이 없습니다</div>' : ''}
-    </div>`;
+      </div>
+    </div>`;   /* ★U1 — 까닭 줄(#grd-img-clip-hint)은 막힌 토글의 title 로(prop-hint ≤2) */
 }
 
 function _grdWireImageSection(block, addr, host = null) {
@@ -2304,10 +2322,9 @@ function _grdAllCellsSectionHtml(anyHit, block) {
   const pad = Number(_grdAllCellsSame(block, 'padding')) || '';
   const rad = Number(_grdAllCellsSame(block, 'radius')) || '';
   return `
-    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
+    <div class="prop-section" data-scope="block"${open ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-cellall-toggle', '칸 꾸미기 · 모든 칸', open)}
       <div id="grd-cellall-body" style="display:${open ? 'block' : 'none'};">
-        <div class="prop-hint" style="text-align:left;padding:0 0 6px;">칸 하나만 바꾸려면 그 칸 «안»을 한 번 더 누른다</div>
         <div class="prop-row" style="margin-bottom:0;">
           <span class="prop-label" title="모든 칸의 배경색. 비우면 «없음»(열 기본값으로 돌아간다)">배경색</span>
           <div class="prop-color-swatch${bgRaw ? '' : ' swatch-none'}"${bgRaw ? ` style="background:${bgRaw}"` : ''}>
@@ -2392,7 +2409,7 @@ function _grdCellSectionHtml(anyHit, block) {
      ★대신 「이 열에 기본값이 걸려 있나」를 «읽기 전용 한 줄»로 알려 준다 — 비웠는데 색이 남으면
        사용자는 「안 지워졌다」고 읽는다. 그게 왜 그런지 그 자리에서 말해 준다.
      ⛔「열 기본값 손잡이」는 이번에 안 만든다(별건 카드) — 여기선 사실만 적는다. */
-  const title = `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
+  let title = `칸 꾸미기 · ${r + 1}행 ${c + 1}열`;
   /* 이 열에 기본값(꾸밈)이 하나라도 걸려 있나 — ⛔필드 이름을 손으로 세지 않는다.
      GRID_CELL_FIELDS(정본 명부)에서 내용(lines)과 열 전용(width)을 뺀 것이 곧 «칸 꾸밈»이다.
      ⇒ T-172(테두리) 같은 새 칸 필드가 명부에 생기면 이 줄이 «자동으로» 그것도 본다. */
@@ -2401,14 +2418,12 @@ function _grdCellSectionHtml(anyHit, block) {
     const col = (getGridModel(block).cols || [])[c] || {};
     colHasDefault = [...GRID_CELL_FIELDS].some(k => k !== 'lines' && col[k] !== undefined && col[k] !== '');
   } catch (_) { colHasDefault = false; }
+  /* ★U1(prop-hint ≤2) — 「이 열에 기본값이 걸려 있다 — 비워 두면 그 값이 보인다」 힌트 줄 대신 접기 제목이 말한다. */
+  if (colHasDefault) title += ' · 열 기본값 있음';
   return `
-    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
+    <div class="prop-section" data-scope="line"${open ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-cell-toggle', title, open)}
       <div id="grd-cell-body" style="display:${open ? 'block' : 'none'};">
-        <div class="prop-hint" style="text-align:left;padding:2px 0 6px;">이 칸에만 적용된다.</div>
-        ${colHasDefault
-          ? '<div class="prop-hint" style="text-align:left;padding:0 0 6px;">이 열에 기본값이 걸려 있다 — 비워 두면 그 값이 보인다.</div>'
-          : ''}
         <div class="prop-row">
           <span class="prop-label">배경색</span>
           <div class="prop-color-swatch${bgRaw ? '' : ' swatch-none'}"${bgRaw ? ` style="background:${bgRaw}"` : ''}>
@@ -2430,22 +2445,22 @@ ${_grdDisclosureHtml('grd-cell-toggle', title, open)}
         <div class="prop-row">
           <span class="prop-label">Fit</span>
           <div class="prop-align-group" id="grd-cell-fit-group">
-            <button class="prop-align-btn${cFit === 'cover' ? ' active' : ''}" data-cell-fit="cover" title="꽉 채우기">꽉 채우기</button>
-            <button class="prop-align-btn${cFit === 'contain' ? ' active' : ''}" data-cell-fit="contain" title="원본 비율">원본 비율</button>
+            <button class="prop-align-btn${cFit === 'cover' ? ' active' : ''}" data-cell-fit="cover">꽉 채우기</button>
+            <button class="prop-align-btn${cFit === 'contain' ? ' active' : ''}" data-cell-fit="contain">원본 비율</button>
           </div>
         </div>
         <div class="prop-row">
           <span class="prop-label">위치</span>
           <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">
             <div class="prop-align-group" id="grd-cell-pos-x" role="group" aria-label="칸 배경 가로 위치">
-              ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: cPx === 'left', attrs: { 'data-cpos-x': 'left' } })}
-              ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: cPx === 'center', attrs: { 'data-cpos-x': 'center' } })}
-              ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: cPx === 'right', attrs: { 'data-cpos-x': 'right' } })}
+              ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: cPx === 'left', attrs: { 'data-cpos-h': 'left' } })}
+              ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: cPx === 'center', attrs: { 'data-cpos-h': 'center' } })}
+              ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: cPx === 'right', attrs: { 'data-cpos-h': 'right' } })}
             </div>
             <div class="prop-align-group" id="grd-cell-pos-y" role="group" aria-label="칸 배경 세로 위치">
-              ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: cPy === 'top', attrs: { 'data-cpos-y': 'top' } })}
-              ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: cPy === 'center', attrs: { 'data-cpos-y': 'center' } })}
-              ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: cPy === 'bottom', attrs: { 'data-cpos-y': 'bottom' } })}
+              ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: cPy === 'top', attrs: { 'data-cpos-v': 'top' } })}
+              ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: cPy === 'center', attrs: { 'data-cpos-v': 'center' } })}
+              ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: cPy === 'bottom', attrs: { 'data-cpos-v': 'bottom' } })}
             </div>
           </div>
         </div>` : ''}
@@ -2458,11 +2473,11 @@ ${_grdDisclosureHtml('grd-cell-toggle', title, open)}
           <input type="number" class="prop-number" id="grd-cell-radius" min="0" max="200" placeholder="0" value="${rad}">
         </div>
         <div class="prop-row">
-          <span class="prop-label">가로 정렬</span>
+          <span class="prop-label">가로 정렬 · 이 칸</span>
           <select class="prop-select" id="grd-cell-align" title="이 칸의 가로 정렬(기본 = 열을 따른다)">${_grdOptsHtml(_GRD_CELL_ALIGNS, cell.align)}</select>
         </div>
         <div class="prop-row">
-          <span class="prop-label">세로 정렬</span>
+          <span class="prop-label">세로 정렬 · 이 칸</span>
           <select class="prop-select" id="grd-cell-valign" title="이 칸의 세로 정렬(기본 = 블록을 따른다)">${_grdOptsHtml(_GRD_CELL_VALIGNS, cell.valign)}</select>
         </div>
       </div>
@@ -2535,8 +2550,8 @@ function _grdWireCellSection(block, addr) {
   document.getElementById('grd-cell-img-clear')?.addEventListener('click', () => _grdPatchCell(block, r, c, { bgImg: _grdUnset() }));
   document.querySelectorAll('#grd-cell-fit-group [data-cell-fit]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgFit: b.dataset.cellFit })));
   const curPos = () => { let cur = {}; try { cur = (getGridModel(block).cells?.[r] || [])[c] || {}; } catch (_) {} return (typeof cur.bgPos === 'string' && cur.bgPos.includes(' ') ? cur.bgPos : 'center center').split(' '); };
-  document.querySelectorAll('#grd-cell-pos-x [data-cpos-x]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgPos: `${b.dataset.cposX} ${curPos()[1]}` })));
-  document.querySelectorAll('#grd-cell-pos-y [data-cpos-y]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgPos: `${curPos()[0]} ${b.dataset.cposY}` })));
+  document.querySelectorAll('#grd-cell-pos-x [data-cpos-h]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgPos: `${b.dataset.cposH} ${curPos()[1]}` })));
+  document.querySelectorAll('#grd-cell-pos-y [data-cpos-v]').forEach(b => b.addEventListener('click', () => _grdPatchCell(block, r, c, { bgPos: `${curPos()[0]} ${b.dataset.cposV}` })));
 
   /* ── 칸 단위 정렬 — «이 칸만». 블록/열 통째 단추(아래 Layout 절)와 축이 다르다. */
   for (const [id, field] of [['grd-cell-align', 'align'], ['grd-cell-valign', 'valign']]) {
@@ -2607,12 +2622,11 @@ function _ratioRowHtml(cols) {
     return Number.isInteger(v) ? String(v) : String(+v.toFixed(2));
   }).join(':');
   return `
-      <div class="prop-row">
+      <div class="prop-row" data-scope="col">
         <span class="prop-label">비율</span>
-        <input type="text" class="prop-input" id="grd-col-ratio" placeholder="1:1:1" value="${curRatioStr}" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
+        <input type="text" class="prop-input" id="grd-col-ratio" placeholder="1:1:1" title="예: 1:1:2 → 25/25/50%" value="${curRatioStr}" style="flex:1 1 0;min-width:0;font-size:11px;height:24px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;">
         <button id="grd-col-ratio-reset" style="height:24px;flex:0 0 auto;padding:0 10px;font-size:11px;white-space:nowrap;background:#262626;color:#e5e5e5;border:1px solid #333;border-radius:4px;cursor:pointer;line-height:1;box-sizing:border-box;">균등</button>
-      </div>
-      <div class="prop-hint">예: 1:1:2 → 25/25/50%</div>`;
+      </div>`;
 }
 
 /* ── 행 «높이» UI ──────────────────────────────────────────────────────────
@@ -2628,28 +2642,31 @@ function _ratioRowHtml(cols) {
 function _flattenRowHtml(rows, cols) {
   if (!rows || rows.length < 2) return '';
   return `
-        <button class="prop-btn" id="grd-flatten-cols" style="width:100%;margin-top:6px;">⬚ 독립 칼럼으로 펴기</button>
-        <div class="prop-hint" style="margin-top:2px;">${rows.length}행을 열 ${cols.length}개의 «줄 묶음» 으로 접는다 — 그러면 칼럼마다 높이를 따로 준다 (⌘Z 복원)</div>`;
+        <button class="prop-btn" id="grd-flatten-cols" style="width:100%;margin-top:6px;" title="${rows.length}행을 열 ${cols.length}개의 «줄 묶음» 으로 접는다 — 그러면 칼럼마다 높이를 따로 준다 (⌘Z 복원)">⬚ 독립 칼럼으로 펴기</button>`;
 }
 
 /* ★t2-06(현빈 0.9.11_t2 「기본 상태를 접힘」): 행마다 칸이 하나씩이라 행이 많으면 패널이 길다 → 옆 절들과 같은 접이식(블록별 WeakMap · 기본 접힘). */
 function _rowHeightHtml(rows, block) {
   if (rows.length < 2) return '';
   const open = _grdSecOpen(block, 'rowh');
+  /* ★⑦-A(현빈 2026-11-13) — 적은 값 = 화면 높이(칸 위아래 여백 포함). 저장은 옛 뜻 그대로 — 보이기/받기만 gridRowFullH/gridRowStoredH 로 환산.
+     빈 칸은 「자동 · 지금 높이」를 회색으로 보인다(재서 — 빈값 어휘 「자동」). */
+  const _nowH = (ri) => { const el = block?.querySelector?.(`:scope > .grd-inner > .grd-cell[data-r="${ri}"]`); const h = el ? Math.round(el.offsetHeight) : 0; return h > 0 ? `자동 · ${h}` : '자동'; };
   const items = rows.map((r, ri) => `
       <div class="grd-rowh-item-row" style="display:flex;align-items:center;gap:6px;">
         <span class="prop-sublabel" style="width:40px;font-size:11px;color:#888;">행 ${ri + 1}</span>
-        <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="${ROW_H_MAX}"
-               placeholder="auto" value="${r.height === 'auto' ? '' : r.height}" title="이 행 높이(px). 비우면 자동" style="width:70px;">
+        <input type="number" class="prop-number grd-row-h-item" data-ri="${ri}" min="0" max="${gridRowFullH(block, ROW_H_MAX)}"
+               placeholder="${r.height === 'auto' ? _nowH(ri) : '자동'}" value="${r.height === 'auto' ? '' : gridRowFullH(block, r.height)}" style="width:70px;">
       </div>`).join('');
   return `
+      <div data-scope="row">
 ${_grdDisclosureHtml('grd-rowh-toggle', `행 높이 (${rows.length}행)`, open)}
       <div id="grd-rowh-body" style="display:${open ? 'block' : 'none'};">
       <div class="prop-row" style="align-items:flex-start;">
         <span class="prop-label" style="padding-top:4px;">행 높이</span>
         <div class="grd-rowh-list" style="display:flex;flex-direction:column;gap:4px;flex:1;">${items}</div>
       </div>
-      <div class="prop-hint">비우면 자동(내용 높이) · 값은 «최소» 높이(내용이 더 크면 늘어난다)</div>
+      </div>
       </div>`;
 }
 
@@ -2663,7 +2680,7 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
   let html = '';
   if (cols.length >= 2) {
     html += `
-      <div class="prop-row">
+      <div class="prop-row" data-scope="block">
         <span class="prop-label">열 간격</span>
         <input type="range" class="prop-slider" id="grd-col-gap-slider" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${colGap}">
         <input type="number" class="prop-number" id="grd-col-gap-number" min="${GRID_COL_GAP_MIN}" max="${GRID_GAP_MAX}" value="${colGap}">
@@ -2671,14 +2688,13 @@ function _gapRowHtml(cols, rows, colGap, rowGap) {
   }
   if (rows.length >= 2) {
     html += `
-      <div class="prop-row">
+      <div class="prop-row" data-scope="block">
         <span class="prop-label">행 간격</span>
         <input type="range" class="prop-slider" id="grd-row-gap-slider" min="${GRID_ROW_GAP_MIN}" max="${GRID_GAP_MAX}" step="2" value="${rowGap}">
         <input type="number" class="prop-number" id="grd-row-gap-number" min="${GRID_ROW_GAP_MIN}" max="${GRID_GAP_MAX}" value="${rowGap}">
       </div>`;
   }
-  if (!html) return '';
-  return html + `<div class="prop-hint">행/열 사이 간격(px)</div>`;
+  return html;   // ★U1 — 「행/열 사이 간격(px)」 힌트는 라벨이 이미 말한다(prop-hint ≤2)
 }
 
 /* ── G19 「블럭 간격」 — 그리드 «밑» 자식 블럭이 하나라도 있을 때만 (죽은 조절칸은 숨긴다 — 위 _gapRowHtml 과 같은 술어) ──
@@ -2692,12 +2708,11 @@ function _childGapRowHtml(block) {
   const v = window.gridChildGap?.(block) ?? 24;
   const lo = window.GRID_CHILD_GAP_MIN ?? 0, hi = window.GRID_CHILD_GAP_MAX ?? 80, st = window.GRID_CHILD_GAP_STEP ?? 2;
   return `
-      <div class="prop-row">
-        <span class="prop-label">블럭 간격</span>
+      <div class="prop-row" data-scope="block">
+        <span class="prop-label" title="격자와 아래 블럭 사이·블럭끼리 간격(px)">블럭 간격</span>
         <input type="range" class="prop-slider" id="grd-child-gap-slider" min="${lo}" max="${hi}" step="${st}" value="${v}">
         <input type="number" class="prop-number" id="grd-child-gap-number" min="${lo}" max="${hi}" step="${st}" value="${v}">
-      </div>
-      <div class="prop-hint">격자와 아래 블럭 사이·블럭끼리 간격(px)</div>`;
+      </div>`;
 }
 
 /* ── G19 「＋ 블럭 넣기 ▾」 — 그리드 «밑»에 블럭을 쌓는다(블럭 선택 + T/G/K 는 지금처럼 «뒤 형제»: insert-anchor G3).
@@ -2712,7 +2727,7 @@ function _childGapRowHtml(block) {
 const _GRD_KID_KINDS = [['body', '텍스트'], ['h2', '제목'], ['image', '이미지'], ['gap', '여백']];
 function _grdKidsAddSectionHtml() {
   return `
-    <div class="prop-section" id="grd-kids-section" style="padding-top:var(--ui-pad-panel);">
+    <div class="prop-section" id="grd-kids-section" data-scope="block" style="padding-top:var(--ui-pad-panel);">
       <div class="prop-row" style="align-items:center;gap:6px;">
         <select class="prop-select" id="grd-kid-add-kind" style="flex:1 1 0;min-width:0;width:auto;"
                 title="그리드 «밑»에 블럭을 넣는다 — 그리드가 그만큼 늘어난다">
@@ -2756,7 +2771,7 @@ function _grdKidsAddSectionHtml() {
  * ⛔자리는 안 옮긴다 — 줄바 «바로 아래»는 G2 ⑵(줄바가 더 밀리면 안 된다) 때문에 정해진 자리다. */
 function _borderSectionHtml(bd) {
   return `
-    <div class="prop-section">
+    <div class="prop-section" data-scope="block">
       <div class="prop-section-title" title="이 블록의 «모든 칸»에 걸린다 — 아래 「칸 꾸미기」 절(그 칸 하나)과 축이 다르다">모든 칸 테두리</div>
 ${_borderRowHtml(bd)}
     </div>`;
@@ -2776,7 +2791,7 @@ function _grdOutlineSectionHtml(block) {
   const side = (sd) => borderBtn(sd, { label: _GRD_OUTLINE_LABEL[sd], title: `${_GRD_OUTLINE_LABEL[sd]} 켜기/끄기 — ${tip}`, active: o.on[sd],
     attrs: { 'data-outline-side': sd, 'aria-pressed': o.on[sd] ? 'true' : 'false' } });
   return `
-    <div class="prop-section">
+    <div class="prop-section" data-scope="block">
       <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다">블럭 외곽선</div>
       <div class="prop-row">
         <div class="prop-align-group" id="grd-outline-group" role="group" aria-label="블럭 외곽선">
@@ -2827,7 +2842,7 @@ function _grdBlockBgSectionHtml(block) {
         </label>`;
   if (!bg.on) {
     return `
-    <div class="prop-section" id="grd-bbg-section">
+    <div class="prop-section" id="grd-bbg-section" data-scope="block">
       <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">블럭 배경 ${toggle}</div>
     </div>`;
   }
@@ -2837,14 +2852,14 @@ function _grdBlockBgSectionHtml(block) {
         <span class="prop-label">위치</span>
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;">
           <div class="prop-align-group" id="grd-bbg-pos-x" role="group" aria-label="배경 가로 위치">
-            ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: px === 'left', attrs: { 'data-bbg-x': 'left' } })}
-            ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: px === 'center', attrs: { 'data-bbg-x': 'center' } })}
-            ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: px === 'right', attrs: { 'data-bbg-x': 'right' } })}
+            ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: px === 'left', attrs: { 'data-bbg-h': 'left' } })}
+            ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: px === 'center', attrs: { 'data-bbg-h': 'center' } })}
+            ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: px === 'right', attrs: { 'data-bbg-h': 'right' } })}
           </div>
           <div class="prop-align-group" id="grd-bbg-pos-y" role="group" aria-label="배경 세로 위치">
-            ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: py === 'top', attrs: { 'data-bbg-y': 'top' } })}
-            ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: py === 'center', attrs: { 'data-bbg-y': 'center' } })}
-            ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: py === 'bottom', attrs: { 'data-bbg-y': 'bottom' } })}
+            ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: py === 'top', attrs: { 'data-bbg-v': 'top' } })}
+            ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: py === 'center', attrs: { 'data-bbg-v': 'center' } })}
+            ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: py === 'bottom', attrs: { 'data-bbg-v': 'bottom' } })}
           </div>
         </div>
       </div>` : '';
@@ -2855,7 +2870,7 @@ function _grdBlockBgSectionHtml(block) {
             <input type="number" class="prop-number" id="${id}-num" min="0" max="${max}" value="${value}">
           </div>`;
   return `
-    <div class="prop-section" id="grd-bbg-section">
+    <div class="prop-section" id="grd-bbg-section" data-scope="block">
       <div class="prop-section-title" style="display:flex;align-items:center;justify-content:space-between;">블럭 배경 ${toggle}</div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
@@ -2877,10 +2892,16 @@ function _grdBlockBgSectionHtml(block) {
       </div>
       ${/* ★GRID-BG-RADIUS-SHADOW-01 — 「코너」 = 프레임 Style 절과 같은 말·같은 범위(prop-frame.js ss-radius 0~80) · 같은 그리개 sliderRowHTML */
         sliderRowHTML('코너', 'grd-bbg-radius-slider', 'grd-bbg-radius-num', { min: 0, max: GRID_BLOCK_BG_RADIUS_MAX, step: 1, value: bg.radius })}
-    </div>${/* ★그림자 = 에셋 Effects 절 «그대로»(effects-registry fxSectionHtml · 그리드는 그림자 하나만 고를 수 있다) — 배경 상자에 선다 */
-      window.fxSectionHtml?.(block, 'grdbb') || ''}`;
+    </div>`;   /* ★U1 — 그림자(fxSectionHtml 'grdbb')는 Effects 절로 옮겼다(showGridProperties · _grdBlockBgFxHtml) */
 }
 
+/** Effects 절 조각(U0b effects-registry fxSectionParts → { headTools, body, id }) — 그리드 자신용.
+ *  블럭만 고름 + 블럭 배경 켬 = 배경 상자 그림자('grdbb' · 스코프 block) · 원 그림 줄 = 원 효과('grdc' · 스코프 line). 둘은 배타. 해당 없으면 null. */
+function _grdFxParts(anyHit, block) {
+  if (!anyHit) return gridBlockBg(block).on ? { scope: 'block', ...window.fxSectionParts(block, 'grdbb') } : null;
+  if (!_grdIsImgHit(anyHit) || anyHit.line.imgShape !== 'circle') return null;
+  return { scope: 'line', ...window.fxSectionParts(_grdFxProxyOf(block, anyHit.r, anyHit.c, anyHit.li, anyHit.np, anyHit.line), 'grdc') };
+}
 /** 배선 — 단추·토글·이미지는 updateGridBlock «한 문», 슬라이더·색은 층 «한 노드»만(applyGridBlockBg). */
 function _grdWireBlockBgSection(block) {
   const tg = document.getElementById('grd-bbg-toggle');
@@ -2904,8 +2925,8 @@ function _grdWireBlockBgSection(block) {
   });
   document.getElementById('grd-bbg-img-clear')?.addEventListener('click', () => commit({ image: null }));
   const cur = () => gridBlockBg(block).pos.split(' ');
-  document.querySelectorAll('#grd-bbg-pos-x [data-bbg-x]').forEach(b => b.addEventListener('click', () => commit({ pos: `${b.dataset.bbgX} ${cur()[1]}` })));
-  document.querySelectorAll('#grd-bbg-pos-y [data-bbg-y]').forEach(b => b.addEventListener('click', () => commit({ pos: `${cur()[0]} ${b.dataset.bbgY}` })));
+  document.querySelectorAll('#grd-bbg-pos-x [data-bbg-h]').forEach(b => b.addEventListener('click', () => commit({ pos: `${b.dataset.bbgH} ${cur()[1]}` })));
+  document.querySelectorAll('#grd-bbg-pos-y [data-bbg-v]').forEach(b => b.addEventListener('click', () => commit({ pos: `${cur()[0]} ${b.dataset.bbgV}` })));
   const live = (key) => (v) => { block.dataset[key] = String(v); window.applyGridBlockBg?.(block); };
   bindSlider(document.getElementById('grd-bbg-op-slider'), document.getElementById('grd-bbg-op-num'), live('blockBgOpacity'), { min: 0, max: 100 });
   bindSlider(document.getElementById('grd-bbg-pady-slider'), document.getElementById('grd-bbg-pady-num'), live('blockBgPadY'), { min: 0, max: GRID_BLOCK_BG_PAD_Y_MAX });
@@ -2984,10 +3005,9 @@ function _grdRuleSectionHtml(block) {
    *   ⛔그래도 숨긴 것은 사실이다. 다르게 보면 되돌리고 기준점을 다시 찍어라(그 절차는 G2 머리말). */
   const open = _grdSecOpen(block, 'rule');
   return `
-    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
+    <div class="prop-section" data-scope="block"${open ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-rule-toggle', '칸 사이 줄', open)}
       <div id="grd-rule-body" style="display:${open ? 'block' : 'none'};">
-        <div class="prop-hint" style="text-align:left;padding:0 0 6px;">칸과 칸 «사이»(간격 가운데)에 줄을 긋는다 — 위 「모든 칸 테두리」는 칸의 네 변이라 다르다</div>
 ${parts.join('\n        <div class="prop-row" style="margin:4px 0 6px;height:1px;background:var(--ui-border,#333);"></div>')}
       </div>
     </div>`;
@@ -3066,7 +3086,7 @@ function _grdPadExcludeSectionHtml(block) {
      (실측 2026-09-28) 그 조건을 걸면 스위치가 거의 늘 사라진다.
      ★뺄 값은 공용 부품(drag-utils.effectiveSectionPadX)이 정한다 — row 의 패딩 키가 두 가지인
        함정도 거기서 한 번에 다룬다. */
-  if (!block.closest('.section-block')) return '';   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
+  if (!block.closest('.section-block')) return { size: '', padding: '', position: '' };   // 섹션 밖(미리보기 등)에서는 뺄 패딩이 없다
   const on = block.dataset.fullBleed === 'true';
   /* ★오버레이(플로팅) — 현빈 2026-10-01 「그리드 블럭도 오버레이되는 기능이 필요하다」.
    *   텍스트·도형·에셋과 «같은 함수»(js/overlay-float.js — 그리드는 posElOf 가 «자기 자신»을 돌려준다).
@@ -3082,9 +3102,11 @@ function _grdPadExcludeSectionHtml(block) {
   /* ★t2-08 ⓐ(현빈 확정) — 펼 것이 없는 자리엔 스위치를 숨긴다(떠 있을 때와 «같은 꼴» — 이 파일 머리말 «못 거는 자리에 스위치를 두지 않는다»).
        펼 것이 있다 = 자유 프레임 직속 자식(프레임 끝까지) · 또는 뚫을 패딩 > 0(섹션·스택 프레임 패딩 — applyBlockFullBleed 와 같은 자 effectiveSectionPadX). */
   const hideBleed = floating || !(window.gridFreeFrameChild?.(block) || (window.effectiveSectionPadX?.(block) || 0) > 0);
-  return `
-    <div class="prop-section">
-      ${_grdWidthRowHtml(block)}
+  /* ★U1(right-panel-unify) — 한 절이던 것을 «속성의 집»대로 셋으로 가른다: 너비 = Size · 위아래 여백·좌우 패딩 제외 = Padding ·
+     오버레이(떠 있음)·X/Y = Position. id·배선(_grdWirePadExclude)은 그대로 — getElementById 라 자리와 무관. */
+  return {
+    size: `<div data-scope="block">${_grdWidthRowHtml(block)}</div>`,
+    padding: `<div data-scope="block">
       ${_grdCellPadYRowHtml(block)}
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-label prop-label--auto"${hideBleed ? ' style="display:none;"' : ''}
@@ -3093,12 +3115,17 @@ function _grdPadExcludeSectionHtml(block) {
           <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
+      </div>
+    </div>`,
+    position: `<div data-scope="block">
+      <div class="prop-row" style="align-items:center;gap:6px;">
         ${floating ? '<span class="prop-label prop-label--auto">섹션 위에 떠 있음</span>' : ''}
         <span style="margin-left:auto;"></span>
         ${window.overlayToggleBtnHTML?.({ id: 'grd-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
       </div>
       ${window.floatPositionRowHTML?.({ prefix: 'grd', posEl: block }) || ''}
-    </div>`;
+    </div>`,
+  };
 }
 
 /* ══ ★G2-b 너비 줄 — 「그리드 블럭 자체 너비」 우측패널 입력 (지디 2026-10-04 결정 A) ══
@@ -3279,7 +3306,7 @@ function _borderRowHtml(bd) {
       </div>
       <div class="prop-row">
         <span class="prop-label" title="파선·점선은 «조용히 실선으로» 떨어지지 않는다 — 저장값 그대로 그려진다">선 꼴</span>
-        <select class="prop-select" id="grd-border-style" title="선 꼴">${styleOpts}</select>
+        <select class="prop-select" id="grd-border-style">${styleOpts}</select>
       </div>${_borderEdgesRowHtml(bd)}`;
 }
 
@@ -3326,10 +3353,10 @@ function _grdIfgSectionHtml(block) {
   const label = (k) => (window.GRID_IFG_PRESETS && window.GRID_IFG_PRESETS[k] && window.GRID_IFG_PRESETS[k].label) || k;
   const btn = (k) => `<button type="button" class="prop-type-btn${cur === k ? ' active' : ''}" data-ifg-pick="${k}" aria-pressed="${cur === k ? 'true' : 'false'}">${label(k)}</button>`;
   return `
-    <div class="prop-section">
+    <div class="prop-section" data-scope="block">
       <div class="prop-section-title" title="인포그래픽 — 배치·글자·간격·칸 테두리를 한 번에 바꿉니다(글·아이콘은 그대로 · ⌘Z 한 번). 바꾼 뒤 선은 「모든 칸 테두리」에서 고칩니다">인포그래픽</div>
       <div class="prop-row">
-        <span class="prop-label" title="레이아웃 프리셋">프리셋</span>
+        <span class="prop-label">프리셋</span>
         <div class="prop-type-group" id="grd-ifg-preset-group" role="group" aria-label="레이아웃 프리셋" style="flex:1;min-width:0;margin-bottom:0;">
           ${GRID_IFG_PRESET_KEYS.map(btn).join('\n          ')}
         </div>
@@ -3351,13 +3378,9 @@ function _grdIfgSectionHtml(block) {
  *
  * ★실패 판정식(계획서 §4-B): `칸.value || 칸.placeholder` 가 빈 문자열이면 실패.
  *   회색 22 는 「빈 채로 떴다」가 아니다. D1-b 가 이 식을 그대로 단언한다. */
-function _grdTypoSectionsHtml(hit, block) {
-  if (!hit) {
-    return `
-    <div class="prop-section">
-      <div class="prop-section-title">Typography</div>
-    </div>`;
-  }
+function _grdTypoParts(hit, block) {
+  /* ★GRID-PANEL-EMPTY-TYPOGRAPHY-TITLE-ONLY-01(U1) — 글자 줄이 없으면 절째 없다(빈 「Typography」 머리만 남던 것). 틀이 빈 절을 숨긴다. */
+  if (!hit) return { typo: '', fill: '' };
   const { line } = hit;
   const role = _grdRoleOf(line);
   const size = Number(line.fontSize) || role.size;
@@ -3368,8 +3391,7 @@ function _grdTypoSectionsHtml(hit, block) {
     ? String(line.color).trim() : '';
   const swatch = colorRaw ? swatchHex(colorRaw, role.color) : role.color;
 
-  return `
-    ${buildTypographySectionHtml({
+  return { typo: `${buildTypographySectionHtml({
       p: 'grd-typo',
       font: _grdHas(line, 'fontFamily') ? String(line.fontFamily) : '',
       weight,
@@ -3396,14 +3418,20 @@ function _grdTypoSectionsHtml(hit, block) {
        *   ⇒ ★★그래서 ★이 `false` 와 ★위 주석은 ★★그대로 둔다 — ★«글자 배경»의 명부가 ★둘이 되지 않게.
        *   ⚠️현빈 「다 하자」(2026-10-08)는 ★«범위»를 넓힌 것이고 ★★이 설계 판단을 ★무효로 한 것이 ★아니다. */
       showHighlight: false,
-    })}
-    ${buildFillSectionHtml({
+    })}`, fill: `${buildFillSectionHtml({
       p: 'grd-typo',
       colorHex: swatch,                                    // 스와치·피커 = «진실»
       alpha: colorRaw ? parseAlphaFromColor(colorRaw) : 100,
       colorHexVal: colorRaw ? swatch.replace('#', '').toUpperCase() : '',   // «누가 정했나»
       colorHexPh: String(role.color).replace('#', '').toUpperCase(),
-    })}`;
+    })}` };
+}
+/** 줄 주인 빌려주기(grdLineUi · line-host.js 버블·챗)용 — 옛 문자열 꼴 그대로(바이트 동일). 그리드 자신은 _grdTypoParts 를 절 둘로 나눠 쓴다. */
+function _grdTypoSectionsHtml(hit, block) {
+  const t = _grdTypoParts(hit, block);
+  return t.typo ? `
+    ${t.typo}
+    ${t.fill}` : '';
 }
 
 /* ══ Typography·Fill 배선 ══════════════════════════════════════════════════
@@ -3641,7 +3669,7 @@ function _grdLineSectionHtml(anyHit, block, host = null) {
   const dvHex = dvRaw ? swatchHex(dvRaw, GRID_DIVIDER_DEFAULT_COLOR) : GRID_DIVIDER_DEFAULT_COLOR;
   void r; void c;
   return `
-    <div class="prop-section"${open ? '' : ' style="padding-bottom:0;"'}>
+    <div class="prop-section" data-scope="line"${open ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-line-toggle', `줄 꾸미기 · ${(anyHit.np ? Number(anyHit.np.split('.')[1]) : li) + 1}번째 줄`, open)}
       <div id="grd-line-body" style="display:${open ? 'block' : 'none'};">
         <div class="prop-row">
@@ -3669,9 +3697,9 @@ ${_grdKindSelectHtml(line, H.kinds)}
           <input type="text" class="prop-color-hex" id="grd-divider-hex" maxlength="7" placeholder="기본" aria-label="구분선 색" value="${dvRaw ? dvHex.replace('#', '').toUpperCase() : ''}">
         </div>` : ''}
         ${canAlign ? `<div class="prop-row">
-          <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">줄 정렬</span>
-          <select class="prop-select" id="grd-line-align" title="이 줄의 가로 정렬(기본 = 칸을 따른다)">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
-        </div>${imgFull ? `<div class="prop-hint" style="text-align:left;padding:0 0 6px;">그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. 아래 Image 절의 「폭(%)」를 줄이거나 캔버스에서 코너를 끌면 움직인다.</div>` : ''}` : ''}
+          <span class="prop-label" title="이 «줄»만 정렬한다(기본 = 열을 따른다). 열 정렬 단추는 그 열 전체다">가로 정렬 · 이 줄</span>
+          <select class="prop-select" id="grd-line-align" title="${imgFull ? '그림 폭이 100%라 정렬이 안 보인다 — 줄일 데가 없어서다. Image 의 「폭(%)」를 줄이거나 캔버스에서 코너를 끌면 움직인다.' : '이 줄의 가로 정렬(기본 = 칸을 따른다)'}">${_grdOptsHtml(_GRD_CELL_ALIGNS, line.align)}</select>
+        </div>` : ''}
         ${isText ? `<div class="prop-row">
           <span class="prop-label" title="배경을 주면 이 줄이 «알약»(둥근 인라인 배지)이 된다. 비우면 꺼진다.">알약 배경</span>
           <div class="prop-color-swatch${raw ? '' : ' swatch-none'}"${raw ? ` style="background:${raw}"` : ''}>
@@ -3757,7 +3785,7 @@ function _grdWireLineSection(block, addr, host = null) {
   dvWNum?.addEventListener('change', () => {
     if (String(dvWNum.value).trim() !== '') return;
     dvWApply(undefined);
-    document.getElementById('grd-divider-w-slider').value = 100;
+    const _s = document.getElementById('grd-divider-w-slider'); if (_s) _s.value = 100;
   }, { capture: true });
 
   const dvPick = document.getElementById('grd-divider-color');
@@ -3826,7 +3854,7 @@ function _grdWireLineSection(block, addr, host = null) {
   bdRNum?.addEventListener('change', () => {
     if (String(bdRNum.value).trim() !== '') return;
     bdRApply(undefined);
-    document.getElementById('grd-badge-radius-slider').value = GRID_BADGE_SLIDER_MAX;
+    const _s = document.getElementById('grd-badge-radius-slider'); if (_s) _s.value = GRID_BADGE_SLIDER_MAX;
   }, { capture: true });
 
   const pick = document.getElementById('grd-badge-color');
@@ -3889,6 +3917,45 @@ function _grdRefreshSummary(block, addr, host = null) {
   const s = _grdSummaryText(addr.r, addr.c, addr.li, line, H);
   el.textContent = s;
   el.title = s;
+}
+
+/* ══ ⑥ 스코프칩(U1 · ULTRAPLAN §4-1) ══════════════════════════════════════════
+ * ★절 «안» 줄·하위 절에 data-scope(block|col|row|line)를 단다. 칩을 누르면 _grdApplyScopeFilter 가 다른 스코프 줄을 숨기고,
+ *   그 스코프 줄이 하나도 없는 절(data-sec)은 절째 숨긴다. 표시는 style.display 로(⛔[hidden] 은 display 클래스에 진다).
+ * ★필터는 블럭별 WeakMap(메모리 · 저장 안 함) — 패널을 다시 그려도(updateGridBlock 되부름) 유지, 명시적 null 재선택이면 풀린다. */
+const GRD_SCOPES = [['block', '블록'], ['col', '열'], ['row', '행'], ['line', '글줄']];
+const _GRD_SCOPE_OFF = { line: '캔버스에서 칸이나 글자를 고르면 켜집니다', row: '1행이라 행 높이가 없습니다 — 칸 수를 늘리면 켜집니다' };
+const _grdScopeFilter = new WeakMap();
+/** html 이 있을 때만 스코프 표식 래퍼로 싼다(빈 문자열은 빈 문자열 — 틀이 빈 절을 숨긴다). */
+const _grdScopeWrap = (scope, html) => (String(html || '').trim() ? `<div data-scope="${scope}">${html}</div>` : '');
+function _grdApplyScopeFilter(filter) {
+  if (!propPanel || typeof propPanel.querySelectorAll !== 'function') return;
+  propPanel.querySelectorAll('[data-scope]').forEach((el) => {
+    if (el.closest('#grd-scope-chips')) return;
+    el.style.display = (!filter || el.dataset.scope === filter) ? '' : 'none';
+  });
+  propPanel.querySelectorAll(':scope > .prop-section[data-sec]').forEach((secEl) => {
+    const keep = !filter || !!secEl.querySelector(`[data-scope="${filter}"]`);
+    secEl.style.display = keep ? '' : 'none';
+  });
+}
+function _grdWireScopeChips(block, filter, inferred) {
+  const wrap = document.getElementById('grd-scope-chips');
+  if (!wrap) return;
+  /* 상태 둘을 가른다(M3): ⑴ «지금 고친 것»(추론) = aria-current + 강조 테두리(토큰) — 누른 상태 아님
+   *   ⑵ «걸러 보는 중»(필터) = .active·aria-pressed=true + 그룹 배경(data-filter). 필터 없으면 aria-pressed 전부 false. */
+  wrap.querySelectorAll('button[data-scope]').forEach((btn) => {
+    const s = btn.dataset.scope;
+    if (btn.disabled && _GRD_SCOPE_OFF[s]) btn.title = _GRD_SCOPE_OFF[s];
+    if (s === inferred) { btn.setAttribute('aria-current', 'true'); if (s !== filter) btn.style.cssText = 'border-color:var(--ui-accent-primary);color:var(--ui-accent-text);'; }
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      if (filter === s) _grdScopeFilter.delete(block);
+      else _grdScopeFilter.set(block, { scope: s, at: inferred });
+      showGridProperties(block);
+    });
+  });
+  _grdApplyScopeFilter(filter);
 }
 
 /**
@@ -3955,9 +4022,24 @@ export function showGridProperties(block, addrArg) {
    *     tests/dom/grid-panel-fold.dom.spec.js (F2 — 접힘 vs 펼침에서 DOM 수가 «같다»). */
   const _sizeOpen = _grdSecOpen(block, 'size');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★U1(right-panel-unify · §4-1 ⑥) — 스코프칩 «블록·열·행·글줄». v1(현빈 Q3): 열 때 선택에서 스코프를 추론해 칩만 켠다(절은 전부 펼침).
+   *   칩을 누르면 그 스코프 줄·절만 남기고 나머지를 숨긴다(그리드 패널 안 임시 · 저장 안 함 · 같은 칩 다시 누르면 풀림).
+   *   ⛔칸 추가/삭제 손잡이는 패널에 없다(캔버스 전용 · 현빈 정정). 열/행 «개별» 고르기도 없다(모델에 없다).
+   *   글줄 칩은 캔버스에서 칸/줄을 고른 뒤에만 — 아니면 disabled + 까닭은 title(R5: 「누르면」 지시는 prop-hint 로 안 낸다). */
+  if (addrArg === null) _grdScopeFilter.delete(block);
+  const _lineOk = !!(_anyHit || _nestHit);
+  const _scopeOk = { block: true, col: true, row: rows.length >= 2, line: _lineOk };
+  const _inferred = _lineOk ? 'line' : 'block';
+  /* 필터는 «건 때의 추론 스코프»와 함께 기억한다 — 고른 것이 바뀌어 추론이 달라지면(블록 필터 중 글줄 클릭 등) 필터를 푼다. */
+  const _fs = _grdScopeFilter.get(block) || null;
+  let _filter = _fs && _fs.at === _inferred && _scopeOk[_fs.scope] ? _fs.scope : null;
+  if (_fs && !_filter) _grdScopeFilter.delete(block);
+  const _pad3 = _grdPadExcludeSectionHtml(block);
+  const _typo = _grdTypoParts(_hit, block);
+  const _fx = _grdFxParts(_anyHit || _nestD1, block);
+
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1" y="2" width="4.5" height="8" rx="1"/><rect x="6.5" y="2" width="4.5" height="8" rx="1"/>
           </svg>`,
@@ -3965,56 +4047,62 @@ ${blockHeaderHTML({
       defaultName: 'Grid Block',
       crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
       id: block.id,
-    })}
-    </div>${_grdIfgSectionHtml(block)}
-    <div class="prop-section"${_sizeOpen ? '' : ' style="padding-bottom:0;"'}>
+    }) + `
+      <div id="grd-scope-chips" data-current="${_inferred}"${_filter ? ` data-filter="${_filter}" style="background:var(--ui-accent-fill);border-radius:var(--ui-radius-sm);"` : ''}>${scopeChipsHTML(GRD_SCOPES.map(([scope, label]) => ({ scope, label, id: `grd-scope-${scope}`, disabled: !_scopeOk[scope] })), _filter)}</div>`,
+    sections: [
+      sec('kind', _grdIfgSectionHtml(block)),
+      sec('content', `${_grdNestHintHtml(_nestHit)}
+    ${_grdLineBarHtml(_anyHit, block)}
+    ${_grdAllCellsSectionHtml(_anyHit, block)}
+    ${_grdCellSectionHtml(_anyHit, block)}
+    ${_grdLineSectionHtml(_anyHit || _nestD1, block)}
+    ${_grdImageSectionHtml(_anyHit || _nestD1, block, null, true)}`),
+      sec('position', _pad3.position),
+      sec('size', _pad3.size),
+      sec('layout', `
+    <div class="prop-section" data-scope="block"${_sizeOpen ? '' : ' style="padding-bottom:0;"'}>
 ${_grdDisclosureHtml('grd-size-toggle', `Grid (${cols.length}×${rows.length}) — 칸 수 바꾸기`, _sizeOpen)}
       <div id="grd-size-body" style="display:${_sizeOpen ? 'block' : 'none'};">
         <div class="grid-picker" id="grd-grid-picker"></div>
         <div class="grid-picker-label" id="grd-grid-picker-label">—</div>
-        <div class="prop-hint" style="margin-top:2px;">가로×세로 칸 수를 고른다</div>
-        <!-- ★적대검수 Q3: 「줄이면 보존」으로 동작을 바꾸는 대신 «사실을 적는다».
-             API 경로(grid-block.js)가 이미 «자르고 undo» 정책이라, 피커만 보존하면 정책이 둘로 갈라진다. -->
-        <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)</div>
+        <div class="prop-hint" style="margin-top:2px;">줄이면 잘린 칸 내용은 사라진다 (⌘Z 복원)${rows.length >= 2 ? ' · 행 높이는 «최소» — 내용이 크면 늘어난다' : ''}</div>
 ${_flattenRowHtml(rows, cols)}
       </div>
     </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Layout</div>
       ${_ratioRowHtml(cols)}
       ${_rowHeightHtml(rows, block)}
       ${_gapRowHtml(cols, rows, _colGap, _rowGap)}
       ${_childGapRowHtml(block)}
-      <div class="prop-row">
-        <span class="prop-label">가로 정렬</span>
+      <div class="prop-row" data-scope="col">
+        <span class="prop-label">가로 정렬 · 모든 열</span>
         <div class="prop-align-group" id="grd-halign-group">
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: halign === 'left', attrs: { 'data-ha': 'left' } })}
           ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: halign === 'center', attrs: { 'data-ha': 'center' } })}
           ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: halign === 'right', attrs: { 'data-ha': 'right' } })}
         </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">세로 정렬</span>
+      <div class="prop-row" data-scope="block">
+        <span class="prop-label">세로 정렬 · 블록</span>
         <div class="prop-align-group" id="grd-valign-group">
           ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: valign === 'top', attrs: { 'data-va': 'top' } })}
           ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: valign === 'middle', attrs: { 'data-va': 'middle' } })}
           ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: valign === 'bottom', attrs: { 'data-va': 'bottom' } })}
         </div>
       </div>
-    </div>
-    ${_grdNestHintHtml(_nestHit)}${_grdNestColVAlignHtml(_nestHit, block)}
-    ${_grdLineBarHtml(_anyHit, block)}
-    ${_anyHit ? '' : _grdKidsAddSectionHtml()}
-    ${_borderSectionHtml(_cellBorder)}
+    ${_grdNestColVAlignHtml(_nestHit, block)}
+    ${_anyHit ? '' : _grdKidsAddSectionHtml()}`),
+      sec('padding', _pad3.padding),
+      sec('appearance', _grdImageClipOfHit(_anyHit || _nestD1, block)),
+      sec('typography', _grdScopeWrap('line', _typo.typo)),
+      sec('fill', `${_grdScopeWrap('line', _typo.fill)}${_anyHit ? '' : _grdBlockBgSectionHtml(block)}`),
+      sec('stroke', `${_borderSectionHtml(_cellBorder)}
     ${_grdOutlineSectionHtml(block)}
-    ${_anyHit ? '' : _grdBlockBgSectionHtml(block)}
-    ${_grdRuleSectionHtml(block)}
-    ${_grdPadExcludeSectionHtml(block)}
-    ${_grdAllCellsSectionHtml(_anyHit, block)}
-    ${_grdCellSectionHtml(_anyHit, block)}
-    ${_grdLineSectionHtml(_anyHit || _nestD1, block)}
-    ${_grdImageSectionHtml(_anyHit || _nestD1, block)}
-    ${_grdTypoSectionsHtml(_hit, block)}`;
+    ${_grdRuleSectionHtml(block)}`),
+      /* ★U0b — 추가 목록은 머리(headTools)로 · 걸린 카드는 몸으로 · 절 id = #<P>-fx-section(배선·spec 이 그 id 를 본다). 몸이 비어도 머리가 있으면 절이 선다. */
+      _fx ? sec('effects', _grdScopeWrap(_fx.scope, _fx.body), { headTools: _fx.headTools, id: _fx.id }) : sec('effects', ''),
+    ],
+  });
+  _grdWireScopeChips(block, _filter, _inferred);
   /* ★2026-09-25 R1＋R5 — 여기 있던 마지막 절
        「글자는 «캔버스에서 줄을 더블클릭»해 고친다」
      을 «지웠다». 두 가지가 한꺼번에 걸려 있었다:
@@ -4188,6 +4276,7 @@ ${_flattenRowHtml(rows, cols)}
     const kind = kidAdd.value;
     kidAdd.value = '';
     if (!kind) return;
+    expandSection('layout');                 // ★U0d — 넣은 뒤 생기는 「블럭 간격」 줄은 Layout 절에 산다
     window.addGridChild?.(block, kind);
   });
 
@@ -4325,13 +4414,14 @@ ${_flattenRowHtml(rows, cols)}
       const curRows = gridRows(block);
       if (!curRows[ri]) return;
       const raw = inp.value.trim();
-      const v = raw === '' ? 'auto' : Math.max(0, Math.min(ROW_H_MAX, parseInt(raw) || 0));
+      /* ★⑦-A — 받은 값 = 보이는 높이 · 저장 = 그 값 − 2·cellPadY(0 하한 · ROW_H_MAX 상한). */
+      const v = raw === '' ? 'auto' : Math.min(ROW_H_MAX, gridRowStoredH(block, parseInt(raw) || 0));
       curRows[ri] = { height: v };
       window.pushHistory?.();
       block.dataset.rows = JSON.stringify(curRows);
       window.renderGridBlock?.(block);
       window.scheduleAutoSave?.();
-      inp.value = v === 'auto' ? '' : v;   // 정규화 결과로 되씀(비율 입력과 동일 패턴)
+      inp.value = v === 'auto' ? '' : gridRowFullH(block, v);   // 정규화 결과(보이는 높이)로 되씀(비율 입력과 동일 패턴)
     });
   });
 

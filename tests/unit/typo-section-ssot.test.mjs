@@ -33,6 +33,11 @@
  *       ★판정식은 ★판이 바뀌면 ★다시 계산되어야 한다.
  *     선례: align-btn-ssot.test.mjs · grid-callsite-ssot.test.mjs.
  *
+ * ★★[2026-11-13 · right-panel-unify U2] 텍스트 패널이 «틀»(_panel-frame.js)로 옮겨 갔다 — 껍데기가 통째 바뀌어
+ *   위 «치환만 적용» 식이 서지 않는다. ⇒ 골든은 ★`tests/unit/_text-golden-judge.mjs` 의 판정식(J1 컨트롤 다중집합 보존 ·
+ *   J2 라벨 보존 · J3 절 순서)으로만 다시 뜬다(통과 때만 --write). ⛔눈 diff · 그냥 덮어쓰기 금지.
+ *   SSOT 두 함수(buildTypographySectionHtml·buildFillSectionHtml)는 «몸통 무변» — bare 인자가 껍데기만 뗀다(아래 T1-e).
+ *
  * ⚠️이 파일은 «동작»과 «소스 문자열»을 둘 다 단언한다. 정상적인 리팩터링에도 빨강이 날 수 있다 —
  *   그때는 지우지 말고 「절이 여전히 한 곳에서 오는가」를 확인한 뒤 패턴을 고쳐라.
  *
@@ -111,7 +116,8 @@ test('T1 ★텍스트 패널 산출 HTML 이 추출 «전»과 한 글자도 다
       `    전: ${JSON.stringify(want.slice(Math.max(0, at - 70), at + 70))}\n` +
       `    후: ${JSON.stringify(got.slice(Math.max(0, at - 70), at + 70))}\n` +
       `★이 픽스처는 «추출 직전»의 코드가 낸 실물이다. 텍스트 패널을 일부러 바꾼 것이 아니라면 ` +
-      `_typo-section.js 가 원문과 어긋난 것이다. 일부러 바꿨다면 픽스처를 같은 커밋에서 다시 떠라.`);
+      `_typo-section.js 가 원문과 어긋난 것이다. 일부러 바꿨다면 픽스처를 같은 커밋에서 다시 떠라 — ` +
+      `★판정식으로만: node tests/unit/_text-golden-judge.mjs --write (⛔그냥 덮어쓰기 금지).`);
   }
 });
 
@@ -154,6 +160,28 @@ test('T1-d ★밑줄 칸·형광펜 Y 는 ★기본 인자에서 «한 글자도
   }
   assert.ok(/id="mdl-typo-hl-y" min="-40" max="40" step="1" value="7"/.test(on),
     '★hlY 가 ★칸에 ★안 꽂혔다 — 「칸이 뜬다」와 「맞게 돈다」는 다르다');
+});
+
+test('T1-e ★bare = 껍데기만 뗀 «같은 몸통» — 기본 호출 == 옛 껍데기 + bare 산출 (Typography·Fill 둘 다)', () => {
+  /* ★U2(right-panel-unify) — 틀로 옮긴 패널(텍스트·인용구)은 bare:true 로 «몸통»만 받고, 아직 틀 밖인 모달·그리드·챗은
+     기본 호출(껍데기 포함)을 그대로 쓴다. ⇒ 두 갈래가 «같은 몸통»임을 바이트로 잠근다(몸통이 두 벌로 갈리면 빨강).
+     ★양성대조: _typo-section.js 의 `if (bare) return _body;` 를 지우면 bare 산출에 껍데기가 붙어 «prop-section 없음» 단언이 빨강 ·
+       기본 갈래의 껍데기 글자를 한 칸 바꾸면 == 단언이 빨강. */
+  const o = { p: 'mdl-typo', font: 'Georgia, serif', weight: '700', size: 36, isBold: true, isItalic: false, isStrike: false,
+    isHighlight: true, lh: 1.7, ls: 0.5, showHighlightOpts: true, showUnderline: true, showUnderlineOpts: true, showDots: true, showDotOpts: true };
+  const T = buildSection('buildTypographySectionHtml', o);
+  const Tb = buildSection('buildTypographySectionHtml', { ...o, bare: true });
+  assert.ok(Tb.length > 1000, `★전제 — bare 산출이 ${Tb.length}자다(죽었나)`);
+  assert.doesNotMatch(Tb, /prop-section/, '★bare 산출에 절 껍데기(prop-section)가 남았다 — 틀 안에서 절이 두 겹이 된다');
+  assert.equal(T, `<div class="prop-section">\n      <div class="prop-section-title">Typography</div>\n${Tb}\n    </div>`,
+    '★Typography 기본 호출 ≠ 옛 껍데기 + bare 몸통 — 몸통이 두 벌로 갈렸다(모달·그리드·챗 골든이 갈린다)');
+  const f = { p: 'mdl-typo', colorHex: '#1c1c1e', alpha: 80, showGradRecent: true };
+  const F = buildSection('buildFillSectionHtml', f);
+  const Fb = buildSection('buildFillSectionHtml', { ...f, bare: true });
+  assert.doesNotMatch(Fb, /prop-section/, '★Fill bare 산출에 껍데기가 남았다');
+  assert.ok(Fb.includes('id="mdl-typo-color"'), '★전제 — Fill bare 에 색 칸이 있다');
+  assert.equal(F, `<div class="prop-section">\n      <div class="prop-section-title">Fill</div>${Fb}\n    </div>`,
+    '★Fill 기본 호출 ≠ 옛 껍데기 + bare 몸통');
 });
 
 test('T1-b ★id 접두사만 갈아끼우면 «모달용» 마크업이 나온다 (txt- 가 안 샌다)', () => {
@@ -230,17 +258,18 @@ test('T2 ★텍스트·모달·그리드·챗 패널이 «전부» _typo-section
     ['prop-text-template.js', 'prop-modal.js', 'prop-grid.js'],
     'Fill 명부가 낡았다 — 챗은 좌/우 색 «둘»이라 한 색 절을 안 쓴다(까닭은 바로 위 주석)');
   for (const [name, get] of TYPO_PANELS) {
-    const src = get();
+    const src = get().replace(/<!--[\s\S]*?-->/g, '');   /* JS 주석은 SRC 가 이미 걷었다 · 템플릿 안 HTML 주석도 걷고 잰다(주석 속 호출 글자로 초록 금지) */
     assert.match(src, IMPORT_TYPO,
       `${name} 이 buildTypographySectionHtml 을 import 하지 않는다 — 인라인 마크업으로 되돌아갔나. ` +
       `두 패널이 «다른 벌»을 들면 한쪽만 고쳐도 조용히 갈라진다.`);
-    assert.match(src, /\$\{buildTypographySectionHtml\(/,
+    /* ★U2 — 틀로 옮긴 패널은 sec('typography', buildTypographySectionHtml({ bare:true … })) 로 «${} 밖»에서 부른다 */
+    assert.match(src, /\bbuildTypographySectionHtml\(/,
       `${name} 이 buildTypographySectionHtml 을 «부르지» 않는다 — import 만 하고 안 쓰면 소용없다`);
   }
   for (const [name, get] of FILL_PANELS) {
     const src = get();
     assert.match(src, IMPORT_FILL, `${name} 이 buildFillSectionHtml 을 import 하지 않는다`);
-    assert.match(src, /\$\{buildFillSectionHtml\(/, `${name} 이 buildFillSectionHtml 을 «부르지» 않는다`);
+    assert.match(src, /\bbuildFillSectionHtml\(/, `${name} 이 buildFillSectionHtml 을 «부르지» 않는다`);
   }
 });
 

@@ -1,6 +1,7 @@
 /* ── InfoCard 블록 프로퍼티 패널 — countup(정적 빅넘버)/price/review 3변형 ── */
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
 const _VARIANTS = [
@@ -29,9 +30,8 @@ export function showInfoCardProperties(block) {
     ? (Array.isArray(data.extras) ? data.extras.join(', ') : '')
     : (data[key] ?? '');
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1.5" y="2" width="9" height="8" rx="1.5"/><path d="M3.5 7.5 H8.5 M3.5 5 H6.5"/>
           </svg>`,
@@ -39,34 +39,30 @@ ${blockHeaderHTML({
       defaultName: 'Info Card',
       crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
       id: block.id,
-    })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Variant</div>
+    }),
+    sections: [
+      sec('kind', `
       <div class="prop-type-group">
         ${_VARIANTS.map(v => `<button class="prop-type-btn ${variant === v.id ? 'active' : ''}" data-variant="${v.id}">${v.label}</button>`).join('')}
-      </div>
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Content</div>
-      ${(_FIELDS[variant] || []).map(([key, label]) => `
+      </div>`),
+      sec('content', (_FIELDS[variant] || []).map(([key, label]) => `
       <div class="prop-row">
         <span class="prop-label">${label}</span>
         <input type="text" class="prop-input ifc-field" data-key="${key}" value="${_esc(fieldVal(key))}" style="flex:1;min-width:0">
-      </div>`).join('')}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Style</div>
-      ${variant === 'countup' ? `
+      </div>`).join('')),
+      // 옛 「Style」 절 — 숫자 크기는 글자 크기라 Typography, 색 셋은 Fill
+      sec('typography', variant === 'countup' ? `
       <div class="prop-row">
         <span class="prop-label">숫자 크기</span>
         <input type="range" class="prop-slider" id="ifc-num-slider" min="40" max="200" step="4" value="${numSize}">
         <input type="number" class="prop-number" id="ifc-num-number" min="40" max="200" value="${numSize}">
-      </div>` : ''}
+      </div>` : ''),
+      sec('fill', `
       <div class="prop-row"><span class="prop-label">강조색</span>${colorFieldHTML({ idPrefix: 'ifc-accent', hex: accent, alpha: parseAlphaFromColor(accent) })}</div>
       <div class="prop-row"><span class="prop-label">본문색</span>${colorFieldHTML({ idPrefix: 'ifc-text', hex: text, alpha: parseAlphaFromColor(text) })}</div>
-      <div class="prop-row"><span class="prop-label">보조색</span>${colorFieldHTML({ idPrefix: 'ifc-sub', hex: sub, alpha: parseAlphaFromColor(sub) })}</div>
-    </div>`;
+      <div class="prop-row"><span class="prop-label">보조색</span>${colorFieldHTML({ idPrefix: 'ifc-sub', hex: sub, alpha: parseAlphaFromColor(sub) })}</div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

@@ -212,7 +212,9 @@ test('C-PANEL1 ★정본 표가 쿠폰 패널을 연다 — selectBlock «만»�
     const known = window.hasPanelForBlock ? window.hasPanelForBlock(window.__block) : null;
     window.selectBlock?.(window.__block.id);
     const html = document.getElementById('panel-right').innerHTML;
-    return { known, hasHeader: /Coupon/.test(html), hasSlotList: /글자 칸/.test(html), len: html.length };
+    /* U6 · 계획 §2-1·§8: 옛 손 제목 「글자 칸 n」 → 틀의 Content 절(data-sec) — coupon-presets.dom.spec 과 같은 자.
+       되돌리면 빨강: prop-coupon.js 의 sec('content' …) 를 지우거나 칸 목록(_slotListHTML)을 다른 절로 옮기면 거짓. */
+    return { known, hasHeader: /Coupon/.test(html), hasSlotList: !!document.querySelector('#panel-right .prop-section[data-sec="content"] [data-cpn-open]'), len: html.length };
   });
   expect(r.known).toBe(true);
   expect(r.hasHeader).toBe(true);
@@ -251,11 +253,13 @@ test('C-PANEL3 ★캔버스 글자를 누르면 «그 칸만» 열리고, 또 �
   await page.locator('[data-cpn-slot="num"]').click();
   const one = await page.evaluate(() => ({
     open: document.querySelectorAll('#cpn-slot-text').length,
-    title: document.querySelector('.prop-section-title:last-of-type')?.textContent || '',
+    title: document.querySelector('#cpn-slot-text')?.closest('.prop-section[data-sec]')?.querySelector('.prop-sec-title-text')?.textContent || '',   // U5: 고른 칸은 Content 절 안
     which: window.__block._cpnOpenSlot,
   }));
   expect(one.open).toBe(1);                   // ★한 칸만
   expect(one.which).toBe('num');
+  // U5 ⇐ 되돌리기: _slotPanelHTML 을 Content 절 밖(제 절)으로 빼면 빨강
+  expect(one.title, '고른 칸은 Content 절 안에 열린다').toBe('Content');
   /* ★같은 것을 또 누르면 «닫힌다» — 시안 setSel 의 토글. */
   await page.locator('[data-cpn-slot="num"]').click();
   const zero = await page.evaluate(() => ({
@@ -323,7 +327,7 @@ test('C-PANEL5 ★칸 목록의 라벨·토글·체크박스가 «한 줄»에 �
     const split = [], seen = [];
     for (const row of rows) {
       for (const el of [...row.children]) {
-        if (el.classList.contains('prop-hint')) continue;   // ★일부러 줄임표로 자르는 칸
+        if (el.classList.contains('prop-hint') || el.classList.contains('prop-value-text')) continue;   // ★일부러 줄임표로 자르는 칸(U5: 미리보기 = .prop-value-text — 패널 힌트 ≤2)
         const txt = (el.textContent || '').trim();
         if (!txt) continue;                                  // 글자가 없으면 「읽히나」가 뜻이 없다
         const rg = document.createRange();
@@ -642,15 +646,29 @@ test('C-EXPORT ★알려진 결함 — 피그마 내보내기에 쿠폰 «배경
   test.fail(true, '★아직 안 고쳤다(지디 Q1 = 2단계). 고치면 이 표시가 빨개진다 — 그때 test.fail 을 떼라.');
   const errs = await boot(page);
   await mount(page);
+  console.log('[C-EXPORT] stage=mounted(이 줄 뒤 stage 가 없으면 내보내기 evaluate 가 던졌다)');
   const r = await page.evaluate(async () => {
+    /* U6(지디 261113 · 태양 읽기): 옛 입구 이름 buildFigmaJson 은 js 전체 0건 — export-figma-json.js 는 buildFigmaExportJSON 만 낸다(:1573~1585)
+       ⇒ 옛 칸은 늘 «입구 못 찾음»으로 실패 = test.fail 이 결함을 안 재고 있었다. 진짜 입구로 부른다(null = 전부 · T12-gridcol-probe 와 같은 꼴).
+       되돌리면: 이름을 옛것으로 돌리면 다시 noFn 으로만 실패(재지 않는 칸). */
     const m = await import('/js/io/export-figma-json.js');
-    const fn = m.buildFigmaJson || m.default || window.buildFigmaJson;
+    const fn = m.buildFigmaExportJSON;
     if (typeof fn !== 'function') return { noFn: true };
-    const out = JSON.stringify(await fn());
-    return { noFn: false, hasPath: /"type"\s*:\s*"(VECTOR|coupon)"/.test(out) || /couponPath|cpn-bg/.test(out) };
+    const t0 = document.querySelector('.coupon-block [class^="tb-"], .coupon-block [class*=" tb-"]')?.textContent.trim() || '';
+    const out = JSON.stringify(await fn(null));
+    return { noFn: false, t0, hasText: !!t0 && out.includes(JSON.stringify(t0).slice(1, -1)),
+      hasPath: /"type"\s*:\s*"(VECTOR|coupon)"/.test(out) || /couponPath|cpn-bg/.test(out) };
   });
   /* ★전제 — 내보내기 함수를 ★실제로 불렀나. 못 불렀으면 이 칸은 «못 쟀다»지 «결함»이 아니다. */
+  /* 로그 한 줄씩 — test.fail 은 어느 단언에서 져도 «예상 실패»라 error-context 없이도 런 로그로 «어디서» 졌는지 가른다(마지막으로 찍힌 stage 다음이 진 자리) */
+  console.log(`[C-EXPORT] stage=noFn noFn=${r.noFn}`);
   expect(r.noFn, '★내보내기 입구를 못 찾았다 — 이 칸은 결함을 재고 있지 않다').toBe(false);
+  /* ★전제 — 내보내기가 이 쿠폰을 «지나갔다»(글자는 tb- 폴백으로 산다 · 머리말). 여기서 실패하면 결함이 아니라 장면 문제다 — error-context 로 가른다. */
+  console.log(`[C-EXPORT] stage=hasText t0=${JSON.stringify(r.t0)} hasText=${r.hasText}`);
+  expect(r.hasText, `★쿠폰 글자(${JSON.stringify(r.t0)})가 내보내기에 없다 — 이 칸이 쿠폰을 안 지났다`).toBe(true);
+  console.log(`[C-EXPORT] stage=hasPath hasPath=${r.hasPath}`);
   expect(r.hasPath, '★쿠폰 배경이 내보내기에 실렸다').toBe(true);
+  console.log(`[C-EXPORT] stage=errs n=${errs.length} ${errs.join(' | ').slice(0, 200)}`);
   expect(errs).toEqual([]);
+  console.log('[C-EXPORT] stage=end(전부 통과 — 결함이 고쳐졌다 · test.fail 을 걷을 때)');
 });

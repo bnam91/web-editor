@@ -331,11 +331,13 @@ test('T6 ★페이지 패널 Grid 절 «안»에 패딩 비주얼 «라디오 �
   const src = codeOnly(PAGE);
 
   /* ★입력이 살아 있다 — Grid 절을 «실제로» 찾았나. 못 찾으면 아래는 통째로 공회전이다. */
-  const gi = src.indexOf('<div class="prop-section-title">Grid</div>');
-  assert.ok(gi > 0, 'Grid 절 제목을 못 찾았다 — 페이지 패널 구조가 바뀌었나');
-  /* 절의 끝 = 다음 prop-section 제목(없으면 문서 끝). ⛔고정 창으로 자르지 않는다. */
-  const nx = src.indexOf('<div class="prop-section-title">', gi + 10);
-  const grid = src.slice(gi, nx > 0 ? nx : src.length);
+  /* ★U3(right-panel-unify) — 절은 틀에 등록된다: Grid 절 = sec('special', `…`, { title: 'Grid' }). 시작 = 그 호출, 끝 = 그 제목 인자. */
+  const gi = src.indexOf("sec('special', `");
+  assert.ok(gi > 0, 'Grid 절(special) 등록을 못 찾았다 — 페이지 패널 구조가 바뀌었나');
+  /* 절의 끝 = 그 절의 제목 인자. ⛔고정 창으로 자르지 않는다. */
+  const nx = src.indexOf("{ title: 'Grid' }", gi);
+  assert.ok(nx > gi, '이 special 절이 Grid 가 아니다 — 엉뚱한 절을 떴다');
+  const grid = src.slice(gi, nx);
   assert.ok(grid.length > 200 && grid.length < 6000,
     `Grid 절을 ${grid.length}자로 떴다 — 0 이면 잴 게 없고, 너무 크면 절 경계를 놓쳤다`);
 
@@ -501,10 +503,11 @@ test('T13 ★색 피커 둘이 Grid 절 «안»에 각자 자기 로우에 있�
   const src = codeOnly(PAGE);
 
   /* ★입력이 살아 있다 — Grid 절을 실제로 떴나(T6 과 같은 자르개). */
-  const gi = src.indexOf('<div class="prop-section-title">Grid</div>');
-  assert.ok(gi > 0, 'Grid 절 제목을 못 찾았다 — 페이지 패널 구조가 바뀌었나');
-  const nx = src.indexOf('<div class="prop-section-title">', gi + 10);
-  const grid = src.slice(gi, nx > 0 ? nx : src.length);
+  const gi = src.indexOf("sec('special', `");   // ★U3 — T6 과 같은 자르개(틀 등록)
+  assert.ok(gi > 0, 'Grid 절(special) 등록을 못 찾았다 — 페이지 패널 구조가 바뀌었나');
+  const nx = src.indexOf("{ title: 'Grid' }", gi);
+  assert.ok(nx > gi, '이 special 절이 Grid 가 아니다 — 엉뚱한 절을 떴다');
+  const grid = src.slice(gi, nx);
   assert.ok(grid.length > 200 && grid.length < 6000, `Grid 절을 ${grid.length}자로 떴다`);
   assert.match(grid, /id="page-grid-on"/, 'Grid 절 안에 그리드 라디오가 없다 — 엉뚱한 덩이를 떴다');
 

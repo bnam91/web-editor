@@ -84,7 +84,9 @@ test('E38-T1 [새 것] Icon Text 를 고르면 Type 절이 안 보인다', async
   const id = await add(page, 'window.addIconTextBlock()', '#canvas .icon-text-block');
   expect(id, '[전제] Icon Text').toBeTruthy();
   await clickCenter(page, `#${id} .itb-text`);
-  expect(await typeShown(page), 'Icon Text 패널의 Type 절').toBe(false);
+  /* ★U2(right-panel-unify) 의도 갱신 — 틀은 해당 없는 절을 «숨기지» 않고 «안 그린다»(null = 없음). 패널은 떠 있어야 한다. */
+  await expect(page.locator('#itb-gap-slider'), '[전제] Icon Text 패널이 떴다').toBeAttached();
+  expect(await typeShown(page), 'Icon Text 패널의 Type 절 — 없다(null)').toBeNull();
   expect(errs).toEqual([]);
 });
 test('E38-T2 [지킴] 글자 블럭(Body)은 Type 절이 보인다', async ({ page }) => {

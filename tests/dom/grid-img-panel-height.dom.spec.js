@@ -25,8 +25,10 @@ async function scene(page, line) {
   return errs;
 }
 const field = (page) => page.evaluate(() => {
-  const i = document.getElementById('grd-img-height'), h = document.getElementById('grd-img-height-hint');
-  return { has: !!i, disabled: i ? i.disabled : null, hint: h ? { text: h.textContent.trim(), shown: !!h.offsetParent } : null };
+  /* ★U1(right-panel-unify · 패널 prop-hint ≤2 · 2026-11-13) 의도 갱신 — 까닭은 따로 줄(#grd-img-height-hint)이 아니라 «막힌 칸의 title»이다(문구 그대로).
+     양성대조: prop-grid.js 의 `disabled title="${_GRD_IMG_H_LOCK}"` 에서 title 을 빼면 P1 빨강. */
+  const i = document.getElementById('grd-img-height');
+  return { has: !!i, disabled: i ? i.disabled : null, hint: (i && i.title) ? { text: i.title.trim(), shown: !!i.offsetParent } : null };
 });
 const frameH = (page) => page.evaluate(() => document.querySelector('#gP .grd-img-frame').offsetHeight);
 

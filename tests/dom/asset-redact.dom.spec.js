@@ -118,7 +118,9 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
     const rs = document.getElementById('asset-redact-slider'), rn = document.getElementById('asset-redact-number');
     const card = rs?.closest('.prop-cell-card');
     return {
-      grainNextIsFx: !!grainSec && grainSec.nextElementSibling?.id === 'asset-fx-section',
+      /* U4(right-panel-unify): 그레인 = Appearance 절 · 효과 목록 = Effects 절(#asset-fx-section 이 그 절 자체 — U0 fxSectionParts).
+         옛 단언 「그레인 바로 다음 형제가 Effects」는 절 순서(§2-1)가 정하므로 «소속 절»로 잰다. 양성대조: 그레인을 sec('effects' 로 옮기면 빨강 */
+      grainNextIsFx: grainSec?.dataset.sec === 'appearance' && document.getElementById('asset-fx-section')?.dataset.sec === 'effects',
       inFx: !!rs?.closest('#asset-fx-section'), cardType: card?.dataset.fxType || null,
       cardTitle: card?.querySelector('.prop-cell-card-title')?.textContent.trim() || null,
       optsAfter: [...(document.getElementById('asset-fx-add')?.options || [])].map(o => o.value),
@@ -130,7 +132,7 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
     };
   });
   console.log('R1', JSON.stringify(out));
-  expect(out.grainNextIsFx, '그레인 바로 다음이 Effects 절이 아니다(옛 절이 끼어 있다)').toBe(true);
+  expect(out.grainNextIsFx, '그레인이 Appearance 절에, 효과 목록이 Effects 절에 있지 않다').toBe(true);
   expect(out.inFx, '블러 슬라이더가 Effects 절 안에 없다').toBe(true);
   expect(out.cardType).toBe('blur');
   expect(out.cardTitle).toBe('블러');

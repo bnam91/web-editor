@@ -22,6 +22,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
 import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import {
   COUPON_SLOTS, COUPON_SLOT_KEYS, COUPON_DEFAULTS, COUPON_LIMITS, clampCoupon,
   _dsKey, _slotOf, _cpnBoxH, couponStubHasRoom,
@@ -85,22 +86,17 @@ function _slotListHTML(block, openKey) {
        ★`.prop-none-check` 도 ★정본이다(editor-props.css:526 — `flex-shrink:0; white-space:nowrap`).
          ⛔전에 쓴 `.prop-check` 는 ★내가 ★지어낸 이름이었다(레포 전수 1건 = 이 파일 · CSS 0건). */
     return `
-      <div class="prop-row"${style}>
+      <div class="prop-row" data-sec-item${style}>
         <span class="prop-label"${sel} title="${_esc(def.label)}">${_esc(def.label)}</span>
         <label class="prop-none-check" title="이 칸을 캔버스에 보일지">
           <input type="checkbox" data-cpn-on="${def.key}"${sl.on ? ' checked' : ''} aria-label="${_esc(def.label)} 표시">
         </label>
         <button class="prop-icon-btn" data-cpn-open="${def.key}" aria-expanded="${open ? 'true' : 'false'}"
                 title="${open ? '이 칸 접기' : '이 칸만 열기'}">${disclosureChevronHtml(open)}</button>
-        <span class="prop-hint" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>
+        <span class="prop-value-text" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>
       </div>`;
   }).join('');
-  const note = stubRoom ? '' : `
-      <div class="prop-hint" style="padding:4px 8px;line-height:1.5">
-        ⛔지금은 「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할을 켜거나 절취선을 켜십시오.
-        <span style="opacity:.7">(분할·절취선 조절은 2단계)</span>
-      </div>`;
-  return rows + note;
+  return rows;   // 스텁 자리 없음 안내는 Content 머리 힌트 한 줄에 접었다(절 힌트 ≤ 2 · panel-section-gate G1 · u5-variants-combo V-K)
 }
 
 /* ══ 고른 칸 ★하나 ═══════════════════════════════════════════════════════════
@@ -118,28 +114,27 @@ function _slotPanelHTML(block, key) {
     : size;
   const raw = block.dataset[_dsKey(key, 'Text')] ?? '';
   return `
-    <div class="prop-section">
-      <div class="prop-section-title">${_esc(def.label)} — 이 칸만 열려 있습니다</div>
       <div class="prop-row">
         <span class="prop-label">글자</span>
         <input type="text" class="prop-input" id="cpn-slot-text" value="${_esc(raw)}" placeholder="${_esc(def.ph)}" style="flex:1">
       </div>
+      <div data-own="content">${/* data-own: 고른 칸의 글자 크기 — 그 칸 편집기(Content)와 한 몸(옆 색 줄과 같은 까닭) */ ''}
 ${_pairRow('cpn-slot-size', '모델 크기', size, 4, 150)}
-      <div class="prop-hint" style="padding:2px 8px">지금 화면에서는 <b>${eff}px</b> 로 그려집니다 — 폭이 좁아지면 같은 비율로 줄어듭니다.</div>
+      </div>
+      <div class="prop-row" title="폭이 좁아지면 같은 비율로 줄어듭니다"><span class="prop-label">화면 크기</span><span class="prop-value-text">${eff}px</span></div>
       <div class="prop-row">
         <span class="prop-label">굵기</span>
         <select class="prop-select" id="cpn-slot-weight">
           ${[300, 400, 500, 600, 700, 800, 900].map(w => `<option value="${w}"${w === sl.weight ? ' selected' : ''}>${w}</option>`).join('')}
         </select>
       </div>
-      <div class="prop-row">
+      <div class="prop-row" data-own="content">${/* data-own: 고른 칸의 글자색 — 그 칸 편집기(Content)와 한 몸 */ ''}
         <span class="prop-label">색</span>
         ${colorFieldHTML({ idPrefix: 'cpn-slotcol', hex: _swatchHex(sl.color, def.color), alpha: parseAlphaFromColor(sl.color) })}
       </div>
       <div class="prop-row">
         <button class="prop-btn" id="cpn-slot-close">칸 닫기 — 목록으로</button>
-      </div>
-    </div>`;
+      </div>`;
 }
 
 /**
@@ -167,23 +162,27 @@ export function showCouponProperties(block, slotKey) {
   const stubCol = block.dataset.stubCol || COUPON_DEFAULTS.stubCol;
   const boxH = _cpnBoxH(block, width);
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
-    icon: _ICON,
-    name: block.dataset.layerName,
-    defaultName: 'Coupon',
-    crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
-    id: block.id,
-  })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Coupon</div>
-${couponPresetChipsHTML(block)}
+  renderPanel(block, {
+    header: blockHeaderHTML({
+      icon: _ICON,
+      name: block.dataset.layerName,
+      defaultName: 'Coupon',
+      crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
+      id: block.id,
+    }),
+    /* 옛 「Coupon」 절 → Type(프리셋)·Size(폭·높이)·Appearance(모서리)·Fill(색) · 옛 「글자 칸 n」 → Content(목록 ＋ 고른 칸 하나) */
+    sections: [
+      sec('kind', couponPresetChipsHTML(block)),
+      sec('content', `
+      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다. 지금은 ${openKey ? `<b>${_esc(openKey)}</b> 칸이 열려 있습니다.` : '아무 칸도 펼치지 않은 상태입니다.'}${couponStubHasRoom(block) ? '' : `
+        <br>⛔지금은 「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할을 켜거나 절취선을 켜십시오. <span style="opacity:.7">(분할·절취선 조절은 2단계)</span>`}</div>
+${_slotListHTML(block, openKey)}
+${openKey ? _slotPanelHTML(block, openKey) : ''}`),
+      sec('size', `
 ${_pairRow('cpn-width', '폭', width, L.width.min, L.width.max)}
-      <div class="prop-hint" style="padding:2px 8px">높이는 <b>${boxH}px</b> — 비율 16:9 를 블럭이 스스로 지킵니다. <span style="opacity:.7">(비율 고르기는 2단계)</span></div>
-${_pairRow('cpn-radius', '모서리', radius, L.radius.min, L.radius.max)}
+      <div class="prop-row" title="비율 16:9 를 블럭이 스스로 지킵니다 (비율 고르기는 2단계)"><span class="prop-label">높이</span><span class="prop-value-text">${boxH}px · 16:9</span></div>`),
+      sec('appearance', _pairRow('cpn-radius', '모서리', radius, L.radius.min, L.radius.max)),
+      sec('fill', `
       <div class="prop-row">
         <span class="prop-label">본체색</span>
         ${colorFieldHTML({ idPrefix: 'cpn-body', hex: _swatchHex(bodyCol, COUPON_DEFAULTS.bodyCol), alpha: parseAlphaFromColor(bodyCol) })}
@@ -191,15 +190,9 @@ ${_pairRow('cpn-radius', '모서리', radius, L.radius.min, L.radius.max)}
       <div class="prop-row">
         <span class="prop-label">스텁색</span>
         ${colorFieldHTML({ idPrefix: 'cpn-stub', hex: _swatchHex(stubCol, COUPON_DEFAULTS.stubCol), alpha: parseAlphaFromColor(stubCol) })}
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">글자 칸 ${COUPON_SLOTS.length}</div>
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다. 지금은 ${openKey ? `<b>${_esc(openKey)}</b> 칸이 열려 있습니다.` : '아무 칸도 펼치지 않은 상태입니다.'}</div>
-${_slotListHTML(block, openKey)}
-    </div>
-${openKey ? _slotPanelHTML(block, openKey) : ''}`;
+      </div>`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 

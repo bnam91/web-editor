@@ -118,15 +118,11 @@ export function videoTrimSectionHTML(ab) {
 
   if (!ready) {
     return `
-    <div class="prop-section">
-      <div class="prop-section-title">Video</div>
-      <div class="prop-hint" style="text-align:center;padding:8px 0;">영상 정보를 불러오는 중...</div>
-    </div>`;
+      <div class="prop-hint" style="text-align:center;padding:8px 0;">영상 정보를 불러오는 중...</div>`;
   }
 
+  /* U4(right-panel-unify): 절 «몸통»만 낸다 — 껍데기·제목은 prop-asset.js 의 sec('special', …, { title: 'Trim' }) 이 그린다. */
   return `
-    <div class="prop-section">
-      <div class="prop-section-title">Video 트림</div>
       <div class="vtrim-track-wrap" id="vtrim-track-wrap">
         <div class="vtrim-track"></div>
         <div class="vtrim-range" id="vtrim-range"></div>
@@ -149,11 +145,9 @@ export function videoTrimSectionHTML(ab) {
           <option value="2"${speed === '2' ? ' selected' : ''}>2×</option>
         </select>
       </div>
-      <button class="prop-action-btn primary" id="vtrim-apply-gif-btn" style="margin-top:12px;">✓ GIF로 적용</button>
-      <div class="prop-hint" style="text-align:center;margin-top:2px;">트림 구간을 구워 이 블록의 최종 이미지(GIF)로 확정합니다</div>
+      <button class="prop-action-btn primary" id="vtrim-apply-gif-btn" style="margin-top:12px;" title="트림 구간을 구워 이 블록의 최종 이미지(GIF)로 확정합니다">✓ GIF로 적용</button>
       <button class="prop-action-btn secondary" id="vtrim-export-frame-btn" style="margin-top:10px;">현재 프레임 이미지로 내보내기</button>
-      <button class="prop-action-btn secondary" id="vtrim-export-gif-btn" style="margin-top:6px;">GIF로 내보내기(다운로드)</button>
-    </div>`;
+      <button class="prop-action-btn secondary" id="vtrim-export-gif-btn" style="margin-top:6px;">GIF로 내보내기(다운로드)</button>`;
 }
 
 export function wireVideoTrim(ab) {

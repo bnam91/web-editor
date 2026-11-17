@@ -12,6 +12,7 @@
 
 import { propPanel } from '../globals.js';
 import { bindSlider, blockHeaderHTML } from './_helpers.js';
+import { renderPanel, sec, hintHTML } from './_panel-frame.js';
 import { wireHexText, parseHex6, formatHex6, noticeAlphaText } from './color-picker.js';
 
 const DIRS = [
@@ -40,9 +41,8 @@ export function showGradientProperties(block) {
   const startAlphaPct = Math.round(startAlpha * 100);
   const endAlphaPct   = Math.round(endAlpha   * 100);
 
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <defs>
               <linearGradient id="grad-ico" x1="0" y1="0" x2="0" y2="1">
@@ -56,11 +56,9 @@ ${blockHeaderHTML({
       defaultName: 'Gradient',
       crumb: window.getBlockBreadcrumb?.(block) || '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Style</div>
+    }),
+    sections: [
+      sec('kind', `
       <div class="prop-row">
         <span class="prop-label">타입</span>
         <select class="prop-select" id="grad-style" style="flex:1">
@@ -73,19 +71,13 @@ ${blockHeaderHTML({
         <select class="prop-select" id="grad-direction" style="flex:1">
           ${DIRS.map(d => `<option value="${d.v}" ${direction===d.v?'selected':''}>${d.label}</option>`).join('')}
         </select>
-      </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Color Stops</div>
+      </div>`),
+      sec('fill', `
       <div class="grad-stops-bar" id="grad-stops-bar"></div>
-      <div class="prop-hint" style="font-size:11px;color:#999;margin:-2px 0 8px">바를 클릭해 중간색 추가 · 핸들 드래그로 위치 · ×로 삭제(최소 2개)</div>
+      ${hintHTML('바를 클릭해 중간색 추가 · 핸들 드래그로 위치 · ×로 삭제(최소 2개)')}
       <div id="grad-stops-list"></div>
-      <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Size</div>
+      <button type="button" id="grad-add-stop" class="prop-btn" style="margin-top:6px;width:100%;font-size:12px;">+ 중간색 추가</button>`),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="grad-width-slider" min="200" max="1200" step="10" value="${width}">
@@ -96,9 +88,9 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="grad-height-slider" min="50" max="1500" step="10" value="${height}">
         <input type="number" class="prop-number" id="grad-height-num" min="50" max="1500" value="${height}">
       </div>
-      <div class="prop-hint" style="font-size:11px;color:#999;margin-top:4px">캔버스에 자유 배치 (드래그로 이동, 우측 컨트롤로 크기 조절)</div>
-    </div>
-  `;
+      ${hintHTML('캔버스에 자유 배치 (드래그로 이동, 우측 컨트롤로 크기 조절)')}`),
+    ],
+  });
 
   // ── 헬퍼 ────────────────────────────────────────────────────────────────────
   const rerender = () => window.renderGradientBlock?.(block);

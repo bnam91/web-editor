@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>패널 절 컴포넌트</title>
+<!-- ★실제 앱 CSS 를 그대로 싣는다 — 이 페이지의 픽셀 = 앱 우측 패널의 픽셀. (right-panel-unify U0 · A-5)
+     ⚠️ES 모듈을 import 하므로 file:// 로는 안 열린다 — 레포 루트를 http 로 서빙해 연다:
+       python3 -m http.server --bind 127.0.0.1 8765   (레포 루트에서) → http://127.0.0.1:8765/docs/styleguide-panel.html
+     ⛔순서표를 여기 손으로 적지 않는다 — js/props/_section-spec.js 를 import 해 그린다(문서가 묵지 않게). -->
+<link rel="stylesheet" href="../css/design-tokens.css">
+<link rel="stylesheet" href="../css/editor-base.css">
+<link rel="stylesheet" href="../css/editor-props.css">
+<link rel="stylesheet" href="../css/editor-blocks.css">
+<style>
+  body { margin: 0; background: var(--ui-bg-app); color: var(--ui-text); font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', sans-serif; font-size: var(--ui-fs-12); }
+  .sgp { display: flex; gap: var(--ui-space-4); padding: var(--ui-space-4); align-items: flex-start; flex-wrap: wrap; }
+  .sgp-col { flex: 1 1 320px; min-width: 0; }
+  #panel-right { width: 260px; flex: 0 0 auto; background: var(--ui-bg-base); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); }
+  #panel-right .panel-body { padding: var(--ui-space-1) 0; }
+  h3 { font-size: var(--ui-fs-13); margin: var(--ui-space-3) 0 var(--ui-space-2); color: var(--ui-text); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--ui-fs-base); }
+  th, td { text-align: left; padding: var(--ui-space-1) var(--ui-space-2); border-bottom: 1px solid var(--ui-border); vertical-align: top; }
+  th { color: var(--ui-text-sub); font-weight: var(--ui-fw-semibold); }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: var(--ui-fs-10); color: var(--ui-accent); }
+  .sw { display: inline-block; height: var(--ui-space-2); background: var(--ui-accent-primary); vertical-align: middle; border-radius: 2px; }
+  .ok { color: var(--ui-success); } .bad { color: var(--ui-danger); }
+</style>
+</head>
+<body>
+<div class="sgp">
+  <div class="panel" id="panel-right"><div class="panel-body"></div></div>
+  <div class="sgp-col">
+    <h3>전역 절 순서 (<code>js/props/_section-spec.js</code> 에서 읽음)</h3>
+    <table id="sgp-order"><thead><tr><th>#</th><th>key</th><th>제목</th></tr></thead><tbody></tbody></table>
+    <h3>간격 스케일 <code>--ui-space-*</code></h3>
+    <table id="sgp-space"><thead><tr><th>토큰</th><th>값</th><th></th></tr></thead><tbody></tbody></table>
+    <h3>상태 매트릭스 — 왼쪽 패널에서 직접 해 본다</h3>
+    <table>
+      <thead><tr><th>상태</th><th>어떻게 보나</th><th>무엇이 지키나</th></tr></thead>
+      <tbody>
+        <tr><td>펼침</td><td>기본값(처음 열면 전부 펼침)</td><td>panel-frame.test F6</td></tr>
+        <tr><td>접힘</td><td>절 제목 클릭 — 쉐브론 −90° · 몸통 숨김 · 새로고침해도 유지(절 key 단위)</td><td>gate G3 · unit F5</td></tr>
+        <tr><td>hover</td><td>제목 위에 마우스 — <code>--ui-sec-title-color-hover</code></td><td>states S1</td></tr>
+        <tr><td>focus</td><td>Tab — 공용 링 <code>--ui-focus-ring</code> · Enter/Space 로 접기</td><td>states S2</td></tr>
+        <tr><td>disabled</td><td>아래 스코프칩 「글줄」 — <code>--ui-disabled-opacity</code></td><td>U1 몫</td></tr>
+        <tr><td>빈값</td><td>placeholder 는 세 어휘만: 숫자 <code>자동</code> · 색 <code>상속</code> · 혼합 <code>Mix</code></td><td>U6 census</td></tr>
+        <tr><td>넘침</td><td>마지막 special 절의 긴 제목 — ellipsis</td><td>states S3</td></tr>
+        <tr><td>에러</td><td>같은 key 두 번 · 영문/괄호 제목 → throw(아래 칸에 실제 메시지)</td><td>unit F2 · F4</td></tr>
+      </tbody>
+    </table>
+    <h3>에러(실제 throw 메시지)</h3>
+    <table id="sgp-err"><tbody></tbody></table>
+  </div>
+</div>
+<script type="module">
+import { SECTION_ORDER, SECTION_TITLE } from '../js/props/_section-spec.js';
+import { renderPanel, sec, buildPanelHTML, fieldRowHTML, hintHTML, scopeChipsHTML } from '../js/props/_panel-frame.js';
+import { blockHeaderHTML } from '../js/props/_helpers.js';
+
+const row = (label) => fieldRowHTML(label, '<input type="number" class="prop-number" placeholder="자동">');
+const body = {
+  kind: scopeChipsHTML([{ scope: 'block', label: '블록' }, { scope: 'col', label: '열' }, { scope: 'row', label: '행' }, { scope: 'line', label: '글줄', disabled: true }], 'block'),
+  content: row('글'),
+  position: row('X') + row('Y'),
+  size: row('너비') + row('높이'),
+  layout: row('간격'),
+  padding: row('위아래'),
+  appearance: row('모서리'),
+  typography: row('글꼴'),
+  fill: row('색'),
+  stroke: row('두께') + row('글자 윤곽'),   // 블록 테두리·글자 윤곽선 = 같은 Stroke 절의 행
+  effects: row('그림자'),
+  export: hintHTML('예시 힌트 — 패널당 둘까지'),
+  template: row('이름'),
+};
+renderPanel(null, {
+  header: blockHeaderHTML({ name: '예시 블록', crumb: '섹션 1 · 행 1' }),
+  sections: [
+    ...SECTION_ORDER.filter((k) => k !== 'special').map((k) => sec(k, body[k])),
+    sec('special', row('너비'), { title: 'Tail' }),
+    sec('special', row('값'), { title: 'Supercalifragilisticexpialidocious Antidisestablishmentarianism' }),
+  ],
+});
+
+document.querySelector('#sgp-order tbody').innerHTML = SECTION_ORDER
+  .map((k, i) => `<tr><td>${i + 1}</td><td><code>${k}</code></td><td>${SECTION_TITLE[k] ?? '(블록 고유 · Title Case/약어 1~2단어 · 선언순)'}</td></tr>`).join('');
+const cs = getComputedStyle(document.documentElement);
+document.querySelector('#sgp-space tbody').innerHTML = [1, 2, 3, 4]
+  .map((n) => { const v = cs.getPropertyValue(`--ui-space-${n}`).trim(); return `<tr><td><code>--ui-space-${n}</code></td><td>${v}</td><td><span class="sw" style="width:var(--ui-space-${n})"></span></td></tr>`; }).join('');
+const tryIt = (what, f) => { try { f(); return `<tr><td>${what}</td><td class="bad">throw 없음 ✗</td></tr>`; } catch (e) { return `<tr><td>${what}</td><td class="ok">${e.message}</td></tr>`; } };
+document.querySelector('#sgp-err tbody').innerHTML = [
+  tryIt('같은 key 두 번', () => buildPanelHTML({ sections: [sec('size', 'a'), sec('size', 'b')] })),
+  tryIt('special 제목 「꼬리」(한글)', () => sec('special', 'a', { title: '꼬리' })),
+  tryIt('special 제목 「Tail (V)」(괄호)', () => sec('special', 'a', { title: 'Tail (V)' })),
+].join('');
+</script>
+</body>
+</html>

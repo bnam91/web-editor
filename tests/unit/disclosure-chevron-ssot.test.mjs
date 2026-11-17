@@ -75,7 +75,9 @@ const USERS = ['js/props/prop-grid.js', 'js/props/prop-banner02.js',
 test('C3 ★네 파일이 그 한 벌을 쓴다 — ⛔인라인 SVG 가 되살아나면 빨개진다', () => {
   for (const rel of USERS) {
     const src = read(rel);
-    assert.match(src, /disclosureChevronHtml\(/, `${rel}: ★한 벌을 안 부른다`);
+    /* ★right-panel-unify U5(261113) — 배너2·표는 자작 머리를 걷고 공용 머리 disclosureSectionHtml(→ disclosureChevronHtml)을 부른다 ⇒ 둘 중 하나면 «한 벌».
+       양성대조: prop-table.js 의 disclosureSectionHtml( 를 인라인 쉐브론으로 되돌리면 아래 지문 단언이 빨강. */
+    assert.match(src, /disclosure(?:Chevron|Section)Html\(/, `${rel}: ★한 벌을 안 부른다`);
     assert.match(src, /from '\.\/_helpers\.js'/, `${rel}: ★_helpers 를 안 쓴다`);
     /* ⛔옛 지문 — 이 조각을 «다시» 인라인으로 쓰면 네 벌로 돌아간다. 주석은 걷고 본다
        (네 곳 주석이 이 그림을 «인용»하고 있어서, 안 걷으면 이 단언이 늘 빨개진다). */

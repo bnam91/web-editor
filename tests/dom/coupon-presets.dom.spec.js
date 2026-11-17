@@ -148,7 +148,8 @@ test('C-P4a ★칩이 ★뜬다 — 패널에 ★명부 수만큼 ＋ ★새 쿠
     const chips = [...document.querySelectorAll('[data-cpn-preset]')];
     return {
       /* ★전제 — 패널이 ★정말 열렸나(안 열렸으면 「칩 0개」는 ★다른 까닭이다) */
-      panelOpen: /글자 칸/.test(document.getElementById('panel-right').innerHTML),
+      /* U5: 옛 절 제목 「글자 칸 n」 → 틀의 Content 절(data-sec) — ⇐ 되돌리기: prop-coupon.js 의 sec('content' …) 를 지우면 거짓 */
+      panelOpen: !!document.querySelector('#panel-right .prop-section[data-sec="content"] [data-cpn-open]'),
       n: chips.length,
       rosterN: window.__KEYS.length,
       keys: chips.map(c => c.getAttribute('data-cpn-preset')),

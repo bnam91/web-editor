@@ -8,6 +8,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor,
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
 import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml } from './_helpers.js';
+import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.js';   /* unwrapSection — _typo-section 빌더가 «절 통째»를 주므로 몸통만(U0c) */
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
      「사본을 만들면 ★그 11개(후속 P0 수정)를 ★두 번 더 만든다」고 ★막아 뒀다.
@@ -129,9 +130,18 @@ export function showModalProperties(block) {
        · 가로 형태(icon·grid-2)는 흐리게 + «까닭» 툴팁(option·select 둘 다 — 맥 네이티브 팝업은 option 툴팁을 안 띄울 수 있다) */
   const _fz = window.canFrameifyModal?.(block) || { ok: false, reason: '' };
   const _fzTip = String(_fz.reason || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. 플로팅 토글·회전 = Position · 모서리 = Appearance(Q2) ·
+     배경·배경이미지·아이콘색·글자색 = Fill 한 절 · 그림자·장식 = Effects 한 절 · 아이콘·프로필 = Content. 절 «안» 마크업·id 는 옛 그대로. */
+  const _typo = unwrapSection(buildTypographySectionHtml({
+      p: 'mdl-typo',
+      font: fontFamily, weight: fontWeight, size: fontSize,
+      isBold: on('bold'), isItalic: on('italic'), isStrike: on('strike'), isHighlight: on('highlight'),
+      lh: lineHeight, ls: letterSpacing,
+      sizeMin: 10, sizeMax: 60,
+    }));
+  const _fill = unwrapSection(buildFillSectionHtml({ p: 'mdl-typo', colorHex: _swatchHex(textColor), alpha: parseAlphaFromColor(textColor) }));
+  renderPanel(block, {
+    header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
             <rect x="1.5" y="2" width="9" height="8" rx="1.5"/><path d="M3.5 7.5 H8.5 M3.5 5 H6.5"/>
           </svg>`,
@@ -139,11 +149,9 @@ ${blockHeaderHTML({
       defaultName: 'Modal',
       crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '',
       id: block.id,
-    })}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Variant</div>
+    }),
+    sections: [
+      sec('kind', `
       <div class="prop-row">
         <span class="prop-label">형태</span>
         <select class="prop-select" id="mdl-variant"${_fz.ok ? '' : ` title="${_fzTip}"`}>
@@ -156,17 +164,8 @@ ${blockHeaderHTML({
           </optgroup>
         </select>
       </div>
-      ${isGrid ? `
-      <div class="prop-row">
-        <span class="prop-label">칸 간격</span>
-        <input type="range" class="prop-slider" id="mdl-gap-slider" min="0" max="40" step="2" value="${gap}">
-        <input type="number" class="prop-number" id="mdl-gap-number" min="0" max="40" value="${gap}">
-      </div>` : ''}
-    </div>
-
-    ${isIcon ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Icon</div>
+`),
+      sec('content', (isIcon ? `
       <div class="prop-row">
         <span class="prop-label">아이콘</span>
         <button class="prop-btn-full" id="mdl-icon-pick" style="flex:1">아이콘 고르기</button>
@@ -181,19 +180,51 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="mdl-isize-slider" min="12" max="96" step="2" value="${_i('iconSize', 24)}">
         <input type="number" class="prop-number" id="mdl-isize-number" min="12" max="96" value="${_i('iconSize', 24)}">
       </div>
+` : '') + (isPlainish ? `
+    <!-- 프로필(1017t1l2 · 현빈 1018t1-l2a/b/c) — 장식 절과 같은 꼴·같은 하네스.
+         버즈 낱개는 진짜 모달이라 ★여기가 «낱개마다» 고치는 자리다(묶음 전체는 프레임 패널의 Buzz 절).
+         ⚠plain · dashed 에서만 뜨게 했다 — 그리는 자리가 그 갈래 하나라(modal-block.js), 다른 변형에서
+           칸만 보이면 «화면이 거짓말하는» 자리가 된다(이 파일 그림자·표 밖 값 주석의 그 까닭).
+         ★없는 칸 — 꼴(원형/네모/둥근네모)과 이모지 크기 갈래는 ★현빈 미결이라 안 놓았다(⛔지어내지 말 것 · 근거는 modal-block.js 프로필 머리말 ②). -->
+      <span class="prop-field-label">Profile</span>
+      <button class="prop-action-btn secondary" id="mdl-pf-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <input type="file" id="mdl-pf-img-input" accept="image/*" style="display:none">
       <div class="prop-row">
-        <span class="prop-label">아이콘색</span>
-        ${isRaster
-          ? `<span class="prop-label" style="opacity:.55">이미지는 색 변경 불가</span>`
-          : colorFieldHTML({ idPrefix: 'mdl-ic', hex: iconColor, alpha: parseAlphaFromColor(iconColor) })}
+        <span class="prop-label">이모지</span>
+        <input type="text" class="prop-input" id="mdl-pf-emoji" maxlength="8" style="flex:1;min-width:0"
+               value="${escHtml(block.dataset.profileEmoji || '')}" placeholder="예: 😊" aria-label="이모지">
       </div>
-    </div>` : ''}
-
-    <div class="prop-section">
-      <div class="prop-section-title prop-ph-header">
-        <span>Size</span>
-        ${overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat })}
+      ${pfKind ? `
+      <span class="prop-field-label">자리</span>
+      <div class="prop-align-group" id="mdl-pf-side-group" role="group" aria-label="프로필 자리">
+        ${MODAL_PROFILE_SIDES.map((sd) => `<button class="prop-align-btn${sd === pfSide ? ' active' : ''}" data-pside="${sd}">${sd === 'left' ? '왼쪽' : '오른쪽'}</button>`).join('')}
       </div>
+      <!-- data-own=content: 프로필 «사진» 크기 — 블록 크기(Size)가 아니라 프로필(Content)의 속성 -->
+      <div class="prop-row" data-own="content" title="본문 글자와 따로 움직인다(현빈 l2c 「프로필 크기만 키울 수 있도록」)">
+        <span class="prop-label">크기</span>
+        <input type="range" class="prop-slider" id="mdl-pf-size-slider"
+               min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" step="${MODAL_PROFILE_SIZE_LIMIT.step}" value="${pfSize}">
+        <input type="number" class="prop-number" id="mdl-pf-size-number"
+               min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" value="${pfSize}">
+      </div>
+      <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
+        <span class="prop-label">오버레이</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="mdl-pf-overlay"${block.dataset.profileOverlay === '1' ? ' checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
+      <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
+` : '')),
+      sec('position', `
+      <div class="prop-row">
+        <span class="prop-label">회전°</span>
+        <input type="range" class="prop-slider" id="mdl-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
+        <input type="number" class="prop-number" id="mdl-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+      </div>
+      ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
+`, { headTools: overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat }) }),
+      sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
         <div class="prop-type-group">
@@ -210,16 +241,24 @@ ${blockHeaderHTML({
         </div>
         <input type="number" class="prop-number" id="mdl-h-number" min="${L.height.min}" max="${L.height.max}" value="${height}"${hMode === 'fixed' ? '' : ' disabled'}>
       </div>
+`),
+      sec('layout', `
+      ${isGrid ? `
       <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="mdl-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="mdl-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
+        <span class="prop-label">칸 간격</span>
+        <input type="range" class="prop-slider" id="mdl-gap-slider" min="0" max="40" step="2" value="${gap}">
+        <input type="number" class="prop-number" id="mdl-gap-number" min="0" max="40" value="${gap}">
+      </div>` : ''}
+      <div class="prop-row">
+        <span class="prop-label">정렬</span>
+        <div class="prop-align-group">
+          ${alignBtn('text', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
+          ${alignBtn('text', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
+          ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
+        </div>
       </div>
-      ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Padding</div>
+`),
+      sec('padding', `
       <div class="prop-row">
         <span class="prop-label">좌우</span>
         <input type="range" class="prop-slider" id="mdl-padx-slider" min="0" max="80" step="2" value="${padX}">
@@ -230,15 +269,18 @@ ${blockHeaderHTML({
         <input type="range" class="prop-slider" id="mdl-pady-slider" min="0" max="80" step="2" value="${padY}">
         <input type="number" class="prop-number" id="mdl-pady-number" min="0" max="80" value="${padY}">
       </div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Background</div>
+`),
+      sec('appearance', `
+      <div class="prop-row">
+        <span class="prop-label">모서리</span>
+        <input type="range" class="prop-slider" id="mdl-radius-slider" min="${L.radius.min}" max="${L.radius.max}" step="1" value="${radius}">
+        <input type="number" class="prop-number" id="mdl-radius-number" min="${L.radius.min}" max="${L.radius.max}" value="${radius}">
+      </div>
+`),
+      sec('typography', _typo.body),
+      sec('fill', `
       <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Bg Image</div>
+      <span class="prop-field-label">Image</span>
       <button class="prop-action-btn secondary" id="mdl-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
       <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
@@ -254,10 +296,16 @@ ${blockHeaderHTML({
         <button class="prop-action-btn secondary" id="mdl-bg-pos-btn" style="margin-top:6px;">${block._secBgEditing ? '배경이미지 편집 완료' : '배경이미지 편집'}</button>
         <button class="prop-action-btn danger" id="mdl-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
       ` : ''}
-    </div>
-
-    <div class="prop-section">
-      <div class="prop-section-title">Border</div>
+` + (isIcon ? `
+      <div class="prop-row">
+        <span class="prop-label">아이콘색</span>
+        ${isRaster
+          ? `<span class="prop-label" style="opacity:.55">이미지는 색 변경 불가</span>`
+          : colorFieldHTML({ idPrefix: 'mdl-ic', hex: iconColor, alpha: parseAlphaFromColor(iconColor) })}
+      </div>
+` : '') + `
+      <span class="prop-field-label">Text</span>` + _fill.body),
+      sec('stroke', `
       <div class="prop-row">
         <span class="prop-label">두께</span>
         <input type="range" class="prop-slider" id="mdl-bw-slider" min="0" max="12" step="1" value="${borderW}">
@@ -272,13 +320,8 @@ ${blockHeaderHTML({
         </div>
       </div>
       <div class="prop-row"><span class="prop-label">테두리색</span>${colorFieldHTML({ idPrefix: 'mdl-bc', hex: borderColor, alpha: parseAlphaFromColor(borderColor) })}</div>
-      <div class="prop-row">
-        <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="mdl-radius-slider" min="${L.radius.min}" max="${L.radius.max}" step="1" value="${radius}">
-        <input type="number" class="prop-number" id="mdl-radius-number" min="${L.radius.min}" max="${L.radius.max}" value="${radius}">
-      </div>
-    </div>
-
+`),
+      sec('effects', `
     <!-- ★그림자 — 현빈 발주 2026-09-09. 줌블럭의 「도형 그림자」와 «같은 하네스»다:
            prop-align-group + prop-align-btn[data-val] 세 개, 어휘도 없음/부드럽게/강하게 그대로
            (선례 js/props/prop-zoom.js:227-233). ⛔새 컨트롤 종류를 발명하지 않는다.
@@ -286,8 +329,7 @@ ${blockHeaderHTML({
            «다른 그림자»가 이미 있어 가르는 말이 필요했기 때문이다. 모달에는 그 말이 없어
            (실측: modal-block.js·prop-modal.js 에 shadow/box-shadow 0건) 제목이 짧다.
          ⛔안내문 행을 두지 마라 — prop-label 은 폭 ~56px 라 문장이 잘린다(prop-zoom.js 실측 주석). -->
-    <div class="prop-section">
-      <div class="prop-section-title">Shadow</div>
+      <span class="prop-field-label">Shadow</span>
       <div class="prop-row">
         <div class="prop-align-group" id="mdl-drop-group">
           <button class="prop-align-btn${dropShadow === 'none'   ? ' active' : ''}" data-val="none">없음</button>
@@ -295,13 +337,10 @@ ${blockHeaderHTML({
           <button class="prop-align-btn${dropShadow === 'strong' ? ' active' : ''}" data-val="strong">강하게</button>
         </div>
       </div>
-    </div>
-
     <!-- 장식(1012t1Z5) — 꼬리 · 테이프. 모달의 옵션이다(버즈 묶음 안팎 같다). 그리는 것은 renderModalBlock.
          단추 묶음은 절 «직속»이고 라벨은 윗줄(.prop-field-label) — 넷이 한 줄에 들어가야 한다.
          단추 속성은 data-tail / data-tape 다(이 파일의 data-val 은 그림자 3단의 것이다). -->
-    <div class="prop-section">
-      <div class="prop-section-title">Decoration</div>
+      <span class="prop-field-label">Decoration</span>
       <span class="prop-field-label">꼬리</span>
       <div class="prop-align-group" id="mdl-deco-tail-group">
         <button class="prop-align-btn${decoTail === 'none'  ? ' active' : ''}" data-tail="none">없음</button>
@@ -315,66 +354,9 @@ ${blockHeaderHTML({
         <button class="prop-align-btn${decoTape === 'center' ? ' active' : ''}" data-tape="center">가운데</button>
         <button class="prop-align-btn${decoTape === 'right'  ? ' active' : ''}" data-tape="right">오른쪽</button>
       </div>
-    </div>
-
-    <!-- 프로필(1017t1l2 · 현빈 1018t1-l2a/b/c) — 장식 절과 같은 꼴·같은 하네스.
-         버즈 낱개는 진짜 모달이라 ★여기가 «낱개마다» 고치는 자리다(묶음 전체는 프레임 패널의 Buzz 절).
-         ⚠plain · dashed 에서만 뜨게 했다 — 그리는 자리가 그 갈래 하나라(modal-block.js), 다른 변형에서
-           칸만 보이면 «화면이 거짓말하는» 자리가 된다(이 파일 그림자·표 밖 값 주석의 그 까닭).
-         ★없는 칸 — 꼴(원형/네모/둥근네모)과 이모지 크기 갈래는 ★현빈 미결이라 안 놓았다(⛔지어내지 말 것 · 근거는 modal-block.js 프로필 머리말 ②). -->
-    ${isPlainish ? `
-    <div class="prop-section">
-      <div class="prop-section-title">Profile</div>
-      <button class="prop-action-btn secondary" id="mdl-pf-img-btn" style="margin-top:6px;">이미지 선택</button>
-      <input type="file" id="mdl-pf-img-input" accept="image/*" style="display:none">
-      <div class="prop-row">
-        <span class="prop-label">이모지</span>
-        <input type="text" class="prop-input" id="mdl-pf-emoji" maxlength="8" style="flex:1;min-width:0"
-               value="${escHtml(block.dataset.profileEmoji || '')}" placeholder="예: 😊" aria-label="이모지">
-      </div>
-      ${pfKind ? `
-      <span class="prop-field-label">자리</span>
-      <div class="prop-align-group" id="mdl-pf-side-group" role="group" aria-label="프로필 자리">
-        ${MODAL_PROFILE_SIDES.map((sd) => `<button class="prop-align-btn${sd === pfSide ? ' active' : ''}" data-pside="${sd}">${sd === 'left' ? '왼쪽' : '오른쪽'}</button>`).join('')}
-      </div>
-      <div class="prop-row" title="본문 글자와 따로 움직인다(현빈 l2c 「프로필 크기만 키울 수 있도록」)">
-        <span class="prop-label">크기</span>
-        <input type="range" class="prop-slider" id="mdl-pf-size-slider"
-               min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" step="${MODAL_PROFILE_SIZE_LIMIT.step}" value="${pfSize}">
-        <input type="number" class="prop-number" id="mdl-pf-size-number"
-               min="${MODAL_PROFILE_SIZE_LIMIT.min}" max="${MODAL_PROFILE_SIZE_LIMIT.max}" value="${pfSize}">
-      </div>
-      <div class="prop-row" title="켜면 카드 높이를 안 늘린다 — 커지면 배경 위아래로 넘쳐 걸친다(현빈 l2c)">
-        <span class="prop-label">오버레이</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="mdl-pf-overlay"${block.dataset.profileOverlay === '1' ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
-    </div>` : ''}
-
-    <div class="prop-section">
-      <div class="prop-section-title">Text</div>
-      <div class="prop-row">
-        <span class="prop-label">정렬</span>
-        <div class="prop-align-group">
-          ${alignBtn('text', 'left',   { label: '왼쪽 정렬',   title: '왼쪽 정렬',   active: align === 'left',   attrs: { 'data-al': 'left' } })}
-          ${alignBtn('text', 'center', { label: '가운데 정렬', title: '가운데 정렬', active: align === 'center', attrs: { 'data-al': 'center' } })}
-          ${alignBtn('text', 'right',  { label: '오른쪽 정렬', title: '오른쪽 정렬', active: align === 'right',  attrs: { 'data-al': 'right' } })}
-        </div>
-      </div>
-    </div>
-
-    ${buildTypographySectionHtml({
-      p: 'mdl-typo',
-      font: fontFamily, weight: fontWeight, size: fontSize,
-      isBold: on('bold'), isItalic: on('italic'), isStrike: on('strike'), isHighlight: on('highlight'),
-      lh: lineHeight, ls: letterSpacing,
-      sizeMin: 10, sizeMax: 60,
-    })}
-
-    ${buildFillSectionHtml({ p: 'mdl-typo', colorHex: _swatchHex(textColor), alpha: parseAlphaFromColor(textColor) })}`;
+`),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
 
@@ -606,6 +588,9 @@ ${blockHeaderHTML({
     //   변형의 정체(테두리/배경)는 여기서 dataset 에 «박혀야» 한다 —
     //   dataset.variant 만 바꾸면 렌더된 borderTopStyle 이 none 으로 남는다.
     applyModalVariant(block, sel.value);
+    /* 새 변형이 줄을 더하는 절은 연다 — 아이콘 변형 = Content(아이콘 고르기·크기) · grid-2 = Layout(칸 간격) (U0c expandSection) */
+    if (sel.value === 'icon' || sel.value === 'icon-stack') expandSection('content');
+    if (sel.value === 'grid-2') expandSection('layout');
     rerender(); commit();
     // 재렌더 후 패널을 다시 그린다 — 값 필드(두께/스타일/배경)가 «새 정체»를 반영해야 한다.
     showModalProperties(block);   // 변형에 따라 패널 구성이 달라진다(아이콘/간격 행)
@@ -962,7 +947,11 @@ export function showModalIconProperties(block) {
        누르면 아이콘이 아니라 모달이 움직인다. 모달 안에서의 아이콘 위치는 모달의
        정렬(align/vAlign)이 이미 갖고 있으므로 «없는 게» 맞다.
      ★로직을 베껴 고치는 게 아니라 «안 맞는 칸을 뺀다» — 두 벌이 안 생긴다. */
-  propPanel.querySelector('#icn-align-group')?.closest('.prop-row')?.remove();
+  const _icnRow = propPanel.querySelector('#icn-align-group')?.closest('.prop-row');
+  const _icnSec = _icnRow?.closest('.prop-section[data-sec]');
+  _icnRow?.remove();
+  /* 틀로 옮긴 아이콘 패널(U4)이면 그 줄이 Layout 절의 전부일 수 있다 — 빈 절 머리만 남기지 않게 절째로 걷는다(U4 평가 지적). */
+  if (_icnSec && !_icnSec.querySelector(':scope > .prop-sec-body > *')) _icnSec.remove();
 
   // 돌아가는 문 — 없으면 모달 속성으로 못 돌아온다(아이콘 패널은 모달을 모른다).
   const back = document.createElement('div');

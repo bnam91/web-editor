@@ -99,26 +99,23 @@ test('t2-01 구분선 줄 — 선 색·줄 정렬 간격 = 굵기·너비 간격
   expect(got.gap, `선 색→줄 정렬 간격 ${got.gap}px ≠ 표준 ${got.std}px`).toBe(got.std);
 });
 
-/* ── t2-02 ── 「＋ 블럭 넣기」 절: 위 구분선(절 border-top) → 드롭다운 행 사이 여백 = 제목 있는 절의 구분선 → 제목 여백.
- * 되돌리면 빨개지는 것: #grd-kids-section 의 padding-top 을 빼면(0 ≠ 8). */
-test('t2-02 블럭 넣기 드롭다운 — 위 구분선과의 여백 = 다른 절(.prop-section-title)과 같다', async ({ page }) => {
+/* ── t2-02 ── 「＋ 블럭 넣기」 절의 자리.
+ * 옛(0912): 패널 최상위 절 — 위 구분선(border-top 1px) → 드롭다운 여백 = 제목 절의 구분선 → 제목 여백.
+ * ★U6 의도 갱신 — 계획 §2-1(Insert Grid · Child Blocks = layout 소유): 이 절은 이제 Layout 절 «몸 안»에 선다(prop-grid.js sec('layout' … _grdKidsAddSectionHtml()).
+ *   절 안이라 자기 구분선이 없다(r0913rp 실측 0px) ⇒ «구분선→드롭다운 = 표준 여백» 비교는 대상이 사라져 뺐다. 현빈 «눈에 띄는 이동» 목록 감.
+ * 되돌리면 빨개지는 것: 블럭 넣기를 Layout 밖(다른 절·최상위)으로 옮기면 sec ≠ 'layout' · 절 안에서 구분선을 되살리면 border ≠ 0px. */
+test('t2-02 블럭 넣기 드롭다운 — Layout 절 안 · 절 안이라 자기 구분선 없음', async ({ page }) => {
   const errs = await boot(page);
   const got = await page.evaluate((fx) => {
     window.__mount(fx, null);                       // 블럭 단위 선택 — 이 절이 뜨는 상태
     const sec = document.getElementById('grd-kids-section');
     const sel = document.getElementById('grd-kid-add-kind');
-    const t = document.querySelector('#panel-right .panel-body .prop-section + .prop-section > .prop-section-title');
-    if (!sec || !sel || !t) return { ok: false };
-    const titled = t.parentElement.getBoundingClientRect().top;
-    return { ok: true, border: getComputedStyle(sec).borderTopWidth,
-      std: Math.round(t.getBoundingClientRect().top + parseFloat(getComputedStyle(t).paddingTop) - titled),
-      gap: Math.round(sel.closest('.prop-row').getBoundingClientRect().top - sec.getBoundingClientRect().top) };
+    if (!sec || !sel) return { ok: false };
+    return { ok: true, owner: sec.parentElement?.closest('.prop-section[data-sec]')?.dataset.sec ?? null, border: getComputedStyle(sec).borderTopWidth };
   }, FIX);
   expect(errs).toEqual([]);
-  expect(got.ok, '전제 — 블럭 넣기 절·드롭다운·비교할 제목 절이 다 떴다').toBe(true);
-  expect(got.border, '전제 — 블럭 넣기 절 위에 구분선이 있다').toBe('1px');
-  expect(got.std, '전제 — 표준 여백이 0 이 아니다').toBeGreaterThan(0);
-  expect(got.gap, `구분선→드롭다운 ${got.gap}px ≠ 표준 ${got.std}px`).toBe(got.std);
+  expect(got.ok, '전제 — 블럭 넣기 절·드롭다운이 떴다').toBe(true);
+  expect([got.owner, got.border], '블럭 넣기 = Layout 절 안 · 자기 구분선 0').toEqual(['layout', '0px']);
 });
 
 /* ── t2-05 ── 그리드 패널의 안내 3개가 어느 상태에서도 안 뜨고, 그 자리에 «빈 절»(여백만 남은 .prop-section)도 안 남는다.

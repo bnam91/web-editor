@@ -99,7 +99,8 @@ test('P0 전제 — 패널 부품(.prop-cell-card·.prop-section-title-row·.pro
   const errs = await setup(page);
   const css = fs.readFileSync(path.join(ROOT, 'css/editor-props.css'), 'utf8');
   for (const sel of ['.prop-cell-card {', '.prop-cell-card-header {', '.prop-icon-btn {', '.prop-icon-input {', '.prop-select {']) expect(css.includes(sel), sel).toBe(true);
-  expect(fs.readFileSync(path.join(ROOT, 'js/props/prop-text-template.js'), 'utf8').includes('prop-section-title-row'), 'Shadow 절 머리 꼴이 있다').toBe(true);
+  /* ★U2 — 텍스트 패널의 절 머리줄은 틀(_panel-frame.js)이 그린다(prop-text-template.js 엔 0곳) */
+  expect(fs.readFileSync(path.join(ROOT, 'js/props/_panel-frame.js'), 'utf8').includes('prop-section-title-row'), 'Shadow 절 머리 꼴이 있다(틀)').toBe(true);
   /* ★2026-10-06 — 추가 손잡이가 ＋단추(PLUS_ICON_SVG)에서 «고르는 목록»(.prop-select)으로 바뀌었다(현빈 「바로 적용되는 것이 아니라」).
      ⇒ 전제도 «따라간 선례»로 바꾼다: 「＋ 줄 추가」 꼴이 prop-grid 에 ★아직 있다(없어지면 내 「선례를 따랐다」가 거짓이 된다). */
   expect(fs.readFileSync(path.join(ROOT, 'js/props/prop-grid.js'), 'utf8').includes('_grdAddKindSelectHtml'), '따른 선례(＋ 줄 추가 select)가 아직 있다').toBe(true);

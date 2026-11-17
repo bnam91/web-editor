@@ -104,7 +104,7 @@ test('F5 패널 — glow 절만 보이고(Shape·기본 절 숨김) · 세기·�
     const b = document.getElementById(id);
     window._selectSticker?.(b);
     const vis = (el) => !!el && getComputedStyle(el).display !== 'none';
-    const shapeSec = [...document.querySelectorAll('.prop-section')].find(s => s.querySelector('.prop-section-title')?.textContent.trim() === 'Shape');
+    const shapeSec = document.getElementById('stk-shape-section');   // U5: 「Shape」 제목 절 → Type 절 안 감싸개(id 그대로)
     const out = { glowSec: vis(document.getElementById('stk-glow-section')), shapeSec: vis(shapeSec), imageSec: vis(document.getElementById('stk-image-section')) };
     // 세기 = 진하기(알파 기울기) · 퍼짐 = 반경 — 두 축이 «따로» 그림에 닿는다(2026-10-06 분리)
     const sd = () => b.querySelector('feGaussianBlur').getAttribute('stdDeviation');
