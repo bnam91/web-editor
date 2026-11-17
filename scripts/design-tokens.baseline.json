@@ -1,6 +1,6 @@
 {
   "_how": "scripts/check-design-tokens.sh ③ 래칫 기준 — 그 스크립트 자신으로 잰 값(2026-11-13 U0, right-panel-unify). 늘면 exit 1, 줄면 이 값을 내려 커밋한다.",
-  "props-inline-hardcoded": 337,
+  "props-inline-hardcoded": 336,
   "css-px": 3962,
   "css-color": 1635
 }
