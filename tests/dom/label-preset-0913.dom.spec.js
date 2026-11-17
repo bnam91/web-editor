@@ -10,6 +10,9 @@
  *   P7 (dev 꼴) 새 줄은 옛 «Style» 절 안에만 산다 — 절 수·절 제목 순서 무변 · 기존 id(lg-style-select·lg-apply-all-btn 등) 그대로
  *      ★우측패널 가지판(36cb754d8)의 P7 은 패널 틀 게이트(judgePanel)였다 — dev 엔 그 틀(_panel-frame·_panel-sections)이 없어
  *        해당 없음 ⇒ dev 의 옛 패널 모양을 직접 단언한다.
+ *   P8 (0.9.12 열차 이식 · 충돌 «양쪽 다 살림» 지킴) 모양 변수(B1)에 묶인 칸에 기본 프리셋 → 묶임 끊김(data-label-shape 없음)
+ *      · clipPath 비움(var 참조 떨어짐) · 프리셋 값이 그려짐 · 그 뒤 변수를 고쳐도 그 칸은 안 따라감
+ *      ⇒ CTL: prop-label-group.js _applyPresetToItem 의 `if (item.dataset.labelShape) { delete … clipPath = ''; }` 줄을 지우면 P8 빨강
  * 양성대조(돌릴 사람이 확인): prop-label-group.js 의 `_wireLabelUserPresets(block, selectedItem, styleSelect);` 호출 줄을 지우면
  *   P1·P3·P4·P5 빨강(저장 버튼이 무동작 · 저장소 0건) · P6 의 기본 4종 단언은 초록.
  *   `<optgroup label="내 프리셋">` 묶음을 지우면 P1·P2·P5 빨강(고를 항목 없음).
@@ -184,5 +187,25 @@ test('P7 (dev 꼴) 새 줄은 Style 절 안 · 절 구성 무변', async ({ page
   const home = await page.evaluate(() => ['lg-style-select', 'lg-apply-all-btn', 'lg-preset-save-btn', 'lg-preset-user-row', 'lg-preset-name-row']
     .map((id) => document.getElementById(id)?.closest('.prop-section')?.querySelector(':scope > .prop-section-title')?.textContent.trim() ?? null));
   expect(home, '★프리셋 줄은 전부 Style 절 안').toEqual(['Style', 'Style', 'Style', 'Style', 'Style']);
+  expect(errs).toEqual([]);
+});
+
+test('P8 모양 변수에 묶인 칸에 기본 프리셋 → 묶임 끊김 · clipPath 비움 · 변수를 고쳐도 안 따라감', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(async () => {
+    try { localStorage.removeItem('we_label_shapes_v1'); } catch {}
+    await window.DesignSystem.restoreLabelShapesFromMeta(null);
+    const spec = window.DesignSystem.setLabelShape('tagx', { kind: 'tag', bg: '#0000ff', color: '#ffffff' });
+    window.LabelShape.bindLabelItem(document.getElementById('tA'), 'tagx', spec);
+  });
+  const pre = await page.evaluate(() => { const t = document.getElementById('tA'); return { shape: t.dataset.labelShape ?? null, clip: t.style.clipPath }; });
+  expect(pre.shape, '[전제] 칸이 변수 tagx 에 묶임').toBe('tagx');
+  expect(pre.clip, '[전제] clipPath = 변수 참조').toMatch(/^var\(--lshape-tagx-clip/);
+  await openPanel(page, 'lgA', 'tA');
+  await page.selectOption('#lg-style-select', 'Filled');
+  const got = await page.evaluate(() => { const t = document.getElementById('tA'); return { shape: t.dataset.labelShape ?? null, clip: t.style.clipPath, bg: getComputedStyle(t).backgroundColor }; });
+  expect(got, '★프리셋을 입히면 변수 묶임이 끊기고 clipPath 가 비어야 한다').toEqual({ shape: null, clip: '', bg: 'rgb(51, 51, 51)' });
+  await page.evaluate(() => window.DesignSystem.setLabelShape('tagx', { kind: 'tag', bg: '#00ff00', color: '#ffffff' }));
+  expect((await look(page, 'tA')).bg, '변수를 고쳐도 끊긴 칸은 프리셋 그대로').toBe('rgb(51, 51, 51)');
   expect(errs).toEqual([]);
 });
