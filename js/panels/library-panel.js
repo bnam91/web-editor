@@ -45,7 +45,18 @@ async function _insert(col, it, img) {
     const nw = img.naturalWidth || 400, nh = img.naturalHeight || 400;
     const w = Math.round(Math.min(_innerWidth(), it.w || col.w || nw));
     closeLibraryModal();
+    const had = new Set(document.querySelectorAll('.asset-block'));
     window.addAssetBlock?.(null, { imgSrc: src, width: w, height: Math.round((w * nh) / nw) });
+    /* 새 블럭은 usePadx 미설정 = 전역 «패딩 제외»(기본 켜짐)를 따라가 addAssetBlock 의 applyExcludePadX 가 폭을 calc(100% + 2·padX) 로
+       덮고, 뒤의 applyPadXToSection 도 다시 덮는다(아이맥 D2·D5 실측). ⇒ 스크래치 드롭(over 0)과 같은 꼴: usePadx='false' + 폭·마진 세트(applyAssetWidth). */
+    const ab = [...document.querySelectorAll('.asset-block')].find((b) => !had.has(b));
+    if (ab) {
+      ab.dataset.usePadx = 'false';
+      window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
+      ab.style.alignSelf = 'center';
+      const tip = window.getHistoryTip?.();   // 같은 틱 고침을 이력 꼭대기에(addAssetBlock 의 data: 갈래와 같은 관용구)
+      if (tip) window.restampHistoryTop?.(tip.seq);
+    }
     window.triggerAutoSave?.();
   } catch (e) {
     console.warn('[library] 그림 읽기 실패:', e);
