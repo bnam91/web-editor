@@ -11,7 +11,7 @@
  *   ── 2차(이벨류에이터 D1·D3·D4·D5) ──
  *   S11 시간 상한 — 안 닫힌 여는 태그·안 닫힌 따옴표·깊은 중첩·엉뚱한 닫는 태그가 줄지어도 선형으로 끝난다(옛 판: 16KB 에 5초)
  *   S12 멱등 — 두 번 걸러도 같은 글자(실체참조가 한 겹씩 자라지 않는다)
- *   S13 style 은 통째로 · 역슬래시(CSS 이스케이프) · image-set/var 같은 함수 · 이름에 ':' 가 든 속성(xml:base …)이 사라진다
+ *   S13 style 의 역슬래시(CSS 이스케이프)는 속성째(⑥ 이후 style 은 허용 목록 — sanitize-svg-attacks.test.mjs) · image-set/var 같은 함수 · 이름에 ':' 가 든 속성(xml:base …)이 사라진다
  *   S14 class · data-* 는 사라지고 id 는 url(#…) 가 가리키는 태그에만 남는다
  *   ── 3차(이벨류에이터 N2) ──
  *   ── SEC-VECTOR-SVG-RAW-01(지디 261113 결정 A) ──
@@ -100,7 +100,9 @@ test('S6 url( — 바깥 주소는 버리고 안쪽 url(#id) 는 남긴다 · st
     + '<path d="M0 0" fill="url(#g)"/><path d="M1 1" fill="url(https://evil.example/a.svg#g)"/>'
     + '<path d="M2 2" style="fill:url(https://evil.example/b)"/><path d="M3 3" style="width:expression(alert(1))"/><path d="M4 4" style="fill:#000;stroke-width:2"/></svg>');
   assert.equal(out, '<svg viewBox="0 0 8 8"><defs><linearGradient id="g"><stop offset="0" stop-color="#f00"/></linearGradient></defs>'
-    + '<path d="M0 0" fill="url(#g)"/><path d="M1 1"/><path d="M2 2"/><path d="M3 3"/><path d="M4 4"/></svg>');   // style 은 무해해 보여도 통째로 버린다(2차 · D4)
+    + '<path d="M0 0" fill="url(#g)"/><path d="M1 1"/><path d="M2 2"/><path d="M3 3"/><path d="M4 4" style="fill:#000;stroke-width:2"/></svg>');
+  /* ⑥(VECTOR 거르개 · 현빈 261117) 옛 기대 «M4 의 style 도 통째로 버림(2차 · D4)» → 새 기대 «허용 목록 선언(fill·stroke-width)은 남음».
+     url(바깥)·expression 은 여전히 사라진다(M2·M3 · 아래 doesNotMatch). 되돌리면(style 통째 버림) 이 줄만 빨강. */
   assert.doesNotMatch(out, /evil\.example|expression/);
 });
 
@@ -213,9 +215,10 @@ test('S12 멱등 — 두 번 걸러도 같은 글자다(실체참조가 한 겹�
   assert.equal(clean(a, R), a, '뿌리 덮어쓰기를 되풀이해도 같다');
 });
 
-test('S13 style 통째로 · 역슬래시 · 허용 밖 함수 · 이름에 콜론이 든 속성이 사라진다', () => {
+test('S13 style 이스케이프는 속성째 · 역슬래시 · 허용 밖 함수 · 이름에 콜론이 든 속성이 사라진다', () => {
   assert.equal(clean('<svg><g style="background-image:\\75rl(http://evil.example/a.png);mask-image:\\75 rl(http://evil.example/b)"><path d="M0" style="fill:red"/></g></svg>'),
-    '<svg><g><path d="M0"/></g></svg>', 'style 은 값이 무엇이든 속성째 버린다');
+    '<svg><g><path d="M0" style="fill:red"/></g></svg>', '역슬래시(CSS 이스케이프) 든 style 은 속성째 버린다 · 허용 목록 선언(fill:red)만 든 style 은 남는다');
+  /* ⑥ 옛 기대 «path 의 style="fill:red" 도 통째로 버림» → 새 기대 «남음»(허용 목록). g 의 이스케이프 style 은 여전히 속성째 사라진다. */
   assert.equal(clean('<svg><g style="background:image-set(\'http://evil.example/a.png\' 1x)"><path d="M0"/></g></svg>'), '<svg><g><path d="M0"/></g></svg>');
   const out = clean('<svg><path d="M0" fill="\\75rl(http://evil.example/#a)" filter="URL( http://evil.example/#f )" mask="url(#m)" stroke="url(\'#s\')"'
     + ' clip-path="image-set(\'http://evil.example\' 1x)" opacity="var(--x)" stroke-width="calc(1px)"/></svg>');
