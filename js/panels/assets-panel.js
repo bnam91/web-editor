@@ -487,6 +487,12 @@ async function assetsImportFromGallery(galleryIds, parentId = null) {
 function _closeAssetPreview() {
   document.querySelectorAll('.tpl-preview-backdrop.asset-preview').forEach(el => { el._onKey && document.removeEventListener('keydown', el._onKey, true); el.remove(); });
 }
+/** data:image/svg+xml(base64·글자) → svg 글자. 못 읽으면 '' (넣는 쪽이 거르개로 거절하고 알린다). */
+function _svgDataUrlText(u) {
+  const m = String(u || '').match(/^data:image\/svg\+xml(;[^,]*)?,(.*)$/is);
+  if (!m) return '';
+  try { return /;base64/i.test(m[1] || '') ? new TextDecoder().decode(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0))) : decodeURIComponent(m[2]); } catch (_) { return ''; }
+}
 async function assetsOpenPreview(id) {
   const f = assetsFindNode(id);
   if (!f || f.node.type !== 'image') return false;
@@ -494,6 +500,8 @@ async function assetsOpenPreview(id) {
   if (!dataUrl) { window.showToast?.('❌ 이미지 로드 실패'); return false; }
   _closeAssetPreview();
   const name = String(f.node.name || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  /* t3-06 P1 — SVG 항목은 «벡터로 넣기»도(색·크기를 블럭으로 고친다 · 거르개·크기는 addVectorFromSvgText 한 벌). 옛 「섹션에 넣기」(그림)는 그대로. */
+  const _isSvg = f.node.mime === 'image/svg+xml' || /^data:image\/svg\+xml[;,]/i.test(dataUrl);
   const bd = document.createElement('div');
   bd.className = 'tpl-preview-backdrop asset-preview';
   bd.innerHTML = `
@@ -508,13 +516,15 @@ async function assetsOpenPreview(id) {
         <img class="asset-preview-img" alt="${name}" style="max-width:100%;max-height:70vh;object-fit:contain;display:block;">
       </div>
       <div class="tpl-preview-footer">
-        <button class="tpl-preview-insert-btn" data-asset-insert>+ 섹션에 넣기</button>
+        <button class="tpl-preview-insert-btn" data-asset-insert>+ 섹션에 넣기</button>${_isSvg ? `
+        <button class="tpl-preview-insert-btn" data-asset-insert-vector>+ 벡터로 넣기</button>` : ''}
       </div>
     </div>`;
   bd.querySelector('.asset-preview-img').src = dataUrl;
   bd.addEventListener('mousedown', e => { if (e.target === bd) _closeAssetPreview(); });
   bd.querySelector('.tpl-preview-close').addEventListener('click', _closeAssetPreview);
   bd.querySelector('[data-asset-insert]').addEventListener('click', async () => { _closeAssetPreview(); await assetsSendToCanvas(id); });
+  bd.querySelector('[data-asset-insert-vector]')?.addEventListener('click', () => { _closeAssetPreview(); window.addVectorFromSvgText?.(_svgDataUrlText(dataUrl), String(f.node.name || '').replace(/\.svg$/i, '') || 'SVG'); });
   bd._onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _closeAssetPreview(); } };
   document.addEventListener('keydown', bd._onKey, true);
   document.body.appendChild(bd);

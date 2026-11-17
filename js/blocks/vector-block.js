@@ -11,6 +11,7 @@ import { bindBlock } from '../drag-drop.js';
 /* ★SEC-VECTOR-SVG-RAW-01 (지디 261113 · 결정 A) — svg 문자열 거르개 한 벌(js/util/sanitize-svg.js)을 벡터도 탄다.
    상한만 벡터용으로 연다(SVG_MAX_LEN_CEIL · MCP 상한과 같다) · 허용태그는 아이콘과 같다(text·use·image·style·foreignObject 는 버린다). */
 import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
+import { svgImportSize } from '../util/svg-import-size.js';
 
 /** data-svg 를 한 번 걸러 «되쓴다» — 다음 그리기엔 버릴 것이 없다(경고는 한 번). 버린 태그는 조용히 두지 않는다(console.warn). */
 function _cleanVectorSvg(block) {
@@ -126,6 +127,51 @@ function addVectorBlock(svgString = '', opts = {}) {
   window.selectSection(sec);
   return block;
 }
+
+// ── 바깥 SVG 들여오기 (t3-06 P1 · 현빈 #19 ② «SVG 지원 먼저») ─────────────────────
+// 문 하나: 에셋 «크게 보기» 창의 「벡터로 넣기」 · 캔버스 섹션에 .svg 파일 끌어 놓기 · SVG 글자 붙여넣기(Figma «Copy as SVG»).
+// 거르개(sanitize-svg)를 넣기 «전»에 한 번 — 뿌리가 <svg> 가 아니거나 상한(200000)을 넘으면 넣지 않고 알린다(빈 블럭 0).
+// 크기 = svgImportSize(뿌리 width·height → viewBox · 긴 변 400). 색 치환·다색(P1-2·P2)은 이번 범위 밖.
+function addVectorFromSvgText(text, label = 'SVG') {
+  const clean = sanitizeSvgString(String(text || '').trim(), { maxLen: SVG_MAX_LEN_CEIL });
+  if (!clean) { window.showToast?.('SVG 로 읽을 수 없습니다 — <svg> 로 시작하고 200KB 이하여야 합니다.'); return null; }
+  const { w, h } = svgImportSize(clean);
+  return window.addVectorBlock(clean, { w, h, label });   // window 문 = 펜툴과 같은 입구(insert-select 선택 따라가기·insert-history 감싸기를 탄다)
+}
+
+const _isSvgFile = (f) => !!f && (f.type === 'image/svg+xml' || /\.svg$/i.test(f.name || ''));
+const _svgSec = (e) => e.target?.closest?.('#canvas .section-block') || null;
+/* 끌어 놓기 — 블럭이 자기 drop 을 가지면(에셋·원형 이미지·인증서 칸) 그쪽이 stopPropagation 으로 먼저 가져간다 · 여기는 «그 밖 섹션 바탕»만.
+   ⛔스크래치(캔버스 밖) drop 은 그대로 이미지 — 그 처리기는 #canvas-scaler 안이면 손을 뗀다(scratch-pad.js).
+   shortcut: 프레임 안(block-drag.js 프레임 inner drop 이 stopPropagation)에 놓으면 안 온다 — 섹션 바탕만 · 프레임 안 넣기가 필요해지면 그 처리기에 파일 갈래를 더한다. */
+document.addEventListener('dragover', (e) => {
+  if (!_svgSec(e) || ![...(e.dataTransfer?.items || [])].some((it) => it.kind === 'file' && it.type === 'image/svg+xml')) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+document.addEventListener('drop', async (e) => {
+  const sec = _svgSec(e);
+  if (!sec) return;   /* ⛔defaultPrevented 로 거르지 않는다 — section-inner drop(section-drag.js)이 파일 drop 도 늘 preventDefault 만 하고 올려 보낸다 */
+  const files = [...(e.dataTransfer?.files || [])].filter(_isSvgFile);
+  if (!files.length) return;
+  e.preventDefault();
+  window.selectSection?.(sec);
+  for (const f of files) addVectorFromSvgText(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG');
+});
+/* 붙여넣기 — 글자가 SVG 일 때만. 그림 항목이 같이 오면 종전대로 스크래치가 그림으로 받는다(두 번 붙지 않게 여기서 손을 뗀다).
+   ⌘V keydown 의 고디터 안 붙여넣기(editor.js · 30ms 뒤)는 스크래치와 같은 깃발로 양보시킨다. */
+const _SVG_TEXT_RE = /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*<svg[\s>]/i;
+document.addEventListener('paste', (e) => {
+  const a = document.activeElement;
+  if (a && (a.isContentEditable || a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+  if ([...(e.clipboardData?.items || [])].some((it) => it.type.startsWith('image/'))) return;
+  const text = e.clipboardData?.getData('text/plain') || '';
+  if (!_SVG_TEXT_RE.test(text) || window.clipboardPrefersInternal?.(e)) return;
+  e.preventDefault();
+  window._scratchJustHandledPaste = true;
+  setTimeout(() => { window._scratchJustHandledPaste = false; }, 100);
+  addVectorFromSvgText(text, 'SVG');
+});
 
 // ── 수정 ──────────────────────────────────────────────────────────────────────
 // PM의 update_vector_block(MCP) → main(_invokeRendererUpdateVectorBlock) → 여기.
@@ -305,6 +351,7 @@ function updateVectorBlock(blockId, partial = {}) {
 // ── window 노출 ────────────────────────────────────────────────────────────
 window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
+window.addVectorFromSvgText = addVectorFromSvgText;
 window.renderVector    = renderVector;
 /* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
    ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.
@@ -321,4 +368,4 @@ window._scaleVectorFromSnap = _scaleVectorFromSnap;
 window.updateVectorBlock = updateVectorBlock;
 window.rebuildPenSvg   = rebuildPenSvg;
 
-export { makeVectorBlock, addVectorBlock, updateVectorBlock, renderVector, rebuildPenSvg };
+export { makeVectorBlock, addVectorBlock, addVectorFromSvgText, updateVectorBlock, renderVector, rebuildPenSvg };
