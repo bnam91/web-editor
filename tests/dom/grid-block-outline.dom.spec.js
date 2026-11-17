@@ -273,6 +273,12 @@ const placeGroupAt = (page, top) => page.evaluate(async (t) => {
     sp.style.height = Math.max(0, (parseFloat(sp.style.height) || 0) + d) + 'px';
     await raf();
   }
+  /* ★261118 cand3 — 「같은 y」에 더해 «패널 몸이 넘치는 스크롤 그릇인가»도 같게: 두 판 다 overflow-y hidden(찍는 동안만 · 자리·마크업 무변 · scrollTop 0 그대로).
+     까닭(아이맥 실측 /tmp/wf8/ty-g18-*.txt): 패널 끝에 절 하나(GIF Export 절 — 빈 60px div 로 바꿔도 같음)가 더해져 지금 판만 패널 몸 903 > 850 으로 넘치고
+     핀 판은 887 = 887(키가 내용 따라 자람 — 끝 띠로 넘기게 해도 안 넘침). 넘치는 auto 스크롤 그릇은 Chromium 이 따로 그려 정렬 묶음 픽셀이 채널 1(42↔43 · 52↔53) 다르다.
+     그 절을 display:none 으로 숨기면 0 · 단추 opacity 0.4 를 빼도 34 ⇒ 단추 그림 차가 아니라 «그릇이 넘치나»의 차. 양성대조(opacity .98)는 그대로 같은 자로 잰다. */
+  body.style.overflowY = 'hidden';
+  await raf();
   return g.getBoundingClientRect().top;
 }, top);
 async function alignShot(page, top) {
