@@ -2105,7 +2105,7 @@ ipcMain.handle('assets:readFile', (_e, { projectId, blobPath } = {}) => {
   }
 });
 
-/* 1013t2A4 — 앱 동봉 에셋(트리 노드의 `bundled`)을 data URL 로. 가드는 main/bundled-asset.js(assets/textures/ 안 · 이미지 확장자만).
+/* 1013t2A4 — 앱 동봉 에셋(트리 노드의 `bundled`)을 data URL 로. 가드는 main/bundled-asset.js(assets/textures/·assets/library/ 안 · 이미지 확장자만).
    asar 안에서도 fs.readFileSync 가 읽는다. */
 ipcMain.handle('assets:readBundled', (_e, { bundled } = {}) => {
   try {
