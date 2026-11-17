@@ -43,7 +43,7 @@ body.preview-mode #preview-topbar.visible {
   pointer-events: auto;
   transform: translateY(0);
 }
-.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; gap: 6px; }
+.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; gap: var(--ui-row-gap); }
 .preview-tb-center { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .preview-tb-right { justify-content: flex-end; }
 
@@ -104,7 +104,7 @@ body.preview-mode #preview-navigator { display: flex; }
 }
 /* ⇆ 가로 — 섹션 그릇을 왼→오 한 줄로(js/preview.js setSectionRowLayout · 그릇 class 하나 · 미리보기 밖에서도 쓸 수 있게 범용 이름) */
 .section-row-layout { flex-direction: row; align-items: flex-start; width: max-content; }
-.section-row-layout > .section-block { flex: 0 0 var(--row-sec-w, 860px); width: var(--row-sec-w, 860px); }
+.section-row-layout > .section-block { flex: 0 0 var(--row-sec-w); width: var(--row-sec-w); }  /* 폴백 없음 — setSectionRowLayout 이 class 보다 먼저 늘 넣는다 */
 /* r5 — 섹션 그릇을 자체 쌓임 맥락으로 가둔다(현빈 «섹션이 세로 스크롤바보다 위에 보인다» · 맥 겹침 스크롤바) — 섹션 안 블럭들의 z-index 는 그대로(결과물 모습 무변), 그릇 전체가 z 0 이라 #preview-overlay 의 스크롤바 밑. 세로·가로·SBS 공통(#preview-content). */
 #preview-content { position: relative; z-index: 0; }
 /* r5 — 가로 스크롤은 줄마다가 아니라 미리보기 창(#preview-overlay) 하나가 맡는다 → 가로 스크롤바가 창 맨 아래 · 페이지 줄이 함께 움직임 (현빈 «스크롤바가 창 맨 아래에») */
