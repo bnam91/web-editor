@@ -165,7 +165,7 @@
   --ui-sec-title-color:      var(--ui-text-sub);       /* 절 제목 muted → sub (7.1:1) */
   --ui-sec-title-color-hover: var(--ui-text);          /* 절 제목 hover */
   --ui-sec-head-py:          var(--ui-space-2);        /* 절 머리 위아래 대칭 = space-2 (prop-title-row-align ⒜안) */
-  --ui-sec-body-pb:          6px;                      /* 펼친 절 몸통 아래 여백 4 → 6 */
+  --ui-sec-body-pb:          10px;                     /* 펼친 절 몸통 아래 여백 = 10 (지디 결정 ㉠ · 0.9.12 로 나간 값 · PROP-SECTION-EXPANDED-BOTTOM-GAP-14-VS-10-01) */
   --ui-hint-color:           var(--ui-text-dim);       /* .prop-hint 옛 회색(2.4:1 ✗AA) → dim(≥4.5:1) */
   --ui-chip-h:               var(--ui-btn-h);          /* 스코프칩 높이 = 버튼 높이 별칭 */
   --ui-focus-ring:           2px solid var(--ui-accent-primary, #2d6fe8);
