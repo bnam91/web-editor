@@ -209,9 +209,10 @@ test('H11 스페이스+드래그 = 가로 팬 · 편집 캔버스로 안 샘 / �
   const errs = await longScene(page);
   const sl = () => page.evaluate(() => document.getElementById('preview-overlay').scrollLeft);
   await page.evaluate(() => { document.getElementById('preview-overlay').scrollLeft = 1000; window.getSelection()?.removeAllRanges(); });
-  const c = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect(); return [O.left + o.clientWidth / 2, O.top + o.clientHeight / 2]; });
   const s0 = await sl();
   expect(s0, '[전제] 가로 스크롤 1000 에 섰다(스크롤러 = #preview-overlay)').toBe(1000);
+  /* 누르는 자리(화면 px · 마우스 목표) — 스크롤 값 단언(1000) 뒤에 잰다: dom-screen-px-census Z3 은 «화면 px 줄 + 3줄 안 두 자리 수»를 문턱으로 본다(스크롤 값 1000 은 문턱이 아니다 · 자리를 떼어 오탐을 없앰) */
+  const c = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect(); return [O.left + o.clientWidth / 2, O.top + o.clientHeight / 2]; });
   // r5b — 스페이스 팬을 «먼저»(앞 칸의 그냥 끌기가 남긴 글 선택 위에서 누르면 맥은 선택 끌기가 시작돼 팬이 안 온다 · 아이맥 0 의 공산) · 진단을 메시지에
   await page.mouse.move(c[0], c[1]);
   await page.keyboard.down('Space');
