@@ -573,17 +573,17 @@ export function wireDisclosureSection(block, key, headId, bodyId, dflt = false) 
 }
 
 /* ── 움직임 블럭 GIF 단추(0.9.13 MOTION · 슬라이드·그리드 신호등 공용) — 텍스트 패널(prop-text.js _applyAnimGate)과 같은 꼴·판정·«왜 안 눌리나» 글.
- *   노출 = animGifVisible(feature-flags.js 한 자리 · 관리자). 클래스 = 텍스트 패널 단추와 같은 prop-anim-btn(새 CSS 0). */
+ *   노출 = animGifVisible(feature-flags.js 한 자리 · 관리자). 클래스 = 텍스트 패널 단추와 같은 prop-anim-btn(새 CSS 0).
+ *   ★단추만 낸다 — 절은 부르는 쪽이 우측패널 틀로 sec('export', animGifBtnHTML()) (텍스트 패널 txt-anim-section 과 같은 Export 절 · cand3 panel-section-gate). */
 export function animGifBtnHTML() {
-  return `<div class="prop-section prop-section--anim">
+  return `
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="1" y="3" width="12" height="8" rx="1.5"/>
           <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
         </svg>
         애니메이션 GIF 만들기
-      </button>
-    </div>`;
+      </button>`;
 }
 export function wireAnimGifBtn(btn, block) {
   const adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);

@@ -4100,6 +4100,8 @@ ${_flattenRowHtml(rows, cols)}
     ${_grdRuleSectionHtml(block)}`),
       /* ★U0b — 추가 목록은 머리(headTools)로 · 걸린 카드는 몸으로 · 절 id = #<P>-fx-section(배선·spec 이 그 id 를 본다). 몸이 비어도 머리가 있으면 절이 선다. */
       _fx ? sec('effects', _grdScopeWrap(_fx.scope, _fx.body), { headTools: _fx.headTools, id: _fx.id }) : sec('effects', ''),
+      /* 0.9.13 MOTION 3단계 ③ 신호등 — 블럭만 고른 상태(줄 주소 없음)에만 GIF 단추 · 틀의 Export 절(텍스트 패널 txt-anim-section 과 같은 자리) · 줄 편집 중엔 절째 없음 */
+      sec('export', _curAddr ? '' : animGifBtnHTML(), { id: 'grd-anim-section' }),
     ],
   });
   _grdWireScopeChips(block, _filter, _inferred);
@@ -4450,8 +4452,8 @@ ${_flattenRowHtml(rows, cols)}
   window.showGridLineGrip?.(block);
   /* ★마커는 «맨 끝»에 다시 붙인다 — 이 함수가 불리는 모든 경로(클릭·레이어패널·MCP·
      updateGridBlock 후 재표시)에서 재렌더가 innerHTML 을 갈아끼웠을 수 있다(bn2 :22~26 과 동형). */
-  /* 0.9.13 MOTION 3단계 ③ 신호등 — 블럭만 고른 상태(줄 주소 없음)에서 GIF 단추(슬라이드·텍스트와 같은 단추·판정 · _helpers.js 한 벌). 줄 편집 중엔 안 띄운다. */
-  if (!_curAddr) { propPanel.insertAdjacentHTML('beforeend', animGifBtnHTML()); wireAnimGifBtn(document.getElementById('open-anim-btn'), block); }
+  /* 0.9.13 MOTION 3단계 ③ 신호등 — GIF 단추(위 sec('export') · 블럭만 고른 상태) 판정·배선(슬라이드·텍스트와 같은 단추·판정 · _helpers.js 한 벌). */
+  if (!_curAddr) wireAnimGifBtn(document.getElementById('open-anim-btn'), block);
   _grdSyncLineMark(block, _curAddr);
 }
 

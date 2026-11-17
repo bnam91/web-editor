@@ -6,6 +6,7 @@
  */
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+import { renderPanel, sec } from './_panel-frame.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { readSlideState, setSlideList, setSlideLayout } from '../blocks/slide-block.js';
 import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
@@ -23,19 +24,23 @@ export function showSlideProperties(block) {
         <button class="prop-btn sld-down" title="뒤로"${i === st.slides.length - 1 ? ' disabled' : ''}>↓</button>
         <button class="prop-btn sld-del" title="빼기">✕</button>
       </div>`).join('');
-  propPanel.innerHTML = `
-    <div class="prop-section">
-${blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Slides', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id })}
-    </div>
-    <div class="prop-section">
-      <div class="prop-section-title">Slides</div>
+  /* ★우측패널 틀(_panel-frame) — cand3 panel-section-gate(prop-cert.js ⓐ 선례 · id·배선 무변): 옛 「Slides」 한 절을 소유대로 갈랐다.
+       Content = 사진 줄·넣기 · Size = 카드 폭/높이 %·높이 · Layout = 간격 · Export = GIF 단추(텍스트 패널 txt-anim-section 과 같은 절). */
+  renderPanel(block, {
+    header: blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Slides', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id }),
+    sections: [
+      sec('content', `
       ${photoRows || '<div class="prop-row"><span class="prop-label">사진 없음</span></div>'}
       <div class="prop-row"><button class="prop-btn" id="sld-add" style="width:100%"${full ? ' disabled' : ''} title="${full ? `최대 ${SLIDE_MAX}장` : '사진 파일 고르기'}">+ 사진 넣기 (${st.slides.length}/${SLIDE_MAX})</button></div>
+      `),
+      sec('size', `
       ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
-      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}
-      ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}
-    </div>
-    ${animGifBtnHTML()}`;
+      ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}`),
+      sec('layout', `
+      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}`),
+      sec('export', animGifBtnHTML(), { id: 'sld-anim-section' }),
+    ],
+  });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
