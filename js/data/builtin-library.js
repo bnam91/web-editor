@@ -29,17 +29,6 @@ export const LIBRARY = [
     ],
   },
   {
-    id: 'storyboard', name: '스토리보드 스케치', dir: 'storyboard',
-    source: 't3-05(261114) — Gemini(나노바나나) 생성 · 색연필 스토리보드 스타일 · 화면 캡처본 1408×780',
-    license: 'AI 생성(Gemini) · 상업 이용 조건 미확인',
-    note: '오른쪽 아래 Gemini 워터마크 있음 — 원본 재생성 전까지 시안용',
-    items: [
-      { file: 'sb-01-interview.jpg', name: '인터뷰 컷' },
-      { file: 'sb-02-factory-wide.jpg', name: '공장 전경' },
-      { file: 'sb-03-manufacturing.jpg', name: '제조 장면' },
-    ],
-  },
-  {
     id: 'doodle', name: '두들·화살표', dir: 'doodle', w: 200,
     source: 't3-07(261113) Figma «피그마익스포트» 화살표·두들 페이지 — 샘플 4종(전량 화살표 34·두들 120 은 아직 안 뽑음)',
     license: 'unknown — 라이선스 대기(커뮤니티 파일 복사본 추정 · 현빈 확인 중)',

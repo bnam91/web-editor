@@ -64,9 +64,8 @@ test('L4 묶음별 내용', () => {
   assert.ok(qr, 'QR·바코드 묶음');
   assert.equal(qr.items.filter((i) => i.file.startsWith('qr_')).length, 7);
   assert.equal(qr.items.filter((i) => i.file.startsWith('bar_')).length, 6);
-  const sb = col('storyboard');   // #18 t3-05
-  assert.deepEqual(sb && sb.items.map((i) => i.file), ['sb-01-interview.jpg', 'sb-02-factory-wide.jpg', 'sb-03-manufacturing.jpg']);
-  assert.match(sb.note, /워터마크/, '워터마크 사실을 출처 줄에');
+  assert.equal(col('storyboard'), undefined, '스토리보드 묶음 = 현빈 261117 제거(#18 철회)');   // #18 t3-05
+  assert.equal(fs.existsSync(path.join(ROOT, LIBRARY_ROOT, 'storyboard')), false, '동봉 폴더도 같이 걷음');
   const dd = col('doodle');   // #10·#20 t3-07 두들·화살표 = 앱 내장 · 라이선스 대기
   assert.ok(dd && !dd.admin, '두들 = 앱 내장(관리자 전용 아님)');
   assert.match(dd.license, /^unknown/, '라이선스 모르면 unknown');

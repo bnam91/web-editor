@@ -2,7 +2,7 @@
  * 장면은 앱의 제 문으로: 섹션 하나 고름 → 하단 Plugins(#fp-plugin-btn) → «내장 라이브러리»(#plugin-library) → 칸 클릭.
  * D1 모달: 묶음 칸 수 = 명부 · 그림이 실제로 읽힘(naturalWidth > 0) · 출처·라이선스 줄
  * D2 넣기: 칸 클릭 → 고른 섹션에 에셋 블럭 하나 더 · 그 그림 = 동봉 PNG 의 data URL · 폭 = 명부 w · 높이 = 그림 비율 · 넣은 직후 우측 패널 너비 240·패딩 제외 꺼짐
- * D3 탭: 묶음 둘 이상이면 탭 · 스토리보드 탭 → 3칸 · JPEG 넣기(폭 = 섹션 안쪽 상한 · 높이 = 1408:780 비율)
+ * D3 탭: 스토리보드 탭 없음(현빈 261117 제거) · 묶음 둘 이상이면 탭 · 관리자 제품 스케치컷 탭 → JPEG 넣기(폭 = 섹션 안쪽 상한 · 높이 = 1410:360 비율)
  * D4 관리자 폴더: 일반 계정 = 미모지 탭 없음(두들 탭은 있음) · 관리자(__admin._forceState) = 미모지 탭 2칸
  * D5 Fluent Emoji: 제 단추(#plugin-fluent-emoji) → 그 묶음 30칸만(탭 없음) · MIT 줄 · 내장 라이브러리 탭엔 없음 · 넣기 160×160
  * D6 제품 스케치컷 샘플: 일반 계정 = 탭 없음 · 관리자 = 8칸 · 그림 8장 다 읽힘
@@ -54,16 +54,16 @@ test('D2 넣기 — QR 칸 클릭 → 에셋 블럭 · 동봉 PNG data URL · 24
   await expect(page.locator('#asset-padx-toggle')).not.toBeChecked();
 });
 
-test('D3 탭 — 스토리보드 3칸 · JPEG 넣기 · 폭 상한·비율', async ({ page }) => {
+test('D3 탭 — 스토리보드 탭 없음 · JPEG 넣기 · 폭 상한·비율', async ({ page }) => {
   await setup(page);
+  await page.evaluate(() => window.__admin._forceState({ ok: true, isAdmin: true }));
   await openLibrary(page);
-  await page.click('.lib-tab[data-col="storyboard"]');
-  await expect(page.locator('.lib-tab[data-col="storyboard"]')).toHaveClass(/active/);
-  await expect(page.locator('#lib-grid .lib-item')).toHaveCount(3);
-  await expect(page.locator('#lib-credit')).toContainText('워터마크');
-  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#lib-grid .lib-item img')].filter((i) => i.naturalWidth > 0).length)).toBe(3);
+  await expect(page.locator('#lib-tabs')).toBeVisible();
+  await expect(page.locator('.lib-tab[data-col="storyboard"]')).toHaveCount(0);   // 현빈 261117 — 스토리보드 묶음 걷음
+  await page.click('.lib-tab[data-col="product-sketch"]');
+  await expect(page.locator('.lib-tab[data-col="product-sketch"]')).toHaveClass(/active/);
   const before = await assetCount(page);
-  await page.click('#lib-grid .lib-item[title="공장 전경"]');
+  await page.click('#lib-grid .lib-item[title="A 비교 한 장"]');
   await expect.poll(() => assetCount(page)).toBe(before + 1);
   const got = await page.evaluate(() => {
     const ab = [...window.getSelectedSection().querySelectorAll('.asset-block')].pop();
@@ -72,7 +72,7 @@ test('D3 탭 — 스토리보드 3칸 · JPEG 넣기 · 폭 상한·비율', asy
   expect(got.src).toBe('data:image/jpeg;base64,/9j/');
   expect(got.w).toBeGreaterThan(0);
   expect(got.w).toBeLessThanOrEqual(860);
-  expect(Math.abs(got.h - Math.round((got.w * 780) / 1408))).toBeLessThanOrEqual(1);
+  expect(Math.abs(got.h - Math.round((got.w * 360) / 1410))).toBeLessThanOrEqual(1);
 });
 
 test('D4 관리자 폴더 — 일반 계정엔 미모지 탭 없음 · 관리자엔 2칸', async ({ page }) => {
