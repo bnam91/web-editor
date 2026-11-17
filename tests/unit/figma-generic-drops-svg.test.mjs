@@ -61,9 +61,8 @@ test('F1 ★★★generic 갈래는 ★«벡터(kind vector)»의 `block.svg` �
   /* ★VECTOR-FIGMA-EXPORT-DROPS-SVG-01(261117 · wk1/vector-svg-import) — 옛 단언 «generic 갈래에 block.svg 가 0» → 새 단언 «block.svg 는 벡터 갈래 안에만».
      ★까닭: 벡터 블럭이 Figma 에 빈 프레임으로 나가던 것을 고쳤다(create_node_from_svg). 어노(kind annotation) 등 다른 generic svg 는 여전히 안 그린다 ⇒ FIGMA-GENERIC-SVG-NOT-DRAWN-01 은 «벡터만 닫힘».
      ★되돌리면(벡터 갈래 삭제) 아래 «벡터 갈래가 있다»가 빨강 · 벡터 밖에서 block.svg 를 쓰기 시작하면 «밖 0» 이 빨강(그때 어노까지 닫혔는지 실화면으로 보고 이 칸을 고쳐라). */
-  const VH = "if (block.kind === 'vector' && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {";
-  assert.ok(b.indexOf(VH) > 0, '★벡터 갈래(kind vector → create_node_from_svg)가 generic 안에 없다');
-  const vec = sliceBlock(b, VH, '벡터 갈래');   // ⛔꼬리 문자열(`\n      }\n`)로 끝을 찾지 않는다 — SB-16
+  /* 구간 = sliceBlock(머리 «리터럴» · 세어서 끝) — ⛔꼬리 문자열 짝맞추기 금지(SB-16) · ⛔머리를 변수로 넘기지 않는다(anchor-signature-ratchet R4 변수 닻) · 못 찾으면 sliceBlock 이 던진다 */
+  const vec = sliceBlock(b, "if (block.kind === 'vector' && typeof block.svg === 'string' && /^\\s*<svg\\b/i.test(block.svg)) {", '★벡터 갈래(kind vector → create_node_from_svg)가 generic 안에 없다');
   const outside = b.replace(vec, '');
   assert.match(vec, /create_node_from_svg/, '★벡터 갈래가 svg 를 안 그린다');
   assert.ok(!/block\.svg/.test(outside), '★벡터 갈래 «밖»에서 block.svg 를 쓴다 — 어노 등도 그리기 시작했으면 실화면 확인 뒤 이 칸을 고쳐라');
