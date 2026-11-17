@@ -197,6 +197,9 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
    *            BT2_T6_MUT=add 는 ③ 통과(id 있는 빈 줄 — 컨트롤 0). */
   const T6_SPEC = {
     added: ['grd-scope-block', 'grd-scope-col', 'grd-scope-row', 'grd-scope-line'],
+    /* ★U1 뒤 갱신(261118 cand3 · 태양) — 옛 골든에 이미 있는 컨트롤은 «더함» 면제 없이 ③ 그대로 견준다(아래 :pool) ·
+       그 뒤 뜻한 «더함»은 상태를 못박아 한 줄씩: 0.9.13 MOTION ea315d24e 블럭만 고른 판의 GIF 단추. */
+    addedLater: [{ id: 'open-anim-btn', states: ['block'], why: '0.9.13 MOTION 3단계 신호등 ea315d24e — _helpers.js animGifBtnHTML' }],
     PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
@@ -224,7 +227,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
         // ③ 컨트롤
         /* 짝짓기 — 같은 키끼리 문서 순서로(같은 키가 여럿이면 n 번째끼리). 짝마다 aria 를 견준다. */
         const pool = new Map();
-        for (const c of b.querySelectorAll('input,select,button,textarea')) { if (S.added.includes(c.id)) continue; const key = ctrlKey(c); if (!pool.has(key)) pool.set(key, []); pool.get(key).push(c); }
+        for (const c of b.querySelectorAll('input,select,button,textarea')) { if (S.added.includes(c.id) && !a.querySelector('#' + c.id)) continue; if (S.addedLater.some(x => x.id === c.id && x.states.includes(k)) && !a.querySelector('#' + c.id)) continue; const key = ctrlKey(c); if (!pool.has(key)) pool.set(key, []); pool.get(key).push(c); }
         for (const ca of a.querySelectorAll('input,select,button,textarea')) {
           const key = ctrlKey(ca), q = pool.get(key);
           if (!q || !q.length) { out.push(`${k} ③ 컨트롤 사라짐/바뀜 ${key}`); continue; }
