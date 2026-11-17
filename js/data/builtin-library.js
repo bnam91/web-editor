@@ -1,7 +1,7 @@
 /* builtin-library.js — 앱 «내장 라이브러리» 명부(manifest) · 0.9.13 현빈 결정 261117(handoff/hyunbin-decisions-261117.md)
  *   파일 = assets/library/<dir>/<file> — 앱에 동봉(package.json build.files 가 assets/** 를 싣는다).
  *   읽기 = IPC assets:readBundled(가드 main/bundled-asset.js · assets/library/ 안 · 이미지 확장자만) → data URL → 에셋 블럭.
- *   묶음 칸: id · name · dir · w(넣을 때 폭 px · 없으면 그림 폭 · 섹션 안쪽 폭 상한) · admin(관리자 계정만 보임 · 앱 내장 아님 = 개인용 폴더) · source · license · note · items[{ file, name, w? }]
+ *   묶음 칸: id · name · dir · w(넣을 때 폭 px · 없으면 그림 폭 · 섹션 안쪽 폭 상한) · admin(관리자 계정만 보임 · 앱 내장 아님 = 개인용 폴더) · plugin(Plugins 패널의 제 단추로만 엶 · 내장 라이브러리 탭엔 없음) · source · license · note · items[{ file, name, w? }]
  *   ⚠️import 0 — 단위 검사(tests/unit/builtin-library.test.mjs)가 이 파일 하나만 복사해 싣는다.
  */
 export const LIBRARY_ROOT = 'assets/library';
@@ -58,6 +58,43 @@ export const LIBRARY = [
     items: [
       { file: 'memoji-1.png', name: '미모지 1' },
       { file: 'memoji-2.png', name: '미모지 2' },
+    ],
+  },
+  {
+    id: 'fluent-emoji', name: 'Fluent Emoji 3D', dir: 'fluent-emoji', w: 160, plugin: true,
+    source: 'Microsoft Fluent Emoji 3D(github.com/microsoft/fluentui-emoji) — t3-08 선별 30종 · 256×256 투명 PNG',
+    license: 'MIT © Microsoft Corporation(고지 = assets/library/fluent-emoji/LICENSE.txt)',
+    items: [
+      { file: 'clapping_hands.png', name: 'clapping hands' },
+      { file: 'crying_face.png', name: 'crying face' },
+      { file: 'face_with_tears_of_joy.png', name: 'face with tears of joy' },
+      { file: 'grinning_face.png', name: 'grinning face' },
+      { file: 'party_popper.png', name: 'party popper' },
+      { file: 'partying_face.png', name: 'partying face' },
+      { file: 'person_bowing.png', name: 'person bowing' },
+      { file: 'person_facepalming.png', name: 'person facepalming' },
+      { file: 'person_gesturing_ok.png', name: 'person gesturing ok' },
+      { file: 'person_raising_hand.png', name: 'person raising hand' },
+      { file: 'person_shrugging.png', name: 'person shrugging' },
+      { file: 'person_tipping_hand.png', name: 'person tipping hand' },
+      { file: 'red_heart.png', name: 'red heart' },
+      { file: 'smiling_face_with_heart-eyes.png', name: 'smiling face with heart-eyes' },
+      { file: 'smiling_face_with_smiling_eyes.png', name: 'smiling face with smiling eyes' },
+      { file: 'star-struck.png', name: 'star-struck' },
+      { file: 'thinking_face.png', name: 'thinking face' },
+      { file: 'thumbs_up.png', name: 'thumbs up' },
+      { file: 'winking_face.png', name: 'winking face' },
+      { file: 'obj_balloon.png', name: 'balloon' },
+      { file: 'obj_crown.png', name: 'crown' },
+      { file: 'obj_fire.png', name: 'fire' },
+      { file: 'obj_heart_with_ribbon.png', name: 'heart with ribbon' },
+      { file: 'obj_rocket.png', name: 'rocket' },
+      { file: 'obj_shopping_bags.png', name: 'shopping bags' },
+      { file: 'obj_shopping_cart.png', name: 'shopping cart' },
+      { file: 'obj_sparkles.png', name: 'sparkles' },
+      { file: 'obj_star.png', name: 'star' },
+      { file: 'obj_trophy.png', name: 'trophy' },
+      { file: 'obj_wrapped_gift.png', name: 'wrapped gift' },
     ],
   },
 ];

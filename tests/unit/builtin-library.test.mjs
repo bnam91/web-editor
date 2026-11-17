@@ -73,12 +73,20 @@ test('L4 묶음별 내용', () => {
   const mm = col('admin-memoji');   // 미모지류 = 관리자 폴더(앱 내장 아님)
   assert.ok(mm && mm.admin === true, '미모지 = 관리자 전용');
   assert.equal(LIBRARY.filter((c) => c.admin).map((c) => c.id).includes('doodle'), false);
+  const fl = col('fluent-emoji');   // #21 t3-08 — Microsoft Fluent Emoji 만 · 플러그인 패널 제 단추
+  assert.ok(fl && fl.plugin === true && !fl.admin, 'Fluent = 플러그인 단추 · 모두에게');
+  assert.equal(fl.items.length, 30);
+  assert.match(fl.license, /^MIT/);
+  const lic = fs.readFileSync(path.join(ROOT, LIBRARY_ROOT, fl.dir, 'LICENSE.txt'), 'utf8');
+  assert.match(lic, /MIT License/); assert.match(lic, /Copyright \(c\) Microsoft Corporation/); assert.match(lic, /THE SOFTWARE IS PROVIDED "AS IS"/);
+  assert.deepEqual(LIBRARY.filter((c) => c.plugin).map((c) => c.id), ['fluent-emoji'], '다른 후보(DiceBear·Noto·Twemoji 등)는 등록 안 함');
 });
 
 test('L5 배선 — 플러그인 패널 단추 · 모듈 script', () => {
   const html = readSrc(ROOT, 'index.html');
   assert.match(html, /id="plugin-library" onclick="openLibraryModal\(\)"/);
   assert.match(html, /<script type="module" src="js\/panels\/library-panel\.js"><\/script>/);
+  assert.match(html, /id="plugin-fluent-emoji" onclick="openLibraryModal\('fluent-emoji'\)"/);
   const js = readSrc(ROOT, 'js/panels/library-panel.js');
   assert.match(js, /window\.openLibraryModal = openLibraryModal;/);
   assert.match(js, /from '\.\.\/data\/builtin-library\.js'/);

@@ -4,6 +4,7 @@
  * D2 넣기: 칸 클릭 → 고른 섹션에 에셋 블럭 하나 더 · 그 그림 = 동봉 PNG 의 data URL · 폭 = 명부 w · 높이 = 그림 비율
  * D3 탭: 묶음 둘 이상이면 탭 · 스토리보드 탭 → 3칸 · JPEG 넣기(폭 = 섹션 안쪽 상한 · 높이 = 1408:780 비율)
  * D4 관리자 폴더: 일반 계정 = 미모지 탭 없음(두들 탭은 있음) · 관리자(__admin._forceState) = 미모지 탭 2칸
+ * D5 Fluent Emoji: 제 단추(#plugin-fluent-emoji) → 그 묶음 30칸만(탭 없음) · MIT 줄 · 내장 라이브러리 탭엔 없음 · 넣기 160×160
  * 자 = dataset·style 글자(화면 px 아님 · 배율 무관). ⛔고정 대기 0(조건 대기).
  * 양성대조(예측 · CTL): library-panel.js _insert 의 addAssetBlock 호출 줄을 지우면 → D2 빨강(블럭 수 그대로) · D1 초록
  */
@@ -82,4 +83,23 @@ test('D4 관리자 폴더 — 일반 계정엔 미모지 탭 없음 · 관리자
   await page.click('.lib-tab[data-col="admin-memoji"]');
   await expect(page.locator('#lib-grid .lib-item')).toHaveCount(2);
   await expect(page.locator('#lib-credit')).toContainText('관리자 개인용');
+});
+
+test('D5 Fluent Emoji — 제 단추 → 30칸만 · MIT 줄 · 라이브러리 탭엔 없음 · 160×160 넣기', async ({ page }) => {
+  await setup(page);
+  await openLibrary(page);
+  await expect(page.locator('.lib-tab[data-col="fluent-emoji"]')).toHaveCount(0);
+  await page.click('#lib-modal-close');
+  await openLibrary(page, '#plugin-fluent-emoji');
+  await expect(page.locator('#lib-tabs')).toBeHidden();
+  await expect(page.locator('#lib-grid .lib-item')).toHaveCount(30);
+  await expect(page.locator('#lib-credit')).toContainText('MIT © Microsoft Corporation');
+  const before = await assetCount(page);
+  await page.click('#lib-grid .lib-item[title="thumbs up"]');
+  await expect.poll(() => assetCount(page)).toBe(before + 1);
+  const got = await page.evaluate(() => {
+    const ab = [...window.getSelectedSection().querySelectorAll('.asset-block')].pop();
+    return { src: (ab.dataset.imgSrc || '').slice(0, 22), w: ab.style.width, h: ab.style.height };
+  });
+  expect(got).toEqual({ src: 'data:image/png;base64,', w: '160px', h: '160px' });
 });
