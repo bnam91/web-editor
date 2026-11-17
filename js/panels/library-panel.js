@@ -54,6 +54,7 @@ async function _insert(col, it, img) {
       ab.dataset.usePadx = 'false';
       window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
       ab.style.alignSelf = 'center';
+      window.showAssetProperties?.(ab);   // 우측 패널은 setAssetImageFromSrc 가 폭 고치기 «전»에 그렸다 — 낡은 860·패딩제외 켬을 지금 값으로(9500 실앱 r3)
       const tip = window.getHistoryTip?.();   // 같은 틱 고침을 이력 꼭대기에(addAssetBlock 의 data: 갈래와 같은 관용구)
       if (tip) window.restampHistoryTop?.(tip.seq);
     }

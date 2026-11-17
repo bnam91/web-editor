@@ -1,7 +1,7 @@
 /* builtin-library — 0.9.13 내장 라이브러리 모달(현빈 결정 261117 · js/panels/library-panel.js · 명부 js/data/builtin-library.js)
  * 장면은 앱의 제 문으로: 섹션 하나 고름 → 하단 Plugins(#fp-plugin-btn) → «내장 라이브러리»(#plugin-library) → 칸 클릭.
  * D1 모달: 묶음 칸 수 = 명부 · 그림이 실제로 읽힘(naturalWidth > 0) · 출처·라이선스 줄
- * D2 넣기: 칸 클릭 → 고른 섹션에 에셋 블럭 하나 더 · 그 그림 = 동봉 PNG 의 data URL · 폭 = 명부 w · 높이 = 그림 비율
+ * D2 넣기: 칸 클릭 → 고른 섹션에 에셋 블럭 하나 더 · 그 그림 = 동봉 PNG 의 data URL · 폭 = 명부 w · 높이 = 그림 비율 · 넣은 직후 우측 패널 너비 240·패딩 제외 꺼짐
  * D3 탭: 묶음 둘 이상이면 탭 · 스토리보드 탭 → 3칸 · JPEG 넣기(폭 = 섹션 안쪽 상한 · 높이 = 1408:780 비율)
  * D4 관리자 폴더: 일반 계정 = 미모지 탭 없음(두들 탭은 있음) · 관리자(__admin._forceState) = 미모지 탭 2칸
  * D5 Fluent Emoji: 제 단추(#plugin-fluent-emoji) → 그 묶음 30칸만(탭 없음) · MIT 줄 · 내장 라이브러리 탭엔 없음 · 넣기 160×160
@@ -49,6 +49,9 @@ test('D2 넣기 — QR 칸 클릭 → 에셋 블럭 · 동봉 PNG data URL · 24
     return { src: (ab.dataset.imgSrc || '').slice(0, 31), w: ab.style.width, h: ab.style.height };
   });
   expect(got).toEqual({ src: 'data:image/png;base64,iVBORw0KG', w: '240px', h: '240px' });
+  /* r3(9500 실앱): 넣은 «직후» 우측 패널이 블럭 지금 값을 말해야 한다(낡은 860·패딩 제외 켬이면 만지는 순간 860 으로 튄다) */
+  await expect(page.locator('#asset-w-number')).toHaveValue('240');
+  await expect(page.locator('#asset-padx-toggle')).not.toBeChecked();
 });
 
 test('D3 탭 — 스토리보드 3칸 · JPEG 넣기 · 폭 상한·비율', async ({ page }) => {
