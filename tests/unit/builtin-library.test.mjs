@@ -78,6 +78,10 @@ test('L4 묶음별 내용', () => {
   const ddLic = fs.readFileSync(path.join(ROOT, LIBRARY_ROOT, dd.dir, 'LICENSE.txt'), 'utf8');
   assert.match(ddLic, /CC0 1\.0/); assert.match(ddLic, /https:\/\/khushmeen\.com\/icons\.html/); assert.match(ddLic, /MIT License/);
   assert.equal(fs.readdirSync(path.join(ROOT, LIBRARY_ROOT, dd.dir)).filter((f) => /\.png$/.test(f)).length, 0, 'Figma 복사본 샘플(라이선스 대기) 걷음');
+  const ar = col('arrow');   // 261117 화살표 = 직접 그린 SVG 20(앱 내장)
+  assert.ok(ar && !ar.admin && !ar.plugin, '화살표 = 앱 내장');
+  assert.equal(ar.items.length, 20); assert.ok(ar.items.every((i) => /^arrow-.+\.svg$/.test(i.file)));
+  assert.equal(ar.license, '자체 제작');
   const mm = col('admin-memoji');   // 미모지류 = 관리자 폴더(앱 내장 아님)
   assert.ok(mm && mm.admin === true, '미모지 = 관리자 전용');
   assert.equal(LIBRARY.filter((c) => c.admin).map((c) => c.id).includes('doodle'), false);
