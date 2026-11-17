@@ -4,7 +4,7 @@
 ═══════════════════════════════════ */
 
 .prop-hint {
-  font-size: var(--ui-fs-10); color: var(--ui-hint-color); text-align: center;   /* #5a5a5a(2.4:1 ✗AA) → 토큰(U0) */
+  font-size: var(--ui-fs-10); color: var(--ui-hint-color); text-align: center;   /* 옛 회색(2.4:1 ✗AA) → 토큰(U0) */
   padding: 8px 12px 4px; letter-spacing: 0.02em;
 }
 .prop-section {
@@ -35,7 +35,7 @@
    펼침 간격 6 은 «다음 형제» margin-top 10 에서 나온다(10 + (−4) 상쇄 = 6, 고치기 전과 같다). display:none 형제의 margin 은 안 걸린다. */
 .prop-section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: -4px; }
 .prop-section > .prop-section-title-row + * { margin-top: 10px; }
-.prop-section-title-row > .prop-section-title { padding: var(--ui-sec-head-py) 0; }     /* ★대칭(⒜안) = 8px 0 — ⒝안이면 --ui-sec-head-py 를 6px 로 */
+.prop-section-title-row > .prop-section-title { padding: var(--ui-sec-head-py) 0; }     /* ★대칭(⒜안) = space-2 위아래 — ⒝안이면 --ui-sec-head-py 를 6 으로 */
 .prop-section-title-row > .prop-action-btn { margin-top: 0; }         /* ★R2 끄기 — 위 머리말 R2 */
 /* ══ 패널 절(panel-frame) — panel-frame:BEGIN ═══════════════════════════════════════════════
    js/props/_panel-frame.js renderPanel() 이 그리는 절(.prop-section[data-sec]) 전용. (right-panel-unify U0)
