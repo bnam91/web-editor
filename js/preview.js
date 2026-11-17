@@ -219,10 +219,20 @@ function togglePreviewHorizontal(force) {
   document.getElementById('preview-hz-btn')?.classList.toggle('active', on);
   document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => setSectionRowLayout(el, on));
   if (!on && _previewZoom < PREVIEW_ZOOM_MIN) _previewZoom = PREVIEW_ZOOM_MIN;   // 세로로 돌아가면 세로 하한으로
-  if (!on) document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => { el.style.paddingLeft = el.style.paddingRight = ''; });
+  if (!on) {
+    document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => { el.style.paddingLeft = el.style.paddingRight = ''; });
+    const content = document.getElementById('preview-content'), overlay = document.getElementById('preview-overlay');
+    const padTop = parseFloat(content?.style.paddingTop) || 0;
+    if (content) content.style.paddingTop = content.style.paddingBottom = '';
+    if (overlay && padTop) overlay.scrollTop = Math.max(0, overlay.scrollTop - padTop);   // 걷은 위 여유만큼 되돌려 보던 자리 유지
+  }
   _bindHzPan(on);
   _applyPreviewZoom();   // 줌을 옮겨 건다(가로 = 줄 zoom · 세로 = 통째 transform) + 앞뒤 여유
   if (on) document.querySelectorAll('#preview-content .preview-page-block').forEach(b => { b.scrollLeft = 0; });   // 켤 때 = 스크롤 0 = 첫 섹션이 그릇 가운데(앞 여유가 그만큼이라 자연히)
+  if (on) {   // r4 — 켤 때 세로 = 위 여유만큼 내려온 자리(첫 화면은 r3 와 같이 섹션 윗부분부터 · 빈 화면 아님) · 위 여유는 위로 끌어야 보인다
+    const overlay = document.getElementById('preview-overlay');
+    overlay.scrollTop = parseFloat(document.getElementById('preview-content').style.paddingTop) || 0;
+  }
 }
 
 /* ⇆ 가로 앞뒤 여유(현빈 r3 «첫 섹션을 화면 가운데로 · 끝 섹션도») — 줄 앞뒤에 «그릇 폭 반 − 섹션 반 폭»을 둔다.
@@ -230,6 +240,10 @@ function togglePreviewHorizontal(force) {
 function _hzEdgeRoom() {
   if (!_previewHz) return;
   const z = _previewZoom / 100;
+  /* r4 위·아래 여유(현빈 «위아래도 빈 공간») — 세로 스크롤은 #preview-overlay 몫이라 #preview-content 위·아래 padding = 창 높이 반.
+     ⛔줄(.preview-page-inner)마다 두지 않는다 — 페이지가 여럿이면 페이지 사이가 창 높이만큼 벌어진다. 가로에선 #preview-content 에 transform 이 없어 화면 px 그대로(줌 무관). */
+  const content = document.getElementById('preview-content'), overlay = document.getElementById('preview-overlay');
+  if (content && overlay) content.style.paddingTop = content.style.paddingBottom = Math.round(overlay.clientHeight / 2) + 'px';
   document.querySelectorAll('#preview-content .preview-page-block').forEach(b => {
     const inner = b.querySelector(':scope > .preview-page-inner');
     if (!inner) return;

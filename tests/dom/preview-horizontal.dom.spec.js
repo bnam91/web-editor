@@ -11,7 +11,9 @@
  *   H8 [r2] 가로 그릇(.preview-page-block) 폭 = 미리보기 창 폭(스크롤바 뺀 clientWidth) — 줌 25 에서도(transform 통째 줄임이면 창의 z 배로 갇힌다)
  *   H10 [r3] 첫·끝 섹션을 각각 그릇 가운데까지 스크롤로 옮길 수 있다(중심 ±2 · 줌 100·25) · 켤 때 = 스크롤 0 에 첫 섹션이 가운데
  *   H11 [r3] 스페이스+드래그 → 그릇 scrollLeft 가 끈 만큼(손끝 따라감) · 편집 캔버스 팬으로 안 샘 · 섹션 점프 안 남 / [음성] 스페이스 없이 끌면 scrollLeft 그대로 · 미리보기 그대로
+ *   H12 [r4] 위·아래 여유 — 첫 섹션 윗변을 창 세로 가운데까지 내릴 수 있음 · 가장 키 큰 섹션 아랫변을 가운데까지 올릴 수 있음 · 켤 때 첫 화면에 섹션이 보임 · 줌 100·25
  *   H9 [r2] 가로 줌 하한 10(50 밑으로 내려간다) · 세로로 돌아가면 50 으로 · 세로 하한은 50 그대로 · 줌 표시 숫자 맞음
+ * 양성대조 r4: _patches/PVH-CTL4-no-vertical-room.patch(_hzEdgeRoom 의 위·아래 padding 줄 끔) → H12 빨강.
  * 양성대조 r3: _patches/PVH-CTL3-no-edge-pan.patch(_hzEdgeRoom 본문 return · 스페이스 keydown 처리 끔) → H10·H11 빨강.
  * 양성대조 r2: _patches/PVH-CTL2-zoom-transform.patch(가로도 옛 통째 transform 줌) → srv 실측 H8 만 빨강 · H7 은 초록(헤드리스 1440 창에선 9500 의 음수 x 가 재현 안 됨 — 옛 꼴도 첫 섹션이 그릇 왼끝·끝까지 닿음) · H9 초록(하한은 따로).
  * 양성대조: _patches/PVH-CTL-no-row.patch(setSectionRowLayout 의 class 켜는 한 줄 삭제) → H1·H2·H3·H4 빨강(H3 은 줄 수 단언) · H5·H6 초록.
@@ -211,5 +213,25 @@ test('H11 스페이스+드래그 = 가로 팬 · 편집 캔버스로 안 샘 / �
   expect(leak, '★스페이스 = 미리보기 손바닥 · 편집 캔버스 팬 모드 안 켜짐').toEqual({ pan: false, grab: true });
   expect((await sl()) - s0, '★끈 만큼(왼쪽으로 200 → 스크롤 +200)').toBe(200);
   expect(await page.locator('body.preview-mode').count(), '팬 끝 click 이 섹션 점프로 안 샘').toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const vGap = (page, which) => page.evaluate((which) => {
+  const o = document.getElementById('preview-overlay'), ss = [...document.querySelectorAll('#preview-content .preview-page-inner > .section-block')];
+  const tall = ss.reduce((a, b) => (b.offsetHeight > a.offsetHeight ? b : a));
+  const y = () => { const O = o.getBoundingClientRect(), S = (which === 'top' ? ss[0] : tall).getBoundingClientRect(); return (which === 'top' ? S.top : S.bottom) - (O.top + o.clientHeight / 2); };
+  o.scrollTop += y();
+  return Math.abs(y());
+}, which);
+
+test('H12 위·아래 여유 — 첫 섹션 윗변·키 큰 섹션 아랫변을 창 가운데까지 · 켤 때 섹션 보임 · 줌 100·25', async ({ page }) => {
+  const errs = await longScene(page);
+  const seen = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect(), S = document.querySelector('#preview-content .section-block').getBoundingClientRect(); return S.top < O.top + o.clientHeight && S.bottom > O.top; });
+  expect(seen, '★켤 때 첫 화면에 섹션이 보인다(빈 화면 아님)').toBe(true);
+  for (const z of [100, 25]) {
+    await zoomTo(page, z);
+    expect(await vGap(page, 'top'), `★줌 ${z}% 첫 섹션 윗변 → 가운데`).toBeLessThanOrEqual(2);
+    expect(await vGap(page, 'bottom'), `★줌 ${z}% 키 큰 섹션 아랫변 → 가운데`).toBeLessThanOrEqual(2);
+  }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
