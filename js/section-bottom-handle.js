@@ -40,6 +40,10 @@
 
   const CLS = 'section-bottom-handle';
   const OUT_CLS = 'sbh-out';
+  const PASS_CLS = 'sbh-pass';
+  /* ★142 SECTION-BOTTOM-BAND-COVERS-STICKER-HANDLE-01 — 고른 블럭 손잡이(섹션 안에 사는 것). 띠(z5)는 스티커 쌓임맥락 위라 그 손잡이를 덮었다.
+     shortcut: 섹션 «안»에 손잡이를 다는 블럭 중 스티커 것만 적었다 · 다른 블럭 손잡이가 섹션 바닥에서 띠에 먹히면 여기 이름을 더한다. */
+  const GRIPS = '.hlb-handle, .sticker-corner-handle, .sticker-rotate-zone';
 
   function ensureHandle(sec) {
     if (!sec || sec.querySelector(':scope > .' + CLS)) return;
@@ -166,6 +170,14 @@
     return !hz || hz.getBoundingClientRect().top - r.bottom >= band;
   }
 
+  /* ★142 — 포인터가 고른 블럭 손잡이 상자 안인가. hit 가 아니라 rect 로 잰다 — 띠가 덮으면 hit 로는 손잡이가 안 보인다(XREPRO: 호버 전 hit 는 손잡이 · 호버 뒤 띠). */
+  function onGrip(sec, ev) {
+    return [...sec.querySelectorAll(GRIPS)].some((g) => {
+      const q = g.getBoundingClientRect();
+      return q.width > 0 && ev.clientX >= q.left && ev.clientX <= q.right && ev.clientY >= q.top && ev.clientY <= q.bottom;
+    });
+  }
+
   /* ★326 — 글자 칸·스티커 바닥이 띠 안이면 손잡이를 섹션 아래로 비킨다. 띠(10px×배율)가 글자 끝·선 스티커를 먹었다
      (text-selection-panel R7 · w2d06d O5 — 그 자리 클릭이 편집·선택으로 안 갔다). 앱 ×3 값은 시트 326.
      shortcut: x 겹침은 안 본다(닿는 블럭이 하나라도 있으면 띠 전체를 비킨다) · 띠 폭 일부만 비킬 일이 생기면 그때 나눠라
@@ -176,6 +188,7 @@
     if (!sec || sec.classList.contains('section-bottom-dragging')) return;
     const h = sec.querySelector(':scope > .' + CLS);
     if (!h) return;
+    h.classList.toggle(PASS_CLS, onGrip(sec, ev));   // ★142 — 손잡이 위에선 띠가 누름을 안 가져간다(스티커 밖 띠는 그대로 끈다)
     const r = sec.getBoundingClientRect();
     const band = 10 * (r.width / (sec.offsetWidth || 1) || 1);
     const reaches = (t) => t.getBoundingClientRect().bottom > r.bottom - band && !window.sectionPin?.isFullyHidden(t, sec);   // ⑦ 핀에 완전히 숨은 블럭은 띠에 안 닿는다
