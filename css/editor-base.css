@@ -784,7 +784,7 @@ body.preview-mode #preview-topbar.visible { -webkit-app-region: drag; }
 /* ★신호등 자리는 «맥에서만». 윈도우는 신호등이 없어 같은 여백이 빈 공간이 된다. */
 .electron-app #topbar { padding-left: 12px; }
 /* ★미리보기 위쪽 바(#preview-topbar · 창 맨 위 fixed)도 같은 신호등 자리 — 같은 값을 같이 쓴다(r5 · 옛 결함: 3a685e3ef Side by Side 단추부터 신호등 밑에 깔렸다).
-   전체화면은 신호등이 없어 미리보기 바 고유 여백(editor-extra.css padding 0 20px)으로 둔다 — :not(.fullscreen). */
+   전체화면은 신호등이 없어 미리보기 바 고유 여백(editor-extra.css 의 padding)으로 둔다 — :not(.fullscreen). */
 .electron-app.is-mac #topbar, .electron-app.is-mac:not(.fullscreen) #preview-topbar { padding-left: 80px; }
 .electron-app.fullscreen #topbar,
 .electron-app.is-mac.fullscreen #topbar { padding-left: 12px; }
