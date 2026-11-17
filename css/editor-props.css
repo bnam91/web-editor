@@ -1278,3 +1278,6 @@
   margin: 0;
   height: 18px;
 }
+
+/* 0.9.13 MOTION 슬라이드 패널 사진 줄 썸네일 — 옛 인라인 style 그대로 클래스로(props-inline 래칫) · 이 치수들에 맞는 --ui-* 토큰 없음 */
+.sld-thumb { width: 44px; height: 28px; object-fit: cover; border-radius: 3px; flex: 0 0 auto; }

@@ -145,7 +145,9 @@ async function mount(page) {
 /* ★TWOCELL-ROW-DELETE-AND-ALIGN(261110) — 깊이 1 중첩 줄에 줄바 [줄 복사]·[줄 삭제]와 「줄 꾸미기」 절이 «바깥 줄과 같은 절»로 열렸다(다른 문 — _grdResolveNestAddr · NS 주인).
    이 저울은 그대로 «타이포 문»(_grdResolveAddr np 분기)만 잰다 ⇒ 그 절의 손잡이도 안 센다(세면 A3-양성2 가 그 문과 무관한 수로 거저 빨강). 그 절은 twocell-row-delete-align P·A 가 잰다. */
 const _NOT_LINE_DOOR = ':not(#grd-line-body *):not(#grd-line-toggle):not(#grd-line-dup-btn):not(#grd-line-del-btn):not(#grd-nest-valign-group *)';   // + D2ⓐ «열 세로» 세 단추(그 절도 twocell-row-delete-align V1 이 잰다)
-const HANDLE_SEL = ['input', 'select:not(#grd-line-add-kind)', 'textarea', 'button:not(#grd-nest-outer-btn)', '[role="slider"]', '.prop-slider'].map((x) => x + _NOT_LINE_DOOR).join(', ');
+/* ★0.9.13 MOTION 3단계(ea315d24e) — 블럭만 고른 판(줄 주소 없음)에만 붙는 「애니메이션 GIF 만들기」(#open-anim-btn · _helpers.js animGifBtnHTML)도 안 센다:
+   블럭 단위 단추라 «선택 없음» 바닥값에만 있고 줄을 고르면 사라진다 ⇒ 세면 바닥이 1 부풀어 A3-양성2 가 −1 로 거저 빨강 · A3 는 진짜 손잡이 1개 늘어도 0 으로 거저 초록. */
+const HANDLE_SEL = ['input', 'select:not(#grd-line-add-kind)', 'textarea', 'button:not(#grd-nest-outer-btn):not(#open-anim-btn)', '[role="slider"]', '.prop-slider'].map((x) => x + _NOT_LINE_DOOR).join(', ');
 
 /* ═══ A — 「잡힌다 · 가리킨다 · ⛔안 고쳐진다」 ═══════════════════════════ */
 
