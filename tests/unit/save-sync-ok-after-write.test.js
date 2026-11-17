@@ -1,5 +1,5 @@
 /* save-sync-ok-after-write — SAVE-SYNC-FALSE-FAIL-AFTER-WRITE-01 (0.9.12 · 워커2 261113 관찰)
- * 왜: projects:save-sync 는 proj.json 을 쓴 «뒤» 후처리(_goneForget·_clearStalePendingFor·_recentRecovery.delete·_refreshListMeta)까지
+ * 왜: projects:save-sync 는 proj.json 을 쓴 «뒤» 후처리(_goneForget·_recentRecovery.delete·_refreshListMeta)까지
  *   바깥 try 하나로 받았다 ⇒ 후처리가 던지면 이미 디스크에 들어간 저장을 ok:false + 실패 기록(마커·비상 사본)으로 보고했다
  *   (종료 때 거짓 «저장 실패» 상자 · 렌더러는 그 본을 «파일에 못 들어감»으로 남긴다).
  * 기법: main.js 몸통을 떼어 진짜 fs(임시 폴더) 위에서 돌린다(corrupt-unreadable · rolling-backup-e169 와 같다).
@@ -37,7 +37,8 @@ const stmt = (A) => {
 };
 /* save-sync 가 부르는 것 전부(없으면 ReferenceError 가 바깥 catch 로 가 이 검사가 «거짓 빨강»이 된다 — int-0912-7 단위 빨강 교훈) */
 const FNS = ['_safeSeg', '_getMigrator', '_atomicWriteFileSync', '_resolveProjectJsonPath', '_resolveMetaJsonPath', '_resolveBackupJsonPath', '_ensureNewLayoutPaths',
-  '_refreshListMeta', '_guardProjectName', '_SS', '_mtimeOr', '_rollBackup', '_goneBaseRefusal', '_goneStamp', '_goneForget', '_clearStalePendingFor', '_saveProjectImpl'];
+  '_refreshListMeta', '_guardProjectName', '_SS', '_mtimeOr', '_rollBackup', '_goneBaseRefusal', '_goneStamp', '_goneForget', '_saveProjectImpl'];
+/* 열차 이식(wk1 261117 · base bdb4171f1): 원 가지 FNS 의 '_clearStalePendingFor' 를 뺐다 — f0b3b07a8(QUIT-STALE-FAILURE-RECORD-FALSE-DIALOG-01 · 열차 밖) 몫이라 이 base 의 main.js 엔 없다(fnSrc 가 «없다»로 던진다). 칸·단언은 원본 그대로. */
 
 function load(dir, { throwAfterWrite = false } = {}) {
   const req = (m) => require(m.startsWith('.') ? path.join(REPO, m) : m);
