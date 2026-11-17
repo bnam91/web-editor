@@ -90,11 +90,9 @@ export const LIBRARY = [
   },
   {
     id: 'admin-memoji', name: '관리자 폴더 · 미모지', dir: 'admin-memoji', w: 200, admin: true,
-    source: 'memoji-1·2 = t3-07(261113) Figma «미모지_참고레퍼런스»(Inclusive Memoji Collection) 샘플 2장 · fluent-* 22장 = Microsoft Fluent Emoji 3D(github.com/microsoft/fluentui-emoji) Man/Woman 직업·포즈(Default 피부 · 256×256 · Fluent 묶음 30과 겹침 0)',
-    license: 'memoji-1·2 = unknown — Apple Memoji 모양 · 상업 이용 미확인 · fluent-* = MIT © Microsoft Corporation(고지 = assets/library/fluent-emoji/LICENSE.txt) — 관리자 개인용 · 앱 내장 아님',
+    source: 'Microsoft Fluent Emoji 3D(github.com/microsoft/fluentui-emoji) Man/Woman 직업·포즈 22장(Default 피부 · 256×256 · Fluent 묶음 30과 겹침 0) — 261117 Apple Memoji 모양 샘플 2장(t3-07 Figma 복사본)은 걷음',
+    license: 'MIT © Microsoft Corporation(고지 = assets/library/fluent-emoji/LICENSE.txt) — 관리자 개인용 · 앱 내장 아님',
     items: [
-      { file: 'memoji-1.png', name: '미모지 1' },
-      { file: 'memoji-2.png', name: '미모지 2' },
       { file: 'fluent-woman-technologist.png', name: '여성 개발자' },
       { file: 'fluent-man-technologist.png', name: '남성 개발자' },
       { file: 'fluent-woman-artist.png', name: '여성 화가' },

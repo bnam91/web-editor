@@ -84,10 +84,11 @@ test('L4 묶음별 내용', () => {
   assert.equal(ar.license, '자체 제작');
   const mm = col('admin-memoji');   // 미모지류 = 관리자 폴더(앱 내장 아님)
   assert.ok(mm && mm.admin === true, '미모지 = 관리자 전용');
-  const mmFl = mm.items.filter((i) => i.file.startsWith('fluent-'));   // 261117 ③ Fluent 3D 사람 20+ · 원래 샘플 2장 유지
+  const mmFl = mm.items.filter((i) => i.file.startsWith('fluent-'));   // 261117 ③ Fluent 3D 사람 20+
   assert.ok(mmFl.length >= 20, 'Fluent 사람 20+');
-  assert.deepEqual(mm.items.slice(0, 2).map((i) => i.file), ['memoji-1.png', 'memoji-2.png']);
-  assert.match(mm.license, /fluent-\* = MIT © Microsoft Corporation/); assert.match(mm.source, /fluentui-emoji/);
+  assert.equal(mmFl.length, mm.items.length, '261117 Apple Memoji 모양 샘플(t3-07 Figma 복사본) 걷음 — Fluent 만');
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, LIBRARY_ROOT, mm.dir)).filter((f) => /^memoji-/.test(f)), [], '동봉(asar)에서도 빠짐');
+  assert.match(mm.license, /^MIT © Microsoft Corporation/); assert.match(mm.source, /fluentui-emoji/);
   const flBase = new Set(col('fluent-emoji').items.map((i) => i.file.replace(/^obj_/, '').replace(/_/g, '-')));
   assert.equal(mmFl.filter((i) => flBase.has(i.file.replace(/^fluent-/, ''))).length, 0, 'Fluent 묶음 30과 겹침 0');
   assert.equal(LIBRARY.filter((c) => c.admin).map((c) => c.id).includes('doodle'), false);
