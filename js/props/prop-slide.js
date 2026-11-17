@@ -18,7 +18,7 @@ export function showSlideProperties(block) {
   const full = st.slides.length >= SLIDE_MAX;
   const photoRows = st.slides.map((s, i) => `<div class="prop-row sld-photo-row" data-idx="${i}">
         <span class="prop-label">사진 ${i + 1}</span>
-        <img class="sld-thumb" src="${escHtml(s.src)}" alt="" style="width:44px;height:28px;object-fit:cover;border-radius:3px;flex:0 0 auto">
+        <img class="sld-thumb" src="${escHtml(s.src)}" alt="">
         <button class="prop-btn sld-up" title="앞으로"${i === 0 ? ' disabled' : ''}>↑</button>
         <button class="prop-btn sld-down" title="뒤로"${i === st.slides.length - 1 ? ' disabled' : ''}>↓</button>
         <button class="prop-btn sld-del" title="빼기">✕</button>

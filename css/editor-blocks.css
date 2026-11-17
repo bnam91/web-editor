@@ -2953,7 +2953,7 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .grid-block .grd-img-empty {
   background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
 }
-/* 0.9.13 MOTION 슬라이드 빈 카드(사진 0 장일 때 자리표시) — 인라인 대신 클래스(card-empty-export 조건①) · 값 = 옛 인라인 checkerBg('big','16px') 그대로. */
+/* 0.9.13 MOTION 슬라이드 빈 카드(사진 0 장일 때 자리표시) — 인라인 대신 클래스(card-empty-export 조건①) · 값 = 옛 인라인 checkerBg(큰 쌍 색 · 칸 크기 지정) 그대로. */
 .slide-block .sld-card-empty {
   background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / 16px 16px;
 }
