@@ -43,7 +43,7 @@ body.preview-mode #preview-topbar.visible {
   pointer-events: auto;
   transform: translateY(0);
 }
-.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; }
+.preview-tb-left, .preview-tb-right { flex: 1; display: flex; align-items: center; gap: 6px; }
 .preview-tb-center { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .preview-tb-right { justify-content: flex-end; }
 
@@ -102,6 +102,10 @@ body.preview-mode #preview-navigator { display: flex; }
   display: flex;
   flex-direction: column;
 }
+/* ⇆ 가로 — 섹션 그릇을 왼→오 한 줄로(js/preview.js setSectionRowLayout · 그릇 class 하나 · 미리보기 밖에서도 쓸 수 있게 범용 이름) */
+.section-row-layout { flex-direction: row; align-items: flex-start; width: max-content; }
+.section-row-layout > .section-block { flex: 0 0 var(--row-sec-w, 860px); width: var(--row-sec-w, 860px); }
+.preview-page-block:has(> .section-row-layout) { overflow-x: auto; }
 
 /* Suppress all editor-chrome inside preview */
 #preview-overlay .section-block {
@@ -491,7 +495,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 ═══════════════════════════════════ */
 
 /* SBS 토글 버튼 */
-#preview-sbs-btn {
+#preview-sbs-btn, #preview-hz-btn {
   display: flex;
   align-items: center;
   padding: 0 12px; height: 30px;
@@ -503,8 +507,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   transition: all 0.15s;
   letter-spacing: 0.02em;
 }
-#preview-sbs-btn:hover { background: rgba(60,60,60,0.9); color: #ddd; }
-#preview-sbs-btn.active {
+#preview-sbs-btn:hover, #preview-hz-btn:hover { background: rgba(60,60,60,0.9); color: #ddd; }
+#preview-sbs-btn.active, #preview-hz-btn.active {
   background: rgba(45,111,232,0.25);
   border-color: rgba(45,111,232,0.5);
   color: var(--ui-accent);

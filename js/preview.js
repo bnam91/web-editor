@@ -7,6 +7,8 @@ let _previewEscHandler     = null;
 let _previewTopbarToggle   = null;
 let _previewSBS            = false;
 let _sbsResizeHandler      = null;
+let _previewHz             = false;   // ⇆ 가로 — 섹션을 왼→오 한 줄(페이지마다 한 줄 · SBS 와 배타)
+let _previewSecJump        = null;
 
 function enterPreview() {
   flushCurrentPage();
@@ -85,6 +87,27 @@ function enterPreview() {
     topbar.classList.toggle('visible');
   };
   overlay.addEventListener('click', _previewTopbarToggle);
+
+  /* ⇆ 가로 보기에서 섹션을 누르면 편집으로 돌아가 그 섹션으로(가로 보기 때만 · 세로 보기 클릭은 종전대로 탑바 토글) */
+  _previewSecJump = e => {
+    if (!_previewHz) return;
+    const sec = e.target.closest?.('#preview-content .section-block');
+    if (!sec) return;
+    const page = window.state.pages[+sec.closest('.preview-page-block')?.dataset.pageIdx];
+    const id = sec.id;
+    exitPreview();
+    _jumpToCanvasSection(page, id);
+  };
+  overlay.addEventListener('click', _previewSecJump, true);
+}
+
+/* 미리보기 섹션 id = page.canvas 문자열의 그 id(편집 캔버스와 같은 id) — exitPreview 가 미리보기를 비운 뒤라 getElementById 는 캔버스 것 하나다. */
+async function _jumpToCanvasSection(page, id) {
+  if (page && page.id !== window.state.currentPageId) await window.switchPage?.(page.id);
+  const el = id && document.getElementById(id);
+  if (!el?.classList.contains('section-block')) return;
+  window.selectSection?.(el);
+  el.scrollIntoView({ block: 'start' });
 }
 
 function exitPreview() {
@@ -109,6 +132,12 @@ function exitPreview() {
     _previewTopbarToggle = null;
   }
   document.getElementById('preview-topbar').classList.remove('visible');
+
+  if (_previewSecJump) {
+    overlay.removeEventListener('click', _previewSecJump, true);
+    _previewSecJump = null;
+  }
+  if (_previewHz) togglePreviewHorizontal(false);   // ⇆ 가로 정리(단추·class)
 
   // SBS 정리
   if (_previewSBS) {
@@ -137,6 +166,7 @@ function exitPreview() {
 
 /* ── Side by Side ── */
 function togglePreviewSideBySide() {
+  if (!_previewSBS && _previewHz) togglePreviewHorizontal(false);   // ⇆ 가로와 배타
   _previewSBS = !_previewSBS;
   const btn      = document.getElementById('preview-sbs-btn');
   const content  = document.getElementById('preview-content');
@@ -163,6 +193,28 @@ function togglePreviewSideBySide() {
       _sbsResizeHandler = null;
     }
   }
+}
+
+/* ── ⇆ 가로 ── */
+/* 섹션 그릇 하나를 «가로 한 줄»로 켜고 끈다 — 배치는 CSS(.section-row-layout · editor-extra.css) · 섹션 폭은 그릇의 원래 폭(--row-sec-w)으로 고정.
+   ★미리보기 DOM 을 모른다(그릇만 받는다) — 나중에 편집 캔버스 가로 편집(현빈 ⓐ)에서 같은 함수를 부를 수 있게. */
+export function setSectionRowLayout(container, on) {
+  if (!container) return;
+  if (on) {
+    if (!container.classList.contains('section-row-layout')) container.style.setProperty('--row-sec-w', container.offsetWidth + 'px');
+    container.classList.add('section-row-layout');
+  } else {
+    container.classList.remove('section-row-layout');
+    container.style.removeProperty('--row-sec-w');
+  }
+}
+
+function togglePreviewHorizontal(force) {
+  const on = typeof force === 'boolean' ? force : !_previewHz;
+  if (on && _previewSBS) togglePreviewSideBySide();   // Side by Side 와 배타
+  _previewHz = on;
+  document.getElementById('preview-hz-btn')?.classList.toggle('active', on);
+  document.querySelectorAll('#preview-content .preview-page-inner').forEach(el => setSectionRowLayout(el, on));
 }
 
 function _sbsGetScale() {
@@ -283,4 +335,6 @@ function _updatePreviewNav(overlay) {
 window.enterPreview             = enterPreview;
 window.exitPreview              = exitPreview;
 window.togglePreviewSideBySide  = togglePreviewSideBySide;
+window.togglePreviewHorizontal  = togglePreviewHorizontal;
+window.setSectionRowLayout      = setSectionRowLayout;
 window.previewZoomStep          = previewZoomStep;
