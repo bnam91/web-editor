@@ -55,7 +55,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
 ;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
-  fieldRowHTML, hintHTML, scopeChipsHTML, unwrapSection, expandSection, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
+  fieldRowHTML, hintHTML, scopeChipsHTML, unwrapSection, expandSection, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_ORDER_EXCEPT, sectionOrderFor, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
 
@@ -76,6 +76,17 @@ test('F1 정렬 — SECTION_ORDER 순 · special 은 선언순', () => {
   assert.deepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template']);
   assert.deepEqual(r.titles, ['Type', 'Size', 'Fill', 'First', 'Second', 'Template']);
   assert.match(r.html, /id="psec-special-0"[\s\S]*First[\s\S]*id="psec-special-1"[\s\S]*Second/, '★special id 가 선언순으로 안 붙는다');
+});
+
+test('F1b 순서 예외 — panel 이름이 SECTION_ORDER_EXCEPT 에 있으면 그 first 가 맨 앞(섹션 = 현빈 261118 D5 ①) · 없으면 전역 · data-order 표식', () => {
+  const F = loadFrame();
+  const mk = (panel) => F.buildPanelHTML({ panel, sections: [F.sec('kind', 'k'), F.sec('size', 's'), F.sec('fill', 'f')] });
+  const want = F.sectionOrderFor('section').filter((k) => ['kind', 'size', 'fill'].includes(k));   // 기대는 예외표에서 — 순서를 여기 박지 않는다
+  assert.deepEqual(secsOf(mk('section')), want);
+  assert.equal(want[0], F.SECTION_ORDER_EXCEPT.section.first[0], '★예외 first 가 맨 앞이 아니다');
+  assert.notDeepEqual(want, ['kind', 'size', 'fill'], '[전제] 예외가 전역 순서와 실제로 다르다');
+  assert.match(mk('section'), /data-order="section"/);
+  for (const p of ['', 'nope']) { assert.deepEqual(secsOf(mk(p)), ['kind', 'size', 'fill'], `★예외 없는 패널(${p || '없음'})이 전역 순서가 아니다`); assert.doesNotMatch(mk(p), /data-order/); }
 });
 
 test('F2 중복 — 같은 key 두 번 · 같은 special 제목 두 번 → throw', () => {

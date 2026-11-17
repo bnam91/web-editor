@@ -1,6 +1,6 @@
 /* _panel-sections — 우측 패널 «절» 판독·판정 공용 부품. (right-panel-unify U0 · §6-1)
  * 정본 표는 js/props/_section-spec.js 를 vm 으로 «읽어» 쓴다(⛔여기 순서표를 베끼지 않는다 — 두 벌은 갈라진다).
- *   loadSectionSpec()     → { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf }
+ *   loadSectionSpec()     → { SECTION_ORDER, SECTION_ORDER_EXCEPT, sectionOrderFor, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf }
  *   readPanel(page)       → 지금 패널의 절 목록(브라우저에서 잰 값 · 컨트롤마다 id·type·data-*·색짝·제외그릇)
  *   judgePanel(list, spec, order?) → 위반 문자열 배열(빈 배열 = 통과). order 를 바꿔 넣으면 양성대조가 된다. */
 const fs = require('fs');
@@ -23,7 +23,7 @@ function loadSectionSpec() {
   const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export\s+/gm, '');
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl, explicitOwnOf };', ctx);
+  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_ORDER_EXCEPT, sectionOrderFor, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl, explicitOwnOf };', ctx);
   return ctx.__S;
 }
 
@@ -67,10 +67,12 @@ const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.eval
       };
     }),
   }));
-  return { secs, hints: body.querySelectorAll('.prop-hint').length };
+  /* 패널 순서 이름 — 틀이 예외 패널의 절에 data-order 를 찍는다(_section-spec SECTION_ORDER_EXCEPT · 섹션 = 현빈 261118 D5 ①) */
+  const order = body.querySelector(':scope > .prop-section[data-order]')?.dataset.order || '';
+  return { secs, hints: body.querySelectorAll('.prop-hint').length, order };
 }, { scopes: Object.keys(spec.OWNERSHIP_EXEMPT_SCOPES), live });
 
-function judgePanel(panel, spec, order = spec.SECTION_ORDER) {
+function judgePanel(panel, spec, order = spec.sectionOrderFor(panel.order)) {   // 정본 순서 = 그 패널의 예외표 몫(없으면 전역) — 순서를 여기 따로 박지 않는다
   const bad = [];
   const { secs, hints } = panel;
   const keyed = secs.filter((s) => s.sec);

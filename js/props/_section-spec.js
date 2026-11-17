@@ -15,6 +15,17 @@ export const SECTION_ORDER = Object.freeze([
   'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',
   'typography', 'fill', 'stroke', 'effects', 'special', 'export', 'template',
 ]);
+/** 패널별 순서 예외 — { 패널 이름: { first: [맨 앞으로 올릴 key…], why } }. ⛔드물게 · 예외는 «이 표 한 자리»
+ *  (renderPanel({ panel }) 와 시험 _panel-sections.js 가 sectionOrderFor 로 읽는다 — 렌더러·시험에 순서를 따로 박지 마라).
+ *  section = 섹션 패널만 Fill(옛 Background)을 머리 바로 아래로 — 현빈 261118 D5 ①(작은 창에서 배경·파티클 켜기가 굴리지 않고 보이게 · «앞 절 기본 접힘»③ 기각). */
+export const SECTION_ORDER_EXCEPT = Object.freeze({
+  section: Object.freeze({ first: Object.freeze(['fill']), why: '현빈 261118 D5 ① — 섹션 패널만 Fill 을 앞으로' }),
+});
+/** 그 패널의 절 순서 — 예외가 없으면 SECTION_ORDER 그대로. */
+export function sectionOrderFor(panel) {
+  const x = panel ? SECTION_ORDER_EXCEPT[panel] : null;
+  return x ? Object.freeze([...x.first, ...SECTION_ORDER.filter((k) => !x.first.includes(k))]) : SECTION_ORDER;
+}
 
 export const SECTION_TITLE = Object.freeze({
   kind: 'Type',

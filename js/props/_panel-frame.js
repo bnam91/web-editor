@@ -10,7 +10,7 @@
  */
 import { propPanel } from '../globals.js';
 import { disclosureSectionHtml } from './_helpers.js';
-import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle } from './_section-spec.js';
+import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, sectionOrderFor } from './_section-spec.js';
 
 const LS_KEY = 'gd-panel-collapsed';
 let _memCollapsed = [];   // localStorage 가 없거나(유닛 vm) 막혔을 때의 대역
@@ -54,7 +54,8 @@ export function sec(key, html, { title, headTools = '', id } = {}) {
 }
 
 /** 절 목록 → 패널 HTML(순수 함수 — 유닛 시험이 이걸 본다). */
-export function buildPanelHTML({ header = '', sections = [] } = {}) {
+export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) {   // panel = _section-spec SECTION_ORDER_EXCEPT 의 이름(없으면 전역 순서)
+  const order = sectionOrderFor(panel);
   const seen = new Set();
   for (const s of sections) {
     const k = s.key === 'special' ? `special:${s.title}` : s.key;
@@ -66,13 +67,13 @@ export function buildPanelHTML({ header = '', sections = [] } = {}) {
   const body = sections
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => String(s.html).trim() !== '' || String(s.headTools ?? '').trim() !== '')   // 몸이 비어도 머리 손잡이(예: Effects 추가 목록)가 있으면 그린다
-    .sort((a, b) => SECTION_ORDER.indexOf(a.s.key) - SECTION_ORDER.indexOf(b.s.key) || a.i - b.i)
+    .sort((a, b) => order.indexOf(a.s.key) - order.indexOf(b.s.key) || a.i - b.i)
     .map(({ s }) => {
       const id = s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`);
       const stKey = _stateKey(s.key, s.title);
       const open = !collapsed.has(stKey);
       return `
-    <div class="prop-section${open ? '' : ' is-collapsed'}" data-sec="${s.key}" data-sec-state="${stKey}" id="${id}">
+    <div class="prop-section${open ? '' : ' is-collapsed'}" data-sec="${s.key}" data-sec-state="${stKey}"${order === SECTION_ORDER ? '' : ` data-order="${panel}"`} id="${id}">
       <div class="prop-section-title-row prop-sec-head">${disclosureSectionHtml(`${id}-head`, s.title, open, `${id}-body`)}${s.headTools}
       </div>
       <div class="prop-sec-body" id="${id}-body"${open ? '' : ' hidden'}>${s.html}
@@ -138,9 +139,9 @@ function _wire(panel) {
 /* 패널 그리기 세대 — 비동기 렌더러(showSectionProperties 의 await)가 «기다리는 사이 다른 패널이 그려졌나»를 잰다(U6 R9). */
 let _renderGen = 0;
 export const panelRenderGen = () => _renderGen;
-export function renderPanel(block, { header = '', sections = [] } = {}) {
+export function renderPanel(block, { header = '', sections = [], panel = '' } = {}) {
   _renderGen++;
-  propPanel.innerHTML = buildPanelHTML({ header, sections });
+  propPanel.innerHTML = buildPanelHTML({ header, sections, panel });
   _wire(propPanel);
   return propPanel;
 }

@@ -709,8 +709,10 @@ async function showSectionProperties(sec) {
     `<option value="${escHtml(p.id)}"${p.id === currentPreset ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');
 
-  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. Preset = Type · 높이/핀 = Size · Text Color 는 Fill 안 · 섹션 밖 보이기 = Appearance. */
+  /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. Preset = Type · 높이/핀 = Size · Text Color 는 Fill 안 · 섹션 밖 보이기 = Appearance.
+     ★panel: 'section' — 순서 예외(Fill 을 머리 바로 아래로 · 현빈 261118 D5 ①)는 _section-spec.js SECTION_ORDER_EXCEPT 한 자리가 정한다. */
   renderPanel(sec, {
+    panel: 'section',
     header: blockHeaderHTML({
       icon: `          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path fill="#888" fill-rule="evenodd" d="M5.5 3a.5.5 0 0 1 .5.5V5h4V3.5a.5.5 0 0 1 1 0V5h1.5a.5.5 0 0 1 0 1H11v4h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V11H6v1.5a.5.5 0 0 1-1 0V11H3.5a.5.5 0 0 1 0-1H5V6H3.5a.5.5 0 0 1 0-1H5V3.5a.5.5 0 0 1 .5-.5m4.5 7V6H6v4z" clip-rule="evenodd"/>

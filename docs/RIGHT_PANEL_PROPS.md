@@ -70,6 +70,7 @@ renderPanel(block, { header: blockHeaderHTML({...}), sections: [sec('size', html
 </div>
 ```
 - 순서·제목 정본 = `js/props/_section-spec.js`: Type · Content · Position · Size · Layout · Padding · Appearance · Typography · Fill · Stroke · Effects · (블록 고유) · Export · Template. 제목은 영어 1~2단어(Figma 명명 — 단어 = Title Case 또는 약어 2~4자 QA·FAQ·3D·SVG·CTA) · 한글·괄호·기호 금지 · 개수는 `Cards 3`. 글자 윤곽선은 Stroke 절 안 행.
+- 순서 예외는 같은 파일 `SECTION_ORDER_EXCEPT` 한 자리(`renderPanel({ panel })`·게이트가 `sectionOrderFor` 로 읽음): **섹션 패널만 Fill 을 머리 바로 아래로**(현빈 261118 D5 ① — 작은 창에서 배경·파티클 켜기가 굴리지 않고 보이게).
 - 접기 = 절 key 단위 전 블록 공통(`localStorage['gd-panel-collapsed']`), 기본 전부 펼침. 상세: `_context/DESIGN_SYSTEM.md §11-A`.
 - 게이트: `tests/dom/panel-section-gate.dom.spec.js`(이관 안 된 블록은 그 파일 UNMIGRATED 명단). 이관 완료 = gap · bridge.
 

@@ -5,6 +5,7 @@
  * ★미이관은 UNMIGRATED 한 명단에만 둔다(test.skip) — 단위(U1~U5)가 자기 블록을 옮기면 그 줄을 지운다. U6 에서 0.
  *   명단에도 없고 이관도 안 된 «새 블록»은 판정에 들어가 빨강이 된다(조용히 빠지지 않는다).
  * 양성대조(내장 G2): 실제로 잰 브릿지 패널을 «뒤집은 SECTION_ORDER»·«틀린 제목 표»로 재면 위반이 나와야 한다.
+ * 순서 예외(G2b): 정본 순서 = sectionOrderFor(패널의 data-order) — 섹션 패널만 Fill 앞(현빈 261118 D5 ①) · 전역 순서로 재면 빨강.
  *   바깥 양성대조: prop-bridge.js 의 sec('fill' …) 을 sec('effects' …) 로 바꾸면 G1 빨강(소유 위반 — brg-color 는 fill 절 속성).
  *   ⚠️순서 위반은 이관 블록에선 «날 수 없다»(renderPanel 이 정렬한다) — 그래서 소유가 이 게이트의 본 칼날이다. */
 const { test, expect } = require('@playwright/test');
@@ -108,6 +109,22 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   const v = judgePanel(moved, SPEC);
   expect(v.join(' | '), '★색 필드가 effects 절에 있는데 못 잡는다').toContain('소유 위반: brg-color');
   expect(v.filter((x) => !x.startsWith('소유 위반')), '[전제] 소유 «만» 틀린 가짜다').toEqual([]);
+});
+
+test('G2b ★순서 예외 — 섹션 패널만 Fill 이 머리 바로 아래(_section-spec SECTION_ORDER_EXCEPT · 현빈 261118 D5 ①) · 다른 패널은 전역 순서', async ({ page }) => {
+  await scene(page);
+  await page.evaluate(MANUAL.section);
+  await page.waitForFunction(() => !!document.getElementById('sec-height-value') && !!document.querySelector('#panel-right .panel-body .prop-section[data-sec="fill"]'));
+  const panel = await readPanel(page);
+  const keys = panel.secs.filter((s) => s.sec).map((s) => s.sec);
+  expect(panel.order, '[전제] 섹션 패널 = 예외 이름 section').toBe('section');
+  expect(keys, '★순서 = 예외표 몫의 부분열').toEqual(SPEC.sectionOrderFor('section').filter((k) => keys.includes(k)));
+  expect(keys[0], '★Fill 이 첫 절(예외표 first)').toBe(SPEC.SECTION_ORDER_EXCEPT.section.first[0]);
+  expect(judgePanel(panel, SPEC), '정본(예외표)으론 통과').toEqual([]);
+  expect(judgePanel(panel, SPEC, SPEC.SECTION_ORDER).join(' | '), '★양성대조 — 전역 순서로 재면 순서 위반').toContain('순서 위반');
+  const r = await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  expect(r.err, '[전제] 브릿지').toBeUndefined();
+  expect((await readPanel(page)).order, '★다른 패널엔 예외 표식 없음').toBe('');
 });
 
 test('G4 ★하위 접기 제외는 «그릇 안»만 — 그리드 칸 컨트롤이 그릇 밖이면 소유 위반(진짜 DOM 가짜 렌더)', async ({ page }) => {
