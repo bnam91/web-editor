@@ -4,6 +4,8 @@
    섹션 단위로 임포트하며, rebindAll() 이후 완전히 활성화된다.
 ═══════════════════════════════════════════════════════════════ */
 import { canvasEl, state } from '../globals.js';
+import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
+import { svgImportSize } from '../util/svg-import-size.js';
 
 /* ── ID 생성 (drag-utils.genId와 동일 형식) ── */
 function _genId(prefix) {
@@ -60,6 +62,31 @@ function _buildAssetBlockHTML(child) {
     `</div>`;
 }
 
+/* ── VECTOR → 벡터 블럭 (t3-06 (A) · 현빈 결정 «가져와 쓰는» 수준) ──
+   옛 길: VECTOR 도 _buildAssetBlockHTML = <img src=imageData> 로 굳었다(색·크기 손잡이 없음 · 플러그인 export_node_as_image 는 data: 머리 없는 base64 라 그대로면 깨진 그림).
+   SVG 가 실려 오면(child.svg · imageData 가 data:image/svg+xml · mimeType image/svg+xml 인 맨 base64) 거르개를 지나 벡터 블럭으로. 그 밖(PNG 등·못 읽음)은 옛 그림 길 그대로.
+   ★그리기는 여기서 안 한다 — innerHTML 자리는 renderVector 하나(vector-block.js) · importFigmaFrames 가 넣은 뒤 부른다. */
+function _figmaVectorSvg(child) {
+  if (typeof child.svg === 'string') return child.svg;
+  const d = typeof child.imageData === 'string' ? child.imageData.trim() : '';
+  const m = d.match(/^data:image\/svg\+xml(;[^,]*)?,(.*)$/is);
+  const b64 = m ? (/;base64/i.test(m[1] || '') ? m[2] : null) : (child.mimeType === 'image/svg+xml' ? d : null);
+  try {
+    if (b64 !== null) return new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    if (m) return decodeURIComponent(m[2]);
+  } catch (_) { /* 못 읽으면 옛 그림 길 */ }
+  return '';
+}
+function _buildVectorBlockHTML(child) {
+  const clean = sanitizeSvgString(_figmaVectorSvg(child), { maxLen: SVG_MAX_LEN_CEIL });
+  if (!clean) return '';
+  const fit = svgImportSize(clean);
+  const dim = (v, f) => (Number.isFinite(v) && v > 0 ? Math.min(4000, Math.max(10, Math.round(v))) : f);
+  return `<div class="vector-block" data-type="vector" id="${_genId('vb')}" draggable="true"` +
+    ` data-svg="${_escapeHtml(clean)}" data-color="#000000" data-w="${dim(child.width, fit.w)}" data-h="${dim(child.height, fit.h)}"` +
+    ` data-layer-name="${_escapeHtml(child.name || 'Vector')}"><div class="vb-inner"></div></div>`;
+}
+
 /* ── Gap 블록 HTML ── */
 function _buildGapHTML(h) {
   return `<div class="gap-block" data-type="gap" id="${_genId('gb')}" style="height:${h}px"></div>`;
@@ -68,7 +95,8 @@ function _buildGapHTML(h) {
 /* ── 단일 블록 → HTML 디스패치 ── */
 function _buildBlockHTML(child) {
   if (child.type === 'TEXT') return _buildTextBlockHTML(child);
-  if (child.type === 'IMAGE' || child.type === 'VECTOR') return _buildAssetBlockHTML(child);
+  if (child.type === 'VECTOR') return _buildVectorBlockHTML(child) || _buildAssetBlockHTML(child);
+  if (child.type === 'IMAGE') return _buildAssetBlockHTML(child);
   if (child.type === 'RECTANGLE') {
     if (child.children && child.children.length > 0) {
       // 텍스트 자식이 있는 사각형 → 텍스트로 대표
@@ -190,6 +218,9 @@ export function importFigmaFrames(frames, checked) {
     const html = convertFrameToSectionHTML(frame, existingCount + i);
     canvasEl.insertAdjacentHTML('beforeend', html);
   });
+  /* t3-06 (A) — 들여온 벡터 블럭을 그린다(유일한 그리기 문 renderVector · 그 안에서 한 번 더 거른다) */
+  [...canvasEl.querySelectorAll('.section-block')].slice(existingCount)
+    .forEach((sec) => sec.querySelectorAll('.vector-block').forEach((b) => window.renderVector?.(b)));
 
   // 에디터 재바인딩
   if (window.rebindAll)       window.rebindAll();

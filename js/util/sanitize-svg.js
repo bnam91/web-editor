@@ -13,7 +13,8 @@
  *   · 속성(2차 · 이벨류에이터 D3~D5 반영 — 「남길 것만 남긴다」 쪽으로 좁혔다):
  *       - 값은 먼저 실체참조를 «한 번» 풀고(&amp; &lt; &gt; &quot; &apos; · &#NN; · &#xHH;) 그 풀린 값으로 판정한 뒤 다시 이스케이프한다
  *         ⇒ 두 번 걸러도 같은 글자다(멱등 — `&amp;` 가 `&amp;amp;` 로 자라지 않는다) · `&#106;avascript:` 는 풀린 채로 걸린다
- *       - on* · href · src · srcdoc · action · formaction · `style`(통째로) · `class` · `data-*` · 이름에 `:` 가 든 것(xlink:href · xml:base · xmlns:xlink …) 제거
+ *       - on* · href · src · srcdoc · action · formaction · `class` · `data-*` · 이름에 `:` 가 든 것(xlink:href · xml:base · xmlns:xlink …) 제거
+ *       - `style` 은 안전 그림 속성 허용 목록만(_SVG_STYLE_OK · url( 든 선언 버림 · 이스케이프·주석·규칙 꼴이면 속성째 버림)
  *       - 값에 javascript: / vbscript: / data:text/html 이 있으면 제거 · 역슬래시(`\`)가 있으면 제거(CSS 이스케이프 `\75rl(` 길)
  *       - 괄호는 «허용한 함수»만: url(#안쪽id) · rgb · rgba · hsl · hsla · matrix · translate · scale · rotate · skewX · skewY.
  *         그 밖의 함수(바깥 주소 url( · image-set( · expression( · var( …)가 든 값은 속성째 버린다
@@ -78,6 +79,35 @@ function _svgDecode(s) {
 const _SVG_FUNC_OK = { url: 1, rgb: 1, rgba: 1, hsl: 1, hsla: 1, matrix: 1, translate: 1, scale: 1, rotate: 1, skewx: 1, skewy: 1 };
 /* id 를 남기는 태그 — url(#…) 가 가리키는 것들뿐. */
 const _SVG_ID_TAGS = { linearGradient: 1, radialGradient: 1, clipPath: 1, mask: 1 };
+
+/* style 은 «안전한 그림 속성»만 남긴다(VECTOR 거르개 ⑥ · 현빈 261117 — 피그마 «Copy as SVG» 의 mask-type:alpha·mix-blend-mode 가 통째 버림에 사라져 그림이 달라졌다).
+   ⛔옛 규칙(2차 · D4 «style 은 무해해 보여도 통째로»)을 «허용 목록»으로 바꾼다 — 위험한 꼴은 여전히 못 지난다:
+     속성째 버림 = 역슬래시(CSS 이스케이프) · 주석 · { } @ < > " (규칙·끼워넣기)
+     선언째 버림 = 목록 밖 속성 · url( (안쪽 #id 도 — style 의 url 은 막는다) · rgb/rgba/hsl/hsla 밖 함수(expression·var·calc·image-set …) · 허용 밖 글자 */
+const _SVG_STYLE_OK = {
+  'fill': 1, 'fill-opacity': 1, 'fill-rule': 1, 'stroke': 1, 'stroke-width': 1, 'stroke-opacity': 1, 'stroke-linecap': 1, 'stroke-linejoin': 1,
+  'stroke-dasharray': 1, 'stroke-dashoffset': 1, 'stroke-miterlimit': 1, 'opacity': 1, 'mask-type': 1, 'mix-blend-mode': 1, 'isolation': 1,
+  'stop-color': 1, 'stop-opacity': 1, 'color': 1, 'clip-rule': 1, 'paint-order': 1, 'vector-effect': 1, 'shape-rendering': 1,
+};
+const _SVG_STYLE_FUNC_OK = { rgb: 1, rgba: 1, hsl: 1, hsla: 1 };
+/** style 값 → 남길 선언만 «p:v;p:v» 로(없으면 ''). value 는 실체참조를 푼 값. */
+function _svgStyleClean(value) {
+  const v = String(value);
+  if (/[\\{}@<>"]|\/\*/.test(v)) return '';
+  const out = [];
+  v.split(';').forEach((decl) => {
+    const c = decl.indexOf(':');
+    if (c < 0) return;
+    const p = decl.slice(0, c).trim().toLowerCase();
+    const val = decl.slice(c + 1).trim().replace(/\s*!\s*important\s*$/i, '');
+    if (!_SVG_STYLE_OK[p] || !val || !/^[#A-Za-z0-9.,%() -]+$/.test(val)) return;
+    const probe = val.replace(/\s+/g, '').toLowerCase();
+    if (probe.indexOf('url(') >= 0) return;
+    for (const m of probe.matchAll(/([a-z-]*)\(/g)) if (!_SVG_STYLE_FUNC_OK[m[1]]) return;
+    out.push(p + ':' + val);
+  });
+  return out.join(';');
+}
 
 /** 속성을 남겨도 되나. name 은 원문 그대로, value 는 «실체참조를 푼» 값, canon 은 그 태그의 정식 이름. */
 function _svgAttrOk(name, value, canon) {
@@ -273,6 +303,11 @@ export function sanitizeSvgString(input, opts) {
       const key = an.toLowerCase();
       if (seen[key]) continue;                           // 같은 이름은 첫 것만(HTML 파서와 같은 규칙)
       if (isRoot && overLower && overLower[key]) continue;   // 뿌리에서 덮어쓸 속성 — 원문 것은 버리고 아래에서 새로 적는다
+      if (key === 'style') {                             // ⑥ style = 허용 목록(_svgStyleClean) · 남는 선언이 없으면 속성째 없음
+        const sv = _svgStyleClean(av);
+        if (sv) { seen[key] = true; kept.push([an, sv]); }
+        continue;
+      }
       if (!_svgAttrOk(an, av, canon)) continue;
       seen[key] = true;
       /* 접두사(N2) — id 자신과, 값 안의 url(#…) 참조를 같이 고친다(여기까지 온 url( 은 전부 안쪽 참조다 — _svgAttrOk 가 걸렀다) */

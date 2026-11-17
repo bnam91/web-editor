@@ -1407,6 +1407,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
         run('set_image_fill', { nodeId: n.id, imageSource: im.src.split(',')[1], sourceType: 'base64', scaleMode: 'FILL' }, { timeout: 25000 });
         if (im.circle) run('set_corner_radius', { nodeId: n.id, radius: Math.round(Math.min(iw, ih) / 2) });
       });
+      /* VECTOR-FIGMA-EXPORT-DROPS-SVG-01 — 벡터 블럭(kind 'vector')은 svg 가 몸이다 → 프레임 안에 그린다(옛: 빈 프레임).
+         보내는 쪽 svg 는 화면 렌더(뿌리 width/height 100%) — 블럭 크기 숫자로 바꿔 넣는다. 그 밖 generic 의 svg(어노 등)는 종전대로 안 그림(겹쳐 그릴 위험 · 별건). */
+      if (block.kind === 'vector' && typeof block.svg === 'string' && /^\s*<svg\b/i.test(block.svg)) {
+        const vw = Math.max(1, w), vh = Math.max(1, h || 1);
+        const vsvg = block.svg.replace(/^\s*<svg\b([^>]*)>/i, (m, at) => `<svg${at.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, '')} width="${vw}" height="${vh}">`);
+        const vn = run('create_node_from_svg', { svg: vsvg, parentId: frame.id, x: 0, y: 0 }, { timeout: 15000 });
+        if (vn) run('resize_node', { nodeId: vn.id, width: vw, height: vh });
+      }
       const font = loadFontSafe('Pretendard', 'Regular');
       (block.texts || []).forEach((t, i) => {
         /* FIGMA-GRID-CELL-TEXT-NOT-EXPORTED-01 — 보내는 쪽이 화면에서 잰 폭(t.w)을 실었으면 그 자리·폭·정렬 그대로(y 0 도 참값). 없으면 옛 셈. */
@@ -1520,6 +1528,12 @@ for (let si = 0; si < sections.length; si++) {
 
   let blockY = 0;
   for (const block of section.blocks) {
+    /* 떠 있는(오버레이) 벡터 — 보내는 쪽 x·y(섹션 왼위 기준) 자리에 두고 흐름 높이는 안 늘린다(VECTOR-FIGMA-EXPORT-DROPS-SVG-01 · 섹션 밖 드랍 오버레이 벡터).
+       ⛔다른 종류의 떠 있는 블럭은 종전대로(흐름) — 그 갈래들이 x 를 어떻게 쓰는지 따로 재야 한다(FIGMA-GENERIC-FLOATING-NOT-READ-01 별건). */
+    if (block.floating === true && block.kind === 'vector') {
+      renderBlock(block, secFrame.id, Math.round(block.x || 0), Math.round(block.y || 0), Math.max(1, block.width || canvasWidth));
+      continue;
+    }
     const h = renderBlock(block, secFrame.id, 0, blockY, canvasWidth);
     blockY += h;
   }
