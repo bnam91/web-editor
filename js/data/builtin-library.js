@@ -30,8 +30,8 @@ export const LIBRARY = [
   },
   {
     id: 'doodle', name: '두들', dir: 'doodle', w: 200,
-    source: 'Doodle Icons — Khushmeen Sidhu(khushmeen.com/icons.html) · SVG = github.com/svatsa159/react-doodle-icons src/icons 재배포본 · 24종 선별',
-    license: 'CC0 1.0(제작자 명시 · 귀속 불필요) · 재배포본 MIT(고지 = assets/library/doodle/LICENSE.txt)',
+    source: 'Doodle Icons — 원작자 Khushmeen Sidhu(원본 khushmeen.com/icons.html · khushmeen.gumroad.com/l/doodleicons) · 파일은 재배포본 github.com/svatsa159/react-doodle-icons 에서 · 24종 선별',
+    license: 'CC0 1.0 — 원작자 원문 «Free icons for commercial and personal use under CC0 license - no attribution required.»(고지 = assets/library/doodle/LICENSE.txt)',
     note: '단색 손그림 SVG · 정사각 256(뿌리 viewBox 만 넓힘 · 패스 그대로)',
     items: [
       { file: 'anchor.svg', name: '닻' },

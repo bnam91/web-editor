@@ -77,6 +77,10 @@ test('L4 묶음별 내용', () => {
   assert.match(dd.license, /^CC0/); assert.match(dd.source, /khushmeen\.com\/icons/);
   const ddLic = fs.readFileSync(path.join(ROOT, LIBRARY_ROOT, dd.dir, 'LICENSE.txt'), 'utf8');
   assert.match(ddLic, /CC0 1\.0/); assert.match(ddLic, /https:\/\/khushmeen\.com\/icons\.html/); assert.match(ddLic, /MIT License/);
+  /* 261117 «원본» 근거 — 재배포본(MIT) 표기가 아니라 원작자 원문을 인용(지디 발주 ②) */
+  const ORIG = 'Free icons for commercial and personal use under CC0 license - no attribution required.';
+  assert.ok(ddLic.includes(`"${ORIG}"`), 'LICENSE.txt 에 원작자 원문 인용'); assert.ok(dd.license.includes(ORIG), '크레딧 줄에도 원문');
+  assert.match(ddLic, /Original source \(author's own page\): https:\/\/khushmeen\.com\/icons\.html/);
   assert.equal(fs.readdirSync(path.join(ROOT, LIBRARY_ROOT, dd.dir)).filter((f) => /\.png$/.test(f)).length, 0, 'Figma 복사본 샘플(라이선스 대기) 걷음');
   const ar = col('arrow');   // 261117 화살표 = 직접 그린 SVG 20(앱 내장)
   assert.ok(ar && !ar.admin && !ar.plugin, '화살표 = 앱 내장');
