@@ -772,13 +772,20 @@ body {
   z-index: 10000;
   -webkit-app-region: drag; /* Electron: topbar로 창 드래그 가능 */
 }
-#topbar button, #topbar label, #topbar input, #topbar select {
+#topbar button, #topbar label, #topbar input, #topbar select,
+#preview-topbar button, #preview-topbar input, #preview-topbar select {
   -webkit-app-region: no-drag; /* 버튼은 드래그 제외 */
 }
+/* ★미리보기 위쪽 바도 같은 규칙(r5 · 현빈 «프리뷰에선 탑바 잡고 끌어도 창이 안 옮겨진다 · 편집에선 된다» · 옛부터 app-region 없음).
+   드러났을 때(.visible)만 drag — 숨은 동안(translateY(-100%) · pointer-events none)엔 끌기 영역이 없어 위쪽 띠 hover 감지(js/preview.js r5)가 산다.
+   ⇒ 띠 = hover · 드러난 바 빈자리(신호등 여백 포함) = 창 끌기 · 단추·입력 = no-drag(위 규칙). */
+body.preview-mode #preview-topbar.visible { -webkit-app-region: drag; }
 /* Electron: 신호등(약 80px) 영역 확보 */
 /* ★신호등 자리는 «맥에서만». 윈도우는 신호등이 없어 같은 여백이 빈 공간이 된다. */
 .electron-app #topbar { padding-left: 12px; }
-.electron-app.is-mac #topbar { padding-left: 80px; }
+/* ★미리보기 위쪽 바(#preview-topbar · 창 맨 위 fixed)도 같은 신호등 자리 — 같은 값을 같이 쓴다(r5 · 옛 결함: 3a685e3ef Side by Side 단추부터 신호등 밑에 깔렸다).
+   전체화면은 신호등이 없어 미리보기 바 고유 여백(editor-extra.css padding 0 20px)으로 둔다 — :not(.fullscreen). */
+.electron-app.is-mac #topbar, .electron-app.is-mac:not(.fullscreen) #preview-topbar { padding-left: 80px; }
 .electron-app.fullscreen #topbar,
 .electron-app.is-mac.fullscreen #topbar { padding-left: 12px; }
 #topbar .logo { font-size: var(--ui-fs-14); font-weight: var(--ui-fw-semibold); color: #fff; margin-right: 8px; }

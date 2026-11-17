@@ -12,7 +12,15 @@
  *   H10 [r3] 첫·끝 섹션을 각각 그릇 가운데까지 스크롤로 옮길 수 있다(중심 ±2 · 줌 100·25) · 켤 때 = 스크롤 0 에 첫 섹션이 가운데
  *   H11 [r3] 스페이스+드래그 → 그릇 scrollLeft 가 끈 만큼(손끝 따라감) · 편집 캔버스 팬으로 안 샘 · 섹션 점프 안 남 / [음성] 스페이스 없이 끌면 scrollLeft 그대로 · 미리보기 그대로
  *   H12 [r4] 위·아래 여유 — 첫 섹션 윗변을 창 세로 가운데까지 내릴 수 있음 · 가장 키 큰 섹션 아랫변을 가운데까지 올릴 수 있음 · 켤 때 첫 화면에 섹션이 보임 · 줌 100·25
+ *   H13 [r5] 맥(body.electron-app.is-mac · editor.js 가 거는 판정 그대로)이면 위쪽 바 첫 단추 왼끝 ≥ 편집 #topbar 의 신호등 여백(같은 값) · [음성] 맥 아님·전체화면이면 그 여백 없음
+ *   H14 [r5] 위쪽 띠 hover → 바 보임 · 띠·바 벗어나면 잠깐 뒤 숨김 · 바 위에 있으면 숨김 지연을 넘겨도 유지 · 클릭 토글 무변
+ *   H15 [r5] 드러난 위쪽 바 computed -webkit-app-region = drag(편집 #topbar 와 같은 규칙) · 단추 no-drag · 숨은 동안엔 drag 아님(위쪽 띠 hover 가 산다) — 실제 창 이동은 헤드리스로 못 잼(9500 손)
+ *   H16 [r5] 핀치(ctrlKey+wheel) — 가로·세로 줌 증감 · 하한(가로 10·세로 50)·상한 200 · 가로는 커서 아래 섹션 지점이 줌 뒤에도 제자리(±3) · ctrlKey 없는 wheel 은 줌 무변
+ *   H17 [r5] 가로 스크롤러 = #preview-overlay 하나(overflow-x auto · 아래끝 = 창 아래끝) · .preview-page-block overflow visible · 페이지 둘이면 같이 움직임 · 끄면 overlay overflow-x hidden
+ *   H18 [r5] 섹션 그릇이 자체 쌓임 맥락(#preview-content position relative·z-index 0) · 오른쪽 끝(세로 스크롤바 자리)·아래 끝(가로 스크롤바 자리) hit 가 섹션 안 요소 아님(떠 있는 블럭 든 섹션 · 가로·세로) — ⚠️헤드리스 스크롤바는 자리를 차지하는 옛꼴이라 맥 겹침 스크롤바 꼴은 못 만든다(그릇 꼴 단언이 본 판정)
+ *   H19 [r5] 진입 직후 줌 표시 50% · #preview-content scale(0.5) · 가로 켜도 50 유지(줄 zoom 0.5 · 통째 transform 없음) · 나갔다 다시 들어와도 50
  *   H9 [r2] 가로 줌 하한 10(50 밑으로 내려간다) · 세로로 돌아가면 50 으로 · 세로 하한은 50 그대로 · 줌 표시 숫자 맞음
+ * 양성대조 r5: _patches/PVH-CTL5-r5-off.patch(신호등 여백 · hover · 바 drag · 핀치 · 스크롤러 하나 · 쌓임 가둠 끔) → H13~H18 빨강(실측대로 적음).
  * 양성대조 r4: _patches/PVH-CTL4-no-vertical-room.patch(_hzEdgeRoom 의 위·아래 padding 줄 끔) → H12 빨강.
  * 양성대조 r3: _patches/PVH-CTL3-no-edge-pan.patch(_hzEdgeRoom 본문 return · 스페이스 keydown 처리 끔) → H10·H11 빨강.
  * 양성대조 r2: _patches/PVH-CTL2-zoom-transform.patch(가로도 옛 통째 transform 줌) → srv 실측 H8 만 빨강 · H7 은 초록(헤드리스 1440 창에선 9500 의 음수 x 가 재현 안 됨 — 옛 꼴도 첫 섹션이 그릇 왼끝·끝까지 닿음) · H9 초록(하한은 따로).
@@ -87,6 +95,7 @@ test('H4 줌 — 가로에서도 먹는다', async ({ page }) => {
   const { errs } = await scene(page);
   await hz(page, true);
   const w = () => page.evaluate(() => document.querySelector('#preview-content .section-block').getBoundingClientRect().width);
+  await page.evaluate(() => window.previewZoomStep(100 - parseInt(document.getElementById('preview-zoom-display').textContent)));   // r5 — 기본이 50% 가 됐으니 기준을 100 으로 맞춘 뒤 −50(옛 칸은 «진입 직후 100» 가정)
   const w0 = await w();
   await page.evaluate(() => window.previewZoomStep(-50));
   const ratio = (await w()) / w0;
@@ -132,16 +141,17 @@ async function longScene(page) {
   return errs;
 }
 const zoomTo = (page, z) => page.evaluate((z) => { const cur = parseInt(document.getElementById('preview-zoom-display').textContent); window.previewZoomStep(z - cur); return document.getElementById('preview-zoom-display').textContent; }, z);
+/* r5 — 가로 스크롤러 = #preview-overlay 하나 · 보이는 창 = overlay 의 client 영역 */
 const reach = (page) => page.evaluate(() => {
-  const b = document.querySelector('#preview-content .preview-page-block'), ss = [...b.querySelectorAll('.preview-page-inner > .section-block')];
-  b.scrollLeft = 0;
-  const B0 = b.getBoundingClientRect(), F = ss[0].getBoundingClientRect();
-  const firstGap = F.left - B0.left;
-  b.scrollLeft = b.scrollWidth;
-  const B1 = b.getBoundingClientRect(), L = ss.at(-1).getBoundingClientRect();
-  const lastIn = L.left - B1.left >= -1 && B1.right - L.right >= -1;
-  b.scrollLeft = 0;
-  return { n: ss.length, firstIn: firstGap >= -1, lastIn, overflow: b.scrollWidth > b.clientWidth };
+  const o = document.getElementById('preview-overlay'), ss = [...document.querySelectorAll('#preview-content .preview-page-block')[0].querySelectorAll('.preview-page-inner > .section-block')];
+  const O = o.getBoundingClientRect(), left = O.left + o.clientLeft, right = left + o.clientWidth;
+  o.scrollLeft = 0;
+  const firstGap = ss[0].getBoundingClientRect().left - left;
+  o.scrollLeft = o.scrollWidth;
+  const L = ss.at(-1).getBoundingClientRect();
+  const lastIn = L.left - left >= -1 && right - L.right >= -1;
+  o.scrollLeft = 0;
+  return { n: ss.length, firstIn: firstGap >= -1, lastIn, overflow: o.scrollWidth > o.clientWidth };
 });
 
 test('H7 섹션 11 + 긴 섹션 · 줌 100·50·25 — 첫 섹션이 스크롤 0 에 보이고 끝까지 닿는다', async ({ page }) => {
@@ -176,15 +186,15 @@ test('H9 가로 줌 하한 10 · 세로로 돌아가면 50 · 세로 하한 50 �
 });
 
 const centerGap = (page, which) => page.evaluate((which) => {
-  const b = document.querySelector('#preview-content .preview-page-block'), ss = [...b.querySelectorAll('.preview-page-inner > .section-block')], sec = which === 'first' ? ss[0] : ss.at(-1);
-  const off = () => { const B = b.getBoundingClientRect(), S = sec.getBoundingClientRect(); return (S.left + S.width / 2) - (B.left + b.clientLeft + b.clientWidth / 2); };
-  b.scrollLeft += off();
+  const o = document.getElementById('preview-overlay'), ss = [...document.querySelectorAll('#preview-content .preview-page-block')[0].querySelectorAll('.preview-page-inner > .section-block')], sec = which === 'first' ? ss[0] : ss.at(-1);
+  const off = () => { const O = o.getBoundingClientRect(), S = sec.getBoundingClientRect(); return (S.left + S.width / 2) - (O.left + o.clientLeft + o.clientWidth / 2); };
+  o.scrollLeft += off();
   return Math.abs(off());
 }, which);
 
 test('H10 첫·끝 섹션을 그릇 가운데까지 — 줌 100·25 · 켤 때 첫 섹션이 가운데', async ({ page }) => {
   const errs = await longScene(page);
-  const init = await page.evaluate(() => { const b = document.querySelector('#preview-content .preview-page-block'), S = b.querySelector('.preview-page-inner > .section-block').getBoundingClientRect(), B = b.getBoundingClientRect(); return { sl: b.scrollLeft, gap: Math.abs((S.left + S.width / 2) - (B.left + b.clientWidth / 2)) }; });
+  const init = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), S = document.querySelector('#preview-content .preview-page-inner > .section-block').getBoundingClientRect(), O = o.getBoundingClientRect(); return { sl: o.scrollLeft, gap: Math.abs((S.left + S.width / 2) - (O.left + o.clientLeft + o.clientWidth / 2)) }; });
   expect(init.sl, '켤 때 스크롤 0').toBe(0);
   expect(init.gap, '★켤 때 첫 섹션이 그릇 가운데').toBeLessThanOrEqual(2);
   for (const z of [100, 25]) {
@@ -197,8 +207,8 @@ test('H10 첫·끝 섹션을 그릇 가운데까지 — 줌 100·25 · 켤 때 �
 
 test('H11 스페이스+드래그 = 가로 팬 · 편집 캔버스로 안 샘 / 스페이스 없이 끌면 그대로', async ({ page }) => {
   const errs = await longScene(page);
-  const sl = () => page.evaluate(() => document.querySelector('#preview-content .preview-page-block').scrollLeft);
-  await page.evaluate(() => { document.querySelector('#preview-content .preview-page-block').scrollLeft = 1000; });
+  const sl = () => page.evaluate(() => document.getElementById('preview-overlay').scrollLeft);
+  await page.evaluate(() => { document.getElementById('preview-overlay').scrollLeft = 1000; });
   const c = await page.evaluate(() => { const q = document.querySelector('#preview-content .preview-page-block').getBoundingClientRect(); return [q.left + q.width / 2, Math.min(q.top + 200, q.bottom - 20)]; });
   // [음성] 스페이스 없이 끌기
   const s0 = await sl();
@@ -233,5 +243,168 @@ test('H12 위·아래 여유 — 첫 섹션 윗변·키 큰 섹션 아랫변을 
     expect(await vGap(page, 'top'), `★줌 ${z}% 첫 섹션 윗변 → 가운데`).toBeLessThanOrEqual(2);
     expect(await vGap(page, 'bottom'), `★줌 ${z}% 키 큰 섹션 아랫변 → 가운데`).toBeLessThanOrEqual(2);
   }
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H13 맥이면 위쪽 바 첫 단추가 신호등 자리 밖 · 맥 아님/전체화면이면 여백 없음', async ({ page }) => {
+  const errs = await longScene(page);
+  const probe = (cls) => page.evaluate((cls) => {
+    document.body.classList.remove('electron-app', 'is-mac', 'fullscreen'); cls.forEach((c) => document.body.classList.add(c));
+    const tb = document.getElementById('preview-topbar'); tb.classList.add('visible');
+    const first = tb.querySelector('.preview-tb-left > button');
+    const lights = parseFloat(getComputedStyle(document.getElementById('topbar')).paddingLeft);   // 편집 툴바가 비켜 두는 신호등 자리(같은 규칙)
+    const x = first.getBoundingClientRect().left - tb.getBoundingClientRect().left;
+    return { clear: x >= lights - 0.5, pad: getComputedStyle(tb).paddingLeft === getComputedStyle(document.getElementById('topbar')).paddingLeft };
+  }, cls);
+  expect(await probe(['electron-app', 'is-mac']), '★맥 — 첫 단추 ≥ 신호등 자리 · 편집 툴바와 같은 여백').toEqual({ clear: true, pad: true });
+  expect((await probe(['electron-app'])).pad, '[음성] 맥 아님 — 신호등 여백 안 씀').toBe(false);
+  expect((await probe(['electron-app', 'is-mac', 'fullscreen'])).pad, '[음성] 전체화면 — 신호등 여백 안 씀').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H14 위쪽 띠 hover → 바 보임 · 벗어나면 잠깐 뒤 숨김 · 바 위면 유지 · 클릭 토글 무변', async ({ page }) => {
+  const errs = await longScene(page);
+  const vis = () => page.evaluate(() => document.getElementById('preview-topbar').classList.contains('visible'));
+  expect(await vis(), '[전제] 처음엔 숨김').toBe(false);
+  await page.mouse.move(700, 400); await page.mouse.move(700, 6);
+  await expect.poll(vis, '★위쪽 띠 hover → 보임').toBe(true);
+  await page.mouse.move(700, 400);
+  await expect.poll(vis, '★벗어나면 잠깐 뒤 숨김').toBe(false);
+  // 바 위에 머물면 숨김 지연을 넘겨도 유지
+  await page.mouse.move(700, 6);
+  await expect.poll(vis).toBe(true);
+  const c = await page.evaluate(() => { const q = document.getElementById('preview-zoom-display').getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
+  await page.mouse.move(c[0], c[1]);
+  const t0 = await page.evaluate(() => performance.now());
+  await page.waitForFunction((t0) => performance.now() > t0 + 1500, t0);   // 숨김 지연(700)의 두 배 넘게 바 위에 머문다(조건 대기)
+  expect(await vis(), '★바 위에 있으면 유지').toBe(true);
+  // 클릭 토글 무변 — 본문 클릭 = 숨김, 다시 클릭 = 보임(hover 와 무관하게 유지)
+  await page.mouse.move(700, 500); await page.mouse.click(700, 500);
+  expect(await vis(), '클릭 → 숨김(토글)').toBe(false);
+  await page.mouse.click(700, 500);
+  expect(await vis(), '다시 클릭 → 보임').toBe(true);
+  const t1 = await page.evaluate(() => performance.now());
+  await page.waitForFunction((t1) => performance.now() > t1 + 1500, t1);
+  expect(await vis(), '클릭으로 연 것은 hover 가 안 닫는다').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H15 드러난 위쪽 바 = 창 끌기(drag) · 단추 no-drag · 숨은 동안엔 drag 아님 · hover 공존', async ({ page }) => {
+  const errs = await longScene(page);
+  const region = () => page.evaluate(() => {
+    const tb = document.getElementById('preview-topbar'), ar = (el) => getComputedStyle(el).getPropertyValue('-webkit-app-region') || getComputedStyle(el).webkitAppRegion || '';
+    return { bar: ar(tb), btns: [...tb.querySelectorAll('button')].map(ar).every((v) => v === 'no-drag'), editor: ar(document.getElementById('topbar')) };
+  });
+  const hidden = await region();
+  expect(hidden.editor, '[전제] 편집 #topbar = drag(이 브라우저가 app-region 을 읽는다)').toBe('drag');
+  expect(hidden.bar, '숨은 동안 = drag 아님').not.toBe('drag');
+  await page.mouse.move(700, 400); await page.mouse.move(700, 6);
+  await expect.poll(() => page.evaluate(() => document.getElementById('preview-topbar').classList.contains('visible')), '★hover 공존 — 숨은 바도 위쪽 띠 hover 로 뜬다').toBe(true);
+  expect(await region(), '★드러난 바 = drag · 단추 no-drag').toEqual({ bar: 'drag', btns: true, editor: 'drag' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const pinch = (page, dy, x, y, ctrl = true) => page.evaluate(([dy, x, y, ctrl]) => {
+  document.getElementById('preview-overlay').dispatchEvent(new WheelEvent('wheel', { deltaY: dy, ctrlKey: ctrl, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+}, [dy, x, y, ctrl]);
+const zd = (page) => page.evaluate(() => parseInt(document.getElementById('preview-zoom-display').textContent));
+/* 한 스로틀 틱(16ms)에 한 노치씩 — 틱마다 노치 상한이 있어 한꺼번에 쏘면 덜 간다(편집 핀치와 같은 셈). 줌이 더 안 바뀔 때까지(끝 = 하한/상한). */
+async function pinchTo(page, dy, x, y) {
+  for (let i = 0; i < 60; i++) {
+    const before = await zd(page);
+    await pinch(page, dy, x, y);
+    const moved = await page.waitForFunction((b) => parseInt(document.getElementById('preview-zoom-display').textContent) !== b, before, { timeout: 400 }).then(() => true, () => false);
+    if (!moved) return before;
+  }
+  return zd(page);
+}
+
+test('H16 핀치 줌 — 가로·세로 증감 · 하한·상한 · 가로 커서 아래 제자리 · ctrlKey 없는 wheel 은 무변', async ({ page }) => {
+  const errs = await longScene(page);
+  // 가로 — 다섯째 섹션을 그릇 가운데로 두고 그 섹션 안 한 점을 손가락 자리로
+  const at = await page.evaluate(() => {
+    const o = document.getElementById('preview-overlay'), s = document.querySelectorAll('#preview-content .preview-page-inner > .section-block')[4];
+    const off = () => { const O = o.getBoundingClientRect(), S = s.getBoundingClientRect(); return (S.left + S.width / 2) - (O.left + o.clientLeft + o.clientWidth / 2); };
+    o.scrollLeft += off();
+    const S = s.getBoundingClientRect(), z = parseInt(document.getElementById('preview-zoom-display').textContent) / 100;
+    const x = S.left + S.width * 0.3, y = Math.max(S.top, 0) + 40;
+    window.__pin = { ux: (x - S.left) / z, vy: (y - S.top) / z };
+    return { x, y };
+  });
+  const z0 = await zd(page);
+  await pinch(page, -100, at.x, at.y);
+  await expect.poll(() => zd(page), '★가로 핀치 아웃(확대) → 줌 증가').toBeGreaterThan(z0);
+  const drift = await page.evaluate(([x, y]) => {
+    const s = document.querySelectorAll('#preview-content .preview-page-inner > .section-block')[4], S = s.getBoundingClientRect(), z = parseInt(document.getElementById('preview-zoom-display').textContent) / 100;
+    return Math.max(Math.abs(S.left + window.__pin.ux * z - x), Math.abs(S.top + window.__pin.vy * z - y));
+  }, [at.x, at.y]);
+  expect(drift, `★가로 커서 아래 섹션 지점이 제자리(${drift.toFixed(1)}px)`).toBeLessThanOrEqual(3);
+  const z1 = await zd(page);
+  await pinch(page, 100, at.x, at.y, false);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  expect(await zd(page), '[음성] ctrlKey 없는 wheel = 줌 무변').toBe(z1);
+  expect(await pinchTo(page, 100, at.x, at.y), '★가로 하한 10').toBe(10);
+  expect(await pinchTo(page, -100, at.x, at.y), '★상한 200').toBe(200);
+  // 세로
+  await hz(page, false);
+  expect(await pinchTo(page, 100, 700, 400), '★세로 하한 50').toBe(50);
+  await pinch(page, -100, 700, 400);
+  await expect.poll(() => zd(page), '★세로 핀치 → 줌 증가').toBeGreaterThan(50);
+  expect(await page.evaluate(() => document.getElementById('preview-content').style.transform), '세로는 종전 방식(통째 transform)').toMatch(/^scale\(/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H17 가로 스크롤러 = 미리보기 창 하나 · 줄은 overflow visible · 페이지 둘이 같이 움직임 · 끄면 원복', async ({ page }) => {
+  const { errs } = await scene(page, { pages: 2 });
+  await hz(page, true);
+  const r = await page.evaluate(() => {
+    const o = document.getElementById('preview-overlay'), blocks = [...document.querySelectorAll('#preview-content .preview-page-block')];
+    const firsts = () => blocks.map((b) => b.querySelector('.preview-page-inner > .section-block').getBoundingClientRect().left);
+    const a = firsts(); o.scrollLeft = 300; const b = firsts(); const moved = o.scrollLeft;
+    return { ox: getComputedStyle(o).overflowX, bottomGap: Math.abs(o.getBoundingClientRect().bottom - window.innerHeight), scrolls: o.scrollWidth > o.clientWidth,
+      blocks: blocks.map((x) => getComputedStyle(x).overflowX), together: b.every((v, i) => Math.abs((a[i] - v) - moved) < 1) && moved > 0 };
+  });
+  expect(r, '★스크롤러 = overlay · 아래끝 = 창 아래끝 · 줄 visible · 두 줄 함께').toEqual({ ox: 'auto', bottomGap: 0, scrolls: true, blocks: ['visible', 'visible'], together: true });
+  await hz(page, false);
+  expect(await page.evaluate(() => ({ ox: getComputedStyle(document.getElementById('preview-overlay')).overflowX, sl: document.getElementById('preview-overlay').scrollLeft })), '끄면 원복').toEqual({ ox: 'hidden', sl: 0 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H18 섹션 그릇이 쌓임 맥락 — 스크롤바 자리 hit 가 섹션 안 요소 아님(떠 있는 블럭 · 가로·세로)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove());
+    for (let i = 0; i < 6; i++) await window.addSection();
+    document.querySelectorAll('#canvas .section-block')[1].querySelector('.section-inner').style.minHeight = '2400px';
+    window.flushCurrentPage(); window.enterPreview();
+  });
+  // 미리보기 사본의 섹션마다 섹션을 덮는 «떠 있는» 큰 블럭(z-index 높음) — 결과물 블럭이 위로 올라오는 꼴을 흉내(미리보기 DOM 만 · 편집 캔버스 무접촉)
+  await page.evaluate(() => document.querySelectorAll('#preview-content .section-block').forEach((s) => { const d = document.createElement('div'); d.className = 'zz-float'; d.style.cssText = 'position:absolute;inset:0;z-index:9999;background:rgba(255,0,0,.2)'; s.appendChild(d); }));
+  const probe = () => page.evaluate(() => {
+    const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect();
+    const pts = [[O.left + o.clientLeft + o.clientWidth + 2, O.top + O.height / 2]];
+    if (o.scrollWidth > o.clientWidth) pts.push([O.left + O.width / 3, O.top + o.clientTop + o.clientHeight + 2]);
+    const hits = pts.filter(([x, y]) => x < O.right && y < O.bottom).map(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#preview-content .section-block'));
+    const cs = getComputedStyle(document.getElementById('preview-content'));
+    return { stack: cs.position !== 'static' && cs.zIndex === '0', hitsSection: hits.some(Boolean), probes: hits.length };
+  });
+  const v = await probe();
+  expect({ stack: v.stack, hitsSection: v.hitsSection }, '★세로 — 그릇 쌓임 가둠 · 스크롤바 자리 hit ≠ 섹션').toEqual({ stack: true, hitsSection: false });
+  await hz(page, true);
+  const h = await probe();
+  expect({ stack: h.stack, hitsSection: h.hitsSection, probes: h.probes }, '★가로 — 그릇 쌓임 가둠 · 세로·가로 스크롤바 자리 hit ≠ 섹션').toEqual({ stack: true, hitsSection: false, probes: 2 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H19 기본 배율 50% — 진입 직후 · 가로 켜도 유지 · 다시 들어와도 50', async ({ page }) => {
+  const { errs } = await scene(page);
+  const st = () => page.evaluate(() => ({ d: document.getElementById('preview-zoom-display').textContent, t: document.getElementById('preview-content').style.transform, z: document.querySelector('#preview-content .preview-page-inner').style.zoom }));
+  expect(await st(), '★진입 직후 50% · 통째 scale(0.5)').toEqual({ d: '50%', t: 'scale(0.5)', z: '' });
+  await hz(page, true);
+  expect(await st(), '★가로 켜도 50 · 줄 zoom 0.5 · 통째 transform 없음').toEqual({ d: '50%', t: '', z: '0.5' });
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.enterPreview());
+  expect((await st()).d, '다시 들어와도 50%').toBe('50%');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

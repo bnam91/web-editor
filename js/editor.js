@@ -911,6 +911,10 @@ function wheelZoomNotches(acc) {
   const n = acc.notches + acc.pinch / PINCH_DELTA_PER_NOTCH;
   return Math.max(-ZOOM_MAX_NOTCHES_PER_TICK, Math.min(ZOOM_MAX_NOTCHES_PER_TICK, n));
 }
+/* 미리보기 핀치 줌(js/preview.js · r5)도 «같은 셈»을 쓴다 — 복사하지 않고 여기 것을 빌려 간다(노치/연속량 분리 · 틱 상한 · ×1.2). */
+window.wheelZoomAccumulate = wheelZoomAccumulate;
+window.wheelZoomNotches    = wheelZoomNotches;
+window.ZOOM_RATIO_PER_NOTCH = ZOOM_RATIO_PER_NOTCH;
 
 /** 배율을 «비율»로 바꾼다(×1.2 처럼). [M67]
  *  ⛔zoomStep 을 «고쳐서» 곱셈으로 만들지 않는다 — 그 함수의 인자 뜻이 바뀌면 ⌘+/− 와 툴바 ± 가

@@ -10,7 +10,10 @@ let _sbsResizeHandler      = null;
 let _previewHz             = false;   // ⇆ 가로 — 섹션을 왼→오 한 줄(페이지마다 한 줄 · SBS 와 배타)
 let _previewSecJump        = null;
 let _hzPan                 = null;    // ⇆ 가로 스페이스+드래그 팬 처리기 묶음(켤 때 걸고 끌 때·나갈 때 뗀다)
-let _hzDown                = null;    // 마지막 mousedown 자리 — 끈 뒤 click 이 섹션 점프로 새지 않게
+let _hzDown                = null;
+let _tbHover               = null;    // r5 위쪽 띠 hover 로 탑바 보이기 — { mm, timer, byHover }
+const TOPBAR_HIDE_MS       = 700;
+let _pvWheel               = null;    // r5 핀치 줌 — { fn, acc, timer, anchor }     // 띠·바를 벗어난 뒤 숨기기까지(잠깐 뒤 · 지나가다 스친 것에 깜빡이지 않게)    // 마지막 mousedown 자리 — 끈 뒤 click 이 섹션 점프로 새지 않게
 
 function enterPreview() {
   flushCurrentPage();
@@ -69,6 +72,8 @@ function enterPreview() {
 
   document.body.classList.add('preview-mode');
   overlay.scrollTop = 0;
+  _previewZoom = PREVIEW_ZOOM_DEFAULT;   // r5 — 들어갈 때 기본 50%(세로 = 통째 scale(0.5) · 표시 «50%»)
+  _applyPreviewZoom();
 
   const designBtn  = document.getElementById('mode-design-btn');
   const previewBtn = document.getElementById('mode-preview-btn');
@@ -87,8 +92,41 @@ function enterPreview() {
   _previewTopbarToggle = e => {
     if (topbar.contains(e.target)) return;
     topbar.classList.toggle('visible');
+    if (_tbHover) { _tbHover.byHover = false; clearTimeout(_tbHover.timer); _tbHover.timer = null; }   // 클릭으로 정한 상태는 hover 가 안 걷는다
   };
   overlay.addEventListener('click', _previewTopbarToggle);
+
+  /* r5 — 화면 위쪽 끝(탑바 높이 띠)에 마우스를 올리면 탑바가 나타나고(기존 .visible 전환 0.2s), 띠·바를 벗어나면 잠깐 뒤 숨는다.
+     hover 로 연 것만 hover 가 닫는다 · 바 위에 있는 동안은 안 닫힌다 · 클릭 토글은 그대로 · 가로·세로·SBS 모두(탑바는 하나). */
+  _tbHover = { timer: null, byHover: false, mm: null };
+  _tbHover.mm = e => {
+    const h = _tbHover, band = topbar.offsetHeight || 48;
+    if (e.clientY <= band || topbar.contains(e.target)) {
+      clearTimeout(h.timer); h.timer = null;
+      if (!topbar.classList.contains('visible')) { topbar.classList.add('visible'); h.byHover = true; }
+    } else if (h.byHover && !h.timer) {
+      h.timer = setTimeout(() => { h.timer = null; if (h.byHover) { topbar.classList.remove('visible'); h.byHover = false; } }, TOPBAR_HIDE_MS);
+    }
+  };
+  document.addEventListener('mousemove', _tbHover.mm);
+
+  /* r5 트랙패드 핀치(ctrlKey + wheel) = 미리보기 줌 — 편집 캔버스 핀치(editor.js initTrackpadGestures)와 같은 셈(window.wheelZoomAccumulate/Notches · ×ZOOM_RATIO_PER_NOTCH · 16ms 스로틀).
+     ctrlKey 없는 wheel(두 손가락 스크롤)은 손대지 않는다(종전 스크롤). 가로·세로·SBS 모두 — 가로는 손가락 아래 지점을 고정. */
+  _pvWheel = { acc: { notches: 0, pinch: 0 }, timer: null, anchor: null, fn: null };
+  _pvWheel.fn = e => {
+    if (!e.ctrlKey || !window.wheelZoomAccumulate) return;
+    e.preventDefault();
+    const w = _pvWheel;
+    window.wheelZoomAccumulate(w.acc, e.deltaY);
+    w.anchor = { x: e.clientX, y: e.clientY };
+    if (w.timer) return;
+    w.timer = setTimeout(() => {
+      const n = window.wheelZoomNotches(w.acc);
+      w.acc.notches = 0; w.acc.pinch = 0; w.timer = null;
+      if (n !== 0) _previewZoomTo(_previewZoom * Math.pow(window.ZOOM_RATIO_PER_NOTCH || 1.2, n), w.anchor);
+    }, 16);
+  };
+  overlay.addEventListener('wheel', _pvWheel.fn, { passive: false });
 
   /* ⇆ 가로 보기에서 섹션을 누르면 편집으로 돌아가 그 섹션으로(가로 보기 때만 · 세로 보기 클릭은 종전대로 탑바 토글) */
   _previewSecJump = e => {
@@ -134,6 +172,8 @@ function exitPreview() {
     overlay.removeEventListener('click', _previewTopbarToggle);
     _previewTopbarToggle = null;
   }
+  if (_tbHover) { document.removeEventListener('mousemove', _tbHover.mm); clearTimeout(_tbHover.timer); _tbHover = null; }
+  if (_pvWheel) { overlay.removeEventListener('wheel', _pvWheel.fn, { passive: false }); clearTimeout(_pvWheel.timer); _pvWheel = null; }
   document.getElementById('preview-topbar').classList.remove('visible');
 
   if (_previewSecJump) {
@@ -160,11 +200,11 @@ function exitPreview() {
   document.getElementById('preview-navigator').innerHTML = '';
 
   // zoom 리셋
-  _previewZoom = 100;
+  _previewZoom = PREVIEW_ZOOM_DEFAULT;
   const content = document.getElementById('preview-content');
   if (content) { content.style.transform = ''; content.style.transformOrigin = ''; }
   const zd = document.getElementById('preview-zoom-display');
-  if (zd) zd.textContent = '100%';
+  if (zd) zd.textContent = PREVIEW_ZOOM_DEFAULT + '%';
 }
 
 /* ── Side by Side ── */
@@ -225,10 +265,12 @@ function togglePreviewHorizontal(force) {
     const padTop = parseFloat(content?.style.paddingTop) || 0;
     if (content) content.style.paddingTop = content.style.paddingBottom = '';
     if (overlay && padTop) overlay.scrollTop = Math.max(0, overlay.scrollTop - padTop);   // 걷은 위 여유만큼 되돌려 보던 자리 유지
+    if (overlay) overlay.scrollLeft = 0;   // 세로엔 가로 스크롤 없음(overflow-x hidden 복귀)
   }
   _bindHzPan(on);
   _applyPreviewZoom();   // 줌을 옮겨 건다(가로 = 줄 zoom · 세로 = 통째 transform) + 앞뒤 여유
-  if (on) document.querySelectorAll('#preview-content .preview-page-block').forEach(b => { b.scrollLeft = 0; });   // 켤 때 = 스크롤 0 = 첫 섹션이 그릇 가운데(앞 여유가 그만큼이라 자연히)
+  /* r5 — 가로·세로 스크롤은 #preview-overlay 하나가 맡는다(가로 스크롤바가 창 맨 아래 · 페이지 줄이 함께 움직임). 켤 때 = 가로 스크롤 0 = 첫 섹션이 창 가운데(앞 여유가 그만큼). */
+  document.getElementById('preview-overlay').scrollLeft = 0;
   if (on) {   // r4 — 켤 때 세로 = 위 여유만큼 내려온 자리(첫 화면은 r3 와 같이 섹션 윗부분부터 · 빈 화면 아님) · 위 여유는 위로 끌어야 보인다
     const overlay = document.getElementById('preview-overlay');
     overlay.scrollTop = parseFloat(document.getElementById('preview-content').style.paddingTop) || 0;
@@ -254,7 +296,7 @@ function _hzEdgeRoom() {
 }
 
 /* ⇆ 가로 스페이스+드래그 팬 — 편집 캔버스 팬(editor.js «CANVAS PAN»)과 같은 손맛: 스페이스 = 손바닥 · 누른 채 끌면 «절대 델타»로 스크롤(콘텐츠가 손끝을 따라감).
-   가로 = 손 아래 페이지 줄(.preview-page-block) scrollLeft · 세로 = #preview-overlay scrollTop.
+   가로·세로 = #preview-overlay scrollLeft/scrollTop(r5 스크롤러 하나 · 페이지 줄이 함께).
    ★스페이스는 window 캡처에서 먹는다 — 편집 캔버스 팬(document keydown)·오버레이 기본 스크롤로 안 샌다. 가로가 아닐 땐 손대지 않는다. */
 function _bindHzPan(on) {
   const overlay = document.getElementById('preview-overlay');
@@ -278,8 +320,7 @@ function _bindHzPan(on) {
     md: e => {
       _hzDown = { x: e.clientX, y: e.clientY, panned: false };
       if (!st.held || e.button !== 0) return;
-      const b = e.target.closest?.('.preview-page-block') || document.querySelector('#preview-content .preview-page-block');
-      st.drag = { b, x: e.clientX, y: e.clientY, left: b ? b.scrollLeft : 0, top: overlay.scrollTop };
+      st.drag = { x: e.clientX, y: e.clientY, left: overlay.scrollLeft, top: overlay.scrollTop };   // r5 — 스크롤러 하나(#preview-overlay)
       _hzDown.panned = true;
       overlay.classList.add('pv-panning');
       e.preventDefault(); e.stopPropagation();
@@ -287,7 +328,7 @@ function _bindHzPan(on) {
     mm: e => {
       const d = st.drag;
       if (!d) return;
-      if (d.b) d.b.scrollLeft = d.left - (e.clientX - d.x);
+      overlay.scrollLeft = d.left - (e.clientX - d.x);
       overlay.scrollTop = d.top - (e.clientY - d.y);
     },
     mu: end,
@@ -386,13 +427,40 @@ function _renderSBSPanel(side, pageIdx, presetVars) {
 }
 
 /* ── Preview Zoom ── */
-let _previewZoom = 100;
+/* r5 기본 배율(현빈 261117 «프리뷰 기본 배율도 100% 말고 50%로») — 들어갈 때·나갈 때 리셋 모두 이것. 세로 하한(50)과 같아 세로·가로 모두 유효. */
+const PREVIEW_ZOOM_DEFAULT = 50;
+let _previewZoom = PREVIEW_ZOOM_DEFAULT;
 /* 줌 하한 — 세로 미리보기는 옛 50 그대로(현빈 미문의) · ⇆ 가로는 긴 줄을 한눈에 보게 10 까지(현빈 261117 «50% 보다 더 낮출 수 없나») */
 const PREVIEW_ZOOM_MIN = 50, PREVIEW_ZOOM_MIN_HZ = 10;
 function previewZoomStep(delta) {
   _previewZoom = Math.min(200, Math.max(_previewHz ? PREVIEW_ZOOM_MIN_HZ : PREVIEW_ZOOM_MIN, _previewZoom + delta));
   _applyPreviewZoom();
 }
+/* 줌을 «값»으로(핀치) — 하한(가로 10 · 세로 50)·상한 200 · 정수 %.
+   ⇆ 가로 + anchor(화면 좌표)면 그 지점 아래 «줄 안 자리»를 줌 전후 같은 화면 자리에 둔다(편집 캔버스 핀치와 같은 느낌).
+   줄은 CSS zoom 이라 «줄 단위» 자리 = (화면 − 줄 왼끝 − 앞 여유×z) ÷ z · 줌·여유를 다시 건 뒤 재서 scrollLeft/scrollTop 을 그만큼 민다. */
+function _previewZoomTo(target, anchor) {
+  const next = Math.round(Math.min(200, Math.max(_previewHz ? PREVIEW_ZOOM_MIN_HZ : PREVIEW_ZOOM_MIN, target)));
+  if (next === _previewZoom) return;
+  const z0 = _previewZoom / 100, overlay = document.getElementById('preview-overlay');
+  let pin = null;
+  if (_previewHz && anchor) {
+    const b = document.elementFromPoint(anchor.x, anchor.y)?.closest?.('.preview-page-block') || document.querySelector('#preview-content .preview-page-block');
+    const inner = b?.querySelector(':scope > .preview-page-inner');
+    if (inner) {
+      const r = inner.getBoundingClientRect(), padL = (parseFloat(inner.style.paddingLeft) || 0) * z0;
+      pin = { inner, ux: (anchor.x - r.left - padL) / z0, vy: (anchor.y - r.top) / z0 };
+    }
+  }
+  _previewZoom = next;
+  _applyPreviewZoom();
+  if (pin) {
+    const z1 = _previewZoom / 100, r = pin.inner.getBoundingClientRect(), padL = (parseFloat(pin.inner.style.paddingLeft) || 0) * z1;
+    overlay.scrollLeft += (r.left + padL + pin.ux * z1) - anchor.x;   // r5 — 스크롤러 하나
+    overlay.scrollTop += (r.top + pin.vy * z1) - anchor.y;
+  }
+}
+
 /* 줌을 지금 배치에 맞게 건다.
    · SBS = 패널 zoom(종전) · 세로 = #preview-content 통째 transform(종전 · top center)
    · ⇆ 가로 = #preview-content 는 안 줄이고(그릇이 창 폭 전부 = 가로 스크롤 영역) «섹션 줄»(.preview-page-inner)에만 CSS zoom
