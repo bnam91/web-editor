@@ -233,6 +233,15 @@ test('H11 스페이스+드래그 = 가로 팬 · 편집 캔버스로 안 샘 / �
   expect({ d: (await sl()) - s2, preview: await page.locator('body.preview-mode').count() }, '[음성] 스페이스 없이 = 안 움직임 · 미리보기 그대로(점프 안 남)').toEqual({ d: 0, preview: 1 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+/* r5c — r5b 에서 H11 을 갈아 끼울 때 «H11 머리 ~ 다음 test(» 를 잘라 이 자(H12 가 쓰는 vGap)까지 같이 날렸다 — 되살림(내용 r4 그대로) */
+const vGap = (page, which) => page.evaluate((which) => {
+  const o = document.getElementById('preview-overlay'), ss = [...document.querySelectorAll('#preview-content .preview-page-inner > .section-block')];
+  const tall = ss.reduce((a, b) => (b.offsetHeight > a.offsetHeight ? b : a));
+  const y = () => { const O = o.getBoundingClientRect(), S = (which === 'top' ? ss[0] : tall).getBoundingClientRect(); return (which === 'top' ? S.top : S.bottom) - (O.top + o.clientHeight / 2); };
+  o.scrollTop += y();
+  return Math.abs(y());
+}, which);
+
 test('H12 위·아래 여유 — 첫 섹션 윗변·키 큰 섹션 아랫변을 창 가운데까지 · 켤 때 섹션 보임 · 줌 100·25', async ({ page }) => {
   const errs = await longScene(page);
   const seen = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect(), S = document.querySelector('#preview-content .section-block').getBoundingClientRect(); return S.top < O.top + o.clientHeight && S.bottom > O.top; });
