@@ -1099,7 +1099,14 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
   /* ★⑦ 더블클릭 = ★그룹 진입(현빈 2026-10-10). ⛔그룹이 아니면 ★아무 일도 안 한다 —
      그 경우 더블클릭은 ★지금처럼 ★두 번의 클릭으로 남는다(실측: 선택 0 → 3). */
   el.addEventListener('dblclick', e => {
-    if (!item.g) return;
+    if (!item.g) {
+      /* NEW-현빈QA-SCRATCH-DBLCLICK-FIT-SECTION-WIDTH-01(현빈 261117) — 그룹 아닌 장 = 폭을 섹션 너비로(옛: 아무 일 없음).
+         손잡이·ID 칩·✂ 위 더블클릭과 ✂ 모드는 제 몫이라 안 건드린다(mousedown 가드와 같은 셋). */
+      if (resizeHs.includes(e.target) || e.target === idChip || e.target === sliceBtn || _sliceMode === item) return;
+      e.preventDefault(); e.stopPropagation();
+      _scratchFitSectionWidth(item);
+      return;
+    }
     e.preventDefault(); e.stopPropagation();
     _enterGroupMode(item);
   });
@@ -2651,6 +2658,26 @@ function _syncScratchHideAllLabel() {
 // 다중 선택된 스크래치들에 data-scratch-group만 박음 — 위치/크기는 보이는 그대로 불변.
 // 같은 그룹은 시각적 묶음 (향후 함께 이동 등 확장 가능).
 window._scratchHasSelection = () => _selectedItems.size >= 2;
+
+/* NEW-현빈QA-SCRATCH-DBLCLICK-FIT-SECTION-WIDTH-01 — 장 폭 = 섹션 너비. 너비는 살아 있는 #canvas 폭(레이아웃 px · css #canvas width)에서 읽는다(860 을 또 적지 않는다).
+   장은 폭만 가진다 ⇒ 높이는 그림 비율대로 따라온다 · 왼위(x·y) 그대로. 저장 = _saveScratch · ⌘Z 한 번 = 옛 폭(리사이즈 onUp 과 같은 표본 꼴). 이미 그 폭이면 아무것도 안 쌓는다. */
+function _scratchFitSectionWidth(item) {
+  const W = document.getElementById('canvas')?.offsetWidth || 0;
+  if (!(W > 0) || !item || !item.el || item.w === W) return false;
+  const before = _scratchGeomSnapshot([item]);
+  item.w = W;
+  item.el.style.width = W + 'px';
+  _saveScratch();
+  const after = _scratchGeomSnapshot([item]);
+  try {
+    window.pushHistory?.('스크래치 섹션 너비 맞춤', {
+      onUndo: () => _applyScratchGeomSnapshot(before),
+      onRedo: () => _applyScratchGeomSnapshot(after),
+    });
+  } catch (_) {}
+  _syncBtnsFit(item.el);
+  return true;
+}
 
 // 그룹/언그룹 undo·redo용 지오메트리 스냅샷 헬퍼 (Codex 리뷰 — Cmd+G가 history에 안 남던 버그)
 // snap = [{id, x, y, w, g}] — id로 살아있는 아이템을 찾아 x/y/w/g + DOM 스타일 복원 후 저장
