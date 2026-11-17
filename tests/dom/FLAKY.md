@@ -393,3 +393,8 @@ tpl-pagepad-e81.dom.spec.js:215 T6      1/11 (판 6b239a24) · 0/11 (판 d163b6c
 - `section-mesh-corners-t403a.dom.spec.js:260` E1 더블클릭 뒤 고른 점 «tr» ← null — 인텔 전수 final13(bdb4171f1) 빨강 · final7·final12 전수 초록 · 아이맥 workers1 spec 통째 ×3: final13 0/3 · final12 1/3 빨강.
 - 진단 기록(단언 무변): 실패 메시지·`[E1-DIAG]` 로그에 창 capture 사건(대상·defaultPrevented·그때 rAF 수) · is-sel(rAF 로 그림) ↔ 패널 줄 is-mesh-active(동기) · 오버레이 갈림 · 섹션 선택 · raf2 뒤 같은 값.
 - 판정(아이맥 2b6165a53 E1 단독 ×20 = 1 빨강 · 통째 ×10 = 0): s0.sel=null · 패널 표 tr(동기) · rAF 0 · 사건 전부 점[tr] · 3프레임 뒤 tr · 오버레이 같음 ⇒ 검사가 is-sel(rAF 로 그림)을 그리기 전에 읽음. 고침 = 상태는 패널 표로 그 자리 단언 + 그림은 expect.poll 조건 대기(값 그대로).
+
+## 2026-11-17 · grid-drag-cheap-render-132 G3 (0.9.12 마지막 관문 셋째) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `grid-drag-cheap-render-132.dom.spec.js:75` G3 배경 그림 칸 끌기 — 인텔 전수 final15(c1482ef1f · workers 3) ✘ 30.1s(시간 초과) · final12·final13 전수 ✓ · 아이맥 workers1 통째 ×3: final15 3/3·final13 3/3 초록(10.5s) · 아이맥 단독 0/6.
+- 진단 기록(단언·대기·timeout 무변): 단계 표(booted·scene·cells·pick-click·gutters·stable·tick1~3·up·up-raf) + 실패/시간 초과 때 afterEach `[G3-DIAG]`(지금 단계·경과·.grd-inner 교체 누계·대기 중 비율 디코드·고른 상태·거터 수·칸 상자·누름 대상 · 페이지 3초 무응답 표시) · 부하 재현 = 환경 `G3_CPU=N`(CDP CPU 스로틀).
+- r2(지디 인텔 별도 워크트리 grid-* workers 3 ×6): G3 6/6 초록 · 6판째 **G1-col**(:102) `page.waitForFunction` 30s 시간 초과 ⇒ 진단을 이 파일 전 칸으로(`[DRAG132-DIAG]`) · 상한 없던 공용 대기 셋에 제 이름 상한 `WAIT-cells 8s · WAIT-gutters 8s · WAIT-upRaf 5s` + 그때 값(시험 상한·retries 무변).
