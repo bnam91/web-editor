@@ -290,6 +290,16 @@
 {"kind": "cert-block", "place": "section", "op": "dup", "route": "entry", "measured": true, "picked": "click", "osWrite": true, "added": 1, "undoPresses": 1, "del": {"child": true}},
 {"kind": "cert-block", "place": "stack", "op": "dup", "route": "entry", "measured": true, "picked": "click", "osWrite": true, "added": 1, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}},
 {"kind": "cert-block", "place": "free", "op": "copypaste", "route": "entry", "measured": true, "picked": "click", "added": 1, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}},
-{"kind": "cert-block", "place": "deep2", "op": "copypaste", "route": "entry", "measured": true, "picked": "click", "added": 1, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}}
+{"kind": "cert-block", "place": "deep2", "op": "copypaste", "route": "entry", "measured": true, "picked": "click", "added": 1, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}},
+{"kind": "slide-block", "place": "section", "op": "copypaste", "route": "entry", "measured": true, "added": 1, "undoPresses": 1, "del": {"child": true}, "picked": "click"},
+{"kind": "slide-block", "place": "stack", "op": "copypaste", "route": "entry", "measured": true, "added": 1, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}, "picked": "click"},
+{"kind": "slide-block", "place": "free", "op": "drag", "route": "entry", "measured": true, "at": 0, "to": "ss_iulg7_ftrjshg", "from": "ss_iulg7_qnqrf0u", "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}, "picked": "click"},
+{"kind": "slide-block", "place": "deep2", "op": "drag", "route": "entry", "measured": true, "at": 0, "to": "ss_iulg7_i0bzvfd", "from": "ss_iulg7_epj0ozm", "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}, "picked": "click"},
+{"kind": "slide-block", "place": "free", "op": "dup", "route": "entry", "measured": true, "added": 1, "osWrite": true, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}, "picked": "click"},
+{"kind": "slide-block", "place": "deep2", "op": "dup", "route": "entry", "measured": true, "added": 1, "osWrite": true, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}, "picked": "click"},
+{"kind": "slide-block", "place": "section", "op": "insert", "route": "entry", "measured": true, "inHost": true, "undoPresses": 1, "del": {"child": true}},
+{"kind": "slide-block", "place": "stack", "op": "insert", "route": "entry", "measured": true, "inHost": true, "entered": false, "undoPresses": 1, "del": {"child": true, "framePicked": true, "frame": true}},
+{"kind": "slide-block", "place": "section", "op": "pick", "route": "entry", "measured": true, "clicks": 1, "at": 0, "shiftMix": {"block": true, "text": true, "n": 3}},
+{"kind": "slide-block", "place": "stack", "op": "pick", "route": "entry", "measured": true, "clicks": 20, "at": 0, "shiftMix": {"block": true, "text": true, "n": 4}}
 ]
 }

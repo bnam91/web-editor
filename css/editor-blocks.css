@@ -1563,8 +1563,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .infocard-block:hover::after,
 .modal-block:hover::after,
 .innercard-block:hover::after { content:''; position:absolute; inset:0; background:var(--sel-color-fill); pointer-events:none; z-index:0; }
-/* 인증서 블럭(261114) — 보이는 꼴은 renderCertBlock 인라인(내보내기 규약) · 여기는 선택·커서·상자모델만(쿠폰과 같은 넷) */
-.cert-block {
+/* 인증서 블럭(261114) — 보이는 꼴은 renderCertBlock 인라인(내보내기 규약) · 여기는 선택·커서·상자모델만(쿠폰과 같은 넷) · 슬라이드(0.9.13 MOTION)도 같은 넷 */
+.cert-block,
+.slide-block {
   position: relative;
   cursor: pointer;
   box-sizing: border-box;
@@ -1575,6 +1576,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .modal-block.selected,
 .coupon-block.selected,
 .cert-block.selected,
+.slide-block.selected,
 .quote-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
 /* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
@@ -2950,6 +2952,10 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .modal-block .mdl-profile-empty,
 .grid-block .grd-img-empty {
   background: repeating-conic-gradient(var(--goya-checker-small-a) 0% 25%, var(--goya-checker-small-b) 0% 50%) 0 0 / var(--goya-checker-small-size) var(--goya-checker-small-size);
+}
+/* 0.9.13 MOTION 슬라이드 빈 카드(사진 0 장일 때 자리표시) — 인라인 대신 클래스(card-empty-export 조건①) · 값 = 옛 인라인 checkerBg('big','16px') 그대로. */
+.slide-block .sld-card-empty {
+  background: repeating-conic-gradient(var(--goya-checker-big-a) 0% 25%, var(--goya-checker-big-b) 0% 50%) 0 0 / 16px 16px;
 }
 /* ★섹션 «체크 배경»(2026-09-28 기능, 2026-09-30 현빈 「눌렀는데 체크배경으로 안 된다」).
    JS(prop-section.js _applySectionBg · save-load.js 복원)는 .sec-bg-empty 를 켜 왔는데 ★이 규칙이

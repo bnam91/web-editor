@@ -762,6 +762,8 @@
       <button class="fp-menu-item" onclick="addBuzzBlock();toggleFpDropdown('fp-component-dropdown')">Buzz</button>
       <button class="fp-menu-item" onclick="addCouponBlock();toggleFpDropdown('fp-component-dropdown')">Coupon</button>
       <button class="fp-menu-item" id="fp-add-cert" onclick="addCertBlock();toggleFpDropdown('fp-component-dropdown')" title="Documents — 세로 A4 용지를 겹쳐 세운 묶음 · 칸에 그림을 끌어 놓기">Documents</button>
+      <!-- 0.9.13 MOTION 슬라이드 블럭 — 노출 = GIF 와 같은 관리자 규칙(js/blocks/slide-block.js syncSlideMenu · animGifVisible) · 기본 숨김 -->
+      <button class="fp-menu-item" id="fp-add-slide" style="display:none" onclick="addSlideBlock();toggleFpDropdown('fp-component-dropdown')" title="Slides — 사진 여러 장을 담아 GIF 로 흐르게(움직임은 GIF 버튼)">Slides</button>
       <!-- ★Quote 는 텍스트 드롭다운으로 옮겼다(1012t1H1 · 현빈 「텍스트 패널위치로 옮기기」). -->
       <!-- ★[숨김] Info Card · Inner Card — 현빈 2026-09-07 「info카드와 이너카드도 일단 숨김처리해줘」
            ⛔막는 것은 «새로 넣는 입구»뿐이다. 블록 구현·프로퍼티 패널·레이어 패널·저장/로드는
@@ -1230,8 +1232,11 @@
 <script type="module" src="js/blocks/laurel-block.js"></script>
 <script type="module" src="js/blocks/coupon-block.js"></script>
 <script type="module" src="js/blocks/cert-block.js"></script>
+<script type="module" src="js/blocks/slide-block.js"></script>
+<script type="module" src="js/blocks/grid-step.js"></script><!-- 0.9.13 MOTION 3단계 신호등(그리드 칸 차례 강조) -->
 <script type="module" src="js/util/label-shape.js"></script>
 <script type="module" src="js/props/prop-cert.js"></script>
+<script type="module" src="js/props/prop-slide.js"></script>
 <script type="module" src="js/blocks/coupon-presets.js"></script>
 <script type="module" src="js/blocks/quote-block.js"></script>
 <script type="module" src="js/blocks/radial-block.js"></script>
@@ -1344,6 +1349,21 @@
             <span class="anim-opt-val" id="anim-stamp-s0-val">2.2배</span>
           </div>
           <div id="anim-stamp-grow" class="anim-loop-info"></div>
+          <!-- 0.9.13 MOTION 슬라이드 블럭 칸(글자 블럭엔 숨김 · animation-engine.js _syncKindRows) -->
+          <div class="anim-opt-row" id="anim-slide-row" style="display:none">
+            <span class="anim-opt-label">방향</span>
+            <select id="anim-slide-dir" class="anim-track-fx" onchange="setSlideAnimOpt(true)"><option value="left">← 왼쪽으로</option><option value="right">→ 오른쪽으로</option></select>
+          </div>
+          <div class="anim-opt-row" id="anim-slide-dwell-row" style="display:none">
+            <span class="anim-opt-label">머무름</span>
+            <input type="range" class="anim-opt-slider" id="anim-slide-dwell" min="0.3" max="4" step="0.1" value="1.2" oninput="setSlideAnimOpt(false)" onchange="setSlideAnimOpt(true)" title="스와이프 — 한 장에 머무는 시간(초)">
+            <span class="anim-opt-val" id="anim-slide-dwell-val">1.2초</span>
+          </div>
+          <div class="anim-opt-row" id="anim-step-past-row" style="display:none"><!-- 0.9.13 MOTION 3단계 신호등 — 지난 칸(그리드만 · _syncKindRows) -->
+            <span class="anim-opt-label">지난 칸</span>
+            <select id="anim-step-past" class="anim-track-fx" onchange="setSlideAnimOpt(true)"><option value="off">꺼짐</option><option value="stack">쌓임</option></select>
+          </div>
+          <div id="anim-fx-opts" class="anim-opt-row" style="display:none"></div><!-- GIF V3 효과 옵션(가이드·커서·글로우·깜빡임·형광펜) — animation-engine.js _renderBlockOpts -->
           <div class="anim-opt-row">
             <label class="anim-opt-label" for="anim-per-line">줄마다 따로</label>
             <input type="checkbox" id="anim-per-line" onchange="setAnimPerLine(this.checked)" title="줄마다 효과·시작 시각을 따로(예: 질문은 타이핑 · 답은 도장)">

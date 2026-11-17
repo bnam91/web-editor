@@ -2,7 +2,7 @@
    ANIMATION GIF ENGINE
 ═══════════════════════════════════════════════════════ */
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs, parseTextShadow } from './fx/anim-gif-text.js';
-import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines, withGradFill, S0_MIN, S0_MAX, S0_DEFAULT, clampS0, stampNeedH } from './fx/anim-gif-tracks.js';
+import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines, withGradFill, S0_MIN, S0_MAX, S0_DEFAULT, clampS0, stampNeedH, normOpt, optOf, OPT_KEYS, HL_MODES } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
 
 const ANIM_LIST = [
@@ -17,11 +17,12 @@ const ANIM_LIST = [
   { id: 'stamp',        label: '도장 찍기',       desc: '크고 흐리게 내려와 «쾅» 선명하게' },
   { id: 'blur-in',      label: '흐림→선명',       desc: '흐릿하게 시작해 또렷해짐' },
   { id: 'blur-whip',    label: '블러 휩',         desc: '옆에서 잔상을 끌며 휙 들어옴' },
+  { id: 'fade-char',    label: '한 글자씩 부드럽게', desc: '글자마다 투명→선명으로 차례로' },   // GIF V3(0.9.13 · P035 형식)
 ];
 
 /** 한 바퀴 계획 — V1 7종 = 옛 길(_drawFrame · 1200ms/속도) · V2 효과 = 줄별 타임라인(블럭 전체 = 모든 줄 같은 효과 · 0ms 동시 시작).
  *  k = 배율(블럭 1px = 캔버스 k px) — 흐림·흔들림 px 를 미리보기·GIF 에서 같은 «눈 크기»로. */
-const _V2_DUR = { stamp: 560, 'blur-in': 900, 'blur-whip': 700 };
+const _V2_DUR = { stamp: 560, 'blur-in': 900, 'blur-whip': 700, 'fade-char': 1200 };
 /** 그릴 트랙에 도장 시작 크기를 채운다 — 줄 값이 없으면 블럭 값(s0). 높이 셈(_fitStampHeight)과 그리기가 같은 값을 쓴다. */
 const _withS0 = (tracks, s0) => tracks.map((t) => (t.fx === 'stamp' && t.s0 == null ? { ...t, s0 } : t));
 /** st = { perLine, tracks, type, s0 } — 모달 지금 값(_plan) 또는 블럭에 저장된 값(_savedState · 블럭 ▶ 단추). */
@@ -35,12 +36,60 @@ function _planOf(st, style, speed, k) {
     return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tr, t * dur, k) };
   }
   const type = st.type;   // 계획 = 지금 효과로 고정(캔버스에서 보기가 모달을 닫은 뒤에도 같은 효과)
-  if (!V2_FX.includes(type)) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, paint(ctx, W, H, size), size, type, t) };
-  const dur = Math.round(_V2_DUR[type] / speed);
-  const tracks = _withS0(Array.from({ length: n }, (_, i) => ({ line: i, fx: type, at: 0, dur })), st.s0);
+  /* GIF V3 옵션(가이드·커서·글로우·깜빡임·형광펜)은 줄별 엔진이 그린다 ⇒ 옛 7종도 옵션을 켜면 그쪽으로 · 옵션 없으면 옛 _drawFrame 그대로(옛 GIF 바이트) */
+  const op = normOpt(st.opt, type), hasOp = Object.keys(op).length > 0;
+  if (!V2_FX.includes(type) && !(hasOp && TRACK_FX.includes(type))) return { duration: 1200 / speed, draw: (ctx, W, H, size, t) => _drawFrame(ctx, W, H, paint(ctx, W, H, size), size, type, t) };
+  const dur = Math.round((_V2_DUR[type] || 1200) / speed);
+  const tracks = _withS0(Array.from({ length: n }, (_, i) => ({ line: i, fx: type, at: 0, dur, ...(hasOp ? { o: op } : {}) })), st.s0);
   return { duration: dur, draw: (ctx, W, H, size, t) => drawTracks(ctx, W, H, paint(ctx, W, H, size), size, tracks, t * dur, k) };
 }
-function _plan(style, speed, k) { return _planOf({ perLine: _perLine, tracks: _tracks, type: _animType, s0: _stampS0() }, style, speed, k); }
+function _plan(style, speed, k) { return _planOf({ perLine: _perLine, tracks: _tracks, type: _animType, s0: _stampS0(), opt: _animOpt }, style, speed, k); }
+/* 블럭 전체 효과의 V3 옵션 — 블럭 data-anim-opt(JSON · 그 효과 허용 키만 · 기본이면 키 없음) */
+let _animOpt = {};
+function _readOpt(tb) { try { const o = JSON.parse(tb?.dataset.animOpt || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } }
+/** 지금 효과 기준으로 data-anim-opt 를 맞춘다 — 바뀌었으면 true(부르는 쪽이 이력 한 칸에 묶는다). */
+function _saveBlockOpt() {
+  if (!_animTb) return false;
+  const op = normOpt(_animOpt, _animType), next = Object.keys(op).length ? JSON.stringify(op) : null;
+  if ((_animTb.dataset.animOpt ?? null) === next) return false;
+  if (next) _animTb.dataset.animOpt = next; else delete _animTb.dataset.animOpt;
+  return true;
+}
+const _hasHl = (tb) => !!tb && (_getTextStyle(tb).cs || []).some((c) => c && c.hl && c.hl.color);
+const _OPT_LABEL = { guide: '옅은 가이드', cursor: '커서', glow: '글로우', pulse: '깜빡임' };
+/** V3 옵션 칸 — 효과(fx)가 받는 키만 + 형광펜 글이면 형광펜 고르기. 모달(블럭 전체)·줄 칸이 같은 것을 쓴다(onChange(k, v)). */
+function _optControls(fx, o, onChange, hl) {
+  const box = document.createElement('span'); box.className = 'anim-fx-opt-set';
+  box.optCount = 0;   // 칸 수(0 이면 부르는 쪽이 안 붙인다)
+  for (const k of OPT_KEYS[fx] || []) {
+    const lab = document.createElement('label'); lab.className = 'anim-opt-label';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.opt = k; cb.checked = !!optOf(o, k);
+    cb.addEventListener('change', () => onChange(k, cb.checked));
+    lab.append(cb, ' ' + _OPT_LABEL[k]);
+    box.appendChild(lab); box.optCount++;
+  }
+  if (hl) {
+    const sel = document.createElement('select'); sel.className = 'anim-track-fx'; sel.dataset.opt = 'hl'; sel.title = '형광펜(칠한 글)';   // 줄 효과 고르기와 같은 공용 꼴(NEW-현빈QA-GIF-HL-SELECT-CSS-01 · 새 CSS 0) — 같은 줄에서 효과 고르기는 :not([data-opt]) 로 가린다
+    for (const [v, t] of [['', '형광펜: 글과 같이'], ['fixed', '형광펜 고정 + 글만'], ['draw', '형광펜 긋기'], ['sweep', '글 고정 + 띠만 긋기']]) { const op = document.createElement('option'); op.value = v; op.textContent = t; op.selected = (optOf(o, 'hl') || '') === v; sel.appendChild(op); }
+    sel.addEventListener('change', () => onChange('hl', HL_MODES.includes(sel.value) ? sel.value : null));
+    box.appendChild(sel); box.optCount++;
+  }
+  return box;
+}
+function _renderBlockOpts() {
+  const host = document.getElementById('anim-fx-opts');
+  if (!host) return;
+  host.textContent = '';
+  if (_perLine || !_animTb) { host.style.display = 'none'; return; }   // 줄마다 따로면 줄 칸이 옵션을 든다
+  const set = _optControls(_animType, normOpt(_animOpt, _animType), (k, v) => {
+    _animOpt = { ..._animOpt, [k]: v };
+    if (v === null) delete _animOpt[k];
+    _commitGif(_saveBlockOpt());
+    restartAnimPreview();
+  }, _hasHl(_animTb));
+  host.style.display = set.optCount ? '' : 'none';
+  host.appendChild(set);
+}
 /* 도장 시작 크기(블럭 전체 값) — 모달 슬라이더(#anim-stamp-s0)가 정본 · 저장은 블럭 data-anim-stamp-s0(기본이면 키 없음) */
 function _stampS0() {
   const el = document.getElementById('anim-stamp-s0');
@@ -52,7 +101,7 @@ function _savedState(tb) {
   const n = String(_getTextStyle(tb).text || '').split('\n').length;
   const r = parseAnimGif(tb.dataset.animGif, n);
   const type = _ANIM_IDS().includes(tb.dataset.animFx) ? tb.dataset.animFx : 'slide-up';
-  return { perLine: r.perLine, tracks: r.tracks, type, s0: clampS0(tb.dataset.animStampS0), speed: r.perLine ? r.speed : 1 };
+  return { perLine: r.perLine, tracks: r.tracks, type, s0: clampS0(tb.dataset.animStampS0), opt: _readOpt(tb), speed: r.perLine ? r.speed : 1 };
 }
 
 let _animTb        = null;
@@ -63,6 +112,113 @@ let _animStart     = null;
 let _animLoops     = 0;
 let _perLine       = false;   // F3 «줄마다 따로»
 let _tracks        = null;    // F3 줄별 트랙(normTracks 결과) — 블럭 data-anim-gif 와 같은 값
+/* ══ 0.9.13 MOTION 슬라이드 블럭(현빈 결정 261116: 움직임 입구 = GIF 버튼 → 이 GIF 패널 하나 · 고른 블럭 종류로 효과 목록이 바뀜) ══
+   셈·그림은 js/blocks/slide-block.js(window.slidePlan/slidePrepare · 순수 셈 js/fx/slide-motion.js) — 이 엔진은 «종류 갈래» 몇 자리만 둔다:
+   openAnimModal · _buildAnimList · _selectAnim · _startAnimPreview · closeAnimModal · _isEmptyText · playAnimOnCanvas · toggleAnimOnCanvas · exportAnimGif. 텍스트 길은 무변. */
+let _animKind      = 'text';   // 'text' | 'slide' | 'step'(3단계 신호등 · 그리드)
+const SLIDE_LIST = [
+  { id: 'slide-flow',  label: '가로 흐름', desc: '사진 줄이 끊김 없이 한 방향으로 흐름' },
+  { id: 'slide-swipe', label: '스와이프',  desc: '한 장씩 넘기고 잠깐 머무름' },
+  { id: 'slide-vflow', label: '세로 흐름', desc: '사진이 세로로 쌓여 끊김 없이 위·아래로 흐름' },   // 2단계
+  { id: 'slide-vstep', label: '세로 넘김', desc: '세로로 한 장씩 올리고 잠깐 머무름' },
+];
+const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep']);
+/* 3단계 ③ 신호등(MOTION-STEP-HIGHLIGHT-01) — 그리드 칸 차례 강조. 셈·그림 = js/fx/step-motion.js · 바탕 그림·저장 = js/blocks/grid-step.js */
+const STEP_LIST = [
+  { id: 'step-fill',    label: '차례 채움',    desc: '칸이 하나씩 강조 색으로 채워지고 나머지는 흐리게' },
+  { id: 'step-outline', label: '차례 테두리',  desc: '칸이 하나씩 강조 색 테두리로 켜짐' },
+  { id: 'step-pop',     label: '차례 튀어나옴', desc: '칸이 하나씩 조금 커지며 떠오름' },
+];
+/* 움직임 블럭 종류 표 — 엔진의 갈래 자리(열기·미리보기·캔버스 재생·GIF 저장·빈 판정)는 이 표 한 줄만 본다(텍스트 길은 무변). */
+const _MK = {
+  slide: { cls: 'slide-block', list: SLIDE_LIST, prepare: (b) => window.slidePrepare?.(b), plan: (b, a, fx) => window.slidePlan(b, a, fx), read: (b) => window.readSlideState(b),
+    save: (b, a) => !!window.setSlideAnim?.(b, a), has: (b) => !!window.slideHasPhotos?.(b), emptyTitle: '사진이 없어 GIF 를 만들 수 없습니다 — 오른쪽 패널에서 사진을 넣으세요' },
+  step:  { cls: 'grid-block', list: STEP_LIST, prepare: (b) => window.stepPrepare?.(b), plan: (b, a, fx) => window.stepPlan(b, a, fx), read: (b) => window.readStepState(b),
+    save: (b, a) => !!window.setStepAnim?.(b, a), has: (b) => !!window.stepHasCells?.(b), emptyTitle: '칸이 없어 GIF 를 만들 수 없습니다' },
+};
+const _mkOf = (el) => (el && el.classList ? Object.keys(_MK).find((k) => el.classList.contains(_MK[k].cls)) || null : null);
+const _isMotion = (el) => !!_mkOf(el);   // 움직임 블럭(슬라이드·신호등)
+const _kindList = () => (_MK[_animKind] ? _MK[_animKind].list : ANIM_LIST);
+const _slideBgStyle = (tb) => ({ sectionBg: window.slideBg ? window.slideBg(tb) : '#ffffff', fontSize: 1 });
+/** 글자 전용 칸 ↔ 슬라이드 칸 — 종류에 따라 숨김/보임(값·저장은 안 건드림). */
+function _syncKindRows() {
+  const slide = !!_MK[_animKind], step = _animKind === 'step';
+  const perRow = document.getElementById('anim-per-line')?.closest?.('.anim-opt-row');
+  for (const el of [perRow, document.getElementById('anim-stamp-s0-row'), document.getElementById('anim-stamp-grow')]) if (el) el.style.display = slide ? 'none' : '';
+  if (slide) for (const id of ['anim-tracks', 'anim-fx-opts', 'anim-conflict-warn']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+  const dirRow = document.getElementById('anim-slide-row'), dwRow = document.getElementById('anim-slide-dwell-row');
+  if (dirRow) dirRow.style.display = slide && !step ? '' : 'none';
+  if (dwRow) dwRow.style.display = step || (slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep')) ? '' : 'none';
+  const dwLab = dwRow?.querySelector?.('.anim-opt-label'); if (dwLab) dwLab.textContent = step ? '한 칸 시간' : '머무름';   // 같은 칸 · 신호등이면 글만
+  const pastRow = document.getElementById('anim-step-past-row'); if (pastRow) pastRow.style.display = step ? '' : 'none';
+  /* 방향 값은 그대로(left = 줄이 음의 쪽으로) — 세로 효과면 글만 위로/아래로 */
+  const dirSel = document.getElementById('anim-slide-dir'), v = _SLIDE_VERT.has(_animType);
+  if (slide && dirSel) for (const o of dirSel.options) o.textContent = o.value === 'right' ? (v ? '↓ 아래로' : '→ 오른쪽으로') : (v ? '↑ 위로' : '← 왼쪽으로');
+}
+/** GIF 패널 지금 값(슬라이드) — 방향·머무름·속도. */
+function _slideAnimNow() {
+  return {
+    dir: document.getElementById('anim-slide-dir')?.value === 'right' ? 'right' : 'left',
+    dwell: parseFloat(document.getElementById('anim-slide-dwell')?.value) || 1.2,
+    speed: parseFloat(document.getElementById('anim-speed')?.value) || 1,
+    past: document.getElementById('anim-step-past')?.value === 'stack' ? 'stack' : 'off',   // 신호등만 읽는다(슬라이드 소독이 버림)
+  };
+}
+/** 슬라이드 움직임 값 저장(블럭 data-anim-slide) — commit = 이력 한 칸(바뀌었을 때만). index.html 방향·머무름 칸 인라인이 부른다. */
+function setSlideAnimOpt(commit = true) {
+  const lab = document.getElementById('anim-slide-dwell-val'), dw = document.getElementById('anim-slide-dwell');
+  if (lab && dw) lab.textContent = `${(+dw.value).toFixed(1)}초`;
+  _syncKindRows();
+  restartAnimPreview();
+  return commit ? _saveSlideAnim() : false;
+}
+function _saveSlideAnim() {
+  const mk = _MK[_mkOf(_animTb)];
+  if (!mk) return false;
+  const changed = mk.save(_animTb, _slideAnimNow());
+  if (changed) { window.pushHistory?.('GIF 슬라이드'); window.scheduleAutoSave?.(); }
+  return changed;
+}
+function _openSlideModal(tb) {
+  const st = _MK[_animKind].read(tb);
+  _animType = st.fx;
+  _perLine = false; _tracks = null; _animOpt = {};
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = String(v); };
+  if (st.anim.dir) set('anim-slide-dir', st.anim.dir);
+  if (st.anim.past) set('anim-step-past', st.anim.past);
+  set('anim-slide-dwell', st.anim.dwell); set('anim-speed', st.anim.speed);
+  const sv = document.getElementById('anim-speed-val'); if (sv) sv.textContent = st.anim.speed + 'x';
+  const dv = document.getElementById('anim-slide-dwell-val'); if (dv) dv.textContent = `${(+st.anim.dwell).toFixed(1)}초`;
+  _buildAnimList();
+  _selectAnim(_animType);
+  _applyEmptyGate(document.querySelector('.anim-export-btn'));
+}
+let _slidePrevToken = 0;
+/** 슬라이드 미리보기 — 그림 준비(IPC data URL) 뒤 끊김 없이 돈다(끝 멈춤 0 · GIF 와 같은 계획). */
+function _startSlidePreview() {
+  const canvas = document.getElementById('anim-preview-canvas'), tb = _animTb, token = ++_slidePrevToken;
+  const mk = _MK[_animKind];
+  if (!canvas || !tb || !mk) return;
+  Promise.resolve(mk.prepare(tb)).then(() => {
+    if (token !== _slidePrevToken || _animTb !== tb) return;
+    const bW = Math.max(tb.offsetWidth, 1), bH = Math.max(tb.offsetHeight, 1);
+    canvas.width = 480; canvas.height = Math.max(40, Math.round(480 * bH / bW));
+    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, style = _slideBgStyle(tb);
+    const plan = mk.plan(tb, _slideAnimNow(), _animType);
+    const info = document.getElementById('anim-loop-info');
+    if (info) info.textContent = plan.info;
+    _animStart = null;
+    const tick = (ts) => {
+      if (token !== _slidePrevToken) return;
+      if (_animStart == null) _animStart = ts;
+      ctx.clearRect(0, 0, W, H);
+      _fillBg(ctx, style, W, H);
+      plan.draw(ctx, W, H, 0, ((ts - _animStart) % plan.duration) / plan.duration);
+      _animRafId = requestAnimationFrame(tick);
+    };
+    _animRafId = requestAnimationFrame(tick);
+  });
+}
 
 /* ══ F3 줄마다 따로(현빈 GO 261114 · P076 = 질문 «타이핑» · 답 «도장») ══
    저장 = 텍스트 블럭 data-anim-gif(js/fx/anim-gif-tracks.js parseAnimGif/serializeAnimGif — 글 내용은 저장 안 함) · 값이 바뀔 때만 쓰고 이력 한 칸.
@@ -93,7 +249,7 @@ function _saveAnimGif(push = true) {
 }
 /** 효과·줄별·도장 크기를 바꾼 «한 동작» = 이력 한 칸 — 저장 꼴 + 블럭 높이 늘림(_fitStampHeight)을 같이 찍는다(⌘Z 한 걸음에 둘 다 돌아감). */
 function _commitGif(changed = false) {
-  const a = _saveAnimGif(false), b = _fitStampHeight();
+  const a = _saveAnimGif(false), b = _animKind === 'text' ? _fitStampHeight() : false;
   if (changed || a || b) { window.pushHistory?.('GIF 효과'); window.scheduleAutoSave?.(); }
 }
 /* ══ 도장이 블럭을 넘으면 블럭 높이를 늘려 담는다(현빈 재QA 261116 «시작 크기가 커지면 블럭의 높이도 커지게») ══
@@ -143,6 +299,7 @@ function setAnimPerLine(on) {
   _perLine = !!on;
   if (_perLine && !_tracks) _tracks = normTracks(null, _lineTexts().length, { fx: TRACK_FX.includes(_animType) ? _animType : 'fade-in', dur: 1000 });
   _renderTrackRows();
+  _renderBlockOpts();
   _commitGif();
   restartAnimPreview();
 }
@@ -156,7 +313,7 @@ function _renderTrackRows() {
   if (!_perLine || !_tracks) return;
   const texts = _lineTexts();
   _tracks = normTracks(_tracks, texts.length);
-  const T = Math.max(1, totalMs(_tracks));
+  const T = Math.max(1, totalMs(_tracks)), hasHl = _hasHl(_animTb);
   _tracks.forEach((tr, i) => {
     const row = document.createElement('div'); row.className = 'anim-track-row'; row.dataset.line = String(i);
     const lab = document.createElement('span'); lab.className = 'anim-track-label'; lab.textContent = (texts[i] || '').slice(0, 12) || '(빈 줄)'; lab.title = texts[i] || '';
@@ -171,13 +328,19 @@ function _renderTrackRows() {
     seg.style.left = `${(tr.at / T) * 100}%`; seg.style.width = `${(tr.dur / T) * 100}%`;
     bar.appendChild(seg);
     const apply = () => {
-      _tracks[i] = { line: i, fx: sel.value, at: Number(atIn.value), dur: Number(durIn.value), s0: s0In && s0In.value !== '' ? Number(s0In.value) : undefined };
+      _tracks[i] = { line: i, fx: sel.value, at: Number(atIn.value), dur: Number(durIn.value), s0: s0In && s0In.value !== '' ? Number(s0In.value) : undefined, o: tr.o };
       _tracks = normTracks(_tracks, texts.length);   // 범위 고정(소독과 같은 문)
       _renderTrackRows(); _commitGif(); restartAnimPreview();
     };
     sel.addEventListener('change', apply); atIn.addEventListener('change', apply); durIn.addEventListener('change', apply);
     if (s0In) s0In.addEventListener('change', apply);
-    row.append(lab, sel, atIn, durIn, ...(s0In ? [s0In] : []), bar);
+    const opts = _optControls(tr.fx, tr.o, (k, v) => {   // GIF V3 줄 옵션 — 같은 칸 부품
+      const o = { ...(tr.o || {}), [k]: v }; if (v === null) delete o[k];
+      _tracks[i] = { ...tr, o };
+      _tracks = normTracks(_tracks, texts.length);
+      _renderTrackRows(); _commitGif(); restartAnimPreview();
+    }, hasHl);
+    row.append(lab, sel, atIn, durIn, ...(s0In ? [s0In] : []), ...(opts.optCount ? [opts] : []), bar);
     box.appendChild(row);
   });
 }
@@ -188,6 +351,10 @@ function openAnimModal(tb) {
   _animTb = tb;
   const modal = document.getElementById('anim-gif-modal');
   modal.style.display = 'flex';
+  _bindModalOverlay(modal);
+  _animKind = _mkOf(tb) || 'text';
+  _syncKindRows();
+  if (_MK[_animKind]) { _openSlideModal(tb); return; }
 
   // BUG-FIX: _animType을 먼저 초기화하고 buildAnimList 호출해야
   // _buildAnimList 내부 active 표시가 올바른 초기값을 반영함
@@ -197,22 +364,24 @@ function openAnimModal(tb) {
   const s0Lab = document.getElementById('anim-stamp-s0-val');
   if (s0Lab) s0Lab.textContent = s0 + '배';
   _showGrow(Math.max(0, parseInt(tb.dataset.animGifGrow, 10) || 0));
+  _animOpt = _readOpt(tb);   // GIF V3 블럭 전체 옵션
   _loadAnimGif();   // F3 — 저장된 줄별 효과가 있으면 그것으로(미리보기도)
   _buildAnimList();
   // _selectAnim은 _buildAnimList 후에 호출 (active 토글 + preview 시작)
   _selectAnim(_animType);
   _applyEmptyGate(document.querySelector('.anim-export-btn'));
-
-  // BUG-FIX: 오버레이 바깥 클릭으로 닫기 (한 번만 등록)
-  if (!modal._overlayClickBound) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeAnimModal();
-    });
-    modal._overlayClickBound = true;
-  }
+}
+// BUG-FIX: 오버레이 바깥 클릭으로 닫기 (한 번만 등록) — 슬라이드 갈래도 같이 쓰게 함수로 뺌(동작 무변)
+function _bindModalOverlay(modal) {
+  if (modal._overlayClickBound) return;
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeAnimModal();
+  });
+  modal._overlayClickBound = true;
 }
 
 function closeAnimModal() {
+  if (_MK[_animKind]) _saveSlideAnim(); else   // 슬라이드 = 속도 등 지금 값 저장(바뀌었을 때만 이력)
   _saveAnimGif();   // F3 — 속도·반복을 바꾼 채 닫으면 그 값도(안 바뀌었으면 무동작)
   document.getElementById('anim-gif-modal').style.display = 'none';
   _stopAnimPreview();
@@ -238,6 +407,13 @@ function _toLayer(r) {
 }
 function playAnimOnCanvas() {
   if (!_animTb || _isEmptyText(_animTb)) return;
+  if (_isMotion(_animTb)) {   // 슬라이드 — 닫기 전에 지금 패널 값으로 고정 · 그림 준비 뒤 같은 덮개
+    const tb = _animTb, anim = _slideAnimNow(), fx = _animType;
+    closeAnimModal();
+    const mk = _MK[_mkOf(tb)];
+    Promise.resolve(mk.prepare(tb)).then(() => { if (tb.isConnected) _startCanvasPlay(tb, mk.plan(tb, anim, fx), _slideBgStyle(tb)); });
+    return;
+  }
   const tb = _animTb, style = _getTextStyle(tb);
   const speed = parseFloat(document.getElementById('anim-speed')?.value) || 1;
   const plan = _plan(style, speed, _PLAY_K);   // 닫기 전에 — 지금 효과·줄별 트랙으로 고정
@@ -249,6 +425,8 @@ function toggleAnimOnCanvas(tb) {
   if (!tb) return;
   if (_onCanvas && _onCanvas.tb === tb) { stopAnimOnCanvas(); return; }
   if (_isEmptyText(tb)) return;
+  const mk = _MK[_mkOf(tb)];
+  if (mk) { Promise.resolve(mk.prepare(tb)).then(() => { if (tb.isConnected) _startCanvasPlay(tb, mk.plan(tb), _slideBgStyle(tb)); }); return; }
   const style = _getTextStyle(tb), st = _savedState(tb);
   _startCanvasPlay(tb, _planOf(st, style, st.speed, _PLAY_K), style);
 }
@@ -260,7 +438,7 @@ function _startCanvasPlay(tb, plan, style) {
   cv.height = Math.round(Math.max(tb.offsetHeight, 1) * _PLAY_K);
   cv.style.cssText = 'position:absolute;pointer-events:none;z-index:80;';   // scaler 안 — 섹션(z 2) 위 · 연결선(90)·스크래치(100) 아래
   _canvasLayer().appendChild(cv);
-  const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + 1500;   // 끝에서 1.5초 멈춤(미리보기와 같음)
+  const ctx = cv.getContext('2d'), size = Math.round(style.fontSize * _PLAY_K), cycle = plan.duration + (plan.hold ?? 1500);   // 끝에서 1.5초 멈춤(미리보기와 같음)
   let t0 = null;
   const tick = (ts) => {
     if (!_onCanvas || _onCanvas.cv !== cv) return;   // 이 재생이 이미 끝났다(멈춘 뒤 늦게 온 프레임 · 다음 재생으로 바뀜) — 그리지 않는다
@@ -308,7 +486,7 @@ const _hasGif = (tb) => !!(tb && tb.isConnected && (tb.dataset.animFx || tb.data
 function _playTarget() {
   const ok = (t) => _hasGif(t) || !!(_onCanvas && t === _onCanvas.tb && t.isConnected);
   if (ok(_hoverTb)) return _hoverTb;
-  const sel = document.querySelector('#canvas .text-block.selected');
+  const sel = document.querySelector('#canvas .text-block.selected, #canvas .slide-block.selected, #canvas .grid-block.selected');
   return ok(sel) ? sel : null;
 }
 function _placePlayBtn() {
@@ -333,7 +511,7 @@ function _placePlayBtn() {
 /* 마우스가 블럭 위로 — 단추 자체 위에선 대상 유지(누르러 가는 길에 사라지지 않게) · 스크롤·휠·클릭 뒤 자리·대상 다시 */
 document.addEventListener?.('pointermove', (e) => {
   if (_playBtn && e.target === _playBtn) return;
-  _hoverTb = e.target && e.target.closest ? e.target.closest('#canvas .text-block') : null;
+  _hoverTb = e.target && e.target.closest ? e.target.closest('#canvas .text-block, #canvas .slide-block, #canvas .grid-block') : null;
   _placePlayBtn();
 }, true);
 for (const t of ['scroll', 'wheel', 'pointerup', 'click', 'keyup']) document.addEventListener?.(t, () => _placePlayBtn(), true);
@@ -342,21 +520,24 @@ function _buildAnimList() {
   const list = document.getElementById('anim-list');
   /* ★이름·설명은 틀에 안 넣는다 (T-049) — 지금은 이 파일의 고정 목록이지만, 「목록이
      고정이다」는 옆 파일이 바뀌면 끝나는 전제다. 어차피 아래에서 한 줄씩 훑으므로 비용이 0. */
-  list.innerHTML = ANIM_LIST.map(a => `
+  const LIST = _kindList();   // 텍스트 = 글자 효과 · 슬라이드 = 흐름·스와이프
+  list.innerHTML = LIST.map(a => `
     <div class="anim-item${a.id === _animType ? ' active' : ''}" data-id="${a.id}">
       <div class="anim-item-name"></div>
       <div class="anim-item-desc"></div>
     </div>
   `).join('');
   list.querySelectorAll('.anim-item').forEach((el, i) => {
-    el.querySelector('.anim-item-name').textContent = ANIM_LIST[i].label;
-    el.querySelector('.anim-item-desc').textContent = ANIM_LIST[i].desc;
+    el.querySelector('.anim-item-name').textContent = LIST[i].label;
+    el.querySelector('.anim-item-desc').textContent = LIST[i].desc;
     el.addEventListener('click', () => {   // 사람이 고름 = 블럭에 남김(data-anim-fx) + 도장이면 높이 맞춤 · 이력 한 칸
       _selectAnim(el.dataset.id);
       if (!_animTb) return;
       const had = _animTb.dataset.animFx ?? null;
       _animTb.dataset.animFx = el.dataset.id;
-      _commitGif(had !== el.dataset.id);
+      if (_animKind === 'slide' && had !== el.dataset.id) window.renderSlideBlock?.(_animTb);   // 2단계 — 가로↔세로면 정적 첫 장면도 바뀐다
+      const optChanged = _animKind === 'text' ? _saveBlockOpt() : false;   // 옵션은 그 효과가 받는 키만 남긴다(슬라이드엔 글자 옵션 없음)
+      _commitGif(had !== el.dataset.id || optChanged);
     });
   });
 }
@@ -365,7 +546,9 @@ function _selectAnim(id) {
   _animType = id;
   document.querySelectorAll('.anim-item').forEach(el =>
     el.classList.toggle('active', el.dataset.id === id));
+  if (_MK[_animKind]) { _syncKindRows(); _startAnimPreview(); return; }
   _updateAnimConflictWarning();
+  _renderBlockOpts();   // GIF V3 — 이 효과가 받는 옵션 칸
   _startAnimPreview();
 }
 
@@ -383,6 +566,7 @@ function restartAnimPreview() {
 }
 
 function _stopAnimPreview() {
+  _slidePrevToken++;   // 슬라이드 미리보기 — 그림 준비가 늦게 와도 멈춘 뒤엔 안 그린다
   if (_animRafId)     { cancelAnimationFrame(_animRafId); _animRafId = null; }
   if (_animTimeoutId) { clearTimeout(_animTimeoutId); _animTimeoutId = null; }
   _animStart = null;
@@ -488,6 +672,8 @@ function _textEl(tb) {
    ⇒ 저장 단추를 끄고 까닭을 툴팁으로(지디 결정 A · 단추 모양은 기존 .anim-export-btn:disabled). */
 const _EMPTY_TITLE = '글이 비어 있어 GIF 를 만들 수 없습니다 — 글을 먼저 입력하세요';
 function _isEmptyText(tb) {
+  const mk = _MK[_mkOf(tb)];
+  if (mk) return !mk.has(tb);   // 슬라이드 = 사진 0 · 신호등 = 칸 0 이면 «빈 것»
   const el = tb && _textEl(tb);
   return !el || !(el.textContent || '').trim();
 }
@@ -495,7 +681,7 @@ function _applyEmptyGate(btn) {
   if (!btn) return;
   const empty = _isEmptyText(_animTb);
   btn.disabled = empty;
-  if (empty) { btn.setAttribute('aria-disabled', 'true'); btn.title = _EMPTY_TITLE; }
+  if (empty) { btn.setAttribute('aria-disabled', 'true'); btn.title = _MK[_mkOf(_animTb)]?.emptyTitle || _EMPTY_TITLE; }
   else { btn.removeAttribute('aria-disabled'); btn.title = ''; }
 }
 
@@ -565,6 +751,7 @@ function _getTextStyle(tb) {
 function _startAnimPreview() {
   _stopAnimPreview();
   if (!_animTb) return;
+  if (_MK[_animKind]) { _startSlidePreview(); return; }
   _updateAnimConflictWarning();
   _syncStampRow();
   const canvas = document.getElementById('anim-preview-canvas');
@@ -838,6 +1025,7 @@ function _gifFail(err) {
 
 async function exportAnimGif() {
   if (!_animTb) return;
+  if (_isMotion(_animTb)) return _exportSlideGif();
 
   const btn = document.querySelector('.anim-export-btn');
   // 중복 클릭 방지: 이미 비활성화 상태면 무시 · 빈 글은 만들지 않는다(콘솔 호출 길 포함)
@@ -905,22 +1093,7 @@ async function exportAnimGif() {
       btn.textContent = `생성 중... ${Math.round(p * 100)}%`;
     });
 
-    gif.on('finished', blob => {
-      // BUG-FIX: Electron에서 DOM 미삽입 <a>의 .click()은 다운로드를 트리거하지 않을 수 있음
-      // document.body에 추가 후 클릭, 그 다음 제거
-      const a    = document.createElement('a');
-      a.href     = URL.createObjectURL(blob);
-      a.download = 'sangpe_animation.gif';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      // BUG-FIX: Electron 다운로드는 비동기 처리 → 즉시 revoke하면 URL 무효화 위험
-      // setTimeout으로 1초 후 revoke하여 다운로드 핸들러가 URL을 읽을 시간 확보
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      showToast('✅ GIF 저장 완료!');
-      _restoreGifBtn(btn);
-    });
+    gif.on('finished', blob => _downloadGif(blob, btn));
 
     // BUG-FIX: gif.on('error') 없으면 Worker 에러 시 EventEmitter가 uncaught error throw → 앱 크래시
     gif.on('error', err => {
@@ -937,6 +1110,57 @@ async function exportAnimGif() {
     _restoreGifBtn(btn);
   }
 }
+/** 슬라이드 GIF — 블럭 × 2 크기(텍스트와 같은 셈) · 한 바퀴를 상한 60 안에(fps 낮춤 · slide-motion gifPlan) · 끝 = 처음이라 끝 프레임·멈춤 없음.
+ *  그림은 slidePrepare 가 IPC(assets:readAsDataUri)로 받은 data URL ⇒ addFrame(copy) 의 getImageData 가 오염 없이 돈다. */
+async function _exportSlideGif() {
+  const btn = document.querySelector('.anim-export-btn');
+  if (!btn || btn.disabled || _isEmptyText(_animTb)) return;
+  btn.disabled = true;
+  btn.textContent = '생성 중...';
+  try {
+    const tb = _animTb;
+    const mk = _MK[_mkOf(tb)];
+    await mk.prepare(tb);
+    const repeatRaw = document.getElementById('anim-repeat')?.value;
+    const repeat = (repeatRaw != null && repeatRaw !== '') ? parseInt(repeatRaw) : 1;
+    const bW = Math.max(tb.offsetWidth, 1), bH = Math.max(tb.offsetHeight, 1);
+    const W = Math.max(320, Math.round(bW * 2)), H = Math.max(40, Math.round(bH * (W / bW)));
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'), style = _slideBgStyle(tb);
+    const plan = mk.plan(tb, _slideAnimNow(), _animType), g = plan.gif;
+    const gif = new GIF({ workers: 2, quality: 8, width: W, height: H, workerScript: 'js/gif.worker.js', repeat: repeat <= 1 ? -1 : repeat - 1 });
+    for (let i = 0; i < g.frames; i++) {
+      ctx.clearRect(0, 0, W, H);
+      _fillBg(ctx, style, W, H);
+      plan.draw(ctx, W, H, 0, i / g.frames);
+      gif.addFrame(ctx, { copy: true, delay: g.delay });
+    }
+    gif.on('progress', (p) => { btn.textContent = `생성 중... ${Math.round(p * 100)}%`; });
+    gif.on('finished', (blob) => _downloadGif(blob, btn));
+    gif.on('error', (err) => { console.error('[GIF] Worker error:', err); _gifFail(err); _restoreGifBtn(btn); });
+    gif.render();
+  } catch (err) {
+    console.error('GIF export error:', err);
+    _gifFail(err);
+    _restoreGifBtn(btn);
+  }
+}
+function _downloadGif(blob, btn) {
+      // BUG-FIX: Electron에서 DOM 미삽입 <a>의 .click()은 다운로드를 트리거하지 않을 수 있음
+      // document.body에 추가 후 클릭, 그 다음 제거
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = 'sangpe_animation.gif';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // BUG-FIX: Electron 다운로드는 비동기 처리 → 즉시 revoke하면 URL 무효화 위험
+      // setTimeout으로 1초 후 revoke하여 다운로드 핸들러가 URL을 읽을 시간 확보
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      showToast('✅ GIF 저장 완료!');
+      _restoreGifBtn(btn);
+}
 
 window.openAnimModal    = openAnimModal;
 // BUG-FIX: openAnimGifModal 별칭 추가 (외부에서 다른 이름으로 호출하는 경우 대비)
@@ -948,4 +1172,5 @@ window.restartAnimPreview = restartAnimPreview;
 window.playAnimOnCanvas  = playAnimOnCanvas;
 window.stopAnimOnCanvas  = stopAnimOnCanvas;
 window.toggleAnimOnCanvas = toggleAnimOnCanvas;
+window.setSlideAnimOpt   = setSlideAnimOpt;   // index.html 슬라이드 방향·머무름 칸 인라인(0.9.13 MOTION)
 window.setAnimStampS0    = setAnimStampS0;   // index.html «도장 시작» 슬라이더 인라인 oninput/onchange   // index.html 속도·반복 슬라이더 인라인 oninput 이 부른다(모듈이라 안 붙이면 ReferenceError · 0.9.12 QA)

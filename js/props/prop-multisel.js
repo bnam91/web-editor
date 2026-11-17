@@ -27,7 +27,7 @@ function _getSelectedFrameWrappers() {
     // ★확대블럭도 «플로팅»이라 sticker 와 같은 자리다(absolute → wrapper=자기 자신 분기를 탄다).
     '.sticker-block.selected, .zoom-block.selected, .laurel-block.selected, ' +
     // 2026-11-16 Documents(cert) — 자유 프레임 안 cert 도 다중 선택 정렬·간격 패널에 든다(t904 결손 multipanel 0 · 지디 결정)
-    '.cert-block.selected';
+    '.cert-block.selected, .slide-block.selected';   // 0.9.13 슬라이드도 같은 꼴
 
   const blocks = [...document.querySelectorAll(BLOCK_SEL)];
   const wrappers = new Set();

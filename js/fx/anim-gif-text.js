@@ -98,7 +98,7 @@ function _baseOff(ctx) {
 /* 조각 장식 — over=false: 글 «뒤»(배경색 · 형광펜 띠 · 밑줄) · over=true: 글 «위»(취소선). 글꼴은 이미 그 조각 것.
    상자 = 글꼴 상자(fontBoundingBox · 못 재면 0.8em/0.2em) = CSS 인라인 배경이 까는 곳. CSS px 값은 캔버스 배율(size/블럭 글자 크기)로.
    그림자(글로우 펄스)는 장식에 안 건다 — 글만 빛난다. */
-function _decor(ctx, p, x, baseline, env, over) {
+function _decor(ctx, p, x, baseline, env, over, hlMode) {
   const st = p.st, ps = env.size * (st.sizeK || 1), k = env.size / (env.style.fontSize || env.size);
   const thick = (l) => (l.thick > 0 ? l.thick * k : Math.max(1, ps / 16));
   const sb = ctx.shadowBlur; ctx.shadowBlur = 0;
@@ -116,12 +116,12 @@ function _decor(ctx, p, x, baseline, env, over) {
       ctx.arc(x + p.w / 2 + st.dot.tx * k + r, baseline - asc + st.dot.ty * k - r, r, 0, Math.PI * 2); ctx.fill();
     }
   } else {
-    if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, baseline - asc, p.w, asc + desc); }
-    if (st.hl && st.hl.color) {
+    if (hlMode !== 'only' && st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, baseline - asc, p.w, asc + desc); }
+    if (hlMode !== 'skip' && st.hl && st.hl.color) {
       const band = st.hl.h.pct != null ? (asc + desc) * st.hl.h.pct : st.hl.h.px * k;
       ctx.fillStyle = st.hl.color; ctx.fillRect(x, baseline + desc - band + st.hl.y * k, p.w, band);
     }
-    if (st.ul) { ctx.fillStyle = st.ul.color; ctx.fillRect(x, baseline + (st.ul.off != null ? st.ul.off * k : ps * 0.1), p.w, thick(st.ul)); }
+    if (hlMode !== 'only' && st.ul) { ctx.fillStyle = st.ul.color; ctx.fillRect(x, baseline + (st.ul.off != null ? st.ul.off * k : ps * 0.1), p.w, thick(st.ul)); }
   }
   ctx.shadowBlur = sb;
 }
@@ -159,9 +159,10 @@ function _shadows(ctx, p, x, y, env) {
 }
 
 /** 글 text(그 cs) 를 x,y 에 — 정렬은 ctx.textAlign 그대로 · 블럭 기본 글꼴·색은 지금 ctx 의 것. env = { style, size }.
- *  꾸밈 없으면 옛 fillText 한 번(바이트 동일). 있으면 조각마다 제 글꼴·색으로 이어 그린다. */
-export function fillStyled(ctx, text, cs, x, y, env) {
-  if (_plainCs(cs)) { ctx.fillText(text, x, y); return; }
+ *  꾸밈 없으면 옛 fillText 한 번(바이트 동일). 있으면 조각마다 제 글꼴·색으로 이어 그린다.
+ *  hlMode(GIF V3 형광펜 · 현빈 261116): 'only' = 형광펜 띠만(글·다른 장식 0 · 같은 자리 셈) · 'skip' = 형광펜 띠만 빼고 · 없으면 옛 그대로. */
+export function fillStyled(ctx, text, cs, x, y, env, hlMode) {
+  if (_plainCs(cs)) { if (hlMode !== 'only') ctx.fillText(text, x, y); return; }
   const base = { font: ctx.font, fill: ctx.fillStyle, align: ctx.textAlign, bl: ctx.textBaseline };
   const ps = _pieces(text, cs);
   let total = 0;
@@ -177,7 +178,8 @@ export function fillStyled(ctx, text, cs, x, y, env) {
   if (mixed) ctx.textBaseline = 'alphabetic';
   for (const p of ps) {   // 조각 하나 = 따로 그리는 자리
     ctx.font = _font(env, p.st) || base.font;
-    if (p.st) _decor(ctx, p, px, baseline, env, false);
+    if (hlMode === 'only') { if (p.st) _decor(ctx, p, px, baseline, env, false, 'only'); px += p.w; continue; }
+    if (p.st) _decor(ctx, p, px, baseline, env, false, hlMode);
     ctx.fillStyle = (p.st && p.st.color) || base.fill;
     if (p.st && p.st.shadows) _shadows(ctx, p, px, by, env);
     ctx.fillText(p.text, px, by);

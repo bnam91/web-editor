@@ -24,6 +24,8 @@ export const BLOCK_BIND_KINDS = Object.freeze([ // bind-list:CANON
   'coupon-block',
   /* 인증서 블럭(261114 · 현빈 GO) — makeCertBlock 이 만들고 addCertBlock 이 bindBlock 을 건다(js/blocks/cert-block.js) */
   'cert-block',
+  /* 슬라이드 블럭(0.9.13 MOTION · 261116 · 현빈 지시) — makeSlideBlock 이 만들고 addSlideBlock 이 bindBlock 을 건다(js/blocks/slide-block.js) */
+  'slide-block',
   /* ★인용구블럭(2026-10-07 · QT1) — makeQuoteBlock 이 만들고 addQuoteBlock 이 bindBlock 을 건다
      (js/blocks/quote-block.js). 제 바인더를 따로 쓰지 않으므로 ★이 명부에 든다. */
   'quote-block',

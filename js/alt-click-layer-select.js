@@ -43,6 +43,7 @@
     '.laurel-block',
     '.coupon-block',
     '.cert-block',
+    '.slide-block',
     '.quote-block',
     '.radial-block',
     '.zoom-block',

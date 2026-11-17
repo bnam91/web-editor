@@ -56,9 +56,11 @@ const FROZEN = {
    ★2026-10-21(S3 t4 ⒡ · W2D-01) — 방사형 블럭(radial-block)을 정본에 넣어 30 → 31. 손 명부 7 곳에는 이미 `.radial-block` 이 들어 있다
      ⇒ gaps 에 radial-block 이 ★한 건도 없는 것이 ★그 증거다.
    ★2026-11-14 — 인증서 블럭(cert-block)을 정본에 넣어 31 → 32. 손 명부(editor.js 7줄 · block-factory · template-system · save-load · assets-panel)에도
-     `.cert-block` 을 ★넣었다(얼린 칸을 늘리지 않는 쪽) ⇒ gaps 에 cert-block 이 한 건도 없어야 한다. */
-test('정본 명부가 서 있다(32 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
-  assert.equal(ROSTER.size, 32, `정본 ${ROSTER.size} 종`);
+     `.cert-block` 을 ★넣었다(얼린 칸을 늘리지 않는 쪽) ⇒ gaps 에 cert-block 이 한 건도 없어야 한다.
+   ★2026-11-16(0.9.13 MOTION) — 슬라이드 블럭(slide-block)을 정본에 넣어 32 → 33. 손 명부(editor.js · block-factory · template-system · save-load · assets-panel)에도
+     `.slide-block` 을 넣었다 ⇒ gaps 에 slide-block 이 한 건도 없어야 한다. */
+test('정본 명부가 서 있다(33 종 · 만드는 자리가 있고 bindBlock 으로 묶이는 종류)', () => {
+  assert.equal(ROSTER.size, 33, `정본 ${ROSTER.size} 종`);
 });
 
 test('★A/B 변형 사본(section-variation.js createVariation·addVariation)도 정본에서 끌어온다(0.9.6)', () => {

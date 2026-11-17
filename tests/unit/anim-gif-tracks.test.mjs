@@ -25,7 +25,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normTracks, totalMs, localT, layoutLines, drawTracks, TRACK_FX, FX, V2_FX, stampParams, blurInParams, whipParams, stampNeedH } from '../../js/fx/anim-gif-tracks.js';
+import { normTracks, totalMs, localT, layoutLines, drawTracks, TRACK_FX, FX, V2_FX, stampParams, blurInParams, whipParams, stampNeedH, normOpt, optOf, GUIDE_ALPHA, HL_DRAW } from '../../js/fx/anim-gif-tracks.js';
 
 function fakeCtx() {
   const calls = [];
@@ -99,7 +99,7 @@ test('T5 모든 효과가 «실제로 돈다» — 줄 2 × p 표본(0 · 0.3 ·
 });
 
 test('T6 F1·F2 곡선 — 도장 2.2배·흐림10 → 70% 에서 1·선명 → 눌림 0.94 → 1 · 흐림→선명 14→0 · 휩 끝 = 제자리·잔상 0', () => {
-  assert.deepEqual(V2_FX, ['stamp', 'blur-in', 'blur-whip']);
+  assert.deepEqual(V2_FX, ['stamp', 'blur-in', 'blur-whip', 'fade-char']);   // GIF V3(0.9.13) «한 글자씩 부드럽게» 더함 — 그 효과는 T25
   const s0 = stampParams(0), s70 = stampParams(0.7), sq = stampParams(0.7 + 0.3 * 0.35), s1 = stampParams(1);
   assert.deepEqual([s0.scale, s0.blur, s0.alpha], [2.2, 10, 0]);
   assert.ok(Math.abs(s70.scale - 1) < 1e-9 && s70.blur === 0 && s70.alpha === 1, '70% = 찍힘');
@@ -113,12 +113,13 @@ test('T6 F1·F2 곡선 — 도장 2.2배·흐림10 → 70% 에서 1·선명 → 
   assert.ok(whipParams(0.2, 1, 480).dx < 0 && whipParams(0.2).ghosts === 5, '들어오는 중 = 왼쪽 · 잔상 5');
 });
 
-test('T7 새 효과의 시작·끝 프레임(실제로 그림) — 시작 = 흐림 · 끝 = 제자리 x0 · 흐림 none · 변형 0', () => {
+test('T7 새 효과의 시작·끝 프레임(실제로 그림) — 시작 = 흐림(fade-char 는 옅음 · 흐림 0) · 끝 = 제자리 x0 · 흐림 none · 변형 0', () => {
   const style = { ...STYLE, text: '네!' };
   for (const fx of V2_FX) {
     const tracks = [{ line: 0, fx, at: 0, dur: 500 }];
     const a = fakeCtx(); drawTracks(a, 480, 200, style, 24, tracks, 50);
-    assert.ok(a.calls.some((c) => c.op === 'text' && /^blur\(/.test(c.f)), `${fx} 시작에 흐림이 없다`);
+    if (fx !== 'fade-char') assert.ok(a.calls.some((c) => c.op === 'text' && /^blur\(/.test(c.f)), `${fx} 시작에 흐림이 없다`);
+    else assert.ok(a.calls.some((c) => c.op === 'text' && c.a > 0 && c.a < 1) && !a.calls.some((c) => /^blur\(/.test(c.f)), `${fx} 시작 = 옅음(흐림 없이)`);   // 한 글자씩 «투명→선명»(P035 태그 타이핑·컬러리빌 · 브리프 «부드럽게») — 흐림 계열(F1·F2)이 아니다 · 끝 프레임은 같은 잣대
     const z = fakeCtx(); drawTracks(z, 480, 200, style, 24, tracks, 500);
     const L = layoutLines(fakeCtx(), style, 480, 200, 24);
     const last = z.calls.filter((c) => c.op === 'text').pop();
@@ -382,4 +383,108 @@ test('T20 도장 시작 크기 저장 꼴 — 도장 줄만 s0 · 범위 1~4(0.1
   assert.equal(stampNeedH(st, [{ line: 0, fx: 'stamp' }], 20), 44, '첫 줄 = 20 × 2.2');
   assert.equal(stampNeedH(st, [{ line: 1, fx: 'stamp', s0: 2 }], 20), 80, '둘째 줄 = 큰 조각(2배) × s0 2');
   assert.equal(stampNeedH(st, [{ line: 0, fx: 'fade-in' }], 20), 0, '도장 없으면 0');
+});
+
+/* ══ GIF V3(0.9.13 19~23행 · 현빈 261116) — 공용 «가이드 글(제 글 색 28%)» 겹 · 타이핑 커서 숨김 · 글로우 없는 펄스 · 한 글자씩 부드럽게 · 형광펜 고정/긋기 ══
+ * 양성대조(예측 · CTL): drawTracks 의 가이드 갈래 `if (optOf(o, 'guide'))` → `if (false)` → T22 빨강 · _guideCs 의 `color: c.color, ` 삭제 → T22 빨강(조각 색) · typewriter 커서 `&& optOf(env.tr && env.tr.o, 'cursor')` 삭제 → T23 빨강 ·
+ *   glow-pulse 의 `else ctx.globalAlpha = g;` → `else ctx.globalAlpha = 1;` → T24 빨강 · fade-char 의 `if (a > 0) { ctx.globalAlpha = a;` → `if (a > 0) { ctx.globalAlpha = 1;` → T25 · T7(fade-char 시작 옅음) 빨강 ·
+ *   형광펜 고정 겹 `fillStyled(…, 'only')` 줄 삭제 → T26 빨강 · T21(소독)은 CTL 밖(normOpt 변이 없음). */
+const T3 = (fx, o, extra = {}) => [{ line: 0, fx, at: 0, dur: 1000, ...(o ? { o } : {}), ...extra }];
+const ST1 = { ...STYLE, text: '네!' };
+const texts = (c) => c.calls.filter((x) => x.op === 'text');
+
+test('T21 V3 옵션 소독 — 효과마다 허용 키 · 불만 · 기본값이면 없음 · 형광펜 두 꼴 · 저장 왕복 · 없으면 옛 바이트', async () => {
+  const { parseAnimGif, serializeAnimGif } = await import('../../js/fx/anim-gif-tracks.js');
+  assert.deepEqual(normOpt({ guide: true, cursor: false, glow: false, pulse: false, hl: 'draw' }, 'stamp'), { guide: true, hl: 'draw' });
+  assert.deepEqual(normOpt({ guide: true, cursor: false }, 'typewriter'), { guide: true, cursor: false });
+  assert.deepEqual(normOpt({ guide: false, cursor: true, glow: true, pulse: true }, 'glow-pulse'), {}, '기본값 = 키 없음');
+  assert.deepEqual(normOpt({ guide: 'yes', glow: 0, hl: '<b>' }, 'glow-pulse'), {}, '불·허용 글만');
+  assert.deepEqual(normOpt({ hl: 'fixed', guide: true }, 'fade-in'), { hl: 'fixed' }, '형광펜은 어느 효과든 · 가이드는 도장·타이핑·펄스만');
+  assert.deepEqual(normOpt({ hl: 'sweep' }, 'stamp'), { hl: 'sweep' }, '셋째 갈래 sweep(0.9.13 24행) 도 저장');
+  assert.deepEqual([optOf(undefined, 'cursor'), optOf({}, 'guide'), optOf({}, 'hl')], [true, false, null]);
+  const r = parseAnimGif(JSON.stringify({ v: 2, tracks: [{ line: 0, fx: 'typewriter', at: 0, dur: 900, o: { cursor: false, evil: 1 } }, { line: 1, fx: 'fade-in', at: 0, dur: 900, o: { guide: true } }], speed: 1, repeat: 1 }), 2);
+  assert.deepEqual([r.tracks[0].o, 'o' in r.tracks[1]], [{ cursor: false }, false]);
+  assert.equal(JSON.parse(serializeAnimGif({ tracks: r.tracks })).tracks[0].o.cursor, false, '저장 왕복');
+  assert.equal(serializeAnimGif({ tracks: [{ line: 0, fx: 'fade-in', at: 0, dur: 900 }] }), '{"v":2,"tracks":[{"line":0,"fx":"fade-in","at":0,"dur":900}],"speed":1,"repeat":1}', '옵션 없으면 옛 바이트');
+});
+
+test('T22 옅은 가이드 — 제 글 색 × GUIDE_ALPHA · 도장 줄이 시작하기 전에도 최종 글 · 효과 글은 그 위(뒤에 그림) · 조각 색 · 그라데이션 = 대체 단색 · 끄면 0(옛 그대로)', () => {
+  const isG = (c) => c.a === GUIDE_ALPHA;
+  assert.ok(GUIDE_ALPHA >= 0.25 && GUIDE_ALPHA <= 0.3, '지디 261116 «25~30% 불투명»');
+  const before = fakeCtx(); drawTracks(before, 480, 200, ST1, 24, T3('stamp', { guide: true }, { at: 500 }), 100);
+  assert.deepEqual(texts(before).map((c) => [c.s, c.fill, c.a, c.tf]), [['네!', ST1.color, GUIDE_ALPHA, 0]], '★시작 전: 제 글 색 옅은 최종 글만(변형 0 · 고정 회색 아님)');
+  const mid = fakeCtx(); drawTracks(mid, 480, 200, ST1, 24, T3('stamp', { guide: true }), 100);
+  const m = texts(mid);
+  assert.deepEqual([isG(m[0]), !isG(m.at(-1)), m.length], [true, true, 2], '가이드 먼저 · 도장 글이 뒤(위)');
+  for (const fx of ['typewriter', 'glow-pulse']) { const c = fakeCtx(); drawTracks(c, 480, 200, ST1, 24, T3(fx, { guide: true }), 100); assert.ok(isG(texts(c)[0]), `${fx} 도 같은 겹`); }
+  const pc = fakeCtx(); drawTracks(pc, 480, 200, { ...ST1, cs: [{ color: '#f00' }, null] }, 24, T3('stamp', { guide: true }, { at: 500 }), 100);
+  assert.deepEqual(texts(pc).map((c) => [c.s, c.fill, isG(c)]), [['네', '#f00', true], ['!', ST1.color, true]], '★조각 글자색도 제 색 그대로 옅게');
+  const gr = fakeCtx(); drawTracks(gr, 480, 200, { ...ST1, color: { grad: 1 }, solid: '#0a0' }, 24, T3('stamp', { guide: true }, { at: 500 }), 100);
+  assert.deepEqual(texts(gr).map((c) => [c.fill, isG(c)]), [['#0a0', true]], '그라데이션 글 = 대체 단색');
+  const off = fakeCtx(); drawTracks(off, 480, 200, ST1, 24, T3('stamp'), 100);
+  assert.ok(!texts(off).some(isG), '끄면 가이드 0');
+});
+
+test('T23 타이핑 — 커서 숨김 · 가이드 위로 색이 차오름', () => {
+  const on = fakeCtx(); drawTracks(on, 480, 200, ST1, 24, T3('typewriter'), 600);
+  const off = fakeCtx(); drawTracks(off, 480, 200, ST1, 24, T3('typewriter', { cursor: false }), 600);
+  assert.deepEqual([on.calls.filter((c) => c.op === 'rect').length, off.calls.filter((c) => c.op === 'rect').length], [1, 0], '★커서 숨김');
+  const g = fakeCtx(); drawTracks(g, 480, 200, ST1, 24, T3('typewriter', { guide: true, cursor: false }), 600)   /* p 0.6 = 두 글자 중 하나 */;
+  assert.deepEqual(texts(g).map((c) => [c.s, c.a === GUIDE_ALPHA]), [['네!', true], ['네', false]], '옅은 «네!» 위에 친 «네»');
+});
+
+test('T24 펄스 — 글로우 끔 = 그림자 0 · 0 까지 깜빡임 / 깜빡임 끔 = 알파 1 고정 / 기본 = 옛 글로우 펄스', () => {
+  const at = (o, tau) => { const c = fakeCtx(); drawTracks(c, 480, 200, ST1, 24, T3('glow-pulse', o), tau); return texts(c).at(-1); };
+  const taus = Array.from({ length: 21 }, (_, i) => i * 50);
+  const ng = taus.map((t) => at({ glow: false }, t));
+  assert.ok(ng.every((c) => !c.sb) && Math.min(...ng.map((c) => c.a)) < 0.05 && Math.max(...ng.map((c) => c.a)) > 0.95, `★글로우 없는 깜빡임 — 알파 ${Math.min(...ng.map((c) => c.a)).toFixed(2)}~${Math.max(...ng.map((c) => c.a)).toFixed(2)}`);
+  const np = taus.map((t) => at({ pulse: false }, t));
+  assert.ok(np.every((c) => c.a === 1 && c.sb === np[0].sb && c.sb > 0), '깜빡임 끔 = 고정 글로우');
+  const d = at(undefined, 125), g = 0.5 + 0.5 * Math.sin(0.125 * Math.PI * 4);
+  assert.ok(Math.abs(d.a - (0.6 + 0.4 * g)) < 1e-9 && d.sb > 0, '기본 = 옛 셈');
+});
+
+test('T25 한 글자씩 부드럽게 — 효과 목록 · 중간엔 글자마다 따로 · 앞 글자가 더 선명 · 끝 = 줄 통째로 제자리', () => {
+  assert.ok(TRACK_FX.includes('fade-char') && V2_FX.includes('fade-char'));
+  const c = fakeCtx(); drawTracks(c, 480, 200, ST1, 24, T3('fade-char'), 400);
+  const t = texts(c);
+  assert.ok(t.length === 2 && t.every((x) => x.s.length === 1) && t[0].a > t[1].a, `★글자마다 · 앞이 더 선명 — ${JSON.stringify(t.map((x) => [x.s, x.a]))}`);
+  const z = fakeCtx(); drawTracks(z, 480, 200, ST1, 24, T3('fade-char'), 1000);
+  const L = layoutLines(fakeCtx(), ST1, 480, 200, 24);
+  assert.deepEqual(texts(z).map((x) => [x.s, x.x, x.a]), [['네!', L.segs[0].x0, 1]]);
+});
+
+test('T26 형광펜 — 고정+글만 = 띠는 처음부터 다 · 글엔 띠 없음 / 긋기 = 앞 40% 띠만 잘라 그음 · 그 뒤 글 / 옵션 없으면 옛(띠는 글과 같이)', () => {
+  const HL = { hl: { color: '#ffeb3b', h: { pct: 0.4 }, y: 0 } };
+  const st = { ...ST1, cs: [HL, HL] };
+  const rec = () => { const c = fakeCtx(); c.fillRect = (x, y, w, h) => c.calls.push({ op: 'rect', x, y, w, h, fill: c.fillStyle, clip: c._clip }); return c; };
+  const band = (c) => c.calls.filter((x) => x.op === 'rect' && x.fill === '#ffeb3b');
+  const fx0 = rec(); drawTracks(fx0, 480, 200, st, 24, T3('fade-in', { hl: 'fixed' }), 0);
+  assert.equal(band(fx0).length, 1, '★고정: 처음부터 띠');
+  assert.ok(band(fx0)[0].w > 0 && !band(fx0)[0].clip, '띠 = 글 폭 그대로 · 안 자름');
+  const dr = rec(); drawTracks(dr, 480, 200, st, 24, T3('fade-in', { hl: 'draw' }), 1000 * HL_DRAW / 2);
+  assert.deepEqual([band(dr).length, band(dr)[0]?.clip, texts(dr).length], [1, true, 0], '★긋기 중: 잘린 띠만 · 글 0');
+  const dr2 = rec(); drawTracks(dr2, 480, 200, st, 24, T3('fade-in', { hl: 'draw' }), 900);
+  assert.deepEqual([band(dr2).length, band(dr2)[0].clip, texts(dr2).length > 0], [1, false, true], '긋기 뒤: 띠 다 · 글 등장');
+  const old = rec(); drawTracks(old, 480, 200, st, 24, T3('fade-in'), 0);
+  assert.ok(band(old).length === 1 && texts(old).length > 0, '옛: 띠가 글 그리기 안에서(같이)');
+});
+
+/* T27(0.9.13 24행 GIF-HL-SWEEP-TEXT-FIXED-01 · 현빈 «글 고정 + 형광펜 띠만 긋기»): hl 'sweep' = 글은 줄 시작 전부터 최종 자리 평글(효과 안 탐 · 알파 1 · 변형 0 · 글엔 띠 없음) ·
+ *   띠만 트랙 내내 왼→오(자르기 폭 = 진행 × 줄 폭) · 끝 = 자르기 없이 다.
+ *   양성대조(예측 · CTL): drawTracks 의 `if (hlm === 'sweep') {` → `if (false) {` → T27 빨강(fade-in 첫 프레임 글 알파 0 · 시작 전 글 0). */
+test('T27 형광펜 «글 고정 + 띠만 긋기» — 글은 처음부터 그대로 · 띠는 트랙 내내 왼→오', () => {
+  const HL = { hl: { color: '#ffeb3b', h: { pct: 0.4 }, y: 0 } };
+  const st = { ...ST1, cs: [HL, HL] };
+  const rec = () => { const c = fakeCtx(); c.clips = []; c.fillRect = (x, y, w, h) => c.calls.push({ op: 'rect', x, y, w, h, fill: c.fillStyle, clip: c._clip }); c.rect = (x, y, w) => c.clips.push(w); return c; };
+  const band = (c) => c.calls.filter((x) => x.op === 'rect' && x.fill === '#ffeb3b');
+  const L = layoutLines(fakeCtx(), st, 480, 200, 24), x0 = L.segs[0].x0, lw = L.segs[0].w;
+  const pre = rec(); drawTracks(pre, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }, { at: 500 }), 100);
+  assert.deepEqual([texts(pre).map((c) => [c.s, c.a, c.tf, c.x]), band(pre).length], [[['네!', 1, 0, x0]], 0], '★줄 시작 전: 글 고정(최종 자리 · 알파 1) · 띠 0');
+  const z = rec(); drawTracks(z, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }), 0);
+  assert.deepEqual([texts(z).map((c) => c.a), band(z).length], [[1], 0], '★첫 프레임: 페이드 인이어도 글 알파 1(효과 안 탐) · 띠 아직 0');
+  const m = rec(); drawTracks(m, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }), 500);
+  assert.deepEqual([band(m).length, band(m)[0].clip, m.clips.at(-1), texts(m).map((c) => [c.a, c.tf])], [1, true, lw * 0.5, [[1, 0]]], '★반: 띠를 줄 폭 절반까지 잘라 그음 · 글 그대로');
+  const e = rec(); drawTracks(e, 480, 200, st, 24, T3('fade-in', { hl: 'sweep' }), 1000);
+  assert.deepEqual([band(e).length, band(e)[0].clip, band(e)[0].x], [1, false, x0], '끝: 띠 다(자르기 없음)');
 });
