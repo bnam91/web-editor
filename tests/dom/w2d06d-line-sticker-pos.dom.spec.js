@@ -258,10 +258,17 @@ test('W06D O4 Highlight — 두께 손잡이 끌기', async ({ page }) => {
   const h = await handleMid(page, L, 'thick');
   const hit = await hitAt(page, h);
   expect(hit && hit.includes('[thick]'), `전제: 두께 손잡이를 맞혔다(${hit})`).toBe(true);
+  /* 흔들림 진단(0912 O4 · 기록만 · 단언 무변) — 빨강이 나면 «누름이 손잡이에 닿았나 · 누가 삼켰나»를 수로 남긴다.
+     창 capture 로 듣는다 ⇒ 앞서 등록된 창 capture(load-input-gate 등)가 끊은 사건은 이 기록에 «없다». */
+  const gate0 = await page.evaluate(() => { window.__o4ev = []; const tag = (e) => (e && e.nodeType === 1) ? (e.id ? '#' + e.id : '') + '.' + String(e.className?.baseVal ?? e.className ?? e.tagName).split(' ')[0] + (e.dataset?.endpoint ? `[${e.dataset.endpoint}]` : '') : String(e);
+    for (const t of ['pointerdown', 'mousedown', 'mouseup']) window.addEventListener(t, (e) => { window.__o4ev.push([t, e.clientX, e.clientY, tag(e.target), e.defaultPrevented]); }, true);
+    return { on: window.LoadInputGate?.isOn?.() ?? null, blocked: window.LoadInputGate?.blockedCount?.() ?? null }; });
   await dragBy(page, h, 0, DRAG / 3);
   await stableTwice(page, `[id="${L}"]`);
   const p1 = await pos(page, L);
-  expect(p1.thickness !== p0.thickness, `전제: 두께가 바뀌었다(${p0.thickness} → ${p1.thickness})`).toBe(true);
+  const diag = await page.evaluate(([g0]) => ({ gate0: g0, gate1: { on: window.LoadInputGate?.isOn?.() ?? null, blocked: window.LoadInputGate?.blockedCount?.() ?? null }, ev: window.__o4ev, zoom: window.currentZoom }), [gate0]);
+  log('O4-diag', { h, hit, p0: { t: p0.thickness, x1: p0.x1, y1: p0.y1, x2: p0.x2, y2: p0.y2 }, p1: { t: p1.thickness, x1: p1.x1, y1: p1.y1, x2: p1.x2, y2: p1.y2 }, ...diag });
+  expect(p1.thickness !== p0.thickness, `전제: 두께가 바뀌었다(${p0.thickness} → ${p1.thickness}) · 진단 ${JSON.stringify({ h, hit, ends0: [p0.x1, p0.y1, p0.x2, p0.y2], ends1: [p1.x1, p1.y1, p1.x2, p1.y2], ...diag })}`).toBe(true);
   judge('O4', 'Highlight', p0, p1, { hit });
   expect(errs).toEqual([]);
 });

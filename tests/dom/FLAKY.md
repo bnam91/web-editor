@@ -384,3 +384,6 @@ tpl-pagepad-e81.dom.spec.js:215 T6      1/11 (판 6b239a24) · 0/11 (판 d163b6c
   - 새 자 + 옛 spec → 4건 · rc 1 (양성)
   - 옛 자 + 새 spec → I6 2건 · rc 1
   - 넓힘 닫힘: 가짜 `I6 … — diagonal …` 빨강 1줄을 얹은 로그 → 명부 밖 1건 · rc 1
+
+## 2026-11-17 · W06D O4 (0.9.12 마지막 관문) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `w2d06d-line-sticker-pos.dom.spec.js:251` O4 Highlight 두께 손잡이 끌기 — 아이맥 workers1 spec 통째 ×3: final7 1/3 · final9 1/3 · final10 1/3 · final11 3/3 · final12 2/3 빨강 · O4 단독 ×15: final10 2/15 · final11 1/15 · 인텔 전수 final12(9cda110c3) 빨강 · srv(M) 단독 ×30 + 통째 ×14 + CPU 6배 ×15 = 0 빨강.
