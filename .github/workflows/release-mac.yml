@@ -90,7 +90,18 @@ jobs:
         shell: bash
         run: npm test
 
+      # ★0.9.12 (현빈 결정 16 · B안) — 인텔에서 «같은 커밋» 전수가 통과했다는 태그 메시지 증명이 맞으면 DOM 을 건너뛴다.
+      #   판정은 tools/dom-pass-proof.js(실패 안전: 없음·불일치·형식깨짐·dispatch = 전부 실행). 단위·게이트·서명·공증은 그대로.
+      #   ★checkout 이 주석 태그를 경량으로 바꿀 수 있어 태그 객체를 다시 받는다(받기 실패해도 = 증명 없음 = 전부 실행).
+      - name: DOM 증명 판정
+        id: dom_proof
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then git fetch --force origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME" || true; fi
+          node tools/dom-pass-proof.js
+
       - name: 검사 — DOM
+        if: ${{ steps.dom_proof.outputs.skip_dom != 'true' }}
         shell: bash
         run: |
           npx playwright install chromium
