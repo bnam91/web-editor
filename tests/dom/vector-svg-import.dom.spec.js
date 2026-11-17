@@ -11,7 +11,11 @@
  *   V7 에셋 SVG 항목 «크게 보기» → 「+ 벡터로 넣기」 단추(실마우스) → 벡터 블럭 · 창 닫힘 · 이름 = 항목 이름
  *   V8 [음성] 에셋 PNG 항목 «크게 보기» → 「+ 벡터로 넣기」 단추 없음
  *   V10 Figma 가져오기(JSON 파일 · 앱 메뉴 길) — VECTOR + SVG(data URL · 맨 base64+mimeType) → 벡터 블럭(거른 글자 · 크기 = 노드 width·height) · [음성] VECTOR + PNG → 종전 그림 블럭
+ *   V11 .svg 를 섹션 «밖»(캔버스 옆 회색)에 놓기 → 가장 가까운 섹션의 «오버레이 벡터»(overlay-float 재사용 · 섹션 직속 · data-overlay-block) · 섹션 상자 안으로 조임 · 스크래치 0
+ *   V12 [음성] .png 를 섹션 밖에 놓기 → 종전대로 스크래치 그림 · 벡터 0
+ *   V13 섹션 밖 드랍 뒤 ⌘Z 한 번 = 넣기 전(오버레이로 띄운 것까지 한 걸음)
  *   V9 ⌘Z 한 번 = 넣기 전으로(벡터 0 · 섹션 자식 수 그대로) — insert-history EXTRA 'addVectorFromSvgText'(insert-seam-roster A1)
+ * 양성대조: _patches/VEC-CTL5-outside-to-scratch.patch(섹션 밖 캡처 처리기 끔) → V11·V13 빨강 · V12 초록.
  * 양성대조: _patches/VEC-CTL4-figma-vector-as-image.patch(VECTOR 를 옛 그림 길로) → V10 빨강(벡터 0 · 그림 3).
  * 양성대조: _patches/VEC-CTL3-drop-extra.patch(EXTRA 에서 그 이름 뺌) → 단위 insert-seam-roster A1 빨강.
  * 양성대조: _patches/VEC-CTL-no-import.patch(addVectorFromSvgText 가 아무것도 안 넣음) → V1·V4·V7 빨강 · 음성칸 초록.
@@ -174,5 +178,47 @@ test('V10 Figma 가져오기 JSON — VECTOR+SVG 는 벡터 블럭 · VECTOR+PNG
     { name: 'logoB', w: '50', h: '50', drawn: true, bad: false },
   ]);
   expect({ img: r.img, pwn: r.pwn }, '[음성] VECTOR+PNG = 종전 그림 블럭').toEqual({ img: ['data:image/png;'], pwn: null });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const dropOutside = (page, sid, { name, type, body }) => page.evaluate(([sid, name, type, body, px]) => {
+  const dt = new DataTransfer();
+  dt.items.add(new File([type === 'image/png' ? Uint8Array.from(atob(px), (c) => c.charCodeAt(0)) : body], name, { type }));
+  const wrap = document.getElementById('canvas-wrap'), sc = document.getElementById('canvas-scaler').getBoundingClientRect(), sr = document.getElementById(sid).getBoundingClientRect();
+  const o = { dataTransfer: dt, bubbles: true, cancelable: true, clientX: Math.max(wrap.getBoundingClientRect().left + 4, sc.left - 60), clientY: sr.top + sr.height / 2 };
+  const hit = document.elementFromPoint(o.clientX, o.clientY);
+  const over = new DragEvent('dragover', o); wrap.dispatchEvent(over);
+  wrap.dispatchEvent(new DragEvent('drop', o));
+  return { accepted: over.defaultPrevented, outside: !hit?.closest('#canvas .section-block') };
+}, [sid, name, type, body, PX]);
+const floats = (page, sid) => page.evaluate((s) => [...document.getElementById(s).querySelectorAll(':scope > .vector-block')].map((b) => ({ ov: b.dataset.overlayBlock, x: b.dataset.offsetX, name: b.dataset.layerName, inFlow: !!b.closest('.row') })), sid);
+const RED = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#ff0000"/></svg>';
+
+test('V11 .svg 를 섹션 밖에 놓기 → 가장 가까운 섹션의 오버레이 벡터 · 상자 안으로 조임 · 스크래치 0', async ({ page }) => {
+  const { errs, sid } = await scene(page);
+  const sc0 = await page.evaluate(() => document.querySelectorAll('.scratch-item').length);
+  expect(await dropOutside(page, sid, { name: 'mark.svg', type: 'image/svg+xml', body: RED }), '[전제] 놓은 자리 = 섹션 밖 · dragover 받음').toEqual({ accepted: true, outside: true });
+  await expect.poll(() => floats(page, sid).then((v) => v.length), '오버레이 벡터 하나').toBe(1);
+  expect(await floats(page, sid), '★섹션 직속 · 오버레이 · 흐름 밖 · 왼쪽 끝(0)으로 조임').toEqual([{ ov: 'true', x: '0', name: 'mark', inFlow: false }]);
+  expect(await page.evaluate(() => document.querySelectorAll('.scratch-item').length), '스크래치 그림 안 생김').toBe(sc0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('V12 [음성] .png 를 섹션 밖에 놓기 → 스크래치 그림 · 벡터 0', async ({ page }) => {
+  const { errs, sid } = await scene(page);
+  const sc0 = await page.evaluate(() => document.querySelectorAll('.scratch-item').length);
+  await dropOutside(page, sid, { name: 'a.png', type: 'image/png', body: '' });
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('.scratch-item').length), '[전제] 종전대로 스크래치').toBe(sc0 + 1);
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .vector-block').length)).toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('V13 섹션 밖 드랍 뒤 ⌘Z 한 번 = 넣기 전', async ({ page }) => {
+  const { errs, sid } = await scene(page);
+  await dropOutside(page, sid, { name: 'mark.svg', type: 'image/svg+xml', body: RED });
+  await expect.poll(() => floats(page, sid).then((v) => v.length), '[전제] 오버레이 벡터 하나').toBe(1);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((s) => document.getElementById(s)?.querySelectorAll('.vector-block').length ?? -1, sid), '★⌘Z 한 번에 빠진다').toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

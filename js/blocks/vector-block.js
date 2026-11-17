@@ -12,6 +12,7 @@ import { bindBlock } from '../drag-drop.js';
    상한만 벡터용으로 연다(SVG_MAX_LEN_CEIL · MCP 상한과 같다) · 허용태그는 아이콘과 같다(text·use·image·style·foreignObject 는 버린다). */
 import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
 import { svgImportSize } from '../util/svg-import-size.js';
+import { posElOf, enterFloat, _applyOverlayPos } from '../overlay-float.js';   // 섹션 «밖» 드랍 = 기존 오버레이(Ignore Auto Layout) 그대로 — 새 층 0
 
 /** data-svg 를 한 번 걸러 «되쓴다» — 다음 그리기엔 버릴 것이 없다(경고는 한 번). 버린 태그는 조용히 두지 않는다(console.warn). */
 function _cleanVectorSvg(block) {
@@ -132,11 +133,21 @@ function addVectorBlock(svgString = '', opts = {}) {
 // 문 하나: 에셋 «크게 보기» 창의 「벡터로 넣기」 · 캔버스 섹션에 .svg 파일 끌어 놓기 · SVG 글자 붙여넣기(Figma «Copy as SVG»).
 // 거르개(sanitize-svg)를 넣기 «전»에 한 번 — 뿌리가 <svg> 가 아니거나 상한(200000)을 넘으면 넣지 않고 알린다(빈 블럭 0).
 // 크기 = svgImportSize(뿌리 width·height → viewBox · 긴 변 400). 색 치환·다색(P1-2·P2)은 이번 범위 밖.
-function addVectorFromSvgText(text, label = 'SVG') {
+// place = { sec, clientX, clientY } 면 그 섹션에 넣고 «오버레이(떠 있음)»로 띄워 놓은 점(화면 좌표)에 가운데를 둔다 — 섹션 «밖» 드랍.
+//   같은 입구 한 번 안에서 띄우므로 insert-history 끝 표본이 띄운 «뒤»를 찍는다(⌘Z 한 번).
+function addVectorFromSvgText(text, label = 'SVG', place = null) {
   const clean = sanitizeSvgString(String(text || '').trim(), { maxLen: SVG_MAX_LEN_CEIL });
   if (!clean) { window.showToast?.('SVG 로 읽을 수 없습니다 — <svg> 로 시작하고 200KB 이하여야 합니다.'); return null; }
   const { w, h } = svgImportSize(clean);
-  return window.addVectorBlock(clean, { w, h, label });   // window 문 = 펜툴과 같은 입구(insert-select 선택 따라가기·insert-history 감싸기를 탄다)
+  if (place?.sec) { window.deselectAll?.(); window.selectSection?.(place.sec); }
+  const block = window.addVectorBlock(clean, { w, h, label });   // window 문 = 펜툴과 같은 입구(insert-select 선택 따라가기·insert-history 감싸기를 탄다)
+  if (block && place?.sec && enterFloat(posElOf(block))) {
+    const z = (window.currentZoom || 40) / 100, r = place.sec.getBoundingClientRect();
+    /* 섹션 상자 안으로 조인다 — 캔버스 밖 회색에 놓아도 «그 섹션의» 오버레이다(밖에 두면 섹션 PNG 에서 잘리고 섹션 overflow 에 가린다) */
+    const cl = (v, max) => Math.max(0, Math.min(Math.max(0, max), v));
+    _applyOverlayPos(block, cl((place.clientX - r.left) / z - w / 2, place.sec.offsetWidth - w), cl((place.clientY - r.top) / z - h / 2, place.sec.offsetHeight - h));
+  }
+  return block;
 }
 
 const _isSvgFile = (f) => !!f && (f.type === 'image/svg+xml' || /\.svg$/i.test(f.name || ''));
@@ -158,6 +169,36 @@ document.addEventListener('drop', async (e) => {
   window.selectSection?.(sec);
   for (const f of files) addVectorFromSvgText(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG');
 });
+/* 섹션 «밖» 드랍(섹션 사이·캔버스 밖 회색 바탕) — .svg 만 실린 drop 은 «가장 가까운 섹션»의 오버레이 벡터로.
+   캡처 단계로 #canvas-wrap 에서 먼저 받아 스크래치 그림 처리기(scratch-pad.js wrap drop · 버블)에 안 가게 한다.
+   ⛔.svg 아닌 파일이 하나라도 섞이면 손대지 않는다 — 종전대로 스크래치가 그림으로 받는다. 섹션 위 drop 은 위 섹션 처리기(흐름 블럭) 몫.
+   shortcut: 가까운 섹션 = 놓은 높이가 걸친 섹션, 없으면 위·아래 가장 가까운 것 — 가로는 안 따진다(섹션은 한 줄로 쌓인다). */
+const _svgOnlyFiles = (dt) => { const it = [...(dt?.items || [])].filter((x) => x.kind === 'file'); return it.length > 0 && it.every((x) => x.type === 'image/svg+xml'); };
+function _nearestSection(clientY) {
+  let best = null, bd = Infinity;
+  for (const s of document.querySelectorAll('#canvas .section-block')) {
+    const r = s.getBoundingClientRect();
+    const d = clientY < r.top ? r.top - clientY : clientY > r.bottom ? clientY - r.bottom : 0;
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+const _canvasWrap = document.getElementById('canvas-wrap');
+_canvasWrap?.addEventListener('dragover', (e) => {
+  if (_svgSec(e) || !_svgOnlyFiles(e.dataTransfer)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}, true);
+_canvasWrap?.addEventListener('drop', async (e) => {
+  if (_svgSec(e)) return;
+  const files = [...(e.dataTransfer?.files || [])];
+  if (!files.length || !files.every(_isSvgFile)) return;
+  const sec = _nearestSection(e.clientY);
+  if (!sec) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const { clientX, clientY } = e;
+  for (const [i, f] of files.entries()) addVectorFromSvgText(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG', { sec, clientX: clientX + i * 24, clientY: clientY + i * 24 });
+}, true);
 /* 붙여넣기 — 글자가 SVG 일 때만. 그림 항목이 같이 오면 종전대로 스크래치가 그림으로 받는다(두 번 붙지 않게 여기서 손을 뗀다).
    ⌘V keydown 의 고디터 안 붙여넣기(editor.js · 30ms 뒤)는 스크래치와 같은 깃발로 양보시킨다. */
 const _SVG_TEXT_RE = /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*<svg[\s>]/i;
