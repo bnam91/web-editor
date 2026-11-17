@@ -10,7 +10,9 @@
  *   V6 200000 자 넘는 SVG 붙여넣기 → 벡터 0 · 알림(빈 블럭 0)
  *   V7 에셋 SVG 항목 «크게 보기» → 「+ 벡터로 넣기」 단추(실마우스) → 벡터 블럭 · 창 닫힘 · 이름 = 항목 이름
  *   V8 [음성] 에셋 PNG 항목 «크게 보기» → 「+ 벡터로 넣기」 단추 없음
+ *   V10 Figma 가져오기(JSON 파일 · 앱 메뉴 길) — VECTOR + SVG(data URL · 맨 base64+mimeType) → 벡터 블럭(거른 글자 · 크기 = 노드 width·height) · [음성] VECTOR + PNG → 종전 그림 블럭
  *   V9 ⌘Z 한 번 = 넣기 전으로(벡터 0 · 섹션 자식 수 그대로) — insert-history EXTRA 'addVectorFromSvgText'(insert-seam-roster A1)
+ * 양성대조: _patches/VEC-CTL4-figma-vector-as-image.patch(VECTOR 를 옛 그림 길로) → V10 빨강(벡터 0 · 그림 3).
  * 양성대조: _patches/VEC-CTL3-drop-extra.patch(EXTRA 에서 그 이름 뺌) → 단위 insert-seam-roster A1 빨강.
  * 양성대조: _patches/VEC-CTL-no-import.patch(addVectorFromSvgText 가 아무것도 안 넣음) → V1·V4·V7 빨강 · 음성칸 초록.
  * ⛔고정 대기 0(expect.poll · 조건 대기) · 화면 px 를 숫자와 견주지 않는다(크기는 dataset).
@@ -146,5 +148,31 @@ test('V9 SVG 붙여넣기 뒤 ⌘Z 한 번 = 넣기 전', async ({ page }) => {
   await page.keyboard.press('Meta+z');
   await expect.poll(() => page.evaluate((s) => document.getElementById(s)?.querySelectorAll('.vector-block').length ?? -1, sid), '★⌘Z 한 번에 벡터가 빠진다').toBe(0);
   expect(await kids(), '섹션 자식 수 = 넣기 전').toBe(k0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('V10 Figma 가져오기 JSON — VECTOR+SVG 는 벡터 블럭 · VECTOR+PNG 는 종전 그림', async ({ page }) => {
+  const { errs } = await scene(page);
+  const b64 = (t) => Buffer.from(t).toString('base64');
+  const json = JSON.stringify({ frames: [{ name: 'FG', width: 860, height: 600, children: [
+    { type: 'VECTOR', name: 'logoA', x: 0, y: 0, width: 64, height: 32, imageData: 'data:image/svg+xml;base64,' + b64(EVIL) },
+    { type: 'VECTOR', name: 'logoB', x: 0, y: 200, width: 50, height: 50, mimeType: 'image/svg+xml', imageData: b64(LOGO) },
+    { type: 'VECTOR', name: 'bitmap', x: 0, y: 400, width: 40, height: 40, imageData: 'data:image/png;base64,' + PX },
+  ] }] });
+  const n0 = await page.evaluate(() => document.querySelectorAll('#canvas .section-block').length);
+  await page.evaluate((json) => window.openFigmaImportPreview({ target: { files: [new File([json], 'fg.json', { type: 'application/json' })], value: '' } }), json);
+  await expect(page.locator('#figma-import-modal'), '[전제] 가져오기 창').toBeVisible();
+  await page.locator('#figma-import-modal button[onclick="doFigmaImport()"]').click();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('#canvas .section-block').length), '[전제] 섹션 하나 더').toBe(n0 + 1);
+  const r = await page.evaluate(() => {
+    const sec = [...document.querySelectorAll('#canvas .section-block')].pop();
+    return { vec: [...sec.querySelectorAll('.vector-block')].map((b) => ({ name: b.dataset.layerName, w: b.dataset.w, h: b.dataset.h, drawn: !!b.querySelector('.vb-inner svg'), bad: /onload|<script/i.test(b.dataset.svg + b.innerHTML) })),
+      img: [...sec.querySelectorAll('.asset-block img')].map((i) => i.getAttribute('src').slice(0, 15)), pwn: window.__pwn ?? null };
+  });
+  expect(r.vec, '★VECTOR+SVG 둘 = 벡터 블럭(그려짐 · 거른 글자 · 크기 = 노드)').toEqual([
+    { name: 'logoA', w: '64', h: '32', drawn: true, bad: false },
+    { name: 'logoB', w: '50', h: '50', drawn: true, bad: false },
+  ]);
+  expect({ img: r.img, pwn: r.pwn }, '[음성] VECTOR+PNG = 종전 그림 블럭').toEqual({ img: ['data:image/png;'], pwn: null });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
