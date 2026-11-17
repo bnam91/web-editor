@@ -569,9 +569,9 @@ export function showStickerProperties(block) {
   if ((shape === 'circle' || shape === 'burst') && !isCount) _stkSpecials.push(sec('special', `
       <div class="prop-hint" style="padding:2px 8px">인증마크·보증 배지 — 원 둘레 글자 · 테두리 · 작은 줄. 공인 인증 로고를 흉내 내지 마세요(내 파일은 이미지 모드로).</div>
       <div class="prop-row"><span class="prop-label">둘레 글자</span><input type="text" class="prop-input" id="stk-ring-text" maxlength="80" value="${escHtml(block.dataset.ringText || '')}" placeholder="예: TEST COMPLETED" style="flex:1;min-width:0"></div>
-      ${sliderRowHTML('둘레 글자 크기', 'stk-ring-size', 'stk-ring-size-num', { min: 5, max: 16, step: 1, value: Math.round(parseFloat(block.dataset.ringTextSize) || 9) })}
+      ${/* data-own: 인증마크 둘레 글자 크기 — 소유표 size 로 가지만 Mark 절의 한 몸(dev B3 · 둘레 글자 바로 아래) */ sliderRowHTML('둘레 글자 크기', 'stk-ring-size', 'stk-ring-size-num', { min: 5, max: 16, step: 1, value: Math.round(parseFloat(block.dataset.ringTextSize) || 9) }).replace('<div class="prop-row">', '<div class="prop-row" data-own="special:Mark">')}
       ${sliderRowHTML('테두리', 'stk-ring-bw', 'stk-ring-bw-num', { min: 0, max: 12, step: 1, value: Math.round(parseFloat(block.dataset.ringBorderW) || 0) })}
-      <div class="prop-color-row"><span class="prop-label">테두리·둘레색</span>${colorFieldHTML({ idPrefix: 'stk-ring-bc', hex: block.dataset.ringBorderColor || block.dataset.textColor || '#ffffff' })}</div>
+      <div class="prop-color-row" data-own="special:Mark">${/* data-own: 마크 테두리·둘레 글자 색 한 칸 — 별칭 bc→Stroke 로 가지만 Mark 절의 한 몸(dev B3) */ ''}<span class="prop-label">테두리·둘레색</span>${colorFieldHTML({ idPrefix: 'stk-ring-bc', hex: block.dataset.ringBorderColor || block.dataset.textColor || '#ffffff' })}</div>
       <div class="prop-row"><span class="prop-label">작은 줄</span><input type="text" class="prop-input" id="stk-sub-text" maxlength="60" value="${escHtml(block.dataset.subText || '')}" placeholder="예: COMPLETED" style="flex:1;min-width:0"></div>`, { title: 'Mark', id: 'stk-mark-section' }));
   const KEYS = ['kind', 'content', 'position', 'size', 'padding', 'appearance', 'typography', 'fill', 'stroke', 'effects'];
   const OPTS = {
