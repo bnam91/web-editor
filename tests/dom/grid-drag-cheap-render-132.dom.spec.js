@@ -8,19 +8,22 @@ const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const SCENE = '<div class="section-block" id="dS" data-section="1"><div class="section-hitzone"></div><div class="section-inner"><div class="gap-block" data-type="gap" style="height:60px"></div><div class="row" id="dR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:400px"></div></div></div>';
-/* ── G3 부하 흔들림 진단(0912 · 기록만 · 단언·대기·timeout·retries 무변) ─────────────────────────────
+/* ── 부하 흔들림 진단(0912 · G3 로 시작 → r2 에서 이 파일 전 칸 · 단언 무변) ─────────────────────────────
    인텔 final15 전수(workers 3)에서 G3 가 30.1s 시간 초과 — 끝없이 기다리는 자리는 상한 없는 waitForFunction 셋(setup «칸» · pick «거터» · 놓은 뒤 rAF)
    또는 합계(boot·waitStableRect ≤6s·틱 poll ≤5s×3). G3 만의 몫 = 배경 그림 비율 디코드가 «첫 렌더 뒤» 끝나 renderGridBlock 을 한 번 더 부른다(grid-block.js
    _gridRatioOf · 행 0 높이가 120 → 칸 폭×비율로 바뀜) — 그 때가 부하에 따라 움직인다.
    ⇒ 단계 표(mark) · 실패/시간 초과 때 afterEach 가 지금 단계·경과·.grd-inner 교체 누계·대기 중 디코드(whenGridRatiosSettled capMs 0)·고른 상태·거터 수·칸 상자·
-     누름 사건 대상을 싣는다(페이지가 3초 안에 답을 못 하면 «응답 없음»으로). 부하 재현 장치 = 환경 G3_CPU=N(CDP CPU 스로틀 N배 · 없으면 무변). */
+     누름 사건 대상을 싣는다(페이지가 3초 안에 답을 못 하면 «응답 없음»으로). 부하 재현 장치 = 환경 G3_CPU=N(CDP CPU 스로틀 N배 · 없으면 무변).
+   단계 표·[DRAG132-DIAG] 는 공용 setup/pick/drag 에 있어 G1-row·G1-col·G3·G4 전 칸에 걸린다. */
 const _g3 = { ph: [], t0: 0 };
 async function mark(page, name) {
   _g3.ph.push([name, Date.now() - _g3.t0]);
   await page.evaluate((n) => { const d = window.__g3; if (d) d.ph.push([n, Math.round(performance.now() - d.t0), d.ren]); }, name).catch(() => {});
 }
-test.afterEach(async ({ page }, testInfo) => {
-  if (testInfo.status === testInfo.expectedStatus) return;
+/* r2(지디 인텔 grid-* workers 3 ×6: G3 6/6 초록 · 6판째 G1-col 이 page.waitForFunction 에서 30s 시간 초과) — 이 파일 «전 칸» 공통.
+   ⇒ 상한 없던 공용 waitForFunction 셋에 «제 이름으로 던지는» 상한(WAIT_MS · 합 < 시험 30s) + 그때의 현재 값(liveDiag)을 메시지에. 시험 상한·retries 무변 · 고정 대기 0. */
+const WAIT_MS = { cells: 8000, gutters: 8000, upRaf: 5000 };
+function liveDiag(page) {
   const live = page.evaluate(async () => {
     const d = window.__g3 || {}; const g = document.getElementById('dG');
     const c00 = g && g.querySelector('.grd-cell[data-r="0"][data-c="0"]'); const r = c00 && c00.getBoundingClientRect();
@@ -30,10 +33,18 @@ test.afterEach(async ({ page }, testInfo) => {
       gutters: document.querySelectorAll('#ss-handles-overlay .grd-gutter').length, cell00: r ? [Math.round(r.left), Math.round(r.top), +r.width.toFixed(1), +r.height.toFixed(1)] : null,
       tpl: inner ? [inner.style.gridTemplateRows, inner.style.gridTemplateColumns] : null, cols: g && g.dataset.cols, ev: d.ev, rep: window.__rep };
   });
-  const diag = { title: testInfo.title, status: testInfo.status, node: _g3.ph,
-    page: await Promise.race([live, new Promise((res) => setTimeout(() => res('PAGE-UNRESPONSIVE-3s'), 3000))]).catch((e) => 'EVAL-ERR ' + String(e && e.message).slice(0, 160)) };
-  console.log('[G3-DIAG] ' + JSON.stringify(diag));
-  await testInfo.attach('g3-diag', { body: JSON.stringify(diag, null, 1), contentType: 'application/json' });
+  return Promise.race([live, new Promise((res) => setTimeout(() => res('PAGE-UNRESPONSIVE-3s'), 3000))]).catch((e) => 'EVAL-ERR ' + String(e && e.message).slice(0, 160));
+}
+async function waitNamed(page, name, fn) {
+  const t = Date.now();
+  try { await page.waitForFunction(fn, null, { timeout: WAIT_MS[name] }); }
+  catch (e) { throw new Error(`WAIT-${name} — ${WAIT_MS[name]}ms 안에 안 섰다(${Date.now() - t}ms) · 진단 ${JSON.stringify({ node: _g3.ph, page: await liveDiag(page) })} · ${String(e && e.message).slice(0, 120)}`); }
+}
+test.afterEach(async ({ page }, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  const diag = { title: testInfo.title, status: testInfo.status, node: _g3.ph, page: await liveDiag(page) };
+  console.log('[DRAG132-DIAG] ' + JSON.stringify(diag));
+  await testInfo.attach('drag132-diag', { body: JSON.stringify(diag, null, 1), contentType: 'application/json' });
 });
 const IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 async function setup(page, { bg = false } = {}) {
@@ -59,7 +70,7 @@ async function setup(page, { bg = false } = {}) {
   }, [SCENE, bg, IMG]);
   await page.evaluate(() => { const g = document.getElementById('dG'); new MutationObserver(ms => { for (const m of ms) for (const n of m.removedNodes) if (n.classList && n.classList.contains('grd-inner')) window.__g3.ren++; }).observe(g, { childList: true }); });
   await mark(page, 'scene');
-  await page.waitForFunction(() => !!document.querySelector('#dG .grd-cell'));
+  await waitNamed(page, 'cells', () => !!document.querySelector('#dG .grd-cell'));
   await mark(page, 'cells');
   return errs;
 }
@@ -67,7 +78,7 @@ async function pick(page) {
   const p = await page.evaluate(() => { const r = document.querySelector('#dG .grd-cell [data-line]').getBoundingClientRect(); return [r.left + 10, r.top + r.height / 2]; });
   await mark(page, 'pick-click');
   await page.mouse.click(p[0], p[1]);
-  await page.waitForFunction(() => document.querySelectorAll('#ss-handles-overlay .grd-gutter').length > 0);
+  await waitNamed(page, 'gutters', () => document.querySelectorAll('#ss-handles-overlay .grd-gutter').length > 0);
   await mark(page, 'gutters');
   await waitStableRect(page, '#dG');
   await mark(page, 'stable');   /* 배율 적용이 끝난 뒤 첫 값을 잰다(하네스 실측: 고른 직후 칸 폭 167 → 첫 이동 뒤 418) */
@@ -93,7 +104,7 @@ async function drag(page, axis, steps = 5) {
   const beforeUp = await rep(page);
   await page.mouse.up();
   await mark(page, 'up');
-  await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
+  await waitNamed(page, 'upRaf', () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
   await mark(page, 'up-raf');
   return { seq, reps, upDelta: (await rep(page)) - beforeUp };
 }
