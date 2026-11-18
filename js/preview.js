@@ -280,7 +280,9 @@ function togglePreviewHorizontal(force) {
 
 /* ⇆ 가로 앞뒤 여유(현빈 r3 «첫 섹션을 화면 가운데로 · 끝 섹션도») — 줄 앞뒤에 «그릇 폭 반 − 섹션 반 폭»을 둔다.
    줄은 CSS zoom 안이라 그 단위로 적는다(화면 px ÷ z) · 줌·창 크기 바뀔 때마다 다시. 그릇 = .preview-page-block(가로 스크롤 영역). */
-/* 피그마처럼 «내용 둘레 여유» — 줄 앞뒤에 가운데 맞춤 여유에 더해 창 폭 반(화면 px)씩 더 둔다 ⇒ 처음 자리에서 사방으로 끌 수 있다(세로는 r4 위·아래 여유가 이미 같은 일). */
+/* 피그마처럼 «처음 자리 둘레 여유» — 줄 «앞»에 가운데 맞춤 여유에 더해 창 폭 반(화면 px)을 더 둔다 ⇒ 켠 자리(첫 섹션 가운데)에서 왼쪽으로도 끌 수 있다.
+   ★뒤(오른쪽)엔 안 더한다 — 끝까지 밀면 끝 섹션이 가운데(r3 · H7 «끝 섹션이 그릇 안»)여야 해서다(양쪽에 더하면 끝에서 끝 섹션이 반쯤 왼쪽 밖으로 넘어갔다 · 7ec26ed6a H7 빨강).
+   세로는 r4 위 여유(padTop)에서 켜서 이미 위·아래 둘 다 끌 수 있다. */
 const _hzSlack = () => Math.round((document.getElementById('preview-overlay')?.clientWidth || 0) / 2);
 function _hzEdgeRoom() {
   if (!_previewHz) return;
@@ -293,8 +295,9 @@ function _hzEdgeRoom() {
     const inner = b.querySelector(':scope > .preview-page-inner');
     if (!inner) return;
     const secW = parseFloat(inner.style.getPropertyValue('--row-sec-w')) || 860;
-    const pad = Math.max(0, b.clientWidth / 2 / z - secW / 2) + _hzSlack() / z;   // 가운데 맞춤 + 둘레 여유(화면 px ÷ 줄 zoom)
-    inner.style.paddingLeft = inner.style.paddingRight = pad + 'px';
+    const pad = Math.max(0, b.clientWidth / 2 / z - secW / 2);   // 가운데 맞춤
+    inner.style.paddingLeft = (pad + _hzSlack() / z) + 'px';   // + 처음 자리 둘레 여유(화면 px ÷ 줄 zoom)
+    inner.style.paddingRight = pad + 'px';
   });
 }
 

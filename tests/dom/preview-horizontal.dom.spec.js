@@ -389,7 +389,8 @@ test('H17 가로 스크롤러 = 미리보기 창 하나 · 줄은 overflow visib
   const r = await page.evaluate(() => {
     const o = document.getElementById('preview-overlay'), blocks = [...document.querySelectorAll('#preview-content .preview-page-block')];
     const firsts = () => blocks.map((b) => b.querySelector('.preview-page-inner > .section-block').getBoundingClientRect().left);
-    const a = firsts(); o.scrollLeft = 300; const b = firsts(); const moved = o.scrollLeft;
+    /* hz-pan 261118 — 켤 때 자리가 0 이 아니라 둘레 여유(창 폭 반) ⇒ «움직인 만큼» = 지금 자리에서 민 차이로 잰다(옛 = 0 에서 시작이라 절대값 = 차이였다 · 단언 무변) */
+    const s0 = o.scrollLeft; const a = firsts(); o.scrollLeft = s0 + 300; const b = firsts(); const moved = o.scrollLeft - s0;
     return { ox: getComputedStyle(o).overflowX, bottomGap: Math.abs(o.getBoundingClientRect().bottom - window.innerHeight), scrolls: o.scrollWidth > o.clientWidth,
       blocks: blocks.map((x) => getComputedStyle(x).overflowX), together: b.every((v, i) => Math.abs((a[i] - v) - moved) < 1) && moved > 0 };
   });
