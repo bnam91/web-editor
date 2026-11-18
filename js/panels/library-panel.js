@@ -7,6 +7,44 @@ import { escHtml } from '../props/_helpers.js';
 import { sanitizeSvgString, SVG_MAX_LEN_CEIL } from '../util/sanitize-svg.js';
 import { normalizeMonoSvg } from '../util/mono-svg.js';
 import { svgImportSize } from '../util/svg-import-size.js';
+import { posElOf, enterFloat, _applyOverlayPos } from '../overlay-float.js';   // 선택 없음 넣기 = 섹션 밖 SVG 드롭과 같은 오버레이(새 층 0)
+
+/* LIB-INSERT-NOSEL-OVERLAY-01 · LIB-MODAL-STAY-OPEN-01(현빈 261118)
+   · 넣을 자리 = 모달을 «열 때» 정한다: 섹션을 골라 뒀으면 흐름(종전) · 아니면 «오버레이» — 화면 가운데에 가장 가까운 섹션 · 화면 가운데 자리(섹션 상자 안으로 조임).
+     ⛔칸마다 다시 정하지 않는다 — 첫 오버레이 넣기가 그 섹션을 골라 두므로, 다시 정하면 둘째부터 흐름으로 바뀐다.
+   · 넣어도 모달은 열린 채(닫기 = ✕ · Esc · 바깥) · 넣을 때마다 짧은 알림 · 연달아 넣으면 오버레이는 24px 씩 비켜 놓는다 · ⌘Z 한 번 = 하나. */
+let _sess = null;   // { overlay, n }
+const _BURST = 24;
+/** 화면(#canvas-wrap) 가운데 · 가장 가까운 섹션(놓인 높이 기준 — vector-block 섹션 밖 드롭 _nearestSection 과 같은 shortcut: 가로는 안 따짐) */
+function _centerPlace() {
+  const wr = document.getElementById('canvas-wrap')?.getBoundingClientRect();
+  if (!wr) return null;
+  const x = wr.left + wr.width / 2, y = wr.top + wr.height / 2;
+  let sec = null, bd = Infinity;
+  for (const s of document.querySelectorAll('#canvas .section-block')) {
+    const r = s.getBoundingClientRect(), d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    if (d < bd) { bd = d; sec = s; }
+  }
+  return sec ? { sec, clientX: x, clientY: y } : null;
+}
+/** 이번 넣기 자리 — { sec, place:null }(흐름) | { sec, place }(오버레이) | null(섹션 0 · 알림) */
+function _target() {
+  const sel = window.getSelectedSection?.();
+  if (sel && !_sess?.overlay) return { sec: sel, place: null };
+  const c = _centerPlace();
+  if (!c) { window.showNoSelectionHint?.(); return null; }
+  const k = (_sess?.n || 0) * _BURST;
+  return { sec: c.sec, place: { sec: c.sec, clientX: c.clientX + k, clientY: c.clientY + k } };
+}
+/** 에셋 오버레이 — 그 섹션 위로 띄우고 place 가운데에(섹션 상자 안으로 조임 · addVectorFromSvgText place 갈래와 같은 셈) */
+function _floatAt(block, place, w, h) {
+  const pe = posElOf(block);
+  if (!pe || !enterFloat(pe)) return;
+  const z = (window.currentZoom || 40) / 100, r = place.sec.getBoundingClientRect();
+  const cl = (v, max) => Math.max(0, Math.min(Math.max(0, max), v));
+  _applyOverlayPos(pe, cl((place.clientX - r.left) / z - w / 2, place.sec.offsetWidth - w), cl((place.clientY - r.top) / z - h / 2, place.sec.offsetHeight - h));
+}
+const _done = (it) => { if (_sess) _sess.n++; window.showToast?.(`넣었어요 · ${it.name}`); window.triggerAutoSave?.(); };
 
 const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml' };
 const FONT = 'font-family:Pretendard,-apple-system,sans-serif;';
@@ -88,8 +126,8 @@ export async function libraryDataUrl(rel) {
   return `data:${MIME[rel.split('.').pop().toLowerCase()] || 'application/octet-stream'};base64,${btoa(s)}`;
 }
 
-function _innerWidth() {   // 넣을 자리 폭 상한 — 고른 섹션 안쪽(패딩 뺌) · 모르면 860
-  const inner = window.getSelectedSection?.()?.querySelector('.section-inner');
+function _innerWidth(sec) {   // 넣을 자리 폭 상한 — 그 섹션(없으면 고른 섹션) 안쪽(패딩 뺌) · 모르면 860
+  const inner = (sec || window.getSelectedSection?.())?.querySelector('.section-inner');
   if (!inner) return 860;
   const cs = getComputedStyle(inner);
   return Math.max(40, inner.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0));
@@ -98,11 +136,13 @@ function _innerWidth() {   // 넣을 자리 폭 상한 — 고른 섹션 안쪽(
 async function _insertLocalSvg(col, it) {
   const m = await _localSvg(it);
   if (!m) { window.showToast?.('❌ SVG 를 읽을 수 없어요(안전하지 않거나 그림이 아님)'); return; }
+  const t = _target();
+  if (!t) return;
   const { w: sw, h: sh } = svgImportSize(m.svg);
-  const w = Math.round(Math.min(_innerWidth(), col.w || sw));
-  closeLibraryModal();
-  window.addVectorBlock?.(m.svg, { color: m.color || '#000000', w, h: Math.max(1, Math.round((w * sh) / sw)), label: it.name, libMono: !!m.color });
-  window.triggerAutoSave?.();
+  const w = Math.round(Math.min(_innerWidth(t.sec), col.w || sw));
+  const opts = { color: m.color || '#000000', w, h: Math.max(1, Math.round((w * sh) / sw)), label: it.name, libMono: !!m.color };
+  const b = t.place ? window.addVectorFromSvgText?.(m.svg, it.name, t.place, opts) : window.addVectorBlock?.(m.svg, opts);
+  if (b) _done(it);
 }
 
 async function _insert(col, it, img) {
@@ -110,11 +150,13 @@ async function _insert(col, it, img) {
     if (it.loc && /\.svg$/i.test(it.file)) { await _insertLocalSvg(col, it); return; }
     const src = it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
     if (!src) throw new Error(`${it.loc}/${it.file} 읽기 실패`);
-    const nw = img.naturalWidth || 400, nh = img.naturalHeight || 400;
-    const w = Math.round(Math.min(_innerWidth(), it.w || col.w || nw));
-    closeLibraryModal();
+    const t = _target();
+    if (!t) return;
+    const nw = img?.naturalWidth || 400, nh = img?.naturalHeight || 400;
+    const w = Math.round(Math.min(_innerWidth(t.sec), it.w || col.w || nw)), h = Math.round((w * nh) / nw);
+    if (t.place) { window.deselectAll?.(); window.selectSection?.(t.sec); }   // 오버레이 = 그 섹션에 넣고 띄운다(SVG 섹션 밖 드롭과 같은 순서)
     const had = new Set(document.querySelectorAll('.asset-block'));
-    window.addAssetBlock?.(null, { imgSrc: src, width: w, height: Math.round((w * nh) / nw) });
+    window.addAssetBlock?.(null, { imgSrc: src, width: w, height: h });
     /* 새 블럭은 usePadx 미설정 = 전역 «패딩 제외»(기본 켜짐)를 따라가 addAssetBlock 의 applyExcludePadX 가 폭을 calc(100% + 2·padX) 로
        덮고, 뒤의 applyPadXToSection 도 다시 덮는다(아이맥 D2·D5 실측). ⇒ 스크래치 드롭(over 0)과 같은 꼴: usePadx='false' + 폭·마진 세트(applyAssetWidth). */
     const ab = [...document.querySelectorAll('.asset-block')].find((b) => !had.has(b));
@@ -122,11 +164,12 @@ async function _insert(col, it, img) {
       ab.dataset.usePadx = 'false';
       window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
       ab.style.alignSelf = 'center';
+      if (t.place) _floatAt(ab, t.place, w, h);
       window.showAssetProperties?.(ab);   // 우측 패널은 setAssetImageFromSrc 가 폭 고치기 «전»에 그렸다 — 낡은 860·패딩제외 켬을 지금 값으로(9500 실앱 r3)
-      const tip = window.getHistoryTip?.();   // 같은 틱 고침을 이력 꼭대기에(addAssetBlock 의 data: 갈래와 같은 관용구)
+      const tip = window.getHistoryTip?.();   // 같은 틱 고침(폭·띄우기)을 이력 꼭대기에 — ⌘Z 한 번 = 넣기 전(addAssetBlock 의 data: 갈래와 같은 관용구)
       if (tip) window.restampHistoryTop?.(tip.seq);
+      _done(it);
     }
-    window.triggerAutoSave?.();
   } catch (e) {
     console.warn('[library] 그림 읽기 실패:', e);
     window.showToast?.('❌ 라이브러리 그림을 못 읽었어요');
@@ -190,6 +233,7 @@ export async function openLibraryModal(only) {
     cols = cols.map((c) => (loc.merge[c.id] ? { ...c, items: [...c.items, ...loc.merge[c.id]], localSrc: loc.merge[c.id].src } : c)).concat(loc.cols);
   }
   if (!cols.length) return;
+  _sess = { overlay: !window.getSelectedSection?.(), n: 0 };   // 넣을 자리 = 열 때 한 번(위 머리말)
   if (!_modal) {
     _modal = document.createElement('div');
     _modal.id = 'lib-modal';
@@ -218,7 +262,14 @@ export async function openLibraryModal(only) {
 
 export function closeLibraryModal() {
   if (_modal) _modal.style.display = 'none';
+  _sess = null;
 }
+/* Esc = 닫기(열려 있을 때만 · 캡처라 편집기 Esc 처리로 안 샘) */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !_modal || _modal.style.display === 'none') return;
+  e.preventDefault(); e.stopPropagation();
+  closeLibraryModal();
+}, true);
 
 window.openLibraryModal = openLibraryModal;
 window.closeLibraryModal = closeLibraryModal;

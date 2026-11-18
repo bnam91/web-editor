@@ -169,12 +169,13 @@ function addVectorBlock(svgString = '', opts = {}) {
 // 크기 = svgImportSize(뿌리 width·height → viewBox · 긴 변 400). 색 치환·다색(P1-2·P2)은 이번 범위 밖.
 // place = { sec, clientX, clientY } 면 그 섹션에 넣고 «오버레이(떠 있음)»로 띄워 놓은 점(화면 좌표)에 가운데를 둔다 — 섹션 «밖» 드랍.
 //   같은 입구 한 번 안에서 띄우므로 insert-history 끝 표본이 띄운 «뒤»를 찍는다(⌘Z 한 번).
-function addVectorFromSvgText(text, label = 'SVG', place = null) {
+/* opts(LIB-INSERT-NOSEL-OVERLAY-01) = 부르는 쪽이 정한 벡터 값(color·w·h·libMono) — 없으면 종전(svgImportSize 크기) · 라이브러리 «선택 없음» 넣기가 같은 오버레이 길을 탄다 */
+function addVectorFromSvgText(text, label = 'SVG', place = null, opts = null) {
   const clean = sanitizeSvgString(String(text || '').trim(), { maxLen: SVG_MAX_LEN_CEIL });
   if (!clean) { window.showToast?.('SVG 로 읽을 수 없습니다 — <svg> 로 시작하고 200KB 이하여야 합니다.'); return null; }
-  const { w, h } = svgImportSize(clean);
+  const { w, h } = opts && opts.w > 0 && opts.h > 0 ? opts : svgImportSize(clean);
   if (place?.sec) { window.deselectAll?.(); window.selectSection?.(place.sec); }
-  const block = window.addVectorBlock(clean, { w, h, label });   // window 문 = 펜툴과 같은 입구(insert-select 선택 따라가기·insert-history 감싸기를 탄다)
+  const block = window.addVectorBlock(clean, { ...(opts || {}), w, h, label });   // window 문 = 펜툴과 같은 입구(insert-select 선택 따라가기·insert-history 감싸기를 탄다)
   if (block && place?.sec && enterFloat(posElOf(block))) {
     const z = (window.currentZoom || 40) / 100, r = place.sec.getBoundingClientRect();
     /* 섹션 상자 안으로 조인다 — 캔버스 밖 회색에 놓아도 «그 섹션의» 오버레이다(밖에 두면 섹션 PNG 에서 잘리고 섹션 overflow 에 가린다) */
