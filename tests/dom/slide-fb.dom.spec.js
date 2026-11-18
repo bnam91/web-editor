@@ -69,6 +69,15 @@ const geo = (page, id) => page.evaluate((id) => {
   return { w: Math.round(br.width / k), left: Math.round((br.left - sr.left) / k), innerW: inner.clientWidth, ml: b.style.marginLeft, fb: b.dataset.fullBleed || null };
 }, id);
 
+/* 토글 = 보이는 스위치(label.prop-toggle:has(#id)) 를 누른다 — 체크박스는 0×0·opacity 0 숨은 것(css/editor-props.css .prop-toggle input · cert-block toggle 과 같은 길) */
+async function flip(page, on) {
+  const sw = page.locator('label.prop-toggle:has(#sld-fullbleed)');
+  await sw.scrollIntoViewIfNeeded();
+  await expect(sw, '[전제] «패딩 제외» 스위치가 패널에 보인다').toBeVisible();
+  await sw.click();
+  await expect(page.locator('#sld-fullbleed')).toBeChecked({ checked: on });
+}
+
 test('F2 패딩 제외 — 켜면 섹션 끝까지 · 패딩 바뀌면 따라감 · 끄면 원래 · ⌘Z', async ({ page }) => {
   const { errs, id } = await scene(page, 2);
   await page.evaluate((id) => { const inner = document.getElementById(id).closest('.section-inner'); inner.dataset.paddingX = '40'; window.applyPadXToSection(inner, 40); }, id);
@@ -76,17 +85,17 @@ test('F2 패딩 제외 — 켜면 섹션 끝까지 · 패딩 바뀌면 따라감
   expect(g0.left, '[전제] 꺼짐 = 섹션 패딩 안쪽').toBe(40);
   await page.evaluate((id) => window.selectBlock(id), id);
   await expect(page.locator('#sld-fullbleed'), '[전제] Padding 절에 «패딩 제외»').toHaveCount(1);
-  await page.locator('#sld-fullbleed').check({ force: true });
+  await flip(page, true);
   const g1 = await geo(page, id);
   expect({ fb: g1.fb, left: g1.left, w: g1.w }).toEqual({ fb: 'true', left: 0, w: g0.w + 80 });
   await page.evaluate((id) => { const inner = document.getElementById(id).closest('.section-inner'); inner.dataset.paddingX = '20'; window.applyPadXToSection(inner, 20); }, id);
   const g2 = await geo(page, id);
   expect({ left: g2.left, ml: g2.ml }).toEqual({ left: 0, ml: '-20px' });
   await page.evaluate((id) => { const inner = document.getElementById(id).closest('.section-inner'); inner.dataset.paddingX = '40'; window.applyPadXToSection(inner, 40); window.selectBlock(id); }, id);
-  await page.locator('#sld-fullbleed').uncheck({ force: true });
+  await flip(page, false);
   const g3 = await geo(page, id);
   expect({ fb: g3.fb, left: g3.left, w: g3.w }).toEqual({ fb: null, left: 40, w: g0.w });
-  await page.locator('#sld-fullbleed').check({ force: true });
+  await flip(page, true);
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z');
   await expect.poll(async () => (await geo(page, id)).left, '⌘Z 한 번 = 켜기 전').toBe(40);
