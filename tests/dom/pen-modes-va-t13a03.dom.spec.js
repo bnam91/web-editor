@@ -6,6 +6,8 @@
  *   M5 [음성대조] 펜 데이터 없는 벡터(SVG 들여오기 꼴) 고르고 A → 에셋 메뉴 · 편집 아님
  *   M6 편집 중 캔버스 빈 곳 누르기 → 편집 끝
  *   M7 펜 벡터 더블클릭 → 앵커 편집
+ *   M8 펜 그리는 중 맨 V(진짜 키 · 공용 명부 js/tool-modes.js → 펜 출구) → 확정 + 펜 끔(선택 커서) · 에셋 메뉴·편집 아님
+ *     양성대조(_patches/T13A03-CTL3-v.patch): registerToolModeExit('pen') 줄을 빼면 M8 빨강.
  *   양성대조(_patches/T13A03-CTL.patch): editor.js 문맥 A 줄 · 바깥 누르기 리스너 · 더블클릭 · 출구의 확정을 빼면 M1·M2·M3·M6·M7 빨강 · M4·M5 초록.
  *   키·마우스 = 진짜 입력. ⛔고정 대기 0. */
 const { test, expect } = require('@playwright/test');
@@ -115,5 +117,13 @@ test('M7 펜 벡터 더블클릭 — 앵커 편집', async ({ page }) => {
   await makePenVector(page, sr);
   await clickBlock(page, '#secA .vector-block', true);
   expect(await st(page)).toEqual({ pen: false, edit: true, asset: false, vec: 1, penVec: 1 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('M8 펜 그리는 중 맨 V — 확정 + 펜 끔(선택 커서)', async ({ page }) => {
+  const { errs, sr } = await setup(page);
+  await drawThree(page, sr);
+  await page.keyboard.press('v');
+  expect(await st(page)).toEqual({ pen: false, edit: false, asset: false, vec: 1, penVec: 1 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

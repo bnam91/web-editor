@@ -851,3 +851,5 @@ window.exitPenEditMode     = exitPenEditMode;
 window.nodesToSvgPath      = nodesToSvgPath;
 window.penToolExitToSelect = penToolExitToSelect;
 window.penEditFromContext  = penEditFromContext;
+// 맨 V = 공용 «도구 모드 끝» 명부(js/tool-modes.js) — 펜 그리기·편집이 켜져 있었을 때만 true(그때만 V 키를 먹는다).
+window.registerToolModeExit?.('pen', () => { const on = _mode || !!_edit; penToolExitToSelect(); return on; });
