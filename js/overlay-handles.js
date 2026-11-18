@@ -2004,6 +2004,10 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
   const startY = e.clientY;
   const startW = parseInt(vb.dataset.w) || 120;
   const startH = parseInt(vb.dataset.h) || 120;
+  /* 떠 있는(absolute) 벡터면 맞은편 꼭지 고정 — 에셋·도형과 같은 식(anchoredLeftTop · t3-08). 흐름 배치는 무변. */
+  const _vpe = _posElOf(vb);
+  const _anchor0 = _vpe && _vpe.style.position === 'absolute'
+    ? { L: parseFloat(_vpe.style.left) || 0, T: parseFloat(_vpe.style.top) || 0, deg: parseFloat(vb.dataset.rotateDeg) || 0 } : null;
 
   const _hist = window.beginDragHistory?.('벡터 크기');
   function onMove(ev) {
@@ -2035,6 +2039,10 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
     vb.dataset.w = String(newW);
     vb.dataset.h = String(newH);
     window.renderVector(vb);
+    if (_anchor0) {
+      const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, dir, _anchor0.deg);
+      _applyOverlayPos(_vpe, p.left, p.top);
+    }
     window.scheduleAutoSave?.();
   }
   function onUp() {

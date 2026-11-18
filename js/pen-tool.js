@@ -769,12 +769,16 @@ function _commitEdit() {
   _edit.nodes = norm;
   const vw = Math.max(20, Math.round(bb.maxX - bb.minX + pad * 2));
   const vh = Math.max(20, Math.round(bb.maxY - bb.minY + pad * 2));
+  /* VECTOR-RESIZE-STRETCH-01: 늘인 벡터(data-stretch=1)는 상자 = viewBox × 늘인 배율 — 확정 때 w·h 를 점 bbox 로 «되돌리지» 않고 그 배율을 지킨다. */
+  const ov = _viewBoxOf(b);
+  const kx = b.dataset.stretch === '1' ? (parseInt(b.dataset.w) || ov.vw) / ov.vw : 1;
+  const ky = b.dataset.stretch === '1' ? (parseInt(b.dataset.h) || ov.vh) / ov.vh : 1;
 
   const d = nodesToSvgPath(_edit.nodes, _edit.closed);
   const svg = _buildSvg(d, vw, vh, _edit.color, sw, _edit.fill);
   b.dataset.svg = svg;
-  b.dataset.w = String(vw);
-  b.dataset.h = String(vh);
+  b.dataset.w = String(Math.max(20, Math.round(vw * kx)));
+  b.dataset.h = String(Math.max(20, Math.round(vh * ky)));
   b.dataset.penNodes = JSON.stringify(_edit.nodes);
   window.renderVector?.(b);
 

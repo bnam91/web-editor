@@ -100,8 +100,12 @@ function rebuildPenSvg(block) {
   if (!d) return false;
   const stroke   = block.dataset.color || '#1a1a1a';
   const fillAttr = (fill && fill !== 'none') ? fill : 'none';
+  /* VECTOR-RESIZE-STRETCH-01: 점(penNodes)은 «지금 svg 의 viewBox» 좌표다 — 상자 w·h 로 viewBox 를 다시 쓰면 크기 조절 뒤
+     색·두께만 바꿔도 그림이 점과 어긋났다(옛 판). viewBox 는 지금 것을 지키고, 없을 때만 w·h. */
+  const vbm = /viewBox="([\d.\s-]+)"/i.exec(block.dataset.svg || '');
+  const vbS = vbm ? vbm[1].trim() : `0 0 ${w} ${h}`;
   block.dataset.svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbS}" width="${w}" height="${h}">` +
     `<path d="${d}" fill="${fillAttr}" stroke="${stroke}" stroke-width="${sw}" ` +
     `stroke-linejoin="round" stroke-linecap="round"/></svg>`;
   return true;

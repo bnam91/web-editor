@@ -4,6 +4,8 @@
  * S0 ★기존 저장본(표시 없음 · 상자 200×100 ≠ viewBox 1:1) → 열기만 해선 안 늘어남(preserveAspectRatio 없음 = meet · 그린 폭 ≈ 100)
  * S1 se 손잡이를 오른쪽으로 +100 끌기 → 표시 켜짐 · 그린 폭 = 상자 폭(늘어남) · 높이 그대로 · 획 화면 굵기 = 끌기 전과 같다
  * S2 Shift + se 끌기 → 상자 비율 그대로(2:1)
+ * S3 펜 벡터(penNodes): 늘인 뒤 색 바꾸기(rebuildPenSvg) → viewBox 그대로 · 그린 패스 상자 무변(옛 판은 viewBox 를 w·h 로 다시 써 점과 어긋남)
+ * S4 떠 있는 벡터를 nw 손잡이로 끌기 → 맞은편(se) 꼭지 화면 자리 그대로(에셋·도형과 같은 anchoredLeftTop)
  * 양성대조(CTL · _patches/vector-stretch-CTL-no-flag.patch): overlay-handles 의 `vb.dataset.stretch = '1'` 줄을 빼면 → S1 빨강(그린 폭이 안 따라감) · S0 초록
  */
 const { test, expect } = require('@playwright/test');
@@ -11,18 +13,18 @@ const { bootApp } = require('./_root-harness.js');
 
 const SVG = '<svg viewBox="0 0 100 100" fill="none"><path d="M5 50H95" stroke="currentColor" stroke-width="10"/></svg>';
 
-async function setup(page) {
+async function setup(page, extra) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
-  await page.evaluate((svg) => {
+  await page.evaluate(([svg, extra]) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
     c.insertAdjacentHTML('beforeend', `<div class="section-block" id="sS" data-section="1"><div class="section-hitzone"></div><div class="section-inner" data-padding-x="40" style="padding-left:40px;padding-right:40px">
       <div class="gap-block" data-type="gap" style="height:80px"></div><div id="sHost"></div><div class="gap-block" data-type="gap" style="height:500px"></div></div></div>`);
-    const { row, block } = window.makeVectorBlock({ svg, color: '#000000', w: 200, h: 100 });
+    const { row, block } = window.makeVectorBlock({ color: '#000000', w: 200, h: 100, ...(extra || {}), svg });
     block.id = 'sV';
     document.getElementById('sHost').replaceWith(row); window.rebindAll?.();
     window.deselectAll?.(); document.getElementById('sS').scrollIntoView({ block: 'start' });
-  }, SVG);
+  }, [extra?.svg || SVG, extra || null]);
   await page.waitForTimeout(250);
   return errs;
 }
@@ -44,8 +46,8 @@ async function select(page) {
   await expect(page.locator('.vector-overlay-handle.se')).toHaveCount(1);   // 전제 — 손잡이가 떴다
   await page.waitForTimeout(100);
 }
-async function dragSe(page, dx, dy, shift = false) {
-  const h = await page.locator('.vector-overlay-handle.se').boundingBox();
+async function dragSe(page, dx, dy, shift = false, dir = 'se') {
+  const h = await page.locator(`.vector-overlay-handle.${dir}`).boundingBox();
   const x = h.x + h.width / 2, y = h.y + h.height / 2;
   if (shift) await page.keyboard.down('Shift');
   await page.mouse.move(x, y); await page.mouse.down();
@@ -85,4 +87,35 @@ test('S2 Shift + 끌기 → 비율 고정(2:1)', async ({ page }) => {
   expect(g.stretch).toBe('1');
   expect(Math.abs(+g.w / +g.h - 2), `${g.w}×${g.h}`).toBeLessThanOrEqual(0.03);
   expect(+g.w).toBeGreaterThan(280);
+});
+
+test('S3 펜 벡터 — 늘인 뒤 색 바꿔도(rebuildPenSvg) 그림이 점과 어긋나지 않는다', async ({ page }) => {
+  const nodes = [{ x: 5, y: 50 }, { x: 95, y: 50 }];
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><path d="M 5 50 L 95 50" fill="none" stroke="#000000" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  await setup(page, { svg, penNodes: JSON.stringify(nodes), penClosed: '0', strokeWidth: 10 });
+  await select(page);
+  const z = await page.evaluate(() => { const s = document.getElementById('sS'); return s.getBoundingClientRect().width / s.offsetWidth; });
+  await dragSe(page, 100 * z, 0);
+  const g1 = await look(page);
+  expect(g1.stretch).toBe('1');
+  const after = await page.evaluate(() => {
+    const b = document.getElementById('sV'); b.dataset.color = '#ff0000';
+    window.rebuildPenSvg(b); window.renderVector(b);
+    return /viewBox="0 0 100 100"/.test(b.dataset.svg);
+  });
+  expect(after, 'viewBox 는 점 좌표계 그대로(상자 w·h 로 다시 쓰지 않음)').toBe(true);
+  const g2 = await look(page);
+  expect(Math.abs(g2.pathW - g1.pathW), `색 바꾸기 전후 패스 폭 ${g1.pathW} → ${g2.pathW}`).toBeLessThanOrEqual(1);
+});
+
+test('S4 떠 있는 벡터 nw 끌기 → se 꼭지 고정', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => window.OverlayFloat.enterFloat(document.getElementById('sV')));
+  await select(page);
+  const se0 = await page.evaluate(() => { const r = document.getElementById('sV').getBoundingClientRect(); return [r.right, r.bottom]; });
+  const z = await page.evaluate(() => { const s = document.getElementById('sS'); return s.getBoundingClientRect().width / s.offsetWidth; });
+  await dragSe(page, -60 * z, -30 * z, false, 'nw');
+  const g = await page.evaluate(() => { const b = document.getElementById('sV'), r = b.getBoundingClientRect(); return { w: b.dataset.w, h: b.dataset.h, se: [r.right, r.bottom] }; });
+  expect(+g.w).toBeGreaterThan(250);
+  expect(Math.abs(g.se[0] - se0[0]) + Math.abs(g.se[1] - se0[1]), `se ${se0} → ${g.se}`).toBeLessThanOrEqual(2);
 });
