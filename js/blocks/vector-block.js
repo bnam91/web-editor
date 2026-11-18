@@ -25,6 +25,22 @@ function _cleanVectorSvg(block) {
   return clean;
 }
 
+/** 늘인 벡터의 획 — 적힌 stroke-width 는 × k(늘이기 시작 때 viewBox→화면 배율) · 그림 요소엔 vector-effect=non-scaling-stroke.
+ *  ★뒤에서 sanitizeSvgString 이 다시 거른다(여기 글자도 거른 뒤의 것 · vector-effect 는 허용 속성). */
+function _nonScalingStroke(svg, k) {
+  return svg
+    .replace(/\sstroke-width="([^"]*)"/gi, (all, v) => { const n = parseFloat(v); return Number.isFinite(n) ? ` stroke-width="${Math.round(n * k * 1000) / 1000}"` : all; })
+    .replace(/<(path|line|polyline|polygon|rect|circle|ellipse)\b(?![^>]*\svector-effect=)/gi, '<$1 vector-effect="non-scaling-stroke"');
+}
+
+/** 늘이기 켤 때 획 배율 k = 지금 상자에서 meet 로 그려지던 배율(viewBox 없으면 1). */
+function vectorStrokeK(block) {
+  const m = /<svg\b[^>]*\sviewBox="([^"]*)"/i.exec(block.dataset.svg || '');
+  const vb = m ? m[1].trim().split(/[\s,]+/).map(Number) : [];
+  const w = parseInt(block.dataset.w) || 120, h = parseInt(block.dataset.h) || 120;
+  return vb.length === 4 && vb[2] > 0 && vb[3] > 0 ? Math.min(w / vb[2], h / vb[3]) : 1;
+}
+
 function renderVector(block) {
   /* ★렌더가 «유일한» innerHTML 자리다 — 열기 뒤 편집·MCP update·makeVectorBlock(data)·펜 재빌드가 전부 여기로 온다. */
   const svgStr = _cleanVectorSvg(block);
@@ -48,10 +64,20 @@ function renderVector(block) {
      ⛔다른 벡터엔 안 건다(기존 저장본의 stroke="currentColor" 는 지금처럼 CSS 상속색 · 무변). */
   if (block.dataset.libMono === '1') processed = processed.replace(/stroke="currentColor"/gi, `stroke="${color}"`);
 
+  /* VECTOR-RESIZE-STRETCH-01(현빈 261118): 핸들로 «끈» 벡터(data-stretch=1)만 피그마처럼 상자에 맞춰 늘어난다(preserveAspectRatio none).
+     획은 늘이기 시작한 순간의 화면 굵기로 고정(non-scaling-stroke · stroke-width × data-stroke-k). ⛔표시 없는 기존 저장본은 지금처럼 meet(열자마자 안 늘어남). */
+  const stretch = block.dataset.stretch === '1';
+  if (stretch && processed) processed = _nonScalingStroke(processed, parseFloat(block.dataset.strokeK) || 1);
+  const rootOv = { width: '100%', height: '100%' };
+  if (stretch) {
+    rootOv.preserveAspectRatio = 'none';
+    if (!/^<svg\b[^>]*\sstroke-width=/i.test(processed)) rootOv['stroke-width'] = String(parseFloat(block.dataset.strokeK) || 1);   // 굵기 안 적힌 획(기본 1)도 같은 k
+  }
+
   /* SVG 자체에 width/height 100% 강제 — 뿌리 덮어쓰기(opts.root)로.
      ★색 치환 «뒤»에 한 번 더 거른다: data-color 도 저장본에서 오는 값이라 `"><image onerror…` 가 치환으로 다시 끼어들 수 있다. */
   inner.innerHTML = processed
-    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: { width: '100%', height: '100%' } })
+    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: rootOv })
     : '';
 
 }
@@ -398,6 +424,7 @@ window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.addVectorFromSvgText = addVectorFromSvgText;
 window.renderVector    = renderVector;
+window.vectorStrokeK   = vectorStrokeK;
 /* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
    ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.
    자리는 벡터가 dataset.x·y 를 안 쓰니 손잡이 바닥 길과 같은 style.left·top + offsetX·Y. */
