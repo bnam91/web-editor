@@ -1220,8 +1220,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const { slides, layout, fx } = window.readSlideState(el);
         const _v = window.slideAxis?.(fx) === 'y';   // 2단계 세로 — 같은 셈을 y 로(카드 크기 % = 높이의 %)
         const _bw = Math.round((_ls && _ls.offsetWidth) || el.offsetWidth || w || 0), _L = _v ? Math.round(layout.h) : _bw;
+        /* SLIDE-LAYOUT-STATIC-MODES-01 — 정지 꼴이 가운데/단일이면 셈 대신 살아 있는 카드 사각형(카드는 flex 크기라 그림 로드와 무관) */
+        const _cards = layout.mode !== 'row' && _ls ? [..._ls.querySelectorAll(':scope > .sld-track > .sld-card')] : null, _br = _cards ? _ls.getBoundingClientRect() : null, _k = _br && _ls.offsetWidth ? _br.width / _ls.offsetWidth : 1;
         let _acc = 0;   // SLIDE-CELL-SIZE-EACH-01 — 카드 왼끝 = 앞 카드들 (폭+간격) 누적합(칸별 폭 slides[i].w · 없으면 공통 cardW · slideGeom 과 같은 식)
-        const images = slides.map((sl) => {
+        const images = slides.map((sl, i) => {
+          if (_cards && _cards[i]) { const r = _cards[i].getBoundingClientRect(), x = Math.round((r.left - _br.left) / _k), wv = Math.round(r.width / _k), len = Math.min(wv, Math.round(_bw - x)); return _v ? { src: sl.src, x: 0, y: Math.round((r.top - _br.top) / _k), w: _bw, h: Math.round(r.height / _k), circle: false } : { src: sl.src, x, y: 0, w: len, h: Math.round(layout.h), circle: false }; }
           const _cw = (_L * (sl.w ?? layout.cardW)) / 100;
           const p = Math.round(_acc) - (_v ? 0 : (Math.round(+el.dataset.scrollX) || 0)), len = Math.min(Math.round(_cw), _L - p);   // «스크롤 고정»(SLIDE-TEMP-HSCROLL-FIX-EXPORT-01) 자리만큼 왼쪽으로
           _acc += _cw + layout.gap;

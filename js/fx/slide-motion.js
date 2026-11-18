@@ -85,7 +85,9 @@ export const slideInPlace = (fx) => fx === 'slide-fade' || fx === 'slide-cut';
 export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' ? 'y' : 'x');
 const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || fx === 'slide-trail' || slideInPlace(fx) || slideCentered(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
-export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none' });
+export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none', mode: 'row' });
+/* SLIDE-LAYOUT-STATIC-MODES-01(현빈 피드백 2 ⑥) — 정지 꼴(캔버스·PNG·HTML·Figma 첫 장면) = 기본 줄 / 가운데 캐러셀 / 단일 컷 · GIF 효과와 별개(row = 옛 그대로 = 효과가 정하던 첫 장면) */
+export const SLIDE_MODES = Object.freeze(['row', 'center', 'single']);
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
 export const SLIDE_DOTS = Object.freeze(['none', 'top', 'bottom']);
 export const DOT_BAND = 24, DOT_D = 8, DOT_GAP = 8, DOT_ON = '#4a4a4a', DOT_OFF = '#c9c9c9';
@@ -101,7 +103,7 @@ export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
   /* SLIDE-FX-OVERLAP-GAP-01(P223) — 간격 −80 까지(음수 = 카드가 겹친다 · 뒤 카드가 위 · 첫 장면 DOM = 음수 margin · GIF = drawSlides 그대로) */
   return { cardW: _num(s.cardW, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW), gap: _num(s.gap, -80, 80, SLIDE_LAYOUT_DEFAULT.gap), h: _num(s.h, 120, 1200, SLIDE_LAYOUT_DEFAULT.h),
-    dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots };
+    dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots, mode: SLIDE_MODES.includes(s.mode) ? s.mode : SLIDE_LAYOUT_DEFAULT.mode };
 }
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
 export function normAnim(o) {

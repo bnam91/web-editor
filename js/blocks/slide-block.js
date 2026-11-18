@@ -378,7 +378,7 @@ export function renderSlideBlock(block) {
   block.style.overflow = 'hidden';
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
-    _renderFrameCells(block, layout, vert, slideInPlace(fx), slideCentered(fx), slideWipe(fx));
+    _renderFrameCells(block, layout, vert, slideInPlace(fx) || layout.mode === 'single', slideCentered(fx) || layout.mode === 'center', slideWipe(fx));   // 정지 꼴(layout.mode)이 효과보다 앞
     _renderWipe(block, slideCells(block), slideWipe(fx));
     _renderHero(block.querySelector(':scope > .sld-track'), slideCells(block), slideGridZoom(fx));
     return;
@@ -389,11 +389,11 @@ export function renderSlideBlock(block) {
   const track = document.createElement('div');
   track.className = 'sld-track';
   const pos = _dotsPos(layout, vert, fx);
-  const inPlace = slideInPlace(fx);   // 제자리 효과 = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
+  const inPlace = slideInPlace(fx) || layout.mode === 'single';   // 제자리 효과 · 정지 꼴 «단일 컷» = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = 겹침(프레임 칸과 같은 꼴)
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${slideWipe(fx) ? 'position:relative;' : ''}`;
   const cards = slides.length ? slides : [null, null, null];
-  if (slideCentered(fx)) track.style.transform = `translateX(${centerTrackShift(cards.map((s) => s?.w ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면
+  if (slideCentered(fx) || layout.mode === 'center') track.style.transform = `translateX(${centerTrackShift(cards.map((s) => s?.w ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면 · 정지 꼴 «가운데 캐러셀»
   else if (!inPlace && !slideWipe(fx) && !slideGridZoom(fx) && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // «스크롤 고정» 자리
   cards.forEach((s, i) => {
     const c = document.createElement('div');
@@ -413,7 +413,7 @@ export function renderSlideBlock(block) {
     track.appendChild(c);
   });
   block.replaceChildren(track);
-  _renderDots(block, cards.length, pos, slideCentered(fx) && cards.length > 1 ? 1 : 0);
+  _renderDots(block, cards.length, pos, (slideCentered(fx) || layout.mode === 'center') && cards.length > 1 ? 1 : 0);
   _renderWipe(block, [...track.children], slideWipe(fx));
   _renderHero(track, [...track.children], slideGridZoom(fx));
 }

@@ -13,6 +13,8 @@
  *    끝 머무름 = 가운데 빨강 · 가운데 줄에 타일 ≥ 7 · 위 칸 = 파랑(나선 1) · 프레임 칸도 히어로만
  * X1 SLIDE-TEMP-HSCROLL-FIX-EXPORT-01: 카드 폭 50 · 셋 → 고르면 임시 가로 막대(#grd-plus-layer .sld-hscroll) · 200 밀기 = 블럭 scrollLeft 200 · 저장본·PNG 흔적 0(안 민 PNG 와 같음) ·
  *    «스크롤 고정» 켬 → data-scroll-x 200 · PNG 가 바뀜 · Figma images[0].x = −200 · 끔 → 키 0 · 저장본 흔적 0
+ * L1 SLIDE-LAYOUT-STATIC-MODES-01: 효과 = 흐름 그대로 · 패널 «레이아웃» 가운데 캐러셀 → 첫 장면 파랑(둘째) 가운데 · Figma images 둘째 가운데 · GIF t=0 은 흐름 그대로(왼끝 빨강 = 별개) ·
+ *    단일 컷 → 첫째 카드 = 블럭 꽉 · Figma images[0] 폭 = 블럭 폭 · ⌘Z = 가운데
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
@@ -21,6 +23,7 @@
  *   slide-fx-CTL6-no-trail.patch(잔상 모으는 줄 삭제) → D6 빨강(가운데도 같음) — 예측
  *   slide-fx-CTL7-gridzoom-all-cards.patch(사진 모드 히어로만 줄 삭제) → D7 빨강(첫 장면에 둘째도 보임 ≠ GIF t=0) — 예측
  *   slide-fx-CTL8-fix-no-shift.patch(사진 모드 «스크롤 고정» translate 줄 삭제) → X1 빨강(고정해도 PNG 그대로) — 예측
+ *   slide-fx-CTL9-mode-no-center.patch(사진 모드 정지 꼴 «가운데» 조건 삭제) → L1 빨강 — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -247,5 +250,26 @@ test('X1 임시 가로 막대 · 스크롤 고정 → 내보내기 자리', asyn
   expect(fig, 'Figma 첫 카드 x = −200').toBe(-200);
   await page.click('label.prop-toggle:has(#sld-scroll-fix)');
   expect(await saved(), '★고정 끔 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('L1 정지 꼴 — 가운데 캐러셀·단일 컷 · GIF 효과와 별개 · Figma 같은 자리', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-flow' });
+  await page.evaluate((id) => { window.setSlideLayout(document.getElementById(id), { cardW: 50 }); window.selectBlock(id); }, id);
+  await page.selectOption('#sld-mode', 'center');
+  const fig = (page) => page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.images?.map((m) => [m.x, m.w]) ?? null; }, id);
+  const c = await page.evaluate((id) => { const b = document.getElementById(id), br = b.getBoundingClientRect(), k = br.width / b.offsetWidth, r = b.querySelectorAll('.sld-card')[1].getBoundingClientRect(); return { mid: Math.abs((r.left + r.right) / 2 - (br.left + br.right) / 2) <= 1, bw: b.offsetWidth, mode: window.readSlideState(b).layout.mode }; }, id);
+  expect({ mid: c.mid, mode: c.mode }, '★가운데 캐러셀 정지 꼴 = 둘째 가운데').toEqual({ mid: true, mode: 'center' });
+  const f1 = await fig(page);
+  expect(Math.abs(f1[1][0] + f1[1][1] / 2 - c.bw / 2) <= 2, `Figma 둘째 가운데 ${JSON.stringify(f1)}`).toBe(true);
+  const g = await page.evaluate(async (id) => { const b = document.getElementById(id); await window.slidePrepare(b); const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0); return Array.from(ctx.getImageData(4, Math.round(H / 2), 1, 1).data).slice(0, 3); }, id);
+  expect(g, 'GIF(흐름) t=0 은 효과 그대로(왼끝 빨강 · 정지 꼴과 별개)').toEqual([255, 0, 0]);
+  await page.selectOption('#sld-mode', 'single');
+  const s1 = await page.evaluate((id) => { const b = document.getElementById(id), r = b.querySelector('.sld-card').getBoundingClientRect(); return Math.abs(r.width - b.getBoundingClientRect().width) <= 1; }, id);
+  expect(s1, '★단일 컷 = 첫째 블럭 꽉').toBe(true);
+  const f2 = await fig(page);
+  expect(Math.abs(f2[0][1] - c.bw) <= 2 && f2[0][0] === 0, `Figma 단일 = 첫째 블럭 폭 ${JSON.stringify(f2)}`).toBe(true);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((id) => window.readSlideState(document.getElementById(id)).layout.mode, id), '⌘Z = 가운데').toBe('center');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

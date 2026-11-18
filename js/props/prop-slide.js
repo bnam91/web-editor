@@ -65,6 +65,9 @@ export function showSlideProperties(block, opts = {}) {
       ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
       ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}`),
       sec('layout', `
+      <div class="prop-row"><span class="prop-label">레이아웃</span><select class="prop-select" id="sld-mode">
+        ${[['row', '기본'], ['center', '가운데 캐러셀'], ['single', '단일 컷']].map(([v, t]) => `<option value="${v}"${st.layout.mode === v ? ' selected' : ''}>${t}</option>`).join('')}
+      </select></div>
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: -80, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
       <div class="prop-row"><span class="prop-label">점 표시</span><select class="prop-select" id="sld-dots">
         ${[['none', '없음'], ['top', '위'], ['bottom', '아래']].map(([v, t]) => `<option value="${v}"${st.layout.dots === v ? ' selected' : ''}>${t}</option>`).join('')}
@@ -171,6 +174,8 @@ export function showSlideProperties(block, opts = {}) {
     window.renderSlideBlock(block); commit();
   });
 
+  /* SLIDE-LAYOUT-STATIC-MODES-01 — 정지 꼴(캔버스·PNG 그대로 · GIF 효과와 별개) */
+  $('sld-mode')?.addEventListener('change', (e) => { setSlideLayout(block, { mode: e.target.value }); commit(); });
   /* SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 — 켜면 캔버스 임시 가로 자리(막대)를 data-scroll-x 로 굳혀 내보내기가 그 자리 · 끄면 키 지움(흔적 0) */
   $('sld-scroll-fix')?.addEventListener('change', (e) => { setSlideScrollFix(block, e.target.checked); commit(); });
   /* SLIDE-INDICATOR-DOTS-01 — 점 표시(가로 효과만 · 세로면 줄 없음) */
