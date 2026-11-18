@@ -44,6 +44,9 @@ function renderVector(block) {
     .replace(/fill="#000000"/gi,      `fill="${color}"`)
     .replace(/fill="#000"/gi,         `fill="${color}"`)
     .replace(/fill="currentColor"/gi, `fill="${color}"`);
+  /* LIB-FIGMA(261118): 라이브러리발 단색 SVG(data-lib-mono=1)만 stroke 도 — 손그림 두들은 stroke 로 그린다.
+     ⛔다른 벡터엔 안 건다(기존 저장본의 stroke="currentColor" 는 지금처럼 CSS 상속색 · 무변). */
+  if (block.dataset.libMono === '1') processed = processed.replace(/stroke="currentColor"/gi, `stroke="${color}"`);
 
   /* SVG 자체에 width/height 100% 강제 — 뿌리 덮어쓰기(opts.root)로.
      ★색 치환 «뒤»에 한 번 더 거른다: data-color 도 저장본에서 오는 값이라 `"><image onerror…` 가 치환으로 다시 끼어들 수 있다. */
@@ -98,6 +101,7 @@ function makeVectorBlock(data = {}) {
   if (data.penClosed  !== undefined) block.dataset.penClosed  = String(data.penClosed);
   if (data.strokeWidth!== undefined) block.dataset.strokeWidth= String(data.strokeWidth);
   if (data.penFill    !== undefined) block.dataset.penFill    = String(data.penFill);
+  if (data.libMono) block.dataset.libMono = '1';   // LIB-FIGMA: 라이브러리발 단색 — renderVector 가 stroke 도 색 치환
 
   const inner = document.createElement('div');
   inner.className = 'vb-inner';

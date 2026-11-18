@@ -834,6 +834,13 @@ function isAdminAuthorized() {
   } catch (_) { return false; }
 }
 
+/* LIB-FIGMA(261118) — 관리자 로컬 라이브러리 IPC 문지기. 렌더러 가드(feature-flags animGifVisible)와 같은 두 판정: 앱 관리자 ∨ 서버 role admin · 모르면 «아님».
+   ⚠️ty/autogen-06(_isAutogenAdmin)과 같은 몸 — 둘 다 머지되면 하나로 합친다. */
+async function _isAdminOrServerRole() {
+  if (isAdminAuthorized()) return true;
+  try { return (await require('./main/admin')._fetchRole(false)).isAdmin === true; } catch (_) { return false; }
+}
+
 /** 이 기기의 machine 해시(operator.allow 의 payload.machine 과 대조). «성공값»은 프로세스당 한 번만 읽는다
  *  (execFileSync ≈ 30ms — 터미널·PM IPC·will-navigate 마다 부르면 안 된다). 못 읽으면 null = 운영자 아님.
  *  ★실패(null)는 memo 에 굳히지 않는다 — 첫 호출이 일시적으로 실패(timeout 등)해도 재시작 없이 회복되게,
@@ -2117,6 +2124,27 @@ ipcMain.handle('assets:readBundled', (_e, { bundled } = {}) => {
     if (!r.ok) return r;
     if (!fs.existsSync(r.full)) return { ok: false, error: 'not_found' };
     return { ok: true, dataUrl: `data:${r.mime};base64,${fs.readFileSync(r.full).toString('base64')}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+/* LIB-FIGMA(261118) — 관리자 로컬 라이브러리(<userData>/admin-library/<dir>/). 가드 = main/admin-library.js(명부 dir · 확장자 · realpath).
+   관리자가 아니면 폴더를 보지도 않는다(렌더러 탭 숨김은 공개 범위일 뿐 · 접근통제는 여기). SVG 는 글자로(렌더러가 sanitizeSvgString 뒤 넣음). */
+const _ADMIN_LIB_MAX = 2 * 1024 * 1024;   // 한 장 상한 — 재료는 SVG ≤1.3KB · WebP ~9KB
+const _adminLibRoot = () => path.join(app.getPath('userData'), 'admin-library');
+ipcMain.handle('adminLibrary:list', async () => {
+  if (!(await _isAdminOrServerRole())) return { ok: false, code: 'not_admin' };
+  try { return { ok: true, ...require('./main/admin-library').listAdminLibrary(_adminLibRoot()) }; } catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('adminLibrary:read', async (_e, { dir, file } = {}) => {
+  if (!(await _isAdminOrServerRole())) return { ok: false, code: 'not_admin' };
+  try {
+    const r = require('./main/admin-library').resolveAdminLibraryFile(_adminLibRoot(), dir, file);
+    if (!r.ok) return r;
+    if (fs.statSync(r.full).size > _ADMIN_LIB_MAX) return { ok: false, error: 'too_large' };
+    const buf = fs.readFileSync(r.full);
+    return r.ext === 'svg' ? { ok: true, svg: buf.toString('utf8') } : { ok: true, dataUrl: `data:${r.mime};base64,${buf.toString('base64')}` };
   } catch (e) {
     return { ok: false, error: e.message };
   }
