@@ -72,6 +72,7 @@ export function showSlideProperties(block, opts = {}) {
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
+  window.kickSlidePlus?.();   // 캔버스 ＋ 깨우기(패널이 열림 = 슬라이드·칸이 골라짐)
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
   const reopen = (cell = selCell) => showSlideProperties(block, { cell });
   const $ = (id) => document.getElementById(id);

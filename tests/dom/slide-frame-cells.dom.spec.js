@@ -32,7 +32,11 @@
  *    · 저장본(serialize canvas)의 슬라이드에 펼침 흔적 0(class selected · overflow visible 없음)
  *    · 펼친 채 섹션 PNG 내보내기(exportSection returnDataUrl · 캡처 클론 길 = GIF 칸 찍기와 같은 길) = 안 펼친 것과 같은 PNG
  *    · 펼침(밖 흐림 덮개) 중에도 같은 섹션 다른 글자 블럭 클릭 = 그 블럭 골라짐(pointer-events none)
+ * ── SLIDE-CANVAS-PLUS-ADD-CELL-01 ──
+ * Q1 칸 2(글자 든) 고름 → 캔버스 ＋(#grd-plus-layer .sld-add-btn · 진짜 클릭) → 칸 4 · 새 칸 = 칸 2 바로 뒤 · 글자째 · 새 칸·글자 id 새로(문서 겹침 0) · 새 칸 고름 · ⌘Z 한 번 = 칸 3
+ *    · 슬라이드만 골라 ＋ = 마지막 칸 복사 · ＋ 는 #canvas 밖(저장·내보내기에 안 샘)
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL13-dup-same-ids.patch(복사 칸 id 새로 매기는 줄 삭제) → Q1 빨강(id 겹침) — 예측
  *   slide-frame-CTL12-no-unfold.patch(css 펼침 규칙 삭제) → P1 빨강(칸 4 자리 hit ≠ 칸 4) — 예측
  *   slide-frame-CTL7-delete-row.patch(editor.js 칸 삭제 갈래 삭제) → R1 빨강 · slide-frame-CTL8-height-520.patch(makeSlideCell 크기 키 지우기 + rebindAll 칸 제외 둘 다 되돌림) → F0 빨강(칸 520) ·
  *   slide-frame-CTL9-scratch-slides.patch(스크래치 프레임 모드 갈래 삭제 + appendSlideImage 가드 삭제) → R3 빨강 · slide-frame-CTL10-dup-cell.patch(⌘D 칸 가드 삭제) → R4 빨강 · slide-frame-CTL11-key-html.patch(키 = innerHTML) → R5 빨강 — 예측
@@ -429,5 +433,31 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   expect(savedSlide, '★저장본 슬라이드 = 펼침 흔적 0').toEqual({ cls: 'slide-block', ov: 'hidden', selIn: 0 });
   await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
   expect(await page.evaluate((tid) => document.getElementById(tid)?.textContent.trim(), tid), '★다시 열어도 칸 4 글').toBe('칸넷고침');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('Q1 캔버스 ＋ — 고른 칸을 내용째 복사 · id 새로 · ⌘Z 한 번 · 안 고르면 마지막 칸', async ({ page }) => {
+  const { errs, id } = await withText(page);
+  const c0 = await cellIds(page, id);
+  await pickCell(page, id, 1);
+  const plus = page.locator('#grd-plus-layer .sld-add-btn');
+  await expect(plus, '★칸 고름 = 캔버스 ＋').toHaveCount(1);
+  expect(await page.locator('#canvas .sld-add-btn').count(), '＋ 는 #canvas 밖').toBe(0);
+  await plus.click();
+  await expect.poll(() => cellIds(page, id).then((a) => a.length)).toBe(4);
+  const r = await page.evaluate(({ id, c0 }) => {
+    const cells = [...document.getElementById(id).querySelectorAll(':scope > .sld-track > .sld-cell')], nw = cells[2];
+    const all = [...document.querySelectorAll('#canvas [id]')].map((e) => e.id), dup = all.filter((x, i) => x && all.indexOf(x) !== i);
+    return { order: cells.map((c) => c.id === c0[0] ? 'a' : c.id === c0[1] ? 'b' : c.id === c0[2] ? 'c' : 'new'), text: nw.querySelectorAll('.text-block').length, srcText: cells[1].querySelectorAll('.text-block').length, dup, sel: nw.classList.contains('selected') && window._activeFrame === nw };
+  }, { id, c0 });
+  expect(r, '★칸 2 바로 뒤 새 칸 · 글자째 · id 겹침 0 · 새 칸 고름').toEqual({ order: ['a', 'b', 'new', 'c'], text: 1, srcText: 1, dup: [], sel: true });
+  await key(page, 'Meta+z');
+  await expect.poll(() => cellIds(page, id), '★⌘Z 한 번 = 칸 3').toEqual(c0);
+  /* 슬라이드만 고름 → 마지막 칸 복사 */
+  await page.evaluate((id) => window.selectBlock(id), id);
+  await expect(plus).toHaveCount(1);
+  await plus.click();
+  await expect.poll(() => cellIds(page, id).then((a) => a.length)).toBe(4);
+  expect((await cellIds(page, id)).slice(0, 3), '마지막 칸 뒤에').toEqual(c0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -10,6 +10,7 @@
 import { genId, insertAfterSelected } from '../drag-utils.js';
 import { prepareCloneForCapture, renderComponentsInClone, captureCloneToCanvas, isNativeCapture, sectionBgColor } from '../io/export-image.js';   // 프레임 칸 찍기 = grid-step stepPrepare 와 같은 길(③ 새 엔진 0)
 import { withGuideOff } from '../io/capture-safety.js';
+import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL-01 — 캔버스 ＋ 는 그리드 ＋ 층(#grd-plus-layer)을 빌린다(line-host 선례 · 블럭 DOM·저장·PNG 에 안 샘)
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
@@ -108,6 +109,71 @@ export function appendSlideCellImage(cell, src) {
   bindBlock(ab); ab.setAttribute('draggable', 'false');
   return true;
 }
+
+/** SLIDE-CANVAS-PLUS-ADD-CELL-01 — 칸 하나를 «내용째» 복사해 바로 뒤에(고른 칸 · 없으면 마지막 칸) · 새 칸·안쪽 id 전부 새로 · 이력은 부르는 쪽(한 칸).
+ *  ⚠️안쪽 svg 의 url(#id) 같은 참조는 따라 바꾸지 않는다(id 만 새로) — shortcut: 칸 안 그라데이션 svg 가 원본 정의를 가리킬 수 있음, 보이면 그때 참조도 다시 매김. */
+export function duplicateSlideCell(block, src) {
+  const cells = slideCells(block);
+  if (cells.length >= SLIDE_MAX) return null;
+  const from = src && cells.includes(src) ? src : cells[cells.length - 1];
+  if (!from) return null;
+  const c = from.cloneNode(true);
+  [c, ...c.querySelectorAll('[id]')].forEach((el) => { el.id = genId(String(el.id).split('_')[0] || 'el'); });
+  [c, ...c.querySelectorAll('.selected')].forEach((el) => el.classList.remove('selected'));
+  from.after(c);
+  renderSlideBlock(block);
+  [c, ...c.querySelectorAll('.frame-block')].forEach((f) => window.bindFrameDropZone?.(f));
+  if (typeof window.SECTION_BLOCK_TYPE_SEL === 'string') c.querySelectorAll(window.SECTION_BLOCK_TYPE_SEL).forEach((b) => bindBlock(b));
+  return c;
+}
+/** 고른 칸(그 칸 또는 그 칸 안 블럭이 골라짐) · 없으면 null */
+const _pickedCell = (block) => slideCells(block).find((c) => c.classList.contains('selected') || c.querySelector('.selected')) || null;
+
+/* 캔버스 ＋ — 프레임 칸 슬라이드를 고른 동안(펼침과 같은 조건) 트랙 끝(마지막 칸 오른쪽 · 세로면 아래)에 하나.
+   누르면 고른 칸(없으면 마지막)을 내용째 복사 · 이력 한 칸 · 새 칸 고름. 자리 맞춤은 rAF(고른 동안만 돈다 · 클릭/패널이 깨운다). */
+const SLD_ADD_CLS = 'sld-add-btn';
+let _sldPlus = null, _sldRaf = 0;
+const _activeFrameSlide = () => document.querySelector('#canvas .slide-block[data-cell-mode="frame"]:is(.selected, :has(.selected))');
+function _makeSlidePlus(block) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = SLD_ADD_CLS;
+  btn.dataset.sldFor = block.id || '';
+  btn.title = '칸 추가(고른 칸을 내용째 복사)';
+  btn.setAttribute('aria-label', btn.title);
+  btn.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); });   // 캔버스 손(마키·팬·선택 해제)으로 안 샘(grid ＋ 꼴)
+  btn.addEventListener('dblclick', (e) => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); e.preventDefault();
+    const c = duplicateSlideCell(block, _pickedCell(block));
+    if (!c) return;
+    window.pushHistory?.('칸 추가');
+    window.deselectAll?.();
+    c.closest('.section-block')?.classList.add('selected');
+    c.classList.add('selected');
+    window._activeFrame = c;
+    window.showSlideProperties?.(block, { cell: c });
+    window.scheduleAutoSave?.();
+    kickSlidePlus();
+  });
+  return btn;
+}
+function _syncSlidePlus() {
+  _sldRaf = 0;
+  const b = _activeFrameSlide();
+  if (!b) { if (_sldPlus) { _sldPlus.btn.remove(); _sldPlus = null; } return; }
+  const L = gridPlusLayer();
+  if (!L) return;
+  if (!_sldPlus || _sldPlus.block !== b || !_sldPlus.btn.isConnected) { _sldPlus?.btn.remove(); _sldPlus = { block: b, btn: _makeSlidePlus(b) }; L.appendChild(_sldPlus.btn); }
+  const cells = slideCells(b), last = cells[cells.length - 1] || b, r = last.getBoundingClientRect();
+  const sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100, vert = slideAxis(readSlideState(b).fx) === 'y';
+  const x = vert ? (r.left + r.right) / 2 : r.right, y = vert ? r.bottom : (r.top + r.bottom) / 2;
+  Object.assign(_sldPlus.btn.style, { left: `${(x - sr.left) / z + (vert ? 0 : 28)}px`, top: `${(y - sr.top) / z + (vert ? 28 : 0)}px`, transform: 'translate(-50%, -50%)' });
+  _sldPlus.btn.disabled = cells.length >= SLIDE_MAX;
+  _sldRaf = requestAnimationFrame(_syncSlidePlus);
+}
+export function kickSlidePlus() { if (!_sldRaf && typeof requestAnimationFrame === 'function') _sldRaf = requestAnimationFrame(_syncSlidePlus); }
+if (typeof document !== 'undefined') document.addEventListener('mouseup', kickSlidePlus, true);
 
 /** 끝에 빈 칸 하나(패널 «프레임 추가하기») — SLIDE_MAX 가드 · 이력은 부르는 쪽. */
 export function addSlideCell(block) {
@@ -333,5 +399,7 @@ window.isFrameSlide = isFrameSlide;
 window.addSlideCell = addSlideCell;
 window.convertSlideToFrames = convertSlideToFrames;
 window.appendSlideCellImage = appendSlideCellImage;
+window.duplicateSlideCell = duplicateSlideCell;
+window.kickSlidePlus = kickSlidePlus;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다
