@@ -116,6 +116,9 @@ export function diffFromDefault(v, def) {
 }
 
 /** 카드 하나 폭 % 소독(SLIDE-CELL-SIZE-EACH-01) — 없거나 숫자 아니면 undefined(= 공통 카드 폭). */
+/* SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01 — 칸 모서리 둥글기(px · 0~80)·그림자(soft|strong) · 첫 장면 DOM(border-radius · box-shadow)과 GIF(drawSlides 둥근 clip · 캔버스 그림자)가 같은 값 */
+export const CELL_SHADOWS = Object.freeze({ soft: { css: '0 4px 12px rgba(0,0,0,0.18)', blur: 12, y: 4, color: 'rgba(0,0,0,0.18)' }, strong: { css: '0 10px 28px rgba(0,0,0,0.32)', blur: 28, y: 10, color: 'rgba(0,0,0,0.32)' } });
+export const normRadius = (r) => (r === undefined || r === null || r === '' || !Number.isFinite(+r) ? 0 : Math.round(_num(r, 0, 80, 0)));
 /** 칸 하나 높이 %(SLIDE-CELL-HEIGHT-EACH-01 · 가로 효과 · 트랙 높이의 % · 가운데 정렬) — 없으면 undefined(= 100). */
 export const normCardH = (h) => (h === undefined || h === null || h === '' || !Number.isFinite(+h) ? undefined : _num(h, 20, 100, 100));
 export const normCardW = (w) => (w === undefined || w === null || w === '' || !Number.isFinite(+w) ? undefined : _num(w, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW));
@@ -123,18 +126,19 @@ export const normCardW = (w) => (w === undefined || w === null || w === '' || !N
 /** 블럭 px 기하 — 카드 폭 · 한 칸(카드+간격) · 한 주기. bw = 움직임 축 길이(가로 = 블럭 폭 · 세로 = 블럭 높이).
  *  ws[i] = 카드 i 폭 %(SLIDE-CELL-SIZE-EACH-01 · 없으면 공통 cardW) → cws[i](px) · starts[i] = 앞 카드들 (폭+간격) 누적합 · period = 전부의 합.
  *  ★칸별 폭이 하나도 없으면 uniform = 옛 셈 그대로(starts = i·step · period = n·step — 부동소수 한 자리까지 같다 · 옛 저장본·GIF 무변). */
-export function slideGeom(bw, n, layout, ws, hs) {
+export function slideGeom(bw, n, layout, ws, hs, deco) {
   const L = normLayout(layout);
   const N = Math.max(1, n | 0), cw = (bw * L.cardW) / 100, step = Math.max(1, cw + L.gap);   // 겹쳐도 한 칸 ≥ 1px(주기 0 방지)
   const own = Array.from({ length: N }, (_, i) => normCardW(Array.isArray(ws) ? ws[i] : undefined));
   const hf = Array.from({ length: N }, (_, i) => (normCardH(Array.isArray(hs) ? hs[i] : undefined) ?? 100) / 100);   // 칸 높이 몫(가로 효과 · 가운데)
+  const dc = Array.from({ length: N }, (_, i) => { const d = Array.isArray(deco) ? deco[i] : null; return { r: normRadius(d?.r), sh: CELL_SHADOWS[d?.sh] ? d.sh : null }; });
   if (own.every((w) => w === undefined)) {
-    return { bw, n: N, cw, gap: L.gap, step, period: N * step, uniform: true, cws: own.map(() => cw), starts: own.map((_, i) => i * step), hf };
+    return { bw, n: N, cw, gap: L.gap, step, period: N * step, uniform: true, cws: own.map(() => cw), starts: own.map((_, i) => i * step), hf, dc };
   }
   const cws = own.map((w) => (w === undefined ? cw : (bw * w) / 100));
   const starts = []; let acc = 0;
   for (const c of cws) { starts.push(acc); acc += Math.max(1, c + L.gap); }
-  return { bw, n: N, cw, gap: L.gap, step, period: acc, uniform: false, cws, starts, hf };
+  return { bw, n: N, cw, gap: L.gap, step, period: acc, uniform: false, cws, starts, hf, dc };
 }
 const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
 
@@ -247,7 +251,19 @@ export function drawSlides(ctx, W, H, imgs, geom, s, dir, k, emptyFill = '#e9e9e
     let [dx, dy, dw, dh] = rect(x, cwi);
     const f = !y && geom.hf ? geom.hf[i] : 1;   // 칸별 높이(가로 효과) — 트랙 높이의 f · 가운데(첫 장면 align-items:center 와 같은 자리)
     if (f < 1) { dy += (dh * (1 - f)) / 2; dh *= f; }
-    const im = imgs[i];
+    const im = imgs[i], d = geom.dc ? geom.dc[i] : null;
+    if (d && (d.r || d.sh) && typeof ctx.roundRect === 'function') {   // 둥글기·그림자 — 둥근 판(그림자 실림)을 먼저 깔고 그 안으로 clip 해 그림
+      const S = d.sh ? CELL_SHADOWS[d.sh] : null, rr = d.r * k;
+      ctx.save();
+      ctx.beginPath(); ctx.roundRect(dx, dy, dw, dh, rr);
+      if (S) { ctx.shadowColor = S.color; ctx.shadowBlur = S.blur * k; ctx.shadowOffsetY = S.y * k; }
+      ctx.fillStyle = emptyFill; ctx.fill();
+      ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      ctx.clip();
+      if (im && im.width) { const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc; ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh); }
+      ctx.restore();
+      continue;
+    }
     if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(dx, dy, dw, dh); continue; }
     const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc;
     ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh);

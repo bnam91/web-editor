@@ -28,7 +28,11 @@ function _cellRowsHTML(block, st, selCell) {
   const k = selCell ? cells.indexOf(selCell) : -1;
   return `${rows}
       <div class="prop-row"><button class="prop-btn" id="sld-add-cell" style="width:100%"${n >= SLIDE_MAX ? ' disabled' : ''}>+ 프레임 추가하기 (${n}/${SLIDE_MAX})</button></div>
-      ${k >= 0 ? `<div class="prop-row"><button class="prop-btn" id="sld-cell-photo" style="width:100%">사진 넣기 (칸 ${k + 1})</button></div>` : ''}`;
+      ${k >= 0 ? `<div class="prop-row"><button class="prop-btn" id="sld-cell-photo" style="width:100%">사진 넣기 (칸 ${k + 1})</button></div>
+      <div class="prop-row"><span class="prop-label">모서리</span><input type="number" class="prop-number" id="sld-cell-radius" min="0" max="80" step="1" value="${selCell.dataset.radius || 0}" aria-label="칸 ${k + 1} 모서리 px"></div>
+      <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="sld-cell-shadow">
+        ${[['', '없음'], ['soft', '옅게'], ['strong', '짙게']].map(([v, t]) => `<option value="${v}"${(selCell.dataset.shadow || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+      </select></div>` : ''}`;
 }
 
 export function showSlideProperties(block, opts = {}) {
@@ -131,6 +135,9 @@ export function showSlideProperties(block, opts = {}) {
       row.querySelector('.sld-ch')?.addEventListener('change', (e) => { const c = cellAt(i); if (!c) return; const v = Math.max(20, Math.min(100, Math.round(+e.target.value || 100))); if (v === 100) delete c.dataset.h; else c.dataset.h = String(v); renderSlideBlock(block); commit(); reopen(); });
       row.querySelector('.sld-cw')?.addEventListener('change', (e) => { const c = cellAt(i); if (!c) return; c.dataset.w = String(Math.max(20, Math.min(100, Math.round(+e.target.value || st.layout.cardW)))); renderSlideBlock(block); commit(); reopen(); });
     });
+    /* SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01 — 고른 칸 모서리(px)·그림자(이펙트) · 0/없음 = 키 지움 */
+    $('sld-cell-radius')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; const v = Math.max(0, Math.min(80, Math.round(+e.target.value || 0))); if (v) c.dataset.radius = String(v); else delete c.dataset.radius; renderSlideBlock(block); commit(); });
+    $('sld-cell-shadow')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; if (e.target.value) c.dataset.shadow = e.target.value; else delete c.dataset.shadow; renderSlideBlock(block); commit(); });
     /* 칸 «사진 넣기» = 그 칸에 들어가(_activeFrame) 진짜 addAssetBlock → 칸 꽉(왼위 0 · 폭·높이 100% · cover) — 넣기 길은 _insertToFlowFrame 그대로 */
     $('sld-cell-photo')?.addEventListener('click', () => {
       const cell = selCell;

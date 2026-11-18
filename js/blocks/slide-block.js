@@ -14,7 +14,7 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
   DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
@@ -235,9 +235,41 @@ function _makeSlideHHandle(block) {
   });
   return h;
 }
+/* SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01 — 고른 칸의 오른쪽 아래 손잡이(현빈 요구로 «칸 px 손잡이 막기»를 되돌림 — 단 값은 칸 폭 %·높이 %(data-w·data-h)로 들어가 트랙 셈과 맞다).
+   끌기 = 칸 폭(가로 몫 · 블럭 폭 기준) + 높이(트랙 높이 기준 · 가로 효과) 실시간 · 놓으면 이력 한 칸 · 같은 층·같은 꼴. */
+let _sldCH = null;
+function _makeCellHandle(cell, block) {
+  const h = document.createElement('div');
+  h.className = 'sld-cell-handle';
+  h.title = '칸 크기';
+  h.style.cssText = 'position:absolute;width:12px;height:12px;box-sizing:border-box;border:1.5px solid var(--ui-accent-primary);background:var(--ui-bg-elevated);border-radius:50%;cursor:nwse-resize;pointer-events:auto;transform:translate(-50%,-50%);';
+  h.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    const L = readSlideState(block).layout, bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.querySelector(':scope > .sld-track')?.clientHeight || block.clientHeight);
+    const x0 = e.clientX, y0 = e.clientY, w0 = normCardW(cell.dataset.w) ?? L.cardW, h0 = normCardH(cell.dataset.h) ?? 100, z = (window.currentZoom || 40) / 100;
+    const vert = slideAxis(readSlideState(block).fx) === 'y';
+    const mv = (ev) => {
+      const w = Math.round(Math.max(20, Math.min(100, w0 + ((vert ? ev.clientY - y0 : ev.clientX - x0) / z / (vert ? th : bw)) * 100)));
+      cell.dataset.w = String(w);
+      if (!vert) { const hh = Math.round(Math.max(20, Math.min(100, h0 + ((ev.clientY - y0) / z / th) * 100))); if (hh === 100) delete cell.dataset.h; else cell.dataset.h = String(hh); }
+      renderSlideBlock(block); kickSlidePlus();
+    };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); window.pushHistory?.('칸 크기'); window.scheduleAutoSave?.(); window.showSlideProperties?.(block, { cell }); };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+  return h;
+}
 function _syncSlidePlus() {
   _sldRaf = 0;
   const L = gridPlusLayer();
+  const selCell = document.querySelector('#canvas .slide-block.sld-unfold .sld-cell.selected');
+  if (!selCell || !L) { if (_sldCH) { _sldCH.el.remove(); _sldCH = null; } }
+  else {
+    if (!_sldCH || _sldCH.cell !== selCell || !_sldCH.el.isConnected) { _sldCH?.el.remove(); _sldCH = { cell: selCell, el: _makeCellHandle(selCell, selCell.closest('.slide-block')) }; L.appendChild(_sldCH.el); }
+    const r = selCell.getBoundingClientRect(), sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100;
+    Object.assign(_sldCH.el.style, { left: `${(r.right - sr.left) / z}px`, top: `${(r.bottom - sr.top) / z}px` });
+  }
   const sel = document.querySelector('#canvas .slide-block.selected');
   if (!sel || !L) { if (_sldH) { _sldH.el.remove(); _sldH = null; } }
   else {
@@ -255,7 +287,7 @@ function _syncSlidePlus() {
     Object.assign(_sldPlus.btn.style, { left: `${(x - sr.left) / z + (vert ? 0 : 28)}px`, top: `${(y - sr.top) / z + (vert ? 28 : 0)}px`, transform: 'translate(-50%, -50%)' });
     _sldPlus.btn.disabled = cells.length >= SLIDE_MAX;
   }
-  if (sel || b) _sldRaf = requestAnimationFrame(_syncSlidePlus);
+  if (sel || b || selCell) _sldRaf = requestAnimationFrame(_syncSlidePlus);
 }
 export function kickSlidePlus() { if (!_sldRaf && typeof requestAnimationFrame === 'function') _sldRaf = requestAnimationFrame(_syncSlidePlus); }
 if (typeof document !== 'undefined') document.addEventListener('mouseup', kickSlidePlus, true);
@@ -293,7 +325,8 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
     const w = inPlace ? 100 : (normCardW(c.dataset.w) ?? layout.cardW);   // 제자리 효과 = 칸이 블럭 꽉(칸별 폭은 그 효과 동안 안 씀 · 값은 그대로)
     const hp = !vert && !inPlace && !wipe ? normCardH(c.dataset.h) : undefined;   // SLIDE-CELL-HEIGHT-EACH-01 칸 높이 %(가로 효과 · 트랙 가운데)
     /* 프레임 기본 꼴의 px 폭·높이·가운데 마진을 칸 자리로 덮는다(스타일만 · 자식 무접촉) */
-    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : (hp !== undefined ? `${hp}%` : '100%'), alignSelf: hp !== undefined ? 'center' : '', minHeight: '0', maxWidth: 'none', margin: i && neg ? (vert ? `${neg}px 0 0 0` : `0 0 0 ${neg}px`) : '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '' });   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
+    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : (hp !== undefined ? `${hp}%` : '100%'), alignSelf: hp !== undefined ? 'center' : '', minHeight: '0', maxWidth: 'none', margin: i && neg ? (vert ? `${neg}px 0 0 0` : `0 0 0 ${neg}px`) : '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '',
+      borderRadius: normRadius(c.dataset.radius) ? `${normRadius(c.dataset.radius)}px` : '', boxShadow: CELL_SHADOWS[c.dataset.shadow]?.css || '' });   // 칸 둥글기·그림자(SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01)   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
   });
 }
 
@@ -393,7 +426,7 @@ async function _frameCellImgs(block) {
           Object.assign(cb.style, { height: 'auto', overflow: 'visible' });
           Object.assign(track.style, { flexWrap: 'wrap', height: 'auto', flexDirection: 'row', transform: 'none', position: 'static', gap: '8px' });   // 겹침(음수 간격)도 찍을 땐 떼어 놓는다(칸마다 제 그림만)   // 가운데 캐러셀 첫 장면 밀기는 찍을 때 걷는다(칸 사각형이 클론 밖으로 안 나가게)
           const cc = [...track.querySelectorAll(':scope > .sld-cell')];
-          cc.forEach((c, i) => Object.assign(c.style, { flex: `0 0 ${sizes[i][0]}px`, width: `${sizes[i][0]}px`, height: `${sizes[i][1]}px`, position: 'relative', inset: 'auto', clipPath: 'none', display: '', margin: '0' }));   // 전후 비교 겹침·clip·숨김도 찍을 땐 걷음(칸 전부 · 제 모양)
+          cc.forEach((c, i) => Object.assign(c.style, { flex: `0 0 ${sizes[i][0]}px`, width: `${sizes[i][0]}px`, height: `${sizes[i][1]}px`, position: 'relative', inset: 'auto', clipPath: 'none', display: '', margin: '0', borderRadius: '0', boxShadow: 'none' }));   // 둥글기·그림자는 GIF 가 그린다(찍을 땐 네모 칸 그대로)   // 전후 비교 겹침·clip·숨김도 찍을 땐 걷음(칸 전부 · 제 모양)
           cb.querySelector(':scope > .sld-wipe')?.remove();
           const cr = clone.getBoundingClientRect(), rects = cc.map((c) => c.getBoundingClientRect());
           const cap = await captureCloneToCanvas(clone, w, sectionBgColor(sec), native, sec);
@@ -441,7 +474,8 @@ export function slidePlan(block, anim, fxOverride) {
   /* 프레임 모드 = 칸 수·칸 폭(data-w)이 기하 · 사진 모드 = 옛 그대로 */
   const n = frame ? Math.max(1, cells.length) : (st.slides.length || 3), ws = frame ? cells.map((c) => c.dataset.w) : st.slides.map((s) => s.w);
   const hs = frame && !slideInPlace(fx) && !slideWipe(fx) ? cells.map((c) => c.dataset.h) : null;   // 칸별 높이(가로 효과)
-  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, n, st.layout, ws, hs);
+  const deco = frame ? cells.map((c) => ({ r: c.dataset.radius, sh: c.dataset.shadow })) : null;   // 칸 둥글기·그림자
+  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, n, st.layout, ws, hs, deco);
   const sec = loopSec(fx, geom, A);
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec) + (frame ? ' · 칸 안 움직이는 것은 정지 한 장' : ''), gif: gifPlan(sec), fx, anim: A,
