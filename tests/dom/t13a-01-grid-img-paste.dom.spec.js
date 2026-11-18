@@ -2,7 +2,7 @@
  * 재현(534a76177): 그림 줄을 고른 채 ⌘X → 줄은 지워지고 copySelected 가 «그리드째» 담아 ⌘V = 그리드 +1 · 에셋 0.
  *   ⌘C → 줄 클립(grdCopySelectedLines)만 담겨 그리드 밖 ⌘V = 에셋 0(블럭 클립이 남아 있었으면 그 옛 블럭).
  * 기대: 그림 줄 하나 ⌘C/⌘X → ⌘V = 그 그림의 에셋 블럭 1개(그리드 수 그대로).
- * ★양성대조: js/editor.js 의 _copyGridImgLineAsAsset 호출 두 줄을 빼면 I1 I2 I1b 빨강 / I3 초록(실측 534a76177+이 spec · _patches/wk4-ctl-t13a01-no-img-asset-copy.patch).
+ * ★양성대조: js/editor.js 의 _copyGridImgLineAsAsset 호출 두 줄을 빼면 I1 I2 빨강 / I1b I3 초록(실측 534a76177+이 spec · _patches/wk4-ctl-t13a01-no-img-asset-copy.patch).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js --workers=1 t13a-01 */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -60,13 +60,13 @@ for (const [id, k] of [['I1', 'c'], ['I2', 'x']]) test(`${id} 그림 줄 ⌘${k.
   expect({ grids: s1.grids, assets: s1.assets }).toEqual({ grids: 1, assets: 1 });
   expect(await assetSrcs(page)).toEqual([SRC]);
 });
-test('I1b 그림 줄 ⌘C → 그리드를 고른 채 ⌘V 도 에셋 1개(그리드 안 줄 +0)', async ({ page }) => {
+test('I1b 그림 줄 ⌘C → 그리드 줄을 고른 채 ⌘V = 그림 줄 +1(티켓⑤ 줄 붙이기 무변) · 에셋 0', async ({ page }) => {
   await setup(page);
   await selectImg(page);
   await page.keyboard.press('Meta+c'); await page.waitForTimeout(300);
   await pressPaste(page);
   const s1 = await snap(page);
-  expect({ grids: s1.grids, assets: s1.assets, imgLines: s1.imgLines }).toEqual({ grids: 1, assets: 1, imgLines: 1 });
+  expect({ grids: s1.grids, assets: s1.assets, imgLines: s1.imgLines }).toEqual({ grids: 1, assets: 0, imgLines: 2 });
 });
 test('I3 지키는 시험 — 그리드 «블럭»만 고른 ⌘C → ⌘V 는 그리드 +1(에셋 0) · 글 줄 ⌘C 는 줄 복사 그대로', async ({ page }) => {
   await setup(page);
