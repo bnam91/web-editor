@@ -4306,7 +4306,7 @@ function _startTextOverlayResizeRaf() {
     const editing = _tfoEditing(posEl);
     const sel = _tfoSelectedChild(posEl);
     /* ★오버레이를 «끄면» dataset.overlayBlock 이 사라진다 ⇒ 여기서 자동으로 걷힌다. */
-    if (!posEl.isConnected || posEl.dataset.overlayBlock !== 'true' || (!sel && !editing)) {
+    if (!posEl.isConnected || (posEl.dataset.overlayBlock !== 'true' && !posEl._textScale) || (!sel && !editing)) {
       hideTextOverlayResizeHandles();
       return;
     }
@@ -4393,6 +4393,9 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
   /* ★t7-05 — 자유변형이 걸린 글상자면 네 점·재는 폭을 «시작 값»으로 떠 둔다(아래 onMove 가 같은 k 로 곱한다 · js/effects-freetransform.js ftScaleBase). */
   const _ftTb = posEl.matches?.('.text-block[data-tf-corners]') ? posEl : posEl.querySelector?.('.text-block[data-tf-corners]');
   const _ftBase = _ftTb ? window.ftScaleBase?.(_ftTb) : null;
+  /* ★t13A-08 K 스케일 모드(js/text-scale-tool.js) — 흐름 텍스트면 폭·위치는 부모 몫(안 씀) · 자간·패딩·외곽선·그림자도 같은 k */
+  const _flow = posEl.dataset.overlayBlock !== 'true';
+  const _scaleRest = posEl._textScale ? window.textScaleSnapshot?.(posEl) : null;
   /* ★맞은편 코너 고정 — 확대블럭 _onZoomResizeMouseDown ④ 의 식을 그대로 옮겨 적는다.
      ⛔공통 헬퍼로 «추출» 금지 — tests/unit/zoom-block.test.js 가 그 함수 «안에서»
        `const dHW …` / `dataset.x = ` 를 정규식으로 꺼내 실행한다. 빼내면 그 검사가 약해진다.
@@ -4425,7 +4428,7 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
        탄성 클램프도 같은 근사를 쓴다).
      ★하한(TFO_MIN_W)은 «그대로 하드»다 — 현빈: 「최소 폭·높이 하한은 그대로 둔다」. */
   const secW = sec ? sec.clientWidth : 860;
-  const room = sx > 0 ? (secW - startPosX) : (startPosX + startW);
+  const room = _flow ? Infinity : (sx > 0 ? (secW - startPosX) : (startPosX + startW));   // 흐름 = 섹션 경계 탄성 없음(폭을 안 쓴다)
   const boundW = Math.max(TFO_MIN_W, room, startW);
   let moved = false;
   /* ★드래그는 «양쪽 끝»을 찍는다 — 시작 표본은 여기(첫 실제 이동), 끝 표본은 onUp 의
@@ -4465,6 +4468,7 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
     const elasticW = over > 0 ? boundW + _elasticAxis(over, 0, zone) : rawW;
     const newW = Math.max(TFO_MIN_W, Math.round(elasticW));
     const k = newW / startW;   // ★«클램프된» 폭으로 다시 구한다 — 상자와 글자가 갈라지지 않게
+    if (!_flow) {
     posEl.style.width = newW + 'px';
     posEl.dataset.width = String(newW);
     /* ★폭의 «주인»이 사용자가 된다 — 이 도장을 안 떼면 오버레이를 해제하는 순간
@@ -4476,6 +4480,7 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
        바로 위에서 overlayIntroducedWidth 를 «떼고» 가기 때문이다(폭은 남겨야 하니까). */
     posEl.style.maxWidth = 'none';
     posEl.dataset.overlayFreeWidth = 'true';
+    }
     snap.forEach(s => { s.el.style.fontSize = (s.fs * k).toFixed(1) + 'px'; });
     /* ★t7-05 — 글자와 «같은 k» 로 자유변형(네 점·상자·보라 테두리·격자)을 다시 맞춘다. 높이를 «재기 전»에 둔다(상자가 글자를 감싼 뒤 잰다). */
     if (_ftBase) window.ftScaleTo?.(_ftTb, _ftBase, k);
@@ -4488,12 +4493,13 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
       s.el.style.width  = Math.max(1, s.w * k).toFixed(1) + 'px';
       s.el.style.height = Math.max(1, s.h * k).toFixed(1) + 'px';
     });
+    _scaleRest?.(k);
     /* 높이는 «글자가 정한다» — 쓰지 않고 «잰다». 맞은편 코너 고정도 그 실측 높이로. */
     const newH = Math.max(1, posEl.offsetHeight);
     const dHW = (newW - startW) / 2, dHH = (newH - startH) / 2;
     const nx = startPosX + (cosT * sx * dHW - sinT * sy * dHH) - dHW;
     const ny = startPosY + (sinT * sx * dHW + cosT * sy * dHH) - dHH;
-    _applyOverlayPos(posEl, nx, ny);
+    if (!_flow) _applyOverlayPos(posEl, nx, ny);
     window.scheduleAutoSave?.();
   }
   function onUp() {
@@ -4920,7 +4926,7 @@ function showHandlesFor(block) {
          showTextProperties 를 쓰는데(block-drag.js isIconText) 손잡이만 빠져 있었다.
          ⇒ 「같은 패널을 쓰면 같은 손잡이」로 클래스를 명시한다. 술어는 그대로 dataset 이다. */
     const posEl = _posElOf(block);
-    if (posEl.dataset.overlayBlock === 'true') showTextOverlayResizeHandles(posEl);
+    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) showTextOverlayResizeHandles(posEl);   // ★t13A-08 K 모드면 흐름 텍스트에도
     else hideTextOverlayResizeHandles();
   } else if (block.classList.contains('grid-block')) {
     /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이였다(흐름 그리드는 패널 너비 줄로).

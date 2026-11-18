@@ -3165,6 +3165,7 @@ document.addEventListener('keydown', e => {
        메뉴만 닫고 소진된다 — 선택 풀기·상위로 올라가기(T-058)는 그다음 Esc 몫이다.
        (메뉴가 안 열려 있으면 closeFpMenus() 가 0 을 돌려 기존 흐름이 그대로 간다.) */
     if (closeFpMenus() > 0) return;
+    if (window.textScaleExit?.()) return;   // ★t13A-08 — 첫 Esc 는 K 스케일 모드만 끈다(선택은 남김)
     // vectorPen 그리기/편집 모드는 자체 capture 핸들러가 ESC를 먼저 소비함.
     // 안전망: 모드가 살아있으면 종료만 하고 선택 해제는 건너뜀.
     if (document.body.classList.contains('vpen-mode')) { window.exitVectorPenMode?.(); return; }
@@ -3323,7 +3324,10 @@ document.addEventListener('keydown', e => {
     if (e.code === 'KeyK' && !e.isComposing) {
       if (window.grdAddIconToSelectedCell?.()) { e.preventDefault(); return; }
       if (window.lnAddIconToSelected?.()) { e.preventDefault(); return; }   // ★1013t1B2 C4 — laurel 칸/줄에도(그리드 다음 · T/G 와 같은 꼴)
+      if (!e.altKey && window.textScaleToggle?.()) { e.preventDefault(); return; }   // ★t13A-08 — 아이콘 게이트가 안 먹었고 텍스트 하나면 스케일 모드 켜고/끄기(js/text-scale-tool.js)
     }
+    // ★t13A-08 맨 V = 모든 도구 모드 끝(js/tool-modes.js 명부) — 끈 게 있을 때만 키를 먹는다
+    if (e.code === 'KeyV' && !e.altKey && !e.isComposing && window.exitToolModes?.()) { e.preventDefault(); return; }
 
     // Enter → 선택된 텍스트 블록 편집 모드 진입
     if (e.code === 'Enter') {
