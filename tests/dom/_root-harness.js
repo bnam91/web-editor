@@ -68,7 +68,10 @@ module.exports.SETTLE_MIN_MS = 3000;
  *     실앱 «사람 손» 끌기에서 현빈이 확인(놓은 자리에 들어감). ⚠️한 건에서 맞았다는 것뿐 — 「하네스 = 실앱」으로 넓히지 않는다.
  * ⛔이 하네스로 «못 재는» 축(electronAPI 가짜라서): 파일 저장·불러오기, 템플릿 index/canvas 파일, 스크래치패드 IndexedDB 의
  *   «다른 프로젝트·재기동 뒤» 영속, 네이티브 메뉴·창·포커스. 항목별 명부는 커밋 메시지·지디 보고에 «이름으로» 적는다. */
-async function bootApp(page) {
+/* opts.overlay(선택 · CSS 토큰 통일 레인 0 261118): Map<'/경로', Buffer|null> — 그 경로만 이 내용으로(null = 404) 낸다. 없으면 예전과 한 글자도 같은 길.
+   («핀 판» 대조용 — tests/dom/_css-token-parity.js. G18 pinnedBoot 처럼 route 를 덧대면 나중 route 가 먼저 돌아 못 끼운다.) */
+async function bootApp(page, opts) {
+  const overlay = opts && opts.overlay;
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   await page.addInitScript(() => { window.electronAPI = new Proxy({}, { get: () => (() => Promise.resolve(null)) }); });
@@ -82,7 +85,8 @@ async function bootApp(page) {
     const u = new URL(r.request().url());
     const f = path.join(ROOT, decodeURIComponent(u.pathname));
     if (!f.startsWith(ROOT)) return r.fulfill({ status: 404, body: '' });
-    const b = _serveFile(f);
+    const ov = overlay ? overlay.get(decodeURIComponent(u.pathname)) : undefined;
+    const b = ov !== undefined ? ov : _serveFile(f);
     if (b === null) return r.fulfill({ status: 404, body: '' });
     return r.fulfill({ contentType: MIME[path.extname(f)] || 'application/octet-stream', body: b });
   });
