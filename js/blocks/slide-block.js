@@ -69,6 +69,16 @@ export const slideHasPhotos = (block) => readSlideState(block).slides.length > 0
 export const isFrameSlide = (block) => block?.dataset?.cellMode === 'frame';
 export const slideCells = (block) => [...(block?.querySelectorAll(':scope > .sld-track > .sld-cell') || [])];
 /** 빈 칸 하나 — 프레임 블럭 기본 꼴(⑤ 재사용) + 칸 표식. 크기는 renderSlideBlock 이 트랙에 맞춰 덮는다(px 고정 걷음). */
+/** 끝에 빈 칸 하나(패널 «프레임 추가하기») — SLIDE_MAX 가드 · 이력은 부르는 쪽. */
+export function addSlideCell(block) {
+  const track = block.querySelector(':scope > .sld-track');
+  if (!track || slideCells(block).length >= SLIDE_MAX) return null;
+  const c = makeSlideCell();
+  track.appendChild(c);
+  window.bindFrameDropZone?.(c);
+  renderSlideBlock(block);
+  return c;
+}
 export function makeSlideCell() {
   const c = window.makeFrameBlock ? window.makeFrameBlock() : Object.assign(document.createElement('div'), { className: 'frame-block' });
   c.classList.add('sld-cell');
@@ -176,7 +186,7 @@ export function makeSlideBlock(opts = {}) {
   block.dataset.layerName = opts.layerName || 'Slides';
   block.dataset.slides = JSON.stringify(Array.isArray(opts.slides) ? opts.slides.filter((s) => slideImgOk(s?.src)).slice(0, SLIDE_MAX) : []);
   block.dataset.animFx = SLIDE_FX[0];   // 새 블럭 = 흐름(▶ 단추가 바로 뜨게 · GIF 패널에서 바꿈)
-  if (opts.cellMode === 'frame') {   // 커밋 1: 부르는 쪽이 고를 때만(패널이 프레임 모드를 알게 되는 커밋 2 에서 새 블럭 기본으로)
+  if (opts.cellMode === 'frame') {   // 프레임 모드 — 추가 메뉴(addSlideBlock) 기본 · makeSlideBlock 을 바로 부르는 쪽(옛 길·검사)은 고를 때만
     block.dataset.cellMode = 'frame';
     const track = document.createElement('div');
     track.className = 'sld-track';
@@ -196,9 +206,10 @@ function addSlideBlock(opts = {}) {   // export 없이(block-add-noselection-hin
   const sec = window.getSelectedSection?.();
   if (!sec) { window.showNoSelectionHint?.(); return null; }
   window.pushHistory?.();
-  const made = makeSlideBlock(opts);
+  const made = makeSlideBlock({ ...opts, cellMode: opts.cellMode ?? 'frame' });   // SLIDE-CELL-AS-FRAME-01 — 새 블럭 = 프레임 칸(현빈 «사진이 안 들어가는 경우도») · cellMode:'photo' = 옛 사진 모드
   insertAfterSelected(sec, made.row);
   bindBlock(made.block);
+  slideCells(made.block).forEach((c) => window.bindFrameDropZone?.(c));   // 칸 고르기·안으로 끌어 넣기(로드 때는 save-load 가 모든 frame-block 을 묶는다)
   window.buildLayerPanel?.();
   try { window.selectBlock?.(made.block.id); } catch (_) {}
   window.triggerAutoSave?.();
@@ -226,5 +237,6 @@ window.setSlideList = setSlideList;
 window.appendSlideImage = appendSlideImage;   // canvas-scratch-drop(클래식 스크립트)이 부른다
 window.slideAxis = slideAxis;
 window.isFrameSlide = isFrameSlide;
+window.addSlideCell = addSlideCell;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

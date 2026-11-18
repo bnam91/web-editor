@@ -3016,13 +3016,14 @@ function bindBlock(block) {
 // bindFrameDropZone 전체를 재호출하면(_subSecBound 리셋) click 등 다른 리스너까지 중복 부착되므로
 // 이 부분만 독립적으로 재호출 가능하게 한다. ss._frameDragBound 가드로 리스너는 1회만 부착.
 function _bindFrameOwnDrag(ss) {
-  ss.setAttribute('draggable', 'true');
+  ss.setAttribute('draggable', ss.dataset.sldCell === '1' ? 'false' : 'true');   // SLIDE-CELL-AS-FRAME-01 — 슬라이드 칸은 트랙이 자리를 정한다(끌어 빼기 0 · 순서는 패널 ↑↓)
   if (ss._frameDragBound) return;
   ss._frameDragBound = true;
   ss.addEventListener('dragstart', e => {
     // 자식 블록이 시작한 드래그가 버블링된 경우 — 이 핸들러는 프레임 자체 드래그만 처리
     // (preventDefault나 dragSrc 덮어쓰기로 자식 드래그를 깨뜨리면 안 됨)
     if (e.target !== ss) return;
+    if (ss.dataset.sldCell === '1') { e.preventDefault(); return; }   // 슬라이드 칸 — 칸 자체 끌기 0(press-end 가 draggable 을 되켜도 여기서 막는다)
     // 선택된 프레임이 아니면 드래그 취소
     if (!ss.classList.contains('selected') && ss._gapSurfacePress) _pickFrameOnPress(ss);   // 면으로 친 gap 에서 시작한 끌기 — 누를 때 안 골랐으니 여기서 고른다
     if (!ss.classList.contains('selected')) { e.preventDefault(); return; }
@@ -3412,6 +3413,15 @@ function _frameIsSeeThrough(ss) {
 }
 if (typeof window !== 'undefined') window._frameIsSeeThrough = _frameIsSeeThrough;
 
+/* SLIDE-CELL-AS-FRAME-01 — 슬라이드 칸(data-sld-cell)을 고르면 프레임 패널(px 폭·높이·오버레이·⌘G 단추) 대신 «슬라이드 패널 + 그 칸» · 프레임 px 손잡이 0.
+   칸 크기는 트랙(패널 %)이 정한다 — 프레임 손잡이·패널이 px 를 박으면 트랙 배치를 깬다. 칸이면 true. */
+function _pickSlideCell(ss) {
+  if (ss.dataset.sldCell !== '1') return false;
+  const sl = ss.closest('.slide-block');
+  if (sl) window.showSlideProperties?.(sl, { cell: ss });
+  return true;
+}
+
 function bindFrameDropZone(ss) {
   // fix(frame-p0#4): 붙여넣기/복제가 프레임이 아닌 맨몸 블록(class=asset-block 등)에
   // 이 함수를 걸면 프레임 정체성이 이식돼 선택이 영원히 불가능해진다 — class로 게이트.
@@ -3449,9 +3459,10 @@ function bindFrameDropZone(ss) {
       window.syncLayerActive?.(parentSec);
     }
     ss.classList.add('selected');
-    window._activeFrame = ss;
+    window._activeFrame = ss;   // ★슬라이드 칸도 같다 — 고른 칸 = 들어간 칸(추가 메뉴·라이브러리·스크래치가 _insertToFlowFrame 로 이 칸 안에 넣는다)
     window.highlightBlock?.(ss, ss._layerItem);
     window.setBlockAnchor?.(ss);
+    if (_pickSlideCell(ss)) return;
     window.showFrameProperties?.(ss);
     if (!isShapeFrame()) showFrameHandles(ss);
   });
@@ -3474,8 +3485,10 @@ function bindFrameDropZone(ss) {
       window._activeFrame = ss;
       window.highlightBlock?.(ss, ss._layerItem);
       window.setBlockAnchor?.(ss);
-      window.showFrameProperties?.(ss);
-      if (!isShapeFrame()) showFrameHandles(ss);
+      if (!_pickSlideCell(ss)) {
+        window.showFrameProperties?.(ss);
+        if (!isShapeFrame()) showFrameHandles(ss);
+      }
     }
     if (window._openBlockContextMenu) window._openBlockContextMenu(e, ss);
   });

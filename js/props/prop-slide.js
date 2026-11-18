@@ -8,14 +8,33 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { grdPickImageFile } from './prop-grid.js';
-import { readSlideState, setSlideList, setSlideLayout } from '../blocks/slide-block.js';
+import { readSlideState, setSlideList, setSlideLayout, isFrameSlide, slideCells, addSlideCell, renderSlideBlock } from '../blocks/slide-block.js';
 import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="1" y="3" width="6" height="6" rx="0.5"/><path d="M8.5 3.5v5M10.5 4.5v3"/></svg>`;
 
-export function showSlideProperties(block) {
+/* SLIDE-CELL-AS-FRAME-01 — 프레임 모드 Content 절 = 칸 줄(칸 N · 폭 % · ↑ ↓ ✕) + «프레임 추가하기» · 고른 칸이면 «사진 넣기(칸 N)».
+   opts.cell = 캔버스에서 고른 칸(block-drag _pickSlideCell) — 그 줄을 표시하고 _activeFrame 은 그 칸 그대로(넣기 길이 그 칸으로 간다). */
+function _cellRowsHTML(block, st, selCell) {
+  const cells = slideCells(block), n = cells.length;
+  const rows = cells.map((c, i) => `<div class="prop-row sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
+        <span class="prop-label">칸 ${i + 1}</span>
+        <input type="number" class="prop-number sld-cw" min="20" max="100" step="1" value="${c.dataset.w ?? st.layout.cardW}" aria-label="칸 ${i + 1} ${slideAxis(st.fx) === 'y' ? '높이' : '폭'} %">
+        <button class="prop-btn sld-cell-up" title="앞으로"${i === 0 ? ' disabled' : ''}>↑</button>
+        <button class="prop-btn sld-cell-down" title="뒤로"${i === n - 1 ? ' disabled' : ''}>↓</button>
+        <button class="prop-btn sld-cell-del" title="칸 빼기"${n <= 1 ? ' disabled' : ''}>✕</button>
+      </div>`).join('');
+  const k = selCell ? cells.indexOf(selCell) : -1;
+  return `${rows}
+      <div class="prop-row"><button class="prop-btn" id="sld-add-cell" style="width:100%"${n >= SLIDE_MAX ? ' disabled' : ''}>+ 프레임 추가하기 (${n}/${SLIDE_MAX})</button></div>
+      ${k >= 0 ? `<div class="prop-row"><button class="prop-btn" id="sld-cell-photo" style="width:100%">사진 넣기 (칸 ${k + 1})</button></div>` : ''}`;
+}
+
+export function showSlideProperties(block, opts = {}) {
   if (!block) return;
   const st = readSlideState(block);
+  const frame = isFrameSlide(block);
+  const selCell = frame && opts.cell && slideCells(block).includes(opts.cell) ? opts.cell : null;
   const full = st.slides.length >= SLIDE_MAX;
   // 패딩 제외 — 섹션에 좌우 패딩이 있거나 이미 켜져 있을 때만(prop-cert canFB · 월계수 _lrlCanFB 와 같은 조건)
   const canFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
@@ -32,7 +51,7 @@ export function showSlideProperties(block) {
   renderPanel(block, {
     header: blockHeaderHTML({ icon: _ICON, name: block.dataset.layerName, defaultName: 'Slides', crumb: window.getBlockBreadcrumb ? window.getBlockBreadcrumb(block) : '', id: block.id }),
     sections: [
-      sec('content', `
+      sec('content', frame ? _cellRowsHTML(block, st, selCell) : `
       ${photoRows || '<div class="prop-row"><span class="prop-label">사진 없음</span></div>'}
       <div class="prop-row"><button class="prop-btn" id="sld-add" style="width:100%"${full ? ' disabled' : ''} title="${full ? `최대 ${SLIDE_MAX}장` : '사진 파일 고르기'}">+ 사진 넣기 (${st.slides.length}/${SLIDE_MAX})</button></div>
       `),
@@ -53,7 +72,7 @@ export function showSlideProperties(block) {
 
   if (window.setRpIdBadge) window.setRpIdBadge(block.id || null);
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
-  const reopen = () => showSlideProperties(block);
+  const reopen = (cell = selCell) => showSlideProperties(block, { cell });
   const $ = (id) => document.getElementById(id);
   const list = () => readSlideState(block).slides;
 
@@ -75,6 +94,40 @@ export function showSlideProperties(block) {
     /* SLIDE-CELL-SIZE-EACH-01 — 이 칸만 폭 %(slides[i].w · 소독 normCardW 20~100) · 공통 «카드 폭 %»는 칸별 값 없는 칸만 */
     row.querySelector('.sld-w')?.addEventListener('change', (e) => { const s = list(); if (!s[i]) return; s[i] = { ...s[i], w: +e.target.value }; setSlideList(block, s); commit(); reopen(); });
   });
+  /* 프레임 모드 칸 줄 — 순서·빼기 = 칸 요소째 옮김/뺌(자식 통째 · ⌘Z 가 DOM 표본으로 되돌림) · 폭 = 칸 data-w(%) */
+  if (frame) {
+    const track = block.querySelector(':scope > .sld-track');
+    const cellAt = (i) => slideCells(block)[i];
+    $('sld-add-cell')?.addEventListener('click', () => { const c = addSlideCell(block); if (!c) return; commit(); reopen(selCell); });
+    propPanel.querySelectorAll('.sld-cell-row').forEach((row) => {
+      const i = +row.dataset.idx;
+      row.querySelector('.sld-cell-up')?.addEventListener('click', () => { const c = cellAt(i), p = cellAt(i - 1); if (!c || !p) return; track.insertBefore(c, p); renderSlideBlock(block); commit(); reopen(); });
+      row.querySelector('.sld-cell-down')?.addEventListener('click', () => { const c = cellAt(i), nx = cellAt(i + 1); if (!c || !nx) return; track.insertBefore(nx, c); renderSlideBlock(block); commit(); reopen(); });
+      row.querySelector('.sld-cell-del')?.addEventListener('click', () => {
+        const c = cellAt(i); if (!c || slideCells(block).length <= 1) return;
+        if (window._activeFrame === c || c.contains(window._activeFrame)) window._activeFrame = null;
+        c.remove(); renderSlideBlock(block); commit(); reopen(selCell === c ? null : selCell);
+      });
+      row.querySelector('.sld-cw')?.addEventListener('change', (e) => { const c = cellAt(i); if (!c) return; c.dataset.w = String(Math.max(20, Math.min(100, Math.round(+e.target.value || st.layout.cardW)))); renderSlideBlock(block); commit(); reopen(); });
+    });
+    /* 칸 «사진 넣기» = 그 칸에 들어가(_activeFrame) 진짜 addAssetBlock → 칸 꽉(왼위 0 · 폭·높이 100% · cover) — 넣기 길은 _insertToFlowFrame 그대로 */
+    $('sld-cell-photo')?.addEventListener('click', () => {
+      const cell = selCell;
+      grdPickImageFile((src) => {
+        if (!cell?.isConnected) return;
+        window._activeFrame = cell;
+        const had = new Set(cell.querySelectorAll('.asset-block'));
+        window.addAssetBlock?.(null, { imgSrc: src });
+        const ab = [...cell.querySelectorAll('.asset-block')].find((b) => !had.has(b));
+        if (ab) {
+          Object.assign(ab.style, { left: '0px', top: '0px', width: '100%', height: '100%' });
+          ab.dataset.offsetX = '0'; ab.dataset.offsetY = '0'; ab.dataset.fit = 'cover'; ab.dataset.usePadx = 'false';
+          const tip = window.getHistoryTip?.(); if (tip) window.restampHistoryTop?.(tip.seq);   // 같은 틱 고침을 넣기 한 칸에(⌘Z 한 번 = 넣기 전)
+        }
+        window.scheduleAutoSave?.();
+      });
+    });
+  }
   for (const [id, key] of [['sld-cardw', 'cardW'], ['sld-gap', 'gap'], ['sld-h', 'h']]) {
     const sl = $(`${id}-slider`), nu = $(`${id}-number`);
     sl?.addEventListener('input', () => { nu.value = sl.value; setSlideLayout(block, { [key]: +sl.value }); });
