@@ -17,6 +17,8 @@ export function showSlideProperties(block) {
   if (!block) return;
   const st = readSlideState(block);
   const full = st.slides.length >= SLIDE_MAX;
+  // 패딩 제외 — 섹션에 좌우 패딩이 있거나 이미 켜져 있을 때만(prop-cert canFB · 월계수 _lrlCanFB 와 같은 조건)
+  const canFB = block.dataset.fullBleed === 'true' || (window.effectiveSectionPadX?.(block) || 0) > 0;
   const photoRows = st.slides.map((s, i) => `<div class="prop-row sld-photo-row" data-idx="${i}">
         <span class="prop-label">사진 ${i + 1}</span>
         <img class="sld-thumb" src="${escHtml(s.src)}" alt="">
@@ -38,6 +40,12 @@ export function showSlideProperties(block) {
       ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}`),
       sec('layout', `
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}`),
+      /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + prop-toggle) */
+      sec('padding', canFB ? `
+      <div class="prop-row">
+        <span class="prop-label">패딩 제외</span>
+        <label class="prop-toggle"><input type="checkbox" id="sld-fullbleed" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+      </div>` : ''),
       sec('export', animGifBtnHTML(), { id: 'sld-anim-section' }),
     ],
   });
@@ -70,6 +78,13 @@ export function showSlideProperties(block) {
     sl?.addEventListener('change', commit);
     nu?.addEventListener('change', () => { sl.value = nu.value; setSlideLayout(block, { [key]: +nu.value }); commit(); });
   }
+
+  /* 패딩 제외 — 켜기는 renderSlideBlock 의 applyBlockFullBleed 가 매 렌더 씌운다 · 끄기는 흔적 지우기 먼저(인증서·월계수와 같은 순서) */
+  $('sld-fullbleed')?.addEventListener('change', (e) => {
+    if (e.target.checked) block.dataset.fullBleed = 'true';
+    else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
+    window.renderSlideBlock(block); commit();
+  });
 
   wireAnimGifBtn(document.getElementById('open-anim-btn'), block);   // 텍스트 패널(prop-text.js _applyAnimGate)과 같은 판정·글 — _helpers.js 한 벌(슬라이드·그리드 공용)
 }

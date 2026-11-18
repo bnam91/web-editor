@@ -63,6 +63,9 @@ export function renderSlideBlock(block) {
   const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
   block.style.overflow = 'hidden';
+  /* SLIDE-PADDING-EXCLUDE-01 «패딩 제외»(dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(인증서·배너2·월계수와 같은 자리 · 키 없으면 no-op).
+     섹션 padX 가 바뀌면 prop-page.js applyPadXToSection 의 [data-full-bleed="true"] 표식 루프가 따라 씌운다(명부 0). 떠 있을 땐 안 씌움(cert ⑰ⓑ 와 같은 가드). */
+  if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
   const track = document.createElement('div');
   track.className = 'sld-track';
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;height:100%;`;
