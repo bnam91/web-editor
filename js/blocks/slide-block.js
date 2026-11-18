@@ -306,12 +306,19 @@ const _loadImg = (uri) => new Promise((res) => { if (!uri) { res(null); return; 
 function _hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return `${s.length}:${(h >>> 0).toString(36)}`; }   // FNV-1a
 async function _frameCellImgs(block) {
   const cells = slideCells(block), sec = block.closest('.section-block');
-  /* 적대 리뷰 [낮음5] — 키에 innerHTML 을 통째로 두면(base64 12장) 수십 MB 가 블럭에 상주한다 ⇒ 길이 + 32bit 해시만 쥔다(같은 판정 · 상주 수십 바이트) */
-  const key = `F|${block.offsetWidth}|${block.offsetHeight}|${_hash(block.innerHTML)}`;
+  /* SLIDE-GIF-PREVIEW-ZOOM-FLASH-01 — 키·찍는 크기를 «효과와 무관»하게.
+     옛 판: 키 = 블럭 innerHTML 해시 + 찍는 크기 = 칸의 살아 있는 크기 ⇒ 효과만 바꿔도(칸 flex-basis·트랙 transform·점 띠·나눔선 = 전부 innerHTML 안 스타일)
+     키가 바뀌어 효과를 누를 때마다 섹션 클론을 «새로» 찍었다(CDP 캡처 한 번씩 · 효과 고르기 = 캡처 연타).
+     ⇒ 키 = 칸들의 «안쪽 내용»(칸 자신의 스타일 밖)·칸 폭 %·블럭 폭·높이·점 띠 · 크기 = 레이아웃에서 셈(칸 폭 % × 블럭 폭 · 트랙 높이 = 블럭 − 점 띠) — 효과가 바꾸는 값은 안 본다.
+     적대 리뷰 [낮음5] 그대로 — 키는 길이 + 32bit 해시(상주 수십 바이트). */
+  const ST = readSlideState(block), L = ST.layout, vert = slideAxis(ST.fx) === 'y', bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.clientHeight - (L.dots === 'top' || L.dots === 'bottom' ? DOT_BAND : 0));
+  const full = slideInPlace(ST.fx) || slideWipe(ST.fx);   // 꽉 채우는 효과(제자리·전후 비교)는 첫 장면 칸이 블럭 꽉 ⇒ 그 크기로 찍어야 GIF = 첫 장면(두 «꼴»만 키에 · 효과마다 다시 찍지 않음)
+  const wsPct = cells.map((c) => (full ? 100 : (normCardW(c.dataset.w) ?? L.cardW)));
+  const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
-  const sizes0 = cells.map((c) => [c.offsetWidth, c.offsetHeight]);
-  const s0 = sizes0.find(([w, h]) => w > 0 && h > 0) || [Math.max(1, block.offsetWidth), Math.max(1, block.offsetHeight)];
-  const sizes = sizes0.map((sz) => (sz[0] > 0 && sz[1] > 0 ? sz : s0));   // 첫 장면에서 숨긴 칸(전후 비교 셋째부터 · 격자 줌아웃 둘째부터)은 0 — 보이는 칸 크기로 찍는다
+  const hit = block._sldCache?.get(key);   // 두 «꼴»(카드 폭 · 꽉)을 오가도 다시 안 찍게 최근 둘을 쥔다
+  if (hit) { block._sldImgs = hit; return hit.imgs; }
+  const sizes = wsPct.map((w) => (vert ? [bw, Math.max(1, Math.round((th * w) / 100))] : [Math.max(1, Math.round((bw * w) / 100)), th]));   // 효과 무관 «기본 꼴» 칸 크기(숨긴 칸도 제 크기 · 세로 효과는 % = 높이 몫 — 축만 키에)
   let imgs = cells.map(() => null), err = null;
   if (sec && block.id && cells.length) {
     try {
@@ -346,6 +353,7 @@ async function _frameCellImgs(block) {
     }
   }
   block._sldImgs = { key, imgs, err };
+  if (!err) { if (!block._sldCache) block._sldCache = new Map(); block._sldCache.set(key, block._sldImgs); while (block._sldCache.size > 2) block._sldCache.delete(block._sldCache.keys().next().value); }
   return imgs;
 }
 

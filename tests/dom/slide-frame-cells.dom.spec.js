@@ -35,7 +35,11 @@
  * ── SLIDE-CANVAS-PLUS-ADD-CELL-01 ──
  * Q1 칸 2(글자 든) 고름 → 캔버스 ＋(#grd-plus-layer .sld-add-btn · 진짜 클릭) → 칸 4 · 새 칸 = 칸 2 바로 뒤 · 글자째 · 새 칸·글자 id 새로(문서 겹침 0) · 새 칸 고름 · ⌘Z 한 번 = 칸 3
  *    · 슬라이드만 골라 ＋ = 마지막 칸 복사 · ＋ 는 #canvas 밖(저장·내보내기에 안 샘)
+ * ── 슬라이드 피드백 2 ──
+ * Z1 SLIDE-GIF-PREVIEW-ZOOM-FLASH-01: 프레임 칸 슬라이드에서 효과를 차례로 바꾸며 slidePrepare(GIF 패널·미리보기가 부르는 길) — 섹션 캡처(captureSectionCdp) 횟수를 센다:
+ *    흐름·스와이프·가운데·잔상·흐름 = 1 번(효과가 바꾸는 스타일은 키 밖) · 제자리 페이드(꽉 꼴) = +1 · 다시 스와이프 = +0(최근 둘 기억) · 칸 안 내용 바꿈 = +1
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL14-key-innerhtml.patch(키 = 블럭 innerHTML 해시로 되돌림) → Z1 빨강(효과마다 캡처) — 예측
  *   slide-frame-CTL13-dup-same-ids.patch(복사 칸 id 새로 매기는 줄 삭제) → Q1 빨강(id 겹침) — 예측
  *   slide-frame-CTL12-no-unfold.patch(css 펼침 규칙 삭제) → P1 빨강(칸 4 자리 hit ≠ 칸 4) — 예측
  *   slide-frame-CTL7-delete-row.patch(editor.js 칸 삭제 갈래 삭제) → R1 빨강 · slide-frame-CTL8-height-520.patch(makeSlideCell 크기 키 지우기 + rebindAll 칸 제외 둘 다 되돌림) → F0 빨강(칸 520) ·
@@ -470,5 +474,20 @@ test('Q1 캔버스 ＋ — 고른 칸을 내용째 복사 · id 새로 · ⌘Z �
   await plus.click();
   await expect.poll(() => cellIds(page, id).then((a) => a.length)).toBe(4);
   expect((await cellIds(page, id)).slice(0, 3), '마지막 칸 뒤에').toEqual(c0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('Z1 효과 바꾸기 = 다시 안 찍음(캡처 횟수) · 꽉 꼴 1번 · 내용 바뀌면 1번', async ({ page }) => {
+  const { errs, id } = await withText(page);
+  await wireCdp(page);
+  await page.evaluate(() => { const real = window.electronAPI; window.__caps = 0; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => { window.__caps++; return real.captureSectionCdp(o); } : real[k]) }); });
+  const run = (fx) => page.evaluate(async ({ id, fx }) => { const b = document.getElementById(id); b.dataset.animFx = fx; window.renderSlideBlock(b); await window.slidePrepare(b); return window.__caps; }, { id, fx });
+  const seq = [];
+  for (const fx of ['slide-flow', 'slide-swipe', 'slide-center', 'slide-trail', 'slide-flow']) seq.push(await run(fx));
+  expect(seq, '★효과만 바꿈 = 처음 한 번만 찍음').toEqual([1, 1, 1, 1, 1]);
+  expect(await run('slide-fade'), '꽉 꼴(제자리) = 한 번 더').toBe(2);
+  expect(await run('slide-swipe'), '다시 카드 폭 꼴 = 기억(안 찍음)').toBe(2);
+  await page.evaluate((id) => { document.getElementById(id).querySelectorAll('.sld-cell')[0].appendChild(Object.assign(document.createElement('span'), { textContent: 'x' })); }, id);
+  expect(await run('slide-swipe'), '칸 안 내용 바뀜 = 다시 찍음').toBe(3);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
