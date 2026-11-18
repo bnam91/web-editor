@@ -2179,6 +2179,24 @@ function _pasteImgEditToScratch({ src, w }) {
     .then(() => window.showToast?.('📋 그림을 스크래치 패드에 넣었어요'))
     .catch(err => window.showToast?.('❌ 스크래치에 넣지 못했어요: ' + (err?.message || err)));
 }
+/* ★t13A-01(현빈 261118) — 그리드 «그림 줄» 하나를 고른 채 ⌘C/⌘X = 그 그림을 «에셋 블럭»으로 담는다(⌘V = 에셋 1개).
+   옛: ⌘C 는 줄 클립(그리드 안에만 붙음) · ⌘X 는 copySelected 가 «그리드째» 담고 줄만 지워 ⌘V 에 그리드가 통째 붙었다. 참 = 담았다. */
+function _copyGridImgLineAsAsset() {
+  const g = document.querySelector('#canvas .grid-block.selected');
+  if (!g || !window.grdIsSoleSelected?.(g)) return false;
+  const sel = window.grdGetLineSel?.(g) || [];
+  if (sel.length !== 1 || sel[0].np || !Number.isInteger(sel[0].li)) return false;
+  let line;
+  try { line = window.getGridModel(g).cells[sel[0].r][sel[0].c].lines[sel[0].li]; } catch (_) { return false; }
+  if (line?.type !== 'image' || !line.imgSrc || typeof window.makeAssetBlock !== 'function') return false;
+  const { row, block } = window.makeAssetBlock();
+  window.setAssetImageFromSrc?.(block, line.imgSrc);
+  window._internalClipboardTime = Date.now();
+  _writeInternalClipboardToOS('고디터 그림 1개');
+  clipboard = { type: 'block', html: row.outerHTML };
+  window.showToast?.('그림 복사됨 — ⌘V 로 에셋 블럭이 붙어요');
+  return true;
+}
 function pasteClipboard() {
   const _dup = _copyForDuplicate; _copyForDuplicate = false;
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
@@ -2840,6 +2858,7 @@ document.addEventListener('keydown', e => {
       /* ★그리드 «줄» 복사 (티켓 ⑤) — 그리드 블럭 하나만 골라져 있고 그 안에 줄 선택이 있을
          때만 참을 돌려준다. 그 밖엔 거짓이라 아래 블록 복사가 종전대로 돈다(판정은 prop-grid.js). */
       if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
+      if (_copyGridImgLineAsAsset()) return;   // ★t13A-01 — 그림 줄 하나 = 에셋으로
       if (window.grdCopySelectedLines?.()) return;
       copySelected();
       _markImgEditCopy();
@@ -2874,7 +2893,7 @@ document.addEventListener('keydown', e => {
       if (window.scratchCutSelected?.()) { e.preventDefault(); return; }
       if (window.grdRangeBlocksKey?.(e)) return;   // ★t3-04 U2b D4 — 칸 범위가 살아 있으면 삼키고 알림(prop-grid.js)
       e.preventDefault();
-      copySelected();
+      if (!_copyGridImgLineAsAsset()) copySelected();   // ★t13A-01 — 그림 줄이면 그림만 담고, 지우기는 아래 줄 지우기 그대로
       deleteSelectedFromCanvas({ isCut: true });   // [#16-DEL] ⌘X=이동 ⇒ ⛔스크래치를 안 건드린다
       return;
     }
