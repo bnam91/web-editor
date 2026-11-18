@@ -8,11 +8,18 @@ const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
 const raf2 = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+/* FLAKY-FIRST-SECTION-LABEL-CLICKABLE-01(인텔 workers 3 · L1 t8 띠 윗변 19 < 44 · L2 t7 topbarOnTop false) — 두 프레임만 기다리고 띠를 쟀다(섹션 넣기 뒤 캔버스 스크롤·배율이 덜 멎음 · 추정)
+   ⇒ 캔버스 스크롤 위치가 두 rAF 동안 같고 배율 보간(canvas-scaler transform)이 없을 때까지(조건 대기 · 고정 대기 0) */
+const settle = (page) => expect.poll(() => page.evaluate(async () => {
+  const w = document.getElementById('canvas-wrap'), sc = document.getElementById('canvas-scaler'), a = w.scrollTop;
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return a === w.scrollTop && !(sc && sc.getAnimations().length);
+}), { message: '[전제] 캔버스 스크롤·배율 멎음' }).toBe(true);
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove()); await window.addSection(); await window.addSection(); window.deselectAll?.(); });
-  await raf2(page);
+  await settle(page);
   return errs;
 }
 const strip = (page, i) => page.evaluate((i) => {
@@ -28,7 +35,7 @@ test('L1 연 직후 — 첫 섹션 라벨 띠가 툴바 밑에 안 깔리고 눌
   const errs = await setup(page);
   const top0 = await page.evaluate(() => document.getElementById('canvas-wrap').scrollTop);   // «연 직후» 스크롤 — 섹션 띠를 누르면 캔버스가 그 섹션 쪽으로 내려가므로 둘째도 이 자리에서 잰다
   for (const i of [0, 1]) {
-    await page.evaluate((t) => { document.getElementById('canvas-wrap').scrollTop = t; }, top0); await raf2(page);
+    await page.evaluate((t) => { document.getElementById('canvas-wrap').scrollTop = t; }, top0); await settle(page);
     const s = await strip(page, i);
     expect(s.top, `섹션 ${i + 1} 띠 윗변 ${s.top} ≥ 툴바 아래끝 ${s.topbarBottom}`).toBeGreaterThanOrEqual(s.topbarBottom);
     expect(s.onTop, `섹션 ${i + 1} 띠 가운데 맨 위 = 그 띠`).toBe(true);
@@ -42,7 +49,7 @@ test('L2 ★양성대조 — 쉼 스크롤을 띠 높이만큼 내리면 첫 섹
   await setup(page);
   const s0 = await strip(page, 0);
   await page.evaluate((d) => { document.getElementById('canvas-wrap').scrollTop += d; }, (s0.top - s0.topbarBottom) + s0.h);
-  await raf2(page);
+  await settle(page);
   const s = await strip(page, 0);
   expect(s.top).toBeLessThan(s.topbarBottom);
   expect(s.onTop, '띠가 아직 맨 위다 — 이 대조가 L1 을 가르지 못한다').toBe(false);

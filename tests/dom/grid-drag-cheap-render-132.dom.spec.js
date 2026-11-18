@@ -5,7 +5,7 @@
  *     ⒡ 행·열 둘 다 · 배경 그림 칸이면 옛 길(틱마다 렌더) 그대로.
  * 기다림은 전부 조건 — 고정 대기 0. */
 const { test, expect } = require('@playwright/test');
-const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { bootApp, waitStableRect, waitZoomSettled } = require('./_root-harness.js');
 
 const SCENE = '<div class="section-block" id="dS" data-section="1"><div class="section-hitzone"></div><div class="section-inner"><div class="gap-block" data-type="gap" style="height:60px"></div><div class="row" id="dR" data-layout="stack"></div><div class="gap-block" data-type="gap" style="height:400px"></div></div></div>';
 /* ── 부하 흔들림 진단(0912 · G3 로 시작 → r2 에서 이 파일 전 칸 · 단언 무변) ─────────────────────────────
@@ -72,10 +72,23 @@ async function setup(page, { bg = false } = {}) {
   await mark(page, 'scene');
   await waitNamed(page, 'cells', () => !!document.querySelector('#dG .grd-cell'));
   await mark(page, 'cells');
+  /* FLAKY-FIRST-SECTION-LABEL-CLICKABLE-01(인텔 workers 3 G3 t7 · G4 t9): pick 누름 (638,696) 이 칸(윗변 725) 위 갭 블럭에 떨어짐 — setup 의 applyZoom(100) 은 transform 을 0.15s 보간한다
+     (_root-harness waitZoomSettled 머리말) ⇒ 배율 멎음까지 기다린다(고정 대기 0) */
+  await waitZoomSettled(page, 100);
+  await mark(page, 'zoom');
   return errs;
 }
 async function pick(page) {
-  const p = await page.evaluate(() => { const r = document.querySelector('#dG .grd-cell [data-line]').getBoundingClientRect(); return [r.left + 10, r.top + r.height / 2]; });
+  /* 누를 점이 두 rAF 동안 같고 그 점의 주인이 칸 안일 때까지(스크롤·배율 끝물에 낡은 좌표로 누르지 않게 · 조건 대기) */
+  let p = null;
+  await expect.poll(async () => {
+    const q = await page.evaluate(async () => {
+      const m = () => { const r = document.querySelector('#dG .grd-cell [data-line]').getBoundingClientRect(); return [Math.round(r.left + 10), Math.round(r.top + r.height / 2)]; };
+      const a = m(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const b = m(), e = document.elementFromPoint(b[0], b[1]);
+      return { p: b, ok: a[0] === b[0] && a[1] === b[1] && !!e?.closest('#dG .grd-cell') };
+    });
+    p = q.p; return q.ok;
+  }, { message: '[전제] 누를 점 = 칸 안 · 멎음', timeout: WAIT_MS.cells }).toBe(true);
   await mark(page, 'pick-click');
   await page.mouse.click(p[0], p[1]);
   await waitNamed(page, 'gutters', () => document.querySelectorAll('#ss-handles-overlay .grd-gutter').length > 0);
