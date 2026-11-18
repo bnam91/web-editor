@@ -429,8 +429,13 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   expect((await hit()).in, '고름 풀면 칸 4 는 잘려 안 맞는다').toBe(false);
   /* 펼침 중 옆 블럭 클릭 */
   await page.evaluate((id) => window.selectBlock(id), id);
-  const op = await page.evaluate((oid) => { const r = document.getElementById(oid).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, otherId);
-  await page.mouse.click(op[0], op[1]);
+  /* 앞에서 칸 4 로 캔버스를 가로 스크롤했다 ⇒ 옆 글자가 화면 밖일 수 있다(지혜맥 P1 빨강) — 펼친 채(슬라이드 고름 유지) 그 글자를 화면 안으로 · 누르기 «전» 그 점이 누구인지 잰다:
+     글자가 아니면 «무엇이 덮었나»를 메시지로(펼친 칸·덮개가 가로채면 여기서 이름이 나온다 = 제품 빨강) */
+  const op = await page.evaluate((oid) => { const t = document.getElementById(oid); t.scrollIntoView({ block: 'center', inline: 'center' }); const r = t.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
+    return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).overflow }; }, otherId);
+  expect(op.open, '[전제] 아직 펼친 채').toBe('visible');
+  expect(op.hit, `★펼침 중 옆 글자 자리를 덮은 것 = ${op.who}`).toBe(true);
+  await page.mouse.click(op.x, op.y);
   expect(await page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
   /* 저장본 흔적 0 · 저장→다시 열기 글 그대로 */
   await page.evaluate((id) => window.selectBlock(id), id);
