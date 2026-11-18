@@ -54,7 +54,7 @@ export function showComparisonProperties(block) {
         <div class="cmp-row-edit" style="margin-bottom:6px;border-bottom:1px solid var(--border-subtle,#2a2a2a);padding-bottom:6px;">
           <div class="prop-row" style="gap:4px;align-items:center;">
             ${typeToggle}${heightInput}
-            <button class="prop-btn prop-btn-danger cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:24px;margin-left:auto;">×</button>
+            <button class="prop-btn cmp-row-del" data-col="${idx}" data-idx="${i}" title="행 삭제" style="width:24px;margin-left:auto;">×</button>
           </div>
           ${body}
         </div>`;
