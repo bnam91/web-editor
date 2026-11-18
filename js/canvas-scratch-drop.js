@@ -160,7 +160,8 @@ function _classifyDrop(clientX, clientY) {
   if (sld && sld.closest('#canvas-scaler')) {
     /* SLIDE-CELL-AS-FRAME-01 적대 리뷰 [중간3] — 프레임 모드는 사진 목록(data-slides)에 쌓지 않는다(정본 = DOM · 쌓으면 화면 변화 0) ⇒ 놓은 «칸» 안에 · 칸 사이(트랙 틈)면 받지 않음 */
     if (sld.dataset.cellMode === 'frame') {
-      const cell = hit.closest('.sld-cell');
+      /* ★접힌 슬라이드는 칸이 포인터를 안 받는다(SLIDE-CLICK-SELECT-DBL-UNFOLD-01 · pointer-events none) ⇒ elementFromPoint 가 칸을 못 집는다 — 칸 사각형으로 찾는다(접힘·펼침 둘 다 · 지혜맥 R3 흔들림 자리) */
+      const cell = hit.closest('.sld-cell') || [...sld.querySelectorAll(':scope > .sld-track > .sld-cell')].find((c) => { const r = c.getBoundingClientRect(); return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom; }) || null;
       return cell && sld.contains(cell) ? { kind: 'slidecell', block: sld, cell } : { kind: 'none' };
     }
     return { kind: 'slide', block: sld };

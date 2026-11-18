@@ -174,13 +174,17 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
   await page.mouse.click(p1[0], p1[1]);
   expect(await page.evaluate((id) => { const b = document.getElementById(id); return { slide: b.classList.contains('selected'), cell: b.querySelectorAll('.sld-cell.selected').length, open: b.classList.contains('sld-unfold') }; }, id), '★한 번 = 슬라이드만(펼침 없음)').toEqual({ slide: true, cell: 0, open: false });
   await page.mouse.dblclick(p[0], p[1]);
+  /* 진단(지혜맥 F2 빨강 두 번 — 장면 판정이 안 맞았다): 누르기 «전» 그 점의 주인 · 펼침 · 누른 «뒤» 골라진 것 · _activeFrame · 들어간 프레임 → 실패 메시지에 */
+  const pre = await page.evaluate(({ id, p }) => { const b = document.getElementById(id), e = document.elementFromPoint(p[0], p[1]); return { open: b.classList.contains('sld-unfold'), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, inCell2: !!e && b.querySelectorAll('.sld-cell')[1].contains(e) }; }, { id, p });
   await page.mouse.click(p[0], p[1]);
+  const post = await page.evaluate(() => ({ sel: [...document.querySelectorAll('#canvas .selected')].map((e) => `${e.className.split(' ')[0]}#${e.id}`), active: window._activeFrame?.id || null, entered: window._enteredFrame?.id || null }));
   const pick = await page.evaluate((id) => {
     const cell = document.getElementById(id).querySelectorAll('.sld-cell')[1];
     return { active: window._activeFrame === cell, sel: cell.classList.contains('selected'), row: document.querySelector('.sld-cell-row.active')?.dataset.idx ?? null,
       handles: document.querySelectorAll('.ss-resize-handle, .ss-radius-handle').length, framePanel: !!document.getElementById('ss-align-left') };   // 프레임 패널(prop-frame.js)에만 있는 id
   }, id);
-  expect(pick, '★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0').toEqual({ active: true, sel: true, row: '1', handles: 0, framePanel: false });
+  expect(pre, `[전제] 펼친 뒤 누를 점 = 칸 2 · 진단 ${JSON.stringify({ pre, post })}`).toMatchObject({ open: true, inCell2: true });
+  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, framePanel: false });
   await expect(page.locator('#sld-cell-photo')).toHaveText(/칸 2/);
   /* 고른 칸에 넣기 = 그 칸 안(_insertToFlowFrame) */
   await page.evaluate(() => window.addTextBlock('body'));
@@ -548,6 +552,9 @@ test('H1 높이 손잡이 — 끌기 = 블럭 높이 · 칸 따라감 · ⌘Z', 
   await expect(hh, '★고르면 높이 손잡이').toHaveCount(1);
   expect(await page.locator('#canvas .sld-h-handle').count(), '손잡이는 #canvas 밖').toBe(0);
   const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
+  /* ★손잡이 자리는 rAF 가 맞춘다 — 고른 바로 뒤엔 아직 (0,0) 일 수 있다(지혜맥 H1 흔들림) ⇒ 손잡이 가운데 = 블럭 오른쪽 아래가 될 때까지(조건 대기) */
+  const corner = () => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(), h = document.querySelector('#grd-plus-layer .sld-h-handle').getBoundingClientRect(); return Math.abs((h.left + h.right) / 2 - r.right) + Math.abs((h.top + h.bottom) / 2 - r.bottom); }, id);
+  await expect.poll(corner, '[전제] 손잡이가 블럭 모서리에').toBeLessThanOrEqual(1.5);
   const bx = await hh.boundingBox(), x = bx.x + bx.width / 2, y = bx.y + bx.height / 2;
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 60 * z, { steps: 6 }); await page.mouse.up();
   const r = await page.evaluate((id) => { const b = document.getElementById(id); return { h: window.readSlideState(b).layout.h, ok: [...b.querySelectorAll('.sld-cell')].every((c) => Math.abs(c.offsetHeight - b.clientHeight) <= 1) }; }, id);
@@ -591,6 +598,9 @@ test('C1 칸 손잡이 — 끌기 = 칸 폭·높이 % · 그 칸만 · ⌘Z', as
   await expect(ch, '★고른 칸 = 칸 손잡이').toHaveCount(1);
   const before = await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.sld-cell')].map((c) => [c.dataset.w ?? null, c.dataset.h ?? null]), id);
   const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
+  /* ★칸 손잡이 자리도 rAF — 칸 오른쪽 아래에 설 때까지(조건 대기 · 지혜맥 C1 흔들림) */
+  const corner = () => page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(), h = document.querySelector('#grd-plus-layer .sld-cell-handle').getBoundingClientRect(); return Math.abs((h.left + h.right) / 2 - r.right) + Math.abs((h.top + h.bottom) / 2 - r.bottom); }, id);
+  await expect.poll(corner, '[전제] 칸 손잡이가 칸 모서리에').toBeLessThanOrEqual(1.5);
   const bx = await ch.boundingBox(), x = bx.x + bx.width / 2, y = bx.y + bx.height / 2;
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x - 100 * z, y - 90 * z, { steps: 6 }); await page.mouse.up();
   const after = await page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.sld-cell')].map((c) => [c.dataset.w ?? null, c.dataset.h ?? null]), id);
