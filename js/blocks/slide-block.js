@@ -157,6 +157,36 @@ export function duplicateSlideCell(block, src) {
 /** 고른 칸(그 칸 또는 그 칸 안 블럭이 골라짐) · 없으면 null */
 const _pickedCell = (block) => slideCells(block).find((c) => c.classList.contains('selected') || c.querySelector('.selected')) || null;
 
+/* SLIDE-CLICK-SELECT-DBL-UNFOLD-01 — 펼침 켜기/끄기(.sld-unfold · 편집 상태 · 저장·캡처 명부가 걷음).
+   두 번 누름(슬라이드 위 어디든 — 접힌 동안 칸은 포인터를 안 받아 슬라이드가 받는다) = 펼침 · Esc · 캔버스에서 그 슬라이드 밖 누름 = 접힘. */
+export function unfoldSlide(block, on = true) {
+  if (!block || !isFrameSlide(block)) return;
+  if (on) document.querySelectorAll('#canvas .slide-block.sld-unfold').forEach((b) => { if (b !== block) b.classList.remove('sld-unfold'); });
+  block.classList.toggle('sld-unfold', !!on);
+  kickSlidePlus();
+}
+const _unfolded = () => document.querySelector('#canvas .slide-block.sld-unfold');
+if (typeof document !== 'undefined') {
+  document.addEventListener('dblclick', (e) => {
+    const b = e.target.closest?.('#canvas .slide-block[data-cell-mode="frame"]');
+    if (!b || b.classList.contains('sld-unfold')) return;
+    e.preventDefault(); e.stopPropagation();
+    window.selectBlock?.(b.id);
+    unfoldSlide(b, true);
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const b = _unfolded(); if (!b) return;
+    const a = document.activeElement; if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;   // 글 고치는 중 Esc 는 글이 먼저
+    unfoldSlide(b, false);
+  }, true);
+  document.addEventListener('mousedown', (e) => {
+    const b = _unfolded(); if (!b) return;
+    if (!e.target.closest?.('#canvas') || b.contains(e.target)) return;   // 패널·＋ 층·스크래치 누름은 그대로 · 캔버스의 그 슬라이드 밖만
+    unfoldSlide(b, false);
+  }, true);
+}
+
 /* 캔버스 ＋ — 프레임 칸 슬라이드를 고른 동안(펼침과 같은 조건) 트랙 끝(마지막 칸 오른쪽 · 세로면 아래)에 하나.
    누르면 고른 칸(없으면 마지막)을 내용째 복사 · 이력 한 칸 · 새 칸 고름. 자리 맞춤은 rAF(고른 동안만 돈다 · 클릭/패널이 깨운다). */
 const SLD_ADD_CLS = 'sld-add-btn';
@@ -490,5 +520,6 @@ window.convertSlideToFrames = convertSlideToFrames;
 window.appendSlideCellImage = appendSlideCellImage;
 window.duplicateSlideCell = duplicateSlideCell;
 window.kickSlidePlus = kickSlidePlus;
+window.unfoldSlide = unfoldSlide;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

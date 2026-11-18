@@ -36,9 +36,12 @@
  * Q1 칸 2(글자 든) 고름 → 캔버스 ＋(#grd-plus-layer .sld-add-btn · 진짜 클릭) → 칸 4 · 새 칸 = 칸 2 바로 뒤 · 글자째 · 새 칸·글자 id 새로(문서 겹침 0) · 새 칸 고름 · ⌘Z 한 번 = 칸 3
  *    · 슬라이드만 골라 ＋ = 마지막 칸 복사 · ＋ 는 #canvas 밖(저장·내보내기에 안 샘)
  * ── 슬라이드 피드백 2 ──
+ * U1 SLIDE-CLICK-SELECT-DBL-UNFOLD-01: 접힌 채 한 번 = 슬라이드만(칸 자리 elementFromPoint = 칸 아님 · 펼침 0) · 두 번 = 펼침 · 배율 10 에서 덮개 화면 너비 ≥ 창의 2배(끝 안 보임) ·
+ *    Esc = 접힘 · 다시 펼치고 캔버스의 슬라이드 밖 누름 = 접힘 · 펼친 채 저장본에 sld-unfold 0 · 펼친 채 PNG = 접힌 PNG
  * Z1 SLIDE-GIF-PREVIEW-ZOOM-FLASH-01: 프레임 칸 슬라이드에서 효과를 차례로 바꾸며 slidePrepare(GIF 패널·미리보기가 부르는 길) — 섹션 캡처(captureSectionCdp) 횟수를 센다:
  *    흐름·스와이프·가운데·잔상·흐름 = 1 번(효과가 바꾸는 스타일은 키 밖) · 제자리 페이드(꽉 꼴) = +1 · 다시 스와이프 = +0(최근 둘 기억) · 칸 안 내용 바꿈 = +1
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL15-unfold-saved.patch(저장 명부에서 sld-unfold 뺌) → U1 빨강(저장본에 흔적) · slide-frame-CTL16-small-scrim.patch(덮개 100vmax) → U1 빨강(배율 10 에서 끝 보임) — 예측
  *   slide-frame-CTL14-key-innerhtml.patch(키 = 블럭 innerHTML 해시로 되돌림) → Z1 빨강(효과마다 캡처) — 예측
  *   slide-frame-CTL13-dup-same-ids.patch(복사 칸 id 새로 매기는 줄 삭제) → Q1 빨강(id 겹침) — 예측
  *   slide-frame-CTL12-no-unfold.patch(css 펼침 규칙 삭제) → P1 빨강(칸 4 자리 hit ≠ 칸 4) — 예측
@@ -158,6 +161,10 @@ test('F1 새 블럭 = 프레임 칸 3 · 추가·빼기·순서·폭 · 12 상�
 test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) → 넣기·사진 넣기 = 그 칸 안 · 칸 끌기·⌘G 막힘', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01(제품 뜻 바뀜) — 접힌 채 한 번 = 슬라이드만 · 두 번 = 펼침 → 그다음 한 번 = 그 칸 */
+  await page.mouse.click(p[0], p[1]);
+  expect(await page.evaluate((id) => { const b = document.getElementById(id); return { slide: b.classList.contains('selected'), cell: b.querySelectorAll('.sld-cell.selected').length, open: b.classList.contains('sld-unfold') }; }, id), '★한 번 = 슬라이드만(펼침 없음)').toEqual({ slide: true, cell: 0, open: false });
+  await page.mouse.dblclick(p[0], p[1]);
   await page.mouse.click(p[0], p[1]);
   const pick = await page.evaluate((id) => {
     const cell = document.getElementById(id).querySelectorAll('.sld-cell')[1];
@@ -315,8 +322,10 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
+/* SLIDE-CLICK-SELECT-DBL-UNFOLD-01 — 칸은 «펼친» 뒤에만 누를 수 있다(접힌 동안 한 번 = 슬라이드만) ⇒ 접혀 있으면 진짜 두 번 누름으로 펼치고 칸을 누른다 */
 const pickCell = async (page, id, i) => {
   const q = await page.evaluate(({ id, i }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, { id, i });
+  if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) await page.mouse.dblclick(q[0], q[1]);
   await page.mouse.click(q[0], q[1]);
 };
 const nSlides = (page) => page.locator('#canvas .slide-block').count();
@@ -421,18 +430,18 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   /* 펼친 채 캡처 = 안 펼친 캡처(픽셀) */
   /* 진짜 PNG 내보내기(exportSection · returnDataUrl) — 캡처 클론이 .selected 를 걷는지가 곧 «펼침이 내보내기에 안 샌다» */
   const shot = () => page.evaluate(async (id) => window.exportSection(document.getElementById(id).closest('.section-block'), 'png', 860, { returnDataUrl: true }), id);
-  await page.evaluate((tid) => { window.deselectAll(); const t = document.getElementById(tid); t.classList.add('selected'); }, tid);   // 칸 안 블럭 고름 = 펼침
+  await page.evaluate(({ id, tid }) => { window.deselectAll(); document.getElementById(tid).classList.add('selected'); window.unfoldSlide(document.getElementById(id), true); }, { id, tid });   // 펼친 채(두 번 누름 상태)
   expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), '[전제] 펼친 상태').toBe('visible');
   const sOpen = await shot();
-  await page.evaluate(() => window.deselectAll());
-  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), '고름 풀면 잘림').toBe('hidden');
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Escape');   // Esc = 접힘(SLIDE-CLICK-SELECT-DBL-UNFOLD-01 · 옛 «고름 풀면 접힘»)
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), 'Esc = 접힘(잘림)').toBe('hidden');
   const sClosed = await shot();
   expect(sOpen && sOpen.length > 100, '[전제] PNG 가 나왔다').toBe(true);
   expect(sOpen === sClosed, '★펼친 채 PNG = 안 펼친 PNG(글자 그대로)').toBe(true);
   /* 고름 풀면 칸 4 자리 = 칸 4 아님 */
-  expect((await hit()).in, '고름 풀면 칸 4 는 잘려 안 맞는다').toBe(false);
+  expect((await hit()).in, '접히면 칸 4 는 잘려 안 맞는다').toBe(false);
   /* 펼침 중 옆 블럭 클릭 */
-  await page.evaluate((id) => window.selectBlock(id), id);
+  await page.evaluate((id) => { window.selectBlock(id); window.unfoldSlide(document.getElementById(id), true); }, id);
   /* 앞에서 칸 4 로 캔버스를 가로 스크롤했다 ⇒ 옆 글자가 화면 밖일 수 있다(지혜맥 P1 빨강) — 펼친 채(슬라이드 고름 유지) 그 글자를 화면 안으로 · 누르기 «전» 그 점이 누구인지 잰다:
      글자가 아니면 «무엇이 덮었나»를 메시지로(펼친 칸·덮개가 가로채면 여기서 이름이 나온다 = 제품 빨강) */
   const op = await page.evaluate((oid) => { const t = document.getElementById(oid); t.scrollIntoView({ block: 'center', inline: 'center' }); const r = t.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
@@ -489,5 +498,36 @@ test('Z1 효과 바꾸기 = 다시 안 찍음(캡처 횟수) · 꽉 꼴 1번 · 
   expect(await run('slide-swipe'), '다시 카드 폭 꼴 = 기억(안 찍음)').toBe(2);
   await page.evaluate((id) => { document.getElementById(id).querySelectorAll('.sld-cell')[0].appendChild(Object.assign(document.createElement('span'), { textContent: 'x' })); }, id);
   expect(await run('slide-swipe'), '칸 안 내용 바뀜 = 다시 찍음').toBe(3);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('U1 한 번 = 슬라이드만 · 두 번 = 펼침 · 덮개 배율 10 에서도 끝 안 보임 · Esc/밖 = 접힘 · 흔적 0', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[0].getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
+  await page.mouse.click(p[0], p[1]);
+  const s1 = await page.evaluate(({ id, p }) => { const b = document.getElementById(id), e = document.elementFromPoint(p[0], p[1]); return { sel: b.classList.contains('selected'), open: b.classList.contains('sld-unfold'), cellHit: !!e?.closest('.sld-cell') }; }, { id, p });
+  expect(s1, '★한 번 = 슬라이드만 · 칸은 포인터 안 받음').toEqual({ sel: true, open: false, cellHit: false });
+  await page.mouse.dblclick(p[0], p[1]);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '★두 번 = 펼침').toBe(true);
+  /* 배율 10 — 덮개 화면 굵기 ≥ 창 긴 변 2배 */
+  const cover = await page.evaluate(async (id) => { window.applyZoom(10); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const b = document.getElementById(id), ow = parseFloat(getComputedStyle(b, '::after').outlineWidth) || 0, k = b.getBoundingClientRect().width / b.offsetWidth;
+    return { screen: ow * k, need: 2 * Math.max(window.innerWidth, window.innerHeight), zoom: window.currentZoom }; }, id);
+  expect(cover.screen >= cover.need, `★배율 ${cover.zoom} 덮개 화면 ${Math.round(cover.screen)} ≥ ${cover.need}`).toBe(true);
+  await page.evaluate(() => { window.applyZoom(40); });
+  /* 펼친 채 저장본 · PNG */
+  await wireCdp(page);
+  const saved = await page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); return d.pages.map((x) => x.canvas).join('').includes('sld-unfold'); }, id);
+  expect(saved, '★펼친 채 저장본에 sld-unfold 0').toBe(false);
+  const png = () => page.evaluate((id) => window.exportSection(document.getElementById(id).closest('.section-block'), 'png', 860, { returnDataUrl: true }), id);
+  const open = await png();
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Escape');
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '★Esc = 접힘').toBe(false);
+  expect(open === await png(), '펼친 채 PNG = 접힌 PNG').toBe(true);
+  /* 다시 펼치고 캔버스의 슬라이드 밖 누름 = 접힘 */
+  await page.evaluate((id) => window.unfoldSlide(document.getElementById(id), true), id);
+  const out = await page.evaluate((id) => { const sec = document.getElementById(id).closest('.section-block'), r = sec.getBoundingClientRect(); return [r.left + 6, r.bottom - 6]; }, id);
+  await page.mouse.click(out[0], out[1]);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '★밖 누름 = 접힘').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

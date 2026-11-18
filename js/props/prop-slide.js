@@ -111,6 +111,7 @@ export function showSlideProperties(block, opts = {}) {
       /* SLIDE-OFFSCREEN-CELL-EDIT-01 — 칸 줄 이름 누름 = 그 칸 고름(캔버스 칸 클릭과 같은 상태: selected · _activeFrame) + 캔버스를 그 칸으로 스크롤(펼침 CSS 가 트랙 밖 칸도 보이게 한다 · «패널은 거들 뿐») */
       row.querySelector('.prop-label')?.addEventListener('click', () => {
         const c = cellAt(i); if (!c) return;
+        window.unfoldSlide?.(block, true);   // 패널로 칸 고름 = 펼침(트랙 밖 칸도 보이고 만지게)
         window.deselectAll?.();
         c.closest('.section-block')?.classList.add('selected');
         c.classList.add('selected');
