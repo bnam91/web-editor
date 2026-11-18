@@ -7,8 +7,8 @@
  * F0b [음성] 사진 모드(표식 없음) = 옛 렌더 그대로(.sld-card · 칸 프레임 0)
  * ── 커밋 2 ──
  * F1 추가 메뉴 입구(addSlideBlock) 새 블럭 = 프레임 칸 3 · 패널 «프레임 추가하기» → 4 · 칸 ✕ → 3 · ↓ 순서(칸 요소째) · 칸 폭 % → data-w · 그 칸 폭 · 12 상한에서 단추 꺼짐 · ⌘Z = 직전 하나
- * F2 빈 칸을 진짜 클릭 → 그 칸 고름(_activeFrame) · 패널 = 슬라이드(그 칸 줄 표시 · «사진 넣기(칸 2)») · 프레임 px 손잡이 0 · 프레임 패널 0
- *    → addTextBlock = 그 칸 안 · 칸 «사진 넣기»(진짜 파일창) → 그 칸 꽉 에셋 · 칸 dragstart = 막힘 · 칸 고른 채 ⌘G(groupSelectedBlocks) = 묶음 0(칸은 트랙 그대로)
+ * F2 빈 칸을 진짜 클릭 → 그 칸 고름(_activeFrame) · 패널 = 슬라이드(그 칸 줄 표시) · 프레임 px 손잡이 0 · 프레임 패널 0 · «사진 넣기(칸 N)» 단추 0(현빈 피드백 3 ②)
+ *    → addTextBlock = 그 칸 안 · 칸 dragstart = 막힘 · 칸 고른 채 ⌘G(groupSelectedBlocks) = 묶음 0(칸은 트랙 그대로)
  * ── 커밋 3 ──
  * F3 GIF·미리보기 = 칸째 흐름: 칸 1 빨강 사진 · 칸 2 파랑 사진 · 칸 3 빈 칸 → slidePrepare = 칸 셋을 찍은 canvas(빨강·파랑) · slidePlan draw t=0 = 칸 자리(첫 장면)에 빨강·파랑
  *    · ★흐름 t(밀린 거리 100px) 에서 «칸 안 내용까지 같이» 파랑 왼끝이 100 만큼 왼쪽(현빈 Q2 확인 칸) · 안내 줄 «정지 한 장»
@@ -164,17 +164,20 @@ test('F1 새 블럭 = 프레임 칸 3 · 추가·빼기·순서·폭 · 12 상�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) → 넣기·사진 넣기 = 그 칸 안 · 칸 끌기·⌘G 막힘', async ({ page }) => {
+test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) → 넣기 = 그 칸 안 · 칸 «사진 넣기» 단추 없음 · 칸 끌기·⌘G 막힘', async ({ page }) => {
   const { errs, id } = await menuScene(page);
-  const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);
   /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01(제품 뜻 바뀜) — 접힌 채 한 번 = 슬라이드만 · 두 번 = 펼침 → 그다음 한 번 = 그 칸 */
-  /* 한 번 누름은 칸 1 자리에서(지혜맥 F2 빨강 — 같은 자리에서 «한 번 → 두 번»을 바로 이으면 브라우저가 세 번 누름으로 세어
-     두 번 누름이 «펼침» 뒤 칸에 한 번 더 떨어지고(프레임 «한 겹 들어가기») 다음 누름이 칸을 못 고른다 · 추정 · 자리를 떼면 따로 센다) */
-  const p1 = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[0].getBoundingClientRect(); return [r.left + 12, r.top + 12]; }, id);
+  const at = (i, dx) => page.evaluate(({ id, i, dx }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return dx == null ? [r.left + r.width / 2, r.top + r.height / 2] : [r.left + dx, r.top + dx]; }, { id, i, dx });
+  const p1 = await at(0, 12);
   await page.mouse.click(p1[0], p1[1]);
   expect(await page.evaluate((id) => { const b = document.getElementById(id); return { slide: b.classList.contains('selected'), cell: b.querySelectorAll('.sld-cell.selected').length, open: b.classList.contains('sld-unfold') }; }, id), '★한 번 = 슬라이드만(펼침 없음)').toEqual({ slide: true, cell: 0, open: false });
-  await page.mouse.dblclick(p[0], p[1]);
-  /* 진단(지혜맥 F2 빨강 두 번 — 장면 판정이 안 맞았다): 누르기 «전» 그 점의 주인 · 펼침 · 누른 «뒤» 골라진 것 · _activeFrame · 들어간 프레임 → 실패 메시지에 */
+  /* 지혜맥 F2 2/3 빨강 진단 {pre:{open:false, who:section-inner}} — 옛 판은 칸 2 가운데를 «첫 누름 전»에 재 두고 그 점을 두 번 눌렀다.
+     접힌 동안 칸 2 가운데는 블럭 밖(잘림)일 수 있고 첫 누름이 패널을 열며 캔버스가 움직일 수 있다(추정 · 둘 중 무엇인지 미확인) ⇒ 두 번 누름은 «지금» 잰 칸 1 가운데(블럭 안) · 칸 2 점은 펼친 «뒤» 잰다. */
+  const pd = await at(0);
+  await page.mouse.dblclick(pd[0], pd[1]);
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 두 번 = 펼침').toBe(true);
+  const p = await at(1);
+  /* 진단: 누르기 «전» 그 점의 주인 · 펼침 · 누른 «뒤» 골라진 것 · _activeFrame · 들어간 프레임 → 실패 메시지에 */
   const pre = await page.evaluate(({ id, p }) => { const b = document.getElementById(id), e = document.elementFromPoint(p[0], p[1]); return { open: b.classList.contains('sld-unfold'), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, inCell2: !!e && b.querySelectorAll('.sld-cell')[1].contains(e) }; }, { id, p });
   await page.mouse.click(p[0], p[1]);
   const post = await page.evaluate(() => ({ sel: [...document.querySelectorAll('#canvas .selected')].map((e) => `${e.className.split(' ')[0]}#${e.id}`), active: window._activeFrame?.id || null, entered: window._enteredFrame?.id || null }));
@@ -185,20 +188,13 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
   }, id);
   expect(pre, `[전제] 펼친 뒤 누를 점 = 칸 2 · 진단 ${JSON.stringify({ pre, post })}`).toMatchObject({ open: true, inCell2: true });
   expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, framePanel: false });
-  await expect(page.locator('#sld-cell-photo')).toHaveText(/칸 2/);
+  /* SLIDE-PANEL-REMOVE-CELL-PHOTO-BTN-01(현빈 피드백 3 ② · 제품 뜻 바뀜) — 칸을 골라도 패널에 «사진 넣기 (칸 N)» 단추가 없다(사진은 칸 위 스크래치·라이브러리 놓기 = R3) · 모서리 칸은 있다(같은 갈래가 그려졌다는 양성) */
+  await expect(page.locator('#sld-cell-radius'), '[전제] 고른 칸 갈래 그려짐').toHaveCount(1);
+  await expect(page.locator('#sld-cell-photo'), '★칸 사진 넣기 단추 없음').toHaveCount(0);
+  await expect(page.getByText(/사진 넣기 \(칸/), '★그 글귀도 없음').toHaveCount(0);
   /* 고른 칸에 넣기 = 그 칸 안(_insertToFlowFrame) */
   await page.evaluate(() => window.addTextBlock('body'));
   expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelectorAll('.text-block').length, id), '★글자 = 칸 2 안').toBe(1);
-  /* 칸 «사진 넣기» — 진짜 파일창 */
-  const q = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, id);
-  await page.mouse.click(q[0], q[1]);   // 칸 빈 곳(왼위 모서리 · 글자는 가운데에 놓였다) — 칸 고름 + 패널
-  await expect(page.locator('#sld-cell-photo')).toHaveCount(1);
-  const png = await page.evaluate(() => { const cv = document.createElement('canvas'); cv.width = 40; cv.height = 30; const x = cv.getContext('2d'); x.fillStyle = '#ff0000'; x.fillRect(0, 0, 40, 30); return cv.toDataURL('image/png').split(',')[1]; });
-  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#sld-cell-photo')]);
-  await fc.setFiles([{ name: 'r.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }]);
-  await expect.poll(() => page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelectorAll('.asset-block').length, id), '★사진 = 칸 2 안').toBe(1);
-  const fill = await page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1], a = c.querySelector('.asset-block'), r = c.getBoundingClientRect(), q = a.getBoundingClientRect(); return [q.left - r.left, q.top - r.top, q.width / r.width, q.height / r.height].map((v) => Math.round(v * 100) / 100); }, id);
-  expect(fill, '칸 꽉(왼위 0 · 폭·높이 1)').toEqual([0, 0, 1, 1]);
   /* 막기 — 칸 자체 끌기 · ⌘G */
   const guard = await page.evaluate((id) => {
     const cell = document.getElementById(id).querySelectorAll('.sld-cell')[1];
@@ -633,5 +629,54 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
   }, id);
   expect(g.mid, 'GIF 칸 가운데 = 칸 그림').toEqual([0, 0, 255]);
   expect(g.corner[2] < 200, `★GIF 칸 모서리 = 둥근 clip 밖(칸 색 아님) ${g.corner}`).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 3 ──
+ * U2 SLIDE-UNFOLD-STAY-ON-DELETE-01: 펼쳐 칸 2 고름 → Delete → 칸 2 빠짐 · ★펼침 그대로 · 슬라이드 골라짐 · 남은 칸(옛 칸 3) 자리 elementFromPoint = 그 칸(포인터 받음) · ⌘Z = 칸 3
+ * K1 SLIDE-CELL-CHILD-SELECT-OUTLINE-01: 펼쳐 칸 2 에 글자 → 칸 빈 곳 누름 → 글자 가운데 누름 → 글자 골라짐(전제) · ★선택 층(.ss-sel-layer path) 하나가 글자 상자(글자 래퍼)를 감쌈(±2px)
+ *    · 실패 메시지 = 진단(골라진 것 · 길 상자 · 글자 상자 · 그 점의 주인) — 원인 미확인(srv 실행 0) · 지혜맥 결과로 가른다
+ * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) — 예측 */
+test('U2 펼친 채 칸 Delete = 그 칸만 · 펼침 그대로', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const c0 = await cellIds(page, id);
+  await pickCell(page, id, 1);
+  expect(await page.evaluate((id) => { const b = document.getElementById(id); return { open: b.classList.contains('sld-unfold'), cell: b.querySelectorAll('.sld-cell')[1].classList.contains('selected') }; }, id), '[전제] 펼침 · 칸 2 고름').toEqual({ open: true, cell: true });
+  await key(page, 'Delete');
+  await expect.poll(() => cellIds(page, id), 'Delete = 칸 2 만 빠짐').toEqual([c0[0], c0[2]]);
+  const s = await page.evaluate((id) => {
+    const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[1], r = c.getBoundingClientRect(), e = document.elementFromPoint(r.left + 8, r.top + 8);
+    return { open: b.classList.contains('sld-unfold'), slideSel: b.classList.contains('selected'), hit: !!e && c.contains(e) };
+  }, id);
+  expect(s, '★펼침 그대로 · 슬라이드 골라짐 · 남은 칸 포인터 받음').toEqual({ open: true, slideSel: true, hit: true });
+  await key(page, 'Meta+z');
+  await expect.poll(() => cellIds(page, id), '⌘Z = 칸 3').toEqual(c0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('K1 칸 안 블럭 클릭 = 선택선 보임(선택 층이 그 블럭을 감쌈)', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  await page.evaluate(() => window.addTextBlock('body'));
+  const tid = await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelector('.text-block')?.id || null, id);
+  expect(tid, '[전제] 글자 = 칸 2 안').toBeTruthy();
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await pickCell(page, id, 1);   // 칸 빈 곳(왼위) — 글 고침 끝 · 칸 고름
+  const tc = await page.evaluate((tid) => { const r = document.getElementById(tid).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, tid);
+  await page.mouse.click(tc[0], tc[1]);
+  const diag = () => page.evaluate(({ tid, tc }) => {
+    const t = document.getElementById(tid), host = t.closest('.frame-block[data-text-frame="true"], .row') || t, hr = host.getBoundingClientRect(), e = document.elementFromPoint(tc[0], tc[1]);
+    const R = (r) => [r.left, r.top, r.right, r.bottom].map((v) => Math.round(v));
+    return {
+      tSel: t.classList.contains('selected') || !!t.closest('.selected:not(.sld-cell):not(.slide-block):not(.section-block)'),
+      sel: [...document.querySelectorAll('#canvas .selected')].map((x) => `${x.className.split(' ')[0]}#${x.id}`),
+      host: `${host.className.split(' ')[0]}#${host.id}`, hostBox: R(hr),
+      paths: [...document.querySelectorAll('.ss-sel-layer path')].map((x) => ({ cls: x.getAttribute('class'), box: R(x.getBoundingClientRect()), stroke: getComputedStyle(x).stroke, vis: getComputedStyle(x).visibility })),
+      who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, selOv: document.body.classList.contains('sel-ov'),
+    };
+  }, { tid, tc });
+  await expect.poll(async () => (await diag()).tSel, '[전제] 글자 골라짐').toBe(true);
+  await expect.poll(async () => { const d = await diag(); return d.paths.some((x) => x.box.every((v, k) => Math.abs(v - d.hostBox[k]) <= 2)); },
+    { message: `★선택 층 길 하나가 글자 상자를 감쌈 · 진단 ${JSON.stringify(await diag())}` }).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

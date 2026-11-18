@@ -3943,11 +3943,13 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
         const sl = selSS.closest('.slide-block');
         const n = sl ? sl.querySelectorAll(':scope > .sld-track > .sld-cell').length : 0;
         if (isCut || n <= 1) { window.showToast?.(isCut ? '칸은 잘라낼 수 없어요 — 칸 안 블럭을 고르세요' : '마지막 칸은 뺄 수 없어요'); return consumed; }
+        const wasOpen = sl.classList.contains('sld-unfold');   // SLIDE-UNFOLD-STAY-ON-DELETE-01(현빈 피드백 3 ①) — 펼친 채 칸을 빼면 펼침 그대로
         window.ensureHistoryCheckpoint?.('삭제 전');
         selSS.remove();
         window.renderSlideBlock?.(sl);
         window._activeFrame = null;
         deselectAll();
+        if (wasOpen) { window.selectBlock?.(sl.id); window.unfoldSlide?.(sl, true); }
         window.buildLayerPanel();
         pushHistory('칸 빼기');
         return consumed;
