@@ -1223,7 +1223,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         let _acc = 0;   // SLIDE-CELL-SIZE-EACH-01 — 카드 왼끝 = 앞 카드들 (폭+간격) 누적합(칸별 폭 slides[i].w · 없으면 공통 cardW · slideGeom 과 같은 식)
         const images = slides.map((sl) => {
           const _cw = (_L * (sl.w ?? layout.cardW)) / 100;
-          const p = Math.round(_acc), len = Math.min(Math.round(_cw), _L - p);
+          const p = Math.round(_acc) - (_v ? 0 : (Math.round(+el.dataset.scrollX) || 0)), len = Math.min(Math.round(_cw), _L - p);   // «스크롤 고정»(SLIDE-TEMP-HSCROLL-FIX-EXPORT-01) 자리만큼 왼쪽으로
           _acc += _cw + layout.gap;
           return _v ? { src: sl.src, x: 0, y: p, w: _bw, h: len, circle: false } : { src: sl.src, x: p, y: 0, w: len, h: Math.round(layout.h), circle: false };
         }).filter((m) => (_v ? m.y : m.x) < _L && (_v ? m.h : m.w) > 0);

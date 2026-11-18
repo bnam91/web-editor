@@ -157,6 +157,34 @@ export function duplicateSlideCell(block, src) {
 /** 고른 칸(그 칸 또는 그 칸 안 블럭이 골라짐) · 없으면 null */
 const _pickedCell = (block) => slideCells(block).find((c) => c.classList.contains('selected') || c.querySelector('.selected')) || null;
 
+/* SLIDE-TEMP-HSCROLL-FIX-EXPORT-01(현빈 피드백 2 ⑤) — 첫 장면을 가로로 «잠깐» 밀어 보기 + «스크롤 고정».
+   ★임시 = 슬라이드 블럭의 scrollLeft(overflow hidden 이어도 JS 로 민다) — scrollLeft 는 outerHTML·클론에 안 실린다 ⇒ 저장·PNG·HTML·Figma 흔적 0(지우는 일 없이).
+   ★고정 = data-scroll-x(px · 블럭 기준) → 첫 장면 트랙 translateX(−x) ⇒ 저장·캡처 클론·Figma(살아 있는 칸 자리)가 그 자리를 찍는다 · 고정 끄면 키 지움.
+   막대 = ＋ 층의 가로 range(고른 슬라이드 · 트랙이 블럭보다 넓고 접혔을 때) · 정적 꼴(가운데 캐러셀·제자리·전후 비교·격자·세로)엔 안 씀. */
+const _fixedX = (block) => { const v = Math.round(+block.dataset.scrollX); return Number.isFinite(v) && v > 0 ? v : 0; };
+const _scrollMax = (block) => { const t = block.querySelector(':scope > .sld-track'); if (!t) return 0; const last = t.lastElementChild; return last ? Math.max(0, Math.round(last.offsetLeft + last.offsetWidth - block.clientWidth)) : 0; };
+/** 고정 켜기(지금 임시 자리를 굳힘)/끄기 — 이력은 부르는 쪽. */
+export function setSlideScrollFix(block, on) {
+  if (!block) return;
+  if (on) { const x = _fixedX(block) || Math.round(block.scrollLeft); block.scrollLeft = 0; if (x > 0) block.dataset.scrollX = String(x); else delete block.dataset.scrollX; }
+  else { const x = _fixedX(block); delete block.dataset.scrollX; renderSlideBlock(block); block.scrollLeft = x; return; }
+  renderSlideBlock(block);
+}
+let _sldS = null;
+function _makeScrollBar(block) {
+  const r = document.createElement('input');
+  r.type = 'range'; r.className = 'sld-hscroll'; r.min = '0'; r.step = '1'; r.title = '가로로 밀어 보기(임시 · «스크롤 고정» 켜면 그 자리로 내보냄)';
+  r.style.cssText = 'position:absolute;pointer-events:auto;transform:translate(0,-50%);accent-color:var(--ui-accent-primary);';
+  r.addEventListener('mousedown', (e) => e.stopPropagation());
+  r.addEventListener('input', () => {
+    const v = +r.value;
+    if (_fixedX(block)) { block.dataset.scrollX = String(v); renderSlideBlock(block); }   // 고정 중 = 고정 값을 옮김
+    else block.scrollLeft = v;   // 임시(저장 흔적 0)
+  });
+  r.addEventListener('change', () => { if (_fixedX(block)) { window.pushHistory?.('슬라이드 스크롤 고정'); window.scheduleAutoSave?.(); } });
+  return r;
+}
+
 /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01 — 펼침 켜기/끄기(.sld-unfold · 편집 상태 · 저장·캡처 명부가 걷음).
    두 번 누름(슬라이드 위 어디든 — 접힌 동안 칸은 포인터를 안 받아 슬라이드가 받는다) = 펼침 · Esc · 캔버스에서 그 슬라이드 밖 누름 = 접힘. */
 export function unfoldSlide(block, on = true) {
@@ -277,6 +305,16 @@ function _syncSlidePlus() {
     const r = sel.getBoundingClientRect(), sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100;
     Object.assign(_sldH.el.style, { left: `${(r.right - sr.left) / z}px`, top: `${(r.bottom - sr.top) / z}px` });
   }
+  /* 임시 가로 막대 — 고른 슬라이드(접힘)이고 트랙이 블럭보다 넓을 때 · 블럭 바로 아래 */
+  const sb = sel && !sel.classList.contains('sld-unfold') && _scrollMax(sel) > 0 && !slideCentered(readSlideState(sel).fx) ? sel : null;
+  if (!sb || !L) { if (_sldS) { _sldS.el.remove(); _sldS = null; } }
+  else {
+    if (!_sldS || _sldS.block !== sb || !_sldS.el.isConnected) { _sldS?.el.remove(); _sldS = { block: sb, el: _makeScrollBar(sb) }; L.appendChild(_sldS.el); }
+    const r = sb.getBoundingClientRect(), sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100, el = _sldS.el;
+    el.max = String(_scrollMax(sb));
+    if (document.activeElement !== el) el.value = String(_fixedX(sb) || Math.round(sb.scrollLeft));
+    Object.assign(el.style, { left: `${(r.left - sr.left) / z}px`, top: `${(r.bottom - sr.top) / z + 18}px`, width: `${r.width / z}px` });
+  }
   const b = _activeFrameSlide();
   if (!b || !L) { if (_sldPlus) { _sldPlus.btn.remove(); _sldPlus = null; } }
   else {
@@ -320,6 +358,7 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${wipe ? 'position:relative;' : ''}`;
   _renderDots(block, slideCells(block).length, pos, center && slideCells(block).length > 1 ? 1 : 0);
   if (center) track.style.transform = `translateX(${centerTrackShift(slideCells(block).map((c) => normCardW(c.dataset.w) ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면(스타일만)
+  else if (!inPlace && !wipe && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 «스크롤 고정» 자리
   slideCells(block).forEach((c, i) => {
     c.dataset.idx = String(i);
     const w = inPlace ? 100 : (normCardW(c.dataset.w) ?? layout.cardW);   // 제자리 효과 = 칸이 블럭 꽉(칸별 폭은 그 효과 동안 안 씀 · 값은 그대로)
@@ -355,6 +394,7 @@ export function renderSlideBlock(block) {
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${slideWipe(fx) ? 'position:relative;' : ''}`;
   const cards = slides.length ? slides : [null, null, null];
   if (slideCentered(fx)) track.style.transform = `translateX(${centerTrackShift(cards.map((s) => s?.w ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면
+  else if (!inPlace && !slideWipe(fx) && !slideGridZoom(fx) && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // «스크롤 고정» 자리
   cards.forEach((s, i) => {
     const c = document.createElement('div');
     c.className = 'sld-card';
@@ -585,5 +625,6 @@ window.appendSlideCellImage = appendSlideCellImage;
 window.duplicateSlideCell = duplicateSlideCell;
 window.kickSlidePlus = kickSlidePlus;
 window.unfoldSlide = unfoldSlide;
+window.setSlideScrollFix = setSlideScrollFix;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

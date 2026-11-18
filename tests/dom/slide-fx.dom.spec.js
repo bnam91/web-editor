@@ -11,6 +11,8 @@
  * D6 SLIDE-FX-SWIPE-TRAIL-01(P218): 스와이프 잔상 vs 스와이프 — t=0·머무름 = 같은 그림(첫 장면 같음) · 넘기는 가운데 = 다름(잔상) · 잔상 자리(지나간 쪽)에 옅은 앞 카드 색
  * D7 SLIDE-FX-GRID-ZOOMOUT-01(수지 S16): 격자 줌아웃 · 빨강·파랑·초록 → 첫 장면 = 첫째(빨강) 한 장 가운데(카드 폭) · 나머지 숨김 = GIF t=0(가운데 빨강 · 왼끝 빔) ·
  *    끝 머무름 = 가운데 빨강 · 가운데 줄에 타일 ≥ 7 · 위 칸 = 파랑(나선 1) · 프레임 칸도 히어로만
+ * X1 SLIDE-TEMP-HSCROLL-FIX-EXPORT-01: 카드 폭 50 · 셋 → 고르면 임시 가로 막대(#grd-plus-layer .sld-hscroll) · 200 밀기 = 블럭 scrollLeft 200 · 저장본·PNG 흔적 0(안 민 PNG 와 같음) ·
+ *    «스크롤 고정» 켬 → data-scroll-x 200 · PNG 가 바뀜 · Figma images[0].x = −200 · 끔 → 키 0 · 저장본 흔적 0
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
@@ -18,6 +20,7 @@
  *   slide-fx-CTL5-no-neg-margin.patch(사진 모드 음수 margin 삭제) → D5 빨강(첫 장면이 안 겹침 · GIF 와 다름) — 예측
  *   slide-fx-CTL6-no-trail.patch(잔상 모으는 줄 삭제) → D6 빨강(가운데도 같음) — 예측
  *   slide-fx-CTL7-gridzoom-all-cards.patch(사진 모드 히어로만 줄 삭제) → D7 빨강(첫 장면에 둘째도 보임 ≠ GIF t=0) — 예측
+ *   slide-fx-CTL8-fix-no-shift.patch(사진 모드 «스크롤 고정» translate 줄 삭제) → X1 빨강(고정해도 PNG 그대로) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -218,5 +221,31 @@ test('D7 격자 줌아웃 — 첫 장면 히어로 = GIF t=0 · 끝 7×7 촘촘 
     return [...made.block.querySelectorAll('.sld-cell')].map((c) => getComputedStyle(c).display !== 'none');
   });
   expect(cells, '프레임 칸도 히어로만').toEqual([true, false, false]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('X1 임시 가로 막대 · 스크롤 고정 → 내보내기 자리', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-flow' });
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height, scale = 1 }) => (await cdp.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: scale > 0 && scale <= 4 ? scale : 1 }, captureBeyondViewport: true, fromSurface: true })).data);
+  await page.evaluate(() => { const real = window.electronAPI; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : real[k]) }); });
+  await page.evaluate((id) => { window.setSlideLayout(document.getElementById(id), { cardW: 50 }); window.selectBlock(id); }, id);
+  const bar = page.locator('#grd-plus-layer .sld-hscroll');
+  await expect(bar, '★고르면 임시 가로 막대').toHaveCount(1);
+  const png = () => page.evaluate((id) => window.exportSection(document.getElementById(id).closest('.section-block'), 'png', 860, { returnDataUrl: true }), id);
+  const saved = () => page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id); return { sx: b?.dataset.scrollX ?? null, tf: b?.querySelector('.sld-track')?.style.transform || '' }; }, id);
+  const png0 = await png();
+  await bar.evaluate((el) => { el.value = '200'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  expect(await page.evaluate((id) => document.getElementById(id).scrollLeft, id), '★임시 = 블럭 scrollLeft').toBe(200);
+  expect(await saved(), '임시 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
+  expect((await png()) === png0, '★임시 = PNG 흔적 0(안 민 것과 같음)').toBe(true);
+  await page.click('label.prop-toggle:has(#sld-scroll-fix)');
+  const fx = await page.evaluate((id) => { const b = document.getElementById(id); return { sx: b.dataset.scrollX, sl: b.scrollLeft, tf: b.querySelector('.sld-track').style.transform }; }, id);
+  expect(fx, '★고정 = data-scroll-x 200 · 임시 0 · 트랙 −200').toEqual({ sx: '200', sl: 0, tf: 'translateX(-200px)' });
+  expect((await png()) !== png0, '★고정 = PNG 가 그 자리').toBe(true);
+  const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.images?.[0]?.x ?? null; }, id);
+  expect(fig, 'Figma 첫 카드 x = −200').toBe(-200);
+  await page.click('label.prop-toggle:has(#sld-scroll-fix)');
+  expect(await saved(), '★고정 끔 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
