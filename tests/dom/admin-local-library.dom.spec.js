@@ -75,6 +75,8 @@ test('L1 관리자 + 폴더 → 탭 · 지연 로드 · 벡터 넣기(원래 색
   });
   expect(got).toEqual({ color: '#a98467', libMono: '1', cur: true, drawn: '#a98467', after: '#123456', w: '200', h: '100' });
 
+  await expect(page.locator('#lib-modal')).toBeHidden();   // 칸을 넣으면 모달이 닫힌다(기존 _insert 와 같은 꼴) → 다시 연다
+  await openLibrary(page);
   await page.click('.lib-tab[data-col="memoji-inclusive"]');
   await expect(page.locator('#lib-groups .lib-group')).toHaveText(['캐릭터 1', '캐릭터 3']);
   await expect(page.locator('#lib-grid .lib-item')).toHaveText(['포즈 1', '포즈 2']);
