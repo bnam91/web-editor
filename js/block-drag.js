@@ -2332,6 +2332,7 @@ function bindBlock(block) {
 
   if (isComparison) {
     window.lnBindLineEdit?.(block);   // ★1012t1D2 — 칸 «줄»의 글자 편집(더블클릭, capture). 줄 없는 칸은 _editableRow 그대로
+    window.cmpBindPlus?.(block);      // t13C-10 — 캔버스 ＋(행 위·아래 · 그리드 ＋ 층·꼴)
     block.addEventListener('click', e => {
       e.stopPropagation();
       /* ★1012t1D3 — 그리드 2단 선택과 같은 규칙: 이미 «이것 하나»가 선택돼 있었고 누른 곳이 «이미지 칸»이면 그 칸을 고른다.
