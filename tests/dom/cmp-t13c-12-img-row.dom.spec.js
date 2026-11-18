@@ -39,7 +39,12 @@ async function setup(page) {
 
 test('B1 이미지 행 — 「+ 이미지/교체」 줄과 「꽉 채우기·원본 비율」 줄이 중첩 없이 두 줄로 놓이고 잘리지 않는다', async ({ page }) => {
   const errs = await setup(page);
-  const rc = await waitStableRect(page, `#sB .comparison-block .cmp-row[data-col-idx="0"][data-row-idx="1"]`);
+  /* 지혜맥 5315c4dd8 진단: pre·post = null = 누른 점이 창 밖(addComparisonBlock 의 smooth 스크롤 · 행이 화면 아래) ⇒ 그 행을 화면 가운데로(즉시) 넣고 다시 잰 뒤,
+     그 점의 주인이 블럭 안일 때까지 기다린다(조건 대기 · 장면 쪽 · 지디 판정) */
+  const ROW = `#sB .comparison-block .cmp-row[data-col-idx="0"][data-row-idx="1"]`;
+  await page.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center', behavior: 'instant' }), ROW);
+  const rc = await waitStableRect(page, ROW);
+  await expect.poll(() => page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return !!e && !!window.__blk?.contains(e); }, [rc.cx, rc.cy]), '[전제] 누를 점 = 블럭 안(창 안)').toBe(true);
   /* 수지맥 540391582 B1 2/2 빨강(waitForFunction 3000ms) — 누름이 블럭을 못 골랐나 · 패널에 .cmp-row-img 가 2개가 아닌가를 가르려 받은 값 = 진단 */
   const pre = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null; }, [rc.cx, rc.cy]);
   await page.mouse.click(rc.cx, rc.cy);
