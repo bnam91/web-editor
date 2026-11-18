@@ -646,7 +646,7 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
  * K1 SLIDE-CELL-CHILD-SELECT-OUTLINE-01: 펼쳐 칸 2 에 글자 → 칸 빈 곳 누름 → 글자 가운데 «한 번» 누름 → ★글자 골라짐 · ★선택 층(.ss-sel-layer path) 하나가 글자 상자(글자 래퍼)를 감쌈(±2px)
  *    · 원인(코드): 프레임 «덮개»(editor-blocks.css .frame-block:not(.frame-entered)…:not(:has(.selected)) * = pointer-events none · B안)가 칸에도 걸려 한 번 누름이 칸으로 갔다(defb77053 지혜맥 K1 3/3 전제 빨강)
  *      ⇒ 펼친 슬라이드 칸은 덮개 제외 · 실패하면 받은 값 = 진단(골라진 것 · 길 상자 · 글자 상자 · 그 점의 주인)
- * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) — 예측 */
+ * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) · slide-frame-CTL34-cell-frame-panel.patch(showFrameProperties 칸 돌림 삭제) → C2 빨강(사진 꽉 찬 칸 누름 = 프레임 패널 · #sld-cell-radius 0) — 예측 */
 test('U2 펼친 채 칸 Delete = 그 칸만 · 펼침 그대로', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   const c0 = await cellIds(page, id);
