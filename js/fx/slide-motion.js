@@ -6,7 +6,56 @@
  *   GIF 프레임 상한 60(export-image.js GIF_MAX_FRAMES 와 같은 수 · 지디 결정 ⓑ: fps 를 낮춤 + 안내 줄에 몇 fps 인지).
  *   정적 «첫 장면»(slide-block.js renderSlideBlock 의 flex 줄)은 offset 0 그림과 같은 자리 — 카드 i 의 왼끝 = i × (카드 폭 + 간격).
  */
-export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail']);
+export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail', 'slide-gridzoom']);
+/* SLIDE-FX-GRID-ZOOMOUT-01(수지 S16 · PLAN-ty-slide-fx-gridzoom-261118 · 지디 Q1 7×7 · Q2 나선 · Q3 들어올 때만 + 7×7 밖 한 바퀴 옅게 · Q4 컷)
+   카메라 하나: 히어로(첫째 칸 · 블럭 높이 × 카드 폭 %) → 작아지며 3×3 둘레가 들어옴 → 7×7 까지 멀어짐 → 머무름 → 처음으로 컷.
+   박자(한 바퀴 GZ_S 초 ÷ 속도 · u = t × GZ_S): 0~0.6 히어로 · 0.6~1.2 작아짐 + 둘레 알파 0→1 · 1.2~4.0 3×3 → 7×7 · 4.0~ 머무름. */
+export const slideGridZoom = (fx) => fx === 'slide-gridzoom';
+export const GZ_S = 5, GZ_RING_MAX = 4, GZ_OUTER_A = 0.5;
+/** 가운데부터 나선 순번 — (r,c) → 순번(가운데 0 · 고리마다 위 가운데부터 시계 방향). 같은 그림이 붙지 않게 칸[순번 mod n]. */
+const _spiral = (() => {
+  const m = new Map(); let k = 0; m.set('0,0', k++);
+  for (let ring = 1; ring <= GZ_RING_MAX; ring++) {
+    const pts = [];
+    for (let r = -ring; r <= ring; r++) for (let c = -ring; c <= ring; c++) if (Math.max(Math.abs(r), Math.abs(c)) === ring) pts.push([r, c]);
+    pts.sort((a, b) => ((Math.atan2(a[1], -a[0]) + 2 * Math.PI) % (2 * Math.PI)) - ((Math.atan2(b[1], -b[0]) + 2 * Math.PI) % (2 * Math.PI)));
+    for (const [r, c] of pts) m.set(`${r},${c}`, k++);
+  }
+  return m;
+})();
+export const gridSpiralIndex = (r, c) => _spiral.get(`${r},${c}`) ?? 0;
+/** 한 장면 — 블럭 px(bw×bh) 기준 타일 사각형들 [{x,y,w,h,idx(순번),a}] · n = 칸 수(그림 고르기 = idx mod n 은 그리는 쪽). */
+export function gridZoomFrame(t, bw, bh, cardW, gap) {
+  const u = (((t % 1) + 1) % 1) * GZ_S, g = Math.max(0, gap);
+  const hw = (bw * cardW) / 100, hh = bh;   // 히어로 = 첫 장면 카드 크기
+  const fit = (n) => Math.min((bh - (n - 1) * g) / (n * hh), (bw - (n - 1) * g) / (n * hw));
+  const z3 = fit(3), z7 = fit(7);
+  let z = 1, ringA = 0;
+  if (u < 0.6) { z = 1; ringA = 0; }
+  else if (u < 1.2) { const f = easeInOut((u - 0.6) / 0.6); z = 1 + (z3 - 1) * f; ringA = f; }
+  else if (u < 4.0) { const f = easeInOut((u - 1.2) / 2.8); z = z3 + (z7 - z3) * f; ringA = 1; }
+  else { z = z7; ringA = 1; }
+  const tw = hw * z, th = hh * z, sx = tw + g * Math.min(1, ringA), sy = th + g * Math.min(1, ringA);
+  const tiles = [];
+  const kx = Math.min(GZ_RING_MAX, Math.ceil((bw / 2 - tw / 2) / sx)), ky = Math.min(GZ_RING_MAX, Math.ceil((bh / 2 - th / 2) / sy));
+  for (let r = -ky; r <= ky; r++) for (let c = -kx; c <= kx; c++) {
+    const ring = Math.max(Math.abs(r), Math.abs(c));
+    const a = ring === 0 ? 1 : ringA * (ring > 3 ? GZ_OUTER_A : 1);
+    if (a <= 0) continue;
+    tiles.push({ x: bw / 2 - tw / 2 + c * sx, y: bh / 2 - th / 2 + r * sy, w: tw, h: th, idx: gridSpiralIndex(r, c), a });
+  }
+  return { z, tiles };
+}
+/** 그리기 — 타일마다 칸 그림 cover(k = 캔버스 px / 블럭 px) · 그림 = imgs[idx mod n]. */
+export function drawGridZoom(ctx, imgs, frame, n, k, emptyFill = '#e9e9e9') {
+  for (const tl of frame.tiles) {
+    const im = imgs[tl.idx % Math.max(1, n)], dx = tl.x * k, dy = tl.y * k, dw = tl.w * k, dh = tl.h * k;
+    ctx.save(); ctx.globalAlpha = tl.a;
+    if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(dx, dy, dw, dh); }
+    else { const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc; ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh); }
+    ctx.restore();
+  }
+}
 /* SLIDE-FX-SWIPE-TRAIL-01(P218) — 스와이프 + 잔상: 넘기는 동안만 조금 전 자리(TRAIL_DT 초 간격 TRAIL_N 장)를 옅게 겹쳐 그린다 · 머무름·t=0 은 스와이프와 같은 그림(= 첫 장면). */
 export const TRAIL_N = 3, TRAIL_DT = 0.04, TRAIL_A = 0.22;
 /* SLIDE-FX-CENTER-CAROUSEL-01(수지 S07 유리 카드) — 가운데 한 장 + 양옆 엿보기 · 한 장씩 넘김(넘김과 같은 박자). ★한 바퀴는 «둘째 카드가 가운데»에서 시작 —
@@ -90,6 +139,7 @@ const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2)
 export function loopSec(fx, geom, anim) {
   const A = normAnim(anim);
   if (slideWipe(fx)) return WIPE_S / A.speed;
+  if (slideGridZoom(fx)) return GZ_S / A.speed;
   if (_stepping(fx)) return (geom.n * (SWIPE_MOVE_S + A.dwell)) / A.speed;
   return geom.period / (FLOW_PX_S * A.speed);
 }

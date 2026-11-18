@@ -126,8 +126,9 @@ const SLIDE_LIST = [
   { id: 'slide-center', label: '가운데 캐러셀', desc: '가운데 한 장 · 양옆 엿보기 · 한 장씩 넘김' },   // SLIDE-FX-CENTER-CAROUSEL-01
   { id: 'slide-wipe',  label: '전후 비교',    desc: '첫째(전)·둘째(후)를 겹치고 나눔선이 좌우로 오감' },   // SLIDE-FX-BEFORE-AFTER-WIPE-01
   { id: 'slide-trail', label: '스와이프 잔상', desc: '한 장씩 넘길 때 지나간 자리에 옅은 잔상' },   // SLIDE-FX-SWIPE-TRAIL-01
+  { id: 'slide-gridzoom', label: '격자 줌아웃', desc: '큰 사진 한 장이 작아지며 사진 격자로 멀어짐' },   // SLIDE-FX-GRID-ZOOMOUT-01
 ];
-const _SLIDE_NODWELL = new Set(['slide-wipe']);   // 머무름 없음(방향도 없음)
+const _SLIDE_NODWELL = new Set(['slide-wipe', 'slide-gridzoom']);   // 머무름 없음(방향도 없음)
 const _SLIDE_INPLACE = new Set(['slide-fade', 'slide-cut', 'slide-center']);   // 방향 칸 없음(가운데 캐러셀은 왼쪽으로만) · 머무름 칸 있음
 const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep']);
 /* 3단계 ③ 신호등(MOTION-STEP-HIGHLIGHT-01) — 그리드 칸 차례 강조. 셈·그림 = js/fx/step-motion.js · 바탕 그림·저장 = js/blocks/grid-step.js */

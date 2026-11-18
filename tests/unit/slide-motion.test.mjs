@@ -6,6 +6,7 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S13 격자 줌아웃(SLIDE-FX-GRID-ZOOMOUT-01): t=0 = 히어로 한 장(첫 장면 크기 · 가운데) · 둘레 들어오는 중 알파 0~1 · 끝 = 7×7(고리 ≤3 49장 전부 알파 1 · 그 밖 고리 = GZ_OUTER_A) · 나선 순번 · 한 바퀴 GZ_S÷속도
  * S12 겹침 간격(SLIDE-FX-OVERLAP-GAP-01): 간격 −80 까지(−99 → −80) · 한 칸 = 카드 + 간격 · ★그림 = 자리 순서(감긴 마지막 카드가 첫 카드 밑 · 뒤 카드 위)
  * S11 전후 비교(SLIDE-FX-BEFORE-AFTER-WIPE-01): 나눔선 t=0 = 0.5(첫 장면) · ¼ = 0.8 · ¾ = 0.2 · 한 바퀴 = WIPE_S ÷ 속도 · 그리기 = 후 꽉 → 전 clip(0..p·W) → 선 → 손잡이
  * S10 가운데 캐러셀(SLIDE-FX-CENTER-CAROUSEL-01): t=0 = 둘째 카드 가운데(s = 시작₁ − (bw−cw)/2) · 머무름 = 셋째 가운데 · 마지막 → 첫째(주기 끝) · 앞 번호 · 첫 장면 밀기 글자
@@ -19,7 +20,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
+import { gridZoomFrame, gridSpiralIndex, slideGridZoom, GZ_S, GZ_OUTER_A, slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
   SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
@@ -192,4 +193,21 @@ test('S12 겹침 간격 — 소독 · 한 칸 · 그림 순서', () => {
   const c = fakeCtx(); drawSlides(c, 1000, 100, IM, O, 0, 'left', 1);
   assert.deepEqual(c.calls.filter((q) => q.op === 'img').map((q) => [q.id, q.x]), [[2, -360], [0, 0], [1, 360], [2, 720]],
     '★자리 순서로 그림(왼→오) — 감긴 셋째(−360)가 첫째 «밑» · 뒤 카드가 위 = 첫 장면 DOM 과 같음');
+});
+
+test('S13 격자 줌아웃 — 히어로 · 들어옴 · 7×7 · 나선', () => {
+  assert.equal(slideGridZoom('slide-gridzoom'), true);
+  assert.equal(loopSec('slide-gridzoom', slideGeom(800, 3, {}), { speed: 2 }), GZ_S / 2);
+  const f0 = gridZoomFrame(0, 800, 400, 60, 16);
+  assert.deepEqual(f0.tiles.map((t) => [t.x, t.y, t.w, t.h, t.idx, t.a]), [[160, 0, 480, 400, 0, 1]], '★t=0 = 히어로 한 장(가운데 · 카드 폭 60% × 블럭 높이)');
+  const mid = gridZoomFrame(1.0 / GZ_S, 800, 400, 60, 16);   // u = 1.0(작아지는 중)
+  const ring1 = mid.tiles.filter((t) => t.idx >= 1 && t.idx <= 8);
+  assert.ok(ring1.length === 8 && ring1.every((t) => t.a > 0 && t.a < 1), '둘레 3×3 이 옅게 들어오는 중');
+  const end = gridZoomFrame(0.9, 800, 400, 60, 16);
+  const inner = end.tiles.filter((t) => t.idx <= 48), outer = end.tiles.filter((t) => t.idx > 48);
+  assert.equal(inner.length, 49, '★7×7 전부'); assert.ok(inner.every((t) => t.a === 1));
+  assert.ok(outer.every((t) => t.a === GZ_OUTER_A), '7×7 밖 한 바퀴 = 옅게');
+  const h = inner.find((t) => t.idx === 0); assert.ok(Math.abs(h.x + h.w / 2 - 400) < 1e-6 && Math.abs(h.y + h.h / 2 - 200) < 1e-6, '가운데 = 첫째');
+  assert.ok(h.h * 7 <= 400 + 1e-6, '7 장이 블럭 높이 안');
+  assert.deepEqual([gridSpiralIndex(0, 0), gridSpiralIndex(-1, 0), gridSpiralIndex(-1, 1), gridSpiralIndex(0, 1), gridSpiralIndex(1, 0)], [0, 1, 2, 3, 5], '나선 = 위부터 시계 방향');
 });

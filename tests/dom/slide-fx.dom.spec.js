@@ -9,12 +9,15 @@
  *    GIF t=0 = 같은 자리 · t=¼ = 나눔선 80%(70% 자리가 빨강) · 프레임 모드 칸도 겹침
  * D5 SLIDE-FX-OVERLAP-GAP-01(P223): 카드 폭 50 · 간격 −40 → 첫 장면 둘째 왼끝 = 첫째 오른끝 − 40 · 겹친 자리 = 둘째(위) · GIF t=0 겹친 자리 = 파랑(같음) · 패널 간격 −40 까지 · 프레임 칸도
  * D6 SLIDE-FX-SWIPE-TRAIL-01(P218): 스와이프 잔상 vs 스와이프 — t=0·머무름 = 같은 그림(첫 장면 같음) · 넘기는 가운데 = 다름(잔상) · 잔상 자리(지나간 쪽)에 옅은 앞 카드 색
+ * D7 SLIDE-FX-GRID-ZOOMOUT-01(수지 S16): 격자 줌아웃 · 빨강·파랑·초록 → 첫 장면 = 첫째(빨강) 한 장 가운데(카드 폭) · 나머지 숨김 = GIF t=0(가운데 빨강 · 왼끝 빔) ·
+ *    끝 머무름 = 가운데 빨강 · 가운데 줄에 타일 ≥ 7 · 위 칸 = 파랑(나선 1) · 프레임 칸도 히어로만
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
  *   slide-fx-CTL4-wipe-no-clip.patch(첫 장면 전 카드 clip 삭제) → D4 빨강(오른쪽 반도 빨강) — 예측
  *   slide-fx-CTL5-no-neg-margin.patch(사진 모드 음수 margin 삭제) → D5 빨강(첫 장면이 안 겹침 · GIF 와 다름) — 예측
  *   slide-fx-CTL6-no-trail.patch(잔상 모으는 줄 삭제) → D6 빨강(가운데도 같음) — 예측
+ *   slide-fx-CTL7-gridzoom-all-cards.patch(사진 모드 히어로만 줄 삭제) → D7 빨강(첫 장면에 둘째도 보임 ≠ GIF t=0) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -183,5 +186,37 @@ test('D6 스와이프 잔상 — t=0·머무름 = 스와이프 · 넘기는 가�
     return out;
   }, id);
   expect(r, '★t=0·머무름 = 스와이프와 같은 그림 · 넘기는 가운데만 다름(잔상)').toEqual({ t0: true, mid: false, dwell: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D7 격자 줌아웃 — 첫 장면 히어로 = GIF t=0 · 끝 7×7 촘촘 · 나선 · 프레임 칸도', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-gridzoom' });
+  const dom = await page.evaluate((id) => {
+    const b = document.getElementById(id), br = b.getBoundingClientRect(), cs = [...b.querySelectorAll('.sld-card')], r0 = cs[0].getBoundingClientRect();
+    return { shown: cs.map((c) => getComputedStyle(c).display !== 'none'), mid: Math.abs((r0.left + r0.right) / 2 - (br.left + br.right) / 2) <= 1, wr: Math.round(r0.width / br.width * 100) };
+  }, id);
+  expect(dom, '★첫 장면 = 첫째만 · 가운데 · 카드 폭 60%').toEqual({ shown: [true, false, false], mid: true, wr: 60 });
+  const g = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight;
+    const draw = (t) => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, t); return ctx; };
+    const p = (ctx, x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data);
+    const c0 = draw(0), c1 = draw(0.9);
+    let runs = 0, prev = null; const row = c1.getImageData(0, Math.round(H / 2), W, 1).data;
+    for (let x = 0; x < W; x++) { const on = row[x * 4 + 3] > 0; if (on && !prev) runs++; prev = on; }
+    let up = null; const col = c1.getImageData(Math.round(W / 2), 0, 1, Math.round(H / 2)).data;
+    for (let y = Math.round(H / 2) - 1; y >= 0; y--) { const i = y * 4; if (col[i + 2] > 200 && col[i] < 60) { up = 'blue'; break; } if (col[i + 1] > 150 && col[i] < 60) { up = 'green'; break; } }
+    return { c: p(c0, W / 2, H / 2).slice(0, 3), edge: p(c0, 4, H / 2)[3], endC: p(c1, W / 2, H / 2).slice(0, 3), runs, up };
+  }, id);
+  expect({ c: g.c, edge: g.edge }, '★GIF t=0 = 첫 장면(가운데 빨강 · 왼끝 빔)').toEqual({ c: [255, 0, 0], edge: 0 });
+  expect(g.endC, '끝 = 가운데 첫째').toEqual([255, 0, 0]);
+  expect(g.runs, `끝 가운데 줄 타일 ${g.runs} ≥ 7`).toBeGreaterThanOrEqual(7);
+  expect(g.up, '위 칸 = 나선 1 = 둘째(파랑)').toBe('blue');
+  const cells = await page.evaluate(() => {
+    window.selectSection(document.querySelector('#canvas .section-block'));
+    const made = window.addSlideBlock(); made.block.dataset.animFx = 'slide-gridzoom'; window.renderSlideBlock(made.block);
+    return [...made.block.querySelectorAll('.sld-cell')].map((c) => getComputedStyle(c).display !== 'none');
+  });
+  expect(cells, '프레임 칸도 히어로만').toEqual([true, false, false]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

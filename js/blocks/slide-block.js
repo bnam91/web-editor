@@ -14,13 +14,19 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
   DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
    점이 켜지면 트랙이 띠만큼 줄어든다(카드 높이 = 블럭 − 띠) — GIF 도 같은 띠를 비우고 그린다. */
-const _dotsPos = (layout, vert, fx) => (!vert && !slideWipe(fx) && (layout.dots === 'top' || layout.dots === 'bottom') ? layout.dots : null);   // 전후 비교엔 점 없음
+const _dotsPos = (layout, vert, fx) => (!vert && !slideWipe(fx) && !slideGridZoom(fx) && (layout.dots === 'top' || layout.dots === 'bottom') ? layout.dots : null);   // 전후 비교엔 점 없음
 /* 전후 비교 첫 장면 — 카드(칸)를 블럭 꽉 겹침(첫째 위 · clip 왼쪽 50%) · 셋째부터 숨김 · 나눔선 .sld-wipe(가운데) — 스타일·이 요소만(칸 자식 무접촉) */
+/* 격자 줌아웃 첫 장면 = 히어로만(첫째 카드/칸 가운데 · 나머지 숨김 · 스타일만) = GIF t=0 */
+function _renderHero(track, kids, on) {
+  if (!on) return;
+  track.style.justifyContent = 'center';
+  kids.forEach((c, i) => { if (i > 0) c.style.display = 'none'; });
+}
 function _renderWipe(block, kids, on) {
   let el = block.querySelector(':scope > .sld-wipe');
   if (!on || kids.length < 2) { el?.remove(); return false; }
@@ -244,6 +250,7 @@ export function renderSlideBlock(block) {
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
     _renderFrameCells(block, layout, vert, slideInPlace(fx), slideCentered(fx), slideWipe(fx));
     _renderWipe(block, slideCells(block), slideWipe(fx));
+    _renderHero(block.querySelector(':scope > .sld-track'), slideCells(block), slideGridZoom(fx));
     return;
   }
   /* SLIDE-PADDING-EXCLUDE-01 «패딩 제외»(dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(인증서·배너2·월계수와 같은 자리 · 키 없으면 no-op).
@@ -277,6 +284,7 @@ export function renderSlideBlock(block) {
   block.replaceChildren(track);
   _renderDots(block, cards.length, pos, slideCentered(fx) && cards.length > 1 ? 1 : 0);
   _renderWipe(block, [...track.children], slideWipe(fx));
+  _renderHero(track, [...track.children], slideGridZoom(fx));
 }
 
 /* ── 캔버스용 그림 준비(미리보기·캔버스 재생·GIF 공용) — goya-asset 은 IPC 로 data URL 을 받아 그린다 ── */
@@ -301,7 +309,9 @@ async function _frameCellImgs(block) {
   /* 적대 리뷰 [낮음5] — 키에 innerHTML 을 통째로 두면(base64 12장) 수십 MB 가 블럭에 상주한다 ⇒ 길이 + 32bit 해시만 쥔다(같은 판정 · 상주 수십 바이트) */
   const key = `F|${block.offsetWidth}|${block.offsetHeight}|${_hash(block.innerHTML)}`;
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
-  const sizes = cells.map((c) => [c.offsetWidth, c.offsetHeight]);
+  const sizes0 = cells.map((c) => [c.offsetWidth, c.offsetHeight]);
+  const s0 = sizes0.find(([w, h]) => w > 0 && h > 0) || [Math.max(1, block.offsetWidth), Math.max(1, block.offsetHeight)];
+  const sizes = sizes0.map((sz) => (sz[0] > 0 && sz[1] > 0 ? sz : s0));   // 첫 장면에서 숨긴 칸(전후 비교 셋째부터 · 격자 줌아웃 둘째부터)은 0 — 보이는 칸 크기로 찍는다
   let imgs = cells.map(() => null), err = null;
   if (sec && block.id && cells.length) {
     try {
@@ -370,6 +380,11 @@ export function slidePlan(block, anim, fxOverride) {
     draw: (ctx, W, H, _size, t) => {
       const k = (axis === 'y' ? H : W) / bw, pos = _dotsPos(st.layout, axis === 'y', fx);
       if (slideWipe(fx)) { drawWipe(ctx, W, H, block._sldImgs?.imgs || [], wipePos(t), k); return; }   // 전후 비교(점 없음)
+      if (slideGridZoom(fx)) {   // 격자 줌아웃(점 없음) — 히어로 = 첫째 칸 · 카드 폭 % 는 첫째 칸 것
+        const w0 = frame ? (normCardW(cells[0]?.dataset.w) ?? st.layout.cardW) : (st.slides[0]?.w ?? st.layout.cardW);
+        drawGridZoom(ctx, block._sldImgs?.imgs || [], gridZoomFrame(t, bw, H / k, w0, st.layout.gap), geom.n, k);
+        return;
+      }
       if (slideInPlace(fx)) {   // 제자리 — 카드 꽉 한 장(+ 점 띠면 띠 아래)
         const band = pos ? DOT_BAND * k : 0;
         ctx.save(); if (pos === 'top') ctx.translate(0, band);
