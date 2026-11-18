@@ -4,7 +4,7 @@
  * A3 normalizeMonoSvg: 단색 stroke·fill(#짧은 hex · black) → currentColor + 원래 색 · 다색·그라데이션(url(#…)) → 그대로 multi · none 는 손 안 댐 · sanitize 멱등
  * A4 IPC 문지기(main.js 원문 조각 + 가짜): 비관리자·role 모름 → not_admin · 가드/fs 안 불림 / 앱 관리자 · 서버 role admin → 통과
  * A5 재료 실측(ADMIN_LIB_SRC=<~/goditor-admin-library> 있을 때만): 두들 102 · 화살표 34 · 미모지 1,785 webp · 두들 더보기 8묶음 SVG 53(261118 재추출 53/53 · 같은 이름 PNG@2x 는 list 가 뺌) · SVG 전부 거름 뒤 비지 않음 · 다색 목록 출력
- * A6 명부 짝: ADMIN_LOCAL dir = main DIRS · 덧붙임 대상(arrow)이 LIBRARY 에 있음 · 새 탭 id 가 기존과 안 겹침 · 레포 assets/ 에 재료 0
+ * A6 명부 짝: ADMIN_LOCAL dir = main DIRS · 덧붙임 대상 = 내장 탭(arrow) 또는 «앞선» 로컬 탭(figma-doodle) · 새 탭 id 가 기존·서로와 안 겹침 · 레포 assets/ 에 재료 0
  * 양성대조(CTL · _patches/): ⓑ main 문지기 줄을 빼면 A4 빨강 · ⓒ normalize 건너뜀은 DOM L1 빨강
  */
 import test from 'node:test';
@@ -146,9 +146,10 @@ test('A5 재료 실측', { skip: !process.env.ADMIN_LIB_SRC && 'ADMIN_LIB_SRC �
 test('A6 명부 짝 · 레포에 재료 0', () => {
   assert.deepEqual(LIB.ADMIN_LOCAL.map((a) => a.dir).sort(), Object.keys(G.DIRS).sort());
   const ids = new Set(LIB.LIBRARY.map((c) => c.id));
+  const localIds = new Set();   // 렌더러(_adminLocal)는 명부 순서대로 돈다 — 로컬 탭에 덧붙이려면 그 탭이 «앞»에 있어야 한다
   for (const a of LIB.ADMIN_LOCAL) {
-    if (a.mergeInto) assert.ok(ids.has(a.mergeInto), `${a.dir} → ${a.mergeInto}`);
-    else { assert.ok(a.id && a.name && !ids.has(a.id), `${a.dir} 새 탭 id`); }
+    if (a.mergeInto) assert.ok(ids.has(a.mergeInto) || localIds.has(a.mergeInto), `${a.dir} → ${a.mergeInto}(내장 탭 또는 앞선 로컬 탭)`);
+    else { assert.ok(a.id && a.name && !ids.has(a.id) && !localIds.has(a.id), `${a.dir} 새 탭 id`); localIds.add(a.id); }
     assert.ok(a.source && a.license, `${a.dir} 출처·라이선스 줄`);
     assert.equal(fs.existsSync(path.join(ROOT, 'assets', a.dir)), false, `assets/${a.dir} 커밋 금지`);
     assert.equal(fs.existsSync(path.join(ROOT, 'assets/library', a.dir)), false, `assets/library/${a.dir} 커밋 금지`);
