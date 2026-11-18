@@ -15,6 +15,8 @@
  *    «스크롤 고정» 켬 → data-scroll-x 200 · PNG 가 바뀜 · Figma images[0].x = −200 · 끔 → 키 0 · 저장본 흔적 0
  * L1 SLIDE-LAYOUT-STATIC-MODES-01: 효과 = 흐름 그대로 · 패널 «레이아웃» 가운데 캐러셀 → 첫 장면 파랑(둘째) 가운데 · Figma images 둘째 가운데 · GIF t=0 은 흐름 그대로(왼끝 빨강 = 별개) ·
  *    단일 컷 → 첫째 카드 = 블럭 꽉 · Figma images[0] 폭 = 블럭 폭 · ⌘Z = 가운데
+ * D8 SLIDE-DOTS-SPACING-01: 점 위 · 패널 칸↔점 갭 16 · 점 간격 20 · 색 켜짐 #ff00ff · 꺼짐 #00ffff → 첫 장면 띠 40 · 점 사이 28 · 색 · 트랙 = 블럭 − 40 ·
+ *    GIF t=0 같은 자리(점 가운데 y 20 · 첫 점 켜짐 · 둘째 꺼짐 · 띠 비움 · 카드는 띠 아래)
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
@@ -24,6 +26,7 @@
  *   slide-fx-CTL7-gridzoom-all-cards.patch(사진 모드 히어로만 줄 삭제) → D7 빨강(첫 장면에 둘째도 보임 ≠ GIF t=0) — 예측
  *   slide-fx-CTL8-fix-no-shift.patch(사진 모드 «스크롤 고정» translate 줄 삭제) → X1 빨강(고정해도 PNG 그대로) — 예측
  *   slide-fx-CTL9-mode-no-center.patch(사진 모드 정지 꼴 «가운데» 조건 삭제) → L1 빨강 — 예측
+ *   slide-fx-CTL10-dots-default-opt.patch(GIF 기본 갈래 drawDots 에 레이아웃 점 값 안 넘김) → D8 빨강(GIF 점이 옛 자리·색) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -271,5 +274,30 @@ test('L1 정지 꼴 — 가운데 캐러셀·단일 컷 · GIF 효과와 별개 
   expect(Math.abs(f2[0][1] - c.bw) <= 2 && f2[0][0] === 0, `Figma 단일 = 첫째 블럭 폭 ${JSON.stringify(f2)}`).toBe(true);
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
   await expect.poll(() => page.evaluate((id) => window.readSlideState(document.getElementById(id)).layout.mode, id), '⌘Z = 가운데').toBe('center');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D8 점 간격·색 — 패널 · 첫 장면 · GIF 같은 자리·색', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-swipe' });
+  await page.evaluate((id) => window.selectBlock(id), id);
+  await page.selectOption('#sld-dots', 'top');
+  await expect(page.locator('#sld-dotgap-number'), '[전제] 점 켜면 점 칸 줄').toHaveCount(1);
+  await page.fill('#sld-dotgap-number', '16'); await page.locator('#sld-dotgap-number').dispatchEvent('change');
+  await page.fill('#sld-dotspace-number', '20'); await page.locator('#sld-dotspace-number').dispatchEvent('change');
+  await page.evaluate((id) => window.setSlideLayout(document.getElementById(id), { dotOn: '#ff00ff', dotOff: '#00ffff' }), id);   // 색 칸은 공용 색 고르개(color-picker) — 값 길만 잰다
+  const dom = await page.evaluate((id) => {
+    const b = document.getElementById(id), d = b.querySelector(':scope > .sld-dots'), t = b.querySelector(':scope > .sld-track'), k = b.getBoundingClientRect().width / b.offsetWidth;
+    const [a, c] = [...d.children].map((e) => e.getBoundingClientRect());
+    return { band: Math.round(d.getBoundingClientRect().height / k), step: Math.round((c.left - a.left) / k), on: getComputedStyle(d.children[0]).backgroundColor, off: getComputedStyle(d.children[1]).backgroundColor, track: b.clientHeight - t.offsetHeight };
+  }, id);
+  expect(dom, '★첫 장면 띠 40 · 점 사이 28 · 색 · 트랙 −40').toEqual({ band: 40, step: 28, on: 'rgb(255, 0, 255)', off: 'rgb(0, 255, 255)', track: 40 });
+  const g = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0);
+    const p = (x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data);
+    const x0 = (W - (3 * 8 + 2 * 20)) / 2 + 4;
+    return { d0: p(x0, 20).slice(0, 3), d1: p(x0 + 28, 20).slice(0, 3), band: p(6, 36)[3], card: p(6, 44).slice(0, 3) };
+  }, id);
+  expect(g, '★GIF t=0 = 첫 장면(점 자리·색 · 띠 비움 · 카드 띠 아래)').toEqual({ d0: [255, 0, 255], d1: [0, 255, 255], band: 0, card: [255, 0, 0] });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

@@ -7,6 +7,7 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
+import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { readSlideState, setSlideList, setSlideLayout, isFrameSlide, slideCells, addSlideCell, renderSlideBlock, convertSlideToFrames, setSlideScrollFix } from '../blocks/slide-block.js';
 import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
@@ -71,7 +72,11 @@ export function showSlideProperties(block, opts = {}) {
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: -80, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
       <div class="prop-row"><span class="prop-label">점 표시</span><select class="prop-select" id="sld-dots">
         ${[['none', '없음'], ['top', '위'], ['bottom', '아래']].map(([v, t]) => `<option value="${v}"${st.layout.dots === v ? ' selected' : ''}>${t}</option>`).join('')}
-      </select></div>
+      </select></div>${st.layout.dots === 'none' ? '' : `
+      ${sliderRowHTML('칸↔점 갭', 'sld-dotgap-slider', 'sld-dotgap-number', { min: 0, max: 40, step: 1, value: st.layout.dotGap })}
+      ${sliderRowHTML('점 간격', 'sld-dotspace-slider', 'sld-dotspace-number', { min: 2, max: 40, step: 1, value: st.layout.dotSpace })}
+      <div class="prop-row"><span class="prop-label">켜진 점</span>${colorFieldHTML({ idPrefix: 'sld-don', hex: st.layout.dotOn })}</div>
+      <div class="prop-row"><span class="prop-label">꺼진 점</span>${colorFieldHTML({ idPrefix: 'sld-doff', hex: st.layout.dotOff })}</div>`}
       <div class="prop-row"><span class="prop-label">스크롤 고정</span><label class="prop-toggle"><input type="checkbox" id="sld-scroll-fix" ${block.dataset.scrollX ? 'checked' : ''}><span class="prop-toggle-track"></span></label></div>`}`),
       /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + prop-toggle) */
       sec('padding', canFB ? `
@@ -179,7 +184,17 @@ export function showSlideProperties(block, opts = {}) {
   /* SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 — 켜면 캔버스 임시 가로 자리(막대)를 data-scroll-x 로 굳혀 내보내기가 그 자리 · 끄면 키 지움(흔적 0) */
   $('sld-scroll-fix')?.addEventListener('change', (e) => { setSlideScrollFix(block, e.target.checked); commit(); });
   /* SLIDE-INDICATOR-DOTS-01 — 점 표시(가로 효과만 · 세로면 줄 없음) */
-  $('sld-dots')?.addEventListener('change', (e) => { setSlideLayout(block, { dots: e.target.value }); commit(); });
+  $('sld-dots')?.addEventListener('change', (e) => { setSlideLayout(block, { dots: e.target.value }); commit(); reopen(); });   // 켜면 점 칸 줄이 생긴다
+  /* SLIDE-DOTS-SPACING-01 — 칸↔점 갭 · 점↔점 간격 · 켜진/꺼진 점 색(첫 장면·GIF 같은 값) */
+  for (const [id, key] of [['sld-dotgap', 'dotGap'], ['sld-dotspace', 'dotSpace']]) {
+    const sl = $(`${id}-slider`), nu = $(`${id}-number`);
+    sl?.addEventListener('input', () => { nu.value = sl.value; setSlideLayout(block, { [key]: +sl.value }); });
+    sl?.addEventListener('change', commit);
+    nu?.addEventListener('change', () => { sl.value = nu.value; setSlideLayout(block, { [key]: +nu.value }); commit(); });
+  }
+  for (const [pre, key] of [['sld-don', 'dotOn'], ['sld-doff', 'dotOff']]) {
+    wireColorField(pre, { onApply: (c) => { setSlideLayout(block, { [key]: String(c) }); }, onCommit: commit });   // 소독은 normLayout(#rrggbb[aa] 만 · 그 밖은 기본색)
+  }
 
   wireAnimGifBtn(document.getElementById('open-anim-btn'), block);   // 텍스트 패널(prop-text.js _applyAnimGate)과 같은 판정·글 — _helpers.js 한 벌(슬라이드·그리드 공용)
 }

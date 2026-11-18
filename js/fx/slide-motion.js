@@ -85,7 +85,7 @@ export const slideInPlace = (fx) => fx === 'slide-fade' || fx === 'slide-cut';
 export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' ? 'y' : 'x');
 const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || fx === 'slide-trail' || slideInPlace(fx) || slideCentered(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
-export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none', mode: 'row' });
+export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9' });
 /* SLIDE-LAYOUT-STATIC-MODES-01(현빈 피드백 2 ⑥) — 정지 꼴(캔버스·PNG·HTML·Figma 첫 장면) = 기본 줄 / 가운데 캐러셀 / 단일 컷 · GIF 효과와 별개(row = 옛 그대로 = 효과가 정하던 첫 장면) */
 export const SLIDE_MODES = Object.freeze(['row', 'center', 'single']);
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
@@ -98,12 +98,18 @@ export const GIF_FPS_MAX = 20, GIF_FRAMES_MAX = 60;
 
 const _num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
 
+const _dotColor = (c, d) => (typeof c === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.toLowerCase() : d);
+/** 점 띠 높이 = 칸↔점 갭 × 2 + 점 지름(첫 장면 트랙 줄임 · GIF 비움 · 칸 찍기 크기가 같은 값). */
+export const dotBand = (layout) => 2 * normLayout(layout).dotGap + DOT_D;
 /** 내용 배치 소독 — 카드 폭 % · 간격 px · 블럭 높이 px. */
 export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
   /* SLIDE-FX-OVERLAP-GAP-01(P223) — 간격 −80 까지(음수 = 카드가 겹친다 · 뒤 카드가 위 · 첫 장면 DOM = 음수 margin · GIF = drawSlides 그대로) */
   return { cardW: _num(s.cardW, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW), gap: _num(s.gap, -80, 80, SLIDE_LAYOUT_DEFAULT.gap), h: _num(s.h, 120, 1200, SLIDE_LAYOUT_DEFAULT.h),
-    dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots, mode: SLIDE_MODES.includes(s.mode) ? s.mode : SLIDE_LAYOUT_DEFAULT.mode };
+    dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots, mode: SLIDE_MODES.includes(s.mode) ? s.mode : SLIDE_LAYOUT_DEFAULT.mode,
+    /* SLIDE-DOTS-SPACING-01(현빈 정정) — 칸↔점 갭(띠 = 갭×2 + 점 지름 · 기본 8 → 띠 24 = 옛 그대로) · 점↔점 간격 · 켜진/꺼진 점 색(#rrggbb[aa] 만 — style 글자로 들어간다) */
+    dotGap: _num(s.dotGap, 0, 40, SLIDE_LAYOUT_DEFAULT.dotGap), dotSpace: _num(s.dotSpace, 2, 40, SLIDE_LAYOUT_DEFAULT.dotSpace),
+    dotOn: _dotColor(s.dotOn, SLIDE_LAYOUT_DEFAULT.dotOn), dotOff: _dotColor(s.dotOff, SLIDE_LAYOUT_DEFAULT.dotOff) };
 }
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
 export function normAnim(o) {
@@ -222,13 +228,14 @@ export function slideActiveIndex(geom, s) {
   return k;
 }
 /** 점 띠 — n 점 가운데 정렬 · active 진하게 · pos 'top'|'bottom' · k = 캔버스 px / 블럭 px(첫 장면 DOM .sld-dots 와 같은 자리·크기·색). */
-export function drawDots(ctx, W, H, n, active, pos, k) {
+export function drawDots(ctx, W, H, n, active, pos, k, opt = {}) {
   if (pos !== 'top' && pos !== 'bottom') return;
-  const d = DOT_D * k, g = DOT_GAP * k, total = n * d + Math.max(0, n - 1) * g;
-  const cy = pos === 'top' ? (DOT_BAND * k) / 2 : H - (DOT_BAND * k) / 2;
+  const band = opt.band ?? DOT_BAND, space = opt.space ?? DOT_GAP, on = opt.on ?? DOT_ON, off = opt.off ?? DOT_OFF;   // opt = 레이아웃 점 값(SLIDE-DOTS-SPACING-01 · 없으면 옛 상수)
+  const d = DOT_D * k, g = space * k, total = n * d + Math.max(0, n - 1) * g;
+  const cy = pos === 'top' ? (band * k) / 2 : H - (band * k) / 2;
   let x = (W - total) / 2 + d / 2;
   for (let i = 0; i < n; i++, x += d + g) {
-    ctx.fillStyle = i === active ? DOT_ON : DOT_OFF;
+    ctx.fillStyle = i === active ? on : off;
     ctx.beginPath(); ctx.arc(x, cy, d / 2, 0, Math.PI * 2); ctx.fill();
   }
 }

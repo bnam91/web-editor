@@ -15,7 +15,7 @@ import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
   slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
-  DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
+  DOT_D, dotBand, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
    점이 켜지면 트랙이 띠만큼 줄어든다(카드 높이 = 블럭 − 띠) — GIF 도 같은 띠를 비우고 그린다. */
@@ -36,13 +36,15 @@ function _renderWipe(block, kids, on) {
   el.innerHTML = `<span style="position:absolute;left:50%;top:50%;width:${WIPE_KNOB_R * 2}px;height:${WIPE_KNOB_R * 2}px;border-radius:50%;background:${WIPE_KNOB};transform:translate(-50%,-50%);"></span>`;
   return true;
 }
-const _trackBox = (pos) => (pos ? `height:calc(100% - ${DOT_BAND}px);margin-${pos}:${DOT_BAND}px;` : 'height:100%;');
-function _renderDots(block, n, pos, active = 0) {   // active = 첫 장면의 앞 카드(가운데 캐러셀 = 둘째)
+const _trackBox = (pos, layout) => (pos ? `height:calc(100% - ${dotBand(layout)}px);margin-${pos}:${dotBand(layout)}px;` : 'height:100%;');   // 띠 = 칸↔점 갭 × 2 + 점(SLIDE-DOTS-SPACING-01)
+const _dotOpt = (layout) => ({ band: dotBand(layout), space: layout.dotSpace, on: layout.dotOn, off: layout.dotOff });
+function _renderDots(block, n, pos, active = 0, layout = readSlideState(block).layout) {   // active = 첫 장면의 앞 카드(가운데 캐러셀 = 둘째)
   let el = block.querySelector(':scope > .sld-dots');
   if (!pos) { el?.remove(); return; }
   if (!el) { el = document.createElement('div'); el.className = 'sld-dots'; block.appendChild(el); }
-  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${DOT_BAND}px;display:flex;align-items:center;justify-content:center;gap:${DOT_GAP}px;pointer-events:none;`;
-  el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? DOT_ON : DOT_OFF};`; return d; }));
+  const o = _dotOpt(layout);
+  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;display:flex;align-items:center;justify-content:center;gap:${o.space}px;pointer-events:none;`;
+  el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? o.on : o.off};`; return d; }));
 }
 /** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
 const _slideOut = (s) => { const w = normCardW(s.w); return w === undefined ? { src: s.src } : { src: s.src, w }; };
@@ -355,7 +357,7 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
   const pos = _dotsPos(layout, vert, wipe ? 'slide-wipe' : '');
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = flex gap 0 + 둘째부터 음수 margin(겹침 · 뒤 칸이 위)
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${wipe ? 'position:relative;' : ''}`;
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${wipe ? 'position:relative;' : ''}`;
   _renderDots(block, slideCells(block).length, pos, center && slideCells(block).length > 1 ? 1 : 0);
   if (center) track.style.transform = `translateX(${centerTrackShift(slideCells(block).map((c) => normCardW(c.dataset.w) ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면(스타일만)
   else if (!inPlace && !wipe && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 «스크롤 고정» 자리
@@ -391,7 +393,7 @@ export function renderSlideBlock(block) {
   const pos = _dotsPos(layout, vert, fx);
   const inPlace = slideInPlace(fx) || layout.mode === 'single';   // 제자리 효과 · 정지 꼴 «단일 컷» = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = 겹침(프레임 칸과 같은 꼴)
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${slideWipe(fx) ? 'position:relative;' : ''}`;
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${slideWipe(fx) ? 'position:relative;' : ''}`;
   const cards = slides.length ? slides : [null, null, null];
   if (slideCentered(fx) || layout.mode === 'center') track.style.transform = `translateX(${centerTrackShift(cards.map((s) => s?.w ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면 · 정지 꼴 «가운데 캐러셀»
   else if (!inPlace && !slideWipe(fx) && !slideGridZoom(fx) && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // «스크롤 고정» 자리
@@ -442,7 +444,7 @@ async function _frameCellImgs(block) {
      키가 바뀌어 효과를 누를 때마다 섹션 클론을 «새로» 찍었다(CDP 캡처 한 번씩 · 효과 고르기 = 캡처 연타).
      ⇒ 키 = 칸들의 «안쪽 내용»(칸 자신의 스타일 밖)·칸 폭 %·블럭 폭·높이·점 띠 · 크기 = 레이아웃에서 셈(칸 폭 % × 블럭 폭 · 트랙 높이 = 블럭 − 점 띠) — 효과가 바꾸는 값은 안 본다.
      적대 리뷰 [낮음5] 그대로 — 키는 길이 + 32bit 해시(상주 수십 바이트). */
-  const ST = readSlideState(block), L = ST.layout, vert = slideAxis(ST.fx) === 'y', bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.clientHeight - (L.dots === 'top' || L.dots === 'bottom' ? DOT_BAND : 0));
+  const ST = readSlideState(block), L = ST.layout, vert = slideAxis(ST.fx) === 'y', bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.clientHeight - (L.dots === 'top' || L.dots === 'bottom' ? dotBand(L) : 0));
   const full = slideInPlace(ST.fx) || slideWipe(ST.fx);   // 꽉 채우는 효과(제자리·전후 비교)는 첫 장면 칸이 블럭 꽉 ⇒ 그 크기로 찍어야 GIF = 첫 장면(두 «꼴»만 키에 · 효과마다 다시 찍지 않음)
   const wsPct = cells.map((c) => (full ? 100 : (normCardW(c.dataset.w) ?? L.cardW)));
   const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${cells.map((c) => c.dataset.h ?? '').join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
@@ -528,19 +530,19 @@ export function slidePlan(block, anim, fxOverride) {
         return;
       }
       if (slideInPlace(fx)) {   // 제자리 — 카드 꽉 한 장(+ 점 띠면 띠 아래)
-        const band = pos ? DOT_BAND * k : 0;
+        const band = pos ? dotBand(st.layout) * k : 0;
         ctx.save(); if (pos === 'top') ctx.translate(0, band);
         const shown = drawInPlace(ctx, W, H - band, block._sldImgs?.imgs || [], inPlaceState(geom.n, A, t), fx);
         ctx.restore();
-        if (pos) drawDots(ctx, W, H, geom.n, shown, pos, k);
+        if (pos) drawDots(ctx, W, H, geom.n, shown, pos, k, _dotOpt(st.layout));
         return;
       }
       if (slideCentered(fx)) {   // 가운데 캐러셀 — 가운데 맞춘 밀린 거리로 같은 drawSlides(왼쪽으로)
-        const cs = centerState(geom, A, t), band = pos ? DOT_BAND * k : 0;
+        const cs = centerState(geom, A, t), band = pos ? dotBand(st.layout) * k : 0;
         ctx.save(); if (pos === 'top') ctx.translate(0, band);
         drawSlides(ctx, W, H - band, block._sldImgs?.imgs || [], geom, cs.s, 'left', k, undefined, axis);
         ctx.restore();
-        if (pos) drawDots(ctx, W, H, geom.n, cs.active, pos, k);
+        if (pos) drawDots(ctx, W, H, geom.n, cs.active, pos, k, _dotOpt(st.layout));
         return;
       }
       const s = slideOffset(fx, geom, A, t);
@@ -551,11 +553,11 @@ export function slidePlan(block, anim, fxOverride) {
         drawSlides(ctx, W, H2, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis);
       };
       if (!pos) { paint(H); return; }
-      const band = DOT_BAND * k;   // 점 띠만큼 비우고 카드(첫 장면 트랙과 같은 높이)
+      const band = dotBand(st.layout) * k;   // 점 띠만큼 비우고 카드(첫 장면 트랙과 같은 높이)
       ctx.save(); if (pos === 'top') ctx.translate(0, band);
       paint(H - band);
       ctx.restore();
-      drawDots(ctx, W, H, geom.n, slideActiveIndex(geom, A.dir === 'right' ? (geom.period - s) % geom.period : s), pos, k);
+      drawDots(ctx, W, H, geom.n, slideActiveIndex(geom, A.dir === 'right' ? (geom.period - s) % geom.period : s), pos, k, _dotOpt(st.layout));
     },
   };
 }
