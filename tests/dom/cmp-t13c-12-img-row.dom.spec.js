@@ -40,9 +40,17 @@ async function setup(page) {
 test('B1 이미지 행 — 「+ 이미지/교체」 줄과 「꽉 채우기·원본 비율」 줄이 중첩 없이 두 줄로 놓이고 잘리지 않는다', async ({ page }) => {
   const errs = await setup(page);
   const rc = await waitStableRect(page, `#sB .comparison-block .cmp-row[data-col-idx="0"][data-row-idx="1"]`);
+  /* 수지맥 540391582 B1 2/2 빨강(waitForFunction 3000ms) — 누름이 블럭을 못 골랐나 · 패널에 .cmp-row-img 가 2개가 아닌가를 가르려 받은 값 = 진단 */
+  const pre = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? `${e.tagName}.${[...e.classList].join('.')}` : null; }, [rc.cx, rc.cy]);
   await page.mouse.click(rc.cx, rc.cy);
-  await page.waitForFunction(() => document.getElementById(window.__bid).classList.contains('selected')
-    && document.querySelectorAll('#panel-right .cmp-row-img').length === 2, null, { timeout: 3000 });
+  await expect.poll(() => page.evaluate((pre) => {
+    const b = document.getElementById(window.__bid);
+    return { sel: !!b?.classList.contains('selected'), img: document.querySelectorAll('#panel-right .cmp-row-img').length,
+      edits: document.querySelectorAll('#panel-right .cmp-row-edit').length, types: [...document.querySelectorAll('#panel-right .cmp-row-type.active')].map((t) => t.dataset.type),
+      rowsModel: window.getComparisonCols?.(b?.dataset || {})?.map((c) => (c.rows || []).map((r) => r.type)) ?? null,
+      panelHead: document.querySelector('#panel-right .panel-body')?.innerText?.slice(0, 40) ?? null, pre,
+      sels: [...document.querySelectorAll('#canvas .selected')].map((x) => `${x.className.split(' ')[0]}#${x.id}`) };
+  }, pre), { message: '[전제] 블럭 고름 · 패널 이미지 행 2 · 받은 값 = 진단', timeout: 5000 }).toMatchObject({ sel: true, img: 2 });
 
   const geo = await page.evaluate(() => [0, 1].map(col => {
     const img = document.querySelector(`#panel-right .cmp-row-img[data-col="${col}"][data-idx="0"]`);
