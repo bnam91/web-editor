@@ -1583,6 +1583,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
    CSS 조건뿐(상태 클래스 .selected) — 저장·캡처는 .selected 를 걷으므로(capture-safety EDITOR_STATE_CLS) 내보내기·GIF·저장에 남는 것 0.
    renderSlideBlock 이 인라인 overflow:hidden 을 쓰므로 !important. 밖 흐림 = 블럭 «밖»만 덮는 큰 outline(pointer-events none · 옆 블럭 클릭 그대로). */
 .slide-block[data-cell-mode="frame"]:is(.selected, :has(.selected)) { overflow: visible !important; }
+/* ★섹션 안쪽도 가로로 자른다(editor-layout.css .section-inner overflow-x:clip — 그림자 까닭) ⇒ 펼친 동안만 그 섹션 안쪽 가로 clip 을 푼다.
+   ⛔:has 안에 :has 를 못 넣는다(규격) — 두 갈래로 적는다(슬라이드 자신이 골라짐 · 슬라이드 안 무엇이 골라짐). 저장·캡처는 .selected 를 걷으니 영향 0. (지혜맥 P1 빨강 = 이 clip) */
+.section-inner:has(.slide-block[data-cell-mode="frame"].selected),
+.section-inner:has(.slide-block[data-cell-mode="frame"] .selected) { overflow-x: visible; }
 .slide-block[data-cell-mode="frame"]:is(.selected, :has(.selected))::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
   outline: 100vmax solid color-mix(in srgb, var(--ui-bg-base) 45%, transparent);

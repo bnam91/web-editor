@@ -50,7 +50,7 @@ test('D1 점 표시 — 첫 장면 점 띠 · GIF 같은 띠·앞 카드 점 · 
     const b = document.getElementById(id); await window.slidePrepare(b);
     const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
     const A = window.readSlideState(b).anim, per = 0.5 + A.dwell, n = 3;
-    window.slidePlan(b).draw(ctx, W, H, null, (per + 0.5 + 0.05) / (n * per));   // 둘째 카드 머무름
+    window.slidePlan(b).draw(ctx, W, H, null, (0.5 + 0.05) / (n * per));   // 둘째 카드 머무름 = 첫 넘김(0.5초) 끝난 바로 뒤(옛 줄은 한 칸 더 가 셋째 머무름이었다 — 지혜맥 D1 빨강 = 검사 시각)
     const p = (x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data);
     const total = 3 * 8 + 2 * 8, x0 = (W - total) / 2 + 4;
     return { band: p(6, 12), dot0: p(x0, 12), dot1: p(x0 + 16, 12), card: p(6, 30) };

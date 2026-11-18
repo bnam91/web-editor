@@ -358,8 +358,14 @@ test('R3 프레임 모드 슬라이드 칸 위 스크래치 놓기 = 그 칸 안
 
 test('R4 칸만 고른 ⌘D = 무동작 · 칸 안 글자 고른 ⌘D = 그 칸 안에 하나 더', async ({ page }) => {
   const { errs, id } = await withText(page);
+  /* ★클립보드에 먼저 무엇을 담아 둔다 — 비어 있으면 ⌘D 칸 가드가 없어도 copySelected(칸 = 복사 안 함) 뒤 붙여넣기가 «아무것도 없어서» 조용했다(지혜맥: CTL10 이 R4 를 못 붉힘) */
+  await page.evaluate((id) => { const t = document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelector('.text-block'); window.deselectAll(); window.selectBlock(t.id); }, id);
+  await key(page, 'Meta+c');
+  const nText0 = await page.locator('#canvas .text-block').count();
   await pickCell(page, id, 1);
   await key(page, 'Meta+d');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));   // ⌘D 붙여넣기는 같은 틱 — 두 프레임 뒤 «안 늘었다»를 잰다(고정 대기 0)
+  expect(await page.locator('#canvas .text-block').count(), '★칸 ⌘D = 아무것도 안 붙음(클립보드가 차 있어도)').toBe(nText0);
   const r = await page.evaluate((id) => { const b = document.getElementById(id); return { nested: b.querySelectorAll('.sld-cell .slide-block').length, cells: b.querySelectorAll('.sld-cell').length }; }, id);
   expect({ n: await nSlides(page), ...r }, '★칸 ⌘D 무동작(슬라이드 1 · 중첩 0)').toEqual({ n: 1, nested: 0, cells: 3 });
   await page.evaluate((id) => { const t = document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelector('.text-block'); window.deselectAll(); window.selectBlock(t.id); }, id);
