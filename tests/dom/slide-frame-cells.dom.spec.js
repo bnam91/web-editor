@@ -9,7 +9,12 @@
  * F1 추가 메뉴 입구(addSlideBlock) 새 블럭 = 프레임 칸 3 · 패널 «프레임 추가하기» → 4 · 칸 ✕ → 3 · ↓ 순서(칸 요소째) · 칸 폭 % → data-w · 그 칸 폭 · 12 상한에서 단추 꺼짐 · ⌘Z = 직전 하나
  * F2 빈 칸을 진짜 클릭 → 그 칸 고름(_activeFrame) · 패널 = 슬라이드(그 칸 줄 표시 · «사진 넣기(칸 2)») · 프레임 px 손잡이 0 · 프레임 패널 0
  *    → addTextBlock = 그 칸 안 · 칸 «사진 넣기»(진짜 파일창) → 그 칸 꽉 에셋 · 칸 dragstart = 막힘 · 칸 고른 채 ⌘G(groupSelectedBlocks) = 묶음 0(칸은 트랙 그대로)
+ * ── 커밋 3 ──
+ * F3 GIF·미리보기 = 칸째 흐름: 칸 1 빨강 사진 · 칸 2 파랑 사진 · 칸 3 빈 칸 → slidePrepare = 칸 셋을 찍은 canvas(빨강·파랑) · slidePlan draw t=0 = 칸 자리(첫 장면)에 빨강·파랑
+ *    · ★흐름 t(밀린 거리 100px) 에서 «칸 안 내용까지 같이» 파랑 왼끝이 100 만큼 왼쪽(현빈 Q2 확인 칸) · 안내 줄 «정지 한 장»
+ *    (캡처 = grid-step 과 같은 길 — 하네스 electronAPI captureSectionCdp 를 진짜 CDP Page.captureScreenshot 로 잇는다 · grid-step.dom 과 같은 꼴)
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL4-no-frame-prepare.patch(slidePrepare 프레임 갈래 삭제 → 사진 길) → F3 빨강(칸 그림 0) — 예측
  *   slide-frame-CTL2-no-cell-pick.patch(block-drag click 의 _pickSlideCell 줄 삭제) → F2 빨강(프레임 패널·px 손잡이) ·
  *   slide-frame-CTL3-group-cell.patch(⌘G 칸 거르기 줄 삭제) → F2 빨강(칸이 묶음으로 빠짐) — 예측
  */
@@ -148,5 +153,53 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
     return { dragBlocked: ev.defaultPrevented, parentIsTrack: cell.parentElement?.classList.contains('sld-track'), groups: document.querySelectorAll('#canvas .frame-block[data-group="true"]').length };
   }, id);
   expect(guard, '★칸 끌기 막힘 · ⌘G 로 칸이 안 빠짐').toEqual({ dragBlocked: true, parentIsTrack: true, groups: 0 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+async function wireCdp(page) {
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height, scale = 1 }) => (await cdp.send('Page.captureScreenshot', {
+    format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: scale > 0 && scale <= 4 ? scale : 1 },
+    captureBeyondViewport: true, fromSurface: true })).data);
+  await page.evaluate(() => { const real = window.electronAPI; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : real[k]) }); });
+}
+
+test('F3 GIF·미리보기 — 칸을 찍어 흐름 · 칸 안 내용까지 같이 움직임', async ({ page }) => {
+  const { errs, id } = await scene(page, { cellMode: 'frame' });
+  await wireCdp(page);
+  await page.evaluate(async (id) => {
+    const b = document.getElementById(id), cells = b.querySelectorAll('.sld-cell');
+    cells.forEach((c) => { c.dataset.w = '30'; });
+    window.renderSlideBlock(b);
+    const fill = (cell, color) => {
+      const cv = document.createElement('canvas'); cv.width = 40; cv.height = 30; const x = cv.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, 40, 30);
+      window._activeFrame = cell; const had = new Set(cell.querySelectorAll('.asset-block'));
+      window.addAssetBlock(null, { imgSrc: cv.toDataURL('image/png') });
+      const ab = [...cell.querySelectorAll('.asset-block')].find((a) => !had.has(a));
+      Object.assign(ab.style, { left: '0px', top: '0px', width: '100%', height: '100%' });
+    };
+    fill(cells[0], '#ff0000'); fill(cells[1], '#0000ff'); window._activeFrame = null;
+    b.scrollIntoView({ block: 'center' });
+  }, id);
+  await page.waitForFunction((id) => [...document.getElementById(id).querySelectorAll('.sld-cell .asset-block img')].filter((i) => i.complete && i.naturalWidth > 0).length >= 2, id);   // 칸 사진 둘이 떴다(조건 대기)
+  const r = await page.evaluate(async (id) => {
+    const b = document.getElementById(id), cells = [...b.querySelectorAll('.sld-cell')];
+    const imgs = await window.slidePrepare(b);
+    const mid = (cv) => cv ? Array.from(cv.getContext('2d').getImageData(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1).data).slice(0, 3) : null;
+    const W = b.offsetWidth, H = b.offsetHeight, br = b.getBoundingClientRect(), k = br.width / W;
+    const cx = cells.map((c) => { const q = c.getBoundingClientRect(); return [(q.left - br.left) / k, q.width / k]; });
+    const gap = parseFloat(b.querySelector('.sld-track').style.gap) || 0, period = cx.reduce((a, [, w]) => a + w + gap, 0);
+    const shot = (t) => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, t); return ctx; };
+    const at = (ctx, x) => Array.from(ctx.getImageData(Math.round(x), Math.round(H / 2), 1, 1).data).slice(0, 3);
+    const blueLeft = (ctx) => { const d = ctx.getImageData(0, Math.round(H / 2), W, 1).data; for (let x = 0; x < W; x++) { const i = x * 4; if (d[i + 2] > 200 && d[i] < 60 && d[i + 1] < 60) return x; } return -1; };
+    const c0 = shot(0), shift = 100, c1 = shot(shift / period);
+    return { n: imgs.length, err: b._sldImgs?.err ?? null, m0: mid(imgs[0]), m1: mid(imgs[1]),
+      red0: at(c0, cx[0][0] + cx[0][1] / 2), blue0: at(c0, cx[1][0] + cx[1][1] / 2), bl0: blueLeft(c0), bl1: blueLeft(c1), info: window.slidePlan(b).info };
+  }, id);
+  expect({ n: r.n, err: r.err }, '[전제] 칸 셋을 찍음').toEqual({ n: 3, err: null });
+  expect([r.m0, r.m1], '★찍은 칸 = 칸 안 사진 색').toEqual([[255, 0, 0], [0, 0, 255]]);
+  expect([r.red0, r.blue0], '★t=0 = 첫 장면 칸 자리').toEqual([[255, 0, 0], [0, 0, 255]]);
+  expect(Math.abs((r.bl0 - r.bl1) - 100), `★칸 안 내용까지 같이 흐름(파랑 왼끝 ${r.bl0} → ${r.bl1})`).toBeLessThanOrEqual(2);
+  expect(r.info).toContain('정지 한 장');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

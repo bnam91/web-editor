@@ -8,6 +8,8 @@
  *   ★추가 메뉴(#fp-add-slide) 노출 = GIF 와 같은 규칙(animGifVisible · 관리자 · 지디 결정 ⓐ) — «공개 범위»일 뿐 접근통제 아님(feature-flags.js 머리말).
  */
 import { genId, insertAfterSelected } from '../drag-utils.js';
+import { prepareCloneForCapture, renderComponentsInClone, captureCloneToCanvas, isNativeCapture, sectionBgColor } from '../io/export-image.js';   // 프레임 칸 찍기 = grid-step stepPrepare 와 같은 길(③ 새 엔진 0)
+import { withGuideOff } from '../io/capture-safety.js';
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
@@ -56,7 +58,7 @@ export function setSlideAnim(block, patch) {
   _setJsonKey(block, 'animSlide', diffFromDefault(normAnim({ ...readSlideState(block).anim, ...patch }), SLIDE_ANIM_DEFAULT));
   return (block.dataset.animSlide ?? null) !== before;
 }
-export const slideHasPhotos = (block) => readSlideState(block).slides.length > 0;
+export const slideHasPhotos = (block) => (isFrameSlide(block) ? slideCells(block).length > 0 : readSlideState(block).slides.length > 0);   // 프레임 모드 = 칸 하나라도(빈 칸도 GIF 됨)
 
 /* ── SLIDE-CELL-AS-FRAME-01(현빈 261118 · PLAN-ty-slide-frame-cells-261118) — 칸 = 프레임 ─────────────────────────
  *   블럭 단위 두 갈래 · 마이그레이션 0:
@@ -150,8 +152,54 @@ async function _dataUriOf(src) {
   } catch (_) { return null; }
 }
 const _loadImg = (uri) => new Promise((res) => { if (!uri) { res(null); return; } const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = uri; });
-/** 블럭 사진들을 그릴 수 있게(같은 목록이면 한 번만) — 실패한 장은 null(빈 카드 색으로 그림). */
+/* SLIDE-CELL-AS-FRAME-01 커밋 3 — 프레임 칸 그림 = grid-step stepPrepare 꼴: 섹션 클론 한 번 찍고 칸 사각형마다 잘라 canvas(drawSlides 가 그대로 그림 · 새 엔진 0).
+   흐름엔 블럭 밖으로 넘친 칸도 있어야 한다 ⇒ «클론에서만» 칸마다 살아 있는 px 크기로 고정 + 트랙 줄바꿈(wrap) + 블럭 높이 auto·overflow visible → 칸이 전부 찍힌다(살아 있는 블럭 무접촉).
+   키 = 폭·높이·innerHTML(칸 안 내용이 바뀌면 다시 찍음 · stepPrepare 와 같은 꼴). 찍기 실패 = 그 칸 null(빈 칸 색) + 까닭 _sldImgs.err.
+   ⚠️칸 안의 움직이는 것(GIF 블럭 등)은 정지 한 장(Q4 · 지디 261118 OK — 안내 줄에 한 줄). */
+async function _frameCellImgs(block) {
+  const cells = slideCells(block), sec = block.closest('.section-block');
+  const key = `F|${block.offsetWidth}|${block.offsetHeight}|${block.innerHTML}`;
+  if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
+  const sizes = cells.map((c) => [c.offsetWidth, c.offsetHeight]);
+  let imgs = cells.map(() => null), err = null;
+  if (sec && block.id && cells.length) {
+    try {
+      imgs = await withGuideOff(async () => {
+        const w = Math.round(sec.offsetWidth), native = isNativeCapture();
+        const clone = await prepareCloneForCapture(sec, w, native);
+        try {
+          renderComponentsInClone(clone);
+          await document.fonts.ready;
+          const cb = clone.querySelector('#' + CSS.escape(block.id));
+          const track = cb?.querySelector(':scope > .sld-track');
+          if (!cb || !track) throw new Error('클론에서 슬라이드를 못 찾음');
+          Object.assign(cb.style, { height: 'auto', overflow: 'visible' });
+          Object.assign(track.style, { flexWrap: 'wrap', height: 'auto', flexDirection: 'row' });
+          const cc = [...track.querySelectorAll(':scope > .sld-cell')];
+          cc.forEach((c, i) => Object.assign(c.style, { flex: `0 0 ${sizes[i][0]}px`, width: `${sizes[i][0]}px`, height: `${sizes[i][1]}px` }));
+          const cr = clone.getBoundingClientRect(), rects = cc.map((c) => c.getBoundingClientRect());
+          const cap = await captureCloneToCanvas(clone, w, sectionBgColor(sec), native, sec);
+          const s = cap.canvas.width / cr.width;
+          return rects.map((r) => {
+            const cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(r.width * s)); cv.height = Math.max(1, Math.round(r.height * s));
+            cv.getContext('2d').drawImage(cap.canvas, (r.left - cr.left) * s, (r.top - cr.top) * s, r.width * s, r.height * s, 0, 0, cv.width, cv.height);
+            return cv;
+          });
+        } finally { if (clone.parentNode) clone.parentNode.removeChild(clone); }
+      });
+    } catch (e) {
+      err = e instanceof Error ? e.message : (e && e.type ? `그림 읽기 실패(${e.type})` : String(e));
+      console.warn('[slide] 칸 찍기 실패 — 빈 칸 색으로 그린다:', err);
+    }
+  }
+  block._sldImgs = { key, imgs, err };
+  return imgs;
+}
+
+/** 블럭 사진들을 그릴 수 있게(같은 목록이면 한 번만) — 실패한 장은 null(빈 카드 색으로 그림). 프레임 모드 = 칸을 찍은 canvas. */
 export async function slidePrepare(block) {
+  if (isFrameSlide(block)) return _frameCellImgs(block);
   const { slides } = readSlideState(block);
   const key = slides.map((s) => s.src).join('|');
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
@@ -170,10 +218,13 @@ export function slideBg(block) {
 export function slidePlan(block, anim, fxOverride) {
   const st = readSlideState(block);
   const A = normAnim(anim || st.anim), fx = SLIDE_FX.includes(fxOverride) ? fxOverride : st.fx;
-  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, st.slides.length || 3, st.layout, st.slides.map((s) => s.w));
+  const frame = isFrameSlide(block), cells = frame ? slideCells(block) : null;
+  /* 프레임 모드 = 칸 수·칸 폭(data-w)이 기하 · 사진 모드 = 옛 그대로 */
+  const n = frame ? Math.max(1, cells.length) : (st.slides.length || 3), ws = frame ? cells.map((c) => c.dataset.w) : st.slides.map((s) => s.w);
+  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, n, st.layout, ws);
   const sec = loopSec(fx, geom, A);
   return {
-    duration: sec * 1000, hold: 0, info: slideInfoText(sec), gif: gifPlan(sec), fx, anim: A,
+    duration: sec * 1000, hold: 0, info: slideInfoText(sec) + (frame ? ' · 칸 안 움직이는 것은 정지 한 장' : ''), gif: gifPlan(sec), fx, anim: A,
     draw: (ctx, W, H, _size, t) => drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, slideOffset(fx, geom, A, t), A.dir, (axis === 'y' ? H : W) / bw, undefined, axis),
   };
 }
