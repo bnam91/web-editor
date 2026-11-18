@@ -5001,6 +5001,18 @@ function toggleFpDropdown(id) {
   const wasOpen = target.classList.contains('open');
   document.querySelectorAll('.fp-dropdown').forEach(d => d.classList.remove('open'));
   if (!wasOpen) target.classList.add('open');
+  if (!wasOpen && targetId === 'fp-component-dropdown') _applyCouponAddGate(true);
+}
+/* t13C-05: 쿠폰 «넣기» 입구는 관리자만. 판정은 feature-flags.js animGifVisible 한 자리(서버 role ∨ 앱 관리자 · 모르면 «아님»).
+   공개 범위일 뿐 접근통제 아님 — 저장본의 쿠폰은 누구나 열고 고친다(입구만 가린다). */
+function _applyCouponAddGate(pull) {
+  const it = document.getElementById('fp-add-coupon');
+  if (!it) return;
+  const st = window.__admin?.state?.() ?? null;
+  it.style.display = window.animGifVisible?.(true, st) ? '' : 'none';
+  if (pull && !st && typeof window.__admin?.refresh === 'function') {   // 캐시 ∅ 일 때만 한 번 당겨 다시 잰다
+    Promise.resolve(window.__admin.refresh()).then(() => _applyCouponAddGate(false), () => {});
+  }
 }
 
 /* ★T-102 — 떠 있는 메뉴의 «명부는 한 벌»이다.
