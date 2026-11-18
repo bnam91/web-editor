@@ -66,7 +66,8 @@ test('S1 흐름 텍스트 — K 로 손잡이 · 끌면 글자와 같은 k 로 �
   expect(k, 'S1 글자가 커졌다(k>1.1)').toBeGreaterThan(1.1);
   expect([Math.abs(s1.ls - 2 * k) < 0.05, Math.abs(s1.pad - 10 * k) <= 1, Math.abs(s1.sw - 2 * k) <= 0.5, Math.abs(s1.shx - 4 * k) <= 1],
     `S1 같은 k(${k.toFixed(3)}) — 자간·패딩·외곽선·그림자 ${JSON.stringify(s1)}`).toEqual([true, true, true, true]);
-  expect([s1.tfStyleW, Math.abs(s1.tfW - s0.tfW) <= 1], 'S1 흐름 폭은 안 쓴다').toEqual(['', true]);
+  /* 흐름 tf 는 팩토리가 style.width '100%' 를 심어 둔다(r1 이 '' 로 잘못 기대 — 아이맥 r67 빨강) ⇒ 시작 값 그대로인지 잰다 */
+  expect([s1.tfStyleW, Math.abs(s1.tfW - s0.tfW) <= 1], `S1 흐름 폭은 안 쓴다(시작 ${s0.tfStyleW})`).toEqual([s0.tfStyleW, true]);
   await page.keyboard.press('ControlOrMeta+z');
   await expect.poll(async () => { const x = await st(page); return [x.fs, x.ls, x.pad, x.sw, x.shx]; }, 'S1 ⌘Z 한 번 = 원래').toEqual([20, 2, 10, 2, 4]);
   expect(errs, errs.join('\n')).toEqual([]);
