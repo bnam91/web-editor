@@ -6,10 +6,28 @@
  *   GIF 프레임 상한 60(export-image.js GIF_MAX_FRAMES 와 같은 수 · 지디 결정 ⓑ: fps 를 낮춤 + 안내 줄에 몇 fps 인지).
  *   정적 «첫 장면»(slide-block.js renderSlideBlock 의 flex 줄)은 offset 0 그림과 같은 자리 — 카드 i 의 왼끝 = i × (카드 폭 + 간격).
  */
-export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center']);
+export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe']);
 /* SLIDE-FX-CENTER-CAROUSEL-01(수지 S07 유리 카드) — 가운데 한 장 + 양옆 엿보기 · 한 장씩 넘김(넘김과 같은 박자). ★한 바퀴는 «둘째 카드가 가운데»에서 시작 —
    그래야 첫 장면 DOM(트랙 한 번 밀기)에도 왼쪽 엿보기(첫째 카드)가 진짜로 있다(t=0 에 마지막 카드를 왼쪽에 감아 붙이면 DOM 에 그 카드가 없다 = GIF ≠ 첫 장면). */
 export const slideCentered = (fx) => fx === 'slide-center';
+/* SLIDE-FX-BEFORE-AFTER-WIPE-01(P127·P128) — 전후 비교: 첫째(전)·둘째(후) 카드가 블럭 꽉 겹치고 세로 나눔선이 좌우로 오간다.
+   나눔선 자리 p(t) = 0.5 + 0.3·sin(2πt) — t=0 = 가운데 = 첫 장면(DOM clip 50%) · 한 바퀴 = WIPE_S ÷ 속도 · 색·굵기 = 첫 장면 DOM 과 같은 값. */
+export const slideWipe = (fx) => fx === 'slide-wipe';
+export const WIPE_S = 4, WIPE_LINE = '#ffffff', WIPE_KNOB = '#222222', WIPE_LINE_W = 2, WIPE_KNOB_R = 9;
+export const wipePos = (t) => 0.5 + 0.3 * Math.sin(2 * Math.PI * (((t % 1) + 1) % 1));
+/** 전후 비교 한 장면 — 후(imgs[1]) 꽉 · 전(imgs[0])은 왼쪽 p 만큼 · 나눔선 + 손잡이(k = 캔버스 px / 블럭 px). */
+export function drawWipe(ctx, W, H, imgs, p, k, emptyFill = '#e9e9e9') {
+  const cover = (im) => {
+    if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(0, 0, W, H); return; }
+    const sc = Math.max(W / im.width, H / im.height), sw = W / sc, sh = H / sc;
+    ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, 0, 0, W, H);
+  };
+  const x = p * W;
+  cover(imgs[1] ?? imgs[0]);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x, H); ctx.clip(); cover(imgs[0]); ctx.restore();
+  ctx.fillStyle = WIPE_LINE; ctx.fillRect(x - (WIPE_LINE_W * k) / 2, 0, WIPE_LINE_W * k, H);
+  ctx.fillStyle = WIPE_KNOB; ctx.beginPath(); ctx.arc(x, H / 2, WIPE_KNOB_R * k, 0, Math.PI * 2); ctx.fill();
+}
 /* SLIDE-FX-SINGLE-FRAME-MULTI-01(수지 S24 폰 후기) — «제자리»: 카드 한 장이 블럭을 꽉 채우고 그 자리에서 바뀐다(페이드 = 겹쳐 흐려지며 · 컷 = 넘김 끝에 바로). 셈은 넘김과 같은 박자(장마다 [바뀜 0.5초 · 머무름]). */
 export const slideInPlace = (fx) => fx === 'slide-fade' || fx === 'slide-cut';
 /** 움직임 축 — 세로 효과면 'y'(정적 첫 장면도 세로로 쌓음). */
@@ -68,6 +86,7 @@ const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2)
 /** 한 바퀴(초). */
 export function loopSec(fx, geom, anim) {
   const A = normAnim(anim);
+  if (slideWipe(fx)) return WIPE_S / A.speed;
   if (_stepping(fx)) return (geom.n * (SWIPE_MOVE_S + A.dwell)) / A.speed;
   return geom.period / (FLOW_PX_S * A.speed);
 }

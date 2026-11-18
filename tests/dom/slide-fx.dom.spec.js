@@ -5,9 +5,12 @@
  *    제자리 컷 → 바뀜 가운데 = 빨강 그대로 · 머무름 = 파랑 · 프레임 모드 칸도 꽉(칸 폭 = 블럭 폭)
  * D3 SLIDE-FX-CENTER-CAROUSEL-01(수지 S07): 가운데 캐러셀 · 카드 폭 50 · 빨강·파랑·초록 → 첫 장면 = 파랑(둘째) 가운데 · 빨강 왼쪽 엿보기 · 초록 오른쪽 엿보기 ·
  *    GIF t=0 = 같은 자리(가운데 파랑 · 왼끝 빨강 · 오른끝 초록) · 머무름 = 초록 가운데
+ * D4 SLIDE-FX-BEFORE-AFTER-WIPE-01(P127·128): 전후 비교 · 빨강(전)·파랑(후) → 첫 장면 = 왼쪽 반 빨강·오른쪽 반 파랑(겹침 + clip · 클릭 판정도) · 나눔선 가운데 ·
+ *    GIF t=0 = 같은 자리 · t=¼ = 나눔선 80%(70% 자리가 빨강) · 프레임 모드 칸도 겹침
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
+ *   slide-fx-CTL4-wipe-no-clip.patch(첫 장면 전 카드 clip 삭제) → D4 빨강(오른쪽 반도 빨강) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -106,5 +109,33 @@ test('D3 가운데 캐러셀 — 첫 장면 둘째 가운데·양옆 엿보기 =
   }, id);
   expect(g.t0, '★GIF t=0 = 첫 장면(빨강 · 파랑 · 초록)').toEqual({ l: [255, 0, 0], c: [0, 0, 255], r: [0, 170, 0] });
   expect(g.dw.c, '머무름 = 초록 가운데').toEqual([0, 170, 0]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D4 전후 비교 — 첫 장면 반반·나눔선 = GIF t=0 · ¼ 에 80% · 프레임 칸도', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff'], { fx: 'slide-wipe' });
+  const dom = await page.evaluate((id) => {
+    const b = document.getElementById(id), r = b.getBoundingClientRect(), cards = [...b.querySelectorAll('.sld-card')];
+    const at = (fx) => { const e = document.elementFromPoint(r.left + r.width * fx, r.top + r.height / 2); return cards.findIndex((c) => c === e || c.contains(e)); };
+    const w = b.querySelector(':scope > .sld-wipe')?.getBoundingClientRect();
+    return { left: at(0.25), right: at(0.75), line: w ? Math.round(((w.left + w.right) / 2 - r.left) / r.width * 100) : null };
+  }, id);
+  expect(dom, '★첫 장면 왼쪽 반 = 전(0) · 오른쪽 반 = 후(1) · 나눔선 50%').toEqual({ left: 0, right: 1, line: 50 });
+  const g = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight;
+    const shot = (t) => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, t);
+      const p = (fx) => Array.from(ctx.getImageData(Math.round(W * fx), Math.round(H / 4), 1, 1).data).slice(0, 3); return { a: p(0.25), b: p(0.75), c: p(0.7) }; };
+    return { t0: shot(0), q: shot(0.25) };
+  }, id);
+  expect([g.t0.a, g.t0.b], '★GIF t=0 = 첫 장면 반반').toEqual([[255, 0, 0], [0, 0, 255]]);
+  expect(g.q.c, 't=¼ 나눔선 80% → 70% 자리 = 전(빨강)').toEqual([255, 0, 0]);
+  const cells = await page.evaluate(async () => {
+    window.selectSection(document.querySelector('#canvas .section-block'));
+    const made = window.addSlideBlock(); made.block.dataset.animFx = 'slide-wipe'; window.renderSlideBlock(made.block);
+    const b = made.block, [c0, c1] = b.querySelectorAll('.sld-cell'), r = b.getBoundingClientRect(), q0 = c0.getBoundingClientRect(), q1 = c1.getBoundingClientRect();
+    return { same: Math.abs(q0.left - q1.left) <= 1 && Math.abs(q0.width - r.width) <= 1, clip: c0.style.clipPath, line: !!b.querySelector(':scope > .sld-wipe') };
+  });
+  expect(cells, '프레임 칸도 겹침·clip·나눔선').toEqual({ same: true, clip: 'inset(0px 50% 0px 0px)', line: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

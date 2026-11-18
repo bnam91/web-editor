@@ -119,7 +119,7 @@ test('M2 GIF 버튼 → GIF 패널: 슬라이드 효과만 · 글자 칸 숨김 
   const s = await withPhotos(page);
   await page.click('#open-anim-btn');
   await expect(page.locator('#anim-gif-modal'), '[전제] GIF 패널').toBeVisible();
-  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center']);   // 2단계에서 세로 둘 · SLIDE-FX-SINGLE-FRAME-MULTI-01 에서 제자리 둘 · CENTER-CAROUSEL 하나 더함(같은 정확 일치)
+  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe']);   // 2단계에서 세로 둘 · SLIDE-FX-SINGLE-FRAME-MULTI-01 에서 제자리 둘 · CENTER-CAROUSEL 하나 더함(같은 정확 일치)
   await expect(page.locator('#anim-stamp-s0-row'), '글자 칸(도장 시작) 숨김').toBeHidden();
   await expect(page.locator('#anim-per-line'), '글자 칸(줄마다 따로) 숨김').toBeHidden();
   await expect(page.locator('#anim-slide-row'), '방향 칸 보임').toBeVisible();
