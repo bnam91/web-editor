@@ -341,10 +341,22 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
 });
 
 /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01 — 칸은 «펼친» 뒤에만 누를 수 있다(접힌 동안 한 번 = 슬라이드만) ⇒ 접혀 있으면 진짜 두 번 누름으로 펼치고 칸을 누른다 */
+/* 칸 i 고르기(진짜 누름) — 접혔으면 두 번 눌러 펼치고 «펼친 뒤» 점을 다시 잰다 · 고른 칸 = 그 칸 · 패널 그 칸 줄까지 기다림(받은 값 = 진단)
+   (지혜맥 77f0425f4 C2 3번 중 1번 #sld-cell-radius 대기 빨강 — 옛 판은 펼치기 전 점 하나로 두 번 + 한 번 · 고름 확인 없이 다음 줄로 · 어느 쪽에서 졌는지 미확인 ⇒ 고름을 단언으로) */
 const pickCell = async (page, id, i) => {
-  const q = await page.evaluate(({ id, i }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, { id, i });
-  if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) await page.mouse.dblclick(q[0], q[1]);
+  const at = () => page.evaluate(({ id, i }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, { id, i });
+  if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) {
+    const q0 = await at();
+    await page.mouse.dblclick(q0[0], q0[1]);
+    await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[pickCell] 두 번 = 펼침').toBe(true);
+  }
+  const q = await at();
   await page.mouse.click(q[0], q[1]);
+  await expect.poll(() => page.evaluate(({ id, i, q }) => {
+    const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], e = document.elementFromPoint(q[0], q[1]);
+    return { sel: c.classList.contains('selected'), active: window._activeFrame === c, row: document.querySelector('.sld-cell-row.active')?.dataset.idx ?? null,
+      who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, sels: [...document.querySelectorAll('#canvas .selected')].map((x) => `${x.className.split(' ')[0]}#${x.id}`), open: b.classList.contains('sld-unfold') };
+  }, { id, i, q }), `[pickCell] 칸 ${i + 1} 고름 · 받은 값 = 진단`).toMatchObject({ sel: true, active: true, row: String(i) });
 };
 const nSlides = (page) => page.locator('#canvas .slide-block').count();
 
