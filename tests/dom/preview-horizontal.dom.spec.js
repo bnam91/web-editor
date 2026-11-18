@@ -9,7 +9,7 @@
  *   H6 가로에서 섹션 누르면 편집으로 돌아가 그 섹션이 골라진다(같은 페이지)
  *   H7 [r2 · 9500 실측 ◑] 섹션 11개 + 긴 섹션 · 줌 100·50·25 — 첫 섹션 왼끝 ≥ 그릇 왼끝(스크롤 0) · 끝까지 스크롤하면 마지막 섹션이 그릇 안
  *   H8 [r2] 가로 그릇(.preview-page-block) 폭 = 미리보기 창 폭(스크롤바 뺀 clientWidth) — 줌 25 에서도(transform 통째 줄임이면 창의 z 배로 갇힌다)
- *   H10 [r3] 첫·끝 섹션을 각각 그릇 가운데까지 스크롤로 옮길 수 있다(중심 ±2 · 줌 100·25) · 켤 때 = 스크롤 0 에 첫 섹션이 가운데
+ *   H10 [r3] 첫·끝 섹션을 각각 그릇 가운데까지 스크롤로 옮길 수 있다(중심 ±2 · 줌 100·25) · 켤 때 = 스크롤 «둘레 여유(창 폭 반)» 에 첫 섹션이 가운데(hz-pan 261118 · 옛 0)
  *   H11 [r3] 스페이스+드래그 → 그릇 scrollLeft 가 끈 만큼(손끝 따라감) · 편집 캔버스 팬으로 안 샘 · 섹션 점프 안 남 / [음성] 스페이스 없이 끌면 scrollLeft 그대로 · 미리보기 그대로
  *   H12 [r4] 위·아래 여유 — 첫 섹션 윗변을 창 세로 가운데까지 내릴 수 있음 · 가장 키 큰 섹션 아랫변을 가운데까지 올릴 수 있음 · 켤 때 첫 화면에 섹션이 보임 · 줌 100·25
  *   H13 [r5] 맥(body.electron-app.is-mac · editor.js 가 거는 판정 그대로)이면 위쪽 바 첫 단추 왼끝 ≥ 편집 #topbar 의 신호등 여백(같은 값) · [음성] 맥 아님·전체화면이면 그 여백 없음
@@ -19,7 +19,9 @@
  *   H17 [r5] 가로 스크롤러 = #preview-overlay 하나(overflow-x auto · 아래끝 = 창 아래끝) · .preview-page-block overflow visible · 페이지 둘이면 같이 움직임 · 끄면 overlay overflow-x hidden
  *   H18 [r5b] 떠 있는 블럭(z 9999)의 맨 바깥 쌓임 맥락 = #preview-content(position ≠ static · z 0) · 세로·가로 · 잴 블럭 0 이면 빨강 — 스크롤바 hit-test 는 맥 겹침 스크롤바에서 못 재서 버림
  *   H19 [r5] 진입 직후 줌 표시 50% · #preview-content scale(0.5) · 가로 켜도 50 유지(줄 zoom 0.5 · 통째 transform 없음) · 나갔다 다시 들어와도 50
+ *   H20 [PREVIEW-HZ-SPACE-PAN-CHOPPY-01 · 현빈 261118] 켠 «처음 자리»에서 스페이스+대각선 끌기(오른쪽 아래로) → 가로·세로 둘 다 손끝을 따라감(옛 판 = 스크롤 0 이라 가로가 막혀 세로만) · 놓으면 끝 자리 그대로(rAF 로 묶어도 마지막 자리 반영)
  *   H9 [r2] 가로 줌 하한 10(50 밑으로 내려간다) · 세로로 돌아가면 50 으로 · 세로 하한은 50 그대로 · 줌 표시 숫자 맞음
+ * 양성대조 hz-pan: _patches/PVH-CTL6-start-at-zero.patch(켤 때 scrollLeft = 0 으로 되돌림) → H20·H10 빨강(예측).
  * 양성대조 r5: _patches/PVH-CTL5-r5-off.patch(신호등 여백 · hover · 바 drag · 핀치 · 스크롤러 하나 · 쌓임 가둠 끔) → H13~H18 빨강(실측대로 적음).
  * 양성대조 r4: _patches/PVH-CTL4-no-vertical-room.patch(_hzEdgeRoom 의 위·아래 padding 줄 끔) → H12 빨강.
  * 양성대조 r3: _patches/PVH-CTL3-no-edge-pan.patch(_hzEdgeRoom 본문 return · 스페이스 keydown 처리 끔) → H10·H11 빨강.
@@ -195,7 +197,8 @@ const centerGap = (page, which) => page.evaluate((which) => {
 test('H10 첫·끝 섹션을 그릇 가운데까지 — 줌 100·25 · 켤 때 첫 섹션이 가운데', async ({ page }) => {
   const errs = await longScene(page);
   const init = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), S = document.querySelector('#preview-content .preview-page-inner > .section-block').getBoundingClientRect(), O = o.getBoundingClientRect(); return { sl: o.scrollLeft, gap: Math.abs((S.left + S.width / 2) - (O.left + o.clientLeft + o.clientWidth / 2)) }; });
-  expect(init.sl, '켤 때 스크롤 0').toBe(0);
+  /* PREVIEW-HZ-SPACE-PAN-CHOPPY-01(현빈 261118) — 옛 «켤 때 스크롤 0»(= 왼쪽 끝 · 왼쪽으로 못 끎)을 «둘레 여유 = 창 폭 반»으로 바꾼 제품 변경. 가운데 단언은 그대로. */
+  expect(init.sl, '켤 때 왼쪽으로도 끌 여유 = 창 폭 반').toBe(await page.evaluate(() => Math.round(document.getElementById('preview-overlay').clientWidth / 2)));
   expect(init.gap, '★켤 때 첫 섹션이 그릇 가운데').toBeLessThanOrEqual(2);
   for (const z of [100, 25]) {
     await zoomTo(page, z);
@@ -235,6 +238,23 @@ test('H11 스페이스+드래그 = 가로 팬 · 편집 캔버스로 안 샘 / �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 /* r5c — r5b 에서 H11 을 갈아 끼울 때 «H11 머리 ~ 다음 test(» 를 잘라 이 자(H12 가 쓰는 vGap)까지 같이 날렸다 — 되살림(내용 r4 그대로) */
+test('H20 처음 자리에서 대각선 스페이스 끌기 — 가로·세로 둘 다 따라감', async ({ page }) => {
+  const errs = await longScene(page);
+  const sc = () => page.evaluate(() => { const o = document.getElementById('preview-overlay'); return [o.scrollLeft, o.scrollTop]; });
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  const s0 = await sc();   // 켠 그대로(손대지 않음)
+  const c = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect(); return [O.left + o.clientWidth / 2, O.top + o.clientHeight / 2]; });
+  await page.mouse.move(c[0], c[1]);
+  await page.keyboard.down('Space');
+  await page.mouse.down();
+  await page.mouse.move(c[0] + 150, c[1] + 100, { steps: 10 });   // 오른쪽 아래로 끌면 내용이 따라와 스크롤은 왼쪽·위로
+  await page.mouse.up();
+  await page.keyboard.up('Space');
+  const s1 = await sc();
+  expect([s0[0] - s1[0], s0[1] - s1[1]], `★가로·세로 둘 다 끈 만큼(처음 ${s0} → ${s1})`).toEqual([150, 100]);
+  expect(await page.locator('body.preview-mode').count()).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
 const vGap = (page, which) => page.evaluate((which) => {
   const o = document.getElementById('preview-overlay'), ss = [...document.querySelectorAll('#preview-content .preview-page-inner > .section-block')];
   const tall = ss.reduce((a, b) => (b.offsetHeight > a.offsetHeight ? b : a));
