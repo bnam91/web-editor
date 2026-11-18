@@ -3335,7 +3335,7 @@ function _grdIfgSectionHtml(block) {
         </div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">아이콘 크기(%)</span>
+        <span class="prop-label prop-label--auto" title="아이콘 크기(%) — 원 지름은 그대로">아이콘 크기</span>
         <input type="number" class="prop-number" id="grd-ifg-icon-scale" min="20" max="100" step="5" value="${window.ifgIconScaleOf ? window.ifgIconScaleOf(block) : 100}">
       </div>
     </div>`;

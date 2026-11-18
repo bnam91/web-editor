@@ -40,6 +40,8 @@ test('I1 아이콘 크기 — 원 지름 그대로 그림만 줄어듦 · Figma 
   await openPanel();
   const field = page.locator('#grd-ifg-icon-scale');
   await expect(field).toHaveValue('100');
+  /* 지디 실앱 채점 ◑: 라벨 «아이콘 크기(%)» 가 56px 고정 폭에 «아이콘 크…» 로 잘렸다 → 다른 패널과 같은 이름 «아이콘 크기» + .prop-label--auto(내용폭 · editor-props.css 변형) */
+  expect(await page.evaluate(() => { const l = document.getElementById('grd-ifg-icon-scale')?.closest('.prop-row')?.querySelector('.prop-label'); return l ? { t: l.textContent.trim(), cut: l.scrollWidth > l.clientWidth + 0.5 } : null; }), '★아이콘 크기 라벨 글귀 잘림 0').toEqual({ t: '아이콘 크기', cut: false });
   await field.fill('60');
   await field.dispatchEvent('change');
   await expect.poll(async () => (await circles(page, id)).map(c => c.ratio)).toEqual(Array(9).fill(0.6));
