@@ -5,6 +5,9 @@
  * F2 SLIDE-PADDING-EXCLUDE-01: 섹션 좌우 패딩 40 → 패널 «패딩 제외»(#sld-fullbleed · Padding 절) 켜기 = 슬라이드 폭 = 섹션 안쪽 + 2·40 · 왼끝 = 섹션 왼끝 ·
  *    섹션 패딩 20 으로 바꾸면 따라감(−20) · 끄기 = 원래 폭 · ⌘Z 한 번 = 켜기 전
  * 양성대조(CTL · _patches/): F1 = slide-fb-CTL1-no-branch.patch(케이스 A4 판정 덩이 삭제) → F1 빨강(rowLike insert = 옆에 새 에셋)
+ * F3 SLIDE-CELL-SIZE-EACH-01: 패널 사진 줄 폭 %(.sld-w) — 사진1 30 · 사진2 50 → 첫 장면 카드 폭 = 블럭 폭 30%·50% · GIF(slidePlan draw t=0)가 같은 자리
+ *    (카드2 왼끝 = 30% + 간격 · 그 앞뒤 픽셀이 빨강/파랑) · 저장 → 다시 열기 뒤 그대로 · ⌘Z 한 번 = 사진2 바꾸기 전
+ *   F3 단위 짝 = tests/unit/slide-motion.test.mjs S7(CTL3 = drawSlides uniform 고정 → S7 빨강) · DOM CTL = slide-fb-CTL4-no-own-w.patch(renderSlideBlock 칸 폭을 공통으로) → F3 빨강
  *   F2 = slide-fb-CTL2-no-bleed.patch(renderSlideBlock 의 applyBlockFullBleed 줄 삭제) → F2 빨강(켜도 안 넓어짐)
  */
 const { test, expect } = require('@playwright/test');
@@ -87,5 +90,48 @@ test('F2 패딩 제외 — 켜면 섹션 끝까지 · 패딩 바뀌면 따라감
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z');
   await expect.poll(async () => (await geo(page, id)).left, '⌘Z 한 번 = 켜기 전').toBe(40);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const cards = (page, id) => page.evaluate((id) => {
+  const b = document.getElementById(id), br = b.getBoundingClientRect(), k = br.width / b.offsetWidth;
+  return { bw: b.offsetWidth, cards: [...b.querySelectorAll('.sld-card')].map((c) => { const r = c.getBoundingClientRect(); return [Math.round((r.left - br.left) / k), Math.round(r.width / k)]; }), w: JSON.parse(b.dataset.slides).map((x) => x.w ?? null) };
+}, id);
+
+test('F3 칸별 폭 — 첫 장면 · GIF 같은 자리 · 저장 왕복 · ⌘Z', async ({ page }) => {
+  const { errs, id, R, B } = await scene(page, 0);
+  await page.evaluate(({ id, R, B }) => { window.setSlideList(document.getElementById(id), [{ src: R }, { src: B }]); window.selectBlock(id); }, { id, R, B });
+  await page.locator('.sld-photo-row[data-idx="0"] .sld-w').fill('30'); await page.locator('.sld-photo-row[data-idx="0"] .sld-w').dispatchEvent('change');
+  await page.locator('.sld-photo-row[data-idx="1"] .sld-w').fill('50'); await page.locator('.sld-photo-row[data-idx="1"] .sld-w').dispatchEvent('change');
+  const g = await cards(page, id);
+  expect(g.w).toEqual([30, 50]);
+  const gap = 16;   // SLIDE_LAYOUT_DEFAULT.gap
+  expect(Math.abs(g.cards[0][1] - g.bw * 0.3), `카드1 폭 ${g.cards[0][1]} ≈ 30% of ${g.bw}`).toBeLessThanOrEqual(1);
+  expect(Math.abs(g.cards[1][1] - g.bw * 0.5), `카드2 폭 ${g.cards[1][1]}`).toBeLessThanOrEqual(1);
+  expect(Math.abs(g.cards[1][0] - (g.bw * 0.3 + gap)), `카드2 왼끝 ${g.cards[1][0]}`).toBeLessThanOrEqual(1);
+  /* GIF = slidePlan(엔진 미리보기·캔버스 재생·GIF 공용 draw) 한 장면 t=0 · 캔버스 폭 = 블럭 폭(k 1) */
+  const px = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0);
+    const at = (x) => Array.from(ctx.getImageData(Math.round(x), Math.round(H / 2), 1, 1).data);
+    return { a: at(W * 0.3 - 3), gap: at(W * 0.3 + 8), b: at(W * 0.3 + 16 + 3), bEnd: at(W * 0.8 + 16 - 3), after: at(W * 0.8 + 16 + 3) };
+  }, id);
+  expect(px.a.slice(0, 3), 'GIF 카드1 끝 = 빨강').toEqual([255, 0, 0]);
+  expect(px.gap[3], 'GIF 간격 = 빈칸').toBe(0);
+  expect(px.b.slice(0, 3), 'GIF 카드2 시작 = 파랑').toEqual([0, 0, 255]);
+  expect(px.bEnd.slice(0, 3), 'GIF 카드2 끝 = 파랑(폭 50%)').toEqual([0, 0, 255]);
+  expect(px.after[3], 'GIF 카드2 뒤 = 빈칸').toBe(0);
+  /* 저장 → 다시 열기(M5 와 같은 길) */
+  await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  const g2 = await cards(page, id);
+  expect({ w: g2.w, c: g2.cards }).toEqual({ w: g.w, c: g.cards });
+  /* ⌘Z 한 번 = 사진2 50 바꾸기 전 */
+  await page.evaluate((id) => window.selectBlock(id), id);
+  await page.locator('.sld-photo-row[data-idx="1"] .sld-w').fill('70'); await page.locator('.sld-photo-row[data-idx="1"] .sld-w').dispatchEvent('change');
+  expect((await cards(page, id)).w).toEqual([30, 70]);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(async () => (await cards(page, id)).w).toEqual([30, 50]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

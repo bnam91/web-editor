@@ -36,11 +36,23 @@ export function diffFromDefault(v, def) {
   return out;
 }
 
-/** 블럭 px 기하 — 카드 폭 · 한 칸(카드+간격) · 한 주기. bw = 움직임 축 길이(가로 = 블럭 폭 · 세로 = 블럭 높이). */
-export function slideGeom(bw, n, layout) {
+/** 카드 하나 폭 % 소독(SLIDE-CELL-SIZE-EACH-01) — 없거나 숫자 아니면 undefined(= 공통 카드 폭). */
+export const normCardW = (w) => (w === undefined || w === null || w === '' || !Number.isFinite(+w) ? undefined : _num(w, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW));
+
+/** 블럭 px 기하 — 카드 폭 · 한 칸(카드+간격) · 한 주기. bw = 움직임 축 길이(가로 = 블럭 폭 · 세로 = 블럭 높이).
+ *  ws[i] = 카드 i 폭 %(SLIDE-CELL-SIZE-EACH-01 · 없으면 공통 cardW) → cws[i](px) · starts[i] = 앞 카드들 (폭+간격) 누적합 · period = 전부의 합.
+ *  ★칸별 폭이 하나도 없으면 uniform = 옛 셈 그대로(starts = i·step · period = n·step — 부동소수 한 자리까지 같다 · 옛 저장본·GIF 무변). */
+export function slideGeom(bw, n, layout, ws) {
   const L = normLayout(layout);
-  const cw = (bw * L.cardW) / 100, step = cw + L.gap;
-  return { bw, n: Math.max(1, n | 0), cw, gap: L.gap, step, period: Math.max(1, n | 0) * step };
+  const N = Math.max(1, n | 0), cw = (bw * L.cardW) / 100, step = cw + L.gap;
+  const own = Array.from({ length: N }, (_, i) => normCardW(Array.isArray(ws) ? ws[i] : undefined));
+  if (own.every((w) => w === undefined)) {
+    return { bw, n: N, cw, gap: L.gap, step, period: N * step, uniform: true, cws: own.map(() => cw), starts: own.map((_, i) => i * step) };
+  }
+  const cws = own.map((w) => (w === undefined ? cw : (bw * w) / 100));
+  const starts = []; let acc = 0;
+  for (const c of cws) { starts.push(acc); acc += c + L.gap; }
+  return { bw, n: N, cw, gap: L.gap, step, period: acc, uniform: false, cws, starts };
 }
 const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
 
@@ -57,7 +69,9 @@ export function slideOffset(fx, geom, anim, t) {
     const A = normAnim(anim), per = SWIPE_MOVE_S + A.dwell, x = tt * geom.n * per;   // 장마다 [넘김 · 머무름]
     const i = Math.floor(x / per), local = x - i * per;
     const f = local < SWIPE_MOVE_S ? easeInOut(local / SWIPE_MOVE_S) : 1;
-    return ((i + f) * geom.step) % geom.period;
+    if (geom.uniform !== false) return ((i + f) * geom.step) % geom.period;
+    const j = i % geom.n;   // 칸별 폭 — 카드 j 왼끝에서 다음 카드 왼끝까지(그 카드 폭 + 간격)를 f 만큼
+    return (geom.starts[j] + f * (geom.cws[j] + geom.gap)) % geom.period;
   }
   return tt * geom.period;   // tt < 1 ⇒ 이미 < period(옛 `% period` 는 죽은 줄 — MOTION1 CTL1 이 S1 을 못 붉혔다)
 }
@@ -80,12 +94,14 @@ export function drawSlides(ctx, W, H, imgs, geom, s, dir, k, emptyFill = '#e9e9e
   const y = axis === 'y', L = y ? H : W, X = y ? W : H;   // L = 움직임 축 길이 · X = 가로지른 길이(카드가 다 채움)
   const rect = (p, len) => (y ? [0, p, X, len] : [p, 0, len, X]);
   const step = geom.step * k, cw = geom.cw * k, P = geom.period * k, off = (dir === 'right' ? -s : s) * k;
+  const uni = geom.uniform !== false;
   for (let i = 0; i < geom.n; i++) {
-    let x = (i * step - off) % P;
+    const cwi = uni ? cw : geom.cws[i] * k;   // 칸별 폭(SLIDE-CELL-SIZE-EACH-01) · uniform 이면 옛 식 그대로
+    let x = ((uni ? i * step : geom.starts[i] * k) - off) % P;
     if (x > 0) x -= P;   // 주기 하나 왼쪽부터 오른쪽 끝까지
     for (; x < L; x += P) {
-      if (x + cw <= 0) continue;
-      const im = imgs[i], [dx, dy, dw, dh] = rect(x, cw);
+      if (x + cwi <= 0) continue;
+      const im = imgs[i], [dx, dy, dw, dh] = rect(x, cwi);
       if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(dx, dy, dw, dh); continue; }
       const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc;
       ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh);

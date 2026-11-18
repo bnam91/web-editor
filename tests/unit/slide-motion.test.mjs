@@ -6,11 +6,14 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S7 칸별 폭(SLIDE-CELL-SIZE-EACH-01): ws 없음/전부 빈 값 = uniform(옛 셈 그대로 · starts = i×한 칸) · ws 있음 = 카드 왼끝 = 앞 카드 (폭+간격) 누적합 ·
+ *    주기 = 합 · 스와이프 머무름 = 다음 카드 왼끝 · 그림 = 그 자리·그 폭 · 소독 20~100
+ *   양성대조(CTL3 · _patches/slide-fb-CTL3-uniform-draw.patch): drawSlides 의 `const uni = geom.uniform !== false;` → `const uni = true;` → S7 빨강(그림이 균일 자리)
  * 양성대조(예측 · CTL): slideOffset 첫 줄 `const tt = ((t % 1) + 1) % 1;` → `const tt = t;`(한 바퀴 감기 없앰) → S1 빨강(t 1 ≠ 0) · 스와이프 `: 1;` → `: 0;` → S2 빨강 · gifPlan 의 `Math.min(GIF_FRAMES_MAX, …)` 를 `Math.round(s * GIF_FPS_MAX)` 로 → S3 빨강
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
+import { normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
   SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
@@ -102,4 +105,18 @@ test('S6 세로 — 흐름·넘김 셈은 가로와 같고 그림은 y 축', () 
     let reach = 0; for (const [a, b] of spans) { if (a > reach + G.gap * k + 0.01) break; reach = Math.max(reach, b); }
     assert.ok(reach >= H - 0.01, `★offset ${off} 에서 아래가 비었다(${reach})`);
   }
+});
+
+test('S7 칸별 폭 — 없으면 옛 셈 그대로 · 있으면 누적합 · 그림도 그 자리', () => {
+  const U = slideGeom(800, 4, { cardW: 50, gap: 20 }, [undefined, null, '', undefined]);
+  assert.deepEqual([U.uniform, U.cw, U.step, U.period, U.starts], [true, 400, 420, 1680, [0, 420, 840, 1260]], '★칸별 폭 없음 = 옛 기하(무변)');
+  const V = slideGeom(800, 3, { cardW: 50, gap: 20 }, [25, undefined, 75]);   // 200 · 400 · 600
+  assert.deepEqual([V.uniform, V.cws, V.starts, V.period], [false, [200, 400, 600], [0, 220, 640], 1260]);
+  const A = { dwell: 1.5 }, per = SWIPE_MOVE_S + 1.5, T = 3 * per;
+  const at = (sec) => slideOffset('slide-swipe', V, A, sec / T);
+  assert.deepEqual([0, 1, 2].map((i) => at(i * per + SWIPE_MOVE_S + 0.01)), [220, 640, 0], '★머무름 = 다음 카드 왼끝(마지막 뒤 = 처음)');
+  const c = fakeCtx(); drawSlides(c, 1000, 100, IM, V, 0, 'left', 1);
+  const vis = c.calls.filter((q) => q.op === 'img' && q.x >= 0 && q.x < 1000).map((q) => [q.id, q.x, q.w]).sort((a, b) => a[1] - b[1]);
+  assert.deepEqual(vis, [[0, 0, 200], [1, 220, 400], [2, 640, 600]], '★그림 자리·폭 = 칸별');
+  assert.deepEqual([normCardW(5), normCardW(150), normCardW('33'), normCardW(undefined), normCardW('x')], [20, 100, 33, undefined, undefined]);
 });

@@ -11,8 +11,10 @@ import { genId, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW,
 } from '../fx/slide-motion.js';
+/** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
+const _slideOut = (s) => { const w = normCardW(s.w); return w === undefined ? { src: s.src } : { src: s.src, w }; };
 
 const slideImgOk = (s) => typeof s === 'string' && s.length <= 8_000_000 && /^(data:image\/(png|jpe?g|webp|gif);base64,|goya-asset:\/\/)/i.test(s);
 const _json = (s, d) => { try { const v = JSON.parse(s || ''); return v ?? d; } catch (_) { return d; } };
@@ -20,7 +22,7 @@ const _json = (s, d) => { try { const v = JSON.parse(s || ''); return v ?? d; } 
 export function readSlideState(block) {
   const d = block.dataset;
   const raw = _json(d.slides, []);
-  const slides = (Array.isArray(raw) ? raw : []).slice(0, SLIDE_MAX).filter((s) => slideImgOk(s?.src)).map((s) => ({ src: s.src }));
+  const slides = (Array.isArray(raw) ? raw : []).slice(0, SLIDE_MAX).filter((s) => slideImgOk(s?.src)).map(_slideOut);
   return {
     slides,
     layout: normLayout(_json(d.slideLayout, {})),
@@ -31,7 +33,7 @@ export function readSlideState(block) {
 const _setJsonKey = (block, key, obj) => { if (Object.keys(obj).length) block.dataset[key] = JSON.stringify(obj); else delete block.dataset[key]; };
 /** 사진 목록을 고쳐 쓰고 다시 그린다(패널 공용 · 저장소 = dataset.slides 하나). */
 export function setSlideList(block, slides) {
-  block.dataset.slides = JSON.stringify(slides.filter((s) => slideImgOk(s?.src)).slice(0, SLIDE_MAX).map((s) => ({ src: s.src })));
+  block.dataset.slides = JSON.stringify(slides.filter((s) => slideImgOk(s?.src)).slice(0, SLIDE_MAX).map(_slideOut));
   renderSlideBlock(block);
 }
 /** SLIDE-SCRATCH-DND-01 — 그림 한 장을 슬라이드 «끝»에 붙인다(스크래치 끌어 놓기 입구). 이력은 부르는 쪽(scratch-pad onUp)이 한 걸음으로.
@@ -75,7 +77,7 @@ export function renderSlideBlock(block) {
     c.className = 'sld-card';
     c.dataset.idx = String(i);
     if (!s) c.classList.add('sld-card-empty');   // 빈 카드 체커 = CSS 클래스(card-empty-export 조건①: 인라인이면 저장본에 실림)
-    c.style.cssText = `flex:0 0 ${layout.cardW}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;`;
+    c.style.cssText = `flex:0 0 ${s?.w ?? layout.cardW}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;`;   // 칸별 폭(slides[i].w) · 없으면 공통
     if (s) {
       const img = document.createElement('img');
       img.className = 'sld-img';
@@ -122,7 +124,7 @@ export function slideBg(block) {
 export function slidePlan(block, anim, fxOverride) {
   const st = readSlideState(block);
   const A = normAnim(anim || st.anim), fx = SLIDE_FX.includes(fxOverride) ? fxOverride : st.fx;
-  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, st.slides.length || 3, st.layout);
+  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, st.slides.length || 3, st.layout, st.slides.map((s) => s.w));
   const sec = loopSec(fx, geom, A);
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec), gif: gifPlan(sec), fx, anim: A,

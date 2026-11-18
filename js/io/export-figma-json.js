@@ -1193,9 +1193,11 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const { slides, layout, fx } = window.readSlideState(el);
         const _v = window.slideAxis?.(fx) === 'y';   // 2단계 세로 — 같은 셈을 y 로(카드 크기 % = 높이의 %)
         const _bw = Math.round((_ls && _ls.offsetWidth) || el.offsetWidth || w || 0), _L = _v ? Math.round(layout.h) : _bw;
-        const _cw = (_L * layout.cardW) / 100;
-        const images = slides.map((sl, i) => {
-          const p = Math.round(i * (_cw + layout.gap)), len = Math.min(Math.round(_cw), _L - p);
+        let _acc = 0;   // SLIDE-CELL-SIZE-EACH-01 — 카드 왼끝 = 앞 카드들 (폭+간격) 누적합(칸별 폭 slides[i].w · 없으면 공통 cardW · slideGeom 과 같은 식)
+        const images = slides.map((sl) => {
+          const _cw = (_L * (sl.w ?? layout.cardW)) / 100;
+          const p = Math.round(_acc), len = Math.min(Math.round(_cw), _L - p);
+          _acc += _cw + layout.gap;
           return _v ? { src: sl.src, x: 0, y: p, w: _bw, h: len, circle: false } : { src: sl.src, x: p, y: 0, w: len, h: Math.round(layout.h), circle: false };
         }).filter((m) => (_v ? m.y : m.x) < _L && (_v ? m.h : m.w) > 0);
         if (images.length) out.images = images;

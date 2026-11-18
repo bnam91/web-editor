@@ -22,6 +22,7 @@ export function showSlideProperties(block) {
   const photoRows = st.slides.map((s, i) => `<div class="prop-row sld-photo-row" data-idx="${i}">
         <span class="prop-label">사진 ${i + 1}</span>
         <img class="sld-thumb" src="${escHtml(s.src)}" alt="">
+        <input type="number" class="prop-number sld-w" min="20" max="100" step="1" value="${s.w ?? st.layout.cardW}" aria-label="사진 ${i + 1} ${slideAxis(st.fx) === 'y' ? '높이' : '폭'} %">
         <button class="prop-btn sld-up" title="앞으로"${i === 0 ? ' disabled' : ''}>↑</button>
         <button class="prop-btn sld-down" title="뒤로"${i === st.slides.length - 1 ? ' disabled' : ''}>↓</button>
         <button class="prop-btn sld-del" title="빼기">✕</button>
@@ -71,6 +72,8 @@ export function showSlideProperties(block) {
     row.querySelector('.sld-up')?.addEventListener('click', () => move(-1));
     row.querySelector('.sld-down')?.addEventListener('click', () => move(1));
     row.querySelector('.sld-del')?.addEventListener('click', () => { const s = list(); s.splice(i, 1); setSlideList(block, s); commit(); reopen(); });
+    /* SLIDE-CELL-SIZE-EACH-01 — 이 칸만 폭 %(slides[i].w · 소독 normCardW 20~100) · 공통 «카드 폭 %»는 칸별 값 없는 칸만 */
+    row.querySelector('.sld-w')?.addEventListener('change', (e) => { const s = list(); if (!s[i]) return; s[i] = { ...s[i], w: +e.target.value }; setSlideList(block, s); commit(); reopen(); });
   });
   for (const [id, key] of [['sld-cardw', 'cardW'], ['sld-gap', 'gap'], ['sld-h', 'h']]) {
     const sl = $(`${id}-slider`), nu = $(`${id}-number`);
