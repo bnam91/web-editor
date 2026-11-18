@@ -20,6 +20,11 @@ export function showVectorProperties(block) {
   const penFill     = block.dataset.penFill || 'none';
   const fillOn      = penFill && penFill !== 'none';
 
+  /* VECTOR-OVERLAY-TOGGLE-01(현빈 261118): 오버레이(플로팅) — 에셋·아이콘 패널과 «같은 함수»(js/overlay-float.js · window 로 받는다 = prop-iconify 꼴). */
+  const OF = window.OverlayFloat;
+  const floatPosEl = OF?.posElOf(block);
+  const floating = floatPosEl?.dataset.overlayBlock === 'true';
+
   renderPanel(block, {
     header: blockHeaderHTML({
       icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
@@ -64,7 +69,7 @@ export function showVectorProperties(block) {
         <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${strokeWidth}">
         <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${strokeWidth}">
       </div>` : ''),
-      sec('position', `
+      sec('position', `${OF?.floatPositionRowHTML({ prefix: 'vb', posEl: floatPosEl }) || ''}
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
         <input type="number" class="prop-number" id="vb-rotate-deg" style="width:56px;" min="-360" max="360" value="${rotateDeg}">
@@ -89,9 +94,12 @@ export function showVectorProperties(block) {
             <path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/>
           </svg>
         </button>
-      </div>`),
+      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'vb-float-toggle', active: floating }) || '' }),
     ],
   });
+
+  window.wireFloatToggle?.({ block, buttonId: 'vb-float-toggle', rerender: () => { showVectorProperties(block); window.showHandlesFor?.(block); } });
+  window.wireFloatPosition?.({ block, xId: 'vb-x-number', yId: 'vb-y-number' });
 
   // ── transform 적용 ────────────────────────────────────────────────────────────
   function applyTransform() {

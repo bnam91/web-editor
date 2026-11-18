@@ -90,6 +90,7 @@ function _syncPanelXY(posEl) {
                    || document.getElementById('shape-' + suf)
                    || document.getElementById('asset-' + suf)
                    || document.getElementById('icn-' + suf)
+                   || document.getElementById('vb-' + suf)   // VECTOR-OVERLAY-TOGGLE-01 벡터 패널
                    || document.getElementById('lg-' + suf);
   const xN = pick('x-number'), yN = pick('y-number');
   if (xN && xN !== document.activeElement) xN.value = posEl.dataset.offsetX;
