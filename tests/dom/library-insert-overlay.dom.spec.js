@@ -34,7 +34,7 @@ const look = (page) => page.evaluate(() => {
     inSec: ov.every((b) => { const s = b.closest('.section-block'); if (!s) return false; const r = s.getBoundingClientRect(), q = b.getBoundingClientRect(); return q.left >= r.left - 1 && q.right <= r.right + 1 && q.top >= r.top - 1 && q.bottom <= r.bottom + 1; }),
     xs: ov.map((b) => parseInt(window.OverlayFloat.posElOf(b).dataset.offsetX) || 0),
     toast: document.getElementById('editor-toast')?.textContent || '',
-    modal: getComputedStyle(document.getElementById('lib-modal')).display,
+    modal: (() => { const m = document.getElementById('lib-modal'); return m ? getComputedStyle(m).display : null; })(),   // 모달은 처음 열 때 만들어진다(열기 전 g0 = null)
   };
 });
 async function undo3(page) {
