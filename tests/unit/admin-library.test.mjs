@@ -173,6 +173,8 @@ test('A7 viewBox 고침 — 곡선 극값 · 넘을 때만 · use 펼침', () =>
   assert.match(r.svg, new RegExp(`height="${Math.round((50 * h) / 50 * 100) / 100}"`), 'height 도 같은 비로');
   const inside = '<svg viewBox="0 0 100 100"><path d="M10 10L90 90" stroke-width="4" stroke="#000"/></svg>';
   assert.deepEqual([P.fixViewBox(inside).changed, P.fixViewBox(inside).svg], [false, inside], '안쪽이면 글자 그대로');
+  const edge = '<svg viewBox="0 0 100 100"><path d="M0 50H100" stroke-width="20" stroke="#000"/></svg>';
+  assert.equal(P.fixViewBox(edge).changed, false, '패스가 틀 안 = 획 여유만 넘어도 무변(피그마 «안 잘림»과 같은 판정)');
   const fillOnly = '<svg viewBox="0 0 10 10"><path d="M0 0H10V10H0Z" fill="#000"/></svg>';
   assert.equal(P.fixViewBox(fillOnly).changed, false, '채움만 = 획 여유 0 → 딱 맞으면 무변');
   const use = '<svg viewBox="0 0 10 10"><use xlink:href="#s0" fill="black"/><defs><path id="s0" d="M1 1H9V9Z"/></defs></svg>';
