@@ -717,7 +717,9 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await pickCell(page, id, 1);
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 배경 켬(기본)').toBeChecked();
   await expect(page.locator('#sld-cell-bg-hex'), '[전제] 배경색 칸').toHaveCount(1);
-  await page.locator('#sld-cell-bg-on').uncheck({ force: true });   // 토글 겉모양 아래 진짜 체크박스(이 패널 다른 토글과 같은 꼴)
+  /* 지혜맥 ae8952f79 G1 2/2 — 숨은 진짜 체크박스는 uncheck({force}) 로도 «viewport 밖» ⇒ 사람이 누르는 겉모양(.prop-toggle-track)을 누른다(Playwright 가 패널 스크롤로 넣고 누름) */
+  const bgToggle = page.locator('#sld-cell-bg-on + .prop-toggle-track');
+  await bgToggle.click();
   await expect.poll(() => cellBg(page, id, 1), '★끔 = 칸 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
   await expect(page.locator('#sld-cell-bg-hex'), '끈 동안 배경색 칸 없음').toHaveCount(0);
   const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.children?.map((m) => m.block?.bg) ?? null; }, id);
@@ -731,7 +733,8 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   /* 다시 켜고 색 */
   await page.evaluate((id) => window.unfoldSlide(document.getElementById(id), true), id);
   await pickCell(page, id, 1);
-  await page.locator('#sld-cell-bg-on').check({ force: true });
+  await expect(page.locator('#sld-cell-bg-on'), '[전제] 다시 연 패널 = 끔').not.toBeChecked();
+  await bgToggle.click();
   await expect(page.locator('#sld-cell-bg-hex'), '켬 = 배경색 칸').toHaveCount(1);
   await page.evaluate(() => { const inp = document.getElementById('sld-cell-bg-hex'); inp.value = '#FF0000'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); });
   await expect.poll(() => cellBg(page, id, 1).then((v) => v.cs), '★색 = 칸 빨강').toBe('rgb(255, 0, 0)');
