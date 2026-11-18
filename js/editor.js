@@ -3277,7 +3277,7 @@ document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
     // #13 ⌥+a/s/d → 선택 블록을 부모 섹션(section-inner) 기준 좌/중/우 정렬(a=좌·s=중·d=우).
-    //   숫자 네임스페이스(갭 프리셋 1~8·텍스트타입 1~4) 충돌 회피 위해 ⌥+숫자에서 ⌥+글자로 이전(현빈 지시).
+    //   숫자 네임스페이스(갭 프리셋 1~8·텍스트타입 1~5) 충돌 회피 위해 ⌥+숫자에서 ⌥+글자로 이전(현빈 지시).
     //   ★add-asset(plain A)·add-section(plain S)보다 «먼저» 선점 — alt 요구라 plain A/S/D는 이 분기를 스킵해 기존 동작 유지.
     //   ★preventDefault로 맥 Option+letter 특수문자(å/ß/∂) 삽입 억제. 편집 중은 상단(1183 contentEditable 가드)에서 이미 차단.
     if (e.altKey && ['KeyA', 'KeyS', 'KeyD'].includes(e.code) && !document.querySelector('.text-block.editing')) {
@@ -3359,9 +3359,9 @@ document.addEventListener('keydown', e => {
       }
     }
 
-    // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body (텍스트 편집 중이면 무시)
+    // 텍스트 타입 단축키: 1=H1, 2=H2, 3=H3, 4=Body, 5=Caption (텍스트 편집 중이면 무시)
     // !e.altKey 가드(유지): 정렬이 ⌥+a/s/d로 이전됐어도 ⌥+숫자는 inert로 둔다(오발동 방지). plain 숫자는 정상.
-    if (!e.altKey && ['Digit1','Digit2','Digit3','Digit4'].includes(e.code)) {
+    if (!e.altKey && ['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
       if (document.querySelector('.text-block.editing')) return; // 편집 중 차단
       const tb = document.querySelector('.text-block.selected');
       if (!tb) return;
@@ -3374,8 +3374,8 @@ document.addEventListener('keydown', e => {
         return;
       }
       e.preventDefault();
-      const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'] };
-      const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.' };
+      const typeMap = { 'Digit1': ['tb-h1','heading'], 'Digit2': ['tb-h2','heading'], 'Digit3': ['tb-h3','heading'], 'Digit4': ['tb-body','body'], 'Digit5': ['tb-caption','caption'] };
+      const phMap = { 'tb-h1':'제목을 입력하세요', 'tb-h2':'소제목을 입력하세요', 'tb-h3':'소항목을 입력하세요', 'tb-body':'본문 내용을 입력하세요.', 'tb-caption':'캡션을 입력하세요' };
       const [cls, dtype] = typeMap[e.code];
       const contentEl = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label,.tb-bullet');
       if (!contentEl) return;
@@ -3404,7 +3404,7 @@ document.addEventListener('keydown', e => {
       // 레이어 패널 이름 동기화: 자동이름 모드(사용자 rename 없음)일 때만 유형 라벨 갱신
       if (!tb.dataset.layerName) {
         const nameSpan = tb._layerItem?.querySelector('.layer-item-name');
-        if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : 'Body';
+        if (nameSpan) nameSpan.textContent = (dtype === 'heading') ? 'Heading' : (dtype === 'caption') ? 'Caption' : 'Body';
       }
       afterTextTypeChange(contentEl);   // 0920r4 texttype: 새 타입 기준으로 그라데이션 글자 그림자 파생값 재계산
       window.showTextProperties?.(tb);
