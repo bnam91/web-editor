@@ -7,10 +7,12 @@
  *    GIF t=0 = 같은 자리(가운데 파랑 · 왼끝 빨강 · 오른끝 초록) · 머무름 = 초록 가운데
  * D4 SLIDE-FX-BEFORE-AFTER-WIPE-01(P127·128): 전후 비교 · 빨강(전)·파랑(후) → 첫 장면 = 왼쪽 반 빨강·오른쪽 반 파랑(겹침 + clip · 클릭 판정도) · 나눔선 가운데 ·
  *    GIF t=0 = 같은 자리 · t=¼ = 나눔선 80%(70% 자리가 빨강) · 프레임 모드 칸도 겹침
+ * D5 SLIDE-FX-OVERLAP-GAP-01(P223): 카드 폭 50 · 간격 −40 → 첫 장면 둘째 왼끝 = 첫째 오른끝 − 40 · 겹친 자리 = 둘째(위) · GIF t=0 겹친 자리 = 파랑(같음) · 패널 간격 −40 까지 · 프레임 칸도
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
  *   slide-fx-CTL4-wipe-no-clip.patch(첫 장면 전 카드 clip 삭제) → D4 빨강(오른쪽 반도 빨강) — 예측
+ *   slide-fx-CTL5-no-neg-margin.patch(사진 모드 음수 margin 삭제) → D5 빨강(첫 장면이 안 겹침 · GIF 와 다름) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -137,5 +139,32 @@ test('D4 전후 비교 — 첫 장면 반반·나눔선 = GIF t=0 · ¼ 에 80% 
     return { same: Math.abs(q0.left - q1.left) <= 1 && Math.abs(q0.width - r.width) <= 1, clip: c0.style.clipPath, line: !!b.querySelector(':scope > .sld-wipe') };
   });
   expect(cells, '프레임 칸도 겹침·clip·나눔선').toEqual({ same: true, clip: 'inset(0px 50% 0px 0px)', line: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D5 겹침 간격 — 첫 장면 겹침 = GIF · 뒤 카드 위 · 패널 −40 · 프레임 칸도', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-flow' });
+  await page.evaluate((id) => { window.setSlideLayout(document.getElementById(id), { cardW: 50 }); window.selectBlock(id); }, id);
+  await page.fill('#sld-gap-number', '-40'); await page.locator('#sld-gap-number').dispatchEvent('change');
+  const dom = await page.evaluate((id) => {
+    const b = document.getElementById(id), br = b.getBoundingClientRect(), k = br.width / b.offsetWidth, [c0, c1] = b.querySelectorAll('.sld-card');
+    const r0 = c0.getBoundingClientRect(), r1 = c1.getBoundingClientRect(), x = (r0.right + r1.left) / 2, e = document.elementFromPoint(x, r0.top + r0.height / 2);
+    return { gap: JSON.parse(b.dataset.slideLayout || '{}').gap, ov: Math.round((r0.right - r1.left) / k), top: c1 === e || c1.contains(e), xm: (x - br.left) / k };
+  }, id);
+  expect({ gap: dom.gap, ov: dom.ov, top: dom.top }, '★첫 장면 겹침 40 · 겹친 자리 = 둘째(위)').toEqual({ gap: -40, ov: 40, top: true });
+  const g = await page.evaluate(async ({ id, xm }) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
+    window.slidePlan(b).draw(ctx, W, H, null, 0);
+    return Array.from(ctx.getImageData(Math.round(xm), Math.round(H / 2), 1, 1).data).slice(0, 3);
+  }, { id, xm: dom.xm });
+  expect(g, '★GIF t=0 겹친 자리 = 파랑(첫 장면과 같음)').toEqual([0, 0, 255]);
+  const cell = await page.evaluate(async () => {
+    window.selectSection(document.querySelector('#canvas .section-block'));
+    const made = window.addSlideBlock(); window.setSlideLayout(made.block, { cardW: 50, gap: -40 });
+    const [c0, c1] = made.block.querySelectorAll('.sld-cell'), k = made.block.getBoundingClientRect().width / made.block.offsetWidth;
+    return Math.round((c0.getBoundingClientRect().right - c1.getBoundingClientRect().left) / k);
+  });
+  expect(cell, '프레임 칸도 겹침 40').toBe(40);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

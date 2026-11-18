@@ -48,7 +48,8 @@ const _num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite
 /** 내용 배치 소독 — 카드 폭 % · 간격 px · 블럭 높이 px. */
 export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
-  return { cardW: _num(s.cardW, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW), gap: _num(s.gap, 0, 80, SLIDE_LAYOUT_DEFAULT.gap), h: _num(s.h, 120, 1200, SLIDE_LAYOUT_DEFAULT.h),
+  /* SLIDE-FX-OVERLAP-GAP-01(P223) — 간격 −80 까지(음수 = 카드가 겹친다 · 뒤 카드가 위 · 첫 장면 DOM = 음수 margin · GIF = drawSlides 그대로) */
+  return { cardW: _num(s.cardW, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW), gap: _num(s.gap, -80, 80, SLIDE_LAYOUT_DEFAULT.gap), h: _num(s.h, 120, 1200, SLIDE_LAYOUT_DEFAULT.h),
     dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots };
 }
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
@@ -71,14 +72,14 @@ export const normCardW = (w) => (w === undefined || w === null || w === '' || !N
  *  ★칸별 폭이 하나도 없으면 uniform = 옛 셈 그대로(starts = i·step · period = n·step — 부동소수 한 자리까지 같다 · 옛 저장본·GIF 무변). */
 export function slideGeom(bw, n, layout, ws) {
   const L = normLayout(layout);
-  const N = Math.max(1, n | 0), cw = (bw * L.cardW) / 100, step = cw + L.gap;
+  const N = Math.max(1, n | 0), cw = (bw * L.cardW) / 100, step = Math.max(1, cw + L.gap);   // 겹쳐도 한 칸 ≥ 1px(주기 0 방지)
   const own = Array.from({ length: N }, (_, i) => normCardW(Array.isArray(ws) ? ws[i] : undefined));
   if (own.every((w) => w === undefined)) {
     return { bw, n: N, cw, gap: L.gap, step, period: N * step, uniform: true, cws: own.map(() => cw), starts: own.map((_, i) => i * step) };
   }
   const cws = own.map((w) => (w === undefined ? cw : (bw * w) / 100));
   const starts = []; let acc = 0;
-  for (const c of cws) { starts.push(acc); acc += c + L.gap; }
+  for (const c of cws) { starts.push(acc); acc += Math.max(1, c + L.gap); }
   return { bw, n: N, cw, gap: L.gap, step, period: acc, uniform: false, cws, starts };
 }
 const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
@@ -177,17 +178,20 @@ export function drawSlides(ctx, W, H, imgs, geom, s, dir, k, emptyFill = '#e9e9e
   const y = axis === 'y', L = y ? H : W, X = y ? W : H;   // L = 움직임 축 길이 · X = 가로지른 길이(카드가 다 채움)
   const rect = (p, len) => (y ? [0, p, X, len] : [p, 0, len, X]);
   const step = geom.step * k, cw = geom.cw * k, P = geom.period * k, off = (dir === 'right' ? -s : s) * k;
-  const uni = geom.uniform !== false;
+  /* ★자리 순서로 그린다(왼→오 · 위→아래) — 겹침(음수 간격 · OVERLAP-GAP)에서 «더 나아간» 카드가 위 = 첫 장면 DOM(뒤 요소가 위)과 같다.
+     카드 번호 순으로 그리면 감아 붙인 마지막 카드(왼쪽 −주기 자리)가 첫 카드 «위»에 그려져 t=0 부터 첫 장면과 달랐다. 안 겹치면 순서는 픽셀에 무관. */
+  const uni = geom.uniform !== false, items = [];
   for (let i = 0; i < geom.n; i++) {
     const cwi = uni ? cw : geom.cws[i] * k;   // 칸별 폭(SLIDE-CELL-SIZE-EACH-01) · uniform 이면 옛 식 그대로
     let x = ((uni ? i * step : geom.starts[i] * k) - off) % P;
     if (x > 0) x -= P;   // 주기 하나 왼쪽부터 오른쪽 끝까지
-    for (; x < L; x += P) {
-      if (x + cwi <= 0) continue;
-      const im = imgs[i], [dx, dy, dw, dh] = rect(x, cwi);
-      if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(dx, dy, dw, dh); continue; }
-      const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc;
-      ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh);
-    }
+    for (; x < L; x += P) if (x + cwi > 0) items.push([x, i, cwi]);
+  }
+  items.sort((a, b) => a[0] - b[0]);
+  for (const [x, i, cwi] of items) {
+    const im = imgs[i], [dx, dy, dw, dh] = rect(x, cwi);
+    if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(dx, dy, dw, dh); continue; }
+    const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc;
+    ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh);
   }
 }

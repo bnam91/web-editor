@@ -6,6 +6,7 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S12 겹침 간격(SLIDE-FX-OVERLAP-GAP-01): 간격 −80 까지(−99 → −80) · 한 칸 = 카드 + 간격 · ★그림 = 자리 순서(감긴 마지막 카드가 첫 카드 밑 · 뒤 카드 위)
  * S11 전후 비교(SLIDE-FX-BEFORE-AFTER-WIPE-01): 나눔선 t=0 = 0.5(첫 장면) · ¼ = 0.8 · ¾ = 0.2 · 한 바퀴 = WIPE_S ÷ 속도 · 그리기 = 후 꽉 → 전 clip(0..p·W) → 선 → 손잡이
  * S10 가운데 캐러셀(SLIDE-FX-CENTER-CAROUSEL-01): t=0 = 둘째 카드 가운데(s = 시작₁ − (bw−cw)/2) · 머무름 = 셋째 가운데 · 마지막 → 첫째(주기 끝) · 앞 번호 · 첫 장면 밀기 글자
  * S9 제자리(SLIDE-FX-SINGLE-FRAME-MULTI-01): 넘김과 같은 박자(loopSec 같음) · 바뀜 중 f 0→1 · 머무름 f 1 · 마지막 → 처음 · 페이드 = to 알파 f · 컷 = f<1 from / 1 to · 보이는 번호
@@ -181,4 +182,14 @@ test('S11 전후 비교 — 나눔선 자리 · 한 바퀴 · 그리기 순서',
   const log = []; const ctx = { save() {}, restore() {}, beginPath() {}, clip() { log.push('clip'); }, rect(x, y, w) { log.push(['rect', w]); }, set fillStyle(v) {}, fillRect(x) { log.push(['line', Math.round(x)]); }, arc(x) { log.push(['knob', x]); }, fill() {}, drawImage(im) { log.push(['img', im.id]); } };
   drawWipe(ctx, 200, 100, [{ id: 'before', width: 10, height: 10 }, { id: 'after', width: 10, height: 10 }], 0.3, 1);
   assert.deepEqual(log, [['img', 'after'], ['rect', 60], 'clip', ['img', 'before'], ['line', 59], ['knob', 60]]);
+});
+
+test('S12 겹침 간격 — 소독 · 한 칸 · 그림 순서', () => {
+  assert.equal(normLayout({ gap: -99 }).gap, -80);
+  assert.equal(normLayout({ gap: -30 }).gap, -30);
+  const O = slideGeom(800, 3, { cardW: 50, gap: -40 });   // 카드 400 · 한 칸 360
+  assert.deepEqual([O.step, O.period, O.starts], [360, 1080, [0, 360, 720]]);
+  const c = fakeCtx(); drawSlides(c, 1000, 100, IM, O, 0, 'left', 1);
+  assert.deepEqual(c.calls.filter((q) => q.op === 'img').map((q) => [q.id, q.x]), [[2, -360], [0, 0], [1, 360], [2, 720]],
+    '★자리 순서로 그림(왼→오) — 감긴 셋째(−360)가 첫째 «밑» · 뒤 카드가 위 = 첫 장면 DOM 과 같음');
 });

@@ -60,7 +60,7 @@ export function showSlideProperties(block, opts = {}) {
       ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
       ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}`),
       sec('layout', `
-      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
+      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: -80, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
       <div class="prop-row"><span class="prop-label">점 표시</span><select class="prop-select" id="sld-dots">
         ${[['none', '없음'], ['top', '위'], ['bottom', '아래']].map(([v, t]) => `<option value="${v}"${st.layout.dots === v ? ' selected' : ''}>${t}</option>`).join('')}
       </select></div>`}`),

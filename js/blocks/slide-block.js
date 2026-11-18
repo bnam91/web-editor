@@ -221,14 +221,15 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
   let track = block.querySelector(':scope > .sld-track');
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
   const pos = _dotsPos(layout, vert, wipe ? 'slide-wipe' : '');
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${inPlace ? 0 : layout.gap}px;width:100%;${_trackBox(pos)}${wipe ? 'position:relative;' : ''}`;
+  const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = flex gap 0 + 둘째부터 음수 margin(겹침 · 뒤 칸이 위)
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${wipe ? 'position:relative;' : ''}`;
   _renderDots(block, slideCells(block).length, pos, center && slideCells(block).length > 1 ? 1 : 0);
   if (center) track.style.transform = `translateX(${centerTrackShift(slideCells(block).map((c) => normCardW(c.dataset.w) ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면(스타일만)
   slideCells(block).forEach((c, i) => {
     c.dataset.idx = String(i);
     const w = inPlace ? 100 : (normCardW(c.dataset.w) ?? layout.cardW);   // 제자리 효과 = 칸이 블럭 꽉(칸별 폭은 그 효과 동안 안 씀 · 값은 그대로)
     /* 프레임 기본 꼴의 px 폭·높이·가운데 마진을 칸 자리로 덮는다(스타일만 · 자식 무접촉) */
-    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : '100%', minHeight: '0', maxWidth: 'none', margin: '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '' });   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
+    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : '100%', minHeight: '0', maxWidth: 'none', margin: i && neg ? (vert ? `${neg}px 0 0 0` : `0 0 0 ${neg}px`) : '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '' });   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
   });
 }
 
@@ -252,7 +253,8 @@ export function renderSlideBlock(block) {
   track.className = 'sld-track';
   const pos = _dotsPos(layout, vert, fx);
   const inPlace = slideInPlace(fx);   // 제자리 효과 = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${inPlace ? 0 : layout.gap}px;width:100%;${_trackBox(pos)}${slideWipe(fx) ? 'position:relative;' : ''}`;
+  const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = 겹침(프레임 칸과 같은 꼴)
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos)}${slideWipe(fx) ? 'position:relative;' : ''}`;
   const cards = slides.length ? slides : [null, null, null];
   if (slideCentered(fx)) track.style.transform = `translateX(${centerTrackShift(cards.map((s) => s?.w ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면
   cards.forEach((s, i) => {
@@ -260,7 +262,7 @@ export function renderSlideBlock(block) {
     c.className = 'sld-card';
     c.dataset.idx = String(i);
     if (!s) c.classList.add('sld-card-empty');   // 빈 카드 체커 = CSS 클래스(card-empty-export 조건①: 인라인이면 저장본에 실림)
-    c.style.cssText = `flex:0 0 ${inPlace ? 100 : (s?.w ?? layout.cardW)}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;`;   // 칸별 폭(slides[i].w) · 없으면 공통
+    c.style.cssText = `flex:0 0 ${inPlace ? 100 : (s?.w ?? layout.cardW)}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;${i && neg ? `margin-${vert ? 'top' : 'left'}:${neg}px;` : ''}`;   // 칸별 폭(slides[i].w) · 없으면 공통
     if (s) {
       const img = document.createElement('img');
       img.className = 'sld-img';
@@ -313,9 +315,9 @@ async function _frameCellImgs(block) {
           const track = cb?.querySelector(':scope > .sld-track');
           if (!cb || !track) throw new Error('클론에서 슬라이드를 못 찾음');
           Object.assign(cb.style, { height: 'auto', overflow: 'visible' });
-          Object.assign(track.style, { flexWrap: 'wrap', height: 'auto', flexDirection: 'row', transform: 'none', position: 'static' });   // 가운데 캐러셀 첫 장면 밀기는 찍을 때 걷는다(칸 사각형이 클론 밖으로 안 나가게)
+          Object.assign(track.style, { flexWrap: 'wrap', height: 'auto', flexDirection: 'row', transform: 'none', position: 'static', gap: '8px' });   // 겹침(음수 간격)도 찍을 땐 떼어 놓는다(칸마다 제 그림만)   // 가운데 캐러셀 첫 장면 밀기는 찍을 때 걷는다(칸 사각형이 클론 밖으로 안 나가게)
           const cc = [...track.querySelectorAll(':scope > .sld-cell')];
-          cc.forEach((c, i) => Object.assign(c.style, { flex: `0 0 ${sizes[i][0]}px`, width: `${sizes[i][0]}px`, height: `${sizes[i][1]}px`, position: 'relative', inset: 'auto', clipPath: 'none', display: '' }));   // 전후 비교 겹침·clip·숨김도 찍을 땐 걷음(칸 전부 · 제 모양)
+          cc.forEach((c, i) => Object.assign(c.style, { flex: `0 0 ${sizes[i][0]}px`, width: `${sizes[i][0]}px`, height: `${sizes[i][1]}px`, position: 'relative', inset: 'auto', clipPath: 'none', display: '', margin: '0' }));   // 전후 비교 겹침·clip·숨김도 찍을 땐 걷음(칸 전부 · 제 모양)
           cb.querySelector(':scope > .sld-wipe')?.remove();
           const cr = clone.getBoundingClientRect(), rects = cc.map((c) => c.getBoundingClientRect());
           const cap = await captureCloneToCanvas(clone, w, sectionBgColor(sec), native, sec);
