@@ -20,7 +20,15 @@
  * ── 커밋 5 ──
  * F4 옛 사진 모드 저장본(빨강·파랑 2장 · 칸 1 폭 40) — 저장→다시 열기→다시 저장 = 저장본 canvas 글자 그대로(변환 0) · 패널 «프레임으로 바꾸기»(진짜 클릭)
  *    → 프레임 칸 2 · 칸마다 그 사진 에셋(칸 꽉) · 칸 1 data-w 40 · data-slides 걷힘 · ⌘Z 한 번 = 사진 모드(사진 2 · 카드 2 · 칸 0)
+ * ── 적대 리뷰(261118 · 지디) 고침 ──
+ * F0 + [높음2] ⌘Z 뒤·다시 열기 뒤 칸 높이 = 블럭 높이(옛 판 = makeFrameBlock data-height 520 이 rebindAll 로 박힘)
+ * R1 [높음1] 칸 고르고 Delete = 그 칸만(칸 2) · 슬라이드 그대로 · ⌘Z = 칸 3 · 한 칸이면 Delete 무동작 · ⌘X 무동작 · ⌘C → ⌘V 해도 슬라이드 1
+ * R3 [중간3] 프레임 모드 슬라이드 칸 위 스크래치 놓기 = 판정 slidecell · 그 칸 안 에셋 · data-slides 무변([] 그대로) · 옆 새 에셋 0
+ * R4 [중간4] 칸만 고른 ⌘D = 무동작(슬라이드 1 · 칸 안 중첩 0) · 칸 안 글자 고른 ⌘D = 그 칸 안에 하나 더(종전 블럭 갈래)
+ * R5 [낮음5] GIF 캐시 키가 짧다(innerHTML 통째 아님 · 길이 < 80) · 칸 안이 바뀌면 키가 바뀐다
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL7-delete-row.patch(editor.js 칸 삭제 갈래 삭제) → R1 빨강 · slide-frame-CTL8-height-520.patch(makeSlideCell 크기 키 지우기 + rebindAll 칸 제외 둘 다 되돌림) → F0 빨강(칸 520) ·
+ *   slide-frame-CTL9-scratch-slides.patch(스크래치 프레임 모드 갈래 삭제 + appendSlideImage 가드 삭제) → R3 빨강 · slide-frame-CTL10-dup-cell.patch(⌘D 칸 가드 삭제) → R4 빨강 · slide-frame-CTL11-key-html.patch(키 = innerHTML) → R5 빨강 — 예측
  *   slide-frame-CTL6-no-convert.patch(패널 «프레임으로 바꾸기» 배선 삭제) → F4 빨강 — 예측
  *   slide-frame-CTL5-figma-images.patch(Figma 프레임 갈래 조건을 false → 옛 images 갈래) → F6 빨강 — 예측
  *   slide-frame-CTL4-no-frame-prepare.patch(slidePrepare 프레임 갈래 삭제 → 사진 길) → F3 빨강(칸 그림 0) — 예측
@@ -52,6 +60,7 @@ const st = (page, id) => page.evaluate((id) => {
     kids: cells.map((c) => [...c.querySelectorAll('.text-block')].map((t) => t.id)),
     text: cells.map((c) => c.textContent.trim()),
     gap: b.querySelector(':scope > .sld-track')?.style.gap || '',
+    hOk: cells.every((c) => Math.abs(c.offsetHeight - b.clientHeight) <= 1), hs: cells.map((c) => c.offsetHeight), bh: b.clientHeight,   // 적대 리뷰 [높음2] 칸 높이 = 블럭 높이(520 고정 아님)
   };
 }, id);
 async function key(page, k) { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press(k); }
@@ -74,6 +83,7 @@ test('F0 ★칸 안 글자 — 값 바꿈·⌘Z·⌘⇧Z·저장 왕복에도 �
   expect((await st(page, id)).kids[1], '간격만 되돌림 · 글자 있음').toEqual([tid]);
   await key(page, 'Meta+z');
   await expect.poll(async () => (await st(page, id))?.kids[1].length, '⌘Z 2 = 글자 넣기 전').toBe(0);
+  expect((await st(page, id)).hOk, `★⌘Z 뒤 칸 높이 = 블럭 높이 ${JSON.stringify(await st(page, id))}`).toBe(true);
   expect((await st(page, id)).cells, '칸 3 그대로').toBe(3);
   await key(page, 'Meta+Shift+z');
   await expect.poll(async () => (await st(page, id))?.kids[1], '⌘⇧Z = 글자 다시').toEqual([tid]);
@@ -81,6 +91,7 @@ test('F0 ★칸 안 글자 — 값 바꿈·⌘Z·⌘⇧Z·저장 왕복에도 �
   await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
   const s3 = await st(page, id);
   expect({ mode: s3?.mode, cells: s3?.cells, layouts: s3?.layouts, kid: s3?.kids[1] }, '★다시 열어도 칸 2 안 글자').toEqual({ mode: 'frame', cells: 3, layouts: ['free', 'free', 'free'], kid: [tid] });
+  expect(s3.hOk, `★다시 열어도 칸 높이 = 블럭 높이(${s3.bh}) — ${s3.hs}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -286,5 +297,77 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
   await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return { mode: b.dataset.cellMode || null, n: JSON.parse(b.dataset.slides || '[]').length, cards: b.querySelectorAll('.sld-card').length, cells: b.querySelectorAll('.sld-cell').length }; }, id),
     '★⌘Z 한 번 = 사진 모드').toEqual({ mode: null, n: 2, cards: 2, cells: 0 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+const pickCell = async (page, id, i) => {
+  const q = await page.evaluate(({ id, i }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, { id, i });
+  await page.mouse.click(q[0], q[1]);
+};
+const nSlides = (page) => page.locator('#canvas .slide-block').count();
+
+test('R1 칸 Delete = 그 칸만 · 한 칸이면 무동작 · ⌘X·⌘C 는 슬라이드를 안 건드림', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const c0 = await cellIds(page, id);
+  await pickCell(page, id, 1);
+  await key(page, 'Delete');
+  await expect.poll(() => cellIds(page, id), '★Delete = 칸 2 만 빠짐').toEqual([c0[0], c0[2]]);
+  expect(await nSlides(page), '슬라이드 그대로').toBe(1);
+  await key(page, 'Meta+z');
+  await expect.poll(() => cellIds(page, id), '⌘Z = 칸 3').toEqual(c0);
+  await pickCell(page, id, 0);
+  await key(page, 'Meta+x');
+  expect({ n: await nSlides(page), cells: await cellIds(page, id) }, '★⌘X 무동작').toEqual({ n: 1, cells: c0 });
+  await pickCell(page, id, 0);
+  await key(page, 'Meta+c');
+  await page.evaluate(() => { window.deselectAll(); window.selectSection(document.querySelector('#canvas .section-block')); });
+  await key(page, 'Meta+v');
+  expect(await nSlides(page), '★⌘C(칸) → ⌘V 해도 슬라이드 1').toBe(1);
+  /* 한 칸이면 Delete 무동작 */
+  await page.evaluate((id) => { const b = document.getElementById(id); b.querySelectorAll('.sld-cell').forEach((c, i) => { if (i) c.remove(); }); window.renderSlideBlock(b); }, id);
+  await pickCell(page, id, 0);
+  await key(page, 'Delete');
+  expect({ n: await nSlides(page), cells: (await cellIds(page, id)).length }, '★마지막 칸 Delete 무동작').toEqual({ n: 1, cells: 1 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R3 프레임 모드 슬라이드 칸 위 스크래치 놓기 = 그 칸 안 · data-slides 무변', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const png = await page.evaluate(() => { const cv = document.createElement('canvas'); cv.width = 40; cv.height = 30; cv.getContext('2d').fillRect(0, 0, 40, 30); return cv.toDataURL('image/png'); });
+  const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[0].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  const a0 = await page.locator('#canvas .asset-block').count();
+  expect(await page.evaluate(({ x, y }) => window.previewScratchDropAt(x, y), p)).toBe('slidecell');
+  const ok = await page.evaluate(({ x, y, src }) => { const r = window.commitScratchDropAt(x, y, src); window.clearScratchDropGuides?.(); return r; }, { ...p, src: png });
+  expect(ok).toBe(true);
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); return { slides: b.dataset.slides, inCell: b.querySelectorAll('.sld-cell')[0].querySelectorAll('.asset-block').length }; }, id);
+  expect(r, '★칸 1 안 에셋 · data-slides 그대로([])').toEqual({ slides: '[]', inCell: 1 });
+  expect(await page.locator('#canvas .asset-block').count(), '새 에셋은 그 칸 안 하나뿐').toBe(a0 + 1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R4 칸만 고른 ⌘D = 무동작 · 칸 안 글자 고른 ⌘D = 그 칸 안에 하나 더', async ({ page }) => {
+  const { errs, id } = await withText(page);
+  await pickCell(page, id, 1);
+  await key(page, 'Meta+d');
+  const r = await page.evaluate((id) => { const b = document.getElementById(id); return { nested: b.querySelectorAll('.sld-cell .slide-block').length, cells: b.querySelectorAll('.sld-cell').length }; }, id);
+  expect({ n: await nSlides(page), ...r }, '★칸 ⌘D 무동작(슬라이드 1 · 중첩 0)').toEqual({ n: 1, nested: 0, cells: 3 });
+  await page.evaluate((id) => { const t = document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelector('.text-block'); window.deselectAll(); window.selectBlock(t.id); }, id);
+  await key(page, 'Meta+d');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelectorAll('.text-block').length, id), '칸 안 글자 ⌘D = 그 칸 안 2').toBe(2);
+  expect(await nSlides(page)).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R5 GIF 캐시 키 짧음 · 칸 안이 바뀌면 키 바뀜', async ({ page }) => {
+  const { errs, id } = await withText(page);
+  const r = await page.evaluate(async (id) => {
+    const b = document.getElementById(id);
+    await window.slidePrepare(b); const k1 = b._sldImgs?.key || '';
+    b.querySelectorAll('.sld-cell')[0].appendChild(Object.assign(document.createElement('span'), { textContent: 'x' }));
+    await window.slidePrepare(b); const k2 = b._sldImgs?.key || '';
+    return { len: k1.length, changed: k1 !== k2, html: b.innerHTML.length };
+  }, id);
+  expect(r.len, `★키 길이 ${r.len}(innerHTML ${r.html})`).toBeLessThan(80);
+  expect(r.changed, '칸 안 바뀜 = 키 바뀜').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

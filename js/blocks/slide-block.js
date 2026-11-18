@@ -35,12 +35,14 @@ export function readSlideState(block) {
 const _setJsonKey = (block, key, obj) => { if (Object.keys(obj).length) block.dataset[key] = JSON.stringify(obj); else delete block.dataset[key]; };
 /** 사진 목록을 고쳐 쓰고 다시 그린다(패널 공용 · 저장소 = dataset.slides 하나). */
 export function setSlideList(block, slides) {
+  if (isFrameSlide(block)) return;   // 적대 리뷰 [중간3] — 프레임 모드 정본은 DOM · dataset.slides 에 쌓으면 화면 변화 0 인 숨은 데이터(base64)만 는다
   block.dataset.slides = JSON.stringify(slides.filter((s) => slideImgOk(s?.src)).slice(0, SLIDE_MAX).map(_slideOut));
   renderSlideBlock(block);
 }
 /** SLIDE-SCRATCH-DND-01 — 그림 한 장을 슬라이드 «끝»에 붙인다(스크래치 끌어 놓기 입구). 이력은 부르는 쪽(scratch-pad onUp)이 한 걸음으로.
  *  가득(SLIDE_MAX) · 받지 않는 주소(slideImgOk)면 안 붙이고 말한다 → false. */
 export function appendSlideImage(block, src) {
+  if (isFrameSlide(block)) return false;   // 적대 리뷰 [중간3] — 프레임 모드는 칸에 넣는다(appendSlideCellImage)
   const { slides } = readSlideState(block);
   if (slides.length >= SLIDE_MAX) { window.showToast?.(`슬라이드는 ${SLIDE_MAX}장까지예요`); return false; }
   if (!slideImgOk(src)) { window.showToast?.('이 그림은 슬라이드에 넣을 수 없어요(PNG·JPG·WebP·GIF)'); return false; }
@@ -82,13 +84,7 @@ export function convertSlideToFrames(block) {
   const cells = (slides.length ? slides : [null, null, null]).map((s) => {
     const c = makeSlideCell();
     if (s?.w !== undefined) c.dataset.w = String(s.w);
-    if (s && window.makeAssetBlock) {
-      const { block: ab } = window.makeAssetBlock();
-      Object.assign(ab.style, { position: 'absolute', left: '0px', top: '0px', width: '100%', height: '100%' });
-      Object.assign(ab.dataset, { offsetX: '0', offsetY: '0', fit: 'cover', usePadx: 'false' });
-      c.appendChild(ab);
-      window.setAssetImageFromSrc?.(ab, s.src);
-    }
+    if (s) appendSlideCellImage(c, s.src);   // 칸 꽉 에셋 한 벌(스크래치 끌어 놓기와 같은 자)
     track.appendChild(c);
     return c;
   });
@@ -96,7 +92,20 @@ export function convertSlideToFrames(block) {
   block.dataset.cellMode = 'frame';
   block.replaceChildren(track);   // 옛 사진 카드(.sld-card) → 칸 트랙 — 바꾸는 «이 한 번»만 짓는다(이후 렌더는 배치만)
   renderSlideBlock(block);
-  cells.forEach((c) => { window.bindFrameDropZone?.(c); c.querySelectorAll('.asset-block').forEach((ab) => { bindBlock(ab); ab.setAttribute('draggable', 'false'); }); });
+  cells.forEach((c) => window.bindFrameDropZone?.(c));
+  return true;
+}
+
+/** 칸 안에 그림 하나 — 칸 꽉(왼위 0 · 100%×100% · cover). 에셋은 직접 짓는다(addAssetBlock 은 이력을 쌓는다) ⇒ 이력은 부르는 쪽(스크래치 onUp) 한 칸.
+ *  적대 리뷰 [중간3] 의 빈자리 — 프레임 모드 슬라이드 위 스크래치 끌어 놓기 = 놓은 칸에(옛 판 = 숨은 data-slides 에 쌓임). */
+export function appendSlideCellImage(cell, src) {
+  if (!cell || cell.dataset.sldCell !== '1' || !slideImgOk(src) || !window.makeAssetBlock) return false;
+  const { block: ab } = window.makeAssetBlock();
+  Object.assign(ab.style, { position: 'absolute', left: '0px', top: '0px', width: '100%', height: '100%' });
+  Object.assign(ab.dataset, { offsetX: '0', offsetY: '0', fit: 'cover', usePadx: 'false' });
+  cell.appendChild(ab);
+  window.setAssetImageFromSrc?.(ab, src);
+  bindBlock(ab); ab.setAttribute('draggable', 'false');
   return true;
 }
 
@@ -116,6 +125,8 @@ export function makeSlideCell() {
   c.dataset.sldCell = '1';
   c.dataset.cellLayout = 'free';
   c.dataset.layerName = c.dataset.layerName || '칸';
+  /* 적대 리뷰 [높음2] — 프레임 기본 꼴의 px 크기 키(860×520)는 칸엔 뜻이 없고, 로드(rebindAll)가 이 값을 style 로 되살려 칸을 520 에 굳혔다 ⇒ 칸은 안 갖는다 */
+  delete c.dataset.width; delete c.dataset.height;
   return c;
 }
 function _renderFrameCells(block, layout, vert) {
@@ -185,9 +196,11 @@ const _loadImg = (uri) => new Promise((res) => { if (!uri) { res(null); return; 
    흐름엔 블럭 밖으로 넘친 칸도 있어야 한다 ⇒ «클론에서만» 칸마다 살아 있는 px 크기로 고정 + 트랙 줄바꿈(wrap) + 블럭 높이 auto·overflow visible → 칸이 전부 찍힌다(살아 있는 블럭 무접촉).
    키 = 폭·높이·innerHTML(칸 안 내용이 바뀌면 다시 찍음 · stepPrepare 와 같은 꼴). 찍기 실패 = 그 칸 null(빈 칸 색) + 까닭 _sldImgs.err.
    ⚠️칸 안의 움직이는 것(GIF 블럭 등)은 정지 한 장(Q4 · 지디 261118 OK — 안내 줄에 한 줄). */
+function _hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return `${s.length}:${(h >>> 0).toString(36)}`; }   // FNV-1a
 async function _frameCellImgs(block) {
   const cells = slideCells(block), sec = block.closest('.section-block');
-  const key = `F|${block.offsetWidth}|${block.offsetHeight}|${block.innerHTML}`;
+  /* 적대 리뷰 [낮음5] — 키에 innerHTML 을 통째로 두면(base64 12장) 수십 MB 가 블럭에 상주한다 ⇒ 길이 + 32bit 해시만 쥔다(같은 판정 · 상주 수십 바이트) */
+  const key = `F|${block.offsetWidth}|${block.offsetHeight}|${_hash(block.innerHTML)}`;
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
   const sizes = cells.map((c) => [c.offsetWidth, c.offsetHeight]);
   let imgs = cells.map(() => null), err = null;
@@ -319,5 +332,6 @@ window.slideAxis = slideAxis;
 window.isFrameSlide = isFrameSlide;
 window.addSlideCell = addSlideCell;
 window.convertSlideToFrames = convertSlideToFrames;
+window.appendSlideCellImage = appendSlideCellImage;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다
