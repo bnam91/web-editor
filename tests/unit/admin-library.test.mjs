@@ -4,6 +4,7 @@
  * A3 normalizeMonoSvg: 단색 stroke·fill(#짧은 hex · black) → currentColor + 원래 색 · 다색·그라데이션(url(#…)) → 그대로 multi · none 는 손 안 댐 · sanitize 멱등
  * A4 IPC 문지기(main.js 원문 조각 + 가짜): 비관리자·role 모름 → not_admin · 가드/fs 안 불림 / 앱 관리자 · 서버 role admin → 통과
  * A5 재료 실측(ADMIN_LIB_SRC=<~/goditor-admin-library> 있을 때만): 두들 102 · 화살표 34 · 미모지 1,785 webp · 두들 더보기 8묶음 SVG 53(261118 재추출 53/53 · 같은 이름 PNG@2x 는 list 가 뺌) · SVG 전부 거름 뒤 비지 않음 · 다색 목록 출력
+ * A7 prep viewBox 고침(LIB-FIGMA-SVG-VIEWBOX-CLIP-01): 곡선 극값 · 넘을 때만 넓힘 · 획/2 · use 펼침 · 멱등
  * A6 명부 짝: ADMIN_LOCAL dir = main DIRS · 덧붙임 대상 = 내장 탭(arrow) 또는 «앞선» 로컬 탭(figma-doodle) · 새 탭 id 가 기존·서로와 안 겹침 · 레포 assets/ 에 재료 0
  * 양성대조(CTL · _patches/): ⓑ main 문지기 줄을 빼면 A4 빨강 · ⓒ normalize 건너뜀은 DOM L1 빨강
  */
@@ -155,4 +156,27 @@ test('A6 명부 짝 · 레포에 재료 0', () => {
     assert.equal(fs.existsSync(path.join(ROOT, 'assets/library', a.dir)), false, `assets/library/${a.dir} 커밋 금지`);
   }
   assert.equal(LIB.LIBRARY.find((c) => c.id === 'arrow').items.length, 20, '기존 손그림 화살표 20 유지');
+});
+
+/* A7 LIB-FIGMA-SVG-VIEWBOX-CLIP-01 — scripts/admin-library-prep.cjs viewBox 고침(재료 손질 · 앱 밖).
+ *   극값 = 조절점이 아니라 곡선 위 점 · 넘을 때만 합집합으로 넓힘(안쪽이면 글자 그대로) · 획/2 여유 · <use> 펼침 · 모르는 명령 = 건너뜀(추측 0) */
+test('A7 viewBox 고침 — 곡선 극값 · 넘을 때만 · use 펼침', () => {
+  const P = _require('../../scripts/admin-library-prep.cjs');
+  assert.deepEqual(P.cubicRange(0, -100, -100, 0).map((v) => Math.round(v)), [-75, 0], '조절점 −100 이어도 곡선 극값은 −75');
+  assert.deepEqual(P.pathBBox('M10 10L20 30H5V0Z'), { x0: 5, y0: 0, x1: 20, y1: 30 });
+  assert.equal(P.pathBBox('M0 0l5 5'), null, '상대 명령 = 모름');
+  const over = '<svg width="100" height="50" viewBox="0 0 100 50" fill="none"><path d="M0 25C30 -100 70 -100 100 25" stroke-width="10" stroke="#000"/></svg>';
+  const r = P.fixViewBox(over);
+  assert.equal(r.changed, true);
+  const [x, y, w, h] = r.newVB.split(' ').map(Number);
+  assert.ok(Math.abs(y - (-68.75 - 5)) < 0.02 && x === -5 && Math.abs(w - 110) < 0.02 && Math.abs(h - (y < 0 ? 50 - y : 50)) < 0.02, r.newVB);   // 극값 −68.75 · 획 10/2 · 좌우도 끝점±5
+  assert.match(r.svg, new RegExp(`height="${Math.round((50 * h) / 50 * 100) / 100}"`), 'height 도 같은 비로');
+  const inside = '<svg viewBox="0 0 100 100"><path d="M10 10L90 90" stroke-width="4" stroke="#000"/></svg>';
+  assert.deepEqual([P.fixViewBox(inside).changed, P.fixViewBox(inside).svg], [false, inside], '안쪽이면 글자 그대로');
+  const fillOnly = '<svg viewBox="0 0 10 10"><path d="M0 0H10V10H0Z" fill="#000"/></svg>';
+  assert.equal(P.fixViewBox(fillOnly).changed, false, '채움만 = 획 여유 0 → 딱 맞으면 무변');
+  const use = '<svg viewBox="0 0 10 10"><use xlink:href="#s0" fill="black"/><defs><path id="s0" d="M1 1H9V9Z"/></defs></svg>';
+  const u = P.fixViewBox(use);
+  assert.equal(u.uses, 1); assert.match(u.svg, /<path d="M1 1H9V9Z" fill="black"\/>/); assert.doesNotMatch(u.svg, /<use/);
+  assert.equal(P.fixViewBox(P.fixViewBox(over).svg).changed, false, '고친 본을 다시 재면 안쪽(멱등)');
 });
