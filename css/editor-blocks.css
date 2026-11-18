@@ -1579,6 +1579,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .slide-block.selected,
 .quote-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* SLIDE-OFFSCREEN-CELL-EDIT-01(현빈 261118 «최대한 캔버스에서») — 프레임 칸 슬라이드를 고른 동안만 «펼침»: 트랙 밖 칸이 블럭 밖으로 이어져 보이고 만질 수 있다.
+   CSS 조건뿐(상태 클래스 .selected) — 저장·캡처는 .selected 를 걷으므로(capture-safety EDITOR_STATE_CLS) 내보내기·GIF·저장에 남는 것 0.
+   renderSlideBlock 이 인라인 overflow:hidden 을 쓰므로 !important. 밖 흐림 = 블럭 «밖»만 덮는 큰 outline(pointer-events none · 옆 블럭 클릭 그대로). */
+.slide-block[data-cell-mode="frame"]:is(.selected, :has(.selected)) { overflow: visible !important; }
+.slide-block[data-cell-mode="frame"]:is(.selected, :has(.selected))::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  outline: 100vmax solid color-mix(in srgb, var(--ui-bg-base) 45%, transparent);
+}
 /* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
    ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */
 .coupon-block .tb-cpn-line { outline: none; }

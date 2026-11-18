@@ -104,6 +104,16 @@ export function showSlideProperties(block, opts = {}) {
     $('sld-add-cell')?.addEventListener('click', () => { const c = addSlideCell(block); if (!c) return; commit(); reopen(selCell); });
     propPanel.querySelectorAll('.sld-cell-row').forEach((row) => {
       const i = +row.dataset.idx;
+      /* SLIDE-OFFSCREEN-CELL-EDIT-01 — 칸 줄 이름 누름 = 그 칸 고름(캔버스 칸 클릭과 같은 상태: selected · _activeFrame) + 캔버스를 그 칸으로 스크롤(펼침 CSS 가 트랙 밖 칸도 보이게 한다 · «패널은 거들 뿐») */
+      row.querySelector('.prop-label')?.addEventListener('click', () => {
+        const c = cellAt(i); if (!c) return;
+        window.deselectAll?.();
+        c.closest('.section-block')?.classList.add('selected');
+        c.classList.add('selected');
+        window._activeFrame = c;
+        c.scrollIntoView({ block: 'nearest', inline: 'center' });
+        showSlideProperties(block, { cell: c });
+      });
       row.querySelector('.sld-cell-up')?.addEventListener('click', () => { const c = cellAt(i), p = cellAt(i - 1); if (!c || !p) return; track.insertBefore(c, p); renderSlideBlock(block); commit(); reopen(); });
       row.querySelector('.sld-cell-down')?.addEventListener('click', () => { const c = cellAt(i), nx = cellAt(i + 1); if (!c || !nx) return; track.insertBefore(nx, c); renderSlideBlock(block); commit(); reopen(); });
       row.querySelector('.sld-cell-del')?.addEventListener('click', () => {

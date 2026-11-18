@@ -26,7 +26,14 @@
  * R3 [중간3] 프레임 모드 슬라이드 칸 위 스크래치 놓기 = 판정 slidecell · 그 칸 안 에셋 · data-slides 무변([] 그대로) · 옆 새 에셋 0
  * R4 [중간4] 칸만 고른 ⌘D = 무동작(슬라이드 1 · 칸 안 중첩 0) · 칸 안 글자 고른 ⌘D = 그 칸 안에 하나 더(종전 블럭 갈래)
  * R5 [낮음5] GIF 캐시 키가 짧다(innerHTML 통째 아님 · 길이 < 80) · 칸 안이 바뀌면 키가 바뀐다
+ * ── SLIDE-OFFSCREEN-CELL-EDIT-01(펼침 · CSS 만) ──
+ * P1 칸 5 · 칸 4 = 트랙 밖 → 패널 칸 4 줄 누름 = 칸 4 고름 + 캔버스 스크롤 → elementFromPoint(칸 4 가운데) = 칸 4(펼침) · 칸 4 클릭 → addTextBlock = 칸 4 안 ·
+ *    캔버스에서 그 글자 고침(진짜 더블클릭·타이핑) → 저장 → 다시 열기 = 그 글 그대로 · 고름 풀면 칸 4 자리 = 칸 4 아님(잘림)
+ *    · 저장본(serialize canvas)의 슬라이드에 펼침 흔적 0(class selected · overflow visible 없음)
+ *    · 펼친 채 섹션 PNG 내보내기(exportSection returnDataUrl · 캡처 클론 길 = GIF 칸 찍기와 같은 길) = 안 펼친 것과 같은 PNG
+ *    · 펼침(밖 흐림 덮개) 중에도 같은 섹션 다른 글자 블럭 클릭 = 그 블럭 골라짐(pointer-events none)
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL12-no-unfold.patch(css 펼침 규칙 삭제) → P1 빨강(칸 4 자리 hit ≠ 칸 4) — 예측
  *   slide-frame-CTL7-delete-row.patch(editor.js 칸 삭제 갈래 삭제) → R1 빨강 · slide-frame-CTL8-height-520.patch(makeSlideCell 크기 키 지우기 + rebindAll 칸 제외 둘 다 되돌림) → F0 빨강(칸 520) ·
  *   slide-frame-CTL9-scratch-slides.patch(스크래치 프레임 모드 갈래 삭제 + appendSlideImage 가드 삭제) → R3 빨강 · slide-frame-CTL10-dup-cell.patch(⌘D 칸 가드 삭제) → R4 빨강 · slide-frame-CTL11-key-html.patch(키 = innerHTML) → R5 빨강 — 예측
  *   slide-frame-CTL6-no-convert.patch(패널 «프레임으로 바꾸기» 배선 삭제) → F4 빨강 — 예측
@@ -369,5 +376,58 @@ test('R5 GIF 캐시 키 짧음 · 칸 안이 바뀌면 키 바뀜', async ({ pag
   }, id);
   expect(r.len, `★키 길이 ${r.len}(innerHTML ${r.html})`).toBeLessThan(80);
   expect(r.changed, '칸 안 바뀜 = 키 바뀜').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복 · 흔적 0 · 캡처 픽셀 같음 · 옆 블럭 클릭', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await wireCdp(page);
+  await page.evaluate((id) => { const b = document.getElementById(id); window.addSlideCell(b); window.addSlideCell(b);
+    const sec = b.closest('.section-block'); window.selectSection(sec); }, id);   // 칸 5(기본 60% → 칸 2~5 는 블럭 밖)
+  const otherId = await page.evaluate(() => { window._activeFrame = null; const r = window.addTextBlock('body'); return document.querySelector('#canvas .section-block .text-block:not(.sld-cell .text-block)')?.id || null; });
+  expect(otherId, '[전제] 슬라이드 옆(같은 섹션) 글자 블럭').not.toBeNull();
+  await page.evaluate((id) => window.selectBlock(id), id);
+  await expect(page.locator('.sld-cell-row[data-idx="3"] .prop-label')).toHaveCount(1);
+  await page.click('.sld-cell-row[data-idx="3"] .prop-label');
+  const hit = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[3], r = c.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 2, r.left + r.width / 2), y = r.top + r.height / 2; const e = document.elementFromPoint(x, y); return { in: !!e && (e === c || c.contains(e)), x: Math.round(x) }; }, id);
+  const h1 = await hit();
+  expect(h1.in, `★펼침 = 칸 4 가 캔버스에 보이고 맞는다(${h1.x})`).toBe(true);
+  /* 칸 4 클릭 → 넣기 → 캔버스에서 글 고침 */
+  const c4 = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[3].getBoundingClientRect(); return [Math.min(window.innerWidth - 4, r.left + 10), r.top + 10]; }, id);
+  await page.mouse.click(c4[0], c4[1]);
+  await page.evaluate(() => window.addTextBlock('body'));
+  const tid = await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[3].querySelector('.text-block')?.id || null, id);
+  expect(tid, '[전제] 칸 4 안 글자').not.toBeNull();
+  const tp = await page.evaluate((tid) => { const t = document.getElementById(tid).querySelector('[contenteditable], [class^="tb-"]') || document.getElementById(tid); t.scrollIntoView({ block: 'center', inline: 'center' }); const r = t.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, tid);
+  await page.mouse.dblclick(tp[0], tp[1]);
+  await page.keyboard.press('Meta+a'); await page.keyboard.type('칸넷고침');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate((tid) => document.getElementById(tid)?.textContent.trim(), tid), '[전제] 캔버스에서 고친 글').toBe('칸넷고침');
+  /* 펼친 채 캡처 = 안 펼친 캡처(픽셀) */
+  /* 진짜 PNG 내보내기(exportSection · returnDataUrl) — 캡처 클론이 .selected 를 걷는지가 곧 «펼침이 내보내기에 안 샌다» */
+  const shot = () => page.evaluate(async (id) => window.exportSection(document.getElementById(id).closest('.section-block'), 'png', 860, { returnDataUrl: true }), id);
+  await page.evaluate((tid) => { window.deselectAll(); const t = document.getElementById(tid); t.classList.add('selected'); }, tid);   // 칸 안 블럭 고름 = 펼침
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), '[전제] 펼친 상태').toBe('visible');
+  const sOpen = await shot();
+  await page.evaluate(() => window.deselectAll());
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), '고름 풀면 잘림').toBe('hidden');
+  const sClosed = await shot();
+  expect(sOpen && sOpen.length > 100, '[전제] PNG 가 나왔다').toBe(true);
+  expect(sOpen === sClosed, '★펼친 채 PNG = 안 펼친 PNG(글자 그대로)').toBe(true);
+  /* 고름 풀면 칸 4 자리 = 칸 4 아님 */
+  expect((await hit()).in, '고름 풀면 칸 4 는 잘려 안 맞는다').toBe(false);
+  /* 펼침 중 옆 블럭 클릭 */
+  await page.evaluate((id) => window.selectBlock(id), id);
+  const op = await page.evaluate((oid) => { const r = document.getElementById(oid).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, otherId);
+  await page.mouse.click(op[0], op[1]);
+  expect(await page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
+  /* 저장본 흔적 0 · 저장→다시 열기 글 그대로 */
+  await page.evaluate((id) => window.selectBlock(id), id);
+  const savedSlide = await page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject());
+    const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id); return b ? { cls: b.className, ov: b.style.overflow, selIn: b.querySelectorAll('.selected').length } : null; }, id);
+  expect(savedSlide, '★저장본 슬라이드 = 펼침 흔적 0').toEqual({ cls: 'slide-block', ov: 'hidden', selIn: 0 });
+  await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  expect(await page.evaluate((tid) => document.getElementById(tid)?.textContent.trim(), tid), '★다시 열어도 칸 4 글').toBe('칸넷고침');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
