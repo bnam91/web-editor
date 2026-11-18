@@ -58,6 +58,37 @@ export function setSlideAnim(block, patch) {
 }
 export const slideHasPhotos = (block) => readSlideState(block).slides.length > 0;
 
+/* ── SLIDE-CELL-AS-FRAME-01(현빈 261118 · PLAN-ty-slide-frame-cells-261118) — 칸 = 프레임 ─────────────────────────
+ *   블럭 단위 두 갈래 · 마이그레이션 0:
+ *     data-cell-mode 없음 = 옛 «사진 모드»(정본 = dataset.slides · 아래 renderSlideBlock 옛 갈래 그대로 · 저장본 바이트 무변)
+ *     data-cell-mode="frame" = «프레임 모드»(정본 = DOM: .sld-track > .frame-block.sld-cell 의 자식들)
+ *   ★프레임 모드 렌더는 «짓지 않고 배치만» — 트랙·칸 스타일만 다시 쓰고 칸 «자식»은 읽지도 쓰지도 않는다
+ *     (로드·⌘Z·붙여넣기·패널 값 바꿈이 전부 renderSlideBlock 을 타므로 replaceChildren 이면 칸 안 블럭이 사라진다 = 1순위 위험).
+ *   칸 = makeFrameBlock() 그대로 + 표식 data-sld-cell · 칸 배치 모드 = data-cell-layout(지금 'free' = 프레임 기본 자유배치 · Q2 현빈 답 전 안전값 · 흐름으로 바꿔도 저장 꼴 유지)
+ *   칸 폭 = 칸 data-w(%) · 없으면 공통 cardW(CELL-SIZE-EACH 와 같은 뜻). */
+export const isFrameSlide = (block) => block?.dataset?.cellMode === 'frame';
+export const slideCells = (block) => [...(block?.querySelectorAll(':scope > .sld-track > .sld-cell') || [])];
+/** 빈 칸 하나 — 프레임 블럭 기본 꼴(⑤ 재사용) + 칸 표식. 크기는 renderSlideBlock 이 트랙에 맞춰 덮는다(px 고정 걷음). */
+export function makeSlideCell() {
+  const c = window.makeFrameBlock ? window.makeFrameBlock() : Object.assign(document.createElement('div'), { className: 'frame-block' });
+  c.classList.add('sld-cell');
+  c.dataset.sldCell = '1';
+  c.dataset.cellLayout = 'free';
+  c.dataset.layerName = c.dataset.layerName || '칸';
+  return c;
+}
+function _renderFrameCells(block, layout, vert) {
+  let track = block.querySelector(':scope > .sld-track');
+  if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;height:100%;`;
+  slideCells(block).forEach((c, i) => {
+    c.dataset.idx = String(i);
+    const w = normCardW(c.dataset.w) ?? layout.cardW;
+    /* 프레임 기본 꼴의 px 폭·높이·가운데 마진을 칸 자리로 덮는다(스타일만 · 자식 무접촉) */
+    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : '100%', minHeight: '0', maxWidth: 'none', margin: '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' });
+  });
+}
+
 /** 정적 첫 장면 — 카드 i 왼끝 = i × (카드 폭 + 간격)(slide-motion drawSlides offset 0 과 같은 자리). 빈 블럭 = 체크무늬 카드 3. */
 export function renderSlideBlock(block) {
   if (!block) return;
@@ -65,6 +96,11 @@ export function renderSlideBlock(block) {
   const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
   block.style.overflow = 'hidden';
+  if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
+    if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
+    _renderFrameCells(block, layout, vert);
+    return;
+  }
   /* SLIDE-PADDING-EXCLUDE-01 «패딩 제외»(dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(인증서·배너2·월계수와 같은 자리 · 키 없으면 no-op).
      섹션 padX 가 바뀌면 prop-page.js applyPadXToSection 의 [data-full-bleed="true"] 표식 루프가 따라 씌운다(명부 0). 떠 있을 땐 안 씌움(cert ⑰ⓑ 와 같은 가드). */
   if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
@@ -140,6 +176,13 @@ export function makeSlideBlock(opts = {}) {
   block.dataset.layerName = opts.layerName || 'Slides';
   block.dataset.slides = JSON.stringify(Array.isArray(opts.slides) ? opts.slides.filter((s) => slideImgOk(s?.src)).slice(0, SLIDE_MAX) : []);
   block.dataset.animFx = SLIDE_FX[0];   // 새 블럭 = 흐름(▶ 단추가 바로 뜨게 · GIF 패널에서 바꿈)
+  if (opts.cellMode === 'frame') {   // 커밋 1: 부르는 쪽이 고를 때만(패널이 프레임 모드를 알게 되는 커밋 2 에서 새 블럭 기본으로)
+    block.dataset.cellMode = 'frame';
+    const track = document.createElement('div');
+    track.className = 'sld-track';
+    for (let i = 0; i < 3; i++) track.appendChild(makeSlideCell());
+    block.appendChild(track);
+  }
   renderSlideBlock(block);
   const row = document.createElement('div');
   row.className = 'row';
@@ -181,4 +224,7 @@ window.setSlideAnim = setSlideAnim;
 window.readSlideState = readSlideState;
 window.setSlideList = setSlideList;
 window.appendSlideImage = appendSlideImage;   // canvas-scratch-drop(클래식 스크립트)이 부른다
-window.slideAxis = slideAxis;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다
+window.slideAxis = slideAxis;
+window.isFrameSlide = isFrameSlide;
+window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
+window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다
