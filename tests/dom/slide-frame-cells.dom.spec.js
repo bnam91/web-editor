@@ -13,7 +13,12 @@
  * F3 GIF·미리보기 = 칸째 흐름: 칸 1 빨강 사진 · 칸 2 파랑 사진 · 칸 3 빈 칸 → slidePrepare = 칸 셋을 찍은 canvas(빨강·파랑) · slidePlan draw t=0 = 칸 자리(첫 장면)에 빨강·파랑
  *    · ★흐름 t(밀린 거리 100px) 에서 «칸 안 내용까지 같이» 파랑 왼끝이 100 만큼 왼쪽(현빈 Q2 확인 칸) · 안내 줄 «정지 한 장»
  *    (캡처 = grid-step 과 같은 길 — 하네스 electronAPI captureSectionCdp 를 진짜 CDP Page.captureScreenshot 로 잇는다 · grid-step.dom 과 같은 꼴)
+ * ── 커밋 4 ──
+ * F5 복제(진짜 ⌘D) — 칸·칸 안 글자 id 가 새로 · 사본 칸 안을 지워도 원본 그대로
+ * F6 Figma JSON — 프레임 모드 = type frame + 칸마다 children(칸 프레임 · 칸 2 안 글자 블럭이 그 칸 children 에) · 칸 자리 x 늘어남 · images 없음
+ *    / 사진 모드는 slide-block.dom M6(images) 가 그대로 잰다
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL5-figma-images.patch(Figma 프레임 갈래 조건을 false → 옛 images 갈래) → F6 빨강 — 예측
  *   slide-frame-CTL4-no-frame-prepare.patch(slidePrepare 프레임 갈래 삭제 → 사진 길) → F3 빨강(칸 그림 0) — 예측
  *   slide-frame-CTL2-no-cell-pick.patch(block-drag click 의 _pickSlideCell 줄 삭제) → F2 빨강(프레임 패널·px 손잡이) ·
  *   slide-frame-CTL3-group-cell.patch(⌘G 칸 거르기 줄 삭제) → F2 빨강(칸이 묶음으로 빠짐) — 예측
@@ -201,5 +206,42 @@ test('F3 GIF·미리보기 — 칸을 찍어 흐름 · 칸 안 내용까지 같�
   expect([r.red0, r.blue0], '★t=0 = 첫 장면 칸 자리').toEqual([[255, 0, 0], [0, 0, 255]]);
   expect(Math.abs((r.bl0 - r.bl1) - 100), `★칸 안 내용까지 같이 흐름(파랑 왼끝 ${r.bl0} → ${r.bl1})`).toBeLessThanOrEqual(2);
   expect(r.info).toContain('정지 한 장');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+async function withText(page) {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate((id) => { const cell = document.getElementById(id).querySelectorAll('.sld-cell')[1]; window._activeFrame = cell; window.addTextBlock('body'); window._activeFrame = null; }, id);
+  return { errs, id };
+}
+
+test('F5 복제(⌘D) — 칸·글자 id 새로 · 사본을 지워도 원본 그대로', async ({ page }) => {
+  const { errs, id } = await withText(page);
+  const ids0 = await page.evaluate((id) => { const b = document.getElementById(id); return [...b.querySelectorAll('.sld-cell, .text-block')].map((e) => e.id); }, id);
+  await page.evaluate((id) => window.selectBlock(id), id);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+d');
+  await expect.poll(() => page.locator('#canvas .slide-block').count(), '[전제] 사본').toBe(2);
+  const r = await page.evaluate(({ id, ids0 }) => {
+    const copy = [...document.querySelectorAll('#canvas .slide-block')].find((b) => b.id !== id);
+    const ids1 = [...copy.querySelectorAll('.sld-cell, .text-block')].map((e) => e.id);
+    const all = [...document.querySelectorAll('#canvas [id]')].map((e) => e.id), dup = all.filter((x, i) => x && all.indexOf(x) !== i);
+    copy.querySelectorAll('.sld-cell')[1].querySelectorAll('.text-block').forEach((t) => (t.closest('.frame-block[data-text-frame]') || t).remove());
+    return { mode: copy.dataset.cellMode, cells: copy.querySelectorAll('.sld-cell').length, overlap: ids1.filter((x) => ids0.includes(x)), dup, origText: document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelectorAll('.text-block').length };
+  }, { id, ids0 });
+  expect(r, '★사본 = 프레임 칸 3 · 원본과 겹치는 id 0 · 문서 안 겹침 0 · 사본 지워도 원본 글자 그대로').toEqual({ mode: 'frame', cells: 3, overlap: [], dup: [], origText: 1 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('F6 Figma — 프레임 모드 = frame + 칸 children(칸 안 글자까지) · images 없음', async ({ page }) => {
+  const { errs, id } = await withText(page);
+  const r = await page.evaluate((id) => {
+    let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); };
+    walk(window.buildFigmaExportJSON?.(null));
+    if (!node) return { why: '노드 없음' };
+    const kids = node.children || [];
+    const hasText = (o) => !!o && typeof o === 'object' && (o.type === 'text' || Object.values(o).some(hasText));
+    return { type: node.type, images: Array.isArray(node.images), n: kids.length, xsUp: kids.every((k, i) => i === 0 || k.x > kids[i - 1].x), kidTypes: kids.map((k) => k.block?.type), textIn: kids.map((k) => hasText(k.block)), w0: kids[0]?.w > 0 };
+  }, id);
+  expect(r, `★Figma 프레임 칸 — ${JSON.stringify(r)}`).toEqual({ type: 'frame', images: false, n: 3, xsUp: true, kidTypes: ['frame', 'frame', 'frame'], textIn: [false, true, false], w0: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

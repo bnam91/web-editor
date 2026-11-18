@@ -392,6 +392,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
      지금 페이지를 먼저 굳히지 않으면 마지막 저장 뒤의 편집(예: 「내용 자르기」 끔)이 빠진다. 업로드(figma-publish)는 이미 부르고 있었지만
      직접 부르는 자리(콘솔·MCP)는 빠졌다 ⇒ 빌더가 스스로 굳힌다(두 번 불러도 같은 값). */
   window.flushCurrentPage?.();
+  /* SLIDE-CELL-AS-FRAME-01 커밋 4 — 프레임 칸 슬라이드는 칸마다 «기존 프레임 내보내기»(_section 안 _frameBlock · 자식 재귀)를 탄다.
+     _frameBlock 은 섹션마다 psEx 를 품은 안쪽 함수라 _block(슬라이드 갈래)이 직접 못 부른다 ⇒ _section 이 들어올 때 이 자리에 걸어 둔다(블럭은 늘 _section → _row → _block 으로 온다). */
+  let _frameBlockOfSection = null;
   // sangpe_to_figma.mjs 가 기대하는 포맷으로 빌드
   // sections[].blocks[] — gap / text / image / { columns:[{width,blocks}] }
 
@@ -1188,6 +1191,30 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
          자리 = 블럭 데이터(readSlideState)에서 셈 — 카드 i 왼끝 = i × (카드 폭 + 간격)(renderSlideBlock flex 줄 · slideGeom 과 같은 식).
          <img> 사각형을 재지 않는 까닭: 그림이 아직 안 떴거나 깨지면 사각형이 0 이 되어 통째로 빠졌다(MOTION1 M6 실측 null).
          블럭 폭 밖 카드는 뺌 · 걸친 카드는 보이는 폭까지(shortcut: 잘린 카드는 그 폭에 cover 로 다시 맞춰져 화면과 크롭이 조금 다름 — 맞추려면 받는 쪽에 크롭 칸을 더한다). */
+      /* SLIDE-CELL-AS-FRAME-01 — 프레임 모드 = 정적 첫 장면 그대로 «프레임 + 칸 프레임들»(칸 안 글자·그림까지 · images 아님).
+         칸 자리·크기 = 살아 있는 칸 사각형(블럭 기준 · 줌 나눔) · 없으면 누적합(칸 data-w | cardW · slideGeom 과 같은 식) · 블럭 밖 칸은 뺌 · 사진 모드는 아래 images 그대로. */
+      if (el.classList.contains('slide-block') && el.dataset.cellMode === 'frame' && _frameBlockOfSection && typeof window.readSlideState === 'function') {
+        const _ls = el.id ? document.getElementById(el.id) : null;
+        const { layout, fx } = window.readSlideState(el);
+        const _v = window.slideAxis?.(fx) === 'y';
+        const bw = Math.round((_ls && _ls.offsetWidth) || el.offsetWidth || w || 0), bh = Math.round(layout.h);
+        const L = _v ? bh : bw;
+        const br = _ls?.getBoundingClientRect(), k = br && _ls.offsetWidth ? br.width / _ls.offsetWidth : 1;
+        let acc = 0;
+        const children = [...el.querySelectorAll(':scope > .sld-track > .sld-cell')].map((c) => {
+          const lc = c.id ? document.getElementById(c.id) : null;
+          let x, y, cw, ch;
+          if (br && lc) { const r = lc.getBoundingClientRect(); x = (r.left - br.left) / k; y = (r.top - br.top) / k; cw = r.width / k; ch = r.height / k; }
+          else {
+            const len = (L * (parseFloat(c.dataset.w) || layout.cardW)) / 100;
+            [x, y, cw, ch] = _v ? [0, acc, bw, len] : [acc, 0, len, bh];
+            acc += len + layout.gap;
+          }
+          const inner = _frameBlockOfSection(c);
+          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch) } } : null;
+        }).filter((m) => m && (_v ? m.y : m.x) < L && m.w > 0);
+        return { type: 'frame', id: el.id || '', width: bw, height: bh, bg: '', radius: 0, free: true, clip: true, children };
+      }
       if (el.classList.contains('slide-block') && typeof window.readSlideState === 'function') {
         const _ls = el.id ? document.getElementById(el.id) : null;
         const { slides, layout, fx } = window.readSlideState(el);
@@ -1428,6 +1455,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
     const psEx = { ...ps, labelBg, labelColor, labelRadius };
 
     const blocks = [];
+    _frameBlockOfSection = _frameBlock;   // 위 머리말 — 이 섹션의 psEx 로
     function _processFrameBlock(fb) {
       _blockChildren(fb).forEach(b => {
         _blockAll(b, psEx).forEach(x => blocks.push(x));   // G19 — 그리드면 자식 블럭까지
