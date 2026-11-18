@@ -18,9 +18,18 @@ const settle = (page) => expect.poll(() => page.evaluate(async () => {
 async function setup(page) {
   await page.setViewportSize({ width: 1500, height: 1000 });
   const errs = await bootApp(page);
-  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove()); await window.addSection(); await window.addSection(); window.deselectAll?.(); });
+  /* «연 직후» 스크롤 = 섹션을 넣기 «전»(앱이 연 그 자리) — addSection 은 새 섹션 쪽으로 캔버스를 내린다(5bc2b68e7 인텔 L1 10/10: 그 끝 자리를 top0 로 잡아 띠 윗변 −135).
+     옛 판은 두 프레임 뒤에 읽어 «내리기 시작 무렵» 값이 우연히 잡혔다(부하면 19) ⇒ 넣기 전에 적어 두고, 멎은 뒤 그 자리로 되돌린다 */
+  const top0 = await page.evaluate(async () => { const w = document.getElementById('canvas-wrap'), t = w.scrollTop; const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach(s => s.remove()); await window.addSection(); await window.addSection(); window.deselectAll?.(); return t; });
   await settle(page);
-  return errs;
+  return { errs, top0 };
+}
+/* 쉼 자리로 — 걸린 스크롤(섹션 고름의 내리기 등)이 끝난 «뒤» 넣고, 다시 멎음 · 정말 그 자리인지 단언(받은 값 = 지금 scrollTop) */
+async function toTop0(page, top0) {
+  await settle(page);
+  await page.evaluate((t) => { document.getElementById('canvas-wrap').scrollTop = t; }, top0);
+  await settle(page);
+  await expect.poll(() => page.evaluate(() => Math.round(document.getElementById('canvas-wrap').scrollTop)), '[전제] 캔버스 = «연 직후» 스크롤').toBe(Math.round(top0));
 }
 const strip = (page, i) => page.evaluate((i) => {
   const s = document.querySelectorAll('#canvas .section-block')[i]; const r = s.querySelector('.section-hitzone').getBoundingClientRect();
@@ -32,10 +41,9 @@ const clickSelects = async (page, s) => { await page.mouse.click(s.x, s.y); awai
   return page.evaluate((id) => document.getElementById(id).classList.contains('selected'), s.id); };
 
 test('L1 연 직후 — 첫 섹션 라벨 띠가 툴바 밑에 안 깔리고 눌린다 (둘째 섹션 대조)', async ({ page }) => {
-  const errs = await setup(page);
-  const top0 = await page.evaluate(() => document.getElementById('canvas-wrap').scrollTop);   // «연 직후» 스크롤 — 섹션 띠를 누르면 캔버스가 그 섹션 쪽으로 내려가므로 둘째도 이 자리에서 잰다
+  const { errs, top0 } = await setup(page);   // top0 = «연 직후» 스크롤 — 섹션 띠를 누르면 캔버스가 그 섹션 쪽으로 내려가므로 둘째도 이 자리에서 잰다
   for (const i of [0, 1]) {
-    await page.evaluate((t) => { document.getElementById('canvas-wrap').scrollTop = t; }, top0); await settle(page);
+    await toTop0(page, top0);
     const s = await strip(page, i);
     expect(s.top, `섹션 ${i + 1} 띠 윗변 ${s.top} ≥ 툴바 아래끝 ${s.topbarBottom}`).toBeGreaterThanOrEqual(s.topbarBottom);
     expect(s.onTop, `섹션 ${i + 1} 띠 가운데 맨 위 = 그 띠`).toBe(true);
@@ -46,7 +54,8 @@ test('L1 연 직후 — 첫 섹션 라벨 띠가 툴바 밑에 안 깔리고 눌
 });
 
 test('L2 ★양성대조 — 쉼 스크롤을 띠 높이만큼 내리면 첫 섹션 띠는 툴바 밑(맨 위 = #topbar · 클릭해도 안 골라짐)', async ({ page }) => {
-  await setup(page);
+  const { top0 } = await setup(page);
+  await toTop0(page, top0);   // L1 과 같은 출발 자리(대조가 같은 장면에서 갈라야 한다)
   const s0 = await strip(page, 0);
   await page.evaluate((d) => { document.getElementById('canvas-wrap').scrollTop += d; }, (s0.top - s0.topbarBottom) + s0.h);
   await settle(page);
