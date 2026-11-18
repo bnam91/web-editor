@@ -154,6 +154,11 @@ function _classifyDrop(clientX, clientY) {
     }
   }
 
+  /* 케이스 A4: 슬라이드 블럭 → 그 슬라이드 끝에 한 장 (SLIDE-SCRATCH-DND-01 · 현빈 261118).
+     rowLike(insert) 판정보다 먼저 — 슬라이드는 늘 .row 안이라 순서가 바뀌면 «옆에 새 에셋»으로 오분류된다(certslot·카드와 같은 까닭). */
+  const sld = hit.closest('.slide-block');
+  if (sld && sld.closest('#canvas-scaler')) return { kind: 'slide', block: sld };
+
   // 섹션 안에 있는가
   const sec = hit.closest('.section-block');
   if (!sec || !sec.closest('#canvas-scaler')) {
@@ -240,6 +245,14 @@ function _renderGuide(decision) {
     _activeReplaceAb = decision.cell;
     return;
   }
+  if (decision.kind === 'slide') {
+    if (_activeReplaceAb === decision.block) return;
+    _clearGuides();
+    decision.block.classList.add('sp2c-replace-target');
+    _addBadge(decision.block, '슬라이드에 추가', false);
+    _activeReplaceAb = decision.block;
+    return;
+  }
   if (decision.kind === 'gridimg') {
     if (_activeReplaceAb === decision.frame) return;
     _clearGuides();
@@ -287,6 +300,7 @@ function _decisionTarget(decision) {
   if (decision.kind === 'replace') return decision.ab;
   if (decision.kind === 'cvbcard' || decision.kind === 'certslot') return decision.cell;
   if (decision.kind === 'gridimg') return decision.frame;
+  if (decision.kind === 'slide') return decision.block;
   if (decision.kind === 'insert' || decision.kind === 'sectionbg') return decision.sec;
   if (decision.kind === 'newsection') return document.getElementById('canvas-scaler');
   return null;
@@ -483,6 +497,9 @@ function commitScratchDropAt(clientX, clientY, src, opts = {}) {
   } else if (decision.kind === 'certslot') {
     // 같은 문 setCertSlotImage(형식 문 certImgOk · 다시 그리기 · 저장) · 기록은 호출자(scratch-pad onUp)가 한 걸음으로 쌓는다
     if (!window.setCertSlotImage?.(decision.block, decision.idx, src, { record: false })) return false;
+  } else if (decision.kind === 'slide') {
+    // 같은 문 appendSlideImage(형식 문 slideImgOk · SLIDE_MAX · 다시 그리기) · 기록은 호출자(scratch-pad onUp)가 한 걸음으로
+    if (!window.appendSlideImage?.(decision.block, src)) return false;
   } else if (decision.kind === 'cvbcard') {
     // 카드 imgSrc 교체 — dataset.cards JSON 갱신 후 재렌더. 아이콘이 이미지보다 우선
     // 렌더되므로(card.icon && card.icon.svg 선판정) 드롭 의도=이미지 표시 → 아이콘 해제.

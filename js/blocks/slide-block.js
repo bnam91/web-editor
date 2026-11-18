@@ -34,6 +34,15 @@ export function setSlideList(block, slides) {
   block.dataset.slides = JSON.stringify(slides.filter((s) => slideImgOk(s?.src)).slice(0, SLIDE_MAX).map((s) => ({ src: s.src })));
   renderSlideBlock(block);
 }
+/** SLIDE-SCRATCH-DND-01 — 그림 한 장을 슬라이드 «끝»에 붙인다(스크래치 끌어 놓기 입구). 이력은 부르는 쪽(scratch-pad onUp)이 한 걸음으로.
+ *  가득(SLIDE_MAX) · 받지 않는 주소(slideImgOk)면 안 붙이고 말한다 → false. */
+export function appendSlideImage(block, src) {
+  const { slides } = readSlideState(block);
+  if (slides.length >= SLIDE_MAX) { window.showToast?.(`슬라이드는 ${SLIDE_MAX}장까지예요`); return false; }
+  if (!slideImgOk(src)) { window.showToast?.('이 그림은 슬라이드에 넣을 수 없어요(PNG·JPG·WebP·GIF)'); return false; }
+  setSlideList(block, [...slides, { src }]);
+  return true;
+}
 export function setSlideLayout(block, patch) {
   const L = normLayout({ ...readSlideState(block).layout, ...patch });
   _setJsonKey(block, 'slideLayout', diffFromDefault(L, SLIDE_LAYOUT_DEFAULT));
@@ -165,4 +174,6 @@ window.slideBg = slideBg;
 window.slideHasPhotos = slideHasPhotos;
 window.setSlideAnim = setSlideAnim;
 window.readSlideState = readSlideState;
+window.setSlideList = setSlideList;
+window.appendSlideImage = appendSlideImage;   // canvas-scratch-drop(클래식 스크립트)이 부른다
 window.slideAxis = slideAxis;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다
