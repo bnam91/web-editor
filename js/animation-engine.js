@@ -123,8 +123,9 @@ const SLIDE_LIST = [
   { id: 'slide-vstep', label: '세로 넘김', desc: '세로로 한 장씩 올리고 잠깐 머무름' },
   { id: 'slide-fade',  label: '제자리 페이드', desc: '한 장이 꽉 차고 그 자리에서 겹쳐 흐려지며 바뀜' },   // SLIDE-FX-SINGLE-FRAME-MULTI-01
   { id: 'slide-cut',   label: '제자리 컷',     desc: '한 장이 꽉 차고 그 자리에서 바로 바뀜' },
+  { id: 'slide-center', label: '가운데 캐러셀', desc: '가운데 한 장 · 양옆 엿보기 · 한 장씩 넘김' },   // SLIDE-FX-CENTER-CAROUSEL-01
 ];
-const _SLIDE_INPLACE = new Set(['slide-fade', 'slide-cut']);   // 방향 칸 없음 · 머무름 칸 있음
+const _SLIDE_INPLACE = new Set(['slide-fade', 'slide-cut', 'slide-center']);   // 방향 칸 없음(가운데 캐러셀은 왼쪽으로만) · 머무름 칸 있음
 const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep']);
 /* 3단계 ③ 신호등(MOTION-STEP-HIGHLIGHT-01) — 그리드 칸 차례 강조. 셈·그림 = js/fx/step-motion.js · 바탕 그림·저장 = js/blocks/grid-step.js */
 const STEP_LIST = [

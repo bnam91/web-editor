@@ -3,8 +3,11 @@
  *    GIF: 띠 자리(카드 없음) 비움 · 넘김 둘째 머무름에서 둘째 점 진함·첫 점 옅음 · 카드는 띠 아래 · ⌘Z = 점 없음
  * D2 SLIDE-FX-SINGLE-FRAME-MULTI-01(수지 S24): 제자리 페이드 → 첫 장면 첫 카드 = 블럭 꽉 · GIF 바뀜 가운데 = 빨강·파랑 섞임 · 머무름 = 파랑 /
  *    제자리 컷 → 바뀜 가운데 = 빨강 그대로 · 머무름 = 파랑 · 프레임 모드 칸도 꽉(칸 폭 = 블럭 폭)
+ * D3 SLIDE-FX-CENTER-CAROUSEL-01(수지 S07): 가운데 캐러셀 · 카드 폭 50 · 빨강·파랑·초록 → 첫 장면 = 파랑(둘째) 가운데 · 빨강 왼쪽 엿보기 · 초록 오른쪽 엿보기 ·
+ *    GIF t=0 = 같은 자리(가운데 파랑 · 왼끝 빨강 · 오른끝 초록) · 머무름 = 초록 가운데
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
+ *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -80,5 +83,28 @@ test('D2 제자리 페이드·컷 — 첫 장면 꽉 · GIF 바뀜 가운데·�
     const b = made.block, c = b.querySelector('.sld-cell'); return Math.abs(c.getBoundingClientRect().width - b.getBoundingClientRect().width) <= 1;
   });
   expect(cellFull, '프레임 칸도 제자리 = 블럭 꽉').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D3 가운데 캐러셀 — 첫 장면 둘째 가운데·양옆 엿보기 = GIF t=0 · 머무름 셋째', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-center' });
+  await page.evaluate((id) => { window.setSlideLayout(document.getElementById(id), { cardW: 50 }); }, id);
+  const dom = await page.evaluate((id) => {
+    const b = document.getElementById(id), br = b.getBoundingClientRect(), k = br.width / b.offsetWidth;
+    return [...b.querySelectorAll('.sld-card')].map((c) => { const r = c.getBoundingClientRect(); return [(r.left - br.left) / k, (r.right - br.left) / k]; }).concat([[b.offsetWidth, 0]]);
+  }, id);
+  const bw = dom[3][0];
+  expect(Math.abs((dom[1][0] + dom[1][1]) / 2 - bw / 2), `★첫 장면 파랑 가운데(${dom[1]})`).toBeLessThanOrEqual(1);
+  expect(dom[0][1] > 0 && dom[0][1] < bw / 2, '빨강 왼쪽 엿보기').toBe(true);
+  expect(dom[2][0] > bw / 2 && dom[2][0] < bw, '초록 오른쪽 엿보기').toBe(true);
+  const g = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, A = window.readSlideState(b).anim, per = 0.5 + A.dwell, T = 3 * per;
+    const shot = (sec) => { const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, sec / T);
+      const p = (x) => Array.from(ctx.getImageData(Math.round(x), Math.round(H / 2), 1, 1).data).slice(0, 3); return { l: p(4), c: p(W / 2), r: p(W - 4) }; };
+    return { t0: shot(0), dw: shot(0.6) };
+  }, id);
+  expect(g.t0, '★GIF t=0 = 첫 장면(빨강 · 파랑 · 초록)').toEqual({ l: [255, 0, 0], c: [0, 0, 255], r: [0, 170, 0] });
+  expect(g.dw.c, '머무름 = 초록 가운데').toEqual([0, 170, 0]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

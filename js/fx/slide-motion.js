@@ -6,12 +6,15 @@
  *   GIF 프레임 상한 60(export-image.js GIF_MAX_FRAMES 와 같은 수 · 지디 결정 ⓑ: fps 를 낮춤 + 안내 줄에 몇 fps 인지).
  *   정적 «첫 장면»(slide-block.js renderSlideBlock 의 flex 줄)은 offset 0 그림과 같은 자리 — 카드 i 의 왼끝 = i × (카드 폭 + 간격).
  */
-export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut']);
+export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center']);
+/* SLIDE-FX-CENTER-CAROUSEL-01(수지 S07 유리 카드) — 가운데 한 장 + 양옆 엿보기 · 한 장씩 넘김(넘김과 같은 박자). ★한 바퀴는 «둘째 카드가 가운데»에서 시작 —
+   그래야 첫 장면 DOM(트랙 한 번 밀기)에도 왼쪽 엿보기(첫째 카드)가 진짜로 있다(t=0 에 마지막 카드를 왼쪽에 감아 붙이면 DOM 에 그 카드가 없다 = GIF ≠ 첫 장면). */
+export const slideCentered = (fx) => fx === 'slide-center';
 /* SLIDE-FX-SINGLE-FRAME-MULTI-01(수지 S24 폰 후기) — «제자리»: 카드 한 장이 블럭을 꽉 채우고 그 자리에서 바뀐다(페이드 = 겹쳐 흐려지며 · 컷 = 넘김 끝에 바로). 셈은 넘김과 같은 박자(장마다 [바뀜 0.5초 · 머무름]). */
 export const slideInPlace = (fx) => fx === 'slide-fade' || fx === 'slide-cut';
 /** 움직임 축 — 세로 효과면 'y'(정적 첫 장면도 세로로 쌓음). */
 export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' ? 'y' : 'x');
-const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || slideInPlace(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
+const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || slideInPlace(fx) || slideCentered(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
 export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none' });
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
@@ -101,6 +104,20 @@ export function inPlaceState(n, anim, t) {
   const f = local < SWIPE_MOVE_S ? easeInOut(local / SWIPE_MOVE_S) : 1;
   return { from: i % N, to: (i + 1) % N, f };
 }
+/** 가운데 캐러셀 한 장면 — drawSlides 에 넘길 밀린 거리 s(가운데 맞춤 뺀 값) + 가운데(앞) 카드 번호. 바뀜 동안 가운데 맞춤도 두 카드 폭 사이로 옮겨 간다(칸별 폭). */
+export function centerState(geom, anim, t) {
+  const st = inPlaceState(geom.n, anim, t), n = geom.n;
+  const a = (st.from + 1) % n, b = (st.to + 1) % n;   // 둘째 카드부터(위 머리말)
+  const sA = geom.starts[a], sB = b === 0 ? geom.period : geom.starts[b];   // 앞으로만(마지막 → 처음은 주기 끝으로)
+  const c = (i) => (geom.bw - geom.cws[i]) / 2;
+  return { s: sA + (sB - sA) * st.f - (c(a) * (1 - st.f) + c(b) * st.f), active: st.f < 0.5 ? a : b };
+}
+/** 첫 장면 트랙 밀기(%·px) — 가운데 캐러셀 t=0 과 같은 자리: 둘째 카드(없으면 첫째) 가운데. ws = 카드 폭 %들 · gap px. CSS translateX 값 글자. */
+export function centerTrackShift(ws, gap) {
+  const i = ws.length > 1 ? 1 : 0, w = ws[i] ?? 0, before = i ? ws[0] : 0;
+  return `calc(${(100 - w) / 2 - before}% - ${i ? gap : 0}px)`;
+}
+
 /** 제자리 그리기 — 그림을 캔버스 꽉(cover · 첫 장면 object-fit:cover 와 같음). 페이드 = from 위에 to 를 알파 f · 컷 = f < 1 이면 from, 아니면 to. 보이는 «앞» 번호를 돌려준다(점 표시용). */
 export function drawInPlace(ctx, W, H, imgs, st, fx, emptyFill = '#e9e9e9') {
   const one = (im, a) => {

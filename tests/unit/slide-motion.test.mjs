@@ -6,6 +6,7 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S10 가운데 캐러셀(SLIDE-FX-CENTER-CAROUSEL-01): t=0 = 둘째 카드 가운데(s = 시작₁ − (bw−cw)/2) · 머무름 = 셋째 가운데 · 마지막 → 첫째(주기 끝) · 앞 번호 · 첫 장면 밀기 글자
  * S9 제자리(SLIDE-FX-SINGLE-FRAME-MULTI-01): 넘김과 같은 박자(loopSec 같음) · 바뀜 중 f 0→1 · 머무름 f 1 · 마지막 → 처음 · 페이드 = to 알파 f · 컷 = f<1 from / 1 to · 보이는 번호
  * S8 점 표시(SLIDE-INDICATOR-DOTS-01): slideActiveIndex = 왼끝이 지난 마지막 카드(균일·칸별) · drawDots = n 점 · active 만 DOT_ON · 위/아래 띠 가운데 y · 'none' 이면 안 그림
  *   양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch — DOM 쪽): slidePlan 의 drawDots 줄 삭제 → slide-fx D1 GIF 점 빨강 — 예측
@@ -16,7 +17,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
+import { centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
   SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
@@ -158,4 +159,16 @@ test('S9 제자리 — 박자 · 바뀜 진행 · 페이드 알파 · 컷', () =
   assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 0.3 }, 'slide-cut'), 0); assert.deepEqual(log, [['a', 1], ['img', 'r']]);
   log.length = 0;
   assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 1 }, 'slide-cut'), 1); assert.deepEqual(log, [['a', 1], ['img', 'b']]);
+});
+
+test('S10 가운데 캐러셀 — 둘째부터 · 가운데 맞춤 · 앞 번호 · 첫 장면 밀기', () => {
+  const G4 = slideGeom(800, 4, { cardW: 50, gap: 20 }), A = { dwell: 1.5 }, per = SWIPE_MOVE_S + 1.5, T = 4 * per;
+  assert.equal(slideCentered('slide-center'), true);
+  assert.equal(loopSec('slide-center', G4, A), loopSec('slide-swipe', G4, A));
+  const at = (sec) => centerState(G4, A, sec / T);
+  assert.deepEqual(at(0), { s: 420 - 200, active: 1 }, '★t=0 = 둘째 카드 가운데');
+  assert.deepEqual(at(SWIPE_MOVE_S + 0.1), { s: 840 - 200, active: 2 }, '머무름 = 셋째 가운데');
+  assert.deepEqual(at(2 * per + SWIPE_MOVE_S + 0.1), { s: 1680 - 200, active: 0 }, '넷째 → 첫째(주기 끝으로 앞으로만)');
+  assert.equal(centerTrackShift([50, 50, 50], 20), 'calc(-25% - 20px)', '첫 장면 = 둘째 가운데((100−50)/2 − 50 % · − 간격)');
+  assert.equal(centerTrackShift([60], 16), 'calc(20% - 0px)', '한 장이면 첫째 가운데');
 });
