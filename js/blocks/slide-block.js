@@ -71,6 +71,35 @@ export const slideHasPhotos = (block) => (isFrameSlide(block) ? slideCells(block
 export const isFrameSlide = (block) => block?.dataset?.cellMode === 'frame';
 export const slideCells = (block) => [...(block?.querySelectorAll(':scope > .sld-track > .sld-cell') || [])];
 /** 빈 칸 하나 — 프레임 블럭 기본 꼴(⑤ 재사용) + 칸 표식. 크기는 renderSlideBlock 이 트랙에 맞춰 덮는다(px 고정 걷음). */
+/** SLIDE-CELL-AS-FRAME-01 커밋 5 — 옛 사진 모드 → 프레임 모드(Q1: «누를 때만» · 열 때 자동 변환 0).
+ *  사진 i → 칸 i 안에 그 사진 에셋 블럭 하나(칸 꽉 · cover) · 칸 폭 = 그 사진 w(있으면) · 사진 0장이면 빈 칸 3 · dataset.slides 는 걷음(정본이 DOM 으로 옮겨감).
+ *  에셋은 makeAssetBlock + setAssetImageFromSrc 로 «직접» 짓는다(addAssetBlock 은 장마다 이력을 쌓는다) ⇒ 이력은 부르는 쪽(패널 commit) 한 칸 = ⌘Z 한 번에 사진 모드로. */
+export function convertSlideToFrames(block) {
+  if (!block || isFrameSlide(block)) return false;
+  const { slides } = readSlideState(block);
+  const track = document.createElement('div');
+  track.className = 'sld-track';
+  const cells = (slides.length ? slides : [null, null, null]).map((s) => {
+    const c = makeSlideCell();
+    if (s?.w !== undefined) c.dataset.w = String(s.w);
+    if (s && window.makeAssetBlock) {
+      const { block: ab } = window.makeAssetBlock();
+      Object.assign(ab.style, { position: 'absolute', left: '0px', top: '0px', width: '100%', height: '100%' });
+      Object.assign(ab.dataset, { offsetX: '0', offsetY: '0', fit: 'cover', usePadx: 'false' });
+      c.appendChild(ab);
+      window.setAssetImageFromSrc?.(ab, s.src);
+    }
+    track.appendChild(c);
+    return c;
+  });
+  delete block.dataset.slides;
+  block.dataset.cellMode = 'frame';
+  block.replaceChildren(track);   // 옛 사진 카드(.sld-card) → 칸 트랙 — 바꾸는 «이 한 번»만 짓는다(이후 렌더는 배치만)
+  renderSlideBlock(block);
+  cells.forEach((c) => { window.bindFrameDropZone?.(c); c.querySelectorAll('.asset-block').forEach((ab) => { bindBlock(ab); ab.setAttribute('draggable', 'false'); }); });
+  return true;
+}
+
 /** 끝에 빈 칸 하나(패널 «프레임 추가하기») — SLIDE_MAX 가드 · 이력은 부르는 쪽. */
 export function addSlideCell(block) {
   const track = block.querySelector(':scope > .sld-track');
@@ -289,5 +318,6 @@ window.appendSlideImage = appendSlideImage;   // canvas-scratch-drop(클래식 �
 window.slideAxis = slideAxis;
 window.isFrameSlide = isFrameSlide;
 window.addSlideCell = addSlideCell;
+window.convertSlideToFrames = convertSlideToFrames;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

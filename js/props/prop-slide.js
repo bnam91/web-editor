@@ -8,7 +8,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { grdPickImageFile } from './prop-grid.js';
-import { readSlideState, setSlideList, setSlideLayout, isFrameSlide, slideCells, addSlideCell, renderSlideBlock } from '../blocks/slide-block.js';
+import { readSlideState, setSlideList, setSlideLayout, isFrameSlide, slideCells, addSlideCell, renderSlideBlock, convertSlideToFrames } from '../blocks/slide-block.js';
 import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
 
 const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><rect x="1" y="3" width="6" height="6" rx="0.5"/><path d="M8.5 3.5v5M10.5 4.5v3"/></svg>`;
@@ -54,6 +54,7 @@ export function showSlideProperties(block, opts = {}) {
       sec('content', frame ? _cellRowsHTML(block, st, selCell) : `
       ${photoRows || '<div class="prop-row"><span class="prop-label">사진 없음</span></div>'}
       <div class="prop-row"><button class="prop-btn" id="sld-add" style="width:100%"${full ? ' disabled' : ''} title="${full ? `최대 ${SLIDE_MAX}장` : '사진 파일 고르기'}">+ 사진 넣기 (${st.slides.length}/${SLIDE_MAX})</button></div>
+      <div class="prop-row"><button class="prop-btn" id="sld-to-frame" style="width:100%">프레임으로 바꾸기</button></div>
       `),
       sec('size', `
       ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
@@ -94,6 +95,8 @@ export function showSlideProperties(block, opts = {}) {
     /* SLIDE-CELL-SIZE-EACH-01 — 이 칸만 폭 %(slides[i].w · 소독 normCardW 20~100) · 공통 «카드 폭 %»는 칸별 값 없는 칸만 */
     row.querySelector('.sld-w')?.addEventListener('change', (e) => { const s = list(); if (!s[i]) return; s[i] = { ...s[i], w: +e.target.value }; setSlideList(block, s); commit(); reopen(); });
   });
+  /* 옛 사진 모드 → 프레임 모드(누를 때만 · Q1) — 사진마다 칸 안 에셋 · 이력 한 칸(⌘Z = 사진 모드) */
+  $('sld-to-frame')?.addEventListener('click', () => { if (convertSlideToFrames(block)) { commit(); reopen(null); } });
   /* 프레임 모드 칸 줄 — 순서·빼기 = 칸 요소째 옮김/뺌(자식 통째 · ⌘Z 가 DOM 표본으로 되돌림) · 폭 = 칸 data-w(%) */
   if (frame) {
     const track = block.querySelector(':scope > .sld-track');

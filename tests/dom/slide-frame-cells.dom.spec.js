@@ -17,7 +17,11 @@
  * F5 복제(진짜 ⌘D) — 칸·칸 안 글자 id 가 새로 · 사본 칸 안을 지워도 원본 그대로
  * F6 Figma JSON — 프레임 모드 = type frame + 칸마다 children(칸 프레임 · 칸 2 안 글자 블럭이 그 칸 children 에) · 칸 자리 x 늘어남 · images 없음
  *    / 사진 모드는 slide-block.dom M6(images) 가 그대로 잰다
+ * ── 커밋 5 ──
+ * F4 옛 사진 모드 저장본(빨강·파랑 2장 · 칸 1 폭 40) — 저장→다시 열기→다시 저장 = 저장본 canvas 글자 그대로(변환 0) · 패널 «프레임으로 바꾸기»(진짜 클릭)
+ *    → 프레임 칸 2 · 칸마다 그 사진 에셋(칸 꽉) · 칸 1 data-w 40 · data-slides 걷힘 · ⌘Z 한 번 = 사진 모드(사진 2 · 카드 2 · 칸 0)
  * 양성대조(CTL · _patches/slide-frame-CTL1-destructive.patch): renderSlideBlock 의 프레임 갈래 `if (isFrameSlide(block)) {…}` 를 지움(옛 replaceChildren 로 떨어짐) → F0 빨강(값 바꾸자 글자 사라짐) — 예측
+ *   slide-frame-CTL6-no-convert.patch(패널 «프레임으로 바꾸기» 배선 삭제) → F4 빨강 — 예측
  *   slide-frame-CTL5-figma-images.patch(Figma 프레임 갈래 조건을 false → 옛 images 갈래) → F6 빨강 — 예측
  *   slide-frame-CTL4-no-frame-prepare.patch(slidePrepare 프레임 갈래 삭제 → 사진 길) → F3 빨강(칸 그림 0) — 예측
  *   slide-frame-CTL2-no-cell-pick.patch(block-drag click 의 _pickSlideCell 줄 삭제) → F2 빨강(프레임 패널·px 손잡이) ·
@@ -243,5 +247,39 @@ test('F6 Figma — 프레임 모드 = frame + 칸 children(칸 안 글자까지)
     return { type: node.type, images: Array.isArray(node.images), n: kids.length, xsUp: kids.every((k, i) => i === 0 || k.x > kids[i - 1].x), kidTypes: kids.map((k) => k.block?.type), textIn: kids.map((k) => hasText(k.block)), w0: kids[0]?.w > 0 };
   }, id);
   expect(r, `★Figma 프레임 칸 — ${JSON.stringify(r)}`).toEqual({ type: 'frame', images: false, n: 3, xsUp: true, kidTypes: ['frame', 'frame', 'frame'], textIn: [false, true, false], w0: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임으로 바꾸기»(누를 때만) · ⌘Z 한 번 = 사진 모드', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => {
+    const mk = (c) => { const cv = document.createElement('canvas'); cv.width = 40; cv.height = 30; const x = cv.getContext('2d'); x.fillStyle = c; x.fillRect(0, 0, 40, 30); return cv.toDataURL('image/png'); };
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    await window.addSection();
+    const sec = c.querySelector('.section-block'); window.selectSection(sec);
+    const { row, block } = window.makeSlideBlock({ slides: [{ src: mk('#ff0000'), w: 40 }, { src: mk('#0000ff') }] });   // 옛 사진 모드(표식 없음)
+    (sec.querySelector('.section-inner') || sec).appendChild(row); window.bindBlock?.(block);
+    window.pushHistory?.();
+    return block.id;
+  });
+  /* 저장본 바이트 = serializeProject 의 페이지 canvas 글자 — 저장 → 다시 열기 → 다시 저장해도 같아야(열 때 변환 0) */
+  const saved = () => page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); return d.pages.map((p) => p.canvas).join('\n'); });
+  const bytes0 = await saved();
+  await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  expect(await saved(), '★다시 열어도 저장본 글자 그대로(옛 사진 블럭 변환 0)').toBe(bytes0);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-card').length, id), '첫 장면 = 옛 사진 카드').toBe(2);
+  await page.evaluate((id) => window.selectBlock(id), id);
+  await page.click('#sld-to-frame');
+  const f = await page.evaluate((id) => {
+    const b = document.getElementById(id), cells = [...b.querySelectorAll(':scope > .sld-track > .sld-cell')];
+    return { mode: b.dataset.cellMode || null, slides: b.dataset.slides ?? null, cards: b.querySelectorAll('.sld-card').length, n: cells.length, w0: cells[0]?.dataset.w ?? null,
+      imgs: cells.map((c) => (c.querySelector('.asset-block')?.dataset.imgSrc || '').slice(0, 22)),
+      fill: cells.map((c) => { const a = c.querySelector('.asset-block'); if (!a) return null; const r = c.getBoundingClientRect(), q = a.getBoundingClientRect(); return [Math.round(q.width / r.width * 100) / 100, Math.round(q.height / r.height * 100) / 100]; }) };
+  }, id);
+  expect(f, '★프레임 칸 2 · 칸마다 그 사진 · 칸 1 폭 40 · data-slides 걷힘').toEqual({ mode: 'frame', slides: null, cards: 0, n: 2, w0: '40', imgs: ['data:image/png;base64,', 'data:image/png;base64,'], fill: [[1, 1], [1, 1]] });
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return { mode: b.dataset.cellMode || null, n: JSON.parse(b.dataset.slides || '[]').length, cards: b.querySelectorAll('.sld-card').length, cells: b.querySelectorAll('.sld-cell').length }; }, id),
+    '★⌘Z 한 번 = 사진 모드').toEqual({ mode: null, n: 2, cards: 2, cells: 0 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
