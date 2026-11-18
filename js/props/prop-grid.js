@@ -3334,6 +3334,10 @@ function _grdIfgSectionHtml(block) {
           ${GRID_IFG_PRESET_KEYS.map(btn).join('\n          ')}
         </div>
       </div>
+      <div class="prop-row">
+        <span class="prop-label">아이콘 크기(%)</span>
+        <input type="number" class="prop-number" id="grd-ifg-icon-scale" min="20" max="100" step="5" value="${window.ifgIconScaleOf ? window.ifgIconScaleOf(block) : 100}">
+      </div>
     </div>`;
 }
 
@@ -4268,6 +4272,10 @@ ${_flattenRowHtml(rows, cols)}
     if (btn.dataset.ifgPick === block.dataset.ifgPreset) return;
     _grdToastCellFail(window.applyIfgPreset?.(block, btn.dataset.ifgPick));
   }));
+  /* t13C-07 「아이콘 크기」 — 원 안 그림 배율(%) · 원 지름은 그대로. 확정(change) 한 번 = ⌘Z 한 번(updateGridBlock 한 문). */
+  propPanel.querySelector('#grd-ifg-icon-scale')?.addEventListener('change', (ev) => {
+    _grdToastCellFail(window.applyIfgIconScale?.(block, ev.target.value));
+  });
 
   /* 세로 정렬 — «블록 통째»(block.dataset.valign). 렌더러는 pick('valign') 가 있으면 그것을 먼저
      쓰므로(_GRID_VALIGN[pick('valign')] || blockValign), 칸/열 오버라이드가 남아 있으면 이 단추가

@@ -1103,7 +1103,7 @@ const GRID_GAP_LINE_H = 16;
 const GRID_LINE_FIELDS = new Set([
   'align', 'barColor', 'bg', 'clipContent', 'color', 'cols', 'content', 'fontFamily', 'fontSize',
   'fxShadow', 'fxShadowBlur', 'fxShadowColor', 'fxShadowOp', 'fxShadowX', 'fxShadowY',
-  'gap', 'height', 'id', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
+  'gap', 'height', 'iconScale', 'id', 'imgPosX', 'imgPosY', 'imgShape', 'imgSizePct', 'imgSrc', 'italic', 'items',
   'labelColor', 'labelSize', 'letterSpacing', 'lineHeight', 'marginTop', 'padH', 'padV',
   'radius', 'strike', 'text', 'textHtml', 'trackColor', 'type', 'valign', 'valueColor', 'valueSize',
   'weight', 'widthPct',
@@ -2420,8 +2420,13 @@ function _gridLineHtml(line, colAlign, depth = 0, addr = null, useRoleColor = fa
          끔이면 overflow 를 안 박고 data-clip-content="false" 를 찍는다(크롭 줄 clipAttr 과 같은 꼴) · 기본(켬)은 옛 바이트 그대로.
          flex-shrink:0 이 위 box 에 있어 overflow 를 떼도 원이 안 눌린다(㈐ 의 붕괴는 사각 줄 얘기). 술어 없으면(유닛) undefined ⇒ 자른다. */
       const cClipOn = (typeof window !== 'undefined' ? window.clipsContentFor?.('gridCircle', line.clipContent) : undefined) !== false;
+      /* t13C-07 — 원 안 «그림만» 줄이는 배율(%) · 원 지름과 따로(인포그래픽 「아이콘 크기」). 없거나 100 이상 = 옛 바이트.
+         20~100 — 원 밖으로 안 나가게(Figma 는 그림 자리를 그대로 싣는다). 세로 여백 % 는 폭 기준이라 정원에서 곧 가운데. */
+      const _isc = typeof line.iconScale === 'number' ? line.iconScale : NaN;   // null·참거짓·글자 = 옛 바이트
+      const iSc = Number.isFinite(_isc) && _isc < 100 ? Math.max(20, _isc) : 100;
+      const iSzCss = iSc < 100 ? `width:${iSc}%;height:${iSc}%;margin:${(100 - iSc) / 2}% 0 0 ${(100 - iSc) / 2}%;` : 'width:100%;height:100%;';
       return `<div${addrAttr}${lidAttr} class="grd-img-frame grd-img-circle"${cClipOn ? '' : ' data-clip-content="false"'} style="${box}${cClipOn ? 'overflow:hidden;' : ''}">`
-        + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;width:100%;height:100%;object-fit:cover;">`
+        + `<img class="grd-img" src="${_esc(line.imgSrc)}" draggable="false" style="display:block;${iSzCss}object-fit:cover;">`
         + cTextHtml
         + `</div>`;
     }
