@@ -2407,6 +2407,12 @@ function bindBlock(block) {
       window.showVectorProperties(block);
       showVectorResizeHandles(block);
     });
+    // ★t13A-03 — 펜 패스 벡터는 더블클릭 = 앵커 편집(A 와 같은 입구 · Figma·Illustrator 손버릇). 펜 데이터 없는 벡터는 그대로.
+    block.addEventListener('dblclick', e => {
+      if (!block.dataset.penNodes) return;
+      e.stopPropagation();
+      window.enterPenEditMode?.(block);
+    });
   }
 
   if (isIconify) {

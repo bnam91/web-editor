@@ -3311,6 +3311,9 @@ document.addEventListener('keydown', e => {
       if (window.lnAddLineToSelected?.('body')) return;  // ★BT2 D10 — 말풍선·챗의 고른 줄 다음에 본문 줄
       window.addTextBlock?.('body'); return;
     }
+    /* ★t13A-03 — 맨 A = 펜 앵커 편집(Illustrator 직접 선택) «펜 문맥일 때만»: 펜 그리는 중 · 펜 편집 중 · 펜 패스 벡터 하나 고름.
+       그 밖은 penEditFromContext 가 false → 아래 에셋 메뉴 그대로. 그리드 우선(T/G/K)과 같은 «문맥 먼저» 꼴 · 설정에서 addAsset 을 바꿔도 펜 A 는 A. */
+    if (e.code === 'KeyA' && !e.altKey && !e.isComposing && window.penEditFromContext?.()) { e.preventDefault(); return; }
     if (_isAddAsset) { e.preventDefault(); window.toggleFpDropdown?.('fp-asset-dropdown'); return; }
     /* ★T307(현빈 261109) — 맨 D = 그리드 · 맨 F = 프레임. 하드코딩(K 선례 · 설정 레지스트리 밖). 가드는 T 와 같은 것(편집 중·입력칸·⌘^⇧ 위에서 빠짐).
        ⌥D(우정렬)는 위에서 먼저 return · 여기 !altKey 는 그 순서에 기대지 않으려는 것. _isAdd* «다음»이라 사용자가 T/G/A 를 D/F 로 바꿔 두면 그쪽이 이긴다. */

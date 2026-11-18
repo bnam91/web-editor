@@ -506,6 +506,7 @@ function _finalizeDraw() {
   _cancelDraw();
   window.scheduleAutoSave?.();
   window.showToast?.('🖊 패스 생성 — 펜툴 유지 중(ESC 종료)');
+  return vb;
 }
 
 function _buildSvg(d, w, h, color, strokeWidth, fill) {
@@ -578,6 +579,7 @@ function enterPenEditMode(block) {
   _startEditRaf();
   if (!_editKeyBound) {
     document.addEventListener('keydown', _onEditKeydown, true);
+    document.addEventListener('mousedown', _onEditOutsideDown, true);
     _editKeyBound = true;
   }
   window.showToast?.('✎ 패스 편집 — 앵커/핸들 드래그, Delete=앵커삭제, ESC=완료');
@@ -593,6 +595,7 @@ function exitPenEditMode() {
   if (_editOverlay) { _editOverlay.remove(); _editOverlay = null; }
   if (_editKeyBound) {
     document.removeEventListener('keydown', _onEditKeydown, true);
+    document.removeEventListener('mousedown', _onEditOutsideDown, true);
     _editKeyBound = false;
   }
 }
@@ -803,6 +806,42 @@ function _onEditKeydown(e) {
   }
 }
 
+// t13A-03 — 편집 중 캔버스의 «다른 곳» 누르기 = 편집 끝(Illustrator 직접 선택으로 빈 곳 클릭). 클릭 자체는 막지 않는다(다른 블럭 고르기 그대로).
+//   손잡이 오버레이(#ss-handles-overlay)·우측 패널은 #canvas-wrap 밖이라 안 걸린다.
+function _onEditOutsideDown(e) {
+  if (!_edit || e.button !== 0) return;
+  if (!e.target.closest?.('#canvas-wrap') || _edit.block.contains(e.target)) return;
+  exitPenEditMode();
+}
+
+// ── t13A-03 모드 전환 (V/A) ─────────────────────────────────────────────────
+// V 출구 — 펜 그리기·편집을 끝내고 선택 커서로. 그리던 패스는 앵커 ≥2 면 확정(Illustrator: 도구를 바꾸면 열린 채 확정), 아니면 버림.
+//   V 키는 여기서 잡지 않는다 — 공용 «V = 도구 모드 끝» 명부(t13A-08)가 이걸 부른다. 확정한 블럭을 돌려준다(없으면 null).
+function penToolExitToSelect() {
+  let vb = null;
+  if (_mode) {
+    if (_draw && _draw.nodes.length >= 2) vb = _finalizeDraw() || null;
+    exitVectorPenMode();
+  }
+  exitPenEditMode();
+  return vb;
+}
+
+// A 문맥 — 펜 그리는 중 · 펜 앵커 편집 중 · 펜 패스 벡터 하나가 골라져 있을 때만 A = 앵커 편집(true = A 를 먹었다).
+//   그 밖은 false → editor.js 가 A 를 원래대로(에셋 메뉴) 쓴다. 펜 데이터 없는 벡터(SVG 들여오기 등)도 false.
+function penEditFromContext() {
+  if (_edit) return true;
+  if (_mode) {
+    const vb = penToolExitToSelect();
+    if (vb) enterPenEditMode(vb);
+    return true;
+  }
+  const sel = document.querySelectorAll('#canvas .vector-block.selected');
+  if (sel.length !== 1 || !sel[0].dataset.penNodes) return false;
+  enterPenEditMode(sel[0]);
+  return !!_edit;
+}
+
 // ── window export ───────────────────────────────────────────────────────────
 window.enterVectorPenMode  = enterVectorPenMode;
 window.exitVectorPenMode   = exitVectorPenMode;
@@ -810,3 +849,5 @@ window.toggleVectorPenMode = toggleVectorPenMode;
 window.enterPenEditMode    = enterPenEditMode;
 window.exitPenEditMode     = exitPenEditMode;
 window.nodesToSvgPath      = nodesToSvgPath;
+window.penToolExitToSelect = penToolExitToSelect;
+window.penEditFromContext  = penEditFromContext;
