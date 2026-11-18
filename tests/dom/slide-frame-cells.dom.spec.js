@@ -168,9 +168,18 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
   const { errs, id } = await menuScene(page);
   /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01(제품 뜻 바뀜) — 접힌 채 한 번 = 슬라이드만 · 두 번 = 펼침 → 그다음 한 번 = 그 칸 */
   const at = (i, dx) => page.evaluate(({ id, i, dx }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return dx == null ? [r.left + r.width / 2, r.top + r.height / 2] : [r.left + dx, r.top + dx]; }, { id, i, dx });
-  const p1 = await at(0, 12);
+  /* 지혜맥 defb77053 F2 3/3 «한 번» 에서 slide:false — 첫 누름 자리를 재고 «바로» 눌렀다(옛 판은 그 사이 evaluate 하나가 더 있었다 · 장면이 덜 멎은 것으로 추정 · 미확인)
+     ⇒ 그 점이 두 rAF 동안 같고 그 점의 주인이 이 슬라이드 안일 때까지 기다린 뒤 누른다(조건 대기) */
+  const settled = () => page.evaluate(async (id) => {
+    const b = document.getElementById(id), m = () => { const r = b.querySelectorAll('.sld-cell')[0].getBoundingClientRect(); return [Math.round(r.left + 12), Math.round(r.top + 12)]; };
+    const a = m(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const c = m(), e = document.elementFromPoint(c[0], c[1]);
+    return { still: a[0] === c[0] && a[1] === c[1], inSlide: !!e && b.contains(e), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, p: c };
+  }, id);
+  await expect.poll(settled, '[전제] 첫 누름 자리 멎음 · 그 점 = 슬라이드').toMatchObject({ still: true, inSlide: true });
+  const p1 = (await settled()).p;
   await page.mouse.click(p1[0], p1[1]);
-  expect(await page.evaluate((id) => { const b = document.getElementById(id); return { slide: b.classList.contains('selected'), cell: b.querySelectorAll('.sld-cell.selected').length, open: b.classList.contains('sld-unfold') }; }, id), '★한 번 = 슬라이드만(펼침 없음)').toEqual({ slide: true, cell: 0, open: false });
+  const one = await page.evaluate(({ id, p1 }) => { const b = document.getElementById(id), e = document.elementFromPoint(p1[0], p1[1]); return { slide: b.classList.contains('selected'), cell: b.querySelectorAll('.sld-cell.selected').length, open: b.classList.contains('sld-unfold'), sel: [...document.querySelectorAll('#canvas .selected')].map((x) => `${x.className.split(' ')[0]}#${x.id}`), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null }; }, { id, p1 });
+  expect(one, '★한 번 = 슬라이드만(펼침 없음) · 받은 값에 진단(sel·who)').toMatchObject({ slide: true, cell: 0, open: false });
   /* 지혜맥 F2 2/3 빨강 진단 {pre:{open:false, who:section-inner}} — 옛 판은 칸 2 가운데를 «첫 누름 전»에 재 두고 그 점을 두 번 눌렀다.
      접힌 동안 칸 2 가운데는 블럭 밖(잘림)일 수 있고 첫 누름이 패널을 열며 캔버스가 움직일 수 있다(추정 · 둘 중 무엇인지 미확인) ⇒ 두 번 누름은 «지금» 잰 칸 1 가운데(블럭 안) · 칸 2 점은 펼친 «뒤» 잰다. */
   const pd = await at(0);
@@ -634,9 +643,10 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
 
 /* ── 슬라이드 피드백 3 ──
  * U2 SLIDE-UNFOLD-STAY-ON-DELETE-01: 펼쳐 칸 2 고름 → Delete → 칸 2 빠짐 · ★펼침 그대로 · 슬라이드 골라짐 · 남은 칸(옛 칸 3) 자리 elementFromPoint = 그 칸(포인터 받음) · ⌘Z = 칸 3
- * K1 SLIDE-CELL-CHILD-SELECT-OUTLINE-01: 펼쳐 칸 2 에 글자 → 칸 빈 곳 누름 → 글자 가운데 누름 → 글자 골라짐(전제) · ★선택 층(.ss-sel-layer path) 하나가 글자 상자(글자 래퍼)를 감쌈(±2px)
- *    · 실패 메시지 = 진단(골라진 것 · 길 상자 · 글자 상자 · 그 점의 주인) — 원인 미확인(srv 실행 0) · 지혜맥 결과로 가른다
- * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) — 예측 */
+ * K1 SLIDE-CELL-CHILD-SELECT-OUTLINE-01: 펼쳐 칸 2 에 글자 → 칸 빈 곳 누름 → 글자 가운데 «한 번» 누름 → ★글자 골라짐 · ★선택 층(.ss-sel-layer path) 하나가 글자 상자(글자 래퍼)를 감쌈(±2px)
+ *    · 원인(코드): 프레임 «덮개»(editor-blocks.css .frame-block:not(.frame-entered)…:not(:has(.selected)) * = pointer-events none · B안)가 칸에도 걸려 한 번 누름이 칸으로 갔다(defb77053 지혜맥 K1 3/3 전제 빨강)
+ *      ⇒ 펼친 슬라이드 칸은 덮개 제외 · 실패하면 받은 값 = 진단(골라진 것 · 길 상자 · 글자 상자 · 그 점의 주인)
+ * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) — 예측 */
 test('U2 펼친 채 칸 Delete = 그 칸만 · 펼침 그대로', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   const c0 = await cellIds(page, id);
@@ -675,8 +685,9 @@ test('K1 칸 안 블럭 클릭 = 선택선 보임(선택 층이 그 블럭을 �
       who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, selOv: document.body.classList.contains('sel-ov'),
     };
   }, { tid, tc });
-  await expect.poll(async () => (await diag()).tSel, '[전제] 글자 골라짐').toBe(true);
-  await expect.poll(async () => { const d = await diag(); return d.paths.some((x) => x.box.every((v, k) => Math.abs(v - d.hostBox[k]) <= 2)); },
-    { message: `★선택 층 길 하나가 글자 상자를 감쌈 · 진단 ${JSON.stringify(await diag())}` }).toBe(true);
+  /* 받은 값 = 진단 통째(실패하면 그대로 찍힌다 · 지디 요청) */
+  await expect.poll(diag, '★글자 골라짐(펼친 칸 = 진입 · 덮개 0) · 받은 값 = 진단').toMatchObject({ tSel: true });
+  await expect.poll(async () => { const d = await diag(); return { wrapped: d.paths.some((x) => x.box.every((v, k) => Math.abs(v - d.hostBox[k]) <= 2)), d }; },
+    '★선택 층 길 하나가 글자 상자를 감쌈 · 받은 값 = 진단').toMatchObject({ wrapped: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

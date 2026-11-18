@@ -272,7 +272,9 @@
 /* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
 /* ★B안(현빈 261107) — 덮개는 «선택»이 아니라 «진입»해야 풀린다. 진입 = 여백 더블클릭(.frame-entered) 또는 자손 선택(:has(.selected) = 자식 더블클릭).
    ⇒ 프레임을 한 번 골라도 자식 자리 누름은 프레임으로 간다(끌면 프레임째). 정의 원문 handoff ORDER-frame-dblclick-focus §1. */
-.frame-block:not(.frame-entered):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
+/* SLIDE-CELL-CHILD-SELECT-OUTLINE-01(현빈 피드백 3 ③) — 펼친 슬라이드의 칸은 «진입한» 것으로 본다(펼침이 이미 두 번 누름 · 칸마다 또 두 번 = 세 겹) ⇒ 칸 안 블럭 한 번 누름 = 그 블럭.
+   접힌 칸은 위 .slide-block:not(.sld-unfold) .sld-cell 규칙이 그대로 막는다. */
+.frame-block:not(.frame-entered):not([data-text-frame]):not(:has(.selected)):not(.slide-block.sld-unfold .sld-cell) *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
