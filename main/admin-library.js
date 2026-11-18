@@ -12,10 +12,12 @@ const DIRS = {
   'doodle-figma-191-38': { ext: ['svg'], nested: false },
   'arrow-figma-191-2': { ext: ['svg'], nested: false },
   'memoji-inclusive-192-2': { ext: ['webp'], nested: true },   // PNG 원본은 admin-library-prep.cjs 로 webp 를 옆에 만든 뒤 webp 만
+  'doodle-figma-more': { ext: ['svg', 'png'], nested: true, pngOnlyIfNoSvg: true },   // 두들002·003 묶음 폴더 · PNG@2x 는 같은 이름 SVG 가 없을 때만(재추출 53/53 이면 0)
 };
-const MIME = { svg: 'image/svg+xml', webp: 'image/webp' };
-const SEG = /^[\w.-]+$/;   // 폴더·파일 이름 한 마디 — 경로 문자·공백·`..` 는 아래서 따로 막는다
+const MIME = { svg: 'image/svg+xml', webp: 'image/webp', png: 'image/png' };
+const SEG = /^[\w.\-가-힣]+$/;   // 폴더·파일 이름 한 마디(묶음 폴더는 한글 «두들002_…») — 경로 문자·공백·`..` 는 아래서 따로 막는다
 
+const _seg = (n) => SEG.test(n.normalize('NFC'));   // 복사 도구가 한글을 NFD 로 바꿔 놓아도 같은 이름
 const _ext = (f) => path.extname(f).slice(1).toLowerCase();
 const _real = (p) => { try { return fs.realpathSync(p); } catch { return null; } };
 const _inside = (child, parent) => child === parent || child.startsWith(parent + path.sep);
@@ -30,12 +32,16 @@ function listAdminLibrary(root) {
     if (!base || !_inside(base, rootReal) || !fs.statSync(base).isDirectory()) continue;
     const files = [];
     for (const e of fs.readdirSync(base, { withFileTypes: true })) {
-      if (e.isFile() && rule.ext.includes(_ext(e.name)) && SEG.test(e.name)) files.push(e.name);
-      else if (e.isDirectory() && rule.nested && SEG.test(e.name)) {
+      if (e.isFile() && rule.ext.includes(_ext(e.name)) && _seg(e.name)) files.push(e.name);
+      else if (e.isDirectory() && rule.nested && _seg(e.name)) {
         for (const f of fs.readdirSync(path.join(base, e.name), { withFileTypes: true })) {
-          if (f.isFile() && rule.ext.includes(_ext(f.name)) && SEG.test(f.name)) files.push(`${e.name}/${f.name}`);
+          if (f.isFile() && rule.ext.includes(_ext(f.name)) && _seg(f.name)) files.push(`${e.name}/${f.name}`);
         }
       }
+    }
+    if (rule.pngOnlyIfNoSvg) {   // 같은 이름 SVG 가 있으면 PNG 는 뺀다(SVG 가 색 바꾸기·크기 자유)
+      const svgs = new Set(files.filter((f) => _ext(f) === 'svg').map((f) => f.slice(0, -4)));
+      for (let k = files.length - 1; k >= 0; k--) if (_ext(files[k]) === 'png' && svgs.has(files[k].slice(0, -4))) files.splice(k, 1);
     }
     if (files.length) out.dirs[dir] = files.sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
   }
@@ -48,7 +54,7 @@ function resolveAdminLibraryFile(root, dir, file) {
   if (!root || !rule) return { ok: false, error: 'unknown_dir' };
   if (typeof file !== 'string' || !file || file.includes('\0')) return { ok: false, error: 'path traversal' };
   const parts = file.split('/');
-  if (parts.length > (rule.nested ? 2 : 1) || parts.some((s) => !SEG.test(s) || s === '.' || s === '..')) return { ok: false, error: 'path traversal' };
+  if (parts.length > (rule.nested ? 2 : 1) || parts.some((s) => !_seg(s) || s === '.' || s === '..')) return { ok: false, error: 'path traversal' };
   const ext = _ext(file);
   if (!rule.ext.includes(ext)) return { ok: false, error: 'not_image' };
   const rootReal = _real(root);

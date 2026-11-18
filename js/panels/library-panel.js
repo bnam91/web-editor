@@ -27,6 +27,13 @@ export function libraryCollections(only) {
 const _stem = (f) => f.split('/').pop().replace(/\.[^.]+$/, '');
 const _nodeNo = (f) => { const m = /_(\d+)-(\d+)$/.exec(_stem(f)); return m ? +m[1] * 1e6 + +m[2] : 0; };   // 포즈 순서 = 노드 id
 
+/** 'folder/file' 칸 → [[folder, 칸들]…] (폴더 이름 숫자 순) */
+function _groupByFolder(items) {
+  const by = new Map();
+  for (const it of items) { const g = it.file.split('/')[0]; if (!by.has(g)) by.set(g, []); by.get(g).push(it); }
+  return [...by.entries()].sort((x, y) => x[0].localeCompare(y[0], 'ko', { numeric: true }));
+}
+
 /** 관리자 ∧ 폴더 있음 → [새 묶음…] + 덧붙일 칸 { arrow: [...] } · 아니면 빈 것(비관리자는 IPC 호출 0). */
 async function _adminLocal() {
   const none = { cols: [], merge: {} };
@@ -38,12 +45,19 @@ async function _adminLocal() {
     const files = r.dirs[a.dir];
     if (!Array.isArray(files) || !files.length) continue;
     const items = files.map((file) => ({ file, loc: a.dir, name: _stem(file).replace(/_/g, ' ') }));
-    if (a.mergeInto) { (out.merge[a.mergeInto] = out.merge[a.mergeInto] || []).push(...items); out.merge[a.mergeInto].src = a; continue; }
+    if (a.mergeInto) {
+      const tgt = out.cols.find((c) => c.id === a.mergeInto);   // 로컬 탭에 덧붙임 = 묶음으로(기존 칸은 a.baseGroup 묶음)
+      // shortcut: 대상 로컬 폴더(doodle-figma-191-38)가 없으면 이 묶음도 안 보인다 — 따로 보여야 하면 그때 새 탭으로
+      if (tgt) {
+        if (!tgt.groups) tgt.groups = [{ name: a.baseGroup || '기본', items: tgt.items }];
+        tgt.groups.push(..._groupByFolder(items).map(([g, its]) => ({ name: g, items: its })));
+        tgt.source = `${tgt.source} · ${a.source}`;
+        continue;
+      }
+      (out.merge[a.mergeInto] = out.merge[a.mergeInto] || []).push(...items); out.merge[a.mergeInto].src = a; continue; }
     const col = { ...a, items };
     if (a.groups) {   // 하위 폴더 = 캐릭터 묶음(이름 없음 → «캐릭터 N» = Frame 번호 그대로)
-      const by = new Map();
-      for (const it of items) { const g = it.file.split('/')[0]; if (!by.has(g)) by.set(g, []); by.get(g).push(it); }
-      col.groups = [...by.entries()].sort((x, y) => x[0].localeCompare(y[0], 'en', { numeric: true }))
+      col.groups = _groupByFolder(items)
         .map(([g, its]) => ({ name: `캐릭터 ${g.replace(/^Frame_/, '')}`, items: its.sort((x, y) => _nodeNo(x.file) - _nodeNo(y.file)).map((it, i) => ({ ...it, name: `포즈 ${i + 1}` })) }));
       col.items = col.groups[0].items;
     }

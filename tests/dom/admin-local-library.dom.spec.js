@@ -2,6 +2,7 @@
  * 장면은 앱의 제 문으로: 섹션 고름 → Plugins(#fp-plugin-btn) → «내장 라이브러리»(#plugin-library) → 탭 → 칸.
  * main IPC 는 하네스에 없다 ⇒ electronAPI.adminLibraryList/Read 만 가짜(부른 횟수를 센다) · 나머지는 하네스 그대로(null).
  * L1 관리자 + 폴더 있음 → «두들(피그마)»·«미모지(Inclusive)» 탭 · 화살표 = 20 + 1 · 칸 다 읽힘(지연 로드) · 다색 표시 · 나쁜 SVG 는 걸러짐
+ *    두들 탭 묶음 = «기본»(102 폴더) + 더보기 폴더 이름 · 더보기 묶음 칸(SVG + 추출 실패 PNG) 다 읽힘
  *    두들 칸 클릭 → 벡터 블럭 +1 · data-color = 원래 색 · data-svg 에 currentColor · 그린 svg 는 원래 색 → 색 바꾸면 stroke 도 바뀐다
  *    미모지 = «캐릭터 N» 묶음 단추 · 칸 클릭 → 에셋 블럭 +1(webp data URL)
  * L2 음성: 일반 계정 → 새 탭 0 · 화살표 20 · adminLibraryList/Read 호출 0
@@ -32,12 +33,13 @@ async function setup(page, { admin, dirs }) {
       return base[k];
     } });
     window.__admin._forceState(admin ? { ok: true, isAdmin: true } : { ok: true, isAdmin: false, hasRoleField: true });
-  }, { admin, dirs, svgs: { 'Heart_195-288.svg': DOODLE, 'Multi_1-1.svg': MULTI, 'Evil_1-2.svg': EVIL, 'Vector_191-10.svg': ARROW } });
+  }, { admin, dirs, svgs: { 'Heart_195-288.svg': DOODLE, 'Multi_1-1.svg': MULTI, 'Evil_1-2.svg': EVIL, 'Vector_191-10.svg': ARROW, '두들002_Crispy_doodles/Star_195-466.svg': DOODLE, '두들003_update/Doodle_195-784.svg': MULTI } });
   return errs;
 }
 const DIRS = {
   'doodle-figma-191-38': ['Evil_1-2.svg', 'Heart_195-288.svg', 'Multi_1-1.svg'],
   'arrow-figma-191-2': ['Vector_191-10.svg'],
+  'doodle-figma-more': ['두들002_Crispy_doodles/024_195-468.png', '두들002_Crispy_doodles/Star_195-466.svg', '두들003_update/Doodle_195-784.svg'],
   'memoji-inclusive-192-2': ['Frame_1/b-sticker_1_192-9.webp', 'Frame_1/a-sticker_1_192-8.webp', 'Frame_3/c-sticker_1_192-20.webp'],
 };
 async function openLibrary(page) {
@@ -62,6 +64,13 @@ test('L1 관리자 + 폴더 → 탭 · 지연 로드 · 벡터 넣기(원래 색
   await expect(page.locator('#lib-grid .lib-item')).toHaveCount(3);
   await expect(page.locator('#lib-grid .lib-item[data-loaded="1"]')).toHaveCount(3);
   await expect(page.locator('#lib-grid .lib-item[title="Multi 1-1"] .lib-name')).toHaveText('Multi 1-1 ·다색');
+  await expect(page.locator('#lib-groups .lib-group')).toHaveText(['기본', '두들002_Crispy_doodles', '두들003_update']);
+  await page.click('#lib-groups .lib-group:has-text("두들002_Crispy_doodles")');
+  await expect(page.locator('#lib-grid .lib-item')).toHaveText(['024 195-468', 'Star 195-466']);
+  await expect(page.locator('#lib-grid .lib-item[data-loaded="1"]')).toHaveCount(2);
+  await expect(page.locator('#lib-grid .lib-item[data-loaded="1"] img')).toHaveCount(1);   // PNG 칸 = 그림 · SVG 칸 = 거른 svg
+  await page.click('#lib-groups .lib-group:has-text("기본")');
+  await expect(page.locator('#lib-grid .lib-item')).toHaveCount(3);
   expect(await page.evaluate(() => ({ p: window.__pwned, s: document.querySelectorAll('#lib-grid script, #lib-grid [onload]').length }))).toEqual({ p: undefined, s: 0 });
 
   const before = await count(page, '.vector-block');

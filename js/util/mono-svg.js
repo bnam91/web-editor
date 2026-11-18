@@ -2,6 +2,7 @@
  *   입력은 sanitizeSvgString 을 «지난» 글자(속성 값이 "…" 로 다시 적혀 있다)여야 한다 — 거르기는 부르는 쪽 몫.
  *   fill·stroke 속성 값 중 none·transparent·url(…)·currentColor 를 뺀 색이 «하나»면 그 색을 currentColor 로 바꾸고 원래 색을 돌려준다.
  *   둘 이상이면 손대지 않고 multi:true (다색은 그대로 두고 칸에 표시). 색 0 이면 color:null.
+ *   그라데이션 등 url(#…) 칠이 하나라도 있으면 다색(stop-color 가 따로 있다 · 반만 바꾸면 그림이 깨진다).
  *   ★DOM 0 · import 0 — 단위(tests/unit/admin-library.test.mjs)가 Node 에서 그대로 싣는다.
  */
 const ATTR = /\b(fill|stroke)="([^"]*)"/g;
@@ -19,7 +20,10 @@ function _norm(c) {
 export function normalizeMonoSvg(svg) {
   const s = String(svg || '');
   const colors = new Set();
-  for (const [, , v] of s.matchAll(ATTR)) if (!SKIP.test(v.trim())) colors.add(_norm(v));
+  for (const [, , v] of s.matchAll(ATTR)) {
+    if (/^url\(/i.test(v.trim())) return { svg: s, color: null, multi: true };
+    if (!SKIP.test(v.trim())) colors.add(_norm(v));
+  }
   if (colors.size !== 1) return { svg: s, color: null, multi: colors.size > 1 };
   const [color] = colors;
   return { svg: s.replace(ATTR, (all, k, v) => (SKIP.test(v.trim()) ? all : `${k}="currentColor"`)), color, multi: false };
