@@ -14,7 +14,7 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A,
   DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
@@ -387,10 +387,16 @@ export function slidePlan(block, anim, fxOverride) {
         return;
       }
       const s = slideOffset(fx, geom, A, t);
-      if (!pos) { drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis); return; }
+      const ghosts = [];   // 스와이프 잔상 — 넘기는 동안만(머무름엔 앞 자리 = 지금 자리라 안 생김)
+      if (fx === 'slide-trail') for (let j = TRAIL_N; j >= 1; j--) { const sj = slideOffset(fx, geom, A, t - (j * TRAIL_DT) / sec); if (Math.abs(sj - s) > 0.5) ghosts.push([sj, TRAIL_A * (1 - (j - 1) / TRAIL_N)]); }
+      const paint = (H2) => {   // 잔상(옅게) 먼저 → 지금 자리
+        for (const [sj, a] of ghosts) { ctx.save(); ctx.globalAlpha = a; drawSlides(ctx, W, H2, block._sldImgs?.imgs || [], geom, sj, A.dir, k, undefined, axis); ctx.restore(); }
+        drawSlides(ctx, W, H2, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis);
+      };
+      if (!pos) { paint(H); return; }
       const band = DOT_BAND * k;   // 점 띠만큼 비우고 카드(첫 장면 트랙과 같은 높이)
       ctx.save(); if (pos === 'top') ctx.translate(0, band);
-      drawSlides(ctx, W, H - band, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis);
+      paint(H - band);
       ctx.restore();
       drawDots(ctx, W, H, geom.n, slideActiveIndex(geom, A.dir === 'right' ? (geom.period - s) % geom.period : s), pos, k);
     },

@@ -8,11 +8,13 @@
  * D4 SLIDE-FX-BEFORE-AFTER-WIPE-01(P127·128): 전후 비교 · 빨강(전)·파랑(후) → 첫 장면 = 왼쪽 반 빨강·오른쪽 반 파랑(겹침 + clip · 클릭 판정도) · 나눔선 가운데 ·
  *    GIF t=0 = 같은 자리 · t=¼ = 나눔선 80%(70% 자리가 빨강) · 프레임 모드 칸도 겹침
  * D5 SLIDE-FX-OVERLAP-GAP-01(P223): 카드 폭 50 · 간격 −40 → 첫 장면 둘째 왼끝 = 첫째 오른끝 − 40 · 겹친 자리 = 둘째(위) · GIF t=0 겹친 자리 = 파랑(같음) · 패널 간격 −40 까지 · 프레임 칸도
+ * D6 SLIDE-FX-SWIPE-TRAIL-01(P218): 스와이프 잔상 vs 스와이프 — t=0·머무름 = 같은 그림(첫 장면 같음) · 넘기는 가운데 = 다름(잔상) · 잔상 자리(지나간 쪽)에 옅은 앞 카드 색
  * 양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch): slidePlan 의 drawDots 줄 삭제 → D1 빨강(GIF 점 없음) — 예측
  *   slide-fx-CTL2-fade-no-alpha.patch(drawInPlace 페이드의 to 겹치기 줄 삭제) → D2 빨강(가운데가 섞이지 않음) — 예측
  *   slide-fx-CTL3-center-no-shift.patch(사진 모드 첫 장면 밀기 줄 삭제) → D3 빨강(첫 장면 ≠ GIF) — 예측
  *   slide-fx-CTL4-wipe-no-clip.patch(첫 장면 전 카드 clip 삭제) → D4 빨강(오른쪽 반도 빨강) — 예측
  *   slide-fx-CTL5-no-neg-margin.patch(사진 모드 음수 margin 삭제) → D5 빨강(첫 장면이 안 겹침 · GIF 와 다름) — 예측
+ *   slide-fx-CTL6-no-trail.patch(잔상 모으는 줄 삭제) → D6 빨강(가운데도 같음) — 예측
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -166,5 +168,20 @@ test('D5 겹침 간격 — 첫 장면 겹침 = GIF · 뒤 카드 위 · 패널 �
     return Math.round((c0.getBoundingClientRect().right - c1.getBoundingClientRect().left) / k);
   });
   expect(cell, '프레임 칸도 겹침 40').toBe(40);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D6 스와이프 잔상 — t=0·머무름 = 스와이프 · 넘기는 가운데만 잔상', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-swipe' });
+  const r = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, A = window.readSlideState(b).anim, per = 0.5 + A.dwell, T = 3 * per;
+    const hash = (fx, sec) => { b.dataset.animFx = fx; const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, sec / T);
+      const d = ctx.getImageData(0, 0, W, H).data; let h = 2166136261; for (let i = 0; i < d.length; i += 4) { h ^= d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11; h = Math.imul(h, 16777619); } return h >>> 0; };
+    const out = {};
+    for (const [k, sec] of [['t0', 0], ['mid', 0.25], ['dwell', 0.9]]) out[k] = hash('slide-trail', sec) === hash('slide-swipe', sec);
+    return out;
+  }, id);
+  expect(r, '★t=0·머무름 = 스와이프와 같은 그림 · 넘기는 가운데만 다름(잔상)').toEqual({ t0: true, mid: false, dwell: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
