@@ -14,7 +14,7 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
   DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
@@ -216,19 +216,46 @@ function _makeSlidePlus(block) {
   });
   return btn;
 }
+/* SLIDE-HEIGHT-HANDLE-01 — 고른 슬라이드(사진·프레임 둘 다) 오른쪽 아래 모서리 손잡이 = 블럭 높이(layout.h) 끌기 · 칸은 트랙을 따라감 · 놓으면 이력 한 칸.
+   손잡이도 ＋ 와 같은 층(#grd-plus-layer · 블럭 DOM·저장·PNG 에 안 샘) · 꼴은 인라인(새 CSS 0). */
+let _sldH = null;
+function _makeSlideHHandle(block) {
+  const h = document.createElement('div');
+  h.className = 'sld-h-handle';
+  h.dataset.sldFor = block.id || '';
+  h.title = '높이';
+  h.style.cssText = 'position:absolute;width:12px;height:12px;box-sizing:border-box;border:1.5px solid var(--ui-accent-primary);background:var(--ui-bg-elevated);border-radius:2px;cursor:ns-resize;pointer-events:auto;transform:translate(-50%,-50%);';
+  h.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    const y0 = e.clientY, h0 = readSlideState(block).layout.h, z = (window.currentZoom || 40) / 100;
+    const mv = (ev) => { setSlideLayout(block, { h: Math.round(h0 + (ev.clientY - y0) / z) }); kickSlidePlus(); };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); if (readSlideState(block).layout.h !== h0) { window.pushHistory?.('슬라이드 높이'); window.scheduleAutoSave?.(); } };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+  });
+  return h;
+}
 function _syncSlidePlus() {
   _sldRaf = 0;
-  const b = _activeFrameSlide();
-  if (!b) { if (_sldPlus) { _sldPlus.btn.remove(); _sldPlus = null; } return; }
   const L = gridPlusLayer();
-  if (!L) return;
-  if (!_sldPlus || _sldPlus.block !== b || !_sldPlus.btn.isConnected) { _sldPlus?.btn.remove(); _sldPlus = { block: b, btn: _makeSlidePlus(b) }; L.appendChild(_sldPlus.btn); }
-  const cells = slideCells(b), last = cells[cells.length - 1] || b, r = last.getBoundingClientRect();
-  const sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100, vert = slideAxis(readSlideState(b).fx) === 'y';
-  const x = vert ? (r.left + r.right) / 2 : r.right, y = vert ? r.bottom : (r.top + r.bottom) / 2;
-  Object.assign(_sldPlus.btn.style, { left: `${(x - sr.left) / z + (vert ? 0 : 28)}px`, top: `${(y - sr.top) / z + (vert ? 28 : 0)}px`, transform: 'translate(-50%, -50%)' });
-  _sldPlus.btn.disabled = cells.length >= SLIDE_MAX;
-  _sldRaf = requestAnimationFrame(_syncSlidePlus);
+  const sel = document.querySelector('#canvas .slide-block.selected');
+  if (!sel || !L) { if (_sldH) { _sldH.el.remove(); _sldH = null; } }
+  else {
+    if (!_sldH || _sldH.block !== sel || !_sldH.el.isConnected) { _sldH?.el.remove(); _sldH = { block: sel, el: _makeSlideHHandle(sel) }; L.appendChild(_sldH.el); }
+    const r = sel.getBoundingClientRect(), sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100;
+    Object.assign(_sldH.el.style, { left: `${(r.right - sr.left) / z}px`, top: `${(r.bottom - sr.top) / z}px` });
+  }
+  const b = _activeFrameSlide();
+  if (!b || !L) { if (_sldPlus) { _sldPlus.btn.remove(); _sldPlus = null; } }
+  else {
+    if (!_sldPlus || _sldPlus.block !== b || !_sldPlus.btn.isConnected) { _sldPlus?.btn.remove(); _sldPlus = { block: b, btn: _makeSlidePlus(b) }; L.appendChild(_sldPlus.btn); }
+    const cells = slideCells(b), last = cells[cells.length - 1] || b, r = last.getBoundingClientRect();
+    const sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100, vert = slideAxis(readSlideState(b).fx) === 'y';
+    const x = vert ? (r.left + r.right) / 2 : r.right, y = vert ? r.bottom : (r.top + r.bottom) / 2;
+    Object.assign(_sldPlus.btn.style, { left: `${(x - sr.left) / z + (vert ? 0 : 28)}px`, top: `${(y - sr.top) / z + (vert ? 28 : 0)}px`, transform: 'translate(-50%, -50%)' });
+    _sldPlus.btn.disabled = cells.length >= SLIDE_MAX;
+  }
+  if (sel || b) _sldRaf = requestAnimationFrame(_syncSlidePlus);
 }
 export function kickSlidePlus() { if (!_sldRaf && typeof requestAnimationFrame === 'function') _sldRaf = requestAnimationFrame(_syncSlidePlus); }
 if (typeof document !== 'undefined') document.addEventListener('mouseup', kickSlidePlus, true);
@@ -264,8 +291,9 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
   slideCells(block).forEach((c, i) => {
     c.dataset.idx = String(i);
     const w = inPlace ? 100 : (normCardW(c.dataset.w) ?? layout.cardW);   // 제자리 효과 = 칸이 블럭 꽉(칸별 폭은 그 효과 동안 안 씀 · 값은 그대로)
+    const hp = !vert && !inPlace && !wipe ? normCardH(c.dataset.h) : undefined;   // SLIDE-CELL-HEIGHT-EACH-01 칸 높이 %(가로 효과 · 트랙 가운데)
     /* 프레임 기본 꼴의 px 폭·높이·가운데 마진을 칸 자리로 덮는다(스타일만 · 자식 무접촉) */
-    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : '100%', minHeight: '0', maxWidth: 'none', margin: i && neg ? (vert ? `${neg}px 0 0 0` : `0 0 0 ${neg}px`) : '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '' });   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
+    Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : (hp !== undefined ? `${hp}%` : '100%'), alignSelf: hp !== undefined ? 'center' : '', minHeight: '0', maxWidth: 'none', margin: i && neg ? (vert ? `${neg}px 0 0 0` : `0 0 0 ${neg}px`) : '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '' });   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
   });
 }
 
@@ -344,11 +372,12 @@ async function _frameCellImgs(block) {
   const ST = readSlideState(block), L = ST.layout, vert = slideAxis(ST.fx) === 'y', bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.clientHeight - (L.dots === 'top' || L.dots === 'bottom' ? DOT_BAND : 0));
   const full = slideInPlace(ST.fx) || slideWipe(ST.fx);   // 꽉 채우는 효과(제자리·전후 비교)는 첫 장면 칸이 블럭 꽉 ⇒ 그 크기로 찍어야 GIF = 첫 장면(두 «꼴»만 키에 · 효과마다 다시 찍지 않음)
   const wsPct = cells.map((c) => (full ? 100 : (normCardW(c.dataset.w) ?? L.cardW)));
-  const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
+  const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${cells.map((c) => c.dataset.h ?? '').join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
   const hit = block._sldCache?.get(key);   // 두 «꼴»(카드 폭 · 꽉)을 오가도 다시 안 찍게 최근 둘을 쥔다
   if (hit) { block._sldImgs = hit; return hit.imgs; }
-  const sizes = wsPct.map((w) => (vert ? [bw, Math.max(1, Math.round((th * w) / 100))] : [Math.max(1, Math.round((bw * w) / 100)), th]));   // 효과 무관 «기본 꼴» 칸 크기(숨긴 칸도 제 크기 · 세로 효과는 % = 높이 몫 — 축만 키에)
+  const hsPct = cells.map((c) => (vert || full ? 100 : (normCardH(c.dataset.h) ?? 100)));
+  const sizes = wsPct.map((w, i) => (vert ? [bw, Math.max(1, Math.round((th * w) / 100))] : [Math.max(1, Math.round((bw * w) / 100)), Math.max(1, Math.round((th * hsPct[i]) / 100))]));   // 효과 무관 «기본 꼴» 칸 크기(숨긴 칸도 제 크기 · 세로 효과는 % = 높이 몫 — 축만 키에)
   let imgs = cells.map(() => null), err = null;
   if (sec && block.id && cells.length) {
     try {
@@ -411,7 +440,8 @@ export function slidePlan(block, anim, fxOverride) {
   const frame = isFrameSlide(block), cells = frame ? slideCells(block) : null;
   /* 프레임 모드 = 칸 수·칸 폭(data-w)이 기하 · 사진 모드 = 옛 그대로 */
   const n = frame ? Math.max(1, cells.length) : (st.slides.length || 3), ws = frame ? cells.map((c) => c.dataset.w) : st.slides.map((s) => s.w);
-  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, n, st.layout, ws);
+  const hs = frame && !slideInPlace(fx) && !slideWipe(fx) ? cells.map((c) => c.dataset.h) : null;   // 칸별 높이(가로 효과)
+  const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, n, st.layout, ws, hs);
   const sec = loopSec(fx, geom, A);
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec) + (frame ? ' · 칸 안 움직이는 것은 정지 한 장' : ''), gif: gifPlan(sec), fx, anim: A,

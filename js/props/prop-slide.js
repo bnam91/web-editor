@@ -19,7 +19,8 @@ function _cellRowsHTML(block, st, selCell) {
   const cells = slideCells(block), n = cells.length;
   const rows = cells.map((c, i) => `<div class="prop-row sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
         <span class="prop-label">칸 ${i + 1}</span>
-        <input type="number" class="prop-number sld-cw" min="20" max="100" step="1" value="${c.dataset.w ?? st.layout.cardW}" aria-label="칸 ${i + 1} ${slideAxis(st.fx) === 'y' ? '높이' : '폭'} %">
+        <input type="number" class="prop-number sld-cw" min="20" max="100" step="1" value="${c.dataset.w ?? st.layout.cardW}" aria-label="칸 ${i + 1} ${slideAxis(st.fx) === 'y' ? '높이' : '폭'} %">${slideAxis(st.fx) === 'y' ? '' : `
+        <input type="number" class="prop-number sld-ch" min="20" max="100" step="1" value="${c.dataset.h ?? 100}" aria-label="칸 ${i + 1} 높이 %">`}
         <button class="prop-btn sld-cell-up" title="앞으로"${i === 0 ? ' disabled' : ''}>↑</button>
         <button class="prop-btn sld-cell-down" title="뒤로"${i === n - 1 ? ' disabled' : ''}>↓</button>
         <button class="prop-btn sld-cell-del" title="칸 빼기"${n <= 1 ? ' disabled' : ''}>✕</button>
@@ -126,6 +127,8 @@ export function showSlideProperties(block, opts = {}) {
         if (window._activeFrame === c || c.contains(window._activeFrame)) window._activeFrame = null;
         c.remove(); renderSlideBlock(block); commit(); reopen(selCell === c ? null : selCell);
       });
+      /* SLIDE-CELL-HEIGHT-EACH-01 — 이 칸만 높이 %(트랙 가운데 · 100 = 키 지움) */
+      row.querySelector('.sld-ch')?.addEventListener('change', (e) => { const c = cellAt(i); if (!c) return; const v = Math.max(20, Math.min(100, Math.round(+e.target.value || 100))); if (v === 100) delete c.dataset.h; else c.dataset.h = String(v); renderSlideBlock(block); commit(); reopen(); });
       row.querySelector('.sld-cw')?.addEventListener('change', (e) => { const c = cellAt(i); if (!c) return; c.dataset.w = String(Math.max(20, Math.min(100, Math.round(+e.target.value || st.layout.cardW)))); renderSlideBlock(block); commit(); reopen(); });
     });
     /* 칸 «사진 넣기» = 그 칸에 들어가(_activeFrame) 진짜 addAssetBlock → 칸 꽉(왼위 0 · 폭·높이 100% · cover) — 넣기 길은 _insertToFlowFrame 그대로 */

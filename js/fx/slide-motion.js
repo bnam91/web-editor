@@ -116,22 +116,25 @@ export function diffFromDefault(v, def) {
 }
 
 /** 카드 하나 폭 % 소독(SLIDE-CELL-SIZE-EACH-01) — 없거나 숫자 아니면 undefined(= 공통 카드 폭). */
+/** 칸 하나 높이 %(SLIDE-CELL-HEIGHT-EACH-01 · 가로 효과 · 트랙 높이의 % · 가운데 정렬) — 없으면 undefined(= 100). */
+export const normCardH = (h) => (h === undefined || h === null || h === '' || !Number.isFinite(+h) ? undefined : _num(h, 20, 100, 100));
 export const normCardW = (w) => (w === undefined || w === null || w === '' || !Number.isFinite(+w) ? undefined : _num(w, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW));
 
 /** 블럭 px 기하 — 카드 폭 · 한 칸(카드+간격) · 한 주기. bw = 움직임 축 길이(가로 = 블럭 폭 · 세로 = 블럭 높이).
  *  ws[i] = 카드 i 폭 %(SLIDE-CELL-SIZE-EACH-01 · 없으면 공통 cardW) → cws[i](px) · starts[i] = 앞 카드들 (폭+간격) 누적합 · period = 전부의 합.
  *  ★칸별 폭이 하나도 없으면 uniform = 옛 셈 그대로(starts = i·step · period = n·step — 부동소수 한 자리까지 같다 · 옛 저장본·GIF 무변). */
-export function slideGeom(bw, n, layout, ws) {
+export function slideGeom(bw, n, layout, ws, hs) {
   const L = normLayout(layout);
   const N = Math.max(1, n | 0), cw = (bw * L.cardW) / 100, step = Math.max(1, cw + L.gap);   // 겹쳐도 한 칸 ≥ 1px(주기 0 방지)
   const own = Array.from({ length: N }, (_, i) => normCardW(Array.isArray(ws) ? ws[i] : undefined));
+  const hf = Array.from({ length: N }, (_, i) => (normCardH(Array.isArray(hs) ? hs[i] : undefined) ?? 100) / 100);   // 칸 높이 몫(가로 효과 · 가운데)
   if (own.every((w) => w === undefined)) {
-    return { bw, n: N, cw, gap: L.gap, step, period: N * step, uniform: true, cws: own.map(() => cw), starts: own.map((_, i) => i * step) };
+    return { bw, n: N, cw, gap: L.gap, step, period: N * step, uniform: true, cws: own.map(() => cw), starts: own.map((_, i) => i * step), hf };
   }
   const cws = own.map((w) => (w === undefined ? cw : (bw * w) / 100));
   const starts = []; let acc = 0;
   for (const c of cws) { starts.push(acc); acc += Math.max(1, c + L.gap); }
-  return { bw, n: N, cw, gap: L.gap, step, period: acc, uniform: false, cws, starts };
+  return { bw, n: N, cw, gap: L.gap, step, period: acc, uniform: false, cws, starts, hf };
 }
 const easeInOut = (x) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
 
@@ -241,7 +244,10 @@ export function drawSlides(ctx, W, H, imgs, geom, s, dir, k, emptyFill = '#e9e9e
   }
   items.sort((a, b) => a[0] - b[0]);
   for (const [x, i, cwi] of items) {
-    const im = imgs[i], [dx, dy, dw, dh] = rect(x, cwi);
+    let [dx, dy, dw, dh] = rect(x, cwi);
+    const f = !y && geom.hf ? geom.hf[i] : 1;   // 칸별 높이(가로 효과) — 트랙 높이의 f · 가운데(첫 장면 align-items:center 와 같은 자리)
+    if (f < 1) { dy += (dh * (1 - f)) / 2; dh *= f; }
+    const im = imgs[i];
     if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(dx, dy, dw, dh); continue; }
     const sc = Math.max(dw / im.width, dh / im.height), sw = dw / sc, sh = dh / sc;
     ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, dx, dy, dw, dh);
