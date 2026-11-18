@@ -6,6 +6,7 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S9 제자리(SLIDE-FX-SINGLE-FRAME-MULTI-01): 넘김과 같은 박자(loopSec 같음) · 바뀜 중 f 0→1 · 머무름 f 1 · 마지막 → 처음 · 페이드 = to 알파 f · 컷 = f<1 from / 1 to · 보이는 번호
  * S8 점 표시(SLIDE-INDICATOR-DOTS-01): slideActiveIndex = 왼끝이 지난 마지막 카드(균일·칸별) · drawDots = n 점 · active 만 DOT_ON · 위/아래 띠 가운데 y · 'none' 이면 안 그림
  *   양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch — DOM 쪽): slidePlan 의 drawDots 줄 삭제 → slide-fx D1 GIF 점 빨강 — 예측
  * S7 칸별 폭(SLIDE-CELL-SIZE-EACH-01): ws 없음/전부 빈 값 = uniform(옛 셈 그대로 · starts = i×한 칸) · ws 있음 = 카드 왼끝 = 앞 카드 (폭+간격) 누적합 ·
@@ -15,7 +16,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
+import { inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
   SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
@@ -138,4 +139,23 @@ test('S8 점 표시 — 앞 카드 번호 · 점 그리기', () => {
   assert.equal(b[1], 300 - DOT_BAND, '아래 띠 가운데(k 2)');
   const n = []; drawDots({ set fillStyle(v) { n.push(v); }, beginPath() {}, arc() {}, fill() {} }, 400, 300, 3, 0, 'none', 1);
   assert.equal(n.length, 0);
+});
+
+test('S9 제자리 — 박자 · 바뀜 진행 · 페이드 알파 · 컷', () => {
+  const A = { dwell: 1.5 }, per = SWIPE_MOVE_S + 1.5, T = 3 * per, G3 = slideGeom(800, 3, { cardW: 50, gap: 20 });
+  assert.equal(slideInPlace('slide-fade') && slideInPlace('slide-cut') && !slideInPlace('slide-swipe'), true);
+  assert.equal(loopSec('slide-fade', G3, A), loopSec('slide-swipe', G3, A));
+  const at = (sec) => inPlaceState(3, A, sec / T);
+  assert.deepEqual(at(0), { from: 0, to: 1, f: 0 });
+  const mid = at(SWIPE_MOVE_S / 2); assert.ok(mid.f > 0.4 && mid.f < 0.6, `바뀜 가운데 f ${mid.f}`);
+  assert.deepEqual(at(SWIPE_MOVE_S + 0.1), { from: 0, to: 1, f: 1 }, '머무름 = 다음 장 다 들어옴');
+  assert.deepEqual([at(2 * per + 0.1).from, at(2 * per + 0.1).to], [2, 0], '마지막 → 처음');
+  const log = []; const ctx = { save() {}, restore() {}, set globalAlpha(v) { log.push(['a', v]); }, set fillStyle(v) {}, fillRect() {}, drawImage(im) { log.push(['img', im.id]); } };
+  const IM2 = [{ id: 'r', width: 10, height: 10 }, { id: 'b', width: 10, height: 10 }];
+  assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 0.3 }, 'slide-fade'), 0);
+  assert.deepEqual(log, [['a', 1], ['img', 'r'], ['a', 0.3], ['img', 'b']], '페이드 = from 위에 to 알파 f');
+  log.length = 0;
+  assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 0.3 }, 'slide-cut'), 0); assert.deepEqual(log, [['a', 1], ['img', 'r']]);
+  log.length = 0;
+  assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 1 }, 'slide-cut'), 1); assert.deepEqual(log, [['a', 1], ['img', 'b']]);
 });

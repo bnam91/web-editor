@@ -14,7 +14,7 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, slideInPlace, inPlaceState, drawInPlace,
   DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
@@ -207,15 +207,15 @@ export function makeSlideCell() {
   delete c.dataset.width; delete c.dataset.height;
   return c;
 }
-function _renderFrameCells(block, layout, vert) {
+function _renderFrameCells(block, layout, vert, inPlace = false) {
   let track = block.querySelector(':scope > .sld-track');
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
   const pos = _dotsPos(layout, vert);
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;${_trackBox(pos)}`;
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${inPlace ? 0 : layout.gap}px;width:100%;${_trackBox(pos)}`;
   _renderDots(block, slideCells(block).length, pos);
   slideCells(block).forEach((c, i) => {
     c.dataset.idx = String(i);
-    const w = normCardW(c.dataset.w) ?? layout.cardW;
+    const w = inPlace ? 100 : (normCardW(c.dataset.w) ?? layout.cardW);   // 제자리 효과 = 칸이 블럭 꽉(칸별 폭은 그 효과 동안 안 씀 · 값은 그대로)
     /* 프레임 기본 꼴의 px 폭·높이·가운데 마진을 칸 자리로 덮는다(스타일만 · 자식 무접촉) */
     Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : '100%', minHeight: '0', maxWidth: 'none', margin: '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box' });
   });
@@ -230,7 +230,7 @@ export function renderSlideBlock(block) {
   block.style.overflow = 'hidden';
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
-    _renderFrameCells(block, layout, vert);
+    _renderFrameCells(block, layout, vert, slideInPlace(fx));
     return;
   }
   /* SLIDE-PADDING-EXCLUDE-01 «패딩 제외»(dataset.fullBleed) — 부품 = drag-utils.js applyBlockFullBleed · 매 렌더 다시 씌운다(인증서·배너2·월계수와 같은 자리 · 키 없으면 no-op).
@@ -239,14 +239,15 @@ export function renderSlideBlock(block) {
   const track = document.createElement('div');
   track.className = 'sld-track';
   const pos = _dotsPos(layout, vert);
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;${_trackBox(pos)}`;
+  const inPlace = slideInPlace(fx);   // 제자리 효과 = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${inPlace ? 0 : layout.gap}px;width:100%;${_trackBox(pos)}`;
   const cards = slides.length ? slides : [null, null, null];
   cards.forEach((s, i) => {
     const c = document.createElement('div');
     c.className = 'sld-card';
     c.dataset.idx = String(i);
     if (!s) c.classList.add('sld-card-empty');   // 빈 카드 체커 = CSS 클래스(card-empty-export 조건①: 인라인이면 저장본에 실림)
-    c.style.cssText = `flex:0 0 ${s?.w ?? layout.cardW}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;`;   // 칸별 폭(slides[i].w) · 없으면 공통
+    c.style.cssText = `flex:0 0 ${inPlace ? 100 : (s?.w ?? layout.cardW)}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;`;   // 칸별 폭(slides[i].w) · 없으면 공통
     if (s) {
       const img = document.createElement('img');
       img.className = 'sld-img';
@@ -350,7 +351,16 @@ export function slidePlan(block, anim, fxOverride) {
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec) + (frame ? ' · 칸 안 움직이는 것은 정지 한 장' : ''), gif: gifPlan(sec), fx, anim: A,
     draw: (ctx, W, H, _size, t) => {
-      const k = (axis === 'y' ? H : W) / bw, s = slideOffset(fx, geom, A, t), pos = _dotsPos(st.layout, axis === 'y');
+      const k = (axis === 'y' ? H : W) / bw, pos = _dotsPos(st.layout, axis === 'y');
+      if (slideInPlace(fx)) {   // 제자리 — 카드 꽉 한 장(+ 점 띠면 띠 아래)
+        const band = pos ? DOT_BAND * k : 0;
+        ctx.save(); if (pos === 'top') ctx.translate(0, band);
+        const shown = drawInPlace(ctx, W, H - band, block._sldImgs?.imgs || [], inPlaceState(geom.n, A, t), fx);
+        ctx.restore();
+        if (pos) drawDots(ctx, W, H, geom.n, shown, pos, k);
+        return;
+      }
+      const s = slideOffset(fx, geom, A, t);
       if (!pos) { drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis); return; }
       const band = DOT_BAND * k;   // 점 띠만큼 비우고 카드(첫 장면 트랙과 같은 높이)
       ctx.save(); if (pos === 'top') ctx.translate(0, band);

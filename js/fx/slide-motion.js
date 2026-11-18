@@ -6,10 +6,12 @@
  *   GIF 프레임 상한 60(export-image.js GIF_MAX_FRAMES 와 같은 수 · 지디 결정 ⓑ: fps 를 낮춤 + 안내 줄에 몇 fps 인지).
  *   정적 «첫 장면»(slide-block.js renderSlideBlock 의 flex 줄)은 offset 0 그림과 같은 자리 — 카드 i 의 왼끝 = i × (카드 폭 + 간격).
  */
-export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep']);
+export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut']);
+/* SLIDE-FX-SINGLE-FRAME-MULTI-01(수지 S24 폰 후기) — «제자리»: 카드 한 장이 블럭을 꽉 채우고 그 자리에서 바뀐다(페이드 = 겹쳐 흐려지며 · 컷 = 넘김 끝에 바로). 셈은 넘김과 같은 박자(장마다 [바뀜 0.5초 · 머무름]). */
+export const slideInPlace = (fx) => fx === 'slide-fade' || fx === 'slide-cut';
 /** 움직임 축 — 세로 효과면 'y'(정적 첫 장면도 세로로 쌓음). */
 export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' ? 'y' : 'x');
-const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep';   // 넘김+머무름 꼴(아니면 흐름)
+const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || slideInPlace(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
 export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none' });
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
@@ -90,6 +92,27 @@ export function gifPlan(sec) {
 export function slideInfoText(sec) {
   const g = gifPlan(sec);
   return `한 바퀴 ${sec.toFixed(2)}초 · GIF ${g.frames}프레임(상한 ${GIF_FRAMES_MAX}) · 초당 ${g.fps.toFixed(1)}프레임${g.capped ? ` — 상한 때문에 ${GIF_FPS_MAX}에서 낮춤` : ''}`;
+}
+
+/** 제자리 한 장면의 상태 — from(지금) → to(다음) · f = 바뀜 진행(0~1 · 머무름 동안 1 = 다음 장이 다 들어옴). 넘김 slideOffset 과 같은 박자(장마다 [바뀜 · 머무름]). */
+export function inPlaceState(n, anim, t) {
+  const N = Math.max(1, n | 0), A = normAnim(anim), per = SWIPE_MOVE_S + A.dwell;
+  const tt = ((t % 1) + 1) % 1, x = tt * N * per, i = Math.floor(x / per), local = x - i * per;
+  const f = local < SWIPE_MOVE_S ? easeInOut(local / SWIPE_MOVE_S) : 1;
+  return { from: i % N, to: (i + 1) % N, f };
+}
+/** 제자리 그리기 — 그림을 캔버스 꽉(cover · 첫 장면 object-fit:cover 와 같음). 페이드 = from 위에 to 를 알파 f · 컷 = f < 1 이면 from, 아니면 to. 보이는 «앞» 번호를 돌려준다(점 표시용). */
+export function drawInPlace(ctx, W, H, imgs, st, fx, emptyFill = '#e9e9e9') {
+  const one = (im, a) => {
+    ctx.globalAlpha = a;
+    if (!im || !im.width) { ctx.fillStyle = emptyFill; ctx.fillRect(0, 0, W, H); }
+    else { const sc = Math.max(W / im.width, H / im.height), sw = W / sc, sh = H / sc; ctx.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, 0, 0, W, H); }
+  };
+  ctx.save();
+  if (fx === 'slide-fade') { one(imgs[st.from], 1); if (st.f > 0) one(imgs[st.to], st.f); }
+  else one(imgs[st.f < 1 ? st.from : st.to], 1);
+  ctx.restore();
+  return fx === 'slide-fade' ? (st.f < 0.5 ? st.from : st.to) : (st.f < 1 ? st.from : st.to);
 }
 
 /** 지금 «앞» 카드 번호 — 밀린 거리 s(0 ≤ s < period)에서 왼끝(위끝)이 s 이하인 마지막 카드(넘김 머무름 = 그 카드 · 흐름 = 왼끝을 지난 카드). */

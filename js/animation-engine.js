@@ -121,7 +121,10 @@ const SLIDE_LIST = [
   { id: 'slide-swipe', label: '스와이프',  desc: '한 장씩 넘기고 잠깐 머무름' },
   { id: 'slide-vflow', label: '세로 흐름', desc: '사진이 세로로 쌓여 끊김 없이 위·아래로 흐름' },   // 2단계
   { id: 'slide-vstep', label: '세로 넘김', desc: '세로로 한 장씩 올리고 잠깐 머무름' },
+  { id: 'slide-fade',  label: '제자리 페이드', desc: '한 장이 꽉 차고 그 자리에서 겹쳐 흐려지며 바뀜' },   // SLIDE-FX-SINGLE-FRAME-MULTI-01
+  { id: 'slide-cut',   label: '제자리 컷',     desc: '한 장이 꽉 차고 그 자리에서 바로 바뀜' },
 ];
+const _SLIDE_INPLACE = new Set(['slide-fade', 'slide-cut']);   // 방향 칸 없음 · 머무름 칸 있음
 const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep']);
 /* 3단계 ③ 신호등(MOTION-STEP-HIGHLIGHT-01) — 그리드 칸 차례 강조. 셈·그림 = js/fx/step-motion.js · 바탕 그림·저장 = js/blocks/grid-step.js */
 const STEP_LIST = [
@@ -147,8 +150,8 @@ function _syncKindRows() {
   for (const el of [perRow, document.getElementById('anim-stamp-s0-row'), document.getElementById('anim-stamp-grow')]) if (el) el.style.display = slide ? 'none' : '';
   if (slide) for (const id of ['anim-tracks', 'anim-fx-opts', 'anim-conflict-warn']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
   const dirRow = document.getElementById('anim-slide-row'), dwRow = document.getElementById('anim-slide-dwell-row');
-  if (dirRow) dirRow.style.display = slide && !step ? '' : 'none';
-  if (dwRow) dwRow.style.display = step || (slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep')) ? '' : 'none';
+  if (dirRow) dirRow.style.display = slide && !step && !_SLIDE_INPLACE.has(_animType) ? '' : 'none';
+  if (dwRow) dwRow.style.display = step || (slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep' || _SLIDE_INPLACE.has(_animType))) ? '' : 'none';
   const dwLab = dwRow?.querySelector?.('.anim-opt-label'); if (dwLab) dwLab.textContent = step ? '한 칸 시간' : '머무름';   // 같은 칸 · 신호등이면 글만
   const pastRow = document.getElementById('anim-step-past-row'); if (pastRow) pastRow.style.display = step ? '' : 'none';
   /* 방향 값은 그대로(left = 줄이 음의 쪽으로) — 세로 효과면 글만 위로/아래로 */
