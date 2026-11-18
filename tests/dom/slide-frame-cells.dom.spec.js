@@ -238,6 +238,8 @@ test('F5 복제(⌘D) — 칸·글자 id 새로 · 사본을 지워도 원본 �
 
 test('F6 Figma — 프레임 모드 = frame + 칸 children(칸 안 글자까지) · images 없음', async ({ page }) => {
   const { errs, id } = await withText(page);
+  /* 칸 셋이 다 첫 장면 안에 들게 30% 씩(기본 60% 면 칸 3 은 블럭 오른끝 밖 = 내보내기에서 빠지는 게 맞다 — 정적 첫 장면 = 보이는 칸만 · 사진 모드 images 와 같은 규칙) */
+  await page.evaluate((id) => { const b = document.getElementById(id); b.querySelectorAll('.sld-cell').forEach((c) => { c.dataset.w = '30'; }); window.renderSlideBlock(b); }, id);
   const r = await page.evaluate((id) => {
     let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); };
     walk(window.buildFigmaExportJSON?.(null));
@@ -263,11 +265,14 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
     window.pushHistory?.();
     return block.id;
   });
-  /* 저장본 바이트 = serializeProject 의 페이지 canvas 글자 — 저장 → 다시 열기 → 다시 저장해도 같아야(열 때 변환 0) */
-  const saved = () => page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); return d.pages.map((p) => p.canvas).join('\n'); });
+  /* 저장본 바이트 = serializeProject 페이지 canvas 안 «그 슬라이드 블럭» 글자 — 저장 → 다시 열기 → 다시 저장해도 같아야(열 때 변환 0).
+     ⛔canvas 통째로 재지 않는다 — 섹션 툴바(.st-memo-btn)는 열 때 편집기가 다시 그려 속성 순서가 바뀐다(슬라이드와 무관 · 지혜맥 sf5 실측) */
+  const saved = () => page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject());
+    const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); return doc.getElementById(id)?.outerHTML ?? null; }, id);
   const bytes0 = await saved();
   await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
-  expect(await saved(), '★다시 열어도 저장본 글자 그대로(옛 사진 블럭 변환 0)').toBe(bytes0);
+  expect(bytes0, '[전제] 저장본에 그 블럭').not.toBeNull();
+  expect(await saved(), '★다시 열어도 저장본의 슬라이드 블럭 글자 그대로(옛 사진 블럭 변환 0)').toBe(bytes0);
   expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-card').length, id), '첫 장면 = 옛 사진 카드').toBe(2);
   await page.evaluate((id) => window.selectBlock(id), id);
   await page.click('#sld-to-frame');
