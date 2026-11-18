@@ -337,6 +337,8 @@ export function addSlideCell(block) {
   const track = block.querySelector(':scope > .sld-track');
   if (!track || slideCells(block).length >= SLIDE_MAX) return null;
   const c = makeSlideCell();
+  const prev = slideCells(block).at(-1);
+  if (prev?.dataset.shadow) c.dataset.shadow = prev.dataset.shadow;   // 새 칸 = 마지막 칸 그림자 따라감(새 블럭 기본 옅게 · 옛 블럭 없음 그대로)
   track.appendChild(c);
   window.bindFrameDropZone?.(c);
   renderSlideBlock(block);
@@ -447,7 +449,7 @@ async function _frameCellImgs(block) {
   const ST = readSlideState(block), L = ST.layout, vert = slideAxis(ST.fx) === 'y', bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.clientHeight - (L.dots === 'top' || L.dots === 'bottom' ? dotBand(L) : 0));
   const full = slideInPlace(ST.fx) || slideWipe(ST.fx);   // 꽉 채우는 효과(제자리·전후 비교)는 첫 장면 칸이 블럭 꽉 ⇒ 그 크기로 찍어야 GIF = 첫 장면(두 «꼴»만 키에 · 효과마다 다시 찍지 않음)
   const wsPct = cells.map((c) => (full ? 100 : (normCardW(c.dataset.w) ?? L.cardW)));
-  const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${cells.map((c) => c.dataset.h ?? '').join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
+  const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${cells.map((c) => c.dataset.h ?? '').join(',')}|${cells.map((c) => c.dataset.bg ?? '').join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
   const hit = block._sldCache?.get(key);   // 두 «꼴»(카드 폭 · 꽉)을 오가도 다시 안 찍게 최근 둘을 쥔다
   if (hit) { block._sldImgs = hit; return hit.imgs; }
@@ -574,7 +576,7 @@ export function makeSlideBlock(opts = {}) {
     block.dataset.cellMode = 'frame';
     const track = document.createElement('div');
     track.className = 'sld-track';
-    for (let i = 0; i < 3; i++) track.appendChild(makeSlideCell());
+    for (let i = 0; i < 3; i++) { const c = makeSlideCell(); c.dataset.shadow = 'soft'; track.appendChild(c); }   // SLIDE-CELL-DEFAULT-SHADOW-01 — 새 블럭만 칸마다 옅은 그림자(같은 저장 키 · 옛 저장본·옛 길 무변)
     block.appendChild(track);
   }
   renderSlideBlock(block);

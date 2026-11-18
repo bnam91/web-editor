@@ -9,6 +9,7 @@ import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
+import { syncFrameBgVars } from '../frame-bg.js';
 import { readSlideState, setSlideList, setSlideLayout, isFrameSlide, slideCells, addSlideCell, renderSlideBlock, convertSlideToFrames, setSlideScrollFix } from '../blocks/slide-block.js';
 import { SLIDE_MAX, slideAxis } from '../fx/slide-motion.js';
 
@@ -16,6 +17,10 @@ const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" strok
 
 /* SLIDE-CELL-AS-FRAME-01 — 프레임 모드 Content 절 = 칸 줄(칸 N · 폭 % · ↑ ↓ ✕) + «프레임 추가하기» · 고른 칸이면 «사진 넣기(칸 N)».
    opts.cell = 캔버스에서 고른 칸(block-drag _pickSlideCell) — 그 줄을 표시하고 _activeFrame 은 그 칸 그대로(넣기 길이 그 칸으로 간다). */
+/* SLIDE-CELL-FRAME-BG-01 — 칸 배경 = 프레임 배경 키 그대로(data-bg · 인라인 background-color) ⇒ 캔버스·PNG·HTML(DOM)·Figma(프레임 bg · 'transparent' = 칠 없음)·GIF(칸 찍기) 같은 길. 끔 = 'transparent'. */
+const _cellBg = (c) => c.dataset.bg || c.style.backgroundColor || '#ffffff';
+const _cellBgOn = (c) => !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(_cellBg(c));
+function _setCellBg(c, v) { c.style.backgroundImage = ''; c.style.backgroundColor = v; c.dataset.bg = v; syncFrameBgVars(c); }
 function _cellRowsHTML(block, st, selCell) {
   const cells = slideCells(block), n = cells.length;
   const rows = cells.map((c, i) => `<div class="prop-row sld-cell-row${c === selCell ? ' active' : ''}" data-idx="${i}">
@@ -32,7 +37,9 @@ function _cellRowsHTML(block, st, selCell) {
       ${k >= 0 ? `<div class="prop-row"><span class="prop-label">모서리</span><input type="number" class="prop-number" id="sld-cell-radius" min="0" max="80" step="1" value="${selCell.dataset.radius || 0}" aria-label="칸 ${k + 1} 모서리 px"></div>
       <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="sld-cell-shadow">
         ${[['', '없음'], ['soft', '옅게'], ['strong', '짙게']].map(([v, t]) => `<option value="${v}"${(selCell.dataset.shadow || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
-      </select></div>` : ''}`;
+      </select></div>
+      <div class="prop-row"><span class="prop-label">배경</span><label class="prop-toggle"><input type="checkbox" id="sld-cell-bg-on" ${_cellBgOn(selCell) ? 'checked' : ''} aria-label="칸 ${k + 1} 배경"><span class="prop-toggle-track"></span></label></div>
+      ${_cellBgOn(selCell) ? `<div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'sld-cell-bg', hex: _cellBg(selCell) })}</div>` : ''}` : ''}`;
 }
 
 export function showSlideProperties(block, opts = {}) {
@@ -145,6 +152,8 @@ export function showSlideProperties(block, opts = {}) {
     });
     /* SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01 — 고른 칸 모서리(px)·그림자(이펙트) · 0/없음 = 키 지움 */
     $('sld-cell-radius')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; const v = Math.max(0, Math.min(80, Math.round(+e.target.value || 0))); if (v) c.dataset.radius = String(v); else delete c.dataset.radius; renderSlideBlock(block); commit(); });
+    $('sld-cell-bg-on')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; _setCellBg(c, e.target.checked ? '#ffffff' : 'transparent'); commit(); reopen(); });
+    wireColorField('sld-cell-bg', { onApply: (v) => { if (selCell) _setCellBg(selCell, String(v)); }, onCommit: commit });
     $('sld-cell-shadow')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; if (e.target.value) c.dataset.shadow = e.target.value; else delete c.dataset.shadow; renderSlideBlock(block); commit(); });
   }
   for (const [id, key] of [['sld-cardw', 'cardW'], ['sld-gap', 'gap'], ['sld-h', 'h']]) {

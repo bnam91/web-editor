@@ -6,6 +6,8 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S15 칸 «옅게» 그림자(SLIDE-CELL-DEFAULT-SHADOW-01) = 컴패리전 블럭 강조 칼럼 box-shadow 글자 그대로 · 캔버스 값(css)과 GIF 값(y·blur·color)이 같은 그림자
+ *   양성대조: slide-frame-CTL36-soft-shadow-drift.patch(soft 를 옛 0 4px 12px 로) → S15 빨강
  * S14 점 간격·색(SLIDE-DOTS-SPACING-01): 소독(갭 0~40 · 간격 2~40 · 색 #rrggbb[aa] 만) · 띠 = 갭×2 + 점 · drawDots opt(띠 가운데 · 점 사이 · 색)
  * S13 격자 줌아웃(SLIDE-FX-GRID-ZOOMOUT-01): t=0 = 히어로 한 장(첫 장면 크기 · 가운데) · 둘레 들어오는 중 알파 0~1 · 끝 = 7×7(고리 ≤3 49장 전부 알파 1 · 그 밖 고리 = GZ_OUTER_A) · 나선 순번 · 한 바퀴 GZ_S÷속도
  * S12 겹침 간격(SLIDE-FX-OVERLAP-GAP-01): 간격 −80 까지(−99 → −80) · 한 칸 = 카드 + 간격 · ★그림 = 자리 순서(감긴 마지막 카드가 첫 카드 밑 · 뒤 카드 위)
@@ -22,7 +24,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dotBand, gridZoomFrame, gridSpiralIndex, slideGridZoom, GZ_S, GZ_OUTER_A, slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
-  SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
+  SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S, CELL_SHADOWS } from '../../js/fx/slide-motion.js';
+import { readFileSync } from 'node:fs';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
 
@@ -224,4 +227,13 @@ test('S14 점 간격·색 — 소독 · 띠 · 그리기', () => {
   drawDots(ctx, 400, 300, 3, 0, 'top', 1, { band: 40, space: 20, on: '#ff00ff', off: '#00ffff' });
   assert.deepEqual(calls.map((q) => q.c), ['#ff00ff', '#00ffff', '#00ffff']);
   assert.ok(calls.every((q) => q.y === 20) && calls[1].x - calls[0].x === 28, '띠 가운데 20 · 점 사이 8 + 20');
+});
+
+test('S15 칸 옅은 그림자 = 컴패리전 그림자 값 그대로', () => {
+  const src = readFileSync(new URL('../../js/blocks/comparison-block.js', import.meta.url), 'utf8');
+  const m = src.match(/box-shadow:([^;']+);/);
+  assert.ok(m, '[전제] 컴패리전 강조 칼럼 box-shadow 를 찾음');
+  assert.equal(CELL_SHADOWS.soft.css, m[1].trim(), '★옅게 = 컴패리전 값(새 값 0)');
+  const S = CELL_SHADOWS.soft;
+  assert.equal(S.css, `0 ${S.y}px ${S.blur}px ${S.color}`, '캔버스(css) = GIF(y·blur·color) 같은 그림자');
 });

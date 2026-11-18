@@ -703,3 +703,70 @@ test('K1 칸 안 블럭 클릭 = 선택선 보임(선택 층이 그 블럭을 �
     '★선택 층 길 하나가 글자 상자를 감쌈 · 받은 값 = 진단').toMatchObject({ wrapped: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 4 ──
+ * G1 SLIDE-CELL-FRAME-BG-01: 칸 2 고름 → 패널 «배경» 켬(기본 흰색 · 배경색 칸 있음) → 끔(진짜 클릭) = 칸 투명(computed rgba 0 · data-bg transparent · 배경색 칸 없음)
+ *    · Figma 칸 bg 'transparent' · ⌘Z = 흰색 · ⌘⇧Z = 투명 · 저장→다시 열기 = 투명 · 다시 켬 + hex FF0000 = 칸 빨강 · GIF 칸 그림 가운데 빨강 · 섹션 PNG 칸 가운데 빨강
+ * W1 SLIDE-CELL-DEFAULT-SHADOW-01: 추가 메뉴 새 블럭 = 칸 셋 모두 data-shadow soft · computed box-shadow = 컴패리전 값(0 18px 50px · 0.22) · 패널 그림자 «옅게» 골라짐
+ *    · «+ 프레임 추가» 새 칸도 soft(마지막 칸 따라감) · [음성] 옛 저장본(그림자 키 없는 칸) 저장→다시 열기 = 키 없음 · 그림자 none(옛 저장본 무변)
+ * 양성대조: slide-frame-CTL35-cell-bg-noop.patch(배경 끔 쓰기 삭제) → G1 빨강 · slide-frame-CTL36-soft-shadow-drift.patch(단위 S15) · slide-frame-CTL37-no-default-shadow.patch(새 블럭 기본 soft 삭제) → W1 빨강 — 예측 */
+const cellBg = (page, id, i) => page.evaluate(({ id, i }) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[i]; return { bg: c.dataset.bg ?? null, cs: getComputedStyle(c).backgroundColor }; }, { id, i });
+test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF·PNG', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await wireCdp(page);
+  await pickCell(page, id, 1);
+  await expect(page.locator('#sld-cell-bg-on'), '[전제] 배경 켬(기본)').toBeChecked();
+  await expect(page.locator('#sld-cell-bg-hex'), '[전제] 배경색 칸').toHaveCount(1);
+  await page.locator('#sld-cell-bg-on').uncheck({ force: true });   // 토글 겉모양 아래 진짜 체크박스(이 패널 다른 토글과 같은 꼴)
+  await expect.poll(() => cellBg(page, id, 1), '★끔 = 칸 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
+  await expect(page.locator('#sld-cell-bg-hex'), '끈 동안 배경색 칸 없음').toHaveCount(0);
+  const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.children?.map((m) => m.block?.bg) ?? null; }, id);
+  expect(fig?.[1], '★Figma 칸 2 bg = transparent(렌더러 = 칠 없음)').toBe('transparent');
+  await key(page, 'Meta+z');
+  await expect.poll(() => cellBg(page, id, 1).then((v) => v.cs), '⌘Z = 흰색').toBe('rgb(255, 255, 255)');
+  await key(page, 'Meta+Shift+z');
+  await expect.poll(() => cellBg(page, id, 1).then((v) => v.cs), '⌘⇧Z = 투명').toBe('rgba(0, 0, 0, 0)');
+  await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  await expect.poll(() => cellBg(page, id, 1), '★저장→다시 열기 = 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
+  /* 다시 켜고 색 */
+  await page.evaluate((id) => window.unfoldSlide(document.getElementById(id), true), id);
+  await pickCell(page, id, 1);
+  await page.locator('#sld-cell-bg-on').check({ force: true });
+  await expect(page.locator('#sld-cell-bg-hex'), '켬 = 배경색 칸').toHaveCount(1);
+  await page.evaluate(() => { const inp = document.getElementById('sld-cell-bg-hex'); inp.value = '#FF0000'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(() => cellBg(page, id, 1).then((v) => v.cs), '★색 = 칸 빨강').toBe('rgb(255, 0, 0)');
+  const gifMid = await page.evaluate(async (id) => { const imgs = await window.slidePrepare(document.getElementById(id)), cv = imgs[1]; return cv ? Array.from(cv.getContext('2d').getImageData(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1).data).slice(0, 3) : null; }, id);
+  expect(gifMid, '★GIF 칸 2 그림 가운데 = 빨강').toEqual([255, 0, 0]);
+  const pngMid = await page.evaluate(async (id) => {
+    const b = document.getElementById(id), sec = b.closest('.section-block'), url = await window.exportSection(sec, 'png', 860, { returnDataUrl: true });
+    const img = new Image(); img.src = url; await img.decode();
+    const sr = sec.getBoundingClientRect(), cr = b.querySelectorAll('.sld-cell')[1].getBoundingClientRect(), k = img.naturalWidth / sr.width;
+    const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight; const x = cv.getContext('2d'); x.drawImage(img, 0, 0);
+    return Array.from(x.getImageData(Math.round((cr.left + cr.width / 2 - sr.left) * k), Math.round((cr.top + cr.height / 2 - sr.top) * k), 1, 1).data).slice(0, 3);
+  }, id);
+  expect(pngMid, '★섹션 PNG 칸 2 가운데 = 빨강').toEqual([255, 0, 0]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('W1 새 슬라이드 = 칸마다 옅은 그림자(컴패리전 값) · 옛 저장본 무변', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const sh = (id) => page.evaluate((id) => [...document.getElementById(id).querySelectorAll('.sld-cell')].map((c) => [c.dataset.shadow ?? null, getComputedStyle(c).boxShadow]), id);
+  const s0 = await sh(id);
+  expect(s0.map((v) => v[0]), '★새 블럭 칸 셋 = soft').toEqual(['soft', 'soft', 'soft']);
+  expect(s0.every((v) => /0\.22\) 0px 18px 50px/.test(v[1])), `★computed = 컴패리전 값 0 18px 50px rgba(0,0,0,0.22) · 받음 ${s0[0][1]}`).toBe(true);
+  await pickCell(page, id, 1);
+  await expect(page.locator('#sld-cell-shadow'), '패널 = 옅게').toHaveValue('soft');
+  await page.click('#sld-add-cell');
+  await expect.poll(() => sh(id).then((a) => a.map((v) => v[0])), '«+ 프레임 추가» 새 칸도 soft').toEqual(['soft', 'soft', 'soft', 'soft']);
+  /* [음성] 옛 저장본(그림자 키 없는 칸) — 저장→다시 열기 해도 그림자 없음 */
+  const oldId = await page.evaluate(() => {
+    const { row, block } = window.makeSlideBlock({ cellMode: 'frame' });
+    block.querySelectorAll('.sld-cell').forEach((c) => delete c.dataset.shadow); window.renderSlideBlock(block);   // 옛 판 저장본 꼴(키 없음)
+    document.querySelector('#canvas .section-block .section-inner').appendChild(row); window.bindBlock?.(block); window.pushHistory?.();
+    window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d);
+    return block.id;
+  });
+  expect((await sh(oldId)).map((v) => v[0]), '★옛 저장본 칸 = 그림자 키 없음(열 때 안 붙음)').toEqual([null, null, null]);
+  expect((await sh(oldId)).every((v) => v[1] === 'none'), '옛 저장본 = 그림자 없음').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
