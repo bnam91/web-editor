@@ -60,7 +60,10 @@ export function showSlideProperties(block, opts = {}) {
       ${sliderRowHTML(slideAxis(st.fx) === 'y' ? '카드 높이 %' : '카드 폭 %', 'sld-cardw-slider', 'sld-cardw-number', { min: 20, max: 100, step: 1, value: st.layout.cardW })}
       ${sliderRowHTML('높이', 'sld-h-slider', 'sld-h-number', { min: 120, max: 1200, step: 10, value: st.layout.h })}`),
       sec('layout', `
-      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}`),
+      ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: 0, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
+      <div class="prop-row"><span class="prop-label">점 표시</span><select class="prop-select" id="sld-dots">
+        ${[['none', '없음'], ['top', '위'], ['bottom', '아래']].map(([v, t]) => `<option value="${v}"${st.layout.dots === v ? ' selected' : ''}>${t}</option>`).join('')}
+      </select></div>`}`),
       /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + prop-toggle) */
       sec('padding', canFB ? `
       <div class="prop-row">
@@ -155,6 +158,9 @@ export function showSlideProperties(block, opts = {}) {
     else { delete block.dataset.fullBleed; window.clearBlockFullBleed?.(block); }
     window.renderSlideBlock(block); commit();
   });
+
+  /* SLIDE-INDICATOR-DOTS-01 — 점 표시(가로 효과만 · 세로면 줄 없음) */
+  $('sld-dots')?.addEventListener('change', (e) => { setSlideLayout(block, { dots: e.target.value }); commit(); });
 
   wireAnimGifBtn(document.getElementById('open-anim-btn'), block);   // 텍스트 패널(prop-text.js _applyAnimGate)과 같은 판정·글 — _helpers.js 한 벌(슬라이드·그리드 공용)
 }

@@ -15,7 +15,19 @@ import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
   slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW,
+  DOT_BAND, DOT_D, DOT_GAP, DOT_ON, DOT_OFF, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
+/* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
+   점이 켜지면 트랙이 띠만큼 줄어든다(카드 높이 = 블럭 − 띠) — GIF 도 같은 띠를 비우고 그린다. */
+const _dotsPos = (layout, vert) => (!vert && (layout.dots === 'top' || layout.dots === 'bottom') ? layout.dots : null);
+const _trackBox = (pos) => (pos ? `height:calc(100% - ${DOT_BAND}px);margin-${pos}:${DOT_BAND}px;` : 'height:100%;');
+function _renderDots(block, n, pos) {
+  let el = block.querySelector(':scope > .sld-dots');
+  if (!pos) { el?.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.className = 'sld-dots'; block.appendChild(el); }
+  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${DOT_BAND}px;display:flex;align-items:center;justify-content:center;gap:${DOT_GAP}px;pointer-events:none;`;
+  el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === 0 ? DOT_ON : DOT_OFF};`; return d; }));
+}
 /** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
 const _slideOut = (s) => { const w = normCardW(s.w); return w === undefined ? { src: s.src } : { src: s.src, w }; };
 
@@ -198,7 +210,9 @@ export function makeSlideCell() {
 function _renderFrameCells(block, layout, vert) {
   let track = block.querySelector(':scope > .sld-track');
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;height:100%;`;
+  const pos = _dotsPos(layout, vert);
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;${_trackBox(pos)}`;
+  _renderDots(block, slideCells(block).length, pos);
   slideCells(block).forEach((c, i) => {
     c.dataset.idx = String(i);
     const w = normCardW(c.dataset.w) ?? layout.cardW;
@@ -224,7 +238,8 @@ export function renderSlideBlock(block) {
   if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
   const track = document.createElement('div');
   track.className = 'sld-track';
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;height:100%;`;
+  const pos = _dotsPos(layout, vert);
+  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${layout.gap}px;width:100%;${_trackBox(pos)}`;
   const cards = slides.length ? slides : [null, null, null];
   cards.forEach((s, i) => {
     const c = document.createElement('div');
@@ -244,6 +259,7 @@ export function renderSlideBlock(block) {
     track.appendChild(c);
   });
   block.replaceChildren(track);
+  _renderDots(block, cards.length, pos);
 }
 
 /* ── 캔버스용 그림 준비(미리보기·캔버스 재생·GIF 공용) — goya-asset 은 IPC 로 data URL 을 받아 그린다 ── */
@@ -333,7 +349,15 @@ export function slidePlan(block, anim, fxOverride) {
   const sec = loopSec(fx, geom, A);
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec) + (frame ? ' · 칸 안 움직이는 것은 정지 한 장' : ''), gif: gifPlan(sec), fx, anim: A,
-    draw: (ctx, W, H, _size, t) => drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, slideOffset(fx, geom, A, t), A.dir, (axis === 'y' ? H : W) / bw, undefined, axis),
+    draw: (ctx, W, H, _size, t) => {
+      const k = (axis === 'y' ? H : W) / bw, s = slideOffset(fx, geom, A, t), pos = _dotsPos(st.layout, axis === 'y');
+      if (!pos) { drawSlides(ctx, W, H, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis); return; }
+      const band = DOT_BAND * k;   // 점 띠만큼 비우고 카드(첫 장면 트랙과 같은 높이)
+      ctx.save(); if (pos === 'top') ctx.translate(0, band);
+      drawSlides(ctx, W, H - band, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis);
+      ctx.restore();
+      drawDots(ctx, W, H, geom.n, slideActiveIndex(geom, A.dir === 'right' ? (geom.period - s) % geom.period : s), pos, k);
+    },
   };
 }
 

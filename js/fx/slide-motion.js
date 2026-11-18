@@ -11,7 +11,10 @@ export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow
 export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' ? 'y' : 'x');
 const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep';   // 넘김+머무름 꼴(아니면 흐름)
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
-export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360 });
+export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none' });
+/* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
+export const SLIDE_DOTS = Object.freeze(['none', 'top', 'bottom']);
+export const DOT_BAND = 24, DOT_D = 8, DOT_GAP = 8, DOT_ON = '#4a4a4a', DOT_OFF = '#c9c9c9';
 export const SLIDE_ANIM_DEFAULT = Object.freeze({ dir: 'left', dwell: 1.2, speed: 1 });
 export const FLOW_PX_S = 120;                      // 흐름 기본 속도(블럭 px/초 · 속도 배율로 곱함)
 export const SWIPE_MOVE_S = 0.5;                   // 스와이프 한 번 넘김
@@ -22,7 +25,8 @@ const _num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite
 /** 내용 배치 소독 — 카드 폭 % · 간격 px · 블럭 높이 px. */
 export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
-  return { cardW: _num(s.cardW, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW), gap: _num(s.gap, 0, 80, SLIDE_LAYOUT_DEFAULT.gap), h: _num(s.h, 120, 1200, SLIDE_LAYOUT_DEFAULT.h) };
+  return { cardW: _num(s.cardW, 20, 100, SLIDE_LAYOUT_DEFAULT.cardW), gap: _num(s.gap, 0, 80, SLIDE_LAYOUT_DEFAULT.gap), h: _num(s.h, 120, 1200, SLIDE_LAYOUT_DEFAULT.h),
+    dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots };
 }
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
 export function normAnim(o) {
@@ -86,6 +90,26 @@ export function gifPlan(sec) {
 export function slideInfoText(sec) {
   const g = gifPlan(sec);
   return `한 바퀴 ${sec.toFixed(2)}초 · GIF ${g.frames}프레임(상한 ${GIF_FRAMES_MAX}) · 초당 ${g.fps.toFixed(1)}프레임${g.capped ? ` — 상한 때문에 ${GIF_FPS_MAX}에서 낮춤` : ''}`;
+}
+
+/** 지금 «앞» 카드 번호 — 밀린 거리 s(0 ≤ s < period)에서 왼끝(위끝)이 s 이하인 마지막 카드(넘김 머무름 = 그 카드 · 흐름 = 왼끝을 지난 카드). */
+export function slideActiveIndex(geom, s) {
+  const st = geom.starts || Array.from({ length: geom.n }, (_, i) => i * geom.step);
+  const x = ((s % geom.period) + geom.period) % geom.period + 1e-6;
+  let k = 0;
+  for (let i = 0; i < st.length; i++) if (st[i] <= x) k = i;
+  return k;
+}
+/** 점 띠 — n 점 가운데 정렬 · active 진하게 · pos 'top'|'bottom' · k = 캔버스 px / 블럭 px(첫 장면 DOM .sld-dots 와 같은 자리·크기·색). */
+export function drawDots(ctx, W, H, n, active, pos, k) {
+  if (pos !== 'top' && pos !== 'bottom') return;
+  const d = DOT_D * k, g = DOT_GAP * k, total = n * d + Math.max(0, n - 1) * g;
+  const cy = pos === 'top' ? (DOT_BAND * k) / 2 : H - (DOT_BAND * k) / 2;
+  let x = (W - total) / 2 + d / 2;
+  for (let i = 0; i < n; i++, x += d + g) {
+    ctx.fillStyle = i === active ? DOT_ON : DOT_OFF;
+    ctx.beginPath(); ctx.arc(x, cy, d / 2, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 /** 카드 줄 한 장면 — imgs[i] = 그릴 그림(없으면 null → 빈 카드 색) · k = 캔버스 px / 블럭 px · s = slideOffset · dir 'left' = 왼쪽으로 흐름.
