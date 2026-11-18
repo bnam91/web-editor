@@ -6,7 +6,7 @@
  *   H3 Side by Side 와 배타 — 가로 켠 채 SBS 켜면 가로 꺼짐 · SBS 켠 채 가로 켜면 SBS 꺼짐(본문 다시 보임)
  *   H4 줌 — 가로에서 previewZoomStep(−50) 하면 섹션 화면 폭이 반 · 가로 그대로
  *   H5 Esc 로 나가면 정리 — 단추 꺼짐 · 다시 들어가면 세로
- *   H6 가로에서 섹션 누르면 편집으로 돌아가 그 섹션이 골라진다(같은 페이지)
+ *   H6 가로에서 섹션 한 번 = 고르기만(미리보기 그대로 · data-pv-selected · 탑바 토글 안 샘) · 두 번 = 편집으로 돌아가 그 섹션이 골라진다(같은 페이지) — 261118 제품 변경(옛 = 한 번에 점프)
  *   H7 [r2 · 9500 실측 ◑] 섹션 11개 + 긴 섹션 · 줌 100·50·25 — 첫 섹션 왼끝 ≥ 그릇 왼끝(스크롤 0) · 끝까지 스크롤하면 마지막 섹션이 그릇 안
  *   H8 [r2] 가로 그릇(.preview-page-block) 폭 = 미리보기 창 폭(스크롤바 뺀 clientWidth) — 줌 25 에서도(transform 통째 줄임이면 창의 z 배로 갇힌다)
  *   H10 [r3] 첫·끝 섹션을 각각 그릇 가운데까지 스크롤로 옮길 수 있다(중심 ±2 · 줌 100·25) · 켤 때 = 스크롤 «둘레 여유(창 폭 반)» 에 첫 섹션이 가운데(hz-pan 261118 · 옛 0)
@@ -19,9 +19,11 @@
  *   H17 [r5] 가로 스크롤러 = #preview-overlay 하나(overflow-x auto · 아래끝 = 창 아래끝) · .preview-page-block overflow visible · 페이지 둘이면 같이 움직임 · 끄면 overlay overflow-x hidden
  *   H18 [r5b] 떠 있는 블럭(z 9999)의 맨 바깥 쌓임 맥락 = #preview-content(position ≠ static · z 0) · 세로·가로 · 잴 블럭 0 이면 빨강 — 스크롤바 hit-test 는 맥 겹침 스크롤바에서 못 재서 버림
  *   H19 [r5] 진입 직후 줌 표시 50% · #preview-content scale(0.5) · 가로 켜도 50 유지(줄 zoom 0.5 · 통째 transform 없음) · 나갔다 다시 들어와도 50
+ *   H20b [261118 둘째] 섹션 1장 — 켠 자리에서 끈 채로 오른쪽·아래·왼쪽·위로 원(반지름 250) → 매 꼭지 스크롤 = 시작 − 끈 거리(어느 쪽도 막힘 0)
  *   H20 [PREVIEW-HZ-SPACE-PAN-CHOPPY-01 · 현빈 261118] 켠 «처음 자리»에서 스페이스+대각선 끌기(오른쪽 아래로) → 가로·세로 둘 다 손끝을 따라감(옛 판 = 스크롤 0 이라 가로가 막혀 세로만) · 놓으면 끝 자리 그대로(rAF 로 묶어도 마지막 자리 반영)
  *   H9 [r2] 가로 줌 하한 10(50 밑으로 내려간다) · 세로로 돌아가면 50 으로 · 세로 하한은 50 그대로 · 줌 표시 숫자 맞음
  * 양성대조 hz-pan: _patches/PVH-CTL6-start-at-zero.patch(켤 때 scrollLeft = 0 으로 되돌림) → H20·H10 빨강(예측).
+ *   PVH-CTL7-no-bottom-room.patch(세로 아래 여유를 옛 창 높이 반으로) → H20b 빨강(아래 막힘) · PVH-CTL8-no-dblclick.patch(dblclick 듣기 등록 삭제) → H6 빨강(두 번에도 안 돌아감) — 예측.
  * 양성대조 r5: _patches/PVH-CTL5-r5-off.patch(신호등 여백 · hover · 바 drag · 핀치 · 스크롤러 하나 · 쌓임 가둠 끔) → H13~H18 빨강(실측대로 적음).
  * 양성대조 r4: _patches/PVH-CTL4-no-vertical-room.patch(_hzEdgeRoom 의 위·아래 padding 줄 끔) → H12 빨강.
  * 양성대조 r3: _patches/PVH-CTL3-no-edge-pan.patch(_hzEdgeRoom 본문 return · 스페이스 keydown 처리 끔) → H10·H11 빨강.
@@ -120,13 +122,17 @@ test('H5 Esc 로 나가면 정리 · 다시 들어가면 세로', async ({ page 
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('H6 가로에서 섹션 누르면 편집으로 돌아가 그 섹션이 골라진다', async ({ page }) => {
+test('H6 가로에서 섹션 한 번 = 고르기만(미리보기 그대로 · 표시) · 두 번 = 편집으로 돌아가 그 섹션', async ({ page }) => {
   const { errs, ids } = await scene(page);
   await hz(page, true);
   const c = await page.evaluate(() => { const s = document.querySelectorAll('#preview-content .section-block')[2]; s.scrollIntoView({ block: 'center', inline: 'center' }); const q = s.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2, s.id]; });
   expect(c[2], '[전제] 셋째 섹션 = 캔버스 셋째와 같은 id').toBe(ids[2]);
+  /* PREVIEW-HZ-CLICK-SELECT-DBL-EDIT-01(현빈 261118) — 옛 «한 번 = 점프»를 «한 번 = 고르기 · 두 번 = 점프»로 바꾼 제품 변경 */
   await page.mouse.click(c[0], c[1]);
-  await expect(page.locator('body.preview-mode'), '★편집으로 돌아감').toHaveCount(0);
+  expect(await page.evaluate(() => ({ pv: document.body.classList.contains('preview-mode'), sel: [...document.querySelectorAll('#preview-content .section-block[data-pv-selected]')].map((x) => x.id), tb: document.getElementById('preview-topbar').classList.contains('visible') })),
+    '★한 번 = 미리보기 그대로 · 그 섹션만 표시 · 탑바 토글로 안 샘').toEqual({ pv: true, sel: [ids[2]], tb: false });
+  await page.mouse.dblclick(c[0], c[1]);
+  await expect(page.locator('body.preview-mode'), '★두 번 = 편집으로 돌아감').toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.getSelectedSection()?.id), '★그 섹션이 골라짐').toBe(ids[2]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -149,7 +155,9 @@ const reach = (page) => page.evaluate(() => {
   const O = o.getBoundingClientRect(), left = O.left + o.clientLeft, right = left + o.clientWidth;
   o.scrollLeft = 0;
   const firstGap = ss[0].getBoundingClientRect().left - left;
-  o.scrollLeft = o.scrollWidth;
+  /* hz-pan 261118 — 둘레 여유가 앞뒤 창 폭 반이라 «끝까지 밀면» 끝 섹션은 가운데를 지나간다 ⇒ «끝 섹션을 그릇 안에 들일 수 있나» = 끝 섹션을 가운데로 민 자리에서 잰다(r2 뜻: 닿을 수 있다) */
+  const L0 = ss.at(-1).getBoundingClientRect();
+  o.scrollLeft += (L0.left + L0.width / 2) - (left + o.clientWidth / 2);
   const L = ss.at(-1).getBoundingClientRect();
   const lastIn = L.left - left >= -1 && right - L.right >= -1;
   o.scrollLeft = 0;
@@ -253,6 +261,30 @@ test('H20 처음 자리에서 대각선 스페이스 끌기 — 가로·세로 �
   const s1 = await sc();
   expect([s0[0] - s1[0], s0[1] - s1[1]], `★가로·세로 둘 다 끈 만큼(처음 ${s0} → ${s1})`).toEqual([150, 100]);
   expect(await page.locator('body.preview-mode').count()).toBe(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('H20b 섹션 1장 — 켠 자리에서 원(사방) · 어느 쪽도 안 막힘', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove());
+    await window.addSection();
+    window.flushCurrentPage(); window.enterPreview(); window.togglePreviewHorizontal(true);
+    window.getSelection()?.removeAllRanges();
+  });
+  const sc = () => page.evaluate(() => { const o = document.getElementById('preview-overlay'); return [o.scrollLeft, o.scrollTop]; });
+  const s0 = await sc();
+  const c = await page.evaluate(() => { const o = document.getElementById('preview-overlay'), O = o.getBoundingClientRect(); return [O.left + o.clientWidth / 2, O.top + o.clientHeight / 2]; });
+  await page.mouse.move(c[0], c[1]);
+  await page.keyboard.down('Space');
+  await page.mouse.down();
+  const R = 250;
+  for (const [dx, dy, tag] of [[R, 0, '오른쪽'], [0, R, '아래'], [-R, 0, '왼쪽'], [0, -R, '위'], [0, 0, '처음']]) {
+    await page.mouse.move(c[0] + dx, c[1] + dy, { steps: 6 });
+    await expect.poll(sc, `★${tag}(${dx},${dy}) — 스크롤 = 시작 − 끈 거리`).toEqual([s0[0] - dx, s0[1] - dy]);
+  }
+  await page.mouse.up();
+  await page.keyboard.up('Space');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 const vGap = (page, which) => page.evaluate((which) => {
