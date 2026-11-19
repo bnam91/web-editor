@@ -134,19 +134,31 @@ const layout = (page, F) => page.evaluate((id) => {
 /** 진짜 손: 프레임 안 i 째 글을 더블클릭(첫 클릭 = 프레임 · 둘째 = 글 · dblclick = 편집 진입) → Esc(편집 끝 · 글 선택 유지 — block-drag.js «Escape → 편집 종료, 블록 선택 상태 유지»).
  *  ⚠️편집 «중»엔 ⌘[⌘] 가 일부러 안 먹는다(editor.js `.text-block.editing` 가드) — 사람도 Esc 뒤에 누른다. */
 async function dblPick(page, F, i) {
-  const box = await page.evaluate(([id, i]) => {
-    const tb = document.getElementById(id).querySelectorAll('.text-block')[i];
-    tb.scrollIntoView({ block: 'center' });
-    const r = (tb.querySelector('[contenteditable]') || tb).getBoundingClientRect();
-    return { x: r.left + Math.min(30, r.width / 2), y: r.top + r.height / 2, id: tb.id };
-  }, [F, i]);
+  await page.evaluate(([id, i]) => document.getElementById(id).querySelectorAll('.text-block')[i].scrollIntoView({ block: 'center' }), [F, i]);
+  /* 스크롤·레이아웃이 멎은 뒤 재고 같은 evaluate 에서 맞혀 본다 — 그 점의 주인 = 그 글(contenteditable 조상 포함) · 두 번 내리 같은 점(cand14 지혜맥 3/105 · scratch-x 와 같은 꼴) */
+  let box = null, prev = '';
+  await expect.poll(async () => {
+    box = await page.evaluate(([id, i]) => {
+      const tb = document.getElementById(id).querySelectorAll('.text-block')[i];
+      const r = (tb.querySelector('[contenteditable]') || tb).getBoundingClientRect();
+      const p = { x: r.left + Math.min(30, r.width / 2), y: r.top + r.height / 2 }; const e = document.elementFromPoint(p.x, p.y);
+      return { ...p, id: tb.id, own: !!e && e.closest('.text-block') === tb };
+    }, [F, i]);
+    const k = `${box.x},${box.y}`, same = k === prev; prev = k; return box.own && same;
+  }, { message: '[전제] 더블클릭 점의 주인 = 그 글이고 자리가 멎었다', intervals: [50] }).toBe(true);
   expect(box.id, '[전제] 글 블럭 id').toBeTruthy();
   await page.mouse.dblclick(box.x, box.y);
   if (await page.evaluate(() => !!document.querySelector('.text-block.editing'))) {
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.text-block.editing'));
   }
-  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), box.id), '[전제] 더블클릭으로 그 글이 골라졌다').toBe(true);
+  const picked = await page.evaluate((id) => document.getElementById(id).classList.contains('selected'), box.id);
+  if (!picked) console.log('[LTE-DIAG]', JSON.stringify(await page.evaluate(([id, b]) => {   // 진단만 — 그 순간 그 점의 주인·고른 것
+    const tag = (e) => e ? e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).join('.') : '') : null;
+    return { id, at: b, ptAt: document.elementsFromPoint(b.x, b.y).slice(0, 4).map(tag), selected: [...document.querySelectorAll('.selected')].map(tag).slice(0, 4),
+      editing: !!document.querySelector('.text-block.editing'), focus: tag(document.activeElement) };
+  }, [box.id, { x: box.x, y: box.y }])));
+  expect(picked, '[전제] 더블클릭으로 그 글이 골라졌다').toBe(true);
   return box.id;
 }
 

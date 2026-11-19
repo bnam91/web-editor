@@ -424,3 +424,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - (고침 별도) `scratch-x-flush-now.dom.spec.js:64` X1 · X6 — cand12·cand13 전수 각 1/1 빨강(지혜맥) · 지혜맥 ×3 X6 1/3 · 인텔 ×3 0/3 → ty/flaky-x6-o 에서 시험 고침(조건 대기).
 - (고침 별도) `ft-overlay-corner-123.dom.spec.js:111` O — 인텔 cand13 전수 1/1 · 인텔 ×3 1/3 빨강 → ty/flaky-x6-o 에서 시험 고침(조건 대기).
 - 덧(cand14 · 40d59ea22): `scratch-x-flush-now.dom.spec.js:69` 새 [전제](✕ 가 그 좌표의 주인) — 지혜맥 workers4 ×10 9 빨강(X2 4 · X6 4 · X7 1) → 장면 전제(장 그림 다 뜸) 더함.
+## 2026-11-19 · cand14 전수(e94a22d7f · 인텔·지혜맥 2분할) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `u3-purple-outline-geometry.dom.spec.js:144` U2 «보라 bottom 가 파란 밖이다» — cand14 전수 1/1 빨강(받은 값 0.5 · 문턱 toBeLessThan(0.5) 와 같은 값) · 지혜맥 ×3 0/3.
+- (고침 별도) `legacy-tpl-empty-rows-0912.dom.spec.js:149` dblPick «[전제] 더블클릭으로 그 글이 골라졌다» — 지혜맥 전수 E8 1/1 · 지혜맥 ×3 3/105(E4·E6·E8 각 1) → ty/flaky-x6-o 에서 시험 고침(조건 대기).
