@@ -57,7 +57,10 @@ async function hover(page, id, fx = 0.5, fy = 0.5, inset = 0) {
   await page.mouse.move(3, 3); const p = await pt(page, id, fx, fy, inset); await page.mouse.move(p.x, p.y, { steps: 3 });
   /* 전제 = 마우스 아래 임자가 «그 블럭(이나 그 안)»이고 :hover — 옛 판은 «아무 요소나 :hover» 였다(이웃 프레임에 떨어져도 통과 → 아웃라인 단언이 엉뚱한 까닭으로 빨강).
      안 서면 «누른 점 임자»를 찍고 전제에서 진다. */
-  const ok = await page.waitForFunction(({ x, y, id }) => { const e = document.elementFromPoint(x, y); return !!e && !!e.closest('#' + id) && e.matches(':hover'); }, { ...p, id }, { timeout: 3000 }).then(() => true, () => false);
+  /* 임자 허용 = 그 블럭(이나 그 안) «또는» 그 블럭을 품은 바깥 프레임 — 미선택 프레임은 자식 pointer-events 를 막는다(css/editor-blocks.css:266) ⇒
+     T4(outer>mid>leaf)의 leaf 자리 임자는 앱 뜻대로 outer(클릭이 고를 것 · T4 단언이 바로 그것). 형제·이웃 프레임·섹션 바탕은 여전히 거절(T3 옛 병). */
+  const ok = await page.waitForFunction(({ x, y, id }) => { const e = document.elementFromPoint(x, y), t = document.getElementById(id); if (!e || !t || !e.matches(':hover')) return false;
+    if (e.closest('#' + id)) return true; const f = e.closest('.frame-block'); return !!f && f !== t && f.contains(t); }, { ...p, id }, { timeout: 3000 }).then(() => true, () => false);
   if (!ok) { const who = await page.evaluate(({ x, y }) => { const e = document.elementFromPoint(x, y); return e ? (e.id || '') + '.' + String(e.className).slice(0, 50) : null; }, p);
     expect(ok, `[전제] 마우스가 ${id} 위에 있다 — 누른 점 ${JSON.stringify(p)} 임자 ${who}`).toBe(true); }
   await f2(page); return p;
