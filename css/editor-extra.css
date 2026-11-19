@@ -798,7 +798,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   background: var(--ui-bg-base);
   border: 1px solid var(--ui-border);
   border-radius: 3px;
-  color: #aaa;
+  color: var(--ui-text-sub);
   font-size: var(--ui-fs-10);
   padding: 0 3px;
   cursor: pointer;
