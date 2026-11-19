@@ -546,7 +546,10 @@ export function applyFrameTransform(ss, opts) {
   if (str !== null) ss.style.transform = str;
   else if (identity === 'clear') ss.style.removeProperty('transform');
   else if (identity === 'write') ss.style.transform = 'translate(0px,0px) rotate(0deg) scale(1,1)';
-  if (ss.dataset?.textFrame === 'true') globalThis.applyFlip?.(ss);   // QA2 C2 — 텍스트 프레임 반전은 block-flip 이 다시 붙인다(멱등)
+  /* QA2 C2 · ③ — 텍스트 프레임의 회전(dataset.rotation)·반전은 틀 모델 밖 → 회전 쓰기 한 함수로 다시 쓴다(키는 안 고침 · 멱등).
+     둘 다 없으면 손대지 않는다(위 ⚠️ — 로드에서 rotate(0deg) 잔재를 지우면 스태킹이 바뀐다). */
+  const td = ss.dataset;
+  if (td?.textFrame === 'true' && ((parseFloat(td.rotation) || 0) || td.flipH === '1' || td.flipV === '1')) globalThis.writeRotation?.(ss, td.rotation, { key: 'rotation', keepKey: true });
   applyFrameRotationMargin(ss, opts && opts.sizeHint);
 }
 

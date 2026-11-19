@@ -80,10 +80,7 @@ export function showVectorProperties(block) {
 
   // ── transform 적용 ────────────────────────────────────────────────────────────
   function applyTransform() {
-    const rd = parseFloat(block.dataset.rotateDeg) || 0;
-    const fx = block.dataset.flipH === '1' ? -1 : 1;
-    const fy = block.dataset.flipV === '1' ? -1 : 1;
-    block.style.transform = `rotate(${rd}deg) scale(${fx},${fy})`;
+    window.writeRotation(block, parseFloat(block.dataset.rotateDeg) || 0, { key: 'rotateDeg', keepKey: true });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
     window.scheduleAutoSave?.();
   }
 

@@ -69,12 +69,7 @@ export function wirePositionSection({ tb }) {
     const applyRot = (v, typing) => {
       v = Math.min(180, Math.max(-180, v || 0));
       const el = tb.closest('.frame-block[data-text-frame="true"]') || tb;
-      // 기존 transform에서 rotate만 교체 (position translate 등 보존)
-      const base = (el.style.transform || '').replace(/\s*rotate\([^)]*\)/g, '').trim();
-      el.style.transform = (base ? base + ' ' : '') + `rotate(${v}deg)`;
-      el.style.transformOrigin = 'center center';
-      window.applyFlip?.(el);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
-      if (v) el.dataset.rotation = v; else delete el.dataset.rotation;
+      window.writeRotation(el, v, { key: 'rotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
       if (!typing) rotNumber.value = v;
       window.scheduleAutoSave?.();
     };

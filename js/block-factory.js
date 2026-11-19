@@ -5461,17 +5461,7 @@ function updateShapeBlock(blockId, partial = {}) {
   if (partial.shapeRotation !== undefined && partial.shapeRotation !== null) {
     const deg = _setInt('shapeRotation', partial.shapeRotation, -180, 180);
     if (deg === null) return { ok: false, code: 'INVALID', message: 'shapeRotation must be finite number' };
-    const cur = (block.style.transform || '').replace(/rotate\([^)]*\)\s*/g, '').trim();
-    if (deg === 0) {
-      delete block.dataset.shapeRotation;
-      block.style.transform = cur;
-      if (!block.style.transform) block.style.removeProperty('transform');
-    } else {
-      block.dataset.shapeRotation = String(deg);
-      block.style.transform = (cur + ` rotate(${deg}deg)`).trim();
-      block.style.transformOrigin = 'center center';
-    }
-    window.applyFlip?.(block);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
+    window.writeRotation(block, deg, { key: 'shapeRotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
     applied.shapeRotation = deg;
   }
 

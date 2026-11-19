@@ -113,9 +113,7 @@ function _bindAbRotateDrag(zone, block) {
       deg = window._snapRotate(deg, ev.shiftKey); // Shift = 45° 스냅(공유)
       deg = ((deg % 360) + 360) % 360;
       if (deg > 180) deg -= 360; // -180..180
-      block.style.transform = `rotate(${deg}deg)`;
-      block.style.transformOrigin = 'center center';
-      block.dataset.rotation = String(deg);
+      window.writeRotation(block, deg, { key: 'rotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -206,10 +204,7 @@ function _bindShapeRotateDrag(zone, block) {
 function _applyAbRotation(block) {
   if (!block) return;
   const deg = parseFloat(block.dataset.rotation);
-  if (Number.isFinite(deg) && deg !== 0) {
-    block.style.transform = `rotate(${deg}deg)`;
-    block.style.transformOrigin = 'center center';
-  }
+  if (Number.isFinite(deg) && deg !== 0) window.writeRotation(block, deg, { key: 'rotation', keepKey: true });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -233,21 +228,7 @@ function _applyAbRotation(block) {
 function _applyRotationDeg(host, deg) {
   if (!host) return;
   const d = Math.max(-180, Math.min(180, Math.round(parseFloat(deg) || 0)));
-  const existing = host.style.transform || '';
-  const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
-  if (d === 0) {
-    host.style.transform = stripped;
-    if (!host.style.transform) {
-      host.style.removeProperty('transform');
-      host.style.removeProperty('transform-origin');
-    }
-    delete host.dataset.rotation;
-  } else {
-    host.dataset.rotation = String(d);
-    host.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
-    host.style.transformOrigin = 'center center';
-  }
-  window.applyFlip?.(host);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
+  window.writeRotation(host, d, { key: 'rotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
   window.scheduleAutoSave?.();
 }
 window.applyRotationDeg = _applyRotationDeg;
@@ -342,10 +323,7 @@ function _restoreDatasetRotation(block) {
   if (!block) return;
   const d = parseFloat(block.dataset.rotation);
   if (Number.isFinite(d) && d !== 0 && !/rotate\(/.test(block.style.transform || '')) {
-    const existing = (block.style.transform || '').trim();
-    block.style.transform = existing ? `${existing} rotate(${d}deg)` : `rotate(${d}deg)`;
-    window.applyFlip?.(block);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
-    block.style.transformOrigin = 'center center';
+    window.writeRotation(block, d, { key: 'rotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
   }
 }
 
@@ -422,9 +400,7 @@ const _VECTOR_ROT = _makeRotateType({
   readDeg: b => parseFloat(b.dataset.rotateDeg) || 0,
   applyDeg: (b, host, deg) => {
     b.dataset.rotateDeg = String(deg);
-    const fx = b.dataset.flipH === '1' ? -1 : 1;
-    const fy = b.dataset.flipV === '1' ? -1 : 1;
-    b.style.transform = `rotate(${deg}deg) scale(${fx},${fy})`;
+    window.writeRotation(b, deg, { key: 'rotateDeg', keepKey: true });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
     window.scheduleAutoSave?.();
   },
   syncUI: (b, host, deg) => { const n = document.getElementById('vb-rotate-deg'); if (n) n.value = String(deg); },

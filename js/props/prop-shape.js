@@ -1264,22 +1264,7 @@ function _relockFrameMinHeight(frame) {
 export function applyShapeRotation(block, deg) {
   if (!block) return;
   const d = Math.max(-180, Math.min(180, parseInt(deg) || 0));
-  const existing = block.style.transform || '';
-  const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
-  if (d === 0) {
-    // 회전 해제: transform/transform-origin/dataset 잔존을 깨끗이 정리
-    block.style.transform = stripped;
-    if (!block.style.transform) {
-      block.style.removeProperty('transform');
-      block.style.removeProperty('transform-origin');
-    }
-    delete block.dataset.shapeRotation;
-  } else {
-    block.dataset.shapeRotation = String(d);
-    block.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
-    block.style.transformOrigin = 'center center';
-  }
-  window.applyFlip?.(block);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
+  window.writeRotation(block, d, { key: 'shapeRotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
   // 구버전이 남긴 frame min-width/height 보정값 정리 (회전 시 크기 불변 정책)
   const frame = block.closest('.frame-block');
   if (frame) {
