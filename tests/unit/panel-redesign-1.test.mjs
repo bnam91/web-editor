@@ -201,3 +201,31 @@ test('R13 라벨 글자 크기 = --ui-fs-base — .prop-field-label · .prop-xy-
 test('R14 VAR 칩 줄 — 끝 칼럼까지(음수 margin = --ui-opt-col-w) · nowrap · 최근 색/그라데이션 줄은 빼고', () => {
   assert.match(css('css/editor-props.css'), /\.prop-section\[data-sec\] > \.prop-sec-body > \.cv-chips:not\(\.cv-recent-row\):not\(\.ts-recent-row\)\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\);\s*flex-wrap:\s*nowrap/);
 });
+
+/* Q17 반전 «한 자리»(js/block-flip.js) — 저장 키 dataset.flipH/V = '1' · 끄면 키 지움 · transform 끝 scale(±1, ±1) 하나 · 회전 조각 보존 · 멱등.
+ *   양성대조: applyFlip 이 scale 을 안 붙이면 빨강 */
+test('R17 block-flip — 켜고 끄기 · 회전과 한 transform · 멱등 · 옛 저장본(키 없음)은 손 안 댐', async () => {
+  const vm = await import('node:vm');
+  const src = readSrc(ROOT, 'js/block-flip.js').replace(/^export\s+/gm, '');
+  const ctx = { window: {} }; vm.createContext(ctx); vm.runInContext(src + '\n;globalThis.__F = { applyFlip, toggleFlip, flipScale };', ctx);
+  const F = ctx.__F;
+  const mk = (t = '') => { const st = { transform: t, transformOrigin: '', removeProperty(k) { this[k] = ''; } }; return { dataset: {}, style: st }; };
+  const a = mk('rotate(30deg)');
+  F.applyFlip(a);
+  assert.equal(a.style.transform, 'rotate(30deg)', '★옛 저장본(키 없음)을 열기만 했는데 transform 을 바꿨다');
+  assert.equal(F.toggleFlip(a, 'flipH'), true);
+  assert.equal(a.dataset.flipH, '1');
+  assert.equal(a.style.transform, 'rotate(30deg) scale(-1, 1)');
+  F.toggleFlip(a, 'flipV');
+  assert.equal(a.style.transform, 'rotate(30deg) scale(-1, -1)');
+  a.style.transform = a.style.transform.replace(/rotate\([^)]*\)\s*/, '') + ' rotate(45deg)';   // 회전 코드(rotate 만 갈아 끼움)를 흉내
+  F.applyFlip(a); F.applyFlip(a);
+  assert.equal(a.style.transform, 'rotate(45deg) scale(-1, -1)', '★회전과 반전이 한 transform 에 안 산다 / 멱등 아님');
+  F.toggleFlip(a, 'flipH'); F.toggleFlip(a, 'flipV');
+  assert.deepEqual([a.dataset.flipH, a.dataset.flipV, a.style.transform], [undefined, undefined, 'rotate(45deg)'], '★끄면 키를 지우고 scale 을 걷는다');
+  const b = mk(''); F.toggleFlip(b, 'flipH'); F.toggleFlip(b, 'flipH');
+  assert.equal(b.style.transform, '', '★아무 것도 없으면 transform 도 없다');
+  const tpl = stripComments(readSrc(ROOT, 'js/props/prop-text-template.js'));
+  assert.match(tpl, /rotRowHTML\(\{ p: 'txt', numberId: 'txt-rot-number'/);
+  assert.doesNotMatch(tpl, /txt-rot-slider/, '★회전 슬라이더가 남았다(Q20)');
+});

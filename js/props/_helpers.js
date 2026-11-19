@@ -9,6 +9,7 @@
  * ★prop-table.js `_applyColRatio`의 인라인 파서를 그대로 뽑아온 것(2026-09-04 P0) — 동작 무변경.
  *   테이블·그리드 블록 둘 다 이걸 쓴다(복붙 금지).
  */
+import '../block-flip.js';   // 반전 한 자리(window.toggleFlip · applyFlip) — 회전 줄(wireRotRow)이 쓴다
 export function parseRatio(raw, count) {
   /* ★Number.isFinite 로 거른다 — !isNaN(Infinity) 는 true 라 «1e999» 같은 입력이 그대로 통과했고,
    *   그 값이 dataset 에 들어가면 JSON 직렬화에서 null 이 돼 «비율이 사라진다». */
@@ -510,6 +511,61 @@ export function sliderRowHTML(label, sliderId, numberId, { min, max, step, value
         <input type="range" class="prop-slider" id="${sliderId}" min="${min}" max="${max}" step="${step}" value="${value}">
         <input type="number" class="prop-number" id="${numberId}" min="${min}" max="${max}" value="${value}">
       </div>`;
+}
+
+/* ══ 회전 줄 — «한 벌» (Q17 · Q20 · 시안 v10 · 현빈 GO 261120) ══════════════════════════════════════
+ * 한 줄 = [각도 칸(아이콘 끌기 · 숫자 · «°»)] + [90° 회전 · 좌우 반전 · 상하 반전] 반반(시안 v10 실측 89 | 27·27·27).
+ * ★각도 칸 id 는 블럭마다 «옛 숫자 칸 id 그대로» — 그 칸의 input/change 배선(블럭마다 다른 회전 적용 · 이력)이 그대로 돈다.
+ *   슬라이더는 없다(Q20 · 숫자 + ° · ↑↓ 키 = 브라우저 숫자 칸 기본 · Shift 큰 걸음은 앱 숫자 칸 관례에 없어 안 둔다).
+ * ★반전 = js/block-flip.js(저장 키 dataset.flipH/V · 프레임과 같은 키). 단추는 이 줄이 배선한다(wireRotRow).
+ *   이미 제 단추가 있는 블럭(프레임 ss-* · 벡터 vb-*)은 ids 로 옛 id 를 넘기고 wire 는 부르지 않는다(옛 배선 그대로). */
+const _ROT_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2v8h8"/><path d="M2 6a4 4 0 0 1 4 4"/></svg>';
+const _ROT_BTN = {
+  r90: ['90° 시계 방향 회전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M11.5 4.5A5 5 0 1 0 13 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/><polyline points="9,2 12,4.5 9.5,7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/></svg>'],
+  fh: ['좌우 반전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M8 5v6l-4-3z" fill="currentColor" opacity=".35"/></svg>'],
+  fv: ['상하 반전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M5 8h6l-3 4z" fill="currentColor" opacity=".35"/></svg>'],
+};
+/** p = id 접두(기본 단추 id `${p}-rot-90` · `${p}-flip-h` · `${p}-flip-v`) · numberId = 옛 각도 숫자 칸 id · ids 로 단추 id 를 바꿔 줄 수 있다 */
+export function rotRowHTML({ p, numberId, value = 0, flipH = false, flipV = false, ids = {} } = {}) {
+  const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
+  const btn = (k, on) => `<button type="button" class="prop-align-btn${on ? ' active' : ''}" id="${id[k]}" title="${_ROT_BTN[k][0]}" aria-label="${_ROT_BTN[k][0]}"${k === 'r90' ? '' : ` aria-pressed="${on}"`}>${_ROT_BTN[k][1]}</button>`;
+  return `
+      <div class="prop-row prop-rot-row">
+        <div class="prop-icon-input"><span class="prop-rot-scrub" id="${numberId}-scrub" title="좌우로 끌면 각도가 바뀐다">${_ROT_ICON}</span><input type="number" class="prop-number" id="${numberId}" min="-180" max="180" step="1" value="${value}" aria-label="회전 각도"><span class="prop-unit">°</span></div>
+        <div class="prop-align-group prop-rot-btns">${btn('r90', false)}${btn('fh', flipH)}${btn('fv', flipV)}</div>
+      </div>`;
+}
+/** 회전 줄 배선 — 90°(옛 각도 칸에 값을 넣고 input·change 를 쏜다 = 그 블럭의 회전·이력 길 그대로) · 반전(host dataset · push-after) · 아이콘 끌기.
+ *  host = () => 회전이 걸리는 요소(텍스트 = 텍스트 프레임 또는 글 블럭 · 그 밖 = 블럭). */
+export function wireRotRow({ p, numberId, host, ids = {} } = {}) {
+  const n = document.getElementById(numberId);
+  if (!n) return;
+  const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
+  const set = (v, commit) => {
+    let d = ((Math.round(v) % 360) + 360) % 360; if (d > 180) d -= 360;
+    n.value = d; n.dispatchEvent(new Event('input', { bubbles: true }));
+    if (commit) n.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  document.getElementById(id.r90)?.addEventListener('click', () => set((parseInt(n.value) || 0) + 90, true));
+  for (const [k, axis, label] of [['fh', 'flipH', '좌우 반전'], ['fv', 'flipV', '상하 반전']]) {
+    const b = document.getElementById(id[k]);
+    b?.addEventListener('click', () => {
+      const on = window.toggleFlip?.(host(), axis);
+      b.classList.toggle('active', !!on); b.setAttribute('aria-pressed', String(!!on));
+      window.scheduleAutoSave?.();
+      window.pushHistory?.(label);   // 적용 먼저 → 이력(push-after)
+    });
+  }
+  const sc = document.getElementById(`${numberId}-scrub`);
+  sc?.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    const x0 = e.clientX, v0 = parseInt(n.value) || 0;
+    const move = (ev) => set(v0 + Math.round(ev.clientX - x0), false);
+    sc.setPointerCapture(e.pointerId);
+    sc.addEventListener('pointermove', move);
+    sc.addEventListener('lostpointercapture', () => { sc.removeEventListener('pointermove', move); n.dispatchEvent(new Event('change', { bubbles: true })); }, { once: true });
+    e.preventDefault();
+  });
 }
 
 /* ══ 접이식 절 머리·몸 — «한 벌» (1017t1d2, 2026-10-17 태양) ═══════════════════════════════

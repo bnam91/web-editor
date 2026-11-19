@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
 import { sectionOrderFor } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
@@ -300,6 +300,7 @@ export function buildTextPanelSpec(state) {
         </div>
       </div>`;
 
+  const _rotHost = tb?.closest?.('.frame-block[data-text-frame="true"]') || tb;   // 회전·반전이 걸리는 요소(js/asset-rotate.js _textFrameHost 와 같은 판정)
   /* 타입 칸 켜짐 = 정확히 한 칸(블럭 종류가 먼저 · 그다음 내용 칸 클래스) — 재설계 1차 ⑫ 매핑 교정 */
   const _kind = isSpeechBubble ? 'bubble' : isLiner ? 'liner' : isIconText ? 'icon' : currentClass;
   const _kb = (cls, label) => `<button class="prop-type-btn ${_kind === cls ? 'active' : ''}" data-cls="${cls}">${label}</button>`;
@@ -363,12 +364,8 @@ export function buildTextPanelSpec(state) {
           </div>
         </div>
       </div>
-      <span class="prop-field-label">Rotation</span>
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="${currentRotation}">
-        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="${currentRotation}">
-      </div>`, { headTools: isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock }) }),
+      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸(숫자 + °) + 90° · 좌우 · 상하 반전 한 줄. 반전 키 = 회전 host(텍스트 프레임 또는 글 블럭) dataset.flipH/V */
+      rotRowHTML({ p: 'txt', numberId: 'txt-rot-number', value: currentRotation, flipH: _rotHost?.dataset?.flipH === '1', flipV: _rotHost?.dataset?.flipV === '1' })}`, { headTools: isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock }) }),
       sec('size', _sizeHtml),
       sec('layout', _alignBtns + _itbLayout),
       sec('padding', _paddingHtml),

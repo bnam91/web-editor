@@ -388,3 +388,75 @@ for (const [cls, entry, subs] of [['text-block', 'addTextBlock', ['Size', 'Paddi
   expect(judgePanel(await readPanel(page, SPEC), SPEC), '게이트 판정(묶음 몸 = 절)').toEqual([]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* Q17 · Q20(시안 v10 · 현빈 GO 261120) — 텍스트 회전 줄: 각도 칸(숫자 + °) · 90° · 좌우/상하 반전.
+ *   반전 저장 = 회전 host(텍스트 프레임 또는 글 블럭) data-flip-h/v · 그림 = transform 끝 scale(±1, ±1).
+ *   CTL prd1-q17-flip.patch(block-flip applyFlip 이 scale 을 안 붙임) → 빨강 */
+const hostOf = (id) => `(() => { const b = document.getElementById(${JSON.stringify(id)}); return b.closest('.frame-block[data-text-frame="true"]') || b; })()`;
+const flipOf = (page, id) => page.evaluate((h) => { const e = eval(h); return { h: e.dataset.flipH ?? null, v: e.dataset.flipV ?? null, t: e.style.transform }; }, hostOf(id));
+test('P17a 텍스트 회전 줄 — 칸 꼴(시안 89 | 27·27·27) · 90° · 반전 · 회전과 한 transform · 다시 열기', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  const g = await page.evaluate(() => { const r = (s) => Math.round(document.querySelector(s).getBoundingClientRect().width);
+    return { slider: !!document.getElementById('txt-rot-slider'), unit: document.querySelector('#txt-rot-number + .prop-unit')?.textContent, field: r('.prop-rot-row > .prop-icon-input'), btns: r('.prop-rot-row > .prop-rot-btns'), b1: r('#txt-rot-90'), spin: getComputedStyle(document.getElementById('txt-rot-number')).appearance }; });
+  expect(g.slider, '★회전 슬라이더가 남았다(Q20)').toBe(false);
+  expect(g.unit).toBe('°');
+  expect(Math.abs(g.field - g.btns), `★반반이 아니다 ${JSON.stringify(g)}`).toBeLessThanOrEqual(1);
+  expect(g.spin, '★스피너').toBe('textfield');
+  const n = page.locator('#txt-rot-number');
+  await n.focus(); await page.keyboard.press('ArrowUp');
+  await expect(n, '★↑ 키로 1° 안 오른다').toHaveValue('1');
+  await page.click('#txt-rot-90');
+  await expect(n, '★90° 단추').toHaveValue('91');
+  await page.click('#txt-flip-h');
+  let f = await flipOf(page, id);
+  expect([f.h, /rotate\(91deg\)/.test(f.t), /scale\(-1, 1\)/.test(f.t)], `★좌우 반전 ${JSON.stringify(f)}`).toEqual(['1', true, true]);
+  await page.fill('#txt-rot-number', '-30'); await page.locator('#txt-rot-number').dispatchEvent('change');
+  f = await flipOf(page, id);
+  expect([/rotate\(-30deg\)/.test(f.t), /scale\(-1, 1\)/.test(f.t)], `★각도를 바꾸니 반전이 사라졌다 ${f.t}`).toEqual([true, true]);
+  await page.click('#txt-flip-v');
+  expect((await flipOf(page, id)).t).toMatch(/scale\(-1, -1\)/);
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, id);
+  await expect(page.locator('#txt-flip-h'), '★다시 연 패널에 반전 켜짐이 없다').toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#txt-flip-v')).toHaveClass(/active/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('P17b 반전 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저장→다시 열기 · 블록 템플릿 저장 · 옛 저장본(키 없음)은 그대로', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  await page.click('#txt-flip-h');
+  expect((await flipOf(page, id)).h).toBe('1');
+  await page.evaluate(() => window.undo());
+  expect((await flipOf(page, id)).h, '★⌘Z 가 반전을 안 되돌린다').toBeNull();
+  await page.evaluate(() => window.redo());
+  const re = await flipOf(page, id);
+  expect([re.h, /scale\(-1, 1\)/.test(re.t)], '★⌘⇧Z 가 반전을 안 되살린다').toEqual(['1', true]);
+  const all = () => page.evaluate(() => [...document.querySelectorAll('.text-block')].map((b) => { const e = b.closest('.frame-block[data-text-frame="true"]') || b; return [e.dataset.flipH ?? null, /scale\(-1, 1\)/.test(e.style.transform)]; }));
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); window.copySelected(); }, id);
+  await page.keyboard.press('Meta+v');
+  await expect.poll(async () => (await all()).length, '[전제] 붙여넣었다').toBe(2);
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, id);
+  await page.keyboard.press('Meta+d');
+  await expect.poll(async () => (await all()).length, '[전제] 복제했다').toBe(3);
+  expect(await all(), '★붙여넣기/복제가 반전을 잃었다').toEqual([['1', true], ['1', true], ['1', true]]);
+  const back = await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.();
+    return [...document.querySelectorAll('.text-block')].map((b) => { const e = b.closest('.frame-block[data-text-frame="true"]') || b; return [e.dataset.flipH ?? null, /scale\(-1, 1\)/.test(e.style.transform)]; }); });
+  expect(back, '★저장→다시 열기에서 반전을 잃었다').toEqual([['1', true], ['1', true], ['1', true]]);
+  /* 블록 템플릿 저장(우클릭 «블록 템플릿으로 저장»과 같은 함수) → 넣기 */
+  const ins = await page.evaluate(async () => {
+    const b = document.querySelector('.text-block'); await window.saveBlockAsTemplate(b, 'prd1-p17b', '블록', '');
+    const t = window.loadTemplates().find((x) => x.name === 'prd1-p17b'); if (!t) return { err: 'no tpl' };
+    const before = new Set(document.querySelectorAll('.text-block')); window.selectSection?.(document.querySelector('.section-block'));
+    await window.insertTemplate(t);
+    const nb = [...document.querySelectorAll('.text-block')].find((x) => !before.has(x)); if (!nb) return { err: 'not inserted' };
+    const e = nb.closest('.frame-block[data-text-frame="true"]') || nb; return { h: e.dataset.flipH ?? null, s: /scale\(-1, 1\)/.test(e.style.transform) };
+  });
+  expect(ins, '★블록 템플릿 저장 → 넣기에서 반전을 잃었다').toEqual({ h: '1', s: true });
+  /* 옛 저장본 — 반전 키 없는 회전 글: 패널을 열어도 transform·키 그대로 */
+  const old = await page.evaluate(() => { const b = document.querySelector('.text-block'); const e = b.closest('.frame-block[data-text-frame="true"]') || b;
+    delete e.dataset.flipH; e.style.transform = 'rotate(10deg)'; window.deselectAll?.(); window.selectBlock(b.id);
+    return { t: e.style.transform, h: e.dataset.flipH ?? null, pressed: document.getElementById('txt-flip-h').getAttribute('aria-pressed') }; });
+  expect(old, '★옛 저장본을 열기만 했는데 바뀌었다').toEqual({ t: 'rotate(10deg)', h: null, pressed: 'false' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

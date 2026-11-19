@@ -161,6 +161,8 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   /* ⑨ 머리 «＋» — Effects 추가 select 꼴 · Stroke 켜기 체크박스(단추꼴 label 안 · 이름 aria-label) */
   [/^<select class="prop-select" id="txt-fx-add" style="[^"]*" title="고른 효과가 추가된다" (aria-label="효과 추가")>$/, '<select class="prop-select prop-sec-add-select" id="txt-fx-add" title="효과 추가" $1>'],
   [/^(<input type="checkbox" id="txt-stroke-on"(?: checked)?) ?>$/, '$1 aria-label="Stroke">'],
+  /* Q20 각도 칸 — 이름은 aria-label(«회전°» 라벨 글 걷음 · 시안 v10) */
+  [/^(<input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="[^"]*")>$/, '$1 aria-label="회전 각도">'],
   /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
   [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
@@ -173,10 +175,10 @@ const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.ind
 
 /* ⑤ 패딩 새 이름(Q25 · Q24 태그) — BASE 의 «왼쪽 패딩»·«오른쪽 패딩»(→ U2 «왼쪽»·«오른쪽») 도 한 걸음에 */
 const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우측패딩', '왼쪽': '좌측패딩', '오른쪽': '우측패딩', '상하': '상하패딩', '좌우 패딩': '태그 좌우' };   /* 태그 = Q24 «태그 좌우패딩»의 짧은 라벨(시안 v9 · 이름 전체는 title) */
-const LABEL_DROPPED = ['Font', '글자색', '너비'];   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
+const LABEL_DROPPED = ['Font', '글자색', '너비', '회전°'];   /* 회전° = Q20 각도 칸(라벨 글 대신 아이콘 · aria-label) */   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
 const ID_ADDED = [/^psec-[a-z]+(-head|-body|-group)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
-const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider'];   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
+const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider', 'txt-rot-slider'];   /* txt-rot-slider = Q20 */   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
 /* ★바닥 판부터 빨강(이번 일과 무관) — 태그 Oval 모양(label-shape-oval)이 BASE(2040a3339) 뒤 별건으로 생겼는데 이 판정기가 못 따라왔다:
  *   패널 재설계 1차 바닥(17b20888b)에서 이미 label · label+circle 상태 J1/J4 빨강. 그 한 단추·한 id 만, 태그 상태에서만 허용한다. */
 const DRIFT_PRE = { states: ['label', 'label+circle'], ctl: /^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/, id: /^label-shape-oval$/ };
@@ -188,8 +190,11 @@ const CTL_ADDED = [
   new RegExp(`^<input type="range" class="prop-slider" id="txt-ph-slider"${PH_ATTRS}>$`),   /* ⑤ «좌우패딩» 한 줄(잠금 때 둘을 같이) */
   new RegExp(`^<input type="number" class="prop-number" id="txt-ph-number"${PH_ATTRS}>$`),
 ];
-const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /];   /* ⑥ 너비 슬라이더 걷음 */
-ID_ADDED.push(/^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
+const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /,   /* ⑥ 너비 슬라이더 걷음 */
+  /^<input type="range" class="prop-slider" id="txt-rot-slider" /];   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
+/* Q17 회전 줄 단추 셋(시안 v10 · 현빈 GO 261120) */
+CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/);
+ID_ADDED.push(/^txt-rot-number-scrub$/, /^txt-(?:rot-90|flip-h|flip-v)$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',

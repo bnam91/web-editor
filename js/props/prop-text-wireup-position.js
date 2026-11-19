@@ -1,3 +1,4 @@
+import { wireRotRow } from './_helpers.js';
 /* prop-text-wireup-position.js
  * width / X / Y (overlay-tb는 호출하지 않음)
  */
@@ -62,10 +63,9 @@ export function wirePositionSection({ tb }) {
     yNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
-  // 회전 슬라이더 — text-frame(있으면) 또는 tb에 transform: rotate 적용
-  const rotSlider = document.getElementById('txt-rot-slider');
+  // 회전 각도 칸 — text-frame(있으면) 또는 tb에 transform: rotate 적용 (Q20 · 슬라이더 없음 · 시안 v10)
   const rotNumber = document.getElementById('txt-rot-number');
-  if (rotSlider && rotNumber) {
+  if (rotNumber) {
     const applyRot = v => {
       v = Math.min(180, Math.max(-180, v || 0));
       const el = tb.closest('.frame-block[data-text-frame="true"]') || tb;
@@ -74,12 +74,12 @@ export function wirePositionSection({ tb }) {
       el.style.transform = (base ? base + ' ' : '') + `rotate(${v}deg)`;
       el.style.transformOrigin = 'center center';
       if (v) el.dataset.rotation = v; else delete el.dataset.rotation;
-      rotSlider.value = v; rotNumber.value = v;
+      rotNumber.value = v;
       window.scheduleAutoSave?.();
     };
-    rotSlider.addEventListener('input', () => applyRot(parseInt(rotSlider.value)));
     rotNumber.addEventListener('input', () => applyRot(parseInt(rotNumber.value) || 0));
-    rotSlider.addEventListener('change', () => window.pushHistory?.());
     rotNumber.addEventListener('change', () => window.pushHistory?.());
+    /* Q17 — 90° · 좌우 · 상하 반전 · 아이콘 끌기(회전 줄 한 벌 · _helpers.js wireRotRow) */
+    wireRotRow({ p: 'txt', numberId: 'txt-rot-number', host: () => tb.closest('.frame-block[data-text-frame="true"]') || tb });
   }
 }
