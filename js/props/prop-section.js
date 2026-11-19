@@ -1351,6 +1351,11 @@ function _bindSectionPin(sec) {
 function _bindSectionExport(sec) {
   const secExportBtn = document.getElementById('sec-export-btn');
   if (!secExportBtn) return;
+  /* ★t13C-03 — 썸네일 섹션은 1280 (유튜브) · JPG 가 기본(현빈 Q3 권장안 · 2MB 한도) */
+  if (sec.dataset.thumb === 'youtube') {
+    document.getElementById('sec-export-width').value = '1280';
+    document.getElementById('sec-export-format').value = 'jpg';
+  }
   secExportBtn.addEventListener('click', async () => {
     const fmt = document.getElementById('sec-export-format').value;
     const w   = parseInt(document.getElementById('sec-export-width').value) || 860;

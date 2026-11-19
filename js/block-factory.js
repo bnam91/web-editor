@@ -1621,7 +1621,32 @@ function addSection(opts = {}) {
   window.selectSection(sec);
   sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.maybeAddNewSectionToScope(sec.id);
+  return sec;
 }
+
+/* ★t13C-03 유튜브 썸네일 프리셋(관리자만 · 현빈 Q1·Q2·Q8 권장안 · 261119) — 높이 484 로 핀 박은 섹션 + 표시 data-thumb="youtube".
+   폭 1280 으로 내보내면 1280×720(js/io/export-image.js YT_THUMB_*). 새 블럭 종류 0 · 새 캔버스 0.
+   ★기록 = 한 걸음 — 안의 addSection(지역 함수 · 감싸기 밖)이 push-before · 끝 표본은 insert-history EXTRA 감싸기가 핀 «뒤»에 찍는다(⌘Z 한 번에 섹션째). */
+const YT_THUMB_SEC_H = 484;
+function addYoutubeThumbSection() {
+  const sec = addSection();
+  if (!sec) return null;
+  sec.style.minHeight = '';
+  sec.style.height = YT_THUMB_SEC_H + 'px';
+  sec.dataset.heightPin = 'true';
+  sec.dataset.thumb = 'youtube';
+  window.renderSectionHeights?.();
+  window.showSectionProperties?.(sec);   // 패널을 핀 값·1280/JPG 기본으로 다시 그린다
+  window.triggerAutoSave?.();
+  return sec;
+}
+/* 입구 노출 = GIF·Slides 와 같은 판정(feature-flags.js animGifVisible 한 자리 · 모르면 «아님») — 공개 범위일 뿐 접근통제 아님.
+   메뉴를 여는 클릭보다 먼저(capture) 맞춘다(slide-block.js syncSlideMenu 와 같은 꼴). */
+function syncYoutubeThumbMenu() {
+  const b = document.getElementById('fp-add-yt-thumb');
+  if (b) b.style.display = window.animGifVisible?.(true, window.__admin?.state?.() ?? null) ? '' : 'none';
+}
+if (typeof document !== 'undefined') { document.addEventListener('click', syncYoutubeThumbMenu, true); syncYoutubeThumbMenu(); }
 
 /* ── Secret Block (Figma 패스스루 컴포넌트) ── */
 function makeJokerBlock(opts = {}) {
@@ -5818,6 +5843,7 @@ window.applyBridgeFullBleed = applyBridgeFullBleed;
 window.settleMovedBridge = settleMovedBridge;
 window._buildBridgePath     = _buildBridgePath;
 window.addSection           = addSection;
+window.addYoutubeThumbSection = addYoutubeThumbSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
 window.addFrameBlock         = addFrameBlock;
