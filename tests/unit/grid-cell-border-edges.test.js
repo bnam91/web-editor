@@ -205,8 +205,10 @@ function fnBody(src, name) {
   return src.slice(i, j < 0 ? undefined : j);
 }
 test('E7 소스 가드 — renderGridBlock 이 «칸에서» 읽는 것(pick/cell.)이 366fd826 판과 같다', () => {
-  /* 366fd826 판에서 «한 번» 뽑아 굳힌 명부(git 의존 없이 — 같은 파서로 2026-10-14 에 잼). */
-  const OLD_READS = ['cell.lines', 'pick:align', 'pick:bg', 'pick:bgFit', 'pick:bgImg', 'pick:bgPos', 'pick:padding', 'pick:radius', 'pick:valign'];
+  /* 366fd826 판에서 «한 번» 뽑아 굳힌 명부(git 의존 없이 — 같은 파서로 2026-10-14 에 잼).
+     ＋pick:padSides (2026-11-19 GRID-ROW-PADDING-PER-SIDE-01 6c2461ddb · cand9 인텔 전수 E7) — 칸 안쪽 여백 변별 [위,오른,아래,왼].
+       판정: 오염 아님 — GRID_CELL_FIELDS 에 «정식» 등록(grid-block.js · 'padding' 다음 'padSides') · P7(grid-patchcell-reject) 통과 · 없으면 옛 padding 그대로(옛 저장본 바이트 무변 = grid-cell-pad-sides P1). */
+  const OLD_READS = ['cell.lines', 'pick:align', 'pick:bg', 'pick:bgFit', 'pick:bgImg', 'pick:bgPos', 'pick:padSides', 'pick:padding', 'pick:radius', 'pick:valign'];
   const b = fnBody(GRID_RAW, 'renderGridBlock');
   const now = [...new Set([...b.matchAll(/pick\('([\w]+)'\)/g)].map(m => 'pick:' + m[1])
     .concat([...b.matchAll(/\bcell\.([A-Za-z_]\w*)/g)].map(m => 'cell.' + m[1])))].sort();
