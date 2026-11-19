@@ -160,6 +160,9 @@
   --ui-space-2: 8px;    /* --ui-pad-panel 이 이것을 쓴다 */
   --ui-space-3: 12px;
   --ui-space-4: 16px;
+  --ui-space-0_5: 2px;  /* 반 칸(현빈 결정 ⑤ 261119) — 기존 값 그대로 토큰화만 */
+  --ui-space-1_5: 6px;
+  --ui-space-2_5: 10px;
   --ui-sec-divider:          var(--ui-border-strong);  /* 절 사이 구분선 (--ui-border → --ui-border-strong) */
   --ui-sec-title-fs:         var(--ui-fs-base);        /* 절 제목 fs-10 → fs-base(10 → 11) */
   --ui-sec-title-color:      var(--ui-text-sub);       /* 절 제목 muted → sub (7.1:1) */
@@ -780,8 +783,8 @@ body {
   border-bottom: 1px solid var(--ui-border);
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  gap: 6px;
+  padding: 0 var(--ui-space-3);
+  gap: var(--ui-space-1_5);
   flex-shrink: 0;
   position: relative;
   /* Bug fix: panel-right(z-index:9999)와 동률이면 DOM 순서상 panel-right가 위에 그려져서
@@ -901,7 +904,7 @@ body.preview-mode #preview-topbar.visible { -webkit-app-region: drag; }
 .tab-add-empty { padding: 12px 14px; font-size: var(--ui-fs-12); color: var(--ui-text-dim); }
 
 .tb-btn {
-  height: 28px; padding: 0 10px;
+  height: 28px; padding: 0 var(--ui-space-2_5);
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent;
   border-radius: var(--ui-radius-sm); color: var(--ui-text-sub); font-size: var(--ui-fs-base);
@@ -966,7 +969,7 @@ body.preview-mode #preview-topbar.visible { -webkit-app-region: drag; }
 
 /* Zoom */
 #zoom-ctrl {
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: var(--ui-space-1);
   background: var(--ui-bg-app); border: 1px solid var(--ui-border-mid);
   border-radius: 6px; padding: 0 4px; height: 28px;
 }

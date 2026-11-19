@@ -34,7 +34,7 @@
   box-sizing: border-box;
   background: #1e1e1e;
   border: none;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border-soft);
   color: #e0e0e0;
   font-size: var(--ui-fs-14, 14px);
   padding: 14px 18px;
@@ -45,7 +45,7 @@
 .ss-list {
   list-style: none;
   margin: 0;
-  padding: 6px 0;
+  padding: var(--ui-space-1_5) 0;
   max-height: 320px;
   overflow: auto;
 }

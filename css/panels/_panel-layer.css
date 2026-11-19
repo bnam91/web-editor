@@ -79,7 +79,7 @@
 
 /* ── Layer Tree ── */
 .layer-section {
-  margin-bottom: 4px;
+  margin-bottom: var(--ui-space-1);
   border-radius: var(--ui-radius-md);
   overflow: hidden;
 }
@@ -87,9 +87,9 @@
 .layer-section-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-2);
   height: 28px;
-  padding: 0 8px;
+  padding: 0 var(--ui-space-2);
   cursor: pointer;
   border-radius: var(--ui-radius-sm);
   transition: background 0.1s;
@@ -190,7 +190,7 @@
 
 .layer-item {
   display: flex; align-items: center; gap: 7px;
-  height: 28px; padding: 0 8px;
+  height: 28px; padding: 0 var(--ui-space-2);
   cursor: pointer; border-radius: var(--ui-radius-sm);
   transition: background 0.1s; user-select: none;
 }

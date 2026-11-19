@@ -109,8 +109,8 @@ body.left-panel-collapsed  #tb-toggle-left-panel  .pg-fill,
 body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
 
 #rp-top-row {
-  display: flex; align-items: center; gap: 8px;
-  margin: 10px 12px 0;
+  display: flex; align-items: center; gap: var(--ui-space-2);
+  margin: var(--ui-space-2_5) var(--ui-space-3) 0;
 }
 #rp-preview-btn {
   display: flex; align-items: center; justify-content: center;
@@ -132,9 +132,9 @@ body.right-panel-collapsed #tb-toggle-right-panel .pg-fill { opacity: 0; }
    선택이 바뀌어도(propPanel.innerHTML 전면 교체) ★안 지워진다.
    값은 js/section-height.js 가 채운다 — 비어 있으면 아예 안 보인다(섹션 0개 = 보여 줄 합계가 없다). */
 #rp-height-total {
-  display: flex; align-items: baseline; gap: 6px;
-  margin: 8px 12px 0;
-  padding: 6px 9px;
+  display: flex; align-items: baseline; gap: var(--ui-space-1_5);
+  margin: var(--ui-space-2) var(--ui-space-3) 0;
+  padding: var(--ui-space-1_5) 9px;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
