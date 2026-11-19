@@ -19,7 +19,7 @@ const ANY_PROPS = /^[a-z-]+$/;
 const A_TOKENS = [
   [/^--ui-fw-(medium|semibold|bold)$/, /^font-weight$/],
   [/^--ui-fs-(\d+|base)$/, /^font-size$/],
-  [/^--ui-space-\d+$/, SPACE_PROPS],
+  [/^--ui-space-\d+(_5)?$/, SPACE_PROPS],   // _5 = 반 칸(0_5=2px · 1_5=6px · 2_5=10px · 현빈 결정 ⑤ 261119)
   [/^--ui-(border-mid|border-soft|border-strong|divider)$/, BORDER_PROPS],
   [/^--ui-(text-sub|text-muted)$/, TEXT_PROPS],
   [/^--ui-(danger|accent-primary-hover)$/, ANY_PROPS],

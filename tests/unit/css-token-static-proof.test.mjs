@@ -16,7 +16,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const A = createRequire(import.meta.url)('../../scripts/css-token-a-stage.cjs');
 
 const FAKE = {
-  values: { '--ui-border-mid': '#3a3a3a', '--ui-border': '#333333', '--ui-text-sub': '#aaaaaa', '--ui-fs-12': '12px', '--ui-fw-semibold': '600', '--ui-space-1': '4px', '--ui-space-2': '8px', '--ui-accent-primary': '#2d6fe8' },
+  values: { '--ui-border-mid': '#3a3a3a', '--ui-border': '#333333', '--ui-text-sub': '#aaaaaa', '--ui-fs-12': '12px', '--ui-fw-semibold': '600', '--ui-space-1': '4px', '--ui-space-2': '8px', '--ui-space-1_5': '6px', '--ui-accent-primary': '#2d6fe8' },
   scoped: new Set(),
   runtime: { names: new Set(['--ui-border', '--ui-accent-primary']), prefixes: new Set(['--color-']) },
 };
@@ -28,6 +28,7 @@ test('S0 자 양성·음성대조', () => {
   assert.equal(ok('  color: #aaa;', '  color: var(--ui-text-sub);').ok, true, '3자리 hex');
   assert.equal(ok('  font-weight: 600;', '  font-weight: var(--ui-fw-semibold);').ok, true, 'fw');
   assert.equal(ok('  padding: 4px 8px;', '  padding: var(--ui-space-1) var(--ui-space-2);').ok, true, '간격 두 개');
+  assert.equal(ok('  padding: 6px 8px;', '  padding: var(--ui-space-1_5) var(--ui-space-2);').ok, true, '반 칸 _5 이름(결정 ⑤)');
   assert.equal(ok('.a{font-size:12px;color:#aaa}', '.a{font-size:var(--ui-fs-12);color:var(--ui-text-sub)}').ok, true, '한 줄 여러 선언');
   const bad = [
     ['  border: 1px solid #3a3a3a;', '  border: 1px solid var(--ui-border);', /테마|원문/],          // 값 다름 + 테마
@@ -40,6 +41,8 @@ test('S0 자 양성·음성대조', () => {
     ['  padding: 4px;', '  padding: var(--ui-radius-sm);', /명부 밖/],
     ['  --ui-fs-12: 12px;', '  --ui-fs-12: 13px;', /정의/],
     ['  padding: 4px;', '  padding: var(--ui-space-2);', /원문/],                                     // 값 다른 토큰
+    ['  padding: 4px;', '  padding: var(--ui-space-1_5);', /원문/],                                   // 반 칸도 값이 달라야 빨강
+    ['  padding: 6px;', '  padding: var(--ui-space-1_6);', /명부 밖/],                                // _5 만 — 다른 꼬리는 명부 밖
   ];
   for (const [r, a, why] of bad) { const x = ok(r, a); assert.equal(x.ok, false, `빨강이어야: ${a}`); assert.match(x.why, why, a); }
 });

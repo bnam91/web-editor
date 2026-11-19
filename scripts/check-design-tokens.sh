@@ -44,9 +44,10 @@ rx_count()  { _rx count "$@"; }
 rx_list()   { _rx list "$@"; }
 rx_inline() { _rx inline "$@"; }
 
+# ①의 이름 글자에 _ 포함(261119) — 전엔 --ui-space-0_5 를 --ui-space-0 으로 잘라 «정의·사용»을 잘린 이름끼리 맞췄다(오타 0_6 도 통과). 조임이지 래칫 완화 아님.
 echo "== ① --ui-* 토큰 검사 =="
-{ grep -hoE '^\s*--ui-[a-z0-9-]+\s*:' "${CSS_FILES[@]}" 2>/dev/null || true; } | grep -oE -- '--ui-[a-z0-9-]+' | sort -u > "$TMP/def.txt" || true
-{ grep -hoE 'var\(\s*--ui-[a-z0-9-]+' "${CSS_FILES[@]}" "${JS_FILES[@]}" 2>/dev/null || true; } | grep -oE -- '--ui-[a-z0-9-]+' | sort -u > "$TMP/use.txt" || true
+{ grep -hoE '^\s*--ui-[a-z0-9_-]+\s*:' "${CSS_FILES[@]}" 2>/dev/null || true; } | grep -oE -- '--ui-[a-z0-9_-]+' | sort -u > "$TMP/def.txt" || true
+{ grep -hoE 'var\(\s*--ui-[a-z0-9_-]+' "${CSS_FILES[@]}" "${JS_FILES[@]}" 2>/dev/null || true; } | grep -oE -- '--ui-[a-z0-9_-]+' | sort -u > "$TMP/use.txt" || true
 echo "정의: $(wc -l < "$TMP/def.txt" | tr -d ' ') / 사용: $(wc -l < "$TMP/use.txt" | tr -d ' ')"
 UNDEFINED=$(comm -13 "$TMP/def.txt" "$TMP/use.txt" | grep -vE -e "$RUNTIME_TOKENS" || true)
 if [ -n "$UNDEFINED" ]; then
