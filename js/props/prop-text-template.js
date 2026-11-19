@@ -300,6 +300,11 @@ export function buildTextPanelSpec(state) {
         </div>
       </div>`;
 
+  /* 타입 칸 켜짐 = 정확히 한 칸(블럭 종류가 먼저 · 그다음 내용 칸 클래스) — 재설계 1차 ⑫ 매핑 교정 */
+  const _kind = isSpeechBubble ? 'bubble' : isLiner ? 'liner' : isIconText ? 'icon' : currentClass;
+  const _noConv = isLiner || isIconText;
+  const _kb = (cls, label) => `<button class="prop-type-btn ${_kind === cls ? 'active' : ''}" data-cls="${cls}"${_noConv ? ' disabled' : ''}>${label}</button>`;
+
   const _anim = (isOverlayTb || !showAnimGif) ? '' : `
       <button class="prop-anim-btn" id="open-anim-btn">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -320,25 +325,27 @@ export function buildTextPanelSpec(state) {
       id: tb.id,
     }),
     sections: [
-      /* 재설계 1차 ⑫ — 타입 12칸 두 줄(시안 v9 덧 = 7·5: H1·H2·H3·Body·Cap·Bullet·Label / Tags·Icon Text·Bubble·Quote·Liner ·
-         «Caption» 은 칸에 안 들어 앱 이름 «Cap» 그대로).
-         Tags·Icon Text·Bubble·Liner 로 «바꾸기»는 아직 없다(Q32 권장 = 기능이 생길 때까지 꺼 둠) ⇒ disabled · 지금 그 종류면 active.
+      /* 재설계 1차 ⑫ — 타입 12칸 두 줄(시안 v9 덧 = 7·5: H1·H2·H3·Body·Cap·Bullet·Label / Tags·Icon·Bubble·Quote·Liner ·
+         «Caption» 은 칸에 안 들어 앱 이름 «Cap» 그대로 · «Icon Text» → «Icon» 현빈 v9).
+         ★켜짐은 «정확히 한 칸»(현빈 261120 교정 — PLAN «텍스트 종류 12칸 매핑»): 말풍선·곡선·아이콘텍스트는 자기 칸만(내용 칸 클래스가 무엇이든 Body 등은 안 켜짐).
+         Tags(태그 = label-group 블럭 · 자기 패널) · Icon · Bubble · Liner 로 «바꾸기»는 앱에 없다 ⇒ disabled(자기 블럭이면 켜짐은 보인다).
+         곡선·아이콘텍스트는 옛 판에 타입 절이 없었다(바꾸기 길 없음) ⇒ 칸은 보이되 전부 disabled.
          ★한 묶음(#txt-kind-group) 안 — Quote 가 묶음 밖 혼자일 때 «마지막 칸 왼 테두리 없음» 규칙(editor-props.css 세그먼트)에 잘렸다. */
-      sec('kind', (isLiner || isIconText) ? '' : `
+      sec('kind', `
       <div class="prop-type-group" id="txt-kind-group">
-        <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
-        <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
-        <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
-        <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
-        <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
-        <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">Bullet</button>
-        <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Label</button>
-        <button class="prop-type-btn" disabled title="Tags — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Tags</button>
-        <button class="prop-type-btn" disabled title="Icon Text — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Icon Text</button>
-        <button class="prop-type-btn${isSpeechBubble ? ' active' : ''}" disabled title="Bubble — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Bubble</button>
+        ${_kb('tb-h1', 'H1')}
+        ${_kb('tb-h2', 'H2')}
+        ${_kb('tb-h3', 'H3')}
+        ${_kb('tb-body', 'Body')}
+        ${_kb('tb-caption', 'Cap')}
+        ${_kb('tb-bullet', 'Bullet')}
+        ${_kb('tb-label', 'Label')}
+        <button class="prop-type-btn" disabled title="Tags(태그 블럭) — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Tags</button>
+        <button class="prop-type-btn${_kind === 'icon' ? ' active' : ''}" disabled title="Icon Text — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Icon</button>
+        <button class="prop-type-btn${_kind === 'bubble' ? ' active' : ''}" disabled title="Bubble — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Bubble</button>
         <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
-        <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
-        <button class="prop-type-btn" disabled title="Liner — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Liner</button>
+        <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다"${_noConv ? ' disabled' : ''}>Quote</button>
+        <button class="prop-type-btn${_kind === 'liner' ? ' active' : ''}" disabled title="Liner — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Liner</button>
       </div>`, { id: 'type-section' }),
       sec('content', _bulletSec, { id: 'bullet-style-section' }),
       /* ★2026-09-16g(T-001) — Ignore Auto Layout 토글은 Position «절 머리» 오른쪽 끝(Figma). id·배선 그대로 — 자리 = headTools. */

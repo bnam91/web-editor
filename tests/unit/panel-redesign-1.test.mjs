@@ -100,8 +100,8 @@ test('R12 타입 12칸 순서·글 · 바꾸기 없는 넷 disabled · 줄바꿈
   const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
   const g = /<div class="prop-type-group" id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(html)?.[1] || '';
   const btns = [...g.matchAll(/<button ([^>]*)>([^<]*)<\/button>/g)].map((m) => ({ a: m[1], t: m[2] }));
-  assert.deepEqual(btns.map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Cap', 'Bullet', 'Label', 'Tags', 'Icon Text', 'Bubble', 'Quote', 'Liner']);
-  assert.deepEqual(btns.filter((b) => / disabled/.test(b.a)).map((b) => b.t), ['Tags', 'Icon Text', 'Bubble', 'Liner']);
+  assert.deepEqual(btns.map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Cap', 'Bullet', 'Label', 'Tags', 'Icon', 'Bubble', 'Quote', 'Liner']);
+  assert.deepEqual(btns.filter((b) => / disabled/.test(b.a)).map((b) => b.t), ['Tags', 'Icon', 'Bubble', 'Liner']);
   assert.deepEqual(btns.filter((b) => /data-cls=/.test(b.a)).map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Cap', 'Bullet', 'Label'], '★바꾸기 배선(data-cls) 칸이 바뀌었다');
   assert.match(g, /id="txt-to-quote"[^>]*>Quote</, '★Quote 가 묶음 밖이다');
   const props = css('css/editor-props.css');
@@ -166,4 +166,22 @@ test('R9 Stroke 머리 = 단추꼴 label 안 체크박스 + ＋/− 그림 · Ef
   const props = css('css/editor-props.css');
   assert.match(props, /\.prop-sec-add:has\(> input:checked\) > \.prop-sec-add-plus,\s*\.prop-sec-add:not\(:has\(> input:checked\)\) > \.prop-sec-add-minus\s*\{\s*display:\s*none/);
   assert.match(stripComments(readSrc(ROOT, 'js/effects-registry.js')), /<option value="">\$\{FX_ADD_HEAD_LABEL\}<\/option>/, '[대조] 다른 패널(plus 없음)은 옛 «효과 추가…» 그대로');
+});
+
+/* ⑫ 매핑 교정(현빈 261120) — 블럭마다 켜지는 칸은 정확히 하나 · 말풍선/곡선/아이콘텍스트는 자기 칸만. 양성대조: _kind 를 currentClass 로 되돌리면 빨강 */
+test('R12b 켜짐 = 정확히 한 칸 — H1·Label·Bubble·Liner·Icon · 곡선/아이콘텍스트는 바꾸기 칸 전부 disabled', () => {
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const T = loadTextTemplate();
+  const on = (st) => {
+    const g = /id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(T.buildTextPropsHtml({ ...GOLDEN_STATE, ...st }))?.[1] || '';
+    return [...g.matchAll(/<button class="prop-type-btn ?(active)?"[^>]*>([^<]*)<\/button>/g)].filter((m) => m[1]).map((m) => m[2]);
+  };
+  assert.deepEqual(on({ currentClass: 'tb-h1' }), ['H1']);
+  assert.deepEqual(on({ currentClass: 'tb-label', isLabel: true }), ['Label']);
+  /* Bullet 상태는 이 하네스가 글머리 명부(text-type-class)를 안 실어 못 그린다 — DOM P12b 가 잰다 */
+  assert.deepEqual(on({ currentClass: 'tb-body', isSpeechBubble: true }), ['Bubble'], '★말풍선에 Body 가 같이 켜진다');
+  assert.deepEqual(on({ currentClass: 'tb-liner', isLiner: true }), ['Liner']);
+  assert.deepEqual(on({ currentClass: 'tb-body', isIconText: true }), ['Icon'], '★아이콘텍스트에 Body 가 켜진다(내용 칸 .itb-text)');
+  const g = /id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(T.buildTextPropsHtml({ ...GOLDEN_STATE, isIconText: true }))?.[1] || '';
+  assert.equal((g.match(/<button(?![^>]*disabled)/g) || []).length, 0, '★아이콘텍스트에서 눌리는 바꾸기 칸이 있다(바꾸기 길 없음)');
 });
