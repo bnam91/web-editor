@@ -746,16 +746,16 @@ export function showModalProperties(block) {
   const _mRotS = document.getElementById('mdl-rot-slider');
   const _mRotN = document.getElementById('mdl-rot-number');
   if (_mRotN) {   // Q20(시안 v10) — 슬라이더 없음
-    const _mdlRotSet = v => {
+    const _mdlRotSet = (v, typing) => {
       v = Math.min(180, Math.max(-180, parseInt(v) || 0));
       window.applyRotationDeg?.(block, v);
-      if (_mRotS) _mRotS.value = v; _mRotN.value = v;
+      if (_mRotS) _mRotS.value = v; if (!typing) _mRotN.value = v;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
     };
     wireRotRow({ p: 'mdl', numberId: 'mdl-rot-number', host: () => block });   // Q17
     _mRotS?.addEventListener('input',  () => _mdlRotSet(_mRotS.value));
-    _mRotN.addEventListener('input',  () => _mdlRotSet(_mRotN.value));
-    _mRotS.addEventListener('change', () => window.pushHistory?.());
-    _mRotN.addEventListener('change', () => window.pushHistory?.());
+    _mRotN.addEventListener('input',  () => _mdlRotSet(_mRotN.value, true));
+    _mRotS?.addEventListener('change', () => window.pushHistory?.());   // QA2 C1 — 슬라이더를 걷어 null 이었다(TypeError → 아래 배선이 통째로 안 묶였다)
+    _mRotN.addEventListener('change', () => { _mdlRotSet(_mRotN.value); window.pushHistory?.(); });
   }
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });

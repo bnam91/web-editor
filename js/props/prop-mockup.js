@@ -108,13 +108,13 @@ export function showMockupProperties(block) {
   // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
   const mRotS = propPanel.querySelector('#mkp-rot-slider');
   const mRotN = propPanel.querySelector('#mkp-rot-number');
-  const _mkpRot = v => {
+  const _mkpRot = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    mRotN.value = v;
+    if (!typing) mRotN.value = v;
   };
-  mRotN.addEventListener('input',  () => _mkpRot(mRotN.value));
-  mRotN.addEventListener('change', () => window.pushHistory?.());
+  mRotN.addEventListener('input',  () => _mkpRot(mRotN.value, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+  mRotN.addEventListener('change', () => { _mkpRot(mRotN.value); window.pushHistory?.(); });
   wireRotRow({ p: 'mkp', numberId: 'mkp-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
 
   // 캡처 버튼

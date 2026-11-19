@@ -540,6 +540,11 @@ export function wireRotRow({ p, numberId, host, ids = {}, scrubOnly = false } = 
   const n = document.getElementById(numberId);
   if (!n) return;
   const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
+  /* QA2 M4 — «-30» 을 칠 수 있게: 치는 중 값이 숫자가 아니면(«-» 순간 value='') 블럭 배선(input → 0 으로 고쳐 씀)까지 가지 않게 막는다(캡처 · 같은 칸의 다른 듣개보다 먼저).
+     끝낼 때(change)도 숫자가 아니면 마지막 숫자로 되돌린다. 블럭마다 따로 고치지 않고 이 한 자리. */
+  let last = n.value;
+  n.addEventListener('input', (e) => { if (!Number.isFinite(parseFloat(n.value))) { e.stopImmediatePropagation(); return; } last = n.value; }, true);
+  n.addEventListener('change', () => { if (!Number.isFinite(parseFloat(n.value))) n.value = last; }, true);
   const set = (v, commit) => {
     let d = ((Math.round(v) % 360) + 360) % 360; if (d > 180 && +n.min >= -180) d -= 360;   // -180~180 칸만 접는다(프레임·벡터 0~360 은 그대로)
     n.value = d; n.dispatchEvent(new Event('input', { bubbles: true }));

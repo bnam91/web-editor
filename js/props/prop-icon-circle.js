@@ -157,12 +157,13 @@ export function showIconCircleProperties(block) {
   propPanel.querySelector('#icb-padx-slider').addEventListener('change', () => window.pushHistory());
 
   // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
-  const _icbRot = v => {
+  const _icbRot = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    propPanel.querySelector('#icb-rot-number').value = v;
+    if (!typing) propPanel.querySelector('#icb-rot-number').value = v;
   };
-  propPanel.querySelector('#icb-rot-number').addEventListener('input',  e => _icbRot(e.target.value));
+  propPanel.querySelector('#icb-rot-number').addEventListener('input',  e => _icbRot(e.target.value, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+  propPanel.querySelector('#icb-rot-number').addEventListener('change', e => _icbRot(e.target.value));
   wireRotRow({ p: 'icb', numberId: 'icb-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
   propPanel.querySelector('#icb-rot-number').addEventListener('change', () => window.pushHistory());
 

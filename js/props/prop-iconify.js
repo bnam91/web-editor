@@ -340,14 +340,14 @@ export function showIconifyProperties(block) {
   // 자유 슬라이더/숫자(icn-rot-*)·코너 핫존(asset-rotate.js)이 같은 상태를 쓴다.
   const _icnRotS = propPanel.querySelector('#icn-rot-slider');
   const _icnRotN = propPanel.querySelector('#icn-rot-number');
-  const _icnSyncUI = deg => {
+  const _icnSyncUI = (deg, typing) => {
     const norm = ((deg % 360) + 360) % 360;         // 프리셋 버튼은 0/90/180/270 표기
     const signed = deg > 180 ? deg - 360 : deg;     // 슬라이더는 -180..180
     propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(b => {
       b.classList.toggle('active', parseInt(b.dataset.deg) === norm);
     });
     if (_icnRotS) _icnRotS.value = signed;
-    if (_icnRotN) _icnRotN.value = signed;
+    if (_icnRotN && !typing) _icnRotN.value = signed;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   };
   const applyRotation = deg => {
     window.applyRotationDeg?.(block, deg);
@@ -357,15 +357,15 @@ export function showIconifyProperties(block) {
   propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyRotation(parseInt(btn.dataset.deg)));
   });
-  const _icnFree = v => {
+  const _icnFree = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    _icnSyncUI(v);
+    _icnSyncUI(v, typing);
   };
   _icnRotS?.addEventListener('input',  () => _icnFree(_icnRotS.value));
-  _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value));
+  _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value, true));
   _icnRotS?.addEventListener('change', () => window.pushHistory?.());
-  _icnRotN?.addEventListener('change', () => window.pushHistory?.());
+  _icnRotN?.addEventListener('change', () => { _icnFree(_icnRotN.value); window.pushHistory?.(); });
   wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
 
   // 교체 버튼
