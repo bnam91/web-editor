@@ -1258,6 +1258,8 @@ function _renderAutoPanel(ss) {
    공개 API
 ════════════════════════════════════════ */
 export function showFrameProperties(el) {
+  /* SLIDE-CELL-AS-FRAME-01 — 슬라이드 칸은 프레임 패널 대신 슬라이드 패널(그 칸) · 칸 안 블럭 누름의 «부모 프레임 고름» 갈래(block-drag 22곳)가 모두 여기로 온다(C2: 사진 꽉 찬 칸) */
+  if (el?.dataset?.sldCell === '1') { const sl = el.closest('.slide-block'); if (sl) { window.showSlideProperties?.(sl, { cell: el }); return; } }
   _renderAutoPanel(el);
 }
 

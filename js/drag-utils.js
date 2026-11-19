@@ -421,6 +421,7 @@ function frameSelectedAsObject(section) {
   const ok = (f) => f && f.classList?.contains('frame-block') && f.classList.contains('selected')
     && !isShapeFrame(f) && !f.dataset?.textFrame && !f.dataset?.bannerPreset
     && f.dataset?.group !== 'true'                                  // 그룹(⌘G)은 F1 범위 밖 — 예전대로 «안»
+    && f.dataset?.sldCell !== '1'                                   // SLIDE-CELL-AS-FRAME-01 — 슬라이드 칸은 «오브젝트»가 아니다(옮기기·묶기 0) ⇒ 고르면 늘 «안»(옛 H11 갈래면 다음 형제가 트랙 안 낱 요소로 끼었다)
     && (!section || f.closest('.section-block') === section);
   const act = window._activeFrame;
   const cands = [...document.querySelectorAll('.frame-block.selected')].filter(ok);

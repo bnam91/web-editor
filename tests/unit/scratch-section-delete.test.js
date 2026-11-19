@@ -487,9 +487,11 @@ test('D14 ⛔전수 래칫 — editor.js 의 `.remove()` 문 수 + 섹션 제거
      방금 만든 임시 그릇이다 — 캔버스의 요소가 아니다 ⇒ 섹션과 무관 · SECT 의 얼굴·순서와 D9·D10·D11 의 기대 수(3) 그대로. */
   /* 26 → 28 (2026-11-02, 294 t9-03 · J294G): _deletePickedFrames 가 고른 프레임 묶음과 그래서 빈 그룹을 지운다 — `f.remove()` · `par.remove()`.
      대상은 .frame-block 이다 — 섹션이 아니다 ⇒ 링크 처분과 무관 · SECT 의 얼굴·순서와 D9·D10·D11 의 기대 수(3) 그대로. */
+  /* 28 → 29 (2026-11-18, SLIDE-CELL-AS-FRAME-01 적대 리뷰 [높음1] · ty/slide-frame-cells): deleteSelectedFromCanvas 의 «슬라이드 칸» 갈래가 고른 칸 하나를 지운다 — `selSS.remove()`.
+     대상은 .frame-block.sld-cell(슬라이드 블럭 «안» 칸)이다 — 섹션이 아니다 ⇒ 링크 처분과 무관 · SECT 의 얼굴·순서와 D9·D10·D11 의 기대 수(3) 그대로(그 정규식에 안 걸림). */
   const ALL = [...SRC.editor.matchAll(/\.remove\(\)/g)];
-  assert.strictEqual(ALL.length, 28,
-    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 28) — 삭제 문이 늘거나 줄었다. `
+  assert.strictEqual(ALL.length, 29,
+    `★editor.js 의 .remove() 가 ${ALL.length}개다(박아 둔 값 29) — 삭제 문이 늘거나 줄었다. `
     + '새 문이 «섹션»을 지운다면 링크 처분을 먼저 지나게 하고, D9·D10·D11 의 기대 수(3)도 같이 갱신해라.');
   const SECT = [...SRC.editor.matchAll(/(selSection\.remove\(\)|sec\.remove\(\)|toDelete\.forEach\(s => s\.remove\(\)\))/g)]
     .map((m) => m[1]);

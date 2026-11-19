@@ -505,6 +505,7 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
     'js/blocks/grid-block.js',       // 그리드 — renderGridBlock 안에서 적용 (2026-10-01 — 렌더가 width=100% 를 다시 박아 배너2 와 같은 병이 났다, grd_ts0he_lvy913j)
     'js/blocks/laurel-block.js',     // 월계수 — renderLaurelBlock 안에서 적용 (2026-10-26 t5-10 S3 · ⑴렌더 안 ⑵패널 끄기 = clearBlockFullBleed 후 다시 그림 ⑶키 없으면 no-op)
     'js/blocks/radial-block.js',     // 라디알 — renderRadialBlock «맨 앞»에서 적용(호 배치가 블럭 폭을 잰다) (2026-10-26 t7-01 S3 · ⑴⑵⑶ 월계수와 같다)
+    'js/blocks/slide-block.js',      // 슬라이드(SLIDE-PADDING-EXCLUDE-01 · 261118) — ⑴ renderSlideBlock 안 applyBlockFullBleed(사진·프레임 두 갈래 모두 매 렌더 · 떠 있으면 안 씌움 :384·:392) ⑵ 끄기 = 패널이 clearBlockFullBleed 후 다시 그림 ⑶ 키 없으면 no-op(기본 끔)
     'js/props/prop-banner02.js',     // 배너2 패널 (2026-09-10 신규)
     'js/props/prop-cert.js',         // Documents 패널 — «패딩 제외» 토글(섹션 좌우 패딩 있을 때만 · 월계수 조건과 같다)
     'js/props/prop-chat.js',         // 채팅 패널
@@ -514,6 +515,7 @@ test('C1 ★fullBleed 식구를 «기계로» 센다 — 다섯째가 오면 빨
     'js/props/prop-page.js',         // padX 일괄 적용 — 표식 쓸이
     'js/props/prop-radial.js',       // 라디알 패널 — Layout 절 토글 (2026-10-26 t7-01)
     'js/props/prop-simple-card.js',  // 카드 패널
+    'js/props/prop-slide.js',        // 슬라이드 패널 — «패딩 제외» 토글(켜기 = dataset 만 · 적용은 렌더 · 끄기 = clearBlockFullBleed 먼저 :166~169 · 인증서·월계수와 같은 순서)
   ];
   assert.deepEqual(users, expected,
     '패딩제외 식구가 바뀌었다. ⛔지우지 말고 새 식구가 ⑴렌더 안 적용 ⑵끄기 되돌림 ⑶기본 꺼짐 을 ' +

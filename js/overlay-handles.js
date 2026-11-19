@@ -147,6 +147,7 @@ function _unrotateDelta(el, dx, dy) {
 }
 
 function showFrameHandles(ss) {
+  if (ss?.dataset?.sldCell === '1') { hideFrameHandles(); return; }   // 슬라이드 칸 = px 손잡이 0(크기는 트랙 % · 칸 손잡이는 slide-block)
   if (_overlayFrame === ss) return; // already showing
   hideFrameHandles();
   _overlayFrame = ss;

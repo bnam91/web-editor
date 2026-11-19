@@ -631,6 +631,7 @@ export function stripEditorOnlyForCapture(clone) {
     'pin-peek',                               // ⑦ 섹션 핀 «전체 보기» — 산출물은 늘 핀 높이(js/section-pin.js)
     'ln-cell-selected', 'cmp-cell-selected',   // ★1017t1c3 — 비교 「칸(글자/이미지)」 선택 표시, 둘 다 지금까지 빠져 있었다
     'frame-see-through',                       // t2-07(261112) 지나감 아웃라인 표식 — 저장 명부(section-serialize RUNTIME_MARKER_CLS)와 같이
+    'sld-unfold',                              // 슬라이드 «펼침»(두 번 누름) — 산출물은 늘 접힌 첫 장면(저장 명부와 같이)
   ];
   clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
     .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));

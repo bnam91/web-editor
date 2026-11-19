@@ -4880,7 +4880,18 @@ ipcMain.handle('capture-section', async (event, { width, height }) => {
    기존 capture-section의 청크 캡쳐 동기화 버그(P1) 우회용.
    Page.captureScreenshot + captureBeyondViewport:true로 viewport 밖 영역까지
    한 번에 캡쳐 → clone.style.top 이동/청크 합성 불필요. */
-ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, height, scale = 1 } = {}) => {
+/* SLIDE-GIF-PREVIEW-ZOOM-FLASH-01 보강(현빈 9500 두 번째 재현 · 지디 261118) — 캡처를 «한 줄로».
+   captureBeyondViewport 캡처는 찍는 동안 보기 크기를 잠깐 키웠다 되돌린다(Chromium) — 렌더러가 연달아 부르면(GIF 효과 연타·PNG 연타) 두 캡처가 겹쳐
+   «되돌림»이 꼬일 공산(독해 · 확정 아님 · 창이 반 검정/반 흰색으로 그리기만 멈춘 꼴과 맞물림). ⇒ 앞 캡처가 끝나야 다음 캡처(Promise 꼬리 잇기) · 앞이 실패해도 다음은 간다.
+   attach 도 줄 안에서(겹친 두 호출이 동시에 attach 하지 않게). 시험: tests/unit/capture-cdp-queue.test.js */
+let _cdpCapTail = Promise.resolve();
+ipcMain.handle('capture-section-cdp', (event, opts = {}) => {
+  const run = () => _captureSectionCdp(opts);
+  const job = _cdpCapTail.then(run, run);
+  _cdpCapTail = job.catch(() => {});   // 실패해도 꼬리는 이어 간다
+  return job;
+});
+async function _captureSectionCdp({ x = 0, y = 0, width, height, scale = 1 } = {}) {
   const dbg = mainWindow.webContents.debugger;
   if (!dbg.isAttached()) dbg.attach('1.3');
   // CDP clip.scale은 device pixel ratio가 아니라 **page zoom factor** — 그 배율로 «다시 그려» 찍는다.
@@ -4903,7 +4914,7 @@ ipcMain.handle('capture-section-cdp', async (event, { x = 0, y = 0, width, heigh
     fromSurface: true,
   });
   return res.data; // base64 PNG
-});
+}
 
 /* ── IPC: Navigation (추후 구현) ── */
 // ipcMain.handle('navigate', (event, page) => {

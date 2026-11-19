@@ -2217,6 +2217,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
   )];
   // text-frame 래퍼는 그룹 대상이 아님 (안의 text-block이 실제 선택 단위)
   selected = selected.filter(el => el.dataset?.textFrame !== 'true');
+  selected = selected.filter(el => el.dataset?.sldCell !== '1');   // SLIDE-CELL-AS-FRAME-01 — 슬라이드 칸은 트랙 자리라 묶어 빼지 않는다(칸 «안» 블럭은 묶을 수 있다)
   // ★도형은 «래퍼째» 한 단위다(0918 A안, T-057) — shape-block 을 그 도형 래퍼로 바꿔 묶는다.
   //   안 바꾸면 ① freeLayout 분기에서 closest 가 도형 래퍼 자신을 잡아 새 그룹/프레임이 래퍼 «안»에 생기고
   //   ② flow 분기에서 row 단위가 shape-block 이 돼 새 프레임이 래퍼 안에 들어가고 도형이 삭제됐다.

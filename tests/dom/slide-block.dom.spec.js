@@ -57,6 +57,13 @@ async function addViaMenu(page) {
   await page.click('#fp-add-slide');
   await expect(page.locator('#canvas .slide-block'), '[전제] 슬라이드 블럭').toHaveCount(1);
 }
+/* SLIDE-CELL-AS-FRAME-01(261118) — 추가 메뉴 새 블럭 = 프레임 칸(제품 의도 변경). 이 묶음(M1~M7)은 «사진 엔진»(옛 사진 모드 · 옛 저장본이 계속 탄다)을 잰다
+   ⇒ 사진 모드 블럭은 입구 함수로 만든다(addSlideBlock({cellMode:'photo'}) · 메뉴와 같은 선택·패널 길). 메뉴 자체(관리자 노출·프레임 칸)는 M1 앞머리가 잰다. */
+async function addPhotoSlide(page) {
+  await page.evaluate(() => window.addSlideBlock({ cellMode: 'photo' }));
+  await expect(page.locator('#canvas .slide-block'), '[전제] 사진 모드 슬라이드 블럭').toHaveCount(1);
+  await expect(page.locator('#sld-add'), '[전제] 오른쪽 패널 = 사진 줄').toHaveCount(1);
+}
 async function addPhoto(page, buf, name) {
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#sld-add')]);
   await fc.setFiles([{ name, mimeType: 'image/png', buffer: buf }]);
@@ -65,7 +72,7 @@ const srcs = (page) => page.evaluate(() => JSON.parse(document.querySelector('#c
 const bufOf = (d) => Buffer.from(d.split(',')[1], 'base64');
 async function withPhotos(page) {
   const s = await scene(page);
-  await addViaMenu(page);
+  await addPhotoSlide(page);
   await addPhoto(page, bufOf(s.R), 'r.png');
   await expect.poll(() => srcs(page)).toEqual(['r.png']);
   await addPhoto(page, bufOf(s.B), 'b.png');
@@ -88,7 +95,12 @@ test('M1 추가 메뉴(관리자) · 오른쪽 패널 사진 넣기·순서·빼
   await menu(page);   // 닫기
   await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; });
   await addViaMenu(page);
-  await expect(page.locator('#sld-add'), '[전제] 오른쪽 패널 = 슬라이드 내용').toHaveCount(1);
+  /* SLIDE-CELL-AS-FRAME-01 — 메뉴 새 블럭 = 프레임 칸 3 · 패널 = 칸 줄 + «프레임 추가하기»(옛 = 사진 줄 · 제품 의도 변경) */
+  expect(await page.evaluate(() => { const b = document.querySelector('#canvas .slide-block'); return { mode: b.dataset.cellMode, cells: b.querySelectorAll('.sld-cell').length }; })).toEqual({ mode: 'frame', cells: 3 });
+  await expect(page.locator('#sld-add-cell')).toHaveCount(1);
+  await page.evaluate(() => { document.querySelector('#canvas .slide-block').closest('.row').remove(); window.selectSection(document.querySelector('#canvas .section-block')); });
+  /* 사진 엔진(옛 사진 모드) — 사진 넣기·순서·빼기·⌘Z */
+  await addPhotoSlide(page);
   await addPhoto(page, bufOf(s.R), 'r.png');
   await expect.poll(() => srcs(page)).toEqual(['r.png']);
   await addPhoto(page, bufOf(s.B), 'b.png');
@@ -107,7 +119,7 @@ test('M2 GIF 버튼 → GIF 패널: 슬라이드 효과만 · 글자 칸 숨김 
   const s = await withPhotos(page);
   await page.click('#open-anim-btn');
   await expect(page.locator('#anim-gif-modal'), '[전제] GIF 패널').toBeVisible();
-  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep']);   // 2단계에서 세로 둘 더함(같은 정확 일치)
+  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail', 'slide-gridzoom']);   // 2단계에서 세로 둘 · SLIDE-FX-SINGLE-FRAME-MULTI-01 에서 제자리 둘 · CENTER-CAROUSEL 하나 더함(같은 정확 일치)
   await expect(page.locator('#anim-stamp-s0-row'), '글자 칸(도장 시작) 숨김').toBeHidden();
   await expect(page.locator('#anim-per-line'), '글자 칸(줄마다 따로) 숨김').toBeHidden();
   await expect(page.locator('#anim-slide-row'), '방향 칸 보임').toBeVisible();

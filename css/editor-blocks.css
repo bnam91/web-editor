@@ -272,7 +272,9 @@
 /* :not(:has(.selected)) — 자손 중 selected가 있으면 차단하지 않음 (nested frame drill-in 지원) */
 /* ★B안(현빈 261107) — 덮개는 «선택»이 아니라 «진입»해야 풀린다. 진입 = 여백 더블클릭(.frame-entered) 또는 자손 선택(:has(.selected) = 자식 더블클릭).
    ⇒ 프레임을 한 번 골라도 자식 자리 누름은 프레임으로 간다(끌면 프레임째). 정의 원문 handoff ORDER-frame-dblclick-focus §1. */
-.frame-block:not(.frame-entered):not([data-text-frame]):not(:has(.selected)) *:not(.shape-block):not(.shape-handle) {
+/* SLIDE-CELL-CHILD-SELECT-OUTLINE-01(현빈 피드백 3 ③) — 펼친 슬라이드의 칸은 «진입한» 것으로 본다(펼침이 이미 두 번 누름 · 칸마다 또 두 번 = 세 겹) ⇒ 칸 안 블럭 한 번 누름 = 그 블럭.
+   접힌 칸은 위 .slide-block:not(.sld-unfold) .sld-cell 규칙이 그대로 막는다. */
+.frame-block:not(.frame-entered):not([data-text-frame]):not(:has(.selected)):not(.slide-block.sld-unfold .sld-cell) *:not(.shape-block):not(.shape-handle) {
   pointer-events: none;
 }
 /* 선택 상태: 자식 pointer-events 복원 */
@@ -1579,6 +1581,21 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .slide-block.selected,
 .quote-block.selected,
 .innercard-block.selected { outline: var(--sel-outline-w) solid var(--sel-color); outline-offset: calc(-1 * var(--sel-outline-w)); }
+/* SLIDE-OFFSCREEN-CELL-EDIT-01(현빈 261118 «최대한 캔버스에서») — 프레임 칸 슬라이드를 고른 동안만 «펼침»: 트랙 밖 칸이 블럭 밖으로 이어져 보이고 만질 수 있다.
+   CSS 조건뿐(상태 클래스 .selected) — 저장·캡처는 .selected 를 걷으므로(capture-safety EDITOR_STATE_CLS) 내보내기·GIF·저장에 남는 것 0.
+   renderSlideBlock 이 인라인 overflow:hidden 을 쓰므로 !important. 밖 흐림 = 블럭 «밖»만 덮는 큰 outline(pointer-events none · 옆 블럭 클릭 그대로). */
+/* SLIDE-CLICK-SELECT-DBL-UNFOLD-01(현빈 피드백 2 ②) — 펼침 = «두 번 누름»으로 켜는 상태(.sld-unfold · 저장·캡처 명부가 걷는다) · 한 번 = 슬라이드만 고름.
+   접힌 동안 칸·칸 안은 포인터를 안 받는다 ⇒ 어디를 눌러도 슬라이드 블럭이 골라진다(칸·안쪽 블럭 고르기 = 펼친 뒤). */
+.slide-block[data-cell-mode="frame"]:not(.sld-unfold) .sld-cell { pointer-events: none; }
+.slide-block[data-cell-mode="frame"].sld-unfold { overflow: visible !important; }
+/* ★섹션 안쪽도 가로로 자른다(editor-layout.css .section-inner overflow-x:clip — 그림자 까닭) ⇒ 펼친 동안만 그 섹션 안쪽 가로 clip 을 푼다.
+   ⛔:has 안에 :has 를 못 넣는다(규격) — 두 갈래로 적는다(슬라이드 자신이 골라짐 · 슬라이드 안 무엇이 골라짐). 저장·캡처는 .selected 를 걷으니 영향 0. (지혜맥 P1 빨강 = 이 clip) */
+.section-inner:has(.slide-block[data-cell-mode="frame"].sld-unfold) { overflow-x: visible; }
+.slide-block[data-cell-mode="frame"].sld-unfold::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  /* 진회색 덮개 — 캔버스 배율(최소 10%)에서도 화면 끝이 안 보이게 2000vmax(배율 0.1 → 화면 200vmax) · px 리터럴 0 */
+  outline: 2000vmax solid color-mix(in srgb, var(--ui-bg-base) 78%, transparent);
+}
 /* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
    ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */
 .coupon-block .tb-cpn-line { outline: none; }
@@ -1708,7 +1725,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
  * ★＋ 는 블럭 «밖» 층 #grd-plus-layer(#canvas-scaler 안, #canvas 의 형제 — 선례 #todo-pin-overlay z 50)에 산다(E65·RG5 — grid-block.js 머리말).
  *   층은 손이 안 닿고(pointer-events:none) ＋ 만 받는다. 자리는 JS 가 스케일러 로컬 px 로 건다(left/top = 기준점) — 아래 transform 이 끝을 맞춘다. */
 #grd-plus-layer { position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 60; }
-#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn) {
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn, .sld-add-btn) {   /* .sld-add-btn = 슬라이드 칸 ＋(SLIDE-CANVAS-PLUS-ADD-CELL-01 · 같은 꼴 · 층 빌림) */
   position: absolute;
   pointer-events: auto;
   display: flex; align-items: center; justify-content: center;
@@ -1723,7 +1740,7 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   cursor: pointer;
 }
 /* 글리프 «+» = 글자 노드가 아니라 ::before(E65 — 글자 '+' 가 PNG·MCP·검색으로 새지 않게). 옛: 안에 svg 14px(화면 고정). */
-#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)::before { content: '+'; line-height: 1; pointer-events: none; }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn, .sld-add-btn)::before { content: '+'; line-height: 1; pointer-events: none; }
 /* ★E28(2026-10-06 · 태양/지디) — ＋ 의 «잡는 자리»만 화면 최소 24px(배율 40% 에서 16px 이던 것). 보이는 원 = 모델 40px 그대로(H9 · 현빈 10-05 «꼴»).
    태그블럭 ＋(editor-layout.css .label-group-add-btn::after)와 «같은 식» — 두 ＋ 가 같은 꼴·같은 손맛.
    ⇒ 그리드 ＋ 쪽은 바로 아래 E28-hit-G15 로 «뒤집혔다»(10-06) — 이제 두 ＋ 의 잡는 식이 다르다(태그 = 24px 최소 · 그리드 = 보이는 원). */
@@ -1732,14 +1749,14 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
      → 배율 40% 에서 보이는 원(16px) 밖 4px 까지 ＋ 가 잡혀, 원 밖 클릭이 행·열을 더했다(grid-plus-g15 K5·R1·R4).
    ⇒ 값(받아들인 비용): 40% 에서 잡는 자리 = 보이는 원 16px. ⛔＋ 를 크게 «그리는» 길(⒥)은 현빈 ㉡1 답 전엔 안 간다.
    ⛔태그블럭 ＋(editor-layout.css .label-group-add-btn::after)는 이 판정 밖 — 손대지 않았다. */
-#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn, .sld-add-btn)::after { content: ''; position: absolute; border-radius: 50%; inset: 0; }
 /* 기준점: 오른쪽 ＋ = (블럭 오른쪽 끝, 껍데기 세로 가운데) → «중심을 기준점에»(H10 · 옛 translate(-100%, -50%) 안쪽 한 칸)
    아래 ＋ = (블럭 가로 가운데, 껍데기 아래 끝) → 왼쪽으로 반 칸(옛과 같다 — 위 ⛔ 까닭). */
 #grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)[data-grd-add="col"] { transform: translate(-50%, -50%); }
 #grd-plus-layer > :is(.grd-add-btn, .ln-add-btn)[data-grd-add="row"] { transform: translateX(-50%); }
-#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn):not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn, .sld-add-btn):not(:disabled):hover { border-color: var(--ui-accent-primary); color: var(--ui-accent-primary); }
 /* 상한(4×4)에서는 흐리게 — 캔버스 선례 없음 — 2026-10-04 신규 결정 (패널 참고 선례: layer-panel.js:559 disabled) */
-#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn):disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+#grd-plus-layer > :is(.grd-add-btn, .ln-add-btn, .sld-add-btn):disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 
 /* ── t3-04 U2a 그리드 행·열 머리띠 (S6 2026-10-22 · 현빈 GO msg5376 · 확정 ① ⑤) ──────────────────
  * ★꼴 = 바로 위 그리드 ＋ 어법 그대로(현빈 QA 자 «디자인 일관성»): 점선 --ui-divider · 글자 --ui-text-muted · hover --ui-accent-primary

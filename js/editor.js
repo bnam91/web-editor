@@ -1362,6 +1362,8 @@ function duplicateSelected() {
   );
   const selSS = window._leafSelFrames?.()[0] || document.querySelector('.frame-block.selected:not([data-text-frame])');
   const selSection = document.querySelector('.section-block.selected');
+  /* SLIDE-CELL-AS-FRAME-01 적대 리뷰 [중간4] — 칸만 고른 ⌘D 가 아래 폴백(copySelected+paste)으로 슬라이드 «통째»를 그 칸 «안»에 중첩 복제했다 ⇒ 칸만 골랐으면 무시(알림) · 칸 «안» 블럭을 고른 ⌘D 는 위 블럭 갈래 그대로 */
+  if (selSS && selSS.dataset.sldCell === '1' && !selBlock) { window.showToast?.('칸은 복제할 수 없어요 — 패널 «프레임 추가하기»를 쓰세요'); return; }
 
   // freeLayout 내 절대 배치 블록: text-frame 또는 shape-frame 래퍼 복제
   if (selBlock) {
@@ -1731,6 +1733,10 @@ function copySelected() {
       : ((_row1 && _isRowFullySelected(_row1, ALL_TYPES_SEL)) ? _row1 : selNormal);
     const banner = target.closest?.('.frame-block[data-banner-preset]');
     clipboard = { type: 'block', html: target.outerHTML, sourceBannerId: banner?.id || null };
+  } else if (selSS && selSS.dataset.sldCell === '1') {
+    /* SLIDE-CELL-AS-FRAME-01 적대 리뷰 [높음1] — 칸을 고른 ⌘C/⌘X/⌘D 가 아래 갈래로 «슬라이드 줄 통째»를 담았다 ⇒ 칸은 복사 단위가 아니다(트랙 밖에 칸을 붙일 자리가 없다) · 클립보드 무변 */
+    window.showToast?.('칸은 복사할 수 없어요 — 칸 안 블럭을 고르세요');
+    return;
   } else if (selSS) {
     // 서브섹션은 row > col > frame-block 구조이므로 row 단위로 복사
     const rowEl = selSS.closest('.row') || selSS;
@@ -3955,6 +3961,24 @@ function deleteSelectedFromCanvas({ isCut = false } = {}) {
            일괄 삭제로 흘려보낸다(거기서 이 프레임도 «같이» 지워진다). */
       const _selOutsideSS = [...canvasEl.querySelectorAll(SECTION_BLOCK_TYPE_SEL_SELECTED + ', .frame-block.selected')]
         .some(el => el !== selSS && !selSS.contains(el) && !el.contains(selSS));
+      /* SLIDE-CELL-AS-FRAME-01 적대 리뷰 [높음1] — 슬라이드 칸(data-sld-cell)만 골라 ⌫/Delete/⌘X 면 아래 «프레임 줄째 삭제»가 selSS.closest('.row') = 슬라이드 줄 «통째»를 지웠다.
+         ⇒ 칸 둘 이상 = 그 칸만 빼기(패널 ✕ 와 같은 일) · 한 칸 = 무동작(알림) · ⌘X(잘라내기)는 칸이면 무동작(복사도 막았다 — 아래 copySelected) */
+      if (!ssHasSelectedChild && !_selOutsideSS && selSS.dataset.sldCell === '1') {
+        consumed = true;
+        const sl = selSS.closest('.slide-block');
+        const n = sl ? sl.querySelectorAll(':scope > .sld-track > .sld-cell').length : 0;
+        if (isCut || n <= 1) { window.showToast?.(isCut ? '칸은 잘라낼 수 없어요 — 칸 안 블럭을 고르세요' : '마지막 칸은 뺄 수 없어요'); return consumed; }
+        const wasOpen = sl.classList.contains('sld-unfold');   // SLIDE-UNFOLD-STAY-ON-DELETE-01(현빈 피드백 3 ①) — 펼친 채 칸을 빼면 펼침 그대로
+        window.ensureHistoryCheckpoint?.('삭제 전');
+        selSS.remove();
+        window.renderSlideBlock?.(sl);
+        window._activeFrame = null;
+        deselectAll();
+        if (wasOpen) { window.selectBlock?.(sl.id); window.unfoldSlide?.(sl, true); }
+        window.buildLayerPanel();
+        pushHistory('칸 빼기');
+        return consumed;
+      }
       if (!ssHasSelectedChild && !_selOutsideSS) {
         consumed = true;
         /* ★E80 — 이 갈래는 «끝 표본만» 찍었다. 끝 표본 없이 끝난 편집(Esc · 캔버스 밖 클릭 · 안 끝냄) 뒤 지우면 ⌘Z 가 그 편집까지 되돌렸다(v0.9.5 부터 · 2026-10-04 실측).

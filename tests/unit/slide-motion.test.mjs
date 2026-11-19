@@ -6,12 +6,26 @@
  * S5 소독: 범위 밖 값은 고정 · 기본값이면 저장 키 없음
  * S6 세로(2단계 · ② 세로 스크롤): 세로 흐름 = 흐름 셈 · 세로 넘김 = 스와이프 셈 · 그림은 y 축(카드 i 위끝 = i × 한 칸 × k · 폭 = 캔버스 폭) · 주기 끝에도 높이를 다 덮음
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
+ * S15 칸 «옅게» 그림자(SLIDE-CELL-DEFAULT-SHADOW-01) = 컴패리전 블럭 강조 칼럼 box-shadow 글자 그대로 · 캔버스 값(css)과 GIF 값(y·blur·color)이 같은 그림자
+ *   양성대조: slide-frame-CTL36-soft-shadow-drift.patch(soft 를 옛 0 4px 12px 로) → S15 빨강
+ * S14 점 간격·색(SLIDE-DOTS-SPACING-01): 소독(갭 0~40 · 간격 2~40 · 색 #rrggbb[aa] 만) · 띠 = 갭×2 + 점 · drawDots opt(띠 가운데 · 점 사이 · 색)
+ * S13 격자 줌아웃(SLIDE-FX-GRID-ZOOMOUT-01): t=0 = 히어로 한 장(첫 장면 크기 · 가운데) · 둘레 들어오는 중 알파 0~1 · 끝 = 7×7(고리 ≤3 49장 전부 알파 1 · 그 밖 고리 = GZ_OUTER_A) · 나선 순번 · 한 바퀴 GZ_S÷속도
+ * S12 겹침 간격(SLIDE-FX-OVERLAP-GAP-01): 간격 −80 까지(−99 → −80) · 한 칸 = 카드 + 간격 · ★그림 = 자리 순서(감긴 마지막 카드가 첫 카드 밑 · 뒤 카드 위)
+ * S11 전후 비교(SLIDE-FX-BEFORE-AFTER-WIPE-01): 나눔선 t=0 = 0.5(첫 장면) · ¼ = 0.8 · ¾ = 0.2 · 한 바퀴 = WIPE_S ÷ 속도 · 그리기 = 후 꽉 → 전 clip(0..p·W) → 선 → 손잡이
+ * S10 가운데 캐러셀(SLIDE-FX-CENTER-CAROUSEL-01): t=0 = 둘째 카드 가운데(s = 시작₁ − (bw−cw)/2) · 머무름 = 셋째 가운데 · 마지막 → 첫째(주기 끝) · 앞 번호 · 첫 장면 밀기 글자
+ * S9 제자리(SLIDE-FX-SINGLE-FRAME-MULTI-01): 넘김과 같은 박자(loopSec 같음) · 바뀜 중 f 0→1 · 머무름 f 1 · 마지막 → 처음 · 페이드 = to 알파 f · 컷 = f<1 from / 1 to · 보이는 번호
+ * S8 점 표시(SLIDE-INDICATOR-DOTS-01): slideActiveIndex = 왼끝이 지난 마지막 카드(균일·칸별) · drawDots = n 점 · active 만 DOT_ON · 위/아래 띠 가운데 y · 'none' 이면 안 그림
+ *   양성대조(CTL · _patches/slide-fx-CTL1-no-gif-dots.patch — DOM 쪽): slidePlan 의 drawDots 줄 삭제 → slide-fx D1 GIF 점 빨강 — 예측
+ * S7 칸별 폭(SLIDE-CELL-SIZE-EACH-01): ws 없음/전부 빈 값 = uniform(옛 셈 그대로 · starts = i×한 칸) · ws 있음 = 카드 왼끝 = 앞 카드 (폭+간격) 누적합 ·
+ *    주기 = 합 · 스와이프 머무름 = 다음 카드 왼끝 · 그림 = 그 자리·그 폭 · 소독 20~100
+ *   양성대조(CTL3 · _patches/slide-fb-CTL3-uniform-draw.patch): drawSlides 의 `const uni = geom.uniform !== false;` → `const uni = true;` → S7 빨강(그림이 균일 자리)
  * 양성대조(예측 · CTL): slideOffset 첫 줄 `const tt = ((t % 1) + 1) % 1;` → `const tt = t;`(한 바퀴 감기 없앰) → S1 빨강(t 1 ≠ 0) · 스와이프 `: 1;` → `: 0;` → S2 빨강 · gifPlan 의 `Math.min(GIF_FRAMES_MAX, …)` 를 `Math.round(s * GIF_FPS_MAX)` 로 → S3 빨강
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
-  SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S } from '../../js/fx/slide-motion.js';
+import { dotBand, gridZoomFrame, gridSpiralIndex, slideGridZoom, GZ_S, GZ_OUTER_A, slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
+  SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S, CELL_SHADOWS } from '../../js/fx/slide-motion.js';
+import { readFileSync } from 'node:fs';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
 
@@ -74,7 +88,10 @@ test('S4 그림 자리 — offset 0 = 정적 첫 장면 자리 · 오른쪽 = �
 });
 
 test('S5 소독 · 기본값 = 키 없음', () => {
-  assert.deepEqual(normLayout({ cardW: 999, gap: -5, h: 'x' }), { cardW: 100, gap: 0, h: SLIDE_LAYOUT_DEFAULT.h });
+  assert.deepEqual(normLayout({ cardW: 999, gap: -5, h: 'x' }), { cardW: 100, gap: -5, h: SLIDE_LAYOUT_DEFAULT.h, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9' });   // dotGap·dotSpace·dotOn·dotOff = SLIDE-DOTS-SPACING-01 새 칸(기본 = 옛 그대로)   // mode = SLIDE-LAYOUT-STATIC-MODES-01 새 칸(기본 row)   // dots = SLIDE-INDICATOR-DOTS-01 새 칸(기본 none) · gap −5 = OVERLAP-GAP(−80~80)부터 겹침으로 받는 값(옛 «음수 → 0» 은 제품 뜻이 바뀜 · 하한 −80 은 S12)
+  assert.equal(normLayout({ gap: 999 }).gap, 80, '간격 상한 80 그대로');
+  assert.deepEqual(['center', 'single', '<x>'].map((m) => normLayout({ mode: m }).mode), ['center', 'single', 'row'], '정지 꼴 소독');
+  assert.equal(normLayout({ dots: '<x>' }).dots, 'none', '점 표시 소독');
   assert.deepEqual(normAnim({ dir: '<b>', dwell: 99, speed: 0 }), { dir: 'left', dwell: 4, speed: 0.25 });
   assert.deepEqual(diffFromDefault(normAnim({}), SLIDE_ANIM_DEFAULT), {});
   assert.deepEqual(diffFromDefault(normAnim({ dir: 'right' }), SLIDE_ANIM_DEFAULT), { dir: 'right' });
@@ -102,4 +119,121 @@ test('S6 세로 — 흐름·넘김 셈은 가로와 같고 그림은 y 축', () 
     let reach = 0; for (const [a, b] of spans) { if (a > reach + G.gap * k + 0.01) break; reach = Math.max(reach, b); }
     assert.ok(reach >= H - 0.01, `★offset ${off} 에서 아래가 비었다(${reach})`);
   }
+});
+
+test('S7 칸별 폭 — 없으면 옛 셈 그대로 · 있으면 누적합 · 그림도 그 자리', () => {
+  const U = slideGeom(800, 4, { cardW: 50, gap: 20 }, [undefined, null, '', undefined]);
+  assert.deepEqual([U.uniform, U.cw, U.step, U.period, U.starts], [true, 400, 420, 1680, [0, 420, 840, 1260]], '★칸별 폭 없음 = 옛 기하(무변)');
+  const V = slideGeom(800, 3, { cardW: 50, gap: 20 }, [25, undefined, 75]);   // 200 · 400 · 600
+  assert.deepEqual([V.uniform, V.cws, V.starts, V.period], [false, [200, 400, 600], [0, 220, 640], 1260]);
+  const A = { dwell: 1.5 }, per = SWIPE_MOVE_S + 1.5, T = 3 * per;
+  const at = (sec) => slideOffset('slide-swipe', V, A, sec / T);
+  assert.deepEqual([0, 1, 2].map((i) => at(i * per + SWIPE_MOVE_S + 0.01)), [220, 640, 0], '★머무름 = 다음 카드 왼끝(마지막 뒤 = 처음)');
+  const c = fakeCtx(); drawSlides(c, 1000, 100, IM, V, 0, 'left', 1);
+  const vis = c.calls.filter((q) => q.op === 'img' && q.x >= 0 && q.x < 1000).map((q) => [q.id, q.x, q.w]).sort((a, b) => a[1] - b[1]);
+  assert.deepEqual(vis, [[0, 0, 200], [1, 220, 400], [2, 640, 600]], '★그림 자리·폭 = 칸별');
+  assert.deepEqual([normCardW(5), normCardW(150), normCardW('33'), normCardW(undefined), normCardW('x')], [20, 100, 33, undefined, undefined]);
+});
+
+test('S8 점 표시 — 앞 카드 번호 · 점 그리기', () => {
+  const U = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 한 칸 420
+  assert.deepEqual([0, 419, 420, 1300, 1679].map((x) => slideActiveIndex(U, x)), [0, 0, 1, 3, 3]);
+  const V = slideGeom(800, 3, { cardW: 50, gap: 20 }, [25, undefined, 75]);   // starts 0·220·640
+  assert.deepEqual([0, 219, 220, 640, 1259].map((x) => slideActiveIndex(V, x)), [0, 0, 1, 2, 2]);
+  const calls = []; const ctx = { set fillStyle(v) { calls.push({ c: v }); }, beginPath() {}, arc(x, y, r) { calls[calls.length - 1].x = x; calls[calls.length - 1].y = y; calls[calls.length - 1].r = r; }, fill() {} };
+  drawDots(ctx, 400, 300, 3, 1, 'top', 1);
+  assert.deepEqual(calls.map((q) => q.c), [DOT_OFF, DOT_ON, DOT_OFF]);
+  assert.ok(calls.every((q) => q.y === DOT_BAND / 2), '위 띠 가운데');
+  assert.ok(calls[0].x < calls[1].x && calls[1].x < calls[2].x && Math.abs(calls[1].x - 200) < 0.01, '가운데 정렬');
+  const b = []; drawDots({ set fillStyle(v) { b.push(v); }, beginPath() {}, arc(x, y) { b.push(y); }, fill() {} }, 400, 300, 2, 0, 'bottom', 2);
+  assert.equal(b[1], 300 - DOT_BAND, '아래 띠 가운데(k 2)');
+  const n = []; drawDots({ set fillStyle(v) { n.push(v); }, beginPath() {}, arc() {}, fill() {} }, 400, 300, 3, 0, 'none', 1);
+  assert.equal(n.length, 0);
+});
+
+test('S9 제자리 — 박자 · 바뀜 진행 · 페이드 알파 · 컷', () => {
+  const A = { dwell: 1.5 }, per = SWIPE_MOVE_S + 1.5, T = 3 * per, G3 = slideGeom(800, 3, { cardW: 50, gap: 20 });
+  assert.equal(slideInPlace('slide-fade') && slideInPlace('slide-cut') && !slideInPlace('slide-swipe'), true);
+  assert.equal(loopSec('slide-fade', G3, A), loopSec('slide-swipe', G3, A));
+  const at = (sec) => inPlaceState(3, A, sec / T);
+  assert.deepEqual(at(0), { from: 0, to: 1, f: 0 });
+  const mid = at(SWIPE_MOVE_S / 2); assert.ok(mid.f > 0.4 && mid.f < 0.6, `바뀜 가운데 f ${mid.f}`);
+  assert.deepEqual(at(SWIPE_MOVE_S + 0.1), { from: 0, to: 1, f: 1 }, '머무름 = 다음 장 다 들어옴');
+  assert.deepEqual([at(2 * per + 0.1).from, at(2 * per + 0.1).to], [2, 0], '마지막 → 처음');
+  const log = []; const ctx = { save() {}, restore() {}, set globalAlpha(v) { log.push(['a', v]); }, set fillStyle(v) {}, fillRect() {}, drawImage(im) { log.push(['img', im.id]); } };
+  const IM2 = [{ id: 'r', width: 10, height: 10 }, { id: 'b', width: 10, height: 10 }];
+  assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 0.3 }, 'slide-fade'), 0);
+  assert.deepEqual(log, [['a', 1], ['img', 'r'], ['a', 0.3], ['img', 'b']], '페이드 = from 위에 to 알파 f');
+  log.length = 0;
+  assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 0.3 }, 'slide-cut'), 0); assert.deepEqual(log, [['a', 1], ['img', 'r']]);
+  log.length = 0;
+  assert.equal(drawInPlace(ctx, 100, 50, IM2, { from: 0, to: 1, f: 1 }, 'slide-cut'), 1); assert.deepEqual(log, [['a', 1], ['img', 'b']]);
+});
+
+test('S10 가운데 캐러셀 — 둘째부터 · 가운데 맞춤 · 앞 번호 · 첫 장면 밀기', () => {
+  const G4 = slideGeom(800, 4, { cardW: 50, gap: 20 }), A = { dwell: 1.5 }, per = SWIPE_MOVE_S + 1.5, T = 4 * per;
+  assert.equal(slideCentered('slide-center'), true);
+  assert.equal(loopSec('slide-center', G4, A), loopSec('slide-swipe', G4, A));
+  const at = (sec) => centerState(G4, A, sec / T);
+  assert.deepEqual(at(0), { s: 420 - 200, active: 1 }, '★t=0 = 둘째 카드 가운데');
+  assert.deepEqual(at(SWIPE_MOVE_S + 0.1), { s: 840 - 200, active: 2 }, '머무름 = 셋째 가운데');
+  assert.deepEqual(at(2 * per + SWIPE_MOVE_S + 0.1), { s: 1680 - 200, active: 0 }, '넷째 → 첫째(주기 끝으로 앞으로만)');
+  assert.equal(centerTrackShift([50, 50, 50], 20), 'calc(-25% - 20px)', '첫 장면 = 둘째 가운데((100−50)/2 − 50 % · − 간격)');
+  assert.equal(centerTrackShift([60], 16), 'calc(20% - 0px)', '한 장이면 첫째 가운데');
+});
+
+test('S11 전후 비교 — 나눔선 자리 · 한 바퀴 · 그리기 순서', () => {
+  assert.equal(slideWipe('slide-wipe'), true);
+  assert.ok(Math.abs(wipePos(0) - 0.5) < 1e-9 && Math.abs(wipePos(0.25) - 0.8) < 1e-9 && Math.abs(wipePos(0.75) - 0.2) < 1e-9 && Math.abs(wipePos(1) - 0.5) < 1e-9);
+  assert.equal(loopSec('slide-wipe', slideGeom(800, 2, {}), { speed: 2 }), WIPE_S / 2);
+  const log = []; const ctx = { save() {}, restore() {}, beginPath() {}, clip() { log.push('clip'); }, rect(x, y, w) { log.push(['rect', w]); }, set fillStyle(v) {}, fillRect(x) { log.push(['line', Math.round(x)]); }, arc(x) { log.push(['knob', x]); }, fill() {}, drawImage(im) { log.push(['img', im.id]); } };
+  drawWipe(ctx, 200, 100, [{ id: 'before', width: 10, height: 10 }, { id: 'after', width: 10, height: 10 }], 0.3, 1);
+  assert.deepEqual(log, [['img', 'after'], ['rect', 60], 'clip', ['img', 'before'], ['line', 59], ['knob', 60]]);
+});
+
+test('S12 겹침 간격 — 소독 · 한 칸 · 그림 순서', () => {
+  assert.equal(normLayout({ gap: -99 }).gap, -80);
+  assert.equal(normLayout({ gap: -30 }).gap, -30);
+  const O = slideGeom(800, 3, { cardW: 50, gap: -40 });   // 카드 400 · 한 칸 360
+  assert.deepEqual([O.step, O.period, O.starts], [360, 1080, [0, 360, 720]]);
+  const c = fakeCtx(); drawSlides(c, 1000, 100, IM, O, 0, 'left', 1);
+  assert.deepEqual(c.calls.filter((q) => q.op === 'img').map((q) => [q.id, q.x]), [[2, -360], [0, 0], [1, 360], [2, 720]],
+    '★자리 순서로 그림(왼→오) — 감긴 셋째(−360)가 첫째 «밑» · 뒤 카드가 위 = 첫 장면 DOM 과 같음');
+});
+
+test('S13 격자 줌아웃 — 히어로 · 들어옴 · 7×7 · 나선', () => {
+  assert.equal(slideGridZoom('slide-gridzoom'), true);
+  assert.equal(loopSec('slide-gridzoom', slideGeom(800, 3, {}), { speed: 2 }), GZ_S / 2);
+  const f0 = gridZoomFrame(0, 800, 400, 60, 16);
+  assert.deepEqual(f0.tiles.map((t) => [t.x, t.y, t.w, t.h, t.idx, t.a]), [[160, 0, 480, 400, 0, 1]], '★t=0 = 히어로 한 장(가운데 · 카드 폭 60% × 블럭 높이)');
+  const mid = gridZoomFrame(1.0 / GZ_S, 800, 400, 60, 16);   // u = 1.0(작아지는 중)
+  const ring1 = mid.tiles.filter((t) => t.idx >= 1 && t.idx <= 8);
+  assert.ok(ring1.length === 8 && ring1.every((t) => t.a > 0 && t.a < 1), '둘레 3×3 이 옅게 들어오는 중');
+  const end = gridZoomFrame(0.9, 800, 400, 60, 16);
+  const inner = end.tiles.filter((t) => t.idx <= 48), outer = end.tiles.filter((t) => t.idx > 48);
+  assert.equal(inner.length, 49, '★7×7 전부'); assert.ok(inner.every((t) => t.a === 1));
+  assert.ok(outer.every((t) => t.a === GZ_OUTER_A), '7×7 밖 한 바퀴 = 옅게');
+  const h = inner.find((t) => t.idx === 0); assert.ok(Math.abs(h.x + h.w / 2 - 400) < 1e-6 && Math.abs(h.y + h.h / 2 - 200) < 1e-6, '가운데 = 첫째');
+  assert.ok(h.h * 7 <= 400 + 1e-6, '7 장이 블럭 높이 안');
+  assert.deepEqual([gridSpiralIndex(0, 0), gridSpiralIndex(-1, 0), gridSpiralIndex(-1, 1), gridSpiralIndex(0, 1), gridSpiralIndex(1, 0)], [0, 1, 2, 3, 5], '나선 = 위부터 시계 방향');
+});
+
+test('S14 점 간격·색 — 소독 · 띠 · 그리기', () => {
+  const L = normLayout({ dotGap: 99, dotSpace: 1, dotOn: '#FF00FF', dotOff: 'red;background:url(x)' });
+  assert.deepEqual([L.dotGap, L.dotSpace, L.dotOn, L.dotOff], [40, 2, '#ff00ff', '#c9c9c9'], '★색은 #hex 만(style 글자로 들어감)');
+  assert.equal(dotBand({}), 24, '기본 띠 = 옛 24');
+  assert.equal(dotBand({ dotGap: 16 }), 40);
+  const calls = []; const ctx = { set fillStyle(v) { calls.push({ c: v }); }, beginPath() {}, arc(x, y) { calls[calls.length - 1].x = x; calls[calls.length - 1].y = y; }, fill() {} };
+  drawDots(ctx, 400, 300, 3, 0, 'top', 1, { band: 40, space: 20, on: '#ff00ff', off: '#00ffff' });
+  assert.deepEqual(calls.map((q) => q.c), ['#ff00ff', '#00ffff', '#00ffff']);
+  assert.ok(calls.every((q) => q.y === 20) && calls[1].x - calls[0].x === 28, '띠 가운데 20 · 점 사이 8 + 20');
+});
+
+test('S15 칸 옅은 그림자 = 컴패리전 그림자 값 그대로', () => {
+  const src = readFileSync(new URL('../../js/blocks/comparison-block.js', import.meta.url), 'utf8');
+  const m = src.match(/box-shadow:([^;']+);/);
+  assert.ok(m, '[전제] 컴패리전 강조 칼럼 box-shadow 를 찾음');
+  assert.equal(CELL_SHADOWS.soft.css, m[1].trim(), '★옅게 = 컴패리전 값(새 값 0)');
+  const S = CELL_SHADOWS.soft;
+  assert.equal(S.css, `0 ${S.y}px ${S.blur}px ${S.color}`, '캔버스(css) = GIF(y·blur·color) 같은 그림자');
 });
