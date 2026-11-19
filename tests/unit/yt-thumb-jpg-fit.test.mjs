@@ -1,7 +1,7 @@
 /* yt-thumb-jpg-fit.test.mjs — t13C-04 ④ 유튜브 썸네일 JPG 2MB 지킴 · 순수 함수 fitUnderBytes (js/io/jpg-fit.js) + 배선 (261119 · 태양)
  *   가짜 encode(q → {size}) 로 잰다 — 캔버스·DOM 0.
  *   F1 3MB→…→1.9MB 에서 멈춘다(그 품질 · 그 횟수) · F2 한도 안이면 첫 품질 그대로(재인코딩 0) · F3 끝까지 넘으면 over · F4 encode null 은 그대로
- *   W1 배선 — export-image.js 의 1280·JPG 길만 fitUnderBytes(encode, YT_JPG_LIMIT) 를 부르고, 다른 길은 0.95 그대로
+ *   W1 배선 — export-image.js 의 «썸네일 섹션 · 1280 · JPG» 길만 fitUnderBytes(encode, YT_JPG_LIMIT) 를 부르고, 다른 길은 0.95 그대로
  * ★양성대조: _patches/yt-thumb-4-fit.patch (멈춤 조건을 걷어 늘 끝까지 내림) ⇒ F1·F2 빨강.
  * 실행: node --test tests/unit/yt-thumb-jpg-fit.test.mjs
  */
@@ -69,13 +69,14 @@ test('F4 encode 가 null(toBlob 실패) — 그대로 돌려주고 더 안 구�
   assert.deepEqual(f.asked, [0.95]);
 });
 
-test('W1 배선 — 1280·JPG 길만 fitUnderBytes · 다른 길은 0.95 그대로', () => {
+test('W1 배선 — 썸네일·1280·JPG 길만 fitUnderBytes · 다른 길은 0.95 그대로', () => {
   const s = stripComments(read('js/io/export-image.js'));
   assert.match(s, /import \{ fitUnderBytes, YT_JPG_LIMIT \} from '\.\/jpg-fit\.js'/);
   const i = s.indexOf('fitUnderBytes(encode, YT_JPG_LIMIT)');
   assert.ok(i > 0, '1280·JPG 길이 fitUnderBytes 를 안 부른다');
   const head = s.slice(Math.max(0, i - 200), i);
-  assert.match(head, /if \(w === YT_THUMB_W && mime === 'image\/jpeg'\)/, '부르는 조건이 1280·JPG 가 아니다');
+  assert.match(head, /const ytThumb = isYtThumbExport\(sec, w\);\s*if \(ytThumb && mime === 'image\/jpeg'\)/, '부르는 조건이 «썸네일 섹션 · 1280 · JPG» 가 아니다');
+  assert.match(s, /export const isYtThumbExport = \(sec, w\) => w === YT_THUMB_W && sec\?\.dataset\?\.thumb === 'youtube'/, '판정이 폭만 본다(보통 섹션도 탄다)');
   assert.match(s, /blob = await encode\(0\.95\)/, '다른 길의 0.95 고정이 사라졌다');
   assert.equal((s.match(/fitUnderBytes\(/g) || []).length, 1, 'fitUnderBytes 를 부르는 자리가 하나가 아니다');
 });

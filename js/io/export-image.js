@@ -14,13 +14,14 @@ const CANVAS_W = 860;
    ★export·truth(export-gate.js) 둘 다 prepareCloneForCapture/captureCloneToCanvas 안에서 이 한 함수로
      정한다 ⇒ 두 그림의 크기·배치가 갈릴 수 없다(갈리면 «크기 불일치» 거짓 FAIL). */
 export function captureLayoutWidth(w) { return w > CANVAS_W ? CANVAS_W : w; }
-/* ★t13C-03 유튜브 썸네일(현빈 Q1·Q2 권장안 · 261119) — 폭 1280 은 «1280×720 잠금»이다.
+/* ★t13C-03 유튜브 썸네일(현빈 Q1·Q2 권장안 · 261119) — «썸네일 섹션(data-thumb="youtube")»을 폭 1280 으로 낼 때만 «1280×720 잠금».
    썸네일 = 높이 484 핀 섹션 · 484×1280/860 = 720.37 → 출력 캔버스 round = 720(CDP 원본 줄 수와 무관 · drawImage 가 맞춘다).
    핀 높이가 다르면(손으로 고친 경우) 위에서부터 720 줄만 — 넘친 아래는 자르고 모자란 아래는 섹션 바탕으로 채운다.
-   ★export·truth 가 같은 captureCloneToCanvas 를 지나므로 두 그림 크기가 갈리지 않는다. */
+   ⛔보통 섹션은 무변(폭만 보고 자르지 않는다). 표시는 클론에도 실려 있어 export·truth·grid-step 모든 호출처가 같은 판정을 낸다. */
 export const YT_THUMB_W = 1280, YT_THUMB_H = 720;
-function _lockYtThumb(cv, w, bgColor) {
-  if (w !== YT_THUMB_W || (cv.width === YT_THUMB_W && cv.height === YT_THUMB_H)) return cv;
+export const isYtThumbExport = (sec, w) => w === YT_THUMB_W && sec?.dataset?.thumb === 'youtube';
+function _lockYtThumb(cv, w, bgColor, clone) {
+  if (!isYtThumbExport(clone, w) || (cv.width === YT_THUMB_W && cv.height === YT_THUMB_H)) return cv;
   const o = document.createElement('canvas'); o.width = YT_THUMB_W; o.height = YT_THUMB_H;
   const c = o.getContext('2d');
   c.fillStyle = bgColor; c.fillRect(0, 0, YT_THUMB_W, YT_THUMB_H);
@@ -534,7 +535,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
         ci.onerror = rej;
         ci.src = 'data:image/png;base64,' + pngBase64;
       });
-      return { canvas: _lockYtThumb(outCanvas, w, bgColor), imgTimedOut: _to, native: true, imgMissing: _miss };
+      return { canvas: _lockYtThumb(outCanvas, w, bgColor, clone), imgTimedOut: _to, native: true, imgMissing: _miss };
     }
     // html2canvas 폴백 — CDP 가 없는 빌드(웹). 검사는 여기서 «안» 돈다(isGateSupported=false).
     // ⚠️ 이 분기에서만 neutralize한다 — 위 native 분기는 clone을 그대로 CDP로 스크린샷하므로
@@ -554,7 +555,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
       backgroundColor: bgColor,
       logging: false,
     });
-    return { canvas: _lockYtThumb(_h2c, w, bgColor), imgTimedOut: _to2, native: false, imgMissing: _miss2 };
+    return { canvas: _lockYtThumb(_h2c, w, bgColor, clone), imgTimedOut: _to2, native: false, imgMissing: _miss2 };
 }
 
 /** 섹션 배경색 — export 와 truth 가 «같은 값»을 써야 한다(하나만 회색으로 찍히면 그게 차이로 잡힌다).
@@ -912,14 +913,15 @@ async function _exportSectionInner(sec, format, width, opts) {
       const ext  = exportExtOf(fmt);
       const encode = (q) => new Promise(res => outCanvas.toBlob(res, mime, q));
       let blob;
-      if (w === YT_THUMB_W && mime === 'image/jpeg') {
+      const ytThumb = isYtThumbExport(sec, w);
+      if (ytThumb && mime === 'image/jpeg') {
         /* ★t13C-04 — 유튜브 썸네일 한도 2MB: 0.95 부터 품질을 내려 다시 굽는다(이 내보내기만 · 다른 폭·꼴은 0.95 고정 그대로) */
         const fit = await fitUnderBytes(encode, YT_JPG_LIMIT);
         blob = fit.blob;
         if (blob && fit.over) window.showToast?.('⚠️ 품질을 낮춰도 2MB 를 넘습니다 — 유튜브가 거절할 수 있습니다');
       } else {
         blob = await encode(0.95);
-        if (blob && w === YT_THUMB_W && blob.size > YT_JPG_LIMIT) window.showToast?.('⚠️ 2MB 를 넘습니다 — 유튜브 썸네일은 JPG 를 권장합니다');
+        if (blob && ytThumb && blob.size > YT_JPG_LIMIT) window.showToast?.('⚠️ 2MB 를 넘습니다 — 유튜브 썸네일은 JPG 를 권장합니다');
       }
       if (!blob) throw new Error('toBlob failed');
       triggerDownload(blob, ext);

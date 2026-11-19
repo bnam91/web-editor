@@ -816,7 +816,7 @@ async function showSectionProperties(sec) {
           <option value="860">860px (기본)</option>
           <option value="780">780px (쿠팡)</option>
           <option value="1000">1000px</option>
-          <option value="1280">1280px (유튜브)</option>
+          ${/* ★t13C-03 — 1280 (유튜브) 는 썸네일 섹션에만(그 섹션은 관리자만 만든다 · 보통 섹션 내보내기는 무변) */ sec.dataset.thumb === 'youtube' ? '<option value="1280">1280px (유튜브)</option>' : ''}
         </select>
       </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
