@@ -410,3 +410,11 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `vector-svg-import.dom.spec.js:216` V13 섹션 밖 드랍 뒤 ⌘Z 한 번 = 넣기 전 — 지혜맥 workers1 retries0 V13·V2 만 ×3: 94d584807 2/3 빨강 · e5625ae91 2/3 빨강 · 그 전 지혜맥 e5625ae91 표적(retries 1) 재시도까지 빨강 · 94d584807 표적 회귀 DOM 초록.
 - `group-scale-vector.dom.spec.js:67` V2 nw 손잡이 -100,-60 강제 다시 그린 뒤에도 — 지혜맥 workers1 retries0 ×3: 94d584807 0/3 · e5625ae91 1/3 빨강 · e5625ae91 표적(retries 1) flaky 1 · ⚠️표본 작음(통과 근거 아님).
 - 교차: 94d584807→e5625ae91 diff(js/blocks/vector-block.js rebuildPenSvg · js/overlay-handles.js _onVectorResizeHandleMouseDown · js/pen-tool.js _commitEdit)는 두 칸의 장면(.svg 파일 놓기→⌘Z · ⌘G 묶음 손잡이 · 펜 아닌 circle)이 지나는 함수가 아니다(태양 코드 대조) — 최종 판정은 cand 전수.
+## 2026-11-19 · cand12 전수(4cc0b8fa7) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- 판: 지혜맥 DOM 전수 8413(N=1) failed 8 → 인텔 fe-c 해당 6 spec ×3 재실행(402) failed 1.
+- `cert-block.dom.spec.js` RH1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `frame-see-through-hover-t207.dom.spec.js` T1 · T3 — 지혜맥 전수 각 1/1 빨강 · 인텔 ×3 각 0/3.
+- `grid-cell-panel-handles.dom.spec.js` G1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `grid-plus-g15.dom.spec.js` P1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `scratch-x-flush-now.dom.spec.js` X1 · X6 — 지혜맥 전수 각 1/1 빨강 · 인텔 ×3 각 0/3.
+- (고침 별도) `vector-svg-import.dom.spec.js:222` V13 — 지혜맥 전수 1/1 · 인텔 ×3 1/3 빨강 → ty/flaky-vector-v13 에서 시험 고침(조건 대기).
