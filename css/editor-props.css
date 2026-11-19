@@ -74,7 +74,7 @@
 .prop-section[data-sec]:not([data-sec="kind"]) { padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
 .prop-section[data-sec]:not([data-sec="kind"]) > .prop-sec-head { margin-right: calc(-1 * var(--ui-opt-col-w)); }
 .prop-section[data-sec] .prop-row:has(> .prop-chain-btn:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
-/* 컬러 변수(VAR) 칩 줄은 끝 칼럼까지 쓴다 · 한 줄(시안 v10 ⑤ — 칼럼이 줄을 180px 로 좁혀 칩 넷이 두 줄로 꺾였다) */
+/* 컬러 변수(VAR) 칩 줄은 끝 칼럼까지 쓴다 · 한 줄(시안 v10 ⑤ — 칼럼만큼 줄이 좁아져 칩 넷이 두 줄로 꺾였다) */
 .prop-section[data-sec] > .prop-sec-body > .cv-chips:not(.cv-recent-row):not(.ts-recent-row) { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
 /* 머리 «＋»(재설계 1차 ⑨) — Stroke: 체크박스를 감싼 단추(켜면 «−») · Effects: 같은 칼럼 폭 select(목록 = 효과 종류) */
 .prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
