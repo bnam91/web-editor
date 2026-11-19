@@ -119,11 +119,14 @@ export function showIconifyProperties(block) {
   const presetGrid      = propPanel.querySelector('#icn-preset-grid');
   let _presetCategories = [];
 
+  /* VISUAL-9(261119): 피그마 SVG 는 거의 다 clip0 같은 «같은 id» — 칸·블럭마다 접두사를 붙여 서로 잘라먹지 않게(마킹 블럭 mk-<블럭id>- 선례).
+     세척이 버린 태그(text 등)는 조용히 넘기지 않는다 — 미리보기 칸 툴팁 + 적용 때 토스트. 허용 목록(보안 경계)은 그대로. */
+  const _droppedNote = (d) => d.length ? ` · 빠진 요소: ${d.join(', ')}` : '';
   const renderPresetGrid = (catName) => {
     presetGrid.innerHTML = '';
     const cat = _presetCategories.find(c => c.name === catName);
     if (!cat) return;
-    cat.items.forEach(it => {
+    cat.items.forEach((it, idx) => {
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:relative;aspect-ratio:1;';
       const cell = document.createElement('button');
@@ -135,16 +138,20 @@ export function showIconifyProperties(block) {
       // 비동기 미리보기 로드 — SVG 색은 어두운 회색(흰 배경에서 잘 보임)
       window.electronAPI?.svgPresets?.read({ category: catName, file: it.file }).then(res => {
         if (res?.ok && res.svg) {
-          cell.innerHTML = sanitizeSvgString(res.svg);   // ★라이브러리 파일은 사용자 폴더에 있어 손댈 수 있다 — 그릴 때 거른다(SEC · 피그마 에셋 가져오기 앞 단독 커밋)
+          const dropped = [];
+          cell.innerHTML = sanitizeSvgString(res.svg, { idPrefix: `icnp${idx}-`, dropped });   // ★라이브러리 파일은 사용자 폴더에 있어 손댈 수 있다 — 그릴 때 거른다(SEC · 피그마 에셋 가져오기 앞 단독 커밋)
           const svg = cell.querySelector('svg');
           if (svg) { svg.setAttribute('width', '28'); svg.setAttribute('height', '28'); svg.style.color = '#222'; }
+          if (dropped.length) { cell.title += _droppedNote(dropped); cell.dataset.svgDropped = dropped.join(','); }
         }
       });
       cell.addEventListener('click', async () => {
         const res = await window.electronAPI?.svgPresets?.read({ category: catName, file: it.file });
         if (!res?.ok) { window.showToast?.('SVG 로드 실패: ' + (res?.error || '')); return; }
-        const svg = sanitizeSvgString(res.svg);   // ★같은 까닭 — 블럭에 넣고 dataset 에 남기는 것도 세척본
+        const dropped = [], bid = String(block.id || '').replace(/[^A-Za-z0-9_-]/g, '');
+        const svg = sanitizeSvgString(res.svg, { idPrefix: bid ? `icn-${bid}-` : '', dropped });   // ★같은 까닭 — 블럭에 넣고 dataset 에 남기는 것도 세척본
         if (!svg) { window.showToast?.('SVG 를 읽을 수 없습니다(안전하지 않거나 그림이 아님)'); return; }
+        if (dropped.length) window.showToast?.(`SVG 에서 지원하지 않는 요소를 뺐습니다${_droppedNote(dropped)}`);
         const existingSvg = block.querySelector('svg');
         if (existingSvg) existingSvg.remove();
         const existingImg = block.querySelector('img'); // 래스터(PNG)였다면 <img> 제거
