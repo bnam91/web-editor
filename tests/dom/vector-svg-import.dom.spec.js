@@ -215,8 +215,21 @@ test('V12 [음성] .png 를 섹션 밖에 놓기 → 스크래치 그림 · 벡�
 
 test('V13 섹션 밖 드랍 뒤 ⌘Z 한 번 = 넣기 전', async ({ page }) => {
   const { errs, sid } = await scene(page);
+  /* FLAKY cand12(4번 중 2 · 부하 샤딩에서만): 넣기 직후 끝 표본 «다시 찍기»(insert-history _scheduleRestamp · rAF 2번+setTimeout · 늦으면 120ms 마감)가
+     닿기 «전»에 ⌘Z 를 누르면 꼭대기 ≠ 라이브라 undo 첫머리 체크포인트가 「현재 상태」를 한 칸 더 쌓고 거기서 멈춘다(벡터 남음).
+     사람은 놓고 120ms 안에 ⌘Z 를 못 누른다 — 창은 «부하에 밀린 프레임»뿐 ⇒ 시험 쪽: 다시 찍기가 닿아 꼭대기 = 라이브가 된 «뒤»에 누른다(조건 대기 · 고정 대기 0). */
+  await page.evaluate(() => {
+    const orig = window.restampHistoryTop;
+    window.__v13rs = { n: 0, canvas: null };
+    window.restampHistoryTop = function (seq) { const r = orig.apply(this, arguments); window.__v13rs = { n: window.__v13rs.n + 1, canvas: window.getSerializedCanvas() }; return r; };
+  });
+  const tip0 = await page.evaluate(() => window.getHistoryTip());
   await dropOutside(page, sid, { name: 'mark.svg', type: 'image/svg+xml', body: RED });
   await expect.poll(() => floats(page, sid).then((v) => v.length), '[전제] 오버레이 벡터 하나').toBe(1);
+  const tip1 = await page.evaluate(() => window.getHistoryTip());
+  expect(tip1.pos > tip0.pos && tip1.seq !== tip0.seq, `[전제] 넣기가 끝 표본 한 칸을 찍었다 ${JSON.stringify([tip0, tip1])}`).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__v13rs.n > 0 && window.__v13rs.canvas === window.getSerializedCanvas()),
+    '[전제] 끝 표본 다시 찍기가 닿았고 그 뒤 라이브가 안 변했다(꼭대기 = 라이브)').toBe(true);
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z');
   await expect.poll(() => page.evaluate((s) => document.getElementById(s)?.querySelectorAll('.vector-block').length ?? -1, sid), '★⌘Z 한 번에 빠진다').toBe(0);
