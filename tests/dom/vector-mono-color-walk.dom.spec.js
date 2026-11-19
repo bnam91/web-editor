@@ -25,7 +25,7 @@ const SLOTS = `<svg ${NS} viewBox="0 0 60 10" width="120" height="20">` +
 const RED_ICON = `<svg ${NS} viewBox="0 0 20 10" width="80" height="40"><path d="M0 0h10v10H0z" fill="#ff0000"/><rect x="10" width="10" height="10" fill="none" stroke="#FF0000" stroke-width="2"/></svg>`;
 const TWO = `<svg ${NS} viewBox="0 0 20 10" width="80" height="40"><rect width="10" height="10" fill="#ff0000"/><rect x="10" width="10" height="10" fill="#0000ff"/></svg>`;
 
-async function scene(page, svg) {
+async function scene(page, svg, waitSel = '#vb-hex') {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const errs = await bootApp(page);
   const id = await page.evaluate(async (svg) => {
@@ -40,7 +40,7 @@ async function scene(page, svg) {
   expect(id, '[전제] 벡터 블럭').toBe('vbT');
   const r = await waitStableRect(page, '#vbT');
   await page.mouse.click(r.cx, r.cy);
-  await page.waitForSelector('#vb-hex', { timeout: 5000 });   // [전제] 벡터 패널이 떴다
+  await page.waitForSelector(waitSel, { timeout: 5000 });   // [전제] 벡터 패널이 떴다(단색 = #vb-hex · 여러 색 = 무리 줄 — P2)
   return errs;
 }
 /** 패널 hex 칸에 진짜로 쳐서 확정(input → 그리기 · Tab = change → 히스토리) */
@@ -90,12 +90,14 @@ test('M2 빨강 단색 아이콘 → 파랑 → 검정 · ⌘Z · 저장→다�
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('M3 [음성] 두 색 SVG → 초록을 골라도 그림·data-svg 무변', async ({ page }) => {
-  const errs = await scene(page, TWO);
-  const svg0 = await page.evaluate(() => document.getElementById('vbT').dataset.svg);
+/* ★기대 바뀜(VECTOR-MULTICOLOR-STROKE-P2-01 · 04cc5fa15 · 지디 261120 판정): P1-02 때 «여러 색 SVG 는 단색 칸이 칠하지 않는다»(음성)였는데
+ *   P2 가 여러 색이면 단색 칸(#vb-hex) 대신 «색 1·2 …» 무리 줄을 띄운다 ⇒ 같은 뜻(«한 색을 고르면 다른 색은 그대로»)을 무리 줄로 잰다. */
+test('M3 [음성] 두 색 SVG → 단색 칸 없음 · 색 1 만 초록 · 색 2(파랑) 그대로', async ({ page }) => {
+  const errs = await scene(page, TWO, '#vb-g1-hex');
   expect(await painted(page), '[전제] 빨강·파랑').toEqual([[R, 'none'], [B, 'none']]);
-  await pick(page, '00FF00');
-  expect(await painted(page), '여러 색은 그대로').toEqual([[R, 'none'], [B, 'none']]);
-  expect(await page.evaluate(() => document.getElementById('vbT').dataset.svg), 'data-svg 무변').toBe(svg0);
+  expect(await page.locator('#vb-hex').count(), '여러 색 = 단색 칸 없음(무리 줄)').toBe(0);
+  expect(await page.locator('[id^="vb-g"][id$="-hex"]').count(), '무리 줄 둘').toBe(2);
+  await page.locator('#vb-g0-hex').fill('00FF00'); await page.locator('#vb-g0-hex').press('Tab');
+  await expect.poll(() => painted(page), '★색 1 만 초록 · 색 2 파랑 그대로').toEqual([['rgb(0, 255, 0)', 'none'], [B, 'none']]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

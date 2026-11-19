@@ -105,7 +105,10 @@ test('T4 붙여넣기 길 → 펜 · ⌘Z 한 번 = 넣기 전 · 저장→다�
   expect((await vecs())[0], '★붙여넣기 길도 펜').toBeTruthy();
   await page.keyboard.press('Meta+z');
   await expect.poll(async () => (await vecs()).length, '★⌘Z 한 번 = 넣기 전').toBe(0);
-  await paste();
+  /* 지혜맥 261120 vp2 :109 3/3 — ⌘Z 가 캔버스를 되살리며 섹션 고름이 풀린다 → 넣기 문(addVectorBlock)의 «섹션 안 고름 = 안 넣음»(vector-block.js:300 · 모든 넣기 입구 같은 게이트)이 둘째 붙여넣기를 막았다 = 시험 장면 탓.
+     둘째 붙여넣기 전에 섹션을 다시 고른다(사람도 같다 — 고른 섹션이 없으면 «섹션을 선택하세요» 안내). */
+  await page.evaluate(() => { window.selectSection(document.querySelector('#canvas .section-block')); document.activeElement?.blur?.(); });
+  expect(await paste(), '[전제] 둘째 붙여넣기를 받았다').toBe(true);
   await expect.poll(async () => (await vecs()).length).toBe(1);
   const before = (await vecs())[0];
   const canvas = await page.evaluate(() => window.getSerializedCanvas());
