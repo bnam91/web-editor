@@ -135,17 +135,19 @@ const layout = (page, F) => page.evaluate((id) => {
  *  ⚠️편집 «중»엔 ⌘[⌘] 가 일부러 안 먹는다(editor.js `.text-block.editing` 가드) — 사람도 Esc 뒤에 누른다. */
 async function dblPick(page, F, i) {
   await page.evaluate(([id, i]) => document.getElementById(id).querySelectorAll('.text-block')[i].scrollIntoView({ block: 'center' }), [F, i]);
-  /* 스크롤·레이아웃이 멎은 뒤 재고 같은 evaluate 에서 맞혀 본다 — 그 점의 주인 = 그 글(contenteditable 조상 포함) · 두 번 내리 같은 점(cand14 지혜맥 3/105 · scratch-x 와 같은 꼴) */
+  /* 스크롤·레이아웃이 멎은 뒤 재고 같은 evaluate 에서 맞혀 본다 — 그 점의 주인 = 그 글 또는 그 글을 품은 프레임 · 두 번 내리 같은 점(cand14 지혜맥 3/105 · scratch-x 와 같은 꼴) */
   let box = null, prev = '';
   await expect.poll(async () => {
     box = await page.evaluate(([id, i]) => {
       const tb = document.getElementById(id).querySelectorAll('.text-block')[i];
       const r = (tb.querySelector('[contenteditable]') || tb).getBoundingClientRect();
       const p = { x: r.left + Math.min(30, r.width / 2), y: r.top + r.height / 2 }; const e = document.elementFromPoint(p.x, p.y);
-      return { ...p, id: tb.id, own: !!e && e.closest('.text-block') === tb };
+      /* 안 고른 프레임은 자식 글 대신 프레임이 맞는다(첫 클릭 = 프레임 · 둘째 = 글 — 위 주석) ⇒ 주인 = 그 글 «또는» 그 글을 품은 프레임(다른 글 안은 아님) */
+      const own = !!e && (e.closest('.text-block') === tb || (!e.closest('.text-block') && !!e.closest('.frame-block')?.contains(tb)));
+      return { ...p, id: tb.id, own };
     }, [F, i]);
     const k = `${box.x},${box.y}`, same = k === prev; prev = k; return box.own && same;
-  }, { message: '[전제] 더블클릭 점의 주인 = 그 글이고 자리가 멎었다', intervals: [50] }).toBe(true);
+  }, { message: '[전제] 더블클릭 점의 주인 = 그 글(또는 그 글을 품은 프레임)이고 자리가 멎었다', intervals: [50] }).toBe(true);
   expect(box.id, '[전제] 글 블럭 id').toBeTruthy();
   await page.mouse.dblclick(box.x, box.y);
   if (await page.evaluate(() => !!document.querySelector('.text-block.editing'))) {
