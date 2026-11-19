@@ -13,7 +13,7 @@
         <span class="prop-block-id" title="클릭하여 복사" data-copy-id="tb_golden">tb_golden</span>
       </div>
     </div>
-    <div class="prop-section" data-sec="kind" data-sec-state="kind" id="type-section">
+    <div class="prop-section" data-sec="kind" data-sec-state="kind" data-order="text" id="type-section">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="type-section-head"><span class="prop-sec-title-text">Type</span></div>
       </div>
@@ -31,7 +31,7 @@
       <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
       </div>
     </div>
-    <div class="prop-section" data-sec="position" data-sec-state="position" id="psec-position">
+    <div class="prop-section" data-sec="position" data-sec-state="position" data-order="text" id="psec-position">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="psec-position-head"><span class="prop-sec-title-text">Position</span></div>
         <button type="button" class="prop-chain-btn prop-chain-btn--overlay" id="txt-overlay-toggle"
@@ -66,28 +66,7 @@
       </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="size" data-sec-state="size" id="psec-size">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-size-head"><span class="prop-sec-title-text">Size</span></div>
-      </div>
-      <div class="prop-sec-body" id="psec-size-body">
-      <div class="prop-lhls-row">
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input">
-            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
-            <input type="number" id="txt-width-number" min="80" max="860" value="300" aria-label="너비">
-          </div>
-        </div>
-        <div class="prop-lhls-col">
-          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
-            <span class="prop-xy-label">높이</span>
-            <input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="높이(텍스트 블럭은 없음)">
-          </div>
-        </div>
-      </div>
-      </div>
-    </div>
-    <div class="prop-section" data-sec="layout" data-sec-state="layout" id="psec-layout">
+    <div class="prop-section" data-sec="layout" data-sec-state="layout" data-order="text" id="psec-layout">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="psec-layout-head"><span class="prop-sec-title-text">Layout</span></div>
       </div>
@@ -115,7 +94,28 @@
       </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="padding" data-sec-state="padding" id="psec-padding">
+    <div class="prop-section" data-sec="size" data-sec-state="size" data-order="text" id="psec-size">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-size-head"><span class="prop-sec-title-text">Size</span></div>
+      </div>
+      <div class="prop-sec-body" id="psec-size-body">
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
+            <input type="number" id="txt-width-number" min="80" max="860" value="300" aria-label="너비">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
+            <span class="prop-xy-label">높이</span>
+            <input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="높이(텍스트 블럭은 없음)">
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="prop-section" data-sec="padding" data-sec-state="padding" data-order="text" id="psec-padding">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="psec-padding-head"><span class="prop-sec-title-text">Padding</span></div>
       </div>
@@ -154,7 +154,7 @@
       </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="typography" data-sec-state="typography" id="psec-typography">
+    <div class="prop-section" data-sec="typography" data-sec-state="typography" data-order="text" id="psec-typography">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="psec-typography-head"><span class="prop-sec-title-text">Typography</span></div>
       </div>
@@ -308,7 +308,7 @@
 
       </div>
     </div>
-    <div class="prop-section" data-sec="fill" data-sec-state="fill" id="psec-fill">
+    <div class="prop-section" data-sec="fill" data-sec-state="fill" data-order="text" id="psec-fill">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="psec-fill-head"><span class="prop-sec-title-text">Fill</span></div>
       </div>
@@ -329,7 +329,7 @@
       <div class="cv-chips ts-recent-row" id="txt-grad-recent-row" hidden></div>
       </div>
     </div>
-    <div class="prop-section" data-sec="effects" data-sec-state="effects" id="txt-fx-section">
+    <div class="prop-section" data-sec="effects" data-sec-state="effects" data-order="text" id="txt-fx-section">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="txt-fx-section-head"><span class="prop-sec-title-text">Effects</span></div>
         <select class="prop-select" id="txt-fx-add" style="flex:0 1 104px;min-width:0;width:auto;"

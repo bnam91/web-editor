@@ -126,3 +126,17 @@ test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 �
   await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return b.closest('.row')?.style.width || b.style.width; }, id), '★⌘Z 한 번에 안 돌아간다').not.toBe(after);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ④ 텍스트 — Layout(가로 정렬)이 Size 위 · 게이트 판정(그 패널 순서) 통과. CTL prd1-04-order.patch(panel:'text' 빼기) → 빨강 */
+test('P4 텍스트 패널 절 순서 Position → Layout(정렬) → Size → Padding · 게이트 위반 0', async ({ page }) => {
+  const { loadSectionSpec, readPanel, judgePanel } = require('./_panel-sections.js');
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const secs = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section[data-sec]')].map((s) => s.dataset.sec)
+    .filter((k) => ['position', 'size', 'layout', 'padding'].includes(k)));
+  expect(secs, '★텍스트 Layout(정렬)이 Size 위가 아니다').toEqual(['position', 'layout', 'size', 'padding']);
+  expect(await page.evaluate(() => document.getElementById('txt-align-group').closest('.prop-section[data-sec]').dataset.sec)).toBe('layout');
+  const SPEC = loadSectionSpec();
+  expect(judgePanel(await readPanel(page, SPEC), SPEC), '게이트 판정').toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

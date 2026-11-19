@@ -74,3 +74,18 @@ test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 
   assert.doesNotMatch(wire, /txt-width-slider/);
   assert.match(css('css/editor-props.css'), /\.prop-icon-input:has\(> input:disabled\)\s*\{[^}]*opacity:\s*var\(--ui-disabled-opacity\)/);
 });
+
+/* ④ 텍스트만 Layout(가로 정렬)이 Size 위 — _section-spec 예외표 한 자리. 양성대조: 텍스트 spec 의 panel:'text' 를 빼면 빨강 */
+test('R4 sectionOrderFor(text) = layout 이 size 바로 앞 · 다른 패널 그대로 · 텍스트 산출 순서 Position → Layout → Size → Padding', async () => {
+  const { sectionOrderFor, SECTION_ORDER } = _req('../dom/_panel-sections.js').loadSectionSpec();   // 정본을 vm 에 올린 것(게이트와 같은 길)
+  const t = [...sectionOrderFor('text')];
+  assert.equal(t.indexOf('layout') + 1, t.indexOf('size'), '★텍스트 Layout 이 Size 바로 앞이 아니다');
+  assert.deepEqual([...t].sort(), [...SECTION_ORDER].sort(), '★키가 빠지거나 늘었다');
+  assert.ok(SECTION_ORDER.indexOf('size') < SECTION_ORDER.indexOf('layout'), '[대조] 전역 순서는 그대로(Size → Layout)');
+  assert.equal(sectionOrderFor('section')[0], 'fill', '[대조] 섹션 예외 그대로');
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
+  const secs = [...html.matchAll(/data-sec="([a-z]+)"/g)].map((m) => m[1]).filter((k) => ['position', 'size', 'layout', 'padding'].includes(k));
+  assert.deepEqual(secs, ['position', 'layout', 'size', 'padding']);
+  assert.match(html, /data-sec="layout"[^>]*data-order="text"[\s\S]*id="txt-align-group"/, '★가로 정렬이 Layout(텍스트 순서) 절에 없다');
+});

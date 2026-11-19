@@ -2,7 +2,7 @@
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
-import { SECTION_ORDER } from './_section-spec.js';
+import { sectionOrderFor } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
@@ -364,6 +364,7 @@ export function buildTextPanelSpec(state) {
       sec('special', _bubble, { title: 'Bubble', id: 'txt-bubble-section' }),
       sec('export', _anim, { id: 'txt-anim-section' }),   /* GIF 만들기 = 내보내기(§2-1 export) */
     ],
+    panel: 'text',   /* _section-spec SECTION_ORDER_EXCEPT.text — Layout(가로 정렬)이 Size 위(재설계 1차 ④) */
   };
 }
 
@@ -383,9 +384,10 @@ export function placeTextPanelSection(panel, key, html, { title, id } = {}) {
     if (body) { body.insertAdjacentHTML('beforeend', html); return; }
   }
   if (id) panel.querySelector(`:scope > #${id}`)?.remove();
-  const out = buildPanelHTML({ sections: [sec(key, html, { title, id })] });
-  const want = SECTION_ORDER.indexOf(key);
-  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => SECTION_ORDER.indexOf(e.dataset.sec) > want);
+  const order = sectionOrderFor('text');
+  const out = buildPanelHTML({ sections: [sec(key, html, { title, id })], panel: 'text' });
+  const want = order.indexOf(key);
+  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => order.indexOf(e.dataset.sec) > want);
   if (next) next.insertAdjacentHTML('beforebegin', out); else panel.insertAdjacentHTML('beforeend', out);
 }
 if (typeof window !== 'undefined') window.placeTextPanelSection = placeTextPanelSection;

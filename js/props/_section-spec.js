@@ -20,11 +20,17 @@ export const SECTION_ORDER = Object.freeze([
  *  section = 섹션 패널만 Fill(옛 Background)을 머리 바로 아래로 — 현빈 261118 D5 ①(작은 창에서 배경·파티클 켜기가 굴리지 않고 보이게 · «앞 절 기본 접힘»③ 기각). */
 export const SECTION_ORDER_EXCEPT = Object.freeze({
   section: Object.freeze({ first: Object.freeze(['fill']), why: '현빈 261118 D5 ① — 섹션 패널만 Fill 을 앞으로' }),
+  /* before = [[옮길 key, 이 key 바로 앞]] */
+  text: Object.freeze({ before: Object.freeze([Object.freeze(['layout', 'size'])]), why: '현빈 261120(재설계 v5 · Q21 텍스트만) — 가로 정렬(Layout)이 Size 위' }),
 });
 /** 그 패널의 절 순서 — 예외가 없으면 SECTION_ORDER 그대로. */
 export function sectionOrderFor(panel) {
   const x = panel ? SECTION_ORDER_EXCEPT[panel] : null;
-  return x ? Object.freeze([...x.first, ...SECTION_ORDER.filter((k) => !x.first.includes(k))]) : SECTION_ORDER;
+  if (!x) return SECTION_ORDER;
+  const first = x.first || [];
+  const o = [...first, ...SECTION_ORDER.filter((k) => !first.includes(k))];
+  for (const [k, at] of x.before || []) { o.splice(o.indexOf(k), 1); o.splice(o.indexOf(at), 0, k); }
+  return Object.freeze(o);
 }
 
 export const SECTION_TITLE = Object.freeze({

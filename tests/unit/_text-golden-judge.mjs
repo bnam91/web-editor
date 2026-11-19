@@ -108,7 +108,8 @@ function panelModel(html) {
       }),
     };
   });
-  return { root, secs, hints: all(root).filter((k) => has(k, 'prop-hint')).length };
+  const order = els(root).find((e) => has(e, 'prop-section') && e.attrs['data-order'])?.attrs['data-order'] || '';   // readPanel 과 같은 «패널 순서 이름»(재설계 1차 ④ text 예외)
+  return { root, secs, hints: all(root).filter((k) => has(k, 'prop-hint')).length, order };
 }
 
 /* ── 상태 행렬 ──────────────────────────────────────────────── */
