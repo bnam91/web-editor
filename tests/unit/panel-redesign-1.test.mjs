@@ -89,3 +89,18 @@ test('R4 sectionOrderFor(text) = layout 이 size 바로 앞 · 다른 패널 그
   assert.deepEqual(secs, ['position', 'layout', 'size', 'padding']);
   assert.match(html, /data-sec="layout"[^>]*data-order="text"[\s\S]*id="txt-align-group"/, '★가로 정렬이 Layout(텍스트 순서) 절에 없다');
 });
+
+/* ⑫ 타입 12칸 두 줄 · Quote 도 같은 묶음 · 칸마다 네 테두리. 양성대조: CSS 의 #txt-kind-group 칸 규칙을 지우면 빨강 */
+test('R12 타입 12칸 순서·글 · 바꾸기 없는 넷 disabled · 6열 격자 · 칸마다 왼 테두리', () => {
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
+  const g = /<div class="prop-type-group" id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(html)?.[1] || '';
+  const btns = [...g.matchAll(/<button ([^>]*)>([^<]*)<\/button>/g)].map((m) => ({ a: m[1], t: m[2] }));
+  assert.deepEqual(btns.map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Caption', 'Bullet', 'Label', 'Tags', 'Icon Text', 'Bubble', 'Quote', 'Liner']);
+  assert.deepEqual(btns.filter((b) => / disabled/.test(b.a)).map((b) => b.t), ['Tags', 'Icon Text', 'Bubble', 'Liner']);
+  assert.deepEqual(btns.filter((b) => /data-cls=/.test(b.a)).map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Caption', 'Bullet', 'Label'], '★바꾸기 배선(data-cls) 칸이 바뀌었다');
+  assert.match(g, /id="txt-to-quote"[^>]*>Quote</, '★Quote 가 묶음 밖이다');
+  const props = css('css/editor-props.css');
+  assert.match(props, /#txt-kind-group\s*\{[^}]*grid-template-columns:\s*repeat\(6,/);
+  assert.match(props, /#txt-kind-group > \.prop-type-btn\s*\{[^}]*border-left:\s*1px solid var\(--ui-border-mid\)/, '★Quote(마지막 칸) 왼 테두리 잘림이 돌아온다');
+});

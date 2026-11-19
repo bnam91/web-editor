@@ -163,9 +163,10 @@ const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider'];   /* txt-wid
 /* 기준판(BASE) 뒤에 «의도해서» 더한 컨트롤·id — 판정이 «생김»으로 안 세게. (패널 재설계 1차 261120 — 항목마다 까닭)
  *   label-shape-oval = 태그 Oval 모양(BASE 뒤 별건 · 이 판정기가 못 따라온 드리프트를 같이 적음) */
 const CTL_ADDED = [/^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/,
-  /^<input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="[^"]*">$/];   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
+  /^<input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="[^"]*">$/,   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
+  /^<button class="prop-type-btn(?: active)?" disabled title="(?:Tags|Icon Text|Bubble|Liner) — [^"]*">$/];   /* ⑫ 타입 12칸 중 «바꾸기 없음» 넷(꺼짐) */
 const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /];   /* ⑥ 너비 슬라이더 걷음 */
-ID_ADDED.push(/^label-shape-oval$/, /^txt-width-scrub$/, /^txt-height-number$/);
+ID_ADDED.push(/^label-shape-oval$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',

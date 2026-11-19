@@ -140,3 +140,21 @@ test('P4 텍스트 패널 절 순서 Position → Layout(정렬) → Size → Pa
   expect(judgePanel(await readPanel(page, SPEC), SPEC), '게이트 판정').toEqual([]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑫ 타입 12칸 두 줄 · 칸마다 네 테두리(Quote 포함) · 묶음 가로 넘침 0 · H3 누르면 바뀐다. CTL prd1-12-kind.patch(칸 테두리 규칙 삭제) → 빨강 */
+test('P12 텍스트 타입 12칸 — 두 줄 · Quote 왼 테두리 있음 · 넘침 0 · H3 로 바꾸기', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const g = document.getElementById('txt-kind-group'), bs = [...g.children];
+    return { n: bs.length, rows: new Set(bs.map((b) => Math.round(b.getBoundingClientRect().top))).size,
+      left: bs.map((b) => [b.textContent.trim(), parseFloat(getComputedStyle(b).borderLeftWidth)]), over: g.scrollWidth - g.clientWidth };
+  });
+  expect(r.n).toBe(12);
+  expect(r.rows, '★두 줄이 아니다').toBe(2);
+  for (const [t, w] of r.left) expect(w, `★«${t}» 왼 테두리가 없다`).toBeGreaterThan(0);
+  expect(r.over, '★타입 묶음이 가로로 넘친다').toBeLessThanOrEqual(0);
+  await page.click('#txt-kind-group [data-cls="tb-h3"]');
+  await expect.poll(() => page.evaluate((id) => !!document.querySelector(`#${id} .tb-h3`), id), '★H3 로 안 바뀐다').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
