@@ -4,7 +4,8 @@ import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, warnIfCaptureAnnotVanished, withGuideOff } from './capture-safety.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안 = 화면에 없음 = 내보내기 대상 아님(EXPORT-ALL-INCLUDES-HIDDEN-AB-VARIANT-01) */
-import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
+import { liftSvgTransformsForH2C } from './h2c-prep.js';
+import { fitUnderBytes, YT_JPG_LIMIT } from './jpg-fit.js';   /* ★t13C-04 — 1280(유튜브) JPG 만 2MB 안으로 품질 내림 */   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
 
 const CANVAS_W = 860;
 /* ★0.9.12 ③ 현빈 결정(Q1 ㉮): 화면(860)보다 «넓은» 폭은 «다시 배치»가 아니라 «확대»다 —
@@ -909,13 +910,19 @@ async function _exportSectionInner(sec, format, width, opts) {
       /* ★t6-01 — ★꼴 명부 정본에서 ★파생한다. ⛔여기에 ★삼항을 ★다시 짓지 마라(명부가 둘이 된다). */
       const mime = exportMimeOf(fmt);
       const ext  = exportExtOf(fmt);
-      await new Promise((res, rej) => {
-        outCanvas.toBlob(blob => {
-          if (!blob) { rej(new Error('toBlob failed')); return; }
-          triggerDownload(blob, ext);
-          res();
-        }, mime, 0.95);
-      });
+      const encode = (q) => new Promise(res => outCanvas.toBlob(res, mime, q));
+      let blob;
+      if (w === YT_THUMB_W && mime === 'image/jpeg') {
+        /* ★t13C-04 — 유튜브 썸네일 한도 2MB: 0.95 부터 품질을 내려 다시 굽는다(이 내보내기만 · 다른 폭·꼴은 0.95 고정 그대로) */
+        const fit = await fitUnderBytes(encode, YT_JPG_LIMIT);
+        blob = fit.blob;
+        if (blob && fit.over) window.showToast?.('⚠️ 품질을 낮춰도 2MB 를 넘습니다 — 유튜브가 거절할 수 있습니다');
+      } else {
+        blob = await encode(0.95);
+        if (blob && w === YT_THUMB_W && blob.size > YT_JPG_LIMIT) window.showToast?.('⚠️ 2MB 를 넘습니다 — 유튜브 썸네일은 JPG 를 권장합니다');
+      }
+      if (!blob) throw new Error('toBlob failed');
+      triggerDownload(blob, ext);
       // ★파일은 «이미» 나갔다(B안 «주고 알린다»). 검사는 여기서부터고, 결과는 모달로만 간다.
       //   ⚠️A안(막기)으로 바꿀 자리는 «한 곳» — 위 triggerDownload 호출을 검사 «뒤»로 옮기면 된다.
       _gateCanvas = outCanvas;
