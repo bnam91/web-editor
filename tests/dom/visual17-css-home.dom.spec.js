@@ -28,29 +28,41 @@ const PROPS = ['width', 'height', 'padding-top', 'padding-right', 'padding-botto
   'background-color', 'border-top-color', 'border-top-width', 'border-top-style', 'border-radius', 'color', 'font-size',
   'opacity', 'pointer-events', 'cursor', 'transition-duration', 'transition-property'];
 const HOVER = ['#floating-panel .fp-btn:not(.primary):not(.fp-btn-ai):not(.fp-dropdown-trigger)', '#floating-panel .fp-btn.primary',
-  '#floating-panel .fp-btn-ai', '#floating-panel .fp-dropdown-trigger', '.section-block.selected .section-toolbar .st-ab-btn',
-  '.section-block.selected .section-toolbar .st-ai-fill-btn:not(.is-busy)'];
+  '#floating-panel .fp-btn-ai', '#floating-panel .fp-dropdown-trigger', '[data-v17="ab"]', '[data-v17="ai"]'];
 
 async function scene(page, overlay) {
   const errs = await bootApp(page, overlay ? { overlay } : undefined);
   await page.click('.fp-btn.primary[title="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!document.querySelector('.section-block.selected .section-toolbar'))).toBe(true);
-  /* 섹션 툴바 시료 — A/B 단추·바쁨 상태는 기본 섹션엔 없어 «두 판에 같은 꼴로» 넣는다 */
+  /* 섹션 툴바 시료 — «두 판에 같은 꼴로» 늘 셋을 넣고, 읽을 때도 이 셋만(data-v17 이름으로) 읽는다.
+     (인텔 261120 빨강: 앱이 AI 단추를 늦게 붙여 «DOM 순번»이 판마다 달랐다 — 바쁨 표시가 다른 단추와 짝지어짐 = CSS 차이 아닌 장면 차이) */
   await page.evaluate(() => {
     const tb = document.querySelector('.section-block.selected .section-toolbar');
-    if (!tb.querySelector('.st-ab-btn')) tb.insertAdjacentHTML('beforeend', '<button class="st-btn st-ab-btn">AB</button>');
-    tb.insertAdjacentHTML('beforeend', '<button class="st-btn st-ai-fill-btn is-busy" data-v17="busy">AI</button>');
+    tb.insertAdjacentHTML('beforeend', '<button class="st-btn st-ab-btn" data-v17="ab">AB</button>'
+      + '<button class="st-btn st-ai-fill-btn" data-v17="ai">AI</button>'
+      + '<button class="st-btn st-ai-fill-btn is-busy" data-v17="busy">AI</button>');
   });
   await page.mouse.move(2, 2);   // 「새 섹션 추가」 위에 남은 마우스를 치운다(가만히 읽기)
   return errs;
 }
+/* 이름표 = id · 없으면 «클래스@같은 클래스 안 순번» · 시료는 data-v17 — 전체 DOM 순번에 기대지 않는다 */
 const readAll = (page) => page.evaluate((props) => {
-  const els = [...document.querySelectorAll('#floating-panel .fp-btn, #floating-panel .fp-dropdown-trigger, .section-block.selected .section-toolbar .st-btn')];
-  return els.map((e, i) => {
-    const cs = getComputedStyle(e);
-    return { k: `${i}:${e.id || e.className}`, ...Object.fromEntries(props.map((p) => [p, cs.getPropertyValue(p)])) };
+  const out = {}, nth = {};
+  const put = (k, e) => { const cs = getComputedStyle(e); out[k] = Object.fromEntries(props.map((p) => [p, cs.getPropertyValue(p)])); };
+  document.querySelectorAll('#floating-panel .fp-btn, #floating-panel .fp-dropdown-trigger').forEach((e) => {
+    if (e.id) return put('#' + e.id, e);
+    nth[e.className] = (nth[e.className] || 0) + 1;
+    put(`${e.className}@${nth[e.className]}`, e);
   });
+  document.querySelectorAll('[data-v17]').forEach((e) => put('probe:' + e.dataset.v17, e));
+  return out;
 }, PROPS);
+/* 단추 «목록»이 멎을 때까지(두 번 연속 같은 이름표) — 늦게 붙는 단추가 한쪽 판에만 잡히지 않게 */
+async function readStable(page) {
+  let prev = null;
+  await expect.poll(async () => { const cur = JSON.stringify(Object.keys(await readAll(page)).sort()); const same = cur === prev; prev = cur; return same; }).toBe(true);
+  return readAll(page);
+}
 async function readHover(page) {
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none !important;animation:none !important}' });
   const out = {};
@@ -77,9 +89,10 @@ test('V17 규칙 자리만 옮김 — 툴바 단추 계산된 스타일(가만�
   const eNow = await scene(now), eOld = await scene(old, pinned());
   expect(eNow, '지금 판 페이지 오류 0').toEqual([]);
   expect(eOld, '옛 판 페이지 오류 0').toEqual([]);
-  const a = await readAll(now), b = await readAll(old);
-  expect(a.length, '[전제] 툴바 단추를 찍었다(플로팅 + 섹션 툴바)').toBeGreaterThan(10);
-  expect(a.some((x) => /st-ab-btn/.test(x.k)) && a.some((x) => /is-busy/.test(x.k)), '[전제] 섹션 툴바 시료 있음').toBe(true);
+  const a = await readStable(now), b = await readStable(old);
+  expect(Object.keys(a).length, '[전제] 툴바 단추를 찍었다(플로팅 + 시료 3)').toBeGreaterThan(10);
+  expect(['probe:ab', 'probe:ai', 'probe:busy'].every((k) => k in a), '[전제] 섹션 툴바 시료 셋').toBe(true);
+  expect(Object.keys(a).sort(), '[전제] 두 판 단추 목록 같음(장면 같음)').toEqual(Object.keys(b).sort());
   expect(a, '가만히 — 단추마다 계산된 스타일 같음').toEqual(b);
   expect(await readHover(now), 'hover — 같음').toEqual(await readHover(old));
   await ctxA.close(); await ctxB.close();
@@ -89,6 +102,6 @@ test('V17 자 양성대조 — 새 파일이 빠진 판은 지금 판과 다르�
   const ctxA = await browser.newContext(), ctxC = await browser.newContext();
   const now = await ctxA.newPage(), miss = await ctxC.newPage();
   await scene(now); await scene(miss, new Map([[NEW, null]]));
-  expect(await readAll(miss), '규칙이 빠지면 자가 차이를 본다').not.toEqual(await readAll(now));
+  expect(await readStable(miss), '규칙이 빠지면 자가 차이를 본다').not.toEqual(await readStable(now));
   await ctxA.close(); await ctxC.close();
 });
