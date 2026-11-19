@@ -25,6 +25,76 @@ function _cleanVectorSvg(block) {
   return clean;
 }
 
+// ── 칠 슬롯 걷기 (VECTOR-MONO-COLOR-DOM-WALK-P1-02) ───────────────────────────
+const _SHAPES = new Set(['path', 'rect', 'circle', 'ellipse', 'polygon', 'polyline', 'line']);
+const _BLACK = /^(black|#000|#000000|#000f|#000000ff|rgba?\(\s*0\s*,\s*0\s*,\s*0\s*(,\s*1(\.0*)?\s*)?\))$/;
+/** 칠 값 → 소문자 값 | null(손대지 않음: 빈 값·none·currentColor·inherit·transparent·url()) */
+function _paint(v) {
+  v = String(v || '').trim().toLowerCase();
+  return (!v || v === 'none' || v === 'currentcolor' || v === 'inherit' || v === 'transparent' || v.startsWith('url(')) ? null : v;
+}
+/** 거른 svg 글자 → 뿌리 <svg> 요소(못 읽으면 null). <template> 은 불활성(스크립트·그림 로드 0) — 이미 sanitize 를 지난 글자다. */
+function _parseSvg(svgStr) {
+  const t = document.createElement('template');
+  t.innerHTML = svgStr;
+  const svg = t.content.firstElementChild;
+  return svg && svg.localName === 'svg' && t.content.childElementCount === 1 ? svg : null;
+}
+/** 칠 슬롯마다 visit(el, prop, where, value) — where = 'attr' | 'style' | 'implicit'(칠이 없어 기본 검정인 도형) */
+function _walkPaints(svg, visit) {
+  const go = (el, inhFill) => {
+    let own = null;
+    for (const prop of ['fill', 'stroke']) {
+      const a = el.getAttribute(prop), st = el.style?.getPropertyValue(prop);
+      if (a != null) visit(el, prop, 'attr', a);
+      if (st) visit(el, prop, 'style', st);
+      if (prop === 'fill') own = st || a;
+    }
+    const fill = own ? own : inhFill;
+    if (!fill && _SHAPES.has(el.localName)) visit(el, 'fill', 'implicit', null);
+    for (const c of el.children) go(c, fill);
+  };
+  go(svg, null);
+}
+function _setPaint(el, prop, where, v) { if (where === 'attr') el.setAttribute(prop, v); else el.style.setProperty(prop, v); }
+
+/** 그리기: 검정 칠 → color (속성·style · 칠 없는 도형은 뿌리 fill). 못 읽는 글자는 옛 글자 치환으로(퇴행 방지). */
+function _paintBlack(svgStr, color) {
+  const svg = _parseSvg(svgStr);
+  if (!svg) return svgStr.replace(/fill="(black|#000000|#000|currentColor)"/gi, `fill="${color}"`);
+  let implicit = false;
+  _walkPaints(svg, (el, prop, where, v) => {
+    if (where === 'implicit') { implicit = true; return; }
+    const p = _paint(v);
+    if (p && _BLACK.test(p)) _setPaint(el, prop, where, color);
+  });
+  if (implicit) svg.setAttribute('fill', color);   // 칠 없는 도형이 있으면 뿌리에도 칠이 없다(있었다면 물려받았다)
+  return svg.outerHTML;
+}
+
+/** 단색인 svg 의 그 한 색(검정 무리는 'black' · 칠 없는 도형 = 검정) · 여러 색·칠 0 이면 null */
+function _monoPaint(svg) {
+  const set = new Set();
+  _walkPaints(svg, (el, prop, where, v) => {
+    if (where === 'implicit') { set.add('black'); return; }
+    const p = _paint(v);
+    if (p) set.add(_BLACK.test(p) ? 'black' : p);
+  });
+  return set.size === 1 ? [...set][0] : null;
+}
+
+/** 색 바꾸기 한 문(패널·MCP) — 단색인데 검정이 아니면(빨강 아이콘 등) 그 색을 data-svg 에서 검정으로 한 번 고쳐 적고 color 를 쓴다.
+ *  ⇒ 그리기는 «검정 → color» 하나로 모든 단색 SVG 를 칠한다 · 여러 색 SVG 는 그대로(VECTOR-MULTICOLOR-STROKE-P2-01 몫). */
+function setVectorColor(block, c) {
+  const svg = block.dataset.svg ? _parseSvg(block.dataset.svg) : null;
+  const mono = svg && _monoPaint(svg);
+  if (mono && mono !== 'black') {
+    _walkPaints(svg, (el, prop, where, v) => { if (where !== 'implicit' && _paint(v) === mono) _setPaint(el, prop, where, '#000000'); });
+    block.dataset.svg = svg.outerHTML;
+  }
+  block.dataset.color = c;
+}
+
 function renderVector(block) {
   /* ★렌더가 «유일한» innerHTML 자리다 — 열기 뒤 편집·MCP update·makeVectorBlock(data)·펜 재빌드가 전부 여기로 온다. */
   const svgStr = _cleanVectorSvg(block);
@@ -38,17 +108,15 @@ function renderVector(block) {
   const inner = block.querySelector('.vb-inner');
   if (!inner) return;
 
-  // fill 색상 치환: fill="black", fill="#000000", fill="currentColor" 등 → 지정 색상
-  let processed = svgStr
-    .replace(/fill="black"/gi,        `fill="${color}"`)
-    .replace(/fill="#000000"/gi,      `fill="${color}"`)
-    .replace(/fill="#000"/gi,         `fill="${color}"`)
-    .replace(/fill="currentColor"/gi, `fill="${color}"`);
+  /* VECTOR-MONO-COLOR-DOM-WALK-P1-02 — 글자 치환(fill="black" 등 넷) 대신 SVG 요소를 걸어 «검정 칠»만 고른 색으로:
+     fill·stroke × 속성·style 둘 다 · 칠이 없는 도형(기본 검정)은 뿌리 fill 로 · currentColor 는 값은 두고 뿌리 color 로 풀린다 ·
+     none·url()·검정 아닌 색은 안 건드린다(여러 색 SVG 를 조용히 한 색으로 만들지 않는다 — 단색 비검정은 setVectorColor 가 먼저 검정으로 고쳐 적는다). */
+  const processed = svgStr ? _paintBlack(svgStr, color) : '';
 
-  /* SVG 자체에 width/height 100% 강제 — 뿌리 덮어쓰기(opts.root)로.
+  /* SVG 자체에 width/height 100% 강제 — 뿌리 덮어쓰기(opts.root)로. color = currentColor 가 풀릴 값.
      ★색 치환 «뒤»에 한 번 더 거른다: data-color 도 저장본에서 오는 값이라 `"><image onerror…` 가 치환으로 다시 끼어들 수 있다. */
   inner.innerHTML = processed
-    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: { width: '100%', height: '100%' } })
+    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: { width: '100%', height: '100%', color } })
     : '';
 
 }
@@ -324,7 +392,7 @@ function updateVectorBlock(blockId, partial = {}) {
     applied.svg = block.dataset.svg;
   }
   if (partial.color !== undefined && partial.color !== null) {
-    block.dataset.color = String(partial.color).trim();
+    setVectorColor(block, String(partial.color).trim());
     applied.color = block.dataset.color;
   }
   if (partial.w !== undefined && partial.w !== null) {
@@ -394,6 +462,7 @@ window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.addVectorFromSvgText = addVectorFromSvgText;
 window.renderVector    = renderVector;
+window.setVectorColor  = setVectorColor;   // 색 바꾸기 한 문(prop-vector · MCP update)
 /* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
    ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.
    자리는 벡터가 dataset.x·y 를 안 쓰니 손잡이 바닥 길과 같은 style.left·top + offsetX·Y. */

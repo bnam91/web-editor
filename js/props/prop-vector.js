@@ -120,7 +120,8 @@ export function showVectorProperties(block) {
   wireColorField('vb', {
     initialAlpha: colorAlpha,
     onApply: (c) => {
-      block.dataset.color = c;
+      // 펜이 아니면 한 문(setVectorColor)으로 — 단색 비검정 SVG 를 먼저 검정으로 고쳐 적어 «검정 → 고른 색» 그리기에 걸리게 한다
+      if (hasPen) block.dataset.color = c; else window.setVectorColor(block, c);
       // 펜 패스: stroke(및 fill ON이면 fill) 색을 penNodes 기반으로 재빌드
       if (hasPen) {
         if (block.dataset.penFill && block.dataset.penFill !== 'none') block.dataset.penFill = c;
