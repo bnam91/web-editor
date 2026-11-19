@@ -199,7 +199,9 @@ async function doFigmaUpload() {
   // 읽기 실패분은 원본 URL 그대로(업로드는 진행) + 토스트로 정직하게 알린다.
   const _built = await window.buildFigmaExportJSONInlined(selectedIds, nodeMap);
   const designJSON = _built.json;
-  if (_built.unresolvedAssets) window.showToast?.(window.missingImageText?.(_built.unresolvedAssets));   // #11 — 내보내기 공용 문구(결과 모달 한 자리)
+  /* #11 — 내보내기 공용 문구(결과 모달 한 자리) · QA2 ④ 반전 안내(반전 블럭 있을 때만) — 토스트 칸이 하나라 한 줄로 합친다 */
+  const _msgs = [_built.unresolvedAssets ? window.missingImageText?.(_built.unresolvedAssets) : '', window.flipNotExportedText?.(selectedIds.map((id) => document.getElementById(id)))].filter(Boolean);
+  if (_msgs.length) window.showToast?.(_msgs.join(' · '));
 
   function showDone(success, text) {
     spinnerEl.style.display = 'none';

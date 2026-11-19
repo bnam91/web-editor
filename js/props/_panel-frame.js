@@ -152,7 +152,10 @@ function wireBlockTemplate(block) {
     save.disabled = true;
     try {
       await window.saveBlockAsTemplate?.(block, name, f, $('blk-tpl-tags').value.trim());   // 우클릭 저장과 같은 함수 · 같은 인자 꼴(block-factory.js nameConfirm) · 성공 알림도 그 함수가 낸다(우클릭과 같음)
-    } finally { save.disabled = false; }
+    } catch (err) {
+      console.warn('[block-template] 저장 실패', err); window.showToast?.('블록 템플릿 저장 실패');   // 칸은 그대로(다시 누르면 재시도)
+      return;
+    } finally { save.disabled = false; }   // 끝나면 · 실패해도 풀림
     $('blk-tpl-name').value = ''; $('blk-tpl-tags').value = ''; fnew.value = '';
     fillFolders(f);   // QA2 — 방금 만든 새 폴더가 같은 패널 목록에 바로 보인다
   });
