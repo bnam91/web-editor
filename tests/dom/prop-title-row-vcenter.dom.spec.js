@@ -56,7 +56,7 @@ test('V1 접힌 Stroke(꺼짐)·Effects(빈) — 손잡이가 위아래 구분�
    양성대조: editor-props.css 의 `.prop-section[data-sec] > .prop-sec-head + .prop-sec-body { margin-top: 0 }` 를 지우면 간격이 토큰보다 커져 빨강. */
 test('V2 펼친 Stroke — 제목 글자 상자 아래 ↔ 내용 위 = --ui-sec-head-py (틀의 펼침 리듬)', async ({ page }) => {
   const errs = await setupText(page);
-  await page.locator('#txt-stroke-section .prop-toggle').click();
+  await page.locator('#txt-stroke-section label.prop-sec-add').click();   // ★기대 바뀜(⑨ Stroke ＋ — 켜기 토글 → «＋» 단추꼴 label · 같은 체크박스)
   await expect(page.locator('#txt-stroke-controls')).toBeVisible();
   const m = await page.evaluate(() => {
     const t = document.querySelector('#txt-stroke-section > .prop-section-title-row > .prop-section-title');
