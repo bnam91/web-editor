@@ -873,12 +873,12 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
   const d0 = await dots();
   const on = d0[0].c, off = d0[1].c;
   expect(on, '[전제] 첫째 진함·둘째 옅음').not.toBe(off);
-  const x2 = await page.evaluate((id) => { const b = document.getElementById(id); const c = b.querySelector(':scope > .sld-track').children[1]; b.scrollLeft = c.offsetLeft; return Math.round(b.scrollLeft); }, id);
+  const x2 = await page.evaluate((id) => { const b = document.getElementById(id); const c = b.querySelector(':scope > .sld-track').children[1]; window.slideHScroll(b, c.offsetLeft); return window.slideHScroll(b);   /* 134 — scrollLeft 대신 밀기 값(막대와 같은 문) */ }, id);
   expect(x2, '[전제] 밀렸다').toBeGreaterThan(0);
   await expect.poll(dots, '★점 자리 그대로 · 진한 점 = 둘째').toEqual(d0.map((d, i) => ({ x: d.x, c: i === 1 ? on : off })));
   const saved = await page.evaluate(() => window.getSerializedCanvas());
   expect(/sld-hs|sld-dot-hs-on|--sld-hs-x/.test(saved), '★저장 글자에 임시 표식·밀린 거리 변수 0').toBe(false);
-  await page.evaluate((id) => { document.getElementById(id).scrollLeft = 0; }, id);
+  await page.evaluate((id) => { window.slideHScroll(document.getElementById(id), 0); }, id);
   await expect.poll(dots, '★0 = 첫째 진함 · 자리 그대로').toEqual(d0);
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-hs'), id), '★표식 걷힘').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
@@ -890,7 +890,7 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
 test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   const c2x = () => page.evaluate((id) => Math.round(document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect().left), id);
-  const x = await page.evaluate((id) => { const b = document.getElementById(id); b.scrollLeft = b.querySelectorAll('.sld-cell')[1].offsetLeft; return Math.round(b.scrollLeft); }, id);
+  const x = await page.evaluate((id) => { const b = document.getElementById(id); window.slideHScroll(b, b.querySelectorAll('.sld-cell')[1].offsetLeft); return window.slideHScroll(b);   /* 134 */ }, id);
   expect(x, '[전제] 밀렸다').toBeGreaterThan(0);
   const before = await c2x();
   /* 두 번 누름 = 펼침(문서 capture dblclick 길) — 블럭 안 보이는 칸 2 위 */
@@ -901,7 +901,7 @@ test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async (
   expect(Math.abs((await c2x()) - before), '★펼친 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
   await key(page, 'Escape');
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 나옴').toBe(false);
-  expect(await page.evaluate((id) => Math.round(document.getElementById(id).scrollLeft), id), '★나온 뒤 scrollLeft 되돌아옴').toBe(x);
+  expect(await page.evaluate((id) => window.slideHScroll(document.getElementById(id)), id), '★나온 뒤 밀기 값 그대로(134 — translate 라 펼침이 안 되돌림)').toBe(x);
   expect(Math.abs((await c2x()) - before), '★나온 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -1011,5 +1011,28 @@ test('Q2 [음성] 보통 프레임 패널 무변', async ({ page }) => {
   const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
   expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-clip-toggle']), '★보통 프레임 = 절 그대로').toEqual(Array(5).fill(true));
   expect(await has(['sld-cell-shadow', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절 없음').toEqual(Array(3).fill(false));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 134 SLIDE-CELL-SHADOW-CLIP-01(현빈 «중간») — 블럭·칸 크기 그대로 · 칸 그림자는 위아래로 보임(캔버스·네이티브 PNG·HTML) · GIF·Figma 는 지금처럼(sometime)
+ * A1 새 블럭(칸 셋 · 기본 옅은 그림자 = blur 50 + y 18) → 블럭 overflow visible · clip-path inset(−68px 0) · 블럭 높이 = layout.h · 칸 높이 = 블럭 안 높이 ·
+ *    블럭 오른끝 너머(잘린 칸 자리) 점의 임자 ≠ 칸(가로는 여전히 자름) · 블럭 바로 아래 띠 화면 = 위아래를 닫은 것(inset 0)과 다르다(그림자 보임) · 펼침 = clip-path none
+ * 양성대조: slide-frame-CTL47-shadow-clip-closed.patch(clip-path 를 inset(0) — 옛 hidden 과 같은 자름) → A1 빨강 */
+test('A1 칸 그림자 위아래로 보임 · 크기 무변 · 가로는 자름', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const g = await page.evaluate((id) => { const b = document.getElementById(id), cs = getComputedStyle(b), c = b.querySelector('.sld-cell'); return { ov: cs.overflow, cp: cs.clipPath, bh: b.offsetHeight, lh: window.readSlideState?.(b)?.layout?.h ?? null, ch: c.offsetHeight, inner: b.clientHeight }; }, id);
+  expect(g.ov, '★overflow visible').toBe('visible');
+  expect(/^inset\(-68px 0px/.test(g.cp), `★위아래만 그림자만큼 엶(받은 값 ${g.cp})`).toBe(true);
+  if (g.lh != null) expect(g.bh, '★블럭 높이 = layout.h(무변)').toBe(g.lh);
+  expect(g.ch, '★칸 높이 = 블럭 안 높이(무변)').toBe(g.inner);
+  const out = await page.evaluate((id) => { const b = document.getElementById(id), r = b.getBoundingClientRect(), c3 = b.querySelectorAll('.sld-cell')[2].getBoundingClientRect(); if (c3.right <= r.right + 4) return 'no-overflow-cell'; const x = Math.min(c3.right - 2, r.right + 6), y = r.top + r.height / 2; return document.elementFromPoint(x, y)?.closest('.sld-cell') ? 'cell' : 'not-cell'; }, id);
+  expect(['not-cell', 'no-overflow-cell'], `★가로는 여전히 자름(${out})`).toContain(out);
+  const band = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: Math.max(0, r.left + 20), y: r.bottom + 2, width: Math.max(10, r.width - 40), height: 24 }; }, id);
+  const a = await page.screenshot({ clip: band });
+  await page.evaluate((id) => { document.getElementById(id).style.clipPath = 'inset(0px)'; }, id);
+  const b = await page.screenshot({ clip: band });
+  expect(a.equals(b), '★블럭 아래 띠에 그림자가 보인다(닫은 판과 다름)').toBe(false);
+  await page.evaluate((id) => { const el = document.getElementById(id); window.renderSlideBlock(el); window.unfoldSlide(el, true); }, id);
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).clipPath, id), '★펼침 = clip-path none').toBe('none');
   expect(errs, errs.join(' | ')).toEqual([]);
 });

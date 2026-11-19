@@ -243,11 +243,11 @@ test('X1 임시 가로 막대 · 스크롤 고정 → 내보내기 자리', asyn
   const saved = () => page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id); return { sx: b?.dataset.scrollX ?? null, tf: b?.querySelector('.sld-track')?.style.transform || '' }; }, id);
   const png0 = await png();
   await bar.evaluate((el) => { el.value = '200'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-  expect(await page.evaluate((id) => document.getElementById(id).scrollLeft, id), '★임시 = 블럭 scrollLeft').toBe(200);
+  expect(await page.evaluate((id) => window.slideHScroll(document.getElementById(id)), id), '★임시 = 밀기 값 200(134 부터 scrollLeft 대신 값+translate · 제품 뜻 바뀜)').toBe(200);
   expect(await saved(), '임시 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
   expect((await png()) === png0, '★임시 = PNG 흔적 0(안 민 것과 같음)').toBe(true);
   await page.click('label.prop-toggle:has(#sld-scroll-fix)');
-  const fx = await page.evaluate((id) => { const b = document.getElementById(id); return { sx: b.dataset.scrollX, sl: b.scrollLeft, tf: b.querySelector('.sld-track').style.transform }; }, id);
+  const fx = await page.evaluate((id) => { const b = document.getElementById(id); return { sx: b.dataset.scrollX, sl: window.slideHScroll(b), tf: b.querySelector('.sld-track').style.transform }; }, id);
   expect(fx, '★고정 = data-scroll-x 200 · 임시 0 · 트랙 −200').toEqual({ sx: '200', sl: 0, tf: 'translateX(-200px)' });
   expect((await png()) !== png0, '★고정 = PNG 가 그 자리').toBe(true);
   const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.images?.[0]?.x ?? null; }, id);

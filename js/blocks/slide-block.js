@@ -45,7 +45,7 @@ function _renderDots(block, n, pos, active = 0, layout = readSlideState(block).l
   const o = _dotOpt(layout);
   el.style.cssText = `--sld-dot-on:${o.on};--sld-dot-off:${o.off};position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;box-sizing:border-box;padding-${pos}:${DOT_GAP}px;display:flex;align-items:${pos === 'top' ? 'flex-start' : 'flex-end'};justify-content:center;gap:${o.space}px;pointer-events:none;`;   // 점 = 바깥 여백(고정) 안쪽 · 나머지 띠 = 칸↔점 갭(137 · drawDots 와 같은 자리)
   el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? o.on : o.off};`; return d; }));
-  if (block.scrollLeft > 0) _syncHScrollDots(block);   // 138 — 밀린 채 다시 그리면 점 표식을 다시 씌움
+  if (_hsX(block) > 0) _syncHScrollDots(block);   // 138 — 밀린 채 다시 그리면 점 표식을 다시 씌움
 }
 /** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
 const _slideOut = (s) => { const w = normCardW(s.w); return w === undefined ? { src: s.src } : { src: s.src, w }; };
@@ -169,20 +169,24 @@ const _scrollMax = (block) => { const t = block.querySelector(':scope > .sld-tra
 /** 고정 켜기(지금 임시 자리를 굳힘)/끄기 — 이력은 부르는 쪽. */
 export function setSlideScrollFix(block, on) {
   if (!block) return;
-  if (on) { const x = _fixedX(block) || Math.round(block.scrollLeft); block.scrollLeft = 0; if (x > 0) block.dataset.scrollX = String(x); else delete block.dataset.scrollX; }
-  else { const x = _fixedX(block); delete block.dataset.scrollX; renderSlideBlock(block); block.scrollLeft = x; return; }
+  if (on) { const x = _fixedX(block) || _hsX(block); _setHScroll(block, 0); if (x > 0) block.dataset.scrollX = String(x); else delete block.dataset.scrollX; }
+  else { const x = _fixedX(block); delete block.dataset.scrollX; renderSlideBlock(block); _setHScroll(block, x); return; }
   renderSlideBlock(block);
 }
 /* SLIDE-DOTS-FIXED-ON-SCROLL-01(138 · 현빈 5차 (e)) — 임시 가로 밀기(scrollLeft) 동안 점 띠는 블럭 창에 고정 · 지금 보이는 칸(왼끝이 창 왼끝 이하인 마지막 칸) 점만 진하게.
    표식 = 블럭 .sld-hs · 점 .sld-dot-hs-on(저장 section-serialize·캡처 capture-safety 명부가 걷는다 ⇒ PNG·GIF·HTML·저장 = 늘 첫 장면 점 · 무변).
    밀린 거리 = 블럭 인라인 --sld-hs-x(그 표식 없으면 아무 일 안 함 · 0 이면 지운다). «스크롤 고정»(data-scroll-x · 산출물)은 안 건드린다. */
+/* SLIDE-CELL-SHADOW-CLIP-01(134 · 현빈 «중간») — 임시 가로 밀기는 scrollLeft(스크롤 상자 = overflow hidden 필요)가 아니라 «값 + CSS translate»:
+   블럭 ._sldX(편집 값 · 저장 0) → 인라인 --sld-hs-x + 표식 .sld-hs ⇒ css .sld-hs > .sld-track { translate } · 표식은 저장·캡처 명부가 걷어 산출물 = 첫 장면.
+   그래서 블럭은 overflow visible + clip-path(가로만 자르고 위아래는 그림자만큼 엶) — 칸 그림자가 위아래로 보이고 블럭·칸 크기 무변. */
+const _hsX = (block) => Math.max(0, Math.round(+block?._sldX || 0));
+function _setHScroll(block, x) { block._sldX = Math.max(0, Math.round(+x || 0)); _syncHScrollDots(block); }
 function _syncHScrollDots(block) {
-  if (block.classList.contains('sld-unfold')) return;   // 139 — 펼친 동안은 들어갈 때 쥔 자리 그대로(펼침이 scrollLeft 를 0 으로 만든 scroll 사건에 안 지운다)
-  const x = Math.round(block.scrollLeft), dots = block.querySelector(':scope > .sld-dots');
-  block.classList.toggle('sld-hs', x > 0 && !!dots);
+  const x = _hsX(block), dots = block.querySelector(':scope > .sld-dots');
+  block.classList.toggle('sld-hs', x > 0);   // 표식 = 트랙 translate + 점 활성(산출물엔 안 감)
+  if (x <= 0) block.style.removeProperty('--sld-hs-x'); else block.style.setProperty('--sld-hs-x', `${x}px`);
   dots?.querySelectorAll('.sld-dot-hs-on').forEach((d) => d.classList.remove('sld-dot-hs-on'));
-  if (x <= 0 || !dots) { block.style.removeProperty('--sld-hs-x'); return; }
-  block.style.setProperty('--sld-hs-x', `${x}px`);
+  if (x <= 0 || !dots) return;
   let k = 0;
   [...(block.querySelector(':scope > .sld-track')?.children || [])].forEach((c, i) => { if (c.offsetLeft <= x + 1) k = i; });
   dots.children[k]?.classList.add('sld-dot-hs-on');
@@ -196,7 +200,7 @@ function _makeScrollBar(block) {
   r.addEventListener('input', () => {
     const v = +r.value;
     if (_fixedX(block)) { block.dataset.scrollX = String(v); renderSlideBlock(block); }   // 고정 중 = 고정 값을 옮김
-    else block.scrollLeft = v;   // 임시(저장 흔적 0)
+    else _setHScroll(block, v);   // 임시(저장 흔적 0 — 134 부터 scrollLeft 대신 값+translate)
   });
   r.addEventListener('change', () => { if (_fixedX(block)) { window.pushHistory?.('슬라이드 스크롤 고정'); window.scheduleAutoSave?.(); } });
   return r;
@@ -207,20 +211,8 @@ function _makeScrollBar(block) {
 export function unfoldSlide(block, on = true) {
   if (!block || !isFrameSlide(block)) return;
   if (on) document.querySelectorAll('#canvas .slide-block.sld-unfold').forEach((b) => { if (b !== block) unfoldSlide(b, false); });
-  /* SLIDE-ENTER-KEEP-HSCROLL-01(139 · 현빈 5차 (f)) — 펼침은 overflow visible 이라 scrollLeft 가 0 으로 돌아간다 ⇒ 들어갈 때 밀린 거리를 쥐고
-     펼친 동안 트랙을 그만큼 왼쪽으로(css .sld-unfold.sld-hs · 138 과 같은 표식·변수 — 저장·캡처 명부가 걷는다) · 나올 때 scrollLeft 로 되돌림. */
-  if (on && !block.classList.contains('sld-unfold')) {
-    const x = Math.round(block.scrollLeft);
-    block._sldHoldX = x;
-    block.classList.add('sld-unfold');
-    if (x > 0) { block.classList.add('sld-hs'); block.style.setProperty('--sld-hs-x', `${x}px`); }
-  } else if (!on && block.classList.contains('sld-unfold')) {
-    const x = block._sldHoldX || 0;
-    block._sldHoldX = 0;
-    block.classList.remove('sld-unfold');
-    if (x > 0) block.scrollLeft = x;
-    _syncHScrollDots(block);
-  }
+  /* SLIDE-ENTER-KEEP-HSCROLL-01(139) — 134 부터 밀기 = translate(펼침이 안 되돌림) ⇒ 들어가도 나와도 그 자리 그대로(쥘 것 없음) */
+  block.classList.toggle('sld-unfold', !!on);
   kickSlidePlus();
 }
 const _unfolded = () => document.querySelector('#canvas .slide-block.sld-unfold');
@@ -351,7 +343,7 @@ function _syncSlidePlus() {
     if (!_sldS || _sldS.block !== sb || !_sldS.el.isConnected) { _sldS?.el.remove(); _sldS = { block: sb, el: _makeScrollBar(sb) }; L.appendChild(_sldS.el); }
     const r = sb.getBoundingClientRect(), sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100, el = _sldS.el;
     el.max = String(_scrollMax(sb));
-    if (document.activeElement !== el) el.value = String(_fixedX(sb) || Math.round(sb.scrollLeft));
+    if (document.activeElement !== el) el.value = String(_fixedX(sb) || _hsX(sb));
     Object.assign(el.style, { left: `${(r.left - sr.left) / z}px`, top: `${(r.bottom - sr.top) / z + 18}px`, width: `${r.width / z}px` });
   }
   const b = _activeFrameSlide();
@@ -440,8 +432,10 @@ export function renderSlideBlock(block) {
   const { slides, layout, fx } = readSlideState(block);
   const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
-  block.style.overflow = 'hidden';
-  if (!block._sldHsBound) { block._sldHsBound = true; block.addEventListener('scroll', () => _syncHScrollDots(block)); }   // 138 — 임시 밀기(막대·고정 끄기)마다 점 고정
+  /* 134 — 가로만 자르고 위아래는 칸 그림자만큼 연다(가장 큰 그림자 blur+|y| · 없으면 0 = 옛 hidden 과 같은 자름) · 펼침은 css 가 clip-path none */
+  const _S = Math.max(0, ...slideCells(block).map((c) => { const sh = CELL_SHADOWS[c.dataset.shadow]; return sh ? sh.blur + Math.abs(sh.y) : 0; }));
+  block.style.overflow = 'visible';
+  block.style.clipPath = `inset(${-_S}px 0px ${-_S}px 0px)`;
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
     _renderFrameCells(block, layout, vert, slideInPlace(fx) || layout.mode === 'single', slideCentered(fx) || layout.mode === 'center', slideWipe(fx));   // 정지 꼴(layout.mode)이 효과보다 앞
@@ -692,7 +686,7 @@ window.appendSlideCellImage = appendSlideCellImage;
 window.duplicateSlideCell = duplicateSlideCell;
 window.kickSlidePlus = kickSlidePlus;
 window.unfoldSlide = unfoldSlide;
-Object.assign(window, { moveSlideCell, moveSelectedSlideCell, slideCellsOf: slideCells });   // 141 — editor.js ⌘←/→ · overlay-handles 칸 띠(import 안 늘림)
+Object.assign(window, { moveSlideCell, moveSelectedSlideCell, slideCellsOf: slideCells, slideHScroll: (b, x) => (x === undefined ? _hsX(b) : _setHScroll(b, x)) });   // 141 — editor.js ⌘←/→ · overlay-handles 칸 띠(import 안 늘림)
 window.setSlideScrollFix = setSlideScrollFix;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다
