@@ -15,16 +15,16 @@
 .assets-actionbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ui-space-1);
   height: 32px;
   flex-shrink: 0;
-  padding: 0 8px;
+  padding: 0 var(--ui-space-2);
   border-bottom: 1px solid var(--ui-border);
   background: var(--ui-bg-elevated);
 }
 .assets-action-btn {
   height: 22px;
-  padding: 0 8px;
+  padding: 0 var(--ui-space-2);
   background: var(--ui-bg-card);
   border: 1px solid var(--ui-border);
   border-radius: 4px;
@@ -34,7 +34,7 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ui-space-1);
   white-space: nowrap;
 }
 .assets-action-btn:hover {
@@ -47,7 +47,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 0 16px 0;
+  padding: var(--ui-space-1) 0 var(--ui-space-4) 0;
   position: relative;
 }
 .assets-tree.assets-drop-target {
@@ -59,7 +59,7 @@
 .assets-tree-empty {
   text-align: center;
   color: var(--ui-text-muted);
-  padding: 24px 12px;
+  padding: 24px var(--ui-space-3);
   font-size: var(--ui-fs-base);
   line-height: 1.5;
 }
