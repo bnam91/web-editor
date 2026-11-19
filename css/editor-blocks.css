@@ -1587,6 +1587,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01(현빈 피드백 2 ②) — 펼침 = «두 번 누름»으로 켜는 상태(.sld-unfold · 저장·캡처 명부가 걷는다) · 한 번 = 슬라이드만 고름.
    접힌 동안 칸·칸 안은 포인터를 안 받는다 ⇒ 어디를 눌러도 슬라이드 블럭이 골라진다(칸·안쪽 블럭 고르기 = 펼친 뒤). */
 .slide-block[data-cell-mode="frame"]:not(.sld-unfold) .sld-cell { pointer-events: none; }
+/* SLIDE-DOTS-FIXED-ON-SCROLL-01(138) — 임시 가로 밀기(scrollLeft) 동안만: 점 띠는 블럭 창에 고정(밀린 만큼 되돌림) · 보이는 칸 점만 진하게.
+   표식(.sld-hs · .sld-dot-hs-on)은 저장·캡처 명부가 걷는다 ⇒ 산출물 무변. 색 = 띠의 --sld-dot-on/off(첫 장면 점 색 그대로). */
+.slide-block.sld-hs > .sld-dots { transform: translateX(var(--sld-hs-x, 0)); }
+.slide-block.sld-hs > .sld-dots > span { background: var(--sld-dot-off) !important; }
+.slide-block.sld-hs > .sld-dots > span.sld-dot-hs-on { background: var(--sld-dot-on) !important; }
 .slide-block[data-cell-mode="frame"].sld-unfold { overflow: visible !important; }
 /* ★섹션 안쪽도 가로로 자른다(editor-layout.css .section-inner overflow-x:clip — 그림자 까닭) ⇒ 펼친 동안만 그 섹션 안쪽 가로 clip 을 푼다.
    ⛔:has 안에 :has 를 못 넣는다(규격) — 두 갈래로 적는다(슬라이드 자신이 골라짐 · 슬라이드 안 무엇이 골라짐). 저장·캡처는 .selected 를 걷으니 영향 0. (지혜맥 P1 빨강 = 이 clip) */

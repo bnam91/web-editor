@@ -860,3 +860,26 @@ test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 �
   await expect.poll(geo, '★⌘Z 한 번 = 갭 0 판').toEqual(g0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 5 (e) SLIDE-DOTS-FIXED-ON-SCROLL-01(138) — 임시 가로 밀기 때 점 띠 고정 · 보이는 칸 점만 진하게 · 산출물 무변
+ * E1 점 아래 켬 → 블럭 scrollLeft = 칸 2 왼끝(막대와 같은 길) → 점 셋 화면 자리 그대로(±1) · 진한 점 = 둘째 · 저장 글자에 표식(sld-hs·sld-dot-hs-on) 0 · 0 으로 = 첫째 진함 · 표식 걷힘
+ * 양성대조: slide-frame-CTL41-dots-scroll-unbound.patch(scroll 리스너 줄 삭제) → E1 빨강 — 예측 */
+test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 · 저장 표식 0', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
+  await page.locator('#sld-dots').selectOption('bottom');
+  const dots = () => page.evaluate((id) => { const b = document.getElementById(id); return [...b.querySelectorAll(':scope > .sld-dots > span')].map((d) => ({ x: Math.round(d.getBoundingClientRect().left), c: getComputedStyle(d).backgroundColor })); }, id);
+  await expect.poll(() => dots().then((d) => d.length), '[전제] 점 셋').toBe(3);
+  const d0 = await dots();
+  const on = d0[0].c, off = d0[1].c;
+  expect(on, '[전제] 첫째 진함·둘째 옅음').not.toBe(off);
+  const x2 = await page.evaluate((id) => { const b = document.getElementById(id); const c = b.querySelector(':scope > .sld-track').children[1]; b.scrollLeft = c.offsetLeft; return Math.round(b.scrollLeft); }, id);
+  expect(x2, '[전제] 밀렸다').toBeGreaterThan(0);
+  await expect.poll(dots, '★점 자리 그대로 · 진한 점 = 둘째').toEqual(d0.map((d, i) => ({ x: d.x, c: i === 1 ? on : off })));
+  const saved = await page.evaluate(() => window.getSerializedCanvas());
+  expect(/sld-hs|sld-dot-hs-on/.test(saved), '★저장 글자에 임시 표식 0').toBe(false);
+  await page.evaluate((id) => { document.getElementById(id).scrollLeft = 0; }, id);
+  await expect.poll(dots, '★0 = 첫째 진함 · 자리 그대로').toEqual(d0);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-hs'), id), '★표식 걷힘').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

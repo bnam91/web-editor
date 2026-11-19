@@ -43,8 +43,9 @@ function _renderDots(block, n, pos, active = 0, layout = readSlideState(block).l
   if (!pos) { el?.remove(); return; }
   if (!el) { el = document.createElement('div'); el.className = 'sld-dots'; block.appendChild(el); }
   const o = _dotOpt(layout);
-  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;box-sizing:border-box;padding-${pos}:${DOT_GAP}px;display:flex;align-items:${pos === 'top' ? 'flex-start' : 'flex-end'};justify-content:center;gap:${o.space}px;pointer-events:none;`;   // 점 = 바깥 여백(고정) 안쪽 · 나머지 띠 = 칸↔점 갭(137 · drawDots 와 같은 자리)
+  el.style.cssText = `--sld-dot-on:${o.on};--sld-dot-off:${o.off};position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;box-sizing:border-box;padding-${pos}:${DOT_GAP}px;display:flex;align-items:${pos === 'top' ? 'flex-start' : 'flex-end'};justify-content:center;gap:${o.space}px;pointer-events:none;`;   // 점 = 바깥 여백(고정) 안쪽 · 나머지 띠 = 칸↔점 갭(137 · drawDots 와 같은 자리)
   el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? o.on : o.off};`; return d; }));
+  if (block.scrollLeft > 0) _syncHScrollDots(block);   // 138 — 밀린 채 다시 그리면 점 표식을 다시 씌움
 }
 /** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
 const _slideOut = (s) => { const w = normCardW(s.w); return w === undefined ? { src: s.src } : { src: s.src, w }; };
@@ -171,6 +172,19 @@ export function setSlideScrollFix(block, on) {
   if (on) { const x = _fixedX(block) || Math.round(block.scrollLeft); block.scrollLeft = 0; if (x > 0) block.dataset.scrollX = String(x); else delete block.dataset.scrollX; }
   else { const x = _fixedX(block); delete block.dataset.scrollX; renderSlideBlock(block); block.scrollLeft = x; return; }
   renderSlideBlock(block);
+}
+/* SLIDE-DOTS-FIXED-ON-SCROLL-01(138 · 현빈 5차 (e)) — 임시 가로 밀기(scrollLeft) 동안 점 띠는 블럭 창에 고정 · 지금 보이는 칸(왼끝이 창 왼끝 이하인 마지막 칸) 점만 진하게.
+   표식 = 블럭 .sld-hs · 점 .sld-dot-hs-on(저장 section-serialize·캡처 capture-safety 명부가 걷는다 ⇒ PNG·GIF·HTML·저장 = 늘 첫 장면 점 · 무변).
+   밀린 거리 = 블럭 인라인 --sld-hs-x(그 표식 없으면 아무 일 안 함 · 0 이면 지운다). «스크롤 고정»(data-scroll-x · 산출물)은 안 건드린다. */
+function _syncHScrollDots(block) {
+  const x = Math.round(block.scrollLeft), dots = block.querySelector(':scope > .sld-dots');
+  block.classList.toggle('sld-hs', x > 0 && !!dots);
+  dots?.querySelectorAll('.sld-dot-hs-on').forEach((d) => d.classList.remove('sld-dot-hs-on'));
+  if (x <= 0 || !dots) { block.style.removeProperty('--sld-hs-x'); return; }
+  block.style.setProperty('--sld-hs-x', `${x}px`);
+  let k = 0;
+  [...(block.querySelector(':scope > .sld-track')?.children || [])].forEach((c, i) => { if (c.offsetLeft <= x + 1) k = i; });
+  dots.children[k]?.classList.add('sld-dot-hs-on');
 }
 let _sldS = null;
 function _makeScrollBar(block) {
@@ -381,6 +395,7 @@ export function renderSlideBlock(block) {
   const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
   block.style.overflow = 'hidden';
+  if (!block._sldHsBound) { block._sldHsBound = true; block.addEventListener('scroll', () => _syncHScrollDots(block)); }   // 138 — 임시 밀기(막대·고정 끄기)마다 점 고정
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
     _renderFrameCells(block, layout, vert, slideInPlace(fx) || layout.mode === 'single', slideCentered(fx) || layout.mode === 'center', slideWipe(fx));   // 정지 꼴(layout.mode)이 효과보다 앞
