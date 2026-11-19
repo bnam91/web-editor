@@ -741,7 +741,7 @@ function _onEditSegmentDown(e) {
   if (!r) return;
   _edit.nodes = r.nodes;
   _selectedNodeIdx = r.index;
-  _commitEdit();
+  _commitEdit({ keepBox: true });
 }
 
 function _onEditAnchorDown(e) {
@@ -817,9 +817,21 @@ function _commitEditLive() {
 }
 
 // F5: 드래그 종료 시 핸들 포함 bbox 재계산 → 노드 정규화 → viewBox/w/h 함께 갱신(클리핑 방지)
-function _commitEdit() {
+/* keepBox(133 점 추가 · 인텔 261120 A1): 점 추가는 정규화하지 않는다 — de Casteljau 로 나눈 핸들은 옛 조종점 볼록 껍질 안이라 상자를 넘지 않는데,
+   «핸들 포함 bbox» 로 다시 맞추면 짧아진 핸들 탓에 상자가 줄어 노드가 원점 쪽으로 밀리고 블럭 자리는 그대로라 곡선이 화면에서 뛰었다(로컬 y 46.5 → 11).
+   ⇒ 지금 viewBox·w·h 그대로 · 노드만 바꿔 쓰고 이력 한 칸. */
+function _commitEdit({ keepBox = false } = {}) {
   if (!_edit) return;
   const b = _edit.block;
+  if (keepBox) {
+    const { vw, vh } = _viewBoxOf(b);
+    b.dataset.svg = _buildSvg(nodesToSvgPath(_edit.nodes, _edit.closed), vw, vh, _edit.color, _edit.strokeWidth || 2, _edit.fill);
+    b.dataset.penNodes = JSON.stringify(_edit.nodes);
+    window.renderVector?.(b);
+    window.pushHistory?.('패스 편집');
+    window.scheduleAutoSave?.();
+    return;
+  }
 
   // 핸들 포함 bbox 재계산 + 정규화
   const sw = _edit.strokeWidth || 2;

@@ -25,6 +25,8 @@ async function scene(page, nodes) {
 }
 const nodeCount = (page) => page.evaluate(() => JSON.parse(document.getElementById('vbP').dataset.penNodes).length);
 const shape = (page) => page.evaluate(() => { const p = document.querySelector('#vbP .vb-inner svg path'); const b = p.getBBox(); return [p.getTotalLength(), b.x, b.y, b.width, b.height].map((v) => Math.round(v * 2) / 2); });
+/* 화면 자리(px) — 로컬 좌표가 같아도 블럭이 움직이면 뛴다(인텔 261120 A1: 로컬 y 46.5 → 11 = 정규화로 노드가 밀림) */
+const screenBox = (page) => page.evaluate(() => { const r = document.querySelector('#vbP .vb-inner svg path').getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map((v) => Math.round(v * 2) / 2); });
 async function pressSeg(page, idx, frac) {
   let prev = '', q = null;
   await expect.poll(async () => { q = await page.evaluate(([idx, frac]) => { const p = document.querySelector(`.vpen-edit-overlay path[data-seg-idx="${idx}"]`); const pt = p.getPointAtLength(p.getTotalLength() * frac); return { x: pt.x, y: pt.y, own: document.elementFromPoint(pt.x, pt.y) === p }; }, [idx, frac]); const k = `${q.x},${q.y}`, s = k === prev; prev = k; return q.own && s; },
@@ -34,12 +36,14 @@ async function pressSeg(page, idx, frac) {
 
 test('A1 곡선 선분 누름 = 점 추가 · 모양 무변 · ⌘Z · 저장', async ({ page }) => {
   const errs = await scene(page, [{ x: 0, y: 60, type: 'corner', hIn: null, hOut: { x: 60, y: 0 } }, { x: 200, y: 60, type: 'corner', hIn: { x: 140, y: 120 }, hOut: null }]);
-  const n0 = await nodeCount(page), s0 = await shape(page);
+  const n0 = await nodeCount(page), s0 = await shape(page), r0 = await screenBox(page);
   await pressSeg(page, 0, 0.4);
   await expect.poll(() => nodeCount(page), '★노드 +1').toBe(n0 + 1);
   expect(await page.evaluate(() => [...document.querySelectorAll('.vpen-edit-overlay rect')].filter((r) => r.getAttribute('fill') !== '#fff').length), '★새 점 고름').toBe(1);
   const s1 = await shape(page);
   expect(s1.map((v, i) => Math.abs(v - s0[i]) <= 0.5), `★모양 무변 ${JSON.stringify([s0, s1])}`).toEqual([true, true, true, true, true]);
+  const r1 = await screenBox(page);
+  expect(r1.map((v, i) => Math.abs(v - r0[i]) <= 1), `★화면 자리 무변(안 뜀) ${JSON.stringify([r0, r1])}`).toEqual([true, true, true, true]);
   await page.keyboard.press('Escape');
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+z');
