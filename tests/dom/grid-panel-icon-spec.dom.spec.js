@@ -259,11 +259,18 @@ test.describe('그리드 패널 세 절 — 아이콘 한 규격', () => {
     expect(bad, `기준 잉크 = ${anchorInk}px · 어긋난 것: ${JSON.stringify(bad)}`).toEqual([]);
   });
 
+  /* A3b 모양 명부 — 쉐브론이 «아닌» 아이콘(뜻이 다른 단추)만. 선끝·잉크·꺾임·색(A2·A3·A2b·A4)은 명부와 무관하게 그대로 잰다.
+     열쇠 = 그 svg 를 품은 가장 가까운 [id] (SURVEY 의 where). 한 줄 = 판정 한 줄. */
+  const A3B_NOT_CHEVRON = {
+    'grd-cell-pad-chain': 'GRID-ROW-PADDING-PER-SIDE-01 — 칸 패딩 «묶음/변별» 사슬 단추(펼침 쉐브론 아님 · 글 패딩 좌우 연동과 같은 사슬 그림) · 선끝·잉크는 규격에 맞춤',
+  };
   test('A3b 모양 — 세 절의 쉐브론이 기준 쉐브론과 «같은 손짓»인가', async ({ page }) => {
     await boot(page);
     const { svgs } = await SURVEY(page);
     const want = INLINE.d.replace(/^M\s*[-\d.]+[\s,]+[-\d.]+/, 'M');
-    const bad = svgs.filter(s => s.painters > 0 && s.shape !== want);
+    const dead = Object.keys(A3B_NOT_CHEVRON).filter(id => !svgs.some(s => s.where === id));
+    expect(dead, `A3b 명부에 있는데 세 절에 안 뜬 자리(죽은 줄 — 지워라): ${JSON.stringify(dead)}`).toEqual([]);
+    const bad = svgs.filter(s => s.painters > 0 && s.shape !== want && !(s.where in A3B_NOT_CHEVRON));
     expect(bad, `기준 모양 = "${want}" · 어긋난 것: ${JSON.stringify(bad.map(b => ({ where: b.where, shape: b.shape })))}`).toEqual([]);
   });
 

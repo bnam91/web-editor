@@ -2241,11 +2241,12 @@ const _grdUnset = () => null;
 
 /* GRID-ROW-PADDING-PER-SIDE-01 (현빈 B 261118) — 칸 안쪽 여백: 묶음(padding 한 값 = 네 변) ↔ 변별(padSides [위,오른,아래,왼]).
  *   묶음 여부의 정본 = 모델에 padSides 가 있나(패치마다 패널이 통째로 다시 그려져 패널 상태로는 못 든다).
- *   사슬 단추·SVG = 글자 패딩 「좌우 연동」과 같은 부품(.prop-chain-btn · prop-text-template.js). 다시 묶으면 위 값으로. */
+ *   사슬 단추 = 글자 패딩 「좌우 연동」과 같은 부품(.prop-chain-btn · prop-text-template.js). 다시 묶으면 위 값으로.
+ *   SVG 는 그리드 패널 아이콘 규격(선끝 round · 잉크 1.5px — grid-panel-icon-spec A2·A3)을 따른다: 이 패널 안이라 글 패딩 사슬(1.3)과 굵기가 다르다. */
 const _GRD_PAD_KEYS = ['t', 'r', 'b', 'l'];
 function _grdPadRowsHtml(pre, label, pad, sides, placeholder) {
   const chain = `<button type="button" class="prop-chain-btn${sides ? '' : ' active'}" id="${pre}-pad-chain" title="${sides ? '네 변을 한 값으로 묶기' : '변마다 따로 정하기'}">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/>${sides ? '<line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/>' : '<line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>'}</svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="0.75" y="3.75" width="3.75" height="4.5" rx="1.875"/><rect x="7.5" y="3.75" width="3.75" height="4.5" rx="1.875"/>${sides ? '<line x1="5.2" y1="4.8" x2="6.8" y2="7.2"/>' : '<line x1="4.5" y1="6" x2="7.5" y2="6"/>'}</svg>
           </button>`;
   if (!sides) return `
         <div class="prop-row">
