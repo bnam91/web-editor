@@ -883,3 +883,25 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-hs'), id), '★표식 걷힘').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 5 (f) SLIDE-ENTER-KEEP-HSCROLL-01(139) — 가로로 밀어 둔 채 두 번 눌러 들어가도·나와도 그 자리
+ * K2 칸 2 왼끝까지 밀기 → 칸 2 화면 왼끝 기록 → 두 번 누름(펼침) = 칸 2 같은 자리(±1) · Esc(나옴) = 같은 자리 · 블럭 scrollLeft 되돌아옴
+ * 양성대조: slide-frame-CTL42-unfold-drops-hscroll.patch(펼침이 밀린 거리 안 쥠) → K2 빨강 — 예측 */
+test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const c2x = () => page.evaluate((id) => Math.round(document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect().left), id);
+  const x = await page.evaluate((id) => { const b = document.getElementById(id); b.scrollLeft = b.querySelectorAll('.sld-cell')[1].offsetLeft; return Math.round(b.scrollLeft); }, id);
+  expect(x, '[전제] 밀렸다').toBeGreaterThan(0);
+  const before = await c2x();
+  /* 두 번 누름 = 펼침(문서 capture dblclick 길) — 블럭 안 보이는 칸 2 위 */
+  const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(); return [r.left + 12, r.top + 12]; }, id);
+  await page.mouse.dblclick(p[0], p[1]);
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 펼침').toBe(true);
+  await expect.poll(c2x, '★펼친 뒤 칸 2 같은 자리').toBeGreaterThanOrEqual(before - 1);
+  expect(Math.abs((await c2x()) - before), '★펼친 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
+  await key(page, 'Escape');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 나옴').toBe(false);
+  expect(await page.evaluate((id) => Math.round(document.getElementById(id).scrollLeft), id), '★나온 뒤 scrollLeft 되돌아옴').toBe(x);
+  expect(Math.abs((await c2x()) - before), '★나온 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

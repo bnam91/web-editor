@@ -177,6 +177,7 @@ export function setSlideScrollFix(block, on) {
    표식 = 블럭 .sld-hs · 점 .sld-dot-hs-on(저장 section-serialize·캡처 capture-safety 명부가 걷는다 ⇒ PNG·GIF·HTML·저장 = 늘 첫 장면 점 · 무변).
    밀린 거리 = 블럭 인라인 --sld-hs-x(그 표식 없으면 아무 일 안 함 · 0 이면 지운다). «스크롤 고정»(data-scroll-x · 산출물)은 안 건드린다. */
 function _syncHScrollDots(block) {
+  if (block.classList.contains('sld-unfold')) return;   // 139 — 펼친 동안은 들어갈 때 쥔 자리 그대로(펼침이 scrollLeft 를 0 으로 만든 scroll 사건에 안 지운다)
   const x = Math.round(block.scrollLeft), dots = block.querySelector(':scope > .sld-dots');
   block.classList.toggle('sld-hs', x > 0 && !!dots);
   dots?.querySelectorAll('.sld-dot-hs-on').forEach((d) => d.classList.remove('sld-dot-hs-on'));
@@ -205,8 +206,21 @@ function _makeScrollBar(block) {
    두 번 누름(슬라이드 위 어디든 — 접힌 동안 칸은 포인터를 안 받아 슬라이드가 받는다) = 펼침 · Esc · 캔버스에서 그 슬라이드 밖 누름 = 접힘. */
 export function unfoldSlide(block, on = true) {
   if (!block || !isFrameSlide(block)) return;
-  if (on) document.querySelectorAll('#canvas .slide-block.sld-unfold').forEach((b) => { if (b !== block) b.classList.remove('sld-unfold'); });
-  block.classList.toggle('sld-unfold', !!on);
+  if (on) document.querySelectorAll('#canvas .slide-block.sld-unfold').forEach((b) => { if (b !== block) unfoldSlide(b, false); });
+  /* SLIDE-ENTER-KEEP-HSCROLL-01(139 · 현빈 5차 (f)) — 펼침은 overflow visible 이라 scrollLeft 가 0 으로 돌아간다 ⇒ 들어갈 때 밀린 거리를 쥐고
+     펼친 동안 트랙을 그만큼 왼쪽으로(css .sld-unfold.sld-hs · 138 과 같은 표식·변수 — 저장·캡처 명부가 걷는다) · 나올 때 scrollLeft 로 되돌림. */
+  if (on && !block.classList.contains('sld-unfold')) {
+    const x = Math.round(block.scrollLeft);
+    block._sldHoldX = x;
+    block.classList.add('sld-unfold');
+    if (x > 0) { block.classList.add('sld-hs'); block.style.setProperty('--sld-hs-x', `${x}px`); }
+  } else if (!on && block.classList.contains('sld-unfold')) {
+    const x = block._sldHoldX || 0;
+    block._sldHoldX = 0;
+    block.classList.remove('sld-unfold');
+    if (x > 0) block.scrollLeft = x;
+    _syncHScrollDots(block);
+  }
   kickSlidePlus();
 }
 const _unfolded = () => document.querySelector('#canvas .slide-block.sld-unfold');

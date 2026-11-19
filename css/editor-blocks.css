@@ -1592,6 +1592,9 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .slide-block.sld-hs > .sld-dots { transform: translateX(var(--sld-hs-x, 0)); }
 .slide-block.sld-hs > .sld-dots > span { background: var(--sld-dot-off) !important; }
 .slide-block.sld-hs > .sld-dots > span.sld-dot-hs-on { background: var(--sld-dot-on) !important; }
+/* SLIDE-ENTER-KEEP-HSCROLL-01(139) — 펼친 동안(overflow visible · scrollLeft 0)은 트랙을 밀린 만큼 왼쪽으로 · 점 띠는 제자리(되돌림 없음) */
+.slide-block.sld-unfold.sld-hs > .sld-track { transform: translateX(calc(-1 * var(--sld-hs-x, 0px))); }
+.slide-block.sld-unfold.sld-hs > .sld-dots { transform: none; }
 .slide-block[data-cell-mode="frame"].sld-unfold { overflow: visible !important; }
 /* ★섹션 안쪽도 가로로 자른다(editor-layout.css .section-inner overflow-x:clip — 그림자 까닭) ⇒ 펼친 동안만 그 섹션 안쪽 가로 clip 을 푼다.
    ⛔:has 안에 :has 를 못 넣는다(규격) — 두 갈래로 적는다(슬라이드 자신이 골라짐 · 슬라이드 안 무엇이 골라짐). 저장·캡처는 .selected 를 걷으니 영향 0. (지혜맥 P1 빨강 = 이 clip) */
