@@ -11,6 +11,7 @@
  * ⛔이 파일에는 색·px 리터럴 0 — 모양은 css/editor-props.css 「패널 절」 블록(var(--ui-*))만 (check-design-tokens.sh 하드게이트).
  */
 import { propPanel } from '../globals.js';
+import { escHtml } from './_helpers.js';
 import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, sectionOrderFor } from './_section-spec.js';
 
 /** 절 하나 등록. title 은 special 에 필수, 그 밖엔 SECTION_TITLE 기본(주면 같은 영어 Title Case 규칙으로 검사). */
@@ -130,8 +131,7 @@ function wireBlockTemplate(block) {
   if (!tog || !form) return;
   const folders = window.listTemplateFolders?.(window.loadTemplatesPublic?.() || [], '블록') || [];
   if (!folders.includes('블록')) folders.unshift('블록');
-  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  folder.innerHTML = folders.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
+  folder.innerHTML = folders.map((f) => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
   folder.addEventListener('change', () => { fnew.hidden = folder.value !== '__new__'; });
   tog.addEventListener('click', () => {
     const open = form.hidden; form.hidden = !open;
