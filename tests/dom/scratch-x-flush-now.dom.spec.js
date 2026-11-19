@@ -61,10 +61,27 @@ async function setup(page, n = 1, { tabB = false } = {}) {
 const onDisk = (page) => page.evaluate(() => (window.__file.pages?.[0]?.scratchpad || []).map(i => i.id).sort());
 const present = (page, id) => page.evaluate((id) => !!document.querySelector(`.scratch-item[data-scratch-id="${id}"]`), id);
 async function pressX(page, id) {
-  const c = await page.evaluate((id) => { const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`); el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 6 }; }, id);
-  await waitStableRect(page, `.scratch-item[data-scratch-id="${id}"]`); await page.mouse.click(c.x, c.y); await settle(page);   // 골라야 ✕ 가 선다
-  /* ✕ 는 «그 좌표의 주인»이고 자리가 두 번 내리 같을 때 누른다 — 고른 뒤 자리가 한 번 더 움직이면 잰 좌표가 옆 ✂ 를 눌렀다
-     (cand13 지혜맥 X6 오류 문맥: ✂ [active] · ✕ 남음). 같은 evaluate 에서 재고 맞혀 본다(조건 대기 · 고정 대기 없음). */
+  await page.evaluate((id) => document.querySelector(`.scratch-item[data-scratch-id="${id}"]`).scrollIntoView({ block: 'center', behavior: 'instant' }), id);
+  await waitStableRect(page, `.scratch-item[data-scratch-id="${id}"]`);
+  /* «고르기» 점 = 장 안이되 단추가 아닌 곳 — 멎은 뒤 재고 같은 evaluate 에서 elementFromPoint 로 맞혀 본다.
+     옛 «밑변 −6» 은 멎기 «전»에 쟀고, 장이 누락 자리표시(80 · 화면 32px)로 줄면 그 줄이 ✂ 띠에 걸려 고르기 클릭이 ✂ 를 눌렀다
+     (cand14 [X-DIAG] 8/8: scratch-slice-mode · activeElement = .scratch-slice-btn). */
+  let c = null, cPrev = '';
+  await expect.poll(async () => {
+    c = await page.evaluate((id) => { const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`); const r = el.getBoundingClientRect();
+      for (const [fx, fy] of [[0.25, 0.75], [0.5, 0.75], [0.5, 0.9], [0.25, 0.5], [0.5, 0.5]]) {
+        const p = { x: r.left + r.width * fx, y: r.top + r.height * fy }; const e = document.elementFromPoint(p.x, p.y);
+        /* 단추는 :hover 전엔 pointer-events none 이라 elementFromPoint 에 안 잡힌다 — 손이 닿으면 살아나니 단추 상자 자체를 피한다 */
+        const onBtn = [...el.querySelectorAll('button, .scratch-resize, .scratch-id-chip, .spl-btns')].some((b) => { const q = b.getBoundingClientRect(); return q.width && p.x >= q.left - 2 && p.x <= q.right + 2 && p.y >= q.top - 2 && p.y <= q.bottom + 2; });
+        if (!onBtn && e && e.closest('.scratch-item') === el && !e.closest('button, .scratch-resize, .scratch-id-chip, .spl-btns')) return { ...p, ok: true };
+      }
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, ok: false }; }, id);
+    const k = `${c.x},${c.y}`, same = k === cPrev; cPrev = k; return c.ok && same;
+  }, { message: '[전제] 고를 점 = 그 장 몸(단추 아님)이고 자리가 멎었다', intervals: [50] }).toBe(true);
+  await page.mouse.click(c.x, c.y); await settle(page);   // 골라야 ✕ 가 선다
+  expect(await page.evaluate((id) => { const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`); return el.classList.contains('scratch-selected') && !el.classList.contains('scratch-slice-mode'); }, id),
+    '[전제] 골랐고 자르기(✂) 모드가 아니다').toBe(true);
+  /* ✕ 는 «그 좌표의 주인»이고 자리가 두 번 내리 같을 때 누른다(같은 evaluate 에서 재고 맞혀 본다 · 조건 대기 · 고정 대기 없음). */
   let b = null, prev = '', mouse = { x: c.x, y: c.y }, polls = 0;
   try { await expect.poll(async () => {
     polls++;
