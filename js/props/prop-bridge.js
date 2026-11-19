@@ -17,6 +17,12 @@ export function showBridgeProperties(block) {
   const depth  = clamp(block.dataset.bridgeDepth,   8,  90,  88);
   const arc    = clamp(block.dataset.bridgeArc,  -200, 100,   0);
   const height = clamp(block.dataset.bridgeHeight, 20, 300,  90);
+  // t13C-02 모양: V(지금) · 둥근 물결 · 뾰족 물결 — 없는 키 = V(옛 저장본) · 물결 손잡이 기본값 = block-factory BRIDGE_WAVE_DEFAULTS 한 벌
+  const shape = block.dataset.bridgeShape === 'round' || block.dataset.bridgeShape === 'sharp' ? block.dataset.bridgeShape : 'v';
+  const WD = (window.BRIDGE_WAVE_DEFAULTS || {})[shape] || { amp: 30, count: 3 };
+  const wAmp = clamp(block.dataset.bridgeWaveAmp, 4, 80, WD.amp);
+  const wCount = clamp(block.dataset.bridgeWaveCount, 1, 24, WD.count);
+  const wPhase = block.dataset.bridgeWavePhase === 'trough' ? 'trough' : 'crest';
 
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -40,6 +46,31 @@ export function showBridgeProperties(block) {
       // 옛 제목 「꼬리 (V홈)」 — 절 제목 규칙(영어 Title Case · 괄호 금지)으로 «Tail». V홈 모양 세 손잡이(너비·깊이·곡률)
       sec('special', `
       <div class="prop-row">
+        <span class="prop-label">모양</span>
+        <select class="prop-select" id="brg-shape" style="flex:1">
+          <option value="v"${shape === 'v' ? ' selected' : ''}>V</option>
+          <option value="round"${shape === 'round' ? ' selected' : ''}>둥근 물결</option>
+          <option value="sharp"${shape === 'sharp' ? ' selected' : ''}>뾰족 물결</option>
+        </select>
+      </div>` + (shape !== 'v' ? `
+      <div class="prop-row">
+        <span class="prop-label">높이</span>
+        <input type="range" class="prop-slider" id="brg-wa-slider" min="4" max="80" step="1" value="${wAmp}">
+        <input type="number" class="prop-number" id="brg-wa-number" min="4" max="80" value="${wAmp}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">반복</span>
+        <input type="range" class="prop-slider" id="brg-wn-slider" min="1" max="24" step="1" value="${wCount}">
+        <input type="number" class="prop-number" id="brg-wn-number" min="1" max="24" value="${wCount}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">방향</span>
+        <select class="prop-select" id="brg-wp" style="flex:1">
+          <option value="crest"${wPhase === 'crest' ? ' selected' : ''}>마루로 시작</option>
+          <option value="trough"${wPhase === 'trough' ? ' selected' : ''}>골로 시작</option>
+        </select>
+      </div>` : `
+      <div class="prop-row">
         <span class="prop-label">너비</span>
         <input type="range" class="prop-slider" id="brg-w-slider" min="30" max="860" step="2" value="${width}">
         <input type="number" class="prop-number" id="brg-w-number" min="30" max="860" value="${width}">
@@ -53,7 +84,7 @@ export function showBridgeProperties(block) {
         <span class="prop-label">곡률</span>
         <input type="range" class="prop-slider" id="brg-a-slider" min="-200" max="100" step="1" value="${arc}">
         <input type="number" class="prop-number" id="brg-a-number" min="-200" max="100" value="${arc}">
-      </div>`, { title: 'Tail' }),
+      </div>`), { title: 'Tail' }),
     ],
   });
 
@@ -81,6 +112,27 @@ export function showBridgeProperties(block) {
   const setHeight = (v) => { v = Math.max(20, Math.min(300, parseInt(v) || 90));  block.dataset.bridgeHeight = String(v); hSlider.value = v; hNumber.value = v; rerender(); };
   const commit = () => { window.pushHistory?.(); window.scheduleAutoSave?.(); };
 
+  hSlider.addEventListener('input', () => setHeight(hSlider.value));   // 블럭 높이(Size) — 모양과 무관
+  hSlider.addEventListener('change', commit);
+  hNumber.addEventListener('change', () => { setHeight(hNumber.value); commit(); });
+
+  /* t13C-02 모양·물결 손잡이 — 모양 바꾸면 패널 다시(V 줄 ↔ 물결 줄) · 값 = data-bridge-wave-* (V 값은 그대로 둠 = 되돌아오면 옛 V) */
+  $('brg-shape')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    if (v === 'round' || v === 'sharp') block.dataset.bridgeShape = v; else delete block.dataset.bridgeShape;
+    rerender(); commit(); showBridgeProperties(block);
+  });
+  const wire = (sid, nid, key, lo, hi) => {
+    const sl = $(sid), nu = $(nid); if (!sl || !nu) return;
+    const set = (v) => { v = Math.max(lo, Math.min(hi, Math.round(+v))); if (!Number.isFinite(v)) return; block.dataset[key] = String(v); sl.value = v; nu.value = v; rerender(); };
+    sl.addEventListener('input', () => set(sl.value)); sl.addEventListener('change', commit);
+    nu.addEventListener('change', () => { set(nu.value); commit(); });
+  };
+  wire('brg-wa-slider', 'brg-wa-number', 'bridgeWaveAmp', 4, 80);
+  wire('brg-wn-slider', 'brg-wn-number', 'bridgeWaveCount', 1, 24);
+  $('brg-wp')?.addEventListener('change', (e) => { block.dataset.bridgeWavePhase = e.target.value === 'trough' ? 'trough' : 'crest'; rerender(); commit(); });
+  if (shape !== 'v') return;   // 아래는 V 손잡이(물결일 땐 그 줄이 없다)
+
   wSlider.addEventListener('input', () => setWidth(wSlider.value));
   wSlider.addEventListener('change', commit);
   wNumber.addEventListener('change', () => { setWidth(wNumber.value); commit(); });
@@ -90,9 +142,6 @@ export function showBridgeProperties(block) {
   aSlider.addEventListener('input', () => setArc(aSlider.value));
   aSlider.addEventListener('change', commit);
   aNumber.addEventListener('change', () => { setArc(aNumber.value); commit(); });
-  hSlider.addEventListener('input', () => setHeight(hSlider.value));
-  hSlider.addEventListener('change', commit);
-  hNumber.addEventListener('change', () => { setHeight(hNumber.value); commit(); });
 }
 
 window.showBridgeProperties = showBridgeProperties;
