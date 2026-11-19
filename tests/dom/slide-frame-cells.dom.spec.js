@@ -921,6 +921,10 @@ test('X1 빈 영역 두 번 누름 = 나옴 · 칸 안은 그대로 · 펼친 �
   await unfold();
   await expect.poll(open, '[전제] 펼침').toBe(true);
   expect(await zs(), '★펼친 섹션 z 3 · 아래 섹션 z 2').toEqual(['3', '2']);
+  /* (g) 어둡기 «살짝» = 덮개 색 알파 = --ui-disabled-opacity(0.5) — 옛 0.78 */
+  const dim = await page.evaluate((id) => ({ a: getComputedStyle(document.getElementById(id), '::after').outlineColor, tok: getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity').trim() }), id);
+  expect(dim.tok, '[전제] 토큰 0.5').toBe('0.5');
+  expect(/[,/]\s*0\.5\)$/.test(dim.a), `★덮개 알파 0.5(받은 값 ${dim.a})`).toBe(true);
   const gap = await stable(() => page.evaluate((id) => { const cs = document.getElementById(id).querySelectorAll('.sld-cell'); const a = cs[0].getBoundingClientRect(), b = cs[1].getBoundingClientRect(); const x = (a.right + b.left) / 2, y = (a.top + a.bottom) / 2, e = document.elementFromPoint(x, y);
     return { x, y, ok: b.left - a.right >= 2 && !!e && document.getElementById(id).contains(e) && !e.closest('.sld-cell') }; }, id), '[전제] 칸 틈 = 슬라이드 안 · 칸 밖');
   await page.mouse.dblclick(gap.x, gap.y);

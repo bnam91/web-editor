@@ -1603,8 +1603,10 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .section-block:has(> .section-inner .slide-block[data-cell-mode="frame"].sld-unfold) { z-index: 3; }
 .slide-block[data-cell-mode="frame"].sld-unfold::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
-  /* 진회색 덮개 — 캔버스 배율(최소 10%)에서도 화면 끝이 안 보이게 2000vmax(배율 0.1 → 화면 200vmax) · px 리터럴 0 */
-  outline: 2000vmax solid color-mix(in srgb, var(--ui-bg-base) 78%, transparent);
+  /* 덮개 — 캔버스 배율(최소 10%)에서도 화면 끝이 안 보이게 2000vmax(배율 0.1 → 화면 200vmax) · px 리터럴 0
+     SLIDE-ENTER-EXIT-DIM-01(140 · 현빈 «살짝·고르게») — 옛 78%(진회색)를 앱 «비활성 흐림» 토큰 --ui-disabled-opacity(0.5) 세기로.
+     고르게 = 펼친 섹션 z 3(위 규칙) 덕에 위·아래·옆 섹션과 캔버스 밖이 같은 한 겹 */
+  outline: 2000vmax solid color-mix(in srgb, var(--ui-bg-base) calc(var(--ui-disabled-opacity) * 100%), transparent);
 }
 /* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
    ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */
