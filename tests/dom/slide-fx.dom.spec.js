@@ -176,8 +176,9 @@ test('D5 겹침 간격 — 첫 장면 겹침 = GIF · 뒤 카드 위 · 패널 �
   const cell = await page.evaluate(async () => {
     window.selectSection(document.querySelector('#canvas .section-block'));
     const made = window.addSlideBlock(); window.setSlideLayout(made.block, { cardW: 50, gap: -40 });
-    const [c0, c1] = made.block.querySelectorAll('.sld-cell'), k = made.block.getBoundingClientRect().width / made.block.offsetWidth;
-    return Math.round((c0.getBoundingClientRect().right - c1.getBoundingClientRect().left) / k);
+    /* 레이아웃 px 로 바로(dom-screen-px-census Z3 — 화면 px ÷ 배율 대신 · 두 칸은 같은 트랙의 형제라 offsetLeft 기준이 같다) */
+    const [c0, c1] = made.block.querySelectorAll('.sld-cell');
+    return Math.round(c0.offsetLeft + c0.offsetWidth - c1.offsetLeft);
   });
   expect(cell, '프레임 칸도 겹침 40').toBe(40);
   expect(errs, errs.join(' | ')).toEqual([]);

@@ -97,7 +97,14 @@ test('U1 main.js — capture-section-cdp 가 렌더러 scale 을 clip.scale 로 
   const m = src('main.js');
   const i = m.indexOf("ipcMain.handle('capture-section-cdp'");
   expect(i, '핸들러가 없다').toBeGreaterThan(0);
-  const h = m.slice(i, m.indexOf('});', i));
+  let h = m.slice(i, m.indexOf('});', i));
+  /* 캡처 직렬 큐(9aac3494b · tests/unit/capture-cdp-queue) 뒤로 핸들러는 «줄 세우기»만 하고 본문은 _captureSectionCdp 로 옮겼다 —
+     핸들러가 그 함수에 맡기면 그 함수 본문을 잰다(단언 넷 그대로 · 글자 꼴만 따라감). */
+  if (/_captureSectionCdp\(/.test(h)) {
+    const j = m.indexOf('async function _captureSectionCdp(');
+    expect(j, '핸들러가 _captureSectionCdp 에 맡기는데 그 함수가 없다').toBeGreaterThan(0);
+    h = m.slice(j, m.indexOf('\n}\n', j));
+  }
   expect(h, '인자에 scale(기본 1)을 안 받는다').toMatch(/\{\s*x = 0, y = 0, width, height, scale = 1\s*\}/);
   expect(h, 'clip.scale 이 아직 1 로 박혀 있다').not.toMatch(/scale:\s*1,/);
   expect(h, 'clip.scale 에 막은 값을 쓰지 않는다').toMatch(/scale:\s*clipScale/);

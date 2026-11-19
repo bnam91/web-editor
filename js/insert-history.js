@@ -103,6 +103,7 @@
        비삽입 add* 8자리(addGhostSection·addPage·addSectionToScope·addStickerFavorite·
        addToImageGallery·addChecklistItem·addChecklistSection·addVariation)는 전부
        패턴 밖이라 여기 적을 것이 없다. 새 이름이 생기면 «이유와 함께» 여기에.) */
+    'addSlideCell': '슬라이드 블럭 «안» 칸 하나(캔버스 삽입 입구 아님) · 부르는 자 = 패널 «+ 프레임 추가»(prop-slide.js 가 import 로 직접 부르고 이력 한 칸 commit) · window 노출은 검사용',
   };
   /** 되돌리기 버튼 툴팁용 라벨(cosmetic). 없으면 기본값. */
   var LABELS = {
