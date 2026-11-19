@@ -161,13 +161,16 @@ test('P12 텍스트 타입 12칸 — 두 줄 · Quote 왼 테두리 있음 · �
     return { n: bs.length, rows: new Set(bs.map((b) => Math.round(b.getBoundingClientRect().top))).size,
       left: bs.map((b) => [b.textContent.trim(), parseFloat(getComputedStyle(b).borderLeftWidth)]), over: g.scrollWidth - g.clientWidth,
       rowGap: bs[bs.length - 1].getBoundingClientRect().top - bs[0].getBoundingClientRect().bottom,
-      tok: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-0_5')) };
+      tok: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-1')),
+      cols: bs.slice(0, 6).map((b, i) => Math.round(b.getBoundingClientRect().left) === Math.round(bs[i + 6].getBoundingClientRect().left)) };
   });
   expect(r.n).toBe(12);
   expect(r.rows, '★두 줄이 아니다').toBe(2);
   for (const [t, w] of r.left) expect(w, `★«${t}» 왼 테두리가 없다`).toBeGreaterThan(0);
   expect(r.over, '★타입 묶음이 가로로 넘친다').toBeLessThanOrEqual(0);
-  expect(Math.abs(r.rowGap - r.tok), `★두 줄 사이 ≠ --ui-space-0_5(QA 경6) ${r.rowGap}`).toBeLessThanOrEqual(0.5);
+  /* ★기대 바뀜(시안 v10 ① — 6 × 2 · 위아래 같은 세로 칸 · 줄 사이 4px) */
+  expect(Math.abs(r.rowGap - r.tok), `★두 줄 사이 ≠ --ui-space-1 ${r.rowGap}`).toBeLessThanOrEqual(0.5);
+  expect(r.cols, '★위아래 칸이 같은 세로 칸에 안 선다(6 × 2)').toEqual([true, true, true, true, true, true]);
   await page.click('#txt-kind-group [data-cls="tb-h3"]');
   await expect.poll(() => page.evaluate((id) => !!document.querySelector(`#${id} .tb-h3`), id), '★H3 로 안 바뀐다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
@@ -321,5 +324,22 @@ test('P13 텍스트 패널 — 칸 위·칸 안 라벨 글자 크기 = .prop-lab
   });
   expect(r.got.length, '[전제] 칸 위·칸 안 라벨이 있다').toBeGreaterThan(2);
   for (const [t, f] of r.got) expect(f, `★«${t}» 라벨 크기`).toBe(r.want);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* 시안 v10 ⑤ — Fill 컬러 변수 칩 줄이 끝 칼럼까지 한 줄. CTL prd1-14-varrow.patch(규칙 삭제) → 빨강 */
+test('P14 Fill VAR 칩 줄 — 오른끝 = 절 안쪽 오른끝(칼럼 끝) · 한 줄', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const row = document.getElementById('txt-color-chips');
+    row.hidden = false;   // 컬러 변수가 없는 새 문서 — 칩 넷(앱 꼴)을 심어 줄 꼴만 잰다
+    row.innerHTML = '<span class="cv-chips-label">VAR</span>' + ['메인', '보조', '강조'].map((t) => `<button class="cv-chip" type="button"><span class="cv-chip-dot"></span><span class="cv-chip-label">${t}</span></button>`).join('');
+    const sec = row.closest('.prop-section[data-sec]'), sp2 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-2'));
+    const kids = [...row.children].map((k) => Math.round(k.getBoundingClientRect().top));
+    return { right: row.getBoundingClientRect().right, inner: sec.getBoundingClientRect().right - sp2, lines: new Set(kids).size };
+  });
+  expect(Math.abs(r.right - r.inner), `★칩 줄이 끝 칼럼까지 안 간다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
+  expect(r.lines, '★칩 줄이 두 줄로 꺾였다').toBe(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

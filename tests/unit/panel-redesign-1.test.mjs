@@ -105,7 +105,8 @@ test('R12 타입 12칸 순서·글 · 바꾸기 없는 넷 disabled · 줄바꿈
   assert.deepEqual(btns.filter((b) => /data-cls=/.test(b.a)).map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Cap', 'Bullet', 'Label'], '★바꾸기 배선(data-cls) 칸이 바뀌었다');
   assert.match(g, /id="txt-to-quote"[^>]*>Quote</, '★Quote 가 묶음 밖이다');
   const props = css('css/editor-props.css');
-  assert.match(props, /#txt-kind-group\s*\{[^}]*flex-wrap:\s*wrap;\s*gap:\s*var\(--ui-space-0_5\)/, '★칸 사이(가로·세로) = 2px 하나(QA 경6)');
+  /* ★기대 바뀜(시안 v10 ① — 6 × 2 격자 · 가로 2 · 세로 4 · 칸 안 좌우 0. QA 경6 «세로도 2px» 를 시안이 덮었다) */
+  assert.match(props, /#txt-kind-group\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(6, auto\);\s*column-gap:\s*var\(--ui-space-0_5\);\s*row-gap:\s*var\(--ui-space-1\)/);
   assert.match(props, /#txt-kind-group > \.prop-type-btn\s*\{[^}]*border-left:\s*1px solid var\(--ui-border-mid\)/, '★Quote(마지막 칸) 왼 테두리 잘림이 돌아온다');
 });
 
@@ -191,4 +192,9 @@ test('R13 텍스트 패널 라벨 글자 크기 = --ui-fs-base(.prop-field-label
   const props = css('css/editor-props.css');
   assert.match(props, /\.prop-section\[data-order="text"\] :is\(\.prop-field-label, \.prop-xy-label\)\s*\{\s*font-size:\s*var\(--ui-fs-base\)/);
   assert.match(props, /\.prop-field-label\s*\{\s*font-size:\s*var\(--ui-fs-10\)/, '[대조] 전역 기본은 그대로');
+});
+
+/* 시안 v10 ⑤ — 컬러 변수 칩 줄은 끝 옵션 칼럼까지 · 한 줄. 양성대조: 규칙을 지우면 빨강 */
+test('R14 VAR 칩 줄 — 끝 칼럼까지(음수 margin = --ui-opt-col-w) · nowrap · 최근 색/그라데이션 줄은 빼고', () => {
+  assert.match(css('css/editor-props.css'), /\.prop-section\[data-sec\] > \.prop-sec-body > \.cv-chips:not\(\.cv-recent-row\):not\(\.ts-recent-row\)\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\);\s*flex-wrap:\s*nowrap/);
 });
