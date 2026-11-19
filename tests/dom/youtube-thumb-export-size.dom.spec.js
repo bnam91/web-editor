@@ -104,10 +104,11 @@ test('Y2 ★잠금 — 핀 500 이어도 1280 은 1280×720 (위에서부터 720
     const sec = document.getElementById('yt500');
     const cv = await dec(await window.exportSection(sec, 'png', 1280, { returnDataUrl: true }));
     const c860 = await dec(await window.exportSection(sec, 'png', 860, { returnDataUrl: true }));
-    return { h: sec.offsetHeight, h860: c860.height, ...stats(cv, { mk: [255, 0, 170] }, BG) };
+    /* ⚠️stats() 도 h(그림 높이)를 돌려준다 — 섹션 높이는 secH 로(지혜맥 f4f8f7762 Y2 «핀 500 → 받은 720» = 펼침 키 겹침 · 장면 쪽) */
+    return { ...stats(cv, { mk: [255, 0, 170] }, BG), secH: sec.offsetHeight, h860: c860.height };
   }, [DECODE, STATS, BG]);
   console.log('  Y2:', JSON.stringify(r));
-  expect(r.h, '★전제 — 핀 500').toBe(500);
+  expect(r.secH, '★전제 — 핀 500').toBe(500);
   expect(r.h860, '860 은 잠그지 않는다').toBe(500);
   expect([r.w, r.h], '★1280 은 언제나 1280×720').toEqual([1280, 720]);
   expect(r.count.mk, '위 표식이 남는다(아래만 잘린다)').toBeGreaterThan(1000);
