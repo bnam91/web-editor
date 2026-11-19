@@ -816,6 +816,7 @@ async function showSectionProperties(sec) {
           <option value="860">860px (기본)</option>
           <option value="780">780px (쿠팡)</option>
           <option value="1000">1000px</option>
+          <option value="1280">1280px (유튜브)</option>
         </select>
       </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
