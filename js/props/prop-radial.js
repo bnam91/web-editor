@@ -156,7 +156,6 @@ export function showRadialProperties(block, idx) {
   const isPoly = st.shape === 'poly', isArc = st.shape === 'arc', isDot = st.marker === 'dot';
   const lineOpts = isArc ? [['none', '없음'], ['orbit', '호'], ['spoke', '중심선 (바큇살)']] : _LINE_OPTS;
   const lineCur = (isArc && st.line === 'outline') ? 'orbit' : st.line;
-  const off = 'opacity:0.4;pointer-events:none';
   const selItem = sel >= 0 ? st.items[sel] : null;
   const anyManual = st.items.some(radialItemIsManual);
   const autoDeg = sel >= 0 ? Math.round(radialAutoDegs(st)[sel] * 10) / 10 : 0;
@@ -195,9 +194,9 @@ export function showRadialProperties(block, idx) {
       </div>
       <div class="prop-row"${isPoly ? ' title="다각형은 항목 수가 꼭짓점 수로 고정됩니다 — 위에서 각 수를 고르세요."' : ''}>
         <span class="prop-label">항목 수</span>
-        <button class="prop-count-btn" id="rdl-count-minus"${isPoly ? ` disabled style="${off}"` : ''}>−</button>
+        <button class="prop-count-btn" id="rdl-count-minus"${isPoly ? ' disabled' : ''}>−</button>
         <span class="prop-count-val" id="rdl-count-val">${st.count}</span>
-        <button class="prop-count-btn" id="rdl-count-plus"${isPoly ? ` disabled style="${off}"` : ''}>+</button>
+        <button class="prop-count-btn" id="rdl-count-plus"${isPoly ? ' disabled' : ''}>+</button>
       </div>
       <button class="prop-btn-full" id="rdl-reset-all" style="margin-top:6px"${anyManual ? '' : ' disabled'}>전체 자동 배치로 되돌리기</button>
       ${_typeRow('마커', 'rdl-marker', [['cell', '그림 칸'], ['dot', '점']], st.marker)}

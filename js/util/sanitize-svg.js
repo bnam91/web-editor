@@ -192,6 +192,7 @@ function _svgReadTag(src, i) {
  * @param {string} input
  * opts.idPrefix(3차 · N2) = 남기는 id 와 그것을 가리키는 url(#…) 에 붙일 접두사([A-Za-z][A-Za-z0-9_-]* 꼴만 받는다).
  *   같은 아이콘을 든 블럭이 한 문서에 여럿이면 id 가 겹쳐 뒤 블럭의 url(#g) 가 앞 블럭 것을 가리킨다 — 그리는 쪽이 블럭마다 다른 접두사를 준다.
+ *   url(#…) 는 «이 svg 가 남기는 id» 만 가리킬 수 있다 — 밖 id 를 가리키는 속성은 버린다(접두사 줄 때만 · 261120).
  *   ⚠️접두사를 준 결과는 «그 자리에서 그릴 것»이다 — dataset 에 되쓰면 걸 때마다 접두사가 자란다(쓰는 길은 이 옵션을 안 준다).
  * opts.maxLen = 입력 상한(정수 · SVG_MAX_LEN_CEIL 이 천장 · 없거나 틀리면 SVG_MAX_LEN).
  * opts.dropped = 배열을 주면 «버린 태그 이름»(맨 바깥 것만 · 소문자 · 중복 없음)을 넣어 준다 — 부르는 쪽이 손실을 알리게(조용히 버리지 않게).
@@ -208,6 +209,14 @@ export function sanitizeSvgString(input, opts) {
   let lowerSrc = null;      // script/style 의 닫는 자리를 찾을 때만 한 번 만든다
   /* 뿌리 덮어쓰기 — 이름은 소문자로 견준다(원문이 WIDTH 여도 한 번만 적힌다). 이름 꼴이 아닌 것은 안 받는다. */
   const idPrefix = (opts && typeof opts.idPrefix === 'string' && /^[A-Za-z][A-Za-z0-9_-]*$/.test(opts.idPrefix)) ? opts.idPrefix : '';
+  /* 접두사를 줄 때만(VISUAL-9 · 261120): 이 svg 가 «스스로 남기는» id 목록 — 접두사 없이 한 번 세척한 결과에서 읽는다(뒤에 오는 defs 도 잡힌다).
+     url(#…) 가 이 목록 밖(다른 아이콘·문서의 id)을 가리키면 그 속성째 버린다. 접두사 없는 길은 이 목록을 안 만든다(출력 바이트 그대로). */
+  let ownIds = null;
+  if (idPrefix) {
+    ownIds = Object.create(null);
+    const bare = sanitizeSvgString(input, (opts && opts.maxLen) ? { maxLen: opts.maxLen } : undefined);
+    for (const m of bare.matchAll(/\sid="([^"]*)"/g)) ownIds[_svgDecode(m[1])] = 1;
+  }
   let overLower = null;
   if (opts && opts.root) {
     overLower = Object.create(null);
@@ -311,11 +320,16 @@ export function sanitizeSvgString(input, opts) {
       }
       if (!_svgAttrOk(an, av, canon)) continue;
       seen[key] = true;
-      /* 접두사(N2) — id 자신과, 값 안의 url(#…) 참조를 같이 고친다(여기까지 온 url( 은 전부 안쪽 참조다 — _svgAttrOk 가 걸렀다) */
+      /* 접두사(N2) — id 자신과, 값 안의 url(#…) 참조를 같이 고친다(여기까지 온 url( 은 전부 #참조다 — _svgAttrOk 가 걸렀다).
+         ★참조가 «이 svg 안» id(ownIds)가 아니면 속성째 버린다 — 접두사가 밖 참조를 살려 두지 않게(VISUAL-9 · 261120). href 는 _svgAttrOk 가 늘 버린다. */
       let outV = av;
       if (idPrefix) {
         if (key === 'id') outV = idPrefix + av;
-        else if (av.indexOf('(') >= 0) outV = av.replace(/(url\(\s*['"]?\s*#)/gi, '$1' + idPrefix);
+        else if (av.indexOf('(') >= 0) {
+          let outside = false;
+          outV = av.replace(/(url\(\s*['"]?\s*#)([^'")\s]*)/gi, (m, head, ref) => { if (!ownIds[ref]) outside = true; return head + idPrefix + ref; });
+          if (outside) continue;
+        }
       }
       kept.push([an, outV]);
     }

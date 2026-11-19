@@ -888,15 +888,6 @@ body.hide-gap-layers .layer-item[data-layer-type="gap"] { display: none !importa
 }
 
 
-/* ── Section Toolbar: A/B Variation Button ── */
-.st-ab-btn { color: var(--ui-accent-primary) !important; }
-.st-ab-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
-
-/* ── Section Toolbar: AI Fill Button ── */
-.st-ai-fill-btn { color: var(--ui-sel-ai) !important; }
-.st-ai-fill-btn:hover { color: #e9d5ff !important; background: #2a1a40 !important; }
-.st-ai-fill-btn.is-busy { opacity: 0.5; pointer-events: none; }
-
 /* ── A/B Variation Badge (섹션 좌상단) ── */
 .variation-badge {
   position: absolute;

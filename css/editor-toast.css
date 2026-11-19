@@ -59,26 +59,6 @@
   white-space: nowrap;
 }
 
-.fp-btn {
-  height: 32px; width: 32px; padding: 0;
-  background: transparent; border: 1px solid transparent;
-  border-radius: 7px; color: var(--ui-text-muted);
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 4px;
-  transition: all 0.15s;
-}
-.fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
-
-.fp-btn.primary {
-  background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff;
-}
-.fp-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
-
-.fp-btn svg { flex-shrink: 0; }
-.fp-btn-ai { color: #c084fc; font-size: var(--ui-fs-14); }
-.fp-btn-ai:hover { background: rgba(192,132,252,0.12) !important; border-color: rgba(192,132,252,0.4) !important; color: #d8b4fe !important; }
-.fp-btn#fp-plugin-btn.active { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
-
 /* Plugin Panel */
 #fp-plugin-panel {
   position: fixed;
