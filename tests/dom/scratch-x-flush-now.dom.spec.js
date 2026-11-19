@@ -59,7 +59,14 @@ const present = (page, id) => page.evaluate((id) => !!document.querySelector(`.s
 async function pressX(page, id) {
   const c = await page.evaluate((id) => { const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`); el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 6 }; }, id);
   await waitStableRect(page, `.scratch-item[data-scratch-id="${id}"]`); await page.mouse.click(c.x, c.y); await settle(page);   // 골라야 ✕ 가 선다
-  const b = await page.evaluate((id) => { const r = document.querySelector(`.scratch-item[data-scratch-id="${id}"] .scratch-close`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  /* ✕ 는 «그 좌표의 주인»이고 자리가 두 번 내리 같을 때 누른다 — 고른 뒤 자리가 한 번 더 움직이면 잰 좌표가 옆 ✂ 를 눌렀다
+     (cand13 지혜맥 X6 오류 문맥: ✂ [active] · ✕ 남음). 같은 evaluate 에서 재고 맞혀 본다(조건 대기 · 고정 대기 없음). */
+  let b = null, prev = '';
+  await expect.poll(async () => {
+    b = await page.evaluate((id) => { const x = document.querySelector(`.scratch-item[data-scratch-id="${id}"] .scratch-close`); const r = x.getBoundingClientRect();
+      const p = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; const e = document.elementFromPoint(p.x, p.y); return { ...p, own: !!e && (e === x || x.contains(e)) }; }, id);
+    const k = `${b.x},${b.y}`, same = k === prev; prev = k; return b.own && same;
+  }, { message: '[전제] ✕ 가 그 좌표의 주인이고 자리가 멎었다', intervals: [50] }).toBe(true);
   await page.mouse.move(b.x, b.y); await page.mouse.click(b.x, b.y);
   await expect.poll(() => present(page, id), { message: '[전제] 지워졌다' }).toBe(false);
 }

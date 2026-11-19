@@ -107,7 +107,10 @@ test('O 자유변형을 빼면 tfo 모서리가 돌아온다', async ({ page }) 
   await page.evaluate(() => window.setFxFreeTransform(window.__tb, null));   /* 패널 ✕ 와 같은 문(effects-freetransform.js 머리) */
   await page.waitForFunction(() => !window.__tb.dataset.tfCorners, null, { timeout: 4000 });
   await page.waitForFunction(() => [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle')].filter((h) => getComputedStyle(h).display !== 'none').length === 4, null, { timeout: 4000 });
-  const p = await tfoAt(page, 'se');
-  expect(await ownerAt(page, p)).toBe('TFO');
+  /* 자리 재기와 임자 맞히기를 한 evaluate 에서 — 자유변형을 뺀 뒤 rAF(_updateTextOverlayHandlePositions)가 손잡이를 한 프레임 늦게 옮겨,
+     따로 잰 옛 좌표엔 임자가 없었다(cand13 인텔 Received ""). 단언 값 그대로 · 조건 대기. */
+  await expect.poll(() => page.evaluate(() => { const h = document.querySelector('#ss-handles-overlay .tfo-overlay-handle.se'); if (!h) return null;
+    const r = h.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return e?.classList?.contains('tfo-overlay-handle') ? 'TFO' : (e ? e.className.toString().slice(0, 24) : null); }), { timeout: 4000 }).toBe('TFO');
   expect(errs).toEqual([]);
 });
