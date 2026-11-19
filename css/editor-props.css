@@ -8,11 +8,11 @@
   padding: 8px 12px 4px; letter-spacing: 0.02em;
 }
 .prop-section {
-  padding: 0 8px 4px;
+  padding: 0 var(--ui-space-2) var(--ui-space-1);
 }
 .prop-section-title {
   font-size: var(--ui-fs-10); font-weight: var(--ui-fw-bold); letter-spacing: 0.02em;
-  color: var(--ui-text-muted, #6b6b6b); padding: 8px 0 4px; margin-bottom: 0;
+  color: var(--ui-text-muted, #6b6b6b); padding: var(--ui-space-2) 0 var(--ui-space-1); margin-bottom: 0;
 }
 /* ── 절 머리줄 — 제목 ＋ 오른쪽 손잡이 한 줄 ──────────────────────────────────────
    ★1020t2c1 (현빈 2026-10-20 「prop-toggle-track … 조금씩 올라간 게 있어 · 전체 살펴봐봐」)
@@ -76,8 +76,8 @@
 .prop-section[data-sec] > .prop-sec-body > [data-scope] > .prop-section { padding-inline: 0; }   /* ★R5(U6) — 그리드 _grdScopeWrap 이 옛 절을 [data-scope] 로 한 겹 감싼다(색 칸 133 < 149) */
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {
-  display: flex; align-items: center; gap: 4px;
-  min-height: 24px; margin-bottom: 6px; overflow: hidden;
+  display: flex; align-items: center; gap: var(--ui-space-1);
+  min-height: 24px; margin-bottom: var(--ui-space-1_5); overflow: hidden;
 }
 /* A37: 표 속성 선 토글 2×2 그리드 — 4줄→2줄 */
 .prop-toggle-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 6px; margin-bottom: 6px; }
@@ -303,7 +303,7 @@
 
 /* 타입 토글 버튼 그룹 */
 .prop-type-group {
-  display: flex; gap: 0; margin-bottom: 4px;
+  display: flex; gap: 0; margin-bottom: var(--ui-space-1);
 }
 /* 프리셋 버튼이 섞인 경우 좁은 패널에서 넘치지 않도록 3-col 그리드 + wrap */
 .prop-type-group:has(.prop-preset-btn) {
@@ -377,14 +377,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 var(--ui-space-1);
 }
 .prop-type-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
 .prop-type-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
 /* 정렬 버튼 그룹 */
 .prop-align-group {
-  display: flex; gap: 4px; flex: 1; min-width: 0; flex-wrap: wrap; row-gap: 4px;
+  display: flex; gap: var(--ui-space-1); flex: 1; min-width: 0; flex-wrap: wrap; row-gap: var(--ui-space-1);
 }
 .prop-align-btn {
   flex: 1 0 28px; height: 24px; min-width: 28px;
@@ -921,10 +921,10 @@
 
 /* LH / LS 2열 레이아웃 (Figma 스타일 — 라벨 위, 인풋 아래) */
 .prop-lhls-row {
-  display: flex; gap: 6px; margin-bottom: 4px;
+  display: flex; gap: var(--ui-space-1_5); margin-bottom: var(--ui-space-1);
 }
 .prop-lhls-col {
-  flex: 1; display: flex; flex-direction: column; gap: 2px;
+  flex: 1; display: flex; flex-direction: column; gap: var(--ui-space-0_5);
 }
 .prop-lhls-col .prop-icon-input { width: 100%; flex: none; height: 24px; }
 
@@ -954,7 +954,7 @@
 
 /* 섹션 구분선 — spacing 기반, 마지막 섹션은 패딩 제거 */
 .prop-section:last-child {
-  padding-bottom: 8px;
+  padding-bottom: var(--ui-space-2);
 }
 /* Figma 스타일 섹션 간 구분선 */
 .prop-section + .prop-section {
@@ -964,7 +964,7 @@
 /* ── Custom Font Picker ── */
 .font-picker {
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: var(--ui-space-1);
 }
 .font-picker-trigger {
   width: 100%; height: 24px;
