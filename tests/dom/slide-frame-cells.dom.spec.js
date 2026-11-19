@@ -345,16 +345,22 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
 /* 칸 i 고르기(진짜 누름) — 접혔으면 두 번 눌러 펼치고 «펼친 뒤» 점을 다시 잰다 · 고른 칸 = 그 칸 · 패널 그 칸 줄까지 기다림(받은 값 = 진단)
    (지혜맥 77f0425f4 C2 3번 중 1번 #sld-cell-radius 대기 빨강 — 옛 판은 펼치기 전 점 하나로 두 번 + 한 번 · 고름 확인 없이 다음 줄로 · 어느 쪽에서 졌는지 미확인 ⇒ 고름을 단언으로) */
 /* 누를 점 = «임자 맞음 + 같은 자리 두 번 연속»일 때(조건 대기 · 지혜맥 261120 load 9 에서 K1·P1 이 배율·스크롤이 멎기 전 점을 눌러 1/3 빨강) */
+/* 받은 값 = «ok|same|who» 글 — 실패하면 무엇이 그 자리를 쥐었나(who)가 그대로 찍힌다(지혜맥 261120 jsfc4: toMatchObject 차이엔 who 가 안 보였다) */
 const stableAt = async (page, fn, arg, msg) => {
   let prev = '', p = null;
-  await expect.poll(async () => { p = await page.evaluate(fn, arg); const k = JSON.stringify(p && [Math.round(p.x), Math.round(p.y)]); const same = k === prev; prev = k; return !!p && !!p.ok && same; }, { message: msg, intervals: [50] }).toBe(true);
+  await expect.poll(async () => { p = await page.evaluate(fn, arg); const k = JSON.stringify(p && [Math.round(p.x), Math.round(p.y)]); const same = k === prev; prev = k; return `${!!p && !!p.ok}|${same}|${p && p.who}`; }, { message: msg, intervals: [50] }).toMatch(/^true\|true\|/);
   return p;
 };
 const pickCell = async (page, id, i) => {
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
-  /* 접힌 칸은 pointer-events none(누름이 슬라이드로) — 접혔으면 임자 = 슬라이드 안 · 펼쳤으면 임자 = 그 칸(또는 그 안) */
-  const at = (folded) => stableAt(page, ({ id, i, folded }) => { const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect(); const x = r.left + 8, y = r.top + 8, e = document.elementFromPoint(x, y);
-    return { x, y, ok: !!e && (folded ? b.contains(e) : (e === c || c.contains(e))) }; }, { id, i, folded }, `[pickCell] 칸 ${i + 1} 누를 점(임자·같은 자리 두 번)`);
+  /* 접힌 칸은 pointer-events none(누름이 슬라이드로) — 접혔으면 임자 = 슬라이드 안 · 펼쳤으면 임자 = 그 칸 «자신»(빈 곳 — 칸 안 블럭이면 그 블럭이 골라진다).
+     ★자리 고르기(지혜맥 261120 jsfc4 R1 5/5): 옛 «왼위 +8» 은 칸 1 이면 고른 슬라이드의 왼위 모서리 = 크기 손잡이 자리 ⇒ 칸 안 격자에서 «임자 맞는» 첫 점을 고른다 · 옛 점의 임자는 DIAG 로 남긴다 */
+  const at = (folded) => stableAt(page, ({ id, i, folded }) => { const W = (e) => e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}${e.closest && e.closest('#ss-handles-overlay') ? '(손잡이 층)' : ''}` : null;
+    const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect(), ok = (e) => !!e && (folded ? b.contains(e) : e === c);
+    const old = document.elementFromPoint(r.left + 8, r.top + 8);
+    for (const fy of [0.12, 0.3, 0.5, 0.7]) for (const fx of [0.15, 0.3, 0.5, 0.7, 0.85]) { const x = r.left + r.width * fx, y = r.top + r.height * fy, e = document.elementFromPoint(x, y); if (ok(e)) return { x, y, ok: true, who: W(e), old: W(old) }; }
+    return { x: r.left + 8, y: r.top + 8, ok: false, who: W(old), old: W(old) }; }, { id, i, folded }, `[pickCell] 칸 ${i + 1} 누를 점(임자·같은 자리 두 번 · 받은 값 끝 = 임자)`)
+    .then((p) => { console.log('[pickCell DIAG]', i, folded ? '접힘' : '펼침', '옛 왼위+8 임자 =', p.old, '· 고른 점 임자 =', p.who); return p; });
   if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) {
     const p0 = await at(true), q0 = [p0.x, p0.y];
     await page.mouse.dblclick(q0[0], q0[1]);
@@ -491,8 +497,8 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   let op = null;
   await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
       return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);
-    const same = !!op && Math.round(op.x) === Math.round(p.x) && Math.round(op.y) === Math.round(p.y); op = p; return { hit: p.hit, same, who: p.who }; },
-    { message: '★펼침 중 옆 글자 자리 = 글자(같은 자리 두 번) — 받은 값의 who = 덮은 것', intervals: [50] }).toMatchObject({ hit: true, same: true });
+    const same = !!op && Math.round(op.x) === Math.round(p.x) && Math.round(op.y) === Math.round(p.y); op = p; return `${p.hit}|${same}|${p.who}`; },
+    { message: '★펼침 중 옆 글자 자리 = 글자(같은 자리 두 번) — 받은 값 끝 = 덮은 것', intervals: [50] }).toMatch(/^true\|true\|/);
   expect(op.open, '[전제] 아직 펼친 채(자름 없음)').toBe('none');
   expect(op.hit, `★펼침 중 옆 글자 자리를 덮은 것 = ${op.who}`).toBe(true);
   await page.mouse.click(op.x, op.y);
