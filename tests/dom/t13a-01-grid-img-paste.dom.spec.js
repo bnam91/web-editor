@@ -6,7 +6,7 @@
  * 고정 대기 0(dom-fixed-wait-census · 261119 태양): 고정 대기 9곳 → 조건 대기(그림 뜸 · 고름 상태 · 붙여넣기 뒤 문서 바뀜 · 복사 뒤 두 프레임) · 단언 무변
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js --workers=1 t13a-01 */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 const q = (o) => JSON.stringify(o).replace(/"/g, '&quot;');
 const COLS = q([{ width: 1, lines: [{ type: 'body', text: '가' }, { type: 'image', imgSrc: 'data:image/png;base64,' + PNG }] }, { width: 1, lines: [{ type: 'body', text: '다' }] }]);
@@ -26,16 +26,31 @@ async function setup(page) {
   }, SEC);
   /* 고정 대기 0(dom-fixed-wait-census) — 그림 줄 자리가 그려지고 그 그림이 떴을 때까지 */
   await page.waitForFunction(() => { const e = document.querySelector('#gG .grd-img-frame[data-line="1"]') || document.querySelector('#gG [data-r="0"][data-c="0"][data-line="1"]'); const r = e?.getBoundingClientRect(); const im = document.querySelector('#gG img'); return !!r && r.width > 0 && r.height > 0 && (!im || (im.complete && im.naturalWidth > 0)); });
+  /* 첫 배율 맞추기가 늦게 끝난다(_root-harness 주석) — 멎기 전에 잰 좌표는 빗나가고, 아래 기다림은 다시 누르지 않아 30초를 다 쓴다(cand15·j16 I3 :96 · 둘째 setup 은 그림이 캐시라 더 빨리 와서 더 잘 걸린다) */
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+}
+/** 누를 점 — 그 점의 임자가 그리드 안이고 두 번 내리 같은 자리일 때(조건 대기 · 고정 대기 0). which = 'img' | 'text0' */
+async function pointAt(page, which) {
+  let p = null, prev = '';
+  await expect.poll(async () => {
+    p = await page.evaluate((which) => {
+      const e = which === 'img' ? (document.querySelector('#gG .grd-img-frame[data-line="1"]') || document.querySelector('#gG [data-r="0"][data-c="0"][data-line="1"]'))
+        : document.querySelector('#gG [data-r="0"][data-c="0"][data-line="0"]');
+      const r = e.getBoundingClientRect(); const x = which === 'img' ? r.left + r.width / 2 : r.left + 8, y = r.top + r.height / 2;
+      return { x, y, own: !!document.elementFromPoint(x, y)?.closest('#gG') };
+    }, which);
+    const k = `${p.x},${p.y}`, same = k === prev; prev = k; return p.own && same;
+  }, { message: `[전제] ${which} 점의 임자가 그리드이고 자리가 멎었다`, intervals: [50] }).toBe(true);
+  return [p.x, p.y];
 }
 /* 키 처리기(복사)는 키 이벤트 안에서 같은 틱에 끝난다 — 두 프레임 뒤를 잰다(고정 대기 0 · 슬라이드 R4 와 같은 꼴) */
 const frames2 = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 /* 붙여넣기 뒤 — 문서가 바뀌고(그리드·에셋·칸 줄 수 중 하나) 에셋이 자리를 가질 때까지 · 안 바뀌면 그대로 넘어가 아래 단언이 진다 */
 const sig = (page) => page.evaluate(() => { const g = document.getElementById('gG'); let lines = -1; try { lines = window.getGridModel(g).cells.flat().reduce((n, c) => n + c.lines.length, 0); } catch {} return [document.querySelectorAll('#canvas .grid-block').length, document.querySelectorAll('#canvas .asset-block').length, lines].join(','); });
-const imgXY = (page) => page.evaluate(() => { const e = document.querySelector('#gG .grd-img-frame[data-line="1"]') || document.querySelector('#gG [data-r="0"][data-c="0"][data-line="1"]'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
 async function selectImg(page) {
   /* 한 번 = 블럭 고름 · 두 번 = 그림 줄 고름 — 누를 때마다 그 상태가 될 때까지 */
   for (let i = 0; i < 2; i++) {
-    const [x, y] = await imgXY(page); await page.mouse.click(x, y);
+    const [x, y] = await pointAt(page, 'img'); await page.mouse.click(x, y);
     await page.waitForFunction((i) => { const b = document.getElementById('gG'); return i === 0 ? !!b?.classList.contains('selected') : (window.grdGetLineSel?.(b) || []).length > 0; }, i);
   }
   await page.evaluate(() => document.activeElement?.blur?.());
@@ -81,7 +96,7 @@ test('I1b 그림 줄 ⌘C → 그리드 줄을 고른 채 ⌘V = 그림 줄 +1(�
 });
 test('I3 지키는 시험 — 그리드 «블럭»만 고른 ⌘C → ⌘V 는 그리드 +1(에셋 0) · 글 줄 ⌘C 는 줄 복사 그대로', async ({ page }) => {
   await setup(page);
-  const [x, y] = await imgXY(page);
+  const [x, y] = await pointAt(page, 'img');
   await page.mouse.click(x, y); await page.waitForFunction(() => !!document.getElementById('gG')?.classList.contains('selected'));   // 첫 클릭 = 블럭
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('Meta+c'); await frames2(page);
@@ -90,7 +105,7 @@ test('I3 지키는 시험 — 그리드 «블럭»만 고른 ⌘C → ⌘V 는 �
   expect({ grids: s1.grids, assets: s1.assets }).toEqual({ grids: 2, assets: 0 });
   await setup(page);
   for (let i = 0; i < 2; i++) {
-    const [tx, ty] = await page.evaluate(() => { const r = document.querySelector('#gG [data-r="0"][data-c="0"][data-line="0"]').getBoundingClientRect(); return [r.left + 8, r.top + r.height / 2]; });
+    const [tx, ty] = await pointAt(page, 'text0');
     await page.mouse.click(tx, ty);
     /* 글 줄 둘째 누름 = 줄 고름(또는 활성 줄 · 글 고침 진입) — 셋 중 하나가 될 때까지 */
     await page.waitForFunction((i) => { const b = document.getElementById('gG'); return i === 0 ? !!b?.classList.contains('selected') : ((window.grdGetLineSel?.(b) || []).length > 0 || !!window.grdGetActiveLine?.(b) || !!document.activeElement?.isContentEditable); }, i);
