@@ -427,6 +427,7 @@ export function showShapeProperties(block) {
     // 다시 쓰면 안 된다(2026-09-19: 모자이크→블러→이동→모자이크 에서 옛 위치 모자이크가 뜨던 버그).
     const wasMosaic = block.dataset.shapeRedact === 'true' && block.dataset.shapeRedactMode === 'mosaic';
     block.classList.toggle('shape-redact', !!on);
+    window.applyFxShadow?.(block);   // t13B-02 — 그림자 갈래(drop-shadow ↔ 상자)를 가림막 상태에 맞춘다
     if (on) {
       block.dataset.shapeRedact = 'true';
       // ★최소 2px — 0(무의미한 흐림)인데 토글만 켜진 채 남는 "가려진 줄 착각" 방지
@@ -487,6 +488,7 @@ export function showShapeProperties(block) {
   // 저장된 프로젝트 로드 등으로 dataset과 클래스가 어긋났을 때 방어적으로 동기화
   if (canRedact) {
     block.classList.toggle('shape-redact', isRedact);
+    window.applyFxShadow?.(block);   // t13B-02 — 옛 문서(가림막+drop-shadow)도 열면 상자 그림자로
     if (isRedact) {
       if (redactMode === 'blur') block.style.setProperty('--redact-blur', `${redactBlur}px`);
       else if (!window.isMosaicCaptured?.(block)) _trackMosaicCapture(window.captureMosaicSnapshot?.(block, { join: true }));

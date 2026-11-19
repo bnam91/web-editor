@@ -5379,6 +5379,7 @@ function updateShapeBlock(blockId, partial = {}) {
       delete block.dataset.shapeRedactMode;
       block.classList.remove('shape-redact');
       block.style.removeProperty('--redact-blur');
+      window.applyFxShadow?.(block);   // t13B-02
       _invalidateRedactMosaic(block);
       applied.shapeRedact = false;
     }
@@ -5453,6 +5454,7 @@ function updateShapeBlock(blockId, partial = {}) {
       return { ok: false, code: 'INVALID', message: `shapeRedact only supported for rectangle/ellipse (current: ${curType})` };
     }
     block.classList.toggle('shape-redact', on);
+    window.applyFxShadow?.(block);   // t13B-02 — 그림자 갈래를 가림막 상태에 맞춘다
     if (on) {
       block.dataset.shapeRedact = 'true';
       const bp = Number.isFinite(Number(partial.shapeRedactBlur)) ? Number(partial.shapeRedactBlur) : (Number(block.dataset.shapeRedactBlur) || 8);

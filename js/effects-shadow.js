@@ -112,8 +112,15 @@ export function applyFxShadow(el) {
   if (el.classList && el.classList.contains('grid-block')) { window.applyGridBlockBg?.(el); return; }
   const fx = fxShadowOf(el);
   const t = _target(el);
-  const trace = !!(t.style && t.style.filter);
+  /* t13B-02 — 가림막(.shape-redact)은 칠이 비어(fill:none · 배경 α 0.001) drop-shadow 가 그릴 실루엣이 없다 → 그림자가 사라졌다.
+     그때만 상자 그림자(box-shadow · 원은 그 CSS 의 border-radius 50% 를 따른다 · 그리드 배경 층 fxShadowBoxOf 와 같은 식).
+     ⇒ 가림막을 켜고 끄는 자리는 이 함수를 다시 부른다(prop-shape applyRedact · block-factory shapeRedact). */
+  const boxy = !!t.classList?.contains('shape-redact');
+  const hasBox = !!t.classList?.contains('shape-block') && !!(t.style && t.style.boxShadow);
+  const trace = !!(t.style && t.style.filter) || hasBox;
   if (fx.state === 'none' && !trace) return;
+  if (fx.state === 'on' && boxy) { t.style.removeProperty('filter'); t.style.boxShadow = fxShadowBoxOf(t.dataset); return; }
+  if (hasBox) t.style.removeProperty('box-shadow');
   if (fx.state === 'on') t.style.filter = _css(fx);
   else { t.style.removeProperty('filter'); _dropEmptyStyle(t); }
 }
