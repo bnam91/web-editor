@@ -73,7 +73,12 @@ async function loadEngine() {
     ["from './fx/anim-gif-text.js'", "from './anim-gif-text.mjs'"],
     ["from './fx/anim-gif-tracks.js'", "from './anim-gif-tracks.mjs'"],
     ["import { sectionBgColor } from './io/export-image.js';", "const sectionBgColor = () => '#ffffff';"],
+    /* ★기대 바뀜(SLIDE-FX-SWIPE-TRAIL-01 286fd47ca 가 엔진에 두 import 를 더함 · cand16 단위 전수 261120): 잔상 세기 슬라이더는 GIF 패널의
+       슬라이드 칸에서만 그려진다 — 이 연기 시험(글 효과)은 그 길을 안 탐 ⇒ 패널 도우미는 빈 꼴로 · 상수는 진짜 모듈(slide-motion.js 는 import 0)을 복사. */
+    ["import { sliderRowHTML, bindSlider } from './props/_helpers.js';", "const sliderRowHTML = () => ''; const bindSlider = () => {};"],
+    ["from './fx/slide-motion.js'", "from './slide-motion.mjs'"],
   ];
+  fs.writeFileSync(path.join(dir, 'slide-motion.mjs'), read('js/fx/slide-motion.js'));
   for (const [a, b] of subs) { assert.ok(eng.includes(a), `[전제] 엔진 import 꼴: ${a}`); eng = eng.replace(a, b); }
   fs.writeFileSync(path.join(dir, 'engine.mjs'), eng);
 

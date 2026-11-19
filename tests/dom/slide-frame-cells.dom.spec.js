@@ -985,7 +985,9 @@ test('X1 빈 영역 두 번 누름 = 나옴 · 칸 안은 그대로 · 펼친 �
   await page.mouse.dblclick(inCell.x, inCell.y);
   expect(await open(), '★칸 안 두 번 = 그대로 펼침').toBe(true);
   const gray = await stable(() => page.evaluate(() => { const w = document.getElementById('canvas-wrap').getBoundingClientRect(), c = document.getElementById('canvas').getBoundingClientRect(); const x = (w.left + c.left) / 2, y = (c.top + Math.min(c.bottom, w.bottom)) / 2, e = document.elementFromPoint(x, y);
-    return { x, y, ok: c.left - w.left >= 20 && !!e?.closest('#canvas-wrap') && !e.closest('#canvas') }; }), '[전제] 캔버스 밖 회색 점');
+    /* 화면 px 를 숫자(옛 «≥ 20»)와 견주지 않는다(dom-screen-px-census Z3 · 배율 따라 뜻이 바뀜 · cand16 단위 전수 261120) —
+       «회색 여백이 있다» = 두 상자 비교 · «누를 점이 회색» = 그 점의 임자(elementFromPoint)로 잰다(stable = 두 번 같은 자리). */
+    return { x, y, ok: c.left > w.left && !!e?.closest('#canvas-wrap') && !e.closest('#canvas') }; }), '[전제] 캔버스 밖 회색 점');
   await page.mouse.dblclick(gray.x, gray.y);
   await expect.poll(open, '★캔버스 밖 회색 두 번 = 나옴').toBe(false);
   expect(await zs(), '★나온 뒤 z 2 · 2').toEqual(['2', '2']);
