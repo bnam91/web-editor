@@ -2812,6 +2812,22 @@ function syncSlideCellBands(block, cells = [], axis = 'col') {
       b.textContent = String(i + 1);
       b.title = '끌어서 칸 순서 바꾸기 · 칸 고르고 ⌘←/→';
       b.style.cssText = 'position:absolute;z-index:97;pointer-events:auto;';
+      /* 띠 탭(안 끈 누름) = 그 칸 고름 — 그리드 머리띠 _grdBandForwardTap 과 같은 어법(현빈 7112 «띠가 보이면 띠가 이긴다» · 지디 261120 ⓐ):
+         띠 밑에 다른 블럭이 있어도 탭은 띠 것 · 그 블럭은 띠 «밖»을 누르거나 Esc 로 푼 뒤 고른다. 고름 상태 = 패널 칸 줄 누름(prop-slide.js)과 같은 꼴. */
+      b.addEventListener('click', (e) => {
+        const tap = b._grdTap === true; b._grdTap = false;
+        if (!tap) return;
+        e.preventDefault(); e.stopPropagation();
+        const c = (window.slideCellsOf?.(block) || [])[i]; if (!c) return;
+        const act = document.activeElement; if (act && act !== document.body && typeof act.blur === 'function') act.blur();
+        window.unfoldSlide?.(block, true);
+        window.deselectAll?.();
+        c.closest('.section-block')?.classList.add('selected');
+        c.classList.add('selected');
+        window._activeFrame = c;
+        window.showFrameHandles?.(c);
+        window.showSlideProperties?.(block, { cell: c });
+      });
       b.addEventListener('mousedown', (e) => {
         const cs = () => window.slideCellsOf?.(block) || [];
         _bandDragReorder(e, {
@@ -2836,24 +2852,7 @@ function syncSlideCellBands(block, cells = [], axis = 'col') {
       b.style.top = r.top + 'px'; b.style.height = r.height + 'px';
       b.style.left = (br.left - GRD_BAND_GAP - GRD_BAND_T) + 'px'; b.style.width = GRD_BAND_T + 'px';
     }
-    /* 띠는 블럭 «밖»(위·왼쪽) 띠 자리에 선다 — 그 자리에 «다른 블럭»이 있으면 띠가 누름을 먹어 그 블럭을 못 고른다(지혜맥 261120 P1 · 펼침 중 바로 위 글자).
-       ⇒ 띠 밑(왼·가운데·오른)에 슬라이드 밖 블럭이 있으면 그 띠는 누름을 놓는다(pointer-events none · 칸 순서는 ⌘←/→ 그대로). 빈 바탕 위 띠는 그대로 끈다. */
-    b.style.pointerEvents = _bandOverOther(b, block) ? 'none' : 'auto';
   });
-}
-/** 띠 밑에 슬라이드(와 그 조상) 밖의 다른 블럭이 있나 — 선택 오버레이 층은 건너뛰고 그 아래 맨 위 요소를 본다. */
-function _bandOverOther(band, block) {
-  const r = band.getBoundingClientRect(), y = r.top + r.height / 2, sel = window.SECTION_BLOCK_TYPE_SEL || '.text-block, .asset-block, .shape-block, .frame-block';
-  for (const x of [r.left + 3, r.left + r.width / 2, r.right - 3]) {
-    for (const e of document.elementsFromPoint(x, y)) {
-      if (e.closest('#ss-handles-overlay, #grd-plus-layer')) continue;
-      if (block.contains(e)) break;
-      const blk = e.closest?.(sel);
-      if (blk && !blk.contains(block)) return true;
-      break;
-    }
-  }
-  return false;
 }
 window.syncSlideCellBands = syncSlideCellBands;
 

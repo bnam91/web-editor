@@ -496,9 +496,11 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   await page.evaluate((oid) => document.getElementById(oid).scrollIntoView({ block: 'center', inline: 'center' }), otherId);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
   /* 지혜맥 261120 1/3 빨강: 한 번 잰 점을 곧장 눌렀다(스크롤·배율이 멎기 전) → 임자 맞음 + 같은 자리 두 번 뒤 누름 · 고름은 poll
-     jsfc5 3/3 받은 값 끝 = DIV.grd-headband → 141 칸 위 띠가 바로 위 글자를 덮음 = 제품 고침(overlay-handles _bandOverOther) · CTL _patches/slide-frame-CTL48-band-eats-click.patch */
+     ★기대 바뀜(지디 261120 ⓐ · 현빈 7112 «띠가 보이면 띠가 이긴다» = 그리드 R1 과 같은 뜻): 펼친 슬라이드의 칸 위 띠(141)가 옆 글자 일부를 덮으면 그 자리 탭은 띠 것(B1 이 잰다).
+     옆 글자는 «띠 밖» 점(그 글자가 맨 위인 점)을 눌러 고른다 — 글자 안 격자에서 임자 = 글자인 첫 점. */
   let op = null;
-  await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
+  await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(); let x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
+      for (const fy of [0.5, 0.25, 0.75, 0.1, 0.9]) { if (e && (e === t || t.contains(e))) break; for (const fx of [0.5, 0.25, 0.75]) { const xx = r.left + r.width * fx, yy = r.top + r.height * fy, ee = document.elementFromPoint(xx, yy); if (ee && (ee === t || t.contains(ee))) { x = xx; y = yy; e = ee; break; } } }
       return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);
     const same = !!op && Math.round(op.x) === Math.round(p.x) && Math.round(op.y) === Math.round(p.y); op = p; return `${p.hit}|${same}|${p.who}`; },
     { message: '★펼침 중 옆 글자 자리 = 글자(같은 자리 두 번) — 받은 값 끝 = 덮은 것', intervals: [50] }).toMatch(/^true\|true\|/);
@@ -1149,5 +1151,33 @@ test('X2 접힌 슬라이드 칸 틈 두 번 = 펼침 · 펼친 채 남음 · �
   await expect.poll(async () => { n = (await open()) ? n + 1 : 0; return n >= 2; }, { message: '★펼친 채 남음(두 번 연속 펼침 — 같은 이벤트로 곧장 접히지 않음)', intervals: [50] }).toBe(true);
   await page.mouse.dblclick(gap.x, gap.y);
   await expect.poll(open, '★펼친 뒤 새 두 번 누름 = 나옴(140 그대로)').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* B1 SLIDE-CELL-REORDER-01 띠 탭(지디 261120 ⓐ · 현빈 7112 «띠가 보이면 띠가 이긴다» — 그리드 머리띠 R1·E1 과 같은 어법)
+ *   P1 장면(칸 5 · 같은 섹션 글자) → 펼침 + 슬라이드 고름 → 띠가 옆 글자 위에 뜬 점(맨 위 = 띠 · 그 밑 = 글자)을 탭 = 그 띠의 칸이 골라진다 · 글자는 안 골라짐 · 펼침 그대로.
+ * 양성대조: _patches/slide-frame-CTL49-band-no-pointer.patch(칸 띠 pointer-events none) → 탭이 글자로 가 B1 빨강. */
+test('B1 펼침 중 칸 띠 탭 = 그 칸 고름(띠 밑 옆 글자 아님)', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate((id) => { const b = document.getElementById(id); window.addSlideCell(b); window.addSlideCell(b); window.selectSection(b.closest('.section-block')); }, id);
+  const otherId = await page.evaluate(() => { window._activeFrame = null; window.addTextBlock('body'); return document.querySelector('#canvas .section-block .text-block:not(.sld-cell .text-block)')?.id || null; });
+  expect(otherId, '[전제] 같은 섹션 글자').not.toBeNull();
+  await page.evaluate((id) => { window.selectBlock(id); window.unfoldSlide(document.getElementById(id), true); }, id);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  await expect.poll(() => page.locator('#ss-handles-overlay > .grd-headband[data-sld]').count(), '[전제] 칸 띠 다섯').toBe(5);
+  /* 띠가 글자 위에 뜬 점 — 맨 위 = 칸 띠 · 오버레이 밑 첫 요소 = 글자(같은 자리 두 번) */
+  let prev = '', pt = null;
+  await expect.poll(async () => {
+    pt = await page.evaluate((oid) => { const t = document.getElementById(oid), ovl = document.getElementById('ss-handles-overlay');
+      for (const b of ovl.querySelectorAll(':scope > .grd-headband[data-sld]')) { const r = b.getBoundingClientRect();
+        for (const fx of [0.5, 0.25, 0.75]) { const x = r.left + r.width * fx, y = r.top + r.height / 2, top = document.elementFromPoint(x, y), under = document.elementsFromPoint(x, y).find((e) => !ovl.contains(e));
+          if (top === b && under && (under === t || t.contains(under))) return { x, y, i: +b.dataset.i, ok: true }; } }
+      return { ok: false }; }, otherId);
+    const k = JSON.stringify(pt.ok && [Math.round(pt.x), Math.round(pt.y)]); const same = k === prev; prev = k; return pt.ok && same;
+  }, { message: '[전제] 칸 띠가 옆 글자 위에 뜬 점(같은 자리 두 번)', intervals: [50] }).toBe(true);
+  await page.mouse.click(pt.x, pt.y);
+  await expect.poll(() => page.evaluate(({ id, oid, i }) => { const b = document.getElementById(id), c = window.slideCellsOf(b)[i];
+    return { cell: c.classList.contains('selected') && window._activeFrame === c, text: document.getElementById(oid).classList.contains('selected'), open: b.classList.contains('sld-unfold') }; }, { id, oid: otherId, i: pt.i }),
+    `★띠 ${pt.i + 1} 탭 = 칸 ${pt.i + 1} 고름 · 옆 글자 안 골라짐 · 펼침 그대로`).toEqual({ cell: true, text: false, open: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
