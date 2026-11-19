@@ -199,7 +199,10 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
     added: ['grd-scope-block', 'grd-scope-col', 'grd-scope-row', 'grd-scope-line'],
     /* ★U1 뒤 갱신(261118 cand3 · 태양) — 옛 골든에 이미 있는 컨트롤은 «더함» 면제 없이 ③ 그대로 견준다(아래 :pool) ·
        그 뒤 뜻한 «더함»은 상태를 못박아 한 줄씩: 0.9.13 MOTION ea315d24e 블럭만 고른 판의 GIF 단추. */
-    addedLater: [{ id: 'open-anim-btn', states: ['block'], why: '0.9.13 MOTION 3단계 신호등 ea315d24e — _helpers.js animGifBtnHTML' }],
+    addedLater: [{ id: 'open-anim-btn', states: ['block'], why: '0.9.13 MOTION 3단계 신호등 ea315d24e — _helpers.js animGifBtnHTML' },
+      /* GRID-ROW-PADDING-PER-SIDE-01(6c2461ddb) 칸 안쪽 여백 묶음 사슬 단추 — 지디 261119 지혜맥 갱신 거절 목록 = 8상태 모두 이 단추 «하나»만 더해짐(뜻한 ③ 더함) */
+      { id: 'grd-cell-pad-chain', states: ['h2', 'body', 'gap', 'divider', 'image', 'badge', 'empty'], why: 'GRID-ROW-PADDING-PER-SIDE-01 6c2461ddb — 칸 꾸미기 패딩 사슬(.prop-chain-btn)' },
+      { id: 'grd-cellall-pad-chain', states: ['block'], why: 'GRID-ROW-PADDING-PER-SIDE-01 6c2461ddb — 모든 칸 패딩 사슬(.prop-chain-btn)' }],
     PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },
