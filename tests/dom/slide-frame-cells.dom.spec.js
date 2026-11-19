@@ -60,7 +60,7 @@
  *   slide-frame-CTL3-group-cell.patch(⌘G 칸 거르기 줄 삭제) → F2 빨강(칸이 묶음으로 빠짐) — 예측
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function scene(page, opts) {
   await page.setViewportSize({ width: 1500, height: 1100 });
@@ -485,8 +485,11 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   /* 저장본 흔적 0 · 저장→다시 열기 글 그대로 */
   await page.evaluate((id) => window.selectBlock(id), id);
   const savedSlide = await page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject());
-    const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id); return b ? { cls: b.className, ov: b.style.overflow, selIn: b.querySelectorAll('.selected').length } : null; }, id);
-  expect(savedSlide, '★저장본 슬라이드 = 펼침 흔적 0').toEqual({ cls: 'slide-block', ov: 'hidden', selIn: 0 });
+    const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id);
+    return b ? { cls: b.className, ov: b.style.overflow, clip: b.style.clipPath.startsWith('inset('), hsVar: b.style.getPropertyValue('--sld-hs-x'), selIn: b.querySelectorAll('.selected').length } : null; }, id);
+  /* ★기대 바뀜(SLIDE-CELL-SHADOW-CLIP-01 · 134 · 지디 261120): 저장본의 접힌 블럭 = overflow visible + 가로 clip-path(inset) — 옛 'hidden' 아님.
+     «펼침 흔적 0»은 그대로 잰다: 클래스 = slide-block 뿐(sld-unfold·sld-hs·selected 없음) · 밀기 변수 없음 · 안에 .selected 0 · 자름 = 접힌 꼴(inset). */
+  expect(savedSlide, '★저장본 슬라이드 = 펼침 흔적 0').toEqual({ cls: 'slide-block', ov: 'visible', clip: true, hsVar: '', selIn: 0 });
   await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
   expect(await page.evaluate((tid) => document.getElementById(tid)?.textContent.trim(), tid), '★다시 열어도 칸 4 글').toBe('칸넷고침');
   expect(errs, errs.join(' | ')).toEqual([]);
@@ -842,12 +845,13 @@ test('H1 칸 코너 반경 손잡이 = 프레임 것 · 끌면 반경·패널 �
  * 양성대조: slide-frame-CTL40-dots-band-symmetric.patch(띠를 옛 «갭×2+점»으로) → D1 빨강 — 예측 */
 test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 여백 고정 · ⌘Z', async ({ page }) => {
   const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 261120 지혜맥 DIAG: 배율이 멎기 전(실제 0.4566 · 이름 0.4)에 재서 9.1~9.5 — 멎은 뒤 잰다
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
   await page.locator('#sld-dots').selectOption('bottom');
   await expect(page.locator('#sld-dotgap-slider'), '[전제] 갭 슬라이더').toHaveCount(1);
   const gapTo = (v) => page.evaluate((v) => { const e = document.getElementById('sld-dotgap-slider'); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
   const geo = () => page.evaluate((id) => {
-    const b = document.getElementById(id), c = b.querySelector('.sld-cell'), d = b.querySelector(':scope > .sld-dots > span'), z = (window.currentZoom || 40) / 100;
+    const b = document.getElementById(id), c = b.querySelector('.sld-cell'), d = b.querySelector(':scope > .sld-dots > span'), z = b.getBoundingClientRect().height / b.offsetHeight;   // 실제 배율(블럭 화면 높이 ÷ 높이) — 이름 배율(currentZoom)이 아니라(D8 과 같은 자)
     const br = b.getBoundingClientRect(), cr = c.getBoundingClientRect(), dr = d.getBoundingClientRect(), r = (v) => Math.round(v / z);
     return { cellH: c.offsetHeight, blockH: b.offsetHeight, outer: r(br.bottom - dr.bottom), gap: r(dr.top - cr.bottom) };
   }, id);
@@ -895,6 +899,7 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
  * 양성대조: slide-frame-CTL42-unfold-drops-hscroll.patch(펼침이 밀린 거리 안 쥠) → K2 빨강 — 예측 */
 test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async ({ page }) => {
   const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 261120 지혜맥 DIAG: 블럭 자체가 538→578 로 움직임(칸 2 = 블럭 왼끝 그대로 · 밀기 494 유지 = 139 뜻대로) = 배율이 멎기 전에 «before» 를 잼
   const c2x = () => page.evaluate((id) => Math.round(document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect().left), id);
   const x = await page.evaluate((id) => { const b = document.getElementById(id); window.slideHScroll(b, b.querySelectorAll('.sld-cell')[1].offsetLeft); return window.slideHScroll(b);   /* 134 */ }, id);
   expect(x, '[전제] 밀렸다').toBeGreaterThan(0);
