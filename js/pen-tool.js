@@ -16,6 +16,7 @@
 //
 // 편집: window.enterPenEditMode(vbBlock) — dataset.penNodes 복원 → 오버레이에서 앵커/핸들 재편집.
 
+import { segmentPoints, splitSegment, nearestT } from './fx/bezier-split.js';   // 133 선분 눌러 점 더하기(순수)
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // F8: 정본 토큰(--ui-accent-primary)에서 런타임 1회 초기화. 미정의 시 #2d6fe8 폴백.
 const ACCENT = (() => {
@@ -608,7 +609,7 @@ function enterPenEditMode(block) {
     document.addEventListener('mousedown', _onEditOutsideDown, true);
     _editKeyBound = true;
   }
-  window.showToast?.('✎ 패스 편집 — 앵커/핸들 드래그, Delete=앵커삭제, ESC=완료');
+  window.showToast?.('✎ 패스 편집 — 앵커/핸들 드래그 · 선 누르면 점 추가 · Delete=앵커삭제 · ESC=완료');
 }
 
 function exitPenEditMode() {
@@ -670,6 +671,21 @@ function _renderEdit() {
   const m = _blockMap();
   const nodes = _edit.nodes;
 
+  /* 133 PEN-EDIT-ADD-POINT-ON-SEGMENT-01 — 선분마다 안 보이는 굵은 «누름 띠»(앵커·핸들보다 먼저 그려 그 아래) · 누르면 그 자리에 점 */
+  const segN = _edit.closed ? nodes.length : nodes.length - 1;
+  for (let i = 0; i < segN; i++) {
+    const sp = segmentPoints(nodes, i, _edit.closed);
+    if (!sp) continue;
+    const q = sp.map(m.toScreen);
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', `M ${_n(q[0].x)} ${_n(q[0].y)} C ${_n(q[1].x)} ${_n(q[1].y)} ${_n(q[2].x)} ${_n(q[2].y)} ${_n(q[3].x)} ${_n(q[3].y)}`);
+    p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'transparent'); p.setAttribute('stroke-width', '10');
+    p.dataset.segIdx = String(i);
+    p.style.pointerEvents = 'stroke'; p.style.cursor = 'copy';
+    p.addEventListener('mousedown', _onEditSegmentDown);
+    svg.appendChild(p);
+  }
+
   // 핸들 선 + 핸들 원
   nodes.forEach((n, i) => {
     const a = m.toScreen(n);
@@ -711,6 +727,21 @@ function _startEditRaf() {
     _editRaf = requestAnimationFrame(loop);
   }
   _editRaf = requestAnimationFrame(loop);
+}
+
+/* 133 — 선분 누름 = 가장 가까운 t 에서 나눠 점 하나(곡선 = de Casteljau 로 모양 무변 · 직선 = 핸들 없는 꼭짓점) · 새 점 고름 · 이력 한 칸(_commitEdit) */
+function _onEditSegmentDown(e) {
+  if (e.button !== 0 || !_edit) return;
+  e.stopPropagation(); e.preventDefault();
+  const i = parseInt(e.currentTarget.dataset.segIdx);
+  const sp = segmentPoints(_edit.nodes, i, _edit.closed);
+  if (!sp) return;
+  const { t } = nearestT(sp, _blockMap().toScreen, e.clientX, e.clientY);
+  const r = splitSegment(_edit.nodes, i, t, _edit.closed);
+  if (!r) return;
+  _edit.nodes = r.nodes;
+  _selectedNodeIdx = r.index;
+  _commitEdit();
 }
 
 function _onEditAnchorDown(e) {
