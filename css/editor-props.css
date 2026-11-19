@@ -128,7 +128,9 @@
 }
 .prop-value-text { font-size: var(--ui-fs-base); color: var(--ui-text-sub); }
 .prop-count-btn { background:var(--ui-bg-input); border:1px solid var(--ui-border-mid); color:var(--ui-text-sub); width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:var(--ui-fs-14); line-height:1; display:flex; align-items:center; justify-content:center; }
-.prop-count-btn:hover { background:var(--ui-border); color:#fff; }
+.prop-count-btn:not(:disabled):hover { background:var(--ui-border); color:#fff; }
+/* VISUAL-10(261119): 끝에서 꺼진 −/+ = 앱 공용 꺼짐 꼴(Buzz·Radial·표 한 규칙 — Radial 인라인 흐림 걷음) */
+.prop-count-btn:disabled { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 .prop-count-val { font-size:var(--ui-fs-base); color:var(--ui-text-sub); min-width:20px; text-align:center; }
 
 .prop-slider {

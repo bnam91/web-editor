@@ -322,9 +322,9 @@ function radialArrangeSectionHTML(ss) {
       </div>
       <div class="prop-row"${isPoly ? ' title="꼭짓점 수로 고정"' : ''}>
         <span class="prop-label">항목 수</span>
-        <button class="prop-count-btn" id="ss-radial-count-minus" style="${isPoly || m.count <= countMin ? off : ''}">−</button>
+        <button class="prop-count-btn" id="ss-radial-count-minus"${isPoly || m.count <= countMin ? ' disabled' : ''}>−</button>
         <span class="prop-count-val" id="ss-radial-count-val">${m.count}</span>
-        <button class="prop-count-btn" id="ss-radial-count-plus" style="${isPoly || m.count >= countMax ? off : ''}">+</button>
+        <button class="prop-count-btn" id="ss-radial-count-plus"${isPoly || m.count >= countMax ? ' disabled' : ''}>+</button>
         <!-- 「꼭짓점 수로 고정」은 줄 툴팁(위) — 패널당 힌트 ≤2(right-panel-unify U3 · 평가 F4) -->
       </div>
       ${_sliderRow('반지름', 'ss-radial-radius', RA_LIMITS.RADIUS_MIN, m.radiusMax, 2, m.radius)}
