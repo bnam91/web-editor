@@ -94,7 +94,10 @@ async function _adminLocal() {
       }
       (out.merge[a.mergeInto] = out.merge[a.mergeInto] || []).push(...items); out.merge[a.mergeInto].src = a; continue; }
     const col = { ...a, items };
-    if (a.groups) {   // 하위 폴더 = 캐릭터 묶음(이름 없음 → «캐릭터 N» = Frame 번호 그대로)
+    if (a.groups === 'folder') {   // 하위 폴더 = 이름 있는 묶음(브랜드 로고: 결제·판매채널 …) — 폴더·파일 이름 그대로
+      col.groups = _groupByFolder(items).map(([g, its]) => ({ name: g.replace(/_/g, ' '), items: its }));
+      col.items = col.groups[0].items;
+    } else if (a.groups) {   // 하위 폴더 = 캐릭터 묶음(이름 없음 → «캐릭터 N» = Frame 번호 그대로)
       col.groups = _groupByFolder(items)
         .map(([g, its]) => ({ name: `캐릭터 ${g.replace(/^Frame_/, '')}`, items: its.sort((x, y) => _nodeNo(x.file) - _nodeNo(y.file)).map((it, i) => ({ ...it, name: `포즈 ${i + 1}` })) }));
       col.items = col.groups[0].items;
@@ -111,6 +114,18 @@ async function _localSvg(it) {
   const r = await _localRead(it);
   const clean = r && r.ok && r.svg ? sanitizeSvgString(r.svg, { maxLen: SVG_MAX_LEN_CEIL }) : '';
   return clean ? normalizeMonoSvg(clean) : null;
+}
+
+/** 로컬 SVG → «그림»(data URL · 거른 글자 그대로 = 색 원본 · 단색 정규화 안 함) + 크기. 실패 = null. (asImage 묶음 — 로고 변형 금지) */
+async function _localSvgImage(it) {
+  const r = await _localRead(it);
+  const clean = r && r.ok && r.svg ? sanitizeSvgString(r.svg, { maxLen: SVG_MAX_LEN_CEIL }) : '';
+  if (!clean) return null;
+  const bytes = new TextEncoder().encode(clean);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  const { w, h } = svgImportSize(clean);
+  return { src: `data:image/svg+xml;base64,${btoa(s)}`, w, h };
 }
 
 /** 동봉 그림 → data URL. 데스크톱 = IPC(asar 안도 읽음) · 브라우저 판(electronAPI 없음·null) = fetch.
@@ -200,8 +215,9 @@ function _bundledMonoSvg(dataUrl) {
 
 async function _insert(col, it, img) {
   try {
-    if (it.loc && /\.svg$/i.test(it.file)) { await _insertLocalSvg(col, it); return; }
-    const src = it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
+    const svgImg = it.loc && /\.svg$/i.test(it.file) && col.asImage ? await _localSvgImage(it) : null;   // 로고 SVG = 그림으로(크기는 SVG 자기 값 — 칸 썸네일은 img 가 아니다)
+    if (it.loc && /\.svg$/i.test(it.file) && !col.asImage) { await _insertLocalSvg(col, it); return; }
+    const src = svgImg ? svgImg.src : it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
     if (!src) throw new Error(`${it.loc}/${it.file} 읽기 실패`);
     if (col.rawSvg && /\.svg$/i.test(it.file)) { _insertRawSvg(it, src); return; }   // t13F-06 QA 샘플 = 들여온 SVG 와 같은 길
     const mono = !it.loc && /\.svg$/i.test(it.file) ? _bundledMonoSvg(src) : null;
@@ -209,7 +225,7 @@ async function _insert(col, it, img) {
     const t = _target();
     if (!t) return;
     /* 모달은 열린 채(LIB-MODAL-STAY-OPEN-01 · dev b18b10604 — free-image 쪽 closeLibraryModal 은 옛 dev 바탕의 줄이라 안 살림) · 넣기 = 공용 insertImageAsAsset(free-image 7094a578c) 에 target */
-    const ab = insertImageAsAsset(src, img?.naturalWidth, img?.naturalHeight, it.w || col.w, t);
+    const ab = insertImageAsAsset(src, svgImg?.w || img?.naturalWidth, svgImg?.h || img?.naturalHeight, it.w || col.w, t);   // 로고 SVG(asImage) = SVG 자기 크기(칸 썸네일은 img 가 아니다)
     if (ab) _done(it);
   } catch (e) {
     console.warn('[library] 그림 읽기 실패:', e);

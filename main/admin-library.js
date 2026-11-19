@@ -12,7 +12,8 @@ const DIRS = {
   'doodle-figma-191-38': { ext: ['svg'], nested: false },
   'arrow-figma-191-2': { ext: ['svg'], nested: false },
   'memoji-inclusive-192-2': { ext: ['webp'], nested: true },   // PNG 원본은 admin-library-prep.cjs 로 webp 를 옆에 만든 뒤 webp 만
-  'doodle-figma-more': { ext: ['svg', 'png'], nested: true, pngOnlyIfNoSvg: true },   // 두들002·003 묶음 폴더 · PNG@2x 는 같은 이름 SVG 가 없을 때만(재추출 53/53 이면 0)
+  'doodle-figma-more': { ext: ['svg', 'png'], nested: true, pngOnlyIfNoSvg: true },
+  'brand-logos': { ext: ['svg', 'webp'], nested: true },   // LIB-BRAND-LOGO-ASSETS-01 — 묶음 폴더(결제·판매채널·…·인증표시) · 래스터는 WebP 로 손질된 본만   // 두들002·003 묶음 폴더 · PNG@2x 는 같은 이름 SVG 가 없을 때만(재추출 53/53 이면 0)
 };
 const MIME = { svg: 'image/svg+xml', webp: 'image/webp', png: 'image/png' };
 const SEG = /^[\w.\-가-힣]+$/;   // 폴더·파일 이름 한 마디(묶음 폴더는 한글 «두들002_…») — 경로 문자·공백·`..` 는 아래서 따로 막는다
