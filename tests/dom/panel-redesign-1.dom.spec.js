@@ -193,6 +193,8 @@ test('P5a 좌우패딩 — 잠금 한 줄이 둘을 같이 · 사슬 → 세 줄
   await setNum(page, '#txt-pl-number', 24); await setNum(page, '#txt-pr-number', 24);   // 일부러 좌 = 우
   await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, id);   // 다시 열기
   expect((await padRows(page)).pressed, '★풀어 둔 것을 «좌 = 우» 로 잠갔다(Q26)').toBe('false');
+  /* QA 경3 — 다시 연 풂 패널의 사슬 그림 = 끊긴 사슬(aria-pressed 와 같은 뜻) */
+  expect(await page.evaluate(() => document.querySelector('#txt-ph-chain line').getAttribute('x1')), '★풂으로 다시 열었는데 이어진 사슬 그림').toBe('5.2');
   await page.click('#txt-ph-chain');
   expect([(await padRows(page)).pressed, await linkedOf(page, id)]).toEqual(['true', '1']);
   expect(errs, errs.join(' | ')).toEqual([]);

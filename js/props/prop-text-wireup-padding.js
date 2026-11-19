@@ -42,8 +42,10 @@ export function wirePaddingSection({ tb, phLinked: phLinkedArg }) {
       if (phLinked) {
         const v = parseInt(plSlider.value);
         tb.style.paddingRight = v + 'px';
+        tb.dataset.customPadR = '1';   // 옛 잠금 경로(setL)와 같은 부수 처리 — 손댐 표시 · 말풍선 꼬리
         prSlider.value = v; prNumber.value = v;
         if (phSlider) { phSlider.value = v; phNumber.value = v; }
+        _syncBubbleTail();
       }
       showLinked();
       window.pushHistory?.('좌우패딩 잠금');   // 적용 먼저 → 이력(push-after · 정렬 단추와 같은 순서)

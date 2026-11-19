@@ -204,7 +204,7 @@ export function buildTextPanelSpec(state) {
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
             <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
-            <line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>
+            <line ${phLinked ? 'x1="4.5" y1="6" x2="7.5" y2="6"' : 'x1="5.2" y1="4.8" x2="6.8" y2="7.2"'} stroke-linecap="round"/>
           </svg>
         </button>
       </div>

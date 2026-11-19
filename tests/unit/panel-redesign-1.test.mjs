@@ -133,12 +133,16 @@ test('R5b 텍스트 좌우패딩 — 잠금 = 한 줄(#txt-ph-*) · 풂 = 그 �
   assert.match(on, /id="txt-pl-row" hidden>/); assert.match(on, /id="txt-pr-row" hidden>/);
   const off = T.buildTextPropsHtml({ ...GOLDEN_STATE, phLinked: false });
   assert.match(off, /id="txt-ph-slider"[^>]*style="visibility:hidden"/, '★풀었는데 한 줄 슬라이더가 보인다');
-  assert.match(off, /id="txt-pl-row">\s*<span class="prop-label">좌측패딩/); assert.match(off, /id="txt-pr-row">\s*<span class="prop-label">우측패딩/);
+  assert.match(off, /id="txt-pl-row">\s*<span class="prop-label">좌측패딩/);
+  /* QA 경3 — 그림이 저장된 상태를 따른다(풂 = 끊긴 사슬 · 잠금 = 이어진 사슬 · aria-pressed 와 같은 뜻) */
+  assert.match(off, /id="txt-ph-chain"[\s\S]*?<line x1="5\.2" y1="4\.8" x2="6\.8" y2="7\.2"/, '★풂인데 이어진 사슬 그림');
+  assert.match(on, /id="txt-ph-chain"[\s\S]*?<line x1="4\.5" y1="6" x2="7\.5" y2="6"/); assert.match(off, /id="txt-pr-row">\s*<span class="prop-label">우측패딩/);
   const read = stripComments(readSrc(ROOT, 'js/props/prop-text.js'));
   assert.match(read, /phLinked\s*=\s*tb\.dataset\.padXLinked != null \? tb\.dataset\.padXLinked === '1' : currentPadL === currentPadR/, '★잠금을 저장값에서 안 읽는다(Q26)');
   const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-padding.js'));
   assert.match(wire, /tb\.dataset\.padXLinked = phLinked \? '1' : '0';[\s\S]*showLinked\(\);\s*window\.pushHistory\?\.\(/, '★사슬이 블럭에 쓰고 이력을 남기지 않는다');
   assert.match(wire, /phSlider\?\.addEventListener\('input', \(\) => setL\(/);
+  assert.match(wire, /if \(phLinked\) \{[\s\S]*?tb\.dataset\.customPadR = '1';[\s\S]*?_syncBubbleTail\(\);\s*\}\s*showLinked\(\);/, '★다시 잠글 때 손댐 표시·꼬리 맞춤이 빠졌다(QA 경3)');
 });
 
 /* ⑧ 끝 옵션 칼럼 — 토큰 하나(--ui-opt-col-w) · 절 몸이 그만큼 비워 두고 머리 손잡이·줄 끝 사슬만 그 칼럼에. 양성대조: padding-right 규칙을 지우면 빨강 */
