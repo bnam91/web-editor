@@ -315,10 +315,11 @@ test('P12b 메뉴로 만든 텍스트 블럭마다 켜진 타입 칸 = 정확히
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-/* B(시안 v9 #4) — 텍스트 패널 라벨 크기 하나(칸 위 «Alignment» · 칸 안 «X»·«너비» = .prop-label 과 같은 크기). CTL prd1-13-labelfs.patch(규칙 삭제) → 빨강 */
-test('P13 텍스트 패널 — 칸 위·칸 안 라벨 글자 크기 = .prop-label 크기', async ({ page }) => {
+/* 라벨 크기 하나(시안 v9 #4) — ★기대 바뀜(지디 261120 전 패널): 텍스트 + 도형 패널에서 칸 위·칸 안 라벨 = .prop-label 크기.
+ *   CTL prd1-13-labelfs.patch(.prop-field-label 정의를 fs-10 으로) → 빨강 */
+for (const [cls, entry] of [['text-block', 'addTextBlock'], ['shape-block', 'addShapeBlock']]) test(`P13 ${cls} 패널 — 칸 위·칸 안 라벨 글자 크기 = .prop-label 크기`, async ({ page }) => {
   const errs = await scene(page);
-  await open(page, 'text-block', 'addTextBlock');
+  await open(page, cls, entry);
   const r = await page.evaluate(() => {
     const fs = (el) => getComputedStyle(el).fontSize;
     const want = fs(document.querySelector('#panel-right .prop-section[data-sec] .prop-label'));
@@ -327,6 +328,9 @@ test('P13 텍스트 패널 — 칸 위·칸 안 라벨 글자 크기 = .prop-lab
   });
   expect(r.got.length, '[전제] 칸 위·칸 안 라벨이 있다').toBeGreaterThan(2);
   for (const [t, f] of r.got) expect(f, `★«${t}» 라벨 크기`).toBe(r.want);
+  /* ⑧ 덧 — 틀 절 색 줄은 넘치지 않는다(색 칸 바닥값 121 · 정적 렌더 실측 128곳 → 0). CTL prd1-08b-colorfield.patch → 빨강 */
+  const over = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section[data-sec] .prop-color-row')].filter((e) => e.getClientRects().length && e.scrollWidth > e.clientWidth + 0.5).map((e) => e.textContent.trim().slice(0, 20)));
+  expect(over, '★색 줄이 넘친다(«%» 칸 잘림)').toEqual([]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

@@ -186,11 +186,14 @@ test('R12b 켜짐 = 정확히 한 칸 — H1·Label·Bubble · 곡선/아이콘�
   assert.doesNotMatch(html({ currentClass: 'tb-liner', isLiner: true }), /id="txt-kind-group"|data-sec="kind"/, '★곡선에 타입 절이 생겼다(시안 v10 = 칸 0)');
   assert.doesNotMatch(html({ isIconText: true }), /id="txt-kind-group"|data-sec="kind"/, '★아이콘텍스트에 타입 절이 생겼다(시안 v10 = 칸 0)');
 });
-/* B(시안 v9 #4) — 텍스트 패널 절의 칸 위 · 칸 안 라벨 = --ui-fs-base 하나. 양성대조: 그 규칙을 지우면 빨강 */
-test('R13 텍스트 패널 라벨 글자 크기 = --ui-fs-base(.prop-field-label · .prop-xy-label) · 다른 패널 기본 그대로', () => {
+/* 라벨 크기 하나(시안 v9 #4) — ★기대 바뀜(지디 261120: 텍스트 패널만 → 전 패널 · 공용 클래스 정의 자리 한 곳). 양성대조: 정의를 fs-10 으로 되돌리면 빨강 */
+test('R13 라벨 글자 크기 = --ui-fs-base — .prop-field-label · .prop-xy-label 정의 자리(전 패널) · 텍스트 전용 규칙 없음', () => {
   const props = css('css/editor-props.css');
-  assert.match(props, /\.prop-section\[data-order="text"\] :is\(\.prop-field-label, \.prop-xy-label\)\s*\{\s*font-size:\s*var\(--ui-fs-base\)/);
-  assert.match(props, /\.prop-field-label\s*\{\s*font-size:\s*var\(--ui-fs-10\)/, '[대조] 전역 기본은 그대로');
+  assert.match(props, /\.prop-field-label\s*\{\s*font-size:\s*var\(--ui-fs-base\)/);
+  assert.match(props, /\.prop-xy-label\s*\{[^}]*font-size:\s*var\(--ui-fs-base\)/);
+  assert.doesNotMatch(props, /data-order="text"\] :is\(\.prop-field-label/, '★텍스트 전용 규칙이 남았다');
+  /* ⑧ 덧 — 틀 절 색 칸 바닥값(정적 렌더 실측 · 색 줄 128곳 넘침 → 0) */
+  assert.match(props, /\.prop-section\[data-sec\] \.prop-color-field\s*\{\s*min-width:\s*121px/);
 });
 
 /* 시안 v10 ⑤ — 컬러 변수 칩 줄은 끝 옵션 칼럼까지 · 한 줄. 양성대조: 규칙을 지우면 빨강 */
