@@ -46,3 +46,17 @@ test('R11 #txt-align-group · #txt-style-group 켜짐 = border-mid 바탕 · bor
   assert.doesNotMatch(m[1], /#[0-9a-f]{3,8}\b|accent/i, '★리터럴 색·파란 채움');
   assert.match(props, /\.prop-align-btn\.active\s*\{[^}]*--ui-accent-primary/, '[대조] 다른 묶음의 파란 켜짐은 그대로');
 });
+
+/* ⑩ 텍스트 패널 «Font»·«글자색» 라벨 글 걷음 — 칸은 그대로 · 이름은 aria-label. 다른 패널(모달·그리드)은 기본 인자 = 라벨 그대로.
+ *   양성대조: prop-text-template.js 의 fontLabel:false / colorLabel:false 를 빼면 빨강 */
+test('R10 텍스트 패널 산출에 «Font»·«글자색» 라벨 0 · 고르개·색 칸은 있다 · 공용 빌더 기본은 라벨 있음', () => {
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
+  assert.doesNotMatch(html, /class="prop-field-label"[^>]*>Font</, '★«Font» 라벨이 남았다');
+  assert.doesNotMatch(html, /class="prop-label">글자색</, '★«글자색» 라벨이 남았다');
+  assert.match(html, /id="txt-font-trigger" type="button" aria-label="Font"/);
+  assert.match(html, /<input type="color" id="txt-color" value="[^"]*" aria-label="글자색">/);
+  const typo = readSrc(ROOT, 'js/props/_typo-section.js');
+  assert.match(typo, /fontLabel = true/, '[대조] 공용 빌더 기본 = 라벨 있음(모달·그리드 바이트 동일)');
+  assert.match(typo, /colorLabel = true/);
+});

@@ -87,3 +87,19 @@ test('P11 켜진 정렬·B 단추 = border-mid 바탕 · border-strong 테두리
   await page.locator('#txt-style-group .prop-style-btn').first().click();   // 되돌림
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑩ 텍스트 패널 «Font»·«글자색» 라벨 글 없음 · 칸은 그대로 · 색 칸이 줄 폭을 쓴다. CTL prd1-10-labels.patch(fontLabel:false 빼기) → 빨강 */
+test('P10 텍스트 패널 — «Font»·«글자색» 라벨 없음 · 고르개 · 색 칸 그대로 · 색 칸 왼쪽 = 고르개 왼쪽', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const labs = [...document.querySelectorAll('#panel-right .prop-label, #panel-right .prop-field-label')].map((l) => l.textContent.trim());
+    const fp = document.getElementById('txt-font-picker').getBoundingClientRect(), cf = document.getElementById('txt-color').closest('.prop-color-field').getBoundingClientRect();
+    return { font: labs.includes('Font'), color: labs.includes('글자색'), dl: Math.round(cf.left - fp.left) };
+  });
+  expect([r.font, r.color], '★라벨 글이 남았다').toEqual([false, false]);
+  expect(Math.abs(r.dl), '★색 칸이 라벨 자리만큼 들여졌다').toBeLessThanOrEqual(1);
+  await expect(page.locator('#txt-font-trigger')).toHaveAttribute('aria-label', 'Font');
+  await expect(page.locator('#txt-color')).toHaveAttribute('aria-label', '글자색');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

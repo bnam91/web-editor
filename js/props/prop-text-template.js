@@ -76,7 +76,7 @@ export function buildTextPanelSpec(state) {
    * ★말풍선(Bubble)은 special 한 절에 모은다 — ⛔Typography/Fill 에 넣지 마라: 줄 모드(js/blocks/line-host.js
    *   _hideBlockTypo)가 «#txt-font-picker·#txt-color 가 든 절 통째»를 숨겨 말풍선 손잡이까지 사라진다. */
   const _typo = buildTypographySectionHtml({
-      p: 'txt', bare: true,
+      p: 'txt', bare: true, fontLabel: false,   /* 재설계 1차 ⑩ — «Font» 라벨 글 걷음(텍스트만) */
       font: currentFont, weight: currentWeight, size: currentSize,
       isBold, isItalic, isStrike, isHighlight, isUnderline,
       lh: currentLH, ls: currentLS,
@@ -96,7 +96,7 @@ export function buildTextPanelSpec(state) {
       mix: _mix,
     });
   /* ★「최근 그라데이션」 줄도 ★텍스트 패널만 — 글자 그라데이션 배선이 wireTextEditSection 에만 있다. */
-  const _fill = buildFillSectionHtml({ p: 'txt', bare: true, colorHex: currentColor, alpha: currentColorAlpha, mix: _mix, showGradRecent: true });
+  const _fill = buildFillSectionHtml({ p: 'txt', bare: true, colorLabel: false, colorHex: currentColor, alpha: currentColorAlpha, mix: _mix, showGradRecent: true });
 
   /* Effects — 한 절 key. 보통 텍스트 = fx 명부(window.fxSectionParts → {headTools, body, id}) · 말풍선·태그·아이콘텍스트 = 그림자 조절칸. */
   const _shadowOn = `

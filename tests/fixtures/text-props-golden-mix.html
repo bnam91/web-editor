@@ -73,9 +73,8 @@
       <div class="prop-section-title" id="psec-typography-head"><span class="prop-sec-title-text">Typography</span></div>
       </div>
       <div class="prop-sec-body" id="psec-typography-body">
-      <span class="prop-field-label">Font</span>
       <div class="font-picker" id="txt-font-picker">
-        <button class="font-picker-trigger" id="txt-font-trigger" type="button">
+        <button class="font-picker-trigger" id="txt-font-trigger" type="button" aria-label="Font" title="Font">
           <span class="font-picker-current" id="txt-font-name">기본 (시스템)</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -135,11 +134,10 @@
       <div class="prop-section-title" id="psec-fill-head"><span class="prop-sec-title-text">Fill</span></div>
       </div>
       <div class="prop-sec-body" id="psec-fill-body">
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
+      <div class="prop-color-row" title="글자색">
         <div class="prop-color-field">
           <div class="prop-color-swatch swatch-mix" style="background:linear-gradient(135deg,#bbb 25%,#777 25%,#777 50%,#bbb 50%,#bbb 75%,#777 75%)" title="Mix — 일부 선택 후 색상 변경">
-            <input type="color" id="txt-color" value="#ff3366">
+            <input type="color" id="txt-color" value="#ff3366" aria-label="글자색">
           </div>
           <input type="text" class="prop-color-hex" id="txt-color-hex" value="" placeholder="Mix" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">

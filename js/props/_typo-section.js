@@ -89,6 +89,7 @@ export function buildTypographySectionHtml({
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
   showFont = true, showWeight = true, showLineHeight = true,
+  fontLabel = true,   /* false = «Font» 라벨 글 걷음(이름은 고르개 aria-label·title) — 텍스트 패널만(패널 재설계 1차 ⑩) · 기본 = 바이트 동일 */
   showHighlightOpts = false, hlColorHtml = '', hlH = 100, hlY = 0,
   showUnderline = false,
   showUnderlineOpts = false, ulColorHtml = '', ulThick = '', ulOffset = '',
@@ -182,10 +183,10 @@ export function buildTypographySectionHtml({
        ★칸 꼴은 형광펜과 같다: colorFieldHTML(색＋불투명도%) ＋ range/number 쌍(세기 0~100 → --tb-glow-k 0~1).
        ⚠️240px 패널 폭: 단추 7개 × 28px ＋ 간격 6 × 4px = 220px · 섹션 좌우 패딩 8+8 을 빼면 224px 남는다(★코드로만 셌다 — 안 쟀다.
          스크롤바·상위 여백은 안 셌다. 모자라면 flex 기본 shrink 로 단추가 줄어든다 — 넘치지는 않을 것으로 «읽었다»). */
-  const _body = `
-      <span class="prop-field-label"${_hide(showFont)}>Font</span>
+  const _body = `${fontLabel ? `
+      <span class="prop-field-label"${_hide(showFont)}>Font</span>` : ''}
       <div class="font-picker" id="${p}-font-picker"${_hide(showFont)}>
-        <button class="font-picker-trigger" id="${p}-font-trigger" type="button">
+        <button class="font-picker-trigger" id="${p}-font-trigger" type="button"${fontLabel ? '' : ' aria-label="Font" title="Font"'}>
           <span class="font-picker-current" id="${p}-font-name">${font ? escHtml(_fontDisplayName(font)) : '기본 (시스템)'}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -364,7 +365,7 @@ ${_body}
  * @param {boolean} o.showGradRecent ★「최근 그라데이션」 줄 표시. ⛔기본 false = 이전과 «바이트 동일»
  *                              (텍스트 패널만 true — 글자 그라데이션 배선이 wireTextEditSection 에만 있다)
  */
-export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false } = {}) {
+export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false, colorLabel = true } = {}) {   // colorLabel false = «글자색» 라벨 글 걷음(텍스트 패널만 · 재설계 1차 ⑩)
   const _mix = mix || _NO_MIX;
   /* ★스와치(colorHex)와 hex 칸(colorHexVal)이 «다른 것»을 말할 수 있다 — 층이 다르기 때문이다:
      스와치는 「지금 무슨 색인가」(진실), hex 칸은 「누가 그 색을 정했나」(명시/역할 기본).
@@ -375,11 +376,11 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
   const _swatchExtraClass = _mix.color.mixed ? ' swatch-mix' : '';
 
   const _body = `
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
+      <div class="prop-color-row"${colorLabel ? `>
+        <span class="prop-label">글자색</span>` : ' title="글자색">'}
         <div class="prop-color-field">
           <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
-            <input type="color" id="${p}-color" value="${colorHex}">
+            <input type="color" id="${p}-color" value="${colorHex}"${colorLabel ? '' : ' aria-label="글자색"'}>
           </div>
           <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
