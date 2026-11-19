@@ -65,13 +65,29 @@ async function pressX(page, id) {
   await waitStableRect(page, `.scratch-item[data-scratch-id="${id}"]`); await page.mouse.click(c.x, c.y); await settle(page);   // 골라야 ✕ 가 선다
   /* ✕ 는 «그 좌표의 주인»이고 자리가 두 번 내리 같을 때 누른다 — 고른 뒤 자리가 한 번 더 움직이면 잰 좌표가 옆 ✂ 를 눌렀다
      (cand13 지혜맥 X6 오류 문맥: ✂ [active] · ✕ 남음). 같은 evaluate 에서 재고 맞혀 본다(조건 대기 · 고정 대기 없음). */
-  let b = null, prev = '';
-  await expect.poll(async () => {
-    if (b) await page.mouse.move(b.x, b.y);   // 사람처럼 ✕ 위에 손을 올린 채 잰다(✕ 는 장 :hover 때만 눌린다)
+  let b = null, prev = '', mouse = { x: c.x, y: c.y }, polls = 0;
+  try { await expect.poll(async () => {
+    polls++;
+    if (b) { await page.mouse.move(b.x, b.y); mouse = { x: b.x, y: b.y }; }   // 사람처럼 ✕ 위에 손을 올린 채 잰다(✕ 는 장 :hover 때만 눌린다)
     b = await page.evaluate((id) => { const x = document.querySelector(`.scratch-item[data-scratch-id="${id}"] .scratch-close`); const r = x.getBoundingClientRect();
       const p = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; const e = document.elementFromPoint(p.x, p.y); return { ...p, own: !!e && (e === x || x.contains(e)) }; }, id);
     const k = `${b.x},${b.y}`, same = k === prev; prev = k; return b.own && same;
-  }, { message: '[전제] ✕ 가 그 좌표의 주인이고 자리가 멎었다', intervals: [50] }).toBe(true);
+  }, { message: '[전제] ✕ 가 그 좌표의 주인이고 자리가 멎었다', intervals: [50] }).toBe(true); } catch (err) {
+    /* [X-DIAG] 진단만(지디 261119) — 끝내 주인이 못 됐을 때 «그 순간 그 자리의 주인»을 한 줄로 남기고 원래 오류를 그대로 던진다(단언·문구·대기 무변). */
+    const d = await page.evaluate(([id, b, m]) => {
+      const el = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`), x = el?.querySelector('.scratch-close');
+      const R = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map((v) => Math.round(v * 10) / 10); };
+      const tag = (e) => e ? e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : '') : null;
+      const cs = x ? getComputedStyle(x) : null;
+      return { ptAt: b && document.elementsFromPoint(b.x, b.y).slice(0, 4).map(tag), mouse: m, mouseAt: document.elementsFromPoint(m.x, m.y).slice(0, 3).map(tag),
+        close: cs && { pe: cs.pointerEvents, vis: cs.visibility, op: cs.opacity, disp: cs.display, rect: R(x), txt: x.textContent },
+        item: el && { hover: el.matches(':hover'), cls: el.className, rect: R(el), z: getComputedStyle(el).zIndex },
+        hovered: [...document.querySelectorAll(':hover')].slice(-2).map(tag), focus: tag(document.activeElement), hasFocus: document.hasFocus(), vis: document.visibilityState,
+        items: document.querySelectorAll('.scratch-item').length, zoom: window.currentZoom };
+    }, [id, b, mouse]);
+    console.log('[X-DIAG]', JSON.stringify({ id, polls, last: b, prev, ...d }));
+    throw err;
+  }
   await page.mouse.move(b.x, b.y); await page.mouse.click(b.x, b.y);
   await expect.poll(() => present(page, id), { message: '[전제] 지워졌다' }).toBe(false);
 }
