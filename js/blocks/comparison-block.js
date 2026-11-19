@@ -5,7 +5,7 @@ import { bindBlock } from '../drag-drop.js';
 import { _cvbBackgroundSize } from './canvas-block.js';   // ★D3 — 이미지 확대 식 한 벌(카드와 같은 필드 imgScale/imgFit)
 import { normalizeRedact, applyRedact } from '../effects/image-redact.js';   // ★D4 — 셀 이미지 블러(Redact) 공용 모듈(C1 · 에셋과 한 벌)
 import { lnHasLines, lnLinesHtml, lnValidateLines, lnPlainText, lnRemark } from './line-host.js';   // ★D2 — 칸 안 «줄»(버블·챗과 같은 주인 계약 · 사본 금지)
-import { GRID_ROLES } from './grid-block.js';   // ★D2 — 문서에 안 붙은 블럭의 줄 높이 근사(역할 크기 × 줄높이)
+import { GRID_ROLES, gridPlusLayer } from './grid-block.js';   // ★D2 — 문서에 안 붙은 블럭의 줄 높이 근사(역할 크기 × 줄높이)
 /* ★1017t1c4 — 행 높이의 바닥·천장은 ★한 곳에서 온다(js/grid-cell-resize.js). 패널(.cmp-row-h)·캔버스 드래그(overlay-handles.js)와 ★같은 수를 쓴다.
    ⛔여기 16·400 을 다시 적지 마라 — 그리드가 「패널 4000 / 드래그 2000」으로 갈렸던 그 결함의 거울상이다. */
 import { CMP_ROW_H_MIN, CMP_ROW_H_MAX } from '../grid-cell-resize.js';
@@ -1070,6 +1070,101 @@ window.cmpRowSetLines         = cmpRowSetLines;   // ★D2 — line-host 비교 
    ★읽는 자가 없으면 드래그는 ★아무것도 안 쓴다(빈 배열로 떨어지면 «다른 행의 높이»를 지운다) — 그 가드는 그쪽에 있다. */
 window.cmpRowHeights          = cmpRowHeights;
 window.cmpFeatScale           = cmpFeatScale;   // ★1017t1c4 — 드래그가 강조 칼럼 높이를 되돌려 셈할 때 쓴다
+
+/* ══ t13C-10 캔버스 ＋ — 행 위(맨 앞)·아래(맨 끝)에 «전 칼럼» 한 행 ══════════════════════════════════
+ * ★부품 = 그리드 ＋ 그대로(새 컴포넌트 0): 층 = gridPlusLayer()(#grd-plus-layer · #canvas 밖 ⇒ 저장·PNG·MCP 에 안 샌다 · E65) ·
+ *   꼴 = `.ln-add-btn[data-grd-add="row"]`(css/editor-blocks.css 같은 규칙 · 로렐 1013t1B2 선례 — ⛔`.grd-add-btn` 은 문서 전체 개수를 세는 시험이 있다).
+ * ★자리 = 블럭 가로 가운데 · 위 ＋ 는 블럭 위 끝 «바깥»(인라인 transform 으로 한 칸 위) · 아래 ＋ 는 블럭 아래 끝 바깥(그리드 아래 ＋ 와 같다).
+ * ★뜨는 조건 = 골라짐 · 편집 아님(로렐 ＋ 와 같다). 상한 = 칼럼당 20행(updateComparisonBlock 잣대) ⇒ 흐림(disabled).
+ * ★이력 = 패널 「+ 행 추가」와 같은 push-after 한 번 ⇒ ⌘Z 한 걸음. */
+const CMP_ROWS_MAX = 20;
+const _cmpPlusBtns = new Map();   // block → { top, bot } (떠 있는 것만)
+const _cmpPlusShown = b => !!(b && b.isConnected && b.classList.contains('selected') && !b.classList.contains('editing'));
+function cmpAddRowAt(block, where) {
+  const c = getComparisonCols(block.dataset);
+  if (!c.length || c.some(x => (x.rows || []).length >= CMP_ROWS_MAX)) return false;
+  for (const x of c) { x.rows = x.rows || []; if (where === 'top') x.rows.unshift(cmpEmptyRow()); else x.rows.push(cmpEmptyRow()); }
+  setComparisonCols(block, c);
+  if (where === 'top') {   // 행 높이는 행 인덱스 단위 — 맨 앞에 끼우면 한 칸씩 민다(빈 배열이면 그대로)
+    const arr = cmpRowHeights(block.dataset);
+    if (arr.length) { arr.unshift(null); block.dataset.rowHeights = JSON.stringify(arr); }
+  }
+  renderComparison(block);
+  window.pushHistory?.();
+  window.scheduleAutoSave?.();
+  if (block.classList.contains('selected')) window.showComparisonProperties?.(block);
+  return true;
+}
+function _cmpMakePlusBtn(block, where) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ln-add-btn';
+  btn.dataset.grdAdd = 'row';
+  btn.dataset.cmpAdd = where;
+  if (block.id) btn.dataset.lnFor = block.id;
+  btn.title = where === 'top' ? '맨 위에 행 추가' : '맨 아래에 행 추가';
+  btn.setAttribute('aria-label', btn.title);
+  if (where === 'top') btn.style.transform = 'translate(-50%, -100%)';
+  // ⛔캔버스 쪽 손(마키·선택 해제·더블클릭 편집)으로 새지 않게 — 그리드 ＋(_makeGridAddBtn)와 같은 세 겹
+  btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); });
+  btn.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); if (btn.disabled) return; cmpAddRowAt(block, where); });
+  return btn;
+}
+function _cmpDropPlus(block) {
+  const p = _cmpPlusBtns.get(block);
+  if (p) { p.top.remove(); p.bot.remove(); }
+  _cmpPlusBtns.delete(block);
+}
+function _cmpPlacePlus(block) {
+  const p = _cmpPlusBtns.get(block);
+  const scaler = p && p.top.parentElement && p.top.parentElement.parentElement;
+  if (!p || !scaler) return;
+  const sr = scaler.getBoundingClientRect();
+  const scale = (window.currentZoom || 40) / 100;   // ← grid-block.js _placeGridAddBtns 와 같은 식
+  const br = block.getBoundingClientRect();
+  const x = ((br.left + br.right) / 2 - sr.left) / scale + 'px';
+  const put = (b, y) => { const t = (y - sr.top) / scale + 'px'; if (b.style.left !== x) b.style.left = x; if (b.style.top !== t) b.style.top = t; };
+  put(p.top, br.top); put(p.bot, br.bottom);
+  const full = getComparisonCols(block.dataset).some(c => (c.rows || []).length >= CMP_ROWS_MAX);
+  for (const b of [p.top, p.bot]) if (b.disabled !== full) b.disabled = full;
+}
+let _cmpPlusRaf = 0;
+function _cmpStartPlusRaf() {
+  if (_cmpPlusRaf || typeof requestAnimationFrame !== 'function') return;
+  const loop = () => {
+    _cmpPlusRaf = 0;
+    for (const blk of [..._cmpPlusBtns.keys()]) {
+      if (!_cmpPlusShown(blk)) { _cmpDropPlus(blk); continue; }   // 풀림·삭제·⌘Z 교체·편집
+      _cmpPlacePlus(blk);
+    }
+    if (_cmpPlusBtns.size) _cmpPlusRaf = requestAnimationFrame(loop);
+  };
+  _cmpPlusRaf = requestAnimationFrame(loop);
+}
+function cmpSyncPlus(block) {
+  if (!_cmpPlusShown(block)) { _cmpDropPlus(block); return; }
+  const L = gridPlusLayer();
+  if (!L) return;
+  let p = _cmpPlusBtns.get(block);
+  if (!p || !p.top.isConnected || !p.bot.isConnected) {
+    _cmpDropPlus(block);
+    p = { top: _cmpMakePlusBtn(block, 'top'), bot: _cmpMakePlusBtn(block, 'bottom') };
+    L.append(p.top, p.bot);
+    _cmpPlusBtns.set(block, p);
+  }
+  _cmpPlacePlus(block);
+  _cmpStartPlusRaf();
+}
+/** block-drag.js isComparison 이 묶을 때 한 번 — class(골라짐·풀림·편집)가 바뀌면 다시 맞춘다(로렐 lrlBindPlus 와 같은 꼴). */
+function cmpBindPlus(block) {
+  if (!block || block._cmpPlusBound || typeof MutationObserver !== 'function') return;
+  block._cmpPlusBound = true;
+  new MutationObserver(() => cmpSyncPlus(block)).observe(block, { attributes: true, attributeFilter: ['class'] });
+  cmpSyncPlus(block);
+}
+window.cmpBindPlus = cmpBindPlus;
+window.cmpAddRowAt = cmpAddRowAt;
 
 /* ⛔isCmpPlaceholderText 를 여기 더하지 마라 — 위에서 이미 `export function` 이다(중복 export = 문법 오류).
    2026-10-08 에 내가 실제로 이 줄로 깨뜨렸고, ★자가 그걸 ★못 잡았다. 실측(★어느 판인지 같이 적는다 —

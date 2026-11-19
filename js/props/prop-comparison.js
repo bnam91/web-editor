@@ -50,13 +50,14 @@ export function showComparisonProperties(block) {
             <button class="prop-align-btn cmp-row-fit${fit === 'contain' ? ' active' : ''}" data-col="${idx}" data-idx="${i}" data-fit="contain" style="flex:1;font-size:10px;">원본 비율</button>
           </div>`;
       }
+      // t13C-12 — body 는 제 .prop-row 두 줄이다. ⛔바깥 .prop-row(flex·overflow:hidden)로 또 싸지 마라 — 두 줄이 한 줄로 눌려 깨진다.
       return `
         <div class="cmp-row-edit" style="margin-bottom:6px;border-bottom:1px solid var(--border-subtle,#2a2a2a);padding-bottom:6px;">
           <div class="prop-row" style="gap:4px;align-items:center;">
             ${typeToggle}${heightInput}
-            <button class="prop-btn prop-btn-danger cmp-row-del" data-col="${idx}" data-idx="${i}" style="width:24px;margin-left:auto;">×</button>
+            <button class="prop-btn cmp-row-del" data-col="${idx}" data-idx="${i}" title="행 삭제" style="width:24px;margin-left:auto;">×</button>
           </div>
-          ${body ? `<div class="prop-row" style="gap:4px;margin-top:4px;">${body}</div>` : ''}
+          ${body}
         </div>`;
     }).join('');
     /* 묶음 B #18 — 칸 색이 비면 «그려진» 색(렌더: 강조 칸 #fff/#1a1a1a · 나머지 #e9ebef/#9aa0a8). 옛 표시는 늘 #fff/#1a1a1a. */
