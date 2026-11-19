@@ -256,6 +256,8 @@
     'dragging', 'ss-drag-over', 'drag-over', 'hovered',
     'frame-see-through',                         // t2-07(261112) 지나감 아웃라인 표식(js/block-drag.js mouseenter) — 규칙 밖 이름이라 손으로 든다. 안 들면 저장본·⌘Z 표본에 샜다(nested-frame-width-cap W1)
     'pin-peek',                                  // ⑦ 섹션 핀 «전체 보기»(js/section-pin.js) — 저장·히스토리에 안 남긴다
+    'pen-editing',                               // 펜 점 편집 대상 강조(js/pen-tool.js F15) — 규칙 밖 이름이라 손으로 든다. 안 들면 편집 중 표본에 실리고 Esc 가 걷는 순간 «미기록 변경»이 돼
+                                                 //   ⌘Z 가 체크포인트를 먼저 쌓고 그 칸만 되돌렸다(인텔 261120 A1 DIAG: ⌘Z 뒤 len 5→6 · pos 4 · 점 그대로) — cmp-img-editing 과 같은 병
   ];
   /** 클래스 토큰 하나가 «런타임 전용»인가. */
   function isRuntimeMarker(cls) {

@@ -46,6 +46,9 @@ test('A1 곡선 선분 누름 = 점 추가 · 모양 무변 · ⌘Z · 저장', 
   expect(await page.evaluate(() => [...document.querySelectorAll('.vpen-edit-overlay rect')].filter((r) => r.getAttribute('fill') !== '#fff').length), '★새 점 고름').toBe(1);
   const s1 = await shape(page);
   await hd('점 추가 뒤');
+  /* 인텔 261120 A1 DIAG 판정 = 제품: 편집 강조 클래스(pen-editing)가 표본에 실려 Esc 가 걷는 순간 «미기록 변경» → ⌘Z 가 체크포인트를 먼저 쌓음.
+     편집 중에도 저장 글자(= 이력 표본)에 그 클래스가 없어야 한다(section-serialize RUNTIME_MARKER_CLS) */
+  expect(await page.evaluate(() => /pen-editing/.test(window.getSerializedCanvas())), '★편집 강조 클래스는 저장·이력 표본에 안 실린다').toBe(false);
   expect(s1.map((v, i) => Math.abs(v - s0[i]) <= 0.5), `★모양 무변 ${JSON.stringify([s0, s1])}`).toEqual([true, true, true, true, true]);
   const r1 = await screenBox(page);
   expect(r1.map((v, i) => Math.abs(v - r0[i]) <= 1), `★화면 자리 무변(안 뜀) ${JSON.stringify([r0, r1])}`).toEqual([true, true, true, true]);
