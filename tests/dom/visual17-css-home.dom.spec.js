@@ -70,23 +70,33 @@ async function readStable(page) {
   await expect.poll(async () => { const cur = JSON.stringify(Object.keys(await readAll(page)).sort()); const same = cur === prev; prev = cur; return same; }).toBe(true);
   return readAll(page);
 }
+/* hover = CDP CSS.forcePseudoState 로 단추 «자체»에 :hover 를 건다(지디 261120 · 실제 마우스 좌표는 덮개·줄 밀림에 세 번 걸렸다).
+   재려는 것은 CSS 규칙뿐이라 마우스 위치·덮개는 상관없다. 덮개 정보는 DIAG 한 줄로만 남긴다(판정 아님). */
 async function readHover(page) {
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none !important;animation:none !important}' });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('DOM.enable'); await cdp.send('CSS.enable');
+  const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+  const read = (sel) => page.evaluate(([s, props]) => { const cs = getComputedStyle(document.querySelector(s)); return Object.fromEntries(props.map((p) => [p, cs.getPropertyValue(p)])); }, [sel, PROPS]);
   const out = {};
   for (const sel of HOVER) {
-    const loc = page.locator(sel).first();
     expect(await page.locator(sel).count(), `[전제] ${sel} 있음`).toBeGreaterThan(0);
-    const box = await loc.boundingBox();
-    expect(box, `[전제] ${sel} 보임`).not.toBeNull();
-    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
-    /* 누를 점의 임자 = 그 단추(또는 그 안) — 두 번 연속 같은 답일 때 */
-    await expect.poll(() => page.evaluate(([s, x, y]) => { const t = document.querySelector(s); const h = document.elementFromPoint(x, y); return !!t && !!h && (t === h || t.contains(h)); }, [sel, cx, cy])).toBe(true);
-    await expect.poll(() => page.evaluate(([s, x, y]) => { const t = document.querySelector(s); const h = document.elementFromPoint(x, y); return !!t && !!h && (t === h || t.contains(h)); }, [sel, cx, cy])).toBe(true);
-    await page.mouse.move(cx, cy);
-    await expect.poll(() => page.evaluate((s) => document.querySelector(s).matches(':hover'), sel)).toBe(true);
-    out[sel] = await page.evaluate(([s, props]) => { const cs = getComputedStyle(document.querySelector(s)); return Object.fromEntries(props.map((p) => [p, cs.getPropertyValue(p)])); }, [sel, PROPS]);
-    await page.mouse.move(2, 2);
+    const diag = await page.evaluate((s) => {
+      const t = document.querySelector(s), r = t.getBoundingClientRect(), h = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      const nm = (e) => e ? `${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}${typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/).join('.') : ''}` : 'null';
+      return `${s} rect=${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)}x${Math.round(r.height)} 임자=${nm(h)}${h && (h === t || t.contains(h)) ? '(자기)' : ''}`;
+    }, sel);
+    console.log('[V17 DIAG]', diag);
+    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: sel });
+    expect(nodeId, `[전제] ${sel} CDP 노드`).toBeGreaterThan(0);
+    const rest = await read(sel);
+    await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: ['hover'] });
+    /* [전제] :hover 가 걸렸다 = 계산된 스타일이 가만히 때와 달라졌다(목록 단추 모두 :hover 규칙이 있다) */
+    await expect.poll(async () => JSON.stringify(await read(sel)) !== JSON.stringify(rest), `[전제] ${sel} :hover 걸림(스타일 바뀜)`).toBe(true);
+    out[sel] = await read(sel);
+    await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
   }
+  await cdp.detach();
   return out;
 }
 
