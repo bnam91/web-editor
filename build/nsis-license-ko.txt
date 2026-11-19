@@ -1,0 +1,52 @@
+﻿GODITOR 소프트웨어 최종 사용자 사용권 계약 (EULA) / End User License Agreement
+Copyright (c) 고야앤드미디어. All rights reserved.
+
+════════════════ 한국어 ════════════════
+
+1. 사용권 허여
+   고야앤드미디어(이하 «권리자»)는 이 소프트웨어(GODITOR, 이하 «소프트웨어»)를 설치·사용하는 사람(이하 «이용자»)에게 개인 또는 이용자 소속 조직의 업무 목적으로 소프트웨어를 사용할 수 있는 비독점적·양도 불가·재사용허락 불가의 사용권을 허여합니다. 소프트웨어는 판매가 아니라 «사용 허락»되며, 모든 권리는 권리자에게 있습니다.
+
+2. 제한
+   이용자는 관련 법령이 명시적으로 허용하는 범위(예: 저작권법 제101조의4의 호환성 확보 목적 역분석)를 제외하고 다음을 하지 않습니다.
+   (가) 소프트웨어의 복제, 수정, 2차적 저작물 작성, 배포, 대여, 임대, 재판매, 재허락
+   (나) 리버스 엔지니어링, 디컴파일, 디스어셈블, 소스 코드·내부 자료의 추출 또는 분석(AI 에이전트·자동화 도구를 이용한 것을 포함)
+   (다) 소프트웨어의 라이선스 확인·접근 제한 등 보호 장치의 회피·제거·무력화, 표시된 권리 고지의 삭제
+   (라) 소프트웨어를 이용하여 이와 경쟁하는 제품·서비스를 만드는 것
+   (마) 위법한 목적으로의 사용
+
+3. 지식재산권
+   소프트웨어와 그에 포함된 모든 저작물·상표에 대한 권리는 권리자 또는 그 라이선서에게 있습니다. 이 계약은 이용자가 만든 프로젝트·콘텐츠에 대한 권리를 이용자로부터 가져오지 않습니다. 소프트웨어에 포함된 제3자 오픈소스는 각 라이선스를 따릅니다.
+
+4. 무보증
+   소프트웨어는 «있는 그대로» 제공되며, 법이 허용하는 최대 범위에서 상품성·특정 목적 적합성·비침해·무오류·무중단에 관한 명시적·묵시적 보증을 하지 않습니다. 이용자는 중요한 작업물을 스스로 백업해야 합니다.
+
+5. 책임의 한계
+   법이 허용하는 최대 범위에서 권리자는 소프트웨어의 사용 또는 사용 불능으로 생긴 간접·부수·특별·결과적 손해, 데이터·이익의 손실에 대해 책임을 지지 않으며, 직접 손해에 대한 책임도 이용자가 소프트웨어에 대해 지급한 금액을 한도로 합니다. 다만 권리자의 고의 또는 중대한 과실, 그리고 법령상 배제·제한할 수 없는 책임은 제한하지 않습니다.
+
+6. 해지
+   이용자가 이 계약을 위반하면 사용권은 별도 통지 없이 종료될 수 있으며, 이 경우 이용자는 소프트웨어의 사용을 중단하고 모든 사본을 삭제해야 합니다. 제2조~제5조, 제7조는 종료 뒤에도 효력이 있습니다. 위반에 대해 권리자는 법령이 허용하는 구제수단(손해배상, 금지청구 등)을 행사할 수 있습니다.
+
+7. 준거법·관할
+   이 계약은 대한민국 법을 따르며, 분쟁은 수원지방법원 성남지원을 제1심 전속 관할로 합니다.
+
+8. 문의
+   권리자: 고야앤드미디어(대표 신현빈) · 사업자등록번호 655-24-01163
+   연락처: bnam91@goyamkt.com
+
+════════════════ English ════════════════
+
+1. Grant. 고야앤드미디어 ("Licensor") grants the person who installs or uses GODITOR (the "Software") ("User") a non-exclusive, non-transferable, non-sublicensable license to use the Software for the User's own or the User's organization's business purposes. The Software is licensed, not sold. All rights are reserved by Licensor.
+
+2. Restrictions. Except to the extent applicable law expressly permits (e.g., decompilation for interoperability under Article 101-4 of the Korean Copyright Act), User shall not: (a) copy, modify, create derivative works of, distribute, lend, lease, resell, or sublicense the Software; (b) reverse engineer, decompile, disassemble, or extract or analyze source code or internal materials of the Software, including by means of AI agents or automated tools; (c) circumvent, remove, or disable license checks or other protection mechanisms, or remove notices of rights; (d) use the Software to build a competing product or service; (e) use the Software for unlawful purposes.
+
+3. Intellectual property. All rights in the Software and its content and marks belong to Licensor or its licensors. This Agreement does not transfer to Licensor any rights in the projects or content User creates. Third-party open-source components are governed by their own licenses.
+
+4. Disclaimer. The Software is provided "AS IS". To the maximum extent permitted by law, Licensor disclaims all warranties, express or implied, including merchantability, fitness for a particular purpose, non-infringement, and uninterrupted or error-free operation. User is responsible for backing up important work.
+
+5. Limitation of liability. To the maximum extent permitted by law, Licensor is not liable for indirect, incidental, special, or consequential damages, or loss of data or profits, arising from use of or inability to use the Software, and Licensor's total liability for direct damages is limited to the amount User paid for the Software. This does not limit liability for willful misconduct or gross negligence, or liability that cannot be excluded or limited by law.
+
+6. Termination. If User breaches this Agreement, the license may terminate without notice; User must then stop using the Software and delete all copies. Sections 2–5 and 7 survive termination. Licensor may pursue all remedies available by law, including damages and injunctive relief.
+
+7. Governing law. This Agreement is governed by the laws of the Republic of Korea; the Seongnam Branch of the Suwon District Court has exclusive jurisdiction of first instance.
+
+8. Contact. 고야앤드미디어 (Representative: 신현빈), Business Registration No. 655-24-01163 — Contact: bnam91@goyamkt.com

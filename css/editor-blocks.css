@@ -2663,6 +2663,12 @@ body.redact-mosaic-off .shape-block.shape-redact[data-shape-redact-mode="mosaic"
 .frame-block:has(.shape-block[data-shape-rotation]) {
   overflow: visible;
 }
+/* t13B-01 — 도형 래퍼(도형 하나를 감싼 프레임)는 사용자 프레임이 아니라 껍데기다. 그림자 효과가 켜진 도형이면 껍데기는 안 자른다
+   (켜기 전엔 선택 중에만 풀려서, 선택을 풀면 그림자가 도형 상자에서 잘렸다). 바깥 «사용자» 프레임의 내용 자르기는 그대로 따른다(피그마 Clip content 와 같은 뜻).
+   직속 자식만 본다 — 바깥 프레임까지 풀면 내용 자르기 켬이 거짓이 된다. 껍데기에 명시로 자르기를 켠 경우는 위 !important 가 이긴다. */
+.frame-block:has(> .shape-block[data-fx-shadow="on"]) {
+  overflow: visible;
+}
 
 /* 0918 canvasgrad — 캔버스 그라데이션 바(.grad-line-overlay)가 떠 있는 동안 overflow 해제.
    CSS 그라데이션 선(banner02/comparison)은 길이 |w·sinA|+|h·cosA| 라 박스 밖으로 나가고,
