@@ -23,7 +23,8 @@ async function fresh(page) {
 async function pick(page, sel) {
   await page.evaluate(() => window.deselectAll?.());
   const r = await waitStableRect(page, sel);
-  await page.mouse.click(r.cx, r.cy); await page.waitForTimeout(80);
+  await page.mouse.click(r.cx, r.cy);
+  await expect.poll(() => page.evaluate((sel) => !!document.querySelector(sel)?.classList.contains('selected'), sel), '[pick] 골라짐').toBe(true);   // 고정 대기 0(cand7 t11 W3·W4)
   await page.evaluate(() => document.activeElement?.blur?.());
 }
 
@@ -34,13 +35,13 @@ test('C1 텍스트 블럭 선택 + 5 → tb-caption · dataset.type caption', as
   await pick(page, `#${id}`);
   const pre = await page.evaluate((id) => { const tb = document.getElementById(id); return { sel: tb.classList.contains('selected'), editing: !!document.querySelector('.text-block.editing') }; }, id);
   expect(pre, '★전제: 골랐고 편집 중이 아니다').toEqual({ sel: true, editing: false });
-  await page.keyboard.press('Digit5'); await page.waitForTimeout(150);
-  const r = await page.evaluate((id) => {
+  await page.keyboard.press('Digit5');
+  /* 고정 대기 0 — 같은 단언을 «될 때까지» 잰다(뜻 무변) */
+  await expect.poll(() => page.evaluate((id) => {
     const tb = document.getElementById(id);
     const ce = tb.querySelector('[contenteditable]') || tb.querySelector('.tb-caption,.tb-body');
     return { caption: ce.classList.contains('tb-caption'), body: ce.classList.contains('tb-body'), type: tb.dataset.type };
-  }, id);
-  expect(r).toEqual({ caption: true, body: false, type: 'caption' });
+  }, id)).toEqual({ caption: true, body: false, type: 'caption' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -52,7 +53,7 @@ test('C2 [지킴] 갭 블럭 선택 + 5 → 높이 160px', async ({ page }) => {
   const pre = await page.evaluate((id) => { const g = document.getElementById(id); return { sel: g.classList.contains('selected'), h: g.style.height }; }, id);
   expect(pre.sel, '★전제: 갭이 골라졌다').toBe(true);
   expect(pre.h, '★전제: 160 이 아닌 데서 시작').not.toBe('160px');
-  await page.keyboard.press('Digit5'); await page.waitForTimeout(150);
-  expect(await page.evaluate((id) => document.getElementById(id).style.height, id)).toBe('160px');
+  await page.keyboard.press('Digit5');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).style.height, id)).toBe('160px');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
