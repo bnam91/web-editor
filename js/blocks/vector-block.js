@@ -224,8 +224,12 @@ function renderVector(block) {
   if (!inner) return;
 
   /* VECTOR-MONO-COLOR-DOM-WALK-P1-02 — 글자 치환 대신 SVG 요소를 걸어 «검정 칠»만 고른 색으로(fill·stroke × 속성·style · 칠 없는 도형 = 뿌리 fill · currentColor = 뿌리 color 로 풀림).
-     (cand16 합침: dev LIB-FIGMA 의 «libMono 만 stroke currentColor 치환»은 이 걷기가 뿌리 color 로 이미 덮는다 — 라이브러리 단색 두들 그대로 색이 든다) */
+     (cand16 합침 바로잡음 261120: 뿌리 color 로 «화면 색»은 들지만 획 속성은 글자 그대로 currentColor 로 남는다 — dev LIB-FIGMA 는 «속성 값»을 색으로 박는 것이 뜻
+      (admin-local-library L1 이 drawn/after 를 getAttribute('stroke') 로 잰다 · 내보내기·Figma 도 속성을 읽음) ⇒ dev 줄을 걷기 뒤에 그대로 되살린다 · 다른 벡터엔 안 건다) */
   let processed = svgStr ? _paintBlack(svgStr, color) : '';
+  /* LIB-FIGMA(261118): 라이브러리발 단색 SVG(data-lib-mono=1)만 stroke 도 — 손그림 두들은 stroke 로 그린다.
+     ⛔다른 벡터엔 안 건다(기존 저장본의 stroke="currentColor" 는 지금처럼 CSS 상속색 · 무변). */
+  if (block.dataset.libMono === '1') processed = processed.replace(/stroke="currentColor"/gi, `stroke="${color}"`);
 
   /* VECTOR-RESIZE-STRETCH-01(현빈 261118): 핸들로 «끈» 벡터(data-stretch=1)만 피그마처럼 상자에 맞춰 늘어난다(preserveAspectRatio none).
      획은 늘이기 시작한 순간의 화면 굵기로 고정(non-scaling-stroke · stroke-width × data-stroke-k). ⛔표시 없는 기존 저장본은 지금처럼 meet(열자마자 안 늘어남). */
