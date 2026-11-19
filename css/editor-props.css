@@ -102,7 +102,7 @@
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 /* Effects ＋ 메뉴(시안 v8/v10 .mk8-menu 값 — 머리 오른쪽 아래에 뜨는 앱 메뉴 꼴 · 항목 = .fp-menu-item) */
 .prop-sec-head:has(> .prop-fx-menu) { position: relative; }
-.prop-fx-menu { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-space-2); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
+.prop-fx-menu { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
 .prop-fx-menu[hidden] { display: none; }
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);
@@ -155,13 +155,13 @@
   min-width: 10px;
   text-align: center;
 }
-.prop-xy-label--scrub { cursor: ew-resize; user-select: none; touch-action: none; }
+.prop-xy-label--scrub { cursor: ew-resize; user-select: none; touch-action: none; }   /* 라벨 좌우 끌기(재설계 1차 ⑥) */
 /* 회전 줄(Q17 · Q20 · 시안 v10 — 각도 칸 89 | 단추 27·27·27) — 반반 · 단추 사이 space-1 · «°» 꼬리 · 아이콘 끌기 */
 .prop-rot-row > .prop-icon-input, .prop-rot-row > .prop-rot-btns { flex: 1 1 50%; min-width: 0; }
 .prop-rot-btns { gap: var(--ui-space-1); flex-wrap: nowrap; }
 .prop-rot-btns > .prop-align-btn { flex: 1 1 0; min-width: 0; }
 .prop-rot-scrub { display: flex; align-items: center; cursor: ew-resize; user-select: none; touch-action: none; }
-.prop-icon-input > .prop-unit { flex-shrink: 0; color: var(--ui-text-dim); font-size: var(--ui-fs-base); margin-right: var(--ui-space-1_5); }   /* 라벨 좌우 끌기(재설계 1차 ⑥) */
+.prop-icon-input > .prop-unit { flex-shrink: 0; color: var(--ui-text-dim); font-size: var(--ui-fs-base); margin-right: var(--ui-space-1_5); }
 .prop-icon-input:has(> input:disabled) { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }   /* 꺼진 칸(텍스트 높이 auto) */
 .prop-icon-input:has(> input:disabled):hover { border-color: transparent; }
 .prop-icon-input > input:disabled { cursor: not-allowed; }

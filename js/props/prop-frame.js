@@ -860,12 +860,14 @@ function _renderAutoPanel(ss) {
   document.getElementById('ss-flip-h')?.addEventListener('click', () => {
     ss.dataset.flipH = ss.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('ss-flip-h')?.classList.toggle('active', ss.dataset.flipH === '1');
+    document.getElementById('ss-flip-h')?.setAttribute('aria-pressed', String(ss.dataset.flipH === '1'));   // QA2 — 단추 상태를 같이 말한다
     _applyTransform();
     window.pushHistory?.();
   });
   document.getElementById('ss-flip-v')?.addEventListener('click', () => {
     ss.dataset.flipV = ss.dataset.flipV === '1' ? '0' : '1';
     document.getElementById('ss-flip-v')?.classList.toggle('active', ss.dataset.flipV === '1');
+    document.getElementById('ss-flip-v')?.setAttribute('aria-pressed', String(ss.dataset.flipV === '1'));
     _applyTransform();
     window.pushHistory?.();
   });

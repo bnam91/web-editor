@@ -129,21 +129,32 @@ function wireBlockTemplate(block) {
   const $ = (id) => document.getElementById(id);
   const tog = $('blk-tpl-toggle'), form = $('blk-tpl-form'), folder = $('blk-tpl-folder'), fnew = $('blk-tpl-folder-new');
   if (!tog || !form) return;
-  const folders = window.listTemplateFolders?.(window.loadTemplatesPublic?.() || [], '블록') || [];
-  if (!folders.includes('블록')) folders.unshift('블록');
-  folder.innerHTML = folders.map((f) => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
   folder.addEventListener('change', () => { fnew.hidden = folder.value !== '__new__'; });
   tog.addEventListener('click', () => {
     const open = form.hidden; form.hidden = !open;
     tog.innerHTML = open ? _M8 : _P8; tog.setAttribute('aria-expanded', String(open)); tog.title = open ? 'Template 접기' : '블록 템플릿으로 저장 — 펼치기';
     if (open) $('blk-tpl-name')?.focus();
   });
-  $('blk-tpl-save')?.addEventListener('click', () => {
+  const fillFolders = (pick) => {
+    const fs = window.listTemplateFolders?.(window.loadTemplatesPublic?.() || [], '블록') || [];
+    if (!fs.includes('블록')) fs.unshift('블록');
+    folder.innerHTML = fs.map((f) => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
+    if (pick && fs.includes(pick)) folder.value = pick;
+    fnew.hidden = folder.value !== '__new__';
+  };
+  fillFolders();
+  const save = $('blk-tpl-save');
+  save?.addEventListener('click', async () => {
+    if (save.disabled) return;   // QA2 — 연타로 두 번 저장되지 않게(저장 중 막기)
     const name = $('blk-tpl-name').value.trim();
     if (!name) { $('blk-tpl-name').focus(); return; }
     const f = folder.value === '__new__' ? (fnew.value.trim() || '블록') : (folder.value || '블록');
-    window.saveBlockAsTemplate?.(block, name, f, $('blk-tpl-tags').value.trim());   // 우클릭 저장과 같은 함수 · 같은 인자 꼴(block-factory.js nameConfirm)
+    save.disabled = true;
+    try {
+      await window.saveBlockAsTemplate?.(block, name, f, $('blk-tpl-tags').value.trim());   // 우클릭 저장과 같은 함수 · 같은 인자 꼴(block-factory.js nameConfirm) · 성공 알림도 그 함수가 낸다(우클릭과 같음)
+    } finally { save.disabled = false; }
     $('blk-tpl-name').value = ''; $('blk-tpl-tags').value = ''; fnew.value = '';
+    fillFolders(f);   // QA2 — 방금 만든 새 폴더가 같은 패널 목록에 바로 보인다
   });
 }
 

@@ -698,6 +698,9 @@ function _hideBlockTypo() {
   if (body && ![...body.children].some((e) => e.style.display !== 'none')) hide(body);
   const lay = body?.closest('.prop-section');
   if (lay && ![...lay.querySelectorAll(':scope > .prop-sec-body')].some((b) => b.style.display !== 'none')) hide(lay);
+  /* QA2 — lay 는 묶음 «몸»(.prop-sec-part)이다. 묶음의 몸이 다 숨었으면 «Layout» 머리째 숨긴다(빈 머리만 떠 있지 않게) */
+  const grpSec = lay?.closest('.prop-sec-group');
+  if (grpSec && ![...grpSec.querySelectorAll(':scope > .prop-section[data-sec]')].some((p) => p.style.display !== 'none')) hide(grpSec);
 }
 
 export function lnAugmentBubblePanel(tb) {

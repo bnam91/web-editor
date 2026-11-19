@@ -196,12 +196,14 @@ export function showVectorProperties(block) {
   document.getElementById('vb-flip-h')?.addEventListener('click', () => {
     block.dataset.flipH = block.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('vb-flip-h')?.classList.toggle('active', block.dataset.flipH === '1');
+    document.getElementById('vb-flip-h')?.setAttribute('aria-pressed', String(block.dataset.flipH === '1'));   // QA2 — 단추 상태
     applyTransform();
     pushHistory();
   });
   document.getElementById('vb-flip-v')?.addEventListener('click', () => {
     block.dataset.flipV = block.dataset.flipV === '1' ? '0' : '1';
     document.getElementById('vb-flip-v')?.classList.toggle('active', block.dataset.flipV === '1');
+    document.getElementById('vb-flip-v')?.setAttribute('aria-pressed', String(block.dataset.flipV === '1'));   // QA2 — 단추 상태
     applyTransform();
     pushHistory();
   });
