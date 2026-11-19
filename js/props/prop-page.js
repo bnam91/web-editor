@@ -809,7 +809,8 @@ export function showPageProperties() {
        본다 — js/io/save-load.js 의 autosave 가 이미 쓰는 그 방식이다. */
   const pageExportBtn = document.getElementById('page-export-all-btn');
   if (pageExportBtn) {
-    const _secCount = () => canvasEl.querySelectorAll('.section-block:not([data-ghost])' + NOT_HIDDEN_VARIATION).length;
+    /* ★t13C-03 Q4 — 유튜브 썸네일 섹션은 전체 내보내기에서 빠진다(export-image.js exportAllTargets 와 같은 셈) */
+    const _secCount = () => canvasEl.querySelectorAll('.section-block:not([data-ghost]):not([data-thumb="youtube"])' + NOT_HIDDEN_VARIATION).length;
     /* ★내보내는 «동안»은 동기화를 멈춘다 — export 경로가 캔버스를 만진다
        (materializeAllSections 가 lazy 언로드 섹션을 라이브 DOM 에 되살린다) ⇒ 옵저버가 깨어나
        「섹션이 있으니 활성」으로 되돌려 버튼이 «내보내는 중»에 다시 눌린다. */

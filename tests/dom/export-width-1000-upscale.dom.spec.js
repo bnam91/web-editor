@@ -283,7 +283,7 @@ test('U7 선택칸 두 곳에 「1000px」 — 고르면 1000 으로 내보낸�
   });
   console.log('  U7:', JSON.stringify(r));
   const WANT = [['860', '860px (기본)'], ['780', '780px (쿠팡)'], ['1000', '1000px']];
-  expect(r.sOpts, '섹션 선택칸').toEqual(WANT);
+  expect(r.sOpts, '섹션 선택칸(보통 섹션 — 1280 (유튜브) 는 썸네일 섹션에만 · youtube-thumb-export-size Y4)').toEqual(WANT);
   expect(r.pOpts, '페이지 선택칸').toEqual(WANT);
   expect(r.calls).toContainEqual(['sec', 1000]);
   expect(r.calls).toContainEqual(['page', 1000]);

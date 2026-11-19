@@ -4,7 +4,8 @@ import { runExportGate, isGateSupported } from './export-gate.js';
 import { noteExportOutcome, beginRun, endRun, isRunOpen } from './export-report.js';
 import { neutralizeRedactForH2C, neutralizeTextGradForH2C, neutralizeObjectFitForH2C, stripEditorOnlyForCapture, neutralizeEmptyImageCheckerForCapture, hidePlaceholderTextForCapture, warnIfCaptureTextVanished, warnIfCaptureAnnotVanished, withGuideOff } from './capture-safety.js';
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';   /* 숨긴 A/B 시안 = 화면에 없음 = 내보내기 대상 아님(EXPORT-ALL-INCLUDES-HIDDEN-AB-VARIANT-01) */
-import { liftSvgTransformsForH2C } from './h2c-prep.js';   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
+import { liftSvgTransformsForH2C } from './h2c-prep.js';
+import { fitUnderBytes, YT_JPG_LIMIT } from './jpg-fit.js';   /* ★t13C-04 — 1280(유튜브) JPG 만 2MB 안으로 품질 내림 */   /* ★h2c 폴백 가지에서만 쓴다 — CDP 주 경로는 브라우저가 그려 준다 */
 
 const CANVAS_W = 860;
 /* ★0.9.12 ③ 현빈 결정(Q1 ㉮): 화면(860)보다 «넓은» 폭은 «다시 배치»가 아니라 «확대»다 —
@@ -13,6 +14,20 @@ const CANVAS_W = 860;
    ★export·truth(export-gate.js) 둘 다 prepareCloneForCapture/captureCloneToCanvas 안에서 이 한 함수로
      정한다 ⇒ 두 그림의 크기·배치가 갈릴 수 없다(갈리면 «크기 불일치» 거짓 FAIL). */
 export function captureLayoutWidth(w) { return w > CANVAS_W ? CANVAS_W : w; }
+/* ★t13C-03 유튜브 썸네일(현빈 Q1·Q2 권장안 · 261119) — «썸네일 섹션(data-thumb="youtube")»을 폭 1280 으로 낼 때만 «1280×720 잠금».
+   썸네일 = 높이 484 핀 섹션 · 484×1280/860 = 720.37 → 출력 캔버스 round = 720(CDP 원본 줄 수와 무관 · drawImage 가 맞춘다).
+   핀 높이가 다르면(손으로 고친 경우) 위에서부터 720 줄만 — 넘친 아래는 자르고 모자란 아래는 섹션 바탕으로 채운다.
+   ⛔보통 섹션은 무변(폭만 보고 자르지 않는다). 표시는 클론에도 실려 있어 export·truth·grid-step 모든 호출처가 같은 판정을 낸다. */
+export const YT_THUMB_W = 1280, YT_THUMB_H = 720;
+export const isYtThumbExport = (sec, w) => w === YT_THUMB_W && sec?.dataset?.thumb === 'youtube';
+function _lockYtThumb(cv, w, bgColor, clone) {
+  if (!isYtThumbExport(clone, w) || (cv.width === YT_THUMB_W && cv.height === YT_THUMB_H)) return cv;
+  const o = document.createElement('canvas'); o.width = YT_THUMB_W; o.height = YT_THUMB_H;
+  const c = o.getContext('2d');
+  c.fillStyle = bgColor; c.fillRect(0, 0, YT_THUMB_W, YT_THUMB_H);
+  c.drawImage(cv, 0, 0);
+  return o;
+}
 const GIF_MAX_FRAMES = 60; // 메모리/시간 안전한도 (한 GIF당)
 
 /* ─── GIF 유틸 ─────────────────────────────────────────────────────────
@@ -520,7 +535,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
         ci.onerror = rej;
         ci.src = 'data:image/png;base64,' + pngBase64;
       });
-      return { canvas: outCanvas, imgTimedOut: _to, native: true, imgMissing: _miss };
+      return { canvas: _lockYtThumb(outCanvas, w, bgColor, clone), imgTimedOut: _to, native: true, imgMissing: _miss };
     }
     // html2canvas 폴백 — CDP 가 없는 빌드(웹). 검사는 여기서 «안» 돈다(isGateSupported=false).
     // ⚠️ 이 분기에서만 neutralize한다 — 위 native 분기는 clone을 그대로 CDP로 스크린샷하므로
@@ -540,7 +555,7 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
       backgroundColor: bgColor,
       logging: false,
     });
-    return { canvas: _h2c, imgTimedOut: _to2, native: false, imgMissing: _miss2 };
+    return { canvas: _lockYtThumb(_h2c, w, bgColor, clone), imgTimedOut: _to2, native: false, imgMissing: _miss2 };
 }
 
 /** 섹션 배경색 — export 와 truth 가 «같은 값»을 써야 한다(하나만 회색으로 찍히면 그게 차이로 잡힌다).
@@ -596,6 +611,12 @@ async function _exportSectionNoGuide(sec, format, width, opts) {
  *  (숨긴 시안은 display:none 이라 넣으면 «0 height» 실패 + 진행 n 이 부푼다). */
 function exportableSections() {
   return [...canvasEl.querySelectorAll('.section-block:not([data-ghost])' + NOT_HIDDEN_VARIATION)];
+}
+/* ★t13C-03 Q4(현빈 권장안) — «전체 내보내기»(페이지 패널 860·780 쿠팡·1000 · Export 메뉴 PNG)는 유튜브 썸네일 섹션을 뺀다
+   (썸네일은 그 섹션 칸에서 1280 으로 따로 낸다). ⛔exportableSections 는 그대로 — 섹션 순번·파일 이름(section-NN)이 안 바뀌게.
+   짝: js/props/prop-page.js _secCount 가 같은 표시를 뺀다. */
+function exportAllTargets() {
+  return exportableSections().filter(s => s.dataset.thumb !== 'youtube');
 }
 /** 라이브 캔버스에서의 섹션 «순번». 예외 경로는 exportSection 이 idx 를 못 돌려준다. */
 function _liveIdx(sec) {
@@ -896,13 +917,20 @@ async function _exportSectionInner(sec, format, width, opts) {
       /* ★t6-01 — ★꼴 명부 정본에서 ★파생한다. ⛔여기에 ★삼항을 ★다시 짓지 마라(명부가 둘이 된다). */
       const mime = exportMimeOf(fmt);
       const ext  = exportExtOf(fmt);
-      await new Promise((res, rej) => {
-        outCanvas.toBlob(blob => {
-          if (!blob) { rej(new Error('toBlob failed')); return; }
-          triggerDownload(blob, ext);
-          res();
-        }, mime, 0.95);
-      });
+      const encode = (q) => new Promise(res => outCanvas.toBlob(res, mime, q));
+      let blob;
+      const ytThumb = isYtThumbExport(sec, w);
+      if (ytThumb && mime === 'image/jpeg') {
+        /* ★t13C-04 — 유튜브 썸네일 한도 2MB: 0.95 부터 품질을 내려 다시 굽는다(이 내보내기만 · 다른 폭·꼴은 0.95 고정 그대로) */
+        const fit = await fitUnderBytes(encode, YT_JPG_LIMIT);
+        blob = fit.blob;
+        if (blob && fit.over) window.showToast?.('⚠️ 품질을 낮춰도 2MB 를 넘습니다 — 유튜브가 거절할 수 있습니다');
+      } else {
+        blob = await encode(0.95);
+        if (blob && ytThumb && blob.size > YT_JPG_LIMIT) window.showToast?.('⚠️ 2MB 를 넘습니다 — 유튜브 썸네일은 JPG 를 권장합니다');
+      }
+      if (!blob) throw new Error('toBlob failed');
+      triggerDownload(blob, ext);
       // ★파일은 «이미» 나갔다(B안 «주고 알린다»). 검사는 여기서부터고, 결과는 모달로만 간다.
       //   ⚠️A안(막기)으로 바꿀 자리는 «한 곳» — 위 triggerDownload 호출을 검사 «뒤»로 옮기면 된다.
       _gateCanvas = outCanvas;
@@ -1051,7 +1079,7 @@ async function exportAllSections(format, width, onProgress, opts) {
   // 섹션 목록 산정/순회 전에 한 번 더 보장)
   if (window.materializeAllSections) window.materializeAllSections();
 
-  const sections = exportableSections();
+  const sections = exportAllTargets();
   const failed = [];
   const results = [];
   /* ★한 «판»을 연다 — 22섹션이 다 실패해도 링버퍼(20칸)를 다 먹지 않게 상한을 걸고,
@@ -1090,7 +1118,7 @@ async function exportAllSections(format, width, onProgress, opts) {
 //      Page 속성패널 깊숙이에만 두지 않고 Export 메뉴 1급 항목으로 노출.
 //      (실제 렌더는 Page 속성패널과 동일하게 exportAllSections 재사용)
 async function exportAllImagesPNG() {
-  const n = exportableSections().length;
+  const n = exportAllTargets().length;
   if (!n) { window.showToast?.('내보낼 섹션이 없습니다.'); return; }
   /* ⛔네이티브 confirm() 금지 — 렌더러가 멈춘다(EXPORT-ALL-SECTIONS-NATIVE-CONFIRM-FREEZE-01). 진행은 아래 스피너 모달이 말한다. */
   /* ★진행은 «토스트»가 아니라 스피너 패널로 보인다 — 현빈: 「스피너가 돌면서 처리 중이다

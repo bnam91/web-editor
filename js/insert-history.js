@@ -92,7 +92,8 @@
   /** 패턴 밖인데 «삽입»인 것 — 손으로 더한다.
    *  addGridChild(G19 그리드 «밑» 블럭 넣기) — 이름이 …Block 이 «아니라» 여기 적는다: tests/dom/figma-export-coverage 가
    *  window.add*Block 전수를 «인자 없이» 불러 블럭이 생기는지 재는데, 이 입구는 그리드(인자)가 있어야만 넣는다. */
-  var EXTRA = ['addSection', 'addPresetRow', 'addGridChild', 'addCircleChild', 'addQuoteChild', 'addGridCircleChild', 'addVectorFromSvgText'];
+  var EXTRA = ['addSection', 'addPresetRow', 'addGridChild', 'addCircleChild', 'addQuoteChild', 'addGridCircleChild', 'addVectorFromSvgText', 'addYoutubeThumbSection'];
+  //   addYoutubeThumbSection = t13C-03 유튜브 썸네일(js/block-factory.js) — 안에서 addSection + 핀 484 를 쓰는 감싸기(⌘Z 한 번 · 끝 표본은 핀 뒤).
   //   addCircleChild = G14 서클 «원 안» 넣기(같은 까닭) · addQuoteChild = ★1011t1C 인용구 «밑» 넣기(★같은 까닭 — 이름이 …Block 이 아니다)
   //   addGridCircleChild = ★t5-12ⓑ 그리드 «원 줄» 위 넣기(같은 까닭 — 그리드·줄 주소 인자가 있어야만 넣는다)
   //   addVectorFromSvgText = t3-06 P1 바깥 SVG → 벡터(js/blocks/vector-block.js · 붙여넣기·끌어 놓기·에셋 「+ 벡터로 넣기」) — 안에서 window.addVectorBlock(MATCH)을 부르는 감싸기.
