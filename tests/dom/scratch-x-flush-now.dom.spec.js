@@ -52,6 +52,10 @@ async function setup(page, n = 1, { tabB = false } = {}) {
     await window.flushSave();   // 파일 매니페스트에 장이 실린 판에서 시작
   }, [A, PNG, n, tabB]);
   await page.waitForFunction(() => !window.hasUnsavedChanges?.());
+  /* [전제] 장 그림이 «다 떴다» — 가짜 goya-asset 주소는 못 읽혀 onerror 로 «누락» 자리표시(min-height 80)가 된다: 1×1 PNG 폭 300 = 높이 300 → 80.
+     부하로 그 줄어듦이 고르기 클릭(밑변 -6) 뒤에 오면 손이 장 밖에 남아 :hover 가 풀리고 ✕ 가 pointer-events none 이 됐다(cand14 지혜맥 ×10 9 빨강). */
+  await page.waitForFunction(() => [...document.querySelectorAll('.scratch-item')].every((el) => { const i = el.querySelector('img');
+    return !!i && i.complete && (i.naturalWidth > 0 || el.classList.contains('scratch-missing')); }));
   return errs;
 }
 const onDisk = (page) => page.evaluate(() => (window.__file.pages?.[0]?.scratchpad || []).map(i => i.id).sort());
@@ -63,6 +67,7 @@ async function pressX(page, id) {
      (cand13 지혜맥 X6 오류 문맥: ✂ [active] · ✕ 남음). 같은 evaluate 에서 재고 맞혀 본다(조건 대기 · 고정 대기 없음). */
   let b = null, prev = '';
   await expect.poll(async () => {
+    if (b) await page.mouse.move(b.x, b.y);   // 사람처럼 ✕ 위에 손을 올린 채 잰다(✕ 는 장 :hover 때만 눌린다)
     b = await page.evaluate((id) => { const x = document.querySelector(`.scratch-item[data-scratch-id="${id}"] .scratch-close`); const r = x.getBoundingClientRect();
       const p = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; const e = document.elementFromPoint(p.x, p.y); return { ...p, own: !!e && (e === x || x.contains(e)) }; }, id);
     const k = `${b.x},${b.y}`, same = k === prev; prev = k; return b.own && same;

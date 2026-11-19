@@ -423,3 +423,4 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `table-col-ratio-notice-239.dom.spec.js:27` (1e999 거절) — cand13 전수 1/1 빨강 · 지혜맥 ×3 0/3.
 - (고침 별도) `scratch-x-flush-now.dom.spec.js:64` X1 · X6 — cand12·cand13 전수 각 1/1 빨강(지혜맥) · 지혜맥 ×3 X6 1/3 · 인텔 ×3 0/3 → ty/flaky-x6-o 에서 시험 고침(조건 대기).
 - (고침 별도) `ft-overlay-corner-123.dom.spec.js:111` O — 인텔 cand13 전수 1/1 · 인텔 ×3 1/3 빨강 → ty/flaky-x6-o 에서 시험 고침(조건 대기).
+- 덧(cand14 · 40d59ea22): `scratch-x-flush-now.dom.spec.js:69` 새 [전제](✕ 가 그 좌표의 주인) — 지혜맥 workers4 ×10 9 빨강(X2 4 · X6 4 · X7 1) → 장면 전제(장 그림 다 뜸) 더함.
