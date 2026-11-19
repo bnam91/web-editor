@@ -2,7 +2,7 @@
    PROP-FRAME — Frame 속성 패널 (frame-block)
 ══════════════════════════════════════ */
 import { propPanel } from '../globals.js';
-import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';
+import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML } from './_helpers.js';
@@ -893,32 +893,8 @@ function _renderAutoPanel(ss) {
   // ── 배경 투명도(bgOpacity) 슬라이더 (I2) ──
   const bgOpaSlider = document.getElementById('ss-bgopa-slider');
   const bgOpaNum    = document.getElementById('ss-bgopa-num');
-  const applyBgOpacity = (v) => {
-    const o = v / 100;
-    ss.dataset.bgOpacity = String(o);
-    ss.style.setProperty('--frame-bg-opacity', String(o));
-    const active = o < 1;
-    ss.classList.toggle('has-bg-opacity', active);
-    if (active) {
-      _syncFrameBgVars();
-    } else {
-      // 100%로 복귀 시 ::before 비활성 → 본체 배경 원복.
-      // gradient / image / solid 상호배타 (I2-F1): gradient면 이미지로 덮지 않음.
-      const bgVal = ss.dataset.bg || '';
-      const isGradient = /gradient\s*\(/i.test(bgVal);
-      if (isGradient) {
-        // background shorthand가 gradient를 backgroundImage 롱핸드에 넣고 다른 롱핸드도 초기화 →
-        // 별도 backgroundImage='' 는 방금 넣은 gradient를 지우므로 제거(I2-F1 회귀 방지)
-        ss.style.background = bgVal;
-      } else if (ss.dataset.bgImg) {
-        ss.style.backgroundImage = `url("${ss.dataset.bgImg}")`;
-        ss.style.backgroundSize = frameBgSize(ss);
-        ss.style.backgroundPosition = ss.dataset.bgPos || 'center';
-      } else if (bgVal) {
-        ss.style.backgroundColor = bgVal;
-      }
-    }
-  };
+  /* 몸통은 frame-bg.js setFrameBgOpacity 한 벌(슬라이드 칸 패널과 같이 씀 · SLIDE-CELL-PANEL-PARITY-01) */
+  const applyBgOpacity = (v) => setFrameBgOpacity(ss, v);
   if (bgOpaSlider && bgOpaNum) bindSlider(bgOpaSlider, bgOpaNum, applyBgOpacity, { min: 0, max: 100 });
 
   // 배경 이미지

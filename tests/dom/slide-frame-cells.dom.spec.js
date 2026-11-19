@@ -773,3 +773,34 @@ test('W1 새 슬라이드 = 칸마다 옅은 그림자(컴패리전 값) · 옛 
   expect((await sh(oldId)).every((v) => v[1] === 'none'), '옛 저장본 = 그림자 없음').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 5 (b) SLIDE-CELL-PANEL-PARITY-01(135) — 고른 칸 패널 = 일반 프레임 패널과 같은 부품(대조표 handoff/TABLE-slide-cell-vs-frame-panel-261119.md)
+ * P1 칸 2 고름 → 코너·폭%·높이% 슬라이더 있음 · 그림자 select 는 Effects 절 · 코너 슬라이더 24 = dataset.radius·computed 24px·숫자칸 동기 ·
+ *    폭 60·높이 80 = data-w·data-h · 배경 알파 50 = computed rgba(…, 0.5) · 배경 투명도 50 = dataset.bgOpacity 0.5 + .has-bg-opacity(프레임과 같은 몸통) ·
+ *    저장→다시 열기 = 넷 그대로 · ⌘Z 한 번 = 투명도 전(키 없음)
+ * 양성대조: slide-frame-CTL38-cell-corner-number.patch(코너를 옛 숫자칸만으로) → P1 빨강 — 예측 */
+test('P1 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 · 배경 알파·투명도 · 그림자 = Effects)', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  for (const sel of ['#sld-cell-radius-slider', '#sld-cell-radius', '#sld-cell-w-slider', '#sld-cell-h-slider']) await expect(page.locator(sel), `★${sel}`).toHaveCount(1);
+  expect(await page.evaluate(() => document.getElementById('sld-cell-shadow')?.closest('[data-sec]')?.dataset.sec), '★그림자 = Effects 절').toBe('effects');
+  const slide = (sid, v) => page.evaluate(([sid, v]) => { const e = document.getElementById(sid); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, [sid, v]);
+  const cell = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; const cs = getComputedStyle(c);
+    return { r: c.dataset.radius ?? null, rCs: cs.borderTopLeftRadius, w: c.dataset.w ?? null, h: c.dataset.h ?? null, opa: c.dataset.bgOpacity ?? null, opaCls: c.classList.contains('has-bg-opacity'), bg: cs.backgroundColor, rNum: document.getElementById('sld-cell-radius')?.value ?? null }; }, id);
+  await slide('sld-cell-radius-slider', 24);
+  await expect.poll(cell).toMatchObject({ r: '24', rCs: '24px', rNum: '24' });
+  await slide('sld-cell-w-slider', 60);
+  await slide('sld-cell-h-slider', 80);
+  await expect.poll(cell).toMatchObject({ w: '60', h: '80' });
+  await page.evaluate(() => { const a = document.getElementById('sld-cell-bg-alpha'); a.value = '50'; a.dispatchEvent(new Event('input', { bubbles: true })); a.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(() => cell().then((c) => c.bg), '★배경 알파 50').toBe('rgba(255, 255, 255, 0.5)');
+  await page.locator('#sld-cell-bgopa-num').fill('50'); await page.locator('#sld-cell-bgopa-num').dispatchEvent('change');
+  await expect.poll(cell, '★배경 투명도 = 프레임과 같은 키·층').toMatchObject({ opa: '0.5', opaCls: true });
+  await key(page, 'Meta+z');
+  await expect.poll(() => cell().then((c) => c.opa === null || c.opa === '1'), '★⌘Z 한 번 = 투명도 전').toBe(true);
+  await key(page, 'Meta+Shift+z');
+  await expect.poll(cell).toMatchObject({ opa: '0.5' });
+  await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  await expect.poll(cell, '★저장→다시 열기 = 그대로').toMatchObject({ r: '24', rCs: '24px', w: '60', h: '80', opa: '0.5', opaCls: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

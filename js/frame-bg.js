@@ -106,3 +106,32 @@ if (typeof window !== 'undefined') {
   window.syncFrameBgVars = syncFrameBgVars;
   window.applyFrameBgImageInline = applyFrameBgImageInline;
 }
+
+/** 배경 투명도(0~100) — 프레임 패널 «배경 투명도»의 몸통 한 벌(옛 prop-frame applyBgOpacity 그대로 옮김 · 슬라이드 칸 패널도 부른다 · SLIDE-CELL-PANEL-PARITY-01).
+ *  dataset.bgOpacity 0~1 · --frame-bg-opacity · .has-bg-opacity(::before 층) · 100 이면 본체 배경 원복(그라데이션·이미지·단색 상호배타 I2-F1). */
+export function setFrameBgOpacity(el, v) {
+  const o = v / 100;
+  el.dataset.bgOpacity = String(o);
+  el.style.setProperty('--frame-bg-opacity', String(o));
+  const active = o < 1;
+  el.classList.toggle('has-bg-opacity', active);
+  if (active) {
+    syncFrameBgVars(el);
+  } else {
+    // 100%로 복귀 시 ::before 비활성 → 본체 배경 원복.
+    // gradient / image / solid 상호배타 (I2-F1): gradient면 이미지로 덮지 않음.
+    const bgVal = el.dataset.bg || '';
+    const isGradient = /gradient\s*\(/i.test(bgVal);
+    if (isGradient) {
+      // background shorthand가 gradient를 backgroundImage 롱핸드에 넣고 다른 롱핸드도 초기화 →
+      // 별도 backgroundImage='' 는 방금 넣은 gradient를 지우므로 제거(I2-F1 회귀 방지)
+      el.style.background = bgVal;
+    } else if (el.dataset.bgImg) {
+      el.style.backgroundImage = `url("${el.dataset.bgImg}")`;
+      el.style.backgroundSize = frameBgSize(el);
+      el.style.backgroundPosition = el.dataset.bgPos || 'center';
+    } else if (bgVal) {
+      el.style.backgroundColor = bgVal;
+    }
+  }
+}

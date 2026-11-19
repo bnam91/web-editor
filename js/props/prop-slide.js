@@ -7,7 +7,9 @@
 import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
-import { colorFieldHTML, wireColorField } from './color-picker.js';
+import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { rgbToHex } from './prop-text-utils.js';
+import { setFrameBgOpacity } from '../frame-bg.js';
 import { grdPickImageFile } from './prop-grid.js';
 import { syncFrameBgVars } from '../frame-bg.js';
 import { readSlideState, setSlideList, setSlideLayout, isFrameSlide, slideCells, addSlideCell, renderSlideBlock, convertSlideToFrames, setSlideScrollFix } from '../blocks/slide-block.js';
@@ -19,6 +21,7 @@ const _ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" strok
    opts.cell = 캔버스에서 고른 칸(block-drag _pickSlideCell) — 그 줄을 표시하고 _activeFrame 은 그 칸 그대로(넣기 길이 그 칸으로 간다). */
 /* SLIDE-CELL-FRAME-BG-01 — 칸 배경 = 프레임 배경 키 그대로(data-bg · 인라인 background-color) ⇒ 캔버스·PNG·HTML(DOM)·Figma(프레임 bg · 'transparent' = 칠 없음)·GIF(칸 찍기) 같은 길. 끔 = 'transparent'. */
 const _cellBg = (c) => c.dataset.bg || c.style.backgroundColor || '#ffffff';
+const _cellBgHex = (c) => { const v = _cellBg(c); return v[0] === '#' ? v.slice(0, 7) : rgbToHex(v); };   // rgbToHex 는 숫자만 읽어 #hex 를 못 받는다
 const _cellBgOn = (c) => !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(_cellBg(c));
 function _setCellBg(c, v) { c.style.backgroundImage = ''; c.style.backgroundColor = v; c.dataset.bg = v; syncFrameBgVars(c); }
 function _cellRowsHTML(block, st, selCell) {
@@ -34,12 +37,25 @@ function _cellRowsHTML(block, st, selCell) {
   const k = selCell ? cells.indexOf(selCell) : -1;
   return `${rows}
       <div class="prop-row"><button class="prop-btn" id="sld-add-cell" style="width:100%"${n >= SLIDE_MAX ? ' disabled' : ''}>+ 프레임 추가하기 (${n}/${SLIDE_MAX})</button></div>
-      ${k >= 0 ? `<div class="prop-row"><span class="prop-label">모서리</span><input type="number" class="prop-number" id="sld-cell-radius" min="0" max="80" step="1" value="${selCell.dataset.radius || 0}" aria-label="칸 ${k + 1} 모서리 px"></div>
-      <div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="sld-cell-shadow">
-        ${[['', '없음'], ['soft', '옅게'], ['strong', '짙게']].map(([v, t]) => `<option value="${v}"${(selCell.dataset.shadow || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
-      </select></div>
-      <div class="prop-row"><span class="prop-label">배경</span><label class="prop-toggle"><input type="checkbox" id="sld-cell-bg-on" ${_cellBgOn(selCell) ? 'checked' : ''} aria-label="칸 ${k + 1} 배경"><span class="prop-toggle-track"></span></label></div>
-      ${_cellBgOn(selCell) ? `<div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'sld-cell-bg', hex: _cellBg(selCell) })}</div>` : ''}` : ''}`;
+      ${k >= 0 ? _cellPartsHTML(selCell, k, st) : ''}`;
+}
+/* SLIDE-CELL-PANEL-PARITY-01(135) — 고른 칸 = 일반 프레임 패널과 같은 부품·같은 이름·같은 범위(대조표 handoff/TABLE-slide-cell-vs-frame-panel-261119.md):
+   폭%·높이% 슬라이더 · 코너 슬라이더(dataset.radius 0~80) · 배경 = 켜기(102 원문) + 배경색(알파) + 배경 투명도(frame-bg setFrameBgOpacity 한 벌). 새 css 0. */
+function _cellPartsHTML(c, k, st) {
+  const vert = slideAxis(st.fx) === 'y';
+  const opa = Number.isFinite(parseFloat(c.dataset.bgOpacity)) ? Math.round(Math.min(1, Math.max(0, parseFloat(c.dataset.bgOpacity))) * 100) : 100;
+  return `${sliderRowHTML(vert ? '높이 %' : '폭 %', 'sld-cell-w-slider', 'sld-cell-w-number', { min: 20, max: 100, step: 1, value: c.dataset.w ?? st.layout.cardW })}${vert ? '' : `
+      ${sliderRowHTML('높이 %', 'sld-cell-h-slider', 'sld-cell-h-number', { min: 20, max: 100, step: 1, value: c.dataset.h ?? 100 })}`}
+      ${sliderRowHTML('코너', 'sld-cell-radius-slider', 'sld-cell-radius', { min: 0, max: 80, step: 1, value: c.dataset.radius || 0 })}
+      <div class="prop-row"><span class="prop-label">배경</span><label class="prop-toggle"><input type="checkbox" id="sld-cell-bg-on" ${_cellBgOn(c) ? 'checked' : ''} aria-label="칸 ${k + 1} 배경"><span class="prop-toggle-track"></span></label></div>
+      ${_cellBgOn(c) ? `<div class="prop-color-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'sld-cell-bg', hex: _cellBgHex(c), alpha: parseAlphaFromColor(_cellBg(c)) })}</div>
+      ${sliderRowHTML('배경 투명도', 'sld-cell-bgopa-slider', 'sld-cell-bgopa-num', { min: 0, max: 100, step: 1, value: opa })}` : ''}`;
+}
+/* 그림자 = Effects 절(일반 프레임과 같은 절 이름) · 저장 키 dataset.shadow 그대로(GIF deco·103 기본값이 읽는다) */
+function _cellShadowHTML(c) {
+  return `<div class="prop-row"><span class="prop-label">그림자</span><select class="prop-select" id="sld-cell-shadow">
+        ${[['', '없음'], ['soft', '옅게'], ['strong', '짙게']].map(([v, t]) => `<option value="${v}"${(c.dataset.shadow || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+      </select></div>`;
 }
 
 export function showSlideProperties(block, opts = {}) {
@@ -90,6 +106,7 @@ export function showSlideProperties(block, opts = {}) {
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle"><input type="checkbox" id="sld-fullbleed" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
       </div>` : ''),
+      sec('effects', frame && selCell ? _cellShadowHTML(selCell) : ''),
       sec('export', animGifBtnHTML(), { id: 'sld-anim-section' }),
     ],
   });
@@ -151,7 +168,18 @@ export function showSlideProperties(block, opts = {}) {
       row.querySelector('.sld-cw')?.addEventListener('change', (e) => { const c = cellAt(i); if (!c) return; c.dataset.w = String(Math.max(20, Math.min(100, Math.round(+e.target.value || st.layout.cardW)))); renderSlideBlock(block); commit(); reopen(); });
     });
     /* SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01 — 고른 칸 모서리(px)·그림자(이펙트) · 0/없음 = 키 지움 */
-    $('sld-cell-radius')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; const v = Math.max(0, Math.min(80, Math.round(+e.target.value || 0))); if (v) c.dataset.radius = String(v); else delete c.dataset.radius; renderSlideBlock(block); commit(); });
+    /* 135 — 고른 칸 슬라이더 줄(같은 키 · 숫자칸 change = 옛 길 그대로) */
+    const cellNum = (v, lo, hi, dflt) => Math.max(lo, Math.min(hi, Math.round(+v || dflt)));
+    const setCellW = (v) => { const c = selCell; if (!c) return; c.dataset.w = String(cellNum(v, 20, 100, st.layout.cardW)); renderSlideBlock(block); };
+    const setCellH = (v) => { const c = selCell; if (!c) return; const h = cellNum(v, 20, 100, 100); if (h === 100) delete c.dataset.h; else c.dataset.h = String(h); renderSlideBlock(block); };
+    const setCellR = (v) => { const c = selCell; if (!c) return; const r = Math.max(0, Math.min(80, Math.round(+v || 0))); if (r) c.dataset.radius = String(r); else delete c.dataset.radius; renderSlideBlock(block); };
+    const setCellO = (v) => { const c = selCell; if (!c) return; setFrameBgOpacity(c, Math.max(0, Math.min(100, Math.round(+v)))); };
+    for (const [sid, nid, fn] of [['sld-cell-w-slider', 'sld-cell-w-number', setCellW], ['sld-cell-h-slider', 'sld-cell-h-number', setCellH], ['sld-cell-radius-slider', 'sld-cell-radius', setCellR], ['sld-cell-bgopa-slider', 'sld-cell-bgopa-num', setCellO]]) {
+      const sl = $(sid), nu = $(nid);
+      sl?.addEventListener('input', () => { if (nu) nu.value = sl.value; fn(sl.value); });
+      sl?.addEventListener('change', commit);
+      nu?.addEventListener('change', () => { if (sl) sl.value = nu.value; fn(nu.value); commit(); });
+    }
     $('sld-cell-bg-on')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; _setCellBg(c, e.target.checked ? '#ffffff' : 'transparent'); commit(); reopen(); });
     wireColorField('sld-cell-bg', { onApply: (v) => { if (selCell) _setCellBg(selCell, String(v)); }, onCommit: commit });
     $('sld-cell-shadow')?.addEventListener('change', (e) => { const c = selCell; if (!c) return; if (e.target.value) c.dataset.shadow = e.target.value; else delete c.dataset.shadow; renderSlideBlock(block); commit(); });
