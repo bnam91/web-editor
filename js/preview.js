@@ -128,18 +128,43 @@ function enterPreview() {
   };
   overlay.addEventListener('wheel', _pvWheel.fn, { passive: false });
 
-  /* ⇆ 가로 보기에서 섹션을 누르면 편집으로 돌아가 그 섹션으로(가로 보기 때만 · 세로 보기 클릭은 종전대로 탑바 토글) */
-  _previewSecJump = e => {
-    if (!_previewHz) return;
+  /* ⇆ 가로 보기 섹션 — 한 번 누름 = 고르기(표시만 · 미리보기 그대로) · 두 번 누름 = 편집으로 돌아가 그 섹션으로(PREVIEW-HZ-CLICK-SELECT-DBL-EDIT-01 · 현빈 261118 · 옛 = 한 번에 점프).
+     가로 보기 때만(세로 보기 클릭은 종전대로 탑바 토글) · 끌기(팬·그냥 끌기) 끝의 누름은 둘 다 무시(_hzDown 판정 그대로).
+     고르기 누름은 탑바 토글로 안 샌다(옛 판도 점프가 그 듣기를 걷어 안 샜다). */
+  const hzSecOf = e => {
+    if (!_previewHz) return null;
     const sec = e.target.closest?.('#preview-content .section-block');
-    if (!sec) return;
-    if (_hzDown && (_hzDown.panned || Math.hypot(e.clientX - _hzDown.x, e.clientY - _hzDown.y) > 5)) return;   // 끌기(팬·그냥 끌기) 끝의 click 은 점프 아님
-    const page = window.state.pages[+sec.closest('.preview-page-block')?.dataset.pageIdx];
-    const id = sec.id;
-    exitPreview();
-    _jumpToCanvasSection(page, id);
+    if (!sec) return null;
+    if (_hzDown && (_hzDown.panned || Math.hypot(e.clientX - _hzDown.x, e.clientY - _hzDown.y) > 5)) return null;
+    return sec;
   };
-  overlay.addEventListener('click', _previewSecJump, true);
+  _previewSecJump = {
+    click: e => {
+      const sec = hzSecOf(e);
+      if (!sec) return;
+      e.stopPropagation();
+      _hzSelectSection(sec);
+    },
+    dbl: e => {
+      const sec = hzSecOf(e);
+      if (!sec) return;
+      e.stopPropagation();
+      const page = window.state.pages[+sec.closest('.preview-page-block')?.dataset.pageIdx];
+      const id = sec.id;
+      exitPreview();
+      _jumpToCanvasSection(page, id);
+    },
+  };
+  overlay.addEventListener('click', _previewSecJump.click, true);
+  overlay.addEventListener('dblclick', _previewSecJump.dbl, true);
+}
+
+/* 가로 미리보기 «고른 섹션» 표시 — 미리보기 DOM 은 page.canvas 로 다시 지은 버릴 사본(저장 0)이라 인라인 테두리로 둔다(편집 .selected 클래스·CSS 를 빌리지 않음). */
+function _hzSelectSection(sec) {
+  document.querySelectorAll('#preview-content .section-block[data-pv-selected]').forEach(s => { delete s.dataset.pvSelected; s.style.outline = s.style.outlineOffset = ''; });
+  sec.dataset.pvSelected = '1';
+  sec.style.outline = '2px solid var(--ui-accent-primary)';
+  sec.style.outlineOffset = '-2px';
 }
 
 /* 미리보기 섹션 id = page.canvas 문자열의 그 id(편집 캔버스와 같은 id) — exitPreview 가 미리보기를 비운 뒤라 getElementById 는 캔버스 것 하나다. */
@@ -177,7 +202,8 @@ function exitPreview() {
   document.getElementById('preview-topbar').classList.remove('visible');
 
   if (_previewSecJump) {
-    overlay.removeEventListener('click', _previewSecJump, true);
+    overlay.removeEventListener('click', _previewSecJump.click, true);
+    overlay.removeEventListener('dblclick', _previewSecJump.dbl, true);
     _previewSecJump = null;
   }
   if (_previewHz) togglePreviewHorizontal(false);   // ⇆ 가로 정리(단추·class)
@@ -269,8 +295,9 @@ function togglePreviewHorizontal(force) {
   }
   _bindHzPan(on);
   _applyPreviewZoom();   // 줌을 옮겨 건다(가로 = 줄 zoom · 세로 = 통째 transform) + 앞뒤 여유
-  /* r5 — 가로·세로 스크롤은 #preview-overlay 하나가 맡는다(가로 스크롤바가 창 맨 아래 · 페이지 줄이 함께 움직임). 켤 때 = 가로 스크롤 0 = 첫 섹션이 창 가운데(앞 여유가 그만큼). */
-  document.getElementById('preview-overlay').scrollLeft = 0;
+  /* r5 — 가로·세로 스크롤은 #preview-overlay 하나가 맡는다(가로 스크롤바가 창 맨 아래 · 페이지 줄이 함께 움직임).
+     PREVIEW-HZ-SPACE-PAN-CHOPPY-01 — 켤 때 = 가로 스크롤 «둘레 여유(_hzSlack)» = 첫 섹션이 창 가운데 «그리고» 왼쪽으로도 그만큼 끌 수 있다(옛 판 = 0 = 왼쪽 끝 · 원을 그리면 절반 동안 가로가 막혀 세로만 움직였다). 끄면 0. */
+  document.getElementById('preview-overlay').scrollLeft = on ? _hzSlack() : 0;
   if (on) {   // r4 — 켤 때 세로 = 위 여유만큼 내려온 자리(첫 화면은 r3 와 같이 섹션 윗부분부터 · 빈 화면 아님) · 위 여유는 위로 끌어야 보인다
     const overlay = document.getElementById('preview-overlay');
     overlay.scrollTop = parseFloat(document.getElementById('preview-content').style.paddingTop) || 0;
@@ -279,6 +306,10 @@ function togglePreviewHorizontal(force) {
 
 /* ⇆ 가로 앞뒤 여유(현빈 r3 «첫 섹션을 화면 가운데로 · 끝 섹션도») — 줄 앞뒤에 «그릇 폭 반 − 섹션 반 폭»을 둔다.
    줄은 CSS zoom 안이라 그 단위로 적는다(화면 px ÷ z) · 줌·창 크기 바뀔 때마다 다시. 그릇 = .preview-page-block(가로 스크롤 영역). */
+/* 피그마처럼 «내용 둘레 여유»(현빈 261118 «1장일 때 가운데서 크게 돌리려는데 좌측·상단이 막힘») — 섹션 수와 무관하게 켠 자리에서 사방으로 창 반 이상 끌 수 있게.
+   가로 = 줄 앞·뒤에 가운데 맞춤 여유 + 창 폭 반 · 세로 = 위 창 높이 반(r4 · 켤 때 그 자리) + 아래는 «켠 자리 아래로 창 높이 반 이상 남도록»(내용이 짧으면 더 둔다).
+   ⇒ 끝까지 밀면 끝 섹션은 가운데를 지나 더 갈 수 있다(H7 은 «끝 섹션을 그릇 안에 들일 수 있다»로 잰다). */
+const _hzSlack = () => Math.round((document.getElementById('preview-overlay')?.clientWidth || 0) / 2);
 function _hzEdgeRoom() {
   if (!_previewHz) return;
   const z = _previewZoom / 100;
@@ -290,9 +321,16 @@ function _hzEdgeRoom() {
     const inner = b.querySelector(':scope > .preview-page-inner');
     if (!inner) return;
     const secW = parseFloat(inner.style.getPropertyValue('--row-sec-w')) || 860;
-    const pad = Math.max(0, b.clientWidth / 2 / z - secW / 2);
+    const pad = Math.max(0, b.clientWidth / 2 / z - secW / 2) + _hzSlack() / z;   // 가운데 맞춤 + 둘레 여유(화면 px ÷ 줄 zoom) · 앞뒤 같게
     inner.style.paddingLeft = inner.style.paddingRight = pad + 'px';
   });
+  /* 세로 아래 여유 — 켠 자리(scrollTop = 위 여유)에서 아래로 창 높이 반 이상: 내용 높이 ch(위·아래 여유 뺀)가 창보다 짧으면 그만큼 더(섹션 1장이면 스크롤 범위가 거의 없던 것) */
+  if (content && overlay) {
+    const H = overlay.clientHeight, top = Math.round(H / 2);
+    content.style.paddingBottom = '0px';
+    const ch = content.scrollHeight - top;
+    content.style.paddingBottom = Math.round(top + Math.max(0, H - ch)) + 'px';
+  }
 }
 
 /* ⇆ 가로 스페이스+드래그 팬 — 편집 캔버스 팬(editor.js «CANVAS PAN»)과 같은 손맛: 스페이스 = 손바닥 · 누른 채 끌면 «절대 델타»로 스크롤(콘텐츠가 손끝을 따라감).
@@ -312,8 +350,10 @@ function _bindHzPan(on) {
   }
   if (!on) return;
   const typing = () => { const a = document.activeElement; return a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
-  const st = { held: false, drag: null };
-  const end = () => { st.drag = null; overlay.classList.remove('pv-panning'); };
+  const st = { held: false, drag: null, raf: 0, pend: null };
+  /* 끄는 동안 쓰기는 프레임마다 한 번(rAF) — mousemove 가 한 프레임에 여럿 와도 scrollLeft/Top 대입 = 1쌍(옛 판 = 이벤트마다 2번 · 큰 프로젝트에서 스크롤·레이아웃이 겹쳐 뚝뚝 의심). 값은 늘 «시작 자리 − 끈 거리»(절대 델타)라 몇 개를 건너뛰어도 같은 자리. */
+  const flush = () => { st.raf = 0; const p = st.pend, d = st.drag; st.pend = null; if (p && d) overlay.scrollTo(d.left - (p.x - d.x), d.top - (p.y - d.y)); };
+  const end = () => { if (st.raf) cancelAnimationFrame(st.raf); flush(); st.drag = null; overlay.classList.remove('pv-panning'); };   // 놓기 직전 마지막 자리까지 반영
   _hzPan = {
     kd: e => { if (e.code !== 'Space' || typing()) return; e.preventDefault(); e.stopImmediatePropagation(); st.held = true; overlay.classList.add('pv-pan-mode'); },
     ku: e => { if (e.code !== 'Space') return; e.preventDefault(); e.stopImmediatePropagation(); st.held = false; overlay.classList.remove('pv-pan-mode'); end(); },
@@ -327,10 +367,9 @@ function _bindHzPan(on) {
       e.preventDefault(); e.stopPropagation();
     },
     mm: e => {
-      const d = st.drag;
-      if (!d) return;
-      overlay.scrollLeft = d.left - (e.clientX - d.x);
-      overlay.scrollTop = d.top - (e.clientY - d.y);
+      if (!st.drag) return;
+      st.pend = { x: e.clientX, y: e.clientY };
+      if (!st.raf) st.raf = requestAnimationFrame(flush);
     },
     mu: end,
     rs: () => _hzEdgeRoom(),
