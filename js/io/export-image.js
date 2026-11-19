@@ -920,7 +920,7 @@ async function _exportSectionInner(sec, format, width, opts) {
       const encode = (q) => new Promise(res => outCanvas.toBlob(res, mime, q));
       let blob;
       const ytThumb = isYtThumbExport(sec, w);
-      if (ytThumb && mime === 'image/jpeg') {
+      if (ytThumb && mime === exportMimeOf('jpg')) {   // 꼴 이름은 명부(export-formats.js)에서 — export-formats-single-roster F4
         /* ★t13C-04 — 유튜브 썸네일 한도 2MB: 0.95 부터 품질을 내려 다시 굽는다(이 내보내기만 · 다른 폭·꼴은 0.95 고정 그대로) */
         const fit = await fitUnderBytes(encode, YT_JPG_LIMIT);
         blob = fit.blob;
