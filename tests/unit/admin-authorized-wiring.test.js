@@ -134,7 +134,10 @@ test('W7 ★판정은 하나: 호출처 스냅샷 + 두 번째 admin 판정 없�
   //   한 번 하고 not_admin 이면 빈 목록을 돌려준다(main.js `projects:list-backups`).
   // ＋projects:list-unreadable · projects:reveal-unreadable = 11 (2026-11-10 CORRUPT-PROJECT-NOT-FINDABLE-IN-APP-01)
   //   현빈 「열 수 없는 프로젝트는 목록과 분리 · 관리자만」 — 백업 사본과 같은 까닭·같은 꼴.
-  assert.strictEqual(calls.length, 11, `isAdminAuthorized() 호출처 수가 바뀌었다(${calls.length}) — 새 자리면 이 스냅샷과 주석을 같이 갱신`);
+  // ＋_isAdminOrServerRole = 12 (2026-11-18 LIB-FIGMA 0098944e9 · 관리자 로컬 라이브러리 IPC adminLibrary:list/read 문지기)
+  //   «두 번째 판정» 아님 — 앱 관리자 판정은 isAdminAuthorized() 를 «그대로 부르고», 거기에 서버 role(main/admin._fetchRole · 기존 함수)만 ∨ 로 더한다.
+  //   렌더러 가드(feature-flags animGifVisible)와 같은 두 판정 · 'admin' 인자 판정은 아래 argvHits 가 여전히 main.js 1곳만 잰다.
+  assert.strictEqual(calls.length, 12, `isAdminAuthorized() 호출처 수가 바뀌었다(${calls.length}) — 새 자리면 이 스냅샷과 주석을 같이 갱신`);
   assert.match(code, /createDevToolsGate\(\{[\s\S]*?isAdminAuthorized,/, 'devtools-gate 주입(판정엔 안 씀)');
   // 'admin' 인자 판정은 isAdminAuthorized 한 곳뿐
   const files = [path.join(ROOT, 'main.js'), path.join(ROOT, 'preload.js')];

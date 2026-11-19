@@ -42,8 +42,10 @@ function fixture() {
   w('doodle-figma-more/두들002_Crispy_doodles/024_195-468.png'); w('doodle-figma-more/두들003_update/109_195-762.svg');
   w('doodle-figma-more/' + '두들009_nfd'.normalize('NFD') + '/a_1-1.svg');
   w('other-dir/x.svg');
-  const outside = path.join(path.dirname(root), 'secret.svg'); fs.writeFileSync(outside, '<svg/>');
-  fs.symlinkSync(outside, path.join(root, 'doodle-figma-191-38/link.svg'));
+  /* 밖으로 새는 링크(가드 꼼수) — win-portability Ⓒ-3: 정션(디렉터리 링크)이어야 비승격 윈도우에서도 선다 · 실패는 던진다(조용히 건너뛰지 않음).
+     정션은 «폴더»만 가리키므로 밖의 폴더(secret.svg 를 품은)를 묶음 폴더 자리(doodle-figma-more/evil)에 잇는다 → evil/secret.svg 는 realpath 로 밖 = 거절(A2). */
+  const outsideDir = path.join(path.dirname(root), 'escape-dir'); fs.mkdirSync(outsideDir, { recursive: true }); fs.writeFileSync(path.join(outsideDir, 'secret.svg'), '<svg/>');
+  fs.symlinkSync(outsideDir, path.join(root, 'doodle-figma-more/evil'), 'junction');
   return root;
 }
 
@@ -71,7 +73,7 @@ test('A2 resolve 가드 — 꼼수 거절 · 안쪽 통과', () => {
     ['doodle-figma-191-38', '../other-dir/x.svg'], ['doodle-figma-191-38', '/etc/passwd'], ['doodle-figma-191-38', 'a\0.svg'],
     ['other-dir', 'x.svg'], ['__proto__', 'x.svg'], ['doodle-figma-191-38', 'Heart_195-288.png'], ['doodle-figma-191-38', 'DONE.txt'],
     ['doodle-figma-191-38', 'sub/x.svg'], ['memoji-inclusive-192-2', 'Frame_2/deep/x.webp'], ['memoji-inclusive-192-2', '../doodle-figma-191-38/Heart_195-288.svg'],
-    ['doodle-figma-191-38', 'link.svg'], ['doodle-figma-more', '두들002_Crispy_doodles/../../other-dir/x.svg'], ['doodle-figma-more', '두들 002/x.svg'], ['doodle-figma-191-38', 'missing.svg'], ['doodle-figma-191-38', 42],
+    ['doodle-figma-more', 'evil/secret.svg'], ['doodle-figma-more', '두들002_Crispy_doodles/../../other-dir/x.svg'], ['doodle-figma-more', '두들 002/x.svg'], ['doodle-figma-191-38', 'missing.svg'], ['doodle-figma-191-38', 42],
   ];
   for (const [d, f] of bad) assert.equal(G.resolveAdminLibraryFile(root, d, f).ok, false, `${d} ${String(f)}`);
 });

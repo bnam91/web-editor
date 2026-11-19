@@ -11,6 +11,12 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
+/* 고정 대기 0(dom-fixed-wait-census · cand7 t11) — 요소 상자가 두 rAF 동안 같을 때까지 */
+const stable = (page, sel) => expect.poll(() => page.evaluate(async (sel) => {
+  const m = () => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map((v) => v.toFixed(1)).join(','); };
+  const a = m(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const b = m();
+  return !!a && a === b;
+}, sel), { message: `[전제] ${sel} 멎음` }).toBe(true);
 const SVG = '<svg viewBox="0 0 100 100" fill="none"><path d="M5 50H95" stroke="currentColor" stroke-width="10"/></svg>';
 
 async function setup(page, extra) {
@@ -25,7 +31,8 @@ async function setup(page, extra) {
     document.getElementById('sHost').replaceWith(row); window.rebindAll?.();
     window.deselectAll?.(); document.getElementById('sS').scrollIntoView({ block: 'start' });
   }, [extra?.svg || SVG, extra || null]);
-  await page.waitForTimeout(250);
+  await page.waitForFunction(() => (document.querySelector('#sV .vb-inner svg')?.clientWidth || 0) > 0);   // 그림이 그려졌다
+  await stable(page, '#sV');
   return errs;
 }
 /* 화면 px → 모델 px(배율 나눔) · 그린 패스 상자 · 획 화면 굵기(모델 px) */
@@ -44,7 +51,7 @@ async function select(page) {
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('sV').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   await page.mouse.click(x, y);
   await expect(page.locator('.vector-overlay-handle.se')).toHaveCount(1);   // 전제 — 손잡이가 떴다
-  await page.waitForTimeout(100);
+  await stable(page, '.vector-overlay-handle.se');
 }
 async function dragSe(page, dx, dy, shift = false, dir = 'se') {
   const h = await page.locator(`.vector-overlay-handle.${dir}`).boundingBox();
@@ -54,7 +61,7 @@ async function dragSe(page, dx, dy, shift = false, dir = 'se') {
   for (let i = 1; i <= 5; i++) await page.mouse.move(x + (dx * i) / 5, y + (dy * i) / 5);
   await page.mouse.up();
   if (shift) await page.keyboard.up('Shift');
-  await page.waitForTimeout(100);
+  await stable(page, '#sV');
 }
 
 test('S0 기존 저장본 — 표시 없으면 열기만 해선 안 늘어남(meet)', async ({ page }) => {

@@ -7,6 +7,12 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
+/* 고정 대기 0(dom-fixed-wait-census · cand7 t11) — 요소 상자가 두 rAF 동안 같을 때까지 */
+const stable = (page, sel) => expect.poll(() => page.evaluate(async (sel) => {
+  const m = () => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map((v) => v.toFixed(1)).join(','); };
+  const a = m(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); const b = m();
+  return !!a && a === b;
+}, sel), { message: `[전제] ${sel} 멎음` }).toBe(true);
 const SVG = '<svg viewBox="0 0 24 24"><rect x="0" y="0" width="24" height="24" fill="currentColor"/></svg>';
 
 async function setup(page) {
@@ -21,7 +27,8 @@ async function setup(page) {
     document.getElementById('vHost').replaceWith(row); window.rebindAll?.();
     window.deselectAll?.(); document.getElementById('vS').scrollIntoView({ block: 'start' });
   }, SVG);
-  await page.waitForTimeout(250);
+  await page.waitForFunction(() => (document.querySelector('#vV svg')?.clientWidth || 0) > 0);   // 그림이 그려졌다
+  await stable(page, '#vV');
   return errs;
 }
 const geo = (page) => page.evaluate(() => {
@@ -34,7 +41,13 @@ async function openPanel(page) {
   await page.mouse.click(x, y);
   await expect(page.locator('#vb-w')).toBeVisible();   // 전제 — 벡터 패널이 열렸다
 }
-const toggle = async (page) => { await page.click('#vb-float-toggle'); await page.waitForTimeout(250); };
+/* 누르기 전 떠 있음 상태를 재 두고 «바뀔 때까지» → 상자 멎음(고정 대기 0) */
+const toggle = async (page) => {
+  const was = await page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true');
+  await page.click('#vb-float-toggle');
+  await expect.poll(() => page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true'), '[전제] 오버레이 토글이 상태를 바꿨다').toBe(!was);
+  await stable(page, '#vV');
+};
 
 test('V0 측정 — 공용 모듈 enterFloat 은 벡터에 그대로 맞는다', async ({ page }) => {
   await setup(page);
