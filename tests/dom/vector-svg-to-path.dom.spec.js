@@ -4,7 +4,7 @@
  *   허용 = path 하나 · 하위 경로 하나 · M L H V C S Q T Z · 단색 · transform·style·opacity·dasharray·evenodd 없음 · 앵커 500 이하.
  *   그 밖은 지금처럼 그림 벡터(조용히 망가뜨리지 않는다).
  * 칸 (판정 = 그린 path 의 getBBox 를 원본 svg 를 따로 그린 getBBox 와 견줌 · 칠은 getComputedStyle)
- *   T1 채운 닫힌 패스(viewBox 원점 10,10) → 펜(닫힘 · 노드 넷 · viewBox 0 0 20 20) · 같은 상자 · 빨강 칠 · 선 없음 · 패널 «패스 편집»
+ *   T1 채운 닫힌 패스(viewBox 원점 10,10) → 펜(닫힘 · 노드 넷 · viewBox 0 0 20 20) · 같은 상자 · 빨강 칠 · 선 없음 · 더블클릭·패널 «패스 편집» 둘 다 앵커 편집
  *   T2 열린 곡선 선(C · 파랑 · 두께 3 · 둥근 끝) → 펜(열림) · 같은 상자 · 파랑 선 3px 둥근 끝 · 이음 miter(원본 기본값) · 채움 없음
  *   T3 [음성] 하위 경로 둘 · evenodd · transform · 두 색 · 호(A) · <g> 감싸기 · currentColor · dasharray → 펜 아님(그림 벡터 · d 그대로)
  *   T4 붙여넣기 길 → 펜 · ⌘Z 한 번 = 넣기 전 · 다시 붙여 저장→다시 열기 = penNodes 그대로
@@ -51,7 +51,7 @@ const sameBox = (page, src) => page.evaluate((src) => {
   return { want, got };
 }, src);
 
-test('T1 채운 닫힌 패스(원점 10,10) → 펜 · 같은 상자 · 빨강 칠 · 패스 편집', async ({ page }) => {
+test('T1 채운 닫힌 패스(원점 10,10) → 펜 · 같은 상자 · 빨강 칠 · 더블클릭·패스 편집', async ({ page }) => {
   const errs = await scene(page);
   await add(page, FILLED);
   expect(await pen(page), '★펜 벡터(닫힘 · 노드 넷 · viewBox = 원본 폭·높이)').toEqual({ nodes: 4, closed: '1', vb: '0 0 20 20' });
@@ -62,6 +62,14 @@ test('T1 채운 닫힌 패스(원점 10,10) → 펜 · 같은 상자 · 빨강 �
   const r = await waitStableRect(page, '#vbT');
   await page.mouse.click(r.cx, r.cy);
   await expect(page.locator('#vb-pen-edit'), '★패널에 «패스 편집»').toBeVisible();
+  /* 편집 진입 두 길 — 더블클릭(t13A-03 · block-drag.js 벡터 dblclick = penNodes 있으면 enterPenEditMode) · 패널 «패스 편집» */
+  const editing = () => page.evaluate(() => document.body.classList.contains('vpen-edit-mode') && document.getElementById('vbT').classList.contains('pen-editing'));
+  await page.mouse.dblclick(r.cx, r.cy);
+  await expect.poll(editing, '★더블클릭 → 앵커 편집(변환된 벡터)').toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(editing, '[전제] Esc 로 편집 끝').toBe(false);
+  await page.locator('#vb-pen-edit').click();
+  await expect.poll(editing, '★패널 «패스 편집» → 앵커 편집').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
