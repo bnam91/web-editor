@@ -45,7 +45,7 @@ test('D2 넣기 — QR 칸 클릭 → 에셋 블럭 · 동봉 PNG data URL · 24
   await openLibrary(page);
   await page.click('#lib-grid .lib-item[title="QR 기본"]');
   await expect.poll(() => assetCount(page)).toBe(before + 1);
-  await expect(page.locator('#lib-modal')).toBeHidden();
+  await expect(page.locator('#lib-modal'), 'LIB-MODAL-STAY-OPEN-01(현빈 261118) — 넣어도 모달은 열린 채(옛 = 닫힘 · 제품 의도 변경)').toBeVisible();
   const got = await page.evaluate(() => {
     const ab = [...window.getSelectedSection().querySelectorAll('.asset-block')].pop();
     return { src: (ab.dataset.imgSrc || '').slice(0, 31), w: ab.style.width, h: ab.style.height };

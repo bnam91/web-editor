@@ -2010,6 +2010,10 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
   const startY = e.clientY;
   const startW = parseInt(vb.dataset.w) || 120;
   const startH = parseInt(vb.dataset.h) || 120;
+  /* 떠 있는(absolute) 벡터면 맞은편 꼭지 고정 — 에셋·도형과 같은 식(anchoredLeftTop · t3-08). 흐름 배치는 무변. */
+  const _vpe = _posElOf(vb);
+  const _anchor0 = _vpe && _vpe.style.position === 'absolute'
+    ? { L: parseFloat(_vpe.style.left) || 0, T: parseFloat(_vpe.style.top) || 0, deg: parseFloat(vb.dataset.rotateDeg) || 0 } : null;
 
   const _hist = window.beginDragHistory?.('벡터 크기');
   function onMove(ev) {
@@ -2021,15 +2025,30 @@ function _onVectorResizeHandleMouseDown(e, vb, dir) {
     /* ★«시작 상태»를 여기서 1회 찍는다(끝 상태는 onUp 의 pushHistory). ⛔반환값으로 return 하지 마라
        — 임계 미만 틱에서 쓰기까지 삼켜 줌 150% 의 1px 조정이 무동작이 된다(js/drag-history.js 규약⑵). */
     _hist?.arm(dx, dy);
+    /* VECTOR-RESIZE-STRETCH-01: 처음 «끈» 순간부터 그림이 상자를 따라 늘어난다(피그마 꼴) — 표시는 여기서만 켠다(열기·패널 W/H 로는 안 켬 → 기존 저장본 무변).
+       획 배율 k 는 켜는 순간의 상자로 한 번(그 뒤 굵기 고정). */
+    if (vb.dataset.stretch !== '1' && (dx || dy)) {
+      vb.dataset.strokeK = String(Math.round((window.vectorStrokeK?.(vb) || 1) * 10000) / 10000);
+      vb.dataset.stretch = '1';
+    }
     let newW = startW, newH = startH;
     if (dir.includes('e')) newW = Math.max(20, startW + dx);
     if (dir.includes('w')) newW = Math.max(20, startW - dx);
     if (dir.includes('s')) newH = Math.max(20, startH + dy);
     if (dir.includes('n')) newH = Math.max(20, startH - dy);
+    if (ev.shiftKey) {   // Shift = 비율 고정(모서리는 더 크게 움직인 축을 따른다 · 변 손잡이는 다른 축을 맞춘다)
+      const r = startH / startW;
+      const byW = /[ew]/.test(dir) && (!/[ns]/.test(dir) || Math.abs(newW - startW) / startW >= Math.abs(newH - startH) / startH);
+      if (byW) newH = Math.max(20, newW * r); else newW = Math.max(20, newH / r);
+    }
     newW = Math.round(newW); newH = Math.round(newH);
     vb.dataset.w = String(newW);
     vb.dataset.h = String(newH);
     window.renderVector(vb);
+    if (_anchor0) {
+      const p = anchoredLeftTop(_anchor0.L, _anchor0.T, startW, startH, newW, newH, dir, _anchor0.deg);
+      _applyOverlayPos(_vpe, p.left, p.top);
+    }
     window.scheduleAutoSave?.();
   }
   function onUp() {

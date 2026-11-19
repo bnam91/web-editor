@@ -171,3 +171,19 @@ export const LIBRARY = [
     ],
   },
 ];
+
+/* LIB-FIGMA(261118 현빈) — «관리자 로컬 폴더» 묶음. 파일은 앱에 «없다»(asar·레포 assets/ 미동봉 · 출처·라이선스 미확인 · Apple 모양).
+ *   자리 = <userData>/admin-library/<dir>/ — main/admin-library.js DIRS 와 같은 dir(유닛 A6) · 읽기 = IPC adminLibrary:list/read(main 이 관리자 판정).
+ *   관리자 ∧ 폴더 있음 일 때만 탭이 생긴다(폴더 없으면 탭 0 · 일반 계정은 IPC 도 안 부른다).
+ *   칸: id·name(새 탭) | mergeInto(기존 탭 뒤에 덧붙임 · 관리자에게만 · 대상이 로컬 탭이면 묶음으로) · w · groups(하위 폴더 = 칸 묶음 · 묶음 이름 = 폴더 이름) · source · license
+ *   SVG = sanitizeSvgString → 단색이면 currentColor(js/util/mono-svg.js) → 벡터 블럭(색 바꾸기 탐) · WebP = 에셋 블럭.
+ */
+const _FIGMA = '피그마 파일 auizC1iG9z5kxEMH62dxcP · 플러그인 get_svg/export 추출(261118 · REST·토큰 0)';
+const _LOCAL_LICENSE = '출처·라이선스 미확인 — 관리자 내부 시안 전용 · 앱 미동봉(관리자 로컬 폴더)';
+export const ADMIN_LOCAL = [
+  { dir: 'doodle-figma-191-38', id: 'figma-doodle', name: '두들(피그마)', w: 200, source: `${_FIGMA} 노드 191:38 · 102종`, license: _LOCAL_LICENSE },
+  { dir: 'arrow-figma-191-2', mergeInto: 'arrow', w: 200, source: `${_FIGMA} 노드 191:2 elem_vector_arrow · 34종`, license: _LOCAL_LICENSE },
+  { dir: 'doodle-figma-more', mergeInto: 'figma-doodle', groups: true, baseGroup: '기본', source: `${_FIGMA} «두들002» Crispy doodles · «두들003» example-01~05·experiments·update · 53종(SVG · 짝 없는 PNG 만 PNG 로)`, license: _LOCAL_LICENSE },
+  { dir: 'memoji-inclusive-192-2', id: 'memoji-inclusive', name: '미모지(Inclusive)', w: 200, groups: true,
+    source: `${_FIGMA} 노드 192:2 Inclusive Memoji Collection · 35캐릭터×51포즈 · WebP(scripts/admin-library-prep.cjs)`, license: `${_LOCAL_LICENSE} · 외부 공유 금지` },
+];

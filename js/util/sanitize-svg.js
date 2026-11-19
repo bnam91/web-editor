@@ -39,6 +39,7 @@
  *   ⑵ js/count-sticker-tool.js(고전 스크립트 · 그 알리아스로) — dataset 에 «쓸 때»
  *   ⑶ js/blocks/sticker-block.js — 아이콘 스티커(shape:'icon')의 data-icon-svg 를 «그릴 때»(261114 · 예전엔 날것)
  *   ⑷ js/props/prop-iconify.js — SVG 프리셋 라이브러리 미리보기·적용(261114 · 예전엔 날것)
+ *   ⑹ js/panels/library-panel.js — 관리자 로컬 라이브러리 SVG(<userData>/admin-library · 사용자 폴더라 손댈 수 있다) 미리보기·벡터 넣기 «전»(LIB-FIGMA 261118)
  *   ⑸ sanitizeIconMarkup(아래) — 저장된 «아이콘»(svg 또는 iconify <img> 폴백)을 그리는 6곳: 아이콘 스티커 · 스티커 즐겨찾기 · 아이콘 창 즐겨찾기·고른 미리보기 · 모달 아이콘 · 카드 아이콘
  */
 

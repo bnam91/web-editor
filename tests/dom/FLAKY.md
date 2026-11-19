@@ -405,3 +405,8 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `grid-drag-cheap-render-132.dom.spec.js:75` G3 배경 그림 칸 끌기 — 인텔 전수 final15(c1482ef1f · workers 3) ✘ 30.1s(시간 초과) · final12·final13 전수 ✓ · 아이맥 workers1 통째 ×3: final15 3/3·final13 3/3 초록(10.5s) · 아이맥 단독 0/6.
 - 진단 기록(단언·대기·timeout 무변): 단계 표(booted·scene·cells·pick-click·gutters·stable·tick1~3·up·up-raf) + 실패/시간 초과 때 afterEach `[G3-DIAG]`(지금 단계·경과·.grd-inner 교체 누계·대기 중 비율 디코드·고른 상태·거터 수·칸 상자·누름 대상 · 페이지 3초 무응답 표시) · 부하 재현 = 환경 `G3_CPU=N`(CDP CPU 스로틀).
 - r2(지디 인텔 별도 워크트리 grid-* workers 3 ×6): G3 6/6 초록 · 6판째 **G1-col**(:102) `page.waitForFunction` 30s 시간 초과 ⇒ 진단을 이 파일 전 칸으로(`[DRAG132-DIAG]`) · 상한 없던 공용 대기 셋에 제 이름 상한 `WAIT-cells 8s · WAIT-gutters 8s · WAIT-upRaf 5s` + 그때 값(시험 상한·retries 무변).
+
+## 2026-11-18 · vector-svg-import V13 · group-scale-vector V2 (ty/lib-figma-admin-local) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `vector-svg-import.dom.spec.js:216` V13 섹션 밖 드랍 뒤 ⌘Z 한 번 = 넣기 전 — 지혜맥 workers1 retries0 V13·V2 만 ×3: 94d584807 2/3 빨강 · e5625ae91 2/3 빨강 · 그 전 지혜맥 e5625ae91 표적(retries 1) 재시도까지 빨강 · 94d584807 표적 회귀 DOM 초록.
+- `group-scale-vector.dom.spec.js:67` V2 nw 손잡이 -100,-60 강제 다시 그린 뒤에도 — 지혜맥 workers1 retries0 ×3: 94d584807 0/3 · e5625ae91 1/3 빨강 · e5625ae91 표적(retries 1) flaky 1 · ⚠️표본 작음(통과 근거 아님).
+- 교차: 94d584807→e5625ae91 diff(js/blocks/vector-block.js rebuildPenSvg · js/overlay-handles.js _onVectorResizeHandleMouseDown · js/pen-tool.js _commitEdit)는 두 칸의 장면(.svg 파일 놓기→⌘Z · ⌘G 묶음 손잡이 · 펜 아닌 circle)이 지나는 함수가 아니다(태양 코드 대조) — 최종 판정은 cand 전수.

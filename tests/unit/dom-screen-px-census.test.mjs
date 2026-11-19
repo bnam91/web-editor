@@ -94,6 +94,9 @@ const ROSTER_HOW = [
 ].join(' · ');
 
 const ROSTER = {
+  /* ★cand7 t11(태양 triage · 지디 재판정 가능): ★safe — 자가 잡은 «두 자리 상수» = 바로 아래 줄 `+g.w > 250` 은 dataset.w(모델 px)와의 비교다(화면 px 아님).
+     이 줄의 화면 px 비교(se 꼭지 이동)는 `≤ 2` 한 자리라 어림 밖 · 그 값은 끌기 거리를 배율 z 로 곱해 준 같은 화면 좌표계 안의 차다. */
+  'vector-resize-stretch.dom.spec.js:125': 'safe',
   'coupon-presets.dom.spec.js:158': 'risky',   // U6: U5 가 위에 주석 한 줄을 더해 :157 → :158 (같은 자리 · 칩 높이 > 40)
   /* ★t2-07(태양 · 그리드 배경 코너 손잡이) — 자가 새로 잡았다 · 태양 triage(지디 t3-06 선례대로 · 지디 재판정 가능): ★risky.
      H4b 의 [전제] «배경 상자 높이(getBoundingClientRect · 화면 px) < 24» 를 절대 숫자 24 와 견준다 — 제품 규칙(24px 미만 상자는 점 넷 숨김)이 화면 px 라도
