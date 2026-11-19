@@ -147,7 +147,8 @@ function _unrotateDelta(el, dx, dy) {
 }
 
 function showFrameHandles(ss) {
-  if (ss?.dataset?.sldCell === '1') { hideFrameHandles(); return; }   // 슬라이드 칸 = px 손잡이 0(크기는 트랙 % · 칸 손잡이는 slide-block)
+  /* 슬라이드 칸 = 크기·회전 px 손잡이 0(크기는 트랙 % · 칸 손잡이는 slide-block) · 코너 반경 손잡이만 일반 프레임 것 그대로(SLIDE-CELL-RADIUS-HANDLE-01 · 136) */
+  const cellOnly = ss?.dataset?.sldCell === '1';
   if (_overlayFrame === ss) return; // already showing
   hideFrameHandles();
   _overlayFrame = ss;
@@ -155,7 +156,7 @@ function showFrameHandles(ss) {
   if (!overlay) return;
 
   const dirs = ['nw', 'ne', 'sw', 'se'];
-  dirs.forEach(dir => {
+  if (!cellOnly) dirs.forEach(dir => {
     const h = document.createElement('div');
     h.className = `ss-resize-handle ${dir}`;
     h.dataset.dir = dir;
@@ -179,7 +180,7 @@ function showFrameHandles(ss) {
   //  - text frame : 텍스트 회전 상신 대상(보고 참조)
   const _hasShape = !!ss.querySelector(':scope > .shape-block');
   const _isTextFrame = ss.dataset.textFrame === 'true';
-  if (!_hasShape && !_isTextFrame) {
+  if (!_hasShape && !_isTextFrame && !cellOnly) {
     dirs.forEach(dir => {
       const z = document.createElement('div');
       z.className = `ss-rotate-handle ${dir}`;
@@ -633,12 +634,13 @@ function _onRadiusHandleMouseDown(e, ss, dir) {
                 : dir === 'ne' ? (-dx + dy) / 2
                 : dir === 'sw' ? (dx - dy) / 2
                 : (-dx - dy) / 2; // se
-    const newR = Math.min(200, Math.max(0, Math.round(startRadius + delta)));
-    ss.dataset.radius = String(newR);
-    ss.style.borderRadius = newR + 'px';
+    const cell = ss.dataset.sldCell === '1';   // 슬라이드 칸 = 칸 패널 범위(0~80 · normRadius) · 0 = 키 지움(패널과 같은 규약)
+    const newR = Math.min(cell ? 80 : 200, Math.max(0, Math.round(startRadius + delta)));
+    if (cell && !newR) delete ss.dataset.radius; else ss.dataset.radius = String(newR);
+    ss.style.borderRadius = newR ? newR + 'px' : (cell ? '' : '0px');
     // 프로퍼티 패널 동기화
-    const slider = document.getElementById('ss-radius-slider');
-    const num    = document.getElementById('ss-radius-num');
+    const slider = document.getElementById(cell ? 'sld-cell-radius-slider' : 'ss-radius-slider');
+    const num    = document.getElementById(cell ? 'sld-cell-radius' : 'ss-radius-num');
     if (slider) slider.value = String(newR);
     if (num)    num.value    = String(newR);
     window.scheduleAutoSave?.();

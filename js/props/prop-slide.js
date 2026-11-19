@@ -153,6 +153,7 @@ export function showSlideProperties(block, opts = {}) {
         c.closest('.section-block')?.classList.add('selected');
         c.classList.add('selected');
         window._activeFrame = c;
+        window.showFrameHandles?.(c);   // 캔버스 칸 클릭과 같은 상태(코너 반경 손잡이 · 136)
         c.scrollIntoView({ block: 'nearest', inline: 'center' });
         showSlideProperties(block, { cell: c });
       });

@@ -193,10 +193,11 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
   const pick = await page.evaluate((id) => {
     const cell = document.getElementById(id).querySelectorAll('.sld-cell')[1];
     return { active: window._activeFrame === cell, sel: cell.classList.contains('selected'), row: document.querySelector('.sld-cell-row.active')?.dataset.idx ?? null,
-      handles: document.querySelectorAll('.ss-resize-handle, .ss-radius-handle').length, framePanel: !!document.getElementById('ss-align-left') };   // 프레임 패널(prop-frame.js)에만 있는 id
+      handles: document.querySelectorAll('.ss-resize-handle, .ss-rotate-handle').length, radiusHandles: document.querySelectorAll('.ss-radius-handle').length, framePanel: !!document.getElementById('ss-align-left') };   // 프레임 패널(prop-frame.js)에만 있는 id
+    /* ★제품 뜻 바뀜(136 SLIDE-CELL-RADIUS-HANDLE-01 · 현빈 5차 (c) «캔버스 모서리 핸들 — 일반 프레임 것 재사용») — 칸에도 코너 반경 손잡이 넷 · 크기·회전 px 손잡이는 여전히 0 */
   }, id);
   expect(pre, `[전제] 펼친 뒤 누를 점 = 칸 2 · 진단 ${JSON.stringify({ pre, post })}`).toMatchObject({ open: true, inCell2: true });
-  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, framePanel: false });
+  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, radiusHandles: 4, framePanel: false });
   /* SLIDE-PANEL-REMOVE-CELL-PHOTO-BTN-01(현빈 피드백 3 ② · 제품 뜻 바뀜) — 칸을 골라도 패널에 «사진 넣기 (칸 N)» 단추가 없다(사진은 칸 위 스크래치·라이브러리 놓기 = R3) · 모서리 칸은 있다(같은 갈래가 그려졌다는 양성) */
   await expect(page.locator('#sld-cell-radius'), '[전제] 고른 칸 갈래 그려짐').toHaveCount(1);
   await expect(page.locator('#sld-cell-photo'), '★칸 사진 넣기 단추 없음').toHaveCount(0);
@@ -802,5 +803,35 @@ test('P1 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 �
   await expect.poll(cell).toMatchObject({ opa: '0.5' });
   await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
   await expect.poll(cell, '★저장→다시 열기 = 그대로').toMatchObject({ r: '24', rCs: '24px', w: '60', h: '80', opa: '0.5', opaCls: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (c) SLIDE-CELL-RADIUS-HANDLE-01(136) — 고른 칸에 일반 프레임의 코너 반경 손잡이(overlay-handles showFrameHandles · cellOnly)
+ * H1 칸 2 고름 → .ss-radius-handle 넷 · 크기·회전 손잡이 0 · se 손잡이를 안쪽(좌상)으로 30px 끌기 = dataset.radius 늘고 칸 computed 같은 값 · 패널 코너 슬라이더·숫자칸 같은 값 ·
+ *    80 넘게 끌면 80(칸 범위) · ⌘Z 한 번 = 끌기 전
+ * 양성대조: slide-frame-CTL39-cell-no-radius-handle.patch(_pickSlideCell 의 showFrameHandles 줄 삭제) → H1·F2 빨강 — 예측 */
+test('H1 칸 코너 반경 손잡이 = 프레임 것 · 끌면 반경·패널 같이 · 80 상한 · ⌘Z', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  expect(await page.evaluate(() => [document.querySelectorAll('.ss-radius-handle').length, document.querySelectorAll('.ss-resize-handle, .ss-rotate-handle').length]), '★반경 손잡이 넷 · px 손잡이 0').toEqual([4, 0]);
+  const r0 = await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[1].dataset.radius ?? null, id);
+  let prev = '', p = null;
+  await expect.poll(async () => { p = await page.evaluate(() => { const h = document.querySelector('.ss-radius-handle.se'); const r = h.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return { x, y, own: document.elementFromPoint(x, y) === h }; }); const k = `${p.x},${p.y}`, same = k === prev; prev = k; return p.own && same; },
+    { message: '[전제] se 반경 손잡이가 그 점의 임자이고 멎었다', intervals: [50] }).toBe(true);
+  const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 6 * i * z, p.y - 6 * i * z);   // 로컬 30px 안쪽
+  await page.mouse.up();
+  const read = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; return { r: c.dataset.radius ?? null, cs: getComputedStyle(c).borderTopLeftRadius, sl: document.getElementById('sld-cell-radius-slider')?.value ?? null, nu: document.getElementById('sld-cell-radius')?.value ?? null }; }, id);
+  const a = await read();
+  expect(+a.r, '★반경이 늘었다(로컬 30px 안쪽 ≈ +30)').toBeGreaterThanOrEqual(25);
+  expect(a, '★칸·패널 같은 값').toEqual({ r: a.r, cs: `${a.r}px`, sl: a.r, nu: a.r });
+  await page.mouse.move(p.x, p.y); await page.mouse.down();   // 손잡이 자리는 반경과 무관(모서리 안쪽 10px 고정)
+  for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 40 * i * z, p.y - 40 * i * z);
+  await page.mouse.up();
+  expect((await read()).r, '★칸 상한 80').toBe('80');
+  await key(page, 'Meta+z');
+  await expect.poll(() => read().then((v) => v.r), '★⌘Z 한 번 = 둘째 끌기 전').toBe(a.r);
+  expect(r0, '[전제] 처음 반경 키 없음(새 블럭)').toBeNull();
   expect(errs, errs.join(' | ')).toEqual([]);
 });
