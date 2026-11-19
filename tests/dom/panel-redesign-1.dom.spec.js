@@ -291,10 +291,12 @@ test('P9 Stroke ＋ 누르면 두께·색·위치가 펼쳐지고 단추가 − 
 
 /* ⑫ 매핑 교정(현빈 261120 · PLAN «텍스트 종류 12칸 매핑») — 중앙 플로팅 텍스트 메뉴로 만든 블럭마다 켜진 칸이 정확히 하나 · 맞는 칸.
  *   (Tags = 태그 블럭 · Quote = 인용구 블럭은 자기 패널이 따로라 여기 없다.) CTL prd1-12b-kind-map.patch(_kind = currentClass) → 말풍선·아이콘텍스트 빨강 */
-test('P12b 메뉴로 만든 텍스트 블럭마다 켜진 타입 칸 = 정확히 하나', async ({ page }) => {
+test('P12b 메뉴로 만든 텍스트 블럭마다 켜진 타입 칸 = 정확히 하나 · 곡선/아이콘텍스트는 타입 칸 없음', async ({ page }) => {
   const errs = await scene(page);
   const CASES = [["addTextBlock('h2')", 'H2'], ["addTextBlock('body')", 'Body'], ["addTextBlock('caption')", 'Cap'], ["addTextBlock('bullet')", 'Bullet'],
-    ["addTextBlock('label')", 'Label'], ['addIconTextBlock()', 'Icon'], ["addSpeechBubbleBlock('left')", 'Bubble'], ["addLinerBlock('arc-up')", 'Liner']];
+    ["addTextBlock('label')", 'Label'], ["addSpeechBubbleBlock('left')", 'Bubble'],
+    /* ★기대 바뀜(지디 261120 · 시안 v10 실측 — 아이콘텍스트 10 · 곡선 13 = 타입 칸 0): 그 둘엔 타입 절 없음 ⇒ 켜진 칸 [] · 묶음 없음 */
+    ['addIconTextBlock()', null], ["addLinerBlock('arc-up')", null]];
   for (const [call, want] of CASES) {
     const got = await page.evaluate(async (call) => {
       const sec = window.__secEl(); window.deselectAll?.(); window.selectSection(sec);
@@ -304,10 +306,11 @@ test('P12b 메뉴로 만든 텍스트 블럭마다 켜진 타입 칸 = 정확히
       if (!b) return { err: 'no block' };
       window.selectBlock(b.id);
       const on = [...document.querySelectorAll('#txt-kind-group .prop-type-btn.active')].map((x) => x.textContent.trim());
-      return { on };
+      return { on, group: !!document.getElementById('txt-kind-group') };
     }, call);
     expect(got.err, `[전제] ${call} 이 블럭을 만들었다`).toBeUndefined();
-    expect(got.on, `★${call} → 켜진 칸`).toEqual([want]);
+    if (want === null) expect(got.group, `★${call} — 시안에 없는 타입 칸 묶음이 생겼다`).toBe(false);
+    else expect(got.on, `★${call} → 켜진 칸`).toEqual([want]);
   }
   expect(errs, errs.join(' | ')).toEqual([]);
 });

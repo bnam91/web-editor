@@ -302,8 +302,7 @@ export function buildTextPanelSpec(state) {
 
   /* 타입 칸 켜짐 = 정확히 한 칸(블럭 종류가 먼저 · 그다음 내용 칸 클래스) — 재설계 1차 ⑫ 매핑 교정 */
   const _kind = isSpeechBubble ? 'bubble' : isLiner ? 'liner' : isIconText ? 'icon' : currentClass;
-  const _noConv = isLiner || isIconText;
-  const _kb = (cls, label) => `<button class="prop-type-btn ${_kind === cls ? 'active' : ''}" data-cls="${cls}"${_noConv ? ' disabled' : ''}>${label}</button>`;
+  const _kb = (cls, label) => `<button class="prop-type-btn ${_kind === cls ? 'active' : ''}" data-cls="${cls}">${label}</button>`;
 
   const _anim = (isOverlayTb || !showAnimGif) ? '' : `
       <button class="prop-anim-btn" id="open-anim-btn">
@@ -329,9 +328,9 @@ export function buildTextPanelSpec(state) {
          «Caption» 은 칸에 안 들어 앱 이름 «Cap» 그대로 · «Icon Text» → «Icon» 현빈 v9).
          ★켜짐은 «정확히 한 칸»(현빈 261120 교정 — PLAN «텍스트 종류 12칸 매핑»): 말풍선·곡선·아이콘텍스트는 자기 칸만(내용 칸 클래스가 무엇이든 Body 등은 안 켜짐).
          Tags(태그 = label-group 블럭 · 자기 패널) · Icon · Bubble · Liner 로 «바꾸기»는 앱에 없다 ⇒ disabled(자기 블럭이면 켜짐은 보인다).
-         곡선·아이콘텍스트는 옛 판에 타입 절이 없었다(바꾸기 길 없음) ⇒ 칸은 보이되 전부 disabled.
+         곡선·아이콘텍스트는 타입 절 없음(옛 판 그대로 · 시안 v10 실측도 칸 0 — 지디 261120).
          ★한 묶음(#txt-kind-group) 안 — Quote 가 묶음 밖 혼자일 때 «마지막 칸 왼 테두리 없음» 규칙(editor-props.css 세그먼트)에 잘렸다. */
-      sec('kind', `
+      sec('kind', (isLiner || isIconText) ? '' : `
       <div class="prop-type-group" id="txt-kind-group">
         ${_kb('tb-h1', 'H1')}
         ${_kb('tb-h2', 'H2')}
@@ -344,7 +343,7 @@ export function buildTextPanelSpec(state) {
         <button class="prop-type-btn${_kind === 'icon' ? ' active' : ''}" disabled title="Icon Text — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Icon</button>
         <button class="prop-type-btn${_kind === 'bubble' ? ' active' : ''}" disabled title="Bubble — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Bubble</button>
         <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
-        <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다"${_noConv ? ' disabled' : ''}>Quote</button>
+        <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
         <button class="prop-type-btn${_kind === 'liner' ? ' active' : ''}" disabled title="Liner — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Liner</button>
       </div>`, { id: 'type-section' }),
       sec('content', _bulletSec, { id: 'bullet-style-section' }),

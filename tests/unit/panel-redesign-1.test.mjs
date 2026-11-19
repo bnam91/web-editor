@@ -169,24 +169,23 @@ test('R9 Stroke 머리 = 단추꼴 label 안 체크박스 + ＋/− 그림 · Ef
   assert.match(stripComments(readSrc(ROOT, 'js/effects-registry.js')), /<option value="">\$\{FX_ADD_HEAD_LABEL\}<\/option>/, '[대조] 다른 패널(plus 없음)은 옛 «효과 추가…» 그대로');
 });
 
-/* ⑫ 매핑 교정(현빈 261120) — 블럭마다 켜지는 칸은 정확히 하나 · 말풍선/곡선/아이콘텍스트는 자기 칸만. 양성대조: _kind 를 currentClass 로 되돌리면 빨강 */
-test('R12b 켜짐 = 정확히 한 칸 — H1·Label·Bubble·Liner·Icon · 곡선/아이콘텍스트는 바꾸기 칸 전부 disabled', () => {
+/* ⑫ 매핑 교정(현빈 261120) — 블럭마다 켜지는 칸은 정확히 하나 · 말풍선은 Bubble 만. 양성대조: _kind 를 currentClass 로 되돌리면 빨강
+ *   ★기대 바뀜(지디 261120 · 시안 v10 실측: 곡선 13 · 아이콘텍스트 10 = 타입 칸 0) — 곡선·아이콘텍스트는 타입 절 없음(옛 판 그대로) */
+test('R12b 켜짐 = 정확히 한 칸 — H1·Label·Bubble · 곡선/아이콘텍스트는 타입 절 없음', () => {
   const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
   const T = loadTextTemplate();
+  const html = (st) => T.buildTextPropsHtml({ ...GOLDEN_STATE, ...st });
   const on = (st) => {
-    const g = /id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(T.buildTextPropsHtml({ ...GOLDEN_STATE, ...st }))?.[1] || '';
+    const g = /id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(html(st))?.[1] || '';
     return [...g.matchAll(/<button class="prop-type-btn ?(active)?"[^>]*>([^<]*)<\/button>/g)].filter((m) => m[1]).map((m) => m[2]);
   };
   assert.deepEqual(on({ currentClass: 'tb-h1' }), ['H1']);
   assert.deepEqual(on({ currentClass: 'tb-label', isLabel: true }), ['Label']);
   /* Bullet 상태는 이 하네스가 글머리 명부(text-type-class)를 안 실어 못 그린다 — DOM P12b 가 잰다 */
   assert.deepEqual(on({ currentClass: 'tb-body', isSpeechBubble: true }), ['Bubble'], '★말풍선에 Body 가 같이 켜진다');
-  assert.deepEqual(on({ currentClass: 'tb-liner', isLiner: true }), ['Liner']);
-  assert.deepEqual(on({ currentClass: 'tb-body', isIconText: true }), ['Icon'], '★아이콘텍스트에 Body 가 켜진다(내용 칸 .itb-text)');
-  const g = /id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(T.buildTextPropsHtml({ ...GOLDEN_STATE, isIconText: true }))?.[1] || '';
-  assert.equal((g.match(/<button(?![^>]*disabled)/g) || []).length, 0, '★아이콘텍스트에서 눌리는 바꾸기 칸이 있다(바꾸기 길 없음)');
+  assert.doesNotMatch(html({ currentClass: 'tb-liner', isLiner: true }), /id="txt-kind-group"|data-sec="kind"/, '★곡선에 타입 절이 생겼다(시안 v10 = 칸 0)');
+  assert.doesNotMatch(html({ isIconText: true }), /id="txt-kind-group"|data-sec="kind"/, '★아이콘텍스트에 타입 절이 생겼다(시안 v10 = 칸 0)');
 });
-
 /* B(시안 v9 #4) — 텍스트 패널 절의 칸 위 · 칸 안 라벨 = --ui-fs-base 하나. 양성대조: 그 규칙을 지우면 빨강 */
 test('R13 텍스트 패널 라벨 글자 크기 = --ui-fs-base(.prop-field-label · .prop-xy-label) · 다른 패널 기본 그대로', () => {
   const props = css('css/editor-props.css');

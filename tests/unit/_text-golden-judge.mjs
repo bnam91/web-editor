@@ -177,10 +177,6 @@ const CTL_ADDED = [
   new RegExp(`^<input type="range" class="prop-slider" id="txt-ph-slider"${PH_ATTRS}>$`),   /* ⑤ «좌우패딩» 한 줄(잠금 때 둘을 같이) */
   new RegExp(`^<input type="number" class="prop-number" id="txt-ph-number"${PH_ATTRS}>$`),
 ];
-/* ⑫ 매핑 교정(현빈 261120) — 곡선·아이콘텍스트에도 타입 12칸을 보인다(옛 판 = 타입 절 없음). 바꾸기 길이 없어 전부 disabled. 그 상태에서만 허용 */
-const NOCONV = { states: ['iconText-h', 'iconText-v', 'liner+mix'],
-  ctl: [/^<button class="prop-type-btn " data-cls="tb-(?:h1|h2|h3|body|caption|bullet|label)" disabled>$/, /^<button class="prop-type-btn" id="txt-to-quote" title="[^"]*" disabled>$/],
-  ids: ['type-section', 'txt-to-quote'] };
 const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /];   /* ⑥ 너비 슬라이더 걷음 */
 ID_ADDED.push(/^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
@@ -197,15 +193,15 @@ function judge(name, st, oldHtml, newHtml) {
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
   /* ⑫ 매핑 교정 — 말풍선이면 Bubble 만 켜짐: 옛 판이 함께 켜던 Body(내용 칸 클래스 기준)는 꺼진 것이 맞다 */
   const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).map((t) => (name === 'bubble' ? t.replace(/^<button class="prop-type-btn active" (data-cls="tb-[a-z0-9]+")>$/, '<button class="prop-type-btn " $1>') : t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc = ctl(n);
-  const drift = DRIFT_PRE.states.includes(name), noconv = NOCONV.states.includes(name);
-  const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)) && !(noconv && NOCONV.ctl.some((r) => r.test(t))));
+  const drift = DRIFT_PRE.states.includes(name);
+  const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED])
     .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const l2 = minus(ol, labels(n)), e2 = minus(labels(n), ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
-  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !(drift && DRIFT_PRE.id.test(i)) && !(noconv && NOCONV.ids.includes(i)));
+  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !(drift && DRIFT_PRE.id.test(i)));
   const l4 = minus(oi, ni), e4 = minus(ni, oi);
   if (l4.length || e4.length) bad.push(`J4 id: 잃음 ${JSON.stringify(l4)} · 생김 ${JSON.stringify(e4)}`);
   for (const v of judgePanel(nm, SPEC)) bad.push(`J5 게이트: ${v}`);
