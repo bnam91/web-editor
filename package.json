@@ -78,6 +78,9 @@
         }
       ]
     },
+    "nsis": {
+      "license": "build/nsis-license-ko.txt"
+    },
     "win": {
       "icon": "build/icon.ico",
       "target": [
