@@ -8,8 +8,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 /* js/util 은 루트 package.json(commonjs) 아래라 ESM 을 data: 로 싣는다(js/fx/package.json 머리말: 이 폴더 밖에 package.json 만들지 말 것) */
-const SRC = fs.readFileSync(new URL('../../js/util/pixabay.js', import.meta.url), 'utf8');
-const { cleanKey, searchParams, cacheKey, readCache, writeCache, pickHits, CACHE_TTL_MS, CACHE_MAX, CACHE_SLOT } = await import('data:text/javascript,' + encodeURIComponent(SRC));
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+/* 레포 규칙(cand16 단위 전수 261120 · win-portability ②-4): import 는 data: URL 말고 임시 우산(mkTmpRoot)의 .mjs 를 file: URL 로
+   (js/ 의 .js 는 node 가 CommonJS 로 읽어 그대로 import 못 함). 소스는 readSrc(LF 정규화). */
+const require = createRequire(import.meta.url);
+const { readSrc } = require('./_srcread.js');
+const { mkTmpRoot } = require('./_tmproot.js');
+const SRC = readSrc(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'js', 'util', 'pixabay.js');
+const _dir = mkTmpRoot('pixabay-');
+fs.writeFileSync(path.join(_dir, 'pixabay.mjs'), SRC);
+const { cleanKey, searchParams, cacheKey, readCache, writeCache, pickHits, CACHE_TTL_MS, CACHE_MAX, CACHE_SLOT } = await import(pathToFileURL(path.join(_dir, 'pixabay.mjs')).href);
 
 const FAKE = '00000000-fakekeyforunit00';
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), _m: m }; };
