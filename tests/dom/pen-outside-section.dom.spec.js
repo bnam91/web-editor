@@ -62,7 +62,8 @@ test('S1 섹션 밖 펜 → 스크래치 펜 항목 · 섹션 블럭 무변', as
   await page.evaluate(() => window.enterVectorPenMode());
   for (const p of pts) await page.mouse.click(p.x, p.y);
   await page.keyboard.press('Enter');
-  await expect.poll(counts, '★스크래치 +1 · 섹션 블럭 무변').toEqual({ scratch: c0.scratch + 1, blocks: c0.blocks });
+  await expect.poll(() => counts(page), '★스크래치 +1 · 섹션 블럭 무변')   /* 인텔 261120: poll 에 함수만 넘겨 page 가 undefined(S1 이 한 번도 안 돌았다) */
+    .toEqual({ scratch: c0.scratch + 1, blocks: c0.blocks });
   const id = await page.evaluate(() => [...document.querySelectorAll('.scratch-item')].pop().dataset.scratchId);
   expect(await penOf(page, id), '★SVG 장 · 펜 노드 셋').toEqual({ svg: true, nodes: 3 });
   expect(errs, errs.join(' | ')).toEqual([]);
