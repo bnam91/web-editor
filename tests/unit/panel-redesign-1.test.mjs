@@ -24,3 +24,13 @@ test('R2 절 제목 = --ui-text · 머리 위아래 space-3 · 몸 아래 space-
   assert.doesNotMatch(props, /--ui-sec-title-color\s*:/, '★절마다 제목 색을 다시 정하는 규칙이 생겼다(한 규칙이어야)');
   assert.doesNotMatch(props, /\.prop-sec-head\s*>\s*\.prop-section-title:hover/, '★절 머리 hover 색이 되살았다');
 });
+
+/* ⑦ 숫자 칸 스피너 걷음 — 우측 패널 전체 한 규칙. 양성대조: 그 규칙을 지우면 빨강 */
+test('R7 #panel-right 숫자 칸 = textfield · 스핀 단추 -webkit-appearance none · 다시 누름 판정이 스피너 없는 칸의 오른쪽 끝도 칸으로', () => {
+  const props = css('css/editor-props.css');
+  assert.match(props, /#panel-right input\[type="number"\]\s*\{[^}]*appearance:\s*textfield/);
+  assert.match(props, /#panel-right input\[type="number"\]::-webkit-inner-spin-button\s*\{[^}]*-webkit-appearance:\s*none/);
+  assert.match(props, /#panel-right input\[type="number"\]::-webkit-outer-spin-button/);
+  const ed = css('js/editor.js');
+  assert.match(ed, /const _reclickSelectAll = [^;]*appearance === 'textfield'/, '★스피너가 없는데 오른쪽 18px 을 스피너로 본다');
+});

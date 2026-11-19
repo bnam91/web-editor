@@ -178,6 +178,10 @@
   /* height: 24px; */
   font-size: var(--ui-fs-base);
 }
+/* 우측 패널 숫자 칸 위아래 스피너 걷음(Figma F3-1 · 패널 재설계 1차 ⑦) — 값 증감은 ↑↓ 키(브라우저 기본 그대로) */
+#panel-right input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+#panel-right input[type="number"]::-webkit-outer-spin-button,
+#panel-right input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .prop-ph-header {
   display: flex; align-items: center; justify-content: space-between;

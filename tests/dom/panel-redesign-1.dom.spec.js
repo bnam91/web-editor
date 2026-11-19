@@ -52,3 +52,18 @@ test('P2 모든 절 제목 색 = --ui-text(빈 Stroke·Effects 도) · 머리 �
   for (const h of r.heads) expect([h.id, h.color, h.op, h.pt, h.pb], `★${h.id} 제목 색·간격`).toEqual([h.id, r.want, '1', r.sp3, r.sp3]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑦ 숫자 칸 스피너 없음 · ↑↓ 키로 값이 바뀐다. CTL prd1-07-spin.patch(스피너 걷는 규칙 삭제) → 빨강 */
+test('P7 우측 패널 숫자 칸 — 스피너 없음(appearance textfield) · ↑ 키로 1 오른다', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const ap = await page.evaluate(() => [...document.querySelectorAll('#panel-right input[type="number"]')].map((i) => getComputedStyle(i).appearance));
+  expect(ap.length, '[전제] 숫자 칸이 있다').toBeGreaterThan(3);
+  expect([...new Set(ap)], '★스피너가 남은 숫자 칸').toEqual(['textfield']);
+  const n = page.locator('#txt-x-number');
+  const v0 = Number(await n.inputValue());
+  await n.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async () => Number(await n.inputValue()), '★↑ 키로 값이 안 바뀐다').toBe(v0 + 1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
