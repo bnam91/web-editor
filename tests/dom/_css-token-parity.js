@@ -89,12 +89,26 @@ async function shot(page, sel) {
     return { w: img.width, h: img.height, d: Array.from(c.getImageData(0, 0, img.width, img.height).data) };
   }, buf.toString('base64'));
 }
-function pxDiff(a, b, tag) {
+/** 멎은 판 찍기 — 같은 화면을 두 rAF 사이로 두 번 찍어 «같을 때»의 그림을 돌려준다(늦은 그리기·테마 바뀐 뒤 다시 칠하기 끝물을 기다림 · 고정 대기 0).
+ *  지혜맥 7fc216723: P «우측 패널(프레임 선택) · 다른 테마» 1회차 9px → 재시도 초록(픽셀 0 판정이 재시도로 서면 근거가 약하다 — 지디).
+ *  끝까지 안 멎으면 마지막 그림을 돌려주고 console 에 남긴다(그 뒤 픽셀 비교가 빨강으로 말한다 · 판정 완화 0). */
+async function stableShot(page, sel, tag, tries = 12) {
+  let prev = await shot(page, sel);
+  for (let i = 0; i < tries; i++) {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const cur = await shot(page, sel);
+    if (cur.w === prev.w && cur.h === prev.h && pxDiff(cur, prev, `${tag} 멎음 확인`, true) === 0) return cur;
+    prev = cur;
+  }
+  console.log(`[css-token] ${tag} — ${tries}번 찍어도 안 멎었다(마지막 그림으로 비교)`);
+  return prev;
+}
+function pxDiff(a, b, tag, quiet = false) {
   if (a.w !== b.w || a.h !== b.h) { console.log(`[css-token] ${tag} 크기 다름 ${a.w}×${a.h} vs ${b.w}×${b.h}`); return Infinity; }
   let n = 0; let logged = 0;
   for (let k = 0; k < a.d.length; k += 4) {
     if (a.d[k] !== b.d[k] || a.d[k + 1] !== b.d[k + 1] || a.d[k + 2] !== b.d[k + 2] || a.d[k + 3] !== b.d[k + 3]) {
-      n++; if (logged++ < 5) console.log(`[css-token] ${tag} (${(k / 4) % a.w},${Math.floor(k / 4 / a.w)}) 지금 ${a.d.slice(k, k + 4)} · 핀 ${b.d.slice(k, k + 4)}`);
+      n++; if (!quiet && logged++ < 5) console.log(`[css-token] ${tag} (${(k / 4) % a.w},${Math.floor(k / 4 / a.w)}) 지금 ${a.d.slice(k, k + 4)} · 핀 ${b.d.slice(k, k + 4)}`);
     }
   }
   return n;
@@ -136,7 +150,7 @@ async function check(browser, screens) {
       const tag = `${s.name}${theme ? ' · 다른 테마' : ''}`;
       for (const { p } of pages) { await s.open(p); await settle(p); }
       await visibleRoot(now.p, s.root, tag + ' 지금'); await visibleRoot(pin.p, s.root, tag + ' 핀');
-      const d = pxDiff(await shot(now.p, s.root), await shot(pin.p, s.root), tag);
+      const d = pxDiff(await stableShot(now.p, s.root, tag + ' 지금'), await stableShot(pin.p, s.root, tag + ' 핀'), tag);
       rows.push({ screen: tag, diff: d });
       if (!theme) for (const f of s.files) {
         const L = lines[f];
