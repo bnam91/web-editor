@@ -2629,25 +2629,21 @@ function _updateGridHeadbandPositions(overlay, block, blockRect) {
   });
 }
 
-/** 포인터 좌표(축 하나) → «삽입 자리» 0..n. 그 칸의 가운데를 지났으면 그 칸 «뒤». */
-function _grdBandInsertAt(block, axis, n, p) {
+/** 포인터 좌표(축 하나) → «삽입 자리» 0..n. 그 칸의 가운데를 지났으면 그 칸 «뒤». rectAt(j) = j 째 칸 화면 상자(없으면 null).
+ *  ★그리드 머리띠·슬라이드 칸 띠(SLIDE-CELL-REORDER-01) 공용 — 칸을 «무엇으로» 찾는지만 부르는 쪽이 준다. */
+function _grdBandInsertAt(rectAt, axis, n, p) {
   let k = 0;
   for (let j = 0; j < n; j++) {
-    const el = _gridTrackCell(block, axis, j);
-    if (!el) continue;
-    const r = el.getBoundingClientRect();
+    const r = rectAt(j);
+    if (!r) continue;
     if (p > (axis === 'col' ? r.left + r.width / 2 : r.top + r.height / 2)) k = j + 1;
   }
   return k;
 }
 
 /** 삽입 자리 k 의 «선» 좌표(화면) — 첫 칸 앞 끝 · 사이 gap 가운데 · 끝 칸 뒤 끝. */
-function _grdBandSlotEdge(block, axis, n, k) {
-  const at = (j) => {
-    const el = _gridTrackCell(block, axis, j);
-    return el ? el.getBoundingClientRect() : null;
-  };
-  const a = k > 0 ? at(k - 1) : null, b = k < n ? at(k) : null;
+function _grdBandSlotEdge(rectAt, axis, n, k) {
+  const a = k > 0 ? rectAt(k - 1) : null, b = k < n ? rectAt(k) : null;
   if (axis === 'col') {
     if (a && b) return (a.right + b.left) / 2;
     return b ? b.left : a ? a.right : null;
@@ -2697,12 +2693,31 @@ function _grdBandSelect(block, axis, i) {
 }
 
 function _onGridHeadbandMouseDown(e, block, axis, from) {
+  const n = axis === 'col' ? gridCols(block).length : gridRows(block).length;
+  _bandDragReorder(e, {
+    block, axis, from, n,
+    rectAt: (j) => _gridTrackCell(block, axis, j)?.getBoundingClientRect() || null,
+    shellRect: () => (block.querySelector(':scope > .grd-inner') || block).getBoundingClientRect(),
+    alive: () => block.isConnected && block.classList.contains('selected'),
+    move: (f, to) => (axis === 'col' ? moveGridCol(block, Number(f), to) : moveGridRow(block, Number(f), to)),
+    after: () => {
+      window.grdSetActiveLine?.(block, null);   // ★옛 주소 비우기(U1 이벨류) — 자리가 바뀐 줄을 가리키면 안 된다
+      window.grdClearLineSel?.(block);
+      if (window._grdAfterResize) window._grdAfterResize(block);
+      else { hideGridGutters(); showGridGutters(block); }
+    },
+  });
+}
+
+/** 띠 끌어 순서 바꾸기 «한 벌»(그리드 행·열 머리띠 · 슬라이드 칸 띠 SLIDE-CELL-REORDER-01).
+ *  ops = { block, axis 'col'|'row', from, n, rectAt(j), shellRect(), alive(), move(from,to) → bool, after?() } */
+function _bandDragReorder(e, ops) {
+  const { block, axis, from, n } = ops;
   if (e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
   const band = e.currentTarget;
   if (band) band._grdTap = false;
-  const n = axis === 'col' ? gridCols(block).length : gridRows(block).length;
   if (!(from >= 0 && from < n)) return;
   const restoreDrag = window.suppressAncestorDrag ? window.suppressAncestorDrag(block) : () => {};
   const overlay = _getOverlay();
@@ -2719,9 +2734,9 @@ function _onGridHeadbandMouseDown(e, block, axis, from) {
       band?.classList.add('is-dragging');
     }
     const p = axis === 'col' ? ev.clientX : ev.clientY;
-    insertAt = _grdBandInsertAt(block, axis, n, p);
-    const edge = _grdBandSlotEdge(block, axis, n, insertAt);
-    const shell = (block.querySelector(':scope > .grd-inner') || block).getBoundingClientRect();
+    insertAt = _grdBandInsertAt(ops.rectAt, axis, n, p);
+    const edge = _grdBandSlotEdge(ops.rectAt, axis, n, insertAt);
+    const shell = ops.shellRect();
     if (!overlay || edge === null) return;
     if (!line) {
       line = document.createElement('div');
@@ -2764,17 +2779,14 @@ function _onGridHeadbandMouseDown(e, block, axis, from) {
     cleanup();
     /* ★U2a-fix D2 — 끄는 사이 선택이 풀렸거나(다른 길의 Esc·deselectAll) 블럭이 지워졌으면 «쓰기 0».
        머리띠는 이미 사라졌다 — 보이지 않는 손으로 rows/cells 를 바꾸면 안 된다(이벨류 E2). */
-    if (!block.isConnected || !block.classList.contains('selected')) return;
+    if (!ops.alive()) return;
     /* ⛔안 끌었으면(임계 미달) «아무 일도 안 한다» — 머리띠를 그냥 누른 것은 클릭이다(→ 이웃 넘기기는 click 처리기 · D1). */
     if (!armed || insertAt === null) { if (!armed && band) band._grdTap = true; return; }
     const to = Number(_grdGripDropTarget(from, insertAt, true));
     if (!Number.isInteger(to) || to === from) return;   // 제자리 = 쓰기·이력 0
-    const moved = axis === 'col' ? moveGridCol(block, Number(from), to) : moveGridRow(block, Number(from), to);
+    const moved = ops.move(from, to);
     if (!moved) return;
-    window.grdSetActiveLine?.(block, null);   // ★옛 주소 비우기(U1 이벨류) — 자리가 바뀐 줄을 가리키면 안 된다
-    window.grdClearLineSel?.(block);
-    if (window._grdAfterResize) window._grdAfterResize(block);
-    else { hideGridGutters(); showGridGutters(block); }
+    ops.after?.();
     /* ★끝 표본도 찍는다 — 위 거터 둘과 같은 규약(시작 표본은 moveGrid* 가 «변경 전»에 찍었다). */
     window.pushHistory?.();
   }
@@ -2782,6 +2794,51 @@ function _onGridHeadbandMouseDown(e, block, axis, from) {
   document.addEventListener('mouseup', onUp);
   window.addEventListener('keydown', onKey, true);
 }
+
+/* ═══ SLIDE-CELL-REORDER-01(141 · 현빈 5차 (h)) — 펼친 프레임 칸 슬라이드의 칸 «위»(세로 효과면 왼쪽) 띠 ═══
+ *   꼴·끌기 = 그리드 머리띠 한 벌(.grd-headband · _bandDragReorder · 놓을 자리 선 .grd-headband-drop) · 옮기기 = window.moveSlideCell(⌘←/→ 와 같은 문).
+ *   생애 = slide-block _syncSlidePlus rAF(고른 동안) — 펼침이 아니면·안 골랐으면 걷는다. 띠 i = «i 째 자리»(옮긴 뒤에도 자리 번호). */
+function syncSlideCellBands(block, cells = [], axis = 'col') {
+  const overlay = _getOverlay();
+  if (!overlay) return;
+  let bands = [...overlay.querySelectorAll(':scope > .grd-headband[data-sld]')];
+  if (!block || !cells.length) { bands.forEach((b) => b.remove()); return; }
+  if (bands.length !== cells.length || bands[0].dataset.sld !== block.id || bands[0].dataset.axis !== axis) {
+    bands.forEach((b) => b.remove());
+    bands = cells.map((_, i) => {
+      const b = document.createElement('div');
+      b.className = 'grd-headband';
+      Object.assign(b.dataset, { sld: block.id, axis, i: String(i) });
+      b.textContent = String(i + 1);
+      b.title = '끌어서 칸 순서 바꾸기 · 칸 고르고 ⌘←/→';
+      b.style.cssText = 'position:absolute;z-index:97;pointer-events:auto;';
+      b.addEventListener('mousedown', (e) => {
+        const cs = () => window.slideCellsOf?.(block) || [];
+        _bandDragReorder(e, {
+          block, axis, from: i, n: cs().length,
+          rectAt: (j) => cs()[j]?.getBoundingClientRect() || null,
+          shellRect: () => (block.querySelector(':scope > .sld-track') || block).getBoundingClientRect(),
+          alive: () => block.isConnected && block.classList.contains('sld-unfold'),
+          move: (f, to) => !!window.moveSlideCell?.(block, f, to),
+        });
+      });
+      overlay.appendChild(b);
+      return b;
+    });
+  }
+  const br = block.getBoundingClientRect();
+  bands.forEach((b, i) => {
+    const r = cells[i].getBoundingClientRect();
+    if (axis === 'col') {
+      b.style.left = r.left + 'px'; b.style.width = r.width + 'px';
+      b.style.top = (br.top - GRD_BAND_GAP - GRD_BAND_T) + 'px'; b.style.height = GRD_BAND_T + 'px';
+    } else {
+      b.style.top = r.top + 'px'; b.style.height = r.height + 'px';
+      b.style.left = (br.left - GRD_BAND_GAP - GRD_BAND_T) + 'px'; b.style.width = GRD_BAND_T + 'px';
+    }
+  });
+}
+window.syncSlideCellBands = syncSlideCellBands;
 
 /* ═══ ★t3-04 U2b «칸 범위 선택» — 끌어서 A2:C3 (S6 · 2026-10-23 · 현빈 GO msg5376 · 설계 reports/S6-GRID/plan-u2b.md) ═══
  * ★상태 = 모듈 하나(_grdRange) — 그리드 «하나»만 범위를 가진다(고른 그리드는 늘 하나 · grdIsSoleSelected).

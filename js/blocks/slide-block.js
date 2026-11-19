@@ -364,7 +364,30 @@ function _syncSlidePlus() {
     Object.assign(_sldPlus.btn.style, { left: `${(x - sr.left) / z + (vert ? 0 : 28)}px`, top: `${(y - sr.top) / z + (vert ? 28 : 0)}px`, transform: 'translate(-50%, -50%)' });
     _sldPlus.btn.disabled = cells.length >= SLIDE_MAX;
   }
+  const ub = b && b.classList.contains('sld-unfold') ? b : null;   // 141 칸 띠 = 펼친 프레임 칸 슬라이드를 고른 동안(그리드 머리띠 꼴 · overlay-handles)
+  window.syncSlideCellBands?.(ub, ub ? slideCells(ub) : [], ub && slideAxis(readSlideState(ub).fx) === 'y' ? 'row' : 'col');
   if (sel || b || selCell) _sldRaf = requestAnimationFrame(_syncSlidePlus);
+}
+/** SLIDE-CELL-REORDER-01(141) — 칸 from → to 자리(⌘←/→ · 칸 띠 끌기 한 문). 칸 요소째 옮김(자식 통째) · 고른 상태·펼침 유지 · 이력 한 칸(끝 표본) · 패널 다시. */
+export function moveSlideCell(block, from, to) {
+  const cells = slideCells(block), c = cells[from], track = block?.querySelector(':scope > .sld-track');
+  if (!c || !track || !(to >= 0 && to < cells.length) || to === from) return false;
+  const rest = cells.filter((x) => x !== c);
+  track.insertBefore(c, rest[to] || null);
+  renderSlideBlock(block);
+  window.pushHistory?.('칸 순서');
+  window.scheduleAutoSave?.();
+  const pick = slideCells(block).find((x) => x.classList.contains('selected')) || null;
+  window.showSlideProperties?.(block, { cell: pick });
+  kickSlidePlus();
+  return true;
+}
+/** ⌘←/→(editor.js) — 펼친 슬라이드에서 «칸 자신»을 골랐을 때만(칸 안 블럭을 골랐으면 false → 다음 길). dir = −1 | 1 */
+export function moveSelectedSlideCell(dir) {
+  const c = document.querySelector('#canvas .slide-block.sld-unfold > .sld-track > .sld-cell.selected');
+  if (!c || c.querySelector('.selected')) return false;
+  const block = c.closest('.slide-block'), i = slideCells(block).indexOf(c);
+  return moveSlideCell(block, i, i + dir);
 }
 export function kickSlidePlus() { if (!_sldRaf && typeof requestAnimationFrame === 'function') _sldRaf = requestAnimationFrame(_syncSlidePlus); }
 if (typeof document !== 'undefined') document.addEventListener('mouseup', kickSlidePlus, true);
@@ -669,6 +692,7 @@ window.appendSlideCellImage = appendSlideCellImage;
 window.duplicateSlideCell = duplicateSlideCell;
 window.kickSlidePlus = kickSlidePlus;
 window.unfoldSlide = unfoldSlide;
+Object.assign(window, { moveSlideCell, moveSelectedSlideCell, slideCellsOf: slideCells });   // 141 — editor.js ⌘←/→ · overlay-handles 칸 띠(import 안 늘림)
 window.setSlideScrollFix = setSlideScrollFix;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

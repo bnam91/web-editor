@@ -937,3 +937,37 @@ test('X1 빈 영역 두 번 누름 = 나옴 · 칸 안은 그대로 · 펼친 �
   expect(await zs(), '★나온 뒤 z 2 · 2').toEqual(['2', '2']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 5 (h) SLIDE-CELL-REORDER-01(141) — 칸 고르고 ⌘←/→ · 칸 위 띠 끌기(그리드 머리띠 한 벌)
+ * O1 펼침·칸 2 고름 → 띠 셋(.grd-headband[data-sld]) · ⌘→ = [1,3,2] · 끝에서 ⌘→ 무변 · ⌘← 두 번 = [2,1,3] · ⌘Z 한 번 = 한 걸음 전([1,2,3]) · 띠 1 을 끝으로 끌기 = 첫 칸이 끝 · 저장→다시 열기 = 그 순서
+ * 양성대조: slide-frame-CTL44-no-cell-reorder.patch(moveSlideCell 이 늘 false) → O1 빨강 — 예측 */
+test('O1 칸 순서 — ⌘←/→ · 칸 띠 끌기 · ⌘Z · 저장', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const c0 = await cellIds(page, id);
+  expect(c0.length, '[전제] 칸 셋').toBe(3);
+  await pickCell(page, id, 1);
+  await expect.poll(() => page.locator('#ss-handles-overlay > .grd-headband[data-sld]').count(), '★칸 띠 셋').toBe(3);
+  await key(page, 'Meta+ArrowRight');
+  await expect.poll(() => cellIds(page, id), '★⌘→ = 칸 2 가 끝으로').toEqual([c0[0], c0[2], c0[1]]);
+  await key(page, 'Meta+ArrowRight');
+  expect(await cellIds(page, id), '★끝에서 ⌘→ 무변').toEqual([c0[0], c0[2], c0[1]]);
+  await key(page, 'Meta+ArrowLeft'); await key(page, 'Meta+ArrowLeft');
+  await expect.poll(() => cellIds(page, id), '★⌘← 두 번 = 맨 앞').toEqual([c0[1], c0[0], c0[2]]);
+  await key(page, 'Meta+z');
+  await expect.poll(() => cellIds(page, id), '★⌘Z 한 번 = 한 걸음 전').toEqual([c0[0], c0[1], c0[2]]);
+  /* ⌘Z 는 DOM 표본으로 되돌린다(펼침·고름은 표본에 안 남음) ⇒ 다시 펼치고 칸을 고른다 */
+  await pickCell(page, id, 0);
+  await expect.poll(() => page.locator('#ss-handles-overlay > .grd-headband[data-sld]').count(), '[전제] 띠 셋 다시').toBe(3);
+  /* 띠 1(첫 자리)을 끝 칸 가운데 너머로 끌기 */
+  let prev = '', p = null;
+  await expect.poll(async () => { p = await page.evaluate(() => { const b = document.querySelector('#ss-handles-overlay > .grd-headband[data-sld][data-i="0"]'); const r = b.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return { x, y, own: document.elementFromPoint(x, y) === b }; }); const k = `${p.x},${p.y}`, s = k === prev; prev = k; return p.own && s; },
+    { message: '[전제] 띠 1 이 그 점의 임자 · 멎음', intervals: [50] }).toBe(true);
+  const endX = await page.evaluate((id) => { const cs = document.getElementById(id).querySelectorAll('.sld-cell'); const r = cs[cs.length - 1].getBoundingClientRect(); return r.right - 4; }, id);
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(p.x + (endX - p.x) * i / 6, p.y);
+  await page.mouse.up();
+  await expect.poll(() => cellIds(page, id), '★띠 끌기 = 첫 칸이 끝으로').toEqual([c0[1], c0[2], c0[0]]);
+  await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  await expect.poll(() => cellIds(page, id), '★저장→다시 열기 = 그 순서').toEqual([c0[1], c0[2], c0[0]]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
