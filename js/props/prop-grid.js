@@ -2239,6 +2239,50 @@ function _grdWireImageSection(block, addr, host = null) {
  *  ⚠️인자는 안 받는다 — 행에도, 숫자/문자에도 안 갈린다. 그게 이 변경의 요점이다. */
 const _grdUnset = () => null;
 
+/* GRID-ROW-PADDING-PER-SIDE-01 (현빈 B 261118) — 칸 안쪽 여백: 묶음(padding 한 값 = 네 변) ↔ 변별(padSides [위,오른,아래,왼]).
+ *   묶음 여부의 정본 = 모델에 padSides 가 있나(패치마다 패널이 통째로 다시 그려져 패널 상태로는 못 든다).
+ *   사슬 단추·SVG = 글자 패딩 「좌우 연동」과 같은 부품(.prop-chain-btn · prop-text-template.js). 다시 묶으면 위 값으로. */
+const _GRD_PAD_KEYS = ['t', 'r', 'b', 'l'];
+function _grdPadRowsHtml(pre, label, pad, sides, placeholder) {
+  const chain = `<button type="button" class="prop-chain-btn${sides ? '' : ' active'}" id="${pre}-pad-chain" title="${sides ? '네 변을 한 값으로 묶기' : '변마다 따로 정하기'}">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/>${sides ? '<line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/>' : '<line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>'}</svg>
+          </button>`;
+  if (!sides) return `
+        <div class="prop-row">
+          <span class="prop-label">${label}</span>
+          <input type="number" class="prop-number" id="${pre}-padding" min="0" max="200" placeholder="${placeholder}" value="${pad}">
+          ${chain}
+        </div>`;
+  const n = (i, ko) => `<input type="number" class="prop-number" id="${pre}-pad-${_GRD_PAD_KEYS[i]}" min="0" max="200" aria-label="${ko} 여백" value="${sides[i]}">`;
+  return `
+        <div class="prop-row">
+          <span class="prop-label">위·아래</span>
+          ${n(0, '위')}${n(2, '아래')}
+          ${chain}
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">왼·오른</span>
+          ${n(3, '왼쪽')}${n(1, '오른쪽')}
+        </div>`;
+}
+/** apply(fields) = 그 절의 «한 길»(적용 + 히스토리 한 칸). unset = 그 길의 «키 지우기» 값. */
+function _grdWirePadSides(pre, pad, sides, unset, apply) {
+  const num = (raw) => Math.max(0, Math.min(200, parseInt(raw, 10) || 0));
+  document.getElementById(`${pre}-pad-chain`)?.addEventListener('click', () => {
+    const p = num(pad);
+    apply(sides ? { padding: sides[0], padSides: unset } : { padSides: [p, p, p, p] });
+  });
+  document.getElementById(`${pre}-padding`)?.addEventListener('change', (e) => {
+    const raw = String(e.target.value).trim();
+    apply({ padding: raw === '' ? unset : num(raw), padSides: unset });
+  });
+  if (sides) _GRD_PAD_KEYS.forEach((k, i) => document.getElementById(`${pre}-pad-${k}`)?.addEventListener('change', (e) => {
+    const next = sides.slice(); next[i] = num(e.target.value);
+    apply({ padSides: next });
+  }));
+}
+const _grdPadSidesOf = (v) => (Array.isArray(v) && v.length === 4 ? v.map(n => Math.max(0, Number(n) || 0)) : null);
+
 const _GRD_CELL_ALIGNS  = [['', '기본'], ['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']];
 const _GRD_CELL_VALIGNS = [['', '기본'], ['top', '위'], ['middle', '가운데'], ['bottom', '아래']];
 const _grdOptsHtml = (list, cur) => list
@@ -2308,7 +2352,7 @@ function _grdAllCellsSame(block, key) {
   for (let r = 0; r < rowN; r++) for (let c = 0; c < colN; c++) {
     const v = ((src[r] || [])[c] || {})[key];
     if (!seen) { first = v; seen = true; continue; }
-    if (v !== first) return null;                    // 갈린다 → 빈 칸으로 둔다
+    if (JSON.stringify(v) !== JSON.stringify(first)) return null;   // 갈린다 → 빈 칸으로 둔다(padSides 배열도 값으로 견준다)
   }
   return seen ? first : null;
 }
@@ -2332,10 +2376,7 @@ ${_grdDisclosureHtml('grd-cellall-toggle', '칸 꾸미기 · 모든 칸', open)}
           </div>
           <input type="text" class="prop-color-hex" id="grd-cellall-bg-hex" maxlength="7" placeholder="${bgRaw0 === null ? '여러 값' : '없음'}" aria-label="모든 칸 배경색" value="${bgRaw ? bgHex.replace('#', '').toUpperCase() : ''}">
         </div>
-        <div class="prop-row">
-          <span class="prop-label">안쪽 여백(px)</span>
-          <input type="number" class="prop-number" id="grd-cellall-padding" min="0" placeholder="${_grdAllCellsSame(block, 'padding') === null ? '여러 값' : '0'}" value="${pad}">
-        </div>
+${_grdPadRowsHtml('grd-cellall', '안쪽 여백(px)', pad, _grdPadSidesOf(_grdAllCellsSame(block, 'padSides')), _grdAllCellsSame(block, 'padding') === null ? '여러 값' : '0')}
         <div class="prop-row">
           <span class="prop-label">모서리 반경(px)</span>
           <input type="number" class="prop-number" id="grd-cellall-radius" min="0" placeholder="${_grdAllCellsSame(block, 'radius') === null ? '여러 값' : '0'}" value="${rad}">
@@ -2385,7 +2426,8 @@ function _grdWireAllCellsSection(block, anyHit) {
       window.pushHistory?.();
     });
   };
-  numAll('grd-cellall-padding', 'padding');
+  _grdWirePadSides('grd-cellall', _grdAllCellsSame(block, 'padding'), _grdPadSidesOf(_grdAllCellsSame(block, 'padSides')), undefined,
+    (f) => { _grdPatchAllCells(block, f); window.pushHistory?.(); });   // ★적용 먼저 (push-after 규약)
   numAll('grd-cellall-radius', 'radius');
 }
 
@@ -2464,10 +2506,7 @@ ${_grdDisclosureHtml('grd-cell-toggle', title, open)}
             </div>
           </div>
         </div>` : ''}
-        <div class="prop-row">
-          <span class="prop-label">안쪽 여백</span>
-          <input type="number" class="prop-number" id="grd-cell-padding" min="0" max="200" placeholder="0" value="${pad}">
-        </div>
+${_grdPadRowsHtml('grd-cell', '안쪽 여백', pad, _grdPadSidesOf(cell.padSides), '0')}
         <div class="prop-row">
           <span class="prop-label" title="이 «칸»의 모서리. 그림 줄의 「모서리 반경」과 다른 축이다">칸 모서리</span>
           <input type="number" class="prop-number" id="grd-cell-radius" min="0" max="200" placeholder="0" value="${rad}">
@@ -2528,8 +2567,12 @@ function _grdWireCellSection(block, addr) {
       _grdPatchCell(block, r, c, { [field]: v });
     });
   };
-  numWire('grd-cell-padding', 'padding');
   numWire('grd-cell-radius', 'radius');
+  {
+    let cur = {};
+    try { cur = (getGridModel(block).cells?.[r] || [])[c] || {}; } catch (_) {}
+    _grdWirePadSides('grd-cell', cur.padding, _grdPadSidesOf(cur.padSides), _grdUnset(), (f) => _grdPatchCell(block, r, c, f));
+  }
 
   /* ── ★G4 칸 배경 이미지 — 파일은 «자산 경로»가 정본(prop-iconify.js 래스터와 같은 길: assetsSaveCanvasImage → goya-asset:// URL 만 칸에).
        까닭: data URL 이면 저장 전 히스토리 표본마다 base64 가 칸 JSON·칸 style 두 벌로 실린다(897MB 사고와 같은 줄기).

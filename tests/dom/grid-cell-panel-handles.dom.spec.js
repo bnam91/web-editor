@@ -70,6 +70,8 @@ const TYPO_FIELDS = arrayFromSource(SRC_PANEL, '_GRD_TYPO_FIELDS');
 const CELL_WITNESS = {
   bg:          { css: ['css.backgroundColor'],                ko: '칸 배경색' },
   padding:     { css: ['css.paddingTop', 'css.paddingLeft'],  ko: '칸 패딩' },
+  /* GRID-ROW-PADDING-PER-SIDE-01 — 변별 여백 [위,오른,아래,왼]. 묶음 상태에선 사슬 단추가 padSides 를 «처음 쓰는» 손잡이다(모델 키가 생긴다). */
+  padSides:    { css: ['css.paddingTop', 'css.paddingLeft'],  ko: '칸 변별 패딩' },
   radius:      { css: ['css.borderTopLeftRadius'],            ko: '칸 모서리' },
   align:       { css: ['css.lineTextAlign'],                  ko: '칸 가로정렬' },
   valign:      { css: ['css.justifyContent'],                 ko: '칸 세로정렬' },
@@ -529,7 +531,8 @@ test('E0-f ★★양성대조 — 패딩 «손잡이를 없앤» 변형본에서
   /* ⛔이게 없으면 위 drive() 손질은 「검사를 죽여서 초록을 산 것」과 구별되지 않는다.
      ⇒ 배선 한 줄을 «지운» prop-grid.js 를 서빙하고, 패딩 축이 죽는지 본다.
      ★다른 축(배경색)은 살아 있어야 한다 — 변이가 패널을 통째로 부순 게 아님을 같이 센다. */
-  const ANCHOR = "  numWire('grd-cell-padding', 'padding');\n";
+  /* GRID-ROW-PADDING-PER-SIDE-01 — 칸 패딩 배선이 numWire 한 줄에서 _grdWirePadSides 한 줄로 옮겼다(닻만 이사 · 재는 뜻 그대로) */
+  const ANCHOR = "    _grdWirePadSides('grd-cell', cur.padding, _grdPadSidesOf(cur.padSides), _grdUnset(), (f) => _grdPatchCell(block, r, c, f));\n";
   const errs = await boot(page, (src, pathname) => {
     if (!pathname.endsWith('/js/props/prop-grid.js')) return src;
     const out = src.replace(ANCHOR, '');

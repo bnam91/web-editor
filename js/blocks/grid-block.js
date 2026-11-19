@@ -1112,7 +1112,7 @@ const GRID_LINE_FIELDS = new Set([
 /** `renderGridBlock` 이 셀에서 읽는 것(`cell.lines` + `pick(...)`) — patchCell 로 줄 수 있는 필드.
  *  ⚠️`width` 는 «열» 속성이라 여기 없다 — 셀로 주면 조용히 버려진다. 거절 메시지가 patchCol 로 보낸다. */
 /* ★G4(2026-10-04) — 칸 배경 이미지 셋(bgImg·bgFit·bgPos). 렌더러가 pick('…') 으로 읽으므로 P7 파싱과 이 명부가 같이 는다. */
-const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'radius', 'bgImg', 'bgFit', 'bgPos']);
+const GRID_CELL_FIELDS = new Set(['lines', 'align', 'valign', 'bg', 'padding', 'padSides', 'radius', 'bgImg', 'bgFit', 'bgPos']);
 
 /** `cols[c]` 가 받는 것 — 칸 필드 «전부» ＋ `width`(열 전용). ⛔손으로 베끼지 않는다.
  *  renderGridBlock 이 `pick(k)` 로 칸 값이 없을 때 `col[k]` 를 읽으므로, 열이 받는 꾸밈은
@@ -3001,6 +3001,9 @@ function renderGridBlock(block) {
       const bgRaw = pick('bg');
       const bg = (typeof bgRaw === 'string' && _GRID_COLOR_RE.test(bgRaw.trim())) ? bgRaw.trim() : '';
       const pad = Number(pick('padding')) || 0;
+      /* GRID-ROW-PADDING-PER-SIDE-01 — padSides [위,오른,아래,왼] 가 있으면 변마다 · 없으면 옛 padding 한 값(옛 저장본 바이트 그대로) */
+      const padSidesRaw = pick('padSides');
+      const padSides = Array.isArray(padSidesRaw) && padSidesRaw.length === 4 ? padSidesRaw.map(n => Math.max(0, Number(n) || 0)) : null;
       const rad = Number(pick('radius')) || 0;
       /* ★G4 칸 배경 이미지 — 롱핸드로, 배경색 축약(background:) «뒤»에 붙인다(앞이면 축약이 이미지를 지운다).
          ⛔background 축약 금지 — HTML 내보내기는 [style*="background-image"] 만 goya-asset 을 푼다(G12 B4 와 같은 함정).
@@ -3057,7 +3060,7 @@ function renderGridBlock(block) {
       const ruleHtml = _gridCellRuleHtml(rules, r, c, cols.length, rows.length, Math.max(0, rowGapPx), Math.max(0, colGapPx), re, ce, cut);
       const pullUp = rowGapPx < 0 && r > 0 ? `margin-top:${rowGapPx}px;` : '';   // 음수 행 간격 = 위 줄로 당긴다(GRID_ROW_GAP_MIN 주석)
       const pullLeft = colGapPx < 0 && c > 0 ? `margin-left:${colGapPx}px;` : '';   // ★t6-02 음수 열 간격 = 왼 칸으로 당긴다(GRID_COL_GAP_MIN 주석)
-      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}"${spanAttr} style="${place}min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
+      cellsHtml.push(`<div class="grd-cell${emptyCls}" data-r="${r}" data-c="${c}"${spanAttr} style="${place}min-width:0;min-height:${cellMinH};display:flex;flex-direction:column;justify-content:${cv};${ruleHtml ? 'position:relative;' : ''}${bg ? `background:${bg};` : ''}${imgCss}${padSides ? `padding:${padSides[0] + cellPadY}px ${padSides[1]}px ${padSides[2] + cellPadY}px ${padSides[3]}px;` : cellPadY > 0 ? `padding:${pad + cellPadY}px ${pad}px;` : (pad > 0 ? `padding:${pad}px;` : '')}${rad > 0 ? `border-radius:${rad}px;` : ''}${_gridCellBorderCss(cellBorder, r, c, rowGapPx, colGapPx)}${pullUp}${pullLeft}">
         ${ruleHtml}${lines.map((l, li) => _gridLineHtml(l, align, 0, { r, c, li }, cellImg ? 'hex' : _cellTone(bg))).join('')}
       </div>`);
     }
