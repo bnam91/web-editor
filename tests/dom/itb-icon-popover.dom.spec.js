@@ -15,7 +15,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js itb-icon-popover
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page) {
   await page.setViewportSize({ width: 1700, height: 1200 });
@@ -32,6 +32,7 @@ async function setup(page) {
     window.__itb.scrollIntoView({ block: 'center' });
   });
   await page.waitForFunction(() => !!window.__itb && window.__itb.querySelector('.itb-icon').getBoundingClientRect().width > 0);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 첫 배율 보간 중에 재면 옛 배율 자리를 누른다(cand15 지혜맥 O·S — 실패 판만 6s · 고른 것·포커스 0)
   return errs;
 }
 const iconCenter = (page) => page.evaluate(() => {
@@ -40,6 +41,13 @@ const iconCenter = (page) => page.evaluate(() => {
   const at = document.elementFromPoint(x, y);
   return { x, y, ownerIsIcon: !!(at && at.closest('.itb-icon') === window.__itb.querySelector('.itb-icon')) };
 });
+/** 누를 점 — 그 점의 임자가 .itb-icon 이고 두 번 내리 같은 자리(조건 대기 · 고정 대기 없음) */
+async function iconAt(page) {
+  let c = null, prev = '';
+  await expect.poll(async () => { c = await iconCenter(page); const k = `${c.x},${c.y}`, same = k === prev; prev = k; return c.ownerIsIcon && same; },
+    { message: '[전제] 아이콘 가운데의 임자 = .itb-icon 이고 자리가 멎었다', intervals: [50] }).toBe(true);
+  return c;
+}
 const popState = (page) => page.evaluate(() => {
   const p = document.getElementById('grd-ifg-iconpop');
   return { pop: !!p, shown: !!(p && getComputedStyle(p).display !== 'none' && p.getBoundingClientRect().width > 0) };
@@ -56,7 +64,7 @@ test('P0 전제 — 아이콘 칸 가운데의 임자가 .itb-icon 이다', asyn
 test('O 아이콘 더블클릭 → #grd-ifg-iconpop 이 뜨고 파일 선택창 0', async ({ page }) => {
   const errs = await setup(page);
   let chooser = 0; page.on('filechooser', () => { chooser++; });
-  const c = await iconCenter(page);
+  const c = await iconAt(page);
   await page.mouse.dblclick(c.x, c.y);
   await expect.poll(() => popState(page)).toEqual({ pop: true, shown: true });
   expect(chooser).toBe(0);
@@ -65,7 +73,7 @@ test('O 아이콘 더블클릭 → #grd-ifg-iconpop 이 뜨고 파일 선택창 
 
 test('K 팝오버 첫 아이콘 → 아이콘 칸에 svg 그림 · dataset.imgSrc 같은 값 · 팝오버 닫힘', async ({ page }) => {
   const errs = await setup(page);
-  const c = await iconCenter(page);
+  const c = await iconAt(page);
   await page.mouse.dblclick(c.x, c.y);
   await page.waitForFunction(() => !!document.querySelector('#grd-ifg-iconpop .grd-ifg-iconpop-grid button'));
   await page.click('#grd-ifg-iconpop .grd-ifg-iconpop-grid button');
@@ -78,7 +86,7 @@ test('K 팝오버 첫 아이콘 → 아이콘 칸에 svg 그림 · dataset.imgSr
 
 test('S 아이콘 한 번 클릭 → 블럭 선택만 · 팝오버 0 · 편집 0', async ({ page }) => {
   const errs = await setup(page);
-  const c = await iconCenter(page);
+  const c = await iconAt(page);
   expect(c.ownerIsIcon, '전제').toBe(true);
   await page.mouse.click(c.x, c.y);
   await expect.poll(() => page.evaluate(() => window.__itb.classList.contains('selected')), '블럭이 골라졌다').toBe(true);

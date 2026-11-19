@@ -427,3 +427,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 ## 2026-11-19 · cand14 전수(e94a22d7f · 인텔·지혜맥 2분할) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `u3-purple-outline-geometry.dom.spec.js:144` U2 «보라 bottom 가 파란 밖이다» — cand14 전수 1/1 빨강(받은 값 0.5 · 문턱 toBeLessThan(0.5) 와 같은 값) · 지혜맥 ×3 0/3.
 - (고침 별도) `legacy-tpl-empty-rows-0912.dom.spec.js:149` dblPick «[전제] 더블클릭으로 그 글이 골라졌다» — 지혜맥 전수 E8 1/1 · 지혜맥 ×3 3/105(E4·E6·E8 각 1) → ty/flaky-x6-o 에서 시험 고침(조건 대기).
+## 2026-11-19 · cand15 전수(933ccec3f) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `t13a-01-grid-img-paste.dom.spec.js:96` I3 — 지혜맥 전수 1/1 빨강 · 지혜맥 ×3(workers2) 0/3.
+- (고침 별도) `scratch-undo-linkdy-190.dom.spec.js:85` L4 — 지혜맥 전수 1/1 · ×3 3/3 빨강(차 0.052·0.086·0.240 · 전수 0.195) · 인텔 전수 초록 → ty/flaky-c15 에서 시험 고침.
+- (고침 별도) `itb-icon-popover.dom.spec.js` K:70(전수) · O:61 · S:84(×3 각 1) — 지혜맥 → ty/flaky-c15 에서 시험 고침(조건 대기).

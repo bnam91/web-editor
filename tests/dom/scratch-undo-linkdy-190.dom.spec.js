@@ -1,7 +1,8 @@
 /* scratch-undo-linkdy-190 — 연결된 스크래치를 지웠다 ⌘Z 로 되살려도 앵커(linkDy)가 그대로다 (J190)
  * 왜: 지우기 스냅샷이 linkDy 를 빼고 되살림 함수(_scratchAddAndSaveFx)도 그 칸을 안 받아, ⌘Z 뒤 추종이 «지금 자리»에서 앵커를 새로 유도했다.
  *   앱 실측(2b7aec4d · ~/gd-lane/imac-gd-L1/190): 겹침으로 밀린 장 d49.8→171.8 · 글과 함께 지운 뒤 ⌘Z 두 번 y 753.8→836.6(82.8 어긋남 · 저장에 남음) 각 3/3.
- * 칸: L1 겹침으로 밀린 장 · L2 글과 함께 지운 장(⌘Z 두 번) · L3 [음성] 혼자·섹션 안 움직임 = 고치기 전에도 같다 · L4 [음성] 섹션 지우기 ⌘Z 길은 원래 linkDy 를 나른다.
+ * 칸: L1 겹침으로 밀린 장 · L2 글과 함께 지운 장(⌘Z 두 번) · L3 [음성] 혼자·섹션 안 움직임 = 고치기 전에도 같다 · L4 [음성] 섹션 지우기(MCP 문) ⌘Z 길은 앵커를 다시 재서 화면 반 px 안 · 장 무이동.
+ * 양성대조(L4): _patches-archive/c15-CTL-l4-rederive-off.patch(섹션 끊을 때 장을 3px 옮김 → 다시 잰 앵커·자리 화면 1.2px) → L4 빨강.
  * 변이: 고침만 되돌리면 L1·L2 빨강 · L3·L4 초록.
  * ★처음 실행 기록: 2026-11-01 16:0x · 아이맥 · 판 2b7aec4d · w1 · retries 0 · repeat-each 3 · 고친 판 12/12 · 되돌린 판 L1·L2 각 3/3 빨강 · L3·L4 초록. */
 const { test, expect } = require('@playwright/test');
@@ -82,6 +83,13 @@ test('L4 [음성] 섹션 지우기 ⌘Z 길은 linkDy 를 나른다', async ({ p
   await page.evaluate((s) => window.deleteSection(s), sec); await frames(page);
   expect(await page.evaluate((s) => !!document.getElementById(s), sec), '[전제] 섹션이 지워졌다').toBe(false);
   await page.keyboard.press('Meta+z'); await frames(page);
-  expect((await item(page, 'sp_a')).linkDy).toBeCloseTo(a0.linkDy, 1);
+  /* ★이 길은 linkDy 를 «나르지» 않고 «다시 잰다»: editor.js deleteSection = releaseSectionsForDelete({ deleteOrphans:false }) →
+     _clearAnchor 가 linkDy 를 버리고, ⌘Z 뒤 추종(scratchpad-link.js _applyFollow 의 !_num(linkDy) 갈래)이 DOM 에서 다시 유도한다
+     (장 y = style.top · 섹션 top = getBoundingClientRect ÷ 배율). ⇒ 값은 «측정값»이라 판마다 소수점이 흔들린다(cand15 지혜맥 차 0.05~0.24 · 인텔 통과).
+     자 = 화면 반 px: |차| × 배율 < 0.5 (사람 눈에 안 보이는 크기 · 다음 섹션 이동 때 그만큼만 어긋난다). 문맥상 장은 안 움직인다(무이동 유도). */
+  const a1 = await item(page, 'sp_a'), z = await page.evaluate(() => (window.currentZoom || 100) / 100);
+  expect(typeof a1.linkDy, '[전제] 앵커가 다시 섰다').toBe('number');
+  expect(Math.abs(a1.linkDy - a0.linkDy) * z, `★앵커가 화면 반 px 넘게 어긋났다(${a0.linkDy} → ${a1.linkDy} · 배율 ${z})`).toBeLessThan(0.5);
+  expect(Math.abs(a1.y - a0.y) * z, '★장이 화면 반 px 넘게 움직였다').toBeLessThan(0.5);
   expect(errs).toEqual([]);
 });
