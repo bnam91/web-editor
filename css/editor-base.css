@@ -160,6 +160,9 @@
   --ui-space-2: 8px;    /* --ui-pad-panel 이 이것을 쓴다 */
   --ui-space-3: 12px;
   --ui-space-4: 16px;
+  --ui-space-0_5: 2px;  /* 반 칸(현빈 결정 ⑤ 261119) — 기존 값 그대로 토큰화만 */
+  --ui-space-1_5: 6px;
+  --ui-space-2_5: 10px;
   --ui-sec-divider:          var(--ui-border-strong);  /* 절 사이 구분선 (--ui-border → --ui-border-strong) */
   --ui-sec-title-fs:         var(--ui-fs-base);        /* 절 제목 fs-10 → fs-base(10 → 11) */
   --ui-sec-title-color:      var(--ui-text-sub);       /* 절 제목 muted → sub (7.1:1) */
