@@ -1375,6 +1375,24 @@ function _buildBridgePath({ width = 120, depth = 88, arc = 0 } = {}) {
   return `M0 0 L${L} 0 C${c1x} ${c1y} ${c2x} ${c2y} ${cx} ${d} C${m1x} ${c2y} ${m2x} ${c1y} ${R} 0` + tail;
 }
 
+/* ── t13C-02(현빈 GO 261119 · 정정 «기존 브릿지 보면 안다») — 물결 «모양» 둘: 둥근(코사인) · 뾰족(삼각) ──
+   V 와 «같은 윗변 · 같은 채움 꼴»(꼬리 L860 90 L0 90 Z 그대로 · 위 섹션 색이 물결 사이로 내려오는 꼴). 윗/아랫변 전환 없음.
+   손잡이 = 높이(물결 깊이 · viewBox 4~80) · 반복 횟수(1~24) · 방향(위상: crest = 마루로 시작 · trough = 골로 시작).
+   저장 = data-bridge-shape(v|round|sharp · 없으면 v = 옛 저장본 그대로) · -wave-amp · -wave-count · -wave-phase. 시안 TLdcLeYLcBuvhRkkN6KRXY 의 식(사인·삼각) 그대로. */
+const BRIDGE_WAVE_DEFAULTS = { round: { amp: 30, count: 3 }, sharp: { amp: 24, count: 8 } };
+function _buildBridgeWavePath({ shape = 'round', amp, count, phase = 'crest' } = {}) {
+  const VB = 860, H = 90, D = BRIDGE_WAVE_DEFAULTS[shape === 'sharp' ? 'sharp' : 'round'];
+  const A = Math.max(4, Math.min(80, Number.isFinite(+amp) ? +amp : D.amp));
+  const n = Math.max(1, Math.min(24, Math.round(Number.isFinite(+count) ? +count : D.count)));
+  const sharp = shape === 'sharp', sign = phase === 'trough' ? -1 : 1;
+  const f = sharp ? (p) => 1 - 4 * Math.abs(p - Math.round(p)) : (p) => Math.cos(2 * Math.PI * p);   // 1 = 마루(색이 맨 위까지)
+  const y = (t) => +(A * (1 - sign * f(t * n)) / 2).toFixed(1);
+  const steps = sharp ? 2 * n : Math.max(80, n * 24);   // 뾰족 = 꼭짓점만(정확한 각) · 둥근 = 촘촘한 꺾은선
+  let d = `M0 ${y(0)}`;
+  for (let i = 1; i <= steps; i++) { const t = i / steps; d += ` L${+(t * VB).toFixed(1)} ${y(t)}`; }
+  return d + ` L${VB} ${H} L0 ${H} Z`;
+}
+
 // data-bridge-* 를 읽어 SVG를 (재)렌더 — 생성/파라미터변경/로드 시 호출 (divider applyDividerStyle 대응).
 function renderBridgeBlock(block) {
   if (!block) return;
@@ -1388,7 +1406,9 @@ function renderBridgeBlock(block) {
   let height = Number.isFinite(_hg) ? _hg : BRIDGE_DEFAULTS.height;    // b5③ 높이 (NaN 가드)
   height = Math.max(20, Math.min(300, height));                       // 손상/붙여넣기 0 등 붕괴 방지 (코덱스 b5)
   block.style.height = height + 'px';                                 // aspect-ratio 대신 가변 높이
-  const path = _buildBridgePath({ width, depth, arc });
+  const shape = block.dataset.bridgeShape === 'round' || block.dataset.bridgeShape === 'sharp' ? block.dataset.bridgeShape : 'v';   // 모르는 값 = V(옛 꼴)
+  const path = shape === 'v' ? _buildBridgePath({ width, depth, arc })
+    : _buildBridgeWavePath({ shape, amp: parseFloat(block.dataset.bridgeWaveAmp), count: parseFloat(block.dataset.bridgeWaveCount), phase: block.dataset.bridgeWavePhase });
   block.innerHTML = `<svg viewBox="0 0 860 90" width="100%" height="100%" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><path d="${path}" fill="${color}"/></svg>`;
 }
 
@@ -5817,6 +5837,8 @@ window.renderBridgeBlock    = renderBridgeBlock;
 window.applyBridgeFullBleed = applyBridgeFullBleed;
 window.settleMovedBridge = settleMovedBridge;
 window._buildBridgePath     = _buildBridgePath;
+window._buildBridgeWavePath = _buildBridgeWavePath;   // t13C-02 — 진단·검사(순수)
+window.BRIDGE_WAVE_DEFAULTS = BRIDGE_WAVE_DEFAULTS;   // prop-bridge 손잡이 기본값(한 벌)
 window.addSection           = addSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
