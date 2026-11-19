@@ -103,8 +103,9 @@ export function ifgCellParts(lines) {
 
 /* 글 줄 = 프리셋 꾸밈 + 글(부분 서식 textHtml 은 싣지 않는다 — 꾸밈이 바뀌므로). */
 function _textLine(base, text) { const o = { ...base, text: text == null ? '' : String(text) }; delete o.textHtml; return o; }
-function _iconLine(P, src) {
+function _iconLine(P, src, iconScale) {
   const o = { type: 'image', imgShape: 'circle', height: P.iconSize, imgSrc: src, align: P.iconAlign };
+  if (iconScale !== undefined) o.iconScale = iconScale;   // t13C-07 — 프리셋을 바꿔도 「아이콘 크기」는 그대로
   if (P.iconMarginTop !== undefined) o.marginTop = P.iconMarginTop;
   return o;
 }
@@ -114,7 +115,7 @@ function _cellDeco(P) { return { ...P.cell }; }   // null 값 = 그 꾸밈을 �
 function _restyleLines(lines, P) {
   const p = ifgCellParts(lines);
   const parts = {
-    icon: p.iconLi >= 0 ? _iconLine(P, _recolor(lines[p.iconLi].imgSrc, P.iconColor)) : null,
+    icon: p.iconLi >= 0 ? _iconLine(P, _recolor(lines[p.iconLi].imgSrc, P.iconColor), lines[p.iconLi].iconScale) : null,
     title: p.titleLi >= 0 ? _textLine(P.title, lines[p.titleLi].text) : null,
     desc: p.descLi >= 0 ? _textLine(P.desc, lines[p.descLi].text) : null,
   };
@@ -167,6 +168,33 @@ export function applyIfgPreset(block, presetKey) {
     ...P.border, ifgPreset: presetKey,
   };
   return window.updateGridBlock(block.id, partial);
+}
+
+/* ── t13C-07 「아이콘 크기」 — 원 안 그림 배율(%) · 원 지름(iconSize = 줄 height)과 따로. 칸마다 아이콘 줄(ifgCellParts)에 같은 값.
+ *   updateGridBlock «한 문»(⌘Z 1회) · 100 = 키를 뗀다(옛 저장본과 같은 바이트). 범위·그리기는 grid-block.js 원 가지. */
+export const IFG_ICON_SCALE_MIN = 20;
+export function ifgIconScaleOf(block) {
+  let m = null;
+  try { m = window.getGridModel(block); } catch (_) { return 100; }
+  for (const row of m.cells) for (const cell of row) {
+    const lines = Array.isArray(cell && cell.lines) ? cell.lines : [];
+    const p = ifgCellParts(lines);
+    if (p.iconLi >= 0) { const v = lines[p.iconLi].iconScale; return typeof v === 'number' && Number.isFinite(v) && v < 100 ? Math.max(IFG_ICON_SCALE_MIN, v) : 100; }
+  }
+  return 100;
+}
+export function applyIfgIconScale(block, pct) {
+  const v = Math.round(Number(pct));
+  if (!block || !Number.isFinite(v)) return { ok: false, code: 'INVALID', message: 'iconScale must be a number' };
+  const s = Math.min(100, Math.max(IFG_ICON_SCALE_MIN, v));
+  const m = window.getGridModel(block);
+  const cells = m.cells.map(row => row.map(cell => {
+    const lines = (Array.isArray(cell.lines) ? cell.lines : []).map(l => ({ ...l }));
+    const p = ifgCellParts(lines);
+    if (p.iconLi >= 0) { if (s < 100) lines[p.iconLi].iconScale = s; else delete lines[p.iconLi].iconScale; }
+    return { ...cell, lines };
+  }));
+  return window.updateGridBlock(block.id, { cells });
 }
 
 /* ── ★1017t1i1 — ＋ 로 들어오는 새 로우/칼럼이 인포그래픽 포맷(아이콘·제목·설명 3줄 + 칸 꾸밈 + 열 align + 행 height)을
@@ -238,4 +266,6 @@ if (typeof window !== 'undefined') {
   window.applyIfgPreset = applyIfgPreset;
   window.GRID_IFG_PRESETS = GRID_IFG_PRESETS;   // 패널(prop-grid.js)이 이름표를 «부를 때» 읽는다 — 그 파일은 이 모듈을 import 하지 않는다
   window.ifgNewShape = ifgNewShape;   // ★1017t1i1 — grid-block.js gridResizeTo 가 «부를 때» 읽는다(선례 :4074 _grdAfterResize)
+  window.applyIfgIconScale = applyIfgIconScale;   // t13C-07 — 패널(prop-grid.js)이 «부를 때» 읽는다(위 GRID_IFG_PRESETS 와 같은 까닭)
+  window.ifgIconScaleOf = ifgIconScaleOf;
 }

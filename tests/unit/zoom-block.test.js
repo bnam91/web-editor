@@ -1515,8 +1515,10 @@ test('ⓑ-BDR-2 ★[함정2] dataset.bdr 에 쓰고 재렌더한다 — style.bo
   /* ★양성대조를 «앞»에 — 기존 코너반경 핸들 «넷»은 정말로 style.borderRadius 에 쓴다.
      그게 사실이 아니면 아래 「확대블럭은 안 그런다」가 아무것도 안 재는 말이 된다. */
   const asset = sliceBlock(s, 'function _onAssetRadiusHandleMouseDown(e, ab, dir)');
-  assert.ok(/ab\.style\.borderRadius = /.test(asset),
-    '양성대조 실패: 에셋 핸들이 style.borderRadius 를 안 쓰면 이 대조는 뜻이 없다');
+  /* t13C-01(⌥ = 그 모서리만)부터 에셋 핸들은 `ab.style[oneCorner ? cornerProp : 'borderRadius'] = …` 로 쓴다 — 여전히 «style 에 바로» 쓴다(뜻 같음).
+     ⇒ 양성대조는 «style 에 바로 쓰는가»를 두 꼴(점 · 대괄호에 'borderRadius' 든 키) 다 받는다 · 아래 확대블럭 본 단언은 그대로. */
+  assert.ok(/ab\.style\.borderRadius = /.test(asset) || /ab\.style\[[^\]]*'borderRadius'[^\]]*\] = /.test(asset),
+    '양성대조 실패: 에셋 핸들이 style(borderRadius · 모서리별 키)에 바로 안 쓰면 이 대조는 뜻이 없다');
 
   const body = sliceBlock(s, 'function _onZoomRadiusMouseDown(e, zb, dir)');
   assert.ok(body.length > 200, '_onZoomRadiusMouseDown 를 못 찾았다');

@@ -908,6 +908,7 @@ function _updateAssetRadiusHandlePositions() {
        아주 작은 블럭(높이 40px)에선 ne 가 블럭 밖으로 나가고 se 가 ✕ 를 덮었다(35/113).
      ⇒ 어느 모서리든 ✕ 의 화면 사각형(회전이면 외접 사각형)과 겹치는 손잡이는 숨긴다. 반경은 네 모서리 어느 것으로도 같은 값을
        바꾸므로(_onAssetRadiusHandleMouseDown — 블럭 borderRadius 하나) 남은 손잡이로 기능은 산다. 겹치지 않으면 지금 그대로. */
+  /* shortcut: ⌥ 한 모서리 끌기(t13C-01)는 숨은 손잡이의 모서리를 못 잡는다 — 그 모서리만 따로 바꿀 일이 잦으면 ✕ 피해 옮기기로 올린다. */
   const _clear = _assetRadiusBlock.classList.contains('has-image') ? _assetRadiusBlock.querySelector(':scope > .asset-overlay-clear') : null;
   const _cr = _clear ? _clear.getBoundingClientRect() : null;
   overlay.querySelectorAll('.asset-radius-handle').forEach(h => {
@@ -941,7 +942,11 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
   const startY = e.clientY;
   const scaler0 = document.getElementById('canvas-scaler');
   const scale0 = scaler0 ? parseFloat(scaler0.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || '1') : 1;
-  const startRadius = parseInt(ab.style.borderRadius) || 0;
+  /* t13C-01: ⌥(Alt)를 누른 채 시작한 끌기는 «그 모서리 하나»만 — 손잡이 끌기에서 ⇧(스냅·비율)는 이미 쓰고 ⌥ 는 비어 있다.
+     한글 IME 가 altKey 를 먹는 판이 있어 editor.js 의 _optionKeyHeld 도 본다(⌘G 와 같은 까닭). */
+  const oneCorner = e.altKey || window._optionKeyHeld === true;
+  const cornerProp = { nw: 'borderTopLeftRadius', ne: 'borderTopRightRadius', se: 'borderBottomRightRadius', sw: 'borderBottomLeftRadius' }[dir];
+  const startRadius = parseInt(oneCorner ? ab.style[cornerProp] : ab.style.borderRadius) || 0;
 
   const _hist = window.beginDragHistory?.('에셋 모서리');
   function onMove(ev) {
@@ -957,7 +962,7 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
                 : dir === 'sw' ? (dx - dy) / 2
                 : (-dx - dy) / 2;
     const newR = Math.min(120, Math.max(0, Math.round(startRadius + delta)));
-    ab.style.borderRadius = newR + 'px';
+    ab.style[oneCorner ? cornerProp : 'borderRadius'] = newR + 'px';
     // 프로퍼티 패널 동기화
     const slider = document.getElementById('asset-r-slider');
     const num    = document.getElementById('asset-r-number');

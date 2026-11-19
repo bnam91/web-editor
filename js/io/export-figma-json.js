@@ -1181,9 +1181,12 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         const _gr = _lg && _lg.getBoundingClientRect(), _gz = _gr ? (_gr.width / (_lg.offsetWidth || 1)) || 1 : 1;
         const _lkb = _lg && _kidsBoxOf(_lg);   // el 은 복제본일 수 있다 — 자식 그릇은 살아 있는 그리드에서 다시 찾는다
         const images = _lg ? [..._lg.querySelectorAll('img.grd-img')].filter((im) => (!_lkb || !_lkb.contains(im)) && im.getAttribute('src')).map((im) => {
-          const r = (im.closest('.grd-img-frame') || im).getBoundingClientRect();
+          /* t13C-07 — 원 안 아이콘을 줄였으면(아이콘 크기 < 100%) 그림은 원 안에 다 들어간다 ⇒ 그림 자리 그대로 · 원 자르기 없음(캔버스와 같은 그림). */
+          const _fr = im.closest('.grd-img-frame'), _ir = im.getBoundingClientRect();
+          const _inner = !!_fr && _fr.classList.contains('grd-img-circle') && _ir.width < _fr.getBoundingClientRect().width - 0.5;
+          const r = _inner ? _ir : (_fr || im).getBoundingClientRect();
           return { src: im.getAttribute('src'), x: Math.round((r.left - _gr.left) / _gz), y: Math.round((r.top - _gr.top) / _gz),
-            w: Math.round(r.width / _gz), h: Math.round(r.height / _gz), circle: !!im.closest('.grd-img-circle') };
+            w: Math.round(r.width / _gz), h: Math.round(r.height / _gz), circle: !_inner && !!im.closest('.grd-img-circle') };
         }) : [];
         if (images.length) out.images = images;
       }
