@@ -135,6 +135,29 @@ function addVectorBlock(svgString = '', opts = {}) {
 // 크기 = svgImportSize(뿌리 width·height → viewBox · 긴 변 400). 색 치환·다색(P1-2·P2)은 이번 범위 밖.
 // place = { sec, clientX, clientY } 면 그 섹션에 넣고 «오버레이(떠 있음)»로 띄워 놓은 점(화면 좌표)에 가운데를 둔다 — 섹션 «밖» 드랍.
 //   같은 입구 한 번 안에서 띄우므로 insert-history 끝 표본이 띄운 «뒤»를 찍는다(⌘Z 한 번).
+/* t13A-04 — 스크래치 펜 항목을 섹션에 놓을 때: 펜 데이터(penNodes 그대로 · 점 편집 됨)로 «떠 있는» 벡터를 그 섹션 x·y(섹션 px)에.
+ *  이력은 부르는 쪽(scratch-pad onUp «스크래치→섹션 변환» 한 칸 — 스크래치 되살림 onUndo 와 같이) ⇒ 여기선 pushHistory 0(addVectorBlock 을 안 탄다).
+ *  meta = 스크래치 SVG 의 data-goditor-pen { nodes, closed, sw, color, fill, w, h } */
+function placePenVectorInSection(sec, meta, x, y) {
+  if (!sec || !meta || !Array.isArray(meta.nodes) || meta.nodes.length < 2) return null;
+  const w = Math.max(20, Math.round(+meta.w || 120)), h = Math.max(20, Math.round(+meta.h || 120));
+  const { row, block } = makeVectorBlock({
+    svg: '', color: String(meta.color || '#1a1a1a'), w, h, label: 'Pen',
+    penNodes: JSON.stringify(meta.nodes), penClosed: meta.closed ? '1' : '0', strokeWidth: String(+meta.sw || 2), penFill: String(meta.fill || 'none'),
+  });
+  if (!rebuildPenSvg(block)) return null;
+  renderVector(block);
+  window.deselectAll?.();
+  insertAfterSelected(sec, row);
+  bindBlock(block);
+  if (enterFloat(posElOf(block))) {
+    const cl = (v, max) => Math.max(0, Math.min(Math.max(0, max), v));   // 섹션 상자 안으로(addVectorFromSvgText 섹션 밖 드랍과 같은 조임)
+    _applyOverlayPos(block, cl(x, sec.offsetWidth - w), cl(y, sec.offsetHeight - h));
+  }
+  window.buildLayerPanel?.();
+  return block;
+}
+
 function addVectorFromSvgText(text, label = 'SVG', place = null) {
   const clean = sanitizeSvgString(String(text || '').trim(), { maxLen: SVG_MAX_LEN_CEIL });
   if (!clean) { window.showToast?.('SVG 로 읽을 수 없습니다 — <svg> 로 시작하고 200KB 이하여야 합니다.'); return null; }
@@ -393,6 +416,7 @@ function updateVectorBlock(blockId, partial = {}) {
 window.makeVectorBlock = makeVectorBlock;
 window.addVectorBlock  = addVectorBlock;
 window.addVectorFromSvgText = addVectorFromSvgText;
+window.placePenVectorInSection = placePenVectorInSection;   // t13A-04 — scratch-pad onUp(스크래치 펜 항목 → 섹션)
 window.renderVector    = renderVector;
 /* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
    ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.

@@ -133,9 +133,21 @@ function _cancelDraw() {
 }
 
 // ── 마우스 다운: 앵커 추가 (드래그 시작 시 스무드 핸들 생성 준비) ──────────────
+/* t13A-04(현빈 GO 261119 · DESIGN-t13A-04 ⓐ) — 섹션 «밖»(캔버스 빈 곳 · 스크래치 자리)에서 시작한 패스는 #canvas-scaler 좌표로 그리고
+   확정하면 스크래치 «펜 항목»이 된다(재료 · 결과물엔 안 나옴). 섹션 안에서 시작하면 지금 그대로(섹션 블럭). 한 패스는 «시작한 곳» 기준. */
+function _penHost(e) {
+  const sec = e.target.closest?.('.section-block');
+  if (sec) return sec;
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;
+  const t = e.target;
+  return (t.closest?.('#canvas-scaler') || t.id === 'canvas-wrap') && !t.closest?.('#canvas') ? scaler : null;
+}
+const _isScratchHost = (h) => !!h && h.id === 'canvas-scaler';
+
 function _onMouseDown(e) {
   if (!_mode || e.button !== 0) return;
-  const sec = e.target.closest('.section-block');
+  const sec = _penHost(e);
   if (!sec) return;
   e.stopPropagation();
   e.preventDefault();
@@ -228,7 +240,7 @@ function _onMouseUp(e) {
 function _onClick(e) {
   // mousedown/up이 앵커를 처리하므로 click은 차단만 (선택/드래그 누출 방지)
   if (!_mode) return;
-  const sec = e.target.closest('.section-block');
+  const sec = _penHost(e);
   if (!sec) return;
   e.stopPropagation();
   e.preventDefault();
@@ -476,6 +488,19 @@ function _finalizeDraw() {
   const d = nodesToSvgPath(norm, closed);
 
   const svg = _buildSvg(d, w, h, color, strokeWidth, fill);
+
+  /* t13A-04 — 섹션 밖에서 시작한 패스 = 스크래치 펜 항목. 펜 데이터는 그 SVG 안(data-goditor-pen)에 싣는다 —
+     스크래치의 모든 길(저장 외부화·다른 맥·⌘Z·복제·자르기)이 src 하나를 나르므로 칸을 따로 안 늘린다.
+     src = base64 SVG data URL(저장 때 기존 외부화가 goya-asset .svg 로 · DESIGN §7). 섹션에 끌어 놓으면 펜 벡터(scratch-pad onUp). */
+  if (_isScratchHost(sec)) {
+    const meta = encodeURIComponent(JSON.stringify({ nodes: norm, closed: !!closed, sw: strokeWidth, color, fill, w, h }));
+    const tagged = svg.replace('<svg ', `<svg data-goditor-pen="${meta}" `);
+    const src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(tagged)));
+    window._scratchAddAndSave?.(src, Math.round(bb.minX - pad), Math.round(bb.minY - pad), w);
+    _cancelDraw();
+    window.showToast?.('🖊 스크래치에 패스 — 섹션에 끌어 놓으면 벡터(점 편집)');
+    return null;
+  }
 
   // F1: 그린 섹션을 선택 상태로 동기화 → addVectorBlock의 insertAfterSelected가 해당 섹션 기준 삽입
   if (sec) window.selectSection?.(sec);

@@ -920,6 +920,19 @@ async function _srcToPngDataUrl(src) {
   });
 }
 
+/** t13A-04 — 스크래치 장이 «펜 항목»이면 그 펜 데이터({ nodes, closed, sw, color, fill, w, h }) · 아니면 null.
+ *  src = base64 SVG data URL(그린 직후) 또는 저장 외부화 뒤 goya-asset .svg(파일을 읽는다). */
+async function _scratchPenMeta(src) {
+  try {
+    if (typeof src !== 'string') return null;
+    let txt = null;
+    if (src.startsWith('data:image/svg+xml;base64,')) txt = decodeURIComponent(escape(atob(src.slice(26))));
+    else if (/^goya-asset:\/\/.+\.svg$/i.test(src)) txt = await (await fetch(src)).text();
+    const m = txt && /data-goditor-pen="([^"]+)"/.exec(txt);
+    return m ? JSON.parse(decodeURIComponent(m[1])) : null;
+  } catch (_) { return null; }
+}
+
 function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) {
   const scaler = document.getElementById('canvas-scaler');
   if (!scaler) return null;
@@ -1452,7 +1465,18 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
       const natW = imgEl?.naturalWidth || 0;
       const natH = imgEl?.naturalHeight || 0;
 
-      if (isSingleDrag && hasMoved) {
+      /* t13A-04 — 스크래치 «펜 항목»(SVG 안 data-goditor-pen · pen-tool 섹션 밖 그리기)을 섹션에 놓으면 그림 에셋이 아니라
+         펜 벡터(penNodes 그대로 · 떠 있음 · 놓은 자리 = 그 장의 왼위)로. 이력·스크래치 되살림은 아래 committed 길 그대로(한 칸). */
+      if (isSingleDrag && hasMoved && dropKind !== 'none') {
+        const pen = await _scratchPenMeta(item.src);
+        const sec = pen ? document.elementsFromPoint(lastClientX, lastClientY).map((el) => el.closest?.('#canvas .section-block')).find(Boolean) : null;
+        if (pen && sec) {
+          try { clearScratchDropGuides(); } catch (_) {}
+          const r = item.el.getBoundingClientRect(), sr = sec.getBoundingClientRect(), z = _getScale() || 1;
+          committed = !!window.placePenVectorInSection?.(sec, pen, (r.left - sr.left) / z, (r.top - sr.top) / z);
+        }
+      }
+      if (!committed && isSingleDrag && hasMoved) {
         try {
           /* 캔버스에 data URL 을 넣으면 표본·저장 직렬화마다 그림이 실려 렌더러가 죽는다(BIG-IMAGE-INSERT-RENDERER-OOM-01) — 칸 입구(loadImageToAsset)와 같은 몸통.
              ⌘Z 로 되살릴 장도 같은 주소를 쥔다(이력에 data URL 을 안 남긴다). 스크래치 안 이동은 안 탄다(파일을 안 만든다). */
