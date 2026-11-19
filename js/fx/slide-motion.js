@@ -100,7 +100,8 @@ const _num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite
 
 const _dotColor = (c, d) => (typeof c === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.toLowerCase() : d);
 /** 점 띠 높이 = 칸↔점 갭 × 2 + 점 지름(첫 장면 트랙 줄임 · GIF 비움 · 칸 찍기 크기가 같은 값). */
-export const dotBand = (layout) => 2 * normLayout(layout).dotGap + DOT_D;
+/* SLIDE-DOTS-GAP-SLIDER-01(137 · 현빈 5차 (d) «갭만 움직여야») — 띠 = 칸↔점 갭(움직임) + 점 + 바깥 여백(DOT_GAP 고정 · 옛 기본 8). 옛 판은 갭 × 2 라 바깥 여백까지 같이 변했다. 기본(갭 8)은 옛 24 그대로. */
+export const dotBand = (layout) => normLayout(layout).dotGap + DOT_D + DOT_GAP;
 /** 내용 배치 소독 — 카드 폭 % · 간격 px · 블럭 높이 px. */
 export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
@@ -231,9 +232,9 @@ export function slideActiveIndex(geom, s) {
 /** 점 띠 — n 점 가운데 정렬 · active 진하게 · pos 'top'|'bottom' · k = 캔버스 px / 블럭 px(첫 장면 DOM .sld-dots 와 같은 자리·크기·색). */
 export function drawDots(ctx, W, H, n, active, pos, k, opt = {}) {
   if (pos !== 'top' && pos !== 'bottom') return;
-  const band = opt.band ?? DOT_BAND, space = opt.space ?? DOT_GAP, on = opt.on ?? DOT_ON, off = opt.off ?? DOT_OFF;   // opt = 레이아웃 점 값(SLIDE-DOTS-SPACING-01 · 없으면 옛 상수)
+  const space = opt.space ?? DOT_GAP, on = opt.on ?? DOT_ON, off = opt.off ?? DOT_OFF;   // opt = 레이아웃 점 값(SLIDE-DOTS-SPACING-01 · 없으면 옛 상수)
   const d = DOT_D * k, g = space * k, total = n * d + Math.max(0, n - 1) * g;
-  const cy = pos === 'top' ? (band * k) / 2 : H - (band * k) / 2;
+  const cy = pos === 'top' ? (DOT_GAP + DOT_D / 2) * k : H - (DOT_GAP + DOT_D / 2) * k;   // 점 = 바깥 여백(고정) 바로 안쪽 · 칸 쪽 갭이 늘어도 점은 블럭 끝에서 같은 자리(137)
   let x = (W - total) / 2 + d / 2;
   for (let i = 0; i < n; i++, x += d + g) {
     ctx.fillStyle = i === active ? on : off;

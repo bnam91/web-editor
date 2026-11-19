@@ -835,3 +835,28 @@ test('H1 칸 코너 반경 손잡이 = 프레임 것 · 끌면 반경·패널 �
   expect(r0, '[전제] 처음 반경 키 없음(새 블럭)').toBeNull();
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 5 (d) SLIDE-DOTS-GAP-SLIDER-01(137) — «칸↔점 갭»은 갭만 움직이고 블럭이 커진다
+ * D1 점 아래 켬 → 갭 0 → 40: 칸 높이 그대로 · 블럭 높이 +40 · 점 바깥 여백(블럭 아래끝↔점) 8 그대로 · 칸 아래끝↔점 = 갭 · ⌘Z 한 번 = 갭 0 판
+ * 양성대조: slide-frame-CTL40-dots-band-symmetric.patch(띠를 옛 «갭×2+점»으로) → D1 빨강 — 예측 */
+test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 여백 고정 · ⌘Z', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
+  await page.locator('#sld-dots').selectOption('bottom');
+  await expect(page.locator('#sld-dotgap-slider'), '[전제] 갭 슬라이더').toHaveCount(1);
+  const gapTo = (v) => page.evaluate((v) => { const e = document.getElementById('sld-dotgap-slider'); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  const geo = () => page.evaluate((id) => {
+    const b = document.getElementById(id), c = b.querySelector('.sld-cell'), d = b.querySelector(':scope > .sld-dots > span'), z = (window.currentZoom || 40) / 100;
+    const br = b.getBoundingClientRect(), cr = c.getBoundingClientRect(), dr = d.getBoundingClientRect(), r = (v) => Math.round(v / z);
+    return { cellH: c.offsetHeight, blockH: b.offsetHeight, outer: r(br.bottom - dr.bottom), gap: r(dr.top - cr.bottom) };
+  }, id);
+  await gapTo(0);
+  await expect.poll(() => geo().then((g) => g.gap), '[전제] 갭 0').toBe(0);
+  const g0 = await geo();
+  expect(g0.outer, '[전제] 바깥 여백 8').toBe(8);
+  await gapTo(40);
+  await expect.poll(geo, '★칸 그대로 · 블럭 +40 · 바깥 8 그대로 · 갭 40').toEqual({ cellH: g0.cellH, blockH: g0.blockH + 40, outer: 8, gap: 40 });
+  await key(page, 'Meta+z');
+  await expect.poll(geo, '★⌘Z 한 번 = 갭 0 판').toEqual(g0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

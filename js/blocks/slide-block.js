@@ -15,7 +15,7 @@ import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
   slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
-  DOT_D, dotBand, drawDots, slideActiveIndex,
+  DOT_D, DOT_GAP, dotBand, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
    점이 켜지면 트랙이 띠만큼 줄어든다(카드 높이 = 블럭 − 띠) — GIF 도 같은 띠를 비우고 그린다. */
@@ -43,7 +43,7 @@ function _renderDots(block, n, pos, active = 0, layout = readSlideState(block).l
   if (!pos) { el?.remove(); return; }
   if (!el) { el = document.createElement('div'); el.className = 'sld-dots'; block.appendChild(el); }
   const o = _dotOpt(layout);
-  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;display:flex;align-items:center;justify-content:center;gap:${o.space}px;pointer-events:none;`;
+  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;box-sizing:border-box;padding-${pos}:${DOT_GAP}px;display:flex;align-items:${pos === 'top' ? 'flex-start' : 'flex-end'};justify-content:center;gap:${o.space}px;pointer-events:none;`;   // 점 = 바깥 여백(고정) 안쪽 · 나머지 띠 = 칸↔점 갭(137 · drawDots 와 같은 자리)
   el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? o.on : o.off};`; return d; }));
 }
 /** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
@@ -358,6 +358,7 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
   let track = block.querySelector(':scope > .sld-track');
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
   const pos = _dotsPos(layout, vert, wipe ? 'slide-wipe' : '');
+  if (pos) block.style.height = `${layout.h + dotBand(layout)}px`;   // 137 ② 점 띠는 블럭을 «키운다» — 칸(트랙) 높이 = layout.h 그대로(옛 판은 블럭 고정·칸이 줄었다)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = flex gap 0 + 둘째부터 음수 margin(겹침 · 뒤 칸이 위)
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${wipe ? 'position:relative;' : ''}`;
   _renderDots(block, slideCells(block).length, pos, center && slideCells(block).length > 1 ? 1 : 0);
@@ -393,6 +394,7 @@ export function renderSlideBlock(block) {
   const track = document.createElement('div');
   track.className = 'sld-track';
   const pos = _dotsPos(layout, vert, fx);
+  if (pos) block.style.height = `${layout.h + dotBand(layout)}px`;   // 137 ② 프레임 갈래와 같은 규약
   const inPlace = slideInPlace(fx) || layout.mode === 'single';   // 제자리 효과 · 정지 꼴 «단일 컷» = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = 겹침(프레임 칸과 같은 꼴)
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${slideWipe(fx) ? 'position:relative;' : ''}`;

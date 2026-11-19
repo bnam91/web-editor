@@ -222,11 +222,12 @@ test('S14 점 간격·색 — 소독 · 띠 · 그리기', () => {
   const L = normLayout({ dotGap: 99, dotSpace: 1, dotOn: '#FF00FF', dotOff: 'red;background:url(x)' });
   assert.deepEqual([L.dotGap, L.dotSpace, L.dotOn, L.dotOff], [40, 2, '#ff00ff', '#c9c9c9'], '★색은 #hex 만(style 글자로 들어감)');
   assert.equal(dotBand({}), 24, '기본 띠 = 옛 24');
-  assert.equal(dotBand({ dotGap: 16 }), 40);
+  /* ★제품 뜻 바뀜(137 SLIDE-DOTS-GAP-SLIDER-01 · 현빈 5차 (d) «갭만 움직여야 하는데 점의 위 여백까지 같이») — 띠 = 갭 + 점 + 바깥 여백 8(고정) · 옛 = 갭 × 2 + 점 */
+  assert.equal(dotBand({ dotGap: 16 }), 32);
   const calls = []; const ctx = { set fillStyle(v) { calls.push({ c: v }); }, beginPath() {}, arc(x, y) { calls[calls.length - 1].x = x; calls[calls.length - 1].y = y; }, fill() {} };
   drawDots(ctx, 400, 300, 3, 0, 'top', 1, { band: 40, space: 20, on: '#ff00ff', off: '#00ffff' });
   assert.deepEqual(calls.map((q) => q.c), ['#ff00ff', '#00ffff', '#00ffff']);
-  assert.ok(calls.every((q) => q.y === 20) && calls[1].x - calls[0].x === 28, '띠 가운데 20 · 점 사이 8 + 20');
+  assert.ok(calls.every((q) => q.y === 12) && calls[1].x - calls[0].x === 28, '★점 = 바깥 여백 8 + 반지름 4(띠 크기·갭과 무관 · 137) · 점 사이 8 + 20');
 });
 
 test('S15 칸 옅은 그림자 = 컴패리전 그림자 값 그대로', () => {
