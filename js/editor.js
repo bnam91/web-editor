@@ -3110,6 +3110,16 @@ document.addEventListener('keydown', e => {
     }
   }
 
+  // t13A-02 연필(N) · 붓(⇧B) 토글 — 입력/contenteditable 가드(P 와 같은 꼴). 키 충돌 grep: KeyN·Shift+KeyB 빈 키(⌘B 굵게와 다름)
+  if (((e.code === 'KeyN' && !e.shiftKey) || (e.code === 'KeyB' && e.shiftKey)) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = document.activeElement?.tagName;
+    if (!(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable)) {
+      e.preventDefault();
+      window.toggleFreehand?.(e.code === 'KeyN' ? 'pencil' : 'brush');
+      return;
+    }
+  }
+
   // addSection (기본: S)
   const _isAddSection = window._matchShortcut
     ? window._matchShortcut(e, 'addSection')

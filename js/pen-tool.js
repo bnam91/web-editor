@@ -65,8 +65,9 @@ function _screenDist(a, b) {
 // ════════════════════════════════════════════════════════════════════════════
 function enterVectorPenMode() {
   if (_mode) return;
-  // annotation penMode와 상호 배타
+  // annotation penMode와 상호 배타 · 연필·붓(t13A-02)도
   window.exitPenMode?.();
+  window.exitFreehand?.();
   window.exitCountStickerMode?.();
   // 편집 모드 진행 중이면 종료
   exitPenEditMode();
@@ -872,6 +873,13 @@ window.enterVectorPenMode  = enterVectorPenMode;
 window.exitVectorPenMode   = exitVectorPenMode;
 window.toggleVectorPenMode = toggleVectorPenMode;
 window.enterPenEditMode    = enterPenEditMode;
+/* t13A-02 연필 — 맞춘 노드(host 좌표)를 펜과 «같은» 확정 길(_finalizeDraw: 섹션 = 벡터 블럭 · 섹션 밖 = 스크래치 펜 항목)로. 그리던 펜 패스가 있으면 건드리지 않는다. */
+window.penHostOf = _penHost;
+window.commitPenNodes = (host, nodes, closed = false) => {
+  if (_draw || !host || !Array.isArray(nodes) || nodes.length < 2) return null;
+  _draw = { sec: host, nodes, closed: !!closed };
+  return _finalizeDraw();
+};
 window.exitPenEditMode     = exitPenEditMode;
 window.nodesToSvgPath      = nodesToSvgPath;
 window.penToolExitToSelect = penToolExitToSelect;

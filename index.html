@@ -688,6 +688,8 @@
       <button class="fp-menu-item" onclick="addShapeBlock('polygon');toggleFpDropdown('fp-shape-dropdown')">Polygon</button>
       <button class="fp-menu-item" onclick="addShapeBlock('star');toggleFpDropdown('fp-shape-dropdown')">Star</button>
       <button class="fp-menu-item" onclick="toggleVectorPenMode();toggleFpDropdown('fp-shape-dropdown')">Pen</button>
+      <button class="fp-menu-item" onclick="toggleFreehand('pencil');toggleFpDropdown('fp-shape-dropdown')">Pencil (N)</button>
+      <button class="fp-menu-item" onclick="toggleFreehand('brush');toggleFpDropdown('fp-shape-dropdown')">Brush (⇧B)</button>
     </div>
   </div>
   <div class="fp-divider"></div>
@@ -1787,6 +1789,7 @@
 <script src="js/section-cleanup.js"></script>
 <script type="module" src="js/annotation-tool.js"></script>
 <script type="module" src="js/pen-tool.js"></script>
+<script type="module" src="js/freehand-tool.js"></script>
 <script src="js/annotation-select.js"></script>
 <script src="js/sticker-select.js"></script>
 <script src="js/table-cell-select.js"></script>
