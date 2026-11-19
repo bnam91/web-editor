@@ -3,9 +3,8 @@
  */
 
 export function wirePositionSection({ tb }) {
-  const wSlider = document.getElementById('txt-width-slider');
   const wNumber = document.getElementById('txt-width-number');
-  if (wSlider) {
+  if (wNumber) {
     const applyW = v => {
       const row = tb.closest('.row');
       const tf  = tb.closest('.frame-block[data-text-frame="true"]');
@@ -24,13 +23,21 @@ export function wirePositionSection({ tb }) {
         tb.style.width = v + 'px';
         tb.dataset.width = v;
       }
-      wSlider.value = v; wNumber.value = v;
+      wNumber.value = v;
       window.scheduleAutoSave?.();
     };
-    wSlider.addEventListener('input', () => applyW(parseInt(wSlider.value)));
     wNumber.addEventListener('input', () => applyW(Math.min(860, Math.max(80, parseInt(wNumber.value) || 80))));
-    wSlider.addEventListener('change', () => window.pushHistory?.());
     wNumber.addEventListener('change', () => window.pushHistory?.());
+    /* 라벨 «너비»를 좌우로 끌면 1px = 1 (재설계 1차 ⑥ · Figma 라벨 끌기). 놓을 때 이력 한 칸 */
+    const scrub = document.getElementById('txt-width-scrub');
+    scrub?.addEventListener('pointerdown', (e) => {
+      const x0 = e.clientX, v0 = parseInt(wNumber.value) || 80;
+      const move = (ev) => applyW(Math.min(860, Math.max(80, v0 + Math.round(ev.clientX - x0))));
+      scrub.setPointerCapture(e.pointerId);
+      scrub.addEventListener('pointermove', move);
+      scrub.addEventListener('lostpointercapture', () => { scrub.removeEventListener('pointermove', move); window.pushHistory?.(); }, { once: true });
+      e.preventDefault();
+    });
   }
 
   const xNumber = document.getElementById('txt-x-number');

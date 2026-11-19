@@ -157,15 +157,15 @@ test('P2 대조 — 래퍼가 있는 텍스트는 «원래부터» 안다 (회�
   expect(p, `래퍼 있는 텍스트까지 어긋났다 — 블럭 ${w} / 패널 ${p}`).toBe(w);
 });
 
-test('P3 ★해악 — 드래그 뒤 슬라이더를 한 칸 건드려도 폭이 «도로 줄지» 않는다', async ({ page }) => {
+test('P3 ★해악 — 드래그 뒤 너비 칸을 한 칸 건드려도 폭이 «도로 줄지» 않는다', async ({ page }) => {
   await boot(page);
   await mountIconText(page);
   await enterOverlay(page);
   await dragSE(page, 150);
   const grown = await blockW(page);
-  /* 슬라이더를 «진짜로» 한 칸 민다(ArrowRight = input 이벤트 1회, step 1). */
-  await page.locator('#txt-width-slider').focus();
-  await page.keyboard.press('ArrowRight');
+  /* ★기대 바뀜(패널 재설계 1차 ⑥ — 너비 슬라이더를 걷고 숫자 칸만): 숫자 칸을 «진짜로» 한 칸 올린다(ArrowUp = input 이벤트 1회, step 1). */
+  await page.locator('#txt-width-number').focus();
+  await page.keyboard.press('ArrowUp');
   await raf(page);
   const after = await blockW(page);
   expect(after, `★패널이 쥔 옛 값이 «적용»돼 ${grown}px → ${after}px 로 되돌아갔다`)

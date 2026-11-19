@@ -145,7 +145,9 @@ function stripOldHidden(root, st) {
 const tagNorm = (t) => t.replace(/\s+/g, ' ').replace(/ data-own="[^"]*"/g, '');   // data-own = 새 판 소유 표식(판정 재료 · J5 가 잰다)
 const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, 'placeholder="자동"$1'], [/ placeholder="없음"( aria-label="Color")/, '$1'],
   /* 재설계 1차 ⑩ — «Font»·«글자색» 라벨 글을 걷고 이름을 칸의 aria-label 로 옮겼다 */
-  [/(id="txt-font-trigger" type="button")>/, '$1 aria-label="Font" title="Font">'], [/(<input type="color" id="txt-color" value="[^"]*")>/, '$1 aria-label="글자색">']];
+  [/(id="txt-font-trigger" type="button")>/, '$1 aria-label="Font" title="Font">'], [/(<input type="color" id="txt-color" value="[^"]*")>/, '$1 aria-label="글자색">'],
+  /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스 없음 · aria-label) */
+  [/^<input type="number" class="prop-number" id="txt-width-number" (min="80" max="860" value="[^"]*")>$/, '<input type="number" id="txt-width-number" $1 aria-label="너비">']];
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
   : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}>`] : []));
 const labels = (root) => all(root).filter((k) => has(k, 'prop-label') || has(k, 'prop-field-label')).map((k) => text(k).trim());
@@ -153,14 +155,16 @@ const ids = (root) => all(root).filter((k) => k.attrs.id).map((k) => k.attrs.id)
 const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.indexOf(x); if (i >= 0) r.splice(i, 1); } return r; };
 
 const LABEL_RENAME = { '왼쪽 패딩': '왼쪽', '오른쪽 패딩': '오른쪽' };
-const LABEL_DROPPED = ['Font', '글자색'];   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
+const LABEL_DROPPED = ['Font', '글자색', '너비'];   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
 const ID_ADDED = [/^psec-[a-z]+(-head|-body)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
-const ID_REMOVED = ['icon-text-style-section'];
+const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider'];   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
 /* 기준판(BASE) 뒤에 «의도해서» 더한 컨트롤·id — 판정이 «생김»으로 안 세게. (패널 재설계 1차 261120 — 항목마다 까닭)
  *   label-shape-oval = 태그 Oval 모양(BASE 뒤 별건 · 이 판정기가 못 따라온 드리프트를 같이 적음) */
-const CTL_ADDED = [/^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/];
-ID_ADDED.push(/^label-shape-oval$/);
+const CTL_ADDED = [/^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/,
+  /^<input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="[^"]*">$/];   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
+const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /];   /* ⑥ 너비 슬라이더 걷음 */
+ID_ADDED.push(/^label-shape-oval$/, /^txt-width-scrub$/, /^txt-height-number$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',
@@ -168,12 +172,12 @@ const MOVED = {
   'itb-dy-slider': 'layout', 'itb-dy-number': 'layout', 'itb-gap-slider': 'layout', 'itb-gap-number': 'layout',
   'txt-x-number': 'position', 'txt-rot-number': 'position', 'txt-width-number': 'size', 'txt-pv-number': 'padding', 'bubble-bg-color': 'special',
 };
-const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음']);
+const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* auto = ⑥ 텍스트 높이 칸(현빈 v9 «auto») */
 
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
-  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)), nc = ctl(n);
+  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc = ctl(n);
   const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */

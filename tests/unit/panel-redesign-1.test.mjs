@@ -60,3 +60,17 @@ test('R10 텍스트 패널 산출에 «Font»·«글자색» 라벨 0 · 고르�
   assert.match(typo, /fontLabel = true/, '[대조] 공용 빌더 기본 = 라벨 있음(모달·그리드 바이트 동일)');
   assert.match(typo, /colorLabel = true/);
 });
+
+/* ⑥ 텍스트 Size = 너비 숫자 칸(칸 안 라벨 · 끌기) + 꺼진 높이 칸 «auto». 양성대조: 옛 슬라이더 줄로 되돌리면 빨강 */
+test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 줄 · 높이 disabled placeholder auto · 끌기 배선', () => {
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
+  const size = /data-sec="size"[\s\S]*?<div class="prop-sec-body"[^>]*>([\s\S]*?)\n {6}<\/div>\n {4}<\/div>/.exec(html)?.[1] || '';
+  assert.ok(size, '[전제] Size 절 몸을 찾았다');
+  assert.doesNotMatch(size, /txt-width-slider|type="range"/, '★너비 슬라이더가 남았다');
+  assert.match(size, /<div class="prop-lhls-row">[\s\S]*id="txt-width-scrub"[^>]*>너비<\/span>\s*<input type="number" id="txt-width-number"[\s\S]*<span class="prop-xy-label">높이<\/span>\s*<input type="number" id="txt-height-number" disabled placeholder="auto"/);
+  const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-position.js'));
+  assert.match(wire, /getElementById\('txt-width-scrub'\)[\s\S]*pointermove[\s\S]*lostpointercapture[\s\S]*pushHistory/, '★라벨 끌기 배선이 없다');
+  assert.doesNotMatch(wire, /txt-width-slider/);
+  assert.match(css('css/editor-props.css'), /\.prop-icon-input:has\(> input:disabled\)\s*\{[^}]*opacity:\s*var\(--ui-disabled-opacity\)/);
+});

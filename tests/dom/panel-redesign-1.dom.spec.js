@@ -103,3 +103,26 @@ test('P10 텍스트 패널 — «Font»·«글자색» 라벨 없음 · 고르�
   await expect(page.locator('#txt-color')).toHaveAttribute('aria-label', '글자색');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑥ 텍스트 Size — 너비 칸 · 라벨 끌기 · 높이 꺼짐(auto · 흐림). CTL prd1-06-scrub.patch(끌기 배선 삭제) → 빨강 */
+test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 는다 · ⌘Z 한 번에 되돌아감 · 높이 칸 꺼짐 auto 흐림', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  const h = page.locator('#txt-height-number');
+  await expect(h).toBeDisabled();
+  await expect(h).toHaveAttribute('placeholder', 'auto');
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('txt-height-number').closest('.prop-icon-input')).opacity),
+    '★꺼진 높이 칸이 안 흐리다').toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity').trim()));
+  const w0 = Number(await page.locator('#txt-width-number').inputValue());
+  const box = await page.locator('#txt-width-scrub').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => Number(await page.locator('#txt-width-number').inputValue()), '★라벨을 끌어도 너비가 안 바뀐다').toBe(Math.min(860, w0 + 20));
+  const after = await page.evaluate((id) => document.getElementById(id).closest('.row')?.style.width || document.getElementById(id).style.width, id);
+  expect(after, '★끈 값이 블럭에 안 썼다').toBe(Math.min(860, w0 + 20) + 'px');
+  await page.evaluate(() => window.undo());
+  await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return b.closest('.row')?.style.width || b.style.width; }, id), '★⌘Z 한 번에 안 돌아간다').not.toBe(after);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

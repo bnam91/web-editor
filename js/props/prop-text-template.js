@@ -158,11 +158,21 @@ export function buildTextPanelSpec(state) {
         <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="${currentItbGap}">
       </div>`;
 
+  /* 재설계 1차 ⑥ — 너비 = 숫자 칸(칸 안 라벨 · 라벨 좌우 끌기) + 같은 줄 높이 칸. 텍스트 블럭은 높이가 없다(내용에 맞춤) ⇒ 꺼진 칸 «auto» */
   const _sizeHtml = (isOverlayTb ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="1" value="${currentW}">
-        <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}">
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
+            <input type="number" id="txt-width-number" min="80" max="860" value="${currentW}" aria-label="너비">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
+            <span class="prop-xy-label">높이</span>
+            <input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="높이(텍스트 블럭은 없음)">
+          </div>
+        </div>
       </div>`) + (!isLabel ? '' : `
       <div class="prop-row">
         <span class="prop-label">높이</span>

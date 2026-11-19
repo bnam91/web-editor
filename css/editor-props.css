@@ -122,6 +122,10 @@
   min-width: 10px;
   text-align: center;
 }
+.prop-xy-label--scrub { cursor: ew-resize; user-select: none; touch-action: none; }   /* 라벨 좌우 끌기(재설계 1차 ⑥) */
+.prop-icon-input:has(> input:disabled) { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }   /* 꺼진 칸(텍스트 높이 auto) */
+.prop-icon-input:has(> input:disabled):hover { border-color: transparent; }
+.prop-icon-input > input:disabled { cursor: not-allowed; }
 .prop-value-text { font-size: var(--ui-fs-base); color: var(--ui-text-sub); }
 .prop-count-btn { background:var(--ui-bg-input); border:1px solid var(--ui-border-mid); color:var(--ui-text-sub); width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:var(--ui-fs-14); line-height:1; display:flex; align-items:center; justify-content:center; }
 .prop-count-btn:hover { background:var(--ui-border); color:#fff; }
