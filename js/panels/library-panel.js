@@ -145,6 +145,31 @@ async function _insertLocalSvg(col, it) {
   if (b) _done(it);
 }
 
+/** 그림(data URL) 하나를 에셋 블럭으로 — 폭 = 원하는 폭(없으면 원본) ∧ 섹션 안쪽 폭. 내장 라이브러리·무료 이미지(t13A-06) 공용 한 벌.
+ *  t = _target() 결과({ sec, place }) — 주면 그 섹션 · place 면 «선택 없음 = 오버레이» 띄우기(LIB-INSERT-NOSEL-OVERLAY-01) · 안 주면 고른 섹션(무료 이미지 길 · 옛 뜻 그대로).
+ *  새 블럭은 usePadx 미설정 = 전역 «패딩 제외»(기본 켜짐)를 따라가 addAssetBlock 의 applyExcludePadX 가 폭을 calc(100% + 2·padX) 로
+ *  덮고, 뒤의 applyPadXToSection 도 다시 덮는다(아이맥 D2·D5 실측). ⇒ 스크래치 드롭(over 0)과 같은 꼴: usePadx='false' + 폭·마진 세트(applyAssetWidth). 만든 블럭을 돌려준다.
+ *  (cand16 합침: free-image 7094a578c 의 공용 함수 꼴 + dev b18b10604 의 _target·오버레이·모달 열린 채) */
+export function insertImageAsAsset(src, nw, nh, wantW, t = null) {
+  nw = nw || 400; nh = nh || 400;
+  const w = Math.round(Math.min(_innerWidth(t?.sec), wantW || nw)), h = Math.round((w * nh) / nw);
+  if (t?.place) { window.deselectAll?.(); window.selectSection?.(t.sec); }   // 오버레이 = 그 섹션에 넣고 띄운다(SVG 섹션 밖 드롭과 같은 순서)
+  const had = new Set(document.querySelectorAll('.asset-block'));
+  window.addAssetBlock?.(null, { imgSrc: src, width: w, height: h });
+  const ab = [...document.querySelectorAll('.asset-block')].find((b) => !had.has(b));
+  if (ab) {
+    ab.dataset.usePadx = 'false';
+    window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
+    ab.style.alignSelf = 'center';
+    if (t?.place) _floatAt(ab, t.place, w, h);
+    window.showAssetProperties?.(ab);   // 우측 패널은 setAssetImageFromSrc 가 폭 고치기 «전»에 그렸다 — 낡은 860·패딩제외 켬을 지금 값으로(9500 실앱 r3)
+    const tip = window.getHistoryTip?.();   // 같은 틱 고침(폭·띄우기)을 이력 꼭대기에 — ⌘Z 한 번 = 넣기 전(addAssetBlock 의 data: 갈래와 같은 관용구)
+    if (tip) window.restampHistoryTop?.(tip.seq);
+  }
+  window.triggerAutoSave?.();
+  return ab || null;
+}
+
 async function _insert(col, it, img) {
   try {
     if (it.loc && /\.svg$/i.test(it.file)) { await _insertLocalSvg(col, it); return; }
@@ -152,24 +177,9 @@ async function _insert(col, it, img) {
     if (!src) throw new Error(`${it.loc}/${it.file} 읽기 실패`);
     const t = _target();
     if (!t) return;
-    const nw = img?.naturalWidth || 400, nh = img?.naturalHeight || 400;
-    const w = Math.round(Math.min(_innerWidth(t.sec), it.w || col.w || nw)), h = Math.round((w * nh) / nw);
-    if (t.place) { window.deselectAll?.(); window.selectSection?.(t.sec); }   // 오버레이 = 그 섹션에 넣고 띄운다(SVG 섹션 밖 드롭과 같은 순서)
-    const had = new Set(document.querySelectorAll('.asset-block'));
-    window.addAssetBlock?.(null, { imgSrc: src, width: w, height: h });
-    /* 새 블럭은 usePadx 미설정 = 전역 «패딩 제외»(기본 켜짐)를 따라가 addAssetBlock 의 applyExcludePadX 가 폭을 calc(100% + 2·padX) 로
-       덮고, 뒤의 applyPadXToSection 도 다시 덮는다(아이맥 D2·D5 실측). ⇒ 스크래치 드롭(over 0)과 같은 꼴: usePadx='false' + 폭·마진 세트(applyAssetWidth). */
-    const ab = [...document.querySelectorAll('.asset-block')].find((b) => !had.has(b));
-    if (ab) {
-      ab.dataset.usePadx = 'false';
-      window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
-      ab.style.alignSelf = 'center';
-      if (t.place) _floatAt(ab, t.place, w, h);
-      window.showAssetProperties?.(ab);   // 우측 패널은 setAssetImageFromSrc 가 폭 고치기 «전»에 그렸다 — 낡은 860·패딩제외 켬을 지금 값으로(9500 실앱 r3)
-      const tip = window.getHistoryTip?.();   // 같은 틱 고침(폭·띄우기)을 이력 꼭대기에 — ⌘Z 한 번 = 넣기 전(addAssetBlock 의 data: 갈래와 같은 관용구)
-      if (tip) window.restampHistoryTop?.(tip.seq);
-      _done(it);
-    }
+    /* 모달은 열린 채(LIB-MODAL-STAY-OPEN-01 · dev b18b10604 — free-image 쪽 closeLibraryModal 은 옛 dev 바탕의 줄이라 안 살림) · 넣기 = 공용 insertImageAsAsset(free-image 7094a578c) 에 target */
+    const ab = insertImageAsAsset(src, img?.naturalWidth, img?.naturalHeight, it.w || col.w, t);
+    if (ab) _done(it);
   } catch (e) {
     console.warn('[library] 그림 읽기 실패:', e);
     window.showToast?.('❌ 라이브러리 그림을 못 읽었어요');

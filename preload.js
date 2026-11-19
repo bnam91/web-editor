@@ -244,6 +244,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /* remove.bg 누끼 — 렌더러는 CSP 로 외부 fetch 가 막혀 있어 main 이 대신 부른다. */
   removebgCutout: ({ b64, mime }) => ipcRenderer.invoke('removebg:cutout', { b64, mime }),
   /* t2-03: Higgsfield 키 — 넣기·지우기·상태(••••끝4)만. ⛔원문을 돌려받는 길은 없다. */
+  // t13A-06 — Pixabay(사용자 본인 키 · 전체 키를 돌려주는 길 없음 · 검색은 main 에서)
+  pixabay: {
+    status:     ()    => ipcRenderer.invoke('pixabay:key-status'),
+    setKey:     (key) => ipcRenderer.invoke('pixabay:key-set', key),
+    clearKey:   ()    => ipcRenderer.invoke('pixabay:key-clear'),
+    search:     (p)   => ipcRenderer.invoke('pixabay:search', p),
+    fetchImage: (url) => ipcRenderer.invoke('pixabay:fetch-image', url),
+    openSite:   (w)   => ipcRenderer.invoke('pixabay:open-site', w),
+  },
   higgsfield: {
     status:   ()    => ipcRenderer.invoke('higgsfield:key-status'),
     setKey:   (key) => ipcRenderer.invoke('higgsfield:key-set', key),
