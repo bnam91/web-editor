@@ -1356,8 +1356,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   display: flex;
   align-items: center;
   flex-wrap: wrap;          /* #11: 태그 칩행을 카드 2번째 줄로 흘림(태그 없으면 미생성=단일행 유지) */
-  gap: 8px;
-  padding: 7px 8px;
+  gap: var(--ui-space-2);
+  padding: 7px var(--ui-space-2);
   border-radius: var(--ui-radius-md);
   cursor: pointer;
   transition: background 0.1s;
@@ -1368,7 +1368,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   flex: 0 0 100%;            /* 카드 하단 전용 행 */
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--ui-space-1);
   padding-left: 36px;       /* thumb(28)+gap(8) 만큼 들여써 info 열 아래 정렬 */
 }
 .tb-card:hover { background: #222; }
@@ -1393,7 +1393,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: var(--ui-space-1);
   overflow: hidden;
 }
 .tb-card-name {
@@ -1417,7 +1417,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 }
 .tb-card-btns {
   display: flex;
-  gap: 2px;
+  gap: var(--ui-space-0_5);
   opacity: 0;
   transition: opacity 0.1s;
 }
@@ -1441,7 +1441,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   color: var(--ui-text-dim);
   border: 1px solid var(--ui-border);
   border-radius: 3px;
-  padding: 0 4px;
+  padding: 0 var(--ui-space-1);
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -1455,7 +1455,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   border: none;
   color: #444;
   cursor: pointer;
-  padding: 3px 4px;
+  padding: 3px var(--ui-space-1);
   border-radius: 3px;
   font-size: var(--ui-fs-base);
   line-height: 1;
@@ -1472,13 +1472,13 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 5px var(--ui-space-2);
   border-radius: 4px;
   cursor: pointer;
   font-size: var(--ui-fs-base);
   color: var(--ui-text-sub);
   transition: background 0.1s, color 0.1s;
-  margin-bottom: 2px;
+  margin-bottom: var(--ui-space-0_5);
 }
 .tb-tree-starred:hover { background: var(--ui-bg-card); color: var(--ui-text); }
 .tb-tree-starred.active { background: rgba(245,166,35,0.12); color: #f5a623; }
@@ -1493,8 +1493,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tpl-browser-tag-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 5px 8px 4px;
+  gap: var(--ui-space-1);
+  padding: 5px var(--ui-space-2) var(--ui-space-1);
   border-bottom: 1px solid var(--ui-bg-card);
   flex-shrink: 0;
 }
@@ -1504,7 +1504,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   border-radius: 10px;
   color: var(--ui-text-dim);
   font-size: var(--ui-fs-10);
-  padding: 2px 8px;
+  padding: var(--ui-space-0_5) var(--ui-space-2);
   cursor: pointer;
   transition: background 0.1s, color 0.1s, border-color 0.1s;
   white-space: nowrap;
