@@ -6,7 +6,7 @@
  *        섹션 안 = 벡터 블럭(채움 #000000 = 벡터 색 칸이 바꾼다) · 섹션 밖 = 스크래치 그림.
  * 결과 꼴 근거(붓 = 채운 외곽): SVG 획은 한 줄에 굵기가 하나뿐이라 «가늘어지는 끝»을 못 그린다 — Illustrator Blob·perfect-freehand 와 같은 꼴(RESEARCH-t13A-02 §2 ②).
  * 키 근거: N · ⇧B 는 이 저장소에서 비어 있다(git grep KeyN/KeyB · settings-store 기본 단축키 · editor.js 단일 키 — ⌘B(굵게)만 있음).
- * 보정 세기 = 떠 있는 막대(#fh-bar) 손잡이 하나 · 이 맥에만 기억(localStorage · 실패해도 기본값) · 기본 50 = 오차 4px(⚠️마우스·트랙패드 실측 전 값).
+ * 보정 세기 = 하단 플로팅 패널 안 묶음(#fh-bar · 기존 .fp-* · .prop-* 재사용) 손잡이 하나 · 이 맥에만 기억(localStorage · 실패해도 기본값) · 기본 50 = 오차 4px(⚠️마우스·트랙패드 실측 전 값).
  * 나가기 = Esc · V(공용 도구 모드 끝 명부 registerToolModeExit) · 같은 키 다시. 펜 모드와 서로 배타.
  */
 import { fitCurve, segmentsToPenNodes, smoothToError, SMOOTH_DEFAULT, BRUSH_PRESETS, brushOutline, polygonToPath } from './fx/freehand-fit.js';
@@ -23,16 +23,20 @@ const _local = (host, cx, cy) => { const r = host.getBoundingClientRect(), z = _
 function _smooth() { try { const v = parseFloat(localStorage.getItem(LS_KEY)); return Number.isFinite(v) ? v : SMOOTH_DEFAULT; } catch (_) { return SMOOTH_DEFAULT; } }
 function _setSmooth(v) { try { localStorage.setItem(LS_KEY, String(v)); } catch (_) {} }
 
+/* 막대 = 새 꼴이 아니라 기존 하단 플로팅 패널(#floating-panel) 안 한 묶음 — .fp-divider · .fp-group-label · .prop-select · .prop-slider 재사용(디자인 일관성 게이트 · 새 css 0).
+   묶음 감싸개는 display:contents(제 상자 없음 — 패널의 flex 줄에 그대로 낀다). 패널이 없으면(미리보기 등) 막대 없이 도구만. */
 function _showBar() {
-  _bar?.remove();
-  const b = document.createElement('div');
+  _bar?.remove(); _bar = null;
+  const fp = document.getElementById('floating-panel');
+  if (!fp) return;
+  const b = document.createElement('span');
   b.id = 'fh-bar';
-  b.style.cssText = 'position:fixed;left:50%;top:56px;transform:translateX(-50%);z-index:9000;display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:var(--ui-radius-md);background:var(--ui-bg-elevated);border:1px solid var(--ui-border);box-shadow:var(--ui-shadow-md, 0 4px 12px rgba(0,0,0,.2));font-size:var(--ui-fs-base);color:var(--ui-text);';
-  b.innerHTML = `<span id="fh-tool">${_tool === 'brush' ? '붓 ⇧B' : '연필 N'}</span>`
-    + (_tool === 'brush' ? `<select class="prop-select" id="fh-brush">${Object.entries(BRUSH_PRESETS).map(([k, p]) => `<option value="${k}"${k === _brush ? ' selected' : ''}>${p.label}</option>`).join('')}</select>` : '')
-    + `<span>보정</span><input type="range" class="prop-slider" id="fh-smooth" min="0" max="100" step="1" value="${_smooth()}" title="떨림 보정 세기 — 클수록 매끈(점 적음)"><span id="fh-smooth-val">${_smooth()}</span>`;
+  b.style.display = 'contents';
+  b.innerHTML = `<span class="fp-divider"></span><span class="fp-group-label" id="fh-tool">${_tool === 'brush' ? '붓 ⇧B' : '연필 N'}</span>`
+    + (_tool === 'brush' ? `<select class="prop-select" id="fh-brush" aria-label="붓 프리셋">${Object.entries(BRUSH_PRESETS).map(([k, p]) => `<option value="${k}"${k === _brush ? ' selected' : ''}>${p.label}</option>`).join('')}</select>` : '')
+    + `<span class="fp-group-label">보정</span><input type="range" class="prop-slider" id="fh-smooth" min="0" max="100" step="1" value="${_smooth()}" aria-label="떨림 보정 세기" title="떨림 보정 세기 — 클수록 매끈(점 적음)"><span class="fp-group-label" id="fh-smooth-val">${_smooth()}</span>`;
   b.addEventListener('mousedown', (e) => e.stopPropagation());
-  document.body.appendChild(b);
+  fp.appendChild(b);
   b.querySelector('#fh-smooth').addEventListener('input', (e) => { _setSmooth(+e.target.value); b.querySelector('#fh-smooth-val').textContent = e.target.value; });
   b.querySelector('#fh-brush')?.addEventListener('change', (e) => { _brush = BRUSH_PRESETS[e.target.value] ? e.target.value : 'taper'; });
   _bar = b;
