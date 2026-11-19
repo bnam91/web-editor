@@ -612,6 +612,12 @@ async function _exportSectionNoGuide(sec, format, width, opts) {
 function exportableSections() {
   return [...canvasEl.querySelectorAll('.section-block:not([data-ghost])' + NOT_HIDDEN_VARIATION)];
 }
+/* ★t13C-03 Q4(현빈 권장안) — «전체 내보내기»(페이지 패널 860·780 쿠팡·1000 · Export 메뉴 PNG)는 유튜브 썸네일 섹션을 뺀다
+   (썸네일은 그 섹션 칸에서 1280 으로 따로 낸다). ⛔exportableSections 는 그대로 — 섹션 순번·파일 이름(section-NN)이 안 바뀌게.
+   짝: js/props/prop-page.js _secCount 가 같은 표시를 뺀다. */
+function exportAllTargets() {
+  return exportableSections().filter(s => s.dataset.thumb !== 'youtube');
+}
 /** 라이브 캔버스에서의 섹션 «순번». 예외 경로는 exportSection 이 idx 를 못 돌려준다. */
 function _liveIdx(sec) {
   try { return exportableSections().indexOf(sec) + 1; }
@@ -1073,7 +1079,7 @@ async function exportAllSections(format, width, onProgress, opts) {
   // 섹션 목록 산정/순회 전에 한 번 더 보장)
   if (window.materializeAllSections) window.materializeAllSections();
 
-  const sections = exportableSections();
+  const sections = exportAllTargets();
   const failed = [];
   const results = [];
   /* ★한 «판»을 연다 — 22섹션이 다 실패해도 링버퍼(20칸)를 다 먹지 않게 상한을 걸고,
@@ -1112,7 +1118,7 @@ async function exportAllSections(format, width, onProgress, opts) {
 //      Page 속성패널 깊숙이에만 두지 않고 Export 메뉴 1급 항목으로 노출.
 //      (실제 렌더는 Page 속성패널과 동일하게 exportAllSections 재사용)
 async function exportAllImagesPNG() {
-  const n = exportableSections().length;
+  const n = exportAllTargets().length;
   if (!n) { window.showToast?.('내보낼 섹션이 없습니다.'); return; }
   /* ⛔네이티브 confirm() 금지 — 렌더러가 멈춘다(EXPORT-ALL-SECTIONS-NATIVE-CONFIRM-FREEZE-01). 진행은 아래 스피너 모달이 말한다. */
   /* ★진행은 «토스트»가 아니라 스피너 패널로 보인다 — 현빈: 「스피너가 돌면서 처리 중이다
