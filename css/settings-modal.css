@@ -302,7 +302,7 @@
 .settings-egg-label {
   font-size: var(--ui-fs-12);
   color: #d0d0d0;
-  font-weight: 600;
+  font-weight: var(--ui-fw-semibold);
 }
 .settings-egg-desc {
   margin-top: 3px;
