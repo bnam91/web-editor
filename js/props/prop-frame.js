@@ -377,6 +377,8 @@ function _convertStackToFree(ss) {
 
 function _renderAutoPanel(ss) {
   const isShapeFrame = _isShapeFrameEl(ss);   // ★직속 판정 SSOT(자손 검색 ✗, 0918)
+  /* 142 SLIDE-CELL-PANEL-PARITY-02(ⓐ) — 슬라이드 칸이면 «슬라이드 칸» 조각(prop-slide slideCellPanelParts) · 그 밖 프레임은 null = 아래 칸 갈래 전부 안 탐(일반 프레임 패널 무변) */
+  const _cellParts = ss.dataset.sldCell === '1' ? (window.slideCellPanelParts?.(ss) || null) : null;
   const isFreeLayout = ss.dataset.freeLayout === 'true';
   const rawBg  = ss.style.backgroundColor || ss.dataset.bg || '#f5f5f5';
   // T-059 2라운드: 그라데이션 배경이면 rawBg 는 'initial'/그라데이션 문자열 → rgbToHex 가 #ffffff·쓰레기 hex 를 냈다.
@@ -497,9 +499,12 @@ function _renderAutoPanel(ss) {
   const _radialHTML = _rad.body ? `
       <div id="${_rad.id || 'ss-radial-section'}" data-own="layout"><span class="prop-field-label">Radial Arrange</span>${_rad.body}</div>` : '';   /* data-own=layout: 원형 배치의 반지름·칸 크기는 배치(Layout)의 수 — 모서리 radius·블록 Size 가 아니다 */
   const _fx = window.fxSectionParts(ss, 'ss');   /* ★1017a7 Effects — 조각(U0b effects-registry) · #ss-fx-section 유지 · 머리 select = headTools */
+  /* 142 — 칸이면 위치·크기(px)·템플릿·이펙트 목록(칸 그림자 = 3단 · Q4)을 빼고 맨 위 «슬라이드 칸»(Content) + Effects = 그림자 3단. 그 밖은 그대로 */
+  const _forCell = (list) => !_cellParts ? list
+    : [sec('content', _cellParts.content), ...list.filter((x) => !['position', 'size', 'template', 'effects', 'content'].includes(x.key)), sec('effects', _cellParts.effects)];
   renderPanel(ss, {
     header: _headerHTML(ss, 'auto'),
-    sections: [
+    sections: _forCell([
       sec('kind', isBanner ? `
       <select class="prop-select" id="ss-banner-preset" style="width:100%;height:28px;background:#1a1a1a;color:#e5e5e5;border:1px solid #333;border-radius:4px;padding:0 8px;font-size:11px;">
         ${bannerOptionsHTML}
@@ -571,7 +576,7 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
-      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
+      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}${_cellParts ? '' : `
       <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
@@ -583,7 +588,7 @@ function _renderAutoPanel(ss) {
       <div class="prop-row" style="align-items:flex-start">
         <span class="prop-hint" id="ss-fullbleed-why" style="font-size:10px;line-height:1.4;color:#8a8a8a">${_fbWhy}</span>
       </div>
-      `}
+      `}`}
 `),
       sec('appearance', `
       <div class="prop-row">
@@ -595,13 +600,13 @@ function _renderAutoPanel(ss) {
            ⚰️★2026-10-10 — ★이 줄은 「기본이 «안 자름»」이었고 ★★거짓이 되었다:
              ★현빈 1009t3-② 로 ★★기본이 ★★«자름»이 되었다(css/editor-blocks.css 맨 위 .frame-block).
            ⇒ ★★켬 판정의 ★참값은 ★★js/clip-content.js 의 ★술어 ★하나다(2026-10-10 c2 에서 ★한 자리로 모았다). -->
-      <div class="prop-row">
+      ${_cellParts ? '' : `<div class="prop-row">
         <span class="prop-label">내용 자르기</span>
         <label class="prop-toggle">
           <input type="checkbox" id="ss-clip-toggle" ${clipsContent(ss) ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>
+      </div>`}
 `),
       sec('fill', `
       <div class="prop-color-row">
@@ -689,7 +694,7 @@ function _renderAutoPanel(ss) {
         `;
       })()}
 `),
-    ],
+    ]),
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
@@ -1044,8 +1049,9 @@ function _renderAutoPanel(ss) {
   bindSlider(radiusSlider, radiusNum, applyRadius, { min: 0, max: 80 });
 
   // 높이
-  const heightSlider = document.getElementById('ss-height-slider');
-  const heightNum    = document.getElementById('ss-height-num');
+  const _sizeEl = (id) => document.getElementById(id) || (_cellParts ? document.createElement('input') : null);   // 142 — 칸은 크기 절이 없다(트랙 %) ⇒ 칸일 때만 떨어진 빈 입력에 배선(효과 0)
+  const heightSlider = _sizeEl('ss-height-slider');
+  const heightNum    = _sizeEl('ss-height-num');
   const minHeight    = isShapeFrame ? Math.min(height, 20) : 100;
   heightSlider.min   = minHeight;
   heightNum.min      = minHeight;
@@ -1085,8 +1091,8 @@ function _renderAutoPanel(ss) {
   bindSlider(heightSlider, heightNum, applyHeight, { min: minHeight, max: 1200 });
 
   // 너비
-  const widthSlider = document.getElementById('ss-width-slider');
-  const widthNum    = document.getElementById('ss-width-num');
+  const widthSlider = _sizeEl('ss-width-slider');
+  const widthNum    = _sizeEl('ss-width-num');
   const applyWidth  = (v, { scaleChildren = true } = {}) => {
     const oldW = _shownW();   // ★칸이 보이는 그 값(위 머리말) — 저장값 먼저면 조여진 프레임에서 자식이 엉뚱한 비율로 준다
     const newW = parseInt(v);
@@ -1227,6 +1233,7 @@ function _renderAutoPanel(ss) {
 
   /* ★1017a7 Effects — 그리개와 ★같은 자리(prop-shape.js:357 본). ⛔명부 다리는 import 하지 않고 window.* 로
      (단위 하네스가 이 패널 파일을 대역으로 싣기 때문 — js/effects-registry.js 머리말 :29). */
+  if (_cellParts) { _cellParts.wire(); return; }   // 142 — 칸: 이펙트 목록 대신 그림자 3단(Q4) · 칸 줄·폭·높이·배경 켜기 배선
   window.wireFxSection?.(ss, 'ss', () => showFrameProperties(ss));
 }
 
@@ -1235,7 +1242,7 @@ function _renderAutoPanel(ss) {
 ════════════════════════════════════════ */
 export function showFrameProperties(el) {
   /* SLIDE-CELL-AS-FRAME-01 — 슬라이드 칸은 프레임 패널 대신 슬라이드 패널(그 칸) · 칸 안 블럭 누름의 «부모 프레임 고름» 갈래(block-drag 22곳)가 모두 여기로 온다(C2: 사진 꽉 찬 칸) */
-  if (el?.dataset?.sldCell === '1') { const sl = el.closest('.slide-block'); if (sl) { window.showSlideProperties?.(sl, { cell: el }); return; } }
+  /* 142(ⓐ) — 슬라이드 칸도 «그 칸의 프레임 패널»(옛: 슬라이드 패널로 돌림 · CTL34 의 뜻이 바뀜) · 칸 갈래는 _renderAutoPanel 의 _cellParts 가 맡는다 */
   _renderAutoPanel(el);
 }
 

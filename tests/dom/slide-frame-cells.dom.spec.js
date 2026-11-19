@@ -197,9 +197,9 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
     /* ★제품 뜻 바뀜(136 SLIDE-CELL-RADIUS-HANDLE-01 · 현빈 5차 (c) «캔버스 모서리 핸들 — 일반 프레임 것 재사용») — 칸에도 코너 반경 손잡이 넷 · 크기·회전 px 손잡이는 여전히 0 */
   }, id);
   expect(pre, `[전제] 펼친 뒤 누를 점 = 칸 2 · 진단 ${JSON.stringify({ pre, post })}`).toMatchObject({ open: true, inCell2: true });
-  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, radiusHandles: 4, framePanel: false });
+  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, radiusHandles: 4, framePanel: true });   // ★제품 뜻 바뀜(142 SLIDE-CELL-PANEL-PARITY-02 ⓐ · 지디 261119) — 고른 칸 = «그 칸의 프레임 패널»(정렬 단추 있음) + 슬라이드 칸 절(칸 줄)
   /* SLIDE-PANEL-REMOVE-CELL-PHOTO-BTN-01(현빈 피드백 3 ② · 제품 뜻 바뀜) — 칸을 골라도 패널에 «사진 넣기 (칸 N)» 단추가 없다(사진은 칸 위 스크래치·라이브러리 놓기 = R3) · 모서리 칸은 있다(같은 갈래가 그려졌다는 양성) */
-  await expect(page.locator('#sld-cell-radius'), '[전제] 고른 칸 갈래 그려짐').toHaveCount(1);
+  await expect(page.locator('#ss-radius-slider'), '[전제] 고른 칸 갈래 그려짐(142 — 칸 코너 = 프레임 패널 코너)').toHaveCount(1);
   await expect(page.locator('#sld-cell-photo'), '★칸 사진 넣기 단추 없음').toHaveCount(0);
   await expect(page.getByText(/사진 넣기 \(칸/), '★그 글귀도 없음').toHaveCount(0);
   /* 고른 칸에 넣기 = 그 칸 안(_insertToFlowFrame) */
@@ -636,7 +636,7 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
     const cv = document.createElement('canvas'); cv.width = 40; cv.height = 30; const x = cv.getContext('2d'); x.fillStyle = '#0000ff'; x.fillRect(0, 0, 40, 30); window.appendSlideCellImage(cell, cv.toDataURL('image/png')); }, id);
   await page.waitForFunction((id) => !!document.getElementById(id).querySelector('.sld-cell .asset-block img')?.naturalWidth, id);
   await pickCell(page, id, 1);
-  await page.locator('#sld-cell-radius').fill('20'); await page.locator('#sld-cell-radius').dispatchEvent('change');
+  await page.locator('#ss-radius-num').fill('20'); await page.locator('#ss-radius-num').dispatchEvent('change');   // 142 — 칸 코너 = 프레임 패널 코너(같은 dataset.radius)
   await page.selectOption('#sld-cell-shadow', 'soft');
   const dom = await page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1], cs = getComputedStyle(c); return { r: cs.borderTopLeftRadius, sh: cs.boxShadow !== 'none' }; }, id);
   expect(dom, '★첫 장면 둥글기 20 · 그림자').toEqual({ r: '20px', sh: true });
@@ -659,7 +659,7 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
  * K1 SLIDE-CELL-CHILD-SELECT-OUTLINE-01: 펼쳐 칸 2 에 글자 → 칸 빈 곳 누름 → 글자 가운데 «한 번» 누름 → ★글자 골라짐 · ★선택 층(.ss-sel-layer path) 하나가 글자 상자(글자 래퍼)를 감쌈(±2px)
  *    · 원인(코드): 프레임 «덮개»(editor-blocks.css .frame-block:not(.frame-entered)…:not(:has(.selected)) * = pointer-events none · B안)가 칸에도 걸려 한 번 누름이 칸으로 갔다(defb77053 지혜맥 K1 3/3 전제 빨강)
  *      ⇒ 펼친 슬라이드 칸은 덮개 제외 · 실패하면 받은 값 = 진단(골라진 것 · 길 상자 · 글자 상자 · 그 점의 주인)
- * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) · slide-frame-CTL34-cell-frame-panel.patch(showFrameProperties 칸 돌림 삭제) → C2 빨강(사진 꽉 찬 칸 누름 = 프레임 패널 · #sld-cell-radius 0) — 예측 */
+ * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) · slide-frame-CTL34-cell-frame-panel.patch(showFrameProperties 칸 돌림 삭제) → C2 빨강(사진 꽉 찬 칸 누름 = 프레임 패널 · #sld-cell-radius 0) ⚰️142(ⓐ · 지디 261119) 뒤 뜻 바뀜: 칸 = «그 칸의 프레임 패널»이 정답이 되어 CTL34(돌림 삭제)는 이제 제품과 같다 — 칸 패널 갈래의 대조는 slide-frame-CTL46-cell-no-slide-parts.patch(F2·P1 빨강) — 예측 */
 test('U2 펼친 채 칸 Delete = 그 칸만 · 펼침 그대로', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   const c0 = await cellIds(page, id);
@@ -717,12 +717,12 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await wireCdp(page);
   await pickCell(page, id, 1);
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 배경 켬(기본)').toBeChecked();
-  await expect(page.locator('#sld-cell-bg-hex'), '[전제] 배경색 칸').toHaveCount(1);
+  await expect(page.locator('#ss-bg-hex'), '[전제] 배경색 칸(142 — 칸 배경색 = 프레임 패널 Fill)').toHaveCount(1);
   /* 지혜맥 ae8952f79 G1 2/2 — 숨은 진짜 체크박스는 uncheck({force}) 로도 «viewport 밖» ⇒ 사람이 누르는 겉모양(.prop-toggle-track)을 누른다(Playwright 가 패널 스크롤로 넣고 누름) */
   const bgToggle = page.locator('#sld-cell-bg-on + .prop-toggle-track');
   await bgToggle.click();
   await expect.poll(() => cellBg(page, id, 1), '★끔 = 칸 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
-  await expect(page.locator('#sld-cell-bg-hex'), '끈 동안 배경색 칸 없음').toHaveCount(0);
+  await expect(page.locator('#sld-cell-bg-on'), '끈 동안 켜기 꺼짐(142 — 배경색 칸은 프레임 Fill 에 늘 있다)').not.toBeChecked();
   const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.children?.map((m) => m.block?.bg) ?? null; }, id);
   expect(fig?.[1], '★Figma 칸 2 bg = transparent(렌더러 = 칠 없음)').toBe('transparent');
   await key(page, 'Meta+z');
@@ -736,8 +736,8 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await pickCell(page, id, 1);
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 다시 연 패널 = 끔').not.toBeChecked();
   await bgToggle.click();
-  await expect(page.locator('#sld-cell-bg-hex'), '켬 = 배경색 칸').toHaveCount(1);
-  await page.evaluate(() => { const inp = document.getElementById('sld-cell-bg-hex'); inp.value = '#FF0000'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect(page.locator('#ss-bg-hex'), '켬 = 배경색 칸').toHaveCount(1);
+  await page.evaluate(() => { const inp = document.getElementById('ss-bg-hex'); inp.value = '#FF0000'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); });
   await expect.poll(() => cellBg(page, id, 1).then((v) => v.cs), '★색 = 칸 빨강').toBe('rgb(255, 0, 0)');
   const gifMid = await page.evaluate(async (id) => { const imgs = await window.slidePrepare(document.getElementById(id)), cv = imgs[1]; return cv ? Array.from(cv.getContext('2d').getImageData(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1).data).slice(0, 3) : null; }, id);
   expect(gifMid, '★GIF 칸 2 그림 가운데 = 빨강').toEqual([255, 0, 0]);
@@ -783,19 +783,19 @@ test('W1 새 슬라이드 = 칸마다 옅은 그림자(컴패리전 값) · 옛 
 test('P1 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 · 배경 알파·투명도 · 그림자 = Effects)', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   await pickCell(page, id, 1);
-  for (const sel of ['#sld-cell-radius-slider', '#sld-cell-radius', '#sld-cell-w-slider', '#sld-cell-h-slider']) await expect(page.locator(sel), `★${sel}`).toHaveCount(1);
+  for (const sel of ['#ss-radius-slider', '#ss-radius-num', '#sld-cell-w-slider', '#sld-cell-h-slider'])   // 142 — 코너 = 프레임 패널 코너 await expect(page.locator(sel), `★${sel}`).toHaveCount(1);
   expect(await page.evaluate(() => document.getElementById('sld-cell-shadow')?.closest('[data-sec]')?.dataset.sec), '★그림자 = Effects 절').toBe('effects');
   const slide = (sid, v) => page.evaluate(([sid, v]) => { const e = document.getElementById(sid); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, [sid, v]);
   const cell = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; const cs = getComputedStyle(c);
-    return { r: c.dataset.radius ?? null, rCs: cs.borderTopLeftRadius, w: c.dataset.w ?? null, h: c.dataset.h ?? null, opa: c.dataset.bgOpacity ?? null, opaCls: c.classList.contains('has-bg-opacity'), bg: cs.backgroundColor, rNum: document.getElementById('sld-cell-radius')?.value ?? null }; }, id);
-  await slide('sld-cell-radius-slider', 24);
+    return { r: c.dataset.radius ?? null, rCs: cs.borderTopLeftRadius, w: c.dataset.w ?? null, h: c.dataset.h ?? null, opa: c.dataset.bgOpacity ?? null, opaCls: c.classList.contains('has-bg-opacity'), bg: cs.backgroundColor, rNum: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
+  await slide('ss-radius-slider', 24);
   await expect.poll(cell).toMatchObject({ r: '24', rCs: '24px', rNum: '24' });
   await slide('sld-cell-w-slider', 60);
   await slide('sld-cell-h-slider', 80);
   await expect.poll(cell).toMatchObject({ w: '60', h: '80' });
-  await page.evaluate(() => { const a = document.getElementById('sld-cell-bg-alpha'); a.value = '50'; a.dispatchEvent(new Event('input', { bubbles: true })); a.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.evaluate(() => { const a = document.getElementById('ss-bg-alpha'); /* 142 — 프레임 Fill 알파 */ a.value = '50'; a.dispatchEvent(new Event('input', { bubbles: true })); a.dispatchEvent(new Event('change', { bubbles: true })); });
   await expect.poll(() => cell().then((c) => c.bg), '★배경 알파 50').toBe('rgba(255, 255, 255, 0.5)');
-  await page.locator('#sld-cell-bgopa-num').fill('50'); await page.locator('#sld-cell-bgopa-num').dispatchEvent('change');
+  await page.locator('#ss-bgopa-num').fill('50'); await page.locator('#ss-bgopa-num').dispatchEvent('change');   // 142 — 프레임 «배경 투명도»
   await expect.poll(cell, '★배경 투명도 = 프레임과 같은 키·층').toMatchObject({ opa: '0.5', opaCls: true });
   await key(page, 'Meta+z');
   await expect.poll(() => cell().then((c) => c.opa === null || c.opa === '1'), '★⌘Z 한 번 = 투명도 전').toBe(true);
@@ -822,7 +822,7 @@ test('H1 칸 코너 반경 손잡이 = 프레임 것 · 끌면 반경·패널 �
   await page.mouse.move(p.x, p.y); await page.mouse.down();
   for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 6 * i * z, p.y - 6 * i * z);   // 로컬 30px 안쪽
   await page.mouse.up();
-  const read = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; return { r: c.dataset.radius ?? null, cs: getComputedStyle(c).borderTopLeftRadius, sl: document.getElementById('sld-cell-radius-slider')?.value ?? null, nu: document.getElementById('sld-cell-radius')?.value ?? null }; }, id);
+  const read = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; return { r: c.dataset.radius ?? null, cs: getComputedStyle(c).borderTopLeftRadius, sl: document.getElementById('ss-radius-slider')?.value ?? null, nu: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
   const a = await read();
   expect(+a.r, '★반경이 늘었다(로컬 30px 안쪽 ≈ +30)').toBeGreaterThanOrEqual(25);
   expect(a, '★칸·패널 같은 값').toEqual({ r: a.r, cs: `${a.r}px`, sl: a.r, nu: a.r });
@@ -973,5 +973,43 @@ test('O1 칸 순서 — ⌘←/→ · 칸 띠 끌기 · ⌘Z · 저장', async (
   await expect.poll(() => cellIds(page, id), '★띠 끌기 = 첫 칸이 끝으로').toEqual([c0[1], c0[2], c0[0]]);
   await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
   await expect.poll(() => cellIds(page, id), '★저장→다시 열기 = 그 순서').toEqual([c0[1], c0[2], c0[0]]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 142 SLIDE-CELL-PANEL-PARITY-02(ⓐ · 현빈 Q1~Q3 예 · Q4 3단 유지) — 고른 칸 = «그 칸의 프레임 패널» + 맨 위 «슬라이드 칸» 절
+ * Q1 칸 2 고름 → 프레임 부품(정렬 #ss-align-left · 간격 · 패딩 · 테두리 · 배경 이미지 단추) 있음 · 칸에 안 맞는 절(위치 · 크기 px · 템플릿 · 이펙트 목록) 없음 ·
+ *    그림자 = 3단 select(Effects) · 칸 줄·폭%·높이%·배경 켜기 있음 · 상하 패딩 24 = 칸 padding-top 24px · 테두리 두께 3 = 칸 border 3px ·
+ *    «슬라이드 전체 설정» = 슬라이드 패널(칸 줄 · 프레임 정렬 단추 없음)
+ * Q2 [음성] 보통 프레임 패널 = 위치·크기·템플릿·이펙트 목록 그대로 · 슬라이드 칸 절 없음(일반 프레임 패널 무변)
+ * 양성대조: slide-frame-CTL46-cell-no-slide-parts.patch(slideCellPanelParts 가 null) → Q1·F2 빨강 */
+test('Q1 칸 패널 = 프레임 부품 + 슬라이드 칸 절', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
+  expect(await has(['ss-align-left', 'ss-gap-num', 'ss-pady-num', 'ss-padx-num', 'ss-border-w-num', 'ss-bg-img-btn', 'ss-radius-slider', 'ss-bg-hex']), '★프레임 부품').toEqual(Array(8).fill(true));
+  expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-height-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-fullbleed-toggle', 'ss-clip-toggle']), '★칸에 안 맞는 절 없음').toEqual(Array(7).fill(false));
+  expect(await has(['sld-cell-shadow', 'sld-cell-w-slider', 'sld-cell-bg-on', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절').toEqual(Array(5).fill(true));
+  expect(await page.evaluate(() => document.getElementById('sld-cell-shadow').closest('[data-sec]')?.dataset.sec), '★그림자 3단 = Effects').toBe('effects');
+  await page.locator('#ss-pady-num').fill('24'); await page.locator('#ss-pady-num').dispatchEvent('change');
+  await page.locator('#ss-border-w-num').fill('3'); await page.locator('#ss-border-w-num').dispatchEvent('change');
+  await expect.poll(() => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1], cs = getComputedStyle(c); return [cs.paddingTop, cs.borderTopWidth]; }, id), '★패딩·테두리가 그 칸에').toEqual(['24px', '3px']);
+  await page.locator('#sld-cell-back').click();
+  await expect.poll(() => page.evaluate(() => [!!document.getElementById('sld-add-cell'), !!document.getElementById('ss-align-left')]), '★슬라이드 전체 설정 = 슬라이드 패널').toEqual([true, false]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('Q2 [음성] 보통 프레임 패널 무변', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove());
+    await window.addSection();
+    window.selectSection(document.querySelector('#canvas .section-block'));
+    window.addFrameBlock?.();
+    const f = document.querySelector('#canvas .frame-block:not([data-sld-cell])');
+    window.showFrameProperties(f);
+  });
+  const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
+  expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-clip-toggle']), '★보통 프레임 = 절 그대로').toEqual(Array(5).fill(true));
+  expect(await has(['sld-cell-shadow', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절 없음').toEqual(Array(3).fill(false));
   expect(errs, errs.join(' | ')).toEqual([]);
 });
