@@ -147,6 +147,8 @@ const tagNorm = (t) => t.replace(/\s+/g, ' ').replace(/ data-own="[^"]*"/g, '');
 const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, 'placeholder="자동"$1'], [/ placeholder="없음"( aria-label="Color")/, '$1'],
   /* 재설계 1차 ⑩ — «Font»·«글자색» 라벨 글을 걷고 이름을 칸의 aria-label 로 옮겼다 */
   [/(id="txt-font-trigger" type="button")>/, '$1 aria-label="Font" title="Font">'], [/(<input type="color" id="txt-color" value="[^"]*")>/, '$1 aria-label="글자색">'],
+  /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
+  [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스 없음 · aria-label) */
   [/^<input type="number" class="prop-number" id="txt-width-number" (min="80" max="860" value="[^"]*")>$/, '<input type="number" id="txt-width-number" $1 aria-label="너비">']];
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
@@ -155,7 +157,8 @@ const labels = (root) => all(root).filter((k) => has(k, 'prop-label') || has(k, 
 const ids = (root) => all(root).filter((k) => k.attrs.id).map((k) => k.attrs.id);
 const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.indexOf(x); if (i >= 0) r.splice(i, 1); } return r; };
 
-const LABEL_RENAME = { '왼쪽 패딩': '왼쪽', '오른쪽 패딩': '오른쪽' };
+/* ⑤ 패딩 새 이름(Q25 · Q24 태그) — BASE 의 «왼쪽 패딩»·«오른쪽 패딩»(→ U2 «왼쪽»·«오른쪽») 도 한 걸음에 */
+const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우측패딩', '왼쪽': '좌측패딩', '오른쪽': '우측패딩', '상하': '상하패딩', '좌우 패딩': '태그 좌우패딩' };
 const LABEL_DROPPED = ['Font', '글자색', '너비'];   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
 const ID_ADDED = [/^psec-[a-z]+(-head|-body)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
@@ -163,10 +166,11 @@ const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider'];   /* txt-wid
 /* 기준판(BASE) 뒤에 «의도해서» 더한 컨트롤·id — 판정이 «생김»으로 안 세게. (패널 재설계 1차 261120 — 항목마다 까닭)
  *   label-shape-oval = 태그 Oval 모양(BASE 뒤 별건 · 이 판정기가 못 따라온 드리프트를 같이 적음) */
 const CTL_ADDED = [/^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/,
-  /^<input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="[^"]*">$/,   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
-  /^<button class="prop-type-btn(?: active)?" disabled title="(?:Tags|Icon Text|Bubble|Liner) — [^"]*">$/];   /* ⑫ 타입 12칸 중 «바꾸기 없음» 넷(꺼짐) */
+  /^<input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="[^"]*">$/,   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
+  /^<button class="prop-type-btn(?: active)?" disabled title="(?:Tags|Icon Text|Bubble|Liner) — [^"]*">$/,   /* ⑫ */
+  /^<input type="(?:range|number)" class="prop-(?:slider|number)" id="txt-ph-(?:slider|number)" [^>]*>$/];   /* ⑤ «좌우패딩» 한 줄(잠금 때 둘을 같이) */   /* ⑫ 타입 12칸 중 «바꾸기 없음» 넷(꺼짐) */
 const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /];   /* ⑥ 너비 슬라이더 걷음 */
-ID_ADDED.push(/^label-shape-oval$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/);
+ID_ADDED.push(/^label-shape-oval$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',
@@ -184,7 +188,7 @@ function judge(name, st, oldHtml, newHtml) {
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED])
-    .concat(ids(n).includes('txt-ph-chain') ? ['L/R'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);
+    .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const l2 = minus(ol, labels(n)), e2 = minus(labels(n), ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
   const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)));

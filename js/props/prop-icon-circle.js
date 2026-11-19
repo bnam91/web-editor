@@ -54,7 +54,7 @@ export function showIconCircleProperties(block) {
       </div>`),
       sec('padding', `
       <div class="prop-row" style="${_padXOff}"${_padXTitle}>
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="icb-padx-slider" min="0" max="200" step="4" value="${padX}">
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
       </div>`),

@@ -528,12 +528,12 @@ export function showStickerProperties(block) {
     put('padding', `
     <div id="stk-text-pad-section">
       <div class="prop-row">
-        <span class="prop-label">좌우</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="stk-t-pad-x" min="0" max="200" step="1" value="${tPadX}">
         <input type="number" class="prop-number" id="stk-t-pad-x-num" min="0" max="400" step="1" value="${tPadX}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="stk-t-pad-y" min="0" max="200" step="1" value="${tPadY}">
         <input type="number" class="prop-number" id="stk-t-pad-y-num" min="0" max="400" step="1" value="${tPadY}">
       </div>

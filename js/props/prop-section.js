@@ -773,7 +773,7 @@ async function showSectionProperties(sec) {
       </div>
 `),
       panelSec('padding', `
-      ${sliderRowHTML('좌우 패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
+      ${sliderRowHTML('좌우패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
       <div class="prop-row">
         <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">

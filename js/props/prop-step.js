@@ -160,12 +160,12 @@ export function showStepProperties(block, activeIdxArg) {
       </div>`),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">왼쪽</span>
+        <span class="prop-label">좌측패딩</span>
         <input type="range" class="prop-slider" id="stb-padl-slider" min="0" max="300" step="4" value="${stepPadL}">
         <input type="number" class="prop-number" id="stb-padl-number" min="0" max="300" value="${stepPadL}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">오른쪽</span>
+        <span class="prop-label">우측패딩</span>
         <input type="range" class="prop-slider" id="stb-padr-slider" min="0" max="300" step="4" value="${stepPadR}">
         <input type="number" class="prop-number" id="stb-padr-number" min="0" max="300" value="${stepPadR}">
       </div>`, {

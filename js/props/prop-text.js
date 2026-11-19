@@ -179,7 +179,8 @@ export function showTextProperties(tb) {
   const currentPadB  = parseInt(tb.style.paddingBottom) || 0;
   const currentPadL  = parseInt(tb.style.paddingLeft)  || 0;
   const currentPadR  = parseInt(tb.style.paddingRight) || 0;
-  let   phLinked     = currentPadL === currentPadR;
+  /* Q26(재설계 1차 ⑤) — 잠금/풂은 블럭에 저장된 값(data-pad-x-linked). 칸이 없는 옛 저장본만 좌 = 우 이면 잠금으로 읽는다 */
+  let   phLinked     = tb.dataset.padXLinked != null ? tb.dataset.padXLinked === '1' : currentPadL === currentPadR;
   // rawFont: CSS가 fontFamily를 정규화(따옴표 변환 등)하므로 raw option값을 별도 저장해서 우선 사용
   const currentFont   = contentEl.dataset.rawFont || contentEl.style.fontFamily || '';
   /* ★묶음 B #16 — «그려진» 굵기(_panel-rendered.js). 옛 판은 인라인만 읽어 빈 인라인을 Regular 400 · B 꺼짐으로 그렸다(CSS .tb-h1 700 · .tb-h2/.tb-h3 600).

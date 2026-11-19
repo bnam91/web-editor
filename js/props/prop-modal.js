@@ -260,12 +260,12 @@ export function showModalProperties(block) {
 `),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">좌우</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="mdl-padx-slider" min="0" max="80" step="2" value="${padX}">
         <input type="number" class="prop-number" id="mdl-padx-number" min="0" max="80" value="${padX}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="mdl-pady-slider" min="0" max="80" step="2" value="${padY}">
         <input type="number" class="prop-number" id="mdl-pady-number" min="0" max="80" value="${padY}">
       </div>

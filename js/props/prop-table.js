@@ -455,7 +455,7 @@ export function showTableProperties(block) {
         <input type="number" class="prop-number"  id="tbl-pad-number" min="0" max="40" value="${curPad}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">좌우 여백</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="tbl-padx-slider" min="0" max="120" step="2" value="${curTablePadX}">
         <input type="number" class="prop-number"  id="tbl-padx-number" min="0" max="120" value="${curTablePadX}">
       </div>`),

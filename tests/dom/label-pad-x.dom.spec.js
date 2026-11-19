@@ -62,7 +62,7 @@ const row = (page) => page.locator('.prop-row', { has: page.locator('#txt-label-
 test('L1 패널에 「좌우 패딩」 줄이 있다(섹션과 같은 말·같은 꼴)', async ({ page }) => {
   const errs = await boot(page, HARNESS);
   await open(page, 'tb1');
-  await expect(row(page).locator('.prop-label')).toHaveText('좌우 패딩');
+  await expect(row(page).locator('.prop-label')).toHaveText('태그 좌우패딩');   // ★기대 바뀜(패널 재설계 1차 ⑤ Q24 — 블럭 «좌우패딩»과 갈라 «태그 좌우패딩»)
   expect(await row(page).locator('input[type=range]').getAttribute('step')).toBe('2');
   expect(await page.locator('#txt-label-padx-number').getAttribute('max')).toBe('100');   // 섹션·프레임과 같은 0~100
   expect(await page.locator('#txt-label-padx-number').inputValue()).toBe('36');   // 기본값 = 지금 그려진 36px

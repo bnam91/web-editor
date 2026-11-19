@@ -464,7 +464,7 @@ function _renderAutoPanel(ss) {
          ⇒ ★★폭은 ★지켰다(★`dataset.stackW` ★200·260). ⇒ ★★그래서 ★문장이 ★★«좌표만» 잃는다고 ★말한다.
        ★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` ★FI6(★행위로 잰다) ＋ ★FI5(★문장이 ★그걸 ★말하나). */
     : isInlineAbsolute(ss) ? '자유(free) 배치의 자식이라 이미 프레임 끝까지 닿아 있습니다 — 바깥 프레임을 «stack» 으로 바꾸면 이 칸이 켜지지만, 자식의 가로·세로 좌표를 잃고 가운데 정렬됩니다(폭은 지킵니다).'
-    : _outerFrame          ? '바깥 프레임의 «좌우 패딩»이 0 이라 뚫을 것이 없습니다 — 그 프레임을 고르고 «좌우 패딩»을 올리세요.'
+    : _outerFrame          ? '바깥 프레임의 «좌우패딩»이 0 이라 뚫을 것이 없습니다 — 그 프레임을 고르고 «좌우패딩»을 올리세요.'
                            : '섹션 안이 아니라 뚫을 기준이 없습니다.';
 
   const bannerPreset = ss.dataset.bannerPreset || '';
@@ -567,11 +567,11 @@ function _renderAutoPanel(ss) {
 ` + (_radialTop ? '' : _radialHTML)),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
+        <span class="prop-label">상하패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
-      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
+      ${sliderRowHTML('좌우패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}
       <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">

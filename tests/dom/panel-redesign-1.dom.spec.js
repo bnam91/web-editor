@@ -158,3 +158,73 @@ test('P12 텍스트 타입 12칸 — 두 줄 · Quote 왼 테두리 있음 · �
   await expect.poll(() => page.evaluate((id) => !!document.querySelector(`#${id} .tb-h3`), id), '★H3 로 안 바뀐다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑤ 텍스트 좌우패딩 사슬 — 잠금 한 줄 ↔ 풂 세 줄 · 사슬 자리 그대로 · 잠금 저장(Q26: 풀고 좌 = 우 로 맞춰도 다시 열면 풀림).
+ *   CTL prd1-05-lock.patch(prop-text.js 가 저장값을 안 읽고 «좌 = 우 이면 잠금»으로) → 빨강 */
+const padRows = (page) => page.evaluate(() => ({
+  ph: getComputedStyle(document.getElementById('txt-ph-slider')).visibility, pl: document.getElementById('txt-pl-row').hidden, pr: document.getElementById('txt-pr-row').hidden,
+  pressed: document.getElementById('txt-ph-chain').getAttribute('aria-pressed'), x: Math.round(document.getElementById('txt-ph-chain').getBoundingClientRect().left) }));
+const linkedOf = (page, id) => page.evaluate((id) => document.getElementById(id).dataset.padXLinked ?? null, id);
+const setNum = (page, sel, v) => page.evaluate(([sel, v]) => { const n = document.querySelector(sel); n.value = String(v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, [sel, v]);
+
+test('P5a 좌우패딩 — 잠금 한 줄이 둘을 같이 · 사슬 → 세 줄 · 사슬 자리 그대로 · 풀고 좌 = 우 여도 다시 열면 풀림', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  const a = await padRows(page);
+  expect([a.ph, a.pl, a.pr, a.pressed], '[전제] 새 글(좌 0 = 우 0 · 저장 없음) = 잠금 한 줄').toEqual(['visible', true, true, 'true']);
+  await setNum(page, '#txt-ph-number', 16);
+  expect(await page.evaluate((id) => { const b = document.getElementById(id); return [b.style.paddingLeft, b.style.paddingRight]; }, id), '★한 줄이 둘을 같이 안 바꾼다').toEqual(['16px', '16px']);
+  await page.click('#txt-ph-chain');
+  const b = await padRows(page);
+  expect([b.ph, b.pl, b.pr, b.pressed], '★풀었는데 세 줄(빈 윗줄 + 좌측 + 우측)이 아니다').toEqual(['hidden', false, false, 'false']);
+  expect(b.x, '★사슬이 움직였다').toBe(a.x);
+  expect(await linkedOf(page, id), '★풂이 블럭에 안 적혔다').toBe('0');
+  await setNum(page, '#txt-pl-number', 24); await setNum(page, '#txt-pr-number', 24);   // 일부러 좌 = 우
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, id);   // 다시 열기
+  expect((await padRows(page)).pressed, '★풀어 둔 것을 «좌 = 우» 로 잠갔다(Q26)').toBe('false');
+  await page.click('#txt-ph-chain');
+  expect([(await padRows(page)).pressed, await linkedOf(page, id)]).toEqual(['true', '1']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('P5b 잠금 저장 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저장→다시 열기 · 템플릿 저장에 data-pad-x-linked 가 같이 간다', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  await page.click('#txt-ph-chain');   // 풂 → '0'
+  expect(await linkedOf(page, id)).toBe('0');
+  await page.evaluate(() => window.undo());
+  expect(await linkedOf(page, id), '★⌘Z 가 풂을 안 되돌린다').not.toBe('0');
+  await page.evaluate(() => window.redo());
+  expect(await linkedOf(page, id), '★⌘⇧Z 가 풂을 안 되살린다').toBe('0');
+  const kids = (page) => page.evaluate(() => [...document.querySelectorAll('.text-block')].map((b) => b.dataset.padXLinked ?? null));
+  // 복사-붙여넣기
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); window.copySelected(); }, id);
+  await page.keyboard.press('Meta+v');
+  await expect.poll(async () => (await kids(page)).length, '[전제] 붙여넣었다').toBe(2);
+  expect(await kids(page), '★붙여넣은 글이 풂을 잃었다').toEqual(['0', '0']);
+  // ⌘D
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, id);
+  await page.keyboard.press('Meta+d');
+  await expect.poll(async () => (await kids(page)).length, '[전제] 복제했다').toBe(3);
+  expect(await kids(page), '★복제한 글이 풂을 잃었다').toEqual(['0', '0', '0']);
+  // 저장 → 다시 열기
+  const back = await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.();
+    return [...document.querySelectorAll('.text-block')].map((b) => b.dataset.padXLinked ?? null); });
+  expect(back, '★저장→다시 열기에서 풂을 잃었다').toEqual(['0', '0', '0']);
+  await page.evaluate(() => { const b = document.querySelector('.text-block'); window.deselectAll?.(); window.selectBlock(b.id); });
+  expect((await padRows(page)).pressed, '★다시 연 글의 패널이 잠금으로 열렸다').toBe('false');
+  // 템플릿 저장(섹션)
+  const tpl = await page.evaluate(async () => { const S = document.querySelector('.section-block'); await window.saveAsTemplate(S, 'prd1-p5b', '기타', '', [], 'section'); return JSON.stringify(window.loadTemplates()[0] || null); });
+  expect(tpl, '★템플릿에 data-pad-x-linked 가 없다').toMatch(/data-pad-x-linked=\\*"0/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ⑤ 다른 블럭 패딩 이름(Q25) — 프레임·디바이더 줄 라벨. CTL 은 R5a(소스)로 갈음 */
+test('P5c 디바이더 패널 Padding 절 «상하패딩»·«좌우패딩»', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'divider-block', 'addDividerBlock');
+  const labs = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section[data-sec="padding"] .prop-label')].map((l) => l.textContent.trim()));
+  expect(labs, '★디바이더 패딩 줄 이름').toEqual(expect.arrayContaining(['상하패딩', '좌우패딩']));
+  expect(labs.filter((t) => /상하 패딩|좌우 패딩/.test(t)), '★옛 이름이 남았다').toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

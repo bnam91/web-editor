@@ -170,7 +170,7 @@ export function buildTextPanelSpec(state) {
         <div class="prop-lhls-col">
           <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
             <span class="prop-xy-label">높이</span>
-            <input type="number" id="txt-height-number" disabled placeholder="auto" aria-label="높이(텍스트 블럭은 없음)">
+            <input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="높이(텍스트 블럭은 없음)">
           </div>
         </div>
       </div>`) + (!isLabel ? '' : `
@@ -187,17 +187,20 @@ export function buildTextPanelSpec(state) {
 
   const _paddingHtml = isOverlayTb ? '' : `
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
-      ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
+      ${sliderRowHTML('태그 좌우패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
       </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다. 칸은 «숨기지 않고» 막고 까닭을 보이게 적는다. */
          isSpeechBubble ? '\n      <div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
-      <div class="prop-ph-header">
-        <span class="prop-field-label">L/R</span>
-        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
+      <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
+      <div class="prop-row" id="txt-ph-row">
+        <span class="prop-label">좌우패딩</span>
+        <input type="range" class="prop-slider" id="txt-ph-slider" min="0" max="120" step="4" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
+        <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
+        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동" aria-pressed="${phLinked ? 'true' : 'false'}">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
             <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
@@ -205,13 +208,13 @@ export function buildTextPanelSpec(state) {
           </svg>
         </button>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">왼쪽</span>
+      <div class="prop-row" id="txt-pl-row"${phLinked ? ' hidden' : ''}>
+        <span class="prop-label">좌측패딩</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">오른쪽</span>
+      <div class="prop-row" id="txt-pr-row"${phLinked ? ' hidden' : ''}>
+        <span class="prop-label">우측패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>`;

@@ -48,9 +48,9 @@ test('A1 ★패널에 「좌우 패딩」 줄이 있고 섹션 줄과 같은 꼴
     return { label: row?.querySelector('.prop-label')?.textContent, kids: row ? [...row.children].map(e => e.className) : null,
              yLabel: y?.querySelector('.prop-label')?.textContent, rowH: row ? row.getBoundingClientRect().height : 0 };
   });
-  expect(r.label).toBe('좌우 패딩');
+  expect(r.label).toBe('좌우패딩');   // ★기대 바뀜(패널 재설계 1차 ⑤ Q25 — 패딩 이름 붙여 쓰기)
   expect(r.kids).toEqual(['prop-label', 'prop-slider', 'prop-number']);
-  expect(r.yLabel).toBe('상하 패딩');
+  expect(r.yLabel).toBe('상하패딩');   // ★기대 바뀜(같은 까닭)
   expect(Math.round(r.rowH)).toBe(24);
 });
 

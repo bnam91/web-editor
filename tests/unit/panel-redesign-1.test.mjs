@@ -104,3 +104,36 @@ test('R12 타입 12칸 순서·글 · 바꾸기 없는 넷 disabled · 6열 격�
   assert.match(props, /#txt-kind-group\s*\{[^}]*grid-template-columns:\s*repeat\(6,/);
   assert.match(props, /#txt-kind-group > \.prop-type-btn\s*\{[^}]*border-left:\s*1px solid var\(--ui-border-mid\)/, '★Quote(마지막 칸) 왼 테두리 잘림이 돌아온다');
 });
+
+/* ⑤ 패딩 이름(Q25 · Q24) · 텍스트 좌우패딩 사슬 줄 · 잠금 저장(Q26). 양성대조: prop-text.js 의 dataset 읽기를 옛 «좌 = 우»로 되돌리면 R5b 빨강 */
+test('R5a 패딩 새 이름 — 블럭 줄 «상하패딩·좌우패딩·좌측패딩·우측패딩» · 태그 «태그 좌우패딩» · 옛 이름 0 · Q27 줄은 그대로', () => {
+  const files = ['prop-canvas', 'prop-divider', 'prop-frame', 'prop-graph', 'prop-icon-circle', 'prop-page', 'prop-radial', 'prop-row', 'prop-section',
+    'prop-simple-card', 'prop-table', 'prop-comparison', 'prop-modal', 'prop-sticker', 'prop-step', 'prop-text-template'].map((f) => [f, stripComments(readSrc(ROOT, `js/props/${f}.js`))]);
+  for (const [f, src] of files) {
+    assert.doesNotMatch(src, /(?:prop-label|prop-field-label)">(?:상하 패딩|좌우 패딩|좌우 여백|L\/R)</, `★${f}: 옛 패딩 이름`);
+    assert.doesNotMatch(src, /(?:sliderRowHTML|_pairRow)\([^,]+, '(?:상하 패딩|좌우 패딩)'/, `★${f}: 옛 패딩 이름(줄 부품)`);
+  }
+  const src = Object.fromEntries(files);
+  assert.match(src['prop-step'], />좌측패딩<[\s\S]*id="stb-padl-slider"/);
+  assert.match(src['prop-table'], />좌우패딩</, '★표 «좌우 여백» → «좌우패딩»(v6)');
+  assert.match(src['prop-text-template'], /sliderRowHTML\('태그 좌우패딩', 'txt-label-padx-slider'/);
+  /* Q27 — 뜻이 다른 줄은 그대로 */
+  assert.match(stripComments(readSrc(ROOT, 'js/props/prop-section.js')), /아래 패딩/);
+  assert.match(stripComments(readSrc(ROOT, 'js/props/prop-grid.js')), /위아래 여백/);
+});
+
+test('R5b 텍스트 좌우패딩 — 잠금 = 한 줄(#txt-ph-*) · 풂 = 그 줄 비우고 좌측·우측 줄 · 잠금은 data-pad-x-linked 로 저장 · 옛 저장본은 좌 = 우', () => {
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const T = loadTextTemplate();
+  const on = T.buildTextPropsHtml({ ...GOLDEN_STATE, currentPadL: 8, currentPadR: 8, phLinked: true });
+  assert.match(on, /<div class="prop-row" id="txt-ph-row">\s*<span class="prop-label">좌우패딩<\/span>\s*<input type="range"[^>]*id="txt-ph-slider"[^>]*value="8">\s*<input type="number"[^>]*id="txt-ph-number"[^>]*value="8">\s*<button class="prop-chain-btn active" id="txt-ph-chain"[^>]*aria-pressed="true"/);
+  assert.match(on, /id="txt-pl-row" hidden>/); assert.match(on, /id="txt-pr-row" hidden>/);
+  const off = T.buildTextPropsHtml({ ...GOLDEN_STATE, phLinked: false });
+  assert.match(off, /id="txt-ph-slider"[^>]*style="visibility:hidden"/, '★풀었는데 한 줄 슬라이더가 보인다');
+  assert.match(off, /id="txt-pl-row">\s*<span class="prop-label">좌측패딩/); assert.match(off, /id="txt-pr-row">\s*<span class="prop-label">우측패딩/);
+  const read = stripComments(readSrc(ROOT, 'js/props/prop-text.js'));
+  assert.match(read, /phLinked\s*=\s*tb\.dataset\.padXLinked != null \? tb\.dataset\.padXLinked === '1' : currentPadL === currentPadR/, '★잠금을 저장값에서 안 읽는다(Q26)');
+  const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-padding.js'));
+  assert.match(wire, /tb\.dataset\.padXLinked = phLinked \? '1' : '0';[\s\S]*showLinked\(\);\s*window\.pushHistory\?\.\(/, '★사슬이 블럭에 쓰고 이력을 남기지 않는다');
+  assert.match(wire, /phSlider\?\.addEventListener\('input', \(\) => setL\(/);
+});
