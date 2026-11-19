@@ -36,6 +36,17 @@ function cssOverlay(base) {
   return map;
 }
 
+/** 모든 레인 parity spec(css-token-parity-*.dom.spec.js)이 화면 files 에 적은 css 경로 — 「이 판이 바꾼 css 는 어느 화면에든 걸려 있다」의 명부.
+ *  ★레인0 틈 메움(지디 GO 261119): 옛 check 는 «이 spec 의 files» 안에서만 덮음을 쟀다 ⇒ 명부 밖 파일의 바뀐 줄은 아무도 안 쟀다(공짜 초록).
+ *  spec 글자에서 'css/….css' 리터럴을 모은다(spec 이 여럿 — M·P·frame — 이라 한 spec 의 files 로는 판정 못 함). */
+function listedCssAcrossSpecs() {
+  const fs = require('fs'), path = require('path'), dir = path.join(ROOT, 'tests/dom'), out = new Set();
+  for (const f of fs.readdirSync(dir)) if (/^css-token-parity-.+\.dom\.spec\.js$/.test(f)) {
+    for (const m of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(/['"`](css\/[\w./-]+\.css)['"`]/g)) out.add(m[1]);
+  }
+  return out;
+}
+
 /** 파일별 {후보 줄, 바뀐 줄} → [{line, sel}] (선택자는 지금 판 기준 · 후보는 BASE 판 기준). */
 function declLines(files) {
   const ctx = A.loadCtx(ROOT);
@@ -112,6 +123,10 @@ async function check(browser, screens) {
   }
   const [now, pin] = pages;
   const files = [...new Set(screens.flatMap((s) => s.files))];
+  /* 명부 밖 — BASE 대비 바뀐 css 파일(덮개 키 = 바뀐·생긴·지운 파일 전부)이 이 spec 에도, 다른 레인 parity spec 에도 없으면 빨강 */
+  const listed = listedCssAcrossSpecs(); for (const f of files) listed.add(f);
+  const unlisted = [...overlay.keys()].map((k) => k.replace(/^\//, '')).filter((f) => f.endsWith('.css') && !listed.has(f));
+  if (unlisted.length) console.log(`[css-token] 어느 parity 화면에도 없는 바뀐 css 파일:\n  ${unlisted.join('\n  ')}`);
   const lines = declLines(files);
   const covered = {}; for (const f of files) covered[f] = { cand: new Set(), changed: new Set() };
   const rows = [];
@@ -150,9 +165,10 @@ async function check(browser, screens) {
   expect(ctl, '자 양성대조: opacity .98 이 픽셀로 보여야 한다').toBeGreaterThan(0);
   for (const r of rows) expect(r.diff, `${r.screen} 픽셀 차`).toBe(0);
   expect(uncovered, '바뀐 줄은 전부 찍은 화면에 걸려야 한다(아니면 단위에서 빼거나 화면을 넓힌다)').toEqual([]);
+  expect(unlisted, '바뀐 css 파일은 어느 parity spec 의 화면 files 에든 있어야 한다(명부 밖 = 아무도 안 잼 · 화면을 더하거나 그 파일 변경을 빼라)').toEqual([]);
   for (const { errs } of pages) expect(errs, '페이지 오류').toEqual([]);
   for (const { ctx } of pages) await ctx.close();
   return { overlaySize: overlay.size, rows, ctl, cov };
 }
 
-module.exports = { BASE, check, cssOverlay, declLines, pxDiff, OTHER_THEME };
+module.exports = { BASE, check, cssOverlay, declLines, pxDiff, OTHER_THEME, listedCssAcrossSpecs };
