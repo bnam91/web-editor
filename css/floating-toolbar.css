@@ -1,0 +1,24 @@
+@charset "UTF-8";
+/* floating-toolbar.css — 하단 플로팅 툴바 단추(fp-btn) 묶음 (VISUAL-17 · 261119 editor-toast.css 에서 옮김 · 화면 변화 0).
+ * ★불러오는 자리 = index.html 에서 editor-toast.css «바로 앞». 그 파일의 뒤쪽 같은 무게 규칙(드롭다운 트리거의 width:auto 등)이
+ *   이 묶음을 이기던 순서를 그대로 지키려고. 뒤로 옮기면 그 규칙들이 진다 — tests/dom/visual17-css-home.dom.spec.js 가 잰다. */
+
+.fp-btn {
+  height: 32px; width: 32px; padding: 0;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 7px; color: var(--ui-text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  transition: all 0.15s;
+}
+.fp-btn:hover { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }
+
+.fp-btn.primary {
+  background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff;
+}
+.fp-btn.primary:hover { background: var(--ui-accent-primary-hover); border-color: var(--ui-accent-primary-hover); }
+
+.fp-btn svg { flex-shrink: 0; }
+.fp-btn-ai { color: #c084fc; font-size: var(--ui-fs-14); }
+.fp-btn-ai:hover { background: rgba(192,132,252,0.12) !important; border-color: rgba(192,132,252,0.4) !important; color: #d8b4fe !important; }
+.fp-btn#fp-plugin-btn.active { background: var(--ui-bg-input); border-color: var(--ui-border-mid); color: var(--ui-text); }

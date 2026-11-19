@@ -61,6 +61,15 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 .st-btn:hover { background: var(--ui-border); color: #fff; }
+/* VISUAL-17(261119): 아래 둘 = panels/_panel-tree.css 에서 옮김(화면 변화 0 · !important 그대로 — 빼면 우선순위가 바뀐다) */
+/* ── Section Toolbar: A/B Variation Button ── */
+.st-ab-btn { color: var(--ui-accent-primary) !important; }
+.st-ab-btn:hover { color: var(--ui-accent) !important; background: #1a2840 !important; }
+
+/* ── Section Toolbar: AI Fill Button ── */
+.st-ai-fill-btn { color: var(--ui-sel-ai) !important; }
+.st-ai-fill-btn:hover { color: #e9d5ff !important; background: #2a1a40 !important; }
+.st-ai-fill-btn.is-busy { opacity: 0.5; pointer-events: none; }
 
 /* ── Section Memo Modal (section-toolbar 📝 버튼) ─────────────────── */
 .section-memo-backdrop {
