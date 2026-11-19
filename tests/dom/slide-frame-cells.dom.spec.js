@@ -905,3 +905,35 @@ test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async (
   expect(Math.abs((await c2x()) - before), '★나온 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 슬라이드 피드백 5 (g) SLIDE-ENTER-EXIT-DIM-01(140) 앞부분 — 빈 영역 두 번 누름 = 나옴 · 펼친 동안 그 섹션이 아래 섹션 위(덮개 고르게)
+ *   (어둡기 세기는 현빈 답 뒤 — 이 칸은 안 잰다)
+ * X1 아래 섹션 하나 더 → 펼침 = 슬라이드 섹션 z 3 · 아래 섹션 z 2 · 칸 틈 두 번 = 나옴 · 다시 펼침 → 칸 안 두 번 = 그대로 펼침 · 캔버스 밖 회색 두 번 = 나옴 · 나온 뒤 z 2
+ * 양성대조: slide-frame-CTL43-no-empty-dbl-exit.patch(빈 영역 두 번 누름 리스너 삭제) → X1 빨강 — 예측 */
+test('X1 빈 영역 두 번 누름 = 나옴 · 칸 안은 그대로 · 펼친 섹션이 아래 섹션 위', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate(async () => { await window.addSection(); });
+  const open = () => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id);
+  const zs = () => page.evaluate((id) => { const s = document.getElementById(id).closest('.section-block'), n = s.nextElementSibling?.closest?.('.section-block') || [...document.querySelectorAll('#canvas .section-block')].find((x) => x !== s); return [getComputedStyle(s).zIndex, getComputedStyle(n).zIndex]; }, id);
+  const unfold = () => page.evaluate((id) => window.unfoldSlide(document.getElementById(id), true), id);
+  const stable = async (fn, msg) => { let prev = '', p = null; await expect.poll(async () => { p = await fn(); const k = JSON.stringify(p && [p.x, p.y]); const same = k === prev; prev = k; return !!p && p.ok && same; }, { message: msg, intervals: [50] }).toBe(true); return p; };
+  await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
+  await unfold();
+  await expect.poll(open, '[전제] 펼침').toBe(true);
+  expect(await zs(), '★펼친 섹션 z 3 · 아래 섹션 z 2').toEqual(['3', '2']);
+  const gap = await stable(() => page.evaluate((id) => { const cs = document.getElementById(id).querySelectorAll('.sld-cell'); const a = cs[0].getBoundingClientRect(), b = cs[1].getBoundingClientRect(); const x = (a.right + b.left) / 2, y = (a.top + a.bottom) / 2, e = document.elementFromPoint(x, y);
+    return { x, y, ok: b.left - a.right >= 2 && !!e && document.getElementById(id).contains(e) && !e.closest('.sld-cell') }; }, id), '[전제] 칸 틈 = 슬라이드 안 · 칸 밖');
+  await page.mouse.dblclick(gap.x, gap.y);
+  await expect.poll(open, '★칸 틈 두 번 = 나옴').toBe(false);
+  await unfold();
+  await expect.poll(open).toBe(true);
+  const inCell = await stable(() => page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[0].getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y); return { x, y, ok: !!e?.closest('.sld-cell') }; }, id), '[전제] 칸 1 가운데 = 칸 안');
+  await page.mouse.dblclick(inCell.x, inCell.y);
+  expect(await open(), '★칸 안 두 번 = 그대로 펼침').toBe(true);
+  const gray = await stable(() => page.evaluate(() => { const w = document.getElementById('canvas-wrap').getBoundingClientRect(), c = document.getElementById('canvas').getBoundingClientRect(); const x = (w.left + c.left) / 2, y = (c.top + Math.min(c.bottom, w.bottom)) / 2, e = document.elementFromPoint(x, y);
+    return { x, y, ok: c.left - w.left >= 20 && !!e?.closest('#canvas-wrap') && !e.closest('#canvas') }; }), '[전제] 캔버스 밖 회색 점');
+  await page.mouse.dblclick(gray.x, gray.y);
+  await expect.poll(open, '★캔버스 밖 회색 두 번 = 나옴').toBe(false);
+  expect(await zs(), '★나온 뒤 z 2 · 2').toEqual(['2', '2']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

@@ -1599,6 +1599,8 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* ★섹션 안쪽도 가로로 자른다(editor-layout.css .section-inner overflow-x:clip — 그림자 까닭) ⇒ 펼친 동안만 그 섹션 안쪽 가로 clip 을 푼다.
    ⛔:has 안에 :has 를 못 넣는다(규격) — 두 갈래로 적는다(슬라이드 자신이 골라짐 · 슬라이드 안 무엇이 골라짐). 저장·캡처는 .selected 를 걷으니 영향 0. (지혜맥 P1 빨강 = 이 clip) */
 .section-inner:has(.slide-block[data-cell-mode="frame"].sld-unfold) { overflow-x: visible; }
+/* SLIDE-ENTER-EXIT-DIM-01(140 · (g) «위아래 섹션 고르게») — 섹션은 저마다 z 2 쌓임맥락이라 뒤(아래) 섹션이 이 섹션 안 덮개(::after outline)를 덮었다 ⇒ 펼친 동안만 그 섹션을 한 칸 위로 */
+.section-block:has(> .section-inner .slide-block[data-cell-mode="frame"].sld-unfold) { z-index: 3; }
 .slide-block[data-cell-mode="frame"].sld-unfold::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
   /* 진회색 덮개 — 캔버스 배율(최소 10%)에서도 화면 끝이 안 보이게 2000vmax(배율 0.1 → 화면 200vmax) · px 리터럴 0 */

@@ -232,6 +232,15 @@ if (typeof document !== 'undefined') {
     window.selectBlock?.(b.id);
     unfoldSlide(b, true);
   }, true);
+  /* SLIDE-ENTER-EXIT-DIM-01(140 · 현빈 5차 (g)) — 빈 영역 두 번 누름 = 나옴: 펼친 슬라이드 안 «칸 밖»(트랙 틈·점 띠·바탕) 또는 캔버스 밖 회색(#canvas-wrap 안 · #canvas 밖).
+     칸 안 두 번 누름은 그대로(칸 안 편집 진입). 다른 섹션 위는 mousedown(아래)이 이미 접는다. */
+  document.addEventListener('dblclick', (e) => {
+    const b = _unfolded(); if (!b) return;
+    const t = e.target;
+    const inSlide = b.contains(t), inCell = !!t.closest?.('.sld-cell');
+    const outsideCanvas = !!t.closest?.('#canvas-wrap') && !t.closest?.('#canvas');
+    if ((inSlide && !inCell) || outsideCanvas) { e.preventDefault(); e.stopPropagation(); unfoldSlide(b, false); }
+  }, true);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     const b = _unfolded(); if (!b) return;
