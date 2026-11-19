@@ -32,7 +32,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border-soft);
 }
 .settings-modal-title {
   font-size: var(--ui-fs-13);
@@ -61,7 +61,7 @@
 .settings-tabs {
   width: 140px;
   background: #181818;
-  border-right: 1px solid #2a2a2a;
+  border-right: 1px solid var(--ui-border-soft);
   display: flex;
   flex-direction: column;
   padding: 12px 0;
@@ -138,7 +138,7 @@
 .settings-api-eye,
 .settings-api-test {
   background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-mid);
   color: #ccc;
   font-size: var(--ui-fs-base);
   padding: 5px 9px;
@@ -174,7 +174,7 @@
   gap: 10px;
   padding: 8px 10px;
   background: #181818;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border-soft);
   border-radius: 6px;
 }
 .settings-shortcut-row.capturing {
@@ -191,7 +191,7 @@
   font-family: 'SF Mono', 'Menlo', monospace;
   color: #fff;
   background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-mid);
   border-radius: 4px;
   padding: 3px 9px;
   min-width: 60px;
@@ -199,7 +199,7 @@
 }
 .settings-shortcut-btn {
   background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-mid);
   color: #ccc;
   font-size: var(--ui-fs-base);
   padding: 4px 12px;
@@ -232,7 +232,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px 18px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border-soft);
   background: #1a1a1a;
 }
 .settings-btn {
@@ -240,7 +240,7 @@
   padding: 6px 16px;
   border-radius: var(--ui-radius-sm);
   cursor: pointer;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-mid);
 }
 .settings-btn-secondary {
   background: #2a2a2a;
@@ -292,7 +292,7 @@
   gap: 12px;
   padding: 10px 12px;
   background: #181818;
-  border: 1px solid #2a2a2a;
+  border: 1px solid var(--ui-border-soft);
   border-radius: 6px;
 }
 .settings-egg-text {
@@ -317,7 +317,7 @@
   font-size: var(--ui-fs-base);
   color: #ccc;
   background: #2a2a2a;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--ui-border-mid);
   border-radius: 4px;
   padding: 2px 7px;
 }
@@ -340,7 +340,7 @@
   position: absolute;
   inset: 0;
   background: #3a3a3a;
-  border: 1px solid #444;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 22px;
   transition: background 0.15s, border-color 0.15s;
 }

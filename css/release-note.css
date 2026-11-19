@@ -21,7 +21,7 @@
   /* ★위·아래를 «따로» 본다. 22/13 은 위만 키운 값이라 제목이 구분선 쪽으로 쏠렸다.
      제목 줄(19px) 기준으로 위 24 · 아래 18 — 위가 조금 더 넓어야 «머리»로 읽힌다. */
   padding: 24px 18px 18px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--ui-border-soft);
   display: flex; align-items: baseline; gap: 10px;
 }
 .relnote-ver { display: none; }   /* 안 C — 버전은 날짜 줄로 합쳤다 */
@@ -50,7 +50,7 @@
   color: var(--ui-text-muted, #9e9e9e);
   margin: 6px 0 2px;
   padding-top: 14px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--ui-border-soft);
 }
 .relnote-group:first-child { margin-top: 8px; padding-top: 0; border-top: none; }
 /* ★그룹 색 = «전부 파랑»(현빈 확정). 종류마다 색을 가르면 그 색이 무슨 뜻인지 사용자가
