@@ -1036,3 +1036,51 @@ test('A1 칸 그림자 위아래로 보임 · 크기 무변 · 가로는 자름'
   expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).clipPath, id), '★펼침 = clip-path none').toBe('none');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* F86 SLIDE-SUJI-PROJ-CASES-01 ③ #sp_oif7z2(폰 틀 고정 + 안의 후기 제자리 전환 · 86 · 지디 261120 «지금 기능 조합으로 되나» 판정 근거)
+ *   만드는 순서 그대로: 프레임 칸 0 에 «폰 틀»(회색 꽉) + «후기»(빨강 · 화면 자리) → 칸 복제(duplicateSlideCell) 2번 → 사본 후기만 파랑·초록 → GIF 효과 제자리 페이드(84).
+ *   잰다(첫 장면·미리보기·GIF 같은 slidePlan.draw): 한 바퀴 24장에서 틀 자리 픽셀 = 늘 같은 회색(±2 · 겹침 페이드에도) · 화면 자리 = 빨강 → 파랑 → 초록 차례로.
+ *   ⇒ «고정 덮개 한 장»이 아니라 «칸마다 같은 자리의 틀 사본»으로 고정처럼 보인다(한계는 커밋 메시지·지디 보고).
+ * 양성대조(장면): 사본 하나의 틀을 아래로 옮기면(top 40%) «틀 늘 같음»이 거짓(같은 테스트 안 둘째 측정 · 자가 어긋남을 본다). */
+test('F86 폰 틀 고정 + 후기 제자리 전환 — 칸 복제 + 제자리 페이드로 틀 픽셀 늘 같음 · 화면만 바뀜', async ({ page }) => {
+  const { errs, id } = await scene(page, { cellMode: 'frame' });
+  await wireCdp(page);
+  await page.evaluate(async (id) => {
+    const b = document.getElementById(id);
+    const png = (color, w = 60, h = 40) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, w, h); return cv.toDataURL('image/png'); };
+    const put = (cell, src, box) => { window._activeFrame = cell; const had = new Set(cell.querySelectorAll('.asset-block')); window.addAssetBlock(null, { imgSrc: src });
+      const ab = [...cell.querySelectorAll('.asset-block')].find((a) => !had.has(a)); Object.assign(ab.style, box); ab.dataset.v86 = box.role; return ab; };
+    const cells = [...b.querySelectorAll('.sld-cell')];
+    cells.slice(1).forEach((c) => c.remove()); window.renderSlideBlock(b);
+    put(cells[0], png('#555555'), { role: 'frame', left: '0px', top: '0px', width: '100%', height: '100%' });
+    put(cells[0], png('#ff0000'), { role: 'review', left: '25%', top: '25%', width: '50%', height: '50%' });
+    window._activeFrame = null;
+    const c1 = window.duplicateSlideCell(b, cells[0]), c2 = window.duplicateSlideCell(b, c1);
+    c1.querySelector('[data-v86="review"] img').src = png('#0000ff'); c2.querySelector('[data-v86="review"] img').src = png('#00aa00');
+    b.dataset.animFx = 'slide-fade';
+    window.renderSlideBlock(b); b.scrollIntoView({ block: 'center' });
+  }, id);
+  await page.waitForFunction((id) => [...document.getElementById(id).querySelectorAll('.sld-cell .asset-block img')].filter((i) => i.complete && i.naturalWidth > 0).length >= 6, id);   // 칸 셋 × 그림 둘 뜸(조건 대기)
+  const measure = async () => page.evaluate(async (id) => {
+    const b = document.getElementById(id); b._sldImgs = null; const imgs = await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, frames = [];
+    for (let i = 0; i < 24; i++) {
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, i / 24);
+      const px = (x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data).slice(0, 3);
+      frames.push({ frame: px(W * 0.5, H * 0.08), screen: px(W * 0.5, H * 0.5) });
+    }
+    const near = (a, b, d = 2) => a.every((v, i) => Math.abs(v - b[i]) <= d);
+    const kind = (p) => (near(p, [255, 0, 0], 8) ? 'R' : near(p, [0, 0, 255], 8) ? 'B' : near(p, [0, 170, 0], 8) ? 'G' : '~');
+    const seq = frames.map((f) => kind(f.screen)).filter((k) => k !== '~').filter((k, i, a) => i === 0 || a[i - 1] !== k).join('');
+    return { n: imgs.length, frameSame: frames.every((f) => near(f.frame, frames[0].frame)), frame0: frames[0].frame, seq, fx: b.dataset.animFx };
+  }, id);
+  const r = await measure();
+  expect({ n: r.n, fx: r.fx }, '[전제] 칸 셋 · 제자리 페이드').toEqual({ n: 3, fx: 'slide-fade' });
+  expect(r.frame0, '[전제] 틀 자리 = 회색').toEqual([85, 85, 85]);
+  expect(r.frameSame, '★틀 픽셀이 한 바퀴 내내 같다(고정처럼 보임)').toBe(true);
+  expect(r.seq.startsWith('RBG'), `★화면 자리 = 빨강 → 파랑 → 초록(${r.seq})`).toBe(true);
+  /* 양성대조(장면) — 사본 하나의 틀을 아래로 옮기면 같은 자가 «늘 같음 아님»을 본다 */
+  await page.evaluate((id) => { const f = document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelector('[data-v86="frame"]'); f.style.top = '40%'; }, id);
+  expect((await measure()).frameSame, '양성대조: 사본 틀이 어긋나면 자가 잡는다').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
