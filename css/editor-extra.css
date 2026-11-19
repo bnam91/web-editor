@@ -768,7 +768,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: var(--ui-space-1_5) var(--ui-space-3);
   border-bottom: 1px solid var(--ui-bg-input);
   flex-shrink: 0;
   cursor: grab;
@@ -784,11 +784,11 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tpl-browser-search-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-space-1_5);
   background: var(--ui-bg-card);
   border-top: 1px solid var(--ui-border);
   border-bottom: 1px solid var(--ui-border);
-  padding: 6px 10px;
+  padding: var(--ui-space-1_5) var(--ui-space-2_5);
   flex-shrink: 0;
 }
 .tpl-browser-search-mode {
@@ -821,7 +821,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tpl-browser-hbtns {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ui-space-1);
 }
 /* 헤더 버튼 공용 — 닫기·새창·레이아웃이 «같은 몸통»을 쓴다(값은 옛 .tpl-browser-close 그대로) */
 .tpl-browser-hbtn {
@@ -857,7 +857,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   flex-shrink: 0;
   border-right: 1px solid var(--ui-bg-card);
   overflow-y: auto;
-  padding: 6px 0;
+  padding: var(--ui-space-1_5) 0;
 }
 .tpl-browser-tree::-webkit-scrollbar { width: 3px; }
 .tpl-browser-tree::-webkit-scrollbar-thumb { background: var(--ui-border); border-radius: 2px; }
@@ -865,8 +865,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tb-tree-all, .tb-tree-folder-header, .tb-tree-cat {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: var(--ui-space-1_5);
+  padding: 5px var(--ui-space-2_5);
   cursor: pointer;
   font-size: var(--ui-fs-base);
   color: var(--ui-text-muted);
@@ -986,7 +986,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   flex: 1;
   overflow: hidden;
   position: relative;
-  padding: 12px;
+  padding: var(--ui-space-3);
   box-sizing: border-box;
   width: 100%;
   background: #f0f0f0;
@@ -996,7 +996,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 12px;
+  padding: var(--ui-space-1_5) var(--ui-space-3);
   border-top: 1px solid #222;
   background: var(--ui-bg-app);
   overflow: hidden;
@@ -1032,7 +1032,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   color: #fff;
   font-size: var(--ui-fs-10);
   font-weight: var(--ui-fw-semibold);
-  padding: 4px 9px;
+  padding: var(--ui-space-1) 9px;
   cursor: pointer;
   transition: background 0.12s;
   white-space: nowrap;
@@ -1048,7 +1048,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   background: var(--ui-bg-card);
   color: var(--ui-text);
   border: 1px solid var(--ui-border);
-  margin-left: 4px;
+  margin-left: var(--ui-space-1);
 }
 .tpl-browser-replace-btn:hover { background: var(--ui-bg-hover); }
 
@@ -1056,7 +1056,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tpl-browser-cards {
   flex: 1;
   overflow-y: auto;
-  padding: 6px;
+  padding: var(--ui-space-1_5);
 }
 .tpl-browser-cards::-webkit-scrollbar { width: 3px; }
 /* 뎁스2 칼럼 — 정렬 줄(머리) + 카드 목록(남은 높이). 목록의 basis 는 auto 다: 0 이면 목록이 높이를 요구하지 않아 바디가 바닥 높이로 주저앉는다 */
