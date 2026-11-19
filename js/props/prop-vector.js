@@ -27,12 +27,9 @@ export function showVectorProperties(block) {
 
   renderPanel(block, {
     header: blockHeaderHTML({
-      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3">
-            <path d="M6 1L11 4.5L9 11H3L1 4.5Z" stroke-linejoin="round"/>
-            <line x1="1" y1="4.5" x2="11" y2="4.5"/>
-            <line x1="6" y1="1" x2="3" y2="4.5"/>
-            <line x1="6" y1="1" x2="9" y2="4.5"/>
-          </svg>`,
+      /* VECTOR-PANEL-ICON-BROKEN-01(현빈 261119): 머리 아이콘 = 레이어 행(js/panels/layer-panel-items.js «vector» 오각형)과 같은 꼴.
+         옛 «보석»(오각형 + 안쪽 선 셋)은 16px 로 키우면 위 빗선 둘이 윗변에 붙어 꼭대기가 덩어리로 뭉갰다(렌더 확인). */
+      icon: `          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#888" stroke-width="1.3"><polygon points="6,1 11,5 9,11 3,11 1,5"/></svg>`,
       name: block.dataset.layerName,
       defaultName: 'Vector',
       crumb: window.getBlockBreadcrumb?.(block) || '',
