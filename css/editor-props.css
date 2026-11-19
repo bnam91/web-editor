@@ -75,6 +75,11 @@
 .prop-section[data-sec]:not([data-sec="kind"]) { padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
 .prop-section[data-sec]:not([data-sec="kind"]) > .prop-sec-head { margin-right: calc(-1 * var(--ui-opt-col-w)); }
 .prop-section[data-sec] .prop-row:has(> .prop-chain-btn:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+/* 머리 «＋»(재설계 1차 ⑨) — Stroke: 체크박스를 감싼 단추(켜면 «−») · Effects: 같은 칼럼 폭 select(목록 = 효과 종류) */
+.prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+.prop-sec-add:has(> input:checked) > .prop-sec-add-plus, .prop-sec-add:not(:has(> input:checked)) > .prop-sec-add-minus { display: none; }
+.prop-sec-add:has(> input:focus-visible) { outline: var(--ui-focus-ring); }
+.prop-sec-head > .prop-sec-add-select { flex: 0 0 auto; width: var(--ui-opt-col-w); min-width: 0; padding: 0; text-align: center; text-align-last: center; background-image: none; }
 .prop-section[data-sec] .prop-row > .prop-chain-btn:last-child { margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }   /* 줄 gap 4 + 이것 2 = 칼럼 사이 6 ⇒ 숫자 칸 끝이 다른 줄과 같은 자리 */   /* ★R5(U6) — 그리드 _grdScopeWrap 이 옛 절을 [data-scope] 로 한 겹 감싼다(색 칸 133 < 149) */
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {

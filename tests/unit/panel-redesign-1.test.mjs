@@ -146,3 +146,16 @@ test('R8 옵션 칼럼 — --ui-opt-col-w 토큰 · 절 padding-right · 머리/
   assert.match(props, /:not\(\[data-sec="kind"\]\) > \.prop-sec-head\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\)/);
   assert.match(props, /\.prop-row:has\(> \.prop-chain-btn:last-child\)\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\)/);
 });
+
+/* ⑨ Stroke «＋»(켜면 «−» · 같은 체크박스) · Effects «＋»(종류 목록). 양성대조: strokeSection 머리를 옛 prop-toggle 로 되돌리면 빨강 */
+test('R9 Stroke 머리 = 단추꼴 label 안 체크박스 + ＋/− 그림 · Effects 머리 = «＋» select(텍스트만) · 공용 fx 산출 기본 바이트 그대로', () => {
+  const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
+  const T = loadTextTemplate();
+  const on = T.buildTextPropsHtml({ ...GOLDEN_STATE, stroke: { on: false, width: 2, align: 'outside', color: '#000000' }, strokeColorHtml: '' });
+  assert.match(on, /<label class="prop-chain-btn prop-sec-add"[^>]*>\s*<input type="checkbox" id="txt-stroke-on"\s+aria-label="Stroke">\s*<svg class="prop-sec-add-plus"[\s\S]*?<svg class="prop-sec-add-minus"/);
+  assert.doesNotMatch(on, /id="txt-stroke-section"[\s\S]*?prop-toggle-track[\s\S]*?id="txt-stroke-section-body"/, '★Stroke 머리에 옛 켜기 토글이 남았다');
+  assert.match(on, /<select class="prop-select prop-sec-add-select" id="txt-fx-add" title="효과 추가" aria-label="효과 추가">\s*<option value="">＋<\/option>/);
+  const props = css('css/editor-props.css');
+  assert.match(props, /\.prop-sec-add:has\(> input:checked\) > \.prop-sec-add-plus,\s*\.prop-sec-add:not\(:has\(> input:checked\)\) > \.prop-sec-add-minus\s*\{\s*display:\s*none/);
+  assert.match(stripComments(readSrc(ROOT, 'js/effects-registry.js')), /<option value="">\$\{FX_ADD_HEAD_LABEL\}<\/option>/, '[대조] 다른 패널(plus 없음)은 옛 «효과 추가…» 그대로');
+});

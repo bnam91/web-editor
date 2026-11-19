@@ -244,3 +244,24 @@ test('P8 옵션 칼럼 — 상하패딩 숫자 끝 = 좌우패딩 숫자 끝 · 
   expect(Math.abs((r.chain - r.pv) - r.col), `★칼럼 폭 ≠ --ui-opt-col-w ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑨ Stroke «＋» → 몸 펼침 · «−» → 접힘 / Effects «＋» → 종류를 고르면 카드. CTL prd1-09-plus.patch(＋/− 그림 바꿔 끼우는 CSS 삭제) → 빨강 */
+test('P9 Stroke ＋ 누르면 두께·색·위치가 펼쳐지고 단추가 − · 다시 누르면 머리만 / Effects ＋ 에서 고르면 카드가 생긴다', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const add = page.locator('#txt-stroke-section label.prop-sec-add');
+  const icon = () => page.evaluate(() => { const l = document.querySelector('#txt-stroke-section label.prop-sec-add'); const v = (c) => getComputedStyle(l.querySelector(c)).display !== 'none'; return { plus: v('.prop-sec-add-plus'), minus: v('.prop-sec-add-minus') }; });
+  await expect(page.locator('#txt-stroke-controls'), '[전제] Stroke 꺼짐 = 머리만').toBeHidden();
+  expect(await icon(), '★꺼진 Stroke 머리가 ＋ 가 아니다').toEqual({ plus: true, minus: false });
+  await add.click();
+  await expect(page.locator('#txt-stroke-controls'), '★＋ 를 눌렀는데 Stroke 가 안 펼쳐진다').toBeVisible();
+  expect(await icon(), '★켜진 Stroke 머리가 − 가 아니다').toEqual({ plus: false, minus: true });
+  await add.click();
+  await expect(page.locator('#txt-stroke-controls'), '★− 를 눌렀는데 그대로다').toBeHidden();
+  const opt = await page.evaluate(() => [...document.querySelectorAll('#txt-fx-add option')].map((o) => o.value).find(Boolean));
+  expect(opt, '[전제] 더할 효과').toBeTruthy();
+  expect(await page.evaluate(() => document.querySelector('#txt-fx-add option').textContent.trim()), '★Effects 머리가 ＋ 가 아니다').toBe('＋');
+  await page.selectOption('#txt-fx-add', opt);
+  await expect(page.locator('#txt-fx-list > *').first(), '★효과를 골랐는데 카드가 없다').toBeVisible();
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

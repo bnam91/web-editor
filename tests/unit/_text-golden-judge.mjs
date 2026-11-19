@@ -147,6 +147,9 @@ const tagNorm = (t) => t.replace(/\s+/g, ' ').replace(/ data-own="[^"]*"/g, '');
 const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, 'placeholder="자동"$1'], [/ placeholder="없음"( aria-label="Color")/, '$1'],
   /* 재설계 1차 ⑩ — «Font»·«글자색» 라벨 글을 걷고 이름을 칸의 aria-label 로 옮겼다 */
   [/(id="txt-font-trigger" type="button")>/, '$1 aria-label="Font" title="Font">'], [/(<input type="color" id="txt-color" value="[^"]*")>/, '$1 aria-label="글자색">'],
+  /* ⑨ 머리 «＋» — Effects 추가 select 꼴 · Stroke 켜기 체크박스(단추꼴 label 안 · 이름 aria-label) */
+  [/^<select class="prop-select" id="txt-fx-add" style="[^"]*" title="고른 효과가 추가된다" (aria-label="효과 추가")>$/, '<select class="prop-select prop-sec-add-select" id="txt-fx-add" title="효과 추가" $1>'],
+  [/^(<input type="checkbox" id="txt-stroke-on"(?: checked)?) ?>$/, '$1 aria-label="Stroke">'],
   /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
   [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스 없음 · aria-label) */

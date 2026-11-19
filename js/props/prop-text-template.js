@@ -104,7 +104,7 @@ export function buildTextPanelSpec(state) {
           <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>`;
-  const _fx = _plainText ? window.fxSectionParts(tb, 'txt') : null;
+  const _fx = _plainText ? window.fxSectionParts(tb, 'txt', { plus: true }) : null;   /* 재설계 1차 ⑨ — 머리 «＋»(누르면 종류 목록) */
   const _effects = _fx
     ? sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools })
     : sec('effects', `\n${textShadowControlsHtml(_sh)}`, { id: 'txt-shadow-section', headTools: _shadowOn });
@@ -437,10 +437,12 @@ export function strokeSection({ p, stroke, colorHtml } = {}) {
         </div>
       </div>`, {
     id: `${p}-stroke-section`,
+    /* 재설계 1차 ⑨ — 켜기 토글 → 머리 «＋»(켜면 «−» · 몸이 펼쳐짐). 같은 체크박스(#${p}-stroke-on · change 배선 그대로)를 단추꼴 label 이 감싼다 */
     headTools: `
-        <label class="prop-toggle" title="외곽선 켜기/끄기">
-          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가/빼기">
+          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''} aria-label="Stroke">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
         </label>`,
   });
 }

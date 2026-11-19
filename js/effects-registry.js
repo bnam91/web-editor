@@ -85,15 +85,18 @@ export const FX_ADD_HEAD_LABEL = '효과 추가…';
 /** 「Effects」 절의 «조각» — 틀(_panel-frame.js)로 옮긴 패널은 sec('effects', body, { headTools, id }) 로 쓴다.
  *  ★id 는 옛 절 id(#<P>-fx-section) 그대로 — 그 id 로 찾는 시험·배선이 안 깨진다. body 가 빈 문자열이어도
  *    headTools(추가 목록)가 있으면 절은 그려진다(효과 0개 = 머리 한 줄 · U3). */
-export function fxSectionParts(el, prefix) {
+export function fxSectionParts(el, prefix, { plus = false } = {}) {   // plus = 머리 «＋» 꼴(텍스트 패널 · 재설계 1차 ⑨) — 같은 select(종류 목록 = 메뉴) · 기본 = 바이트 동일
   const P = prefix;
   const types = fxTypesFor(el);
   const present = types.filter(t => t.has(el));
   const missing = types.filter(t => !t.has(el) && typeof t.add === 'function');   /* ★E13 — 붙일 길 없는 종류는 안 보인다 */
-  const headTools = missing.length ? `
+  const head = plus ? `
+        <select class="prop-select prop-sec-add-select" id="${P}-fx-add" title="효과 추가" aria-label="효과 추가">
+          <option value="">＋</option>` : `
         <select class="prop-select" id="${P}-fx-add" style="flex:0 1 104px;min-width:0;width:auto;"
                 title="고른 효과가 추가된다" aria-label="효과 추가">
-          <option value="">${FX_ADD_HEAD_LABEL}</option>
+          <option value="">${FX_ADD_HEAD_LABEL}</option>`;
+  const headTools = missing.length ? `${head}
           ${missing.map(t => `<option value="${t.key}">${t.label}</option>`).join('')}
         </select>` : '';
   const body = present.length ? `
