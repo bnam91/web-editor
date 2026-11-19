@@ -354,7 +354,8 @@ const stableAt = async (page, fn, arg, msg) => {
 const pickCell = async (page, id, i) => {
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
   /* 접힌 칸은 pointer-events none(누름이 슬라이드로) — 접혔으면 임자 = 슬라이드 안 · 펼쳤으면 임자 = 그 칸 «자신»(빈 곳 — 칸 안 블럭이면 그 블럭이 골라진다).
-     ★자리 고르기(지혜맥 261120 jsfc4 R1 5/5): 옛 «왼위 +8» 은 칸 1 이면 고른 슬라이드의 왼위 모서리 = 크기 손잡이 자리 ⇒ 칸 안 격자에서 «임자 맞는» 첫 점을 고른다 · 옛 점의 임자는 DIAG 로 남긴다 */
+     ★자리 고르기(지혜맥 261120 jsfc4 R1 5/5): 옛 «왼위 +8» 은 칸 1 이면 고른 슬라이드의 왼위 모서리 = 크기 손잡이 자리 ⇒ 칸 안 격자에서 «임자 맞는» 첫 점을 고른다 · 옛 점의 임자는 DIAG 로 남긴다
+     ★확인(독립 리뷰 261120 ⓒ1 닫음): 지혜맥 744a31342 ×3 런 [pickCell DIAG] «0 펼침 옛 왼위+8 임자 = DIV.ss-radius-handle.nw#(손잡이 층)» 1건 — 추정이 실측으로 맞음(R1 초록) */
   const at = (folded) => stableAt(page, ({ id, i, folded }) => { const W = (e) => e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}${e.closest && e.closest('#ss-handles-overlay') ? '(손잡이 층)' : ''}` : null;
     const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect();
     /* 펼침: 먼저 칸 «자신»(빈 곳) · 없으면(그림이 칸을 꽉 채움 — C2) 칸 안 자식 — 앱 뜻: 안 고른 칸의 내용을 누르면 «칸»이 먼저 골라진다(C2 옛 판이 이 길로 초록) */
@@ -501,10 +502,14 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   let op = null;
   await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(); let x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
       for (const fy of [0.5, 0.25, 0.75, 0.1, 0.9]) { if (e && (e === t || t.contains(e))) break; for (const fx of [0.5, 0.25, 0.75]) { const xx = r.left + r.width * fx, yy = r.top + r.height * fy, ee = document.elementFromPoint(xx, yy); if (ee && (ee === t || t.contains(ee))) { x = xx; y = yy; e = ee; break; } } }
-      return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);
+      /* 독립 리뷰 261120 ⓑ2: «격자 중 하나라도 글자면 통과»는 펼친 칸·덮개가 글자 대부분을 먹는 회귀를 못 잡는다 ⇒ 가운데 점 임자 = 글자 또는 칸 띠(.grd-headband · 7112 띠 우선)여야 */
+      const c0 = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const center = !c0 ? 'null' : (c0 === t || t.contains(c0)) ? 'text' : c0.closest('.grd-headband') ? 'band' : `${c0.tagName}.${[...c0.classList].join('.')}#${c0.id}`;
+      return { x, y, center, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);
     const same = !!op && Math.round(op.x) === Math.round(p.x) && Math.round(op.y) === Math.round(p.y); op = p; return `${p.hit}|${same}|${p.who}`; },
     { message: '★펼침 중 옆 글자 자리 = 글자(같은 자리 두 번) — 받은 값 끝 = 덮은 것', intervals: [50] }).toMatch(/^true\|true\|/);
   expect(op.open, '[전제] 아직 펼친 채(자름 없음)').toBe('none');
+  expect(['text', 'band'].includes(op.center), `★옆 글자 가운데 임자 = 글자 또는 칸 띠(받은 = ${op.center})`).toBe(true);
   expect(op.hit, `★펼침 중 옆 글자 자리를 덮은 것 = ${op.who}`).toBe(true);
   await page.mouse.click(op.x, op.y);
   await expect.poll(() => page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
@@ -810,10 +815,11 @@ test('W1 새 슬라이드 = 칸마다 옅은 그림자(컴패리전 값) · 옛 
  *    폭 60·높이 80 = data-w·data-h · 배경 알파 50 = computed rgba(…, 0.5) · 배경 투명도 50 = dataset.bgOpacity 0.5 + .has-bg-opacity(프레임과 같은 몸통) ·
  *    저장→다시 열기 = 넷 그대로 · ⌘Z 한 번 = 투명도 전(키 없음)
  * 양성대조: slide-frame-CTL38-cell-corner-number.patch(코너를 옛 숫자칸만으로) → P1 빨강 — 예측 */
-test('P1 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 · 배경 알파·투명도 · 그림자 = Effects)', async ({ page }) => {
+test('P2 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 · 배경 알파·투명도 · 그림자 = Effects)', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   await pickCell(page, id, 1);
-  for (const sel of ['#ss-radius-slider', '#ss-radius-num', '#sld-cell-w-slider', '#sld-cell-h-slider'])   // 142 — 코너 = 프레임 패널 코너 await expect(page.locator(sel), `★${sel}`).toHaveCount(1);
+  /* 독립 리뷰 261120 ⓑ1: 옛 줄은 주석이 for 머리 뒤에 붙어 아래 존재 단언 넷이 주석이 됐고 다음 줄(Effects)이 4번 도는 몸통이었다 → 몸통·주석 바로잡음 · 이름 P1 → P2(같은 파일 P1 둘) */
+  for (const sel of ['#ss-radius-slider', '#ss-radius-num', '#sld-cell-w-slider', '#sld-cell-h-slider']) await expect(page.locator(sel), `★${sel}`).toHaveCount(1);   // 142 — 코너 = 프레임 패널 코너
   expect(await page.evaluate(() => document.getElementById('sld-cell-shadow')?.closest('[data-sec]')?.dataset.sec), '★그림자 = Effects 절').toBe('effects');
   const slide = (sid, v) => page.evaluate(([sid, v]) => { const e = document.getElementById(sid); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, [sid, v]);
   const cell = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; const cs = getComputedStyle(c);
@@ -1179,5 +1185,39 @@ test('B1 펼침 중 칸 띠 탭 = 그 칸 고름(띠 밑 옆 글자 아님)', as
   await expect.poll(() => page.evaluate(({ id, oid, i }) => { const b = document.getElementById(id), c = window.slideCellsOf(b)[i];
     return { cell: c.classList.contains('selected') && window._activeFrame === c, text: document.getElementById(oid).classList.contains('selected'), open: b.classList.contains('sld-unfold') }; }, { id, oid: otherId, i: pt.i }),
     `★띠 ${pt.i + 1} 탭 = 칸 ${pt.i + 1} 고름 · 옆 글자 안 골라짐 · 펼침 그대로`).toEqual({ cell: true, text: false, open: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 옛 저장본 픽스처(독립 리뷰 261120 «덧») — 뒤 커밋이 바꾼 «의도된 변화»가 옛 저장본을 다시 그릴 때 나타나나
+ * O137 SLIDE-DOTS-GAP-SLIDER-01(137 d7385bc2c): 점 켠 옛 블럭(블럭 높이 = layout.h 고정 · 트랙 = 100% − 옛 띠 «갭×2+점») → 다시 그리면 블럭 = layout.h + 새 띠(갭+점+8) · 칸 높이 = layout.h 그대로
+ * O134 SLIDE-CELL-SHADOW-CLIP-01(134 933841aa4): 옛 인라인 overflow:hidden(clip-path 없음) 저장본 → 다시 그리면 overflow visible + 가로 clip-path inset(…)
+ * 옛 저장본 = 지금 저장 글자에서 그 블럭의 인라인 style 만 옛 꼴로 바꿔 다시 연다(로드가 RERENDER 로 다시 그림 · slide-block.dom M5 와 같은 길). */
+async function reloadWith(page, id, mutate) {
+  await page.evaluate(({ id, mutate }) => {
+    window.flushCurrentPage?.();
+    const d = JSON.parse(window.serializeProject());
+    d.pages = d.pages.map((p) => {
+      if (!p.canvas || !p.canvas.includes(id)) return p;
+      const doc = new DOMParser().parseFromString(`<div id="__w">${p.canvas}</div>`, 'text/html'), b = doc.getElementById(id);
+      new Function('b', mutate)(b);
+      return { ...p, canvas: doc.getElementById('__w').innerHTML };
+    });
+    document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d);
+  }, { id, mutate });
+}
+test('O137 옛 저장본(점 켬 · 옛 띠) → 다시 그리면 블럭이 새 띠만큼 커지고 칸 높이 그대로', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const h = await page.evaluate((id) => { const b = document.getElementById(id); window.setSlideLayout(b, { dots: 'bottom', dotGap: 16 }); window.renderSlideBlock(b); return window.readSlideState(b).layout.h; }, id);
+  /* 옛 꼴: 블럭 = h(고정) · 트랙 = calc(100% − 40px) · 아래 여백 40px(옛 띠 = 16×2 + 8) */
+  await reloadWith(page, id, `b.style.height = '${h}px'; const t = b.querySelector(':scope > .sld-track'); t.style.height = 'calc(100% - 40px)'; t.style.marginBottom = '40px';`);
+  const geo = () => page.evaluate((id) => { const b = document.getElementById(id); if (!b) return null; const t = b.querySelector(':scope > .sld-track'), c = b.querySelector('.sld-cell'); return { block: b.offsetHeight, track: t?.offsetHeight ?? null, cell: c?.offsetHeight ?? null }; }, id);
+  await expect.poll(geo, `★다시 그림 = 블럭 ${h}+32(새 띠 16+8+8) · 트랙·칸 ${h} 그대로`).toEqual({ block: h + 32, track: h, cell: h });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+test('O134 옛 저장본(인라인 overflow:hidden · clip-path 없음) → 다시 그리면 overflow visible + 가로 clip-path', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await reloadWith(page, id, `b.style.overflow = 'hidden'; b.style.clipPath = '';`);
+  await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); if (!b) return null; const cs = getComputedStyle(b); return [cs.overflow, cs.clipPath.startsWith('inset(')]; }, id),
+    '★다시 그림 = overflow visible · clip-path inset(가로만 자름)').toEqual(['visible', true]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
