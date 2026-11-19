@@ -12,7 +12,7 @@
  * 하네스 = bootApp(앱 안 띄움). 누를 자리는 누르기 직전 다시 잰다. 대기는 조건으로만(f2·until).
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 /* 대기는 «조건»으로만(tests/unit/dom-fixed-wait-census W3·W4) — f2 = 두 프레임 · until = 기대 상태를 최대 2초 기다린 뒤 «그래도» 단언한다(안 서면 단언이 제 말로 빨개진다). */
 const f2 = (p) => p.waitForFunction(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -45,6 +45,9 @@ async function scene(page) {
     return { tr: tr.id, tb: t.id, white: white.id, grey: grey.id, red: red.id, op0: op0.id, outer: outer.id, mid: mid.id, leaf: leaf.id };
   });
   await page.waitForFunction((ids) => Object.values(ids).every((id) => { const r = document.getElementById(id)?.getBoundingClientRect(); return r && r.width > 0 && r.height > 0; }), ids);
+  /* [시험만 · cand16 전수 261120 T3 3/3 · dev 17b20888b 도 같은 부하 2/3]: 맨 applyZoom(50) 은 #canvas-scaler transform 을 0.15s 보간한다(_root-harness waitZoomSettled 머리말)
+     ⇒ 보간 중 잰 좌표 = 옛 배율 → 마우스가 이웃 프레임(흰색·회색 …)에 떨어지고, 옛 hover() 는 «무엇이든 :hover» 면 통과라 그대로 tr 의 아웃라인을 재 'none'. 배율 멎음까지 기다린다. */
+  await waitZoomSettled(page, 50);
   await f2(page);
   return ids;
 }
@@ -52,7 +55,12 @@ const pt = (page, id, fx, fy, inset = 0) => page.evaluate(({ id, fx, fy, inset }
   return { x: inset ? r.right - inset : r.left + r.width * fx, y: r.top + r.height * fy }; }, { id, fx, fy, inset });
 async function hover(page, id, fx = 0.5, fy = 0.5, inset = 0) {
   await page.mouse.move(3, 3); const p = await pt(page, id, fx, fy, inset); await page.mouse.move(p.x, p.y, { steps: 3 });
-  await page.waitForFunction(({ x, y }) => !!document.elementFromPoint(x, y)?.matches(':hover'), p); await f2(page); return p;
+  /* 전제 = 마우스 아래 임자가 «그 블럭(이나 그 안)»이고 :hover — 옛 판은 «아무 요소나 :hover» 였다(이웃 프레임에 떨어져도 통과 → 아웃라인 단언이 엉뚱한 까닭으로 빨강).
+     안 서면 «누른 점 임자»를 찍고 전제에서 진다. */
+  const ok = await page.waitForFunction(({ x, y, id }) => { const e = document.elementFromPoint(x, y); return !!e && !!e.closest('#' + id) && e.matches(':hover'); }, { ...p, id }, { timeout: 3000 }).then(() => true, () => false);
+  if (!ok) { const who = await page.evaluate(({ x, y }) => { const e = document.elementFromPoint(x, y); return e ? (e.id || '') + '.' + String(e.className).slice(0, 50) : null; }, p);
+    expect(ok, `[전제] 마우스가 ${id} 위에 있다 — 누른 점 ${JSON.stringify(p)} 임자 ${who}`).toBe(true); }
+  await f2(page); return p;
 }
 const outline = (page, id) => page.evaluate((id) => getComputedStyle(document.getElementById(id)).outlineStyle, id);
 const sel = (page) => page.evaluate(() => [...document.querySelectorAll('#canvas .frame-block.selected, #canvas .text-block.selected')].map(e => e.id));
