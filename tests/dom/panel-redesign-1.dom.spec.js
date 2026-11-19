@@ -228,3 +228,19 @@ test('P5c 디바이더 패널 Padding 절 «상하패딩»·«좌우패딩»', a
   expect(labs.filter((t) => /상하 패딩|좌우 패딩/.test(t)), '★옛 이름이 남았다').toEqual([]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑧ 끝 옵션 칼럼 — 값 줄 끝이 한 자리 · 사슬과 머리 손잡이가 같은 칼럼. CTL prd1-08-optcol.patch(절 padding-right 규칙 삭제) → 빨강 */
+test('P8 옵션 칼럼 — 상하패딩 숫자 끝 = 좌우패딩 숫자 끝 · 사슬 오른끝 = Position 머리 플로팅 단추 오른끝 · 칼럼 폭 = 토큰', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const R = (id) => document.getElementById(id).getBoundingClientRect();
+    const probe = document.createElement('div'); probe.style.width = 'var(--ui-opt-col-w)'; document.body.appendChild(probe); const col = probe.getBoundingClientRect().width; probe.remove();
+    return { pv: R('txt-pv-number').right, ph: R('txt-ph-number').right, chain: R('txt-ph-chain').right, ov: R('txt-overlay-toggle').right, col };
+  });
+  expect(r.col, '[전제] 토큰 폭').toBeGreaterThan(20);
+  expect(Math.abs(r.pv - r.ph), `★값 줄 끝이 어긋난다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(r.chain - r.ov), `★사슬과 머리 손잡이가 같은 칼럼이 아니다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs((r.chain - r.pv) - r.col), `★칼럼 폭 ≠ --ui-opt-col-w ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

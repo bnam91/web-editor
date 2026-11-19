@@ -69,7 +69,13 @@
 .prop-section[data-sec]:not(.is-collapsed):not(:has(> .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]))) { padding-bottom: 0; }
 /* 틀 절 몸 안의 옛 하위 절(.prop-section — 빌더가 절 통째를 줄 때) — 좌우 들임을 두 번 받지 않게(틀 절이 이미 들였다) */
 .prop-section[data-sec] > .prop-sec-body > .prop-section,
-.prop-section[data-sec] > .prop-sec-body > [data-scope] > .prop-section { padding-inline: 0; }   /* ★R5(U6) — 그리드 _grdScopeWrap 이 옛 절을 [data-scope] 로 한 겹 감싼다(색 칸 133 < 149) */
+.prop-section[data-sec] > .prop-sec-body > [data-scope] > .prop-section { padding-inline: 0; }
+/* 끝 옵션 칼럼(재설계 1차 ⑧) — 절 몸 오른쪽에 --ui-opt-col-w 자리를 비워 둔다(값 줄 끝이 모두 같은 자리에 선다).
+   그 칼럼에 서는 것 = 절 머리 손잡이(Stroke·Effects ＋ · 플로팅 등)와 줄 끝 사슬(.prop-chain-btn). 타입 띠(kind)는 단추 묶음이라 칼럼 밖. */
+.prop-section[data-sec]:not([data-sec="kind"]) { padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
+.prop-section[data-sec]:not([data-sec="kind"]) > .prop-sec-head { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.prop-section[data-sec] .prop-row:has(> .prop-chain-btn:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.prop-section[data-sec] .prop-row > .prop-chain-btn:last-child { margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }   /* 줄 gap 4 + 이것 2 = 칼럼 사이 6 ⇒ 숫자 칸 끝이 다른 줄과 같은 자리 */   /* ★R5(U6) — 그리드 _grdScopeWrap 이 옛 절을 [data-scope] 로 한 겹 감싼다(색 칸 133 < 149) */
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);

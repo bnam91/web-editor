@@ -169,6 +169,7 @@
   --ui-sec-title-color-hover: var(--ui-text);          /* 절 제목 hover */
   --ui-sec-head-py:          var(--ui-space-3);        /* 절 머리 위아래 대칭 = 12(Figma F1-1 · 패널 재설계 1차 v9 · 옛 space-2) */
   --ui-sec-body-pb:          var(--ui-space-4);        /* 절 몸통 아래 여백 = 16(Figma F1-1 · 패널 재설계 1차 v9 · 옛 10) */
+  --ui-opt-col-w:            calc(22px + var(--ui-space-1_5));   /* 절 몸 끝 옵션 칼럼 = .prop-chain-btn 폭 22 + 사이 6(재설계 1차 ⑧ · Figma 줄 끝 24+8) */
   --ui-hint-color:           var(--ui-text-dim);       /* .prop-hint 옛 회색(2.4:1 ✗AA) → dim(≥4.5:1) */
   --ui-chip-h:               var(--ui-btn-h);          /* 스코프칩 높이 = 버튼 높이 별칭 */
   --ui-focus-ring:           2px solid var(--ui-accent-primary, #2d6fe8);

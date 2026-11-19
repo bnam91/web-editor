@@ -137,3 +137,12 @@ test('R5b 텍스트 좌우패딩 — 잠금 = 한 줄(#txt-ph-*) · 풂 = 그 �
   assert.match(wire, /tb\.dataset\.padXLinked = phLinked \? '1' : '0';[\s\S]*showLinked\(\);\s*window\.pushHistory\?\.\(/, '★사슬이 블럭에 쓰고 이력을 남기지 않는다');
   assert.match(wire, /phSlider\?\.addEventListener\('input', \(\) => setL\(/);
 });
+
+/* ⑧ 끝 옵션 칼럼 — 토큰 하나(--ui-opt-col-w) · 절 몸이 그만큼 비워 두고 머리 손잡이·줄 끝 사슬만 그 칼럼에. 양성대조: padding-right 규칙을 지우면 빨강 */
+test('R8 옵션 칼럼 — --ui-opt-col-w 토큰 · 절 padding-right · 머리/사슬 줄 음수 margin · 타입 띠 제외', () => {
+  assert.match(tokenOf(css('css/editor-base.css'), '--ui-opt-col-w') || '', /^calc\(22px \+ var\(--ui-space-1_5\)\)$/);
+  const props = css('css/editor-props.css');
+  assert.match(props, /\.prop-section\[data-sec\]:not\(\[data-sec="kind"\]\)\s*\{\s*padding-right:\s*calc\(var\(--ui-space-2\) \+ var\(--ui-opt-col-w\)\)/);
+  assert.match(props, /:not\(\[data-sec="kind"\]\) > \.prop-sec-head\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\)/);
+  assert.match(props, /\.prop-row:has\(> \.prop-chain-btn:last-child\)\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\)/);
+});
