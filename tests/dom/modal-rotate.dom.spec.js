@@ -145,7 +145,7 @@ test('M-ROT3 ★패널 회전 줄이 있고, 값을 넣으면 블럭에 먹고 �
       missing: null,
       sW: Math.round(sr.width), nW: Math.round(nr.width),
       ds: b.dataset.rotation || null, tf: b.style.transform || '',
-      sliderVal: n.value, numVal: n.value,
+      sliderVal: b.dataset.rotation ?? '0', numVal: n.value,   // QA2 — 동어반복 걷음: 칸 값 == 블럭에 먹은 값(dataset.rotation)
       min: n.getAttribute('min'), max: n.getAttribute('max'),
     };
   });
@@ -157,7 +157,7 @@ test('M-ROT3 ★패널 회전 줄이 있고, 값을 넣으면 블럭에 먹고 �
   expect(r.ds, `45 를 넣었는데 dataset.rotation 이 ${r.ds} 다`).toBe('45');
   expect(r.tf, `transform «${r.tf}»`).toMatch(/rotate\(45deg\)/);
   /* ★두 칸이 ★같은 값을 보나 — 하나만 맞추면 슬라이더와 숫자가 갈라진다(이 레포 고질) */
-  expect(r.sliderVal, `슬라이더 ${r.sliderVal} · 숫자 ${r.numVal}`).toBe(r.numVal);
+  expect(r.sliderVal, `블럭 회전 ${r.sliderVal} · 칸 ${r.numVal} — 칸과 블럭이 갈라졌다`).toBe(r.numVal);
   /* ★범위 — 다른 타입과 같은 −180~180(⛔내 수가 아니라 ★선례의 수다) */
   expect([r.min, r.max], `범위 ${r.min}~${r.max}`).toEqual(['-180', '180']);
   expect(errs).toEqual([]);

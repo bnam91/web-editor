@@ -41,12 +41,18 @@ const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.eval
   const units = [];
   for (const e of [...body.children].filter((x) => x.classList.contains('prop-section'))) {
     const band = e.querySelector(':scope > .prop-kind-band[data-sec]');
-    if (e.dataset.secGroup != null) for (const part of e.querySelectorAll(':scope > .prop-sec-part[data-sec]')) units.push({ e: part, sec: part.dataset.sec, title: part.dataset.title, isHeader: false });
+    if (e.dataset.secGroup != null) {
+      for (const part of e.querySelectorAll(':scope > .prop-sec-part[data-sec]')) units.push({ e: part, sec: part.dataset.sec, title: part.dataset.title, isHeader: false });
+      /* QA2 — 묶음 머리에 합쳐진 손잡이(몸들의 headTools)도 소유를 잰다: 묶음 key 중 하나여야 한다 */
+      const head = e.querySelector(':scope > .prop-sec-head');
+      if (head) units.push({ e: head, sec: '__group', title: null, isHeader: false, groupKeys: e.dataset.secGroup.split(' ') });
+    }
     else units.push({ e, sec: e.dataset.sec || null, title: e.querySelector(':scope > .prop-sec-head > .prop-section-title')?.textContent.trim() ?? null, isHeader: !!e.querySelector(':scope > .prop-block-label'), band });
     if (band) units.push({ e: band, sec: 'kind', title: band.dataset.title, isHeader: false });
   }
-  const secs = units.map(({ e, sec, title, isHeader, band }) => ({
+  const secs = units.map(({ e, sec, title, isHeader, band, groupKeys }) => ({
     sec,
+    groupKeys: groupKeys || null,
     isHeader,
     title,
     labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].filter((l) => !l.classList.contains('prop-sec-sub') && !(band && band.contains(l))).map((l) => l.textContent.trim()),
@@ -84,7 +90,16 @@ const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.eval
 function judgePanel(panel, spec, order = spec.sectionOrderFor(panel.order)) {   // 정본 순서 = 그 패널의 예외표 몫(없으면 전역) — 순서를 여기 따로 박지 않는다
   const bad = [];
   const { secs, hints } = panel;
-  const keyed = secs.filter((s) => s.sec);
+  /* QA2 — 묶음 머리 손잡이: 소유가 묶음 key 밖이면 빨강 · 그 밖 판정(제목·순서·빈 머리)은 몸 단위에서 이미 잰다 */
+  for (const g of secs.filter((x) => x.sec === '__group')) for (const c of g.controls || []) {
+    if (c.id && c.id in spec.OWNERSHIP_EXEMPT) continue;
+    const own = spec.ownerOfControl(c);
+    if (own && !g.groupKeys.includes(own)) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 Layout 묶음 머리(${g.groupKeys.join('·')})에 있다`);
+  }
+  const keyed = secs.filter((s) => s.sec && s.sec !== '__group');
+  /* QA2 — kind(Type 띠)는 순서 판정 밖이지만 «자리»는 잰다: 이름표 상자 안 = 절 중 맨 앞 */
+  const ki = keyed.findIndex((s) => s.sec === 'kind');
+  if (ki > 0) bad.push(`순서 위반: kind(Type 띠)는 맨 앞(이름표 아래)이어야 하는데 ${keyed[ki - 1].sec} 뒤에 있다`);
   if (!keyed.length) bad.push('data-sec 절이 0개 — 틀을 안 거쳤거나 패널이 비었다');
   secs.forEach((s, i) => { if (!s.sec && !(i === 0 && s.isHeader)) bad.push(`머리 없는 절 #${i} — header(맨 앞 블록 머리)만 허용`); });
   const ordered = keyed.filter((s) => s.sec !== 'kind');   // ★Q2 — kind 는 순서와 상관없이 이름표 아래 띠(맨 앞)

@@ -167,7 +167,7 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
   [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">']];
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
-  : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}>`] : []));
+  : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}${(() => { const sel = closest(k, (x) => x.tag === 'select'); return sel?.attrs.id ? ` in="${sel.attrs.id}"` : ''; })()}>`] : []));   // QA2 — 옵션에 «어느 고르개»를 붙여 허용을 그 고르개로 묶는다
 const labels = (root) => all(root).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub')).map((k) => text(k).trim());   // 묶음 작은 제목(Q1)은 라벨 아님
 const ids = (root) => all(root).filter((k) => k.attrs.id).map((k) => k.attrs.id);
 const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.indexOf(x); if (i >= 0) r.splice(i, 1); } return r; };
@@ -190,7 +190,7 @@ const CTL_ADDED = [
   new RegExp(`^<input type="number" class="prop-number" id="txt-ph-number"${PH_ATTRS}>$`),
 ];
 const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /,   /* ⑥ 너비 슬라이더 걷음 */
-  /^<select class="prop-select" id="txt-fx-add" /, /^<option value="(?:|shadow|reflect)">$/,   /* ⑨ · 시안 v10 — Effects 고르개 → ＋ 단추 + 종류 메뉴(옵션 = 메뉴 항목) */
+  /^<select class="prop-select" id="txt-fx-add" /, /^<option value="(?:|shadow|reflect)" in="txt-fx-add">$/,   /* ⑨ · 시안 v10 — Effects 고르개 → ＋ 단추 + 종류 메뉴(옵션 = 메뉴 항목) */
   /^<input type="range" class="prop-slider" id="txt-rot-slider" /];   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
 /* Q17 회전 줄 단추 셋(시안 v10 · 현빈 GO 261120) */
 CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/,

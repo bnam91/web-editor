@@ -529,3 +529,106 @@ test('P18 Template 절 — 텍스트 패널: ＋ 펼침 · 저장하면 블록 �
   expect(await page.locator('#blk-tpl-section').count()).toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* QA2 M3 — transform 을 통째로 다시 쓰는 렌더러가 «실제로 돌 때» 반전을 다시 붙인다(다시 열기·⌘Z 는 렌더러를 안 부른다 → 렌더러를 직접 부른다).
+ *   CTL: prd1-q17-render(모달) · prd1-q17-render-sticker · -zoom · -mockup · -iconify — 각 렌더러의 applyFlip 줄 삭제 → 그 칸 빨강 */
+for (const [cls, call] of [
+  ['modal-block', 'window.renderModalBlock(b)'],
+  ['zoom-block', 'window.renderZoomBlock(b)'],
+  ['mockup-block', 'window.initMockupCrop(b)'],
+  ['sticker-block', 'window.renderStickerBlock(b)'],
+  ['icon-block', 'window._applyIconifyBlockStyle(b, b.innerHTML, parseInt(b.style.width) || 64, parseInt(b.dataset.rotation) || 0)'],
+]) test(`P17e ${cls} 렌더러가 다시 그려도 반전 유지`, async ({ page }) => {
+  const errs = await scene(page);
+  const kind = (await rosterOf(page)).find((r) => r.cls === cls);
+  expect(kind?.entry, `[전제] ${cls} 입구`).toBeTruthy();
+  const r0 = await addKind(page, kind);
+  expect(r0.err).toBeUndefined();
+  const t = await page.evaluate(([id, call]) => { const b = document.getElementById(id); window.toggleFlip(b, 'flipH');
+    const before = b.style.transform; new Function('b', call)(b); return { before, after: b.style.transform, h: b.dataset.flipH }; }, [r0.id, call]);
+  expect(t.before, '[전제] 반전이 걸렸다').toMatch(/scale\(-1, 1\)$/);
+  expect([t.h, t.after], `★${cls} 렌더러가 반전을 지웠다 ${JSON.stringify(t)}`).toEqual(['1', expect.stringMatching(/scale\(-1, 1\)$/)]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* QA2 C1 — 모달 패널: 여는 동안 오류 0 · 떠 있는 모달 X 칸이 먹는다 · 각도 change → ⌘Z 한 번에 되돌아감.
+ *   CTL prd1-qa2-c1.patch(_mRotS?. → _mRotS.) → 빨강(TypeError · 아래 배선 끊김) */
+test('P19 모달 패널 — 오류 0 · 플로팅 X 칸 · 각도 ⌘Z 1번', async ({ page }) => {
+  const errs = await scene(page);
+  const kind = (await rosterOf(page)).find((r) => r.cls === 'modal-block');
+  const r0 = await addKind(page, kind);
+  await page.evaluate((id) => window.selectBlock(id), r0.id);
+  await expect(page.locator('#mdl-rot-number')).toBeAttached();
+  expect(errs, `★모달 패널을 여는 데 오류: ${errs.join(' | ')}`).toEqual([]);
+  await page.fill('#mdl-rot-number', '30'); await page.locator('#mdl-rot-number').dispatchEvent('change');
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.rotation, r0.id)).toBe('30');
+  await page.evaluate(() => window.undo());
+  expect(await page.evaluate((id) => document.getElementById(id).dataset.rotation ?? '0', r0.id), '★각도가 ⌘Z 한 번에 안 돌아간다(change 이력 끊김)').toBe('0');
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, r0.id);
+  await page.click('#mdl-float-toggle');
+  await expect(page.locator('#mdl-x-number'), '[전제] 떠 있는 모달 X 칸').toBeAttached();
+  await page.fill('#mdl-x-number', '37'); await page.locator('#mdl-x-number').dispatchEvent('input'); await page.locator('#mdl-x-number').dispatchEvent('change');
+  /* 떠 있는 자리 = posEl dataset.offsetX(js/overlay-float.js wireFloatPosition · _applyOverlayPos) */
+  expect(await page.evaluate((id) => { const b = document.getElementById(id); return [b, ...b.querySelectorAll('*'), b.parentElement].map((e) => e?.dataset?.offsetX).find((v) => v != null) ?? null; }, r0.id), '★X 칸이 안 먹는다(wireFloatPosition 끊김)').toBe('37');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* QA2 C2 · M1 — 텍스트 프레임(data-text-frame) 글: 30° → 좌우 반전 → ⌘Z · ⌘⇧Z · 다시 열기 · 저장→열기 뒤 transform = rotate(30deg) scale(-1, 1)(순서 고정) · 각도 30.
+ *   반전 «뒤» 각도를 바꿔도 rotate(θ) scale(…) 순서. CTL prd1-qa2-c2.patch(frame-geometry 텍스트 프레임 예외 삭제) · prd1-qa2-m1.patch(텍스트 applyRot 의 applyFlip 삭제) → 빨강 */
+test('P20 텍스트 프레임 — 회전 + 반전이 ⌘Z/⌘⇧Z/다시 열기/저장 뒤에도 rotate(θ) scale(-1, 1)', async ({ page }) => {
+  const errs = await scene(page);
+  const fk = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
+  const fr = await addKind(page, fk);
+  await page.evaluate((id) => { const f = document.getElementById(id); f.dataset.freeLayout = 'true'; }, fr.id);
+  const t = await addKind(page, { cls: 'text-block', entry: 'addTextBlock' }, fr.id);
+  const hostT = (id) => page.evaluate((id) => { const b = document.getElementById(id); const e = b.closest('.frame-block[data-text-frame="true"]'); return e ? { tf: true, t: e.style.transform, h: e.dataset.flipH ?? null } : { tf: false }; }, id);
+  expect((await hostT(t.id)).tf, '[전제] 글이 텍스트 프레임 안').toBe(true);
+  await page.evaluate((id) => window.selectBlock(id), t.id);
+  await page.fill('#txt-rot-number', '30'); await page.locator('#txt-rot-number').dispatchEvent('change');
+  await page.click('#txt-flip-h');
+  const RX = /rotate\(30deg\) scale\(-1, 1\)$/;
+  expect((await hostT(t.id)).t, '★반전 직후').toMatch(RX);
+  await page.evaluate(() => window.undo());
+  expect((await hostT(t.id)).t, '★⌘Z 뒤 회전이 사라졌다').toMatch(/rotate\(30deg\)$/);
+  await page.evaluate(() => window.redo());
+  expect((await hostT(t.id)).t, '★⌘⇧Z 뒤').toMatch(RX);
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, t.id);
+  await expect(page.locator('#txt-rot-number'), '★다시 연 패널 각도').toHaveValue('30');
+  expect((await hostT(t.id)).t, '★다시 연 뒤').toMatch(RX);
+  const back = await page.evaluate((id) => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.();
+    const e = document.getElementById(id)?.closest('.frame-block[data-text-frame="true"]'); return e?.style.transform || ''; }, t.id);
+  expect(back, '★저장→다시 열기 뒤').toMatch(RX);
+  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, t.id);
+  await page.fill('#txt-rot-number', '45'); await page.locator('#txt-rot-number').dispatchEvent('change');
+  expect((await hostT(t.id)).t, '★반전 뒤 각도를 바꾸니 순서가 뒤집혔다(scale 이 rotate 앞 = 화면 −θ)').toMatch(/rotate\(45deg\) scale\(-1, 1\)$/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* QA2 M4 — 각도 칸에 «-30» 을 칠 수 있다(«-» 순간 0 으로 덮지 않는다). CTL prd1-qa2-m4.patch(wireRotRow 캡처 가드 삭제 + 텍스트 typing 플래그 삭제) → 빨강 */
+for (const [cls, entry, num] of [['text-block', 'addTextBlock', 'txt-rot-number'], ['modal-block', null, 'mdl-rot-number']]) test(`P21 ${cls} 각도 칸에 «-30» 타이핑`, async ({ page }) => {
+  const errs = await scene(page);
+  const kind = entry ? { cls, entry } : (await rosterOf(page)).find((r) => r.cls === cls);
+  const r0 = await addKind(page, kind);
+  await page.evaluate((id) => window.selectBlock(id), r0.id);
+  const n = page.locator(`#${num}`);
+  await n.click(); await page.keyboard.press('Meta+a'); await page.keyboard.type('-30');
+  await expect(n, '★«-30» 을 못 친다').toHaveValue('-30');
+  await page.keyboard.press('Enter');
+  await expect(n).toHaveValue('-30');
+  expect(await page.evaluate((id) => { const b = document.getElementById(id); const e = b.closest('.frame-block[data-text-frame="true"]') || b; return e.style.transform; }, r0.id)).toMatch(/rotate\(-30deg\)/);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* QA2 Q37 — 저장 연타 = 한 번만 · 새 폴더로 저장하면 같은 패널 폴더 목록에 바로 뜬다. CTL prd1-qa2-q37.patch(연타 막기 삭제) → 빨강 */
+test('P18b Template 절 — 저장 두 번 눌러도 한 개 · 새 폴더가 목록에 바로', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  await page.click('#blk-tpl-toggle');
+  await page.fill('#blk-tpl-name', 'prd1-p18b');
+  await page.selectOption('#blk-tpl-folder', '__new__');
+  await page.fill('#blk-tpl-folder-new', 'P18B폴더');
+  await page.evaluate(() => { const b = document.getElementById('blk-tpl-save'); b.click(); b.click(); });
+  await expect.poll(() => page.evaluate(() => (window.loadTemplates?.() || []).filter((t) => t.name === 'prd1-p18b').length), '★연타로 두 번 저장됐다').toBe(1);
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#blk-tpl-folder option')].map((o) => o.value)), '★새 폴더가 목록에 안 뜬다').toContain('P18B폴더');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

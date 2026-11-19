@@ -250,3 +250,19 @@ test('R18 blockTemplateSection — 붙는 조건 · 마크업 · 저장 함수',
   assert.equal(blockTemplateSection(secEl, []), null, '★블럭 아닌 것(섹션 등)에 붙었다');
   assert.match(stripComments(readSrc(ROOT, 'js/props/_panel-frame.js')), /window\.saveBlockAsTemplate\?\.\(block, name, f, /, '★우클릭과 같은 저장 함수를 안 쓴다');
 });
+
+/* QA2 M1 — 블럭 회전을 쓰는 자리마다 바로 뒤 applyFlip(반전 = 늘 회전 «뒤»). 양성대조: 한 자리에서 지우면 빨강 */
+test('R19 회전 쓰는 자리 → 곧바로 applyFlip · 텍스트 프레임은 틀 transform 이 반전을 안 센다', () => {
+  const sites = [
+    ['js/asset-rotate.js', /host\.style\.transform = stripped \? `\$\{stripped\} rotate\(\$\{d\}deg\)` : `rotate\(\$\{d\}deg\)`;[\s\S]{0,200}?window\.applyFlip\?\.\(host\)/],
+    ['js/asset-rotate.js', /block\.style\.transform = existing \? `\$\{existing\} rotate\(\$\{d\}deg\)` : `rotate\(\$\{d\}deg\)`;\s*window\.applyFlip\?\.\(block\)/],
+    ['js/props/prop-shape.js', /block\.style\.transform = stripped \? `\$\{stripped\} rotate\(\$\{d\}deg\)` : `rotate\(\$\{d\}deg\)`;[\s\S]{0,200}?window\.applyFlip\?\.\(block\)/],
+    ['js/props/prop-text-wireup-position.js', /`rotate\(\$\{v\}deg\)`;\s*el\.style\.transformOrigin = 'center center';\s*window\.applyFlip\?\.\(el\)/],
+    ['js/block-factory.js', /\(cur \+ ` rotate\(\$\{deg\}deg\)`\)\.trim\(\);[\s\S]{0,200}?window\.applyFlip\?\.\(block\)/],
+    ['js/section-drag.js', /`rotate\(\$\{cr\}deg\)`;\s*c\.style\.transformOrigin = 'center center';\s*window\.applyFlip\?\.\(c\)/],
+  ];
+  for (const [f, re] of sites) assert.match(readSrc(ROOT, f), re, `★${f} — 회전 뒤 applyFlip 없음(반전이 회전 앞에 남아 화면이 −θ)`);
+  const fg = stripComments(readSrc(ROOT, 'js/frame-geometry.js'));
+  assert.match(fg, /const tf = d\.textFrame === 'true';\s*const fx = !tf && d\.flipH === '1'/, '★QA2 C2 — 틀 transform 이 텍스트 프레임 반전을 센다(⌘Z·열기에서 글 회전을 덮는다)');
+  assert.match(fg, /if \(ss\.dataset\?\.textFrame === 'true'\) globalThis\.applyFlip\?\.\(ss\)/);
+});
