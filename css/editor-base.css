@@ -834,7 +834,7 @@ body.preview-mode #preview-topbar.visible { -webkit-app-region: drag; }
 #tab-add-wrap { -webkit-app-region: no-drag; }
 .proj-tab {
   display: flex; align-items: center; gap: 5px;
-  padding: 0 var(--ui-space-2); height: 28px;
+  padding: 0 8px; height: 28px;
   flex: 0 1 148px; min-width: 48px; /* 기본 148px, 탭 많아지면 줄어들어 한 화면에 맞춤 */
   background: var(--ui-bg-elevated); border: 1px solid var(--ui-border);
   border-radius: 6px; cursor: pointer;
