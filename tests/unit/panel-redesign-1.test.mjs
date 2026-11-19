@@ -71,6 +71,7 @@ test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 
   assert.match(size, /<div class="prop-lhls-row">[\s\S]*id="txt-width-scrub"[^>]*>너비<\/span>\s*<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span class="prop-xy-label">높이<\/span>\s*<input type="number" id="txt-height-number" disabled placeholder="auto"/);
   const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-position.js'));
   assert.match(wire, /getElementById\('txt-width-scrub'\)[\s\S]*pointermove[\s\S]*lostpointercapture[\s\S]*pushHistory/, '★라벨 끌기 배선이 없다');
+  assert.match(wire, /addEventListener\('pointerdown', \(e\) => \{\s*if \(e\.button\) return;/, '★오른쪽 클릭으로도 끌린다(QA 경2)');
   assert.doesNotMatch(wire, /txt-width-slider/);
   /* QA 경1 — 너비 칸은 .prop-number 를 지녀 포커스 때 값 전체선택(editor.js _AUTO_SELECT_SEL)이 그대로 걸린다 */
   assert.match(stripComments(readSrc(ROOT, 'js/editor.js')), /const _AUTO_SELECT_SEL = '\.prop-number/);

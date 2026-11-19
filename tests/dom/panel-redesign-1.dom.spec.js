@@ -115,6 +115,13 @@ test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 �
     '★꺼진 높이 칸이 안 흐리다').toBe(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity').trim()));
   const w0 = Number(await page.locator('#txt-width-number').inputValue());
   const box = await page.locator('#txt-width-scrub').boundingBox();
+  /* QA 경2 — 오른쪽 단추로 끌면 안 바뀐다 */
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up({ button: 'right' });
+  await page.keyboard.press('Escape');
+  expect(Number(await page.locator('#txt-width-number').inputValue()), '★오른쪽 단추 끌기로 너비가 바뀌었다').toBe(w0);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 4 });

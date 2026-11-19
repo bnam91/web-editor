@@ -31,6 +31,7 @@ export function wirePositionSection({ tb }) {
     /* 라벨 «너비»를 좌우로 끌면 1px = 1 (재설계 1차 ⑥ · Figma 라벨 끌기). 놓을 때 이력 한 칸 */
     const scrub = document.getElementById('txt-width-scrub');
     scrub?.addEventListener('pointerdown', (e) => {
+      if (e.button) return;   // 왼쪽 단추만 끈다(오른쪽 클릭·가운데 클릭은 끌기 아님)
       const x0 = e.clientX, v0 = parseInt(wNumber.value) || 80;
       const move = (ev) => applyW(Math.min(860, Math.max(80, v0 + Math.round(ev.clientX - x0))));
       scrub.setPointerCapture(e.pointerId);
