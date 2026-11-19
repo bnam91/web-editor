@@ -236,8 +236,12 @@ test('P8 옵션 칼럼 — 상하패딩 숫자 끝 = 좌우패딩 숫자 끝 · 
   const r = await page.evaluate(() => {
     const R = (id) => document.getElementById(id).getBoundingClientRect();
     const probe = document.createElement('div'); probe.style.width = 'var(--ui-opt-col-w)'; document.body.appendChild(probe); const col = probe.getBoundingClientRect().width; probe.remove();
-    return { pv: R('txt-pv-number').right, ph: R('txt-ph-number').right, chain: R('txt-ph-chain').right, ov: R('txt-overlay-toggle').right, col };
+    const sec = document.getElementById('txt-ph-row').closest('.prop-section[data-sec]');
+    const sp2 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-2'));
+    return { pv: R('txt-pv-number').right, ph: R('txt-ph-number').right, chain: R('txt-ph-chain').right, ov: R('txt-overlay-toggle').right, col,
+      inner: sec.getBoundingClientRect().right - sp2 };
   });
+  expect(Math.abs(r.chain - r.inner), `★사슬이 절 안쪽 오른끝(칼럼 끝)에 안 선다 — 칼럼을 비워 두지 않았다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
   expect(r.col, '[전제] 토큰 폭').toBeGreaterThan(20);
   expect(Math.abs(r.pv - r.ph), `★값 줄 끝이 어긋난다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
   expect(Math.abs(r.chain - r.ov), `★사슬과 머리 손잡이가 같은 칼럼이 아니다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
