@@ -32,6 +32,13 @@ const HOVER = ['#floating-panel .fp-btn:not(.primary):not(.fp-btn-ai):not(.fp-dr
 
 async function scene(page, overlay) {
   const errs = await bootApp(page, overlay ? { overlay } : undefined);
+  /* 관리자 판 화면을 시험이 직접 세운다(지혜맥 261120 [전제] 빨강): index.html dev-gate 는 isAdmin() 이 거짓이면 ✨ AI·Claude PM 단추를
+     인라인 display:none 으로 숨기는데 «비동기 한 번»이라 판마다 읽는 때가 갈렸다. 하네스 가짜 electronAPI 는 isAdmin → null(=비관리자) —
+     ① 그 숨김이 «돈 뒤»를 조건으로 기다리고 ② 두 판 모두 인라인 display 를 걷어 관리자 화면(보임)으로 맞춘다. 규칙 비교 대상은 CSS 뿐. */
+  const GATED = ['ai-btn', 'claude-pm-btn'];
+  await expect.poll(() => page.evaluate((ids) => ids.every((id) => { const e = document.getElementById(id); return !e || e.style.display === 'none'; }), GATED),
+    '[전제] dev-gate(비관리자 숨김)가 돌았다').toBe(true);
+  await page.evaluate((ids) => ids.forEach((id) => document.getElementById(id)?.style.removeProperty('display')), GATED);
   await page.click('.fp-btn.primary[title="새 섹션 추가"]');
   await expect.poll(() => page.evaluate(() => !!document.querySelector('.section-block.selected .section-toolbar'))).toBe(true);
   /* 섹션 툴바 시료 — «두 판에 같은 꼴로» 늘 셋을 넣고, 읽을 때도 이 셋만(data-v17 이름으로) 읽는다.
