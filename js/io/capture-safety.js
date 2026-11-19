@@ -633,6 +633,7 @@ export function stripEditorOnlyForCapture(clone) {
     'frame-see-through',                       // t2-07(261112) 지나감 아웃라인 표식 — 저장 명부(section-serialize RUNTIME_MARKER_CLS)와 같이
     'sld-unfold',                              // 슬라이드 «펼침»(두 번 누름) — 산출물은 늘 접힌 첫 장면(저장 명부와 같이)
     'sld-hs', 'sld-dot-hs-on',                 // 138 슬라이드 임시 가로 밀기 중 점 고정·활성 표식 — 산출물은 늘 첫 장면 점(저장 명부와 같이)
+    'pen-editing',                             // 펜 점 편집 대상 강조(pen-tool.js F15) — 저장 명부와 같이(261120 A1)
   ];
   clone.querySelectorAll(EDITOR_STATE_CLS.map(c => '.' + c).join(','))
     .forEach(el => el.classList.remove(...EDITOR_STATE_CLS));

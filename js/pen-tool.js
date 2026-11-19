@@ -16,6 +16,7 @@
 //
 // 편집: window.enterPenEditMode(vbBlock) — dataset.penNodes 복원 → 오버레이에서 앵커/핸들 재편집.
 
+import { segmentPoints, splitSegment, nearestT } from './fx/bezier-split.js';   // 133 선분 눌러 점 더하기(순수)
 const SVG_NS = 'http://www.w3.org/2000/svg';
 // F8: 정본 토큰(--ui-accent-primary)에서 런타임 1회 초기화. 미정의 시 #2d6fe8 폴백.
 const ACCENT = (() => {
@@ -65,8 +66,9 @@ function _screenDist(a, b) {
 // ════════════════════════════════════════════════════════════════════════════
 function enterVectorPenMode() {
   if (_mode) return;
-  // annotation penMode와 상호 배타
+  // annotation penMode와 상호 배타 · 연필·붓(t13A-02)도
   window.exitPenMode?.();
+  window.exitFreehand?.();
   window.exitCountStickerMode?.();
   // 편집 모드 진행 중이면 종료
   exitPenEditMode();
@@ -133,9 +135,21 @@ function _cancelDraw() {
 }
 
 // ── 마우스 다운: 앵커 추가 (드래그 시작 시 스무드 핸들 생성 준비) ──────────────
+/* t13A-04(현빈 GO 261119 · DESIGN-t13A-04 ⓐ) — 섹션 «밖»(캔버스 빈 곳 · 스크래치 자리)에서 시작한 패스는 #canvas-scaler 좌표로 그리고
+   확정하면 스크래치 «펜 항목»이 된다(재료 · 결과물엔 안 나옴). 섹션 안에서 시작하면 지금 그대로(섹션 블럭). 한 패스는 «시작한 곳» 기준. */
+function _penHost(e) {
+  const sec = e.target.closest?.('.section-block');
+  if (sec) return sec;
+  const scaler = document.getElementById('canvas-scaler');
+  if (!scaler) return null;
+  const t = e.target;
+  return (t.closest?.('#canvas-scaler') || t.id === 'canvas-wrap') && !t.closest?.('#canvas') ? scaler : null;
+}
+const _isScratchHost = (h) => !!h && h.id === 'canvas-scaler';
+
 function _onMouseDown(e) {
   if (!_mode || e.button !== 0) return;
-  const sec = e.target.closest('.section-block');
+  const sec = _penHost(e);
   if (!sec) return;
   e.stopPropagation();
   e.preventDefault();
@@ -228,7 +242,7 @@ function _onMouseUp(e) {
 function _onClick(e) {
   // mousedown/up이 앵커를 처리하므로 click은 차단만 (선택/드래그 누출 방지)
   if (!_mode) return;
-  const sec = e.target.closest('.section-block');
+  const sec = _penHost(e);
   if (!sec) return;
   e.stopPropagation();
   e.preventDefault();
@@ -477,6 +491,19 @@ function _finalizeDraw() {
 
   const svg = _buildSvg(d, w, h, color, strokeWidth, fill);
 
+  /* t13A-04 — 섹션 밖에서 시작한 패스 = 스크래치 펜 항목. 펜 데이터는 그 SVG 안(data-goditor-pen)에 싣는다 —
+     스크래치의 모든 길(저장 외부화·다른 맥·⌘Z·복제·자르기)이 src 하나를 나르므로 칸을 따로 안 늘린다.
+     src = base64 SVG data URL(저장 때 기존 외부화가 goya-asset .svg 로 · DESIGN §7). 섹션에 끌어 놓으면 펜 벡터(scratch-pad onUp). */
+  if (_isScratchHost(sec)) {
+    const meta = encodeURIComponent(JSON.stringify({ nodes: norm, closed: !!closed, sw: strokeWidth, color, fill, w, h }));
+    const tagged = svg.replace('<svg ', `<svg data-goditor-pen="${meta}" `);
+    const src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(tagged)));
+    window._scratchAddAndSave?.(src, Math.round(bb.minX - pad), Math.round(bb.minY - pad), w);
+    _cancelDraw();
+    window.showToast?.('🖊 스크래치에 패스 — 섹션에 끌어 놓으면 벡터(점 편집)');
+    return null;
+  }
+
   // F1: 그린 섹션을 선택 상태로 동기화 → addVectorBlock의 insertAfterSelected가 해당 섹션 기준 삽입
   if (sec) window.selectSection?.(sec);
 
@@ -582,7 +609,7 @@ function enterPenEditMode(block) {
     document.addEventListener('mousedown', _onEditOutsideDown, true);
     _editKeyBound = true;
   }
-  window.showToast?.('✎ 패스 편집 — 앵커/핸들 드래그, Delete=앵커삭제, ESC=완료');
+  window.showToast?.('✎ 패스 편집 — 앵커/핸들 드래그 · 선 누르면 점 추가 · Delete=앵커삭제 · ESC=완료');
 }
 
 function exitPenEditMode() {
@@ -644,6 +671,21 @@ function _renderEdit() {
   const m = _blockMap();
   const nodes = _edit.nodes;
 
+  /* 133 PEN-EDIT-ADD-POINT-ON-SEGMENT-01 — 선분마다 안 보이는 굵은 «누름 띠»(앵커·핸들보다 먼저 그려 그 아래) · 누르면 그 자리에 점 */
+  const segN = _edit.closed ? nodes.length : nodes.length - 1;
+  for (let i = 0; i < segN; i++) {
+    const sp = segmentPoints(nodes, i, _edit.closed);
+    if (!sp) continue;
+    const q = sp.map(m.toScreen);
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', `M ${_n(q[0].x)} ${_n(q[0].y)} C ${_n(q[1].x)} ${_n(q[1].y)} ${_n(q[2].x)} ${_n(q[2].y)} ${_n(q[3].x)} ${_n(q[3].y)}`);
+    p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'transparent'); p.setAttribute('stroke-width', '10');
+    p.dataset.segIdx = String(i);
+    p.style.pointerEvents = 'stroke'; p.style.cursor = 'copy';
+    p.addEventListener('mousedown', _onEditSegmentDown);
+    svg.appendChild(p);
+  }
+
   // 핸들 선 + 핸들 원
   nodes.forEach((n, i) => {
     const a = m.toScreen(n);
@@ -685,6 +727,21 @@ function _startEditRaf() {
     _editRaf = requestAnimationFrame(loop);
   }
   _editRaf = requestAnimationFrame(loop);
+}
+
+/* 133 — 선분 누름 = 가장 가까운 t 에서 나눠 점 하나(곡선 = de Casteljau 로 모양 무변 · 직선 = 핸들 없는 꼭짓점) · 새 점 고름 · 이력 한 칸(_commitEdit) */
+function _onEditSegmentDown(e) {
+  if (e.button !== 0 || !_edit) return;
+  e.stopPropagation(); e.preventDefault();
+  const i = parseInt(e.currentTarget.dataset.segIdx);
+  const sp = segmentPoints(_edit.nodes, i, _edit.closed);
+  if (!sp) return;
+  const { t } = nearestT(sp, _blockMap().toScreen, e.clientX, e.clientY);
+  const r = splitSegment(_edit.nodes, i, t, _edit.closed);
+  if (!r) return;
+  _edit.nodes = r.nodes;
+  _selectedNodeIdx = r.index;
+  _commitEdit({ keepBox: true });
 }
 
 function _onEditAnchorDown(e) {
@@ -760,9 +817,23 @@ function _commitEditLive() {
 }
 
 // F5: 드래그 종료 시 핸들 포함 bbox 재계산 → 노드 정규화 → viewBox/w/h 함께 갱신(클리핑 방지)
-function _commitEdit() {
+/* keepBox(133 점 추가 · 인텔 261120 A1): 점 추가는 정규화하지 않는다 — de Casteljau 로 나눈 핸들은 옛 조종점 볼록 껍질 안이라 상자를 넘지 않는데,
+   «핸들 포함 bbox» 로 다시 맞추면 짧아진 핸들 탓에 상자가 줄어 노드가 원점 쪽으로 밀리고 블럭 자리는 그대로라 곡선이 화면에서 뛰었다(로컬 y 46.5 → 11).
+   ⇒ 지금 viewBox·w·h 그대로 · 노드만 바꿔 쓰고 이력 한 칸. */
+function _commitEdit({ keepBox = false } = {}) {
   if (!_edit) return;
   const b = _edit.block;
+  if (keepBox) {
+    const { vw, vh } = _viewBoxOf(b);
+    b.dataset.svg = _buildSvg(nodesToSvgPath(_edit.nodes, _edit.closed), vw, vh, _edit.color, _edit.strokeWidth || 2, _edit.fill);
+    b.dataset.penNodes = JSON.stringify(_edit.nodes);
+    // cand16 합침: 끝모양·점선·이음·채움만(P2 04cc5fa15 · P5 b139a7ce1)을 고른 펜은 점 추가 뒤에도 공용 재빌드(viewBox 그대로) — 아래 정규화 길과 같은 줄
+    if (b.dataset.strokeCap || b.dataset.strokeDash || b.dataset.strokeJoin || b.dataset.penStroke) window.rebuildPenSvg?.(b);
+    window.renderVector?.(b);
+    window.pushHistory?.('패스 편집');
+    window.scheduleAutoSave?.();
+    return;
+  }
 
   // 핸들 포함 bbox 재계산 + 정규화
   const sw = _edit.strokeWidth || 2;
@@ -853,6 +924,13 @@ window.enterVectorPenMode  = enterVectorPenMode;
 window.exitVectorPenMode   = exitVectorPenMode;
 window.toggleVectorPenMode = toggleVectorPenMode;
 window.enterPenEditMode    = enterPenEditMode;
+/* t13A-02 연필 — 맞춘 노드(host 좌표)를 펜과 «같은» 확정 길(_finalizeDraw: 섹션 = 벡터 블럭 · 섹션 밖 = 스크래치 펜 항목)로. 그리던 펜 패스가 있으면 건드리지 않는다. */
+window.penHostOf = _penHost;
+window.commitPenNodes = (host, nodes, closed = false) => {
+  if (_draw || !host || !Array.isArray(nodes) || nodes.length < 2) return null;
+  _draw = { sec: host, nodes, closed: !!closed };
+  return _finalizeDraw();
+};
 window.exitPenEditMode     = exitPenEditMode;
 window.nodesToSvgPath      = nodesToSvgPath;
 window.penToolExitToSelect = penToolExitToSelect;
