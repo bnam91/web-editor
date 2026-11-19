@@ -549,6 +549,11 @@ function createWindow() {
       safeStorage: require('electron').safeStorage, fs,
       filePath: path.join(app.getPath('userData'), 'higgsfield.key.bin'),
     }).registerIpc(ipcMain);
+    // t13A-06 무료 이미지(Pixabay) — 사용자 본인 키(같은 암호 보관 · 렌더러엔 ••••끝4 만) · 검색·그림 받기는 여기서(키·주소를 렌더러로 안 보냄)
+    require('./main/pixabay').createPixabay({
+      safeStorage: require('electron').safeStorage, fs, net: electronNet, shell,
+      filePath: path.join(app.getPath('userData'), 'pixabay.key.bin'),
+    }).registerIpc(ipcMain);
 
     // Claude PM (feature/claude-pm Phase 2) — pickDirectory / createFolder / openInFinder / spawnClaudeTerminal / pingMcp
     // GAP-010: 강력 권한 IPC(터미널/spawn/folder)는 isAdminAuthorized 게이팅(배포 렌더러발 RCE 차단).

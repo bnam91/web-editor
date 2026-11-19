@@ -39,26 +39,32 @@ function _innerWidth() {   // 넣을 자리 폭 상한 — 고른 섹션 안쪽(
   return Math.max(40, inner.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0));
 }
 
+/** 그림(data URL) 하나를 «고른 섹션»에 에셋 블럭으로 — 폭 = 원하는 폭(없으면 원본) ∧ 섹션 안쪽 폭. 내장 라이브러리·무료 이미지(t13A-06) 공용 한 벌.
+ *  새 블럭은 usePadx 미설정 = 전역 «패딩 제외»(기본 켜짐)를 따라가 addAssetBlock 의 applyExcludePadX 가 폭을 calc(100% + 2·padX) 로
+ *  덮고, 뒤의 applyPadXToSection 도 다시 덮는다(아이맥 D2·D5 실측). ⇒ 스크래치 드롭(over 0)과 같은 꼴: usePadx='false' + 폭·마진 세트(applyAssetWidth). 만든 블럭을 돌려준다. */
+export function insertImageAsAsset(src, nw, nh, wantW) {
+  nw = nw || 400; nh = nh || 400;
+  const w = Math.round(Math.min(_innerWidth(), wantW || nw));
+  const had = new Set(document.querySelectorAll('.asset-block'));
+  window.addAssetBlock?.(null, { imgSrc: src, width: w, height: Math.round((w * nh) / nw) });
+  const ab = [...document.querySelectorAll('.asset-block')].find((b) => !had.has(b));
+  if (ab) {
+    ab.dataset.usePadx = 'false';
+    window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
+    ab.style.alignSelf = 'center';
+    window.showAssetProperties?.(ab);   // 우측 패널은 setAssetImageFromSrc 가 폭 고치기 «전»에 그렸다 — 낡은 860·패딩제외 켬을 지금 값으로(9500 실앱 r3)
+    const tip = window.getHistoryTip?.();   // 같은 틱 고침을 이력 꼭대기에(addAssetBlock 의 data: 갈래와 같은 관용구)
+    if (tip) window.restampHistoryTop?.(tip.seq);
+  }
+  window.triggerAutoSave?.();
+  return ab || null;
+}
+
 async function _insert(col, it, img) {
   try {
     const src = await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
-    const nw = img.naturalWidth || 400, nh = img.naturalHeight || 400;
-    const w = Math.round(Math.min(_innerWidth(), it.w || col.w || nw));
     closeLibraryModal();
-    const had = new Set(document.querySelectorAll('.asset-block'));
-    window.addAssetBlock?.(null, { imgSrc: src, width: w, height: Math.round((w * nh) / nw) });
-    /* 새 블럭은 usePadx 미설정 = 전역 «패딩 제외»(기본 켜짐)를 따라가 addAssetBlock 의 applyExcludePadX 가 폭을 calc(100% + 2·padX) 로
-       덮고, 뒤의 applyPadXToSection 도 다시 덮는다(아이맥 D2·D5 실측). ⇒ 스크래치 드롭(over 0)과 같은 꼴: usePadx='false' + 폭·마진 세트(applyAssetWidth). */
-    const ab = [...document.querySelectorAll('.asset-block')].find((b) => !had.has(b));
-    if (ab) {
-      ab.dataset.usePadx = 'false';
-      window.applyAssetWidth?.(ab, w);   // prop-page.js — 폭 px + 풀블리드 음수마진 걷기 한 벌
-      ab.style.alignSelf = 'center';
-      window.showAssetProperties?.(ab);   // 우측 패널은 setAssetImageFromSrc 가 폭 고치기 «전»에 그렸다 — 낡은 860·패딩제외 켬을 지금 값으로(9500 실앱 r3)
-      const tip = window.getHistoryTip?.();   // 같은 틱 고침을 이력 꼭대기에(addAssetBlock 의 data: 갈래와 같은 관용구)
-      if (tip) window.restampHistoryTop?.(tip.seq);
-    }
-    window.triggerAutoSave?.();
+    insertImageAsAsset(src, img.naturalWidth, img.naturalHeight, it.w || col.w);
   } catch (e) {
     console.warn('[library] 그림 읽기 실패:', e);
     window.showToast?.('❌ 라이브러리 그림을 못 읽었어요');
