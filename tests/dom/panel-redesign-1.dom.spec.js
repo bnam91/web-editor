@@ -67,3 +67,23 @@ test('P7 우측 패널 숫자 칸 — 스피너 없음(appearance textfield) · 
   await expect.poll(async () => Number(await n.inputValue()), '★↑ 키로 값이 안 바뀐다').toBe(v0 + 1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ⑪ 정렬 · B I U S 켜짐 = Figma 식(파란 채움 없음) · 다른 묶음은 그대로. CTL prd1-11-active.patch(규칙 삭제) → 빨강 */
+test('P11 켜진 정렬·B 단추 = border-mid 바탕 · border-strong 테두리 · ui-text 글자 / 대조: 타입 단추는 파란 채움 그대로', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  await page.locator('#txt-style-group .prop-style-btn').first().click();   // B 켜기
+  const r = await page.evaluate(() => {
+    const tok = (n, prop = 'color') => { const p = document.createElement('span'); p.style[prop] = `var(${n})`; document.body.appendChild(p); const v = getComputedStyle(p)[prop]; p.remove(); return v; };
+    const look = (el) => { const cs = getComputedStyle(el); return [cs.backgroundColor, cs.borderTopColor, cs.color]; };
+    return { want: [tok('--ui-border-mid', 'backgroundColor'), tok('--ui-border-strong'), tok('--ui-text')],
+      align: look(document.querySelector('#txt-align-group .prop-align-btn.active')),
+      style: look(document.querySelector('#txt-style-group .prop-style-btn.active')),
+      kind: getComputedStyle(document.querySelector('.prop-type-btn.active[data-cls]')).backgroundColor, accent: tok('--ui-accent-primary', 'backgroundColor') };
+  });
+  expect(r.align, '★정렬 켜짐').toEqual(r.want);
+  expect(r.style, '★B 켜짐').toEqual(r.want);
+  expect(r.kind, '[대조] 타입 단추 켜짐은 파란 채움 그대로').toBe(r.accent);
+  await page.locator('#txt-style-group .prop-style-btn').first().click();   // 되돌림
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

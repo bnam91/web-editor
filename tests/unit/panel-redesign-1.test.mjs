@@ -34,3 +34,15 @@ test('R7 #panel-right 숫자 칸 = textfield · 스핀 단추 -webkit-appearance
   const ed = css('js/editor.js');
   assert.match(ed, /const _reclickSelectAll = [^;]*appearance === 'textfield'/, '★스피너가 없는데 오른쪽 18px 을 스피너로 본다');
 });
+
+/* ⑪ 켜짐 표시 Figma 식 — 텍스트 가로 정렬 · B I U S 두 묶음만 · 토큰만. 양성대조: 규칙을 지우면 빨강 */
+test('R11 #txt-align-group · #txt-style-group 켜짐 = border-mid 바탕 · border-strong 테두리 · ui-text 글자', () => {
+  const props = css('css/editor-props.css');
+  const m = /#txt-align-group \.prop-align-btn\.active,\s*#txt-style-group \.prop-style-btn\.active\s*\{([^}]*)\}/.exec(props);
+  assert.ok(m, '★두 묶음 켜짐 규칙이 없다');
+  assert.match(m[1], /background:\s*var\(--ui-border-mid\)/);
+  assert.match(m[1], /border-color:\s*var\(--ui-border-strong\)/);
+  assert.match(m[1], /color:\s*var\(--ui-text\)/);
+  assert.doesNotMatch(m[1], /#[0-9a-f]{3,8}\b|accent/i, '★리터럴 색·파란 채움');
+  assert.match(props, /\.prop-align-btn\.active\s*\{[^}]*--ui-accent-primary/, '[대조] 다른 묶음의 파란 켜짐은 그대로');
+});
