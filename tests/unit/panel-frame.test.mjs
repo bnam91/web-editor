@@ -140,7 +140,7 @@ test('F6 절 머리 = 제목 글자만 · 몸 hidden 없음 · renderPanel 은 p
   /* ★기대 바뀜(패널 재설계 1차) — 옛 판은 role=button·aria-expanded·쉐브론 svg 를 기대했다 */
   assert.doesNotMatch(p.innerHTML, /role="button"|aria-expanded|aria-controls|<svg|prop-sec-chevron|tabindex/, '★절 머리에 접기 손잡이가 남았다');
   for (const k of ['size', 'stroke']) {
-    assert.match(p.innerHTML, new RegExp(`<div class="prop-section-title" id="psec-${k}-head"><span class="prop-sec-title-text">`));
+    assert.match(p.innerHTML, new RegExp(`<div class="prop-section-title" id="psec-${k}-head" role="heading" aria-level="3"><span class="prop-sec-title-text">`), '★절 머리가 heading 이 아니다(QA 경5)');
     assert.match(p.innerHTML, new RegExp(`<div class="prop-sec-body" id="psec-${k}-body">`));
   }
   assert.match(p.innerHTML, /<div class="prop-section-title-row prop-sec-head">/, '★절 머리가 title-row 안에 없다(손잡이 정렬 규칙 밖)');

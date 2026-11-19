@@ -20,14 +20,14 @@ async function open(page, cls, entry) {
   return r.id;
 }
 
-/* ① 표준 절 머리 — 쉐브론·클릭 접기 없음. CTL prd1-01-chevron.patch(머리에 role/aria-expanded 되살림) → 빨강 */
+/* ① 표준 절 머리 — 쉐브론·클릭 접기 없음 · role=heading aria-level=3. CTL prd1-01-chevron.patch(머리에 aria-expanded 되살림) · prd1-01b-heading.patch(heading 뺌) → 빨강 */
 test('P1 절 머리 = 제목만 · 눌러도 안 접힘(텍스트 패널 모든 절)', async ({ page }) => {
   const errs = await scene(page);
   await open(page, 'text-block', 'addTextBlock');
   const r = await page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section[data-sec] > .prop-sec-head > .prop-section-title')]
-    .map((h) => ({ id: h.id, svg: h.querySelectorAll('svg').length, exp: h.getAttribute('aria-expanded'), role: h.getAttribute('role') })));
+    .map((h) => ({ id: h.id, svg: h.querySelectorAll('svg').length, exp: h.getAttribute('aria-expanded'), role: h.getAttribute('role'), lv: h.getAttribute('aria-level') })));
   expect(r.length, '[전제] 절 머리가 있다').toBeGreaterThan(3);
-  for (const h of r) expect([h.id, h.svg, h.exp, h.role], `★${h.id} 에 접기 손잡이가 남았다`).toEqual([h.id, 0, null, null]);
+  for (const h of r) expect([h.id, h.svg, h.exp, h.role, h.lv], `★${h.id} 에 접기 손잡이가 남았거나 heading 이 아니다`).toEqual([h.id, 0, null, 'heading', '3']);
   for (const h of r) {
     await page.locator(`#${h.id}`).click();
     await expect(page.locator(`#${h.id.replace(/-head$/, '-body')}`), `★${h.id} 를 누르니 몸이 숨었다`).not.toHaveAttribute('hidden', '');

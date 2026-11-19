@@ -4,6 +4,7 @@
  *     renderPanel(block, { header: blockHeaderHTML({...}), sections: [ sec('size', html), sec('fill', html), … ] })
  *   ⇒ 빈 html 절은 버리고(단 headTools 가 있으면 머리만 그린다) · _section-spec.js SECTION_ORDER 로 줄 세우고(special 은 선언순) · 같은 key 두 번이면 throw ·
  *     절 머리 = 제목 글자만(쉐브론·클릭 접기 없음 — 패널 재설계 1차 · 현빈 확정 · Figma UI3 절은 안 접힌다).
+ *     머리 = role="heading" aria-level="3" — 패널엔 heading 이 하나도 없다(grep 0) · 블록 이름표(prop-block-label)를 패널 제목(2단)으로 보고 절은 그 아래(3단).
  *     절 «안» 하위 접기(_helpers.js disclosureSectionHtml 3인자 · discSecOpen)는 그대로다.
  * ★renderPanel 은 동기다 — 호출 뒤 getElementById 배선 코드는 그대로 돈다(절 «안» 마크업·id·핸들러는 한 글자도 안 바뀐다).
  * ★옛 접기 기억(localStorage 'gd-panel-collapsed')은 더 읽지 않는다 — 남은 키가 절을 숨기면 열 길이 없다.
@@ -41,7 +42,7 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
       return `
     <div class="prop-section" data-sec="${s.key}" data-sec-state="${stKey}"${order === SECTION_ORDER ? '' : ` data-order="${panel}"`} id="${id}">
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="${id}-head"><span class="prop-sec-title-text">${s.title}</span></div>${s.headTools}
+      <div class="prop-section-title" id="${id}-head" role="heading" aria-level="3"><span class="prop-sec-title-text">${s.title}</span></div>${s.headTools}
       </div>
       <div class="prop-sec-body" id="${id}-body">${s.html}
       </div>
