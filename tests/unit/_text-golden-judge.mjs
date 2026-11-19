@@ -166,14 +166,19 @@ const LABEL_DROPPED = ['Font', '글자색', '너비'];   /* 너비 = ⑥ 칸 안
 const ID_ADDED = [/^psec-[a-z]+(-head|-body)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
 const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider'];   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
-/* 기준판(BASE) 뒤에 «의도해서» 더한 컨트롤·id — 판정이 «생김»으로 안 세게. (패널 재설계 1차 261120 — 항목마다 까닭)
- *   label-shape-oval = 태그 Oval 모양(BASE 뒤 별건 · 이 판정기가 못 따라온 드리프트를 같이 적음) */
-const CTL_ADDED = [/^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/,
+/* ★바닥 판부터 빨강(이번 일과 무관) — 태그 Oval 모양(label-shape-oval)이 BASE(2040a3339) 뒤 별건으로 생겼는데 이 판정기가 못 따라왔다:
+ *   패널 재설계 1차 바닥(17b20888b)에서 이미 label · label+circle 상태 J1/J4 빨강. 그 한 단추·한 id 만, 태그 상태에서만 허용한다. */
+const DRIFT_PRE = { states: ['label', 'label+circle'], ctl: /^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/, id: /^label-shape-oval$/ };
+/* 기준판(BASE) 뒤에 «의도해서» 더한 컨트롤·id — 판정이 «생김»으로 안 세게. (패널 재설계 1차 261120 — 항목마다 까닭) */
+const PH_ATTRS = ' min="0" max="120"(?: step="4")? value="\\d+"(?: style="visibility:hidden")?';   /* ⑤ 실제로 생기는 속성만 */
+const CTL_ADDED = [
   /^<input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="[^"]*">$/,   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
-  /^<button class="prop-type-btn(?: active)?" disabled title="(?:Tags|Icon Text|Bubble|Liner) — [^"]*">$/,   /* ⑫ */
-  /^<input type="(?:range|number)" class="prop-(?:slider|number)" id="txt-ph-(?:slider|number)" [^>]*>$/];   /* ⑤ «좌우패딩» 한 줄(잠금 때 둘을 같이) */   /* ⑫ 타입 12칸 중 «바꾸기 없음» 넷(꺼짐) */
+  /^<button class="prop-type-btn(?: active)?" disabled title="(?:Tags|Icon Text|Bubble|Liner) — [^"]*">$/,   /* ⑫ 타입 12칸 중 «바꾸기 없음» 넷(꺼짐) */
+  new RegExp(`^<input type="range" class="prop-slider" id="txt-ph-slider"${PH_ATTRS}>$`),   /* ⑤ «좌우패딩» 한 줄(잠금 때 둘을 같이) */
+  new RegExp(`^<input type="number" class="prop-number" id="txt-ph-number"${PH_ATTRS}>$`),
+];
 const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /];   /* ⑥ 너비 슬라이더 걷음 */
-ID_ADDED.push(/^label-shape-oval$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
+ID_ADDED.push(/^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',
@@ -187,14 +192,15 @@ function judge(name, st, oldHtml, newHtml) {
   const bad = [];
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
   const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc = ctl(n);
-  const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)));
+  const drift = DRIFT_PRE.states.includes(name);
+  const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED])
     .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const l2 = minus(ol, labels(n)), e2 = minus(labels(n), ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
-  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)));
+  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !(drift && DRIFT_PRE.id.test(i)));
   const l4 = minus(oi, ni), e4 = minus(ni, oi);
   if (l4.length || e4.length) bad.push(`J4 id: 잃음 ${JSON.stringify(l4)} · 생김 ${JSON.stringify(e4)}`);
   for (const v of judgePanel(nm, SPEC)) bad.push(`J5 게이트: ${v}`);
