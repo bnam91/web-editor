@@ -418,3 +418,8 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `grid-plus-g15.dom.spec.js` P1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
 - `scratch-x-flush-now.dom.spec.js` X1 · X6 — 지혜맥 전수 각 1/1 빨강 · 인텔 ×3 각 0/3.
 - (고침 별도) `vector-svg-import.dom.spec.js:222` V13 — 지혜맥 전수 1/1 · 인텔 ×3 1/3 빨강 → ty/flaky-vector-v13 에서 시험 고침(조건 대기).
+## 2026-11-19 · cand13 전수(fb18de9e8 · 샤딩) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `frame-align-other-inserts.dom.spec.js:140` N0 — cand13 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `table-col-ratio-notice-239.dom.spec.js:27` (1e999 거절) — cand13 전수 1/1 빨강 · 지혜맥 ×3 0/3.
+- (고침 별도) `scratch-x-flush-now.dom.spec.js:64` X1 · X6 — cand12·cand13 전수 각 1/1 빨강(지혜맥) · 지혜맥 ×3 X6 1/3 · 인텔 ×3 0/3 → ty/flaky-x6-o 에서 시험 고침(조건 대기).
+- (고침 별도) `ft-overlay-corner-123.dom.spec.js:111` O — 인텔 cand13 전수 1/1 · 인텔 ×3 1/3 빨강 → ty/flaky-x6-o 에서 시험 고침(조건 대기).
