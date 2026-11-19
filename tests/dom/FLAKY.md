@@ -405,3 +405,12 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `grid-drag-cheap-render-132.dom.spec.js:75` G3 배경 그림 칸 끌기 — 인텔 전수 final15(c1482ef1f · workers 3) ✘ 30.1s(시간 초과) · final12·final13 전수 ✓ · 아이맥 workers1 통째 ×3: final15 3/3·final13 3/3 초록(10.5s) · 아이맥 단독 0/6.
 - 진단 기록(단언·대기·timeout 무변): 단계 표(booted·scene·cells·pick-click·gutters·stable·tick1~3·up·up-raf) + 실패/시간 초과 때 afterEach `[G3-DIAG]`(지금 단계·경과·.grd-inner 교체 누계·대기 중 비율 디코드·고른 상태·거터 수·칸 상자·누름 대상 · 페이지 3초 무응답 표시) · 부하 재현 = 환경 `G3_CPU=N`(CDP CPU 스로틀).
 - r2(지디 인텔 별도 워크트리 grid-* workers 3 ×6): G3 6/6 초록 · 6판째 **G1-col**(:102) `page.waitForFunction` 30s 시간 초과 ⇒ 진단을 이 파일 전 칸으로(`[DRAG132-DIAG]`) · 상한 없던 공용 대기 셋에 제 이름 상한 `WAIT-cells 8s · WAIT-gutters 8s · WAIT-upRaf 5s` + 그때 값(시험 상한·retries 무변).
+
+## 2026-11-19 · cand12 전수(4cc0b8fa7) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- 판: 지혜맥 DOM 전수 8413(N=1) failed 8 → 인텔 fe-c 해당 6 spec ×3 재실행(402) failed 1.
+- `cert-block.dom.spec.js` RH1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `frame-see-through.dom.spec.js` T1 · T3 — 지혜맥 전수 각 1/1 빨강 · 인텔 ×3 각 0/3.
+- `grid-cell-panel-handles.dom.spec.js` G1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `grid-plus-g15.dom.spec.js` P1 — 지혜맥 전수 1/1 빨강 · 인텔 ×3 0/3.
+- `scratch-x-flush-now.dom.spec.js` X1 · X6 — 지혜맥 전수 각 1/1 빨강 · 인텔 ×3 각 0/3.
+- (고침 별도) `vector-svg-import.dom.spec.js:222` V13 — 지혜맥 전수 1/1 · 인텔 ×3 1/3 빨강 → ty/flaky-vector-v13 에서 시험 고침(조건 대기).
