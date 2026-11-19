@@ -451,8 +451,8 @@
 
 /* 컬러 피커 */
 .prop-color-row {
-  display: flex; align-items: center; gap: 6px;
-  min-height: 24px; margin-bottom: 6px; /* .prop-row와 동일 리듬 */
+  display: flex; align-items: center; gap: var(--ui-space-1_5);
+  min-height: 24px; margin-bottom: var(--ui-space-1_5); /* .prop-row와 동일 리듬 */
   overflow: hidden;
 }
 .prop-color-swatch {
@@ -828,7 +828,7 @@
   flex: 1; min-width: 0; width: 0; height: 24px;
   background: var(--ui-bg-input); border: 1px solid transparent;
   border-radius: 4px; color: var(--ui-text);
-  font-size: var(--ui-fs-base); padding: 0 6px;
+  font-size: var(--ui-fs-base); padding: 0 var(--ui-space-1_5);
   outline: none; cursor: pointer;
   appearance: none;
   background-image: var(--ui-select-caret);
