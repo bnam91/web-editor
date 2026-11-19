@@ -320,7 +320,8 @@ export function buildTextPanelSpec(state) {
       id: tb.id,
     }),
     sections: [
-      /* 재설계 1차 ⑫ — 타입 12칸 두 줄(H1·H2·H3·Body·Caption·Bullet / Label·Tags·Icon Text·Bubble·Quote·Liner).
+      /* 재설계 1차 ⑫ — 타입 12칸 두 줄(시안 v9 덧 = 7·5: H1·H2·H3·Body·Cap·Bullet·Label / Tags·Icon Text·Bubble·Quote·Liner ·
+         «Caption» 은 칸에 안 들어 앱 이름 «Cap» 그대로).
          Tags·Icon Text·Bubble·Liner 로 «바꾸기»는 아직 없다(Q32 권장 = 기능이 생길 때까지 꺼 둠) ⇒ disabled · 지금 그 종류면 active.
          ★한 묶음(#txt-kind-group) 안 — Quote 가 묶음 밖 혼자일 때 «마지막 칸 왼 테두리 없음» 규칙(editor-props.css 세그먼트)에 잘렸다. */
       sec('kind', (isLiner || isIconText) ? '' : `
@@ -329,7 +330,7 @@ export function buildTextPanelSpec(state) {
         <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
         <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
         <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
-        <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Caption</button>
+        <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
         <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">Bullet</button>
         <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Label</button>
         <button class="prop-type-btn" disabled title="Tags — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Tags</button>
