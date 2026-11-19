@@ -67,15 +67,13 @@ const GB_N_RADIALREV = (() => {
 })();
 
 /* ── 음성대조본 N(G1-sel) — DENY 에 addGradientBlock 을 넣는다 ───────────── */
+/* ★DENY 객체 «안에 한 줄 더하기» 꼴 — 옛 판은 «비어 있는 DENY 리터럴 글자 통째»를 needle 로 써서, DENY 에 이유 있는 항목(e57a7f608 addSlideCell)이
+   생기자 모듈 최상단 throw 로 DOM 전수 런 전체가 멈췄다(cand10 · 지디 261119). 여는 줄 «var DENY = {» 바로 뒤에 넣으니 다른 항목이 있어도 된다 · 뜻 무변. */
 const IH_N_DENY = (() => {
-  const needle = `  var DENY = {
-    /* (지금은 비어 있다 — Block$ 패턴이 비삽입을 한 건도 안 잡는다.
-       비삽입 add* 8자리(addGhostSection·addPage·addSectionToScope·addStickerFavorite·
-       addToImageGallery·addChecklistItem·addChecklistSection·addVariation)는 전부
-       패턴 밖이라 여기 적을 것이 없다. 새 이름이 생기면 «이유와 함께» 여기에.) */
-  };`;
-  if (!IH_SRC.includes(needle)) throw new Error('G1-sel-n 변환이 늙었다 — DENY 리터럴을 못 찾았다');
-  return IH_SRC.replace(needle, '  var DENY = { addGradientBlock: 1 /* N: 음성대조 — 강제로 막음 */ };');
+  const open = '  var DENY = {\n';
+  const at = IH_SRC.indexOf(open);
+  if (at < 0 || IH_SRC.indexOf(open, at + 1) >= 0) throw new Error('G1-sel-n 변환이 늙었다 — «var DENY = {» 여는 줄이 하나가 아니다');
+  return IH_SRC.slice(0, at + open.length) + "    addGradientBlock: 1, /* N: 음성대조 — 강제로 막음 */\n" + IH_SRC.slice(at + open.length);
 })();
 
 function harness({ gb = GB_SRC, ih = IH_SRC, textH = 150, secH = 600 } = {}) {
