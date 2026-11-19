@@ -20,7 +20,7 @@
  * ⛔앱을 띄우지 않는다(bootApp). 실행: npx playwright test --config=tests/dom/playwright.dom.config.js cmp-cell-rclick
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled, waitStableRect } = require('./_root-harness.js');
 
 /* ★cmp 전용 메뉴 항목의 명부 — ⛔수를 박지 않는다. 「id 가 bcm-cmp- 로 시작하는 것 전부」로 센다
    (항목이 늘면 여기가 저절로 따라온다 — 명부를 두 벌로 만들지 않는다). */
@@ -43,6 +43,9 @@ async function setup(page, make) {
     window.__blk?.scrollIntoView({ block: 'center' });
   }, [make, SEC]);
   await page.waitForFunction(() => !!window.__blk && window.__blk.isConnected, null, { timeout: 5000 });
+  /* cand16 전수(인텔 · 261120) 흔들림 — R1:86 · ×3 에선 :199·:237 이 번갈아 «cmp 항목 []»: 맨 applyZoom(100) 은 transform 을 0.15s 보간(_root-harness waitZoomSettled 머리말)
+     ⇒ 그 사이 잰 boundingBox = 옛 배율 좌표 → 우클릭이 칸(.cmp-row) 밖에 떨어져 cmp 항목 0. ⇒ 배율 멎음까지 기다리고, 누를 점은 «두 번 같은 자리»(waitStableRect)로. */
+  await waitZoomSettled(page, 100);
   return errs;
 }
 
@@ -52,12 +55,13 @@ const CMP2 = "window.addComparisonBlock({ cols: [" +
 
 /* 우클릭하고 «메뉴에 보이는 항목»을 돌려준다. 좌표는 그 요소의 가운데(실제 마우스). */
 async function rclick(page, selector, nth = 0) {
-  const box = await page.locator(selector).nth(nth).boundingBox();
-  expect(box && box.width > 0 && box.height > 0,
-    `전제 — 누를 사각형이 있다 ${selector}#${nth} (잰 값 ${JSON.stringify(box)})`).toBe(true);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
-  await page.waitForTimeout(150);
-  return page.evaluate((pfx) => {
+  const r0 = await waitStableRect(page, selector, { index: nth });
+  expect(r0.width > 0 && r0.height > 0, `전제 — 누를 사각형이 있다 ${selector}#${nth} (잰 값 ${JSON.stringify(r0)})`).toBe(true);
+  /* 진단(who) — 누를 점의 임자. 빨강이면 메시지에 같이 찍힌다(칸 밖에 떨어졌는지 바로 보이게). */
+  const who = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? (e.className && String(e.className).slice(0, 40)) || e.tagName : null; }, [r0.cx, r0.cy]);
+  await page.mouse.click(r0.cx, r0.cy, { button: 'right' });
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('block-context-menu')).display !== 'none', null, { timeout: 3000 });   // 안 뜨면 여기서 진다(조용히 넘기지 않음)
+  return page.evaluate(([pfx, w]) => {
     const m = document.getElementById('block-context-menu');
     const vis = [...m.querySelectorAll(':scope > .bcm-item')].filter(i => getComputedStyle(i).display !== 'none');
     return {
@@ -65,8 +69,9 @@ async function rclick(page, selector, nth = 0) {
       visible: vis.map(i => i.id),
       cmpItems: vis.filter(i => i.id.startsWith(pfx)).map(i => ({ id: i.id, text: i.textContent.trim().slice(0, 20) })),
       gridItems: vis.filter(i => i.id.startsWith('bcm-grid-')).map(i => i.id),
+      who: w,
     };
-  }, CMP_ITEM_PREFIX);
+  }, [CMP_ITEM_PREFIX, who]);
 }
 /* 보이는 cmp 항목 하나를 ★실제로 누른다 */
 async function clickItem(page, id) {
@@ -99,7 +104,7 @@ test('R2 ★텍스트 칸 → 「이미지 칸으로」 누르면 모델이 imag
   expect(m0[0].rows[0].type, `전제 — 처음엔 text 행이다 (잰 값 ${m0[0].rows[0].type})`).toBe('text');
   const r = await rclick(page, '#sB .comparison-block .cmp-row', 0);
   const toImg = r.cmpItems.find(i => /img/.test(i.id) && !/del/.test(i.id));
-  expect(toImg, `「이미지 칸으로」 항목이 보인다 — 잰 값 ${JSON.stringify(r.cmpItems)}`).toBeTruthy();
+  expect(toImg, `「이미지 칸으로」 항목이 보인다 — 잰 값 ${JSON.stringify(r.cmpItems)} · 누른 점 임자 ${r.who}`).toBeTruthy();
   await clickItem(page, toImg.id);
   const m1 = await model(page);
   expect(m1[0].rows[0].type, `누른 뒤 모델 type — 잰 값 ${JSON.stringify(m1[0].rows[0])}`).toBe('image');
@@ -124,7 +129,7 @@ test('R3 ★이미지 칸 → 「텍스트 칸으로」 누르면 모델이 text
   expect(m0[0].rows[0].type, '전제 — 처음엔 image 행이다').toBe('image');
   const r = await rclick(page, '#sB .comparison-block .cmp-row', 0);
   const toText = r.cmpItems.find(i => /text/.test(i.id));
-  expect(toText, `「텍스트 칸으로」 항목이 보인다 — 잰 값 ${JSON.stringify(r.cmpItems)}`).toBeTruthy();
+  expect(toText, `「텍스트 칸으로」 항목이 보인다 — 잰 값 ${JSON.stringify(r.cmpItems)} · 누른 점 임자 ${r.who}`).toBeTruthy();
   await clickItem(page, toText.id);
   const m1 = await model(page);
   expect(m1[0].rows[0].type, `누른 뒤 모델 type — 잰 값 ${JSON.stringify(m1[0].rows[0])}`).toBe('text');
@@ -145,7 +150,7 @@ test('R4 ★그림이 든 칸 → 「이미지 삭제」는 그림만 비우고 
   expect(String(m0[0].rows[0].imgSrc).startsWith('data:image'), '전제 — 그림이 들어 있다').toBe(true);
   const r = await rclick(page, '#sB .comparison-block .cmp-row', 0);
   const del = r.cmpItems.find(i => /del/.test(i.id));
-  expect(del, `「이미지 삭제」 항목이 보인다 — 잰 값 ${JSON.stringify(r.cmpItems)}`).toBeTruthy();
+  expect(del, `「이미지 삭제」 항목이 보인다 — 잰 값 ${JSON.stringify(r.cmpItems)} · 누른 점 임자 ${r.who}`).toBeTruthy();
   await clickItem(page, del.id);
   const m1 = await model(page);
   expect(String(m1[0].rows[0].imgSrc || ''), `imgSrc 가 비었다 — 잰 값 ${JSON.stringify(String(m1[0].rows[0].imgSrc||'').slice(0,30))}`).toBe('');
@@ -201,7 +206,7 @@ test('R8 ⑹ 저장 왕복 — 우클릭으로 만든 이미지 칸이 저장→
   await assertRuler(page);
   const r = await rclick(page, '#sB .comparison-block .cmp-row', 0);
   const toImg = r.cmpItems.find(i => /img/.test(i.id) && !/del/.test(i.id));
-  expect(toImg, `전제 — 「이미지 칸으로」가 보인다 ${JSON.stringify(r.cmpItems)}`).toBeTruthy();
+  expect(toImg, `전제 — 「이미지 칸으로」가 보인다 ${JSON.stringify(r.cmpItems)} · 누른 점 임자 ${r.who}`).toBeTruthy();
   await clickItem(page, toImg.id);
   const id = await page.evaluate(() => window.__blk.id);
   expect((await model(page))[0].rows[0].type, '전제 — 왕복 «전»에 image 다').toBe('image');
@@ -239,7 +244,7 @@ test('R10 ★기록한다 — 누르면 pushHistory·scheduleAutoSave 가 불린
   await assertRuler(page);
   const r = await rclick(page, '#sB .comparison-block .cmp-row', 0);
   const toImg = r.cmpItems.find(i => /img/.test(i.id) && !/del/.test(i.id));
-  expect(toImg, `전제 — 항목이 보인다 ${JSON.stringify(r.cmpItems)}`).toBeTruthy();
+  expect(toImg, `전제 — 항목이 보인다 ${JSON.stringify(r.cmpItems)} · 누른 점 임자 ${r.who}`).toBeTruthy();
   await page.evaluate(() => {
     window.__spy = { hist: 0, save: 0 };
     const h = window.pushHistory, s = window.scheduleAutoSave;
