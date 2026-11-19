@@ -65,7 +65,7 @@
   display: flex;
   flex-direction: column;
   padding: var(--ui-space-3) 0;
-  gap: 2px;
+  gap: var(--ui-space-0_5);
 }
 .settings-tab {
   background: transparent;
@@ -94,7 +94,7 @@
   font-size: var(--ui-fs-12);
   font-weight: var(--ui-fw-semibold);
   color: #ddd;
-  margin-bottom: 6px;
+  margin-bottom: var(--ui-space-1_5);
 }
 .settings-help {
   font-size: var(--ui-fs-base);
@@ -121,7 +121,7 @@
 .settings-api-input-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-space-1_5);
 }
 .settings-api-input {
   flex: 1;
@@ -129,7 +129,7 @@
   border: 1px solid #333;
   border-radius: var(--ui-radius-sm);
   color: #e0e0e0;
-  padding: 6px 9px;
+  padding: var(--ui-space-1_5) 9px;
   font-size: var(--ui-fs-12);
   font-family: 'SF Mono', 'Menlo', monospace;
   outline: none;
@@ -166,12 +166,12 @@
 .settings-shortcut-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ui-space-1_5);
 }
 .settings-shortcut-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ui-space-2_5);
   padding: var(--ui-space-2) 10px;
   background: #181818;
   border: 1px solid var(--ui-border-soft);
@@ -319,7 +319,7 @@
   background: #2a2a2a;
   border: 1px solid var(--ui-border-mid);
   border-radius: 4px;
-  padding: 2px 7px;
+  padding: var(--ui-space-0_5) 7px;
 }
 /* 체크박스 기반 스위치 토글 */
 .settings-egg-toggle {

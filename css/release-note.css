@@ -41,14 +41,14 @@
 /* 목록 — 남는 높이를 채우고 여기서만 스크롤한다(min-height:0 없으면 flex 자식이 안 줄어든다) */
 .relnote-list {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
-  padding: 6px 20px 14px;
+  padding: var(--ui-space-1_5) 20px 14px;
 }
 /* ★구분선은 «항목»이 아니라 «그룹» 사이에 둔다 — 항목마다 그으면 다섯 줄이 다섯 칸으로
    쪼개져 목록이 아니라 표로 읽힌다. 항목 구분은 불릿과 여백이 이미 하고 있다. */
 .relnote-group {
   font-size: var(--ui-fs-10); font-weight: var(--ui-fw-bold); letter-spacing: .12em; text-transform: uppercase;
   color: var(--ui-text-muted, #9e9e9e);
-  margin: 6px 0 2px;
+  margin: var(--ui-space-1_5) 0 var(--ui-space-0_5);
   padding-top: 14px;
   border-top: 1px solid var(--ui-border-soft);
 }
