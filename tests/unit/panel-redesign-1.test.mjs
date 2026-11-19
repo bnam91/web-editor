@@ -229,3 +229,22 @@ test('R17 block-flip — 켜고 끄기 · 회전과 한 transform · 멱등 · �
   assert.match(tpl, /rotRowHTML\(\{ p: 'txt', numberId: 'txt-rot-number'/);
   assert.doesNotMatch(tpl, /txt-rot-slider/, '★회전 슬라이더가 남았다(Q20)');
 });
+
+/* Q37 — 블록 Template 절: 블럭이면 붙고(머리 ＋ · 이름·폴더·태그·저장) · 패널이 이미 template 절을 내면 안 붙고 · 블럭 아니면(섹션) 안 붙는다 · 저장 = saveBlockAsTemplate.
+ *   양성대조: blockTemplateSection 이 늘 null 이면 빨강 */
+test('R18 blockTemplateSection — 붙는 조건 · 마크업 · 저장 함수', async () => {
+  const vm = await import('node:vm');
+  const strip = (s) => String(s).replace(/^import[^\n]*\n/gm, '').replace(/^export\s+/gm, '');
+  const ctx = { console, propPanel: {}, window: { SECTION_BLOCK_TYPE_SEL: '.text-block' } };
+  vm.createContext(ctx);
+  vm.runInContext([readSrc(ROOT, 'js/props/_helpers.js'), readSrc(ROOT, 'js/props/_section-spec.js'), readSrc(ROOT, 'js/props/_panel-frame.js')].map(strip).join('\n;\n') + '\n;globalThis.__T = { blockTemplateSection, sec };', ctx);
+  const { blockTemplateSection, sec } = ctx.__T;
+  const blk = { matches: (s) => s === '.text-block' }, secEl = { matches: () => false };
+  const t = blockTemplateSection(blk, [sec('fill', 'f')]);
+  assert.equal(t?.key, 'template');
+  assert.match(t.html, /id="blk-tpl-form" hidden>[\s\S]*id="blk-tpl-name" placeholder="템플릿 이름"[\s\S]*id="blk-tpl-folder"[\s\S]*id="blk-tpl-tags" placeholder="태그 \(쉼표 구분\)"[\s\S]*id="blk-tpl-save">블록 템플릿으로 저장</);
+  assert.match(t.headTools, /id="blk-tpl-toggle"[^>]*aria-expanded="false"/);
+  assert.equal(blockTemplateSection(blk, [sec('template', 'mine')]), null, '★한 패널에 Template 절 둘');
+  assert.equal(blockTemplateSection(secEl, []), null, '★블럭 아닌 것(섹션 등)에 붙었다');
+  assert.match(stripComments(readSrc(ROOT, 'js/props/_panel-frame.js')), /window\.saveBlockAsTemplate\?\.\(block, name, f, /, '★우클릭과 같은 저장 함수를 안 쓴다');
+});

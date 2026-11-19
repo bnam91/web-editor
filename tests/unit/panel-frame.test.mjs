@@ -149,7 +149,8 @@ test('F6 절 머리 = 제목 글자만 · 몸 hidden 없음 · renderPanel 은 p
   assert.ok(p.innerHTML.includes('>Stroke</span>'), '★stroke 제목이 «Stroke» 가 아니다(§8 Q1 정정 — 영어 Figma 명명)');
   /* 배선도 없다 — propPanel 에 click/keydown 을 안 단다 */
   const src = stripComments(readSrc(ROOT, 'js/props/_panel-frame.js'));
-  assert.doesNotMatch(src, /addEventListener\('(click|keydown)'/, '★절 머리 접기 배선이 남았다');
+  /* ★기대 바뀜(Q37 · 현빈 GO 261120) — 틀이 블록 Template 절 단추(#blk-tpl-*)를 배선하므로 «패널 위임(click/keydown)» 만 금지로 좁힌다 */
+  assert.doesNotMatch(src, /(?:propPanel|panel)\.addEventListener\('(click|keydown)'/, '★절 머리 접기 배선(패널 위임)이 남았다');
 });
 
 test('F7 disclosureSectionHtml(하위 접기) = 바이트 그대로 · 4번째 인자는 무시(틀 판 갈래 걷음)', () => {

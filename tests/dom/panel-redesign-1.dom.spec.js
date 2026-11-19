@@ -501,3 +501,28 @@ test('P17d 프레임 회전 줄 — 옛 id(ss-rotate-deg · ss-rotate-90 · ss-f
   expect(g).toEqual({ row: true, ids: ['ss-rotate-90', 'ss-flip-h', 'ss-flip-v'], unit: '°' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* Q37(시안 v10 제안 꼴 · 현빈 GO 261120) — 블록 저장 «Template» 절: ＋ → 이름·폴더·태그 → «블록 템플릿으로 저장»(우클릭과 같은 saveBlockAsTemplate) ·
+ *   프레임(«컴포넌트로 저장») · QA 패널엔 Template 절이 하나뿐. CTL prd1-q37-tpl.patch(틀이 절을 안 붙임) → 빨강 */
+test('P18 Template 절 — 텍스트 패널: ＋ 펼침 · 저장하면 블록 템플릿이 생긴다 · 프레임 패널은 절 하나', async ({ page }) => {
+  const errs = await scene(page);
+  const id = await open(page, 'text-block', 'addTextBlock');
+  await expect(page.locator('#blk-tpl-section'), '★Template 절이 없다').toBeAttached();
+  await expect(page.locator('#blk-tpl-form')).toBeHidden();
+  await page.click('#blk-tpl-toggle');
+  await expect(page.locator('#blk-tpl-form')).toBeVisible();
+  await expect(page.locator('#blk-tpl-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await page.fill('#blk-tpl-name', 'prd1-p18');
+  await page.fill('#blk-tpl-tags', 'a, b');
+  const before = await page.evaluate(() => (window.loadTemplates?.() || []).length);
+  await page.click('#blk-tpl-save');
+  await expect.poll(() => page.evaluate(() => (window.loadTemplates?.() || []).find((t) => t.name === 'prd1-p18') || null), '★저장이 안 됐다').toMatchObject({ type: 'block', folder: '블록', tags: ['a', 'b'] });
+  expect(await page.evaluate(() => (window.loadTemplates?.() || []).length)).toBe(before + 1);
+  /* 프레임 — 자기 Template(컴포넌트로 저장)만 · 블록 절 안 붙음 */
+  const kind = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
+  const f = await addKind(page, kind);
+  await page.evaluate((fid) => window.selectBlock(fid), f.id);
+  expect(await page.evaluate(() => document.querySelectorAll('#panel-right .prop-section[data-sec="template"]').length), '★프레임 패널에 Template 절이 둘').toBe(1);
+  expect(await page.locator('#blk-tpl-section').count()).toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

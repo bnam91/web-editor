@@ -98,8 +98,53 @@ let _renderGen = 0;
 export const panelRenderGen = () => _renderGen;
 export function renderPanel(block, { header = '', sections = [], panel = '' } = {}) {
   _renderGen++;
-  propPanel.innerHTML = buildPanelHTML({ header, sections, panel });
+  const tpl = blockTemplateSection(block, sections);
+  propPanel.innerHTML = buildPanelHTML({ header, sections: tpl ? [...sections, tpl] : sections, panel });
+  if (tpl) wireBlockTemplate(block);
   return propPanel;
+}
+
+/* ── Q37(시안 v10 «제안» 꼴 · 현빈 GO 261120) — 블록 저장을 «Template» 절로 ────────────────────────────
+ *  모든 블럭 패널(틀을 타는 블럭 · SECTION_BLOCK_TYPE_SEL)에 머리 «Template» + ＋ → 이름 · 폴더 · 태그 · «블록 템플릿으로 저장».
+ *  ★저장 길 = 우클릭 «블록 템플릿으로 저장»(index.html #bcm-name-row → block-factory.js nameConfirm)과 같은 window.saveBlockAsTemplate
+ *    (js/panels/template-system.js) — 새 저장 경로 0. 폴더 목록도 같은 listTemplateFolders(.., '블록').
+ *  ★한 패널에 Template 절 하나: 패널이 이미 template 절을 내면(프레임 «컴포넌트로 저장» · QA 티켓) 안 붙인다. 섹션은 블럭 아님. */
+const _P8 = '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M6 2v8M2 6h8"/></svg>';
+const _M8 = '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M2 6h8"/></svg>';
+export function blockTemplateSection(block, sections = []) {
+  const sel = typeof window !== 'undefined' ? window.SECTION_BLOCK_TYPE_SEL : '';
+  if (!sel || !block?.matches?.(sel) || sections.some((x) => x.key === 'template')) return null;
+  return sec('template', `
+      <div class="prop-tpl-form" id="blk-tpl-form" hidden>
+        <input type="text" class="tpl-name-input" id="blk-tpl-name" placeholder="템플릿 이름" aria-label="템플릿 이름">
+        <select class="prop-select prop-tpl-folder" id="blk-tpl-folder" aria-label="폴더"></select>
+        <input type="text" class="tpl-name-input" id="blk-tpl-folder-new" placeholder="새 폴더 이름..." aria-label="새 폴더 이름" hidden>
+        <input type="text" class="tpl-name-input" id="blk-tpl-tags" placeholder="태그 (쉼표 구분)" aria-label="태그">
+        <button type="button" class="prop-action-btn primary" id="blk-tpl-save">블록 템플릿으로 저장</button>
+      </div>`, { id: 'blk-tpl-section', headTools: `
+        <button type="button" class="prop-chain-btn" id="blk-tpl-toggle" title="블록 템플릿으로 저장 — 펼치기" aria-expanded="false">${_P8}</button>` });
+}
+function wireBlockTemplate(block) {
+  const $ = (id) => document.getElementById(id);
+  const tog = $('blk-tpl-toggle'), form = $('blk-tpl-form'), folder = $('blk-tpl-folder'), fnew = $('blk-tpl-folder-new');
+  if (!tog || !form) return;
+  const folders = window.listTemplateFolders?.(window.loadTemplatesPublic?.() || [], '블록') || [];
+  if (!folders.includes('블록')) folders.unshift('블록');
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  folder.innerHTML = folders.map((f) => `<option value="${esc(f)}">${esc(f)}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
+  folder.addEventListener('change', () => { fnew.hidden = folder.value !== '__new__'; });
+  tog.addEventListener('click', () => {
+    const open = form.hidden; form.hidden = !open;
+    tog.innerHTML = open ? _M8 : _P8; tog.setAttribute('aria-expanded', String(open)); tog.title = open ? 'Template 접기' : '블록 템플릿으로 저장 — 펼치기';
+    if (open) $('blk-tpl-name')?.focus();
+  });
+  $('blk-tpl-save')?.addEventListener('click', () => {
+    const name = $('blk-tpl-name').value.trim();
+    if (!name) { $('blk-tpl-name').focus(); return; }
+    const f = folder.value === '__new__' ? (fnew.value.trim() || '블록') : (folder.value || '블록');
+    window.saveBlockAsTemplate?.(block, name, f, $('blk-tpl-tags').value.trim());   // 우클릭 저장과 같은 함수 · 같은 인자 꼴(block-factory.js nameConfirm)
+    $('blk-tpl-name').value = ''; $('blk-tpl-tags').value = ''; fnew.value = '';
+  });
 }
 
 /** «절 통째»(.prop-section + 제목줄) 빌더 산출을 틀(sec)에 넣으려고 껍데기만 벗긴다 → { id, head, body }.

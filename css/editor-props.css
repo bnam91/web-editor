@@ -96,6 +96,10 @@
 .prop-sec-sub-row { display: flex; align-items: center; justify-content: space-between; min-height: calc(var(--ui-btn-h) - var(--ui-space-0_5)); }
 .prop-sec-sub-row .prop-field-label { margin-bottom: 0; }
 .prop-sec-sub-row + * { margin-top: var(--ui-space-1); }
+/* Q37 블록 Template 절(시안 v10 제안 꼴 — 칸 사이 4) */
+.prop-tpl-form { display: flex; flex-direction: column; gap: var(--ui-space-1); }
+.prop-tpl-form[hidden] { display: none; }
+.prop-tpl-folder { width: 100%; }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);
