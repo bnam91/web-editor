@@ -573,34 +573,47 @@ test('P19 모달 패널 — 오류 0 · 플로팅 X 칸 · 각도 ⌘Z 1번', as
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-/* QA2 C2 · M1 — 텍스트 프레임(data-text-frame) 글: 30° → 좌우 반전 → ⌘Z · ⌘⇧Z · 다시 열기 · 저장→열기 뒤 transform = rotate(30deg) scale(-1, 1)(순서 고정) · 각도 30.
- *   반전 «뒤» 각도를 바꿔도 rotate(θ) scale(…) 순서. CTL prd1-qa2-c2.patch(frame-geometry 텍스트 프레임 예외 삭제) · prd1-qa2-m1.patch(텍스트 applyRot 의 applyFlip 삭제) → 빨강 */
-test('P20 텍스트 프레임 — 회전 + 반전이 ⌘Z/⌘⇧Z/다시 열기/저장 뒤에도 rotate(θ) scale(-1, 1)', async ({ page }) => {
+/* QA2 C2 · M1(지디 «그 장면 그대로») — 텍스트 프레임 글: 회전 30 + 좌우 반전 → 저장→다시 열기 / ⌘Z / ⌘⇧Z 각각 뒤
+ *   «화면 각(transform 의 rotate) = 패널 각 칸 = 저장 값(dataset.rotation)» 셋 다 30 + 끝이 scale(-1, 1)(순서 rotate → scale).
+ *   ⌘Z 는 «반전만» 되돌린다(회전 30 은 남는다). 반전 뒤 각도 45 도 순서 고정.
+ *   CTL prd1-qa2-c2.patch(옛 길: 틀 transform 이 텍스트 프레임 반전을 세고 · 회전 다시 쓰기 없음) · prd1-qa2-m1.patch(텍스트 각도가 손으로 rotate 를 짬) → 빨강 */
+test('P20 텍스트 프레임 — 회전 30 + 반전이 저장→열기 / ⌘Z / ⌘⇧Z 뒤 화면 = 패널 = 저장값', async ({ page }) => {
   const errs = await scene(page);
   const fk = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
   const fr = await addKind(page, fk);
-  await page.evaluate((id) => { const f = document.getElementById(id); f.dataset.freeLayout = 'true'; }, fr.id);
+  await page.evaluate((id) => { document.getElementById(id).dataset.freeLayout = 'true'; }, fr.id);
   const t = await addKind(page, { cls: 'text-block', entry: 'addTextBlock' }, fr.id);
-  const hostT = (id) => page.evaluate((id) => { const b = document.getElementById(id); const e = b.closest('.frame-block[data-text-frame="true"]'); return e ? { tf: true, t: e.style.transform, h: e.dataset.flipH ?? null } : { tf: false }; }, id);
-  expect((await hostT(t.id)).tf, '[전제] 글이 텍스트 프레임 안').toBe(true);
-  await page.evaluate((id) => window.selectBlock(id), t.id);
+  /* 셋을 한 번에: 블럭을 다시 골라(패널 다시 그림) 칸 값까지 읽는다 */
+  const tri = (id) => page.evaluate((id) => {
+    window.deselectAll?.(); window.selectBlock(id);
+    const e = document.getElementById(id)?.closest('.frame-block[data-text-frame="true"]');
+    if (!e) return { tf: false };
+    const m = /rotate\((-?[\d.]+)deg\)/.exec(e.style.transform || '');
+    return { tf: true, screen: m ? m[1] : '0', panel: document.getElementById('txt-rot-number')?.value ?? null, saved: e.dataset.rotation ?? '0', flipH: e.dataset.flipH ?? null, t: e.style.transform };
+  }, id);
+  expect((await tri(t.id)).tf, '[전제] 글이 텍스트 프레임 안').toBe(true);
   await page.fill('#txt-rot-number', '30'); await page.locator('#txt-rot-number').dispatchEvent('change');
   await page.click('#txt-flip-h');
-  const RX = /rotate\(30deg\) scale\(-1, 1\)$/;
-  expect((await hostT(t.id)).t, '★반전 직후').toMatch(RX);
+  const ORDER = /rotate\(30deg\) scale\(-1, 1\)$/;
+  const want = (x, when) => {
+    expect([x.screen, x.panel, x.saved], `★${when} — 화면 각 · 패널 칸 · 저장값이 갈렸다 ${JSON.stringify(x)}`).toEqual(['30', '30', '30']);
+    expect(x.t, `★${when} — 순서/반전`).toMatch(ORDER);
+  };
+  want(await tri(t.id), '반전 직후');
+  await page.evaluate((id) => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.(); }, t.id);
+  want(await tri(t.id), '저장→다시 열기 뒤');
+  /* 열린 판에서 다시: 반전 끄고 켬 → ⌘Z(반전 꺼짐 = 회전만) → ⌘⇧Z(다시 반전) */
+  await page.click('#txt-flip-h'); await page.click('#txt-flip-h');
   await page.evaluate(() => window.undo());
-  expect((await hostT(t.id)).t, '★⌘Z 뒤 회전이 사라졌다').toMatch(/rotate\(30deg\)$/);
+  const u = await tri(t.id);
+  expect([u.screen, u.panel, u.saved, u.flipH], `★⌘Z 뒤 회전이 사라졌다 ${JSON.stringify(u)}`).toEqual(['30', '30', '30', null]);
+  expect(u.t).toMatch(/rotate\(30deg\)$/);
   await page.evaluate(() => window.redo());
-  expect((await hostT(t.id)).t, '★⌘⇧Z 뒤').toMatch(RX);
-  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, t.id);
-  await expect(page.locator('#txt-rot-number'), '★다시 연 패널 각도').toHaveValue('30');
-  expect((await hostT(t.id)).t, '★다시 연 뒤').toMatch(RX);
-  const back = await page.evaluate((id) => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.();
-    const e = document.getElementById(id)?.closest('.frame-block[data-text-frame="true"]'); return e?.style.transform || ''; }, t.id);
-  expect(back, '★저장→다시 열기 뒤').toMatch(RX);
-  await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, t.id);
+  want(await tri(t.id), '⌘⇧Z 뒤');
   await page.fill('#txt-rot-number', '45'); await page.locator('#txt-rot-number').dispatchEvent('change');
-  expect((await hostT(t.id)).t, '★반전 뒤 각도를 바꾸니 순서가 뒤집혔다(scale 이 rotate 앞 = 화면 −θ)').toMatch(/rotate\(45deg\) scale\(-1, 1\)$/);
+  const r45 = await tri(t.id);
+  expect(r45.t, '★반전 뒤 각도를 바꾸니 순서가 뒤집혔다(scale 이 rotate 앞 = 화면 −θ)').toMatch(/rotate\(45deg\) scale\(-1, 1\)$/);
+  expect([r45.screen, r45.panel, r45.saved]).toEqual(['45', '45', '45']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -630,5 +643,29 @@ test('P18b Template 절 — 저장 두 번 눌러도 한 개 · 새 폴더가 �
   await page.evaluate(() => { const b = document.getElementById('blk-tpl-save'); b.click(); b.click(); });
   await expect.poll(() => page.evaluate(() => (window.loadTemplates?.() || []).filter((t) => t.name === 'prd1-p18b').length), '★연타로 두 번 저장됐다').toBe(1);
   await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#blk-tpl-folder option')].map((o) => o.value)), '★새 폴더가 목록에 안 뜬다').toContain('P18B폴더');
+  await expect(page.locator('#blk-tpl-save'), '★저장이 끝났는데 단추가 잠겨 있다').toBeEnabled();
+  /* 실패해도 풀림 — 저장 함수가 던지면 단추가 다시 눌린다 · 이름 칸은 그대로(재시도) */
+  const fail = await page.evaluate(async () => { const o = window.saveBlockAsTemplate; window.saveBlockAsTemplate = async () => { throw new Error('x'); };
+    document.getElementById('blk-tpl-name').value = 'prd1-p18b-fail'; document.getElementById('blk-tpl-save').click();
+    await new Promise((r) => setTimeout(r, 50)); window.saveBlockAsTemplate = o;
+    return { disabled: document.getElementById('blk-tpl-save').disabled, name: document.getElementById('blk-tpl-name').value }; });
+  expect(fail, '★저장 실패 뒤 단추가 잠긴 채 / 이름이 지워졌다').toEqual({ disabled: false, name: 'prd1-p18b-fail' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* QA2 ④(지디 ⓑ) — Figma JSON 파일 저장: 반전 블럭이 있으면 «반전은 Figma 로 안 나갑니다 … N개» 토스트 · 없으면 그 문구 0.
+ *   CTL prd1-qa2-figflip.patch(파일 저장 길의 안내 빠짐) → 빨강 */
+test('P22 Figma JSON — 반전 블럭 있을 때만 안내(수 포함)', async ({ page }) => {
+  const errs = await scene(page);
+  const r0 = await addKind(page, { cls: 'text-block', entry: 'addTextBlock' });
+  const run = () => page.evaluate(async () => { window.__toasts = []; const _t = window.showToast; window.showToast = (m) => { window.__toasts.push(String(m)); };
+    const _c = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () {};
+    try { await window.exportFigmaJSON(); } finally { window.showToast = _t; HTMLAnchorElement.prototype.click = _c; }
+    return window.__toasts.slice(); });
+  expect((await run()).filter((m) => /반전/.test(m)), '★반전 블럭이 없는데 반전 안내가 떴다').toEqual([]);
+  await page.evaluate((id) => { window.selectBlock(id); }, r0.id);
+  await page.click('#txt-flip-h');
+  const t = await run();
+  expect(t.some((m) => /반전\(좌우·상하\)은 Figma 로 안 나갑니다.*1개/.test(m)), `★반전 안내 없음 ${JSON.stringify(t)}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

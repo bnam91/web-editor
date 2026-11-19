@@ -1612,8 +1612,12 @@ test('ⓑ-ROT-2 ★[함정2] dataset.rot + 재렌더 — _applyRotationDeg(style
   const s = SRC.handles;
   const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
   /* ★양성대조 — 다른 회전 대상들은 정말로 style.transform 에 rotate() 를 건다. */
-  assert.ok(/function _applyRotationDeg[\s\S]{0,400}?style\.transform/.test(rot),
-    '양성대조 실패: _applyRotationDeg 가 transform 을 안 걸면 이 대조는 뜻이 없다');
+  /* ★기대 바뀜(패널 재설계 QA2 ③ 지디 261120 — 회전 transform 은 «한 함수» js/block-flip.js writeRotation 이 쓴다 ·
+     _applyRotationDeg 는 그 함수를 부른다) — 대조를 그 길 그대로 따라간다: _applyRotationDeg → writeRotation → style.transform 에 rotate() */
+  assert.ok(/function _applyRotationDeg[\s\S]{0,400}?window\.writeRotation\(/.test(rot),
+    '양성대조 실패: _applyRotationDeg 가 회전 쓰기 한 함수를 안 부르면 이 대조는 뜻이 없다');
+  assert.ok(/function writeRotation[\s\S]{0,900}?`rotate\(\$\{d\}deg\)`[\s\S]{0,200}?el\.style\.transform = next/.test(readSrc(ROOT, 'js', 'block-flip.js')),
+    '양성대조 실패: writeRotation 이 transform 에 rotate() 를 안 걸면 이 대조는 뜻이 없다');
 
   const body = sliceBlock(s, 'function _onZoomRotateMouseDown(e, zb)');
   assert.ok(body.length > 200, '_onZoomRotateMouseDown 를 못 찾았다');

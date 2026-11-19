@@ -251,18 +251,61 @@ test('R18 blockTemplateSection — 붙는 조건 · 마크업 · 저장 함수',
   assert.match(stripComments(readSrc(ROOT, 'js/props/_panel-frame.js')), /window\.saveBlockAsTemplate\?\.\(block, name, f, /, '★우클릭과 같은 저장 함수를 안 쓴다');
 });
 
-/* QA2 M1 — 블럭 회전을 쓰는 자리마다 바로 뒤 applyFlip(반전 = 늘 회전 «뒤»). 양성대조: 한 자리에서 지우면 빨강 */
-test('R19 회전 쓰는 자리 → 곧바로 applyFlip · 텍스트 프레임은 틀 transform 이 반전을 안 센다', () => {
+/* QA2 ③(지디) — 회전·반전 transform 은 «한 함수가 한 순서로»: writeRotation(js/block-flip.js) = [나머지] rotate(θ) scale(±1, ±1).
+ *   회전을 «쓰는» 자리는 전부 그 함수를 부른다(자리마다 문자열 + applyFlip 꼴 금지). 양성대조: CTL prd1-qa2-m1(텍스트가 옛 꼴로 되돌아감) → 빨강 */
+test('R19 writeRotation — 순서 rotate → scale 고정 · 종류별 키 · 0° 키 지움 · keepKey 는 키 안 고침 · 쓰는 자리 전부 이 함수', async () => {
+  const vm = await import('node:vm');
+  const src = readSrc(ROOT, 'js/block-flip.js').replace(/^export\s+/gm, '');
+  const ctx = { window: {} }; vm.createContext(ctx); vm.runInContext(src + '\n;globalThis.__F = { writeRotation, toggleFlip };', ctx);
+  const F = ctx.__F;
+  const mk = (t = '', cls = '') => ({ dataset: {}, classList: { contains: (c) => c === cls }, style: { transform: t, transformOrigin: '', removeProperty(k) { this[k === 'transform-origin' ? 'transformOrigin' : k] = ''; } } });
+  const ORDER = /rotate\(-?\d+(?:\.\d+)?deg\) scale\(-?1, -?1\)$/;
+  const a = mk('translate(3px, 4px)');
+  F.toggleFlip(a, 'flipH');
+  F.writeRotation(a, 30);
+  assert.equal(a.style.transform, 'translate(3px, 4px) rotate(30deg) scale(-1, 1)', '★순서/보존');
+  assert.match(a.style.transform, ORDER);
+  assert.equal(a.dataset.rotation, '30');
+  F.writeRotation(a, -45); F.writeRotation(a, -45);
+  assert.equal(a.style.transform, 'translate(3px, 4px) rotate(-45deg) scale(-1, 1)', '★멱등 · 반전 뒤 각도 바꿔도 순서 고정');
+  F.writeRotation(a, 200);
+  assert.equal(a.dataset.rotation, '-160', '★감싸기(자르기 아님)');
+  F.writeRotation(a, 0);
+  assert.deepEqual([a.dataset.rotation, a.style.transform], [undefined, 'translate(3px, 4px) scale(-1, 1)'], '★0° = rotate 없음 · 키 지움 · 반전은 남음');
+  const sh = mk('', 'shape-block'); F.writeRotation(sh, 15);
+  assert.deepEqual([sh.dataset.shapeRotation, sh.dataset.rotation], ['15', undefined], '★도형 키 = shapeRotation');
+  const r = mk('rotate(12deg)'); r.dataset.rotation = '12'; F.writeRotation(r, 12, { keepKey: true });
+  assert.deepEqual([r.dataset.rotation, r.style.transform], ['12', 'rotate(12deg)'], '★렌더러(keepKey) — 옛 저장본(반전 없음)을 같은 꼴로');
+  const z = mk(''); F.writeRotation(z, 0);
+  assert.equal(z.style.transform, '', '★아무 것도 없으면 transform 도 없다');
   const sites = [
-    ['js/asset-rotate.js', /host\.style\.transform = stripped \? `\$\{stripped\} rotate\(\$\{d\}deg\)` : `rotate\(\$\{d\}deg\)`;[\s\S]{0,200}?window\.applyFlip\?\.\(host\)/],
-    ['js/asset-rotate.js', /block\.style\.transform = existing \? `\$\{existing\} rotate\(\$\{d\}deg\)` : `rotate\(\$\{d\}deg\)`;\s*window\.applyFlip\?\.\(block\)/],
-    ['js/props/prop-shape.js', /block\.style\.transform = stripped \? `\$\{stripped\} rotate\(\$\{d\}deg\)` : `rotate\(\$\{d\}deg\)`;[\s\S]{0,200}?window\.applyFlip\?\.\(block\)/],
-    ['js/props/prop-text-wireup-position.js', /`rotate\(\$\{v\}deg\)`;\s*el\.style\.transformOrigin = 'center center';\s*window\.applyFlip\?\.\(el\)/],
-    ['js/block-factory.js', /\(cur \+ ` rotate\(\$\{deg\}deg\)`\)\.trim\(\);[\s\S]{0,200}?window\.applyFlip\?\.\(block\)/],
-    ['js/section-drag.js', /`rotate\(\$\{cr\}deg\)`;\s*c\.style\.transformOrigin = 'center center';\s*window\.applyFlip\?\.\(c\)/],
+    ['js/asset-rotate.js', 5], ['js/props/prop-shape.js', 1], ['js/props/prop-text-wireup-position.js', 1], ['js/block-factory.js', 1],
+    ['js/section-drag.js', 1], ['js/sticker-select.js', 1], ['js/blocks/iconify-block.js', 2], ['js/blocks/modal-block.js', 1], ['js/props/prop-vector.js', 1], ['js/frame-geometry.js', 1],
   ];
-  for (const [f, re] of sites) assert.match(readSrc(ROOT, f), re, `★${f} — 회전 뒤 applyFlip 없음(반전이 회전 앞에 남아 화면이 −θ)`);
+  for (const [f, n] of sites) {
+    const code = stripComments(readSrc(ROOT, f));
+    assert.equal((code.match(/\.writeRotation\??\.?\(/g) || []).length, n, `★${f} — 회전 쓰기가 한 함수를 안 부른다`);
+    assert.doesNotMatch(code, /\.style\.transform\s*=[^;\n]*rotate\(\$\{/, `★${f} — 블럭 transform 에 rotate 를 손으로 짠다(순서가 갈린다)`);
+  }
   const fg = stripComments(readSrc(ROOT, 'js/frame-geometry.js'));
   assert.match(fg, /const tf = d\.textFrame === 'true';\s*const fx = !tf && d\.flipH === '1'/, '★QA2 C2 — 틀 transform 이 텍스트 프레임 반전을 센다(⌘Z·열기에서 글 회전을 덮는다)');
-  assert.match(fg, /if \(ss\.dataset\?\.textFrame === 'true'\) globalThis\.applyFlip\?\.\(ss\)/);
+});
+
+/* QA2 ④(지디 ⓑ) — Figma JSON 에 반전이 안 실린다는 안내: 반전 블럭이 «있을 때만» · 수 포함 · 파일 저장·플러그인 업로드 두 길 다.
+ *   양성대조: CTL prd1-qa2-figflip.patch(파일 저장 길의 안내 빠짐) → 빨강 */
+test('R20 flipNotExportedText — 있을 때만 · 수 · 두 길', async () => {
+  const vm = await import('node:vm');
+  const src = readSrc(ROOT, 'js/io/export-figma-json.js');
+  const fn = /function flipNotExportedText\(roots\) \{[\s\S]*?\n\}/.exec(src)?.[0];
+  assert.ok(fn, '★flipNotExportedText 없음');
+  const ctx = {}; vm.createContext(ctx); vm.runInContext(fn + '\n;globalThis.__f = flipNotExportedText;', ctx);
+  const root = (n) => ({ querySelectorAll: (sel) => { assert.match(sel, /\[data-flip-h="1"\], \[data-flip-v="1"\]/); return { length: n }; } });
+  assert.equal(ctx.__f([root(0), root(0)]), '', '★반전 블럭이 없는데 알린다');
+  assert.equal(ctx.__f([]), '');
+  assert.equal(ctx.__f([null]), '');
+  assert.match(ctx.__f([root(2), root(1)]), /반전.*Figma 로 안 나갑니다.*3개/, '★수가 안 맞다');
+  const code = stripComments(src);
+  assert.match(code, /flipNotExportedText\(_flipRoots\)\]\.filter\(Boolean\)/, '★파일 저장(exportFigmaJSON) 길에 안내 없음');
+  assert.match(code, /_flipRoots\.push\(sec\)/, '★내보낸 섹션을 안 센다');
+  assert.match(stripComments(readSrc(ROOT, 'js/io/figma-publish.js')), /window\.flipNotExportedText\?\.\(selectedIds\.map/, '★플러그인 업로드 길에 안내 없음');
 });
