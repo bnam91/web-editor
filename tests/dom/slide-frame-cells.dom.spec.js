@@ -877,7 +877,7 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
   expect(x2, '[전제] 밀렸다').toBeGreaterThan(0);
   await expect.poll(dots, '★점 자리 그대로 · 진한 점 = 둘째').toEqual(d0.map((d, i) => ({ x: d.x, c: i === 1 ? on : off })));
   const saved = await page.evaluate(() => window.getSerializedCanvas());
-  expect(/sld-hs|sld-dot-hs-on/.test(saved), '★저장 글자에 임시 표식 0').toBe(false);
+  expect(/sld-hs|sld-dot-hs-on|--sld-hs-x/.test(saved), '★저장 글자에 임시 표식·밀린 거리 변수 0').toBe(false);
   await page.evaluate((id) => { document.getElementById(id).scrollLeft = 0; }, id);
   await expect.poll(dots, '★0 = 첫째 진함 · 자리 그대로').toEqual(d0);
   expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-hs'), id), '★표식 걷힘').toBe(false);
