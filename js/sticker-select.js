@@ -375,6 +375,7 @@ function _bindRotateDrag(zone, block) {
       block.style.transform = `rotate(${deg}deg)`;
       block.style.transformOrigin = 'center center';
       block.dataset.rotation = String(deg);
+      window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
       const rs = document.getElementById('stk-t-rot');
       const rn = document.getElementById('stk-t-rot-num');
       if (rs) rs.value = deg;

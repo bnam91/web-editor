@@ -5,7 +5,7 @@ import { propPanel } from '../globals.js';
 import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
@@ -519,16 +519,8 @@ function _renderAutoPanel(ss) {
         <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
         <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${parseInt(ss.dataset.translateY) || 0}">
       </div>
-      <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="flex-shrink:0;">각도</span>
-        <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
-        <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>
-      </div>
-      <div class="prop-row" style="gap:3px;justify-content:flex-end;margin-top:2px;">
-        <button class="prop-align-btn" id="ss-rotate-90" title="90° 시계 방향 회전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M11.5 4.5A5 5 0 1 0 13 8"/><polyline stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="9,2 12,4.5 9.5,7.5"/></svg></button>
-        <button class="prop-align-btn" id="ss-flip-h" title="좌우 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4"/><path fill="currentColor" opacity=".35" d="M8 5v6l-4-3z"/></svg></button>
-        <button class="prop-align-btn" id="ss-flip-v" title="상하 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2"/><path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/></svg></button>
-      </div>
+      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
+      rotRowHTML({ numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } })}
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
         headTools: (_isGroupFrame && !isBuzzFrame(ss)) ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: '그룹을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' }) : '',
@@ -877,6 +869,7 @@ function _renderAutoPanel(ss) {
     _applyTransform();
     window.pushHistory?.();
   });
+  wireRotRow({ numberId: 'ss-rotate-deg', host: () => ss, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 위 옛 배선)
   // 초기 flip 상태 반영
   if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');
   if (ss.dataset.flipV === '1') document.getElementById('ss-flip-v')?.classList.add('active');

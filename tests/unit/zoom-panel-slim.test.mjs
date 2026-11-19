@@ -167,9 +167,11 @@ test('T3 ★방향°·길이·좁아짐% 는 패널에 «없다» — 그러나 
   const p = SRC.prop;
   /* ★입력이 살아 있다 — 패널이 통째로 비어서 통과하는 것이 아니다.
      ⛔이 줄이 없으면 propPanel.innerHTML 을 통째로 지워도 아래가 전부 초록이다. */
-  for (const alive of ['zm-spread', 'zm-maxop', 'zm-curve', 'zm-size', 'zm-rot', 'zm-bdw']) {
+  for (const alive of ['zm-spread', 'zm-maxop', 'zm-curve', 'zm-size', 'zm-bdw']) {
     assert.ok(pairRowArgs(p, alive), `전제가 깨졌다 — «남아야 할» ${alive} 가 패널에서 사라졌다`);
   }
+  /* ★기대 바뀜(Q20 · 현빈 GO 261120) — 회전은 _pairRow 가 아니라 회전 줄(rotRowHTML · 각도 칸 zm-rot-num) */
+  assert.ok(/rotRowHTML\(\{ p: 'zm', numberId: 'zm-rot-num'/.test(p), '전제가 깨졌다 — «남아야 할» 회전 각도 칸이 사라졌다');
   assert.ok(/renderPanel\(block,\s*\{[\s\S]*sec\('effects'/.test(p), '패널 마크업이 통째로 비었다(renderPanel·Effects 절 없음)');   // U4: 틀 이관 뒤 절 껍데기는 renderPanel 이 그린다
 
   for (const [id, 이름] of [['zm-angle', '방향°'], ['zm-length', '길이'], ['zm-narrow', '좁아짐%']]) {

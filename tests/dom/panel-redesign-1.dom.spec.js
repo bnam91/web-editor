@@ -460,3 +460,44 @@ test('P17b 반전 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저장→�
   expect(old, '★옛 저장본을 열기만 했는데 바뀌었다').toEqual({ t: 'rotate(10deg)', h: null, pressed: 'false' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* Q17 · Q20 — 다른 블럭 회전 줄(시안 v10 이 그린 블럭): 각도 칸만(슬라이더 0) · 반전 → host transform scale · 각도 바꿔도 반전 유지 · 다시 열기 켜짐.
+ *   CTL prd1-q17-render.patch(모달 렌더러의 반전 다시 붙이기 삭제) → 모달 칸 빨강(다시 그린 뒤 반전이 사라진다) */
+const { rosterOf } = require('./_block-roster-294.js');
+for (const [cls, p, num] of [['shape-block', 'shape', 'shape-rot-num'], ['modal-block', 'mdl', 'mdl-rot-number'], ['mockup-block', 'mkp', 'mkp-rot-number'],
+  ['icon-circle-block', 'icb', 'icb-rot-number'], ['icon-block', 'icn', 'icn-rot-number'], ['zoom-block', 'zm', 'zm-rot-num']]) {
+  test(`P17c ${cls} 회전 줄 — 각도 칸 · 90° · 좌우 반전 · 다시 그려도 · 다시 열기`, async ({ page }) => {
+    const errs = await scene(page);
+    const kind = (await rosterOf(page)).find((r) => r.cls === cls);
+    expect(kind?.entry, `[전제] ${cls} 입구`).toBeTruthy();
+    const r0 = await addKind(page, kind);
+    expect(r0.err).toBeUndefined();
+    await page.evaluate((id) => window.selectBlock(id), r0.id);
+    await expect(page.locator(`#${num}`), '[전제] 각도 칸').toBeAttached();
+    expect(await page.locator(`#${p}-rot-90`).count() + await page.locator(`#${p}-flip-h`).count(), '★단추').toBe(2);
+    expect(await page.evaluate(() => document.querySelectorAll('#panel-right .prop-rot-row .prop-slider').length), '★회전 슬라이더(Q20)').toBe(0);
+    await page.click(`#${p}-rot-90`);
+    await expect(page.locator(`#${num}`)).toHaveValue('90');
+    await page.click(`#${p}-flip-h`);
+    const t1 = await page.evaluate((id) => { const b = document.getElementById(id); return { h: b.dataset.flipH ?? null, t: b.style.transform }; }, r0.id);
+    expect(t1.h).toBe('1');
+    expect(t1.t, `★반전 그림 ${t1.t}`).toMatch(/scale\(-1, 1\)/);
+    await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); }, r0.id);   // 다시 열기(렌더러가 transform 을 다시 쓰는 블럭 포함)
+    await expect(page.locator(`#${p}-flip-h`), '★다시 연 패널에 반전 켜짐이 없다').toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate((id) => document.getElementById(id).style.transform, r0.id), '★다시 그리니 반전이 사라졌다').toMatch(/scale\(-1, 1\)/);
+    await page.evaluate(() => window.undo());
+    expect(await page.evaluate((id) => document.getElementById(id).dataset.flipH ?? null, r0.id), '★⌘Z 가 반전을 안 되돌린다').toBeNull();
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
+
+test('P17d 프레임 회전 줄 — 옛 id(ss-rotate-deg · ss-rotate-90 · ss-flip-h/v) 그대로 한 줄 · 반반', async ({ page }) => {
+  const errs = await scene(page);
+  const kind = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
+  const r0 = await addKind(page, kind);
+  await page.evaluate((id) => window.selectBlock(id), r0.id);
+  const g = await page.evaluate(() => { const row = document.getElementById('ss-rotate-deg')?.closest('.prop-rot-row');
+    return { row: !!row, ids: row ? [...row.querySelectorAll('button')].map((b) => b.id) : [], unit: row?.querySelector('.prop-unit')?.textContent }; });
+  expect(g).toEqual({ row: true, ids: ['ss-rotate-90', 'ss-flip-h', 'ss-flip-v'], unit: '°' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

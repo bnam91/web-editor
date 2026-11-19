@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
@@ -249,11 +249,7 @@ export function showStickerProperties(block) {
         <button class="prop-action-btn secondary" id="stk-icon-replace" style="width:100%;">아이콘 교체</button>
       </div>`);
     put('position', `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="stk-icon-rot" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
-        <input type="number" class="prop-number" id="stk-icon-rot-num" min="-180" max="180" step="1" value="${parseFloat(block.dataset.rotation) || 0}">
-      </div>`);
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'stk-icon', numberId: 'stk-icon-rot-num', value: parseFloat(block.dataset.rotation) || 0, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`);
     put('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -546,11 +542,7 @@ export function showStickerProperties(block) {
       </div>`);
     put('position', `
     <div id="stk-text-rot-section">
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="stk-t-rot" min="-180" max="180" step="1" value="${tRotation}">
-        <input type="number" class="prop-number" id="stk-t-rot-num" min="-180" max="180" step="1" value="${tRotation}">
-      </div>
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'stk-t', numberId: 'stk-t-rot-num', value: tRotation, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
     </div>`);
   }
   if (isGlow) put('effects', glowSectionHTML(block));
@@ -654,21 +646,19 @@ export function showStickerProperties(block) {
   const _bindTPair = (sliderId, numberId, key, min, max, step) => {
     const s = propPanel.querySelector('#' + sliderId);
     const n = propPanel.querySelector('#' + numberId);
-    if (!s || !n) return;
+    if (!n) return;   // Q20(시안 v10) — 회전은 슬라이더 없이 각도 칸만 온다
     const stepNum = step || 1;
     const apply = v => {
       v = Math.min(max, Math.max(min, v));
       block.dataset[key] = v;
       rerender();
-      const sMax = parseFloat(s.max);
-      const sMin = parseFloat(s.min);
-      s.value = String(Math.min(sMax, Math.max(sMin, v)));
+      if (s) s.value = String(Math.min(parseFloat(s.max), Math.max(parseFloat(s.min), v)));
       n.value = String(v);
     };
     const parse = v => (stepNum < 1 ? parseFloat(v) : parseInt(v));
-    s.addEventListener('input',  () => apply(parse(s.value)));
+    s?.addEventListener('input',  () => apply(parse(s.value)));
     n.addEventListener('change', () => { apply(parse(n.value)); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-    s.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
+    s?.addEventListener('change', () => { window.pushHistory?.(); window.scheduleAutoSave?.(); });
   };
   _bindTPair('stk-t-fs',    'stk-t-fs-num',    'fontSize',      8,    400, 1);
   _bindTPair('stk-t-ls',    'stk-t-ls-num',    'letterSpacing', -10,  40,  0.1);
@@ -677,6 +667,7 @@ export function showStickerProperties(block) {
   _bindTPair('stk-t-sh-y',  'stk-t-sh-y-num',  'shadowY',       -20,  20,  1);
   _bindTPair('stk-t-sh-b',  'stk-t-sh-b-num',  'shadowBlur',    0,    40,  1);
   _bindTPair('stk-t-rot',   'stk-t-rot-num',   'rotation',      -180, 180, 1);
+  wireRotRow({ p: 'stk-t', numberId: 'stk-t-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
   _bindTPair('stk-t-pad-x', 'stk-t-pad-x-num', 'padX',          0,    400, 1);
   _bindTPair('stk-t-pad-y', 'stk-t-pad-y-num', 'padY',          0,    400, 1);
   _bindTPair('stk-t-radius', 'stk-t-radius-num', 'cornerRadius', 0,   400, 1);
@@ -1125,6 +1116,7 @@ export function showStickerProperties(block) {
   // icon size / rotation — _bindTPair 패턴 재사용 (rerender 기반)
   _bindTPair('stk-icon-size', 'stk-icon-size-num', 'size',     16,   600, 1);
   _bindTPair('stk-icon-rot',  'stk-icon-rot-num',  'rotation', -180, 180, 1);
+  wireRotRow({ p: 'stk-icon', numberId: 'stk-icon-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
   // B2 — 톱니 스탬프
   _bindTPair('stk-burst-teeth', 'stk-burst-teeth-num', 'burstTeeth', BURST_LIMITS.teeth.min, BURST_LIMITS.teeth.max, 1);
   _bindTPair('stk-burst-depth', 'stk-burst-depth-num', 'burstDepth', BURST_LIMITS.depth.min, BURST_LIMITS.depth.max, 1);

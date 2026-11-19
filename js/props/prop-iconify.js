@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
@@ -47,11 +47,7 @@ export function showIconifyProperties(block) {
         <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
         <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
       </div>
-      <div class="prop-row" style="margin-top:4px;">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="icn-rot-slider" min="-180" max="180" step="1" value="${rotation > 180 ? rotation - 360 : rotation}">
-        <input type="number" class="prop-number" id="icn-rot-number" min="-180" max="180" value="${rotation > 180 ? rotation - 360 : rotation}">
-      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -370,6 +366,7 @@ export function showIconifyProperties(block) {
   _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value));
   _icnRotS?.addEventListener('change', () => window.pushHistory?.());
   _icnRotN?.addEventListener('change', () => window.pushHistory?.());
+  wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
 
   // 교체 버튼
   const openModal = () => window.openIconifyModal?.();

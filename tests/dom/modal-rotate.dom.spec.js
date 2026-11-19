@@ -131,7 +131,8 @@ test('M-ROT3 ★패널 회전 줄이 있고, 값을 넣으면 블럭에 먹고 �
   // ⇐ 되돌리기: prop-modal.js 의 회전 줄(HTML) 또는 그 배선을 지우면 빨강
   const errs = await setup(page, 'modal');
   const r = await page.evaluate(async () => {
-    const s = document.getElementById('mdl-rot-slider');
+    /* ★기대 바뀜(Q20 · 현빈 GO 261120 · 시안 v10) — 회전 슬라이더를 걷고 각도 칸(숫자 + °) 하나. 슬라이더 자리 = 그 줄의 90° 단추 */
+    const s = document.getElementById('mdl-rot-90');
     const n = document.getElementById('mdl-rot-number');
     if (!s || !n) return { missing: { s: !s, n: !n } };
     /* ★읽히나 — 두 칸이 ★면적을 갖나(0 이면 못 만진다) */
@@ -144,13 +145,13 @@ test('M-ROT3 ★패널 회전 줄이 있고, 값을 넣으면 블럭에 먹고 �
       missing: null,
       sW: Math.round(sr.width), nW: Math.round(nr.width),
       ds: b.dataset.rotation || null, tf: b.style.transform || '',
-      sliderVal: s.value, numVal: n.value,
+      sliderVal: n.value, numVal: n.value,
       min: n.getAttribute('min'), max: n.getAttribute('max'),
     };
   });
   expect(r.missing, `★패널 회전 줄이 없다: ${JSON.stringify(r.missing)}`).toBeNull();
   /* ★읽히나 — 면적 */
-  expect(r.sW, `슬라이더 폭 ${r.sW}px`).toBeGreaterThan(0);
+  expect(r.sW, `90° 단추 폭 ${r.sW}px`).toBeGreaterThan(0);
   expect(r.nW, `숫자칸 폭 ${r.nW}px`).toBeGreaterThan(0);
   /* ★먹나 */
   expect(r.ds, `45 를 넣었는데 dataset.rotation 이 ${r.ds} 다`).toBe('45');

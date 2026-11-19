@@ -813,6 +813,7 @@ function renderModalBlock(block) {
     block.style.transform = `rotate(${_mdlRot}deg)`;
     block.style.transformOrigin = 'center center';
   }
+  window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
   /* ★★오버레이(띄운) 모달의 자리를 ★여기서 ★다시 얹는다 — 1020t2f4(현빈 「mdl_ts0he_rxyvw2u 모달블럭을 오버레이 시켰는데
        쾌적하지가 않네? 이동이?」) · 지디 판정 2026-10-21 ㉮. 위 회전(T11)과 ★같은 꼴이다.
      ⛔위 `block.style.cssText = …` 가 ★position:absolute · left/top 을 ★통째로 지운다 ⇒ ⌘Z(restoreSnapshot → rebindAll →

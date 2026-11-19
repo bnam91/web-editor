@@ -9,7 +9,6 @@
  * ★prop-table.js `_applyColRatio`의 인라인 파서를 그대로 뽑아온 것(2026-09-04 P0) — 동작 무변경.
  *   테이블·그리드 블록 둘 다 이걸 쓴다(복붙 금지).
  */
-import '../block-flip.js';   // 반전 한 자리(window.toggleFlip · applyFlip) — 회전 줄(wireRotRow)이 쓴다
 export function parseRatio(raw, count) {
   /* ★Number.isFinite 로 거른다 — !isNaN(Infinity) 는 true 라 «1e999» 같은 입력이 그대로 통과했고,
    *   그 값이 dataset 에 들어가면 JSON 직렬화에서 null 이 돼 «비율이 사라진다». */
@@ -526,28 +525,28 @@ const _ROT_BTN = {
   fv: ['상하 반전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M5 8h6l-3 4z" fill="currentColor" opacity=".35"/></svg>'],
 };
 /** p = id 접두(기본 단추 id `${p}-rot-90` · `${p}-flip-h` · `${p}-flip-v`) · numberId = 옛 각도 숫자 칸 id · ids 로 단추 id 를 바꿔 줄 수 있다 */
-export function rotRowHTML({ p, numberId, value = 0, flipH = false, flipV = false, ids = {} } = {}) {
+export function rotRowHTML({ p, numberId, value = 0, flipH = false, flipV = false, ids = {}, min = -180, max = 180 } = {}) {
   const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
   const btn = (k, on) => `<button type="button" class="prop-align-btn${on ? ' active' : ''}" id="${id[k]}" title="${_ROT_BTN[k][0]}" aria-label="${_ROT_BTN[k][0]}"${k === 'r90' ? '' : ` aria-pressed="${on}"`}>${_ROT_BTN[k][1]}</button>`;
   return `
       <div class="prop-row prop-rot-row">
-        <div class="prop-icon-input"><span class="prop-rot-scrub" id="${numberId}-scrub" title="좌우로 끌면 각도가 바뀐다">${_ROT_ICON}</span><input type="number" class="prop-number" id="${numberId}" min="-180" max="180" step="1" value="${value}" aria-label="회전 각도"><span class="prop-unit">°</span></div>
+        <div class="prop-icon-input"><span class="prop-rot-scrub" id="${numberId}-scrub" title="좌우로 끌면 각도가 바뀐다">${_ROT_ICON}</span><input type="number" class="prop-number" id="${numberId}" min="${min}" max="${max}" step="1" value="${value}" aria-label="회전 각도"><span class="prop-unit">°</span></div>
         <div class="prop-align-group prop-rot-btns">${btn('r90', false)}${btn('fh', flipH)}${btn('fv', flipV)}</div>
       </div>`;
 }
 /** 회전 줄 배선 — 90°(옛 각도 칸에 값을 넣고 input·change 를 쏜다 = 그 블럭의 회전·이력 길 그대로) · 반전(host dataset · push-after) · 아이콘 끌기.
  *  host = () => 회전이 걸리는 요소(텍스트 = 텍스트 프레임 또는 글 블럭 · 그 밖 = 블럭). */
-export function wireRotRow({ p, numberId, host, ids = {} } = {}) {
+export function wireRotRow({ p, numberId, host, ids = {}, scrubOnly = false } = {}) {   // scrubOnly = 90°·반전 단추가 이미 제 배선을 가진 블럭(프레임 · 벡터)
   const n = document.getElementById(numberId);
   if (!n) return;
   const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
   const set = (v, commit) => {
-    let d = ((Math.round(v) % 360) + 360) % 360; if (d > 180) d -= 360;
+    let d = ((Math.round(v) % 360) + 360) % 360; if (d > 180 && +n.min >= -180) d -= 360;   // -180~180 칸만 접는다(프레임·벡터 0~360 은 그대로)
     n.value = d; n.dispatchEvent(new Event('input', { bubbles: true }));
     if (commit) n.dispatchEvent(new Event('change', { bubbles: true }));
   };
-  document.getElementById(id.r90)?.addEventListener('click', () => set((parseInt(n.value) || 0) + 90, true));
-  for (const [k, axis, label] of [['fh', 'flipH', '좌우 반전'], ['fv', 'flipV', '상하 반전']]) {
+  if (!scrubOnly) document.getElementById(id.r90)?.addEventListener('click', () => set((parseInt(n.value) || 0) + 90, true));
+  if (!scrubOnly) for (const [k, axis, label] of [['fh', 'flipH', '좌우 반전'], ['fv', 'flipV', '상하 반전']]) {
     const b = document.getElementById(id[k]);
     b?.addEventListener('click', () => {
       const on = window.toggleFlip?.(host(), axis);

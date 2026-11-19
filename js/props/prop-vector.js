@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -70,31 +70,8 @@ export function showVectorProperties(block) {
         <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${strokeWidth}">
       </div>` : ''),
       sec('position', `${OF?.floatPositionRowHTML({ prefix: 'vb', posEl: floatPosEl }) || ''}
-      <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="flex-shrink:0;">각도</span>
-        <input type="number" class="prop-number" id="vb-rotate-deg" style="width:56px;" min="-360" max="360" value="${rotateDeg}">
-        <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>
-      </div>
-      <div class="prop-row" style="gap:3px;justify-content:flex-end;margin-top:4px;">
-        <button class="prop-align-btn" id="vb-rotate-90" title="90° 시계 방향 회전">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M11.5 4.5A5 5 0 1 0 13 8"/>
-            <polyline stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="9,2 12,4.5 9.5,7.5"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn${block.dataset.flipH === '1' ? ' active' : ''}" id="vb-flip-h" title="좌우 반전">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4"/>
-            <path fill="currentColor" opacity=".35" d="M8 5v6l-4-3z"/>
-          </svg>
-        </button>
-        <button class="prop-align-btn${block.dataset.flipV === '1' ? ' active' : ''}" id="vb-flip-v" title="상하 반전">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2"/>
-            <path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/>
-          </svg>
-        </button>
-      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'vb-float-toggle', active: floating }) || '' }),
+      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
+      rotRowHTML({ numberId: 'vb-rotate-deg', value: rotateDeg, min: -360, max: 360, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1', ids: { r90: 'vb-rotate-90', fh: 'vb-flip-h', fv: 'vb-flip-v' } })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'vb-float-toggle', active: floating }) || '' }),
     ],
   });
 
@@ -215,6 +192,7 @@ export function showVectorProperties(block) {
   });
 
   // ── 반전 ──────────────────────────────────────────────────────────────────────
+  wireRotRow({ numberId: 'vb-rotate-deg', host: () => block, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 옛 배선)
   document.getElementById('vb-flip-h')?.addEventListener('click', () => {
     block.dataset.flipH = block.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('vb-flip-h')?.classList.toggle('active', block.dataset.flipH === '1');

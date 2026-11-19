@@ -1,5 +1,5 @@
 import { propPanel, state } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
@@ -59,11 +59,7 @@ export function showIconCircleProperties(block) {
         <input type="number" class="prop-number" id="icb-padx-number" min="0" max="200" value="${padX}">
       </div>`),
       sec('position', `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="icb-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="icb-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || '' }),   // 플로팅 = Position(§2-1)
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icb', numberId: 'icb-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icb-float-toggle', active: block.dataset.overlayBlock === 'true' }) || '' }),   // 플로팅 = Position(§2-1)
       // 옛 「Image」 절 + 원 안 블럭 넣기 = Content
       sec('content', `${hasImage ? `
       <button class="prop-action-btn secondary" id="icb-pos-btn">이미지 위치 조절</button>
@@ -164,12 +160,10 @@ export function showIconCircleProperties(block) {
   const _icbRot = v => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    propPanel.querySelector('#icb-rot-slider').value = v;
     propPanel.querySelector('#icb-rot-number').value = v;
   };
-  propPanel.querySelector('#icb-rot-slider').addEventListener('input',  e => _icbRot(e.target.value));
   propPanel.querySelector('#icb-rot-number').addEventListener('input',  e => _icbRot(e.target.value));
-  propPanel.querySelector('#icb-rot-slider').addEventListener('change', () => window.pushHistory());
+  wireRotRow({ p: 'icb', numberId: 'icb-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
   propPanel.querySelector('#icb-rot-number').addEventListener('change', () => window.pushHistory());
 
   const _fillToggle = propPanel.querySelector('#icb-fill-toggle');

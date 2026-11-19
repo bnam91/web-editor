@@ -1,7 +1,7 @@
 // prop-mockup.js — 디바이스 목업 블록 프로퍼티 패널
 
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { checkerBg } from '../checker-tokens.js';
 import { captureSectionImage } from '../io/capture-safety.js';
@@ -44,11 +44,7 @@ export function showMockupProperties(block) {
           value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
       </div>`),
       sec('position', `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="mkp-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="mkp-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>`),
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mkp', numberId: 'mkp-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`),
       // 화면 이미지(옛 「Screen Image」)
       sec('content', `
       <div class="prop-row" style="flex-direction:column;gap:4px;">
@@ -115,12 +111,11 @@ export function showMockupProperties(block) {
   const _mkpRot = v => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    mRotS.value = v; mRotN.value = v;
+    mRotN.value = v;
   };
-  mRotS.addEventListener('input',  () => _mkpRot(mRotS.value));
   mRotN.addEventListener('input',  () => _mkpRot(mRotN.value));
-  mRotS.addEventListener('change', () => window.pushHistory?.());
   mRotN.addEventListener('change', () => window.pushHistory?.());
+  wireRotRow({ p: 'mkp', numberId: 'mkp-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
 
   // 캡처 버튼
   const secIdInput = propPanel.querySelector('#mkp-sec-id-input');

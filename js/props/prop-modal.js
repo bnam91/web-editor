@@ -7,7 +7,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
-import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.js';   /* unwrapSection — _typo-section 빌더가 «절 통째»를 주므로 몸통만(U0c) */
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
@@ -217,11 +217,7 @@ export function showModalProperties(block) {
       <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
 ` : '')),
       sec('position', `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="mdl-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="mdl-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
       ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
 `, { headTools: overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat }) }),
       sec('size', `
@@ -749,13 +745,14 @@ export function showModalProperties(block) {
        ⛔두 칸 중 ★하나만 맞추지 마라 — 슬라이더와 숫자가 갈라진다(이 레포 고질). */
   const _mRotS = document.getElementById('mdl-rot-slider');
   const _mRotN = document.getElementById('mdl-rot-number');
-  if (_mRotS && _mRotN) {
+  if (_mRotN) {   // Q20(시안 v10) — 슬라이더 없음
     const _mdlRotSet = v => {
       v = Math.min(180, Math.max(-180, parseInt(v) || 0));
       window.applyRotationDeg?.(block, v);
-      _mRotS.value = v; _mRotN.value = v;
+      if (_mRotS) _mRotS.value = v; _mRotN.value = v;
     };
-    _mRotS.addEventListener('input',  () => _mdlRotSet(_mRotS.value));
+    wireRotRow({ p: 'mdl', numberId: 'mdl-rot-number', host: () => block });   // Q17
+    _mRotS?.addEventListener('input',  () => _mdlRotSet(_mRotS.value));
     _mRotN.addEventListener('input',  () => _mdlRotSet(_mRotN.value));
     _mRotS.addEventListener('change', () => window.pushHistory?.());
     _mRotN.addEventListener('change', () => window.pushHistory?.());

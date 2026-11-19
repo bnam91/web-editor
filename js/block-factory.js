@@ -1,3 +1,4 @@
+import './block-flip.js';     // side-effect import — window.applyFlip/toggleFlip 를 블럭 렌더러(스티커·아이콘·모달·목업·줌)보다 먼저(Q17 반전)
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
