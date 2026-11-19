@@ -356,9 +356,11 @@ const pickCell = async (page, id, i) => {
   /* 접힌 칸은 pointer-events none(누름이 슬라이드로) — 접혔으면 임자 = 슬라이드 안 · 펼쳤으면 임자 = 그 칸 «자신»(빈 곳 — 칸 안 블럭이면 그 블럭이 골라진다).
      ★자리 고르기(지혜맥 261120 jsfc4 R1 5/5): 옛 «왼위 +8» 은 칸 1 이면 고른 슬라이드의 왼위 모서리 = 크기 손잡이 자리 ⇒ 칸 안 격자에서 «임자 맞는» 첫 점을 고른다 · 옛 점의 임자는 DIAG 로 남긴다 */
   const at = (folded) => stableAt(page, ({ id, i, folded }) => { const W = (e) => e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}${e.closest && e.closest('#ss-handles-overlay') ? '(손잡이 층)' : ''}` : null;
-    const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect(), ok = (e) => !!e && (folded ? b.contains(e) : e === c);
+    const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect();
+    /* 펼침: 먼저 칸 «자신»(빈 곳) · 없으면(그림이 칸을 꽉 채움 — C2) 칸 안 자식 — 앱 뜻: 안 고른 칸의 내용을 누르면 «칸»이 먼저 골라진다(C2 옛 판이 이 길로 초록) */
+    const passes = folded ? [(e) => !!e && b.contains(e)] : [(e) => e === c, (e) => !!e && c.contains(e)];
     const old = document.elementFromPoint(r.left + 8, r.top + 8);
-    for (const fy of [0.12, 0.3, 0.5, 0.7]) for (const fx of [0.15, 0.3, 0.5, 0.7, 0.85]) { const x = r.left + r.width * fx, y = r.top + r.height * fy, e = document.elementFromPoint(x, y); if (ok(e)) return { x, y, ok: true, who: W(e), old: W(old) }; }
+    for (const ok of passes) for (const fy of [0.12, 0.3, 0.5, 0.7]) for (const fx of [0.15, 0.3, 0.5, 0.7, 0.85]) { const x = r.left + r.width * fx, y = r.top + r.height * fy, e = document.elementFromPoint(x, y); if (ok(e)) return { x, y, ok: true, who: W(e), old: W(old) }; }
     return { x: r.left + 8, y: r.top + 8, ok: false, who: W(old), old: W(old) }; }, { id, i, folded }, `[pickCell] 칸 ${i + 1} 누를 점(임자·같은 자리 두 번 · 받은 값 끝 = 임자)`)
     .then((p) => { console.log('[pickCell DIAG]', i, folded ? '접힘' : '펼침', '옛 왼위+8 임자 =', p.old, '· 고른 점 임자 =', p.who); return p; });
   if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) {
@@ -493,7 +495,8 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
      글자가 아니면 «무엇이 덮었나»를 메시지로(펼친 칸·덮개가 가로채면 여기서 이름이 나온다 = 제품 빨강) */
   await page.evaluate((oid) => document.getElementById(oid).scrollIntoView({ block: 'center', inline: 'center' }), otherId);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
-  /* 지혜맥 261120 1/3 빨강: 한 번 잰 점을 곧장 눌렀다(스크롤·배율이 멎기 전) → 임자 맞음 + 같은 자리 두 번 뒤 누름 · 고름은 poll */
+  /* 지혜맥 261120 1/3 빨강: 한 번 잰 점을 곧장 눌렀다(스크롤·배율이 멎기 전) → 임자 맞음 + 같은 자리 두 번 뒤 누름 · 고름은 poll
+     jsfc5 3/3 받은 값 끝 = DIV.grd-headband → 141 칸 위 띠가 바로 위 글자를 덮음 = 제품 고침(overlay-handles _bandOverOther) · CTL _patches/slide-frame-CTL48-band-eats-click.patch */
   let op = null;
   await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
       return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);

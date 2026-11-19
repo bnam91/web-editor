@@ -2836,7 +2836,24 @@ function syncSlideCellBands(block, cells = [], axis = 'col') {
       b.style.top = r.top + 'px'; b.style.height = r.height + 'px';
       b.style.left = (br.left - GRD_BAND_GAP - GRD_BAND_T) + 'px'; b.style.width = GRD_BAND_T + 'px';
     }
+    /* 띠는 블럭 «밖»(위·왼쪽) 띠 자리에 선다 — 그 자리에 «다른 블럭»이 있으면 띠가 누름을 먹어 그 블럭을 못 고른다(지혜맥 261120 P1 · 펼침 중 바로 위 글자).
+       ⇒ 띠 밑(왼·가운데·오른)에 슬라이드 밖 블럭이 있으면 그 띠는 누름을 놓는다(pointer-events none · 칸 순서는 ⌘←/→ 그대로). 빈 바탕 위 띠는 그대로 끈다. */
+    b.style.pointerEvents = _bandOverOther(b, block) ? 'none' : 'auto';
   });
+}
+/** 띠 밑에 슬라이드(와 그 조상) 밖의 다른 블럭이 있나 — 선택 오버레이 층은 건너뛰고 그 아래 맨 위 요소를 본다. */
+function _bandOverOther(band, block) {
+  const r = band.getBoundingClientRect(), y = r.top + r.height / 2, sel = window.SECTION_BLOCK_TYPE_SEL || '.text-block, .asset-block, .shape-block, .frame-block';
+  for (const x of [r.left + 3, r.left + r.width / 2, r.right - 3]) {
+    for (const e of document.elementsFromPoint(x, y)) {
+      if (e.closest('#ss-handles-overlay, #grd-plus-layer')) continue;
+      if (block.contains(e)) break;
+      const blk = e.closest?.(sel);
+      if (blk && !blk.contains(block)) return true;
+      break;
+    }
+  }
+  return false;
 }
 window.syncSlideCellBands = syncSlideCellBands;
 
