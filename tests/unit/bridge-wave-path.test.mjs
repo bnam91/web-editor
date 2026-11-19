@@ -7,9 +7,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const src = fs.readFileSync(new URL('../../js/block-factory.js', import.meta.url), 'utf8');
-const a = src.indexOf('const BRIDGE_WAVE_DEFAULTS'), b = src.indexOf('\n}\n', src.indexOf('function _buildBridgeWavePath', a)) + 3;
-const { _buildBridgeWavePath: P } = await import('data:text/javascript,' + encodeURIComponent(src.slice(a, b) + '\nexport { _buildBridgeWavePath };'));
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+/* 레포 규칙(cand16 단위 전수 261120): 소스는 readSrc(LF 정규화 · win-portability ①-3) · 덩이 끝은 sliceBlock(셈 · slice-block-shared SB-16) ·
+   import 는 임시 우산(mkTmpRoot)의 .mjs 를 file: URL 로(win-portability ②-4 · data: URL 금지). */
+const require = createRequire(import.meta.url);
+const { readSrc } = require('./_srcread.js');
+const { sliceBlock } = require('./_slice-block.js');
+const { mkTmpRoot } = require('./_tmproot.js');
+const src = readSrc(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'js', 'block-factory.js');
+const DEF = src.split('\n').find((l) => l.startsWith('const BRIDGE_WAVE_DEFAULTS'));
+const dir = mkTmpRoot('bridge-wave-path-');
+fs.writeFileSync(path.join(dir, 'bw.mjs'), DEF + '\n' + sliceBlock(src, 'function _buildBridgeWavePath') + '\nexport { _buildBridgeWavePath };\n');
+const { _buildBridgeWavePath: P } = await import(pathToFileURL(path.join(dir, 'bw.mjs')).href);
 const ys = (d) => [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => [+m[1], +m[2]]);
 
 test('W1 둥근 · 마루로 시작 · V 와 같은 꼬리', () => {
