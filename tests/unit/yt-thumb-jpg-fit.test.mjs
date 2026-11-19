@@ -75,7 +75,7 @@ test('W1 배선 — 썸네일·1280·JPG 길만 fitUnderBytes · 다른 길은 0
   const i = s.indexOf('fitUnderBytes(encode, YT_JPG_LIMIT)');
   assert.ok(i > 0, '1280·JPG 길이 fitUnderBytes 를 안 부른다');
   const head = s.slice(Math.max(0, i - 200), i);
-  assert.match(head, /const ytThumb = isYtThumbExport\(sec, w\);\s*if \(ytThumb && mime === 'image\/jpeg'\)/, '부르는 조건이 «썸네일 섹션 · 1280 · JPG» 가 아니다');
+  assert.match(head, /const ytThumb = isYtThumbExport\(sec, w\);\s*if \(ytThumb && mime === exportMimeOf\('jpg'\)\)/, '부르는 조건이 «썸네일 섹션 · 1280 · JPG» 가 아니다');
   assert.match(s, /export const isYtThumbExport = \(sec, w\) => w === YT_THUMB_W && sec\?\.dataset\?\.thumb === 'youtube'/, '판정이 폭만 본다(보통 섹션도 탄다)');
   assert.match(s, /blob = await encode\(0\.95\)/, '다른 길의 0.95 고정이 사라졌다');
   assert.equal((s.match(/fitUnderBytes\(/g) || []).length, 1, 'fitUnderBytes 를 부르는 자리가 하나가 아니다');
