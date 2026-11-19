@@ -9,11 +9,11 @@
  *   P9  모달 아이콘 · P10 아이콘 스티커 — <img> 폴백에 onerror·onload 를 심어도: img 는 «그려진다»(https src 그대로) · on* 0 · 표식 0
  *       고침: 6곳(P3~P8)이 sanitizeIconMarkup(svg 면 sanitizeSvgString · <img> 하나면 다시 지음 · 그 밖 '')
  *       양성대조: modal-block.js `? sanitizeIconMarkup(svg)` → `? sanitizeSvgString(svg)` 면 P9 ＋ modal-icon-img-fallback I0·I1·I3 빨강
- *                · sticker-block.js `sanitizeIconMarkup(iconSvg)` → `sanitizeSvgString(iconSvg)` 면 P10 빨강
+ *                · sticker-block.js `sanitizeIconMarkup(iconSvg, …)` → `sanitizeSvgString(iconSvg, …)` 면 P10 빨강(261120: 둘째 인자 = id 접두사)
  * 칸마다 단언(그 그릇 안 svg 들만): on* 속성 0 · image/script/foreignObject/img 0 · ★멀쩡한 path 는 남는다(빈 그림 초록 금지) · pageerror 0.
  *   표식(window.__pwn*)은 덤 — 비동기(onerror)는 고정 대기 없이는 못 기다리므로 판정은 «DOM 에 핸들러가 없다»가 본체다.
  * 양성대조: 그 칸의 한 줄에서 sanitizeSvgString( … ) 를 걷으면(날것으로 되돌리면) 그 칸만 빨강.
- *   P1 js/props/prop-iconify.js `cell.innerHTML = sanitizeSvgString(res.svg)` · P2 같은 파일 `const svg = sanitizeSvgString(res.svg)`
+ *   P1 js/props/prop-iconify.js `cell.innerHTML = sanitizeSvgString(res.svg, …)` · P2 같은 파일 `const svg = sanitizeSvgString(res.svg, …)`(261120: 접두사·dropped 인자)
  *   P3 js/blocks/sticker-block.js `block.innerHTML = sanitizeSvgString(iconSvg)` · P4 js/props/prop-sticker.js `holder.innerHTML = sanitizeSvgString(p.iconSvg)`
  *   P5 js/panels/iconify-panel.js `holder.innerHTML = sanitizeSvgString(p.iconSvg)` · P6 같은 파일 `holder.innerHTML = sanitizeSvgString(sel.svg)`
  *   P7 js/blocks/modal-block.js `? sanitizeSvgString(svg)` · P8 js/blocks/canvas-block.js `wrap.innerHTML = sanitizeSvgString(card.icon.svg)`
@@ -183,9 +183,18 @@ test('G1 [지킴] 멀쩡한 아이콘식 svg 는 세척 뒤에도 같은 모양(
     window.addStickerBlock({ shape: 'icon', iconSvg: good });
     const b = [...sec.querySelectorAll('.sticker-block')].find((x) => !before.has(x));
     const q = (s) => b.querySelectorAll(s).length;
-    return { path: q('svg path'), circle: q('svg circle'), stop: q('svg stop'), grad: q('svg linearGradient'), gradFill: b.querySelector('svg path[fill^="url(#"]')?.getAttribute('fill') || null };
+    const gid = b.querySelector('svg linearGradient')?.id || null;
+    return { path: q('svg path'), circle: q('svg circle'), stop: q('svg stop'), grad: q('svg linearGradient'),
+      gradFill: b.querySelector('svg path[fill^="url(#"]')?.getAttribute('fill') || null, gid,
+      gidInDoc: gid ? document.querySelectorAll(`[id="${CSS.escape(gid)}"]`).length : 0, blockId: b.id };
   }, GOOD);
-  expect(r).toEqual({ path: 2, circle: 1, stop: 2, grad: 1, gradFill: 'url(#qg)' });
+  /* ★기대 바뀜(VISUAL-9-SVG-ICON-ID-TEXT-01 · 0.9.13 144행 · 지디 261120): 아이콘 스티커는 id 든 svg 에 «블럭 id 접두사»(stk-<블럭id>-)를 붙인다
+     — 같은 clip0/qg 를 쓰는 아이콘끼리 서로의 틀을 잡던 버그 고침. 그래서 url(#qg) 그대로가 아니라 «url(#접두사qg) 이고 그 id 가 문서에 1개».
+     모양(도형·그라데이션 수)·참조가 제 그라데이션을 가리킴은 그대로 잰다. 세척 경계(P1~P10)는 이 파일에서 손대지 않았다. */
+  expect({ path: r.path, circle: r.circle, stop: r.stop, grad: r.grad }).toEqual({ path: 2, circle: 1, stop: 2, grad: 1 });
+  expect(r.gid, '그라데이션 id = 블럭 id 접두사 + qg').toBe(`stk-${r.blockId.replace(/[^A-Za-z0-9_-]/g, '')}-qg`);
+  expect(r.gradFill, '채움 참조 = 그 그라데이션(같은 svg 안)').toBe(`url(#${r.gid})`);
+  expect(r.gidInDoc, '그 id 는 문서에 1개(겹침 없음)').toBe(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
