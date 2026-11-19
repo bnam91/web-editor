@@ -41,7 +41,23 @@ const SCREENS = [
     open: async (page) => { await setup(page); await page.evaluate(() => window.selectBlock('txP1')); },
     close: (page) => page.evaluate(() => window.deselectAll()) },
   { name: '우측 패널(프레임 선택)', files: RIGHT, root: '#panel-right',
-    open: async (page) => { await setup(page); await page.evaluate(() => { if (window.selectBlock('frP') === false) throw new Error('frP 를 못 골랐다 — 장면 전제'); }); },
+    /* 지혜맥 d6cc250dc: selectBlock('frP') 가 늘 false — js/block-edit.js getBlockById 가 프레임을 «블럭»으로 안 센다(패널 정본 표 밖 · dataset.type 없음 · 두 판 같음).
+       ⇒ 프레임 «클릭» 길(js/block-drag.js 프레임 click 의 일반 단일 선택)과 같은 줄을 부른다: 해제 → 섹션·프레임 .selected → _activeFrame → showFrameProperties.
+       실패면 진단 JSON 으로 던진다(어느 판인지는 틀이 안 알려 주므로 그 판의 상태를 싣는다). */
+    open: async (page) => { await setup(page); await page.evaluate(() => {
+      const f = document.getElementById('frP'), sec = f?.closest('.section-block');
+      if (f) {
+        window.deselectAll?.();
+        if (sec) { sec.classList.add('selected'); window.syncLayerActive?.(sec); }
+        f.classList.add('selected'); window._activeFrame = f;
+        window.highlightBlock?.(f, f._layerItem);
+        window.showFrameProperties?.(f);
+      }
+      const ok = !!f && f.classList.contains('selected') && !!document.querySelector('#panel-right #ss-align-left');
+      if (!ok) throw new Error('frP 프레임 패널 전제 실패 ' + JSON.stringify({ frP: !!f, sec: sec?.id || null, sel: !!f?.classList.contains('selected'),
+        framePanel: !!document.querySelector('#panel-right #ss-align-left'), panelHead: document.querySelector('#panel-right .panel-body')?.innerText?.slice(0, 40) ?? null,
+        showFrameProperties: typeof window.showFrameProperties }));
+    }); },
     close: (page) => page.evaluate(() => window.deselectAll()) },
 ];
 
