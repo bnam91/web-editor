@@ -160,9 +160,9 @@ test('P12 텍스트 타입 12칸 — 두 줄 · Quote 왼 테두리 있음 · �
     const g = document.getElementById('txt-kind-group'), bs = [...g.children];
     return { n: bs.length, rows: new Set(bs.map((b) => Math.round(b.getBoundingClientRect().top))).size,
       left: bs.map((b) => [b.textContent.trim(), parseFloat(getComputedStyle(b).borderLeftWidth)]), over: g.scrollWidth - g.clientWidth,
-      rowGap: bs[bs.length - 1].getBoundingClientRect().top - bs[0].getBoundingClientRect().bottom,
+      rowGap: bs[bs.length - 1].offsetTop - (bs[0].offsetTop + bs[0].offsetHeight),   // 레이아웃 px(배율 무관 · dom-screen-px-census) — 두 칸 같은 offsetParent
       tok: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-1')),
-      cols: bs.slice(0, 6).map((b, i) => Math.round(b.getBoundingClientRect().left) === Math.round(bs[i + 6].getBoundingClientRect().left)) };
+      cols: bs.slice(0, 6).map((b, i) => b.offsetLeft === bs[i + 6].offsetLeft) };   // 레이아웃 px(같은 offsetParent)
   });
   expect(r.n).toBe(12);
   expect(r.rows, '★두 줄이 아니다').toBe(2);
@@ -282,7 +282,7 @@ test('P9 Stroke ＋ 누르면 두께·색·위치가 펼쳐지고 단추가 − 
   await add.click();
   await expect(page.locator('#txt-stroke-controls'), '★− 를 눌렀는데 그대로다').toBeHidden();
   /* ★기대 바뀜(시안 v10) — ＋ 단추(22 · 끝 칼럼) → 종류 메뉴 → 항목 */
-  expect(Math.round(await page.evaluate(() => document.getElementById('txt-fx-add-btn').getBoundingClientRect().width)), '★Effects ＋ 폭(시안 22)').toBe(22);
+  expect(await page.evaluate(() => document.getElementById('txt-fx-add-btn').offsetWidth), '★Effects ＋ 폭(시안 22 · 레이아웃 px)').toBe(22);
   await page.click('#txt-fx-add-btn');
   await expect(page.locator('#txt-fx-menu'), '★메뉴가 안 뜬다').toBeVisible();
   const items = await page.locator('#txt-fx-menu [data-fx]').allTextContents();
