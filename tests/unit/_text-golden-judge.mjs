@@ -161,7 +161,7 @@ const ids = (root) => all(root).filter((k) => k.attrs.id).map((k) => k.attrs.id)
 const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.indexOf(x); if (i >= 0) r.splice(i, 1); } return r; };
 
 /* ⑤ 패딩 새 이름(Q25 · Q24 태그) — BASE 의 «왼쪽 패딩»·«오른쪽 패딩»(→ U2 «왼쪽»·«오른쪽») 도 한 걸음에 */
-const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우측패딩', '왼쪽': '좌측패딩', '오른쪽': '우측패딩', '상하': '상하패딩', '좌우 패딩': '태그 좌우패딩' };
+const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우측패딩', '왼쪽': '좌측패딩', '오른쪽': '우측패딩', '상하': '상하패딩', '좌우 패딩': '태그 좌우' };   /* 태그 = Q24 «태그 좌우패딩»의 짧은 라벨(시안 v9 · 이름 전체는 title) */
 const LABEL_DROPPED = ['Font', '글자색', '너비'];   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
 const ID_ADDED = [/^psec-[a-z]+(-head|-body)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];

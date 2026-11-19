@@ -120,7 +120,7 @@ test('R5a 패딩 새 이름 — 블럭 줄 «상하패딩·좌우패딩·좌측�
   const src = Object.fromEntries(files);
   assert.match(src['prop-step'], />좌측패딩<[\s\S]*id="stb-padl-slider"/);
   assert.match(src['prop-table'], />좌우패딩</, '★표 «좌우 여백» → «좌우패딩»(v6)');
-  assert.match(src['prop-text-template'], /sliderRowHTML\('태그 좌우패딩', 'txt-label-padx-slider'/);
+  assert.match(src['prop-text-template'], /sliderRowHTML\('태그 좌우', 'txt-label-padx-slider'[^\n]*title="태그 좌우패딩"/, '★태그 알약 여백 = 짧은 라벨 «태그 좌우» + title(시안 v9 · Q24)');
   /* Q27 — 뜻이 다른 줄은 그대로 */
   assert.match(stripComments(readSrc(ROOT, 'js/props/prop-section.js')), /아래 패딩/);
   assert.match(stripComments(readSrc(ROOT, 'js/props/prop-grid.js')), /위아래 여백/);
@@ -184,4 +184,11 @@ test('R12b 켜짐 = 정확히 한 칸 — H1·Label·Bubble·Liner·Icon · 곡�
   assert.deepEqual(on({ currentClass: 'tb-body', isIconText: true }), ['Icon'], '★아이콘텍스트에 Body 가 켜진다(내용 칸 .itb-text)');
   const g = /id="txt-kind-group">([\s\S]*?)\n {6}<\/div>/.exec(T.buildTextPropsHtml({ ...GOLDEN_STATE, isIconText: true }))?.[1] || '';
   assert.equal((g.match(/<button(?![^>]*disabled)/g) || []).length, 0, '★아이콘텍스트에서 눌리는 바꾸기 칸이 있다(바꾸기 길 없음)');
+});
+
+/* B(시안 v9 #4) — 텍스트 패널 절의 칸 위 · 칸 안 라벨 = --ui-fs-base 하나. 양성대조: 그 규칙을 지우면 빨강 */
+test('R13 텍스트 패널 라벨 글자 크기 = --ui-fs-base(.prop-field-label · .prop-xy-label) · 다른 패널 기본 그대로', () => {
+  const props = css('css/editor-props.css');
+  assert.match(props, /\.prop-section\[data-order="text"\] :is\(\.prop-field-label, \.prop-xy-label\)\s*\{\s*font-size:\s*var\(--ui-fs-base\)/);
+  assert.match(props, /\.prop-field-label\s*\{\s*font-size:\s*var\(--ui-fs-10\)/, '[대조] 전역 기본은 그대로');
 });

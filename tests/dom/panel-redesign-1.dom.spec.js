@@ -308,3 +308,18 @@ test('P12b 메뉴로 만든 텍스트 블럭마다 켜진 타입 칸 = 정확히
   }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* B(시안 v9 #4) — 텍스트 패널 라벨 크기 하나(칸 위 «Alignment» · 칸 안 «X»·«너비» = .prop-label 과 같은 크기). CTL prd1-13-labelfs.patch(규칙 삭제) → 빨강 */
+test('P13 텍스트 패널 — 칸 위·칸 안 라벨 글자 크기 = .prop-label 크기', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const fs = (el) => getComputedStyle(el).fontSize;
+    const want = fs(document.querySelector('#panel-right .prop-section[data-sec] .prop-label'));
+    const got = [...document.querySelectorAll('#panel-right .prop-section[data-sec] :is(.prop-field-label, .prop-xy-label)')].map((l) => [l.textContent.trim(), fs(l)]);
+    return { want, got };
+  });
+  expect(r.got.length, '[전제] 칸 위·칸 안 라벨이 있다').toBeGreaterThan(2);
+  for (const [t, f] of r.got) expect(f, `★«${t}» 라벨 크기`).toBe(r.want);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

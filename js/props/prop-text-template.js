@@ -187,7 +187,7 @@ export function buildTextPanelSpec(state) {
 
   const _paddingHtml = isOverlayTb ? '' : `
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
-      ${sliderRowHTML('태그 좌우패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
+      ${sliderRowHTML('태그 좌우', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX }).replace('<span class="prop-label">', '<span class="prop-label" title="태그 좌우패딩">')}
       </div>
       <div class="prop-row">
         <span class="prop-label">상하패딩</span>
