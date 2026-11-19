@@ -33,13 +33,15 @@ const st = (page) => page.evaluate(() => {
     backdrop: cs.backdropFilter || cs.webkitBackdropFilter || '' };
 });
 const shadow = (page) => page.evaluate(() => window.setFxShadow(document.getElementById('rE'), { state: 'on', x: 10, y: 10, blur: 0, op: 100 }, { history: false }).ok);
+/* 크롬은 계산된 filter 의 색을 «앞»에 쓴다(지혜맥 실측 "drop-shadow(rgb(0, 0, 0) 10px 10px 0px)") — 색 자리 무관 · 뜻(오프셋 10·10 · 흐림 0 drop-shadow) 그대로 */
+const DROP_10 = /^drop-shadow\((?:rgba?\([^)]*\) )?10px 10px 0px(?: |\))/;
 const redact = (page, on) => page.evaluate((on) => window.updateShapeBlock('rE', { shapeRedact: on }).ok, on);
 
 test('R1 [대조] 가림막 없음 — drop-shadow 그대로', async ({ page }) => {
   const errs = await scene(page);
   expect(await shadow(page)).toBe(true);
   const s = await st(page);
-  expect(s.filter).toMatch(/^drop-shadow\(10px 10px 0px /);
+  expect(s.filter).toMatch(DROP_10);
   expect(s.box, '★가림막이 아닌데 상자 그림자가 생겼다').toBe('');
   expect(errs).toEqual([]);
 });
@@ -77,7 +79,7 @@ test('R4 가림막 끔 — drop-shadow 로 돌아온다', async ({ page }) => {
   expect(await redact(page, false)).toBe(true);
   await expect.poll(() => st(page).then(s => s.redact)).toBe(false);
   const s = await st(page);
-  expect(s.filter).toMatch(/^drop-shadow\(10px 10px 0px /);
+  expect(s.filter).toMatch(DROP_10);
   expect(s.box).toBe('');
   expect(errs).toEqual([]);
 });

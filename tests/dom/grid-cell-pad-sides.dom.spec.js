@@ -7,7 +7,7 @@
  *   P4 다시 묶기 = 위 값 한 값(padding) · padSides 지워짐
  *   P5 «모든 칸» 절도 같은 손잡이 — 풀고 한 변 바꾸면 모든 칸이 따른다
  *   P6 저장→다시 열기 — padSides·화면 유지
- *   양성대조: _patches/GRID-PADSIDES-CTL-render-ignores.patch(렌더러가 padSides 를 안 읽음) → P3 빨강
+ *   양성대조: _patches/GRID-PADSIDES-CTL-render-ignores.patch(렌더러가 padSides 를 안 읽음) → 시험 «P2~P4»(한 시험 · P3 계산 스타일 단언에서 짐)·P5(모든 칸 계산 스타일)·P6(다시 연 화면) 빨강 · P1 초록(옛 바이트) — 지혜맥 실측과 같음
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
