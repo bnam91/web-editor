@@ -222,3 +222,19 @@ test('V13 섹션 밖 드랍 뒤 ⌘Z 한 번 = 넣기 전', async ({ page }) => 
   await expect.poll(() => page.evaluate((s) => document.getElementById(s)?.querySelectorAll('.vector-block').length ?? -1, sid), '★⌘Z 한 번에 빠진다').toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* V14 들여오기 «넣기 하나 = ⌘Z 한 번»이 restamp(두 프레임 뒤 다시 찍기)에 기대지 않는다(지혜맥 261120 V13 1/3 원인 · 결정적으로 재는 칸)
+ *   원인: 끌어 놓기·붙여넣기·파일 고르기가 모듈 안 addVectorFromSvgText 를 불러 insert-history 감싸기(window 문)를 건너뜀 →
+ *         끝 표본을 안쪽 addVectorBlock 이 P5 펜 바꿈·오버레이 띄우기 «전»에 찍음 → 맞는 끝 표본은 restamp 뿐 → 그 전 ⌘Z 면 벡터가 남음.
+ *   잰다: restampHistoryTop 을 무동작으로 막고(경합 없애기) 섹션 밖 드랍 → 곧장 ⌘Z 한 번 = 벡터 0.
+ * 양성대조: _patches/vector-p2-CTL-svg-unwrapped.patch(세 입구를 모듈 안 이름으로 되돌림) → V14 빨강. */
+test('V14 섹션 밖 드랍 → restamp 없이도 ⌘Z 한 번 = 넣기 전(넣기 끝 표본 = 펜 바꿈·띄우기 뒤)', async ({ page }) => {
+  const { errs, sid } = await scene(page);
+  await page.evaluate(() => { window.restampHistoryTop = () => {}; });   // 두 프레임 뒤 다시 찍기를 막는다 — 끝 표본은 넣기 문이 «돌아올 때» 찍은 것뿐
+  await dropOutside(page, sid, { name: 'mark.svg', type: 'image/svg+xml', body: RED });
+  await expect.poll(() => floats(page, sid).then((v) => v.length), '[전제] 오버레이 벡터 하나').toBe(1);
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => page.evaluate((s) => document.getElementById(s)?.querySelectorAll('.vector-block').length ?? -1, sid), '★restamp 없이 ⌘Z 한 번에 빠진다').toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

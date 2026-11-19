@@ -397,6 +397,9 @@ function svgToPenData(clean) {
   };
 }
 
+/* 파일 고르기·끌어 놓기·붙여넣기는 «window 문»으로 부른다 — insert-history 가 window.addVectorFromSvgText 를 감싸 «넣기 하나 = ⌘Z 한 번»(끝 표본 = P5 펜 바꿈·오버레이 뒤)을 찍는다.
+   모듈 안 이름으로 부르면 감싸기를 건너뛰어 안쪽 addVectorBlock 이 펜 바꿈·띄우기 «전»에 끝 표본을 찍고, 맞는 값은 두 프레임 뒤 restamp 뿐 → 그 전에 ⌘Z 면 벡터가 남았다(지혜맥 261120 V13 1/3). */
+const _addSvgWrapped = (...a) => (typeof window.addVectorFromSvgText === 'function' ? window.addVectorFromSvgText : addVectorFromSvgText)(...a);
 function addVectorFromSvgText(text, label = 'SVG', place = null) {
   const clean = sanitizeSvgString(String(text || '').trim(), { maxLen: SVG_MAX_LEN_CEIL });
   if (!clean) { window.showToast?.('SVG 로 읽을 수 없습니다 — <svg> 로 시작하고 200KB 이하여야 합니다.'); return null; }
@@ -437,7 +440,7 @@ document.addEventListener('drop', async (e) => {
   if (!files.length) return;
   e.preventDefault();
   window.selectSection?.(sec);
-  for (const f of files) addVectorFromSvgText(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG');
+  for (const f of files) _addSvgWrapped(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG');
 });
 /* 섹션 «밖» 드랍(섹션 사이·캔버스 밖 회색 바탕) — .svg 만 실린 drop 은 «가장 가까운 섹션»의 오버레이 벡터로.
    캡처 단계로 #canvas-wrap 에서 먼저 받아 스크래치 그림 처리기(scratch-pad.js wrap drop · 버블)에 안 가게 한다.
@@ -467,7 +470,7 @@ _canvasWrap?.addEventListener('drop', async (e) => {
   if (!sec) return;
   e.preventDefault(); e.stopImmediatePropagation();
   const { clientX, clientY } = e;
-  for (const [i, f] of files.entries()) addVectorFromSvgText(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG', { sec, clientX: clientX + i * 24, clientY: clientY + i * 24 });
+  for (const [i, f] of files.entries()) _addSvgWrapped(await f.text(), (f.name || '').replace(/\.svg$/i, '') || 'SVG', { sec, clientX: clientX + i * 24, clientY: clientY + i * 24 });
 }, true);
 /* 붙여넣기 — 글자가 SVG 일 때만. 그림 항목이 같이 오면 종전대로 스크래치가 그림으로 받는다(두 번 붙지 않게 여기서 손을 뗀다).
    ⌘V keydown 의 고디터 안 붙여넣기(editor.js · 30ms 뒤)는 스크래치와 같은 깃발로 양보시킨다. */
@@ -481,7 +484,7 @@ document.addEventListener('paste', (e) => {
   e.preventDefault();
   window._scratchJustHandledPaste = true;
   setTimeout(() => { window._scratchJustHandledPaste = false; }, 100);
-  addVectorFromSvgText(text, 'SVG');
+  _addSvgWrapped(text, 'SVG');
 });
 
 // ── 수정 ──────────────────────────────────────────────────────────────────────
