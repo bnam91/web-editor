@@ -161,7 +161,7 @@ const _strokeAttr = (el, a) => el.style?.getPropertyValue(a) || el.getAttribute(
 /** 선 정보 — 펜은 dataset · 가져온 SVG 는 첫 선 요소에서 읽는다. has=false 면 선 칸을 안 보인다. */
 function vectorStrokeInfo(block) {
   if (block.dataset.penNodes) {
-    return { has: true, width: parseFloat(block.dataset.strokeWidth) || 2, cap: block.dataset.strokeCap || 'round', dash: block.dataset.strokeDash || 'solid' };
+    return { has: block.dataset.penStroke !== 'none', width: parseFloat(block.dataset.strokeWidth) || 2, cap: block.dataset.strokeCap || 'round', dash: block.dataset.strokeDash || 'solid' };
   }
   const svg = block.dataset.svg ? _parseSvg(block.dataset.svg) : null;
   const el = svg && _strokedEls(svg)[0];
@@ -243,11 +243,13 @@ function rebuildPenSvg(block) {
   const vbm = /viewBox="0 0 ([\d.]+) ([\d.]+)"/i.exec(block.dataset.svg || '');
   const vw = vbm ? vbm[1] : w, vh = vbm ? vbm[2] : h;
   const cap  = STROKE_CAPS.includes(block.dataset.strokeCap) ? block.dataset.strokeCap : 'round';
+  const join = ['miter', 'round', 'bevel'].includes(block.dataset.strokeJoin) ? block.dataset.strokeJoin : 'round';
   const dash = _dashArray(block.dataset.strokeDash, sw);
+  const strokeAttr = block.dataset.penStroke === 'none' ? 'none' : stroke;   // SVG→패스(P5)로 온 «채움만» 도형
   block.dataset.svg =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vw} ${vh}" width="${w}" height="${h}">` +
-    `<path d="${d}" fill="${fillAttr}" stroke="${stroke}" stroke-width="${sw}" ` +
-    `stroke-linejoin="round" stroke-linecap="${cap}"${dash ? ` stroke-dasharray="${dash}"` : ''}/></svg>`;
+    `<path d="${d}" fill="${fillAttr}" stroke="${strokeAttr}" stroke-width="${sw}" ` +
+    `stroke-linejoin="${join}" stroke-linecap="${cap}"${dash ? ` stroke-dasharray="${dash}"` : ''}/></svg>`;
   return true;
 }
 
@@ -273,6 +275,8 @@ function makeVectorBlock(data = {}) {
   if (data.penFill    !== undefined) block.dataset.penFill    = String(data.penFill);
   if (data.strokeCap  !== undefined) block.dataset.strokeCap  = String(data.strokeCap);
   if (data.strokeDash !== undefined) block.dataset.strokeDash = String(data.strokeDash);
+  if (data.strokeJoin !== undefined) block.dataset.strokeJoin = String(data.strokeJoin);
+  if (data.penStroke  !== undefined) block.dataset.penStroke  = String(data.penStroke);
 
   const inner = document.createElement('div');
   inner.className = 'vb-inner';
@@ -310,12 +314,103 @@ function addVectorBlock(svgString = '', opts = {}) {
 // 크기 = svgImportSize(뿌리 width·height → viewBox · 긴 변 400). 색 치환·다색(P1-2·P2)은 이번 범위 밖.
 // place = { sec, clientX, clientY } 면 그 섹션에 넣고 «오버레이(떠 있음)»로 띄워 놓은 점(화면 좌표)에 가운데를 둔다 — 섹션 «밖» 드랍.
 //   같은 입구 한 번 안에서 띄우므로 insert-history 끝 표본이 띄운 «뒤»를 찍는다(⌘Z 한 번).
+/* ── SVG → 패스 (VECTOR-SVG-TO-PATH-P5-01) ──────────────────────────────────────
+   들여온 SVG 가 «펜 패스로 똑같이 다시 그려지는» 꼴이면 처음부터 펜 벡터(penNodes)로 넣는다 — 점 편집이 된다(변환 단추 없음 · 현빈 11/19).
+   허용 = 뿌리 svg 안에 <path> 하나(title·desc 는 됨) · 하위 경로 하나(M 하나 · Z 는 끝에만) · 명령 M L H V C S Q T Z(큰·작은) ·
+     단색(fill·stroke 칠이 한 색 또는 none) · transform·style·opacity·dasharray·evenodd·preserveAspectRatio·class·id 없음.
+   그 밖(여럿·evenodd·transform·다색·호 A …)은 지금처럼 그림 벡터 — 조용히 망가뜨리지 않는다(돌려주는 값 null). */
+const _P5_PATH_OK = new Set(['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill-rule']);
+const _P5_ROOT_OK = new Set(['xmlns', 'xmlns:xlink', 'viewbox', 'width', 'height', 'version', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill-rule']);
+/** path d → { nodes, closed } | null(못 받는 꼴) — 펜 노드 = { x, y, type, hIn, hOut } (pen-tool.js 와 같은 꼴) */
+function _pathToNodes(d, ox, oy) {
+  const tok = String(d).match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?/g) || [];
+  if (!tok.length || !/^[Mm]$/.test(tok[0])) return null;
+  const nodes = [];
+  let i = 0, cmd = '', cx = 0, cy = 0, closed = false, lastC = null, lastQ = null, moves = 0;
+  const num = () => { const v = parseFloat(tok[i++]); if (!Number.isFinite(v)) throw 0; return v; };
+  const node = (x, y, hIn = null) => { const n = { x: x - ox, y: y - oy, type: 'corner', hIn: hIn && { x: hIn.x - ox, y: hIn.y - oy }, hOut: null }; nodes.push(n); cx = x; cy = y; return n; };
+  const out = (p) => { nodes[nodes.length - 1].hOut = { x: p.x - ox, y: p.y - oy }; };
+  try {
+    while (i < tok.length) {
+      if (/[a-zA-Z]/.test(tok[i])) cmd = tok[i++];
+      else if (!cmd || /[Zz]/.test(cmd)) return null;
+      if (closed) return null;                       // Z 뒤에 무엇이든 = 하위 경로 둘
+      const rel = cmd === cmd.toLowerCase(), C = cmd.toUpperCase();
+      const X = (v) => (rel ? cx + v : v), Y = (v) => (rel ? cy + v : v);
+      let qc = null, cc = null;
+      if (C === 'M') { if (++moves > 1) return null; const x = X(num()), y = Y(num()); node(x, y); cmd = rel ? 'l' : 'L'; }
+      else if (C === 'L') { const x = X(num()), y = Y(num()); node(x, y); }
+      else if (C === 'H') { node(X(num()), cy); }
+      else if (C === 'V') { node(cx, Y(num())); }
+      else if (C === 'C' || C === 'S') {
+        const c1 = C === 'C' ? { x: X(num()), y: Y(num()) } : (lastC ? { x: 2 * cx - lastC.x, y: 2 * cy - lastC.y } : { x: cx, y: cy });
+        const c2 = { x: X(num()), y: Y(num()) }, x = X(num()), y = Y(num());
+        out(c1); node(x, y, c2); cc = c2;
+      } else if (C === 'Q' || C === 'T') {
+        const q = C === 'Q' ? { x: X(num()), y: Y(num()) } : (lastQ ? { x: 2 * cx - lastQ.x, y: 2 * cy - lastQ.y } : { x: cx, y: cy });
+        const x = X(num()), y = Y(num()), x0 = cx, y0 = cy;
+        out({ x: x0 + (2 / 3) * (q.x - x0), y: y0 + (2 / 3) * (q.y - y0) });
+        node(x, y, { x: x + (2 / 3) * (q.x - x), y: y + (2 / 3) * (q.y - y) }); qc = q;
+      } else if (C === 'Z') { closed = true; }
+      else return null;                              // 호(A) 등
+      lastC = cc; lastQ = qc;
+    }
+  } catch (_) { return null; }
+  if (closed && nodes.length > 2) {                  // 끝 점이 첫 점과 같으면 합친다(닫는 선분은 펜이 그린다)
+    const a = nodes[0], b = nodes[nodes.length - 1];
+    if (Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6) { a.hIn = b.hIn; nodes.pop(); }
+  }
+  return nodes.length >= 2 ? { nodes, closed } : null;
+}
+/** 거른 svg → 펜 데이터 | null(그림 벡터로 둔다) */
+function svgToPenData(clean) {
+  const svg = _parseSvg(clean);
+  if (!svg) return null;
+  const kids = [...svg.querySelectorAll('*')].filter((e) => !['title', 'desc'].includes(e.localName));
+  if (kids.length !== 1 || kids[0].localName !== 'path' || kids[0].parentElement !== svg) return null;
+  const path = kids[0];
+  if ([...svg.attributes].some((a) => !_P5_ROOT_OK.has(a.name.toLowerCase()))) return null;
+  if ([...path.attributes].some((a) => !_P5_PATH_OK.has(a.name.toLowerCase()))) return null;
+  const eff = (a) => path.getAttribute(a) ?? svg.getAttribute(a);
+  if ((eff('fill-rule') || 'nonzero').trim() !== 'nonzero') return null;
+  const mono = _monoPaint(svg);
+  if (!mono) return null;
+  const rawFill = eff('fill') ?? 'black', rawStroke = eff('stroke') ?? 'none';
+  if ([rawFill, rawStroke].some((v) => /^\s*(currentcolor|url\(|inherit)/i.test(v))) return null;   // 펜은 글자 색만 안다
+  const fill = _paint(rawFill), stroke = _paint(rawStroke);
+  if (!fill && !stroke) return null;
+  /* 노드 = 원본 viewBox 좌표에서 원점만 뺀 것 · 펜 svg viewBox = 0 0 vbW vbH(원본 폭·높이) — 없으면 width·height */
+  const vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+  const hasVb = vb.length === 4 && vb.every(Number.isFinite) && vb[2] > 0 && vb[3] > 0;
+  const [ox, oy, vbW, vbH] = hasVb ? vb : [0, 0, parseFloat(svg.getAttribute('width')), parseFloat(svg.getAttribute('height'))];
+  if (!(vbW > 0 && vbH > 0)) return null;
+  const p = _pathToNodes(path.getAttribute('d') || '', ox, oy);
+  /* shortcut: 앵커 상한 500 · 펜 JSON 상한(pen-tool PEN_NODES_MAX 200000)과 같은 뜻 — 손그림 두들(앵커 수백~)은 편집 오버레이가 무거워 그림으로 둔다 · 실측 뒤 올린다 */
+  if (!p || p.nodes.length > 500 || JSON.stringify(p.nodes).length > 200000) return null;
+  const color = mono === 'black' ? '#000000' : mono;
+  const sw = parseFloat(eff('stroke-width') ?? '1');
+  return {
+    vbW, vbH, penNodes: JSON.stringify(p.nodes), penClosed: p.closed ? '1' : '0', color,
+    penFill: fill ? color : 'none', penStroke: stroke ? '' : 'none', strokeWidth: String(sw > 0 ? sw : 1),
+    strokeCap: STROKE_CAPS.includes(eff('stroke-linecap')) ? eff('stroke-linecap') : 'butt',
+    strokeJoin: ['miter', 'round', 'bevel'].includes(eff('stroke-linejoin')) ? eff('stroke-linejoin') : 'miter',
+  };
+}
+
 function addVectorFromSvgText(text, label = 'SVG', place = null) {
   const clean = sanitizeSvgString(String(text || '').trim(), { maxLen: SVG_MAX_LEN_CEIL });
   if (!clean) { window.showToast?.('SVG 로 읽을 수 없습니다 — <svg> 로 시작하고 200KB 이하여야 합니다.'); return null; }
   const { w, h } = svgImportSize(clean);
   if (place?.sec) { window.deselectAll?.(); window.selectSection?.(place.sec); }
   const block = window.addVectorBlock(clean, { w, h, label });   // window 문 = 펜툴과 같은 입구(insert-select 선택 따라가기·insert-history 감싸기를 탄다)
+  const pen = block && svgToPenData(clean);
+  if (pen) {   // P5 — 펜 패스로 받을 수 있는 꼴이면 점 편집이 되는 펜 벡터로(같은 그림 · viewBox = 원본 폭·높이)
+    const { vbW, vbH, ...keys } = pen;
+    for (const [k, v] of Object.entries(keys)) { if (v === '') delete block.dataset[k]; else block.dataset[k] = v; }
+    block.dataset.svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}"></svg>`;   // 재빌드가 읽을 viewBox(노드 좌표 판) — 곧 덮인다
+    if (rebuildPenSvg(block)) renderVector(block);
+    else { ['penNodes', 'penClosed', 'penFill', 'penStroke', 'strokeWidth', 'strokeCap', 'strokeJoin'].forEach((k) => delete block.dataset[k]); block.dataset.svg = clean; block.dataset.color = '#000000'; renderVector(block); }
+  }
   if (block && place?.sec && enterFloat(posElOf(block))) {
     const z = (window.currentZoom || 40) / 100, r = place.sec.getBoundingClientRect();
     /* 섹션 상자 안으로 조인다 — 캔버스 밖 회색에 놓아도 «그 섹션의» 오버레이다(밖에 두면 섹션 PNG 에서 잘리고 섹션 overflow 에 가린다) */
@@ -570,7 +665,7 @@ window.addVectorBlock  = addVectorBlock;
 window.addVectorFromSvgText = addVectorFromSvgText;
 window.renderVector    = renderVector;
 window.setVectorColor  = setVectorColor;   // 색 바꾸기 한 문(prop-vector · MCP update)
-Object.assign(window, { vectorPaintGroups, setVectorGroupColor, vectorStrokeInfo, setVectorStroke });   // P2 — prop-vector
+Object.assign(window, { vectorPaintGroups, setVectorGroupColor, vectorStrokeInfo, setVectorStroke, svgToPenData });   // P2 — prop-vector · P5
 /* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
    ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.
    자리는 벡터가 dataset.x·y 를 안 쓰니 손잡이 바닥 길과 같은 style.left·top + offsetX·Y. */
