@@ -68,7 +68,8 @@ test('U2 타입 클래스가 둘 섞인 비정상 입력도 하나로 정규화'
 
 test('U2b 타입 목록 = 패널 버튼 data-cls 전부', () => {
   const tpl = read('js/props/prop-text-template.js');
-  const btns = [...tpl.matchAll(/class="prop-type-btn[^"]*"\s+data-cls="([^"]+)"/g)].map(m => m[1]);
+  /* ★기대 바뀜(패널 재설계 1차 ⑫ 매핑 교정) — 타입 칸이 한 도우미 _kb('tb-…', 글)로 그려진다(켜짐 = 정확히 한 칸). 단추 목록 = 그 호출들 */
+  const btns = [...tpl.matchAll(/_kb\('(tb-[a-z0-9]+)'/g)].map(m => m[1]);
   assert.ok(btns.length >= 7, 'buttons found: ' + btns.length);
   assert.deepEqual([...btns].sort(), [...TEXT_TYPE_CLASSES].sort());
 });
