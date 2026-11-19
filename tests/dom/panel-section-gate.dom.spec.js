@@ -199,41 +199,31 @@ test('G8 effects-registry 카드 칸 = Effects — 진짜 에셋 블록 + 그림
   expect(red, '[양성대조] 카드 목록이 Fill 절이면 빨강').toContain('소유 위반: asset-fxsh-color 는 effects 절 속성인데 fill 절에 있다');
 });
 
-test('G9 빈 머리 절 — 몸의 줄이 전부 display:none 이면 빨강 · 접힘은 빈 것이 아니다(진짜 DOM)', async ({ page }) => {
+test('G9 빈 머리 절 — 몸의 줄이 전부 display:none 이면 빨강(진짜 DOM)', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
   expect(judgePanel(await readPanel(page), SPEC), '[전제] 정본 판 통과').toEqual([]);
-  await page.locator('#psec-size-head').click();   // 접기 — 보이는 컨트롤이 «접혀 안 보이는» 것은 빈 머리가 아니다
-  await expect(page.locator('#psec-size-body')).toBeHidden();
-  expect(judgePanel(await readPanel(page), SPEC), '★접힌 절을 빈 머리로 셌다').toEqual([]);
-  await page.locator('#psec-size-head').click();
+  /* ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 옛 «접힌 절은 빈 머리가 아니다» 칸은 접기가 없어져 걷었다 */
   /* U4 실측 꼴(가림막 켠 Fill · 떠 있는 iconify 의 Layout): 몸의 줄이 전부 display:none */
   await page.evaluate(() => document.querySelectorAll('#psec-size-body > *').forEach((r) => { r.style.display = 'none'; }));
   expect(judgePanel(await readPanel(page), SPEC), '[양성대조] 줄이 다 숨은 절을 못 잡는다').toEqual(['빈 머리 절: size — 보이는 컨트롤 0(렌더러가 그 절을 안 내야 한다)']);
 });
 
-test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
+/* ★기대 바뀜(패널 재설계 1차 · 현빈 확정 «표준 절 접기 없음») — 옛 G3 은 «접기가 블록을 바꿔도·재로드해도 남는다»였다.
+ *   이제: 머리를 눌러도 안 접히고, 옛 판이 남긴 저장(gd-panel-collapsed)이 있어도 다시 불러온 뒤 절이 펼쳐져 있다. */
+test('G3 접기 없음 — 머리를 눌러도 그대로 · 옛 접기 저장이 있어도 재로드 뒤 펼침', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });
   const body = (k) => page.locator(`#psec-${k}-body`);
-  await expect(body('size'), '[전제] 기본 펼침').toBeVisible();
+  await expect(body('size'), '[전제] 펼침').toBeVisible();
   await page.locator('#psec-size-head').click();
-  await expect(body('size')).toBeHidden();
-  await expect(page.locator('#psec-size-head')).toHaveAttribute('aria-expanded', 'false');
-  // 다른 블록 — 같은 key(size)는 접혀 있고 다른 key 는 펼침
-  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
-  await expect(page.locator('#brg-h-slider'), '[전제] 브릿지 패널').toBeAttached();
-  await expect(body('size')).toBeHidden();
-  await expect(body('fill')).toBeVisible();
-  // 다시 불러오기 — localStorage 에서 복원
+  await expect(body('size'), '★머리를 누르니 몸이 숨었다').toBeVisible();
+  await page.evaluate(() => localStorage.setItem('gd-panel-collapsed', JSON.stringify(['size', 'fill'])));
   await page.reload();
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.groupSelectedBlocks === 'function', null, { timeout: 20000 });
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });
-  await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });
-  await expect(page.locator('#gap-slider'), '[전제] 갭 패널').toBeAttached();
-  await expect(body('size'), '★재로드 뒤 접힘이 안 남았다').toBeHidden();
-  // 접힌 채로도 DOM 은 있다(id 조회 spec 보호) · 다시 펼치면 저장에서 빠진다
-  await page.locator('#psec-size-head').click();
-  await expect(body('size')).toBeVisible();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('gd-panel-collapsed') || '[]'))).toEqual([]);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  await expect(page.locator('#brg-h-slider'), '[전제] 브릿지 패널').toBeAttached();
+  await expect(body('size'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
+  await expect(body('fill'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
 });

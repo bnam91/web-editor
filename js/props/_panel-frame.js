@@ -3,46 +3,14 @@
  * ★블록 패널은 패널 전체를 글자로 짜 맞추지 않는다 — 절을 sec() 로 등록하고 renderPanel() 이 그린다:
  *     renderPanel(block, { header: blockHeaderHTML({...}), sections: [ sec('size', html), sec('fill', html), … ] })
  *   ⇒ 빈 html 절은 버리고(단 headTools 가 있으면 머리만 그린다) · _section-spec.js SECTION_ORDER 로 줄 세우고(special 은 선언순) · 같은 key 두 번이면 throw ·
- *     절 머리 = _helpers.js disclosureSectionHtml(쉐브론 한 벌) · 접기 = 절 key 단위 전 블록 공통(localStorage 'gd-panel-collapsed').
+ *     절 머리 = 제목 글자만(쉐브론·클릭 접기 없음 — 패널 재설계 1차 · 현빈 확정 · Figma UI3 절은 안 접힌다).
+ *     절 «안» 하위 접기(_helpers.js disclosureSectionHtml 3인자 · discSecOpen)는 그대로다.
  * ★renderPanel 은 동기다 — 호출 뒤 getElementById 배선 코드는 그대로 돈다(절 «안» 마크업·id·핸들러는 한 글자도 안 바뀐다).
- * ★접기 배선 = propPanel 위임 click + keydown(Enter/Space) 한 번(처음 renderPanel 때). 기본 = 전부 펼침.
+ * ★옛 접기 기억(localStorage 'gd-panel-collapsed')은 더 읽지 않는다 — 남은 키가 절을 숨기면 열 길이 없다.
  * ⛔이 파일에는 색·px 리터럴 0 — 모양은 css/editor-props.css 「패널 절」 블록(var(--ui-*))만 (check-design-tokens.sh 하드게이트).
  */
 import { propPanel } from '../globals.js';
-import { disclosureSectionHtml } from './_helpers.js';
 import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, sectionOrderFor } from './_section-spec.js';
-
-const LS_KEY = 'gd-panel-collapsed';
-let _memCollapsed = [];   // localStorage 가 없거나(유닛 vm) 막혔을 때의 대역
-let _lsWriteFailed = false;   // 마지막 저장이 던졌나 — 그때만 «키 없음(null)»을 기억으로 메운다
-
-function _loadCollapsed() {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      /* ★쓰기가 막혀(setItem 던짐) 기억에만 둔 접기를 getItem 의 null 이 «빈 집합»으로 덮어 다음 그리기에서 풀렸다(U6 · S8 측정 «LS null · 쓰기 0»).
-         ⇒ 마지막 저장이 실패했고 키가 없을 때만 기억으로 간다. 정상 저장소(쓰기 성공)는 옛 길 그대로 — 키가 지워지면(clear) 전부 펼침. */
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw == null && _lsWriteFailed) return new Set(_memCollapsed);
-      const v = JSON.parse(raw || '[]');
-      if (Array.isArray(v)) return new Set(v);
-    }
-  } catch { /* 막힌 저장소 — 아래 대역 */ }
-  return new Set(_memCollapsed);
-}
-function _saveCollapsed(set) {
-  _memCollapsed = [...set];
-  try { if (typeof localStorage !== 'undefined') { localStorage.setItem(LS_KEY, JSON.stringify(_memCollapsed)); _lsWriteFailed = false; } } catch { _lsWriteFailed = true; /* 대역만 */ }
-}
-
-/** 접기 상태 단위 — 절 key(전 블록 공통). special 은 제목별. */
-const _stateKey = (key, title) => (key === 'special' ? `special:${title}` : key);
-
-export function isSectionCollapsed(key) { return _loadCollapsed().has(key); }
-export function setSectionCollapsed(key, collapsed) {
-  const s = _loadCollapsed();
-  if (collapsed) s.add(key); else s.delete(key);
-  _saveCollapsed(s);
-}
 
 /** 절 하나 등록. title 은 special 에 필수, 그 밖엔 SECTION_TITLE 기본(주면 같은 영어 Title Case 규칙으로 검사). */
 export function sec(key, html, { title, headTools = '', id } = {}) {
@@ -62,7 +30,6 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
     if (seen.has(k)) throw new Error(`[panel-frame] 같은 절을 두 번 선언했다: ${k}`);
     seen.add(k);
   }
-  const collapsed = _loadCollapsed();
   let nSpecial = 0;
   const body = sections
     .map((s, i) => ({ s, i }))
@@ -70,13 +37,13 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
     .sort((a, b) => order.indexOf(a.s.key) - order.indexOf(b.s.key) || a.i - b.i)
     .map(({ s }) => {
       const id = s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`);
-      const stKey = _stateKey(s.key, s.title);
-      const open = !collapsed.has(stKey);
+      const stKey = s.key === 'special' ? `special:${s.title}` : s.key;
       return `
-    <div class="prop-section${open ? '' : ' is-collapsed'}" data-sec="${s.key}" data-sec-state="${stKey}"${order === SECTION_ORDER ? '' : ` data-order="${panel}"`} id="${id}">
-      <div class="prop-section-title-row prop-sec-head">${disclosureSectionHtml(`${id}-head`, s.title, open, `${id}-body`)}${s.headTools}
+    <div class="prop-section" data-sec="${s.key}" data-sec-state="${stKey}"${order === SECTION_ORDER ? '' : ` data-order="${panel}"`} id="${id}">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="${id}-head"><span class="prop-sec-title-text">${s.title}</span></div>${s.headTools}
       </div>
-      <div class="prop-sec-body" id="${id}-body"${open ? '' : ' hidden'}>${s.html}
+      <div class="prop-sec-body" id="${id}-body">${s.html}
       </div>
     </div>`;
     })
@@ -87,53 +54,10 @@ ${header}
     </div>` : '') + body;
 }
 
-const HEAD_SEL = '.prop-section[data-sec] > .prop-sec-head > .prop-section-title';
-let _wiredPanel = null;
-
-/** 그려진 절 하나를 열거나 닫는다 — DOM(몸 hidden · is-collapsed · aria-expanded) + 저장 상태. */
-function _setOpen(section, open) {
-  const bodyEl = section?.querySelector(':scope > .prop-sec-body');
-  const head = section?.querySelector(':scope > .prop-sec-head > .prop-section-title');
-  if (!section || !bodyEl) return;
-  bodyEl.hidden = !open;
-  section.classList.toggle('is-collapsed', !open);
-  head?.setAttribute('aria-expanded', String(open));   // 툴팁 없음 — 상태는 aria-expanded·쉐브론이 말한다(회전은 CSS)
-  setSectionCollapsed(section.dataset.secState, !open);
-}
-function _toggle(head) {
-  const section = head.closest('.prop-section[data-sec]');
-  const bodyEl = section?.querySelector(':scope > .prop-sec-body');
-  if (bodyEl) _setOpen(section, bodyEl.hidden);   // 지금 닫혀 있으면 연다
-}
-
-/** 절을 연다 — 저장 상태를 «펼침»으로 두고, 지금 패널에 그 절이 있으면 그 자리에서 연다.
- *  ★「줄을 더하는」 동작(효과 추가 · 별 색 줄 보이기 …)은 이걸 먼저 부른다 — 접힌 절에 새 줄이 들어가면 «아무 일도 안 한 것처럼» 보인다.
- *  key = 절 접기 단위(SECTION_ORDER key · special 은 'special:<제목>'). */
-export function expandSection(key) {
-  setSectionCollapsed(key, false);
-  const section = typeof document !== 'undefined'
-    ? [...(propPanel?.querySelectorAll?.('.prop-section[data-sec]') || [])].find((s) => s.dataset.secState === key) : null;
-  if (section) _setOpen(section, true);
-}
-/* window 다리 — effects-registry.js 는 import 0 규약이라(단위 하네스가 단독으로 싣는다) 이 이름으로 부른다. */
+/** 옛 «절을 연다» 문 — 표준 절은 이제 늘 펼쳐져 있어 할 일이 없다.
+ *  shortcut: 부르는 곳(15곳 · effects-registry window 다리)을 그대로 두려고 빈 함수로 남긴다 — 그 줄들을 걷을 때 같이 지운다. */
+export function expandSection() {}
 if (typeof window !== 'undefined') window.expandPanelSection = expandSection;
-
-function _wire(panel) {
-  if (!panel || _wiredPanel === panel) return;
-  _wiredPanel = panel;
-  panel.addEventListener('click', (e) => {
-    const head = e.target?.closest?.(HEAD_SEL);
-    if (head && panel.contains(head)) _toggle(head);
-  });
-  panel.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const head = e.target;
-    if (!head?.matches?.(HEAD_SEL)) return;
-    e.preventDefault();   // Space 가 패널을 스크롤하지 않게
-    e.stopPropagation();  // 절 머리에 포커스가 있을 때 Enter/Space 는 접기 하나만 — 문서 전역 단축키로 새지 않게
-    _toggle(head);
-  });
-}
 
 /** 패널을 그린다 — 동기. block 은 지금 그리는 대상(배선 코드가 이어서 쓴다 · 틀은 아직 안 읽는다). */
 /* 패널 그리기 세대 — 비동기 렌더러(showSectionProperties 의 await)가 «기다리는 사이 다른 패널이 그려졌나»를 잰다(U6 R9). */
@@ -142,7 +66,6 @@ export const panelRenderGen = () => _renderGen;
 export function renderPanel(block, { header = '', sections = [], panel = '' } = {}) {
   _renderGen++;
   propPanel.innerHTML = buildPanelHTML({ header, sections, panel });
-  _wire(propPanel);
   return propPanel;
 }
 

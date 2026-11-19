@@ -49,15 +49,11 @@
 .prop-section[data-sec] > .prop-sec-head { margin-bottom: 0; }
 .prop-section[data-sec] > .prop-sec-head + .prop-sec-body { margin-top: 0; }
 .prop-section[data-sec].is-collapsed { padding-bottom: 0; }
-.prop-sec-head > .prop-section-title {
-  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--ui-space-1); cursor: pointer;
+.prop-sec-head > .prop-section-title {   /* 제목 글자만 — 쉐브론·클릭 접기 없음(패널 재설계 1차) */
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center;
   font-size: var(--ui-sec-title-fs); color: var(--ui-sec-title-color);
 }
-.prop-sec-chevron { flex: 0 0 auto; transition: var(--ui-chevron-transition); }
-.prop-section-title[aria-expanded="false"] > .prop-sec-chevron { transform: rotate(-90deg); }
 .prop-sec-title-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prop-sec-head > .prop-section-title:hover { color: var(--ui-sec-title-color-hover); }
-.prop-sec-body[hidden] { display: none; }
 /* ★R6(U6 · style-write-no-subtree-recalc P1) — [style*=…] 을 «가운데 겹»(오른쪽에 자손 결합자가 더 있는 겹)에 두지 않는다.
    그 자리면 어느 요소의 인라인 style 쓰기(#canvas-scaler 높이)든 그 아래 «오른쪽 겹에 맞는 자손 전부»(여기선 아무 꼴도 안 거르는 :not)를 무효화해
    통째 재계산이 났다(실측 12118 요소 · 250c 와 같은 꼴). ⇒ ⑯ 둘째 줄의 가운데 겹은 [hidden] 만 본다(그 겹 안 :has 까지 — 숨은 그 겹의 자식은 어차피 안 그려진다 · 대가: 몸 직속에 인라인 display:none 꼬리가 있으면 한 겹 아래 마지막 카드의 margin 은 남는다).

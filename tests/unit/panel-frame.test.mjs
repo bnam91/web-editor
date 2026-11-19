@@ -8,9 +8,9 @@
  *   F2 중복 — 같은 key 두 번 / 같은 special 제목 두 번 → throw
  *   F3 빈 절 — html 이 빈 문자열·공백이면 DOM 에 없다
  *   F4 제목 규칙 — special 은 title 필수 · 단어(Title Case 또는 약어 2~4자) 1~2개(+개수) 아니면(한글·괄호·기호) → throw · 모르는 key → throw
- *   F5 접기 저장/복원 — localStorage 'gd-panel-collapsed' · 새 모듈 판에서도 복원 · 저장소 없거나 막혀도 안 죽는다
- *   F6 기본 = 전부 펼침 · aria-expanded/aria-controls == 몸통 id
- *   F7 disclosureSectionHtml 3인자 산출은 바이트 그대로(그리드 골든 보호) — 4인자(틀 판) = aria · 인라인 style/title 없음
+ *   F5 ★기대 바뀜(패널 재설계 1차 · 현빈 확정 «표준 절 접기 없음») — 옛 접기 기억(gd-panel-collapsed)이 남아도 절은 펼쳐 그린다
+ *   F6 절 머리 = 제목 글자만(쉐브론·role=button·aria-expanded 없음) · 몸 hidden 없음
+ *   F7 disclosureSectionHtml(하위 접기) 산출은 바이트 그대로(그리드 골든 보호) — 4인자 «틀 판» 갈래는 걷었다
  *   F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0 — check-design-tokens.sh 하드게이트와 같은 정규식
  *   F11 docs/styleguide.html 정적 14행 표 == SECTION_ORDER · SECTION_TITLE (문서 순서 기계검사)
  *   N2 ★양성대조 — 그 표의 두 행을 맞바꾼 판이면 F11 판정이 빨강
@@ -54,7 +54,7 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   if (storage !== undefined) ctx.localStorage = storage;
   vm.createContext(ctx);
   vm.runInContext(parts.join('\n;\n') + `
-;globalThis.__F = { sec, renderPanel, buildPanelHTML, isSectionCollapsed, setSectionCollapsed,
+;globalThis.__F = { sec, renderPanel, buildPanelHTML,
   fieldRowHTML, hintHTML, scopeChipsHTML, unwrapSection, expandSection, disclosureSectionHtml, disclosureChevronHtml, SECTION_ORDER, SECTION_ORDER_EXCEPT, sectionOrderFor, SECTION_TITLE, isValidSectionTitle, OWNERSHIP, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf };`, ctx);
   return { ...ctx.__F, propPanel };
 }
@@ -120,71 +120,37 @@ test('F4 제목 규칙 — special title 필수 · 규칙 밖 → throw · 모�
   for (const t of ['Tail', 'Cards 3', 'Arrow Line', 'Arrow Line 2', 'QA', 'FAQ', '3D', 'SVG', 'CTA', 'QA Ticket', 'SVG Presets', '3D Mockup', 'FAQ 2']) assert.doesNotThrow(() => F.sec('special', 'x', { title: t }), t);
 });
 
-/* F5b — setItem 은 던지고 getItem 은 null 인 저장소(쿼터·막힌 쓰기): 접기는 기억(_memCollapsed)에 남아 다음 그리기에서도 접힌 채여야 한다.
- *   양성대조: _panel-frame.js _loadCollapsed 를 옛 꼴(JSON.parse(getItem(...) || '[]') 이 배열이면 그대로)로 되돌리면 빨강(접기가 풀림). */
-test('F5b 쓰기만 막힌 저장소 — 접기가 다음 그리기에서 풀리지 않는다 · 정상 저장소 무변', () => {
-  const writeBlocked = { getItem: () => null, setItem: () => { throw new Error('QuotaExceededError'); } };
-  const W = loadFrame({ storage: writeBlocked });
-  assert.equal(W.isSectionCollapsed('effects'), false, '[전제] 기본 펼침');
-  W.setSectionCollapsed('effects', true);   // setItem 이 던진다 — 안 죽어야 한다
-  assert.equal(W.isSectionCollapsed('effects'), true, '★쓰기가 막히면 접기가 바로 풀린다(getItem 의 null 이 기억을 덮는다)');
-  const html = W.buildPanelHTML({ sections: [W.sec('effects', 'e'), W.sec('size', 's')] });
-  assert.match(html, /id="psec-effects-body" hidden>/, '★다시 그리면 접힌 절이 펼쳐진다');
-  assert.match(html, /id="psec-size-body">/, '★다른 절까지 접혔다');
-  /* 정상 저장소 — 저장된 값이 기억보다 이긴다(무변) */
-  const ls = memStorage({ 'gd-panel-collapsed': JSON.stringify(['fill']) });
-  const N = loadFrame({ storage: ls });
-  assert.equal(N.isSectionCollapsed('fill'), true);
-  assert.equal(N.isSectionCollapsed('effects'), false, '★정상 저장소에서 기억이 새어 들었다');
-  /* 정상 저장소에서 키가 지워지면(clear) 옛 길대로 전부 펼침 — 기억이 남아 접힌 채면 «정상 저장소 무변»이 깨진 것 */
-  N.setSectionCollapsed('size', true); ls._m.delete('gd-panel-collapsed');
-  assert.equal(N.isSectionCollapsed('size'), false, '★정상 저장소에서 키를 지웠는데 기억이 접기를 붙들었다');
+/* ★기대 바뀜(패널 재설계 1차 · 현빈 확정 «표준 절 접기 없음») — 옛 F5·F5b(접기 저장/복원)를 걷고 이것으로.
+ *   옛 판에서 접어 둔 사람의 localStorage 키가 남아도 절이 숨지 않아야 한다(숨으면 열 길이 없다).
+ *   양성대조: buildPanelHTML 에 `hidden` 을 다시 붙이는 판이면 빨강. */
+test('F5 옛 접기 기억이 남아도 절은 펼쳐 그린다 · 접기 API 없음', () => {
+  const F = loadFrame({ storage: memStorage({ 'gd-panel-collapsed': JSON.stringify(['size', 'effects', 'special:Tail']) }) });
+  const html = F.buildPanelHTML({ sections: [F.sec('size', 'x'), F.sec('effects', 'e'), F.sec('special', 'a', { title: 'Tail' })] });
+  assert.doesNotMatch(html, /hidden|is-collapsed/, '★옛 접기 기억이 절을 숨겼다');
+  assert.equal(F.isSectionCollapsed, undefined, '★접기 상태 API 가 남았다');
+  assert.equal(typeof F.expandSection, 'function', '[전제] 부르는 곳 15곳이 남아 있어 빈 함수는 있어야 한다');
+  assert.doesNotThrow(() => F.expandSection('effects'));
 });
 
-test('F5 접기 저장/복원 — localStorage · 새 모듈 판 복원 · 저장소 없음/막힘에도 안 죽는다', () => {
-  const ls = memStorage();
-  const A = loadFrame({ storage: ls });
-  assert.equal(A.isSectionCollapsed('size'), false, '[전제] 기본 펼침');
-  A.setSectionCollapsed('size', true);
-  assert.deepEqual(JSON.parse(ls.getItem('gd-panel-collapsed')), ['size'], '★localStorage 에 안 적혔다');
-  const B = loadFrame({ storage: ls });   // 재로드 흉내 — 새 모듈 상태
-  assert.equal(B.isSectionCollapsed('size'), true, '★새 판에서 복원이 안 된다');
-  const html = B.buildPanelHTML({ sections: [B.sec('size', 'x'), B.sec('fill', 'y')] });
-  assert.match(html, /class="prop-section is-collapsed" data-sec="size"/);
-  assert.match(html, /id="psec-size-head"[^>]*aria-expanded="false" aria-controls="psec-size-body"/);
-  assert.match(html, /id="psec-size-body" hidden>/);
-  assert.match(html, /id="psec-fill-body">/, '★다른 절까지 접혔다 — 접기 단위는 절 key 다');
-  B.setSectionCollapsed('size', false);
-  assert.deepEqual(JSON.parse(ls.getItem('gd-panel-collapsed')), []);
-  // special 은 제목별로 따로 접힌다
-  B.setSectionCollapsed('special:Tail', true);
-  const h2 = B.buildPanelHTML({ sections: [B.sec('special', 'a', { title: 'Tail' }), B.sec('special', 'b', { title: 'Handles' })] });
-  assert.match(h2, /class="prop-section is-collapsed" data-sec="special" data-sec-state="special:Tail"/);
-  assert.match(h2, /class="prop-section" data-sec="special" data-sec-state="special:Handles"/);
-  // 저장소 없음(유닛 vm) — typeof 가드 · 메모리 대역
-  const N = loadFrame();
-  N.setSectionCollapsed('fill', true);
-  assert.equal(N.isSectionCollapsed('fill'), true, '★저장소가 없을 때 대역이 안 돈다');
-  // 막힌 저장소 — 던져도 안 죽는다
-  const T = loadFrame({ storage: { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } } });
-  assert.doesNotThrow(() => T.setSectionCollapsed('kind', true));
-  assert.equal(T.isSectionCollapsed('kind'), true);
-});
-
-test('F6 기본 = 전부 펼침 · aria-controls == 몸통 id · renderPanel 은 propPanel 에 쓴다', () => {
+test('F6 절 머리 = 제목 글자만 · 몸 hidden 없음 · renderPanel 은 propPanel 에 쓴다', () => {
   const F = loadFrame({ storage: memStorage() });
   const p = F.renderPanel({}, { header: 'H', sections: [F.sec('size', 'x'), F.sec('stroke', 'y')] });
   assert.equal(p, F.propPanel, '★renderPanel 이 propPanel 을 안 돌려준다');
   assert.doesNotMatch(p.innerHTML, /hidden>|is-collapsed/);
+  /* ★기대 바뀜(패널 재설계 1차) — 옛 판은 role=button·aria-expanded·쉐브론 svg 를 기대했다 */
+  assert.doesNotMatch(p.innerHTML, /role="button"|aria-expanded|aria-controls|<svg|prop-sec-chevron|tabindex/, '★절 머리에 접기 손잡이가 남았다');
   for (const k of ['size', 'stroke']) {
-    assert.match(p.innerHTML, new RegExp(`id="psec-${k}-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-${k}-body"`));
+    assert.match(p.innerHTML, new RegExp(`<div class="prop-section-title" id="psec-${k}-head"><span class="prop-sec-title-text">`));
     assert.match(p.innerHTML, new RegExp(`<div class="prop-sec-body" id="psec-${k}-body">`));
   }
   assert.match(p.innerHTML, /<div class="prop-section-title-row prop-sec-head">/, '★절 머리가 title-row 안에 없다(손잡이 정렬 규칙 밖)');
   assert.ok(p.innerHTML.includes('>Stroke</span>'), '★stroke 제목이 «Stroke» 가 아니다(§8 Q1 정정 — 영어 Figma 명명)');
+  /* 배선도 없다 — propPanel 에 click/keydown 을 안 단다 */
+  const src = stripComments(readSrc(ROOT, 'js/props/_panel-frame.js'));
+  assert.doesNotMatch(src, /addEventListener\('(click|keydown)'/, '★절 머리 접기 배선이 남았다');
 });
 
-test('F7 disclosureSectionHtml 3인자 = 바이트 그대로 · 4인자(틀 판) = aria · 인라인 style/title 없음', () => {
+test('F7 disclosureSectionHtml(하위 접기) = 바이트 그대로 · 4번째 인자는 무시(틀 판 갈래 걷음)', () => {
   const F = loadFrame();
   /* ★3인자 골든 — 판 2852c9f44 의 산출(그리드 6절·카드가 쓰는 꼴). ⛔한 자도 고치지 마라(bt2-grid-panel-golden.json 이 같은 바이트를 품는다) */
   const chev = (open) => F.disclosureChevronHtml(open);   // 쉐브론 바이트는 disclosure-chevron-ssot 가 따로 잠근다
@@ -197,12 +163,8 @@ test('F7 disclosureSectionHtml 3인자 = 바이트 그대로 · 4인자(틀 판)
         ${chev(open)}
         <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">T</span>
       </div>`, '★3인자 산출이 바뀌었다 — 그리드 골든이 깨진다');
-    const four = F.disclosureSectionHtml('h', 'T', open, 'b');
-    assert.match(four, new RegExp(`role="button" tabindex="0" aria-expanded="${open}" aria-controls="b">`));
-    assert.doesNotMatch(four, /style=|title=/, '★틀 판 머리에 인라인 style·툴팁이 남았다');
-    assert.match(four, /<span class="prop-sec-title-text">T<\/span>/);
-    assert.ok(four.includes(chev(open).replace(/\n\s*style="[^"]*">/, ' class="prop-sec-chevron">')), '★틀 판이 쉐브론 한 벌(인라인 style→클래스)을 안 쓴다');
-    assert.match(four, /<path d="M1 3l4 4 4-4"\/>/);
+    /* ★기대 바뀜(패널 재설계 1차) — 옛 4인자 «틀 판»(aria-controls)은 걷었다: 표준 절 머리가 이걸 더 안 부른다 */
+    assert.equal(F.disclosureSectionHtml('h', 'T', open, 'b'), three, '★4인자 틀 판 갈래가 남았다');
   }
 });
 
@@ -212,7 +174,7 @@ const LIT_RE = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|[0-9]+(px|r?em)\b/;
 test('F10 렌더된 틀 마크업(머리·껍데기)에 색·px·rem·em 리터럴 0', () => {
   const F = loadFrame({ storage: memStorage({ 'gd-panel-collapsed': '["fill"]' }) });
   const html = F.buildPanelHTML({ sections: [F.sec('size', 'BODY'), F.sec('fill', 'BODY'), F.sec('special', 'BODY', { title: 'Tail' })] });
-  assert.ok(html.includes('hidden>'), '[전제] 접힌 판도 같이 쟀다');
+  /* ★기대 바뀜(패널 재설계 1차) — 접힌 판이 없어졌다(옛 «[전제] 접힌 판도 같이 쟀다» 걷음) */
   const hit = html.split('\n').filter((l) => LIT_RE.test(l));
   assert.deepEqual(hit, [], '★틀이 그린 마크업에 리터럴이 있다 — 토큰(css panel-frame 블록)으로');
   assert.ok(LIT_RE.test('<div style="gap:6px">') && LIT_RE.test('hsl(0,0%,50%)') && LIT_RE.test('2rem'), '[양성대조] 정규식이 산다');
@@ -449,21 +411,9 @@ test('F15 ★txt-size 줄기 가드 — 텍스트 패널 소스에 «블록 크�
   assert.deepEqual(['txt-size-w-number'].filter((x) => !/^txt-size(-number)?$/.test(x)), ['txt-size-w-number']);
 });
 
-test('F16 expandSection — 저장 상태를 펼침으로 · 효과 추가 문이 부른다(접힌 Effects 에 카드가 숨어 들어가지 않게)', () => {
-  const ls = memStorage();
-  const F = loadFrame({ storage: ls });
-  F.setSectionCollapsed('effects', true);
-  F.setSectionCollapsed('fill', true);
-  assert.equal(F.isSectionCollapsed('effects'), true, '[전제] 접혀 있다');
-  F.expandSection('effects');
-  assert.equal(F.isSectionCollapsed('effects'), false, '★expandSection 이 저장 상태를 안 열었다');
-  assert.equal(F.isSectionCollapsed('fill'), true, '★다른 절까지 열었다');
-  assert.match(F.buildPanelHTML({ sections: [F.sec('effects', 'x')] }), /id="psec-effects-body">/, '★다시 그려도 펼침이어야 한다');
-  /* 배선 — effects-registry 의 추가 select change 가 다시 그리기(again) «전»에 Effects 를 연다 */
-  const reg = stripComments(readSrc(ROOT, 'js/effects-registry.js'));
-  const m = /sel\?\.addEventListener\('change'[\s\S]*?\n {2}\}\);/.exec(reg);
-  assert.ok(m, '★추가 select 배선을 못 찾았다');
-  assert.match(m[0], /window\.expandPanelSection\?\.\('effects'\);[\s\S]*again\(\)/, '★효과 추가가 Effects 를 안 연다(또는 다시 그린 뒤에 연다)');
-  /* ★양성대조 — 그 한 줄을 뺀 판이면 위 단언이 거짓 */
-  assert.doesNotMatch(m[0].replace(/window\.expandPanelSection\?\.\('effects'\);/, ''), /expandPanelSection/);
+/* ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 옛 F16 은 expandSection 이 접힌 저장 상태를 연다고 잠갔다.
+ *   이제 표준 절은 늘 펼침이라 효과 추가 뒤 새 카드가 보이는지는 «Effects 몸에 hidden 이 없다»로 충분하다. */
+test('F16 효과 추가 뒤 다시 그려도 Effects 몸이 보인다(hidden 없음)', () => {
+  const F = loadFrame({ storage: memStorage({ 'gd-panel-collapsed': '["effects"]' }) });
+  assert.match(F.buildPanelHTML({ sections: [F.sec('effects', 'x')] }), /id="psec-effects-body">x/);
 });

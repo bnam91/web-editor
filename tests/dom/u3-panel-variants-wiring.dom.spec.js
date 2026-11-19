@@ -8,8 +8,7 @@
  *   radial-arrange.js 「다시 배치」 툴팁을 도로 .prop-hint 로 내리면 V-frame-radial 빨강.
  * V-canvas-layer-empty [G9] 레이어 0개 — Content 절을 안 낸다(빈 머리 절 금지) · 그 절을 집던 배선(#cvb-layer-list)이 던지지 않는다.
  *   양성대조: prop-canvas.js 의 `getElementById('cvb-layer-list')?.` 셋 중 하나에서 ?. 를 빼면 빨강(TypeError · pageerror 1).
- * E1·E2 [U0c expandSection] 줄을 더하는 동작은 접힌 절을 연다 — 카드 수 늘리기(→ Content) · 모달 아이콘 변형(→ Content).
- *   양성대조: prop-simple-card.js 그리드 피커의 expandSection('content') 줄 / prop-modal.js 변형 change 의 그 줄을 지우면 E1 / E2 빨강.
+ * E1·E2 ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 머리를 눌러도 안 접히고, 줄을 더한 뒤 Content 절이 보인다(카드 수 늘리기 · 모달 아이콘 변형).
  * 양성대조: prop-multisel.js showFlowMultiSelPanel 의 `fsApply?.addEventListener` 를 `fsApply.addEventListener` 로 바꾸면 V-ms-notext 빨강(TypeError · pageerror 1).
  */
 const { test, expect } = require('@playwright/test');
@@ -206,37 +205,37 @@ test('V-frame-radial — 원형 배치를 시작한 프레임 · 힌트 ≤2 · 
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('E1 카드 수를 늘리면 접힌 Content 절이 열린다', async ({ page }) => {
+test('E1 카드 수를 늘리면 Content 절이 보인다(머리를 눌러도 안 접힘)', async ({ page }) => {
   const errs = await scene(page);
   const r = await run(page, () => {
     const made = window.makeCanvasBlock({ cardMode: 'simple' });
     document.getElementById('sVi').appendChild(made.row || made.block); window.rebindAll?.();
     window.showSimpleCardProperties(made.block);
-    document.getElementById('psec-content-head').click();                       // 접는다
+    document.getElementById('psec-content-head').click();                       // ★기대 바뀜(패널 재설계 1차) — 옛 판은 이걸로 접혔다
     const folded = document.getElementById('psec-content-body').hidden;
     const n0 = JSON.parse(made.block.dataset.cards || '[]').length;
     document.querySelector('#cvb-grid-picker .grid-picker-cell[data-r="1"][data-c="3"]').click();   // 1×3 — 카드가 는다
     return { folded, n0, n1: JSON.parse(made.block.dataset.cards || '[]').length, open: !document.getElementById('psec-content-body')?.hidden };
   });
-  expect(r.folded, '전제: 접혔다').toBe(true);
+  expect(r.folded, '★머리를 누르니 Content 절이 접혔다').toBe(false);
   expect(r.n1, '전제: 카드가 늘었다').toBeGreaterThan(r.n0);
-  expect(r.open, '★카드가 늘었는데 Content 절이 접힌 채').toBe(true);
+  expect(r.open, '★카드가 늘었는데 Content 절이 안 보인다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('E2 모달을 아이콘 변형으로 바꾸면 접힌 Content 절이 열린다', async ({ page }) => {
+test('E2 모달을 아이콘 변형으로 바꾸면 Content 절이 보인다(옛 접기 저장이 있어도)', async ({ page }) => {
   const errs = await scene(page);
   const r = await run(page, () => {
     window.selectSection(window.__S());
     const b = window.__made('.modal-block', () => window.addModalBlock());
     window.deselectAll?.(); window.showModalProperties(b);
-    const head = document.getElementById('psec-content-head');
-    if (head) head.click(); else { /* plain 에 Content 가 없으면 저장 상태만 접는다 */ localStorage.setItem('gd-panel-collapsed', JSON.stringify(['content'])); }
+    document.getElementById('psec-content-head')?.click();   // ★기대 바뀜(패널 재설계 1차) — 옛 판은 이걸로 접혔다
+    localStorage.setItem('gd-panel-collapsed', JSON.stringify(['content']));   // 옛 판이 남긴 저장 — 이제 안 읽는다
     const sel = document.getElementById('mdl-variant'); sel.value = 'icon'; sel.dispatchEvent(new Event('change', { bubbles: true }));
     return { variant: b.dataset.variant, icon: !!document.getElementById('mdl-icon-pick'), open: !document.getElementById('psec-content-body')?.hidden };
   });
   expect([r.variant, r.icon], '전제: 아이콘 변형 · 아이콘 칸').toEqual(['icon', true]);
-  expect(r.open, '★아이콘 칸이 생겼는데 Content 절이 접힌 채').toBe(true);
+  expect(r.open, '★아이콘 칸이 생겼는데 Content 절이 안 보인다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

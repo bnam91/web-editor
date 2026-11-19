@@ -3,7 +3,8 @@
  *
  * ★글자색은 «실제 규칙»에서 읽는다(css/editor-props.css 의 선택자 → var() → css/editor-base.css :root 토큰 사슬을 끝까지 푼다).
  *   ⛔토큰 이름을 여기 박아 두고 재면, 규칙이 다른 토큰(또는 리터럴)으로 바뀌어도 이 검사는 초록이다.
- *   C1 (절 제목 · 절 제목 hover · 힌트 · 라벨) × (--ui-bg-base · --ui-bg-card) ≥ 4.5
+ *   C1 (절 제목 · 힌트 · 라벨) × (--ui-bg-base · --ui-bg-card) ≥ 4.5
+ *     ★기대 바뀜(패널 재설계 1차 · 절 머리는 누르는 것이 아니다) — 절 제목 hover 규칙을 걷어 그 행(2칸)을 뺐다
  *   N1 ★양성대조 — .prop-hint 를 옛 #5a5a5a 로 되돌린 판이면 C1 의 판정이 빨강(2.4:1)
  *   N2 ★양성대조 — 사슬 풀이가 산다: 존재하지 않는 토큰을 가리키면 던진다(조용히 0 이나 검정으로 안 떨어진다)
  */
@@ -60,7 +61,6 @@ function colorOf(css, selector) {
 
 const FG = [
   ['절 제목', '.prop-sec-head > .prop-section-title'],
-  ['절 제목 hover', '.prop-sec-head > .prop-section-title:hover'],
   ['힌트', '.prop-hint'],
   ['라벨', '.prop-label'],
 ];
@@ -76,9 +76,9 @@ function judge(propsCss) {
   return rows;
 }
 
-test('C1 절 제목·hover·힌트·라벨 × 패널 배경 2종 ≥ 4.5:1', () => {
+test('C1 절 제목·힌트·라벨 × 패널 배경 2종 ≥ 4.5:1', () => {
   const rows = judge(PROPS);
-  assert.equal(rows.length, 8);
+  assert.equal(rows.length, 6);
   const bad = rows.filter((x) => !x.ok);
   assert.deepEqual(bad, [], '★AA 미달:\n' + rows.map((x) => `  ${x.ok ? '✓' : '✗'} ${x.name} / ${x.bg} = ${x.r}`).join('\n'));
 });
