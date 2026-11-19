@@ -344,14 +344,23 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
 /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01 — 칸은 «펼친» 뒤에만 누를 수 있다(접힌 동안 한 번 = 슬라이드만) ⇒ 접혀 있으면 진짜 두 번 누름으로 펼치고 칸을 누른다 */
 /* 칸 i 고르기(진짜 누름) — 접혔으면 두 번 눌러 펼치고 «펼친 뒤» 점을 다시 잰다 · 고른 칸 = 그 칸 · 패널 그 칸 줄까지 기다림(받은 값 = 진단)
    (지혜맥 77f0425f4 C2 3번 중 1번 #sld-cell-radius 대기 빨강 — 옛 판은 펼치기 전 점 하나로 두 번 + 한 번 · 고름 확인 없이 다음 줄로 · 어느 쪽에서 졌는지 미확인 ⇒ 고름을 단언으로) */
+/* 누를 점 = «임자 맞음 + 같은 자리 두 번 연속»일 때(조건 대기 · 지혜맥 261120 load 9 에서 K1·P1 이 배율·스크롤이 멎기 전 점을 눌러 1/3 빨강) */
+const stableAt = async (page, fn, arg, msg) => {
+  let prev = '', p = null;
+  await expect.poll(async () => { p = await page.evaluate(fn, arg); const k = JSON.stringify(p && [Math.round(p.x), Math.round(p.y)]); const same = k === prev; prev = k; return !!p && !!p.ok && same; }, { message: msg, intervals: [50] }).toBe(true);
+  return p;
+};
 const pickCell = async (page, id, i) => {
-  const at = () => page.evaluate(({ id, i }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, { id, i });
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  /* 접힌 칸은 pointer-events none(누름이 슬라이드로) — 접혔으면 임자 = 슬라이드 안 · 펼쳤으면 임자 = 그 칸(또는 그 안) */
+  const at = (folded) => stableAt(page, ({ id, i, folded }) => { const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect(); const x = r.left + 8, y = r.top + 8, e = document.elementFromPoint(x, y);
+    return { x, y, ok: !!e && (folded ? b.contains(e) : (e === c || c.contains(e))) }; }, { id, i, folded }, `[pickCell] 칸 ${i + 1} 누를 점(임자·같은 자리 두 번)`);
   if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) {
-    const q0 = await at();
+    const p0 = await at(true), q0 = [p0.x, p0.y];
     await page.mouse.dblclick(q0[0], q0[1]);
     await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[pickCell] 두 번 = 펼침').toBe(true);
   }
-  const q = await at();
+  const p1 = await at(false), q = [p1.x, p1.y];
   await page.mouse.click(q[0], q[1]);
   await expect.poll(() => page.evaluate(({ id, i, q }) => {
     const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], e = document.elementFromPoint(q[0], q[1]);
@@ -476,12 +485,18 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   await page.evaluate((id) => { window.selectBlock(id); window.unfoldSlide(document.getElementById(id), true); }, id);
   /* 앞에서 칸 4 로 캔버스를 가로 스크롤했다 ⇒ 옆 글자가 화면 밖일 수 있다(지혜맥 P1 빨강) — 펼친 채(슬라이드 고름 유지) 그 글자를 화면 안으로 · 누르기 «전» 그 점이 누구인지 잰다:
      글자가 아니면 «무엇이 덮었나»를 메시지로(펼친 칸·덮개가 가로채면 여기서 이름이 나온다 = 제품 빨강) */
-  const op = await page.evaluate((oid) => { const t = document.getElementById(oid); t.scrollIntoView({ block: 'center', inline: 'center' }); const r = t.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
-    return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).overflow }; }, otherId);
-  expect(op.open, '[전제] 아직 펼친 채').toBe('visible');
+  await page.evaluate((oid) => document.getElementById(oid).scrollIntoView({ block: 'center', inline: 'center' }), otherId);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  /* 지혜맥 261120 1/3 빨강: 한 번 잰 점을 곧장 눌렀다(스크롤·배율이 멎기 전) → 임자 맞음 + 같은 자리 두 번 뒤 누름 · 고름은 poll */
+  let op = null;
+  await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
+      return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);
+    const same = !!op && Math.round(op.x) === Math.round(p.x) && Math.round(op.y) === Math.round(p.y); op = p; return { hit: p.hit, same, who: p.who }; },
+    { message: '★펼침 중 옆 글자 자리 = 글자(같은 자리 두 번) — 받은 값의 who = 덮은 것', intervals: [50] }).toMatchObject({ hit: true, same: true });
+  expect(op.open, '[전제] 아직 펼친 채(자름 없음)').toBe('none');
   expect(op.hit, `★펼침 중 옆 글자 자리를 덮은 것 = ${op.who}`).toBe(true);
   await page.mouse.click(op.x, op.y);
-  expect(await page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
+  await expect.poll(() => page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
   /* 저장본 흔적 0 · 저장→다시 열기 글 그대로 */
   await page.evaluate((id) => window.selectBlock(id), id);
   const savedSlide = await page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject());
@@ -876,6 +891,7 @@ test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 �
  * 양성대조: slide-frame-CTL41-dots-scroll-unbound.patch(scroll 리스너 줄 삭제) → E1 빨강 — 예측 */
 test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 · 저장 표식 0', async ({ page }) => {
   const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 지혜맥 261120 2/3: 색은 맞고 점 x 가 740/748/756 → 742/748/755(가운데 기준 좁아짐) = 배율이 멎기 전 d0 를 잼
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
   await page.locator('#sld-dots').selectOption('bottom');
   const dots = () => page.evaluate((id) => { const b = document.getElementById(id); return [...b.querySelectorAll(':scope > .sld-dots > span')].map((d) => ({ x: Math.round(d.getBoundingClientRect().left), c: getComputedStyle(d).backgroundColor })); }, id);
