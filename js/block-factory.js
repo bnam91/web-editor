@@ -5471,6 +5471,7 @@ function updateShapeBlock(blockId, partial = {}) {
       block.style.transform = (cur + ` rotate(${deg}deg)`).trim();
       block.style.transformOrigin = 'center center';
     }
+    window.applyFlip?.(block);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
     applied.shapeRotation = deg;
   }
 

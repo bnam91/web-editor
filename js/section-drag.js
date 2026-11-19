@@ -201,6 +201,7 @@ function ungroupBlock(groupEl) {
         const base = (c.style.transform || '').replace(/\s*rotate\([^)]*\)/g, '').trim();
         c.style.transform = (base ? base + ' ' : '') + `rotate(${cr}deg)`;
         c.style.transformOrigin = 'center center';
+        window.applyFlip?.(c);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
       }
       groupEl.before(c);
       /* 흐름 그룹에 든 떠 있는 블럭(block-factory.js _floatIntoNew)은 섹션 직속으로 돌아간다 — 흐름 부모에 남으면 좌표 기준이 달라져 자리가 튄다 */

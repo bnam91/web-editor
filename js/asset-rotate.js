@@ -247,6 +247,7 @@ function _applyRotationDeg(host, deg) {
     host.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
     host.style.transformOrigin = 'center center';
   }
+  window.applyFlip?.(host);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
   window.scheduleAutoSave?.();
 }
 window.applyRotationDeg = _applyRotationDeg;
@@ -343,6 +344,7 @@ function _restoreDatasetRotation(block) {
   if (Number.isFinite(d) && d !== 0 && !/rotate\(/.test(block.style.transform || '')) {
     const existing = (block.style.transform || '').trim();
     block.style.transform = existing ? `${existing} rotate(${d}deg)` : `rotate(${d}deg)`;
+    window.applyFlip?.(block);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
     block.style.transformOrigin = 'center center';
   }
 }

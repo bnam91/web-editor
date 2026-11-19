@@ -66,19 +66,20 @@ export function wirePositionSection({ tb }) {
   // 회전 각도 칸 — text-frame(있으면) 또는 tb에 transform: rotate 적용 (Q20 · 슬라이더 없음 · 시안 v10)
   const rotNumber = document.getElementById('txt-rot-number');
   if (rotNumber) {
-    const applyRot = v => {
+    const applyRot = (v, typing) => {
       v = Math.min(180, Math.max(-180, v || 0));
       const el = tb.closest('.frame-block[data-text-frame="true"]') || tb;
       // 기존 transform에서 rotate만 교체 (position translate 등 보존)
       const base = (el.style.transform || '').replace(/\s*rotate\([^)]*\)/g, '').trim();
       el.style.transform = (base ? base + ' ' : '') + `rotate(${v}deg)`;
       el.style.transformOrigin = 'center center';
+      window.applyFlip?.(el);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
       if (v) el.dataset.rotation = v; else delete el.dataset.rotation;
-      rotNumber.value = v;
+      if (!typing) rotNumber.value = v;
       window.scheduleAutoSave?.();
     };
-    rotNumber.addEventListener('input', () => applyRot(parseInt(rotNumber.value) || 0));
-    rotNumber.addEventListener('change', () => window.pushHistory?.());
+    rotNumber.addEventListener('input', () => applyRot(parseInt(rotNumber.value) || 0, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+    rotNumber.addEventListener('change', () => { applyRot(parseInt(rotNumber.value) || 0); window.pushHistory?.(); });
     /* Q17 — 90° · 좌우 · 상하 반전 · 아이콘 끌기(회전 줄 한 벌 · _helpers.js wireRotRow) */
     wireRotRow({ p: 'txt', numberId: 'txt-rot-number', host: () => tb.closest('.frame-block[data-text-frame="true"]') || tb });
   }

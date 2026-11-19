@@ -1279,6 +1279,7 @@ export function applyShapeRotation(block, deg) {
     block.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
     block.style.transformOrigin = 'center center';
   }
+  window.applyFlip?.(block);   // QA2 M1 — 반전은 늘 회전 «뒤»(rotate(θ) scale(…) · 프레임·벡터와 같은 순서)
   // 구버전이 남긴 frame min-width/height 보정값 정리 (회전 시 크기 불변 정책)
   const frame = block.closest('.frame-block');
   if (frame) {
