@@ -24,7 +24,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dotBand, gridZoomFrame, gridSpiralIndex, slideGridZoom, GZ_S, GZ_OUTER_A, slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
-  SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S, CELL_SHADOWS } from '../../js/fx/slide-motion.js';
+  SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S, CELL_SHADOWS, trailGhosts, TRAIL_A, TRAIL_N, TRAIL_MAX } from '../../js/fx/slide-motion.js';
 import { readFileSync } from 'node:fs';
 
 const G = slideGeom(800, 4, { cardW: 50, gap: 20 });   // 카드 400 · 한 칸 420 · 주기 1680
@@ -92,7 +92,8 @@ test('S5 소독 · 기본값 = 키 없음', () => {
   assert.equal(normLayout({ gap: 999 }).gap, 80, '간격 상한 80 그대로');
   assert.deepEqual(['center', 'single', '<x>'].map((m) => normLayout({ mode: m }).mode), ['center', 'single', 'row'], '정지 꼴 소독');
   assert.equal(normLayout({ dots: '<x>' }).dots, 'none', '점 표시 소독');
-  assert.deepEqual(normAnim({ dir: '<b>', dwell: 99, speed: 0 }), { dir: 'left', dwell: 4, speed: 0.25 });
+  /* ★기대 바뀜(SLIDE-FX-SWIPE-TRAIL-01 «세기 조절» · 83 · 지디 261120): 움직임 값에 «잔상 세기 trail»(%) 키가 새로 생겼다 — 없으면 기본 22(옛 고정 TRAIL_A 그대로). 다른 세 값의 소독은 그대로. */
+  assert.deepEqual(normAnim({ dir: '<b>', dwell: 99, speed: 0 }), { dir: 'left', dwell: 4, speed: 0.25, trail: 22 });
   assert.deepEqual(diffFromDefault(normAnim({}), SLIDE_ANIM_DEFAULT), {});
   assert.deepEqual(diffFromDefault(normAnim({ dir: 'right' }), SLIDE_ANIM_DEFAULT), { dir: 'right' });
 });
@@ -237,4 +238,31 @@ test('S15 칸 옅은 그림자 = 컴패리전 그림자 값 그대로', () => {
   assert.equal(CELL_SHADOWS.soft.css, m[1].trim(), '★옅게 = 컴패리전 값(새 값 0)');
   const S = CELL_SHADOWS.soft;
   assert.equal(S.css, `0 ${S.y}px ${S.blur}px ${S.color}`, '캔버스(css) = GIF(y·blur·color) 같은 그림자');
+});
+
+/* SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120) — 잔상 세기 trail(%) · 캔버스·미리보기·GIF 가 같은 trailGhosts.
+ * 양성대조 = trailGhosts 가 세기를 무시하고 옛 고정 TRAIL_A 를 쓰면 빨강(_patches/slide-83-CTL-trail-fixed.patch). */
+test('T83a 세기 소독 — 기본 22(= 옛 TRAIL_A) · 0~60 · 정수 · 기본이면 저장 키 없음', () => {
+  assert.equal(SLIDE_ANIM_DEFAULT.trail, Math.round(TRAIL_A * 100));
+  assert.equal(normAnim({}).trail, 22);
+  assert.equal(normAnim({ trail: -5 }).trail, 0);
+  assert.equal(normAnim({ trail: 999 }).trail, TRAIL_MAX);
+  assert.equal(normAnim({ trail: '33.6' }).trail, 34);
+  assert.deepEqual(diffFromDefault(normAnim({ trail: 22 }), SLIDE_ANIM_DEFAULT), {}, '기본이면 저장 꼴에 키 없음(옛 블럭·옛 저장 그대로)');
+  assert.deepEqual(diffFromDefault(normAnim({ trail: 40 }), SLIDE_ANIM_DEFAULT), { trail: 40 });
+});
+test('T83b 잔상 목록 — 세기가 첫 잔상 불투명 · 뒤로 TRAIL_N 등분 · 0 = 없음 · 다른 효과·머무름 = 없음', () => {
+  const geom = slideGeom(600, 3, { cardW: 60, gap: 16 });
+  const at = (trail, fx = 'slide-trail', t = null) => {
+    const A = normAnim({ trail }), T = loopSec(fx, geom, A), tt = t ?? (0.25 / T);   // 첫 넘김 한가운데
+    return trailGhosts(fx, geom, A, tt, T);
+  };
+  const def = at(22), dbl = at(44);
+  assert.equal(def.length, TRAIL_N, '[전제] 넘기는 가운데 = 잔상 TRAIL_N 장');
+  assert.ok(Math.abs(def[def.length - 1][1] - 0.22) < 1e-9, '가장 가까운 잔상 = 22%(옛 그림 그대로)');
+  assert.deepEqual(dbl.map((g) => +g[1].toFixed(6)), def.map((g) => +(g[1] * 2).toFixed(6)), '세기 2배 = 불투명 2배 · 자리는 같다');
+  assert.deepEqual(dbl.map((g) => g[0]), def.map((g) => g[0]));
+  assert.deepEqual(at(0), [], '세기 0 = 잔상 없음(= 스와이프)');
+  assert.deepEqual(at(40, 'slide-swipe'), [], '다른 효과엔 잔상 없음');
+  assert.deepEqual(at(40, 'slide-trail', 0), [], 't=0(첫 장면) = 잔상 없음');
 });

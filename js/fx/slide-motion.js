@@ -91,7 +91,9 @@ export const SLIDE_MODES = Object.freeze(['row', 'center', 'single']);
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
 export const SLIDE_DOTS = Object.freeze(['none', 'top', 'bottom']);
 export const DOT_BAND = 24, DOT_D = 8, DOT_GAP = 8, DOT_ON = '#4a4a4a', DOT_OFF = '#c9c9c9';
-export const SLIDE_ANIM_DEFAULT = Object.freeze({ dir: 'left', dwell: 1.2, speed: 1 });
+/* SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120): trail = 첫(가장 가까운) 잔상의 불투명 % · 기본 = 옛 고정값 TRAIL_A(22) → 안 건드린 블럭 그림 그대로 · 0 = 잔상 없음(= 스와이프) · 상한 60 */
+export const TRAIL_MAX = 60;
+export const SLIDE_ANIM_DEFAULT = Object.freeze({ dir: 'left', dwell: 1.2, speed: 1, trail: Math.round(TRAIL_A * 100) });
 export const FLOW_PX_S = 120;                      // 흐름 기본 속도(블럭 px/초 · 속도 배율로 곱함)
 export const SWIPE_MOVE_S = 0.5;                   // 스와이프 한 번 넘김
 export const GIF_FPS_MAX = 20, GIF_FRAMES_MAX = 60;
@@ -115,7 +117,18 @@ export function normLayout(o) {
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
 export function normAnim(o) {
   const s = o && typeof o === 'object' ? o : {};
-  return { dir: s.dir === 'right' ? 'right' : 'left', dwell: _num(s.dwell, 0.3, 4, SLIDE_ANIM_DEFAULT.dwell), speed: _num(s.speed, 0.25, 3, SLIDE_ANIM_DEFAULT.speed) };
+  return { dir: s.dir === 'right' ? 'right' : 'left', dwell: _num(s.dwell, 0.3, 4, SLIDE_ANIM_DEFAULT.dwell), speed: _num(s.speed, 0.25, 3, SLIDE_ANIM_DEFAULT.speed),
+    trail: Math.round(_num(s.trail, 0, TRAIL_MAX, SLIDE_ANIM_DEFAULT.trail)) };
+}
+/** 스와이프 잔상 목록 [[밀린 거리, 불투명]] — 캔버스 첫 장면·미리보기·GIF 가 같은 함수(slide-block drawFrame). 먼 것부터(옅게 먼저 그린다).
+ *  넘기는 동안만(지금 자리와 0.5px 넘게 다를 때) · 세기(A.trail %)가 첫 잔상 불투명 · 뒤로 갈수록 TRAIL_N 등분으로 옅어짐 · 0 이면 []. */
+export function trailGhosts(fx, geom, anim, t, sec) {
+  if (fx !== 'slide-trail') return [];
+  const A = normAnim(anim), a0 = A.trail / 100;
+  if (a0 <= 0) return [];
+  const s = slideOffset(fx, geom, A, t), out = [];
+  for (let j = TRAIL_N; j >= 1; j--) { const sj = slideOffset(fx, geom, A, t - (j * TRAIL_DT) / sec); if (Math.abs(sj - s) > 0.5) out.push([sj, a0 * (1 - (j - 1) / TRAIL_N)]); }
+  return out;
 }
 /** 기본값과 다른 키만(저장 꼴 — 기본이면 키 없음). */
 export function diffFromDefault(v, def) {

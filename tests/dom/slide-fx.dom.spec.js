@@ -302,3 +302,33 @@ test('D8 점 간격·색 — 패널 · 첫 장면 · GIF 같은 자리·색', as
   expect(g, '★GIF t=0 = 첫 장면(점 자리·색 · 띠 비움 · 카드 띠 아래)').toEqual({ d0: [255, 0, 255], d1: [0, 255, 255], band: 0, card: [255, 0, 0] });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* D9 SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120) — GIF 패널 «잔상 세기» = 공용 sliderRowHTML(슬라이더+숫자) · 스와이프 잔상에서만 ·
+ *   숫자 44 → 블럭 data-anim-slide.trail 44(⌘Z 한 칸) · 그림(첫 장면 캔버스·GIF 같은 slidePlan.draw): 세기 0 = 스와이프와 같음 · 44 ≠ 22.
+ * 양성대조 = _patches/slide-83-CTL-trail-fixed.patch(잔상이 세기를 무시 · 옛 고정 22) → «44 ≠ 22»·«0 = 스와이프» 빨강. */
+test('D9 잔상 세기 — 패널 슬라이더+숫자 · 저장 · 세기 0 = 스와이프 · 44 ≠ 22', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-swipe' });
+  await page.evaluate((id) => window.openAnimModal(document.getElementById(id)), id);
+  await expect(page.locator('#anim-gif-modal'), '[전제] GIF 패널').toBeVisible();
+  await expect(page.locator('#anim-slide-trail-row'), '스와이프엔 잔상 세기 없음').toBeHidden();
+  await page.click('#anim-list .anim-item[data-id="slide-trail"]');
+  const row = page.locator('#anim-slide-trail-row');
+  await expect(row, '스와이프 잔상 = 잔상 세기 줄').toBeVisible();
+  expect(await row.evaluate((r) => ({ prop: !!r.querySelector('.prop-row'), sl: !!r.querySelector('input.prop-slider#anim-slide-trail'), nu: !!r.querySelector('input.prop-number#anim-slide-trail-num'),
+    v: r.querySelector('#anim-slide-trail-num').value, lab: r.querySelector('.prop-label')?.textContent })), '공용 sliderRowHTML 꼴 · 기본 22')
+    .toEqual({ prop: true, sl: true, nu: true, v: '22', lab: '잔상 세기' });
+  await page.fill('#anim-slide-trail-num', '44');
+  await page.locator('#anim-slide-trail-num').dispatchEvent('change');
+  await expect.poll(() => page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.animSlide || '{}').trail, id), '★숫자 44 → 블럭 저장').toBe(44);
+  expect(await page.evaluate(() => document.getElementById('anim-slide-trail').value), '슬라이더도 44').toBe('44');
+  await page.evaluate(() => window.closeAnimModal());
+  const r = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, A = window.readSlideState(b).anim, T = 3 * (0.5 + A.dwell);
+    const hash = (fx, trail) => { b.dataset.animFx = fx; b.dataset.animSlide = JSON.stringify({ trail }); const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0.25 / T);
+      const d = ctx.getImageData(0, 0, W, H).data; let h = 2166136261; for (let i = 0; i < d.length; i += 4) { h ^= d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11; h = Math.imul(h, 16777619); } return h >>> 0; };
+    return { zeroIsSwipe: hash('slide-trail', 0) === hash('slide-swipe', 22), d22vs44: hash('slide-trail', 22) !== hash('slide-trail', 44), d22vsSwipe: hash('slide-trail', 22) !== hash('slide-swipe', 22) };
+  }, id);
+  expect(r, '넘기는 가운데: 세기 0 = 스와이프 · 22 ≠ 44 · [전제] 22 ≠ 스와이프').toEqual({ zeroIsSwipe: true, d22vs44: true, d22vsSwipe: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
