@@ -154,10 +154,8 @@
     <div class="prop-section" data-sec="effects" data-sec-state="effects" data-order="text" id="txt-fx-section">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="txt-fx-section-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Effects</span></div>
-        <select class="prop-select prop-sec-add-select" id="txt-fx-add" title="효과 추가" aria-label="효과 추가">
-          <option value="">＋</option>
-          <option value="shadow">그림자</option><option value="reflect">반사</option>
-        </select>
+        <button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn" title="효과 추가" aria-label="효과 추가" aria-haspopup="menu" aria-expanded="false"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M6 2v8M2 6h8"/></svg></button>
+        <div class="prop-fx-menu" id="txt-fx-menu" role="menu" hidden><button type="button" class="fp-menu-item" role="menuitem" data-fx="shadow">그림자</button><button type="button" class="fp-menu-item" role="menuitem" data-fx="reflect">반사</button></div>
       </div>
       <div class="prop-sec-body" id="txt-fx-section-body">
       </div>

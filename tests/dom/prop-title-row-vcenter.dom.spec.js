@@ -6,6 +6,7 @@
  * V2: 펼친 Stroke 의 머리줄 ↔ 내용 간격이 고치기 전과 같은 6px (펼침 리듬 불변).
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
@@ -41,7 +42,7 @@ test('V1 접힌 Stroke(꺼짐)·Effects(빈) — 손잡이가 위아래 구분�
   const errs = await setupText(page);
   expect(await page.locator('#txt-stroke-on').isChecked(), '전제: Stroke 꺼짐(접힘)').toBe(false);
   expect(await page.locator('#txt-fx-list').count(), '전제: Effects 에 걸린 효과 없음(접힘)').toBe(0);
-  expect(await page.locator('#txt-fx-add').count(), '전제: 「효과 추가」 드롭다운이 있다').toBe(1);
+  expect(await page.locator('#txt-fx-add-btn').count(), '전제: 「효과 추가」 ＋ 단추가 있다').toBe(1);
   const d = { stroke: await readCenter(page, 'txt-stroke-section'), fx: await readCenter(page, 'txt-fx-section') };
   console.log('[V1] 손잡이 − 구분선 중점(px) ' + JSON.stringify(d));
   expect(d.stroke, 'Stroke 토글').not.toBe(null);

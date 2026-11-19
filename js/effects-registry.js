@@ -90,9 +90,14 @@ export function fxSectionParts(el, prefix, { plus = false } = {}) {   // plus = 
   const types = fxTypesFor(el);
   const present = types.filter(t => t.has(el));
   const missing = types.filter(t => !t.has(el) && typeof t.add === 'function');   /* ★E13 — 붙일 길 없는 종류는 안 보인다 */
-  const head = plus ? `
-        <select class="prop-select prop-sec-add-select" id="${P}-fx-add" title="효과 추가" aria-label="효과 추가">
-          <option value="">＋</option>` : `
+  /* plus(텍스트 · 시안 v8/v10) = 머리 ＋ 단추(22 · 끝 칼럼) → 종류 메뉴(앱 .fp-menu-item 꼴) → 고르면 카드. 메뉴 항목 = 같은 «아직 없는» 종류 · 같은 붙이기(wireFxSection) */
+  if (plus) return { headTools: missing.length ? `
+        <button type="button" class="prop-chain-btn prop-fx-add-btn" id="${P}-fx-add-btn" title="효과 추가" aria-label="효과 추가" aria-haspopup="menu" aria-expanded="false"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M6 2v8M2 6h8"/></svg></button>
+        <div class="prop-fx-menu" id="${P}-fx-menu" role="menu" hidden>${missing.map(t => `<button type="button" class="fp-menu-item" role="menuitem" data-fx="${t.key}">${t.label}</button>`).join('')}</div>` : '',
+    body: present.length ? `
+      <div id="${P}-fx-list">${present.map(t => t.card(el, P)).join('')}
+      </div>` : '', id: `${P}-fx-section` };
+  const head = `
         <select class="prop-select" id="${P}-fx-add" style="flex:0 1 104px;min-width:0;width:auto;"
                 title="고른 효과가 추가된다" aria-label="효과 추가">
           <option value="">${FX_ADD_HEAD_LABEL}</option>`;
@@ -123,9 +128,19 @@ export function wireFxSection(el, prefix, rerender) {
   const types = fxTypesFor(el);
   const again = () => { try { rerender?.(); } catch (_) {} };
   const sel = document.getElementById(`${P}-fx-add`);
+  /* ＋ 단추 꼴(plus) — 메뉴를 열고 닫는다 · 항목 = 아래 붙이기와 같은 길 */
+  const btn = document.getElementById(`${P}-fx-add-btn`), menu = document.getElementById(`${P}-fx-menu`);
+  if (btn && menu) {
+    const close = (e) => { if (e && (menu.contains(e.target) || btn.contains(e.target))) return; menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', close, true); };
+    btn.addEventListener('click', () => { const open = menu.hidden; menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); if (open) document.addEventListener('pointerdown', close, true); else document.removeEventListener('pointerdown', close, true); });
+    menu.querySelectorAll('[data-fx]').forEach((it) => it.addEventListener('click', () => { close(); addKey(it.dataset.fx); }));
+  }
   sel?.addEventListener('change', () => {
     const key = sel.value;
     sel.value = '';                                   /* 머리로 되돌린다 — 다시 고를 수 있게(선례와 같은 결) */
+    addKey(key);
+  });
+  function addKey(key) {
     const t = types.find(x => x.key === key && !x.has(el) && typeof x.add === 'function');
     if (!t) return;
     t.add(el);   /* add 는 push-before — 「막 켠」 상태를 안 찍는다 */
@@ -133,7 +148,7 @@ export function wireFxSection(el, prefix, rerender) {
     window.pushHistory?.('효과 켬');
     window.expandPanelSection?.('effects');   /* ★Effects 절이 접혀 있으면 연다 — 새 카드가 닫힌 절에 들어가면 «아무 일도 안 한 것처럼» 보인다(U0c ㉑) */
     fxSetCardOpen(el, t.key, true); again();
-  });
+  }
   for (const t of types) if (t.has(el)) t.wire(el, P, again);
 }
 

@@ -12,6 +12,7 @@
  * 실행: npm run test:dom -- text-gradient
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const fs = require('fs');
 const path = require('path');
 
@@ -479,7 +480,7 @@ function cols(img, a, b) {
 async function shadowToggle(page, on) {
   const card = page.locator('#txt-fxsh-card');
   if (((await card.count()) > 0) !== on) {
-    if (on) await page.locator('#txt-fx-add').selectOption('shadow');
+    if (on) await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="shadow"]'));
     else await page.locator('#txt-fxsh-del').click();
   }
   await expect(card).toHaveCount(on ? 1 : 0);

@@ -15,6 +15,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js ft-scaleof-fractional-width
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const fs = require('fs');
 const path = require('path');
 const { ROOT, bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -44,8 +45,8 @@ async function setup(page) {
   /* 장면 전제 S1 용 — 켜기 «전» 재는 폭(tf)을 떠 둔다. ⛔켠 뒤 tf 폭은 상자 폭으로 다시 써져 결과에 매인다(첫 판이 그 자를 읽어 고친 판에서 전제가 빨갰다). */
   await page.evaluate(() => { const tf = window.__tb.closest('.frame-block[data-text-frame]'); window.__preTf = { rw: tf.getBoundingClientRect().width, ow: tf.offsetWidth }; });
   await waitZoomSettled(page, 100);
-  await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
-  await page.selectOption('#txt-fx-add', 'freetransform');
+  await page.waitForFunction(() => !!document.getElementById('txt-fx-add-btn'));
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="freetransform"]'));
   await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12);
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   return errs;

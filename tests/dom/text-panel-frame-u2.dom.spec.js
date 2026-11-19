@@ -11,6 +11,7 @@
  * 앱 통째(bootApp) · 헤드리스 · CDP·라이브 인스턴스 무접촉.
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp } = require('./_root-harness.js');
 const { addKind } = require('./_block-roster-294.js');
 
@@ -52,7 +53,7 @@ const judgeGaps = ({ gaps, tok, tokLast }) => gaps.filter((g) => Math.abs(g.gap 
 test('B1 ★펼친 절 아래 여백이 전부 --ui-sec-body-pb — Effects(카드 있음)도 다른 절과 같다', async ({ page }) => {
   const errs = await scene(page);
   await openText(page);
-  await page.selectOption('#txt-fx-add', 'reflect');   // 카드가 있는 Effects — 옛 14px 자리
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="reflect"]'));   // 카드가 있는 Effects — 옛 14px 자리
   await expect(page.locator('#txt-fx-list'), '[전제] Effects 에 카드가 섰다').toBeAttached();
   const m = await readGaps(page);
   console.log('[B1] ' + JSON.stringify(m));
@@ -65,7 +66,7 @@ test('B1 ★펼친 절 아래 여백이 전부 --ui-sec-body-pb — Effects(카�
 test('B1b ★내장 양성대조 — Effects 카드 꼬리에 margin 을 심으면 판정이 그 절을 잡는다', async ({ page }) => {
   await scene(page);
   await openText(page);
-  await page.selectOption('#txt-fx-add', 'reflect');
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="reflect"]'));
   await expect(page.locator('#txt-fx-list')).toBeAttached();
   await page.evaluate(() => { const l = document.getElementById('txt-fx-list'); const last = l.lastElementChild || l; last.style.marginBottom = '17px'; });
   expect(judgeGaps(await readGaps(page)).join(' | '), '★꼬리 margin 을 못 잡는다 — B1 은 공짜 초록이다').toContain('effects=');

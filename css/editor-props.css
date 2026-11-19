@@ -80,7 +80,6 @@
 .prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
 .prop-sec-add:has(> input:checked) > .prop-sec-add-plus, .prop-sec-add:not(:has(> input:checked)) > .prop-sec-add-minus { display: none; }
 .prop-sec-add:has(> input:focus-visible) { outline: var(--ui-focus-ring); }
-.prop-sec-head > .prop-sec-add-select { flex: 0 0 auto; width: var(--ui-opt-col-w); min-width: 0; padding: 0; text-align: center; text-align-last: center; background-image: none; }
 .prop-section[data-sec] .prop-row > .prop-chain-btn:last-child { margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }   /* 줄 gap 4 + 이것 2 = 칼럼 사이 6 ⇒ 숫자 칸 끝이 다른 줄과 같은 자리 */
 /* Q2 Type 띠 · Q1 Layout 묶음(시안 v10 · 현빈 GO 261120 — .mk-kind-strip · .mk-part · .mk-sub-row 값 그대로).
    띠 · 묶음 몸 = 안에 든 .prop-section[data-sec](옛 절 그대로 — 시험·배선의 closest 가 key 를 준다) ⇒ 겉 절 모양(들임 · 아래 여백 · 칼럼 · 구분선)을 지운다.
@@ -101,6 +100,10 @@
 .prop-tpl-form[hidden] { display: none; }
 .prop-tpl-folder { width: 100%; }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
+/* Effects ＋ 메뉴(시안 v8/v10 .mk8-menu 값 — 머리 오른쪽 아래에 뜨는 앱 메뉴 꼴 · 항목 = .fp-menu-item) */
+.prop-sec-head:has(> .prop-fx-menu) { position: relative; }
+.prop-fx-menu { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-space-2); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
+.prop-fx-menu[hidden] { display: none; }
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);
   min-height: 24px; margin-bottom: var(--ui-space-1_5); overflow: hidden;

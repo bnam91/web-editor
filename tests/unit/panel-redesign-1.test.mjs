@@ -164,7 +164,9 @@ test('R9 Stroke 머리 = 단추꼴 label 안 체크박스 + ＋/− 그림 · Ef
   const on = T.buildTextPropsHtml({ ...GOLDEN_STATE, stroke: { on: false, width: 2, align: 'outside', color: '#000000' }, strokeColorHtml: '' });
   assert.match(on, /<label class="prop-chain-btn prop-sec-add"[^>]*>\s*<input type="checkbox" id="txt-stroke-on"\s+aria-label="Stroke">\s*<svg class="prop-sec-add-plus"[\s\S]*?<svg class="prop-sec-add-minus"/);
   assert.doesNotMatch(on, /id="txt-stroke-section"[\s\S]*?prop-toggle-track[\s\S]*?id="txt-stroke-section-body"/, '★Stroke 머리에 옛 켜기 토글이 남았다');
-  assert.match(on, /<select class="prop-select prop-sec-add-select" id="txt-fx-add" title="효과 추가" aria-label="효과 추가">\s*<option value="">＋<\/option>/);
+  /* ★기대 바뀜(시안 v10 · 현빈 GO 261120) — Effects ＋ = 22 단추 + 종류 메뉴(.fp-menu-item) · 고르개 아님 */
+  assert.match(on, /<button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn"[^>]*aria-haspopup="menu"[^>]*>[\s\S]*?<div class="prop-fx-menu" id="txt-fx-menu" role="menu" hidden><button type="button" class="fp-menu-item" role="menuitem" data-fx="/);
+  assert.doesNotMatch(on, /id="txt-fx-add"/);
   const props = css('css/editor-props.css');
   assert.match(props, /\.prop-sec-add:has\(> input:checked\) > \.prop-sec-add-plus,\s*\.prop-sec-add:not\(:has\(> input:checked\)\) > \.prop-sec-add-minus\s*\{\s*display:\s*none/);
   assert.match(stripComments(readSrc(ROOT, 'js/effects-registry.js')), /<option value="">\$\{FX_ADD_HEAD_LABEL\}<\/option>/, '[대조] 다른 패널(plus 없음)은 옛 «효과 추가…» 그대로');

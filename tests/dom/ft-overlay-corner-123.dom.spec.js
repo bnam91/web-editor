@@ -15,6 +15,7 @@
  * ⛔고정 대기 없음 — waitForFunction 만. 하네스 = _root-harness.bootApp · 고르기·토글·끌기는 진짜 마우스.
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page, { ft = true } = {}) {
@@ -45,7 +46,7 @@ async function setup(page, { ft = true } = {}) {
   p = await mid(); await page.mouse.click(p[0], p[1]);
   await page.waitForFunction(() => window.__tb.classList.contains('selected') && document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle').length === 4);
   if (ft) {
-    await page.selectOption('#txt-fx-add', 'freetransform');
+    await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="freetransform"]'));
     await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12 && window.__tb.dataset.tfCorners);
   }
   /* 손잡이 자리가 두 프레임 내리 같을 때까지 */

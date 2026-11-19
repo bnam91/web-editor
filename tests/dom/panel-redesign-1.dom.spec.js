@@ -281,10 +281,13 @@ test('P9 Stroke ＋ 누르면 두께·색·위치가 펼쳐지고 단추가 − 
   expect(await icon(), '★켜진 Stroke 머리가 − 가 아니다').toEqual({ plus: false, minus: true });
   await add.click();
   await expect(page.locator('#txt-stroke-controls'), '★− 를 눌렀는데 그대로다').toBeHidden();
-  const opt = await page.evaluate(() => [...document.querySelectorAll('#txt-fx-add option')].map((o) => o.value).find(Boolean));
-  expect(opt, '[전제] 더할 효과').toBeTruthy();
-  expect(await page.evaluate(() => document.querySelector('#txt-fx-add option').textContent.trim()), '★Effects 머리가 ＋ 가 아니다').toBe('＋');
-  await page.selectOption('#txt-fx-add', opt);
+  /* ★기대 바뀜(시안 v10) — ＋ 단추(22 · 끝 칼럼) → 종류 메뉴 → 항목 */
+  expect(Math.round(await page.evaluate(() => document.getElementById('txt-fx-add-btn').getBoundingClientRect().width)), '★Effects ＋ 폭(시안 22)').toBe(22);
+  await page.click('#txt-fx-add-btn');
+  await expect(page.locator('#txt-fx-menu'), '★메뉴가 안 뜬다').toBeVisible();
+  const items = await page.locator('#txt-fx-menu [data-fx]').allTextContents();
+  expect(items.length, '[전제] 더할 효과').toBeGreaterThan(0);
+  await page.locator('#txt-fx-menu [data-fx]').first().click();
   await expect(page.locator('#txt-fx-list > *').first(), '★효과를 골랐는데 카드가 없다').toBeVisible();
   expect(errs, errs.join(' | ')).toEqual([]);
 });
