@@ -46,7 +46,7 @@
 /* ★구분선은 «항목»이 아니라 «그룹» 사이에 둔다 — 항목마다 그으면 다섯 줄이 다섯 칸으로
    쪼개져 목록이 아니라 표로 읽힌다. 항목 구분은 불릿과 여백이 이미 하고 있다. */
 .relnote-group {
-  font-size: 10px; font-weight: var(--ui-fw-bold); letter-spacing: .12em; text-transform: uppercase;
+  font-size: var(--ui-fs-10); font-weight: var(--ui-fw-bold); letter-spacing: .12em; text-transform: uppercase;
   color: var(--ui-text-muted, #9e9e9e);
   margin: 6px 0 2px;
   padding-top: 14px;
