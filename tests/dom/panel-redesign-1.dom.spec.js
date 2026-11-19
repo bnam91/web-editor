@@ -124,6 +124,10 @@ test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 �
   expect(after, '★끈 값이 블럭에 안 썼다').toBe(Math.min(860, w0 + 20) + 'px');
   await page.evaluate(() => window.undo());
   await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return b.closest('.row')?.style.width || b.style.width; }, id), '★⌘Z 한 번에 안 돌아간다').not.toBe(after);
+  /* QA 경1 — 너비 칸을 누르면 값 전체가 골라져 친 글이 덮어쓴다(.prop-number · editor.js _AUTO_SELECT_SEL) */
+  await page.locator('#txt-width-number').click();
+  await page.keyboard.type('300');
+  await expect(page.locator('#txt-width-number'), '★누른 뒤 친 값이 옛 값 뒤에 붙었다(전체선택 안 됨)').toHaveValue('300');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

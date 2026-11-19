@@ -152,8 +152,8 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   [/^(<input type="checkbox" id="txt-stroke-on"(?: checked)?) ?>$/, '$1 aria-label="Stroke">'],
   /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
   [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
-  /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스 없음 · aria-label) */
-  [/^<input type="number" class="prop-number" id="txt-width-number" (min="80" max="860" value="[^"]*")>$/, '<input type="number" id="txt-width-number" $1 aria-label="너비">']];
+  /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
+  [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">']];
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
   : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}>`] : []));
 const labels = (root) => all(root).filter((k) => has(k, 'prop-label') || has(k, 'prop-field-label')).map((k) => text(k).trim());

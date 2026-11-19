@@ -164,7 +164,7 @@ export function buildTextPanelSpec(state) {
         <div class="prop-lhls-col">
           <div class="prop-icon-input">
             <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
-            <input type="number" id="txt-width-number" min="80" max="860" value="${currentW}" aria-label="너비">
+            <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}" aria-label="너비">
           </div>
         </div>
         <div class="prop-lhls-col">

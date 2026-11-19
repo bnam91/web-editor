@@ -68,10 +68,12 @@ test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 
   const size = /data-sec="size"[\s\S]*?<div class="prop-sec-body"[^>]*>([\s\S]*?)\n {6}<\/div>\n {4}<\/div>/.exec(html)?.[1] || '';
   assert.ok(size, '[전제] Size 절 몸을 찾았다');
   assert.doesNotMatch(size, /txt-width-slider|type="range"/, '★너비 슬라이더가 남았다');
-  assert.match(size, /<div class="prop-lhls-row">[\s\S]*id="txt-width-scrub"[^>]*>너비<\/span>\s*<input type="number" id="txt-width-number"[\s\S]*<span class="prop-xy-label">높이<\/span>\s*<input type="number" id="txt-height-number" disabled placeholder="auto"/);
+  assert.match(size, /<div class="prop-lhls-row">[\s\S]*id="txt-width-scrub"[^>]*>너비<\/span>\s*<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span class="prop-xy-label">높이<\/span>\s*<input type="number" id="txt-height-number" disabled placeholder="auto"/);
   const wire = stripComments(readSrc(ROOT, 'js/props/prop-text-wireup-position.js'));
   assert.match(wire, /getElementById\('txt-width-scrub'\)[\s\S]*pointermove[\s\S]*lostpointercapture[\s\S]*pushHistory/, '★라벨 끌기 배선이 없다');
   assert.doesNotMatch(wire, /txt-width-slider/);
+  /* QA 경1 — 너비 칸은 .prop-number 를 지녀 포커스 때 값 전체선택(editor.js _AUTO_SELECT_SEL)이 그대로 걸린다 */
+  assert.match(stripComments(readSrc(ROOT, 'js/editor.js')), /const _AUTO_SELECT_SEL = '\.prop-number/);
   assert.match(css('css/editor-props.css'), /\.prop-icon-input:has\(> input:disabled\)\s*\{[^}]*opacity:\s*var\(--ui-disabled-opacity\)/);
 });
 
