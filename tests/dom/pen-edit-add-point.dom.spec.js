@@ -16,6 +16,7 @@ async function scene(page, nodes) {
     await window.addSection();
     const vb = window.commitPenNodes(document.querySelector('#canvas .section-block'), nodes, false);
     vb.id = 'vbP';
+    window.pushHistory?.('장면');   // 인텔 261120: id 를 «넣기 표본 뒤»에 바꿔 표본엔 옛 id — 바른 ⌘Z 뒤에도 #vbP 가 없을 수 있었다 → 바꾼 id 를 표본에 싣는다
     vb.scrollIntoView({ block: 'center' });
   }, nodes);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
@@ -37,16 +38,22 @@ async function pressSeg(page, idx, frac) {
 test('A1 곡선 선분 누름 = 점 추가 · 모양 무변 · ⌘Z · 저장', async ({ page }) => {
   const errs = await scene(page, [{ x: 0, y: 60, type: 'corner', hIn: null, hOut: { x: 60, y: 0 } }, { x: 200, y: 60, type: 'corner', hIn: { x: 140, y: 120 }, hOut: null }]);
   const n0 = await nodeCount(page), s0 = await shape(page), r0 = await screenBox(page);
+  /* DIAG(인텔 261120 :50 3/3 «⌘Z 한 번 = 옛 수» 받은 3 · 판정 보류) — 이력 꼭대기·벡터 목록(판정 아님 · 로그로만) */
+  const hd = (tag) => page.evaluate((tag) => ({ tag, tip: window.getHistoryTip?.(), vecs: [...document.querySelectorAll('#canvas .vector-block')].map((b) => `${b.id}:${b.dataset.penNodes ? JSON.parse(b.dataset.penNodes).length : '-'}`), editing: document.body.classList.contains('vpen-edit-mode'), paused: window.__historyPaused ?? null }), tag).then((d) => console.log('[A1 DIAG]', JSON.stringify(d)));
+  await hd('장면 뒤');
   await pressSeg(page, 0, 0.4);
   await expect.poll(() => nodeCount(page), '★노드 +1').toBe(n0 + 1);
   expect(await page.evaluate(() => [...document.querySelectorAll('.vpen-edit-overlay rect')].filter((r) => r.getAttribute('fill') !== '#fff').length), '★새 점 고름').toBe(1);
   const s1 = await shape(page);
+  await hd('점 추가 뒤');
   expect(s1.map((v, i) => Math.abs(v - s0[i]) <= 0.5), `★모양 무변 ${JSON.stringify([s0, s1])}`).toEqual([true, true, true, true, true]);
   const r1 = await screenBox(page);
   expect(r1.map((v, i) => Math.abs(v - r0[i]) <= 1), `★화면 자리 무변(안 뜀) ${JSON.stringify([r0, r1])}`).toEqual([true, true, true, true]);
   await page.keyboard.press('Escape');
   await page.evaluate(() => document.activeElement?.blur?.());
+  await hd('Esc 뒤');
   await page.keyboard.press('Meta+z');
+  await hd('⌘Z 뒤');
   await expect.poll(() => nodeCount(page), '★⌘Z 한 번 = 옛 수').toBe(n0);
   await page.keyboard.press('Meta+Shift+z');
   await expect.poll(() => nodeCount(page)).toBe(n0 + 1);
