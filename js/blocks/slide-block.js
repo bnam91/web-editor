@@ -216,17 +216,22 @@ export function unfoldSlide(block, on = true) {
   kickSlidePlus();
 }
 const _unfolded = () => document.querySelector('#canvas .slide-block.sld-unfold');
+/* 펼침을 «연» 그 dblclick — 같은 문서 capture 의 «빈 곳 두 번 = 나옴»(아래)이 같은 이벤트로 곧바로 접지 않게(지혜맥 261120 · 펼치자마자 나옴 18칸).
+   stopPropagation 은 같은 노드(document)의 다음 듣개를 못 막는다 — 이벤트 자체로 가른다(stopImmediatePropagation 은 다른 듣개까지 막아 안 씀). */
+let _enterEv = null;
 if (typeof document !== 'undefined') {
   document.addEventListener('dblclick', (e) => {
     const b = e.target.closest?.('#canvas .slide-block[data-cell-mode="frame"]');
     if (!b || b.classList.contains('sld-unfold')) return;
     e.preventDefault(); e.stopPropagation();
+    _enterEv = e;
     window.selectBlock?.(b.id);
     unfoldSlide(b, true);
   }, true);
   /* SLIDE-ENTER-EXIT-DIM-01(140 · 현빈 5차 (g)) — 빈 영역 두 번 누름 = 나옴: 펼친 슬라이드 안 «칸 밖»(트랙 틈·점 띠·바탕) 또는 캔버스 밖 회색(#canvas-wrap 안 · #canvas 밖).
      칸 안 두 번 누름은 그대로(칸 안 편집 진입). 다른 섹션 위는 mousedown(아래)이 이미 접는다. */
   document.addEventListener('dblclick', (e) => {
+    if (e === _enterEv) return;   // 펼침을 연 그 두 번 누름 — 나옴 판정에서 뺀다(펼친 «뒤» 새 dblclick 만 나옴)
     const b = _unfolded(); if (!b) return;
     const t = e.target;
     const inSlide = b.contains(t), inCell = !!t.closest?.('.sld-cell');

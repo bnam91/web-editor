@@ -1084,3 +1084,28 @@ test('F86 폰 틀 고정 + 후기 제자리 전환 — 칸 복제 + 제자리 �
   expect((await measure()).frameSame, '양성대조: 사본 틀이 어긋나면 자가 잡는다').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* X2 SLIDE-ENTER-EXIT-DIM-01 고침(지혜맥 261120 · 18칸 빨강) — 접힌 슬라이드의 «칸 밖»(칸 틈)을 두 번 누르면 펼치고 «펼친 채» 남는다.
+ *   원인: 펼침(문서 capture dblclick)과 «빈 곳 두 번 = 나옴»(140 · 같은 문서 capture)이 같은 이벤트를 차례로 받아 펼치자마자 접었다(stopPropagation 은 같은 노드 다음 듣개를 못 막음).
+ *   고침: 펼침을 연 그 이벤트는 나옴 판정에서 뺀다. 펼친 «뒤» 새 두 번 누름은 그대로 나옴(140 뜻 유지 — 같은 테스트 둘째 단계).
+ * 양성대조: _patches/slide-frame-CTL45-enter-ev-not-skipped.patch(나옴 쪽 «e === _enterEv» 줄 삭제) → X2 «펼친 채» 빨강. */
+test('X2 접힌 슬라이드 칸 틈 두 번 = 펼침 · 펼친 채 남음 · 다음 두 번 = 나옴', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const open = () => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id);
+  await page.evaluate((id) => { window.unfoldSlide(document.getElementById(id), false); document.getElementById(id).scrollIntoView({ block: 'center' }); }, id);
+  await expect.poll(open, '[전제] 접힘').toBe(false);
+  let prev = '', gap = null;
+  await expect.poll(async () => {
+    gap = await page.evaluate((id) => { const b = document.getElementById(id), cs = b.querySelectorAll('.sld-cell'); const a = cs[0].getBoundingClientRect(), c = cs[1].getBoundingClientRect();
+      const x = (a.right + c.left) / 2, y = (a.top + a.bottom) / 2, e = document.elementFromPoint(x, y);
+      return { x, y, ok: c.left - a.right >= 2 && !!e && b.contains(e) && !e.closest('.sld-cell') }; }, id);
+    const k = JSON.stringify([gap.x, gap.y]), same = k === prev; prev = k; return gap.ok && same;
+  }, { message: '[전제] 칸 틈 = 슬라이드 안 · 칸 밖(두 번 같은 자리)', intervals: [50] }).toBe(true);
+  await page.mouse.dblclick(gap.x, gap.y);
+  await expect.poll(open, '★칸 틈 두 번 = 펼침').toBe(true);
+  let n = 0;
+  await expect.poll(async () => { n = (await open()) ? n + 1 : 0; return n >= 2; }, { message: '★펼친 채 남음(두 번 연속 펼침 — 같은 이벤트로 곧장 접히지 않음)', intervals: [50] }).toBe(true);
+  await page.mouse.dblclick(gap.x, gap.y);
+  await expect.poll(open, '★펼친 뒤 새 두 번 누름 = 나옴(140 그대로)').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
