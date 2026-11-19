@@ -291,13 +291,16 @@ test('D8 점 간격·색 — 패널 · 첫 장면 · GIF 같은 자리·색', as
     const [a, c] = [...d.children].map((e) => e.getBoundingClientRect());
     return { band: Math.round(d.getBoundingClientRect().height / k), step: Math.round((c.left - a.left) / k), on: getComputedStyle(d.children[0]).backgroundColor, off: getComputedStyle(d.children[1]).backgroundColor, track: b.clientHeight - t.offsetHeight };
   }, id);
-  expect(dom, '★첫 장면 띠 40 · 점 사이 28 · 색 · 트랙 −40').toEqual({ band: 40, step: 28, on: 'rgb(255, 0, 255)', off: 'rgb(0, 255, 255)', track: 40 });
+  /* ★기대 바뀜(SLIDE-DOTS-GAP-SLIDER-01 · 137 d7385bc2c · 지디 261120 판정): 띠 = 칸↔점 갭 + 점 + 바깥 여백(고정 8) — 옛 «갭 × 2 + 점»(40) 이 아니다 ⇒ 갭 16 이면 16 + 8 + 8 = 32 · 트랙도 −32.
+     이 칸은 137 앞(3783f8e44)에 쓰여 137 이 뜻을 바꾼 뒤 안 고쳐졌다. 점 사이(28)·색은 그대로. */
+  expect(dom, '★첫 장면 띠 32 · 점 사이 28 · 색 · 트랙 −32').toEqual({ band: 32, step: 28, on: 'rgb(255, 0, 255)', off: 'rgb(0, 255, 255)', track: 32 });
   const g = await page.evaluate(async (id) => {
     const b = document.getElementById(id); await window.slidePrepare(b);
     const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0);
     const p = (x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data);
     const x0 = (W - (3 * 8 + 2 * 20)) / 2 + 4;
-    return { d0: p(x0, 20).slice(0, 3), d1: p(x0 + 28, 20).slice(0, 3), band: p(6, 36)[3], card: p(6, 44).slice(0, 3) };
+    /* 137 판: 점 가운데 = 바깥 여백 8 + 점 반지름 4 = 12 · 띠 0~32(비움 → 28 에서 잼) · 카드 = 32 아래(36 에서 잼) */
+    return { d0: p(x0, 12).slice(0, 3), d1: p(x0 + 28, 12).slice(0, 3), band: p(6, 28)[3], card: p(6, 36).slice(0, 3) };
   }, id);
   expect(g, '★GIF t=0 = 첫 장면(점 자리·색 · 띠 비움 · 카드 띠 아래)').toEqual({ d0: [255, 0, 255], d1: [0, 255, 255], band: 0, card: [255, 0, 0] });
   expect(errs, errs.join(' | ')).toEqual([]);

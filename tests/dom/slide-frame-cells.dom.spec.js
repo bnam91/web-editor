@@ -462,10 +462,11 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   /* 진짜 PNG 내보내기(exportSection · returnDataUrl) — 캡처 클론이 .selected 를 걷는지가 곧 «펼침이 내보내기에 안 샌다» */
   const shot = () => page.evaluate(async (id) => window.exportSection(document.getElementById(id).closest('.section-block'), 'png', 860, { returnDataUrl: true }), id);
   await page.evaluate(({ id, tid }) => { window.deselectAll(); document.getElementById(tid).classList.add('selected'); window.unfoldSlide(document.getElementById(id), true); }, { id, tid });   // 펼친 채(두 번 누름 상태)
-  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), '[전제] 펼친 상태').toBe('visible');
+  /* ★기대 바뀜(SLIDE-CELL-SHADOW-CLIP-01 · 134 · 지디 261120 판정): 134 부터 접힌 블럭도 overflow visible(칸 그림자 위아래) · 가로 자름은 clip-path inset(…) ⇒ 펼침/접힘 = clip-path 로 가른다(펼침 = none · css .sld-unfold) */
+  expect(await page.evaluate((id) => { const cs = getComputedStyle(document.getElementById(id)); return [cs.overflow, cs.clipPath]; }, id), '[전제] 펼친 상태(자름 없음)').toEqual(['visible', 'none']);
   const sOpen = await shot();
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Escape');   // Esc = 접힘(SLIDE-CLICK-SELECT-DBL-UNFOLD-01 · 옛 «고름 풀면 접힘»)
-  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), 'Esc = 접힘(잘림)').toBe('hidden');
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).clipPath.startsWith('inset('), id), 'Esc = 접힘(잘림 = 가로 clip-path · 134)').toBe(true);
   const sClosed = await shot();
   expect(sOpen && sOpen.length > 100, '[전제] PNG 가 나왔다').toBe(true);
   expect(sOpen === sClosed, '★펼친 채 PNG = 안 펼친 PNG(글자 그대로)').toBe(true);
@@ -853,6 +854,11 @@ test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 �
   await gapTo(0);
   await expect.poll(() => geo().then((g) => g.gap), '[전제] 갭 0').toBe(0);
   const g0 = await geo();
+  /* DIAG(지혜맥 261120 CTL43 판 10 ≠ 8 · 판정 보류) — 바깥 여백을 이루는 값들(판정 아님 · 로그로만) */
+  console.log('[D1 DIAG]', JSON.stringify(await page.evaluate((id) => { const b = document.getElementById(id), d = b.querySelector(':scope > .sld-dots'), s = d.firstElementChild, cs = getComputedStyle(b), ds = getComputedStyle(d);
+    const br = b.getBoundingClientRect(), dr = d.getBoundingClientRect(), sr = s.getBoundingClientRect(), z = (window.currentZoom || 40) / 100;
+    return { z, blockH: b.offsetHeight, clientH: b.clientHeight, bb: [cs.borderTopWidth, cs.borderBottomWidth, cs.paddingBottom, cs.overflow, cs.clipPath.slice(0, 40), cs.transform], dotsH: d.offsetHeight, dotsPad: ds.paddingBottom, dotsBottom: ds.bottom,
+      scr: { b: [br.top, br.bottom], d: [dr.top, dr.bottom], s: [sr.top, sr.bottom] }, outerRaw: (br.bottom - sr.bottom) / z, dotsGapRaw: (br.bottom - dr.bottom) / z }; }, id)));
   expect(g0.outer, '[전제] 바깥 여백 8').toBe(8);
   await gapTo(40);
   await expect.poll(geo, '★칸 그대로 · 블럭 +40 · 바깥 8 그대로 · 갭 40').toEqual({ cellH: g0.cellH, blockH: g0.blockH + 40, outer: 8, gap: 40 });
@@ -893,10 +899,16 @@ test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async (
   const x = await page.evaluate((id) => { const b = document.getElementById(id); window.slideHScroll(b, b.querySelectorAll('.sld-cell')[1].offsetLeft); return window.slideHScroll(b);   /* 134 */ }, id);
   expect(x, '[전제] 밀렸다').toBeGreaterThan(0);
   const before = await c2x();
+  console.log('[K2 DIAG before]', JSON.stringify(await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), si = b.closest('.section-inner'), cw = document.getElementById('canvas-wrap');
+    return { blockL: Math.round(b.getBoundingClientRect().left), trackL: Math.round(t.getBoundingClientRect().left), translate: getComputedStyle(t).translate, siScroll: si && si.scrollLeft, wrapScroll: cw && [cw.scrollLeft, cw.scrollTop] }; }, id)));
   /* 두 번 누름 = 펼침(문서 capture dblclick 길) — 블럭 안 보이는 칸 2 위 */
   const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(); return [r.left + 12, r.top + 12]; }, id);
   await page.mouse.dblclick(p[0], p[1]);
   await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 펼침').toBe(true);
+  /* DIAG(지혜맥 261120 CTL43 판 31 어긋남 · 판정 보류) — 펼친 뒤 무엇이 움직였나(판정 아님 · 로그로만) */
+  console.log('[K2 DIAG]', before, JSON.stringify(await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), c = b.querySelectorAll('.sld-cell')[1], si = b.closest('.section-inner'), cw = document.getElementById('canvas-wrap');
+    const ts = getComputedStyle(t); return { c2x: Math.round(c.getBoundingClientRect().left), blockL: Math.round(b.getBoundingClientRect().left), trackL: Math.round(t.getBoundingClientRect().left), hs: window.slideHScroll(b), hsVar: b.style.getPropertyValue('--sld-hs-x'), cls: b.className,
+      translate: ts.translate, transform: ts.transform, siScroll: si && si.scrollLeft, siOverflowX: si && getComputedStyle(si).overflowX, wrapScroll: cw && [cw.scrollLeft, cw.scrollTop], picked: !!b.querySelector('.sld-cell.selected, .sld-cell .selected') }; }, id)));
   await expect.poll(c2x, '★펼친 뒤 칸 2 같은 자리').toBeGreaterThanOrEqual(before - 1);
   expect(Math.abs((await c2x()) - before), '★펼친 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
   await key(page, 'Escape');
