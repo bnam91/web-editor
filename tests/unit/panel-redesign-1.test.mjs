@@ -23,6 +23,7 @@ test('R2 절 제목 = --ui-text · 머리 위아래 space-3 · 몸 아래 space-
   const props = css('css/editor-props.css');
   assert.doesNotMatch(props, /--ui-sec-title-color\s*:/, '★절마다 제목 색을 다시 정하는 규칙이 생겼다(한 규칙이어야)');
   assert.doesNotMatch(props, /\.prop-sec-head\s*>\s*\.prop-section-title:hover/, '★절 머리 hover 색이 되살았다');
+  assert.doesNotMatch(props, /is-collapsed/, '★접기 없는 표준 절에 죽은 .is-collapsed 규칙이 남았다(QA 경6)');
 });
 
 /* ⑦ 숫자 칸 스피너 걷음 — 우측 패널 전체 한 규칙. 양성대조: 그 규칙을 지우면 빨강 */
@@ -104,7 +105,7 @@ test('R12 타입 12칸 순서·글 · 바꾸기 없는 넷 disabled · 줄바꿈
   assert.deepEqual(btns.filter((b) => /data-cls=/.test(b.a)).map((b) => b.t), ['H1', 'H2', 'H3', 'Body', 'Cap', 'Bullet', 'Label'], '★바꾸기 배선(data-cls) 칸이 바뀌었다');
   assert.match(g, /id="txt-to-quote"[^>]*>Quote</, '★Quote 가 묶음 밖이다');
   const props = css('css/editor-props.css');
-  assert.match(props, /#txt-kind-group\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.match(props, /#txt-kind-group\s*\{[^}]*flex-wrap:\s*wrap;\s*gap:\s*var\(--ui-space-0_5\)/, '★칸 사이(가로·세로) = 2px 하나(QA 경6)');
   assert.match(props, /#txt-kind-group > \.prop-type-btn\s*\{[^}]*border-left:\s*1px solid var\(--ui-border-mid\)/, '★Quote(마지막 칸) 왼 테두리 잘림이 돌아온다');
 });
 
