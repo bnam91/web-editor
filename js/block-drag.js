@@ -3426,6 +3426,7 @@ function _pickSlideCell(ss) {
   if (ss.dataset.sldCell !== '1') return false;
   const sl = ss.closest('.slide-block');
   if (sl) window.showSlideProperties?.(sl, { cell: ss });
+  showFrameHandles(ss);   // 칸 = 코너 반경 손잡이만(overlay-handles cellOnly · 136)
   return true;
 }
 

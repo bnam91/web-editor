@@ -91,7 +91,9 @@ export const SLIDE_MODES = Object.freeze(['row', 'center', 'single']);
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
 export const SLIDE_DOTS = Object.freeze(['none', 'top', 'bottom']);
 export const DOT_BAND = 24, DOT_D = 8, DOT_GAP = 8, DOT_ON = '#4a4a4a', DOT_OFF = '#c9c9c9';
-export const SLIDE_ANIM_DEFAULT = Object.freeze({ dir: 'left', dwell: 1.2, speed: 1 });
+/* SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120): trail = 첫(가장 가까운) 잔상의 불투명 % · 기본 = 옛 고정값 TRAIL_A(22) → 안 건드린 블럭 그림 그대로 · 0 = 잔상 없음(= 스와이프) · 상한 60 */
+export const TRAIL_MAX = 60;
+export const SLIDE_ANIM_DEFAULT = Object.freeze({ dir: 'left', dwell: 1.2, speed: 1, trail: Math.round(TRAIL_A * 100) });
 export const FLOW_PX_S = 120;                      // 흐름 기본 속도(블럭 px/초 · 속도 배율로 곱함)
 export const SWIPE_MOVE_S = 0.5;                   // 스와이프 한 번 넘김
 export const GIF_FPS_MAX = 20, GIF_FRAMES_MAX = 60;
@@ -100,7 +102,8 @@ const _num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite
 
 const _dotColor = (c, d) => (typeof c === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.toLowerCase() : d);
 /** 점 띠 높이 = 칸↔점 갭 × 2 + 점 지름(첫 장면 트랙 줄임 · GIF 비움 · 칸 찍기 크기가 같은 값). */
-export const dotBand = (layout) => 2 * normLayout(layout).dotGap + DOT_D;
+/* SLIDE-DOTS-GAP-SLIDER-01(137 · 현빈 5차 (d) «갭만 움직여야») — 띠 = 칸↔점 갭(움직임) + 점 + 바깥 여백(DOT_GAP 고정 · 옛 기본 8). 옛 판은 갭 × 2 라 바깥 여백까지 같이 변했다. 기본(갭 8)은 옛 24 그대로. */
+export const dotBand = (layout) => normLayout(layout).dotGap + DOT_D + DOT_GAP;
 /** 내용 배치 소독 — 카드 폭 % · 간격 px · 블럭 높이 px. */
 export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
@@ -114,7 +117,18 @@ export function normLayout(o) {
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
 export function normAnim(o) {
   const s = o && typeof o === 'object' ? o : {};
-  return { dir: s.dir === 'right' ? 'right' : 'left', dwell: _num(s.dwell, 0.3, 4, SLIDE_ANIM_DEFAULT.dwell), speed: _num(s.speed, 0.25, 3, SLIDE_ANIM_DEFAULT.speed) };
+  return { dir: s.dir === 'right' ? 'right' : 'left', dwell: _num(s.dwell, 0.3, 4, SLIDE_ANIM_DEFAULT.dwell), speed: _num(s.speed, 0.25, 3, SLIDE_ANIM_DEFAULT.speed),
+    trail: Math.round(_num(s.trail, 0, TRAIL_MAX, SLIDE_ANIM_DEFAULT.trail)) };
+}
+/** 스와이프 잔상 목록 [[밀린 거리, 불투명]] — 캔버스 첫 장면·미리보기·GIF 가 같은 함수(slide-block drawFrame). 먼 것부터(옅게 먼저 그린다).
+ *  넘기는 동안만(지금 자리와 0.5px 넘게 다를 때) · 세기(A.trail %)가 첫 잔상 불투명 · 뒤로 갈수록 TRAIL_N 등분으로 옅어짐 · 0 이면 []. */
+export function trailGhosts(fx, geom, anim, t, sec) {
+  if (fx !== 'slide-trail') return [];
+  const A = normAnim(anim), a0 = A.trail / 100;
+  if (a0 <= 0) return [];
+  const s = slideOffset(fx, geom, A, t), out = [];
+  for (let j = TRAIL_N; j >= 1; j--) { const sj = slideOffset(fx, geom, A, t - (j * TRAIL_DT) / sec); if (Math.abs(sj - s) > 0.5) out.push([sj, a0 * (1 - (j - 1) / TRAIL_N)]); }
+  return out;
 }
 /** 기본값과 다른 키만(저장 꼴 — 기본이면 키 없음). */
 export function diffFromDefault(v, def) {
@@ -231,9 +245,9 @@ export function slideActiveIndex(geom, s) {
 /** 점 띠 — n 점 가운데 정렬 · active 진하게 · pos 'top'|'bottom' · k = 캔버스 px / 블럭 px(첫 장면 DOM .sld-dots 와 같은 자리·크기·색). */
 export function drawDots(ctx, W, H, n, active, pos, k, opt = {}) {
   if (pos !== 'top' && pos !== 'bottom') return;
-  const band = opt.band ?? DOT_BAND, space = opt.space ?? DOT_GAP, on = opt.on ?? DOT_ON, off = opt.off ?? DOT_OFF;   // opt = 레이아웃 점 값(SLIDE-DOTS-SPACING-01 · 없으면 옛 상수)
+  const space = opt.space ?? DOT_GAP, on = opt.on ?? DOT_ON, off = opt.off ?? DOT_OFF;   // opt = 레이아웃 점 값(SLIDE-DOTS-SPACING-01 · 없으면 옛 상수)
   const d = DOT_D * k, g = space * k, total = n * d + Math.max(0, n - 1) * g;
-  const cy = pos === 'top' ? (band * k) / 2 : H - (band * k) / 2;
+  const cy = pos === 'top' ? (DOT_GAP + DOT_D / 2) * k : H - (DOT_GAP + DOT_D / 2) * k;   // 점 = 바깥 여백(고정) 바로 안쪽 · 칸 쪽 갭이 늘어도 점은 블럭 끝에서 같은 자리(137)
   let x = (W - total) / 2 + d / 2;
   for (let i = 0; i < n; i++, x += d + g) {
     ctx.fillStyle = i === active ? on : off;

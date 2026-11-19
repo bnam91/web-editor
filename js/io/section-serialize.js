@@ -257,6 +257,7 @@
     'frame-see-through',                         // t2-07(261112) 지나감 아웃라인 표식(js/block-drag.js mouseenter) — 규칙 밖 이름이라 손으로 든다. 안 들면 저장본·⌘Z 표본에 샜다(nested-frame-width-cap W1)
     'pin-peek',                                  // ⑦ 섹션 핀 «전체 보기»(js/section-pin.js) — 저장·히스토리에 안 남긴다
     'sld-unfold',                                // SLIDE-CLICK-SELECT-DBL-UNFOLD-01 슬라이드 «펼침»(두 번 누름) — 편집 상태 · 저장·히스토리에 안 남긴다
+    'sld-hs', 'sld-dot-hs-on',                   // SLIDE-DOTS-FIXED-ON-SCROLL-01 임시 가로 밀기 중 점 고정·활성 표식 — 저장·히스토리에 안 남긴다
   ];
   /** 클래스 토큰 하나가 «런타임 전용»인가. */
   function isRuntimeMarker(cls) {
@@ -384,6 +385,7 @@
          생길 때마다 사람이 «기억해서» 한 줄을 더해야 하고, 안 더한 날 조용히 샌다. */
     root.querySelectorAll('[class]').forEach(stripRuntimeMarkers);
     root.querySelectorAll('.sticker-block.tiny').forEach(s => s.classList.remove('tiny'));  // 조건부 — 스티커에서만 UI 상태
+    root.querySelectorAll('.slide-block').forEach(b => b.style?.removeProperty('--sld-hs-x'));  // 138·139 슬라이드 임시 가로 밀기 거리(표식 sld-hs 의 짝) — 저장에 편집 찌꺼기 0
     /* 섹션 «배경이미지 편집» 임시 상태(★2026-10-10 이름 변경) — .sec-bg-proxy 는 위 remove 목록에서 이미 사라졌고,
        마킹 클래스(sec-bg-editing)는 위 성질 sweep 이 걷었다. ci-selected · ci-active ·
        editing · dragging · ss-drag-over · group-selected/editing 도 마찬가지다.

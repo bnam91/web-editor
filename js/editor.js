@@ -3518,6 +3518,8 @@ document.addEventListener('keydown', e => {
     if (document.querySelector('.text-block.editing, .label-group-block.editing')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     if (moveGridLineAcrossCells({ dir: e.key === 'ArrowLeft' ? -1 : 1 })) { e.preventDefault(); return; }
+    /* SLIDE-CELL-REORDER-01(141) — 펼친 슬라이드의 «칸 자신»을 골랐으면 칸 순서(그리드 줄이 안 골라졌을 때만 여기 온다 · 칸 안 블럭 고름이면 false) */
+    if (window.moveSelectedSlideCell?.(e.key === 'ArrowLeft' ? -1 : 1)) { e.preventDefault(); return; }
   }
 
   // ── 키보드 Nudge: 블록 이동 Cmd+방향키 (편집 중이거나 입력 포커스 시 무시) ──

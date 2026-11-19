@@ -60,7 +60,7 @@
  *   slide-frame-CTL3-group-cell.patch(⌘G 칸 거르기 줄 삭제) → F2 빨강(칸이 묶음으로 빠짐) — 예측
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function scene(page, opts) {
   await page.setViewportSize({ width: 1500, height: 1100 });
@@ -193,12 +193,13 @@ test('F2 빈 칸 클릭 = 그 칸 고름(슬라이드 패널 · 손잡이 0) →
   const pick = await page.evaluate((id) => {
     const cell = document.getElementById(id).querySelectorAll('.sld-cell')[1];
     return { active: window._activeFrame === cell, sel: cell.classList.contains('selected'), row: document.querySelector('.sld-cell-row.active')?.dataset.idx ?? null,
-      handles: document.querySelectorAll('.ss-resize-handle, .ss-radius-handle').length, framePanel: !!document.getElementById('ss-align-left') };   // 프레임 패널(prop-frame.js)에만 있는 id
+      handles: document.querySelectorAll('.ss-resize-handle, .ss-rotate-handle').length, radiusHandles: document.querySelectorAll('.ss-radius-handle').length, framePanel: !!document.getElementById('ss-align-left') };   // 프레임 패널(prop-frame.js)에만 있는 id
+    /* ★제품 뜻 바뀜(136 SLIDE-CELL-RADIUS-HANDLE-01 · 현빈 5차 (c) «캔버스 모서리 핸들 — 일반 프레임 것 재사용») — 칸에도 코너 반경 손잡이 넷 · 크기·회전 px 손잡이는 여전히 0 */
   }, id);
   expect(pre, `[전제] 펼친 뒤 누를 점 = 칸 2 · 진단 ${JSON.stringify({ pre, post })}`).toMatchObject({ open: true, inCell2: true });
-  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, framePanel: false });
+  expect(pick, `★칸 고름 · 슬라이드 패널 그 칸 줄 · 프레임 px 손잡이 0 · 프레임 패널 0 · 진단 ${JSON.stringify({ pre, post })}`).toEqual({ active: true, sel: true, row: '1', handles: 0, radiusHandles: 4, framePanel: true });   // ★제품 뜻 바뀜(142 SLIDE-CELL-PANEL-PARITY-02 ⓐ · 지디 261119) — 고른 칸 = «그 칸의 프레임 패널»(정렬 단추 있음) + 슬라이드 칸 절(칸 줄)
   /* SLIDE-PANEL-REMOVE-CELL-PHOTO-BTN-01(현빈 피드백 3 ② · 제품 뜻 바뀜) — 칸을 골라도 패널에 «사진 넣기 (칸 N)» 단추가 없다(사진은 칸 위 스크래치·라이브러리 놓기 = R3) · 모서리 칸은 있다(같은 갈래가 그려졌다는 양성) */
-  await expect(page.locator('#sld-cell-radius'), '[전제] 고른 칸 갈래 그려짐').toHaveCount(1);
+  await expect(page.locator('#ss-radius-slider'), '[전제] 고른 칸 갈래 그려짐(142 — 칸 코너 = 프레임 패널 코너)').toHaveCount(1);
   await expect(page.locator('#sld-cell-photo'), '★칸 사진 넣기 단추 없음').toHaveCount(0);
   await expect(page.getByText(/사진 넣기 \(칸/), '★그 글귀도 없음').toHaveCount(0);
   /* 고른 칸에 넣기 = 그 칸 안(_insertToFlowFrame) */
@@ -343,14 +344,31 @@ test('F4 옛 사진 모드 — 다시 열어도 글자 그대로 · «프레임�
 /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01 — 칸은 «펼친» 뒤에만 누를 수 있다(접힌 동안 한 번 = 슬라이드만) ⇒ 접혀 있으면 진짜 두 번 누름으로 펼치고 칸을 누른다 */
 /* 칸 i 고르기(진짜 누름) — 접혔으면 두 번 눌러 펼치고 «펼친 뒤» 점을 다시 잰다 · 고른 칸 = 그 칸 · 패널 그 칸 줄까지 기다림(받은 값 = 진단)
    (지혜맥 77f0425f4 C2 3번 중 1번 #sld-cell-radius 대기 빨강 — 옛 판은 펼치기 전 점 하나로 두 번 + 한 번 · 고름 확인 없이 다음 줄로 · 어느 쪽에서 졌는지 미확인 ⇒ 고름을 단언으로) */
+/* 누를 점 = «임자 맞음 + 같은 자리 두 번 연속»일 때(조건 대기 · 지혜맥 261120 load 9 에서 K1·P1 이 배율·스크롤이 멎기 전 점을 눌러 1/3 빨강) */
+/* 받은 값 = «ok|same|who» 글 — 실패하면 무엇이 그 자리를 쥐었나(who)가 그대로 찍힌다(지혜맥 261120 jsfc4: toMatchObject 차이엔 who 가 안 보였다) */
+const stableAt = async (page, fn, arg, msg) => {
+  let prev = '', p = null;
+  await expect.poll(async () => { p = await page.evaluate(fn, arg); const k = JSON.stringify(p && [Math.round(p.x), Math.round(p.y)]); const same = k === prev; prev = k; return `${!!p && !!p.ok}|${same}|${p && p.who}`; }, { message: msg, intervals: [50] }).toMatch(/^true\|true\|/);
+  return p;
+};
 const pickCell = async (page, id, i) => {
-  const at = () => page.evaluate(({ id, i }) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[i].getBoundingClientRect(); return [r.left + 8, r.top + 8]; }, { id, i });
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  /* 접힌 칸은 pointer-events none(누름이 슬라이드로) — 접혔으면 임자 = 슬라이드 안 · 펼쳤으면 임자 = 그 칸 «자신»(빈 곳 — 칸 안 블럭이면 그 블럭이 골라진다).
+     ★자리 고르기(지혜맥 261120 jsfc4 R1 5/5): 옛 «왼위 +8» 은 칸 1 이면 고른 슬라이드의 왼위 모서리 = 크기 손잡이 자리 ⇒ 칸 안 격자에서 «임자 맞는» 첫 점을 고른다 · 옛 점의 임자는 DIAG 로 남긴다 */
+  const at = (folded) => stableAt(page, ({ id, i, folded }) => { const W = (e) => e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}${e.closest && e.closest('#ss-handles-overlay') ? '(손잡이 층)' : ''}` : null;
+    const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], r = c.getBoundingClientRect();
+    /* 펼침: 먼저 칸 «자신»(빈 곳) · 없으면(그림이 칸을 꽉 채움 — C2) 칸 안 자식 — 앱 뜻: 안 고른 칸의 내용을 누르면 «칸»이 먼저 골라진다(C2 옛 판이 이 길로 초록) */
+    const passes = folded ? [(e) => !!e && b.contains(e)] : [(e) => e === c, (e) => !!e && c.contains(e)];
+    const old = document.elementFromPoint(r.left + 8, r.top + 8);
+    for (const ok of passes) for (const fy of [0.12, 0.3, 0.5, 0.7]) for (const fx of [0.15, 0.3, 0.5, 0.7, 0.85]) { const x = r.left + r.width * fx, y = r.top + r.height * fy, e = document.elementFromPoint(x, y); if (ok(e)) return { x, y, ok: true, who: W(e), old: W(old) }; }
+    return { x: r.left + 8, y: r.top + 8, ok: false, who: W(old), old: W(old) }; }, { id, i, folded }, `[pickCell] 칸 ${i + 1} 누를 점(임자·같은 자리 두 번 · 받은 값 끝 = 임자)`)
+    .then((p) => { console.log('[pickCell DIAG]', i, folded ? '접힘' : '펼침', '옛 왼위+8 임자 =', p.old, '· 고른 점 임자 =', p.who); return p; });
   if (!(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id))) {
-    const q0 = await at();
+    const p0 = await at(true), q0 = [p0.x, p0.y];
     await page.mouse.dblclick(q0[0], q0[1]);
     await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[pickCell] 두 번 = 펼침').toBe(true);
   }
-  const q = await at();
+  const p1 = await at(false), q = [p1.x, p1.y];
   await page.mouse.click(q[0], q[1]);
   await expect.poll(() => page.evaluate(({ id, i, q }) => {
     const b = document.getElementById(id), c = b.querySelectorAll('.sld-cell')[i], e = document.elementFromPoint(q[0], q[1]);
@@ -461,10 +479,11 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   /* 진짜 PNG 내보내기(exportSection · returnDataUrl) — 캡처 클론이 .selected 를 걷는지가 곧 «펼침이 내보내기에 안 샌다» */
   const shot = () => page.evaluate(async (id) => window.exportSection(document.getElementById(id).closest('.section-block'), 'png', 860, { returnDataUrl: true }), id);
   await page.evaluate(({ id, tid }) => { window.deselectAll(); document.getElementById(tid).classList.add('selected'); window.unfoldSlide(document.getElementById(id), true); }, { id, tid });   // 펼친 채(두 번 누름 상태)
-  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), '[전제] 펼친 상태').toBe('visible');
+  /* ★기대 바뀜(SLIDE-CELL-SHADOW-CLIP-01 · 134 · 지디 261120 판정): 134 부터 접힌 블럭도 overflow visible(칸 그림자 위아래) · 가로 자름은 clip-path inset(…) ⇒ 펼침/접힘 = clip-path 로 가른다(펼침 = none · css .sld-unfold) */
+  expect(await page.evaluate((id) => { const cs = getComputedStyle(document.getElementById(id)); return [cs.overflow, cs.clipPath]; }, id), '[전제] 펼친 상태(자름 없음)').toEqual(['visible', 'none']);
   const sOpen = await shot();
   await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Escape');   // Esc = 접힘(SLIDE-CLICK-SELECT-DBL-UNFOLD-01 · 옛 «고름 풀면 접힘»)
-  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).overflow, id), 'Esc = 접힘(잘림)').toBe('hidden');
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).clipPath.startsWith('inset('), id), 'Esc = 접힘(잘림 = 가로 clip-path · 134)').toBe(true);
   const sClosed = await shot();
   expect(sOpen && sOpen.length > 100, '[전제] PNG 가 나왔다').toBe(true);
   expect(sOpen === sClosed, '★펼친 채 PNG = 안 펼친 PNG(글자 그대로)').toBe(true);
@@ -474,17 +493,29 @@ test('P1 펼침 — 트랙 밖 칸 4 를 캔버스에서 고침 · 저장 왕복
   await page.evaluate((id) => { window.selectBlock(id); window.unfoldSlide(document.getElementById(id), true); }, id);
   /* 앞에서 칸 4 로 캔버스를 가로 스크롤했다 ⇒ 옆 글자가 화면 밖일 수 있다(지혜맥 P1 빨강) — 펼친 채(슬라이드 고름 유지) 그 글자를 화면 안으로 · 누르기 «전» 그 점이 누구인지 잰다:
      글자가 아니면 «무엇이 덮었나»를 메시지로(펼친 칸·덮개가 가로채면 여기서 이름이 나온다 = 제품 빨강) */
-  const op = await page.evaluate((oid) => { const t = document.getElementById(oid); t.scrollIntoView({ block: 'center', inline: 'center' }); const r = t.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
-    return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).overflow }; }, otherId);
-  expect(op.open, '[전제] 아직 펼친 채').toBe('visible');
+  await page.evaluate((oid) => document.getElementById(oid).scrollIntoView({ block: 'center', inline: 'center' }), otherId);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  /* 지혜맥 261120 1/3 빨강: 한 번 잰 점을 곧장 눌렀다(스크롤·배율이 멎기 전) → 임자 맞음 + 같은 자리 두 번 뒤 누름 · 고름은 poll
+     ★기대 바뀜(지디 261120 ⓐ · 현빈 7112 «띠가 보이면 띠가 이긴다» = 그리드 R1 과 같은 뜻): 펼친 슬라이드의 칸 위 띠(141)가 옆 글자 일부를 덮으면 그 자리 탭은 띠 것(B1 이 잰다).
+     옆 글자는 «띠 밖» 점(그 글자가 맨 위인 점)을 눌러 고른다 — 글자 안 격자에서 임자 = 글자인 첫 점. */
+  let op = null;
+  await expect.poll(async () => { const p = await page.evaluate((oid) => { const t = document.getElementById(oid), r = t.getBoundingClientRect(); let x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y);
+      for (const fy of [0.5, 0.25, 0.75, 0.1, 0.9]) { if (e && (e === t || t.contains(e))) break; for (const fx of [0.5, 0.25, 0.75]) { const xx = r.left + r.width * fx, yy = r.top + r.height * fy, ee = document.elementFromPoint(xx, yy); if (ee && (ee === t || t.contains(ee))) { x = xx; y = yy; e = ee; break; } } }
+      return { x, y, hit: !!e && (e === t || t.contains(e)), who: e ? `${e.tagName}.${[...e.classList].join('.')}#${e.id}` : null, open: getComputedStyle(document.querySelector('#canvas .slide-block')).clipPath }; }, otherId);
+    const same = !!op && Math.round(op.x) === Math.round(p.x) && Math.round(op.y) === Math.round(p.y); op = p; return `${p.hit}|${same}|${p.who}`; },
+    { message: '★펼침 중 옆 글자 자리 = 글자(같은 자리 두 번) — 받은 값 끝 = 덮은 것', intervals: [50] }).toMatch(/^true\|true\|/);
+  expect(op.open, '[전제] 아직 펼친 채(자름 없음)').toBe('none');
   expect(op.hit, `★펼침 중 옆 글자 자리를 덮은 것 = ${op.who}`).toBe(true);
   await page.mouse.click(op.x, op.y);
-  expect(await page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
+  await expect.poll(() => page.evaluate((oid) => document.getElementById(oid).classList.contains('selected'), otherId), '★펼침(흐림 덮개) 중 옆 글자 블럭 클릭 = 골라짐').toBe(true);
   /* 저장본 흔적 0 · 저장→다시 열기 글 그대로 */
   await page.evaluate((id) => window.selectBlock(id), id);
   const savedSlide = await page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject());
-    const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id); return b ? { cls: b.className, ov: b.style.overflow, selIn: b.querySelectorAll('.selected').length } : null; }, id);
-  expect(savedSlide, '★저장본 슬라이드 = 펼침 흔적 0').toEqual({ cls: 'slide-block', ov: 'hidden', selIn: 0 });
+    const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id);
+    return b ? { cls: b.className, ov: b.style.overflow, clip: b.style.clipPath.startsWith('inset('), hsVar: b.style.getPropertyValue('--sld-hs-x'), selIn: b.querySelectorAll('.selected').length } : null; }, id);
+  /* ★기대 바뀜(SLIDE-CELL-SHADOW-CLIP-01 · 134 · 지디 261120): 저장본의 접힌 블럭 = overflow visible + 가로 clip-path(inset) — 옛 'hidden' 아님.
+     «펼침 흔적 0»은 그대로 잰다: 클래스 = slide-block 뿐(sld-unfold·sld-hs·selected 없음) · 밀기 변수 없음 · 안에 .selected 0 · 자름 = 접힌 꼴(inset). */
+  expect(savedSlide, '★저장본 슬라이드 = 펼침 흔적 0').toEqual({ cls: 'slide-block', ov: 'visible', clip: true, hsVar: '', selIn: 0 });
   await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
   expect(await page.evaluate((tid) => document.getElementById(tid)?.textContent.trim(), tid), '★다시 열어도 칸 4 글').toBe('칸넷고침');
   expect(errs, errs.join(' | ')).toEqual([]);
@@ -635,7 +666,7 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
     const cv = document.createElement('canvas'); cv.width = 40; cv.height = 30; const x = cv.getContext('2d'); x.fillStyle = '#0000ff'; x.fillRect(0, 0, 40, 30); window.appendSlideCellImage(cell, cv.toDataURL('image/png')); }, id);
   await page.waitForFunction((id) => !!document.getElementById(id).querySelector('.sld-cell .asset-block img')?.naturalWidth, id);
   await pickCell(page, id, 1);
-  await page.locator('#sld-cell-radius').fill('20'); await page.locator('#sld-cell-radius').dispatchEvent('change');
+  await page.locator('#ss-radius-num').fill('20'); await page.locator('#ss-radius-num').dispatchEvent('change');   // 142 — 칸 코너 = 프레임 패널 코너(같은 dataset.radius)
   await page.selectOption('#sld-cell-shadow', 'soft');
   const dom = await page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1], cs = getComputedStyle(c); return { r: cs.borderTopLeftRadius, sh: cs.boxShadow !== 'none' }; }, id);
   expect(dom, '★첫 장면 둥글기 20 · 그림자').toEqual({ r: '20px', sh: true });
@@ -658,7 +689,7 @@ test('C2 칸 모서리·그림자 — 첫 장면 · Figma · GIF 둥근 모서�
  * K1 SLIDE-CELL-CHILD-SELECT-OUTLINE-01: 펼쳐 칸 2 에 글자 → 칸 빈 곳 누름 → 글자 가운데 «한 번» 누름 → ★글자 골라짐 · ★선택 층(.ss-sel-layer path) 하나가 글자 상자(글자 래퍼)를 감쌈(±2px)
  *    · 원인(코드): 프레임 «덮개»(editor-blocks.css .frame-block:not(.frame-entered)…:not(:has(.selected)) * = pointer-events none · B안)가 칸에도 걸려 한 번 누름이 칸으로 갔다(defb77053 지혜맥 K1 3/3 전제 빨강)
  *      ⇒ 펼친 슬라이드 칸은 덮개 제외 · 실패하면 받은 값 = 진단(골라진 것 · 길 상자 · 글자 상자 · 그 점의 주인)
- * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) · slide-frame-CTL34-cell-frame-panel.patch(showFrameProperties 칸 돌림 삭제) → C2 빨강(사진 꽉 찬 칸 누름 = 프레임 패널 · #sld-cell-radius 0) — 예측 */
+ * 양성대조: slide-frame-CTL31-delete-folds.patch(editor.js 칸 빼기의 펼침 되켜기 줄 삭제) → U2 빨강(sld-unfold false) · slide-frame-CTL32-cell-photo-btn.patch(패널 단추 되살림) → F2 빨강(단추 1) · slide-frame-CTL33-cell-cover.patch(덮개의 펼친 칸 제외 삭제) → K1 빨강(tSel false) · slide-frame-CTL34-cell-frame-panel.patch(showFrameProperties 칸 돌림 삭제) → C2 빨강(사진 꽉 찬 칸 누름 = 프레임 패널 · #sld-cell-radius 0) ⚰️142(ⓐ · 지디 261119) 뒤 뜻 바뀜: 칸 = «그 칸의 프레임 패널»이 정답이 되어 CTL34(돌림 삭제)는 이제 제품과 같다 — 칸 패널 갈래의 대조는 slide-frame-CTL46-cell-no-slide-parts.patch(F2·P1 빨강) — 예측 */
 test('U2 펼친 채 칸 Delete = 그 칸만 · 펼침 그대로', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   const c0 = await cellIds(page, id);
@@ -716,12 +747,12 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await wireCdp(page);
   await pickCell(page, id, 1);
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 배경 켬(기본)').toBeChecked();
-  await expect(page.locator('#sld-cell-bg-hex'), '[전제] 배경색 칸').toHaveCount(1);
+  await expect(page.locator('#ss-bg-hex'), '[전제] 배경색 칸(142 — 칸 배경색 = 프레임 패널 Fill)').toHaveCount(1);
   /* 지혜맥 ae8952f79 G1 2/2 — 숨은 진짜 체크박스는 uncheck({force}) 로도 «viewport 밖» ⇒ 사람이 누르는 겉모양(.prop-toggle-track)을 누른다(Playwright 가 패널 스크롤로 넣고 누름) */
   const bgToggle = page.locator('#sld-cell-bg-on + .prop-toggle-track');
   await bgToggle.click();
   await expect.poll(() => cellBg(page, id, 1), '★끔 = 칸 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
-  await expect(page.locator('#sld-cell-bg-hex'), '끈 동안 배경색 칸 없음').toHaveCount(0);
+  await expect(page.locator('#sld-cell-bg-on'), '끈 동안 켜기 꺼짐(142 — 배경색 칸은 프레임 Fill 에 늘 있다)').not.toBeChecked();
   const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.children?.map((m) => m.block?.bg) ?? null; }, id);
   expect(fig?.[1], '★Figma 칸 2 bg = transparent(렌더러 = 칠 없음)').toBe('transparent');
   await key(page, 'Meta+z');
@@ -735,8 +766,8 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await pickCell(page, id, 1);
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 다시 연 패널 = 끔').not.toBeChecked();
   await bgToggle.click();
-  await expect(page.locator('#sld-cell-bg-hex'), '켬 = 배경색 칸').toHaveCount(1);
-  await page.evaluate(() => { const inp = document.getElementById('sld-cell-bg-hex'); inp.value = '#FF0000'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect(page.locator('#ss-bg-hex'), '켬 = 배경색 칸').toHaveCount(1);
+  await page.evaluate(() => { const inp = document.getElementById('ss-bg-hex'); inp.value = '#FF0000'; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); });
   await expect.poll(() => cellBg(page, id, 1).then((v) => v.cs), '★색 = 칸 빨강').toBe('rgb(255, 0, 0)');
   const gifMid = await page.evaluate(async (id) => { const imgs = await window.slidePrepare(document.getElementById(id)), cv = imgs[1]; return cv ? Array.from(cv.getContext('2d').getImageData(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1).data).slice(0, 3) : null; }, id);
   expect(gifMid, '★GIF 칸 2 그림 가운데 = 빨강').toEqual([255, 0, 0]);
@@ -771,5 +802,382 @@ test('W1 새 슬라이드 = 칸마다 옅은 그림자(컴패리전 값) · 옛 
   });
   expect((await sh(oldId)).map((v) => v[0]), '★옛 저장본 칸 = 그림자 키 없음(열 때 안 붙음)').toEqual([null, null, null]);
   expect((await sh(oldId)).every((v) => v[1] === 'none'), '옛 저장본 = 그림자 없음').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (b) SLIDE-CELL-PANEL-PARITY-01(135) — 고른 칸 패널 = 일반 프레임 패널과 같은 부품(대조표 handoff/TABLE-slide-cell-vs-frame-panel-261119.md)
+ * P1 칸 2 고름 → 코너·폭%·높이% 슬라이더 있음 · 그림자 select 는 Effects 절 · 코너 슬라이더 24 = dataset.radius·computed 24px·숫자칸 동기 ·
+ *    폭 60·높이 80 = data-w·data-h · 배경 알파 50 = computed rgba(…, 0.5) · 배경 투명도 50 = dataset.bgOpacity 0.5 + .has-bg-opacity(프레임과 같은 몸통) ·
+ *    저장→다시 열기 = 넷 그대로 · ⌘Z 한 번 = 투명도 전(키 없음)
+ * 양성대조: slide-frame-CTL38-cell-corner-number.patch(코너를 옛 숫자칸만으로) → P1 빨강 — 예측 */
+test('P1 칸 패널 = 프레임 패널 부품(코너·폭·높이 슬라이더 · 배경 알파·투명도 · 그림자 = Effects)', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  for (const sel of ['#ss-radius-slider', '#ss-radius-num', '#sld-cell-w-slider', '#sld-cell-h-slider'])   // 142 — 코너 = 프레임 패널 코너 await expect(page.locator(sel), `★${sel}`).toHaveCount(1);
+  expect(await page.evaluate(() => document.getElementById('sld-cell-shadow')?.closest('[data-sec]')?.dataset.sec), '★그림자 = Effects 절').toBe('effects');
+  const slide = (sid, v) => page.evaluate(([sid, v]) => { const e = document.getElementById(sid); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, [sid, v]);
+  const cell = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; const cs = getComputedStyle(c);
+    return { r: c.dataset.radius ?? null, rCs: cs.borderTopLeftRadius, w: c.dataset.w ?? null, h: c.dataset.h ?? null, opa: c.dataset.bgOpacity ?? null, opaCls: c.classList.contains('has-bg-opacity'), bg: cs.backgroundColor, rNum: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
+  await slide('ss-radius-slider', 24);
+  await expect.poll(cell).toMatchObject({ r: '24', rCs: '24px', rNum: '24' });
+  await slide('sld-cell-w-slider', 60);
+  await slide('sld-cell-h-slider', 80);
+  await expect.poll(cell).toMatchObject({ w: '60', h: '80' });
+  await page.evaluate(() => { const a = document.getElementById('ss-bg-alpha'); /* 142 — 프레임 Fill 알파 */ a.value = '50'; a.dispatchEvent(new Event('input', { bubbles: true })); a.dispatchEvent(new Event('change', { bubbles: true })); });
+  await expect.poll(() => cell().then((c) => c.bg), '★배경 알파 50').toBe('rgba(255, 255, 255, 0.5)');
+  await page.locator('#ss-bgopa-num').fill('50'); await page.locator('#ss-bgopa-num').dispatchEvent('change');   // 142 — 프레임 «배경 투명도»
+  await expect.poll(cell, '★배경 투명도 = 프레임과 같은 키·층').toMatchObject({ opa: '0.5', opaCls: true });
+  await key(page, 'Meta+z');
+  await expect.poll(() => cell().then((c) => c.opa === null || c.opa === '1'), '★⌘Z 한 번 = 투명도 전').toBe(true);
+  await key(page, 'Meta+Shift+z');
+  await expect.poll(cell).toMatchObject({ opa: '0.5' });
+  await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  await expect.poll(cell, '★저장→다시 열기 = 그대로').toMatchObject({ r: '24', rCs: '24px', w: '60', h: '80', opa: '0.5', opaCls: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (c) SLIDE-CELL-RADIUS-HANDLE-01(136) — 고른 칸에 일반 프레임의 코너 반경 손잡이(overlay-handles showFrameHandles · cellOnly)
+ * H1 칸 2 고름 → .ss-radius-handle 넷 · 크기·회전 손잡이 0 · se 손잡이를 안쪽(좌상)으로 30px 끌기 = dataset.radius 늘고 칸 computed 같은 값 · 패널 코너 슬라이더·숫자칸 같은 값 ·
+ *    80 넘게 끌면 80(칸 범위) · ⌘Z 한 번 = 끌기 전
+ * 양성대조: slide-frame-CTL39-cell-no-radius-handle.patch(_pickSlideCell 의 showFrameHandles 줄 삭제) → H1·F2 빨강 — 예측 */
+test('H1 칸 코너 반경 손잡이 = 프레임 것 · 끌면 반경·패널 같이 · 80 상한 · ⌘Z', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  expect(await page.evaluate(() => [document.querySelectorAll('.ss-radius-handle').length, document.querySelectorAll('.ss-resize-handle, .ss-rotate-handle').length]), '★반경 손잡이 넷 · px 손잡이 0').toEqual([4, 0]);
+  const r0 = await page.evaluate((id) => document.getElementById(id).querySelectorAll('.sld-cell')[1].dataset.radius ?? null, id);
+  let prev = '', p = null;
+  await expect.poll(async () => { p = await page.evaluate(() => { const h = document.querySelector('.ss-radius-handle.se'); const r = h.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return { x, y, own: document.elementFromPoint(x, y) === h }; }); const k = `${p.x},${p.y}`, same = k === prev; prev = k; return p.own && same; },
+    { message: '[전제] se 반경 손잡이가 그 점의 임자이고 멎었다', intervals: [50] }).toBe(true);
+  const z = await page.evaluate(() => (window.currentZoom || 40) / 100);
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 6 * i * z, p.y - 6 * i * z);   // 로컬 30px 안쪽
+  await page.mouse.up();
+  const read = () => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1]; return { r: c.dataset.radius ?? null, cs: getComputedStyle(c).borderTopLeftRadius, sl: document.getElementById('ss-radius-slider')?.value ?? null, nu: document.getElementById('ss-radius-num')?.value ?? null }; }, id);
+  const a = await read();
+  expect(+a.r, '★반경이 늘었다(로컬 30px 안쪽 ≈ +30)').toBeGreaterThanOrEqual(25);
+  expect(a, '★칸·패널 같은 값').toEqual({ r: a.r, cs: `${a.r}px`, sl: a.r, nu: a.r });
+  await page.mouse.move(p.x, p.y); await page.mouse.down();   // 손잡이 자리는 반경과 무관(모서리 안쪽 10px 고정)
+  for (let i = 1; i <= 5; i++) await page.mouse.move(p.x - 40 * i * z, p.y - 40 * i * z);
+  await page.mouse.up();
+  expect((await read()).r, '★칸 상한 80').toBe('80');
+  await key(page, 'Meta+z');
+  await expect.poll(() => read().then((v) => v.r), '★⌘Z 한 번 = 둘째 끌기 전').toBe(a.r);
+  expect(r0, '[전제] 처음 반경 키 없음(새 블럭)').toBeNull();
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (d) SLIDE-DOTS-GAP-SLIDER-01(137) — «칸↔점 갭»은 갭만 움직이고 블럭이 커진다
+ * D1 점 아래 켬 → 갭 0 → 40: 칸 높이 그대로 · 블럭 높이 +40 · 점 바깥 여백(블럭 아래끝↔점) 8 그대로 · 칸 아래끝↔점 = 갭 · ⌘Z 한 번 = 갭 0 판
+ * 양성대조: slide-frame-CTL40-dots-band-symmetric.patch(띠를 옛 «갭×2+점»으로) → D1 빨강 — 예측 */
+test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 여백 고정 · ⌘Z', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 261120 지혜맥 DIAG: 배율이 멎기 전(실제 0.4566 · 이름 0.4)에 재서 9.1~9.5 — 멎은 뒤 잰다
+  await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
+  await page.locator('#sld-dots').selectOption('bottom');
+  await expect(page.locator('#sld-dotgap-slider'), '[전제] 갭 슬라이더').toHaveCount(1);
+  const gapTo = (v) => page.evaluate((v) => { const e = document.getElementById('sld-dotgap-slider'); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  const geo = () => page.evaluate((id) => {
+    const b = document.getElementById(id), c = b.querySelector('.sld-cell'), d = b.querySelector(':scope > .sld-dots > span'), z = b.getBoundingClientRect().height / b.offsetHeight;   // 실제 배율(블럭 화면 높이 ÷ 높이) — 이름 배율(currentZoom)이 아니라(D8 과 같은 자)
+    const br = b.getBoundingClientRect(), cr = c.getBoundingClientRect(), dr = d.getBoundingClientRect(), r = (v) => Math.round(v / z);
+    return { cellH: c.offsetHeight, blockH: b.offsetHeight, outer: r(br.bottom - dr.bottom), gap: r(dr.top - cr.bottom) };
+  }, id);
+  await gapTo(0);
+  await expect.poll(() => geo().then((g) => g.gap), '[전제] 갭 0').toBe(0);
+  const g0 = await geo();
+  /* DIAG(지혜맥 261120 CTL43 판 10 ≠ 8 · 판정 보류) — 바깥 여백을 이루는 값들(판정 아님 · 로그로만) */
+  console.log('[D1 DIAG]', JSON.stringify(await page.evaluate((id) => { const b = document.getElementById(id), d = b.querySelector(':scope > .sld-dots'), s = d.firstElementChild, cs = getComputedStyle(b), ds = getComputedStyle(d);
+    const br = b.getBoundingClientRect(), dr = d.getBoundingClientRect(), sr = s.getBoundingClientRect(), z = (window.currentZoom || 40) / 100;
+    return { z, blockH: b.offsetHeight, clientH: b.clientHeight, bb: [cs.borderTopWidth, cs.borderBottomWidth, cs.paddingBottom, cs.overflow, cs.clipPath.slice(0, 40), cs.transform], dotsH: d.offsetHeight, dotsPad: ds.paddingBottom, dotsBottom: ds.bottom,
+      scr: { b: [br.top, br.bottom], d: [dr.top, dr.bottom], s: [sr.top, sr.bottom] }, outerRaw: (br.bottom - sr.bottom) / z, dotsGapRaw: (br.bottom - dr.bottom) / z }; }, id)));
+  expect(g0.outer, '[전제] 바깥 여백 8').toBe(8);
+  await gapTo(40);
+  await expect.poll(geo, '★칸 그대로 · 블럭 +40 · 바깥 8 그대로 · 갭 40').toEqual({ cellH: g0.cellH, blockH: g0.blockH + 40, outer: 8, gap: 40 });
+  await key(page, 'Meta+z');
+  await expect.poll(geo, '★⌘Z 한 번 = 갭 0 판').toEqual(g0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (e) SLIDE-DOTS-FIXED-ON-SCROLL-01(138) — 임시 가로 밀기 때 점 띠 고정 · 보이는 칸 점만 진하게 · 산출물 무변
+ * E1 점 아래 켬 → 블럭 scrollLeft = 칸 2 왼끝(막대와 같은 길) → 점 셋 화면 자리 그대로(±1) · 진한 점 = 둘째 · 저장 글자에 표식(sld-hs·sld-dot-hs-on) 0 · 0 으로 = 첫째 진함 · 표식 걷힘
+ * 양성대조: slide-frame-CTL41-dots-scroll-unbound.patch(scroll 리스너 줄 삭제) → E1 빨강 — 예측 */
+test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 · 저장 표식 0', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 지혜맥 261120 2/3: 색은 맞고 점 x 가 740/748/756 → 742/748/755(가운데 기준 좁아짐) = 배율이 멎기 전 d0 를 잼
+  await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
+  await page.locator('#sld-dots').selectOption('bottom');
+  const dots = () => page.evaluate((id) => { const b = document.getElementById(id); return [...b.querySelectorAll(':scope > .sld-dots > span')].map((d) => ({ x: Math.round(d.getBoundingClientRect().left), c: getComputedStyle(d).backgroundColor })); }, id);
+  await expect.poll(() => dots().then((d) => d.length), '[전제] 점 셋').toBe(3);
+  const d0 = await dots();
+  const on = d0[0].c, off = d0[1].c;
+  expect(on, '[전제] 첫째 진함·둘째 옅음').not.toBe(off);
+  const x2 = await page.evaluate((id) => { const b = document.getElementById(id); const c = b.querySelector(':scope > .sld-track').children[1]; window.slideHScroll(b, c.offsetLeft); return window.slideHScroll(b);   /* 134 — scrollLeft 대신 밀기 값(막대와 같은 문) */ }, id);
+  expect(x2, '[전제] 밀렸다').toBeGreaterThan(0);
+  await expect.poll(dots, '★점 자리 그대로 · 진한 점 = 둘째').toEqual(d0.map((d, i) => ({ x: d.x, c: i === 1 ? on : off })));
+  const saved = await page.evaluate(() => window.getSerializedCanvas());
+  expect(/sld-hs|sld-dot-hs-on|--sld-hs-x/.test(saved), '★저장 글자에 임시 표식·밀린 거리 변수 0').toBe(false);
+  await page.evaluate((id) => { window.slideHScroll(document.getElementById(id), 0); }, id);
+  await expect.poll(dots, '★0 = 첫째 진함 · 자리 그대로').toEqual(d0);
+  expect(await page.evaluate((id) => document.getElementById(id).classList.contains('sld-hs'), id), '★표식 걷힘').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (f) SLIDE-ENTER-KEEP-HSCROLL-01(139) — 가로로 밀어 둔 채 두 번 눌러 들어가도·나와도 그 자리
+ * K2 칸 2 왼끝까지 밀기 → 칸 2 화면 왼끝 기록 → 두 번 누름(펼침) = 칸 2 같은 자리(±1) · Esc(나옴) = 같은 자리 · 블럭 scrollLeft 되돌아옴
+ * 양성대조: slide-frame-CTL42-unfold-drops-hscroll.patch(펼침이 밀린 거리 안 쥠) → K2 빨강 — 예측 */
+test('K2 밀어 둔 채 진입·나옴 — 보던 칸 자리 그대로', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 261120 지혜맥 DIAG: 블럭 자체가 538→578 로 움직임(칸 2 = 블럭 왼끝 그대로 · 밀기 494 유지 = 139 뜻대로) = 배율이 멎기 전에 «before» 를 잼
+  const c2x = () => page.evaluate((id) => Math.round(document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect().left), id);
+  const x = await page.evaluate((id) => { const b = document.getElementById(id); window.slideHScroll(b, b.querySelectorAll('.sld-cell')[1].offsetLeft); return window.slideHScroll(b);   /* 134 */ }, id);
+  expect(x, '[전제] 밀렸다').toBeGreaterThan(0);
+  const before = await c2x();
+  console.log('[K2 DIAG before]', JSON.stringify(await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), si = b.closest('.section-inner'), cw = document.getElementById('canvas-wrap');
+    return { blockL: Math.round(b.getBoundingClientRect().left), trackL: Math.round(t.getBoundingClientRect().left), translate: getComputedStyle(t).translate, siScroll: si && si.scrollLeft, wrapScroll: cw && [cw.scrollLeft, cw.scrollTop] }; }, id)));
+  /* 두 번 누름 = 펼침(문서 capture dblclick 길) — 블럭 안 보이는 칸 2 위 */
+  const p = await page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[1].getBoundingClientRect(); return [r.left + 12, r.top + 12]; }, id);
+  await page.mouse.dblclick(p[0], p[1]);
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 펼침').toBe(true);
+  /* DIAG(지혜맥 261120 CTL43 판 31 어긋남 · 판정 보류) — 펼친 뒤 무엇이 움직였나(판정 아님 · 로그로만) */
+  console.log('[K2 DIAG]', before, JSON.stringify(await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), c = b.querySelectorAll('.sld-cell')[1], si = b.closest('.section-inner'), cw = document.getElementById('canvas-wrap');
+    const ts = getComputedStyle(t); return { c2x: Math.round(c.getBoundingClientRect().left), blockL: Math.round(b.getBoundingClientRect().left), trackL: Math.round(t.getBoundingClientRect().left), hs: window.slideHScroll(b), hsVar: b.style.getPropertyValue('--sld-hs-x'), cls: b.className,
+      translate: ts.translate, transform: ts.transform, siScroll: si && si.scrollLeft, siOverflowX: si && getComputedStyle(si).overflowX, wrapScroll: cw && [cw.scrollLeft, cw.scrollTop], picked: !!b.querySelector('.sld-cell.selected, .sld-cell .selected') }; }, id)));
+  await expect.poll(c2x, '★펼친 뒤 칸 2 같은 자리').toBeGreaterThanOrEqual(before - 1);
+  expect(Math.abs((await c2x()) - before), '★펼친 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
+  await key(page, 'Escape');
+  await expect.poll(() => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id), '[전제] 나옴').toBe(false);
+  expect(await page.evaluate((id) => window.slideHScroll(document.getElementById(id)), id), '★나온 뒤 밀기 값 그대로(134 — translate 라 펼침이 안 되돌림)').toBe(x);
+  expect(Math.abs((await c2x()) - before), '★나온 뒤 칸 2 같은 자리(±1)').toBeLessThanOrEqual(1);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (g) SLIDE-ENTER-EXIT-DIM-01(140) 앞부분 — 빈 영역 두 번 누름 = 나옴 · 펼친 동안 그 섹션이 아래 섹션 위(덮개 고르게)
+ *   (어둡기 세기는 현빈 답 뒤 — 이 칸은 안 잰다)
+ * X1 아래 섹션 하나 더 → 펼침 = 슬라이드 섹션 z 3 · 아래 섹션 z 2 · 칸 틈 두 번 = 나옴 · 다시 펼침 → 칸 안 두 번 = 그대로 펼침 · 캔버스 밖 회색 두 번 = 나옴 · 나온 뒤 z 2
+ * 양성대조: slide-frame-CTL43-no-empty-dbl-exit.patch(빈 영역 두 번 누름 리스너 삭제) → X1 빨강 — 예측 */
+test('X1 빈 영역 두 번 누름 = 나옴 · 칸 안은 그대로 · 펼친 섹션이 아래 섹션 위', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate(async () => { await window.addSection(); });
+  const open = () => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id);
+  const zs = () => page.evaluate((id) => { const s = document.getElementById(id).closest('.section-block'), n = s.nextElementSibling?.closest?.('.section-block') || [...document.querySelectorAll('#canvas .section-block')].find((x) => x !== s); return [getComputedStyle(s).zIndex, getComputedStyle(n).zIndex]; }, id);
+  const unfold = () => page.evaluate((id) => window.unfoldSlide(document.getElementById(id), true), id);
+  const stable = async (fn, msg) => { let prev = '', p = null; await expect.poll(async () => { p = await fn(); const k = JSON.stringify(p && [p.x, p.y]); const same = k === prev; prev = k; return !!p && p.ok && same; }, { message: msg, intervals: [50] }).toBe(true); return p; };
+  await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
+  await unfold();
+  await expect.poll(open, '[전제] 펼침').toBe(true);
+  expect(await zs(), '★펼친 섹션 z 3 · 아래 섹션 z 2').toEqual(['3', '2']);
+  /* (g) 어둡기 «살짝» = 덮개 색 알파 = --ui-disabled-opacity(0.5) — 옛 0.78 */
+  const dim = await page.evaluate((id) => ({ a: getComputedStyle(document.getElementById(id), '::after').outlineColor, tok: getComputedStyle(document.documentElement).getPropertyValue('--ui-disabled-opacity').trim() }), id);
+  expect(dim.tok, '[전제] 토큰 0.5').toBe('0.5');
+  expect(/[,/]\s*0\.5\)$/.test(dim.a), `★덮개 알파 0.5(받은 값 ${dim.a})`).toBe(true);
+  const gap = await stable(() => page.evaluate((id) => { const cs = document.getElementById(id).querySelectorAll('.sld-cell'); const a = cs[0].getBoundingClientRect(), b = cs[1].getBoundingClientRect(); const x = (a.right + b.left) / 2, y = (a.top + a.bottom) / 2, e = document.elementFromPoint(x, y);
+    return { x, y, ok: b.left - a.right >= 2 && !!e && document.getElementById(id).contains(e) && !e.closest('.sld-cell') }; }, id), '[전제] 칸 틈 = 슬라이드 안 · 칸 밖');
+  await page.mouse.dblclick(gap.x, gap.y);
+  await expect.poll(open, '★칸 틈 두 번 = 나옴').toBe(false);
+  await unfold();
+  await expect.poll(open).toBe(true);
+  const inCell = await stable(() => page.evaluate((id) => { const r = document.getElementById(id).querySelectorAll('.sld-cell')[0].getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2, e = document.elementFromPoint(x, y); return { x, y, ok: !!e?.closest('.sld-cell') }; }, id), '[전제] 칸 1 가운데 = 칸 안');
+  await page.mouse.dblclick(inCell.x, inCell.y);
+  expect(await open(), '★칸 안 두 번 = 그대로 펼침').toBe(true);
+  const gray = await stable(() => page.evaluate(() => { const w = document.getElementById('canvas-wrap').getBoundingClientRect(), c = document.getElementById('canvas').getBoundingClientRect(); const x = (w.left + c.left) / 2, y = (c.top + Math.min(c.bottom, w.bottom)) / 2, e = document.elementFromPoint(x, y);
+    return { x, y, ok: c.left - w.left >= 20 && !!e?.closest('#canvas-wrap') && !e.closest('#canvas') }; }), '[전제] 캔버스 밖 회색 점');
+  await page.mouse.dblclick(gray.x, gray.y);
+  await expect.poll(open, '★캔버스 밖 회색 두 번 = 나옴').toBe(false);
+  expect(await zs(), '★나온 뒤 z 2 · 2').toEqual(['2', '2']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 슬라이드 피드백 5 (h) SLIDE-CELL-REORDER-01(141) — 칸 고르고 ⌘←/→ · 칸 위 띠 끌기(그리드 머리띠 한 벌)
+ * O1 펼침·칸 2 고름 → 띠 셋(.grd-headband[data-sld]) · ⌘→ = [1,3,2] · 끝에서 ⌘→ 무변 · ⌘← 두 번 = [2,1,3] · ⌘Z 한 번 = 한 걸음 전([1,2,3]) · 띠 1 을 끝으로 끌기 = 첫 칸이 끝 · 저장→다시 열기 = 그 순서
+ * 양성대조: slide-frame-CTL44-no-cell-reorder.patch(moveSlideCell 이 늘 false) → O1 빨강 — 예측 */
+test('O1 칸 순서 — ⌘←/→ · 칸 띠 끌기 · ⌘Z · 저장', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const c0 = await cellIds(page, id);
+  expect(c0.length, '[전제] 칸 셋').toBe(3);
+  await pickCell(page, id, 1);
+  await expect.poll(() => page.locator('#ss-handles-overlay > .grd-headband[data-sld]').count(), '★칸 띠 셋').toBe(3);
+  await key(page, 'Meta+ArrowRight');
+  await expect.poll(() => cellIds(page, id), '★⌘→ = 칸 2 가 끝으로').toEqual([c0[0], c0[2], c0[1]]);
+  await key(page, 'Meta+ArrowRight');
+  expect(await cellIds(page, id), '★끝에서 ⌘→ 무변').toEqual([c0[0], c0[2], c0[1]]);
+  await key(page, 'Meta+ArrowLeft'); await key(page, 'Meta+ArrowLeft');
+  await expect.poll(() => cellIds(page, id), '★⌘← 두 번 = 맨 앞').toEqual([c0[1], c0[0], c0[2]]);
+  await key(page, 'Meta+z');
+  await expect.poll(() => cellIds(page, id), '★⌘Z 한 번 = 한 걸음 전').toEqual([c0[0], c0[1], c0[2]]);
+  /* ⌘Z 는 DOM 표본으로 되돌린다(펼침·고름은 표본에 안 남음) ⇒ 다시 펼치고 칸을 고른다 */
+  await pickCell(page, id, 0);
+  await expect.poll(() => page.locator('#ss-handles-overlay > .grd-headband[data-sld]').count(), '[전제] 띠 셋 다시').toBe(3);
+  /* 띠 1(첫 자리)을 끝 칸 가운데 너머로 끌기 */
+  let prev = '', p = null;
+  await expect.poll(async () => { p = await page.evaluate(() => { const b = document.querySelector('#ss-handles-overlay > .grd-headband[data-sld][data-i="0"]'); const r = b.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return { x, y, own: document.elementFromPoint(x, y) === b }; }); const k = `${p.x},${p.y}`, s = k === prev; prev = k; return p.own && s; },
+    { message: '[전제] 띠 1 이 그 점의 임자 · 멎음', intervals: [50] }).toBe(true);
+  const endX = await page.evaluate((id) => { const cs = document.getElementById(id).querySelectorAll('.sld-cell'); const r = cs[cs.length - 1].getBoundingClientRect(); return r.right - 4; }, id);
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(p.x + (endX - p.x) * i / 6, p.y);
+  await page.mouse.up();
+  await expect.poll(() => cellIds(page, id), '★띠 끌기 = 첫 칸이 끝으로').toEqual([c0[1], c0[2], c0[0]]);
+  await page.evaluate(() => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); });
+  await expect.poll(() => cellIds(page, id), '★저장→다시 열기 = 그 순서').toEqual([c0[1], c0[2], c0[0]]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 142 SLIDE-CELL-PANEL-PARITY-02(ⓐ · 현빈 Q1~Q3 예 · Q4 3단 유지) — 고른 칸 = «그 칸의 프레임 패널» + 맨 위 «슬라이드 칸» 절
+ * Q1 칸 2 고름 → 프레임 부품(정렬 #ss-align-left · 간격 · 패딩 · 테두리 · 배경 이미지 단추) 있음 · 칸에 안 맞는 절(위치 · 크기 px · 템플릿 · 이펙트 목록) 없음 ·
+ *    그림자 = 3단 select(Effects) · 칸 줄·폭%·높이%·배경 켜기 있음 · 상하 패딩 24 = 칸 padding-top 24px · 테두리 두께 3 = 칸 border 3px ·
+ *    «슬라이드 전체 설정» = 슬라이드 패널(칸 줄 · 프레임 정렬 단추 없음)
+ * Q2 [음성] 보통 프레임 패널 = 위치·크기·템플릿·이펙트 목록 그대로 · 슬라이드 칸 절 없음(일반 프레임 패널 무변)
+ * 양성대조: slide-frame-CTL46-cell-no-slide-parts.patch(slideCellPanelParts 가 null) → Q1·F2 빨강 */
+test('Q1 칸 패널 = 프레임 부품 + 슬라이드 칸 절', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await pickCell(page, id, 1);
+  const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
+  expect(await has(['ss-align-left', 'ss-gap-num', 'ss-pady-num', 'ss-padx-num', 'ss-border-w-num', 'ss-bg-img-btn', 'ss-radius-slider', 'ss-bg-hex']), '★프레임 부품').toEqual(Array(8).fill(true));
+  expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-height-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-fullbleed-toggle', 'ss-clip-toggle']), '★칸에 안 맞는 절 없음').toEqual(Array(7).fill(false));
+  expect(await has(['sld-cell-shadow', 'sld-cell-w-slider', 'sld-cell-bg-on', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절').toEqual(Array(5).fill(true));
+  expect(await page.evaluate(() => document.getElementById('sld-cell-shadow').closest('[data-sec]')?.dataset.sec), '★그림자 3단 = Effects').toBe('effects');
+  await page.locator('#ss-pady-num').fill('24'); await page.locator('#ss-pady-num').dispatchEvent('change');
+  await page.locator('#ss-border-w-num').fill('3'); await page.locator('#ss-border-w-num').dispatchEvent('change');
+  await expect.poll(() => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1], cs = getComputedStyle(c); return [cs.paddingTop, cs.borderTopWidth]; }, id), '★패딩·테두리가 그 칸에').toEqual(['24px', '3px']);
+  await page.locator('#sld-cell-back').click();
+  await expect.poll(() => page.evaluate(() => [!!document.getElementById('sld-add-cell'), !!document.getElementById('ss-align-left')]), '★슬라이드 전체 설정 = 슬라이드 패널').toEqual([true, false]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('Q2 [음성] 보통 프레임 패널 무변', async ({ page }) => {
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove());
+    await window.addSection();
+    window.selectSection(document.querySelector('#canvas .section-block'));
+    window.addFrameBlock?.();
+    const f = document.querySelector('#canvas .frame-block:not([data-sld-cell])');
+    window.showFrameProperties(f);
+  });
+  const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
+  expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-clip-toggle']), '★보통 프레임 = 절 그대로').toEqual(Array(5).fill(true));
+  expect(await has(['sld-cell-shadow', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절 없음').toEqual(Array(3).fill(false));
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* ── 134 SLIDE-CELL-SHADOW-CLIP-01(현빈 «중간») — 블럭·칸 크기 그대로 · 칸 그림자는 위아래로 보임(캔버스·네이티브 PNG·HTML) · GIF·Figma 는 지금처럼(sometime)
+ * A1 새 블럭(칸 셋 · 기본 옅은 그림자 = blur 50 + y 18) → 블럭 overflow visible · clip-path inset(−68px 0) · 블럭 높이 = layout.h · 칸 높이 = 블럭 안 높이 ·
+ *    블럭 오른끝 너머(잘린 칸 자리) 점의 임자 ≠ 칸(가로는 여전히 자름) · 블럭 바로 아래 띠 화면 = 위아래를 닫은 것(inset 0)과 다르다(그림자 보임) · 펼침 = clip-path none
+ * 양성대조: slide-frame-CTL47-shadow-clip-closed.patch(clip-path 를 inset(0) — 옛 hidden 과 같은 자름) → A1 빨강 */
+test('A1 칸 그림자 위아래로 보임 · 크기 무변 · 가로는 자름', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const g = await page.evaluate((id) => { const b = document.getElementById(id), cs = getComputedStyle(b), c = b.querySelector('.sld-cell'); return { ov: cs.overflow, cp: cs.clipPath, bh: b.offsetHeight, lh: window.readSlideState?.(b)?.layout?.h ?? null, ch: c.offsetHeight, inner: b.clientHeight }; }, id);
+  expect(g.ov, '★overflow visible').toBe('visible');
+  expect(/^inset\(-68px 0px/.test(g.cp), `★위아래만 그림자만큼 엶(받은 값 ${g.cp})`).toBe(true);
+  if (g.lh != null) expect(g.bh, '★블럭 높이 = layout.h(무변)').toBe(g.lh);
+  expect(g.ch, '★칸 높이 = 블럭 안 높이(무변)').toBe(g.inner);
+  const out = await page.evaluate((id) => { const b = document.getElementById(id), r = b.getBoundingClientRect(), c3 = b.querySelectorAll('.sld-cell')[2].getBoundingClientRect(); if (c3.right <= r.right + 4) return 'no-overflow-cell'; const x = Math.min(c3.right - 2, r.right + 6), y = r.top + r.height / 2; return document.elementFromPoint(x, y)?.closest('.sld-cell') ? 'cell' : 'not-cell'; }, id);
+  expect(['not-cell', 'no-overflow-cell'], `★가로는 여전히 자름(${out})`).toContain(out);
+  const band = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: Math.max(0, r.left + 20), y: r.bottom + 2, width: Math.max(10, r.width - 40), height: 24 }; }, id);
+  const a = await page.screenshot({ clip: band });
+  await page.evaluate((id) => { document.getElementById(id).style.clipPath = 'inset(0px)'; }, id);
+  const b = await page.screenshot({ clip: band });
+  expect(a.equals(b), '★블럭 아래 띠에 그림자가 보인다(닫은 판과 다름)').toBe(false);
+  await page.evaluate((id) => { const el = document.getElementById(id); window.renderSlideBlock(el); window.unfoldSlide(el, true); }, id);
+  expect(await page.evaluate((id) => getComputedStyle(document.getElementById(id)).clipPath, id), '★펼침 = clip-path none').toBe('none');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* F86 SLIDE-SUJI-PROJ-CASES-01 ③ #sp_oif7z2(폰 틀 고정 + 안의 후기 제자리 전환 · 86 · 지디 261120 «지금 기능 조합으로 되나» 판정 근거)
+ *   만드는 순서 그대로: 프레임 칸 0 에 «폰 틀»(회색 꽉) + «후기»(빨강 · 화면 자리) → 칸 복제(duplicateSlideCell) 2번 → 사본 후기만 파랑·초록 → GIF 효과 제자리 페이드(84).
+ *   잰다(첫 장면·미리보기·GIF 같은 slidePlan.draw): 한 바퀴 24장에서 틀 자리 픽셀 = 늘 같은 회색(±2 · 겹침 페이드에도) · 화면 자리 = 빨강 → 파랑 → 초록 차례로.
+ *   ⇒ «고정 덮개 한 장»이 아니라 «칸마다 같은 자리의 틀 사본»으로 고정처럼 보인다(한계는 커밋 메시지·지디 보고).
+ * 양성대조(장면): 사본 하나의 틀을 아래로 옮기면(top 40%) «틀 늘 같음»이 거짓(같은 테스트 안 둘째 측정 · 자가 어긋남을 본다). */
+test('F86 폰 틀 고정 + 후기 제자리 전환 — 칸 복제 + 제자리 페이드로 틀 픽셀 늘 같음 · 화면만 바뀜', async ({ page }) => {
+  const { errs, id } = await scene(page, { cellMode: 'frame' });
+  await wireCdp(page);
+  await page.evaluate(async (id) => {
+    const b = document.getElementById(id);
+    const png = (color, w = 60, h = 40) => { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const x = cv.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, w, h); return cv.toDataURL('image/png'); };
+    const put = (cell, src, box) => { window._activeFrame = cell; const had = new Set(cell.querySelectorAll('.asset-block')); window.addAssetBlock(null, { imgSrc: src });
+      const ab = [...cell.querySelectorAll('.asset-block')].find((a) => !had.has(a)); Object.assign(ab.style, box); ab.dataset.v86 = box.role; return ab; };
+    const cells = [...b.querySelectorAll('.sld-cell')];
+    cells.slice(1).forEach((c) => c.remove()); window.renderSlideBlock(b);
+    put(cells[0], png('#555555'), { role: 'frame', left: '0px', top: '0px', width: '100%', height: '100%' });
+    put(cells[0], png('#ff0000'), { role: 'review', left: '25%', top: '25%', width: '50%', height: '50%' });
+    window._activeFrame = null;
+    const c1 = window.duplicateSlideCell(b, cells[0]), c2 = window.duplicateSlideCell(b, c1);
+    c1.querySelector('[data-v86="review"] img').src = png('#0000ff'); c2.querySelector('[data-v86="review"] img').src = png('#00aa00');
+    b.dataset.animFx = 'slide-fade';
+    window.renderSlideBlock(b); b.scrollIntoView({ block: 'center' });
+  }, id);
+  await page.waitForFunction((id) => [...document.getElementById(id).querySelectorAll('.sld-cell .asset-block img')].filter((i) => i.complete && i.naturalWidth > 0).length >= 6, id);   // 칸 셋 × 그림 둘 뜸(조건 대기)
+  const measure = async () => page.evaluate(async (id) => {
+    const b = document.getElementById(id); b._sldImgs = null; const imgs = await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, frames = [];
+    for (let i = 0; i < 24; i++) {
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, i / 24);
+      const px = (x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data).slice(0, 3);
+      frames.push({ frame: px(W * 0.5, H * 0.08), screen: px(W * 0.5, H * 0.5) });
+    }
+    const near = (a, b, d = 2) => a.every((v, i) => Math.abs(v - b[i]) <= d);
+    const kind = (p) => (near(p, [255, 0, 0], 8) ? 'R' : near(p, [0, 0, 255], 8) ? 'B' : near(p, [0, 170, 0], 8) ? 'G' : '~');
+    const seq = frames.map((f) => kind(f.screen)).filter((k) => k !== '~').filter((k, i, a) => i === 0 || a[i - 1] !== k).join('');
+    return { n: imgs.length, frameSame: frames.every((f) => near(f.frame, frames[0].frame)), frame0: frames[0].frame, seq, fx: b.dataset.animFx };
+  }, id);
+  const r = await measure();
+  expect({ n: r.n, fx: r.fx }, '[전제] 칸 셋 · 제자리 페이드').toEqual({ n: 3, fx: 'slide-fade' });
+  expect(r.frame0, '[전제] 틀 자리 = 회색').toEqual([85, 85, 85]);
+  expect(r.frameSame, '★틀 픽셀이 한 바퀴 내내 같다(고정처럼 보임)').toBe(true);
+  expect(r.seq.startsWith('RBG'), `★화면 자리 = 빨강 → 파랑 → 초록(${r.seq})`).toBe(true);
+  /* 양성대조(장면) — 사본 하나의 틀을 아래로 옮기면 같은 자가 «늘 같음 아님»을 본다 */
+  await page.evaluate((id) => { const f = document.getElementById(id).querySelectorAll('.sld-cell')[1].querySelector('[data-v86="frame"]'); f.style.top = '40%'; }, id);
+  expect((await measure()).frameSame, '양성대조: 사본 틀이 어긋나면 자가 잡는다').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* X2 SLIDE-ENTER-EXIT-DIM-01 고침(지혜맥 261120 · 18칸 빨강) — 접힌 슬라이드의 «칸 밖»(칸 틈)을 두 번 누르면 펼치고 «펼친 채» 남는다.
+ *   원인: 펼침(문서 capture dblclick)과 «빈 곳 두 번 = 나옴»(140 · 같은 문서 capture)이 같은 이벤트를 차례로 받아 펼치자마자 접었다(stopPropagation 은 같은 노드 다음 듣개를 못 막음).
+ *   고침: 펼침을 연 그 이벤트는 나옴 판정에서 뺀다. 펼친 «뒤» 새 두 번 누름은 그대로 나옴(140 뜻 유지 — 같은 테스트 둘째 단계).
+ * 양성대조: _patches/slide-frame-CTL45-enter-ev-not-skipped.patch(나옴 쪽 «e === _enterEv» 줄 삭제) → X2 «펼친 채» 빨강. */
+test('X2 접힌 슬라이드 칸 틈 두 번 = 펼침 · 펼친 채 남음 · 다음 두 번 = 나옴', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  const open = () => page.evaluate((id) => document.getElementById(id).classList.contains('sld-unfold'), id);
+  await page.evaluate((id) => { window.unfoldSlide(document.getElementById(id), false); document.getElementById(id).scrollIntoView({ block: 'center' }); }, id);
+  await expect.poll(open, '[전제] 접힘').toBe(false);
+  let prev = '', gap = null;
+  await expect.poll(async () => {
+    gap = await page.evaluate((id) => { const b = document.getElementById(id), cs = b.querySelectorAll('.sld-cell'); const a = cs[0].getBoundingClientRect(), c = cs[1].getBoundingClientRect();
+      const x = (a.right + c.left) / 2, y = (a.top + a.bottom) / 2, e = document.elementFromPoint(x, y);
+      return { x, y, ok: c.left - a.right >= 2 && !!e && b.contains(e) && !e.closest('.sld-cell') }; }, id);
+    const k = JSON.stringify([gap.x, gap.y]), same = k === prev; prev = k; return gap.ok && same;
+  }, { message: '[전제] 칸 틈 = 슬라이드 안 · 칸 밖(두 번 같은 자리)', intervals: [50] }).toBe(true);
+  await page.mouse.dblclick(gap.x, gap.y);
+  await expect.poll(open, '★칸 틈 두 번 = 펼침').toBe(true);
+  let n = 0;
+  await expect.poll(async () => { n = (await open()) ? n + 1 : 0; return n >= 2; }, { message: '★펼친 채 남음(두 번 연속 펼침 — 같은 이벤트로 곧장 접히지 않음)', intervals: [50] }).toBe(true);
+  await page.mouse.dblclick(gap.x, gap.y);
+  await expect.poll(open, '★펼친 뒤 새 두 번 누름 = 나옴(140 그대로)').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* B1 SLIDE-CELL-REORDER-01 띠 탭(지디 261120 ⓐ · 현빈 7112 «띠가 보이면 띠가 이긴다» — 그리드 머리띠 R1·E1 과 같은 어법)
+ *   P1 장면(칸 5 · 같은 섹션 글자) → 펼침 + 슬라이드 고름 → 띠가 옆 글자 위에 뜬 점(맨 위 = 띠 · 그 밑 = 글자)을 탭 = 그 띠의 칸이 골라진다 · 글자는 안 골라짐 · 펼침 그대로.
+ * 양성대조: _patches/slide-frame-CTL49-band-no-pointer.patch(칸 띠 pointer-events none) → 탭이 글자로 가 B1 빨강. */
+test('B1 펼침 중 칸 띠 탭 = 그 칸 고름(띠 밑 옆 글자 아님)', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await page.evaluate((id) => { const b = document.getElementById(id); window.addSlideCell(b); window.addSlideCell(b); window.selectSection(b.closest('.section-block')); }, id);
+  const otherId = await page.evaluate(() => { window._activeFrame = null; window.addTextBlock('body'); return document.querySelector('#canvas .section-block .text-block:not(.sld-cell .text-block)')?.id || null; });
+  expect(otherId, '[전제] 같은 섹션 글자').not.toBeNull();
+  await page.evaluate((id) => { window.selectBlock(id); window.unfoldSlide(document.getElementById(id), true); }, id);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  await expect.poll(() => page.locator('#ss-handles-overlay > .grd-headband[data-sld]').count(), '[전제] 칸 띠 다섯').toBe(5);
+  /* 띠가 글자 위에 뜬 점 — 맨 위 = 칸 띠 · 오버레이 밑 첫 요소 = 글자(같은 자리 두 번) */
+  let prev = '', pt = null;
+  await expect.poll(async () => {
+    pt = await page.evaluate((oid) => { const t = document.getElementById(oid), ovl = document.getElementById('ss-handles-overlay');
+      for (const b of ovl.querySelectorAll(':scope > .grd-headband[data-sld]')) { const r = b.getBoundingClientRect();
+        for (const fx of [0.5, 0.25, 0.75]) { const x = r.left + r.width * fx, y = r.top + r.height / 2, top = document.elementFromPoint(x, y), under = document.elementsFromPoint(x, y).find((e) => !ovl.contains(e));
+          if (top === b && under && (under === t || t.contains(under))) return { x, y, i: +b.dataset.i, ok: true }; } }
+      return { ok: false }; }, otherId);
+    const k = JSON.stringify(pt.ok && [Math.round(pt.x), Math.round(pt.y)]); const same = k === prev; prev = k; return pt.ok && same;
+  }, { message: '[전제] 칸 띠가 옆 글자 위에 뜬 점(같은 자리 두 번)', intervals: [50] }).toBe(true);
+  await page.mouse.click(pt.x, pt.y);
+  await expect.poll(() => page.evaluate(({ id, oid, i }) => { const b = document.getElementById(id), c = window.slideCellsOf(b)[i];
+    return { cell: c.classList.contains('selected') && window._activeFrame === c, text: document.getElementById(oid).classList.contains('selected'), open: b.classList.contains('sld-unfold') }; }, { id, oid: otherId, i: pt.i }),
+    `★띠 ${pt.i + 1} 탭 = 칸 ${pt.i + 1} 고름 · 옆 글자 안 골라짐 · 펼침 그대로`).toEqual({ cell: true, text: false, open: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

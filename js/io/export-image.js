@@ -543,6 +543,8 @@ export async function captureCloneToCanvas(clone, w, bgColor, useNative, liveSec
     neutralizeRedactForH2C(clone); // html2canvas는 backdrop-filter 미지원 → 가림막 원본노출 방지(안전실패)
     neutralizeTextGradForH2C(clone); // html2canvas는 background-clip:text 미지원 → 글자 그라데이션은 첫 스탑 단색으로(0918r2 textgrad)
     await neutralizeObjectFitForH2C(clone); // html2canvas는 object-fit 미지원 → 상자에 «늘려» 그린다. 상자 크기대로 미리 잘라 끼운다(썸네일이 화면과 다른 그림이 되던 자리)
+    /* SLIDE-CELL-SHADOW-CLIP-01(134) — 슬라이드 블럭은 overflow visible + clip-path(가로 자름)인데 html2canvas 는 clip-path 를 «무시» → 트랙 밖 칸까지 찍힌다 ⇒ 이 갈래 클론에서만 옛 자름(overflow hidden)으로(위아래 그림자는 이 길에선 옛처럼 잘림) */
+    clone.querySelectorAll('.slide-block').forEach((b) => { b.style.overflow = 'hidden'; b.style.clipPath = 'none'; });
     /* ★svg 에 닿는 CSS transform 을 «감싸는 span»으로 올린다 — html2canvas 는 svg 쪽 것을 ★안 그린다
        (월계수 오른 잎 거울이 ★썸네일에서 사라지던 자리 · 현빈 2026-10-09). ★까닭·실측은 h2c-prep.js 머리말.
        ⛔클론이 ★document 에 ★붙은 «뒤»라야 한다 — detached 면 computed transform 이 ★빈 문자열이다. */

@@ -1363,6 +1363,7 @@
             <input type="range" class="anim-opt-slider" id="anim-slide-dwell" min="0.3" max="4" step="0.1" value="1.2" oninput="setSlideAnimOpt(false)" onchange="setSlideAnimOpt(true)" title="스와이프 — 한 장에 머무는 시간(초)">
             <span class="anim-opt-val" id="anim-slide-dwell-val">1.2초</span>
           </div>
+          <div id="anim-slide-trail-row" style="display:none"><!-- 83 잔상 세기 — animation-engine.js _trailRow 가 sliderRowHTML 로 채움(스와이프 잔상만) --></div>
           <div class="anim-opt-row" id="anim-step-past-row" style="display:none"><!-- 0.9.13 MOTION 3단계 신호등 — 지난 칸(그리드만 · _syncKindRows) -->
             <span class="anim-opt-label">지난 칸</span>
             <select id="anim-step-past" class="anim-track-fx" onchange="setSlideAnimOpt(true)"><option value="off">꺼짐</option><option value="stack">쌓임</option></select>

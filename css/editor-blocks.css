@@ -1587,14 +1587,25 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 /* SLIDE-CLICK-SELECT-DBL-UNFOLD-01(현빈 피드백 2 ②) — 펼침 = «두 번 누름»으로 켜는 상태(.sld-unfold · 저장·캡처 명부가 걷는다) · 한 번 = 슬라이드만 고름.
    접힌 동안 칸·칸 안은 포인터를 안 받는다 ⇒ 어디를 눌러도 슬라이드 블럭이 골라진다(칸·안쪽 블럭 고르기 = 펼친 뒤). */
 .slide-block[data-cell-mode="frame"]:not(.sld-unfold) .sld-cell { pointer-events: none; }
-.slide-block[data-cell-mode="frame"].sld-unfold { overflow: visible !important; }
+/* SLIDE-DOTS-FIXED-ON-SCROLL-01(138) — 임시 가로 밀기(scrollLeft) 동안만: 점 띠는 블럭 창에 고정(밀린 만큼 되돌림) · 보이는 칸 점만 진하게.
+   표식(.sld-hs · .sld-dot-hs-on)은 저장·캡처 명부가 걷는다 ⇒ 산출물 무변. 색 = 띠의 --sld-dot-on/off(첫 장면 점 색 그대로). */
+/* 134 — 밀기는 트랙 translate(아래)라 점 띠는 원래 제자리(되돌림 규칙 걷음) */
+.slide-block.sld-hs > .sld-track { translate: calc(-1 * var(--sld-hs-x, 0px)) 0; }
+.slide-block.sld-hs > .sld-dots > span { background: var(--sld-dot-off) !important; }
+.slide-block.sld-hs > .sld-dots > span.sld-dot-hs-on { background: var(--sld-dot-on) !important; }
+/* SLIDE-ENTER-KEEP-HSCROLL-01(139) — 134 부터 밀기 = 위 translate 한 줄(펼침·접힘 같음) ⇒ 따로 규칙 없음 */
+.slide-block[data-cell-mode="frame"].sld-unfold { overflow: visible !important; clip-path: none !important; }   /* 134 — 렌더의 인라인 clip-path(가로 자름)도 펼친 동안 품 */
 /* ★섹션 안쪽도 가로로 자른다(editor-layout.css .section-inner overflow-x:clip — 그림자 까닭) ⇒ 펼친 동안만 그 섹션 안쪽 가로 clip 을 푼다.
    ⛔:has 안에 :has 를 못 넣는다(규격) — 두 갈래로 적는다(슬라이드 자신이 골라짐 · 슬라이드 안 무엇이 골라짐). 저장·캡처는 .selected 를 걷으니 영향 0. (지혜맥 P1 빨강 = 이 clip) */
 .section-inner:has(.slide-block[data-cell-mode="frame"].sld-unfold) { overflow-x: visible; }
+/* SLIDE-ENTER-EXIT-DIM-01(140 · (g) «위아래 섹션 고르게») — 섹션은 저마다 z 2 쌓임맥락이라 뒤(아래) 섹션이 이 섹션 안 덮개(::after outline)를 덮었다 ⇒ 펼친 동안만 그 섹션을 한 칸 위로 */
+.section-block:has(> .section-inner .slide-block[data-cell-mode="frame"].sld-unfold) { z-index: 3; }
 .slide-block[data-cell-mode="frame"].sld-unfold::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
-  /* 진회색 덮개 — 캔버스 배율(최소 10%)에서도 화면 끝이 안 보이게 2000vmax(배율 0.1 → 화면 200vmax) · px 리터럴 0 */
-  outline: 2000vmax solid color-mix(in srgb, var(--ui-bg-base) 78%, transparent);
+  /* 덮개 — 캔버스 배율(최소 10%)에서도 화면 끝이 안 보이게 2000vmax(배율 0.1 → 화면 200vmax) · px 리터럴 0
+     SLIDE-ENTER-EXIT-DIM-01(140 · 현빈 «살짝·고르게») — 옛 78%(진회색)를 앱 «비활성 흐림» 토큰 --ui-disabled-opacity(0.5) 세기로.
+     고르게 = 펼친 섹션 z 3(위 규칙) 덕에 위·아래·옆 섹션과 캔버스 밖이 같은 한 겹 */
+  outline: 2000vmax solid color-mix(in srgb, var(--ui-bg-base) calc(var(--ui-disabled-opacity) * 100%), transparent);
 }
 /* ★쿠폰의 글자 칸 — 편집 포커스 테두리를 끈다(모달의 .tb-mdl-* 과 같은 까닭).
    ★줄바꿈은 생성기 쪽에서 white-space:pre 로 준다(렌더가 인라인으로) — 여기선 안 건드린다. */

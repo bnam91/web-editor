@@ -14,8 +14,8 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, TRAIL_N, TRAIL_DT, TRAIL_A, slideGridZoom, gridZoomFrame, drawGridZoom,
-  DOT_D, dotBand, drawDots, slideActiveIndex,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, trailGhosts, slideGridZoom, gridZoomFrame, drawGridZoom,
+  DOT_D, DOT_GAP, dotBand, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
    점이 켜지면 트랙이 띠만큼 줄어든다(카드 높이 = 블럭 − 띠) — GIF 도 같은 띠를 비우고 그린다. */
@@ -43,8 +43,9 @@ function _renderDots(block, n, pos, active = 0, layout = readSlideState(block).l
   if (!pos) { el?.remove(); return; }
   if (!el) { el = document.createElement('div'); el.className = 'sld-dots'; block.appendChild(el); }
   const o = _dotOpt(layout);
-  el.style.cssText = `position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;display:flex;align-items:center;justify-content:center;gap:${o.space}px;pointer-events:none;`;
+  el.style.cssText = `--sld-dot-on:${o.on};--sld-dot-off:${o.off};position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;box-sizing:border-box;padding-${pos}:${DOT_GAP}px;display:flex;align-items:${pos === 'top' ? 'flex-start' : 'flex-end'};justify-content:center;gap:${o.space}px;pointer-events:none;`;   // 점 = 바깥 여백(고정) 안쪽 · 나머지 띠 = 칸↔점 갭(137 · drawDots 와 같은 자리)
   el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? o.on : o.off};`; return d; }));
+  if (_hsX(block) > 0) _syncHScrollDots(block);   // 138 — 밀린 채 다시 그리면 점 표식을 다시 씌움
 }
 /** 저장 꼴 한 장 — {src} + (칸별 폭이 있으면) w(% · SLIDE-CELL-SIZE-EACH-01). */
 const _slideOut = (s) => { const w = normCardW(s.w); return w === undefined ? { src: s.src } : { src: s.src, w }; };
@@ -168,9 +169,27 @@ const _scrollMax = (block) => { const t = block.querySelector(':scope > .sld-tra
 /** 고정 켜기(지금 임시 자리를 굳힘)/끄기 — 이력은 부르는 쪽. */
 export function setSlideScrollFix(block, on) {
   if (!block) return;
-  if (on) { const x = _fixedX(block) || Math.round(block.scrollLeft); block.scrollLeft = 0; if (x > 0) block.dataset.scrollX = String(x); else delete block.dataset.scrollX; }
-  else { const x = _fixedX(block); delete block.dataset.scrollX; renderSlideBlock(block); block.scrollLeft = x; return; }
+  if (on) { const x = _fixedX(block) || _hsX(block); _setHScroll(block, 0); if (x > 0) block.dataset.scrollX = String(x); else delete block.dataset.scrollX; }
+  else { const x = _fixedX(block); delete block.dataset.scrollX; renderSlideBlock(block); _setHScroll(block, x); return; }
   renderSlideBlock(block);
+}
+/* SLIDE-DOTS-FIXED-ON-SCROLL-01(138 · 현빈 5차 (e)) — 임시 가로 밀기(scrollLeft) 동안 점 띠는 블럭 창에 고정 · 지금 보이는 칸(왼끝이 창 왼끝 이하인 마지막 칸) 점만 진하게.
+   표식 = 블럭 .sld-hs · 점 .sld-dot-hs-on(저장 section-serialize·캡처 capture-safety 명부가 걷는다 ⇒ PNG·GIF·HTML·저장 = 늘 첫 장면 점 · 무변).
+   밀린 거리 = 블럭 인라인 --sld-hs-x(그 표식 없으면 아무 일 안 함 · 0 이면 지운다). «스크롤 고정»(data-scroll-x · 산출물)은 안 건드린다. */
+/* SLIDE-CELL-SHADOW-CLIP-01(134 · 현빈 «중간») — 임시 가로 밀기는 scrollLeft(스크롤 상자 = overflow hidden 필요)가 아니라 «값 + CSS translate»:
+   블럭 ._sldX(편집 값 · 저장 0) → 인라인 --sld-hs-x + 표식 .sld-hs ⇒ css .sld-hs > .sld-track { translate } · 표식은 저장·캡처 명부가 걷어 산출물 = 첫 장면.
+   그래서 블럭은 overflow visible + clip-path(가로만 자르고 위아래는 그림자만큼 엶) — 칸 그림자가 위아래로 보이고 블럭·칸 크기 무변. */
+const _hsX = (block) => Math.max(0, Math.round(+block?._sldX || 0));
+function _setHScroll(block, x) { block._sldX = Math.max(0, Math.round(+x || 0)); _syncHScrollDots(block); }
+function _syncHScrollDots(block) {
+  const x = _hsX(block), dots = block.querySelector(':scope > .sld-dots');
+  block.classList.toggle('sld-hs', x > 0);   // 표식 = 트랙 translate + 점 활성(산출물엔 안 감)
+  if (x <= 0) block.style.removeProperty('--sld-hs-x'); else block.style.setProperty('--sld-hs-x', `${x}px`);
+  dots?.querySelectorAll('.sld-dot-hs-on').forEach((d) => d.classList.remove('sld-dot-hs-on'));
+  if (x <= 0 || !dots) return;
+  let k = 0;
+  [...(block.querySelector(':scope > .sld-track')?.children || [])].forEach((c, i) => { if (c.offsetLeft <= x + 1) k = i; });
+  dots.children[k]?.classList.add('sld-dot-hs-on');
 }
 let _sldS = null;
 function _makeScrollBar(block) {
@@ -181,7 +200,7 @@ function _makeScrollBar(block) {
   r.addEventListener('input', () => {
     const v = +r.value;
     if (_fixedX(block)) { block.dataset.scrollX = String(v); renderSlideBlock(block); }   // 고정 중 = 고정 값을 옮김
-    else block.scrollLeft = v;   // 임시(저장 흔적 0)
+    else _setHScroll(block, v);   // 임시(저장 흔적 0 — 134 부터 scrollLeft 대신 값+translate)
   });
   r.addEventListener('change', () => { if (_fixedX(block)) { window.pushHistory?.('슬라이드 스크롤 고정'); window.scheduleAutoSave?.(); } });
   return r;
@@ -191,18 +210,33 @@ function _makeScrollBar(block) {
    두 번 누름(슬라이드 위 어디든 — 접힌 동안 칸은 포인터를 안 받아 슬라이드가 받는다) = 펼침 · Esc · 캔버스에서 그 슬라이드 밖 누름 = 접힘. */
 export function unfoldSlide(block, on = true) {
   if (!block || !isFrameSlide(block)) return;
-  if (on) document.querySelectorAll('#canvas .slide-block.sld-unfold').forEach((b) => { if (b !== block) b.classList.remove('sld-unfold'); });
+  if (on) document.querySelectorAll('#canvas .slide-block.sld-unfold').forEach((b) => { if (b !== block) unfoldSlide(b, false); });
+  /* SLIDE-ENTER-KEEP-HSCROLL-01(139) — 134 부터 밀기 = translate(펼침이 안 되돌림) ⇒ 들어가도 나와도 그 자리 그대로(쥘 것 없음) */
   block.classList.toggle('sld-unfold', !!on);
   kickSlidePlus();
 }
 const _unfolded = () => document.querySelector('#canvas .slide-block.sld-unfold');
+/* 펼침을 «연» 그 dblclick — 같은 문서 capture 의 «빈 곳 두 번 = 나옴»(아래)이 같은 이벤트로 곧바로 접지 않게(지혜맥 261120 · 펼치자마자 나옴 18칸).
+   stopPropagation 은 같은 노드(document)의 다음 듣개를 못 막는다 — 이벤트 자체로 가른다(stopImmediatePropagation 은 다른 듣개까지 막아 안 씀). */
+let _enterEv = null;
 if (typeof document !== 'undefined') {
   document.addEventListener('dblclick', (e) => {
     const b = e.target.closest?.('#canvas .slide-block[data-cell-mode="frame"]');
     if (!b || b.classList.contains('sld-unfold')) return;
     e.preventDefault(); e.stopPropagation();
+    _enterEv = e;
     window.selectBlock?.(b.id);
     unfoldSlide(b, true);
+  }, true);
+  /* SLIDE-ENTER-EXIT-DIM-01(140 · 현빈 5차 (g)) — 빈 영역 두 번 누름 = 나옴: 펼친 슬라이드 안 «칸 밖»(트랙 틈·점 띠·바탕) 또는 캔버스 밖 회색(#canvas-wrap 안 · #canvas 밖).
+     칸 안 두 번 누름은 그대로(칸 안 편집 진입). 다른 섹션 위는 mousedown(아래)이 이미 접는다. */
+  document.addEventListener('dblclick', (e) => {
+    if (e === _enterEv) return;   // 펼침을 연 그 두 번 누름 — 나옴 판정에서 뺀다(펼친 «뒤» 새 dblclick 만 나옴)
+    const b = _unfolded(); if (!b) return;
+    const t = e.target;
+    const inSlide = b.contains(t), inCell = !!t.closest?.('.sld-cell');
+    const outsideCanvas = !!t.closest?.('#canvas-wrap') && !t.closest?.('#canvas');
+    if ((inSlide && !inCell) || outsideCanvas) { e.preventDefault(); e.stopPropagation(); unfoldSlide(b, false); }
   }, true);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -314,7 +348,7 @@ function _syncSlidePlus() {
     if (!_sldS || _sldS.block !== sb || !_sldS.el.isConnected) { _sldS?.el.remove(); _sldS = { block: sb, el: _makeScrollBar(sb) }; L.appendChild(_sldS.el); }
     const r = sb.getBoundingClientRect(), sr = L.parentElement.getBoundingClientRect(), z = (window.currentZoom || 40) / 100, el = _sldS.el;
     el.max = String(_scrollMax(sb));
-    if (document.activeElement !== el) el.value = String(_fixedX(sb) || Math.round(sb.scrollLeft));
+    if (document.activeElement !== el) el.value = String(_fixedX(sb) || _hsX(sb));
     Object.assign(el.style, { left: `${(r.left - sr.left) / z}px`, top: `${(r.bottom - sr.top) / z + 18}px`, width: `${r.width / z}px` });
   }
   const b = _activeFrameSlide();
@@ -327,7 +361,30 @@ function _syncSlidePlus() {
     Object.assign(_sldPlus.btn.style, { left: `${(x - sr.left) / z + (vert ? 0 : 28)}px`, top: `${(y - sr.top) / z + (vert ? 28 : 0)}px`, transform: 'translate(-50%, -50%)' });
     _sldPlus.btn.disabled = cells.length >= SLIDE_MAX;
   }
+  const ub = b && b.classList.contains('sld-unfold') ? b : null;   // 141 칸 띠 = 펼친 프레임 칸 슬라이드를 고른 동안(그리드 머리띠 꼴 · overlay-handles)
+  window.syncSlideCellBands?.(ub, ub ? slideCells(ub) : [], ub && slideAxis(readSlideState(ub).fx) === 'y' ? 'row' : 'col');
   if (sel || b || selCell) _sldRaf = requestAnimationFrame(_syncSlidePlus);
+}
+/** SLIDE-CELL-REORDER-01(141) — 칸 from → to 자리(⌘←/→ · 칸 띠 끌기 한 문). 칸 요소째 옮김(자식 통째) · 고른 상태·펼침 유지 · 이력 한 칸(끝 표본) · 패널 다시. */
+export function moveSlideCell(block, from, to) {
+  const cells = slideCells(block), c = cells[from], track = block?.querySelector(':scope > .sld-track');
+  if (!c || !track || !(to >= 0 && to < cells.length) || to === from) return false;
+  const rest = cells.filter((x) => x !== c);
+  track.insertBefore(c, rest[to] || null);
+  renderSlideBlock(block);
+  window.pushHistory?.('칸 순서');
+  window.scheduleAutoSave?.();
+  const pick = slideCells(block).find((x) => x.classList.contains('selected')) || null;
+  window.showSlideProperties?.(block, { cell: pick });
+  kickSlidePlus();
+  return true;
+}
+/** ⌘←/→(editor.js) — 펼친 슬라이드에서 «칸 자신»을 골랐을 때만(칸 안 블럭을 골랐으면 false → 다음 길). dir = −1 | 1 */
+export function moveSelectedSlideCell(dir) {
+  const c = document.querySelector('#canvas .slide-block.sld-unfold > .sld-track > .sld-cell.selected');
+  if (!c || c.querySelector('.selected')) return false;
+  const block = c.closest('.slide-block'), i = slideCells(block).indexOf(c);
+  return moveSlideCell(block, i, i + dir);
 }
 export function kickSlidePlus() { if (!_sldRaf && typeof requestAnimationFrame === 'function') _sldRaf = requestAnimationFrame(_syncSlidePlus); }
 if (typeof document !== 'undefined') document.addEventListener('mouseup', kickSlidePlus, true);
@@ -358,6 +415,7 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
   let track = block.querySelector(':scope > .sld-track');
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
   const pos = _dotsPos(layout, vert, wipe ? 'slide-wipe' : '');
+  if (pos) block.style.height = `${layout.h + dotBand(layout)}px`;   // 137 ② 점 띠는 블럭을 «키운다» — 칸(트랙) 높이 = layout.h 그대로(옛 판은 블럭 고정·칸이 줄었다)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = flex gap 0 + 둘째부터 음수 margin(겹침 · 뒤 칸이 위)
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${wipe ? 'position:relative;' : ''}`;
   _renderDots(block, slideCells(block).length, pos, center && slideCells(block).length > 1 ? 1 : 0);
@@ -379,7 +437,10 @@ export function renderSlideBlock(block) {
   const { slides, layout, fx } = readSlideState(block);
   const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
-  block.style.overflow = 'hidden';
+  /* 134 — 가로만 자르고 위아래는 칸 그림자만큼 연다(가장 큰 그림자 blur+|y| · 없으면 0 = 옛 hidden 과 같은 자름) · 펼침은 css 가 clip-path none */
+  const _S = Math.max(0, ...slideCells(block).map((c) => { const sh = CELL_SHADOWS[c.dataset.shadow]; return sh ? sh.blur + Math.abs(sh.y) : 0; }));
+  block.style.overflow = 'visible';
+  block.style.clipPath = `inset(${-_S}px 0px ${-_S}px 0px)`;
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
     _renderFrameCells(block, layout, vert, slideInPlace(fx) || layout.mode === 'single', slideCentered(fx) || layout.mode === 'center', slideWipe(fx));   // 정지 꼴(layout.mode)이 효과보다 앞
@@ -393,6 +454,7 @@ export function renderSlideBlock(block) {
   const track = document.createElement('div');
   track.className = 'sld-track';
   const pos = _dotsPos(layout, vert, fx);
+  if (pos) block.style.height = `${layout.h + dotBand(layout)}px`;   // 137 ② 프레임 갈래와 같은 규약
   const inPlace = slideInPlace(fx) || layout.mode === 'single';   // 제자리 효과 · 정지 꼴 «단일 컷» = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = 겹침(프레임 칸과 같은 꼴)
   track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${slideWipe(fx) ? 'position:relative;' : ''}`;
@@ -548,8 +610,7 @@ export function slidePlan(block, anim, fxOverride) {
         return;
       }
       const s = slideOffset(fx, geom, A, t);
-      const ghosts = [];   // 스와이프 잔상 — 넘기는 동안만(머무름엔 앞 자리 = 지금 자리라 안 생김)
-      if (fx === 'slide-trail') for (let j = TRAIL_N; j >= 1; j--) { const sj = slideOffset(fx, geom, A, t - (j * TRAIL_DT) / sec); if (Math.abs(sj - s) > 0.5) ghosts.push([sj, TRAIL_A * (1 - (j - 1) / TRAIL_N)]); }
+      const ghosts = trailGhosts(fx, geom, A, t, sec);   // 스와이프 잔상 — 넘기는 동안만 · 세기 = A.trail(83 · 패널 «잔상 세기»)
       const paint = (H2) => {   // 잔상(옅게) 먼저 → 지금 자리
         for (const [sj, a] of ghosts) { ctx.save(); ctx.globalAlpha = a; drawSlides(ctx, W, H2, block._sldImgs?.imgs || [], geom, sj, A.dir, k, undefined, axis); ctx.restore(); }
         drawSlides(ctx, W, H2, block._sldImgs?.imgs || [], geom, s, A.dir, k, undefined, axis);
@@ -629,6 +690,7 @@ window.appendSlideCellImage = appendSlideCellImage;
 window.duplicateSlideCell = duplicateSlideCell;
 window.kickSlidePlus = kickSlidePlus;
 window.unfoldSlide = unfoldSlide;
+Object.assign(window, { moveSlideCell, moveSelectedSlideCell, slideCellsOf: slideCells, slideHScroll: (b, x) => (x === undefined ? _hsX(b) : _setHScroll(b, x)) });   // 141 — editor.js ⌘←/→ · overlay-handles 칸 띠(import 안 늘림)
 window.setSlideScrollFix = setSlideScrollFix;
 window.setSlideLayout = setSlideLayout;   // 검사·클래식 스크립트용(패널은 import)
 window.slideCells = slideCells;   // export-figma-json(클래식 스크립트)·패널이 축을 읽는다

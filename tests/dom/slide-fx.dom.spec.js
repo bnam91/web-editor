@@ -243,11 +243,11 @@ test('X1 임시 가로 막대 · 스크롤 고정 → 내보내기 자리', asyn
   const saved = () => page.evaluate((id) => { window.flushCurrentPage?.(); const d = JSON.parse(window.serializeProject()); const doc = new DOMParser().parseFromString(`<div>${d.pages.map((p) => p.canvas).join('')}</div>`, 'text/html'); const b = doc.getElementById(id); return { sx: b?.dataset.scrollX ?? null, tf: b?.querySelector('.sld-track')?.style.transform || '' }; }, id);
   const png0 = await png();
   await bar.evaluate((el) => { el.value = '200'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-  expect(await page.evaluate((id) => document.getElementById(id).scrollLeft, id), '★임시 = 블럭 scrollLeft').toBe(200);
+  expect(await page.evaluate((id) => window.slideHScroll(document.getElementById(id)), id), '★임시 = 밀기 값 200(134 부터 scrollLeft 대신 값+translate · 제품 뜻 바뀜)').toBe(200);
   expect(await saved(), '임시 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
   expect((await png()) === png0, '★임시 = PNG 흔적 0(안 민 것과 같음)').toBe(true);
   await page.click('label.prop-toggle:has(#sld-scroll-fix)');
-  const fx = await page.evaluate((id) => { const b = document.getElementById(id); return { sx: b.dataset.scrollX, sl: b.scrollLeft, tf: b.querySelector('.sld-track').style.transform }; }, id);
+  const fx = await page.evaluate((id) => { const b = document.getElementById(id); return { sx: b.dataset.scrollX, sl: window.slideHScroll(b), tf: b.querySelector('.sld-track').style.transform }; }, id);
   expect(fx, '★고정 = data-scroll-x 200 · 임시 0 · 트랙 −200').toEqual({ sx: '200', sl: 0, tf: 'translateX(-200px)' });
   expect((await png()) !== png0, '★고정 = PNG 가 그 자리').toBe(true);
   const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.images?.[0]?.x ?? null; }, id);
@@ -291,14 +291,47 @@ test('D8 점 간격·색 — 패널 · 첫 장면 · GIF 같은 자리·색', as
     const [a, c] = [...d.children].map((e) => e.getBoundingClientRect());
     return { band: Math.round(d.getBoundingClientRect().height / k), step: Math.round((c.left - a.left) / k), on: getComputedStyle(d.children[0]).backgroundColor, off: getComputedStyle(d.children[1]).backgroundColor, track: b.clientHeight - t.offsetHeight };
   }, id);
-  expect(dom, '★첫 장면 띠 40 · 점 사이 28 · 색 · 트랙 −40').toEqual({ band: 40, step: 28, on: 'rgb(255, 0, 255)', off: 'rgb(0, 255, 255)', track: 40 });
+  /* ★기대 바뀜(SLIDE-DOTS-GAP-SLIDER-01 · 137 d7385bc2c · 지디 261120 판정): 띠 = 칸↔점 갭 + 점 + 바깥 여백(고정 8) — 옛 «갭 × 2 + 점»(40) 이 아니다 ⇒ 갭 16 이면 16 + 8 + 8 = 32 · 트랙도 −32.
+     이 칸은 137 앞(3783f8e44)에 쓰여 137 이 뜻을 바꾼 뒤 안 고쳐졌다. 점 사이(28)·색은 그대로. */
+  expect(dom, '★첫 장면 띠 32 · 점 사이 28 · 색 · 트랙 −32').toEqual({ band: 32, step: 28, on: 'rgb(255, 0, 255)', off: 'rgb(0, 255, 255)', track: 32 });
   const g = await page.evaluate(async (id) => {
     const b = document.getElementById(id); await window.slidePrepare(b);
     const W = b.offsetWidth, H = b.offsetHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0);
     const p = (x, y) => Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data);
     const x0 = (W - (3 * 8 + 2 * 20)) / 2 + 4;
-    return { d0: p(x0, 20).slice(0, 3), d1: p(x0 + 28, 20).slice(0, 3), band: p(6, 36)[3], card: p(6, 44).slice(0, 3) };
+    /* 137 판: 점 가운데 = 바깥 여백 8 + 점 반지름 4 = 12 · 띠 0~32(비움 → 28 에서 잼) · 카드 = 32 아래(36 에서 잼) */
+    return { d0: p(x0, 12).slice(0, 3), d1: p(x0 + 28, 12).slice(0, 3), band: p(6, 28)[3], card: p(6, 36).slice(0, 3) };
   }, id);
   expect(g, '★GIF t=0 = 첫 장면(점 자리·색 · 띠 비움 · 카드 띠 아래)').toEqual({ d0: [255, 0, 255], d1: [0, 255, 255], band: 0, card: [255, 0, 0] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* D9 SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120) — GIF 패널 «잔상 세기» = 공용 sliderRowHTML(슬라이더+숫자) · 스와이프 잔상에서만 ·
+ *   숫자 44 → 블럭 data-anim-slide.trail 44(⌘Z 한 칸) · 그림(첫 장면 캔버스·GIF 같은 slidePlan.draw): 세기 0 = 스와이프와 같음 · 44 ≠ 22.
+ * 양성대조 = _patches/slide-83-CTL-trail-fixed.patch(잔상이 세기를 무시 · 옛 고정 22) → «44 ≠ 22»·«0 = 스와이프» 빨강. */
+test('D9 잔상 세기 — 패널 슬라이더+숫자 · 저장 · 세기 0 = 스와이프 · 44 ≠ 22', async ({ page }) => {
+  const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-swipe' });
+  await page.evaluate((id) => window.openAnimModal(document.getElementById(id)), id);
+  await expect(page.locator('#anim-gif-modal'), '[전제] GIF 패널').toBeVisible();
+  await expect(page.locator('#anim-slide-trail-row'), '스와이프엔 잔상 세기 없음').toBeHidden();
+  await page.click('#anim-list .anim-item[data-id="slide-trail"]');
+  const row = page.locator('#anim-slide-trail-row');
+  await expect(row, '스와이프 잔상 = 잔상 세기 줄').toBeVisible();
+  expect(await row.evaluate((r) => ({ prop: !!r.querySelector('.prop-row'), sl: !!r.querySelector('input.prop-slider#anim-slide-trail'), nu: !!r.querySelector('input.prop-number#anim-slide-trail-num'),
+    v: r.querySelector('#anim-slide-trail-num').value, lab: r.querySelector('.prop-label')?.textContent })), '공용 sliderRowHTML 꼴 · 기본 22')
+    .toEqual({ prop: true, sl: true, nu: true, v: '22', lab: '잔상 세기' });
+  await page.fill('#anim-slide-trail-num', '44');
+  await page.locator('#anim-slide-trail-num').dispatchEvent('change');
+  await expect.poll(() => page.evaluate((id) => JSON.parse(document.getElementById(id).dataset.animSlide || '{}').trail, id), '★숫자 44 → 블럭 저장').toBe(44);
+  expect(await page.evaluate(() => document.getElementById('anim-slide-trail').value), '슬라이더도 44').toBe('44');
+  await page.evaluate(() => window.closeAnimModal());
+  const r = await page.evaluate(async (id) => {
+    const b = document.getElementById(id); await window.slidePrepare(b);
+    const W = b.offsetWidth, H = b.offsetHeight, A = window.readSlideState(b).anim, T = 3 * (0.5 + A.dwell);
+    const hash = (fx, trail) => { b.dataset.animFx = fx; b.dataset.animSlide = JSON.stringify({ trail }); const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); window.slidePlan(b).draw(ctx, W, H, null, 0.25 / T);
+      const d = ctx.getImageData(0, 0, W, H).data; let h = 2166136261; for (let i = 0; i < d.length; i += 4) { h ^= d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11; h = Math.imul(h, 16777619); } return h >>> 0; };
+    return { zeroIsSwipe: hash('slide-trail', 0) === hash('slide-swipe', 22), d22vs44: hash('slide-trail', 22) !== hash('slide-trail', 44), d22vsSwipe: hash('slide-trail', 22) !== hash('slide-swipe', 22) };
+  }, id);
+  expect(r, '넘기는 가운데: 세기 0 = 스와이프 · 22 ≠ 44 · [전제] 22 ≠ 스와이프').toEqual({ zeroIsSwipe: true, d22vs44: true, d22vsSwipe: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

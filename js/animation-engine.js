@@ -4,6 +4,8 @@
 import { countUpLine, numToken, reelDigit, lineStartX, typedLines, fillStyled, measureStyled, remapCs, parseTextShadow } from './fx/anim-gif-text.js';
 import { drawTracks, V2_FX, TRACK_FX, normTracks, totalMs, scaleTracks, parseAnimGif, serializeAnimGif, AT_MAX, DUR_MIN, DUR_MAX, GIF_FPS, GIF_HOLD_S, loopInfoText, fitCanvasH, textBox, layoutLines, withGradFill, S0_MIN, S0_MAX, S0_DEFAULT, clampS0, stampNeedH, normOpt, optOf, OPT_KEYS, HL_MODES } from './fx/anim-gif-tracks.js';
 import { sectionBgColor } from './io/export-image.js';
+import { sliderRowHTML, bindSlider } from './props/_helpers.js';
+import { TRAIL_MAX, SLIDE_ANIM_DEFAULT } from './fx/slide-motion.js';
 
 const ANIM_LIST = [
   { id: 'slide-up',     label: '슬라이드업',     desc: '아래→위로 올라오며 등장' },
@@ -158,18 +160,34 @@ function _syncKindRows() {
   if (dirRow) dirRow.style.display = slide && !step && !_SLIDE_INPLACE.has(_animType) && !_SLIDE_NODWELL.has(_animType) ? '' : 'none';
   if (dwRow) dwRow.style.display = step || (slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep' || _animType === 'slide-trail' || _SLIDE_INPLACE.has(_animType))) ? '' : 'none';
   const dwLab = dwRow?.querySelector?.('.anim-opt-label'); if (dwLab) dwLab.textContent = step ? '한 칸 시간' : '머무름';   // 같은 칸 · 신호등이면 글만
+  const trRow = _trailRow(); if (trRow) trRow.style.display = slide && _animType === 'slide-trail' ? '' : 'none';
   const pastRow = document.getElementById('anim-step-past-row'); if (pastRow) pastRow.style.display = step ? '' : 'none';
   /* 방향 값은 그대로(left = 줄이 음의 쪽으로) — 세로 효과면 글만 위로/아래로 */
   const dirSel = document.getElementById('anim-slide-dir'), v = _SLIDE_VERT.has(_animType);
   if (slide && dirSel) for (const o of dirSel.options) o.textContent = o.value === 'right' ? (v ? '↓ 아래로' : '→ 오른쪽으로') : (v ? '↑ 위로' : '← 왼쪽으로');
 }
-/** GIF 패널 지금 값(슬라이드) — 방향·머무름·속도. */
+/* SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120) — 잔상 세기 줄 = 공용 sliderRowHTML(슬라이더+숫자) · 처음 쓸 때 한 번 채우고 bindSlider 로 맞물림.
+   이력·저장은 다른 슬라이드 칸과 같은 길(setSlideAnimOpt: 끌기 중 미리보기 · 놓을 때 한 칸) — bindSlider 자체 이력·자동저장은 끈다(두 번 안 쌓이게). */
+function _trailRow() {
+  const row = document.getElementById('anim-slide-trail-row');
+  if (row && !row.firstElementChild) {
+    row.innerHTML = sliderRowHTML('잔상 세기', 'anim-slide-trail', 'anim-slide-trail-num', { min: 0, max: TRAIL_MAX, step: 1, value: SLIDE_ANIM_DEFAULT.trail });
+    const sl = document.getElementById('anim-slide-trail'), nu = document.getElementById('anim-slide-trail-num');
+    sl.title = nu.title = '스와이프 잔상 — 넘길 때 지나간 자리 잔상의 진하기(%) · 0 = 잔상 없음 · 캔버스·GIF 같이';
+    bindSlider(sl, nu, () => setSlideAnimOpt(false), { min: 0, max: TRAIL_MAX, history: false, autosave: false });
+    sl.addEventListener('change', () => setSlideAnimOpt(true));
+    nu.addEventListener('change', () => setSlideAnimOpt(true));
+  }
+  return row;
+}
+/** GIF 패널 지금 값(슬라이드) — 방향·머무름·속도·잔상 세기. */
 function _slideAnimNow() {
   return {
     dir: document.getElementById('anim-slide-dir')?.value === 'right' ? 'right' : 'left',
     dwell: parseFloat(document.getElementById('anim-slide-dwell')?.value) || 1.2,
     speed: parseFloat(document.getElementById('anim-speed')?.value) || 1,
     past: document.getElementById('anim-step-past')?.value === 'stack' ? 'stack' : 'off',   // 신호등만 읽는다(슬라이드 소독이 버림)
+    trail: parseFloat(document.getElementById('anim-slide-trail')?.value),   // 없거나 비면 NaN → normAnim 기본(22)
   };
 }
 /** 슬라이드 움직임 값 저장(블럭 data-anim-slide) — commit = 이력 한 칸(바뀌었을 때만). index.html 방향·머무름 칸 인라인이 부른다. */
@@ -195,6 +213,7 @@ function _openSlideModal(tb) {
   if (st.anim.dir) set('anim-slide-dir', st.anim.dir);
   if (st.anim.past) set('anim-step-past', st.anim.past);
   set('anim-slide-dwell', st.anim.dwell); set('anim-speed', st.anim.speed);
+  if (_trailRow()) { const tr = st.anim.trail ?? SLIDE_ANIM_DEFAULT.trail; set('anim-slide-trail', tr); set('anim-slide-trail-num', tr); }
   const sv = document.getElementById('anim-speed-val'); if (sv) sv.textContent = st.anim.speed + 'x';
   const dv = document.getElementById('anim-slide-dwell-val'); if (dv) dv.textContent = `${(+st.anim.dwell).toFixed(1)}초`;
   _buildAnimList();
