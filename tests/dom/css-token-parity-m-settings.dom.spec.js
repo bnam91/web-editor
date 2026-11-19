@@ -11,7 +11,18 @@ const P = require('./_css-token-parity.js');
 const SETTINGS = ['css/settings-modal.css'];
 const settingsTab = (tab) => ({
   name: `설정 ${tab}`, files: SETTINGS, root: '#settings-modal .settings-modal-shell',
-  open: (page) => page.evaluate((t) => window.openSettingsModal(t), tab),
+  /* bootApp 의 electronAPI 는 «아무 이름이나 함수» Proxy 라 electronAPI.higgsfield.status 가 없다 → renderApiPane 이 던진다(지디 261119 지혜맥 실측).
+     settings-higgsfield.dom.spec.js 의 가짜(키 없음)를 두 판에 똑같이 끼운다 · 나머지 이름은 원래 Proxy 로 · 두 번 열어도 한 번만 감싼다. */
+  open: (page) => page.evaluate((t) => {
+    if (!window.__hfMock) {
+      const base = window.electronAPI;
+      const st = { hasKey: false, masked: '' };
+      const hf = { status: async () => st, setKey: async () => ({ ok: true, ...st }), clearKey: async () => ({ ok: true, ...st }) };
+      window.electronAPI = new Proxy({}, { get: (_, k) => (k === 'higgsfield' ? hf : base[k]) });
+      window.__hfMock = true;
+    }
+    window.openSettingsModal(t);
+  }, tab),
   close: (page) => page.evaluate(() => window.closeSettingsModal()),
 });
 const SCREENS = [
