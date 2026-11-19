@@ -4,6 +4,16 @@ import { renderPanel, sec } from './_panel-frame.js';
 import { pushHistory } from '../editor.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
+/** 아무 css 색 → colorField 가 받는 #rrggbb(알파는 parseAlphaFromColor 가 따로 읽는다) */
+function _hex(c) {
+  const x = document.createElement('canvas').getContext('2d');
+  x.fillStyle = '#000000'; x.fillStyle = String(c || '');
+  const v = x.fillStyle;   // '#rrggbb' 또는 'rgba(r, g, b, a)'
+  if (v[0] === '#') return v;
+  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(v);
+  return m ? '#' + m.slice(1, 4).map((n) => (+n).toString(16).padStart(2, '0')).join('') : '#000000';
+}
+
 export function showVectorProperties(block) {
   const w       = parseInt(block.dataset.w)        || 120;
   const h       = parseInt(block.dataset.h)        || 120;
@@ -19,6 +29,13 @@ export function showVectorProperties(block) {
   const strokeWidth = parseFloat(block.dataset.strokeWidth) || 2;
   const penFill     = block.dataset.penFill || 'none';
   const fillOn      = penFill && penFill !== 'none';
+  // P2 — 가져온 SVG 의 색 무리(둘 이상이면 무리마다 한 줄 · 패널 열 때 얼린다) · 선(두께·끝모양·점선)
+  const groups = hasPen ? [] : (window.vectorPaintGroups?.(block) || []);
+  const multi  = groups.length >= 2;
+  const stroke = window.vectorStrokeInfo?.(block) || { has: hasPen, width: strokeWidth, cap: 'round', dash: 'solid' };
+  const capOpts  = [['butt', '평평'], ['round', '둥글게'], ['square', '네모']];
+  const dashOpts = [['solid', '실선'], ['dash', '대시'], ['dot', '점']];
+  const optHtml = (list, cur) => list.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${l}</option>`).join('');
 
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -46,11 +63,15 @@ export function showVectorProperties(block) {
       <div class="prop-row">
         <button class="prop-btn-full" id="vb-pen-edit">패스 편집</button>
       </div>` : ''),
-      sec('fill', `
+      sec('fill', (multi ? groups.map((g, k) => `
+      <div class="prop-row">
+        <span class="prop-label">색 ${k + 1}</span>
+        ${colorFieldHTML({ idPrefix: `vb-g${k}`, hex: _hex(g.color), alpha: parseAlphaFromColor(g.color) })}
+      </div>`).join('') : `
       <div class="prop-row">
         <span class="prop-label">색</span>
         ${colorFieldHTML({ idPrefix: 'vb', hex: color, alpha: colorAlpha })}
-      </div>${hasPen && penClosed ? `
+      </div>`) + `${hasPen && penClosed ? `
       <div class="prop-row" style="margin-top:6px;">
         <span class="prop-label">채움</span>
         <label class="prop-toggle" title="닫힌 패스 채움 토글" style="margin-left:auto;">
@@ -58,11 +79,19 @@ export function showVectorProperties(block) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>` : ''}`),
-      sec('stroke', hasPen ? `
+      sec('stroke', stroke.has ? `
       <div class="prop-row">
         <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${strokeWidth}">
+        <input type="range" class="prop-slider" id="vb-stroke-w" min="0.5" max="40" step="0.5" value="${stroke.width}">
+        <input type="number" class="prop-number" id="vb-stroke-w-num" min="0.5" max="40" step="0.5" value="${stroke.width}">
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">끝모양</span>
+        <select class="prop-select" id="vb-stroke-cap" style="flex:1">${optHtml(capOpts, stroke.cap)}</select>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">선 꼴</span>
+        <select class="prop-select" id="vb-stroke-dash" style="flex:1">${optHtml(dashOpts, stroke.dash)}</select>
       </div>` : ''),
       sec('position', `
       <div class="prop-row" style="gap:4px;">
@@ -134,6 +163,13 @@ export function showVectorProperties(block) {
     onCommit: () => pushHistory(),
   });
 
+  // ── 여러 색(P2) — 무리마다 얼린 슬롯에만 쓴다 ─────────────────────────────────
+  if (multi) groups.forEach((g, k) => wireColorField(`vb-g${k}`, {
+    initialAlpha: parseAlphaFromColor(g.color),
+    onApply: (c) => { window.setVectorGroupColor(block, g.slots, c); window.renderVector(block); window.scheduleAutoSave?.(); },
+    onCommit: () => pushHistory(),
+  }));
+
   // ── 펜 패스 ──────────────────────────────────────────────────────────────────
   // penNodes(viewBox 좌표) + 현재 stroke/fill로 SVG 재빌드 → dataset.svg 갱신 → renderVector
   function rebuildPenSvg() {
@@ -170,10 +206,15 @@ export function showVectorProperties(block) {
   const strokeNum    = document.getElementById('vb-stroke-w-num');
   function applyStroke(v) {
     if (!Number.isFinite(v) || v <= 0) return;
-    block.dataset.strokeWidth = String(v);
     if (strokeSlider) strokeSlider.value = v;
     if (strokeNum)    strokeNum.value    = v;
-    rebuildPenSvg();
+    if (window.setVectorStroke?.(block, { width: v })) { window.renderVector(block); window.scheduleAutoSave?.(); }
+  }
+  for (const [id, key] of [['vb-stroke-cap', 'cap'], ['vb-stroke-dash', 'dash']]) {
+    document.getElementById(id)?.addEventListener('change', (e) => {
+      if (!window.setVectorStroke?.(block, { [key]: e.target.value })) return;
+      window.renderVector(block); window.scheduleAutoSave?.(); pushHistory();
+    });
   }
   strokeSlider?.addEventListener('input', () => applyStroke(parseFloat(strokeSlider.value)));
   strokeNum?.addEventListener('input',    () => applyStroke(parseFloat(strokeNum.value)));

@@ -779,6 +779,8 @@ function _commitEdit() {
   b.dataset.w = String(vw);
   b.dataset.h = String(vh);
   b.dataset.penNodes = JSON.stringify(_edit.nodes);
+  // 끝모양·점선을 고른 펜이면 공용 재빌드로 다시 짓는다(방금 쓴 viewBox 그대로 · _buildSvg 는 둥근 끝 실선만 안다 — P2)
+  if (b.dataset.strokeCap || b.dataset.strokeDash) window.rebuildPenSvg?.(b);
   window.renderVector?.(b);
 
   // updateVectorBlock으로 히스토리/저장 일원화 (svg는 이미 dataset에 반영됨)

@@ -95,6 +95,105 @@ function setVectorColor(block, c) {
   block.dataset.color = c;
 }
 
+/* ── 여러 색·선 (VECTOR-MULTICOLOR-STROKE-P2-01) ───────────────────────────────
+   대상은 «색 값»이 아니라 «칠 슬롯»(요소 차례 · fill|stroke · 속성|style|칠 없음) — 패널이 열 때 무리를 얼려 두므로
+   고치는 중 다른 무리와 색이 같아져도 합쳐지지 않는다(피그마 Selection colors 와 같은 뜻 · figcraft 는 읽기 참고만). */
+const _BLACK_GROUP = 'black';   // 검정·칠 없음·currentColor — 그리기에서 data-color 를 따르는 무리
+function _slotKey(where, v) {
+  if (where === 'implicit' || String(v || '').trim().toLowerCase() === 'currentcolor') return _BLACK_GROUP;
+  const p = _paint(v);
+  return p ? (_BLACK.test(p) ? _BLACK_GROUP : p) : null;
+}
+/** 색 무리 [{ key, color, slots: [[요소번호, prop, where], …] }] — 처음 나온 차례 · color = 지금 보이는 색(검정 무리 = data-color) */
+function vectorPaintGroups(block) {
+  const svg = block.dataset.svg ? _parseSvg(block.dataset.svg) : null;
+  if (!svg) return [];
+  const idx = new Map([svg, ...svg.querySelectorAll('*')].map((e, i) => [e, i]));
+  const groups = new Map();
+  _walkPaints(svg, (el, prop, where, v) => {
+    const key = _slotKey(where, v);
+    if (!key) return;
+    if (!groups.has(key)) groups.set(key, { key, color: key === _BLACK_GROUP ? (block.dataset.color || '#000000') : key, slots: [] });
+    groups.get(key).slots.push([idx.get(el), prop, where]);
+  });
+  return [...groups.values()];
+}
+/** 얼린 슬롯들에 색 c 를 쓴다. 처음 한 번 «굽기»: 검정 무리를 지금 보이는 색(data-color) 글자로 적고 data-color = 검정
+ *  ⇒ 그 뒤 그리기는 검정 → 검정(그대로)이라 무리마다 제 글자 색이 정본이다(검정을 골라도 다른 무리에 안 끌려간다). */
+function setVectorGroupColor(block, slots, c) {
+  const svg = block.dataset.svg ? _parseSvg(block.dataset.svg) : null;
+  if (!svg) return false;
+  const els = [svg, ...svg.querySelectorAll('*')];
+  const base = block.dataset.color || '#000000';
+  if (!_BLACK.test(base.trim().toLowerCase())) {
+    _walkPaints(svg, (el, prop, where, v) => {
+      if (_slotKey(where, v) !== _BLACK_GROUP) return;
+      if (where === 'implicit') el.setAttribute('fill', base); else _setPaint(el, prop, where, base);
+    });
+    block.dataset.color = '#000000';
+  }
+  for (const [i, prop, where] of slots) {
+    const el = els[i];
+    if (!el) continue;
+    if (where === 'implicit') el.setAttribute('fill', c); else _setPaint(el, prop, where, c);
+  }
+  block.dataset.svg = svg.outerHTML;
+  return true;
+}
+
+/* 선 두께·끝모양·점선. 점선 꼴은 두께의 배수(대시 3:2 · 점 1:1) — 두께를 바꾸면 따라 다시 적는다. */
+const STROKE_CAPS = ['butt', 'round', 'square'];
+const STROKE_DASHES = ['solid', 'dash', 'dot'];
+function _dashArray(dash, w) { return dash === 'dash' ? `${3 * w} ${2 * w}` : dash === 'dot' ? `${w} ${w}` : ''; }
+function _dashOf(arr) {
+  const n = String(arr || '').trim().split(/[\s,]+/).map(Number).filter((x) => x > 0);
+  return n.length < 2 ? 'solid' : (n[0] === n[1] ? 'dot' : 'dash');
+}
+/** 선이 그려지는 요소(stroke 칠이 none 아님 — 색·url·currentColor) */
+function _strokedEls(svg) {
+  const out = [];
+  _walkPaints(svg, (el, prop, where, v) => {
+    if (prop === 'stroke' && where !== 'implicit' && String(v || '').trim().toLowerCase() !== 'none' && !out.includes(el)) out.push(el);
+  });
+  return out;
+}
+const _strokeAttr = (el, a) => el.style?.getPropertyValue(a) || el.getAttribute(a) || '';
+/** 선 정보 — 펜은 dataset · 가져온 SVG 는 첫 선 요소에서 읽는다. has=false 면 선 칸을 안 보인다. */
+function vectorStrokeInfo(block) {
+  if (block.dataset.penNodes) {
+    return { has: true, width: parseFloat(block.dataset.strokeWidth) || 2, cap: block.dataset.strokeCap || 'round', dash: block.dataset.strokeDash || 'solid' };
+  }
+  const svg = block.dataset.svg ? _parseSvg(block.dataset.svg) : null;
+  const el = svg && _strokedEls(svg)[0];
+  if (!el) return { has: false };
+  return { has: true, width: parseFloat(_strokeAttr(el, 'stroke-width')) || 1, cap: _strokeAttr(el, 'stroke-linecap') || 'butt', dash: _dashOf(_strokeAttr(el, 'stroke-dasharray')) };
+}
+/** 선 바꾸기 한 문 — { width?, cap?, dash? } 중 준 것만. 펜 = dataset + rebuildPenSvg · 가져온 SVG = 선 요소마다 속성(style 의 같은 선언은 걷는다). */
+function setVectorStroke(block, opt) {
+  const cur = vectorStrokeInfo(block);
+  if (!cur.has) return false;
+  const width = opt.width != null ? opt.width : cur.width;
+  const cap = STROKE_CAPS.includes(opt.cap) ? opt.cap : cur.cap;
+  const dash = STROKE_DASHES.includes(opt.dash) ? opt.dash : cur.dash;
+  if (!(width > 0)) return false;
+  if (block.dataset.penNodes) {
+    block.dataset.strokeWidth = String(width);
+    block.dataset.strokeCap = cap;
+    block.dataset.strokeDash = dash;
+    return rebuildPenSvg(block);
+  }
+  const svg = _parseSvg(block.dataset.svg);
+  for (const el of _strokedEls(svg)) {
+    for (const a of ['stroke-width', 'stroke-linecap', 'stroke-dasharray']) el.style?.removeProperty(a);
+    el.setAttribute('stroke-width', String(width));
+    el.setAttribute('stroke-linecap', cap);
+    const arr = _dashArray(dash, width);
+    if (arr) el.setAttribute('stroke-dasharray', arr); else el.removeAttribute('stroke-dasharray');
+  }
+  block.dataset.svg = svg.outerHTML;
+  return true;
+}
+
 function renderVector(block) {
   /* ★렌더가 «유일한» innerHTML 자리다 — 열기 뒤 편집·MCP update·makeVectorBlock(data)·펜 재빌드가 전부 여기로 온다. */
   const svgStr = _cleanVectorSvg(block);
@@ -139,10 +238,16 @@ function rebuildPenSvg(block) {
   if (!d) return false;
   const stroke   = block.dataset.color || '#1a1a1a';
   const fillAttr = (fill && fill !== 'none') ? fill : 'none';
+  /* ★viewBox 는 지금 svg 의 것을 그대로 — penNodes 는 그 좌표다. 크기 조절(dataset.w·h)만 한 뒤 색·두께를 바꿀 때
+     새 w·h 로 viewBox 를 다시 쓰면 점이 그만큼 어긋났다(분석 261118 추정 · pen-tool.js _viewBoxOf 와 같은 읽기). */
+  const vbm = /viewBox="0 0 ([\d.]+) ([\d.]+)"/i.exec(block.dataset.svg || '');
+  const vw = vbm ? vbm[1] : w, vh = vbm ? vbm[2] : h;
+  const cap  = STROKE_CAPS.includes(block.dataset.strokeCap) ? block.dataset.strokeCap : 'round';
+  const dash = _dashArray(block.dataset.strokeDash, sw);
   block.dataset.svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vw} ${vh}" width="${w}" height="${h}">` +
     `<path d="${d}" fill="${fillAttr}" stroke="${stroke}" stroke-width="${sw}" ` +
-    `stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    `stroke-linejoin="round" stroke-linecap="${cap}"${dash ? ` stroke-dasharray="${dash}"` : ''}/></svg>`;
   return true;
 }
 
@@ -166,6 +271,8 @@ function makeVectorBlock(data = {}) {
   if (data.penClosed  !== undefined) block.dataset.penClosed  = String(data.penClosed);
   if (data.strokeWidth!== undefined) block.dataset.strokeWidth= String(data.strokeWidth);
   if (data.penFill    !== undefined) block.dataset.penFill    = String(data.penFill);
+  if (data.strokeCap  !== undefined) block.dataset.strokeCap  = String(data.strokeCap);
+  if (data.strokeDash !== undefined) block.dataset.strokeDash = String(data.strokeDash);
 
   const inner = document.createElement('div');
   inner.className = 'vb-inner';
@@ -463,6 +570,7 @@ window.addVectorBlock  = addVectorBlock;
 window.addVectorFromSvgText = addVectorFromSvgText;
 window.renderVector    = renderVector;
 window.setVectorColor  = setVectorColor;   // 색 바꾸기 한 문(prop-vector · MCP update)
+Object.assign(window, { vectorPaintGroups, setVectorGroupColor, vectorStrokeInfo, setVectorStroke });   // P2 — prop-vector
 /* ⌘G 묶음 손잡이가 벡터를 늘린다 — 크기 정본은 dataset.w·h 이고 renderVector 가 style 을 그 키로 다시 쓴다(VECTOR-GROUP-SCALE-SNAP-CHECK-01).
    ⛔style 만 쓰면 다음 렌더에 옛 크기로 튄다. 줌(_scaleZoomFromSnap)·그라데이션과 같은 꼴 — «쥔 때 값» d0 에서 재고, 바닥 8px만 · 범위(20~4000)로는 안 조임.
    자리는 벡터가 dataset.x·y 를 안 쓰니 손잡이 바닥 길과 같은 style.left·top + offsetX·Y. */
