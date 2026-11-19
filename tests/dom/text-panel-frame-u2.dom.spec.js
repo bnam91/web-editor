@@ -30,18 +30,18 @@ async function openText(page) {
 
 /** 펼친 절마다 «보이는 마지막 내용 아래 ↔ 절 아래끝». 맨 끝 절·보이는 내용 없는 절은 뺀다. */
 const readGaps = (page) => page.evaluate(() => {
-  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]')];
+  /* ★기대 바뀜(Q1 · 현빈 GO 261120) — Layout 묶음(.prop-sec-group · 몸 여럿)도 절 하나로 잰다 */
+  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec], #panel-right .panel-body > .prop-sec-group')];
   const out = [];
   secs.forEach((s, i) => {
     if (s.classList.contains('is-collapsed')) return;
-    const body = s.querySelector(':scope > .prop-sec-body');
     let maxB = -Infinity;
-    for (const el of body.querySelectorAll('*')) {
+    for (const el of s.querySelectorAll('.prop-sec-body *')) {
       const r = el.getBoundingClientRect();
       if (r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden') maxB = Math.max(maxB, r.bottom);
     }
     if (maxB === -Infinity) return;
-    out.push({ sec: s.dataset.sec, last: i === secs.length - 1, gap: Math.round((s.getBoundingClientRect().bottom - maxB) * 100) / 100 });
+    out.push({ sec: s.dataset.sec || 'layout-group', last: i === secs.length - 1, gap: Math.round((s.getBoundingClientRect().bottom - maxB) * 100) / 100 });
   });
   const css = getComputedStyle(document.documentElement);
   return { gaps: out, tok: parseFloat(css.getPropertyValue('--ui-sec-body-pb')), tokLast: parseFloat(css.getPropertyValue('--ui-space-2')) };

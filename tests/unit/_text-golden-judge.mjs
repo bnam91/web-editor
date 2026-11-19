@@ -83,15 +83,26 @@ const hidden = (n) => /display\s*:\s*none/.test(n.attrs?.style || '');
 /** judgePanel 이 먹는 꼴로 — tests/dom/_panel-sections.js readPanel 을 그대로 옮긴 판정 재료(브라우저 대신 나무에서). */
 function panelModel(html) {
   const root = parse(html);
-  const secs = els(root).filter((e) => has(e, 'prop-section')).map((e) => {
-    const head = els(e).find((k) => has(k, 'prop-sec-head'));
-    const title = head && els(head).find((k) => has(k, 'prop-section-title'));
+  /* ★Q1 · Q2(시안 v10) — readPanel 과 같은 펴기: Type 띠 = kind 절 · Layout 묶음 안 몸 = 그 key 절(제목 data-title · 작은 제목은 라벨 아님) */
+  const units = [];
+  for (const e of els(root).filter((x) => has(x, 'prop-section'))) {
+    const band = els(e).find((k) => has(k, 'prop-kind-band'));
+    if (e.attrs['data-sec-group'] != null) { for (const part of els(e).filter((k) => has(k, 'prop-sec-part') && k.attrs['data-sec'])) units.push({ e: part, sec: part.attrs['data-sec'], title: part.attrs['data-title'], isHeader: false }); }
+    else {
+      const head = els(e).find((k) => has(k, 'prop-sec-head'));
+      const t = head && els(head).find((k) => has(k, 'prop-section-title'));
+      units.push({ e, sec: e.attrs['data-sec'] || null, title: t ? text(t).trim() : null, isHeader: els(e).some((k) => has(k, 'prop-block-label')), band });
+    }
+    if (band) units.push({ e: band, sec: 'kind', title: band.attrs['data-title'], isHeader: false });
+  }
+  const inBand = (k, band) => !!band && !!closest(k, (x) => x === band);
+  const secs = units.map(({ e, sec, title, isHeader, band }) => {
     return {
-      sec: e.attrs['data-sec'] || null,
-      isHeader: els(e).some((k) => has(k, 'prop-block-label')),
-      title: title ? text(title).trim() : null,
-      labels: all(e).filter((k) => has(k, 'prop-label') || has(k, 'prop-field-label')).map((k) => text(k).trim()),
-      controls: all(e).filter((k) => ['input', 'select', 'button', 'textarea'].includes(k.tag)).map((c) => {
+      sec,
+      isHeader,
+      title,
+      labels: all(e).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub') && !inBand(k, band)).map((k) => text(k).trim()),
+      controls: all(e).filter((k) => ['input', 'select', 'button', 'textarea'].includes(k.tag) && !inBand(k, band)).map((c) => {
         const type = c.tag === 'input' ? (c.attrs.type || 'text') : c.tag;
         const prev = prevEl(c);
         const field = closest(c, (x) => has(x, 'prop-color-field'));
@@ -108,7 +119,7 @@ function panelModel(html) {
       }),
     };
   });
-  const order = els(root).find((e) => has(e, 'prop-section') && e.attrs['data-order'])?.attrs['data-order'] || '';   // readPanel 과 같은 «패널 순서 이름»(재설계 1차 ④ text 예외)
+  const order = all(root).find((e) => (has(e, 'prop-section') || has(e, 'prop-kind-band')) && e.attrs['data-order'])?.attrs['data-order'] || '';   // readPanel 과 같은 «패널 순서 이름»(재설계 1차 ④ text 예외)
   return { root, secs, hints: all(root).filter((k) => has(k, 'prop-hint')).length, order };
 }
 
@@ -156,14 +167,14 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">']];
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
   : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}>`] : []));
-const labels = (root) => all(root).filter((k) => has(k, 'prop-label') || has(k, 'prop-field-label')).map((k) => text(k).trim());
+const labels = (root) => all(root).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub')).map((k) => text(k).trim());   // 묶음 작은 제목(Q1)은 라벨 아님
 const ids = (root) => all(root).filter((k) => k.attrs.id).map((k) => k.attrs.id);
 const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.indexOf(x); if (i >= 0) r.splice(i, 1); } return r; };
 
 /* ⑤ 패딩 새 이름(Q25 · Q24 태그) — BASE 의 «왼쪽 패딩»·«오른쪽 패딩»(→ U2 «왼쪽»·«오른쪽») 도 한 걸음에 */
 const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우측패딩', '왼쪽': '좌측패딩', '오른쪽': '우측패딩', '상하': '상하패딩', '좌우 패딩': '태그 좌우' };   /* 태그 = Q24 «태그 좌우패딩»의 짧은 라벨(시안 v9 · 이름 전체는 title) */
 const LABEL_DROPPED = ['Font', '글자색', '너비'];   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
-const ID_ADDED = [/^psec-[a-z]+(-head|-body)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
+const ID_ADDED = [/^psec-[a-z]+(-head|-body|-group)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
 const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider'];   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
 /* ★바닥 판부터 빨강(이번 일과 무관) — 태그 Oval 모양(label-shape-oval)이 BASE(2040a3339) 뒤 별건으로 생겼는데 이 판정기가 못 따라왔다:

@@ -59,7 +59,8 @@ function loadFrame({ storage, specPatch = (s) => s } = {}) {
   return { ...ctx.__F, propPanel };
 }
 
-const secsOf = (html) => [...html.matchAll(/data-sec="([a-z]+)"/g)].map((m) => m[1]);
+/* ★기대 바뀜(Q1 · Q2 · 현빈 GO 261120) — Layout 묶음 겉(data-sec-group)은 빼고 그 안 몸의 key 를 센다 · Type 은 이름표 상자 안 띠 */
+const secsOf = (html) => [...html.matchAll(/ data-sec="([a-z]+)"/g)].map((m) => m[1]);
 const titlesOf = (html) => [...html.matchAll(/<span class="prop-sec-title-text">([^<]*)<\/span>/g)].map((m) => m[1]);
 
 /** F1 의 기대 — 틀 판마다 다시 잰다(N1 이 같은 함수로 뒤집힌 판을 잰다). */
@@ -74,16 +75,17 @@ function orderedAsExpected(F) {
 test('F1 정렬 — SECTION_ORDER 순 · special 은 선언순', () => {
   const r = orderedAsExpected(loadFrame());
   assert.deepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template']);
-  assert.deepEqual(r.titles, ['Type', 'Size', 'Fill', 'First', 'Second', 'Template']);
+  assert.deepEqual(r.titles, ['Layout', 'Fill', 'First', 'Second', 'Template']);   // ★기대 바뀜(Q2 Type 머리 없음 · Q1 Size → «Layout» 머리)
   assert.match(r.html, /id="psec-special-0"[\s\S]*First[\s\S]*id="psec-special-1"[\s\S]*Second/, '★special id 가 선언순으로 안 붙는다');
 });
 
 test('F1b 순서 예외 — panel 이름이 SECTION_ORDER_EXCEPT 에 있으면 그 first 가 맨 앞(섹션 = 현빈 261118 D5 ①) · 없으면 전역 · data-order 표식', () => {
   const F = loadFrame();
   const mk = (panel) => F.buildPanelHTML({ panel, sections: [F.sec('kind', 'k'), F.sec('size', 's'), F.sec('fill', 'f')] });
-  const want = [...F.sectionOrderFor('section')].filter((k) => ['kind', 'size', 'fill'].includes(k));   // 기대는 예외표에서 — 순서를 여기 박지 않는다 · [...] = vm(다른 realm) 배열을 이 realm 배열로(assert/strict 는 프로토타입까지 견준다 — 이 파일의 [...F.SECTION_ORDER] 꼴)
+  /* ★기대 바뀜(Q2 · 현빈 GO 261120) — kind 는 순서와 상관없이 이름표 아래 띠(맨 앞) · 나머지가 예외 순서 */
+  const want = ['kind', ...[...F.sectionOrderFor('section')].filter((k) => ['size', 'fill'].includes(k))];   // 기대는 예외표에서 — 순서를 여기 박지 않는다 · [...] = vm(다른 realm) 배열을 이 realm 배열로(assert/strict 는 프로토타입까지 견준다 — 이 파일의 [...F.SECTION_ORDER] 꼴)
   assert.deepEqual(secsOf(mk('section')), want);
-  assert.equal(want[0], F.SECTION_ORDER_EXCEPT.section.first[0], '★예외 first 가 맨 앞이 아니다');
+  assert.equal(want[1], F.SECTION_ORDER_EXCEPT.section.first[0], '★예외 first 가 (띠 다음) 맨 앞이 아니다');
   assert.notDeepEqual(want, ['kind', 'size', 'fill'], '[전제] 예외가 전역 순서와 실제로 다르다');
   assert.match(mk('section'), /data-order="section"/);
   for (const p of ['', 'nope']) { assert.deepEqual(secsOf(mk(p)), ['kind', 'size', 'fill'], `★예외 없는 패널(${p || '없음'})이 전역 순서가 아니다`); assert.doesNotMatch(mk(p), /data-order/); }
@@ -236,7 +238,7 @@ test('N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판이면 F1 의 기대
   const rev = ANCHOR.replace(/\n/, ' ').split(',').map((s) => s.trim()).filter(Boolean).reverse().join(', ') + ',';
   const r = orderedAsExpected(loadFrame({ specPatch: (s) => s.replace(ANCHOR, rev) }));
   assert.notDeepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template'], '★순서를 뒤집어도 같은 결과 — F1 이 순서를 안 잰다');
-  assert.equal(r.secs[0], 'template', '[전제] 뒤집힌 판이 실제로 올라갔다');
+  assert.equal(r.secs[1], 'template', '[전제] 뒤집힌 판이 실제로 올라갔다(★기대 바뀜 Q2 — kind 는 순서와 상관없이 이름표 아래 띠라 늘 맨 앞)');
 });
 
 test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 할 절', () => {
@@ -416,4 +418,26 @@ test('F15 ★txt-size 줄기 가드 — 텍스트 패널 소스에 «블록 크�
 test('F16 효과 추가 뒤 다시 그려도 Effects 몸이 보인다(hidden 없음)', () => {
   const F = loadFrame({ storage: memStorage({ 'gd-panel-collapsed': '["effects"]' }) });
   assert.match(F.buildPanelHTML({ sections: [F.sec('effects', 'x')] }), /id="psec-effects-body">x/);
+});
+
+/* Q2 Type 띠 · Q1 Layout 묶음(시안 v10 · 현빈 GO 261120). 양성대조: buildPanelHTML 의 묶음 갈래를 빼면 F18 빨강 */
+test('F17 Type 띠 — kind 는 머리 없이 이름표 상자 안 .prop-section[data-sec=kind] · id·몸 id 그대로 · 머리 손잡이는 띠 끝', () => {
+  const F = loadFrame();
+  const html = F.buildPanelHTML({ header: '<div class="prop-block-label">H</div>', sections: [F.sec('kind', '<b id="k1">k</b>', { id: 'type-section', headTools: '<i id="t1"></i>' }), F.sec('fill', 'f')] });
+  assert.match(html, /^\s*<div class="prop-section">\s*<div class="prop-block-label">H<\/div>\s*<div class="prop-section prop-kind-band" data-sec="kind" data-sec-state="kind" data-title="Type" id="type-section">\s*<div class="prop-sec-body" id="type-section-body"><b id="k1">k<\/b>\s*<\/div><div class="prop-kind-band-tools"><i id="t1"><\/i><\/div>/);
+  assert.doesNotMatch(html, />Type<\/span>/, '★Type 머리가 남았다');
+});
+
+test('F18 Layout 묶음 — 머리 «Layout» 하나 · 몸 = 옛 절(.prop-section[data-sec] · id · 몸 id) · 작은 제목은 둘 이상일 때 Size·Padding 만', () => {
+  const F = loadFrame();
+  const three = F.buildPanelHTML({ sections: [F.sec('padding', 'P'), F.sec('size', 'S'), F.sec('layout', 'L'), F.sec('fill', 'f')] });
+  assert.equal((three.match(/prop-sec-title-text">Layout</g) || []).length, 1);
+  assert.doesNotMatch(three, /prop-sec-title-text">(?:Size|Padding)</, '★Size/Padding 이 머리로 남았다');
+  assert.match(three, /<div class="prop-section prop-sec-group" data-sec-group="size layout padding" id="psec-size-group">[\s\S]*id="psec-size-head"[\s\S]*<div class="prop-section prop-sec-part" data-sec="size" data-sec-state="size" data-title="Size" id="psec-size">\s*<div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Size<\/span><\/div>\s*<div class="prop-sec-body" id="psec-size-body">S[\s\S]*data-sec="layout" data-sec-state="layout" data-title="Layout" id="psec-layout">\s*<div class="prop-sec-body" id="psec-layout-body">L[\s\S]*data-sec="padding"[^>]*id="psec-padding">\s*<div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Padding/);
+  assert.deepEqual(secsOf(three), ['size', 'layout', 'padding', 'fill'], '★겉이 key 를 가로챘다(겉은 data-sec 없음)');
+  const one = F.buildPanelHTML({ sections: [F.sec('size', 'S')] });
+  assert.match(one, /prop-sec-title-text">Layout<[\s\S]*id="psec-size">\s*<div class="prop-sec-body" id="psec-size-body">S/);
+  assert.doesNotMatch(one, /prop-sec-sub/, '★하나뿐인데 작은 제목');
+  const text = F.buildPanelHTML({ panel: 'text', sections: [F.sec('size', 'S'), F.sec('layout', 'L')] });
+  assert.match(text, /data-sec-group="layout size" data-order="text"[\s\S]*id="psec-layout-head"[\s\S]*data-sec="layout"[\s\S]*data-sec="size"[\s\S]*>Size</, '★텍스트 순서(Layout → Size) · 머리 id = 첫 몸');
 });

@@ -12,11 +12,7 @@
         </div>
         <span class="prop-block-id" title="클릭하여 복사" data-copy-id="tb_golden">tb_golden</span>
       </div>
-    </div>
-    <div class="prop-section" data-sec="kind" data-sec-state="kind" data-order="text" id="type-section">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="type-section-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Type</span></div>
-      </div>
+      <div class="prop-section prop-kind-band" data-sec="kind" data-sec-state="kind" data-title="Type" data-order="text" id="type-section">
       <div class="prop-sec-body" id="type-section-body">
       <div class="prop-type-group" id="txt-kind-group">
         <button class="prop-type-btn " data-cls="tb-h1">H1</button>
@@ -32,6 +28,7 @@
         <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
         <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
         <button class="prop-type-btn" disabled title="Liner — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Liner</button>
+      </div>
       </div>
       </div>
     </div>
@@ -70,10 +67,11 @@
       </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="layout" data-sec-state="layout" data-order="text" id="psec-layout">
+    <div class="prop-section prop-sec-group" data-sec-group="layout size padding" data-order="text" id="psec-layout-group">
       <div class="prop-section-title-row prop-sec-head">
       <div class="prop-section-title" id="psec-layout-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Layout</span></div>
       </div>
+      <div class="prop-section prop-sec-part" data-sec="layout" data-sec-state="layout" data-title="Layout" data-order="text" id="psec-layout">
       <div class="prop-sec-body" id="psec-layout-body">
       <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group" id="txt-align-group">
@@ -97,11 +95,9 @@
           </button>
       </div>
       </div>
-    </div>
-    <div class="prop-section" data-sec="size" data-sec-state="size" data-order="text" id="psec-size">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-size-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Size</span></div>
       </div>
+      <div class="prop-section prop-sec-part" data-sec="size" data-sec-state="size" data-title="Size" data-order="text" id="psec-size">
+      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Size</span></div>
       <div class="prop-sec-body" id="psec-size-body">
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
@@ -118,11 +114,9 @@
         </div>
       </div>
       </div>
-    </div>
-    <div class="prop-section" data-sec="padding" data-sec-state="padding" data-order="text" id="psec-padding">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-padding-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Padding</span></div>
       </div>
+      <div class="prop-section prop-sec-part" data-sec="padding" data-sec-state="padding" data-title="Padding" data-order="text" id="psec-padding">
+      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Padding</span></div>
       <div class="prop-sec-body" id="psec-padding-body">
       <div id="txt-label-padx-wrap" style="display:none">
       <div class="prop-row">
@@ -158,6 +152,7 @@
         <span class="prop-label">우측패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="8">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="8">
+      </div>
       </div>
       </div>
     </div>

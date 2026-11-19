@@ -951,7 +951,9 @@ export function showModalIconProperties(block) {
   const _icnSec = _icnRow?.closest('.prop-section[data-sec]');
   _icnRow?.remove();
   /* 틀로 옮긴 아이콘 패널(U4)이면 그 줄이 Layout 절의 전부일 수 있다 — 빈 절 머리만 남기지 않게 절째로 걷는다(U4 평가 지적). */
+  const _icnGrp = _icnSec?.parentElement?.classList.contains('prop-sec-group') ? _icnSec.parentElement : null;   // ★Q1 — Layout 묶음 몸이면 묶음도 본다
   if (_icnSec && !_icnSec.querySelector(':scope > .prop-sec-body > *')) _icnSec.remove();
+  if (_icnGrp && !_icnGrp.querySelector(':scope > .prop-section[data-sec]')) _icnGrp.remove();
 
   // 돌아가는 문 — 없으면 모달 속성으로 못 돌아온다(아이콘 패널은 모달을 모른다).
   const back = document.createElement('div');

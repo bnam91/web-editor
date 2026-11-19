@@ -693,9 +693,11 @@ function _hideBlockTypo() {
      그 절에 보일 것이 안 남으면(말풍선 Layout = 정렬뿐) 절 머리도 숨긴다 — 빈 「Layout」 머리만 떠 있지 않게. */
   const grp = panel.querySelector('#txt-align-group');
   hide(grp); hide(grp?.previousElementSibling?.classList.contains('prop-field-label') ? grp.previousElementSibling : null);
-  const lay = grp?.closest('.prop-section');
-  const body = lay?.querySelector(':scope > .prop-sec-body');
-  if (body && ![...body.children].some((e) => e.style.display !== 'none')) hide(lay);
+  /* ★Q1(Layout 묶음 · 시안 v10) — 정렬은 묶음 안 «layout 몸» 하나다. 그 몸만 숨기고, 묶음의 몸이 다 숨었을 때만 머리째 숨긴다(Size·Padding 은 남는다). */
+  const body = grp?.closest('.prop-sec-body');
+  if (body && ![...body.children].some((e) => e.style.display !== 'none')) hide(body);
+  const lay = body?.closest('.prop-section');
+  if (lay && ![...lay.querySelectorAll(':scope > .prop-sec-body')].some((b) => b.style.display !== 'none')) hide(lay);
 }
 
 export function lnAugmentBubblePanel(tb) {

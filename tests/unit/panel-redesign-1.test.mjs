@@ -66,7 +66,7 @@ test('R10 텍스트 패널 산출에 «Font»·«글자색» 라벨 0 · 고르�
 test('R6 텍스트 Size — 너비 슬라이더 없음 · 너비/높이 칸 한 줄 · 높이 disabled placeholder auto · 끌기 배선', () => {
   const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
   const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
-  const size = /data-sec="size"[\s\S]*?<div class="prop-sec-body"[^>]*>([\s\S]*?)\n {6}<\/div>\n {4}<\/div>/.exec(html)?.[1] || '';
+  const size = /data-sec="size"[^>]*>[\s\S]*?<div class="prop-sec-body" id="psec-size-body">([\s\S]*?)\n {6}<\/div>/.exec(html)?.[1] || '';   // ★기대 바뀜(Q1) — Size 는 Layout 묶음 안 몸
   assert.ok(size, '[전제] Size 절 몸을 찾았다');
   assert.doesNotMatch(size, /txt-width-slider|type="range"/, '★너비 슬라이더가 남았다');
   assert.match(size, /<div class="prop-lhls-row">[\s\S]*id="txt-width-scrub"[^>]*>너비<\/span>\s*<input type="number" class="prop-number" id="txt-width-number"[\s\S]*<span class="prop-xy-label">높이<\/span>\s*<input type="number" id="txt-height-number" disabled placeholder="auto"/);
@@ -89,9 +89,10 @@ test('R4 sectionOrderFor(text) = layout 이 size 바로 앞 · 다른 패널 그
   assert.equal(sectionOrderFor('section')[0], 'fill', '[대조] 섹션 예외 그대로');
   const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
   const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
-  const secs = [...html.matchAll(/data-sec="([a-z]+)"/g)].map((m) => m[1]).filter((k) => ['position', 'size', 'layout', 'padding'].includes(k));
+  /* ★기대 바뀜(Q1 · 현빈 GO 261120) — 셋은 «Layout» 머리 하나 아래 몸(순서 layout → size → padding) */
+  const secs = [...html.matchAll(/ data-sec="([a-z]+)"/g)].map((m) => m[1]).filter((k) => ['position', 'size', 'layout', 'padding'].includes(k));
   assert.deepEqual(secs, ['position', 'layout', 'size', 'padding']);
-  assert.match(html, /data-sec="layout"[^>]*data-order="text"[\s\S]*id="txt-align-group"/, '★가로 정렬이 Layout(텍스트 순서) 절에 없다');
+  assert.match(html, /data-sec-group="layout size padding" data-order="text"[\s\S]*?data-sec="layout"[^>]*id="psec-layout">[\s\S]*?id="txt-align-group"/, '★가로 정렬이 Layout 몸에 없다');
 });
 
 /* ⑫ 타입 12칸 두 줄 · Quote 도 같은 묶음 · 칸마다 네 테두리. 양성대조: CSS 의 #txt-kind-group 칸 규칙을 지우면 빨강 */

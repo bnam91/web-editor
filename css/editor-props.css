@@ -82,6 +82,20 @@
 .prop-sec-add:has(> input:focus-visible) { outline: var(--ui-focus-ring); }
 .prop-sec-head > .prop-sec-add-select { flex: 0 0 auto; width: var(--ui-opt-col-w); min-width: 0; padding: 0; text-align: center; text-align-last: center; background-image: none; }
 .prop-section[data-sec] .prop-row > .prop-chain-btn:last-child { margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }   /* 줄 gap 4 + 이것 2 = 칼럼 사이 6 ⇒ 숫자 칸 끝이 다른 줄과 같은 자리 */
+/* Q2 Type 띠 · Q1 Layout 묶음(시안 v10 · 현빈 GO 261120 — .mk-kind-strip · .mk-part · .mk-sub-row 값 그대로).
+   띠 · 묶음 몸 = 안에 든 .prop-section[data-sec](옛 절 그대로 — 시험·배선의 closest 가 key 를 준다) ⇒ 겉 절 모양(들임 · 아래 여백 · 칼럼 · 구분선)을 지운다.
+   묶음 겉(.prop-sec-group · data-sec 없음)이 절 모양을 받는다. 특이도 = 위 [data-sec] 규칙들(⑰ 포함)보다 높게 · 뒤에. */
+.panel-body .prop-section > .prop-section.prop-kind-band[data-sec],
+.panel-body .prop-section > .prop-section.prop-sec-part[data-sec] { padding: 0; border-top: 0; margin: 0; }
+.panel-body .prop-section > .prop-section.prop-kind-band[data-sec] { padding-top: var(--ui-space-1_5); }
+.panel-body .prop-section > .prop-section.prop-sec-part[data-sec] + .prop-section.prop-sec-part[data-sec] { margin-top: var(--ui-space-2); }
+.prop-kind-band-tools { display: flex; justify-content: flex-end; margin-top: var(--ui-space-1); }
+.panel-body > .prop-section.prop-sec-group { padding-bottom: var(--ui-sec-body-pb); padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
+.panel-body > .prop-section.prop-sec-group:last-child { padding-bottom: var(--ui-space-2); }
+.prop-section.prop-sec-group > .prop-sec-head { margin-bottom: 0; margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.prop-sec-sub-row { display: flex; align-items: center; justify-content: space-between; min-height: calc(var(--ui-btn-h) - var(--ui-space-0_5)); }
+.prop-sec-sub-row .prop-field-label { margin-bottom: 0; }
+.prop-sec-sub-row + * { margin-top: var(--ui-space-1); }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);

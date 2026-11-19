@@ -22,10 +22,11 @@ async function scene(page) {
 }
 const judge = (page) => page.evaluate(() => {
   const body = document.querySelector('#panel-right .panel-body');
-  const empty = [...body.querySelectorAll(':scope > .prop-section[data-sec]')].filter((s) => {
+  /* ★기대 바뀜(Q1 · Q2 · 현빈 GO 261120) — Layout 묶음 몸 · Type 띠도 .prop-section[data-sec](머리 없음)이라 같이 잰다 */
+  const empty = [...body.querySelectorAll('.prop-section[data-sec]')].filter((s) => {
     const sb = s.querySelector(':scope > .prop-sec-body');
     if (sb?.hidden) return false;   // 사람이 접은 절은 판정 밖
-    const tools = [...s.querySelector(':scope > .prop-sec-head').children].some((c) => !c.classList.contains('prop-section-title') && c.getClientRects().length);
+    const tools = [...(s.querySelector(':scope > .prop-sec-head')?.children || [])].some((c) => !c.classList.contains('prop-section-title') && c.getClientRects().length);
     const vis = sb && [...sb.querySelectorAll('*')].some((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0);
     return !tools && !vis;
   }).map((s) => s.dataset.sec + (s.dataset.secState?.startsWith('special:') ? ':' + s.dataset.secState.slice(8) : ''));

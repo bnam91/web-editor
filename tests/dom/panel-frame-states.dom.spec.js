@@ -130,9 +130,11 @@ test('S5 틀 절 몸 안 옛 하위 절 — 두 번 들이지 않는다(왼쪽 =
 const tokenPx = (page, name) => page.evaluate((name) => { const p = document.createElement('div'); p.style.paddingBottom = `var(${name})`; document.body.appendChild(p); const v = parseFloat(getComputedStyle(p).paddingBottom); p.remove(); return v; }, name);
 /** 펼친 data-sec 절마다(마지막 절 빼고) 몸 아래 틈 = 절 아래 − 몸의 마지막 «보이는» 자식 아래. */
 const bottomGaps = (page) => page.evaluate(() => {
-  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]:not(.is-collapsed)')];
+  /* ★기대 바뀜(Q1 · 현빈 GO 261120) — Layout 묶음도 절 하나 · 그 아래 여백은 마지막 몸 기준 */
+  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]:not(.is-collapsed), #panel-right .panel-body > .prop-sec-group')];
   return secs.slice(0, -1).map((s) => {
-    const kids = [...s.querySelector(':scope > .prop-sec-body').children].filter((k) => k.getClientRects().length);
+    const bodyEl = s.querySelector(':scope > .prop-sec-body') || [...s.querySelectorAll(':scope > .prop-section[data-sec] > .prop-sec-body')].pop();
+    const kids = [...bodyEl.children].filter((k) => k.getClientRects().length);
     const last = kids[kids.length - 1];
     return { id: s.id, gap: last ? s.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom : null };
   });

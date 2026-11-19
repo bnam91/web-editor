@@ -350,3 +350,41 @@ test('P14 Fill VAR 칩 줄 — 오른끝 = 절 안쪽 오른끝(칼럼 끝) · �
   expect(r.lines, '★칩 줄이 두 줄로 꺾였다').toBe(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* Q2 Type 띠(시안 v10 · 현빈 GO 261120) — 텍스트 패널: 타입 12칸이 이름표 상자 안 · «Type» 머리 없음 · 게이트 0.
+ *   CTL prd1-q2-band.patch(띠를 안 그림) → 빨강 */
+test('P15 Type 띠 — 이름표 아래 · 머리 없음 · 12칸 · 게이트 위반 0', async ({ page }) => {
+  const { loadSectionSpec, readPanel, judgePanel } = require('./_panel-sections.js');
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const band = document.getElementById('type-section'), box = band?.parentElement;
+    const titles = [...document.querySelectorAll('#panel-right .prop-sec-title-text')].map((t) => t.textContent.trim());
+    return { inHeader: !!box?.querySelector(':scope > .prop-block-label'), band: band?.classList.contains('prop-kind-band'), n: band?.querySelectorAll('.prop-type-btn').length, type: titles.includes('Type'), w: Math.round(band?.getBoundingClientRect().width || 0), lw: Math.round(box?.querySelector('.prop-block-label').getBoundingClientRect().width || 0) };
+  });
+  expect(r, '★Type 띠').toMatchObject({ inHeader: true, band: true, n: 12, type: false });
+  expect(r.w, '★띠 폭 = 이름표 폭(시안 212)').toBe(r.lw);
+  const SPEC = loadSectionSpec();
+  expect(judgePanel(await readPanel(page, SPEC), SPEC), '게이트 판정').toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* Q1 Layout 묶음(시안 v10 · 현빈 GO 261120) — 텍스트 · 프레임 · 갭: 머리 «Layout» 하나 · 작은 제목은 둘 이상일 때 Size/Padding · 게이트 0.
+ *   CTL prd1-q1-group.patch(LAYOUT_GROUP 비움) → 빨강 */
+for (const [cls, entry, subs] of [['text-block', 'addTextBlock', ['Size', 'Padding']], ['gap-block', 'addGapBlock', []]]) test(`P16 Layout 묶음 — ${cls}`, async ({ page }) => {
+  const { loadSectionSpec, readPanel, judgePanel } = require('./_panel-sections.js');
+  const errs = await scene(page);
+  await open(page, cls, entry);
+  const r = await page.evaluate(() => ({
+    titles: [...document.querySelectorAll('#panel-right .prop-sec-title-text')].map((t) => t.textContent.trim()),
+    groups: document.querySelectorAll('#panel-right .prop-sec-group').length,
+    subs: [...document.querySelectorAll('#panel-right .prop-sec-sub')].map((t) => t.textContent.trim()),
+  }));
+  expect(r.titles.filter((t) => t === 'Layout').length, '★«Layout» 머리 하나').toBe(1);
+  expect(r.titles.filter((t) => t === 'Size' || t === 'Padding'), '★Size/Padding 머리가 남았다').toEqual([]);
+  expect(r.groups).toBe(1);
+  expect(r.subs, '★작은 제목').toEqual(subs);
+  const SPEC = loadSectionSpec();
+  expect(judgePanel(await readPanel(page, SPEC), SPEC), '게이트 판정(묶음 몸 = 절)').toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

@@ -22,6 +22,14 @@ export function sec(key, html, { title, headTools = '', id } = {}) {
   return { key, html: html ?? '', title: t, headTools, id };
 }
 
+/* ── 시안 v10(현빈 GO 261120 «다 넣어 시안대로») — 머리 둘을 줄인다 ───────────────────────────────
+ *  Q2 Type 띠: kind 절은 머리 없이 블록 이름표 바로 아래 띠(이름표 상자 안). data-sec="kind" · id · 몸 id 는 그대로(배선·시험이 #id 로 잰다).
+ *  Q1 Layout 묶음: size · layout · padding 은 머리 «Layout» 하나 아래 몸 여럿(패널 순서 그대로). 몸마다 data-sec(key) · 옛 몸 id 그대로.
+ *    작은 제목 «Size» · «Padding» 은 둘 이상 묶일 때만 · layout 몸은 작은 제목 없음(시안 v10 실측 — PLAN «시안 v10 실측표»).
+ *  key · SECTION_ORDER · OWNERSHIP 은 안 바뀐다 — 게이트(tests/dom/_panel-sections.js)는 묶음 안 몸을 절 하나로 읽는다. */
+export const LAYOUT_GROUP = Object.freeze(['size', 'layout', 'padding']);
+const GROUP_SUB = Object.freeze({ size: 'Size', padding: 'Padding' });
+
 /** 절 목록 → 패널 HTML(순수 함수 — 유닛 시험이 이걸 본다). */
 export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) {   // panel = _section-spec SECTION_ORDER_EXCEPT 의 이름(없으면 전역 순서)
   const order = sectionOrderFor(panel);
@@ -32,27 +40,51 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
     seen.add(k);
   }
   let nSpecial = 0;
-  const body = sections
+  const ord = order === SECTION_ORDER ? '' : ` data-order="${panel}"`;
+  const list = sections
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => String(s.html).trim() !== '' || String(s.headTools ?? '').trim() !== '')   // 몸이 비어도 머리 손잡이(예: Effects 추가 목록)가 있으면 그린다
     .sort((a, b) => order.indexOf(a.s.key) - order.indexOf(b.s.key) || a.i - b.i)
-    .map(({ s }) => {
-      const id = s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`);
-      const stKey = s.key === 'special' ? `special:${s.title}` : s.key;
-      return `
-    <div class="prop-section" data-sec="${s.key}" data-sec-state="${stKey}"${order === SECTION_ORDER ? '' : ` data-order="${panel}"`} id="${id}">
+    .map(({ s }) => ({ ...s, id: s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`),
+      stKey: s.key === 'special' ? `special:${s.title}` : s.key }));
+  const head = (id, title, tools) => `
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="${id}-head" role="heading" aria-level="3"><span class="prop-sec-title-text">${s.title}</span></div>${s.headTools}
+      <div class="prop-section-title" id="${id}-head" role="heading" aria-level="3"><span class="prop-sec-title-text">${title}</span></div>${tools}
+      </div>`;
+  const kind = list.find((s) => s.key === 'kind');
+  const band = kind ? `
+      <div class="prop-section prop-kind-band" data-sec="kind" data-sec-state="kind" data-title="${kind.title}"${ord} id="${kind.id}">
+      <div class="prop-sec-body" id="${kind.id}-body">${kind.html}
+      </div>${kind.headTools ? `<div class="prop-kind-band-tools">${kind.headTools}</div>` : ''}
+      </div>` : '';
+  const group = list.filter((s) => LAYOUT_GROUP.includes(s.key));
+  const out = [];
+  for (const s of list) {
+    if (s.key === 'kind') continue;
+    if (LAYOUT_GROUP.includes(s.key)) {
+      if (s !== group[0]) continue;
+      const multi = group.length > 1;
+      /* 겉 = 머리 하나(data-sec 없음 · data-sec-group) · 몸 = 옛 절 그대로의 .prop-section[data-sec](id · 몸 id · data-sec-state) — closest('.prop-section[data-sec]') 이 key 를 그대로 준다 */
+      out.push(`
+    <div class="prop-section prop-sec-group" data-sec-group="${group.map((g) => g.key).join(' ')}"${ord} id="${s.id}-group">${head(s.id, SECTION_TITLE.layout, group.map((g) => g.headTools).join(''))}${group.map((g) => `
+      <div class="prop-section prop-sec-part" data-sec="${g.key}" data-sec-state="${g.stKey}" data-title="${g.title}"${ord} id="${g.id}">${multi && GROUP_SUB[g.key] ? `
+      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">${GROUP_SUB[g.key]}</span></div>` : ''}
+      <div class="prop-sec-body" id="${g.id}-body">${g.html}
       </div>
-      <div class="prop-sec-body" id="${id}-body">${s.html}
+      </div>`).join('')}
+    </div>`);
+      continue;
+    }
+    out.push(`
+    <div class="prop-section" data-sec="${s.key}" data-sec-state="${s.stKey}"${ord} id="${s.id}">${head(s.id, s.title, s.headTools)}
+      <div class="prop-sec-body" id="${s.id}-body">${s.html}
       </div>
-    </div>`;
-    })
-    .join('');
-  return (header ? `
+    </div>`);
+  }
+  return (header || band ? `
     <div class="prop-section">
-${header}
-    </div>` : '') + body;
+${header}${band}
+    </div>` : '') + out.join('');
 }
 
 /** 옛 «절을 연다» 문 — 표준 절은 이제 늘 펼쳐져 있어 할 일이 없다.

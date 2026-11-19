@@ -3982,9 +3982,13 @@ function _grdApplyScopeFilter(filter) {
     if (el.closest('#grd-scope-chips')) return;
     el.style.display = (!filter || el.dataset.scope === filter) ? '' : 'none';
   });
-  propPanel.querySelectorAll(':scope > .prop-section[data-sec]').forEach((secEl) => {
+  /* ★Q1 · Q2(시안 v10) — 절은 겉 직속만이 아니다: Layout 묶음 몸 · Type 띠도 .prop-section[data-sec]. 묶음은 몸이 다 숨으면 머리째 숨긴다 */
+  propPanel.querySelectorAll('.prop-section[data-sec]').forEach((secEl) => {
     const keep = !filter || !!secEl.querySelector(`[data-scope="${filter}"]`);
     secEl.style.display = keep ? '' : 'none';
+  });
+  propPanel.querySelectorAll(':scope > .prop-sec-group').forEach((g) => {
+    g.style.display = [...g.querySelectorAll(':scope > .prop-section[data-sec]')].some((p) => p.style.display !== 'none') ? '' : 'none';
   });
 }
 function _grdWireScopeChips(block, filter, inferred) {
