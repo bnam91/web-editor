@@ -34,3 +34,21 @@ test('P1 절 머리 = 제목만 · 눌러도 안 접힘(텍스트 패널 모든 
   }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ② 절 제목 색 한 규칙(빈 절도) + 간격 12 · 12 · 16. CTL prd1-02-title.patch(제목 색 토큰을 --ui-text-sub 로) → 빨강 */
+test('P2 모든 절 제목 색 = --ui-text(빈 Stroke·Effects 도) · 머리 위아래 = --ui-space-3', async ({ page }) => {
+  const errs = await scene(page);
+  await open(page, 'text-block', 'addTextBlock');
+  const r = await page.evaluate(() => {
+    const probe = document.createElement('span'); probe.style.color = 'var(--ui-text)'; document.body.appendChild(probe);
+    const want = getComputedStyle(probe).color; probe.remove();
+    const sp3 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-3'));
+    return { want, sp3, heads: [...document.querySelectorAll('#panel-right .prop-section[data-sec] > .prop-sec-head > .prop-section-title')].map((h) => {
+      const t = h.querySelector('.prop-sec-title-text'), cs = getComputedStyle(h);
+      return { id: h.id, color: getComputedStyle(t).color, op: getComputedStyle(t).opacity, pt: parseFloat(cs.paddingTop), pb: parseFloat(cs.paddingBottom) };
+    }) };
+  });
+  expect(r.heads.map((h) => h.id), '[전제] 빈 절(Effects) 머리도 쟀다').toContain('txt-fx-section-head');
+  for (const h of r.heads) expect([h.id, h.color, h.op, h.pt, h.pb], `★${h.id} 제목 색·간격`).toEqual([h.id, r.want, '1', r.sp3, r.sp3]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
