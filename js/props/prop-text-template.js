@@ -14,7 +14,7 @@ export function buildTextPanelSpec(state) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
+    bubbleBgHex, bubbleBgColorHtml, showSender, bubbleSizeFixed, bubbleW, bubbleH,
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
@@ -272,12 +272,10 @@ export function buildTextPanelSpec(state) {
           </div>
         </div>
         <!-- data-own="special:Bubble": 말풍선 배경은 Bubble 절에 둔다 — 줄 모드(line-host _hideBlockTypo)가 Fill 절을 통째 숨겨 같이 사라지지 않게 -->
+        <!-- 1120b B2(현빈 261120) — 값은 Fill(글자색)과 «따로»(--bubble-bg) · 줄 꼴은 Fill 색 줄과 같은 부품(colorFieldHTML: 스와치 + HEX + % · prop-color-field). 마크업은 prop-text.js 가 만든다(템플릿은 color-picker 를 import 하지 않는다) -->
         <div class="prop-color-row" data-own="special:Bubble">
           <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch" style="background:${bubbleBgHex}">
-            <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
-          </div>
-          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
+          ${bubbleBgColorHtml || ''}
         </div>
         <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소 -->
         <div class="prop-row">

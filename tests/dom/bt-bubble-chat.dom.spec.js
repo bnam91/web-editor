@@ -80,7 +80,7 @@ test('BT1-1 발신자 이름을 켜도 우측 패널에 이름 입력칸(placeho
   const panelInputs = await page.evaluate(() =>
     [...document.querySelectorAll('#bubble-style-section input')].filter(i => i.type === 'text' && i.offsetParent !== null)
       .map(i => ({ id: i.id, ph: i.placeholder })));
-  expect(panelInputs.filter(i => i.id !== 'bubble-bg-hex'), '보이는 글자 입력칸은 배경색 코드 하나뿐').toEqual([]);
+  expect(panelInputs.filter(i => i.id !== 'bubble-bg-hex' && i.id !== 'bubble-bg-alpha'), '보이는 글자 입력칸은 배경색 코드·투명도(1120b B2 — Fill 과 같은 색 칸)뿐').toEqual([]);
   await expect(page.locator('#bubble-sender-name-input')).toHaveCount(0);
   await expect(page.locator('#bubble-sender-name-row')).toHaveCount(0);
   // 끄기도 그대로 된다

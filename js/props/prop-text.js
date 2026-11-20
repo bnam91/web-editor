@@ -291,6 +291,8 @@ export function showTextProperties(tb) {
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX, labelIsCircle: _isCircleLabel, labelShape,
     isSpeechBubble, currentBubbleStyle, currentTail,
     bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
+    /* 1120b B2 — 말풍선 배경 색 칸 = Fill 과 같은 부품(스와치 + HEX + %) · 투명도는 --bubble-bg 값(rgba) 안에 산다(100% 면 옛 hex 그대로) */
+    bubbleBgColorHtml: isSpeechBubble ? colorFieldHTML({ idPrefix: 'bubble-bg', hex: bubbleBgHex, alpha: parseAlphaFromColor(_blockBubbleVar || bubbleBgHex) || 100 }) : '',
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
