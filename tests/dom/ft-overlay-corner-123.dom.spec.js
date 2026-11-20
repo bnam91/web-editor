@@ -11,6 +11,7 @@
  *   D   ★nw 진짜 끌기 → FT 네 점의 nw 가 움직이고 상자 폭은 그대로(오버레이 리사이즈가 아니다)
  *   N   자유변형 없는 오버레이 글상자 — tfo 모서리 넷이 보이고 그 점의 임자 = tfo(오버레이 리사이즈 그대로)
  *   O   자유변형을 빼면 tfo 모서리가 돌아온다
+ *   E   (t13D-10 뒤 · 지디 261121 ⒝) 자유변형이 걸린 동안 텍스트 상자 «변» 손잡이(data-tbx-dir)도 숨는다 · 빼면 돌아온다
  * 양성대조: GD1001_ROOT=<핀 8608bb13 사본> ⇒ C·D 빨강 · P0·N·O 초록.
  * ⛔고정 대기 없음 — waitForFunction 만. 하네스 = _root-harness.bootApp · 고르기·토글·끌기는 진짜 마우스.
  */
@@ -43,7 +44,8 @@ async function setup(page, { ft = true } = {}) {
   await page.evaluate(() => { window.deselectAll?.(); window.__tb.scrollIntoView({ block: 'center' }); });
   await page.waitForFunction(() => !window.__tb.classList.contains('selected'));
   p = await mid(); await page.mouse.click(p[0], p[1]);
-  await page.waitForFunction(() => window.__tb.classList.contains('selected') && document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle').length === 4);
+  /* ★기대 바뀜(t13D-10 d6ab57b02 · 지디 261121 승인 ⒜) — 오버레이 글엔 옛 모서리 넷(tfo) + 텍스트 상자 «변» 넷(같은 .tfo-overlay-handle 꼴 · data-tbx-dir)이 붙는다 ⇒ 모서리만 센다 */
+  await page.waitForFunction(() => window.__tb.classList.contains('selected') && document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])').length === 4);
   if (ft) {
     await page.selectOption('#txt-fx-add', 'freetransform');
     await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12 && window.__tb.dataset.tfCorners);
@@ -106,11 +108,22 @@ test('O 자유변형을 빼면 tfo 모서리가 돌아온다', async ({ page }) 
   expect(await page.evaluate(() => typeof window.setFxFreeTransform), '전제: 자유변형 문(✕ = null)').toBe('function');
   await page.evaluate(() => window.setFxFreeTransform(window.__tb, null));   /* 패널 ✕ 와 같은 문(effects-freetransform.js 머리) */
   await page.waitForFunction(() => !window.__tb.dataset.tfCorners, null, { timeout: 4000 });
-  await page.waitForFunction(() => [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle')].filter((h) => getComputedStyle(h).display !== 'none').length === 4, null, { timeout: 4000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])')].filter((h) => getComputedStyle(h).display !== 'none').length === 4, null, { timeout: 4000 });   // ★기대 바뀜(t13D-10) — 모서리만
   /* 자리 재기와 임자 맞히기를 한 evaluate 에서 — 자유변형을 뺀 뒤 rAF(_updateTextOverlayHandlePositions)가 손잡이를 한 프레임 늦게 옮겨,
      따로 잰 옛 좌표엔 임자가 없었다(cand13 인텔 Received ""). 단언 값 그대로 · 조건 대기. */
   await expect.poll(() => page.evaluate(() => { const h = document.querySelector('#ss-handles-overlay .tfo-overlay-handle.se'); if (!h) return null;
     const r = h.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     return e?.classList?.contains('tfo-overlay-handle') ? 'TFO' : (e ? e.className.toString().slice(0, 24) : null); }), { timeout: 4000 }).toBe('TFO');
+  expect(errs).toEqual([]);
+});
+
+test('E 자유변형 중엔 텍스트 상자 변 손잡이(data-tbx-dir)도 숨고 · 빼면 돌아온다(t13D-10 뒤)', async ({ page }) => {
+  const errs = await setup(page, { ft: true });
+  const vis = () => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle[data-tbx-dir]')].filter((h) => getComputedStyle(h).display !== 'none' && h.getBoundingClientRect().width > 0).map((h) => h.dataset.tbxDir).sort());
+  expect(await page.evaluate(() => document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle[data-tbx-dir]').length), '[전제] 변 손잡이가 붙어 있다').toBeGreaterThan(0);
+  await expect.poll(vis, { message: '★자유변형 중 변 손잡이 0(FT 손잡이를 덮지 않게 — 모서리 tfo 와 같은 뜻)', timeout: 4000 }).toEqual([]);
+  await page.evaluate(() => window.setFxFreeTransform(window.__tb, null));
+  await page.waitForFunction(() => !window.__tb.dataset.tfCorners, null, { timeout: 4000 });
+  await expect.poll(vis, { message: '★빼면 변 넷 돌아옴', timeout: 4000 }).toEqual(['e', 'n', 's', 'w']);
   expect(errs).toEqual([]);
 });
