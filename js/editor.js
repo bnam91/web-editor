@@ -1438,6 +1438,41 @@ function duplicateSelected() {
   pasteClipboard();
 }
 
+/* ★t13D-03(0.9.13 · ⌥끌기 복제) — 고른 단위를 «그 자리 그대로» 복제하고 사본을 고른다. 끌기는 사본 몫(alt-click-layer-select.js 가 사본에 mousedown 을 넘긴다).
+   ⌘D(duplicateSelected)와 다른 점: 자리 오프셋 0 · 클립보드 안 씀(⌘D 의 흐름·오버레이 갈래는 copy/paste 를 타 OS 클립보드를 덮는다 — 끌기 복제가 그러면 안 된다).
+   단위 = 도형 래퍼 · 텍스트 프레임 · 행이 통째로 골라졌으면 그 행 · 그 밖 블럭 자신(absolute 포함). 단위 안 단위는 바깥만.
+   사본은 원본 «바로 뒤»(같은 부모 · id 재발급 = 공용 붙여넣기 문 _bindPastedEl) — absolute 는 같은 left/top 이라 원본 위에 겹치고, 흐름은 바로 아래.
+   select: 'copy' = 사본을 고름(끌 쪽이 사본) · 'from' = 고름 그대로(흐름 블럭 — 네이티브 끌기라 끌려가는 쪽이 원본, 사본은 제자리에 남는다).
+   @returns {{ from: Element, to: Element }[]} 원본 단위 → 사본(없으면 []) */
+function duplicateInPlace({ select = 'copy' } = {}) {
+  const unitOf = (b) => {
+    const tf = shapeFrameOf(b) || b.closest('.frame-block[data-text-frame]');
+    if (tf) return tf;
+    const row = b.closest('.row');
+    return (row && _isRowFullySelected(row, ALL_TYPES_SEL)) ? row : b;
+  };
+  const all = [...new Set([...document.querySelectorAll('#canvas ' + MULTI_SEL.split(', ').join(', #canvas '))].map(unitOf))];
+  const units = all.filter(u => !all.some(o => o !== u && o.contains(u)));
+  if (!units.length) return [];
+  window.pushHistory?.('복제');
+  const pairs = units.map((u) => { const c = u.cloneNode(true); u.after(c); _bindPastedEl(c); c._dragBound = false; return { from: u, to: c }; });
+  if (select === 'from') {   // 사본은 cloneNode 로 원본의 .selected 까지 받아 왔다 — 걷는다(고름은 원본에만)
+    pairs.forEach(({ to }) => [to, ...to.querySelectorAll('.selected, .multi-selected')].forEach(n => n.classList.remove('selected', 'multi-selected')));
+    window.buildLayerPanel?.(); window.pushHistory?.('복제 완료'); return pairs;
+  }
+  deselectAll();
+  pairs.forEach(({ to }) => {
+    const leaf = to.matches?.(ALL_TYPES_SEL) ? to : (to.querySelector(ALL_TYPES_SEL) || to);
+    leaf.classList.add('selected');
+    to.closest('.section-block')?.classList.add('selected');
+  });
+  window.buildLayerPanel?.();
+  _panelFollowsPasted(pairs.map(x => x.to));
+  window.pushHistory?.('복제 완료');
+  return pairs;
+}
+window.duplicateInPlace = duplicateInPlace;
+
 /* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
  * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다.
  *
