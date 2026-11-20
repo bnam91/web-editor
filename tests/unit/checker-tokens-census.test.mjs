@@ -200,9 +200,11 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   assert.equal(`.asset-block[data-${am[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="dark"]`, ASSET_TONE_SEL);
   assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(ASSET_TONE_SEL), '정본 CSS 에 에셋 톤 선택자가 없다');
   const nameOf = (src, id) => (src.match(new RegExp(`name="([^"]+)"\\s+id="${id}"`)) || [])[1];
-  const secName = nameOf(js, 'sec-checker-tone-on'), assetName = nameOf(ajs, 'asset-checker-tone-on');
-  assert.ok(secName && assetName, `라디오 name 을 못 읽었다(sec=${secName} · asset=${assetName})`);
-  assert.notEqual(assetName, secName, '에셋 라디오 name 이 섹션과 같다 — 두 그룹이 섞인다');
+  const secName = nameOf(js, 'sec-checker-tone-on');
+  assert.ok(secName, `섹션 라디오 name 을 못 읽었다(sec=${secName})`);
+  /* 1120b A5(현빈 261120) — 에셋은 라디오 → 토글 체크박스(그룹 없음 ⇒ 섞일 name 이 없다) */
+  assert.match(ajs, /type="checkbox" id="asset-checker-tone-on"/, '에셋 «체커 어둡게» 토글 체크박스가 없다');
+  assert.doesNotMatch(ajs, /name="[^"]*" id="asset-checker-tone-on"/, '에셋 체커 톤이 다시 라디오가 됐다');
   /* 프레임(FRAME-BG-CHECKER-OPTIONS-01) — 같은 글자 대조 · 라디오 name 이 섹션·에셋과 다르다 */
   const fjs = fs.readFileSync(path.join(ROOT, 'js', 'props', 'prop-frame.js'), 'utf8');
   const fm = fjs.match(/ss\.dataset\.([A-Za-z0-9]+)\s*=\s*'dark'/);
@@ -210,7 +212,7 @@ test('C4b 톤 속성 이름 — CSS 선택자와 JS 가 거는 dataset 이 «같
   assert.equal(`.frame-block[data-${fm[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="dark"]`, FRAME_TONE_SEL);
   assert.ok(stripCss(fs.readFileSync(path.join(ROOT, TOKEN_HOME), 'utf8')).includes(FRAME_TONE_SEL), '정본 CSS 에 프레임 톤 선택자가 없다');
   const frameName = nameOf(fjs, 'ss-checker-tone-on');
-  assert.ok(frameName && frameName !== secName && frameName !== assetName, `프레임 라디오 name(${frameName})이 없거나 섹션·에셋과 같다`);
+  assert.ok(frameName && frameName !== secName, `프레임 라디오 name(${frameName})이 없거나 섹션과 같다(에셋은 1120b A5 부터 토글)`);
   // ⛔전역 토글이 되살아나면 빨강 — 명부를 둘로 두지 않는다(2026-10-06 지디).
   for (const rel of ['js/checker-tokens.js', 'js/props/prop-page.js']) {
     const src = stripJs(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
