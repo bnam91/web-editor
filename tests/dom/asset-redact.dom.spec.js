@@ -150,7 +150,7 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
     window.bindBlock?.(block);
     window.showAssetProperties(block);
     const sel = document.getElementById('asset-fx-add');
-    return { panelOpen: !!document.getElementById('asset-bg-clear'), redact: !!document.getElementById('asset-redact-slider'),
+    return { panelOpen: !!document.getElementById('asset-bg-hex'), redact: !!document.getElementById('asset-redact-slider'),
              blurOpt: !!sel?.querySelector('option[value="blur"]'), hasImage: block.classList.contains('has-image') };
   });
   expect(none.hasImage, '전제: 빈 에셋인데 has-image').toBe(false);

@@ -120,12 +120,7 @@ export function showAssetProperties(ab) {
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
       </div>
-      <!-- ★「초기화」는 색 줄의 «3번째 형제»였다 — 그 버튼은 안 줄고(.prop-align-btn--aux: flex 0 0 auto)
-           줄어드는 건 색 필드뿐이라, 고정 240px 패널에서 hex 칸이 16px 로 짜부라져 값이 안 보였다(T-100).
-           같은 파일의 형제 행(외곽선, 버튼 없음)은 69px 로 멀쩡했다 — 실측 대조. ⇒ 버튼을 자기 줄로 내린다. -->
-      <div class="prop-color-row--aux">
-        <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
-      </div>
+      <!-- 1120b A6(현빈 261120) — 「초기화」(#asset-bg-clear) 단추 걷음 -->
       ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
            ★입구 조건 없음 — 현빈 「에셋블럭은 최초 추가시에 체크배경으로 두기를 켤 필요가 없지 않아?」(빈 에셋은 늘 체커다).
            ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
@@ -705,7 +700,7 @@ export function showAssetProperties(ab) {
   /* T-011: 배경색 배선은 이미지 유무와 무관하게 «조건 없이» 돈다. else 안에 있던 탓에
      이미지가 들어가면 onGradient 가 사라졌고, color-picker.js 가 onGradient 유무로
      cpModes(solid / solid,gradient)를 정하므로 그라데이션 탭 자체가 안 열렸다. */
-  const bgField = wireColorField('asset-bg', {
+  wireColorField('asset-bg', {
     initialAlpha: currentBgAlpha,
     gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드
     onApply: (c) => {
@@ -721,18 +716,6 @@ export function showAssetProperties(ab) {
       if (commit) window.pushHistory?.();
     },
     onCommit: () => window.pushHistory?.(),
-  });
-  document.getElementById('asset-bg-clear').addEventListener('click', () => {
-    /* ★초기화 = «배경 없음»(체커) — 2026-10-03 지디 판정으로 규약을 바꿈(예전: 기본 회색 #a0a0a0 을 다시 씀).
-       예전 약속은 «체커가 그 회색을 가린 상태»를 고정한 것이었다 — 색이 있으면 체커를 걷게 되면서(editor-layout.css
-       .asset-block[data-bg-color]) 회색 판이 드러났다.
-       ⇒ 칸 표시(setHex)를 «먼저», 지우기를 «뒤에». setHex 는 apply()→onApply 를 불러 dataset·인라인을 다시 박으므로
-         지운 뒤에 부르면 초기화가 회색 칠하기가 된다. */
-    bgField?.setHex('#a0a0a0');
-    delete ab.dataset.bgColor;
-    ab.style.backgroundColor = '';
-    ab.style.background = '';
-    window.pushHistory?.();
   });
   /* ★t4-15 체커 톤 라디오 — 쓰는 문은 여기 하나(ab.dataset.checkerTone). CSS 가 속성을 보고 전용 쌍만 바꾼다.
      ★패널을 다시 안 그린다(섹션 선례 · js/props/prop-section.js) — 바뀐 것은 화면 색뿐이다. */
