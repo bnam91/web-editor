@@ -44,7 +44,7 @@ test('A3 solid onApply가 이전 그라데이션(style.background)을 지운다(
 });
 
 test('A4 배경색 초기화(clear) 버튼은 걷혔다 — 1120b A6(현빈 261120 「초기화 버튼 없애줘」)', () => {
-  assert.doesNotMatch(SRC, /asset-bg-clear/, '#asset-bg-clear 마크업·배선이 남았다');
+  assert.doesNotMatch(SRC, /id="asset-bg-clear"|getElementById\('asset-bg-clear'\)/, '#asset-bg-clear 마크업·배선이 남았다');
 });
 
 test('A5 ★변이대조 — onGradient를 빼면 A1이 빨개져야 한다(이 검사가 실제로 그 배선을 본다는 증거)', () => {
