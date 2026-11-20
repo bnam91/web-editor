@@ -68,7 +68,11 @@ test('D3 [회귀 지킴] 그릇보다 좁은 500 → 키 500 · 패딩 0 뒤에�
    덤(별건 후보): nw 손잡이가 머리띠에 덮여 안 잡힘 — 근거 = 이 칸 DIAG3 «올린 뒤 임자 .grd-headband · nw 1개 display block». */
 test('D4 sw 손잡이를 세로로만 끌기(높이) → 폭 키 안 생김 · 패딩 0 = 섹션 전폭', async ({ page }) => {
   const errs = await setup(page);
-  await page.evaluate(() => { const g = document.getElementById('pG'); window.selectBlock(g.id); window.showHandlesFor(g); });
+  /* 4차(지디 261121 · 인텔 ×3: 올린 뒤 sw 자리 임자 = .grd-line) — 지혜맥 격리 실앱(dea52882f)에서는 «사람 클릭으로 고름» 뒤 nw·sw·se·n 손잡이가 올리기 앞뒤 모두 임자 ·
+     실제 끌기 sw +30 → cellPadY 30 · nw −30 → 60 · 폭 키 없음(_patches/t13d-09-grd-png/) ⇒ 제품은 잡힌다(ⓑ 아님) · 이 칸은 사람 길(그리드 몸 클릭)로 고르고, 누를 점은 올린 «뒤» 다시 잰다. */
+  const gb = await page.evaluate(() => { const q = document.getElementById('pG').getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
+  await page.mouse.click(gb[0], gb[1]);
+  await expect.poll(() => page.evaluate(() => document.getElementById('pG').classList.contains('selected')), '[전제] 그리드 몸 클릭 = 그리드 고름').toBe(true);
   const sw = await page.evaluate(async () => { await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const h = document.querySelector('#ss-handles-overlay [data-grd-resize-dir="sw"]'); if (!h || getComputedStyle(h).display === 'none') return null; const q = h.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
   expect(sw, '[전제] sw 손잡이').toBeTruthy();
@@ -88,8 +92,11 @@ test('D4 sw 손잡이를 세로로만 끌기(높이) → 폭 키 안 생김 · �
      가를 것: ① 마우스를 «올린 뒤»(hover) 그 점 임자가 바뀌나(＋ 버튼이 떠서 P4 규칙으로 손잡이가 display:none 등) ② mousedown 이 어디로 갔나(window capture 첫 자리 target) */
   await page.evaluate(() => { window.__d4dn = []; window.addEventListener('mousedown', (e) => { const t = e.target; window.__d4dn.push((t.dataset?.grdResizeDir ? 'grd:' + t.dataset.grdResizeDir : (t.id || '') + '.' + String(t.className).slice(0, 40)) + (t.isConnected ? '' : ':detached')); }, true); });
   await page.mouse.move(sw[0], sw[1]);
+  const sw2 = await page.evaluate(() => { const h = document.querySelector('#ss-handles-overlay [data-grd-resize-dir="sw"]'); const q = h.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
+  const mv = JSON.stringify({ before: [...sw], after: sw2 });
+  if (sw2[0] !== sw[0] || sw2[1] !== sw[1]) { await page.mouse.move(sw2[0], sw2[1]); sw[0] = sw2[0]; sw[1] = sw2[1]; }
   const who2 = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); const hs = [...document.querySelectorAll('#ss-handles-overlay [data-grd-resize-dir="sw"]')]; return { at: e ? (e.dataset?.grdResizeDir ? 'sw-handle' : (e.id || '') + '.' + String(e.className).slice(0, 50)) : null, swCount: hs.length, swDisplay: hs.map((h) => getComputedStyle(h).display) }; }, sw);
-  expect(who2.at, `[전제] 마우스 올린 뒤에도 그 점 임자 = sw 손잡이 (본 것: ${JSON.stringify(who2)})`).toBe('sw-handle');
+  expect(who2.at, `[전제] 마우스 올린 뒤에도 그 점 임자 = sw 손잡이 (본 것: ${JSON.stringify(who2)} · 손잡이 중심 올리기 앞/뒤 ${mv})`).toBe('sw-handle');
   await page.mouse.down();
   await page.mouse.move(sw[0], sw[1] + 30, { steps: 6 }); await page.mouse.up();
   const d1 = await ds(); const calls = await page.evaluate(() => [...window.__d4, ['mousemove', window.__d4mm], ['down-target', ...window.__d4dn]]);
