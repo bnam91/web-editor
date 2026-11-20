@@ -206,6 +206,8 @@ const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-sli
 CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/,
   /^<button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn" [^>]*>$/, /^<button type="button" class="fp-menu-item" role="menuitem" data-fx="(?:shadow|reflect)">$/);
 ID_ADDED.push(/^txt-fx-(?:add-btn|menu)$/, /^txt-rot-number-scrub$/, /^txt-(?:rot-90|flip-h|flip-v)$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
+/* 1120b R2c(현빈 261121 «형광펜·점·글로우 최근 = 셋 합쳐 한 줄») — kind 별 최근 줄 둘(골든엔 글로우 칸 없음) → 합친 줄 하나 */
+ID_REMOVED.push('txt-hl-recent-row', 'txt-dot-recent-row'); ID_ADDED.push(/^txt-fx-recent-row$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',

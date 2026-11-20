@@ -246,7 +246,7 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="text" class="prop-text" id="${p}-hl-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-hl-code-copy" title="번호 복사" aria-label="형광펜 번호 복사">⧉</button>
       </div>
-      <div class="cv-chips ts-recent-row" id="${p}-hl-recent-row" hidden></div>
+      <div class="cv-chips ts-recent-row" id="${p}-fx-recent-row" data-ts-kinds="hl${showDotOpts ? ' dot' : ''}${showGlowOpts ? ' glow' : ''}" hidden></div>
 ` : ''}${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
              ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다.
@@ -293,7 +293,6 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="text" class="prop-text" id="${p}-dot-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-dot-code-copy" title="번호 복사" aria-label="점 번호 복사">⧉</button>
       </div>
-      <div class="cv-chips ts-recent-row" id="${p}-dot-recent-row" hidden></div>
 ` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}" data-own="typography">
         <span class="prop-label">밑줄 색</span>
         ${ulColorHtml}
@@ -324,7 +323,6 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-glow-k" min="0" max="100" step="1" value="${glowK}">
         <input type="number" class="prop-number" id="${p}-glow-k-num" min="0" max="100" value="${glowK}">
       </div>
-      <div class="cv-chips ts-recent-row" id="${p}-glow-recent-row" hidden></div>
 ` : ''}
       <div class="prop-lhls-row">
         <div class="prop-lhls-col"${_hide(showLineHeight)}>
