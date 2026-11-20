@@ -139,7 +139,7 @@ test('R2 최근 효과(형광펜) 줄이 한 줄 · nowrap', async ({ page }) =>
   const errs = await open(page, 'text', pre);
   await page.evaluate(() => { ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff'].forEach((c, i) => window.DesignSystem.pushTextStyleHistory('hl', { '--tb-hl-color': c }, { now: i * 100000 }));
     window.showTextProperties(window.__b); });
-  const r = await page.evaluate(() => { const row = document.getElementById('txt-hl-recent-row');
+  const r = await page.evaluate(() => { const row = document.getElementById('txt-fx-recent-row');   /* ★기대 바뀜 1120b R2c — 형광펜 최근은 합친 줄 */
     const tops = [...row.querySelectorAll('.ts-chip')].map((c) => Math.round(c.getBoundingClientRect().top));
     return { some: tops.length > 1, lines: new Set(tops).size, wrap: getComputedStyle(row).flexWrap }; });
   expect(r).toEqual({ some: true, lines: 1, wrap: 'nowrap' });
@@ -238,14 +238,15 @@ test('R2b 최근 효과 줄(형광펜·점·글로우) «최근» 라벨 = 색 �
   const r = await page.evaluate(() => {
     const lab = (row) => row?.querySelector(':scope > .cv-chips-label')?.offsetHeight ?? null;
     const out = { color: lab(document.querySelector('#panel-right .cv-recent-row')) };
-    for (const k of ['hl', 'dot', 'glow']) {
-      const row = document.getElementById(`txt-${k}-recent-row`); const n = row?.querySelectorAll('.ts-chip').length ?? 0;
-      out[k] = { h: lab(row), n, fits: !!row && row.scrollWidth <= row.clientWidth };   // 줄은 overflow:hidden — 넘치면 scrollWidth 가 커진다
-    }
+    /* ★기대 바뀜 1120b R2c(현빈 261121) — 세 줄 → 합친 «최근 효과» 한 줄 · 칩 수 = TEXT_STYLE_FX_RECENT_MAX(그 줄 폭에서 잰 수) */
+    const row = document.getElementById('txt-fx-recent-row'); const n = row?.querySelectorAll('.ts-chip').length ?? 0;
+    out.fx = { h: lab(row), n, fits: !!row && row.scrollWidth <= row.clientWidth };   // 줄은 overflow:hidden — 넘치면 scrollWidth 가 커진다
+    out.max = window.DesignSystem.TEXT_STYLE_FX_RECENT_MAX;
     return out;
   });
   expect(r.color, '[전제] 색 최근 라벨이 섰다').toBeGreaterThan(0);
-  for (const k of ['hl', 'dot', 'glow']) expect(r[k], `★${k} 최근 라벨 높이 = 색 최근 라벨(${r.color}) · 칩 5 안 잘림`).toEqual({ h: r.color, n: 5, fits: true });
+  expect(r.max, '[전제] 합친 줄 칸 수 상수').toBeGreaterThan(0);
+  expect(r.fx, `★합친 최근 라벨 높이 = 색 최근 라벨(${r.color}) · 칩 ${r.max} 안 잘림`).toEqual({ h: r.color, n: r.max, fits: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -262,5 +263,54 @@ test('B5b 스타일 번호 카드 세 줄 라벨 = 형광펜·점·밑줄 · pla
   });
   const want = (label) => ({ label, labelFits: true, ph: '번호 붙여넣기', phFits: true, copy: true });
   expect(r).toEqual([want('형광펜'), want('점'), want('밑줄')]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* 1120b R2c(현빈 261121 확정 «형광펜·점·글로우 최근 = 셋 합쳐 한 줄») — 합친 줄 하나 · 최근 사용순(kind 섞임) · 칩 = 제 kind 그림 · 누르면 제 kind 입힘 · 한 줄 높이
+ * 양성대조: _patches/1120b-R2c-CTL.patch(제품 셋만 되돌림 → 합친 줄 없음 → R2c 빨강) */
+test('R2c 형광펜·점·글로우 최근 = 합친 한 줄 · 최근 사용순 · 칩이 제 kind 를 입힌다 · 밑줄 줄은 그대로', async ({ page }) => {
+  const pre = `localStorage.removeItem('we_text_style_history_v1');`;
+  const errs = await open(page, 'text', pre);
+  await page.evaluate(() => {
+    const DS = window.DesignSystem, W = DS.TEXT_STYLE_COALESCE_MS * 2;   // 창 밖 시각 — 넷이 따로 쌓인다
+    DS.pushTextStyleHistory('hl', { '--tb-hl-color': '#ff0000' }, { now: 1e6 });
+    DS.pushTextStyleHistory('dot', { '--tb-dot-color': '#00aa00' }, { now: 1e6 + W });
+    DS.pushTextStyleHistory('glow', { '--tb-glow-color': '#0000ff' }, { now: 1e6 + 2 * W });
+    DS.pushTextStyleHistory('hl', { '--tb-hl-color': '#ffaa00' }, { now: 1e6 + 3 * W });
+    DS.pushTextStyleHistory('ul', { '--tb-ul-thick': '3px' }, { now: 1e6 + 4 * W });
+    window.showTextProperties(window.__b);
+  });
+  const r = await page.evaluate(() => {
+    const row = document.getElementById('txt-fx-recent-row');
+    const chips = row ? [...row.querySelectorAll('.ts-chip')] : [];
+    return {
+      rows: document.querySelectorAll('#panel-right .ts-recent-row:not(#txt-ul-recent-row):not(#txt-grad-recent-row)').length,
+      old: ['hl', 'dot', 'glow'].filter((k) => document.getElementById(`txt-${k}-recent-row`)),
+      ul: document.getElementById('txt-ul-recent-row')?.querySelectorAll('.ts-chip').length ?? null,
+      seq: chips.map((c) => c.dataset.tsK + c.dataset.tsI),
+      prev: chips.map((c) => c.querySelector('.ts-chip-prev')?.className.split(' ').find((x) => /^tb-(hl|dot|glow)$/.test(x)) ?? null),
+      lines: new Set(chips.map((c) => Math.round(c.getBoundingClientRect().top))).size,
+      oneLine: !!row && row.offsetHeight <= Math.max(...chips.map((c) => c.offsetHeight)) + 1,
+      wrap: row ? getComputedStyle(row).flexWrap : null,
+    };
+  });
+  expect(r.old, '★kind 별 옛 줄(형광펜·점·글로우)이 남았다').toEqual([]);
+  expect(r.rows, '★형광펜·점·글로우 최근 줄은 하나').toBe(1);
+  expect(r.seq, '★최근 사용순(kind 섞임) — 최근 hl → glow → dot → 옛 hl').toEqual(['hl0', 'glow0', 'dot0', 'hl1']);
+  expect(r.prev, '★칩 그림 = 제 kind 제품 클래스(모양으로 갈린다)').toEqual(['tb-hl', 'tb-glow', 'tb-dot', 'tb-hl']);
+  expect({ lines: r.lines, oneLine: r.oneLine, wrap: r.wrap }, '★한 줄 · 줄 높이 = 칩 한 줄').toEqual({ lines: 1, oneLine: true, wrap: 'nowrap' });
+  expect(r.ul, '★밑줄 최근 줄은 결정 범위 밖 — 제 줄 그대로').toBe(1);
+
+  /* 칩 클릭 = 제 kind 입힘 — kind 마다 새 글 블럭에서 누르고 그 kind span 만 생겼는지 */
+  for (const [k, cls] of [['dot', 'tb-dot'], ['glow', 'tb-glow'], ['hl', 'tb-hl']]) {
+    await page.evaluate(() => { const sec = window.__b.closest('.section-block'); window.selectSection(sec); window.addTextBlock('body', { content: '가나' });
+      const b = [...sec.querySelectorAll('.text-block')].pop(); window.deselectAll?.(); b.classList.add('selected'); window.showTextProperties(b); window.__c = b; });
+    const box = await page.locator(`#txt-fx-recent-row .ts-chip[data-ts-k="${k}"]`).first().boundingBox();
+    expect(box, `[전제] ${k} 칩이 보인다`).toBeTruthy();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForFunction(() => !!window.__c.querySelector('span.tb-hl, span.tb-dot, span.tb-glow'), null, { timeout: 5000 }).catch(() => {});   // 안 생기면 아래 단언이 빨강
+    const got = await page.evaluate(() => ['tb-hl', 'tb-dot', 'tb-glow'].filter((c) => window.__c.querySelector('span.' + c)));
+    expect(got, `★${k} 칩을 눌렀더니 ${JSON.stringify(got)}`).toEqual([cls]);
+  }
   expect(errs, errs.join(' | ')).toEqual([]);
 });

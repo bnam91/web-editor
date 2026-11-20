@@ -207,8 +207,9 @@ test('G7 ★최근 칩 — A 에서 색을 확정하면 glow 큐에 쌓이고, B
   expect(await page.evaluate(() => window.DesignSystem.getTextStyleHistory('glow')[0].v['--tb-glow-color'])).toMatch(/#22aa55|rgb\(34, 170, 85\)/i);
   await openPanel(page, b);
   expect(await glowTexts(page, b), '★전제 — B 에 이미 글로우가 있다').toEqual([]);
-  await page.waitForSelector('#txt-glow-recent-row .ts-chip', { state: 'visible' });
-  const cb = await page.locator('#txt-glow-recent-row .ts-chip').first().boundingBox();
+  /* ★기대 바뀜 1120b R2c(현빈 261121) — 글로우 최근은 합친 «최근 효과» 줄의 글로우 칩 */
+  await page.waitForSelector('#txt-fx-recent-row .ts-chip[data-ts-k="glow"]', { state: 'visible' });
+  const cb = await page.locator('#txt-fx-recent-row .ts-chip[data-ts-k="glow"]').first().boundingBox();
   await page.mouse.click(cb.x + cb.width / 2, cb.y + cb.height / 2);
   await page.waitForFunction((i) => document.querySelectorAll(`#${i} span.tb-glow`).length === 1, b);
   expect(await glowTexts(page, b)).toEqual(['XYZ']);
