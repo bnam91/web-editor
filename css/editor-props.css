@@ -533,6 +533,11 @@
   font-variant-numeric: tabular-nums; text-transform: uppercase; /* hex 값 정렬·일관 표기 */
   transition: border-color 0.1s;
 }
+/* RP-PRD-PREEXIST-FAIL-01(261121) — 옛 꼴 색 줄(스와치 + hex + «투명»/«✕» 단추가 .prop-row 에 바로 · 심플카드 등)의 hex 칸 바닥 = 6자 + 좌우 패딩·테두리.
+   재설계 끝 옵션 칼럼(28px)만큼 줄이 좁아져(211 → 183) 늘 줄던 hex 칸만 41px 로 눌려 6자가 잘렸다(000000 = 52 > 39 · 지혜맥 실측). 남는 줄임은 옆 단추가 받는다.
+   ⛔.prop-color-field 안 hex(재설계 칸 · 패딩 0)는 무접촉 — 41px 에 6자가 다 들어간다. */
+.prop-row > .prop-color-hex, .prop-color-row > .prop-color-hex { flex-shrink: 0; min-width: calc(6ch + 14px); }
+.prop-row > .prop-color-hex ~ .prop-align-btn, .prop-color-row > .prop-color-hex ~ .prop-align-btn { flex-shrink: 1; min-width: 0; padding-left: 4px; padding-right: 4px; }   /* 그 줄임을 받는 옆 «투명»/«✕» 단추(글자는 안 잘림 — 시험 L3 이 잰다) */
 .prop-color-hex:hover { border-color: var(--ui-border-mid); }
 .prop-color-hex:focus { border-color: var(--ui-accent-primary); }
 /* ★무효한 색 코드 — 「말없이 무시」 대신 «보이게» 한다 (2026-09-20 유닛 colorhex).
