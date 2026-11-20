@@ -287,11 +287,20 @@ export function buildTextPanelSpec(state) {
             <button class="prop-type-btn ${bubbleSizeFixed?'active':''}" data-bsz="fixed">고정</button>
           </div>
         </div>
-        <div class="prop-row">
-          <span class="prop-label">너비</span>
-          <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'}>
-          <span class="prop-label prop-label--auto">높이</span>
-          <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'}>
+        <!-- 1120b B4(현빈 261120 「Size 절과 CSS 통일」) — 너비·높이 = Size 절과 같은 두 칸 마크업(prop-lhls-row · 칸 안 라벨 prop-xy-label) · id·배선 그대로 -->
+        <div class="prop-lhls-row">
+          <div class="prop-lhls-col">
+            <div class="prop-icon-input">
+              <span class="prop-xy-label">너비</span>
+              <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'} aria-label="말풍선 너비">
+            </div>
+          </div>
+          <div class="prop-lhls-col">
+            <div class="prop-icon-input">
+              <span class="prop-xy-label">높이</span>
+              <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'} aria-label="말풍선 최소 높이">
+            </div>
+          </div>
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>
