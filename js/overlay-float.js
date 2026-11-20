@@ -334,6 +334,9 @@ export function enterFloat(posEl) {
   const prevSib  = posEl.previousElementSibling;
   posEl.dataset.overlayReturnParent = parentId;
   posEl.dataset.overlayReturnAfter  = prevSib ? _ensureId(prevSib) : '';
+  /* ★t13D-05 — 흐름 «프레임»은 흐름 끌기(네이티브 HTML5 · draggable=true)를 달고 있다 ⇒ 떠 있는 동안 그대로면 첫 움직임에 dragstart 가 끌기를 가로챈다
+     (실측: 일반 프레임 오버레이 끌기 Δ 한 걸음만). 떠 있는 동안 끄고 해제 때 되돌린다(표식은 저장본에도 남아 다시 연 뒤 해제도 맞다). 글 프레임은 무접촉. */
+  if (posEl.matches?.('.frame-block:not([data-text-frame])') && posEl.getAttribute('draggable') === 'true') { posEl.dataset.overlayWasDraggable = '1'; posEl.setAttribute('draggable', 'false'); }
 
   _freezeWidth(posEl);
   /* ★재진입에도 «섹션 폭 밖» 을 유지한다 (T-068 후속, 2026-09-22 실측).
@@ -429,6 +432,7 @@ export function flowDropIndex(container, centerY, skipEl = null) {
 // 오버레이(플로팅) → 오토레이아웃 복귀
 export function exitFloat(posEl) {
   if (!posEl) return false;
+  if (posEl.dataset.overlayWasDraggable === '1') { posEl.setAttribute('draggable', 'true'); delete posEl.dataset.overlayWasDraggable; }   // t13D-05 — enterFloat 이 끈 흐름 끌기 되돌림
   const currentSec = posEl.closest('.section-block');
   const parentId = posEl.dataset.overlayReturnParent;
   const afterId  = posEl.dataset.overlayReturnAfter;

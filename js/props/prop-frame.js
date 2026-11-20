@@ -492,7 +492,11 @@ function _renderAutoPanel(ss) {
      그룹을 띄울 받침은 이미 있다: posElOf(그룹) = 그룹 자신 · 떠 있는 프레임의 끌기는 block-drag.js(absolute 셀 프레임 갈래)가 건다.
      ⛔그룹 «아닌» 프레임엔 아직 안 단다 — 요청이 그룹이다(넓히려면 현빈 확인). */
   const _isGroupFrame = ss.dataset.group === 'true';
-  const _groupFloat = _isGroupFrame && ss.dataset.overlayBlock === 'true';
+  /* ★t13D-05(0.9.13 · 현빈 «프레임 블록에도 오버레이 버튼») — 위 «그룹만»을 넓힌다: 섹션 흐름의 일반 프레임도 같은 한 벌(wireFloatToggle → enterFloat/exitFloat · posElOf(프레임) = 자신 · 자식은 프레임째 같이 간다).
+     빼는 것: 도형 래퍼(블럭 하나) · 버즈(제 배치) · 슬라이드 칸 · 배너 안쪽 · 다른 프레임 «안»의 프레임(프레임 안 오버레이 = t13D-06 몫). 이미 떠 있으면 해제용으로 늘 단다. */
+  const _canFloat = !isBuzzFrame(ss) && !isShapeFrame && ss.dataset.sldCell !== '1' && !isBannerInner
+    && (ss.dataset.overlayBlock === 'true' || (!!ss.closest('.section-inner') && !ss.parentElement?.closest('.frame-block')));
+  const _groupFloat = _canFloat && ss.dataset.overlayBlock === 'true';
   /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록한다. 절 «안» 마크업·id 는 옛 그대로.
      Radial Arrange 는 Layout 절 안(옛 자리: stack 아래 또는 Child Align 아래) · Buzz = special · 코너(radius) = Appearance(Q2). */
   const _rad = unwrapSection(_radialSec);   /* radial-arrange 는 «절 통째»를 준다 — Layout 절 안에 몸통만(U0c unwrapSection) */
@@ -536,7 +540,7 @@ function _renderAutoPanel(ss) {
       </div>
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
-        headTools: (_isGroupFrame && !isBuzzFrame(ss)) ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: '그룹을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' }) : '',
+        headTools: _canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: (_isGroupFrame ? '그룹' : '프레임') + '을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' }) : '',
       }),
       sec('size', `
       <div class="prop-row">
@@ -737,7 +741,7 @@ function _renderAutoPanel(ss) {
 
   // ── Layout: 스택 변환 ──
   /* ★1020t2f1 — 그룹 오버레이 단추 배선(텍스트·도형·모달과 «같은 함수»). ⛔window.* 로 — 이 패널 파일은 단위 하네스가 대역으로 싣는다. */
-  if (ss.dataset.group === 'true') window.wireFloatToggle?.({ block: ss, buttonId: 'ss-float-toggle', rerender: () => { showFrameProperties(ss); window.showHandlesFor?.(ss); } });
+  if (_canFloat) window.wireFloatToggle?.({ block: ss, buttonId: 'ss-float-toggle',   /* t13D-05 — 그룹만 → _canFloat */ rerender: () => { showFrameProperties(ss); window.showHandlesFor?.(ss); } });
   document.getElementById('ss-to-stack-btn')?.addEventListener('click', () => {
     _convertFreeLayoutToStack(ss);
   });
