@@ -2691,6 +2691,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       if ((parseFloat(cs.marginLeft) || 0) < 0 || (parseFloat(cs.marginRight) || 0) < 0) _bleedRects.set(b, b.getBoundingClientRect());
     });
   });
+  /* ★t13D-07 ⑤ 후속(실물 png 261121) — 떠 있던 것(_floatIntoNew)이 새 그룹의 «가로» 밖이면(예: 섹션 왼쪽 20px 의 오버레이 글자 · 내용 폭은 패딩 32 안)
+     그룹(overflow:hidden)이 그만큼 잘랐다(세로는 아래 :2808 갈래가 늘린다 · 가로는 빠져 있었다).
+     ⇒ 위 «패딩 제외» 길을 그대로 탄다: 새 그룹 = 패딩 제외(섹션 가장자리까지) · 흐름 블럭은 모두 보이는 상자 그대로(폭 100% 블럭이 넓어지지 않게).
+     shortcut: 섹션 «밖»까지 나간 떠 있는 것은 여전히 잘린다(패딩 제외는 섹션 패딩만큼) — 그런 배치가 생기면 그룹 폭을 자식 합집합으로. */
+  if (_floatIntoNew?.length) {
+    const _sr = ss.getBoundingClientRect();
+    const _out = _floatIntoNew.some(u => { const r = u.getBoundingClientRect(); return r.left < _sr.left - 0.5 || r.right > _sr.right + 0.5; });
+    if (_out) rows.forEach(row => (shells.has(row) ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row)) : [row])
+      .forEach(b => { if (!isShapeFrame(b) && !_bleedRects.has(b)) _bleedRects.set(b, b.getBoundingClientRect()); }));
+  }
   if (_bleedRects.size && window.applyBlockFullBleed) {
     ss.dataset.fullBleed = 'true';
     window.applyBlockFullBleed(ss);

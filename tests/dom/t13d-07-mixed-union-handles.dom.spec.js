@@ -7,6 +7,8 @@
  * 양성대조: _patches/t13d-07-CTL.patch → U1·U2 빨강(손잡이 0) · U3 초록.
  * G1 ⌘G(현상 1 · 현빈 결정 261120 «일반 그룹»): 오버레이 글자 + 흐름 프레임 → 그 자리 그대로 «새 공통 그룹»(프레임 안으로 넣기 0) ·  글자 화면 자리 무변 · 그룹 손잡이(모서리 넷)
  *   양성대조: _patches/t13d-07-CTL-cmdg.patch(block-factory 의 _overlayText 갈래 걷음 = 옛 9/30 «프레임 안으로») → G1 빨강.
+ * G2 ⌘G 뒤 그룹이 떠 있던 글자를 «가로로» 덮는다(실물 png 261121: 섹션 x20 글자 · 그룹 = 내용 폭(패딩 32 안) · overflow:hidden → 왼쪽 12px 잘림) ·
+ *   프레임 화면 상자 그대로. 양성대조: _patches/t13d-07-CTL-hclip.patch(가로 밖 → 패딩 제외 갈래 걷음) → G2 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -102,5 +104,24 @@ test('G1 ⌘G = 일반 그룹(현빈 261120) — 그 자리 그대로 새 공통
      인텔 261120 G1 Received 4 = 정상 그룹 꼴(옛 기대 8 은 내 잘못 — 공통 «선택 상자» 손잡이 8 과 섞음). */
   await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .ss-resize-handle')].filter((h) => h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none').map((h) => h.dataset.dir).sort().join(',')), '★그룹 손잡이 = 모서리 넷').toBe('ne,nw,se,sw');
   expect(p0, '[전제] 묶기 전 프레임 부모 기록').toBeTruthy();
+  expect(errs).toEqual([]);
+});
+
+test('G2 ⌘G 뒤 그룹이 떠 있던 글자를 가로로 덮는다(안 잘림) · 프레임 화면 상자 그대로', async ({ page }) => {
+  const errs = await scene(page);
+  await pick(page, ['#frF', '#tfO .text-block']);
+  const box = (sel) => page.evaluate((s) => { const q = document.querySelector(s).getBoundingClientRect(); return [q.left, q.top, q.right, q.bottom].map(Math.round); }, sel);
+  const t0 = await box('#tfO'), f0 = await box('#frF');
+  const pre = await page.evaluate(() => { const sec = document.getElementById('sG'), inner = sec.querySelector('.section-inner') || sec, cs = getComputedStyle(inner);
+    return { padL: parseFloat(cs.paddingLeft), textLeftOfContent: document.getElementById('tfO').getBoundingClientRect().left < inner.getBoundingClientRect().left + parseFloat(cs.paddingLeft) }; });
+  expect(pre.textLeftOfContent, `[전제] 글자가 내용 폭(패딩 ${pre.padL}) 왼쪽 밖에 떠 있다`).toBe(true);
+  await page.keyboard.press('Meta+g'); await raf(page);
+  const g = await page.evaluate(() => { const grp = document.getElementById('frF').parentElement.closest('.frame-block[data-group="true"]'); if (!grp) return null;
+    const q = grp.getBoundingClientRect(); return { r: [q.left, q.top, q.right, q.bottom].map(Math.round), ov: getComputedStyle(grp).overflow }; });
+  expect(g, '[전제] 새 그룹').toBeTruthy();
+  const t1 = await box('#tfO'), f1 = await box('#frF');
+  expect(t1.map((v, i) => Math.abs(v - t0[i]) <= 1), `[전제] 글자 화면 자리 그대로 ${JSON.stringify([t0, t1])}`).toEqual([true, true, true, true]);
+  expect({ left: t1[0] >= g.r[0] - 1, right: t1[2] <= g.r[2] + 1 }, `★그룹(${g.ov}) ${JSON.stringify(g.r)} 이 글자 ${JSON.stringify(t1)} 를 가로로 덮는다`).toEqual({ left: true, right: true });
+  expect(f1.map((v, i) => Math.abs(v - f0[i]) <= 1), `★프레임 화면 상자 그대로 ${JSON.stringify([f0, f1])}`).toEqual([true, true, true, true]);
   expect(errs).toEqual([]);
 });
