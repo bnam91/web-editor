@@ -3312,6 +3312,8 @@ function addGridBlock(opts = {}) {
   bindBlock(block);
   window.buildLayerPanel();
   try { window.selectBlock?.(block.id); } catch (_) {}
+  /* t13D-02: selectBlock(MCP 진입점)은 핸들을 안 붙인다 — 클릭 경로처럼 showHandlesFor 를 불러야 생성 직후 모서리·변 손잡이 8개가 선다(zoom/modal/coupon 추가 경로와 같은 고침). */
+  try { window.showHandlesFor?.(block); } catch (_) {}
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.triggerAutoSave?.();
   /* ★「안 닿은 것」을 «고치는 문과 같은 모양»으로 싣는다(ignoredProps + hint).
