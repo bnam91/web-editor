@@ -180,3 +180,45 @@ test('P4 Frame — X/Y = 텍스트 Position 두 칸(prop-lhls-row > .prop-icon-i
   expect(r).toEqual({ shape: ['true:true:X', 'true:true:Y'], tx: '12' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* ── 2차(현빈 결정 261120): A5 · B2 · B5 ── */
+test('A5 Asset — «체커 어둡게» = 「내용 자르기」와 같은 토글(.prop-toggle 체크박스) · 켬/끔 = dark/키 없음', async ({ page }) => {
+  const errs = await open(page, 'asset');
+  const r = await page.evaluate(() => {
+    const t = document.getElementById('asset-checker-tone-on'), clip = document.getElementById('asset-clip-toggle');
+    const shape = (e) => `${e?.type}:${e?.parentElement?.className}:${!!e?.parentElement?.querySelector('.prop-toggle-track')}`;
+    const same = shape(t) === shape(clip);
+    t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); const on = window.__b.dataset.checkerTone ?? null;
+    t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); const off = window.__b.dataset.checkerTone ?? null;
+    return { same, radios: document.querySelectorAll('#panel-right input[name="asset-checker-tone"]').length, on, off };
+  });
+  expect(r).toEqual({ same: true, radios: 0, on: 'dark', off: null });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('B2 Bubble — 배경색 줄 = Fill 색 줄과 같은 부품(.prop-color-field: 스와치 + HEX + %) · 값은 따로(--bubble-bg) · Bubble 절', async ({ page }) => {
+  const errs = await open(page, 'bubble');
+  const r = await page.evaluate(() => {
+    const cls = (id) => { const f = document.getElementById(id)?.closest('.prop-color-field'); return f ? [...f.querySelectorAll('input')].map((i) => i.className || i.type).join(',') : null; };
+    const sec = document.getElementById('bubble-bg-hex')?.closest('.prop-section[data-sec]')?.dataset.secState;
+    const hex = document.getElementById('bubble-bg-hex'); hex.value = 'FF0000'; hex.dispatchEvent(new Event('input', { bubbles: true })); hex.dispatchEvent(new Event('change', { bubbles: true }));
+    return { same: cls('bubble-bg-hex') === cls('txt-color-hex'), alpha: !!document.getElementById('bubble-bg-alpha'), sec,
+             bg: window.__b.style.getPropertyValue('--bubble-bg').trim().toLowerCase() };
+  });
+  expect(r).toEqual({ same: true, alpha: true, sec: 'special:Bubble', bg: '#ff0000' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('B5 Text — «스타일 번호» 카드 하나(.prop-cell-card > header·body) · 접힘 시작 · Enter 로 펼침 · 줄 id 그대로', async ({ page }) => {
+  const pre = `try { localStorage.removeItem('goditor.textStyleCodeFold.open'); } catch (_) {}`;
+  const errs = await open(page, 'text', pre);
+  const r = await page.evaluate(() => {
+    const h = document.getElementById('txt-code-fold-toggle'); const card = h?.closest('.prop-cell-card'); const body = card?.querySelector(':scope > .prop-cell-card-body');
+    const rowsIn = ['hl', 'dot', 'ul'].map((k) => body?.contains(document.getElementById(`txt-${k}-code-row`)));
+    const start = { exp: h?.getAttribute('aria-expanded'), hidden: body?.hidden, title: h?.querySelector('.prop-cell-card-title')?.textContent, header: h?.classList.contains('prop-cell-card-header') };
+    h.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    return { rowsIn, start, after: { exp: h.getAttribute('aria-expanded'), hidden: body.hidden }, cards: document.querySelectorAll('#txt-code-fold-card').length };
+  });
+  expect(r).toEqual({ rowsIn: [true, true, true], start: { exp: 'false', hidden: true, title: '스타일 번호 3', header: true }, after: { exp: 'true', hidden: false }, cards: 1 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
