@@ -167,7 +167,12 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
   [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">'],
   /* 1120b B5 후속(지디 261121) — 스타일 번호 칸 placeholder «형광펜/점/밑줄 번호 붙여넣기» → «번호 붙여넣기»(이름은 줄 라벨로 · 잘림 없게) */
-  [/ placeholder="(?:형광펜|점|밑줄) 번호 붙여넣기"/, ' placeholder="번호 붙여넣기"']];
+  [/ placeholder="(?:형광펜|점|밑줄) 번호 붙여넣기"/, ' placeholder="번호 붙여넣기"'],
+  /* ★1120b 기준으로 다시 세움(지디 261121 · 판정기 빨강 9줄 = 1120b 앞 커밋들의 의도된 변화 · 항목마다 한 줄) */
+  [/^(<input type="checkbox" id="txt-shadow-on"(?: checked)?)>$/, '$1 aria-label="Shadow">'],   /* B3 b338d175c — Effects 머리 토글 → «＋»(이름 = aria-label) */
+  [/^(<input type="number" class="prop-number" id="bubble-w-number" [^>]*")>$/, '$1 aria-label="말풍선 너비">'],   /* B4 0e362728a — Size 절 두 칸(칸 안 라벨 · 이름 aria-label) */
+  [/^(<input type="number" class="prop-number" id="bubble-h-number" [^>]*")>$/, '$1 aria-label="말풍선 최소 높이">'],   /* B4 */
+  [/^<button class="prop-anim-btn" id="open-anim-btn">$/, '<button type="button" class="prop-chain-btn" id="open-anim-btn" title="애니메이션 GIF 만들기" aria-label="애니메이션 GIF 만들기">']];   /* F1 83e0afbf1 — GIF 절 머리 ＋ = 이 단추 */
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
   : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}${(() => { const sel = closest(k, (x) => x.tag === 'select'); return sel?.attrs.id ? ` in="${sel.attrs.id}"` : ''; })()}>`] : []));   // QA2 — 옵션에 «어느 고르개»를 붙여 허용을 그 고르개로 묶는다
 const labels = (root) => all(root).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub')).map((k) => text(k).trim());   // 묶음 작은 제목(Q1)은 라벨 아님
@@ -179,7 +184,9 @@ const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우
 const LABEL_DROPPED = ['Font', '글자색', '너비', '회전°'];   /* 회전° = Q20 각도 칸(라벨 글 대신 아이콘 · aria-label) */   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
 const ID_ADDED = [/^psec-[a-z]+(-head|-body|-group)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
-const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider', 'txt-rot-slider', 'txt-fx-add'];   /* txt-fx-add = ＋ 메뉴로(시안 v10) */   /* txt-rot-slider = Q20 */   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
+const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider', 'txt-rot-slider', 'txt-fx-add',
+  'txt-pv-bubble-hint',   /* 1120b B1 3edf31a99 — 힌트 걷음 */
+  'bubble-bg-color', 'bubble-bg-hex'];   /* 1120b B2 1d13c6842 — 배경색 줄 = colorFieldHTML(prop-text.js 배선 때 그림) · 템플릿 밖 */   /* txt-fx-add = ＋ 메뉴로(시안 v10) */   /* txt-rot-slider = Q20 */   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
 /* ★바닥 판부터 빨강(이번 일과 무관) — 태그 Oval 모양(label-shape-oval)이 BASE(2040a3339) 뒤 별건으로 생겼는데 이 판정기가 못 따라왔다:
  *   패널 재설계 1차 바닥(17b20888b)에서 이미 label · label+circle 상태 J1/J4 빨강. 그 한 단추·한 id 만, 태그 상태에서만 허용한다. */
 const DRIFT_PRE = { states: ['label', 'label+circle'], ctl: /^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/, id: /^label-shape-oval$/ };
@@ -193,7 +200,8 @@ const CTL_ADDED = [
 ];
 const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /,   /* ⑥ 너비 슬라이더 걷음 */
   /^<select class="prop-select" id="txt-fx-add" /, /^<option value="(?:|shadow|reflect)" in="txt-fx-add">$/,   /* ⑨ · 시안 v10 — Effects 고르개 → ＋ 단추 + 종류 메뉴(옵션 = 메뉴 항목) */
-  /^<input type="range" class="prop-slider" id="txt-rot-slider" /];   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
+  /^<input type="range" class="prop-slider" id="txt-rot-slider" /,
+  /^<input type="color" id="bubble-bg-color" /, /^<input type="text" class="prop-color-hex" id="bubble-bg-hex" /];   /* 1120b B2 — 위 ID_REMOVED 와 짝 */   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
 /* Q17 회전 줄 단추 셋(시안 v10 · 현빈 GO 261120) */
 CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/,
   /^<button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn" [^>]*>$/, /^<button type="button" class="fp-menu-item" role="menuitem" data-fx="(?:shadow|reflect)">$/);
@@ -218,7 +226,7 @@ function judge(name, st, oldHtml, newHtml) {
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   /* 1120b B5 후속(지디 261121) — 스타일 번호 세 줄 라벨 «번호»×3 → «형광펜»·«점»·«밑줄»(한 말이 셋으로 갈려 LABEL_RENAME 표로는 못 적는다 · 옛 수만큼만) */
   const codeN = labels(o).filter((t) => t === '번호').length;
-  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호')]).concat(['형광펜', '점', '밑줄'].slice(0, codeN))
+  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호'), ...(name === 'bubble' ? ['너비', '높이'] : [])])   /* 1120b B4 — 말풍선 너비·높이 라벨 글 → 칸 안 라벨(.prop-xy-label) */.concat(['형광펜', '점', '밑줄'].slice(0, codeN))
     .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const l2 = minus(ol, labels(n)), e2 = minus(labels(n), ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
