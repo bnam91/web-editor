@@ -626,7 +626,7 @@ function _renderAutoPanel(ss) {
           </select>
         </div>
         <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
-        <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
+        <!-- 1120b P3(현빈 261120) — 「이미지 제거」(#ss-bg-img-clear) 단추 걷음 -->
       ` : ''}
 `),
       sec('stroke', `
@@ -901,7 +901,6 @@ function _renderAutoPanel(ss) {
   // 배경 이미지
   const bgImgBtn   = document.getElementById('ss-bg-img-btn');
   const bgImgInput = document.getElementById('ss-bg-img-input');
-  const bgImgClear = document.getElementById('ss-bg-img-clear');
   const bgPosBtn   = document.getElementById('ss-bg-pos-btn');
 
   bgImgBtn.addEventListener('click', () => bgImgInput.click());
@@ -929,33 +928,10 @@ function _renderAutoPanel(ss) {
         posBtn.addEventListener('click', () => _frameBgEdit(ss));
         bgImgBtn.after(posBtn);
       }
-      if (!document.getElementById('ss-bg-img-clear')) {
-        const clearBtn = document.createElement('button');
-        clearBtn.id = 'ss-bg-img-clear';
-        clearBtn.className = 'prop-action-btn danger';
-        clearBtn.style.cssText = 'margin-top:4px;';
-        clearBtn.textContent = '이미지 제거';
-        clearBtn.addEventListener('click', removeBgImg);
-        document.getElementById('ss-bg-pos-btn').after(clearBtn);
-      }
     };
     reader.readAsDataURL(file);
   });
 
-  function removeBgImg() {
-    ss.style.backgroundImage = '';
-    ss.style.backgroundSize = '';
-    ss.style.backgroundPosition = '';
-    delete ss.dataset.bgImg;
-    delete ss.dataset.bgPos;
-    _syncFrameBgVars();
-    document.getElementById('ss-bg-pos-btn')?.remove();
-    document.getElementById('ss-bg-img-clear')?.remove();
-    window.scheduleAutoSave?.();
-    showFrameProperties(ss);   // 그림이 빠지면 «체크 배경» 단추가 다시 선다(섹션은 늘 다시 그린다)
-    window.pushHistory?.();    // 패널 규약 = 적용 먼저 · 기록 나중(tests/unit/prop-push-after PA-1)
-  }
-  if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
   /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 sec-bg-img-empty·sec-checker-tone 배선과 같은 동작(js/props/prop-section.js).
      ★기록 순서만 섹션과 다르다 — 섹션은 «찍고 나서 바꾸는» 옛 꼴이다. 패널 규약 = 적용 먼저 · pushHistory 나중
        (tests/unit/prop-push-after PA-1 · 앞 편집이 push-after 면 ⌘Z 한 번에 두 편집이 같이 사라진다).
