@@ -234,8 +234,15 @@ export function showAssetProperties(ab) {
       // 영상 메타데이터 전(트림 준비 안 됨)엔 「불러오는 중」 안내만 있다 — 컨트롤 0 인 Trim 절(빈 머리)을 내지 않고 Content 끝에 붙인다
       sec('content', imageSection + (hasImage && isVideo && !trimReady ? videoTrimSectionHTML(ab) : '')),
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
+      /* 1120b A1(현빈 261120) — 정렬 줄 = Position 절 · 라벨은 텍스트 블럭 Layout 과 같은 꼴(.prop-field-label «Alignment» + .prop-align-group) */
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※Effects 절의 「텍스트 막」(이미지 위 어두운 막)과는 다른 기능입니다.' }) }),
+      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}
+      <span class="prop-field-label">Alignment</span>
+      <div class="prop-align-group" id="asset-align-group">
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
+      </div>`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※Effects 절의 「텍스트 막」(이미지 위 어두운 막)과는 다른 기능입니다.' }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -246,15 +253,6 @@ export function showAssetProperties(ab) {
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="asset-h-slider" min="${H_MIN}" max="1600" step="10" value="${currentH}">
         <input type="number" class="prop-number" id="asset-h-number" min="${H_MIN}" max="1600" value="${currentH}">
-      </div>`),
-      sec('layout', `
-      <div class="prop-row">
-        <span class="prop-label">정렬</span>
-        <div class="prop-align-group" id="asset-align-group">
-          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
-          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
-          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
-        </div>
       </div>`),
       sec('padding', `
       <div class="prop-row">
