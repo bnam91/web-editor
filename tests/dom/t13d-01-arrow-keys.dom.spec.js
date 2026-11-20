@@ -24,11 +24,15 @@ async function scene(page) {
     const u2 = add(() => window.addGapBlock(40)); u2.id ||= 'u2';
     const u3 = add(() => window.addTextBlock('body')); u3.id ||= 'u3';
     const t1 = u1.querySelector('.text-block'), t3 = u3.querySelector('.text-block');
+    /* DIAG2(인텔 261121 K1·K4 ×3): 넣은 순서가 [글·글·갭]으로 떨어졌다(갭이 끝) — 장면 전제가 «셋»만 보고 «순서»를 안 봤다.
+       넣기 자리는 이 칸의 주제가 아니다 ⇒ 순서를 손으로 세우고 아래 [전제]로 잠근다(넣은 그대로의 순서는 natural 로 찍어 둔다). */
+    const natural = [...inner.children].filter((x) => x.id && !x.classList.contains('drop-indicator')).map((x) => x.id);
+    inner.append(u1, u2, u3);
     window.deselectAll(); window.clearHistory?.();
-    return { t1: t1.id, gap: u2.id, t3: t3.id, units: [...inner.children].filter((x) => x.id && !x.classList.contains('drop-indicator')).map((x) => x.id) };
+    return { t1: t1.id, gap: u2.id, t3: t3.id, u: [u1.id, u2.id, u3.id], natural, units: [...inner.children].filter((x) => x.id && !x.classList.contains('drop-indicator')).map((x) => x.id) };
   });
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
-  expect(ids.units.length, `[전제] 흐름 단위 셋 ${JSON.stringify(ids.units)}`).toBe(3);
+  expect(ids.units, `[전제] 흐름 단위 순서 = 글·갭·글 (넣은 그대로 ${JSON.stringify(ids.natural)})`).toEqual(ids.u);
   return { errs, ids };
 }
 /* DIAG(인텔 261120 K1·K4 3/3: ⇧↓ 이 갭이 아니라 «다른 글»로) — 섹션 직속 단위 순서·고름 사슬을 실패 메시지에 */

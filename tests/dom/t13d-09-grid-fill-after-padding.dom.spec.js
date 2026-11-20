@@ -81,9 +81,15 @@ test('D4 nw 손잡이를 세로로만 끌기(높이) → 폭 키 안 생김 · �
     /* 2차 DIAG(인텔 261120: applyGridCellPadY 부름 [] · dataset 앞뒤 같음) — 손잡이 mousedown 이 왔나 · 끄는 동안 document mousemove 수 · 쓰기 문 반환값·던짐 */
     const h = document.querySelector('#ss-handles-overlay [data-grd-resize-dir="nw"]'); if (h) h.addEventListener('mousedown', () => window.__d4.push(['handle-down']), true);
     window.__d4mm = 0; document.addEventListener('mousemove', () => { window.__d4mm++; }, true); });
-  await page.mouse.move(nw[0], nw[1]); await page.mouse.down();
+  /* 3차 DIAG(인텔 261121: 부름 [mousemove 7] 뿐 · handle-down 0 · applyGridOwnWidth 0) — 손잡이 리스너가 mousedown 을 못 받았다.
+     가를 것: ① 마우스를 «올린 뒤»(hover) 그 점 임자가 바뀌나(＋ 버튼이 떠서 P4 규칙으로 손잡이가 display:none 등) ② mousedown 이 어디로 갔나(window capture 첫 자리 target) */
+  await page.evaluate(() => { window.__d4dn = []; window.addEventListener('mousedown', (e) => { const t = e.target; window.__d4dn.push((t.dataset?.grdResizeDir ? 'grd:' + t.dataset.grdResizeDir : (t.id || '') + '.' + String(t.className).slice(0, 40)) + (t.isConnected ? '' : ':detached')); }, true); });
+  await page.mouse.move(nw[0], nw[1]);
+  const who2 = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); const hs = [...document.querySelectorAll('#ss-handles-overlay [data-grd-resize-dir="nw"]')]; return { at: e ? (e.dataset?.grdResizeDir ? 'nw-handle' : (e.id || '') + '.' + String(e.className).slice(0, 50)) : null, nwCount: hs.length, nwDisplay: hs.map((h) => getComputedStyle(h).display) }; }, nw);
+  expect(who2.at, `[전제] 마우스 올린 뒤에도 그 점 임자 = nw 손잡이 (본 것: ${JSON.stringify(who2)})`).toBe('nw-handle');
+  await page.mouse.down();
   await page.mouse.move(nw[0], nw[1] - 30, { steps: 6 }); await page.mouse.up();
-  const d1 = await ds(); const calls = await page.evaluate(() => [...window.__d4, ['mousemove', window.__d4mm]]);
+  const d1 = await ds(); const calls = await page.evaluate(() => [...window.__d4, ['mousemove', window.__d4mm], ['down-target', ...window.__d4dn]]);
   const a = await page.evaluate(() => ({ pad: document.getElementById('pG').dataset.cellPadY ?? null, key: document.getElementById('pG').dataset.gridWidth ?? null }));
   expect(a.pad, `[전제] 높이(칸 위아래 여백)는 바뀌었다 · DIAG 앞 ${JSON.stringify(d0)} 뒤 ${JSON.stringify(d1)} 부름 ${JSON.stringify(calls).slice(0, 400)} · pageerror ${errs.join(' | ').slice(0, 200)}`).not.toBe(null);
   expect(a.key, '★높이만 끌었는데 폭 키가 박혔다').toBe(null);
