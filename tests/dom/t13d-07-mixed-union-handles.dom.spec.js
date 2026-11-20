@@ -5,7 +5,8 @@
  * U2 se 끌기 → 프레임 폭·높이 커짐 · 프레임 left/top/offset 안 씀 · 글자 커짐 · ⌘Z 한 번에 복귀
  * U3 흐름 «글자»가 섞이면 종전대로 손잡이 0(t202b D 와 같은 뜻 — 넓힌 것은 프레임뿐)
  * 양성대조: _patches/t13d-07-CTL.patch → U1·U2 빨강(손잡이 0) · U3 초록.
- * ⌘G(현상 1)는 이 시험 밖 — REPORT.md 참고(현빈 09-30 «프레임 안으로 넣기» 규칙과 겹친다).
+ * G1 ⌘G(현상 1 · 현빈 결정 261120 «일반 그룹»): 오버레이 글자 + 흐름 프레임 → 그 자리 그대로 «새 공통 그룹»(프레임 안으로 넣기 0) · 글자 화면 자리 무변 · 그룹 손잡이 8
+ *   양성대조: _patches/t13d-07-CTL-cmdg.patch(block-factory 의 _overlayText 갈래 걷음 = 옛 9/30 «프레임 안으로») → G1 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -43,8 +44,10 @@ async function scene(page) {
     window.deselectAll(); document.activeElement?.blur?.(); window.clearHistory?.();
   });
   await raf(page);
-  const pre = await page.evaluate(() => ({ fr: getComputedStyle(document.getElementById('frF')).position, tf: document.getElementById('tfO').dataset.overlayBlock }));
-  expect(pre, '[전제] 프레임 = 흐름 · 글자 = 오버레이').toEqual({ fr: 'static', tf: 'true' });
+  /* [시험만 · 인텔 261120 U1~U3 3/3 ✘ «전제» 줄] 흐름 프레임의 계산 position 은 'static' 이 아니라 'relative'(css/editor-blocks.css .frame-block — 자유배치 자식의 기준)
+     ⇒ «흐름» = absolute 아님으로 잰다(뜻 같음 · 좌표 없음) · 오버레이 표식은 enterFloat 가 단 «자리 요소»(OverlayFloat.posElOf) 에 있다(overlay-float.js:373). */
+  const pre = await page.evaluate(() => { const t = document.getElementById('tfO'); return { frFlow: getComputedStyle(document.getElementById('frF')).position !== 'absolute', tf: (window.OverlayFloat.posElOf(t) || t).dataset.overlayBlock }; });
+  expect(pre, '[전제] 프레임 = 흐름(absolute 아님) · 글자 = 오버레이').toEqual({ frFlow: true, tf: 'true' });
   return errs;
 }
 const read = (page) => page.evaluate(() => { const f = document.getElementById('frF'), t = document.getElementById('tfO'), tb = t.querySelector('[class^="tb-"]');
@@ -80,5 +83,22 @@ test('U3 흐름 «글자»가 섞이면 종전대로 손잡이 0', async ({ page
   await pick(page, ['#tfO .text-block', '#tfFlow .text-block']);
   expect(await page.evaluate(() => document.querySelectorAll('.ss-sel-union').length), '[전제] 전체 상자 있음').toBe(1);
   expect(await uh(page), '손잡이 0').toBe(0);
+  expect(errs).toEqual([]);
+});
+
+test('G1 ⌘G = 일반 그룹(현빈 261120) — 그 자리 그대로 새 공통 그룹 · 프레임 안으로 넣기 0 · 손잡이 8', async ({ page }) => {
+  const errs = await scene(page);
+  await pick(page, ['#frF', '#tfO .text-block']);
+  expect(await page.evaluate(() => window.__selOverlay.targets().map((e) => e.id).sort()), '[전제] 고른 둘').toEqual(['frF', 'tfO']);
+  const r0 = await page.evaluate(() => { const q = document.getElementById('tfO').getBoundingClientRect(); return [Math.round(q.left), Math.round(q.top), Math.round(q.width)]; });
+  const p0 = await page.evaluate(() => document.getElementById('frF').parentElement.id || document.getElementById('frF').parentElement.className);
+  await page.keyboard.press('Meta+g'); await raf(page);
+  const g = await page.evaluate(() => { const f = document.getElementById('frF'), t = document.getElementById('tfO'), grp = f.parentElement.closest('.frame-block[data-group="true"]');
+    return { group: !!grp, sameGroup: !!grp && grp.contains(t), textInFrame: f.contains(t), frameParentIsGroup: f.parentElement === grp || f.parentElement?.parentElement === grp }; });
+  expect(g, '★새 공통 그룹 · 글자는 프레임 «안»이 아니라 그룹 안 · 프레임도 그룹 안').toEqual({ group: true, sameGroup: true, textInFrame: false, frameParentIsGroup: true });
+  const r1 = await page.evaluate(() => { const q = document.getElementById('tfO').getBoundingClientRect(); return [Math.round(q.left), Math.round(q.top), Math.round(q.width)]; });
+  expect(r1.map((v, i) => Math.abs(v - r0[i]) <= 1), `★글자 화면 자리 그대로 ${JSON.stringify([r0, r1])}`).toEqual([true, true, true]);
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .ss-resize-handle')].filter((h) => h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none').length), '★그룹 손잡이 8').toBe(8);
+  expect(p0, '[전제] 묶기 전 프레임 부모 기록').toBeTruthy();
   expect(errs).toEqual([]);
 });

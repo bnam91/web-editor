@@ -2549,7 +2549,11 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     };
     const hosts    = [...new Set(units.filter(u => u.parentElement !== sec).map(_liftToFrame))];
     if (floaters.length && hosts.length) {
-      const host = (hosts.length === 1 && _isHostFrame(hosts[0])) ? hosts[0] : null;
+      /* ★t13D-07 ⑤(현빈 결정 261120 · 매니저 경유) — 오버레이 «글자»(텍스트 프레임)가 섞인 ⌘G 는 «일반 그룹»: 그 자리 그대로 공통 그룹을 새로 만든다
+         (프레임 «안으로 넣기»·reparent 금지 · 공통 상자 손잡이로 크기·스케일). 9/30 «떠 있는 것을 자유배치 프레임 안으로» 규칙(줌블럭 등)은 이 조합엔 안 탄다
+         ⇒ host 를 비워 아래 t5-08 길(흐름 블럭 = 새 그룹 · 떠 있는 것 = 그 그룹 안 같은 화면 자리)로 보낸다. ⌘⌥G(프레임 묶기)는 종전대로. */
+      const _overlayText = asGroup && floaters.some(u => u.dataset.textFrame === 'true');
+      const host = (!_overlayText && hosts.length === 1 && _isHostFrame(hosts[0])) ? hosts[0] : null;
       // ★t5-07 — 이름(zoom-block) 대신 성질: 제 방식 떠 있는 블럭(줌 · 그라데이션 · 스티커) 또는 오버레이
       const _canNest = u => _ownFloat(u) || u.dataset.overlayBlock === 'true';
       const bad = floaters.filter(u => !_canNest(u));
