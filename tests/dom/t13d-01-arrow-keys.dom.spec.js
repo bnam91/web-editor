@@ -76,7 +76,9 @@ test('K4 갭 ↑↓ = 높이 ±4 · ⇧↑ = 높이 무변 + 고르기만', asyn
   await pick(page, ids.gap);
   const h = () => page.evaluate((id) => document.getElementById(id).offsetHeight, ids.gap);
   const h0 = await h();
+  expect(await page.evaluate(() => [...document.querySelectorAll('.gap-preset-btn.active')].map((b) => b.dataset.h)), `[전제] 패널 프리셋 불 = 옛 높이 칸(${h0}) — 없으면 아래 «불 꺼짐» 단언이 죽은 줄`).toEqual([String(h0)]);
   await page.keyboard.press('ArrowUp'); await expect.poll(h, '★↑ = +4(고침 전 판에서 빨강이면 «죽은 길» 확정)').toBe(h0 + 4);
+  expect(await page.evaluate(() => [...document.querySelectorAll('.gap-preset-btn.active')].map((b) => b.dataset.h)), '★프리셋 불 = 높이와 같은 칸만(44 = 없음 · 실물 png 에서 40 이 켜진 채였다)').toEqual([]);
   await page.keyboard.press('ArrowDown'); await expect.poll(h, '★↓ = −4').toBe(h0);
   const dg4 = await diag(page);
   await page.keyboard.press('Shift+ArrowUp'); await expect.poll(() => selId(page), { message: `★⇧↑ = 고르기 이동(위 글) · 앞 ${JSON.stringify(dg4)} · 뒤 ${JSON.stringify(await diag(page))}`, timeout: 2000 }).toBe(ids.t1);

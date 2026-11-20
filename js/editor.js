@@ -3517,6 +3517,7 @@ document.addEventListener('keydown', e => {
           const nb = document.getElementById('gap-number');
           if (sl) sl.value = next;
           if (nb) nb.value = next;
+          (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === next));   // 프리셋 칸 불(숫자키 갈래와 같은 꼴 · t13D-01 실물 png 에서 찾음)
           coalesceSizeHistory(gb, '간격 조정');
           window.scheduleAutoSave?.();
           return;
@@ -3541,6 +3542,7 @@ document.addEventListener('keydown', e => {
       const nb = document.getElementById('gap-number');
       if (sl) sl.value = next;
       if (nb) nb.value = next;
+      (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === next));   // 프리셋 칸 불(숫자키 갈래와 같은 꼴 · t13D-01 실물 png 에서 찾음)
       window.scheduleAutoSave?.();
       return;
     }
