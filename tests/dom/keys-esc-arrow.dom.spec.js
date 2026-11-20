@@ -71,6 +71,7 @@ const BUNDLE = [
   extractFn(SRC, '_deepestCanvasSelection'),
   extractFn(SRC, '_freePositionedAncestor'),
   extractFn(SRC, '_freeNudgeTargets'),
+  extractFn(SRC, '_selectFlowSibling'),   // t13D-01 — 화살표 분기가 ⇧↑↓ 흐름 고르기에서 부른다(안 실으면 그 갈래에서 ReferenceError)
   'window.__closeFpMenus = closeFpMenus;',
   'window.__freeNudgeTargets = _freeNudgeTargets;',
   'window.__deepestCanvasSelection = _deepestCanvasSelection;',

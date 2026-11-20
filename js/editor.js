@@ -2473,7 +2473,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) windo
 // 갭 블록 높이 키 조정 후 keyup 시 undo 기록
 document.addEventListener('keyup', e => {
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;   // t13D-01 — ⇧↑↓ 는 고르기 이동(높이 안 바꿈) → 빈 이력 칸 안 쌓음
   if (document.querySelector('.gap-block.selected')) pushHistory();
 });
 
@@ -2615,8 +2615,32 @@ function _freePositionedAncestor(el) {
   for (let n = el; n && n !== canvas; n = n.parentElement) {
     if (n.parentElement?.matches?.('.frame-block[data-free-layout]')
         && getComputedStyle(n).position === 'absolute') return n;
+    /* t13D-01(현빈 «오버레이 밀기 유지» 261120) — 섹션 직속 오버레이(overlay-float.js enterFloat · 자리 정본 dataset.offsetX/Y)도 좌표를 가진 사람 */
+    if (n.dataset?.overlayBlock === 'true' && n.parentElement?.classList?.contains('section-block')
+        && getComputedStyle(n).position === 'absolute') return n;
   }
   return null;
+}
+/** t13D-01 — 고른 것의 «흐름 단위»(섹션 .section-inner 의 직속 자식 · 오버레이·absolute 는 아님)에서 dir(±1) 만큼 옆 단위를 고른다(끝↔처음 순환).
+ *  여러 개 고름이면 _deepestCanvasSelection 이 준 하나 기준(⑤) · 고르기 = 정본 한 자리 selectBlock(js/block-edit.js) + 클릭 경로처럼 손잡이(showHandlesFor — t13D-02 와 같은 이유) · 화면 밖이면 가까이 스크롤. */
+function _selectFlowSibling(sel, dir) {
+  const inner = sel.closest('.section-inner');
+  if (!inner) return false;
+  let unit = sel; while (unit && unit.parentElement !== inner) unit = unit.parentElement;
+  const isFlow = (el) => el.nodeType === 1 && el.id && !el.classList.contains('drop-indicator') && el.dataset.overlayBlock !== 'true'
+    && getComputedStyle(el).position !== 'absolute' && getComputedStyle(el).display !== 'none';
+  const units = [...inner.children].filter(isFlow);
+  if (!units.length) return false;
+  const i = unit ? units.indexOf(unit) : -1;
+  const next = units[((i < 0 ? (dir > 0 ? -1 : 0) : i) + dir + units.length) % units.length];
+  /* 단위 → 고를 블럭: 텍스트 프레임은 글자 블럭 · row 는 첫 블럭 · 갭·프레임·그 밖은 단위 자신 */
+  const leaf = next.matches('.frame-block[data-text-frame]') ? (next.querySelector('.text-block') || next)
+    : next.classList.contains('row') ? ([...next.querySelectorAll('[id]')].find((x) => !x.classList.contains('col') && x.closest('.row') === next) || next)
+    : next;
+  if (!leaf.id || !window.selectBlock?.(leaf.id)) return false;
+  window.showHandlesFor?.(leaf);
+  leaf.scrollIntoView?.({ block: 'nearest' });
+  return true;
 }
 /** 단일·다중선택 모두 커버. 중첩 프레임에서 «조상과 자식이 둘 다» 잡힐 때는 조상을 버린다(이중 이동 방지). */
 function _freeNudgeTargets() {
@@ -3282,6 +3306,13 @@ document.addEventListener('keydown', e => {
       if (_sel && !_sel.classList.contains('section-block')) {
         e.preventDefault();
         const _movers = _freeNudgeTargets();
+        /* t13D-01(현빈 결정 261120 · 지디 추천 ①~⑥) — 좌표 없는 «흐름» 블럭: ⇧↑↓ = 섹션 안 이전/다음 흐름 단위 고르기(끝↔처음 순환) ·
+           ←→ 무동작 · ↑↓(⇧ 없이) 는 갭이면 아래 갭 높이 갈래로 넘긴다(예전엔 이 return 이 먼저라 갭 ↑↓ 높이가 «죽은 길»이었다 — 정적 읽기) · 글 편집·입력칸은 위에서 이미 거름 */
+        const _gapFall = !_movers.length && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && _sel.classList.contains('gap-block');
+        if (!_movers.length && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          if (!document.querySelector('.grd-line-selected')) _selectFlowSibling(_sel, e.key === 'ArrowUp' ? -1 : 1);   // ⑥ 그리드 줄 고름이면 무동작
+          return;
+        }
         if (_movers.length) {
           const _step = e.shiftKey ? 10 : 1;
           const _now = Date.now();
@@ -3302,7 +3333,7 @@ document.addEventListener('keydown', e => {
           if (_yNum) _yNum.value = Math.round(parseFloat(_m0.style.top)  || 0);
           window.scheduleAutoSave?.();
         }
-        return;
+        if (!_gapFall) return;
       }
     }
   }
@@ -3494,13 +3525,13 @@ document.addEventListener('keydown', e => {
     }
   }
 
-  // ── 갭 블록 높이 조정: 방향키 (수정키 없음 or Shift) ──
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  // ── 갭 블록 높이 조정: 방향키(수정키 없음) — t13D-01: ⇧↑↓ 는 «고르기 이동»이라 큰 단계(±20)는 걷음(패널 슬라이더·숫자가 대신) ──
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
     const selGap = document.querySelector('.gap-block.selected');
     if (selGap) {
       e.preventDefault();
-      const step = e.shiftKey ? 20 : 4;
+      const step = 4;
       const delta = e.key === 'ArrowUp' ? step : -step;
       const cur = selGap.offsetHeight;
       const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + delta));
