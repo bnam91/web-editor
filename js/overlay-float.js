@@ -702,23 +702,25 @@ export function bindFloatMoveDrag(posEl) {
       const rawX = startLeft + (ev.clientX - startClientX) / zoom;
       const rawY = startTop  + (ev.clientY - startClientY) / zoom;
       let cx = rawX, cy = rawY;
+      /* ★t13D-04 — 스마트 가이드 = 프레임 안 끌기와 같은 것(smart-guides.js · 부모 = 섹션): 섹션 가장자리·가로세로 중앙 + 다른 떠 있는 블럭의 엣지·중앙에 자석 + 가이드선.
+         ⌘(trulyFree) = 자석 끔(«저항 없는 완전 자유»와 같은 뜻 · Figma 도 ⌘ 로 스냅을 끈다).
+         ★자석은 탄성 클램프 «앞»(날 좌표)에 건다 — 뒤에 걸면 가장자리에 붙은 큰 블럭(섹션 폭 모달 등)의 탄성 «내줌»(몇 px)을 자석이 도로 0 으로 당겨
+           끌어도 상자가 안 움직였다(인텔 overlay-drag-autosave-defer-156 D1 · 4b7403ad7 부터). 안쪽(클램프 무동작)에서는 결과가 같다.
+         shortcut: 회전한 것은 건너뛴다(가이드가 회전 «전» 상자로 잰다) — 회전 상자 기준선이 필요해지면 rotatedAABB 로 엣지를 바꿔 넘긴다. */
+      const SG = window.SmartGuides, _guide = !!SG && !trulyFree && !(rotDeg % 360);
+      if (_guide) { const sn = SG.snapPosition(cx, cy, posEl, box, zoom); cx = sn.left; cy = sn.top; }
       if (!trulyFree) {
         // ★회전 보정 — 탄성 클램프도 «화면에 실제로 보이는» 축정렬 박스(clampW×clampH)
         //   기준으로 해야 한다. 프레임 중심(회전 원점, transform-origin:center center)은
         //   회전과 무관하게 rawX+W/2, rawY+H/2 그대로다 — 그 중심에서 화면 박스의
         //   좌상단(visLeft/Top)을 구해 탄성 클램프하고, 다시 프레임 원점(left/top)으로 되돌린다.
-        const cxCenter = rawX + posEl.offsetWidth / 2, cyCenter = rawY + posEl.offsetHeight / 2;
+        const cxCenter = cx + posEl.offsetWidth / 2, cyCenter = cy + posEl.offsetHeight / 2;   // t13D-04 — 자석 뒤 좌표에서
         const visLeft = cxCenter - clampW / 2, visTop = cyCenter - clampH / 2;
         const resistZone = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom;
         const [clVisLeft, clVisTop] = _elasticClampToSection(visLeft, visTop, box, clampW, clampH, resistZone);
         cx = clVisLeft + clampW / 2 - posEl.offsetWidth / 2;
         cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
       }
-      /* ★t13D-04 — 스마트 가이드 = 프레임 안 끌기와 같은 것(smart-guides.js · 부모 = 섹션): 섹션 가장자리·가로세로 중앙 + 다른 떠 있는 블럭의 엣지·중앙에 자석 + 가이드선.
-         ⌘(trulyFree) = 자석 끔(«저항 없는 완전 자유»와 같은 뜻 · Figma 도 ⌘ 로 스냅을 끈다).
-         shortcut: 회전한 것은 건너뛴다(가이드가 회전 «전» 상자로 잰다) — 회전 상자 기준선이 필요해지면 rotatedAABB 로 엣지를 바꿔 넘긴다. */
-      const SG = window.SmartGuides, _guide = !!SG && !trulyFree && !(rotDeg % 360);
-      if (_guide) { const sn = SG.snapPosition(cx, cy, posEl, box, zoom); cx = sn.left; cy = sn.top; }
       _applyOverlayPos(posEl, cx, cy);
       if (_guide) SG.showGuides(posEl, box, zoom); else SG?.hideGuides();
       lastClientX = ev.clientX; lastClientY = ev.clientY;
