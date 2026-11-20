@@ -3119,7 +3119,8 @@ document.addEventListener('keydown', e => {
   // t13A-02 연필(N) · 붓(⇧B) 토글 — 입력/contenteditable 가드(P 와 같은 꼴). 키 충돌 grep: KeyN·Shift+KeyB 빈 키(⌘B 굵게와 다름)
   if (((e.code === 'KeyN' && !e.shiftKey) || (e.code === 'KeyB' && e.shiftKey)) && !e.metaKey && !e.ctrlKey && !e.altKey) {
     const tag = document.activeElement?.tagName;
-    if (!(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable)) {
+    // 막대(#fh-bar) 보정 손잡이·붓 고르기에 포커스가 남아도 키는 먹는다(글자 칸 아님 — 손잡이 뒤 ⇧B 가 거름에 막혀 «연필 N» 그대로였다)
+    if (document.activeElement?.closest?.('#fh-bar') || !(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable)) {
       e.preventDefault();
       window.toggleFreehand?.(e.code === 'KeyN' ? 'pencil' : 'brush');
       return;
