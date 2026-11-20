@@ -73,24 +73,11 @@ export function showAssetProperties(ab) {
   const usePadX       = typeof window.getEffectiveUsePadx === 'function'
     ? window.getEffectiveUsePadx(ab)
     : (ab.dataset.usePadx === 'true');
-  /* ⛔이름 충돌 주의 — 바로 아래 `overlayOn`/`asset-overlay-toggle` 은 «이미지 위에 어두운 막 +
-     텍스트를 얹는» Text Overlay 다(.asset-overlay). 이번 건(오버레이=플로팅, Figma 의 Ignore
-     Auto Layout)과 «완전히 다른 기능»인데 이름만 같다. 그래서 새 토글의 id 는
-     `asset-float-toggle` 이다 — 같은 id 를 쓰면 getElementById 가 먼저 것을 잡아 두 기능이
-     서로를 눌러 버린다(.guard/FEATURE_REGISTRY.md 가 옛 id 를 계약으로 못 박고 있다).
-     (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
+  /* 1120b A4(현빈 261120) — 옛 「텍스트 막」(이미지 위 어두운 막 · #asset-overlay-toggle · data-overlay)은 패널에서 걷었다.
+     저장본의 data-overlay·.asset-overlay 는 그대로 읽고 그린다(옛 프로젝트 열림 보장) · 패널은 더 만들지 않는다.
+     플로팅 토글 id 는 여전히 asset-float-toggle(.guard/FEATURE_REGISTRY.md 옛 계약의 이름 충돌 주의 그대로). */
   const floatPosEl     = posElOf(ab);
   const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
-  const overlayOn     = ab.dataset.overlay === 'true';
-  // 기존 overlay 요소 가져오기 (없으면 생성)
-  let overlayEl = ab.querySelector('.asset-overlay');
-  if (!overlayEl) {
-    overlayEl = document.createElement('div');
-    overlayEl.className = 'asset-overlay';
-    ab.appendChild(overlayEl);
-  }
-  const overlayColor = overlayEl.style.color || '#ffffff';
-  const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
   // 그레인(필름 노이즈) — asset-overlay와 같은 패턴: 형제 오버레이 div + dataset.
   // ⛔패널을 열기만 해도 만들면 안 된다(적대적 QA a1-a3 지적) — 실제로 강도를 설정할 때만
@@ -235,7 +222,7 @@ export function showAssetProperties(ab) {
           ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
           ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
           ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
-      </div>`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※Effects 절의 「텍스트 막」(이미지 위 어두운 막)과는 다른 기능입니다.' }) }),
+      </div>`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ' }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -292,32 +279,8 @@ export function showAssetProperties(ab) {
         <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
         <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
       </div>`),
-      /* 옛 「Text Overlay」(이미지 위 어두운 막) + 효과 목록. ★개명 안 한 id(asset-overlay-toggle)는 .guard/FEATURE_REGISTRY.md 계약 —
-         플로팅(asset-float-toggle · Position 절)과 갈라 보이게 줄 라벨을 「텍스트 막」(어두운 막 + 글 담는 그릇)으로(옛 설명 힌트 한 줄 대신 — 힌트 ≤2) */
-      sec('effects', `
-      <div class="prop-row">
-        <span class="prop-label">텍스트 막</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-overlay-toggle" ${overlayOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div id="asset-overlay-controls" style="${overlayOn ? '' : 'display:none'}" title="이 블록 선택 후 중앙 패널로 블록 추가">
-        <div class="prop-row">
-          <span class="prop-label">불투명</span>
-          <input type="range" class="prop-slider" id="asset-overlay-opacity" min="0" max="100" step="1" value="${Math.round(overlayOpacity * 100)}">
-          <input type="number" class="prop-number" id="asset-overlay-opacity-num" min="0" max="100" value="${Math.round(overlayOpacity * 100)}">
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">위치</span>
-          <div class="prop-align-group" id="overlay-position-group">
-            ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-start', attrs: { 'data-pos': 'flex-start' } })}
-            ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: (overlayEl.style.justifyContent||'center')==='center', attrs: { 'data-pos': 'center' } })}
-            ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-end', attrs: { 'data-pos': 'flex-end' } })}
-          </div>
-        </div>
-        <!-- 옛 힌트 「이 블록 선택 후 중앙 패널로 블록 추가」 → 위 묶음 title(패널당 힌트 ≤2) -->
-      </div>${_fx?.body || ''}`, { headTools: _fx?.headTools || '', id: _fx?.id }),
+      /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */
+      sec('effects', _fx?.body || '', { headTools: _fx?.headTools || '', id: _fx?.id }),
       // 영상 트림(옛 「Video 트림」)
       sec('special', hasImage && isVideo && trimReady ? videoTrimSectionHTML(ab) : '', { title: 'Trim' }),
       // 로고 콜라보(옛 「Collab」) — id 보존(asset-collab-section). X 색(asset-collab-xcolor)은 data-own 으로 Collab 소유
@@ -726,41 +689,6 @@ export function showAssetProperties(ab) {
     ckOn.addEventListener('change',  () => { if (ckOn.checked)  applyTone(true);  });
     ckOff.addEventListener('change', () => { if (ckOff.checked) applyTone(false); });
   }
-
-  // ── 오버레이 이벤트 바인딩 ──
-  const applyOverlayBg = opacity => {
-    overlayEl.style.background = `rgba(0,0,0,${opacity})`;
-    overlayEl.dataset.ovOpacity = String(opacity);
-  };
-
-  document.getElementById('asset-overlay-toggle').addEventListener('change', e => {
-    const on = e.target.checked;
-    ab.dataset.overlay = on ? 'true' : 'false';
-    document.getElementById('asset-overlay-controls').style.display = on ? '' : 'none';
-    window.pushHistory();
-  });
-
-  const ovOpSlider = document.getElementById('asset-overlay-opacity');
-  const ovOpNum    = document.getElementById('asset-overlay-opacity-num');
-  ovOpSlider.addEventListener('input', () => {
-    const v = parseInt(ovOpSlider.value) / 100;
-    ovOpNum.value = ovOpSlider.value;
-    applyOverlayBg(v);
-  });
-  ovOpNum.addEventListener('change', () => {
-    const v = Math.min(100, Math.max(0, parseInt(ovOpNum.value) || 0));
-    ovOpSlider.value = v;
-    applyOverlayBg(v / 100);
-  });
-
-  // 오버레이 위치
-  propPanel.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      overlayEl.style.justifyContent = btn.dataset.pos;
-      propPanel.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
-      window.pushHistory();
-    });
-  });
 
   window.wireFxSection?.(ab, 'asset', () => showAssetProperties(ab));   // ★E1 Effects
 

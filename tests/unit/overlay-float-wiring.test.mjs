@@ -100,7 +100,8 @@ test('T2-b ★버튼 id 셋이 서로 다르고, 에셋은 Text Overlay 의 id �
      같은 id 를 쓰면 getElementById 가 먼저 것을 잡아 두 기능이 서로를 눌러 버린다. */
   assert.ok(!ids.includes('asset-overlay-toggle'),
     '플로팅 토글이 Text Overlay 의 id(asset-overlay-toggle)를 가로챘다');
-  assert.match(SRC.asset, /id="asset-overlay-toggle"/, 'Text Overlay 체크박스가 사라졌다 — 기존 기능 회귀');
+  /* 1120b A4(현빈 261120 「텍스트 막 토글 CSS·기능 없앨 것」) — 옛 Text Overlay 체크박스는 걷혔다(그 id 를 다른 것이 다시 쓰지도 않는다) */
+  assert.doesNotMatch(SRC.asset, /id="asset-overlay-toggle"/, 'Text Overlay 체크박스가 되살아났다(1120b A4 에서 걷음)');
   assert.match(SRC.asset, /asset-float-toggle/, '에셋 플로팅 토글 id 가 없다');
 });
 

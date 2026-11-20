@@ -14,9 +14,9 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d
 
 /* make = 페이지 안에서 돌 함수 본문(블록 element 를 돌려준다) · open = 패널 여는 전역 · ctl = 조작할 컨트롤 */
 const V = [
-  { name: 'asset 기본', make: `return add('asset-block', () => window.addAssetBlock('standard'));`, open: 'showAssetProperties', ctl: { id: 'asset-overlay-toggle', click: true } },
+  { name: 'asset 기본', make: `return add('asset-block', () => window.addAssetBlock('standard'));`, open: 'showAssetProperties', ctl: { id: 'asset-clip-toggle', click: true } /* 1120b A4 — 텍스트 막 토글 걷음 ⇒ 같은 꼴(체크박스 토글) 내용 자르기 */ },
   { name: 'asset 이미지', make: `const b = add('asset-block', () => window.addAssetBlock('standard')); window.setAssetImageFromSrc(b, ${JSON.stringify(PNG)}); return b;`, open: 'showAssetProperties', ctl: { id: 'asset-grain-slider', value: '30' } },
-  { name: 'asset 영상', make: `const b = add('asset-block', () => window.addAssetBlock('standard')); b.classList.add('has-image'); b.dataset.assetType = 'video-pending'; return b;`, open: 'showAssetProperties', ctl: { id: 'asset-overlay-toggle', click: true } },
+  { name: 'asset 영상', make: `const b = add('asset-block', () => window.addAssetBlock('standard')); b.classList.add('has-image'); b.dataset.assetType = 'video-pending'; return b;`, open: 'showAssetProperties', ctl: { id: 'asset-clip-toggle', click: true } /* 1120b A4 — 텍스트 막 토글 걷음 ⇒ 같은 꼴(체크박스 토글) 내용 자르기 */ },
   { name: 'asset 로고', make: `return add('asset-block', () => window.addAssetBlock('logo'));`, open: 'showAssetProperties', ctl: { id: 'asset-collab-toggle', click: true } },
   { name: 'asset 플로팅', make: `return add('asset-block', () => window.addAssetBlock('standard'));`, open: 'showAssetProperties', ctl: { id: 'asset-float-toggle', click: true }, after: 'asset-x-number' },
   { name: 'shape 사각', make: `return add('shape-block', () => window.addShapeBlock('rectangle'));`, open: 'showShapeProperties', ctl: { id: 'shape-rot-num', value: '30' } },   // ★기대 바뀜(Q20 · 시안 v10 — 회전 슬라이더 → 각도 칸)
