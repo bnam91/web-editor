@@ -562,6 +562,8 @@ export function selectionUnion() { return _union && { ..._union }; }
 const _UDIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 let _unionScalable = false;
 const _isFree = (el) => el.classList.contains('sticker-block') || getComputedStyle(el).position === 'absolute';
+/* t13D-07(현빈 0.9.13) — 흐름 프레임은 섞여도 손잡이를 단다: 좌표 없이 «크기만»(onUnionHandleDown s.flow) · 자식은 ⌘G 묶음처럼 비례. 흐름 글자 등 다른 흐름 블럭은 종전대로 손잡이 없음. */
+const _isFlowFrame = (el) => el.classList.contains('frame-block') && el.dataset.textFrame !== 'true';
 function _placeUnionHandles(r) {
   const ov = document.getElementById('ss-handles-overlay');
   if (!ov) return;
@@ -620,7 +622,7 @@ function _frame() {
     items = _build() || [];
   }
   // 매 프레임 — 자리 방식(absolute↔흐름)은 style 만 바뀌어 MO(class·childList)가 못 본다. 고른 것 몇 개의 computed style 읽기라 싸다(_build 가 이미 배치를 읽었다).
-  _unionScalable = _targets.every(t => t.inner || _isFree(t.el));
+  _unionScalable = _targets.every(t => t.inner || _isFree(t.el) || _isFlowFrame(t.el));
   _render(items);
   if (items.length) _raf = requestAnimationFrame(_frame);   // 집합이 비면 루프 정지(MO 가 다시 깨운다)
 }

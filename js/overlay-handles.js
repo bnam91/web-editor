@@ -535,9 +535,11 @@ function _applyBox(s, L, T, sx, sy, fs) {
     e.style.width = W + 'px'; e.style.height = keep(s.h, sy) + 'px';
     return;
   }
-  L = Math.round(L); T = Math.round(T);
-  e.style.left = L + 'px'; e.dataset.offsetX = String(L);
-  e.style.top = T + 'px'; e.dataset.offsetY = String(T);
+  if (!s.flow) {   // t13D-07 — 흐름 프레임은 자리를 흐름이 정한다 ⇒ 크기만(좌표·offset 안 씀)
+    L = Math.round(L); T = Math.round(T);
+    e.style.left = L + 'px'; e.dataset.offsetX = String(L);
+    e.style.top = T + 'px'; e.dataset.offsetY = String(T);
+  }
   e.style.width = W + 'px';
   if (e.dataset.width !== undefined && e.dataset.width !== '100%') e.dataset.width = String(W);
   if (s.isTextFrame) { if (s.contentEl && s.fs) s.contentEl.style.fontSize = (s.fs * fs).toFixed(1) + 'px'; }   // 글자 높이는 글자 크기가 정한다
@@ -562,6 +564,7 @@ export function onUnionHandleDown(e, dir, U, els) {
   const snaps = els.filter(el => el.isConnected).map(el => {
     const s = _snapOf(el), op = el.offsetParent || el.parentElement, pr = op.getBoundingClientRect();
     s.px = pr.left + op.clientLeft * scale; s.py = pr.top + op.clientTop * scale;   // 부모의 left/top 원점(화면 px)
+    s.flow = !s.sticker && getComputedStyle(el).position !== 'absolute';   // t13D-07 — 흐름 프레임(selection-overlay _isFlowFrame) = 크기만 · shortcut: 맞은편 고정 대신 제 왼위 기준으로 자란다, 흐름 자리까지 맞추려면 형제 흐름 재배치가 필요
     return s;
   });
   if (!snaps.length || W0 <= 0 || H0 <= 0) return;
