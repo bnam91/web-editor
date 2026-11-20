@@ -4703,6 +4703,7 @@ function _onTextBoxResizeMouseDown(e, el, dir) {
       const h = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, Math.round(startH + dh)));
       el.style.height = h + 'px';
       const sl = document.getElementById('gap-slider'), nb = document.getElementById('gap-number'); if (sl) sl.value = h; if (nb) nb.value = h;
+      (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === h));   // 프리셋 칸 불(editor.js 숫자키 갈래와 같은 꼴)
       window.scheduleAutoSave?.();
       return;
     }
