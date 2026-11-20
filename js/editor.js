@@ -2446,21 +2446,26 @@ function pasteClipboard() {
        * ★2026-09-20 — textFrame 하드코딩을 뺐다(도형 래퍼·에셋도 같은 속성으로 뜬다). */
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
+      /* ★t13D-06 — «들어간» 프레임(_pasteTarget into)에 붙이면 = 그 프레임 안 오버레이(주인 = overlay-float.js floatHostOf) ·
+         자리 = 그 프레임 기준 화면 가운데 → 프레임 상자 안(_placePastedOverlay 가 그릇 clientWidth/Height 로 죈다 · 섹션 갈래와 같은 산식) ·
+         해제 자리 = 이 프레임 맨 앞. 들어간 프레임이 없으면 옛 그대로 섹션. */
+      const box = _t?.into || sec;
       const curX = parseInt(el.style.left) || 0;
       const curY = parseInt(el.style.top) || 0;
-      const vp = _viewportCenterInContainerLocal(sec);
+      const vp = _viewportCenterInContainerLocal(box);
       const rawX = vp ? Math.round(vp.x) : curX + 20;
       const rawY = vp ? Math.round(vp.y) : curY + 20;
-      sec.appendChild(el);
+      box.appendChild(el);
       _bindPastedEl(el);
       // ★자리 계산은 «붙인 뒤» — 사본의 실제 크기와 섹션 상자를 재야 한다(_placePastedOverlay).
-      const { x: nx, y: ny } = _placePastedOverlay(sec, el, rawX, rawY);
+      const { x: nx, y: ny } = _placePastedOverlay(box, el, rawX, rawY);
       el.style.left = nx + 'px'; el.style.top = ny + 'px';
       el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       // 복귀정보는 원본 것을 그대로 물려받으면 안 된다(원본 부모에 잘못 꽂힌다) —
-      // 지워서 exitOverlay의 기존 폴백(섹션 맨 앞)을 타게 한다.
+      // 지워서 exitOverlay의 기존 폴백(섹션 맨 앞)을 타게 한다. (t13D-06 — 프레임에 붙였으면 그 프레임 맨 앞)
       delete el.dataset.overlayReturnParent;
       delete el.dataset.overlayReturnAfter;
+      if (box !== sec && box.id) { el.dataset.overlayReturnParent = box.id; el.dataset.overlayReturnAfter = ''; }
       deselectAll();
       // 선택 대상 = 안쪽 콘텐츠 블록(텍스트/도형) 또는 자기 자신(에셋). 이름 목록이 아니라
       // 「래퍼면 안쪽 블록」이라는 구조로 집는다.
@@ -2651,7 +2656,7 @@ function _freePositionedAncestor(el) {
     if (n.parentElement?.matches?.('.frame-block[data-free-layout]')
         && getComputedStyle(n).position === 'absolute') return n;
     /* t13D-01(현빈 «오버레이 밀기 유지» 261120) — 섹션 직속 오버레이(overlay-float.js enterFloat · 자리 정본 dataset.offsetX/Y)도 좌표를 가진 사람 */
-    if (n.dataset?.overlayBlock === 'true' && n.parentElement?.classList?.contains('section-block')
+    if (n.dataset?.overlayBlock === 'true' && (n.parentElement?.classList?.contains('section-block') || n.parentElement?.classList?.contains('frame-block'))   // t13D-06 — 프레임 안 오버레이도(스택 프레임은 위 free-layout 갈래가 못 잡는다)
         && getComputedStyle(n).position === 'absolute') return n;
   }
   return null;

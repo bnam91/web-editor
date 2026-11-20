@@ -22,7 +22,7 @@
 ═══════════════════════════════════════════════════════════════════════════ */
 
 import { rotatedAABB, blockRotationDeg } from './frame-geometry.js';
-import { shapeFrameOf } from './shape-frame.js';
+import { shapeFrameOf, isShapeFrame } from './shape-frame.js';
 
 function _zoom() {
   return (window.currentZoom || 40) / 100;
@@ -321,6 +321,18 @@ function _unfreezeWidth(posEl) {
   return false;
 }
 
+/* ★t13D-06(0.9.13 · 현빈 «프레임 안에서도 자식 블럭을 오버레이로 · 프레임을 옮기면 같이») — 오버레이의 «자리 주인».
+   posEl 바깥 첫 일반 프레임(글 프레임·도형 래퍼 아님)이 같은 섹션 안에 있으면 그 프레임, 없으면 섹션.
+   프레임 주인이면 좌표(dataset.offsetX/Y · left/top)는 그 프레임 기준이고 DOM 도 그 프레임 자식이다 ⇒ 프레임을 끌거나 순서를 바꾸면 같이 간다.
+   ⛔섹션 오버레이는 무변(주인 = 섹션 · 섹션 넘나들기 그대로). */
+export function floatHostOf(posEl) {
+  const sec = posEl?.closest?.('.section-block');
+  if (!sec) return null;
+  let fr = posEl.parentElement?.closest?.('.frame-block:not([data-text-frame])');
+  while (fr && isShapeFrame(fr)) fr = fr.parentElement?.closest?.('.frame-block:not([data-text-frame])');
+  return (fr && sec.contains(fr)) ? fr : sec;
+}
+
 // 오토레이아웃 → 오버레이(플로팅) 전환
 export function enterFloat(posEl) {
   if (!posEl) return false;
@@ -354,10 +366,11 @@ export function enterFloat(posEl) {
 
   // 현재 화면 위치 → 섹션 기준 좌표로 고정 (줌 보정, freeLayout 드래그와 같은 계산식)
   const zoom = _zoom();
-  const secRect = sec.getBoundingClientRect();
+  const host = floatHostOf(posEl) || sec;   // t13D-06 — 프레임 안이면 그 프레임 기준(패딩 상자 = 테두리 안쪽)
+  const secRect = host.getBoundingClientRect();
   const elRect  = posEl.getBoundingClientRect();
-  let x = (elRect.left - secRect.left) / zoom;
-  let y = (elRect.top  - secRect.top)  / zoom;
+  let x = (elRect.left - secRect.left) / zoom - (host === sec ? 0 : (host.clientLeft || 0));
+  let y = (elRect.top  - secRect.top)  / zoom - (host === sec ? 0 : (host.clientTop || 0));
   /* ★posEl «자신»이 회전(transform)을 쥔 타입(아이콘 B1)은 rect 가 회전된 «외접 사각형»이라 left/top(회전 전 상자 기준)보다
      (외접−원래)/2 만큼 바깥이다 — 그대로 굳히면 띄우는 순간 그만큼 점프한다(45° 80px 아이콘 실측 34px). 회전은 중심축이라 반만큼 되돌린다.
      래퍼가 회전하지 않는 텍스트·도형은 transform 이 'none' 이라 이 두 줄이 0 을 더한다(동작 불변). */
@@ -370,7 +383,7 @@ export function enterFloat(posEl) {
      우리가 유지해야 할 자리다. 먼저 걷어내고 재면 마진만큼 어긋난 자리를 «정답»으로 굳힌다. */
   _freezeMargins(posEl);
 
-  sec.appendChild(posEl); // 섹션 직접 자식 — 스티커/확대블럭과 같은 스태킹(DOM 뒤 = 맨 위)
+  host.appendChild(posEl); // 섹션(또는 t13D-06 프레임) 직접 자식 — 스티커/확대블럭과 같은 스태킹(DOM 뒤 = 맨 위)
   posEl.style.position = 'absolute';
   _applyOverlayPos(posEl, x, y);
   posEl.dataset.overlayBlock = 'true';
@@ -485,11 +498,16 @@ export function exitFloat(posEl) {
     }
   }
 
-  posEl.style.position = '';
-  posEl.style.left = '';
-  posEl.style.top  = '';
-  delete posEl.dataset.offsetX;
-  delete posEl.dataset.offsetY;
+  /* ★t13D-06 — 돌아간 곳이 자유배치 프레임이면 «자유 자식»(좌표로 산다)으로 남긴다: 흐름으로 풀면 그 프레임 안에서 맨 위로 겹쳐 쌓인다.
+     좌표 = 지금 자리(프레임 안 오버레이였으면 이미 그 프레임 기준 · dataset.offsetX/Y 그대로). 흐름 자리(섹션·스택 프레임)는 옛 그대로 푼다. */
+  const _keepFree = !!target?.matches?.('.frame-block[data-free-layout="true"]') && !isShapeFrame(target) && posEl.parentElement === target;
+  if (!_keepFree) {
+    posEl.style.position = '';
+    posEl.style.left = '';
+    posEl.style.top  = '';
+    delete posEl.dataset.offsetX;
+    delete posEl.dataset.offsetY;
+  }
   delete posEl.dataset.overlayBlock;
   delete posEl.dataset.overlayReturnParent;
   delete posEl.dataset.overlayReturnAfter;
@@ -560,6 +578,9 @@ export function bindFloatMoveDrag(posEl) {
 
     let sec = posEl.closest('.section-block');
     if (!sec) return;
+    /* t13D-06 — 자리 주인(box): 섹션 오버레이 = 섹션(넘나들기 그대로) · 프레임 안 오버레이 = 그 프레임(그 안에서 탄성 · 섹션 넘나들기 없음 · 가이드도 그 프레임 기준) */
+    let box = floatHostOf(posEl) || sec;
+    const inFrame = box !== sec;
     const zoom = _zoom();
     /* ★2026-09-16h P0(현빈 실측 — "90도 회전 후 좌우 이동이 안 된다") — 회전된 오버레이는
        getBoundingClientRect()가 회전 «후» 화면상 축정렬 bounding box를 돌려준다(T-026과
@@ -604,8 +625,8 @@ export function bindFloatMoveDrag(posEl) {
        아래 클램프와 «같은 공간»(회전 보정된 화면 박스)에서 되돌려야 한다. */
     const _toRawStart = (l, t) => {
       const zone0 = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom;
-      const maxX0 = Math.max(0, (sec.clientWidth || 0) - clampW);
-      const maxY0 = Math.max(0, (sec.clientHeight || 0) - clampH);
+      const maxX0 = Math.max(0, (box.clientWidth || 0) - clampW);
+      const maxY0 = Math.max(0, (box.clientHeight || 0) - clampH);
       const dxBox = posEl.offsetWidth / 2 - clampW / 2, dyBox = posEl.offsetHeight / 2 - clampH / 2;
       return [
         _elasticAxisInverse(l + dxBox, maxX0, zone0) - dxBox,
@@ -655,7 +676,7 @@ export function bindFloatMoveDrag(posEl) {
         startClientX = lastClientX; startClientY = lastClientY;
         freeSpace = trulyFree;
       }
-      const hover = (!trulyFree && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;
+      const hover = (!trulyFree && !inFrame && window._findSectionAt) ? window._findSectionAt(ev.clientX, ev.clientY) : null;   // t13D-06 — 프레임 안 오버레이는 섹션을 안 넘나든다
       if (hover && hover !== sec) {
         // 재부모 — 지금까지의 로컬 좌표를 확정해 새 섹션 기준으로 다시 앵커를 잡는다.
         //
@@ -675,7 +696,7 @@ export function bindFloatMoveDrag(posEl) {
         startLeft = curLeft + (oldRect.left - newRect.left) / zoom;
         startTop  = curTop  + (oldRect.top  - newRect.top ) / zoom;
         hover.appendChild(posEl);
-        sec = hover;
+        sec = hover; box = hover;
         startClientX = ev.clientX; startClientY = ev.clientY;
       }
       const rawX = startLeft + (ev.clientX - startClientX) / zoom;
@@ -689,7 +710,7 @@ export function bindFloatMoveDrag(posEl) {
         const cxCenter = rawX + posEl.offsetWidth / 2, cyCenter = rawY + posEl.offsetHeight / 2;
         const visLeft = cxCenter - clampW / 2, visTop = cyCenter - clampH / 2;
         const resistZone = OVERLAY_RESIST_ZONE_SCREEN_PX / zoom;
-        const [clVisLeft, clVisTop] = _elasticClampToSection(visLeft, visTop, sec, clampW, clampH, resistZone);
+        const [clVisLeft, clVisTop] = _elasticClampToSection(visLeft, visTop, box, clampW, clampH, resistZone);
         cx = clVisLeft + clampW / 2 - posEl.offsetWidth / 2;
         cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
       }
@@ -697,9 +718,9 @@ export function bindFloatMoveDrag(posEl) {
          ⌘(trulyFree) = 자석 끔(«저항 없는 완전 자유»와 같은 뜻 · Figma 도 ⌘ 로 스냅을 끈다).
          shortcut: 회전한 것은 건너뛴다(가이드가 회전 «전» 상자로 잰다) — 회전 상자 기준선이 필요해지면 rotatedAABB 로 엣지를 바꿔 넘긴다. */
       const SG = window.SmartGuides, _guide = !!SG && !trulyFree && !(rotDeg % 360);
-      if (_guide) { const sn = SG.snapPosition(cx, cy, posEl, sec, zoom); cx = sn.left; cy = sn.top; }
+      if (_guide) { const sn = SG.snapPosition(cx, cy, posEl, box, zoom); cx = sn.left; cy = sn.top; }
       _applyOverlayPos(posEl, cx, cy);
-      if (_guide) SG.showGuides(posEl, sec, zoom); else SG?.hideGuides();
+      if (_guide) SG.showGuides(posEl, box, zoom); else SG?.hideGuides();
       lastClientX = ev.clientX; lastClientY = ev.clientY;
       window.scheduleAutoSave?.();
     };
@@ -831,7 +852,7 @@ export function floatPositionRowHTML({ prefix, posEl }) {
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
+  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
   /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
      ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
   window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };
