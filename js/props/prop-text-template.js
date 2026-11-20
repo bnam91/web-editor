@@ -305,14 +305,12 @@ export function buildTextPanelSpec(state) {
   const _kind = isSpeechBubble ? 'bubble' : isLiner ? 'liner' : isIconText ? 'icon' : currentClass;
   const _kb = (cls, label) => `<button class="prop-type-btn ${_kind === cls ? 'active' : ''}" data-cls="${cls}">${label}</button>`;
 
+  /* 1120b F1(현빈 261120 「GIF 절을 별도로 · [+] 누르면 바로 gif 기능」) — 절 머리 «＋» 가 곧 GIF 단추(#open-anim-btn · 어드민 게이트·배선은 prop-text.js 그대로).
+     꼴 = 절 머리 손잡이(.prop-chain-btn · 블록 Template ＋ 와 같은 클래스) · 몸 없음. */
   const _anim = (isOverlayTb || !showAnimGif) ? '' : `
-      <button class="prop-anim-btn" id="open-anim-btn">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
-          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
-        </svg>
-        애니메이션 GIF 만들기
-      </button>`;
+        <button type="button" class="prop-chain-btn" id="open-anim-btn" title="애니메이션 GIF 만들기" aria-label="애니메이션 GIF 만들기">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+        </button>`;
 
   return {
     header: blockHeaderHTML({
@@ -376,7 +374,7 @@ export function buildTextPanelSpec(state) {
       (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? sec('stroke', '') : strokeSection({ p: 'txt', stroke, colorHtml: strokeColorHtml }),
       _effects,
       sec('special', _bubble, { title: 'Bubble', id: 'txt-bubble-section' }),
-      sec('export', _anim, { id: 'txt-anim-section' }),   /* GIF 만들기 = 내보내기(§2-1 export) */
+      sec('export', '', { id: 'txt-anim-section', title: 'GIF', headTools: _anim }),   /* 1120b F1 — «GIF» 전용 절(자리 = export · 머리 ＋ = GIF 단추) */
     ],
     panel: 'text',   /* _section-spec SECTION_ORDER_EXCEPT.text — Layout(가로 정렬)이 Size 위(재설계 1차 ④) */
   };

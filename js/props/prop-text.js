@@ -351,7 +351,7 @@ export function showTextProperties(tb) {
   /* 애니메이션 GIF 버튼 — ★261021 현빈 「gif는 우선 ★어드민용으로만 ★공개」(킬스위치 ∧ 어드민 · 술어 한 자리 = 위 _animVisible).
    * ★«보이되 안 눌린다»(현빈 2026-08-28 — Figma·개발자·협업과 같은 방식: 감추면 「있었다」는 것조차 사라진다).
    *   U2(d9579f489)가 «안 보이면 단추·절째 없음»으로 바꿨던 것을 U6 에서 되돌렸다(지디 261113 · 현빈 결정 존중).
-   *   disabled 단추도 «보이는 컨트롤»이라 Export 절은 빈 머리가 아니다.
+   *   disabled 단추도 «보이는 컨트롤»이라 GIF 절(1120b F1 · 머리 ＋ = 이 단추)은 빈 머리가 아니다.
    * ⛔isAdmin 을 손으로 다시 판정하지 않는다 — ★둘째 명부가 된다.
    * ★어드민 상태는 ★늦게 온다(로그인 직후·세션 재검증 뒤). 캐시가 ∅ 면 «아님»으로 그리고,
    *   ★한 번 당겨 와서 ★이 버튼만 다시 칠한다(패널 전체를 다시 그리지 않는다). 버튼이 이미 떨어졌으면 아무것도 안 한다. */
@@ -364,7 +364,7 @@ export function showTextProperties(tb) {
         btn.removeAttribute('aria-disabled');
         btn.style.opacity = '';
         btn.style.cursor = '';
-        btn.title = '';
+        btn.title = '애니메이션 GIF 만들기';   /* 1120b F1 — 단추가 글 없는 ＋ 라 툴팁이 이름이다 */
         return;
       }
       btn.onclick = null;
