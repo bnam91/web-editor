@@ -170,6 +170,8 @@ test.describe('색 코드 칸 — 한 규약 · 무효값은 알리거나 되돌
 
   test('L2 음성대조 — 버튼 없는 형제 행(외곽선)은 원래 멀쩡했다', async ({ page }) => {
     await page.evaluate(() => window.__openAsset());
+    /* 1120b A2 — Stroke 는 머리 «＋» 로 켜야 몸(색 줄)이 보인다 */
+    await page.evaluate(() => { const c = document.getElementById('asset-stroke-on'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); });
     const m = await probe(page, 'asset-stroke-color-hex');
     expect(m.w, '이 행이 애초에 좁았다면 L1 의 원인 지목이 틀린 것이다').toBeGreaterThanOrEqual(50);
   });

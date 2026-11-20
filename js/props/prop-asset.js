@@ -269,16 +269,25 @@ export function showAssetProperties(ab) {
       // 옛 「Background」
       sec('fill', bgSection),
       // 옛 「Border」
+      /* 1120b A2(현빈 261120 「Stroke 절도 text-h1 처럼 [+]」) — 머리 «＋»(켜면 «−») · 몸 줄 = 텍스트 Stroke 와 같은 마크업(strokeSection: 두께 → 색상).
+         켬 = strokeWidth > 0(저장 꼴 그대로 · 새 키 0). 위치(내부/외부)는 에셋 테두리에 없어 줄이 없다. */
       sec('stroke', `
-      <div class="prop-color-row">
-        <span class="prop-label">외곽선</span>
-        ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
-      </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
-        <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
-      </div>`),
+      <div id="asset-stroke-controls" style="display:${currentStrokeWidth > 0 ? 'block' : 'none'}">
+        <div class="prop-row">
+          <span class="prop-label">두께</span>
+          <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
+          <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
+        </div>
+        <div class="prop-color-row">
+          <span class="prop-label">색상</span>
+          ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
+        </div>
+      </div>`, { id: 'asset-stroke-section', headTools: `
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가/빼기">
+          <input type="checkbox" id="asset-stroke-on" ${currentStrokeWidth > 0 ? 'checked' : ''} aria-label="Stroke">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
+        </label>` }),
       /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */
       sec('effects', _fx?.body || '', { headTools: _fx?.headTools || '', id: _fx?.id }),
       // 영상 트림(옛 「Video 트림」)
@@ -637,6 +646,15 @@ export function showAssetProperties(ab) {
     stSlider.value = v; applyAssetBorder(v);
   });
   stNum.addEventListener('change', () => window.pushHistory?.());
+  /* 1120b A2 — 머리 «＋»: 켜면 두께 2(텍스트 Stroke 처럼 «추가» = 보이는 기본값) · 끄면 0(테두리 걷힘) */
+  const stOn = document.getElementById('asset-stroke-on');
+  stOn?.addEventListener('change', () => {
+    const v = stOn.checked ? (parseInt(stNum.value) || 2) : 0;
+    stSlider.value = stNum.value = v || stNum.value;
+    applyAssetBorder(v);
+    document.getElementById('asset-stroke-controls').style.display = stOn.checked ? 'block' : 'none';
+    window.pushHistory?.();
+  });
 
   if (hasImage) {
     document.getElementById('asset-fit-group').addEventListener('click', e => {
