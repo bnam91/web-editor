@@ -318,7 +318,7 @@ export function lnBubbleHost(block) {
   const host = _baseHost(block, {
     kind: 'bubble', limitLabel: '말풍선 한 개에',
     noHitHint: '줄을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집',
-    head: (r, c, li) => (li === null ? '줄 없음 — 줄을 더하면 지금 글이 첫 줄이 된다' : `${li + 1}번째 줄`),
+    head: (r, c, li) => (li === null ? '' : `${li + 1}번째 줄`),   /* 1120b B1(현빈 261120) — 말풍선 «줄 없음 — 줄을 더하면…» 힌트 걷음(빈 글 = 그 줄을 안 그린다 · prop-grid _grdLineBarHtml) */
     getLines: () => lnBubbleLines(block),
     rowOk: (r) => r === 0,
     bake: () => lnBakeBubble(block),

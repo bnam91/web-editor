@@ -193,8 +193,8 @@ export function buildTextPanelSpec(state) {
         <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
-      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다. 칸은 «숨기지 않고» 막고 까닭을 보이게 적는다. */
-         isSpeechBubble ? '\n      <div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
+      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다 ⇒ 칸은 «숨기지 않고» 막는다.
+         1120b B1(현빈 261120) — 까닭 힌트 줄(#txt-pv-bubble-hint)은 걷음(막힌 칸 그대로). */ ''}
       <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
       <div class="prop-row" id="txt-ph-row">
         <span class="prop-label">좌우패딩</span>
