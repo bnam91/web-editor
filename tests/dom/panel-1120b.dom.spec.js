@@ -231,7 +231,7 @@ test('R2b 최근 효과 줄(형광펜·점·글로우) «최근» 라벨 = 색 �
   await page.evaluate(() => {
     ['#111111', '#222222', '#333333', '#444444', '#555555', '#666666', '#777777'].forEach((h) => window.DesignSystem.pushColorHistory(h));
     document.dispatchEvent(new CustomEvent('colorhistory-changed'));
-    const VAR = { hl: '--tb-hl-color', dot: '--tb-dot-color', glow: '--tb-glow-color' };
+    const VAR = { hl: '--tb-hl-color', dot: '--tb-dot-color', glow: '--tb-glow-color', ul: '--tb-ul-color' };   // ul = 칩 5개로 꽉 찬 줄(R2c 뒤 라벨이 눌리는 자리 — 아래 주석)
     for (const k of Object.keys(VAR)) ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff'].forEach((c, i) => window.DesignSystem.pushTextStyleHistory(k, { [VAR[k]]: c }, { now: i * 100000 }));
     window.showTextProperties(window.__b);
   });
@@ -242,11 +242,15 @@ test('R2b 최근 효과 줄(형광펜·점·글로우) «최근» 라벨 = 색 �
     const row = document.getElementById('txt-fx-recent-row'); const n = row?.querySelectorAll('.ts-chip').length ?? 0;
     out.fx = { h: lab(row), n, fits: !!row && row.scrollWidth <= row.clientWidth };   // 줄은 overflow:hidden — 넘치면 scrollWidth 가 커진다
     out.max = window.DesignSystem.TEXT_STYLE_FX_RECENT_MAX;
+    /* R2c 뒤 합친 줄은 칩 4개(설계폭)라 라벨이 안 눌린다 = nowrap 을 걷어도 초록(인텔 261121 R2b-CTL 52/52 초록).
+       라벨이 눌리는 자리는 kind 별 큐 5개가 그대로 차는 밑줄 줄(칩이 24.5 로 눌려 들어감) ⇒ 그 줄 라벨도 잰다(같은 공용 .cv-chips-label). */
+    const ul = document.getElementById('txt-ul-recent-row'); out.ul = { h: lab(ul), n: ul?.querySelectorAll('.ts-chip').length ?? 0, fits: !!ul && ul.scrollWidth <= ul.clientWidth };
     return out;
   });
   expect(r.color, '[전제] 색 최근 라벨이 섰다').toBeGreaterThan(0);
   expect(r.max, '[전제] 합친 줄 칸 수 상수').toBeGreaterThan(0);
   expect(r.fx, `★합친 최근 라벨 높이 = 색 최근 라벨(${r.color}) · 칩 ${r.max} 안 잘림`).toEqual({ h: r.color, n: r.max, fits: true });
+  expect(r.ul, `★밑줄 최근(칩 5 · 꽉 찬 줄) 라벨 높이 = 색 최근 라벨(${r.color}) · 칩 5 안 잘림`).toEqual({ h: r.color, n: 5, fits: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
