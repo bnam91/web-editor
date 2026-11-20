@@ -78,7 +78,8 @@
 .prop-section[data-sec] > .prop-sec-body > .cv-chips:not(.ts-recent-row) { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
 /* 1120b R1·R2(현빈 261120 「최근은 한 줄로」) — 최근 색(.cv-recent-row · 최대 COLOR_HISTORY_MAX 7)은 위 줄로 끝 칼럼까지(7개가 한 줄에 든다) ·
    최근 효과(.ts-recent-row)는 폭 그대로(TEXT_STYLE_HISTORY_MAX 5 를 그 폭으로 쟀다 — text-style-recent M) · 둘 다 어디서든 꺾지 않는다(둘째 줄 0). */
-.cv-recent-row, .ts-recent-row { flex-wrap: nowrap; overflow: hidden; }
+/* .cv-chips 를 붙여 0,2,0 — 아래(654) .cv-chips { flex-wrap: wrap } 이 같은 0,1,0 · 뒤라서 이겼다(DOM R2 wrap 실측) */
+.cv-chips.cv-recent-row, .cv-chips.ts-recent-row { flex-wrap: nowrap; overflow: hidden; }
 /* 머리 «＋»(재설계 1차 ⑨) — Stroke: 체크박스를 감싼 단추(켜면 «−») · Effects: 같은 칼럼 폭 select(목록 = 효과 종류) */
 .prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
 .prop-sec-add:has(> input:checked) > .prop-sec-add-plus, .prop-sec-add:not(:has(> input:checked)) > .prop-sec-add-minus { display: none; }
