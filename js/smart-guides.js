@@ -299,6 +299,8 @@ function _getSiblings(dragEl, parentFrame) {
     if (ch === dragEl) return false;
     if (ch.classList.contains('smart-guide')) return false;
     if (ch.classList.contains('drop-indicator')) return false;
+    /* t13D-04 — 부모가 «섹션»(오버레이 끌기)이면 블럭(id 있음)만 — 섹션 머리띠(.section-hitzone · bottom:100%) 같은 장식 absolute 는 기준선이 아니다 */
+    if (parentFrame.classList.contains('section-block') && !ch.id) return false;
     // text-block은 text-frame 래퍼가 absolute → 래퍼만 포함
     const s = window.getComputedStyle(ch);
     return s.position === 'absolute';
@@ -398,3 +400,7 @@ function _computeSpacingGuides(elL, elR, elT, elB, siblings, frameW, frameH, toV
     }
   }
 }
+
+/* t13D-04 — 섹션 오버레이 끌기(overlay-float.js)도 같은 가이드를 쓴다. 그 모듈은 «순수 import 만» 규칙(DOM 하네스가 그래프를 그대로 서빙)이라
+   import 대신 이 전역으로 부른다 — 하네스엔 이 모듈이 없어 종전대로(가이드 없음). */
+if (typeof window !== 'undefined') window.SmartGuides = { snapPosition, showGuides, hideGuides };

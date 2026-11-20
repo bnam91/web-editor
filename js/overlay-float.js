@@ -689,13 +689,20 @@ export function bindFloatMoveDrag(posEl) {
         cx = clVisLeft + clampW / 2 - posEl.offsetWidth / 2;
         cy = clVisTop + clampH / 2 - posEl.offsetHeight / 2;
       }
+      /* ★t13D-04 — 스마트 가이드 = 프레임 안 끌기와 같은 것(smart-guides.js · 부모 = 섹션): 섹션 가장자리·가로세로 중앙 + 다른 떠 있는 블럭의 엣지·중앙에 자석 + 가이드선.
+         ⌘(trulyFree) = 자석 끔(«저항 없는 완전 자유»와 같은 뜻 · Figma 도 ⌘ 로 스냅을 끈다).
+         shortcut: 회전한 것은 건너뛴다(가이드가 회전 «전» 상자로 잰다) — 회전 상자 기준선이 필요해지면 rotatedAABB 로 엣지를 바꿔 넘긴다. */
+      const SG = window.SmartGuides, _guide = !!SG && !trulyFree && !(rotDeg % 360);
+      if (_guide) { const sn = SG.snapPosition(cx, cy, posEl, sec, zoom); cx = sn.left; cy = sn.top; }
       _applyOverlayPos(posEl, cx, cy);
+      if (_guide) SG.showGuides(posEl, sec, zoom); else SG?.hideGuides();
       lastClientX = ev.clientX; lastClientY = ev.clientY;
       window.scheduleAutoSave?.();
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      window.SmartGuides?.hideGuides();   // t13D-04
       if (moved) {
         /* ★«끝 표본» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃
            (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
