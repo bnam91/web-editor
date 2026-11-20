@@ -6,6 +6,8 @@
  * R3 옛 저장본 꼴(키 없음) — 고르고 손잡이만 떠도 data-fixed-h·min-height 안 생김(열기만으로 안 씀)
  * R4 오버레이 텍스트 e 변 → 폭만(글자 크기 무변) · 옛 se 모서리는 여전히 글자 비례(글자 커짐)
  * 양성대조: _patches/t13d-10-CTL.patch(흐름 텍스트 상자 손잡이 갈래 걷음 → R1 빨강 · 손잡이 0)
+ * R5(지디 채점 261121) 72px 글자 e 변을 왼쪽 끝까지 → 폭은 줄되 «가장 넓은 한 자 + 좌우 패딩» 아래로는 안 감 = 글자가 상자 밖으로 안 나감
+ *   양성대조: _patches/t13d-10-CTL-minw.patch(최소 너비 = min-content 걷음 → 옛 20) → R5 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -92,5 +94,20 @@ test('R4 오버레이 텍스트 e 변 = 폭만(글자 무변) · se 모서리 = 
   const c = await page.evaluate(() => { const h = document.querySelector('#ss-handles-overlay [data-tf-resize-dir="se"]'); const q = h.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
   await page.mouse.move(c[0], c[1]); await page.mouse.down(); await page.mouse.move(c[0] + 60, c[1] + 20, { steps: 6 }); await page.mouse.up(); await raf(page);
   expect(await fs(), '★옛 모서리 = 글자 비례(커짐)').toBeGreaterThan(f0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('R5 72px 글자 e 변 왼쪽 끝까지 → 폭은 줄되 글자가 상자 밖으로 안 나감', async ({ page }) => {
+  const { errs, ids } = await scene(page);
+  await page.evaluate((id) => { const tb = document.getElementById(id), ed = tb.querySelector('[class^="tb-"]'); ed.textContent = '제목을입력하세요'; ed.style.fontSize = '72px'; }, ids.tb);
+  await pick(page, ids.tb);
+  const a = await box(page, ids.tf);
+  await drag(page, 'e', -1200, 0);
+  const r = await page.evaluate(([tf, tb]) => { const f = document.getElementById(tf).getBoundingClientRect(), ed = document.getElementById(tb).querySelector('[class^="tb-"]');
+    const out = []; const w = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) for (let i = 0; i < n.length; i++) { const rg = document.createRange(); rg.setStart(n, i); rg.setEnd(n, i + 1); const q = rg.getBoundingClientRect(); if (q.width && (q.left < f.left - 0.5 || q.right > f.right + 0.5)) out.push([n.data[i], Math.round(q.left - f.left), Math.round(q.right - f.right)]); }
+    return { w: Math.round(f.width), out }; }, [ids.tf, ids.tb]);
+  expect(r.w, `★폭은 줄었다 ${a.w}→${r.w}`).toBeLessThan(a.w - 100);
+  expect(r.out, `★상자(폭 ${r.w}) 밖으로 나간 글자 없음`).toEqual([]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

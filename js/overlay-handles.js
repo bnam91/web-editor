@@ -4642,6 +4642,7 @@ window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
 const TBX_ALL = [...CORNER_DIRS, 'n', 's', 'e', 'w'];
 const TBX_EDGES = ['n', 's', 'e', 'w'];
 const TBX_MIN_W = 20;   // 글자 한 자(지디 OK 261120)
+const TBX_GLYPH_SCAN = 1000;   // 최소 너비 잴 때 보는 글자 수 상한(긴 글 누름이 안 굼뜨게)
 let _tbxEl = null, _tbxRaf = null;
 function _tbxPoint(el, dir) {
   if (dir.length === 2) return _cornerScreen(el, dir);
@@ -4689,6 +4690,18 @@ function _onTextBoxResizeMouseDown(e, el, dir) {
   const startW = el.offsetWidth, startH = el.offsetHeight, X0 = e.clientX, Y0 = e.clientY;
   let contentH = startH;   // «최소 높이» 바닥 = 키 없을 때 높이(내용)
   if (!isGap) { const mh = el.style.minHeight; el.style.minHeight = ''; contentH = el.offsetHeight; el.style.minHeight = mh; }
+  /* ★최소 너비 = «가장 넓은 글자 한 자» + 상자의 좌우 패딩(지디 채점 261121: 20 까지 줄어 72px 글자가 한 자씩 상자 밖으로 나갔다) · 하한 TBX_MIN_W.
+     좁으면 글은 한 자씩 꺾이므로(overflow-wrap) 그 폭이 «안 넘치는» 바닥이다 — min-content(낱말 폭)는 그보다 넓어 쓰지 않는다.
+     이미 그보다 좁으면 그 폭이 바닥(누르자마자 튀지 않게). shortcut: 앞 TBX_GLYPH_SCAN 자만 잰다 — 그 뒤에 더 넓은 글자가 있으면 그것만 넘칠 수 있다 · 문제 되면 글꼴별 한 번 재기로. */
+  let minW = TBX_MIN_W;
+  if (!isGap) {
+    const sc0 = _canvasScaleNow() || 1, ed = el.querySelector('.tb-body') || el;   // 글 칸(글자가 사는 곳)
+    let glyph = 0, cnt = 0; const tw = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let tn;
+    const rg = document.createRange();
+    while ((tn = tw.nextNode()) && cnt < TBX_GLYPH_SCAN) for (let i = 0; i < tn.length && cnt < TBX_GLYPH_SCAN; i++, cnt++) { if (/\s/.test(tn.data[i])) continue; rg.setStart(tn, i); rg.setEnd(tn, i + 1); glyph = Math.max(glyph, rg.getBoundingClientRect().width / sc0); }
+    const pad = startW - ed.getBoundingClientRect().width / sc0;   // 상자 폭 − 글 칸 폭 = 좌우 패딩·테두리
+    minW = Math.min(startW, Math.max(TBX_MIN_W, Math.ceil(glyph + Math.max(0, pad))));
+  }
   const px0 = Number(el.dataset.offsetX ?? parseFloat(el.style.left)) || 0, py0 = Number(el.dataset.offsetY ?? parseFloat(el.style.top)) || 0;
   const label = isGap ? '갭 높이' : '텍스트 상자 크기';
   const hist = window.beginDragHistory?.((isGap ? '갭 높이' : '텍스트 상자 크기'));   // 겹괄호 = drag-history 로스터 꼴('(' 로 시작하는 식)
@@ -4709,7 +4722,7 @@ function _onTextBoxResizeMouseDown(e, el, dir) {
     }
     let newW = startW;
     if (sx) {
-      newW = Math.max(TBX_MIN_W, Math.round(startW + dw));
+      newW = Math.max(minW, Math.round(startW + dw));
       el.style.width = newW + 'px'; el.dataset.width = String(newW);
       if (floating) { el.style.maxWidth = 'none'; el.dataset.overlayFreeWidth = 'true'; delete el.dataset.overlayIntroducedWidth; }   // 오버레이 폭 주인 = 사용자(옆 모서리 갈래와 같은 도장)
     }
