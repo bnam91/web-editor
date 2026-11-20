@@ -31,13 +31,16 @@ async function scene(page) {
   expect(ids.units.length, `[전제] 흐름 단위 셋 ${JSON.stringify(ids.units)}`).toBe(3);
   return { errs, ids };
 }
+/* DIAG(인텔 261120 K1·K4 3/3: ⇧↓ 이 갭이 아니라 «다른 글»로) — 섹션 직속 단위 순서·고름 사슬을 실패 메시지에 */
+const diag = (page) => page.evaluate(() => { const inner = document.querySelector('#sK .section-inner'); return { units: [...inner.children].map((x) => `${x.id}:${x.className.split(' ')[0]}${x.dataset.overlayBlock ? ':ov' : ''}:${getComputedStyle(x).position}`), sel: [...document.querySelectorAll('#canvas .selected')].map((x) => `${x.id}:${x.className.split(' ')[0]}`), deep: (window.__deepestCanvasSelection?.() || {}).id || null }; });
 const selId = (page) => page.evaluate(() => { const s = [...document.querySelectorAll('#canvas .selected')].filter((x) => !x.classList.contains('section-block')); return s.length ? s[s.length - 1].id : null; });
 const pick = async (page, id) => { await page.evaluate((id) => { window.selectBlock(id); window.showHandlesFor?.(document.getElementById(id)); document.activeElement?.blur?.(); }, id); await expect.poll(() => selId(page)).toBe(id); };
 
 test('K1 흐름 ⇧↓ 이전/다음 · 끝↔처음 순환 · ⇧↑ 역순', async ({ page }) => {
   const { errs, ids } = await scene(page);
   await pick(page, ids.t1);
-  await page.keyboard.press('Shift+ArrowDown'); await expect.poll(() => selId(page), '★⇧↓ = 갭').toBe(ids.gap);
+  const dg0 = await diag(page);
+  await page.keyboard.press('Shift+ArrowDown'); await expect.poll(() => selId(page), { message: `★⇧↓ = 갭 · 앞 ${JSON.stringify(dg0)} · 뒤 ${JSON.stringify(await diag(page))}`, timeout: 2000 }).toBe(ids.gap);
   await page.keyboard.press('Shift+ArrowDown'); await expect.poll(() => selId(page), '★⇧↓ = 셋째 글').toBe(ids.t3);
   await page.keyboard.press('Shift+ArrowDown'); await expect.poll(() => selId(page), '★끝에서 ⇧↓ = 처음(순환)').toBe(ids.t1);
   await page.keyboard.press('Shift+ArrowUp'); await expect.poll(() => selId(page), '★처음에서 ⇧↑ = 끝(순환)').toBe(ids.t3);
@@ -71,7 +74,8 @@ test('K4 갭 ↑↓ = 높이 ±4 · ⇧↑ = 높이 무변 + 고르기만', asyn
   const h0 = await h();
   await page.keyboard.press('ArrowUp'); await expect.poll(h, '★↑ = +4(고침 전 판에서 빨강이면 «죽은 길» 확정)').toBe(h0 + 4);
   await page.keyboard.press('ArrowDown'); await expect.poll(h, '★↓ = −4').toBe(h0);
-  await page.keyboard.press('Shift+ArrowUp'); await expect.poll(() => selId(page), '★⇧↑ = 고르기 이동(위 글)').toBe(ids.t1);
+  const dg4 = await diag(page);
+  await page.keyboard.press('Shift+ArrowUp'); await expect.poll(() => selId(page), { message: `★⇧↑ = 고르기 이동(위 글) · 앞 ${JSON.stringify(dg4)} · 뒤 ${JSON.stringify(await diag(page))}`, timeout: 2000 }).toBe(ids.t1);
   expect(await h(), '★⇧↑ 는 높이 무변(큰 단계 걷음)').toBe(h0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
