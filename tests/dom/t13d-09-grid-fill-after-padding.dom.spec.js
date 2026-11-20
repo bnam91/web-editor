@@ -69,6 +69,10 @@ test('D4 nw 손잡이를 세로로만 끌기(높이) → 폭 키 안 생김 · �
   const nw = await page.evaluate(async () => { await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const h = document.querySelector('#ss-handles-overlay [data-grd-resize-dir="nw"]'); if (!h || getComputedStyle(h).display === 'none') return null; const q = h.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
   expect(nw, '[전제] nw 손잡이').toBeTruthy();
+  /* [시험만 · 인텔 261120 D4 3/3 ✘ a.pad=null] 코드 길(overlay-handles.js _onGridOverlayResizeMouseDown: nw 위로 = dp + → applyGridCellPadY)은 맞다 ⇒ «누른 점이 그 손잡이가 아니었다»가 남은 가설.
+     전제 = 누를 점의 임자가 nw 손잡이(두 번 같은 자리) · 아니면 그 임자를 찍고 전제에서 진다(엉뚱한 «높이 안 바뀜» 대신). */
+  const who = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? (e.dataset?.grdResizeDir ? 'nw-handle' : (e.id || '') + '.' + String(e.className).slice(0, 50)) : null; }, nw);
+  expect(who, `[전제] 누를 점 임자 = nw 손잡이 (본 것: ${who})`).toBe('nw-handle');
   await page.mouse.move(nw[0], nw[1]); await page.mouse.down();
   await page.mouse.move(nw[0], nw[1] - 30, { steps: 6 }); await page.mouse.up();
   const a = await page.evaluate(() => ({ pad: document.getElementById('pG').dataset.cellPadY ?? null, key: document.getElementById('pG').dataset.gridWidth ?? null }));
