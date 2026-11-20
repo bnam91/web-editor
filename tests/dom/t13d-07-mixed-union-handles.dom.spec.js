@@ -5,7 +5,7 @@
  * U2 se 끌기 → 프레임 폭·높이 커짐 · 프레임 left/top/offset 안 씀 · 글자 커짐 · ⌘Z 한 번에 복귀
  * U3 흐름 «글자»가 섞이면 종전대로 손잡이 0(t202b D 와 같은 뜻 — 넓힌 것은 프레임뿐)
  * 양성대조: _patches/t13d-07-CTL.patch → U1·U2 빨강(손잡이 0) · U3 초록.
- * G1 ⌘G(현상 1 · 현빈 결정 261120 «일반 그룹»): 오버레이 글자 + 흐름 프레임 → 그 자리 그대로 «새 공통 그룹»(프레임 안으로 넣기 0) · 글자 화면 자리 무변 · 그룹 손잡이 8
+ * G1 ⌘G(현상 1 · 현빈 결정 261120 «일반 그룹»): 오버레이 글자 + 흐름 프레임 → 그 자리 그대로 «새 공통 그룹»(프레임 안으로 넣기 0) ·  글자 화면 자리 무변 · 그룹 손잡이(모서리 넷)
  *   양성대조: _patches/t13d-07-CTL-cmdg.patch(block-factory 의 _overlayText 갈래 걷음 = 옛 9/30 «프레임 안으로») → G1 빨강.
  */
 const { test, expect } = require('@playwright/test');
@@ -98,7 +98,9 @@ test('G1 ⌘G = 일반 그룹(현빈 261120) — 그 자리 그대로 새 공통
   expect(g, '★새 공통 그룹 · 글자는 프레임 «안»이 아니라 그룹 안 · 프레임도 그룹 안').toEqual({ group: true, sameGroup: true, textInFrame: false, frameParentIsGroup: true });
   const r1 = await page.evaluate(() => { const q = document.getElementById('tfO').getBoundingClientRect(); return [Math.round(q.left), Math.round(q.top), Math.round(q.width)]; });
   expect(r1.map((v, i) => Math.abs(v - r0[i]) <= 1), `★글자 화면 자리 그대로 ${JSON.stringify([r0, r1])}`).toEqual([true, true, true]);
-  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .ss-resize-handle')].filter((h) => h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none').length), '★그룹 손잡이 8').toBe(8);
+  /* 그룹(=프레임) 손잡이 꼴 = 모서리 넷(overlay-handles.js showFrameHandles dirs nw·ne·sw·se · 같은 앱 보통 ⌘G 그룹 시험 group-scale-* 도 .ss-resize-handle 모서리) ·
+     인텔 261120 G1 Received 4 = 정상 그룹 꼴(옛 기대 8 은 내 잘못 — 공통 «선택 상자» 손잡이 8 과 섞음). */
+  await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .ss-resize-handle')].filter((h) => h.getBoundingClientRect().width > 0 && getComputedStyle(h).display !== 'none').map((h) => h.dataset.dir).sort().join(',')), '★그룹 손잡이 = 모서리 넷').toBe('ne,nw,se,sw');
   expect(p0, '[전제] 묶기 전 프레임 부모 기록').toBeTruthy();
   expect(errs).toEqual([]);
 });
