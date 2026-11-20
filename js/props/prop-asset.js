@@ -144,9 +144,7 @@ export function showAssetProperties(ab) {
       </div>
       ${(isVideo || ab.dataset.collab) ? '' : '<button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>'}<!-- ★1013t2A2 콜라보면 숨김 — 위치 조절 틀이 블록 전체 폭을 잰다 -->
       <button class="prop-action-btn secondary" id="asset-replace-btn">${isVideo ? '영상' : '이미지'} 교체</button>
-      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>` : `
-      <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하거나 파일을 블록에 드래그해 이미지 추가</div>
-      <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>`;   // U4: 힌트 둘 → 하나(패널당 ≤2)
+      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>` : '';   /* 1120b A3(현빈 261120) — 빈 에셋의 Content 절(안내 + 「이미지 선택...」 #asset-upload-btn) 걷음: 이미지는 캔버스에서 넣는다(더블클릭·끌어 놓기) ⇒ 빈 에셋엔 psec-content 가 없다 */
 
   /* ★1013t2A2 「Collab」 절 — 로고 블록(켜짐 ∪ data-preset=logo ∪ 200×64)에만. 꼴 = 별 「갯수」(prop-shape.js) 그대로. */
   const showCollab = isLogoBlock(ab);
@@ -693,8 +691,6 @@ export function showAssetProperties(ab) {
     document.getElementById('asset-replace-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));
     if (isVideo) wireVideoTrim(ab);
-  } else {
-    document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
   }
 
   /* T-011: 배경색 배선은 이미지 유무와 무관하게 «조건 없이» 돈다. else 안에 있던 탓에
