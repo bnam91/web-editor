@@ -547,12 +547,7 @@ function _renderAutoPanel(ss) {
         ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { id: 'ss-align-vcenter' } })}
         ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { id: 'ss-align-bottom' } })}
       </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label" style="width:40px;">간격</span>
-        <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.style.gap) || 0}">
-        <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
-      </div>
-`),
+`),   /* 1120b P2(현빈 261120) — 간격 슬라이더(#ss-gap-slider/#ss-gap-num) 걷음 · 저장된 gap(style · dataset.gap)은 그대로 */
       sec('padding', `
       <div class="prop-row">
         <span class="prop-label">상하패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
@@ -774,10 +769,6 @@ function _renderAutoPanel(ss) {
     if (justifyContent !== null) { ss.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
     window.scheduleAutoSave?.();
   };
-  const _setGap = v => {
-    ss.style.gap = v + 'px';
-    ss.dataset.gap = String(v);
-  };
 
   // 현재 상태 반영
   const curAlignItems    = ss?.style.alignItems    || ss.dataset.alignItems    || 'flex-start';
@@ -832,9 +823,6 @@ function _renderAutoPanel(ss) {
   document.getElementById('ss-align-vcenter')?.addEventListener('click', () => { _setAlign(null, 'center');     _markAlignActive('ss-align-vcenter', vGroup); window.pushHistory?.(); });
   document.getElementById('ss-align-bottom')?.addEventListener('click',  () => { _setAlign(null, 'flex-end');   _markAlignActive('ss-align-bottom',  vGroup); window.pushHistory?.(); });
 
-  const gapSlider = document.getElementById('ss-gap-slider');
-  const gapNum    = document.getElementById('ss-gap-num');
-  if (gapSlider && gapNum) bindSlider(gapSlider, gapNum, _setGap, { min: 0, max: 80 });
 
   // ── 회전 / 반전 핸들러 ──
   document.getElementById('ss-rotate-deg')?.addEventListener('input', e => {
