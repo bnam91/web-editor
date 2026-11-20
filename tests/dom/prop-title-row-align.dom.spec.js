@@ -239,7 +239,12 @@ test('D1b 텍스트 스티커 패널 — Favorites(.prop-action-btn · ★R2) ·
   const rows = await settled(page, readRows, 'D1b 스티커 패널');
   console.log('[D1b 스티커] ' + JSON.stringify(rows, null, 1));
   const names = rows.map((r) => r.sec);
-  expect(names, '★전제: Favorites 절이 이 장면에 있다(.prop-action-btn 자리 — R2 를 재는 유일한 칸)').toContain('stk-fav-section');
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — Favorites 는 kind 절이라 우측패널 재설계 Q2(현빈 GO 261120)부터 «Type 띠»(이름표 아래 띠 · 머리줄 없음)다:
+     ＋ 단추(#stk-fav-add · .prop-action-btn)는 띠 손잡이 칸(.prop-kind-band-tools)에 있고 맞출 «제목 글자»가 없다 ⇒ 머리줄 판정 밖.
+     전제는 «Favorites 가 띠로 있다 + 그 단추가 있다» · 남은 머리줄(Effects 그림자 토글 · Template)은 아래 같은 자로 잰다. */
+  const fav = await page.evaluate(() => { const b = document.getElementById('stk-fav-section'); return { band: !!b?.classList.contains('prop-kind-band'), add: !!b?.querySelector('.prop-kind-band-tools #stk-fav-add') }; });
+  expect(fav, '★전제: Favorites = Type 띠 · ＋ 단추가 띠 손잡이 칸에').toEqual({ band: true, add: true });
+  expect(names, '★전제: 그림자(Effects) 머리줄이 이 장면에 있다').toContain('stk-text-shadow-section');
   const bad = rows.filter((r) => Math.abs(r.dGlyph) > TOL);
   expect(bad, `어긋난 자리 ${bad.length}/${rows.length} — ★잰 값: ${JSON.stringify(rows.map((r) => r.sec + '=' + r.dGlyph))}`).toEqual([]);
   expect(errs).toEqual([]);

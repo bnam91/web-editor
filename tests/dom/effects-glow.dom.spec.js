@@ -59,7 +59,8 @@ const pick = async (page, id) => {
     await page.waitForFunction(([id, P]) => document.getElementById(id).classList.contains('selected') && !!document.getElementById(`${P}-fx-section`), [id, PANEL_OF[id]], { timeout: 3000 });
   }).toPass({ timeout: 20000 });
 };
-const addList = (page, P) => page.evaluate((P) => { const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
+/* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — 우측패널 재설계(시안 v10 · Effects 머리 ＋ · effects-registry.js :96)부터 «더하기 목록»은 select(#P-fx-add) 가 아니라 ＋ 메뉴(#P-fx-menu [data-fx]) — 그것을 읽는다(옛 select 가 있으면 그것) */
+const addList = (page, P) => page.evaluate((P) => { const m = document.getElementById(`${P}-fx-menu`); if (m) return [...m.querySelectorAll('[data-fx]')].map((b) => b.dataset.fx); const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
 const ds = (page, id) => page.evaluate((id) => Object.fromEntries(Object.entries(document.getElementById(id).dataset).filter(([k]) => k.startsWith('fx'))), id);
 const cards = (page) => page.evaluate(() => [...document.querySelectorAll('#txt-fx-list .prop-cell-card')].map(e => e.dataset.fxType));
 /** 글자칸 computed text-shadow 를 겹으로 쪼갠다(괄호 안 쉼표는 안 쪼갠다). */

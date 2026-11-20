@@ -95,7 +95,9 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   const r = await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
   expect(r.err, '[전제] 브릿지를 넣었다').toBeUndefined();
   const panel = await readPanel(page);
-  expect(panel.secs.filter((s) => s.sec).map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Tail').toEqual(['size', 'fill', 'special']);
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — ⑴ '__group' = 읽개(readPanel)가 Layout 묶음 머리에 붙이는 표식(750b9fae6 · 판정기도 절에서 뺀다) ⇒ 여기서도 뺀다
+     ⑵ 블록 «Template» 절(c5686f5a7 · Q37 · 현빈 GO 261120)이 모든 블럭 패널 끝에 붙는다 */
+  expect(panel.secs.filter((s) => s.sec && s.sec !== '__group').map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Tail·Template').toEqual(['size', 'fill', 'special', 'template']);
   expect(judgePanel(panel, SPEC), '[전제] 정본으론 통과').toEqual([]);
   expect(judgePanel(panel, SPEC, [...SPEC.SECTION_ORDER].reverse()).join(' | '), '★뒤집은 순서를 못 잡는다').toContain('순서 위반');
   const wrongTitles = { ...SPEC, SECTION_TITLE: { ...SPEC.SECTION_TITLE, size: 'Dimensions' } };
@@ -116,7 +118,9 @@ test('G2b ★순서 예외 — 섹션 패널만 Fill 이 머리 바로 아래(_s
   await page.evaluate(MANUAL.section);
   await page.waitForFunction(() => !!document.getElementById('sec-height-value') && !!document.querySelector('#panel-right .panel-body .prop-section[data-sec="fill"]'));
   const panel = await readPanel(page);
-  const keys = panel.secs.filter((s) => s.sec).map((s) => s.sec);
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — 판정기(_panel-sections judgePanel)와 같은 규칙으로 순서를 본다: kind(Type 띠 · Q1·Q2 현빈 GO 261120)는 늘 이름표 아래 맨 앞이라 순서 밖 ·
+     '__group' 은 Layout 묶음 머리 표식(절 아님). Fill 이 «절 중» 첫째인 D5 ① 은 그대로 잰다. */
+  const keys = panel.secs.filter((s) => s.sec && s.sec !== '__group' && s.sec !== 'kind').map((s) => s.sec);
   expect(panel.order, '[전제] 섹션 패널 = 예외 이름 section').toBe('section');
   expect(keys, '★순서 = 예외표 몫의 부분열').toEqual(SPEC.sectionOrderFor('section').filter((k) => keys.includes(k)));
   expect(keys[0], '★Fill 이 첫 절(예외표 first)').toBe(SPEC.SECTION_ORDER_EXCEPT.section.first[0]);
@@ -162,7 +166,8 @@ test('G6 반복 항목 카드는 Content 안에서만 판정 밖 — 같은 카�
   await page.evaluate(() => { const k = document.createElement('div'); k.className = 'prop-cell-card'; k.innerHTML = '<input type="color" id="cmp-card-0-bg-color">'; document.getElementById('psec-size-body').appendChild(k); });
   expect(judgePanel(await readPanel(page), SPEC), '[양성대조] Content 밖 카드는 판정').toEqual(['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 size 절에 있다']);
   // 그 절을 Content 로(data-sec·제목만 — 순서는 content < fill < special 이라 정본 부분열) ⇒ 카드 안이라 판정 밖
-  await page.evaluate(() => { const s = document.getElementById('psec-size'); s.dataset.sec = 'content'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Content'; });
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — Size 는 Layout 묶음(Q2 · 현빈 GO 261120) 안 몸(.prop-sec-part[data-sec=size] · 몸 #psec-size-body · 제목 = data-title)이다 — 그 몸을 Content 로 바꾼 가짜 */
+  await page.evaluate(() => { const s = document.getElementById('psec-size-body').closest('[data-sec]'); s.dataset.sec = 'content'; s.dataset.title = 'Content'; });
   expect(judgePanel(await readPanel(page), SPEC), '★Content 안 항목 카드인데 빨갛다').toEqual([]);
 });
 
@@ -173,7 +178,8 @@ test('G7 simple-card 꼴 항목 카드([data-card-index] · id 없는 칸) — C
   await page.evaluate(() => { const k = document.createElement('div'); k.id = 'cvb-card-items'; k.innerHTML = '<div class="cvb-card-item" data-card-index="0"><input type="color" class="cvb-card-cell-bg" data-card-index="0"></div>'; document.getElementById('psec-size-body').appendChild(k); });
   const red = judgePanel(await readPanel(page), SPEC);
   expect(red, '[양성대조] Size 절의 카드는 판정 — 색 칸 소유 위반 1건').toEqual(['소유 위반: card-index 0 color 는 fill 절 속성인데 size 절에 있다']);
-  await page.evaluate(() => { const s = document.getElementById('psec-size'); s.dataset.sec = 'content'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Content'; });
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — Size 는 Layout 묶음(Q2 · 현빈 GO 261120) 안 몸(.prop-sec-part[data-sec=size] · 몸 #psec-size-body · 제목 = data-title)이다 — 그 몸을 Content 로 바꾼 가짜 */
+  await page.evaluate(() => { const s = document.getElementById('psec-size-body').closest('[data-sec]'); s.dataset.sec = 'content'; s.dataset.title = 'Content'; });
   expect(judgePanel(await readPanel(page), SPEC), '★Content 안 simple-card 항목 칸인데 빨갛다').toEqual([]);
 });
 
