@@ -64,7 +64,7 @@ export const LIBRARY = [
     id: 'arrow', name: '화살표', dir: 'arrow', w: 200,
     source: 'goditor 직접 작성(261117 태양) — 손그림 꼴 펜 path 20종 · stroke 12 둥근 끝 · viewBox 0 0 256 256 고정',
     license: '자체 제작',
-    note: '단색 stroke SVG(#000) — 색 바꾸기는 벡터 블럭으로 넣기 뒤 별도',
+    note: '단색 stroke SVG(#000) — 넣으면 벡터 블럭(색 칸으로 색 바꾸기 · dev 9a724fb78 채점 ② 261120)',
     items: [
       { file: 'arrow-curve-right.svg', name: '곡선 오른쪽' },
       { file: 'arrow-curve-down.svg', name: '곡선 아래' },
