@@ -927,6 +927,28 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
+/* E2 SLIDE-DOTS-FIXED-ON-SCROLL-01 덧(dev 9a724fb78 실앱 채점 261120) — 끝까지 밀면(막대 max · 셋째 칸 다 보임) 활성 점 = 셋째(옛 = 둘째 · 왼끝 규칙이 끝 칸을 못 고름)
+ *   ★중간(둘째 칸 왼끝) = 둘째 그대로 · 끝 = 셋째 · 끝 바로 앞(max-20) = 둘째(끝 규칙이 앞쪽까지 번지지 않음).
+ *   양성대조: _patches/slide-CTL52-dots-end-last.patch(끝 = 마지막 칸 줄 뺌) → «끝 = 셋째» 빨강 — 예측 */
+test('E2 끝까지 밀기 — 활성 점 = 마지막 칸', async ({ page }) => {
+  const { errs, id } = await menuScene(page);
+  await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
+  await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
+  await page.locator('#sld-dots').selectOption('bottom');
+  const onIdx = () => page.evaluate((id) => [...document.getElementById(id).querySelectorAll(':scope > .sld-dots > span')].findIndex((d) => d.classList.contains('sld-dot-hs-on')), id);
+  const max = await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), l = t.lastElementChild; return Math.max(0, Math.round(l.offsetLeft + l.offsetWidth - b.clientWidth)); }, id);
+  const c2 = await page.evaluate((id) => document.getElementById(id).querySelector(':scope > .sld-track').children[1].offsetLeft, id);
+  expect(await page.evaluate((id) => document.getElementById(id).querySelectorAll(':scope > .sld-track > *').length, id), '[전제] 칸 셋').toBe(3);
+  expect(max > c2 + 20, `[전제] 끝(max ${max})이 둘째 칸 왼끝(${c2})보다 20 넘게 오른쪽 — 셋째 칸 왼끝이 창 왼끝에 안 닿는 장면`).toBe(true);
+  await page.evaluate(([id, x]) => window.slideHScroll(document.getElementById(id), x), [id, c2]);
+  await expect.poll(onIdx, '중간(둘째 칸 왼끝) = 둘째').toBe(1);
+  await page.evaluate(([id, x]) => window.slideHScroll(document.getElementById(id), x), [id, max - 20]);
+  await expect.poll(onIdx, '끝 바로 앞 = 둘째(끝 규칙이 안 번짐)').toBe(1);
+  await page.evaluate(([id, x]) => window.slideHScroll(document.getElementById(id), x), [id, max]);
+  await expect.poll(onIdx, '★끝까지 밀면 = 셋째(마지막 칸)').toBe(2);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
 /* ── 슬라이드 피드백 5 (f) SLIDE-ENTER-KEEP-HSCROLL-01(139) — 가로로 밀어 둔 채 두 번 눌러 들어가도·나와도 그 자리
  * K2 칸 2 왼끝까지 밀기 → 칸 2 화면 왼끝 기록 → 두 번 누름(펼침) = 칸 2 같은 자리(±1) · Esc(나옴) = 같은 자리 · 블럭 scrollLeft 되돌아옴
  * 양성대조: slide-frame-CTL42-unfold-drops-hscroll.patch(펼침이 밀린 거리 안 쥠) → K2 빨강 — 예측 */
