@@ -31,7 +31,7 @@ export function buildTextPanelSpec(state) {
     dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     showGlow, isGlow, glowColorHtml, glowK,      /* ★1012t1E2 범위 글로우 — prop-text.js 가 showGlow:true 로 켠다. 없으면 단추·칸 0 ⇒ 골든 바이트 동일 */
     isOverlayBlock,
-    showAnimGif,   /* GIF 단추를 «그릴» 판(U6 — 덧칠 글이 아니면 참 · 눌림은 prop-text.js 가 어드민 게이트로 disabled+까닭). 거짓이면 Export 절째 없음 */
+    showAnimGif,   /* GIF 단추를 «그릴» 판(U6 — 덧칠 글이 아니면 참 · 눌림은 prop-text.js 가 어드민 게이트로 disabled+까닭). 거짓이면 GIF 절째 없음 */
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -383,7 +383,7 @@ export function buildTextPanelSpec(state) {
       (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? sec('stroke', '') : strokeSection({ p: 'txt', stroke, colorHtml: strokeColorHtml }),
       _effects,
       sec('special', _bubble, { title: 'Bubble', id: 'txt-bubble-section' }),
-      sec('export', '', { id: 'txt-anim-section', title: 'GIF', headTools: _anim }),   /* 1120b F1 — «GIF» 전용 절(자리 = export · 머리 ＋ = GIF 단추) */
+      sec('special', '', { id: 'txt-anim-section', title: 'GIF', headTools: _anim }),   /* 1120b F1 — «GIF» 전용 절(머리 ＋ = GIF 단추) · 글 블럭 고유 절 = special(정본 export 는 제목 「Export」 고정 — 슬라이드·그리드 GIF 는 그대로 Export) */
     ],
     panel: 'text',   /* _section-spec SECTION_ORDER_EXCEPT.text — Layout(가로 정렬)이 Size 위(재설계 1차 ④) */
   };
@@ -408,7 +408,8 @@ export function placeTextPanelSection(panel, key, html, { title, id } = {}) {
   const order = sectionOrderFor('text');
   const out = buildPanelHTML({ sections: [sec(key, html, { title, id })], panel: 'text' });
   const want = order.indexOf(key);
-  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => order.indexOf(e.dataset.sec) > want);
+  // GIF 절(special 맨 끝 · 1120b F1)은 패널 맨 아래 — 늦게 얹는 special(곡선 Curve 등)은 그 앞에
+  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => order.indexOf(e.dataset.sec) > want || (key === 'special' && e.id === 'txt-anim-section'));
   if (next) next.insertAdjacentHTML('beforebegin', out); else panel.insertAdjacentHTML('beforeend', out);
 }
 if (typeof window !== 'undefined') window.placeTextPanelSection = placeTextPanelSection;
