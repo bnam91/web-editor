@@ -99,10 +99,12 @@ export function buildTextPanelSpec(state) {
   const _fill = buildFillSectionHtml({ p: 'txt', bare: true, colorLabel: false, colorHex: currentColor, alpha: currentColorAlpha, mix: _mix, showGradRecent: true });
 
   /* Effects — 한 절 key. 보통 텍스트 = fx 명부(window.fxSectionParts → {headTools, body, id}) · 말풍선·태그·아이콘텍스트 = 그림자 조절칸. */
+  /* 1120b B3(현빈 261120 「버블 Effects 도 [+]」) — 켜기 토글 → 머리 «＋»(켜면 «−») · Stroke 머리와 같은 단추꼴 label · 같은 체크박스(#txt-shadow-on · change 배선 그대로) */
   const _shadowOn = `
-        <label class="prop-toggle" title="그림자 켜기/끄기">
-          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
+        <label class="prop-chain-btn prop-sec-add" title="그림자 추가/빼기">
+          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''} aria-label="Shadow">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
         </label>`;
   const _fx = _plainText ? window.fxSectionParts(tb, 'txt', { plus: true }) : null;   /* 재설계 1차 ⑨ — 머리 «＋»(누르면 종류 목록) */
   const _effects = _fx
