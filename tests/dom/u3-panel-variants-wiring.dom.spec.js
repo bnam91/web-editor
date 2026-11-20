@@ -183,7 +183,8 @@ for (const kind of ['notext', 'text']) {
   });
 }
 
-test('V-frame-radial — 원형 배치를 시작한 프레임 · 힌트 ≤2 · 반지름 칸이 쓴다', async ({ page }) => {
+/* 1120b P1(현빈 261120) — 프레임 패널의 Radial Arrange 절이 걷혔다 ⇒ 대상 없음 */
+test.skip('V-frame-radial — 원형 배치를 시작한 프레임 · 힌트 ≤2 · 반지름 칸이 쓴다', async ({ page }) => {
   const errs = await scene(page);
   const r = await run(page, () => {
     window.selectSection(window.__S());

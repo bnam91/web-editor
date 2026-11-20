@@ -14,7 +14,7 @@ import { buzzSectionHTML, wireBuzzSection, refitBuzzOnResize } from './prop-fram
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
-import { renderPanel, sec, unwrapSection } from './_panel-frame.js';
+import { renderPanel, sec } from './_panel-frame.js';
 
 /* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
      ★★`enterFrameBgEditMode`(대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px)로 ★갈았다.
@@ -482,9 +482,8 @@ function _renderAutoPanel(ss) {
   const bannerOuterW = isBannerInner ? (parseInt(ss.parentElement.style.width) || parseInt(ss.parentElement.dataset?.width) || 0) : 0;
   const bannerInnerXMax = isBannerInner ? Math.max(0, bannerOuterW - (parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0)) : 0;
 
-  /* 프로토 Z6-C — 「Radial Arrange」 절(문자열은 js/radial-arrange.js). 이미 배치된 프레임이면 Layout 바로 아래에, 아니면 Child Align 아래에 「배치 시작」 단추만 둔다. */
-  const _radialSec = (isFreeLayout && !isShapeFrame && !isBuzzFrame(ss)) ? (window.radialArrangeSectionHTML?.(ss) || '') : '';   /* 버즈 프레임은 제 배치(흩어짐/스택)가 있다 — 원형 배치 시작 단추를 안 둔다(U3 평가 F4 · 힌트 ≤2) */
-  const _radialTop = ss.dataset.radialArrange === '1';
+  /* 1120b P1(현빈 261120 「Radial Arrange 관련 기능 필요없음」) — 프레임 패널의 원형 배치 절·배선 걷음.
+     이미 배치된 프레임의 저장값(dataset.radial*)·좌표는 그대로(js/radial-arrange.js 모듈은 남는다 · 서클 샘플 줄도 그대로). */
   /* ★1020t2f1(현빈 「그룹설정된 블럭들도 오버레이할 수 있는 버튼」) — ⌘G 그룹(.frame-block[data-group])의 패널에도
      오버레이 단추를 단다. ★동작은 js/overlay-float.js 한 벌(wireFloatToggle → enterFloat/exitFloat) — 여기선 «겉모습»만.
      그룹을 띄울 받침은 이미 있다: posElOf(그룹) = 그룹 자신 · 떠 있는 프레임의 끌기는 block-drag.js(absolute 셀 프레임 갈래)가 건다.
@@ -492,10 +491,7 @@ function _renderAutoPanel(ss) {
   const _isGroupFrame = ss.dataset.group === 'true';
   const _groupFloat = _isGroupFrame && ss.dataset.overlayBlock === 'true';
   /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록한다. 절 «안» 마크업·id 는 옛 그대로.
-     Radial Arrange 는 Layout 절 안(옛 자리: stack 아래 또는 Child Align 아래) · Buzz = special · 코너(radius) = Appearance(Q2). */
-  const _rad = unwrapSection(_radialSec);   /* radial-arrange 는 «절 통째»를 준다 — Layout 절 안에 몸통만(U0c unwrapSection) */
-  const _radialHTML = _rad.body ? `
-      <div id="${_rad.id || 'ss-radial-section'}" data-own="layout"><span class="prop-field-label">Radial Arrange</span>${_rad.body}</div>` : '';   /* data-own=layout: 원형 배치의 반지름·칸 크기는 배치(Layout)의 수 — 모서리 radius·블록 Size 가 아니다 */
+     Buzz = special · 코너(radius) = Appearance(Q2). */
   const _fx = window.fxSectionParts(ss, 'ss');   /* ★1017a7 Effects — 조각(U0b effects-registry) · #ss-fx-section 유지 · 머리 select = headTools */
   renderPanel(ss, {
     header: _headerHTML(ss, 'auto'),
@@ -542,7 +538,7 @@ function _renderAutoPanel(ss) {
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         <button class="prop-action-btn secondary" id="${isFreeLayout ? 'ss-to-stack-btn' : 'ss-to-free-btn'}" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">${isFreeLayout ? 'stack' : 'free'}</button>
       </div>
-`) + (_radialTop ? _radialHTML : '') + `
+`) + `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
         ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { id: 'ss-align-left' } })}
         ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { id: 'ss-align-hcenter' } })}
@@ -556,7 +552,7 @@ function _renderAutoPanel(ss) {
         <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.style.gap) || 0}">
         <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
       </div>
-` + (_radialTop ? '' : _radialHTML)),
+`),
       sec('padding', `
       <div class="prop-row">
         <span class="prop-label">상하패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
@@ -685,8 +681,6 @@ function _renderAutoPanel(ss) {
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
-  /* 프로토 Z6-C — 「Radial Arrange」 절 배선(절 문자열·동작은 js/radial-arrange.js · index.html 이 싣는다). 절이 없으면 아무 일도 안 한다. */
-  window.wireRadialArrangeSection?.(ss, () => _renderAutoPanel(ss));
   /* 버즈 프레임에는 Layout 절(free → stack 변환)을 안 그린다 — 버즈는 자유배치여야 돌고, 쌓기는 Buzz 절의 배치 「스택」이 한다.
      그 변환을 누르면 자리 · 높이가 풀리고 표식만 남은 보통 프레임이 된다(2026-10-13 실측) — 같은 말 「stack」이 두 뜻으로 나란히 서지 않게 한다. */
   if (isBuzzFrame(ss)) wireBuzzSection(ss);
