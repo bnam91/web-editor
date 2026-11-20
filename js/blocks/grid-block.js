@@ -843,6 +843,19 @@ function applyGridOwnWidth(block, px) {
   const n = Number(px);
   if (!Number.isFinite(n)) return null;
   const v = Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(n)));
+  /* t13D-09(현빈 0.9.13 grd_ofjwh_po3sn2v · 키 815) — 흐름 그리드를 그릇 폭 «이상»으로 끌면 = 다 쓴다(키 없음).
+     K1 이 그릴 때 min(키, 그릇)으로 죄어 «꽉 찬 것처럼» 보이는 키가 남았다 → 섹션 패딩을 줄이면 그 px 로 드러나 양옆 여백.
+     (패딩 72 에서 모서리로 «높이만» 끌어도 폭 716 키가 박혔다 — 모서리는 폭+높이.) 자유 프레임·떠 있음·패딩제외는 제 규칙 그대로. */
+  if (block.dataset.overlayBlock !== 'true' && block.dataset.fullBleed !== 'true' && !_gridHomeFreeFrame(block) && !gridFreeFrameChild(block)) {
+    const p = block.parentElement, cs = p && getComputedStyle(p);
+    const avail = p ? p.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) : 0;
+    if (avail > 0 && v >= avail - 1) {
+      delete block.dataset.gridWidth;
+      delete block.dataset.gridWidthAuto;
+      renderGridBlock(block);
+      return Math.round(avail);
+    }
+  }
   block.dataset.gridWidth = String(v);
   delete block.dataset.gridWidthAuto;                      // 사람이 정한 폭 — 자동 출처 표시를 뗀다(updateGridBlock 과 같은 규칙)
   _gridDropFullBleedForManualWidth(block);                 // ★T5-⒜ 사람이 정한 폭 ⇒ 패딩제외 표식도 같이 끈다
