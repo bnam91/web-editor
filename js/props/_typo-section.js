@@ -242,8 +242,8 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="number" class="prop-number" id="${p}-hl-y-num" min="-40" max="40" value="${hlY}">
       </div>
       <div class="prop-row ts-code-row" id="${p}-hl-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="${p}-hl-code" value="" placeholder="형광펜 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
+        <span class="prop-label">형광펜</span>
+        <input type="text" class="prop-text" id="${p}-hl-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-hl-code-copy" title="번호 복사" aria-label="형광펜 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-hl-recent-row" hidden></div>
@@ -289,8 +289,8 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         </div>
       </div>
       <div class="prop-row ts-code-row" id="${p}-dot-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="${p}-dot-code" value="" placeholder="점 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
+        <span class="prop-label">점</span>
+        <input type="text" class="prop-text" id="${p}-dot-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-dot-code-copy" title="번호 복사" aria-label="점 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-dot-recent-row" hidden></div>
@@ -310,8 +310,8 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         </div>
       </div>
       <div class="prop-row ts-code-row" id="${p}-ul-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="${p}-ul-code" value="" placeholder="밑줄 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
+        <span class="prop-label">밑줄</span>
+        <input type="text" class="prop-text" id="${p}-ul-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-ul-code-copy" title="번호 복사" aria-label="밑줄 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>

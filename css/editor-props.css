@@ -663,6 +663,8 @@
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold); letter-spacing: 0.04em;
   color: var(--ui-text-dim); user-select: none;
   margin-right: 2px;
+  /* 1120b R2 후속(지디 261121 · 실물 png «최/근» 두 줄) — 줄이 nowrap 이라 칩이 차면 라벨이 눌려 꺾였다 ⇒ 라벨은 꺾지도 줄지도 않는다(공용 — 색 최근·VAR·효과 최근 한 꼴) */
+  white-space: nowrap; flex-shrink: 0;
 }
 .cv-chip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1192,6 +1194,8 @@
 .prop-cell-card.expanded .lrl-cell-toggle { color: var(--ui-accent-primary); }
 .prop-cell-card-body { display: flex; flex-direction: column; gap: 6px; }
 .prop-cell-card-body[hidden] { display: none; }
+/* 1120b B5 후속(지디 261121) — «스타일 번호» 카드 세 줄 라벨 = 형광펜·점·밑줄(최장 3자) · 56 칸이면 칸 안 «번호 붙여넣기»가 잘렸다(실측 필요 64 > 57) ⇒ 이 카드 줄만 라벨 40(셋 세로 정렬 유지) */
+.ts-code-row > .prop-label { width: calc(var(--ui-form-label-w) - var(--ui-space-4)); }
 
 /* 작은 아이콘 버튼 (× 삭제 등) */
 .prop-icon-btn {

@@ -222,3 +222,45 @@ test('B5 Text — «스타일 번호» 카드 하나(.prop-cell-card > header·b
   expect(r).toEqual({ rowsIn: [true, true, true], start: { exp: 'false', hidden: true, title: '스타일 번호 3', header: true }, after: { exp: 'true', hidden: false }, cards: 1 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* 1120b 후속(지디 261121 · 지혜맥 실물 png 21장에서 본 것) — R2b 라벨 «최/근» 꺾임 · B5b 스타일 번호 세 줄 라벨·placeholder 잘림
+ * 양성대조: _patches/1120b-R2b-CTL.patch(라벨 nowrap·안 줄음 걷음 → R2b 빨강) · _patches/1120b-B5b-CTL.patch(라벨·placeholder·라벨 폭 되돌림 → B5b 빨강) */
+test('R2b 최근 효과 줄(형광펜·점·글로우) «최근» 라벨 = 색 최근 라벨과 같은 높이(한 줄) · 칩 5개 안 잘림', async ({ page }) => {
+  const pre = `localStorage.removeItem('we_text_style_history_v1'); localStorage.removeItem('we_color_history_v1');`;
+  const errs = await open(page, 'text', pre);
+  await page.evaluate(() => {
+    ['#111111', '#222222', '#333333', '#444444', '#555555', '#666666', '#777777'].forEach((h) => window.DesignSystem.pushColorHistory(h));
+    document.dispatchEvent(new CustomEvent('colorhistory-changed'));
+    const VAR = { hl: '--tb-hl-color', dot: '--tb-dot-color', glow: '--tb-glow-color' };
+    for (const k of Object.keys(VAR)) ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff'].forEach((c, i) => window.DesignSystem.pushTextStyleHistory(k, { [VAR[k]]: c }, { now: i * 100000 }));
+    window.showTextProperties(window.__b);
+  });
+  const r = await page.evaluate(() => {
+    const lab = (row) => row?.querySelector(':scope > .cv-chips-label')?.offsetHeight ?? null;
+    const out = { color: lab(document.querySelector('#panel-right .cv-recent-row')) };
+    for (const k of ['hl', 'dot', 'glow']) {
+      const row = document.getElementById(`txt-${k}-recent-row`); const n = row?.querySelectorAll('.ts-chip').length ?? 0;
+      out[k] = { h: lab(row), n, fits: !!row && row.scrollWidth <= row.clientWidth };   // 줄은 overflow:hidden — 넘치면 scrollWidth 가 커진다
+    }
+    return out;
+  });
+  expect(r.color, '[전제] 색 최근 라벨이 섰다').toBeGreaterThan(0);
+  for (const k of ['hl', 'dot', 'glow']) expect(r[k], `★${k} 최근 라벨 높이 = 색 최근 라벨(${r.color}) · 칩 5 안 잘림`).toEqual({ h: r.color, n: 5, fits: true });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('B5b 스타일 번호 카드 세 줄 라벨 = 형광펜·점·밑줄 · placeholder «번호 붙여넣기» 가 칸 안에 다 듦 · id·복사 단추 무변', async ({ page }) => {
+  const errs = await open(page, 'text');
+  await page.evaluate(() => { const h = document.getElementById('txt-code-fold-toggle'); if (h && h.getAttribute('aria-expanded') !== 'true') h.click(); });
+  const r = await page.evaluate(() => {
+    const cv = document.createElement('canvas').getContext('2d');
+    return ['hl', 'dot', 'ul'].map((k) => {
+      const i = document.getElementById(`txt-${k}-code`); const cs = getComputedStyle(i); cv.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const room = i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); const l = i.parentElement.querySelector('.prop-label');
+      return { label: l?.textContent, labelFits: l ? l.scrollWidth <= l.clientWidth : false, ph: i.placeholder, phFits: room > 0 && Math.ceil(cv.measureText(i.placeholder).width) <= room, copy: !!document.getElementById(`txt-${k}-code-copy`) };
+    });
+  });
+  const want = (label) => ({ label, labelFits: true, ph: '번호 붙여넣기', phFits: true, copy: true });
+  expect(r).toEqual([want('형광펜'), want('점'), want('밑줄')]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

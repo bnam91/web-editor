@@ -165,7 +165,9 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
   [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
-  [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">']];
+  [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">'],
+  /* 1120b B5 후속(지디 261121) — 스타일 번호 칸 placeholder «형광펜/점/밑줄 번호 붙여넣기» → «번호 붙여넣기»(이름은 줄 라벨로 · 잘림 없게) */
+  [/ placeholder="(?:형광펜|점|밑줄) 번호 붙여넣기"/, ' placeholder="번호 붙여넣기"']];
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
   : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}${(() => { const sel = closest(k, (x) => x.tag === 'select'); return sel?.attrs.id ? ` in="${sel.attrs.id}"` : ''; })()}>`] : []));   // QA2 — 옵션에 «어느 고르개»를 붙여 허용을 그 고르개로 묶는다
 const labels = (root) => all(root).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub')).map((k) => text(k).trim());   // 묶음 작은 제목(Q1)은 라벨 아님
@@ -214,7 +216,9 @@ function judge(name, st, oldHtml, newHtml) {
   const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
-  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED])
+  /* 1120b B5 후속(지디 261121) — 스타일 번호 세 줄 라벨 «번호»×3 → «형광펜»·«점»·«밑줄»(한 말이 셋으로 갈려 LABEL_RENAME 표로는 못 적는다 · 옛 수만큼만) */
+  const codeN = labels(o).filter((t) => t === '번호').length;
+  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호')]).concat(['형광펜', '점', '밑줄'].slice(0, codeN))
     .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const l2 = minus(ol, labels(n)), e2 = minus(labels(n), ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
