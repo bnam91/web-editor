@@ -25,7 +25,7 @@ async function setup(page) {
     g.id = 'pG'; document.getElementById('pR').appendChild(g);
     window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.(); window.applyZoom?.(100); g.scrollIntoView({ block: 'center' });
   });
-  await page.waitForTimeout(300);
+  await expect.poll(() => page.evaluate(() => document.getElementById('pG').offsetWidth), '[전제] 그리드가 섰다').toBeGreaterThan(0);
   return errs;
 }
 const st = (page) => page.evaluate(() => { const g = document.getElementById('pG'), s = document.getElementById('pS');
