@@ -431,3 +431,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - (고침 별도) `t13a-01-grid-img-paste.dom.spec.js:96` I3 — 지혜맥 전수 1/1 · ×3(workers2) 0/3 · 919fb30cb workers1 연기 1/1 · CTL 판 1/1 빨강 → ty/flaky-c15 에서 시험 고침(조건 대기).
 - (고침 별도) `scratch-undo-linkdy-190.dom.spec.js:85` L4 — 지혜맥 전수 1/1 · ×3 3/3 빨강(차 0.052·0.086·0.240 · 전수 0.195) · 인텔 전수 초록 → ty/flaky-c15 에서 시험 고침.
 - (고침 별도) `itb-icon-popover.dom.spec.js` K:70(전수) · O:61 · S:84(×3 각 1) — 지혜맥 → ty/flaky-c15 에서 시험 고침(조건 대기).
+
+## 2026-11-21 · t13d-02 A1 (0.9.13 t13d 가지) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `t13d-02-grid-handles-on-create.dom.spec.js:13` A1 «★생성 직후 = 클릭 뒤와 같은 손잡이»(:36) — 인텔 t13d-04 CTL-elastic 판에서 빨강 1/1(생성 직후 «e,n,ne,nw,s,se,sw,w» ↔ 클릭 뒤 «n,nw,sw,w») · 지혜맥 같은 판 ×8(workers 4) 0/8.
+- 그 뒤 spec 의 읽는 시점을 고침(태양 · 이 가지 다음 커밋 · 단언 그대로): 지혜맥 ×24(workers 6 · retries 0) 0/24 · 양성대조 t13d-02-CTL 1/1 빨강(«★생성 직후 손잡이 8개»).
