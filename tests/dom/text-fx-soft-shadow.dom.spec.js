@@ -112,12 +112,15 @@ test('F6 그림자가 상자 네모에서 안 끊김 · 둥근 프레임은 계�
     const cap = await window.__exportGate.captureTruth(s, 860, window.__exportGate.sectionBgColor(s)); const x = cap.canvas.getContext('2d');
     const sr = s.getBoundingClientRect(), fb = fr.getBoundingClientRect(), k = 860 / sr.width;
     const y = Math.round((fb.bottom - sr.top) * k) + 8, x0 = Math.round((fb.left - sr.left) * k), x1 = Math.round((fb.right - sr.left) * k);
-    const d = x.getImageData(x0, y, Math.max(1, x1 - x0), 1).data; let dark = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 250) dark++;
+    const d = x.getImageData(x0, y, Math.max(1, x1 - x0), 1).data;
+    const bg = x.getImageData(1, 1, 1, 1).data[0];   // 섹션 바탕 픽셀(맨 위 왼쪽) — 상수 대신 두 측정을 견준다(dom-screen-px-census)
+    let dark = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] < bg - 3) dark++;
     fr.dataset.radius = '12'; const ovR = getComputedStyle(fr).overflow; delete fr.dataset.radius;
     fr.dataset.clipContent = 'true'; const ovC = getComputedStyle(fr).overflow; delete fr.dataset.clipContent;
-    return { ov, dark, ovR, ovC };
+    return { ov, dark, w: d.length / 4, ovR, ovC };
   });
-  expect([r.ov, r.dark > 20], `★프레임 안 자름 · 상자 아래 8px 줄 어두운 칸 ${r.dark}`).toEqual(['visible', true]);
+  expect([r.ov, r.dark > r.w / 8], `★프레임 안 자름 · 상자 아래 8px 줄 어두운 칸 ${r.dark}/${r.w}`).toEqual(['visible', true]);
   expect([r.ovR, r.ovC], '[지킴] 둥근 프레임·내용 자르기 = 계속 자름').toEqual(['hidden', 'hidden']);
   expect(errs).toEqual([]);
 });
