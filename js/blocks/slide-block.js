@@ -14,7 +14,7 @@ import { gridPlusLayer } from './grid-block.js';   // SLIDE-CANVAS-PLUS-ADD-CELL
 import { bindBlock } from '../drag-drop.js';
 import {
   SLIDE_FX, SLIDE_MAX, SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, normLayout, normAnim, diffFromDefault,
-  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, trailGhosts, slideGridZoom, gridZoomFrame, drawGridZoom,
+  slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, cellShadowPad, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, trailGhosts, slideGridZoom, gridZoomFrame, drawGridZoom,
   DOT_D, DOT_GAP, dotBand, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
@@ -432,13 +432,15 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
 }
 
 /** 정적 첫 장면 — 카드 i 왼끝 = i × (카드 폭 + 간격)(slide-motion drawSlides offset 0 과 같은 자리). 빈 블럭 = 체크무늬 카드 3. */
+/** 칸 그림자 위아래 넘침(px · 블럭 자) — 사진 모드·칸 없음 = 0 */
+export const slideShadowPad = (block) => cellShadowPad(slideCells(block).map((c) => c.dataset.shadow));
 export function renderSlideBlock(block) {
   if (!block) return;
   const { slides, layout, fx } = readSlideState(block);
   const vert = slideAxis(fx) === 'y';   // 2단계 세로 — 카드 세로로 쌓음(카드 크기 % = 높이의 %)
   block.style.height = `${layout.h}px`;
   /* 134 — 가로만 자르고 위아래는 칸 그림자만큼 연다(가장 큰 그림자 blur+|y| · 없으면 0 = 옛 hidden 과 같은 자름) · 펼침은 css 가 clip-path none */
-  const _S = Math.max(0, ...slideCells(block).map((c) => { const sh = CELL_SHADOWS[c.dataset.shadow]; return sh ? sh.blur + Math.abs(sh.y) : 0; }));
+  const _S = slideShadowPad(block);
   block.style.overflow = 'visible';
   block.style.clipPath = `inset(${-_S}px 0px ${-_S}px 0px)`;
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
@@ -677,6 +679,7 @@ window.renderSlideBlock = renderSlideBlock;
 window.slidePrepare = slidePrepare;
 window.slidePlan = slidePlan;
 window.slideBg = slideBg;
+window.slideShadowPad = slideShadowPad;
 window.slideHasPhotos = slideHasPhotos;
 window.setSlideAnim = setSlideAnim;
 window.readSlideState = readSlideState;
