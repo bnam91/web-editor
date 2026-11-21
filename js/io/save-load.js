@@ -354,7 +354,7 @@ function _flushUnfinishedSavesSync() {
         continue;
       }
       const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id, opts?._goneBase));
-      if (!!(r && r.ok === false && (r.reason === 'changed_outside' || r.reason === 'folder_returned') && r.kept === 'history')) { try { localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`); localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`); } catch (_) {} continue; }   // main 이 덮지 않고 내 본을 «확인된 핀»에 남겼다(밖에서 바뀐 파일 · 돌아온 폴더) — 실패 아님 · LS 본을 두면 다음 열기가 그 본으로 밖의 판을 덮는다(FILE-CHANGED 리뷰 1 · BEFOREUNLOAD-LS-REWRITE-FOLDER-RETURNED-01 실측 B·C)
+      if (!!(r && r.ok === false && (r.reason === 'changed_outside' || r.reason === 'folder_returned') && r.kept === 'history')) { try { localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`); localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`); } catch (_) {} wrote.add(id); continue; }   // main 이 덮지 않고 내 본을 «확인된 핀»에 남겼다(밖에서 바뀐 파일 · 돌아온 폴더) — 실패 아님 · LS 본을 두면 다음 열기가 그 본으로 밖의 판을 덮는다(FILE-CHANGED 리뷰 1 · BEFOREUNLOAD-LS-REWRITE-FOLDER-RETURNED-01 실측 B·C) · wrote 에 넣는다 — 종료 답이 «미확정»을 실패로 세지 않게(리뷰 3)
       if (r?.reason === 'folder_returned' && r.kept) continue;   // 돌아온 폴더 · 비상 사본으로 남김 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다(LS 본은 둔다 · 5칸 고리라 밀릴 수 있다)
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)

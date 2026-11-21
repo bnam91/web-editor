@@ -2997,11 +2997,13 @@ function _goneBaseRefusal(project) {
   try { const { updatedAt: _u, ...rest } = project; sig = require('crypto').createHash('sha1').update(JSON.stringify(rest)).digest('hex'); } catch (_) {}
   const memo = (_goneBaseRefusal._kept || (_goneBaseRefusal._kept = new Map()));
   const prev = sig ? memo.get(key) : null;
-  if (prev && prev.sig === sig && prev.kept) return { ok: false, reason: 'folder_returned', kept: prev.kept };
-  let kept = false;   // 'history' = 버전 기록(핀) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
-  try { if (_SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }).ok) kept = 'history'; } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }
+  /* BEFOREUNLOAD-LS-REWRITE-FOLDER-RETURNED-01 리뷰 1 — 기억한 핀이 «아직 있나» 본다(그사이 폴더가 다시 갈려 핀이 같이 사라졌으면 기억은 거짓 · 렌더러가 LS 본을 걷는다) */
+  const _pinAlive = (m) => m.kept !== 'history' || (m.ts != null && (() => { try { return _SS()._internal.readPins(PROJECTS_DIR, key)[String(m.ts)] === 'gone-copy' && fs.existsSync(path.join(PROJECTS_DIR, _safeSeg(key), 'proj_history', `${m.ts}.json`)); } catch (_) { return false; } })());
+  if (prev && prev.sig === sig && prev.kept && _pinAlive(prev)) return { ok: false, reason: 'folder_returned', kept: prev.kept };
+  let kept = false, ts = null;   // 'history' = 버전 기록(핀 · 읽어서 확인) · 'emergency' = 비상 사본(종료 때 알린다) · false = 못 남김(렌더러가 화면과 LS 본을 그대로 둔다)
+  try { const r = _SS().writeSnapshot(PROJECTS_DIR, project.id, project, { reason: 'gone-copy', force: true, notCurrent: true }); if (r && r.ok && r.pinsOk === true) { kept = 'history'; ts = r.ts; } } catch (e) { console.warn('[projects:save] 돌아온 폴더 — 남은 본을 버전 기록에 못 남겼다:', e.message); }   // 리뷰 2 — 핀 사이드카까지 확인(pinsOk)된 때만 history(렌더러가 그 말을 믿고 LS 본을 걷는다)
   if (!kept) { const r = _recordSyncSaveFailure(project, 'folder_returned'); if (r && r.saved && r.saved.record && r.saved.record.emergencyPath) kept = 'emergency'; }
-  if (sig && kept) memo.set(key, { sig, kept });
+  if (sig && kept) memo.set(key, { sig, kept, ts });
   return { ok: false, reason: 'folder_returned', kept };
 }
 ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirState.unresolved ? null : (_projectsDirState && _projectsDirState.account) || 'legacy'));   // 본이 어느 뿌리 것인지 가르는 값

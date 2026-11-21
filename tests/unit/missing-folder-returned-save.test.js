@@ -227,3 +227,27 @@ test('G14 같은 본이 두 번 거절돼도 «폴더 없던 때» 핀은 하나
   assert.equal(count(/남은본편집2 머리/), 1, '★다른 본을 안 남겼다(잃음)');
   assert.match(JSON.stringify(file(id)), /돌아온 머리/);
 });
+
+/* BEFOREUNLOAD-LS-REWRITE-FOLDER-RETURNED-01 적대 리뷰(261121) — 렌더러가 kept 'history' 를 믿고 LS 본을 걷으므로 그 말이 참이어야 한다 */
+test('G15 기억한 핀이 그사이 사라졌으면(폴더가 다시 갈림) 같은 본도 다시 남긴다', async () => {
+  const id = await returned();
+  const same = (stamp) => ({ ...proj(id, '남은본편집'), updatedAt: stamp, _goneBase: true });
+  const a = await H.invoke('projects:save', same('2026-11-10T01:00:00.000Z'));
+  assert.equal(a.kept, 'history');
+  const h = path.join(dir(id), 'proj_history');
+  for (const f of fs.readdirSync(h).filter((x) => /^\d+\.json$/.test(x))) if (fs.readFileSync(path.join(h, f), 'utf8').includes('남은본편집 머리')) fs.renameSync(path.join(h, f), path.join(H.userData, 'gone-pin-' + f));   // 핀이 폴더와 같이 사라짐(옮겨 둠 · 지우지 않음)
+  const b = await H.invoke('projects:save', same('2026-11-10T01:00:05.000Z'));
+  assert.equal(b.kept, 'history');
+  assert.equal(history(id).filter((x) => x.includes('남은본편집 머리')).length, 1, '★사라진 핀을 «남겼다»고 답했다(렌더러가 LS 본을 걷으면 그 편집은 어디에도 없다)');
+});
+test('G16 핀 사이드카를 못 쓰면(pinsOk 아님) history 라 하지 않는다 — 비상 사본 쪽', async () => {
+  const id = await returned();
+  const SS = require(path.join(__dirname, '../../main/project-store/snapshot-store.js'));
+  const real = SS.writeSnapshot;
+  SS.writeSnapshot = (d, pid, data, o) => { const r = real(d, pid, data, o); return o && o.reason === 'gone-copy' ? { ...r, pinsOk: false } : r; };
+  try {
+    const r = await H.invoke('projects:save', { ...proj(id, '사이드카실패'), _goneBase: true });
+    assert.equal(r.reason, 'folder_returned');
+    assert.notEqual(r.kept, 'history', '★확인 안 된 핀을 history 로 말했다');
+  } finally { SS.writeSnapshot = real; }
+});
