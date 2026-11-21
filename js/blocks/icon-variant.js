@@ -12,15 +12,25 @@ export function normIconStroke(v) {
   return Math.min(ICON_STROKE_MAX, Math.max(ICON_STROKE_MIN, Math.round(n / ICON_STROKE_STEP) * ICON_STROKE_STEP));
 }
 
-/** 선으로 그린 아이콘인가 — 뿌리 svg 에 stroke-width 가 있다(Feather·Lucide·Tabler 등 선 아이콘의 꼴). */
-export const isStrokeIcon = (svg) => !!(svg && typeof svg.getAttribute === 'function' && svg.getAttribute('stroke-width') != null);
+/* stroke-width 를 든 요소 — 뿌리 svg 와 그 안(Iconify 가 주는 Feather·Lucide 는 뿌리가 아니라 path/g 에 둔다 · 미카사 채점 261121 ②).
+   shortcut: 두께가 요소마다 다른 아이콘도 한 값으로 맞춘다 — 비율 유지가 필요해지면 첫 값 대비 배율로. */
+const _strokeEls = (svg) => {
+  if (!svg || typeof svg.getAttribute !== 'function') return [];
+  const kids = typeof svg.querySelectorAll === 'function' ? [...svg.querySelectorAll('[stroke-width]')] : [];
+  return (svg.getAttribute('stroke-width') != null ? [svg] : []).concat(kids);
+};
+/** 선으로 그린 아이콘인가 — 뿌리나 그 안에 stroke-width 가 있다(Feather·Lucide·Tabler 등 선 아이콘의 꼴). */
+export const isStrokeIcon = (svg) => _strokeEls(svg).length > 0;
+/** 지금 선 두께(첫 stroke-width) · 없으면 null. */
+export const iconStrokeOf = (svg) => { const e = _strokeEls(svg)[0]; return e ? e.getAttribute('stroke-width') : null; };
 
-/** 블럭에 저장된 선 두께를 뿌리 svg 에 입힌다(멱등 · 선 아이콘이 아니면 손 안 댐). 돌려주는 값 = 입힌 두께 또는 null. */
+/** 블럭에 저장된 선 두께를 stroke-width 를 든 요소 전부에 입힌다(멱등 · 선 아이콘이 아니면 손 안 댐). 돌려주는 값 = 입힌 두께 또는 null. */
 export function applyIconStroke(block) {
   const svg = block?.querySelector?.(':scope > svg');
   const w = normIconStroke(block?.dataset?.iconStroke);
-  if (!svg || w == null || !isStrokeIcon(svg)) return null;
-  if (svg.getAttribute('stroke-width') !== String(w)) svg.setAttribute('stroke-width', String(w));
+  const els = _strokeEls(svg);
+  if (!svg || w == null || !els.length) return null;
+  for (const e of els) if (e.getAttribute('stroke-width') !== String(w)) e.setAttribute('stroke-width', String(w));
   return w;
 }
 

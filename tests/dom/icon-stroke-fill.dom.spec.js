@@ -4,8 +4,10 @@
  * I2 [지킴] 채운 아이콘(mdi) = «선 두께» 줄 없음 · 채움 줄 없음
  * I3 Material Symbols — «선» 진짜 클릭 → 이름 home-outline · 그림 갈림 · 색·크기 그대로 · 패널 «선» 켜짐 / 받기 실패면 이름 그대로 + 알림
  * I4 내보내기 — PNG 잉크 면적 3.5 > 1(두 측정 견줌) · HTML·Figma JSON svg 에 stroke-width="3.5"
+ * I5 [미카사 채점 ②] Iconify 가 주는 실제 Lucide 꼴(stroke-width 가 path 에) → «선 두께» 줄 뜸 · 3 → path stroke-width 3
+ * I6 [미카사 채점 ②] 고르기 창 Feather 걸러 «heart» 검색 — Iconify 검색은 feather 를 0 으로 준다 → 세트 목록에서 골라 격자에 feather:heart
  * 네트워크 0 — fetch 를 쪽 안에서 가로채 Iconify 대역 SVG 를 준다.
- * 양성대조: _patches/icon-stroke-fill-CTL.patch(applyIconStroke·msNameFor 걷음) → I1·I3·I4 빨강 · I2 초록.
+ * 양성대조: _patches/icon-stroke-fill-CTL.patch(applyIconStroke·msNameFor 걷음) → I1·I3·I4 빨강 · I2 초록 · (실측) icon-child-stroke-CTL(자식 stroke-width 안 봄) → I5 빨강 · icon-feather-search-CTL(세트 목록 폴백 걷음) → I6 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -85,5 +87,36 @@ test('I4 PNG 잉크 3.5 > 1 · HTML·Figma 에 stroke-width', async ({ page }) =
     return { html: /stroke-width="3.5"/.test(html), figma: !!n && /stroke-width="3.5"/.test(n.svg || '') };
   });
   expect(out, '★HTML·Figma').toEqual({ html: true, figma: true });
+  expect(errs).toEqual([]);
+});
+
+const LUCIDE_REAL = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676a.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/></svg>';   // api.iconify.design/lucide/heart.svg 응답 그대로(261121)
+test('I5 Iconify 실제 Lucide 꼴(path 의 stroke-width) → 선 두께', async ({ page }) => {
+  const errs = await scene(page, 'lucide:heart', LUCIDE_REAL);
+  expect(await page.evaluate(() => !!document.getElementById('icn-stroke-w-number')), '★«선 두께» 줄이 안 뜬다(뿌리만 봄)').toBe(true);
+  expect(await page.evaluate(() => document.getElementById('icn-stroke-w-number').value), '지금 두께 = path 값').toBe('2');
+  await page.fill('#icn-stroke-w-number', '3'); await page.press('#icn-stroke-w-number', 'Enter'); await raf(page);
+  expect(await page.evaluate(() => document.querySelector('#icI > svg path').getAttribute('stroke-width')), '★path 에 입힘').toBe('3');
+  expect(errs).toEqual([]);
+});
+
+test('I6 Feather 걸러 검색 — Iconify 검색 0 이면 세트 목록에서', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(() => {
+    window.__fetchLog = []; const f0 = window.fetch;
+    window.fetch = async (u, ...a) => { const s = String(u); if (!s.startsWith('https://api.iconify.design/')) return f0(u, ...a); window.__fetchLog.push(s);
+      if (s.includes('/search?')) return new Response(JSON.stringify({ icons: [], total: 0 }), { status: 200 });   // 실측 응답(261121): feather 는 검색 색인에 없다
+      if (s.includes('/collection?prefix=feather')) return new Response(JSON.stringify({ prefix: 'feather', total: 4, uncategorized: ['heart', 'star', 'home', 'heart-off'] }), { status: 200 });
+      if (s.includes('/feather.json')) return new Response(JSON.stringify({ prefix: 'feather', icons: { heart: { body: '<path d="M1 1h2"/>' }, 'heart-off': { body: '<path d="M1 1h2"/>' } }, width: 24, height: 24 }), { status: 200 });
+      return new Response('<svg/>', { status: 200 }); };
+    window.openIconifyModal();
+  });
+  await page.click('.iconify-col-btn[data-prefix="feather"]');
+  await page.fill('#iconify-search-input', 'heart');
+  await page.waitForFunction(() => /feather:heart/.test(document.getElementById('iconify-grid')?.innerHTML || ''), null, { timeout: 8000 }).catch(() => {});
+  const g = await page.evaluate(() => ({ html: document.getElementById('iconify-grid')?.innerHTML || '', log: window.__fetchLog }));
+  expect(/feather:heart"/.test(g.html) && /feather:heart-off/.test(g.html) && !/feather:star/.test(g.html), `★Feather 검색 결과 0 (격자 ${g.html.slice(0, 160)})`).toBe(true);
+  expect(g.log.some((u) => u.includes('/collection?prefix=feather')), '세트 목록을 받았다').toBe(true);
   expect(errs).toEqual([]);
 });

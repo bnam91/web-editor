@@ -3,7 +3,7 @@ import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
-import { normIconStroke, isStrokeIcon, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
+import { normIconStroke, isStrokeIcon, iconStrokeOf, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
 
 /* ICON-FEATHER-MATERIAL — Iconify 에서 SVG 한 장(iconify-panel _doInsert 와 같은 검사: HTTP 오류·SVG 아님 = 실패) · 세척본만 돌려준다. */
 async function _fetchIconSvg(name) {
@@ -31,7 +31,7 @@ export function showIconifyProperties(block) {
   /* ICON-FEATHER-MATERIAL-RESEARCH-01(현빈 261121 발주2 #3) — 넣은 뒤 그 아이콘에서: 선 아이콘(뿌리 stroke-width · Feather 등) = «선 두께» · Material Symbols = «채움/선» */
   const _rootSvg = isRaster ? null : block.querySelector(':scope > svg');
   const strokeable = isStrokeIcon(_rootSvg);
-  const strokeW = strokeable ? (normIconStroke(block.dataset.iconStroke) ?? normIconStroke(_rootSvg.getAttribute('stroke-width')) ?? 2) : null;
+  const strokeW = strokeable ? (normIconStroke(block.dataset.iconStroke) ?? normIconStroke(iconStrokeOf(_rootSvg)) ?? 2) : null;
   const fillState = isRaster ? null : msFillState(iconName);
 
   renderPanel(block, {
