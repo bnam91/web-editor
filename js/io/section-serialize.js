@@ -331,6 +331,8 @@
     /* 그림 실패 표시는 내용이 아니다 — 표본에 실리면 복원 때마다 다시 실패해 «라이브 ≠ 꼭대기»가 되어 ⌘Z 가 그 자리에 묶인다(앱 3/3). 표시는 image-handling.js 캡처 리스너가 다시 단다. */
     root.querySelectorAll('img.asset-img-failed').forEach(i => { if (i.classList.contains('asset-img-failed-alt')) i.removeAttribute('alt'); i.classList.remove('asset-img-failed', 'asset-img-failed-alt'); });
     restParticleMotion(root);
+    /* IMG-FX-HALFTONE-01 — 하프톤 덮개(img.asset-halftone)는 data-halftone 에서 «구운» 파생 그림이다 · 저장·이력 표본엔 싣지 않는다(열기·undo 때 watchAll 이 다시 굽는다 · 큰 data URL 이 표본마다 쌓이지 않게). */
+    root.querySelectorAll('img.asset-halftone').forEach((el) => el.remove());
     /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
        setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
        원본 영상 data URL(최대 ~50MB×1.33 팽창)이 proj.json «과» 모든 undo 스냅샷(트림 핸들
