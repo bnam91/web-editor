@@ -1438,6 +1438,41 @@ function duplicateSelected() {
   pasteClipboard();
 }
 
+/* ★t13D-03(0.9.13 · ⌥끌기 복제) — 고른 단위를 «그 자리 그대로» 복제하고 사본을 고른다. 끌기는 사본 몫(alt-click-layer-select.js 가 사본에 mousedown 을 넘긴다).
+   ⌘D(duplicateSelected)와 다른 점: 자리 오프셋 0 · 클립보드 안 씀(⌘D 의 흐름·오버레이 갈래는 copy/paste 를 타 OS 클립보드를 덮는다 — 끌기 복제가 그러면 안 된다).
+   단위 = 도형 래퍼 · 텍스트 프레임 · 행이 통째로 골라졌으면 그 행 · 그 밖 블럭 자신(absolute 포함). 단위 안 단위는 바깥만.
+   사본은 원본 «바로 뒤»(같은 부모 · id 재발급 = 공용 붙여넣기 문 _bindPastedEl) — absolute 는 같은 left/top 이라 원본 위에 겹치고, 흐름은 바로 아래.
+   select: 'copy' = 사본을 고름(끌 쪽이 사본) · 'from' = 고름 그대로(흐름 블럭 — 네이티브 끌기라 끌려가는 쪽이 원본, 사본은 제자리에 남는다).
+   @returns {{ from: Element, to: Element }[]} 원본 단위 → 사본(없으면 []) */
+function duplicateInPlace({ select = 'copy' } = {}) {
+  const unitOf = (b) => {
+    const tf = shapeFrameOf(b) || b.closest('.frame-block[data-text-frame]');
+    if (tf) return tf;
+    const row = b.closest('.row');
+    return (row && _isRowFullySelected(row, ALL_TYPES_SEL)) ? row : b;
+  };
+  const all = [...new Set([...document.querySelectorAll('#canvas ' + MULTI_SEL.split(', ').join(', #canvas '))].map(unitOf))];
+  const units = all.filter(u => !all.some(o => o !== u && o.contains(u)));
+  if (!units.length) return [];
+  window.pushHistory?.('복제');
+  const pairs = units.map((u) => { const c = u.cloneNode(true); u.after(c); _bindPastedEl(c); c._dragBound = false; return { from: u, to: c }; });
+  if (select === 'from') {   // 사본은 cloneNode 로 원본의 .selected 까지 받아 왔다 — 걷는다(고름은 원본에만)
+    pairs.forEach(({ to }) => [to, ...to.querySelectorAll('.selected, .multi-selected')].forEach(n => n.classList.remove('selected', 'multi-selected')));
+    window.buildLayerPanel?.(); window.pushHistory?.('복제 완료'); return pairs;
+  }
+  deselectAll();
+  pairs.forEach(({ to }) => {
+    const leaf = to.matches?.(ALL_TYPES_SEL) ? to : (to.querySelector(ALL_TYPES_SEL) || to);
+    leaf.classList.add('selected');
+    to.closest('.section-block')?.classList.add('selected');
+  });
+  window.buildLayerPanel?.();
+  _panelFollowsPasted(pairs.map(x => x.to));
+  window.pushHistory?.('복제 완료');
+  return pairs;
+}
+window.duplicateInPlace = duplicateInPlace;
+
 /* 다중선택 «판정» 셀렉터 — copySelected 와 pasteClipboard 가 «같은 집합»을 봐야 한다.
  * 붙여넣기 기준점을 copy 와 다른 목록으로 고르면 순서가 어긋난다.
  *
@@ -2411,21 +2446,26 @@ function pasteClipboard() {
        * ★2026-09-20 — textFrame 하드코딩을 뺐다(도형 래퍼·에셋도 같은 속성으로 뜬다). */
       const sec = getSelectedSection() || _pickVisibleSection() || document.querySelector('.section-block:last-child');
       if (!sec) { window.showNoSelectionHint?.(); return; }
+      /* ★t13D-06 — «들어간» 프레임(_pasteTarget into)에 붙이면 = 그 프레임 안 오버레이(주인 = overlay-float.js floatHostOf) ·
+         자리 = 그 프레임 기준 화면 가운데 → 프레임 상자 안(_placePastedOverlay 가 그릇 clientWidth/Height 로 죈다 · 섹션 갈래와 같은 산식) ·
+         해제 자리 = 이 프레임 맨 앞. 들어간 프레임이 없으면 옛 그대로 섹션. */
+      const box = _t?.into || sec;
       const curX = parseInt(el.style.left) || 0;
       const curY = parseInt(el.style.top) || 0;
-      const vp = _viewportCenterInContainerLocal(sec);
+      const vp = _viewportCenterInContainerLocal(box);
       const rawX = vp ? Math.round(vp.x) : curX + 20;
       const rawY = vp ? Math.round(vp.y) : curY + 20;
-      sec.appendChild(el);
+      box.appendChild(el);
       _bindPastedEl(el);
       // ★자리 계산은 «붙인 뒤» — 사본의 실제 크기와 섹션 상자를 재야 한다(_placePastedOverlay).
-      const { x: nx, y: ny } = _placePastedOverlay(sec, el, rawX, rawY);
+      const { x: nx, y: ny } = _placePastedOverlay(box, el, rawX, rawY);
       el.style.left = nx + 'px'; el.style.top = ny + 'px';
       el.dataset.offsetX = String(nx); el.dataset.offsetY = String(ny);
       // 복귀정보는 원본 것을 그대로 물려받으면 안 된다(원본 부모에 잘못 꽂힌다) —
-      // 지워서 exitOverlay의 기존 폴백(섹션 맨 앞)을 타게 한다.
+      // 지워서 exitOverlay의 기존 폴백(섹션 맨 앞)을 타게 한다. (t13D-06 — 프레임에 붙였으면 그 프레임 맨 앞)
       delete el.dataset.overlayReturnParent;
       delete el.dataset.overlayReturnAfter;
+      if (box !== sec && box.id) { el.dataset.overlayReturnParent = box.id; el.dataset.overlayReturnAfter = ''; }
       deselectAll();
       // 선택 대상 = 안쪽 콘텐츠 블록(텍스트/도형) 또는 자기 자신(에셋). 이름 목록이 아니라
       // 「래퍼면 안쪽 블록」이라는 구조로 집는다.
@@ -2473,7 +2513,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) windo
 // 갭 블록 높이 키 조정 후 keyup 시 undo 기록
 document.addEventListener('keyup', e => {
   if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;   // t13D-01 — ⇧↑↓ 는 고르기 이동(높이 안 바꿈) → 빈 이력 칸 안 쌓음
   if (document.querySelector('.gap-block.selected')) pushHistory();
 });
 
@@ -2615,8 +2655,32 @@ function _freePositionedAncestor(el) {
   for (let n = el; n && n !== canvas; n = n.parentElement) {
     if (n.parentElement?.matches?.('.frame-block[data-free-layout]')
         && getComputedStyle(n).position === 'absolute') return n;
+    /* t13D-01(현빈 «오버레이 밀기 유지» 261120) — 섹션 직속 오버레이(overlay-float.js enterFloat · 자리 정본 dataset.offsetX/Y)도 좌표를 가진 사람 */
+    if (n.dataset?.overlayBlock === 'true' && (n.parentElement?.classList?.contains('section-block') || n.parentElement?.classList?.contains('frame-block'))   // t13D-06 — 프레임 안 오버레이도(스택 프레임은 위 free-layout 갈래가 못 잡는다)
+        && getComputedStyle(n).position === 'absolute') return n;
   }
   return null;
+}
+/** t13D-01 — 고른 것의 «흐름 단위»(섹션 .section-inner 의 직속 자식 · 오버레이·absolute 는 아님)에서 dir(±1) 만큼 옆 단위를 고른다(끝↔처음 순환).
+ *  여러 개 고름이면 _deepestCanvasSelection 이 준 하나 기준(⑤) · 고르기 = 정본 한 자리 selectBlock(js/block-edit.js) + 클릭 경로처럼 손잡이(showHandlesFor — t13D-02 와 같은 이유) · 화면 밖이면 가까이 스크롤. */
+function _selectFlowSibling(sel, dir) {
+  const inner = sel.closest('.section-inner');
+  if (!inner) return false;
+  let unit = sel; while (unit && unit.parentElement !== inner) unit = unit.parentElement;
+  const isFlow = (el) => el.nodeType === 1 && el.id && !el.classList.contains('drop-indicator') && el.dataset.overlayBlock !== 'true'
+    && getComputedStyle(el).position !== 'absolute' && getComputedStyle(el).display !== 'none';
+  const units = [...inner.children].filter(isFlow);
+  if (!units.length) return false;
+  const i = unit ? units.indexOf(unit) : -1;
+  const next = units[((i < 0 ? (dir > 0 ? -1 : 0) : i) + dir + units.length) % units.length];
+  /* 단위 → 고를 블럭: 텍스트 프레임은 글자 블럭 · row 는 첫 블럭 · 갭·프레임·그 밖은 단위 자신 */
+  const leaf = next.matches('.frame-block[data-text-frame]') ? (next.querySelector('.text-block') || next)
+    : next.classList.contains('row') ? ([...next.querySelectorAll('[id]')].find((x) => !x.classList.contains('col') && x.closest('.row') === next) || next)
+    : next;
+  if (!leaf.id || !window.selectBlock?.(leaf.id)) return false;
+  window.showHandlesFor?.(leaf);
+  leaf.scrollIntoView?.({ block: 'nearest' });
+  return true;
 }
 /** 단일·다중선택 모두 커버. 중첩 프레임에서 «조상과 자식이 둘 다» 잡힐 때는 조상을 버린다(이중 이동 방지). */
 function _freeNudgeTargets() {
@@ -3282,6 +3346,13 @@ document.addEventListener('keydown', e => {
       if (_sel && !_sel.classList.contains('section-block')) {
         e.preventDefault();
         const _movers = _freeNudgeTargets();
+        /* t13D-01(현빈 결정 261120 · 지디 추천 ①~⑥) — 좌표 없는 «흐름» 블럭: ⇧↑↓ = 섹션 안 이전/다음 흐름 단위 고르기(끝↔처음 순환) ·
+           ←→ 무동작 · ↑↓(⇧ 없이) 는 갭이면 아래 갭 높이 갈래로 넘긴다(예전엔 이 return 이 먼저라 갭 ↑↓ 높이가 «죽은 길»이었다 — 정적 읽기) · 글 편집·입력칸은 위에서 이미 거름 */
+        const _gapFall = !_movers.length && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && _sel.classList.contains('gap-block');
+        if (!_movers.length && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          if (!document.querySelector('.grd-line-selected')) _selectFlowSibling(_sel, e.key === 'ArrowUp' ? -1 : 1);   // ⑥ 그리드 줄 고름이면 무동작
+          return;
+        }
         if (_movers.length) {
           const _step = e.shiftKey ? 10 : 1;
           const _now = Date.now();
@@ -3302,7 +3373,7 @@ document.addEventListener('keydown', e => {
           if (_yNum) _yNum.value = Math.round(parseFloat(_m0.style.top)  || 0);
           window.scheduleAutoSave?.();
         }
-        return;
+        if (!_gapFall) return;
       }
     }
   }
@@ -3486,6 +3557,7 @@ document.addEventListener('keydown', e => {
           const nb = document.getElementById('gap-number');
           if (sl) sl.value = next;
           if (nb) nb.value = next;
+          (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === next));   // 프리셋 칸 불(숫자키 갈래와 같은 꼴 · t13D-01 실물 png 에서 찾음)
           coalesceSizeHistory(gb, '간격 조정');
           window.scheduleAutoSave?.();
           return;
@@ -3494,13 +3566,13 @@ document.addEventListener('keydown', e => {
     }
   }
 
-  // ── 갭 블록 높이 조정: 방향키 (수정키 없음 or Shift) ──
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  // ── 갭 블록 높이 조정: 방향키(수정키 없음) — t13D-01: ⇧↑↓ 는 «고르기 이동»이라 큰 단계(±20)는 걷음(패널 슬라이더·숫자가 대신) ──
+  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
     const selGap = document.querySelector('.gap-block.selected');
     if (selGap) {
       e.preventDefault();
-      const step = e.shiftKey ? 20 : 4;
+      const step = 4;
       const delta = e.key === 'ArrowUp' ? step : -step;
       const cur = selGap.offsetHeight;
       const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + delta));
@@ -3510,6 +3582,7 @@ document.addEventListener('keydown', e => {
       const nb = document.getElementById('gap-number');
       if (sl) sl.value = next;
       if (nb) nb.value = next;
+      (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === next));   // 프리셋 칸 불(숫자키 갈래와 같은 꼴 · t13D-01 실물 png 에서 찾음)
       window.scheduleAutoSave?.();
       return;
     }
@@ -4542,6 +4615,7 @@ function deselectAll() {
      «해제된 블록»을 계속 가리킨 채 남아, 같은 블록을 다시 클릭하면 동일블록 가드에 걸려
      no-op 이 된다(아이콘원형이 실제로 밟은 사고 — 바로 위 주석 참고). */
   window.hideTextOverlayResizeHandles?.();
+  window.hideTextBoxResizeHandles?.();   // t13D-10 텍스트·갭 상자 손잡이
   window.hideGridOverlayResizeHandles?.(); // ★G2-b 떠 있는 그리드 «폭» 손잡이 — 빠지면 같은 블럭 재클릭이 동일블럭 빗장에 걸린다(위와 같은 사고)
   window._deselectAllGradients?.(); // gradient 블록 선택 해제 + 4모서리 핸들 제거 (deselectAll 셀렉터에 없어 누락됐던 정리)
   window.hideMeshCorners?.(); // ★t4-03 섹션 메시 모서리 점

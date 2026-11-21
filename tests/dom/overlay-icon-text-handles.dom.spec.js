@@ -123,8 +123,10 @@ async function mount(page, { overlay, zoom = 100 }) {
   await raf(page);
 }
 
+/* ★기대 바뀜(t13D-10 d6ab57b02 · 인텔 261121) — 오버레이 글엔 옛 모서리 넷(tfo) + 텍스트 상자 «변» 넷(같은 .tfo-overlay-handle 꼴 · data-tbx-dir)이 붙는다 ⇒ 모서리만 센다(ft-overlay-corner-123 와 같은 뿌리) */
 const handleCount = (page) => page.evaluate(() =>
-  document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle').length);
+  document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])').length);
+const boxHandleDirs = (page) => page.evaluate(() => [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle[data-tbx-dir]')].map((h) => h.dataset.tbxDir).sort());
 
 const measure = (page) => page.evaluate(() => {
   const b = window.__itb;
@@ -174,7 +176,10 @@ test.describe('아이콘+텍스트 블럭의 오버레이 모서리 핸들', () 
   test('I3 음성대조 — 오버레이가 «아닌» 아이콘텍스트에는 안 붙는다', async ({ page }) => {
     await boot(page);
     await mount(page, { overlay: false });
-    expect(await handleCount(page), '흐름(오토레이아웃) 블럭에 손잡이가 붙었다').toBe(0);
+    expect(await handleCount(page), '흐름(오토레이아웃) 블럭에 «오버레이 모서리»(글자 비례) 손잡이가 붙었다').toBe(0);
+    /* ★기대 바뀜(t13D-10 d6ab57b02 · 지디 설계 GO 261120 «흐름 텍스트도 상자 손잡이») — 아이콘+텍스트는 텍스트 패널·같은 갈래(overlay-handles.js showHandlesFor ·
+       09-20 «같은 패널이면 같은 손잡이»)라 흐름에서도 상자 손잡이(모서리 넷 + 변 넷 · 폭·최소 높이 · 글자 무변)가 붙는다. 실측: e −120 → 폭 600 → 480 · data-width 480. */
+    expect(await boxHandleDirs(page), '흐름 아이콘+텍스트 = t13D-10 상자 손잡이 여덟').toEqual(['e', 'n', 'ne', 'nw', 's', 'se', 'sw', 'w']);
   });
 
   test('I4 가드 — 오버레이를 끄면 손잡이가 스스로 걷힌다', async ({ page }) => {

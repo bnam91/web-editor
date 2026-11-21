@@ -27,6 +27,7 @@
      지우면 두 배로 나쁘다).
 ═══════════════════════════════════════════════════════════════════════════ */
 import { CORNER_DIRS, _cornerScreen, _canvasScaleNow, onUnionHandleDown } from './overlay-handles.js';
+import { isShapeFrame } from './shape-frame.js';   // t13D 2차 — 흐름 «프레임» 판정에서 도형 래퍼 빼기
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -562,6 +563,9 @@ export function selectionUnion() { return _union && { ..._union }; }
 const _UDIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 let _unionScalable = false;
 const _isFree = (el) => el.classList.contains('sticker-block') || getComputedStyle(el).position === 'absolute';
+/* t13D-07(현빈 0.9.13) — 흐름 프레임은 섞여도 손잡이를 단다: 좌표 없이 «크기만»(onUnionHandleDown s.flow) · 자식은 ⌘G 묶음처럼 비례. 흐름 글자 등 다른 흐름 블럭은 종전대로 손잡이 없음. */
+/* t13D 2차(인텔 261120 t202b S2 회귀): 도형 감싼 프레임(shape-frame.js isShapeFrame — 래퍼 안 .shape-block)은 «프레임 블럭»이 아니라 도형 한 몸 ⇒ 흐름이 되면 종전대로 손잡이 0 */
+const _isFlowFrame = (el) => el.classList.contains('frame-block') && el.dataset.textFrame !== 'true' && !isShapeFrame(el);
 function _placeUnionHandles(r) {
   const ov = document.getElementById('ss-handles-overlay');
   if (!ov) return;
@@ -620,7 +624,7 @@ function _frame() {
     items = _build() || [];
   }
   // 매 프레임 — 자리 방식(absolute↔흐름)은 style 만 바뀌어 MO(class·childList)가 못 본다. 고른 것 몇 개의 computed style 읽기라 싸다(_build 가 이미 배치를 읽었다).
-  _unionScalable = _targets.every(t => t.inner || _isFree(t.el));
+  _unionScalable = _targets.every(t => t.inner || _isFree(t.el) || _isFlowFrame(t.el));
   _render(items);
   if (items.length) _raf = requestAnimationFrame(_frame);   // 집합이 비면 루프 정지(MO 가 다시 깨운다)
 }

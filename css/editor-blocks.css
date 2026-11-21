@@ -594,6 +594,11 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
 .tfo-overlay-handle[data-tf-resize-dir] {
   border-color: var(--ui-sel-overlay, #9966ff);
 }
+/* t13D-10 — 텍스트·갭 «상자» 손잡이(js/overlay-handles.js showTextBoxResizeHandles · data-tbx-dir): 변 = 그 축 화살표 · 모서리 = 대각(기존 .tfo-overlay-handle.nw… 규칙과 같은 커서) */
+.tfo-overlay-handle[data-tbx-dir="n"], .tfo-overlay-handle[data-tbx-dir="s"] { cursor: ns-resize; }
+.tfo-overlay-handle[data-tbx-dir="e"], .tfo-overlay-handle[data-tbx-dir="w"] { cursor: ew-resize; }
+.tfo-overlay-handle[data-tbx-dir="nw"], .tfo-overlay-handle[data-tbx-dir="se"] { cursor: nwse-resize; }
+.tfo-overlay-handle[data-tbx-dir="ne"], .tfo-overlay-handle[data-tbx-dir="sw"] { cursor: nesw-resize; }
 /* ★★오버레이(플로팅) 손잡이 «전부» 보라 — 한 규칙 (현빈 2026-09-21
      「오버레이 하면 아웃라인이 보라인데 모서리 핸들은 파랑이다. 스티커는 보라 핸들까지 되어 있으니 색을 맞춰줘」)
    ───────────────────────────────────────────────────────────────────────────

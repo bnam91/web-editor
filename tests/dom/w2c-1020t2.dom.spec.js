@@ -56,7 +56,9 @@ async function dragTicks(page, fromX, fromY, dx, dy, n, readSel, { meta = false 
     const t0 = Date.now();
     await page.mouse.move(fromX + dx * i / n, fromY + dy * i / n);
     const r = await page.evaluate((s) => { const b = document.querySelector(s).getBoundingClientRect(); return [b.left, b.top]; }, readSel);
-    ticks.push({ cur: [fromX + dx * i / n, fromY + dy * i / n], box: r, ms: Date.now() - t0 });
+    /* ★t13D-04 — 그 틱에 스마트 가이드(자석)가 떠 있었나. 자석은 임계(10px) 안에서 상자를 기준선에 «붙들어» 커서가 움직여도 한 틱 서 있을 수 있다(프레임 안 끌기와 같은 뜻) */
+    const magnet = await page.evaluate(() => document.querySelectorAll('#ss-handles-overlay .smart-guide').length > 0);
+    ticks.push({ cur: [fromX + dx * i / n, fromY + dy * i / n], box: r, ms: Date.now() - t0, magnet });
   }
   const lastBox = ticks[ticks.length - 1].box;
   await page.mouse.up();
@@ -273,16 +275,18 @@ test('F4 ★오버레이 모달 끌기의 다섯 수 — 오버레이 텍스트 
     drg.ev = await page.evaluate(() => window.__w2cEv);
     drg.afterParent = await page.evaluate((q) => { const b = document.querySelector(q); return { parent: b.parentElement.className.split(' ')[0], overlay: b.dataset.overlayBlock || null, pos: getComputedStyle(b).position }; }, sel);
     let prev = [b1.left, b1.top], prevCur = [gx, gy];
-    const per = g.ticks.map((t) => {
+    const per = g.ticks.map((t) => ({ ...t, _m: t.magnet })).map((t) => {
       const bd = [t.box[0] - prev[0], t.box[1] - prev[1]], cd = [t.cur[0] - prevCur[0], t.cur[1] - prevCur[1]];
       prev = t.box; prevCur = t.cur;
       const ang = (Math.hypot(...bd) < 0.5) ? null : Math.round(Math.abs(Math.atan2(bd[1], bd[0]) - Math.atan2(cd[1], cd[0])) * 180 / Math.PI);
-      return { bd: bd.map(Math.round), cd: cd.map(Math.round), ang, ms: t.ms };
+      return { bd: bd.map(Math.round), cd: cd.map(Math.round), ang, ms: t.ms, magnet: t._m };
     });
     const lag = g.ticks.map((t) => Math.round(Math.hypot(t.cur[0] - gx - (t.box[0] - b1.left), t.cur[1] - gy - (t.box[1] - b1.top))));
     out[label] = { zoom: z, grabTarget: target, drg, firstTick: per[0], lagPx: lag, maxAngle: Math.max(0, ...per.map((p) => p.ang ?? 0)),
       tickMs: per.map((p) => p.ms), snapBack: [Math.round(g.after[0] - g.lastBox[0]), Math.round(g.after[1] - g.lastBox[1])],
-      total: [Math.round(g.after[0] - b1.left), Math.round(g.after[1] - b1.top)], cursor: [120, 60], stillTicks: per.filter((p) => p.ang === null).length };
+      total: [Math.round(g.after[0] - b1.left), Math.round(g.after[1] - b1.top)], cursor: [120, 60],
+      /* ★기대 바뀜(t13D-04 · 지디 인텔 261121 F4 Received 1): «안 따라온 틱» = 섰는데 자석도 없던 틱. 자석이 붙든 틱은 따로 센다(magnetStill) — 자석을 끄지 않고 «왜 섰나»로 가른다 */
+      stillTicks: per.filter((p) => p.ang === null && !p.magnet).length, magnetStill: per.filter((p) => p.ang === null && p.magnet).length };
     await page.keyboard.press('Meta+z');
   }
   log('F4', out);
@@ -349,7 +353,7 @@ test('F4b ★오버레이 모달이 ⌘Z · 재열기 · 패널 변경 뒤에도
     });
     const g = await dragTicks(page, gx, gy, 120, 60, 12, sel);
     let still = 0, prev = [b.left, b.top];
-    for (const t of g.ticks) { if (Math.hypot(t.box[0] - prev[0], t.box[1] - prev[1]) < 0.5) still++; prev = t.box; }
+    for (const t of g.ticks) { if (Math.hypot(t.box[0] - prev[0], t.box[1] - prev[1]) < 0.5 && !t.magnet) still++; prev = t.box; }   // ★기대 바뀜(t13D-04) — 자석이 붙든 틱은 «안 따라옴»이 아니다(위 F4 와 같은 규칙)
     return { stillTicks: still, snapBack: [Math.round(g.after[0] - g.lastBox[0]), Math.round(g.after[1] - g.lastBox[1])],
       total: [Math.round(g.after[0] - b.left), Math.round(g.after[1] - b.top)], dragstart: (await page.evaluate(() => window.__w2cEv)).dragstart };
   };
