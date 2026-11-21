@@ -213,12 +213,24 @@ function _shapeFigmaBlock(el) {
   return out;
 }
 
+/* IMG-FX-GRAIN-01(현빈 261121) — 그레인(.asset-grain 필름 노이즈)은 Figma JSON 에 안 실린다(조용히 빠졌다 · 261121 실측).
+   ⇒ 내보내기·업로드 직전 비차단 알림(certOutputNotice 와 같은 꼴 · showToast). roots = 살필 섹션들(없으면 캔버스 전체). 돌려주는 수 = 그레인 켠 그림 수.
+   shortcut: 지금 열린 페이지(라이브 캔버스)만 센다 — 다른 페이지의 그레인까지 세야 하면 pages[].canvas 문자열을 파싱해 센다. */
+export function figmaGrainNotice(roots) {
+  const list = roots && roots.length ? roots : [document.getElementById('canvas')];
+  let n = 0;
+  for (const r of list) r?.querySelectorAll?.('.asset-block > .asset-grain').forEach((g) => { if ((parseInt(g.dataset.grainIntensity, 10) || 0) > 0) n++; });
+  if (n) window.showToast?.(`그레인 ${n}곳은 피그마로 안 나갑니다(PNG·HTML 엔 나감)`);
+  return n;
+}
+
 async function exportFigmaJSON() {
   /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
      반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
   await window.whenGridRatiosSettled?.();
   // 현재 페이지를 pages 배열에 반영
   window.flushCurrentPage();
+  figmaGrainNotice();   // IMG-FX-GRAIN-01 — 그레인은 Figma 로 안 나감(비차단 알림)
 
   const parser = new DOMParser();
 
@@ -1722,4 +1734,5 @@ export {
 window.exportFigmaJSON       = exportFigmaJSON;
 window.getTextWithLineBreaks = getTextWithLineBreaks;
 window.buildFigmaExportJSON  = buildFigmaExportJSON;
+window.figmaGrainNotice      = figmaGrainNotice;
 window.buildFigmaExportJSONInlined = buildFigmaExportJSONInlined;

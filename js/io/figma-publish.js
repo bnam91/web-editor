@@ -200,6 +200,7 @@ async function doFigmaUpload() {
   const _built = await window.buildFigmaExportJSONInlined(selectedIds, nodeMap);
   const designJSON = _built.json;
   if (_built.unresolvedAssets) window.showToast?.(window.missingImageText?.(_built.unresolvedAssets));   // #11 — 내보내기 공용 문구(결과 모달 한 자리)
+  window.figmaGrainNotice?.(selectedIds.map((id) => document.getElementById(id)).filter(Boolean));   // IMG-FX-GRAIN-01 — 고른 섹션의 그레인은 Figma 로 안 나감
 
   function showDone(success, text) {
     spinnerEl.style.display = 'none';
