@@ -568,7 +568,7 @@ function enhanceLinerPropPanel(block) {
         <input type="range" class="prop-slider" id="lnr-startangle" min="0" max="360" step="1" value="${cfg.startAngle}">
         <span id="lnr-startangle-val">${cfg.startAngle}°</span>
       </div>
-      <div class="prop-row" id="lnr-radius-row"${cfg.preset === 'arc-up' || cfg.preset === 'arc-down' || cfg.preset === 'round' ? '' : ' hidden'}>
+      <div class="prop-row" data-own="special:Curve" id="lnr-radius-row"${cfg.preset === 'arc-up' || cfg.preset === 'arc-down' || cfg.preset === 'round' ? '' : ' hidden'}>
         <span class="prop-label">반지름</span>
         <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" data-empty="auto" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
       </div>
@@ -577,7 +577,7 @@ function enhanceLinerPropPanel(block) {
         <span class="prop-label">안쪽 뒤집기</span>
         <label class="prop-toggle"><input type="checkbox" id="lnr-flip"${cfg.flip ? ' checked' : ''}><span class="prop-toggle-track"></span></label>
       </div>
-      <div class="prop-row" data-own="special">
+      <div class="prop-row" data-own="special:Curve">   <!-- 절 정체 = special:<제목>(게이트 explicitOwnOf · prop-annotation 꼴) — 옛 «special» 은 없는 절이라 빨강(V6 · Electron 전수 261122) -->
         <span class="prop-label">외곽선</span>
         <input type="color" id="lnr-outline-color" value="${cfg.strokeColor || '#000000'}" aria-label="곡선 글자 외곽선 색">
         <input type="range" class="prop-slider" id="lnr-outline-width" min="0" max="${LINER_STROKE_MAX}" step="0.5" value="${cfg.strokeWidth || 0}" aria-label="곡선 글자 외곽선 두께">
