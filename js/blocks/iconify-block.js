@@ -7,6 +7,7 @@
 
 import { genId, showNoSelectionHint, insertAfterSelected } from '../drag-utils.js';
 import { bindBlock } from '../drag-drop.js';
+import { applyIconStroke } from './icon-variant.js';   // ICON-FEATHER-MATERIAL — 다시 그린 뒤에도 저장된 선 두께(data-icon-stroke)를 입힌다
 
 function makeIconifyBlock(iconName = '', svgContent = '', size = 64) {
   const row   = document.createElement('div');
@@ -47,6 +48,7 @@ function _applyIconifyBlockStyle(block, content, size, rotation) {
     block.innerHTML = content;
     const svg = block.querySelector('svg');
     if (svg) { svg.setAttribute('width', size); svg.setAttribute('height', size); svg.style.display = 'block'; }
+    applyIconStroke(block);
   } else {
     block.innerHTML = _iconifyPlaceholderSvg(size);
   }
