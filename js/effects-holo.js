@@ -1,14 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════════════
    EFFECTS 식구 — 홀로그램(FX-GRADIENT-GAZE-01 v3 · 현빈 261121 «별도 이펙트 — 피그마에서도 플러그인으로 있잖아»)
    ───────────────────────────────────────────────────────────────────────
-   ★«칠을 넣어 주는» 도구: 프리셋 16(js/fx/holo-palette.js GAZE_PRESETS) + 세기(모든 정지점 투명도) → 그 블럭의 «그라데이션 칠»
+   ★«칠을 넣어 주는» 도구: 프리셋 16(js/fx/holo-palette.js GAZE_PRESETS) + 세기(= «덮는 정도» · 0 = 넣기 전 칠 그대로 · 100 = 홀로 · holoMixStops · 미카사 채점 261121 ③) → 그 블럭의 «그라데이션 칠»
      (도형 = 도형 칠 · 글자 = 글자 그라데이션)에 그대로 쓴다 ⇒ 색 고르기 그라데이션 탭·캔버스 바·PNG/HTML/Figma 는 옛 길 그대로.
    ★상태 = 블럭 data-fx-holo 한 키(JSON {k 프리셋, a 세기 0..100, off?, prev 넣기 전 칠}) — 카드 ✕ = prev 로 되돌림 · 눈 끔 = prev 를 보이고 키 보존.
    ★shortcut: 그림 칠 도형(data-shape-fill)은 목록에 안 뜬다(그림 src 를 키에 담으면 저장본이 커진다) · 켠 뒤 색 고르기로 칠을 바꿔도 ✕ 는 prev 로 되돌린다.
    ═══════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
-import { GAZE_PRESETS, gazeSwatchCss } from './fx/holo-palette.js';
-import { toCss } from './props/gradient-model.js';
+import { GAZE_PRESETS, gazeSwatchCss, holoMixStops } from './fx/holo-palette.js';
+import { toCss, parseGradient } from './props/gradient-model.js';
 
 export const FX_HOLO_DEFAULT = 'aurora';
 const _isShape = (el) => !!el?.classList?.contains('shape-block');
@@ -28,16 +28,29 @@ export function fxHoloOf(el) {
 function _snapshot(el) {
   if (_isShape(el)) return { c: el.dataset.shapeColor || '', g: el.dataset.shapeGradient || null };
   const ce = _txtContent(el); const g = ce && window.getTextGradient?.(ce);
-  return { g: g ? g.css : null };
+  return { g: g ? g.css : null, t: !g && ce ? getComputedStyle(ce).color : null };   // t = 그라데이션 없는 글자색(세기 섞기 바탕)
+}
+/* 넣기 전 칠 → 섞기 바탕(holoMixStops base) · 모르면 null(옛 셈 = 투명도) */
+function _baseOf(el, prev) {
+  if (!prev) return null;
+  if (prev.g) {
+    let m = null;
+    if (_isShape(el)) { try { m = JSON.parse(prev.g); } catch (_) {} } else { try { m = parseGradient(prev.g); } catch (_) {} }
+    return m && Array.isArray(m.stops) && m.stops.length ? { stops: m.stops } : null;
+  }
+  if (_isShape(el)) return prev.c && !/gradient\(/.test(prev.c) ? { solid: prev.c } : null;
+  return prev.t ? { solid: prev.t } : null;
 }
 function _curAngle(el, type) {
   let g = null;
   if (_isShape(el)) { try { g = JSON.parse(el.dataset.shapeGradient || 'null'); } catch (_) {} } else { const ce = _txtContent(el); g = ce && window.getTextGradient?.(ce); }
   return g && g.type === type && Number.isFinite(g.angle) ? g.angle : (type === 'conic' ? 0 : 90);
 }
-function _paint(el, k, a) {
+function _paint(el, k, a, prev) {
+  const base = _baseOf(el, prev);
+  if (a === 0 && base) { _restore(el, prev); return; }   // 0 = 넣기 전 칠 «그대로»(그라데이션 위 근사 없이 · 키는 남는다)
   const p = GAZE_PRESETS.find((x) => x.key === k) || GAZE_PRESETS[0];
-  const d = { type: p.type, angle: _curAngle(el, p.type), stops: p.stops.map(([color, offset]) => ({ color, offset, opacity: a / 100 })) };
+  const d = { type: p.type, angle: _curAngle(el, p.type), stops: holoMixStops(p.stops, a, base) };
   d.css = toCss(d);
   if (_isShape(el)) window._applyShapeGradientFill?.(el, d); else window.applyTextGradient?.(el, d);
 }
@@ -67,7 +80,7 @@ export function setFxHolo(el, patch = {}, { history = true } = {}) {
   } else {
     const prev = cur.state === 'on' ? cur.prev : _snapshot(el);   // 처음 켤 때·끈 뒤 다시 켤 때 = 지금 칠이 «되돌릴 칠»
     el.dataset.fxHolo = JSON.stringify({ k, a, prev });
-    _paint(el, k, a);
+    _paint(el, k, a, prev);
   }
   window.scheduleAutoSave?.();
   return { ok: true, applied: fxHoloOf(el) };
