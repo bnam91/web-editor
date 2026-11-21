@@ -5,7 +5,8 @@
  * F3 [지킴] 옛 «그림자»(shadow* 키) 저장본 — 부드러운 그림자를 더하면 [옛 그림자, 5겹] · ✕ 하면 옛 그림자 글·키 그대로(바이트)
  * F4 내보내기 — PNG 글자 아래 그림자 잉크 늘어남 · HTML 에 5겹 text-shadow · Figma JSON 글자 textShadow 5겹
  * F5 저장 왕복 · undo 1번 = 없음
- * 양성대조: _patches/soft-shadow-CTL.patch(합성 문에서 부드러운 겹 걷음) → F1·F2·F3·F4·F5 빨강.
+ * F6 그림자가 글자 상자 네모에서 안 끊긴다 — 텍스트 프레임 overflow visible · PNG 에서 상자 아래 8px 바깥도 그림자(바탕보다 어둡다) / [지킴] 둥근 프레임(data-radius)·«내용 자르기» 켬은 계속 자른다
+ * 양성대조: _patches/soft-shadow-CTL.patch(합성 문에서 부드러운 겹 걷음) → F1·F2·F3·F4·F5 빨강 · _patches/soft-shadow-clip-CTL.patch(프레임 안 자르기 규칙 걷음) → F6 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -98,5 +99,25 @@ test('F5 저장 왕복 · undo', async ({ page }) => {
   expect(layers((await ts(page)).computed).length, '★다시 열기 = 5겹').toBe(5);
   await page.evaluate(() => { window.clearHistory?.(); window.setFxSoft(document.getElementById('tbS'), { height: 30 }); window.undo(); }); await raf(page);
   expect(layers((await ts(page)).computed).at(-1)[1], '★undo = 높이 12').toBe(12);
+  expect(errs).toEqual([]);
+});
+
+test('F6 그림자가 상자 네모에서 안 끊김 · 둥근 프레임은 계속 자름', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(() => { const s = document.getElementById('sS'); s.style.backgroundColor = '#ffffff'; window.setFxSoft(document.getElementById('tbS'), { state: 'on', angle: 90, height: 24, strength: 100 }, { history: false }); window.deselectAll(); });
+  await raf(page);
+  const r = await page.evaluate(async () => {
+    const tb = document.getElementById('tbS'), fr = tb.closest('.frame-block'), s = document.getElementById('sS');
+    const ov = getComputedStyle(fr).overflow;
+    const cap = await window.__exportGate.captureTruth(s, 860, window.__exportGate.sectionBgColor(s)); const x = cap.canvas.getContext('2d');
+    const sr = s.getBoundingClientRect(), fb = fr.getBoundingClientRect(), k = 860 / sr.width;
+    const y = Math.round((fb.bottom - sr.top) * k) + 8, x0 = Math.round((fb.left - sr.left) * k), x1 = Math.round((fb.right - sr.left) * k);
+    const d = x.getImageData(x0, y, Math.max(1, x1 - x0), 1).data; let dark = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 250) dark++;
+    fr.dataset.radius = '12'; const ovR = getComputedStyle(fr).overflow; delete fr.dataset.radius;
+    fr.dataset.clipContent = 'true'; const ovC = getComputedStyle(fr).overflow; delete fr.dataset.clipContent;
+    return { ov, dark, ovR, ovC };
+  });
+  expect([r.ov, r.dark > 20], `★프레임 안 자름 · 상자 아래 8px 줄 어두운 칸 ${r.dark}`).toEqual(['visible', true]);
+  expect([r.ovR, r.ovC], '[지킴] 둥근 프레임·내용 자르기 = 계속 자름').toEqual(['hidden', 'hidden']);
   expect(errs).toEqual([]);
 });
