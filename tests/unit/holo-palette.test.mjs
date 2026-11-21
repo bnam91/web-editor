@@ -9,11 +9,13 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSrc } from './_srcread.js';
+import { createRequire } from 'node:module';
+const { sliceBlock } = createRequire(import.meta.url)('./_slice-block.js');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const H = await import(pathToFileURL(path.join(ROOT, 'js/fx/holo-palette.js')).href);
 const CSS = readSrc(ROOT, 'css', 'editor-blocks.css');
-const block = (sel) => { const i = CSS.indexOf(sel + ' {'); assert.ok(i >= 0, `[전제] ${sel} 규칙`); return CSS.slice(i, CSS.indexOf('\n}', i)); };
+const block = (sel) => sliceBlock(CSS, sel + ' {', `[전제] ${sel} 규칙`);   // 짝 괄호로 자름(slice-block-shared SB-16)
 const varsOf = (b) => Array.from({ length: 7 }, (_, k) => (new RegExp(`--holo-c${k + 1}:\\s*(#[0-9a-f]{6})`, 'i').exec(b) || [])[1]?.toLowerCase());
 
 test('P1 배지 4색 = 정본', () => {
