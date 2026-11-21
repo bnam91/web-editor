@@ -85,7 +85,8 @@ export function fxComposedTextShadowCss(contentEl, userCss) {
   if (!contentEl) return '';
   const tb = contentEl.closest ? contentEl.closest('.text-block') : null;
   const u = userCss === undefined ? textUserShadowCss(contentEl) : (userCss || '');
-  return [tb ? fxGlowLayers(tb) : '', u].filter(Boolean).join(', ');
+  const soft = tb && typeof window !== 'undefined' && typeof window.fxSoftShadowLayers === 'function' ? window.fxSoftShadowLayers(tb) : '';   // TEXT-FX-BEAUTIFUL-SHADOW-01 — 부드러운 그림자 겹(맨 뒤 · 없으면 '' ⇒ 옛 바이트 그대로)
+  return [tb ? fxGlowLayers(tb) : '', u, soft].filter(Boolean).join(', ');
 }
 
 /** ★합성 문 «하나» — 글자칸 인라인 text-shadow 를 합성 결과로 쓴다. 텍스트 「Shadow」 절도 이리로 온다.
