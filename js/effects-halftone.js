@@ -12,6 +12,7 @@
    shortcut: 그림 회전(imgRotate)은 무시하고 그림 상자 기준으로 굽는다 — 회전 + 하프톤 요구가 오면 회전 행렬로 그린다.
    ════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
+import { normalizeDecorBlur } from './effects/image-redact.js';   // 흐림(IMG-FX-BLUR-01) 값 — 굽기 때 원본을 흐리게(두 효과 다 산다 · 열차 261121)
 import { normHalftone, parseHalftone, serializeHalftone, halftoneDots, lumOf, HT_DEFAULTS, HT_RANGES, HT_SHAPES } from './fx/halftone.js';
 
 const OVERLAY_CLS = 'asset-halftone';
@@ -77,13 +78,15 @@ export function applyHalftone(el) {
   if (!img.complete || !img.naturalWidth) return false;   // 로드되면 img load 듣개가 다시 부른다
   const W = clip.offsetWidth, H = clip.offsetHeight;
   if (!W || !H) return false;
-  const o = fx.o, sig = JSON.stringify([o, W, H, img.currentSrc || img.src, img.style.cssText]);
+  const blur = normalizeDecorBlur(el.dataset.decorBlur);   // 가림이면 위에서 이미 덮개 없음(가림 우선)
+  const o = fx.o, sig = JSON.stringify([o, W, H, img.currentSrc || img.src, img.style.cssText, blur]);
   const ov0 = _overlayOf(el);
   if (ov0 && ov0.dataset.htSig === sig) return true;
   const cw = Math.round(W * SCALE), ch = Math.round(H * SCALE);
   const src = document.createElement('canvas'); src.width = cw; src.height = ch;
   const sx = src.getContext('2d', { willReadFrequently: true });
   const r = _contentRect(img, clip, W);
+  if (blur) sx.filter = `blur(${blur * SCALE}px)`;   // «흐린 사진을 망점화» — 캔버스 drawImage 는 CSS filter 를 안 받으니 여기서 같은 px 로(캔버스는 ×SCALE)
   sx.drawImage(img, r.x * SCALE, r.y * SCALE, r.w * SCALE, r.h * SCALE);
   let px;
   try { px = sx.getImageData(0, 0, cw, ch).data; } catch (e) { console.warn('[halftone] 그림을 못 읽음(오염) — 원본 그대로:', e?.message); _drop(el); return false; }

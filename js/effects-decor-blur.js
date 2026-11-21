@@ -31,6 +31,7 @@ export function setFxDecorBlur(el, patch = {}, { history = true } = {}) {
   if (state === 'on' && v > 0) el.dataset.decorBlur = String(v);
   else if (state === 'off' && v > 0) el.dataset.decorBlurOff = String(v);
   recomposeHost(el);
+  window.applyHalftone?.(el);   // 하프톤 켜진 그림이면 흐린 사진으로 다시 굽기(sig 에 흐림 값 · 꺼진 블럭은 덮개 치움만)
   window.scheduleAutoSave?.();
   return { ok: true, applied: fxDecorBlurOf(el) };
 }
