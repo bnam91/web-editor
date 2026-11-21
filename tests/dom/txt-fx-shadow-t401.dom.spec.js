@@ -82,7 +82,7 @@ test('S1 텍스트 목록 = 반사·그림자·글로우·자유변형(이 순�
   const errs = await setup(page);
   await pick(page, 'eT');
   expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) · 명부 순서 그대로 · 옛 넷의 순서·뜻 무변
-  expect(await addLabels(page, 'txt')).toEqual(['반사', '그림자', '글로우', '자유변형']);
+  expect(await addLabels(page, 'txt')).toEqual(['반사', '그림자', '글로우', '부드러운 그림자', '홀로그램', '자유변형']);   // ★기대 바뀜(위 줄과 같은 까닭 · fxT3 아이맥 S1 — 라벨 줄을 빠뜨렸었다) · 그림자 라벨 = 「그림자」 무변
   await expect(page.locator('#txt-shadow-section'), '옛 절 없음').toHaveCount(0);
   await expect(page.locator('#txt-shadow-controls'), '고르기 전엔 조절칸 0').toHaveCount(0);
   expect(await shKeys(page), '목록을 열기만 해선 안 붙는다').toEqual({});
