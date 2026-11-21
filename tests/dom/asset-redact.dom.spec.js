@@ -107,7 +107,7 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
   });
   console.log('R1 pre', JSON.stringify(pre.opts));
   expect(pre.opts, '전제: 그림 든 에셋 패널에 Effects 드롭다운이 없다').not.toBe(null);
-  expect(pre.opts, 'Effects 드롭다운에 「블러」 가 없다').toContainEqual(['blur', '블러']);
+  expect(pre.opts, 'Effects 드롭다운에 「가림」 가 없다').toContainEqual(['blur', '가림']);   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»이 생겨 옛 «블러» 이름을 «가림»으로(fix5-blur-effects 와 같은 결)
   expect(pre.oldSec, '옛 따로 절 «블러 (Redact)» 가 남았다(두 곳)').toBe(false);
   expect(pre.titles, '옛 절 제목이 패널에 남았다').not.toContain('블러 (Redact)');
   expect(pre.slider, '고르기 전부터 블러 슬라이더가 있다(옛 절)').toBe(false);
@@ -135,7 +135,7 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
   expect(out.grainNextIsFx, '그레인이 Appearance 절에, 효과 목록이 Effects 절에 있지 않다').toBe(true);
   expect(out.inFx, '블러 슬라이더가 Effects 절 안에 없다').toBe(true);
   expect(out.cardType).toBe('blur');
-  expect(out.cardTitle).toBe('블러');
+  expect(out.cardTitle).toBe('가림');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 카드 제목도 «가림»
   expect(out.optsAfter, '건 뒤에도 드롭다운에 「블러」 가 남았다(종류당 하나)').not.toContain('blur');
   expect([out.rsType, out.rsMin, out.rsMax]).toEqual(['range', '0', '100']);
   expect([out.rnType, out.rnMin, out.rnMax]).toEqual(['number', '0', '100']);
