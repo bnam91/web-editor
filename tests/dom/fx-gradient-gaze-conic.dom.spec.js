@@ -8,7 +8,8 @@
  * Z4 섹션 바탕 — 원뿔형 css → 그려짐(computed conic) · PNG 색 여럿 (Figma: 섹션 그라데이션은 종류와 무관하게 원래 한 색으로 감 = 옛 MESH-FIGMA 갭 · 이번 범위 밖)
  * Z5 저장 표본엔 덮개 0 · shapeGradient 있음 → 다시 열기(rebindAll) 덮개 다시 · 도형 크기 바꾸면 덮개 크기 따라감
  * Z6 Figma JSON 도형 gradientModel = conic(정지점·각) · linear 프리셋 도형엔 없음
- * 양성대조: _patches/gaze-conic-CTL.patch(conic 파싱 · 덮개 · gradientModel 걷음) → Z2~Z6 빨강 · Z1 초록.
+ * Z7 원뿔형 캔버스 그라데이션 «원»: 고리 보임 · 시작각 손잡이가 고리 바로 밖(가운데에서 R×1.15 · offset 0 칩과 안 겹침) · 손잡이를 진짜로 3시 방향으로 끌면 angle ≈ 90 · 칩이 고리 둘레
+ * 양성대조: _patches/gaze-conic-CTL.patch(conic 파싱 · 덮개 · gradientModel 걷음) → Z2~Z6 빨강 · Z1 초록 · _patches/gaze-ring-CTL.patch(원뿔형 원 그리기 걷음 = 옛 직선 바) → Z7 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -113,5 +114,23 @@ test('Z6 Figma 도형 gradientModel', async ({ page }) => {
   await page.click('.goya-cp-popover [data-holo="mist"]'); await raf(page);
   const b = node(await figJson(page), 'shZ');
   expect(b?.gradientModel ?? null, '★linear 면 없음').toBe(null);
+  expect(errs).toEqual([]);
+});
+
+test('Z7 원뿔형 캔버스 바 = 원(가운데 + 시작각 손잡이)', async ({ page }) => {
+  const errs = await scene(page, 'shape');
+  await openGradTab(page, 'shape');
+  await page.click('.goya-cp-popover [data-holo="prism"]'); await raf(page);
+  await page.evaluate(() => window.showGradientLine?.(document.getElementById('shZ'))); await raf(page);
+  const g0 = await page.evaluate(() => { const ring = document.querySelector('.grad-line-ring'), end = document.querySelector('.grad-line-finish'), st = document.querySelector('.grad-line-start');
+    if (!ring || getComputedStyle(ring).display === 'none') return { ring: false };
+    const rr = ring.getBoundingClientRect(), er = end.getBoundingClientRect(), sr = st.getBoundingClientRect(); const cx = rr.left + rr.width / 2, cy = rr.top + rr.height / 2, R = rr.width / 2;
+    const chips = [...document.querySelectorAll('.grad-stop-chip')].map((c) => { const q = c.getBoundingClientRect(); return Math.hypot(q.left + q.width / 2 - cx, q.top + q.height / 2 - cy) / R; });
+    return { ring: true, endOn: Math.abs(Math.hypot(er.left + er.width / 2 - cx, er.top + er.height / 2 - cy) / R - 1.15), endHit: document.elementFromPoint(er.left + er.width / 2, er.top + er.height / 2) === end, startAtC: Math.hypot(sr.left + sr.width / 2 - cx, sr.top + sr.height / 2 - cy), chips, e: [er.left + er.width / 2, er.top + er.height / 2], c: [cx, cy], R };
+  });
+  expect([g0.ring, g0.endOn < 0.05, g0.endHit, g0.startAtC < 2, g0.chips && g0.chips.every((k) => Math.abs(k - 1) < 0.08)], `★원 ${JSON.stringify(g0)}`).toEqual([true, true, true, true, true]);
+  await page.mouse.move(g0.e[0], g0.e[1]); await page.mouse.down(); await page.mouse.move(g0.c[0] + g0.R, g0.c[1], { steps: 8 }); await page.mouse.up(); await raf(page);
+  const a = await page.evaluate(() => JSON.parse(document.getElementById('shZ').dataset.shapeGradient).angle);
+  expect(Math.abs(a - 90) <= 3, `★끌어서 시작각 ≈ 90 (${a})`).toBe(true);
   expect(errs).toEqual([]);
 });
