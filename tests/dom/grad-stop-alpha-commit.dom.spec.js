@@ -25,8 +25,6 @@ const SRC = {
   '/js/globals.js': 'export const propPanel = document.getElementById("prop-panel");\nexport const state = {};\n',
   '/js/blocks/gradient-block.js': fs.readFileSync(path.join(REPO, 'js/blocks/gradient-block.js'), 'utf8'),
   '/js/props/_helpers.js': fs.readFileSync(path.join(REPO, 'js/props/_helpers.js'), 'utf8'),
-  /* FX-GRADIENT-GAZE-01: color-picker.js 가 무지갯빛 프리셋(../fx/holo-palette.js)을 들인다 — 빠지면 import 404 로 __ready 가 안 선다 */
-  '/js/fx/holo-palette.js': fs.readFileSync(path.join(REPO, 'js/fx/holo-palette.js'), 'utf8'),
   '/js/props/prop-gradient.js': fs.readFileSync(path.join(REPO, 'js/props/prop-gradient.js'), 'utf8'),
   /* U4(right-panel-unify) — prop-gradient 가 틀(_panel-frame → _section-spec)을 들인다. 빠지면 import 404 로 __ready 가 안 선다. */
   '/js/props/_panel-frame.js': fs.readFileSync(path.join(REPO, 'js/props/_panel-frame.js'), 'utf8'),
