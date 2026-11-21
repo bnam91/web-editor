@@ -1,6 +1,7 @@
 /* icon-variant — ICON-FEATHER-MATERIAL-RESEARCH-01(현빈 261121 발주2 #3) 아이콘 «선 두께 · 채움» 셈(js/blocks/icon-variant.js).
  * V1 normIconStroke — 0.25 눈금 · 0.5..4 · 빈칸/글자 = null
  * V2 applyIconStroke — 뿌리 stroke-width 있을 때만 · 멱등 · 없으면 손 안 댐
+ * V4 [미카사 채점 ②] Iconify 실제 꼴(뿌리 아닌 path 에 stroke-width — Lucide·Feather 둘 다) → 선 아이콘 · 지금 두께 · 입히기
  * V3 Material Symbols 이름 — 채움↔선 · -rounded/-sharp 꼬리 보존 · 다른 모음 = null
  */
 import test from 'node:test';
@@ -41,4 +42,18 @@ test('V3 Material Symbols 채움/선', () => {
   assert.equal(V.msNameFor('material-symbols:arrow-back-ios', 'outline'), 'material-symbols:arrow-back-ios-outline');
   assert.equal(V.msNameFor('feather:heart', 'outline'), null);
   assert.equal(V.msNameFor('material-symbols:home', 'bold'), null);
+});
+
+test('V4 Iconify 실제 꼴 — path 의 stroke-width', () => {
+  const mkEl = (attrs) => { const a = { ...attrs }; return { a, getAttribute: (k) => (k in a ? a[k] : null), setAttribute: (k, v) => { a[k] = v; } }; };
+  const path = mkEl({ fill: 'none', stroke: 'currentColor', 'stroke-width': '2' });
+  const root = mkEl({ viewBox: '0 0 24 24' }); root.querySelectorAll = (sel) => (sel === '[stroke-width]' ? [path] : []);
+  assert.equal(V.isStrokeIcon(root), true, '뿌리에 없어도 선 아이콘');
+  assert.equal(V.iconStrokeOf(root), '2');
+  const block = { dataset: { iconStroke: '3' }, querySelector: () => root };
+  assert.equal(V.applyIconStroke(block), 3);
+  assert.equal(path.a['stroke-width'], '3', 'path 에 입힘');
+  assert.equal(root.a['stroke-width'], undefined, '뿌리에 새로 만들지 않음');
+  const filled = mkEl({}); filled.querySelectorAll = () => [];
+  assert.equal(V.isStrokeIcon(filled), false);
 });

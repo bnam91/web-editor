@@ -295,12 +295,32 @@ function _bindModalEvents() {
   });
 }
 
+/* ★미카사 채점 261121 ② — Iconify 는 «feather» 세트(286개)를 검색 색인에서 뺐다(/collections 에 없고 /search?prefix=feather 는 늘 0 · /collection?prefix=feather 는 준다).
+   세트를 걸러 찾았는데 0 이면 그 세트 목록을 받아 이름에 검색어가 든 것을 고른다(세트당 한 번 받아 둔다 · 검색 결과와 같은 꼴 'set:name' · 상한 80). */
+const _COLLECTION_NAMES = new Map();
+async function _searchInCollection(query, prefix) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+  let names = _COLLECTION_NAMES.get(prefix);
+  if (!names) {
+    try {
+      const r = await fetch(`${ICONIFY_API}/collection?prefix=${encodeURIComponent(prefix)}`);
+      const d = r.ok ? await r.json() : null;
+      names = d ? [...new Set([...(d.uncategorized || []), ...Object.values(d.categories || {}).flat(), ...Object.keys(d.aliases || {})])] : [];
+    } catch (_) { names = []; }
+    if (names.length) _COLLECTION_NAMES.set(prefix, names);
+  }
+  return names.filter((n) => n.includes(q)).sort((a, b) => (a === q ? -1 : b === q ? 1 : a.length - b.length)).slice(0, 80).map((n) => `${prefix}:${n}`);
+}
+
 async function _doSearch(query, prefix) {
   try {
     const url = `${ICONIFY_API}/search?query=${encodeURIComponent(query)}&limit=80${prefix ? `&prefix=${prefix}` : ''}`;
     const res  = await fetch(url);
     const data = await res.json();
-    _renderGrid(data.icons || []);
+    let icons = data.icons || [];
+    if (!icons.length && prefix) icons = await _searchInCollection(query, prefix);
+    _renderGrid(icons);
   } catch {
     _setGridMessage('검색 실패. 네트워크를 확인해주세요.');
   }
