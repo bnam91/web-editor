@@ -45,14 +45,14 @@ async function openPanel(page) {
 }
 const st = (page) => page.evaluate(() => { const ab = document.getElementById('abD'), img = ab.querySelector('.asset-img');
   return { on: ab.dataset.decorBlur || null, off: ab.dataset.decorBlurOff || null, redact: ab.dataset.redact || null, filter: getComputedStyle(img).filter }; });
-/* 가로 이웃 차 평균 — 줄무늬 원본은 크고 흐리면 작다. how: 'live'(화면 그림 상자 캡처 대신 PNG 파이프라인) */
+/* 가로 이웃 차 — sharp = 평균(참고) · edge = 가장 가파른 차(판정) · geo = 배율 실측. how: 'live'(화면 그림 상자 캡처 대신 PNG 파이프라인) */
 const sharpPng = (page) => page.evaluate(async () => {
   const s = document.getElementById('sD'); const r = await window.__exportGate.captureTruth(s, 860, window.__exportGate.sectionBgColor(s));
   const sr = s.getBoundingClientRect(), ar = document.querySelector('#abD .asset-img-clip').getBoundingClientRect(), k = 860 / sr.width;
   const x = r.canvas.getContext('2d'), L = Math.round((ar.left - sr.left) * k) + 10, T = Math.round((ar.top - sr.top) * k) + 10, w = Math.round(ar.width * k) - 20, h = Math.round(ar.height * k) - 20;
-  const d = x.getImageData(L, T, w, h).data; let sum = 0, n = 0, gray = 0;
-  for (let i = 4; i < d.length; i += 4) { if ((i / 4) % w) { sum += Math.abs(d[i] - d[i - 4]) + Math.abs(d[i + 2] - d[i - 2]); n++; } if (Math.abs(d[i] - 74) < 6 && Math.abs(d[i + 1] - 74) < 6 && Math.abs(d[i + 2] - 74) < 6) gray++; }
-  return { sharp: +(sum / n).toFixed(2), gray: +(gray / (d.length / 4)).toFixed(3) };
+  const d = x.getImageData(L, T, w, h).data; let sum = 0, n = 0, gray = 0, mx = 0;
+  for (let i = 4; i < d.length; i += 4) { if ((i / 4) % w) { const g = Math.abs(d[i] - d[i - 4]) + Math.abs(d[i + 2] - d[i - 2]); sum += g; n++; if (g > mx) mx = g; } if (Math.abs(d[i] - 74) < 6 && Math.abs(d[i + 1] - 74) < 6 && Math.abs(d[i + 2] - 74) < 6) gray++; }
+  return { sharp: +(sum / n).toFixed(2), edge: mx, gray: +(gray / (d.length / 4)).toFixed(3), geo: { dpr: devicePixelRatio, cw: r.canvas.width, sw: +sr.width.toFixed(1), aw: +ar.width.toFixed(1), nw: document.querySelector('#abD .asset-img').naturalWidth, k: +k.toFixed(3) } };
 });
 const figNode = (page) => page.evaluate(async () => { const j = await window.buildFigmaExportJSON(['sD']); let node = null; const walk = (o) => { if (!o || typeof o !== 'object' || node) return; if (o.id === 'abD') { node = o; return; } Object.values(o).forEach(walk); }; walk(j);
   const orig = document.querySelector('#abD .asset-img').getAttribute('src'); return node ? { srcIsOrig: node.src === orig, srcNull: node.src === null, decorBlur: node.decorBlur ?? null } : null; });
@@ -66,8 +66,9 @@ test('D1 드롭다운 «가림»·«흐림» · 흐림 고르기 → blur(8px) �
   await page.selectOption('#asset-fx-add', 'decorblur'); await raf(page);
   const a = await st(page);
   expect([a.on, a.filter], `★data-decor-blur 8 · blur(8px) ${JSON.stringify(a)}`).toEqual(['8', 'blur(8px)']);
-  const s1 = await sharpPng(page);
-  expect(s1.sharp < s0.sharp * 0.75, `★흐려짐 25% 넘게(두 측정 견줌 · 그림이 4배 늘어 8px 로는 ~30%) ${JSON.stringify([s0, s1])}`).toBe(true);
+  const s1 = await sharpPng(page); console.log(`[D1 실측] ${JSON.stringify([s0, s1])}`);
+  /* ★기대 바뀜(fxT3 261122): 이웃 차 «평균»은 줄무늬 주기(~40px)≫σ8 이면 총변동이 보존돼 17%만 준다(인텔·srv 같은 숫자 · 결정적) → 경계 «가장 가파른 기울기»로 잰다(σ8 이론 510/(8·√2π)≈25 · 실측 128→26) */
+  expect(s1.edge < s0.edge * 0.5, `★경계가 흐려짐(가장 가파른 이웃 차 절반 아래) ${JSON.stringify([s0, s1])}`).toBe(true);
   expect(errs).toEqual([]);
 });
 
@@ -102,8 +103,8 @@ test('D4 PNG 흐림 · HTML 원본+filter · Figma 원본+decorBlur', async ({ p
   const errs = await scene(page);
   const s0 = await sharpPng(page);
   await page.evaluate(() => window.setFxDecorBlur(document.getElementById('abD'), { state: 'on', v: 8 })); await raf(page);
-  const s1 = await sharpPng(page);
-  expect(s1.sharp < s0.sharp * 0.75 && s1.gray < 0.05, `★PNG 흐림 25% 넘게(회색 덮개 아님) ${JSON.stringify([s0, s1])}`).toBe(true);
+  const s1 = await sharpPng(page); console.log(`[D4 실측] ${JSON.stringify([s0, s1])}`);
+  expect(s1.edge < s0.edge * 0.5 && s1.gray < 0.05, `★PNG 경계 흐림(가장 가파른 이웃 차 절반 아래 · 회색 덮개 아님 · ★기대 바뀜 D1 과 같은 까닭) ${JSON.stringify([s0, s1])}`).toBe(true);
   const html = await page.evaluate(async () => {
     let blob = null; const oc = URL.createObjectURL, ok = HTMLAnchorElement.prototype.click;
     URL.createObjectURL = function (x) { blob = x; return oc.call(URL, x); }; HTMLAnchorElement.prototype.click = function () { if (!this.download) return ok.call(this); };
