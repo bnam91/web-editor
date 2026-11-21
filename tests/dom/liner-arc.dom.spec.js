@@ -7,7 +7,9 @@
  * R5 외곽선 — 패널 두께 2 · 색 → text stroke·paint-order · PNG 에 빨강 · Figma JSON 라이너 svg 에 stroke
  * R6 «둥글게(글 기준)» 프리셋 진짜 고르기 → 반지름 칸 비어도 글이 원을 120°±8 돈다 · 글을 늘리면 휨이 그대로(반지름이 글을 따라감) · 반지름을 넣으면 그 값
  * R7 아치(위로)를 «처음» 고를 때(반지름 빔) 반지름 칸이 글 길이로 채워짐(글 ≈120°) · 이미 넣은 반지름은 안 바뀜
- * 양성대조: _patches/liner-arc-CTL.patch(반지름 모드·가로 지킴이·외곽선 끔 · 뒤집기 무시) → R1·R3·R4·R5 빨강 · R2 초록.
+ * R8 [미카사 채점 261121 ④ · 안B] 아치 반지름 49 + «안쪽 뒤집기» — 이웃 글자 «윗변» 겹침 길이 합(글자별 실제 자리·회전으로 셈) 고치기 전/후 수 · png(SHOT_LINER=경로)
+ *    · 둥글게 프리셋이면 반지름 칸 아래 «글 길이 기준» 안내 한 줄 · 아치면 숨김
+ * 양성대조: _patches/liner-arc-CTL.patch(반지름 모드·가로 지킴이·외곽선 끔 · 뒤집기 무시) → R1·R3·R4·R5 빨강 · R2 초록 · (실측) liner-flip-push-CTL(뒤집기 밀어내기 걷음) → R8 빨강(겹침 110.4px · 고친 판 78.3px).
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -127,5 +129,31 @@ test('R7 아치를 처음 고르면 반지름 채움 · 넣은 값은 그대로'
   await page.fill('#lnr-radius', '200'); await page.press('#lnr-radius', 'Enter');
   await page.selectOption('#lnr-preset', 'arc-down'); await raf(page);
   expect((await geo(page)).ds.radius, '★넣은 200 그대로').toBe(200);
+  expect(errs).toEqual([]);
+});
+
+/* 이웃 글자 윗변 겹침(px 합) — 글자 i 의 시작·끝 자리(textPath 위 실제 자리) + 회전으로 윗변(글자 위쪽 = 진행 방향의 왼쪽 법선 · 높이 = 글자 크기 × 0.72)을 세우고
+   i 윗변 끝이 i+1 윗변 시작을 진행 방향으로 넘어간 길이를 더한다(겹침 = 글자 머리가 서로 먹힘) */
+const topOverlap = (page) => page.evaluate(() => {
+  const te = document.querySelector('#lnL svg.lnr-svg text'), fs = parseFloat(te.getAttribute('font-size')) || 16, a = fs * 0.72, n = te.getNumberOfChars();
+  const g = []; for (let i = 0; i < n; i++) { const s0 = te.getStartPositionOfChar(i), e0 = te.getEndPositionOfChar(i), r = te.getRotationOfChar(i) * Math.PI / 180; const d = [Math.cos(r), Math.sin(r)], up = [Math.sin(r), -Math.cos(r)]; g.push({ ts: [s0.x + up[0] * a, s0.y + up[1] * a], te: [e0.x + up[0] * a, e0.y + up[1] * a], d }); }
+  let sum = 0; for (let i = 0; i + 1 < n; i++) { const o = (g[i].te[0] - g[i + 1].ts[0]) * g[i].d[0] + (g[i].te[1] - g[i + 1].ts[1]) * g[i].d[1]; if (o > 0) sum += o; }
+  return { sum: +sum.toFixed(1), fs: +fs.toFixed(1), n };
+});
+test('R8 아치 반지름 49 + 안쪽 뒤집기 — 윗변 겹침 수 · 안내 한 줄', async ({ page }) => {
+  const errs = await scene(page, 'arc-up');
+  await openPanel(page);
+  await page.fill('#lnr-radius', '49'); await page.press('#lnr-radius', 'Enter'); await raf(page);
+  const plain = await topOverlap(page);
+  await page.click('#lnr-flip-row .prop-toggle'); await raf(page);
+  expect(await page.evaluate(() => JSON.parse(document.getElementById('lnL').dataset.liner).flip), '[전제] 뒤집기 켜짐').toBe(true);
+  const flip = await topOverlap(page);
+  if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER });
+  console.log(`[R8 겹침 수] 반지름 49 · 글자 ${flip.fs}px · 윗변 겹침 합 — 바로 ${plain.sum}px · 뒤집기 ${flip.sum}px (글자 ${flip.n})`);
+  expect(flip.sum <= 95, `★뒤집기 윗변 겹침 ${flip.sum}px(바로 ${plain.sum}px)`).toBe(true);
+  expect(await page.evaluate(() => document.getElementById('lnr-radius-hint')?.hidden), '아치 = 안내 숨김').toBe(true);
+  await page.selectOption('#lnr-preset', 'round'); await raf(page);
+  await expect(page.locator('#lnr-radius-hint'), '둥글게 = «글 길이 기준» 안내').toBeVisible();
+  await expect(page.locator('#lnr-radius-hint')).toContainText('글 길이 기준');
   expect(errs).toEqual([]);
 });
