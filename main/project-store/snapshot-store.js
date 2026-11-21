@@ -600,7 +600,7 @@ function writeSnapshot(projectsDir, projectId, data, opts = {}) {
   }
   // [F10] 인덱스 기록 실패가 «throw» 로 나가면 호출측이 스냅샷이 없다고 오해한다. 정직하게 돌려준다.
   try { writeIndex(projectsDir, projectId, idx); }
-  catch (e) { return { ok: true, ts, indexFailed: e.message, bytes: Buffer.byteLength(out) }; }
+  catch (e) { return { ok: true, ts, indexFailed: e.message, bytes: Buffer.byteLength(out), pinsOk }; }   // pinsOk 도 싣는다 — 핀은 사이드카에 이미 박혔다(빠지면 호출측이 «못 남김»으로 오판 · FILE-CHANGED 적대 리뷰 7)
   if (!opts.notCurrent) { try { updateCurrent(projectsDir, projectId, data, { now }); } catch (_) {} }   // notCurrent: proj.json 이 아닌 본(gone-copy)은 «현재»를 안 바꾼다
 
   return { ok: true, ts, bytes: Buffer.byteLength(out), images: canon.images, reused: canon.reused,

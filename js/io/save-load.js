@@ -354,7 +354,8 @@ function _flushUnfinishedSavesSync() {
         continue;
       }
       const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id, opts?._goneBase));
-      if ((r?.reason === 'folder_returned' || r?.reason === 'changed_outside') && r.kept) continue;   // changed_outside = 밖에서 바뀐 파일을 안 덮고 main 이 내 본을 남겼다(같은 까닭)   // 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다
+      if (r?.reason === 'folder_returned' && r.kept) continue;   // 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다
+      if (!!(r && r.ok === false && r.reason === 'changed_outside' && r.kept)) { try { localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}`); localStorage.removeItem(`${SAVE_KEY_PREFIX}__${id}_ts`); } catch (_) {} continue; }   // 밖에서 바뀐 파일을 안 덮고 main 이 내 본을 남겼다 — 실패 아님 · LS 본을 두면 다음 열기가 그 본으로 밖의 판을 덮는다(FILE-CHANGED 적대 리뷰 1)
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
@@ -413,7 +414,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
     /* int-3 합침(TAB-SWITCH × MISSING-FOLDER): 돌아온 폴더를 안 덮고 main 이 그 본을 남긴 것(folder_returned·kept)은 «실패 저장»으로 적지 않는다 —
        적으면 종료가 같은 본을 비상 사본으로 또 쓴다(MISSING 의 flush 갈래 주석과 같은 까닭). */
-    const _keptByMain = (_result?.reason === 'folder_returned' || _result?.reason === 'changed_outside') && !!_result.kept;   // changed_outside(FILE-CHANGED-OUTSIDE) 도 main 이 내 본을 남겼다
+    const _keptByMain = !!(_result && _result.ok === false && (_result.reason === 'folder_returned' || _result.reason === 'changed_outside') && _result.kept);   // changed_outside(FILE-CHANGED-OUTSIDE) 도 main 이 내 본을 남겼다
     if (_targetId && _result?.reason === 'project_deleted') _noteFailedSave(_targetId, false);
     else if (_targetId && !_result?.skipped) _noteFailedSave(_targetId, !_keptByMain && (!_result || _isSaveFailure(_result)));
     /* 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — LS 본(남은 본 위 편집)을 지운다. 두면 다시 열기·다음 부팅의 pickLsOverFile 이 그 본을 골라 표시 없이 돌아온 파일을 덮는다(리뷰 2 ①). */
@@ -509,7 +510,7 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       if (saveResult?.reason === 'changed_outside') {   // ★FILE-CHANGED-OUTSIDE — 밖에서 바뀐 파일을 안 덮었다(내 본 = 버전 기록 핀 · 못 남겼으면 kept:false) — 고르게 한다
         _setAutosaveIndicator('error');
         Promise.resolve(window.noteOutsideChanged?.(targetId, saveResult)).catch(e => console.warn('[save-load] 밖에서 바뀜 알림 실패:', e && e.message));
-        return { ok: false, reason: saveResult.reason, kept: saveResult.kept };
+        return { ok: false, reason: saveResult.reason, kept: saveResult.kept, ts: saveResult.ts };   // ts = 남긴 핀(다시 불러오기가 그 핀을 확인한다)
       }
       if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
         { const _t = openTabs.find(t => t.id === targetId); if (_t && !_t._goneCopy) _t._goneCopy = true; }   // -02b 표시 없던 탭(보는 동안 폴더가 빠져 앱이 다시 만든 탭)도 거절되면 남은 본이다 — 다시 열기·줄 선 저장 표시가 같은 길을 탄다
@@ -2569,7 +2570,7 @@ window.addEventListener('beforeunload', (ev) => {
 
   // BUG-44: Electron이면 동기 IPC로 파일에 즉시 저장 (autoSave debounce 1.5s 이내 새로고침 시 데이터 손실 방지)
   // localStorage는 보조 캐시이며, 파일 저장이 진실의 원천. 큰 snapshot도 파일에는 무조건 들어가야 함.
-  let _unloadFiled = false;
+  let _unloadFiled = false, _unloadKept = false;
   /* LS 본의 시각은 «파일 저장을 부르기 전»에 잡는다 — 그 저장이 실패하면 main 이 그 자리에서 비상 사본·기록(at)을 쓰는데, 옛 판은 LS 시각을 그 «뒤»에 찍어
      같은 본인데 at < _ts 가 됐다 ⇒ 부팅 정리·갤러리 휴지통의 «사본 ≥ LS 본» 규칙이 같은 편집을 또 남겼다(NEW-TRASH-FROM-GALLERY 적대 리뷰 2). LS 본(snap)은 그 전에 찍힌 것이라 이 시각이 참이다. */
   const _unloadAt = Date.now();
@@ -2585,18 +2586,22 @@ window.addEventListener('beforeunload', (ev) => {
       _markGoneBase(proj, activeProjectId);   // 남은 본 표시(proj 에 붙인다) — 호출 글자는 그대로 둔다(tests/unit/unload-save-adopted 가 그 자리를 잰다)
       const result = window.electronAPI.saveProjectSync(proj);
       _unloadFiled = !!result && result.ok !== false;
-      if (result?.reason !== 'project_deleted') _noteFailedSave(activeProjectId, !_unloadFiled);
+      _unloadKept = !!(result && result.ok === false && result.reason === 'changed_outside' && result.kept);   // main 이 밖에서 바뀐 파일을 안 덮고 이 본을 남겼다 — 실패 아님(FILE-CHANGED 적대 리뷰 1·3 · folder_returned 는 옛 동작 그대로)
+      if (result?.reason !== 'project_deleted') _noteFailedSave(activeProjectId, !_unloadFiled && !_unloadKept);
       if (result && result.ok === false) {
         console.warn('[save-load:beforeunload] sync 저장 거부:', result.reason);
         /* SECOND-LAUNCH-…-01 ⑴ — 창을 닫는 중이면 닫기를 보류한다(main 이 이 창에 시트로 알리고 확인 뒤 닫는다). 새로고침·이동은 main 이 false. */
-        if (window.electronAPI?.holdCloseOnSaveFailure?.()) { ev?.preventDefault?.(); if (ev) ev.returnValue = 'save-failed'; }
+        if (!_unloadKept && window.electronAPI?.holdCloseOnSaveFailure?.()) { ev?.preventDefault?.(); if (ev) ev.returnValue = 'save-failed'; }
       }
     } catch (e) {
       console.error('[save-load:beforeunload] sync 저장 실패:', e);
     }
   }
 
-  const _unloadSaveOk = safeLocalStorageSet(getSaveKey(), snap);
+  /* ★FILE-CHANGED 적대 리뷰 1 — main 이 밖에서 바뀐 파일을 안 덮고 이 본을 남겼다: LS 에 다시 쓰면 다음 열기 판정(표지가 밖의 판을 따라간 뒤)이 이 본을 골라
+     밖의 판을 말없이 덮는다 ⇒ 쓰지 않고 남은 LS 본도 걷는다(비동기 길 _keptByMain 과 같은 규칙). */
+  if (_unloadKept) { try { localStorage.removeItem(getSaveKey()); localStorage.removeItem(getSaveTsKey()); } catch (_) {} }
+  const _unloadSaveOk = !_unloadKept && safeLocalStorageSet(getSaveKey(), snap);
   if (_unloadSaveOk) { localStorage.setItem(getSaveTsKey(), String(_unloadAt)); if (_unloadFiled) _markLsFiled(activeProjectId, localStorage.getItem(getSaveTsKey())); }
   // non-Electron: PROJECTS_KEY snapshot 동기 업데이트 (파싱 결과 재사용)
   if (!IS_ELECTRON && activeProjectId) {
@@ -2627,6 +2632,7 @@ window.addEventListener('beforeunload', (ev) => {
  * ────────────────────────────────────────────────────────────────────────── */
 function _quitSaveOutcome(result) {
   if (result && result.ok === true) return { ok: true, reason: 'saved' };
+  if (!!(result && result.ok === false && result.reason === 'changed_outside' && result.kept)) return { ok: true, reason: result.reason, kept: result.kept };   // 밖에서 바뀐 파일을 안 덮고 main 이 그 본을 남긴 거절 — 실패로 세면 «저장 실패» 상자 + 비상 사본 중복(FILE-CHANGED 적대 리뷰 3)
   if (result && result.ok === false && result.skipped === true) return { ok: true, reason: result.reason || 'skipped' };
   if (result === undefined || result === null) return { ok: false, reason: 'unconfirmed' };
   return { ok: false, reason: (result && result.reason) || 'save-failed', error: (result && result.error) || null };

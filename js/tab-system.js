@@ -701,7 +701,11 @@ window.noteOutsideChanged = (id, res) => {
   $('.outside-change-reload').addEventListener('click', async () => {
     busy(true); msg('');
     try {
-      if (!(await _outsidePinVerified(id, ov._res?.ts))) { msg('버전 기록에서 내 편집을 확인하지 못해 다시 읽지 않았습니다 — «내 것으로 저장»을 고르세요.'); return; }
+      /* 상자가 뜨기 전(저장이 도는 사이) 친 편집이 핀에 없을 수 있다 — 지금 화면을 한 번 더 보내 main 이 남긴(같은 본이면 같은 핀) 그 ts 를 확인한다(적대 리뷰 2) */
+      const snap = _getActId() === id ? window.serializeProject?.() : t._cache;
+      let ts = ov._res?.ts;
+      if (snap) { const r = await window.saveInLine?.(snap, id, {}); if (r?.reason === 'changed_outside' && r.kept === 'history') ts = r.ts; else if (!r?.ok) ts = null; else { ov.remove(); return; } }   // ok = 그사이 밖의 판이 돌아와 그냥 저장됐다 — 고를 것 없음
+      if (!(await _outsidePinVerified(id, ts))) { msg('버전 기록에서 내 편집을 확인하지 못해 다시 읽지 않았습니다 — «내 것으로 저장»을 고르세요.'); return; }
       try { localStorage.removeItem(`web-editor-autosave__${id}`); localStorage.removeItem(`web-editor-autosave__${id}_ts`); } catch (_) {}
       t._cache = null; t._afterLs = null;
       ov.remove();
@@ -719,7 +723,16 @@ window.noteOutsideChanged = (id, res) => {
       if (ov.isConnected) msg('저장하지 못했습니다 — 밖에서 바뀐 판을 버전 기록에 남기지 못하면 덮지 않습니다. 디스크 공간·권한을 확인해 주세요.');
     } finally { if (ov.isConnected) busy(false); }
   });
+  /* 상자 뒤로 키가 새지 않게(적대 리뷰 2 · DOM D6) — 초점을 상자로 + 앱 단축키(⌘Z 되돌리기·지우기 등)는 초점과 무관하게 문서에서 받으므로 캡처로 막는다 · 상자 안 Tab·Enter·Space 만 */
+  const _keys = (e) => {
+    if (!ov.isConnected) { window.removeEventListener('keydown', _keys, true); return; }
+    if (ov.contains(e.target) && (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  };
+  window.addEventListener('keydown', _keys, true);
+  try { document.activeElement?.blur?.(); } catch (_) {}
   document.body.appendChild(ov);
+  ov.querySelector('button:not([hidden])')?.focus();
   return true;
 };
 window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };

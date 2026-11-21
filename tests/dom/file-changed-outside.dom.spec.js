@@ -5,6 +5,8 @@
  * D3 다시 불러오기인데 핀이 목록에 없음 → 다시 안 읽음(화면 = 내 편집) · 상자에 까닭
  * D4 내 것으로 저장 → _overOutside 표시로 저장 · 디스크 = 내 편집 · 상자 닫힘
  * D5 내 본을 못 남김(kept:false) → «다시 불러오기» 없음(화면을 버릴 수 없다)
+ * D6 [적대 리뷰 2] 글 상자에서 치던 중 상자가 뜨면 — 글·⌘Z·지우기가 캔버스에 안 닿는다(대조 실측: 키 캡처 줄을 걷으면 ⌘Z 가 상자 뒤 편집을 되돌려 빨강)
+ * D7 [적대 리뷰 1·3] 상자 뜬 채 새로고침·창 닫기(beforeunload) — main 이 남긴 본(changed_outside·kept)은 LS 에 다시 안 쓰고 남은 LS 본도 걷는다(두면 다음 열기가 밖의 판을 덮는다) · 실패 아님(닫기 보류 0)
  * 양성대조: _patches/file-changed-outside-dom-CTL.patch(save-load 의 changed_outside 갈래 걷음) → D1 빨강.
  * 셀렉터·전역 대조(제품 소스 grep): #outside-change-overlay · .outside-change-reload · .outside-change-mine · .outside-change-msg(js/tab-system.js) · saveProjectToFile · serializeProject · switchTab · waitSavesFor(save-load.js)
  */
@@ -27,7 +29,7 @@ async function setup(page, { kept = 'history', pinListed = true } = {}) {
         if (window.__outside && !x._overOutside) return { ok: false, reason: 'changed_outside', kept, ts: kept === 'history' ? 4242 : null };
         const { _overOutside, ...rest } = x; window.__disk = rest; window.__outside = false; return { ok: true };
       }
-      : k === 'saveProjectSync' ? (x) => ({ ok: true })
+      : k === 'saveProjectSync' ? (x) => { window.__syncSent = (window.__syncSent || 0) + 1; return window.__outside && x.id === 'proj_b' ? { ok: false, reason: 'changed_outside', kept, ts: 4242 } : { ok: true }; }
       : k === 'saveProjectMeta' ? async () => ({ ok: true })
       : k === 'loadProject' ? async (id) => (id === 'proj_b' ? JSON.parse(JSON.stringify(window.__disk)) : A)
       : k === 'historyList' ? async () => ({ ok: true, entries: pinListed ? [{ ts: 4242, reason: 'outside-mine', pinned: true }] : [] })
@@ -101,5 +103,30 @@ test('D5 내 본을 못 남김 → 다시 불러오기 없음', async ({ page })
   await outsideThenEdit(page);
   expect(await page.evaluate(() => document.querySelector('.outside-change-reload').hidden), '★화면을 버리는 단추가 보인다').toBe(true);
   await expect(page.locator('.outside-change-text')).toContainText('화면에만');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D6 상자 뒤로 키가 안 샌다(글·지우기·되돌리기)', async ({ page }) => {
+  const errs = await setup(page);
+  await page.evaluate(() => { const p = document.querySelector('#canvas .text-block p'); p.closest('.text-block').setAttribute('contenteditable', 'true'); p.focus(); });   // 글 상자에서 치던 중
+  await outsideThenEdit(page);
+  const n0 = await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length);
+  await page.keyboard.type('ZZZ');
+  expect(await page.evaluate(() => document.getElementById('canvas').textContent.includes('ZZZ')), '★상자 뒤 글에 키가 들어갔다').toBe(false);
+  await page.keyboard.press('Delete'); await page.keyboard.press('Backspace'); await page.keyboard.press('Meta+z');
+  const r = await page.evaluate(() => ({ n: document.querySelectorAll('#canvas .text-block').length, mine: document.getElementById('canvas').textContent.includes('내편집') }));
+  expect(r, '★상자 뒤 캔버스가 단축키를 먹었다(핀에 없는 편집)').toEqual({ n: n0, mine: true });
+  expect(await page.evaluate(() => document.activeElement?.closest?.('#outside-change-overlay') != null), '초점 = 상자 단추').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D7 상자 뜬 채 beforeunload — 남긴 본은 LS 에 다시 안 씀 · 닫기 보류 없음', async ({ page }) => {
+  const errs = await setup(page);
+  await outsideThenEdit(page);
+  await page.evaluate(() => { window.__held = 0; const api = window.electronAPI; window.electronAPI = new Proxy(api, { get: (t, k) => (k === 'holdCloseOnSaveFailure' ? () => { window.__held++; return false; } : t[k]) });
+    localStorage.setItem('web-editor-autosave__proj_b', JSON.stringify({ pages: [] })); document.querySelector('#canvas .text-block p').textContent = '닫기직전 머리'; window.scheduleAutoSave?.(); });
+  const r = await page.evaluate(() => { window.dispatchEvent(new Event('beforeunload')); return { sync: window.__syncSent || 0, ls: localStorage.getItem('web-editor-autosave__proj_b'), held: window.__held }; });
+  expect(r.sync > 0, '[전제] 동기 저장이 나갔다').toBe(true);
+  expect({ ls: r.ls, held: r.held }, '★남긴 본을 LS 에 다시 썼다(다음 열기가 밖의 판을 덮는다) · 또는 실패로 닫기 보류').toEqual({ ls: null, held: 0 });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
