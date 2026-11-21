@@ -50,6 +50,7 @@ const MOVE_EPS_PX = 2;   // 이만큼 안 움직이면 «클릭»(history 안 �
   box-shadow:0 0 0 calc(0.5px * var(--inv-zoom,1)) rgba(0,0,0,0.25),0 calc(1px * var(--inv-zoom,1)) calc(3px * var(--inv-zoom,1)) rgba(0,0,0,0.35);
   z-index:121;}
 .grad-line-end.is-static{cursor:default;}
+.grad-line-ring{position:absolute;box-sizing:border-box;border-radius:50%;border:calc(1.5px * var(--inv-zoom,1)) dashed rgba(255,255,255,0.9);box-shadow:0 0 calc(2px * var(--inv-zoom,1)) rgba(0,0,0,0.45);pointer-events:none;}
 .grad-stop-chip{position:absolute;width:calc(${CHIP_PX}px * var(--inv-zoom,1));height:calc(${CHIP_PX}px * var(--inv-zoom,1));
   margin-left:calc(-${CHIP_PX / 2}px * var(--inv-zoom,1));margin-top:calc(-${CHIP_PX / 2}px * var(--inv-zoom,1));
   box-sizing:border-box;border:calc(3px * var(--inv-zoom,1)) solid #fff;border-radius:calc(3px * var(--inv-zoom,1));
@@ -226,9 +227,42 @@ function _ensureChips(refs) {
   }
 }
 
+/* FX-GRADIENT-GAZE-01 원뿔형 — 바 대신 «원»: 가운데(움직이지 않음) + 고리 위 시작각 손잡이 · 칩은 고리 둘레(시작각 + offset×360°). 고리 반지름 = 짧은 변 × 0.38(px). */
+const CONIC_HANDLE_K = 1.15;
+const _isConic = (refs) => refs && refs.model && refs.model.type === 'conic';
+function _conicGeom(refs) {
+  const o = _geomOpts(refs), W = o.w, H = o.h, R = Math.min(W, H) * 0.38, th = ((Number(refs.model.angle) || 0) * Math.PI) / 180;
+  return { W, H, R, th, c: { x: W / 2, y: H / 2 } };
+}
+const _onRing = (g, phi) => ({ x: g.c.x + g.R * Math.sin(phi), y: g.c.y - g.R * Math.cos(phi) });
+/** 가운데 기준 화면 각(0 = 위 · 시계방향 · 도) */
+const _angleAt = (g, P) => ((Math.atan2(P.x * g.W - g.c.x, -(P.y * g.H - g.c.y)) * 180 / Math.PI) % 360 + 360) % 360;
+function _renderConic(block, refs) {
+  const g = _conicGeom(refs), p1 = _onRing({ ...g, R: g.R * CONIC_HANDLE_K }, g.th);   // 손잡이는 고리 «밖»(offset 0 칩과 안 겹치게 — 칩이 위층이라 겹치면 손잡이를 못 잡았다)
+  refs.line = { p0: { x: 0.5, y: 0.5 }, p1: { x: p1.x / g.W, y: p1.y / g.H } }; refs.map = { a: 0, b: 1 };
+  if (!refs.ring) { refs.ring = document.createElement('div'); refs.ring.className = 'grad-line-ring'; refs.lineEl.before(refs.ring); }
+  Object.assign(refs.ring.style, { display: '', left: (g.c.x - g.R) + 'px', top: (g.c.y - g.R) + 'px', width: (2 * g.R) + 'px', height: (2 * g.R) + 'px' });
+  refs.lineEl.style.left = g.c.x + 'px'; refs.lineEl.style.top = g.c.y + 'px'; refs.lineEl.style.width = (g.R * CONIC_HANDLE_K) + 'px';
+  refs.lineEl.style.transform = `rotate(${(g.th * 180 / Math.PI) - 90}deg)`;
+  refs.start.style.left = g.c.x + 'px'; refs.start.style.top = g.c.y + 'px'; refs.start.classList.add('is-static');
+  refs.end.style.left = p1.x + 'px'; refs.end.style.top = p1.y + 'px'; refs.end.classList.remove('is-static');
+  _ensureChips(refs);
+  const n = refs.model.stops.length;
+  if (!(refs.selectedIdx >= 0 && refs.selectedIdx < n)) refs.selectedIdx = Math.max(0, Math.min(n - 1, refs.selectedIdx | 0));
+  refs.model.stops.forEach((s, i) => {
+    const chip = refs.chips[i], phi = g.th + 2 * Math.PI * (s.offset || 0), q = _onRing(g, phi);
+    chip.style.left = q.x + 'px'; chip.style.top = q.y + 'px'; chip.style.transform = `rotate(${phi * 180 / Math.PI}deg)`;
+    chip.firstChild.style.background = _stopDisplayColor(s);
+    chip.classList.toggle('is-selected', i === refs.selectedIdx);
+    chip.dataset.gradStop = String(i);
+  });
+  _placePct(refs);
+}
 function _render(block) {
   const refs = block._gradLine;
   if (!refs) return;
+  if (_isConic(refs)) { _renderConic(block, refs); return; }
+  if (refs.ring) refs.ring.style.display = 'none';
   const o = _geomOpts(refs);
   const W = o.w, H = o.h;
   const gm = _gm();
@@ -380,9 +414,14 @@ function _bindChipDrag(block, chip) {
     _startDrag(e, (ev) => {
       if (block._gradLine !== refs) return;   // 끌기 중 Esc·⌘Z 로 선이 걷혔다 — 그 뒤 움직임은 안 쓴다
       const P = _clientToLocal(block, ev);
+      if (_isConic(refs)) {   // 원뿔형 — 가운데 기준 각에서 시작각을 뺀 몫 = offset
+        const g = _conicGeom(refs);
+        stop.offset = Math.round(((((_angleAt(g, P) - (Number(refs.model.angle) || 0)) % 360) + 360) % 360) / 360 * 100) / 100;
+      } else {
       // view 위 위치(0~1, 끝점 사이) → 저장(canon) offset. 1% 단위(저장 CSS 와 표시값 일치).
       const tv = Math.max(0, Math.min(1, _gm().projectT(refs.line, P, _geomOpts(refs))));
       stop.offset = Math.round((refs.map.a + refs.map.b * tv) * 100) / 100;
+      }
       refs.dragIdx = refs.model.stops.indexOf(stop);
       const css = _cssFor(refs.model);
       target.set(css, false);
@@ -408,12 +447,25 @@ function _bindChipDrag(block, chip) {
   });
 }
 
+/* 원뿔형 시작각 끌기 — 가운데 기준 각을 모델 angle 로(1° 단위). 끌기 중 = 미리보기 · 놓으면 확정(바 끝점 끌기와 같은 이력 규약). */
+function _conicAngleDrag(block, refs, e) {
+  const target = refs.target;
+  refs.dragging = true; _setChipActive(refs, false);
+  const apply = (commit) => { const css = _cssFor(refs.model); target.set(css, commit); _render(block); _emit(block, 'gradient-line:change', _changeDetail(refs, css, commit)); };
+  _startDrag(e, (ev) => {
+    if (block._gradLine !== refs) return;
+    refs.model.angle = Math.round(_angleAt(_conicGeom(refs), _clientToLocal(block, ev)));
+    apply(false);
+  }, (moved) => { refs.dragging = false; refs.portalKey = null; if (moved) apply(true); });
+}
+
 function _bindEndDrag(block, handle, which) {
   handle.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     _swallow(e);
     const refs = block._gradLine;
     if (!refs || refs.model.type === 'radial') return;
+    if (_isConic(refs)) { if (which === 'end') _conicAngleDrag(block, refs, e); return; }   // 원뿔형 = 시작각 손잡이만(가운데 고정)
     const target = refs.target;
     refs.dragging = true;
     _setChipActive(refs, false);

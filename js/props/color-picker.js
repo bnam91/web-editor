@@ -7,7 +7,8 @@
 ═══════════════════════════════════ */
 
 import { parseGradientStrict } from './gradient-model.js';
-import { escHtml } from './_helpers.js';   /* ★1013t2E1 중-1 — 속성 이스케이프는 그 한 벌(& < > " ')을 쓴다 */
+import { escHtml } from './_helpers.js';
+import { GAZE_PRESETS, gazeSwatchCss } from '../fx/holo-palette.js';   /* FX-GRADIENT-GAZE-01 v1(안 A) — 무지갯빛 프리셋 = 그라데이션 정지점 묶음 */   /* ★1013t2E1 중-1 — 속성 이스케이프는 그 한 벌(& < > " ')을 쓴다 */
 
 /* ─── 유틸: color math ─── */
 function hexToRgb(hex) {
@@ -195,6 +196,7 @@ function _ensurePopover() {
         <select data-el="gradType" class="goya-cp-grad-type-select">
           <option value="linear">Linear</option>
           <option value="radial">Radial</option>
+          <option value="conic">Angular</option>
         </select>
       </div>
 
@@ -206,6 +208,16 @@ function _ensurePopover() {
           <span data-el="gradStopOpacityLabel">100%</span>
         </div>
         <button type="button" class="goya-cp-grad-stop-del" data-el="gradStopDel" title="스톱 삭제(최소 2개)">×</button>
+      </div>
+      <!-- FX-GRADIENT-GAZE-01 v1(현빈 261121 가안 · 지디 안 A): «홀로그램» 원형 프리셋 = 정지점 묶음을 이 그라데이션에 넣는다(각도·종류는 위 손잡이 그대로) · «세기» = 모든 정지점 투명도를 한 번에 -->
+      <div class="goya-cp-holo-row" data-el="holoRow">
+        <span class="goya-cp-holo-label">홀로그램</span>
+        <div class="goya-cp-holo-swatches">${GAZE_PRESETS.map((p) => `<button type="button" class="goya-cp-holo-sw" data-holo="${p.key}" data-holo-type="${p.type}" title="홀로그램 ${p.key}${p.type === 'conic' ? ' · 원뿔형' : ''}" aria-label="홀로그램 ${p.key}" style="background:${gazeSwatchCss(p)}"></button>`).join('')}</div>
+      </div>
+      <div class="goya-cp-grad-opacity-field goya-cp-holo-strength" title="모든 정지점 투명도를 한 번에">
+        <span class="goya-cp-holo-label">세기</span>
+        <input type="range" data-el="gradAllOpacity" min="0" max="100" value="100" aria-label="그라데이션 세기(모든 정지점 투명도)">
+        <span data-el="gradAllOpacityLabel">100%</span>
       </div>
     </div>
 
@@ -527,6 +539,7 @@ function _wireEvents(pop) {
   const gradStopOpacityLabel = _els.gradStopOpacityLabel;
   const gradStopDel     = _els.gradStopDel;
   const gradControlsRow = _els.gradControlsRow;
+  const gradAllOpacity = _els.gradAllOpacity, gradAllOpacityLabel = _els.gradAllOpacityLabel, holoRow = _els.holoRow;
 
   /* 첫 진입 기본값 = «지금 색 100% → 같은 색 0%» (현빈 확정 2026-09-19).
      지금 색 = 솔리드 상태(_state.h/s/v). alpha(_state.a)는 무시하고 1→0 으로 고정한다 —
@@ -570,6 +583,7 @@ function _wireEvents(pop) {
       return `${col} ${Math.round((s.offset || 0) * 100)}%`;
     });
     if (type === 'radial') return `radial-gradient(circle, ${parts.join(', ')})`;
+    if (type === 'conic') return `conic-gradient(from ${angle}deg at 50% 50%, ${parts.join(', ')})`;   // FX-GRADIENT-GAZE-01 원뿔형 — 각도 = 시작각(gradient-model toCss 와 같은 꼴)
     return `linear-gradient(${angle}deg, ${parts.join(', ')})`;
   }
 
@@ -764,6 +778,23 @@ function _wireEvents(pop) {
     _mutateSelectedStop(s => { s.opacity = pct / 100; }, false);
   });
   gradStopOpacity?.addEventListener('change', () => _scheduleEmitGradient(true));
+  /* FX-GRADIENT-GAZE-01 — «세기»: 모든 정지점 투명도를 같은 값으로(그라데이션 길 안 ⇒ PNG·HTML·Figma 정지점 알파 그대로 나감) */
+  const _syncAllOpacityUI = () => { const g = _grad(); const pct = _aClamp(Math.max(...g.stops.map((x) => (x.opacity ?? 1))) * 100); if (gradAllOpacity) gradAllOpacity.value = String(pct); if (gradAllOpacityLabel) gradAllOpacityLabel.textContent = pct + '%'; };
+  gradAllOpacity?.addEventListener('input', () => {
+    const pct = _aClamp(gradAllOpacity.value);
+    _grad().stops.forEach((x) => { x.opacity = pct / 100; });
+    if (gradAllOpacityLabel) gradAllOpacityLabel.textContent = pct + '%';
+    _syncSelectedStopUI(); _scheduleEmitGradient(false);
+  });
+  gradAllOpacity?.addEventListener('change', () => _scheduleEmitGradient(true));
+  /* 홀로그램 프리셋 — 팔레트 7색을 배지와 같은 정지각 비(0·40·…·360 → 0..1 · 끝 = 첫 색)로 · 지금 각도 그대로 · 지금 세기 그대로 · 넣으면 바로 확정 1회 */
+  holoRow?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-holo]'); const p = b && GAZE_PRESETS.find((x) => x.key === b.dataset.holo);
+    if (!p) return;
+    const a = (_aClamp(gradAllOpacity?.value ?? 100)) / 100;
+    _seedGradientUI({ type: p.type, angle: _currentAngle(), stops: p.stops.map(([color, offset]) => ({ color, offset, opacity: a })) }, { emit: false });   // 프리셋마다 종류(linear/원뿔형) 실음
+    _scheduleEmitGradient(true);
+  });
   gradStopDel?.addEventListener('click', () => {
     const g = _grad();
     if (g.stops.length <= 2) return;
@@ -823,7 +854,7 @@ function _wireEvents(pop) {
   // opts.emit=false: 외부(캔버스 바) 동기화 — 되쏘지 않는다(루프 방지). opts.selectedIdx: 선택 스탑.
   function _seedGradientUI(g, opts = {}) {
     if (!g || !Array.isArray(g.stops) || g.stops.length < 2) return false;
-    if (gradType) gradType.value = (g.type === 'radial') ? 'radial' : 'linear';
+    if (gradType) gradType.value = (g.type === 'radial' || g.type === 'conic') ? g.type : 'linear';
     // ★angle 0 은 유효값 — parseInt(0)||90 이 0°를 90°로 둔갑시키던 결함(0918 canvasgrad)
     const _a = Number(g.angle);
     const angle = Math.max(0, Math.min(360, Number.isFinite(_a) ? Math.round(_a) : 90));
@@ -841,6 +872,7 @@ function _wireEvents(pop) {
     _renderGradStops();
     _syncSelectedStopUI();
     _syncGradAngleVis();
+    _syncAllOpacityUI?.();
     if (opts.emit === false) gradFill.style.background = _barFillCSS();
     else _emitGradientNow(false);
     return true;

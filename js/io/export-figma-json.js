@@ -182,6 +182,8 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  /* FX-GRADIENT-GAZE-01 원뿔형 — SVG def 는 linear 대역이라 모델을 따로 싣는다(렌더러가 GRADIENT_ANGULAR 로) */
+  if (!redact) { try { const gm = JSON.parse(el.dataset.shapeGradient || 'null'); if (gm && gm.type === 'conic' && Array.isArray(gm.stops)) out.gradientModel = { type: 'conic', angle: Number(gm.angle) || 0, stops: gm.stops }; } catch (_) { /* 깨진 값 = 안 실음 */ } }
   /* ★SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01(현빈 0.9.12 131) — 별은 캔버스가 «이미 그린» SVG(viewBox + polygon 점·칠)를 그대로 싣는다.
      갯수·간격·통통함·꼭짓점 둥글기·별마다 배율이 다 points 에, 평점·별마다 색이 polygon fill 에 녹아 있다(prop-shape _applyStarGeom) — 식을 여기서 다시 짓지 않는다.
      옛 별 하나(기본 viewBox · polygon 1 · 칠 없음 · 옛 점)면 안 싣는다 = 옛 JSON 바이트. 칠은 단색만 — url(#…) 그라데이션은 gradientDef(면 칠)가 맡는다. */

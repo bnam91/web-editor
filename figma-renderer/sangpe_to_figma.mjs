@@ -1054,6 +1054,13 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       const node = run('create_node_from_svg', { svg, parentId: wrap.id, x: 0, y: 0 }, { timeout: 12000 });
       if (node) run('resize_node', { nodeId: node.id, width: w, height: h });
+      /* FX-GRADIENT-GAZE-01 원뿔형 — SVG 엔 conic 이 없어 위 SVG 는 linear 대역(투명 정지점)이다 ⇒ 칠이 있는 벡터 자식마다 모델의 GRADIENT_ANGULAR 를 덮어 쓴다 */
+      if (node && def.fill && block.gradientModel && block.gradientModel.type === 'conic') {
+        const paint = cssGradientToFigmaPaint(block.gradientModel, w, h);
+        const info = paint ? run('get_node_info', { nodeId: node.id }) : null;
+        const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) run('set_gradient', { nodeId: n.id, ...paint }); (n.children || []).forEach(walk); };
+        walk(info?.document || info);
+      }
     }
     return h;
   }

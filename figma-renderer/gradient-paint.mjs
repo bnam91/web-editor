@@ -78,9 +78,23 @@ export function radialTransform(w, h) {
   ];
 }
 
+/** 원뿔형(CSS conic from θ) → GRADIENT_ANGULAR gradientTransform — FX-GRADIENT-GAZE-01 v2.
+ *  CSS conic 0° = 위(12시)·시계방향 · 픽셀 공간 각도. 그라데이션 공간 x 축을 시작 방향 d=(sinθ, −cosθ), y 축을 n=(cosθ, sinθ)(시계방향 90°)에 맞춘다(선형 변환과 같은 꼴).
+ *  ⚠️가정(실측 안 함 — 실 피그마 조작 금지): Figma ANGULAR 는 그라데이션 공간 +x 에서 시작해 +y 쪽(시계방향)으로 돈다. 피그마 실물 확인 전까지 «방향·시작점 불일치 가능». */
+export function angularTransform(angleDeg, w, h) {
+  const th = (Number(angleDeg) || 0) * Math.PI / 180;
+  const dx = Math.sin(th), dy = -Math.cos(th), nx = Math.cos(th), ny = Math.sin(th);
+  const W = Math.max(1e-9, w), H = Math.max(1e-9, h), S = Math.max(W, H);
+  return [
+    [W * dx / S, H * dy / S, 0.5 - (W * dx + H * dy) / (2 * S)],
+    [W * nx / S, H * ny / S, 0.5 - (W * nx + H * ny) / (2 * S)],
+  ];
+}
+
 /** CSS 그라데이션 모델 + 노드 크기 → set_gradient 인자(nodeId 제외). 모델이 못 쓰면 null. */
 export function cssGradientToFigmaPaint(model, w, h) {
   if (!model || !Array.isArray(model.stops) || model.stops.length < 2) return null;
+  if (model.type === 'conic') return { type: 'GRADIENT_ANGULAR', stops: figmaStops(model.stops), gradientTransform: angularTransform(model.angle, w, h) };   // FX-GRADIENT-GAZE-01 원뿔형
   const radial = model.type === 'radial';
   if (radial) {
     return { type: 'GRADIENT_RADIAL', stops: figmaStops(model.stops), gradientTransform: radialTransform(w, h) };

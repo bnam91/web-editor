@@ -333,6 +333,8 @@
     restParticleMotion(root);
     /* IMG-FX-HALFTONE-01 — 하프톤 덮개(img.asset-halftone)는 data-halftone 에서 «구운» 파생 그림이다 · 저장·이력 표본엔 싣지 않는다(열기·undo 때 watchAll 이 다시 굽는다 · 큰 data URL 이 표본마다 쌓이지 않게). */
     root.querySelectorAll('img.asset-halftone').forEach((el) => el.remove());
+    /* FX-GRADIENT-GAZE-01 — 도형 원뿔형 덮개(.shape-conic-ov)는 dataset.shapeGradient 에서 그리는 파생 · 표본엔 안 싣는다(열기·undo 때 watchAll 이 다시) */
+    root.querySelectorAll('.shape-conic-ov').forEach((el) => el.remove());
     /* T-012 안전장치: video-pending(트림 확정 «전» 임시 상태, js/image-handling.js
        setAssetVideoFromSrc 참고)은 저장 대상이 아니다 — "GIF로 적용"을 안 누른 채 저장하면
        원본 영상 data URL(최대 ~50MB×1.33 팽창)이 proj.json «과» 모든 undo 스냅샷(트림 핸들

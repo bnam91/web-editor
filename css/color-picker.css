@@ -555,3 +555,12 @@
   outline: 1px solid var(--ui-accent-primary, #2d6fe8);
   outline-offset: -1px;
 }
+
+/* FX-GRADIENT-GAZE-01 v1 — «홀로그램» 원형 프리셋 줄 + «세기»(모든 정지점 투명도) — 그라데이션 탭 맨 아래 */
+.goya-cp-holo-row { display: flex; align-items: center; gap: var(--ui-space-2); margin-top: var(--ui-space-2); }
+.goya-cp-holo-label { font-size: var(--ui-fs-10); color: var(--ui-text-muted); flex: none; }
+.goya-cp-holo-swatches { display: flex; gap: var(--ui-space-1); flex-wrap: wrap; }
+.goya-cp-holo-sw { width: calc(var(--ui-space-4) + var(--ui-space-1)); height: calc(var(--ui-space-4) + var(--ui-space-1)); border-radius: 50%; border: 1px solid var(--ui-border-strong); padding: 0; cursor: pointer; }
+.goya-cp-holo-sw:hover { outline: 2px solid var(--ui-accent-primary); outline-offset: 1px; }
+.goya-cp-holo-strength { margin-top: var(--ui-space-1); }
+.goya-cp-holo-strength input[type="range"] { flex: 1; width: auto; }

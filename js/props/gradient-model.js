@@ -39,9 +39,9 @@ function parseGradient(css) {
   const str = css.trim();
 
   // Reject non-gradients (hex, rgb(), transparent, url(), multi-background with url, etc.).
-  const m = /^(linear|radial)-gradient\((.*)\)$/is.exec(str);
+  const m = /^(linear|radial|conic)-gradient\((.*)\)$/is.exec(str);
   if (!m) return null;
-  const type = m[1].toLowerCase() === 'radial' ? 'radial' : 'linear';
+  const k = m[1].toLowerCase(), type = k === 'radial' ? 'radial' : k === 'conic' ? 'conic' : 'linear';   // FX-GRADIENT-GAZE-01 — 원뿔형(conic) = Figma GRADIENT_ANGULAR
   const inner = m[2];
 
   // Multi-background like `linear-gradient(...), url(...)` survives the outer match because the
@@ -51,11 +51,15 @@ function parseGradient(css) {
   const tokens = _splitTopLevel(inner);
   if (tokens.length < 2) return null;
 
-  let angle = type === 'radial' ? 0 : 180;
+  let angle = type === 'radial' || type === 'conic' ? 0 : 180;
   let idx = 0;
   const first = tokens[0];
 
-  if (/^-?\d+(\.\d+)?deg$/i.test(first)) {
+  if (type === 'conic') {
+    // conic: 앞머리 «from <각>deg [at <위치>]» 또는 «at <위치>» 는 스탑이 아니다 — 시작각만 angle 로
+    const cm = /^from\s+(-?[\d.]+)deg\b/i.exec(first);
+    if (cm) { angle = parseFloat(cm[1]); idx = 1; } else if (/^at\b/i.test(first)) idx = 1;
+  } else if (/^-?\d+(\.\d+)?deg$/i.test(first)) {
     angle = parseFloat(first);
     idx = 1;
   } else if (type === 'radial') {
@@ -97,11 +101,17 @@ const _STRICT_STOP = /^(#[0-9a-f]{6}|rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\
 function parseGradientStrict(css) {
   const g = parseGradient(css);
   if (!g) return null;
-  const inner = /^(?:linear|radial)-gradient\((.*)\)$/is.exec(String(css).trim())[1];
+  const inner = /^(?:linear|radial|conic)-gradient\((.*)\)$/is.exec(String(css).trim())[1];
   const tokens = _splitTopLevel(inner);
   let idx = 0;
   const first = tokens[0];
-  if (g.type === 'linear') {
+  if (g.type === 'conic') {
+    const cm = /^from\s+(-?[\d.]+)deg(?: at 50% 50%)?$/i.exec(first);   // 피커 문법(시작각 + 가운데) · 브라우저가 기본 위치를 지운 꼴(from Ndeg)도 같은 값
+    if (!cm) return null;
+    const a = parseFloat(cm[1]);
+    if (!(a >= 0 && a <= 360)) return null;
+    idx = 1;
+  } else if (g.type === 'linear') {
     if (/^-?\d+(\.\d+)?deg$/i.test(first)) {
       const a = parseFloat(first);
       if (!(a >= 0 && a <= 360)) return null;
@@ -151,9 +161,10 @@ function _stopColor(stop) {
 
 function toCss(model) {
   if (!model || !Array.isArray(model.stops)) return '';
-  const type = model.type === 'radial' ? 'radial' : 'linear';
+  const type = model.type === 'radial' ? 'radial' : model.type === 'conic' ? 'conic' : 'linear';
   const parts = model.stops.map(s => `${_stopColor(s)} ${Math.round((s.offset || 0) * 100)}%`);
   if (type === 'radial') return `radial-gradient(circle, ${parts.join(', ')})`;
+  if (type === 'conic') return `conic-gradient(from ${Math.round(model.angle || 0)}deg at 50% 50%, ${parts.join(', ')})`;   // 피커와 같은 꼴
   const angle = Math.round(model.angle == null ? 180 : model.angle);
   return `linear-gradient(${angle}deg, ${parts.join(', ')})`;
 }

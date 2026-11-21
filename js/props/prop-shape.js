@@ -587,11 +587,15 @@ export function showShapeProperties(block) {
       const inp = document.getElementById('shape-color-color');
       if (inp) delete inp.dataset.cpFill;
     }
-    _applyShapeGradient(block, svg, detail);
+    /* FX-GRADIENT-GAZE-01 원뿔형 — SVG 엔 conic 이 없다: 아래 칠은 같은 정지점 linear 를 stop-opacity 0 으로(옛 defs·restore 길 그대로 · 알파 두 번 안 겹침) ·
+       보이는 칠 = js/shape-conic.js 덮개(도형 모양 mask) · Figma = 모델 GRADIENT_ANGULAR */
+    const _conic = detail.type === 'conic';
+    _applyShapeGradient(block, svg, _conic ? { ...detail, stops: (detail.stops || []).map((x) => ({ ...x, opacity: 0 })) } : detail);
     block.dataset.shapeColor = detail.css || '';
     block.dataset.shapeGradient = JSON.stringify({
       type: detail.type, angle: detail.angle, stops: detail.stops,
     });
+    window.syncShapeConic?.(block);
     window.scheduleAutoSave?.();
   }
 
