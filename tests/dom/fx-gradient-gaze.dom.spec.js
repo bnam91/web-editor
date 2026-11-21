@@ -6,6 +6,9 @@
  * G3 텍스트 — 글자색 스와치 → 그라데이션 탭 → «aurora» → 글자 그라데이션(background-clip:text) = aurora 색 · Figma JSON 글자 그라데이션 정지 = aurora
  * G4 내보내기 — PNG 도형 자리에 색이 여럿(무지갯빛 · 단색 아님) · HTML 에 그 정지 색
  * ★v3(261121 «별도 이펙트»): 프리셋·세기는 Effects «홀로그램» 카드로 옮김(G1~G4 의 클릭 자리만 카드로) · G5 카드 ✕ = 넣기 전 칠(단색) · G6 색 고르기 그라데이션 탭에 그 칠이 보임 · 프리셋 줄 0 · G7 눈 끔 = 넣기 전 칠 · 켬 = 다시
+ * G8 [채점 ③] 세기 0 = 넣기 전 칠 그대로(단색 · 키는 남음) · 100 = 홀로 그대로
+ * G9 [채점 ③ · 근사 수] 넣기 전 칠이 그라데이션(선형 빨강→파랑) — 세기 50 렌더 vs (세기 0 렌더 + 세기 100 렌더)/2 화소 차: 선형 프리셋(같은 꼴·각도 = 정확해야) · 원뿔 프리셋(근사 · 수만 남김)
+ * 양성대조(실측 · 채점 ③): _patches/holo-cover-CTL.patch(섞기 바탕 걷음 = 옛 투명도 셈) → G2·G8 빨강 · G9 초록(근사 수를 남기는 칸 · 선형 정확 단언만)
  * 양성대조: _patches/gaze-preset-CTL.patch(프리셋 클릭·세기 배선 걷음) → G1~G4 빨강.
  */
 const { test, expect } = require('@playwright/test');
@@ -61,15 +64,20 @@ test('G1 도형 «gold» → SVG 정지 8 = gold · Figma 같은 색', async ({ 
   expect(errs).toEqual([]);
 });
 
-test('G2 도형 «세기» 50 → 정지 투명도 0.5 · Figma 0.5', async ({ page }) => {
+/* ★기대 바뀜(미카사 채점 261121 ③ · 지디 승인 «세기 = 덮는 정도»): 옛 G2 = «세기 50 → 정지 투명도 0.5»(0 이면 흰 도형) — 이제 정지 색 = 넣기 전 칠(단색) 위에 홀로 50% · 불투명 */
+const mixHex = (h, b, k) => { const p = (x) => [1, 3, 5].map((i) => parseInt(x.slice(i, i + 2), 16)); const a = p(h), c = p(b); return '#' + a.map((v, i) => Math.round(v * k + c[i] * (1 - k)).toString(16).padStart(2, '0')).join(''); };
+const near = (x, y, d = 2) => { const p = (z) => [1, 3, 5].map((i) => parseInt(z.slice(i, i + 2), 16)); const a = p(x), b = p(y); return a.every((v, i) => Math.abs(v - b[i]) <= d); };
+test('G2 도형 «세기» 50 → 정지 색 = 넣기 전 칠 위 홀로 50%(불투명) · Figma 같은 색', async ({ page }) => {
   const errs = await scene(page, 'shape');
+  const base = await page.evaluate(() => document.getElementById('shG').dataset.shapeColor);
   await holo(page, 'shape', 'gold');
   await page.locator('#shape-fxholo-num').fill('50'); await page.locator('#shape-fxholo-num').dispatchEvent('change'); await raf(page); await raf(page);   // 카드 «세기»
+  const want = ring(GOLD).map((g) => mixHex(g, hexOf(base), 0.5));
   const st = await shapeStops(page);
-  expect(st.length === 8 && st.every((s) => Math.abs(parseFloat(s.o) - 0.5) < 0.01), `★SVG stop-opacity 0.5 ${JSON.stringify(st)}`).toBe(true);
+  expect(st.length === 8 && st.every((x, i) => near(hexOf(x.c), want[i]) && Math.abs(parseFloat(x.o ?? '1') - 1) < 0.01), `★SVG 정지 = 넣기 전 ${base} 위 gold 50% · 불투명 ${JSON.stringify(st)}`).toBe(true);
   const n = await figNode(page, 'shG');
-  const op = defStops(n?.gradientDef).map((s) => s.opacity);
-  expect(op.length === 8 && op.every((v) => Math.abs(v - 0.5) < 0.01), `★Figma 정지 opacity ${JSON.stringify(op)}`).toBe(true);
+  const fd = defStops(n?.gradientDef);
+  expect(fd.length === 8 && fd.every((x, i) => near(hexOf(x.color), want[i]) && Math.abs(x.opacity - 1) < 0.01), `★Figma 정지 ${JSON.stringify(fd)}`).toBe(true);
   expect(errs).toEqual([]);
 });
 
@@ -135,5 +143,46 @@ test('G7 눈 끔 = 넣기 전 칠 · 키 보존 · 켬 = 다시 같은 프리셋
   await page.click('#shape-fxholo-eye'); await raf(page);
   const st = await shapeStops(page);
   expect(st.map((s) => hexOf(s.c)), '★켬 = gold 다시').toEqual(ring(GOLD));
+  expect(errs).toEqual([]);
+});
+
+test('G8 세기 0 = 넣기 전 칠 그대로 · 100 = 홀로', async ({ page }) => {
+  const errs = await scene(page, 'shape');
+  const before = await page.evaluate(() => { const b = document.getElementById('shG'); return { c: b.dataset.shapeColor, g: b.dataset.shapeGradient || null }; });
+  await holo(page, 'shape', 'gold');
+  const setA = async (v) => { await page.locator('#shape-fxholo-num').fill(String(v)); await page.locator('#shape-fxholo-num').dispatchEvent('change'); await raf(page); await raf(page); };
+  await setA(0);
+  const z = await page.evaluate(() => { const b = document.getElementById('shG'); return { c: b.dataset.shapeColor, g: b.dataset.shapeGradient || null, key: !!b.dataset.fxHolo }; });
+  expect(z, '★세기 0 = 넣기 전 칠(흰 도형 아님) · 키 남음').toEqual({ ...before, key: true });
+  await setA(100);
+  expect((await shapeStops(page)).map((x) => hexOf(x.c)), '★100 = gold 그대로').toEqual(ring(GOLD));
+  expect(errs).toEqual([]);
+});
+
+/* 선택을 풀고(손잡이·테두리 덮개 없이) 도형 자리 화면을 찍는다 — 원뿔은 SVG 가 아니라 .shape-conic-ov 덮개라 화면으로 잰다 · 세기는 카드와 같은 문(setFxHolo) */
+async function shotErr(page) {
+  const setA = (v) => page.evaluate(async (v) => { const m = await import('/js/effects-holo.js'); m.setFxHolo(document.getElementById('shG'), { a: v }, { history: false }); window.deselectAll?.(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); }, v);
+  const shot = async () => (await page.locator('#shG').screenshot()).toString('base64');
+  await setA(0); const p0 = await shot(); await setA(100); const p1 = await shot(); await setA(50); const pm = await shot();
+  return page.evaluate(async ([p0, p1, pm]) => {
+    const px = async (b) => { const im = new Image(); await new Promise((r) => { im.onload = r; im.src = 'data:image/png;base64,' + b; }); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); return { d: x.getImageData(0, 0, im.width, im.height).data, W: im.width, H: im.height }; };
+    const [A, B, Mm] = await Promise.all([px(p0), px(p1), px(pm)]);
+    const a = A.d, b = B.d, m = Mm.d, W = Mm.W, H = Mm.H, M = 3;   // 가장자리 3px 뺌(안티에일리어싱)
+    let sum = 0, mx = 0, n = 0;
+    for (let y = M; y < H - M; y++) for (let x = M; x < W - M; x++) { const i = (y * W + x) * 4; for (let j = 0; j < 3; j++) { const e = Math.abs(m[i + j] - (a[i + j] + b[i + j]) / 2); sum += e; mx = Math.max(mx, e); n++; } }
+    return { mean: n ? +(sum / n).toFixed(2) : null, max: mx, n };
+  }, [p0, p1, pm]);
+}
+test('G9 넣기 전 칠이 그라데이션 — 세기 50 근사 정도(화소 차)', async ({ page }) => {
+  const errs = await scene(page, 'shape');
+  await page.evaluate(() => { const el = document.getElementById('shG'); const m = { type: 'linear', angle: 90, stops: [{ color: '#ff0000', offset: 0, opacity: 1 }, { color: '#0000ff', offset: 1, opacity: 1 }] }; m.css = 'linear-gradient(90deg, #ff0000 0%, #0000ff 100%)'; window._applyShapeGradientFill(el, m); });
+  await holo(page, 'shape', 'gold');   // 선형 프리셋 — 같은 꼴·각도(90°)라 같은 offset = 같은 화면 자리 ⇒ 정확해야
+  const lin = await shotErr(page);
+  await page.evaluate(() => { const el = document.getElementById('shG'); window.selectBlock?.('shG'); window.showShapeProperties?.(el); });   // 재기에서 선택을 풀었다 — 카드를 다시 연다
+  await holo(page, 'shape', 'prism');  // 원뿔 프리셋 — 선형 바탕을 원뿔 offset 으로 표본 ⇒ 근사
+  const con = await shotErr(page);
+  console.log(`[G9 근사 수] 넣기 전 = 선형 빨강→파랑 90° · 세기 50 렌더 vs (0 렌더 + 100 렌더)/2 — 선형 gold 평균 ${lin.mean}·최대 ${lin.max} · 원뿔 prism 평균 ${con.mean}·최대 ${con.max} (채널 0..255 · 화소 ${lin.n / 3}/${con.n / 3})`);
+  expect(lin.n > 0 && con.n > 0, '[전제] 잰 화소').toBe(true);
+  expect(lin.mean <= 3, `★같은 꼴·각도는 정확해야(평균 ${lin.mean})`).toBe(true);
   expect(errs).toEqual([]);
 });

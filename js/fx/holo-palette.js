@@ -56,3 +56,39 @@ export function gazeSwatchCss(p) {
   const parts = p.stops.map(([c, o]) => `${c} ${Math.round(o * 100)}%`).join(', ');
   return p.type === 'conic' ? `conic-gradient(from 0deg at 50% 50%, ${parts})` : `linear-gradient(90deg, ${parts})`;
 }
+
+/* ── 세기 = «덮는 정도»(미카사 채점 261121 ③ · 지디 승인): 홀로 정지점 색을 «넣기 전 칠» 위에 a% 로 얹은 결과 색 —
+ *   0 = 넣기 전 칠 · 100 = 홀로 그대로 · 결과는 여전히 정지점 목록 한 벌(그라데이션 칠 한 장).
+ *   base = null(넣기 전 칠 모름 · 투명) → 옛 셈(정지점 투명도 = a) · {solid:색} → 알파 합성과 같은 셈(정확) ·
+ *   {stops:[{color, offset 0..1, opacity?}]} → 넣기 전 그라데이션을 «홀로 정지점 자리(offset)»에서 표본.
+ *   shortcut: 넣기 전 그라데이션의 꼴·각도가 홀로와 다르면(예: 선형 위 원뿔) 같은 offset ≠ 같은 화면 자리 — 근사다(DOM 이 근사 정도를 수로 남긴다). 정확해야 하면 칠을 두 겹으로. */
+const _rgba = (c) => {
+  const s = String(c || '').trim();
+  let m = /^#([0-9a-f]{3,8})$/i.exec(s);
+  if (m) { let h = m[1]; if (h.length === 3 || h.length === 4) h = h.split('').map((x) => x + x).join(''); if (h.length !== 6 && h.length !== 8) return null;
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1]; }
+  m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$/i.exec(s);
+  if (m) { const a = m[4] == null ? 1 : (m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4])); return [+m[1], +m[2], +m[3], a]; }
+  return null;
+};
+const _hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+/** 정지점 목록을 t(0..1)에서 표본 — [r,g,b,a] · 정지점 opacity 를 a 에 곱한다 · 못 읽으면 null. */
+export function sampleStops(stops, t) {
+  const st = (Array.isArray(stops) ? stops : []).map((x) => { const c = _rgba(x && x.color); return c ? { o: Number(x.offset) || 0, c: [c[0], c[1], c[2], c[3] * (x.opacity == null ? 1 : Number(x.opacity))] } : null; }).filter(Boolean).sort((a, b) => a.o - b.o);
+  if (!st.length) return null;
+  if (t <= st[0].o) return st[0].c;
+  for (let i = 1; i < st.length; i++) if (t <= st[i].o) { const a = st[i - 1], b = st[i], f = b.o === a.o ? 0 : (t - a.o) / (b.o - a.o); return a.c.map((v, j) => v + (b.c[j] - v) * f); }
+  return st[st.length - 1].c;
+}
+/** 홀로 정지점([색, offset]) + 세기 a(0..100) + 넣기 전 칠 base → 그라데이션 모델 정지점 [{color, offset, opacity}]. */
+export function holoMixStops(stops, a, base) {
+  const k = Math.max(0, Math.min(100, Number(a))) / 100;
+  return stops.map(([color, offset]) => {
+    const h = _rgba(color);
+    const b = !base ? null : base.solid != null ? _rgba(base.solid) : sampleStops(base.stops, offset);
+    if (!h || !b) return { color, offset, opacity: k };   // 넣기 전 칠 모름 = 옛 셈(투명도)
+    const oa = k + b[3] * (1 - k);
+    const mix = (j) => (oa ? (h[j] * k + b[j] * b[3] * (1 - k)) / oa : 0);
+    return { color: _hex(mix(0), mix(1), mix(2)), offset, opacity: Math.round(oa * 1000) / 1000 };
+  });
+}
