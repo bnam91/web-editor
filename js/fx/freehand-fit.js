@@ -53,6 +53,11 @@ function generateBezier(pts, u, t1, t2) {
   let ar = Math.abs(det) > 1e-12 ? (c00 * x1 - c01 * x0) / det : 0;
   const seg = len(sub(p3, p0)), eps = 1e-6 * seg;
   if (al < eps || ar < eps) { al = seg / 3; ar = seg / 3; }   // 쓸모없는 해 → 1/3 휴리스틱(Schneider 원문)
+  // 거의 곧은 획 = t1·t2 맞섬 → det≈0 인데 1e-12 를 넘어 α 가 수만 px(t13A-02 상자 폭주 6490×6588). 조절점이 점 상자(+¼ 긴 변)를 벗어나면 같은 1/3 → 오차가 크면 쪼개기로 간다
+  let x0b = Infinity, y0b = Infinity, x1b = -Infinity, y1b = -Infinity;
+  for (const p of pts) { x0b = Math.min(x0b, p.x); y0b = Math.min(y0b, p.y); x1b = Math.max(x1b, p.x); y1b = Math.max(y1b, p.y); }
+  const m = Math.max(x1b - x0b, y1b - y0b) / 4, out = (q) => q.x < x0b - m || q.x > x1b + m || q.y < y0b - m || q.y > y1b + m;
+  if (out(add(p0, mul(t1, al))) || out(add(p3, mul(t2, ar)))) { al = seg / 3; ar = seg / 3; }
   return [p0, add(p0, mul(t1, al)), add(p3, mul(t2, ar)), p3];
 }
 function maxError(pts, b, u) {

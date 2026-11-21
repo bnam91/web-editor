@@ -104,7 +104,7 @@ function _onClickBlock(e) { if (_tool && window.penHostOf?.(e)) { e.stopPropagat
 function _onKey(e) {
   if (e.key !== 'Escape') return;
   const a = document.activeElement;
-  if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+  if (a && !a.closest('#fh-bar') && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;   // 막대 손잡이 포커스는 글자 칸 아님(editor.js N·⇧B 와 같은 뜻)
   e.stopPropagation(); exitFreehand();
 }
 
