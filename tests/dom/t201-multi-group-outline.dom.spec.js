@@ -103,7 +103,7 @@ test('A1·A2·A3 흐름: 그룹 하나 = 오늘 · 그룹+⇧그룹 = 각자+전
 test('A4·A5 그룹 안 글자(더블클릭)는 부모 그룹을 안 그린다 · +⇧형제 = 각자+전체', async ({ page }) => {
   test.setTimeout(90000); await build(page); const { G1 } = await groups(page);
   await click(page, 'T0'); await dbl(page, 'T0');
-  const L = await look(page); expectSingle(L, 'WT0', 4);
+  const L = await look(page); expectSingle(L, 'WT0', 12);   // ★기대 바뀜(t13D-10 d6ab57b02): 흐름 글 = 회전 핫존(tb-rotate-zone) 4 + 글 상자 손잡이(tbx 모서리 4 + 변 4) = 12 · 옛 4 = 회전 핫존뿐(지혜맥 실측)
   await click(page, 'T1', 'Shift'); expectMulti(await look(page), ['WT0', 'WT1'], [G1]);
 });
 
@@ -120,7 +120,7 @@ test('B5·B6·B7 중첩 더블클릭은 한 단계씩 · 맨 안 자식 + ⇧밖
   test.setTimeout(90000); await build(page); const { GA, GB } = await groups(page);
   await click(page, 'K0'); await dbl(page, 'K0'); expectSingle(await look(page), GB, 12);
   await dbl(page, 'K0'); expectSingle(await look(page), GA, 12);
-  await dbl(page, 'K0'); expectSingle(await look(page), 'WK0', 4);
+  await dbl(page, 'K0'); expectSingle(await look(page), 'WK0', 12);   // ★기대 바뀜(t13D-10) — 위 WT0 와 같은 까닭
   await click(page, 'T4', 'Shift'); expectMulti(await look(page), ['WK0', 'WT4'], ['F', GB, GA]);
 });
 
@@ -159,7 +159,7 @@ test('S 한 개 고름은 오늘과 같다 — 그룹 · 블럭 · 프레임 (�
   test.setTimeout(90000); await build(page); const { G1 } = await groups(page);
   await click(page, 'T0'); expectSingle(await look(page), G1, 12);
   await page.evaluate(() => window.deselectAll()); await raf(page);
-  await click(page, 'T4'); expectSingle(await look(page), 'WT4', 4);
+  await click(page, 'T4'); expectSingle(await look(page), 'WT4', 12);   // ★기대 바뀜(t13D-10) — 위 WT0 와 같은 까닭
   await page.evaluate(() => window.deselectAll()); await raf(page);
   await click(page, 'K5'); expectSingle(await look(page), 'F', 12);
 });

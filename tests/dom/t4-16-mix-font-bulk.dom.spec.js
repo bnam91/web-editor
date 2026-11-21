@@ -112,7 +112,7 @@ async function sceneEditing(page) {
   expect(id, '장면 미성립: 플로팅 텍스트 메뉴로 Body 하나가 생겼다').toBeTruthy();
   expect(await clickText(page, id), '장면 미성립: Body 를 누르면 골라지고 패널 = 그 블럭').toBe(true);
   const r = await stableTwice(page, CE(id));
-  await clickAt(page, r.left + r.width - 4, r.cy, { sel: `[id="${id}"]` }, { label: '편집 더블클릭', dbl: true });
+  await clickAt(page, r.left + r.width - 10, r.cy, { sel: `[id="${id}"]` }, { label: '편집 더블클릭', dbl: true });   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   expect(await pollTrue(page, (s) => document.querySelector(s)?.getAttribute('contenteditable') === 'true', CE(id)), '장면 미성립: 더블클릭 = 편집').toBe(true);
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type(TEXT);

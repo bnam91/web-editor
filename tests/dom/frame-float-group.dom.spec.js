@@ -133,12 +133,15 @@ test('G2 줌 + 오버레이 글자 둘 다 — 오버레이 표식은 내려놓�
   const r = await page.evaluate(() => {
     ['ssA', 'zmb1', 'tbOv'].forEach(id => document.getElementById(id).classList.add('selected'));
     window.__wrap({ asGroup: true });
-    const o = document.getElementById('ovT');
-    return { zp: document.getElementById('zmb1').parentElement.id, op: o.parentElement.id,
+    const o = document.getElementById('ovT'), zp = document.getElementById('zmb1').parentElement;
+    return { zp: zp.id, op: o.parentElement.id, grp: zp.dataset.group ?? null, ssAin: zp.contains(document.getElementById('ssA')) && zp.id !== 'ssA',
              marker: o.dataset.overlayBlock ?? null, ret: o.dataset.overlayReturnParent ?? null };
   });
   const after = await page.evaluate(RECTS);
-  expect([r.zp, r.op]).toEqual(['ssA', 'ssA']);
+  /* ★기대 바뀜(t13D-07 ⑤ d93f5727e · 현빈 261120 «오버레이 글자 + 프레임 형제 ⌘G = 그 자리 그대로 공통 그룹 · 프레임 안으로 넣기 금지»):
+     떠 있는 것 중 «글자»가 있으면 9/30 «자유배치 프레임 안으로» 갈래를 안 탄다 ⇒ 줌·글자의 부모 = ssA 가 아니라 ssA 까지 품은 새 공통 그룹(같은 하나).
+     옛: expect([r.zp, r.op]).toEqual(['ssA', 'ssA']). 아래 «표식 내려놓음 · 자리 그대로» 단언은 그대로. (글자 없는 G1 = 종전 갈래 그대로) */
+  expect([r.zp === r.op, r.grp, r.ssAin], `★줌·글자 = 같은 새 공통 그룹(ssA 도 그 안) ${JSON.stringify(r)}`).toEqual([true, 'true', true]);
   expect(r.marker, '⛔표식을 남기면 섹션 좌표로 클램프돼 끌 때 튄다').toBeNull();
   expect(r.ret).toBeNull();
   expect(after.ovT).toEqual(before.ovT);

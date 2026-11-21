@@ -185,7 +185,10 @@ const floatThenExit = (page, id, mode) => page.evaluate(([id, mode]) => {
   const pos = OF.posElOf(g);
   const okIn = OF.enterFloat(pos);
   const floating = g.dataset.overlayBlock === 'true' || !!g.closest('[data-overlay-block="true"]');
-  if (mode === 'frameGone') document.getElementById('frA').remove();        // 돌아갈 프레임이 그 사이 지워졌다 → 섹션 본문 폴백
+  /* ★기대 바뀜(t13D-06 a4c3783fb · 지디 승인 계획 261121 «자리 주인 = 가장 가까운 프레임»): 프레임 안에서 띄우면 이제 그 프레임 «자식»으로 남는다
+     ⇒ 프레임을 지우면 같이 지워진다(옛: 섹션 직속으로 빠져 있어 살아남았다). «돌아갈 프레임이 사라진» 장면은 이제 «옛 저장본 꼴»
+     (섹션 직속 오버레이 · 돌아갈 곳 = frA)에서만 난다 ⇒ 그 꼴로 옮겨 놓고 지운다. 아래 «섹션으로 나오면 100% · 사용자 폭 300» 단언은 그대로. */
+  if (mode === 'frameGone') { g.closest('.section-block').appendChild(pos); pos.dataset.overlayReturnParent = 'frA'; document.getElementById('frA').remove(); }   // 돌아갈 프레임이 그 사이 지워졌다 → 섹션 본문 폴백
   if (mode === 'toB') pos.dataset.overlayReturnParent = 'frB';              // 돌아갈 곳이 frB
   const okOut = OF.exitFloat(pos);
   return { okIn, floating, okOut };

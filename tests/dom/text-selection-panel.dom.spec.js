@@ -67,7 +67,7 @@ async function clickField(page, sel) {
 async function editAndSelectBBB(page, hostSel, { type = false, preClick = false } = {}) {
   const { b } = await center(page, hostSel);
   if (preClick) { await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(250); }
-  await page.mouse.dblclick(b.x + b.width - 4, b.y + b.height / 2);
+  await page.mouse.dblclick(b.x + b.width - 10, b.y + b.height / 2);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   await page.waitForTimeout(300);
   if (type) {
     await page.keyboard.press('ControlOrMeta+a');
@@ -269,7 +269,7 @@ test('T8 세워 둔 편집의 끝 — 패널 칸에서 바깥(캔버스 빈 곳)
   await assertPremise(page, host);
   await clickField(page, '#txt-font-weight'); await page.keyboard.press('Escape'); await page.waitForTimeout(150);
   const { b } = await center(page, host);
-  await page.mouse.dblclick(b.x + b.width - 4, b.y + b.height / 2); await page.waitForTimeout(300);
+  await page.mouse.dblclick(b.x + b.width - 10, b.y + b.height / 2); await page.waitForTimeout(300);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   expect(await page.evaluate((h) => document.querySelector(h).getAttribute('contenteditable'), host), '전제: 다시 편집 중').toBe('true');
   await page.keyboard.press('Escape'); await page.waitForTimeout(200);
   expect(await page.evaluate(([i, h]) => ({ ce: document.querySelector(h).getAttribute('contenteditable'), editing: document.getElementById(i).classList.contains('editing') }), [id, host]),
@@ -470,7 +470,7 @@ async function selectTail(page, n) {
 async function editTypeSelectTail(page, hostSel, text) {
   const { b } = await center(page, hostSel);
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(250);
-  await page.mouse.dblclick(b.x + b.width - 4, b.y + b.height / 2); await page.waitForTimeout(300);
+  await page.mouse.dblclick(b.x + b.width - 10, b.y + b.height / 2); await page.waitForTimeout(300);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.type(text);
   await selectTail(page, 3);
 }
@@ -527,7 +527,7 @@ test('R3 그리드 줄 «구조»가 바뀌면 저장 선택이 남의 줄에 �
     '전제: 같은 글자 두 줄').toEqual(['AAA BBB AAA', 'AAA BBB AAA']);
   await page.keyboard.press('Escape'); await page.waitForTimeout(200);
   const { b } = await center(page, l0);
-  await page.mouse.dblclick(b.x + b.width - 4, b.y + b.height / 2); await page.waitForTimeout(300);
+  await page.mouse.dblclick(b.x + b.width - 10, b.y + b.height / 2); await page.waitForTimeout(300);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   await selectTail(page, 3);
   await assertPremiseText(page, l0, 'AAA');
   expect((await hlOrSel(page)).start, '전제: 0번 줄 «뒤» AAA(8–11)').toBe(8);

@@ -60,7 +60,7 @@ test('F2 측정(soft) — 날 변화 뒤 프레임 «혼자» 삭제 → ⌘Z �
 test('F3 측정(soft) — 실제 손: 프레임 안 줄 글자 편집(앞 표본만) → 프레임 «혼자» 삭제 → ⌘Z 한 번 뒤 편집 글자가 남는가', async ({ page }) => {
   await setup(page, FRAME);
   const tid = await page.evaluate(() => document.querySelector('#qF .text-block').id);
-  const p = await page.evaluate((tid) => { const e = document.querySelector(`#${tid} [class^="tb-"]`); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.right - 4, q.top + q.height / 2]; }, tid);
+  const p = await page.evaluate((tid) => { const e = document.querySelector(`#${tid} [class^="tb-"]`); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.right - 10, q.top + q.height / 2]; }, tid);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   for (let n = 0; n < 3 && !(await page.evaluate(() => !!document.querySelector('#qF [contenteditable="true"]'))); n++) { await page.mouse.dblclick(p[0], p[1]); await page.waitForTimeout(150); }
   expect(await page.evaluate(() => !!document.querySelector('#qF [contenteditable="true"]')), '전제 — 줄 글자 편집 중').toBe(true);
   await page.keyboard.press('End'); await page.keyboard.type('EDIT'); await page.evaluate(() => document.activeElement?.blur?.()); await page.waitForTimeout(200);
@@ -87,7 +87,7 @@ test('E1 R7⒝ 반사 켠 에셋 Delete — 공용 «블록 삭제» 길 · 한 
 test('T1 글자 편집(양쪽 끝 · dblclick 앞 표본 + 끝 표본) — 날 변화 뒤 편집 → ⌘Z 가 날 변화 «뒤»(편집 전)에서 멈춘다', async ({ page }) => {
   await setup(page, TEXT);
   await raw(page, 71);
-  const p = await page.evaluate(() => { const e = document.querySelector('#qT [class^="tb-"]'); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.right - 4, q.top + q.height / 2]; });
+  const p = await page.evaluate(() => { const e = document.querySelector('#qT [class^="tb-"]'); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.right - 10, q.top + q.height / 2]; });   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   await expectOneUndoStep(page, async () => {
     await page.mouse.dblclick(p[0], p[1]); await page.waitForTimeout(150);
     await page.keyboard.press('End'); await page.keyboard.type('XYZ'); await page.waitForTimeout(100);

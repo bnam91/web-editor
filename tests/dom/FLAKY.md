@@ -435,3 +435,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 ## 2026-11-21 · t13d-02 A1 (0.9.13 t13d 가지) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t13d-02-grid-handles-on-create.dom.spec.js:13` A1 «★생성 직후 = 클릭 뒤와 같은 손잡이»(:36) — 인텔 t13d-04 CTL-elastic 판에서 빨강 1/1(생성 직후 «e,n,ne,nw,s,se,sw,w» ↔ 클릭 뒤 «n,nw,sw,w») · 지혜맥 같은 판 ×8(workers 4) 0/8.
 - 그 뒤 spec 의 읽는 시점을 고침(태양 · 이 가지 다음 커밋 · 단언 그대로): 지혜맥 ×24(workers 6 · retries 0) 0/24 · 양성대조 t13d-02-CTL 1/1 빨강(«★생성 직후 손잡이 8개»).
+
+## 2026-11-21 · scratch-layer-order L3 (t13d 가지 회귀 확인 런) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `scratch-layer-order.dom.spec.js:229` L3 — 지혜맥 16 spec 묶음 workers 1 · retries 0 (판 7a07060b2 + 시험 고침) 빨강 1/1(`page.goto` 30s) · 같은 spec 통째 ×5 0/5 · 대조 9a724fb78 같은 묶음 0/1.
