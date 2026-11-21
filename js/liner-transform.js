@@ -329,11 +329,13 @@ function applyLiner(block, opts) {
       const r = Math.max(8, maxR * sizeScale);
       H = W;                       // 정사각형
       cy = Math.round(H / 2);      // 원 중심 = 블록 중앙
-      pathK = r;
+      pathK = r + (cfg.flip ? ascent : 0);   // 안쪽 뒤집기 — 글 위쪽이 중심을 향하니 경로를 글자 높이만큼 밀어 윗변이 r 에(겹침 줄임 · 미카사 채점 261121 ④ 안B)
     } else if (radiusMode) {
       // 반지름 모드 — 원(반지름 R) 위에 글 길이만큼. 처음엔 원 전체 상자 · 아래 LINERH 가 글이 덮는 구간으로 높이를 조인다.
       const ascent = effFont * 0.85, descent = effFont * 0.30;
-      pathK = cfg.radius || roundAutoR;
+      /* 안쪽 뒤집기(미카사 채점 261121 ④ · 지디 안B «뜻 보존»): 글 위쪽이 원 중심을 향해 윗변이 r−글자높이 원에 모여 작은 반지름에서 겹쳤다
+         ⇒ 경로 반지름을 글자 높이만큼 밀어(r+ascent) 윗변이 고른 반지름 r 에 오게 — 윗변 길이 비 (r−a)/r → r/(r+a). 자간 자동 보탬은 다음 판. */
+      pathK = (cfg.radius || roundAutoR) + (cfg.flip ? ascent : 0);
       cy = Math.round(6 + ascent + pathK);
       H  = Math.round(cy + pathK + descent + 6);
     } else {
@@ -570,6 +572,7 @@ function enhanceLinerPropPanel(block) {
         <span class="prop-label">반지름</span>
         <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" data-empty="auto" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
       </div>
+      <div class="prop-hint" id="lnr-radius-hint"${cfg.preset === 'round' ? '' : ' hidden'}>반지름을 비우면 글 길이 기준으로 자동(글을 고치면 따라감)</div>
       <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
         <span class="prop-label">안쪽 뒤집기</span>
         <label class="prop-toggle"><input type="checkbox" id="lnr-flip"${cfg.flip ? ' checked' : ''}><span class="prop-toggle-track"></span></label>
@@ -596,6 +599,7 @@ function enhanceLinerPropPanel(block) {
     };
     const arc = next.preset === 'arc-up' || next.preset === 'arc-down', round = next.preset === 'round';   // 줄 보이기 — 반지름 = arc·둥글게 · 뒤집기 = circle·둥글게·반지름 모드
     propPanel.querySelector('#lnr-radius-row')?.toggleAttribute('hidden', !(arc || round));
+    propPanel.querySelector('#lnr-radius-hint')?.toggleAttribute('hidden', !round);   // 안내 = «둥글게»(비우면 글 길이 기준) · 아치는 비우면 블럭 폭 기준이라 다른 뜻
     propPanel.querySelector('#lnr-flip-row')?.toggleAttribute('hidden', !(next.preset === 'circle' || round || (arc && next.radius > 0)));
     { const cv = propPanel.querySelector('#lnr-curvature'); if (cv) cv.disabled = round || (arc && next.radius > 0); }   // 반지름 모드·둥글게 = 곡률 안 씀
     applyLiner(block, next);
