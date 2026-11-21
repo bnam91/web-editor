@@ -3,7 +3,7 @@ import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-in
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
-import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
+import { readRedact, redactPx, normalizeRedact, normalizeDecorBlur } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 import { collabParams, collabSlotSrc } from '../blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 */
 import { COLLAB_GLYPH } from '../blocks/logo-collab-model.js';
 import { sanitizeRichTextHtml } from '../util/sanitize-rich-text.js';
@@ -55,6 +55,10 @@ const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 �
 /* ★이미지 블러(Redact, 1012t1 C1) — 블러는 Figma 로 못 옮긴다(LAYER_BLUR 로 보내면 원본이 피그마 파일에 실려 효과를 끄면 보인다).
  *   ⇒ 도형 가림막과 같은 원칙: 원본 src 를 «싣지 않고» 불투명 덮개 색을 싣는다. 렌더러는 block.redact 갈래에서 그 색으로 칠한다.
  *   켜져 있지 않으면 null(필드 자체를 안 붙인다 — 옛 JSON 바이트 그대로). */
+/* IMG-FX-BLUR-01 꾸밈 «흐림» — 가림과 달리 원본을 그대로 싣고 LAYER_BLUR 반지름(px)만 더한다(렌더러 figma-renderer image 갈래가 set_effects). 가림이 켜지면 없음. */
+function _imageDecorBlur(el) {
+  return readRedact(el) > 0 ? 0 : normalizeDecorBlur(el?.dataset?.decorBlur);
+}
 function _imageRedactField(el) {
   const v = readRedact(el);
   return v > 0 ? { intensity: v, blurPx: redactPx(v), cover: _REDACT_COVER } : null;
@@ -275,7 +279,7 @@ async function exportFigmaJSON() {
       // col width는 parseCol에서 주입
       const redact = _imageRedactField(el);
       if (redact) return { type: 'asset', src: null, height: h, padding, redact };   // ★블러: 원본 src 를 싣지 않는다(1012t1 C1)
-      return { type: 'asset', src, height: h, padding };
+      return { type: 'asset', src, height: h, padding, ...(_imageDecorBlur(el) ? { decorBlur: _imageDecorBlur(el) } : {}) };   // IMG-FX-BLUR-01 흐림
     }
 
     return null;
@@ -602,6 +606,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         padX,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
         src: el.dataset.imgSrc || null,
+        ...(_imageDecorBlur(el) ? { decorBlur: _imageDecorBlur(el) } : {}),   // IMG-FX-BLUR-01 흐림 — 원본 + LAYER_BLUR
         overlayOn,
         overlayText,
         overlayColor,

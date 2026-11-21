@@ -772,6 +772,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ⚠️ 이미지 업로드 실패, 회색 플레이스홀더`);
         } else {
           console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ✓ 이미지 적용`);
+          if (block.decorBlur > 0) run('set_effects', { nodeId: _fillId, effects: [{ type: 'LAYER_BLUR', radius: block.decorBlur }] });   // IMG-FX-BLUR-01 꾸밈 «흐림» — 원본 그림 + 레이어 블러
         }
       } else {
         // 빈 슬롯 = goditor 체커보드 placeholder를 Figma에도 체커로(회차12 현빈 B결정)

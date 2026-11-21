@@ -1872,7 +1872,7 @@ window.setAssetImageFromSrc = setAssetImageFromSrc;
  * ★되얹는 순서가 중요하다 — setAssetImageFromSrc 는 ⓐ오버레이·그레인은 «앞서 있던 것»을 보존하고 ⓑ크롭 키(imgW/X/Y/
  *   imgPosition)는 «지우고» ⓒ그림 요소를 새로 만든다. ⇒ ④⑤는 «넣기 전»에, ①②③은 «넣은 뒤»에 얹는다.
  *   (HTML 을 통째로 갈아 끼우면 이 함수가 단 지우기·GIF 단추 리스너가 사라져서 그 길은 안 쓴다.) */
-const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact', 'redactOff'];   /* ★redact = 1012t1 C1 블러 · redactOff = 블러 카드 «눈 끔»에 맡겨 둔 강도(js/effects-blur.js) */
+const ASSET_FX_DS_KEYS = ['fit', 'imgX', 'imgY', 'imgW', 'imgPosition', 'imgRotate', 'rotation', 'overlay', 'motion', 'gifSrc', 'redact', 'redactOff', 'decorBlur', 'decorBlurOff'];   /* ★redact = 1012t1 C1 블러 · redactOff = 블러 카드 «눈 끔»에 맡겨 둔 강도(js/effects-blur.js) */
 function captureAssetFx(ab) {
   if (!ab?.classList?.contains('asset-block')) return null;
   const ds = {};
@@ -1907,6 +1907,7 @@ function setAssetImageWithFx(ab, src, fx) {
   for (const k of ASSET_FX_DS_KEYS) if (ds[k] != null && k !== 'rotation' && k !== 'redact') ab.dataset[k] = ds[k];
   /* ★블러는 속성만 되얹으면 인라인 --redact-blur 가 빠진다(이 함수는 ab.style 중 radius 만 옮긴다) ⇒ 공용 함수로 둘 다 쓴다(1012t1 C1) */
   if (ds.redact != null) applyRedact(ab, ds.redact);
+  else if (ds.decorBlur != null) applyRedact(ab, 0);   // IMG-FX-BLUR-01 흐림 — 속성만 되얹으면 합성이 안 돈다 ⇒ 같은 합성 문(applyRedact 0 = 가림 흔적 0 + recomposeHost)
   if (ds.rotation != null) window.applyRotationDeg?.(ab, ds.rotation);
   if (fx.radius) ab.style.borderRadius = fx.radius;
   const img = ab.querySelector('.asset-img');

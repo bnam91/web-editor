@@ -129,7 +129,7 @@ test('U5 배선 자리 — 패널·제거·스크래치·h2c·CSS·Figma', () =>
   assert.match(asset, /sec\('effects',[\s\S]*?_fx\?\.body/, 'Effects 절이 효과 목록(fxSectionParts 몸통)을 안 받는다');
   assert.doesNotMatch(asset, /redactSectionHTML|wireRedactSection/, '옛 «블러 (Redact)» 따로 절이 prop-asset 에 남았다(두 곳)');
   const fxb = readSrc(ROOT, 'js', 'effects-blur.js');
-  assert.match(fxb, /registerFxType\(\{\s*key: 'blur',\s*label: '블러',/, '명부 식구 「블러」 가 없다');
+  assert.match(fxb, /registerFxType\(\{\s*key: 'blur',\s*label: '가림',/, '명부 식구 「가림」 이 없다');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»과 갈라 옛 «블러» 이름 = «가림»
   assert.match(fxb, /import \{ applyRedact, readRedact, normalizeRedact \} from '\.\/effects\/image-redact\.js'/, '블러 카드가 공용 모듈(같은 저장 키)을 안 쓴다');
   assert.match(fxb, /supports: \(el\) => !!\(el && el\.classList && el\.classList\.contains\('asset-block'\) && el\.classList\.contains\('has-image'\)\)/, '대상이 «그림 든 에셋»이 아니다');
   const idx = readSrc(ROOT, 'index.html');
