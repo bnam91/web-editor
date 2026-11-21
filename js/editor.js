@@ -4826,8 +4826,23 @@ document.querySelectorAll('.section-block').forEach(sec => {
   bindSectionHitzone(sec);
 });
 
-document.getElementById('canvas-wrap').addEventListener('click', e => {
-  if (['canvas-wrap','canvas-scaler','canvas'].includes(e.target.id)) deselectAll();
+/* GRID-PLUS-DRAG-DESELECT-01 — «빈 곳 클릭» = 누른 곳도 빈 곳일 때만.
+   단추(그리드 ＋ · 캔버스 ＋ 등 #canvas-scaler 층)를 누른 채 끌어 다른 곳에서 놓으면 click 은 두 곳의 공통 조상(scaler)에 떨어져
+   빈 곳 클릭으로 읽혔다(선택 해제). 누른 대상을 capture 로 적어 두고, 빈 곳이 아닌 데서 시작한 click 은 해제하지 않는다.
+   누른 기록이 없으면(프로그램 click) 옛 동작 그대로.
+   ★기록은 capture click 에서 읽고 지운다 — 블럭 click 이 전파를 막아도(bubble 못 옴) 다음 click 에 묵은 기록이 안 남게.
+   shortcut: mousedown 뒤 click 이 아예 안 오면(창 밖에서 놓기) 기록이 다음 mousedown 까지 남는다 — 그 사이 프로그램 click 만 영향, 문제 되면 mouseup(window)에서 지운다. */
+const _EMPTY_CLICK_IDS = ['canvas-wrap', 'canvas-scaler', 'canvas'];
+let _canvasDownTarget = null, _clickStartedOffEmpty = false;
+const _canvasWrapEl = document.getElementById('canvas-wrap');
+_canvasWrapEl.addEventListener('mousedown', e => { _canvasDownTarget = e.target; }, true);
+_canvasWrapEl.addEventListener('click', () => {
+  _clickStartedOffEmpty = !!_canvasDownTarget && !_EMPTY_CLICK_IDS.includes(_canvasDownTarget.id);
+  _canvasDownTarget = null;
+}, true);
+_canvasWrapEl.addEventListener('click', e => {
+  if (_clickStartedOffEmpty) return;
+  if (_EMPTY_CLICK_IDS.includes(e.target.id)) deselectAll();
 });
 
 /* ── 트랙패드 제스쳐: 핀치(ctrl+wheel)=줌, 두손가락 드래그(wheel)=팬 ── */
