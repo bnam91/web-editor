@@ -107,10 +107,11 @@ function parseGradientStrict(css) {
   const first = tokens[0];
   if (g.type === 'conic') {
     const cm = /^from\s+(-?[\d.]+)deg(?: at 50% 50%)?$/i.exec(first);   // 피커 문법(시작각 + 가운데) · 브라우저가 기본 위치를 지운 꼴(from Ndeg)도 같은 값
-    if (!cm) return null;
-    const a = parseFloat(cm[1]);
-    if (!(a >= 0 && a <= 360)) return null;
-    idx = 1;
+    if (cm) {
+      const a = parseFloat(cm[1]);
+      if (!(a >= 0 && a <= 360)) return null;
+      idx = 1;
+    } else if (!_STRICT_STOP.test(first)) return null;   // 시작각 0 이면 브라우저가 «from 0deg at 50% 50%» 를 통째로 지운다 ⇒ 첫 토큰이 곧 스탑(= 0°)
   } else if (g.type === 'linear') {
     if (/^-?\d+(\.\d+)?deg$/i.test(first)) {
       const a = parseFloat(first);

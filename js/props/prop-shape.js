@@ -561,43 +561,10 @@ export function showShapeProperties(block) {
     redactMosaicRefreshBtn.addEventListener('click', () => { _trackMosaicCapture(window.captureMosaicSnapshot?.(block)); });
   }
 
-  function applyColor(hex) {
-    // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피
-    // ★이미지(체커) 모드면 같은 색이라도 빠져나와야 한다(0918 picker: 이미지→솔리드 탭 = 마지막 단색 복귀)
-    if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient && !block.dataset.shapeFill) return;
-    if (block.dataset.shapeFill) {
-      _clearShapeImage(block);
-      const inp = document.getElementById('shape-color-color');
-      if (inp) delete inp.dataset.cpFill;
-    }
-    block.dataset.shapeColor = hex;
-    if (svg) {
-      // 그라데이션이 적용돼 있을 때만 clear 수행 (대부분의 솔리드 드래그에선 no-op이라 skip)
-      if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
-      // svg.style.color 도 값이 같으면 스킵 (실제로 같을 일은 드물지만 안전망)
-      if (svg.style.color !== hex) svg.style.color = hex;
-    }
-    window.scheduleAutoSave?.();
-  }
+  /* 칠 쓰기 = 모듈 함수 한 벌(아래 _applyShapeSolidFill · _applyShapeGradientFill) — Effects «홀로그램»(effects-holo.js)도 같은 길로 쓴다 */
+  function applyColor(hex) { _applyShapeSolidFill(block, hex); }
 
-  function applyGradient(detail) {
-    if (!svg || !detail) return;
-    if (block.dataset.shapeFill) {
-      _clearShapeImage(block);
-      const inp = document.getElementById('shape-color-color');
-      if (inp) delete inp.dataset.cpFill;
-    }
-    /* FX-GRADIENT-GAZE-01 원뿔형 — SVG 엔 conic 이 없다: 아래 칠은 같은 정지점 linear 를 stop-opacity 0 으로(옛 defs·restore 길 그대로 · 알파 두 번 안 겹침) ·
-       보이는 칠 = js/shape-conic.js 덮개(도형 모양 mask) · Figma = 모델 GRADIENT_ANGULAR */
-    const _conic = detail.type === 'conic';
-    _applyShapeGradient(block, svg, _conic ? { ...detail, stops: (detail.stops || []).map((x) => ({ ...x, opacity: 0 })) } : detail);
-    block.dataset.shapeColor = detail.css || '';
-    block.dataset.shapeGradient = JSON.stringify({
-      type: detail.type, angle: detail.angle, stops: detail.stops,
-    });
-    window.syncShapeConic?.(block);
-    window.scheduleAutoSave?.();
-  }
+  function applyGradient(detail) { _applyShapeGradientFill(block, detail); }
 
   function applyStroke(v) {
     block.dataset.shapeStrokeWidth = String(v);
@@ -1317,6 +1284,47 @@ function _gradIdFor(block) {
   return `grad-${base}`;
 }
 
+/* 도형 칠 쓰기 — 패널(applyColor·applyGradient)과 Effects «홀로그램»이 같이 쓴다(FX-GRADIENT-GAZE-01 v3 · 현빈 261121 «별도 이펙트») */
+function _applyShapeSolidFill(block, hex) {
+  const svg = block?.querySelector('svg');
+  // perf: 동일 색이면 데이터·DOM 변경 자체를 스킵 → MutationObserver autosave 트리거 회피
+  // ★이미지(체커) 모드면 같은 색이라도 빠져나와야 한다(0918 picker: 이미지→솔리드 탭 = 마지막 단색 복귀)
+  if (block.dataset.shapeColor === hex && !block.dataset.shapeGradient && !block.dataset.shapeFill) return;
+  if (block.dataset.shapeFill) {
+    _clearShapeImage(block);
+    const inp = document.getElementById('shape-color-color');
+    if (inp) delete inp.dataset.cpFill;
+  }
+  block.dataset.shapeColor = hex;
+  if (svg) {
+    // 그라데이션이 적용돼 있을 때만 clear 수행 (대부분의 솔리드 드래그에선 no-op이라 skip)
+    if (block.dataset.shapeGradient) { _clearShapeGradient(block); window.hideGradientLine?.(block); }
+    // svg.style.color 도 값이 같으면 스킵 (실제로 같을 일은 드물지만 안전망)
+    if (svg.style.color !== hex) svg.style.color = hex;
+  }
+  window.scheduleAutoSave?.();
+}
+
+function _applyShapeGradientFill(block, detail) {
+  const svg = block?.querySelector('svg');
+  if (!svg || !detail) return;
+  if (block.dataset.shapeFill) {
+    _clearShapeImage(block);
+    const inp = document.getElementById('shape-color-color');
+    if (inp) delete inp.dataset.cpFill;
+  }
+  /* FX-GRADIENT-GAZE-01 원뿔형 — SVG 엔 conic 이 없다: 아래 칠은 같은 정지점 linear 를 stop-opacity 0 으로(옛 defs·restore 길 그대로 · 알파 두 번 안 겹침) ·
+     보이는 칠 = js/shape-conic.js 덮개(도형 모양 mask) · Figma = 모델 GRADIENT_ANGULAR */
+  const _conic = detail.type === 'conic';
+  _applyShapeGradient(block, svg, _conic ? { ...detail, stops: (detail.stops || []).map((x) => ({ ...x, opacity: 0 })) } : detail);
+  block.dataset.shapeColor = detail.css || '';
+  block.dataset.shapeGradient = JSON.stringify({
+    type: detail.type, angle: detail.angle, stops: detail.stops,
+  });
+  window.syncShapeConic?.(block);
+  window.scheduleAutoSave?.();
+}
+
 function _clearShapeGradient(block) {
   if (!block) return;
   const svg = block.querySelector('svg');
@@ -1465,6 +1473,8 @@ function _applyShapeGradient(block, svg, detail) {
 
 window._applyShapeGradient = _applyShapeGradient;
 window._clearShapeGradient = _clearShapeGradient;
+window._applyShapeSolidFill = _applyShapeSolidFill;
+window._applyShapeGradientFill = _applyShapeGradientFill;
 
 /* ── 이미지(에셋) 채우기 — 0918 picker ──────────────────────────────────────
  * 상태는 dataset 두 개로만 말한다(클래스 X — section-serialize RUNTIME_MARKER 규약과 안 부딪히고 저장·로드 뒤에도 남는다):

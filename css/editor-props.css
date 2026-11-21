@@ -1283,3 +1283,8 @@
 
 /* 0.9.13 MOTION 슬라이드 패널 사진 줄 썸네일 — 옛 인라인 style 그대로 클래스로(props-inline 래칫) · 이 치수들에 맞는 --ui-* 토큰 없음 */
 .sld-thumb { width: 44px; height: 28px; object-fit: cover; border-radius: 3px; flex: 0 0 auto; }
+
+/* FX-GRADIENT-GAZE-01 v3 — Effects «홀로그램» 카드 원형 프리셋(현빈 261121 «별도 이펙트» · 옛 색 고르기 그라데이션 탭 줄을 옮김) */
+.fx-holo-swatches { display: flex; gap: var(--ui-space-1); flex-wrap: wrap; padding: var(--ui-space-1) 0; }
+.fx-holo-sw { width: calc(var(--ui-space-4) + var(--ui-space-1)); height: calc(var(--ui-space-4) + var(--ui-space-1)); border-radius: 50%; border: 1px solid var(--ui-border-strong); padding: 0; cursor: pointer; }
+.fx-holo-sw:hover, .fx-holo-sw[aria-pressed="true"] { outline: 2px solid var(--ui-accent-primary); outline-offset: 1px; }
