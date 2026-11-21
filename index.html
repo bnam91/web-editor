@@ -1252,6 +1252,7 @@
 <script type="module" src="js/blocks/cert-block.js"></script>
 <script type="module" src="js/blocks/slide-block.js"></script>
 <script type="module" src="js/blocks/grid-step.js"></script><!-- 0.9.13 MOTION 3단계 신호등(그리드 칸 차례 강조) -->
+<script type="module" src="js/blocks/asset-reveal.js"></script><!-- 0.9.14 컬러 리빌(에셋 흑백 → 색 GIF) -->
 <script type="module" src="js/util/label-shape.js"></script>
 <script type="module" src="js/props/prop-cert.js"></script>
 <script type="module" src="js/props/prop-slide.js"></script>
@@ -1382,6 +1383,10 @@
           <div class="anim-opt-row" id="anim-step-past-row" style="display:none"><!-- 0.9.13 MOTION 3단계 신호등 — 지난 칸(그리드만 · _syncKindRows) -->
             <span class="anim-opt-label">지난 칸</span>
             <select id="anim-step-past" class="anim-track-fx" onchange="setSlideAnimOpt(true)"><option value="off">꺼짐</option><option value="stack">쌓임</option></select>
+          </div>
+          <div class="anim-opt-row" id="anim-reveal-row" style="display:none"><!-- 0.9.14 컬러 리빌 — 차오르는 방향(에셋만 · _syncKindRows) -->
+            <span class="anim-opt-label">방향</span>
+            <select id="anim-reveal-mode" class="anim-track-fx" onchange="setSlideAnimOpt(true)"><option value="wipe">왼→오 쓸기</option><option value="all">전체 동시</option><option value="radial">가운데서 번짐</option></select>
           </div>
           <div id="anim-fx-opts" class="anim-opt-row" style="display:none"></div><!-- GIF V3 효과 옵션(가이드·커서·글로우·깜빡임·형광펜) — animation-engine.js _renderBlockOpts -->
           <div class="anim-opt-row">
