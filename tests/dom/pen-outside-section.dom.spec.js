@@ -90,6 +90,64 @@ test('S2 펜 항목을 섹션에 끌어 놓기 → 떠 있는 펜 벡터 · ⌘Z
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
+/* S5 채점 2차(261120) — 저장·다시 열기를 거친 펜 장(src = 외부화 goya-asset .svg)도 섹션에 놓으면 «펜 벡터»(옛 = 렌더러 fetch('goya-asset://…') 가
+ *   «Failed to fetch» → null → 그림 에셋). 장면: S1 로 펜 장 → 그 장 src 를 goya-asset://p-t13a04/pen.svg 로(저장 외부화 뒤 다시 연 꼴) · 디스크 읽기 IPC
+ *   (electronAPI.assetsReadAsDataUri · goyaAssetToDrawableSrc 의 «마지막 문»)는 원래 그 장 data URL 을 돌려주는 대역 · 읽은 파일 이름 기록.
+ *   잰다: 놓으면 펜 벡터 · penNodes = 원래 장 노드와 같음 · IPC 가 그 파일을 읽음 · 에셋 0.
+ *   양성대조: _patches/pen-outside-CTL-goya-fetch.patch(IPC 대신 옛 fetch) → S5 «펜 벡터» 빨강(하네스엔 goya-asset 스킴이 없어 fetch 가 실패 = 앱과 같은 병). */
+test('S5 저장·다시 열기 뒤 펜 장(goya-asset .svg) 놓기 → 펜 벡터 · 노드 같음', async ({ page }) => {
+  const errs = await scene(page);
+  const pts = await outsidePts(page);
+  await page.evaluate(() => window.enterVectorPenMode());
+  for (const p of pts) await page.mouse.click(p.x, p.y);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => counts(page).then((c) => c.scratch), '[전제] 펜 항목').toBe(1);
+  await page.evaluate(() => window.exitVectorPenMode?.());
+  const id = await page.evaluate(() => document.querySelector('.scratch-item').dataset.scratchId);
+  const nodes0 = await page.evaluate((id) => {
+    const it = window._scratchItemById(id), data = it.src;
+    const m = /data-goditor-pen="([^"]+)"/.exec(decodeURIComponent(escape(atob(data.slice(26)))));
+    window.__readCalls = [];
+    window.electronAPI = Object.assign({}, window.electronAPI, { assetsReadAsDataUri: async ({ projectId, filename }) => { window.__readCalls.push(projectId + '/' + filename); return { ok: true, dataUri: data }; } });
+    it.src = 'goya-asset://p-t13a04/pen.svg';   // 저장 외부화 → 다시 연 꼴(img 는 그대로 보이게 둠 — 놓기 판정은 item.src 를 읽는다)
+    return JSON.parse(decodeURIComponent(m[1])).nodes.map((n) => [n.x, n.y]);
+  }, id);
+  expect(nodes0.length, '[전제] 원래 장 노드 셋').toBe(3);
+  await dragToSection(page, id);
+  const vec = () => page.evaluate(() => { const v = document.querySelector('#canvas .section-block .vector-block'); return v && v.dataset.penNodes ? JSON.parse(v.dataset.penNodes).map((n) => [n.x, n.y]) : null; });
+  await expect.poll(vec, '★goya-asset 펜 장 → 펜 벡터 · 노드 같음').toEqual(nodes0);
+  expect(await page.evaluate(() => window.__readCalls), '★디스크 읽기 IPC 로 그 파일을 읽었다').toContain('p-t13a04/pen.svg');
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .section-block .asset-block').length), '★그림 에셋 0').toBe(0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* S6 덤(채점 2차) — 놓기가 «안 된»(아밍 없이 스친) 장은 src 가 그대로(옛 = 놓기 전에 grdAssetSrcOf 결과 goya-asset 을 장에 박아 실패해도 바뀜).
+ *   장면: 펜 장 · grdAssetSrcOf 대역(늘 goya-asset 을 줌 · 불림 기록) · 장을 잡아 섹션 위로 «한 번에» 옮겨 바로 놓음(아밍 기다리지 않음 = requireArm 거절).
+ *   전제: 대역이 실제로 불렸다(그 갈래를 탔다) · 섹션 블럭 무변. 잰다: 장 src 가 그대로 data: .
+ *   양성대조: _patches/pen-outside-CTL-src-before-commit.patch(놓기 전 장에 박음 · 옛) → S6 빨강. */
+test('S6 아밍 없이 스친 놓기 — 장 src 그대로(실패한 놓기가 장을 바꾸지 않음)', async ({ page }) => {
+  const errs = await scene(page);
+  const pts = await outsidePts(page);
+  await page.evaluate(() => window.enterVectorPenMode());
+  for (const p of pts) await page.mouse.click(p.x, p.y);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => counts(page).then((c) => c.scratch), '[전제] 펜 항목').toBe(1);
+  await page.evaluate(() => window.exitVectorPenMode?.());
+  const id = await page.evaluate(() => document.querySelector('.scratch-item').dataset.scratchId);
+  const c0 = await counts(page);
+  await page.evaluate((id) => { window.__grdCalls = 0;   // 한 번에 놓으면 dropKind = none 이라 펜 갈래는 안 탄다 — 탔으면 «섹션 블럭 무변» 전제가 잡음
+    window.grdAssetSrcOf = async () => { window.__grdCalls++; return { asset: true, src: 'goya-asset://p-t13a04/x.svg' }; }; }, id);
+  const a = await page.evaluate((id) => { const r = document.querySelector(`.scratch-item[data-scratch-id="${id}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  const b = await page.evaluate(() => { const r = document.querySelector('#canvas .section-block').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.move(a.x, a.y); await page.mouse.down();
+  await page.mouse.move(b.x, b.y);   // 한 번에 — 아밍(안내) 기다리지 않음
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => window.__grdCalls), '[전제] 그림 갈래(grdAssetSrcOf)를 탔다').toBeGreaterThan(0);
+  expect((await counts(page)).blocks, '[전제] 섹션 블럭 무변(안 놓임)').toBe(c0.blocks);
+  expect(await page.evaluate((id) => (window._scratchItemById(id)?.src || '').slice(0, 5), id), '★안 놓인 장 src 그대로 data:').toBe('data:');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
 test('S3 [음성] 섹션 안 펜 = 흐름 벡터 · 스크래치 무변', async ({ page }) => {
   const errs = await scene(page);
   const c0 = await counts(page);

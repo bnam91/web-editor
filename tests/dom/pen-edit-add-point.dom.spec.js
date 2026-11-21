@@ -43,7 +43,11 @@ test('A1 곡선 선분 누름 = 점 추가 · 모양 무변 · ⌘Z · 저장', 
   await hd('장면 뒤');
   await pressSeg(page, 0, 0.4);
   await expect.poll(() => nodeCount(page), '★노드 +1').toBe(n0 + 1);
-  expect(await page.evaluate(() => [...document.querySelectorAll('.vpen-edit-overlay rect')].filter((r) => r.getAttribute('fill') !== '#fff').length), '★새 점 고름').toBe(1);
+  /* [시험만 · dev16-fix 인텔 전수 261120 A1 :46 1/1 · dev 9a724fb78 ×5 w2 2/10 · ×10 w1 1/10 = dev 에 있던 흔들림]
+     근거 = 고름은 «다음 프레임»에 그려진다: _onEditSegmentDown 이 _selectedNodeIdx 를 세우고 _commitEdit 가 dataset.penNodes 를 «동기로» 씀(js/pen-tool.js:829 keepBox 갈래) ·
+     편집 덧그림(채운 사각 = 고름)은 rAF 고리 _startEditRaf → _renderEdit(js/pen-tool.js:722~729)만 다시 그린다 ⇒ 위 노드 +1 poll 이 같은 틱에 통과하면 덧그림은 아직 옛 장면(전부 흰 사각).
+     ⇒ 한 번 읽기 → 조건 대기(고름 사각 1개 · 그 사각 = 새 점 자리 data-node-idx). 단언 뜻 무변(고름은 정확히 하나 · 새 점). */
+  await expect.poll(() => page.evaluate(() => { const on = [...document.querySelectorAll('.vpen-edit-overlay rect')].filter((r) => r.getAttribute('fill') !== '#fff'); return on.length === 1 ? +on[0].dataset.nodeIdx : on.length ? -on.length : null; }), '★새 점 고름(사각 하나 · 새 점 = 1번)').toBe(1);
   const s1 = await shape(page);
   await hd('점 추가 뒤');
   /* 인텔 261120 A1 DIAG 판정 = 제품: 편집 강조 클래스(pen-editing)가 표본에 실려 Esc 가 걷는 순간 «미기록 변경» → ⌘Z 가 체크포인트를 먼저 쌓음.
