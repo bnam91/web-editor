@@ -66,6 +66,19 @@ export function buildTextPanelSpec(state) {
       <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>`;
   })();
 
+  /* ★TEXT-LOREM-FILL-01(현빈 261121) — Content 절 «더미 글» 두 줄: 단위·개수 / 글·채우기. 배선 = prop-text-wireup-lorem.js · 생성 = js/text-lorem.js.
+   * 줄 모드 말풍선(data-lines)은 글 자리가 아니라(ai-text-slots findTextSlot 이 건너뜀) 줄을 안 낸다. 새 클래스 0(prop-row·prop-select·prop-number·prop-btn-sm). */
+  const _loremSec = (isSpeechBubble && tb?.dataset?.lines !== undefined) ? '' : `
+      <div class="prop-row">
+        <span class="prop-label">더미 글</span>
+        <select class="prop-select" id="txt-lorem-unit" aria-label="더미 글 단위"><option value="word">단어</option><option value="sentence" selected>문장</option><option value="paragraph">문단</option></select>
+        <input type="number" class="prop-number" id="txt-lorem-count" min="1" max="30" value="2" aria-label="더미 글 개수">
+      </div>
+      <div class="prop-row">
+        <select class="prop-select" id="txt-lorem-lang" aria-label="더미 글 언어" style="flex:1 1 auto;min-width:0;"><option value="en" selected>Lorem</option><option value="ko">한글</option></select>
+        <button class="prop-btn-sm" id="txt-lorem-run" title="이 글 칸을 더미 글로 바꿉니다(⌘Z 로 되돌림)">채우기</button>
+      </div>`;
+
   /* ═══ right-panel-unify U2(2026-11-13) — 절은 틀(_panel-frame.js)이 그린다 ═══
    * ★여기는 «절 몸통»만 낸다: sec(key, 몸통) — 순서·제목·접기·머리 = 틀(_section-spec.js SECTION_ORDER).
    * ★id·data-*·핸들러가 붙는 칸은 한 글자도 안 바꿨다(배선·spec 이 #id 로 잰다). 바뀐 것 = «어느 절에 사나»:
@@ -319,7 +332,7 @@ export function buildTextPanelSpec(state) {
       </div>
       <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
       <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>`, { id: 'type-section' }),
-      sec('content', _bulletSec, { id: 'bullet-style-section' }),
+      sec('content', _bulletSec + _loremSec, { id: _bulletSec ? 'bullet-style-section' : undefined }),   /* 불릿이면 옛 id 그대로(배선·spec) · 아니면 틀 기본 psec-content */
       /* ★2026-09-16g(T-001) — Ignore Auto Layout 토글은 Position «절 머리» 오른쪽 끝(Figma). id·배선 그대로 — 자리 = headTools. */
       sec('position', `
       <div class="prop-lhls-row">

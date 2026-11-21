@@ -18,6 +18,7 @@ import { wirePaddingSection }  from './prop-text-wireup-padding.js';
 import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js';
 import { wireStrokeSection, readStrokeState } from './prop-text-wireup-stroke.js';   /* ★1012t1E1 Stroke(외곽선 · 내부/가운데/외부) */
 import { wireOverlaySection }  from './prop-text-wireup-overlay.js';
+import { wireLoremSection }    from './prop-text-wireup-lorem.js';   /* TEXT-LOREM-FILL-01 Content 절 «더미 글» */
 import './text-style-copy.js';   /* ★1020t2d2 스타일 복사/붙여넣기(⌥⌘C/⌥⌘V) — window 다리만 건다(editor.js 단축키 · block-factory.js 우클릭이 부른다) */
 
 /* ★1020t2d3 — mix «범위»의 입력 = 이 글자칸 안에서 편집 중일 때의 선택(아니면 null = 블럭 전체). */
@@ -334,6 +335,7 @@ export function showTextProperties(tb) {
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx, rerender: () => showTextProperties(tb) });   // U2 — 타입을 바꾸면 다시 그린다(태그 절이 서고 걷힌다)
   if (!isLiner) wireTextToQuote({ tb, propPanel, ctx });   // 1017t1m1 — #type-section 안, 라이너면 그 절 자체가 없다
   wireBulletStyleSection({ propPanel, ctx });   // T7 — 절이 없으면(불릿 아니면) 아무것도 안 한다
+  wireLoremSection({ tb, propPanel });   // TEXT-LOREM-FILL-01 — 줄이 없으면(줄 모드 말풍선) 아무것도 안 한다
 
   wireLabelSection({ ctx });
   wireAlignSection({ tb, ctx, propPanel, isIconText });
