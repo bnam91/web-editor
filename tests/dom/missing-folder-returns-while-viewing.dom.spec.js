@@ -87,7 +87,11 @@ test('V2 종료·새로고침 동기 길도 표시를 단다 — main 이 거절
   expect(sent.length, '[전제] 동기 저장이 나갔다').toBeGreaterThan(0);
   expect(sent.every(s => s.gone), '★동기 저장에 남은 본 표시가 없다').toBe(true);
   expect(await wroteB(page)).toEqual([]);
-  expect(await page.evaluate(() => localStorage.getItem('web-editor-autosave__proj_b')), 'LS 본은 그대로 남는다').toContain('닫기직전');
+  /* ★기대 바뀜(BEFOREUNLOAD-LS-REWRITE-FOLDER-RETURNED-01 · 지디 261121 판단): 옛 «LS 본은 그대로 남는다»는 비동기 길 정리(리뷰 2 ①) 전 판의 흔적이었다 —
+       남은 그 본은 다음 열기 판정에서 표지 = 돌아온 판 시각이거나 시각 없는 돌아온 판이면 이겨 돌아온 파일을 덮었다(실측 B·C · tests/dom/beforeunload-ls-folder-returned).
+       main 이 그 편집을 «폴더 없던 때» 핀으로 남겼으니(kept history) LS 본은 걷는다 — 편집은 main 이 받은 거절 본에 있다. */
+  expect(await page.evaluate(() => localStorage.getItem('web-editor-autosave__proj_b')), 'LS 본은 걷힌다(다음 열기가 그 본으로 돌아온 파일을 못 덮게)').toBeNull();
+  expect(await page.evaluate(() => (window.__refused || []).some((x) => x.includes('닫기직전'))), '그 편집은 main 이 받은 거절 본(핀)에 있다').toBe(true);
   expect(errs).toEqual([]);
 });
 test('V3 다시 연 뒤 편집은 평소대로 파일에 간다', async ({ page }) => {
