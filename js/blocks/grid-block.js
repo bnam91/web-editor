@@ -4070,6 +4070,7 @@ window.updateGridBlockRaw = updateGridBlock;
  * ⛔태그블럭 ＋ 의 --inv-zoom 미보정(E28)은 여기서 안 고친다(범위 밖). */
 const GRID_ADD_BTN_CLS = 'grd-add-btn';
 const GRID_PLUS_LAYER_ID = 'grd-plus-layer';
+const GRID_PLUS_EDGE_CLEAR = 6;   // t13D-02 옵션① — 오른쪽 ＋ 와 블럭 오른쪽 변 사이 화면 px(변 손잡이 7px 의 반 3.5 + 틈 2.5 · overlay-handles.js HALF 3.5)
 const _gridPlusBtns = new Map();   // block → { col, row } — ＋ 가 떠 있는 블럭만(뜨면 넣고 지면 뺀다)
 /* ＋ 층 — 없으면 #canvas-scaler 끝에 만든다. 스케일러가 없는 하네스(단위 시험 대역)에선 null ⇒ ＋ 없음. */
 function _gridPlusLayer() {
@@ -4764,7 +4765,10 @@ function _placeGridAddBtns(block) {
   for (const ch of block.children) if (ch.classList.contains(GRID_CHILDREN_CLASS)) { kids = ch; break; }
   const ar = (inner && kids && kids.childElementCount > 0) ? inner.getBoundingClientRect() : br;
   const put = (b, x, y) => { const l = (x - sr.left) / scale + 'px', t = (y - sr.top) / scale + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
-  put(p.col, br.right, (ar.top + ar.bottom) / 2);
+  /* ★t13D-02 옵션①(현빈 261121 «1행이면 오른쪽을 못 잡는다 → ＋ 를 오른쪽 변 바깥으로 살짝 비켜 ne·e·se 손잡이 다시 보이게»):
+     오른쪽 ＋ 의 «왼쪽 끝» = 블럭(배경 켬이면 배경 상자 중 더 바깥) 오른쪽 끝 + GRID_PLUS_EDGE_CLEAR(화면 px — 변 손잡이 반 3.5 + 틈 2.5). 옛 H10: 중심 = 블럭 오른쪽 끝(반이 안쪽 → 1행이면 오른쪽 손잡이 셋을 덮어 P4 ⒜ 로 숨었다). */
+  const edgeR = gridVisualBox(block).getBoundingClientRect().right;   // 손잡이가 서는 상자(배경 켬 = .grd-bg · overlay-handles _updateGridOverlayHandlePositions 와 같은 상자)
+  put(p.col, Math.max(br.right, edgeR) + GRID_PLUS_EDGE_CLEAR + (p.col.offsetWidth * scale) / 2, (ar.top + ar.bottom) / 2);
   put(p.row, (br.left + br.right) / 2, ar.bottom);
 }
 

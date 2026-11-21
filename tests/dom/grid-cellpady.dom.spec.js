@@ -97,7 +97,7 @@ test('Y2 [새 것] 위 변 가운데 손잡이(n) 진짜 끌기 위로 30 → ce
   await clickAt(page, p[0], p[1], { sel: '[id="cG"]' }, { label: '그리드 고르기' });
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('[data-grd-resize-dir]').length), { message: '[전제] 손잡이 여덟(DOM)' }).toBe(8);
   const vis = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-grd-resize-dir]')].map(h => [h.dataset.grdResizeDir, getComputedStyle(h).display !== 'none'])));
-  expect(vis, '★보이는 손잡이 여섯 · s·e 숨김(＋ 자리)').toEqual({ nw: true, ne: true, sw: true, se: true, n: true, s: false, e: false, w: true });
+  expect(vis, '★보이는 손잡이 일곱 · s 숨김(아래 ＋ 자리)').toEqual({ nw: true, ne: true, sw: true, se: true, n: true, s: false, e: true, w: true });   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴 ⇒ e 섬(옛 e: false)
   const s = await page.evaluate(() => { const h = document.querySelector('[data-grd-resize-dir="n"]'); const q = h.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; });
   await page.mouse.move(s.x, s.y); await page.mouse.down(); await page.mouse.move(s.x, s.y - 30, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(250);
   const b = await meas(page);

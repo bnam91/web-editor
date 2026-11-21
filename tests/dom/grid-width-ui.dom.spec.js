@@ -157,7 +157,7 @@ test('P4 슬라이더 → 폭(끄는 동안 반영) · 뒤에 push-after 동작 
 
 /* 10-05 K3 ⒜ 로 뒤집음 · 옛 단언 = 「떠 있을 때만 4개 · 안 떠 있으면 0(대조) · 오버레이를 끄면 걷힌다(0)」 — 흐름 그리드에도 «폭» 손잡이 */
 const CURSOR = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };   // ★⑵ 제4안 ⒝ — editor-blocks.css 방향별 커서(옛: 넷 다 ew-resize · 폭만)
-const SEL6 = ['n', 'ne', 'nw', 'se', 'sw', 'w'];   // ★⑵ 제4안 ⒝ — 여덟 중 ＋ 자리(e·s) 숨음(grid-cellpady Y2)
+const SEL6 = ['e', 'n', 'ne', 'nw', 'se', 'sw', 'w'];   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴 ⇒ e 도 섬(옛 ['n','ne','nw','se','sw','w'] · 이름 그대로)   // ★⑵ 제4안 ⒝ — 여덟 중 ＋ 자리(e·s) 숨음(grid-cellpady Y2)
 test('H1 손잡이 — 떠 있음/안 떠 있음 둘 다 «보이는 여섯»(제4안 여덟 − ＋ 자리 e·s · 10-06) · 화면 7×7(줌 40/100) · 방향별 커서', async ({ page }) => {
   const errs = await setup(page);
   for (const z of [40, 100]) {
@@ -179,7 +179,7 @@ test('H1 손잡이 — 떠 있음/안 떠 있음 둘 다 «보이는 여섯»(�
   }
   await toggleFloat(page);
   await page.waitForTimeout(100);
-  expect((await handles(page)).length, '오버레이를 꺼도 흐름 그리드 보이는 손잡이 여섯(제4안)').toBe(6);
+  expect((await handles(page)).length, '오버레이를 꺼도 흐름 그리드 보이는 손잡이 일곱(옛 여섯 · t13D-02 옵션① e 섬)').toBe(SEL6.length);
   expect(errs).toEqual([]);
 });
 

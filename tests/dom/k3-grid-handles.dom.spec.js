@@ -52,7 +52,7 @@ const handles = (page) => page.evaluate(async () => {
     return { dir: d, toVisual: [Math.round((cx - tx) * 10) / 10, Math.round((cy - ty) * 10) / 10], toBlock: [Math.round((cx - bx) * 10) / 10, Math.round((cy - by) * 10) / 10], x: cx, y: cy }; }); });
 /* ★⑵(10-06 · 제4안 ⒝) — 고른 그리드에 «보이는» 손잡이 = 여덟 중 ＋ 자리(e·s)를 뺀 여섯(제4안 grid-cellpady Y2 «s·e 는 숨음(＋ 자리)»).
    옛: «4개 · 모서리만»(K3 10-05 «폭만»). 지운 단언 = 그 4 하나(이름: hs.length === 4). */
-const SEL6 = ['n', 'ne', 'nw', 'se', 'sw', 'w'];
+const SEL6 = ['e', 'n', 'ne', 'nw', 'se', 'sw', 'w'];   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴 ⇒ e 도 섬 · 숨는 건 아래 ＋ 자리 s 하나(이름은 옛 SEL6 그대로 · 옛 값 ['n','ne','nw','se','sw','w'])
 const atVisual = (hs, want = SEL6) => JSON.stringify(hs.map(h => h.dir).sort()) === JSON.stringify(want) && hs.every(h => Math.abs(h.toVisual[0]) <= 1.5 && Math.abs(h.toVisual[1]) <= 1.5);
 
 test('H1 [새 것] 흐름(안 떠 있는) 그리드를 고르면 손잡이 보이는 6(여덟 중 ＋ 자리 e·s 숨음) — 모서리·변 가운데가 블럭 상자에(배경 끔)', async ({ page }) => {
@@ -106,7 +106,7 @@ test('P4b [새 것] 짧은 그리드(＋ 가 오른쪽 모서리를 덮음) — 
   await page.waitForFunction(() => document.querySelectorAll('#grd-plus-layer > .grd-add-btn[data-grd-for="kG"]').length === 2, null, { timeout: 3000 });
   const hs = await handles(page);
   /* ★⑵(10-06 · 제4안 ⒝) — 짧은 그리드: ＋ 가 오른쪽 모서리(ne·se)와 e·s 자리를 덮는다 ⇒ 보이는 것 = nw·sw + 변 가운데 n·w. 옛: ['nw','sw']. */
-  expect(hs.map(h => h.dir).sort(), `★보이는 손잡이 ${JSON.stringify(hs)}`).toEqual(['n', 'nw', 'sw', 'w']);
+  expect(hs.map(h => h.dir).sort(), `★보이는 손잡이 ${JSON.stringify(hs)}`).toEqual(['e', 'n', 'ne', 'nw', 'se', 'sw', 'w']);   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴 ⇒ 짧은 그리드도 ne·e·se 가 섬(옛 ['n','nw','sw','w']) · s 는 아래 ＋ 자리라 그대로 숨음
   const w0 = await page.evaluate(() => document.getElementById('kG').offsetWidth);
   const sw = hs.find(h => h.dir === 'sw');
   await page.mouse.move(sw.x, sw.y); await page.mouse.down(); await page.mouse.move(sw.x + 100, sw.y, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(250);

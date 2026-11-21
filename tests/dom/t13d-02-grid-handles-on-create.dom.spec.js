@@ -28,11 +28,12 @@ test('A1 Grid 추가 직후 모서리·변 손잡이 8개가 선다(클릭 전)'
     return { grid: !!g, selected: !!g && g.classList.contains('selected') };
   });
   expect(made, '[전제] 그리드가 서고 골라졌다').toEqual({ grid: true, selected: true });
-  /* ＋ 버튼과 겹치는 손잡이는 숨긴다(P4 ⒜) — 그래서 «보이는 것» 대신 «붙은 것» 8개를 판정하고, 보이는 것은 1개 이상 */
+  /* ＋ 버튼과 겹치는 손잡이는 숨긴다(P4 ⒜) — 그래서 «보이는 것» 대신 «붙은 것» 8개를 판정하고, 보이는 것은 아래 따로. ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 옛 1행 = 오른쪽 ＋ 가 ne·e·se 를 덮어 넷(ne·e·se·s) 숨고 «n,nw,sw,w» 4 보임 → 이제 오른쪽 ＋ 가 변 바깥이라 아래 ＋ 자리 s 하나만 숨고 7 보임 */
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#ss-handles-overlay [data-grd-resize-dir]').length), '★생성 직후 손잡이 8개').toBe(8);
   await expect.poll(async () => (await handles(page)).split(',').filter(Boolean).length, '★생성 직후 보이는 손잡이').toBeGreaterThan(0);
   await raf(page);   // 첫 칠해진 장면 — ＋ 가림(P4 ⒜)이 rAF 루프에서 걸린 뒤
   const afterCreate = await handles(page);
+  expect(afterCreate, '★1행 생성 직후 보이는 손잡이 = s 뺀 일곱(t13D-02 옵션① · 옛 n,nw,sw,w)').toBe('e,n,ne,nw,se,sw,w');
   /* 대조: 클릭 경로(먼저 선택 풀고 누름)와 같은 손잡이 */
   await page.evaluate(() => window.deselectAll?.());
   await expect.poll(() => page.evaluate(() => document.querySelectorAll('#ss-handles-overlay [data-grd-resize-dir]').length), '[전제] 선택 해제 → 손잡이 걷힘').toBe(0);
