@@ -3,7 +3,8 @@
  * N1 그레인 켠 그림 → Figma JSON 내려받기 = 알림 «그레인 1곳은 피그마로 안 나갑니다» · [전제] JSON 에 grain 글자 0(정말 빠짐)
  * N2 그레인 0(슬라이더 0) → 알림 없음
  * N3 업로드 길 — 고른 섹션만 센다(그레인 든 섹션을 안 고르면 0 · 고르면 1)
- * 양성대조: _patches/grain-note-CTL.patch(showToast 줄 걷음) → N1·N3 빨강 · N2 초록.
+ * N4 [채점 ⑥] 실사용 업로드 길(창 → 진짜 «업로드» 클릭 · 가짜 figmaUpload IPC)에서 알림
+ * 양성대조: _patches/grain-note-CTL.patch(showToast 줄 걷음) → N1·N3 빨강 · N2 초록 · (실측) grain-upload-CTL(업로드 길의 알림 줄 걷음) → N4 빨강.
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
@@ -63,5 +64,26 @@ test('N3 업로드 길 — 고른 섹션만 센다', async ({ page }) => {
     return [a, ta, b, tb];
   });
   expect(r, '★그레인 없는 섹션만 = 0·알림 0 / 든 섹션 포함 = 1·알림 1').toEqual([0, 0, 1, 1]);
+  expect(errs).toEqual([]);
+});
+
+/* N4 [미카사 채점 261121 ⑥] 실사용 길 그대로 — 업로드 창(openFigmaUploadModal) → 채널 칸 → 섹션 칸 → «업로드» 진짜 클릭(doFigmaUpload)
+ *   가짜는 electronAPI.figmaUpload·readNodeMap 둘(⛔실 Figma·소켓 0) · N1 은 UI 가 안 부르는 옛 exportFigmaJSON 이고 N3 는 함수를 직접 불러 «실사용 길» 증거가 아니었다. */
+test('N4 실사용 업로드 길(창 → 업로드 클릭)에서도 알림 · 업로드 JSON 에 그레인 0', async ({ page }) => {
+  const errs = await scene(page, 60);
+  await page.evaluate(() => {
+    window.__up = null; const api = window.electronAPI || {};
+    window.electronAPI = new Proxy(api, { get: (t, k) => (k === 'figmaUpload' ? async (ch, json) => { window.__up = { ch, len: JSON.stringify(json).length, grain: /grain/i.test(JSON.stringify(json)) }; return { ok: true }; } : k === 'readNodeMap' ? async () => ({}) : t[k]) });
+    window.__toasts = [];
+  });
+  await page.evaluate(() => window.openFigmaUploadModal());
+  await page.waitForSelector('#figma-channel-input', { state: 'visible', timeout: 5000 });
+  await page.fill('#figma-channel-input', 'testchan');
+  await page.evaluate(() => document.querySelectorAll('.figma-sec-cb').forEach((cb) => { cb.checked = cb.dataset.secId === 'sG1'; }));
+  await page.click('#figma-upload-btn');
+  await page.waitForFunction(() => window.__up != null, null, { timeout: 15000 });
+  const r = await page.evaluate(() => ({ up: window.__up, toasts: window.__toasts.filter((t) => t.includes('그레인')) }));
+  expect([r.up.ch, r.up.len > 0, r.up.grain], `[전제] 업로드 JSON 나감 · 그레인 글자 0 ${JSON.stringify(r.up)}`).toEqual(['testchan', true, false]);
+  expect(r.toasts, '★실사용 업로드 길에서 알림').toEqual(['그레인 1곳은 피그마로 안 나갑니다(PNG·HTML 엔 나감)']);
   expect(errs).toEqual([]);
 });
