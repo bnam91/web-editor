@@ -683,6 +683,7 @@ window.slideShadowPad = slideShadowPad;
 window.slideHasPhotos = slideHasPhotos;
 window.setSlideAnim = setSlideAnim;
 window.readSlideState = readSlideState;
+window.CELL_SHADOWS = CELL_SHADOWS;   // export-figma-json(클래식 스크립트)가 칸 그림자 값을 싣는다(SLIDE-CELL-SHADOW-FIGMA-01)
 window.setSlideList = setSlideList;
 window.appendSlideImage = appendSlideImage;   // canvas-scratch-drop(클래식 스크립트)이 부른다
 window.slideAxis = slideAxis;

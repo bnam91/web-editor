@@ -1214,7 +1214,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
             acc += len + layout.gap;
           }
           const inner = _frameBlockOfSection(c);
-          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch) } } : null;
+          /* SLIDE-CELL-SHADOW-FIGMA-01 — 칸 그림자(soft|strong)를 칸 프레임에 싣는다(렌더러 = DROP_SHADOW + 위아래 «슬라이드 그림자 여백» 감싸개) · 없으면 키 0(옛 JSON) */
+          const _sh = window.CELL_SHADOWS?.[c.dataset.shadow];
+          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch), ...(_sh ? { shadow: { y: _sh.y, blur: _sh.blur, color: _sh.color } } : {}) } } : null;
         }).filter((m) => m && (_v ? m.y : m.x) < L && m.w > 0);
         return { type: 'frame', id: el.id || '', width: bw, height: bh, bg: '', radius: 0, free: true, clip: true, children };
       }
