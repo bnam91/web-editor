@@ -8,12 +8,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { mkTmpRoot } from './_tmproot.js';   // 임시 뿌리 = 치우기 명부에 오른 공용 부품(unit-tmp T6)
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 /* 루트 package.json = commonjs ⇒ .js 의 export 를 Node 가 못 읽는다 — 임시 .mjs 로 옮겨 file:// 로(win-portability ②-4: data: URL 금지). */
-const TMP = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lorem-')), 'text-lorem.mjs');
+const TMP = path.join(mkTmpRoot('lorem-'), 'text-lorem.mjs');
 fs.copyFileSync(path.join(ROOT, 'js/text-lorem.js'), TMP);
 const M = await import(pathToFileURL(TMP).href);
 
