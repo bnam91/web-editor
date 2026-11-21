@@ -80,12 +80,15 @@ export function fxGlowLayers(tb) {
   return FX_GLOW_LAYER_RATIOS.map(k => `0 0 ${Math.round(fx.blur * k * 10) / 10}px ${c}`).join(', ');
 }
 
-/** ★합성 결과 문자열(쓰지 않는다) — [글로우 겹, 사용자 그림자]. userCss 를 안 주면 글자칸 dataset 에서 읽는다. */
-export function fxComposedTextShadowCss(contentEl, userCss) {
+/** ★합성 결과 문자열(쓰지 않는다) — [글로우 겹, 사용자 그림자, 오블리크 겹]. userCss 를 안 주면 글자칸 dataset 에서 읽는다.
+ *  ★오블리크(js/effects-oblique.js)는 window 다리로 읽는다(모듈 그래프 무변 · 안 실렸으면 '') · obliqueMax = Figma 8겹 솎음용.
+ *  ★«맨 뒤 겹» 자리는 부드러운 그림자(ty/text-fx-beautiful-shadow) 몫으로 비워 둔다 — 합칠 때 오블리크 뒤에 붙인다. */
+export function fxComposedTextShadowCss(contentEl, userCss, { obliqueMax } = {}) {
   if (!contentEl) return '';
   const tb = contentEl.closest ? contentEl.closest('.text-block') : null;
   const u = userCss === undefined ? textUserShadowCss(contentEl) : (userCss || '');
-  return [tb ? fxGlowLayers(tb) : '', u].filter(Boolean).join(', ');
+  const ob = tb && obliqueMax !== 0 && typeof window !== 'undefined' ? (window.fxObliqueLayers?.(tb, obliqueMax) || '') : '';
+  return [tb ? fxGlowLayers(tb) : '', u, ob].filter(Boolean).join(', ');
 }
 
 /** ★합성 문 «하나» — 글자칸 인라인 text-shadow 를 합성 결과로 쓴다. 텍스트 「Shadow」 절도 이리로 온다.

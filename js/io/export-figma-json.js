@@ -451,7 +451,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const _li = (el.id && document.getElementById(el.id)?.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) || inner;
       // 0919r3 textshadow: 그라데이션 글자는 .tgs 가 computed text-shadow 를 none 으로 가리고 drop-shadow 로 그린다
       //   → 원본 목록(--tgs-src)을 보낸다(안 그러면 Figma 에서 그림자가 사라진다).
-      const ts = textShadowSource(_li);
+      const ts = window.fxFigmaTextShadow?.(_li) ?? textShadowSource(_li);   /* 오블리크 = Figma 8겹 상한으로 솎은 목록(js/effects-oblique.js) */
       if (ts && ts !== 'none') textShadow = ts;
     } catch {}
 

@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
-import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
@@ -331,10 +331,13 @@ export function showAssetProperties(ab) {
       sec('special', hasImage && isVideo && trimReady ? videoTrimSectionHTML(ab) : '', { title: 'Trim' }),
       // 로고 콜라보(옛 「Collab」) — id 보존(asset-collab-section). X 색(asset-collab-xcolor)은 data-own 으로 Collab 소유
       sec('special', collabSection, { title: 'Collab', id: 'asset-collab-section' }),
+      // SLIDE-FX-COLOR-REVEAL-01 — GIF 움직임(컬러 리빌) 입구 · 슬라이드·그리드와 같은 공용 단추(그림 없으면 GIF 패널이 저장을 막는다)
+      sec('export', animGifBtnHTML(), { id: 'asset-anim-section' }),
     ],
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(ab.id || null);
+  wireAnimGifBtn(document.getElementById('open-anim-btn'), ab);
 
   const wSlider = document.getElementById('asset-w-slider');
   const wNumber = document.getElementById('asset-w-number');
