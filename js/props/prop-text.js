@@ -166,8 +166,16 @@ export function showTextProperties(tb) {
   const currentSize  = _firstSizedChild
     ? (parseInt(window.getComputedStyle(_firstSizedChild).fontSize) || parseInt(computed.fontSize) || 15)
     : (parseInt(computed.fontSize) || 15);
-  const currentColor = rgbToHex(computed.color) || '#111111';
-  const _colorM = (computed.color || '').match(/rgba?\(([^)]+)\)/i);
+  /* LINER-FILL-ALPHA-READS-MIRROR-01 — 라이너의 미러(.tb-liner)는 CSS 로 투명이라 computed 를 읽으면 «000000 · 0%».
+     실제 그려진 SVG 글자 칠(js/liner-transform.js resolveLinerFill 결과)을 읽는다.
+     SVG 글자가 아직 없으면 미러 인라인 색(없거나 투명이면 그리개 기본 #111111) — 어느 쪽이든 0% 로 보이지 않게. */
+  const _linerTextEl = isLiner ? tb.querySelector('svg.lnr-svg text') : null;
+  const _linerMirrorColor = (contentEl.style.color || '').trim();
+  const _colorSrc = !isLiner ? computed.color
+    : _linerTextEl ? window.getComputedStyle(_linerTextEl).fill
+    : (_linerMirrorColor && !/^transparent$|,\s*0(\.0+)?\s*\)$/i.test(_linerMirrorColor) ? _linerMirrorColor : '#111111');
+  const currentColor = (/^#/.test(_colorSrc) ? _colorSrc.toLowerCase() : rgbToHex(_colorSrc)) || '#111111';
+  const _colorM = (_colorSrc || '').match(/rgba?\(([^)]+)\)/i);
   const currentColorAlpha = _colorM && _colorM[1].split(',').length === 4
     ? Math.round(parseFloat(_colorM[1].split(',')[3]) * 100)
     : 100;

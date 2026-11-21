@@ -3924,6 +3924,11 @@ textarea.cvb-card-input {
 .liner-block .tb-liner[data-is-placeholder="true"] {
   color: transparent;
 }
+/* LINER-FILL-ALPHA-READS-MIRROR-01 — 평소(편집 아님) 미러는 placeholder 여도 안 보인다. `#canvas [data-is-placeholder]` 의 opacity .45 가
+   `.liner-block .tb-liner { opacity:0 }` 를 이겨, 패널에서 글자색(인라인)을 넣으면 곧은 미러 글자가 곡선 SVG 위에 비쳤다. 편집 중(.editing)은 그대로. */
+#canvas .liner-block:not(.editing) .tb-liner[data-is-placeholder="true"] {
+  opacity: 0;
+}
 .liner-block.editing .tb-liner[data-is-placeholder="true"] {
   color: rgba(17,17,17,0.4);
 }
