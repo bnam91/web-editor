@@ -688,7 +688,7 @@
 
     if (changed) {
       data.updatedAt = new Date().toISOString();
-      const res = await api.saveProject(data);
+      const res = await api.saveProject({ ...data, _overFile: true });   // 방금 읽은 지금 파일을 고쳐 씀 — 밖에서 바뀐 판 거절 대상 아님(FILE-CHANGED 적대 리뷰 2-5 · main 이 표시를 걷는다)
       if (res && res.ok === false) throw new Error(res.error || 'save_failed');
     }
 
