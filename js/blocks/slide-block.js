@@ -188,7 +188,11 @@ function _syncHScrollDots(block) {
   dots?.querySelectorAll('.sld-dot-hs-on').forEach((d) => d.classList.remove('sld-dot-hs-on'));
   if (x <= 0 || !dots) return;
   let k = 0;
-  [...(block.querySelector(':scope > .sld-track')?.children || [])].forEach((c, i) => { if (c.offsetLeft <= x + 1) k = i; });
+  const cells = [...(block.querySelector(':scope > .sld-track')?.children || [])];
+  cells.forEach((c, i) => { if (c.offsetLeft <= x + 1) k = i; });
+  /* 끝까지 밀었으면(막대 max = _scrollMax) 마지막 칸이 다 보인다 — 그 칸 왼끝은 창 왼끝보다 오른쪽이라 위 «왼끝 ≤ 창 왼끝» 규칙으로는 영영 못 고른다
+     (dev 9a724fb78 실앱 채점: 끝 605 에서도 활성 점 2 · 셋째 칸 다 보임). ⇒ 끝 = 마지막 칸. */
+  if (cells.length && x >= _scrollMax(block) - 1) k = cells.length - 1;
   dots.children[k]?.classList.add('sld-dot-hs-on');
 }
 let _sldS = null;

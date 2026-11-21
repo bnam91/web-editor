@@ -94,6 +94,27 @@ test('A3 normalizeMonoSvg — 단색 → currentColor · 다색 그대로', () =
   assert.equal(san(a.svg), a.svg, '정규화 뒤 다시 걸러도 같다(그릴 때 renderVector 가 또 거른다)');
 });
 
+/* A3b dev 9a724fb78 채점 ②(261120) — 내장 두들 15장은 <clipPath><rect fill="white"/></clipPath> 때문에 «다색»으로 읽혀 색 바꾸기 길(벡터 libMono)을 못 탔다.
+   자르기 꼴(clipPath·mask 안 fill)은 칠이 아니다 ⇒ 단색 · 자르기 안은 손 안 댐. 진짜 다색·그라데이션은 그대로 multi(A3).
+   양성대조: _patches/lib-CTL-mono-clippath.patch(clipPath 빼기를 걷음) → A3b 빨강. */
+test('A3b normalizeMonoSvg — clipPath·mask 안 fill 은 칠이 아니다(내장 두들 24장 = 단색)', () => {
+  const san = (s) => SAN.sanitizeSvgString(s, { maxLen: SAN.SVG_MAX_LEN_CEIL });
+  const d = normalizeMonoSvg(san('<svg viewBox="0 0 160 160" fill="#000000"><g clip-path="url(#clip0)"><path d="M0 0L9 9" fill="black"/></g><defs><clipPath id="clip0"><rect width="150" height="150" fill="white"/></clipPath></defs></svg>'));
+  assert.equal(d.color, '#000000'); assert.equal(d.multi, false);
+  assert.match(d.svg, /<clipPath id="clip0"><rect[^>]*fill="white"/, '자르기 상자는 그대로');
+  assert.doesNotMatch(d.svg.replace(/<clipPath[\s\S]*?<\/clipPath>/g, ''), /black|#000000/, '칠은 currentColor');
+  const mk = normalizeMonoSvg(san('<svg viewBox="0 0 9 9"><path d="M0 0" fill="#f00"/><path d="M1 1" fill="#00f"/><defs><mask id="m"><rect fill="white"/></mask></defs></svg>'));
+  assert.equal(mk.multi, true, '자르기 밖 두 색 = 여전히 다색');
+  /* 실물: 동봉 두들·화살표 44장 전부 단색 #000000 */
+  for (const dir of ['doodle', 'arrow']) {
+    const D = path.join(ROOT, 'assets', 'library', dir);
+    for (const f of fs.readdirSync(D).filter((x) => x.endsWith('.svg'))) {
+      const r = normalizeMonoSvg(san(fs.readFileSync(path.join(D, f), 'utf8')));
+      assert.equal(r.color, '#000000', `${dir}/${f} 단색이어야(multi=${r.multi})`);
+    }
+  }
+});
+
 test('A4 IPC 문지기 — 비관리자는 폴더를 보지도 않는다', async () => {
   const MAIN = readSrc(ROOT, 'main.js');
   const readCall = sliceCall(MAIN, "ipcMain.handle('adminLibrary:read'");

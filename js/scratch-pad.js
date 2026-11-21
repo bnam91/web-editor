@@ -5,7 +5,7 @@
 ══════════════════════════════════════ */
 
 import { previewScratchDropAt, commitScratchDropAt, clearScratchDropGuides } from './canvas-scratch-drop.js';
-import { parseGoyaAssetUrl, makeElectronAssetReader } from './io/goya-asset-inline.js';
+import { parseGoyaAssetUrl, makeElectronAssetReader, goyaAssetToDrawableSrc } from './io/goya-asset-inline.js';
 import { overlayUnitOf } from './overlay-unit.js';   /* 248 — 선택상자 «떠 있는 것» 명부 한 벌 */
 
 const SCRATCH_DB_NAME = 'ScratchPadDB';
@@ -926,8 +926,10 @@ async function _scratchPenMeta(src) {
   try {
     if (typeof src !== 'string') return null;
     let txt = null;
+    /* 저장 외부화 뒤 goya-asset .svg 는 렌더러 fetch 로 못 읽는다(채점 2차 261120: «Failed to fetch» → null → 그림 에셋으로 놓임 · 디스크 .svg 엔 data-goditor-pen 남아 있음)
+       ⇒ 목업 굽기와 같은 «마지막 문» goyaAssetToDrawableSrc(assets:readAsDataUri IPC · base64 data URL) 로 읽어 아래 base64 길에 태운다. */
+    if (/^goya-asset:\/\/.+\.svg$/i.test(src)) src = (await goyaAssetToDrawableSrc(src)) || '';
     if (src.startsWith('data:image/svg+xml;base64,')) txt = decodeURIComponent(escape(atob(src.slice(26))));
-    else if (/^goya-asset:\/\/.+\.svg$/i.test(src)) txt = await (await fetch(src)).text();
     const m = txt && /data-goditor-pen="([^"]+)"/.exec(txt);
     return m ? _cleanPenMeta(JSON.parse(decodeURIComponent(m[1]))) : null;
   } catch (_) { return null; }
@@ -1506,11 +1508,14 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
         try {
           /* 캔버스에 data URL 을 넣으면 표본·저장 직렬화마다 그림이 실려 렌더러가 죽는다(BIG-IMAGE-INSERT-RENDERER-OOM-01) — 칸 입구(loadImageToAsset)와 같은 몸통.
              ⌘Z 로 되살릴 장도 같은 주소를 쥔다(이력에 data URL 을 안 남긴다). 스크래치 안 이동은 안 탄다(파일을 안 만든다). */
+          /* 채점 2차(261120) 덤: 옛 판은 바꾼 주소를 «놓기 전에» 장에 박아, 놓기가 실패해도(아밍 없이 스친 놓기 · 변환 실패) 장 src 가 goya-asset 으로 바뀌었다
+             ⇒ 바꾼 주소는 놓기에만 쓰고, «실제로 놓였을 때만» 장·되살림에 옮긴다(안 놓였으면 장은 그대로). */
+          let dropSrc = item.src;
           if (typeof item.src === 'string' && item.src.startsWith('data:') && previewScratchDropAt(lastClientX, lastClientY) !== 'none') {
             const got = await window.grdAssetSrcOf?.(item.src);
-            if (got?.asset) { item.src = got.src; restoreInfo.src = got.src; }
+            if (got?.asset) dropSrc = got.src;
           }
-          committed = commitScratchDropAt(lastClientX, lastClientY, item.src, {
+          committed = commitScratchDropAt(lastClientX, lastClientY, dropSrc, {
             fx: item.fx,   // C1 — 에셋에서 빼 온 항목이면 효과째 되돌아간다
             naturalWidth: natW,
             naturalHeight: natH,
@@ -1525,6 +1530,7 @@ function _createItem(src, x, y, w = 220, idArg, gArg, linkDyArg, fxArg, ocrArg) 
             width: item.w,
             requireArm: true, // 하이라이트(armed) 없이 스친 릴리즈는 위치 이동으로만 처리
           });
+          if (committed && dropSrc !== item.src) { item.src = dropSrc; restoreInfo.src = dropSrc; }
         } catch (err) {
           console.warn('[ScratchPad] commit 실패:', err);
           committed = false;
