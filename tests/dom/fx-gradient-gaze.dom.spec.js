@@ -35,7 +35,7 @@ async function scene(page, kind) {
   await page.locator(sw).scrollIntoViewIfNeeded(); await page.locator(sw).locator('xpath=..').click();
   await page.waitForFunction(() => getComputedStyle(document.querySelector('.goya-cp-popover') || document.body).display !== 'none' && !!document.querySelector('.goya-cp-popover'), null, { timeout: 5000 });
   await page.click('.goya-cp-tab[data-tab="gradient"]'); await raf(page);
-  expect(await page.evaluate(() => document.querySelectorAll('.goya-cp-popover [data-holo]').length), '[전제] 홀로그램 프리셋 6').toBe(6);
+  expect(await page.evaluate(() => document.querySelectorAll('.goya-cp-popover [data-holo]').length), '[전제] 홀로그램 프리셋 16').toBe(16);   // ★기대 바뀜(FX-GRADIENT-GAZE-01 v2 261121): 프리셋 6 → 16(원뿔형 4 포함 · 현빈 결정) — 이 spec 이 쓰는 gold·aurora·oil 은 같은 색 그대로
   return errs;
 }
 const shapeStops = (page) => page.evaluate(() => [...document.querySelectorAll('#shG svg linearGradient stop')].map((s) => ({ c: (s.getAttribute('stop-color') || '').toLowerCase(), o: s.getAttribute('stop-opacity') })));

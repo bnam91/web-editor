@@ -110,7 +110,7 @@ window._showPadBHint = _showPadBHint;   /* ★짝을 맞춘다 — 좌우만 노
    ⛔프레임 판정(prop-frame.js:322 · :817 · frame-bg.js:47 — /gradient\s*\(/ 만 본다)은 이번에 안 건드렸다(목록은 E-notes). */
 export function isSectionGradient(v) {
   const s = String(v || '').trim();
-  if (!/^(linear|radial)-gradient\s*\(/i.test(s)) return false;
+  if (!/^(linear|radial|conic)-gradient\s*\(/i.test(s)) return false;   // FX-GRADIENT-GAZE-01 — 원뿔형도 «그라데이션 함수 하나»
   if (/[;"<>{}\\'\x60]/.test(s) || /url\(/i.test(s)) return false;   /* \x60 = 백틱 — 글자 그대로 쓰면 tests/unit/name-axes-to-markup 의 보간 스캐너가 템플릿 시작으로 읽어 이 파일을 못 본다 */
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
