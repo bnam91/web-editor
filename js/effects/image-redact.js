@@ -43,13 +43,17 @@ export function applyRedact(host, v) {
     delete host.dataset.redact;
     host.style.removeProperty('--redact-blur');
     recomposeHost(host);
+    _rebakeHalftone(host);
     return 0;
   }
   host.dataset.redact = String(n);
   host.style.setProperty('--redact-blur', redactPx(n) + 'px');
   recomposeHost(host);
+  _rebakeHalftone(host);
   return n;
 }
+/* 하프톤 덮개(js/effects-halftone.js)는 가림이 켜지면 치우고 꺼지면 다시 굽는다 — 가림을 켜도 덮개가 남아 원본 점무늬가 보이던 것(미카사 채점 261121). 모든 가림 길이 이 함수를 지난다. */
+function _rebakeHalftone(host) { if (typeof window !== 'undefined' && host.classList?.contains('asset-block')) window.applyHalftone?.(host); }
 
 /* ═══ 그림 filter 합성 — ★인라인 filter 를 쓰는 «단 한 자리» (2026-10-13 · 이벨류에이터 누출 실측 뒤) ═══
  * 에셋 블러는 그림(.asset-img / 구운 canvas) «자신»의 filter 다. 색보정(js/image-color-adjust.js)도 같은 그림의

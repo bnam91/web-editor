@@ -12,6 +12,7 @@
    shortcut: 그림 회전(imgRotate)은 무시하고 그림 상자 기준으로 굽는다 — 회전 + 하프톤 요구가 오면 회전 행렬로 그린다.
    ════════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
+import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.js';
 import { normHalftone, parseHalftone, serializeHalftone, halftoneDots, lumOf, HT_DEFAULTS, HT_RANGES, HT_SHAPES } from './fx/halftone.js';
 
 const OVERLAY_CLS = 'asset-halftone';
@@ -77,14 +78,24 @@ export function applyHalftone(el) {
   if (!img.complete || !img.naturalWidth) return false;   // 로드되면 img load 듣개가 다시 부른다
   const W = clip.offsetWidth, H = clip.offsetHeight;
   if (!W || !H) return false;
-  const o = fx.o, sig = JSON.stringify([o, W, H, img.currentSrc || img.src, img.style.cssText]);
+  const rawSrc = img.currentSrc || img.src;
+  /* goya-asset:// 그림은 캔버스를 오염시킨다(file:// 에서 cross-origin) — 픽셀은 IPC 로 읽은 data URL 판으로(공용 문 goyaAssetToDrawableSrc · 미카사 채점 261121 «실제 사진엔 망점 0»).
+     처음엔 받아 오는 동안 false · 받으면 다시 굽는다 · 못 받으면 덮개 없이(원본 그대로) — 재시도는 src 가 바뀔 때. */
+  let pix = img;
+  if (isGoyaAssetUrl(rawSrc)) {
+    const c = el._htDrawable;
+    if (!c || c.src !== rawSrc) { _drop(el); _fetchDrawable(el, rawSrc); return false; }
+    if (!c.img) { if (c.failed) _drop(el); return false; }
+    pix = c.img;
+  }
+  const o = fx.o, sig = JSON.stringify([o, W, H, rawSrc, img.style.cssText]);
   const ov0 = _overlayOf(el);
   if (ov0 && ov0.dataset.htSig === sig) return true;
   const cw = Math.round(W * SCALE), ch = Math.round(H * SCALE);
   const src = document.createElement('canvas'); src.width = cw; src.height = ch;
   const sx = src.getContext('2d', { willReadFrequently: true });
   const r = _contentRect(img, clip, W);
-  sx.drawImage(img, r.x * SCALE, r.y * SCALE, r.w * SCALE, r.h * SCALE);
+  sx.drawImage(pix, r.x * SCALE, r.y * SCALE, r.w * SCALE, r.h * SCALE);   // 자리 = 살아 있는 그림(img) 셈 · 픽셀 = 오염 없는 판(pix · 같은 원본이라 자연 크기 같음)
   let px;
   try { px = sx.getImageData(0, 0, cw, ch).data; } catch (e) { console.warn('[halftone] 그림을 못 읽음(오염) — 원본 그대로:', e?.message); _drop(el); return false; }
   const at = (x, y) => { const i = (Math.min(ch - 1, Math.floor(y * SCALE)) * cw + Math.min(cw - 1, Math.floor(x * SCALE))) * 4; return i; };
@@ -109,6 +120,18 @@ export function applyHalftone(el) {
   if (!ov0) img.after(ov);
   _observe(clip);
   return true;
+}
+
+function _fetchDrawable(el, src) {
+  const c = el._htDrawable = { src, img: null, failed: false };
+  goyaAssetToDrawableSrc(src)
+    .then((uri) => (uri ? new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = uri; }) : null))
+    .then((im) => {
+      if (el._htDrawable !== c) return;   // 그사이 그림이 바뀌었다
+      if (!im) { c.failed = true; console.warn('[halftone] 그림을 못 읽음(goya-asset IPC) — 원본 그대로:', src); return; }
+      c.img = im;
+      if (el.isConnected) applyHalftone(el);
+    });
 }
 
 /* 크기 바뀜 → 다시 굽기(rAF 한 번에 모아서). */
