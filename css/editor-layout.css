@@ -926,6 +926,13 @@
   max-width: none;
   margin: calc(-3 * var(--redact-blur, 8px));
 }
+/* IMG-FX-BLUR-01 꾸밈 «흐림»(data-decor-blur) — 가림과 같은 까닭으로 사방 3σ 키워 클립이 자른다(상자 가장자리가 비치지 않게) · 값 = 합성이 쓰는 --decor-blur · 가림이 켜지면 가림 규칙만 */
+.asset-block[data-decor-blur]:not([data-redact]):not([data-img-w]):not([data-clip-content="false"]) > .asset-img-clip > :is(.asset-img, canvas) {
+  width: calc(100% + 6 * var(--decor-blur));
+  height: calc(100% + 6 * var(--decor-blur));
+  max-width: none;
+  margin: calc(-3 * var(--decor-blur));
+}
 /* ── 1013t2A2 로고 «콜라보» [로고1 × 로고2 (× 로고3)] — 한 에셋 블록 안(js/blocks/logo-collab.js)
  * 칸1 = 기존 그림(.asset-img-clip)을 왼쪽 한 칸 폭으로 좁힌다 · 칸2·3 과 「×」 는 .asset-collab 이 그 오른쪽에 가로로 놓는다.
  * 폭·간격·× 크기는 JS 가 인라인 변수로 칠한다(모델 한 자리 = js/blocks/logo-collab-model.js).

@@ -3,7 +3,7 @@ import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-in
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
-import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
+import { readRedact, redactPx, normalizeRedact, normalizeDecorBlur } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 import { collabParams, collabSlotSrc } from '../blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 */
 import { COLLAB_GLYPH } from '../blocks/logo-collab-model.js';
 import { sanitizeRichTextHtml } from '../util/sanitize-rich-text.js';
@@ -63,6 +63,10 @@ function _halftoneSrc(el) {
   if (!live.dataset?.halftone || live.dataset.redact) return null;
   const ov = live.querySelector?.(':scope > .asset-img-clip > img.asset-halftone');
   return ov && ov.getAttribute('src') ? ov.getAttribute('src') : null;
+}
+/* IMG-FX-BLUR-01 꾸밈 «흐림» — 가림과 달리 원본을 그대로 싣고 LAYER_BLUR 반지름(px)만 더한다(렌더러 figma-renderer image 갈래가 set_effects). 가림이 켜지면 없음. */
+function _imageDecorBlur(el) {
+  return readRedact(el) > 0 ? 0 : normalizeDecorBlur(el?.dataset?.decorBlur);
 }
 function _imageRedactField(el) {
   const v = readRedact(el);
@@ -296,7 +300,7 @@ async function exportFigmaJSON() {
       // col width는 parseCol에서 주입
       const redact = _imageRedactField(el);
       if (redact) return { type: 'asset', src: null, height: h, padding, redact };   // ★블러: 원본 src 를 싣지 않는다(1012t1 C1)
-      return { type: 'asset', src: _halftoneSrc(el) || src, height: h, padding };   // IMG-FX-HALFTONE-01 — 구운 하프톤 그림
+      return { type: 'asset', src: _halftoneSrc(el) || src, height: h, padding, ...(!_halftoneSrc(el) && _imageDecorBlur(el) ? { decorBlur: _imageDecorBlur(el) } : {}) };   // IMG-FX-HALFTONE-01 구운 그림 · IMG-FX-BLUR-01 흐림(하프톤 덮개가 있으면 캔버스에서 흐림이 안 보이므로 안 실음 · 열차 261121)
     }
 
     return null;
@@ -624,6 +628,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
         src: el.dataset.imgSrc || null,
         ...(_halftoneSrc(el) ? { src: _halftoneSrc(el), halftone: true } : {}),   // IMG-FX-HALFTONE-01 — 덮개 = 화면에 보이는 그 상자 그대로 구운 그림(아래 clip·crop 안 씀)
+        ...(!_halftoneSrc(el) && _imageDecorBlur(el) ? { decorBlur: _imageDecorBlur(el) } : {}),   // IMG-FX-BLUR-01 흐림 — 원본 + LAYER_BLUR(하프톤 덮개 있으면 안 실음 · 열차 261121)
         overlayOn,
         overlayText,
         overlayColor,
