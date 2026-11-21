@@ -6,6 +6,10 @@
  *   H3 ⇧B = 붓 · 섹션 안 끌기 → 벡터 하나 · penNodes 없음 · 채운 path · 같은 점 프리셋 둘(양 끝 가늘게·서예)은 모양이 다르다
  *   H4 연필로 섹션 밖에서 끌기 → 스크래치 장(펜 항목 data-goditor-pen) · 섹션 블럭 무변
  *   H5 Esc = 끝(막대 0 · body fh-mode 0) · P(펜) 켜면 연필 꺼짐(서로 배타)
+ *   H6 (채점 261120 상자 폭주) 배율 80% · 섹션 2 같은 자리 진짜 끌기 4번(정수 좌표 지그재그 ZIG — 단위 F5 와 같은 획) · 획 사이 보정 손잡이를 키보드로 20→10→5→0 →
+ *      블럭마다 offsetWidth/Height ≤ 그린 폭(레이아웃 px) + ½ 긴 변 + 40 · 섹션 2 높이 늘어남 ≤ 새 블럭 줄 높이 합 + 200
+ *   H7 (채점 261120 «⇧B 눌러도 연필 N») 보정 손잡이 진짜 클릭(포커스가 거기 남음) 뒤 ⇧B → 붓 · 막대 «붓 ⇧B» · 다시 N → 연필 · 그 뒤 Esc = 끝
+ * 양성대조: _patches/freehand-CTL-handle-blowup.patch → H6 빨강 · 단위 F5 빨강 / _patches/freehand-CTL-key-focus.patch → H7 빨강 · 단위 K1·K2 빨강
  * 양성대조: _patches/freehand-CTL-no-fit.patch(fitCurve 가 첫·끝 점 직선 한 조각) → H2 빨강(노드 수 같음) · 단위 F1 빨강.
  * ⛔고정 대기 0(expect.poll · 조건 대기).
  */
@@ -115,5 +119,70 @@ test('H5 Esc = 끝 · P(펜) 켜면 연필 꺼짐', async ({ page }) => {
   await page.keyboard.press('KeyN');
   await page.keyboard.press('KeyP');
   expect(await page.evaluate(() => [window.freehandTool(), document.body.classList.contains('vpen-mode')]), '★펜 켜면 연필 꺼짐 · 펜 모드').toEqual([null, true]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* 보정 손잡이 진짜 클릭(마우스) — 값이 바뀔 때까지 조건 대기. 포커스는 손잡이에 남는다(H7 전제). */
+async function clickSmooth(page, frac) {
+  const v0 = await page.locator('#fh-smooth').inputValue();
+  const bb = await page.locator('#fh-smooth').boundingBox();
+  await page.mouse.click(bb.x + bb.width * frac, bb.y + bb.height / 2);
+  await expect.poll(() => page.locator('#fh-smooth').inputValue(), '[전제] 손잡이 값 바뀜').not.toBe(v0);
+}
+
+/* 정수 화면 좌표(첫 점 기준) 지그재그 156×8 — 옛 맞춤이 보정 0·5·10·20 모두에서 상자 ≥ 2100 로 터뜨린 획(단위 F5 ZIG 과 같다) */
+const ZIG = [[10,0],[17,0],[24,0],[34,1],[40,1],[47,2],[53,2],[57,2],[66,1],[73,4],[75,4],[81,4],[82,1],[86,2],[87,2],[87,4],[84,3],[85,4],[82,2],[78,1],[76,3],[71,2],[66,3],[56,1],[50,0],[42,1],[37,1],[31,0],[22,-1],[19,0],[12,2],[10,1],[2,-1],[-8,0],[-20,-1],[-25,-1],[-33,-1],[-37,0],[-40,0],[-44,-3],[-49,-3],[-54,-3],[-58,-2],[-62,-4],[-64,-2],[-66,-3],[-69,-4],[-68,-2],[-67,-4],[-67,-1],[-65,-4],[-64,-1],[-60,-1],[-54,-3],[-46,-1],[-42,-2],[-39,-2],[-35,-1],[-30,-1],[-23,-1],[-16,0],[-7,-1],[-3,-2],[6,0],[13,0],[21,1],[32,2],[42,1],[53,1],[60,0],[69,0],[73,3]];
+/** 보정 손잡이를 키보드로 정확한 값에(Home → → n 번) — 진짜 입력 · 값 조건 대기 */
+async function keySmooth(page, v) {
+  await page.locator('#fh-smooth').focus();
+  await page.keyboard.press('Home');
+  for (let i = 0; i < v; i++) await page.keyboard.press('ArrowRight');
+  await expect.poll(() => page.locator('#fh-smooth').inputValue(), `[전제] 보정 ${v}`).toBe(String(v));
+}
+
+test('H6 배율 80% · 섹션 2 같은 자리 4획 · 보정 바꿔 가며 — 블럭 상자·섹션 높이 안 터짐', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(async () => { await window.addSection(); window.applyZoom(80); });
+  await waitZoomSettled(page, 80);
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('#fh-smooth')).toBeVisible();
+  const sec2 = () => page.evaluate(() => { const s = document.querySelectorAll('#canvas .section-block')[1]; const r = s.getBoundingClientRect(); return { left: r.left, top: r.top, h: s.offsetHeight }; });
+  await page.evaluate(() => document.querySelectorAll('#canvas .section-block')[1].scrollIntoView({ block: 'center' }));
+  const h0 = (await sec2()).h;
+  const rows = () => page.evaluate(() => [...document.querySelectorAll('#canvas .section-block')[1].querySelectorAll('.vector-block')].map((v) => ({ w: v.offsetWidth, h: v.offsetHeight, rowH: (v.closest('.row') || v).offsetHeight })));
+  const r = await sec2(), z = await page.evaluate(() => window.currentZoom / 100);
+  const x0 = Math.round(r.left + 200), y0 = Math.round(r.top + 80);   // 정수 화면 좌표 · 4획 모두 같은 자리
+  const pts = ZIG.map(([dx, dy]) => ({ x: x0 + dx, y: y0 + dy }));
+  expect(await page.evaluate((p) => document.elementFromPoint(p.x, p.y)?.closest('.section-block') === document.querySelectorAll('#canvas .section-block')[1], pts[0]), '[전제] 첫 점 = 섹션 2').toBe(true);
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const dw = (Math.max(...xs) - Math.min(...xs)) / z, dh = (Math.max(...ys) - Math.min(...ys)) / z, slack = Math.max(dw, dh) / 2 + 40;   // 화면 폭 ÷ 배율 = 레이아웃 px
+  for (const [k, sm] of [20, 10, 5, 0].entries()) {
+    await keySmooth(page, sm);
+    await drag(page, pts);
+    await expect.poll(() => rows().then((v) => v.length), `★획 ${k + 1} → 벡터 ${k + 1}`).toBe(k + 1);
+    const b = (await rows()).at(-1);
+    expect(b.w, `★획 ${k + 1}(보정 ${sm}) 블럭 폭 ${b.w} ≤ 그린 ${dw.toFixed(0)} + ${slack.toFixed(0)}`).toBeLessThanOrEqual(dw + slack);
+    expect(b.h, `★획 ${k + 1}(보정 ${sm}) 블럭 높이 ${b.h} ≤ 그린 ${dh.toFixed(0)} + ${slack.toFixed(0)}`).toBeLessThanOrEqual(dh + slack);
+  }
+  const grow = (await sec2()).h - h0, sumRows = (await rows()).reduce((a, v) => a + v.rowH, 0);
+  expect(grow, `★섹션 2 늘어남 ${grow} ≤ 새 줄 높이 합 ${sumRows} + 200`).toBeLessThanOrEqual(sumRows + 200);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('H7 보정 손잡이 만진 뒤 ⇧B = 붓 · N = 연필 · Esc = 끝', async ({ page }) => {
+  const errs = await scene(page);
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('#fh-tool')).toHaveText('연필 N');
+  await clickSmooth(page, 0.8);
+  expect(await page.evaluate(() => document.activeElement?.id), '[전제] 포커스가 보정 손잡이에 남음').toBe('fh-smooth');
+  await page.keyboard.press('Shift+KeyB');
+  await expect(page.locator('#fh-tool'), '★⇧B = 막대 «붓 ⇧B»').toHaveText('붓 ⇧B');
+  expect(await page.evaluate(() => window.freehandTool()), '★붓').toBe('brush');
+  await clickSmooth(page, 0.3);
+  await page.keyboard.press('KeyN');
+  await expect(page.locator('#fh-tool'), '★N = 연필').toHaveText('연필 N');
+  await clickSmooth(page, 0.6);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#fh-bar'), '★손잡이 포커스에서도 Esc = 끝').toHaveCount(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

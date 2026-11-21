@@ -136,6 +136,10 @@ function _innerWidth(sec) {   // 넣을 자리 폭 상한 — 그 섹션(없으�
 async function _insertLocalSvg(col, it) {
   const m = await _localSvg(it);
   if (!m) { window.showToast?.('❌ SVG 를 읽을 수 없어요(안전하지 않거나 그림이 아님)'); return; }
+  _insertSvgVector(col, it, m);
+}
+/** 거른 SVG(m = normalizeMonoSvg 결과)를 벡터 블럭으로 — 관리자 로컬 SVG · 내장 단색 SVG(두들·화살표) 공용 한 벌. 단색이면 libMono(색 칸이 stroke·fill 을 바꾼다). */
+function _insertSvgVector(col, it, m) {
   const t = _target();
   if (!t) return;
   const { w: sw, h: sh } = svgImportSize(m.svg);
@@ -170,11 +174,25 @@ export function insertImageAsAsset(src, nw, nh, wantW, t = null) {
   return ab || null;
 }
 
+/* dev 9a724fb78 채점 ②(현빈 «라이브러리 두들 넣기 → 색 바꾸기») — 내장 SVG 가 «단색»이면 벡터 블럭(libMono)으로: 관리자 로컬 SVG(LIB-FIGMA)와 같은 길 · 색 칸이 바로 먹는다.
+   다색·PNG·JPEG 는 옛 그대로 에셋. 동봉 두들은 모두 clip0 id 를 써서 벡터로 여럿 넣으면 url(#clip0) 이 첫 블럭 것을 가리킨다 ⇒ 넣을 때마다 id 접두사(sanitize idPrefix · 저장 글자에 그대로 남음). */
+let _libIdSeq = 0;
+function _bundledMonoSvg(dataUrl) {
+  const m = /^data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '');
+  if (!m) return null;
+  let txt; try { txt = new TextDecoder().decode(Uint8Array.from(atob(m[1]), (c) => c.charCodeAt(0))); } catch { return null; }
+  const clean = sanitizeSvgString(txt, { maxLen: SVG_MAX_LEN_CEIL, idPrefix: `lib${Date.now().toString(36)}${++_libIdSeq}-` });
+  const r = clean ? normalizeMonoSvg(clean) : null;
+  return r && r.color ? r : null;
+}
+
 async function _insert(col, it, img) {
   try {
     if (it.loc && /\.svg$/i.test(it.file)) { await _insertLocalSvg(col, it); return; }
     const src = it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
     if (!src) throw new Error(`${it.loc}/${it.file} 읽기 실패`);
+    const mono = !it.loc && /\.svg$/i.test(it.file) ? _bundledMonoSvg(src) : null;
+    if (mono) { _insertSvgVector(col, it, mono); return; }
     const t = _target();
     if (!t) return;
     /* 모달은 열린 채(LIB-MODAL-STAY-OPEN-01 · dev b18b10604 — free-image 쪽 closeLibraryModal 은 옛 dev 바탕의 줄이라 안 살림) · 넣기 = 공용 insertImageAsAsset(free-image 7094a578c) 에 target */
