@@ -55,6 +55,15 @@ const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 �
 /* ★이미지 블러(Redact, 1012t1 C1) — 블러는 Figma 로 못 옮긴다(LAYER_BLUR 로 보내면 원본이 피그마 파일에 실려 효과를 끄면 보인다).
  *   ⇒ 도형 가림막과 같은 원칙: 원본 src 를 «싣지 않고» 불투명 덮개 색을 싣는다. 렌더러는 block.redact 갈래에서 그 색으로 칠한다.
  *   켜져 있지 않으면 null(필드 자체를 안 붙인다 — 옛 JSON 바이트 그대로). */
+/* IMG-FX-HALFTONE-01 — 하프톤이 켜진 그림 에셋이면 구운 덮개 그림(data URL) · 아니면 null. 블러(가림)가 켜지면 덮개가 없다(effects-halftone.js) ⇒ 가림이 이긴다. */
+function _halftoneSrc(el) {
+  if (!el?.dataset?.halftone || el.dataset.redact) return null;
+  /* 빌더는 «저장 문자열»을 읽는다 — 덮개는 저장에서 빠지는 파생 그림이라 «라이브» 블럭(같은 id)에서 읽는다(높이를 라이브에서 읽는 것과 같은 결). */
+  const live = (el.id && typeof document !== 'undefined' && document.getElementById(el.id)) || el;
+  if (!live.dataset?.halftone || live.dataset.redact) return null;
+  const ov = live.querySelector?.(':scope > .asset-img-clip > img.asset-halftone');
+  return ov && ov.getAttribute('src') ? ov.getAttribute('src') : null;
+}
 function _imageRedactField(el) {
   const v = readRedact(el);
   return v > 0 ? { intensity: v, blurPx: redactPx(v), cover: _REDACT_COVER } : null;
@@ -275,7 +284,7 @@ async function exportFigmaJSON() {
       // col width는 parseCol에서 주입
       const redact = _imageRedactField(el);
       if (redact) return { type: 'asset', src: null, height: h, padding, redact };   // ★블러: 원본 src 를 싣지 않는다(1012t1 C1)
-      return { type: 'asset', src, height: h, padding };
+      return { type: 'asset', src: _halftoneSrc(el) || src, height: h, padding };   // IMG-FX-HALFTONE-01 — 구운 하프톤 그림
     }
 
     return null;
@@ -602,6 +611,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         padX,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
         src: el.dataset.imgSrc || null,
+        ...(_halftoneSrc(el) ? { src: _halftoneSrc(el), halftone: true } : {}),   // IMG-FX-HALFTONE-01 — 덮개 = 화면에 보이는 그 상자 그대로 구운 그림(아래 clip·crop 안 씀)
         overlayOn,
         overlayText,
         overlayColor,
@@ -611,7 +621,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           return redact ? { src: null, redact } : {};
         })(),
       };
-      if (!el.dataset.collab) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
+      if (!el.dataset.collab && !_assetOut.halftone) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
       return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }
     if (el.classList.contains('icon-circle-block')) {

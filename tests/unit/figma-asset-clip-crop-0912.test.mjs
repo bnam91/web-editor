@@ -43,9 +43,9 @@ test('A1 보내는 쪽 에셋 — 자르기 끔 = clip:false(켬·모름 = 키 0
   assert.deepEqual(clipCropFn(true)(mkAsset({ imgW: '600' }, { naturalWidth: 0, naturalHeight: 0 })), {}, '원본 크기를 모르면 crop 키 0');
 });
 
-test('A4 배선 — 단일 그림 export 가 _assetFigmaClipCrop 를 부른다(묶음 그림은 아님)', () => {
+test('A4 배선 — 단일 그림 export 가 _assetFigmaClipCrop 를 부른다(묶음 그림은 아님)', () => {   // ★기대 바뀜(IMG-FX-HALFTONE-01 261121): 하프톤 켠 그림은 src 가 «상자 그대로 구운 그림»이라 clip·crop 을 안 씀 — 가드에 && !_assetOut.halftone
   assert.equal((EXP.match(/(?<!function )_assetFigmaClipCrop\(el\)/g) || []).length, 1, '_assetFigmaClipCrop(el) 호출은 콜라보 가드 안 한 자리뿐이어야 한다');
-  assert.match(EXP, /if \(!el\.dataset\.collab\) Object\.assign\(_assetOut, _assetFigmaClipCrop\(el\)\);[ \t]*(?:\/\/[^\n]*)?\n\s*return el\.dataset\.collab \? _assetCollabFigmaFrame\(el, _assetOut\) : _assetOut;/);
+  assert.match(EXP, /if \(!el\.dataset\.collab && !_assetOut\.halftone\) Object\.assign\(_assetOut, _assetFigmaClipCrop\(el\)\);[ \t]*(?:\/\/[^\n]*)?\n\s*return el\.dataset\.collab \? _assetCollabFigmaFrame\(el, _assetOut\) : _assetOut;/);
 });
 
 const FAKE = `import { appendFileSync } from 'fs';
