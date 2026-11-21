@@ -12,6 +12,7 @@
 // 로드 후 ensureLiner가 path id / d / 폰트를 재계산한다.
 
 const LINER_PRESETS = [
+  { value: 'round',    label: '둥글게 (글 기준)' },   // LINETEXT-ARC «기본 둥글게»(현빈 261121 · 지디 추천) — 위로 아치 · 반지름을 비우면 글이 호 약 120° 가 되게 글 길이에 맞춰 저절로
   { value: 'arc-up',   label: 'Arc Up (위로 아치)' },
   { value: 'arc-down', label: 'Arc Down (아래 오목)' },
   { value: 'wave',     label: 'Wave (물결)' },
@@ -30,6 +31,9 @@ const LINER_DEFAULTS = {
   strokeWidth:   0          // 외곽선 두께 px 0~20 · 0 = 없음
 };
 const LINER_RADIUS_MAX = 2000, LINER_STROKE_MAX = 20;
+const LINER_ROUND_DEG = 120;   // «둥글게»·아치 자동 반지름 — 글이 원을 이만큼 돌게
+/** 글 길이(px) → 그 글이 원을 LINER_ROUND_DEG 만큼 돌게 하는 반지름(px · 정수 · 8 이상). */
+const linerAutoRadius = (textLen) => Math.max(8, Math.round((Number(textLen) || 0) / (LINER_ROUND_DEG * Math.PI / 180)));
 const normRadius = (x) => { const n = Math.round(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(LINER_RADIUS_MAX, n) : 0; };
 const normStrokeWidth = (x) => { const n = Number(x); return Number.isFinite(n) && n > 0 ? Math.min(LINER_STROKE_MAX, Math.round(n * 2) / 2) : 0; };
 const normStrokeColor = (x) => (typeof x === 'string' && /^#[0-9a-f]{6}$/i.test(x) ? x.toLowerCase() : '');
@@ -295,7 +299,11 @@ function applyLiner(block, opts) {
   path.setAttribute('fill', 'none');
 
   const isCircle = (cfg.preset === 'circle');
-  const radiusMode = (cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0;
+  const isRound = cfg.preset === 'round';
+  const radiusMode = isRound || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0);
+  /* «둥글게» 반지름 = 넣은 값 · 비면 지금 글 길이(사용자 글자 크기)에서 저절로 — 글을 고치면 따라감 */
+  let roundAutoR = 0;
+  if (isRound && !cfg.radius) { textEl.setAttribute('font-size', String(Math.max(6, userFontPx))); let n0 = 0; try { n0 = tp.getComputedTextLength(); } catch (e) { n0 = 0; } roundAutoR = linerAutoRadius(n0); }
   /* 경로 d 한 자리 — 반지름 모드·circle 뒤집기는 원 경로, 그 밖은 옛 buildLinerPathD 그대로 */
   const buildD = (Hx, cyx) => (radiusMode ? buildRadiusPathD(W / 2, cyx, pathK, cfg.preset === 'arc-down', cfg.flip)
     : (isCircle && cfg.flip) ? buildRadiusPathD(W / 2, cyx, pathK, false, true)
@@ -325,7 +333,7 @@ function applyLiner(block, opts) {
     } else if (radiusMode) {
       // 반지름 모드 — 원(반지름 R) 위에 글 길이만큼. 처음엔 원 전체 상자 · 아래 LINERH 가 글이 덮는 구간으로 높이를 조인다.
       const ascent = effFont * 0.85, descent = effFont * 0.30;
-      pathK = cfg.radius;
+      pathK = cfg.radius || roundAutoR;
       cy = Math.round(6 + ascent + pathK);
       H  = Math.round(cy + pathK + descent + 6);
     } else {
@@ -545,7 +553,7 @@ function enhanceLinerPropPanel(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label" id="lnr-curvature-label">${cfg.preset === 'circle' ? '원 크기' : '곡률'}</span>
-        <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}"${(cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0 ? ' disabled title="반지름을 넣으면 곡률 대신 반지름이 휨을 정합니다"' : ''}>
+        <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}"${cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? ' disabled title="반지름을 넣으면 곡률 대신 반지름이 휨을 정합니다"' : ''}>
         <span id="lnr-curvature-val">${cfg.curvature}</span>
       </div>
       <div class="prop-row">
@@ -558,11 +566,11 @@ function enhanceLinerPropPanel(block) {
         <input type="range" class="prop-slider" id="lnr-startangle" min="0" max="360" step="1" value="${cfg.startAngle}">
         <span id="lnr-startangle-val">${cfg.startAngle}°</span>
       </div>
-      <div class="prop-row" id="lnr-radius-row"${cfg.preset === 'arc-up' || cfg.preset === 'arc-down' ? '' : ' hidden'}>
+      <div class="prop-row" id="lnr-radius-row"${cfg.preset === 'arc-up' || cfg.preset === 'arc-down' || cfg.preset === 'round' ? '' : ' hidden'}>
         <span class="prop-label">반지름</span>
         <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
       </div>
-      <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
+      <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
         <span class="prop-label">안쪽 뒤집기</span>
         <label class="prop-toggle"><input type="checkbox" id="lnr-flip"${cfg.flip ? ' checked' : ''}><span class="prop-toggle-track"></span></label>
       </div>
@@ -586,10 +594,10 @@ function enhanceLinerPropPanel(block) {
       strokeColor:   propPanel.querySelector('#lnr-outline-color')?.value || '',
       strokeWidth:   parseFloat(propPanel.querySelector('#lnr-outline-width')?.value) || 0
     };
-    const arc = next.preset === 'arc-up' || next.preset === 'arc-down';   // 줄 보이기 — 반지름 = arc 만 · 뒤집기 = circle 또는 반지름 모드
-    propPanel.querySelector('#lnr-radius-row')?.toggleAttribute('hidden', !arc);
-    propPanel.querySelector('#lnr-flip-row')?.toggleAttribute('hidden', !(next.preset === 'circle' || (arc && next.radius > 0)));
-    { const cv = propPanel.querySelector('#lnr-curvature'); if (cv) cv.disabled = arc && next.radius > 0; }   // 반지름 모드 = 곡률 안 씀
+    const arc = next.preset === 'arc-up' || next.preset === 'arc-down', round = next.preset === 'round';   // 줄 보이기 — 반지름 = arc·둥글게 · 뒤집기 = circle·둥글게·반지름 모드
+    propPanel.querySelector('#lnr-radius-row')?.toggleAttribute('hidden', !(arc || round));
+    propPanel.querySelector('#lnr-flip-row')?.toggleAttribute('hidden', !(next.preset === 'circle' || round || (arc && next.radius > 0)));
+    { const cv = propPanel.querySelector('#lnr-curvature'); if (cv) cv.disabled = round || (arc && next.radius > 0); }   // 반지름 모드·둥글게 = 곡률 안 씀
     applyLiner(block, next);
     return next;
   };
@@ -606,6 +614,13 @@ function enhanceLinerPropPanel(block) {
     window.pushHistory?.('곡선 텍스트 글자크기'); window.scheduleAutoSave?.();
   });
   propPanel.querySelector('#lnr-preset')?.addEventListener('change', () => {
+    /* «기본 둥글게» — 아치(위/아래)를 «처음» 고를 때(반지름 칸이 빔) 지금 글 길이로 반지름을 채운다(글이 약 120°) · 사용자가 고친 값은 그대로 둔다 */
+    const pv = propPanel.querySelector('#lnr-preset').value, rIn = propPanel.querySelector('#lnr-radius');
+    if ((pv === 'arc-up' || pv === 'arc-down') && rIn && !normRadius(rIn.value)) {
+      const t = block.querySelector('svg.lnr-svg text textPath'), te = block.querySelector('svg.lnr-svg text');
+      let n = 0; try { if (te) te.setAttribute('font-size', String(curFont)); n = t ? t.getComputedTextLength() : 0; } catch (e) { n = 0; }
+      if (n > 0) rIn.value = String(linerAutoRadius(n));
+    }
     const lbl = propPanel.querySelector('#lnr-curvature-label');
     if (lbl) lbl.textContent = (propPanel.querySelector('#lnr-preset').value === 'circle') ? '원 크기' : '곡률';
     read(); window.pushHistory?.('곡선 텍스트 프리셋'); window.scheduleAutoSave?.();
@@ -676,4 +691,5 @@ window.enhanceLinerPropPanel = enhanceLinerPropPanel;
 window.initLinersInDom       = initLinersInDom;
 window.LINER_DEFAULTS        = LINER_DEFAULTS;
 window.buildRadiusPathD      = buildRadiusPathD;
+window.linerAutoRadius       = linerAutoRadius;
 window.LINER_PRESETS         = LINER_PRESETS;

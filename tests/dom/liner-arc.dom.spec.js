@@ -5,6 +5,8 @@
  * R3 좁은 폭(221)+곡률 100 → 글자가 상자 0..W 안(옛 판 = −15 넘침 · 비교표 2행)
  * R4 원형 «안쪽 뒤집기» 진짜 클릭 → 경로 sweep 0 · 저장 표본 → 다시 열기(ensureLiner) 뒤 radius·flip·외곽선 그대로 · undo 1번 = 뒤집기 전
  * R5 외곽선 — 패널 두께 2 · 색 → text stroke·paint-order · PNG 에 빨강 · Figma JSON 라이너 svg 에 stroke
+ * R6 «둥글게(글 기준)» 프리셋 진짜 고르기 → 반지름 칸 비어도 글이 원을 120°±8 돈다 · 글을 늘리면 휨이 그대로(반지름이 글을 따라감) · 반지름을 넣으면 그 값
+ * R7 아치(위로)를 «처음» 고를 때(반지름 빔) 반지름 칸이 글 길이로 채워짐(글 ≈120°) · 이미 넣은 반지름은 안 바뀜
  * 양성대조: _patches/liner-arc-CTL.patch(반지름 모드·가로 지킴이·외곽선 끔 · 뒤집기 무시) → R1·R3·R4·R5 빨강 · R2 초록.
  */
 const { test, expect } = require('@playwright/test');
@@ -98,5 +100,32 @@ test('R5 외곽선 — 패널 · PNG · Figma', async ({ page }) => {
     const j = await window.buildFigmaExportJSON(['sL']); return { red, fig: /stroke=\\?"#d0021b/.test(JSON.stringify(j))   /* JSON 글 안이라 따옴표가 \" 로 이스케이프 */ };
   });
   expect(out.red > 200 && out.fig, `★PNG 빨강 ${out.red} · Figma svg stroke ${out.fig}`).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('R6 둥글게 — 글 기준 120° · 글을 따라감 · 넣은 반지름 우선', async ({ page }) => {
+  const errs = await scene(page, 'arc-up');
+  await openPanel(page);
+  await page.selectOption('#lnr-preset', 'round'); await raf(page);
+  const a = await geo(page);
+  expect([a.ds.preset, a.ds.radius ?? null, Math.abs(a.turn - 120) <= 8, inside(a)], `★둥글게 ${a.turn.toFixed(1)}°`).toEqual(['round', null, true, true]);
+  await page.evaluate(() => { const b = document.getElementById('lnL'), m = b.querySelector('.tb-liner'); m.textContent = 'GODITOR ARC TEXT 123 GODITOR ARC'; window.applyLinerText?.(b); window.applyLiner(b); }); await raf(page);
+  const b = await geo(page);
+  expect(Math.abs(b.turn - 120) <= 8, `★글이 길어져도 120° ${b.turn.toFixed(1)}°`).toBe(true);
+  await page.fill('#lnr-radius', '60'); await page.press('#lnr-radius', 'Enter'); await raf(page);
+  const c = await geo(page);
+  expect([c.ds.radius, c.turn > 200], `★넣은 반지름 60 우선 ${c.turn.toFixed(1)}°`).toEqual([60, true]);
+  expect(errs).toEqual([]);
+});
+
+test('R7 아치를 처음 고르면 반지름 채움 · 넣은 값은 그대로', async ({ page }) => {
+  const errs = await scene(page, 'circle');
+  await openPanel(page);
+  await page.selectOption('#lnr-preset', 'arc-up'); await raf(page);
+  const a = await geo(page), rv = await page.inputValue('#lnr-radius');
+  expect([Number(rv) > 0, a.ds.radius === Number(rv), Math.abs(a.turn - 120) <= 10], `★채움 ${rv} · ${a.turn.toFixed(1)}°`).toEqual([true, true, true]);
+  await page.fill('#lnr-radius', '200'); await page.press('#lnr-radius', 'Enter');
+  await page.selectOption('#lnr-preset', 'arc-down'); await raf(page);
+  expect((await geo(page)).ds.radius, '★넣은 200 그대로').toBe(200);
   expect(errs).toEqual([]);
 });
