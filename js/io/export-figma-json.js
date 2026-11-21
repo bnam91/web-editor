@@ -478,7 +478,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const _li = (el.id && document.getElementById(el.id)?.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) || inner;
       // 0919r3 textshadow: 그라데이션 글자는 .tgs 가 computed text-shadow 를 none 으로 가리고 drop-shadow 로 그린다
       //   → 원본 목록(--tgs-src)을 보낸다(안 그러면 Figma 에서 그림자가 사라진다).
-      const ts = textShadowSource(_li);
+      const ts = window.fxFigmaTextShadow?.(_li) ?? textShadowSource(_li);   /* 오블리크 = Figma 8겹 상한으로 솎은 목록(js/effects-oblique.js) */
       if (ts && ts !== 'none') textShadow = ts;
     } catch {}
 
@@ -1243,7 +1243,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
             acc += len + layout.gap;
           }
           const inner = _frameBlockOfSection(c);
-          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch) } } : null;
+          /* SLIDE-CELL-SHADOW-FIGMA-01 — 칸 그림자(soft|strong)를 칸 프레임에 싣는다(렌더러 = DROP_SHADOW + 위아래 «슬라이드 그림자 여백» 감싸개) · 없으면 키 0(옛 JSON) */
+          const _sh = window.CELL_SHADOWS?.[c.dataset.shadow];
+          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch), ...(_sh ? { shadow: { y: _sh.y, blur: _sh.blur, color: _sh.color } } : {}) } } : null;
         }).filter((m) => m && (_v ? m.y : m.x) < L && m.w > 0);
         return { type: 'frame', id: el.id || '', width: bw, height: bh, bg: '', radius: 0, free: true, clip: true, children };
       }

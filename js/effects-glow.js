@@ -80,13 +80,17 @@ export function fxGlowLayers(tb) {
   return FX_GLOW_LAYER_RATIOS.map(k => `0 0 ${Math.round(fx.blur * k * 10) / 10}px ${c}`).join(', ');
 }
 
-/** ★합성 결과 문자열(쓰지 않는다) — [글로우 겹, 사용자 그림자]. userCss 를 안 주면 글자칸 dataset 에서 읽는다. */
-export function fxComposedTextShadowCss(contentEl, userCss) {
+/** ★합성 결과 문자열(쓰지 않는다) — [글로우 겹, 사용자 그림자, 오블리크 겹, 부드러운 그림자 겹]. userCss 를 안 주면 글자칸 dataset 에서 읽는다.
+ *  ★오블리크(js/effects-oblique.js)는 window 다리로 읽는다(모듈 그래프 무변 · 안 실렸으면 '') · obliqueMax = Figma 8겹 솎음용.
+ *  ★«맨 뒤 겹» = 부드러운 그림자(ty/text-fx-beautiful-shadow · 열차 A+B 에서 오블리크 뒤에 붙임) · Figma 솎음(fxFigmaTextShadow)의 others 에 부드러운 겹도 셈. */
+export function fxComposedTextShadowCss(contentEl, userCss, { obliqueMax } = {}) {
   if (!contentEl) return '';
   const tb = contentEl.closest ? contentEl.closest('.text-block') : null;
   const u = userCss === undefined ? textUserShadowCss(contentEl) : (userCss || '');
   const soft = tb && typeof window !== 'undefined' && typeof window.fxSoftShadowLayers === 'function' ? window.fxSoftShadowLayers(tb) : '';   // TEXT-FX-BEAUTIFUL-SHADOW-01 — 부드러운 그림자 겹(맨 뒤 · 없으면 '' ⇒ 옛 바이트 그대로)
-  return [tb ? fxGlowLayers(tb) : '', u, soft].filter(Boolean).join(', ');
+  const ob = tb && obliqueMax !== 0 && typeof window !== 'undefined' ? (window.fxObliqueLayers?.(tb, obliqueMax) || '') : '';
+  /* 겹 순서 = 앞이 위에 그려진다: 글로우(빛) > 사용자 그림자 > 오블리크(단단한 깊이) > 부드러운 그림자(넓고 흐린 바닥 그림자 — 맨 아래라야 깊이 겹을 덮지 않는다 · 오블리크 주석이 비워 둔 «맨 뒤» 자리) */
+  return [tb ? fxGlowLayers(tb) : '', u, ob, soft].filter(Boolean).join(', ');
 }
 
 /** ★합성 문 «하나» — 글자칸 인라인 text-shadow 를 합성 결과로 쓴다. 텍스트 「Shadow」 절도 이리로 온다.

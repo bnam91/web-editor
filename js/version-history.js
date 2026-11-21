@@ -158,7 +158,9 @@
     if (!e) return '';
     if (e.reason === 'pre-restore') return '되돌리기 직전';
     if (e.reason === 'manual') return '수동';
-    if (e.reason === 'gone-copy') return '폴더 없던 때';   // 폴더가 돌아와 덮지 않은 남은 본(main _goneBaseRefusal)
+    if (e.reason === 'gone-copy') return '폴더 없던 때';
+    if (e.reason === 'outside-mine') return '밖에서 바뀌기 전 내 편집';   // 밖에서 바뀐 파일을 안 덮고 남긴 본(main _outsideRefusal)
+    if (e.reason === 'outside-theirs') return '밖에서 바뀐 판';   // «내 것으로 저장» 전에 남긴 밖의 판   // 폴더가 돌아와 덮지 않은 남은 본(main _goneBaseRefusal)
     if (e.pending) return '옛 형식 · 미분석';
     if (e.canon === 0) return '옛 형식';
     return '';

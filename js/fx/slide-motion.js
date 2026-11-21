@@ -141,6 +141,8 @@ export function diffFromDefault(v, def) {
 /* SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01 — 칸 모서리 둥글기(px · 0~80)·그림자(soft|strong) · 첫 장면 DOM(border-radius · box-shadow)과 GIF(drawSlides 둥근 clip · 캔버스 그림자)가 같은 값 */
 /* SLIDE-CELL-DEFAULT-SHADOW-01(현빈 피드백 4) — «옅게» = 컴패리전 블럭 강조 칼럼 그림자 값 그대로(js/blocks/comparison-block.js box-shadow:0 18px 50px rgba(0,0,0,0.22) · 새 값 0 · 같음은 단위 S15 가 지킨다) */
 export const CELL_SHADOWS = Object.freeze({ soft: { css: '0 18px 50px rgba(0,0,0,0.22)', blur: 50, y: 18, color: 'rgba(0,0,0,0.22)' }, strong: { css: '0 10px 28px rgba(0,0,0,0.32)', blur: 28, y: 10, color: 'rgba(0,0,0,0.32)' } });
+/** 칸 그림자가 블럭 위아래로 넘치는 거리(px) = 칸 그림자 중 가장 큰 blur+|y| · 없으면 0 — 캔버스 clip-path(134)와 GIF 판 키움(SLIDE-CELL-SHADOW-GIF-01)이 같은 셈 */
+export const cellShadowPad = (keys) => Math.max(0, ...(keys || []).map((k) => { const sh = CELL_SHADOWS[k]; return sh ? sh.blur + Math.abs(sh.y) : 0; }));
 export const normRadius = (r) => (r === undefined || r === null || r === '' || !Number.isFinite(+r) ? 0 : Math.round(_num(r, 0, 80, 0)));
 /** 칸 하나 높이 %(SLIDE-CELL-HEIGHT-EACH-01 · 가로 효과 · 트랙 높이의 % · 가운데 정렬) — 없으면 undefined(= 100). */
 export const normCardH = (h) => (h === undefined || h === null || h === '' || !Number.isFinite(+h) ? undefined : _num(h, 20, 100, 100));

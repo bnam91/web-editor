@@ -78,11 +78,11 @@ const cards = (page) => page.evaluate(() => [...document.querySelectorAll('#txt-
 const defaultTs = (page) => page.evaluate(() => { const d = document.createElement('div'); d.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)'; document.body.appendChild(d); const v = getComputedStyle(d).textShadow; d.remove(); return v; });
 const undo = async (page) => { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z'); };
 
-test('S1 텍스트 목록 = 반사·그림자·글로우·자유변형(이 순서) · 라벨 = 「그림자」 · 옛 Shadow 절은 안 그린다(두 벌 금지)', async ({ page }) => {
+test('S1 텍스트 목록 = 반사·그림자·글로우·오블리크·자유변형(이 순서) · 라벨 = 「그림자」 · 옛 Shadow 절은 안 그린다(두 벌 금지)', async ({ page }) => {
   const errs = await setup(page);
   await pick(page, 'eT');
-  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) · 명부 순서 그대로 · 옛 넷의 순서·뜻 무변
-  expect(await addLabels(page, 'txt')).toEqual(['반사', '그림자', '글로우', '부드러운 그림자', '홀로그램', '자유변형']);   // ★기대 바뀜(위 줄과 같은 까닭 · fxT3 아이맥 S1 — 라벨 줄을 빠뜨렸었다) · 그림자 라벨 = 「그림자」 무변
+  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'oblique', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) + 열차 A+B: «오블리크»(oblique · jn/text-fx-oblique) · 명부 순서 = index.html script 순서 그대로 · 옛 넷의 순서·뜻 무변
+  expect(await addLabels(page, 'txt')).toEqual(['반사', '그림자', '글로우', '부드러운 그림자', '홀로그램', '오블리크', '자유변형']);   // ★기대 바뀜(위 줄과 같은 까닭 · fxT3 아이맥 S1 — 라벨 줄을 빠뜨렸었다) + A+B «오블리크» · 그림자 라벨 = 「그림자」 무변
   await expect(page.locator('#txt-shadow-section'), '옛 절 없음').toHaveCount(0);
   await expect(page.locator('#txt-shadow-controls'), '고르기 전엔 조절칸 0').toHaveCount(0);
   expect(await shKeys(page), '목록을 열기만 해선 안 붙는다').toEqual({});
@@ -104,7 +104,7 @@ test('S2 그림자를 고르면 옛 기본값 그대로 그려지고(computed = 
   await expect(page.locator('#txt-fxsh-card #txt-shadow-controls')).toBeVisible();
   await expect(page.locator('#txt-fxsh-card #txt-shadow-x-number')).toHaveValue('2');
   await expect(page.locator('#txt-fxsh-card .prop-cell-card-title')).toHaveText('그림자');
-  expect(await addList(page, 'txt'), '걸린 것은 목록에서 빠진다').toEqual(['reflect', 'glow', 'soft', 'holo', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) · 명부 순서 그대로 · 옛 넷의 순서·뜻 무변
+  expect(await addList(page, 'txt'), '걸린 것은 목록에서 빠진다').toEqual(['reflect', 'glow', 'soft', 'holo', 'oblique', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) + 열차 A+B: «오블리크»(oblique · jn/text-fx-oblique) · 명부 순서 = index.html script 순서 그대로 · 옛 넷의 순서·뜻 무변
   await expect(page.locator('#txt-shadow-controls'), '조절칸은 한 벌').toHaveCount(1);
   expect(errs).toEqual([]);
 });
@@ -141,7 +141,7 @@ test('S4 ✕ → 그림 0 · 키 전부 지움 · 블럭 outerHTML 이 켜기 �
   await page.waitForFunction(() => !document.getElementById('txt-fxsh-card'));
   expect(await ts(page)).toBe('none');
   expect(await shKeys(page)).toEqual({});
-  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) · 명부 순서 그대로 · 옛 넷의 순서·뜻 무변
+  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'oblique', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) + 열차 A+B: «오블리크»(oblique · jn/text-fx-oblique) · 명부 순서 = index.html script 순서 그대로 · 옛 넷의 순서·뜻 무변
   await page.evaluate(() => window.deselectAll?.());
   expect(await page.evaluate(() => document.getElementById('eT').outerHTML), '켜기 전 바이트').toBe(html0);
   expect(errs).toEqual([]);
@@ -203,7 +203,7 @@ test('S7 옛 저장본(Shadow 절로 켠 그림자) — 열면 «걸린» 카드
   await page.waitForFunction(() => !!document.getElementById('eT'));
   await pick(page, 'eT');
   expect(await cards(page)).toEqual(['shadow']);
-  expect(await addList(page, 'txt')).toEqual(['reflect', 'glow', 'soft', 'holo', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) · 명부 순서 그대로 · 옛 넷의 순서·뜻 무변
+  expect(await addList(page, 'txt')).toEqual(['reflect', 'glow', 'soft', 'holo', 'oblique', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) + 열차 A+B: «오블리크»(oblique · jn/text-fx-oblique) · 명부 순서 = index.html script 순서 그대로 · 옛 넷의 순서·뜻 무변
   await expect(page.locator('#txt-shadow-x-number')).toHaveValue('4');
   await expect(page.locator('#txt-shadow-y-number')).toHaveValue('6');
   await expect(page.locator('#txt-shadow-color-hex')).toHaveValue('112233');
@@ -338,6 +338,6 @@ test('E6 숨김 뒤 ✕ = 키 전부 지움 · 카드 0 · 목록에 다시 뜬�
   await page.waitForFunction(() => !document.getElementById('txt-fxsh-card'));
   expect(await shKeys(page)).toEqual({});
   expect(await ts(page)).toBe('none');
-  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) · 명부 순서 그대로 · 옛 넷의 순서·뜻 무변
+  expect(await addList(page, 'txt')).toEqual(['reflect', 'shadow', 'glow', 'soft', 'holo', 'oblique', 'freetransform']);   // ★기대 바뀜(열차 train/1121-fx · Electron 전수 261122): 텍스트 Effects 에 새 식구 둘 — «부드러운 그림자»(soft · ty/text-fx-beautiful-shadow) · «홀로그램»(holo · ty/fx-gradient-gaze) + 열차 A+B: «오블리크»(oblique · jn/text-fx-oblique) · 명부 순서 = index.html script 순서 그대로 · 옛 넷의 순서·뜻 무변
   expect(errs).toEqual([]);
 });

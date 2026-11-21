@@ -222,8 +222,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const fw = block.width || availableWidth;
     const fh = block.height || 0;
     const fx = x + Math.max(0, Math.round((availableWidth - fw) / 2)); // 섹션폭보다 좁으면 중앙
-    const frame = run('create_frame', { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
+    /* SLIDE-CELL-SHADOW-FIGMA-01(안B · 지디 261121) — 칸 그림자(child.block.shadow · 슬라이드 칸만 싣는다)가 있으면
+       바깥 «슬라이드 그림자 여백»(폭 그대로 · 위아래 pad = 가장 큰 blur+|y| · 자름 = 가로만 자르는 캔버스 clip-path inset(−pad 0) 과 같은 뜻)
+       안에 슬라이드 프레임(자르기 끔 · 그림자가 칸에 붙어 같이 움직임)을 둔다 · 흐름 높이는 fh 그대로 */
+    const pad = Math.max(0, ...(block.children || []).map((ch) => { const s = ch?.block?.shadow; return s ? (+s.blur || 0) + Math.abs(+s.y || 0) : 0; }));
+    let wrap = null;
+    if (pad > 0) {
+      wrap = run('create_frame', { x: fx, y: y - pad, width: fw, height: fh + 2 * pad, name: '슬라이드 그림자 여백', parentId, clipsContent: true });
+      if (wrap) run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    }
+    const frame = run('create_frame', wrap
+      ? { x: 0, y: pad, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId: wrap.id, clipsContent: false }
+      : { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
     if (!frame) return fh;
+    if (block.shadow) run('set_effects', { nodeId: frame.id, effects: [{ type: 'DROP_SHADOW', color: hex(block.shadow.color), offset: { x: 0, y: +block.shadow.y || 0 }, radius: +block.shadow.blur || 0, spread: 0, visible: true, blendMode: 'NORMAL' }] });
     const bgc = (block.bg || '').trim();
     // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
     let _fc = null;
