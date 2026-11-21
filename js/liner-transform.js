@@ -568,7 +568,7 @@ function enhanceLinerPropPanel(block) {
       </div>
       <div class="prop-row" id="lnr-radius-row"${cfg.preset === 'arc-up' || cfg.preset === 'arc-down' || cfg.preset === 'round' ? '' : ' hidden'}>
         <span class="prop-label">반지름</span>
-        <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
+        <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" data-empty="auto" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
       </div>
       <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
         <span class="prop-label">안쪽 뒤집기</span>
