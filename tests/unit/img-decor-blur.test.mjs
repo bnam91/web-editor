@@ -43,6 +43,6 @@ test('U2 합성 — 흐림 · 가림이 이김 · 색보정 공존', () => {
 test('U3 Figma 배선 — JSON decorBlur · 렌더러 LAYER_BLUR', () => {
   const exp = readSrc(ROOT, 'js', 'io', 'export-figma-json.js'), ren = readSrc(ROOT, 'figma-renderer', 'sangpe_to_figma.mjs');
   assert.match(exp, /function _imageDecorBlur\(el\) \{\n\s*return readRedact\(el\) > 0 \? 0 : normalizeDecorBlur\(el\?\.dataset\?\.decorBlur\);/);
-  assert.equal((exp.match(/\.\.\.\(_imageDecorBlur\(el\) \? \{ decorBlur: _imageDecorBlur\(el\) \} : \{\}\)/g) || []).length, 2, '그림 두 갈래(asset · image) 다 싣는다');
+  assert.equal((exp.match(/\.\.\.\((?:!_halftoneSrc\(el\) && )?_imageDecorBlur\(el\) \? \{ decorBlur: _imageDecorBlur\(el\) \} : \{\}\)/g) || []).length, 2, '그림 두 갈래(asset · image) 다 싣는다');   // ★기대 바뀜(열차 train/1121-fx 261121): 하프톤과 합칠 때 «하프톤 덮개가 없을 때만» 흐림을 싣게 됐다(캔버스에서 덮개가 흐린 원본을 가림)
   assert.match(ren, /if \(block\.decorBlur > 0\) run\('set_effects', \{ nodeId: _fillId, effects: \[\{ type: 'LAYER_BLUR', radius: block\.decorBlur \}\] \}\);/);
 });
