@@ -7,8 +7,8 @@
 ═══════════════════════════════════ */
 
 import { parseGradientStrict } from './gradient-model.js';
-import { escHtml } from './_helpers.js';
-import { GAZE_PRESETS, gazeSwatchCss } from '../fx/holo-palette.js';   /* FX-GRADIENT-GAZE-01 v1(안 A) — 무지갯빛 프리셋 = 그라데이션 정지점 묶음 */   /* ★1013t2E1 중-1 — 속성 이스케이프는 그 한 벌(& < > " ')을 쓴다 */
+import { escHtml } from './_helpers.js';   /* ★1013t2E1 중-1 — 속성 이스케이프는 그 한 벌(& < > " ')을 쓴다 */
+import { GAZE_PRESETS, gazeSwatchCss } from '../fx/holo-palette.js';   /* FX-GRADIENT-GAZE-01 v1(안 A) — 무지갯빛 프리셋 = 그라데이션 정지점 묶음 */
 
 /* ─── 유틸: color math ─── */
 function hexToRgb(hex) {

@@ -25,6 +25,8 @@ const FILES = {
   '/js/props/color-picker.js': read('js/props/color-picker.js'),
   /* 1013t2E1 중-1: color-picker.js 가 속성 이스케이프(escHtml)를 _helpers.js 에서 가져온다 — 이 하네스는 화이트리스트라 같이 실어야 모듈이 뜬다 */
   '/js/props/_helpers.js': read('js/props/_helpers.js'),
+  /* FX-GRADIENT-GAZE-01: color-picker.js 가 무지갯빛 프리셋(../fx/holo-palette.js)을 들인다 — 화이트리스트에 없으면 import 404 로 __ready 가 안 선다 */
+  '/js/fx/holo-palette.js': read('js/fx/holo-palette.js'),
 };
 const BLOCKS_CSS = read('css/editor-blocks.css');
 const CP_CSS = read('css/color-picker.css');
