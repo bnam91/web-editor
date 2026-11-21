@@ -118,9 +118,10 @@ test('F6 그림자가 상자 네모에서 안 끊김 · 둥근 프레임은 계�
     for (let i = 0; i < d.length; i += 4) if (d[i] < bg - 3) dark++;
     fr.dataset.radius = '12'; const ovR = getComputedStyle(fr).overflow; delete fr.dataset.radius;
     fr.dataset.clipContent = 'true'; const ovC = getComputedStyle(fr).overflow; delete fr.dataset.clipContent;
-    return { ov, dark, w: d.length / 4, ovR, ovC };
+    fr.dataset.clipContent = 'false'; const ovF = getComputedStyle(fr).overflow; delete fr.dataset.clipContent;   // «내용 자르기» 명시 끔 = 안 자름(R2 축 · 끔 쪽도 잰다)
+    return { ov, dark, w: d.length / 4, ovR, ovC, ovF };
   });
   expect([r.ov, r.dark > r.w / 8], `★프레임 안 자름 · 상자 아래 8px 줄 어두운 칸 ${r.dark}/${r.w}`).toEqual(['visible', true]);
-  expect([r.ovR, r.ovC], '[지킴] 둥근 프레임·내용 자르기 = 계속 자름').toEqual(['hidden', 'hidden']);
+  expect([r.ovR, r.ovC, r.ovF], '[지킴] 둥근 프레임·내용 자르기 켬 = 계속 자름 · 끔 = 안 자름').toEqual(['hidden', 'hidden', 'visible']);
   expect(errs).toEqual([]);
 });
