@@ -2631,7 +2631,12 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const diag = {};
   /* FILE-CHANGED 적대 리뷰 2-1 — 저장 병합용 로드(열기 아님)는 밖에서 바뀐 파일 위에 자가치유(백업으로 덮어쓰기)하지 않는다 · 그 판은 저장 길(_outsideRefusal)이 고르게 한다 */
   const _ppL = typeof _projOutsideChanged === 'function' && !isOpen ? _resolveProjectJsonPath(String(id || '')) : null;
-  const r = readProjectWithFallback(id, { heal: !(_ppL && _projOutsideChanged(_ppL, true)), diag });   // ★E168 — 목록과 같은 한 곳
+  const _healOn = !(_ppL && _projOutsideChanged(_ppL, true));
+  /* FILE-CHANGED 적대 리뷰 3-2 — 열기 도장은 읽기 «전»에 잡는다: 읽는 사이 밖의 쓰기가 끼면 도장이 옛 판이라 다음 저장이 «다름»(안전 쪽) · 뒤에 잡으면 탭은 옛 판인데 도장은 새 판이라 말없이 덮었다.
+     자가치유 쓰기는 _atomicWriteFileSync 가 다시 찍는다. */
+  const _ppO = isOpen && typeof _projStampFresh === 'function' ? _resolveProjectJsonPath(String(id || '')) : null;
+  if (_ppO) _projStampFresh(_ppO);
+  const r = readProjectWithFallback(id, { heal: _healOn, diag });   // ★E168 — 목록과 같은 한 곳
   // 못 읽음(EMFILE·EACCES 등)은 깨짐이 아니다 — 열기는 실패로 말하고 파일은 그대로. 저장 병합용 로드는 있는 후보로.
   if (isOpen && diag.planning && !r) return { _planning: true };   // 기획 프로젝트는 편집기 것이 아니다 — 빈 판으로 열면 저장이 기획 칸을 지운다
   if (diag.readError) return isOpen ? { _readError: diag.readError } : (r ? r.proj : null);
@@ -2639,7 +2644,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   /* -02b 탭이 파일을 «열며» 읽었다 — 그 파일이 이제 탭의 바탕이다. «제가 다시 만든 폴더» 기억을 지운다(안 지우면 그 위 평소 저장을 거짓 거절).
      typeof — 이 핸들러를 잘라 싣는 유닛 10여 벌이 도장 함수를 안 싣는다(미선언 이름도 typeof 는 안 던진다). */
   if (isOpen && r && typeof _goneForget === 'function') _goneForget(String(id));
-  if (isOpen && r && typeof _projStampFresh === 'function') { const _pp = _resolveProjectJsonPath(String(id)); if (_pp) _projStampFresh(_pp); }   // FILE-CHANGED-OUTSIDE — 탭의 바탕 = 지금 읽은 판
+  if (_ppO && !r) _projStamps.delete(_ppO);   // 못 읽었다(새 프로젝트·깨짐) — 그 판은 탭의 바탕이 아니다   // FILE-CHANGED-OUTSIDE — 탭의 바탕 = 지금 읽은 판
   if (!r) {
     // JSON 이 깨졌다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.
     const broken = isOpen && diag.corrupt ? _resolveProjectJsonPath(id) : null;
@@ -2653,7 +2658,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   const mark = { _recovered: r.from, _recoveredAt: r.savedAt, _recoveredAtLabel: _savedAtLabel(r.savedAt), _healed: r.healed };
   if (!r.healed) mark._healError = r.healError;
   if (isOpen) _recentRecovery.delete(key);          // 이 열기가 스스로 알린다
-  else if (r.healed) _recentRecovery.set(key, mark); // 고쳐 버려서 다음 열기는 폴백을 못 본다 → 그 열기에 한 번
+  else if (r.healed && _healOn) _recentRecovery.set(key, mark);   // 자가치유를 안 했으면(밖에서 바뀐 파일 · FILE-CHANGED 3-6) 복구 표지를 안 남긴다 // 고쳐 버려서 다음 열기는 폴백을 못 본다 → 그 열기에 한 번
   return { ...r.proj, ...mark };
 });
 
@@ -2926,15 +2931,20 @@ function _outsideRefusal(project) {
   const over = project._overOutside === true;
   const readNow = project._overFile === true;   // 렌더러의 «방금 지금 파일을 읽어 고친» 쓰기(닫힌 프로젝트의 글꼴 대체·AI 갤러리 덧붙임) — 지켜 줄 것이 없다(적대 리뷰 2-5)
   delete project._overOutside; delete project._overFile;
-  if (readNow || project[Symbol.for('goditor.overFile')]) return null;   // 쓰기 뒤 도장: 밖에서 바뀐 판 위였으면 poison(열린 탭의 낡은 저장은 계속 거절)
+  if (project[Symbol.for('goditor.overFile')]) return null;   // 쓰기 뒤 도장: 밖에서 바뀐 판 위였으면 poison(열린 탭의 낡은 저장은 계속 거절)
   const key = String(project.id);
   const p = _resolveProjectJsonPath(key);
   if (!p || !_projOutsideChanged(p, true)) return null;
-  let raw = null, theirs = null;
-  try { raw = _SS().readTextRetry(p); } catch (_) { raw = null; }   // 못 읽음 = 밖의 판을 모른다 — 덮지 않는다(아래 내 본 남김)
+  let raw = null, theirs = null, st0 = null;
+  try { st0 = fs.statSync(p); raw = _SS().readTextRetry(p); } catch (_) { raw = null; }   // 못 읽음 = 밖의 판을 모른다 — 덮지 않는다(아래 내 본 남김)
   if (raw != null) { try { theirs = JSON.parse(raw); } catch (_) { theirs = null; } }
   const shaped = !!theirs && _SS().isProjectShaped(theirs);
   if (theirs && !shaped && theirs.type === 'planning') return null;   // 기획 파일 = 쓰기 길이 거절(planning_not_editor)
+  const asideRaw = () => { if (raw == null) return null; try { const d = path.join(PROJECTS_DIR, _safeSeg(key)); fs.mkdirSync(d, { recursive: true }); return _SS().preserveUnreadable(p, d); } catch (_) { return null; } };
+  if (readNow) {   // 방금 읽은 지금 파일을 고친 쓰기 — 프로젝트 판이면 그대로 · 꼴 아닌 판이면(그 쓰기는 백업 본을 읽었다) 바이트를 옆에 먼저 · 못 두면 안 덮음(적대 리뷰 3-3)
+    if (shaped || asideRaw()) return null;
+    return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
+  }
   if (over) {
     if (shaped) {
       let r = null;
@@ -2942,11 +2952,9 @@ function _outsideRefusal(project) {
       if (!(r && r.ok && r.pinsOk === true)) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
     } else {
       /* 프로젝트로 안 읽히는 밖의 판(깨짐·다른 꼴·쓰는 중 잘림) — 사용자가 «내 것»을 골랐다: 그 바이트를 프로젝트 폴더 옆에 먼저 둔다 · 못 두거나 못 읽으면 안 덮는다(적대 리뷰 1-4 · 2-1·2·10) */
-      let aside = null;
-      if (raw != null) { try { const d = path.join(PROJECTS_DIR, _safeSeg(key)); fs.mkdirSync(d, { recursive: true }); aside = _SS().preserveUnreadable(p, d); } catch (_) { aside = null; } }
-      if (!aside) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
+      if (!asideRaw()) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
     }
-    _projStampFresh(p);   // 밖의 판은 남겼다 — 지금 파일을 바탕으로 잡는다(지우면 쓰기가 던질 때 감지가 꺼진다 · 적대 리뷰 1-6)
+    _projStamps.set(p, { ino: st0.ino, mtimeMs: st0.mtimeMs, size: st0.size, sha: _projSha(raw) });   // 바탕 = 방금 남긴 그 바이트(다시 읽지 않는다 — 그사이 든 밖의 쓰기를 바탕으로 잡으면 핀 없이 덮는다 · 적대 리뷰 3-2 · 지우면 감지가 꺼진다 1-6)
     return null;
   }
   /* 자동저장·종료 길 — 밖의 판이 프로젝트든 아니든(쓰는 중 잘린 판일 수 있다) 덮지 않고 내 본을 남긴다 · 고르는 건 사용자 */

@@ -386,7 +386,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
   if (_isSavingToFile) {
     let _blankOverQueued = false;   // 막힐 빈 본이 줄의 실내용 본을 밀어내면 빠질 때 둘 다 안 들어간다(FLUSH-EMPTY-QUEUE-SKIPS-INFLIGHT-01) — 실내용 본을 둔다
     if (_targetId && _pendingSaves.has(_targetId) && !opts.allowEmpty) { try { _blankOverQueued = _emptySaveBlocked(typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot, _targetId); } catch (_) {} }
-    if (_targetId && !_blankOverQueued) _pendingSaves.set(_targetId, { snapshot, opts: { ...opts, projectId: _targetId, ...(opts._overOutside || _pendingSaves.get(_targetId)?.opts?._overOutside ? { _overOutside: true } : {}) } });   // «내 것으로 저장» 표시는 뒤 자동저장이 줄을 갈아도 잃지 않는다(FILE-CHANGED 적대 리뷰 2-8)   // 대상을 지금 박는다 — 빠질 때 활성이 바뀌어 있으면(거절 저장이 탭을 닫음) 이 내용이 옆 프로젝트 파일을 덮었다(앱 3/3)
+    if (_targetId && !_blankOverQueued) _pendingSaves.set(_targetId, { snapshot, opts: { ...opts, projectId: _targetId, ...(opts._overOutside === true || (opts._overOutside !== false && _pendingSaves.get(_targetId)?.opts?._overOutside) ? { _overOutside: true } : {}) } });   // «내 것으로 저장» 표시는 뒤 자동저장이 줄을 갈아도 잃지 않는다(FILE-CHANGED 적대 리뷰 2-8) · 명시 false(다시 불러오기의 다시 보냄)는 물려받지 않는다(3-4)   // 대상을 지금 박는다 — 빠질 때 활성이 바뀌어 있으면(거절 저장이 탭을 닫음) 이 내용이 옆 프로젝트 파일을 덮었다(앱 3/3)
     return; // 큐잉됨 — 결과는 드레인 시점에 확정(undefined=미확정)
   }
   _isSavingToFile = true;

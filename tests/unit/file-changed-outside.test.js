@@ -11,6 +11,7 @@
  * O12 밖의 판이 프로젝트 꼴 아닌 JSON → 자동저장 거절 · «내 것»은 옆에 둔 뒤 씀(옛 롤링 백업은 not_project 를 안 남겼다)
  * O14 [적대 리뷰 2-1] 병합 로드가 밖에서 바뀐 파일 위에 자가치유 안 함 · O15 [2-5] _overFile 쓰기 통과 · 낡은 탭은 계속 거절
  * O13 [적대 리뷰 4] 밖의 판을 못 읽음(권한 0) → 안 덮음 · 내 본 핀
+ * O16 [적대 리뷰 3-3] _overFile 쓰기가 꼴 아닌 밖의 판을 옆에 둔 뒤 씀
  * O8 [옛 동작] 이번 실행에 안 읽은(도장 없는) 파일 → 평소대로 씀 · 제 저장 둘 연달아 = 거절 없음
  * O9 같은 본(시각만 다름)의 두 거절 = 핀 하나 · 다른 본은 따로
  * O10 밖에서 바뀐 뒤 이름 바꾸기(overFile — 지금 파일 위)는 통과 · 낡은 탭 저장은 계속 거절(poison) · 다시 열면 평소
@@ -189,4 +190,12 @@ test('O13 밖의 판을 못 읽음 → 안 덮음 · 내 본 핀', { skip: proce
     assert.deepEqual([r.ok, r.reason, r.kept], [false, 'changed_outside', 'history']);
   } finally { fs.chmodSync(P(id), 0o644); }
   assert.match(file(id), /밖 머리/, '★못 읽은 밖의 판을 덮었다');
+});
+test('O16 [적대 리뷰 3-3] _overFile 쓰기인데 밖의 판이 꼴 아닌 JSON → 바이트를 옆에 먼저 둔 뒤 씀', async () => {
+  const id = await opened();
+  outside(id, '{"hello":2}');
+  const r = await H.invoke('projects:save', { ...proj(id, '갤러리'), _overFile: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const d = path.join(H.projectsDir, id);
+  assert.ok(fs.readdirSync(d).some((f) => f !== 'proj.json' && fs.statSync(path.join(d, f)).isFile() && fs.readFileSync(path.join(d, f), 'utf8') === '{"hello":2}'), '★_overFile 쓰기가 꼴 아닌 밖의 판을 안 남기고 덮었다');
 });
