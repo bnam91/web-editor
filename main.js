@@ -1906,6 +1906,10 @@ function _getExternalizer() {
 // Atomic write: temp 파일 → rename으로 partial-write 위험 제거.
 // 동일 파일시스템 가정(userData 안이라 OK).
 function _atomicWriteFileSync(filePath, data) {
+  /* FILE-CHANGED-OUTSIDE — proj.json 을 앱이 쓰면 그 판이 «제 것»(도장) · 쓰기 전에 밖에서 바뀌어 있었으면 도장을 «다름»으로 남긴다(_projStampWrite).
+     typeof — 이 함수를 잘라 싣는 유닛이 도장 함수를 안 싣는다. */
+  const _isProj = typeof _projStampWrite === 'function' && /(^|[\\/])proj\.json$/.test(String(filePath));
+  const _dirty = _isProj ? _projOutsideChanged(filePath) : false;
   const tmp = filePath + '.tmp';
   fs.writeFileSync(tmp, data, 'utf8');
   try {
@@ -1914,6 +1918,7 @@ function _atomicWriteFileSync(filePath, data) {
     try { fs.unlinkSync(tmp); } catch (_) {}
     throw e;
   }
+  if (_isProj) _projStampWrite(filePath, _dirty, data);
 }
 
 // GAP-009: 경로 세그먼트(파일명·프로젝트 id) 살균 — 구분자(/ \)를 '_'로, 순수 점(. .. ...)을
@@ -2526,7 +2531,8 @@ function _externalizeOnOpen(event, id, opts) {
   if (readSettings().autoExternalizeOnOpen === true) {
     if (scan.rolledBack) return;   // 사용자가 되돌린 프로젝트 — 다시 변환하면 되돌리기 뒤 새로고침에서 바로 재변환된다. 수동 변환은 그대로 된다
     if (X.lsRecoveryPending(PROJECTS_DIR, safeId, opts)) return;
-    const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+    const _extStamp = typeof _projStampAround === 'function' ? _projStampAround(PROJECTS_DIR, safeId) : () => {};   // FILE-CHANGED-OUTSIDE — 앱 쓰기(외부화)도 제 것 · 밖에서 바뀐 판 위면 poison
+    const r = X.externalizeProjectFile(PROJECTS_DIR, safeId, { afterWrite: (pid, data) => { _refreshListMeta(pid, data); _extStamp(pid); } });
     console.log(`[externalize] on-open ${safeId}:`, JSON.stringify(r));
     if (r && r.ok && !r.noop) send('projects:externalized', { projectId: safeId, ...r });
     else if (r && !r.ok && r.reason !== 'not_smaller') send('projects:externalize-hint', { projectId: safeId, reason: 'failed', error: r.reason, bytes: scan.bytes, base64Refs: scan.base64Refs });
@@ -2631,6 +2637,7 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   /* -02b 탭이 파일을 «열며» 읽었다 — 그 파일이 이제 탭의 바탕이다. «제가 다시 만든 폴더» 기억을 지운다(안 지우면 그 위 평소 저장을 거짓 거절).
      typeof — 이 핸들러를 잘라 싣는 유닛 10여 벌이 도장 함수를 안 싣는다(미선언 이름도 typeof 는 안 던진다). */
   if (isOpen && r && typeof _goneForget === 'function') _goneForget(String(id));
+  if (isOpen && r && typeof _projStampFresh === 'function') { const _pp = _resolveProjectJsonPath(String(id)); if (_pp) _projStampFresh(_pp); }   // FILE-CHANGED-OUTSIDE — 탭의 바탕 = 지금 읽은 판
   if (!r) {
     // JSON 이 깨졌다 ≠ 없다. 빈 프로젝트로 열면 첫 편집이 이 파일을 덮는다. 저장 병합용 로드(open 아님)는 그대로 null.
     const broken = isOpen && diag.corrupt ? _resolveProjectJsonPath(id) : null;
@@ -2665,7 +2672,8 @@ ipcMain.handle('projects:externalize', (_e, { projectId, force } = {}) => {
       }
     } catch (_) {}
   }
-  const r = X.externalizeProjectFile(PROJECTS_DIR, _safeSeg(projectId), { afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+  const _extStamp = typeof _projStampAround === 'function' ? _projStampAround(PROJECTS_DIR, _safeSeg(projectId)) : () => {};   // FILE-CHANGED-OUTSIDE — 앱 쓰기(외부화)도 제 것 · 밖에서 바뀐 판 위면 poison
+  const r = X.externalizeProjectFile(PROJECTS_DIR, _safeSeg(projectId), { afterWrite: (pid, data) => { _refreshListMeta(pid, data); _extStamp(pid); } });
   console.log(`[externalize] manual ${projectId}:`, JSON.stringify(r));
   return r;
 });
@@ -2673,7 +2681,8 @@ ipcMain.handle('projects:externalize-rollback', (_e, { projectId, dryRun } = {})
   const X = _getExternalizer();
   if (!X) return { ok: false, reason: 'module_missing' };
   if (!projectId) return { ok: false, reason: 'projectId 필수' };
-  const r = X.rollbackExternalize(PROJECTS_DIR, _safeSeg(projectId), { dryRun: dryRun === true, afterWrite: (pid, data) => _refreshListMeta(pid, data) });
+  const _extStamp = typeof _projStampAround === 'function' ? _projStampAround(PROJECTS_DIR, _safeSeg(projectId)) : () => {};   // FILE-CHANGED-OUTSIDE — 앱 쓰기(외부화)도 제 것 · 밖에서 바뀐 판 위면 poison
+  const r = X.rollbackExternalize(PROJECTS_DIR, _safeSeg(projectId), { dryRun: dryRun === true, afterWrite: (pid, data) => { _refreshListMeta(pid, data); _extStamp(pid); } });
   if (!dryRun) console.log(`[externalize] rollback ${projectId}:`, JSON.stringify(r));
   return r;
 });
@@ -2876,6 +2885,70 @@ const _goneRecreated = new Set();   // 이번 실행에서 남은 본 저장이 
 /* ★-02(미카사 int-3 실앱 2/2) — 원소 = «id + 제가 마지막에 쓴 proj.json 도장(ino·mtime·크기)». 옛 판은 id 만 기억해
      앱이 폴더를 다시 만든 «뒤» 원래 폴더가 Finder 대치로 돌아와도 «제 것»으로 읽고 덮었다. 도장이 다르면 밖에서 갈린 것이다. */
 function _goneStamp(id) { try { const p = _resolveProjectJsonPath(id); const st = p && fs.statSync(p); return st ? `${id}\u0000${st.ino}:${st.mtimeMs}:${st.size}` : null; } catch (_) { return null; } }
+/* ★FILE-CHANGED-OUTSIDE-WHILE-OPEN-OVERWRITE-01(현빈 결정 261121 · MISSING-FOLDER-02 적대 리뷰 4 일반화) — 쓰기 전 도장 비교.
+   도장 = proj.json 경로 → { ino, mtimeMs, size, sha(내용 sha1) } · 찍는 때 = 탭이 «열며» 읽은 직후(projects:load open) + 앱이 proj.json 을 쓴 직후(_atomicWriteFileSync · 외부화 afterWrite).
+   비교: ino·mtime·크기가 같으면 같은 판 · 하나라도 다르면 내용 sha1 로 2차 확인(iCloud·동기화가 같은 내용을 다시 써 ino/mtime 만 바뀐 것은 «같음» — 거짓 경보가 자동저장을 멈추지 않게).
+     ⛔앞 64KB 같은 부분 비교는 안 쓴다 — 같은 크기로 뒤쪽만 바뀐 판을 «같음»으로 보고 덮는다(손실).
+   poison = 앱이 «밖에서 바뀐 판 위에» 썼다(이름 바꾸기·버전 복원·자가치유·외부화 — 지금 파일을 읽어 그 위에 씀) — 그 쓰기는 하되, 열린 탭의 바탕은 여전히 옛 판이라 다음 탭 저장도 «다름»으로 거절한다.
+   shortcut: ino·mtime·크기가 «모두» 같으면 내용은 안 읽는다 — 같은 파일에 제자리로 쓰고 시각까지 되돌린 밖의 쓰기는 못 잡는다(Finder 대치·다른 앱 저장은 ino 나 시각이 바뀐다) · 잡아야 하면 매 저장 sha1 비교로.
+   도장 없음(이번 실행에서 안 읽음 · 새 프로젝트) = 옛 동작. shortcut: 한 프로젝트를 두 탭/창이 같이 여는 경우는 바탕 하나로 본다(앱은 프로젝트당 탭 하나). */
+const _projStamps = new Map();
+const _projSha = (t) => require('crypto').createHash('sha1').update(t).digest('hex');
+function _projStampFresh(p, text) {
+  try { const st = fs.statSync(p); if (text == null) text = fs.readFileSync(p, 'utf8'); _projStamps.set(p, { ino: st.ino, mtimeMs: st.mtimeMs, size: st.size, sha: _projSha(text) }); }
+  catch (_) { _projStamps.delete(p); }
+}
+/** 앱의 다른 쓰기(외부화 모듈 — 제 atomicWrite)를 감싼다: 부를 때 «밖에서 바뀜»을 재 두고 쓰기 뒤 도장. */
+function _projStampAround(_dir, id) { const p = _resolveProjectJsonPath(String(id)); const dirty = p ? _projOutsideChanged(p) : false; return () => { const q = _resolveProjectJsonPath(String(id)); if (q) _projStampWrite(q, dirty); }; }
+function _projStampWrite(p, dirty, text) { if (dirty) _projStamps.set(p, { poison: true }); else _projStampFresh(p, text); }
+/** true = 밖에서 바뀜(덮지 말 것). 도장 없음·파일 없음(ENOENT · 폴더 사라짐은 MISSING 갈래 몫) = false. */
+function _projOutsideChanged(p) {
+  const s = p && _projStamps.get(p);
+  if (!s) return false;
+  if (s.poison) return true;
+  let st;
+  try { st = fs.statSync(p); } catch (e) { return !(e && e.code === 'ENOENT'); }   // 못 읽음 = 모름 = 덮지 않는 쪽
+  if (st.ino === s.ino && st.mtimeMs === s.mtimeMs && st.size === s.size) return false;
+  let text;
+  try { text = fs.readFileSync(p, 'utf8'); } catch (_) { return true; }
+  if (_projSha(text) !== s.sha) return true;
+  _projStamps.set(p, { ino: st.ino, mtimeMs: st.mtimeMs, size: st.size, sha: s.sha });   // 같은 내용을 밖이 다시 썼다 — 새 ino·시각으로 갈아 둔다
+  return false;
+}
+/* 편집기 저장(save · save-sync) 직전 — 밖에서 바뀌었으면 덮지 않고 «내 본»을 버전 기록 핀(outside-mine · 읽어서 확인)에 · 못 남기면 비상 사본.
+   project._overOutside(«내 것으로 저장») = 지금 파일(밖의 판)을 먼저 핀(outside-theirs · 확인)으로 남기고 된 때만 덮는다 · 못 남기면 안 덮는다.
+   overFile(이름 바꾸기·버전 복원 — 지금 파일을 읽어 그 위에 씀)은 거절하지 않는다(쓰기 뒤 poison 이 탭 저장을 막는다). */
+function _outsideRefusal(project) {
+  if (!project) return null;
+  const over = project._overOutside === true;
+  delete project._overOutside;
+  if (project[Symbol.for('goditor.overFile')]) return null;
+  const key = String(project.id);
+  const p = _resolveProjectJsonPath(key);
+  if (!p || !_projOutsideChanged(p)) return null;
+  /* 밖의 판이 프로젝트로 안 읽히면(깨짐·다른 꼴·기획 파일) 이 갈래 몫이 아니다 — 쓰기 길의 옛 가드가 맡는다(롤링 백업이 깨진 판을 옆에 두거나 거절 · 기획 파일 거절). */
+  let theirs = null;
+  try { theirs = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { theirs = null; }
+  if (!theirs || !_SS().isProjectShaped(theirs)) return null;
+  if (over) {
+    let r = null;
+    try { r = _SS().writeSnapshot(PROJECTS_DIR, key, theirs, { reason: 'outside-theirs', force: true, notCurrent: true }); } catch (e) { console.warn('[projects:save] 밖에서 바뀐 판을 버전 기록에 못 남겼다:', e.message); }
+    if (!(r && r.ok && r.pinsOk === true)) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
+    _projStamps.delete(p);   // 밖의 판은 남겼다 — 이 쓰기가 새 바탕(poison 안 남김)
+    return null;
+  }
+  let sig = null;
+  try { const { updatedAt: _u, ...rest } = project; sig = _projSha(JSON.stringify(rest)); } catch (_) {}
+  const memo = (_outsideRefusal._kept || (_outsideRefusal._kept = new Map()));   // 같은 본이 여러 길(자동저장·줄 선 저장·종료)로 거절돼도 핀 하나
+  const prev = sig ? memo.get(key) : null;
+  if (prev && prev.sig === sig && prev.kept) return { ok: false, reason: 'changed_outside', kept: prev.kept, ts: prev.ts };
+  let kept = false, ts = null;
+  try { const r = _SS().writeSnapshot(PROJECTS_DIR, key, project, { reason: 'outside-mine', force: true, notCurrent: true }); if (r && r.ok && r.pinsOk === true) { kept = 'history'; ts = r.ts; } }
+  catch (e) { console.warn('[projects:save] 밖에서 바뀜 — 내 본을 버전 기록에 못 남겼다:', e.message); }
+  if (!kept) { const r = _recordSyncSaveFailure(project, 'changed_outside'); if (r && r.saved && r.saved.record && r.saved.record.emergencyPath) kept = 'emergency'; }
+  if (sig && kept) memo.set(key, { sig, kept, ts });
+  return { ok: false, reason: 'changed_outside', kept, ts };
+}
 function _goneForget(id) { for (const k of _goneRecreated) if (k === id || k.startsWith(id + '\u0000')) _goneRecreated.delete(k); }
 function _goneBaseRefusal(project) {
   if (!project) return null;
@@ -2915,6 +2988,7 @@ ipcMain.handle('projects:root-key', () => (_projectsDirState && _projectsDirStat
 async function _saveProjectImpl(project) {
   if (_isProjectDeleted(project.id)) return { ok: false, reason: 'project_deleted' };
   const _returned = _goneBaseRefusal(project); if (_returned && typeof _returned === 'object') return _returned;   // 'recreate'·'own' = 쓴다
+  const _outside = typeof _outsideRefusal === 'function' ? _outsideRefusal(project) : null; if (_outside) return _outside;   // typeof — 이 함수를 잘라 싣는 유닛   // FILE-CHANGED-OUTSIDE — 밖에서 바뀐 파일을 덮지 않는다
   const _recreated = _seenProjects.has(String(project.id)) && !_resolveProjectJsonPath(project.id);
   // write는 항상 신 위치. read(백업 직전 상태)는 dual fallback.
   const paths = _ensureNewLayoutPaths(project.id);
@@ -2996,6 +3070,7 @@ ipcMain.on('projects:save-sync', (event, project) => {
     if (_isProjectDeleted(project.id)) { event.returnValue = { ok: false, reason: 'project_deleted' }; return; }
     const _returned = _goneBaseRefusal(project);   // 곧 끝나는 문서의 본 — 버전 기록에 남기고, 못 남기면 비상 사본(종료 때 알린다)
     if (_returned && typeof _returned === 'object') { event.returnValue = _returned; return; }
+    const _outside = typeof _outsideRefusal === 'function' ? _outsideRefusal(project) : null; if (_outside) { event.returnValue = _outside; return; }   // FILE-CHANGED-OUTSIDE — 끝나는 문서도 덮지 않고 핀/비상 사본
     const _recreatedSync = _seenProjects.has(String(project.id)) && !_resolveProjectJsonPath(project.id);   // -02b 표시 없는 다시 만들기도 도장
     // write는 항상 신 위치. 직전 버전 backup용 read는 dual fallback.
     const paths = _ensureNewLayoutPaths(project.id);

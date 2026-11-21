@@ -662,6 +662,66 @@ window.reopenReturnedTab = async (id, kept) => {
   } finally { t._reopening = false; }
   return true;
 };
+/* ★FILE-CHANGED-OUTSIDE-WHILE-OPEN-OVERWRITE-01 — 열린 프로젝트 파일이 밖(Finder 대치·다른 앱·다른 창)에서 바뀌어 main 이 저장을 거절했다(changed_outside).
+   내 본은 main 이 버전 기록 핀(«밖에서 바뀌기 전 내 편집» · 읽어서 확인)에 남겼거나(kept 'history'), 비상 사본(kept 'emergency'), 못 남겼다(false).
+   고르기(닫기 단추 없음 — 고르는 동안 편집이 쌓이지 않게):
+   · 다시 불러오기 — 핀일 때만 · 누를 때 버전 목록에서 그 핀(ts·reason)을 한 번 더 찾은 뒤에만 파일을 다시 읽는다(LS 본은 걷는다 — 두면 열기 판정이 그 본으로 밖의 판을 덮는다).
+   · 내 것으로 저장 — main 이 지금 파일(밖의 판)을 먼저 핀(«밖에서 바뀐 판»)으로 남기고 된 때만 덮는다. */
+const _outsideKeptText = (kept) => (kept === 'history' ? '버전 기록(「밖에서 바뀌기 전 내 편집」)에 남겨 두었습니다'
+  : kept === 'emergency' ? '비상 사본으로 남겨 두었습니다(다음 실행 때 복구 안내)' : '아직 어디에도 남지 않았습니다 — 화면에만 있습니다');
+async function _outsidePinVerified(id, ts) {
+  if (ts == null) return false;
+  try { const r = await window.electronAPI?.historyList?.({ projectId: id }); return !!(r?.ok && (r.entries || []).some((e) => e.ts === ts && e.reason === 'outside-mine')); }
+  catch (_) { return false; }
+}
+window.noteOutsideChanged = (id, res) => {
+  const t = _getTabs().find(x => x.id === id);
+  if (!t) { window.showStatusToast?.(`⚠️ 닫은 프로젝트 파일이 밖에서 바뀌어 덮지 않았습니다 — 편집은 ${_outsideKeptText(res?.kept)}`); return false; }
+  const prev = document.getElementById('outside-change-overlay');
+  if (prev && prev.dataset.projectId === id) { if (!res?.theirsNotKept) { prev._res = res; prev._sync?.(); } return true; }   // 줄 선 저장도 거절됐다 — 상자 하나 · 마지막 답으로
+  prev?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'outside-change-overlay'; ov.className = 'outside-change-overlay'; ov.dataset.projectId = id; ov._res = res;
+  ov.innerHTML = `<div class="outside-change-box" role="alertdialog" aria-modal="true" aria-labelledby="outside-change-title">
+    <div class="outside-change-title" id="outside-change-title">밖에서 바뀌었습니다</div>
+    <div class="outside-change-text"></div>
+    <div class="outside-change-msg" aria-live="polite"></div>
+    <div class="outside-change-btns">
+      <button type="button" class="outside-change-reload">다시 불러오기</button>
+      <button type="button" class="outside-change-mine">내 것으로 저장(밖의 판은 버전 기록에)</button>
+    </div></div>`;
+  const $ = (sel) => ov.querySelector(sel), msg = (m) => { $('.outside-change-msg').textContent = m || ''; };
+  ov._sync = () => {
+    const r = ov._res || {};
+    $('.outside-change-text').textContent = `「${t.name || '이름 없음'}」 파일이 다른 곳(Finder·다른 앱·다른 창)에서 바뀌어 덮지 않았습니다. 지금 화면의 편집은 ${_outsideKeptText(r.kept)}.`;
+    $('.outside-change-reload').hidden = r.kept !== 'history';   // 내 편집이 핀으로 남았을 때만 화면을 버릴 수 있다
+  };
+  ov._sync();
+  const busy = (on) => ov.querySelectorAll('button').forEach((b) => { b.disabled = on; });
+  $('.outside-change-reload').addEventListener('click', async () => {
+    busy(true); msg('');
+    try {
+      if (!(await _outsidePinVerified(id, ov._res?.ts))) { msg('버전 기록에서 내 편집을 확인하지 못해 다시 읽지 않았습니다 — «내 것으로 저장»을 고르세요.'); return; }
+      try { localStorage.removeItem(`web-editor-autosave__${id}`); localStorage.removeItem(`web-editor-autosave__${id}_ts`); } catch (_) {}
+      t._cache = null; t._afterLs = null;
+      ov.remove();
+      if (_getActId() === id) { _setActId(null); await switchTab(id); }   // 같은 탭으로는 switchTab 이 안 돈다 — 비우고 다시 연다(직렬화·저장 없음)
+      window.showStatusToast?.(`「${t.name || '이름 없음'}」 파일을 다시 불러왔습니다 — 내 편집은 버전 기록(「밖에서 바뀌기 전 내 편집」)에 있습니다`);
+    } finally { if (ov.isConnected) busy(false); }
+  });
+  $('.outside-change-mine').addEventListener('click', async () => {
+    busy(true); msg('');
+    try {
+      const snap = _getActId() === id ? window.serializeProject?.() : t._cache;
+      if (!snap) { msg('이 탭의 화면 본을 찾지 못했습니다 — 그 탭을 연 뒤 다시 고르세요.'); return; }
+      const r = await window.saveInLine?.(snap, id, { _overOutside: true });   // 줄에 서면 드레인 뒤 결과까지 기다린다(undefined = 미확정을 실패로 말하지 않게)
+      if (r?.ok) { ov.remove(); window.showStatusToast?.(`내 편집으로 저장했습니다 — 밖에서 바뀐 판은 버전 기록(「밖에서 바뀐 판」)에 있습니다`); return; }
+      if (ov.isConnected) msg('저장하지 못했습니다 — 밖에서 바뀐 판을 버전 기록에 남기지 못하면 덮지 않습니다. 디스크 공간·권한을 확인해 주세요.');
+    } finally { if (ov.isConnected) busy(false); }
+  });
+  document.body.appendChild(ov);
+  return true;
+};
 window.noteProjectFolderRecreated = (id) => { const t = _getTabs().find(x => x.id === id); if (t) window.showStatusToast?.(window.folderRecreatedNotice?.(t.name)); };
 window.openTabForProject    = openTabForProject;
 window.toggleTabAddMenu     = toggleTabAddMenu;

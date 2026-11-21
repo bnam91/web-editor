@@ -354,7 +354,7 @@ function _flushUnfinishedSavesSync() {
         continue;
       }
       const r = window.electronAPI.saveProjectSync(_markGoneBase({ ...data, id, name: openTabs.find(t => t.id === id)?.name || 'Untitled', updatedAt: new Date().toISOString() }, id, opts?._goneBase));
-      if (r?.reason === 'folder_returned' && r.kept) continue;   // 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다
+      if ((r?.reason === 'folder_returned' || r?.reason === 'changed_outside') && r.kept) continue;   // changed_outside = 밖에서 바뀐 파일을 안 덮고 main 이 내 본을 남겼다(같은 까닭)   // 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — 실패로 세면 종료가 같은 본을 비상 사본으로 또 쓴다
       if (r && r.ok === false && r.reason !== 'project_deleted') reason = r.reason || 'save-failed';
       if (!reason && r?.reason !== 'project_deleted') { wrote.add(id); if (id === _savingOwnerId) _savingSuperseded = true; }   // 지워진 프로젝트는 안 썼다 — 안 들어간 본을 성공으로 답하면 비상 사본도 없다(휴지통 복원 때 마지막 본을 잃는다)
     } catch (e) { reason = (e && e.message) || 'exception'; }
@@ -413,7 +413,7 @@ async function saveProjectToFile(snapshot, opts = {}) {
     if (_targetId) _lastSaveResult.set(_targetId, { at: Date.now(), result: _result });
     /* int-3 합침(TAB-SWITCH × MISSING-FOLDER): 돌아온 폴더를 안 덮고 main 이 그 본을 남긴 것(folder_returned·kept)은 «실패 저장»으로 적지 않는다 —
        적으면 종료가 같은 본을 비상 사본으로 또 쓴다(MISSING 의 flush 갈래 주석과 같은 까닭). */
-    const _keptByMain = _result?.reason === 'folder_returned' && !!_result.kept;
+    const _keptByMain = (_result?.reason === 'folder_returned' || _result?.reason === 'changed_outside') && !!_result.kept;   // changed_outside(FILE-CHANGED-OUTSIDE) 도 main 이 내 본을 남겼다
     if (_targetId && _result?.reason === 'project_deleted') _noteFailedSave(_targetId, false);
     else if (_targetId && !_result?.skipped) _noteFailedSave(_targetId, !_keptByMain && (!_result || _isSaveFailure(_result)));
     /* 돌아온 폴더를 안 덮고 main 이 그 본을 남겼다 — LS 본(남은 본 위 편집)을 지운다. 두면 다시 열기·다음 부팅의 pickLsOverFile 이 그 본을 골라 표시 없이 돌아온 파일을 덮는다(리뷰 2 ①). */
@@ -504,7 +504,13 @@ async function _doSaveProjectToFile(snapshot, opts = {}) {
       try { await window.externalizeScratchpad?.(proj, targetId); }
       catch (e) { console.warn('[save-load] 스크래치 외부화 건너뜀:', e && e.message); }
       if (_savingSuperseded && targetId === _savingOwnerId) return { ok: true, skipped: true, reason: 'flushed' };
+      if (opts._overOutside) proj._overOutside = true;   // FILE-CHANGED-OUTSIDE «내 것으로 저장» — main 이 밖의 판을 핀으로 남긴 뒤에만 덮는다
       const saveResult = await window.electronAPI.saveProject(_markGoneBase(proj, targetId, opts._goneBase));
+      if (saveResult?.reason === 'changed_outside') {   // ★FILE-CHANGED-OUTSIDE — 밖에서 바뀐 파일을 안 덮었다(내 본 = 버전 기록 핀 · 못 남겼으면 kept:false) — 고르게 한다
+        _setAutosaveIndicator('error');
+        Promise.resolve(window.noteOutsideChanged?.(targetId, saveResult)).catch(e => console.warn('[save-load] 밖에서 바뀜 알림 실패:', e && e.message));
+        return { ok: false, reason: saveResult.reason, kept: saveResult.kept };
+      }
       if (saveResult?.reason === 'folder_returned') {   // 남은 본은 main 이 버전 기록에 남겼다 — 안내하고 파일로 다시 연다. 못 남겼으면 화면(과 LS 본)을 그대로 둔다
         { const _t = openTabs.find(t => t.id === targetId); if (_t && !_t._goneCopy) _t._goneCopy = true; }   // -02b 표시 없던 탭(보는 동안 폴더가 빠져 앱이 다시 만든 탭)도 거절되면 남은 본이다 — 다시 열기·줄 선 저장 표시가 같은 길을 탄다
         if (saveResult.kept) Promise.resolve(window.reopenReturnedTab?.(targetId, saveResult.kept)).then((shown) => { if (!shown) window.showStatusToast?.(window.folderReturnedNotice?.(proj.name, false, saveResult.kept)); })   // 닫은 탭(나가며 저장)이면 다시 열 탭이 없다 — 남긴 자리만 알린다

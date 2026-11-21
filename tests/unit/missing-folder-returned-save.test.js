@@ -81,6 +81,12 @@ test('N2 [대조] 표시 없는 저장은 평소대로 덮는다', async () => {
   /* ★recreate:false — 이번 실행에 앱이 그 폴더를 «다시 만든» 적이 없는 평범한 경우. returned() 기본(실앱 순서)은 앱이 다시 만든 뒤 대치라
        -02b 가 일부러 막는 꼴(G12)이다(인텔 abecf9295 N2 빨강 = folder_returned · 평소 저장 회귀 아님 · 이 전제만 옛 순서로). */
   const id = await returned({ recreate: false });
+  /* ★기대 바뀜(FILE-CHANGED-OUTSIDE-WHILE-OPEN-OVERWRITE-01 · 현빈 결정 261121): 돌아온 파일은 «밖에서 바뀐» 판이다 — 앱이 쓴 뒤 읽지 않은 탭의 평소 저장은 이제 덮지 않는다(changed_outside · 내 본은 핀).
+       이 칸의 뜻(표시 없는 저장은 folder_returned 갈래가 아니다)은 그대로 · 탭이 파일을 다시 읽은 뒤의 평소 저장은 덮는다. */
+  const r0 = await H.invoke('projects:save', proj(id, '평소'));
+  assert.deepEqual([r0.reason, r0.kept], ['changed_outside', 'history'], '표시 없는 저장 = folder_returned 아님 · 밖에서 바뀐 판은 안 덮음');
+  assert.match(JSON.stringify(file(id)), /돌아온 머리/);
+  await H.invoke('projects:load', id, { open: true });
   assert.equal((await H.invoke('projects:save', proj(id, '평소'))).ok, true);
   assert.match(JSON.stringify(file(id)), /평소 머리/);
 });
