@@ -92,7 +92,7 @@ function _syncPanelXY(posEl) {
                    || document.getElementById('icn-' + suf)
                    || document.getElementById('vb-' + suf)   // VECTOR-OVERLAY-TOGGLE-01 벡터 패널
                    || document.getElementById('lg-' + suf);
-  const xN = pick('x-number'), yN = pick('y-number');
+  const xN = pick('x-number') || document.getElementById('ss-pos-x'), yN = pick('y-number') || document.getElementById('ss-pos-y');   // t13D-05 후속 — 떠 있는 프레임 패널(prop-frame.js 는 X/Y id 가 옛 ss-pos-*)
   if (xN && xN !== document.activeElement) xN.value = posEl.dataset.offsetX;
   if (yN && yN !== document.activeElement) yN.value = posEl.dataset.offsetY;
 }

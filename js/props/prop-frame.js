@@ -524,9 +524,9 @@ function _renderAutoPanel(ss) {
 ` : '') + `
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
-        <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${parseInt(ss.dataset.translateX) || 0}">
+        <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${_groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0)}">
         <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
-        <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${parseInt(ss.dataset.translateY) || 0}">
+        <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${_groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0)}">
       </div>
       <div class="prop-row" style="gap:4px;">
         <span class="prop-label" style="flex-shrink:0;">각도</span>
@@ -754,11 +754,16 @@ function _renderAutoPanel(ss) {
     applyFrameTransform(ss, { identity: 'write' });
     window.scheduleAutoSave?.();
   };
-  document.getElementById('ss-pos-x')?.addEventListener('input', e => { ss.dataset.translateX = parseInt(e.target.value) || 0; _applyTransform(); });
-  document.getElementById('ss-pos-y')?.addEventListener('input', e => { ss.dataset.translateY = parseInt(e.target.value) || 0; _applyTransform(); });
-  // 드래그 커밋(change) 1회 = undo 1액션
-  document.getElementById('ss-pos-x')?.addEventListener('change', () => window.pushHistory?.());
-  document.getElementById('ss-pos-y')?.addEventListener('change', () => window.pushHistory?.());
+  /* ★t13D-05 후속(현빈 261121 «X/Y 칸이 0,0 이 아니라 실제 떠 있는 좌표로»): 떠 있으면 X/Y = 자리 주인 기준 좌표(dataset.offsetX/Y · overlay-float 정본)
+     — 텍스트·에셋 X/Y 와 같은 한 벌(wireFloatPosition: 넣으면 그 자리로 · change = 되돌리기 한 칸). 흐름 프레임은 옛 그대로 translate 미세 이동. */
+  if (_groupFloat) window.wireFloatPosition?.({ block: ss, xId: 'ss-pos-x', yId: 'ss-pos-y' });
+  else {
+    document.getElementById('ss-pos-x')?.addEventListener('input', e => { ss.dataset.translateX = parseInt(e.target.value) || 0; _applyTransform(); });
+    document.getElementById('ss-pos-y')?.addEventListener('input', e => { ss.dataset.translateY = parseInt(e.target.value) || 0; _applyTransform(); });
+    // 드래그 커밋(change) 1회 = undo 1액션
+    document.getElementById('ss-pos-x')?.addEventListener('change', () => window.pushHistory?.());
+    document.getElementById('ss-pos-y')?.addEventListener('change', () => window.pushHistory?.());
+  }
 
   // ── 자식 정렬 핸들러 ──
   const _setAlign = (alignItems, justifyContent) => {
