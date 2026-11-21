@@ -1152,14 +1152,18 @@ async function _exportSlideGif() {
     const repeat = (repeatRaw != null && repeatRaw !== '') ? parseInt(repeatRaw) : 1;
     const bW = Math.max(tb.offsetWidth, 1), bH = Math.max(tb.offsetHeight, 1);
     const W = Math.max(320, Math.round(bW * 2)), H = Math.max(40, Math.round(bH * (W / bW)));
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    /* SLIDE-CELL-SHADOW-GIF-01 — 판을 위아래로 칸 그림자만큼 키움(캔버스 clip-path 134 와 같은 셈 · 그림자 0 = 옛 크기 그대로) · 키운 자리도 바탕색 */
+    const pad = Math.round((window.slideShadowPad?.(tb) || 0) * (W / bW)), GH = H + 2 * pad;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = GH;
     const ctx = cv.getContext('2d'), style = _slideBgStyle(tb);
     const plan = mk.plan(tb, _slideAnimNow(), _animType), g = plan.gif;
-    const gif = new GIF({ workers: 2, quality: 8, width: W, height: H, workerScript: 'js/gif.worker.js', repeat: repeat <= 1 ? -1 : repeat - 1 });
+    const gif = new GIF({ workers: 2, quality: 8, width: W, height: GH, workerScript: 'js/gif.worker.js', repeat: repeat <= 1 ? -1 : repeat - 1 });
     for (let i = 0; i < g.frames; i++) {
-      ctx.clearRect(0, 0, W, H);
-      _fillBg(ctx, style, W, H);
+      ctx.clearRect(0, 0, W, GH);
+      _fillBg(ctx, style, W, GH);
+      ctx.save(); ctx.translate(0, pad);
       plan.draw(ctx, W, H, 0, i / g.frames);
+      ctx.restore();
       gif.addFrame(ctx, { copy: true, delay: g.delay });
     }
     gif.on('progress', (p) => { btn.textContent = `생성 중... ${Math.round(p * 100)}%`; });

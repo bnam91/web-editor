@@ -8,6 +8,7 @@
  *   양성대조(CTL2): drawSlides 의 `const y = axis === 'y'` → `const y = false` → S6 빨강
  * S15 칸 «옅게» 그림자(SLIDE-CELL-DEFAULT-SHADOW-01) = 컴패리전 블럭 강조 칼럼 box-shadow 글자 그대로 · 캔버스 값(css)과 GIF 값(y·blur·color)이 같은 그림자
  *   양성대조: slide-frame-CTL36-soft-shadow-drift.patch(soft 를 옛 0 4px 12px 로) → S15 빨강
+ * S16 칸 그림자 넘침(SLIDE-CELL-SHADOW-GIF-01) = 가장 큰 blur+|y| — 옅게 68 · 진하게 38 · 섞임 = 큰 쪽 · 없음/모름 = 0(GIF 판 옛 크기)
  * S14 점 간격·색(SLIDE-DOTS-SPACING-01): 소독(갭 0~40 · 간격 2~40 · 색 #rrggbb[aa] 만) · 띠 = 갭×2 + 점 · drawDots opt(띠 가운데 · 점 사이 · 색)
  * S13 격자 줌아웃(SLIDE-FX-GRID-ZOOMOUT-01): t=0 = 히어로 한 장(첫 장면 크기 · 가운데) · 둘레 들어오는 중 알파 0~1 · 끝 = 7×7(고리 ≤3 49장 전부 알파 1 · 그 밖 고리 = GZ_OUTER_A) · 나선 순번 · 한 바퀴 GZ_S÷속도
  * S12 겹침 간격(SLIDE-FX-OVERLAP-GAP-01): 간격 −80 까지(−99 → −80) · 한 칸 = 카드 + 간격 · ★그림 = 자리 순서(감긴 마지막 카드가 첫 카드 밑 · 뒤 카드 위)
@@ -23,7 +24,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dotBand, gridZoomFrame, gridSpiralIndex, slideGridZoom, GZ_S, GZ_OUTER_A, slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
+import { cellShadowPad, dotBand, gridZoomFrame, gridSpiralIndex, slideGridZoom, GZ_S, GZ_OUTER_A, slideWipe, wipePos, drawWipe, WIPE_S, centerState, centerTrackShift, slideCentered, inPlaceState, drawInPlace, slideInPlace, slideActiveIndex, drawDots, DOT_ON, DOT_OFF, DOT_BAND, normCardW, slideGeom, slideOffset, loopSec, gifPlan, slideInfoText, drawSlides, normLayout, normAnim, diffFromDefault, slideAxis,
   SLIDE_LAYOUT_DEFAULT, SLIDE_ANIM_DEFAULT, FLOW_PX_S, SWIPE_MOVE_S, CELL_SHADOWS, trailGhosts, TRAIL_A, TRAIL_N, TRAIL_MAX } from '../../js/fx/slide-motion.js';
 import { readFileSync } from 'node:fs';
 
@@ -265,4 +266,11 @@ test('T83b 잔상 목록 — 세기가 첫 잔상 불투명 · 뒤로 TRAIL_N �
   assert.deepEqual(at(0), [], '세기 0 = 잔상 없음(= 스와이프)');
   assert.deepEqual(at(40, 'slide-swipe'), [], '다른 효과엔 잔상 없음');
   assert.deepEqual(at(40, 'slide-trail', 0), [], 't=0(첫 장면) = 잔상 없음');
+});
+
+test('S16 칸 그림자 넘침 = 가장 큰 blur+|y| · 없으면 0', () => {
+  assert.equal(cellShadowPad(['soft']), 68);
+  assert.equal(cellShadowPad(['strong', undefined]), 38);
+  assert.equal(cellShadowPad(['strong', 'soft', 'none']), 68);
+  assert.deepEqual([cellShadowPad([]), cellShadowPad([undefined, 'x']), cellShadowPad(null)], [0, 0, 0]);
 });
