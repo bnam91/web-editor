@@ -11,6 +11,15 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
+/* captureTruth(PNG 길)는 electronAPI.captureSectionCdp 로 찍는다 — 하네스 electronAPI 는 «모든 키가 함수»인 Proxy 라 그대로 두면 null → base64,null → ci.onerror(Event).
+   CDP Page.captureScreenshot 으로 갈아 끼운다(slide-frame-cells wireCdp 꼴 · 지디 Electron 전수 261122 «page.evaluate: Event» 11건 = 이 배선 빠짐). */
+async function wireCdp(page) {
+  const cdp = await page.context().newCDPSession(page);
+  await page.exposeFunction('__cdpShot', async ({ x = 0, y = 0, width, height, scale = 1 }) => (await cdp.send('Page.captureScreenshot', {
+    format: 'png', clip: { x: Math.round(x), y: Math.round(y), width: Math.ceil(width), height: Math.ceil(height), scale: scale > 0 && scale <= 4 ? scale : 1 },
+    captureBeyondViewport: true, fromSurface: true })).data);
+  await page.evaluate(() => { const real = window.electronAPI; window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : real?.[k]) }); });
+}
 
 const raf = (p) => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const FEATHER = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.8 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>';
@@ -20,7 +29,7 @@ const MS_OUT = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" v
 
 async function scene(page, name, svg) {
   await page.setViewportSize({ width: 1600, height: 1100 });
-  const errs = await bootApp(page);
+  const errs = await bootApp(page); await wireCdp(page);
   await page.evaluate(async ({ name, svg, out }) => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); window.applyZoom?.(100);
     const sec = c.querySelector('.section-block'); sec.id = 'sI'; window.deselectAll(); window.selectSection(sec);
@@ -102,7 +111,7 @@ test('I5 Iconify 실제 Lucide 꼴(path 의 stroke-width) → 선 두께', async
 
 test('I6 Feather 걸러 검색 — Iconify 검색 0 이면 세트 목록에서', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1100 });
-  const errs = await bootApp(page);
+  const errs = await bootApp(page); await wireCdp(page);
   await page.evaluate(() => {
     window.__fetchLog = []; const f0 = window.fetch;
     window.fetch = async (u, ...a) => { const s = String(u); if (!s.startsWith('https://api.iconify.design/')) return f0(u, ...a); window.__fetchLog.push(s);
