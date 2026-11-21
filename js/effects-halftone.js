@@ -169,18 +169,24 @@ function _cardHtml(el, P) {
             <span class="prop-label">모양</span>
             <select class="prop-select" id="${P}-fxht-shape" aria-label="점 모양">${HT_SHAPES.map((s) => `<option value="${s}"${o.shape === s ? ' selected' : ''}>${shapeLbl[s]}</option>`).join('')}</select>
           </div>
-          <div class="prop-color-row">
+          <div class="prop-row">
             <span class="prop-label">점 색</span>
-            <select class="prop-select" id="${P}-fxht-color-mode" style="flex:0 0 auto;width:auto;" aria-label="점 색 방식"><option value="image"${o.color === 'image' ? ' selected' : ''}>원본 색</option><option value="solid"${o.color !== 'image' ? ' selected' : ''}>한 색</option></select>
-            <div class="prop-color-field"${o.color === 'image' ? ' hidden' : ''}>
+            <select class="prop-select" id="${P}-fxht-color-mode" aria-label="점 색 방식"><option value="image"${o.color === 'image' ? ' selected' : ''}>원본 색</option><option value="solid"${o.color !== 'image' ? ' selected' : ''}>한 색</option></select>
+          </div>
+          <div class="prop-color-row"${o.color === 'image' ? ' hidden' : ''}>   <!-- 색 칸은 제 줄(지디 261121: 한 줄에 셋이면 hex 칸이 잘림) -->
+            <span class="prop-label"></span>
+            <div class="prop-color-field">
               <div class="prop-color-swatch" style="background:${colorHex}"><input type="color" id="${P}-fxht-color" value="${colorHex}"></div>
               <input type="text" class="prop-color-hex" id="${P}-fxht-color-hex" value="${fmt(colorHex)}" maxlength="7" aria-label="점 색">
             </div>
           </div>
-          <div class="prop-color-row">
+          <div class="prop-row">
             <span class="prop-label">바탕</span>
-            <select class="prop-select" id="${P}-fxht-bg-mode" style="flex:0 0 auto;width:auto;" aria-label="바탕 방식"><option value="solid"${o.bg !== 'none' ? ' selected' : ''}>한 색</option><option value="none"${o.bg === 'none' ? ' selected' : ''}>원본 사진</option></select>
-            <div class="prop-color-field"${o.bg === 'none' ? ' hidden' : ''}>
+            <select class="prop-select" id="${P}-fxht-bg-mode" aria-label="바탕 방식"><option value="solid"${o.bg !== 'none' ? ' selected' : ''}>한 색</option><option value="none"${o.bg === 'none' ? ' selected' : ''}>원본 사진</option></select>
+          </div>
+          <div class="prop-color-row"${o.bg === 'none' ? ' hidden' : ''}>   <!-- 색 칸은 제 줄(지디 261121: 한 줄에 셋이면 hex 칸이 잘림) -->
+            <span class="prop-label"></span>
+            <div class="prop-color-field">
               <div class="prop-color-swatch" style="background:${bgHex}"><input type="color" id="${P}-fxht-bg" value="${bgHex}"></div>
               <input type="text" class="prop-color-hex" id="${P}-fxht-bg-hex" value="${fmt(bgHex)}" maxlength="7" aria-label="바탕 색">
             </div>

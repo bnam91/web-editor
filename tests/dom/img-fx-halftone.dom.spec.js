@@ -132,3 +132,18 @@ test('H5 [지킴] 블러(가림)와 겹치면 하프톤 안 그림 · Figma src 
   expect(r, '★가림이 이김').toEqual({ ov: false, src: null });
   expect(errs).toEqual([]);
 });
+
+test('H6 카드 «바탕»·«점 색» hex 칸 안 잘림(지디 261121)', async ({ page }) => {   // 고침: 색 칸을 제 줄로(모드 select 와 한 줄에 셋이면 잘렸다)
+  const errs = await scene(page);
+  await addHalftone(page);
+  await page.evaluate(() => { const b = document.getElementById('asset-fxht-body'); if (b?.hidden) document.getElementById('asset-fxht-head').click(); });
+  await page.selectOption('#asset-fxht-color-mode', 'solid'); await raf(page);
+  await page.evaluate(() => { const b = document.getElementById('asset-fxht-body'); if (b?.hidden) document.getElementById('asset-fxht-head').click(); });
+  const r = await page.evaluate(() => ['asset-fxht-bg-hex', 'asset-fxht-color-hex'].map((id) => {
+    const e = document.getElementById(id), card = document.getElementById('asset-fxht-card');
+    const q = e.getBoundingClientRect(), c = card.getBoundingClientRect();
+    return { id, inside: q.right <= c.right && q.left >= c.left, fits: e.scrollWidth <= e.clientWidth, sw: e.scrollWidth, cw: e.clientWidth };   // 칸 글자가 넘치면 scrollWidth > clientWidth
+  }));
+  expect(r.map((x) => [x.inside, x.fits]), `★hex 칸 카드 안 · 글자 다 보임 ${JSON.stringify(r)}`).toEqual([[true, true], [true, true]]);
+  expect(errs).toEqual([]);
+});
