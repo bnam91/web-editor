@@ -12,6 +12,7 @@
 // 로드 후 ensureLiner가 path id / d / 폰트를 재계산한다.
 
 const LINER_PRESETS = [
+  { value: 'round',    label: '둥글게 (글 기준)' },   // LINETEXT-ARC «기본 둥글게»(현빈 261121 · 지디 추천) — 위로 아치 · 반지름을 비우면 글이 호 약 120° 가 되게 글 길이에 맞춰 저절로
   { value: 'arc-up',   label: 'Arc Up (위로 아치)' },
   { value: 'arc-down', label: 'Arc Down (아래 오목)' },
   { value: 'wave',     label: 'Wave (물결)' },
@@ -22,8 +23,30 @@ const LINER_DEFAULTS = {
   preset:        'arc-up',
   curvature:     50,        // 0~100
   letterSpacing: 0,         // px, 자연 자간에 더하는 추가 자간 (음수 가능)
-  startAngle:    0          // 0~360°, 텍스트 시작(회전) 위치. 0=기본(circle 12시 중앙 / arc·wave 중앙)
+  startAngle:    0,         // 0~360°, 텍스트 시작(회전) 위치. 0=기본(circle 12시 중앙 / arc·wave 중앙)
+  /* LINETEXT-ARC-RESEARCH-01(현빈 261121 발주2 #4 · 비교표 handoff/LINER-ARC-COMPARE-261121.md) — 기본값이면 dataset 에 안 씀(옛 저장본 바이트 무변) */
+  radius:        0,         // px · 0=자동(옛 «블럭 폭» 곡률) · >0 이면 arc-up/arc-down 이 그 반지름 원 위에 글 길이만큼(반원 넘는 호 · 피그마 ARC 와 같은 «글 기준» 휨)
+  flip:          false,     // 원 안쪽 뒤집기 — circle·반지름 모드에서 경로 방향을 거꾸로(글자가 원 안쪽을 향함)
+  strokeColor:   '',        // 외곽선 색 #rrggbb · '' = 없음
+  strokeWidth:   0          // 외곽선 두께 px 0~20 · 0 = 없음
 };
+const LINER_RADIUS_MAX = 2000, LINER_STROKE_MAX = 20;
+const LINER_ROUND_DEG = 120;   // «둥글게»·아치 자동 반지름 — 글이 원을 이만큼 돌게
+/** 글 길이(px) → 그 글이 원을 LINER_ROUND_DEG 만큼 돌게 하는 반지름(px · 정수 · 8 이상). */
+const linerAutoRadius = (textLen) => Math.max(8, Math.round((Number(textLen) || 0) / (LINER_ROUND_DEG * Math.PI / 180)));
+const normRadius = (x) => { const n = Math.round(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(LINER_RADIUS_MAX, n) : 0; };
+const normStrokeWidth = (x) => { const n = Number(x); return Number.isFinite(n) && n > 0 ? Math.min(LINER_STROKE_MAX, Math.round(n * 2) / 2) : 0; };
+const normStrokeColor = (x) => (typeof x === 'string' && /^#[0-9a-f]{6}$/i.test(x) ? x.toLowerCase() : '');
+
+/* 원 위 경로(반지름 모드 · circle 뒤집기) — 글 가운데(startOffset 50%)가 위(down=false) 또는 아래(down=true)에 온다.
+ *   위·바로: 6시 시작 시계방향 → 12시 = 50% · 좌→우 · 글자 바깥쪽(옛 circle 과 같은 길)
+ *   아래·바로: 12시 시작 반시계 → 6시 = 50% · 좌→우 · 글자 안쪽(arc-down 과 같은 바로 섬)
+ *   flip = 같은 시작점에서 방향만 거꾸로(글이 원의 반대편 면으로 — «안쪽 뒤집기»). */
+function buildRadiusPathD(cx, cy, r, down, flip) {
+  const sweep = (down ? 0 : 1) ^ (flip ? 1 : 0);
+  const sy = down ? cy - r : cy + r, ey = down ? cy + r : cy - r;
+  return `M ${cx},${sy} A ${r},${r} 0 1 ${sweep} ${cx},${ey} A ${r},${r} 0 1 ${sweep} ${cx},${sy}`;
+}
 
 const LINER_PAD = 12;     // 좌우 패딩 P (글자 잘림 방지)
 const LINER_BASE_H = 80;  // 기본 블록/뷰박스 높이
@@ -204,6 +227,10 @@ function applyLiner(block, opts) {
   cfg.curvature     = normCurvature(cfg.curvature);          // m7: NaN → 기본값
   cfg.letterSpacing = normLetterSpacing(cfg.letterSpacing);  // #1: 자간 정규화
   cfg.startAngle    = normStartAngle(cfg.startAngle);        // 시작각(회전) 정규화
+  cfg.radius        = normRadius(cfg.radius);
+  cfg.flip          = cfg.flip === true || cfg.flip === 'true';
+  cfg.strokeColor   = normStrokeColor(cfg.strokeColor);
+  cfg.strokeWidth   = normStrokeWidth(cfg.strokeWidth);
 
   // 사용자 폰트크기 = "원하는 최대치" (#3) — 미러 inline style 우선, 없으면 computed
   const csEarly = window.getComputedStyle(mirror);
@@ -217,7 +244,7 @@ function applyLiner(block, opts) {
 
   // 폭: 블록(미러) 실측 폭 — 0이면 fallback
   const W = Math.max(120, Math.round(mirror.offsetWidth || block.offsetWidth || 600));
-  const P = LINER_PAD;
+  let P = LINER_PAD;   // 가로 지킴이(아래)가 끝 글자 잘림을 막으려 늘릴 수 있다
   const pid = linerPathId(block);
 
   // 폰트/색 — 미러 div style/computed에서 복사 (단일 소스 = 미러)
@@ -259,6 +286,10 @@ function applyLiner(block, opts) {
   textEl.setAttribute('font-style', fontStyle);
   textEl.setAttribute('fill', fill);
   textEl.setAttribute('letter-spacing', String(ls));
+  if (cfg.strokeWidth > 0 && cfg.strokeColor) {   // 외곽선 — 칠 뒤에 그려 글자 모양을 안 먹는다(paint-order)
+    textEl.setAttribute('stroke', cfg.strokeColor); textEl.setAttribute('stroke-width', String(cfg.strokeWidth));
+    textEl.setAttribute('stroke-linejoin', 'round'); textEl.setAttribute('paint-order', 'stroke fill');
+  } else { ['stroke', 'stroke-width', 'stroke-linejoin', 'paint-order'].forEach((a) => textEl.removeAttribute(a)); }
   // 측정 신뢰성: 항상 자연 자간(stretch 미설정)
   tp.removeAttribute('textLength');
   tp.removeAttribute('lengthAdjust');
@@ -268,6 +299,15 @@ function applyLiner(block, opts) {
   path.setAttribute('fill', 'none');
 
   const isCircle = (cfg.preset === 'circle');
+  const isRound = cfg.preset === 'round';
+  const radiusMode = isRound || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0);
+  /* «둥글게» 반지름 = 넣은 값 · 비면 지금 글 길이(사용자 글자 크기)에서 저절로 — 글을 고치면 따라감 */
+  let roundAutoR = 0;
+  if (isRound && !cfg.radius) { textEl.setAttribute('font-size', String(Math.max(6, userFontPx))); let n0 = 0; try { n0 = tp.getComputedTextLength(); } catch (e) { n0 = 0; } roundAutoR = linerAutoRadius(n0); }
+  /* 경로 d 한 자리 — 반지름 모드·circle 뒤집기는 원 경로, 그 밖은 옛 buildLinerPathD 그대로 */
+  const buildD = (Hx, cyx) => (radiusMode ? buildRadiusPathD(W / 2, cyx, pathK, cfg.preset === 'arc-down', cfg.flip)
+    : (isCircle && cfg.flip) ? buildRadiusPathD(W / 2, cyx, pathK, false, true)
+    : buildLinerPathD(cfg.preset, cfg.curvature, W, Hx, P, cyx, pathK));
   // effFont = userFont 그대로 시작 (곡률→폰트 연동 제거: 곡률 바꿔도 글자크기 불변).
   // 가로 넘칠 때만 아래 fit-to-width 루프가 줄인다.
   let effFont = Math.max(6, userFontPx);
@@ -290,6 +330,12 @@ function applyLiner(block, opts) {
       H = W;                       // 정사각형
       cy = Math.round(H / 2);      // 원 중심 = 블록 중앙
       pathK = r;
+    } else if (radiusMode) {
+      // 반지름 모드 — 원(반지름 R) 위에 글 길이만큼. 처음엔 원 전체 상자 · 아래 LINERH 가 글이 덮는 구간으로 높이를 조인다.
+      const ascent = effFont * 0.85, descent = effFont * 0.30;
+      pathK = cfg.radius || roundAutoR;
+      cy = Math.round(6 + ascent + pathK);
+      H  = Math.round(cy + pathK + descent + 6);
     } else {
       // ── arc/wave: effFont 기준 높이/베이스라인 (#2) ──
       const availW  = W - 2 * P;
@@ -319,9 +365,9 @@ function applyLiner(block, opts) {
       }
     }
     // write: 현재 프리셋 path d 적용
-    path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, H, P, cy, pathK));
+    path.setAttribute('d', buildD(H, cy));
     // avail: 방금 쓴 path의 실제 길이 (원형=둘레, arc/wave=곡선 호 길이)
-    let avail = isCircle ? (2 * Math.PI * pathK) : (W - 2 * P);
+    let avail = (isCircle || radiusMode) ? (2 * Math.PI * pathK) : (W - 2 * P);
     try {
       if (path.getTotalLength) { const L = path.getTotalLength(); if (Number.isFinite(L) && L > 0) avail = L; }
     } catch (e) { /* fallback */ }
@@ -336,7 +382,9 @@ function applyLiner(block, opts) {
   };
 
   // M4b: 반복 수렴 루프 — 넘치면 축소 후 재측정, 수렴(또는 폰트 하한) 시 종료.
-  let m = writeAndMeasure();
+  let m, stretchFallback = false;
+  const fitAndTighten = () => {
+  m = writeAndMeasure();
   let iter = 0;
   while (m.natural > m.avail && m.natural > 0 && effFont > LINER_FONT_FLOOR && iter < LINER_FIT_ITERS) {
     effFont = Math.max(LINER_FONT_FLOOR, effFont * (m.avail / m.natural) * 0.985); // 0.985 안전마진
@@ -344,7 +392,7 @@ function applyLiner(block, opts) {
     iter++;
   }
   // M4b 폴백: 폰트 하한에 닿고도 여전히 넘치면 textLength=avail + lengthAdjust=spacing 으로 강제 수용.
-  const stretchFallback = (m.natural > m.avail && m.natural > 0);
+  stretchFallback = (m.natural > m.avail && m.natural > 0);
   if (stretchFallback) {
     tp.setAttribute('textLength', String(Math.max(1, Math.round(m.avail))));
     tp.setAttribute('lengthAdjust', 'spacing');
@@ -394,7 +442,7 @@ function applyLiner(block, opts) {
 
       if (sampled > 0 && Number.isFinite(minBaseY) && Number.isFinite(maxBaseY)) {
         const ascent = effFont * 0.85;
-        const descent = effFont * 0.30;
+        const descent = radiusMode ? ascent : effFont * 0.30;   // 반지름 모드는 원 아래쪽 글자가 거꾸로·옆으로 서서 아래로도 ascent 만큼 뻗는다(실측: r49 아래 글자 잘림)
         const padTop = 6, padBottom = 6;
         const band = maxBaseY - minBaseY;
         const newH = Math.round(band + ascent + descent + padTop + padBottom);
@@ -402,12 +450,33 @@ function applyLiner(block, opts) {
         const shift = Math.round(padTop + ascent - minBaseY);
         const cyNew = cy + shift;
         if (Number.isFinite(newH) && newH > 0 && Number.isFinite(cyNew)) {
-          path.setAttribute('d', buildLinerPathD(cfg.preset, cfg.curvature, W, newH, P, cyNew, pathK));
+          path.setAttribute('d', buildD(newH, cyNew));
           H = newH;
           cy = cyNew;
         }
       }
     } catch (e) { /* getTotalLength/getPointAtLength 실패 → 기존 H 유지 */ }
+  }
+  };
+  fitAndTighten();
+
+  /* ★가로 지킴이(LINETEXT-ARC 곁 결함 · 비교표 2행) — 글이 덮는 구간의 베이스라인 x 에 글자 높이(ascent)만큼 여유를 두고
+   *   상자(0..W) 밖으로 나가면: 옛 곡률 모드 = 좌우 패딩 P 를 넘친 만큼 늘려 다시(호가 좁아짐) · 반지름 모드 = 글자를 줄여 다시.
+   *   넓은 블럭(글이 호 가운데)은 넘침 0 ⇒ 아무것도 안 바뀜(옛 결과 그대로). circle(바로)은 정사각 + 반지름에 ascent 를 이미 뺌 ⇒ 건너뜀. */
+  if (!(isCircle && !cfg.flip)) {
+    for (let g = 0; g < 3; g++) {
+      let L = 0; try { L = path.getTotalLength(); } catch (e) { L = 0; }
+      if (!(L > 0) || !path.getPointAtLength || !(m.natural > 0)) break;
+      const half = Math.min(0.5, (Math.min(m.natural, m.avail) / 2) / L), a = effFont * 0.85 + (cfg.strokeWidth || 0) / 2;
+      const c = (L * startPct) / 100;   // 글 가운데 = startOffset
+      let minX = Infinity, maxX = -Infinity;
+      for (let i = 0; i <= 40; i++) { let at = c + L * half * (2 * i / 40 - 1); at = ((at % L) + L) % L; const pt = path.getPointAtLength(at); if (pt.x < minX) minX = pt.x; if (pt.x > maxX) maxX = pt.x; }
+      const over = Math.max(0, a - minX, maxX + a - W);
+      if (!(over > 0.5)) break;
+      if (radiusMode || isCircle) effFont = Math.max(LINER_FONT_FLOOR, effFont * Math.min(0.95, (W - 2 * a) / Math.max(1, maxX - minX)));
+      else P += Math.ceil(over);
+      fitAndTighten();
+    }
   }
 
   // viewBox / 크기
@@ -426,7 +495,11 @@ function applyLiner(block, opts) {
   block.style.minHeight = H + 'px';
 
   // dataset 저장 (autoSave가 outerHTML 직렬화 → data-* 보존). 사용자 폰트크기는 미러가 보존, 여기엔 effFont 미저장.
-  block.dataset.liner = JSON.stringify({ preset: cfg.preset, curvature: cfg.curvature, letterSpacing: cfg.letterSpacing, startAngle: cfg.startAngle });
+  const out = { preset: cfg.preset, curvature: cfg.curvature, letterSpacing: cfg.letterSpacing, startAngle: cfg.startAngle };
+  if (cfg.radius) out.radius = cfg.radius;            // LINETEXT-ARC — 기본값은 안 씀(옛 바이트 그대로)
+  if (cfg.flip) out.flip = true;
+  if (cfg.strokeWidth && cfg.strokeColor) { out.strokeColor = cfg.strokeColor; out.strokeWidth = cfg.strokeWidth; }
+  block.dataset.liner = JSON.stringify(out);
 }
 
 // 저장/로드 사이클에서 SVG가 innerHTML로 살아있어도 path id/폭변화 재계산
@@ -480,7 +553,7 @@ function enhanceLinerPropPanel(block) {
       </div>
       <div class="prop-row">
         <span class="prop-label" id="lnr-curvature-label">${cfg.preset === 'circle' ? '원 크기' : '곡률'}</span>
-        <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}">
+        <input type="range" class="prop-slider" id="lnr-curvature" min="0" max="100" value="${cfg.curvature}"${cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? ' disabled title="반지름을 넣으면 곡률 대신 반지름이 휨을 정합니다"' : ''}>
         <span id="lnr-curvature-val">${cfg.curvature}</span>
       </div>
       <div class="prop-row">
@@ -492,6 +565,20 @@ function enhanceLinerPropPanel(block) {
         <span class="prop-label">시작 위치</span>
         <input type="range" class="prop-slider" id="lnr-startangle" min="0" max="360" step="1" value="${cfg.startAngle}">
         <span id="lnr-startangle-val">${cfg.startAngle}°</span>
+      </div>
+      <div class="prop-row" id="lnr-radius-row"${cfg.preset === 'arc-up' || cfg.preset === 'arc-down' || cfg.preset === 'round' ? '' : ' hidden'}>
+        <span class="prop-label">반지름</span>
+        <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
+      </div>
+      <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
+        <span class="prop-label">안쪽 뒤집기</span>
+        <label class="prop-toggle"><input type="checkbox" id="lnr-flip"${cfg.flip ? ' checked' : ''}><span class="prop-toggle-track"></span></label>
+      </div>
+      <div class="prop-row" data-own="special">
+        <span class="prop-label">외곽선</span>
+        <input type="color" id="lnr-outline-color" value="${cfg.strokeColor || '#000000'}" aria-label="곡선 글자 외곽선 색">
+        <input type="range" class="prop-slider" id="lnr-outline-width" min="0" max="${LINER_STROKE_MAX}" step="0.5" value="${cfg.strokeWidth || 0}" aria-label="곡선 글자 외곽선 두께">
+        <span id="lnr-outline-width-val">${cfg.strokeWidth || 0}</span>
       </div>`;
 
   window.placeTextPanelSection?.(propPanel, 'special', html, { title: 'Curve', id: 'liner-controls-section' });
@@ -501,8 +588,16 @@ function enhanceLinerPropPanel(block) {
       preset:        propPanel.querySelector('#lnr-preset').value,
       curvature:     parseInt(propPanel.querySelector('#lnr-curvature').value),
       letterSpacing: parseFloat(propPanel.querySelector('#lnr-letterspacing').value),
-      startAngle:    parseInt(propPanel.querySelector('#lnr-startangle').value)
+      startAngle:    parseInt(propPanel.querySelector('#lnr-startangle').value),
+      radius:        normRadius(propPanel.querySelector('#lnr-radius')?.value),
+      flip:          !!propPanel.querySelector('#lnr-flip')?.checked,
+      strokeColor:   propPanel.querySelector('#lnr-outline-color')?.value || '',
+      strokeWidth:   parseFloat(propPanel.querySelector('#lnr-outline-width')?.value) || 0
     };
+    const arc = next.preset === 'arc-up' || next.preset === 'arc-down', round = next.preset === 'round';   // 줄 보이기 — 반지름 = arc·둥글게 · 뒤집기 = circle·둥글게·반지름 모드
+    propPanel.querySelector('#lnr-radius-row')?.toggleAttribute('hidden', !(arc || round));
+    propPanel.querySelector('#lnr-flip-row')?.toggleAttribute('hidden', !(next.preset === 'circle' || round || (arc && next.radius > 0)));
+    { const cv = propPanel.querySelector('#lnr-curvature'); if (cv) cv.disabled = round || (arc && next.radius > 0); }   // 반지름 모드·둥글게 = 곡률 안 씀
     applyLiner(block, next);
     return next;
   };
@@ -519,6 +614,13 @@ function enhanceLinerPropPanel(block) {
     window.pushHistory?.('곡선 텍스트 글자크기'); window.scheduleAutoSave?.();
   });
   propPanel.querySelector('#lnr-preset')?.addEventListener('change', () => {
+    /* «기본 둥글게» — 아치(위/아래)를 «처음» 고를 때(반지름 칸이 빔) 지금 글 길이로 반지름을 채운다(글이 약 120°) · 사용자가 고친 값은 그대로 둔다 */
+    const pv = propPanel.querySelector('#lnr-preset').value, rIn = propPanel.querySelector('#lnr-radius');
+    if ((pv === 'arc-up' || pv === 'arc-down') && rIn && !normRadius(rIn.value)) {
+      const t = block.querySelector('svg.lnr-svg text textPath'), te = block.querySelector('svg.lnr-svg text');
+      let n = 0; try { if (te) te.setAttribute('font-size', String(curFont)); n = t ? t.getComputedTextLength() : 0; } catch (e) { n = 0; }
+      if (n > 0) rIn.value = String(linerAutoRadius(n));
+    }
     const lbl = propPanel.querySelector('#lnr-curvature-label');
     if (lbl) lbl.textContent = (propPanel.querySelector('#lnr-preset').value === 'circle') ? '원 크기' : '곡률';
     read(); window.pushHistory?.('곡선 텍스트 프리셋'); window.scheduleAutoSave?.();
@@ -545,6 +647,13 @@ function enhanceLinerPropPanel(block) {
   propPanel.querySelector('#lnr-startangle')?.addEventListener('change', () => {
     window.pushHistory?.('곡선 텍스트 시작위치'); window.scheduleAutoSave?.();
   });
+  // LINETEXT-ARC — 반지름(px) · 안쪽 뒤집기 · 외곽선: 적용 뒤 기록(push-after · 이웃 칸과 같은 규약)
+  propPanel.querySelector('#lnr-radius')?.addEventListener('change', () => { read(); window.pushHistory?.('곡선 텍스트 반지름'); window.scheduleAutoSave?.(); });
+  propPanel.querySelector('#lnr-flip')?.addEventListener('change', () => { read(); window.pushHistory?.('곡선 텍스트 뒤집기'); window.scheduleAutoSave?.(); });
+  propPanel.querySelector('#lnr-outline-color')?.addEventListener('input', () => read());
+  propPanel.querySelector('#lnr-outline-color')?.addEventListener('change', () => { window.pushHistory?.('곡선 텍스트 외곽선'); window.scheduleAutoSave?.(); });
+  propPanel.querySelector('#lnr-outline-width')?.addEventListener('input', (e) => { propPanel.querySelector('#lnr-outline-width-val').textContent = e.target.value; read(); });
+  propPanel.querySelector('#lnr-outline-width')?.addEventListener('change', () => { window.pushHistory?.('곡선 텍스트 외곽선'); window.scheduleAutoSave?.(); });
 }
 
 // ── 로드 시 모든 liner-block 복구 ──
@@ -581,4 +690,6 @@ window.ensureLiner           = ensureLiner;
 window.enhanceLinerPropPanel = enhanceLinerPropPanel;
 window.initLinersInDom       = initLinersInDom;
 window.LINER_DEFAULTS        = LINER_DEFAULTS;
+window.buildRadiusPathD      = buildRadiusPathD;
+window.linerAutoRadius       = linerAutoRadius;
 window.LINER_PRESETS         = LINER_PRESETS;
