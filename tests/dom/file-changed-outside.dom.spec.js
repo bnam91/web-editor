@@ -7,6 +7,7 @@
  * D5 내 본을 못 남김(kept:false) → «다시 불러오기» 없음(화면을 버릴 수 없다)
  * D6 [적대 리뷰 2] 글 상자에서 치던 중 상자가 뜨면 — 글·⌘Z·지우기가 캔버스에 안 닿는다(대조 실측: 키 캡처 줄을 걷으면 ⌘Z 가 상자 뒤 편집을 되돌려 빨강)
  * D7 [적대 리뷰 1·3] 상자 뜬 채 새로고침·창 닫기(beforeunload) — main 이 남긴 본(changed_outside·kept)은 LS 에 다시 안 쓰고 남은 LS 본도 걷는다(두면 다음 열기가 밖의 판을 덮는다) · 실패 아님(닫기 보류 0)
+ * D8 [적대 리뷰 2-4] 핀 없음(비상 사본) → «다시 불러오기» 없음 · «나중에»로 닫힘(갇히지 않음) · 키 캡처도 풀림
  * 양성대조: _patches/file-changed-outside-dom-CTL.patch(save-load 의 changed_outside 갈래 걷음) → D1 빨강.
  * 셀렉터·전역 대조(제품 소스 grep): #outside-change-overlay · .outside-change-reload · .outside-change-mine · .outside-change-msg(js/tab-system.js) · saveProjectToFile · serializeProject · switchTab · waitSavesFor(save-load.js)
  */
@@ -108,7 +109,7 @@ test('D5 내 본을 못 남김 → 다시 불러오기 없음', async ({ page })
 
 test('D6 상자 뒤로 키가 안 샌다(글·지우기·되돌리기)', async ({ page }) => {
   const errs = await setup(page);
-  await page.evaluate(() => { const p = document.querySelector('#canvas .text-block p'); p.closest('.text-block').setAttribute('contenteditable', 'true'); p.focus(); });   // 글 상자에서 치던 중
+  await page.evaluate(() => { const p = document.querySelector('#canvas .text-block p'); const tb = p.closest('.text-block'); tb.setAttribute('contenteditable', 'true'); tb.focus(); });   // 글 상자에서 치던 중
   await outsideThenEdit(page);
   const n0 = await page.evaluate(() => document.querySelectorAll('#canvas .text-block').length);
   await page.keyboard.type('ZZZ');
@@ -128,5 +129,18 @@ test('D7 상자 뜬 채 beforeunload — 남긴 본은 LS 에 다시 안 씀 · 
   const r = await page.evaluate(() => { window.dispatchEvent(new Event('beforeunload')); return { sync: window.__syncSent || 0, ls: localStorage.getItem('web-editor-autosave__proj_b'), held: window.__held }; });
   expect(r.sync > 0, '[전제] 동기 저장이 나갔다').toBe(true);
   expect({ ls: r.ls, held: r.held }, '★남긴 본을 LS 에 다시 썼다(다음 열기가 밖의 판을 덮는다) · 또는 실패로 닫기 보류').toEqual({ ls: null, held: 0 });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D8 핀 없음(비상 사본) → «나중에»로 닫힘 · 키 캡처 풀림', async ({ page }) => {
+  const errs = await setup(page, { kept: 'emergency' });
+  await outsideThenEdit(page);
+  const ui = await page.evaluate(() => ({ reload: !document.querySelector('.outside-change-reload').hidden, later: !document.querySelector('.outside-change-later').hidden }));
+  expect(ui, '★비상 사본이면 화면을 버리는 단추 없음 · 나중에 있음').toEqual({ reload: false, later: true });
+  await page.click('.outside-change-later');
+  expect(await page.evaluate(() => !!document.getElementById('outside-change-overlay'))).toBe(false);
+  await page.evaluate(() => { const p = document.querySelector('#canvas .text-block p'); const tb = p.closest('.text-block'); tb.setAttribute('contenteditable', 'true'); tb.focus(); });
+  await page.keyboard.type('QQ');
+  expect(await page.evaluate(() => document.getElementById('canvas').textContent.includes('QQ')), '★닫은 뒤에도 키가 막혔다').toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

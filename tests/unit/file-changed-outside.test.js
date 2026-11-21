@@ -7,13 +7,14 @@
  * O5 «내 것으로 저장»(_overOutside) → 밖의 판을 핀 outside-theirs 로 먼저 남기고 덮음 · 그 뒤 평소 저장 통과(새 바탕)
  * O6 «내 것으로 저장» 인데 밖의 판 핀을 못 남김 → 안 덮음(theirsNotKept)
  * O7 내 본 핀을 못 남김 → 비상 사본(kept 'emergency') · 그래도 안 덮음
- * O11 [옛 가드에 맡김] 밖의 판이 프로젝트로 안 읽힘(깨짐) → 이 갈래는 거절 안 함 · 롤링 백업이 깨진 판을 옆에 둔 뒤 씀
- * O12 [적대 리뷰 4] 밖의 판이 프로젝트 꼴이 아닌 JSON → 옆에 먼저 둔 뒤 씀(옛 롤링 백업은 not_project 를 안 남겼다)
+ * O11 밖의 판이 깨짐(쓰는 중 잘림일 수 있다) → 자동저장 거절·내 본 핀 · «내 것»은 옆에 둔 뒤 씀(적대 리뷰 2-2)
+ * O12 밖의 판이 프로젝트 꼴 아닌 JSON → 자동저장 거절 · «내 것»은 옆에 둔 뒤 씀(옛 롤링 백업은 not_project 를 안 남겼다)
+ * O14 [적대 리뷰 2-1] 병합 로드가 밖에서 바뀐 파일 위에 자가치유 안 함 · O15 [2-5] _overFile 쓰기 통과 · 낡은 탭은 계속 거절
  * O13 [적대 리뷰 4] 밖의 판을 못 읽음(권한 0) → 안 덮음 · 내 본 핀
  * O8 [옛 동작] 이번 실행에 안 읽은(도장 없는) 파일 → 평소대로 씀 · 제 저장 둘 연달아 = 거절 없음
  * O9 같은 본(시각만 다름)의 두 거절 = 핀 하나 · 다른 본은 따로
  * O10 밖에서 바뀐 뒤 이름 바꾸기(overFile — 지금 파일 위)는 통과 · 낡은 탭 저장은 계속 거절(poison) · 다시 열면 평소
- * 양성대조: _patches/file-changed-outside-CTL.patch(_outsideRefusal 첫 줄 return null) → O1·O2·O4b·O5·O6·O7·O9·O10 빨강.
+ * 양성대조(실측): _patches/file-changed-outside-CTL.patch(_outsideRefusal 첫 줄 return null) → O1·O2·O4b·O5·O6·O7·O9·O10·O11·O12·O13·O15 빨강 (O14 = 병합 로드 갈래 · 대조 실측: heal 늘 true 로 되돌리면 빨강).
  */
 'use strict';
 const { test } = require('node:test');
@@ -141,21 +142,43 @@ test('O10 밖에서 바뀐 뒤 이름 바꾸기는 통과 · 낡은 탭 저장�
   await H.invoke('projects:load', id, { open: true });
   assert.equal((await H.invoke('projects:save', proj(id, '다시연뒤'))).ok, true);
 });
-test('O11 밖의 판이 깨짐 → 이 갈래는 거절 안 함 · 롤링 백업이 옆에 두고 씀', async () => {
+test('O11 밖의 판이 깨짐(쓰는 중 잘림일 수 있다) → 자동저장은 안 덮고 내 본 핀 · «내 것으로 저장»은 옆에 둔 뒤 씀', async () => {
   const id = await opened();
   outside(id, '{깨진');
   const r = await H.invoke('projects:save', proj(id, '내편집'));
-  assert.equal(r.ok, true, JSON.stringify(r));
-  const dirFiles = fs.readdirSync(path.join(H.projectsDir, id));
-  assert.ok(dirFiles.some((f) => f !== 'proj.json' && fs.statSync(path.join(H.projectsDir, id, f)).isFile() && fs.readFileSync(path.join(H.projectsDir, id, f), 'utf8') === '{깨진'), `깨진 판이 옆에 안 남았다 ${dirFiles}`);
+  assert.deepEqual([r.ok, r.reason, r.kept], [false, 'changed_outside', 'history'], '★깨진(잘린) 밖의 판을 덮었다');
+  assert.equal(file(id), '{깨진');
+  const m = await H.invoke('projects:save', { ...proj(id, '내편집'), _overOutside: true });
+  assert.equal(m.ok, true, JSON.stringify(m));
+  const d = path.join(H.projectsDir, id);
+  assert.ok(fs.readdirSync(d).some((f) => f !== 'proj.json' && fs.statSync(path.join(d, f)).isFile() && fs.readFileSync(path.join(d, f), 'utf8') === '{깨진'), '깨진 판이 옆에 안 남았다');
 });
-test('O12 밖의 판이 프로젝트 꼴이 아닌 JSON → 옆에 먼저 두고 씀', async () => {
+test('O12 밖의 판이 프로젝트 꼴 아닌 JSON → 자동저장은 안 덮음 · «내 것»은 옆에 둔 뒤 씀', async () => {
   const id = await opened();
   outside(id, '{"hello":1}');
   const r = await H.invoke('projects:save', proj(id, '내편집'));
-  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.reason, 'changed_outside');
+  assert.equal(file(id), '{"hello":1}', '★꼴 아닌 밖의 판을 덮었다');
+  assert.equal((await H.invoke('projects:save', { ...proj(id, '내편집'), _overOutside: true })).ok, true);
   const d = path.join(H.projectsDir, id);
-  assert.ok(fs.readdirSync(d).some((f) => f !== 'proj.json' && fs.statSync(path.join(d, f)).isFile() && fs.readFileSync(path.join(d, f), 'utf8') === '{"hello":1}'), '★밖의 판(프로젝트 꼴 아님)이 아무 데도 안 남고 덮였다');
+  assert.ok(fs.readdirSync(d).some((f) => f !== 'proj.json' && fs.statSync(path.join(d, f)).isFile() && fs.readFileSync(path.join(d, f), 'utf8') === '{"hello":1}'), '★밖의 판(꼴 아님)이 아무 데도 안 남고 덮였다');
+});
+test('O14 [적대 리뷰 2-1] 저장 병합용 로드(열기 아님)는 밖에서 바뀐 파일 위에 자가치유하지 않는다', async () => {
+  const id = await opened();
+  assert.equal((await H.invoke('projects:save', proj(id, '둘째'))).ok, true, '[전제] 백업 후보가 생긴다');
+  outside(id, '{"hello":1}');
+  await H.invoke('projects:load', id);   // 렌더러 저장 길이 저장 전에 부르는 병합 로드
+  assert.equal(file(id), '{"hello":1}', '★병합 로드가 밖의 판을 백업으로 덮었다');
+});
+test('O15 [적대 리뷰 2-5] _overFile(방금 지금 파일을 읽어 고친 쓰기) → 통과 · 표시는 파일에 안 감 · 열린 탭의 낡은 저장은 계속 거절', async () => {
+  const id = await opened();
+  outside(id, JSON.stringify(proj(id, '밖')));
+  const cur = JSON.parse(file(id));
+  const r = await H.invoke('projects:save', { ...cur, imageGallery: ['x'], _overFile: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(file(id).includes('_overFile'), false);
+  assert.match(file(id), /밖 머리/);
+  assert.equal((await H.invoke('projects:save', proj(id, '낡은탭'))).reason, 'changed_outside', '★낡은 탭이 밖의 판을 덮었다');
 });
 test('O13 밖의 판을 못 읽음 → 안 덮음 · 내 본 핀', { skip: process.getuid && process.getuid() === 0 ? 'root 는 권한 0 도 읽는다' : false }, async () => {
   const id = await opened();

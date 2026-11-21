@@ -2629,7 +2629,9 @@ ipcMain.handle('projects:load', (event, id, opts) => {
   if (isOpen) { try { _externalizeOnOpen(event, id, opts); } catch (e) { console.warn('[externalize] on-open 실패(무시):', e && e.message); } }
   const key = _safeSeg(String(id || ''));
   const diag = {};
-  const r = readProjectWithFallback(id, { heal: true, diag });   // ★E168 — 목록과 같은 한 곳
+  /* FILE-CHANGED 적대 리뷰 2-1 — 저장 병합용 로드(열기 아님)는 밖에서 바뀐 파일 위에 자가치유(백업으로 덮어쓰기)하지 않는다 · 그 판은 저장 길(_outsideRefusal)이 고르게 한다 */
+  const _ppL = typeof _projOutsideChanged === 'function' && !isOpen ? _resolveProjectJsonPath(String(id || '')) : null;
+  const r = readProjectWithFallback(id, { heal: !(_ppL && _projOutsideChanged(_ppL, true)), diag });   // ★E168 — 목록과 같은 한 곳
   // 못 읽음(EMFILE·EACCES 등)은 깨짐이 아니다 — 열기는 실패로 말하고 파일은 그대로. 저장 병합용 로드는 있는 후보로.
   if (isOpen && diag.planning && !r) return { _planning: true };   // 기획 프로젝트는 편집기 것이 아니다 — 빈 판으로 열면 저장이 기획 칸을 지운다
   if (diag.readError) return isOpen ? { _readError: diag.readError } : (r ? r.proj : null);
@@ -2895,7 +2897,7 @@ function _goneStamp(id) { try { const p = _resolveProjectJsonPath(id); const st 
 const _projStamps = new Map();
 const _projSha = (t) => require('crypto').createHash('sha1').update(t).digest('hex');
 function _projStampFresh(p, text) {
-  try { const st = fs.statSync(p); if (text == null) text = fs.readFileSync(p, 'utf8'); _projStamps.set(p, { ino: st.ino, mtimeMs: st.mtimeMs, size: st.size, sha: _projSha(text) }); }
+  try { const st = fs.statSync(p); if (text == null) text = _SS().readTextRetry(p); _projStamps.set(p, { ino: st.ino, mtimeMs: st.mtimeMs, size: st.size, sha: _projSha(text) }); }
   catch (_) { /* 못 잼 — 옛 도장을 둔다(지우면 감지가 꺼진다 · 남기면 다음 비교가 «다름»으로 안전 쪽 · FILE-CHANGED 적대 리뷰 6) */ }
 }
 /** 앱의 다른 쓰기(외부화 모듈 — 제 atomicWrite)를 감싼다: 부를 때 «밖에서 바뀜»을 재 두고 쓰기 뒤 도장. */
@@ -2911,7 +2913,7 @@ function _projOutsideChanged(p, unknown = true) {
   try { st = fs.statSync(p); } catch (e) { return e && e.code === 'ENOENT' ? false : unknown; }
   if (st.ino === s.ino && st.mtimeMs === s.mtimeMs && st.size === s.size) return false;
   let text;
-  try { text = fs.readFileSync(p, 'utf8'); } catch (_) { return unknown; }
+  try { text = _SS().readTextRetry(p); } catch (_) { return unknown; }   // EBUSY·EMFILE 등 잠깐의 실패는 다시 읽는다(적대 리뷰 2-7)
   if (_projSha(text) !== s.sha) return true;
   _projStamps.set(p, { ino: st.ino, mtimeMs: st.mtimeMs, size: st.size, sha: s.sha });   // 같은 내용을 밖이 다시 썼다 — 새 ino·시각으로 갈아 둔다
   return false;
@@ -2922,30 +2924,32 @@ function _projOutsideChanged(p, unknown = true) {
 function _outsideRefusal(project) {
   if (!project) return null;
   const over = project._overOutside === true;
-  delete project._overOutside;
-  if (project[Symbol.for('goditor.overFile')]) return null;
+  const readNow = project._overFile === true;   // 렌더러의 «방금 지금 파일을 읽어 고친» 쓰기(닫힌 프로젝트의 글꼴 대체·AI 갤러리 덧붙임) — 지켜 줄 것이 없다(적대 리뷰 2-5)
+  delete project._overOutside; delete project._overFile;
+  if (readNow || project[Symbol.for('goditor.overFile')]) return null;   // 쓰기 뒤 도장: 밖에서 바뀐 판 위였으면 poison(열린 탭의 낡은 저장은 계속 거절)
   const key = String(project.id);
   const p = _resolveProjectJsonPath(key);
   if (!p || !_projOutsideChanged(p, true)) return null;
   let raw = null, theirs = null;
-  try { raw = fs.readFileSync(p, 'utf8'); } catch (_) { raw = null; }   // 못 읽음 = 밖의 판을 모른다 — 덮지 않는다(아래 내 본 남김)
+  try { raw = _SS().readTextRetry(p); } catch (_) { raw = null; }   // 못 읽음 = 밖의 판을 모른다 — 덮지 않는다(아래 내 본 남김)
   if (raw != null) { try { theirs = JSON.parse(raw); } catch (_) { theirs = null; } }
   const shaped = !!theirs && _SS().isProjectShaped(theirs);
-  /* 밖의 판이 프로젝트로 안 읽힘(깨짐·다른 꼴) — 그 바이트를 옆에 먼저 둔다(preserveUnreadable) · 둔 때만 옛 길로 씀 · 기획 파일은 쓰기 길이 거절(적대 리뷰 4) */
-  if (raw != null && !shaped) {
-    if (theirs && theirs.type === 'planning') return null;
-    let aside = null;
-    try { aside = _SS().preserveUnreadable(p, path.dirname(p)); } catch (_) { aside = null; }
-    if (aside) { _projStampFresh(p); return null; }   // 옆에 뒀다 — 이 쓰기가 새 바탕(poison 안 남김)
-  }
+  if (theirs && !shaped && theirs.type === 'planning') return null;   // 기획 파일 = 쓰기 길이 거절(planning_not_editor)
   if (over) {
-    if (!shaped) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
-    let r = null;
-    try { r = _SS().writeSnapshot(PROJECTS_DIR, key, theirs, { reason: 'outside-theirs', force: true, notCurrent: true }); } catch (e) { console.warn('[projects:save] 밖에서 바뀐 판을 버전 기록에 못 남겼다:', e.message); }
-    if (!(r && r.ok && r.pinsOk === true)) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
-    _projStampFresh(p);   // 밖의 판은 남겼다 — 지금 파일을 바탕으로 잡는다(지우면 쓰기가 던질 때 감지가 꺼진다 · 적대 리뷰 6)
+    if (shaped) {
+      let r = null;
+      try { r = _SS().writeSnapshot(PROJECTS_DIR, key, theirs, { reason: 'outside-theirs', force: true, notCurrent: true }); } catch (e) { console.warn('[projects:save] 밖에서 바뀐 판을 버전 기록에 못 남겼다:', e.message); }
+      if (!(r && r.ok && r.pinsOk === true)) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
+    } else {
+      /* 프로젝트로 안 읽히는 밖의 판(깨짐·다른 꼴·쓰는 중 잘림) — 사용자가 «내 것»을 골랐다: 그 바이트를 프로젝트 폴더 옆에 먼저 둔다 · 못 두거나 못 읽으면 안 덮는다(적대 리뷰 1-4 · 2-1·2·10) */
+      let aside = null;
+      if (raw != null) { try { const d = path.join(PROJECTS_DIR, _safeSeg(key)); fs.mkdirSync(d, { recursive: true }); aside = _SS().preserveUnreadable(p, d); } catch (_) { aside = null; } }
+      if (!aside) return { ok: false, reason: 'changed_outside', kept: false, theirsNotKept: true };
+    }
+    _projStampFresh(p);   // 밖의 판은 남겼다 — 지금 파일을 바탕으로 잡는다(지우면 쓰기가 던질 때 감지가 꺼진다 · 적대 리뷰 1-6)
     return null;
   }
+  /* 자동저장·종료 길 — 밖의 판이 프로젝트든 아니든(쓰는 중 잘린 판일 수 있다) 덮지 않고 내 본을 남긴다 · 고르는 건 사용자 */
   let sig = null;
   try { const { updatedAt: _u, ...rest } = project; sig = _projSha(JSON.stringify(rest)); } catch (_) {}
   const memo = (_outsideRefusal._kept || (_outsideRefusal._kept = new Map()));   // 같은 본이 여러 길(자동저장·줄 선 저장·종료)로 거절돼도 핀 하나
