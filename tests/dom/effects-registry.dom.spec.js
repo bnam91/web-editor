@@ -186,12 +186,14 @@ test('A5 겹침 — 도형에 둘 다 걸면 카드 2개 · box-reflect 와 filt
   const st = await page.evaluate(() => { const e = document.getElementById('eSh'); return { r: e.style.webkitBoxReflect, f: e.style.filter }; });
   expect(st.r, '반사가 산다').toContain('below');
   expect(st.f, '그림자가 산다').toContain('drop-shadow');
-  expect(await page.evaluate(() => window.fxTypesFor(document.getElementById('eSh')).filter(t => !t.has(document.getElementById('eSh'))).length), '둘 다 걸렸으면 더할 것이 없다').toBe(0);
-  expect(await addList(page, 'shape'), '★더할 것이 없으면 목록 자체가 없다').toBeNull();
+  /* ★기대 바뀜(FX-GRADIENT-GAZE-01 v3 · 열차 train/1121-fx · Electron 전수 261122): 도형에 새 식구 «홀로그램»(holo)이 생겨, 반사·그림자를 다 걸어도 더할 것이 holo 하나 남는다.
+       이 칸의 뜻(같은 종류는 목록에서 사라진다 · 둘이 서로 안 지운다)은 그대로 — «남은 것 = holo 뿐»으로 잰다. */
+  expect(await page.evaluate(() => window.fxTypesFor(document.getElementById('eSh')).filter(t => !t.has(document.getElementById('eSh'))).map((t) => t.key)), '둘 다 걸렸으면 남는 것은 새 식구 holo 뿐').toEqual(['holo']);
+  expect((await addList(page, 'shape')).opts.map(o => o.v), '★걸린 반사·그림자는 목록에 없다').toEqual(['holo']);
   /* 하나를 ✕ 하면 그 하나만 목록으로 돌아온다 */
   await page.evaluate(() => window.setFxShadow(document.getElementById('eSh'), { state: 'none' }));
   await pick(page, 'eT'); await pick(page, 'eSh');
-  expect((await addList(page, 'shape')).opts.map(o => o.v)).toEqual(['shadow']);
+  expect((await addList(page, 'shape')).opts.map(o => o.v)).toEqual(['shadow', 'holo']);   // ★기대 바뀜(위와 같은 까닭) — ✕ 한 그림자가 돌아오고 holo 는 그대로
   expect(await page.evaluate(() => document.getElementById('eSh').style.webkitBoxReflect), '★반사는 안 건드려졌다').toContain('below');
   expect(errs).toEqual([]);
 });

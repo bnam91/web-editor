@@ -128,7 +128,7 @@ registerFxType({
   /* 도형(그림 칠 아님) · 글자(그라데이션을 쓸 수 있는 글자칸 — 곡선·말풍선 뺌, 글로우와 같은 허용 목록) */
   supports: (el) => {
     if (!el?.classList) return false;
-    if (_isShape(el)) return !el.dataset.shapeFill || fxHoloOf(el).state !== 'none';
+    if (_isShape(el)) return !el.dataset?.shapeFill || fxHoloOf(el).state !== 'none';   // dataset? — classList 만 있는 대역(effects-frame-shadow ㉡)이 목록 셈 전체를 던지게 했다(Electron 전수 261122)
     if (!el.classList.contains('text-block') || el.classList.contains('liner-block') || el.classList.contains('speech-bubble-block')) return false;
     const ce = _txtContent(el); return !!ce && (window.textGradientAllowed ? window.textGradientAllowed(ce) : true);
   },
