@@ -43,6 +43,6 @@ test('S4 css 글', () => {
 
 test('S5 합성 문 순서·옛 글', () => {
   const glow = readSrc(ROOT, 'js', 'effects-glow.js');
-  assert.match(glow, /return \[tb \? fxGlowLayers\(tb\) : '', u, soft\]\.filter\(Boolean\)\.join\(', '\);/);
+  assert.match(glow, /return \[tb \? fxGlowLayers\(tb\) : '', u, ob, soft\]\.filter\(Boolean\)\.join\(', '\);/);   // ★기대 바뀜(열차 A+B 261122): 오블리크 겹(jn/text-fx-oblique)이 사용자 그림자와 부드러운 그림자 사이에 낌 — 부드러운 그림자는 그대로 «맨 뒤»
   assert.match(glow, /const soft = tb && typeof window !== 'undefined' && typeof window\.fxSoftShadowLayers === 'function' \? window\.fxSoftShadowLayers\(tb\) : '';/);
 });
