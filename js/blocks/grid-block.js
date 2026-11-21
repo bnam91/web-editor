@@ -843,6 +843,19 @@ function applyGridOwnWidth(block, px) {
   const n = Number(px);
   if (!Number.isFinite(n)) return null;
   const v = Math.min(GRID_WIDTH_MAX, Math.max(GRID_WIDTH_MIN, Math.round(n)));
+  /* t13D-09(현빈 0.9.13 grd_ofjwh_po3sn2v · 키 815) — 흐름 그리드를 그릇 폭 «이상»으로 끌면 = 다 쓴다(키 없음).
+     K1 이 그릴 때 min(키, 그릇)으로 죄어 «꽉 찬 것처럼» 보이는 키가 남았다 → 섹션 패딩을 줄이면 그 px 로 드러나 양옆 여백.
+     (패딩 72 에서 모서리로 «높이만» 끌어도 폭 716 키가 박혔다 — 모서리는 폭+높이.) 자유 프레임·떠 있음·패딩제외는 제 규칙 그대로. */
+  if (block.dataset.overlayBlock !== 'true' && block.dataset.fullBleed !== 'true' && !_gridHomeFreeFrame(block) && !gridFreeFrameChild(block)) {
+    const p = block.parentElement, cs = p && getComputedStyle(p);
+    const avail = p ? p.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0) : 0;
+    if (avail > 0 && v >= avail - 1) {
+      delete block.dataset.gridWidth;
+      delete block.dataset.gridWidthAuto;
+      renderGridBlock(block);
+      return Math.round(avail);
+    }
+  }
   block.dataset.gridWidth = String(v);
   delete block.dataset.gridWidthAuto;                      // 사람이 정한 폭 — 자동 출처 표시를 뗀다(updateGridBlock 과 같은 규칙)
   _gridDropFullBleedForManualWidth(block);                 // ★T5-⒜ 사람이 정한 폭 ⇒ 패딩제외 표식도 같이 끈다
@@ -3312,6 +3325,8 @@ function addGridBlock(opts = {}) {
   bindBlock(block);
   window.buildLayerPanel();
   try { window.selectBlock?.(block.id); } catch (_) {}
+  /* t13D-02: selectBlock(MCP 진입점)은 핸들을 안 붙인다 — 클릭 경로처럼 showHandlesFor 를 불러야 생성 직후 모서리·변 손잡이 8개가 선다(zoom/modal/coupon 추가 경로와 같은 고침). */
+  try { window.showHandlesFor?.(block); } catch (_) {}
   row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   window.triggerAutoSave?.();
   /* ★「안 닿은 것」을 «고치는 문과 같은 모양»으로 싣는다(ignoredProps + hint).
@@ -4055,6 +4070,7 @@ window.updateGridBlockRaw = updateGridBlock;
  * ⛔태그블럭 ＋ 의 --inv-zoom 미보정(E28)은 여기서 안 고친다(범위 밖). */
 const GRID_ADD_BTN_CLS = 'grd-add-btn';
 const GRID_PLUS_LAYER_ID = 'grd-plus-layer';
+const GRID_PLUS_EDGE_CLEAR = 6;   // t13D-02 옵션① — 오른쪽 ＋ 와 블럭 오른쪽 변 사이 화면 px(변 손잡이 7px 의 반 3.5 + 틈 2.5 · overlay-handles.js HALF 3.5)
 const _gridPlusBtns = new Map();   // block → { col, row } — ＋ 가 떠 있는 블럭만(뜨면 넣고 지면 뺀다)
 /* ＋ 층 — 없으면 #canvas-scaler 끝에 만든다. 스케일러가 없는 하네스(단위 시험 대역)에선 null ⇒ ＋ 없음. */
 function _gridPlusLayer() {
@@ -4749,7 +4765,10 @@ function _placeGridAddBtns(block) {
   for (const ch of block.children) if (ch.classList.contains(GRID_CHILDREN_CLASS)) { kids = ch; break; }
   const ar = (inner && kids && kids.childElementCount > 0) ? inner.getBoundingClientRect() : br;
   const put = (b, x, y) => { const l = (x - sr.left) / scale + 'px', t = (y - sr.top) / scale + 'px'; if (b.style.left !== l) b.style.left = l; if (b.style.top !== t) b.style.top = t; };
-  put(p.col, br.right, (ar.top + ar.bottom) / 2);
+  /* ★t13D-02 옵션①(현빈 261121 «1행이면 오른쪽을 못 잡는다 → ＋ 를 오른쪽 변 바깥으로 살짝 비켜 ne·e·se 손잡이 다시 보이게»):
+     오른쪽 ＋ 의 «왼쪽 끝» = 블럭(배경 켬이면 배경 상자 중 더 바깥) 오른쪽 끝 + GRID_PLUS_EDGE_CLEAR(화면 px — 변 손잡이 반 3.5 + 틈 2.5). 옛 H10: 중심 = 블럭 오른쪽 끝(반이 안쪽 → 1행이면 오른쪽 손잡이 셋을 덮어 P4 ⒜ 로 숨었다). */
+  const edgeR = gridVisualBox(block).getBoundingClientRect().right;   // 손잡이가 서는 상자(배경 켬 = .grd-bg · overlay-handles _updateGridOverlayHandlePositions 와 같은 상자)
+  put(p.col, Math.max(br.right, edgeR) + GRID_PLUS_EDGE_CLEAR + (p.col.offsetWidth * scale) / 2, (ar.top + ar.bottom) / 2);
   put(p.row, (br.left + br.right) / 2, ar.bottom);
 }
 

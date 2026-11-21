@@ -55,7 +55,8 @@ test('T0 ★소스를 실제로 읽었다(빈 문자열끼리 비교하며 초�
 /* ══ T1 — 알맹이가 «한 곳»에 있다 ═════════════════════════════════════════ */
 test('T1 ★진입/이탈/드래그의 알맹이가 js/overlay-float.js 에만 있다', () => {
   // 알맹이의 지문 — 섹션 직속으로 올리는 appendChild + 탄성 상수
-  assert.match(SRC.float, /sec\.appendChild\(posEl\)/, 'overlay-float.js 에 진입 구현이 없다');
+  /* ★기대 바뀜(t13D-06 · 지디 승인 계획 ①) — 진입이 «자리 주인»(섹션 또는 프레임 · floatHostOf)에 붙인다: host.appendChild. 알맹이는 여전히 이 파일 한 곳(아래 사본 금지 단언 그대로) */
+  assert.match(SRC.float, /(?:sec|host)\.appendChild\(posEl\)/, 'overlay-float.js 에 진입 구현이 없다');
   assert.match(SRC.float, /OVERLAY_RESIST_ZONE_SCREEN_PX/, 'overlay-float.js 에 탄성 상수가 없다');
   for (const k of ['textWire', 'shape', 'asset']) {
     assert.doesNotMatch(SRC[k], /OVERLAY_RESIST_ZONE_SCREEN_PX\s*=/,

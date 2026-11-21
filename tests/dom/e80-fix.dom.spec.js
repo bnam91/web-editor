@@ -49,7 +49,7 @@ const rect = (page, sel) => page.evaluate((sel) => { const e = document.querySel
 const editing = (page) => page.evaluate(() => !!document.querySelector('#canvas [contenteditable="true"]'));
 async function editAndEnd(page) {
   const q = await rect(page, '#eT [class^="tb-"]');
-  for (let n = 0; n < 3 && !(await editing(page)); n++) { await clickAt(page, q.r - 4, q.t + q.h / 2, { sel: '#eT, #eT *, #S1R .frame-block' }, { label: '글자 dblclick', dbl: true }); await page.waitForTimeout(150); }
+  for (let n = 0; n < 3 && !(await editing(page)); n++) { await clickAt(page, q.r - 10, q.t + q.h / 2, { sel: '#eT, #eT *, #S1R .frame-block' }, { label: '글자 dblclick', dbl: true }); await page.waitForTimeout(150); }   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   expect(await editing(page), '전제 — 편집 중').toBe(true);
   await page.keyboard.press('End'); await page.keyboard.type('EDIT'); await page.waitForTimeout(100);
   await clickAt(page, 300, 4, { sel: '#topbar, .topbar' }, { label: 'topbar(끝냄 — 끝 표본이 있다 · js/CLAUDE.md:32 정본 · W2D-08 커밋에서 갱신(전: 없었다))' }); await page.waitForTimeout(250);

@@ -535,9 +535,11 @@ function _applyBox(s, L, T, sx, sy, fs) {
     e.style.width = W + 'px'; e.style.height = keep(s.h, sy) + 'px';
     return;
   }
-  L = Math.round(L); T = Math.round(T);
-  e.style.left = L + 'px'; e.dataset.offsetX = String(L);
-  e.style.top = T + 'px'; e.dataset.offsetY = String(T);
+  if (!s.flow) {   // t13D-07 — 흐름 프레임은 자리를 흐름이 정한다 ⇒ 크기만(좌표·offset 안 씀)
+    L = Math.round(L); T = Math.round(T);
+    e.style.left = L + 'px'; e.dataset.offsetX = String(L);
+    e.style.top = T + 'px'; e.dataset.offsetY = String(T);
+  }
   e.style.width = W + 'px';
   if (e.dataset.width !== undefined && e.dataset.width !== '100%') e.dataset.width = String(W);
   if (s.isTextFrame) { if (s.contentEl && s.fs) s.contentEl.style.fontSize = (s.fs * fs).toFixed(1) + 'px'; }   // 글자 높이는 글자 크기가 정한다
@@ -562,6 +564,7 @@ export function onUnionHandleDown(e, dir, U, els) {
   const snaps = els.filter(el => el.isConnected).map(el => {
     const s = _snapOf(el), op = el.offsetParent || el.parentElement, pr = op.getBoundingClientRect();
     s.px = pr.left + op.clientLeft * scale; s.py = pr.top + op.clientTop * scale;   // 부모의 left/top 원점(화면 px)
+    s.flow = !s.sticker && getComputedStyle(el).position !== 'absolute';   // t13D-07 — 흐름 프레임(selection-overlay _isFlowFrame) = 크기만 · shortcut: 맞은편 고정 대신 제 왼위 기준으로 자란다, 흐름 자리까지 맞추려면 형제 흐름 재배치가 필요
     return s;
   });
   if (!snaps.length || W0 <= 0 || H0 <= 0) return;
@@ -4631,6 +4634,120 @@ function _onTextOverlayResizeMouseDown(e, posEl, dir) {
 window.showTextOverlayResizeHandles = showTextOverlayResizeHandles;
 window.hideTextOverlayResizeHandles = hideTextOverlayResizeHandles;
 
+/* ═══ t13D-10 + 우측패널 1120b F2(현빈 261120 · 지디 설계 GO) — 텍스트·갭 «상자» 손잡이 ═══
+   텍스트: 흐름 = 모서리 넷 + 변 넷(폭 dataset.width px · 높이 dataset.fixedH + 인라인 min-height) · 오버레이 = 지금 모서리(글자 비례 확대 _onTextOverlayResizeMouseDown)는 그대로 + 변 넷(크기만).
+   높이 = «최소 높이»(지디 ②): 내용보다 작게는 못 줄임(그 아래로 끌면 키를 지워 auto) · 크게 = 아래 빈 자리(글 위 정렬) · 옛 저장본(키 없음) = auto · 열기만으로 안 씀.
+   갭: 아래 변(s) 하나 = style.height(패널 슬라이더와 같은 값 · GAP_MIN~GAP_MAX) · 패널 칸 같이.
+   꼴은 .tfo-overlay-handle(그 규칙·보라 계열·sel-multi 숨김에 같이 걸림) + .edge(변) · 한정자 data-tbx-dir(모서리 data-tf-resize-dir 와 안 섞임). */
+const TBX_ALL = [...CORNER_DIRS, 'n', 's', 'e', 'w'];
+const TBX_EDGES = ['n', 's', 'e', 'w'];
+const TBX_MIN_W = 20;   // 글자 한 자(지디 OK 261120)
+const TBX_GLYPH_SCAN = 1000;   // 최소 너비 잴 때 보는 글자 수 상한(긴 글 누름이 안 굼뜨게)
+let _tbxEl = null, _tbxRaf = null;
+function _tbxPoint(el, dir) {
+  if (dir.length === 2) return _cornerScreen(el, dir);
+  const pair = { n: ['nw', 'ne'], s: ['sw', 'se'], e: ['ne', 'se'], w: ['nw', 'sw'] }[dir];
+  const a = _cornerScreen(el, pair[0]), b = _cornerScreen(el, pair[1]);
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+function showTextBoxResizeHandles(el, dirs) {
+  const overlay = _getOverlay();
+  if (_tbxEl === el && overlay && overlay.querySelectorAll('[data-tbx-dir]').length === dirs.length) return;
+  hideTextBoxResizeHandles();
+  _tbxEl = el;
+  if (!overlay) return;
+  dirs.forEach((dir) => {
+    const h = document.createElement('div');
+    h.className = `tfo-overlay-handle tbx ${dir}${dir.length === 1 ? ' edge' : ''}`;
+    h.dataset.tbxDir = dir;
+    overlay.appendChild(h);
+    h.addEventListener('mousedown', (e) => _onTextBoxResizeMouseDown(e, el, dir));
+  });
+  const place = () => overlay.querySelectorAll('[data-tbx-dir]').forEach((h) => { const c = _tbxPoint(el, h.dataset.tbxDir); h.style.top = (c.y - 3.5) + 'px'; h.style.left = (c.x - 3.5) + 'px'; });
+  place();
+  const loop = () => {
+    if (_tbxEl !== el) return;
+    const sel = el.classList.contains('selected') || el.querySelector(':scope > .selected, :scope .text-block.selected');
+    if (!el.isConnected || !sel) { hideTextBoxResizeHandles(); return; }
+    const editing = !!(el.querySelector('.editing, [contenteditable="true"]') || el.classList.contains('editing'));
+    overlay.querySelectorAll('[data-tbx-dir]').forEach((h) => { h.style.display = editing ? 'none' : ''; syncHandleSelVariant(h, el); });
+    place();
+    _tbxRaf = requestAnimationFrame(loop);
+  };
+  _tbxRaf = requestAnimationFrame(loop);
+}
+function hideTextBoxResizeHandles() {
+  if (_tbxRaf) { cancelAnimationFrame(_tbxRaf); _tbxRaf = null; }
+  _tbxEl = null;
+  const overlay = _getOverlay();
+  if (overlay) overlay.querySelectorAll('[data-tbx-dir]').forEach((h) => h.remove());
+}
+function _onTextBoxResizeMouseDown(e, el, dir) {
+  if (e.button !== 0) return;
+  e.stopPropagation(); e.preventDefault();
+  const isGap = el.classList.contains('gap-block'), floating = el.dataset.overlayBlock === 'true';
+  const sx = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0, sy = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
+  const startW = el.offsetWidth, startH = el.offsetHeight, X0 = e.clientX, Y0 = e.clientY;
+  let contentH = startH;   // «최소 높이» 바닥 = 키 없을 때 높이(내용)
+  if (!isGap) { const mh = el.style.minHeight; el.style.minHeight = ''; contentH = el.offsetHeight; el.style.minHeight = mh; }
+  /* ★최소 너비 = «가장 넓은 글자 한 자» + 상자의 좌우 패딩(지디 채점 261121: 20 까지 줄어 72px 글자가 한 자씩 상자 밖으로 나갔다) · 하한 TBX_MIN_W.
+     좁으면 글은 한 자씩 꺾이므로(overflow-wrap) 그 폭이 «안 넘치는» 바닥이다 — min-content(낱말 폭)는 그보다 넓어 쓰지 않는다.
+     이미 그보다 좁으면 그 폭이 바닥(누르자마자 튀지 않게). shortcut: 앞 TBX_GLYPH_SCAN 자만 잰다 — 그 뒤에 더 넓은 글자가 있으면 그것만 넘칠 수 있다 · 문제 되면 글꼴별 한 번 재기로. */
+  let minW = TBX_MIN_W;
+  if (!isGap) {
+    const sc0 = _canvasScaleNow() || 1, ed = el.querySelector('.tb-body') || el;   // 글 칸(글자가 사는 곳)
+    let glyph = 0, cnt = 0; const tw = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let tn;
+    const rg = document.createRange();
+    while ((tn = tw.nextNode()) && cnt < TBX_GLYPH_SCAN) for (let i = 0; i < tn.length && cnt < TBX_GLYPH_SCAN; i++, cnt++) { if (/\s/.test(tn.data[i])) continue; rg.setStart(tn, i); rg.setEnd(tn, i + 1); glyph = Math.max(glyph, rg.getBoundingClientRect().width / sc0); }
+    const pad = startW - ed.getBoundingClientRect().width / sc0;   // 상자 폭 − 글 칸 폭 = 좌우 패딩·테두리
+    minW = Math.min(startW, Math.max(TBX_MIN_W, Math.ceil(glyph + Math.max(0, pad))));
+  }
+  const px0 = Number(el.dataset.offsetX ?? parseFloat(el.style.left)) || 0, py0 = Number(el.dataset.offsetY ?? parseFloat(el.style.top)) || 0;
+  const label = isGap ? '갭 높이' : '텍스트 상자 크기';
+  const hist = window.beginDragHistory?.((isGap ? '갭 높이' : '텍스트 상자 크기'));   // 겹괄호 = drag-history 로스터 꼴('(' 로 시작하는 식)
+  let moved = false;
+  function onMove(ev) {
+    const sc = _canvasScaleNow();
+    const dx = (ev.clientX - X0) / sc, dy = (ev.clientY - Y0) / sc, dw = sx * dx, dh = sy * dy;
+    if (!moved && Math.abs(dw) < 1 && Math.abs(dh) < 1) return;
+    moved = true;
+    hist?.arm(dx, dy);
+    if (isGap) {
+      const h = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, Math.round(startH + dh)));
+      el.style.height = h + 'px';
+      const sl = document.getElementById('gap-slider'), nb = document.getElementById('gap-number'); if (sl) sl.value = h; if (nb) nb.value = h;
+      (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === h));   // 프리셋 칸 불(editor.js 숫자키 갈래와 같은 꼴)
+      window.scheduleAutoSave?.();
+      return;
+    }
+    let newW = startW;
+    if (sx) {
+      newW = Math.max(minW, Math.round(startW + dw));
+      el.style.width = newW + 'px'; el.dataset.width = String(newW);
+      if (floating) { el.style.maxWidth = 'none'; el.dataset.overlayFreeWidth = 'true'; delete el.dataset.overlayIntroducedWidth; }   // 오버레이 폭 주인 = 사용자(옆 모서리 갈래와 같은 도장)
+    }
+    if (sy) {
+      const want = Math.round(startH + dh);
+      if (want <= contentH) { delete el.dataset.fixedH; el.style.minHeight = ''; }
+      else { el.dataset.fixedH = String(want); el.style.minHeight = want + 'px'; }
+    }
+    if (floating && (sx < 0 || sy < 0)) _applyOverlayPos(el, sx < 0 ? px0 - (newW - startW) : px0, sy < 0 ? py0 - (el.offsetHeight - startH) : py0);   // 맞은편 변 고정
+    window.scheduleAutoSave?.();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!moved) return;
+    window.pushHistory?.(label);   // 끝 표본(drag-history 규약 · 시작 = hist.arm)
+    if (!isGap) { const tb = el.matches('.text-block, .speech-bubble-block, .icon-text-block') ? el : el.querySelector('.text-block, .speech-bubble-block, .icon-text-block'); if (tb) window.showTextProperties?.(tb); }
+    window.triggerAutoSave?.();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+window.showTextBoxResizeHandles = showTextBoxResizeHandles;
+window.hideTextBoxResizeHandles = hideTextBoxResizeHandles;
+
 /* ═══════════════════════════════════════════════════════════════════════════
    오버레이(떠 있는) 그리드 — 모서리 «폭» 손잡이 (.grd-overlay-handle) · G2-b (지디 2026-10-04)
    ───────────────────────────────────────────────────────────────────────────
@@ -5026,8 +5143,10 @@ function showHandlesFor(block) {
          showTextProperties 를 쓰는데(block-drag.js isIconText) 손잡이만 빠져 있었다.
          ⇒ 「같은 패널을 쓰면 같은 손잡이」로 클래스를 명시한다. 술어는 그대로 dataset 이다. */
     const posEl = _posElOf(block);
-    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) showTextOverlayResizeHandles(posEl);   // ★t13A-08 K 모드면 흐름 텍스트에도
-    else hideTextOverlayResizeHandles();
+    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); showTextBoxResizeHandles(posEl, TBX_EDGES); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
+    else { hideTextOverlayResizeHandles(); showTextBoxResizeHandles(posEl, TBX_ALL); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
+  } else if (block.classList.contains('gap-block')) {
+    showTextBoxResizeHandles(block, ['s']);   // t13D-10 — 갭 = 아래 변 하나(높이)
   } else if (block.classList.contains('grid-block')) {
     /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이였다(흐름 그리드는 패널 너비 줄로).
        ★K3 ⒜(2026-10-05 지디 · lane-f-grid) — 흐름 그리드에도 같은 «폭» 손잡이. 자리 = gridVisualBox(K2 선택 선과 같은 상자) · ⛔높이 안 씀. */

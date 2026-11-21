@@ -129,8 +129,10 @@ async function settle(page) {
   }, null, { timeout: 5000, polling: 'raf' });
   await page.evaluate(() => { window.__settlePrev = null; window.__settleN = 0; });
 }
+/* ★기대 바뀜(t13D-10 d6ab57b02 · 261121): 글 «상자» 손잡이(data-tbx-dir — 흐름 = 모서리+변 8 · 오버레이 = 변 4)도 같은 .tfo-overlay-handle 꼴을 빌린다.
+   이 spec 이 지키는 것은 «오버레이 모서리(글자 비례) 손잡이» 넷 ⇒ 상자 손잡이는 빼고 센다(ft-overlay-corner-123 6b5ccdecf 와 같은 자). */
 const handleCount = (page) => page.evaluate(() =>
-  document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle').length);
+  document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])').length);
 const boxOf = (page) => page.evaluate(() => {
   const r = window.__tf.getBoundingClientRect();
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, w: r.width, h: r.height };
@@ -416,7 +418,7 @@ test('D9 ★줌 40%(현빈 실사용) 에서도 끄는 만큼만 커진다 — �
 
 /** 화면에 «실제로 보이는» 손잡이 수 — 편집 중에는 display:none 으로 숨긴다(파괴가 아니라). */
 const visibleHandleCount = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle')]
+  [...document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])')]   // ★기대 바뀜(t13D-10) — 위 handleCount 와 같은 자(상자 손잡이 뺌)
     .filter(h => getComputedStyle(h).display !== 'none').length);
 
 /** 말풍선 한 덩이. 본문 `.tb-bubble` 은 인라인 font-size 가 «없다»(CSS 28px) — 그게 함정이다. */

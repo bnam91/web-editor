@@ -120,7 +120,7 @@ async function editAndSelectTail(page, hostSel, back, len) {
      제품을 엉뚱하게 고친다 — 흔들린 것은 ★자였다. */
   await page.locator(hostSel).first().scrollIntoViewIfNeeded();
   const r = await waitStableRect(page, hostSel);
-  await page.mouse.dblclick(r.left + r.width - 4, r.top + r.height / 2);
+  await page.mouse.dblclick(r.left + r.width - 10, r.top + r.height / 2);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   await page.waitForTimeout(300);
   await page.keyboard.press('End');
   for (let i = 0; i < back; i++) await page.keyboard.press('ArrowLeft');
@@ -145,7 +145,7 @@ const assertPremiseBBB = (page, hostSel) => assertPremiseSel(page, hostSel, 'BBB
 async function caretBetween(page, hostSel, back) {
   await page.locator(hostSel).first().scrollIntoViewIfNeeded();
   const r = await waitStableRect(page, hostSel);
-  await page.mouse.dblclick(r.left + r.width - 4, r.top + r.height / 2);
+  await page.mouse.dblclick(r.left + r.width - 10, r.top + r.height / 2);   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
   await page.waitForTimeout(300);
   await page.keyboard.press('End');
   for (let i = 0; i < back; i++) await page.keyboard.press('ArrowLeft');

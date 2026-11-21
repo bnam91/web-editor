@@ -51,7 +51,7 @@ const pt = async (page, sel, where = 'center') => {
     const e = document.querySelector(sel); if (!e) return null; let q = e.getBoundingClientRect();
     const inView = (r) => r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth;
     if (!inView(q)) { e.scrollIntoView({ block: 'center' }); q = e.getBoundingClientRect(); }
-    const p = where === 'corner' ? [q.right - 6, q.top + 6] : where === 'edge' ? [q.left + 6, q.top + 6] : where === 'end' ? [q.right - 4, q.top + q.height / 2] : [q.left + q.width / 2, q.top + q.height / 2];
+    const p = where === 'corner' ? [q.right - 6, q.top + 6] : where === 'edge' ? [q.left + 6, q.top + 6] : where === 'end' ? [q.right - 10, q.top + q.height / 2] : [q.left + q.width / 2, q.top + q.height / 2];   // ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글 상자 «변 가운데 e 손잡이»(7px · 안쪽 3.5px)가 옛 −4 점 경계에 선다 → −10(같은 줄 끝 빈자리 · 뜻 그대로)
     return { p, inView: p[1] >= 0 && p[1] <= window.innerHeight && p[0] >= 0 && p[0] <= window.innerWidth };
   }, [sel, where]);
   let prev = await once(); if (!prev) return null;

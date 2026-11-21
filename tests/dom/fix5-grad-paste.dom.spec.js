@@ -26,6 +26,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { freePointOn } = require('./_click-at.js');
 
 const VIEW = { width: 1440, height: 900 };
 const log = (tag, o) => console.log(`FIX5GP ${tag} ${JSON.stringify(o)}`);
@@ -231,8 +232,12 @@ test('P4 여러 블럭 — 글자 + 그라데이션 ⌘C⌘V 에서 그라데이
   await scrollTo(page, `[id="${src}"]`);
   const gr = await waitStableRect(page, `[id="${src}"]`);
   await pollTrue(page, ([x, y, id]) => { const e = document.elementFromPoint(x, y); return !!(e && (e.id === id || e.closest(`[id="${id}"]`))); }, [gr.cx, gr.cy, src], 5000);
+  /* ★누를 점 바뀜(t13D-10 d6ab57b02 · 261121): 고른 글(그라데이션 밑에 겹친 흐름 글)의 «위 변 가운데 n 손잡이»가 그라데이션 한가운데에 선다(손잡이 층이 위 = 제품 규약)
+     ⇒ 그라데이션을 «맞히는» 점(_click-at.js freePointOn — t2-02b 전체 상자 손잡이와 같은 해법)을 ⌘클릭. 위 pollTrue 는 기다리기만 하고 단언이 아니라 그 겹침을 못 봤다. */
+  const gp = await freePointOn(page, `[id="${src}"]`);
+  expect(await page.evaluate(([x, y, id]) => { const e = document.elementFromPoint(x, y); return !!(e && (e.id === id || e.closest(`[id="${id}"]`))); }, [gp[0], gp[1], src]), '전제: ⌘클릭 점의 임자 = 그라데이션').toBe(true);
   await page.keyboard.down('Meta');
-  await page.mouse.click(gr.cx, gr.cy);
+  await page.mouse.click(gp[0], gp[1]);
   await page.keyboard.up('Meta');
   expect(await pollTrue(page, ([tb, g]) => document.getElementById(tb)?.classList.contains('selected') && document.getElementById(g)?.classList.contains('selected'), [tb, src], 3000),
     '전제: 글자 + 그라데이션 둘 다 골라졌다').toBe(true);

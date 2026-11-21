@@ -362,11 +362,14 @@ for (const z of [100, 40]) {
     const o = bx.w >= 30 ? 3 : 1;   // 원 밖 모서리 점: 상자 안 o px(작은 원에서 3px 는 원 안이다 — 16px 상자: √(5²+5²)=7.1 < 8)
     expect(bx.t >= bx.g.t + 1 && bx.b <= bx.g.b - 1, `전제 — ＋ 상자가 세로로 그리드 안 ${JSON.stringify(bx)}`).toBe(true);
     // R1 ＋ 상자 1px 옆(왼쪽 — 오른쪽은 블럭 밖이다) · 세로 가운데
-    const r1 = await clickAt(page, a, bx.l - 1, bx.cy);
-    expect(r1, `★R1 1px 옆 = 선택 · 열 그대로 ${JSON.stringify(r1)}`).toMatchObject({ selected: true, dCols: 0, dRows: 0 });
+    const r1 = await clickAt(page, a, bx.l - 1, bx.cy);   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): ＋ 가 오른쪽 변 바깥 6px 로 비켜 «1px 옆» = 그리드 밖 틈 ⇒ ＋ 아님 · 열 그대로만(옛: 그리드 위라 선택)
+    expect([r1.dCols, r1.dRows, r1.under.includes('grd-add-btn')], `★R1 1px 옆(틈) = ＋ 아님 · 열 그대로 ${JSON.stringify(r1)}`).toEqual([0, 0, false]);
+    await page.evaluate(() => window.deselectAll?.()); await force(page, a); bx = await boxOf(page, a, 'col');
+    const r1b = await clickAt(page, a, bx.g.r - 10, bx.cy);   // 옛 «선택» 뜻은 그리드 오른쪽 안쪽 한 점으로(10 > e 손잡이 반 3.5)
+    expect(r1b, `★R1b 그리드 오른쪽 안쪽 = 선택 · 열 그대로 ${JSON.stringify(r1b)}`).toMatchObject({ selected: true, dCols: 0, dRows: 0 });
     // R5 원 밖 네모 모서리(왼쪽 위 · 왼쪽 아래 · 오른쪽 위 — 상자 안 3px, 중심까지 ≈24px > 반지름 20)
     /* H10 뒤: 오른쪽 ＋ 는 반이 블럭 밖이다 — 왼쪽 모서리 = 그리드 위(선택) · 오른쪽 모서리 = 블럭 밖(＋ 아님 · 열 그대로만 잰다). */
-    for (const [nm, inGrid] of [['좌상', true], ['좌하', true], ['우상', false]]) {
+    for (const [nm, inGrid] of [['좌상', false], ['좌하', false], ['우상', false]]) {   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): ＋ 상자가 통째로 그리드 밖 ⇒ 네 모서리 다 «＋ 아님 · 열 그대로»만(옛: 왼쪽 둘은 그리드 위라 선택)
       await page.evaluate(() => window.deselectAll?.()); await force(page, a);
       bx = await boxOf(page, a, 'col');
       const r5 = await clickAt(page, a, nm === '우상' ? bx.r - o : bx.l + o, nm === '좌하' ? bx.b - o : bx.t + o);
@@ -416,12 +419,9 @@ for (const z of [100]) {
     expect(gh, `전제 — 그리드(${gh.toFixed(1)}px)가 ＋(40) 보다 낮다`).toBeLessThan(40);
     // 그리드 안 · ＋ 상자 안 · 원 밖인 점을 위쪽에서 찾는다(그리드 위 끝 +3px, ＋ 상자 왼쪽에서 오른쪽으로 훑음)
     const y = bx.g.t + 3, R = bx.w / 2;
-    let x = null;
-    for (let px = bx.l + 1; px < bx.r - 1; px += 1) {
-      const d = Math.hypot(px - bx.cx, y - bx.cy);
-      if (d > R + 1.5 && px >= bx.g.l && px <= bx.g.r - 1) { x = px; break; }
-    }
-    expect(x, `전제 — 그리드 안·＋ 상자 안·원 밖인 위쪽 점이 있다 ${JSON.stringify(bx)}`).not.toBeNull();
+    let x = null;   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): ＋ 상자가 그리드와 안 겹친다(그리드 안·＋ 상자 안인 점이 없다) ⇒ 그리드 오른쪽 위 안쪽 점(＋ 바로 왼쪽)을 첫 클릭
+    expect(bx.l - bx.g.r, `전제 — ＋ 상자가 그리드 오른쪽 변 밖(겹침 0) ${JSON.stringify(bx)}`).toBeGreaterThan(0);
+    x = bx.g.r - 10;
     const r = await clickAt(page, a, x, y);
     expect(r, `★R6 원 밖 위쪽 점 = 선택 · 열 그대로 ${JSON.stringify({ x, y, ...r })}`).toMatchObject({ selected: true, dCols: 0, dRows: 0 });
     expect(r.under.includes('grd-add-btn'), `★R6 ＋ 가 안 잡힌다 ${r.under}`).toBe(false);
@@ -526,7 +526,7 @@ test('K0 자식 «없는» 그리드 — ＋ 는 블럭 밖 층 · 오른쪽 ＋
   const s = await kidState(page, a);
   expect(Math.abs((s.col.t + s.col.b) / 2 - (s.block.t + s.block.b) / 2), '★오른쪽 ＋ = 블럭(=껍데기) 세로 가운데').toBeLessThanOrEqual(1);
   expect(Math.abs(s.row.t - s.block.b), '★아래 ＋ = 블럭 바로 아래').toBeLessThanOrEqual(1);
-  expect(Math.abs((s.col.l + s.col.r) / 2 - s.block.r), '★오른쪽 ＋ 중심 = 블럭 오른쪽 끝(H10 · 옛: 안쪽 한 칸)').toBeLessThanOrEqual(1);
+  expect(Math.abs(s.col.l - s.block.r - 6), '★오른쪽 ＋ 왼쪽 끝 = 블럭 오른쪽 끝 + 6(옛 H10: 중심 = 오른쪽 끝)').toBeLessThanOrEqual(1);   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴
   expect(errs).toEqual([]);
 });
 
@@ -643,7 +643,7 @@ const anchorCheck = (page, id) => page.evaluate((id) => {
   const br = g.getBoundingClientRect(), inner = g.querySelector(':scope > .grd-inner'), kids = g.querySelector(':scope > .grd-children');
   const ar = (kids && kids.childElementCount) ? inner.getBoundingClientRect() : br;
   const cr = c.getBoundingClientRect(), rr = r.getBoundingClientRect();
-  const d = { colMidX: (cr.left + cr.right) / 2 - br.right, colMidY: (cr.top + cr.bottom) / 2 - (ar.top + ar.bottom) / 2,
+  const d = { colMidX: cr.left - br.right - 6,   /* ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴 — 이름은 옛 그대로 · 뜻 = ＋ 왼쪽 끝 − (블럭 오른쪽 끝 + 6) · 옛: ＋ 중심 − 블럭 오른쪽 끝 */ colMidY: (cr.top + cr.bottom) / 2 - (ar.top + ar.bottom) / 2,
               rowTop: rr.top - ar.bottom, rowMidX: (rr.left + rr.right) / 2 - (br.left + br.right) / 2, colW: cr.width };
   for (const k of Object.keys(d)) d[k] = +d[k].toFixed(2);
   d.ok = Math.abs(d.colMidX) <= 1 && Math.abs(d.colMidY) <= 1 && Math.abs(d.rowTop) <= 1 && Math.abs(d.rowMidX) <= 1;

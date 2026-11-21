@@ -83,7 +83,7 @@ test('P1 ★H10 — 오른쪽 ＋ 중심 = 블럭 오른쪽 끝 · 세로 = 껍�
   await selectGrid(page, g);
   const col = (await plus(page, g)).find(p => p.axis === 'col');
   const br = await page.evaluate((id) => { const b = document.getElementById(id).getBoundingClientRect(), i = document.querySelector(`#${id} > .grd-inner`).getBoundingClientRect(); return { r: b.right, midY: (i.top + i.bottom) / 2 }; }, g);
-  expect(Math.abs(col.cx - br.r), `★오른쪽 ＋ 가로 중심 − 블럭 오른쪽 끝 = ${(col.cx - br.r).toFixed(2)}px(옛: −20 화면 = 안쪽 한 칸)`).toBeLessThanOrEqual(1);
+  expect(Math.abs(col.cx - col.w / 2 - br.r - 6), `★오른쪽 ＋ 왼쪽 끝 − 블럭 오른쪽 끝 = ${(col.cx - col.w / 2 - br.r).toFixed(2)}px(6 · 옛 H10: 중심 = 오른쪽 끝)`).toBeLessThanOrEqual(1);   // ★기대 바뀜(t13D-02 옵션① · 현빈 261121): 오른쪽 ＋ 를 오른쪽 변 바깥(손잡이 상자 오른쪽 끝 + 6 화면px)으로 비킴
   expect(Math.abs(col.cy - br.midY), '★세로 = 껍데기 가운데').toBeLessThanOrEqual(1);
   expect(errs).toEqual([]);
 });

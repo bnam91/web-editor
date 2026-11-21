@@ -154,7 +154,7 @@ test.describe('아이콘+텍스트 — 오버레이로 키운 뒤 «끄면»', (
   test('X1 ★음성대조 — max-width 를 풀면 블럭이 제 행과 섹션 본문을 넘어선다', async ({ page }) => {
     const errs = await boot(page);
     await mount(page, 'itb');
-    expect(await page.locator('#ss-handles-overlay .tfo-overlay-handle').count(), '손잡이가 안 붙었다').toBe(4);
+    expect(await page.locator('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])').count()   /* ★기대 바뀜(t13D-10 d6ab57b02 · 인텔 261121) — 오버레이 글엔 옛 모서리 넷(tfo) + 텍스트 상자 «변» 넷(같은 .tfo-overlay-handle 꼴 · data-tbx-dir)이 붙는다 ⇒ 모서리만 센다(ft-overlay-corner-123 와 같은 뿌리) */, '손잡이가 안 붙었다').toBe(4);
     await dragHandle(page, 'se', 120, 30);
     const r = await exitAndMeasure(page, true);
     console.log('  X1(고치기 전):', JSON.stringify(r));

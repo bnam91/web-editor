@@ -139,7 +139,7 @@ test('P1 ★아이콘+텍스트 — 손잡이로 키운 폭을 패널이 «안�
   const errs = await boot(page);
   await mountIconText(page);
   await enterOverlay(page);
-  expect(await page.locator('#ss-handles-overlay .tfo-overlay-handle').count(),
+  expect(await page.locator('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])').count()   /* ★기대 바뀜(t13D-10 d6ab57b02 · 인텔 261121) — 오버레이 글엔 옛 모서리 넷(tfo) + 텍스트 상자 «변» 넷(같은 .tfo-overlay-handle 꼴 · data-tbx-dir)이 붙는다 ⇒ 모서리만 센다(ft-overlay-corner-123 와 같은 뿌리) */,
     '전제가 깨졌다 — 손잡이가 안 붙었다(b1e51fc 가 되돌려졌나)').toBe(4);
   await dragSE(page, 150);
   const w = await blockW(page), p = await panelW(page);

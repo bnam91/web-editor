@@ -1543,7 +1543,7 @@ function addSection(opts = {}) {
         <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:100px" id="${genId('gb')}"></div>
         <div class="frame-block" data-text-frame="true" id="${_tfId}">
           <div class="text-block" data-type="heading" id="${_tbId}">
-            <div class="tb-h2" contenteditable="false" data-placeholder="소제목을 입력하세요" data-is-placeholder="true" style="font-family:'Pretendard', sans-serif">소제목을 입력하세요</div>
+            <div class="tb-h2" contenteditable="false" data-placeholder="제목을 입력하세요" data-is-placeholder="true" style="font-family:'Pretendard', sans-serif">제목을 입력하세요</div>
           </div>
         </div>
         <div class="gap-block" data-type="gap" data-gap-auto="1" style="height:100px" id="${genId('gb')}"></div>
@@ -2549,7 +2549,11 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     };
     const hosts    = [...new Set(units.filter(u => u.parentElement !== sec).map(_liftToFrame))];
     if (floaters.length && hosts.length) {
-      const host = (hosts.length === 1 && _isHostFrame(hosts[0])) ? hosts[0] : null;
+      /* ★t13D-07 ⑤(현빈 결정 261120 · 매니저 경유) — 오버레이 «글자»(텍스트 프레임)가 섞인 ⌘G 는 «일반 그룹»: 그 자리 그대로 공통 그룹을 새로 만든다
+         (프레임 «안으로 넣기»·reparent 금지 · 공통 상자 손잡이로 크기·스케일). 9/30 «떠 있는 것을 자유배치 프레임 안으로» 규칙(줌블럭 등)은 이 조합엔 안 탄다
+         ⇒ host 를 비워 아래 t5-08 길(흐름 블럭 = 새 그룹 · 떠 있는 것 = 그 그룹 안 같은 화면 자리)로 보낸다. ⌘⌥G(프레임 묶기)는 종전대로. */
+      const _overlayText = asGroup && floaters.some(u => u.dataset.textFrame === 'true');
+      const host = (!_overlayText && hosts.length === 1 && _isHostFrame(hosts[0])) ? hosts[0] : null;
       // ★t5-07 — 이름(zoom-block) 대신 성질: 제 방식 떠 있는 블럭(줌 · 그라데이션 · 스티커) 또는 오버레이
       const _canNest = u => _ownFloat(u) || u.dataset.overlayBlock === 'true';
       const bad = floaters.filter(u => !_canNest(u));
@@ -2687,6 +2691,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
       if ((parseFloat(cs.marginLeft) || 0) < 0 || (parseFloat(cs.marginRight) || 0) < 0) _bleedRects.set(b, b.getBoundingClientRect());
     });
   });
+  /* ★t13D-07 ⑤ 후속(실물 png 261121) — 떠 있던 것(_floatIntoNew)이 새 그룹의 «가로» 밖이면(예: 섹션 왼쪽 20px 의 오버레이 글자 · 내용 폭은 패딩 32 안)
+     그룹(overflow:hidden)이 그만큼 잘랐다(세로는 아래 :2808 갈래가 늘린다 · 가로는 빠져 있었다).
+     ⇒ 위 «패딩 제외» 길을 그대로 탄다: 새 그룹 = 패딩 제외(섹션 가장자리까지) · 흐름 블럭은 모두 보이는 상자 그대로(폭 100% 블럭이 넓어지지 않게).
+     shortcut: 섹션 «밖»까지 나간 떠 있는 것은 여전히 잘린다(패딩 제외는 섹션 패딩만큼) — 그런 배치가 생기면 그룹 폭을 자식 합집합으로. */
+  if (_floatIntoNew?.length) {
+    const _sr = ss.getBoundingClientRect();
+    const _out = _floatIntoNew.some(u => { const r = u.getBoundingClientRect(); return r.left < _sr.left - 0.5 || r.right > _sr.right + 0.5; });
+    if (_out) rows.forEach(row => (shells.has(row) ? topLevelBlocksOf(row).filter(x => !_insideShapeFrame(x, row)) : [row])
+      .forEach(b => { if (!isShapeFrame(b) && !_bleedRects.has(b)) _bleedRects.set(b, b.getBoundingClientRect()); }));
+  }
   if (_bleedRects.size && window.applyBlockFullBleed) {
     ss.dataset.fullBleed = 'true';
     window.applyBlockFullBleed(ss);

@@ -255,9 +255,62 @@
 
   // capture-phase로 가장 먼저 받기 — sticker-select 등 capture 핸들러보다 앞서 실행
   // (document는 트리 최상위라 capture-phase가 elements보다 먼저 실행됨)
+  /* ★t13D-03(0.9.13 · ⌥끌기 복제) — «고른» 블럭 위에서 ⌥ 를 누르면 드릴을 바로 하지 않고 기다린다:
+       · 3px 넘게 움직이면 = 복제(editor.js duplicateInPlace · 클립보드 0 · 제자리) → 사본의 같은 자리에 mousedown 을 넘겨 «사본»을 끈다(원본은 제자리).
+       · 안 움직이고 놓으면 = 종전 ⌥클릭 드릴(아래 레이어 고르기) 그대로.
+     고르지 않은 블럭 위 ⌥ 는 종전대로(바로 드릴 + 아래 레이어 끌기). ⚠️뜻 바뀜 1: «고른 블럭 위 ⌥끌기»는 예전엔 아래 레이어를 끌었다 → 이제 복제. */
+  function _altDupSource(e) {
+    const top = _collectStack(e.clientX, e.clientY)[0];
+    return (top && !top.classList.contains('section-block') && top.classList.contains('selected') && window.duplicateInPlace) ? top : null;
+  }
+  function _armAltDup(e, src, drillTarget) {
+    let done = false;
+    const end = () => { done = true; document.removeEventListener('mousemove', mv, true); document.removeEventListener('mouseup', up, true); };
+    const mv = (ev) => {
+      if (done || Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
+      end();
+      const pairs = window.duplicateInPlace() || [];
+      const pair = pairs.find((p) => p.from === src || p.from.contains(src));
+      if (!pair) return;
+      // 누른 요소(e.target)까지의 자식 번호 길을 사본에서 그대로 따라간다 — 사본의 «같은 자리» 요소에 넘긴다
+      const path = []; for (let n = e.target; n && n !== pair.from; n = n.parentElement) path.unshift([...n.parentElement.children].indexOf(n));
+      let t = pair.to; for (const i of path) t = (t && t.children[i]) || t;
+      _forwardMouseDown(t || pair.to, e);
+    };
+    const up = () => { if (done) return; end(); if (drillTarget) _selectTarget(drillTarget, e); };
+    document.addEventListener('mousemove', mv, true);
+    document.addEventListener('mouseup', up, true);
+  }
+
+  /* 흐름 ⌥끌기 — dragstart 에서 사본 · 끌기 없이 놓으면 드릴(click 은 위 _handledOnDown 으로 삼킨다 · 끌기가 나면 click 이 안 오므로 dragstart 에서 푼다) */
+  let _altFlow = null;
+  function _armAltFlow(e, drillTarget) {
+    _handledOnDown = true;
+    _altFlow = { e, drillTarget };
+    const up = () => { document.removeEventListener('mouseup', up, true); const a = _altFlow; _altFlow = null; if (a && a.drillTarget) _selectTarget(a.drillTarget, a.e); };
+    document.addEventListener('mouseup', up, true);
+  }
+  document.addEventListener('dragstart', function () {
+    if (!_altFlow) return;
+    _altFlow = null; _handledOnDown = false;
+    window.duplicateInPlace?.({ select: 'from' });
+  }, true);
+
   document.addEventListener('mousedown', function (e) {
     const target = _resolveAltTarget(e);
-    if (!target) return;
+    // t13D-03 — 아래 레이어가 없어도(드릴 대상 null) 고른 블럭 ⌥끌기는 복제다 · 가드는 _resolveAltTarget 과 같은 뜻
+    const t0 = e.target;
+    const dupOk = target || (e.altKey && e.button === 0 && !e._altLayerSelect && t0?.closest?.('#canvas') && !t0.closest('[contenteditable="true"], .editing'));
+    const dupSrc = dupOk ? _altDupSource(e) : null;
+    if (!target && !dupSrc) return;
+    if (dupSrc) {
+      /* 흐름 블럭은 끌기가 네이티브 HTML5 끌기(block-drag.js dragstart)라 합성 mousedown 으로는 못 시작한다 ⇒ 막지 않고 흘려보내고,
+         dragstart 때 제자리 사본을 만든다(끌려가는 쪽 = 원본 · 제자리에 남는 쪽 = 사본 — 화면 결과는 같다). 안 끌고 놓으면 종전 드릴. */
+      const unit = dupSrc.closest('.frame-block[data-text-frame]') || dupSrc;
+      if (getComputedStyle(unit).position !== 'absolute') { _armAltFlow(e, target); return; }
+      e.stopPropagation(); e.stopImmediatePropagation(); e.preventDefault(); _handledOnDown = true;
+      _armAltDup(e, dupSrc, target); return;
+    }
     // 원본 Alt+mousedown 차단 — «위» 레이어가 드래그/편집을 시작하지 못하게.
     e.stopPropagation();
     e.stopImmediatePropagation();
