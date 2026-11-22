@@ -9,6 +9,8 @@
  * R7 아치(위로)를 «처음» 고를 때(반지름 빔) 반지름 칸이 글 길이로 채워짐(글 ≈120°) · 이미 넣은 반지름은 안 바뀜
  * R8 [미카사 채점 261121 ④ · 안B] 아치 반지름 49 + «안쪽 뒤집기» — 이웃 글자 «윗변» 겹침 길이 합(글자별 실제 자리·회전으로 셈) 고치기 전/후 수 · png(SHOT_LINER=경로)
  *    · 둥글게 프리셋이면 반지름 칸 아래 «글 길이 기준» 안내 한 줄 · 아치면 숨김
+ * R9 [미카사 재채점 261122 (가)(나)(다)] «곡선 텍스트» 둥글게 + 뒤집기 · 반지름 27→49 — 돈 각이 반지름을 따름(뒤집기 끈 때와 같음) · 윗변 겹침 0 · 안내 «지금 N° · 반원 · 한 바퀴» 수
+ * 양성대조(261122): _patches/liner-flip-spacing-CTL.patch(뒤집기 자간 보탬 걷음) → R8 빨강(79px) · R9 빨강(144°→101° · 겹침 38px).
  * 양성대조: _patches/liner-arc-CTL.patch(반지름 모드·가로 지킴이·외곽선 끔 · 뒤집기 무시) → R1·R3·R4·R5 빨강 · R2 초록 · (실측) liner-flip-push-CTL(뒤집기 밀어내기 걷음) → R8 빨강(겹침 110.4px · 고친 판 78.3px).
  */
 const { test, expect } = require('@playwright/test');
@@ -145,7 +147,9 @@ test('R7 아치를 처음 고르면 반지름 채움 · 넣은 값은 그대로'
    i 윗변 끝이 i+1 윗변 시작을 진행 방향으로 넘어간 길이를 더한다(겹침 = 글자 머리가 서로 먹힘) */
 const topOverlap = (page) => page.evaluate(() => {
   const te = document.querySelector('#lnL svg.lnr-svg text'), fs = parseFloat(te.getAttribute('font-size')) || 16, a = fs * 0.72, n = te.getNumberOfChars();
-  const g = []; for (let i = 0; i < n; i++) { const s0 = te.getStartPositionOfChar(i), e0 = te.getEndPositionOfChar(i), r = te.getRotationOfChar(i) * Math.PI / 180; const d = [Math.cos(r), Math.sin(r)], up = [Math.sin(r), -Math.cos(r)]; g.push({ ts: [s0.x + up[0] * a, s0.y + up[1] * a], te: [e0.x + up[0] * a, e0.y + up[1] * a], d }); }
+  /* 글자 폭 = 같은 글꼴의 canvas measureText(자간 뺀 «잉크 폭») — getEndPositionOfChar 는 자간까지 더해 뒤집기 자간 보탬을 겹침으로 셌다(261122 실측) */
+  const cx = document.createElement('canvas').getContext('2d'); cx.font = `${te.getAttribute('font-style') || 'normal'} ${te.getAttribute('font-weight') || 400} ${fs}px ${te.getAttribute('font-family')}`; const txt = te.textContent;
+  const g = []; for (let i = 0; i < n; i++) { const s0 = te.getStartPositionOfChar(i), w = cx.measureText(txt[i]).width, r = te.getRotationOfChar(i) * Math.PI / 180; const d = [Math.cos(r), Math.sin(r)], up = [Math.sin(r), -Math.cos(r)]; g.push({ ts: [s0.x + up[0] * a, s0.y + up[1] * a], te: [s0.x + d[0] * w + up[0] * a, s0.y + d[1] * w + up[1] * a], d }); }
   let sum = 0; for (let i = 0; i + 1 < n; i++) { const o = (g[i].te[0] - g[i + 1].ts[0]) * g[i].d[0] + (g[i].te[1] - g[i + 1].ts[1]) * g[i].d[1]; if (o > 0) sum += o; }
   return { sum: +sum.toFixed(1), fs: +fs.toFixed(1), n };
 });
@@ -159,10 +163,33 @@ test('R8 아치 반지름 49 + 안쪽 뒤집기 — 윗변 겹침 수 · 안내 
   const flip = await topOverlap(page);
   if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER });
   console.log(`[R8 겹침 수] 반지름 49 · 글자 ${flip.fs}px · 윗변 겹침 합 — 바로 ${plain.sum}px · 뒤집기 ${flip.sum}px (글자 ${flip.n})`);
-  expect(flip.sum <= 95, `★뒤집기 윗변 겹침 ${flip.sum}px(바로 ${plain.sum}px)`).toBe(true);
-  expect(await page.evaluate(() => document.getElementById('lnr-radius-hint')?.hidden), '아치 = 안내 숨김').toBe(true);
+  expect(flip.sum <= 5, `★뒤집기 윗변 겹침 ${flip.sum}px(바로 ${plain.sum}px)`).toBe(true);   // ★기대 바뀜(미카사 재채점 261122 (나)): 95 → 5 — 뒤집기 자간 보탬으로 0.1px(CTL liner-flip-spacing 79px · 겹침 셈은 잉크 폭 기준으로 고침)
+  expect(await page.evaluate(() => { const h = document.getElementById('lnr-radius-hint'); return [h?.hidden, h?.querySelector('.lnr-hint-auto')?.hidden, /반원/.test(h?.textContent || '')]; }), '아치(반지름 모드) = 반원·한 바퀴 수만 · «비우면 글 길이 기준» 숨김').toEqual([false, true, true]);   // ★기대 바뀜(미카사 재채점 261122 (가)): 반지름 칸 안내에 «반원/한 바퀴» 수 — 반지름 모드 아치에도 뜬다 · 둥글게 전용 문장은 여전히 숨김
   await page.selectOption('#lnr-preset', 'round'); await raf(page);
   await expect(page.locator('#lnr-radius-hint'), '둥글게 = «글 길이 기준» 안내').toBeVisible();
   await expect(page.locator('#lnr-radius-hint')).toContainText('글 길이 기준');
+  expect(errs).toEqual([]);
+});
+
+test('R9 뒤집기 + 반지름 27→49 — 꼴이 반지름을 따른다 · 윗변 안 맞닿음 · 안내에 «반원/한 바퀴» 수', async ({ page }) => {
+  const errs = await scene(page, 'round');
+  await page.evaluate(() => { const blk = document.getElementById('lnL'); blk.querySelector('.tb-liner').textContent = '곡선 텍스트'; window.applyLinerText?.(blk); window.applyLiner(blk); });
+  await openPanel(page);
+  const setR = async (r) => { await page.fill('#lnr-radius', String(r)); await page.press('#lnr-radius', 'Enter'); await raf(page); };
+  const hint = () => page.evaluate(() => { const h = document.getElementById('lnr-radius-hint'); return h && !h.hidden ? h.textContent.trim() : null; });
+  await setR(27); const p27 = await geo(page);
+  await page.click('#lnr-flip-row .prop-toggle'); await raf(page);
+  expect(await page.evaluate(() => JSON.parse(document.getElementById('lnL').dataset.liner).flip), '[전제] 뒤집기 켜짐').toBe(true);
+  const f27 = await geo(page), o27 = await topOverlap(page), h27 = await hint();
+  if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER.replace(/\.png$/, '-r27.png') });
+  await setR(49); const f49 = await geo(page), o49 = await topOverlap(page), h49 = await hint();
+  if (process.env.SHOT_LINER) await page.locator('#lnL').screenshot({ path: process.env.SHOT_LINER.replace(/\.png$/, '-r49.png') });
+  await page.click('#lnr-flip-row .prop-toggle'); await raf(page); const p49 = await geo(page);
+  const t = (g) => +g.turn.toFixed(1);
+  console.log(`[R9 실측] 돈 각 — 바로 r27 ${t(p27)}° · 뒤집기 r27 ${t(f27)}° · 뒤집기 r49 ${t(f49)}° · 바로 r49 ${t(p49)}° · 윗변 겹침 r27 ${o27.sum}px · r49 ${o49.sum}px · 안내 «${h27}» → «${h49}»`);
+  expect(f27.turn / f49.turn > 1.5, `★(다) 뒤집기에서 반지름 27→49 가 꼴을 바꾼다(49/27=1.81) ${t(f27)}° → ${t(f49)}°`).toBe(true);
+  expect(Math.abs(f27.turn / p27.turn - 1) < 0.15 && Math.abs(f49.turn / p49.turn - 1) < 0.15, `★뒤집기는 돈 각을 안 바꾼다(안쪽만 향함) r27 ${t(p27)}→${t(f27)} · r49 ${t(p49)}→${t(f49)}`).toBe(true);
+  expect(o27.sum <= 2 && o49.sum <= 2, `★(나) 뒤집기 윗변 안 맞닿음 r27 ${o27.sum}px · r49 ${o49.sum}px`).toBe(true);
+  expect(!!h27 && /반원/.test(h27) && /한 바퀴/.test(h27) && h27 !== h49, `★(가) 안내에 반원·한 바퀴 수 · 반지름 따라 바뀜 «${h27}» «${h49}»`).toBe(true);
   expect(errs).toEqual([]);
 });
