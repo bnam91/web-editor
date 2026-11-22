@@ -6,6 +6,8 @@
  * I4 내보내기 — PNG 잉크 면적 3.5 > 1(두 측정 견줌) · HTML·Figma JSON svg 에 stroke-width="3.5"
  * I5 [미카사 채점 ②] Iconify 가 주는 실제 Lucide 꼴(stroke-width 가 path 에) → «선 두께» 줄 뜸 · 3 → path stroke-width 3
  * I6 [미카사 채점 ②] 고르기 창 Feather 걸러 «heart» 검색 — Iconify 검색은 feather 를 0 으로 준다 → 세트 목록에서 골라 격자에 feather:heart
+ * I7 [미카사 재채점 261122] 실제 Feather sun 두께 4 — 빛살 끝 잘림 없음(PNG 가장자리 띠 잉크 152 → 46 · 두께 2 = 35) · viewBox -1 -1 26 26 · HTML·Figma 같음 · 2 로 되돌림
+ *    양성대조 icon-stroke-viewbox-CTL(_fitStrokeViewBox 부름 걷음) → I7 빨강.
  * 네트워크 0 — fetch 를 쪽 안에서 가로채 Iconify 대역 SVG 를 준다.
  * 양성대조: _patches/icon-stroke-fill-CTL.patch(applyIconStroke·msNameFor 걷음) → I1·I3·I4 빨강 · I2 초록 · (실측) icon-child-stroke-CTL(자식 stroke-width 안 봄) → I5 빨강 · icon-feather-search-CTL(세트 목록 폴백 걷음) → I6 빨강.
  */
@@ -127,5 +129,38 @@ test('I6 Feather 걸러 검색 — Iconify 검색 0 이면 세트 목록에서',
   const g = await page.evaluate(() => ({ html: document.getElementById('iconify-grid')?.innerHTML || '', log: window.__fetchLog }));
   expect(/feather:heart"/.test(g.html) && /feather:heart-off/.test(g.html) && !/feather:star/.test(g.html), `★Feather 검색 결과 0 (격자 ${g.html.slice(0, 160)})`).toBe(true);
   expect(g.log.some((u) => u.includes('/collection?prefix=feather')), '세트 목록을 받았다').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+const FEATHER_SUN = '<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></g></svg>';   // api.iconify.design/feather/sun.svg 응답 그대로(261122) · 빛살 끝이 1 · 23
+test('I7 [미카사 재채점 261122] Feather sun 선 두께 4 — 빛살 끝이 상자 가장자리에서 안 잘림 · PNG·HTML·Figma 같은 viewBox · 2 로 되돌리면 원래', async ({ page }) => {
+  const errs = await scene(page, 'feather:sun', FEATHER_SUN);
+  /* PNG 길에서 아이콘 svg 상자의 가장자리 2px 띠에 든 빨간 잉크 — 잘리면 빛살 끝 단면(선 두께만큼)이 띠에 박힌다 */
+  const edge = () => page.evaluate(async () => {
+    const s = document.getElementById('sI'), sv = document.querySelector('#icI > svg'); const r = await window.__exportGate.captureTruth(s, 860, window.__exportGate.sectionBgColor(s));
+    const sr = s.getBoundingClientRect(), b = sv.getBoundingClientRect(), k = r.canvas.width / sr.width, L = Math.round((b.left - sr.left) * k), T = Math.round((b.top - sr.top) * k), W = Math.round(b.width * k), H = Math.round(b.height * k);
+    const d = r.canvas.getContext('2d').getImageData(L, T, W, H).data; let e = 0, all = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i] > 150 && d[i + 1] < 90 && d[i + 2] < 90) { all++; if (x < 2 || y < 2 || x >= W - 2 || y >= H - 2) e++; } }
+    return { e, all };
+  });
+  const setW = async (w) => { await page.fill('#icn-stroke-w-number', String(w)); await page.press('#icn-stroke-w-number', 'Enter'); await raf(page); };
+  const e2 = await edge();
+  await setW(4);
+  if (process.env.SHOT_ICON) await page.locator('#icI').screenshot({ path: process.env.SHOT_ICON });
+  const e4 = await edge(), vb = await page.evaluate(() => { const s = document.querySelector('#icI > svg'); return [s.getAttribute('viewBox'), s.getAttribute('data-vb0')]; });
+  console.log(`[I7 실측] 가장자리 2px 띠 빨간 잉크 — 두께 2 ${JSON.stringify(e2)} · 두께 4 ${JSON.stringify(e4)} · viewBox ${JSON.stringify(vb)}`);
+  /* 두께 2(Feather 원래 꼴)도 둥근 끝이 가장자리에 «점으로» 닿아 띠 잉크가 있다(실측 35) — 잘리면 끝 단면이 통째로 박힌다(고치기 전 152 · 후 46) ⇒ 두께 2 의 두 배 아래 */
+  expect(e4.e < e2.e * 2, `★두께 4 빛살 끝이 가장자리에서 안 잘림(띠 잉크 ${e4.e}px · 두께 2 = ${e2.e}px)`).toBe(true);
+  expect(vb, '★viewBox 네 변 1 씩 넓힘 · 원래 값 보관').toEqual(['-1 -1 26 26', '0 0 24 24']);
+  const out = await page.evaluate(async () => {
+    let blob = null; const oc = URL.createObjectURL, ok = HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = function (x) { blob = x; return oc.call(URL, x); }; HTMLAnchorElement.prototype.click = function () { if (!this.download) return ok.call(this); };
+    try { await window.exportHTMLFile(); } finally { URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = ok; }
+    const html = blob ? await blob.text() : ''; const j = await window.buildFigmaExportJSON(['sI']); let n = null; const w = (o) => { if (!o || typeof o !== 'object' || n) return; if (o.id === 'icI') { n = o; return; } Object.values(o).forEach(w); }; w(j);
+    return { html: /viewBox="-1 -1 26 26"/.test(html), figma: !!n && /viewBox="-1 -1 26 26"/.test(n.svg || '') };
+  });
+  expect(out, '★HTML·Figma 도 넓힌 viewBox').toEqual({ html: true, figma: true });
+  await setW(2);
+  expect(await page.evaluate(() => { const s = document.querySelector('#icI > svg'); return [s.getAttribute('viewBox'), s.hasAttribute('data-vb0')]; }), '★2 로 되돌리면 원래 viewBox').toEqual(['0 0 24 24', false]);
   expect(errs).toEqual([]);
 });
