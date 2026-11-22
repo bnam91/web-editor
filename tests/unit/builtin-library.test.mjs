@@ -50,10 +50,20 @@ test('L2 동봉 파일 — 전부 있고 그림 머리 · 가드가 받아들임
     assert.equal(g.mime, png ? 'image/png' : jpg ? 'image/jpeg' : 'image/svg+xml', `${r} 확장자와 내용이 다름`);
     if (svg) {   // 동봉 SVG = 크기 일정(정사각 256) · 활성 내용 0
       const t = b.toString('utf8');
-      assert.match(t, /^<svg width="256" height="256" viewBox="[-\d.]+ [-\d.]+ ([\d.]+) \1"/, `${r} 정사각 256 아님`);
+      if (!c.rawSvg) assert.match(t, /^<svg width="256" height="256" viewBox="[-\d.]+ [-\d.]+ ([\d.]+) \1"/, `${r} 정사각 256 아님`);   // rawSvg(QA 샘플) = 원본 바이트가 곧 시험거리 — 꼴 자 빼고 활성 내용 자는 그대로
       assert.doesNotMatch(t, /<script|href=|<image|foreignObject|\son\w+=/i, `${r} 활성 내용`);
     }
   }
+});
+
+test('L2b t13F-06 rawSvg 묶음 — 관리자 전용만 · QA 샘플 10 · 넣기 = 들여온 SVG 문', () => {
+  for (const c of LIBRARY.filter((x) => x.rawSvg)) assert.equal(c.admin, true, `${c.id} rawSvg 는 관리자 묶음만(꼴 자를 빼는 묶음이라 공개 탭 금지)`);
+  const qa = col('qa-samples');
+  assert.ok(qa && qa.rawSvg && qa.admin, 'QA 샘플 = 관리자 · rawSvg');
+  assert.equal(qa.items.length, 10); assert.ok(qa.items.every((i) => /^3\d-[a-z-]+\.svg$/.test(i.file)), '30~39 ASCII 이름');
+  const panel = fs.readFileSync(path.join(ROOT, 'js/panels/library-panel.js'), 'utf8');
+  assert.match(panel, /col\.rawSvg && [^\n]*_insertRawSvg\(/, '_insert 가 rawSvg 를 들여온 SVG 길로');
+  assert.match(panel, /function _insertRawSvg[\s\S]{0,900}window\.addVectorFromSvgText\?\.\(txt, it\.name\)/, '같은 문(opts 없이 = P5 탐)');
 });
 
 test('L3 가드 — library 밖·꼼수는 거절 · textures 는 그대로', () => {
@@ -106,7 +116,7 @@ test('L4 묶음별 내용', () => {
   const ps = col('product-sketch');   // #22 t3-10 — 현빈이 볼 수 있게(관리자 탭)
   assert.ok(ps && ps.admin === true, '샘플 = 관리자 탭');
   assert.equal(ps.items.length, 8);
-  assert.deepEqual(LIBRARY.filter((c) => c.admin).map((c) => c.id), ['admin-memoji', 'product-sketch']);
+  assert.deepEqual(LIBRARY.filter((c) => c.admin).map((c) => c.id), ['admin-memoji', 'product-sketch', 'qa-samples']);   // ★기대 바뀜(t13F-06 현빈 261122 — 관리자 «QA 샘플» 탭 하나 더)
 });
 
 test('L5 배선 — 플러그인 패널 단추 · 모듈 script', () => {
