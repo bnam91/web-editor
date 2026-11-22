@@ -129,10 +129,12 @@ const SLIDE_LIST = [
   { id: 'slide-wipe',  label: '전후 비교',    desc: '첫째(전)·둘째(후)를 겹치고 나눔선이 좌우로 오감' },   // SLIDE-FX-BEFORE-AFTER-WIPE-01
   { id: 'slide-trail', label: '스와이프 잔상', desc: '한 장씩 넘길 때 지나간 자리에 옅은 잔상' },   // SLIDE-FX-SWIPE-TRAIL-01
   { id: 'slide-gridzoom', label: '격자 줌아웃', desc: '큰 사진 한 장이 작아지며 사진 격자로 멀어짐' },   // SLIDE-FX-GRID-ZOOMOUT-01
+  { id: 'slide-flow2', label: '2줄 반대 방향', desc: '사진이 두 줄로 나뉘어 윗줄·아랫줄이 서로 반대로 흐름' },   // SLIDE-EFFECT-SAMPLES-QA-01 ③(현빈 261123 · 지디 ⓐ)
+  { id: 'slide-vflow2', label: '세로 2열 반대 방향', desc: '사진이 두 열로 나뉘어 왼열·오른열이 서로 반대로 흐름' },
 ];
 const _SLIDE_NODWELL = new Set(['slide-wipe', 'slide-gridzoom']);   // 머무름 없음(방향도 없음)
 const _SLIDE_INPLACE = new Set(['slide-fade', 'slide-cut', 'slide-center']);   // 방향 칸 없음(가운데 캐러셀은 왼쪽으로만) · 머무름 칸 있음
-const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep']);
+const _SLIDE_VERT = new Set(['slide-vflow', 'slide-vstep', 'slide-vflow2']);
 /* 3단계 ③ 신호등(MOTION-STEP-HIGHLIGHT-01) — 그리드 칸 차례 강조. 셈·그림 = js/fx/step-motion.js · 바탕 그림·저장 = js/blocks/grid-step.js */
 const STEP_LIST = [
   { id: 'step-fill',    label: '차례 채움',    desc: '칸이 하나씩 강조 색으로 채워지고 나머지는 흐리게' },
