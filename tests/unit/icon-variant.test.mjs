@@ -57,3 +57,14 @@ test('V4 Iconify 실제 꼴 — path 의 stroke-width', () => {
   const filled = mkEl({}); filled.querySelectorAll = () => [];
   assert.equal(V.isStrokeIcon(filled), false);
 });
+
+test('V5 iconStrokeViewBox — 굵은 선이 viewBox 밖이면 네 변 같은 폭으로 넓힘(미카사 재채점 261122 · Feather sun 기하 1..23)', () => {
+  const sun = { x: 1, y: 1, width: 22, height: 22 };
+  assert.equal(V.iconStrokeViewBox('0 0 24 24', sun, 2), '0 0 24 24', '두께 2 = 끝이 0 에 딱 · 그대로');
+  assert.equal(V.iconStrokeViewBox('0 0 24 24', sun, 4), '-1 -1 26 26', '두께 4 = 반폭 2 → 1 넘침');
+  assert.equal(V.iconStrokeViewBox('0 0 24 24', sun, 3.5), '-0.75 -0.75 25.5 25.5');
+  assert.equal(V.iconStrokeViewBox('0 0 24 24', { x: 2, y: 2, width: 20, height: 20 }, 3.5), '0 0 24 24', 'Lucide 꼴(여백 2) · 3.5 는 안 넘침');
+  assert.equal(V.iconStrokeViewBox('0 0 24 24', { x: 3, y: 1, width: 18, height: 21 }, 4), '-1 -1 26 26', '한 변만 넘쳐도 네 변 같게(가운데 유지)');
+  assert.equal(V.iconStrokeViewBox('0 0 24 24', { x: 0, y: 0, width: 0, height: 0 }, 4), '0 0 24 24', '못 잰 상자 = 그대로');
+  assert.equal(V.iconStrokeViewBox('bad', sun, 4), 'bad');
+});

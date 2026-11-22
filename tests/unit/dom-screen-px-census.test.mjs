@@ -135,6 +135,7 @@ const ROSTER = {
   /* ★1017t1c5(태양) — r0·r1 둘 다 같은 줌에서 getBoundingClientRect, 비교는 ★차(r1.left-r0.left) —
      overlay-drag-rotation.dom.spec.js:224 와 같은 꼴(마우스 드래그 거리 ＋ 결과 rect 차). 배율이 상쇄된다. */
   'cmp-overlay.dom.spec.js:142': 'safe',
+  'icon-stroke-fill.dom.spec.js:141': 'safe',   // 태양 261122 I7 triage: 화면 rect 는 k = 캔버스 폭/섹션 화면 폭 으로만 캔버스 좌표에 옮긴다(배율 상쇄) · 자가 잡은 «두 자리 상수» 150/90 = 픽셀 색 문턱(px 아님)
   'drag-move-autosave.dom.spec.js:82': 'safe',
   'e130-float-cross-section-row.dom.spec.js:55': 'safe',
   /* ★0911-int-2(2514848e2 — 검사 전제에 _enteredFrame 세 줄을 더해 ＋3) — ★줄이 ★움직였다(:185 → :188) · 글자 바이트 같은 자리 ⇒ 태그 그대로 옮김(판정 안 지어냄) */

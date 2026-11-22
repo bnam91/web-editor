@@ -31,7 +31,32 @@ export function applyIconStroke(block) {
   const els = _strokeEls(svg);
   if (!svg || w == null || !els.length) return null;
   for (const e of els) if (e.getAttribute('stroke-width') !== String(w)) e.setAttribute('stroke-width', String(w));
+  _fitStrokeViewBox(svg, w);
   return w;
+}
+
+/** 굵은 선이 viewBox 밖으로 나가면(획 끝이 평평하게 잘림 · 미카사 재채점 261122 · Feather sun 4 = 밖 잉크 3.5%) 네 변을 같은 폭으로 넓힌 viewBox · 안 나가면 원래 viewBox 그대로.
+ *  vb0 = 원래 viewBox 문자열 · bb = 그림 기하 상자 {x,y,width,height}(획 뺀 것) · w = 선 두께. 순수 함수.
+ *  shortcut: 획 반폭(w/2)만 본다 — round 끝·이음(Feather·Lucide 꼴) 기준 · miter 이음 아이콘이 잘리면 miterlimit 배를 더해라. */
+export function iconStrokeViewBox(vb0, bb, w) {
+  const v = String(vb0 || '').trim().split(/[\s,]+/).map(Number);
+  if (v.length !== 4 || v.some((n) => !Number.isFinite(n)) || !bb || !(bb.width > 0 || bb.height > 0) || !(w > 0)) return vb0;
+  const h = w / 2, pad = Math.max(0, v[0] - (bb.x - h), v[1] - (bb.y - h), (bb.x + bb.width + h) - (v[0] + v[2]), (bb.y + bb.height + h) - (v[1] + v[3]));
+  if (!(pad > 0.01)) return vb0;
+  const p = Math.ceil(pad * 100) / 100, r = (n) => +n.toFixed(2);
+  return `${r(v[0] - p)} ${r(v[1] - p)} ${r(v[2] + 2 * p)} ${r(v[3] + 2 * p)}`;
+}
+/* 원래 viewBox 는 data-vb0 에 한 번 적어 둔다(두께를 다시 줄이면 되돌림 · 저장본에 함께 남아 다시 열어도 같은 꼴). 화면에 없어 상자를 못 재면 손 안 댐. */
+function _fitStrokeViewBox(svg, w) {
+  if (typeof svg.getBBox !== 'function') return;
+  const vb0 = svg.getAttribute('data-vb0') || svg.getAttribute('viewBox');
+  if (!vb0) return;
+  let bb = null; try { bb = svg.getBBox(); } catch (_) { bb = null; }
+  if (!bb || !(bb.width > 0 || bb.height > 0)) return;
+  const next = iconStrokeViewBox(vb0, bb, w);
+  if (next === vb0) { if (svg.hasAttribute('data-vb0')) { svg.setAttribute('viewBox', vb0); svg.removeAttribute('data-vb0'); } return; }
+  if (!svg.hasAttribute('data-vb0')) svg.setAttribute('data-vb0', vb0);
+  if (svg.getAttribute('viewBox') !== next) svg.setAttribute('viewBox', next);
 }
 
 const MS_RE = /^material-symbols:([a-z0-9-]+?)(-outline)?(-rounded|-sharp)?$/;
