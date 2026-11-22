@@ -1067,6 +1067,26 @@ body.sel-ov #canvas .sticker-block.selected[data-shape="highlight"]::after {
   outline-offset: calc(-1 * var(--sel-outline-w));
 }
 .gap-block.selected::before { display: block; }
+/* t13G-02 갭 높이 라벨(관리자만 · js/gap-height-label.js · 현빈 261122 시안 승인) — #ss-handles-overlay(고정층) 자식 · 블럭 오른쪽 세로 가운데.
+   글꼴 어휘 = .section-height-badge(캔버스 숫자 배지: fs-10 · fw-medium · tabular-nums · ::after attr(data-h)) · 색 = 선택 색 위 흰 글자(선례 .img-edge-handle). ⛔리사이즈 손잡이 없음. */
+.gap-h-label {
+  position: absolute; transform: translateY(-50%); z-index: 2; pointer-events: auto;
+  display: inline-flex; align-items: center; gap: var(--ui-space-0_5);
+  height: calc(var(--ui-space-4) + var(--ui-space-0_5)); padding: 0 var(--ui-space-1_5);
+  background: var(--sel-color); color: #fff; border-radius: var(--ui-radius-sm); box-shadow: var(--ui-shadow-md);
+  font-size: var(--ui-fs-10); font-weight: var(--ui-fw-medium); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+  white-space: nowrap; cursor: text; user-select: none;
+}
+.gap-h-label > b { font-weight: var(--ui-fw-medium); opacity: .75; }
+.gap-h-label:not(.is-editing)::after { content: attr(data-h); }
+.gap-h-label:not(.is-editing):hover { background: var(--sel-color-hover); }
+.gap-h-label > input { display: none; }
+.gap-h-label.is-editing > input {
+  display: block; width: 4.5ch; height: var(--ui-space-4); padding: 0 var(--ui-space-0_5);
+  background: transparent; color: inherit; border: 0; border-radius: var(--ui-space-0_5);
+  font: inherit; font-variant-numeric: tabular-nums; outline: 1px solid #fff; outline-offset: 0;
+}
+#preview-overlay .gap-h-label, body.preview-mode .gap-h-label { display: none !important; }
 
 
 /* ── Drag & Drop ── */
