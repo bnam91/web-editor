@@ -5143,8 +5143,11 @@ function showHandlesFor(block) {
          showTextProperties 를 쓰는데(block-drag.js isIconText) 손잡이만 빠져 있었다.
          ⇒ 「같은 패널을 쓰면 같은 손잡이」로 클래스를 명시한다. 술어는 그대로 dataset 이다. */
     const posEl = _posElOf(block);
-    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); showTextBoxResizeHandles(posEl, TBX_EDGES); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
-    else { hideTextOverlayResizeHandles(); showTextBoxResizeHandles(posEl, TBX_ALL); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
+    /* t13E-10(현빈 261122) — t13D-10 상자 손잡이는 우선 관리자만. 판정 = feature-flags.js animGifVisible 한 자리(서버 role ∨ 앱 관리자 · 모르면 «아님»).
+       입구가 손잡이뿐이라 안 만들면 끌기(_onTextBoxResizeMouseDown)도 못 탄다 · 공개 범위일 뿐 접근통제 아님 · 오버레이 옛 모서리(글자 비례)는 그대로. */
+    const boxOk = !!window.animGifVisible?.(true, window.__admin?.state?.() ?? null);
+    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); if (boxOk) showTextBoxResizeHandles(posEl, TBX_EDGES); else hideTextBoxResizeHandles(); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
+    else { hideTextOverlayResizeHandles(); if (boxOk) showTextBoxResizeHandles(posEl, TBX_ALL); else hideTextBoxResizeHandles(); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
   } else if (block.classList.contains('gap-block')) {
     showTextBoxResizeHandles(block, ['s']);   // t13D-10 — 갭 = 아래 변 하나(높이)
   } else if (block.classList.contains('grid-block')) {
