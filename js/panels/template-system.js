@@ -1186,7 +1186,11 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
   const resolvedFolder = folder || '블록';
 
   // 저장용 클론 (핸들/편집모드 제거)
-  const clone = _cleanTemplateClone(block.cloneNode(true));
+  /* ★글은 글 프레임째 담는다(P17b · 261123 실측 9391): 회전·반전 transform 은 래퍼(.frame-block[data-text-frame]) 에 있다 —
+     안쪽 글만 담으면 넣었을 때 키(data-flip-h)만 남고 화면은 안 뒤집혔다. 넣기 갈래는 프레임을 그대로 받는다(_bindInsertedTree). */
+  const tf = block.classList?.contains('text-block') && block.parentElement?.matches?.('.frame-block[data-text-frame="true"]') ? block.parentElement : null;
+  const clone = _cleanTemplateClone((tf || block).cloneNode(true));
+  if (tf) ['position', 'left', 'top'].forEach((k) => clone.style.removeProperty(k));   // 자유배치 안 좌표는 버린다 — 넣는 자리는 stack 줄
   clone.querySelectorAll('.block-toolbar').forEach(el => el.remove());   // 세척 목록 밖 — 블록 저장에서만 나오는 chrome
   /* 블록 저장도 «같은 형제»다 — 현빈 지시가 「섹션이나 블럭들도 모두」였다. 순서는 위와 같다. */
   _tplStripPath(clone);
