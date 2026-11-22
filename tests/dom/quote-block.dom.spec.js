@@ -315,11 +315,12 @@ test('Q6 ★패널 모양 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 0(㉠
     panelW: Math.round(document.getElementById('panel-right').getBoundingClientRect().width),
     collapsed: document.body.classList.contains('right-panel-collapsed'),
     /* ★211 인 줄이 ★있나 — ⛔첫 줄을 아무거나 집으면 0 을 잰다(머리말 전제) */
-    rows211: [...document.querySelectorAll('#panel-right .prop-row')].filter(r => r.clientWidth === 211).length,
+    /* ★전제 갱신(261123): 끝 옵션 칼럼(재설계 1차 ⑧) 뒤 실앱 줄 = 183(editor-props.css:586 · 9391 실측) — 좁아진 줄에서 재므로 본단언은 더 엄하다 */
+    rows211: [...document.querySelectorAll('#panel-right .prop-row')].filter(r => r.clientWidth === 183).length,
   }));
   expect(pre.collapsed, '★전제 — 패널이 안 접혀 있다').toBe(false);
   expect(pre.panelW, `★전제 — 패널 폭 240 (실측 ${pre.panelW})`).toBe(240);
-  expect(pre.rows211, '★전제 — clientWidth 211 인 prop-row 가 있다').toBeGreaterThan(0);
+  expect(pre.rows211, '★전제 — clientWidth 183(실앱 줄) 인 prop-row 가 있다').toBeGreaterThan(0);
 
   const m = await page.evaluate(() => {
     const grp = document.getElementById('qt-shape-group');
@@ -369,7 +370,7 @@ test('Q6 ★패널 모양 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 0(㉠
     splits: m.splits,
   }));
 
-  expect(m.rowW, `★그 줄의 내용폭 = 211 (실측 ${m.rowW})`).toBe(211);
+  expect(m.rowW, `★그 줄의 내용폭 = 183 (끝 옵션 칼럼 뒤 실앱 줄 · 실측 ${m.rowW})`).toBe(183);
   /* ★★수를 ★명부에서 끌어온다 — ★제품 8종 ＋ ★사용자가 더한 것 ＋ ★「＋」 하나. */
   const wantBtns = await page.evaluate(() => (window.quoteShapesAll ? window.quoteShapesAll().length : 0) + 1);
   expect(wantBtns, '★전제 — 명부를 못 읽었다(quoteShapesAll 이 window 에 없다)').toBeGreaterThan(1);

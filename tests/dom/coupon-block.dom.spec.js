@@ -347,7 +347,8 @@ test('C-PANEL5 ★칸 목록의 라벨·토글·체크박스가 «한 줄»에 �
   });
   /* ★전제 ① — ★장면이 ★앱과 같은가. ⛔패널이 넓으면 아무것도 안 눌려 이 검사가 «안 재고 있다». */
   expect(r.panelW, `패널 폭 ${r.panelW} — 앱(240)과 다르다. 패널 CSS 를 안 얹었나`).toBe(240);
-  expect(r.rowW, `줄 폭 ${r.rowW} — 지디 실앱 실측 211 과 다르다`).toBe(211);
+  /* ★전제 갱신(261123): 끝 옵션 칼럼(재설계 1차 ⑧) 뒤 실앱 줄 폭 = 183(editor-props.css:586 «줄 폭 183» · 9391 실측 몸 1215→1398). 좁아진 만큼 본단언은 더 엄하다 */
+  expect(r.rowW, `줄 폭 ${r.rowW} — 실앱 줄 폭 183 과 다르다`).toBe(183);
   /* ★전제 ② — 잴 줄이 ★다섯이고 잰 요소가 ★있다(0 이면 「0건이 초록」) */
   expect(r.rowCount, '칸 목록 줄을 못 찾았다').toBe(5);
   expect(r.seen.length, `잰 요소가 ${r.seen.length}개뿐이다`).toBeGreaterThanOrEqual(5);

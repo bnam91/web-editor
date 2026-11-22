@@ -1587,8 +1587,9 @@ test('G2 ★델타 — 순증·줄바 밀림·가로 잘림·색칸 폭이 기�
  *   상수 출처 = 재촬영 «전» 기준선 51dae124 의 metrics(colorFieldMinW 149 · barBtnRows 1 · bodyScrollW−bodyClientW 0 · overflowRight 0).
  *   ⛔이 상수를 재촬영 값으로 고치지 마라 — 고칠 일이 생기면 그건 «기능이 나빠졌다»는 뜻이다(현빈 판단).
  *   양성대조: 색 칸 하나를 128px 로 좁히거나(.prop-color-field width) 줄바 단추를 하나 더 넣어 두 줄이 되면 빨강. */
-const G2_FLOOR = Object.freeze({ colorFieldMinW: 149, barBtnRows: 1 });
-test('G2-inv ★기준선 무관 — 가로 잘림 0 · 색 칸 최소폭 ≥ 149 · 줄바 단추 한 줄', async ({ page }) => {
+/* ★colorFieldMinW 149 → 121 = 지디 261120 결정 ②(틀 절 색 칸 바닥 121 · b15b6c1e4 · editor-props.css .prop-section[data-sec] .prop-color-field) — 끝 옵션 칼럼으로 줄 183 · 정본은 그 결정(지디 261123 OK) */
+const G2_FLOOR = Object.freeze({ colorFieldMinW: 121, barBtnRows: 1 });
+test('G2-inv ★기준선 무관 — 가로 잘림 0 · 색 칸 최소폭 ≥ 121(결정 ②) · 줄바 단추 한 줄', async ({ page }) => {
   const errs = await boot(page);
   const now = await measurePanel(page);
   expect(errs).toEqual([]);

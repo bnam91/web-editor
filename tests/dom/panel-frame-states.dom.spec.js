@@ -150,7 +150,8 @@ test('S6 몸 아래 여백 = --ui-sec-body-pb 하나 — 숨은 꼬리는 건너
   for (const x of g) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
   /* 양성대조 — 꼬리 줄의 margin 을 되살리면(=고치기 전) 틈이 pb 보다 커진다: 이 칸이 무엇을 잰다 */
   await page.addStyleTag({ content: '.prop-sec-body > .prop-row { margin-bottom: var(--ui-space-2) !important; }' });
-  const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size');
+  /* ★기대 그대로 · 잴 자리만(261123): Size 는 Layout 묶음(f3c48611a · Q1) 안 조각 — bottomGaps 가 재는 줄은 묶음(psec-size-group) */
+  const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size-group');
   expect(bad.gap - pb, '[양성대조] margin 을 되살렸는데 틈이 그대로다').toBeGreaterThan(0.5);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -168,7 +169,7 @@ test('S7 보이는 내용 없는 펼친 절 — 아래 여백 0 · 머리 가운
     ] });
     const m = (sid) => { const s = document.getElementById(sid), h = s.querySelector(':scope > .prop-sec-head'); const a = s.getBoundingClientRect(), b = h.getBoundingClientRect();
       return { pb: parseFloat(getComputedStyle(s).paddingBottom), top: b.top - a.top - parseFloat(getComputedStyle(s).borderTopWidth), bottom: a.bottom - b.bottom }; };
-    return { fx: m('psec-effects'), stroke: m('psec-stroke'), size: m('psec-size') };
+    return { fx: m('psec-effects'), stroke: m('psec-stroke'), size: m('psec-size-group') };   // ★Size = Layout 묶음 조각(머리 없음) — 머리·pb 는 묶음이 쥔다(f3c48611a · Q1)
   }, id);
   for (const k of ['fx', 'stroke']) {
     expect(r[k].pb, `★${k} — 보이는 내용 없는데 아래 여백이 있다`).toBe(0);
