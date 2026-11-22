@@ -31,6 +31,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { bootApp, ROOT } = require('./_root-harness.js');
+const { addFx } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 /* ── 장면 ──────────────────────────────────────────────────────────────
    `ftTB`  우리 글상자(h1) · `ftTF` 그 text-frame 래퍼
@@ -103,7 +104,7 @@ const pick = async (page, id) => {
 
 /** 「이펙트 → 자유변형」을 ★패널에서 고른다(사람이 하는 그 두 걸음). */
 const addFt = async (page, P = 'txt') => {
-  await page.selectOption(`#${P}-fx-add`, 'freetransform');
+  await addFx(page, P, 'freetransform');
   await page.waitForFunction((P) => !!document.getElementById(`${P}-fxft-card`), P);
 };
 
@@ -820,6 +821,7 @@ test('QA-2 ★디자인 일관 — 글자 꼴(fs·color·fw·lh)과 ★아웃라
   await pick(page, 'ftTB');
   const base = await read(page);
   await addFt(page);
+  { const b = await page.evaluate(() => { const r = document.getElementById('ftTB').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.move(b[0], b[1]); }   /* ★기대 바뀜(시안 v10 · 261122 실측): 옛 고르개(selectOption)는 포인터를 안 옮겨 글상자 위 hover(.text-block:hover → outline none)가 선례와 같았다 · ＋ 메뉴는 마우스로 눌러 포인터가 패널로 간다 ⇒ 선례(골라 둔 채 hover)와 같은 자리로 되돌린다 — 두 값 모두 투명(눈에 같음) */
   await page.evaluate(() => {
     const tb = document.getElementById('ftTB'); const { W, H } = window.ftStateOf(tb);
     window.setFxFreeTransform(tb, [[W * 0.2, 0], [W * 0.8, 0], [W, H], [0, H]]);

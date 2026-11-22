@@ -23,6 +23,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
+const { addFx } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 const PANEL_OF = { ftTB: 'txt' };
 
@@ -54,7 +55,7 @@ const pick = async (page, id) => {
 };
 
 const addFt = async (page, P = 'txt') => {
-  await page.selectOption(`#${P}-fx-add`, 'freetransform');
+  await addFx(page, P, 'freetransform');
   await page.waitForFunction((p) => !!document.getElementById(`${p}-fxft-card`), P);
 };
 

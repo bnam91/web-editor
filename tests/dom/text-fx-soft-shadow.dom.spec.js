@@ -10,6 +10,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
+const { addFx, fxAddKeys } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 /* captureTruth(PNG 길)는 electronAPI.captureSectionCdp 로 찍는다 — 하네스 electronAPI 는 «모든 키가 함수»인 Proxy 라 그대로 두면 null → base64,null → ci.onerror(Event).
    CDP Page.captureScreenshot 으로 갈아 끼운다(slide-frame-cells wireCdp 꼴 · 지디 Electron 전수 261122 «page.evaluate: Event» 11건 = 이 배선 빠짐). */
 async function wireCdp(page) {
@@ -39,12 +40,12 @@ async function scene(page, { oldShadow = false } = {}) {
 async function openPanel(page) {
   const xy = await page.evaluate(() => { const e = document.querySelector('#tbS [class^="tb-"]'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [r.left + 30, r.top + r.height / 2]; });
   await page.mouse.click(xy[0], xy[1]); await raf(page);
-  await page.evaluate(() => { if (!document.querySelector('#panel-right [id$="-fx-add"]')) window.showTextProperties?.(document.getElementById('tbS')); });
-  await page.waitForFunction(() => !!document.querySelector('#panel-right [id$="-fx-add"]'), null, { timeout: 5000 });
+  await page.evaluate(() => { if (!document.querySelector('#panel-right [id$="-fx-add"], #panel-right [id$="-fx-add-btn"]')) window.showTextProperties?.(document.getElementById('tbS')); });
+  await page.waitForFunction(() => !!document.querySelector('#panel-right [id$="-fx-add"], #panel-right [id$="-fx-add-btn"]'), null, { timeout: 5000 });
 }
-const addSoft = async (page) => { await openPanel(page); const id = await page.evaluate(() => document.querySelector('#panel-right [id$="-fx-add"]').id);
-  expect(await page.evaluate((id) => [...document.getElementById(id).options].map((o) => o.value), id), '[전제] 목록에 부드러운 그림자').toContain('soft');
-  await page.selectOption('#' + id, 'soft'); await raf(page); };
+const addSoft = async (page) => { await openPanel(page);
+  expect(await fxAddKeys(page, 'txt'), '[전제] 목록에 부드러운 그림자').toContain('soft');
+  await addFx(page, 'txt', 'soft'); await raf(page); };
 const ts = (page) => page.evaluate(() => { const e = document.querySelector('#tbS [class^="tb-"]'); return { inline: e.style.textShadow, computed: getComputedStyle(e).textShadow, ds: { ...document.getElementById('tbS').dataset }, eds: { ...e.dataset } }; });
 const layers = (css) => String(css || '').split(/,(?![^()]*\))/).map((p) => p.replace(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/gi, '')).filter((p) => /px/.test(p)).map((p) => (p.match(/-?\d*\.?\d+px/g) || []).map(parseFloat));   // 겹 = 괄호 밖 쉼표로 · 색 걷고 px
 

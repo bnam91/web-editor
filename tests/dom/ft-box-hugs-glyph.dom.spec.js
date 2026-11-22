@@ -16,6 +16,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { addFx, FX_ADD_SEL } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 async function setup(page, { center = true, text = '짧은 글' } = {}) {
   await page.setViewportSize({ width: 1400, height: 1000 });
@@ -37,9 +38,8 @@ async function setup(page, { center = true, text = '짧은 글' } = {}) {
     await page.click('#panel-right .prop-align-btn[data-align="center"]');
     await page.waitForFunction((id) => (document.getElementById(id).querySelector('[contenteditable]') || document.getElementById(id).querySelector('.tb-h1')).style.textAlign === 'center', id, { timeout: 3000 });
   }
-  const sel = await page.evaluate(() => document.querySelector('#panel-right select[id$="-fx-add"]')?.id || null);
-  expect(sel, 'P 전제: 효과 추가 목록').not.toBeNull();
-  await page.selectOption('#' + sel, 'freetransform');
+  expect(await page.locator('#panel-right').locator(FX_ADD_SEL('txt')).count(), 'P 전제: 효과 추가 입구').toBeGreaterThan(0);
+  await addFx(page, 'txt', 'freetransform');
   await page.waitForFunction((id) => !!document.getElementById(id).dataset.tfCorners, id, { timeout: 3000 });
   return { errs, id };
 }

@@ -23,6 +23,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { bootApp, ROOT } = require('./_root-harness.js');
+const { addFx } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 /* 장면: 섹션 하나 — [텍스트] [에셋(주황)] [도형 래퍼(100×100 초록)] [아래 텍스트] — 고정 id (effects-reflection 과 같은 꼴) */
 async function setup(page) {
@@ -61,6 +62,8 @@ const pick = async (page, id) => {
 /** 그 패널의 «추가 목록» 을 읽는다 — 머리 option 과 고를 수 있는 효과들. */
 const addList = (page, P) => page.evaluate((P) => {
   const a = document.getElementById(`${P}-fx-add`);
+  const m = document.getElementById(`${P}-fx-menu`);   /* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 = ＋ 단추 → 종류 메뉴(항목 = 같은 «아직 없는» 종류) */
+  if (!a && m) return { tag: 'MENU', head: '', opts: [...m.querySelectorAll('[data-fx]')].map(b => ({ v: b.dataset.fx, t: b.textContent.trim() })) };
   if (!a) return null;
   return { tag: a.tagName, head: a.options[0].value, opts: [...a.options].slice(1).map(o => ({ v: o.value, t: o.textContent.trim() })) };
 }, P);
@@ -155,7 +158,7 @@ test('A3 ★supports — 그림자·반사는 셋 다(★t4-01 — 텍스트 그
 /* ══ A4 ★「바로 적용」이 끝났다 ══ */
 test('A4 ★목록을 열어도 아무것도 안 붙는다 — 고른 ★그것만 붙는다(반사 · 그림자 각각 · 도형·에셋·텍스트 전수)', async ({ page }) => {
   const errs = await setup(page);
-  const open = async (P) => { const p = await page.evaluate((P) => { const e = document.getElementById(`${P}-fx-add`); e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, P);
+  const open = async (P) => { const p = await page.evaluate((P) => { const e = document.getElementById(`${P}-fx-add`) || document.getElementById(`${P}-fx-add-btn`); /* ★기대 바뀜(시안 v10): 텍스트 = ＋ 단추(열기만 = 메뉴만) */ e.scrollIntoView({ block: 'center' }); const q = e.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, P);
     await page.mouse.click(p[0], p[1]); await page.waitForTimeout(250); await page.keyboard.press('Escape'); await page.waitForTimeout(150); };
   for (const [id, P] of [['eT', 'txt'], ['eSh', 'shape'], ['eA', 'asset']]) {
     await pick(page, id);

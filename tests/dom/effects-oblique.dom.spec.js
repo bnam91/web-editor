@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
+const { addFx, fxAddKeys, fxAddLabel } = require('./_fx-add.js');
 
 const OUT = process.env.OBLIQUE_PNG_DIR || path.join(os.homedir(), 'gd-team-261121', 'jn-oblique-png');
 const savePng = (name, buf) => { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(path.join(OUT, name), buf); };
@@ -56,7 +57,7 @@ const pick = async (page, id) => {
     await page.waitForFunction(([id, P]) => document.getElementById(id).classList.contains('selected') && !!document.getElementById(`${P}-fx-section`), [id, PANEL_OF[id]], { timeout: 3000 });
   }).toPass({ timeout: 20000 });
 };
-const addList = (page, P) => page.evaluate((P) => { const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
+const addList = (page, P) => fxAddKeys(page, P);   // ★기대 바뀜(시안 v10): 텍스트는 ＋ 메뉴 · 도형은 고르개 — 공용 _fx-add.js
 const ds = (page, id) => page.evaluate((id) => Object.fromEntries(Object.entries(document.getElementById(id).dataset).filter(([k]) => k.startsWith('fx'))), id);
 const splitTs = (ts) => { if (!ts || ts === 'none') return []; const out = []; let d = 0, cur = '';
   for (const ch of ts) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && d === 0) { out.push(cur.trim()); cur = ''; } else cur += ch; }
@@ -64,7 +65,7 @@ const splitTs = (ts) => { if (!ts || ts === 'none') return []; const out = []; l
 const layers = async (page) => splitTs(await page.evaluate(() => getComputedStyle(document.querySelector('#eT [class^="tb-"]')).textShadow));
 const set = (page, patch) => page.evaluate((p) => window.setFxOblique(document.getElementById('eT'), p), patch);
 const addOblique = async (page) => {
-  await page.selectOption('#txt-fx-add', 'oblique');
+  await addFx(page, 'txt', 'oblique');
   await page.waitForFunction(() => !!document.getElementById('txt-fxob-card'));
 };
 /** 글자 둘레 사각(뷰포트 좌표) — 그림자 자리까지 pad 만큼 넓힌다. */
@@ -86,7 +87,7 @@ test('O0 전제 — 명부에 oblique · 텍스트 목록에 «오블리크» ·
   expect(await page.evaluate(() => window.fxTypeKeys())).toEqual(expect.arrayContaining(['glow', 'oblique']));
   await pick(page, 'eT');
   expect(await addList(page, 'txt')).toEqual(expect.arrayContaining(['glow', 'oblique']));
-  expect(await page.evaluate(() => document.querySelector('#txt-fx-add option[value="oblique"]').textContent.trim())).toBe('오블리크');
+  expect(await fxAddLabel(page, 'txt', 'oblique')).toBe('오블리크');
   await pick(page, 'eSh'); expect(await addList(page, 'shape'), '도형 — 오블리크 없음').not.toContain('oblique');
   expect(errs).toEqual([]);
 });
@@ -129,7 +130,7 @@ test('O3 ★글로우·그림자와 공존 — [글로우 3, 사용자 1, 오블
   await set(page, { state: 'on', len: 4 });
   await page.evaluate(() => window.setFxGlow(document.getElementById('eT'), { state: 'on', color: '#00ff00' }));
   await pick(page, 'eT');
-  await page.selectOption('#txt-fx-add', 'shadow');
+  await addFx(page, 'txt', 'shadow');
   await page.waitForFunction(() => document.querySelector('#eT [class^="tb-"]').dataset.shadowEnabled === 'true');
   let L = await layers(page);
   expect(L.length, `★3+1+4 = 8 · ${L.join(' | ')}`).toBe(8);
