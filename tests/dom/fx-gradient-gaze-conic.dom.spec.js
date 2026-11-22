@@ -2,7 +2,8 @@
  * 고침: gradient-model(conic 파싱·직렬화) · color-picker(Angular · 16 프리셋 · 종류 실음) · fx/holo-palette GAZE_PRESETS(우리 색) ·
  *       shape-conic.js(도형 위 conic 덮개 · 도형 SVG 모양 mask · 저장엔 안 실고 watchAll·변화 때 다시) · prop-shape(SVG 아래 칠 = 투명 linear 대역) ·
  *       prop-section(원뿔형 허용) · export-figma-json(gradientModel) · figma-renderer(GRADIENT_ANGULAR)
- * Z1 프리셋 16(원뿔형 4) · 종류 선택지에 Angular — ★v3(261121): 프리셋은 Effects «홀로그램» 카드(색 고르기 안 줄 0) · Z2~Z7 은 카드로 고름
+ * ★전제 바뀜(현빈 261123 GradientGaze 재현): 원뿔형 프리셋 = 짝수 칸(gold=Holo 02 · pearl=Holo 04 …) — 옛 prism·opal 은 이제 Linear 라 Z2·Z3·Z5·Z6 는 gold·pearl 로 고름
+ * Z1 프리셋 16(원뿔형 8) · 종류 선택지에 Angular — ★v3(261121): 프리셋은 Effects «홀로그램» 카드(색 고르기 안 줄 0) · Z2~Z7 은 카드로 고름
  * Z2 원(ellipse) 도형 — «prism»(원뿔형) 진짜 클릭 → shapeGradient conic · 덮개 = conic-gradient + mask · SVG 정지 투명 · PNG 가운데 색 여럿 · 모서리 = 바탕(모양 밖 안 칠함)
  * Z3 텍스트 — «opal»(원뿔형) → 글자 background-image conic · Figma JSON 글자 그라데이션 type conic
  * Z4 섹션 바탕 — 원뿔형 css → 그려짐(computed conic) · PNG 색 여럿 (Figma: 섹션 그라데이션은 종류와 무관하게 원래 한 색으로 감 = 옛 MESH-FIGMA 갭 · 이번 범위 밖)
@@ -71,16 +72,16 @@ test('Z1 프리셋 16 · Angular', async ({ page }) => {
   const r = await page.evaluate(() => ({ inPicker: document.querySelectorAll('.goya-cp-popover [data-holo]').length,
     types: [...document.querySelector('.goya-cp-popover [data-el="gradType"]').options].map((o) => o.value) }));
   await page.keyboard.press('Escape'); await raf(page);
-  await holo(page, 'shape', 'prism');
+  await holo(page, 'shape', 'gold');
   const c = await page.evaluate(() => ({ n: document.querySelectorAll('#shape-fxholo-sws [data-holo]').length, conic: document.querySelectorAll('#shape-fxholo-sws [data-holo-type="conic"]').length }));
-  expect({ ...r, ...c }, '★카드 16 · 원뿔형 4 · 피커 프리셋 줄 0 · Angular').toEqual({ inPicker: 0, types: ['linear', 'radial', 'conic'], n: 16, conic: 4 });   // ★기대 바뀜(v3 261121 «별도 이펙트»): 프리셋 16 = 색 고르기 → Effects «홀로그램» 카드
+  expect({ ...r, ...c }, '★카드 16 · 원뿔형 8 · 피커 프리셋 줄 0 · Angular').toEqual({ inPicker: 0, types: ['linear', 'radial', 'conic'], n: 16, conic: 8 });   // ★기대 바뀜(v3 261121 «별도 이펙트») · ★기대 바뀜(현빈 261123 GradientGaze 재현 — 원뿔형 8): 프리셋 16 = 색 고르기 → Effects «홀로그램» 카드
   expect(errs).toEqual([]);
 });
 
-test('Z2 원 도형 «prism» → 덮개 · 모양 밖 안 칠함', async ({ page }) => {
+test('Z2 원 도형 «gold»(원뿔형) → 덮개 · 모양 밖 안 칠함', async ({ page }) => {
   const errs = await scene(page, 'shape');
   await openPanel(page, 'shape');
-  await holo(page, 'shape', 'prism');
+  await holo(page, 'shape', 'gold');
   await page.mouse.click(5, 700); await raf(page);
   const st = await page.evaluate(() => { const b = document.getElementById('shZ'), ov = b.querySelector(':scope > .shape-conic-ov'); const g = JSON.parse(b.dataset.shapeGradient || 'null');
     return { type: g && g.type, ov: !!ov, bg: ov ? /conic-gradient/.test(ov.style.background) : false, mask: ov ? /data:image\/svg\+xml/.test(ov.style.maskImage || ov.style.webkitMaskImage) : false,
@@ -97,10 +98,10 @@ test('Z2 원 도형 «prism» → 덮개 · 모양 밖 안 칠함', async ({ pag
   expect(errs).toEqual([]);
 });
 
-test('Z3 글자 «opal» 원뿔형 · Figma', async ({ page }) => {
+test('Z3 글자 «pearl» 원뿔형 · Figma', async ({ page }) => {
   const errs = await scene(page, 'text');
   await openPanel(page, 'text');
-  await holo(page, 'text', 'opal');
+  await holo(page, 'text', 'pearl');
   const bg = await page.evaluate(() => document.querySelector('#tbZ [class^="tb-"]').style.backgroundImage);
   expect(/^conic-gradient\(/.test(bg), `★글자 conic ${bg.slice(0, 80)}`).toBe(true);   // ★기대 바뀜(v3 261121): 시작각 0 이면 브라우저가 «from 0deg at 50% 50%» 를 통째로 지운다(옛 판은 피커 지금 각도라 머리가 있었다)
   expect(await page.evaluate(() => { const g = window.getTextGradient?.(document.querySelector('#tbZ [class^="tb-"]')); return g && g.type; }), '★머리 없는 꼴도 다시 읽힘(conic)').toBe('conic');
@@ -136,9 +137,9 @@ test('Z5 저장 표본엔 덮개 0 → 다시 열면 덮개 · 크기 따라감'
 test('Z6 Figma 도형 gradientModel', async ({ page }) => {
   const errs = await scene(page, 'shape');
   await openPanel(page, 'shape');
-  await holo(page, 'shape', 'prism');
+  await holo(page, 'shape', 'gold');
   const a = node(await figJson(page), 'shZ');
-  expect([a?.gradientModel?.type, a?.gradientModel?.stops?.length], '★conic 모델').toEqual(['conic', 7]);
+  expect([a?.gradientModel?.type, a?.gradientModel?.stops?.length], '★conic 모델').toEqual(['conic', 8]);   // ★기대 바뀜(현빈 261123 GradientGaze 재현 — gold = 플러그인 #2 Angular 정지점 8 · 옛 prism 7)
   await holo(page, 'shape', 'mist');
   const b = node(await figJson(page), 'shZ');
   expect(b?.gradientModel ?? null, '★linear 면 없음').toBe(null);
@@ -148,7 +149,7 @@ test('Z6 Figma 도형 gradientModel', async ({ page }) => {
 test('Z7 원뿔형 캔버스 바 = 원(가운데 + 시작각 손잡이)', async ({ page }) => {
   const errs = await scene(page, 'shape');
   await openPanel(page, 'shape');
-  await holo(page, 'shape', 'prism');
+  await holo(page, 'shape', 'gold');
   await page.evaluate(() => window.showGradientLine?.(document.getElementById('shZ'))); await raf(page);
   const g0 = await page.evaluate(() => { const ring = document.querySelector('.grad-line-ring'), end = document.querySelector('.grad-line-finish'), st = document.querySelector('.grad-line-start');
     if (!ring || getComputedStyle(ring).display === 'none') return { ring: false };
