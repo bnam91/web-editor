@@ -74,8 +74,10 @@
 .prop-section[data-sec]:not([data-sec="kind"]) { padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
 .prop-section[data-sec]:not([data-sec="kind"]) > .prop-sec-head { margin-right: calc(-1 * var(--ui-opt-col-w)); }
 .prop-section[data-sec] .prop-row:has(> .prop-chain-btn:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
-/* 컬러 변수(VAR) 칩 줄은 끝 칼럼까지 쓴다 · 한 줄(시안 v10 ⑤ — 칼럼만큼 줄이 좁아져 칩 넷이 두 줄로 꺾였다) */
-.prop-section[data-sec] > .prop-sec-body > .cv-chips:not(.ts-recent-row) { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
+/* 컬러 변수(VAR) 칩 줄은 끝 칼럼까지 쓴다 · 한 줄(시안 v10 ⑤ — 칼럼만큼 줄이 좁아져 칩 넷이 두 줄로 꺾였다)
+   ★그리드 단추 줄 둘(외곽선 6 · 줄바 추가/복제/삭제)도 같은 규칙(지디 261123 ⑴ⓐ) — 칼럼 뒤 줄 183 에서 두 줄로 꺾였다(옛 211 = 한 줄) */
+.prop-section[data-sec] > .prop-sec-body > .cv-chips:not(.ts-recent-row),
+.prop-section[data-sec] .prop-row:has(> #grd-outline-group, > #grd-line-del-btn) { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
 /* 1120b R1·R2(현빈 261120 「최근은 한 줄로」) — 최근 색(.cv-recent-row · 최대 COLOR_HISTORY_MAX 7)은 위 줄로 끝 칼럼까지(7개가 한 줄에 든다) ·
    최근 효과(.ts-recent-row)는 폭 그대로(TEXT_STYLE_HISTORY_MAX 5 를 그 폭으로 쟀다 — text-style-recent M) · 둘 다 어디서든 꺾지 않는다(둘째 줄 0). */
 /* .cv-chips 를 붙여 0,2,0 — 아래(654) .cv-chips { flex-wrap: wrap } 이 같은 0,1,0 · 뒤라서 이겼다(DOM R2 wrap 실측) */
