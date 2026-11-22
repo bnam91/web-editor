@@ -316,6 +316,7 @@ function applyLiner(block, opts) {
   const LINER_FIT_ITERS  = 5;   // M4b: 최대 반복 축소 횟수
 
   let cy, H, pathK;
+  let flipTopR = 0, flipA = 0;   // 안쪽 뒤집기 — 윗변 반지름(사용자 r) · 글자 높이(밀어낸 만큼) ⇒ 아래 자간 보탬
 
   // 현재 effFont 기준으로 path d를 SVG에 쓰고(write) → 그 path에서 길이를 측정(measure).
   // M4a: 측정 전에 반드시 현재 프리셋 path를 써서, 프리셋 전환 시 이전 path 길이 오측정 제거.
@@ -329,6 +330,7 @@ function applyLiner(block, opts) {
       const r = Math.max(8, maxR * sizeScale);
       H = W;                       // 정사각형
       cy = Math.round(H / 2);      // 원 중심 = 블록 중앙
+      if (cfg.flip) { flipTopR = r; flipA = ascent; }
       pathK = r + (cfg.flip ? ascent : 0);   // 안쪽 뒤집기 — 글 위쪽이 중심을 향하니 경로를 글자 높이만큼 밀어 윗변이 r 에(겹침 줄임 · 미카사 채점 261121 ④ 안B)
     } else if (radiusMode) {
       // 반지름 모드 — 원(반지름 R) 위에 글 길이만큼. 처음엔 원 전체 상자 · 아래 LINERH 가 글이 덮는 구간으로 높이를 조인다.
@@ -336,6 +338,7 @@ function applyLiner(block, opts) {
       /* 안쪽 뒤집기(미카사 채점 261121 ④ · 지디 안B «뜻 보존»): 글 위쪽이 원 중심을 향해 윗변이 r−글자높이 원에 모여 작은 반지름에서 겹쳤다
          ⇒ 경로 반지름을 글자 높이만큼 밀어(r+ascent) 윗변이 고른 반지름 r 에 오게 — 윗변 길이 비 (r−a)/r → r/(r+a). 자간 자동 보탬은 다음 판. */
       pathK = (cfg.radius || roundAutoR) + (cfg.flip ? ascent : 0);
+      if (cfg.flip) { flipTopR = cfg.radius || roundAutoR; flipA = ascent; }
       cy = Math.round(6 + ascent + pathK);
       H  = Math.round(cy + pathK + descent + 6);
     } else {
@@ -375,6 +378,13 @@ function applyLiner(block, opts) {
     } catch (e) { /* fallback */ }
     // measure: 현재 effFont(+letter-spacing 포함)로 텍스트 자연 길이
     textEl.setAttribute('font-size', String(effFont));
+    /* 안쪽 뒤집기 자간 보탬(미카사 재채점 261122 (나)(다)): 경로가 r+a 라 윗변 간격이 r/(r+a) 로 줄어 이웃 획이 맞닿고, 돈 각도 글길이/(r+a) 라 반지름을 바꿔도 꼴이 덜 바뀌었다.
+       ⇒ 글자당 평균 폭 × a/r 를 자간에 보탠다 — 윗변 간격 = 자연 폭 · 돈 각 = 글길이/r(뒤집기 끈 때와 같음) · 사용자 자간은 그 위에 그대로. */
+    textEl.setAttribute('letter-spacing', String(ls));
+    if (flipTopR > 0 && flipA > 0) {
+      let n0 = 0, nch = 0; try { n0 = tp.getComputedTextLength(); nch = textEl.getNumberOfChars(); } catch (e) { n0 = 0; }
+      if (n0 > 0 && nch > 0) textEl.setAttribute('letter-spacing', String(ls + (n0 / nch) * flipA / flipTopR));
+    }
     let natural = 0;
     try {
       if (tp.getComputedTextLength) natural = tp.getComputedTextLength();
@@ -502,6 +512,22 @@ function applyLiner(block, opts) {
   if (cfg.flip) out.flip = true;
   if (cfg.strokeWidth && cfg.strokeColor) { out.strokeColor = cfg.strokeColor; out.strokeWidth = cfg.strokeWidth; }
   block.dataset.liner = JSON.stringify(out);
+  /* 반지름 안내 수(미카사 재채점 261122 (가)) — 지금 글 길이(사용자 글자 크기·자간)에서 반원·한 바퀴가 되는 반지름. 패널이 이 블럭 것일 때만 고친다 */
+  const sz = textEl.getAttribute('font-size'), lsNow = textEl.getAttribute('letter-spacing');
+  textEl.setAttribute('font-size', String(Math.max(6, userFontPx))); textEl.setAttribute('letter-spacing', String(ls));
+  let nUser = 0; try { nUser = tp.getComputedTextLength(); } catch (e) { nUser = 0; }
+  textEl.setAttribute('font-size', sz); textEl.setAttribute('letter-spacing', lsNow);
+  block.__lnrUserLen = nUser; block.__lnrR = radiusMode ? (cfg.radius || roundAutoR) : 0;
+  const hn = document.querySelector('#lnr-radius-hint .lnr-hint-nums');
+  if (hn && hn.closest('#lnr-radius-hint')._lnrBlock === block) hn.textContent = linerRadiusHintNums(block);
+}
+
+/** 반지름 안내 글 — 글 길이 n 이면 반원 = n/π · 한 바퀴 = n/2π(뒤집기도 같음 — 뒤집기 자간 보탬이 돈 각을 글길이/r 로 맞춘다) */
+function linerRadiusHintNums(block) {
+  const n = block && block.__lnrUserLen;
+  if (!(n > 0)) return '반지름이 작을수록 더 휜다';
+  const r = block.__lnrR, deg = r > 0 ? Math.min(360, Math.round((n / r) * 180 / Math.PI)) : 0;
+  return `${deg ? `지금 ≈ ${deg}° · ` : ''}반원 ≈ ${Math.round(n / Math.PI)} · 한 바퀴 ≈ ${Math.round(n / (2 * Math.PI))}(글 길이 기준 · 더 작으면 글자가 줄어 원에 맞춤)`;
 }
 
 // 저장/로드 사이클에서 SVG가 innerHTML로 살아있어도 path id/폭변화 재계산
@@ -572,7 +598,7 @@ function enhanceLinerPropPanel(block) {
         <span class="prop-label">반지름</span>
         <input type="number" class="prop-number" id="lnr-radius" min="0" max="${LINER_RADIUS_MAX}" step="1" value="${cfg.radius || ''}" placeholder="자동" data-empty="auto" title="px · 비우면 블럭 폭 기준 곡률 · 넣으면 그 반지름 원 위에 글 길이만큼(반원 넘게도)">
       </div>
-      <div class="prop-hint" id="lnr-radius-hint"${cfg.preset === 'round' ? '' : ' hidden'}>반지름을 비우면 글 길이 기준으로 자동(글을 고치면 따라감)</div>
+      <div class="prop-hint" id="lnr-radius-hint"${cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}><span class="lnr-hint-nums">${linerRadiusHintNums(block)}</span><span class="lnr-hint-auto"${cfg.preset === 'round' ? '' : ' hidden'}> · 반지름을 비우면 글 길이 기준으로 자동(글을 고치면 따라감)</span></div>
       <div class="prop-row" id="lnr-flip-row"${cfg.preset === 'circle' || cfg.preset === 'round' || ((cfg.preset === 'arc-up' || cfg.preset === 'arc-down') && cfg.radius > 0) ? '' : ' hidden'}>
         <span class="prop-label">안쪽 뒤집기</span>
         <label class="prop-toggle"><input type="checkbox" id="lnr-flip"${cfg.flip ? ' checked' : ''}><span class="prop-toggle-track"></span></label>
@@ -585,6 +611,7 @@ function enhanceLinerPropPanel(block) {
       </div>`;
 
   window.placeTextPanelSection?.(propPanel, 'special', html, { title: 'Curve', id: 'liner-controls-section' });
+  { const h = propPanel.querySelector('#lnr-radius-hint'); if (h) h._lnrBlock = block; }   // applyLiner 가 이 블럭일 때만 안내 수를 고친다
 
   const read = () => {
     const next = {
@@ -599,7 +626,8 @@ function enhanceLinerPropPanel(block) {
     };
     const arc = next.preset === 'arc-up' || next.preset === 'arc-down', round = next.preset === 'round';   // 줄 보이기 — 반지름 = arc·둥글게 · 뒤집기 = circle·둥글게·반지름 모드
     propPanel.querySelector('#lnr-radius-row')?.toggleAttribute('hidden', !(arc || round));
-    propPanel.querySelector('#lnr-radius-hint')?.toggleAttribute('hidden', !round);   // 안내 = «둥글게»(비우면 글 길이 기준) · 아치는 비우면 블럭 폭 기준이라 다른 뜻
+    propPanel.querySelector('#lnr-radius-hint')?.toggleAttribute('hidden', !(round || (arc && next.radius > 0)));   // 안내 = 반지름 모드(반원·한 바퀴 수) · «비우면 글 길이 기준» 은 둥글게만(아치는 비우면 블럭 폭 기준이라 다른 뜻)
+    propPanel.querySelector('#lnr-radius-hint .lnr-hint-auto')?.toggleAttribute('hidden', !round);
     propPanel.querySelector('#lnr-flip-row')?.toggleAttribute('hidden', !(next.preset === 'circle' || round || (arc && next.radius > 0)));
     { const cv = propPanel.querySelector('#lnr-curvature'); if (cv) cv.disabled = round || (arc && next.radius > 0); }   // 반지름 모드·둥글게 = 곡률 안 씀
     applyLiner(block, next);
