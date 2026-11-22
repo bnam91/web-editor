@@ -1359,7 +1359,7 @@ test('E14 ★image → body 로 바꾸면 imgSrc 가 «안» 남는다 (전환 �
  *   ⛔합격선 60 은 «한 글자도» 안 넓혔다. 기준점만 옮긴다 — 위 재촬영들과 같은 절차. 이 커밋은 제품코드 0줄(시험·골든만).
  *   ⚠️★잃는 것: 51dae124 → dcd0962fd 사이의 +241px · 컨트롤 +4 의 «빚»이 0 으로 리셋된다.
  *   ~~[폐기 · 2026-11-14] 옛 기준선 `51dae124` (2026-11-09 재촬영분)~~ */
-const GOLDEN_BASELINE = '058e3e7d0';   /* ★재촬영(지디 261123 OK): 옛 dcd0962fd → 058e3e7d0(현빈 GO 기준판 통일) · 순증 158px = 재설계 틀 · 절별 내역은 촬영 커밋 본문 */
+const GOLDEN_BASELINE = '316feb69e';   /* ★재촬영 이력(지디 261123): dcd0962fd → 058e3e7d0(통일판 · +158px 절별 내역 30b31ef4e 본문) → 316feb69e(⑴ 그리드 단추 줄 한 줄 · barBtnRows 2→1) */
 const GOLDEN_PATH = path.join(__dirname, 'fixtures', 'grid-panel-golden.json');
 
 /* ★「골든에 86dce84 라고 «적혀 있다»」와 「그 판에서 «찍혔다»」는 다른 말이다.
