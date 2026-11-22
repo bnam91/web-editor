@@ -190,8 +190,8 @@ const VarPanelUI = (() => {
     drawer.id = 'var-panel';
     drawer.innerHTML = _buildDrawerHTML();
 
-    // panel-header 앞에 삽입
-    const header = panelRight.querySelector('.panel-header');
+    // panel-body 앞에 삽입(옛 «Properties» 머리 줄은 걷혔다 — 현빈 261122 · 자리는 그대로 = 머리 줄이 있던 자리 바로 다음이 panel-body)
+    const header = panelRight.querySelector('.panel-body');
     panelRight.insertBefore(drawer, header);
     panelRight.insertBefore(toggleBtn, drawer);
 

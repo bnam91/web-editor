@@ -284,7 +284,7 @@ export function showAssetProperties(ab) {
           ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
         </div>
       </div>`, { id: 'asset-stroke-section', headTools: `
-        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가/빼기">
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
           <input type="checkbox" id="asset-stroke-on" ${currentStrokeWidth > 0 ? 'checked' : ''} aria-label="Stroke">
           <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
           <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>

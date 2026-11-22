@@ -215,7 +215,7 @@ export function buildTextPanelSpec(state) {
         <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="txt-ph-slider" min="0" max="120" step="4" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
         <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
-        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동" aria-pressed="${phLinked ? 'true' : 'false'}">
+        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 잠금/풂" aria-pressed="${phLinked ? 'true' : 'false'}">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
             <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
@@ -464,7 +464,7 @@ export function strokeSection({ p, stroke, colorHtml } = {}) {
     id: `${p}-stroke-section`,
     /* 재설계 1차 ⑨ — 켜기 토글 → 머리 «＋»(켜면 «−» · 몸이 펼쳐짐). 같은 체크박스(#${p}-stroke-on · change 배선 그대로)를 단추꼴 label 이 감싼다 */
     headTools: `
-        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가/빼기">
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
           <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''} aria-label="Stroke">
           <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
           <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>

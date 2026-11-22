@@ -163,7 +163,7 @@ const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, '
   /* Q20 각도 칸 — 이름은 aria-label(«회전°» 라벨 글 걷음 · 시안 v10) */
   [/^(<input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="[^"]*")>$/, '$1 aria-label="회전 각도">'],
   /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
-  [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
+  [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title=")좌우 연동(")>$/, (m, a, b) => `${a}좌우 잠금/풂${b} aria-pressed="${/ active"/.test(a)}">`],   // ⑦(현빈 261122) 사슬 툴팁 «좌우 연동» → «좌우 잠금/풂»
   /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
   [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">'],
   /* 1120b B5 후속(지디 261121) — 스타일 번호 칸 placeholder «형광펜/점/밑줄 번호 붙여넣기» → «번호 붙여넣기»(이름은 줄 라벨로 · 잘림 없게) */
@@ -220,7 +220,7 @@ const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* a
    TEXT-LOREM-FILL-01(261121): Content 절 «더미 글» = select 2(+option 3·2) · number 1 · button 1 = 9 · 라벨 1 · id 4 (줄 모드 말풍선이면 0). */
 /* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
 const FEATURE_ADDED = [{ ticket: 'LABEL-OVAL(2749254f8)', n: 1, isCtl: (t) => /id="label-shape-oval"/.test(t), label: null, id: /^label-shape-oval$/ },
-  { ticket: 'TEXT-LOREM-FILL-01', n: 9, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?>$/.test(t), label: '더미 글', id: /^txt-lorem-/ }];
+  { ticket: 'TEXT-LOREM-FILL-01', n: 9, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?( in="txt-lorem-[a-z]+")?>$/.test(t), label: '더미 글', id: /^txt-lorem-/ }];
 
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];

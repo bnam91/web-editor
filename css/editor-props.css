@@ -80,6 +80,7 @@
    최근 효과(.ts-recent-row)는 폭 그대로(TEXT_STYLE_HISTORY_MAX 5 를 그 폭으로 쟀다 — text-style-recent M) · 둘 다 어디서든 꺾지 않는다(둘째 줄 0). */
 /* .cv-chips 를 붙여 0,2,0 — 아래(654) .cv-chips { flex-wrap: wrap } 이 같은 0,1,0 · 뒤라서 이겼다(DOM R2 wrap 실측) */
 .cv-chips.cv-recent-row, .cv-chips.ts-recent-row { flex-wrap: nowrap; overflow: hidden; }
+.cv-chips.ts-recent-row { margin-bottom: var(--ui-space-1); }   /* ⑩(현빈 261122 · 시안 v11.6) — 최근 효과 칩 줄 → 아래 Line Height 라벨 0(닿음) → 4 */
 /* 머리 «＋»(재설계 1차 ⑨) — Stroke: 체크박스를 감싼 단추(켜면 «−») · Effects: 같은 칼럼 폭 select(목록 = 효과 종류) */
 .prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
 .prop-sec-add:has(> input:checked) > .prop-sec-add-plus, .prop-sec-add:not(:has(> input:checked)) > .prop-sec-add-minus { display: none; }
@@ -96,7 +97,7 @@
 .panel-body > .prop-section.prop-sec-group { padding-bottom: var(--ui-sec-body-pb); padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
 .panel-body > .prop-section.prop-sec-group:last-child { padding-bottom: var(--ui-space-2); }
 .prop-section.prop-sec-group > .prop-sec-head { margin-bottom: 0; margin-right: calc(-1 * var(--ui-opt-col-w)); }
-.prop-sec-sub-row { display: flex; align-items: center; justify-content: space-between; min-height: calc(var(--ui-btn-h) - var(--ui-space-0_5)); }
+.prop-sec-sub-row { display: flex; align-items: center; justify-content: space-between; }   /* ②③(현빈 261122 · 시안 v11.6) — 하위 라벨(Size·Padding) 줄 = 라벨 높이만 · 옛 최소 높이(단추 높이) 안 가운데라 라벨→칸이 다른 줄의 두 배였다 → 아래 + * 의 --ui-space-1 하나 */
 .prop-sec-sub-row .prop-field-label { margin-bottom: 0; }
 .prop-sec-sub-row + * { margin-top: var(--ui-space-1); }
 /* Q37 블록 Template 절(시안 v10 제안 꼴 — 칸 사이 4) */
@@ -666,7 +667,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .cv-chips {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
   margin-top: 6px;
-  margin-left: 8px; padding-left: 8px;
+  margin-left: var(--ui-space-1); padding-left: var(--ui-space-1_5);   /* ⑨(현빈 261122 · 시안 v7 «끝 옵션 칼럼으로 줄 212→184 · 색 칩 들임 8→4») — VAR·최근 색·최근 효과 줄 한 꼴 */
   border-left: 2px solid var(--ui-border-mid);
 }
 .cv-chips[hidden] { display: none; }
