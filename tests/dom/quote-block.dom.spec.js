@@ -1898,8 +1898,8 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
     return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null, colorRow: !!(f && f.querySelector('.prop-color-row')) };
   });
   expect(tx.fillLabels, `★H5 기준 — 텍스트블럭에 Fill 절이 있다. 잰 제목 ${JSON.stringify(tx.titles)}`).not.toBeNull();
-  expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구와 같은 라벨(「글자색」 하나) · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
-    .toEqual({ labels: pn.fill.labels.filter((l) => l !== '부호 색'), colorRow: true });   /* ★U2 — 부호 색은 인용구 고유 */
+  expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구에서 고유 라벨(글자색·부호 색)을 뺀 것 · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
+    .toEqual({ labels: pn.fill.labels.filter((l) => l !== '부호 색' && l !== '글자색'), colorRow: true });   /* ★U2 — 부호 색은 인용구 고유 · ★기대 바뀜(현빈 261120 · 시안 결정 기록 «라벨 글 «Font»·«글자색»» 줄): 텍스트 «글자색» 라벨은 걷고 인용구는 «남김»(같은 절에 부호 색이 있어 글을 걷으면 어느 색인지 모른다) ⇒ 인용구 «글자색»도 고유 라벨로 뺀다 · 지디 261123 OK */
   /* ⑶ H4 — 「정렬」 아이콘 셋이 「세로 정렬」 아이콘 셋과 같은 꼴(viewBox·크기·칠 그림 · 선 0) */
   expect({ nh: pn.al.h.length, nv: pn.al.v.length }, `★전제 — 정렬 3 · 세로 정렬 3 아이콘이 있다(inline). 잰 값 ${JSON.stringify(pn.al)}`).toEqual({ nh: 3, nv: 3 });
   const ref = pn.al.v[0];
