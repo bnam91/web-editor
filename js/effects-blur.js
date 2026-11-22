@@ -68,7 +68,7 @@ function _blurCardHtml(el, P) {
       <div class="prop-cell-card${open ? ' expanded' : ''}" id="${P}-fxbl-card" data-fx-type="blur">
         <div class="prop-cell-card-header" id="${P}-fxbl-head">
           <button class="prop-icon-btn" id="${P}-fxbl-eye" title="${fx.state === 'off' ? '효과 켜기' : '효과 끄기'}" aria-label="효과 켜기/끄기" aria-pressed="${fx.state === 'on'}">${eye}</button>
-          <span class="prop-cell-card-title" style="flex:1;${fx.state === 'off' ? 'text-decoration:line-through;opacity:.6;' : ''}">블러</span>
+          <span class="prop-cell-card-title" style="flex:1;${fx.state === 'off' ? 'text-decoration:line-through;opacity:.6;' : ''}">가림</span>
           <button class="prop-icon-btn" id="${P}-fxbl-del" title="효과 삭제" aria-label="효과 삭제">×</button>
         </div>
         <div class="prop-cell-card-body" id="${P}-fxbl-body"${open ? '' : ' hidden'}>
@@ -114,7 +114,7 @@ function _wireBlurCard(el, P, again) {
    ★이 한 벌이 전부다 — 목록·접힘·배선은 명부가 한다. 목록 순서 = 등록 순서(index.html 의 script 줄 순서). */
 registerFxType({
   key: 'blur',
-  label: '블러',
+  label: '가림',   // IMG-FX-BLUR-01(261121) — 꾸밈 «흐림»(effects-decor-blur.js)과 헷갈리지 않게 «가림»(원본을 안 내보내는 가리기)
   /* ★그림 든 에셋만 — ⛔허용 목록으로 적는다. 옛 절의 `hasImage ? … : ''` 와 같은 조건. */
   supports: (el) => !!(el && el.classList && el.classList.contains('asset-block') && el.classList.contains('has-image')),
   has:  (el) => fxBlurOf(el).state !== 'none',

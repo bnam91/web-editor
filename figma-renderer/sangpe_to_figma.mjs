@@ -222,8 +222,20 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const fw = block.width || availableWidth;
     const fh = block.height || 0;
     const fx = x + Math.max(0, Math.round((availableWidth - fw) / 2)); // 섹션폭보다 좁으면 중앙
-    const frame = run('create_frame', { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
+    /* SLIDE-CELL-SHADOW-FIGMA-01(안B · 지디 261121) — 칸 그림자(child.block.shadow · 슬라이드 칸만 싣는다)가 있으면
+       바깥 «슬라이드 그림자 여백»(폭 그대로 · 위아래 pad = 가장 큰 blur+|y| · 자름 = 가로만 자르는 캔버스 clip-path inset(−pad 0) 과 같은 뜻)
+       안에 슬라이드 프레임(자르기 끔 · 그림자가 칸에 붙어 같이 움직임)을 둔다 · 흐름 높이는 fh 그대로 */
+    const pad = Math.max(0, ...(block.children || []).map((ch) => { const s = ch?.block?.shadow; return s ? (+s.blur || 0) + Math.abs(+s.y || 0) : 0; }));
+    let wrap = null;
+    if (pad > 0) {
+      wrap = run('create_frame', { x: fx, y: y - pad, width: fw, height: fh + 2 * pad, name: '슬라이드 그림자 여백', parentId, clipsContent: true });
+      if (wrap) run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    }
+    const frame = run('create_frame', wrap
+      ? { x: 0, y: pad, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId: wrap.id, clipsContent: false }
+      : { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
     if (!frame) return fh;
+    if (block.shadow) run('set_effects', { nodeId: frame.id, effects: [{ type: 'DROP_SHADOW', color: hex(block.shadow.color), offset: { x: 0, y: +block.shadow.y || 0 }, radius: +block.shadow.blur || 0, spread: 0, visible: true, blendMode: 'NORMAL' }] });
     const bgc = (block.bg || '').trim();
     // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
     let _fc = null;
@@ -772,6 +784,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
           console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ⚠️ 이미지 업로드 실패, 회색 플레이스홀더`);
         } else {
           console.log(`      · image ${availableWidth}×${imgH} → ${node.id} ✓ 이미지 적용`);
+          if (block.decorBlur > 0) run('set_effects', { nodeId: _fillId, effects: [{ type: 'LAYER_BLUR', radius: block.decorBlur }] });   // IMG-FX-BLUR-01 꾸밈 «흐림» — 원본 그림 + 레이어 블러
         }
       } else {
         // 빈 슬롯 = goditor 체커보드 placeholder를 Figma에도 체커로(회차12 현빈 B결정)
@@ -1053,6 +1066,13 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       const node = run('create_node_from_svg', { svg, parentId: wrap.id, x: 0, y: 0 }, { timeout: 12000 });
       if (node) run('resize_node', { nodeId: node.id, width: w, height: h });
+      /* FX-GRADIENT-GAZE-01 원뿔형 — SVG 엔 conic 이 없어 위 SVG 는 linear 대역(투명 정지점)이다 ⇒ 칠이 있는 벡터 자식마다 모델의 GRADIENT_ANGULAR 를 덮어 쓴다 */
+      if (node && def.fill && block.gradientModel && block.gradientModel.type === 'conic') {
+        const paint = cssGradientToFigmaPaint(block.gradientModel, w, h);
+        const info = paint ? run('get_node_info', { nodeId: node.id }) : null;
+        const walk = (n) => { if (!n) return; if (/^(VECTOR|ELLIPSE|RECTANGLE|POLYGON|STAR|BOOLEAN_OPERATION)$/.test(n.type) && Array.isArray(n.fills) && n.fills.length) run('set_gradient', { nodeId: n.id, ...paint }); (n.children || []).forEach(walk); };
+        walk(info?.document || info);
+      }
     }
     return h;
   }

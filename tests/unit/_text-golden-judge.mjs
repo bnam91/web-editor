@@ -162,19 +162,30 @@ const MOVED = {
   'txt-x-number': 'position', 'txt-rot-number': 'position', 'txt-width-number': 'size', 'txt-pv-number': 'padding', 'bubble-bg-color': 'special',
 };
 const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음']);
+/* 옛 판(U0) 뒤에 «기능으로» 더한 컨트롤 — 티켓마다 한 줄 · 정확한 개수까지(그 밖의 생김은 그대로 빨강).
+   TEXT-LOREM-FILL-01(261121): Content 절 «더미 글» = select 2(+option 3·2) · number 1 · button 1 = 9 · 라벨 1 · id 4 (줄 모드 말풍선이면 0). */
+/* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
+const FEATURE_ADDED = [{ ticket: 'LABEL-OVAL(2749254f8)', n: 1, isCtl: (t) => /id="label-shape-oval"/.test(t), label: null, id: /^label-shape-oval$/ },
+  { ticket: 'TEXT-LOREM-FILL-01', n: 9, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?>$/.test(t), label: '더미 글', id: /^txt-lorem-/ }];
 
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
-  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)), nc = ctl(n);
+  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)), nc0 = ctl(n);
+  let nc = nc0, featLabels = [], featHit = [];
+  for (const f of FEATURE_ADDED) {
+    const hit = nc.filter(f.isCtl);
+    if (hit.length && hit.length !== f.n) bad.push(`J1 ${f.ticket}: 더한 컨트롤 ${hit.length}개(기대 ${f.n}) ${JSON.stringify(hit)}`);
+    if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(f.label); }
+  }
   const l1 = minus(oc, nc), e1 = minus(nc, oc);
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
   const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position'])
     .concat(ids(n).includes('txt-ph-chain') ? ['L/R'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);
-  const l2 = minus(ol, labels(n)), e2 = minus(labels(n), ol);
+  const nl = minus(labels(n), featLabels), l2 = minus(ol, nl), e2 = minus(nl, ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
-  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)));
+  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !featHit.some((f) => f.id.test(i)));
   const l4 = minus(oi, ni), e4 = minus(ni, oi);
   if (l4.length || e4.length) bad.push(`J4 id: 잃음 ${JSON.stringify(l4)} · 생김 ${JSON.stringify(e4)}`);
   for (const v of judgePanel(nm, SPEC)) bad.push(`J5 게이트: ${v}`);

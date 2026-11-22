@@ -197,8 +197,8 @@ test(`S3-GAPS ★${NAME} — 'yes' 판정 정본 선택자가 ★세 길 «모�
 });
 
 test('R2 ★예외 다섯 — 이름 · 까닭 · 날짜가 다 있다 (+ 캡처가 «남아야 할» 것을 지우나 — 사실만)', (t) => {
-  assert.equal(EDITOR_NODE_EXCEPTIONS.length, 5);
-  assert.equal(new Set(EDITOR_NODE_EXCEPTIONS.map(e => e.id)).size, 5, '★예외 이름이 겹친다');
+  assert.equal(EDITOR_NODE_EXCEPTIONS.length, 7);   // ★기대 바뀜(261121 열차 train/1121-fx): 하프톤 + 도형 원뿔형 덮개 예외 둘(HALFTONE-OVERLAY-STAYS-IN-CAPTURE-01 · SHAPE-CONIC-OVERLAY-STAYS-IN-CAPTURE-01) — 각 가지에서 5→6 이던 것의 합
+  assert.equal(new Set(EDITOR_NODE_EXCEPTIONS.map(e => e.id)).size, 7, '★예외 이름이 겹친다');   // 열차: 위 7 과 같이
   for (const e of EDITOR_NODE_EXCEPTIONS) {
     assert.ok(e.id && /-0\d$/.test(e.id), `★예외 이름 꼴: ${e.id}`);
     assert.ok(typeof e.why === 'string' && e.why.length > 10, `★${e.id} 에 까닭이 없다`);
@@ -206,7 +206,7 @@ test('R2 ★예외 다섯 — 이름 · 까닭 · 날짜가 다 있다 (+ 캡처
     assert.ok(['stays', 'design'].includes(e.effect) && e.exempts.length > 0);
   }
   assert.deepEqual(EDITOR_NODE_EXCEPTIONS.map(e => e.sel).sort(),
-    ['.annotation-block', '.qa-block', '.sec-fxpart-wrap', '[data-is-placeholder]', '[data-memo]']);
+    ['.annotation-block', '.qa-block', '.sec-fxpart-wrap', '.shape-conic-ov', '[data-is-placeholder]', '[data-memo]', 'img.asset-halftone']);
   assert.equal(CAPTURE_VERDICT['.annotation-block'].v, 'no', '★.annotation-block 이 「아니오」의 첫 보기가 아니다(지디 판정 ⑴)');
   const inter = EDITOR_NODE_EXCEPTIONS.filter(e => CANON.all.includes(e.sel)).map(e => e.sel);
   const staysButRemoved = EDITOR_NODE_EXCEPTIONS.filter(e => e.effect === 'stays' && P.capture.includes(e.sel)).map(e => e.sel);

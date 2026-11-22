@@ -110,6 +110,15 @@
 .frame-block[data-text-frame]:has(> [data-tf-corners]) {
   overflow: visible;
 }
+/* TEXT-FX-BEAUTIFUL-SHADOW-01 — 부드러운 그림자(먼 겹 거리 ≤40 · 흐림 ≤80)가 든 텍스트 프레임도 안 자른다(지디 261121 png: 글자 상자 네모에서 끊긴 회색 띠).
+   점·글로우·외곽선·자유변형 규칙과 같은 자리·같은 명시도(0,3,0 — :has 인자 하나 = 속성 하나) ⇒ 둥근 프레임·「내용 자르기」 켬은 계속 자른다. */
+.frame-block[data-text-frame]:has(> [data-fx-soft="on"]) {
+  overflow: visible;
+}
+/* TEXT-FX-OBLIQUE-01 — 오블리크(롱섀도) 깊이(최대 40px)가 든 텍스트 프레임도 안 자른다. 점·글로우·외곽선·자유변형 규칙과 같은 자리·같은 명시도(0,3,0) ⇒ 둥근 프레임·「내용 자르기」 켬은 계속 자른다. */
+.frame-block[data-text-frame]:has(> [data-fx-oblique="on"]) {
+  overflow: visible;
+}
 /* ★★끌는 ★동안만 ★푼다 (현빈 ㄴ 「자르되 ★끌 때는 ★보인다」).
    ★선례 = 이 파일 아래 «도형을 고르는 동안 조상 프레임의 overflow 를 푸는» 규칙 — 같은 :has 꼴이다.
      ⛔여기에 그 선택자를 ★글자로 적지 마라 — 이 파일을 indexOf 로 훑는 검사가 ★주석을 ★규칙으로 읽는다(실측 2회).
@@ -3920,6 +3929,11 @@ textarea.cvb-card-input {
 .liner-block .tb-liner[data-is-placeholder="true"] {
   color: transparent;
 }
+/* LINER-FILL-ALPHA-READS-MIRROR-01 — 평소(편집 아님) 미러는 placeholder 여도 안 보인다. `#canvas [data-is-placeholder]` 의 opacity .45 가
+   `.liner-block .tb-liner { opacity:0 }` 를 이겨, 패널에서 글자색(인라인)을 넣으면 곧은 미러 글자가 곡선 SVG 위에 비쳤다. 편집 중(.editing)은 그대로. */
+#canvas .liner-block:not(.editing) .tb-liner[data-is-placeholder="true"] {
+  opacity: 0;
+}
 .liner-block.editing .tb-liner[data-is-placeholder="true"] {
   color: rgba(17,17,17,0.4);
 }
@@ -4134,6 +4148,9 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 
 /* 정사각형 홀로그램 (내부에 로고/부제) — 기본 정적, 메탈릭 입체감 강화 */
 .badge-hologram-square {
+  /* silver(기본) — 미색 · 핑크 · 연두 · 보라 하이라이트 · 실버 보라톤 · 순백 · 라벤더 */
+  --holo-from: 210deg;
+  --holo-c1: #f0e8dc; --holo-c2: #ffe8f0; --holo-c3: #ccddc0; --holo-c4: #ebe0f5; --holo-c5: #b8acc8; --holo-c6: #ffffff; --holo-c7: #c8b8e0;
   position: relative;
   width: 200px;
   height: 200px;
@@ -4157,16 +4174,10 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
     repeating-radial-gradient(circle at 50% 50%,
       transparent 0px, transparent 7px,
       rgba(255,255,255,0.06) 7px, rgba(255,255,255,0.06) 8px),
-    /* 4. 미색 + 보라/핑크/연두 hint conic 메탈 베이스 (채도 살짝 ↑) */
-    conic-gradient(from 210deg at 50% 50%,
-      #f0e8dc 0deg,      /* 미색 (크림) — 살짝 진해짐 */
-      #ffe8f0 40deg,     /* 핑크 hint */
-      #ccddc0 90deg,     /* 연두 hint */
-      #ebe0f5 140deg,    /* 보라 하이라이트 */
-      #b8acc8 200deg,    /* 미드 실버 보라톤 */
-      #ffffff 250deg,    /* 순백 하이라이트 */
-      #c8b8e0 310deg,    /* 라벤더 그림자 */
-      #f0e8dc 360deg);   /* 미색 (루프) */
+    /* 4. conic 메탈 베이스 — 색은 --holo-c1..c7 · 시작각 --holo-from(FX-GRADIENT-GAZE-01: 정본 js/fx/holo-palette.js 와 tests/unit/holo-palette 가 같음을 잰다) */
+    conic-gradient(from var(--holo-from) at 50% 50%,
+      var(--holo-c1) 0deg, var(--holo-c2) 40deg, var(--holo-c3) 90deg, var(--holo-c4) 140deg,
+      var(--holo-c5) 200deg, var(--holo-c6) 250deg, var(--holo-c7) 310deg, var(--holo-c1) 360deg);
   box-shadow:
     /* 외부: 깊이감 — 멀티레이어 그림자 */
     0 14px 32px rgba(0,0,0,0.55),
@@ -4315,31 +4326,31 @@ body:not(.pen-mode) .annot-label[contenteditable="true"] { cursor: text; }
 /* ── 컬러 프리셋 (정사각형 배경 + 광택 톤) ── */
 /* silver (default) — 기본 정의 그대로 사용 */
 .badge-hologram-row.color-gold .badge-hologram-square {
+  --holo-c1: #d4a956; --holo-c2: #fff3c2; --holo-c3: #b8821a; --holo-c4: #f0d088; --holo-c5: #a87420; --holo-c6: #ffefa0; --holo-c7: #b88830;
   background:
     repeating-radial-gradient(circle at 50% 50%, transparent 0 1.4px, rgba(255,255,255,0.1) 1.4px 1.8px),
     repeating-radial-gradient(circle at 50% 50%, transparent 0 1.8px, rgba(80,40,0,0.08) 1.8px 2.2px),
-    conic-gradient(from 210deg at 50% 50%,
-      #d4a956 0deg, #fff3c2 40deg, #b8821a 90deg,
-      #f0d088 140deg, #a87420 200deg, #ffefa0 250deg,
-      #b88830 310deg, #d4a956 360deg);
+    conic-gradient(from var(--holo-from) at 50% 50%,
+      var(--holo-c1) 0deg, var(--holo-c2) 40deg, var(--holo-c3) 90deg, var(--holo-c4) 140deg,
+      var(--holo-c5) 200deg, var(--holo-c6) 250deg, var(--holo-c7) 310deg, var(--holo-c1) 360deg);
 }
 .badge-hologram-row.color-rose .badge-hologram-square {
+  --holo-c1: #e0a8a0; --holo-c2: #ffe0d8; --holo-c3: #c88478; --holo-c4: #f0c8c0; --holo-c5: #b07060; --holo-c6: #ffe8e0; --holo-c7: #c08878;
   background:
     repeating-radial-gradient(circle at 50% 50%, transparent 0 1.4px, rgba(255,255,255,0.1) 1.4px 1.8px),
     repeating-radial-gradient(circle at 50% 50%, transparent 0 1.8px, rgba(80,20,30,0.07) 1.8px 2.2px),
-    conic-gradient(from 210deg at 50% 50%,
-      #e0a8a0 0deg, #ffe0d8 40deg, #c88478 90deg,
-      #f0c8c0 140deg, #b07060 200deg, #ffe8e0 250deg,
-      #c08878 310deg, #e0a8a0 360deg);
+    conic-gradient(from var(--holo-from) at 50% 50%,
+      var(--holo-c1) 0deg, var(--holo-c2) 40deg, var(--holo-c3) 90deg, var(--holo-c4) 140deg,
+      var(--holo-c5) 200deg, var(--holo-c6) 250deg, var(--holo-c7) 310deg, var(--holo-c1) 360deg);
 }
 .badge-hologram-row.color-pearl .badge-hologram-square {
+  --holo-c1: #f0d8f5; --holo-c2: #fff0fa; --holo-c3: #c8b0e5; --holo-c4: #fdd8f0; --holo-c5: #a890c8; --holo-c6: #ffffff; --holo-c7: #d8a8e5;
   background:
     repeating-radial-gradient(circle at 50% 50%, transparent 0 1.4px, rgba(255,255,255,0.18) 1.4px 1.8px),
     repeating-radial-gradient(circle at 50% 50%, transparent 0 1.8px, rgba(120,60,150,0.1) 1.8px 2.2px),
-    conic-gradient(from 210deg at 50% 50%,
-      #f0d8f5 0deg, #fff0fa 40deg, #c8b0e5 90deg,
-      #fdd8f0 140deg, #a890c8 200deg, #ffffff 250deg,
-      #d8a8e5 310deg, #f0d8f5 360deg);
+    conic-gradient(from var(--holo-from) at 50% 50%,
+      var(--holo-c1) 0deg, var(--holo-c2) 40deg, var(--holo-c3) 90deg, var(--holo-c4) 140deg,
+      var(--holo-c5) 200deg, var(--holo-c6) 250deg, var(--holo-c7) 310deg, var(--holo-c1) 360deg);
 }
 /* Gold 톤일 때 로고 텍스트 색 보정 */
 .badge-hologram-row.color-gold .badge-logo {

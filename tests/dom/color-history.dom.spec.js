@@ -44,7 +44,8 @@ const blockColor = (page) => page.evaluate(() => { const e = [...document.queryS
 
 /* 색 팝업: 스와치 mousedown → 스펙트럼을 (fx,fy) 들에서 차례로 클릭(클릭마다 «확정») → Esc 로 닫기 */
 async function popupPick(page, points) {
-  const sw = await page.evaluate(() => { const r = document.getElementById('txt-color').closest('.prop-color-swatch').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  /* ⚠️패널이 길어지면(TEXT-LOREM-FILL-01 Content «더미 글» 줄 · 261121) 스와치가 창(1000) 아래로 밀려 좌표 클릭이 화면 밖 — 사람처럼 먼저 보이게 굴린다 */
+  const sw = await page.evaluate(() => { const el = document.getElementById('txt-color').closest('.prop-color-swatch'); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   await page.mouse.move(sw[0], sw[1]); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(150);
   for (const [fx, fy] of points) {
     const sp = await page.evaluate(() => { const r = document.querySelector('.goya-cp-popover [data-el="spectrum"]').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });

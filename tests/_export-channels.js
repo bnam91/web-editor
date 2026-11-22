@@ -209,6 +209,8 @@ const CHANNELS = [
     why: '브랜치 캔버스 간 섹션 «이식» — 라이브 DOM 이고, 저장은 그 뒤 serializeCleanRoot 를 탄다' },
   { file: 'js/section-variation.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '섹션 변형 «복제» — 라이브 캔버스로 들어간다(deselectAll 이 마커를 걷는다)' },
+  { file: 'js/shape-conic.js', kind: 'transient', axes: ['marker'], strips: null,
+    why: 'FX-GRADIENT-GAZE-01 도형 원뿔형 덮개의 mask 그림 — 도형 SVG 를 복제해 칠만 흰색으로 바꾼 뒤 data URL 로 굽고 버린다(캔버스·저장에 안 들어감 · 덮개 자체는 serializeCleanRoot 가 뺀다)' },
   { file: 'js/tab-system.js', kind: 'transient', axes: ['marker'], strips: null,
     why: '탭 드래그 «고스트» — 드롭과 함께 사라진다' },
   { file: 'js/section-drag.js', kind: 'transient', axes: ['marker'], strips: null,
@@ -433,6 +435,8 @@ const CAPTURE_VERDICT = {
   '.block-resize-handle': { v: 'unmeasured', why: '만드는 자리를 js/ 에서 못 찾았다(grep 0 — 옛 이름일 수 있다)' },
   '.ci-handle':           { v: 'unmeasured', why: '만드는 자리를 js/ 에서 못 찾았다(grep 0 — 옛 이름일 수 있다)' },
   /* ── 정본 «밖» — 'no' 의 보기 ── */
+  'img.asset-halftone':   { v: 'no', why: 'IMG-FX-HALFTONE-01(현빈 261121) — 하프톤 덮개는 data-halftone 에서 구운 «보이는 그림»이다 · 저장은 파생이라 빼지만 PNG·HTML 엔 그 점무늬가 나가야 한다 ⇒ 캡처에서 남는다', exception: 'HALFTONE-OVERLAY-STAYS-IN-CAPTURE-01' },
+  '.shape-conic-ov':      { v: 'no', why: 'FX-GRADIENT-GAZE-01(현빈 261121) — 도형 원뿔형 칠 덮개는 dataset.shapeGradient 에서 그린 «보이는 칠»이다 · 저장은 파생이라 빼지만 PNG·HTML 엔 그 칠이 나가야 한다 ⇒ 캡처에서 남는다', exception: 'SHAPE-CONIC-OVERLAY-STAYS-IN-CAPTURE-01' },
   '.annotation-block':    { v: 'no', why: '현빈 261022 결정 ⒝ — 어노테이션·치수선은 최종 이미지에 보인다 ⇒ 캡처에서 남는다', exception: 'ANNOTATION-STAYS-IN-CAPTURE-01' },
 };
 const CAPTURE_VERDICT_VALUES = ['yes', 'no', 'unmeasured'];
@@ -442,6 +446,10 @@ const CAPTURE_VERDICT_VALUES = ['yes', 'no', 'unmeasured'];
 const EDITOR_NODE_EXCEPTIONS = [
   { id: 'ANNOTATION-STAYS-IN-CAPTURE-01', sel: '.annotation-block', effect: 'stays', exempts: ['capture', 'html'],
     why: '현빈 261022 결정 ⒝ — 어노테이션·치수선은 최종 이미지에 ★보인다 ⇒ 캡처에서 ★남는다', since: '2026-10-22 (현빈 결정 ⒝ · 지디 경유)' },
+  { id: 'HALFTONE-OVERLAY-STAYS-IN-CAPTURE-01', sel: 'img.asset-halftone', effect: 'stays', exempts: ['capture', 'html'],
+    why: 'IMG-FX-HALFTONE-01 — 하프톤 덮개는 산출물(PNG·HTML)에 보여야 하는 그림 · 저장에서만 뺀다(열기·undo 때 다시 굽는 파생)', since: '2026-11-21 (현빈 0.9.14 · 태양)' },
+  { id: 'SHAPE-CONIC-OVERLAY-STAYS-IN-CAPTURE-01', sel: '.shape-conic-ov', effect: 'stays', exempts: ['capture', 'html'],
+    why: 'FX-GRADIENT-GAZE-01 — SVG 에 원뿔형이 없어 도형 위 CSS 덮개(도형 모양 mask)가 칠을 그린다 · 산출물(PNG·HTML)에 보여야 하고 저장에서만 뺀다(열기·undo 때 다시 그리는 파생)', since: '2026-11-21 (현빈 원뿔형 결정 · 지디 ⓒ · 태양)' },
   ...DROP_DESIGN_EXCLUSIONS.map(x => ({ id: x.id, sel: x.sel, effect: 'design', exempts: ['capture', 'html'], why: x.what + ' — ' + x.how, since: x.since })),
 ];
 

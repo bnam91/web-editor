@@ -18,6 +18,7 @@ import { wirePaddingSection }  from './prop-text-wireup-padding.js';
 import { wireShadowSection, readShadowState } from './prop-text-wireup-shadow.js';
 import { wireStrokeSection, readStrokeState } from './prop-text-wireup-stroke.js';   /* ★1012t1E1 Stroke(외곽선 · 내부/가운데/외부) */
 import { wireOverlaySection }  from './prop-text-wireup-overlay.js';
+import { wireLoremSection }    from './prop-text-wireup-lorem.js';   /* TEXT-LOREM-FILL-01 Content 절 «더미 글» */
 import './text-style-copy.js';   /* ★1020t2d2 스타일 복사/붙여넣기(⌥⌘C/⌥⌘V) — window 다리만 건다(editor.js 단축키 · block-factory.js 우클릭이 부른다) */
 
 /* ★1020t2d3 — mix «범위»의 입력 = 이 글자칸 안에서 편집 중일 때의 선택(아니면 null = 블럭 전체). */
@@ -166,8 +167,16 @@ export function showTextProperties(tb) {
   const currentSize  = _firstSizedChild
     ? (parseInt(window.getComputedStyle(_firstSizedChild).fontSize) || parseInt(computed.fontSize) || 15)
     : (parseInt(computed.fontSize) || 15);
-  const currentColor = rgbToHex(computed.color) || '#111111';
-  const _colorM = (computed.color || '').match(/rgba?\(([^)]+)\)/i);
+  /* LINER-FILL-ALPHA-READS-MIRROR-01 — 라이너의 미러(.tb-liner)는 CSS 로 투명이라 computed 를 읽으면 «000000 · 0%».
+     실제 그려진 SVG 글자 칠(js/liner-transform.js resolveLinerFill 결과)을 읽는다.
+     SVG 글자가 아직 없으면 미러 인라인 색(없거나 투명이면 그리개 기본 #111111) — 어느 쪽이든 0% 로 보이지 않게. */
+  const _linerTextEl = isLiner ? tb.querySelector('svg.lnr-svg text') : null;
+  const _linerMirrorColor = (contentEl.style.color || '').trim();
+  const _colorSrc = !isLiner ? computed.color
+    : _linerTextEl ? window.getComputedStyle(_linerTextEl).fill
+    : (_linerMirrorColor && !/^transparent$|,\s*0(\.0+)?\s*\)$/i.test(_linerMirrorColor) ? _linerMirrorColor : '#111111');
+  const currentColor = (/^#/.test(_colorSrc) ? _colorSrc.toLowerCase() : rgbToHex(_colorSrc)) || '#111111';
+  const _colorM = (_colorSrc || '').match(/rgba?\(([^)]+)\)/i);
   const currentColorAlpha = _colorM && _colorM[1].split(',').length === 4
     ? Math.round(parseFloat(_colorM[1].split(',')[3]) * 100)
     : 100;
@@ -334,6 +343,7 @@ export function showTextProperties(tb) {
   if (!isLiner) wireTypeSection({ tb, propPanel, ctx, rerender: () => showTextProperties(tb) });   // U2 — 타입을 바꾸면 다시 그린다(태그 절이 서고 걷힌다)
   if (!isLiner) wireTextToQuote({ tb, propPanel, ctx });   // 1017t1m1 — #type-section 안, 라이너면 그 절 자체가 없다
   wireBulletStyleSection({ propPanel, ctx });   // T7 — 절이 없으면(불릿 아니면) 아무것도 안 한다
+  wireLoremSection({ tb, propPanel });   // TEXT-LOREM-FILL-01 — 줄이 없으면(줄 모드 말풍선) 아무것도 안 한다
 
   wireLabelSection({ ctx });
   wireAlignSection({ tb, ctx, propPanel, isIconText });

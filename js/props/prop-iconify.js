@@ -3,6 +3,19 @@ import { blockHeaderHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
+import { normIconStroke, isStrokeIcon, iconStrokeOf, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
+
+/* ICON-FEATHER-MATERIAL — Iconify 에서 SVG 한 장(iconify-panel _doInsert 와 같은 검사: HTTP 오류·SVG 아님 = 실패) · 세척본만 돌려준다. */
+async function _fetchIconSvg(name) {
+  const [prefix, icon] = String(name).split(':');
+  try {
+    const res = await fetch(`https://api.iconify.design/${prefix}/${icon}.svg`);
+    if (!res.ok) return null;
+    const body = await res.text();
+    if (!/^\s*<svg[\s>]/i.test(body)) return null;
+    return sanitizeSvgString(body) || null;
+  } catch (_) { return null; }
+}
 
 export function showIconifyProperties(block) {
   const iconName = block.dataset.iconName || '';
@@ -15,6 +28,11 @@ export function showIconifyProperties(block) {
        (그리드 d9c3525e 가 실측한 함정). window 로 부른다. */
   const floating = block.dataset.overlayBlock === 'true';
   const isRaster = block.dataset.raster === '1'; // PNG/JPG(<img>) — currentColor 착색 불가 → 색 UI 비활성
+  /* ICON-FEATHER-MATERIAL-RESEARCH-01(현빈 261121 발주2 #3) — 넣은 뒤 그 아이콘에서: 선 아이콘(뿌리 stroke-width · Feather 등) = «선 두께» · Material Symbols = «채움/선» */
+  const _rootSvg = isRaster ? null : block.querySelector(':scope > svg');
+  const strokeable = isStrokeIcon(_rootSvg);
+  const strokeW = strokeable ? (normIconStroke(block.dataset.iconStroke) ?? normIconStroke(iconStrokeOf(_rootSvg)) ?? 2) : null;
+  const fillState = isRaster ? null : msFillState(iconName);
 
   renderPanel(block, {
     header: blockHeaderHTML({
@@ -74,7 +92,20 @@ export function showIconifyProperties(block) {
           </button>
         </div>
       </div>`),
-      sec('fill', `
+      sec('stroke', strokeable ? `
+      <div class="prop-row">
+        <span class="prop-label">선 두께</span>
+        <input type="range" class="prop-slider" id="icn-stroke-w-slider" min="${ICON_STROKE_MIN}" max="${ICON_STROKE_MAX}" step="${ICON_STROKE_STEP}" value="${strokeW}">
+        <input type="number" class="prop-number" id="icn-stroke-w-number" min="${ICON_STROKE_MIN}" max="${ICON_STROKE_MAX}" step="${ICON_STROKE_STEP}" value="${strokeW}">
+      </div>` : ''),
+      sec('fill', `${fillState ? `
+      <div class="prop-row">
+        <span class="prop-label">채움</span>
+        <div class="prop-align-group" id="icn-ms-fill-group">
+          <button class="prop-align-btn${fillState === 'fill' ? ' active' : ''}" data-ms-fill="fill" title="채운 모양(Material Symbols)">채움</button>
+          <button class="prop-align-btn${fillState === 'outline' ? ' active' : ''}" data-ms-fill="outline" title="선 모양(Material Symbols)">선</button>
+        </div>
+      </div>` : ''}
       ${isRaster ? `
       <div class="prop-row">
         <span class="prop-label" style="font-size:10px;color:#888;line-height:1.4;">이미지(PNG/JPG)는 색을 바꿀 수 없어요</span>
@@ -334,6 +365,25 @@ export function showIconifyProperties(block) {
      이웃(:311 mousedown · :312 input · :314 change)은 맞다 — 숫자칸 하나만 뒤집혀 있었다. */
   sNumber.addEventListener('change', () => { applySize(parseInt(sNumber.value)); window.pushHistory?.(); });
   sSlider.addEventListener('change', () => window.pushHistory?.());
+
+  // ICON-FEATHER-MATERIAL — 선 두께(라이브 input · 끝 표본 change · 크기 칸과 같은 이력 규약)
+  const swS = propPanel.querySelector('#icn-stroke-w-slider'), swN = propPanel.querySelector('#icn-stroke-w-number');
+  if (swS && swN) {
+    const applyStroke = (v) => { const w = normIconStroke(v); if (w == null) return; block.dataset.iconStroke = String(w); applyIconStroke(block); swS.value = w; swN.value = w; };
+    swS.addEventListener('mousedown', () => window.pushHistory?.());
+    swS.addEventListener('input', () => applyStroke(swS.value));
+    swS.addEventListener('change', () => { window.pushHistory?.(); window.triggerAutoSave?.(); });
+    swN.addEventListener('change', () => { applyStroke(swN.value); window.pushHistory?.(); window.triggerAutoSave?.(); });
+  }
+  // ICON-FEATHER-MATERIAL — Material Symbols 채움/선: 이름 꼴을 바꿔 그 SVG 를 받아 갈아 끼움(updateIconifyBlock 이 이력·저장 · 색·크기·회전 그대로)
+  propPanel.querySelectorAll('#icn-ms-fill-group [data-ms-fill]').forEach((btn) => btn.addEventListener('click', async () => {
+    const next = msNameFor(block.dataset.iconName, btn.dataset.msFill);
+    if (!next || next === block.dataset.iconName) return;
+    const svg = await _fetchIconSvg(next);
+    if (!svg) { window.showToast?.('이 아이콘은 그 모양이 없거나 지금 받을 수 없어요'); return; }
+    window.updateIconifyBlock?.(block.id, { iconName: next, svg });
+    showIconifyProperties(block);
+  }));
 
   // 색상 (SVG currentColor 활용) — 래스터(PNG/JPG)는 색 UI 자체가 렌더되지 않으므로 wire 생략
   if (!isRaster) {

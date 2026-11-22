@@ -277,6 +277,10 @@ test('N9 ★센서스 — «빈 값을 값으로 다루는» 패널은 모두 �
        ⛔그래서 data-empty="invalid" 가 ★아니다 — ★빈 값에 ★뜻이 있다.
        ★이 줄을 더한 까닭 : 머지 c48c8cbc 로 N9 가 ★빨개졌고(선언 7 → 실측 8),
          ⛔기준선을 흉내 내 끄지 않고 ★배선을 재서 ★참인 쪽으로 선언했다. */
+    /* ★261121 추가 — LINETEXT-ARC-RESEARCH-01 라이너 «반지름»(lnr-radius · placeholder 「자동」 · data-empty="auto").
+       ★배선으로 쟀다 — js/liner-transform.js read(): normRadius(value) → '' 는 0 ⇒ 반지름 모드 끔 = 옛 «블럭 폭» 곡률(둥글게 = 글 길이로 저절로).
+       ⛔장식이 아니다 — 빈 값에 뜻이 있다(열차 train/1121-fx 단위 전수에서 잡힘). */
+    'js/liner-transform.js',          // lnr-radius — 비우면 자동(옛 곡률 / 둥글게는 글 길이)
     'js/props/prop-annotation.js',   // annot-label-w — :797 value.trim()==='' → labelWidth null = 자동(글 길이)
     'js/props/prop-banner02.js',     // bn2-h/tx/tw/ty — bindAutoNum: 비우면 플래그를 걷고 프리셋/자동
     'js/props/prop-comparison.js',   // .cmp-row-h    — :251 raw==='' → arr[ri]=null

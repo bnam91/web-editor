@@ -81,6 +81,12 @@ test('N2 [대조] 표시 없는 저장은 평소대로 덮는다', async () => {
   /* ★recreate:false — 이번 실행에 앱이 그 폴더를 «다시 만든» 적이 없는 평범한 경우. returned() 기본(실앱 순서)은 앱이 다시 만든 뒤 대치라
        -02b 가 일부러 막는 꼴(G12)이다(인텔 abecf9295 N2 빨강 = folder_returned · 평소 저장 회귀 아님 · 이 전제만 옛 순서로). */
   const id = await returned({ recreate: false });
+  /* ★기대 바뀜(FILE-CHANGED-OUTSIDE-WHILE-OPEN-OVERWRITE-01 · 현빈 결정 261121): 돌아온 파일은 «밖에서 바뀐» 판이다 — 앱이 쓴 뒤 읽지 않은 탭의 평소 저장은 이제 덮지 않는다(changed_outside · 내 본은 핀).
+       이 칸의 뜻(표시 없는 저장은 folder_returned 갈래가 아니다)은 그대로 · 탭이 파일을 다시 읽은 뒤의 평소 저장은 덮는다. */
+  const r0 = await H.invoke('projects:save', proj(id, '평소'));
+  assert.deepEqual([r0.reason, r0.kept], ['changed_outside', 'history'], '표시 없는 저장 = folder_returned 아님 · 밖에서 바뀐 판은 안 덮음');
+  assert.match(JSON.stringify(file(id)), /돌아온 머리/);
+  await H.invoke('projects:load', id, { open: true });
   assert.equal((await H.invoke('projects:save', proj(id, '평소'))).ok, true);
   assert.match(JSON.stringify(file(id)), /평소 머리/);
 });
@@ -220,4 +226,28 @@ test('G14 같은 본이 두 번 거절돼도 «폴더 없던 때» 핀은 하나
   assert.equal(c.reason, 'folder_returned');
   assert.equal(count(/남은본편집2 머리/), 1, '★다른 본을 안 남겼다(잃음)');
   assert.match(JSON.stringify(file(id)), /돌아온 머리/);
+});
+
+/* BEFOREUNLOAD-LS-REWRITE-FOLDER-RETURNED-01 적대 리뷰(261121) — 렌더러가 kept 'history' 를 믿고 LS 본을 걷으므로 그 말이 참이어야 한다 */
+test('G15 기억한 핀이 그사이 사라졌으면(폴더가 다시 갈림) 같은 본도 다시 남긴다', async () => {
+  const id = await returned();
+  const same = (stamp) => ({ ...proj(id, '남은본편집'), updatedAt: stamp, _goneBase: true });
+  const a = await H.invoke('projects:save', same('2026-11-10T01:00:00.000Z'));
+  assert.equal(a.kept, 'history');
+  const h = path.join(dir(id), 'proj_history');
+  for (const f of fs.readdirSync(h).filter((x) => /^\d+\.json$/.test(x))) if (fs.readFileSync(path.join(h, f), 'utf8').includes('남은본편집 머리')) fs.renameSync(path.join(h, f), path.join(H.userData, 'gone-pin-' + f));   // 핀이 폴더와 같이 사라짐(옮겨 둠 · 지우지 않음)
+  const b = await H.invoke('projects:save', same('2026-11-10T01:00:05.000Z'));
+  assert.equal(b.kept, 'history');
+  assert.equal(history(id).filter((x) => x.includes('남은본편집 머리')).length, 1, '★사라진 핀을 «남겼다»고 답했다(렌더러가 LS 본을 걷으면 그 편집은 어디에도 없다)');
+});
+test('G16 핀 사이드카를 못 쓰면(pinsOk 아님) history 라 하지 않는다 — 비상 사본 쪽', async () => {
+  const id = await returned();
+  const SS = require(path.join(__dirname, '../../main/project-store/snapshot-store.js'));
+  const real = SS.writeSnapshot;
+  SS.writeSnapshot = (d, pid, data, o) => { const r = real(d, pid, data, o); return o && o.reason === 'gone-copy' ? { ...r, pinsOk: false } : r; };
+  try {
+    const r = await H.invoke('projects:save', { ...proj(id, '사이드카실패'), _goneBase: true });
+    assert.equal(r.reason, 'folder_returned');
+    assert.notEqual(r.kept, 'history', '★확인 안 된 핀을 history 로 말했다');
+  } finally { SS.writeSnapshot = real; }
 });

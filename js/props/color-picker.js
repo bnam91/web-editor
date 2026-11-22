@@ -195,6 +195,7 @@ function _ensurePopover() {
         <select data-el="gradType" class="goya-cp-grad-type-select">
           <option value="linear">Linear</option>
           <option value="radial">Radial</option>
+          <option value="conic">Angular</option>
         </select>
       </div>
 
@@ -570,6 +571,7 @@ function _wireEvents(pop) {
       return `${col} ${Math.round((s.offset || 0) * 100)}%`;
     });
     if (type === 'radial') return `radial-gradient(circle, ${parts.join(', ')})`;
+    if (type === 'conic') return `conic-gradient(from ${angle}deg at 50% 50%, ${parts.join(', ')})`;   // FX-GRADIENT-GAZE-01 원뿔형 — 각도 = 시작각(gradient-model toCss 와 같은 꼴)
     return `linear-gradient(${angle}deg, ${parts.join(', ')})`;
   }
 
@@ -823,7 +825,7 @@ function _wireEvents(pop) {
   // opts.emit=false: 외부(캔버스 바) 동기화 — 되쏘지 않는다(루프 방지). opts.selectedIdx: 선택 스탑.
   function _seedGradientUI(g, opts = {}) {
     if (!g || !Array.isArray(g.stops) || g.stops.length < 2) return false;
-    if (gradType) gradType.value = (g.type === 'radial') ? 'radial' : 'linear';
+    if (gradType) gradType.value = (g.type === 'radial' || g.type === 'conic') ? g.type : 'linear';
     // ★angle 0 은 유효값 — parseInt(0)||90 이 0°를 90°로 둔갑시키던 결함(0918 canvasgrad)
     const _a = Number(g.angle);
     const angle = Math.max(0, Math.min(360, Number.isFinite(_a) ? Math.round(_a) : 90));

@@ -43,13 +43,17 @@ export function applyRedact(host, v) {
     delete host.dataset.redact;
     host.style.removeProperty('--redact-blur');
     recomposeHost(host);
+    _rebakeHalftone(host);
     return 0;
   }
   host.dataset.redact = String(n);
   host.style.setProperty('--redact-blur', redactPx(n) + 'px');
   recomposeHost(host);
+  _rebakeHalftone(host);
   return n;
 }
+/* 하프톤 덮개(js/effects-halftone.js)는 가림이 켜지면 치우고 꺼지면 다시 굽는다 — 가림을 켜도 덮개가 남아 원본 점무늬가 보이던 것(미카사 채점 261121). 모든 가림 길이 이 함수를 지난다. */
+function _rebakeHalftone(host) { if (typeof window !== 'undefined' && host.classList?.contains('asset-block')) window.applyHalftone?.(host); }
 
 /* ═══ 그림 filter 합성 — ★인라인 filter 를 쓰는 «단 한 자리» (2026-10-13 · 이벨류에이터 누출 실측 뒤) ═══
  * 에셋 블러는 그림(.asset-img / 구운 canvas) «자신»의 filter 다. 색보정(js/image-color-adjust.js)도 같은 그림의
@@ -76,14 +80,30 @@ function _assetRedactOf(el) {
   return readRedact(host);
 }
 
+/* ═══ IMG-FX-BLUR-01(현빈 261121) 꾸밈 블러 «흐림» — 가림(redact)과 «다른» 효과: 원본을 그대로 싣고 흐리게 보이게만 한다(HTML=CSS filter · Figma=LAYER_BLUR+원본).
+ * 상태 = 에셋 호스트 data-decor-blur(1..DECOR_BLUR_MAX px 정수) 하나 · 인라인 --decor-blur 는 합성 때마다 이 값에서 다시 쓴다(가장자리 3σ 키우기 CSS 가 읽음 · 정본은 속성). */
+export const DECOR_BLUR_MAX = 40;
+export function normalizeDecorBlur(v) { const n = Math.round(Number(v)); return !Number.isFinite(n) || n <= 0 ? 0 : Math.min(DECOR_BLUR_MAX, n); }
+function _assetDecorOf(el) {
+  const clip = el?.parentElement;
+  if (!clip || !clip.classList?.contains('asset-img-clip')) return 0;
+  const host = clip.parentElement;
+  if (!host || !host.classList?.contains('asset-block')) return 0;
+  const d = readRedact(host) > 0 ? 0 : normalizeDecorBlur(host.dataset?.decorBlur);
+  const want = d > 0 ? d + 'px' : '', hs = host.style;
+  if (hs?.getPropertyValue && hs.getPropertyValue('--decor-blur') !== want) { if (want) hs.setProperty('--decor-blur', want); else hs.removeProperty('--decor-blur'); }
+  return d;
+}
+
 /** ★합성 쓰기 — 색보정 몫 + (켜져 있으면) 블러 몫. 인라인 filter 를 쓰는 유일한 문. */
 export function writeImgFilter(el, adjPart) {
   if (!el?.style) return;
   const parts = [];
   const adj = String(adjPart || '').replace(_BLUR_TOKEN_RE, ' ').replace(/\s+/g, ' ').trim();
   if (adj) parts.push(adj);
-  const v = _assetRedactOf(el);
+  const v = _assetRedactOf(el), d = _assetDecorOf(el);   // d = IMG-FX-BLUR-01 꾸밈 «흐림»(가림이 켜지면 0 · 호스트 --decor-blur 도 여기서 맞춤)
   if (v > 0) parts.push(`blur(${redactPx(v)}px)`);
+  else if (d > 0) parts.push(`blur(${d}px)`);   // 가림이 이김
   const next = parts.join(' ');
   /* 같은 값이면 안 쓴다 — 같은 값 쓰기도 MutationObserver 를 깨워 autosave 를 예약한다(save-load MUT-01 · rebindAll 이 매번 부른다) */
   if (el.style.filter !== next) el.style.filter = next;

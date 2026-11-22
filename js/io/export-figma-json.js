@@ -3,7 +3,7 @@ import { inlineGoyaAssetsInJSON, makeElectronAssetReader } from './goya-asset-in
 import { NOT_HIDDEN_VARIATION } from '../variation-visibility.js';
 import { getTextGradient, hasPaintingTextEffect, textShadowSource } from '../props/text-block-color.js';
 import { parseGradient } from '../props/gradient-model.js';
-import { readRedact, redactPx, normalizeRedact } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
+import { readRedact, redactPx, normalizeRedact, normalizeDecorBlur } from '../effects/image-redact.js';   /* ★이미지 블러(Redact, 1012t1 C1) */
 import { collabParams, collabSlotSrc } from '../blocks/logo-collab.js';   /* ★1013t2A2 로고 콜라보 */
 import { COLLAB_GLYPH } from '../blocks/logo-collab-model.js';
 import { sanitizeRichTextHtml } from '../util/sanitize-rich-text.js';
@@ -55,6 +55,19 @@ const _REDACT_COVER = '#4a4a4a';   // 모자이크 안전실패 색과 같은 �
 /* ★이미지 블러(Redact, 1012t1 C1) — 블러는 Figma 로 못 옮긴다(LAYER_BLUR 로 보내면 원본이 피그마 파일에 실려 효과를 끄면 보인다).
  *   ⇒ 도형 가림막과 같은 원칙: 원본 src 를 «싣지 않고» 불투명 덮개 색을 싣는다. 렌더러는 block.redact 갈래에서 그 색으로 칠한다.
  *   켜져 있지 않으면 null(필드 자체를 안 붙인다 — 옛 JSON 바이트 그대로). */
+/* IMG-FX-HALFTONE-01 — 하프톤이 켜진 그림 에셋이면 구운 덮개 그림(data URL) · 아니면 null. 블러(가림)가 켜지면 덮개가 없다(effects-halftone.js) ⇒ 가림이 이긴다. */
+function _halftoneSrc(el) {
+  if (!el?.dataset?.halftone || el.dataset.redact) return null;
+  /* 빌더는 «저장 문자열»을 읽는다 — 덮개는 저장에서 빠지는 파생 그림이라 «라이브» 블럭(같은 id)에서 읽는다(높이를 라이브에서 읽는 것과 같은 결). */
+  const live = (el.id && typeof document !== 'undefined' && document.getElementById(el.id)) || el;
+  if (!live.dataset?.halftone || live.dataset.redact) return null;
+  const ov = live.querySelector?.(':scope > .asset-img-clip > img.asset-halftone');
+  return ov && ov.getAttribute('src') ? ov.getAttribute('src') : null;
+}
+/* IMG-FX-BLUR-01 꾸밈 «흐림» — 가림과 달리 원본을 그대로 싣고 LAYER_BLUR 반지름(px)만 더한다(렌더러 figma-renderer image 갈래가 set_effects). 가림이 켜지면 없음. */
+function _imageDecorBlur(el) {
+  return readRedact(el) > 0 ? 0 : normalizeDecorBlur(el?.dataset?.decorBlur);
+}
 function _imageRedactField(el) {
   const v = readRedact(el);
   return v > 0 ? { intensity: v, blurPx: redactPx(v), cover: _REDACT_COVER } : null;
@@ -169,6 +182,8 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  /* FX-GRADIENT-GAZE-01 원뿔형 — SVG def 는 linear 대역이라 모델을 따로 싣는다(렌더러가 GRADIENT_ANGULAR 로) */
+  if (!redact) { try { const gm = JSON.parse(el.dataset.shapeGradient || 'null'); if (gm && gm.type === 'conic' && Array.isArray(gm.stops)) out.gradientModel = { type: 'conic', angle: Number(gm.angle) || 0, stops: gm.stops }; } catch (_) { /* 깨진 값 = 안 실음 */ } }
   /* ★SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01(현빈 0.9.12 131) — 별은 캔버스가 «이미 그린» SVG(viewBox + polygon 점·칠)를 그대로 싣는다.
      갯수·간격·통통함·꼭짓점 둥글기·별마다 배율이 다 points 에, 평점·별마다 색이 polygon fill 에 녹아 있다(prop-shape _applyStarGeom) — 식을 여기서 다시 짓지 않는다.
      옛 별 하나(기본 viewBox · polygon 1 · 칠 없음 · 옛 점)면 안 싣는다 = 옛 JSON 바이트. 칠은 단색만 — url(#…) 그라데이션은 gradientDef(면 칠)가 맡는다. */
@@ -204,12 +219,24 @@ function _shapeFigmaBlock(el) {
   return out;
 }
 
+/* IMG-FX-GRAIN-01(현빈 261121) — 그레인(.asset-grain 필름 노이즈)은 Figma JSON 에 안 실린다(조용히 빠졌다 · 261121 실측).
+   ⇒ 내보내기·업로드 직전 비차단 알림(certOutputNotice 와 같은 꼴 · showToast). roots = 살필 섹션들(없으면 캔버스 전체). 돌려주는 수 = 그레인 켠 그림 수.
+   shortcut: 지금 열린 페이지(라이브 캔버스)만 센다 — 다른 페이지의 그레인까지 세야 하면 pages[].canvas 문자열을 파싱해 센다. */
+export function figmaGrainNotice(roots) {
+  const list = roots && roots.length ? roots : [document.getElementById('canvas')];
+  let n = 0;
+  for (const r of list) r?.querySelectorAll?.('.asset-block > .asset-grain').forEach((g) => { if ((parseInt(g.dataset.grainIntensity, 10) || 0) > 0) n++; });
+  if (n) window.showToast?.(`그레인 ${n}곳은 피그마로 안 나갑니다(PNG·HTML 엔 나감)`);
+  return n;
+}
+
 async function exportFigmaJSON() {
   /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
      반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
   await window.whenGridRatiosSettled?.();
   // 현재 페이지를 pages 배열에 반영
   window.flushCurrentPage();
+  figmaGrainNotice();   // IMG-FX-GRAIN-01 — 그레인은 Figma 로 안 나감(비차단 알림)
 
   const parser = new DOMParser();
 
@@ -275,7 +302,7 @@ async function exportFigmaJSON() {
       // col width는 parseCol에서 주입
       const redact = _imageRedactField(el);
       if (redact) return { type: 'asset', src: null, height: h, padding, redact };   // ★블러: 원본 src 를 싣지 않는다(1012t1 C1)
-      return { type: 'asset', src, height: h, padding };
+      return { type: 'asset', src: _halftoneSrc(el) || src, height: h, padding, ...(!_halftoneSrc(el) && _imageDecorBlur(el) ? { decorBlur: _imageDecorBlur(el) } : {}) };   // IMG-FX-HALFTONE-01 구운 그림 · IMG-FX-BLUR-01 흐림(하프톤 덮개가 있으면 캔버스에서 흐림이 안 보이므로 안 실음 · 열차 261121)
     }
 
     return null;
@@ -451,7 +478,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const _li = (el.id && document.getElementById(el.id)?.querySelector('.tb-h1,.tb-h2,.tb-h3,.tb-body,.tb-caption,.tb-label')) || inner;
       // 0919r3 textshadow: 그라데이션 글자는 .tgs 가 computed text-shadow 를 none 으로 가리고 drop-shadow 로 그린다
       //   → 원본 목록(--tgs-src)을 보낸다(안 그러면 Figma 에서 그림자가 사라진다).
-      const ts = textShadowSource(_li);
+      const ts = window.fxFigmaTextShadow?.(_li) ?? textShadowSource(_li);   /* 오블리크 = Figma 8겹 상한으로 솎은 목록(js/effects-oblique.js) */
       if (ts && ts !== 'none') textShadow = ts;
     } catch {}
 
@@ -602,6 +629,8 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         padX,
         style: { borderRadius: parseFloat(el.style.borderRadius) || 0 },
         src: el.dataset.imgSrc || null,
+        ...(_halftoneSrc(el) ? { src: _halftoneSrc(el), halftone: true } : {}),   // IMG-FX-HALFTONE-01 — 덮개 = 화면에 보이는 그 상자 그대로 구운 그림(아래 clip·crop 안 씀)
+        ...(!_halftoneSrc(el) && _imageDecorBlur(el) ? { decorBlur: _imageDecorBlur(el) } : {}),   // IMG-FX-BLUR-01 흐림 — 원본 + LAYER_BLUR(하프톤 덮개 있으면 안 실음 · 열차 261121)
         overlayOn,
         overlayText,
         overlayColor,
@@ -611,7 +640,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           return redact ? { src: null, redact } : {};
         })(),
       };
-      if (!el.dataset.collab) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
+      if (!el.dataset.collab && !_assetOut.halftone) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
       return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }
     if (el.classList.contains('icon-circle-block')) {
@@ -1214,7 +1243,9 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
             acc += len + layout.gap;
           }
           const inner = _frameBlockOfSection(c);
-          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch) } } : null;
+          /* SLIDE-CELL-SHADOW-FIGMA-01 — 칸 그림자(soft|strong)를 칸 프레임에 싣는다(렌더러 = DROP_SHADOW + 위아래 «슬라이드 그림자 여백» 감싸개) · 없으면 키 0(옛 JSON) */
+          const _sh = window.CELL_SHADOWS?.[c.dataset.shadow];
+          return inner ? { x: Math.round(x), y: Math.round(y), w: Math.round(cw), block: { ...inner, width: Math.round(cw), height: Math.round(ch), ...(_sh ? { shadow: { y: _sh.y, blur: _sh.blur, color: _sh.color } } : {}) } } : null;
         }).filter((m) => m && (_v ? m.y : m.x) < L && m.w > 0);
         return { type: 'frame', id: el.id || '', width: bw, height: bh, bg: '', radius: 0, free: true, clip: true, children };
       }
@@ -1712,4 +1743,5 @@ export {
 window.exportFigmaJSON       = exportFigmaJSON;
 window.getTextWithLineBreaks = getTextWithLineBreaks;
 window.buildFigmaExportJSON  = buildFigmaExportJSON;
+window.figmaGrainNotice      = figmaGrainNotice;
 window.buildFigmaExportJSONInlined = buildFigmaExportJSONInlined;

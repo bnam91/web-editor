@@ -440,3 +440,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `scratch-layer-order.dom.spec.js:229` L3 — 지혜맥 16 spec 묶음 workers 1 · retries 0 (판 7a07060b2 + 시험 고침) 빨강 1/1(`page.goto` 30s) · 같은 spec 통째 ×5 0/5 · 대조 9a724fb78 같은 묶음 0/1.
 - `text-dot-over.dom.spec.js:689` D14 — 지혜맥 13 spec 묶음 workers 1 · retries 0 (판 1c80b2477) 빨강 1/1 · 같은 판 16 spec 묶음(같은 시험 고침 · 주석 자리만 다름) 0/1 · D14 단독 ×10 0/10 · spec 통째 ×3 0/3.
 - `grid-step.dom.spec.js:118` G4 «[전제] 효과 고른 그리드에 올리면 ▶» — 지혜맥 그리드 묶음 workers 4 · retries 0 (판 4d4e9a438 + t13D-02 옵션①) 빨강 1/1 · 같은 판 단독 ×6 0/6 · 고치기 전 판 단독 ×3 0/3.
+
+## 2026-11-21 · dev16 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `ft-restore-remeasures-at-other-width` X0 — 인텔 dev16 전수(e648a47b2) 1/1 빨강 · 같은 sha 아이맥 재기 0/1.

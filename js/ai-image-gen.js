@@ -715,7 +715,7 @@ import { isGoyaAssetUrl, goyaAssetToDrawableSrc } from './io/goya-asset-inline.j
         const add = _missing(existing.imageGallery);
         if (add.length) {
           existing.imageGallery = [...(Array.isArray(existing.imageGallery) ? existing.imageGallery : []), ...add];
-          const r = await window.electronAPI.saveProject(existing);
+          const r = await window.electronAPI.saveProject({ ...existing, _overFile: true });   // 방금 읽은 지금 파일에 덧붙임 — 밖에서 바뀐 판 거절 대상 아님(FILE-CHANGED 적대 리뷰 2-5)
           if (r && r.ok === false) return false;
         }
         if ((await window.waitSavesFor?.(pid)) === false) continue;

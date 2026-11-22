@@ -68,7 +68,7 @@ const fxOpts = (page) => page.evaluate(() => {
 async function pickBlur(page) {
   const opts = await fxOpts(page);
   expect(opts, 'Effects 드롭다운이 없다').not.toBe(null);
-  expect(opts, 'Effects 드롭다운에 「블러」 가 없다').toContainEqual(['blur', '블러']);
+  expect(opts, 'Effects 드롭다운에 「가림」 가 없다').toContainEqual(['blur', '가림']);   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»이 생겨 옛 «블러» 이름을 «가림»으로 갈랐다(현빈 결정 ⓑ)
   await page.selectOption('#asset-fx-add', 'blur');
   await page.waitForFunction(() => !!document.querySelector('#asset-fx-list .prop-cell-card[data-fx-type="blur"]'), null, { timeout: 5000 });
 }
@@ -124,7 +124,7 @@ test('B1 드롭다운에 「블러」 · 옛 따로 절 0 · 그림 없는 에�
   console.log('B1 opts', JSON.stringify(opts));
   expect(opts, 'Effects 드롭다운이 없다').not.toBe(null);
   expect(opts[0][0], '머리 항목(값 없음)이 첫째가 아니다').toBe('');
-  expect(opts, 'Effects 드롭다운에 「블러」 가 없다').toContainEqual(['blur', '블러']);
+  expect(opts, 'Effects 드롭다운에 「가림」 가 없다').toContainEqual(['blur', '가림']);   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 꾸밈 «흐림»이 생겨 옛 «블러» 이름을 «가림»으로 갈랐다(현빈 결정 ⓑ)
   expect(opts.map((o) => o[0]), '반사·그림자가 사라졌다').toEqual(expect.arrayContaining(['reflect', 'shadow']));
   const old = await page.evaluate(() => ({
     sec: !!document.getElementById('asset-redact-section'),
@@ -162,7 +162,7 @@ test('B2 고르면 효과 카드 · data-redact 40 · filter blur(8px) · 드롭
   expect([s.num, s.sld], '카드 강도 칸이 상태와 다르다').toEqual(['40', '40']);
   expect((await fxOpts(page)).map((o) => o[0]), '건 뒤에도 「블러」 가 목록에 남았다').not.toContain('blur');
   const title = await page.evaluate(() => document.querySelector('#asset-fxbl-card .prop-cell-card-title')?.textContent.trim());
-  expect(title).toBe('블러');
+  expect(title).toBe('가림');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 카드 제목도 «가림»
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

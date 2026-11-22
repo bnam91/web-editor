@@ -139,12 +139,19 @@ const STEP_LIST = [
   { id: 'step-outline', label: '차례 테두리',  desc: '칸이 하나씩 강조 색 테두리로 켜짐' },
   { id: 'step-pop',     label: '차례 튀어나옴', desc: '칸이 하나씩 조금 커지며 떠오름' },
 ];
+/* SLIDE-FX-COLOR-REVEAL-01(0.9.14) 컬러 리빌 — 이미지(에셋) 블럭 흑백 → 색. 셈·그림 = js/fx/color-reveal.js · 바탕 그림·저장 = js/blocks/asset-reveal.js
+   방식(와이프 기본 · 전체 동시 · 가운데서 번짐)은 효과 하나 안의 «방향» 칸(#anim-reveal-mode). */
+const REVEAL_LIST = [
+  { id: 'color-reveal', label: '컬러 리빌', desc: '흑백에서 색이 차오름(방향: 왼→오 · 전체 동시 · 가운데서 번짐)' },
+];
 /* 움직임 블럭 종류 표 — 엔진의 갈래 자리(열기·미리보기·캔버스 재생·GIF 저장·빈 판정)는 이 표 한 줄만 본다(텍스트 길은 무변). */
 const _MK = {
   slide: { cls: 'slide-block', list: SLIDE_LIST, prepare: (b) => window.slidePrepare?.(b), plan: (b, a, fx) => window.slidePlan(b, a, fx), read: (b) => window.readSlideState(b),
     save: (b, a) => !!window.setSlideAnim?.(b, a), has: (b) => !!window.slideHasPhotos?.(b), emptyTitle: '사진이 없어 GIF 를 만들 수 없습니다 — 오른쪽 패널에서 사진을 넣으세요' },
   step:  { cls: 'grid-block', list: STEP_LIST, prepare: (b) => window.stepPrepare?.(b), plan: (b, a, fx) => window.stepPlan(b, a, fx), read: (b) => window.readStepState(b),
     save: (b, a) => !!window.setStepAnim?.(b, a), has: (b) => !!window.stepHasCells?.(b), emptyTitle: '칸이 없어 GIF 를 만들 수 없습니다' },
+  reveal: { cls: 'asset-block', list: REVEAL_LIST, prepare: (b) => window.revealPrepare?.(b), plan: (b, a) => window.revealPlan(b, a), read: (b) => window.readRevealState(b),
+    save: (b, a) => !!window.setRevealAnim?.(b, a), has: (b) => !!window.revealHasImage?.(b), emptyTitle: '그림이 없어 GIF 를 만들 수 없습니다 — 먼저 이미지를 넣으세요' },
 };
 const _mkOf = (el) => (el && el.classList ? Object.keys(_MK).find((k) => el.classList.contains(_MK[k].cls)) || null : null);
 const _isMotion = (el) => !!_mkOf(el);   // 움직임 블럭(슬라이드·신호등)
@@ -152,16 +159,17 @@ const _kindList = () => (_MK[_animKind] ? _MK[_animKind].list : ANIM_LIST);
 const _slideBgStyle = (tb) => ({ sectionBg: window.slideBg ? window.slideBg(tb) : '#ffffff', fontSize: 1 });
 /** 글자 전용 칸 ↔ 슬라이드 칸 — 종류에 따라 숨김/보임(값·저장은 안 건드림). */
 function _syncKindRows() {
-  const slide = !!_MK[_animKind], step = _animKind === 'step';
+  const slide = !!_MK[_animKind], step = _animKind === 'step', reveal = _animKind === 'reveal';
   const perRow = document.getElementById('anim-per-line')?.closest?.('.anim-opt-row');
   for (const el of [perRow, document.getElementById('anim-stamp-s0-row'), document.getElementById('anim-stamp-grow')]) if (el) el.style.display = slide ? 'none' : '';
   if (slide) for (const id of ['anim-tracks', 'anim-fx-opts', 'anim-conflict-warn']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
   const dirRow = document.getElementById('anim-slide-row'), dwRow = document.getElementById('anim-slide-dwell-row');
-  if (dirRow) dirRow.style.display = slide && !step && !_SLIDE_INPLACE.has(_animType) && !_SLIDE_NODWELL.has(_animType) ? '' : 'none';
-  if (dwRow) dwRow.style.display = step || (slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep' || _animType === 'slide-trail' || _SLIDE_INPLACE.has(_animType))) ? '' : 'none';
+  if (dirRow) dirRow.style.display = slide && !step && !reveal && !_SLIDE_INPLACE.has(_animType) && !_SLIDE_NODWELL.has(_animType) ? '' : 'none';
+  if (dwRow) dwRow.style.display = step || reveal || (slide && (_animType === 'slide-swipe' || _animType === 'slide-vstep' || _animType === 'slide-trail' || _SLIDE_INPLACE.has(_animType))) ? '' : 'none';
   const dwLab = dwRow?.querySelector?.('.anim-opt-label'); if (dwLab) dwLab.textContent = step ? '한 칸 시간' : '머무름';   // 같은 칸 · 신호등이면 글만
   const trRow = _trailRow(); if (trRow) trRow.style.display = slide && _animType === 'slide-trail' ? '' : 'none';
   const pastRow = document.getElementById('anim-step-past-row'); if (pastRow) pastRow.style.display = step ? '' : 'none';
+  const rvRow = document.getElementById('anim-reveal-row'); if (rvRow) rvRow.style.display = reveal ? '' : 'none';
   /* 방향 값은 그대로(left = 줄이 음의 쪽으로) — 세로 효과면 글만 위로/아래로 */
   const dirSel = document.getElementById('anim-slide-dir'), v = _SLIDE_VERT.has(_animType);
   if (slide && dirSel) for (const o of dirSel.options) o.textContent = o.value === 'right' ? (v ? '↓ 아래로' : '→ 오른쪽으로') : (v ? '↑ 위로' : '← 왼쪽으로');
@@ -187,7 +195,8 @@ function _slideAnimNow() {
     dwell: parseFloat(document.getElementById('anim-slide-dwell')?.value) || 1.2,
     speed: parseFloat(document.getElementById('anim-speed')?.value) || 1,
     past: document.getElementById('anim-step-past')?.value === 'stack' ? 'stack' : 'off',   // 신호등만 읽는다(슬라이드 소독이 버림)
-    trail: parseFloat(document.getElementById('anim-slide-trail')?.value),   // 없거나 비면 NaN → normAnim 기본(22)
+    trail: parseFloat(document.getElementById('anim-slide-trail')?.value),
+    mode: document.getElementById('anim-reveal-mode')?.value,   // 컬러 리빌만 읽는다(다른 종류 소독이 버림)   // 없거나 비면 NaN → normAnim 기본(22)
   };
 }
 /** 슬라이드 움직임 값 저장(블럭 data-anim-slide) — commit = 이력 한 칸(바뀌었을 때만). index.html 방향·머무름 칸 인라인이 부른다. */
@@ -212,6 +221,7 @@ function _openSlideModal(tb) {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = String(v); };
   if (st.anim.dir) set('anim-slide-dir', st.anim.dir);
   if (st.anim.past) set('anim-step-past', st.anim.past);
+  if (st.anim.mode) set('anim-reveal-mode', st.anim.mode);
   set('anim-slide-dwell', st.anim.dwell); set('anim-speed', st.anim.speed);
   if (_trailRow()) { const tr = st.anim.trail ?? SLIDE_ANIM_DEFAULT.trail; set('anim-slide-trail', tr); set('anim-slide-trail-num', tr); }
   const sv = document.getElementById('anim-speed-val'); if (sv) sv.textContent = st.anim.speed + 'x';
@@ -1152,14 +1162,18 @@ async function _exportSlideGif() {
     const repeat = (repeatRaw != null && repeatRaw !== '') ? parseInt(repeatRaw) : 1;
     const bW = Math.max(tb.offsetWidth, 1), bH = Math.max(tb.offsetHeight, 1);
     const W = Math.max(320, Math.round(bW * 2)), H = Math.max(40, Math.round(bH * (W / bW)));
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    /* SLIDE-CELL-SHADOW-GIF-01 — 판을 위아래로 칸 그림자만큼 키움(캔버스 clip-path 134 와 같은 셈 · 그림자 0 = 옛 크기 그대로) · 키운 자리도 바탕색 */
+    const pad = Math.round((window.slideShadowPad?.(tb) || 0) * (W / bW)), GH = H + 2 * pad;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = GH;
     const ctx = cv.getContext('2d'), style = _slideBgStyle(tb);
     const plan = mk.plan(tb, _slideAnimNow(), _animType), g = plan.gif;
-    const gif = new GIF({ workers: 2, quality: 8, width: W, height: H, workerScript: 'js/gif.worker.js', repeat: repeat <= 1 ? -1 : repeat - 1 });
+    const gif = new GIF({ workers: 2, quality: 8, width: W, height: GH, workerScript: 'js/gif.worker.js', repeat: repeat <= 1 ? -1 : repeat - 1 });
     for (let i = 0; i < g.frames; i++) {
-      ctx.clearRect(0, 0, W, H);
-      _fillBg(ctx, style, W, H);
+      ctx.clearRect(0, 0, W, GH);
+      _fillBg(ctx, style, W, GH);
+      ctx.save(); ctx.translate(0, pad);
       plan.draw(ctx, W, H, 0, i / g.frames);
+      ctx.restore();
       gif.addFrame(ctx, { copy: true, delay: g.delay });
     }
     gif.on('progress', (p) => { btn.textContent = `생성 중... ${Math.round(p * 100)}%`; });
