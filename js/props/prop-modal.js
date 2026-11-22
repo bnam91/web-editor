@@ -187,7 +187,7 @@ export function showModalProperties(block) {
            칸만 보이면 «화면이 거짓말하는» 자리가 된다(이 파일 그림자·표 밖 값 주석의 그 까닭).
          ★없는 칸 — 꼴(원형/네모/둥근네모)과 이모지 크기 갈래는 ★현빈 미결이라 안 놓았다(⛔지어내지 말 것 · 근거는 modal-block.js 프로필 머리말 ②). -->
       <span class="prop-field-label">Profile</span>
-      <button class="prop-action-btn secondary" id="mdl-pf-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <button class="prop-action-btn secondary" id="mdl-pf-img-btn">이미지 선택</button>
       <input type="file" id="mdl-pf-img-input" accept="image/*" style="display:none">
       <div class="prop-row">
         <span class="prop-label">이모지</span>
@@ -281,7 +281,7 @@ export function showModalProperties(block) {
       sec('fill', `
       <div class="prop-row"><span class="prop-label">배경색</span>${colorFieldHTML({ idPrefix: 'mdl-bg', hex: bg, alpha: parseAlphaFromColor(bg) })}</div>
       <span class="prop-field-label">Image</span>
-      <button class="prop-action-btn secondary" id="mdl-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <button class="prop-action-btn secondary" id="mdl-bg-img-btn">이미지 선택</button>
       <input type="file" id="mdl-bg-img-input" accept="image/*" style="display:none">
       ${hasBgImg ? `
         <div class="prop-row">

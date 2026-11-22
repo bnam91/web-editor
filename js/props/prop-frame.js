@@ -623,7 +623,7 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-bgopa-num" min="0" max="100" value="${bgOpacity}">
       </div>
       <span class="prop-field-label">Image</span>
-      <button class="prop-action-btn secondary" id="ss-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
+      <button class="prop-action-btn secondary" id="ss-bg-img-btn">이미지 선택</button>
       <input type="file" id="ss-bg-img-input" accept="image/*" style="display:none">
       ${ss.dataset.bgImg ? '' : `<div id="ss-bg-empty-box">
       <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="ss-bg-img-empty" style="margin-top:4px;"
