@@ -160,10 +160,10 @@ test('V-Q1/Q2 qa — 피드백 없음/있음: 절이 맞게 뜬다(읽기 전용
   const titles = () => page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-sec-title-text')].map((e) => e.textContent.trim()));
   await page.evaluate((id) => { delete document.getElementById(id).dataset.feedback; }, id);
   await open(page, 'showQAProperties', id);
-  expect(await titles()).toEqual(['Checklist', 'Template']);
+  expect(await titles()).toEqual(['Template', 'Checklist']);   // 9c2e19fcd ⑶ⓑ 꼬리 = Templates → Export → [Special]
   await page.evaluate((id) => { document.getElementById(id).dataset.feedback = 'u5 피드백'; }, id);
   await open(page, 'showQAProperties', id);
-  expect(await titles()).toEqual(['Checklist', 'Feedback', 'Template']);
+  expect(await titles()).toEqual(['Template', 'Checklist', 'Feedback']);
   expect(await page.locator('#panel-right').textContent()).toContain('u5 피드백');
   expect(errs).toEqual([]);
 });

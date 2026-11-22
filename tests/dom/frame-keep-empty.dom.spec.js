@@ -119,7 +119,7 @@ for (const kind of ['free', 'flow']) {
       expect(sel.outline, '골라지면 선택 실선이 빈 표시를 이긴다').toBe('solid');
       // ⑶ 프레임 속성 패널
       const panel = await page.evaluate(() => (document.querySelector('#panel-right')?.innerText || '').replace(/\s+/g, ' '));
-      expect(panel, '프레임 패널이 안 떴다').toMatch(/PROPERTIES Frame FR/);
+      expect(panel, '프레임 패널이 안 떴다').toMatch(/Frame FR Position /);   // 058e3e7d0 ① 패널 머리 «Properties» 줄 걷음 → Type 띠 «Frame FR» 바로 뒤 Position 절로 잰다
       expect(panel, '★지운 안내(「…이 안으로 들어갑니다」 · 지디 ㉮ 2026-11-09)가 프레임 패널에 다시 떴다').not.toContain('이 안으로 들어갑니다');
       /* ⑷ 패널 삽입 — 진짜 단추(Body)를 누른다.
          ★㉠(2026-11-09, t3-01/t3-07): ⒜(빈 프레임 = 안쪽)를 걷었다. 옛 단언 = 「클릭으로 고른 빈 프레임에 Body → «안»」({inFrame:1, all:1}).

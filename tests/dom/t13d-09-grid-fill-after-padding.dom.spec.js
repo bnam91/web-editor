@@ -91,12 +91,22 @@ test('D4 sw 손잡이를 세로로만 끌기(높이) → 폭 키 안 생김 · �
   /* 3차 DIAG(인텔 261121: 부름 [mousemove 7] 뿐 · handle-down 0 · applyGridOwnWidth 0) — 손잡이 리스너가 mousedown 을 못 받았다.
      가를 것: ① 마우스를 «올린 뒤»(hover) 그 점 임자가 바뀌나(＋ 버튼이 떠서 P4 규칙으로 손잡이가 display:none 등) ② mousedown 이 어디로 갔나(window capture 첫 자리 target) */
   await page.evaluate(() => { window.__d4dn = []; window.addEventListener('mousedown', (e) => { const t = e.target; window.__d4dn.push((t.dataset?.grdResizeDir ? 'grd:' + t.dataset.grdResizeDir : (t.id || '') + '.' + String(t.className).slice(0, 40)) + (t.isConnected ? '' : ':detached')); }, true); });
+  /* 5차 DIAG(tpf7b 3맥 전수 261123 · 수지 단독 재실행도 빨강: 올린 뒤 손잡이 중심 (−10.5, +5.9) 움직이고 그 점 임자 = .grd-line grd-body) —
+     무엇이 움직였나를 세 때(올리기 앞 · 올린 뒤 · 다시 올린 뒤) 한 줄로: 손잡이 · pG · 보이는 상자(gridVisualBox) · 오버레이 · 캔버스 스크롤 · 줌 · 그 점 위 4겹 */
+  const snap = (pt) => page.evaluate(([x, y]) => { const r = (e) => { if (!e) return null; const q = e.getBoundingClientRect(); return [q.left, q.top, q.width, q.height].map((v) => Math.round(v * 10) / 10); };
+    const g = document.getElementById('pG'), cv = document.getElementById('canvas'), sc = cv && cv.closest('[style*="overflow"], .canvas-wrap, #canvas-container') || cv?.parentElement;
+    return { h: r(document.querySelector('#ss-handles-overlay [data-grd-resize-dir="sw"]')), g: r(g), vb: r(window.gridVisualBox?.(g)), ov: r(document.getElementById('ss-handles-overlay')),
+      scroll: sc ? [sc.scrollLeft, sc.scrollTop] : null, win: [scrollX, scrollY], zoom: window.currentZoom ?? window.getZoom?.() ?? null, sel: document.querySelector('.selected')?.id || null,
+      stack: document.elementsFromPoint(x, y).slice(0, 4).map((e) => (e.id || '') + '.' + String(e.className).slice(0, 24)) }; }, pt);
+  const snaps = { before: await snap(sw) };
   await page.mouse.move(sw[0], sw[1]);
+  snaps.hover1 = await snap(sw);
   const sw2 = await page.evaluate(() => { const h = document.querySelector('#ss-handles-overlay [data-grd-resize-dir="sw"]'); const q = h.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; });
   const mv = JSON.stringify({ before: [...sw], after: sw2 });
   if (sw2[0] !== sw[0] || sw2[1] !== sw[1]) { await page.mouse.move(sw2[0], sw2[1]); sw[0] = sw2[0]; sw[1] = sw2[1]; }
+  snaps.hover2 = await snap(sw);
   const who2 = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); const hs = [...document.querySelectorAll('#ss-handles-overlay [data-grd-resize-dir="sw"]')]; return { at: e ? (e.dataset?.grdResizeDir ? 'sw-handle' : (e.id || '') + '.' + String(e.className).slice(0, 50)) : null, swCount: hs.length, swDisplay: hs.map((h) => getComputedStyle(h).display) }; }, sw);
-  expect(who2.at, `[전제] 마우스 올린 뒤에도 그 점 임자 = sw 손잡이 (본 것: ${JSON.stringify(who2)} · 손잡이 중심 올리기 앞/뒤 ${mv})`).toBe('sw-handle');
+  expect(who2.at, `[전제] 마우스 올린 뒤에도 그 점 임자 = sw 손잡이 (본 것: ${JSON.stringify(who2)} · 손잡이 중심 올리기 앞/뒤 ${mv} · DIAG ${JSON.stringify(snaps)})`).toBe('sw-handle');
   await page.mouse.down();
   await page.mouse.move(sw[0], sw[1] + 30, { steps: 6 }); await page.mouse.up();
   const d1 = await ds(); const calls = await page.evaluate(() => [...window.__d4, ['mousemove', window.__d4mm], ['down-target', ...window.__d4dn]]);

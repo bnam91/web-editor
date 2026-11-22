@@ -2,7 +2,7 @@
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
-import { sectionOrderFor } from './_section-spec.js';
+import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
@@ -420,9 +420,10 @@ export function placeTextPanelSection(panel, key, html, { title, id } = {}) {
   if (id) panel.querySelector(`:scope > #${id}`)?.remove();
   const order = sectionOrderFor('text');
   const out = buildPanelHTML({ sections: [sec(key, html, { title, id })], panel: 'text' });
-  const want = order.indexOf(key);
-  // GIF 절(special 맨 끝 · 1120b F1)은 패널 맨 아래 — 늦게 얹는 special(곡선 Curve 등)은 그 앞에
-  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => order.indexOf(e.dataset.sec) > want || (key === 'special' && e.id === 'txt-anim-section'));
+  // 자리 = 틀과 같은 정렬 수(sectionRank) — 9c2e19fcd ⑶ⓑ 뒤 GIF 는 Effects 바로 뒤라, 옛 «GIF 앞에» 규칙은 Curve 를 GIF 앞(Template 위)에 넣었다
+  const rank = (e) => sectionRank(order, e.dataset.sec, e.querySelector(':scope > .prop-sec-head .prop-sec-title-text')?.textContent.trim());
+  const want = sectionRank(order, key, title);
+  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => rank(e) > want);
   if (next) next.insertAdjacentHTML('beforebegin', out); else panel.insertAdjacentHTML('beforeend', out);
 }
 if (typeof window !== 'undefined') window.placeTextPanelSection = placeTextPanelSection;

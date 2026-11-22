@@ -6,7 +6,7 @@
  *   지금 판 = 작업 트리 그대로 · 옛 판 = 옮긴 세 파일을 BASE 내용으로(overlay) + 새 파일 404(= 링크가 없던 때와 같다).
  *   js·html 은 같으니 차이는 «규칙 자리» 뿐. 두 판에서 툴바 단추 전부 + 섹션 툴바 A/B·AI(·바쁨) 단추의 계산된 스타일을
  *   ① 가만히 ② 마우스 올림(:hover · 전이 끔) 으로 읽어 «완전히 같다».
- *   BASE = env VISUAL17_BASE 또는 `git merge-base HEAD origin/dev`.
+ *   BASE = env VISUAL17_BASE 또는 5133b7da8^(옮기기 바로 앞 · 고정 — 옛 merge-base 는 옮김이 dev 에 들어간 뒤 무의미).
  * 자 양성대조(늘): 새 파일만 404 인 셋째 판은 지금 판과 «달라야» 한다(규칙이 빠지면 자가 차이를 본다).
  * CTL = _patches/visual5-147-CTL-link-after.patch(새 파일을 editor-toast.css «뒤»로 링크) → 드롭다운 트리거 width 등이 달라 빨강.
  */
@@ -15,7 +15,9 @@ const { execFileSync } = require('child_process');
 const { bootApp, ROOT } = require('./_root-harness.js');
 
 const git = (...a) => execFileSync('git', ['-C', ROOT, ...a], { encoding: 'utf8' }).trim();
-const BASE = process.env.VISUAL17_BASE || git('merge-base', 'HEAD', 'origin/dev');
+/* 옛 판 = 옮기기(5133b7da8) «바로 앞» 고정 — 옮김이 dev 에 들어간 뒤 merge-base 는 옮긴 뒤라 옛 판이 규칙 0(UA 꼴)이 됐다(tpf7b 3맥 전수 빨강).
+   그 뒤 세 파일 변경 = 790bf24b7(에셋 흐림 규칙 · 툴바 무관) · 0911f76ed(같은 값 토큰) 뿐 — 툴바 단추 계산 스타일엔 차이 0. */
+const BASE = process.env.VISUAL17_BASE || '5133b7da8^';
 const MOVED = ['css/editor-toast.css', 'css/editor-layout.css', 'css/panels/_panel-tree.css'];
 const NEW = '/css/floating-toolbar.css';
 const pinned = () => {
