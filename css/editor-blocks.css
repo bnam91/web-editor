@@ -4663,7 +4663,8 @@ html.tgs-selecting .tgs:focus-within {
    거기 걸면 손잡이가 같이 잘린다(js/blocks/gradient-block.js 의 그 자리 주석).
    ⛔전엔 그 층에 ★맨 `clip-path` 를 인라인으로 박았다 — 그래서 아래 해제 둘이
    «CSS 로는 못 이기는» 상태였고, 이력 비교도 이걸 «편집»으로 읽었다. */
-.gradient-block > .grad-fill {
+.gradient-block > .grad-fill,
+.section-block > [data-overlay-block="true"] {   /* ★현빈 261123(t13E-07 · Figma «Clip content») — 섹션 «직속» 떠 있는 단위도(--sec-clip = js/overlay-float.js) · ⛔.selected 해제 줄엔 안 넣는다(고른 채로도 잘림 · 손잡이·테두리는 섹션 밖 층이라 늘 보임) */
   clip-path: var(--sec-clip, none);
 }
 .sticker-block.selected,
@@ -4675,16 +4676,14 @@ html.tgs-selecting .tgs:focus-within {
 .section-block[data-overflow-visible="true"] .sticker-block,
 .section-block[data-overflow-visible="true"] .mockup-block,
 .section-block[data-overflow-visible="true"] .zoom-block > .zoom-clip,
-.section-block[data-overflow-visible="true"] .gradient-block > .grad-fill {
+.section-block[data-overflow-visible="true"] .gradient-block > .grad-fill,
+.section-block[data-overflow-visible="true"] > [data-overlay-block="true"] {
   clip-path: none;
 }
-
-/* ★오버레이(js/overlay-float.js, dataset.overlayBlock="true")는 이 명부에 «일부러» 없다.
-   현빈 결정(2026-09-20): 「오버레이는 크기조절로 섹션 폭 밖까지 나가도 된다」(5c6888d) +
-   「섹션 밖으로 나간 부분은 PNG 내보내기에 «안 담는다» — 화면에서만 나가고 PNG 에서는
-   섹션 상자 기준으로 잘리는 지금 동작이 정상」.
-   ⇒ 여기에 오버레이 셀렉터를 넣으면 «캔버스가» 잘려 앞 결정을 되돌리는 것이다. ⛔넣지 마라.
-   이 경계는 tests/unit/export-floating-crop-roster.test.mjs P6 이 지킨다(SEC_CLIP_OVERLAY_EXCLUDED). */
+/* ★오버레이(js/overlay-float.js, dataset.overlayBlock="true") — 현빈 261123 뒤집음: 09-20 「오버레이는 화면에선 섹션 밖까지 나가도 된다」(5c6888d) → «섹션 밖 보이기» 꺼짐(= Clip content 켬)이면
+   편집 캔버스에서도 자른다(Figma «Clip content»와 같게 · 스펙 handoff/SPEC-section-clip-like-figma-261123.md 결정 로그 ①) — 위 크롭 묶음·해제 묶음에 넣었다.
+   내보내기는 토글과 상관없이 늘 섹션 크기(결정 ② · 09-20 의 «PNG 는 섹션 크기»는 그대로 산다).
+   이 경계는 tests/unit/export-floating-crop-roster.test.mjs P6 이 지킨다(★기대 바뀜 261123). */
 
 /* ──────────────────────────────────────────────
    Sticker 선택 표시 — 일반 블록과 동일 규칙, 색만 보라색

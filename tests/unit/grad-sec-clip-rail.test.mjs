@@ -107,7 +107,7 @@ const CSSCODE = stripComments(SRC.css).replace(/\s+/g, ' ');
 
 test('㉡1 ★적용 — 네 식구가 ★한 묶음에 붙어 `clip-path: var(--sec-clip…)` 를 받는다', () => {
   assert.match(CSSCODE,
-    /\.sticker-block, \.mockup-block, \.zoom-block > \.zoom-clip, \.gradient-block > \.grad-fill \{ clip-path: var\(--sec-clip, none\); \}/,
+    /\.sticker-block, \.mockup-block, \.zoom-block > \.zoom-clip, \.gradient-block > \.grad-fill, \.section-block > \[data-overlay-block="true"\] \{ clip-path: var\(--sec-clip, none\); \}/,   // ★기대 바뀜(현빈 261123 t13E-07 — 섹션 직속 떠 있는 단위가 크롭 식구에 듦 · 09-20 뒤집음)
     '★적용 묶음이 「스티커·목업·zoom-clip·grad-fill」 넷이 아니다 — 그라데이션이 빠졌거나 남의 줄을 지웠다');
 });
 
@@ -118,7 +118,7 @@ test('㉡2 ★③선택 중 해제 — `.gradient-block.selected > .grad-fill` �
 
 test('㉡3 ★②섹션 밖 보이기 해제 — `[data-overflow-visible]` 묶음에 있다', () => {
   assert.match(CSSCODE,
-    /\.section-block\[data-overflow-visible="true"\] \.zoom-block > \.zoom-clip, \.section-block\[data-overflow-visible="true"\] \.gradient-block > \.grad-fill \{ clip-path: none; \}/,
+    /\.section-block\[data-overflow-visible="true"\] \.zoom-block > \.zoom-clip, \.section-block\[data-overflow-visible="true"\] \.gradient-block > \.grad-fill, \.section-block\[data-overflow-visible="true"\] > \[data-overlay-block="true"\] \{ clip-path: none; \}/,   // ★기대 바뀜(현빈 261123 — 같은 까닭)
     '★「섹션 밖 보이기」 해제 묶음에 그라데이션이 없다 — 체크를 켜도 그라데이션만 잘린 채 남는다');
 });
 
