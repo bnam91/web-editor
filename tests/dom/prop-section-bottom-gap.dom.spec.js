@@ -26,7 +26,7 @@ const tailGap = (page, secId, lastSel) => page.evaluate(([secId, lastSel]) => {
   };
 }, [secId, lastSel]);
 
-test('B1 ★펼친 Effects 절 끝 = 펼친 Stroke 절 끝 = 10px', async ({ page }) => {
+test('B1 ★펼친 Effects 절 끝 = 펼친 Stroke 절 끝 = --ui-sec-body-pb', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1400 });
   const errs = await bootApp(page);
   const id = await page.evaluate(async () => {
@@ -43,8 +43,11 @@ test('B1 ★펼친 Effects 절 끝 = 펼친 Stroke 절 끝 = 10px', async ({ pag
   const fx = await tailGap(page, 'txt-fx-section', '#txt-fx-list > .prop-cell-card');
   const st = await tailGap(page, 'txt-stroke-section', '#txt-stroke-controls > *');
   console.log('  B1:', JSON.stringify({ id, fx, st }));
-  expect(st, 'Stroke 절 끝(기준)').toMatchObject({ geom: 10, calc: 10 });
-  expect(fx, '★Effects 절 끝 = 10(옛 14)').toMatchObject({ geom: 10, calc: 10 });
+  /* ★기대 바뀜(재설계 1차 v9 · Figma F1-1): 절 몸 아래 여백 토큰 --ui-sec-body-pb = 16(옛 10 · editor-base.css) — 숫자를 박지 않고 토큰을 읽는다(둘이 같다 = 이 칸의 뜻) */
+  const pb = await page.evaluate(() => { const p = document.createElement('div'); p.style.paddingBottom = 'var(--ui-sec-body-pb)'; document.body.appendChild(p); const v = parseFloat(getComputedStyle(p).paddingBottom); p.remove(); return v; });
+  expect(pb, '[전제] 토큰 = 16').toBe(16);
+  expect(st, 'Stroke 절 끝(기준)').toMatchObject({ geom: pb, calc: pb });
+  expect(fx, '★Effects 절 끝 = Stroke 절 끝(옛 14)').toMatchObject({ geom: pb, calc: pb });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

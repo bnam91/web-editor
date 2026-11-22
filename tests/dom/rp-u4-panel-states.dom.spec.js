@@ -58,7 +58,8 @@ test('N1p ★양성대조 — 폭 600px 줄을 심으면 같은 자가 넘침을
 
 /** 패널 맨 앞에 임시 단추를 두고 Tab — 블록 머리에는 포커스 받을 것이 없으니 다음 칸이 첫 절 머리다(panel-frame-states S2 와 같은 꼴). */
 async function tabFromStart(page) {
-  await page.evaluate(() => { const b = document.createElement('button'); b.id = '__tabstart'; document.querySelector('#panel-right .panel-body').prepend(b); b.focus(); });
+  /* ★기대 그대로 · 출발점만(261123): Type 띠(f3c48611a · Q1/Q2)가 패널 맨 앞에 와 그 단추들이 출발점과 첫 절 머리 사이에 낀다 — 출발점을 «첫 절 바로 앞»에 둔다 */
+  await page.evaluate((sel) => { const b = document.createElement('button'); b.id = '__tabstart'; const sec = document.querySelector(sel)?.closest('.prop-section'); if (sec) sec.before(b); else document.querySelector('#panel-right .panel-body').prepend(b); b.focus(); }, HEAD);
   await page.keyboard.press('Tab');
   const r = await page.evaluate((sel) => { const a = document.activeElement; const first = document.querySelector(sel);
     return { isFirstHead: !!first && a === first, id: a?.id || null, fv: a?.matches(':focus-visible') || false, outline: a ? getComputedStyle(a).outlineStyle : null }; }, HEAD);
