@@ -1359,7 +1359,7 @@ test('E14 ★image → body 로 바꾸면 imgSrc 가 «안» 남는다 (전환 �
  *   ⛔합격선 60 은 «한 글자도» 안 넓혔다. 기준점만 옮긴다 — 위 재촬영들과 같은 절차. 이 커밋은 제품코드 0줄(시험·골든만).
  *   ⚠️★잃는 것: 51dae124 → dcd0962fd 사이의 +241px · 컨트롤 +4 의 «빚»이 0 으로 리셋된다.
  *   ~~[폐기 · 2026-11-14] 옛 기준선 `51dae124` (2026-11-09 재촬영분)~~ */
-const GOLDEN_BASELINE = 'dcd0962fd';
+const GOLDEN_BASELINE = '058e3e7d0';   /* ★재촬영(지디 261123 OK): 옛 dcd0962fd → 058e3e7d0(현빈 GO 기준판 통일) · 순증 158px = 재설계 틀 · 절별 내역은 촬영 커밋 본문 */
 const GOLDEN_PATH = path.join(__dirname, 'fixtures', 'grid-panel-golden.json');
 
 /* ★「골든에 86dce84 라고 «적혀 있다»」와 「그 판에서 «찍혔다»」는 다른 말이다.
@@ -1469,6 +1469,24 @@ async function measurePanel(page) {
     };
   }, { fx: FIX_4x4, addr: A_4x4 });
 }
+
+/* ★G2-SECTIONS — 재촬영 근거용 «절별 높이» 측정(평소 건너뜀 · G2_SECTIONS=<출력 json 경로> 일 때만). 같은 boot·픽스처·창(measurePanel 과 같은 열기).
+ *   두 판(dcd0962fd · 058e3e7d0)에서 각각 돌려 표를 비교한다 — 옛 판 나무엔 이 파일을 그대로 얹어 돌린다(제품 0줄). */
+test('G2-SECTIONS 절별 높이(측정만)', async ({ page }) => {
+  test.skip(!process.env.G2_SECTIONS, 'G2_SECTIONS=<out.json> 일 때만');
+  await boot(page);
+  await measurePanel(page);   // 같은 장면을 연다
+  const rows = await page.evaluate(() => {
+    const body = document.querySelector('#panel-right .panel-body'), kids = [...body.children].filter((k) => k.getClientRects().length);
+    return kids.map((k, i) => { const r = k.getBoundingClientRect(), nx = kids[i + 1]?.getBoundingClientRect().top;
+      const title = (k.querySelector('.prop-sec-title-text, .prop-section-title') || {}).textContent;
+      return { key: k.dataset.sec || (k.dataset.secGroup ? 'group:' + k.dataset.secGroup : '') || k.id || String(k.className).slice(0, 30), title: (title || '').trim().slice(0, 20),
+               h: Math.round(r.height), slot: Math.round((nx ?? body.scrollHeight + body.getBoundingClientRect().top) - r.top), ctl: k.querySelectorAll('input,select,textarea,button').length }; });
+  });
+  const total = await page.evaluate(() => document.querySelector('#panel-right .panel-body').scrollHeight);
+  fs.writeFileSync(process.env.G2_SECTIONS, JSON.stringify({ total, rows }, null, 1) + '\n');
+  console.log('G2-SECTIONS', JSON.stringify({ total, rows }));
+});
 
 test('G0 ★자가 흔들리지 않는다 — 같은 창·같은 픽스처로 두 번 재면 «같은 수»다', async ({ page }) => {
   const errs = await boot(page);
