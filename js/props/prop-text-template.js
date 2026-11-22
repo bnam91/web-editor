@@ -66,14 +66,14 @@ export function buildTextPanelSpec(state) {
       <div class="prop-hint">크기는 Typography 의 글자 크기를 따릅니다</div>`;
   })();
 
-  /* ★TEXT-LOREM-FILL-01(현빈 261121) — Content 절 «더미 글» 두 줄: 단위·개수 / 글·채우기. 배선 = prop-text-wireup-lorem.js · 생성 = js/text-lorem.js.
+  /* ★TEXT-LOREM-FILL-01(현빈 261121) — Content 절 «더미 글» 세 줄: 단위 / 개수 슬라이더+숫자(t13E-08 2차 현빈 261123 · 공용 sliderRowHTML · 범위·값은 배선이 상자 높이로 맞춤) / 글·채우기. 배선 = prop-text-wireup-lorem.js · 생성 = js/text-lorem.js.
    * 줄 모드 말풍선(data-lines)은 글 자리가 아니라(ai-text-slots findTextSlot 이 건너뜀) 줄을 안 낸다. 새 클래스 0(prop-row·prop-select·prop-number·prop-btn-sm). */
   const _loremSec = (isSpeechBubble && tb?.dataset?.lines !== undefined) ? '' : `
       <div class="prop-row">
         <span class="prop-label">더미 글</span>
         <select class="prop-select" id="txt-lorem-unit" aria-label="더미 글 단위"><option value="word">단어</option><option value="sentence" selected>문장</option><option value="paragraph">문단</option></select>
-        <input type="number" class="prop-number" id="txt-lorem-count" min="1" max="30" value="2" aria-label="더미 글 개수">
       </div>
+      ${sliderRowHTML('개수', 'txt-lorem-count-slider', 'txt-lorem-count', { min: 1, max: 30, step: 1, value: 2 })}
       <div class="prop-row">
         <select class="prop-select" id="txt-lorem-lang" aria-label="더미 글 언어" style="flex:1 1 auto;min-width:0;"><option value="en" selected>Lorem</option><option value="ko">한글</option></select>
         <button class="prop-btn-sm" id="txt-lorem-run" title="이 글 칸을 더미 글로 바꿉니다(⌘Z 로 되돌림)">채우기</button>
