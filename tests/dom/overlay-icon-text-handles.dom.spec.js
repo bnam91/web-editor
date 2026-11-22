@@ -73,6 +73,7 @@ async function boot(page) {
   });
   await page.goto(`${ORIGIN}/__harness.html`);
   await page.waitForFunction(() => window.__ready === true);
+  await page.evaluate(() => { window.__admin = { ...(window.__admin || {}), state: () => ({ isAdmin: true }) }; });   // [전제] t13E-10 부터 텍스트 상자 손잡이(data-tbx-dir)는 관리자만 — 장면 전제 · 기대 무변(관리자 아님 = 0 은 t13-admin-only-entries A1)
   return errs;
 }
 

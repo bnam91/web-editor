@@ -21,6 +21,7 @@ const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 async function setup(page, { ft = true } = {}) {
   await page.setViewportSize({ width: 1700, height: 1200 });
   const errs = await bootApp(page);
+  await page.evaluate(() => { window.__admin = { ...(window.__admin || {}), state: () => ({ isAdmin: true }) }; });   // [전제] t13E-10 부터 텍스트 상자 손잡이(data-tbx-dir)는 관리자만 — 장면 전제 · 기대 무변(관리자 아님 = 0 은 t13-admin-only-entries A1)
   await page.evaluate(() => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach((s) => s.remove());
