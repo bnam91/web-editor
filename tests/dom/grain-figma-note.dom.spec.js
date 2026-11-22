@@ -23,12 +23,15 @@ async function scene(page, grain) {
   }, grain);
   await waitZoomSettled(page, 100);
   await page.waitForFunction(() => document.querySelector('#abG .asset-img')?.complete, null, { timeout: 15000 });
-  /* 사람 길: 그림 고르고 패널 «그레인» 숫자칸 */
+  /* 사람 길: 그림 고르고 Effects ＋ «Noise» → 카드 «세기» 숫자칸(★전제 바뀜 현빈 261123 — 옛 Appearance «그레인» 줄이 Noise 카드로 · 저장 .asset-grain 그대로) */
   const xy = await page.evaluate(() => { const e = document.getElementById('abG'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   await page.mouse.click(xy[0], xy[1]);
-  await page.evaluate(() => { if (!document.getElementById('asset-grain-number')) { window.selectBlock?.('abG'); window.showAssetProperties?.(document.getElementById('abG')); } });
-  await page.waitForFunction(() => !!document.getElementById('asset-grain-number'), null, { timeout: 5000 });
-  await page.fill('#asset-grain-number', String(grain)); await page.press('#asset-grain-number', 'Enter');
+  await page.evaluate(() => { if (!document.getElementById('asset-fx-add')) { window.selectBlock?.('abG'); window.showAssetProperties?.(document.getElementById('abG')); } });
+  await page.waitForFunction(() => !!document.querySelector('#asset-fx-add option[value="noise"]'), null, { timeout: 5000 });
+  await page.selectOption('#asset-fx-add', 'noise');
+  await page.waitForFunction(() => !!document.getElementById('asset-fxns-num'), null, { timeout: 5000 });
+  if (!(await page.isVisible('#asset-fxns-num'))) await page.click('#asset-fxns-head');   // 카드 접혀 있으면 펼침
+  await page.fill('#asset-fxns-num', String(grain)); await page.press('#asset-fxns-num', 'Enter');
   await page.waitForFunction((g) => (parseInt(document.querySelector('#abG .asset-grain')?.dataset.grainIntensity || '0', 10) || 0) === g, grain, { timeout: 5000 });
   return errs;
 }
