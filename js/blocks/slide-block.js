@@ -669,11 +669,21 @@ function addSlideBlock(opts = {}) {   // export 없이(block-add-noselection-hin
   return made;
 }
 
-/* 추가 메뉴 노출 — GIF 와 같은 판정(animGifVisible 한 자리 · 둘째 판정 0). 드롭다운을 여는 클릭보다 먼저(capture) 맞춰 둔다. */
+/* 추가 메뉴 — GIF 와 같은 판정(animGifVisible 한 자리 · 둘째 판정 0). 드롭다운을 여는 클릭보다 먼저(capture) 맞춰 둔다.
+   현빈 261123 규칙 «곧 공개 = 회색(비활성)으로 예고 · 먼 것 = 숨김» → 슬라이드 = 일반 계정에 회색·안 눌림 + «곧 공개»(옛: 숨김).
+   꼴 = GIF 단추(prop-text.js _applyAnimGate)와 같은 disabled · aria-disabled · --ui-disabled-opacity. 입구는 이 단추 하나(단축키 없음) — disabled 면 onclick 이 안 탄다. */
 const _adminState = () => (window.__admin && typeof window.__admin.state === 'function' ? window.__admin.state() : null);
 function syncSlideMenu() {
   const b = document.getElementById('fp-add-slide');
-  if (b) b.style.display = window.animGifVisible?.(window.ANIM_GIF_ENABLED, _adminState()) ? '' : 'none';
+  if (!b) return;
+  const on = !!window.animGifVisible?.(window.ANIM_GIF_ENABLED, _adminState());
+  if (b.dataset.titleOn === undefined) b.dataset.titleOn = b.title;
+  b.style.display = '';
+  b.disabled = !on;
+  if (on) b.removeAttribute('aria-disabled'); else b.setAttribute('aria-disabled', 'true');
+  b.style.opacity = on ? '' : 'var(--ui-disabled-opacity)';
+  b.style.cursor = on ? '' : 'default';
+  b.title = on ? b.dataset.titleOn : '곧 공개 — 지금은 관리자 계정에서만 쓸 수 있습니다';
 }
 if (typeof document !== 'undefined') { document.addEventListener('click', syncSlideMenu, true); syncSlideMenu(); }
 
