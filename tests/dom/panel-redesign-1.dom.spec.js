@@ -9,7 +9,9 @@ const { addKind } = require('./_block-roster-294.js');
 async function scene(page) {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
-  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; window.clearHistory?.(); });
+  await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; window.clearHistory?.();
+    /* ★기대 바뀜(기준판 통일 261122 · 실측): dev 판 addSection 은 기본 제목 글(«제목을 입력하세요»)을 같이 넣는다 — 이 칸들이 «글 블럭 전부»를 세면 그 글이 끼어 수·순서가 어긋났다 ⇒ 미리 있던 블럭에 표시(data-prd1-pre) · 셀 때 뺀다 */
+    sec.querySelectorAll('[class*="-block"]').forEach((b) => { b.dataset.prd1Pre = '1'; }); });
   return errs;
 }
 async function open(page, cls, entry) {
@@ -72,7 +74,10 @@ test('P7 우측 패널 숫자 칸 — 스피너 없음(appearance textfield) · 
 test('P11 켜진 정렬·B 단추 = border-mid 바탕 · border-strong 테두리 · ui-text 글자 / 대조: 타입 단추는 파란 채움 그대로', async ({ page }) => {
   const errs = await scene(page);
   await open(page, 'text-block', 'addTextBlock');
-  await page.locator('#txt-style-group .prop-style-btn').first().click();   // B 켜기
+  /* ★기대 바뀜(기준판 통일 261122 · 실측): dev 판의 H1 은 굵게(B)가 처음부터 켜져 있다 — 누르면 꺼져 엉뚱한 켜진 단추를 쟀다 ⇒ 꺼져 있을 때만 켠다 */
+  const bOn0 = await page.locator('#txt-style-group .prop-style-btn').first().evaluate((b) => b.classList.contains('active'));
+  if (!bOn0) await page.locator('#txt-style-group .prop-style-btn').first().click();   // B 켜기
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))));   // 색 transition 이 끝난 뒤 잰다(누른 직후 = 옛 색)
   const r = await page.evaluate(() => {
     const tok = (n, prop = 'color') => { const p = document.createElement('span'); p.style[prop] = `var(${n})`; document.body.appendChild(p); const v = getComputedStyle(p)[prop]; p.remove(); return v; };
     const look = (el) => { const cs = getComputedStyle(el); return [cs.backgroundColor, cs.borderTopColor, cs.color]; };
@@ -84,7 +89,7 @@ test('P11 켜진 정렬·B 단추 = border-mid 바탕 · border-strong 테두리
   expect(r.align, '★정렬 켜짐').toEqual(r.want);
   expect(r.style, '★B 켜짐').toEqual(r.want);
   expect(r.kind, '[대조] 타입 단추 켜짐은 파란 채움 그대로').toBe(r.accent);
-  await page.locator('#txt-style-group .prop-style-btn').first().click();   // 되돌림
+  if (!bOn0) await page.locator('#txt-style-group .prop-style-btn').first().click();   // 되돌림(켰을 때만)
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -120,17 +125,18 @@ test('P6 텍스트 Size — 너비 라벨을 오른쪽으로 끌면 너비가 �
   await page.mouse.down({ button: 'right' });
   await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 4 });
   await page.mouse.up({ button: 'right' });
-  await page.keyboard.press('Escape');
+  /* ★기대 그대로 · 걸음만 바뀜(261123 실측): 오른쪽 끌기 뒤 열리는 메뉴 0 — 옛 Escape(메뉴 닫기용)는 지금 판에선 «선택 풀기»라 패널이 Page 로 바뀌어 너비 칸이 사라졌다 ⇒ 누르지 않는다 */
+  expect(await page.evaluate(() => document.querySelectorAll('#canvas .selected').length), '[전제] 오른쪽 끌기가 선택을 안 풀었다').toBeGreaterThan(0);
   expect(Number(await page.locator('#txt-width-number').inputValue()), '★오른쪽 단추 끌기로 너비가 바뀌었다').toBe(w0);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 4 });
   await page.mouse.up();
   await expect.poll(async () => Number(await page.locator('#txt-width-number').inputValue()), '★라벨을 끌어도 너비가 안 바뀐다').toBe(Math.min(860, w0 + 20));
-  const after = await page.evaluate((id) => document.getElementById(id).closest('.row')?.style.width || document.getElementById(id).style.width, id);
+  const after = await page.evaluate((id) => { const b = document.getElementById(id); return b.closest('.row')?.style.width || b.closest('.frame-block[data-text-frame="true"]')?.style.width || b.style.width; }, id);   // ★쓰는 자리 = prop-text-wireup-position.js 와 같은 차례(줄 → 글 프레임 → 글)
   expect(after, '★끈 값이 블럭에 안 썼다').toBe(Math.min(860, w0 + 20) + 'px');
   await page.evaluate(() => window.undo());
-  await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return b.closest('.row')?.style.width || b.style.width; }, id), '★⌘Z 한 번에 안 돌아간다').not.toBe(after);
+  await expect.poll(() => page.evaluate((id) => { const b = document.getElementById(id); return b.closest('.row')?.style.width || b.closest('.frame-block[data-text-frame="true"]')?.style.width || b.style.width; }, id), '★⌘Z 한 번에 안 돌아간다').not.toBe(after);
   /* QA 경1 — 너비 칸을 누르면 값 전체가 골라져 친 글이 덮어쓴다(.prop-number · editor.js _AUTO_SELECT_SEL) */
   await page.locator('#txt-width-number').click();
   await page.keyboard.type('300');
@@ -215,7 +221,7 @@ test('P5b 잠금 저장 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저�
   expect(await linkedOf(page, id), '★⌘Z 가 풂을 안 되돌린다').not.toBe('0');
   await page.evaluate(() => window.redo());
   expect(await linkedOf(page, id), '★⌘⇧Z 가 풂을 안 되살린다').toBe('0');
-  const kids = (page) => page.evaluate(() => [...document.querySelectorAll('.text-block')].map((b) => b.dataset.padXLinked ?? null));
+  const kids = (page) => page.evaluate(() => [...document.querySelectorAll('.text-block:not([data-prd1-pre])')].map((b) => b.dataset.padXLinked ?? null));
   // 복사-붙여넣기
   await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); window.copySelected(); }, id);
   await page.keyboard.press('Meta+v');
@@ -228,12 +234,13 @@ test('P5b 잠금 저장 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저�
   expect(await kids(page), '★복제한 글이 풂을 잃었다').toEqual(['0', '0', '0']);
   // 저장 → 다시 열기
   const back = await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.();
-    return [...document.querySelectorAll('.text-block')].map((b) => b.dataset.padXLinked ?? null); });
+    return [...document.querySelectorAll('.text-block:not([data-prd1-pre])')].map((b) => b.dataset.padXLinked ?? null); });
   expect(back, '★저장→다시 열기에서 풂을 잃었다').toEqual(['0', '0', '0']);
-  await page.evaluate(() => { const b = document.querySelector('.text-block'); window.deselectAll?.(); window.selectBlock(b.id); });
+  await page.evaluate(() => { const b = document.querySelector('.text-block:not([data-prd1-pre])'); window.deselectAll?.(); window.selectBlock(b.id); });
   expect((await padRows(page)).pressed, '★다시 연 글의 패널이 잠금으로 열렸다').toBe('false');
   // 템플릿 저장(섹션)
-  const tpl = await page.evaluate(async () => { const S = document.querySelector('.section-block'); await window.saveAsTemplate(S, 'prd1-p5b', '기타', '', [], 'section'); return JSON.stringify(window.loadTemplates()[0] || null); });
+  await tplStub(page);
+  const tpl = await page.evaluate(async () => { const S = document.querySelector('.section-block'); await window.saveAsTemplate(S, 'prd1-p5b', '기타', '', [], 'section'); const t = window.loadTemplates().find((x) => x.name === 'prd1-p5b'); return t ? JSON.stringify(window.__tplBodies[t.id] ?? null) : null; });
   expect(tpl, '★템플릿에 data-pad-x-linked 가 없다').toMatch(/data-pad-x-linked=\\*"0/);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -255,7 +262,8 @@ test('P8 옵션 칼럼 — 상하패딩 숫자 끝 = 좌우패딩 숫자 끝 · 
   const r = await page.evaluate(() => {
     const R = (id) => document.getElementById(id).getBoundingClientRect();
     const probe = document.createElement('div'); probe.style.width = 'var(--ui-opt-col-w)'; document.body.appendChild(probe); const col = probe.getBoundingClientRect().width; probe.remove();
-    const sec = document.getElementById('txt-ph-row').closest('.prop-section[data-sec]');
+    /* ★기대 그대로 · 잴 자리만(261123 실측 9391): 절이 묶음(.prop-sec-group) 안 조각(.prop-sec-part[data-sec=padding])으로 바뀌어 «가장 가까운 data-sec» = 조각(칼럼 몫을 뺀 폭) — 절의 안쪽 오른끝은 묶음 쪽 */
+    const sec = document.getElementById('txt-ph-row').closest('.prop-sec-group') || document.getElementById('txt-ph-row').closest('.prop-section[data-sec]');
     const sp2 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-2'));
     return { pv: R('txt-pv-number').right, ph: R('txt-ph-number').right, chain: R('txt-ph-chain').right, ov: R('txt-overlay-toggle').right, col,
       inner: sec.getBoundingClientRect().right - sp2 };
@@ -322,7 +330,12 @@ test('P12b 메뉴로 만든 텍스트 블럭마다 켜진 타입 칸 = 정확히
  *   CTL prd1-13-labelfs.patch(.prop-field-label 정의를 fs-10 으로) → 빨강 */
 for (const [cls, entry] of [['text-block', 'addTextBlock'], ['shape-block', 'addShapeBlock']]) test(`P13 ${cls} 패널 — 칸 위·칸 안 라벨 글자 크기 = .prop-label 크기`, async ({ page }) => {
   const errs = await scene(page);
-  await open(page, cls, entry);
+  if (cls === 'shape-block') {
+    /* ★기대 그대로 · 상태만(261123 실측): 도형 X/Y 칸 안 라벨은 «띄운»(overlayBlock) 도형에서만 그린다(overlay-float.js floatPositionRowHTML) — 쌓기 줄 도형 = 칸 라벨 Rotation 하나뿐 ⇒ 앱 길(OverlayFloat.enterFloat)로 띄우고 연다 */
+    const r0 = await addKind(page, { cls, entry });
+    expect(r0.err, '[전제] 도형을 넣었다').toBeUndefined();
+    await page.evaluate((id) => { const OF = window.OverlayFloat, b = document.getElementById(id); OF.enterFloat(OF.posElOf(b)); window.deselectAll?.(); window.selectBlock(id); }, r0.id);
+  } else await open(page, cls, entry);
   const r = await page.evaluate(() => {
     const fs = (el) => getComputedStyle(el).fontSize;
     const want = fs(document.querySelector('#panel-right .prop-section[data-sec] .prop-label'));
@@ -345,9 +358,11 @@ test('P14 Fill VAR 칩 줄 — 오른끝 = 절 안쪽 오른끝(칼럼 끝) · �
     const row = document.getElementById('txt-color-chips');
     row.hidden = false;   // 컬러 변수가 없는 새 문서 — 칩 넷(앱 꼴)을 심어 줄 꼴만 잰다
     row.innerHTML = '<span class="cv-chips-label">VAR</span>' + ['메인', '보조', '강조'].map((t) => `<button class="cv-chip" type="button"><span class="cv-chip-dot"></span><span class="cv-chip-label">${t}</span></button>`).join('');
-    const sec = row.closest('.prop-section[data-sec]'), sp2 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-2'));
-    const kids = [...row.children].map((k) => Math.round(k.getBoundingClientRect().top));
-    return { right: row.getBoundingClientRect().right, inner: sec.getBoundingClientRect().right - sp2, lines: new Set(kids).size };
+    const sec = row.closest('.prop-sec-group') || row.closest('.prop-section[data-sec]'), sp2 = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-space-2'));
+    /* ★잼만 고침(261123 실측 9391): 라벨 «VAR» 는 칩보다 낮아 가운데 맞춤이면 top 이 4px 아래 — top 개수로 세면 한 줄도 «둘». 한 줄 = 모든 칸이 세로로 겹친다 */
+    const kids = [...row.children].map((k) => k.getBoundingClientRect());
+    const oneLine = Math.max(...kids.map((k) => k.top)) < Math.min(...kids.map((k) => k.bottom));
+    return { right: row.getBoundingClientRect().right, inner: sec.getBoundingClientRect().right - sp2, lines: oneLine ? 1 : 2 };
   });
   expect(Math.abs(r.right - r.inner), `★칩 줄이 끝 칼럼까지 안 간다 ${JSON.stringify(r)}`).toBeLessThanOrEqual(0.5);
   expect(r.lines, '★칩 줄이 두 줄로 꺾였다').toBe(1);
@@ -435,7 +450,7 @@ test('P17b 반전 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저장→�
   await page.evaluate(() => window.redo());
   const re = await flipOf(page, id);
   expect([re.h, /scale\(-1, 1\)/.test(re.t)], '★⌘⇧Z 가 반전을 안 되살린다').toEqual(['1', true]);
-  const all = () => page.evaluate(() => [...document.querySelectorAll('.text-block')].map((b) => { const e = b.closest('.frame-block[data-text-frame="true"]') || b; return [e.dataset.flipH ?? null, /scale\(-1, 1\)/.test(e.style.transform)]; }));
+  const all = () => page.evaluate(() => [...document.querySelectorAll('.text-block:not([data-prd1-pre])')].map((b) => { const e = b.closest('.frame-block[data-text-frame="true"]') || b; return [e.dataset.flipH ?? null, /scale\(-1, 1\)/.test(e.style.transform)]; }));
   await page.evaluate((id) => { window.deselectAll?.(); window.selectBlock(id); window.copySelected(); }, id);
   await page.keyboard.press('Meta+v');
   await expect.poll(async () => (await all()).length, '[전제] 붙여넣었다').toBe(2);
@@ -444,11 +459,12 @@ test('P17b 반전 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저장→�
   await expect.poll(async () => (await all()).length, '[전제] 복제했다').toBe(3);
   expect(await all(), '★붙여넣기/복제가 반전을 잃었다').toEqual([['1', true], ['1', true], ['1', true]]);
   const back = await page.evaluate(() => { const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; window.applyProjectData(d); window.clearHistory?.();
-    return [...document.querySelectorAll('.text-block')].map((b) => { const e = b.closest('.frame-block[data-text-frame="true"]') || b; return [e.dataset.flipH ?? null, /scale\(-1, 1\)/.test(e.style.transform)]; }); });
+    return [...document.querySelectorAll('.text-block:not([data-prd1-pre])')].map((b) => { const e = b.closest('.frame-block[data-text-frame="true"]') || b; return [e.dataset.flipH ?? null, /scale\(-1, 1\)/.test(e.style.transform)]; }); });
   expect(back, '★저장→다시 열기에서 반전을 잃었다').toEqual([['1', true], ['1', true], ['1', true]]);
   /* 블록 템플릿 저장(우클릭 «블록 템플릿으로 저장»과 같은 함수) → 넣기 */
+  await tplStub(page);
   const ins = await page.evaluate(async () => {
-    const b = document.querySelector('.text-block'); await window.saveBlockAsTemplate(b, 'prd1-p17b', '블록', '');
+    const b = document.querySelector('.text-block:not([data-prd1-pre])'); await window.saveBlockAsTemplate(b, 'prd1-p17b', '블록', '');
     const t = window.loadTemplates().find((x) => x.name === 'prd1-p17b'); if (!t) return { err: 'no tpl' };
     const before = new Set(document.querySelectorAll('.text-block')); window.selectSection?.(document.querySelector('.section-block'));
     await window.insertTemplate(t);
@@ -467,11 +483,24 @@ test('P17b 반전 — ⌘Z/⌘⇧Z · 복사-붙여넣기 · ⌘D · 저장→�
 /* Q17 · Q20 — 다른 블럭 회전 줄(시안 v10 이 그린 블럭): 각도 칸만(슬라이더 0) · 반전 → host transform scale · 각도 바꿔도 반전 유지 · 다시 열기 켜짐.
  *   CTL prd1-q17-render.patch(모달 렌더러의 반전 다시 붙이기 삭제) → 모달 칸 빨강(다시 그린 뒤 반전이 사라진다) */
 const { rosterOf } = require('./_block-roster-294.js');
+/* ★기대 바뀜(기준판 통일 261122 · 실측): 이 표는 SECTION_BLOCK_TYPE_SEL 파생이라 ⑴ .frame-block 이 없고(프레임은 «그릇»이라 명부 밖) ⑵ .icon-block 의 앱 입구는 addIconifyBlock(이름·svg·크기 인자 · 이름 규칙 add<종>Block 밖)
+   — 689f11401 에서도 같은 칸이 빨강이었다(가지 안 낡음). ⇒ 두 종만 입구를 적어 준다(나머지는 표 그대로) */
+/* ★기대 바뀜(기준판 통일 261122 · 실측): 템플릿 «몸»(HTML)은 electronAPI.saveTemplateCanvas 로 따로 간다 — 하네스는 electronAPI 를 «null 만 돌려주는» 대리로 두어 몸이 어디에도 안 남았다(689f11401 에서도 빨강) ⇒ 저장·읽기만 메모리 대리로(앱이 실제로 넘긴 HTML 을 잰다) */
+const tplStub = (page) => page.evaluate(() => { if (window.__tplBodies) return; const box = (window.__tplBodies = {}), orig = window.electronAPI;   // 하네스 electronAPI 는 get 덫 Proxy 라 속성 대입이 안 먹는다 ⇒ 두 이름만 바꾼 Proxy 로 감싼다
+  const mine = { saveTemplateCanvas: async (id, html) => { box[id] = html; return true; }, loadTemplateCanvas: async (id) => box[id] ?? null };
+  window.electronAPI = new Proxy({}, { get: (t, k) => (k in mine ? mine[k] : orig[k]) }); });
+/* ★기대 바뀜(261123 실측): selectBlock 은 프레임을 못 고른다(block-edit.js getBlockById — 프레임은 패널 표 밖 · 설계) ⇒ 다른 spec 과 같은 꼴(.selected + showFrameProperties) */
+const selFrame = (id) => { window.deselectAll?.(); const f = document.getElementById(id); f.classList.add('selected'); window.showFrameProperties(f); };
+const kindOf = async (page, cls) => {
+  if (cls === 'frame-block') return { cls, entry: 'addFrameBlock' };
+  if (cls === 'icon-block') { await page.evaluate(() => { window.__addIconP17 = () => window.addIconifyBlock('mdi:star', '<svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>', 64); }); return { cls, entry: '__addIconP17' }; }
+  return (await rosterOf(page)).find((r) => r.cls === cls);
+};
 for (const [cls, p, num] of [['shape-block', 'shape', 'shape-rot-num'], ['modal-block', 'mdl', 'mdl-rot-number'], ['mockup-block', 'mkp', 'mkp-rot-number'],
   ['icon-circle-block', 'icb', 'icb-rot-number'], ['icon-block', 'icn', 'icn-rot-number'], ['zoom-block', 'zm', 'zm-rot-num']]) {
   test(`P17c ${cls} 회전 줄 — 각도 칸 · 90° · 좌우 반전 · 다시 그려도 · 다시 열기`, async ({ page }) => {
     const errs = await scene(page);
-    const kind = (await rosterOf(page)).find((r) => r.cls === cls);
+    const kind = (await kindOf(page, cls));
     expect(kind?.entry, `[전제] ${cls} 입구`).toBeTruthy();
     const r0 = await addKind(page, kind);
     expect(r0.err).toBeUndefined();
@@ -496,9 +525,9 @@ for (const [cls, p, num] of [['shape-block', 'shape', 'shape-rot-num'], ['modal-
 
 test('P17d 프레임 회전 줄 — 옛 id(ss-rotate-deg · ss-rotate-90 · ss-flip-h/v) 그대로 한 줄 · 반반', async ({ page }) => {
   const errs = await scene(page);
-  const kind = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
+  const kind = (await kindOf(page, 'frame-block'));
   const r0 = await addKind(page, kind);
-  await page.evaluate((id) => window.selectBlock(id), r0.id);
+  await page.evaluate(selFrame, r0.id);
   const g = await page.evaluate(() => { const row = document.getElementById('ss-rotate-deg')?.closest('.prop-rot-row');
     return { row: !!row, ids: row ? [...row.querySelectorAll('button')].map((b) => b.id) : [], unit: row?.querySelector('.prop-unit')?.textContent }; });
   expect(g).toEqual({ row: true, ids: ['ss-rotate-90', 'ss-flip-h', 'ss-flip-v'], unit: '°' });
@@ -522,9 +551,9 @@ test('P18 Template 절 — 텍스트 패널: ＋ 펼침 · 저장하면 블록 �
   await expect.poll(() => page.evaluate(() => (window.loadTemplates?.() || []).find((t) => t.name === 'prd1-p18') || null), '★저장이 안 됐다').toMatchObject({ type: 'block', folder: '블록', tags: ['a', 'b'] });
   expect(await page.evaluate(() => (window.loadTemplates?.() || []).length)).toBe(before + 1);
   /* 프레임 — 자기 Template(컴포넌트로 저장)만 · 블록 절 안 붙음 */
-  const kind = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
+  const kind = (await kindOf(page, 'frame-block'));
   const f = await addKind(page, kind);
-  await page.evaluate((fid) => window.selectBlock(fid), f.id);
+  await page.evaluate(selFrame, f.id);
   expect(await page.evaluate(() => document.querySelectorAll('#panel-right .prop-section[data-sec="template"]').length), '★프레임 패널에 Template 절이 둘').toBe(1);
   expect(await page.locator('#blk-tpl-section').count()).toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
@@ -540,7 +569,7 @@ for (const [cls, call] of [
   ['icon-block', 'window._applyIconifyBlockStyle(b, b.innerHTML, parseInt(b.style.width) || 64, parseInt(b.dataset.rotation) || 0)'],
 ]) test(`P17e ${cls} 렌더러가 다시 그려도 반전 유지`, async ({ page }) => {
   const errs = await scene(page);
-  const kind = (await rosterOf(page)).find((r) => r.cls === cls);
+  const kind = (await kindOf(page, cls));
   expect(kind?.entry, `[전제] ${cls} 입구`).toBeTruthy();
   const r0 = await addKind(page, kind);
   expect(r0.err).toBeUndefined();
@@ -579,7 +608,7 @@ test('P19 모달 패널 — 오류 0 · 플로팅 X 칸 · 각도 ⌘Z 1번', as
  *   CTL prd1-qa2-c2.patch(옛 길: 틀 transform 이 텍스트 프레임 반전을 세고 · 회전 다시 쓰기 없음) · prd1-qa2-m1.patch(텍스트 각도가 손으로 rotate 를 짬) → 빨강 */
 test('P20 텍스트 프레임 — 회전 30 + 반전이 저장→열기 / ⌘Z / ⌘⇧Z 뒤 화면 = 패널 = 저장값', async ({ page }) => {
   const errs = await scene(page);
-  const fk = (await rosterOf(page)).find((r) => r.cls === 'frame-block');
+  const fk = (await kindOf(page, 'frame-block'));
   const fr = await addKind(page, fk);
   await page.evaluate((id) => { document.getElementById(id).dataset.freeLayout = 'true'; }, fr.id);
   const t = await addKind(page, { cls: 'text-block', entry: 'addTextBlock' }, fr.id);
@@ -620,7 +649,7 @@ test('P20 텍스트 프레임 — 회전 30 + 반전이 저장→열기 / ⌘Z /
 /* QA2 M4 — 각도 칸에 «-30» 을 칠 수 있다(«-» 순간 0 으로 덮지 않는다). CTL prd1-qa2-m4.patch(wireRotRow 캡처 가드 삭제 + 텍스트 typing 플래그 삭제) → 빨강 */
 for (const [cls, entry, num] of [['text-block', 'addTextBlock', 'txt-rot-number'], ['modal-block', null, 'mdl-rot-number']]) test(`P21 ${cls} 각도 칸에 «-30» 타이핑`, async ({ page }) => {
   const errs = await scene(page);
-  const kind = entry ? { cls, entry } : (await rosterOf(page)).find((r) => r.cls === cls);
+  const kind = entry ? { cls, entry } : (await kindOf(page, cls));
   const r0 = await addKind(page, kind);
   await page.evaluate((id) => window.selectBlock(id), r0.id);
   const n = page.locator(`#${num}`);
