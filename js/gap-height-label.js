@@ -57,6 +57,7 @@ function _kick() { if (_raf == null) _raf = requestAnimationFrame(_frame); }
 function _apply(v) {
   const g = _gap;
   if (!g || !Number.isFinite(v)) return;
+  if (Math.round(v) === Math.round(g.offsetHeight)) return;   // 값을 안 바꿨으면 아무것도 안 함 — 옛 저장본의 상한 넘는 갭(예 2500)을 열고 Enter·바깥 누름만 해도 조용히 깎이지 않게
   const h = Math.min(GAP_MAX, Math.max(GAP_MIN, Math.round(v)));
   if (h === Math.round(g.offsetHeight)) return;
   window.pushHistory?.();

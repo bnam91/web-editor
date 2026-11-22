@@ -4862,8 +4862,8 @@ function updateGapBlock(blockId, partial = {}) {
     if (!Number.isFinite(n)) {
       return { ok: false, code: 'INVALID', message: `height must be number, got ${partial.height}` };
     }
-    if (n < (window.GAP_MIN ?? 0) || n > (window.GAP_MAX ?? 1000)) {
-      return { ok: false, code: 'INVALID', message: `height out of range [${window.GAP_MIN ?? 0},${window.GAP_MAX ?? 1000}]: ${n}` };
+    if (n < (window.GAP_MIN ?? 0) || n > (window.GAP_MAX ?? 2000)) {
+      return { ok: false, code: 'INVALID', message: `height out of range [${window.GAP_MIN ?? 0},${window.GAP_MAX ?? 2000}]: ${n}` };
     }
     const v = Math.round(n);
     block.style.height = v + 'px';

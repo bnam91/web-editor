@@ -81,7 +81,7 @@ export function buildGradientCSS() { return ''; }
 /** 칸 표 — «패널 × 칸 × 선언된 범위 × 모델을 어디서 읽나». 새 칸은 여기 한 줄만 더한다. */
 const FIELDS = [
   {
-    key: 'gap', label: '갭 높이', id: 'gap-number', min: 0, max: 1000, start: 120,
+    key: 'gap', label: '갭 높이', id: 'gap-number', min: 0, max: 2000, start: 120,   // ★기대 바뀜(현빈 261122): 갭 상한 1000 → 2000(js/blocks/gap-limits.js GAP_MAX)
     open: `window.showGapProperties(document.getElementById('gapb'))`,
     read: `(() => { const v = parseFloat(document.getElementById('gapb').style.height); return Number.isFinite(v) ? v : null; })()`,
   },

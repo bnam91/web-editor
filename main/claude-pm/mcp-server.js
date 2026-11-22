@@ -2454,7 +2454,7 @@ function _registerDefaultTools() {
         type: 'object',
         properties: {
           blockId: { type: 'string', description: 'block id to insert gap after (any non-section block)' },
-          height: { type: 'number', description: 'gap height in px (0–1000). Default 40.', default: 40 }
+          height: { type: 'number', description: 'gap height in px (0–2000). Default 40.', default: 40 }
         },
         required: ['blockId']
       }
@@ -2482,7 +2482,7 @@ function _registerDefaultTools() {
       inputSchema: {
         type: 'object',
         properties: {
-          height: { type: 'number', description: 'Gap height in px (0–1000). Default 40.', default: 40 },
+          height: { type: 'number', description: 'Gap height in px (0–2000). Default 40.', default: 40 },
           sectionId: { type: 'string', description: 'Target section (sec_xxx). If omitted, adds to currently selected section.' }
         },
         required: []
@@ -4984,7 +4984,7 @@ function _registerDefaultTools() {
                «여기»가 안 따라와 MCP 로는 401 부터 거부됐다. 사용자는 패널에서 1000 을 넣는데 AI 는 못 넣는다.
              ★그 커밋의 주석이 「여섯 군데에 흩어져 있었다」며 «MCP updateGapBlock 검증»을 그 하나로 꼽아 뒀는데,
                정작 이 스키마는 안 고쳐졌다 — 「단일 진실원을 만들었다」와 「모두가 그걸 본다」는 다른 문장이다. */
-          height: { type: 'integer', minimum: 0, maximum: 1000, description: 'Gap height in px (0–1000). style.height + dataset.h 동시 갱신.' }
+          height: { type: 'integer', minimum: 0, maximum: 2000, description: 'Gap height in px (0–2000). style.height + dataset.h 동시 갱신.' }
         },
         required: ['blockId']
       }
@@ -7977,10 +7977,10 @@ function _validateGapOpts(args, { mode } = {}) {
   /* ⛔★2026-09-09: «진짜 문지기»는 여기다. 스키마(maximum)만 고치면 못 넘는다 —
        스키마는 «설명»이고 이 함수가 «집행»한다. 실제로 스키마를 1000 으로 고쳤는데도
        401 이 `height > 400` 으로 거부됐고, 그 문구가 이 줄에서 나왔다.
-     ★렌더러 정본은 js/blocks/gap-limits.js 의 GAP_MAX(=1000). 여기가 그걸 따라가야 한다.
+     ★렌더러 정본은 js/blocks/gap-limits.js 의 GAP_MAX(=2000 · 2026-11-22). 여기가 그걸 따라가야 한다.
        ⇒ 검사 gap-max-mcp-follows.test.js 가 «정본에서 값을 읽어» 세 자리(스키마·설명·인라인)와
          이 집행값을 대조한다. 손으로 두 번 적지 않는다. */
-  _int('height', 0, 1000);
+  _int('height', 0, 2000);
 
   return out;
 }

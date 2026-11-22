@@ -23,6 +23,7 @@ import { getGridModel, gridCols, gridRows, gridPreviewLine,
    (순환 임포트는 위 grid-block 과 «같은 모양»이고 같은 이유로 안전하다: 이 상수는
     모듈 최상위가 아니라 사용자가 드래그를 시작한 «뒤»의 핸들러 안에서만 읽힌다.) */
 import { MODAL_LIMITS, clampModal, setModalSizeMode } from './blocks/modal-block.js';
+import { GAP_MIN, GAP_MAX } from './blocks/gap-limits.js';
 /* ★오버레이(플로팅)의 «위치 규약·탄성 곡선»은 거기 한 벌뿐이다 — 5번째 사본을 만들지 않는다.
    2026-09-20 통합(int/0920b): T-052 가 알맹이를 prop-text-wireup-overlay.js → overlay-float.js
    로 옮겼으므로 import 자리도 그 SSOT 를 직접 가리킨다(얇은 배선 파일을 거치지 않는다).
@@ -4713,7 +4714,7 @@ function _onTextBoxResizeMouseDown(e, el, dir) {
     moved = true;
     hist?.arm(dx, dy);
     if (isGap) {
-      const h = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, Math.round(startH + dh)));
+      const h = Math.min(GAP_MAX, Math.max(GAP_MIN, Math.round(startH + dh)));   // 정본 import(폴백 리터럴 없음 — 갭 상한이 그리드 행 상한 리터럴 검사와 겹치지 않게)
       el.style.height = h + 'px';
       const sl = document.getElementById('gap-slider'), nb = document.getElementById('gap-number'); if (sl) sl.value = h; if (nb) nb.value = h;
       (document.getElementById('propPanel') || document).querySelectorAll('.gap-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.h) === h));   // 프리셋 칸 불(editor.js 숫자키 갈래와 같은 꼴)

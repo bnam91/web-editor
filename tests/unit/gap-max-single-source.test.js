@@ -32,7 +32,7 @@ function declaredMax() {
 test('G-1 ★GAP_MAX 는 gap-limits.js 한 곳에서 «선언»된다', () => {
   const max = declaredMax();
   assert.ok(Number.isInteger(max) && max > 0, `GAP_MAX 가 정수가 아니다: ${max}`);
-  assert.equal(max, 1000, '현빈 2026-09-09 발주: 갭블럭 높이 상한 1000');
+  assert.equal(max, 2000, '현빈 2026-11-22 발주: 갭블럭 높이 상한 2000(옛 2026-09-09: 1000)');
 });
 
 test('G-2 ★갭블럭 «높이»를 다루는 자리에 400 이 «직접» 박혀 있지 않다', () => {
