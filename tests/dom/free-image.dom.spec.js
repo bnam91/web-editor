@@ -24,6 +24,7 @@ async function scene(page, { searchReason = null } = {}) {
   const errs = await bootApp(page);
   await page.evaluate(async ([HITS, reason, PNGB64]) => {
     try { localStorage.removeItem('goditor.pixabayCache'); } catch (_) {}
+    window.__admin = { ...(window.__admin || {}), state: () => ({ isAdmin: true }) };   // [전제] t13F-01 부터 관리자만 — 장면 전제 · 기대 무변
     document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove());
     await window.addSection();
     window.__px = { searches: 0, fetched: [] };
