@@ -94,6 +94,8 @@
 .prop-field-label { font-size: var(--ui-fs-10); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }
 /* 라벨 바로 아래 단추(프레임 Radial Arrange · Fill Image 등) — .prop-action-btn 의 margin-top 6(절 리듬)이 라벨 4 와 겹쳐 6 이 됐다 → 라벨→칸 4px 하나로(현빈 261122 · 선례 .prop-section-title-row > .prop-action-btn) */
 .prop-field-label + .prop-action-btn { margin-top: 0; }
+/* 단추 → (숨은 파일 칸) → 다음 위 라벨 = 4 — 모달 «이미지 선택» 아래 «Text» 라벨이 단추에 닿았다(0 · 현빈 261122 «줄 → 다음 라벨» 쓸기) */
+input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 /* 절 직속 단추 묶음 바로 다음에 또 「윗줄 라벨」이 오는 자리(Buzz 절의 방향 → 깊이 · 모달 Decoration 의 꼬리 → 테이프) —
    묶음에는 아래 여백이 없어 라벨이 붙는다. .prop-row 의 줄 간격(margin-bottom)과 같은 값을 준다. 두 절에만 건다(다른 패널 불변). */
 #bzf-section > .prop-align-group + .prop-field-label,
