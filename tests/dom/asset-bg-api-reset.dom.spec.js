@@ -214,7 +214,8 @@ test.describe('T-011 곁가지 — 도구(update_asset_block)의 bgColor "" rese
     expect(pageErrs).toEqual([]);
   });
 
-  test('B4 ★패널의 「초기화」= «배경 없음»(체커) — API reset 과 같은 결과', async ({ page }) => {
+  /* 1120b A6(현빈 261120 「초기화 버튼(#asset-bg-clear) 없애줘」) — 초기화 단추가 걷혔다 — API reset(B1~B3)은 그대로 */
+  test.skip('B4 ★패널의 「초기화」= «배경 없음»(체커) — API reset 과 같은 결과', async ({ page }) => {
     /* ★규약 변경(2026-10-03 지디 판정): 예전 B4 는 「초기화는 setHex('#a0a0a0') 로 기본 회색을 다시 쓴다」를 «현재 규약 고정»으로 잠갔다.
        그 약속은 «체커가 가린 상태»를 고정한 것이었다 — 이 하네스엔 체커가 사는 editor-layout.css 가 없어 회색이 «보인다»고 믿었지만,
        실앱에선 체커가 회색을 덮어 사용자 눈엔 늘 «체커로 돌아왔다». 색이 있으면 체커를 걷게 되면서(A1) 회색 판이 드러나므로

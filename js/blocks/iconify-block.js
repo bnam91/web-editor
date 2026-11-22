@@ -31,7 +31,7 @@ function makeIconifyBlock(iconName = '', svgContent = '', size = 64) {
 
 function _applyIconifyBlockStyle(block, content, size, rotation) {
   block.style.cssText = `width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-sizing:content-box;`;
-  if (rotation) block.style.transform = `rotate(${rotation}deg)`;
+  window.writeRotation?.(block, rotation, { key: 'rotation', keepKey: true });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
   // 래스터(PNG/JPG): 외부화된 goya-asset:// URL을 <img>로 렌더. currentColor 착색 불가 → 색 UI는 prop에서 비활성.
   // dataset에는 URL만 보관(data-URL 인라인 금지) — content 인자로 URL을 받고, 없으면 dataset.iconSrc 폴백.
   if (block.dataset.raster === '1') {
@@ -300,11 +300,7 @@ function updateIconifyBlock(blockId, partial = {}) {
         img.setAttribute('width',  String(effectiveSize));
         img.setAttribute('height', String(effectiveSize));
       }
-      if (effectiveRotation) {
-        block.style.transform = `rotate(${effectiveRotation}deg)`;
-      } else {
-        block.style.removeProperty('transform');
-      }
+      window.writeRotation?.(block, effectiveRotation, { key: 'rotation', keepKey: true });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
     }
     // iconColor — currentColor SVG 색상 반영. svg 재렌더 후에도 적용 (재렌더된 SVG가 currentColor면 즉시 색 반영).
     if (nextColor !== undefined) {

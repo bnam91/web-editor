@@ -5,7 +5,7 @@ import { propPanel } from '../globals.js';
 import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML } from './_helpers.js';
+import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
 /* 버즈(1012t1Z5) — 버즈 표식 프레임이면 머리 바로 뒤에 「Buzz」 절을 그린다(절의 마크업 · 배선은 그 파일의 것). */
@@ -14,7 +14,7 @@ import { buzzSectionHTML, wireBuzzSection, refitBuzzOnResize } from './prop-fram
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
 import { effectiveSectionPadX, applyBlockFullBleed, clearBlockFullBleed, framePadXData, isInlineAbsolute } from '../drag-utils.js';
 import { panelRenderedPx } from './_panel-rendered.js';
-import { renderPanel, sec, unwrapSection } from './_panel-frame.js';
+import { renderPanel, sec } from './_panel-frame.js';
 
 /* ★★2026-10-10 (현빈 ③) — ★★옛 `enterBgPosDragMode`(%-기반 ★위치만 · ★크기 축 ★없음)에서
      ★★`enterFrameBgEditMode`(대리 → 에셋 편집기 · ★위치 px ＋ ★★크기 px)로 ★갈았다.
@@ -466,7 +466,7 @@ function _renderAutoPanel(ss) {
          ⇒ ★★폭은 ★지켰다(★`dataset.stackW` ★200·260). ⇒ ★★그래서 ★문장이 ★★«좌표만» 잃는다고 ★말한다.
        ★잠그는 자: ★`tests/dom/frame-inner-fullbleed.dom.spec.js` ★FI6(★행위로 잰다) ＋ ★FI5(★문장이 ★그걸 ★말하나). */
     : isInlineAbsolute(ss) ? '자유(free) 배치의 자식이라 이미 프레임 끝까지 닿아 있습니다 — 바깥 프레임을 «stack» 으로 바꾸면 이 칸이 켜지지만, 자식의 가로·세로 좌표를 잃고 가운데 정렬됩니다(폭은 지킵니다).'
-    : _outerFrame          ? '바깥 프레임의 «좌우 패딩»이 0 이라 뚫을 것이 없습니다 — 그 프레임을 고르고 «좌우 패딩»을 올리세요.'
+    : _outerFrame          ? '바깥 프레임의 «좌우패딩»이 0 이라 뚫을 것이 없습니다 — 그 프레임을 고르고 «좌우패딩»을 올리세요.'
                            : '섹션 안이 아니라 뚫을 기준이 없습니다.';
 
   const bannerPreset = ss.dataset.bannerPreset || '';
@@ -484,9 +484,8 @@ function _renderAutoPanel(ss) {
   const bannerOuterW = isBannerInner ? (parseInt(ss.parentElement.style.width) || parseInt(ss.parentElement.dataset?.width) || 0) : 0;
   const bannerInnerXMax = isBannerInner ? Math.max(0, bannerOuterW - (parseInt(ss.style.width) || parseInt(ss.dataset.width) || 0)) : 0;
 
-  /* 프로토 Z6-C — 「Radial Arrange」 절(문자열은 js/radial-arrange.js). 이미 배치된 프레임이면 Layout 바로 아래에, 아니면 Child Align 아래에 「배치 시작」 단추만 둔다. */
-  const _radialSec = (isFreeLayout && !isShapeFrame && !isBuzzFrame(ss)) ? (window.radialArrangeSectionHTML?.(ss) || '') : '';   /* 버즈 프레임은 제 배치(흩어짐/스택)가 있다 — 원형 배치 시작 단추를 안 둔다(U3 평가 F4 · 힌트 ≤2) */
-  const _radialTop = ss.dataset.radialArrange === '1';
+  /* 1120b P1(현빈 261120 「Radial Arrange 관련 기능 필요없음」) — 프레임 패널의 원형 배치 절·배선 걷음.
+     이미 배치된 프레임의 저장값(dataset.radial*)·좌표는 그대로(js/radial-arrange.js 모듈은 남는다 · 서클 샘플 줄도 그대로). */
   /* ★1020t2f1(현빈 「그룹설정된 블럭들도 오버레이할 수 있는 버튼」) — ⌘G 그룹(.frame-block[data-group])의 패널에도
      오버레이 단추를 단다. ★동작은 js/overlay-float.js 한 벌(wireFloatToggle → enterFloat/exitFloat) — 여기선 «겉모습»만.
      그룹을 띄울 받침은 이미 있다: posElOf(그룹) = 그룹 자신 · 떠 있는 프레임의 끌기는 block-drag.js(absolute 셀 프레임 갈래)가 건다.
@@ -498,10 +497,7 @@ function _renderAutoPanel(ss) {
     && (ss.dataset.overlayBlock === 'true' || (!!ss.closest('.section-inner') && !ss.parentElement?.closest('.frame-block')));
   const _groupFloat = _canFloat && ss.dataset.overlayBlock === 'true';
   /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록한다. 절 «안» 마크업·id 는 옛 그대로.
-     Radial Arrange 는 Layout 절 안(옛 자리: stack 아래 또는 Child Align 아래) · Buzz = special · 코너(radius) = Appearance(Q2). */
-  const _rad = unwrapSection(_radialSec);   /* radial-arrange 는 «절 통째»를 준다 — Layout 절 안에 몸통만(U0c unwrapSection) */
-  const _radialHTML = _rad.body ? `
-      <div id="${_rad.id || 'ss-radial-section'}" data-own="layout"><span class="prop-field-label">Radial Arrange</span>${_rad.body}</div>` : '';   /* data-own=layout: 원형 배치의 반지름·칸 크기는 배치(Layout)의 수 — 모서리 radius·블록 Size 가 아니다 */
+     Buzz = special · 코너(radius) = Appearance(Q2). */
   const _fx = window.fxSectionParts(ss, 'ss');   /* ★1017a7 Effects — 조각(U0b effects-registry) · #ss-fx-section 유지 · 머리 select = headTools */
   /* 142 — 칸이면 위치·크기(px)·템플릿·이펙트 목록(칸 그림자 = 3단 · Q4)을 빼고 맨 위 «슬라이드 칸»(Content) + Effects = 그림자 3단. 그 밖은 그대로 */
   const _forCell = (list) => !_cellParts ? list
@@ -522,22 +518,23 @@ function _renderAutoPanel(ss) {
         <input type="number" class="prop-number" id="ss-banner-inner-x-num" min="0" max="${bannerInnerXMax}" value="${bannerInnerX}">
       </div>
 ` : '') + `
-      <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="width:16px;flex-shrink:0;">X</span>
-        <input type="number" class="prop-number" id="ss-pos-x" style="flex:1;" value="${_groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0)}">
-        <span class="prop-label" style="width:16px;flex-shrink:0;margin-left:4px;">Y</span>
-        <input type="number" class="prop-number" id="ss-pos-y" style="flex:1;" value="${_groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0)}">
+      <!-- 병합(탑 261122): 값 = 떠 있으면 offset(4d4e9a438) · 아니면 translate · 1120b P4(현빈 261120 「x,y 로우는 텍스트블럭 것 재사용」) — 텍스트 Position 절과 같은 두 칸 마크업(prop-lhls-row · 칸 안 X/Y) · id·배선 그대로 · .prop-number = 포커스 때 전체선택 유지(텍스트 너비 칸과 같은 짝) -->
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">X</span>
+            <input type="number" class="prop-number" id="ss-pos-x" value="${_groupFloat ? (parseInt(ss.dataset.offsetX) || 0) : (parseInt(ss.dataset.translateX) || 0)}" aria-label="X position">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label">Y</span>
+            <input type="number" class="prop-number" id="ss-pos-y" value="${_groupFloat ? (parseInt(ss.dataset.offsetY) || 0) : (parseInt(ss.dataset.translateY) || 0)}" aria-label="Y position">
+          </div>
+        </div>
       </div>
-      <div class="prop-row" style="gap:4px;">
-        <span class="prop-label" style="flex-shrink:0;">각도</span>
-        <input type="number" class="prop-number" id="ss-rotate-deg" style="width:56px;" min="-360" max="360" value="${parseInt(ss.dataset.rotateDeg) || 0}">
-        <span style="font-size:11px;color:#6b6b6b;flex-shrink:0;">°</span>
-      </div>
-      <div class="prop-row" style="gap:3px;justify-content:flex-end;margin-top:2px;">
-        <button class="prop-align-btn" id="ss-rotate-90" title="90° 시계 방향 회전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M11.5 4.5A5 5 0 1 0 13 8"/><polyline stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="9,2 12,4.5 9.5,7.5"/></svg></button>
-        <button class="prop-align-btn" id="ss-flip-h" title="좌우 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4"/><path fill="currentColor" opacity=".35" d="M8 5v6l-4-3z"/></svg></button>
-        <button class="prop-align-btn" id="ss-flip-v" title="상하 반전"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2"/><path fill="currentColor" opacity=".35" d="M5 8h6l-3 4z"/></svg></button>
-      </div>
+      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸 + 90° · 반전 한 줄(옛 id · 옛 배선 그대로) */
+      rotRowHTML({ numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } })}
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
         headTools: _canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: (_isGroupFrame ? '그룹' : '프레임') + '을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' }) : '',
@@ -559,7 +556,7 @@ function _renderAutoPanel(ss) {
         <span style="font-size:11px;color:${isFreeLayout ? '#9ca3af' : '#5fb4d8'};font-weight:500;flex:1;">${isFreeLayout ? 'free' : 'stack'}</span>
         <button class="prop-action-btn secondary" id="${isFreeLayout ? 'ss-to-stack-btn' : 'ss-to-free-btn'}" style="height:24px;padding:0 10px;font-size:11px;width:auto;flex:0 0 auto;">${isFreeLayout ? 'stack' : 'free'}</button>
       </div>
-`) + (_radialTop ? _radialHTML : '') + `
+`) + `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;">
         ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', attrs: { id: 'ss-align-left' } })}
         ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', attrs: { id: 'ss-align-hcenter' } })}
@@ -568,19 +565,14 @@ function _renderAutoPanel(ss) {
         ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', attrs: { id: 'ss-align-vcenter' } })}
         ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', attrs: { id: 'ss-align-bottom' } })}
       </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label" style="width:40px;">간격</span>
-        <input type="range" class="prop-slider" id="ss-gap-slider" min="0" max="80" step="2" value="${parseInt(ss.style.gap) || 0}">
-        <input type="number" class="prop-number" id="ss-gap-num" min="0" max="80" value="${parseInt(ss.style.gap) || 0}">
-      </div>
-` + (_radialTop ? '' : _radialHTML)),
+`),   /* 1120b P2(현빈 261120) — 간격 슬라이더(#ss-gap-slider/#ss-gap-num) 걷음 · 저장된 gap(style · dataset.gap)은 그대로 */
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">상하 패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
+        <span class="prop-label">상하패딩</span>   <!-- 2026-10-03 지디: 섹션·디바이더·비교 패널과 같은 말(「상하 패딩」·「좌우 패딩」) — 옛 「상/하 여백」 -->
         <input type="range" class="prop-slider" id="ss-pady-slider" min="0" max="200" step="4" value="${padY}">
         <input type="number" class="prop-number" id="ss-pady-num" min="0" max="200" value="${padY}">
       </div>
-      ${sliderRowHTML('좌우 패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}${_cellParts ? '' : `
+      ${sliderRowHTML('좌우패딩', 'ss-padx-slider', 'ss-padx-num', { min: 0, max: 100, step: 2, value: padX })}${_cellParts ? '' : `
       <div class="prop-row"${canFullBleed ? '' : ' style="opacity:.55"'}>
         <span class="prop-label">패딩 제외</span>
         <label class="prop-toggle">
@@ -652,7 +644,7 @@ function _renderAutoPanel(ss) {
           </select>
         </div>
         <button class="prop-action-btn secondary" id="ss-bg-pos-btn" style="margin-top:4px;">배경이미지 편집</button>
-        <button class="prop-action-btn danger" id="ss-bg-img-clear" style="margin-top:4px;">이미지 제거</button>
+        <!-- 1120b P3(현빈 261120) — 「이미지 제거」(#ss-bg-img-clear) 단추 걷음 -->
       ` : ''}
 `),
       sec('stroke', `
@@ -702,8 +694,6 @@ function _renderAutoPanel(ss) {
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(ss.id || null);
-  /* 프로토 Z6-C — 「Radial Arrange」 절 배선(절 문자열·동작은 js/radial-arrange.js · index.html 이 싣는다). 절이 없으면 아무 일도 안 한다. */
-  window.wireRadialArrangeSection?.(ss, () => _renderAutoPanel(ss));
   /* 버즈 프레임에는 Layout 절(free → stack 변환)을 안 그린다 — 버즈는 자유배치여야 돌고, 쌓기는 Buzz 절의 배치 「스택」이 한다.
      그 변환을 누르면 자리 · 높이가 풀리고 표식만 남은 보통 프레임이 된다(2026-10-13 실측) — 같은 말 「stack」이 두 뜻으로 나란히 서지 않게 한다. */
   if (isBuzzFrame(ss)) wireBuzzSection(ss);
@@ -802,10 +792,6 @@ function _renderAutoPanel(ss) {
     if (justifyContent !== null) { ss.style.justifyContent = justifyContent; ss.dataset.justifyContent = justifyContent; }
     window.scheduleAutoSave?.();
   };
-  const _setGap = v => {
-    ss.style.gap = v + 'px';
-    ss.dataset.gap = String(v);
-  };
 
   // 현재 상태 반영
   const curAlignItems    = ss?.style.alignItems    || ss.dataset.alignItems    || 'flex-start';
@@ -860,9 +846,6 @@ function _renderAutoPanel(ss) {
   document.getElementById('ss-align-vcenter')?.addEventListener('click', () => { _setAlign(null, 'center');     _markAlignActive('ss-align-vcenter', vGroup); window.pushHistory?.(); });
   document.getElementById('ss-align-bottom')?.addEventListener('click',  () => { _setAlign(null, 'flex-end');   _markAlignActive('ss-align-bottom',  vGroup); window.pushHistory?.(); });
 
-  const gapSlider = document.getElementById('ss-gap-slider');
-  const gapNum    = document.getElementById('ss-gap-num');
-  if (gapSlider && gapNum) bindSlider(gapSlider, gapNum, _setGap, { min: 0, max: 80 });
 
   // ── 회전 / 반전 핸들러 ──
   document.getElementById('ss-rotate-deg')?.addEventListener('input', e => {
@@ -882,15 +865,18 @@ function _renderAutoPanel(ss) {
   document.getElementById('ss-flip-h')?.addEventListener('click', () => {
     ss.dataset.flipH = ss.dataset.flipH === '1' ? '0' : '1';
     document.getElementById('ss-flip-h')?.classList.toggle('active', ss.dataset.flipH === '1');
+    document.getElementById('ss-flip-h')?.setAttribute('aria-pressed', String(ss.dataset.flipH === '1'));   // QA2 — 단추 상태를 같이 말한다
     _applyTransform();
     window.pushHistory?.();
   });
   document.getElementById('ss-flip-v')?.addEventListener('click', () => {
     ss.dataset.flipV = ss.dataset.flipV === '1' ? '0' : '1';
     document.getElementById('ss-flip-v')?.classList.toggle('active', ss.dataset.flipV === '1');
+    document.getElementById('ss-flip-v')?.setAttribute('aria-pressed', String(ss.dataset.flipV === '1'));
     _applyTransform();
     window.pushHistory?.();
   });
+  wireRotRow({ numberId: 'ss-rotate-deg', host: () => ss, scrubOnly: true });   // 아이콘 끌기만(90°·반전은 위 옛 배선)
   // 초기 flip 상태 반영
   if (ss.dataset.flipH === '1') document.getElementById('ss-flip-h')?.classList.add('active');
   if (ss.dataset.flipV === '1') document.getElementById('ss-flip-v')?.classList.add('active');
@@ -914,7 +900,6 @@ function _renderAutoPanel(ss) {
   // 배경 이미지
   const bgImgBtn   = document.getElementById('ss-bg-img-btn');
   const bgImgInput = document.getElementById('ss-bg-img-input');
-  const bgImgClear = document.getElementById('ss-bg-img-clear');
   const bgPosBtn   = document.getElementById('ss-bg-pos-btn');
 
   bgImgBtn.addEventListener('click', () => bgImgInput.click());
@@ -942,33 +927,10 @@ function _renderAutoPanel(ss) {
         posBtn.addEventListener('click', () => _frameBgEdit(ss));
         bgImgBtn.after(posBtn);
       }
-      if (!document.getElementById('ss-bg-img-clear')) {
-        const clearBtn = document.createElement('button');
-        clearBtn.id = 'ss-bg-img-clear';
-        clearBtn.className = 'prop-action-btn danger';
-        clearBtn.style.cssText = 'margin-top:4px;';
-        clearBtn.textContent = '이미지 제거';
-        clearBtn.addEventListener('click', removeBgImg);
-        document.getElementById('ss-bg-pos-btn').after(clearBtn);
-      }
     };
     reader.readAsDataURL(file);
   });
 
-  function removeBgImg() {
-    ss.style.backgroundImage = '';
-    ss.style.backgroundSize = '';
-    ss.style.backgroundPosition = '';
-    delete ss.dataset.bgImg;
-    delete ss.dataset.bgPos;
-    _syncFrameBgVars();
-    document.getElementById('ss-bg-pos-btn')?.remove();
-    document.getElementById('ss-bg-img-clear')?.remove();
-    window.scheduleAutoSave?.();
-    showFrameProperties(ss);   // 그림이 빠지면 «체크 배경» 단추가 다시 선다(섹션은 늘 다시 그린다)
-    window.pushHistory?.();    // 패널 규약 = 적용 먼저 · 기록 나중(tests/unit/prop-push-after PA-1)
-  }
-  if (bgImgClear) bgImgClear.addEventListener('click', removeBgImg);
   /* FRAME-BG-CHECKER-OPTIONS-01 — 섹션 sec-bg-img-empty·sec-checker-tone 배선과 같은 동작(js/props/prop-section.js).
      ★기록 순서만 섹션과 다르다 — 섹션은 «찍고 나서 바꾸는» 옛 꼴이다. 패널 규약 = 적용 먼저 · pushHistory 나중
        (tests/unit/prop-push-after PA-1 · 앞 편집이 push-after 면 ⌘Z 한 번에 두 편집이 같이 사라진다).

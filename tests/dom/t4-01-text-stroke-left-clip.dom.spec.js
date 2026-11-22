@@ -145,7 +145,8 @@ async function selectText(page, tbId) {
 // 우측 패널 외곽선 절 — 켜기 · 두께 · 위치
 // 켜기 = 토글 라벨(입력 상자 자체는 화면에 안 보인다 — v1 부름에서 «element is not visible» 로 2분 멈춤)
 async function setStroke(page, { w, align }) {
-  if (!(await page.isChecked('#txt-stroke-on'))) await page.click('#txt-stroke-section label.prop-toggle', { timeout: 10000 });
+  /* ★기대 바뀜(패널 재설계 1차 ⑨ — Stroke 머리 켜기 토글 → «＋» 단추꼴 label · 같은 체크박스) */
+  if (!(await page.isChecked('#txt-stroke-on'))) await page.click('#txt-stroke-section label.prop-sec-add', { timeout: 10000 });
   expect(await pollTrue(page, () => document.getElementById('txt-stroke-on')?.checked === true && getComputedStyle(document.getElementById('txt-stroke-controls')).display !== 'none'), '전제: 외곽선 켜짐 · 조절 칸 보임').toBe(true);
   await page.fill('#txt-stroke-w-number', String(w), { timeout: 10000 });
   await page.selectOption('#txt-stroke-align', align, { timeout: 10000 });

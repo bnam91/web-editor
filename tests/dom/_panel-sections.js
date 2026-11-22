@@ -36,11 +36,26 @@ const LIVE_SEL_OLD = 'input, select, button, textarea';
 
 const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.evaluate(({ scopes, live }) => {
   const body = document.querySelector('#panel-right .panel-body');
-  const secs = [...body.children].filter((e) => e.classList.contains('prop-section')).map((e) => ({
-    sec: e.dataset.sec || null,
-    isHeader: !!e.querySelector(':scope > .prop-block-label'),
-    title: e.querySelector(':scope > .prop-sec-head > .prop-section-title')?.textContent.trim() ?? null,
-    labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].map((l) => l.textContent.trim()),
+  /* ★Q1 · Q2(시안 v10 · 현빈 GO 261120) — 절 «단위»를 편다: 이름표 상자 안 Type 띠(.prop-kind-band[data-sec]) = kind 절 하나 ·
+     Layout 묶음(data-sec-group) 안 몸(.prop-sec-body[data-sec]) = 그 key 절 하나씩(제목 = data-title · 작은 제목 .prop-sec-sub 은 라벨이 아니다). */
+  const units = [];
+  for (const e of [...body.children].filter((x) => x.classList.contains('prop-section'))) {
+    const band = e.querySelector(':scope > .prop-kind-band[data-sec]');
+    if (e.dataset.secGroup != null) {
+      for (const part of e.querySelectorAll(':scope > .prop-sec-part[data-sec]')) units.push({ e: part, sec: part.dataset.sec, title: part.dataset.title, isHeader: false });
+      /* QA2 — 묶음 머리에 합쳐진 손잡이(몸들의 headTools)도 소유를 잰다: 묶음 key 중 하나여야 한다 */
+      const head = e.querySelector(':scope > .prop-sec-head');
+      if (head) units.push({ e: head, sec: '__group', title: null, isHeader: false, groupKeys: e.dataset.secGroup.split(' ') });
+    }
+    else units.push({ e, sec: e.dataset.sec || null, title: e.querySelector(':scope > .prop-sec-head > .prop-section-title')?.textContent.trim() ?? null, isHeader: !!e.querySelector(':scope > .prop-block-label'), band });
+    if (band) units.push({ e: band, sec: 'kind', title: band.dataset.title, isHeader: false });
+  }
+  const secs = units.map(({ e, sec, title, isHeader, band, groupKeys }) => ({
+    sec,
+    groupKeys: groupKeys || null,
+    isHeader,
+    title,
+    labels: [...e.querySelectorAll('.prop-label, .prop-field-label')].filter((l) => !l.classList.contains('prop-sec-sub') && !(band && band.contains(l))).map((l) => l.textContent.trim()),
     /* 보이는 컨트롤 수 — 머리 손잡이 포함 · ★접힘(몸 hidden)은 «비었다»가 아니라서 몸 자신의 숨김은 건너뛴다 */
     liveControls: [...e.querySelectorAll(live)].filter((c) => {
       /* 절 «자기» 머리 제목은 내용이 아니다 — disclosureSectionHtml 이 role="button" 으로 그려 ⑴ 이 모든 절을 «안 빔»으로 셌다(G9 양성대조 빨강 · 94bbec1a3) */
@@ -53,7 +68,7 @@ const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.eval
     }).length,
     /* 소유 판정 재료 — 컨트롤마다 id · type · data-* · 색짝(같은 .prop-color-field 안 · 바로 앞 형제가 «색 칸 자신» 또는 .prop-color-swatch) · 제외 그릇
        ⑶ U6: 옛 «앞 형제 «안에» 색 칸 하나라도» 는 색 든 목록 뒤 «추가» 단추(grb-add-item · bn2-line-add)를 색짝으로 끌어 Fill/Stroke 로 보냈다. */
-    controls: [...e.querySelectorAll('input, select, button, textarea')].map((c) => {
+    controls: [...e.querySelectorAll('input, select, button, textarea')].filter((c) => !(band && band.contains(c))).map((c) => {
       const prev = c.previousElementSibling;
       const pair = c.type === 'color' ? null : (c.closest('.prop-color-field')?.querySelector('input[type="color"]')
         || (prev?.matches?.('input[type="color"]') ? prev : prev?.matches?.('.prop-color-swatch') ? prev.querySelector('input[type="color"]') : null) || null);
@@ -68,19 +83,29 @@ const readPanel = (page, spec = loadSectionSpec(), live = LIVE_SEL) => page.eval
     }),
   }));
   /* 패널 순서 이름 — 틀이 예외 패널의 절에 data-order 를 찍는다(_section-spec SECTION_ORDER_EXCEPT · 섹션 = 현빈 261118 D5 ①) */
-  const order = body.querySelector(':scope > .prop-section[data-order]')?.dataset.order || '';
+  const order = body.querySelector('.prop-section[data-order]')?.dataset.order || '';
   return { secs, hints: body.querySelectorAll('.prop-hint').length, order };
 }, { scopes: Object.keys(spec.OWNERSHIP_EXEMPT_SCOPES), live });
 
 function judgePanel(panel, spec, order = spec.sectionOrderFor(panel.order)) {   // 정본 순서 = 그 패널의 예외표 몫(없으면 전역) — 순서를 여기 따로 박지 않는다
   const bad = [];
   const { secs, hints } = panel;
-  const keyed = secs.filter((s) => s.sec);
+  /* QA2 — 묶음 머리 손잡이: 소유가 묶음 key 밖이면 빨강 · 그 밖 판정(제목·순서·빈 머리)은 몸 단위에서 이미 잰다 */
+  for (const g of secs.filter((x) => x.sec === '__group')) for (const c of g.controls || []) {
+    if (c.id && c.id in spec.OWNERSHIP_EXEMPT) continue;
+    const own = spec.ownerOfControl(c);
+    if (own && !g.groupKeys.includes(own)) bad.push(`소유 위반: ${c.id || spec.controlIdent(c)} 는 ${own} 절 속성인데 Layout 묶음 머리(${g.groupKeys.join('·')})에 있다`);
+  }
+  const keyed = secs.filter((s) => s.sec && s.sec !== '__group');
+  /* QA2 — kind(Type 띠)는 순서 판정 밖이지만 «자리»는 잰다: 이름표 상자 안 = 절 중 맨 앞 */
+  const ki = keyed.findIndex((s) => s.sec === 'kind');
+  if (ki > 0) bad.push(`순서 위반: kind(Type 띠)는 맨 앞(이름표 아래)이어야 하는데 ${keyed[ki - 1].sec} 뒤에 있다`);
   if (!keyed.length) bad.push('data-sec 절이 0개 — 틀을 안 거쳤거나 패널이 비었다');
   secs.forEach((s, i) => { if (!s.sec && !(i === 0 && s.isHeader)) bad.push(`머리 없는 절 #${i} — header(맨 앞 블록 머리)만 허용`); });
-  const idx = keyed.map((s) => order.indexOf(s.sec));
-  if (idx.some((v) => v < 0)) bad.push(`모르는 key: ${keyed.filter((s, i) => idx[i] < 0).map((s) => s.sec)}`);
-  for (let i = 1; i < idx.length; i++) if (idx[i] < idx[i - 1]) bad.push(`순서 위반: ${keyed[i - 1].sec} 뒤에 ${keyed[i].sec}`);
+  const ordered = keyed.filter((s) => s.sec !== 'kind');   // ★Q2 — kind 는 순서와 상관없이 이름표 아래 띠(맨 앞)
+  const idx = ordered.map((s) => order.indexOf(s.sec));
+  if (idx.some((v) => v < 0)) bad.push(`모르는 key: ${ordered.filter((s, i) => idx[i] < 0).map((s) => s.sec)}`);
+  for (let i = 1; i < idx.length; i++) if (idx[i] < idx[i - 1]) bad.push(`순서 위반: ${ordered[i - 1].sec} 뒤에 ${ordered[i].sec}`);
   const seen = new Set();
   const skey = (s) => (s.sec === 'special' ? `special:${s.title}` : s.sec);   // 절 정체 — 블록 고유 절은 제목까지
   const panelKeys = new Set(keyed.map(skey));

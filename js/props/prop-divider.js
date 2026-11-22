@@ -74,12 +74,12 @@ export function showDividerProperties(block) {
       </div>`),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">상하 패딩</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="dvd-pady-slider" min="0" max="120" step="4" value="${padV}">
         <input type="number" class="prop-number" id="dvd-pady-number" min="0" max="120" value="${padV}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="dvd-padx-slider" min="0" max="2000" step="4" value="${padH}">
         <input type="number" class="prop-number" id="dvd-padx-number" min="0" max="2000" value="${padH}">
       </div>`),

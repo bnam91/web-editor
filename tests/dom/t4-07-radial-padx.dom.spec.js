@@ -42,7 +42,7 @@ for (const shape of ['circle', 'arc']) {
     const g0 = await g(id);
     expect([g0.pl, g0.pr], 'P 전제: 처음 좌우 padding 0').toEqual([0, 0]);
     const num = await page.evaluate(() => {
-      const row = [...document.querySelectorAll('#panel-right .prop-row')].find((x) => x.querySelector('.prop-label')?.textContent.trim() === '좌우 패딩');
+      const row = [...document.querySelectorAll('#panel-right .prop-row')].find((x) => x.querySelector('.prop-label')?.textContent.trim() === '좌우패딩'   /* ★기대 바뀜(패널 재설계 1차 ⑤ Q25) */);
       const n = row?.querySelector('input[type=number]'); const s = row?.querySelector('input[type=range]');
       if (!n || !s) return null;
       if (!n.id) n.id = '__padx_probe';

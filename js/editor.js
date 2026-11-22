@@ -124,7 +124,7 @@ const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input
  *   ⛔예외 = Mixed 칸(value="" · placeholder="Mix") — 피그마도 Mixed 칸은 전체 선택을 안 한다(지디 실측). */
 const _isMixedField = (el) => el.value === '' && String(el.placeholder || '').trim() === 'Mix';
 const _reclickSelectAll = (el, e) => el.type === 'number' && document.activeElement === el && !el._pnTyping
-  && !_isMixedField(el) && (el.clientWidth - (e.offsetX ?? 0)) > 18;
+  && !_isMixedField(el) && (getComputedStyle(el).appearance === 'textfield' || (el.clientWidth - (e.offsetX ?? 0)) > 18);   // 스피너를 걷은 칸(우측 패널 · 재설계 1차 ⑦)은 오른쪽 끝도 칸이다
 document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;

@@ -16,6 +16,7 @@
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js ft3-left-drag-and-pullin
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitZoomSettled, SETTLE_MIN_MS, SETTLE_ROOM_SHARE } = require('./_root-harness.js');
 
 async function setup(page) {
@@ -40,8 +41,8 @@ async function setup(page) {
   });
   /* ★180·210 — 배율 전제: scaler 행렬이 그 배율이고 멎었다(_root-harness waitZoomSettled · 맨 applyZoom 은 0.15s 보간) */
   await waitZoomSettled(page, 40);
-  await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
-  await page.selectOption('#txt-fx-add', 'freetransform');
+  await page.waitForFunction(() => !!document.getElementById('txt-fx-add-btn'));
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="freetransform"]'));
   await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12);
   /* ★141 ㉮(지디 07:1x) — setup 끝에서 손잡이 자리가 «연속 두 rAF 같음»으로 멈출 때까지 기다린다(Hs 재사용 · H() 무접촉).
      까닭: applyZoom(40) 이 #canvas-scaler transition 0.15s 로 보간되는 동안 시험 첫 H()(예: R 의 nw0)가 낡은 기준을 잡았다

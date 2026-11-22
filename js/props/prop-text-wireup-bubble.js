@@ -1,7 +1,7 @@
 /* prop-text-wireup-bubble.js
  * speech-bubble 블록 전용 이벤트 wireup (스타일 / 말꼬리 / 배경 / 발신자)
  */
-import { wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { wireColorField } from './color-picker.js';
 import { clearBubbleSenderAlign } from './prop-text-wireup-align.js';
 
 export function wireBubbleSection({ tb, ctx }) {
@@ -49,20 +49,10 @@ export function wireBubbleSection({ tb, ctx }) {
   document.getElementById('bubble-tail-center')?.addEventListener('click', () => _setTail('center'));
   document.getElementById('bubble-tail-right')?.addEventListener('click', () => _setTail('right'));
 
-  const bubbleBgPicker = document.getElementById('bubble-bg-color');
-  const bubbleBgHexInput = document.getElementById('bubble-bg-hex');
-  bubbleBgPicker?.addEventListener('input', e => {
-    const hex = e.target.value;
-    bubbleBgHexInput.value = formatHex6(hex);
-    _applyBubbleBg(hex);
-  });
-  bubbleBgPicker?.addEventListener('change', () => window.pushHistory?.());
-  /* 색 코드 칸 — 공용 배선(wireHexText). 무효값은 표시되고 blur 하면 되돌아간다. */
-  wireHexText(bubbleBgHexInput, {
-    parse: parseHex6,
-    format: formatHex6,
-    getCurrent: () => bubbleBgPicker?.value || '#ffffff',
-    onApply: (v) => { if (bubbleBgPicker) bubbleBgPicker.value = v; _applyBubbleBg(v); },
+  /* 1120b B2 — 배경 색 칸 = Fill 과 같은 부품 → 같은 배선(wireColorField: 스와치·HEX·% 한 벌). 값 = hex(100%) 또는 rgba(…) → _applyBubbleBg(몸 + 꼬리 --bubble-bg) */
+  wireColorField('bubble-bg', {
+    initialAlpha: parseInt(document.getElementById('bubble-bg-alpha')?.value, 10) || 100,
+    onApply: (c) => _applyBubbleBg(c),
     onCommit: () => window.pushHistory?.(),
   });
 

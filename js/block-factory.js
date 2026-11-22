@@ -1,3 +1,4 @@
+import './block-flip.js';     // side-effect import — window.applyFlip/toggleFlip 를 블럭 렌더러(스티커·아이콘·모달·목업·줌)보다 먼저(Q17 반전)
 import './graph-limits.js';   // side-effect import — window.GRAPH_LIMITS 를 «이 모듈보다 먼저» 싣는다(하네스·앱 같은 길, 로드 순서 의존 없음)
 import { syncFrameBgVars, frameBgSize } from './frame-bg.js';   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { state } from './globals.js';
@@ -5494,16 +5495,7 @@ function updateShapeBlock(blockId, partial = {}) {
   if (partial.shapeRotation !== undefined && partial.shapeRotation !== null) {
     const deg = _setInt('shapeRotation', partial.shapeRotation, -180, 180);
     if (deg === null) return { ok: false, code: 'INVALID', message: 'shapeRotation must be finite number' };
-    const cur = (block.style.transform || '').replace(/rotate\([^)]*\)\s*/g, '').trim();
-    if (deg === 0) {
-      delete block.dataset.shapeRotation;
-      block.style.transform = cur;
-      if (!block.style.transform) block.style.removeProperty('transform');
-    } else {
-      block.dataset.shapeRotation = String(deg);
-      block.style.transform = (cur + ` rotate(${deg}deg)`).trim();
-      block.style.transformOrigin = 'center center';
-    }
+    window.writeRotation(block, deg, { key: 'shapeRotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
     applied.shapeRotation = deg;
   }
 

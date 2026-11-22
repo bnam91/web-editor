@@ -2,8 +2,8 @@
  * 대상 = asset · shape · zoom · icon-circle (§5 U4 · 지디 지정 최소 넷).
  * N1 넘침 — 패널 240px · 블록 이름 60자에서 패널 몸통과 모든 절의 가로 넘침 0 (scrollWidth ≤ clientWidth).
  *   ★내장 양성대조 N1p: 같은 패널 첫 절 몸통에 폭 600px 줄을 심으면 같은 자가 그 절을 넘침으로 잡는다.
- * F1 키보드 — 패널 맨 앞 임시 단추에서 Tab 한 번 = 첫 절 머리 · :focus-visible 링(outline ≠ none) · Enter 로 접힘(aria-expanded false · 몸통 숨김) · Space 로 다시 펼침.
- *   ★내장 양성대조 F1p: 첫 절 머리의 tabindex 를 떼면 Tab 이 그 머리에 «안» 간다 — 자가 tabindex 를 보고 있다.
+ * F1 ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — Tab 이 절 머리에 «안» 간다 · 머리를 눌러도 몸이 그대로 · aria-expanded 없음.
+ *   ★내장 양성대조 F1p: 첫 절 머리에 tabindex=0 을 붙이면 Tab 이 그 머리에 간다 — 자가 tabindex 를 보고 있다.
  * ⛔화면 px 를 상수와 견주지 않는다 — 요소의 scroll/client 폭끼리만 비교한다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -66,31 +66,25 @@ async function tabFromStart(page) {
   return r;
 }
 
-test('F1 키보드 — Tab 이 첫 절 머리에 닿고 링이 보이고 Enter/Space 로 접고 편다 (asset · shape · zoom · icon-circle)', async ({ page }) => {
+test('F1 접기 없음 — Tab 이 절 머리에 안 가고 눌러도 몸이 그대로 (asset · shape · zoom · icon-circle)', async ({ page }) => {
   const { errs, roster } = await scene(page);
   for (const cls of KINDS) {
     await openLong(page, roster, cls);
-    const f = await tabFromStart(page);
-    expect(f.isFirstHead, `★${cls}: Tab 이 첫 절 머리에 안 간다(간 곳 ${f.id})`).toBe(true);
-    expect(f.fv, `[전제] ${cls}: 키보드 포커스`).toBe(true);
-    expect(f.outline, `★${cls}: focus-visible 링이 없다`).not.toBe('none');
-    const head = page.locator(`#${f.id}`);
-    const bodyId = await head.getAttribute('aria-controls');
-    await expect(head).toHaveAttribute('aria-expanded', 'true');
-    await page.keyboard.press('Enter');
-    await expect(head, `★${cls}: Enter 로 안 접힌다`).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator(`#${bodyId}`)).toBeHidden();
-    await page.keyboard.press(' ');
-    await expect(head, `★${cls}: Space 로 안 펴진다`).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.locator(`#${bodyId}`)).toBeVisible();
+    /* ★기대 바뀜(패널 재설계 1차) — 옛 판은 Tab 이 첫 절 머리에 닿고 Enter/Space 로 접고 폈다 */
+    expect((await tabFromStart(page)).isFirstHead, `★${cls}: Tab 이 절 머리에 간다(누를 것이 아닌데)`).toBe(false);
+    const head = page.locator(HEAD).first();
+    expect(await head.getAttribute('aria-expanded'), `★${cls}: aria-expanded 가 남았다`).toBeNull();
+    const body = page.locator('#panel-right .panel-body > .prop-section[data-sec] > .prop-sec-body').first();
+    await head.click();
+    await expect(body, `★${cls}: 머리를 누르니 몸이 숨었다`).toBeVisible();
   }
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('F1p ★양성대조 — 첫 절 머리의 tabindex 를 떼면 Tab 이 그 머리에 안 간다', async ({ page }) => {
+test('F1p ★양성대조 — 첫 절 머리에 tabindex=0 을 붙이면 Tab 이 그 머리에 간다', async ({ page }) => {
   const { roster } = await scene(page);
   await openLong(page, roster, 'zoom-block');
-  expect((await tabFromStart(page)).isFirstHead, '[전제] 떼기 전엔 닿는다').toBe(true);
-  await page.evaluate((sel) => document.querySelector(sel).removeAttribute('tabindex'), HEAD);
-  expect((await tabFromStart(page)).isFirstHead, '★자가 tabindex 를 안 본다').toBe(false);
+  expect((await tabFromStart(page)).isFirstHead, '[전제] 붙이기 전엔 안 닿는다').toBe(false);
+  await page.evaluate((sel) => document.querySelector(sel).setAttribute('tabindex', '0'), HEAD);
+  expect((await tabFromStart(page)).isFirstHead, '★자가 tabindex 를 안 본다').toBe(true);
 });

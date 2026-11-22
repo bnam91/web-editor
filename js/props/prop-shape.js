@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { svgStopRemap } from './gradient-model.js';
-import { overlayToggleBtnHTML, blockHeaderHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { starPoints, starClipPath, clampStarN, STAR_MIN, STAR_MAX,
          starPointsList, starViewBox, clampStarCount, STAR_COUNT_MIN, STAR_COUNT_MAX,
@@ -203,11 +203,7 @@ export function showShapeProperties(block) {
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y · 회전
       sec('position', `
       ${floatPositionRowHTML({ prefix: 'shape', posEl: floatPosEl })}
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="shape-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.shapeRotation || '0')}">
-        <input type="number" class="prop-number" id="shape-rot-num" min="-180" max="180" value="${parseInt(block.dataset.shapeRotation || '0')}">
-      </div>`, { headTools: overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay }) }),
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'shape', numberId: 'shape-rot-num', value: parseInt(block.dataset.shapeRotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: overlayToggleBtnHTML({ id: 'shape-overlay-toggle', active: isFloatOverlay }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">W</span>
@@ -1190,14 +1186,15 @@ export function showShapeProperties(block) {
   }
   const rotSlider = document.getElementById('shape-rot-slider');
   const rotNum    = document.getElementById('shape-rot-num');
-  if (rotSlider && rotNum) {
-    rotSlider.addEventListener('input',  () => { rotNum.value = rotSlider.value; applyRotation(rotSlider.value); });
-    rotSlider.addEventListener('change', () => window.pushHistory?.());
+  if (rotNum) {   // Q20(시안 v10) — 슬라이더 없음 · 각도 칸만(옛 슬라이더 판 호환으로 있으면 같이 맞춘다)
+    rotSlider?.addEventListener('input',  () => { rotNum.value = rotSlider.value; applyRotation(rotSlider.value); });
+    rotSlider?.addEventListener('change', () => window.pushHistory?.());
     rotNum.addEventListener('input', () => {
       const v = Math.min(180, Math.max(-180, parseInt(rotNum.value) || 0));
-      rotSlider.value = v; applyRotation(v);
+      if (rotSlider) rotSlider.value = v; applyRotation(v);
     });
     rotNum.addEventListener('change', () => window.pushHistory?.());
+    wireRotRow({ p: 'shape', numberId: 'shape-rot-num', host: () => block });   // Q17 — 90° · 반전 · 아이콘 끌기
   }
 
   /* 오버레이(플로팅) 토글 — 텍스트 패널과 «같은 함수»를 부른다(js/overlay-float.js).
@@ -1238,21 +1235,7 @@ function _relockFrameMinHeight(frame) {
 export function applyShapeRotation(block, deg) {
   if (!block) return;
   const d = Math.max(-180, Math.min(180, parseInt(deg) || 0));
-  const existing = block.style.transform || '';
-  const stripped = existing.replace(/rotate\([^)]*\)\s*/g, '').trim();
-  if (d === 0) {
-    // 회전 해제: transform/transform-origin/dataset 잔존을 깨끗이 정리
-    block.style.transform = stripped;
-    if (!block.style.transform) {
-      block.style.removeProperty('transform');
-      block.style.removeProperty('transform-origin');
-    }
-    delete block.dataset.shapeRotation;
-  } else {
-    block.dataset.shapeRotation = String(d);
-    block.style.transform = stripped ? `${stripped} rotate(${d}deg)` : `rotate(${d}deg)`;
-    block.style.transformOrigin = 'center center';
-  }
+  window.writeRotation(block, d, { key: 'shapeRotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
   // 구버전이 남긴 frame min-width/height 보정값 정리 (회전 시 크기 불변 정책)
   const frame = block.closest('.frame-block');
   if (frame) {

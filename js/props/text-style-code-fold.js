@@ -24,28 +24,43 @@ function _writeOpen(v) {
   try { localStorage.setItem(LS_KEY, _open ? '1' : '0'); } catch (_) { /* 저장 못 해도 이 세션은 기억한다 */ }
 }
 
-/** 패널 안 «번호» 줄(prefix-hl/dot/ul-code-row)을 한 머리로 접는다. 줄이 없으면 아무것도 안 한다. 돌려주는 값 = 머리 요소|null. */
+/** 패널 안 «번호» 줄(prefix-hl/dot/ul-code-row)을 «스타일 번호 N» 카드 하나에 모아 접는다. 줄이 없으면 아무것도 안 한다. 돌려주는 값 = 머리 요소|null.
+ *  1120b B5(현빈 261120 · 시안 v11.3 «스타일 번호» 카드) — 꼴 = Effects 효과 카드 부품 그대로(.prop-cell-card > .prop-cell-card-header(쉐브론 + .prop-cell-card-title) + .prop-cell-card-body).
+ *  줄은 «옮길» 뿐이다(요소째 이동 — id·복사/붙여넣기 배선 그대로). 위 10px(--ui-space-2_5) · 머리 왼쪽 정렬은 시안 mk113-card 값(새 CSS 0 · 인라인 토큰). */
 export function wireStyleCodeFold(propPanel, p = 'txt') {
   if (!propPanel) return null;
   const rows = ['hl', 'dot', 'ul'].map((k) => propPanel.querySelector('#' + tsCodeRowId(p, k))).filter(Boolean);
   if (!rows.length) return null;
+  const was = propPanel.querySelector(`#${p}-code-fold-toggle`);
+  if (was) return was;   // 같은 패널에 두 번 불려도 카드는 하나
+  const card = document.createElement('div');
+  card.className = 'prop-cell-card';
+  card.id = `${p}-code-fold-card`;
+  card.style.marginTop = 'var(--ui-space-2_5)';
   const head = document.createElement('div');
-  head.className = 'prop-section-title';
+  head.className = 'prop-cell-card-header';
   head.id = `${p}-code-fold-toggle`;
   head.setAttribute('role', 'button');
   head.tabIndex = 0;
-  head.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;';
+  head.style.cssText = 'justify-content:flex-start;gap:var(--ui-space-1);';
+  const body = document.createElement('div');
+  body.className = 'prop-cell-card-body';
+  body.id = `${p}-code-fold-body`;
+  head.setAttribute('aria-controls', body.id);
+  rows[0].parentNode.insertBefore(card, rows[0]);
+  card.append(head, body);
+  rows.forEach((r) => { r.style.display = ''; body.appendChild(r); });
   const paint = () => {
     const open = _readOpen();
     head.setAttribute('aria-expanded', open ? 'true' : 'false');
     head.title = open ? '스타일 번호 칸 접기' : '스타일 번호 칸 펼치기';
-    head.innerHTML = `${disclosureChevronHtml(open)}<span style="flex:1 1 auto;">스타일 번호</span><span class="prop-count-val" style="flex:0 0 auto;">${rows.length}</span>`;
-    rows.forEach((r) => { r.style.display = open ? '' : 'none'; });
+    head.innerHTML = `${disclosureChevronHtml(open)}<span class="prop-cell-card-title" style="flex:1 1 auto;">스타일 번호 ${rows.length}</span>`;
+    card.classList.toggle('expanded', open);
+    body.hidden = !open;
   };
   const toggle = () => { _writeOpen(!_readOpen()); paint(); };
   head.addEventListener('click', toggle);
   head.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
-  rows[0].parentNode.insertBefore(head, rows[0]);
   paint();
   return head;
 }

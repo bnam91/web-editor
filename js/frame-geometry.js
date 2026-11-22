@@ -518,8 +518,12 @@ export function composeFrameTransformString(ss) {
   const tx = parseInt(d.translateX) || 0;
   const ty = parseInt(d.translateY) || 0;
   const rd = parseFloat(d.rotateDeg) || 0;
-  const fx = d.flipH === '1' ? -1 : 1;
-  const fy = d.flipV === '1' ? -1 : 1;
+  /* ★QA2 C2 — 텍스트 프레임(data-text-frame)의 반전은 이 틀 모델이 아니다: 글 회전 = dataset.rotation + rotate()(asset-rotate _textFrameHost) ·
+     반전 = js/block-flip.js(같은 키 flipH/V · transform 끝 scale). 여기서 반전을 세면 rebindAll(⌘Z·⌘⇧Z·열기)이
+     `translate(0px,0px) rotate(0deg) scale(-1,1)` 로 덮어 글 회전이 사라지고 저장에 굳었다 ⇒ 텍스트 프레임은 반전을 안 센다. */
+  const tf = d.textFrame === 'true';
+  const fx = !tf && d.flipH === '1' ? -1 : 1;
+  const fy = !tf && d.flipV === '1' ? -1 : 1;
   if (!tx && !ty && !rd && fx === 1 && fy === 1) return null;
   return `translate(${tx}px,${ty}px) rotate(${rd}deg) scale(${fx},${fy})`;
 }
@@ -542,6 +546,10 @@ export function applyFrameTransform(ss, opts) {
   if (str !== null) ss.style.transform = str;
   else if (identity === 'clear') ss.style.removeProperty('transform');
   else if (identity === 'write') ss.style.transform = 'translate(0px,0px) rotate(0deg) scale(1,1)';
+  /* QA2 C2 · ③ — 텍스트 프레임의 회전(dataset.rotation)·반전은 틀 모델 밖 → 회전 쓰기 한 함수로 다시 쓴다(키는 안 고침 · 멱등).
+     둘 다 없으면 손대지 않는다(위 ⚠️ — 로드에서 rotate(0deg) 잔재를 지우면 스태킹이 바뀐다). */
+  const td = ss.dataset;
+  if (td?.textFrame === 'true' && ((parseFloat(td.rotation) || 0) || td.flipH === '1' || td.flipV === '1')) globalThis.writeRotation?.(ss, td.rotation, { key: 'rotation', keepKey: true });
   applyFrameRotationMargin(ss, opts && opts.sizeHint);
 }
 

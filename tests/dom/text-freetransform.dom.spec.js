@@ -27,6 +27,7 @@
  * ★양성대조(판을 갈아 끼운다): GD1001_ROOT=<fc487b3d 를 뽑은 경로> 로 같은 벌을 돌리면
  *   그 판엔 `js/effects-freetransform.js` 가 ★없으므로 ★전부 빨강이어야 한다. */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const fs = require('fs');
 const path = require('path');
 const { bootApp, ROOT } = require('./_root-harness.js');
@@ -519,7 +520,7 @@ test('NoNumberField ★우리 카드에 숫자·슬라이더 칸 0 (＋★_neg �
   const errs = await setup(page);
   await pick(page, 'ftTB');
   await addFt(page);
-  await page.selectOption('#txt-fx-add', 'glow');                 /* ★같은 패널에 ★이웃 카드를 띄운다 */
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="glow"]'));                 /* ★같은 패널에 ★이웃 카드를 띄운다 */
   await page.waitForFunction(() => !!document.getElementById('txt-fxgl-card'));
   const r = await page.evaluate(() => {
     const q = (sel) => document.querySelectorAll(sel).length;
@@ -792,7 +793,7 @@ test('QA-1 ★불필요한 프롭힌트 0 — 진입 전/후 패널 행 id 를 �
   console.log('[QA-1] 후', after.rows.length, JSON.stringify(after.rows));
   console.log('[QA-1] added', JSON.stringify(added), 'addedHints', JSON.stringify(addedHints));
   /* ★전제 — 진입 «전»에 Effects 절이 ★떠 있었다(⛔안 떴으면 「0건」은 안 재고 있다) */
-  expect(before.rows, '★전제: 진입 전 Effects 절에 ＋ 목록이 있다').toContain('txt-fx-add');
+  expect(before.rows, '★전제: 진입 전 Effects 절에 ＋ 목록이 있다').toContain('txt-fx-add-btn');
   /* ★본 단언 — ★프롭힌트는 ★하나도 늘지 않았다(⛔「힌트 없애주기」 1020t2c3 과 같은 결) */
   expect(addedHints, `★우리 카드가 프롭힌트를 ${addedHints.length}개 더했다 — 현빈 「불필요한 프롭힌트는 없는지」`).toEqual([]);
   expect(addedPanelHints, `★우리 진입이 패널 전체에 프롭힌트를 ${addedPanelHints.length}개 더했다`).toEqual([]);

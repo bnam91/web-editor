@@ -372,9 +372,7 @@ function _bindRotateDrag(zone, block) {
       let deg = window._snapRotate(init + (a - startA), ev.shiftKey); // Shift = 45° 스냅(공유·기존 스티커엔 스냅 없었음)
       deg = ((deg % 360) + 360) % 360;
       if (deg > 180) deg -= 360; // -180..180 (패널 슬라이더와 동일 범위)
-      block.style.transform = `rotate(${deg}deg)`;
-      block.style.transformOrigin = 'center center';
-      block.dataset.rotation = String(deg);
+      window.writeRotation(block, deg, { key: 'rotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
       const rs = document.getElementById('stk-t-rot');
       const rn = document.getElementById('stk-t-rot-num');
       if (rs) rs.value = deg;

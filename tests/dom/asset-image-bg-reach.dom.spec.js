@@ -325,7 +325,8 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     expect(pageErrs, '페이지 에러가 났다면 빨강의 이유가 다른 데 있다').toEqual([]);
   });
 
-  test('P2 ★되돌릴 길 — 그라데이션이 걸린 채 이미지를 넣어도 그것을 «지울 수단»이 있어야 한다', async ({ page }) => {
+  /* 1120b A6(현빈 261120 「초기화 버튼(#asset-bg-clear) 없애줘」) — 초기화 단추가 걷혔다 ⇒ «초기화로 지우는 길» 시험은 대상이 없다. */
+  test.skip('P2 ★되돌릴 길 — 그라데이션이 걸린 채 이미지를 넣어도 그것을 «지울 수단»이 있어야 한다', async ({ page }) => {
     await page.evaluate(() => { window.__open(window.__mk()); });
 
     // ① 실제 경로로 그라데이션을 먼저 건다(이미지 넣기 «전»).
@@ -408,8 +409,7 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     expect(reach.section, '이미지 없는 에셋 패널에 배경 절이 없다').toBe(true);
     expect(reach.label, '「배경색」 라벨').toContain('배경');
     expect(reach.swatch.w, '스와치 폭').toBeGreaterThan(8);
-    expect(reach.clear, '초기화 버튼').not.toBeNull();
-    expect(reach.clear.w, '초기화 버튼 폭(T-100: 자기 줄로 내려 안 짜부라져야 한다)').toBeGreaterThan(20);
+    expect(reach.clear, '초기화 버튼은 걷혔다(1120b A6)').toBeNull();
 
     // ② 솔리드 → 그라데이션 → 화면까지.
     const seeded = await seedGradient(page);
@@ -418,15 +418,7 @@ test.describe('T-011 이미지 넣은 에셋 블럭 ↔ 배경 그라데이션�
     expect(mid.computedImage, '그라데이션이 화면에 칠해진다').toMatch(/gradient/i);
     expect(mid.computedImage, '칠해진 것이 내가 고른 색이다').toContain(USER_RGB);
 
-    // ③ 초기화 → 되돌아온다.
-    /* ★규약 변경(2026-10-03 지디 판정): 초기화 = «배경 없음»(data-bgColor 빈 값 · 체커).
-       옛 기대(기본 솔리드 #a0a0a0)는 «체커가 가린 상태»를 고정한 것이었다 — asset-bg-api-reset B4 와 같이 뒤집음. */
-    await page.evaluate(() => document.getElementById('asset-bg-clear').click());
-    await page.waitForTimeout(120);
-    const after = await bgState(page);
-    expect(after.dataBg, `초기화 후에도 그라데이션이 data-bgColor 에 남았다 — 실제 «${after.dataBg}»`).not.toMatch(/gradient\s*\(/i);
-    expect(after.dataBg, `초기화가 «배경 없음»으로 안 돌아갔다 — 실제 «${after.dataBg}»`).toBe('');
-    expect(after.computedImage, '초기화 후에도 그라데이션이 칠해져 있다').not.toMatch(/gradient/i);
+    // ③ (1120b A6) 초기화 단추가 걷혀 «초기화 → 되돌아온다» 단계는 없다.
 
     expect(pageErrs).toEqual([]);
   });
@@ -540,14 +532,7 @@ test.describe('T-011 저장 → 불러오기 왕복', () => {
     const reach = await bgReach(page);
     expect(reach.section, '왕복 뒤 배경 절이 있다').toBe(true);
     expect(reach.swatch.w).toBeGreaterThan(8);
-    expect(reach.clear, '왕복 뒤 초기화 버튼이 있다').not.toBeNull();
-
-    // 왕복 뒤에도 초기화가 «실제로» 먹는가.
-    await page.evaluate(() => document.getElementById('asset-bg-clear').click());
-    await page.waitForTimeout(120);
-    const after = await bgState(page);
-    expect(after.dataBg, `왕복 뒤 초기화가 안 먹는다 — 실제 «${after.dataBg}»`).not.toMatch(/gradient\s*\(/i);
-    expect(after.computedImage, '왕복 뒤 초기화 후에도 그라데이션이 칠해져 있다').not.toMatch(/gradient/i);
+    expect(reach.clear, '초기화 버튼은 걷혔다(1120b A6)').toBeNull();
 
     expect(pageErrs).toEqual([]);
   });
@@ -611,35 +596,7 @@ test.describe('T-011 저장 → 불러오기 왕복', () => {
        (Fit/교체/제거 절 + 트림 절 = 2. 트림은 loadedmetadata 전엔 «불러오는 중» 상태로 뜬다.) */
     expect(st1.trimSections, 'Video 절(교체/제거 + 트림)이 줄었다 — 배경 절이 영상 절을 밀어냈다').toBe(2);
 
-    // ⑥ 되돌릴 길 — 「초기화」를 눌러도 영상은 살아남아야 한다.
-    const clickedText = await page.evaluate(() => {
-      const body = document.querySelector('#panel-right .panel-body');
-      const sec = [...body.querySelectorAll('.prop-section')].find(s => /배경/.test(s.innerText));
-      const btn = [...sec.querySelectorAll('button')].find(b => {
-        const t = (b.textContent || '').trim();
-        if (/^(asset-(remove|replace|upload|pos)-btn)$/.test(b.id)) return false;
-        if (/이미지|영상|image|video/i.test(t)) return false;
-        return /초기화|기본값|지우기|없음|reset|clear|none/i.test(t);
-      });
-      if (!btn) return null;
-      btn.click();
-      return (btn.textContent || '').trim();
-    });
-    // ⛔「무엇을 눌렀는가」를 남긴다 — 「영상 제거」를 눌러 놓고 빨강을 내는 사고를 막는다(P2 선례).
-    expect(clickedText, '배경 절에서 초기화 버튼을 못 찾았다').not.toBeNull();
-    expect(clickedText, `누른 버튼이 배경 초기화가 아니다 — «${clickedText}»`).not.toMatch(/이미지|영상/);
-    await page.waitForTimeout(150);
-
-    const end = await page.evaluate(() => ({
-      dataBg: window.__ab.dataset.bgColor || '',
-      computedImage: getComputedStyle(window.__ab).backgroundImage,
-      assetType: window.__ab.dataset.assetType,
-      videoEl: !!window.__ab.querySelector('video.asset-video'),
-    }));
-    expect(end.dataBg, `초기화 뒤에도 그라데이션이 남았다 — «${end.dataBg}»`).not.toMatch(/gradient\s*\(/i);
-    expect(end.computedImage, '초기화 뒤에도 화면에 그라데이션이 그대로다').not.toMatch(/gradient/i);
-    expect(end.assetType, '배경 초기화가 영상 상태까지 풀었다').toBe('video-pending');
-    expect(end.videoEl, '★배경 초기화가 영상을 날렸다').toBe(true);
+    // ⑥ (1120b A6) 「초기화」 단추가 걷혀 «눌러도 영상이 산다» 단계는 없다.
 
     expect(pageErrs, '페이지 에러가 났다면 빨강의 이유가 다른 데 있다').toEqual([]);
   });

@@ -43,9 +43,8 @@ test('A3 solid onApply가 이전 그라데이션(style.background)을 지운다(
   assert.match(onApplyBody, /ab\.style\.background\s*=\s*''/, 'solid 적용 시 style.background(그라데이션)를 안 지우면 backgroundColor 위에 그라데이션이 계속 덮여 보인다');
 });
 
-test('A4 배경색 초기화(clear) 버튼도 style.background를 지운다', () => {
-  const clearBody = sliceCall(SRC, "document.getElementById('asset-bg-clear').addEventListener('click', () =>", '배경색 초기화 버튼 핸들러');
-  assert.match(clearBody, /ab\.style\.background\s*=\s*''/, '초기화가 backgroundColor만 지우면 그라데이션이 남아있는 채로 "초기화됨"으로 보인다');
+test('A4 배경색 초기화(clear) 버튼은 걷혔다 — 1120b A6(현빈 261120 「초기화 버튼 없애줘」)', () => {
+  assert.doesNotMatch(SRC, /id="asset-bg-clear"|getElementById\('asset-bg-clear'\)/, '#asset-bg-clear 마크업·배선이 남았다');
 });
 
 test('A5 ★변이대조 — onGradient를 빼면 A1이 빨개져야 한다(이 검사가 실제로 그 배선을 본다는 증거)', () => {

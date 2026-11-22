@@ -3,6 +3,7 @@
  * ⛔이 자가 안 재는 것: wireColorField 를 쓰는 다른 패널 색 칸 전수(같은 함수다).
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp } = require('./_root-harness.js');
 
 const toast = (page) => page.evaluate(() => { const t = document.getElementById('editor-toast'); return t && t.classList.contains('show') ? t.textContent : null; });
@@ -75,7 +76,7 @@ test('#dvd-alpha [음성] 「50%」 는 전처럼 50 · 말 없음, 1.5 → 2 �
 });
 
 for (const [name, open, sel] of [
-  ['그림자 #txt-shadow-color-alpha', async (p) => { await boot(p, 'addTextBlock', 'text-block'); await p.locator('#txt-fx-add').selectOption('shadow'); }, '#txt-shadow-color-alpha'],   /* ★t4-01 — 그림자는 Effects 목록에서 */
+  ['그림자 #txt-shadow-color-alpha', async (p) => { await boot(p, 'addTextBlock', 'text-block'); await p.click('#txt-fx-add-btn').then(() => p.click('#txt-fx-menu [data-fx="shadow"]')); }, '#txt-shadow-color-alpha'],   /* ★t4-01 — 그림자는 Effects 목록에서 */
   ['페이지 #page-bg-alpha-input', async (p) => { await boot(p, 'addDividerBlock', 'divider-block'); await p.evaluate(() => { window.switchToTab('inspector'); if (!document.getElementById('design-system-panel').classList.contains('open')) window.DesignSystem.togglePanel(); }); if (!(await p.locator('#page-bg-alpha-input').isVisible())) await p.locator('.ds-section-label', { hasText: '캔버스' }).click(); }, '#page-bg-alpha-input'],
   ['색 팝업 알파', async (p) => { await boot(p, 'addDividerBlock', 'divider-block'); await p.locator('#dvd-color').click(); }, '.goya-cp-alpha-input'],
 ]) {

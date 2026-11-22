@@ -21,6 +21,7 @@
 // 돌리는 법(트리 cwd):
 //   npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/fix5-style-copy.dom.spec.js --grep @d2 --workers=1 --retries=0
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 const { clickAt } = require('./_click-at.js');
 
@@ -193,7 +194,7 @@ async function scene(page, o) {
   await fillEnter(page, '#txt-ls-number', A_LOOK.ls);
   await page.locator(`#panel-right .prop-align-btn[data-align="${A_LOOK.align}"]`).first().click();
   // 그림자 — ★t4-01 부터 Effects 「효과 추가」 목록에서 «그림자»를 고른다(옛 Shadow 절 토글은 텍스트 블럭에서 사라졌다)
-  await page.locator('#txt-fx-add').selectOption('shadow');
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="shadow"]'));
   pre(await pollTrue(page, () => !!document.getElementById('txt-fxsh-card'), null, 3000), 'A 그림자 켜짐');
   await expect.poll(async () => { const L = await readLook(page, ids.A); return L && [L.fontSize, L.fontWeight, L.color, L.textAlign, L.shadowOn, /Noto Serif KR/.test(L.fontFamily)].join('|'); },
     { message: '장면 미성립: A 꼴 52px·600·#333·오른쪽·그림자·Noto Serif KR' }).toBe('52px|600|rgb(51, 51, 51)|right|true|true');

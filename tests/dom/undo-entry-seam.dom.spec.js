@@ -4,6 +4,7 @@
  * ⛔고정 대기 없음 — 조건 대기만.
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 const { hitAt } = require('./_click-at.js');
 
@@ -29,9 +30,9 @@ for (const [fx, del] of [['freetransform', 'fxft-del'], ['glow', 'fxgl-del']]) {
       window.selectBlock(window.__tbId);
     });
     await waitZoomSettled(page, 100);
-    await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
+    await page.waitForFunction(() => !!document.getElementById('txt-fx-add-btn'));
     const k0 = await keys(page);
-    await page.selectOption('#txt-fx-add', fx);
+    await page.click('#txt-fx-add-btn').then(() => page.click(`#txt-fx-menu [data-fx="${fx}"]`));
     await page.waitForFunction((k) => Object.keys(document.getElementById(window.__tbId).dataset).filter((x) => /^(tf|fx)/.test(x)).sort().join() !== k, k0);
     const kOn = await keys(page);
     await page.waitForFunction((d) => !!document.querySelector(`[id$="${d}"]`), del);
@@ -144,8 +145,8 @@ for (const [fx, sl] of [['glow', '[id$="fxgl-blur-slider"]'], ['reflect', '[id$=
       window.selectBlock(window.__tbId);
     });
     await waitZoomSettled(page, 100);
-    await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
-    await page.selectOption('#txt-fx-add', fx);
+    await page.waitForFunction(() => !!document.getElementById('txt-fx-add-btn'));
+    await page.click('#txt-fx-add-btn').then(() => page.click(`#txt-fx-menu [data-fx="${fx}"]`));
     await page.waitForFunction((sl) => !!document.querySelector(sl), sl);
     const fxv = () => page.evaluate(() => JSON.stringify(Object.entries(document.getElementById(window.__tbId).dataset).filter(([k]) => /^fx/.test(k))));
     const v0 = await fxv();

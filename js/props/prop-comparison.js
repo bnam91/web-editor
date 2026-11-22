@@ -170,10 +170,10 @@ export function showComparisonProperties(block) {
         <input type="range" class="prop-slider" id="cmp-rowgap" min="0" max="40" step="1" value="${_num(d.rowGap, 8)}">
         <input type="number" class="prop-number" id="cmp-rowgap-num" min="0" max="40" value="${_num(d.rowGap, 8)}"></div>`),
       sec('padding', `
-      <div class="prop-row"><span class="prop-label">좌우</span>
+      <div class="prop-row"><span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="cmp-padx" min="0" max="160" step="2" value="${parseInt(d.padX) || 0}">
         <input type="number" class="prop-number" id="cmp-padx-num" min="0" max="160" value="${parseInt(d.padX) || 0}"></div>
-      <div class="prop-row"><span class="prop-label">상하</span>
+      <div class="prop-row"><span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="cmp-pady" min="0" max="80" step="2" value="${parseInt(d.padY) || 0}">
         <input type="number" class="prop-number" id="cmp-pady-num" min="0" max="80" value="${parseInt(d.padY) || 0}"></div>`),
       sec('appearance', `

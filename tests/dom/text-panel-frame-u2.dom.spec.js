@@ -11,6 +11,7 @@
  * 앱 통째(bootApp) · 헤드리스 · CDP·라이브 인스턴스 무접촉.
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp } = require('./_root-harness.js');
 const { addKind } = require('./_block-roster-294.js');
 
@@ -30,18 +31,18 @@ async function openText(page) {
 
 /** 펼친 절마다 «보이는 마지막 내용 아래 ↔ 절 아래끝». 맨 끝 절·보이는 내용 없는 절은 뺀다. */
 const readGaps = (page) => page.evaluate(() => {
-  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]')];
+  /* ★기대 바뀜(Q1 · 현빈 GO 261120) — Layout 묶음(.prop-sec-group · 몸 여럿)도 절 하나로 잰다 */
+  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec], #panel-right .panel-body > .prop-sec-group')];
   const out = [];
   secs.forEach((s, i) => {
     if (s.classList.contains('is-collapsed')) return;
-    const body = s.querySelector(':scope > .prop-sec-body');
     let maxB = -Infinity;
-    for (const el of body.querySelectorAll('*')) {
+    for (const el of s.querySelectorAll('.prop-sec-body *')) {
       const r = el.getBoundingClientRect();
       if (r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden') maxB = Math.max(maxB, r.bottom);
     }
     if (maxB === -Infinity) return;
-    out.push({ sec: s.dataset.sec, last: i === secs.length - 1, gap: Math.round((s.getBoundingClientRect().bottom - maxB) * 100) / 100 });
+    out.push({ sec: s.dataset.sec || 'layout-group', last: i === secs.length - 1, gap: Math.round((s.getBoundingClientRect().bottom - maxB) * 100) / 100 });
   });
   const css = getComputedStyle(document.documentElement);
   return { gaps: out, tok: parseFloat(css.getPropertyValue('--ui-sec-body-pb')), tokLast: parseFloat(css.getPropertyValue('--ui-space-2')) };
@@ -52,7 +53,7 @@ const judgeGaps = ({ gaps, tok, tokLast }) => gaps.filter((g) => Math.abs(g.gap 
 test('B1 ★펼친 절 아래 여백이 전부 --ui-sec-body-pb — Effects(카드 있음)도 다른 절과 같다', async ({ page }) => {
   const errs = await scene(page);
   await openText(page);
-  await page.selectOption('#txt-fx-add', 'reflect');   // 카드가 있는 Effects — 옛 14px 자리
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="reflect"]'));   // 카드가 있는 Effects — 옛 14px 자리
   await expect(page.locator('#txt-fx-list'), '[전제] Effects 에 카드가 섰다').toBeAttached();
   const m = await readGaps(page);
   console.log('[B1] ' + JSON.stringify(m));
@@ -65,7 +66,7 @@ test('B1 ★펼친 절 아래 여백이 전부 --ui-sec-body-pb — Effects(카�
 test('B1b ★내장 양성대조 — Effects 카드 꼬리에 margin 을 심으면 판정이 그 절을 잡는다', async ({ page }) => {
   await scene(page);
   await openText(page);
-  await page.selectOption('#txt-fx-add', 'reflect');
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="reflect"]'));
   await expect(page.locator('#txt-fx-list')).toBeAttached();
   await page.evaluate(() => { const l = document.getElementById('txt-fx-list'); const last = l.lastElementChild || l; last.style.marginBottom = '17px'; });
   expect(judgeGaps(await readGaps(page)).join(' | '), '★꼬리 margin 을 못 잡는다 — B1 은 공짜 초록이다').toContain('effects=');

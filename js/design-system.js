@@ -36,6 +36,11 @@ const DesignSystem = (() => {
          (tests/dom/text-style-recent.dom.spec.js ★M 이 ★잰 수와 ★이 상수를 ★견준다).
          ⇒ ★칩 폭·패널 폭을 바꾸면 ★그 검사가 ★빨개진다. ★거기 찍힌 세 수로 ★다시 세워라. */
   const TEXT_STYLE_HISTORY_MAX = 5;
+  /* 1120b R2c(현빈 261121) — 형광펜·점·글로우 «최근 효과» 합친 한 줄의 칸 수. 저장은 kind 별 큐(위 MAX) 그대로, 읽을 때 합쳐 이만큼.
+     법·검사는 위와 같다(tests/dom/text-style-recent.dom.spec.js M 이 그 줄 폭에서 잰 수와 견준다).
+     ★잰 값 261121(지혜맥 격리 앱 · 패널 240): 줄 가용폭 ★161 · 라벨 ★18.28 · 칩 설계폭 ★26(css .ts-chip) · gap ★4
+       ⇒ floor((161 − 18.28 − 4) ÷ 30) = ★4. ⚠️5 를 넣으면 칩이 flex 로 24.5 까지 눌려 «들어가 보인다» — 설계폭으로 센다. */
+  const TEXT_STYLE_FX_RECENT_MAX = 4;
   /* ★같은 kind 의 ★연속 손질을 ★한 벌로 묶는 창(ms).
      ★왜 필요한가(실측 2026-10-08): 슬라이더 ★한 번 끌기 = commit ★1회라 ★드래그는 큐를 안 채운다.
        큐를 채우는 것은 ★«다른 칸»이다 — 색 → 높이 → Y 를 한 번씩 손보면 ★3회 commit 이 나고
@@ -1075,7 +1080,7 @@ const DesignSystem = (() => {
     getColorHistory, pushColorHistory, restoreColorHistoryFromMeta, COLOR_HISTORY_MAX,
     // 텍스트 «효과» 히스토리 — prop-text-wireup-text-edit 가 쌓고, text-style-chips 가 그린다(컬러와 같은 꼴)
     getTextStyleHistory, pushTextStyleHistory, restoreTextStyleHistoryFromMeta,
-    TEXT_STYLE_HISTORY_MAX, TEXT_STYLE_COALESCE_MS,
+    TEXT_STYLE_HISTORY_MAX, TEXT_STYLE_FX_RECENT_MAX, TEXT_STYLE_COALESCE_MS,
     // 인용구 ★사용자 부호 — prop-quote 가 더하고, quote-block 의 명부가 제품 8종과 ★합친다(효과 히스토리와 같은 꼴)
     getQuoteShapes, addQuoteShape, removeQuoteShape, restoreQuoteShapesFromMeta, QUOTE_SHAPES_MAX,
     openInlineNameForm: (...a) => _openInlineNameForm(...a),

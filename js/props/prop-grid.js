@@ -1641,10 +1641,10 @@ function _grdLineBarHtml(anyHit, block, host = null) {
          짝으로 눈에 보여야 하고, tests/dom/grid-cell-panel-handles.dom.spec.js E0-c 가
          이 자리를 «하네스 자가점검»의 기준점으로 쓴다(그 id 가 없으면 그 검사가 눈이 먼다). */
     return `
-    <div class="prop-section" data-scope="line" style="padding-bottom:4px;">
+    <div class="prop-section" data-scope="line" style="padding-bottom:4px;">${H.head(r, c, null) ? `
       <div class="prop-row" style="align-items:center;gap:6px;">
         <span class="prop-hint" style="flex:1;min-width:0;">${H.head(r, c, null)}</span>
-      </div>
+      </div>` : ''}
       <div class="prop-row" style="gap:6px;flex-wrap:wrap;">
 ${_grdAddKindSelectHtml(H.kinds, H.kind === 'grid' ? _GRD_ADD_IMG_OPTS : '')}${H.kinds.includes('image') ? `
         <button id="grd-cell-add-icon-btn" class="prop-btn-sm" title="아이콘 줄 추가 (단축키 K)">+ 아이콘 (K)</button>` : ''}
@@ -3982,9 +3982,13 @@ function _grdApplyScopeFilter(filter) {
     if (el.closest('#grd-scope-chips')) return;
     el.style.display = (!filter || el.dataset.scope === filter) ? '' : 'none';
   });
-  propPanel.querySelectorAll(':scope > .prop-section[data-sec]').forEach((secEl) => {
+  /* ★Q1 · Q2(시안 v10) — 절은 겉 직속만이 아니다: Layout 묶음 몸 · Type 띠도 .prop-section[data-sec]. 묶음은 몸이 다 숨으면 머리째 숨긴다 */
+  propPanel.querySelectorAll('.prop-section[data-sec]').forEach((secEl) => {
     const keep = !filter || !!secEl.querySelector(`[data-scope="${filter}"]`);
     secEl.style.display = keep ? '' : 'none';
+  });
+  propPanel.querySelectorAll(':scope > .prop-sec-group').forEach((g) => {
+    g.style.display = [...g.querySelectorAll(':scope > .prop-section[data-sec]')].some((p) => p.style.display !== 'none') ? '' : 'none';
   });
 }
 function _grdWireScopeChips(block, filter, inferred) {

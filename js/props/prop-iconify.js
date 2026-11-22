@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
@@ -65,11 +65,7 @@ export function showIconifyProperties(block) {
         <button class="prop-align-btn${rotation === 180 ? ' active' : ''}" data-deg="180">180°</button>
         <button class="prop-align-btn${rotation === 270 ? ' active' : ''}" data-deg="270">270°</button>
       </div>
-      <div class="prop-row" style="margin-top:4px;">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="icn-rot-slider" min="-180" max="180" step="1" value="${rotation > 180 ? rotation - 360 : rotation}">
-        <input type="number" class="prop-number" id="icn-rot-number" min="-180" max="180" value="${rotation > 180 ? rotation - 360 : rotation}">
-      </div>`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'icn', numberId: 'icn-rot-number', value: (rotation > 180 ? rotation - 360 : rotation), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`, { headTools: window.overlayToggleBtnHTML?.({ id: 'icn-float-toggle', active: floating }) || '' }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">크기</span>
@@ -401,14 +397,14 @@ export function showIconifyProperties(block) {
   // 자유 슬라이더/숫자(icn-rot-*)·코너 핫존(asset-rotate.js)이 같은 상태를 쓴다.
   const _icnRotS = propPanel.querySelector('#icn-rot-slider');
   const _icnRotN = propPanel.querySelector('#icn-rot-number');
-  const _icnSyncUI = deg => {
+  const _icnSyncUI = (deg, typing) => {
     const norm = ((deg % 360) + 360) % 360;         // 프리셋 버튼은 0/90/180/270 표기
     const signed = deg > 180 ? deg - 360 : deg;     // 슬라이더는 -180..180
     propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(b => {
       b.classList.toggle('active', parseInt(b.dataset.deg) === norm);
     });
     if (_icnRotS) _icnRotS.value = signed;
-    if (_icnRotN) _icnRotN.value = signed;
+    if (_icnRotN && !typing) _icnRotN.value = signed;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
   };
   const applyRotation = deg => {
     window.applyRotationDeg?.(block, deg);
@@ -418,15 +414,16 @@ export function showIconifyProperties(block) {
   propPanel.querySelectorAll('#icn-rotation-group .prop-align-btn').forEach(btn => {
     btn.addEventListener('click', () => applyRotation(parseInt(btn.dataset.deg)));
   });
-  const _icnFree = v => {
+  const _icnFree = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    _icnSyncUI(v);
+    _icnSyncUI(v, typing);
   };
   _icnRotS?.addEventListener('input',  () => _icnFree(_icnRotS.value));
-  _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value));
+  _icnRotN?.addEventListener('input',  () => _icnFree(_icnRotN.value, true));
   _icnRotS?.addEventListener('change', () => window.pushHistory?.());
-  _icnRotN?.addEventListener('change', () => window.pushHistory?.());
+  _icnRotN?.addEventListener('change', () => { _icnFree(_icnRotN.value); window.pushHistory?.(); });
+  wireRotRow({ p: 'icn', numberId: 'icn-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음 · 0/90/180/270 묶음은 Q19 미결이라 그대로)
 
   // 교체 버튼
   const openModal = () => window.openIconifyModal?.();

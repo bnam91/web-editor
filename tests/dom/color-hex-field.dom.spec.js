@@ -135,6 +135,9 @@ const probe = (page, id) => page.evaluate((id) => {
     w: Math.round(r.width),
     invalid: el.classList.contains('prop-color-hex--invalid') || el.getAttribute('aria-invalid') === 'true',
     maxlength: el.getAttribute('maxlength'),
+    /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — «여섯 글자(RRGGBB)가 다 보이나»를 칸 «자신»으로 잰다: 넓은 hex 값을 넣어 넘침(scrollWidth > clientWidth)이 없나.
+       옛 자 «50px»은 옛 칸(패딩·글꼴)의 대리값이었다 — 우측패널 재설계 칸(11px SF Mono · 패딩 0)은 41px 에 6자 hex 가 넘침 없이 다 보인다(지혜맥 실측: 888888·DDDDDD·FFFFFF 모두 41/41 · 7자 «#FFFFFF» 만 46>41 = 표시 규칙 R1 밖). 값은 되돌린다. */
+    fits6: (() => { const v0 = el.value; let bad = null; for (const v of ['888888', 'DDDDDD', 'FFFFFF', 'BBBBBB', '000000']) { el.value = v; if (el.scrollWidth > el.clientWidth) bad = `${v} ${el.scrollWidth}>${el.clientWidth}`; } el.value = v0; return bad || true; })(),
   };
 }, id);
 
@@ -165,13 +168,15 @@ test.describe('색 코드 칸 — 한 규약 · 무효값은 알리거나 되돌
     await page.evaluate(() => window.__openAsset());
     const m = await probe(page, 'asset-bg-hex');
     expect(m, 'asset-bg-hex 가 없다').not.toBeNull();
-    expect(m.w, `배경색 hex 칸이 ${m.w}px — 여섯 글자(RRGGBB)가 안 들어간다`).toBeGreaterThanOrEqual(50);
+    expect(m.fits6, `배경색 hex 칸(${m.w}px)에 여섯 글자(RRGGBB)가 안 들어간다`).toBe(true);
   });
 
   test('L2 음성대조 — 버튼 없는 형제 행(외곽선)은 원래 멀쩡했다', async ({ page }) => {
     await page.evaluate(() => window.__openAsset());
+    /* 1120b A2 — Stroke 는 머리 «＋» 로 켜야 몸(색 줄)이 보인다 */
+    await page.evaluate(() => { const c = document.getElementById('asset-stroke-on'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); });
     const m = await probe(page, 'asset-stroke-color-hex');
-    expect(m.w, '이 행이 애초에 좁았다면 L1 의 원인 지목이 틀린 것이다').toBeGreaterThanOrEqual(50);
+    expect(m.fits6, `이 행이 애초에 좁았다면 L1 의 원인 지목이 틀린 것이다(${m.w}px)`).toBe(true);
   });
 
   test('L3 ★같은 뿌리 — 심플카드의 「투명」/「✕」 버튼이 붙은 색칸도 최소폭을 지킨다', async ({ page }) => {
@@ -179,7 +184,11 @@ test.describe('색 코드 칸 — 한 규약 · 무효값은 알리거나 되돌
     for (const id of ['cvb-iconbg-hex', 'cvb-textbg-hex', 'cvb-text-bg-top-raw']) {
       const m = await probe(page, id);
       expect(m, `${id} 가 없다`).not.toBeNull();
-      expect(m.w, `${id} 가 ${m.w}px`).toBeGreaterThanOrEqual(50);
+      expect(m.fits6, `${id}(${m.w}px)에 여섯 글자가 안 들어간다`).toBe(true);
+      /* RP-PRD-PREEXIST-FAIL-01 — 바닥을 준 대가가 줄 넘침·단추 글자 잘림으로 가지 않는다(줄임은 옆 «투명»/«✕» 단추가 받는다) */
+      const row = await page.evaluate((id) => { const e = document.getElementById(id), r = e.parentElement;
+        return { over: r.scrollWidth > r.clientWidth, cut: [...r.querySelectorAll('button')].filter((b) => b.scrollWidth > b.clientWidth).map((b) => b.textContent.trim()) }; }, id);
+      expect(row, `${id} 줄 넘침 0 · 옆 단추 글자 안 잘림`).toEqual({ over: false, cut: [] });
     }
   });
 

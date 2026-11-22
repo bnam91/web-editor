@@ -42,22 +42,16 @@
    ⛔이 블록 안에는 색·px 리터럴 0 — 전부 var(--ui-*) (scripts/check-design-tokens.sh 하드게이트가 BEGIN/END 사이를 잰다).
    ★[data-sec] 로 한정한다 — 아직 프레임으로 안 옮긴 패널(U1~U5 몫)의 모양은 이 블록이 안 바꾼다. */
 .prop-section + .prop-section[data-sec] { border-top-color: var(--ui-sec-divider); }
-.prop-section[data-sec]:not(.is-collapsed) { padding-bottom: var(--ui-sec-body-pb); }
-.prop-section[data-sec]:not(.is-collapsed):last-child { padding-bottom: var(--ui-space-2); }
-/* 머리↔몸 간격 = 제목 아래 padding(--ui-sec-head-py) «하나». 옛 title-row 의 음수 margin · «다음 형제» margin-top 을 끈다.
-   접히면 절 아래 padding 0 ⇒ 머리 위아래가 --ui-sec-head-py 로 대칭. */
+.prop-section[data-sec] { padding-bottom: var(--ui-sec-body-pb); }   /* 표준 절은 접히지 않는다(재설계 1차 ①) — 옛 .is-collapsed 갈래 걷음 */
+.prop-section[data-sec]:last-child { padding-bottom: var(--ui-space-2); }
+/* 머리↔몸 간격 = 제목 아래 padding(--ui-sec-head-py) «하나». 옛 title-row 의 음수 margin · «다음 형제» margin-top 을 끈다. */
 .prop-section[data-sec] > .prop-sec-head { margin-bottom: 0; }
 .prop-section[data-sec] > .prop-sec-head + .prop-sec-body { margin-top: 0; }
-.prop-section[data-sec].is-collapsed { padding-bottom: 0; }
-.prop-sec-head > .prop-section-title {
-  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--ui-space-1); cursor: pointer;
+.prop-sec-head > .prop-section-title {   /* 제목 글자만 — 쉐브론·클릭 접기 없음(패널 재설계 1차) */
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center;
   font-size: var(--ui-sec-title-fs); color: var(--ui-sec-title-color);
 }
-.prop-sec-chevron { flex: 0 0 auto; transition: var(--ui-chevron-transition); }
-.prop-section-title[aria-expanded="false"] > .prop-sec-chevron { transform: rotate(-90deg); }
 .prop-sec-title-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prop-sec-head > .prop-section-title:hover { color: var(--ui-sec-title-color-hover); }
-.prop-sec-body[hidden] { display: none; }
 /* ★R6(U6 · style-write-no-subtree-recalc P1) — [style*=…] 을 «가운데 겹»(오른쪽에 자손 결합자가 더 있는 겹)에 두지 않는다.
    그 자리면 어느 요소의 인라인 style 쓰기(#canvas-scaler 높이)든 그 아래 «오른쪽 겹에 맞는 자손 전부»(여기선 아무 꼴도 안 거르는 :not)를 무효화해
    통째 재계산이 났다(실측 12118 요소 · 250c 와 같은 꼴). ⇒ ⑯ 둘째 줄의 가운데 겹은 [hidden] 만 본다(그 겹 안 :has 까지 — 숨은 그 겹의 자식은 어차피 안 그려진다 · 대가: 몸 직속에 인라인 display:none 꼬리가 있으면 한 겹 아래 마지막 카드의 margin 은 남는다).
@@ -70,11 +64,50 @@
 .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))),
 .prop-sec-body > :not([hidden]):not(:has(~ :not([hidden]))) > :not([hidden], [style*="display:none"], [style*="display: none"]):not(:has(~ :not([hidden], [style*="display:none"], [style*="display: none"]))) { margin-bottom: 0; }
 /* ⑰ 몸에 보이는 자식이 없는 펼친 절(Stroke 끔 · 효과 0 · 머리만 절) — 아래 여백 0 ⇒ 머리 위아래가 --ui-sec-head-py 로 대칭(손잡이 가운데) */
-.prop-section[data-sec]:not(.is-collapsed):not(:has(> .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]))) { padding-bottom: 0; }
-/* 틀 절 몸 안의 옛 하위 절(.prop-section — 빌더가 절 통째를 줄 때) — 좌우 들임을 두 번 받지 않게(틀 절이 이미 들였다) */
+.prop-section[data-sec]:not(:has(> .prop-sec-body > :not([hidden], [style*="display:none"], [style*="display: none"]))) { padding-bottom: 0; }
+/* 틀 절 몸 안의 옛 하위 절(.prop-section — 빌더가 절 통째를 줄 때) — 좌우 들임을 두 번 받지 않게(틀 절이 이미 들였다)
+   ★R5(U6) — 둘째 줄: 그리드 _grdScopeWrap 이 옛 절을 [data-scope] 로 한 겹 감싼다(색 칸 133 < 149) */
 .prop-section[data-sec] > .prop-sec-body > .prop-section,
-.prop-section[data-sec] > .prop-sec-body > [data-scope] > .prop-section { padding-inline: 0; }   /* ★R5(U6) — 그리드 _grdScopeWrap 이 옛 절을 [data-scope] 로 한 겹 감싼다(색 칸 133 < 149) */
+.prop-section[data-sec] > .prop-sec-body > [data-scope] > .prop-section { padding-inline: 0; }
+/* 끝 옵션 칼럼(재설계 1차 ⑧) — 절 몸 오른쪽에 --ui-opt-col-w 자리를 비워 둔다(값 줄 끝이 모두 같은 자리에 선다).
+   그 칼럼에 서는 것 = 절 머리 손잡이(Stroke·Effects ＋ · 플로팅 등)와 줄 끝 사슬(.prop-chain-btn). 타입 띠(kind)는 단추 묶음이라 칼럼 밖. */
+.prop-section[data-sec]:not([data-sec="kind"]) { padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
+.prop-section[data-sec]:not([data-sec="kind"]) > .prop-sec-head { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.prop-section[data-sec] .prop-row:has(> .prop-chain-btn:last-child) { margin-right: calc(-1 * var(--ui-opt-col-w)); }
+/* 컬러 변수(VAR) 칩 줄은 끝 칼럼까지 쓴다 · 한 줄(시안 v10 ⑤ — 칼럼만큼 줄이 좁아져 칩 넷이 두 줄로 꺾였다) */
+.prop-section[data-sec] > .prop-sec-body > .cv-chips:not(.ts-recent-row) { margin-right: calc(-1 * var(--ui-opt-col-w)); flex-wrap: nowrap; }
+/* 1120b R1·R2(현빈 261120 「최근은 한 줄로」) — 최근 색(.cv-recent-row · 최대 COLOR_HISTORY_MAX 7)은 위 줄로 끝 칼럼까지(7개가 한 줄에 든다) ·
+   최근 효과(.ts-recent-row)는 폭 그대로(TEXT_STYLE_HISTORY_MAX 5 를 그 폭으로 쟀다 — text-style-recent M) · 둘 다 어디서든 꺾지 않는다(둘째 줄 0). */
+/* .cv-chips 를 붙여 0,2,0 — 아래(654) .cv-chips { flex-wrap: wrap } 이 같은 0,1,0 · 뒤라서 이겼다(DOM R2 wrap 실측) */
+.cv-chips.cv-recent-row, .cv-chips.ts-recent-row { flex-wrap: nowrap; overflow: hidden; }
+/* 머리 «＋»(재설계 1차 ⑨) — Stroke: 체크박스를 감싼 단추(켜면 «−») · Effects: 같은 칼럼 폭 select(목록 = 효과 종류) */
+.prop-sec-add > input { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+.prop-sec-add:has(> input:checked) > .prop-sec-add-plus, .prop-sec-add:not(:has(> input:checked)) > .prop-sec-add-minus { display: none; }
+.prop-sec-add:has(> input:focus-visible) { outline: var(--ui-focus-ring); }
+.prop-section[data-sec] .prop-row > .prop-chain-btn:last-child { margin-left: calc(var(--ui-space-1_5) - var(--ui-space-1)); }   /* 줄 gap 4 + 이것 2 = 칼럼 사이 6 ⇒ 숫자 칸 끝이 다른 줄과 같은 자리 */
+/* Q2 Type 띠 · Q1 Layout 묶음(시안 v10 · 현빈 GO 261120 — .mk-kind-strip · .mk-part · .mk-sub-row 값 그대로).
+   띠 · 묶음 몸 = 안에 든 .prop-section[data-sec](옛 절 그대로 — 시험·배선의 closest 가 key 를 준다) ⇒ 겉 절 모양(들임 · 아래 여백 · 칼럼 · 구분선)을 지운다.
+   묶음 겉(.prop-sec-group · data-sec 없음)이 절 모양을 받는다. 특이도 = 위 [data-sec] 규칙들(⑰ 포함)보다 높게 · 뒤에. */
+.panel-body .prop-section > .prop-section.prop-kind-band[data-sec],
+.panel-body .prop-section > .prop-section.prop-sec-part[data-sec] { padding: 0; border-top: 0; margin: 0; }
+.panel-body .prop-section > .prop-section.prop-kind-band[data-sec] { padding-top: var(--ui-space-1_5); }
+.panel-body .prop-section > .prop-section.prop-sec-part[data-sec] + .prop-section.prop-sec-part[data-sec] { margin-top: var(--ui-space-2); }
+.prop-kind-band-tools { display: flex; justify-content: flex-end; margin-top: var(--ui-space-1); }
+.panel-body > .prop-section.prop-sec-group { padding-bottom: var(--ui-sec-body-pb); padding-right: calc(var(--ui-space-2) + var(--ui-opt-col-w)); }
+.panel-body > .prop-section.prop-sec-group:last-child { padding-bottom: var(--ui-space-2); }
+.prop-section.prop-sec-group > .prop-sec-head { margin-bottom: 0; margin-right: calc(-1 * var(--ui-opt-col-w)); }
+.prop-sec-sub-row { display: flex; align-items: center; justify-content: space-between; min-height: calc(var(--ui-btn-h) - var(--ui-space-0_5)); }
+.prop-sec-sub-row .prop-field-label { margin-bottom: 0; }
+.prop-sec-sub-row + * { margin-top: var(--ui-space-1); }
+/* Q37 블록 Template 절(시안 v10 제안 꼴 — 칸 사이 4) */
+.prop-tpl-form { display: flex; flex-direction: column; gap: var(--ui-space-1); }
+.prop-tpl-form[hidden] { display: none; }
+.prop-tpl-folder { width: 100%; }
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
+/* Effects ＋ 메뉴(시안 v8/v10 .mk8-menu 값 — 머리 오른쪽 아래에 뜨는 앱 메뉴 꼴 · 항목 = .fp-menu-item) */
+.prop-sec-head:has(> .prop-fx-menu) { position: relative; }
+.prop-fx-menu { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
+.prop-fx-menu[hidden] { display: none; }
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);
   min-height: 24px; margin-bottom: var(--ui-space-1_5); overflow: hidden;
@@ -91,7 +124,7 @@
    ⛔전역 .prop-label(56px)은 안 건드린다 — 그 고정폭이 패널의 «세로 정렬»을 만든다.
      이 변형은 «라벨 하나 + 남는 폭을 다 쓰는 컨트롤» 인 줄에서만 쓴다. */
 .prop-label--auto { width: auto; flex: 0 0 auto; }
-.prop-field-label { font-size: var(--ui-fs-10); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }
+.prop-field-label { font-size: var(--ui-fs-base); color: var(--ui-text-muted, #6b6b6b); margin-bottom: 4px; display: block; }   /* 라벨 글자 크기 하나 = --ui-fs-base(.prop-label 과 같은 값 · 시안 v9 #4 · 지디 261120 전 패널) */
 /* 라벨 바로 아래 단추(프레임 Radial Arrange · Fill Image 등) — .prop-action-btn 의 margin-top 6(절 리듬)이 라벨 4 와 겹쳐 6 이 됐다 → 라벨→칸 4px 하나로(현빈 261122 · 선례 .prop-section-title-row > .prop-action-btn) */
 .prop-field-label + .prop-action-btn { margin-top: 0; }
 /* 단추 → (숨은 파일 칸) → 다음 위 라벨 = 4 — 모달 «이미지 선택» 아래 «Text» 라벨이 단추에 닿았다(0 · 현빈 261122 «줄 → 다음 라벨» 쓸기) */
@@ -122,7 +155,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-icon-input input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .prop-xy-label {
   flex-shrink: 0;
-  font-size: var(--ui-fs-10);
+  font-size: var(--ui-fs-base);   /* 라벨 크기 하나(시안 v9 #4 · 전 패널) */
   font-weight: var(--ui-fw-bold);
   color: var(--ui-text-dim, #666);
   margin-left: 6px;
@@ -130,6 +163,16 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   min-width: 10px;
   text-align: center;
 }
+.prop-xy-label--scrub { cursor: ew-resize; user-select: none; touch-action: none; }   /* 라벨 좌우 끌기(재설계 1차 ⑥) */
+/* 회전 줄(Q17 · Q20 · 시안 v10 — 각도 칸 89 | 단추 27·27·27) — 반반 · 단추 사이 space-1 · «°» 꼬리 · 아이콘 끌기 */
+.prop-rot-row > .prop-icon-input, .prop-rot-row > .prop-rot-btns { flex: 1 1 50%; min-width: 0; }
+.prop-rot-btns { gap: var(--ui-space-1); flex-wrap: nowrap; }
+.prop-rot-btns > .prop-align-btn { flex: 1 1 0; min-width: 0; }
+.prop-rot-scrub { display: flex; align-items: center; cursor: ew-resize; user-select: none; touch-action: none; }
+.prop-icon-input > .prop-unit { flex-shrink: 0; color: var(--ui-text-dim); font-size: var(--ui-fs-base); margin-right: var(--ui-space-1_5); }
+.prop-icon-input:has(> input:disabled) { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }   /* 꺼진 칸(텍스트 높이 auto) */
+.prop-icon-input:has(> input:disabled):hover { border-color: transparent; }
+.prop-icon-input > input:disabled { cursor: not-allowed; }
 .prop-value-text { font-size: var(--ui-fs-base); color: var(--ui-text-sub); }
 .prop-count-btn { background:var(--ui-bg-input); border:1px solid var(--ui-border-mid); color:var(--ui-text-sub); width:20px; height:20px; border-radius:4px; cursor:pointer; font-size:var(--ui-fs-14); line-height:1; display:flex; align-items:center; justify-content:center; }
 .prop-count-btn:not(:disabled):hover { background:var(--ui-border); color:#fff; }
@@ -188,6 +231,10 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   /* height: 24px; */
   font-size: var(--ui-fs-base);
 }
+/* 우측 패널 숫자 칸 위아래 스피너 걷음(Figma F3-1 · 패널 재설계 1차 ⑦) — 값 증감은 ↑↓ 키(브라우저 기본 그대로) */
+#panel-right input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+#panel-right input[type="number"]::-webkit-outer-spin-button,
+#panel-right input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .prop-ph-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -433,6 +480,9 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 }
 .prop-style-btn:hover { border-color: var(--ui-divider); color: var(--ui-text-sub); }
 .prop-style-btn.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
+/* 텍스트 패널 가로 정렬 · B I U S 묶음만 Figma 식 켜짐(파란 채움 없음 · 패널 재설계 1차 ⑪ · F4-1). 다른 묶음은 위 규칙 그대로 */
+#txt-align-group .prop-align-btn.active,
+#txt-style-group .prop-style-btn.active { background: var(--ui-border-mid); border-color: var(--ui-border-strong); color: var(--ui-text); }
 /* U7(E121 · 2026-10-05) 라벨 Tag Style 켜짐 — 형제 단추(.prop-style-btn/.prop-align-btn)와 같은 토큰 */
 .prop-btn-full.active { background: var(--ui-accent-primary); border-color: var(--ui-accent-primary); color: #fff; }
 
@@ -443,6 +493,11 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-type-btn:not(.prop-preset-btn):first-child { border-radius: var(--ui-radius-sm) 0 0 var(--ui-radius-sm); }
 .prop-type-btn:not(.prop-preset-btn):not(:first-child):not(:last-child) { border-radius: 0; border-left: none; }
 .prop-type-btn:not(.prop-preset-btn):last-child { border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0; border-left: none; }
+/* 텍스트 타입 12칸 = 6 × 2 격자(시안 v10 ① · 위아래 같은 세로 칸 · 칸 폭 = 그 열 글자 폭) — 칸마다 네 테두리·둥근 모서리
+   (위 세그먼트 규칙을 id 로 이긴다 · Quote 왼 테두리 잘림의 원인). 사이 = 가로 2(v9) · 세로 4(v8) · 칸 안 좌우 0(v10) */
+#txt-kind-group { display: grid; grid-template-columns: repeat(6, auto); column-gap: var(--ui-space-0_5); row-gap: var(--ui-space-1); }
+#txt-kind-group > .prop-type-btn { min-width: 0; border-radius: var(--ui-radius-sm); border-left: 1px solid var(--ui-border-mid); padding: 0; }
+#txt-kind-group > .prop-type-btn.active { border-left-color: var(--ui-accent-primary); }
 
 /* 1글자 아이콘 prefix 라벨 (W/H/X/Y 등) */
 .prop-icon-label {
@@ -484,6 +539,11 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   font-variant-numeric: tabular-nums; text-transform: uppercase; /* hex 값 정렬·일관 표기 */
   transition: border-color 0.1s;
 }
+/* RP-PRD-PREEXIST-FAIL-01(261121) — 옛 꼴 색 줄(스와치 + hex + «투명»/«✕» 단추가 .prop-row 에 바로 · 심플카드 등)의 hex 칸 바닥 = 6자 + 좌우 패딩·테두리.
+   재설계 끝 옵션 칼럼(28px)만큼 줄이 좁아져(211 → 183) 늘 줄던 hex 칸만 41px 로 눌려 6자가 잘렸다(000000 = 52 > 39 · 지혜맥 실측). 남는 줄임은 옆 단추가 받는다.
+   ⛔.prop-color-field 안 hex(재설계 칸 · 패딩 0)는 무접촉 — 41px 에 6자가 다 들어간다. */
+.prop-row > .prop-color-hex, .prop-color-row > .prop-color-hex { flex-shrink: 0; min-width: calc(6ch + 14px); }
+.prop-row > .prop-color-hex ~ .prop-align-btn, .prop-color-row > .prop-color-hex ~ .prop-align-btn { flex-shrink: 1; min-width: 0; padding-left: 4px; padding-right: 4px; }   /* 그 줄임을 받는 옆 «투명»/«✕» 단추(글자는 안 잘림 — 시험 L3 이 잰다) */
 .prop-color-hex:hover { border-color: var(--ui-border-mid); }
 .prop-color-hex:focus { border-color: var(--ui-accent-primary); }
 /* ★무효한 색 코드 — 「말없이 무시」 대신 «보이게» 한다 (2026-09-20 유닛 colorhex).
@@ -522,6 +582,9 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   transition: box-shadow 0.1s;
   overflow: hidden;
 }
+/* 틀 절(끝 옵션 칼럼 --ui-opt-col-w 만큼 좁다 · 재설계 1차 ⑧)에선 바닥값을 내린다 — 라벨 56 + 사이 6 + 이 칸 = 줄 폭 183(정적 렌더 실측 · 75상태).
+   128 이면 색 줄 128곳이 5~7px 넘쳐 «%» 칸이 잘렸다. 대가: hex 칸 ≈41px(6자 중 끝이 가려질 수 있다 · 시안 v7 은 122/hex 42) */
+.prop-section[data-sec] .prop-color-field { min-width: 121px; }
 .prop-color-field:focus-within { box-shadow: inset 0 0 0 1px var(--ui-accent-primary); }
 /* 색 줄에 딸린 보조 버튼(초기화·투명·✕)의 «자기 줄» — 라벨 자리만큼 들여쓰고 오른쪽에 붙인다.
    같은 줄에 두면 색 필드가 눌려 값이 안 보인다(T-100). */
@@ -611,6 +674,8 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold); letter-spacing: 0.04em;
   color: var(--ui-text-dim); user-select: none;
   margin-right: 2px;
+  /* 1120b R2 후속(지디 261121 · 실물 png «최/근» 두 줄) — 줄이 nowrap 이라 칩이 차면 라벨이 눌려 꺾였다 ⇒ 라벨은 꺾지도 줄지도 않는다(공용 — 색 최근·VAR·효과 최근 한 꼴) */
+  white-space: nowrap; flex-shrink: 0;
 }
 .cv-chip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1140,6 +1205,8 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-cell-card.expanded .lrl-cell-toggle { color: var(--ui-accent-primary); }
 .prop-cell-card-body { display: flex; flex-direction: column; gap: 6px; }
 .prop-cell-card-body[hidden] { display: none; }
+/* 1120b B5 후속(지디 261121) — «스타일 번호» 카드 세 줄 라벨 = 형광펜·점·밑줄(최장 3자) · 56 칸이면 칸 안 «번호 붙여넣기»가 잘렸다(실측 필요 64 > 57) ⇒ 이 카드 줄만 라벨 40(셋 세로 정렬 유지) */
+.ts-code-row > .prop-label { width: calc(var(--ui-form-label-w) - var(--ui-space-4)); }
 
 /* 작은 아이콘 버튼 (× 삭제 등) */
 .prop-icon-btn {

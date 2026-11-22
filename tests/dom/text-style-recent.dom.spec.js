@@ -204,7 +204,7 @@ test('C1·C2 ★최근 줄 — 0건이면 없고, 쌓이면 열리고, 누르면
   await openPanel(page, id);
   // ── C1 전제: 0건이면 ★줄이 숨어 있다 ──
   const c1 = await page.evaluate(() => {
-    const row = document.getElementById('txt-hl-recent-row');
+    const row = document.getElementById('txt-fx-recent-row')   /* ★기대 바뀜 1120b R2c(현빈 261121) — 형광펜 최근은 합친 «최근 효과» 줄 */;
     return { exists: !!row, hidden: row ? row.hidden : null, chips: row ? row.querySelectorAll('.ts-chip').length : null };
   });
   expect(c1.exists, '★최근 줄 자리가 ★마크업에 ★없다').toBe(true);
@@ -228,7 +228,7 @@ test('C1·C2 ★최근 줄 — 0건이면 없고, 쌓이면 열리고, 누르면
 
   await openPanel(page, id);
   const c2 = await page.evaluate(() => {
-    const row = document.getElementById('txt-hl-recent-row');
+    const row = document.getElementById('txt-fx-recent-row')   /* ★기대 바뀜 1120b R2c(현빈 261121) — 형광펜 최근은 합친 «최근 효과» 줄 */;
     return { hidden: row.hidden, chips: row.querySelectorAll('.ts-chip').length,
              prevCls: [...row.querySelectorAll('.ts-chip-prev')].map(e => e.className),
              label: row.querySelector('.cv-chips-label')?.textContent };
@@ -258,7 +258,7 @@ test('C3·C4 ★«다른 텍스트에» — 블럭 B 에 입히고, 그 효과�
   }, idB);
   expect(before.hl, '★전제 — B 에 ★이미 형광펜이 있다(그러면 ★입혔다를 못 가른다)').toBe(false);
 
-  await clickSel(page, '#txt-hl-recent-row .ts-chip');
+  await clickSel(page, '#txt-fx-recent-row .ts-chip[data-ts-k="hl"]');   /* ★기대 바뀜 1120b R2c — 합친 줄의 형광펜 칩 */
   await page.waitForTimeout(250);
   const after = await page.evaluate((i) => {
     const tb = document.getElementById(i);
@@ -289,7 +289,7 @@ test('C5 ★칩은 글 블럭 «밖»이다 — 제품의 다섯 조회가 안 �
   const r = await page.evaluate((i) => {
     const tb = document.getElementById(i);
     const ce = tb.querySelector('.tb-body');
-    const row = document.getElementById('txt-hl-recent-row');
+    const row = document.getElementById('txt-fx-recent-row')   /* ★기대 바뀜 1120b R2c(현빈 261121) — 형광펜 최근은 합친 «최근 효과» 줄 */;
     const chipPrev = row.querySelector('.ts-chip-prev');
     const out = {
       chipExists: !!chipPrev,
@@ -344,14 +344,14 @@ test('C6 ★저장 왕복 — meta 에 실리고 다시 열어도 산다', async
 });
 
 test('M ★MAX 를 재는 법 — 줄 가용폭 · 칩폭 · gap 을 찍는다', async ({ page }) => {
-  /* ⛔단언이 ★아니라 ★기록이다 — design-system.js TEXT_STYLE_HISTORY_MAX 를 ★이 수로 둔다.
+  /* ⛔단언이 ★아니라 ★기록이다 — design-system.js TEXT_STYLE_FX_RECENT_MAX(1120b R2c 합친 줄)를 ★이 수로 둔다.
      ★법 = floor((줄 가용폭 − 라벨폭) ÷ (칩폭 + gap))  ★컬러(7)와 ★같은 법, ★다른 칩. */
   await setup(page);
   const id = await insertText(page, 'AAAAAA');
   await makeHighlight(page, id, HL_A, 40);
   await openPanel(page, id);
   const m = await page.evaluate(() => {
-    const row = document.getElementById('txt-hl-recent-row');
+    const row = document.getElementById('txt-fx-recent-row')   /* ★기대 바뀜 1120b R2c(현빈 261121) — 형광펜 최근은 합친 «최근 효과» 줄 */;
     const cs = getComputedStyle(row);
     const chip = row.querySelector('.ts-chip');
     const label = row.querySelector('.cv-chips-label');
@@ -361,7 +361,7 @@ test('M ★MAX 를 재는 법 — 줄 가용폭 · 칩폭 · gap 을 찍는다',
     const labelW = label ? label.getBoundingClientRect().width + parseFloat(getComputedStyle(label).marginRight || 0) : 0;
     return { rowW, gap, chipW, labelW,
              max: (chipW ? Math.floor((rowW - labelW - gap) / (chipW + gap)) : null),
-             declared: window.DesignSystem.TEXT_STYLE_HISTORY_MAX };
+             declared: window.DesignSystem.TEXT_STYLE_FX_RECENT_MAX };   /* ★기대 바뀜 1120b R2c — 잠그는 상수 = 합친 줄 칸 수(kind 별 큐 MAX 는 저장 길이로만 남음) */
   });
   console.log(`  M: 줄가용폭 ${m.rowW} · 라벨폭 ${m.labelW} · 칩폭 ${m.chipW} · gap ${m.gap} ⇒ ★MAX ${m.max} (지금 상수 ${m.declared})`);
   expect(m.chipW, '★전제 — 칩이 ★없어 폭을 못 쟀다').toBeTruthy();

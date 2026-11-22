@@ -202,7 +202,10 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
     addedLater: [{ id: 'open-anim-btn', states: ['block'], why: '0.9.13 MOTION 3단계 신호등 ea315d24e — _helpers.js animGifBtnHTML' },
       /* GRID-ROW-PADDING-PER-SIDE-01(6c2461ddb) 칸 안쪽 여백 묶음 사슬 단추 — 지디 261119 지혜맥 갱신 거절 목록 = 8상태 모두 이 단추 «하나»만 더해짐(뜻한 ③ 더함) */
       { id: 'grd-cell-pad-chain', states: ['h2', 'body', 'gap', 'divider', 'image', 'badge', 'empty'], why: 'GRID-ROW-PADDING-PER-SIDE-01 6c2461ddb — 칸 꾸미기 패딩 사슬(.prop-chain-btn)' },
-      { id: 'grd-cellall-pad-chain', states: ['block'], why: 'GRID-ROW-PADDING-PER-SIDE-01 6c2461ddb — 모든 칸 패딩 사슬(.prop-chain-btn)' }],
+      { id: 'grd-cellall-pad-chain', states: ['block'], why: 'GRID-ROW-PADDING-PER-SIDE-01 6c2461ddb — 모든 칸 패딩 사슬(.prop-chain-btn)' },
+      /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — 블록 «Template» 절(c5686f5a7 · 시안 v10 Q37 · 현빈 GO 261120)이 모든 블럭 패널 끝에 붙는다.
+         지혜맥 갱신 거절 목록 = 8상태 모두 이 여섯 «만» 더해짐(지움 0) ⇒ 뜻한 ③ 더함. */
+      ...['blk-tpl-toggle', 'blk-tpl-name', 'blk-tpl-folder', 'blk-tpl-folder-new', 'blk-tpl-tags', 'blk-tpl-save'].map((id) => ({ id, states: ['block', 'h2', 'body', 'gap', 'divider', 'image', 'badge', 'empty'], why: '블록 Template 절 c5686f5a7 — _panel-frame.js(Q37 · 현빈 GO 261120)' }))],
     PH_CHANGE: [{ sel: '.grd-row-h-item', from: '^auto$', to: '^자동( · \\d+)?$' }],
     dataRename: { 'data-bbg-x': 'data-bbg-h', 'data-bbg-y': 'data-bbg-v', 'data-cpos-x': 'data-cpos-h', 'data-cpos-y': 'data-cpos-v' },
     LABEL_TO: { 'data-ha': '가로 정렬 · 모든 열', 'data-va': '세로 정렬 · 블록', 'grd-cell-align': '가로 정렬 · 이 칸', 'grd-cell-valign': '세로 정렬 · 이 칸', 'grd-line-align': '가로 정렬 · 이 줄', 'data-nva': '세로 정렬 · 이 열' },

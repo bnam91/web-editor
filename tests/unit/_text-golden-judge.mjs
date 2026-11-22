@@ -83,15 +83,26 @@ const hidden = (n) => /display\s*:\s*none/.test(n.attrs?.style || '');
 /** judgePanel 이 먹는 꼴로 — tests/dom/_panel-sections.js readPanel 을 그대로 옮긴 판정 재료(브라우저 대신 나무에서). */
 function panelModel(html) {
   const root = parse(html);
-  const secs = els(root).filter((e) => has(e, 'prop-section')).map((e) => {
-    const head = els(e).find((k) => has(k, 'prop-sec-head'));
-    const title = head && els(head).find((k) => has(k, 'prop-section-title'));
+  /* ★Q1 · Q2(시안 v10) — readPanel 과 같은 펴기: Type 띠 = kind 절 · Layout 묶음 안 몸 = 그 key 절(제목 data-title · 작은 제목은 라벨 아님) */
+  const units = [];
+  for (const e of els(root).filter((x) => has(x, 'prop-section'))) {
+    const band = els(e).find((k) => has(k, 'prop-kind-band'));
+    if (e.attrs['data-sec-group'] != null) { for (const part of els(e).filter((k) => has(k, 'prop-sec-part') && k.attrs['data-sec'])) units.push({ e: part, sec: part.attrs['data-sec'], title: part.attrs['data-title'], isHeader: false }); }
+    else {
+      const head = els(e).find((k) => has(k, 'prop-sec-head'));
+      const t = head && els(head).find((k) => has(k, 'prop-section-title'));
+      units.push({ e, sec: e.attrs['data-sec'] || null, title: t ? text(t).trim() : null, isHeader: els(e).some((k) => has(k, 'prop-block-label')), band });
+    }
+    if (band) units.push({ e: band, sec: 'kind', title: band.attrs['data-title'], isHeader: false });
+  }
+  const inBand = (k, band) => !!band && !!closest(k, (x) => x === band);
+  const secs = units.map(({ e, sec, title, isHeader, band }) => {
     return {
-      sec: e.attrs['data-sec'] || null,
-      isHeader: els(e).some((k) => has(k, 'prop-block-label')),
-      title: title ? text(title).trim() : null,
-      labels: all(e).filter((k) => has(k, 'prop-label') || has(k, 'prop-field-label')).map((k) => text(k).trim()),
-      controls: all(e).filter((k) => ['input', 'select', 'button', 'textarea'].includes(k.tag)).map((c) => {
+      sec,
+      isHeader,
+      title,
+      labels: all(e).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub') && !inBand(k, band)).map((k) => text(k).trim()),
+      controls: all(e).filter((k) => ['input', 'select', 'button', 'textarea'].includes(k.tag) && !inBand(k, band)).map((c) => {
         const type = c.tag === 'input' ? (c.attrs.type || 'text') : c.tag;
         const prev = prevEl(c);
         const field = closest(c, (x) => has(x, 'prop-color-field'));
@@ -108,7 +119,8 @@ function panelModel(html) {
       }),
     };
   });
-  return { root, secs, hints: all(root).filter((k) => has(k, 'prop-hint')).length };
+  const order = all(root).find((e) => (has(e, 'prop-section') || has(e, 'prop-kind-band')) && e.attrs['data-order'])?.attrs['data-order'] || '';   // readPanel 과 같은 «패널 순서 이름»(재설계 1차 ④ text 예외)
+  return { root, secs, hints: all(root).filter((k) => has(k, 'prop-hint')).length, order };
 }
 
 /* ── 상태 행렬 ──────────────────────────────────────────────── */
@@ -143,17 +155,59 @@ function stripOldHidden(root, st) {
   return root;
 }
 const tagNorm = (t) => t.replace(/\s+/g, ' ').replace(/ data-own="[^"]*"/g, '');   // data-own = 새 판 소유 표식(판정 재료 · J5 가 잰다)
-const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, 'placeholder="자동"$1'], [/ placeholder="없음"( aria-label="Color")/, '$1']];
+const RENAME = [[/placeholder="auto"( aria-label="밑줄 (?:두께|위치)")/, 'placeholder="자동"$1'], [/ placeholder="없음"( aria-label="Color")/, '$1'],
+  /* 재설계 1차 ⑩ — «Font»·«글자색» 라벨 글을 걷고 이름을 칸의 aria-label 로 옮겼다 */
+  [/(id="txt-font-trigger" type="button")>/, '$1 aria-label="Font" title="Font">'], [/(<input type="color" id="txt-color" value="[^"]*")>/, '$1 aria-label="글자색">'],
+  /* ⑨ 머리 «＋» — Effects 추가 select 꼴 · Stroke 켜기 체크박스(단추꼴 label 안 · 이름 aria-label) */
+  [/^(<input type="checkbox" id="txt-stroke-on"(?: checked)?) ?>$/, '$1 aria-label="Stroke">'],
+  /* Q20 각도 칸 — 이름은 aria-label(«회전°» 라벨 글 걷음 · 시안 v10) */
+  [/^(<input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="[^"]*")>$/, '$1 aria-label="회전 각도">'],
+  /* ⑤ 사슬 단추 — 잠금 상태를 aria-pressed 로 */
+  [/^(<button class="prop-chain-btn(?: active)?" id="txt-ph-chain" title="좌우 연동")>$/, (m, a) => `${a} aria-pressed="${/ active"/.test(a)}">`],
+  /* ⑥ 너비 = 칸 안 라벨 숫자 칸(.prop-icon-input 안 · prop-number 클래스는 남김 = 포커스 전체선택 · aria-label) */
+  [/^(<input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="[^"]*")>$/, '$1 aria-label="너비">'],
+  /* 1120b B5 후속(지디 261121) — 스타일 번호 칸 placeholder «형광펜/점/밑줄 번호 붙여넣기» → «번호 붙여넣기»(이름은 줄 라벨로 · 잘림 없게) */
+  [/ placeholder="(?:형광펜|점|밑줄) 번호 붙여넣기"/, ' placeholder="번호 붙여넣기"'],
+  /* ★1120b 기준으로 다시 세움(지디 261121 · 판정기 빨강 9줄 = 1120b 앞 커밋들의 의도된 변화 · 항목마다 한 줄) */
+  [/^(<input type="checkbox" id="txt-shadow-on"(?: checked)?)>$/, '$1 aria-label="Shadow">'],   /* B3 b338d175c — Effects 머리 토글 → «＋»(이름 = aria-label) */
+  [/^(<input type="number" class="prop-number" id="bubble-w-number" [^>]*")>$/, '$1 aria-label="말풍선 너비">'],   /* B4 0e362728a — Size 절 두 칸(칸 안 라벨 · 이름 aria-label) */
+  [/^(<input type="number" class="prop-number" id="bubble-h-number" [^>]*")>$/, '$1 aria-label="말풍선 최소 높이">'],   /* B4 */
+  [/^<button class="prop-anim-btn" id="open-anim-btn">$/, '<button type="button" class="prop-chain-btn" id="open-anim-btn" title="애니메이션 GIF 만들기" aria-label="애니메이션 GIF 만들기">']];   /* F1 83e0afbf1 — GIF 절 머리 ＋ = 이 단추 */
 const ctl = (root) => all(root).flatMap((k) => (['input', 'select', 'button', 'textarea'].includes(k.tag) ? [tagNorm(k.raw)]
-  : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}>`] : []));
-const labels = (root) => all(root).filter((k) => has(k, 'prop-label') || has(k, 'prop-field-label')).map((k) => text(k).trim());
+  : k.tag === 'option' ? [`<option value="${k.attrs.value ?? ''}"${'selected' in k.attrs ? ' selected' : ''}${(() => { const sel = closest(k, (x) => x.tag === 'select'); return sel?.attrs.id ? ` in="${sel.attrs.id}"` : ''; })()}>`] : []));   // QA2 — 옵션에 «어느 고르개»를 붙여 허용을 그 고르개로 묶는다
+const labels = (root) => all(root).filter((k) => (has(k, 'prop-label') || has(k, 'prop-field-label')) && !has(k, 'prop-sec-sub')).map((k) => text(k).trim());   // 묶음 작은 제목(Q1)은 라벨 아님
 const ids = (root) => all(root).filter((k) => k.attrs.id).map((k) => k.attrs.id);
 const minus = (a, b) => { const r = [...a]; for (const x of b) { const i = r.indexOf(x); if (i >= 0) r.splice(i, 1); } return r; };
 
-const LABEL_RENAME = { '왼쪽 패딩': '왼쪽', '오른쪽 패딩': '오른쪽' };
-const ID_ADDED = [/^psec-[a-z]+(-head|-body)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
+/* ⑤ 패딩 새 이름(Q25 · Q24 태그) — BASE 의 «왼쪽 패딩»·«오른쪽 패딩»(→ U2 «왼쪽»·«오른쪽») 도 한 걸음에 */
+const LABEL_RENAME = { '왼쪽 패딩': '좌측패딩', '오른쪽 패딩': '우측패딩', '왼쪽': '좌측패딩', '오른쪽': '우측패딩', '상하': '상하패딩', '좌우 패딩': '태그 좌우' };   /* 태그 = Q24 «태그 좌우패딩»의 짧은 라벨(시안 v9 · 이름 전체는 title) */
+const LABEL_DROPPED = ['Font', '글자색', '너비', '회전°'];   /* 회전° = Q20 각도 칸(라벨 글 대신 아이콘 · aria-label) */   /* 너비 = ⑥ 칸 안 라벨(.prop-xy-label)로 */   /* 재설계 1차 ⑩ — 라벨 글 걷음(칸은 그대로 · J1 이 잰다) */
+const ID_ADDED = [/^psec-[a-z]+(-head|-body|-group)?$/, /^(type-section|bullet-style-section|txt-stroke-section|txt-shadow-section|txt-fx-section|txt-bubble-section|txt-anim-section)-(head|body)$/,
   /^txt-bubble-section$/, /^txt-anim-section$/, /^txt-align-group$/];
-const ID_REMOVED = ['icon-text-style-section'];
+const ID_REMOVED = ['icon-text-style-section', 'txt-width-slider', 'txt-rot-slider', 'txt-fx-add',
+  'txt-pv-bubble-hint',   /* 1120b B1 3edf31a99 — 힌트 걷음 */
+  'bubble-bg-color', 'bubble-bg-hex'];   /* 1120b B2 1d13c6842 — 배경색 줄 = colorFieldHTML(prop-text.js 배선 때 그림) · 템플릿 밖 */   /* txt-fx-add = ＋ 메뉴로(시안 v10) */   /* txt-rot-slider = Q20 */   /* txt-width-slider = 재설계 1차 ⑥(너비 = 숫자 칸만) */
+/* ★바닥 판부터 빨강(이번 일과 무관) — 태그 Oval 모양(label-shape-oval)이 BASE(2040a3339) 뒤 별건으로 생겼는데 이 판정기가 못 따라왔다:
+ *   패널 재설계 1차 바닥(17b20888b)에서 이미 label · label+circle 상태 J1/J4 빨강. 그 한 단추·한 id 만, 태그 상태에서만 허용한다. */
+const DRIFT_PRE = { states: ['label', 'label+circle'], ctl: /^<button class="prop-btn-full(?: active)?" id="label-shape-oval">$/, id: /^label-shape-oval$/ };
+/* 기준판(BASE) 뒤에 «의도해서» 더한 컨트롤·id — 판정이 «생김»으로 안 세게. (패널 재설계 1차 261120 — 항목마다 까닭) */
+const PH_ATTRS = ' min="0" max="120"(?: step="4")? value="\\d+"(?: style="visibility:hidden")?';   /* ⑤ 실제로 생기는 속성만 */
+const CTL_ADDED = [
+  /^<input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="[^"]*">$/,   /* ⑥ 텍스트 높이 칸(꺼짐 · auto) */
+  /^<button class="prop-type-btn(?: active)?" disabled title="(?:Tags\(태그 블럭\)|Icon Text|Bubble|Liner) — [^"]*">$/,   /* ⑫ 타입 12칸 중 «바꾸기 없음» 넷(꺼짐) */
+  new RegExp(`^<input type="range" class="prop-slider" id="txt-ph-slider"${PH_ATTRS}>$`),   /* ⑤ «좌우패딩» 한 줄(잠금 때 둘을 같이) */
+  new RegExp(`^<input type="number" class="prop-number" id="txt-ph-number"${PH_ATTRS}>$`),
+];
+const CTL_DROPPED = [/^<input type="range" class="prop-slider" id="txt-width-slider" /,   /* ⑥ 너비 슬라이더 걷음 */
+  /^<select class="prop-select" id="txt-fx-add" /, /^<option value="(?:|shadow|reflect)" in="txt-fx-add">$/,   /* ⑨ · 시안 v10 — Effects 고르개 → ＋ 단추 + 종류 메뉴(옵션 = 메뉴 항목) */
+  /^<input type="range" class="prop-slider" id="txt-rot-slider" /,
+  /^<input type="color" id="bubble-bg-color" /, /^<input type="text" class="prop-color-hex" id="bubble-bg-hex" /];   /* 1120b B2 — 위 ID_REMOVED 와 짝 */   /* Q20 회전 슬라이더 걷음(각도 칸만 · 시안 v10) */
+/* Q17 회전 줄 단추 셋(시안 v10 · 현빈 GO 261120) */
+CTL_ADDED.push(/^<button type="button" class="prop-align-btn(?: active)?" id="txt-(?:rot-90|flip-h|flip-v)" title="[^"]*" aria-label="[^"]*"(?: aria-pressed="(?:true|false)")?>$/,
+  /^<button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn" [^>]*>$/, /^<button type="button" class="fp-menu-item" role="menuitem" data-fx="(?:shadow|reflect)">$/);
+ID_ADDED.push(/^txt-fx-(?:add-btn|menu)$/, /^txt-rot-number-scrub$/, /^txt-(?:rot-90|flip-h|flip-v)$/, /^txt-width-scrub$/, /^txt-height-number$/, /^txt-kind-group$/, /^txt-(?:ph|pl|pr)-row$/, /^txt-ph-(?:slider|number)$/);
+/* 1120b R2c(현빈 261121 «형광펜·점·글로우 최근 = 셋 합쳐 한 줄») — kind 별 최근 줄 둘(골든엔 글로우 칸 없음) → 합친 줄 하나 */
+ID_REMOVED.push('txt-hl-recent-row', 'txt-dot-recent-row'); ID_ADDED.push(/^txt-fx-recent-row$/);
 /* 옮긴 컨트롤 → 있어야 할 절(손 표 · OWNERSHIP 과 «다른 길»로 적었다) */
 const MOVED = {
   'label-radius-slider': 'appearance', 'label-radius-number': 'appearance', 'label-bg-color': 'fill', 'label-bg-hex': 'fill', 'label-bg-none': 'fill',
@@ -161,7 +215,7 @@ const MOVED = {
   'itb-dy-slider': 'layout', 'itb-dy-number': 'layout', 'itb-gap-slider': 'layout', 'itb-gap-number': 'layout',
   'txt-x-number': 'position', 'txt-rot-number': 'position', 'txt-width-number': 'size', 'txt-pv-number': 'padding', 'bubble-bg-color': 'special',
 };
-const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음']);
+const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* auto = ⑥ 텍스트 높이 칸(현빈 v9 «auto») */
 /* 옛 판(U0) 뒤에 «기능으로» 더한 컨트롤 — 티켓마다 한 줄 · 정확한 개수까지(그 밖의 생김은 그대로 빨강).
    TEXT-LOREM-FILL-01(261121): Content 절 «더미 글» = select 2(+option 3·2) · number 1 · button 1 = 9 · 라벨 1 · id 4 (줄 모드 말풍선이면 0). */
 /* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
@@ -171,21 +225,26 @@ const FEATURE_ADDED = [{ ticket: 'LABEL-OVAL(2749254f8)', n: 1, isCtl: (t) => /i
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
   const o = stripOldHidden(parse(oldHtml), st), nm = panelModel(newHtml), n = nm.root;
-  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)), nc0 = ctl(n);
+  /* ⑫ 매핑 교정 — 말풍선이면 Bubble 만 켜짐: 옛 판이 함께 켜던 Body(내용 칸 클래스 기준)는 꺼진 것이 맞다 */
+  const oc = ctl(o).map((t) => RENAME.reduce((s, [a, b]) => s.replace(a, b), t)).map((t) => (name === 'bubble' ? t.replace(/^<button class="prop-type-btn active" (data-cls="tb-[a-z0-9]+")>$/, '<button class="prop-type-btn " $1>') : t)).filter((t) => !CTL_DROPPED.some((r) => r.test(t))), nc0 = ctl(n);
+  /* 병합(탑 261122): dev 쪽 «기능으로 더한 컨트롤»(FEATURE_ADDED — 더미 글 · Tag Oval)을 정확한 개수로 걷고 나서 저쪽(재설계) 규칙으로 잰다 */
   let nc = nc0, featLabels = [], featHit = [];
   for (const f of FEATURE_ADDED) {
     const hit = nc.filter(f.isCtl);
     if (hit.length && hit.length !== f.n) bad.push(`J1 ${f.ticket}: 더한 컨트롤 ${hit.length}개(기대 ${f.n}) ${JSON.stringify(hit)}`);
     if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(f.label); }
   }
-  const l1 = minus(oc, nc), e1 = minus(nc, oc);
+  const drift = DRIFT_PRE.states.includes(name);
+  const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
   if (l1.length || e1.length) bad.push(`J1 컨트롤: 잃음 ${JSON.stringify(l1)} · 생김 ${JSON.stringify(e1)}`);
   /* 옛 가짜 절 제목 → 새 field-label: L/R(패딩 연동 머리) · Tag Style(태그 모양 묶음) */
-  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position'])
-    .concat(ids(n).includes('txt-ph-chain') ? ['L/R'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);
+  /* 1120b B5 후속(지디 261121) — 스타일 번호 세 줄 라벨 «번호»×3 → «형광펜»·«점»·«밑줄»(한 말이 셋으로 갈려 LABEL_RENAME 표로는 못 적는다 · 옛 수만큼만) */
+  const codeN = labels(o).filter((t) => t === '번호').length;
+  const ol = minus(labels(o).map((t) => LABEL_RENAME[t] ?? t), ['Position', ...LABEL_DROPPED, ...Array(codeN).fill('번호'), ...(name === 'bubble' ? ['너비', '높이'] : [])])   /* 1120b B4 — 말풍선 너비·높이 라벨 글 → 칸 안 라벨(.prop-xy-label) */.concat(['형광펜', '점', '밑줄'].slice(0, codeN))
+    .concat(ids(n).includes('txt-ph-chain') ? ['좌우패딩'] : [], ids(n).includes('label-style-section') ? ['Tag Style'] : []);   // ⑤ 옛 «L/R» 머리 → «좌우패딩» 줄
   const nl = minus(labels(n), featLabels), l2 = minus(ol, nl), e2 = minus(nl, ol);
   if (l2.length || e2.length) bad.push(`J2 라벨: 잃음 ${JSON.stringify(l2)} · 생김 ${JSON.stringify(e2)}`);
-  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !featHit.some((f) => f.id.test(i)));
+  const oi = ids(o).filter((i) => !ID_REMOVED.includes(i)), ni = ids(n).filter((i) => !ID_ADDED.some((r) => r.test(i)) && !(drift && DRIFT_PRE.id.test(i)) && !featHit.some((f) => f.id.test(i)));
   const l4 = minus(oi, ni), e4 = minus(ni, oi);
   if (l4.length || e4.length) bad.push(`J4 id: 잃음 ${JSON.stringify(l4)} · 생김 ${JSON.stringify(e4)}`);
   for (const v of judgePanel(nm, SPEC)) bad.push(`J5 게이트: ${v}`);

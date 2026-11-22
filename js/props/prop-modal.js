@@ -7,7 +7,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
-import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, unwrapSection, expandSection } from './_panel-frame.js';   /* unwrapSection — _typo-section 빌더가 «절 통째»를 주므로 몸통만(U0c) */
 /* ★오버레이(플로팅) — T3(현빈 섹션메모 `sec_3e0suk0` 「모달 오버레이 기능이 안 보인다」 · 2026-10-07).
    ★★진입·이탈·드래그를 ★여기서 짜지 않는다 — `js/overlay-float.js` 가 ★정본이고 ★그 파일이
@@ -217,11 +217,7 @@ export function showModalProperties(block) {
       <button class="prop-action-btn danger" id="mdl-pf-clear" style="margin-top:4px;">프로필 제거</button>` : ''}
 ` : '')),
       sec('position', `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="mdl-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="mdl-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mdl', numberId: 'mdl-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}
       ${_mdlFloatRow ? `<div class="prop-row">${_mdlFloatRow}</div>` : ''}
 `, { headTools: overlayToggleBtnHTML({ id: 'mdl-float-toggle', active: _mdlIsFloat }) }),
       sec('size', `
@@ -260,12 +256,12 @@ export function showModalProperties(block) {
 `),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">좌우</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="mdl-padx-slider" min="0" max="80" step="2" value="${padX}">
         <input type="number" class="prop-number" id="mdl-padx-number" min="0" max="80" value="${padX}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="mdl-pady-slider" min="0" max="80" step="2" value="${padY}">
         <input type="number" class="prop-number" id="mdl-pady-number" min="0" max="80" value="${padY}">
       </div>
@@ -749,16 +745,17 @@ export function showModalProperties(block) {
        ⛔두 칸 중 ★하나만 맞추지 마라 — 슬라이더와 숫자가 갈라진다(이 레포 고질). */
   const _mRotS = document.getElementById('mdl-rot-slider');
   const _mRotN = document.getElementById('mdl-rot-number');
-  if (_mRotS && _mRotN) {
-    const _mdlRotSet = v => {
+  if (_mRotN) {   // Q20(시안 v10) — 슬라이더 없음
+    const _mdlRotSet = (v, typing) => {
       v = Math.min(180, Math.max(-180, parseInt(v) || 0));
       window.applyRotationDeg?.(block, v);
-      _mRotS.value = v; _mRotN.value = v;
+      if (_mRotS) _mRotS.value = v; if (!typing) _mRotN.value = v;   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
     };
-    _mRotS.addEventListener('input',  () => _mdlRotSet(_mRotS.value));
-    _mRotN.addEventListener('input',  () => _mdlRotSet(_mRotN.value));
-    _mRotS.addEventListener('change', () => window.pushHistory?.());
-    _mRotN.addEventListener('change', () => window.pushHistory?.());
+    wireRotRow({ p: 'mdl', numberId: 'mdl-rot-number', host: () => block });   // Q17
+    _mRotS?.addEventListener('input',  () => _mdlRotSet(_mRotS.value));
+    _mRotN.addEventListener('input',  () => _mdlRotSet(_mRotN.value, true));
+    _mRotS?.addEventListener('change', () => window.pushHistory?.());   // QA2 C1 — 슬라이더를 걷어 null 이었다(TypeError → 아래 배선이 통째로 안 묶였다)
+    _mRotN.addEventListener('change', () => { _mdlRotSet(_mRotN.value); window.pushHistory?.(); });
   }
   /* 떠 있을 때만 나오는 X/Y 두 칸 — 텍스트·도형 Position 절과 «같은 규약»(overlay-float.js). */
   wireFloatPosition({ block, xId: 'mdl-x-number', yId: 'mdl-y-number' });
@@ -951,7 +948,9 @@ export function showModalIconProperties(block) {
   const _icnSec = _icnRow?.closest('.prop-section[data-sec]');
   _icnRow?.remove();
   /* 틀로 옮긴 아이콘 패널(U4)이면 그 줄이 Layout 절의 전부일 수 있다 — 빈 절 머리만 남기지 않게 절째로 걷는다(U4 평가 지적). */
+  const _icnGrp = _icnSec?.parentElement?.classList.contains('prop-sec-group') ? _icnSec.parentElement : null;   // ★Q1 — Layout 묶음 몸이면 묶음도 본다
   if (_icnSec && !_icnSec.querySelector(':scope > .prop-sec-body > *')) _icnSec.remove();
+  if (_icnGrp && !_icnGrp.querySelector(':scope > .prop-section[data-sec]')) _icnGrp.remove();
 
   // 돌아가는 문 — 없으면 모달 속성으로 못 돌아온다(아이콘 패널은 모달을 모른다).
   const back = document.createElement('div');

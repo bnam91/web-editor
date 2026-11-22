@@ -11,6 +11,7 @@
  * ⛔고정 대기 없음 — waitForFunction 만. ⛔앱 무접촉(_root-harness.bootApp).
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 async function setup(page) {
@@ -29,8 +30,8 @@ async function setup(page) {
     window.__top.scrollIntoView({ block: 'center' });
     window.selectBlock(window.__top.id);
   });
-  await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
-  await page.selectOption('#txt-fx-add', 'freetransform');
+  await page.waitForFunction(() => !!document.getElementById('txt-fx-add-btn'));
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="freetransform"]'));
   await page.waitForFunction(() => window.__top.querySelectorAll('.tfh-handle').length === 12);
   await waitStableRect(page, '.tfh-handle[data-tfh="se"]');   // 부팅 배율 전환이 끝나기 전 좌표로 누르지 않는다
   return errs;

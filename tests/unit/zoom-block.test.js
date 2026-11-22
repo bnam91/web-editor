@@ -1612,8 +1612,12 @@ test('ⓑ-ROT-2 ★[함정2] dataset.rot + 재렌더 — _applyRotationDeg(style
   const s = SRC.handles;
   const rot = readSrc(ROOT, 'js', 'asset-rotate.js');
   /* ★양성대조 — 다른 회전 대상들은 정말로 style.transform 에 rotate() 를 건다. */
-  assert.ok(/function _applyRotationDeg[\s\S]{0,400}?style\.transform/.test(rot),
-    '양성대조 실패: _applyRotationDeg 가 transform 을 안 걸면 이 대조는 뜻이 없다');
+  /* ★기대 바뀜(패널 재설계 QA2 ③ 지디 261120 — 회전 transform 은 «한 함수» js/block-flip.js writeRotation 이 쓴다 ·
+     _applyRotationDeg 는 그 함수를 부른다) — 대조를 그 길 그대로 따라간다: _applyRotationDeg → writeRotation → style.transform 에 rotate() */
+  assert.ok(/function _applyRotationDeg[\s\S]{0,400}?window\.writeRotation\(/.test(rot),
+    '양성대조 실패: _applyRotationDeg 가 회전 쓰기 한 함수를 안 부르면 이 대조는 뜻이 없다');
+  assert.ok(/function writeRotation[\s\S]{0,900}?`rotate\(\$\{d\}deg\)`[\s\S]{0,200}?el\.style\.transform = next/.test(readSrc(ROOT, 'js', 'block-flip.js')),
+    '양성대조 실패: writeRotation 이 transform 에 rotate() 를 안 걸면 이 대조는 뜻이 없다');
 
   const body = sliceBlock(s, 'function _onZoomRotateMouseDown(e, zb)');
   assert.ok(body.length > 200, '_onZoomRotateMouseDown 를 못 찾았다');
@@ -1820,8 +1824,9 @@ test('ⓑ-ROT-6 ★회전 슬라이더는 «남는다» — 그리고 핸들과 
   }
 
   // ── 본 단언 ① 슬라이더가 «살아 있다» (가려지지 않았다 + 바인딩까지 있다)
-  assert.ok(/\$\{_pairRow\('zm-rot', '회전°'/.test(SRC.prop),
-    "★회전 슬라이더가 사라졌다 — 현빈이 고치라 한 것은 「«로만»」이지 슬라이더 자체가 아니다");
+  /* ★기대 바뀜(Q20 · 현빈 GO 261120 · 시안 v10) — 회전은 슬라이더 대신 각도 칸(숫자 + ° · 회전 줄 한 벌). «정확히 치는 길»은 그 칸이 맡는다 */
+  assert.ok(/rotRowHTML\(\{ p: 'zm', numberId: 'zm-rot-num'/.test(SRC.prop),
+    "★회전 각도 칸이 사라졌다 — 각도를 «정확히» 치는 길이 패널에 없다");
   assert.ok(/bindPair\('zm-rot',\s*'rot'/.test(SRC.prop),
     '★UI 만 있고 바인딩이 없다 — 슬라이더를 움직여도 아무 일도 안 난다');
 

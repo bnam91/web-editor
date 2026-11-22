@@ -1,7 +1,7 @@
 // prop-mockup.js — 디바이스 목업 블록 프로퍼티 패널
 
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { checkerBg } from '../checker-tokens.js';
 import { captureSectionImage } from '../io/capture-safety.js';
@@ -44,11 +44,7 @@ export function showMockupProperties(block) {
           value="${parseInt(block.style.width) || parseInt(block.dataset.width) || 360}">
       </div>`),
       sec('position', `
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="mkp-rot-slider" min="-180" max="180" step="1" value="${parseInt(block.dataset.rotation || '0')}">
-        <input type="number" class="prop-number" id="mkp-rot-number" min="-180" max="180" value="${parseInt(block.dataset.rotation || '0')}">
-      </div>`),
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'mkp', numberId: 'mkp-rot-number', value: parseInt(block.dataset.rotation || '0'), flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`),
       // 화면 이미지(옛 「Screen Image」)
       sec('content', `
       <div class="prop-row" style="flex-direction:column;gap:4px;">
@@ -112,15 +108,14 @@ export function showMockupProperties(block) {
   // 회전 — 공유 헬퍼(applyRotationDeg, dataset.rotation)로 핫존(asset-rotate.js)과 동기
   const mRotS = propPanel.querySelector('#mkp-rot-slider');
   const mRotN = propPanel.querySelector('#mkp-rot-number');
-  const _mkpRot = v => {
+  const _mkpRot = (v, typing) => {
     v = Math.min(180, Math.max(-180, parseInt(v) || 0));
     window.applyRotationDeg?.(block, v);
-    mRotS.value = v; mRotN.value = v;
+    if (!typing) mRotN.value = v;
   };
-  mRotS.addEventListener('input',  () => _mkpRot(mRotS.value));
-  mRotN.addEventListener('input',  () => _mkpRot(mRotN.value));
-  mRotS.addEventListener('change', () => window.pushHistory?.());
-  mRotN.addEventListener('change', () => window.pushHistory?.());
+  mRotN.addEventListener('input',  () => _mkpRot(mRotN.value, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+  mRotN.addEventListener('change', () => { _mkpRot(mRotN.value); window.pushHistory?.(); });
+  wireRotRow({ p: 'mkp', numberId: 'mkp-rot-number', host: () => block });   // Q17 · Q20(시안 v10 — 슬라이더 없음)
 
   // 캡처 버튼
   const secIdInput = propPanel.querySelector('#mkp-sec-id-input');

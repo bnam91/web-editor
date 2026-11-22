@@ -3,46 +3,16 @@
  * ★블록 패널은 패널 전체를 글자로 짜 맞추지 않는다 — 절을 sec() 로 등록하고 renderPanel() 이 그린다:
  *     renderPanel(block, { header: blockHeaderHTML({...}), sections: [ sec('size', html), sec('fill', html), … ] })
  *   ⇒ 빈 html 절은 버리고(단 headTools 가 있으면 머리만 그린다) · _section-spec.js SECTION_ORDER 로 줄 세우고(special 은 선언순) · 같은 key 두 번이면 throw ·
- *     절 머리 = _helpers.js disclosureSectionHtml(쉐브론 한 벌) · 접기 = 절 key 단위 전 블록 공통(localStorage 'gd-panel-collapsed').
+ *     절 머리 = 제목 글자만(쉐브론·클릭 접기 없음 — 패널 재설계 1차 · 현빈 확정 · Figma UI3 절은 안 접힌다).
+ *     머리 = role="heading" aria-level="3" — 패널엔 heading 이 하나도 없다(grep 0) · 블록 이름표(prop-block-label)를 패널 제목(2단)으로 보고 절은 그 아래(3단).
+ *     절 «안» 하위 접기(_helpers.js disclosureSectionHtml 3인자 · discSecOpen)는 그대로다.
  * ★renderPanel 은 동기다 — 호출 뒤 getElementById 배선 코드는 그대로 돈다(절 «안» 마크업·id·핸들러는 한 글자도 안 바뀐다).
- * ★접기 배선 = propPanel 위임 click + keydown(Enter/Space) 한 번(처음 renderPanel 때). 기본 = 전부 펼침.
+ * ★옛 접기 기억(localStorage 'gd-panel-collapsed')은 더 읽지 않는다 — 남은 키가 절을 숨기면 열 길이 없다.
  * ⛔이 파일에는 색·px 리터럴 0 — 모양은 css/editor-props.css 「패널 절」 블록(var(--ui-*))만 (check-design-tokens.sh 하드게이트).
  */
 import { propPanel } from '../globals.js';
-import { disclosureSectionHtml } from './_helpers.js';
+import { escHtml } from './_helpers.js';
 import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, sectionOrderFor } from './_section-spec.js';
-
-const LS_KEY = 'gd-panel-collapsed';
-let _memCollapsed = [];   // localStorage 가 없거나(유닛 vm) 막혔을 때의 대역
-let _lsWriteFailed = false;   // 마지막 저장이 던졌나 — 그때만 «키 없음(null)»을 기억으로 메운다
-
-function _loadCollapsed() {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      /* ★쓰기가 막혀(setItem 던짐) 기억에만 둔 접기를 getItem 의 null 이 «빈 집합»으로 덮어 다음 그리기에서 풀렸다(U6 · S8 측정 «LS null · 쓰기 0»).
-         ⇒ 마지막 저장이 실패했고 키가 없을 때만 기억으로 간다. 정상 저장소(쓰기 성공)는 옛 길 그대로 — 키가 지워지면(clear) 전부 펼침. */
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw == null && _lsWriteFailed) return new Set(_memCollapsed);
-      const v = JSON.parse(raw || '[]');
-      if (Array.isArray(v)) return new Set(v);
-    }
-  } catch { /* 막힌 저장소 — 아래 대역 */ }
-  return new Set(_memCollapsed);
-}
-function _saveCollapsed(set) {
-  _memCollapsed = [...set];
-  try { if (typeof localStorage !== 'undefined') { localStorage.setItem(LS_KEY, JSON.stringify(_memCollapsed)); _lsWriteFailed = false; } } catch { _lsWriteFailed = true; /* 대역만 */ }
-}
-
-/** 접기 상태 단위 — 절 key(전 블록 공통). special 은 제목별. */
-const _stateKey = (key, title) => (key === 'special' ? `special:${title}` : key);
-
-export function isSectionCollapsed(key) { return _loadCollapsed().has(key); }
-export function setSectionCollapsed(key, collapsed) {
-  const s = _loadCollapsed();
-  if (collapsed) s.add(key); else s.delete(key);
-  _saveCollapsed(s);
-}
 
 /** 절 하나 등록. title 은 special 에 필수, 그 밖엔 SECTION_TITLE 기본(주면 같은 영어 Title Case 규칙으로 검사). */
 export function sec(key, html, { title, headTools = '', id } = {}) {
@@ -53,6 +23,14 @@ export function sec(key, html, { title, headTools = '', id } = {}) {
   return { key, html: html ?? '', title: t, headTools, id };
 }
 
+/* ── 시안 v10(현빈 GO 261120 «다 넣어 시안대로») — 머리 둘을 줄인다 ───────────────────────────────
+ *  Q2 Type 띠: kind 절은 머리 없이 블록 이름표 바로 아래 띠(이름표 상자 안). data-sec="kind" · id · 몸 id 는 그대로(배선·시험이 #id 로 잰다).
+ *  Q1 Layout 묶음: size · layout · padding 은 머리 «Layout» 하나 아래 몸 여럿(패널 순서 그대로). 몸마다 data-sec(key) · 옛 몸 id 그대로.
+ *    작은 제목 «Size» · «Padding» 은 둘 이상 묶일 때만 · layout 몸은 작은 제목 없음(시안 v10 실측 — PLAN «시안 v10 실측표»).
+ *  key · SECTION_ORDER · OWNERSHIP 은 안 바뀐다 — 게이트(tests/dom/_panel-sections.js)는 묶음 안 몸을 절 하나로 읽는다. */
+export const LAYOUT_GROUP = Object.freeze(['size', 'layout', 'padding']);
+const GROUP_SUB = Object.freeze({ size: 'Size', padding: 'Padding' });
+
 /** 절 목록 → 패널 HTML(순수 함수 — 유닛 시험이 이걸 본다). */
 export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) {   // panel = _section-spec SECTION_ORDER_EXCEPT 의 이름(없으면 전역 순서)
   const order = sectionOrderFor(panel);
@@ -62,78 +40,58 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
     if (seen.has(k)) throw new Error(`[panel-frame] 같은 절을 두 번 선언했다: ${k}`);
     seen.add(k);
   }
-  const collapsed = _loadCollapsed();
   let nSpecial = 0;
-  const body = sections
+  const ord = order === SECTION_ORDER ? '' : ` data-order="${panel}"`;
+  const list = sections
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => String(s.html).trim() !== '' || String(s.headTools ?? '').trim() !== '')   // 몸이 비어도 머리 손잡이(예: Effects 추가 목록)가 있으면 그린다
     .sort((a, b) => order.indexOf(a.s.key) - order.indexOf(b.s.key) || a.i - b.i)
-    .map(({ s }) => {
-      const id = s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`);
-      const stKey = _stateKey(s.key, s.title);
-      const open = !collapsed.has(stKey);
-      return `
-    <div class="prop-section${open ? '' : ' is-collapsed'}" data-sec="${s.key}" data-sec-state="${stKey}"${order === SECTION_ORDER ? '' : ` data-order="${panel}"`} id="${id}">
-      <div class="prop-section-title-row prop-sec-head">${disclosureSectionHtml(`${id}-head`, s.title, open, `${id}-body`)}${s.headTools}
+    .map(({ s }) => ({ ...s, id: s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`),
+      stKey: s.key === 'special' ? `special:${s.title}` : s.key }));
+  const head = (id, title, tools) => `
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="${id}-head" role="heading" aria-level="3"><span class="prop-sec-title-text">${title}</span></div>${tools}
+      </div>`;
+  const kind = list.find((s) => s.key === 'kind');
+  const band = kind ? `
+      <div class="prop-section prop-kind-band" data-sec="kind" data-sec-state="kind" data-title="${kind.title}"${ord} id="${kind.id}">
+      <div class="prop-sec-body" id="${kind.id}-body">${kind.html}
+      </div>${kind.headTools ? `<div class="prop-kind-band-tools">${kind.headTools}</div>` : ''}
+      </div>` : '';
+  const group = list.filter((s) => LAYOUT_GROUP.includes(s.key));
+  const out = [];
+  for (const s of list) {
+    if (s.key === 'kind') continue;
+    if (LAYOUT_GROUP.includes(s.key)) {
+      if (s !== group[0]) continue;
+      const multi = group.length > 1;
+      /* 겉 = 머리 하나(data-sec 없음 · data-sec-group) · 몸 = 옛 절 그대로의 .prop-section[data-sec](id · 몸 id · data-sec-state) — closest('.prop-section[data-sec]') 이 key 를 그대로 준다 */
+      out.push(`
+    <div class="prop-section prop-sec-group" data-sec-group="${group.map((g) => g.key).join(' ')}"${ord} id="${s.id}-group">${head(s.id, SECTION_TITLE.layout, group.map((g) => g.headTools).join(''))}${group.map((g) => `
+      <div class="prop-section prop-sec-part" data-sec="${g.key}" data-sec-state="${g.stKey}" data-title="${g.title}"${ord} id="${g.id}">${multi && GROUP_SUB[g.key] ? `
+      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">${GROUP_SUB[g.key]}</span></div>` : ''}
+      <div class="prop-sec-body" id="${g.id}-body">${g.html}
       </div>
-      <div class="prop-sec-body" id="${id}-body"${open ? '' : ' hidden'}>${s.html}
+      </div>`).join('')}
+    </div>`);
+      continue;
+    }
+    out.push(`
+    <div class="prop-section" data-sec="${s.key}" data-sec-state="${s.stKey}"${ord} id="${s.id}">${head(s.id, s.title, s.headTools)}
+      <div class="prop-sec-body" id="${s.id}-body">${s.html}
       </div>
-    </div>`;
-    })
-    .join('');
-  return (header ? `
+    </div>`);
+  }
+  return (header || band ? `
     <div class="prop-section">
-${header}
-    </div>` : '') + body;
+${header}${band}
+    </div>` : '') + out.join('');
 }
 
-const HEAD_SEL = '.prop-section[data-sec] > .prop-sec-head > .prop-section-title';
-let _wiredPanel = null;
-
-/** 그려진 절 하나를 열거나 닫는다 — DOM(몸 hidden · is-collapsed · aria-expanded) + 저장 상태. */
-function _setOpen(section, open) {
-  const bodyEl = section?.querySelector(':scope > .prop-sec-body');
-  const head = section?.querySelector(':scope > .prop-sec-head > .prop-section-title');
-  if (!section || !bodyEl) return;
-  bodyEl.hidden = !open;
-  section.classList.toggle('is-collapsed', !open);
-  head?.setAttribute('aria-expanded', String(open));   // 툴팁 없음 — 상태는 aria-expanded·쉐브론이 말한다(회전은 CSS)
-  setSectionCollapsed(section.dataset.secState, !open);
-}
-function _toggle(head) {
-  const section = head.closest('.prop-section[data-sec]');
-  const bodyEl = section?.querySelector(':scope > .prop-sec-body');
-  if (bodyEl) _setOpen(section, bodyEl.hidden);   // 지금 닫혀 있으면 연다
-}
-
-/** 절을 연다 — 저장 상태를 «펼침»으로 두고, 지금 패널에 그 절이 있으면 그 자리에서 연다.
- *  ★「줄을 더하는」 동작(효과 추가 · 별 색 줄 보이기 …)은 이걸 먼저 부른다 — 접힌 절에 새 줄이 들어가면 «아무 일도 안 한 것처럼» 보인다.
- *  key = 절 접기 단위(SECTION_ORDER key · special 은 'special:<제목>'). */
-export function expandSection(key) {
-  setSectionCollapsed(key, false);
-  const section = typeof document !== 'undefined'
-    ? [...(propPanel?.querySelectorAll?.('.prop-section[data-sec]') || [])].find((s) => s.dataset.secState === key) : null;
-  if (section) _setOpen(section, true);
-}
-/* window 다리 — effects-registry.js 는 import 0 규약이라(단위 하네스가 단독으로 싣는다) 이 이름으로 부른다. */
+/** 옛 «절을 연다» 문 — 표준 절은 이제 늘 펼쳐져 있어 할 일이 없다.
+ *  shortcut: 부르는 곳(15곳 · effects-registry window 다리)을 그대로 두려고 빈 함수로 남긴다 — 그 줄들을 걷을 때 같이 지운다. */
+export function expandSection() {}
 if (typeof window !== 'undefined') window.expandPanelSection = expandSection;
-
-function _wire(panel) {
-  if (!panel || _wiredPanel === panel) return;
-  _wiredPanel = panel;
-  panel.addEventListener('click', (e) => {
-    const head = e.target?.closest?.(HEAD_SEL);
-    if (head && panel.contains(head)) _toggle(head);
-  });
-  panel.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const head = e.target;
-    if (!head?.matches?.(HEAD_SEL)) return;
-    e.preventDefault();   // Space 가 패널을 스크롤하지 않게
-    e.stopPropagation();  // 절 머리에 포커스가 있을 때 Enter/Space 는 접기 하나만 — 문서 전역 단축키로 새지 않게
-    _toggle(head);
-  });
-}
 
 /** 패널을 그린다 — 동기. block 은 지금 그리는 대상(배선 코드가 이어서 쓴다 · 틀은 아직 안 읽는다). */
 /* 패널 그리기 세대 — 비동기 렌더러(showSectionProperties 의 await)가 «기다리는 사이 다른 패널이 그려졌나»를 잰다(U6 R9). */
@@ -141,9 +99,66 @@ let _renderGen = 0;
 export const panelRenderGen = () => _renderGen;
 export function renderPanel(block, { header = '', sections = [], panel = '' } = {}) {
   _renderGen++;
-  propPanel.innerHTML = buildPanelHTML({ header, sections, panel });
-  _wire(propPanel);
+  const tpl = blockTemplateSection(block, sections);
+  propPanel.innerHTML = buildPanelHTML({ header, sections: tpl ? [...sections, tpl] : sections, panel });
+  if (tpl) wireBlockTemplate(block);
   return propPanel;
+}
+
+/* ── Q37(시안 v10 «제안» 꼴 · 현빈 GO 261120) — 블록 저장을 «Template» 절로 ────────────────────────────
+ *  모든 블럭 패널(틀을 타는 블럭 · SECTION_BLOCK_TYPE_SEL)에 머리 «Template» + ＋ → 이름 · 폴더 · 태그 · «블록 템플릿으로 저장».
+ *  ★저장 길 = 우클릭 «블록 템플릿으로 저장»(index.html #bcm-name-row → block-factory.js nameConfirm)과 같은 window.saveBlockAsTemplate
+ *    (js/panels/template-system.js) — 새 저장 경로 0. 폴더 목록도 같은 listTemplateFolders(.., '블록').
+ *  ★한 패널에 Template 절 하나: 패널이 이미 template 절을 내면(프레임 «컴포넌트로 저장» · QA 티켓) 안 붙인다. 섹션은 블럭 아님. */
+const _P8 = '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M6 2v8M2 6h8"/></svg>';
+const _M8 = '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M2 6h8"/></svg>';
+export function blockTemplateSection(block, sections = []) {
+  const sel = typeof window !== 'undefined' ? window.SECTION_BLOCK_TYPE_SEL : '';
+  if (!sel || !block?.matches?.(sel) || sections.some((x) => x.key === 'template')) return null;
+  return sec('template', `
+      <div class="prop-tpl-form" id="blk-tpl-form" hidden>
+        <input type="text" class="tpl-name-input" id="blk-tpl-name" placeholder="템플릿 이름" aria-label="템플릿 이름">
+        <select class="prop-select prop-tpl-folder" id="blk-tpl-folder" aria-label="폴더"></select>
+        <input type="text" class="tpl-name-input" id="blk-tpl-folder-new" placeholder="새 폴더 이름..." aria-label="새 폴더 이름" hidden>
+        <input type="text" class="tpl-name-input" id="blk-tpl-tags" placeholder="태그 (쉼표 구분)" aria-label="태그">
+        <button type="button" class="prop-action-btn primary" id="blk-tpl-save">블록 템플릿으로 저장</button>
+      </div>`, { id: 'blk-tpl-section', headTools: `
+        <button type="button" class="prop-chain-btn" id="blk-tpl-toggle" title="블록 템플릿으로 저장 — 펼치기" aria-expanded="false">${_P8}</button>` });
+}
+function wireBlockTemplate(block) {
+  const $ = (id) => document.getElementById(id);
+  const tog = $('blk-tpl-toggle'), form = $('blk-tpl-form'), folder = $('blk-tpl-folder'), fnew = $('blk-tpl-folder-new');
+  if (!tog || !form) return;
+  folder.addEventListener('change', () => { fnew.hidden = folder.value !== '__new__'; });
+  tog.addEventListener('click', () => {
+    const open = form.hidden; form.hidden = !open;
+    tog.innerHTML = open ? _M8 : _P8; tog.setAttribute('aria-expanded', String(open)); tog.title = open ? 'Template 접기' : '블록 템플릿으로 저장 — 펼치기';
+    if (open) $('blk-tpl-name')?.focus();
+  });
+  const fillFolders = (pick) => {
+    const fs = window.listTemplateFolders?.(window.loadTemplatesPublic?.() || [], '블록') || [];
+    if (!fs.includes('블록')) fs.unshift('블록');
+    folder.innerHTML = fs.map((f) => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('') + '<option value="__new__">새 폴더...</option>';
+    if (pick && fs.includes(pick)) folder.value = pick;
+    fnew.hidden = folder.value !== '__new__';
+  };
+  fillFolders();
+  const save = $('blk-tpl-save');
+  save?.addEventListener('click', async () => {
+    if (save.disabled) return;   // QA2 — 연타로 두 번 저장되지 않게(저장 중 막기)
+    const name = $('blk-tpl-name').value.trim();
+    if (!name) { $('blk-tpl-name').focus(); return; }
+    const f = folder.value === '__new__' ? (fnew.value.trim() || '블록') : (folder.value || '블록');
+    save.disabled = true;
+    try {
+      await window.saveBlockAsTemplate?.(block, name, f, $('blk-tpl-tags').value.trim());   // 우클릭 저장과 같은 함수 · 같은 인자 꼴(block-factory.js nameConfirm) · 성공 알림도 그 함수가 낸다(우클릭과 같음)
+    } catch (err) {
+      console.warn('[block-template] 저장 실패', err); window.showToast?.('블록 템플릿 저장 실패');   // 칸은 그대로(다시 누르면 재시도)
+      return;
+    } finally { save.disabled = false; }   // 끝나면 · 실패해도 풀림
+    $('blk-tpl-name').value = ''; $('blk-tpl-tags').value = ''; fnew.value = '';
+    fillFolders(f);   // QA2 — 방금 만든 새 폴더가 같은 패널 목록에 바로 보인다
+  });
 }
 
 /** «절 통째»(.prop-section + 제목줄) 빌더 산출을 틀(sec)에 넣으려고 껍데기만 벗긴다 → { id, head, body }.

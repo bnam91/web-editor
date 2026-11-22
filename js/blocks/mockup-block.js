@@ -160,6 +160,7 @@ function initMockupCrop(block) {
     const off = parseInt(block.dataset.offsetX) || 0;
     if (off) block.style.transform = `translateX(${off}px)`;
   }
+  window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
   requestAnimationFrame(() => _updateMockupSecClip(block));
 }
 window.initMockupCrop = initMockupCrop;
@@ -207,6 +208,7 @@ function _bindMockupOffsetDrag(block) {
       const off = Math.round(startOff + dx);
       block.dataset.offsetX = String(off);
       block.style.transform = off ? `translateX(${off}px)` : '';
+      window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
       _updateMockupSecClip(block, _basis);   // ★같은 기저(제스처당 1회) — 틱마다 다시 재지 않는다
     };
     const onUp = () => {
@@ -264,6 +266,7 @@ function renderMockupBlock(block) {
     const _offX = parseInt(block.dataset.offsetX) || 0;
     block.style.transform = _offX ? `translateX(${_offX}px)` : '';
   }
+  window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
   _bindMockupOffsetDrag(block);
   requestAnimationFrame(() => _updateMockupSecClip(block));
 }
