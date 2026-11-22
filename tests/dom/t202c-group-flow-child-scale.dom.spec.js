@@ -16,7 +16,7 @@ async function scene(page, { flow }) {
   const errs = await bootApp(page);
   await page.evaluate(async () => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection();
-    const sec = [...c.querySelectorAll('.section-block')].pop(); sec.id = 'sG';
+    const sec = [...c.querySelectorAll('.section-block')].pop(); sec.id = 'sG'; sec.style.minHeight = '420px';   // ★전제 바뀜(현빈 261123 t13E-07 Clip content 기본 켬 · 섹션 줄어듦 ⓐ 확정) — 띄우면 섹션이 흐름만큼 줄어 떠 있는 글(top 150)이 섹션 밖 = 잘려 안 눌림 ⇒ 섹션을 다 들 만큼 · 기대 무변
     window.applyZoom?.(100);
   });
   await waitZoomSettled(page, 100);
