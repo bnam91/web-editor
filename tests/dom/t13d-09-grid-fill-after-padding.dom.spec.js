@@ -26,6 +26,9 @@ async function setup(page) {
     window.rebindAll?.(); window.renderGridBlock(g); window.deselectAll?.(); window.applyZoom?.(100); g.scrollIntoView({ block: 'center' });
   });
   await expect.poll(() => page.evaluate(() => document.getElementById('pG').offsetWidth), '[전제] 그리드가 섰다').toBeGreaterThan(0);
+  /* ★D4 원인(tpf7b · 수지 5차 DIAG 261123): applyZoom(100) 은 #canvas-scaler 의 «transition: transform .15s»(editor-canvas.css:322 · 제품 의도)로 Fit 배율에서 1 로 «자라는 중» —
+     그사이 잰 손잡이 점이 올린 뒤 (−10.5, +5.9) 밀렸다(그리드 상자 ×0.929 → 0.946 → 0.960 · 가운데 고정 · 위 60 = 갭 블럭만큼 아래로). 배율이 1 로 멎은 뒤(그린 폭 = 레이아웃 폭) 시작한다. */
+  await expect.poll(() => page.evaluate(() => { const g = document.getElementById('pG'); return Math.abs(g.getBoundingClientRect().width - g.offsetWidth) < 0.5; }), '[전제] 캔버스 배율 전이(.15s)가 멎었다').toBe(true);
   return errs;
 }
 const st = (page) => page.evaluate(() => { const g = document.getElementById('pG'), s = document.getElementById('pS');
