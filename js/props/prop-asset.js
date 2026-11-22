@@ -92,11 +92,7 @@ export function showAssetProperties(ab) {
   const overlayColor = overlayEl.style.color || '#ffffff';
   const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
-  // 그레인(필름 노이즈) — asset-overlay와 같은 패턴: 형제 오버레이 div + dataset.
-  // ⛔패널을 열기만 해도 만들면 안 된다(적대적 QA a1-a3 지적) — 실제로 강도를 설정할 때만
-  //   만든다(아래 슬라이더 핸들러). 여기선 이미 있으면 값만 읽는다.
-  let grainEl = ab.querySelector('.asset-grain');
-  const grainIntensity = grainEl ? Math.round(parseInt(grainEl.dataset.grainIntensity ?? '0', 10)) : 0;
+  // 그레인(필름 노이즈) 덧층은 Effects «Noise» 카드가 다룬다(js/effects-noise.js · 패널을 열기만 해선 안 만든다 — 그 규약 그대로).
 
   const currentBgColor = ab.dataset.bgColor || '#a0a0a0';
   /* ★t4-15 에셋 체커 톤 — 정본은 이 dataset 하나(섹션 sec.dataset.checkerTone 과 같은 이름 · 다른 요소).
@@ -282,12 +278,7 @@ export function showAssetProperties(ab) {
           <input type="checkbox" id="asset-clip-toggle" ${clipsContent(ab) ? 'checked' : ''}>
           <span class="prop-toggle-track"></span>
         </label>
-      </div>${hasImage ? `
-      <div class="prop-row">
-        <span class="prop-label">그레인</span>
-        <input type="range" class="prop-slider" id="asset-grain-slider" min="0" max="100" step="1" value="${grainIntensity}">
-        <input type="number" class="prop-number" id="asset-grain-number" min="0" max="100" value="${grainIntensity}">
-      </div>` : ''}`),
+      </div>`),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) */
       // 옛 「Background」
       sec('fill', bgSection),
       // 옛 「Border」
@@ -790,33 +781,7 @@ export function showAssetProperties(ab) {
 
   window.wireFxSection?.(ab, 'asset', () => showAssetProperties(ab));   // ★E1 Effects
 
-  // ── 그레인 이벤트 바인딩 ──
-  if (hasImage) {
-    const applyGrain = intensity => {
-      // ★여기서만 만든다 — 사용자가 실제로 강도를 만진 순간에만 층이 생긴다(위 주석 참고).
-      if (!grainEl) {
-        grainEl = document.createElement('div');
-        grainEl.className = 'asset-grain';
-        ab.appendChild(grainEl);
-      }
-      grainEl.style.opacity = String(intensity / 100);
-      grainEl.dataset.grainIntensity = String(intensity);
-    };
-    const grainSlider = document.getElementById('asset-grain-slider');
-    const grainNumber = document.getElementById('asset-grain-number');
-    grainSlider.addEventListener('input', () => {
-      const v = parseInt(grainSlider.value);
-      grainNumber.value = v;
-      applyGrain(v);
-    });
-    grainSlider.addEventListener('change', () => { window.pushHistory?.(); });
-    grainNumber.addEventListener('change', () => {
-      const v = Math.min(100, Math.max(0, parseInt(grainNumber.value) || 0));
-      grainSlider.value = v;
-      applyGrain(v);
-      window.pushHistory?.();
-    });
-  }
+  // ── 그레인 = Effects «Noise» 카드(js/effects-noise.js · 위 wireFxSection) — 옛 Appearance 줄 배선은 걷었다(현빈 261123 · 자리만 옮김) ──
   // ── 블러(Redact) 배선은 Effects 카드가 한다(js/effects-blur.js · 위 wireFxSection) — 옛 따로 절 배선은 지웠다(1012t1C1) ──
 
   /* 오버레이(플로팅) 토글 — 텍스트·도형 패널과 «같은 함수»(js/overlay-float.js). */

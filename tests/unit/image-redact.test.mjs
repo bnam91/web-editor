@@ -125,7 +125,9 @@ test('U5 배선 자리 — 패널·제거·스크래치·h2c·CSS·Figma', () =>
   const asset = readSrc(ROOT, 'js', 'props', 'prop-asset.js');
   /* U4(right-panel-unify): 절 순서는 틀(_section-spec)이 정한다 — 그레인 = Appearance 절 · 효과 목록 = Effects 절 몸통(fxSectionParts).
      양성대조: 그레인 줄을 sec('fill' 쪽으로 옮기거나 Effects 절이 _fx.body 를 안 받으면 빨강. */
-  assert.match(asset, /sec\('appearance',[\s\S]*?id="asset-grain-number"[\s\S]*?\n      sec\('fill'/, '그레인이 Appearance 절 안에 없다');
+  /* ★기대 바뀜(현빈 261123 · 시안 v11.7 1e0c5c2): 옛 «그레인 = Appearance 절 줄» → Effects ＋ «Noise» 카드(js/effects-noise.js · 저장 .asset-grain 그대로) — 옛 자리는 «없어야», 새 입구는 따로 잰다 */
+  assert.doesNotMatch(asset, /id="asset-grain-(number|slider)"/, '옛 «그레인» 줄이 prop-asset 에 남았다(두 곳)');
+  assert.match(readSrc(ROOT, 'js', 'effects-noise.js'), /registerFxType\(\{\s*key: 'noise',\s*label: 'Noise',\s*supports: \(el\) => !!\(el && el\.classList && el\.classList\.contains\('asset-block'\) && el\.classList\.contains\('has-image'\)\)/, '명부 식구 «Noise»(그림 든 에셋) 가 없다');
   assert.match(asset, /sec\('effects',[\s\S]*?_fx\?\.body/, 'Effects 절이 효과 목록(fxSectionParts 몸통)을 안 받는다');
   assert.doesNotMatch(asset, /redactSectionHTML|wireRedactSection/, '옛 «블러 (Redact)» 따로 절이 prop-asset 에 남았다(두 곳)');
   const fxb = readSrc(ROOT, 'js', 'effects-blur.js');
