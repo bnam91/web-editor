@@ -147,7 +147,8 @@ test('S6 몸 아래 여백 = --ui-sec-body-pb 하나 — 숨은 꼬리는 건너
   await page.evaluate(() => { const b = document.getElementById('psec-size-body'); b.insertAdjacentHTML('beforeend', '<div class="cv-chips" hidden></div><div class="prop-row" style="display:none">x</div>'); });
   const g = await bottomGaps(page);
   expect(g.length, '[전제] 마지막 빼고 잴 절이 있다(브릿지 Size · Fill)').toBeGreaterThanOrEqual(2);
-  for (const x of g) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
+  /* ★보이는 몸이 없는 절(gap null — 예 접힌 Template 폼)은 S7 의 몫(아래 여백 0 · 9391 실측 blk-tpl-section pb 0). ⑶ 꼬리(지디 261123)로 Template 이 «끝 절»이 아니게 되어 여기 들어왔다 */
+  for (const x of g.filter((y) => y.gap !== null)) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
   /* 양성대조 — 꼬리 줄의 margin 을 되살리면(=고치기 전) 틈이 pb 보다 커진다: 이 칸이 무엇을 잰다 */
   await page.addStyleTag({ content: '.prop-sec-body > .prop-row { margin-bottom: var(--ui-space-2) !important; }' });
   /* ★기대 그대로 · 잴 자리만(261123): Size 는 Layout 묶음(f3c48611a · Q1) 안 조각 — bottomGaps 가 재는 줄은 묶음(psec-size-group) */
