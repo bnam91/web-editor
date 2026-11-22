@@ -12,7 +12,7 @@
  */
 import { propPanel } from '../globals.js';
 import { escHtml } from './_helpers.js';
-import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, sectionOrderFor } from './_section-spec.js';
+import { SECTION_ORDER, SECTION_TITLE, isValidSectionTitle, sectionOrderFor, sectionRank } from './_section-spec.js';
 
 /** 절 하나 등록. title 은 special 에 필수, 그 밖엔 SECTION_TITLE 기본(주면 같은 영어 Title Case 규칙으로 검사). */
 export function sec(key, html, { title, headTools = '', id } = {}) {
@@ -45,7 +45,7 @@ export function buildPanelHTML({ header = '', sections = [], panel = '' } = {}) 
   const list = sections
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => String(s.html).trim() !== '' || String(s.headTools ?? '').trim() !== '')   // 몸이 비어도 머리 손잡이(예: Effects 추가 목록)가 있으면 그린다
-    .sort((a, b) => order.indexOf(a.s.key) - order.indexOf(b.s.key) || a.i - b.i)
+    .sort((a, b) => sectionRank(order, a.s.key, a.s.title) - sectionRank(order, b.s.key, b.s.title) || a.i - b.i)
     .map(({ s }) => ({ ...s, id: s.id || (s.key === 'special' ? `psec-special-${nSpecial++}` : `psec-${s.key}`),
       stKey: s.key === 'special' ? `special:${s.title}` : s.key }));
   const head = (id, title, tools) => `

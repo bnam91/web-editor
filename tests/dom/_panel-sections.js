@@ -23,7 +23,7 @@ function loadSectionSpec() {
   const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export\s+/gm, '');
   const ctx = {};
   vm.createContext(ctx);
-  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_ORDER_EXCEPT, sectionOrderFor, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl, explicitOwnOf };', ctx);
+  vm.runInContext(src + '\n;globalThis.__S = { SECTION_ORDER, SECTION_ORDER_EXCEPT, sectionOrderFor, sectionRank, SECTION_TITLE, isValidSectionTitle, OWNERSHIP_EXEMPT, OWNERSHIP_EXEMPT_SCOPES, controlIdent, ownerOf, ownerOfControl, explicitOwnOf };', ctx);
   return ctx.__S;
 }
 
@@ -103,7 +103,7 @@ function judgePanel(panel, spec, order = spec.sectionOrderFor(panel.order)) {   
   if (!keyed.length) bad.push('data-sec 절이 0개 — 틀을 안 거쳤거나 패널이 비었다');
   secs.forEach((s, i) => { if (!s.sec && !(i === 0 && s.isHeader)) bad.push(`머리 없는 절 #${i} — header(맨 앞 블록 머리)만 허용`); });
   const ordered = keyed.filter((s) => s.sec !== 'kind');   // ★Q2 — kind 는 순서와 상관없이 이름표 아래 띠(맨 앞)
-  const idx = ordered.map((s) => order.indexOf(s.sec));
+  const idx = ordered.map((s) => spec.sectionRank(order, s.sec, s.title));   // 틀과 같은 정렬 수(special:GIF 예외 · _section-spec.js)
   if (idx.some((v) => v < 0)) bad.push(`모르는 key: ${ordered.filter((s, i) => idx[i] < 0).map((s) => s.sec)}`);
   for (let i = 1; i < idx.length; i++) if (idx[i] < idx[i - 1]) bad.push(`순서 위반: ${ordered[i - 1].sec} 뒤에 ${ordered[i].sec}`);
   const seen = new Set();

@@ -74,8 +74,8 @@ function orderedAsExpected(F) {
 
 test('F1 정렬 — SECTION_ORDER 순 · special 은 선언순', () => {
   const r = orderedAsExpected(loadFrame());
-  assert.deepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template']);
-  assert.deepEqual(r.titles, ['Layout', 'Fill', 'First', 'Second', 'Template']);   // ★기대 바뀜(Q2 Type 머리 없음 · Q1 Size → «Layout» 머리)
+  assert.deepEqual(r.secs, ['kind', 'size', 'fill', 'template', 'special', 'special']);   // ★기대 바뀜(지디 261123 ⑶ⓑ · 정본 v1 꼬리 Templates → Export → [Special])
+  assert.deepEqual(r.titles, ['Layout', 'Fill', 'Template', 'First', 'Second']);   // ★기대 바뀜(Q2 Type 머리 없음 · Q1 Size → «Layout» 머리)
   assert.match(r.html, /id="psec-special-0"[\s\S]*First[\s\S]*id="psec-special-1"[\s\S]*Second/, '★special id 가 선언순으로 안 붙는다');
 });
 
@@ -233,13 +233,13 @@ test('F9 파일럿 — prop-gap.js · prop-bridge.js 는 renderPanel 을 쓰고 
 });
 
 test('N1 ★양성대조 — SECTION_ORDER 를 뒤집은 판이면 F1 의 기대가 깨진다', () => {
-  const ANCHOR = "'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',\n  'typography', 'fill', 'stroke', 'effects', 'special', 'export', 'template',";
+  const ANCHOR = "'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',\n  'typography', 'fill', 'stroke', 'effects', 'template', 'export', 'special',";
   const src = readSrc(ROOT, 'js/props/_section-spec.js');
   assert.ok(src.includes(ANCHOR), '★변이 닻을 못 찾았다 — 이 양성대조는 «안 재고» 있다');
   const rev = ANCHOR.replace(/\n/, ' ').split(',').map((s) => s.trim()).filter(Boolean).reverse().join(', ') + ',';
   const r = orderedAsExpected(loadFrame({ specPatch: (s) => s.replace(ANCHOR, rev) }));
-  assert.notDeepEqual(r.secs, ['kind', 'size', 'fill', 'special', 'special', 'template'], '★순서를 뒤집어도 같은 결과 — F1 이 순서를 안 잰다');
-  assert.equal(r.secs[1], 'template', '[전제] 뒤집힌 판이 실제로 올라갔다(★기대 바뀜 Q2 — kind 는 순서와 상관없이 이름표 아래 띠라 늘 맨 앞)');
+  assert.notDeepEqual(r.secs, ['kind', 'size', 'fill', 'template', 'special', 'special'], '★순서를 뒤집어도 같은 결과 — F1 이 순서를 안 잰다');
+  assert.equal(r.secs[1], 'special', '[전제] 뒤집힌 판이 실제로 올라갔다(★기대 바뀜 Q2 — kind 는 순서와 상관없이 이름표 아래 띠라 늘 맨 앞)');
 });
 
 test('F12 소유 규칙 ownerOf/controlIdent — 컨트롤 식별 → 있어야 할 절', () => {

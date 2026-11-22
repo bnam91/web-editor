@@ -201,7 +201,7 @@ test('R13 라벨 글자 크기 = --ui-fs-base — .prop-field-label · .prop-xy-
 
 /* 시안 v10 ⑤ — 컬러 변수 칩 줄은 끝 옵션 칼럼까지 · 한 줄. 양성대조: 규칙을 지우면 빨강 */
 test('R14 VAR·최근 색 칩 줄 — 끝 칼럼까지(음수 margin = --ui-opt-col-w) · nowrap · 최근 효과 줄만 빼고 (1120b R1 — 최근 색도 칼럼까지)', () => {
-  assert.match(css('css/editor-props.css'), /\.prop-section\[data-sec\] > \.prop-sec-body > \.cv-chips:not\(\.ts-recent-row\)\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\);\s*flex-wrap:\s*nowrap/);
+  assert.match(css('css/editor-props.css'), /\.prop-section\[data-sec\] > \.prop-sec-body > \.cv-chips:not\(\.ts-recent-row\)(?:,\s*[^{]+)?\s*\{\s*margin-right:\s*calc\(-1 \* var\(--ui-opt-col-w\)\);\s*flex-wrap:\s*nowrap/);
 });
 
 /* Q17 반전 «한 자리»(js/block-flip.js) — 저장 키 dataset.flipH/V = '1' · 끄면 키 지움 · transform 끝 scale(±1, ±1) 하나 · 회전 조각 보존 · 멱등.
