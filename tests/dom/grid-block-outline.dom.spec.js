@@ -220,7 +220,7 @@ test('O7 피그마 JSON — 켠 변만 border 에 실린다 · 끈 그리드는 
 });
 
 /* ══ G18 — 정렬 단추 픽셀·동작 지킴 (핀 37ab1c65 대비) ══════════════════════════════ */
-const PIN = '37ab1c65';
+const PIN = '316feb69e';   /* ★핀 옮김(지디 261123 ⑵): 옛 37ab1c65(끝 옵션 칼럼 전 · 정렬 줄 151) → 316feb69e(⑴ 그리드 단추 줄 고친 판 · 정렬 줄 123 — ⑴ 은 외곽선·줄바 줄만 바꿔 정렬 줄은 그대로) */
 /** 핀 판에서 «달라진» 앱 파일을 핀 내용으로 덮어 싣는다. 새로 생긴 파일은 404(핀에 없다). */
 function pinOverlay() {
   const out = execFileSync('git', ['-C', ROOT, 'diff', '--name-status', PIN, '--', 'js', 'css', 'index.html'], { encoding: 'utf8' });
