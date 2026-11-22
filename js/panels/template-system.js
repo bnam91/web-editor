@@ -501,13 +501,28 @@ async function insertTemplate(tpl, opts = {}) {
 
     const wrapper = document.createElement('div');
     wrapper.innerHTML = canvas;
-    const blockEl = wrapper.firstElementChild;
+    let blockEl = wrapper.firstElementChild;
     if (!blockEl) {
       window.showToast?.(`❌ '${tplName}' 템플릿이 비었거나 손상됐습니다.`);
       return;
     }
     _tplStripPath(blockEl);   // ★템플릿 안에서만 쓰는 이름표 — 캔버스로 들고 들어가지 않는다
     _tplStripLinks(blockEl);  // ★스크래치 링크 토큰도 — DOM 에 붙이기 «전»
+
+    /* ★옛 블록 템플릿(글만 담김 · fbfdc1ddf 전 저장분) — 캔버스 글은 언제나 글 프레임 안이다(js/io/save-load.js 열 때 옮김과 같은 래퍼 꼴).
+       감싸지 않으면 반전·회전 키만 남고 화면은 안 돌았다(9391 실측). 키를 래퍼로 올리고 그리기만 한다(keepKey). */
+    if (blockEl.classList.contains('text-block')) {
+      const tb = blockEl, unit = document.createElement('div');
+      unit.className = 'frame-block';
+      unit.id = 'ss_tpl';   // 아래 새 id 매기기가 접두어 ss 로 바꾼다
+      unit.dataset.textFrame = 'true';
+      unit.dataset.bg = 'transparent';
+      unit.style.cssText = 'background:transparent;width:100%;box-sizing:border-box;';
+      ['flipH', 'flipV', 'rotation'].forEach((k) => { if (tb.dataset[k] != null) unit.dataset[k] = tb.dataset[k]; });
+      unit.appendChild(tb);
+      window.writeRotation?.(unit, unit.dataset.rotation, { key: 'rotation', keepKey: true });
+      blockEl = unit;   // 아래(새 id · 묶기)는 래퍼째
+    }
 
     // row로 감싸서 insertAfterSelected로 삽입 (섹션 패딩/레이아웃 정상 적용)
     const row = document.createElement('div');
@@ -1190,6 +1205,12 @@ export async function saveBlockAsTemplate(block, name, folder = '블록', tagsSt
      안쪽 글만 담으면 넣었을 때 키(data-flip-h)만 남고 화면은 안 뒤집혔다. 넣기 갈래는 프레임을 그대로 받는다(_bindInsertedTree). */
   const tf = block.classList?.contains('text-block') && block.parentElement?.matches?.('.frame-block[data-text-frame="true"]') ? block.parentElement : null;
   const clone = _cleanTemplateClone((tf || block).cloneNode(true));
+  if (tf && clone.dataset.overlayBlock === 'true') {
+    /* ★띄운(오버레이) 글이면 띄움 상태를 걷는다(지디 261123 · 9391 실측: 안 걷으면 흐름 줄에 들어가서도 overlayBlock·offset·돌아갈 자리·스티커 선택색이 남는 반쪽).
+       ⛔손으로 열거하지 않는다 — 앱의 내리기 한 자리(overlay-float.js exitFloat)를 클론에 부른다. 돌아갈 자리 id 를 먼저 지워 «살아 있는 캔버스»는 안 건드린다(옮김·빈 줄 지우기 0). */
+    delete clone.dataset.overlayReturnParent; delete clone.dataset.overlayReturnAfter;
+    window.OverlayFloat?.exitFloat?.(clone);
+  }
   if (tf) ['position', 'left', 'top'].forEach((k) => clone.style.removeProperty(k));   // 자유배치 안 좌표는 버린다 — 넣는 자리는 stack 줄
   clone.querySelectorAll('.block-toolbar').forEach(el => el.remove());   // 세척 목록 밖 — 블록 저장에서만 나오는 chrome
   /* 블록 저장도 «같은 형제»다 — 현빈 지시가 「섹션이나 블럭들도 모두」였다. 순서는 위와 같다. */
