@@ -27,11 +27,12 @@ export const STROKE_ALIGNS = Object.freeze([['inside', '안쪽'], ['center', '�
  * @param {string} [o.alignWhy]  막힘 까닭(툴팁)
  * @param {string} [o.slotsBelow] 블럭별 특수 슬롯 HTML(이미 .ui-stroke-slot 로 감싼 것)
  * @param {boolean} [o.on]      false = 테두리 없음(머리 ＋ · 몸 숨김) — 머리 단추는 strokeHeadToolsHTML
+ * @param {string} [o.colorHtml]  이미 만든 색 칸(부르는 쪽 기본값·알파 규칙 그대로 · 텍스트/인용구 · '' = 빈 줄 그대로) — null 이면 color·alpha 로 만든다
  * @param {number} [o.step] · [o.minWidth]  굵기 걸음·하한(radial 0.5 · sticker-text 0.5 — 지디 261123)
  * @param {string} [o.bodyId] · [o.widthId] · [o.colorId]  그 블럭이 옛부터 쓰던 id 를 지킬 때(시험·외부 배선이 그 id 로 찾는다 · 없으면 prefix 기본)
  */
-export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0 }) {
-  const colorField = colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha })
+export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0, colorHtml = null }) {
+  const colorField = (colorHtml != null ? colorHtml : colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha }))
     .replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="stroke-color"');
   const blocked = canAlign ? '' : ` aria-disabled="true" tabindex="0" title="${alignWhy}"`;
   return `

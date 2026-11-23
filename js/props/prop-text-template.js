@@ -2,6 +2,7 @@
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
+import { strokeSectionHTML, strokeHeadToolsHTML } from './_stroke-section.js';
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
@@ -440,36 +441,13 @@ if (typeof window !== 'undefined') window.placeTextPanelSection = placeTextPanel
  * @returns 틀 절(sec) — renderPanel/buildPanelHTML 의 sections 에 넣는다
  */
 export function strokeSection({ p, stroke, colorHtml } = {}) {
-  const _al = stroke.align || 'outside';
-  const _opt = (v, t) => `<option value="${v}"${_al === v ? ' selected' : ''}>${t}</option>`;
-  return sec('stroke', `
-      <div id="${p}-stroke-controls" style="display:${stroke.on ? 'block' : 'none'}">
-        <div class="prop-row">
-          <span class="prop-label">두께</span>
-          <input type="range" class="prop-slider" id="${p}-stroke-w-slider" min="0.5" max="20" step="0.5" value="${stroke.width}">
-          <input type="number" class="prop-number" id="${p}-stroke-w-number" min="0.5" max="20" step="0.5" value="${stroke.width}">
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">색상</span>
-          ${colorHtml || ''}
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">위치</span>
-          <select class="prop-select" id="${p}-stroke-align">
-            ${_opt('inside', '내부')}
-            ${_opt('center', '가운데')}
-            ${_opt('outside', '외부')}
-          </select>
-        </div>
-      </div>`, {
+  /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 1·2) — 꼴만 부품 · 배선은 그대로 prop-text-wireup-stroke.js(= 이 블럭의 어댑터: data-stroke-on/w/color/align · 레거시 해석)
+     없음 = data-stroke-on 지움(굵기·색·위치 값은 남김 — 다시 켜면 그대로 · §4c 없음 열) · 굵기 0.5 걸음·하한 0.5 · 위치 = «살아 있음»(안쪽·가운데·바깥 다 그린다 · 실측 T1/T2/T4)
+     옛 id 그대로: ${p}-stroke-on · -controls(몸) · -w-number · -align · -color · 절 id ${p}-stroke-section */
+  return sec('stroke', strokeSectionHTML({ prefix: `${p}-stroke`, colorHtml, width: stroke.width, maxWidth: 20, minWidth: 0.5, step: 0.5,
+    align: stroke.align || 'outside', on: !!stroke.on, bodyId: `${p}-stroke-controls`, widthId: `${p}-stroke-w-number`, colorId: `${p}-stroke-color` }), {
     id: `${p}-stroke-section`,
-    /* 재설계 1차 ⑨ — 켜기 토글 → 머리 «＋»(켜면 «−» · 몸이 펼쳐짐). 같은 체크박스(#${p}-stroke-on · change 배선 그대로)를 단추꼴 label 이 감싼다 */
-    headTools: `
-        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
-          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''} aria-label="Stroke">
-          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
-          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
-        </label>`,
+    headTools: strokeHeadToolsHTML({ prefix: `${p}-stroke`, on: !!stroke.on }),   // 재설계 1차 ⑨ 머리 ＋/− 그대로(같은 체크박스 id)
   });
 }
 

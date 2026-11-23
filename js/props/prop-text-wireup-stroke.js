@@ -107,7 +107,7 @@ export function wireStrokeSection({ ctx, initial, p = 'txt', apply } = {}) {
 
   onChk?.addEventListener('change', () => {
     s.on = !!onChk.checked;
-    if (ctrls) ctrls.style.display = s.on ? 'block' : 'none';
+    if (ctrls) ctrls.hidden = !s.on;   // 표준 Stroke 부품 몸 = hidden(옛 style.display)
     _apply();
     window.pushHistory?.();   // push-after (js/CLAUDE.md 히스토리 규약 — 우측 패널 다수파)
   });
