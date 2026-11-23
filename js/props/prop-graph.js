@@ -482,7 +482,6 @@ export function showGraphProperties(block) {
   const _shapeOn     = chartType === 'bar-v' && window.GRAPH_SHAPE.shapeOn(block.dataset);   // 1012t1G2 — 실루엣이 «실제로» 켜졌나(세로 막대에서만 · 모르는 이름은 꺼진 것)
   const _segOn       = chartType === 'bar-v';   // 1012t1G4 — 마디 편집(줄 · 읽기 전용 합 · 합으로 되쓰기)은 세로 막대에서만
   const pieHole      = (h => Math.min(PIE_HOLE_MAX, Math.max(PIE_HOLE_MIN, Number.isFinite(h) ? h : PIE_HOLE_DEFAULT)))(parseInt(block.dataset.pieHole));   // 렌더(drag-utils.js _renderPie)와 «같은 식»
-  const pieNameOn    = block.dataset.pieName === '1';   // 체크 켬 여부(불린) — 템플릿 안에 이름 축(dataset.pieName)을 두지 않는다(name-axes X5)
   const pieLegGap    = (g => Number.isFinite(g) ? Math.min(PIE_LEG_GAP_MAX, Math.max(PIE_LEG_GAP_MIN, g)) : PIE_LEG_GAP_DEFAULT)(parseInt(block.dataset.pieLegendGap));   // 1017t1f1
 
   /* right-panel-unify U5 — 옛 절(Size · Chart Type · Shape · Pair/Line/Pie Settings · Slice · Shadow · Bar Settings · Data)을 정본 절로.
@@ -665,7 +664,7 @@ ${_bar.fill || ''}
         ${checkHTML({ id: 'grb-pie-rank-toggle', label: '순위 표시', checked: block.dataset.pieRank === '1' })}
       </div>
       <div class="prop-row" title="조각 안에 항목 이름을 넣는다. 좁은 조각은 줄을 바꾸고 글자를 줄여 보고, 그래도 안 들면 숨긴다">
-        ${checkHTML({ id: 'grb-pie-name-toggle', label: '이름 표시', checked: pieNameOn })}
+        ${checkHTML({ id: 'grb-pie-name-toggle', label: '이름 표시' })   /* 켬 여부는 아래 배선이 .checked 로(dataset.pieName 을 템플릿에 안 둠 · name-axes X5) */}
       </div>
 ${pieTagTypoRowsHTML(block)}
       <div class="prop-row" title="원형 아래의 범례(색 칩 + 이름 + %)를 보일지. 끄면 조각만 남는다 — 조각 안 순위·이름 표시와 따로 산다">
@@ -1164,6 +1163,7 @@ ${pieTagTypoRowsHTML(block)}
      ⛔범례 토글을 ★이 명부 밖에 ★따로 달지 마라 — ★자리가 둘이 된다(재는 자 = pie-legend-toggle.test.mjs T1). */
   for (const [tid, key, inv] of [['grb-pie-rank-toggle', 'pieRank'], ['grb-pie-name-toggle', 'pieName'], ['grb-pie-legend-toggle', 'pieLegendOff', true]]) {
     const tg = document.getElementById(tid);
+    if (tg) tg.checked = (block.dataset[key] === '1') !== !!inv;   // 처음 켬 여부 — DOM 속성으로(템플릿의 checked 와 같은 판정)
     if (tg) tg.addEventListener('change', () => {
       if (tg.checked !== !!inv) block.dataset[key] = '1'; else delete block.dataset[key];
       const _typoRow = document.getElementById(tid.replace('-toggle', '-typo-row'));   // ★t4-17 ⓑ — 그 표시의 «글자» 줄(범례엔 없다)
