@@ -216,14 +216,8 @@ function enhanceBadgePropPanel(sec) {
       </div>
 
       <div class="prop-section-title" style="margin-top:14px;">데코 테두리</div>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:#ccc;cursor:pointer;">
-        <input type="checkbox" id="badge-deco-thick" ${decoThickOn ? 'checked' : ''}>
-        굵은 선 (외곽 안쪽)
-      </label>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:#ccc;cursor:pointer;">
-        <input type="checkbox" id="badge-deco-thin" ${decoThinOn ? 'checked' : ''}>
-        얇은 선 (내부)
-      </label>
+      <div class="prop-row">${window.checkHTML({ id: 'badge-deco-thick', label: '굵은 선 (외곽 안쪽)', checked: decoThickOn })}</div>   <!-- 현빈 261123 «온/오프 = 체크» -->
+      <div class="prop-row">${window.checkHTML({ id: 'badge-deco-thin', label: '얇은 선 (내부)', checked: decoThinOn })}</div>
 
       <div class="prop-section-title" style="margin-top:14px;">정사각형 크기</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">

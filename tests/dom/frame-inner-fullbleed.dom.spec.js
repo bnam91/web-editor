@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* frame-inner-fullbleed.dom.spec.js — ★①의 ★갈래 ㉡: ★★«자르는 프레임 ★안»에서 ★패딩제외가 ★★«그 프레임의 ★패딩»을 ★뚫는다
  *
  * ★★★현빈 원문(2026-10-11 텔레그램): 「★프레임블럭의 ★패딩제외기능 ★원래됐잖아? ★★내용자르기도 ★원됐잖아? ★뭐가 문제야?」
@@ -57,7 +58,7 @@ const PROBE = (sel) => `(() => {
     frBoxL: fr ? Math.round(fr.getBoundingClientRect().left) : null,
     frBoxR: fr ? Math.round(fr.getBoundingClientRect().right) : null,
     toggle: !!document.getElementById('ss-fullbleed-toggle'),
-    toggleDisabled: document.getElementById('ss-fullbleed-toggle')?.disabled ?? null,
+    toggleDisabled: (() => { const t = document.getElementById('ss-fullbleed-toggle'); return t ? (t.disabled || t.getAttribute('aria-disabled') === 'true') : null; })(),   /* ★기대 바뀜(check 부품) — 막힘 = aria-disabled(옛 disabled) · 뜻(못 누름)은 같다 */
     why: document.getElementById('ss-fullbleed-why')?.textContent?.trim() || null,
     clipToggle: !!document.getElementById('ss-clip-toggle'),
     pagePadX: window.state?.pageSettings?.padX ?? null,
@@ -189,7 +190,7 @@ async function selectInnerViaLayer(page) {
 
 /** ★토글은 ★«안 보이는 input» 이다 — ★사람이 ★누르는 ★`label.prop-toggle` 을 ★누른다(★실측). */
 async function pressFullBleed(page) {
-  const lab = page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)');
+  const lab = page.locator('label.ui-check:has(#ss-fullbleed-toggle)');
   if (await lab.count() === 1) await lab.click();
   else await page.locator('#ss-fullbleed-toggle').check({ force: true });
 }

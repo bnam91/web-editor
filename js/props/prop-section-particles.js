@@ -71,7 +71,7 @@
      단추      `.prop-action-btn`                          (★선례 sec-bg-img-empty)
    ═══════════════════════════════════════════════════════════════════════════ */
 /* ★★글자 이스케이프는 ★정본 하나다 — ⛔사본 금지(★게이트 tests/unit/name-axes-to-markup ★X9 가 잡는다). */
-import { escHtml } from './_helpers.js';
+import { escHtml, checkHTML } from './_helpers.js';
 
 /* ★★축의 ★사람 글 — ★★시안 `:264~318` 의 ★글자 ★그대로다. ⛔내가 지어낸 말이 ★하나도 없다.
    ★`RANGES` 는 ★키만 준다(수는 거기서 읽고 ★글은 여기서). ★선례 = prop-sticker-glow.js:9 `KIND_LABEL`.
@@ -237,10 +237,7 @@ function _rotRow(cfg) {
   return `
       <div class="prop-row">
         <span class="prop-label">회전</span>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;flex:1;">
-          <input type="checkbox" id="sec-fxpart-rot" ${cfg.rot ? 'checked' : ''}>
-          무작위
-        </label>
+        ${checkHTML({ id: 'sec-fxpart-rot', label: '무작위', checked: cfg.rot })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>`;
 }
 

@@ -78,7 +78,7 @@
  *   · #crt-mode/#crt-preset/#crt-count-number/#crt-grid-picker .grid-picker-cell/#crt-fullbleed/#crt-samples/#crt-sheeth-number/#crt-overlap/#crt-img-crop-done/#crt-img-crop-reset/.cert-img-edit-proxy/.crt-overlay-handle/#crt-gapx-number/#crt-gapy-number/#crt-float-toggle/#crt-x-number/#crt-callouts-section/.cert-sheet-clear/#crt-callouts/#crt-fx-target/#crt-fx-rot-number/#crt-fx-tilt-number/#crt-fx-shadow(prop-cert.js) · 카드 셀렉터(.crt-card/.crt-img-pick/.crt-img-clear/.crt-status)는 «없음» 단언용 · 토글 = label.prop-toggle:has(#id)(숨은 체크박스 · css/editor-props.css:242)
  */
 const { test, expect } = require('@playwright/test');
-const { bootApp } = require('./_root-harness.js');
+const { bootApp, waitStableRect } = require('./_root-harness.js');
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
@@ -101,7 +101,7 @@ async function openPanel(page, id) {
   await page.evaluate((id) => window.showCertProperties(document.getElementById(id)), id);
   await page.waitForSelector('#crt-mode');   // ⑩ 뒤 기본이 격자 — #crt-preset 은 스택에만 있다(두 모드 공통 = #crt-mode)
 }
-const toggle = (page, id) => page.click(`label.prop-toggle:has(#${id})`);
+const toggle = (page, id) => page.click(`label.ui-check:has(#${id})`);   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 누르는 자리 = label.ui-check */
 /** ⑩ 새 블럭 기본 = 격자 — 스택을 재는 칸은 패널 «모드»로 스택을 «명시»하고 잰다(단언 그대로). */
 async function stackMode(page, id) {
   await openPanel(page, id);
@@ -649,7 +649,9 @@ test('IE1 그림 든 칸 더블클릭 = 틀 안 그림 편집(안 2)', async ({ 
   await seed(page, id, [DATA_PNG, '', '', '']);
   await page.evaluate(() => window.pushHistory('IE1 seed'));   // ⌘Z 가 돌아갈 «크롭 전» 칸
   const sheet = `#${id} .cert-sheet[data-idx="0"]`;
-  const frame0 = await page.locator(sheet).boundingBox();
+  /* ★자리 멈춘 뒤 잰다(지디 261123 · check 가지에서 4번 중 3번 빨강 · tp/front 초록) — 부트 뒤 배율 맞추기가 늦게 끝나 블럭이 «두 자리» 중 하나에 선다(srv 실측 se 손잡이 906,621 vs 1257,1096 = 화면 밖). 재는 사이 배율이 바뀌면 틀 크기·끌기가 빗나간다. 제품 동작 아님 — 하네스 waitStableRect 로 멈춘 뒤 잰다. */
+  await page.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'center' }), sheet);
+  { const q = await waitStableRect(page, sheet); var frame0 = { x: q.left, y: q.top, width: q.width, height: q.height }; }
   await page.dblclick(sheet);
   await page.waitForFunction(() => document.querySelectorAll('.cert-img-edit-proxy').length === 1 && document.querySelectorAll('.img-corner-handle').length > 0, null, { timeout: 5000 });
   await expect(page.locator('#crt-img-crop-done')).toHaveCount(1);
@@ -688,10 +690,13 @@ test('IE1 그림 든 칸 더블클릭 = 틀 안 그림 편집(안 2)', async ({ 
 test('RH1 모서리 손잡이로 폭 조절 · ⌘Z', async ({ page }) => {
   const errs = await boot(page);
   const id = await addViaMenu(page);
+  /* ★자리 멈춘 뒤 잰다(지디 261123 · check 가지에서 4번 중 3번 빨강 · tp/front 초록) — 부트 뒤 배율 맞추기가 늦게 끝나 블럭이 «두 자리» 중 하나에 선다(srv 실측 se 손잡이 906,621 vs 1257,1096 = 화면 밖). 재는 사이 배율이 바뀌면 틀 크기·끌기가 빗나간다. 제품 동작 아님 — 하네스 waitStableRect 로 멈춘 뒤 잰다. */
+  await page.evaluate((i) => document.getElementById(i).scrollIntoView({ block: 'center' }), id);
+  await waitStableRect(page, '#' + id);
   await page.click(`#${id}`, { position: { x: 4, y: 4 } });
   await expect(page.locator('.crt-overlay-handle'), '블럭을 고르면 모서리 손잡이 4개').toHaveCount(4);
   const w0 = await page.evaluate((id) => document.getElementById(id).offsetWidth, id);
-  const h = await page.locator('.crt-overlay-handle.se').boundingBox();
+  const hq = await waitStableRect(page, '.crt-overlay-handle.se'); const h = { x: hq.left, y: hq.top, width: hq.width, height: hq.height };
   await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
   await page.mouse.down();
   await page.mouse.move(h.x + h.width / 2 - 80, h.y + h.height / 2, { steps: 8 });

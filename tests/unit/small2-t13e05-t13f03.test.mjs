@@ -13,10 +13,10 @@ const rd = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 test('E05-1 원 효과 라벨 = «Inner shadow»(옛 «이너 그림자» 보이는 글 0)', () => {
   const s = rd('js/props/prop-shape.js');
-  assert.match(s, /<span class="prop-label[^"]*">Inner shadow<\/span>/, '라벨이 Inner shadow 가 아니다');
+  assert.match(s, /<span class="prop-label[^"]*">Inner shadow<\/span>|checkHTML\(\{ id: 'shape-ellipse-shadow-toggle', label: 'Inner shadow'/, '라벨이 Inner shadow 가 아니다');   // 열차 합침 — 토글 = check 부품(이름 = 체크 옆 글)
   assert.doesNotMatch(s, />이너 그림자</, '보이는 라벨에 옛 이름이 남았다');
   assert.doesNotMatch(s, /pushHistory\?\.\('이너 그림자'\)/, '이력 이름에 옛 이름이 남았다');
-  assert.match(s, /id="shape-ellipse-shadow-toggle"/, '[전제] id 그대로');
+  assert.match(s, /id="shape-ellipse-shadow-toggle"|id: 'shape-ellipse-shadow-toggle'/, '[전제] id 그대로');   // 열차 합침 — check 부품(checkHTML) 꼴도
 });
 
 test('F03-1 상한 = 짧은 변 절반 · 바닥 120 — 한 자(asset-width-limits.js)', async () => {

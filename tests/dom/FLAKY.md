@@ -447,6 +447,20 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 ## 2026-11-23 · 통일판 2맥(아이맥·수지) 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.
 
+## 2026-11-23 · tp/0913-check 묶음 2(srv 좁게) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `cert-block.dom.spec.js:646` IE1 — srv 6 spec 묶음 workers 1 · retries 1(판 3bd41ee18 작업트리) 첫 시도 빨강 1/1 · 재시도 초록.
+- `cert-block.dom.spec.js:688` RH1 — 같은 판 · 같은 묶음 첫 시도 빨강 1/1 · 재시도 초록.
+
+## 2026-11-23 · tp/0913-check 050b801e8(수지맥 70벌 + census) — ★흔들림 아님 · 조사 중 → 갈림(아래)
+- `cert-block.dom.spec.js:646` IE1 — 수지맥 050b801e8 전수 · w1 재실행에서 RH1 과 번갈아 빨강 1 · tp/front f27025897 판 같은 범위 39/39 초록.
+- `cert-block.dom.spec.js:688` RH1 — 같은 판 · 같은 재실행에서 IE1 과 번갈아 빨강 1.
+
+## 2026-11-24 · ★위 cert-block IE1 · RH1 = «흔들림 아님» 정정(지디 261123 — 4번 중 3번 빨강 · w1 단독도 빨강)
+- srv 1 워커 ×5: tp/front f27025897 = 10/10 초록 · check 50020b0c5 = RH1 3/5 빨강 ⇒ check 가지 탓.
+- 파일 갈라 보기(복사로 끼움): prop-cert.js 옛 판 = 여전히 빨강 · CSS 옛 판 = 빨강 · 섹션 두 파일 옛 판 = 5/5 초록(하나씩은 2/5 빨강).
+- 실측: 블럭이 두 자리 중 하나에 선다(se 손잡이 906,621 / 1257,1096 = 화면 밖) — 부트 뒤 배율 맞추기와 재는 때가 겹침(하네스 waitStableRect 머리말의 그 병).
+- 고침 = 시험(제품 아님): IE1 틀 · RH1 블럭·손잡이를 waitStableRect 로 멈춘 뒤 잼 → srv 1 워커 ×5 10/10 · ×10 20/20.
+
 ## 2026-11-24 · tp/0913-grid-paste 30bcb7f38(수지맥 관련 89벌) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t902-copy4.dom.spec.js:71` C3 ⌘D(CELLS 표 C3 줄) — 수지맥 89벌 1/1 빨강 · workers 1 재실행 5/5 초록 · 인텔 열차 전수에서도 같은 파일 빨강 기록(지디).
 

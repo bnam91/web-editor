@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* slide-fx — 슬라이드 효과 묶음(현빈 «너가 판단» 261118 · handoff/PLAN-cycle-0.9.13-261118.md 끝 차례) · 각 효과 = 첫 장면(DOM) + GIF(slidePlan draw) 같은 모양.
  * D1 SLIDE-INDICATOR-DOTS-01(P224·P228): 패널 «점 표시 = 위» → 첫 장면 .sld-dots 점 3 · 첫 점 진함 · 트랙 = 블럭 − 띠(24) ·
  *    GIF: 띠 자리(카드 없음) 비움 · 넘김 둘째 머무름에서 둘째 점 진함·첫 점 옅음 · 카드는 띠 아래 · ⌘Z = 점 없음
@@ -246,13 +247,13 @@ test('X1 임시 가로 막대 · 스크롤 고정 → 내보내기 자리', asyn
   expect(await page.evaluate((id) => window.slideHScroll(document.getElementById(id)), id), '★임시 = 밀기 값 200(134 부터 scrollLeft 대신 값+translate · 제품 뜻 바뀜)').toBe(200);
   expect(await saved(), '임시 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
   expect((await png()) === png0, '★임시 = PNG 흔적 0(안 민 것과 같음)').toBe(true);
-  await page.click('label.prop-toggle:has(#sld-scroll-fix)');
+  await page.click('label.ui-check:has(#sld-scroll-fix)');
   const fx = await page.evaluate((id) => { const b = document.getElementById(id); return { sx: b.dataset.scrollX, sl: window.slideHScroll(b), tf: b.querySelector('.sld-track').style.transform }; }, id);
   expect(fx, '★고정 = data-scroll-x 200 · 임시 0 · 트랙 −200').toEqual({ sx: '200', sl: 0, tf: 'translateX(-200px)' });
   expect((await png()) !== png0, '★고정 = PNG 가 그 자리').toBe(true);
   const fig = await page.evaluate((id) => { let node = null; const walk = (o) => { if (node || !o || typeof o !== 'object') return; if (o.id === id) { node = o; return; } Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON?.(null)); return node?.images?.[0]?.x ?? null; }, id);
   expect(fig, 'Figma 첫 카드 x = −200').toBe(-200);
-  await page.click('label.prop-toggle:has(#sld-scroll-fix)');
+  await page.click('label.ui-check:has(#sld-scroll-fix)');
   expect(await saved(), '★고정 끔 = 저장본 흔적 0').toEqual({ sx: null, tf: '' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

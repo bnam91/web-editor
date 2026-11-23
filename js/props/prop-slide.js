@@ -5,7 +5,7 @@
  *   ⛔그림 주소는 escHtml 로 속성에(남이 준 프로젝트에서 올 수 있다).
  */
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 import { grdPickImageFile } from './prop-grid.js';
@@ -42,7 +42,7 @@ function _cellPartsHTML(c, k, st) {
   const vert = slideAxis(st.fx) === 'y';
   return `${sliderRowHTML(vert ? '높이 %' : '폭 %', 'sld-cell-w-slider', 'sld-cell-w-number', { min: 20, max: 100, step: 1, value: c.dataset.w ?? st.layout.cardW })}${vert ? '' : `
       ${sliderRowHTML('높이 %', 'sld-cell-h-slider', 'sld-cell-h-number', { min: 20, max: 100, step: 1, value: c.dataset.h ?? 100 })}`}
-      <div class="prop-row"><span class="prop-label">배경</span><label class="prop-toggle"><input type="checkbox" id="sld-cell-bg-on" ${_cellBgOn(c) ? 'checked' : ''} aria-label="칸 ${k + 1} 배경"><span class="prop-toggle-track"></span></label></div>
+      <div class="prop-row">${checkHTML({ id: 'sld-cell-bg-on', label: '배경', checked: _cellBgOn(c), attrs: `aria-label="칸 ${k + 1} 배경"` })}</div>
       <div class="prop-row"><button class="prop-btn" id="sld-cell-back" style="width:100%">슬라이드 전체 설정</button></div>`;
 }
 /* 그림자 = Effects 절(일반 프레임과 같은 절 이름) · 저장 키 dataset.shadow 그대로(GIF deco·103 기본값이 읽는다) */
@@ -138,12 +138,13 @@ export function showSlideProperties(block, opts = {}) {
       </select></div>
       ${sliderRowHTML('간격', 'sld-gap-slider', 'sld-gap-number', { min: -80, max: 80, step: 1, value: st.layout.gap })}${slideAxis(st.fx) === 'y' ? '' : `
       ${_dotsRowsHTML(st.layout)}
-      <div class="prop-row"><span class="prop-label">스크롤 고정</span><label class="prop-toggle"><input type="checkbox" id="sld-scroll-fix" ${block.dataset.scrollX ? 'checked' : ''}><span class="prop-toggle-track"></span></label></div>`}`),
-      /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + prop-toggle) */
+      <div class="prop-row">
+        ${checkHTML({ id: 'sld-scroll-fix', label: '스크롤 고정', checked: block.dataset.scrollX })}
+      </div>`}`),
+      /* SLIDE-PADDING-EXCLUDE-01 — 에셋·인증서 «패딩 제외»와 같은 줄(prop-row + check 부품) */
       sec('padding', canFB ? `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle"><input type="checkbox" id="sld-fullbleed" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+        ${checkHTML({ id: 'sld-fullbleed', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''),
       sec('export', animGifBtnHTML(), { id: 'sld-anim-section' }),
     ],

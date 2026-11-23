@@ -1,6 +1,6 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { alignBtn, blockHeaderHTML } from './_helpers.js';
+import { alignBtn, blockHeaderHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 
 function _stepToken(name, fallback) {
@@ -144,11 +144,7 @@ export function showStepProperties(block, activeIdxArg) {
         <input type="number" class="prop-number" id="stb-badge-gap-number" min="4" max="200" value="${badgeGap}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">연결선</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="stb-connector" ${connector ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'stb-connector', label: '연결선', checked: connector })}
       </div>
       <div class="prop-row" id="stb-connector-style-row" style="display:${connector ? 'flex' : 'none'}">
         <span class="prop-label">스타일</span>

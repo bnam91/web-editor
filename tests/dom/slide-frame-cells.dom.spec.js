@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* slide-frame-cells — SLIDE-CELL-AS-FRAME-01(현빈 261118 · handoff/PLAN-ty-slide-frame-cells-261118.md) · 커밋 1 = 데이터 두 갈래 + 비파괴 렌더 + 왕복.
  *   js/blocks/slide-block.js: data-cell-mode="frame" = 정본 DOM(.sld-track > .frame-block.sld-cell 자식) · renderSlideBlock 프레임 갈래 = 배치만(칸 자식 무접촉)
  * F0 ★프레임 모드 슬라이드 · 칸 2 에 들어가(_activeFrame = 칸) 진짜 addTextBlock → 그 칸 안 글자(같은 요소 = id 로 잰다 · addTextBlock 프레임 갈래는 content 를 안 받는다)
@@ -754,7 +755,7 @@ test('G1 칸 배경 끄기·켜기·색 — 캔버스·Figma·⌘Z·저장·GIF�
   await expect(page.locator('#sld-cell-bg-on'), '[전제] 배경 켬(기본)').toBeChecked();
   await expect(page.locator('#ss-bg-hex'), '[전제] 배경색 칸(142 — 칸 배경색 = 프레임 패널 Fill)').toHaveCount(1);
   /* 지혜맥 ae8952f79 G1 2/2 — 숨은 진짜 체크박스는 uncheck({force}) 로도 «viewport 밖» ⇒ 사람이 누르는 겉모양(.prop-toggle-track)을 누른다(Playwright 가 패널 스크롤로 넣고 누름) */
-  const bgToggle = page.locator('#sld-cell-bg-on + .prop-toggle-track');
+  const bgToggle = page.locator('label.ui-check:has(#sld-cell-bg-on)');
   await bgToggle.click();
   await expect.poll(() => cellBg(page, id, 1), '★끔 = 칸 투명').toEqual({ bg: 'transparent', cs: 'rgba(0, 0, 0, 0)' });
   await expect(page.locator('#sld-cell-bg-on'), '끈 동안 켜기 꺼짐(142 — 배경색 칸은 프레임 Fill 에 늘 있다)').not.toBeChecked();

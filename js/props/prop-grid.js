@@ -2,7 +2,7 @@
    구조(컬럼/라인 추가·삭제)는 CDP/updateGridBlock 영역 — 패널은 간격·정렬·행 높이만 다룬다(P1.5: 글자는 캔버스 인라인 편집 — js/block-drag.js). */
 import { propPanel } from '../globals.js';
 import { parseRatio, parseRatioStrict, noticeRatioRejected, buildGridPicker, alignBtn, borderBtn, bindSlider, blockHeaderHTML, disclosureChevronHtml, sliderRowHTML,
-  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+  discSecOpen as _grdSecOpen, discSecToggle as _grdSecToggle, disclosureSectionHtml as _grdDisclosureHtml, wireDisclosureSection as _grdWireDisclosure, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 /* ★상·하한은 한 곳에서만 온다 — IMG_MIN_PCT 는 캔버스 코너 드래그(resizeGridImage)가 쓰는
    «그» 하한이다. 패널의 폭(%) 칸이 같은 수를 쓰게 import 한다(손으로 5 를 적지 않는다). */
 import { ROW_H_MAX, IMG_MIN_PCT } from '../grid-cell-resize.js';
@@ -2011,11 +2011,7 @@ function _grdImageClipSectionHtml(anyHit, block) {
     <div class="prop-section" data-scope="line">
       <div class="prop-section-title">이미지 표시</div>
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle"${locked ? ` title="${_GRD_IMG_CLIP_LOCK}" style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"` : ''}>
-          <input type="checkbox" id="grd-img-clip-toggle" ${on ? 'checked' : ''}${locked ? ' disabled' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'grd-img-clip-toggle', label: '내용 자르기', checked: on, blockedWhy: locked ? _GRD_IMG_CLIP_LOCK : '', attrs: locked ? 'disabled' : '' })}   <!-- 현빈 261123 «온/오프 = 체크» — 막힘 = disabled 그대로 + 까닭 title(aria-disabled) -->
       </div>
     </div>`;   /* ★U1 — 까닭 줄(#grd-img-clip-hint)은 막힌 토글의 title 로(prop-hint ≤2) */
 }
@@ -2922,10 +2918,7 @@ function _grdWireOutlineSection(block) {
 /* 위치 단추 여섯 — 이름은 객체정렬 «정본 6개» 그대로(align-btn-ssot C3: 「이름이 정확히 그 6개」). 세로 가운데 그림 키는 'middle', CSS 값은 'center'. */
 function _grdBlockBgSectionHtml(block) {
   const bg = gridBlockBg(block);
-  const toggle = `<label class="prop-toggle" title="그리드 블럭 전체 뒤에 배경을 깝니다 — 「배경 여백」만큼 블럭 바깥까지">
-          <input type="checkbox" id="grd-bbg-toggle"${bg.on ? ' checked' : ''} aria-label="블럭 배경">
-          <span class="prop-toggle-track"></span>
-        </label>`;
+  const toggle = checkHTML({ id: 'grd-bbg-toggle', label: '켜기', checked: bg.on, attrs: 'aria-label="블럭 배경" title="그리드 블럭 전체 뒤에 배경을 깝니다 — 「배경 여백」만큼 블럭 바깥까지"' });   /* ②ⓒ 머리 홀로 켬/끔 = 체크 + «켜기» */
   if (!bg.on) {
     return `
     <div class="prop-section" id="grd-bbg-section" data-scope="block">
@@ -3194,13 +3187,8 @@ function _grdPadExcludeSectionHtml(block) {
     size: `<div data-scope="block">${_grdWidthRowHtml(block)}</div>`,
     padding: `<div data-scope="block">
       ${_grdCellPadYRowHtml(block)}
-      <div class="prop-row" style="align-items:center;gap:6px;">
-        <span class="prop-label prop-label--auto"${hideBleed ? ' style="display:none;"' : ''}
-              title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">좌우 패딩 제외 (전폭)</span>
-        <label class="prop-toggle"${hideBleed ? ' style="display:none;"' : ''}>
-          <input type="checkbox" id="grd-use-padx"${on ? ' checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" style="align-items:center;gap:6px;${hideBleed ? 'display:none;' : ''}" title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">   <!-- ★t2-08 ⓐ 펼 것이 없으면 줄째 숨김(옛: 이름표·스위치 각각 display:none — check 이관 때 빠졌던 것 되살림) -->
+        ${checkHTML({ id: 'grd-use-padx', label: '좌우 패딩 제외 (전폭)', checked: on })}
       </div>
     </div>`,
     position: `<div data-scope="block">

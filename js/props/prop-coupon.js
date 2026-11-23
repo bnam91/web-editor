@@ -21,7 +21,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 /* ★HTML 이스케이프는 ★정본 하나다 — ⛔제 사본을 만들지 마라
    (tests/unit/name-axes-to-markup X9 가 사본 수를 센다). */
-import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml } from './_helpers.js';
+import { blockHeaderHTML, escHtml as _esc, disclosureChevronHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import {
   COUPON_SLOTS, COUPON_SLOT_KEYS, COUPON_DEFAULTS, COUPON_LIMITS, clampCoupon,
@@ -88,9 +88,7 @@ function _slotListHTML(block, openKey) {
     return `
       <div class="prop-row" data-sec-item${style}>
         <span class="prop-label"${sel} title="${_esc(def.label)}">${_esc(def.label)}</span>
-        <label class="prop-none-check" title="이 칸을 캔버스에 보일지">
-          <input type="checkbox" data-cpn-on="${def.key}"${sl.on ? ' checked' : ''} aria-label="${_esc(def.label)} 표시">
-        </label>
+        ${checkHTML({ ariaLabel: `${def.label} 표시`, checked: sl.on, attrs: `data-cpn-on="${_esc(def.key)}" title="이 칸을 캔버스에 보일지"` })}   <!-- 현빈 261123 «온/오프 = 체크» -->
         <button class="prop-icon-btn" data-cpn-open="${def.key}" aria-expanded="${open ? 'true' : 'false'}"
                 title="${open ? '이 칸 접기' : '이 칸만 열기'}">${disclosureChevronHtml(open)}</button>
         <span class="prop-value-text" style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</span>

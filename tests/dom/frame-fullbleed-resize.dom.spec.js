@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* frame-fullbleed-resize.dom.spec.js — ★「패딩 제외」가 ★폭을 만져도 ★안 풀린다 (2026-10-11 · 현빈)
  *
  * ★현빈 원문: 「★리사이즈하면 ★패딩제외가 ★풀린다」 (★08-27 에 ★에셋에서 ★한 번 · ★10-11 에 ★프레임에서 ★또)
@@ -72,7 +73,7 @@ async function setup(page, sid) {
 
 /** ★패딩제외를 ★★패널에서 ★진짜로 ★켠다 ＋ ★★켜졌음을 ★수로 ★확인한다. */
 async function turnOn(page) {
-  await page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)').click();
+  await page.locator('label.ui-check:has(#ss-fullbleed-toggle)').click();
   await page.waitForFunction(() => window.__ff.dataset.fullBleed === 'true', null, { timeout: 5000 })
     .catch(() => { throw new Error('★켜기가 ★`dataset.fullBleed` 에 ★안 닿았다 — ★전제가 ★안 섰다'); });
   const on = await page.evaluate((c) => eval(c), SNAP);
@@ -164,7 +165,7 @@ test('FB2 ★★패널 ★폭 칸을 만져도 ★패딩제외가 ★안 풀린�
   expect(after.rectW, `★★그려진 폭도 ★같다. 잰 값 ${after.rectW} · 켠 직후 ${on.rectW}`).toBe(on.rectW);
 
   /* ★★음성대조 — ★★끄면 ★그 폭(400)이 ★★살아난다. ⛔«항상 calc» 가 ★아니다 */
-  await page.locator('label.prop-toggle:has(#ss-fullbleed-toggle)').click();
+  await page.locator('label.ui-check:has(#ss-fullbleed-toggle)').click();
   await page.waitForFunction(() => window.__ff.dataset.fullBleed === undefined, null, { timeout: 5000 })
     .catch(() => { throw new Error('★끄기가 ★`dataset.fullBleed` 를 ★안 지웠다'); });
   const off = await page.evaluate((c) => eval(c), SNAP);

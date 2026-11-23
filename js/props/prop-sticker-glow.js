@@ -5,6 +5,7 @@
  *   ★「다시 뿌리기」의 0.2초 페이드는 «상태 전이 표시»다(지디 ②-1: 효과 애니메이션은 넣지 않는다 — 화면 == 내보낸 것).
  */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { checkHTML } from './_helpers.js';
 
 const KIND_LABEL = { star: '별 반짝이', flare: '렌즈 플레어', dot: '빛점' };
 
@@ -49,8 +50,7 @@ export function glowSectionHTML(block) {
         <input type="range" class="prop-slider" id="stk-glow-rays" min="${kind === 'star' ? 2 : 0}" max="${kind === 'star' ? 8 : 12}" step="1" value="${Number.isFinite(rays) ? rays : 4}">
         <input type="number" class="prop-number" id="stk-glow-rays-num" min="${kind === 'star' ? 2 : 0}" max="${kind === 'star' ? 8 : 12}" value="${Number.isFinite(rays) ? rays : 4}">
       </div>
-      <div class="prop-row"><span class="prop-label">색수차</span>
-        <input type="checkbox" id="stk-glow-chroma" ${d.chroma === '1' ? 'checked' : ''}>
+      <div class="prop-row">${checkHTML({ id: 'stk-glow-chroma', label: '색수차', checked: d.chroma === '1' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>
       <div class="prop-row">
         <button class="prop-action-btn" id="stk-glow-reroll" style="width:100%;" title="모양만 새로 뿌린다(색·세기는 그대로)">다시 뿌리기</button>

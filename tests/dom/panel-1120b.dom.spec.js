@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* panel-1120b — 현빈 우측패널 피드백 배치 1120b(2026-11-20) 항목마다 «새 구조» 한 판씩.
  * 원칙: 텍스트 블럭(text-h1) 패널 부품을 다른 패널이 그대로 쓴다. 항목 = F1 · F3 · A1 · A2 · A3 · A4 · A6 · B1 · B3 · B4 · R1 · R2 · P1 · P2 · P3 · P4.
  * 양성대조(CTL): _patches/1120b-<항목>-CTL.patch 를 적용하면 그 항목 시험이 빨강(제품 변경만 되돌린다).
@@ -109,7 +110,7 @@ test('B1 Bubble — 힌트 «줄 없음 — 줄을 더하면…» · #txt-pv-bub
 test('B3 Bubble — Effects 머리 = ＋(.prop-sec-add 안 #txt-shadow-on) · 옛 토글 꼴 아님', async ({ page }) => {
   const errs = await open(page, 'bubble');
   const r = await page.evaluate(() => { const c = document.getElementById('txt-shadow-on');
-    return { add: !!c?.closest('.prop-sec-add.prop-chain-btn'), toggle: !!c?.closest('.prop-toggle'), sec: c?.closest('.prop-section[data-sec]')?.dataset.sec }; });
+    return { add: !!c?.closest('.prop-sec-add.prop-chain-btn'), toggle: !!c?.closest('.ui-check'), sec: c?.closest('.prop-section[data-sec]')?.dataset.sec }; });
   expect(r).toEqual({ add: true, toggle: false, sec: 'effects' });
   expect(errs, errs.join(' | ')).toEqual([]);
 });

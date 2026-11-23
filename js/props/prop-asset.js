@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
-import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
+import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
 import { videoTrimSectionHTML, wireVideoTrim } from './asset-video-trim.js';
@@ -118,12 +118,8 @@ export function showAssetProperties(ab) {
            ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
            (옛 라디오 name 함정은 체크박스가 되며 사라졌다 — 1120b A5) -->
       <div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
-        <span class="prop-label">체커 어둡게</span>
-        <!-- 1120b A5(현빈 261120) — 켬/끔 라디오 → 「내용 자르기」와 같은 토글(.prop-toggle) · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-checker-tone-on" ${_ckTone === 'dark' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        <!-- 1120b A5(현빈 261120) 켬/끔 라디오 → 토글 · ★현빈 261123 «온/오프 = 체크» → check 부품 · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
+        ${checkHTML({ id: 'asset-checker-tone-on', label: '체커 어둡게', checked: _ckTone === 'dark' })}
       </div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
   `;
@@ -159,11 +155,7 @@ export function showAssetProperties(ab) {
   };
   const collabSection = showCollab ? `
       <div class="prop-row">
-        <span class="prop-label">콜라보</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-collab-toggle" ${collabOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'asset-collab-toggle', label: '콜라보', checked: collabOn })}
       </div>
       <div class="prop-row">
         <span class="prop-label">갯수</span>
@@ -242,11 +234,7 @@ export function showAssetProperties(ab) {
       </div>`),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-padx-toggle" ${usePadX ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'asset-padx-toggle', label: '패딩 제외', checked: usePadX })}
       </div>`),
       // 모서리(radius)는 어디서나 Appearance(§8 Q2) · 내용 자르기 · 옛 「그레인」
       sec('appearance', `
@@ -261,11 +249,7 @@ export function showAssetProperties(ab) {
            ⛔★★이 주석에 ★★백틱을 ★쓰지 ★마라 — ★★여기는 ★★템플릿 리터럴 ★안이고 ★백틱이 ★리터럴을 ★끊는다
              (★2026-10-10 에 ★실제로 ★끊었다 · ★내 명부의 ★「in-template 주석이 ★JS 를 깨뜨렸다」 그 자리) -->
       <div class="prop-row">
-        <span class="prop-label">내용 자르기</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-clip-toggle" ${clipsContent(ab) ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'asset-clip-toggle', label: '내용 자르기', checked: clipsContent(ab) })}
       </div>`),   /* 옛 «그레인» 줄 → Effects «Noise» 카드(js/effects-noise.js · 현빈 261123) */
       // 옛 「Background」
       sec('fill', bgSection),

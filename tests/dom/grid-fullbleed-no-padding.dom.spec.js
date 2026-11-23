@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* grid-fullbleed-no-padding.dom.spec.js — t2-08 ⓒ 바닥 + ⓐ(현빈 확정 2026-11-10)
  *   결함(수지맥 프로젝트 사본 실측 · 격리 앱 9440): 뚫을 패딩이 0 인 자리에서 「좌우 패딩 제외」를 켜면
  *     ⑶ 자유 프레임(831) 안 절대배치 그리드(747 · left 42) → (ⓒ 전) 폭 100% · left 42 그대로라 오른쪽이 프레임에 잘림
@@ -53,7 +54,7 @@ async function setup(page) {
 }
 const pick = (page, id) => page.evaluate((id) => { const g = document.getElementById(id); window.deselectAll?.(); window.selectBlock?.(g); window.showGridProperties(g); window.clearHistory?.(); }, id);
 const toggleOff = (page) => page.evaluate(() => { const cb = document.getElementById('grd-use-padx'); cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true })); });
-const shown = (page) => page.evaluate(() => { const t = document.getElementById('grd-use-padx')?.closest('.prop-toggle'); return !!t && getComputedStyle(t).display !== 'none'; });
+const shown = (page) => page.evaluate(() => { const t = document.getElementById('grd-use-padx')?.closest('.ui-check'); return !!t && t.getClientRects().length > 0; });   // ★기대 바뀜(check 이관) — 숨김은 줄째(display:none 조상) ⇒ 실제로 보이는지로 잰다
 const toggleOn = (page) => page.evaluate(() => { const cb = document.getElementById('grd-use-padx'); cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); });
 /* ★배율 무관 값으로 잰다 — 캔버스 줌 아래 rect 는 배율이 곱해지고, 절대 자식의 rect 는 실앱에서 offsetLeft 와 갈린 적이 있다(t2-08 실측).
    프레임 안: offsetLeft/offsetWidth(offsetParent = 프레임) · 섹션 흐름: rect 차를 섹션 offsetWidth/rect 폭 비로 되돌린다. */
@@ -101,7 +102,7 @@ test('H1 패딩 0 섹션 흐름 그리드 — 뺄 패딩이 없다: 스위치 �
   await pick(page, 'gZero');
   await expect(page.locator('#grd-use-padx')).toHaveCount(1);
   expect(await shown(page), '★뺄 패딩 0 인데 스위치가 보인다').toBe(false);
-  expect(await page.evaluate(() => { const l = document.getElementById('grd-use-padx').closest('.prop-row').querySelector('.prop-label'); return getComputedStyle(l).display; }), '이름표도 같이 숨는다').toBe('none');
+  expect(await page.evaluate(() => { const l = document.getElementById('grd-use-padx').closest('.prop-row').querySelector('.ui-check-label'); return l.getClientRects().length; }), '이름표(체크 옆 글)도 같이 숨는다').toBe(0);
 });
 
 test('P1 ⓐ PNG 내보내기 클론도 프레임 폭 — 화면과 같다', async ({ page }) => {

@@ -17,7 +17,7 @@ PARTS = [  # data-part · PLAN 번호 · 정본 꼴 · 인용(찾을 무늬)
  ('row', '', '줄 = 라벨(--ui-form-label-w 56) | 컨트롤 | 엔드슬롯(--ui-opt-col-w 22+6) · 줄은 몸 끝 · 칸 많고 엔드슬롯 없는 줄은 .prop-row--wide(끝 칼럼까지)', [('css/editor-props.css', r'^\.prop-row \{'), ('css/editor-props.css', r'prop-row--wide \{|\.prop-row\.prop-row--wide')]),
  ('number', 'P1', '★DS 기본 입력 꼴(현빈 261123 확정) = 숫자 칸 + 라벨 끌기 — .prop-icon-input > 끌기 라벨(.prop-xy-label--scrub · 좌우로 끌면 값) + input + 접미(.prop-unit) · 높이 --ui-input-h · 슬라이더는 범위가 뜻 있는 곳만(불투명도·세기 등)', [('css/editor-props.css', r'^\.prop-icon-input'), ('css/editor-props.css', r'^\.prop-number \{')]),
  ('slider', 'P2', '슬라이더 행 = 라벨 | .prop-slider | .prop-number(짝 늘) — ★범위가 뜻 있는 값만(불투명도·세기·곡률 등) · 그 밖은 number(라벨 끌기)', [('js/props/_helpers.js', r'export function sliderRowHTML')]),
- ('toggle', 'P3', '토글 = label.prop-toggle > input[type=checkbox] + .prop-toggle-track · ★규칙: 이진 = 토글 · 상호배타 = select(글) / align-group(아이콘) · 목록 선택 = 체크박스', [('css/editor-props.css', r'^\.prop-toggle\b')]),
+ ('check', 'P3', '체크 = label.ui-check > input.ui-check-box(appearance:none) + span.ui-check-label · ★규칙(현빈 261123): 온/오프 = 체크 하나 · 상호배타 = 세그먼트/select · 목록 선택 = 체크', [('css/editor-props.css', r'^\.ui-check\b')]),
  ('select', 'P4', 'select.prop-select · 높이 --ui-input-h', [('css/editor-props.css', r'^\.prop-select \{'), ('css/editor-base.css', r'--ui-input-h:')]),
  ('color', 'P5', '색 칸 = .prop-color-field(스와치 · HEX · %) · Fill 이면 VAR(.cv-chips) · 최근(.cv-recent-row) 슬롯', [('js/props/color-picker.js', r'export function colorFieldHTML'), ('js/props/color-var-chips.js', r'cv-recent-row')]),
  ('tip', 'P6', '툴팁 = 속성 부품(data-tip · DOM 없음) · 300ms · 위/아래 자동 · 포커스에도 · aria-describedby · 막힌 칸은 aria-disabled + tabindex 0(disabled 면 툴팁이 안 닿음)', []),

@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* redact-toggle-label-clip.dom.spec.js — 「가림막 토글 라벨 «블러로 가리기» 가 잘린다」(0920 polish4 / T-061) 회귀.
  *
  * ★증상: 도형(rect/ellipse) 속성의 「가림막 (Redact)」 절 첫 줄 라벨이 말줄임(…)으로 잘려
@@ -104,7 +105,7 @@ test('⓪ ★가림막 절과 토글이 «실재»한다 (패널 폭 = 실물 24
   await mountAndOpen(page);
   const seen = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const lab = [...body.querySelectorAll('.prop-label')].find((e) => e.textContent.trim() === '블러로 가리기');
+    const lab = [...body.querySelectorAll('.prop-label, .ui-check-label')].find((e) => e.textContent.trim() === '블러로 가리기');   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     return {
       panelW: body.clientWidth,
       hasToggle: !!document.getElementById('shape-redact-toggle'),
@@ -127,7 +128,7 @@ test('① ★base(0fb9f5f)에선 「블러로 가리기」가 실제로 잘린�
   await mountAndOpen(page);
   const m = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const lab = [...body.querySelectorAll('.prop-label')].find((e) => e.textContent.trim() === '블러로 가리기');
+    const lab = [...body.querySelectorAll('.prop-label, .ui-check-label')].find((e) => e.textContent.trim() === '블러로 가리기');   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     return { sw: lab.scrollWidth, cw: lab.clientWidth, cls: lab.className };
   });
   console.log('  base 라벨:', m);
@@ -141,7 +142,7 @@ test('② ★HEAD 에선 「블러로 가리기」가 온전히 보인다', asyn
   await mountAndOpen(page);
   const m = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const lab = [...body.querySelectorAll('.prop-label')].find((e) => e.textContent.trim() === '블러로 가리기');
+    const lab = [...body.querySelectorAll('.prop-label, .ui-check-label')].find((e) => e.textContent.trim() === '블러로 가리기');   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     return { sw: lab.scrollWidth, cw: lab.clientWidth, cls: lab.className };
   });
   console.log('  HEAD 라벨:', m);
@@ -165,12 +166,12 @@ test('③ ★가림막 절 전체에 잘린 요소 0건 (토글 on = 방식/강�
   // 토글이 패널 안에 온전히 들어 있다(오른쪽으로 밀려 잘리지 않았다).
   const fits = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const tg = document.getElementById('shape-redact-toggle').closest('.prop-toggle');
+    const tg = document.getElementById('shape-redact-toggle').closest('.ui-check');
     const br = body.getBoundingClientRect(), tr = tg.getBoundingClientRect();
     return { right: Math.round(tr.right), bodyRight: Math.round(br.right), w: Math.round(tr.width) };
   });
   console.log('  토글:', fits);
-  expect(fits.w).toBe(32);
+  expect(fits.w).toBeGreaterThan(0);   // 체크(상자 + 글) 폭 — 옛 스위치 32 고정 아님
   expect(fits.right).toBeLessThanOrEqual(fits.bodyRight);
   expect(errs).toEqual([]);
 });
