@@ -1066,7 +1066,7 @@ test('Q1 칸 패널 = 프레임 부품 + 슬라이드 칸 절', async ({ page })
   expect(await has(['sld-cell-shadow', 'sld-cell-w-slider', 'sld-cell-bg-on', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절').toEqual(Array(5).fill(true));
   expect(await page.evaluate(() => document.getElementById('sld-cell-shadow').closest('[data-sec]')?.dataset.sec), '★그림자 3단 = Effects').toBe('effects');
   await page.locator('#ss-pady-num').fill('24'); await page.locator('#ss-pady-num').dispatchEvent('change');
-  await page.locator('#ss-border-w-num').fill('3'); await page.locator('#ss-border-w-num').dispatchEvent('change');
+  if (!(await page.locator('#ss-stroke-on').isChecked())) await page.click('#panel-right label:has(#ss-stroke-on)'); await page.locator('#ss-border-w-num').fill('3'); await page.locator('#ss-border-w-num').dispatchEvent('change');   // ★전제 바뀜(표준 Stroke 2-1 ab6ccb79d · 현빈 261123): 테두리 0 = 몸 숨김 → 사람은 머리 ＋ 로 켠 뒤 굵기(기대 3px 무변)
   await expect.poll(() => page.evaluate((id) => { const c = document.getElementById(id).querySelectorAll('.sld-cell')[1], cs = getComputedStyle(c); return [cs.paddingTop, cs.borderTopWidth]; }, id), '★패딩·테두리가 그 칸에').toEqual(['24px', '3px']);
   await page.locator('#sld-cell-back').click();
   await expect.poll(() => page.evaluate(() => [!!document.getElementById('sld-add-cell'), !!document.getElementById('ss-align-left')]), '★슬라이드 전체 설정 = 슬라이드 패널').toEqual([true, false]);
