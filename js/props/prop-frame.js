@@ -5,6 +5,7 @@ import { propPanel } from '../globals.js';
 import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
@@ -647,25 +648,12 @@ function _renderAutoPanel(ss) {
         <!-- 1120b P3(현빈 261120) — 「이미지 제거」(#ss-bg-img-clear) 단추 걷음 -->
       ` : ''}
 `),
-      sec('stroke', `
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="ss-border-w-slider" min="0" max="20" step="1" value="${borderWidth}">
-        <input type="number" class="prop-number" id="ss-border-w-num" min="0" max="20" value="${borderWidth}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <select class="prop-select" id="ss-border-style">
-          <option value="solid"  ${borderStyle === 'solid'  ? 'selected' : ''}>Solid</option>
-          <option value="dashed" ${borderStyle === 'dashed' ? 'selected' : ''}>Dashed</option>
-          <option value="dotted" ${borderStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
-        </select>
-      </div>
-      <div class="prop-color-row" style="margin-top:6px;">
-        <span class="prop-label">색상</span>
-        ${colorFieldHTML({ idPrefix: 'ss-border', hex: hexBorderColor, alpha: borderAlpha })}
-      </div>
-`),
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2) — 색 한 줄 · [위치|굵기] · 머리 ＋/−(없음 = 굵기 0 · §4c 없음 열) · 옛 «스타일» select 는 line-style 슬롯(단계 3 팝오버에서 «스타일» 칸으로 흡수)
+         위치 = 칸만 막힘: 프레임 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(ss-border-w-num · ss-border 색 · ss-border-style) 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'ss-stroke', color: hexBorderColor, alpha: borderAlpha, width: borderWidth, maxWidth: 20, align: 'inside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderWidth > 0, widthId: 'ss-border-w-num', colorId: 'ss-border',
+        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style"><div class="prop-row"><span class="prop-label">스타일</span><select class="prop-select" id="ss-border-style" data-field="stroke-style">${[['solid', 'Solid'], ['dashed', 'Dashed'], ['dotted', 'Dotted']].map(([v, t]) => `<option value="${v}" ${borderStyle === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>` }),
+        { headTools: strokeHeadToolsHTML({ prefix: 'ss-stroke', on: borderWidth > 0 }) }),
       sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools }),
       sec('special', isBuzzFrame(ss) ? buzzSectionHTML(ss) : '', { title: 'Buzz' }),
       sec('template', `
@@ -994,24 +982,19 @@ function _renderAutoPanel(ss) {
   });
 
   // 보더
-  const borderWSlider  = document.getElementById('ss-border-w-slider');
-  const borderWNum     = document.getElementById('ss-border-w-num');
   const borderStyleEl  = document.getElementById('ss-border-style');
-  let _borderColor = hexBorderColor;
+  let _borderColor = hexBorderColor, _borderW = borderWidth;
   const applyBorder = () => {
-    const w = parseInt(borderWNum.value) || 0;
+    const w = _borderW;
     const s = borderStyleEl.value;
     const c = _borderColor;
     ss.dataset.borderWidth = w; ss.dataset.borderStyle = s; ss.dataset.borderColor = c;
     ss.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
   };
-  bindSlider(borderWSlider, borderWNum, () => applyBorder(), { min: 0, max: 20 });
   borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); window.scheduleAutoSave?.(); });
-  wireColorField('ss-border', {
-    initialAlpha: borderAlpha,
-    onApply: (c) => { _borderColor = c; applyBorder(); },
-    onCommit: () => window.pushHistory?.(),
-  });
+  /* 표준 Stroke 부품 배선 — 어댑터 = 위 applyBorder 그대로(저장 키 borderWidth·borderStyle·borderColor 무변) · 없음 = 굵기 0(칸 값은 그대로 → 다시 켜면 지난 굵기) */
+  wireStrokeSection({ prefix: 'ss-stroke', alpha: borderAlpha, maxWidth: 20, widthId: 'ss-border-w-num', colorId: 'ss-border', onWidth: 1,
+    adapter: { color: (c) => { _borderColor = c; applyBorder(); }, width: (v) => { _borderW = v; applyBorder(); }, commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });
 
   // 코너
   const radiusSlider = document.getElementById('ss-radius-slider');

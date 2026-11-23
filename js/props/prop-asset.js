@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
@@ -263,23 +264,11 @@ export function showAssetProperties(ab) {
       // 옛 「Border」
       /* 1120b A2(현빈 261120 「Stroke 절도 text-h1 처럼 [+]」) — 머리 «＋»(켜면 «−») · 몸 줄 = 텍스트 Stroke 와 같은 마크업(strokeSection: 두께 → 색상).
          켬 = strokeWidth > 0(저장 꼴 그대로 · 새 키 0). 위치(내부/외부)는 에셋 테두리에 없어 줄이 없다. */
-      sec('stroke', `
-      <div id="asset-stroke-controls" style="display:${currentStrokeWidth > 0 ? 'block' : 'none'}">
-        <div class="prop-row">
-          <span class="prop-label">두께</span>
-          <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
-          <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
-        </div>
-        <div class="prop-color-row">
-          <span class="prop-label">색상</span>
-          ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
-        </div>
-      </div>`, { id: 'asset-stroke-section', headTools: `
-        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
-          <input type="checkbox" id="asset-stroke-on" ${currentStrokeWidth > 0 ? 'checked' : ''} aria-label="Stroke">
-          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
-          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
-        </label>` }),
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 옛 1120b A2 꼴(머리 ＋ · 꺼지면 몸 숨김 · 켜면 2)은 부품이 그대로 잇는다.
+         위치 = 칸만 막힘: 에셋 테두리는 CSS border(전역 box-sizing:border-box) = 안쪽 · 옛 id(asset-stroke-controls·-on·-num·-color) 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'asset-stroke', color: currentStrokeColor, alpha: currentStrokeAlpha, width: currentStrokeWidth, maxWidth: 20,
+        align: 'inside', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: currentStrokeWidth > 0, bodyId: 'asset-stroke-controls', widthId: 'asset-stroke-num' }),
+        { id: 'asset-stroke-section', headTools: strokeHeadToolsHTML({ prefix: 'asset-stroke', on: currentStrokeWidth > 0 }) }),
       /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */
       sec('effects', _fx?.body || '', { headTools: _fx?.headTools || '', id: _fx?.id }),
       // 영상 트림(옛 「Video 트림」)
@@ -627,29 +616,9 @@ export function showAssetProperties(ab) {
     if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) ab.style.borderColor = c;
   };
   if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) applyAssetBorder(parseInt(ab.dataset.strokeWidth));
-  wireColorField('asset-stroke-color', {
-    initialAlpha: currentStrokeAlpha,
-    onApply: (c) => applyAssetStrokeColor(c),
-    onCommit: () => window.pushHistory?.(),
-  });
-  const stSlider = document.getElementById('asset-stroke-slider');
-  const stNum    = document.getElementById('asset-stroke-num');
-  stSlider.addEventListener('input',  () => { stNum.value = stSlider.value; applyAssetBorder(parseInt(stSlider.value)); });
-  stSlider.addEventListener('change', () => window.pushHistory?.());
-  stNum.addEventListener('input', () => {
-    const v = Math.min(20, Math.max(0, parseInt(stNum.value) || 0));
-    stSlider.value = v; applyAssetBorder(v);
-  });
-  stNum.addEventListener('change', () => window.pushHistory?.());
-  /* 1120b A2 — 머리 «＋»: 켜면 두께 2(텍스트 Stroke 처럼 «추가» = 보이는 기본값) · 끄면 0(테두리 걷힘) */
-  const stOn = document.getElementById('asset-stroke-on');
-  stOn?.addEventListener('change', () => {
-    const v = stOn.checked ? (parseInt(stNum.value) || 2) : 0;
-    stSlider.value = stNum.value = v || stNum.value;
-    applyAssetBorder(v);
-    document.getElementById('asset-stroke-controls').style.display = stOn.checked ? 'block' : 'none';
-    window.pushHistory?.();
-  });
+  /* 표준 Stroke 부품 배선 — 어댑터 = 위 applyAssetBorder/applyAssetStrokeColor 그대로(저장 키 strokeWidth·strokeColor 무변) · 없음 = 굵기 0 · 켜면 2(옛 1120b A2) */
+  wireStrokeSection({ prefix: 'asset-stroke', alpha: currentStrokeAlpha, maxWidth: 20, widthId: 'asset-stroke-num', onWidth: 2,
+    adapter: { color: (c) => applyAssetStrokeColor(c), width: (v) => applyAssetBorder(v), commit: () => window.pushHistory?.() } });
 
   if (hasImage) {
     document.getElementById('asset-fit-group').addEventListener('click', e => {

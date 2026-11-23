@@ -5,6 +5,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
 import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
@@ -301,22 +302,12 @@ export function showModalProperties(block) {
       </div>
 ` : '') + `
       <span class="prop-field-label">Text</span>` + _fill.body),
-      sec('stroke', `
-      <div class="prop-row">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="mdl-bw-slider" min="0" max="12" step="1" value="${borderW}">
-        <input type="number" class="prop-number" id="mdl-bw-number" min="0" max="12" value="${borderW}">
-      </div>
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <div class="prop-type-group">
-          <button class="prop-type-btn ${borderStyle === 'solid' ? 'active' : ''}" data-bs="solid">실선</button>
-          <button class="prop-type-btn ${borderStyle === 'dashed' ? 'active' : ''}" data-bs="dashed">점선</button>
-          <button class="prop-type-btn ${borderStyle === 'dotted' ? 'active' : ''}" data-bs="dotted">점</button>
-        </div>
-      </div>
-      <div class="prop-row"><span class="prop-label">테두리색</span>${colorFieldHTML({ idPrefix: 'mdl-bc', hex: borderColor, alpha: parseAlphaFromColor(borderColor) })}</div>
-`),
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2) — 머리 ＋/−(없음 = borderW 0 명시 · 키 없는 옛 저장본은 변형 기본 그대로 · §4c 없음 열) · 옛 «스타일» 단추 묶음 = line-style 슬롯(단계 3 팝오버로)
+         위치 = 칸만 막힘: 모달 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(mdl-bw-number · mdl-bc · [data-bs]) 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'mdl-stroke', color: borderColor, alpha: parseAlphaFromColor(borderColor), width: borderW, maxWidth: 12, align: 'inside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderW > 0, widthId: 'mdl-bw-number', colorId: 'mdl-bc',
+        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style"><div class="prop-row"><span class="prop-label">스타일</span><div class="prop-type-group" data-field="stroke-style">${[['solid', '실선'], ['dashed', '점선'], ['dotted', '점']].map(([v, t]) => `<button class="prop-type-btn ${borderStyle === v ? 'active' : ''}" data-bs="${v}">${t}</button>`).join('')}</div></div></div>` }),
+        { headTools: strokeHeadToolsHTML({ prefix: 'mdl-stroke', on: borderW > 0 }) }),
       sec('effects', `
     <!-- ★그림자 — 현빈 발주 2026-09-09. 줌블럭의 「도형 그림자」와 «같은 하네스»다:
            prop-align-group + prop-align-btn[data-val] 세 개, 어휘도 없음/부드럽게/강하게 그대로
@@ -369,7 +360,9 @@ export function showModalProperties(block) {
     });
   };
   wireColor('mdl-bg', 'bg');
-  wireColor('mdl-bc', 'borderColor');
+  /* 표준 Stroke 부품 배선 — 어댑터 = 옛 wireColor/wireNum 이 하던 쓰기 그대로(dataset.borderColor·borderW · rerender · commit) · 없음 = borderW 0 */
+  wireStrokeSection({ prefix: 'mdl-stroke', alpha: parseAlphaFromColor(block.dataset.borderColor || ''), maxWidth: 12, widthId: 'mdl-bw-number', colorId: 'mdl-bc', onWidth: 2,
+    adapter: { color: (c) => { block.dataset.borderColor = c; rerender(); }, width: (v) => { block.dataset.borderW = String(v); rerender(); }, commit } });
   if (isIcon && !isRaster) wireColor('mdl-ic', 'iconColor');
 
   /* ── 배경이미지(1017a5) — ★★꼴은 prop-frame.js:833~901 을 ★본으로(발주서 design_refs).
@@ -432,7 +425,6 @@ export function showModalProperties(block) {
   wireNum('radius', 'radius', L.radius.min, L.radius.max);
   wireNum('padx', 'padX', 0, 80);
   wireNum('pady', 'padY', 0, 80);
-  wireNum('bw', 'borderW', 0, 12);
   if (isGrid) wireNum('gap', 'gap', 0, 40);
   if (isIcon) wireNum('isize', 'iconSize', 12, 96);
 

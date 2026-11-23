@@ -26,27 +26,48 @@ export const STROKE_ALIGNS = Object.freeze([['inside', '안쪽'], ['center', '�
  * @param {boolean} [o.canAlign] false = 위치 칸 막힘(그 블럭이 아직 못 그림)
  * @param {string} [o.alignWhy]  막힘 까닭(툴팁)
  * @param {string} [o.slotsBelow] 블럭별 특수 슬롯 HTML(이미 .ui-stroke-slot 로 감싼 것)
+ * @param {boolean} [o.on]      false = 테두리 없음(머리 ＋ · 몸 숨김) — 머리 단추는 strokeHeadToolsHTML
+ * @param {string} [o.bodyId] · [o.widthId] · [o.colorId]  그 블럭이 옛부터 쓰던 id 를 지킬 때(시험·외부 배선이 그 id 로 찾는다 · 없으면 prefix 기본)
  */
-export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '' }) {
-  const colorField = colorFieldHTML({ idPrefix: `${prefix}-color`, hex: color, alpha })
+export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '' }) {
+  const colorField = colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha })
     .replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="stroke-color"');
   const blocked = canAlign ? '' : ` aria-disabled="true" tabindex="0" title="${alignWhy}"`;
   return `
-      <div class="ui-stroke ui-stroke2" data-part="stroke">
+      <div class="ui-stroke ui-stroke2" data-part="stroke"${bodyId ? ` id="${bodyId}"` : ''}${on ? '' : ' hidden'}>
         <div class="ui-stroke-std">
           <div class="prop-color-row ui-s2-layer">${colorField}</div>
           <div class="ui-s2-main prop-row">
             <div class="ui-s2-cell"><span>위치</span><select class="prop-select" id="${prefix}-align" data-part="select" data-field="stroke-align" aria-label="위치"${blocked}>${STROKE_ALIGNS.map(([v, t]) => `<option value="${v}"${v === align ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
-            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${prefix}-width" min="0" max="${maxWidth}" value="${width}" aria-label="굵기"></div></div>
+            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="0" max="${maxWidth}" value="${width}" aria-label="굵기"></div></div>
           </div>
         </div>${slotsBelow}
       </div>`;
 }
 
+/** 머리 ＋/− 엔드슬롯(테두리 켬/끔) — 에셋 Stroke 머리(1120b A2 · .prop-chain-btn.prop-sec-add + 숨은 체크) 꼴 그대로 · id = `${prefix}-on`.
+ *  «없음 = 무엇»은 어댑터가 정한다(adapter.none · 없으면 굵기 0 — 실측 표 §4c: 도형·에셋·프레임·모달 = 굵기 0 · 옛 저장본 바이트 무변). */
+export function strokeHeadToolsHTML({ prefix, on }) {
+  return `
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
+          <input type="checkbox" id="${prefix}-on" ${on ? 'checked' : ''} aria-label="Stroke">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
+        </label>`;
+}
+
 /** 배선 — 색(color-picker 한 벌) · 굵기(입력 = 쓰기 · change = 이력 한 칸 · push-after) · 위치(막힘이면 안 열림·안 바뀜). */
-export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80 }) {
-  wireColorField(`${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
-  const w = document.getElementById(`${prefix}-width`);
+export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, widthId = '', colorId = '', onWidth = 2 }) {
+  wireColorField(colorId || `${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
+  const w = document.getElementById(widthId || `${prefix}-width`);
+  /* 머리 ＋/− — 켜면 «지난 굵기 · 없으면 onWidth»(에셋 옛 기본 2 그대로) · 끄면 adapter.none(없으면 굵기 0) · 몸 숨김 · 이력 한 칸 */
+  const on = document.getElementById(`${prefix}-on`), ui = w?.closest('.ui-stroke');
+  on?.addEventListener('change', () => {
+    if (on.checked) { const cur = parseInt(w?.value, 10) || 0, v = cur > 0 ? cur : onWidth; if (w) w.value = String(v); adapter.width(v); }   // 끌 때 칸 값은 그대로 둔다 → 다시 켜면 지난 굵기
+    else if (adapter.none) adapter.none(); else adapter.width(0);
+    if (ui) ui.hidden = !on.checked;
+    adapter.commit();
+  });
   w?.addEventListener('input', () => { const v = Math.min(maxWidth, Math.max(0, parseInt(w.value, 10) || 0)); adapter.width(v); });
   w?.addEventListener('change', () => { const v = Math.min(maxWidth, Math.max(0, parseInt(w.value, 10) || 0)); w.value = String(v); adapter.commit(); });
   const a = document.getElementById(`${prefix}-align`);
