@@ -1794,6 +1794,12 @@ function copySelected() {
 
 /* 붙여넣기 후 블록 이벤트 재바인딩 공통 함수 */
 function _bindPastedEl(el) {
+  /* ★t13G-01 ② — 그리드 그림 줄 복사분(data-paste-ratio)은 «붙은 뒤» 실제 폭으로 높이를 세운다(정방형 방지 · 한 번 쓰고 지움) */
+  [el, ...(el.querySelectorAll?.('.asset-block[data-paste-ratio]') || [])].forEach((a) => {
+    if (!a.classList?.contains('asset-block') || !a.dataset.pasteRatio) return;
+    const ratio = parseFloat(a.dataset.pasteRatio), w = a.offsetWidth; delete a.dataset.pasteRatio;
+    if (ratio > 0 && w > 0) { const h = Math.round(w * ratio); a.style.height = h + 'px'; a.dataset.baseHeight = String(h); }
+  });
   /* ★NEW-현빈QA-ASSET-OVERLAY-COPY-PASTE-01 — 에셋 오버레이 글(.overlay-tb)은 «그 막 위»에서만 흰 글자·흰 점선이다(editor-layout.css).
      막 밖(섹션)에 붙으면 흰 바탕 위 흰 글자라 «붙여넣기가 안 된 듯» 보였다 ⇒ 막 밖에 놓인 것만 보통 글로. 사본 에셋 «안»의 막 글은 그대로. */
   [el, ...el.querySelectorAll('.overlay-tb')].forEach(n => { if (n.classList?.contains('overlay-tb') && !n.closest('.asset-overlay')) n.classList.remove('overlay-tb'); });
@@ -2233,11 +2239,56 @@ function _copyGridImgLineAsAsset() {
   if (line?.type !== 'image' || !line.imgSrc || typeof window.makeAssetBlock !== 'function') return false;
   const { row, block } = window.makeAssetBlock();
   window.setAssetImageFromSrc?.(block, line.imgSrc);
+  /* ★t13G-01 ②(현빈 261122) — 섹션에 붙인 에셋이 정방형으로 들어갔다(makeAssetBlock 기본 크기) ⇒ 그림 «원래 비율»을 실어 두고
+     붙인 뒤(_bindPastedEl) 실제 폭에 맞춰 높이를 세운다. 비율 = 그리드에 이미 그려진 그 그림의 natural 크기(같은 src). */
+  const _im = g.querySelector(`.grd-img-frame[data-r="${sel[0].r}"][data-c="${sel[0].c}"][data-line="${sel[0].li}"] img`) || [...g.querySelectorAll('img')].find((x) => x.getAttribute('src') === line.imgSrc);
+  if (_im && _im.naturalWidth > 0 && _im.naturalHeight > 0) block.dataset.pasteRatio = (_im.naturalHeight / _im.naturalWidth).toFixed(5);
   clipboard = { type: 'block', html: row.outerHTML };
   /* 줄 클립도 «같이» 든다(티켓⑤ 그리드 줄 복사 무변) — ⌘V 가 자리로 가른다: 그리드 줄 선택 = grdPasteLines(그림 줄) · 그 밖 = 에셋. OS 선언·토스트도 그쪽. */
   if (!window.grdCopySelectedLines?.()) claimInternalClipboard('고디터 그림 1개');
   return true;
 }
+/* ★t13G-01 ③(미카사 재현 261123) — 메뉴 «편집›복사/붙여넣기»(Electron role copy/paste)는 keydown 없이 «네이티브 copy/paste 사건»만 쏜다
+   ⇒ 옛 판은 그 사건을 아무도 안 받아 클립보드 빈 값 · 붙여넣기 무변이었다. 키 길(⌘C/⌘V keydown)과 «같은 함수 한 벌»을 두 길이 부른다.
+   키 길도 네이티브 사건을 뒤따라 쏘므로(메뉴 accelerator) — 방금 keydown 이 했으면(_keyCopyAt/_keyPasteAt 500ms) 사건 쪽은 건너뛴다.
+   글 고침·입력칸·글 선택(네이티브 글 복사)은 손 안 댐. */
+let _keyCopyAt = 0, _keyPasteAt = 0;
+function _appCopy() {
+  if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
+  if (_copyGridImgLineAsAsset()) return;   // ★t13A-01 — 그림 줄 하나 = 에셋 클립 + 줄 클립
+  if (window.grdCopySelectedLines?.()) return;
+  copySelected();
+  _markImgEditCopy();
+}
+function _appPaste(e) {
+  if (window.grdPasteRange?.(e)) return;   // ★t3-04 U2b — 범위 클립이 최신일 때만 참(prop-grid.js · e = 맥 Control+v 무장 0 판정)
+  if (window.grdPasteLines?.()) return;
+  /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
+     그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
+     그쪽이 이미지를 안 받았을 때만 고디터 안 붙여넣기를 한다. (옛 판: 시각만 보고 여기서 바로 붙였다) */
+  setTimeout(() => {
+    if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
+    pasteClipboard();
+  }, 30);
+}
+const _nativeClipSkip = () => {
+  const t = document.activeElement;
+  if (document.querySelector('.text-block.editing')) return true;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return true;
+  const ws = window.getSelection?.(); if (ws && !ws.isCollapsed && String(ws).trim()) return true;   // 글을 골라 둔 복사 = 네이티브 글 복사
+  return false;
+};
+document.addEventListener('copy', (e) => {
+  if (e.defaultPrevented || Date.now() - _keyCopyAt < 500 || _nativeClipSkip()) return;
+  if (!document.querySelector('#canvas .selected')) return;
+  e.preventDefault();
+  _appCopy();
+});
+document.addEventListener('paste', (e) => {
+  if (Date.now() - _keyPasteAt < 500 || _nativeClipSkip()) return;
+  /* 다른 처리기(벡터 SVG 글 · 스크래치 이미지 등)가 이 사건을 «먹었으면» 고디터 붙여넣기를 덧붙이지 않는다 — 한 틱 뒤에 본다(듣는 순서 무관) */
+  setTimeout(() => { if (e.defaultPrevented) return; _appPaste(e); }, 0);
+});
 function pasteClipboard() {
   const _dup = _copyForDuplicate; _copyForDuplicate = false;
   if (!clipboard) { window.showToast?.('복사한 것이 없어요'); return; }
@@ -2927,11 +2978,8 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       /* ★그리드 «줄» 복사 (티켓 ⑤) — 그리드 블럭 하나만 골라져 있고 그 안에 줄 선택이 있을
          때만 참을 돌려준다. 그 밖엔 거짓이라 아래 블록 복사가 종전대로 돈다(판정은 prop-grid.js). */
-      if (window.grdCopyRange?.()) return;   // ★t3-04 U2b — 칸 범위가 있을 때만 참(prop-grid.js)
-      if (_copyGridImgLineAsAsset()) return;   // ★t13A-01 — 그림 줄 하나 = 에셋 클립 + 줄 클립
-      if (window.grdCopySelectedLines?.()) return;
-      copySelected();
-      _markImgEditCopy();
+      _keyCopyAt = Date.now();   // ★t13G-01 ③ — 뒤따르는 네이티브 copy(메뉴 role)가 «한 번 더» 안 하게
+      _appCopy();
       return;
     }
     if (e.key === 'v') {
@@ -2939,15 +2987,8 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       /* ★그리드 «줄» 붙여넣기 (티켓 ⑤) — 줄 클립보드가 비어 있거나 대상이 아니면 거짓이라
          아래 섹션/스크래치 붙여넣기가 종전대로 돈다. */
-      if (window.grdPasteRange?.(e)) return;   // ★t3-04 U2b — 범위 클립이 최신일 때만 참(prop-grid.js · e = 맥 Control+v 무장 0 판정)
-      if (window.grdPasteLines?.()) return;
-      /* ★누가 최신인지는 여기(keydown)서 못 정한다 — OS 클립보드 «내용»은 뒤따르는 paste 이벤트에만 실려 온다.
-         그래서 언제나 paste 이벤트에 양보하고(scratch-pad 가 clipboardPrefersInternal 로 가른다),
-         그쪽이 이미지를 안 받았을 때만 고디터 안 붙여넣기를 한다. (옛 판: 시각만 보고 여기서 바로 붙였다) */
-      setTimeout(() => {
-        if (window._scratchJustHandledPaste) { window._scratchJustHandledPaste = false; return; }
-        pasteClipboard();
-      }, 30);
+      _keyPasteAt = Date.now();   // ★t13G-01 ③ — 뒤따르는 네이티브 paste 는 아래 처리기가 «한 번 더» 안 붙인다
+      _appPaste(e);
       return;
     }
     if (e.key === 'x' && !e.shiftKey) {
