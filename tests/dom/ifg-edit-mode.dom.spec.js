@@ -24,7 +24,7 @@ const snap = (page, id) => page.evaluate((id) => {
   const t = g.querySelector('.grd-cell[data-r="0"][data-c="0"] [data-line] h3, .grd-cell[data-r="0"][data-c="0"] .grd-line[data-line="1"]') || g.querySelector('.grd-cell[data-r="0"][data-c="0"] .grd-line');
   const ic = g.querySelector('.grd-cell[data-r="0"][data-c="0"] .grd-img-frame');
   return { w: Math.round(r.width / z), h: Math.round(r.height / z), font: t ? Math.round(parseFloat(getComputedStyle(t).fontSize)) : null, icon: ic ? Math.round(ic.getBoundingClientRect().width / z) : null,
-    cells: g.dataset.cells, rows: g.dataset.rows, cols: g.dataset.cols, rowGap: g.dataset.rowGap, colGap: g.dataset.colGap, editing: g.classList.contains('ifg-editing'), panel: !!document.getElementById('ifg-edit-panel'),
+    cells: g.dataset.cells, rows: g.dataset.rows, cols: g.dataset.cols, rowGap: g.dataset.rowGap, colGap: g.dataset.colGap, editing: !!window.isIfgEditing?.(g), stray: document.querySelectorAll('.ifg-editing').length, panel: !!document.getElementById('ifg-edit-panel'),
     handles: document.querySelectorAll('.ifg-edit-handle').length, ce: !!(document.activeElement && document.activeElement.isContentEditable && g.contains(document.activeElement)), transform: /transform/.test(g.getAttribute('style') || '') || /transform/.test(g.querySelector('.grd-inner')?.getAttribute('style') || '') };
 }, id);
 const titlePt = (page, id) => page.evaluate((id) => { const g = document.getElementById(id); const el = g.querySelector('.grd-cell[data-r="0"][data-c="0"] [data-line="1"]') || g.querySelector('.grd-cell[data-r="0"][data-c="0"] .grd-line'); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
@@ -131,5 +131,85 @@ test('E5 순수 — ifgScalePartial 틀 높이 보존(행 합 + 간격 합 무�
   expect(r.floor, '★바닥 = max(0.5, 10/22, 16/100)').toBe(0.5);
   expect(r.floorSmall, '★바닥 = 10/12 · 16/20 중 큰 것').toBe(0.84);
   expect(r.m0same, '★들어갈 때 모델은 안 바뀐다(늘 m0 에서 다시 계산)').toBe(30);
+  expect(errs).toEqual([]);
+});
+
+/* ── 미카사 201 실앱 손 검사(handoff/MIKASA-ifgedit-261124) a~g ── */
+test('E6 a 점선 틀 — 편집 모드 = 점선 틀 겹(블럭 크기) · 평소 선택 겹 숨김 · 끝나면 걷힘', async ({ page }) => {
+  const { errs, id } = await scene(page);
+  await enter(page, id);
+  const r = await page.evaluate((id) => { const f = document.querySelector('.ifg-edit-frame'), g = document.getElementById(id).getBoundingClientRect(), o = document.getElementById('ss-handles-overlay');
+    if (!f) return null; const fr = f.getBoundingClientRect(), cs = getComputedStyle(f); return { style: cs.borderTopStyle, same: Math.abs(fr.left - g.left) < 1 && Math.abs(fr.width - g.width) < 1 && Math.abs(fr.height - g.height) < 1, ovHidden: !o || getComputedStyle(o).display === 'none' }; }, id);
+  expect(r, '★점선 틀 겹이 있다(옛: 없음 · 평소 실선)').toEqual({ style: 'dashed', same: true, ovHidden: true });
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => [document.querySelectorAll('.ifg-edit-frame').length, document.body.classList.contains('ifg-edit-on')])).toEqual([0, false]);
+  expect(errs).toEqual([]);
+});
+
+test('E7 b 칸 사이 틈(거터) 더블클릭 = 편집 모드', async ({ page }) => {
+  const { errs, id } = await scene(page);
+  const p = await titlePt(page, id);
+  await page.mouse.click(p.x, p.y);
+  const gp = await page.evaluate(() => { const gs = [...document.querySelectorAll('.grd-gutter')].filter((x) => x.getBoundingClientRect().width > 0); const g = gs.find((x) => x.dataset.axis === 'col') || gs[0]; if (!g) return null; const r = g.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, own: document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('.grd-gutter') === g }; });
+  expect(gp && gp.own, '[전제] 고른 인포그래픽 위에 거터가 있고 그 점의 임자').toBe(true);
+  await page.mouse.dblclick(gp.x, gp.y);
+  await expect.poll(() => snap(page, id).then((s) => s.editing), '★거터 위 더블클릭 = 편집 모드(옛: 안 들어감)').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('E8 c 모서리를 가운데 지나 끌기 = 바닥에서 멈춤(다시 안 커짐)', async ({ page }) => {
+  const { errs, id } = await scene(page);
+  await enter(page, id);
+  const lo = await setScale(page, 10);
+  await setScale(page, 100);
+  const h = await page.evaluate(() => { const r = document.querySelector('.ifg-edit-handle[data-corner="rb"]').getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
+  const c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  await page.mouse.move(h.x, h.y); await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(h.x + (c.x - h.x) * 0.18 * i, h.y + (c.y - h.y) * 0.18 * i);   // 가운데를 80% 넘어 반대쪽까지
+  await page.mouse.up();
+  expect(await page.evaluate(() => Number(document.getElementById('ifg-edit-scale').value)), `★가운데 넘어 = 바닥 ${lo}(옛: 다시 커짐)`).toBe(lo);
+  expect(errs).toEqual([]);
+});
+
+test('E9 d 80·91% 에서도 틀 높이 그대로 · e 배율 칸에 포커스가 있어도 끌기 값이 칸에 보임', async ({ page }) => {
+  const { errs, id } = await scene(page);
+  const s0 = await snap(page, id);
+  await enter(page, id);
+  for (const v of [80, 91, 63]) { await setScale(page, v); const s = await snap(page, id); expect([s.w, s.h], `★${v}% 틀 = ${s0.w}×${s0.h}(옛: 739)`).toEqual([s0.w, s0.h]); }
+  await page.focus('#ifg-edit-scale');
+  const h = await page.evaluate(() => { const r = document.querySelector('.ifg-edit-handle[data-corner="rb"]').getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
+  const c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x + (c.x - h.x) * 0.3, h.y + (c.y - h.y) * 0.3); await page.mouse.up();
+  const v = await page.evaluate(() => Number(document.getElementById('ifg-edit-scale').value));
+  expect(v < 63, `★끌기 뒤 칸 값이 따라옴 ${v}(옛: 63 그대로)`).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('E10 f 안에서 글줄 편집 뒤 = 편집 패널로 돌아옴 · 그 글은 배율을 바꿔도 남음', async ({ page }) => {
+  const { errs, id } = await scene(page);
+  await enter(page, id);
+  await setScale(page, 80);
+  const p2 = await titlePt(page, id);   // 80% 뒤 자리
+  await page.mouse.dblclick(p2.x, p2.y);
+  await expect.poll(() => snap(page, id).then((s) => s.ce), '[전제] 글자 편집').toBe(true);
+  await page.keyboard.press('Meta+a'); await page.keyboard.type('새제목');
+  await page.evaluate(() => document.activeElement?.blur?.());   // 커밋 = blur(Esc 는 글자 편집 취소)
+  await expect.poll(() => page.evaluate((id) => (JSON.parse(document.getElementById(id).dataset.cols || '[]')[0]?.lines || []).some((l) => l.text === '새제목'), id), '[전제] 글이 모델에 들어감').toBe(true);
+  await expect.poll(() => page.evaluate(() => !!document.getElementById('ifg-edit-panel')), '★편집 패널로 돌아옴(옛: Grid Block 그대로)').toBe(true);
+  await setScale(page, 70);
+  expect(await page.evaluate((id) => (JSON.parse(document.getElementById(id).dataset.cols || '[]')[0]?.lines || []).some((l) => l.text === '새제목'), id), '★고친 글이 배율 뒤에도 남음(들어갈 때 모델로 덮지 않음)').toBe(true);
+  expect(errs).toEqual([]);
+});
+
+test('E11 g Esc → ⌘Z 뒤 편집 표식 0(class·상태)', async ({ page }) => {
+  const { errs, id } = await scene(page);
+  await enter(page, id);
+  await setScale(page, 80);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('Meta+z');
+  await expect.poll(() => snap(page, id).then((s) => s.rowGap)).toBe('44');
+  const s = await snap(page, id);
+  expect({ editing: s.editing, stray: s.stray, body: await page.evaluate(() => document.body.classList.contains('ifg-edit-on')) }, '★⌘Z 뒤 표식 0(옛: class ifg-editing 남음)').toEqual({ editing: false, stray: 0, body: false });
   expect(errs).toEqual([]);
 });
