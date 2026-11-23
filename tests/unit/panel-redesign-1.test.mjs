@@ -41,11 +41,16 @@ test('R11 #txt-align-group · #txt-style-group 켜짐 = border-mid 바탕 · bor
   const props = css('css/editor-props.css');
   const m = /#txt-align-group \.prop-align-btn\.active,\s*#txt-style-group \.prop-style-btn\.active\s*\{([^}]*)\}/.exec(props);
   assert.ok(m, '★두 묶음 켜짐 규칙이 없다');
-  assert.match(m[1], /background:\s*var\(--ui-border-mid\)/);
-  assert.match(m[1], /border-color:\s*var\(--ui-border-strong\)/);
-  assert.match(m[1], /color:\s*var\(--ui-text\)/);
+  assert.match(m[1], /background:\s*var\(--ui-sel-neutral-on-bg\)/);
+  assert.match(m[1], /border-color:\s*var\(--ui-sel-neutral-on-border\)/);
+  assert.match(m[1], /color:\s*var\(--ui-sel-neutral-on-text\)/);
   assert.doesNotMatch(m[1], /#[0-9a-f]{3,8}\b|accent/i, '★리터럴 색·파란 채움');
-  assert.match(props, /\.prop-align-btn\.active\s*\{[^}]*--ui-accent-primary/, '[대조] 다른 묶음의 파란 켜짐은 그대로');
+  /* ★기대 바뀜(현빈 261123 — 정렬·서식 켜짐 = 회색 «공용» · 진짜 켬/끔[외곽선 변·반전]만 파랑) — 옛 대조 «다른 묶음 파란 켜짐 그대로» 걷음 */
+  assert.match(props, /\.prop-align-btn\.active\s*\{[^}]*--ui-sel-neutral-on-bg/, '★정렬 묶음 공용 켜짐 = 중립 토큰');
+  assert.match(props, /\.prop-style-btn\.active\s*\{[^}]*--ui-sel-neutral-on-bg/, '★서식 공용 켜짐 = 중립 토큰');
+  assert.match(props, /\n\.prop-type-btn\.active\s*\{[^}]*--ui-sel-neutral-on-bg/, '★세그먼트 켜짐 = 같은 중립 토큰(현빈 261123)');
+  assert.match(css('css/editor-base.css'), /--ui-sel-neutral-on-bg:\s*var\(--ui-divider\)/, '★켜짐 회색 = 2단(--ui-divider #555 · 꺼짐 대비 1.93:1)');
+  assert.match(props, /\.prop-align-btn\[data-outline-side\]\.active,\s*\.prop-rot-row \.prop-align-btn\.active\s*\{[^}]*--ui-accent-primary/, '★진짜 켬/끔(외곽선 변·반전)은 파랑');
 });
 
 /* ⑩ 텍스트 패널 «Font»·«글자색» 라벨 글 걷음 — 칸은 그대로 · 이름은 aria-label. 다른 패널(모달·그리드)은 기본 인자 = 라벨 그대로.

@@ -91,7 +91,7 @@ body.preview-mode #preview-navigator { display: flex; }
   letter-spacing: 0.03em;
 }
 .preview-nav-btn:hover { background: rgba(255,255,255,0.08); color: #ddd; }
-.preview-nav-btn.active { background: rgba(45,111,232,0.22); color: var(--ui-accent); }
+.preview-nav-btn.active { background: var(--ui-sel-neutral-on-bg); color: var(--ui-sel-neutral-on-text); }
 
 /* Preview page block */
 .preview-page-block { width: 100%; }
@@ -175,9 +175,9 @@ body.preview-mode #preview-overlay:has(.section-row-layout) { overflow-x: auto; 
   transition: all 0.15s;
 }
 .prop-anim-btn:hover {
-  background: #243450;
-  border-color: #4d7fc0;
-  color: #9bcbff;
+  background: var(--ui-sel-neutral-on-bg);
+  border-color: var(--ui-sel-neutral-on-border);
+  color: var(--ui-sel-neutral-on-text);
 }
 .prop-anim-btn svg { flex-shrink: 0; }
 
@@ -258,16 +258,16 @@ body.preview-mode #preview-overlay:has(.section-row-layout) { overflow-x: auto; 
 }
 .anim-item:hover { background: var(--ui-bg-hover); }
 .anim-item.active {
-  background: #1e2a3e;
-  border-color: #2d4a72;
+  background: var(--ui-sel-neutral-on-bg);
+  border-color: var(--ui-sel-neutral-on-border);
 }
 .anim-item-name {
-  font-size: var(--ui-fs-12);
+  font-size: var(--ui-fs-base);   /* 현빈 261123 — 정보성 글자 = 다른 패널 글자(레이어명·라벨·값 11)와 같은 크기(옛 12) */
   font-weight: var(--ui-fw-semibold);
   color: #ddd;
   margin-bottom: 3px;
 }
-.anim-item.active .anim-item-name { color: #6aabf7; }
+.anim-item.active .anim-item-name { color: var(--ui-sel-neutral-on-text); }
 .anim-item-desc {
   font-size: var(--ui-fs-10);
   color: var(--ui-text-muted);
@@ -517,9 +517,9 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 }
 #preview-sbs-btn:hover, #preview-hz-btn:hover { background: rgba(60,60,60,0.9); color: #ddd; }
 #preview-sbs-btn.active, #preview-hz-btn.active {
-  background: rgba(45,111,232,0.25);
-  border-color: rgba(45,111,232,0.5);
-  color: var(--ui-accent);
+  background: var(--ui-sel-neutral-on-bg);
+  border-color: var(--ui-sel-neutral-on-border);
+  color: var(--ui-sel-neutral-on-text);
 }
 
 /* SBS 컨테이너: 오버레이 위에 fullscreen flex */
@@ -729,9 +729,9 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 
 /* ── 레퍼런스 이미지 버튼 ── */
 #ref-modal-btn.active {
-  background: rgba(106, 176, 255, 0.15);
-  border-color: rgba(106, 176, 255, 0.4);
-  color: var(--ui-accent);
+  background: var(--ui-sel-neutral-on-bg);
+  border-color: var(--ui-sel-neutral-on-border);
+  color: var(--ui-sel-neutral-on-text);
 }
 
 /* ══════════════════════════════════════
@@ -887,8 +887,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   outline-offset: -1.5px;
 }
 .tb-tree-all.active, .tb-tree-folder-header.active, .tb-tree-cat.active {
-  background: rgba(45,111,232,0.18);
-  color: var(--ui-accent);
+  background: var(--ui-sel-neutral-on-bg);
+  color: var(--ui-sel-neutral-on-text);
 }
 .tb-tree-label { flex: 1; }
 /* 폴더 이름 «그 자리» 입력(2026-09-30) — 블럭 메뉴의 템플릿 이름 입력(#bcm-name-input)과 같은 모습 */
@@ -910,8 +910,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 .tb-tree-all.active .tb-tree-count,
 .tb-tree-folder-header.active .tb-tree-count,
 .tb-tree-cat.active .tb-tree-count {
-  background: rgba(45,111,232,0.25);
-  color: var(--ui-accent);
+  background: var(--ui-sel-neutral-on-bg);
+  color: var(--ui-sel-neutral-on-text);
 }
 
 /* 폴더 chevron */
@@ -932,7 +932,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   background: var(--ui-border-strong);
   flex-shrink: 0;
 }
-.tb-tree-cat.active .tb-tree-dot { background: var(--ui-accent); }
+.tb-tree-cat.active .tb-tree-dot { background: var(--ui-sel-neutral-on-text); }
 
 /* 미리보기 영역 (상단 고정) */
 .tpl-browser-preview-area {
@@ -1372,7 +1372,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   padding-left: 36px;       /* thumb(28)+gap(8) 만큼 들여써 info 열 아래 정렬 */
 }
 .tb-card:hover { background: #222; }
-.tb-card.selected { background: rgba(45,111,232,0.15); }
+.tb-card.selected { background: var(--ui-sel-neutral-on-bg); }
 .tb-card-thumb {
   width: 28px; height: 28px;
   border-radius: 4px;
@@ -1384,8 +1384,8 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   flex-shrink: 0;
 }
 .tb-card.selected .tb-card-thumb {
-  border-color: rgba(45,111,232,0.5);
-  background: rgba(45,111,232,0.1);
+  border-color: var(--ui-sel-neutral-on-border);
+  background: var(--ui-sel-neutral-on-bg);
 }
 .tb-card-info {
   flex: 1;
@@ -1405,7 +1405,7 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
   flex-shrink: 1;
   min-width: 0;
 }
-.tb-card.selected .tb-card-name { color: var(--ui-accent); }
+.tb-card.selected .tb-card-name { color: var(--ui-sel-neutral-on-text); }
 .tb-card-meta {
   font-size: var(--ui-fs-10);
   color: var(--ui-text-dim);
@@ -1511,9 +1511,9 @@ details.insp-prep[open] > summary::before { transform: rotate(90deg); }
 }
 .tb-tag-chip:hover { background: var(--ui-bg-input); color: var(--ui-text-sub); border-color: #444; }
 .tb-tag-chip.active {
-  background: rgba(45,111,232,0.15);
-  border-color: rgba(45,111,232,0.4);
-  color: var(--ui-accent);
+  background: var(--ui-sel-neutral-on-bg);
+  border-color: var(--ui-sel-neutral-on-border);
+  color: var(--ui-sel-neutral-on-text);
 }
 
 /* ══════════════════════════════════════
@@ -2091,7 +2091,7 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
   border: 1.5px solid rgba(255,255,255,0.18); border-radius: 50%;
   font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
-.spl-btn-link:hover, .spl-btn-fold:hover { background: var(--ui-accent, #4f6bed); border-color: var(--ui-accent, #4f6bed); }
+.spl-btn-link:hover, .spl-btn-fold:hover { background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); }
 .spl-btn-cut:hover  { background: var(--ui-danger-hover, #d9463e); border-color: var(--ui-danger-hover, #d9463e); }
 
 /* 접힘(최소화): 이미지 숨기고 «연결됨» 바만. 선은 유지(아이템 위치 존재). */

@@ -27,7 +27,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.layer-variation-toggle:hover { background: #1f3a60; color: var(--ui-accent); border-color: var(--ui-accent); }
+.layer-variation-toggle:hover { background: var(--ui-sel-neutral-on-bg); color: var(--ui-sel-neutral-on-text); border-color: var(--ui-sel-neutral-on-border); }
 .layer-variation-add {
   background: none;
   border: 1px solid #3a5a3a;
