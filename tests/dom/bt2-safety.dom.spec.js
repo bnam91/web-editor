@@ -227,7 +227,7 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
       };
       const aria = (c) => Object.fromEntries([...c.attributes].filter(a => a.name.startsWith('aria-')).map(a => [a.name, a.value]));
       const rowKey = (l) => { const c = l.closest('.prop-row, .prop-color-row')?.querySelector('input,select,button,textarea'); if (!c) return null; if (c.id) return c.id; const d = [...c.attributes].find(a => a.name.startsWith('data-') && a.name !== 'data-scope'); return d ? d.name : null; };
-      const subTitles = (r) => [...r.querySelectorAll('.prop-section-title')].filter(t => !t.closest('.prop-sec-head')).map(t => ({ text: t.textContent.trim(), n: t.closest('.prop-section').querySelectorAll('input,select,button,textarea').length }));
+      const subTitles = (r) => [...r.querySelectorAll('.prop-section-title')].filter(t => !t.closest('.prop-sec-head')).map(t => ({ text: [...t.childNodes].filter(n => n.nodeType === 3 || !n.matches?.('.ui-check')).map(n => n.textContent).join('').trim(),   /* ★기대 바뀜(check 이관 ②ⓒ) — 머리 체크 옆 «켜기» 글은 제목이 아니다(grid-block-bg B1 과 같은 자) */ n: t.closest('.prop-section').querySelectorAll('input,select,button,textarea').length }));
       const out = [];
       for (const k of Object.keys(old)) {
         const a = parse(old[k]), b = parse(got[k] || '');
