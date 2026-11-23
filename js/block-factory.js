@@ -1667,9 +1667,8 @@ function addYoutubeThumbSection() {
    ★끄기는 «앞 이름이 ytb_ 였을 때만» — 옛 메뉴로 만든 썸네일(이름 무관)을 엉뚱한 이름 바꾸기로 꺼 버리지 않는다.
    게이트 = 다른 이스터에그와 같은 isEasterEggEnabled('youtubeThumb')(설정 › 이스터에그 · 기본 켬). 부르는 자 = layer-panel.js 섹션 이름 바꾸기(끝 표본 pushHistory «앞» = ⌘Z 한 칸). */
 function applyYoutubeThumbName(sec, prevName = '') {
-  /* ★관리자만(지디 261123 — t13C-04 원문 «관리자 전용 유튜브 썸네일» · 이번 지시는 «메뉴 대신 이름»이지 일반 공개가 아님) = 옛 메뉴 입구와 같은 판정 animGifVisible(모르면 «아님»)
-     + 이스터에그 설정(youtubeThumb) 둘 다 켜져야. 공개 범위일 뿐 접근통제 아님(옛 syncYoutubeThumbMenu 와 같은 뜻). */
-  if (!sec || !window.animGifVisible?.(true, window.__admin?.state?.() ?? null) || window.isEasterEggEnabled?.('youtubeThumb') === false) return false;
+  /* ★일반 사용자도(현빈 261123 «관리자 조건 걷기») — 게이트 = 이스터에그 설정(youtubeThumb) 하나 · 관리자 판정(animGifVisible) 없음 */
+  if (!sec || window.isEasterEggEnabled?.('youtubeThumb') === false) return false;
   const want = /^ytb_/i.test(sec.dataset.name || ''), is = sec.dataset.thumb === 'youtube';
   if (want && !is) {
     sec.dataset.thumbPrev = JSON.stringify({ h: sec.style.height || '', minH: sec.style.minHeight || '', pin: sec.dataset.heightPin ?? null });

@@ -2,7 +2,7 @@
  * N1 ★기존 섹션(최소 높이 600) 이름 ytb_ → 켜짐(핀 484) → 저장·다시 열기 → 접두어 뗌 → 꺼짐 · 높이 = «켜기 전» 그대로(최소 600 · 핀 없음)
  * N2 ★옛 메뉴로 만든 썸네일(이름 무관)은 엉뚱한 이름 바꾸기로 안 꺼진다(앞 이름이 ytb_ 였을 때만 끔)
  * N3 ★설정 › 이스터에그에서 끄면(isEasterEggEnabled('youtubeThumb') = false) 이름을 바꿔도 무동작
- * N4 ★관리자 아님 = 이름을 바꿔도 무동작(지디 261123 «관리자만» · 옛 메뉴 입구와 같은 animGifVisible)
+ * N4 ★관리자 아님 = 동작(현빈 261123 «일반 사용자도 허용» — 한때 «관리자만»이던 것을 걷음 · 게이트는 이스터에그 설정 하나)
  * 양성대조: _patches/ytb-CTL.patch(layer-panel.js 의 applyYoutubeThumbName 부름 걷음) ⇒ N1 빨강.
  */
 const { test, expect } = require('@playwright/test');
@@ -58,11 +58,11 @@ test('N3 설정에서 이스터에그를 끄면 ytb_ 이름이어도 무동작',
   expect(errs, errs.join('\n')).toEqual([]);
 });
 
-test('N4 관리자 아님 = ytb_ 이름이어도 무동작', async ({ page }) => {
+test('N4 관리자 아님 = ytb_ 이름이면 동작(일반 사용자 허용)', async ({ page }) => {   // ★기대 바뀜: 현빈 261123 «일반 사용자도 허용»(옛 기대 = 지디 261123 «관리자만» → 무동작)
   const errs = await scene(page, false);
   const id = await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: false }) }; const s = window.addSection(); s.id = 'sN4'; return s.id; });
   await rename(page, id, 'ytb_썸네일');
   const r = await info(page, id);
-  expect([r.thumb, r.pin], '★관리자 아님 = 이름만 바뀌고 썸네일 아님').toEqual([null, null]);
+  expect([r.thumb, r.pin], '★관리자 아님이어도 ytb_ = 썸네일 섹션').toEqual(['youtube', 'true']);
   expect(errs, errs.join('\n')).toEqual([]);
 });
