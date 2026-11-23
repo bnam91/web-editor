@@ -601,6 +601,9 @@ function insertAfterSelected(section, el) {
    *     위 분기는 resolveInsertFrame 이 이미 걸러 주지만, 이 길은 _activeFrame 이 없을 때 오므로
    *     걸러 주는 사람이 없다. */
   const selSS = document.querySelector('.frame-block.selected');
+  /* t13E-03(현빈 261122) — 떠 있는(섹션 직속) 래퍼가 골라져 있으면 그 «뒤»는 흐름 밖(섹션 직속)이다 — 옛 판은 새 블럭을 거기 붙여
+     섹션 껍데기 사이에 끼웠다(탐침 실측 · 이상한 자리). ⇒ 아무것도 안 고른 때와 같은 자리(흐름 끝 · 바닥 갭 앞). */
+  if (selSS && selSS.parentElement === section && selSS.dataset?.overlayBlock === 'true') { insertBeforeBottomGap(section, el); return; }
   if (selSS && selSS.closest('.section-block') === section) {
     if (isShapeFrame(selSS) || selSS.dataset?.textFrame || selSS.dataset?.bannerPreset) {
       const ssRow = selSS.closest('.row') || selSS;

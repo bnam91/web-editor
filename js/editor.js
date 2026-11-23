@@ -3639,6 +3639,9 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       const parent = moveTarget.parentElement;
       if (!parent) return;
+      /* t13E-03(현빈 261122) — 떠 있는(섹션 직속 · data-overlay-block) 단위는 흐름 순서가 없다. 옛 판은 형제 = 섹션 껍데기(바닥 손잡이·툴바)와 자리를 바꿔
+         ⌘↑ = 보이는 변화 0 · ⌘↓ = 무동작이었다(탐침 실측). ⇒ 겹침 순서(⌘[ / ⌘] 와 같은 moveSelectedBlocks ㈎ · 'up' = 뒤로)로 보낸다. */
+      if (parent.classList.contains('section-block') && moveTarget.dataset?.overlayBlock === 'true') { moveSelectedBlocks(e.key === 'ArrowUp' ? 'up' : 'down'); return; }
       if (e.key === 'ArrowUp') {
         const prev = moveTarget.previousElementSibling;
         if (prev && !prev.classList.contains('drop-indicator')) parent.insertBefore(moveTarget, prev);
