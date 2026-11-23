@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* t5-03-buzz-profile-gap.dom.spec.js — t5-03ⓐ 버즈 카드 «프로필 ↔ 글» 간격 칸(현빈 · 수지 재측 ◑: 11 모델px 고정 · 칸 0개)
  *   처방(지디 정밀 발주): 프로필 행만 dataset.profileGap ?? MODAL_ROW_GAP(11) · ⛔아이콘 행(.mdl-iconrow)은 그 상수 그대로 ·
  *   BUZZ_PROFILE_KEYS 에 profileGap · 패널 한 줄(프로필 크기 줄 선례) · 범위 0~400(chat-bounds profileGap 선례) · 음수는 현빈 답 뒤.
@@ -34,7 +35,7 @@ async function setup(page) {
 }
 
 async function clickToggle(page) {
-  const lab = page.locator('#bzf-section label.prop-toggle:has(#bzf-pf-on)');
+  const lab = page.locator('#bzf-section label.ui-check:has(#bzf-pf-on)');
   await expect(lab, '토글이 있다').toHaveCount(1);
   await lab.scrollIntoViewIfNeeded();
   const r = await lab.boundingBox();

@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* checker-asset-tone.dom.spec.js — t4-15 «체커 어둡게»를 ★에셋블럭에도 (현빈 ④ 확정 · 2026-10-22 · 지디 발주)
  *   현빈 원문: 「배경이미지 체크패턴 어둡게 옵션이 있던데, 일반 에셋블럭도 넣어줘」
  *   ⇒ 「있던데」 = 섹션 체커(tests/dom/checker-section-tone.dom.spec.js · v0.9.7~). 요구는 «에셋블럭 쪽» 이다.
@@ -60,7 +61,7 @@ const bgOf = (page, id) => page.evaluate((i) => getComputedStyle(document.getEle
 /* 켜는 문이 없으면 30초 기다리지 않고 «없다»로 멈춘다(고치기 전 판의 빨강이 이 한 줄에서 서게) */
 const clickTone = async (page) => {
   expect(await page.locator('#asset-checker-tone-on').count(), '★전제 — 에셋 패널에 «체커 어둡게» 토글이 없다').toBe(1);
-  await page.click('label.prop-toggle:has(#asset-checker-tone-on)');   /* 1120b A5 — 라디오 → 토글(겉 label 을 누른다 · 내용 자르기와 같은 꼴) */
+  await page.click('label.ui-check:has(#asset-checker-tone-on)');   /* 1120b A5 — 라디오 → 토글(겉 label 을 누른다 · 내용 자르기와 같은 꼴) */
 };
 const openAsset = async (page, id) => {
   await page.evaluate((i) => window.showAssetProperties(document.getElementById(i)), id);
@@ -87,7 +88,7 @@ test('T1 ⑴ 양성 — 에셋 라디오 켬 → 그 에셋 배경만 #7c7c7c·#
   expect(r.a).toContain(RGB(DARK_B));
   expect(r.b, '★안 켠 에셋까지 어두워졌다').toContain(RGB(LIGHT_A));
   expect(r.rootA, '★:root 큰 쌍이 바뀌었다 — 에셋 범위가 아니라 전역이다').toBe(LIGHT_A);
-  await page.click('label.prop-toggle:has(#asset-checker-tone-on)');   // 1120b A5 — 같은 토글을 다시 눌러 끔
+  await page.click('label.ui-check:has(#asset-checker-tone-on)');   // 1120b A5 — 같은 토글을 다시 눌러 끔
   expect(await page.evaluate(() => document.getElementById('akA').dataset.checkerTone ?? null)).toBeNull();
   expect(await bgOf(page, 'akA')).toContain(RGB(LIGHT_A));
   expect(errs).toEqual([]);

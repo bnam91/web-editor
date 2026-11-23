@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* t5-01-buzz-profile-toggle.dom.spec.js — t5-01 「프로필 넣을때, 일괄넣기 기능을 하면 원형 이미지(체크패턴) 먼저 온오프로 보이게」(현빈)
  *   버즈 패널 「프로필」 일괄 절 맨 위에 ★켬/끔 토글(#bzf-pf-on). 켜면 카드마다 ★체크무늬 원 자리(.mdl-profile-empty)가
  *   먼저 보이고, 그 뒤 이미지·이모지 일괄이 그 원을 채운다. 끄면 프로필이 걷힌다(「프로필 제거」와 같은 끝).
@@ -49,7 +50,7 @@ const faces = (page, fid) => page.evaluate((fid) => {
 }, fid);
 
 async function clickToggle(page) {
-  const lab = page.locator('#bzf-section label.prop-toggle:has(#bzf-pf-on)');
+  const lab = page.locator('#bzf-section label.ui-check:has(#bzf-pf-on)');
   await expect(lab, '토글이 있다').toHaveCount(1);
   await lab.scrollIntoViewIfNeeded();
   const r = await lab.boundingBox();

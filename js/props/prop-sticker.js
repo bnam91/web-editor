@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
+import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow, checkHTML } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { panelRenderedColor } from './_panel-rendered.js';
@@ -464,12 +464,8 @@ export function showStickerProperties(block) {
       </div>
     </div>`);
     put('size', `
-      <div class="prop-row">
-        <span class="prop-label">박스 너비</span>
-        <label class="prop-toggle" title="고정 너비 켜기(끄면 내용맞춤)" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="stk-t-boxw-on" ${tBoxWOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+      <div class="prop-row" title="고정 너비 켜기(끄면 내용맞춤)">
+        ${checkHTML({ id: 'stk-t-boxw-on', label: '박스 너비', checked: tBoxWOn })}
       </div>
       <div class="prop-row" id="stk-t-boxw-detail" style="display:${tBoxWOn ? 'flex' : 'none'}">
         <span class="prop-label">너비</span>
@@ -555,8 +551,7 @@ export function showStickerProperties(block) {
       ${sliderRowHTML('톱니 깊이 %', 'stk-burst-depth', 'stk-burst-depth-num', { min: BURST_LIMITS.depth.min, max: BURST_LIMITS.depth.max, step: 1, value: clampBurst({ depth: block.dataset.burstDepth }).depth })}
       ${sliderRowHTML('끝 둥글기 %', 'stk-burst-round', 'stk-burst-round-num', { min: ROUND_MIN, max: ROUND_MAX, step: 1, value: clampRound(block.dataset.burstRound) })}
       <div class="prop-row">
-        <span class="prop-label">안쪽 링</span>
-        <label class="prop-toggle"><input type="checkbox" id="stk-burst-ring" ${(block.dataset.burstRing ?? 'on') === 'on' ? 'checked' : ''}><span class="prop-toggle-track"></span></label>
+        ${checkHTML({ id: 'stk-burst-ring', label: '안쪽 링', checked: (block.dataset.burstRing ?? 'on') === 'on' })}
       </div>`, { title: 'Burst', id: 'stk-burst-section' }));
   if ((shape === 'circle' || shape === 'burst') && !isCount) _stkSpecials.push(sec('special', `
       <div class="prop-row"><span class="prop-label">둘레 글자</span><input type="text" class="prop-input" id="stk-ring-text" maxlength="80" value="${escHtml(block.dataset.ringText || '')}" placeholder="예: TEST COMPLETED" style="flex:1;min-width:0"></div>
@@ -570,10 +565,7 @@ export function showStickerProperties(block) {
         <button class="prop-action-btn" id="stk-fav-add" title="현재 스티커 스타일을 즐겨찾기에 추가"
           style="width:auto;padding:2px 8px;font-size:11px;${FAV_ALLOWED_SHAPES.includes(shape) ? '' : 'opacity:0.4;cursor:not-allowed;'}">★ 추가</button>` },
     effects: isText ? { id: 'stk-text-shadow-section', headTools: `
-        <label class="prop-toggle" title="그림자 켜기/끄기" style="display:inline-flex;align-items:center;gap:4px">
-          <input type="checkbox" id="stk-t-shadow-on" ${tShadowOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>` } : {},
+        ${checkHTML({ id: 'stk-t-shadow-on', label: '켜기', checked: tShadowOn, attrs: 'aria-label="그림자 켜기"' })}` } : {},   /* ②ⓒ(현빈 261123) — 이름 없이 홀로 선 켬/끔 = 체크 + 옆에 «켜기» 글 */
   };
   renderPanel(block, {
     header: blockHeaderHTML({
