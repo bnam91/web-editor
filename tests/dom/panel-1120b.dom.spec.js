@@ -68,9 +68,9 @@ test('A2 Asset — Stroke 머리 ＋(.prop-sec-add) · 꺼진 기본 = 몸 숨�
     const c = document.getElementById('asset-stroke-on'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
     const ctl = document.getElementById('asset-stroke-controls');
     return { shown: getComputedStyle(ctl).display !== 'none', w: window.__b.dataset.strokeWidth,
-             rows: [...ctl.children].map((e) => `${e.className}:${e.querySelector('.prop-label')?.textContent}`) };
+             rows: [...ctl.querySelectorAll('[data-field]')].map((e) => e.dataset.field) };
   });
-  expect(after).toEqual({ shown: true, w: '2', rows: ['prop-row:두께', 'prop-color-row:색상'] });
+  expect(after).toEqual({ shown: true, w: '2', rows: ['stroke-color', 'stroke-align', 'stroke-width'] });   // ★기대 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2): 옛 줄 [두께 · 색상] → 부품 칸 [색 · 위치 · 굵기] — 머리 ＋·꺼짐 = 몸 숨김·켜면 2 는 그대로
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

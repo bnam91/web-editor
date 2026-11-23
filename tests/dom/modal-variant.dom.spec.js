@@ -131,7 +131,7 @@ test('DOM-③ ★사용자가 맞춘 5px 은 변형을 오가도 «양방향»�
   await mountAndOpen(page);
 
   // 패널의 두께 입력으로 «사용자처럼» 5 를 넣는다(wireNum 이 change 를 듣는다)
-  const bw = page.locator('#mdl-bw-number');
+  const bw = page.locator('#mdl-bw-number'); if (!(await page.locator('#mdl-stroke-on').isChecked())) await page.click('#panel-right label:has(#mdl-stroke-on)');   // ★전제 바뀜(현빈 261123 표준 Stroke 부품): 기본(plain) = 테두리 없음 → 몸 숨김 · 사람은 머리 ＋ 로 켠 뒤 두께를 넣는다(이 칸의 뜻 = «사용자 값 5 가 변형을 오가도 산다» 그대로)
   await bw.fill('5');
   await bw.dispatchEvent('change');
   expect((await computed(page)).width).toBe('5px');
