@@ -1662,13 +1662,29 @@ function addYoutubeThumbSection() {
   window.triggerAutoSave?.();
   return sec;
 }
-/* 입구 노출 = GIF·Slides 와 같은 판정(feature-flags.js animGifVisible 한 자리 · 모르면 «아님») — 공개 범위일 뿐 접근통제 아님.
-   메뉴를 여는 클릭보다 먼저(capture) 맞춘다(slide-block.js syncSlideMenu 와 같은 꼴). */
-function syncYoutubeThumbMenu() {
-  const b = document.getElementById('fp-add-yt-thumb');
-  if (b) b.style.display = window.animGifVisible?.(true, window.__admin?.state?.() ?? null) ? '' : 'none';
+/* ★«ytb_» 이스터에그(현빈 261123 · 0.9.14 탭 47행 ytb_t1-01 원문 → 0.9.13 GO) — 컴포넌트 메뉴 «YouTube 썸네일» 입구는 걷고, 섹션(레이어) 이름이
+   «ytb_» 로 시작하면 그 섹션이 썸네일 섹션이 된다(위 addYoutubeThumbSection 과 같은 표시 · 핀 484 · 패널 기본 1280/JPG · 전체 내보내기 제외 = 기존 data-thumb 동작 재사용).
+   ★기존 섹션도 이름만 바꾸면 켜짐 · 접두어를 떼면 원상복구(data-thumb 걷고 높이 = «켜기 전» 값 · 그 값은 data-thumb-prev 로 저장본에 남아 다시 연 뒤 떼도 맞다).
+   ★끄기는 «앞 이름이 ytb_ 였을 때만» — 옛 메뉴로 만든 썸네일(이름 무관)을 엉뚱한 이름 바꾸기로 꺼 버리지 않는다.
+   게이트 = 다른 이스터에그와 같은 isEasterEggEnabled('youtubeThumb')(설정 › 이스터에그 · 기본 켬). 부르는 자 = layer-panel.js 섹션 이름 바꾸기(끝 표본 pushHistory «앞» = ⌘Z 한 칸). */
+function applyYoutubeThumbName(sec, prevName = '') {
+  /* ★일반 사용자도(현빈 261123 «관리자 조건 걷기») — 게이트 = 이스터에그 설정(youtubeThumb) 하나 · 관리자 판정(animGifVisible) 없음 */
+  if (!sec || window.isEasterEggEnabled?.('youtubeThumb') === false) return false;
+  const want = /^ytb_/i.test(sec.dataset.name || ''), is = sec.dataset.thumb === 'youtube';
+  if (want && !is) {
+    sec.dataset.thumbPrev = JSON.stringify({ h: sec.style.height || '', minH: sec.style.minHeight || '', pin: sec.dataset.heightPin ?? null });
+    sec.style.minHeight = ''; sec.style.height = YT_THUMB_SEC_H + 'px';
+    sec.dataset.heightPin = 'true'; sec.dataset.thumb = 'youtube';
+  } else if (!want && is && /^ytb_/i.test(prevName)) {
+    let pv = null; try { pv = JSON.parse(sec.dataset.thumbPrev || 'null'); } catch (_) { pv = null; }
+    delete sec.dataset.thumb; delete sec.dataset.thumbPrev;
+    sec.style.height = pv?.h || ''; sec.style.minHeight = pv?.minH || '';
+    if (pv?.pin) sec.dataset.heightPin = pv.pin; else delete sec.dataset.heightPin;
+  } else return false;
+  window.renderSectionHeights?.();
+  if (sec.classList.contains('selected')) window.showSectionProperties?.(sec);   // 패널 내보내기 기본(1280/JPG ↔ 860/PNG)을 다시 그린다
+  return true;
 }
-if (typeof document !== 'undefined') { document.addEventListener('click', syncYoutubeThumbMenu, true); syncYoutubeThumbMenu(); }
 
 /* ── Secret Block (Figma 패스스루 컴포넌트) ── */
 function makeJokerBlock(opts = {}) {
@@ -5919,6 +5935,7 @@ window._buildBridgeWavePath = _buildBridgeWavePath;   // t13C-02 — 진단·검
 window.BRIDGE_WAVE_DEFAULTS = BRIDGE_WAVE_DEFAULTS;   // prop-bridge 손잡이 기본값(한 벌)
 window.addSection           = addSection;
 window.addYoutubeThumbSection = addYoutubeThumbSection;
+window.applyYoutubeThumbName = applyYoutubeThumbName;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
 window.addFrameBlock         = addFrameBlock;

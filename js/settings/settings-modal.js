@@ -51,6 +51,7 @@
     { key: 'textEffect',       label: '텍스트 효과(네온/메탈릭 등)', desc: '텍스트 블록 레이어 이름을 **text_ 로 바꾸면 네온·메탈릭·그런지·빈티지·시네마틱 효과 + 우측패널 컨트롤이 켜짐', trigger: '레이어명 prefix **text_ (layer-panel-items.js)', enabledByDefault: true },
     { key: 'iconMode',         label: '카드 아이콘 모드', desc: '카드(canvas) 블록 레이어 이름을 **icon_ 로 바꾸면 카드 이미지 자리에 iconify 아이콘을 넣는 모드로 전환', trigger: '레이어명 prefix **icon_ (layer-panel-items.js)', enabledByDefault: true },
     { key: 'badgeTransform',   label: '정품인증 배지 변환', desc: '섹션 이름을 **badge_ 로 바꾸면 해당 섹션이 정품인증 배지 블록으로 변환됨', trigger: '섹션명 prefix **badge_ (layer-panel.js)', enabledByDefault: true },
+    { key: 'youtubeThumb',     label: 'YouTube 썸네일 섹션', desc: '섹션 이름을 ytb_ 로 시작하게 바꾸면 그 섹션이 유튜브 썸네일 섹션(높이 484 고정 · 내보내기 1280·JPG · 전체 내보내기에서 빠짐) · 접두어를 떼면 원상복구', trigger: '섹션명 prefix ytb_ (layer-panel.js → block-factory.js applyYoutubeThumbName)', enabledByDefault: true },
   ];
 
   // 이스터에그 기본값 맵 (전부 enabled=true → 기존 동작 보존)
