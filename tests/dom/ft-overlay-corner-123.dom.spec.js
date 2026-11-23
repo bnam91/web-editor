@@ -12,6 +12,8 @@
  *   N   자유변형 없는 오버레이 글상자 — tfo 모서리 넷이 보이고 그 점의 임자 = tfo(오버레이 리사이즈 그대로)
  *   O   자유변형을 빼면 tfo 모서리가 돌아온다
  *   E   (t13D-10 뒤 · 지디 261121 ⒝) 자유변형이 걸린 동안 텍스트 상자 «변» 손잡이(data-tbx-dir)도 숨는다 · 빼면 돌아온다
+ * C2  (train/0913-a · 현빈 261123 Clip content) 섹션에 걸친 상자(새 섹션 283 · 상자 아래로 19px 밖) — 섹션 «안» 모서리(nw·ne) 임자 = FT 손잡이 · 섹션 «밖»(se·sw)은 잘림(Clip content)
+ *      = 오버레이 크롭 선이 «제 상자»가 아니라 «섹션 사각형»(js/overlay-float.js _secClip) · CTL _patches/train-ovclip-CTL.patch(옛 스티커 식) ⇒ C2 빨강
  * 양성대조: GD1001_ROOT=<핀 8608bb13 사본> ⇒ C·D 빨강 · P0·N·O 초록.
  * ⛔고정 대기 없음 — waitForFunction 만. 하네스 = _root-harness.bootApp · 고르기·토글·끌기는 진짜 마우스.
  */
@@ -19,22 +21,23 @@ const { test, expect } = require('@playwright/test');
 /* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
-async function setup(page, { ft = true } = {}) {
+async function setup(page, { ft = true, tall = true } = {}) {
   await page.setViewportSize({ width: 1700, height: 1200 });
   const errs = await bootApp(page);
   await page.evaluate(() => { window.__admin = { ...(window.__admin || {}), state: () => ({ isAdmin: true }) }; });   // [전제] t13E-10 부터 텍스트 상자 손잡이(data-tbx-dir)는 관리자만 — 장면 전제 · 기대 무변(관리자 아님 = 0 은 t13-admin-only-entries A1)
-  await page.evaluate(() => {
+  await page.evaluate((tall) => {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach((s) => s.remove());
     window.addSection();
     const sec = c.querySelector('.section-block');
+    if (tall) sec.style.minHeight = '420px';   // ★전제 바뀜(현빈 261123 t13E-07 Clip content 기본 켬 · ⓐ 확정): 새 섹션(283) 아래로 글상자가 19px 걸쳐 se·sw 모서리가 섹션 밖 = 잘림(실측 · 열차 전수) — 모서리를 섹션 안에 두는 장면
     window.selectSection(sec);
     window.addTextBlock('h1', { content: '오버레이 자유변형' });
     window.applyZoom?.(40);
     window.__tb = [...sec.querySelectorAll('.text-block')].pop();
     window.deselectAll?.();
     window.__tb.scrollIntoView({ block: 'center' });
-  });
+  }, tall);
   await waitZoomSettled(page, 40);   // 보간 중에 재면 옛 배율 자리를 누른다(7차 ×6 값)
   const mid = () => page.evaluate(() => { const r = window.__tb.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   let p = await mid(); await page.mouse.click(p[0], p[1]);
@@ -79,6 +82,17 @@ test('C ★모서리 넷 — 그 점의 임자 = 그 FT 손잡이', async ({ pag
   const out = [];
   for (const n of CORNERS) { const p = await ftAt(page, n); await page.mouse.move(p[0], p[1]); out.push(await ownerAt(page, p)); }
   expect(out).toEqual(CORNERS.map((n) => 'FT:' + n));
+  expect(errs).toEqual([]);
+});
+
+test('C2 섹션에 걸친 상자 — 섹션 안 모서리 임자 = FT · 섹션 밖 모서리는 잘림(크롭 선 = 섹션 사각형)', async ({ page }) => {
+  const errs = await setup(page, { ft: true, tall: false });
+  const pre = await page.evaluate(() => { const pe = window.__tb.closest('[data-overlay-block="true"]'), sec = pe.parentElement; return pe.offsetTop + pe.offsetHeight > sec.clientHeight && pe.offsetTop >= 0; });
+  expect(pre, '[전제] 상자가 섹션 아래로 걸쳤다(위 변은 섹션 안)').toBe(true);
+  const out = [];
+  for (const n of CORNERS) { const p = await ftAt(page, n); out.push(await ownerAt(page, p)); }
+  expect(out.slice(0, 2), '★섹션 안 모서리 nw·ne = FT(상자 밖 손잡이가 안 잘림)').toEqual(['FT:nw', 'FT:ne']);
+  expect(out.slice(2).some((o) => o === 'FT:se' || o === 'FT:sw'), `★섹션 밖 모서리 se·sw 는 잘림 ${JSON.stringify(out)}`).toBe(false);
   expect(errs).toEqual([]);
 });
 
