@@ -8,6 +8,7 @@
  *   캔버스 끌기(radial-block.js)가 끝나면 이 패널을 그 항목으로 다시 열어 숫자가 끈 값과 같아진다. */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import {
@@ -272,24 +273,28 @@ export function showRadialProperties(block, idx) {
       ${/* 블럭 배경 꼴 — 가운데 기본값만 'transparent' 라 먼저 '' 로 바꿔 같은 빈 값 표시(#ffffff)에 닿게 한다 */ _colorRow('rdl-center-bg', '가운데 배경', (st.centerBg === 'transparent' ? '' : st.centerBg) || '#ffffff', '#ffffff')}
       ${_colorRow('rdl-center-color', '가운데 글자', st.centerColor, RADIAL_DEFAULTS.centerColor)}` : ''}
       ${st.labelPos === 'none' ? '' : _colorRow('rdl-labelcolor', '라벨 색', st.labelColor, RADIAL_DEFAULTS.labelColor)}`),
+      /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 15) — 연결선 select = 표준 «위» 슬롯 · ★켬/끔 정본(지디 261123: none = 표준 몸 숨김 · 머리 ＋/− 안 그림 = 두 손잡이 금지)
+         굵기 = 0.5 걸음 · 하한 0.5 유지(radial-block.js:79) · 위치 = 가운데 막힘(SVG path stroke = 경계 가운데 · radial-block.js:883 실측) · 옛 «선 모양»·«선 연장°» = 아래 슬롯 · 옛 id 지킴 */
       sec('stroke', `
+      <div class="ui-stroke-slot" data-slot="above" data-slot-kind="radial-connector">
       <div class="prop-row">
         <span class="prop-label">연결선</span>
         <select class="prop-select" id="rdl-line-select">
           ${lineOpts.map(([v, t]) => `<option value="${v}"${lineCur === v ? ' selected' : ''}>${t}</option>`).join('')}
         </select>
       </div>
-      ${st.line === 'none' ? '' : `
-      ${_colorRow('rdl-line', '선 색', st.lineColor, RADIAL_DEFAULTS.lineColor)}
+      </div>${strokeSectionHTML({ prefix: 'rdl-stroke', color: _swatchHex(st.lineColor, RADIAL_DEFAULTS.lineColor), alpha: parseAlphaFromColor(st.lineColor), width: st.lineWidth,
+        maxWidth: L.lineWidth.max, minWidth: L.lineWidth.min, step: L.lineWidth.step, align: 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 가운데',
+        on: st.line !== 'none', widthId: 'rdl-line-width', colorId: 'rdl-line',
+        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style">
       <div class="prop-row">
         <span class="prop-label">선 모양</span>
-        <select class="prop-select" id="rdl-line-style">
+        <select class="prop-select" id="rdl-line-style" data-field="stroke-style">
           <option value="dashed"${st.lineStyle === 'dashed' ? ' selected' : ''}>점선</option>
           <option value="solid"${st.lineStyle === 'solid' ? ' selected' : ''}>실선</option>
         </select>
       </div>
-      ${_numRow('rdl-line-width', '선 두께', st.lineWidth, L.lineWidth, L.lineWidth.step)}
-      ${isArc && lineCur === 'orbit' ? _numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend) : ''}`}`),
+      ${isArc && lineCur === 'orbit' ? _numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend) : ''}</div>` })}`),
       sec('special', `
       ${_typeRow('가운데', 'rdl-center', _CENTER_OPTS, st.centerMode)}
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-center', '크기', st.centerSize, L.centerSize)}
@@ -441,8 +446,10 @@ export function showRadialProperties(block, idx) {
     block.dataset.lineStyle = e.target.value === 'solid' ? 'solid' : 'dashed';
     rerender(); commit();
   });
-  wireOnlyNum('rdl-line-width', 'lineWidth');
-  wireColor('rdl-line', 'lineColor');
+  /* 표준 Stroke 부품 배선 — 어댑터 = 옛 wireOnlyNum('rdl-line-width')·wireColor('rdl-line') 의 쓰기 그대로 · 머리 없음(켬/끔 = 연결선 select) */
+  wireStrokeSection({ prefix: 'rdl-stroke', alpha: parseAlphaFromColor(block.dataset.lineColor || RADIAL_DEFAULTS.lineColor), widthId: 'rdl-line-width', colorId: 'rdl-line',
+    maxWidth: L.lineWidth.max, minWidth: L.lineWidth.min, step: L.lineWidth.step,
+    adapter: { color: (c) => { block.dataset.lineColor = c; rerender(); }, width: (v) => { block.dataset.lineWidth = String(v); rerender(); }, commit } });
   if ($('rdl-bg-color')) {
     wireColorField('rdl-bg', {
       initialAlpha: block.dataset.bg ? parseAlphaFromColor(block.dataset.bg) : 100,

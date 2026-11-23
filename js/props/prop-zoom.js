@@ -5,6 +5,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 
 const D = () => (window.ZOOM_DEFAULTS || {});
 
@@ -218,20 +219,20 @@ export function showZoomProperties(block) {
         </div>
       </div>`),
       // 옛 「Border」 절. 테두리 색(zm-bdc)은 Stroke — 소유 별칭 bdc→stroke(U0c)
+      /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 18) — ★켬/끔 정본 = 옛 «테두리» 라디오(dataset.bd · 현빈 261123 ⓐ «일단 그대로» · 지디: 머리 ＋/− 안 그림 = 두 손잡이 금지)
+         없음 = bd off(두께 값 보존) · 꺼지면 표준 몸 흐림(옛 dim 그대로) · 위치 = 바깥 막힘(zoom-geometry.js:598 «한 겹 큰 판»을 도형 뒤에 깖 = 바깥 · 실측) · 옛 id(zm-bdw-num · zm-bdc) 지킴 */
       sec('stroke', `
+      <div id="zm-bd-fields" style="${dim(bdOn)}">${strokeSectionHTML({ prefix: 'zm-bd', color: st.bdc, alpha: bdcAlpha, width: st.bdw, maxWidth: 80, align: 'outside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 바깥', widthId: 'zm-bdw-num', colorId: 'zm-bdc' })}
+${bdrRow}
+      </div>
+      <div class="ui-stroke-slot" data-slot="below" data-slot-kind="zoom-border">
       <div class="prop-row">
         <span class="prop-label">테두리</span>
         <div class="prop-radio-group" id="zm-bd-group">
           <label class="prop-radio"><input type="radio" name="zm-bd" value="on"${bdOn ? ' checked' : ''}> 켬</label>
           <label class="prop-radio"><input type="radio" name="zm-bd" value="off"${bdOn ? '' : ' checked'}> 끔</label>
         </div>
-      </div>
-      <div id="zm-bd-fields" style="${dim(bdOn)}">
-      ${_pairRow('zm-bdw', '두께', st.bdw, 0, 80, 1)}
-${bdrRow}
-      <div class="prop-color-row">
-        <span class="prop-label">색</span>
-        ${colorFieldHTML({ idPrefix: 'zm-bdc', hex: st.bdc, alpha: bdcAlpha })}
       </div>
       </div>`),
       // 옛 「Zoom Effect」 + 「도형 그림자 (줌 이펙트와 별개)」 → Effects 한 절, 두 행 라벨(줌 이펙트 · 도형 그림자)로 가른다
@@ -380,7 +381,6 @@ ${narrowRow}
   // ★[숨김] 위 narrowRow 와 «짝». ⛔상태 키 st.narrow 와 기본값 62 는 «살아 있다».
   // bindPair('zm-narrow', 'narrow', '확대블럭 좁아짐',     0, 100);
   bindPair('zm-txs',    'txs',    '확대블럭 글자 크기',    8, 200);
-  bindPair('zm-bdw',    'bdw',    '확대블럭 테두리 두께',  0, 80);
   // ★[숨김] 위 _pairRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다. 같이 가린다.
   //   (bindPair 는 querySelector 결과가 없으면 조용히 return 하므로 남겨도 «오류는 안 난다» —
   //    실측으로 확인했다. 그래도 「없는 요소를 찾는 코드」는 다음 사람을 헷갈리게 하니 가린다.)
@@ -456,11 +456,11 @@ ${narrowRow}
     onCommit: () => { window.pushHistory?.('확대블럭 줌 이펙트 색'); window.triggerAutoSave?.(); },
   });
 
-  wireColorField('zm-bdc', {
-    initialAlpha: bdcAlpha,
-    onApply: (c) => { block.dataset.bdc = c; rerender(); },
-    onCommit: () => { window.pushHistory?.('확대블럭 테두리 색'); window.triggerAutoSave?.(); },
-  });
+  /* 표준 Stroke 부품 배선 — 어댑터 = 옛 bindPair('zm-bdw')·wireColorField('zm-bdc') 의 쓰기·이력 이름 그대로(push-after) · 머리 없음(켬/끔 = 라디오) */
+  let _bdLast = '두께';
+  wireStrokeSection({ prefix: 'zm-bd', alpha: bdcAlpha, maxWidth: 80, widthId: 'zm-bdw-num', colorId: 'zm-bdc',
+    adapter: { color: (c) => { _bdLast = '색'; block.dataset.bdc = c; rerender(); }, width: (v) => { _bdLast = '두께'; block.dataset.bdw = String(v); rerender(); },
+      commit: () => { window.pushHistory?.(`확대블럭 테두리 ${_bdLast}`); window.triggerAutoSave?.(); } } });
 
   /* ★㉒ 이미지 — 스티커의 전례를 그대로 따른다(prop-sticker.js:673~).
      ⛔dataset.imgSrc 에 넣는다 ⇒ 캔버스 HTML 스냅샷에 «자동으로» 실린다(저장/로드 별도 작업 없음).

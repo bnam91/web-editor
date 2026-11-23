@@ -3,6 +3,7 @@ import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
 
 /* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
 import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
@@ -23,6 +24,10 @@ export function showIconCircleProperties(block) {
   let   _lastFill = (bgColor && bgColor !== 'transparent') ? bgColor : '#e8e8e8';   // 끈 뒤 다시 켤 색(패널 지역 — 데이터 키 아님)
   const bgAlpha  = parseAlphaFromColor(_lastFill);
   const borderV  = block.dataset.border            || 'none';
+  const ICB_BW_DEF = 3;   // css/editor-blocks.css .icb-circle[data-border] 의 옛 고정 굵기
+  const _icbBcDef = (circle ? getComputedStyle(circle).getPropertyValue('--ui-border').trim() : '') || '#333333';   // 옛 고정 색 = 편집기 토큰이 지금 그리는 값(실측 · 읽기만)
+  const _icbBw = block.dataset.borderW != null ? (parseFloat(block.dataset.borderW) || 0) : ICB_BW_DEF;
+  const _icbBc = block.dataset.borderColor || _icbBcDef;
   const radius   = parseInt(block.dataset.radius)  || 0;
   const padX     = parseInt(block.dataset.padX)    || 0;
   // ★「좌우 패딩」은 «죽은 속성이 아니다» — row 가 cols 일 때만 산다(실측 2026-09-05).
@@ -104,15 +109,13 @@ export function showIconCircleProperties(block) {
         <span class="prop-label">배경</span>
         ${colorFieldHTML({ idPrefix: 'icb-bg', hex: _lastFill, alpha: bgAlpha })}
       </div>`),
-      sec('stroke', `
-      <div class="prop-row">
-        <span class="prop-label">스타일</span>
-        <select class="prop-select" id="icb-border-select">
-          <option value="none"   ${borderV==='none'   ?'selected':''}>없음</option>
-          <option value="solid"  ${borderV==='solid'  ?'selected':''}>실선</option>
-          <option value="dashed" ${borderV==='dashed' ?'selected':''}>점선</option>
-        </select>
-      </div>`),
+      /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 4) — 없음 = data-border none(옛 키 · 옛 «없음» 고르기 그대로) · 머리 ＋ = 실선
+         ★새 키 2(지디 261123 (가)): borderW·borderColor — 기본(3px · 편집기 토큰 --ui-border 가 지금 그리는 색)과 다를 때만 저장 → 옛 저장본 바이트 무변
+         위치 = 안쪽 막힘(CSS border + 전역 box-sizing:border-box) · 옛 «스타일» select = line-style 슬롯(실선·점선 · 단계 3 팝오버로) */
+      sec('stroke', strokeSectionHTML({ prefix: 'icb-stroke', color: _icbBc, alpha: parseAlphaFromColor(_icbBc), width: _icbBw, maxWidth: 20, align: 'inside', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderV !== 'none',
+        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style"><div class="prop-row"><span class="prop-label">스타일</span><select class="prop-select" id="icb-border-select" data-field="stroke-style">${[['solid', '실선'], ['dashed', '점선']].map(([v, t]) => `<option value="${v}"${(borderV === 'none' ? 'solid' : borderV) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div></div>` }),
+        { headTools: strokeHeadToolsHTML({ prefix: 'icb-stroke', on: borderV !== 'none' }) }),
     ],
   });
 
@@ -206,9 +209,21 @@ export function showIconCircleProperties(block) {
     window.addCircleChild?.(block, kind);
   });
 
+  /* 표준 Stroke 부품 배선 — 원에 변수(--icb-bw/--icb-bc)는 키가 있을 때만(기본과 같으면 키·변수 둘 다 지움 = 옛 저장본 그대로) */
+  const _icbSetBorder = (v) => { block.dataset.border = v; if (circle) circle.dataset.border = v; };
+  const _icbVar = (key, cssVar, val, isDef) => {
+    if (isDef) { delete block.dataset[key]; circle?.style.removeProperty(cssVar); if (circle?.getAttribute('style') === '') circle.removeAttribute('style'); }
+    else { block.dataset[key] = String(val); circle?.style.setProperty(cssVar, cssVar === '--icb-bw' ? `${val}px` : val); }
+  };
+  wireStrokeSection({ prefix: 'icb-stroke', alpha: parseAlphaFromColor(_icbBc), maxWidth: 20, onWidth: ICB_BW_DEF,
+    adapter: {
+      color: (c) => _icbVar('borderColor', '--icb-bc', c, String(c).toLowerCase() === _icbBcDef.toLowerCase()),
+      width: (v) => { if ((block.dataset.border || 'none') === 'none') _icbSetBorder(propPanel.querySelector('#icb-border-select')?.value || 'solid'); _icbVar('borderW', '--icb-bw', v, v === ICB_BW_DEF); },
+      none: () => _icbSetBorder('none'),   // 없음 = 옛 «없음» 그대로(굵기·색 키는 남김 → 다시 켜면 그 굵기·색)
+      commit: () => window.pushHistory(),
+    } });
   propPanel.querySelector('#icb-border-select').addEventListener('change', e => {
-    block.dataset.border   = e.target.value;
-    circle.dataset.border  = e.target.value;
+    _icbSetBorder(e.target.value);
     window.pushHistory();
   });
 }
