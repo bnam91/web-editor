@@ -2673,6 +2673,24 @@ function _selectFlowSibling(sel, dir) {
   if (!units.length) return false;
   const i = unit ? units.indexOf(unit) : -1;
   const next = units[((i < 0 ? (dir > 0 ? -1 : 0) : i) + dir + units.length) % units.length];
+  /* ★HBQA 198(현빈 9510 QA 4-b · 0.9.13) — 이웃이 «프레임»이면 selectBlock 이 못 고른다(getBlockById 가 프레임을 블럭으로 안 봄 → 무동작).
+     ⇒ 프레임은 레이어 패널 프레임 줄 누름(js/panels/layer-panel-items.js makeLayerFrameItem)과 같은 길로 고른다: 도형 래퍼 = 안 도형(selectShapeBlock) · 그 밖 = 프레임 고르기. */
+  if (next.matches('.frame-block:not([data-text-frame])')) {
+    const sb = isShapeFrame(next) ? next.querySelector(':scope > .shape-block') : null;
+    if (sb) { if (!window.selectShapeBlock?.(sb)) return false; }
+    else {
+      window.deselectAll?.();
+      const ps = next.closest('.section-block');
+      if (ps) { ps.classList.add('selected'); window.syncLayerActive?.(ps); }
+      next.classList.add('selected');
+      window._activeFrame = next;
+      window.highlightBlock?.(next, next._layerItem);
+      window.showFrameProperties?.(next);
+      window.showFrameHandles?.(next);
+    }
+    (sb || next).scrollIntoView?.({ block: 'nearest' });
+    return true;
+  }
   /* 단위 → 고를 블럭: 텍스트 프레임은 글자 블럭 · row 는 첫 블럭 · 갭·프레임·그 밖은 단위 자신 */
   const leaf = next.matches('.frame-block[data-text-frame]') ? (next.querySelector('.text-block') || next)
     : next.classList.contains('row') ? ([...next.querySelectorAll('[id]')].find((x) => !x.classList.contains('col') && x.closest('.row') === next) || next)
