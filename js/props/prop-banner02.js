@@ -1,6 +1,6 @@
 // prop-banner02.js — banner02 블록 우측 프로퍼티 패널 (prop-canvas 패턴 미러링)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
+import { blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField } from './color-picker.js';
 /* ★window.* 가 아니라 «import» 로 잡는다 — 로드 순서가 바뀌어도 토글이 조용히 사라지지 않는다. */
@@ -301,11 +301,7 @@ export function showBanner02Properties(block, activeIdxArg) {
       </div>`),
       sec('padding', _bn2CanFullBleed ? `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="bn2-fullbleed-toggle" ${_bn2IsFullBleed ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'bn2-fullbleed-toggle', label: '패딩 제외', checked: _bn2IsFullBleed })}
       </div>
 ` : ''),
       sec('appearance', `
