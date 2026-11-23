@@ -73,7 +73,7 @@ function _blurCardHtml(el, P) {
         </div>
         <div class="prop-cell-card-body" id="${P}-fxbl-body"${open ? '' : ' hidden'}>
           <div class="prop-row">
-            <span class="prop-label">강도</span>
+            <span class="prop-label">가림 정도</span>
             <input type="range" class="prop-slider" id="${P}-redact-slider" min="0" max="100" step="1" value="${fx.v}">
             <input type="number" class="prop-number" id="${P}-redact-number" min="0" max="100" value="${fx.v}">
           </div>

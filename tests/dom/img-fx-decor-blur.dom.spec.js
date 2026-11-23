@@ -77,7 +77,7 @@ test('D2 숫자 20 → blur(20px) · 눈 끔 = filter 없음 · 값 보존', asy
   await openPanel(page); await page.selectOption('#asset-fx-add', 'decorblur'); await raf(page);
   await page.evaluate(() => { const b = document.getElementById('asset-fxdb-body'); if (b?.hidden) document.getElementById('asset-fxdb-head').click(); });
   await page.fill('#asset-fxdb-num', '20'); await page.press('#asset-fxdb-num', 'Enter'); await raf(page);
-  expect((await st(page)).filter, '★20px').toBe('blur(20px)');
+  expect((await st(page)).filter, '★20px').toBe('blur(20px)'); expect(await page.evaluate(() => document.querySelector('#asset-fxdb-body .prop-label')?.textContent.trim() ?? null), '★값 라벨 = «흐림 정도»(현빈·지디 261123 172 t13E-06 — 가림/흐림 차이를 라벨 이름으로 · 옛 «Blur»)').toBe('흐림 정도');
   await page.click('#asset-fxdb-eye'); await raf(page);
   const b = await st(page);
   expect([b.on, b.off, b.filter], `★끔 ${JSON.stringify(b)}`).toEqual([null, '20', 'none']);

@@ -48,7 +48,7 @@ function _cardHtml(el, P) {
         </div>
         <div class="prop-cell-card-body" id="${P}-fxdb-body"${open ? '' : ' hidden'}>
           <div class="prop-row">
-            <span class="prop-label">Blur</span>
+            <span class="prop-label">흐림 정도</span>
             <input type="range" class="prop-slider" id="${P}-fxdb-slider" min="0" max="${DECOR_BLUR_MAX}" step="1" value="${fx.v}">
             <input type="number" class="prop-number" id="${P}-fxdb-num" min="0" max="${DECOR_BLUR_MAX}" value="${fx.v}">
           </div>
