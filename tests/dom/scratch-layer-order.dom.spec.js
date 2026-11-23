@@ -226,16 +226,17 @@ test('L1·L2 ★C 고르고 ⌘[ → ACB(위 = B · 배열 같이 · 「뒤로 �
   expect(errs).toEqual([]);
 });
 
-test('L3 ★⇧ 는 무시 — A 고르고 ⌘⇧] → BAC(한 칸 · 맨 위 BCA 아님) · ⌘⇧[ → ABC', async ({ page }) => {
+/* ★기대 바뀜(IAL-02 맞춤 · 지디 261124 «한 앱 안에서 같은 키가 다르게 동작하면 안 됨») — 스크래치도 ⇧ = 끝까지(캔버스 moveSelectedBlocks toEnd 와 같음) */
+test('L3 ★⇧ = 끝까지 — A 고르고 ⌘⇧] → BCA(맨 위) · ⌘⇧[ → ABC(맨 아래) · 이력 «맨 …»', async ({ page }) => {
   const { errs, P } = await scratchScene(page, uid('L3'));
   await clickItem(page, 'A');
   expect((await state(page, P)).sel).toBe('A');
   await press(page, 'Meta+Shift+BracketRight');
   const s1 = await state(page, P);
-  expect([s1.dom, s1.arr, s1.action]).toEqual(['BAC', 'BAC', '앞으로 가져오기']);
+  expect([s1.dom, s1.arr, s1.action]).toEqual(['BCA', 'BCA', '맨 앞으로 가져오기']);
   await press(page, 'Meta+Shift+BracketLeft');
   const s2 = await state(page, P);
-  expect([s2.dom, s2.arr, s2.action]).toEqual(['ABC', 'ABC', '뒤로 보내기']);
+  expect([s2.dom, s2.arr, s2.action]).toEqual(['ABC', 'ABC', '맨 뒤로 보내기']);
   expect(errs).toEqual([]);
 });
 

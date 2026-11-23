@@ -3040,7 +3040,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'BracketLeft') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      if (window.scratchLayerOrder?.('up')) { e.preventDefault(); return; }
+      if (window.scratchLayerOrder?.('up', e.shiftKey)) { e.preventDefault(); return; }
       e.preventDefault();
       moveSelectedBlocks('up', e.shiftKey);
       return;
@@ -3048,7 +3048,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'BracketRight') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      if (window.scratchLayerOrder?.('down')) { e.preventDefault(); return; }
+      if (window.scratchLayerOrder?.('down', e.shiftKey)) { e.preventDefault(); return; }
       e.preventDefault();
       moveSelectedBlocks('down', e.shiftKey);
       return;
@@ -4696,6 +4696,8 @@ function moveSelectedBlocks(direction, toEnd = false) {
     }
     return null;
   };
+  /* ★IAL-03 ① — 흐름 사이에 낀 떠 있는 상자는 겹침 순서를 바꾸기 «전»에 섹션 직속으로(화면 자리 그대로 · overlay-float rehomeStrayFloat) */
+  document.querySelectorAll('.selected').forEach(el => { const pe = window.OverlayFloat?.posElOf?.(el); if (pe) window.OverlayFloat.rehomeStrayFloat?.(pe); });
   const _stackUnits = [];
   document.querySelectorAll('.selected').forEach(el => {
     if (el.querySelector('.selected')) return;   // ② 안쪽에 더 깊은 선택이 있다 — 바깥(부모 프레임·섹션)은 단위가 아니다
@@ -4707,17 +4709,17 @@ function moveSelectedBlocks(direction, toEnd = false) {
     // 섞여 있으면(다른 섹션 · 그룹 안팎) 아무것도 하지 않는다 — 흐름 갈래와 같은 규칙
     if (!fContainer || !_stackUnits.every(u => u.parentElement === fContainer)) return;
     const fSibs = [...fContainer.children].filter(c => !!_stackUnitOf(c));
-    if (fSibs.length < 2) return;                    // 혼자면 겹칠 상대가 없다
+    if (fSibs.length < 2) { window.showToast?.('겹친 상대가 없어 순서를 바꿀 수 없어요'); return; }   // 혼자면 겹칠 상대가 없다 · IAL-03 ③ 알림
     _stackUnits.sort((a, b) => fSibs.indexOf(a) - fSibs.indexOf(b));
     const fIds = _stackUnits.map(u => u.id).filter(Boolean);
     if (direction === 'up') {
       const firstIdx = fSibs.indexOf(_stackUnits[0]);
-      if (firstIdx <= 0) return;                     // 이미 맨 뒤(가장 아래)
+      if (firstIdx <= 0) { window.showToast?.('이미 맨 뒤예요'); return; }   // 이미 맨 뒤(가장 아래) · IAL-03 ③
       window.ensureHistoryCheckpoint?.('이동 전');
       (toEnd ? fSibs[0] : fSibs[firstIdx - 1]).before(..._stackUnits);
     } else {
       const lastIdx = fSibs.indexOf(_stackUnits[_stackUnits.length - 1]);
-      if (lastIdx >= fSibs.length - 1) return;        // 이미 맨 앞(가장 위)
+      if (lastIdx >= fSibs.length - 1) { window.showToast?.('이미 맨 앞이에요'); return; }   // 이미 맨 앞(가장 위) · IAL-03 ③
       window.ensureHistoryCheckpoint?.('이동 전');
       const marker = document.createComment('mv-stack');
       (toEnd ? fSibs[fSibs.length - 1] : fSibs[lastIdx + 1]).after(marker);

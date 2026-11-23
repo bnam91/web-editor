@@ -4,7 +4,7 @@
  *   H1 N 키 = 연필 · 막대(#floating-panel 안 #fh-bar) · 섹션 안 진짜 끌기(물결) → 벡터 하나 · penNodes 노드 2 이상 · 끈 점 수보다 훨씬 적다 · 패널 «패스 편집»
  *   H2 보정 세기 — 같은 점(물결 200)을 세기 0 과 100 으로 확정 → 100 쪽 노드가 적다(막대 손잡이 진짜 입력)
  *   H3 ⇧B = 붓 · 섹션 안 끌기 → 벡터 하나 · penNodes 없음 · 채운 path · 같은 점 프리셋 둘(양 끝 가늘게·서예)은 모양이 다르다
- *   H4 연필로 섹션 밖에서 끌기 → 스크래치 장(펜 항목 data-goditor-pen) · 섹션 블럭 무변
+ *   H4 연필로 섹션 밖에서 끌기 → 떠 있는 펜 벡터(★2026-11-24 기대 바뀜 — t13G-03: 연필은 펜과 같은 확정 길 _finalizeDraw · 섹션 밖 = IAL 벡터) · 스크래치 무변
  *   H5 Esc = 끝(막대 0 · body fh-mode 0) · P(펜) 켜면 연필 꺼짐(서로 배타)
  *   H6 (채점 261120 상자 폭주) 배율 80% · 섹션 2 같은 자리 진짜 끌기 4번(정수 좌표 지그재그 ZIG — 단위 F5 와 같은 획) · 획 사이 보정 손잡이를 키보드로 20→10→5→0 →
  *      블럭마다 offsetWidth/Height ≤ 그린 폭(레이아웃 px) + ½ 긴 변 + 40 · 섹션 2 높이 늘어남 ≤ 새 블럭 줄 높이 합 + 200
@@ -95,17 +95,16 @@ test('H3 ⇧B = 붓 · 채운 외곽 벡터(점 편집 없음) · 프리셋 둘 
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('H4 연필 섹션 밖 → 스크래치 펜 항목 · 섹션 블럭 무변', async ({ page }) => {
+test('H4 연필 섹션 밖 → 떠 있는 펜 벡터 · 스크래치 무변(t13G-03 기대 바뀜)', async ({ page }) => {
   const errs = await scene(page);
   const b0 = (await vecs(page)).length, s0 = await page.evaluate(() => document.querySelectorAll('.scratch-item').length);
   await page.evaluate(() => window.enterFreehand('pencil'));
   const pts = await page.evaluate(() => { const c = document.getElementById('canvas').getBoundingClientRect(); return Array.from({ length: 25 }, (_, i) => ({ x: c.right + 60 + i * 6, y: c.top + 150 + 20 * Math.sin(i / 3) })); });
   expect(await page.evaluate((p) => !document.elementFromPoint(p.x, p.y)?.closest('#canvas'), pts[0]), '[전제] 캔버스 밖').toBe(true);
   await drag(page, pts);
-  await expect.poll(() => page.evaluate(() => document.querySelectorAll('.scratch-item').length), '★스크래치 +1').toBe(s0 + 1);
-  expect((await vecs(page)).length, '★섹션 블럭 무변').toBe(b0);
-  const marked = await page.evaluate(async () => { const id = [...document.querySelectorAll('.scratch-item')].pop().dataset.scratchId; const src = document.querySelector(`.scratch-item[data-scratch-id="${id}"] img`).getAttribute('src'); return !!(await window._scratchPenMeta?.(src)); });
-  expect(marked, '★펜 항목(섹션에 놓으면 펜 벡터 — t13A-04 길)').toBe(true);
+  await expect.poll(() => vecs(page).then((v) => v.length), '★섹션 벡터 +1').toBe(b0 + 1);
+  expect(await page.evaluate(() => document.querySelectorAll('.scratch-item').length), '★스크래치 무변').toBe(s0);
+  expect(await page.evaluate(() => { const v = [...document.querySelectorAll('#canvas .section-block .vector-block')].pop(); return { pen: !!v.dataset.penNodes, float: v.dataset.overlayBlock === 'true' || !!v.closest('[data-overlay-block="true"]') }; }), '★떠 있는 펜 벡터(점 편집 됨)').toEqual({ pen: true, float: true });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

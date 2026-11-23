@@ -343,6 +343,24 @@ function _unfreezeWidth(posEl) {
    posEl 바깥 첫 일반 프레임(글 프레임·도형 래퍼 아님)이 같은 섹션 안에 있으면 그 프레임, 없으면 섹션.
    프레임 주인이면 좌표(dataset.offsetX/Y · left/top)는 그 프레임 기준이고 DOM 도 그 프레임 자식이다 ⇒ 프레임을 끌거나 순서를 바꾸면 같이 간다.
    ⛔섹션 오버레이는 무변(주인 = 섹션 · 섹션 넘나들기 그대로). */
+/* ★IAL-03 ①(0.9.13 188행 · 지디 실키 재현 gepsa) — 떠 있는 상자가 섹션 직속이 아니라 .section-inner(또는 합친 몸) «흐름 줄 사이»에 끼어 있으면
+   ⌘[ / ⌘] 겹침 순서(moveSelectedBlocks ㈎ = 섹션 직속만)가 그 상자를 지나쳤다. srv 재현(⌘D · ⌘C⌘V · ⌘↑↓ · 끌기 · ⌘Z/⇧⌘Z)으론 새는 길 0 —
+   옛 판에서 생긴 데이터로 보고 «쓰기 전에 바로잡는» 방어를 둔다: 화면 자리 그대로 섹션 직속으로 옮긴다(프레임 안 떠 있음 t13D-06 은 정당 — 손 안 댐).
+   돌려주는 값 = 옮겼으면 true. */
+export function rehomeStrayFloat(posEl) {
+  if (!isFloat(posEl)) return false;
+  const p = posEl.parentElement;
+  if (!p || !(p.classList.contains('section-inner') || p.classList.contains('section-merged-part'))) return false;
+  const sec = posEl.closest('.section-block');
+  if (!sec) return false;
+  const zoom = (window.currentZoom || 100) / 100;
+  const sr = sec.getBoundingClientRect(), er = posEl.getBoundingClientRect();
+  const x = Math.round((er.left - sr.left) / zoom), y = Math.round((er.top - sr.top) / zoom);
+  sec.appendChild(posEl);
+  _applyOverlayPos(posEl, x, y);
+  return true;
+}
+
 export function floatHostOf(posEl) {
   const sec = posEl?.closest?.('.section-block');
   if (!sec) return null;
@@ -957,7 +975,7 @@ export function floatPositionRowHTML({ prefix, posEl }) {
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
+  window.OverlayFloat = { posElOf, isFloat, floatHostOf, rehomeStrayFloat, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
   /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
      ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
   window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };

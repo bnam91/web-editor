@@ -37,7 +37,7 @@ test('F1 ⛔SECTION_BLOCK_TYPE_SEL 무접촉 — 값 그대로 · .annotation-bl
 });
 
 test('F2 ⛔editor.js ⌘[ / ⌘] 갈래 무접촉 — annotLayerOrder 0 · W1 거리 351 / 354', () => {
-  for (const [k, d, want] of [['BracketLeft', 'up', 351], ['BracketRight', 'down', 354]]) {
+  for (const [k, d, want] of [['BracketLeft', 'up', 363], ['BracketRight', 'down', 366]]) {   // 351/354 → 363/366 · IAL-02 맞춤(지디 261124) — ⌘[ ] 갈래가 스크래치·캔버스 둘 다에 e.shiftKey 를 넘겨 머리→호출 끝 399/404자
     const at = ED.indexOf(`if (e.code === '${k}') {`);
     const end = ED.indexOf(`moveSelectedBlocks('${d}'`, at);   // IAL-02 — e.shiftKey 인자
     assert.ok(at > 0 && end > at, `★${k} 갈래를 못 찾았다`);
