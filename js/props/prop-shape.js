@@ -1,7 +1,8 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG } from './_stroke-section.js';
+import { readLook, writeLook, svgLook, derivedDash } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
@@ -337,7 +338,7 @@ export function showShapeProperties(block) {
       ` : ''}`),
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
          사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
-      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
+      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
         align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다', on: strokeWidth > 0 }),
         { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)
@@ -563,6 +564,17 @@ export function showShapeProperties(block) {
     if (svg) svg.style.strokeWidth = String(v);
     // rectangle/ellipse: inner SVG geometry를 stroke에 맞춰 재계산 (stroke=0이면 풀폭)
     window.refreshShapeInnerSVG?.(block);
+    paintShapeLook(block);   // 점선(파생 3w·2w)은 굵기를 따라간다
+    window.scheduleAutoSave?.();
+  }
+
+  /* 단계 3-2 — ⫶ 팝오버 값 쓰기(stroke-look.js · 기본과 다를 때만) → 그림(paintShapeLook) */
+  function applyLook(part) {
+    const def = shapeLookDefault(block.dataset.shapeType || 'rectangle');
+    const next = { ...readLook(block.dataset, def), ...part };
+    if (next.style === 'custom' && (next.dash == null || next.gap == null)) { const d = derivedDash(Number(block.dataset.shapeStrokeWidth) || 0); next.dash ??= d.dash; next.gap ??= d.gap; }
+    writeLook(block.dataset, next, def);
+    paintShapeLook(block);
     window.scheduleAutoSave?.();
   }
 
@@ -627,7 +639,7 @@ export function showShapeProperties(block) {
 
   // ── 외곽선 = 표준 Stroke 부품 배선(어댑터 = 이 패널의 쓰기 함수 그대로 · 저장 키 shapeStrokeColor/shapeStrokeWidth 무변 · 이력 push-after) ──
   wireStrokeSection({ prefix: 'shape-stroke', alpha: strokeColorAlpha, maxWidth: 20,
-    adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), commit: () => window.pushHistory?.() } });
+    adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), look: (part) => applyLook(part), commit: () => window.pushHistory?.() } });
 
   // 초기 svg.stroke 동기화 — 첫 mount 시 dataset.shapeStrokeColor가 있으면 즉시 적용
   if (svg && block.dataset.shapeStrokeColor) {
@@ -1543,3 +1555,30 @@ function _applyShapeImage(block, src, fit) {
 _ensureShapeCheckerDefs();
 window._clearShapeImage = _clearShapeImage;
 window._syncShapeImageClip = _syncShapeImageClip;
+
+/* ══ 단계 3-2 — 도형 «Stroke 설정»(점선·점선 끝·꼭짓점·Miter) ═══════════════════════════════════════
+ * 기본 = 도형이 «지금» 그리는 값(실측): 선·화살표 끝 = round(SHAPE_DEFS <line stroke-linecap="round">) · 그 밖 = butt · 꼭짓점 = miter(SVG 기본) · miterlimit 4
+ * 그림 = svg 인라인 style(자식이 물려받음 · 저장 HTML 에 같이 감 · refreshShapeInnerSVG 는 svg.innerHTML 만 다시 써서 안 지워짐)
+ *   ⚠️선·화살표 <line> 은 자기 stroke-linecap 속성이 물려받기를 이긴다 → 그 속성을 직접 바꾼다(정적 inner 라 다시 안 그려짐) · 키 없으면 옛 round 로 되돌림
+ * 키가 없으면 그 속성을 «안» 쓴다(= 옛 저장본 바이트 무변). ⚠️shortcut: 굵기를 MCP(updateShapeBlock)로 바꾸면 파생 점선 길이는 패널을 다시 만질 때 따라간다 — 그 길로 점선 도형을 자주 바꾸게 되면 block-factory 쪽에서도 paintShapeLook 을 부를 것. */
+export function shapeLookDefault(type) { return { cap: /^(line|arrow)$/.test(type) ? 'round' : 'none', join: 'miter' }; }
+const _SHAPE_NO_CORNER = /^(ellipse|line|arrow)$/;
+export function paintShapeLook(block) {
+  const svg = block?.querySelector('svg.shape-svg') || block?.querySelector('svg');
+  if (!svg) return;
+  const ds = block.dataset, L = svgLook(readLook(ds, shapeLookDefault(ds.shapeType || 'rectangle')), Number(ds.shapeStrokeWidth) || 0);
+  const set = (prop, on, v) => { if (on && v !== '') svg.style.setProperty(prop, String(v)); else svg.style.removeProperty(prop); };
+  set('stroke-dasharray', ds.strokeStyle != null, L.dasharray);
+  set('stroke-linecap', ds.strokeCap != null, L.linecap);
+  set('stroke-linejoin', ds.strokeJoin != null, L.linejoin);
+  set('stroke-miterlimit', ds.strokeMiter != null, L.miterlimit);
+  svg.querySelectorAll('line[stroke-linecap]').forEach((ln) => ln.setAttribute('stroke-linecap', ds.strokeCap != null ? L.linecap : 'round'));
+}
+if (typeof window !== 'undefined') window.paintShapeLook = paintShapeLook;
+function _shapePop(block, w) {
+  const type = block.dataset.shapeType || 'rectangle', look = readLook(block.dataset, shapeLookDefault(type));
+  const d = look.style === 'custom' ? { dash: look.dash, gap: look.gap } : derivedDash(w);
+  const corner = !_SHAPE_NO_CORNER.test(type);
+  return { styles: [...STROKE_STYLES_SVG, ['custom', '사용자']], style: look.style, live: { dash: true, cap: true, join: corner },
+    look: { ...look, dash: d.dash, gap: d.gap }, joinWhy: STROKE_POP_WHY.noCorner };
+}

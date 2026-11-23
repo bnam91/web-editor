@@ -182,6 +182,11 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  /* ★표준 Stroke 단계 3-2(§4c ②b) — 점선·점선 끝·꼭짓점·Miter = 캔버스가 «이미 그린» svg 값 그대로(prop-shape paintShapeLook) · 키 없는 도형은 안 싣는다 = 옛 JSON 바이트 */
+  if (svg && el.dataset.strokeStyle != null && svg.style?.getPropertyValue('stroke-dasharray')) out.strokeDasharray = svg.style.getPropertyValue('stroke-dasharray').replace(/px/g, '').trim().split(/[\s,]+/).join(' ');   // 브라우저는 «24, 16» 으로 돌려준다 → 렌더러 꼴(공백 숫자)로
+  if (svg && el.dataset.strokeCap != null && svg.style?.getPropertyValue('stroke-linecap')) out.strokeLinecap = svg.style.getPropertyValue('stroke-linecap').trim();
+  if (svg && el.dataset.strokeJoin != null && svg.style?.getPropertyValue('stroke-linejoin')) out.strokeLinejoin = svg.style.getPropertyValue('stroke-linejoin').trim();
+  if (svg && el.dataset.strokeMiter != null && svg.style?.getPropertyValue('stroke-miterlimit')) out.strokeMiterlimit = Number(svg.style.getPropertyValue('stroke-miterlimit')) || undefined;
   /* FX-GRADIENT-GAZE-01 원뿔형 — SVG def 는 linear 대역이라 모델을 따로 싣는다(렌더러가 GRADIENT_ANGULAR 로) */
   if (!redact) { try { const gm = JSON.parse(el.dataset.shapeGradient || 'null'); if (gm && gm.type === 'conic' && Array.isArray(gm.stops)) out.gradientModel = { type: 'conic', angle: Number(gm.angle) || 0, stops: gm.stops }; } catch (_) { /* 깨진 값 = 안 실음 */ } }
   /* ★SHAPE-STAR-FIGMA-EXPORT-FIXED-FORM-01(현빈 0.9.12 131) — 별은 캔버스가 «이미 그린» SVG(viewBox + polygon 점·칠)를 그대로 싣는다.

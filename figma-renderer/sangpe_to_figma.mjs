@@ -1056,7 +1056,14 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     //   color 는 단색 폴백(선·외곽선). def 가 없거나 면 없는 도형이면 기존 단색.
     const gradDef = (def.fill && typeof block.gradientDef === 'string' && /^<(linear|radial)Gradient[\s>]/.test(block.gradientDef)) ? block.gradientDef : '';
     const faceFill = def.fill ? (gradDef ? 'url(#g)' : color) : 'none';
-    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`;
+    /* ★표준 Stroke 단계 3-2 — 점선·끝·꼭짓점·Miter(보내는 쪽이 실어 줄 때만 · 꼴 검사 후 SVG style 로 · Figma SVG 가져오기가 dashPattern·strokeCap·strokeJoin 으로 읽는다) · 없으면 옛 문자열 그대로 */
+    const _dash = /^[\d.]+( [\d.]+)*$/.test(block.strokeDasharray || '') ? block.strokeDasharray : '';
+    const _cap = /^(butt|round|square)$/.test(block.strokeLinecap || '') ? block.strokeLinecap : '';
+    const _join = /^(miter|bevel|round)$/.test(block.strokeLinejoin || '') ? block.strokeLinejoin : '';
+    const _ml = Number.isFinite(block.strokeMiterlimit) && block.strokeMiterlimit >= 1 ? block.strokeMiterlimit : 0;
+    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`
+      + (_dash ? `stroke-dasharray:${_dash};` : '') + (_cap ? `stroke-linecap:${_cap};` : '') + (_join ? `stroke-linejoin:${_join};` : '') + (_ml ? `stroke-miterlimit:${_ml};` : '');
+    if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };   // 선·화살표 <line> 의 자기 속성이 물려받기를 이긴다(캔버스와 같은 손)
     const gOpen = rot ? `<g transform="rotate(${rot} ${cxv} ${cyv})">` : '';
     const gClose = rot ? `</g>` : '';
     const defsTag = gradDef ? `<defs>${gradDef}</defs>` : '';
