@@ -6,7 +6,14 @@
 .prop-hint {
   font-size: var(--ui-fs-10); color: var(--ui-hint-color); text-align: center;   /* 옛 회색(2.4:1 ✗AA) → 토큰(U0) */
   padding: 8px 12px 4px; letter-spacing: 0.02em;
+  margin-bottom: var(--ui-space-1_5);   /* 안내 아래 다음 줄과 6(행 간격) — 0 이던 것(QA dev37 261123 · 아이콘원·불릿·캔버스·그라데이션·페이지 등) */
 }
+/* 절 몸 바로 아래 넓은 단추(«이미지 선택» 등)·배너02 줄 칩/줄/«＋ 텍스트 줄 추가» 아래 = 행 간격 6(0·−4 이던 것 · QA dev37 261123) */
+.prop-section[data-sec] > .prop-sec-body > .prop-action-btn,
+.prop-section[data-sec] > .prop-sec-body > #bn2-line-chips,
+.prop-section[data-sec] > .prop-sec-body > [data-line-row],
+.prop-section[data-sec] > .prop-sec-body > #bn2-line-add { margin-bottom: var(--ui-space-1_5); }
+.prop-section[data-sec] > .prop-sec-body > [data-line-row] > .prop-section-title-row { margin-bottom: 0; }   /* 옛 전역 −4(머리줄 겹치기)가 배너02 줄 머리를 다음 단추에 4 겹쳤다 */
 .prop-section {
   padding: 0 var(--ui-space-2) var(--ui-space-1);
 }
@@ -367,6 +374,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-type-group {
   display: flex; gap: 0; margin-bottom: var(--ui-space-1);
 }
+.prop-row > .prop-type-group { margin-bottom: 0; }   /* 줄 안 묶음 — 아래 4 가 가운데 맞춤을 2 위로 밀었다(QA dev37 261123 · 모달 Size·Stroke · 말풍선 크기 · 인용구 꼴 Δ-2) */
 /* 프리셋 버튼이 섞인 경우 좁은 패널에서 넘치지 않도록 3-col 그리드 + wrap */
 .prop-type-group:has(.prop-preset-btn) {
   display: grid;

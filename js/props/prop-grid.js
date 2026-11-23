@@ -3163,7 +3163,7 @@ function _grdPadExcludeSectionHtml(block) {
     </div>`,
     position: `<div data-scope="block">
       <div class="prop-row" style="align-items:center;gap:6px;">
-        ${floating ? '<span class="prop-label prop-label--auto">섹션 위에 떠 있음</span>' : ''}
+        <span class="prop-label prop-label--auto">${floating ? '섹션 위에 떠 있음' : '흐름 안에 있음'}</span>
         <span style="margin-left:auto;"></span>
         ${window.overlayToggleBtnHTML?.({ id: 'grd-float-toggle', active: floating, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.' }) || ''}
       </div>
