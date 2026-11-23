@@ -28,7 +28,7 @@ import { wireFontPicker } from './_font-picker.js';
 import { fontChain } from './prop-text-utils.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
@@ -2831,41 +2831,20 @@ ${_borderRowHtml(bd)}
 const _GRD_OUTLINE_LABEL = { top: '위 외곽선', right: '오른쪽 외곽선', bottom: '아래 외곽선', left: '왼쪽 외곽선' };
 function _grdOutlineSectionHtml(block) {
   const o = gridBlockOutline(block);
-  const nOn = GRID_OUTLINE_SIDES.filter(sd => o.on[sd]).length;
-  const tip = `굵기·색·꼴은 「모든 칸 테두리」 값을 따릅니다(지금 ${o.width}px ${o.style})`;
-  const side = (sd) => borderBtn(sd, { label: _GRD_OUTLINE_LABEL[sd], title: `${_GRD_OUTLINE_LABEL[sd]} 켜기/끄기 — ${tip}`, active: o.on[sd],
-    attrs: { 'data-outline-side': sd, 'aria-pressed': o.on[sd] ? 'true' : 'false' } });
   return `
     <div class="prop-section" data-scope="block">
-      <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다">블럭 외곽선</div>
-      <div class="prop-row">
-        <div class="prop-align-group" id="grd-outline-group" role="group" aria-label="블럭 외곽선">
-          ${side('top')}
-          ${side('bottom')}
-          ${side('left')}
-          ${side('right')}
-          ${borderBtn('all', { label: '사방', title: `사방 — 네 변 모두 켜기 (${tip})`, active: nOn === 4, attrs: { 'data-outline-all': '1' } })}
-          ${borderBtn('none', { label: '없음', title: '없음 — 네 변 모두 끄기', active: nOn === 0, attrs: { 'data-outline-all': '0' } })}
-        </div>
-      </div>
+      <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다 · 굵기·색·꼴은 「모든 칸 테두리」 값을 따릅니다(지금 ${o.width}px ${o.style})">블럭 외곽선</div>
+      ${/* 단계 4(표준 Stroke · 시안 strokestd2 9) — 옛 단추 여섯 = edge-select 슬롯(바깥 넷 · 모두/없음) · 옛 id grd-outline-group · 옛 속성 data-outline-side/-all 지킴(시험·외부가 찾는다) */
+      edgeSelectHTML({ prefix: 'grd-outline', edges: GRID_OUTLINE_SIDES, on: GRID_OUTLINE_SIDES.filter(sd => o.on[sd]), groupId: 'grd-outline-group', label: '',
+        btnAttrs: (k) => (GRID_OUTLINE_SIDES.includes(k) ? `data-outline-side="${k}"` : k === 'all' ? `data-outline-all="1"` : k === 'none' ? `data-outline-all="0"` : '') })}
     </div>`;
 }
 
 /** 배선 — 목록을 만들어 updateGridBlock «한 문»으로 보낸다(⌘Z: 그 문이 앞 표본, 끝 표본 래퍼가 뒤 표본을 찍는다). */
 function _grdWireOutlineSection(block) {
-  const grp = document.getElementById('grd-outline-group');
-  if (!grp) return;
-  const commit = (list) => _grdToastCellFail(window.updateGridBlock?.(block.id, { blockOutline: list.join(',') }));
-  grp.querySelectorAll('[data-outline-side]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cur = gridBlockOutline(block).on;
-      const sd = btn.dataset.outlineSide;
-      commit(GRID_OUTLINE_SIDES.filter(k => (k === sd ? !cur[k] : cur[k])));
-    });
-  });
-  grp.querySelectorAll('[data-outline-all]').forEach(btn => {
-    btn.addEventListener('click', () => { commit(btn.dataset.outlineAll === '1' ? GRID_OUTLINE_SIDES.slice() : []); });
-  });
+  /* 단계 4 — edge-select 배선(부품) · 쓰기 = 옛 그대로 updateGridBlock «한 문»(⌘Z 앞 표본 · 끝 표본 래퍼) → commit 따로 없음 */
+  wireEdgeSelect({ groupId: 'grd-outline-group', edges: GRID_OUTLINE_SIDES, read: () => new Set(GRID_OUTLINE_SIDES.filter(k => gridBlockOutline(block).on[k])),
+    write: (set) => _grdToastCellFail(window.updateGridBlock?.(block.id, { blockOutline: GRID_OUTLINE_SIDES.filter(k => set.has(k)).join(',') })) });
 }
 
 /* ══ 블럭 배경 (G12 · 2026-10-04) — 토글 + 켜면 «동적으로 생기는» 줄들 ══════════════════════════════

@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY, edgeSelectHTML, wireEdgeSelect } from './_stroke-section.js';
 import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
@@ -519,39 +519,7 @@ export function showTableProperties(block) {
          표준 칸 = 선 색 + 굵기(외곽두께 1~6 · 하한 1 그대로) · 위치 = 가운데 막힘(.tb-table border-collapse:collapse = 선이 경계 가운데 · editor-blocks.css 실측) · 옛 id 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'tbl-stroke', pop: { why: STROKE_POP_WHY.css, styleWhy: STROKE_POP_WHY.soon }, color: _rgbToHex(curLineColor), alpha: curLineAlpha, width: curOuterW, maxWidth: 6, minWidth: 1, align: 'center', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 가운데', widthId: 'tbl-outerw-number', colorId: 'tbl-line',
-        slotsBelow: `
-      <div class="ui-stroke-slot" data-slot="below" data-slot-kind="edge-select">
-      <div class="prop-toggle-grid">
-        <div class="prop-row">
-          <span class="prop-label">세로선</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-vlines" ${curShowVLines ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">수평선</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-hlines" ${curShowHLines ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">외곽 좌우</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-outerx" ${curShowOuterX ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
-        <div class="prop-row">
-          <span class="prop-label">외곽 상하</span>
-          <label class="prop-toggle">
-            <input type="checkbox" id="tbl-show-outery" ${curShowOuterY ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
-      </div>
-      </div>` })),
+        slotsBelow: edgeSelectHTML({ prefix: 'tbl-stroke', edges: TBL_EDGES, on: _tblEdgesOn(block) }) })),   // 단계 4: 옛 선 토글 넷 → edge-select(시안 12 · 변 6 · 좌우/상하 = 키 하나라 같이 움직임)
     ],
   });
 
@@ -879,16 +847,10 @@ export function showTableProperties(block) {
   }
 
   /* 세로선 / 수평선 / 외곽 좌우 / 외곽 상하 토글 */
-  const bindLineToggle = (id, dataKey) => {
-    document.getElementById(id).addEventListener('change', e => {
-      block.dataset[dataKey] = e.target.checked ? 'true' : 'false';
-      window.pushHistory();
-    });
-  };
-  bindLineToggle('tbl-show-vlines',  'showVLines');
-  bindLineToggle('tbl-show-hlines',  'showHLines');
-  bindLineToggle('tbl-show-outerx',  'showOuterX');
-  bindLineToggle('tbl-show-outery',  'showOuterY');
+  /* 단계 4 — 선 켬/끔 = edge-select(옛 bindLineToggle 넷과 같은 쓰기: 'true'/'false' · push-after) */
+  wireEdgeSelect({ prefix: 'tbl-stroke', edges: TBL_EDGES, links: TBL_EDGE_LINKS, read: () => new Set(_tblEdgesOn(block)),
+    write: (set) => { for (const [k, e] of TBL_EDGE_KEYS) if ((block.dataset[k] !== 'false') !== set.has(e)) block.dataset[k] = set.has(e) ? 'true' : 'false'; },   // 바뀐 키만 씀(안 건드린 키는 옛 바이트 · 옛 토글과 같음)
+    commit: () => window.pushHistory() });
 
   /* 외곽선 두께 */
   const applyOuterW = v => {
@@ -960,3 +922,16 @@ export function showTableProperties(block) {
 
 
 window.showTableProperties = showTableProperties;
+
+/* ══ 단계 4 — 표 edge-select 어댑터(§4c 실측 11a67a399) ══ 변 ↔ 옛 키(넷 다 기본 켬 · 'false' 만 끔): inner-v = showVLines · inner-h = showHLines · left+right = showOuterX · top+bottom = showOuterY */
+const TBL_EDGES = ['top', 'right', 'bottom', 'left', 'inner-h', 'inner-v'];
+const TBL_EDGE_LINKS = [['left', 'right'], ['top', 'bottom']];
+const TBL_EDGE_KEYS = [['showVLines', 'inner-v'], ['showHLines', 'inner-h'], ['showOuterX', 'left'], ['showOuterY', 'top']];
+function _tblEdgesOn(block) {
+  const d = block.dataset, on = [];
+  if (d.showOuterY !== 'false') on.push('top', 'bottom');
+  if (d.showOuterX !== 'false') on.push('left', 'right');
+  if (d.showHLines !== 'false') on.push('inner-h');
+  if (d.showVLines !== 'false') on.push('inner-v');
+  return on;
+}

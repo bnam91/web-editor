@@ -1382,6 +1382,10 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .ui-stroke-pop-unit { color: var(--ui-text-dim); font-size: var(--ui-fs-10); }
 .ui-stroke-pop [aria-disabled="true"] { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
 .ui-stroke2 .ui-stroke-more[aria-expanded="true"] { background: var(--ui-bg-hover); color: var(--ui-accent); }
+/* 단계 4 edge-select 슬롯 — 묶음 한 줄 · 변 한 줄(시안 strokestd2 9·12 · 단추 = 같은 칸 크기) */
+.ui-edge-grid { display: flex; flex-direction: column; gap: var(--ui-space-1); margin-bottom: var(--ui-space-1_5); }
+.ui-edge-row { display: flex; flex-wrap: wrap; gap: var(--ui-space-1); }
+.ui-edge-row > .ui-edge-btn { flex: 0 0 auto; width: var(--ui-btn-h); height: var(--ui-btn-h); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .ui-stroke2 .ui-s2-main > .prop-chain-btn.active { background: var(--ui-bg-hover); color: var(--ui-accent); }
 .ui-stroke2 .prop-color-row.ui-s2-layer > .prop-color-field { flex: 1 1 auto; max-width: none; }
 .ui-stroke2[aria-disabled="true"] .ui-stroke-std, .ui-stroke2 [data-field="stroke-align"][aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); }

@@ -172,3 +172,59 @@ export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, width
   }
   a.addEventListener('change', () => { adapter.align?.(a.value); adapter.commit(); });
 }
+
+/* ══ 단계 4 — edge-select 슬롯(«변 선택 테두리» · §4c ②b · 시안 strokestd2 9·12) ═══════════════════════════════
+ * 값 = 변 집합(data-field="stroke-edges" · data-value = 정본 순서 쉼표 목록) · 변 6 = top right bottom left inner-h inner-v · 묶음 = all outer inner none
+ * 변 단추 속성 = data-stroke-edge(⛔data-edge 아님 — 그리드 «선 자리» 줄이 패널 전체 [data-edge] 로 배선해 겹치면 외곽선 단추가 칸 테두리까지 바꿨다 · 실측 grid-ifg-preset-lines) · 묶음 = data-edge-preset(§4c 이름)
+ * 어댑터가 알린다: edges = 고를 수 있는 변(못 고르는 변·묶음 단추는 «숨김» — 막힘 아님) · links = 같이 움직이는 변(표: 좌우·상하 = 저장 키 하나)
+ * ⛔그리는 일·저장 키는 블럭 어댑터(read/write) — 부품은 블럭을 모른다. 이력 = 누를 때마다 한 칸(commit · push-after). */
+export const EDGE_NAMES = Object.freeze(['top', 'right', 'bottom', 'left', 'inner-h', 'inner-v']);
+const EDGE_LABEL = { top: '위', right: '오른쪽', bottom: '아래', left: '왼쪽', 'inner-h': '안쪽 가로', 'inner-v': '안쪽 세로', all: '모두', outer: '바깥', inner: '안쪽', none: '없음' };
+const _ei = (strong) => `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"><rect x="1.5" y="1.5" width="9" height="9" stroke-opacity=".35" stroke-dasharray="1.5 1"/><path d="M6 1.5v9M1.5 6h9" stroke-opacity=".35" stroke-dasharray="1.5 1"/>${strong}</svg>`;
+const EDGE_ICON = {
+  top: _ei('<path d="M1.5 1.5h9" stroke-width="1.6"/>'), right: _ei('<path d="M10.5 1.5v9" stroke-width="1.6"/>'),
+  bottom: _ei('<path d="M1.5 10.5h9" stroke-width="1.6"/>'), left: _ei('<path d="M1.5 1.5v9" stroke-width="1.6"/>'),
+  'inner-h': _ei('<path d="M1.5 6h9" stroke-width="1.6"/>'), 'inner-v': _ei('<path d="M6 1.5v9" stroke-width="1.6"/>'),
+  all: _ei('<rect x="1.5" y="1.5" width="9" height="9" stroke-width="1.4"/><path d="M6 1.5v9M1.5 6h9" stroke-width="1.4"/>'),
+  outer: _ei('<rect x="1.5" y="1.5" width="9" height="9" stroke-width="1.4"/>'),
+  inner: _ei('<path d="M6 1.5v9M1.5 6h9" stroke-width="1.4"/>'), none: _ei(''),
+};
+const PRESET_SET = { all: EDGE_NAMES, outer: ['top', 'right', 'bottom', 'left'], inner: ['inner-h', 'inner-v'], none: [] };
+const _edgePresetsFor = (edges) => { const hasInner = edges.some((e) => e.startsWith('inner')); return ['all', ...(hasInner ? ['outer', 'inner'] : []), 'none']; };
+const _setIs = (a, b) => a.size === b.length && b.every((x) => a.has(x));
+
+/** @param {object} o · o.edges 고를 수 있는 변 · o.on 켜진 변(Set|배열) · [o.groupId] 옛 id 지킴 · [o.btnAttrs(key)] 단추 덧속성(옛 시험·배선이 찾는 속성 지킴) · [o.label] */
+export function edgeSelectHTML({ prefix, edges, on, groupId = '', btnAttrs = () => '', label = '테두리' }) {
+  const set = new Set(on), ed = EDGE_NAMES.filter((e) => edges.includes(e));
+  const btn = (key, kind, active) => `<button type="button" class="prop-type-btn ui-edge-btn${active ? ' active' : ''}" ${kind}="${key}" aria-pressed="${active}" aria-label="${EDGE_LABEL[key]}" title="${EDGE_LABEL[key]}" ${btnAttrs(key)}>${EDGE_ICON[key]}</button>`;
+  const presets = _edgePresetsFor(ed).map((p) => btn(p, 'data-edge-preset', _setIs(set, PRESET_SET[p].filter((e) => ed.includes(e))))).join('');
+  return `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="edge-select">
+        ${label ? `<div class="prop-row"><span class="prop-label">${label}</span></div>` : ''}
+        <div class="ui-edge-grid" id="${groupId || `${prefix}-edges`}" role="group" aria-label="${label || '테두리'} 변" data-field="stroke-edges" data-value="${ed.filter((e) => set.has(e)).join(',')}">
+          ${ed.some((e) => e.startsWith('inner'))   /* 안쪽 변 없는 블럭(그리드 블럭 외곽선 = 묶음 2 + 변 4)은 한 줄 — 지디 사전 결정 «빡빡해도 두 줄로 가르지 말 것»(grid-block-outline O0) · 표(10)는 시안 12 대로 두 줄 */
+            ? `<div class="ui-edge-row">${presets}</div><div class="ui-edge-row">${ed.map((e) => btn(e, 'data-stroke-edge', set.has(e))).join('')}</div>`
+            : `<div class="ui-edge-row">${presets}${ed.map((e) => btn(e, 'data-stroke-edge', set.has(e))).join('')}</div>`}
+        </div>
+      </div>`;
+}
+
+/** @param {object} o · o.edges · [o.links] [[a,b],…] · o.read() → Set · o.write(Set) · o.commit() */
+export function wireEdgeSelect({ prefix, groupId = '', edges, links = [], read, write, commit }) {
+  const g = document.getElementById(groupId || `${prefix}-edges`);
+  if (!g) return;
+  const ed = EDGE_NAMES.filter((e) => edges.includes(e));
+  const linked = (e) => { const l = links.find((x) => x.includes(e)); return l ? l : [e]; };
+  const paint = (set) => {
+    g.dataset.value = ed.filter((e) => set.has(e)).join(',');
+    g.querySelectorAll('[data-stroke-edge]').forEach((b) => { const a = set.has(b.dataset.strokeEdge); b.classList.toggle('active', a); b.setAttribute('aria-pressed', String(a)); });
+    g.querySelectorAll('[data-edge-preset]').forEach((b) => { const a = _setIs(set, PRESET_SET[b.dataset.edgePreset].filter((e) => ed.includes(e))); b.classList.toggle('active', a); b.setAttribute('aria-pressed', String(a)); });
+  };
+  g.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-stroke-edge],[data-edge-preset]');
+    if (!b || !g.contains(b)) return;
+    let set = new Set(read());
+    if (b.dataset.strokeEdge) { const turnOn = !set.has(b.dataset.strokeEdge); linked(b.dataset.strokeEdge).forEach((e) => (turnOn ? set.add(e) : set.delete(e))); }
+    else set = new Set(PRESET_SET[b.dataset.edgePreset].filter((e) => ed.includes(e)));
+    write(set); paint(set); commit?.();
+  });
+}
