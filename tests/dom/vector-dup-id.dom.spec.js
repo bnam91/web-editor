@@ -74,6 +74,11 @@ const toggle = async (page) => {
 const seq = async (page, label, log) => { log.push([label, await count(page)]); };
 test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z → 다시 열기 — 단계마다 같은 id 하나', async ({ page }) => {
   const errs = await setup(page); const log = [];
+  /* 표식 ③(지디 261123 — 171ms 에도 killClick(overlay-float.js:773)이 삼킴 · 해제는 코드상 setTimeout 120 = 시간 기준) — capture click 리스너 붙임/뗌을 시각·호출 경로째 적는다(«뒤에 또 붙나» vs «안 떼지나») */
+  await page.evaluate(() => { window.__cap = []; const A = EventTarget.prototype.addEventListener, R = EventTarget.prototype.removeEventListener; const cap = (o) => o === true || (o && o.capture);
+    const where = () => (new Error().stack || '').split('\n').slice(3, 5).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\//, '')).join(' < ');
+    EventTarget.prototype.addEventListener = function (t, f, o) { if (t === 'click' && this === document && cap(o)) window.__cap.push(['add', Math.round(performance.now()), where()]); return A.call(this, t, f, o); };
+    EventTarget.prototype.removeEventListener = function (t, f, o) { if (t === 'click' && this === document && cap(o)) window.__cap.push(['rm', Math.round(performance.now()), where()]); return R.call(this, t, f, o); }; });
   await page.evaluate(() => window.clearHistory?.());
   await openPanel(page); await seq(page, 'open', log);
   await toggle(page); await seq(page, '켬', log);
@@ -81,6 +86,12 @@ test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z �
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 150, y + 60, { steps: 10 }); await page.mouse.up(); await page.evaluate(() => { window.__upAt = performance.now(); }); await stable(page, '#vV'); await seq(page, '끌기', log);
   if (!(await page.locator('#vb-float-toggle').isVisible())) await openPanel(page);
   await page.waitForFunction(() => performance.now() - window.__upAt > 150);   // ★전제(아이맥 3eb53c9b5 D2 «토글이 상태를 바꿨다» 빨강) — 끌고 놓은 뒤 120ms 는 합성 click 을 삼킨다(overlay-float.js onUp killClick · 놓는 자리 선택 풀림 막기) ⇒ 그 창이 닫힌 뒤 누른다(사람 손 속도 · 고정 대기 아님 = 조건 대기)
+  const capLog1 = await page.evaluate(() => window.__cap.map(([op, t, w]) => [op, t - Math.round(window.__upAt), w]));
+  /* ★전제(지디 261123 ⑶) — 끌고 놓은 뒤 남은 삼킴을 «빈 곳 클릭 하나»로 소진하고 1회차 손짓 id 셈까지 간다(삼킴 결함은 별건 카드 · 제품 무접촉). 소진 클릭이 삼켜졌는지도 적는다 */
+  const eat = await page.evaluate(() => { window.__eat = { win: 0, bub: 0 }; window.addEventListener('click', () => window.__eat.win++, { capture: true, once: true }); document.addEventListener('click', () => window.__eat.bub++, { once: true }); return true; });
+  { const r = await page.evaluate(() => { const p = document.getElementById('panel-right').getBoundingClientRect(); return [p.left + p.width / 2, p.bottom - 6]; }); await page.mouse.click(r[0], r[1]); }
+  const eaten = await page.evaluate(() => ({ ...window.__eat, sinceUp: Math.round(performance.now() - window.__upAt), cap: window.__cap.map(([op, t, w]) => [op, t - Math.round(window.__upAt), w]) }));
+  const vRect0 = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left, r.top].map(Math.round); });
   /* 표식(지디 261123 — 150ms 대기로도 «끔»이 안 눌림 · 추측 고침 말고 잰다): 누르기 직전 단추 hit-test · 상태 · 패널이 쥔 블럭 · 누른 뒤 click 도달(창 capture = killClick 앞 · 문서 bubble = killClick 뒤) */
   const probe = await page.evaluate(() => { const b = document.getElementById('vb-float-toggle'), r = b?.getBoundingClientRect(), hit = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     window.__stops = []; window.__origSP = Event.prototype.stopPropagation; window.__origSIP = Event.prototype.stopImmediatePropagation;   // 표식 ②(지디 261123 — click 이 창 capture 엔 오고 문서 bubble 엔 못 감) — 누가 멈추나: 호출 경로
@@ -91,7 +102,9 @@ test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z �
   const wasF = await page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true');
   await page.click('#vb-float-toggle'); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const after = await page.evaluate(() => { Event.prototype.stopPropagation = window.__origSP; Event.prototype.stopImmediatePropagation = window.__origSIP; return { stops: window.__stops, clk: window.__clk, nowF: window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true' }; });
-  console.log('[D2 끔 표식]', JSON.stringify({ probe, wasF, after }));
+  const vRect1 = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left, r.top].map(Math.round); });
+  const capEnd = await page.evaluate(() => window.__cap.map(([op, t, w]) => [op, t - Math.round(window.__upAt), w]));
+  console.log('[D2 끔 표식]', JSON.stringify({ probe, capLog1, eat, eaten, vRect0, vRect1, wasF, after, capEnd }));
   expect(after.nowF, '[전제] 오버레이 토글이 상태를 바꿨다(«끔»)').toBe(!wasF);
   await stable(page, '#vV'); await seq(page, '끔', log);
   for (const [k, l] of [['Meta+z', '⌘Z'], ['Meta+Shift+z', '⌘⇧Z'], ['Meta+z', '⌘Z 2']]) { await page.keyboard.press(k); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await seq(page, l, log); }
