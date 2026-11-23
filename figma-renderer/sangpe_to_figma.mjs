@@ -74,16 +74,19 @@ function _strokeOf(border) {
   if (typeof border.width === 'number') {
     if (!(border.width > 0)) return null;
     const sd = border.sides && typeof border.sides === 'object' ? border.sides : null;
-    return { color: border.color, weight: border.width, sides: sd };
+    return { color: border.color, weight: border.width, sides: sd, style: border.style };
   }
   const sides = {}; let color = null, max = 0;
   for (const k of ['top', 'right', 'bottom', 'left']) { const b = border[k]; const w = b && b.width > 0 ? b.width : 0; sides[k] = w; if (w > 0) { color = color || b.color; max = Math.max(max, w); } }
-  return max > 0 ? { color, weight: max, sides } : null;
+  const style = ['top', 'right', 'bottom', 'left'].map((k) => border[k] && border[k].width > 0 && border[k].style).find(Boolean) || 'solid';
+  return max > 0 ? { color, weight: max, sides, style } : null;
 }
 function applyBorder(nodeId, border) {
   const st = _strokeOf(border);
   if (!st || !nodeId) return;
-  run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE' });
+  /* ★점선(Stroke 마지막 칸 · 지디 261124) — CSS dashed = [3w, 2w] · dotted = [w, w](js/stroke-look.js derivedDash · vector _dashArray 와 같은 식) · 실선이면 인자 없음(옛 명령 그대로) · 옛 플러그인은 무시 = 실선 */
+  const w = st.weight, dash = st.style === 'dashed' ? [3 * w, 2 * w] : st.style === 'dotted' ? [w, w] : null;
+  run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE', ...(dash ? { dashPattern: dash } : {}) });
 }
 
 function hex(h) {
