@@ -197,6 +197,10 @@ test('N1 ⒟ 음성대조 — 인포그래픽 칸 아이콘 팝오버엔 「사�
     const f = document.querySelector('[data-t-ifg]');
     return !!f && f.getBoundingClientRect().width > 0;
   });
+  /* ★2026-11-24 기대 바뀜 — HBQA-INFOGRAPHIC-RESIZE-DBLCLICK-01(지디 (가) 두 겹): 편집 모드 «밖» 첫 더블클릭 = 인포그래픽 편집 ·
+     그 «안»에서 아이콘 더블클릭 = 아이콘 팝오버(한 겹 더). */
+  await page.locator('[data-t-ifg]').dblclick();
+  await page.waitForFunction(() => !!document.querySelector('.grid-block.ifg-editing'));
   await page.locator('[data-t-ifg]').dblclick();
   await expect.poll(() => popState(page), '전제: 인포그래픽 팝오버가 뜬다 · 항목 0').toEqual({ pop: true, shown: true, upload: 0 });
   expect(errs).toEqual([]);
