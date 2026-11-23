@@ -17,9 +17,15 @@ import {
   slideGeom, loopSec, slideOffset, gifPlan, slideInfoText, drawSlides, slideAxis, normCardW, normCardH, normRadius, CELL_SHADOWS, cellShadowPad, slideInPlace, inPlaceState, drawInPlace, slideCentered, centerState, centerTrackShift, slideWipe, wipePos, drawWipe, WIPE_LINE, WIPE_KNOB, WIPE_LINE_W, WIPE_KNOB_R, trailGhosts, slideGridZoom, gridZoomFrame, drawGridZoom,
   DOT_D, DOT_GAP, dotBand, drawDots, slideActiveIndex,
 } from '../fx/slide-motion.js';
+import { slideLanes, laneGeoms, laneLoopSec, drawLanes } from '../fx/slide-motion.js';   // SLIDE-EFFECT-SAMPLES-QA-01 ③ 여러 줄 반대 방향
+/* ③ 첫 장면 격자 — 칸 i = i%2 줄(가로) / 열(세로) · ⌊i/2⌋ 번째 = grid 의 자동 배치 순서(column/row flow) 그대로 · 카드 크기 = 공통 카드 폭 % · 줄·칸 사이 = 간격(≥0).
+   drawLanes t=0 과 같은 자리(줄마다 왼끝/위끝 = ⌊i/2⌋ × (카드 + 간격)). 칸 자식·저장은 무접촉(트랙·칸 스타일만). */
+const _laneTrackCss = (vert, layout, lanes) => (vert
+  ? `display:grid;grid-auto-flow:row;grid-template-columns:repeat(${lanes},minmax(0,1fr));grid-auto-rows:${layout.cardW}%;gap:${Math.max(0, layout.gap)}px;width:100%;height:100%;`
+  : `display:grid;grid-auto-flow:column;grid-template-rows:repeat(${lanes},minmax(0,1fr));grid-auto-columns:${layout.cardW}%;gap:${Math.max(0, layout.gap)}px;width:100%;height:100%;`);
 /* SLIDE-INDICATOR-DOTS-01 — 점 띠(위/아래 · 가로 효과만). 첫 장면 = 블럭 안 .sld-dots 하나(칸·카드와 따로 · 프레임 모드에서도 이 요소만 다룬다) · GIF = drawDots(같은 자·색).
    점이 켜지면 트랙이 띠만큼 줄어든다(카드 높이 = 블럭 − 띠) — GIF 도 같은 띠를 비우고 그린다. */
-const _dotsPos = (layout, vert, fx) => (!vert && !slideWipe(fx) && !slideGridZoom(fx) && (layout.dots === 'top' || layout.dots === 'bottom') ? layout.dots : null);   // 전후 비교엔 점 없음
+const _dotsPos = (layout, vert, fx) => (!vert && !slideWipe(fx) && !slideGridZoom(fx) && !slideLanes(fx) && (layout.dots === 'top' || layout.dots === 'bottom') ? layout.dots : null);   // 전후 비교·여러 줄엔 점 없음
 /* 전후 비교 첫 장면 — 카드(칸)를 블럭 꽉 겹침(첫째 위 · clip 왼쪽 50%) · 셋째부터 숨김 · 나눔선 .sld-wipe(가운데) — 스타일·이 요소만(칸 자식 무접촉) */
 /* 격자 줌아웃 첫 장면 = 히어로만(첫째 카드/칸 가운데 · 나머지 숨김 · 스타일만) = GIF t=0 */
 function _renderHero(track, kids, on) {
@@ -415,16 +421,16 @@ export function makeSlideCell() {
   delete c.dataset.width; delete c.dataset.height;
   return c;
 }
-function _renderFrameCells(block, layout, vert, inPlace = false, center = false, wipe = false) {
+function _renderFrameCells(block, layout, vert, inPlace = false, center = false, wipe = false, lanes = 0) {
   let track = block.querySelector(':scope > .sld-track');
   if (!track) { track = document.createElement('div'); track.className = 'sld-track'; block.appendChild(track); }   // 트랙만 — 칸은 만들 때(makeSlideBlock)만 짓는다
   const pos = _dotsPos(layout, vert, wipe ? 'slide-wipe' : '');
   if (pos) block.style.height = `${layout.h + dotBand(layout)}px`;   // 137 ② 점 띠는 블럭을 «키운다» — 칸(트랙) 높이 = layout.h 그대로(옛 판은 블럭 고정·칸이 줄었다)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = flex gap 0 + 둘째부터 음수 margin(겹침 · 뒤 칸이 위)
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${wipe ? 'position:relative;' : ''}`;
+  track.style.cssText = lanes ? _laneTrackCss(vert, layout, lanes) : `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${wipe ? 'position:relative;' : ''}`;   // ③ 여러 줄 = 격자
   _renderDots(block, slideCells(block).length, pos, center && slideCells(block).length > 1 ? 1 : 0);
   if (center) track.style.transform = `translateX(${centerTrackShift(slideCells(block).map((c) => normCardW(c.dataset.w) ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면(스타일만)
-  else if (!inPlace && !wipe && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 «스크롤 고정» 자리
+  else if (!inPlace && !wipe && !vert && !lanes && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // SLIDE-TEMP-HSCROLL-FIX-EXPORT-01 «스크롤 고정» 자리
   slideCells(block).forEach((c, i) => {
     c.dataset.idx = String(i);
     const w = inPlace ? 100 : (normCardW(c.dataset.w) ?? layout.cardW);   // 제자리 효과 = 칸이 블럭 꽉(칸별 폭은 그 효과 동안 안 씀 · 값은 그대로)
@@ -432,6 +438,7 @@ function _renderFrameCells(block, layout, vert, inPlace = false, center = false,
     /* 프레임 기본 꼴의 px 폭·높이·가운데 마진을 칸 자리로 덮는다(스타일만 · 자식 무접촉) */
     Object.assign(c.style, { flex: `0 0 ${w}%`, width: vert ? '100%' : 'auto', height: vert ? 'auto' : (hp !== undefined ? `${hp}%` : '100%'), alignSelf: hp !== undefined ? 'center' : '', minHeight: '0', maxWidth: 'none', margin: i && neg ? (vert ? `${neg}px 0 0 0` : `0 0 0 ${neg}px`) : '0', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', inset: '', zIndex: '', clipPath: '', display: '',
       borderRadius: normRadius(c.dataset.radius) ? `${normRadius(c.dataset.radius)}px` : '', boxShadow: CELL_SHADOWS[c.dataset.shadow]?.css || '' });   // 칸 둥글기·그림자(SLIDE-CELL-FRAME-HANDLES-RADIUS-SHADOW-01)   // 전후 비교 꼴(inset·clip·숨김)은 걷고 _renderWipe 가 다시 씌운다
+    if (lanes) Object.assign(c.style, { flex: 'none', width: '100%', height: '100%', alignSelf: '', margin: '0' });   // ③ 격자 칸 = 칸 자리 꽉(공통 카드 폭 · 칸별 폭·높이는 이 효과 동안 안 씀 · 값은 그대로)
   });
 }
 
@@ -449,7 +456,7 @@ export function renderSlideBlock(block) {
   block.style.clipPath = `inset(${-_S}px 0px ${-_S}px 0px)`;
   if (isFrameSlide(block)) {   // 프레임 모드 — 배치만(위 머리말)
     if (block.dataset.overlayBlock !== 'true') window.applyBlockFullBleed?.(block);
-    _renderFrameCells(block, layout, vert, slideInPlace(fx) || layout.mode === 'single', slideCentered(fx) || layout.mode === 'center', slideWipe(fx));   // 정지 꼴(layout.mode)이 효과보다 앞
+    _renderFrameCells(block, layout, vert, slideInPlace(fx) || layout.mode === 'single', slideCentered(fx) || layout.mode === 'center', slideWipe(fx), layout.mode === 'row' ? slideLanes(fx) : 0);   // 정지 꼴(layout.mode)이 효과보다 앞
     _renderWipe(block, slideCells(block), slideWipe(fx));
     _renderHero(block.querySelector(':scope > .sld-track'), slideCells(block), slideGridZoom(fx));
     return;
@@ -463,16 +470,18 @@ export function renderSlideBlock(block) {
   if (pos) block.style.height = `${layout.h + dotBand(layout)}px`;   // 137 ② 프레임 갈래와 같은 규약
   const inPlace = slideInPlace(fx) || layout.mode === 'single';   // 제자리 효과 · 정지 꼴 «단일 컷» = 카드 한 장이 블럭 꽉(첫 장면 = 첫 장)
   const g = inPlace ? 0 : layout.gap, neg = g < 0 ? g : 0;   // 음수 간격 = 겹침(프레임 칸과 같은 꼴)
-  track.style.cssText = `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${slideWipe(fx) ? 'position:relative;' : ''}`;
+  const lanes = !inPlace && layout.mode === 'row' ? slideLanes(fx) : 0;   // ③ 여러 줄 = 격자(정지 꼴 «기본 줄»일 때만 · 정지 꼴이 효과보다 앞)
+  track.style.cssText = lanes ? _laneTrackCss(vert, layout, lanes) : `display:flex;${vert ? 'flex-direction:column;' : ''}gap:${Math.max(0, g)}px;width:100%;${_trackBox(pos, layout)}${slideWipe(fx) ? 'position:relative;' : ''}`;
   const cards = slides.length ? slides : [null, null, null];
   if (slideCentered(fx) || layout.mode === 'center') track.style.transform = `translateX(${centerTrackShift(cards.map((s) => s?.w ?? layout.cardW), layout.gap)})`;   // 가운데 캐러셀 첫 장면 · 정지 꼴 «가운데 캐러셀»
-  else if (!inPlace && !slideWipe(fx) && !slideGridZoom(fx) && !vert && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // «스크롤 고정» 자리
+  else if (!inPlace && !slideWipe(fx) && !slideGridZoom(fx) && !vert && !lanes && _fixedX(block)) track.style.transform = `translateX(${-_fixedX(block)}px)`;   // «스크롤 고정» 자리
   cards.forEach((s, i) => {
     const c = document.createElement('div');
     c.className = 'sld-card';
     c.dataset.idx = String(i);
     if (!s) c.classList.add('sld-card-empty');   // 빈 카드 체커 = CSS 클래스(card-empty-export 조건①: 인라인이면 저장본에 실림)
-    c.style.cssText = `flex:0 0 ${inPlace ? 100 : (s?.w ?? layout.cardW)}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;${i && neg ? `margin-${vert ? 'top' : 'left'}:${neg}px;` : ''}`;   // 칸별 폭(slides[i].w) · 없으면 공통
+    c.style.cssText = lanes ? 'width:100%;height:100%;min-width:0;min-height:0;overflow:hidden;'   // ③ 격자 칸(공통 카드 폭)
+      : `flex:0 0 ${inPlace ? 100 : (s?.w ?? layout.cardW)}%;${vert ? 'width' : 'height'}:100%;overflow:hidden;${i && neg ? `margin-${vert ? 'top' : 'left'}:${neg}px;` : ''}`;   // 칸별 폭(slides[i].w) · 없으면 공통
     if (s) {
       const img = document.createElement('img');
       img.className = 'sld-img';
@@ -588,12 +597,14 @@ export function slidePlan(block, anim, fxOverride) {
   const hs = frame && !slideInPlace(fx) && !slideWipe(fx) ? cells.map((c) => c.dataset.h) : null;   // 칸별 높이(가로 효과)
   const deco = frame ? cells.map((c) => ({ r: c.dataset.radius, sh: c.dataset.shadow })) : null;   // 칸 둥글기·그림자
   const axis = slideAxis(fx), bw = Math.max(1, axis === 'y' ? block.offsetHeight : block.offsetWidth), geom = slideGeom(bw, n, st.layout, ws, hs, deco);
-  const sec = loopSec(fx, geom, A);
+  const lanes = slideLanes(fx), lgs = lanes ? laneGeoms(bw, n, st.layout, deco, lanes) : null;   // ③ 여러 줄 — 줄마다 기하(공통 카드 폭)
+  const sec = lanes ? laneLoopSec(lgs, A) : loopSec(fx, geom, A);
   return {
     duration: sec * 1000, hold: 0, info: slideInfoText(sec) + (frame ? ' · 칸 안 움직이는 것은 정지 한 장' : ''), gif: gifPlan(sec), fx, anim: A,
     draw: (ctx, W, H, _size, t) => {
       const k = (axis === 'y' ? H : W) / bw, pos = _dotsPos(st.layout, axis === 'y', fx);
       if (slideWipe(fx)) { drawWipe(ctx, W, H, block._sldImgs?.imgs || [], wipePos(t), k); return; }   // 전후 비교(점 없음)
+      if (lanes) { drawLanes(ctx, W, H, block._sldImgs?.imgs || [], lgs, A.dir, k, t, st.layout.gap, axis); return; }   // ③ 여러 줄 반대 방향(점 없음)
       if (slideGridZoom(fx)) {   // 격자 줌아웃(점 없음) — 히어로 = 첫째 칸 · 카드 폭 % 는 첫째 칸 것
         const w0 = frame ? (normCardW(cells[0]?.dataset.w) ?? st.layout.cardW) : (st.slides[0]?.w ?? st.layout.cardW);
         drawGridZoom(ctx, block._sldImgs?.imgs || [], gridZoomFrame(t, bw, H / k, w0, st.layout.gap), geom.n, k);

@@ -274,3 +274,29 @@ test('S16 칸 그림자 넘침 = 가장 큰 blur+|y| · 없으면 0', () => {
   assert.equal(cellShadowPad(['strong', 'soft', 'none']), 68);
   assert.deepEqual([cellShadowPad([]), cellShadowPad([undefined, 'x']), cellShadowPad(null)], [0, 0, 0]);
 });
+
+/* S17 여러 줄 반대 방향(SLIDE-EFFECT-SAMPLES-QA-01 ③ · 현빈 261123 · 지디 ⓐ) — 칸 i = i%2 줄 · 줄마다 기하 · 한 바퀴 = 긴 줄 주기 ÷ 흐름 속도 · 줄마다 한 주기 ⇒ t0 = t1 ·
+ *   t=0 = 첫 장면 격자(줄마다 왼끝 = ⌊i/2⌋ × (카드+간격)) · 윗줄 = 고른 방향 · 아랫줄 = 반대 · 세로 효과 = y 축
+ *   양성대조(CTL · _patches/slide-fx3-CTL.patch): drawLanes 의 `r % 2 ? other : dir` → `dir` ⇒ S17 «반대» 빨강 */
+import { slideLanes, laneGeoms, laneLoopSec, drawLanes, slideAxis as _ax17 } from '../../js/fx/slide-motion.js';
+const _rec = () => { let tx = 0, ty = 0; const st = [], ops = []; return { ops, save() { st.push([tx, ty]); }, restore() { [tx, ty] = st.pop(); }, translate(x, y) { tx += x; ty += y; },
+  beginPath() {}, rect() {}, clip() {}, fillRect(x, y, w, h) { ops.push([Math.round((x + tx) * 100) / 100, Math.round((y + ty) * 100) / 100, Math.round(w), Math.round(h)]); }, set fillStyle(v) {} }; };
+test('S17 여러 줄 반대 방향 — 줄 나눔 · 한 바퀴 · 끊김 0 · t=0 격자 · 반대 · 세로', () => {
+  assert.equal(slideLanes('slide-flow2'), 2); assert.equal(slideLanes('slide-vflow2'), 2); assert.equal(slideLanes('slide-flow'), 0);
+  assert.equal(_ax17('slide-vflow2'), 'y'); assert.equal(_ax17('slide-flow2'), 'x');
+  const lgs = laneGeoms(800, 5, { cardW: 30, gap: 10 });
+  assert.deepEqual(lgs.map((l) => l.idx), [[0, 2, 4], [1, 3]], '칸 번갈아');
+  assert.deepEqual(lgs.map((l) => l.geom.period), [750, 500], '줄마다 주기 = 그 줄 칸 수 × (240+10)');
+  assert.equal(laneLoopSec(lgs, { speed: 1 }), 750 / 120, '한 바퀴 = 긴 줄 ÷ 흐름 속도');
+  assert.deepEqual(laneGeoms(800, 3, { cardW: 30, gap: -20 })[0].geom.step, 240, '음수 간격 = 0(겹침 없음)');
+  const draw = (t, dir = 'left') => { const c = _rec(); drawLanes(c, 800, 410, [], lgs, dir, 1, t, 10); return c.ops; };
+  assert.deepEqual(draw(1), draw(0), '★끝 = 처음(줄마다 한 주기)');
+  const t0 = draw(0), lane = (ops, y) => ops.filter((o) => o[1] === y).map((o) => o[0]).sort((a, b) => a - b);
+  assert.deepEqual(lane(t0, 0).filter((x) => x >= 0 && x < 800), [0, 250, 500, 750], '★윗줄 t=0 = 격자 왼끝 0·250·500(+감긴 첫 칸 750)');
+  assert.deepEqual(lane(t0, 210).filter((x) => x >= 0 && x < 800), [0, 250, 500, 750], '★아랫줄 t=0 = 격자(띠 높이 200 + 간격 10 아래)');
+  const q = draw(0.2);
+  assert.ok(lane(q, 0).includes(-150), `★윗줄 = 왼쪽으로(0.2×750=150) ${lane(q, 0)}`);
+  assert.ok(lane(q, 210).includes(100), `★아랫줄 = 반대(오른쪽 0.2×500=100) ${lane(q, 210)}`);
+  const v = (() => { const c = _rec(); drawLanes(c, 410, 800, [], laneGeoms(800, 4, { cardW: 30, gap: 10 }), 'left', 1, 0, 10, 'y'); return c.ops; })();
+  assert.ok(v.some((o) => o[0] === 210 && o[1] === 0 && o[2] === 200), '★세로 = 오른열 x 210 · 위끝 0 · 폭 200');
+});
