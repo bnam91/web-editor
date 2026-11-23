@@ -516,7 +516,11 @@ const _loadImg = (uri) => new Promise((res) => { if (!uri) { res(null); return; 
    키 = 폭·높이·innerHTML(칸 안 내용이 바뀌면 다시 찍음 · stepPrepare 와 같은 꼴). 찍기 실패 = 그 칸 null(빈 칸 색) + 까닭 _sldImgs.err.
    ⚠️칸 안의 움직이는 것(GIF 블럭 등)은 정지 한 장(Q4 · 지디 261118 OK — 안내 줄에 한 줄). */
 function _hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return `${s.length}:${(h >>> 0).toString(36)}`; }   // FNV-1a
-async function _frameCellImgs(block) {
+/* ★HBQA 199(현빈 9510 QA ☐9 · 0.9.13) — GIF 단추·효과 고르기 직후 «흰 한 장» 번쩍: 미리보기도 내보내기와 같은 native(CDP Page.captureScreenshot · captureBeyondViewport — 창 보기를 잠깐 키워 찍음 = 번쩍)를 탔다.
+   ⇒ 미리보기(opts.preview)는 비네이티브(H2C · isNativeCapture forceH2C)로 찍고 가이드 끄기(withGuideOff · 가이드 깜빡)도 건너뜀 · 캐시 키는 «P» 를 앞에 붙여 내보내기(native) 그림과 안 섞임.
+   내보내기(_exportSlideGif → prepare 옵션 없음)는 옛 native 그대로(품질 무변). shortcut: 미리보기 그림은 H2C 라 내보낸 GIF 와 글꼴·그림자 같은 잔결이 다를 수 있다 — 같게 하려면 미리보기 전에 native 를 한 번 미리 찍어(선캡처) 그 캐시를 쓰게. */
+async function _frameCellImgs(block, opts = {}) {
+  const pv = !!opts.preview;
   const cells = slideCells(block), sec = block.closest('.section-block');
   /* SLIDE-GIF-PREVIEW-ZOOM-FLASH-01 — 키·찍는 크기를 «효과와 무관»하게.
      옛 판: 키 = 블럭 innerHTML 해시 + 찍는 크기 = 칸의 살아 있는 크기 ⇒ 효과만 바꿔도(칸 flex-basis·트랙 transform·점 띠·나눔선 = 전부 innerHTML 안 스타일)
@@ -526,17 +530,18 @@ async function _frameCellImgs(block) {
   const ST = readSlideState(block), L = ST.layout, vert = slideAxis(ST.fx) === 'y', bw = Math.max(1, block.offsetWidth), th = Math.max(1, block.clientHeight - (L.dots === 'top' || L.dots === 'bottom' ? dotBand(L) : 0));
   const full = slideInPlace(ST.fx) || slideWipe(ST.fx);   // 꽉 채우는 효과(제자리·전후 비교)는 첫 장면 칸이 블럭 꽉 ⇒ 그 크기로 찍어야 GIF = 첫 장면(두 «꼴»만 키에 · 효과마다 다시 찍지 않음)
   const wsPct = cells.map((c) => (full ? 100 : (normCardW(c.dataset.w) ?? L.cardW)));
-  const key = `F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${cells.map((c) => c.dataset.h ?? '').join(',')}|${cells.map((c) => c.dataset.bg ?? '').join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
+  const key = `${pv ? 'P' : ''}F|${vert ? 'y' : 'x'}${full ? 'F' : ''}|${bw}|${th}|${wsPct.join(',')}|${cells.map((c) => c.dataset.h ?? '').join(',')}|${cells.map((c) => c.dataset.bg ?? '').join(',')}|${_hash(cells.map((c) => c.innerHTML).join('\u0001'))}`;
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;
   const hit = block._sldCache?.get(key);   // 두 «꼴»(카드 폭 · 꽉)을 오가도 다시 안 찍게 최근 둘을 쥔다
   if (hit) { block._sldImgs = hit; return hit.imgs; }
   const hsPct = cells.map((c) => (vert || full ? 100 : (normCardH(c.dataset.h) ?? 100)));
   const sizes = wsPct.map((w, i) => (vert ? [bw, Math.max(1, Math.round((th * w) / 100))] : [Math.max(1, Math.round((bw * w) / 100)), Math.max(1, Math.round((th * hsPct[i]) / 100))]));   // 효과 무관 «기본 꼴» 칸 크기(숨긴 칸도 제 크기 · 세로 효과는 % = 높이 몫 — 축만 키에)
   let imgs = cells.map(() => null), err = null;
+  const native = pv ? isNativeCapture({ forceH2C: true }) : isNativeCapture();   // 199 — 길 결정은 찍기 «앞» 한 자리(아래 _sldImgs.native 로 남김 · 시험이 «어느 길을 탔나»를 찍기 성패와 무관하게 읽는다)
   if (sec && block.id && cells.length) {
     try {
-      imgs = await withGuideOff(async () => {
-        const w = Math.round(sec.offsetWidth), native = isNativeCapture();
+      imgs = await (pv ? (f) => f() : withGuideOff)(async () => {
+        const w = Math.round(sec.offsetWidth);
         const clone = await prepareCloneForCapture(sec, w, native);
         try {
           renderComponentsInClone(clone);
@@ -565,14 +570,14 @@ async function _frameCellImgs(block) {
       console.warn('[slide] 칸 찍기 실패 — 빈 칸 색으로 그린다:', err);
     }
   }
-  block._sldImgs = { key, imgs, err };
+  block._sldImgs = { key, imgs, err, native };
   if (!err) { if (!block._sldCache) block._sldCache = new Map(); block._sldCache.set(key, block._sldImgs); while (block._sldCache.size > 2) block._sldCache.delete(block._sldCache.keys().next().value); }
   return imgs;
 }
 
 /** 블럭 사진들을 그릴 수 있게(같은 목록이면 한 번만) — 실패한 장은 null(빈 카드 색으로 그림). 프레임 모드 = 칸을 찍은 canvas. */
-export async function slidePrepare(block) {
-  if (isFrameSlide(block)) return _frameCellImgs(block);
+export async function slidePrepare(block, opts) {   // opts.preview = 미리보기(199 · 비네이티브) · 없음 = 내보내기(native)
+  if (isFrameSlide(block)) return _frameCellImgs(block, opts);
   const { slides } = readSlideState(block);
   const key = slides.map((s) => s.src).join('|');
   if (block._sldImgs && block._sldImgs.key === key) return block._sldImgs.imgs;

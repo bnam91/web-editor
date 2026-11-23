@@ -221,7 +221,7 @@ export function gridChildDragOver(container, x, y, src) {
   /* ★C5 — 격자 자리에 G9 가 받는 글자를 끌고 있으면 «칸»을 표시하고 섹션 표시선을 안 그린다(true).
      예전엔 칸 위를 지나는 동안 표시선이 그리드 앞/뒤에 그려졌는데 놓으면 칸으로 들어갔다(측정 M3 D2·D3 — 표시가 거짓말).
      판정은 놓기와 «같은» 두 함수(grdTextDropSource · grdCellAtPoint)다. */
-  if (hit.zone === 'inner' && window.grdTextDropSource?.(src)) {
+  if (hit.zone === 'inner' && (window.grdTextDropSource?.(src) || window.grdAssetDropSource?.(src))) {   // 203 — 에셋도 같은 칸 강조(놓기와 같은 판정)
     const cell = window.grdCellAtPoint?.(container, x, y, src);
     if (cell) {
       cell.classList.add(CELL_DROP);
