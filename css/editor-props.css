@@ -436,7 +436,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
      ⇒ «같은 자리에 같은 무게로» active 갈래를 하나 더 둔다(0,6,0). 색은 새로 짓지 않고
        643 이 원래 선언해 둔 값을 그대로 쓴다 — 되살리는 것이지 바꾸는 것이 아니다. */
 .prop-type-group:has(.prop-preset-btn) .prop-preset-btn.prop-type-btn.active {
-  /* 미카사 실앱 검사 261124 — 프리셋 «켬» = 고른 표식 = 2단 회색(옛 남색 #1a2a3a + 위 기본의 #555 테·#969696 글이 섞였다) */
+  /* 미카사 실앱 검사 261124 — 프리셋 «켬» = 고른 표식 = 2단 회색(옛: 남색 바탕 + 위 기본의 테·글이 섞였다) */
   background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); color: var(--ui-sel-neutral-on-text);
 }
 .prop-type-btn {
