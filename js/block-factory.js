@@ -2410,6 +2410,7 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     const w = b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
     return (w?.dataset?.overlayBlock === 'true' || _ownFloat(w)) ? w : null;   // ★t5-07 — 제 방식 떠 있는 블럭도 «떠 있음»
   };
+  /* ⛔현빈 261123 ⓑ — 떠 있는 것 + 흐름 ⌘G = 아래 t5-08 «흐름 블럭에 붙임»(흐름 그룹 · 떠 있는 것은 그 안 같은 화면 자리). 1차 S1-3 «그룹이 떠 있음» 앞처리(19a95212b)는 걷었다 · 9/30 자유배치 프레임 갈래도 그대로. */
   const floatEls = [];
   let allFloatInSec = true;
   selected.forEach(b => {
@@ -5854,7 +5855,11 @@ window.addTextBlock         = addTextBlock;
 window.addBlankTextBlock    = addBlankTextBlock;
 window._clampTextFrameWidth = _clampTextFrameWidth;
 window.isVisuallyBlankButHasBreaks = isVisuallyBlankButHasBreaks;
-window.groupSelectedBlocks  = groupSelectedBlocks;
+/* ★현빈 261123 F S1-9 «⌘Z 한 번에 두 단계» — 묶기는 push-before(안의 pushHistory)라 «묶은 뒤» 표본이 없어 다음 push-after(정렬 등) 뒤 ⌘Z 가 묶기까지 걷었다.
+   ⇒ 입구(window — 단축키 두 자리·save-load 가 다 여기로 온다)가 돌아온 직후 끝 표본 하나를 «더한다»(js/insert-history.js 같은 이음매 처방 · 선례 editor.js duplicateSelected «복제 완료»).
+   안의 push-before 는 그대로 · 거절(무변화)은 history.js 무변화 차단이 칸을 안 만든다 · 안쪽 groupSelectedBlocks→wrapSelectedBlocksInFrame 은 지역 호출이라 두 번 안 찍는다. 시험 = tests/dom/ial-0913b I3 */
+const _withEndSample = (fn) => (...a) => { try { return fn(...a); } finally { window.pushHistory?.('묶기 완료'); } };
+window.groupSelectedBlocks  = _withEndSample(groupSelectedBlocks);
 window.promoteToFrame  = promoteToFrame;
 window.makePresetRow        = makePresetRow;
 window.addPresetRow         = addPresetRow;
@@ -5879,7 +5884,7 @@ window.addYoutubeThumbSection = addYoutubeThumbSection;
 window.addGhostSection      = addGhostSection;
 window.makeFrameBlock        = makeFrameBlock;
 window.addFrameBlock         = addFrameBlock;
-window.wrapSelectedBlocksInFrame  = wrapSelectedBlocksInFrame;
+window.wrapSelectedBlocksInFrame  = _withEndSample(wrapSelectedBlocksInFrame);
 window.activateFrame         = activateFrame;
 window.deactivateFrame = deactivateFrame;
 // ── 분리된 블록 모듈(canvas/iconify/mockup/step/banner/chat/laurel/sticker/vector)에서

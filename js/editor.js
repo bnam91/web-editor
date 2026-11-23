@@ -1186,6 +1186,7 @@ function _updateMultiSelPanel(block) {
   /* ★A2(2026-10-01) — 고른 것이 «전부» 섹션에 떠 있는 블럭이면 «서로 맞춤» 패널. 흐름·자유배치 갈래보다 먼저 잡는다
      (안 그러면 오버레이 글자가 흐름 패널로 가서 정렬이 text-align 만 바꿨다). 판정·패널 = prop-multisel.js. */
   if (window.showOverlayMultiSelPanel?.(window.getSelectedOverlayUnits?.())) return;
+  { const m = window.getSelectedMixedUnits?.(); if (m && window.showOverlayMultiSelPanel?.(m.units, m.anchors)) return; }   // ★현빈 261123 F(IAL S1-4ⓐ·S3-3) — 떠 있는 것 + 흐름 섞임 = 고른 것끼리 맞춤(흐름 패널의 text-align 아님)
   const _flowN = _countFlowMultiSel();
   if (_flowN <= 1 && _isInFreeLayout(block)) {
     if (_updateFreeLayoutMultiSelPanel()) return;
@@ -2653,7 +2654,7 @@ function _deepestCanvasSelection() {
 function _freePositionedAncestor(el) {
   const canvas = document.getElementById('canvas');
   for (let n = el; n && n !== canvas; n = n.parentElement) {
-    if (n.parentElement?.matches?.('.frame-block[data-free-layout]')
+    if (n.parentElement?.matches?.('.frame-block[data-free-layout]') && !isShapeFrame(n.parentElement)   // 현빈 261123 F S3-4 — 도형 래퍼 안 도형은 «래퍼째 한 단위»(T-057) · 안 거르면 화살표가 래퍼 안 도형만 밀어 정본(래퍼 offsetX)·패널 X 가 안 바뀜(ial-0913b I6 실측)
         && getComputedStyle(n).position === 'absolute') return n;
     /* t13D-01(현빈 «오버레이 밀기 유지» 261120) — 섹션 직속 오버레이(overlay-float.js enterFloat · 자리 정본 dataset.offsetX/Y)도 좌표를 가진 사람 */
     if (n.dataset?.overlayBlock === 'true' && (n.parentElement?.classList?.contains('section-block') || n.parentElement?.classList?.contains('frame-block'))   // t13D-06 — 프레임 안 오버레이도(스택 프레임은 위 free-layout 갈래가 못 잡는다)

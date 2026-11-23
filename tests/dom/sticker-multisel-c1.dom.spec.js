@@ -344,13 +344,13 @@ test('S5 ★「서로 맞춤」 왼쪽 정렬 — 고른 스티커 왼쪽(레이
 });
 
 /* ═══ S6 패널 — 섞임 ═══ */
-test('S6 ★글자 1 + 스티커 1 → 흐름 패널 「2개 선택됨」(스티커 패널·Page 아님)', async ({ page }) => {
+test('S6 ★글자 1 + 스티커 1 → 섞임 패널 「2개 선택됨 · 서로 맞춤」(스티커 패널·Page 아님)', async ({ page }) => {
   const { errs, made } = await setup(page);
   await clickBlock(page, 'tbA', null);
   await clickBlock(page, made[0].id, 'Meta');
   await pollSel(page, ['tbA', made[0].id], '전제: 둘');
   await expect.poll(() => panelName(page)).toBe('2개 선택됨');
-  expect(await panelCrumb(page)).not.toContain('서로 맞춤');
+  expect(await panelCrumb(page)).toContain('서로 맞춤'); // ★기대 바뀜: 현빈 261123 F S1-4ⓐ «섞어 고른 정렬 = 블럭 위치» → 흐름+떠 있는 것 섞임도 서로 맞춤 패널(옛 기대 = 흐름 패널 · 서로 맞춤 없음)
   expect(errs).toEqual([]);
 });
 
