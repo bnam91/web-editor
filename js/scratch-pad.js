@@ -2049,16 +2049,16 @@ async function initScratchPad(projectId, pageId) {
    * ★여기 두는 까닭 = ⌘C·⌘X 와 «같은 잣대»(_scratchKeyGuardOk — 이 함수 안 지역)를 쓰려고. 갈리면 한쪽만 먹는다.
    * ★editor.js 의 ⌘[ / ⌘] 갈래가 «먼저» 물어보고, 참이면 moveSelectedBlocks 로 안 간다(⌘X scratchCutSelected 와 같은 꼴).
    *   ⇒ 여기서는 keydown 을 또 듣지 않는다. 끝이라 안 움직여도 키는 가져간다(true · 히스토리 0 — ㈎ 의 «맨 끝» 규칙). */
-  window.scratchLayerOrder = function scratchLayerOrder(direction) {
+  window.scratchLayerOrder = function scratchLayerOrder(direction, toEnd = false) {
     if (!_scratchKeyGuardOk()) return false;          // 내 일이 아니다 — 캔버스 갈래가 종전대로 돈다
     if (!SCRATCH_LAYER_SCRATCH_FIRST && document.querySelector('#canvas .selected')) return false;   // ⑶
     const before = _scratchLayerOrderNow().map(s => s.id);                                          // ⑷
     const picked = [..._selectedItems].map(s => s.id);
-    const next = _scratchLayerNext(before, picked, direction);   // ⑴ ⇧ 무시 — 캔버스와 같다
+    const next = _scratchLayerNext(before, picked, direction, toEnd);   // ⑴ ⇧ = 끝까지 — 캔버스와 같다(IAL-02 맞춤)
     if (!next) return true;
     _applyScratchOrder(next);
     try {
-      window.pushHistory?.(SCRATCH_LAYER_HISTORY_NAME[direction], {                                            // ⑵
+      window.pushHistory?.((toEnd ? SCRATCH_LAYER_HISTORY_NAME_END : SCRATCH_LAYER_HISTORY_NAME)[direction], {                                            // ⑵
         onUndo: () => _applyScratchOrder(before),
         onRedo: () => _applyScratchOrder(next),
       });
@@ -2771,21 +2771,24 @@ function _applyScratchGeomSnapshot(snaps) {
  *   ⑶ 스크래치·캔버스 섞인 선택이면 스크래치가 가져간다(⌘X·⌘G 선례) → SCRATCH_LAYER_SCRATCH_FIRST
  *   ⑷ «항목끼리»(패드끼리 아님 — 패드는 페이지당 한 벌)            → _scratchLayerOrderNow (형제 = 이 페이지 항목 전부)
  *   ⑸ 죽은 editor.js «Cmd/Ctrl + [ / ]» 핸들러는 남긴다(비석만) — 이 갈래와 무관 */
-const SCRATCH_LAYER_HISTORY_NAME = { up: '뒤로 보내기', down: '앞으로 가져오기' };   // ⑵ — editor.js moveSelectedBlocks 의 pushHistory 와 같은 글자
+const SCRATCH_LAYER_HISTORY_NAME = { up: '뒤로 보내기', down: '앞으로 가져오기' };
+const SCRATCH_LAYER_HISTORY_NAME_END = { up: '맨 뒤로 보내기', down: '맨 앞으로 가져오기' };   // ⇧ — 캔버스 갈래 «맨 …» 과 같은 글자   // ⑵ — editor.js moveSelectedBlocks 의 pushHistory 와 같은 글자
 const SCRATCH_LAYER_SCRATCH_FIRST = true;           // ⑶ — false 면 캔버스 선택이 있을 때 캔버스에 양보
 
 /* 순수 — order·picked = id 배열. 새 id 배열 또는 null(무변). 규칙은 ㈎ 갈래(moveSelectedBlocks _stackUnits)와 같다:
  *   'up'(⌘[)   = 고른 덩어리를 «첫 고른 것 바로 앞 형제» 앞으로 — 뒤로 보내기 · 첫 것이 이미 맨 앞(맨 아래)이면 null
  *   'down'(⌘]) = «마지막 고른 것 바로 뒤 형제» 뒤로 — 앞으로 가져오기 · 마지막이 이미 맨 끝(맨 위)이면 null
  *   여럿은 «한 덩어리»(상대 순서 유지) · 형제 < 2 면 null. */
-function _scratchLayerNext(order, picked, direction) {
+function _scratchLayerNext(order, picked, direction, toEnd = false) {
   if (!Array.isArray(order) || order.length < 2) return null;
   const pickSet = new Set(picked || []);
   const pk = order.filter(id => pickSet.has(id));
   if (pk.length === 0) return null;
   const rest = order.filter(id => !pickSet.has(id));
   let next;
-  if (direction === 'up') {
+  /* ★IAL-02 맞춤(지디 261124 «한 앱 안에서 같은 키가 다르게 동작하면 안 됨») — ⇧ = 끝까지(캔버스 moveSelectedBlocks toEnd 와 같은 뜻) */
+  if (toEnd) next = direction === 'up' ? [...pk, ...rest] : [...rest, ...pk];
+  else if (direction === 'up') {
     const firstIdx = order.indexOf(pk[0]);
     if (firstIdx <= 0) return null;
     const at = rest.indexOf(order[firstIdx - 1]);

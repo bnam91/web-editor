@@ -58,13 +58,13 @@ test('U1 ★⌘[ / ⌘] 갈래가 가드 뒤 · moveSelectedBlocks 앞에서 win
   for (const [at, dir] of [[bl, 'up'], [br, 'down']]) {
     const end = ED.indexOf(`moveSelectedBlocks('${dir}'`, at);   // IAL-02 — 둘째 인자(e.shiftKey)가 붙어 닫는 괄호 없이 찾는다
     const seg = ED.slice(at, end);
-    const ask = seg.indexOf(`if (window.scratchLayerOrder?.('${dir}')) { e.preventDefault(); return; }`);
+    const ask = seg.indexOf(`if (window.scratchLayerOrder?.('${dir}', e.shiftKey)) { e.preventDefault(); return; }`);   // IAL-02 맞춤 — ⇧ 를 넘긴다
     assert.ok(ask > 0, `★${dir} 갈래에 스크래치 양보 줄이 없다`);
     assert.ok(seg.indexOf('e.target.isContentEditable) return;') < ask, `★${dir}: 양보 줄이 입력 가드 «앞»이다`);
     assert.ok(seg.indexOf('.text-block.editing') < ask, `★${dir}: 양보 줄이 편집 가드 «앞»이다`);
     assert.ok(ask < seg.lastIndexOf('e.preventDefault();'), `★${dir}: 양보 줄이 preventDefault «뒤»다`);
     // W1(overlay-group-zorder-wiring) 은 갈래 머리에서 400자 안에 moveSelectedBlocks 를 찾는다 — 미리 깨지 않게
-    assert.ok(end - at <= 375, `★${dir}: 갈래 머리→moveSelectedBlocks ${end - at}자 — W1 400자 창 여유가 없다`);
+    assert.ok(end - at <= 400, `★${dir}: 갈래 머리→moveSelectedBlocks ${end - at}자 — W1 440자 창 여유가 없다`);   // 375→400 · IAL-02 맞춤(지디 261124) — ⌘[ ] 갈래가 스크래치·캔버스 둘 다에 e.shiftKey 를 넘겨 머리→호출 끝 399/404자
   }
 });
 
@@ -80,7 +80,7 @@ const run = (fn, order, picked, dir) => {
 
 test('U2 순수 규칙 — 손으로 적은 기대값 (⇧ 없음 — 한 칸만)', () => {
   const f = loadNext();
-  assert.equal(f.length, 3, '★인자가 셋이 아니다 — toEnd(⇧) 가 되살아났나');
+  assert.equal(f.length, 3, '★앞 인자 셋(order · picked · direction) — toEnd 는 기본값 있는 넷째');
   // 'up' = ⌘[ = 뒤로 보내기(배열 앞쪽 = 아래) · 'down' = ⌘] = 앞으로 가져오기(배열 뒤쪽 = 위)
   assert.equal(run(f, 'ABC', 'C', 'up'), 'ACB');
   assert.equal(run(f, 'ABC', 'C', 'down'), null);
@@ -96,6 +96,13 @@ test('U2 순수 규칙 — 손으로 적은 기대값 (⇧ 없음 — 한 칸만
   assert.equal(run(f, 'ABCD', 'AC', 'down'), 'BDAC');
   assert.equal(run(f, 'ABCD', 'BC', 'up'), 'BCAD');
   assert.equal(run(f, 'ABCD', 'BC', 'down'), 'ADBC');
+  /* ★기대 바뀜(IAL-02 맞춤 · 지디 261124 «한 앱 안에서 같은 키가 다르게 동작하면 안 됨») — 스크래치도 ⇧⌘[ ] = 끝까지 — 손으로 적은 ⇧ 기대값 */
+  const runEnd = (o, p, d) => { const x = f([...o], [...p], d, true); return x === null ? null : x.join(''); };
+  assert.equal(runEnd('ABCD', 'B', 'down'), 'ACDB', '⇧⌘] = 맨 앞(배열 끝)');
+  assert.equal(runEnd('ABCD', 'C', 'up'), 'CABD', '⇧⌘[ = 맨 뒤(배열 처음)');
+  assert.equal(runEnd('ABCD', 'BD', 'down'), 'ACBD', '여럿 = 한 덩어리 끝까지');
+  assert.equal(runEnd('ABCD', 'A', 'up'), null, '이미 맨 뒤');
+  assert.equal(runEnd('ABCD', 'D', 'down'), null, '이미 맨 앞');
   // 형제 < 2 · 고른 것 0 · 모르는 id
   for (const d of ['up', 'down']) {
     assert.equal(run(f, 'A', 'A', d), null);
@@ -114,7 +121,7 @@ test('U3 배열 `_scratchItems` 와 DOM 을 같이 바꾸고 저장 · ⌘Z 한 
   assert.ok(has(SP, 'window.scratchLayerOrder = function scratchLayerOrder('), '★window.scratchLayerOrder 가 없다');
   const ORD = sliceBlock(SP, 'window.scratchLayerOrder = function scratchLayerOrder(');
   assert.match(ORD, /_applyScratchOrder\(next\);/);
-  assert.match(ORD, /window\.pushHistory\?\.\(SCRATCH_LAYER_HISTORY_NAME\[direction\], \{/, '★히스토리를 안 쌓는다');
+  assert.match(ORD, /window\.pushHistory\?\.\(\(toEnd \? SCRATCH_LAYER_HISTORY_NAME_END : SCRATCH_LAYER_HISTORY_NAME\)\[direction\], \{/, '★히스토리를 안 쌓는다');   // IAL-02 맞춤(지디 261124) — ⌘[ ] 갈래가 스크래치·캔버스 둘 다에 e.shiftKey 를 넘겨 머리→호출 끝 399/404자
   assert.match(ORD, /onUndo: \(\) => _applyScratchOrder\(before\)/);
   assert.match(ORD, /onRedo: \(\) => _applyScratchOrder\(next\)/);
   // 끝이라 안 움직이면 키는 가져가되 히스토리 0 (㈎ 의 «맨 끝» 규칙)
@@ -133,10 +140,13 @@ test('U4 가드 — ⌘C·⌘X 와 같은 _scratchKeyGuardOk 가 첫 줄', () =>
 test('U5 판정(지디 a2)이 각각 «한 자리» — ⑴ ⇧ 무시 · ⑵ 이름 = 캔버스 갈래 · ⑶ 스크래치 우선 · ⑷ 항목끼리', () => {
   const count = (re) => (SP.match(re) || []).length;
   const ORD = sliceBlock(SP, 'window.scratchLayerOrder = function scratchLayerOrder(');
-  // ⑴ ⇧ 를 읽는 자리 0 — editor.js 도 e.shiftKey 를 안 넘긴다(⌘⇧] = ⌘] 한 칸)
-  assert.doesNotMatch(ORD, /shift/i, '★스크래치 갈래가 ⇧ 를 읽는다 — 캔버스와 비대칭');
-  assert.doesNotMatch(ED, /scratchLayerOrder\?\.\([^)]*shiftKey/, '★editor.js 가 ⇧ 를 넘긴다');
-  assert.doesNotMatch(SP, /SCRATCH_LAYER_SHIFT_TO_END|toEnd/, '★⇧ 맨 앞/뒤 자리가 남아 있다');
+  // ⑴ ★기대 바뀜(IAL-02 맞춤 · 지디 261124 «한 앱 안에서 같은 키가 다르게 동작하면 안 됨») — 스크래치도 ⇧⌘[ ] = 끝까지 — editor.js 가 e.shiftKey 를 넘기고 스크래치 갈래가 toEnd 로 받는다 · «맨 …» 이름 = 캔버스 글자
+  assert.match(ORD, /_scratchLayerNext\(before, picked, direction, toEnd\)/, '★스크래치 갈래가 ⇧(toEnd) 를 안 넘긴다');
+  for (const d of ['up', 'down']) assert.match(ED, new RegExp(`scratchLayerOrder\\?\\.\\('${d}', e\\.shiftKey\\)`), `★editor.js ${d} 가 ⇧ 를 안 넘긴다`);
+  const em = SP.match(/const SCRATCH_LAYER_HISTORY_NAME_END = \{ up: '([^']+)', down: '([^']+)' \};/);
+  const cme = sliceBlock(ED, 'function moveSelectedBlocks(').match(/else pushHistory\(direction === 'up' \? '([^']+)' : '([^']+)'\)/);
+  assert.ok(em && cme, '★«맨 …» 이름 자리를 못 읽었다');
+  assert.deepEqual([em[1], em[2]], [cme[1], cme[2]], '★스크래치 «맨 …» 이름 ≠ 캔버스');
   // ⑵ 이름 = 캔버스 갈래(moveSelectedBlocks) 의 pushHistory 글자 — 소스에서 읽어 대조(손으로 박지 않는다)
   const MOVE = sliceBlock(ED, 'function moveSelectedBlocks(');
   const cm = MOVE.match(/pushHistory\(direction === 'up' \? '([^']+)' : '([^']+)'\)/);

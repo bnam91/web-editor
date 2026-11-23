@@ -2981,7 +2981,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'BracketLeft') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      if (window.scratchLayerOrder?.('up')) { e.preventDefault(); return; }
+      if (window.scratchLayerOrder?.('up', e.shiftKey)) { e.preventDefault(); return; }
       e.preventDefault();
       moveSelectedBlocks('up', e.shiftKey);
       return;
@@ -2989,7 +2989,7 @@ document.addEventListener('keydown', e => {
     if (e.code === 'BracketRight') {
       if (document.querySelector('.text-block.editing')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-      if (window.scratchLayerOrder?.('down')) { e.preventDefault(); return; }
+      if (window.scratchLayerOrder?.('down', e.shiftKey)) { e.preventDefault(); return; }
       e.preventDefault();
       moveSelectedBlocks('down', e.shiftKey);
       return;
