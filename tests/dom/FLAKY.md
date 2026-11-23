@@ -448,4 +448,4 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.
 
 ## 2026-11-24 · tp/0913-grid-paste 30bcb7f38(수지맥 관련 89벌) — 이름 ＋ 수 (⛔원인 라벨 없이)
-- `t902-copy4.dom.spec.js:` C3 ⌘D — 수지맥 89벌 1/1 빨강 · workers 1 재실행 5/5 초록 · 인텔 열차 전수에서도 같은 파일 빨강 기록(지디).
+- `t902-copy4.dom.spec.js:71` C3 ⌘D(CELLS 표 C3 줄) — 수지맥 89벌 1/1 빨강 · workers 1 재실행 5/5 초록 · 인텔 열차 전수에서도 같은 파일 빨강 기록(지디).
