@@ -945,7 +945,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   transition: all 0.15s;
 }
 .prop-preset-btn:hover { border-color: var(--ui-divider); background: #222; }
-.prop-preset-btn.active { border-color: var(--ui-accent-primary); background: #1a2a3a; }
+.prop-preset-btn.active { border-color: var(--ui-sel-neutral-on-border); background: var(--ui-sel-neutral-on-bg); }
 .prop-preset-swatches {
   display: flex; gap: 3px;
 }
@@ -957,7 +957,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   font-size: var(--ui-fs-10); font-weight: var(--ui-fw-semibold); color: var(--ui-text-muted);
   letter-spacing: 0.04em; text-transform: uppercase;
 }
-.prop-preset-btn.active .prop-preset-name { color: var(--ui-accent); }
+.prop-preset-btn.active .prop-preset-name { color: var(--ui-sel-neutral-on-text); }
 
 /* 내보내기 버튼 */
 .prop-export-btn {

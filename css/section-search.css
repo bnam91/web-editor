@@ -61,8 +61,8 @@
 }
 .ss-item:hover,
 .ss-item.active {
-  background: #2d6fe8;
-  color: #ffffff;
+  background: var(--ui-sel-neutral-on-bg);
+  color: var(--ui-sel-neutral-on-text);
 }
 
 .ss-empty {

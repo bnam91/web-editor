@@ -82,7 +82,7 @@
 }
 .assets-row.assets-row--selected {
   background: var(--ui-bg-input);
-  outline: 1px solid var(--ui-accent);
+  outline: 1px solid var(--ui-sel-neutral-on-border);
   outline-offset: -1px;
 }
 .assets-row.assets-row--dragging {
