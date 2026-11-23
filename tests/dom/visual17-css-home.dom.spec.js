@@ -117,8 +117,10 @@ test('V17 규칙 자리만 옮김 — 툴바 단추 계산된 스타일(가만�
   const hn = await readHover(now), ho = await readHover(old), AB = '[data-v17="ab"]';
   const neutral = await now.evaluate(() => { const p = document.createElement('span'); p.style.backgroundColor = 'var(--ui-sel-neutral-on-bg)'; document.body.appendChild(p); const v = getComputedStyle(p).backgroundColor; p.remove(); return v; });
   expect(hn[AB]['background-color'], '★AB 호버 바탕 = 중립 켜짐 토큰').toBe(neutral);
-  for (const k of ['background-color', 'color']) { delete hn[AB][k]; delete ho[AB][k]; }
-  expect(hn, 'hover — 같음(AB 색 두 칸 뺌)').toEqual(ho);
+  /* AB 의 테두리 색은 따로 정하지 않아 currentColor(= 글자색)를 따른다 ⇒ 글자색이 중립이 되면 같이 바뀐다(지디 수지맥 7088436d0 V17 −1/+1 · srv 실측 rgb(119,161,240) → rgb(224,224,224)) — 그 «따라감»을 잰다 */
+  expect(hn[AB]['border-top-color'], '★AB 호버 테두리 = 글자색 따라감(currentColor)').toBe(hn[AB].color);
+  for (const k of ['background-color', 'color', 'border-top-color']) { delete hn[AB][k]; delete ho[AB][k]; }
+  expect(hn, 'hover — 같음(AB 색 세 칸 뺌 · 테두리는 글자색 따라감)').toEqual(ho);
   await ctxA.close(); await ctxB.close();
 });
 
