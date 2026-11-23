@@ -4729,7 +4729,8 @@ function _onTextBoxResizeMouseDown(e, el, dir) {
     }
     if (sy) {
       const want = Math.round(startH + dh);
-      if (want <= contentH) { delete el.dataset.fixedH; el.style.minHeight = ''; }
+      if (window.loremRefit?.(el, want)) { /* t13E-08·09 2차(현빈 261123) — 더미 그대로면 높이가 주인: 정한 높이 = want · 더미가 그 높이로 다시 꽉(prop-text-wireup-lorem.js) */ }
+      else if (want <= contentH) { delete el.dataset.fixedH; el.style.minHeight = ''; }
       else { el.dataset.fixedH = String(want); el.style.minHeight = want + 'px'; }
     }
     if (floating && (sx < 0 || sy < 0)) _applyOverlayPos(el, sx < 0 ? px0 - (newW - startW) : px0, sy < 0 ? py0 - (el.offsetHeight - startH) : py0);   // 맞은편 변 고정
