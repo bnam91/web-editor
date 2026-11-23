@@ -39,8 +39,9 @@ test('U0 ★moveSelectedBlocks(㈎ 오버레이 · ㈏ 자유배치 프레임 ·
   // ★2026-11-09 T906-BRING-FORWARD-BACK-KEY-DEAD-01 — ㈏ 갈래 «단위 판정»을 고쳤다(.row 래퍼 · 깊이 2 부모 프레임 건너뛰기) ⇒ 다시 잼. 스크래치 갈래는 여전히 밖(U1).
   // ★2026-11-12 t2-06 — 흐름 갈래 getUnit 이 row·글상자 중 «가까운 쪽»을 집게 했다(템플릿 프레임 row > 프레임) ⇒ 다시 잼. ㈎㈏ 무변.
   // ★2026-11-24 기대 바뀜 — IAL-02(0.9.13 187행 · 현빈 승인 261122) — ⇧⌘[ ] = 맨 뒤/맨 앞(toEnd) · 도달 불가 옛 ⇧ 핸들러 걷음 ⇒ 다시 잼(스크래치 갈래는 여전히 밖 · ㈎㈏ 판정 무변 · 끝 자리만 toEnd)
-  assert.equal(MOVE.length, 9795, '★moveSelectedBlocks 길이가 바뀌었다 — 스크래치 갈래를 그 안에 넣지 마라');
-  assert.equal(sha(MOVE), '6ca4031c00dbc746ca1ec05dadb1a1610450fe13dbe1c77326078c653161a11c',
+  // ★2026-11-24 기대 바뀜 — IAL-03(0.9.13 188행 · 지디 승인 261124) — ① 흐름 사이에 낀 떠 있는 상자를 ⌘[ ] 전에 섹션 직속으로(rehomeStrayFloat) · ③ 무변일 때 알림 ⇒ 다시 잼(㈎㈏ 판정 무변 · 스크래치 갈래 여전히 밖)
+  assert.equal(MOVE.length, 10180, '★moveSelectedBlocks 길이가 바뀌었다 — 스크래치 갈래를 그 안에 넣지 마라');
+  assert.equal(sha(MOVE), '07b3c57eea39c4c51fe506bb0b08b7a3df6978c0e9d264e84f9e0a07d5a49d10',
     '★moveSelectedBlocks 가 바뀌었다 — ㈎㈏ 는 손대지 않는 약속이다');
 });
 
