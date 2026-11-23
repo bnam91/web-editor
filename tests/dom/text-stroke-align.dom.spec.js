@@ -133,7 +133,7 @@ test('S1 텍스트 블럭에 Stroke 절이 뜨고 위치 = 내부/가운데/외�
   await select(page, 'tbS');
   await expect(page.locator('#txt-stroke-section')).toBeVisible();
   const opts = await page.locator('#txt-stroke-align option').evaluateAll(os => os.map(o => [o.value, o.textContent.trim()]));
-  expect(opts).toEqual([['inside', '내부'], ['center', '가운데'], ['outside', '외부']]);
+  expect(opts).toEqual([['inside', '안쪽'], ['center', '가운데'], ['outside', '바깥']]);   // ★기대 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2 1 · 계약 §4c ②b 이름 «안쪽·가운데·바깥»): 옛 «내부·외부» · 값(inside/center/outside)·순서 무변
   // 이웃 순서: Fill(…) 다음, Effects 앞(★t4-01 — 텍스트 Shadow 절은 Effects 「그림자」 카드로 옮겼다)
   const order = await page.evaluate(() => {
     const s = document.getElementById('txt-stroke-section'), sh = document.getElementById('txt-fx-section');
