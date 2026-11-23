@@ -43,13 +43,24 @@ function _renderWipe(block, kids, on) {
   return true;
 }
 const _trackBox = (pos, layout) => (pos ? `height:calc(100% - ${dotBand(layout)}px);margin-${pos}:${dotBand(layout)}px;` : 'height:100%;');   // 띠 = 칸↔점 갭 × 2 + 점(SLIDE-DOTS-SPACING-01)
-const _dotOpt = (layout) => ({ band: dotBand(layout), space: layout.dotSpace, on: layout.dotOn, off: layout.dotOff });
+const _dotOpt = (layout) => ({ band: dotBand(layout), space: layout.dotSpace, on: layout.dotOn, off: layout.dotOff, shape: layout.dotShape, thick: layout.barThick });   // shape·thick = SLIDE-PROGRESS-BAR-01(GIF drawDots 와 같은 값)
 function _renderDots(block, n, pos, active = 0, layout = readSlideState(block).layout) {   // active = 첫 장면의 앞 카드(가운데 캐러셀 = 둘째)
   let el = block.querySelector(':scope > .sld-dots');
   if (!pos) { el?.remove(); return; }
   if (!el) { el = document.createElement('div'); el.className = 'sld-dots'; block.appendChild(el); }
   const o = _dotOpt(layout);
   el.style.cssText = `--sld-dot-on:${o.on};--sld-dot-off:${o.off};position:absolute;left:0;right:0;${pos}:0;height:${o.band}px;box-sizing:border-box;padding-${pos}:${DOT_GAP}px;display:flex;align-items:${pos === 'top' ? 'flex-start' : 'flex-end'};justify-content:center;gap:${o.space}px;pointer-events:none;`;   // 점 = 바깥 여백(고정) 안쪽 · 나머지 띠 = 칸↔점 갭(137 · drawDots 와 같은 자리)
+  if (o.shape === 'bar') {   /* SLIDE-PROGRESS-BAR-01(195) — 진행바: 띠 폭 전체 빈 막대 + «지금 칸까지» 채움((active+1)/n) · 자리·두께·색 = GIF drawDots 와 같다
+       shortcut: 임시 가로 밀기(_syncHScrollDots) 중엔 바 채움을 안 따라 움직인다(첫 장면 채움 그대로 · 점은 따라감) — 따라가게 하려면 채움 너비를 표식 변수로(저장·캡처 명부에 같이 걷기) */
+    el.dataset.shape = 'bar';
+    const tr = document.createElement('span'), fill = document.createElement('span');
+    tr.className = 'sld-bar-track'; fill.className = 'sld-bar-fill';
+    tr.style.cssText = `position:relative;display:block;width:100%;height:${o.thick}px;border-radius:${o.thick / 2}px;background:${o.off};overflow:hidden;`;
+    fill.style.cssText = `position:absolute;left:0;top:0;bottom:0;width:${(Math.min(1, (active + 1) / Math.max(1, n)) * 100).toFixed(4)}%;border-radius:${o.thick / 2}px;background:${o.on};`;
+    tr.appendChild(fill); el.replaceChildren(tr);
+    return;
+  }
+  delete el.dataset.shape;
   el.replaceChildren(...Array.from({ length: n }, (_, i) => { const d = document.createElement('span'); d.style.cssText = `width:${DOT_D}px;height:${DOT_D}px;border-radius:50%;background:${i === active ? o.on : o.off};`; return d; }));
   if (_hsX(block) > 0) _syncHScrollDots(block);   // 138 — 밀린 채 다시 그리면 점 표식을 다시 씌움
 }
@@ -192,7 +203,7 @@ function _syncHScrollDots(block) {
   block.classList.toggle('sld-hs', x > 0);   // 표식 = 트랙 translate + 점 활성(산출물엔 안 감)
   if (x <= 0) block.style.removeProperty('--sld-hs-x'); else block.style.setProperty('--sld-hs-x', `${x}px`);
   dots?.querySelectorAll('.sld-dot-hs-on').forEach((d) => d.classList.remove('sld-dot-hs-on'));
-  if (x <= 0 || !dots) return;
+  if (x <= 0 || !dots || dots.dataset.shape === 'bar') return;   // 진행바 = 위 _renderDots shortcut(임시 밀기 중 채움 안 따라감)
   let k = 0;
   const cells = [...(block.querySelector(':scope > .sld-track')?.children || [])];
   cells.forEach((c, i) => { if (c.offsetLeft <= x + 1) k = i; });

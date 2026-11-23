@@ -118,11 +118,14 @@ export function drawLanes(ctx, W, H, imgs, lgs, dir, k, t, gapPx, axis = 'x', em
 }
 const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || fx === 'slide-trail' || slideInPlace(fx) || slideCentered(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
-export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9' });
+export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9', dotShape: 'dots', barThick: 4 });
 /* SLIDE-LAYOUT-STATIC-MODES-01(현빈 피드백 2 ⑥) — 정지 꼴(캔버스·PNG·HTML·Figma 첫 장면) = 기본 줄 / 가운데 캐러셀 / 단일 컷 · GIF 효과와 별개(row = 옛 그대로 = 효과가 정하던 첫 장면) */
 export const SLIDE_MODES = Object.freeze(['row', 'center', 'single']);
 /* SLIDE-INDICATOR-DOTS-01(P224·P228) — 점 표시 띠: 위/아래 · 띠 높이·점 지름·사이 = 블럭 px(그릴 때 ×k) · 색 = 첫 장면 DOM(renderSlideBlock)과 GIF(drawDots)가 같은 값 */
 export const SLIDE_DOTS = Object.freeze(['none', 'top', 'bottom']);
+/* SLIDE-PROGRESS-BAR-01(0.9.13 195 · 현빈 261123 D «표시 모양» = 점 · 진행바) — 위치(dots: none/top/bottom)는 그대로 두고 «모양»만 따로(옛 저장본 = 키 없음 = 점 · 바이트 무변).
+   진행바 = 띠 폭 전체 빈 막대(dotOff) 위에 «지금 칸까지»(active+1)/n 채운 막대(dotOn) · 두께 barThick · 칸↔바 갭 = dotGap(점과 같은 키 — 모양을 바꿔도 갭·색 유지). */
+export const SLIDE_DOT_SHAPES = Object.freeze(['dots', 'bar']);
 export const DOT_BAND = 24, DOT_D = 8, DOT_GAP = 8, DOT_ON = '#4a4a4a', DOT_OFF = '#c9c9c9';
 /* SLIDE-FX-SWIPE-TRAIL-01 «세기 조절»(83 · 지디 261120): trail = 첫(가장 가까운) 잔상의 불투명 % · 기본 = 옛 고정값 TRAIL_A(22) → 안 건드린 블럭 그림 그대로 · 0 = 잔상 없음(= 스와이프) · 상한 60 */
 export const TRAIL_MAX = 60;
@@ -136,7 +139,7 @@ const _num = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFinite
 const _dotColor = (c, d) => (typeof c === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(c) ? c.toLowerCase() : d);
 /** 점 띠 높이 = 칸↔점 갭 × 2 + 점 지름(첫 장면 트랙 줄임 · GIF 비움 · 칸 찍기 크기가 같은 값). */
 /* SLIDE-DOTS-GAP-SLIDER-01(137 · 현빈 5차 (d) «갭만 움직여야») — 띠 = 칸↔점 갭(움직임) + 점 + 바깥 여백(DOT_GAP 고정 · 옛 기본 8). 옛 판은 갭 × 2 라 바깥 여백까지 같이 변했다. 기본(갭 8)은 옛 24 그대로. */
-export const dotBand = (layout) => normLayout(layout).dotGap + DOT_D + DOT_GAP;
+export const dotBand = (layout) => { const l = normLayout(layout); return l.dotGap + (l.dotShape === 'bar' ? l.barThick : DOT_D) + DOT_GAP; };   // 진행바 = 점 지름 대신 바 두께
 /** 내용 배치 소독 — 카드 폭 % · 간격 px · 블럭 높이 px. */
 export function normLayout(o) {
   const s = o && typeof o === 'object' ? o : {};
@@ -145,7 +148,8 @@ export function normLayout(o) {
     dots: SLIDE_DOTS.includes(s.dots) ? s.dots : SLIDE_LAYOUT_DEFAULT.dots, mode: SLIDE_MODES.includes(s.mode) ? s.mode : SLIDE_LAYOUT_DEFAULT.mode,
     /* SLIDE-DOTS-SPACING-01(현빈 정정) — 칸↔점 갭(띠 = 갭×2 + 점 지름 · 기본 8 → 띠 24 = 옛 그대로) · 점↔점 간격 · 켜진/꺼진 점 색(#rrggbb[aa] 만 — style 글자로 들어간다) */
     dotGap: _num(s.dotGap, 0, 40, SLIDE_LAYOUT_DEFAULT.dotGap), dotSpace: _num(s.dotSpace, 2, 40, SLIDE_LAYOUT_DEFAULT.dotSpace),
-    dotOn: _dotColor(s.dotOn, SLIDE_LAYOUT_DEFAULT.dotOn), dotOff: _dotColor(s.dotOff, SLIDE_LAYOUT_DEFAULT.dotOff) };
+    dotOn: _dotColor(s.dotOn, SLIDE_LAYOUT_DEFAULT.dotOn), dotOff: _dotColor(s.dotOff, SLIDE_LAYOUT_DEFAULT.dotOff),
+    dotShape: SLIDE_DOT_SHAPES.includes(s.dotShape) ? s.dotShape : SLIDE_LAYOUT_DEFAULT.dotShape, barThick: _num(s.barThick, 1, 12, SLIDE_LAYOUT_DEFAULT.barThick) };
 }
 /** 움직임 소독 — 방향 · 머무름(초) · 속도 배율. */
 export function normAnim(o) {
@@ -281,6 +285,12 @@ export function slideActiveIndex(geom, s) {
 export function drawDots(ctx, W, H, n, active, pos, k, opt = {}) {
   if (pos !== 'top' && pos !== 'bottom') return;
   const space = opt.space ?? DOT_GAP, on = opt.on ?? DOT_ON, off = opt.off ?? DOT_OFF;   // opt = 레이아웃 점 값(SLIDE-DOTS-SPACING-01 · 없으면 옛 상수)
+  if (opt.shape === 'bar') {   // SLIDE-PROGRESS-BAR-01 — 첫 장면 DOM(.sld-dots[data-shape=bar])과 같은 자리·두께·색 · 채움 = (active+1)/n
+    const t = (opt.thick ?? 4) * k, y0 = pos === 'top' ? DOT_GAP * k : H - (DOT_GAP * k + t), r = t / 2;
+    const bar = (w, c) => { if (w <= 0) return; ctx.fillStyle = c; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(0, y0, w, t, r); else ctx.rect(0, y0, w, t); ctx.fill(); };
+    bar(W, off); bar(W * Math.min(1, Math.max(0, (active + 1) / Math.max(1, n))), on);
+    return;
+  }
   const d = DOT_D * k, g = space * k, total = n * d + Math.max(0, n - 1) * g;
   const cy = pos === 'top' ? (DOT_GAP + DOT_D / 2) * k : H - (DOT_GAP + DOT_D / 2) * k;   // 점 = 바깥 여백(고정) 바로 안쪽 · 칸 쪽 갭이 늘어도 점은 블럭 끝에서 같은 자리(137)
   let x = (W - total) / 2 + d / 2;
