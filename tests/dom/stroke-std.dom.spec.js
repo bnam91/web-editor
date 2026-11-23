@@ -213,7 +213,7 @@ test('S6b table — 머리 없음 · 선 토글 넷 = 슬롯 · 굵기 = 외곽�
   const errs = await bootApp(page);
   const id = await openNew(page, 'window.addTableBlock()', '.table-block', 'showTableProperties');
   await page.waitForSelector('#tbl-outerw-number', { state: 'attached' });
-  const r = await page.evaluate(() => ({ head: !!document.getElementById('tbl-stroke-on'), toggles: ['vlines', 'hlines', 'outerx', 'outery'].map((t) => !!document.getElementById(`tbl-show-${t}`)?.closest('[data-slot-kind="edge-select"]')), align: [document.getElementById('tbl-stroke-align').value, document.getElementById('tbl-stroke-align').getAttribute('aria-disabled')] }));
+  const r = await page.evaluate(() => ({ head: !!document.getElementById('tbl-stroke-on'), toggles: [...document.querySelectorAll('#panel-right [data-slot-kind="edge-select"] .ui-edge-btn')].length === 10 ? [true, true, true, true] : [false]   /* ★기대 바뀜(단계 4 · 시안 12): 옛 토글 넷 → edge-select 단추 10(묶음 4 + 변 6) */, align: [document.getElementById('tbl-stroke-align').value, document.getElementById('tbl-stroke-align').getAttribute('aria-disabled')] }));
   await fillChange(page, '#tbl-outerw-number', '4');
   const w4 = await page.evaluate((id) => [document.getElementById(id).dataset.outerWidth, document.getElementById(id).style.getPropertyValue('--tbl-outer-w')], id);
   await fillChange(page, '#tbl-outerw-number', '0');
@@ -490,5 +490,48 @@ test('S9d radial 호 — 점선 + 점선 끝 «둥글게»여도 선 끝이 상�
   expect(b0.cap, '[전제] 키 없음 = 옛 butt').toBe('butt');
   expect(b1.cap, '★둥글게 = round').toBe('round');
   expect(b1.out, `★둥근 끝이 상자 왼쪽 밖으로 ${b1.out}px`).toBeLessThanOrEqual(0.5);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* S10 단계 4 — edge-select(«변 선택 테두리» · §4c ②b · 시안 strokestd2 9·12): 표 = 변 6 · 좌우/상하 같이 · 바뀐 키만 씀 · 묶음 · ⌘Z 한 칸 / 그리드 = 바깥 넷 + 모두/없음(옛 속성 지킴) */
+test('S10a 표 — 왼쪽 누르면 좌우 같이(showOuterX 하나만 바뀜) · «없음» = 넷 다 false · ⌘Z 한 칸 · 다시 열어도 같은 변', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addTableBlock()', '.table-block', 'showTableProperties');
+  await page.waitForSelector('#tbl-stroke-edges');
+  const ks = () => page.evaluate((id) => { const d = document.getElementById(id).dataset, g = document.getElementById('tbl-stroke-edges'); return { keys: ['showVLines', 'showHLines', 'showOuterX', 'showOuterY'].map((k) => d[k] ?? null), value: g.dataset.value, active: [...g.querySelectorAll('.ui-edge-btn.active')].map((b) => b.dataset.strokeEdge || `p:${b.dataset.edgePreset}`) }; }, id);
+  const k0 = await ks();
+  await page.click('#tbl-stroke-edges [data-stroke-edge="left"]');
+  const k1 = await ks();
+  await page.click('#tbl-stroke-edges [data-edge-preset="none"]');
+  const k2 = await ks();
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const k3 = await page.evaluate((id) => ['showVLines', 'showHLines', 'showOuterX', 'showOuterY'].map((k) => document.getElementById(id).dataset[k] ?? null), id);
+  await page.evaluate((id) => { window.deselectAll(); window.selectBlock(id); window.showTableProperties(document.getElementById(id)); }, id);
+  const k4 = await ks();
+  console.log('[S10a 실측]', JSON.stringify({ k0, k1, k2, k3, k4 }));
+  expect(k0, '[전제] 새 표(실측: addTableBlock 이 키를 씀 · 바깥 좌우 끔) = 위·아래·안쪽 둘').toEqual({ keys: ['true', 'true', 'false', 'true'], value: 'top,bottom,inner-h,inner-v', active: ['top', 'bottom', 'inner-h', 'inner-v'] });
+  expect(k1, '★왼쪽 = 좌우 같이 켬 · showOuterX 하나만 바뀜 · 모두 활성').toEqual({ keys: ['true', 'true', 'true', 'true'], value: 'top,right,bottom,left,inner-h,inner-v', active: ['p:all', 'top', 'right', 'bottom', 'left', 'inner-h', 'inner-v'] });
+  expect(k2.keys, '★없음 = 넷 다 false').toEqual(['false', 'false', 'false', 'false']);
+  expect(k2.active, '★없음 활성').toEqual(['p:none']);
+  expect(k3, '★⌘Z 한 칸 = 없음 전').toEqual(['true', 'true', 'true', 'true']);
+  expect(k4.value, '★다시 열어도 같은 변').toBe('top,right,bottom,left,inner-h,inner-v');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S10b 그리드 블럭 외곽선 — edge-select(바깥 넷 + 모두/없음 = 단추 6 · 옛 data-outline-* 지킴) · 위 = blockOutline top · 없음 = 빈 목록', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addGridBlock()', '.grid-block', 'showGridProperties');
+  await page.waitForSelector('#grd-outline-group');
+  const r0 = await page.evaluate(() => { const g = document.getElementById('grd-outline-group'); return { n: g.querySelectorAll('.ui-edge-btn').length, sides: [...g.querySelectorAll('[data-outline-side]')].map((b) => b.dataset.outlineSide), all: [...g.querySelectorAll('[data-outline-all]')].map((b) => b.dataset.outlineAll), field: g.dataset.field }; });
+  await page.click('#grd-outline-group [data-outline-side="top"]');
+  const o1 = await page.evaluate((id) => document.getElementById(id).dataset.blockOutline ?? null, id);
+  await page.click('#grd-outline-group [data-outline-all="0"]');
+  const o2 = await page.evaluate((id) => document.getElementById(id).dataset.blockOutline ?? null, id);
+  console.log('[S10b 실측]', JSON.stringify({ r0, o1, o2 }));
+  expect(r0, '★단추 6 · 옛 속성').toEqual({ n: 6, sides: ['top', 'right', 'bottom', 'left'], all: ['1', '0'], field: 'stroke-edges' });
+  expect(o1, '★위 켬').toBe('top');
+  expect(o2 === '' || o2 === 'none' || o2 === null, `★없음 = 빈 목록(${o2})`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
