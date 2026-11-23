@@ -81,7 +81,16 @@ test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z �
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 150, y + 60, { steps: 10 }); await page.mouse.up(); await page.evaluate(() => { window.__upAt = performance.now(); }); await stable(page, '#vV'); await seq(page, '끌기', log);
   if (!(await page.locator('#vb-float-toggle').isVisible())) await openPanel(page);
   await page.waitForFunction(() => performance.now() - window.__upAt > 150);   // ★전제(아이맥 3eb53c9b5 D2 «토글이 상태를 바꿨다» 빨강) — 끌고 놓은 뒤 120ms 는 합성 click 을 삼킨다(overlay-float.js onUp killClick · 놓는 자리 선택 풀림 막기) ⇒ 그 창이 닫힌 뒤 누른다(사람 손 속도 · 고정 대기 아님 = 조건 대기)
-  await toggle(page); await seq(page, '끔', log);
+  /* 표식(지디 261123 — 150ms 대기로도 «끔»이 안 눌림 · 추측 고침 말고 잰다): 누르기 직전 단추 hit-test · 상태 · 패널이 쥔 블럭 · 누른 뒤 click 도달(창 capture = killClick 앞 · 문서 bubble = killClick 뒤) */
+  const probe = await page.evaluate(() => { const b = document.getElementById('vb-float-toggle'), r = b?.getBoundingClientRect(), hit = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    window.__clk = []; window.addEventListener('click', (e) => window.__clk.push(['win-cap', e.target.id || e.target.className]), { capture: true, once: true }); document.addEventListener('click', (e) => window.__clk.push(['doc-bub', e.target.id || e.target.className, e.defaultPrevented]), { once: true });
+    return { sinceUp: Math.round(performance.now() - window.__upAt), exists: !!b, connected: !!b?.isConnected, disabled: !!b?.disabled, aria: b?.getAttribute('aria-pressed') ?? b?.getAttribute('aria-disabled') ?? null, cls: b?.className, rect: r && [r.left, r.top, r.width, r.height].map(Math.round), hit: hit && ((hit.id || '') + '.' + String(hit.className).split(' ')[0]), hitIsBtn: !!hit && (hit === b || b.contains(hit)), panelBlock: document.querySelector('#panel-right [data-block-id]')?.dataset.blockId ?? null, selected: [...document.querySelectorAll('#canvas .selected')].map((e) => e.id) }; });
+  const wasF = await page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true');
+  await page.click('#vb-float-toggle'); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const after = await page.evaluate(() => ({ clk: window.__clk, nowF: window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true' }));
+  console.log('[D2 끔 표식]', JSON.stringify({ probe, wasF, after }));
+  expect(after.nowF, '[전제] 오버레이 토글이 상태를 바꿨다(«끔»)').toBe(!wasF);
+  await stable(page, '#vV'); await seq(page, '끔', log);
   for (const [k, l] of [['Meta+z', '⌘Z'], ['Meta+Shift+z', '⌘⇧Z'], ['Meta+z', '⌘Z 2']]) { await page.keyboard.press(k); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await seq(page, l, log); }
   await page.evaluate(async () => { window.deselectAll(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; await window.applyProjectData(d); });
   await page.waitForFunction(() => !!document.querySelector('#canvas .section-block'));
