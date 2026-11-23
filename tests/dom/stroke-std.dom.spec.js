@@ -734,3 +734,48 @@ test('S14c 주석 — 선 절 머리 없음 · Label border ＋/− = 굵기 0 �
   expect([off, on], '★− = 0 · ＋ = 지난 굵기 1').toEqual(['0', '1']);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* S15 단계 5 — 끝점 슬롯(stroke-ends · 시안 strokestd2 24): 선·화살표 · 키 strokeStart/strokeEnd = 그 종류 기본과 다를 때만(기본 = 지금 그림: 선 round/round · 화살표 round/arrow-triangle) · 바꾸기 · 내보내기 */
+test('S15a 화살표 — 기본 = 키 0·옛 SVG · 시작점 원 = 키 둘 + circle · 바꾸기 = 삼각이 앞 · ⌘Z 한 칸 · 기본으로 되돌리면 키 0·옛 SVG 바이트', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, "window.addShapeBlock('arrow')", '.shape-block', 'showShapeProperties');
+  await page.waitForSelector('#shape-stroke-start', { state: 'attached' });
+  const st = () => page.evaluate((id) => { const b = document.getElementById(id), sv = b.querySelector('svg'); return { keys: [b.dataset.strokeStart ?? null, b.dataset.strokeEnd ?? null], inner: sv.innerHTML, circle: sv.querySelectorAll('circle[data-end]').length, tri: [...sv.querySelectorAll('polygon[data-end]')].map((p) => p.getAttribute('points').split(' ')[0]) }; }, id);
+  const s0 = await st();
+  const sel0 = await page.evaluate(() => [document.getElementById('shape-stroke-start').value, document.getElementById('shape-stroke-end').value]);
+  await page.selectOption('#shape-stroke-start', 'arrow-circle');
+  const s1 = await st();
+  await page.click('#shape-stroke-ends-swap');
+  const s2 = await st();
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const s3 = await st();
+  await page.evaluate((id) => { window.deselectAll(); window.selectBlock(id); window.showShapeProperties(document.getElementById(id)); }, id);
+  await page.selectOption('#shape-stroke-start', 'round');
+  const s4 = await st();
+  console.log('[S15a 실측]', JSON.stringify({ s0: { ...s0, inner: s0.inner.slice(0, 80) }, sel0, s1: { ...s1, inner: '' }, s2: { ...s2, inner: '' }, s3: { ...s3, inner: '' }, s4: { ...s4, inner: s4.inner.slice(0, 80) } }));
+  expect([s0.keys, sel0], '★기본 = 키 0 · 고르개 = round / 삼각').toEqual([[null, null], ['round', 'arrow-triangle']]);
+  expect([s1.keys, s1.circle, s1.tri], '★시작점 원 = 키 둘 · circle 1 · 끝 삼각(끝 194)').toEqual([['arrow-circle', 'arrow-triangle'], 1, ['194,20']]);
+  expect([s2.keys, s2.tri], '★바꾸기 = 삼각이 앞(시작 6) · 원이 끝').toEqual([['arrow-triangle', 'arrow-circle'], ['6,20']]);
+  expect(s3.keys, '★⌘Z 한 칸 = 바꾸기 전').toEqual(['arrow-circle', 'arrow-triangle']);
+  expect([s4.keys, s4.inner], '★기본으로 = 키 0 · 옛 SVG 그대로').toEqual([[null, null], s0.inner]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S15b 선 — 끝점 슬롯 · 끝 삼각 = Figma JSON shapeInner(캔버스 SVG) · HTML 에 polygon · 사각형엔 슬롯 없음', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, "window.addShapeBlock('line')", '.shape-block', 'showShapeProperties');
+  await page.waitForSelector('#shape-stroke-end', { state: 'attached' });
+  await page.selectOption('#shape-stroke-end', 'arrow-triangle');
+  const r = await page.evaluate((id) => { const find = (o) => { if (!o || typeof o !== 'object') return null; if (o.id === id && o.type === 'shape') return o; for (const v of Object.values(o)) { const f = find(v); if (f) return f; } return null; }; const j = find(window.buildFigmaExportJSON(null)); return { inner: j?.shapeInner ?? null, live: document.querySelector(`#${id} svg`).innerHTML.replace(/\s+/g, ' ').trim() }; }, id);
+  const [dh] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => { window.exportHTMLFile(); return null; })]);
+  const html = require('fs').readFileSync(await dh.path(), 'utf8');
+  const htmlPoly = new RegExp(`id="${id}"[\\s\\S]{0,3000}?<polygon points="194,20 170,10 170,30"`).test(html);
+  const rect = await (async () => { await openNew(page, "window.addShapeBlock('rectangle')", '.shape-block', 'showShapeProperties'); return page.evaluate(() => !!document.getElementById('shape-stroke-start')); })();
+  console.log('[S15b 실측]', JSON.stringify({ inner: (r.inner || '').slice(0, 120), same: r.inner === r.live, htmlPoly, rect }));
+  expect(r.inner === r.live && /polygon points="194,20 170,10 170,30"/.test(r.inner || ''), '★Figma JSON = 캔버스 SVG 그대로(끝 삼각)').toBe(true);
+  expect(htmlPoly, '★HTML 내보내기에 끝 삼각').toBe(true);
+  expect(rect, '★사각형 = 끝점 슬롯 없음').toBe(false);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

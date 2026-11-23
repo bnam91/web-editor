@@ -105,3 +105,24 @@ test('P3 옛 플러그인(dev) + 새 인자 = 균일 테두리는 그려짐(굵�
   assert.equal(n.strokeWeight, 2, '★옛 플러그인도 굵기(균일)는 단다');
   assert.deepEqual([n.strokeTopWeight, n.strokeAlign], [1, 'CENTER'], '옛 판은 면별·정렬을 모른다(무시 — 오류 없이)');
 });
+
+/* E 단계 5 — 선·화살표 끝점: 보내는 쪽 shapeInner(캔버스 SVG) → 렌더러가 꼴 검사 후 그대로 · 아니면 옛 DEFS */
+const ARROW = { type: 'shape', id: 'a1', shapeType: 'arrow', color: '#ff0000', strokeWidth: 3, rotation: 0, width: 200, height: 60 };
+const svgOfShape = (b) => render([b]).find((x) => x.cmd === 'create_node_from_svg').params.svg;
+test('E0 [음성] shapeInner 없음 = 옛 화살표(선 172 + polygon 170,10 194,20 170,30)', () => {
+  const s = svgOfShape(ARROW);
+  assert.match(s, /<line x1="10" y1="20" x2="172" y2="20" stroke-linecap="round"\/><polygon points="170,10 194,20 170,30"/);
+});
+test('E1 shapeInner(원 화살표 시작 · 선 화살표 끝) = 그 SVG · currentColor → 선 색', () => {
+  const inner = '<line x1="14" y1="20" x2="194" y2="20" stroke-linecap="butt" data-end-main="1"></line><circle cx="14" cy="20" r="8" fill="currentColor" stroke="none" data-end="1"></circle><polyline points="180,12 194,20 180,28" fill="none" stroke-linejoin="miter" stroke-linecap="butt" data-end="1" stroke-dasharray="none"></polyline>';
+  const s = svgOfShape({ ...ARROW, shapeInner: inner });
+  assert.ok(s.includes('<circle cx="14" cy="20" r="8" fill="#ff0000"'), s);
+  assert.ok(s.includes('<polyline points="180,12 194,20 180,28"'), s);
+  assert.ok(!/170,10 194,20 170,30/.test(s), '옛 화살표가 남았다');
+});
+test('E2 꼴 틀린 shapeInner(스크립트·모르는 속성) = 안 씀 · 옛 화살표', () => {
+  for (const bad of ['<script>alert(1)</script>', '<line x1="1" onclick="a"/>', '<image href="x"/>']) {
+    const s = svgOfShape({ ...ARROW, shapeInner: bad });
+    assert.ok(/170,10 194,20 170,30/.test(s) && !/script|onclick|image/.test(s), bad);
+  }
+});
