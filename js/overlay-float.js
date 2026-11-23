@@ -652,7 +652,7 @@ export function bindFloatMoveDrag(posEl) {
     /* ★히스토리는 «양쪽 끝»을 찍는다(js/drag-history.js). 옛 판은 시작만 찍어서
        ⑴뒤에 우측패널(push-after)이 오면 ⌘Z 한 번이 둘을 같이 먹고 ⑵undo→redo 로
        이동이 영영 사라졌다. 형제 제스처(T-068 리사이즈)는 이미 이 규약이다. */
-    const _hist = window.beginDragHistory?.('오버레이 이동');
+    const _hist = window.beginDragHistory?.('Ignore Auto Layout 이동');
 
     /* ★2026-09-16i P0(현빈 실측 — "움직임 범위에도 한정되어 있다") — _clampToSection에
        posEl.offsetWidth/offsetHeight(회전 «전» 크기)를 그대로 넘겨서, 예를 들어 가로로
@@ -812,7 +812,7 @@ export function bindFloatMoveDrag(posEl) {
         if ((floatHostOf(posEl) || sec) !== host0) window.buildLayerPanel?.();   // S5-2 «레이어 패널 갱신 안 됨»
         /* ★«끝 표본» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃
            (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
-        window.pushHistory?.('오버레이 이동');
+        window.pushHistory?.('Ignore Auto Layout 이동');
         window.triggerAutoSave?.();
         /* ★끌고 난 «뒤»의 합성 click 을 삼킨다 (2026-09-21 수리공 유닛 ②)
            브라우저는 누름·놓음의 «공통 조상»에서 click 을 새로 만든다. 오버레이는
@@ -853,7 +853,7 @@ export function wireFloatToggle({ block, buttonId, rerender }) {
     const posEl = posElOf(block);
     if (!posEl) return;
     const wasOverlay = isFloat(posEl);
-    const label = wasOverlay ? '오버레이 해제' : '오버레이로 전환';
+    const label = wasOverlay ? 'Ignore Auto Layout 끔' : 'Ignore Auto Layout 켬';   // IAL-01 이름
     /* ★토글도 «양쪽 끝»을 찍는다(드래그와 같은 규약 — js/drag-history.js 머리말).
        옛 판은 «전»만 찍어서, 토글 뒤에 우측패널(push-after) 동작이 오면 그 사이에 표본이
        없어 ⌘Z 한 번이 둘을 같이 먹었다(실측: 에셋 오버레이 ON → radius 0→24 → ⌘Z =

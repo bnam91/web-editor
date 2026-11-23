@@ -412,15 +412,17 @@ export function borderBtn(key, o = {}) {
    ⚠️산출 문자열은 골든 픽스처(tests/fixtures/text-props-golden*.html)가 바이트로 고정한다 —
      들여쓰기·줄바꿈까지 그대로 유지할 것(호출부는 8칸 들여쓰기 자리에 놓는다).
 ═══════════════════════════════════════════════════════════════════════════ */
+/* ★IAL-01(0.9.13 186행 · 현빈 승인 261122 · 시안 8910 «ial» 열) — 이름·아이콘 = Figma «Ignore Auto Layout»(네 모서리 괄호 + 작은 네모) · 옛 «오버레이»(네모 둘 겹침) */
+export const IAL_TITLE = 'Ignore Auto Layout — 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.';
 export function overlayToggleBtnHTML({ id, active = false, title } = {}) {
-  const t = title || '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.';
+  const t = title || IAL_TITLE;
   return `
         <button type="button" class="prop-chain-btn prop-chain-btn--overlay${active ? ' active' : ''}" id="${id}"
-          aria-pressed="${active ? 'true' : 'false'}"
+          aria-pressed="${active ? 'true' : 'false'}" aria-label="Ignore Auto Layout"
           title="${t}">
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2">
-            <rect x="1" y="4" width="6" height="6" rx="1"/>
-            <rect x="5" y="1" width="6" height="6" rx="1" fill="var(--ui-bg-card)"/>
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1">
+            <path d="M1 3.5V1h2.5M8.5 1H11v2.5M11 8.5V11H8.5M3.5 11H1V8.5"/>
+            <rect x="3.8" y="3.8" width="4.4" height="4.4" rx=".6"/>
           </svg>
         </button>`;
 }

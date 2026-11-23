@@ -1,3 +1,4 @@
+/* ★기대 바뀜(IAL-01 · 0.9.13 186행 · 현빈 승인 261122) — «오버레이» → «Ignore Auto Layout»(이력 이름 포함) */
 /* modal-overlay-float.dom.spec.js — T3 「모달 오버레이 기능이 안 보인다 ⇒ 추가」
  *   (현빈 섹션메모 `sec_3e0suk0` · 지디 발주 2026-10-07)
  *
@@ -178,7 +179,7 @@ test('M-OVL3 ★오버레이 토글 한 번 = 히스토리가 «양쪽 끝»을 
   expect(r.liveExists, 'undo 뒤 모달이 사라졌다').toBe(true);
   expect(r.reQueried, '★undo 가 노드를 안 갈아끼웠다 — 이 칸의 «다시 집기» 전제가 바뀌었다').toBe(true);
   /* ★라벨로도 한 번 — 「오버레이로 전환」이 되돌려졌나 */
-  expect(r.labelBefore, `토글 뒤 꼭대기 라벨 ${r.labelBefore}`).toMatch(/오버레이/);
+  expect(r.labelBefore, `토글 뒤 꼭대기 라벨 ${r.labelBefore}`).toMatch(/Ignore Auto Layout/);
   expect(r.posAfter, `★⌘Z 한 번에 안 내려왔다 (${r.posBefore} → ${r.posAfter})`).not.toBe('true');
   expect(errs).toEqual([]);
 });

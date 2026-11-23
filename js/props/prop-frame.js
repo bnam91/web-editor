@@ -537,7 +537,7 @@ function _renderAutoPanel(ss) {
       rotRowHTML({ numberId: 'ss-rotate-deg', value: parseInt(ss.dataset.rotateDeg) || 0, min: -360, max: 360, flipH: ss.dataset.flipH === '1', flipV: ss.dataset.flipV === '1', ids: { r90: 'ss-rotate-90', fh: 'ss-flip-h', fv: 'ss-flip-v' } })}
 `, {
         /* 플로팅 토글 = Position 머리 손잡이(§2-1) */
-        headTools: _canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: (_isGroupFrame ? '그룹' : '프레임') + '을 오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다. 다시 누르면 원래 있던 자리로 돌아갑니다.' }) : '',
+        headTools: _canFloat ? overlayToggleBtnHTML({ id: 'ss-float-toggle', active: _groupFloat, title: 'Ignore Auto Layout — ' + (_isGroupFrame ? '그룹' : '프레임') + '을 자동배치에서 빼서 그 자리에 둔다(옛 «오버레이»). 다시 누르면 원래 자리로 돌아간다.' }) : '',
       }),
       sec('size', `
       <div class="prop-row">

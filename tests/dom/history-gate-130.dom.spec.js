@@ -1,3 +1,4 @@
+/* ★기대 바뀜(IAL-01 · 0.9.13 186행 · 현빈 승인 261122) — «오버레이» → «Ignore Auto Layout»(이력 이름 포함) */
 /* history-gate-130.dom.spec.js — ★130 싼 게이트(js/history.js pushHistory 머리): «무변화 차단이 버릴 게 확실하면» 직렬화 «앞»에서 돌아간다.
  * 셋을 다 잰다: ㉠ 캔버스 세대(js/io/save-load.js 기존 감시자 · class 는 런타임 마커만 바뀐 것만 뺀다) ㉡ pageSettings ㉢ 미확정 영상 사이드카 열쇠(라이브).
  * G0 [전제] 감시자가 돈다(세대 null 아님) · G1 [새 것] 아무것도 안 바뀐 push = 게이트로 버림(직렬화 0) · G2 런타임 마커(selected)만 바뀐 push = 게이트로 버림
@@ -90,7 +91,7 @@ test('N5 [음성대조] 진짜 편집(높이)은 쌓인다', async ({ page }) =>
  *   G1·G2 는 «꼭대기 직후 변이 없는 push»만 잰다 ⇒ 앱의 막힘(오버레이 켜기 push 뒤 늦게 오는 --sec-clip style 한 묶음 → 끌기 시작 표본)을 못 봤다.
  *   이름 명부 = js/non-edit-roster.js(비교 정규식과는 tests/unit/non-edit-roster-167 이 바이트째 묶음). ⛔undo 쪽엔 안 쓴다. */
 test('S1 [167 새 것] 진짜 편집 push → 뒤늦은 --sec-clip 만의 style 묶음 → 시작 표본 push = 게이트로 버림 · 직렬화 0', async ({ page }) => {
-  const errs = await setup(page); const b = await base(page, '오버레이로 전환');
+  const errs = await setup(page); const b = await base(page, 'Ignore Auto Layout 켬');
   await page.evaluate(() => { document.getElementById('hA').style.setProperty('--sec-clip', 'inset(0px 0px 111px 0px)'); window.pushHistory('끌기 시작 표본'); });
   expect(await gate(page) - b.g, '★게이트가 버렸다(뒤늦은 --sec-clip 은 세대를 안 올린다)').toBe(1);
   expect(await ser(page) - b.s, '직렬화 0').toBe(0);
