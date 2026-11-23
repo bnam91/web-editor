@@ -52,8 +52,9 @@ const STATES = [
 const HEAD_PLUS = ['asset-stroke-on', 'txt-shadow-on'];   // + «…-stroke-on»(텍스트 계열 절 머리 ＋) — 숨은 체크
 
 async function clickEl(page, expr) {
-  const p = await page.evaluate((e) => { const el = (0, eval)(e); if (!el) return null; el.scrollIntoView({ block: 'center', inline: 'center' }); const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; }, expr);
+  const p = await page.evaluate((e) => { const el = (0, eval)(e); if (!el) return null; el.scrollIntoView({ block: 'center', inline: 'center' }); const b = el.getBoundingClientRect(); const x = b.left + b.width / 2, y = b.top + b.height / 2; const h = document.elementFromPoint(x, y); return [x, y, !!h && (el.contains(h) || h.contains(el))]; }, expr);
   if (!p) throw new Error('no target ' + expr);
+  if (!p[2]) throw new Error('click owner mismatch ' + expr);   // ★클릭 점의 주인이 그 블럭이 아니면 장면 탓(셈 아님) — 못 엶으로 드러낸다
   await page.mouse.click(p[0], p[1]);
 }
 const newOf = (cls) => `[...document.querySelectorAll('#canvas .${cls}, .${cls}')].filter(e=>!window.__ccBefore.has(e))`;
@@ -73,6 +74,8 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
     if (!/^\d\d$/.test(nn)) continue;
     try {
       await page.evaluate(() => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.deselectAll?.(); });
+      /* ★앞 상태의 섹션을 걷는다 — 스티커 같은 «떠 있는» 블럭은 새 섹션에 넣어도 같은 화면 자리에 겹쳐, 클릭이 «옛 것»을 집었다(지디 C91 2차: 62 coin 앱 0 · 66 glow 앱 3 = 남의 스티커 패널 · 단독으로 재면 1 · 1) */
+      await page.evaluate(() => document.querySelectorAll('#canvas > .section-block').forEach((s) => s.remove()));
       if (add !== 'SPECIAL') {
         await page.evaluate(() => { window.addSection(); });
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });

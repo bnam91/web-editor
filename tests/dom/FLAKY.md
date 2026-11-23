@@ -450,3 +450,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 ## 2026-11-23 · tp/0913-check 묶음 2(srv 좁게) — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `cert-block.dom.spec.js:646` IE1 — srv 6 spec 묶음 workers 1 · retries 1(판 3bd41ee18 작업트리) 첫 시도 빨강 1/1 · 재시도 초록.
 - `cert-block.dom.spec.js:688` RH1 — 같은 판 · 같은 묶음 첫 시도 빨강 1/1 · 재시도 초록.
+
+## 2026-11-23 · tp/0913-check 050b801e8(수지맥 70벌 + census) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `cert-block.dom.spec.js:646` IE1 — 수지맥 050b801e8 전수 · w1 재실행에서 RH1 과 번갈아 빨강 1 · tp/front f27025897 판 같은 범위 39/39 초록.
+- `cert-block.dom.spec.js:688` RH1 — 같은 판 · 같은 재실행에서 IE1 과 번갈아 빨강 1.
