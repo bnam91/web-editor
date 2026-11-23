@@ -717,6 +717,8 @@ async function setStrokeColor(params) {
     nodeId,
     color: { r, g, b, a },
     strokeWeight,
+    sides,   // ★표준 Stroke 4-3(goditor 261124) — 선택: { top, right, bottom, left } → strokeTop/Right/Bottom/LeftWeight(면별) · 없으면 옛 동작
+    align,   // ★선택: 'INSIDE'|'CENTER'|'OUTSIDE' → strokeAlign(goditor CSS 테두리 = border-box = INSIDE) · 없으면 옛 동작
   } = params || {};
 
   if (!nodeId) {
@@ -772,6 +774,13 @@ async function setStrokeColor(params) {
   if ("strokeWeight" in node) {
     node.strokeWeight = strokeWeightParsed;
   }
+  if (sides && typeof sides === "object" && "strokeTopWeight" in node) {
+    for (const [k, prop] of [["top", "strokeTopWeight"], ["right", "strokeRightWeight"], ["bottom", "strokeBottomWeight"], ["left", "strokeLeftWeight"]]) {
+      const v = parseFloat(sides[k]);
+      if (!isNaN(v) && v >= 0) node[prop] = v;
+    }
+  }
+  if ((align === "INSIDE" || align === "CENTER" || align === "OUTSIDE") && "strokeAlign" in node) node.strokeAlign = align;
 
   return {
     id: node.id,

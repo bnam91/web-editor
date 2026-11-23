@@ -66,6 +66,26 @@ function run(command, params, opts = {}) {
 }
 
 // ─── 색상 (hex / rgb() → {r,g,b,a}) ─────────────────────────────
+/* ★표준 Stroke 4-3 — CSS 테두리 → Figma stroke(플러그인 set_stroke_color · 면별 sides → strokeTop/Right/Bottom/LeftWeight · align INSIDE = CSS border-box)
+ *  border 꼴 둘: ⓐ {width, color, style, sides?}(프레임·모달·에셋) ⓑ {top:{width,color,style}|null, …}(그리드 블럭 외곽선 G17) · 없거나 굵기 0 = 아무것도 안 함(옛 명령 그대로)
+ *  ⚠️점선(dashed/dotted)은 아직 굵기·색만(Figma dashPattern = 다음 칸 · 계약 §4c 남은 칸) */
+function _strokeOf(border) {
+  if (!border || typeof border !== 'object') return null;
+  if (typeof border.width === 'number') {
+    if (!(border.width > 0)) return null;
+    const sd = border.sides && typeof border.sides === 'object' ? border.sides : null;
+    return { color: border.color, weight: border.width, sides: sd };
+  }
+  const sides = {}; let color = null, max = 0;
+  for (const k of ['top', 'right', 'bottom', 'left']) { const b = border[k]; const w = b && b.width > 0 ? b.width : 0; sides[k] = w; if (w > 0) { color = color || b.color; max = Math.max(max, w); } }
+  return max > 0 ? { color, weight: max, sides } : null;
+}
+function applyBorder(nodeId, border) {
+  const st = _strokeOf(border);
+  if (!st || !nodeId) return;
+  run('set_stroke_color', { nodeId, color: hex(st.color || '#000000'), strokeWeight: st.weight, ...(st.sides ? { sides: st.sides } : {}), align: 'INSIDE' });
+}
+
 function hex(h) {
   if (!h) return { r: 0, g: 0, b: 0, a: 1 };
   // rgb(r, g, b) or rgba(r, g, b, a)
@@ -235,6 +255,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       ? { x: 0, y: pad, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId: wrap.id, clipsContent: false }
       : { x: fx, y, width: fw, height: fh, name: `frame_${block.id || ''}`, parentId });
     if (!frame) return fh;
+    applyBorder(frame.id, block.border);   // 표준 Stroke 4-3 — 프레임 테두리(없으면 옛 명령 그대로)
     if (block.shadow) run('set_effects', { nodeId: frame.id, effects: [{ type: 'DROP_SHADOW', color: hex(block.shadow.color), offset: { x: 0, y: +block.shadow.y || 0 }, radius: +block.shadow.blur || 0, spread: 0, visible: true, blendMode: 'NORMAL' }] });
     const bgc = (block.bg || '').trim();
     // 프레임 배경: #hex 뿐 아니라 rgb()/rgba()도 파싱(예: 카드 rgba(255,255,255,.55) — 이전엔 미파싱→투명 드롭으로 카드 사라짐).
@@ -625,6 +646,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const wrap = run('create_frame', { x, y, width: tblW, height: tblH, name: `table_${block.id}`, parentId });
     if (!wrap) return tblH;
     run('set_fill_color', { nodeId: wrap.id, color: { r: 1, g: 1, b: 1, a: 0 } });
+    if (block.outer) { const ow = Math.max(1, Number(block.outer.width) || 1); applyBorder(wrap.id, { width: ow, color: block.lineColor || '#cccccc', sides: { top: block.outer.y ? ow : 0, bottom: block.outer.y ? ow : 0, left: block.outer.x ? ow : 0, right: block.outer.x ? ow : 0 } }); }   // 표준 Stroke 4-3 — 표 바깥 변(edge-select)
 
     const font  = loadFontSafe(block.fontFamily || 'Pretendard', 'Regular');
     const fontB = loadFontSafe(block.fontFamily || 'Pretendard', 'Bold');
@@ -746,6 +768,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       parentId,
       clipsContent: block.clip !== false,   // ★FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — «내용 자르기» 끔 = false · 늘 명시(Figma 기본값 true 에 기대지 않는다)
     });
+    if (node) applyBorder(node.id, block.border);   // 표준 Stroke 4-3 — 에셋 테두리
     if (node) {
       if (block.redact) {
         // ★블러(Redact, 1012t1 C1) — 에디터가 원본 src 를 안 싣는다. 불투명 덮개 색으로만 칠한다(도형 가림막과 같은 원칙).
@@ -1063,7 +1086,12 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const _ml = Number.isFinite(block.strokeMiterlimit) && block.strokeMiterlimit >= 1 ? block.strokeMiterlimit : 0;
     const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`
       + (_dash ? `stroke-dasharray:${_dash};` : '') + (_cap ? `stroke-linecap:${_cap};` : '') + (_join ? `stroke-linejoin:${_join};` : '') + (_ml ? `stroke-miterlimit:${_ml};` : '');
-    if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };   // 선·화살표 <line> 의 자기 속성이 물려받기를 이긴다(캔버스와 같은 손)
+    if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };
+    /* ★표준 Stroke 4-2b/4-3 — 사각형 면별(보내는 쪽 strokeSides [위,오른쪽,아래,왼쪽]) = 캔버스 _shapeInnerSVG 와 같은 SVG(면 + 변마다 선) · 꼴 틀리면 옛 rect */
+    if (type === 'rectangle' && Array.isArray(block.strokeSides) && block.strokeSides.length === 4 && block.strokeSides.every((v) => Number.isFinite(v) && v >= 0)) {
+      const [t, r, b, l] = block.strokeSides, ln = (x1, y1, x2, y2, w) => (w > 0 ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}" fill="none"/>` : '');
+      def = { ...def, inner: `<rect x="0" y="0" width="100" height="100" stroke="none"/>` + ln(0, t / 2, 100, t / 2, t) + ln(100 - r / 2, 0, 100 - r / 2, 100, r) + ln(0, 100 - b / 2, 100, 100 - b / 2, b) + ln(l / 2, 0, l / 2, 100, l) };
+    }   // 선·화살표 <line> 의 자기 속성이 물려받기를 이긴다(캔버스와 같은 손)
     const gOpen = rot ? `<g transform="rotate(${rot} ${cxv} ${cyv})">` : '';
     const gClose = rot ? `</g>` : '';
     const defsTag = gradDef ? `<defs>${gradDef}</defs>` : '';
@@ -1425,6 +1453,7 @@ function renderBlock(block, parentId, x, y, availableWidth) {
       if (bgc.startsWith('#') || bgc.startsWith('rgb')) run('set_fill_color', { nodeId: frame.id, color: hex(bgc) });
       else run('set_fill_color', { nodeId: frame.id, color: { r: 1, g: 1, b: 1, a: 0 } });
       if (block.radius) run('set_corner_radius', { nodeId: frame.id, radius: block.radius });
+      applyBorder(frame.id, block.border);   // 표준 Stroke 4-3 — 모달 테두리 · 그리드 블럭 외곽선(G17 면별)
       /* FIGMA-EXPORT-GRID-IMAGES-MISSING-01 — 그리드 칸 그림(보내는 쪽 block.images · 블럭 왼위 기준 레이아웃 px)을 글 «아래» 층에 채운다 */
       (block.images || []).forEach((im, i) => {
         if (!im || typeof im.src !== 'string' || !im.src.startsWith('data:')) return;

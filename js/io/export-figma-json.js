@@ -182,6 +182,8 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  { const K = ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'], sw0 = Number(el.dataset.shapeStrokeWidth) || 0;   // 표준 Stroke 4-2b/4-3 — 사각형 면별(캔버스 _shapeInnerSVG 와 같은 [위,오른쪽,아래,왼쪽])
+    if (out.shapeType === 'rectangle' && sw0 > 0 && K.some((k) => el.dataset[k] != null)) out.strokeSides = K.map((k) => (el.dataset[k] != null ? Math.max(0, Number(el.dataset[k]) || 0) : sw0)); }
   /* ★표준 Stroke 단계 3-2(§4c ②b) — 점선·점선 끝·꼭짓점·Miter = 캔버스가 «이미 그린» svg 값 그대로(prop-shape paintShapeLook) · 키 없는 도형은 안 싣는다 = 옛 JSON 바이트 */
   if (svg && el.dataset.strokeStyle != null && svg.style?.getPropertyValue('stroke-dasharray')) out.strokeDasharray = svg.style.getPropertyValue('stroke-dasharray').replace(/px/g, '').trim().split(/[\s,]+/).join(' ');   // 브라우저는 «24, 16» 으로 돌려준다 → 렌더러 꼴(공백 숫자)로
   if (svg && el.dataset.strokeCap != null && svg.style?.getPropertyValue('stroke-linecap')) out.strokeLinecap = svg.style.getPropertyValue('stroke-linecap').trim();
@@ -657,6 +659,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
           return redact ? { src: null, redact } : {};
         })(),
       };
+      { const _bd = _strokeBorderOut(el.dataset, parseInt(el.dataset.strokeWidth) || 0, el.dataset.strokeColor || '#000000', 'solid'); if (_bd) _assetOut.border = _bd; }   // 표준 Stroke 4-3 — 에셋 테두리(굵기 0 = 안 실음 = 옛 바이트)
       if (!el.dataset.collab && !_assetOut.halftone) Object.assign(_assetOut, _assetFigmaClipCrop(el));   // FIGMA-ASSET-CLIP-OFF-AND-CROP-MISMATCH-01 — 단일 그림만 clip·crop(묶음은 아래 콜라보 갈래 그대로)
       return el.dataset.collab ? _assetCollabFigmaFrame(el, _assetOut) : _assetOut;   // ★1013t2A2
     }
@@ -793,6 +796,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
         rowCount:   rows.length,
         showHeader: el.dataset.showHeader !== 'false',
         showVLines: el.dataset.showVLines !== 'false',
+        ...((el.dataset.showOuterX !== 'false' || el.dataset.showOuterY !== 'false') ? { outer: { x: el.dataset.showOuterX !== 'false', y: el.dataset.showOuterY !== 'false', width: parseInt(el.dataset.outerWidth) || 1 } } : {}),   // 표준 Stroke 4-3 — 표 바깥 변(edge-select left/right · top/bottom) · 둘 다 끔이면 안 실음
         showHLines: el.dataset.showHLines !== 'false',
         lineColor:  el.dataset.lineColor  || '#cccccc',
         headerBg:   el.dataset.headerBg   || '#f0f0f0',
@@ -1127,7 +1131,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
                 || Math.round((el.id && document.getElementById(el.id)?.offsetHeight) || el.offsetHeight || 0),
         bg: ds.bg || '', radius: parseInt(ds.radius) || 0,
         padX: parseInt(ds.padX) || 0, padY: parseInt(ds.padY) || 0,
-        border: bw > 0 ? { width: bw, style: ds.borderStyle || 'solid', color: ds.borderColor || '' } : null,
+        border: _strokeBorderOut(ds, bw, ds.borderColor || '', ds.borderStyle || 'solid'),   // 표준 Stroke 4-3 — 옛 {width,style,color} 같은 글자 순서 · 면별 키 있으면 sides 덧붙음
         gap: ds.variant === 'grid-2' ? (parseInt(ds.gap) || 0) : 0,
         align: ds.align || 'left',
         svg: el.querySelector('.mdl-icon svg')?.outerHTML || '',
@@ -1547,6 +1551,7 @@ function buildFigmaExportJSON(selectedIds, nodeMap) {
       const _bg = fb.dataset.bg || '';
       const out = { type: 'frame', id: fb.id || '', width: w, height: h,
                bg: _bg, radius: parseInt(fb.dataset.radius) || 0, free, children };
+      { const _bd = _strokeBorderOut(fb.dataset, parseInt(fb.dataset.borderWidth) || 0, fb.dataset.borderColor || '', fb.dataset.borderStyle || 'solid'); if (_bd) out.border = _bd; }   // 표준 Stroke 4-3 — 프레임 테두리(굵기 0 = 안 실음)
       // ★0919 QA: 배경 그라데이션 → 모델(렌더러가 set_gradient 로 칠함). 예전엔 렌더러가 CSS 문자열에서 «처음 나오는 rgba()»
       //   를 단색으로 칠해 가운데 스탑 색 한 가지가 됐다.
       if (/gradient\s*\(/i.test(_bg)) {
@@ -1764,3 +1769,13 @@ window.getTextWithLineBreaks = getTextWithLineBreaks;
 window.buildFigmaExportJSON  = buildFigmaExportJSON;
 window.figmaGrainNotice      = figmaGrainNotice;
 window.buildFigmaExportJSONInlined = buildFigmaExportJSONInlined;
+
+/* ══ 표준 Stroke 4-3 — CSS 테두리 → Figma(굵기 0 이면 null = 안 실음 = 옛 바이트) · 면별 키(strokeWidthTop/Right/Bottom/Left · js/stroke-look.js 와 같은 이름) 있으면 sides ══ */
+function _strokeBorderOut(ds, width, color, style) {
+  const w = Number(width) || 0;
+  if (!(w > 0)) return null;
+  const out = { width: w, style, color };
+  const K = [['top', 'strokeWidthTop'], ['right', 'strokeWidthRight'], ['bottom', 'strokeWidthBottom'], ['left', 'strokeWidthLeft']];
+  if (K.some(([, k]) => ds[k] != null)) out.sides = Object.fromEntries(K.map(([sd, k]) => [sd, ds[k] != null ? Math.max(0, Number(ds[k]) || 0) : w]));
+  return out;
+}
