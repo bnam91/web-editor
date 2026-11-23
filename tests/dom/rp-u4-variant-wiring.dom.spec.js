@@ -15,7 +15,7 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d
 /* make = 페이지 안에서 돌 함수 본문(블록 element 를 돌려준다) · open = 패널 여는 전역 · ctl = 조작할 컨트롤 */
 const V = [
   { name: 'asset 기본', make: `return add('asset-block', () => window.addAssetBlock('standard'));`, open: 'showAssetProperties', ctl: { id: 'asset-clip-toggle', click: true } /* 1120b A4 — 텍스트 막 토글 걷음 ⇒ 같은 꼴(체크박스 토글) 내용 자르기 */ },
-  { name: 'asset 이미지', make: `const b = add('asset-block', () => window.addAssetBlock('standard')); window.setAssetImageFromSrc(b, ${JSON.stringify(PNG)}); return b;`, open: 'showAssetProperties', ctl: { id: 'asset-grain-slider', value: '30' } },
+  { name: 'asset 이미지', make: `const b = add('asset-block', () => window.addAssetBlock('standard')); window.setAssetImageFromSrc(b, ${JSON.stringify(PNG)}); return b;`, open: 'showAssetProperties', ctl: { id: 'asset-clip-toggle', click: true } },   // ★전제 바뀜(현빈 261123 그레인 → Effects «Noise» · 그레인 슬라이더 걷힘 ⇒ 같은 패널 내용 자르기 토글 · train/0913-a 충돌 = 통일판 줄 위에 noise 한 줄)
   { name: 'asset 영상', make: `const b = add('asset-block', () => window.addAssetBlock('standard')); b.classList.add('has-image'); b.dataset.assetType = 'video-pending'; return b;`, open: 'showAssetProperties', ctl: { id: 'asset-clip-toggle', click: true } /* 1120b A4 — 텍스트 막 토글 걷음 ⇒ 같은 꼴(체크박스 토글) 내용 자르기 */ },
   { name: 'asset 로고', make: `return add('asset-block', () => window.addAssetBlock('logo'));`, open: 'showAssetProperties', ctl: { id: 'asset-collab-toggle', click: true } },
   { name: 'asset 플로팅', make: `return add('asset-block', () => window.addAssetBlock('standard'));`, open: 'showAssetProperties', ctl: { id: 'asset-float-toggle', click: true }, after: 'asset-x-number' },
