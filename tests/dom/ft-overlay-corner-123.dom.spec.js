@@ -29,7 +29,7 @@ async function setup(page, { ft = true, tall = true } = {}) {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach((s) => s.remove());
     window.addSection();
-    const sec = c.querySelector('.section-block');
+    const sec = c.querySelector('.section-block'); delete sec.dataset.overflowVisible;   // ★전제 바뀜(현빈 261123 E — 새 섹션 Clip content 기본 끔 · cf2dfa743): 이 파일 장면은 «켬»(섹션 밖 잘림) 전제 — C2 가 그 잘림을 잰다 → 켠 섹션(키 없음 = 자름)
     if (tall) sec.style.minHeight = '420px';   // ★전제 바뀜(현빈 261123 t13E-07 Clip content 기본 켬 · ⓐ 확정): 새 섹션(283) 아래로 글상자가 19px 걸쳐 se·sw 모서리가 섹션 밖 = 잘림(실측 · 열차 전수) — 모서리를 섹션 안에 두는 장면
     window.selectSection(sec);
     window.addTextBlock('h1', { content: '오버레이 자유변형' });
