@@ -509,8 +509,8 @@ if (typeof window !== 'undefined') window.overlayToggleBtnHTML = overlayToggleBt
 export function checkHTML({ id, label = '', checked = false, ariaLabel = '', labelledby = '', blockedWhy = '', attrs = '' } = {}) {
   const a = [`type="checkbox"`, `class="ui-check-box"`];
   if (id) a.push(`id="${escHtml(id)}"`);
-  if (checked === true) a.push('checked');
   if (checked === null) a.push('data-mixed="1"');
+  else if (checked) a.push('checked');   // 참 같은 값(dataset 글 등)도 켬 — 옛 `${v ? 'checked' : ''}` 와 같은 판정
   if (!label && ariaLabel) a.push(`aria-label="${escHtml(ariaLabel)}"`);
   if (!label && labelledby) a.push(`aria-labelledby="${escHtml(labelledby)}"`);
   if (blockedWhy) a.push('aria-disabled="true"', `title="${escHtml(blockedWhy)}"`);
