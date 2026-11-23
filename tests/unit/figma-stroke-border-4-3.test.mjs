@@ -85,3 +85,23 @@ test('P2 [옛 호출] sides·align 없으면 면별·정렬 안 건드림', asyn
   const n = nodes.x;
   assert.deepEqual([n.strokeWeight, n.strokeTopWeight, n.strokeAlign], [5, 1, 'CENTER']);
 });
+
+/* P3 ★하위 호환(지디 261124 · 미카사 실측: 아이맥 Figma 에 등록된 플러그인 = dev 옛 판 → 새 인자를 «조용히 버림»)
+ *   옛 플러그인(dev 11a67a399 의 code.js · sides·align 모름) + 새 렌더러 인자 → 최소 «균일 테두리»(굵기·색)는 그려진다 · 면별은 안 됨(그게 옛 판의 한계 · 릴리스 때 플러그인 갱신 = 시트 210 E) */
+test('P3 옛 플러그인(dev) + 새 인자 = 균일 테두리는 그려짐(굵기·색) · 면별은 무시', async () => {
+  const { execFileSync } = await import('node:child_process');
+  let old;
+  try { old = execFileSync('git', ['show', '11a67a399:figma-plugin/code.js'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 }); }
+  catch (e) { assert.fail('[전제] dev 옛 플러그인을 git 에서 못 꺼냄: ' + e.message); }
+  assert.ok(!/strokeTopWeight/.test(old), '[전제] 옛 판은 면별을 모른다');
+  const nodes = {};
+  const figma = { showUI() {}, ui: { postMessage() {}, onmessage: null }, on() {}, notify() {}, clientStorage: { getAsync: async () => null, setAsync: async () => {} }, currentPage: { appendChild() {} }, getNodeByIdAsync: async (id) => nodes[id] || null };
+  const ctx = vm.createContext({ figma, __html__: '', console, setTimeout, clearTimeout });
+  vm.runInContext(old + '\n;globalThis.__hc = handleCommand;', ctx);
+  nodes.x = FRAME_NODE();
+  await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 1, g: 0, b: 0, a: 1 }, strokeWeight: 2, sides: { top: 6, right: 0, bottom: 3, left: 0 }, align: 'INSIDE' });
+  const n = nodes.x;
+  assert.equal(n.strokes.length, 1, '★옛 플러그인도 선 칠을 단다');
+  assert.equal(n.strokeWeight, 2, '★옛 플러그인도 굵기(균일)는 단다');
+  assert.deepEqual([n.strokeTopWeight, n.strokeAlign], [1, 'CENTER'], '옛 판은 면별·정렬을 모른다(무시 — 오류 없이)');
+});
