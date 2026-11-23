@@ -1362,3 +1362,14 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .fx-holo-swatches { display: flex; gap: var(--ui-space-1); flex-wrap: wrap; padding: var(--ui-space-1) 0; }
 .fx-holo-sw { width: calc(var(--ui-space-4) + var(--ui-space-1)); height: calc(var(--ui-space-4) + var(--ui-space-1)); border-radius: 50%; border: 1px solid var(--ui-border-strong); padding: 0; cursor: pointer; }
 .fx-holo-sw:hover, .fx-holo-sw[aria-pressed="true"] { outline: 2px solid var(--ui-accent-primary); outline-offset: 1px; }
+
+/* ═══ 표준 Stroke 절 부품(js/props/_stroke-section.js · 현빈 261123 GO · 정본 시안 8910 strokestd2 — 규칙은 시안 css 그대로 옮김 · 토큰만) ═══ */
+.ui-stroke2 .ui-s2-main { display: flex; align-items: flex-end; gap: var(--ui-space-1_5); }
+.ui-stroke2 .ui-s2-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ui-space-0_5); }
+.ui-stroke2 .ui-s2-cell > span { font-size: var(--ui-fs-10); color: var(--ui-text-dim); }
+.ui-stroke2 .ui-s2-cell > * { flex: 0 0 auto; }
+.ui-stroke2 .ui-s2-cell > select, .ui-stroke2 .ui-s2-cell > .prop-icon-input { width: 100%; min-width: 0; height: var(--ui-input-h); box-sizing: border-box; }
+.ui-stroke2 .ui-s2-main > .prop-chain-btn { flex: 0 0 auto; }
+.ui-stroke2 .ui-s2-main > .prop-chain-btn.active { background: var(--ui-bg-hover); color: var(--ui-accent); }
+.ui-stroke2 .prop-color-row.ui-s2-layer > .prop-color-field { flex: 1 1 auto; max-width: none; }
+.ui-stroke2[aria-disabled="true"] .ui-stroke-std, .ui-stroke2 [data-field="stroke-align"][aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); }

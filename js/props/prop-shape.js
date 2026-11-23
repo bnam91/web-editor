@@ -1,6 +1,7 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
@@ -334,16 +335,10 @@ export function showShapeProperties(block) {
       </div>
       <div class="prop-hint" id="shape-star-one-hint" style="margin-top:4px;">${starSel + 1}번 별만 색이 바뀝니다 — 지우면 블록 색을 따릅니다. (Esc 로 끝내기)</div>` : ''}
       ` : ''}`),
-      sec('stroke', `
-      <div class="prop-color-row">
-        <span class="prop-label">외곽선</span>
-        ${colorFieldHTML({ idPrefix: 'shape-stroke-color', hex: strokeColor, alpha: strokeColorAlpha })}
-      </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="shape-stroke-slider" min="0" max="20" step="1" value="${strokeWidth}">
-        <input type="number" class="prop-number" id="shape-stroke-num" min="0" max="20" value="${strokeWidth}">
-      </div>`),
+      /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
+         사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
+      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
+        align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다' })),
       // 원 이너 그림자 + 효과 목록(Effects)
       sec('effects', `${isEllipse && !isRedact ? `
         <div id="shape-ellipse-shadow-wrap">
@@ -629,12 +624,9 @@ export function showShapeProperties(block) {
     onCommit: () => window.pushHistory?.(),
   });
 
-  // ── 외곽선 색상 피커 ──
-  wireColorField('shape-stroke-color', {
-    initialAlpha: strokeColorAlpha,
-    onApply: (c) => applyStrokeColor(c),
-    onCommit: () => window.pushHistory?.(),
-  });
+  // ── 외곽선 = 표준 Stroke 부품 배선(어댑터 = 이 패널의 쓰기 함수 그대로 · 저장 키 shapeStrokeColor/shapeStrokeWidth 무변 · 이력 push-after) ──
+  wireStrokeSection({ prefix: 'shape-stroke', alpha: strokeColorAlpha, maxWidth: 20,
+    adapter: { color: (c) => applyStrokeColor(c), width: (v) => applyStroke(v), commit: () => window.pushHistory?.() } });
 
   // 초기 svg.stroke 동기화 — 첫 mount 시 dataset.shapeStrokeColor가 있으면 즉시 적용
   if (svg && block.dataset.shapeStrokeColor) {
@@ -703,17 +695,6 @@ export function showShapeProperties(block) {
   window.showGradientLine?.(block);
   // 0918 canvasgrad: 캔버스 바 ↔ 피커 스탑 양방향 배선 + 재오픈 시드(dataset.cpGradient)
   window.bindGradientLinePicker?.(block, shapeColorInput);
-
-  // ── 스트로크 두께 ──
-  const strokeSlider = document.getElementById('shape-stroke-slider');
-  const strokeNum    = document.getElementById('shape-stroke-num');
-  strokeSlider.addEventListener('input',  () => { strokeNum.value = strokeSlider.value; applyStroke(parseInt(strokeSlider.value)); });
-  strokeSlider.addEventListener('change', () => window.pushHistory?.());
-  strokeNum.addEventListener('input', () => {
-    const v = Math.min(20, Math.max(0, parseInt(strokeNum.value) || 0));
-    strokeSlider.value = v; applyStroke(v);
-  });
-  strokeNum.addEventListener('change', () => window.pushHistory?.());
 
   // ── 크기 W ──
   const wSlider = document.getElementById('shape-w-slider');
