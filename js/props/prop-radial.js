@@ -8,7 +8,7 @@
  *   캔버스 끌기(radial-block.js)가 끝나면 이 패널을 그 항목으로 다시 열어 숫자가 끈 값과 같아진다. */
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
 import { blockHeaderHTML, escHtml as _esc } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import {
@@ -286,15 +286,8 @@ export function showRadialProperties(block, idx) {
       </div>${strokeSectionHTML({ prefix: 'rdl-stroke', color: _swatchHex(st.lineColor, RADIAL_DEFAULTS.lineColor), alpha: parseAlphaFromColor(st.lineColor), width: st.lineWidth,
         maxWidth: L.lineWidth.max, minWidth: L.lineWidth.min, step: L.lineWidth.step, align: 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 가운데',
         on: st.line !== 'none', widthId: 'rdl-line-width', colorId: 'rdl-line',
-        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style">
-      <div class="prop-row">
-        <span class="prop-label">선 모양</span>
-        <select class="prop-select" id="rdl-line-style" data-field="stroke-style">
-          <option value="dashed"${st.lineStyle === 'dashed' ? ' selected' : ''}>점선</option>
-          <option value="solid"${st.lineStyle === 'solid' ? ' selected' : ''}>실선</option>
-        </select>
-      </div>
-      ${isArc && lineCur === 'orbit' ? _numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend) : ''}</div>` })}`),
+        pop: { styles: STROKE_STYLES_SVG, style: st.lineStyle === 'solid' ? 'solid' : 'dashed', styleId: 'rdl-line-style', why: STROKE_POP_WHY.soon },   // 단계 3-1: 옛 «선 모양» = ⫶ 팝오버 «스타일»(옛 id · 옛 change 배선 그대로)
+        slotsBelow: isArc && lineCur === 'orbit' ? `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="radial-line-extend">${_numRow('rdl-lineext-number', '선 연장°', st.lineExtend, L.lineExtend)}</div>` : '' })}`),
       sec('special', `
       ${_typeRow('가운데', 'rdl-center', _CENTER_OPTS, st.centerMode)}
       ${st.centerMode === 'none' ? '' : _pairRow('rdl-center', '크기', st.centerSize, L.centerSize)}

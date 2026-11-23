@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
@@ -266,7 +266,7 @@ export function showAssetProperties(ab) {
          켬 = strokeWidth > 0(저장 꼴 그대로 · 새 키 0). 위치(내부/외부)는 에셋 테두리에 없어 줄이 없다. */
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 옛 1120b A2 꼴(머리 ＋ · 꺼지면 몸 숨김 · 켜면 2)은 부품이 그대로 잇는다.
          위치 = 칸만 막힘: 에셋 테두리는 CSS border(전역 box-sizing:border-box) = 안쪽 · 옛 id(asset-stroke-controls·-on·-num·-color) 지킴 */
-      sec('stroke', strokeSectionHTML({ prefix: 'asset-stroke', color: currentStrokeColor, alpha: currentStrokeAlpha, width: currentStrokeWidth, maxWidth: 20,
+      sec('stroke', strokeSectionHTML({ prefix: 'asset-stroke', pop: { why: STROKE_POP_WHY.css, styleWhy: STROKE_POP_WHY.soon }, color: currentStrokeColor, alpha: currentStrokeAlpha, width: currentStrokeWidth, maxWidth: 20,
         align: 'inside', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: currentStrokeWidth > 0, bodyId: 'asset-stroke-controls', widthId: 'asset-stroke-num' }),
         { id: 'asset-stroke-section', headTools: strokeHeadToolsHTML({ prefix: 'asset-stroke', on: currentStrokeWidth > 0 }) }),
       /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */

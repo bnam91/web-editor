@@ -1,6 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
@@ -517,7 +517,7 @@ export function showTableProperties(block) {
       </div>` : ''}`),
       /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 12 · 지디 판정) — 머리 ＋/− 안 그림 · ★켬/끔 정본 = 옛 선 토글 넷(edge-select 슬롯 · 단계 4 에서 10단추로)
          표준 칸 = 선 색 + 굵기(외곽두께 1~6 · 하한 1 그대로) · 위치 = 가운데 막힘(.tb-table border-collapse:collapse = 선이 경계 가운데 · editor-blocks.css 실측) · 옛 id 지킴 */
-      sec('stroke', strokeSectionHTML({ prefix: 'tbl-stroke', color: _rgbToHex(curLineColor), alpha: curLineAlpha, width: curOuterW, maxWidth: 6, minWidth: 1, align: 'center', canAlign: false,
+      sec('stroke', strokeSectionHTML({ prefix: 'tbl-stroke', pop: { why: STROKE_POP_WHY.css, styleWhy: STROKE_POP_WHY.soon }, color: _rgbToHex(curLineColor), alpha: curLineAlpha, width: curOuterW, maxWidth: 6, minWidth: 1, align: 'center', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 가운데', widthId: 'tbl-outerw-number', colorId: 'tbl-line',
         slotsBelow: `
       <div class="ui-stroke-slot" data-slot="below" data-slot-kind="edge-select">

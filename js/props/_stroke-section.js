@@ -4,7 +4,7 @@
  *   ┌ 색 한 줄(.prop-color-row.ui-s2-layer · 라벨 없음 = Figma 겹 줄) — data-part=color · data-field=stroke-color
  *   └ [위치 | 굵기] 한 줄(.ui-s2-main · 칸 위 작은 캡션) — select data-field=stroke-align(안쪽·가운데·바깥) · 숫자 data-field=stroke-width
  *   그 아래 블럭별 특수 슬롯(.ui-stroke-slot[data-slot=below][data-slot-kind=…]) — 부르는 패널이 slotsBelow 로 넘긴다.
- * ⛔⫶ «Stroke 설정» 팝오버 · □ 면별 단추는 «그 단계에서» 단다(배선 없는 단추를 먼저 그리지 않는다 — 단계 커밋 순서 §4c ④).
+ * ⫶ «Stroke 설정» 팝오버(단계 3-1) = 표준 줄 끝 단추 + 줄 안 절대 자리 팝오버 · ⛔□ 면별 단추는 단계 4 에서(배선 없는 단추를 먼저 그리지 않는다 — §4c ④).
  *
  * 데이터 = 어댑터(블럭마다 저장 키가 다르다 — §4c ① 표 · ⛔저장 키 무변):
  *   wireStrokeSection({ prefix, adapter }) · adapter = { color(c), width(v), align?(v), commit() } — 부품은 블럭을 모른다.
@@ -30,9 +30,10 @@ export const STROKE_ALIGNS = Object.freeze([['inside', '안쪽'], ['center', '�
  * @param {boolean} [o.on]      false = 테두리 없음(머리 ＋ · 몸 숨김) — 머리 단추는 strokeHeadToolsHTML
  * @param {string} [o.colorHtml]  이미 만든 색 칸(부르는 쪽 기본값·알파 규칙 그대로 · 텍스트/인용구 · '' = 빈 줄 그대로) — null 이면 color·alpha 로 만든다
  * @param {number} [o.step] · [o.minWidth]  굵기 걸음·하한(radial 0.5 · sticker-text 0.5 — 지디 261123)
+ * @param {object} [o.pop]     ⫶ «Stroke 설정» 팝오버(단계 3 · §4c ②b) — strokePopHTML 인자(styles·style·styleId·why)
  * @param {string} [o.bodyId] · [o.widthId] · [o.colorId]  그 블럭이 옛부터 쓰던 id 를 지킬 때(시험·외부 배선이 그 id 로 찾는다 · 없으면 prefix 기본)
  */
-export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0, colorHtml = null }) {
+export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0, colorHtml = null, pop = null }) {
   const colorField = (colorHtml != null ? colorHtml : window.colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha }))
     .replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="stroke-color"');
   const blocked = canAlign ? '' : ` aria-disabled="true" tabindex="0" title="${alignWhy}"`;
@@ -42,7 +43,7 @@ export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, 
           <div class="prop-color-row ui-s2-layer">${colorField}</div>
           <div class="ui-s2-main prop-row">
             <div class="ui-s2-cell"><span>위치</span><select class="prop-select" id="${prefix}-align" data-part="select" data-field="stroke-align" aria-label="위치"${blocked}>${STROKE_ALIGNS.map(([v, t]) => `<option value="${v}"${v === align ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
-            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="${minWidth}" max="${maxWidth}" step="${step}" value="${width}" aria-label="굵기"></div></div>
+            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="${minWidth}" max="${maxWidth}" step="${step}" value="${width}" aria-label="굵기"></div></div>${pop ? strokePopHTML({ prefix, ...pop }) : ''}
           </div>
         </div>${slotsBelow}
       </div>`;
@@ -59,8 +60,74 @@ export function strokeHeadToolsHTML({ prefix, on }) {
         </label>`;
 }
 
+const MORE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M3 1.5v9M9 1.5v9"/><circle cx="3" cy="4" r="1.3" fill="currentColor"/><circle cx="9" cy="8" r="1.3" fill="currentColor"/></svg>';
+const CAP_OPTS = [['none', '없음', '<path d="M2 6h3M7 6h3"/>'], ['square', '네모', '<path d="M2 6h3M7 6h3" stroke-linecap="square"/>'], ['round', '둥글게', '<path d="M2 6h3M7 6h3" stroke-linecap="round"/>']];
+const JOIN_OPTS = [['miter', '뾰족', '<path d="M3 10V3h7" stroke-linejoin="miter"/>'], ['bevel', '깎음', '<path d="M3 10V5l2-2h5"/>'], ['round', '둥글게', '<path d="M3 10V6a3 3 0 0 1 3-3h4"/>']];
+/** 지금 그 블럭이 «못 그리는» 칸의 까닭(P6 why · §4c ②b) — CSS 테두리 = 점선 길이·끝·꼭짓점 없음 · 그 밖 = 단계 3-2 */
+/** 스타일 목록 — CSS 테두리 블럭 = 실선·점선·점(dotted 유지 · 지디 261124 (가)) · SVG 블럭 = 실선·점선(단계 3-2 에서 «사용자»+수치) · 값 = 그 블럭 옛 값 그대로 */
+export const STROKE_STYLES_CSS = Object.freeze([['solid', '— 실선'], ['dashed', '- - 점선'], ['dotted', '· · 점']]);
+export const STROKE_STYLES_SVG = Object.freeze([['solid', '— 실선'], ['dashed', '- - 점선']]);
+export const STROKE_POP_WHY = Object.freeze({ css: '이 블럭은 아직 점선 길이를 못 그려요', soon: '곧 지원', noCorner: '꼭짓점이 없는 블럭이에요' });
+
+/**
+ * ⫶ «Stroke 설정» 팝오버(§4c ②b · 시안 strokestd2 21·22) — 단추 button.ui-stroke-more + div.ui-stroke-pop[role=dialog]
+ * 단계 3-1: «스타일»만 산다(그 블럭에 지금 있는 값 그대로 · 옛 id = styleId 로 지켜 블럭의 옛 change 배선이 그대로 듣는다 · CSS 블럭은 «점»(dotted) 유지 — 지디 261124 (가))
+ *   점선 길이·간격·점선 끝·꼭짓점·Miter = 칸은 그리되 막힘(aria-disabled + why) — 3-2 에서 SVG 블럭부터 산다.
+ * @param {object} o
+ * @param {Array<[string,string]>} [o.styles] [값, 이름] — 없으면 스타일도 막힘(그 블럭에 스타일 키가 아직 없음)
+ * @param {string} [o.style]  지금 값 · [o.styleId] 옛 select id · [o.why] 막힘 까닭(수치·끝·꼭짓점) · [o.styleWhy] 스타일 막힘 까닭
+ */
+export function strokePopHTML({ prefix, styles = null, style = 'solid', styleId = '', why = STROKE_POP_WHY.soon, styleWhy = STROKE_POP_WHY.soon }) {
+  const dis = (w) => ` aria-disabled="true" tabindex="0" title="${w}"`;
+  const live = !!(styles && styles.length);
+  const opts = (live ? styles : [['solid', '— 실선']]).map(([v, t]) => `<option value="${v}"${v === style ? ' selected' : ''}>${t}</option>`).join('');
+  const dashed = live && style !== 'solid';
+  const btns = (field, list, cur) => `<div class="prop-type-group ui-stroke-pop-btns" data-field="${field}" role="group">${list.map(([v, t, d]) => `<button type="button" class="prop-type-btn${v === cur ? ' active' : ''}" data-value="${v}" aria-label="${t}"${dis(why)}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6">${d}</svg></button>`).join('')}</div>`;
+  const num = (field, label, v, unit = '') => `<div class="prop-row ui-stroke-pop-row"${field === 'stroke-dash' || field === 'stroke-gap' ? ` data-when="dashed"${dashed ? '' : ' hidden'}` : ''}><span class="prop-label">${label}</span><div class="prop-icon-input" data-part="number" data-field="${field}"><input type="number" value="${v}" aria-label="${label}"${dis(why)}>${unit ? `<span class="ui-stroke-pop-unit">${unit}</span>` : ''}</div></div>`;
+  return `<button type="button" class="prop-chain-btn ui-stroke-more" id="${prefix}-more" aria-haspopup="dialog" aria-expanded="false" aria-label="Stroke 설정">${MORE_ICON}</button>
+            <div class="ui-stroke-pop" id="${prefix}-pop" role="dialog" aria-label="Stroke 설정" hidden>
+              <div class="ui-stroke-pop-head"><span class="ui-stroke-pop-title">Stroke 설정</span><button type="button" class="prop-chain-btn ui-stroke-pop-close" aria-label="닫기">×</button></div>
+              <div class="prop-row ui-stroke-pop-row"><span class="prop-label">스타일</span><select class="prop-select" id="${styleId || `${prefix}-style`}" data-part="select" data-field="stroke-style" aria-label="스타일"${live ? '' : dis(styleWhy)}>${opts}</select></div>
+              ${num('stroke-dash', '점선 길이', 2)}${num('stroke-gap', '간격', 2)}
+              <div class="prop-row ui-stroke-pop-row" data-when="dashed"${dashed ? '' : ' hidden'}><span class="prop-label">점선 끝</span>${btns('stroke-cap', CAP_OPTS, 'none')}</div>
+              <div class="prop-row ui-stroke-pop-row"><span class="prop-label">꼭짓점</span>${btns('stroke-join', JOIN_OPTS, 'miter')}</div>
+              ${num('stroke-miter', 'Miter 각도', 28.96, '°')}
+            </div>`;
+}
+
+/** 팝오버 배선 — 열기/닫기(⫶ · × · Esc · 바깥 누름) · 자리(아래 · 패널 밖으로 넘치면 위로 뒤집기) · 스타일 바뀌면 점선 칸 보임/숨김
+ *  ★값 쓰기는 블럭의 옛 배선이 그 select(옛 id)의 change 로 한다 — 여기선 안 쓴다(이중 쓰기 0). 막힌 칸 = 열림·값 바뀜 막음. */
+export function wireStrokePopover({ prefix }) {
+  const btn = document.getElementById(`${prefix}-more`), pop = document.getElementById(`${prefix}-pop`);
+  if (!btn || !pop) return;
+  const onDoc = (e) => { if (!pop.contains(e.target) && !btn.contains(e.target)) close(); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); btn.focus(); } };
+  function close() { if (pop.hidden) return; pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', onDoc, true); document.removeEventListener('keydown', onKey, true); }
+  /* 자리 — 아래가 기본 · 아래로 넘치고 위엔 자리가 있으면 위로. ★열 때만이 아니라 점선 칸이 나고 들 때도 다시 잰다(실측: 점 고르면 줄 셋이 늘어 1114 > 패널 1100) */
+  function place() {
+    pop.classList.remove('ui-stroke-pop--up');
+    const box = pop.closest('.panel-body, #panel-right') || document.documentElement, br = box.getBoundingClientRect(), pr = pop.getBoundingClientRect();
+    const above = btn.getBoundingClientRect().top - br.top;
+    if (pr.bottom > br.bottom && pr.height < above) pop.classList.add('ui-stroke-pop--up');
+  }
+  function open() {
+    pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); place();
+    document.addEventListener('mousedown', onDoc, true); document.addEventListener('keydown', onKey, true);
+  }
+  btn.addEventListener('click', () => (pop.hidden ? open() : close()));
+  pop.querySelector('.ui-stroke-pop-close')?.addEventListener('click', close);
+  pop.querySelectorAll('[aria-disabled="true"]').forEach((el) => {   // 막힘 — 초점·툴팁은 받고 열림·값 바뀜은 막는다(위치 칸과 같은 규율)
+    el.addEventListener('mousedown', (e) => e.preventDefault());
+    el.addEventListener('click', (e) => e.preventDefault());
+    el.addEventListener('keydown', (e) => { if (e.key !== 'Tab' && e.key !== 'Escape') e.preventDefault(); });
+  });
+  const sel = pop.querySelector('[data-field="stroke-style"]');
+  sel?.addEventListener('change', () => { pop.querySelectorAll('[data-when="dashed"]').forEach((r) => { r.hidden = sel.value === 'solid'; }); if (!pop.hidden) place(); });
+}
+
 /** 배선 — 색(color-picker 한 벌) · 굵기(입력 = 쓰기 · change = 이력 한 칸 · push-after) · 위치(막힘이면 안 열림·안 바뀜). */
 export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, widthId = '', colorId = '', onWidth = 2, step = 1, minWidth = 0 }) {
+  wireStrokePopover({ prefix });
   const num = (v) => { const x = Math.round((parseFloat(v) || 0) / step) * step; return Math.min(maxWidth, Math.max(minWidth, +x.toFixed(3))); };   // 0.5 걸음도 같은 길(parseInt 면 2.5 → 2)
   window.wireColorField(colorId || `${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
   const w = document.getElementById(widthId || `${prefix}-width`);

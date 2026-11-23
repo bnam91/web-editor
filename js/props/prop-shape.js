@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
@@ -337,7 +337,7 @@ export function showShapeProperties(block) {
       ` : ''}`),
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
          사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
-      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
+      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
         align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다', on: strokeWidth > 0 }),
         { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)

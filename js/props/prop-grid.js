@@ -28,7 +28,7 @@ import { wireFontPicker } from './_font-picker.js';
 import { fontChain } from './prop-text-utils.js';
 import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';
 import { parseAlphaFromColor, swatchHex, wireHexText, parseHex6, formatHex6 } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokePopover, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';   // 표준 Stroke 부품(color-picker 무 import — 이 파일 규율 지킴)
 
 /* ══ 줄(line) 선택 — 「지금 우측 패널이 보고 있는 줄」 ═══════════════════════
  * ★블록별로 «주소»(r,c,li)를 기억한다. prop-banner02.js 의 _bn2ActiveLine 선례(어휘까지 빌린다).
@@ -3340,18 +3340,13 @@ function _borderRowHtml(bd) {
           <input type="color" id="grd-border-color" value="${hex}">
         </div>
         <input type="text" class="prop-color-hex" id="grd-border-color-hex" maxlength="7" aria-label="칸 테두리 색" value="${hex.replace('#', '').toUpperCase()}">`;
-  const styleOpts = [['solid', '실선'], ['dashed', '파선'], ['dotted', '점선']]
-    .map(([v, ko]) => `<option value="${v}"${bd.style === v ? ' selected' : ''}>${ko}</option>`).join('');
   const below = on ? `
-      <div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style">
-      <div class="prop-row">
-        <span class="prop-label" title="파선·점선은 «조용히 실선으로» 떨어지지 않는다 — 저장값 그대로 그려진다">선 꼴</span>
-        <select class="prop-select" id="grd-border-style" data-field="stroke-style">${styleOpts}</select>
-      </div>${_borderEdgesRowHtml(bd)}
-      </div>` : '';
+      <div class="ui-stroke-slot" data-slot="below" data-slot-kind="grid-cell-edges">${_borderEdgesRowHtml(bd)}
+      </div>` : '';   // 단계 3-1: «선 꼴» = ⫶ 팝오버 «스타일»(옛 id grd-border-style · 옛 change 배선 그대로 · 점 유지) · «선 자리»만 슬롯
   return strokeSectionHTML({ prefix: 'grd-stroke', colorHtml: on ? colorHtml : '', width: bd.width,   // 굵기 0 = 색 칸 «안 냄»(옛 설계 그대로 — 죽은 컨트롤 0 · grid-cell-border · ＋ 누르면 다시 그림)
     maxWidth: GRID_BORDER_W_MAX, align: 'inside', canAlign: false,
-    alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on, widthId: 'grd-border-w-number', slotsBelow: below });
+    alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on, widthId: 'grd-border-w-number', slotsBelow: below,
+    pop: { styles: STROKE_STYLES_CSS, style: bd.style, styleId: 'grd-border-style', why: STROKE_POP_WHY.css } });
 }
 
 /* ══ 칸 테두리 «선 자리» (1013t2F · 2026-10-14) — 현빈 지적: 「구분선 스타일의 … 윗변과 칼럼로우 중간 구분선들,
@@ -4345,6 +4340,7 @@ ${_flattenRowHtml(rows, cols)}
    *   읽는다(검사처럼 생긴 문장). 굵기 0 에서 켜는 손잡이는 «굵기» 하나다. */
   const _bdCommit = (fields) => _grdToastCellFail(window.updateGridBlock?.(block.id, fields));
 
+  wireStrokePopover({ prefix: 'grd-stroke' });   // ⫶ 팝오버 열기/닫기(값 쓰기 = 아래 옛 grd-border-style change)
   const bdNumber = document.getElementById('grd-border-w-number');   // 표준 Stroke 부품 = 숫자 칸 하나(옛 슬라이더 걷음)
   if (bdNumber) {
     /* ★0 을 «넘나들 때만» 패널을 다시 그린다 — 색·꼴 줄이 나오고 들어가야 하기 때문이다.

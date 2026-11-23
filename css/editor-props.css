@@ -109,8 +109,8 @@
 /* panel-frame:END ════════════════════════════════════════════════════════════════════════ */
 /* Effects ＋ 메뉴(시안 v8/v10 .mk8-menu 값 — 머리 오른쪽 아래에 뜨는 앱 메뉴 꼴 · 항목 = .fp-menu-item) */
 .prop-sec-head:has(> .prop-fx-menu) { position: relative; }
-.prop-fx-menu { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
-.prop-fx-menu[hidden] { display: none; }
+.prop-fx-menu, .ui-stroke-pop { position: absolute; top: calc(100% + var(--ui-space-0_5)); right: 0; z-index: 5; background: var(--ui-bg-card); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: var(--ui-space-1); box-shadow: var(--ui-shadow-lg); min-width: calc(var(--ui-form-label-w) * 2); }
+.prop-fx-menu[hidden], .ui-stroke-pop[hidden] { display: none; }   /* ⫶ Stroke 설정 팝오버(§4c ②b) = Effects ＋ 메뉴와 같은 앱 팝오버 꼴 · 자리만 아래(.ui-stroke-pop 덧규칙) */
 .prop-row {
   display: flex; align-items: center; gap: var(--ui-space-1);
   min-height: 24px; margin-bottom: var(--ui-space-1_5); overflow: hidden;
@@ -1370,6 +1370,18 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .ui-stroke2 .ui-s2-cell > * { flex: 0 0 auto; }
 .ui-stroke2 .ui-s2-cell > select, .ui-stroke2 .ui-s2-cell > .prop-icon-input { width: 100%; min-width: 0; height: var(--ui-input-h); box-sizing: border-box; }
 .ui-stroke2 .ui-s2-main > .prop-chain-btn { flex: 0 0 auto; }
+/* ⫶ «Stroke 설정» 팝오버 자리 — 표준 줄 아래 폭 그대로(시안 strokestd2 21·22) · 넘치면 위로(wireStrokePopover 가 --up) · 몸 끝 여백 규칙(⑯·부품 끝 줄)에 안 끼게 줄 «안» 절대 자리 */
+.ui-stroke2 .ui-s2-main { position: relative; overflow: visible; }
+.ui-stroke2 .ui-stroke-pop { left: 0; right: 0; min-width: 0; padding: var(--ui-space-2); z-index: 20; }
+.ui-stroke2 .ui-stroke-pop.ui-stroke-pop--up { top: auto; bottom: calc(100% + var(--ui-space-0_5)); }
+.ui-stroke-pop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--ui-space-2); }
+.ui-stroke-pop-title { font-size: var(--ui-fs-13); font-weight: var(--ui-fw-semibold); color: var(--ui-text); }
+.ui-stroke-pop .ui-stroke-pop-row > .prop-select, .ui-stroke-pop .ui-stroke-pop-row > .prop-icon-input, .ui-stroke-pop .ui-stroke-pop-btns { flex: 1 1 auto; min-width: 0; }
+.ui-stroke-pop .ui-stroke-pop-btns { display: flex; gap: var(--ui-space-1); }
+.ui-stroke-pop .ui-stroke-pop-btns > .prop-type-btn { flex: 1 1 0; }
+.ui-stroke-pop-unit { color: var(--ui-text-dim); font-size: var(--ui-fs-10); }
+.ui-stroke-pop [aria-disabled="true"] { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.ui-stroke2 .ui-stroke-more[aria-expanded="true"] { background: var(--ui-bg-hover); color: var(--ui-accent); }
 .ui-stroke2 .ui-s2-main > .prop-chain-btn.active { background: var(--ui-bg-hover); color: var(--ui-accent); }
 .ui-stroke2 .prop-color-row.ui-s2-layer > .prop-color-field { flex: 1 1 auto; max-width: none; }
 .ui-stroke2[aria-disabled="true"] .ui-stroke-std, .ui-stroke2 [data-field="stroke-align"][aria-disabled="true"] { opacity: var(--ui-disabled-opacity, 0.5); }

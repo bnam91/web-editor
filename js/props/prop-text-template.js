@@ -2,7 +2,7 @@
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
-import { strokeSectionHTML, strokeHeadToolsHTML } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, STROKE_POP_WHY } from './_stroke-section.js';
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
@@ -444,7 +444,7 @@ export function strokeSection({ p, stroke, colorHtml } = {}) {
   /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 1·2) — 꼴만 부품 · 배선은 그대로 prop-text-wireup-stroke.js(= 이 블럭의 어댑터: data-stroke-on/w/color/align · 레거시 해석)
      없음 = data-stroke-on 지움(굵기·색·위치 값은 남김 — 다시 켜면 그대로 · §4c 없음 열) · 굵기 0.5 걸음·하한 0.5 · 위치 = «살아 있음»(안쪽·가운데·바깥 다 그린다 · 실측 T1/T2/T4)
      옛 id 그대로: ${p}-stroke-on · -controls(몸) · -w-number · -align · -color · 절 id ${p}-stroke-section */
-  return sec('stroke', strokeSectionHTML({ prefix: `${p}-stroke`, colorHtml, width: stroke.width, maxWidth: 20, minWidth: 0.5, step: 0.5,
+  return sec('stroke', strokeSectionHTML({ prefix: `${p}-stroke`, pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, colorHtml, width: stroke.width, maxWidth: 20, minWidth: 0.5, step: 0.5,
     align: stroke.align || 'outside', on: !!stroke.on, bodyId: `${p}-stroke-controls`, widthId: `${p}-stroke-w-number`, colorId: `${p}-stroke-color` }), {
     id: `${p}-stroke-section`,
     headTools: strokeHeadToolsHTML({ prefix: `${p}-stroke`, on: !!stroke.on }),   // 재설계 1차 ⑨ 머리 ＋/− 그대로(같은 체크박스 id)

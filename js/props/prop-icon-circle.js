@@ -3,7 +3,7 @@ import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { gridCircleIconSvg } from '../blocks/grid-circle-icon.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_SVG, STROKE_POP_WHY } from './_stroke-section.js';
 
 /* G14 「＋ 블럭 넣기 ▾」 종류·이름표 — 정본은 js/icb-children.js(ICB_CHILD_KIND_LABELS · t5-12ⓑ 그리드 원 줄 패널과 한 벌). */
 import { ICB_CHILD_KIND_LABELS as _ICB_KID_KINDS } from '../icb-children.js';
@@ -114,7 +114,7 @@ export function showIconCircleProperties(block) {
          위치 = 안쪽 막힘(CSS border + 전역 box-sizing:border-box) · 옛 «스타일» select = line-style 슬롯(실선·점선 · 단계 3 팝오버로) */
       sec('stroke', strokeSectionHTML({ prefix: 'icb-stroke', color: _icbBc, alpha: parseAlphaFromColor(_icbBc), width: _icbBw, maxWidth: 20, align: 'inside', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderV !== 'none',
-        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style"><div class="prop-row"><span class="prop-label">스타일</span><select class="prop-select" id="icb-border-select" data-field="stroke-style">${[['solid', '실선'], ['dashed', '점선']].map(([v, t]) => `<option value="${v}"${(borderV === 'none' ? 'solid' : borderV) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div></div>` }),
+        pop: { styles: STROKE_STYLES_SVG, style: borderV === 'none' ? 'solid' : borderV, styleId: 'icb-border-select', why: STROKE_POP_WHY.css } }),   // 단계 3-1: «스타일» = ⫶ 팝오버(옛 id icb-border-select · 실선·점선 — 이 블럭엔 «점» 없었음 · 옛 change 배선 그대로)
         { headTools: strokeHeadToolsHTML({ prefix: 'icb-stroke', on: borderV !== 'none' }) }),
     ],
   });

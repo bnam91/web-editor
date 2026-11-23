@@ -5,7 +5,7 @@
 import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
 import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
@@ -306,7 +306,7 @@ export function showModalProperties(block) {
          위치 = 칸만 막힘: 모달 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(mdl-bw-number · mdl-bc · [data-bs]) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'mdl-stroke', color: borderColor, alpha: parseAlphaFromColor(borderColor), width: borderW, maxWidth: 12, align: 'inside', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderW > 0, widthId: 'mdl-bw-number', colorId: 'mdl-bc',
-        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style"><div class="prop-row"><span class="prop-label">스타일</span><div class="prop-type-group" data-field="stroke-style">${[['solid', '실선'], ['dashed', '점선'], ['dotted', '점']].map(([v, t]) => `<button class="prop-type-btn ${borderStyle === v ? 'active' : ''}" data-bs="${v}">${t}</button>`).join('')}</div></div></div>` }),
+        pop: { styles: STROKE_STYLES_CSS, style: borderStyle || 'solid', styleId: 'mdl-border-style', why: STROKE_POP_WHY.css } }),   // 단계 3-1: 옛 «스타일» 단추 셋([data-bs] 실선·점선·점) → ⫶ 팝오버 «스타일» select(값 그대로)
         { headTools: strokeHeadToolsHTML({ prefix: 'mdl-stroke', on: borderW > 0 }) }),
       sec('effects', `
     <!-- ★그림자 — 현빈 발주 2026-09-09. 줌블럭의 「도형 그림자」와 «같은 하네스»다:
@@ -614,11 +614,8 @@ export function showModalProperties(block) {
   });
 
   // ── 테두리 스타일 / 정렬 ──
-  propPanel.querySelectorAll('[data-bs]').forEach(btn => btn.addEventListener('click', () => {
-    block.dataset.borderStyle = btn.dataset.bs;
-    propPanel.querySelectorAll('[data-bs]').forEach(b => b.classList.toggle('active', b === btn));
-    rerender(); commit();
-  }));
+  /* 테두리 스타일 — ⫶ 팝오버 «스타일» select(단계 3-1 · 옛 [data-bs] 단추 셋과 같은 쓰기: dataset.borderStyle · rerender · commit) */
+  document.getElementById('mdl-border-style')?.addEventListener('change', (e) => { block.dataset.borderStyle = e.target.value; rerender(); commit(); });
   /* ── 그림자 3단 ──
      ★줌의 #zm-drop-group 배선(prop-zoom.js:290-302)과 «같은 하네스»다: 선택자를 id 로 좁히고,
        active 를 갈아끼우고, dataset 에 쓴다.

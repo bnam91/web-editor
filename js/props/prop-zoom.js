@@ -5,7 +5,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 
 const D = () => (window.ZOOM_DEFAULTS || {});
 
@@ -222,7 +222,7 @@ export function showZoomProperties(block) {
       /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 18) — ★켬/끔 정본 = 옛 «테두리» 라디오(dataset.bd · 현빈 261123 ⓐ «일단 그대로» · 지디: 머리 ＋/− 안 그림 = 두 손잡이 금지)
          없음 = bd off(두께 값 보존) · 꺼지면 표준 몸 흐림(옛 dim 그대로) · 위치 = 바깥 막힘(zoom-geometry.js:598 «한 겹 큰 판»을 도형 뒤에 깖 = 바깥 · 실측) · 옛 id(zm-bdw-num · zm-bdc) 지킴 */
       sec('stroke', `
-      <div id="zm-bd-fields" style="${dim(bdOn)}">${strokeSectionHTML({ prefix: 'zm-bd', color: st.bdc, alpha: bdcAlpha, width: st.bdw, maxWidth: 80, align: 'outside', canAlign: false,
+      <div id="zm-bd-fields" style="${dim(bdOn)}">${strokeSectionHTML({ prefix: 'zm-bd', pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, color: st.bdc, alpha: bdcAlpha, width: st.bdw, maxWidth: 80, align: 'outside', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 바깥', widthId: 'zm-bdw-num', colorId: 'zm-bdc' })}
 ${bdrRow}
       </div>

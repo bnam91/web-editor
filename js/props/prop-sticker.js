@@ -2,7 +2,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, sliderRowHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
 import { panelRenderedColor } from './_panel-rendered.js';
 import { sanitizeIconMarkup } from '../util/sanitize-svg.js';
 import { glowSectionHTML, wireGlowSection } from './prop-sticker-glow.js';
@@ -492,7 +492,7 @@ export function showStickerProperties(block) {
     </div>`);
     /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 17) — 글자 외곽선 · 없음 = strokeWidth 0(렌더 sticker-block.js:283 «> 0 일 때만» · 옛 키 그대로) · 0.5 걸음(지디 261123)
        위치 = 바깥 막힘: 렌더가 -webkit-text-stroke 를 «두께×2» 로 긋고 paint-order:stroke fill 로 안쪽 절반을 글자 밑에 묻는다 = 보이는 건 바깥(sticker-block.js:280 실측 · 시안의 «안쪽»은 기본값 그림) */
-    put('stroke', strokeSectionHTML({ prefix: 'stk-t-stk', color: tStrokeColor, alpha: tStrokeAlpha, width: tStrokeWidth, maxWidth: 50, step: 0.5, align: 'outside', canAlign: false,
+    put('stroke', strokeSectionHTML({ prefix: 'stk-t-stk', pop: { why: STROKE_POP_WHY.soon, styleWhy: STROKE_POP_WHY.soon }, color: tStrokeColor, alpha: tStrokeAlpha, width: tStrokeWidth, maxWidth: 50, step: 0.5, align: 'outside', canAlign: false,
       alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 바깥', on: tStrokeWidth > 0, bodyId: 'stk-text-stroke-section', widthId: 'stk-t-stk-w-num', colorId: 'stk-t-stk-c' }));
     put('effects', `
       <div id="stk-t-shadow-detail">

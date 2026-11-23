@@ -18,6 +18,7 @@
 
 import { wireColorField } from './color-picker.js';
 import { syncStrokeFilter, strokeColorParts } from './text-stroke-filter.js';
+import { wireStrokePopover } from './_stroke-section.js';
 
 export const STROKE_ALIGNS = ['inside', 'center', 'outside'];
 export const STROKE_DEFAULTS = { on: false, width: 2, color: '#000000', align: 'outside' };
@@ -99,6 +100,7 @@ export function wireStrokeSection({ ctx, initial, p = 'txt', apply } = {}) {
   const wNum  = document.getElementById(`${p}-stroke-w-number`);
   const alSel = document.getElementById(`${p}-stroke-align`);
   const ctrls = document.getElementById(`${p}-stroke-controls`);
+  wireStrokePopover({ prefix: `${p}-stroke` });   // ⫶ Stroke 설정 팝오버(단계 3-1 · 지금은 칸 막힘 — 글자 외곽선 점선·꼭짓점은 3-2)
 
   const s = { ...STROKE_DEFAULTS, ...(initial || {}) };
   const _apply = apply

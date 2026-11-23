@@ -5,7 +5,7 @@ import { propPanel } from '../globals.js';
 import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacity } from '../frame-bg.js';
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
@@ -652,7 +652,7 @@ function _renderAutoPanel(ss) {
          위치 = 칸만 막힘: 프레임 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(ss-border-w-num · ss-border 색 · ss-border-style) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'ss-stroke', color: hexBorderColor, alpha: borderAlpha, width: borderWidth, maxWidth: 20, align: 'inside', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderWidth > 0, widthId: 'ss-border-w-num', colorId: 'ss-border',
-        slotsBelow: `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="line-style"><div class="prop-row"><span class="prop-label">스타일</span><select class="prop-select" id="ss-border-style" data-field="stroke-style">${[['solid', 'Solid'], ['dashed', 'Dashed'], ['dotted', 'Dotted']].map(([v, t]) => `<option value="${v}" ${borderStyle === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>` }),
+        pop: { styles: STROKE_STYLES_CSS, style: borderStyle, styleId: 'ss-border-style', why: STROKE_POP_WHY.css } }),   // 단계 3-1: «스타일» = ⫶ 팝오버(옛 id ss-border-style → 옛 change 배선 그대로) · 점(dotted) 유지
         { headTools: strokeHeadToolsHTML({ prefix: 'ss-stroke', on: borderWidth > 0 }) }),
       sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools }),
       sec('special', isBuzzFrame(ss) ? buzzSectionHTML(ss) : '', { title: 'Buzz' }),
