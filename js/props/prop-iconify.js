@@ -2,6 +2,7 @@ import { propPanel } from '../globals.js';
 import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { sanitizeSvgString } from '../util/sanitize-svg.js';
 import { normIconStroke, isStrokeIcon, iconStrokeOf, applyIconStroke, msFillState, msNameFor, ICON_STROKE_MIN, ICON_STROKE_MAX, ICON_STROKE_STEP } from '../blocks/icon-variant.js';   /* ICON-FEATHER-MATERIAL(261121) 선 두께·채움 */
 
@@ -88,12 +89,8 @@ export function showIconifyProperties(block) {
           </button>
         </div>
       </div>`),
-      sec('stroke', strokeable ? `
-      <div class="prop-row">
-        <span class="prop-label">선 두께</span>
-        <input type="range" class="prop-slider" id="icn-stroke-w-slider" min="${ICON_STROKE_MIN}" max="${ICON_STROKE_MAX}" step="${ICON_STROKE_STEP}" value="${strokeW}">
-        <input type="number" class="prop-number" id="icn-stroke-w-number" min="${ICON_STROKE_MIN}" max="${ICON_STROKE_MAX}" step="${ICON_STROKE_STEP}" value="${strokeW}">
-      </div>` : ''),
+      /* ★표준 Stroke 2-5(현빈 261124 ⓑ · 8910 #mkp-linestroke) — 선 아이콘: 굵기만(색 = Fill 의 아이콘 한 색) · ＋/− · 위치 · ⫶ 없음 · 옛 id icn-stroke-w-number · 걸음·한도 = icon-variant 상수 그대로 */
+      sec('stroke', strokeable ? strokeSectionHTML({ prefix: 'icn-stroke', noColor: true, noAlign: true, width: strokeW, minWidth: ICON_STROKE_MIN, maxWidth: ICON_STROKE_MAX, step: ICON_STROKE_STEP, widthId: 'icn-stroke-w-number' }) : ''),
       sec('fill', `${fillState ? `
       <div class="prop-row">
         <span class="prop-label">채움</span>
@@ -363,14 +360,9 @@ export function showIconifyProperties(block) {
   sSlider.addEventListener('change', () => window.pushHistory?.());
 
   // ICON-FEATHER-MATERIAL — 선 두께(라이브 input · 끝 표본 change · 크기 칸과 같은 이력 규약)
-  const swS = propPanel.querySelector('#icn-stroke-w-slider'), swN = propPanel.querySelector('#icn-stroke-w-number');
-  if (swS && swN) {
-    const applyStroke = (v) => { const w = normIconStroke(v); if (w == null) return; block.dataset.iconStroke = String(w); applyIconStroke(block); swS.value = w; swN.value = w; };
-    swS.addEventListener('mousedown', () => window.pushHistory?.());
-    swS.addEventListener('input', () => applyStroke(swS.value));
-    swS.addEventListener('change', () => { window.pushHistory?.(); window.triggerAutoSave?.(); });
-    swN.addEventListener('change', () => { applyStroke(swN.value); window.pushHistory?.(); window.triggerAutoSave?.(); });
-  }
+  /* 표준 Stroke 2-5 — 부품 배선(어댑터 = 옛 applyStroke 그대로: normIconStroke → dataset.iconStroke → applyIconStroke · change = 이력 한 칸 + 자동저장) */
+  if (propPanel.querySelector('#icn-stroke-w-number')) wireStrokeSection({ prefix: 'icn-stroke', widthId: 'icn-stroke-w-number', minWidth: ICON_STROKE_MIN, maxWidth: ICON_STROKE_MAX, step: ICON_STROKE_STEP, noColor: true,
+    adapter: { width: (v) => { const w = normIconStroke(v); if (w == null) return; block.dataset.iconStroke = String(w); applyIconStroke(block); }, commit: () => { window.pushHistory?.(); window.triggerAutoSave?.(); } } });
   // ICON-FEATHER-MATERIAL — Material Symbols 채움/선: 이름 꼴을 바꿔 그 SVG 를 받아 갈아 끼움(updateIconifyBlock 이 이력·저장 · 색·크기·회전 그대로)
   propPanel.querySelectorAll('#icn-ms-fill-group [data-ms-fill]').forEach((btn) => btn.addEventListener('click', async () => {
     const next = msNameFor(block.dataset.iconName, btn.dataset.msFill);
