@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 ①②③ · 태양 §2c check) — 바뀐 칸의 토글 스위치(label.prop-toggle · .prop-toggle-track) → check 부품(label.ui-check · input.ui-check-box) */
 /* graph-pie-1013.dom.spec.js — 1013t1-C 원형·도너츠 7건 (태양 1013-pie 2026-10-13)
  * 현빈: 원형 하나 + 「도너츠」 토글(C1) · 시작 각도(C2) · 조각 크기(C4) · 조각 간격(C6) … (C3·C5·C7 은 이 파일 뒤쪽에 이어 붙는다).
  * 옛 칸(P0~P11)은 tests/dom/graph-pie-donut.dom.spec.js 에 그대로 — 여기는 «새 키»와 «옛 저장본이 안 변한다»만 잰다.
@@ -122,7 +123,7 @@ test('D1 옛 donut 블럭의 패널 — 「원형」이 켜져 있고 · 도너�
   expect(g.active, '옛 donut = 「원형」 버튼이 켜진다').toEqual(['grb-type-pie']);
   expect(await page.locator('#grb-type-donut').count(), '옛 도넛 버튼은 없다').toBe(0);
   await expect(page.locator('#grb-pie-donut-toggle'), '도너츠 토글이 켜져 있다').toBeChecked();
-  expect(await page.evaluate(() => document.getElementById('grb-pie-donut-toggle').closest('.prop-row').querySelector('.prop-label').textContent.trim())).toBe('도너츠');
+  expect(await page.evaluate(() => document.getElementById('grb-pie-donut-toggle').closest('.prop-row').querySelector('.prop-label, .ui-check-label').textContent.trim())).toBe('도너츠');
   expect(await page.locator('#grb-pie-hole-slider').count()).toBe(1);
   expect(await outerOf(page, id), '패널을 열기만 해서는 블럭(dataset 포함)이 안 변한다').toBe(before);
   expect(await ds(page, id, 'chartType')).toBe('donut');
@@ -795,7 +796,7 @@ test('J1 순위·이름 토글 — 기본은 꺼짐(덧층 없음) · 켜면 조
   await openPanel(page, id);
   await expect(page.locator('#grb-pie-rank-toggle'), '전제: 토글 꺼짐').not.toBeChecked();
   await expect(page.locator('#grb-pie-name-toggle')).not.toBeChecked();
-  expect(await page.evaluate(() => ['grb-pie-rank-toggle', 'grb-pie-name-toggle'].map(i => document.getElementById(i).closest('.prop-row').querySelector('.prop-label').textContent.trim()))).toEqual(['순위 표시', '이름 표시']);
+  expect(await page.evaluate(() => ['grb-pie-rank-toggle', 'grb-pie-name-toggle'].map(i => document.getElementById(i).closest('.prop-row').querySelector('.prop-label, .ui-check-label').textContent.trim()))).toEqual(['순위 표시', '이름 표시']);
   await clickToggle(page, 'grb-pie-rank-toggle');
   await expect.poll(() => ds(page, id, 'pieRank')).toBe('1');
   let t = await tagsOf(page, id);

@@ -244,7 +244,8 @@ test('T6 그리드 패널 — 상태 7가지의 우측 패널 HTML 이 핀과 �
         for (const [key, q] of pool) q.forEach(() => out.push(`${k} ③ 컨트롤 더해짐 ${key}`));
         if (S.added.some(id => !b.querySelector('#' + id))) out.push(`${k} ② 스코프칩 넷이 없다`);
         // ④ 라벨
-        const lb = new Map([...b.querySelectorAll('.prop-label')].map(l => [rowKey(l), l.textContent.trim()]));
+        /* ★기대 바뀜(현빈 261123 «온/오프 = 체크» · 태양 §2c) — 켬/끔 줄의 이름은 .prop-label 이 아니라 체크 옆 글(.ui-check-label)로 옮겼다 · 컨트롤(③)은 그대로 */
+        const lb = new Map([...b.querySelectorAll('.prop-label, .ui-check-label')].map(l => [rowKey(l), l.textContent.trim()]));
         for (const l of a.querySelectorAll('.prop-label')) { const key = rowKey(l); if (!key) continue; const want = S.LABEL_TO[key] || l.textContent.trim(); if (lb.get(key) !== want) out.push(`${k} ④ 라벨 ${key}: 「${l.textContent.trim()}」 → 「${lb.get(key)}」(기대 「${want}」)`); }
         // ⑤ 하위 제목
         const ta = subTitles(a).filter(t => !(t.text === 'Layout' || (t.text === 'Typography' && t.n === 0))).map(t => t.text).sort();   // 순서는 틀이 정한다(SECTION_ORDER) — 집합만 견준다

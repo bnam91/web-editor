@@ -105,7 +105,7 @@ test('⓪ ★가림막 절과 토글이 «실재»한다 (패널 폭 = 실물 24
   await mountAndOpen(page);
   const seen = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const lab = [...body.querySelectorAll('.prop-label')].find((e) => e.textContent.trim() === '블러로 가리기');
+    const lab = [...body.querySelectorAll('.prop-label, .ui-check-label')].find((e) => e.textContent.trim() === '블러로 가리기');   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     return {
       panelW: body.clientWidth,
       hasToggle: !!document.getElementById('shape-redact-toggle'),
@@ -128,7 +128,7 @@ test('① ★base(0fb9f5f)에선 「블러로 가리기」가 실제로 잘린�
   await mountAndOpen(page);
   const m = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const lab = [...body.querySelectorAll('.prop-label')].find((e) => e.textContent.trim() === '블러로 가리기');
+    const lab = [...body.querySelectorAll('.prop-label, .ui-check-label')].find((e) => e.textContent.trim() === '블러로 가리기');   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     return { sw: lab.scrollWidth, cw: lab.clientWidth, cls: lab.className };
   });
   console.log('  base 라벨:', m);
@@ -142,7 +142,7 @@ test('② ★HEAD 에선 「블러로 가리기」가 온전히 보인다', asyn
   await mountAndOpen(page);
   const m = await page.evaluate(() => {
     const body = document.querySelector('#panel-right .panel-body');
-    const lab = [...body.querySelectorAll('.prop-label')].find((e) => e.textContent.trim() === '블러로 가리기');
+    const lab = [...body.querySelectorAll('.prop-label, .ui-check-label')].find((e) => e.textContent.trim() === '블러로 가리기');   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     return { sw: lab.scrollWidth, cw: lab.clientWidth, cls: lab.className };
   });
   console.log('  HEAD 라벨:', m);

@@ -72,7 +72,7 @@ const toggle = (page) => page.evaluate(() => {
   const hint = i && i.title ? { textContent: i.title, offsetParent: tg && tg.offsetParent } : null;
   return i ? {
     shown: !!(row && row.offsetParent), checked: i.checked, disabled: i.disabled,
-    label: row.querySelector('.prop-label')?.textContent.trim(),
+    label: row.querySelector('.ui-check-label')?.textContent.trim(),   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
     hint: hint ? { text: hint.textContent.trim(), shown: !!hint.offsetParent } : null,
   } : null;
 });

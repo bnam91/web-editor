@@ -161,7 +161,7 @@ test('T5 입구 — 빈 에셋엔 조건 없는 줄 하나 · 이미지 있는 �
     n: document.querySelectorAll('#asset-checker-tone-on').length,
     nOff: document.querySelectorAll('#asset-checker-tone-off').length,   // 1120b A5 — 끔 라디오 없음(토글 하나)
     offChecked: document.getElementById('asset-checker-tone-on')?.checked === false,
-    label: document.getElementById('asset-checker-tone-on')?.closest('.prop-row')?.querySelector('.prop-label')?.textContent.trim() ?? null,
+    label: document.getElementById('asset-checker-tone-on')?.closest('.ui-check')?.querySelector('.ui-check-label')?.textContent.trim() ?? null,   // ★기대 바뀜(check 이관) — 이름 = 체크 옆 글
   }));
   expect(empty).toEqual({ n: 1, nOff: 0, offChecked: true, label: '체커 어둡게' });
   await page.evaluate(() => { const ab = document.getElementById('akB'); ab.classList.add('has-image'); window.showAssetProperties(ab); });

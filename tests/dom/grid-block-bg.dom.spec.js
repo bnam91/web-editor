@@ -286,7 +286,7 @@ test('B1 ★토글(진짜 마우스) — 끄면 제목 한 줄뿐 · 켜면 줄�
   const snap = () => page.evaluate(() => { const g = document.getElementById('gG'); return { st: g.getAttribute('style'), html: g.innerHTML }; });
   await selectGrid(page);
   const a = await snap();
-  const t0 = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section'); return s && { title: s.querySelector('.prop-section-title').textContent.trim(), n: s.querySelectorAll('.prop-row, .prop-color-row').length,
+  const t0 = await page.evaluate(() => { const s = document.getElementById('grd-bbg-section'); return s && { title: [...s.querySelector('.prop-section-title').childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(),   /* ★기대 바뀜(check 이관 ②ⓒ) — 머리 체크 옆 «켜기» 글은 제목이 아니다 */ n: s.querySelectorAll('.prop-row, .prop-color-row').length,
     sec: s.closest('.prop-section[data-sec]')?.dataset.sec ?? null, outlineSec: document.getElementById('grd-outline-group')?.closest('.prop-section[data-sec]')?.dataset.sec ?? null }; });
   expect(t0, '「블럭 배경」 절이 있다').not.toBeNull();
   expect(t0.title).toBe('블럭 배경');

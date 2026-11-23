@@ -3145,7 +3145,7 @@ function _grdPadExcludeSectionHtml(block) {
     size: `<div data-scope="block">${_grdWidthRowHtml(block)}</div>`,
     padding: `<div data-scope="block">
       ${_grdCellPadYRowHtml(block)}
-      <div class="prop-row" style="align-items:center;gap:6px;" title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">
+      <div class="prop-row" style="align-items:center;gap:6px;${hideBleed ? 'display:none;' : ''}" title="섹션 좌우 패딩을 «넘어» 이 그리드만 전폭으로 폅니다 (에셋 블록의 「에셋블록 제외」와 같은 동작)">   <!-- ★t2-08 ⓐ 펼 것이 없으면 줄째 숨김(옛: 이름표·스위치 각각 display:none — check 이관 때 빠졌던 것 되살림) -->
         ${checkHTML({ id: 'grd-use-padx', label: '좌우 패딩 제외 (전폭)', checked: on })}
       </div>
     </div>`,

@@ -54,7 +54,7 @@ async function setup(page) {
 }
 const pick = (page, id) => page.evaluate((id) => { const g = document.getElementById(id); window.deselectAll?.(); window.selectBlock?.(g); window.showGridProperties(g); window.clearHistory?.(); }, id);
 const toggleOff = (page) => page.evaluate(() => { const cb = document.getElementById('grd-use-padx'); cb.checked = false; cb.dispatchEvent(new Event('change', { bubbles: true })); });
-const shown = (page) => page.evaluate(() => { const t = document.getElementById('grd-use-padx')?.closest('.ui-check'); return !!t && getComputedStyle(t).display !== 'none'; });
+const shown = (page) => page.evaluate(() => { const t = document.getElementById('grd-use-padx')?.closest('.ui-check'); return !!t && t.getClientRects().length > 0; });   // ★기대 바뀜(check 이관) — 숨김은 줄째(display:none 조상) ⇒ 실제로 보이는지로 잰다
 const toggleOn = (page) => page.evaluate(() => { const cb = document.getElementById('grd-use-padx'); cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); });
 /* ★배율 무관 값으로 잰다 — 캔버스 줌 아래 rect 는 배율이 곱해지고, 절대 자식의 rect 는 실앱에서 offsetLeft 와 갈린 적이 있다(t2-08 실측).
    프레임 안: offsetLeft/offsetWidth(offsetParent = 프레임) · 섹션 흐름: rect 차를 섹션 offsetWidth/rect 폭 비로 되돌린다. */
@@ -102,7 +102,7 @@ test('H1 패딩 0 섹션 흐름 그리드 — 뺄 패딩이 없다: 스위치 �
   await pick(page, 'gZero');
   await expect(page.locator('#grd-use-padx')).toHaveCount(1);
   expect(await shown(page), '★뺄 패딩 0 인데 스위치가 보인다').toBe(false);
-  expect(await page.evaluate(() => { const l = document.getElementById('grd-use-padx').closest('.prop-row').querySelector('.prop-label'); return getComputedStyle(l).display; }), '이름표도 같이 숨는다').toBe('none');
+  expect(await page.evaluate(() => { const l = document.getElementById('grd-use-padx').closest('.prop-row').querySelector('.ui-check-label'); return l.getClientRects().length; }), '이름표(체크 옆 글)도 같이 숨는다').toBe(0);
 });
 
 test('P1 ⓐ PNG 내보내기 클론도 프레임 폭 — 화면과 같다', async ({ page }) => {

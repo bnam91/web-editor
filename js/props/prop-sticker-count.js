@@ -220,7 +220,7 @@ export function countSections(block) {
       </div>`,
     special: [['Marking', `
       <div class="prop-row" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)">
-        ${checkHTML({ id: 'stk-count-group', label: '섹션 전체', checked: _groupOn, attrs: 'aria-label="섹션 전체에 적용"' })}
+        ${checkHTML({ id: 'stk-count-group', label: '섹션 전체', checked: _groupOn, attrs: 'aria-label="섹션 전체에 적용" title="켜면 모양·크기·폰트·색이 이 섹션의 마킹 전부에 적용된다 (끄면 고른 것만)"' })}
       </div>
       <div class="prop-row" id="stk-count-start-row" style="display:${isIcon ? 'none' : 'flex'};"><span class="prop-label">시작 번호</span>
         <input type="number" class="prop-number" id="stk-count-start" min="${START_MIN}" max="${START_MAX}" step="1" value="${start}" title="이 섹션의 첫 번호 (알파벳 표기에서는 1 = A)">
