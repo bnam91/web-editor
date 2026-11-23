@@ -64,7 +64,8 @@ window.__partsDet = function (body, defaults) {
     const ov = inS('.prop-chain-btn--overlay'); const needPlus = /^(stroke|effects)$/.test(key) && !plus;
     if (plus || ov.length || needPlus) { present.add('end-slot'); P['end-slot'] = needPlus ? 'var:머리 ＋ 없음' : 'ok'; }
     // fx-card — 정본 꼴: header(눈 aria-pressed · 제목 · ✕ aria-label) + body
-    const cards = inS('.prop-cell-card'); if (cards.length) { present.add('fx-card'); const bad = cards.filter((c) => { const h = c.querySelector(':scope > .prop-cell-card-header'); return !h || !h.querySelector('[aria-pressed]') || !h.querySelector('.prop-cell-card-title') || ![...h.querySelectorAll('button')].some((b) => /삭제|✕|×/.test((b.getAttribute('aria-label') || '') + b.textContent)); }); P['fx-card'] = bad.length ? 'var:정본 꼴 아님 ' + bad.length + '/' + cards.length : 'ok'; }
+    const cards = inS('.prop-cell-card[data-fx-type]'); if (cards.length) { present.add('fx-card');   // 효과 카드만(스타일 번호 카드 등 다른 .prop-cell-card 는 부품 아님 · 주인으론 셈)
+    const bad = cards.filter((c) => { const h = c.querySelector(':scope > .prop-cell-card-header'); return !h || !h.querySelector('[aria-pressed]') || !h.querySelector('.prop-cell-card-title') || ![...h.querySelectorAll('button')].some((b) => /삭제|✕|×/.test((b.getAttribute('aria-label') || '') + b.textContent)); }); P['fx-card'] = bad.length ? 'var:정본 꼴 아님 ' + bad.length + '/' + cards.length : 'ok'; }
     // rot
     if (inS('.prop-rot-row').length) { present.add('rot'); P.rot = 'ok'; }
     // 주인 없는 컨트롤
