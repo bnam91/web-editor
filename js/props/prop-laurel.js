@@ -1,5 +1,5 @@
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, discSecOpen, discSecToggle, disclosureChevronHtml } from './_helpers.js';
+import { blockHeaderHTML, discSecOpen, discSecToggle, disclosureChevronHtml, checkHTML } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { gridNumOr } from '../blocks/grid-block.js';   /* ★C 181 — 0 을 살려 읽는 문 하나(렌더러 laurel-block.js 와 같은 함수 · 두 벌 금지) */
@@ -157,11 +157,7 @@ export function showLaurelProperties(block) {
 `),
       sec('padding', _lrlCanFB ? `
       <div class="prop-row">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="lrl-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'lrl-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>` : ''),
       sec('fill', `
       <div class="prop-row" data-scope="all">
