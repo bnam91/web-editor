@@ -318,7 +318,7 @@ export function lnBubbleHost(block) {
   const host = _baseHost(block, {
     kind: 'bubble', limitLabel: '말풍선 한 개에',
     noHitHint: '줄을 한 번 더 누르면 줄 편집 · 두 번 누르면 글자 편집',
-    head: (r, c, li) => (li === null ? '줄 없음 — 줄을 더하면 지금 글이 첫 줄이 된다' : `${li + 1}번째 줄`),
+    head: (r, c, li) => (li === null ? '' : `${li + 1}번째 줄`),   /* 1120b B1(현빈 261120) — 말풍선 «줄 없음 — 줄을 더하면…» 힌트 걷음(빈 글 = 그 줄을 안 그린다 · prop-grid _grdLineBarHtml) */
     getLines: () => lnBubbleLines(block),
     rowOk: (r) => r === 0,
     bake: () => lnBakeBubble(block),
@@ -693,9 +693,14 @@ function _hideBlockTypo() {
      그 절에 보일 것이 안 남으면(말풍선 Layout = 정렬뿐) 절 머리도 숨긴다 — 빈 「Layout」 머리만 떠 있지 않게. */
   const grp = panel.querySelector('#txt-align-group');
   hide(grp); hide(grp?.previousElementSibling?.classList.contains('prop-field-label') ? grp.previousElementSibling : null);
-  const lay = grp?.closest('.prop-section');
-  const body = lay?.querySelector(':scope > .prop-sec-body');
-  if (body && ![...body.children].some((e) => e.style.display !== 'none')) hide(lay);
+  /* ★Q1(Layout 묶음 · 시안 v10) — 정렬은 묶음 안 «layout 몸» 하나다. 그 몸만 숨기고, 묶음의 몸이 다 숨었을 때만 머리째 숨긴다(Size·Padding 은 남는다). */
+  const body = grp?.closest('.prop-sec-body');
+  if (body && ![...body.children].some((e) => e.style.display !== 'none')) hide(body);
+  const lay = body?.closest('.prop-section');
+  if (lay && ![...lay.querySelectorAll(':scope > .prop-sec-body')].some((b) => b.style.display !== 'none')) hide(lay);
+  /* QA2 — lay 는 묶음 «몸»(.prop-sec-part)이다. 묶음의 몸이 다 숨었으면 «Layout» 머리째 숨긴다(빈 머리만 떠 있지 않게) */
+  const grpSec = lay?.closest('.prop-sec-group');
+  if (grpSec && ![...grpSec.querySelectorAll(':scope > .prop-section[data-sec]')].some((p) => p.style.display !== 'none')) hide(grpSec);
 }
 
 export function lnAugmentBubblePanel(tb) {

@@ -30,7 +30,8 @@ const chips = (page) => page.evaluate(() => [...document.querySelectorAll('#grd-
   id: b.id, scope: b.dataset.scope, active: b.classList.contains('active'), pressed: b.getAttribute('aria-pressed'), current: b.getAttribute('aria-current') === 'true', disabled: b.disabled, title: b.title || '',
 })));
 const shown = (page, sel) => page.evaluate((sel) => { const el = document.querySelector(sel); return !!el && !!el.offsetParent; }, sel);
-const secShown = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]')].map(s => [s.dataset.sec, s.style.display !== 'none'])));
+/* ★기대 바뀜(Q1 · Q2 · 현빈 GO 261120) — 묶음 몸(size·layout·padding) · Type 띠도 절이다(겉 직속만 보면 Layout 이 안 잡힌다). 보임 = 자기와 묶음 겉이 다 보일 때 */
+const secShown = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#panel-right .panel-body .prop-section[data-sec]')].map(s => [s.dataset.sec, s.style.display !== 'none' && s.closest('.prop-sec-group')?.style.display !== 'none'])));
 
 test('S1 블럭만 고른 상태 — 칩 넷 · 추론 = 블록(aria-current · 눌림 아님) · 글줄 칩 disabled + 까닭 title · 걸러 보기 없음', async ({ page }) => {
   const errs = await scene(page);

@@ -95,7 +95,9 @@ test('G2 ★내장 양성대조 — 뒤집은 순서·틀린 제목 표로 재�
   const r = await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
   expect(r.err, '[전제] 브릿지를 넣었다').toBeUndefined();
   const panel = await readPanel(page);
-  expect(panel.secs.filter((s) => s.sec).map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Tail').toEqual(['size', 'fill', 'special']);
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — ⑴ '__group' = 읽개(readPanel)가 Layout 묶음 머리에 붙이는 표식(750b9fae6 · 판정기도 절에서 뺀다) ⇒ 여기서도 뺀다
+     ⑵ 블록 «Template» 절(c5686f5a7 · Q37 · 현빈 GO 261120)이 모든 블럭 패널 끝에 붙는다 */
+  expect(panel.secs.filter((s) => s.sec && s.sec !== '__group').map((s) => s.sec), '[전제] 브릿지 = Size·Fill·Tail·Template').toEqual(['size', 'fill', 'template', 'special']);   // ★기대 바뀜(지디 261123 ⑶ⓑ · 정본 v1 꼬리 Templates → [Special])
   expect(judgePanel(panel, SPEC), '[전제] 정본으론 통과').toEqual([]);
   expect(judgePanel(panel, SPEC, [...SPEC.SECTION_ORDER].reverse()).join(' | '), '★뒤집은 순서를 못 잡는다').toContain('순서 위반');
   const wrongTitles = { ...SPEC, SECTION_TITLE: { ...SPEC.SECTION_TITLE, size: 'Dimensions' } };
@@ -116,7 +118,9 @@ test('G2b ★순서 예외 — 섹션 패널만 Fill 이 머리 바로 아래(_s
   await page.evaluate(MANUAL.section);
   await page.waitForFunction(() => !!document.getElementById('sec-height-value') && !!document.querySelector('#panel-right .panel-body .prop-section[data-sec="fill"]'));
   const panel = await readPanel(page);
-  const keys = panel.secs.filter((s) => s.sec).map((s) => s.sec);
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — 판정기(_panel-sections judgePanel)와 같은 규칙으로 순서를 본다: kind(Type 띠 · Q1·Q2 현빈 GO 261120)는 늘 이름표 아래 맨 앞이라 순서 밖 ·
+     '__group' 은 Layout 묶음 머리 표식(절 아님). Fill 이 «절 중» 첫째인 D5 ① 은 그대로 잰다. */
+  const keys = panel.secs.filter((s) => s.sec && s.sec !== '__group' && s.sec !== 'kind').map((s) => s.sec);
   expect(panel.order, '[전제] 섹션 패널 = 예외 이름 section').toBe('section');
   expect(keys, '★순서 = 예외표 몫의 부분열').toEqual(SPEC.sectionOrderFor('section').filter((k) => keys.includes(k)));
   expect(keys[0], '★Fill 이 첫 절(예외표 first)').toBe(SPEC.SECTION_ORDER_EXCEPT.section.first[0]);
@@ -162,7 +166,8 @@ test('G6 반복 항목 카드는 Content 안에서만 판정 밖 — 같은 카�
   await page.evaluate(() => { const k = document.createElement('div'); k.className = 'prop-cell-card'; k.innerHTML = '<input type="color" id="cmp-card-0-bg-color">'; document.getElementById('psec-size-body').appendChild(k); });
   expect(judgePanel(await readPanel(page), SPEC), '[양성대조] Content 밖 카드는 판정').toEqual(['소유 위반: cmp-card-0-bg-color 는 fill 절 속성인데 size 절에 있다']);
   // 그 절을 Content 로(data-sec·제목만 — 순서는 content < fill < special 이라 정본 부분열) ⇒ 카드 안이라 판정 밖
-  await page.evaluate(() => { const s = document.getElementById('psec-size'); s.dataset.sec = 'content'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Content'; });
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — Size 는 Layout 묶음(Q2 · 현빈 GO 261120) 안 몸(.prop-sec-part[data-sec=size] · 몸 #psec-size-body · 제목 = data-title)이다 — 그 몸을 Content 로 바꾼 가짜 */
+  await page.evaluate(() => { const s = document.getElementById('psec-size-body').closest('[data-sec]'); s.dataset.sec = 'content'; s.dataset.title = 'Content'; });
   expect(judgePanel(await readPanel(page), SPEC), '★Content 안 항목 카드인데 빨갛다').toEqual([]);
 });
 
@@ -173,7 +178,8 @@ test('G7 simple-card 꼴 항목 카드([data-card-index] · id 없는 칸) — C
   await page.evaluate(() => { const k = document.createElement('div'); k.id = 'cvb-card-items'; k.innerHTML = '<div class="cvb-card-item" data-card-index="0"><input type="color" class="cvb-card-cell-bg" data-card-index="0"></div>'; document.getElementById('psec-size-body').appendChild(k); });
   const red = judgePanel(await readPanel(page), SPEC);
   expect(red, '[양성대조] Size 절의 카드는 판정 — 색 칸 소유 위반 1건').toEqual(['소유 위반: card-index 0 color 는 fill 절 속성인데 size 절에 있다']);
-  await page.evaluate(() => { const s = document.getElementById('psec-size'); s.dataset.sec = 'content'; s.querySelector(':scope > .prop-sec-head .prop-sec-title-text').textContent = 'Content'; });
+  /* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — Size 는 Layout 묶음(Q2 · 현빈 GO 261120) 안 몸(.prop-sec-part[data-sec=size] · 몸 #psec-size-body · 제목 = data-title)이다 — 그 몸을 Content 로 바꾼 가짜 */
+  await page.evaluate(() => { const s = document.getElementById('psec-size-body').closest('[data-sec]'); s.dataset.sec = 'content'; s.dataset.title = 'Content'; });
   expect(judgePanel(await readPanel(page), SPEC), '★Content 안 simple-card 항목 칸인데 빨갛다').toEqual([]);
 });
 
@@ -199,41 +205,31 @@ test('G8 effects-registry 카드 칸 = Effects — 진짜 에셋 블록 + 그림
   expect(red, '[양성대조] 카드 목록이 Fill 절이면 빨강').toContain('소유 위반: asset-fxsh-color 는 effects 절 속성인데 fill 절에 있다');
 });
 
-test('G9 빈 머리 절 — 몸의 줄이 전부 display:none 이면 빨강 · 접힘은 빈 것이 아니다(진짜 DOM)', async ({ page }) => {
+test('G9 빈 머리 절 — 몸의 줄이 전부 display:none 이면 빨강(진짜 DOM)', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
   expect(judgePanel(await readPanel(page), SPEC), '[전제] 정본 판 통과').toEqual([]);
-  await page.locator('#psec-size-head').click();   // 접기 — 보이는 컨트롤이 «접혀 안 보이는» 것은 빈 머리가 아니다
-  await expect(page.locator('#psec-size-body')).toBeHidden();
-  expect(judgePanel(await readPanel(page), SPEC), '★접힌 절을 빈 머리로 셌다').toEqual([]);
-  await page.locator('#psec-size-head').click();
+  /* ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 옛 «접힌 절은 빈 머리가 아니다» 칸은 접기가 없어져 걷었다 */
   /* U4 실측 꼴(가림막 켠 Fill · 떠 있는 iconify 의 Layout): 몸의 줄이 전부 display:none */
   await page.evaluate(() => document.querySelectorAll('#psec-size-body > *').forEach((r) => { r.style.display = 'none'; }));
   expect(judgePanel(await readPanel(page), SPEC), '[양성대조] 줄이 다 숨은 절을 못 잡는다').toEqual(['빈 머리 절: size — 보이는 컨트롤 0(렌더러가 그 절을 안 내야 한다)']);
 });
 
-test('G3 접기 유지 — 절 key 단위로 블록을 바꿔도 · 다시 불러와도 그대로', async ({ page }) => {
+/* ★기대 바뀜(패널 재설계 1차 · 현빈 확정 «표준 절 접기 없음») — 옛 G3 은 «접기가 블록을 바꿔도·재로드해도 남는다»였다.
+ *   이제: 머리를 눌러도 안 접히고, 옛 판이 남긴 저장(gd-panel-collapsed)이 있어도 다시 불러온 뒤 절이 펼쳐져 있다. */
+test('G3 접기 없음 — 머리를 눌러도 그대로 · 옛 접기 저장이 있어도 재로드 뒤 펼침', async ({ page }) => {
   await scene(page);
   await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });
   const body = (k) => page.locator(`#psec-${k}-body`);
-  await expect(body('size'), '[전제] 기본 펼침').toBeVisible();
+  await expect(body('size'), '[전제] 펼침').toBeVisible();
   await page.locator('#psec-size-head').click();
-  await expect(body('size')).toBeHidden();
-  await expect(page.locator('#psec-size-head')).toHaveAttribute('aria-expanded', 'false');
-  // 다른 블록 — 같은 key(size)는 접혀 있고 다른 key 는 펼침
-  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
-  await expect(page.locator('#brg-h-slider'), '[전제] 브릿지 패널').toBeAttached();
-  await expect(body('size')).toBeHidden();
-  await expect(body('fill')).toBeVisible();
-  // 다시 불러오기 — localStorage 에서 복원
+  await expect(body('size'), '★머리를 누르니 몸이 숨었다').toBeVisible();
+  await page.evaluate(() => localStorage.setItem('gd-panel-collapsed', JSON.stringify(['size', 'fill'])));
   await page.reload();
   await page.waitForFunction(() => typeof window.rebindAll === 'function' && typeof window.groupSelectedBlocks === 'function', null, { timeout: 20000 });
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });
-  await openKind(page, { cls: 'gap-block', entry: 'addGapBlock' });
-  await expect(page.locator('#gap-slider'), '[전제] 갭 패널').toBeAttached();
-  await expect(body('size'), '★재로드 뒤 접힘이 안 남았다').toBeHidden();
-  // 접힌 채로도 DOM 은 있다(id 조회 spec 보호) · 다시 펼치면 저장에서 빠진다
-  await page.locator('#psec-size-head').click();
-  await expect(body('size')).toBeVisible();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('gd-panel-collapsed') || '[]'))).toEqual([]);
+  await openKind(page, { cls: 'bridge-block', entry: 'addBridgeBlock' });
+  await expect(page.locator('#brg-h-slider'), '[전제] 브릿지 패널').toBeAttached();
+  await expect(body('size'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
+  await expect(body('fill'), '★옛 접기 저장이 절을 숨겼다').toBeVisible();
 });

@@ -73,24 +73,11 @@ export function showAssetProperties(ab) {
   const usePadX       = typeof window.getEffectiveUsePadx === 'function'
     ? window.getEffectiveUsePadx(ab)
     : (ab.dataset.usePadx === 'true');
-  /* ⛔이름 충돌 주의 — 바로 아래 `overlayOn`/`asset-overlay-toggle` 은 «이미지 위에 어두운 막 +
-     텍스트를 얹는» Text Overlay 다(.asset-overlay). 이번 건(오버레이=플로팅, Figma 의 Ignore
-     Auto Layout)과 «완전히 다른 기능»인데 이름만 같다. 그래서 새 토글의 id 는
-     `asset-float-toggle` 이다 — 같은 id 를 쓰면 getElementById 가 먼저 것을 잡아 두 기능이
-     서로를 눌러 버린다(.guard/FEATURE_REGISTRY.md 가 옛 id 를 계약으로 못 박고 있다).
-     (2026-09-20 현빈 원문 3번 「도형 블럭과 에셋 블럭에도 오버레이 버튼·기능」 / T-052) */
+  /* 1120b A4(현빈 261120) — 옛 「텍스트 막」(이미지 위 어두운 막 · #asset-overlay-toggle · data-overlay)은 패널에서 걷었다.
+     저장본의 data-overlay·.asset-overlay 는 그대로 읽고 그린다(옛 프로젝트 열림 보장) · 패널은 더 만들지 않는다.
+     플로팅 토글 id 는 여전히 asset-float-toggle(.guard/FEATURE_REGISTRY.md 옛 계약의 이름 충돌 주의 그대로). */
   const floatPosEl     = posElOf(ab);
   const isFloatOverlay = floatPosEl?.dataset.overlayBlock === 'true';
-  const overlayOn     = ab.dataset.overlay === 'true';
-  // 기존 overlay 요소 가져오기 (없으면 생성)
-  let overlayEl = ab.querySelector('.asset-overlay');
-  if (!overlayEl) {
-    overlayEl = document.createElement('div');
-    overlayEl.className = 'asset-overlay';
-    ab.appendChild(overlayEl);
-  }
-  const overlayColor = overlayEl.style.color || '#ffffff';
-  const overlayOpacity = parseFloat(overlayEl.dataset.ovOpacity ?? '0.35');
 
   // 그레인(필름 노이즈) — asset-overlay와 같은 패턴: 형제 오버레이 div + dataset.
   // ⛔패널을 열기만 해도 만들면 안 된다(적대적 QA a1-a3 지적) — 실제로 강도를 설정할 때만
@@ -120,22 +107,18 @@ export function showAssetProperties(ab) {
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
       </div>
-      <!-- ★「초기화」는 색 줄의 «3번째 형제»였다 — 그 버튼은 안 줄고(.prop-align-btn--aux: flex 0 0 auto)
-           줄어드는 건 색 필드뿐이라, 고정 240px 패널에서 hex 칸이 16px 로 짜부라져 값이 안 보였다(T-100).
-           같은 파일의 형제 행(외곽선, 버튼 없음)은 69px 로 멀쩡했다 — 실측 대조. ⇒ 버튼을 자기 줄로 내린다. -->
-      <div class="prop-color-row--aux">
-        <button class="prop-align-btn prop-align-btn--aux" id="asset-bg-clear">초기화</button>
-      </div>
+      <!-- 1120b A6(현빈 261120) — 「초기화」(#asset-bg-clear) 단추 걷음 -->
       ${hasImage ? '' : `<!-- ★t4-15 체커 톤(현빈 ④) — 꼴·어휘는 섹션 라디오 그대로(새 클래스 0).
            ★입구 조건 없음 — 현빈 「에셋블럭은 최초 추가시에 체크배경으로 두기를 켤 필요가 없지 않아?」(빈 에셋은 늘 체커다).
            ★이미지가 있으면 숨긴다 — 체커가 안 보이니 정할 것이 없다(현빈 QA 자 「불필요한 프롭힌트는 없는지」).
-           ⛔name 을 sec-checker-tone 과 같게 두지 마라 — 두 라디오가 한 문서에 뜨면 한 그룹이 돼 서로를 끈다. -->
-      <div class="prop-row" style="margin-top:4px;" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
-        <span class="prop-label prop-label--auto">체커 어둡게</span>
-        <div class="prop-radio-group">
-          <label class="prop-radio"><input type="radio" name="asset-checker-tone" id="asset-checker-tone-on" value="dark" ${_ckTone === 'dark' ? 'checked' : ''}> 켬</label>
-          <label class="prop-radio"><input type="radio" name="asset-checker-tone" id="asset-checker-tone-off" value="light" ${_ckTone === 'dark' ? '' : 'checked'}> 끔</label>
-        </div>
+           (옛 라디오 name 함정은 체크박스가 되며 사라졌다 — 1120b A5) -->
+      <div class="prop-row" title="이 에셋블럭의 체크무늬만 어둡게 합니다 — 흰 그림이 체커 위에서 보이게. 내보내기에는 체커가 나가지 않습니다.">
+        <span class="prop-label">체커 어둡게</span>
+        <!-- 1120b A5(현빈 261120) — 켬/끔 라디오 → 「내용 자르기」와 같은 토글(.prop-toggle) · 켬 = dataset.checkerTone 'dark' · 끔 = 키 지움(저장 꼴 그대로) -->
+        <label class="prop-toggle">
+          <input type="checkbox" id="asset-checker-tone-on" ${_ckTone === 'dark' ? 'checked' : ''}>
+          <span class="prop-toggle-track"></span>
+        </label>
       </div>`}
       ${hasImage && currentFit === 'cover' ? '<div class="prop-hint" style="margin-top:6px;">꽉 채우기에서는 배경이 이미지 뒤에 가려집니다 — 원본 비율에서 보입니다.</div>' : ''}
   `;
@@ -149,9 +132,7 @@ export function showAssetProperties(ab) {
       </div>
       ${(isVideo || ab.dataset.collab) ? '' : '<button class="prop-action-btn secondary" id="asset-pos-btn">이미지 위치 조절</button>'}<!-- ★1013t2A2 콜라보면 숨김 — 위치 조절 틀이 블록 전체 폭을 잰다 -->
       <button class="prop-action-btn secondary" id="asset-replace-btn">${isVideo ? '영상' : '이미지'} 교체</button>
-      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>` : `
-      <div class="prop-hint" style="text-align:center;padding:8px 0 4px;">더블클릭하거나 파일을 블록에 드래그해 이미지 추가</div>
-      <button class="prop-action-btn secondary" id="asset-upload-btn" style="margin-top:4px;">이미지 선택...</button>`;   // U4: 힌트 둘 → 하나(패널당 ≤2)
+      <button class="prop-action-btn danger"    id="asset-remove-btn">${isVideo ? '영상' : '이미지'} 제거</button>` : '';   /* 1120b A3(현빈 261120) — 빈 에셋의 Content 절(안내 + 「이미지 선택...」 #asset-upload-btn) 걷음: 이미지는 캔버스에서 넣는다(더블클릭·끌어 놓기) ⇒ 빈 에셋엔 psec-content 가 없다 */
 
   /* ★1013t2A2 「Collab」 절 — 로고 블록(켜짐 ∪ data-preset=logo ∪ 200×64)에만. 꼴 = 별 「갯수」(prop-shape.js) 그대로. */
   const showCollab = isLogoBlock(ab);
@@ -234,8 +215,15 @@ export function showAssetProperties(ab) {
       // 영상 메타데이터 전(트림 준비 안 됨)엔 「불러오는 중」 안내만 있다 — 컨트롤 0 인 Trim 절(빈 머리)을 내지 않고 Content 끝에 붙인다
       sec('content', imageSection + (hasImage && isVideo && !trimReady ? videoTrimSectionHTML(ab) : '')),
       // 플로팅 토글 = Position 절 머리 손잡이(§2-1) · X/Y(플로팅일 때만 — 몸통이 비어도 머리 손잡이가 있으면 절은 남는다)
+      /* 1120b A1(현빈 261120) — 정렬 줄 = Position 절 · 라벨은 텍스트 블럭 Layout 과 같은 꼴(.prop-field-label «Alignment» + .prop-align-group) */
       sec('position', `
-      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ※Effects 절의 「텍스트 막」(이미지 위 어두운 막)과는 다른 기능입니다.' }) }),
+      ${floatPositionRowHTML({ prefix: 'asset', posEl: floatPosEl })}
+      <span class="prop-field-label">Alignment</span>
+      <div class="prop-align-group" id="asset-align-group">
+          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
+          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
+          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
+      </div>`, { headTools: overlayToggleBtnHTML({ id: 'asset-float-toggle', active: isFloatOverlay, title: '오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다. ' }) }),
       sec('size', `
       <div class="prop-row">
         <span class="prop-label">너비</span>
@@ -246,15 +234,6 @@ export function showAssetProperties(ab) {
         <span class="prop-label">높이</span>
         <input type="range" class="prop-slider" id="asset-h-slider" min="${H_MIN}" max="1600" step="10" value="${currentH}">
         <input type="number" class="prop-number" id="asset-h-number" min="${H_MIN}" max="1600" value="${currentH}">
-      </div>`),
-      sec('layout', `
-      <div class="prop-row">
-        <span class="prop-label">정렬</span>
-        <div class="prop-align-group" id="asset-align-group">
-          ${alignBtn('object-h', 'left', { label: '왼쪽 정렬', title: '왼쪽 정렬', active: currentAlign==='left', attrs: { 'data-align': 'left' } })}
-          ${alignBtn('object-h', 'center', { label: '가운데 정렬 (수평)', title: '가운데 정렬 (수평)', active: currentAlign==='center', attrs: { 'data-align': 'center' } })}
-          ${alignBtn('object-h', 'right', { label: '오른쪽 정렬', title: '오른쪽 정렬', active: currentAlign==='right', attrs: { 'data-align': 'right' } })}
-        </div>
       </div>`),
       sec('padding', `
       <div class="prop-row">
@@ -291,42 +270,27 @@ export function showAssetProperties(ab) {
       // 옛 「Background」
       sec('fill', bgSection),
       // 옛 「Border」
+      /* 1120b A2(현빈 261120 「Stroke 절도 text-h1 처럼 [+]」) — 머리 «＋»(켜면 «−») · 몸 줄 = 텍스트 Stroke 와 같은 마크업(strokeSection: 두께 → 색상).
+         켬 = strokeWidth > 0(저장 꼴 그대로 · 새 키 0). 위치(내부/외부)는 에셋 테두리에 없어 줄이 없다. */
       sec('stroke', `
-      <div class="prop-color-row">
-        <span class="prop-label">외곽선</span>
-        ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
-      </div>
-      <div class="prop-row" style="margin-top:8px;">
-        <span class="prop-label">두께</span>
-        <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
-        <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
-      </div>`),
-      /* 옛 「Text Overlay」(이미지 위 어두운 막) + 효과 목록. ★개명 안 한 id(asset-overlay-toggle)는 .guard/FEATURE_REGISTRY.md 계약 —
-         플로팅(asset-float-toggle · Position 절)과 갈라 보이게 줄 라벨을 「텍스트 막」(어두운 막 + 글 담는 그릇)으로(옛 설명 힌트 한 줄 대신 — 힌트 ≤2) */
-      sec('effects', `
-      <div class="prop-row">
-        <span class="prop-label">텍스트 막</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="asset-overlay-toggle" ${overlayOn ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
-      </div>
-      <div id="asset-overlay-controls" style="${overlayOn ? '' : 'display:none'}" title="이 블록 선택 후 중앙 패널로 블록 추가">
+      <div id="asset-stroke-controls" style="display:${currentStrokeWidth > 0 ? 'block' : 'none'}">
         <div class="prop-row">
-          <span class="prop-label">불투명</span>
-          <input type="range" class="prop-slider" id="asset-overlay-opacity" min="0" max="100" step="1" value="${Math.round(overlayOpacity * 100)}">
-          <input type="number" class="prop-number" id="asset-overlay-opacity-num" min="0" max="100" value="${Math.round(overlayOpacity * 100)}">
+          <span class="prop-label">두께</span>
+          <input type="range" class="prop-slider" id="asset-stroke-slider" min="0" max="20" step="1" value="${currentStrokeWidth}">
+          <input type="number" class="prop-number" id="asset-stroke-num" min="0" max="20" value="${currentStrokeWidth}">
         </div>
-        <div class="prop-row">
-          <span class="prop-label">위치</span>
-          <div class="prop-align-group" id="overlay-position-group">
-            ${alignBtn('object-v', 'top', { label: '위쪽 정렬', title: '위쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-start', attrs: { 'data-pos': 'flex-start' } })}
-            ${alignBtn('object-v', 'middle', { label: '가운데 정렬 (수직)', title: '가운데 정렬 (수직)', active: (overlayEl.style.justifyContent||'center')==='center', attrs: { 'data-pos': 'center' } })}
-            ${alignBtn('object-v', 'bottom', { label: '아래쪽 정렬', title: '아래쪽 정렬', active: (overlayEl.style.justifyContent||'center')==='flex-end', attrs: { 'data-pos': 'flex-end' } })}
-          </div>
+        <div class="prop-color-row">
+          <span class="prop-label">색상</span>
+          ${colorFieldHTML({ idPrefix: 'asset-stroke-color', hex: currentStrokeColor, alpha: currentStrokeAlpha })}
         </div>
-        <!-- 옛 힌트 「이 블록 선택 후 중앙 패널로 블록 추가」 → 위 묶음 title(패널당 힌트 ≤2) -->
-      </div>${_fx?.body || ''}`, { headTools: _fx?.headTools || '', id: _fx?.id }),
+      </div>`, { id: 'asset-stroke-section', headTools: `
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
+          <input type="checkbox" id="asset-stroke-on" ${currentStrokeWidth > 0 ? 'checked' : ''} aria-label="Stroke">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
+        </label>` }),
+      /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */
+      sec('effects', _fx?.body || '', { headTools: _fx?.headTools || '', id: _fx?.id }),
       // 영상 트림(옛 「Video 트림」)
       sec('special', hasImage && isVideo && trimReady ? videoTrimSectionHTML(ab) : '', { title: 'Trim' }),
       // 로고 콜라보(옛 「Collab」) — id 보존(asset-collab-section). X 색(asset-collab-xcolor)은 data-own 으로 Collab 소유
@@ -686,6 +650,15 @@ export function showAssetProperties(ab) {
     stSlider.value = v; applyAssetBorder(v);
   });
   stNum.addEventListener('change', () => window.pushHistory?.());
+  /* 1120b A2 — 머리 «＋»: 켜면 두께 2(텍스트 Stroke 처럼 «추가» = 보이는 기본값) · 끄면 0(테두리 걷힘) */
+  const stOn = document.getElementById('asset-stroke-on');
+  stOn?.addEventListener('change', () => {
+    const v = stOn.checked ? (parseInt(stNum.value) || 2) : 0;
+    stSlider.value = stNum.value = v || stNum.value;
+    applyAssetBorder(v);
+    document.getElementById('asset-stroke-controls').style.display = stOn.checked ? 'block' : 'none';
+    window.pushHistory?.();
+  });
 
   if (hasImage) {
     document.getElementById('asset-fit-group').addEventListener('click', e => {
@@ -703,14 +676,12 @@ export function showAssetProperties(ab) {
     document.getElementById('asset-replace-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
     document.getElementById('asset-remove-btn').addEventListener('click', () => window.clearAssetImage(ab));
     if (isVideo) wireVideoTrim(ab);
-  } else {
-    document.getElementById('asset-upload-btn').addEventListener('click', () => window.triggerAssetUpload(ab));
   }
 
   /* T-011: 배경색 배선은 이미지 유무와 무관하게 «조건 없이» 돈다. else 안에 있던 탓에
      이미지가 들어가면 onGradient 가 사라졌고, color-picker.js 가 onGradient 유무로
      cpModes(solid / solid,gradient)를 정하므로 그라데이션 탭 자체가 안 열렸다. */
-  const bgField = wireColorField('asset-bg', {
+  wireColorField('asset-bg', {
     initialAlpha: currentBgAlpha,
     gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드
     onApply: (c) => {
@@ -727,66 +698,17 @@ export function showAssetProperties(ab) {
     },
     onCommit: () => window.pushHistory?.(),
   });
-  document.getElementById('asset-bg-clear').addEventListener('click', () => {
-    /* ★초기화 = «배경 없음»(체커) — 2026-10-03 지디 판정으로 규약을 바꿈(예전: 기본 회색 #a0a0a0 을 다시 씀).
-       예전 약속은 «체커가 그 회색을 가린 상태»를 고정한 것이었다 — 색이 있으면 체커를 걷게 되면서(editor-layout.css
-       .asset-block[data-bg-color]) 회색 판이 드러났다.
-       ⇒ 칸 표시(setHex)를 «먼저», 지우기를 «뒤에». setHex 는 apply()→onApply 를 불러 dataset·인라인을 다시 박으므로
-         지운 뒤에 부르면 초기화가 회색 칠하기가 된다. */
-    bgField?.setHex('#a0a0a0');
-    delete ab.dataset.bgColor;
-    ab.style.backgroundColor = '';
-    ab.style.background = '';
-    window.pushHistory?.();
-  });
   /* ★t4-15 체커 톤 라디오 — 쓰는 문은 여기 하나(ab.dataset.checkerTone). CSS 가 속성을 보고 전용 쌍만 바꾼다.
      ★패널을 다시 안 그린다(섹션 선례 · js/props/prop-section.js) — 바뀐 것은 화면 색뿐이다. */
   const ckOn  = document.getElementById('asset-checker-tone-on');
-  const ckOff = document.getElementById('asset-checker-tone-off');
-  if (ckOn && ckOff) {
+  if (ckOn) {
     const applyTone = (dark) => {
       window.pushHistory?.(dark ? '에셋 체커 어둡게' : '에셋 체커 밝게');
       if (dark) ab.dataset.checkerTone = 'dark'; else delete ab.dataset.checkerTone;
       window.scheduleAutoSave?.();
     };
-    ckOn.addEventListener('change',  () => { if (ckOn.checked)  applyTone(true);  });
-    ckOff.addEventListener('change', () => { if (ckOff.checked) applyTone(false); });
+    ckOn.addEventListener('change', () => applyTone(ckOn.checked));   // 1120b A5 — 토글 하나(켬 = dark · 끔 = 키 지움)
   }
-
-  // ── 오버레이 이벤트 바인딩 ──
-  const applyOverlayBg = opacity => {
-    overlayEl.style.background = `rgba(0,0,0,${opacity})`;
-    overlayEl.dataset.ovOpacity = String(opacity);
-  };
-
-  document.getElementById('asset-overlay-toggle').addEventListener('change', e => {
-    const on = e.target.checked;
-    ab.dataset.overlay = on ? 'true' : 'false';
-    document.getElementById('asset-overlay-controls').style.display = on ? '' : 'none';
-    window.pushHistory();
-  });
-
-  const ovOpSlider = document.getElementById('asset-overlay-opacity');
-  const ovOpNum    = document.getElementById('asset-overlay-opacity-num');
-  ovOpSlider.addEventListener('input', () => {
-    const v = parseInt(ovOpSlider.value) / 100;
-    ovOpNum.value = ovOpSlider.value;
-    applyOverlayBg(v);
-  });
-  ovOpNum.addEventListener('change', () => {
-    const v = Math.min(100, Math.max(0, parseInt(ovOpNum.value) || 0));
-    ovOpSlider.value = v;
-    applyOverlayBg(v / 100);
-  });
-
-  // 오버레이 위치
-  propPanel.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      overlayEl.style.justifyContent = btn.dataset.pos;
-      propPanel.querySelectorAll('#overlay-position-group .prop-align-btn').forEach(b => b.classList.toggle('active', b === btn));
-      window.pushHistory();
-    });
-  });
 
   window.wireFxSection?.(ab, 'asset', () => showAssetProperties(ab));   // ★E1 Effects
 

@@ -160,16 +160,16 @@ export function showStepProperties(block, activeIdxArg) {
       </div>`),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">왼쪽</span>
+        <span class="prop-label">좌측패딩</span>
         <input type="range" class="prop-slider" id="stb-padl-slider" min="0" max="300" step="4" value="${stepPadL}">
         <input type="number" class="prop-number" id="stb-padl-number" min="0" max="300" value="${stepPadL}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">오른쪽</span>
+        <span class="prop-label">우측패딩</span>
         <input type="range" class="prop-slider" id="stb-padr-slider" min="0" max="300" step="4" value="${stepPadR}">
         <input type="number" class="prop-number" id="stb-padr-number" min="0" max="300" value="${stepPadR}">
       </div>`, {
-        headTools: `<button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 연동">
+        headTools: `<button class="prop-chain-btn${stepPadL === stepPadR ? ' active' : ''}" id="stb-ph-chain" title="좌우 잠금/풂">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="0.5" y="3.5" width="4" height="5" rx="2"/><rect x="7.5" y="3.5" width="4" height="5" rx="2"/><line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/></svg>
         </button>`,
       }),

@@ -9,6 +9,7 @@
  * ⛔고정 대기 0 · 앱 = bootApp.
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp } = require('./_root-harness.js');
 
 /** 절 끝 여백 — 그 절의 «마지막 보이는 내용» 아래 → 다음 보이는 형제 절의 위(구분선 border-top). */
@@ -25,7 +26,7 @@ const tailGap = (page, secId, lastSel) => page.evaluate(([secId, lastSel]) => {
   };
 }, [secId, lastSel]);
 
-test('B1 ★펼친 Effects 절 끝 = 펼친 Stroke 절 끝 = 10px', async ({ page }) => {
+test('B1 ★펼친 Effects 절 끝 = 펼친 Stroke 절 끝 = --ui-sec-body-pb', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1400 });
   const errs = await bootApp(page);
   const id = await page.evaluate(async () => {
@@ -34,16 +35,19 @@ test('B1 ★펼친 Effects 절 끝 = 펼친 Stroke 절 끝 = 10px', async ({ pag
     window.addTextBlock('body', { content: '절 끝 여백' });
     const tb = c.querySelector('.text-block[data-type="body"]'); window.selectBlock(tb.id); return tb.id;
   });
-  await expect(page.locator('#txt-fx-add'), '[전제] Effects 추가 목록').toBeAttached();
-  await page.selectOption('#txt-fx-add', 'shadow');   // 붙이면 그 카드가 펼쳐진 채 다시 그려진다(wireFxSection)
+  await expect(page.locator('#txt-fx-add-btn'), '[전제] Effects 추가 목록').toBeAttached();
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="shadow"]'));   // 붙이면 그 카드가 펼쳐진 채 다시 그려진다(wireFxSection)
   await expect(page.locator('#txt-fxsh-card.expanded'), '[전제] 그림자 카드 펼침').toBeVisible();
   await page.evaluate(() => { const c = document.getElementById('txt-stroke-on'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); });   // 토글 input 은 감춰져 있다(text-stroke-align.dom.spec.js 와 같은 손)
   await expect(page.locator('#txt-stroke-controls'), '[전제] Stroke 펼침').toBeVisible();
   const fx = await tailGap(page, 'txt-fx-section', '#txt-fx-list > .prop-cell-card');
   const st = await tailGap(page, 'txt-stroke-section', '#txt-stroke-controls > *');
   console.log('  B1:', JSON.stringify({ id, fx, st }));
-  expect(st, 'Stroke 절 끝(기준)').toMatchObject({ geom: 10, calc: 10 });
-  expect(fx, '★Effects 절 끝 = 10(옛 14)').toMatchObject({ geom: 10, calc: 10 });
+  /* ★기대 바뀜(재설계 1차 v9 · Figma F1-1): 절 몸 아래 여백 토큰 --ui-sec-body-pb = 16(옛 10 · editor-base.css) — 숫자를 박지 않고 토큰을 읽는다(둘이 같다 = 이 칸의 뜻) */
+  const pb = await page.evaluate(() => { const p = document.createElement('div'); p.style.paddingBottom = 'var(--ui-sec-body-pb)'; document.body.appendChild(p); const v = parseFloat(getComputedStyle(p).paddingBottom); p.remove(); return v; });
+  expect(pb, '[전제] 토큰 = 16').toBe(16);
+  expect(st, 'Stroke 절 끝(기준)').toMatchObject({ geom: pb, calc: pb });
+  expect(fx, '★Effects 절 끝 = Stroke 절 끝(옛 14)').toMatchObject({ geom: pb, calc: pb });
   expect(errs, errs.join('\n')).toEqual([]);
 });
 

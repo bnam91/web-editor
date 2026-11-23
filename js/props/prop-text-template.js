@@ -1,8 +1,8 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
-import { SECTION_ORDER } from './_section-spec.js';
+import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
 import { BULLET_LIST_STYLES, bulletListStyleOf } from './text-type-class.js';
 
@@ -14,7 +14,7 @@ export function buildTextPanelSpec(state) {
     currentPadT, currentPadL, currentPadR, phLinked,
     isLabel, currentBgColor, currentRadius, labelPillH, labelPadX = 0, labelIsCircle = false, labelShape = null,
     isSpeechBubble, currentBubbleStyle, currentTail,
-    bubbleBgHex, showSender, bubbleSizeFixed, bubbleW, bubbleH,
+    bubbleBgHex, bubbleBgColorHtml, showSender, bubbleSizeFixed, bubbleW, bubbleH,
     isIconText, currentItbGap, itbVertical,
     mix,
     shadow,
@@ -31,7 +31,7 @@ export function buildTextPanelSpec(state) {
     dotColorHtml, dotSize, dotGap, dotX, dotY,   /* ★점 찍기 «색 칸 마크업»·네 수 (⑥ · 2026-10-08). 같은 까닭으로 prop-text.js 가 만든다 */
     showGlow, isGlow, glowColorHtml, glowK,      /* ★1012t1E2 범위 글로우 — prop-text.js 가 showGlow:true 로 켠다. 없으면 단추·칸 0 ⇒ 골든 바이트 동일 */
     isOverlayBlock,
-    showAnimGif,   /* GIF 단추를 «그릴» 판(U6 — 덧칠 글이 아니면 참 · 눌림은 prop-text.js 가 어드민 게이트로 disabled+까닭). 거짓이면 Export 절째 없음 */
+    showAnimGif,   /* GIF 단추를 «그릴» 판(U6 — 덧칠 글이 아니면 참 · 눌림은 prop-text.js 가 어드민 게이트로 disabled+까닭). 거짓이면 GIF 절째 없음 */
   } = state;
 
   // Shadow defaults (prop-text-wireup-shadow.js SHADOW_DEFAULTS와 동기화)
@@ -89,7 +89,7 @@ export function buildTextPanelSpec(state) {
    * ★말풍선(Bubble)은 special 한 절에 모은다 — ⛔Typography/Fill 에 넣지 마라: 줄 모드(js/blocks/line-host.js
    *   _hideBlockTypo)가 «#txt-font-picker·#txt-color 가 든 절 통째»를 숨겨 말풍선 손잡이까지 사라진다. */
   const _typo = buildTypographySectionHtml({
-      p: 'txt', bare: true,
+      p: 'txt', bare: true, fontLabel: false,   /* 재설계 1차 ⑩ — «Font» 라벨 글 걷음(텍스트만) */
       font: currentFont, weight: currentWeight, size: currentSize,
       isBold, isItalic, isStrike, isHighlight, isUnderline,
       lh: currentLH, ls: currentLS,
@@ -109,15 +109,17 @@ export function buildTextPanelSpec(state) {
       mix: _mix,
     });
   /* ★「최근 그라데이션」 줄도 ★텍스트 패널만 — 글자 그라데이션 배선이 wireTextEditSection 에만 있다. */
-  const _fill = buildFillSectionHtml({ p: 'txt', bare: true, colorHex: currentColor, alpha: currentColorAlpha, mix: _mix, showGradRecent: true });
+  const _fill = buildFillSectionHtml({ p: 'txt', bare: true, colorLabel: false, colorHex: currentColor, alpha: currentColorAlpha, mix: _mix, showGradRecent: true });
 
   /* Effects — 한 절 key. 보통 텍스트 = fx 명부(window.fxSectionParts → {headTools, body, id}) · 말풍선·태그·아이콘텍스트 = 그림자 조절칸. */
+  /* 1120b B3(현빈 261120 「버블 Effects 도 [+]」) — 켜기 토글 → 머리 «＋»(켜면 «−») · Stroke 머리와 같은 단추꼴 label · 같은 체크박스(#txt-shadow-on · change 배선 그대로) */
   const _shadowOn = `
-        <label class="prop-toggle" title="그림자 켜기/끄기">
-          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
+        <label class="prop-chain-btn prop-sec-add" title="그림자 추가/빼기">
+          <input type="checkbox" id="txt-shadow-on" ${_sh.enabled ? 'checked' : ''} aria-label="Shadow">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
         </label>`;
-  const _fx = _plainText ? window.fxSectionParts(tb, 'txt') : null;
+  const _fx = _plainText ? window.fxSectionParts(tb, 'txt', { plus: true }) : null;   /* 재설계 1차 ⑨ — 머리 «＋»(누르면 종류 목록) */
   const _effects = _fx
     ? sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools })
     : sec('effects', `\n${textShadowControlsHtml(_sh)}`, { id: 'txt-shadow-section', headTools: _shadowOn });
@@ -171,11 +173,21 @@ export function buildTextPanelSpec(state) {
         <input type="number" class="prop-number" id="itb-gap-number" min="0" max="80" value="${currentItbGap}">
       </div>`;
 
+  /* 재설계 1차 ⑥ — 너비 = 숫자 칸(칸 안 라벨 · 라벨 좌우 끌기) + 같은 줄 높이 칸. 텍스트 블럭은 높이가 없다(내용에 맞춤) ⇒ 꺼진 칸 «auto» */
   const _sizeHtml = (isOverlayTb ? '' : `
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="1" value="${currentW}">
-        <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}">
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
+            <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="${currentW}" aria-label="너비">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
+            <span class="prop-xy-label">높이</span>
+            <input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="높이(텍스트 블럭은 없음)">
+          </div>
+        </div>
       </div>`) + (!isLabel ? '' : `
       <div class="prop-row">
         <span class="prop-label">높이</span>
@@ -190,31 +202,34 @@ export function buildTextPanelSpec(state) {
 
   const _paddingHtml = isOverlayTb ? '' : `
       <div id="txt-label-padx-wrap" style="display:${isLabel && !labelIsCircle ? 'block' : 'none'}">
-      ${sliderRowHTML('좌우 패딩', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX })}
+      ${sliderRowHTML('태그 좌우', 'txt-label-padx-slider', 'txt-label-padx-number', { min: 0, max: 100, step: 2, value: labelPadX }).replace('<span class="prop-label">', '<span class="prop-label" title="태그 좌우패딩">')}
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="${currentPadT}"${isSpeechBubble ? ' disabled style="opacity:var(--ui-disabled-opacity);cursor:not-allowed"' : ''}>
-      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다. 칸은 «숨기지 않고» 막고 까닭을 보이게 적는다. */
-         isSpeechBubble ? '\n      <div class="prop-hint" id="txt-pv-bubble-hint">말풍선은 꼬리 때문에 상하 여백을 쓸 수 없습니다</div>' : ''}
-      <div class="prop-ph-header">
-        <span class="prop-field-label">L/R</span>
-        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 연동">
+      </div>${/* ★⑷㉣ 현빈 sb_ts0he_4lus8he — 말풍선 꼬리는 블럭 기준 absolute 라 상하 여백을 주면 몸통에서 떨어진다 ⇒ 칸은 «숨기지 않고» 막는다.
+         1120b B1(현빈 261120) — 까닭 힌트 줄(#txt-pv-bubble-hint)은 걷음(막힌 칸 그대로). */ ''}
+      <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
+      <div class="prop-row" id="txt-ph-row">
+        <span class="prop-label">좌우패딩</span>
+        <input type="range" class="prop-slider" id="txt-ph-slider" min="0" max="120" step="4" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
+        <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="${currentPadL}"${phLinked ? '' : ' style="visibility:hidden"'}>
+        <button class="prop-chain-btn${phLinked ? ' active' : ''}" id="txt-ph-chain" title="좌우 잠금/풂" aria-pressed="${phLinked ? 'true' : 'false'}">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
             <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
-            <line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>
+            <line ${phLinked ? 'x1="4.5" y1="6" x2="7.5" y2="6"' : 'x1="5.2" y1="4.8" x2="6.8" y2="7.2"'} stroke-linecap="round"/>
           </svg>
         </button>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">왼쪽</span>
+      <div class="prop-row" id="txt-pl-row"${phLinked ? ' hidden' : ''}>
+        <span class="prop-label">좌측패딩</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="${currentPadL}">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="${currentPadL}">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">오른쪽</span>
+      <div class="prop-row" id="txt-pr-row"${phLinked ? ' hidden' : ''}>
+        <span class="prop-label">우측패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="${currentPadR}">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="${currentPadR}">
       </div>`;
@@ -270,12 +285,10 @@ export function buildTextPanelSpec(state) {
           </div>
         </div>
         <!-- data-own="special:Bubble": 말풍선 배경은 Bubble 절에 둔다 — 줄 모드(line-host _hideBlockTypo)가 Fill 절을 통째 숨겨 같이 사라지지 않게 -->
+        <!-- 1120b B2(현빈 261120) — 값은 Fill(글자색)과 «따로»(--bubble-bg) · 줄 꼴은 Fill 색 줄과 같은 부품(colorFieldHTML: 스와치 + HEX + % · prop-color-field). 마크업은 prop-text.js 가 만든다(템플릿은 color-picker 를 import 하지 않는다) -->
         <div class="prop-color-row" data-own="special:Bubble">
           <span class="prop-label">배경색</span>
-          <div class="prop-color-swatch" style="background:${bubbleBgHex}">
-            <input type="color" id="bubble-bg-color" value="${bubbleBgHex}">
-          </div>
-          <input type="text" class="prop-color-hex" id="bubble-bg-hex" value="${bubbleBgHex.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
+          ${bubbleBgColorHtml || ''}
         </div>
         <!-- ★1017t1m3 크기 — 「자동」= 글 길이 따라(지금까지) · 「고정」= 너비 고정 + 높이 최소 -->
         <div class="prop-row">
@@ -285,11 +298,20 @@ export function buildTextPanelSpec(state) {
             <button class="prop-type-btn ${bubbleSizeFixed?'active':''}" data-bsz="fixed">고정</button>
           </div>
         </div>
-        <div class="prop-row">
-          <span class="prop-label">너비</span>
-          <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'}>
-          <span class="prop-label prop-label--auto">높이</span>
-          <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'}>
+        <!-- 1120b B4(현빈 261120 「Size 절과 CSS 통일」) — 너비·높이 = Size 절과 같은 두 칸 마크업(prop-lhls-row · 칸 안 라벨 prop-xy-label) · id·배선 그대로 -->
+        <div class="prop-lhls-row">
+          <div class="prop-lhls-col">
+            <div class="prop-icon-input">
+              <span class="prop-xy-label">너비</span>
+              <input type="number" class="prop-number" id="bubble-w-number" min="60" max="860" value="${bubbleW||''}"${bubbleSizeFixed?'':' disabled'} aria-label="말풍선 너비">
+            </div>
+          </div>
+          <div class="prop-lhls-col">
+            <div class="prop-icon-input">
+              <span class="prop-xy-label">높이</span>
+              <input type="number" class="prop-number" id="bubble-h-number" min="40" max="2000" value="${bubbleH||''}"${bubbleSizeFixed?'':' disabled'} aria-label="말풍선 최소 높이">
+            </div>
+          </div>
         </div>
         <div class="prop-row">
           <span class="prop-label">발신자 이름</span>
@@ -300,14 +322,17 @@ export function buildTextPanelSpec(state) {
         </div>
       </div>`;
 
+  const _rotHost = tb?.closest?.('.frame-block[data-text-frame="true"]') || tb;   // 회전·반전이 걸리는 요소(js/asset-rotate.js _textFrameHost 와 같은 판정)
+  /* 타입 칸 켜짐 = 정확히 한 칸(블럭 종류가 먼저 · 그다음 내용 칸 클래스) — 재설계 1차 ⑫ 매핑 교정 */
+  const _kind = isSpeechBubble ? 'bubble' : isLiner ? 'liner' : isIconText ? 'icon' : currentClass;
+  const _kb = (cls, label) => `<button class="prop-type-btn ${_kind === cls ? 'active' : ''}" data-cls="${cls}">${label}</button>`;
+
+  /* 1120b F1(현빈 261120 「GIF 절을 별도로 · [+] 누르면 바로 gif 기능」) — 절 머리 «＋» 가 곧 GIF 단추(#open-anim-btn · 어드민 게이트·배선은 prop-text.js 그대로).
+     꼴 = 절 머리 손잡이(.prop-chain-btn · 블록 Template ＋ 와 같은 클래스) · 몸 없음. */
   const _anim = (isOverlayTb || !showAnimGif) ? '' : `
-      <button class="prop-anim-btn" id="open-anim-btn">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
-          <path d="M5 6l3 1.5L5 9V6z" fill="currentColor" stroke="none"/>
-        </svg>
-        애니메이션 GIF 만들기
-      </button>`;
+        <button type="button" class="prop-chain-btn" id="open-anim-btn" title="애니메이션 GIF 만들기" aria-label="애니메이션 GIF 만들기">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+        </button>`;
 
   return {
     header: blockHeaderHTML({
@@ -320,19 +345,29 @@ export function buildTextPanelSpec(state) {
       id: tb.id,
     }),
     sections: [
+      /* 재설계 1차 ⑫ — 타입 12칸 두 줄(시안 v9 덧 = 7·5: H1·H2·H3·Body·Cap·Bullet·Label / Tags·Icon·Bubble·Quote·Liner ·
+         «Caption» 은 칸에 안 들어 앱 이름 «Cap» 그대로 · «Icon Text» → «Icon» 현빈 v9).
+         ★켜짐은 «정확히 한 칸»(현빈 261120 교정 — PLAN «텍스트 종류 12칸 매핑»): 말풍선·곡선·아이콘텍스트는 자기 칸만(내용 칸 클래스가 무엇이든 Body 등은 안 켜짐).
+         Tags(태그 = label-group 블럭 · 자기 패널) · Icon · Bubble · Liner 로 «바꾸기»는 앱에 없다 ⇒ disabled(자기 블럭이면 켜짐은 보인다).
+         곡선·아이콘텍스트는 타입 절 없음(옛 판 그대로 · 시안 v10 실측도 칸 0 — 지디 261120).
+         ★한 묶음(#txt-kind-group) 안 — Quote 가 묶음 밖 혼자일 때 «마지막 칸 왼 테두리 없음» 규칙(editor-props.css 세그먼트)에 잘렸다. */
       sec('kind', (isLiner || isIconText) ? '' : `
-      <div class="prop-type-group">
-        <button class="prop-type-btn ${currentClass==='tb-h1'?'active':''}"      data-cls="tb-h1">H1</button>
-        <button class="prop-type-btn ${currentClass==='tb-h2'?'active':''}"      data-cls="tb-h2">H2</button>
-        <button class="prop-type-btn ${currentClass==='tb-h3'?'active':''}"      data-cls="tb-h3">H3</button>
-        <button class="prop-type-btn ${currentClass==='tb-body'?'active':''}"    data-cls="tb-body">Body</button>
-        <button class="prop-type-btn ${currentClass==='tb-caption'?'active':''}" data-cls="tb-caption">Cap</button>
-        <button class="prop-type-btn ${currentClass==='tb-label'?'active':''}"   data-cls="tb-label">Tag</button>
-        <button class="prop-type-btn ${currentClass==='tb-bullet'?'active':''}"  data-cls="tb-bullet">List</button>
-      </div>
-      <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
-      <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>`, { id: 'type-section' }),
-      sec('content', _bulletSec + _loremSec, { id: _bulletSec ? 'bullet-style-section' : undefined }),   /* 불릿이면 옛 id 그대로(배선·spec) · 아니면 틀 기본 psec-content */
+      <div class="prop-type-group" id="txt-kind-group">
+        ${_kb('tb-h1', 'H1')}
+        ${_kb('tb-h2', 'H2')}
+        ${_kb('tb-h3', 'H3')}
+        ${_kb('tb-body', 'Body')}
+        ${_kb('tb-caption', 'Cap')}
+        ${_kb('tb-bullet', 'Bullet')}
+        ${_kb('tb-label', 'Label')}
+        <button class="prop-type-btn" disabled title="Tags(태그 블럭) — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Tags</button>
+        <button class="prop-type-btn${_kind === 'icon' ? ' active' : ''}" disabled title="Icon Text — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Icon</button>
+        <button class="prop-type-btn${_kind === 'bubble' ? ' active' : ''}" disabled title="Bubble — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Bubble</button>
+        <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
+        <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
+        <button class="prop-type-btn${_kind === 'liner' ? ' active' : ''}" disabled title="Liner — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Liner</button>
+      </div>`, { id: 'type-section' }),
+      sec('content', _bulletSec + _loremSec, { id: _bulletSec ? 'bullet-style-section' : undefined }),   /* 병합(탑 261122): dev 더미 글(_loremSec) 절 유지 · 불릿이면 옛 id 그대로 */
       /* ★2026-09-16g(T-001) — Ignore Auto Layout 토글은 Position «절 머리» 오른쪽 끝(Figma). id·배선 그대로 — 자리 = headTools. */
       sec('position', `
       <div class="prop-lhls-row">
@@ -349,12 +384,8 @@ export function buildTextPanelSpec(state) {
           </div>
         </div>
       </div>
-      <span class="prop-field-label">Rotation</span>
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="${currentRotation}">
-        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="${currentRotation}">
-      </div>`, { headTools: isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock }) }),
+      <span class="prop-field-label">Rotation</span>${/* Q17 · Q20(시안 v10) — 각도 칸(숫자 + °) + 90° · 좌우 · 상하 반전 한 줄. 반전 키 = 회전 host(텍스트 프레임 또는 글 블럭) dataset.flipH/V */
+      rotRowHTML({ p: 'txt', numberId: 'txt-rot-number', value: currentRotation, flipH: _rotHost?.dataset?.flipH === '1', flipV: _rotHost?.dataset?.flipV === '1' })}`, { headTools: isOverlayTb ? '' : overlayToggleBtnHTML({ id: 'txt-overlay-toggle', active: isOverlayBlock }) }),
       sec('size', _sizeHtml),
       sec('layout', _alignBtns + _itbLayout),
       sec('padding', _paddingHtml),
@@ -365,8 +396,9 @@ export function buildTextPanelSpec(state) {
       (!stroke || isSpeechBubble || isLabel || isIconText || isLiner) ? sec('stroke', '') : strokeSection({ p: 'txt', stroke, colorHtml: strokeColorHtml }),
       _effects,
       sec('special', _bubble, { title: 'Bubble', id: 'txt-bubble-section' }),
-      sec('export', _anim, { id: 'txt-anim-section' }),   /* GIF 만들기 = 내보내기(§2-1 export) */
+      sec('special', '', { id: 'txt-anim-section', title: 'GIF', headTools: _anim }),   /* 1120b F1 — «GIF» 전용 절(머리 ＋ = GIF 단추) · 글 블럭 고유 절 = special(정본 export 는 제목 「Export」 고정 — 슬라이드·그리드 GIF 는 그대로 Export) */
     ],
+    panel: 'text',   /* _section-spec SECTION_ORDER_EXCEPT.text — Layout(가로 정렬)이 Size 위(재설계 1차 ④) */
   };
 }
 
@@ -386,9 +418,12 @@ export function placeTextPanelSection(panel, key, html, { title, id } = {}) {
     if (body) { body.insertAdjacentHTML('beforeend', html); return; }
   }
   if (id) panel.querySelector(`:scope > #${id}`)?.remove();
-  const out = buildPanelHTML({ sections: [sec(key, html, { title, id })] });
-  const want = SECTION_ORDER.indexOf(key);
-  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => SECTION_ORDER.indexOf(e.dataset.sec) > want);
+  const order = sectionOrderFor('text');
+  const out = buildPanelHTML({ sections: [sec(key, html, { title, id })], panel: 'text' });
+  // 자리 = 틀과 같은 정렬 수(sectionRank) — 9c2e19fcd ⑶ⓑ 뒤 GIF 는 Effects 바로 뒤라, 옛 «GIF 앞에» 규칙은 Curve 를 GIF 앞(Template 위)에 넣었다
+  const rank = (e) => sectionRank(order, e.dataset.sec, e.querySelector(':scope > .prop-sec-head .prop-sec-title-text')?.textContent.trim());
+  const want = sectionRank(order, key, title);
+  const next = [...panel.querySelectorAll(':scope > .prop-section[data-sec]')].find((e) => rank(e) > want);
   if (next) next.insertAdjacentHTML('beforebegin', out); else panel.insertAdjacentHTML('beforeend', out);
 }
 if (typeof window !== 'undefined') window.placeTextPanelSection = placeTextPanelSection;
@@ -428,10 +463,12 @@ export function strokeSection({ p, stroke, colorHtml } = {}) {
         </div>
       </div>`, {
     id: `${p}-stroke-section`,
+    /* 재설계 1차 ⑨ — 켜기 토글 → 머리 «＋»(켜면 «−» · 몸이 펼쳐짐). 같은 체크박스(#${p}-stroke-on · change 배선 그대로)를 단추꼴 label 이 감싼다 */
     headTools: `
-        <label class="prop-toggle" title="외곽선 켜기/끄기">
-          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
+        <label class="prop-chain-btn prop-sec-add" title="Stroke 추가">
+          <input type="checkbox" id="${p}-stroke-on" ${stroke.on ? 'checked' : ''} aria-label="Stroke">
+          <svg class="prop-sec-add-plus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg>
+          <svg class="prop-sec-add-minus" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 6h8"/></svg>
         </label>`,
   });
 }

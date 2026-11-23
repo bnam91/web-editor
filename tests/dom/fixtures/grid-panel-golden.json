@@ -1,21 +1,21 @@
 {
   "_": "기준선 패널 치수. ⛔손으로 고치지 마라 — 다시 찍을 땐 «따로 커밋»해라(재촬영이 증명을 덮는다).",
-  "baseline": "dcd0962fd",
+  "baseline": "316feb69e",
   "fixture": "4x4 · (0,0) li:1 글자 줄 · viewport 1280x900",
-  "productSha": "2ea5d9dfe707",
+  "productSha": "a011112570a5",
   "metrics": {
     "panelW": 240,
     "bodyClientW": 239,
     "bodyScrollW": 239,
-    "scrollHeight": 1168,
-    "clientHeight": 1168,
+    "scrollHeight": 1268,
+    "clientHeight": 1268,
     "lineBarAnchor": "summary-section",
-    "lineBarBottom": 158,
+    "lineBarBottom": 166,
     "barBtnN": 3,
     "barBtnRows": 1,
     "colorFieldN": 1,
-    "colorFieldMinW": 149,
+    "colorFieldMinW": 121,
     "overflowRight": 0,
-    "controlN": 85
+    "controlN": 86
   }
 }

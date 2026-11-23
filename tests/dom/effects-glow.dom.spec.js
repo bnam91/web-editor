@@ -9,6 +9,7 @@
  * ⛔고정 대기 0 — waitForFunction / expect.poll 로 «무엇을 기다리나»를 쓴다(dom-fixed-wait-census).
  * 실행: npx playwright test --config=tests/dom/playwright.dom.config.js tests/dom/effects-glow.dom.spec.js */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const fs = require('fs');
 const path = require('path');
 const { bootApp, ROOT } = require('./_root-harness.js');
@@ -58,7 +59,8 @@ const pick = async (page, id) => {
     await page.waitForFunction(([id, P]) => document.getElementById(id).classList.contains('selected') && !!document.getElementById(`${P}-fx-section`), [id, PANEL_OF[id]], { timeout: 3000 });
   }).toPass({ timeout: 20000 });
 };
-const addList = (page, P) => page.evaluate((P) => { const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
+/* ★기대 바뀜(RP-PRD-PREEXIST-FAIL-01 · 261121) — 우측패널 재설계(시안 v10 · Effects 머리 ＋ · effects-registry.js :96)부터 «더하기 목록»은 select(#P-fx-add) 가 아니라 ＋ 메뉴(#P-fx-menu [data-fx]) — 그것을 읽는다(옛 select 가 있으면 그것) */
+const addList = (page, P) => page.evaluate((P) => { const m = document.getElementById(`${P}-fx-menu`); if (m) return [...m.querySelectorAll('[data-fx]')].map((b) => b.dataset.fx); const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
 const ds = (page, id) => page.evaluate((id) => Object.fromEntries(Object.entries(document.getElementById(id).dataset).filter(([k]) => k.startsWith('fx'))), id);
 const cards = (page) => page.evaluate(() => [...document.querySelectorAll('#txt-fx-list .prop-cell-card')].map(e => e.dataset.fxType));
 /** 글자칸 computed text-shadow 를 겹으로 쪼갠다(괄호 안 쉼표는 안 쪼갠다). */
@@ -71,13 +73,13 @@ const layers = (page) => page.evaluate(() => {
   return out;
 });
 const addGlow = async (page) => {
-  await page.selectOption('#txt-fx-add', 'glow');
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="glow"]'));
   await page.waitForFunction(() => !!document.getElementById('txt-fxgl-card'));
 };
 /** 텍스트 그림자 켬/끔 — ★t4-01 부터 Effects 「그림자」 카드(목록에서 고름 · ✕ 로 지움). 옛 Shadow 절 토글은 텍스트 블럭에서 사라졌다. */
 const shadowToggle = async (page, on) => {
   const has = (await page.locator('#txt-fxsh-card').count()) > 0;
-  if (on && !has) await page.selectOption('#txt-fx-add', 'shadow');
+  if (on && !has) await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="shadow"]'));
   if (!on && has) await page.click('#txt-fxsh-del');
   await page.waitForFunction((on) => !!document.getElementById('txt-fxsh-card') === on
     && (document.querySelector('#eT [class^="tb-"]').dataset.shadowEnabled === 'true') === on, on);
@@ -91,7 +93,7 @@ test('G0 전제 — 명부에 glow · 텍스트 목록 = 반사·글로우 · �
   await pick(page, 'eT');
   const t = await addList(page, 'txt');
   expect(t, '★텍스트 목록에 반사와 함께 글로우').toEqual(expect.arrayContaining(['reflect', 'glow']));
-  expect(await page.evaluate(() => document.querySelector('#txt-fx-add option[value="glow"]').textContent.trim()), '라벨').toBe('글로우');
+  expect(await page.evaluate(() => document.querySelector('#txt-fx-menu [data-fx="glow"]').textContent.trim()), '라벨').toBe('글로우');
   await pick(page, 'eSh'); expect(await addList(page, 'shape'), '도형 — 글로우 없음').not.toContain('glow');
   await pick(page, 'eA'); expect(await addList(page, 'asset'), '에셋 — 글로우 없음').not.toContain('glow');
   expect(errs).toEqual([]);

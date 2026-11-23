@@ -16,6 +16,7 @@
  * ⛔고정 대기 없음 — waitForFunction 만. 하네스 = _root-harness.bootApp · 고르기·토글·끌기는 진짜 마우스.
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page, { ft = true } = {}) {
@@ -47,7 +48,7 @@ async function setup(page, { ft = true } = {}) {
   /* ★기대 바뀜(t13D-10 d6ab57b02 · 지디 261121 승인 ⒜) — 오버레이 글엔 옛 모서리 넷(tfo) + 텍스트 상자 «변» 넷(같은 .tfo-overlay-handle 꼴 · data-tbx-dir)이 붙는다 ⇒ 모서리만 센다 */
   await page.waitForFunction(() => window.__tb.classList.contains('selected') && document.querySelectorAll('#ss-handles-overlay .tfo-overlay-handle:not([data-tbx-dir])').length === 4);
   if (ft) {
-    await page.selectOption('#txt-fx-add', 'freetransform');
+    await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="freetransform"]'));
     await page.waitForFunction(() => window.__tb.querySelectorAll('.tfh-handle').length === 12 && window.__tb.dataset.tfCorners);
   }
   /* 손잡이 자리가 두 프레임 내리 같을 때까지 */

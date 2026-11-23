@@ -313,8 +313,9 @@ test('FI4 ★★★뚫을 패딩이 ★0 이면 ★칸이 ★★«꺼진 채 ★
   expect(r.toggleDisabled, `★★그리고 ★꺼져 있어야 한다. 잰 값 ${JSON.stringify(r)}`).toBe(true);
   /* ★★★까닭이 ★★«이 장면의» 까닭이어야 한다 — ⛔길이만 재면 ★★틀린 줄도 ★통과한다.
      ★실측 2026-10-12: ★처음엔 ★여기 ★★«자유 배치라…»가 ★떴다(★판정을 ★`isFreeLayout` 으로 ★썼다) ⇒ ★★거짓 까닭. */
-  expect(r.why && r.why.includes('좌우 패딩'),
-    `★★까닭이 ★★«좌우 패딩을 ★올려라»여야 한다(★stack 장면이다). 잰 값 ${JSON.stringify(r.why)}`).toBe(true);
+  /* ★기대 바뀜(패널 재설계 1차 ⑤ Q25 — 패딩 이름 «좌우패딩» 붙여 쓰기 · 까닭 글이 가리키는 칸 이름도 같이) */
+  expect(r.why && r.why.includes('좌우패딩'),
+    `★★까닭이 ★★«좌우패딩을 ★올려라»여야 한다(★stack 장면이다). 잰 값 ${JSON.stringify(r.why)}`).toBe(true);
   expect(r.why && r.why.includes('자유'),
     `★★⛔«자유 배치» 까닭이 ★여기 ★뜨면 ★★거짓이다 — ★이 장면은 ★stack 이다. 잰 값 ${JSON.stringify(r.why)}`).toBe(false);
   expect(errs.map((e) => String(e)), '★오류 0').toEqual([]);

@@ -230,6 +230,14 @@ export function figmaGrainNotice(roots) {
   return n;
 }
 
+/* QA2 ④(지디 261120 ⓑ) — 반전(data-flip-h/v · js/block-flip.js)은 Figma JSON 에 «안 실린다»(필드+플러그인 = 별건 티켓 ⓐ).
+   반전 든 블럭이 «있을 때만» 알림 문구 · 없으면 ''(알림 없음). roots = 내보내는 섹션들(문자열 판 DOM 이든 라이브든). */
+function flipNotExportedText(roots) {
+  let n = 0;
+  for (const r of roots || []) n += r?.querySelectorAll?.('[data-flip-h="1"], [data-flip-v="1"]').length || 0;
+  return n ? `반전(좌우·상하)은 Figma 로 안 나갑니다 — 반전 블럭 ${n}개는 원래 방향으로 들어갑니다` : '';
+}
+
 async function exportFigmaJSON() {
   /* ★E157 공용 대기(whenGridRatiosSettled · grid-block.js) — 칸 배경 비율이 서고 그 그리드가 다시 그려진 «뒤»에 찍는다(틀린 행 높이가 산출물로 굳지 않게).
      반환 none(기다릴 것 없음) / settled / cap(상한 — 함수가 수·주소를 찍음). ⛔그 결과로 막지 않는다 — 찍기는 그대로 간다. */
@@ -239,6 +247,7 @@ async function exportFigmaJSON() {
   figmaGrainNotice();   // IMG-FX-GRAIN-01 — 그레인은 Figma 로 안 나감(비차단 알림)
 
   const parser = new DOMParser();
+  const _flipRoots = [];   // QA2 ④ — 실제로 내보낸 섹션만 센다(숨은 A/B 시안 · 유령 제외)
 
   function parseHeight(el) {
     return parseFloat(el.style.height) || 0;
@@ -370,6 +379,7 @@ async function exportFigmaJSON() {
      ⚠️저장 경로가 아니다 — 시안은 프로젝트 저장본에 그대로 남는다. */
     canvasDiv.querySelectorAll(`:scope > .section-block:not([data-ghost])${NOT_HIDDEN_VARIATION}`).forEach((sec, i) => {
       sections.push(parseSection(sec, i, ps));
+      _flipRoots.push(sec);
     });
     return {
       name:     page.name  || 'Page',
@@ -397,7 +407,9 @@ async function exportFigmaJSON() {
   a.download = 'sangpe_export.json';
   a.click();
   URL.revokeObjectURL(a.href);
-  if (unresolvedAssets) window.showToast?.(window.missingImageText?.(unresolvedAssets));   // #11 — 내보내기 공용 «못 실은 그림» 문구
+  /* #11 — 내보내기 공용 «못 실은 그림» 문구 · QA2 ④ 반전 안내(반전 블럭 있을 때만) — 토스트 칸이 하나라 한 줄로 합친다(뒤 것이 앞 것을 덮지 않게) */
+  const _msgs = [unresolvedAssets ? window.missingImageText?.(unresolvedAssets) : '', flipNotExportedText(_flipRoots)].filter(Boolean);
+  if (_msgs.length) window.showToast?.(_msgs.join(' · '));
 }
 
 
@@ -1732,6 +1744,7 @@ async function buildFigmaExportJSONInlined(selectedIds, nodeMap) {
 }
 
 export {
+  flipNotExportedText,
   exportFigmaJSON,
   getTextWithLineBreaks,
   buildFigmaExportJSON,
@@ -1741,6 +1754,7 @@ export {
 // Backward compat
 
 window.exportFigmaJSON       = exportFigmaJSON;
+window.flipNotExportedText   = flipNotExportedText;
 window.getTextWithLineBreaks = getTextWithLineBreaks;
 window.buildFigmaExportJSON  = buildFigmaExportJSON;
 window.figmaGrainNotice      = figmaGrainNotice;

@@ -21,6 +21,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { addFx } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 async function setup(page, { center = true } = {}) {
   await page.setViewportSize({ width: 1400, height: 1000 });
@@ -60,7 +61,7 @@ const M = (page, id) => page.evaluate((id) => {
 }, id);
 
 async function ftOn(page, id) {
-  await page.selectOption('#panel-right select[id$="-fx-add"]', 'freetransform');
+  await addFx(page, 'txt', 'freetransform');
   await page.waitForFunction((id) => !!document.getElementById(id)?.dataset.tfCorners, id, { timeout: 3000 });
   await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
 }

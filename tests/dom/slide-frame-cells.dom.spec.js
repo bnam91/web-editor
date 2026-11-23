@@ -1060,8 +1060,9 @@ test('Q1 칸 패널 = 프레임 부품 + 슬라이드 칸 절', async ({ page })
   const { errs, id } = await menuScene(page);
   await pickCell(page, id, 1);
   const has = (ids) => page.evaluate((ids) => ids.map((x) => !!document.getElementById(x)), ids);
-  expect(await has(['ss-align-left', 'ss-gap-num', 'ss-pady-num', 'ss-padx-num', 'ss-border-w-num', 'ss-bg-img-btn', 'ss-radius-slider', 'ss-bg-hex']), '★프레임 부품').toEqual(Array(8).fill(true));
-  expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-height-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-fullbleed-toggle', 'ss-clip-toggle']), '★칸에 안 맞는 절 없음').toEqual(Array(7).fill(false));
+  /* ★기대 바뀜(현빈 261120 · 1120b P2): 프레임 간격 슬라이더(#ss-gap-slider/#ss-gap-num) 걷음(prop-frame.js:568) — 있어야 할 부품에서 빼고 «없음» 쪽으로 */
+  expect(await has(['ss-align-left', 'ss-pady-num', 'ss-padx-num', 'ss-border-w-num', 'ss-bg-img-btn', 'ss-radius-slider', 'ss-bg-hex']), '★프레임 부품').toEqual(Array(7).fill(true));
+  expect(await has(['ss-pos-x', 'ss-width-slider', 'ss-height-slider', 'ss-tpl-save-btn', 'ss-fx-section', 'ss-fullbleed-toggle', 'ss-clip-toggle', 'ss-gap-num']), '★칸에 안 맞는 절 없음 · 걷은 간격 칸 없음').toEqual(Array(8).fill(false));
   expect(await has(['sld-cell-shadow', 'sld-cell-w-slider', 'sld-cell-bg-on', 'sld-add-cell', 'sld-cell-back']), '★슬라이드 칸 절').toEqual(Array(5).fill(true));
   expect(await page.evaluate(() => document.getElementById('sld-cell-shadow').closest('[data-sec]')?.dataset.sec), '★그림자 3단 = Effects').toBe('effects');
   await page.locator('#ss-pady-num').fill('24'); await page.locator('#ss-pady-num').dispatchEvent('change');

@@ -121,7 +121,7 @@ function showRowProperties(rowEl) {
       </div>` : '') + childBatchHTML),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="row-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="row-padx-number" min="0" max="80" value="${padX}">
       </div>`),

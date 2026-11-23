@@ -58,7 +58,7 @@ function barSettingsHTML({ chartType, barThickness, thicknessMax = BAR_THICKNESS
       </div>`,
     padding: `
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
       </div>
@@ -574,7 +574,7 @@ ${_bar.size || ''}`),
       sec('padding', `${_bar.padding || ''}
     ${chartType === 'line' ? `
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="grb-padx-slider" min="0" max="80" step="4" value="${padX}">
         <input type="number" class="prop-number" id="grb-padx-number" min="0" max="80" value="${padX}">
       </div>

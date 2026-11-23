@@ -56,7 +56,9 @@ const pick = async (page, id) => {
   }).toPass({ timeout: 20000 });
 };
 /** 진짜 마우스로 목록을 누르고(열기) 그 항목을 고른다. */
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120) — 텍스트(P=txt)는 Effects ＋ 단추 → 종류 메뉴. 다른 패널은 옛 고르개 그대로 */
 const choose = async (page, P, key) => {
+  if (await page.locator(`#${P}-fx-add-btn`).count()) { await page.click(`#${P}-fx-add-btn`); await page.click(`#${P}-fx-menu [data-fx="${key}"]`); return; }
   const sel = page.locator(`#${P}-fx-add`);
   await sel.scrollIntoViewIfNeeded();
   await sel.click();
@@ -68,8 +70,8 @@ const clickMid = async (page, css) => {
   expect(p, `패널에 ${css}`).not.toBeNull();
   await page.mouse.click(p[0], p[1]);
 };
-const addList = (page, P) => page.evaluate((P) => { const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
-const addLabels = (page, P) => page.evaluate((P) => { const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.textContent.trim()) : null; }, P);
+const addList = (page, P) => page.evaluate((P) => { const m = document.getElementById(`${P}-fx-menu`); if (m) return [...m.querySelectorAll('[data-fx]')].map(o => o.dataset.fx); const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.value) : null; }, P);
+const addLabels = (page, P) => page.evaluate((P) => { const m = document.getElementById(`${P}-fx-menu`); if (m) return [...m.querySelectorAll('[data-fx]')].map(o => o.textContent.trim()); const a = document.getElementById(`${P}-fx-add`); return a ? [...a.options].slice(1).map(o => o.textContent.trim()) : null; }, P);
 const ce = '#eT [class^="tb-"]';
 const shKeys = (page) => page.evaluate((s) => Object.fromEntries(Object.entries(document.querySelector(s).dataset).filter(([k]) => k.startsWith('shadow'))), ce);
 const ts = (page) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).textShadow, ce);
@@ -86,7 +88,7 @@ test('S1 텍스트 목록 = 반사·그림자·글로우·오블리크·자유�
   await expect(page.locator('#txt-shadow-section'), '옛 절 없음').toHaveCount(0);
   await expect(page.locator('#txt-shadow-controls'), '고르기 전엔 조절칸 0').toHaveCount(0);
   expect(await shKeys(page), '목록을 열기만 해선 안 붙는다').toEqual({});
-  await page.locator('#txt-fx-add').click();
+  await page.locator('#txt-fx-add-btn').click();   // ★기대 바뀜(시안 v10) — 메뉴를 «열기만»
   expect(await shKeys(page)).toEqual({});
   expect(errs).toEqual([]);
 });

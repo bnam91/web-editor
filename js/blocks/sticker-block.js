@@ -139,6 +139,7 @@ window._stickerCountLabelHTML = _countLabelHTML;
 
 function renderStickerBlock(block) {
   _renderStickerBlockInner(block);
+  window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
   // 섹션 밖 크롭(--sec-clip) 재계산 — 렌더 branch들의 cssText 대입이 인라인 스타일을 통째로
   // 덮어써 기존 변수가 지워지므로 매 렌더 후 필수. shape별 early return과 무관하게 wrapper에서
   // 일괄 처리, auto 폭(max-content) 측정 위해 layout 확정 후(rAF).

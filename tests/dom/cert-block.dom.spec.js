@@ -456,7 +456,8 @@ test('U1 패널 — 안내문·위 제목 없음 · 지시선 글 = 패널 맨 �
   const errs = await boot(page);
   const id = await addViaMenu(page);
   const where = () => page.evaluate(() => {
-    const P = document.getElementById('crt-mode').closest('.prop-section').parentElement;
+    /* ★잴 자리만(261123 실측 9391): crt-mode 가 Type 띠(f3c48611a · Q1/Q2) 안으로 옮겨 «그 절의 부모» = 띠(절 1개) — 패널의 절 목록은 패널 몸에서 */
+    const P = document.querySelector('#panel-right .panel-body');
     const secs = [...P.children].filter((n) => n.classList.contains('prop-section'));
     const sec = document.getElementById('crt-callouts')?.closest('.prop-section');
     const rows = sec ? [...sec.querySelectorAll(':scope > .prop-row, :scope > .prop-sec-body > .prop-row')] : [];   // ★rp-on-dev ⓐ — 틀 절은 줄이 .prop-sec-body 한 겹 안(재는 뜻 같음: 그 절의 첫 줄)

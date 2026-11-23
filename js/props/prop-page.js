@@ -365,12 +365,12 @@ export function showPageProperties() {
       </div>`),
       sec('padding', `
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label">좌우패딩</span>
         <input type="range" class="prop-slider" id="page-padx-slider" min="0" max="200" step="1" value="${padX}">
         <input type="number" class="prop-number" id="page-padx-number" min="0" max="200" value="${padX}">
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하 패딩</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="page-pady-slider" min="0" max="200" step="1" value="${padY}">
         <input type="number" class="prop-number" id="page-pady-number" min="0" max="200" value="${padY}">
       </div>

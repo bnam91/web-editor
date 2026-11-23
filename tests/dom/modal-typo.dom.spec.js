@@ -114,10 +114,16 @@ const slotStyle = (page, sel = '.tb-mdl-text') => page.evaluate((s) => {
 const overflows = (page) => page.evaluate(() => {
   const body = document.querySelector('#panel-right .panel-body');
   const all = [...body.querySelectorAll('*')];
+  const p = document.createElement('div'); p.style.width = 'var(--ui-opt-col-w)'; document.body.appendChild(p); const colW = p.getBoundingClientRect().width; p.remove();
   return {
     panelW: body.clientWidth,
     scanned: all.length,
-    list: all.filter((e) => e.scrollWidth > e.clientWidth && e.clientWidth > 0)
+    /* ★잣대 바뀜 · 엄격함 그대로(261123): 끝 옵션 칼럼(재설계 1차 ⑧ · editor-props.css:75-78)은 머리·사슬 줄·VAR 칩 줄이 «몸 밖» 칼럼으로 나가게 «설계»했다 —
+       몸 기준이면 그 설계가 넘침으로 잡힌다(HEAD 배경색 몸 211>183). 넘침 = 내용이 절의 안쪽 오른끝(칼럼 끝)을 넘는 것. 절 밖(틀 밖)은 옛 잣대 그대로 */
+    list: all.filter((e) => { if (!(e.scrollWidth > e.clientWidth && e.clientWidth > 0)) return false;
+      const s = e.closest('.prop-sec-group') || e.closest('.prop-section[data-sec]'); if (!s || s === e) return true;
+      const inner = s.getBoundingClientRect().right - parseFloat(getComputedStyle(s).paddingRight) + colW;   // 칼럼 끝 = 절 오른끝 − (사이 + 칼럼) + 칼럼
+      return e.getBoundingClientRect().left + e.scrollWidth > inner + 0.5; })
              .map((e) => ({ cls: String(e.className).slice(0, 40), sw: e.scrollWidth, cw: e.clientWidth,
                             txt: (e.textContent || '').trim().slice(0, 34) })),
   };

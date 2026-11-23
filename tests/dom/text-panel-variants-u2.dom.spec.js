@@ -130,14 +130,14 @@ test('V7 텍스트 효과 — Effects 절 안 한 묶음(한 key) · 게이트 �
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('V8 서식 단추가 드러낸 하위 칸 — Typography 가 접혀 있으면 펼친다(expandSection) · 오류 0', async ({ page }) => {
-  /* 양성대조: prop-text-wireup-text-edit.js _hlSyncOpts 의 `if (on) expandSection('typography')` 를 지우면 형광펜 색 줄이 접힌 절 안에 숨어 빨강 */
+/* ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 옛 V8 은 «접힌 Typography 를 서식 단추가 연다»였다. 이제 머리를 눌러도 안 접힌다. */
+test('V8 서식 단추가 드러낸 하위 칸 — Typography 머리를 눌러도 안 접히고 형광펜 색 줄이 보인다 · 오류 0', async ({ page }) => {
   const errs = await scene(page);
   await open(page, 'text-block', 'addTextBlock');
   await page.click('#psec-typography-head');
-  await expect(page.locator('#psec-typography-body'), '[전제] Typography 를 접었다').toBeHidden();
-  await page.locator('#txt-highlight-btn').dispatchEvent('click');   /* 접힌 몸 안 단추 — 사람 손 대신 단축 경로(스타일 칩·단축키)와 같은 «안 보이는 데서 켜짐» */
-  await expect(page.locator('#psec-typography-body'), 'Typography 가 다시 펼쳐졌다').toBeVisible();
+  await expect(page.locator('#psec-typography-body'), '★머리를 누르니 Typography 가 접혔다').toBeVisible();
+  await page.locator('#txt-highlight-btn').dispatchEvent('click');
+  await expect(page.locator('#psec-typography-body')).toBeVisible();
   await expect(page.locator('#txt-hl-color-row')).toBeVisible();
   expect(errs, errs.join(' | ')).toEqual([]);
 });

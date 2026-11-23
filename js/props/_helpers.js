@@ -512,6 +512,66 @@ export function sliderRowHTML(label, sliderId, numberId, { min, max, step, value
       </div>`;
 }
 
+/* ══ 회전 줄 — «한 벌» (Q17 · Q20 · 시안 v10 · 현빈 GO 261120) ══════════════════════════════════════
+ * 한 줄 = [각도 칸(아이콘 끌기 · 숫자 · «°»)] + [90° 회전 · 좌우 반전 · 상하 반전] 반반(시안 v10 실측 89 | 27·27·27).
+ * ★각도 칸 id 는 블럭마다 «옛 숫자 칸 id 그대로» — 그 칸의 input/change 배선(블럭마다 다른 회전 적용 · 이력)이 그대로 돈다.
+ *   슬라이더는 없다(Q20 · 숫자 + ° · ↑↓ 키 = 브라우저 숫자 칸 기본 · Shift 큰 걸음은 앱 숫자 칸 관례에 없어 안 둔다).
+ * ★반전 = js/block-flip.js(저장 키 dataset.flipH/V · 프레임과 같은 키). 단추는 이 줄이 배선한다(wireRotRow).
+ *   이미 제 단추가 있는 블럭(프레임 ss-* · 벡터 vb-*)은 ids 로 옛 id 를 넘기고 wire 는 부르지 않는다(옛 배선 그대로). */
+const _ROT_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2v8h8"/><path d="M2 6a4 4 0 0 1 4 4"/></svg>';
+const _ROT_BTN = {
+  r90: ['90° 시계 방향 회전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M11.5 4.5A5 5 0 1 0 13 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/><polyline points="9,2 12,4.5 9.5,7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/></svg>'],
+  fh: ['좌우 반전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M8 5v6l-4-3z" fill="currentColor" opacity=".35"/></svg>'],
+  fv: ['상하 반전', '<svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M5 8h6l-3 4z" fill="currentColor" opacity=".35"/></svg>'],
+};
+/** p = id 접두(기본 단추 id `${p}-rot-90` · `${p}-flip-h` · `${p}-flip-v`) · numberId = 옛 각도 숫자 칸 id · ids 로 단추 id 를 바꿔 줄 수 있다 */
+export function rotRowHTML({ p, numberId, value = 0, flipH = false, flipV = false, ids = {}, min = -180, max = 180 } = {}) {
+  const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
+  const btn = (k, on) => `<button type="button" class="prop-align-btn${on ? ' active' : ''}" id="${id[k]}" title="${_ROT_BTN[k][0]}" aria-label="${_ROT_BTN[k][0]}"${k === 'r90' ? '' : ` aria-pressed="${on}"`}>${_ROT_BTN[k][1]}</button>`;
+  return `
+      <div class="prop-row prop-rot-row">
+        <div class="prop-icon-input"><span class="prop-rot-scrub" id="${numberId}-scrub" title="좌우로 끌면 각도가 바뀐다">${_ROT_ICON}</span><input type="number" class="prop-number" id="${numberId}" min="${min}" max="${max}" step="1" value="${value}" aria-label="회전 각도"><span class="prop-unit">°</span></div>
+        <div class="prop-align-group prop-rot-btns">${btn('r90', false)}${btn('fh', flipH)}${btn('fv', flipV)}</div>
+      </div>`;
+}
+/** 회전 줄 배선 — 90°(옛 각도 칸에 값을 넣고 input·change 를 쏜다 = 그 블럭의 회전·이력 길 그대로) · 반전(host dataset · push-after) · 아이콘 끌기.
+ *  host = () => 회전이 걸리는 요소(텍스트 = 텍스트 프레임 또는 글 블럭 · 그 밖 = 블럭). */
+export function wireRotRow({ p, numberId, host, ids = {}, scrubOnly = false } = {}) {   // scrubOnly = 90°·반전 단추가 이미 제 배선을 가진 블럭(프레임 · 벡터)
+  const n = document.getElementById(numberId);
+  if (!n) return;
+  const id = { r90: ids.r90 || `${p}-rot-90`, fh: ids.fh || `${p}-flip-h`, fv: ids.fv || `${p}-flip-v` };
+  /* QA2 M4 — «-30» 을 칠 수 있게: 치는 중 값이 숫자가 아니면(«-» 순간 value='') 블럭 배선(input → 0 으로 고쳐 씀)까지 가지 않게 막는다(캡처 · 같은 칸의 다른 듣개보다 먼저).
+     끝낼 때(change)도 숫자가 아니면 마지막 숫자로 되돌린다. 블럭마다 따로 고치지 않고 이 한 자리. */
+  let last = n.value;
+  n.addEventListener('input', (e) => { if (!Number.isFinite(parseFloat(n.value))) { e.stopImmediatePropagation(); return; } last = n.value; }, true);
+  n.addEventListener('change', () => { if (!Number.isFinite(parseFloat(n.value))) n.value = last; }, true);
+  const set = (v, commit) => {
+    let d = ((Math.round(v) % 360) + 360) % 360; if (d > 180 && +n.min >= -180) d -= 360;   // -180~180 칸만 접는다(프레임·벡터 0~360 은 그대로)
+    n.value = d; n.dispatchEvent(new Event('input', { bubbles: true }));
+    if (commit) n.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  if (!scrubOnly) document.getElementById(id.r90)?.addEventListener('click', () => set((parseInt(n.value) || 0) + 90, true));
+  if (!scrubOnly) for (const [k, axis, label] of [['fh', 'flipH', '좌우 반전'], ['fv', 'flipV', '상하 반전']]) {
+    const b = document.getElementById(id[k]);
+    b?.addEventListener('click', () => {
+      const on = window.toggleFlip?.(host(), axis);
+      b.classList.toggle('active', !!on); b.setAttribute('aria-pressed', String(!!on));
+      window.scheduleAutoSave?.();
+      window.pushHistory?.(label);   // 적용 먼저 → 이력(push-after)
+    });
+  }
+  const sc = document.getElementById(`${numberId}-scrub`);
+  sc?.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    const x0 = e.clientX, v0 = parseInt(n.value) || 0;
+    const move = (ev) => set(v0 + Math.round(ev.clientX - x0), false);
+    sc.setPointerCapture(e.pointerId);
+    sc.addEventListener('pointermove', move);
+    sc.addEventListener('lostpointercapture', () => { sc.removeEventListener('pointermove', move); n.dispatchEvent(new Event('change', { bubbles: true })); }, { once: true });
+    e.preventDefault();
+  });
+}
+
 /* ══ 접이식 절 머리·몸 — «한 벌» (1017t1d2, 2026-10-17 태양) ═══════════════════════════════
  * ★출처 — js/props/prop-grid.js `_grdOpenSections` / `_grdSecOpen` / `_grdSecToggle` /
  *   `_grdDisclosureHtml` / `_grdWireDisclosure` 를 «여기 한 곳」으로 올렸다(2026-09-24 세운 부품,
@@ -539,17 +599,10 @@ export function discSecToggle(block, key, dflt = false) {
   if (block?.id) _discOpenById.set(block.id, next); else _discOpenSections.set(block, next);
   return next[key];
 }
-/** 접이식 절 머리글 HTML — ⛔3인자 산출 바이트를 바꾸지 마라(prop-grid.js 옛 `_grdDisclosureHtml`과 글자 그대로 같다 —
+/** 접이식 절 머리글 HTML — ⛔산출 바이트를 바꾸지 마라(prop-grid.js 옛 `_grdDisclosureHtml`과 글자 그대로 같다 —
  *   tests/unit/disclosure-chevron-ssot.test.mjs 와 그리드 쪽 그물이 이 바이트를 지킨다).
- *   ★controls(몸통 id)를 주면 «틀 판»(_panel-frame.js 절 머리 · U0): aria-expanded·aria-controls 를 달고
- *     인라인 style·title 툴팁을 뺀다 — 모양은 css/editor-props.css panel-frame 블록의 토큰이 맡는다(신규 층 리터럴 0). */
-export function disclosureSectionHtml(id, title, open, controls) {
-  /* 쉐브론은 한 벌(disclosureChevronHtml)을 쓰되 인라인 style 만 클래스로 바꾼다 — 회전·전이는 panel-frame CSS 가 aria-expanded 로 */
-  if (controls) return `
-      <div class="prop-section-title" id="${id}" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}" aria-controls="${controls}">
-        ${disclosureChevronHtml(open).replace(/\n\s*style="[^"]*">/, ' class="prop-sec-chevron">')}
-        <span class="prop-sec-title-text">${title}</span>
-      </div>`;
+ *   ★절 «안» 하위 접기 전용. 표준 절 머리(_panel-frame.js)는 접기가 없어(패널 재설계 1차 · 현빈 확정) 이걸 안 부른다. */
+export function disclosureSectionHtml(id, title, open) {
   return `
       <div class="prop-section-title" id="${id}" role="button" tabindex="0"
            style="display:flex;align-items:center;gap:6px;cursor:pointer;"

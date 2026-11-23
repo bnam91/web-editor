@@ -249,7 +249,7 @@ export function showRadialProperties(block, idx) {
           <span class="prop-toggle-track"></span>
         </label>
       </div>` : ''}
-      ${_pairRow('rdl-padx', '좌우 패딩', st.padX, L.padX, L.padX.step)}`),
+      ${_pairRow('rdl-padx', '좌우패딩', st.padX, L.padX, L.padX.step)}`),
       sec('appearance', isDot ? '' : `
       ${st.cellShape === 'round' ? _numRow('rdl-cellradius-number', '모서리', st.cellRadius, L.cellRadius) : ''}
       <div class="prop-row">

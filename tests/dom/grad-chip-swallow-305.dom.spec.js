@@ -26,9 +26,10 @@ async function scene(page) {
   });
   await page.waitForFunction(() => document.querySelector('.grad-line-overlay .grad-stop-chip:not(.grad-stop-chip-fill)'));
   const q = await waitStableRect(page, '.grad-line-overlay .grad-stop-chip:not(.grad-stop-chip-fill)');   // 스크롤·줌이 멈춘 뒤 — 옛 좌표로 잡으면 칩을 놓친다(1/6 · 전제 빨강)
-  const h = await page.evaluate(() => { const r = document.querySelector('#panel-right .panel-header').getBoundingClientRect(); return { x: r.x + 5, y: r.y + 5 }; });
+  const h = await page.evaluate(() => { const r = document.querySelector('#panel-right #rp-height-total').getBoundingClientRect(); return { x: r.x + 5, y: r.y + 5 }; });
   return { x: q.cx, y: q.cy, tx: h.x, ty: h.y };
 }
+/* ★기대 바뀜(261122): 패널 안 «칩 밖» 누름 자리 = 옛 «Properties» 머리 줄(걷음) → 같은 자리 성질의 합계 줄(#rp-height-total · panel-body 밖) */
 const clicks = (page) => page.evaluate(() => window.__clicks);
 async function dragChip(page, p, midKey, awayY = 0) {
   await page.mouse.move(p.x, p.y);
@@ -48,7 +49,7 @@ for (const [name, key] of [['K1 끌기 중 Esc', 'Escape'], ['K2 끌기 중 ⌘Z
     const p = await scene(page);
     await dragChip(page, p, key);
     const n0 = await clicks(page);
-    await clickAt(page, p.tx, p.ty, { sel: '.panel-header' });
+    await clickAt(page, p.tx, p.ty, { sel: '#rp-height-total' });
     expect(await clicks(page), '끈 뒤 사용자 클릭이 먹혔다').toBe(n0 + 1);
   });
 }
@@ -56,7 +57,7 @@ test('S [지킴] 평소 끌기 — 끈 뒤 합성 click 은 삼키고 다음 클
   const p = await scene(page);
   await dragChip(page, p, null, AWAY_Y);
   expect(await clicks(page), '합성 click 이 새었다').toBe(0);
-  await clickAt(page, p.tx, p.ty, { sel: '.panel-header' });
+  await clickAt(page, p.tx, p.ty, { sel: '#rp-height-total' });
   expect(await clicks(page)).toBe(1);
 });
 test('M 다음 mousedown 이 삼킴을 걷는다 — 0ms 타이머보다 사용자 클릭이 먼저 와도 안 먹힌다', async ({ page }) => {
@@ -64,7 +65,7 @@ test('M 다음 mousedown 이 삼킴을 걷는다 — 0ms 타이머보다 사용�
   // 부하에서 난 꼴(×18 중 1)을 타이머에 안 기대고 세운다: 놓는 태스크 안에서 다음 누름·클릭을 쏜다
   await page.evaluate(() => {
     window.__mine = 0;
-    const t = document.querySelector('#panel-right .panel-header');
+    const t = document.querySelector('#panel-right #rp-height-total');
     t.addEventListener('click', () => { window.__mine++; });   // 브라우저 합성 click 은 대상이 달라 안 센다 — 내 click 만
     window.addEventListener('mouseup', () => {
       t.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -76,6 +77,6 @@ test('M 다음 mousedown 이 삼킴을 걷는다 — 0ms 타이머보다 사용�
 });
 test('N [음성] 끌기 없는 클릭 — 닿는다', async ({ page }) => {
   const p = await scene(page);
-  await clickAt(page, p.tx, p.ty, { sel: '.panel-header' });
+  await clickAt(page, p.tx, p.ty, { sel: '#rp-height-total' });
   expect(await clicks(page)).toBe(1);
 });

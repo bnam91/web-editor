@@ -181,7 +181,9 @@ test('P7 (dev 꼴 → 틀) 새 줄은 Kind(옛 Style) 절 안 · 절 구성 무�
   const sections = () => page.evaluate(() => [...document.querySelectorAll('#panel-right .prop-section')]
     .map((e) => e.dataset.sec ?? null));
   const before = await sections();
-  expect(before, '[전제] 틀 패널 절(옛 Style·Align·Spacing·Height (All)·Selected Tag)').toEqual([null, 'kind', 'size', 'layout', 'appearance', 'fill']);
+  /* ★기대 바뀜(Q1 · Q2 · 현빈 GO 261120) — kind 는 이름표 상자 안 띠 · size·layout 은 «Layout» 묶음 겉(data-sec 없음 = null) 안 몸 */
+  /* ★기대 바뀜(Q37 · 현빈 GO 261120) — 모든 블럭 패널 끝에 블록 Template 절 */
+  expect(before, '[전제] 틀 패널 절(옛 Style·Align·Spacing·Height (All)·Selected Tag)').toEqual([null, 'kind', null, 'size', 'layout', 'appearance', 'fill', 'template']);
   await saveAs(page, '모양');
   await page.click('#lg-preset-rename-btn');
   await expect(page.locator('#lg-preset-name-row')).toBeVisible();

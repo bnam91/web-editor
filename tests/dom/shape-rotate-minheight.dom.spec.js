@@ -80,7 +80,10 @@ function toPre(src, newName, oldName) {
   return out.replace(oldName, newName);
 }
 
+/* ★기대 그대로 · 싣는 것만(261123): 병합 뒤 applyShapeRotation 이 회전 쓰기를 한 함수(js/block-flip.js window.writeRotation)로 넘겼다 — 하네스가 그 파일을 안 실어 «not a function». 진짜 파일 그대로 싣는다(⛔베끼지 않음) */
+const FLIP_SRC = read('js/block-flip.js').replace(/^export\s+/gm, '');
 const HARNESS_JS = `
+${FLIP_SRC}
 let block = null;  /* _updateFrameForRotation 은 클로저의 block 을 본다 → 시나리오가 갈아끼운다 */
 window.__setBlock = (b) => { block = b; };
 ${RELOCK_SRC}

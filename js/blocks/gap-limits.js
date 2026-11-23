@@ -10,6 +10,6 @@
  *   · js/block-factory.js updateFrameBlock 의 `gap` 0~400 (프레임의 CSS gap 속성)
  */
 export const GAP_MIN = 0;
-export const GAP_MAX = 1000;   // ★현빈 2026-09-09: 「갭블럭이 최대 400 밖에 높이가 안되는데, 1000까지 가능하게」
+export const GAP_MAX = 2000;   // ★현빈 2026-11-22: 갭 블럭 높이 최대 2000(라벨 입력·패널 숫자칸·슬라이더·키보드·MCP 가 이 하나를 본다) · 옛: 2026-09-09 400 → 1000
 
 if (typeof window !== 'undefined') { window.GAP_MIN = GAP_MIN; window.GAP_MAX = GAP_MAX; }

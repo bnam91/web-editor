@@ -61,7 +61,7 @@ test('A-H2 [지킴] 안 띄운 서클 손잡이 = --sel-color(파랑) 그대로'
 /* ── B ── */
 const pvState = (page) => page.evaluate(() => { const n = document.getElementById('txt-pv-number'), sl = document.getElementById('txt-pv-slider'); const hint = [...document.querySelectorAll('#panel-right .prop-hint, .panel-body .prop-hint')].find(h => /꼬리/.test(h.textContent) && h.getBoundingClientRect().height > 0);
   return { num: n ? n.disabled : null, slider: sl ? sl.disabled : null, hint: hint ? hint.textContent.trim() : null }; });
-test('B1 [새 것] 말풍선 — 상하 칸 둘 disabled + 보이는 안내 한 줄', async ({ page }) => {
+test('B1 [새 것] 말풍선 — 상하 칸 둘 disabled · 안내 줄 없음(현빈 261120 B1 걷음)', async ({ page }) => {
   await fresh(page);
   const id = await addInSection(page, "window.addSpeechBubbleBlock('left')", '#canvas .speech-bubble-block');
   expect(id, '[전제] 말풍선').toBeTruthy();
@@ -69,7 +69,8 @@ test('B1 [새 것] 말풍선 — 상하 칸 둘 disabled + 보이는 안내 한 
   const st = await pvState(page);
   expect(st.num, `상하 숫자칸 disabled · ${JSON.stringify(st)}`).toBe(true);
   expect(st.slider, `상하 슬라이더 disabled · ${JSON.stringify(st)}`).toBe(true);
-  expect(st.hint, `보이는 안내 · ${JSON.stringify(st)}`).toBeTruthy();
+  /* ★기대 바뀜(현빈 261120 · 1120b B1): 까닭 힌트 줄(#txt-pv-bubble-hint)은 걷음 · 막힌 칸은 그대로(prop-text-template.js 상하패딩 줄 주석) */
+  expect(st.hint, `안내 줄은 걷었다 · ${JSON.stringify(st)}`).toBeNull();
 });
 test('B2 [지킴] 일반 글자(Body) — 상하 칸 enabled · 안내 없음', async ({ page }) => {
   await fresh(page);

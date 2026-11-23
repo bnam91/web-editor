@@ -7,6 +7,7 @@
  *   ⚠️배율 전제: waitZoomSettled(100).
  */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
 
 async function setup(page) {
@@ -26,7 +27,7 @@ async function setup(page) {
     window.selectBlock(window.__tb.id);
   });
   await waitZoomSettled(page, 100);
-  await page.waitForFunction(() => !!document.getElementById('txt-fx-add'));
+  await page.waitForFunction(() => !!document.getElementById('txt-fx-add-btn'));
   return errs;
 }
 const read = (page) => page.evaluate(() => {
@@ -34,7 +35,7 @@ const read = (page) => page.evaluate(() => {
   return { corners: tb.dataset.tfCorners ?? null, ceW: ce.style.width || '', ceRectW: ce.getBoundingClientRect().width };
 });
 async function addFt(page) {
-  await page.selectOption('#txt-fx-add', 'freetransform');
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="freetransform"]'));
   await page.waitForFunction(() => !!window.__tb.dataset.tfCorners);
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
@@ -97,7 +98,7 @@ for (const fx of ['freetransform', 'glow', 'reflect']) {   /* reflect = 높이�
     const errs = await setup(page);
     const key = () => page.evaluate(() => { const tb = document.getElementById(window.__tbId); return { fs: parseFloat(getComputedStyle(tb.querySelector('.tb-body') || tb.querySelector('[contenteditable]')).fontSize), keys: Object.keys(tb.dataset).sort().join() }; });
     const k0 = await key();
-    await page.selectOption('#txt-fx-add', fx);
+    await page.click('#txt-fx-add-btn').then(() => page.click(`#txt-fx-menu [data-fx="${fx}"]`));
     await page.waitForFunction((k) => Object.keys(document.getElementById(window.__tbId).dataset).sort().join() !== k, k0.keys);
     const k1 = await key();
     await page.click('#txt-size-number', { clickCount: 3 });

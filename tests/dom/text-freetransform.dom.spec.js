@@ -27,9 +27,11 @@
  * ★양성대조(판을 갈아 끼운다): GD1001_ROOT=<fc487b3d 를 뽑은 경로> 로 같은 벌을 돌리면
  *   그 판엔 `js/effects-freetransform.js` 가 ★없으므로 ★전부 빨강이어야 한다. */
 const { test, expect } = require('@playwright/test');
+/* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 Effects ＋ = 단추(#txt-fx-add-btn) → 종류 메뉴(#txt-fx-menu [data-fx]) — 옛 고르개 #txt-fx-add 없음 */
 const fs = require('fs');
 const path = require('path');
 const { bootApp, ROOT } = require('./_root-harness.js');
+const { addFx } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 /* ── 장면 ──────────────────────────────────────────────────────────────
    `ftTB`  우리 글상자(h1) · `ftTF` 그 text-frame 래퍼
@@ -102,7 +104,7 @@ const pick = async (page, id) => {
 
 /** 「이펙트 → 자유변형」을 ★패널에서 고른다(사람이 하는 그 두 걸음). */
 const addFt = async (page, P = 'txt') => {
-  await page.selectOption(`#${P}-fx-add`, 'freetransform');
+  await addFx(page, P, 'freetransform');
   await page.waitForFunction((P) => !!document.getElementById(`${P}-fxft-card`), P);
 };
 
@@ -519,7 +521,7 @@ test('NoNumberField ★우리 카드에 숫자·슬라이더 칸 0 (＋★_neg �
   const errs = await setup(page);
   await pick(page, 'ftTB');
   await addFt(page);
-  await page.selectOption('#txt-fx-add', 'glow');                 /* ★같은 패널에 ★이웃 카드를 띄운다 */
+  await page.click('#txt-fx-add-btn').then(() => page.click('#txt-fx-menu [data-fx="glow"]'));                 /* ★같은 패널에 ★이웃 카드를 띄운다 */
   await page.waitForFunction(() => !!document.getElementById('txt-fxgl-card'));
   const r = await page.evaluate(() => {
     const q = (sel) => document.querySelectorAll(sel).length;
@@ -792,7 +794,7 @@ test('QA-1 ★불필요한 프롭힌트 0 — 진입 전/후 패널 행 id 를 �
   console.log('[QA-1] 후', after.rows.length, JSON.stringify(after.rows));
   console.log('[QA-1] added', JSON.stringify(added), 'addedHints', JSON.stringify(addedHints));
   /* ★전제 — 진입 «전»에 Effects 절이 ★떠 있었다(⛔안 떴으면 「0건」은 안 재고 있다) */
-  expect(before.rows, '★전제: 진입 전 Effects 절에 ＋ 목록이 있다').toContain('txt-fx-add');
+  expect(before.rows, '★전제: 진입 전 Effects 절에 ＋ 목록이 있다').toContain('txt-fx-add-btn');
   /* ★본 단언 — ★프롭힌트는 ★하나도 늘지 않았다(⛔「힌트 없애주기」 1020t2c3 과 같은 결) */
   expect(addedHints, `★우리 카드가 프롭힌트를 ${addedHints.length}개 더했다 — 현빈 「불필요한 프롭힌트는 없는지」`).toEqual([]);
   expect(addedPanelHints, `★우리 진입이 패널 전체에 프롭힌트를 ${addedPanelHints.length}개 더했다`).toEqual([]);
@@ -819,6 +821,7 @@ test('QA-2 ★디자인 일관 — 글자 꼴(fs·color·fw·lh)과 ★아웃라
   await pick(page, 'ftTB');
   const base = await read(page);
   await addFt(page);
+  { const b = await page.evaluate(() => { const r = document.getElementById('ftTB').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.move(b[0], b[1]); }   /* ★기대 바뀜(시안 v10 · 261122 실측): 옛 고르개(selectOption)는 포인터를 안 옮겨 글상자 위 hover(.text-block:hover → outline none)가 선례와 같았다 · ＋ 메뉴는 마우스로 눌러 포인터가 패널로 간다 ⇒ 선례(골라 둔 채 hover)와 같은 자리로 되돌린다 — 두 값 모두 투명(눈에 같음) */
   await page.evaluate(() => {
     const tb = document.getElementById('ftTB'); const { W, H } = window.ftStateOf(tb);
     window.setFxFreeTransform(tb, [[W * 0.2, 0], [W * 0.8, 0], [W, H], [0, H]]);

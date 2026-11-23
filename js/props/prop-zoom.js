@@ -2,7 +2,7 @@
 // 헤더는 신규 블록 체크리스트가 요구하는 풀 구조:
 //   prop-block-label > prop-block-icon + prop-block-info + prop-block-id
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML } from './_helpers.js';
+import { blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 
@@ -155,7 +155,7 @@ export function showZoomProperties(block) {
            ⛔id 규약은 zm-rot · zm-rot-num 이다 — -slider / -number 가 «아니다».
              asset-rotate.js 의 _syncNumSlider 가 찾는 이름과 다르다(그래서 전용 동기를 뒀다).
            ⚠️여기는 템플릿 리터럴 «안»이라 이 주석에 백틱을 쓰면 리터럴이 끊긴다 — 실제로 끊었다. -->
-      ${_pairRow('zm-rot', '회전°', st.rot, -180, 180, 1)}`),
+      <span class="prop-field-label">Rotation</span>${rotRowHTML({ p: 'zm', numberId: 'zm-rot-num', value: st.rot, flipH: block.dataset.flipH === '1', flipV: block.dataset.flipV === '1' })}`),
       sec('size', `
       ${_pairRow('zm-size', '크기', Math.round(st.w ?? st.size), 20, 600, 2)}`),
       // 옛 「Text」 절 — 켬/끔·정렬·크기. 글자 색은 Fill 절(글자 꺼짐이면 흐리게)
@@ -344,7 +344,7 @@ ${narrowRow}
   const bindPair = (id, key, label, min, max) => {
     const s = propPanel.querySelector('#' + id);
     const n = propPanel.querySelector('#' + id + '-num');
-    if (!s || !n) return;
+    if (!n || (!s && id !== 'zm-rot')) return;   // Q20(시안 v10) — 회전만 슬라이더 없이 각도 칸
     const apply = v => {
       const val = Math.min(max, Math.max(min, v));
       /* ★크기 슬라이더는 «덧씌우개»를 지운다 — 안 지우면 핸들로 한 번 끈 뒤로 슬라이더가
@@ -359,17 +359,18 @@ ${narrowRow}
          ⛔그래도 지우지 않는다: 슬라이더를 되살리는 순간 이 줄이 없으면 그 병이 그대로 돌아온다. */
       if (key === 'angle' || key === 'length') window.clearPinnedZoomShortEdge?.(block);
       block.dataset[key] = String(val);
-      s.value = val; n.value = val;
+      if (s) s.value = val; n.value = val;
       rerender();
     };
-    s.addEventListener('input', e => apply(parseFloat(e.target.value)));
+    s?.addEventListener('input', e => apply(parseFloat(e.target.value)));
     n.addEventListener('input', e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) apply(v); });
     const commit = () => { window.pushHistory?.(label); window.triggerAutoSave?.(); };
-    s.addEventListener('change', commit);
+    s?.addEventListener('change', commit);
     n.addEventListener('change', commit);
   };
   bindPair('zm-size',   'size',   '확대블럭 크기',      20, 600);
   bindPair('zm-rot',    'rot',    '확대블럭 회전',    -180, 180);
+  wireRotRow({ p: 'zm', numberId: 'zm-rot-num', host: () => block });   // Q17 · Q20(시안 v10)
   // ★[숨김] 위 angleRow·lengthRow 와 «짝»이다 — UI 가 없는데 바인딩만 남기면 안 된다(bdr 과 같은 규율).
   // bindPair('zm-angle',  'angle',  '확대블럭 방향',    -180, 180);
   // bindPair('zm-length', 'length', '확대블럭 길이',       0, 1200);

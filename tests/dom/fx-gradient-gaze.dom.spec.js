@@ -13,6 +13,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitZoomSettled } = require('./_root-harness.js');
+const { addFx, fxAddKeys } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 /* captureTruth(PNG 길)는 electronAPI.captureSectionCdp 로 찍는다 — 하네스 electronAPI 는 «모든 키가 함수»인 Proxy 라 그대로 두면 null → base64,null → ci.onerror(Event).
    CDP Page.captureScreenshot 으로 갈아 끼운다(slide-frame-cells wireCdp 꼴 · 지디 Electron 전수 261122 «page.evaluate: Event» 11건 = 이 배선 빠짐). */
 async function wireCdp(page) {
@@ -31,8 +32,8 @@ const ring = (c) => [...c, c[0]];
 /* FX-GRADIENT-GAZE-01 v3(현빈 261121 «별도 이펙트»): 홀로그램 = 도형·글자 Effects 드롭다운 «홀로그램» 카드(프리셋 16 + 세기) — 색 고르기 안 프리셋 줄은 걷음 */
 async function holo(page, kind, key) {
   const P = kind === 'shape' ? 'shape' : 'txt';
-  await page.waitForFunction((P) => !!(document.getElementById(`${P}-fxholo-card`) || document.getElementById(`${P}-fx-add`)), P, { timeout: 5000 });
-  if (!(await page.$(`#${P}-fxholo-card`))) { await page.locator(`#${P}-fx-add`).scrollIntoViewIfNeeded(); await page.selectOption(`#${P}-fx-add`, 'holo'); await raf(page); }
+  await page.waitForFunction((P) => !!(document.getElementById(`${P}-fxholo-card`) || document.getElementById(`${P}-fx-add`) || document.getElementById(`${P}-fx-add-btn`)), P, { timeout: 5000 });
+  if (!(await page.$(`#${P}-fxholo-card`))) { await addFx(page, P, 'holo'); await raf(page); }
   await page.evaluate((P) => { const b = document.getElementById(`${P}-fxholo-body`); if (b && b.hidden) document.getElementById(`${P}-fxholo-head`).click(); }, P);
   const sw = page.locator(`#${P}-fxholo-sws [data-holo="${key}"]`); await sw.scrollIntoViewIfNeeded(); await sw.click(); await raf(page);
 }
@@ -52,8 +53,8 @@ async function scene(page, kind) {
   await page.mouse.click(xy[0], xy[1]); await raf(page);
   await page.evaluate(({ id, kind }) => { const el = document.getElementById(id); if (kind === 'shape' ? !document.getElementById('shape-color-color') : !document.getElementById('txt-color')) (kind === 'shape' ? window.showShapeProperties : window.showTextProperties)?.(el); }, { id, kind });
   const P = kind === 'shape' ? 'shape' : 'txt';
-  await page.waitForFunction((P) => !!document.getElementById(`${P}-fx-add`), P, { timeout: 5000 });
-  const opts = await page.evaluate((P) => [...document.getElementById(`${P}-fx-add`).options].map((o) => o.value), P);
+  await page.waitForFunction((P) => !!(document.getElementById(`${P}-fx-add`) || document.getElementById(`${P}-fx-add-btn`)), P, { timeout: 5000 });
+  const opts = await fxAddKeys(page, P);
   expect(opts, '[전제] Effects 드롭다운에 «홀로그램»').toContain('holo');   // ★기대 바뀜(v3 261121 «별도 이펙트»): 옛 전제 = 색 고르기 그라데이션 탭 프리셋 16
   return errs;
 }

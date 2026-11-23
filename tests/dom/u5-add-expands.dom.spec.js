@@ -1,6 +1,6 @@
-/* u5-add-expands — U5: 항목을 «더하는» 동작(줄·메시지·단계·칼럼·데이터 행·칸)은 새 항목이 사는 Content 절이 접혀 있으면 펼친다
- * (틀 _panel-frame.js expandSection — 접기 상태는 절 key 전역이라 다른 블록에서 접어 둔 Content 가 남아 있을 수 있다).
- * 양성대조: 각 prop-*.js 의 그 핸들러 첫 줄 expandSection('content') 를 지우면 그 칸 빨강(Content 몸이 숨은 채). */
+/* u5-add-expands — U5: 항목을 «더하는» 동작(줄·메시지·단계·칼럼·데이터 행·칸) 뒤 새 항목이 사는 Content 절이 보인다.
+ * ★기대 바뀜(패널 재설계 1차 · 현빈 확정 «표준 절 접기 없음») — 옛 판은 «접힌 Content 를 더하기가 연다(expandSection)»를 쟀다.
+ *   이제 머리를 눌러도 안 접힌다 ⇒ 누른 뒤에도 보이고, 더한 뒤에도 보인다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
 
@@ -14,7 +14,7 @@ const CASES = [
 ];
 
 for (const C of CASES) {
-  test(`E ${C.cls} — 접힌 Content 에 «${C.act}» 로 항목을 더하면 Content 가 펼쳐진다`, async ({ page }) => {
+  test(`E ${C.cls} — 머리를 눌러도 Content 가 안 접히고 «${C.act}» 로 더한 뒤에도 보인다`, async ({ page }) => {
     await page.setViewportSize({ width: 1500, height: 1100 });
     const errs = await bootApp(page);
     await page.evaluate(async ({ cls, entry }) => {
@@ -29,10 +29,10 @@ for (const C of CASES) {
     const body = sec.locator(':scope > .prop-sec-body');
     await expect(body, '[전제] Content 절이 있고 펼쳐져 있다').toBeVisible();
     await sec.locator(':scope > .prop-sec-head > .prop-section-title').click();
-    await expect(body, '[전제] 접었다').toBeHidden();
+    await expect(body, '★머리를 누르니 Content 가 접혔다').toBeVisible();
     await expect(page.locator(C.act), '[전제] 더하기 손잡이').toBeAttached();
-    await page.locator(C.act).dispatchEvent('click');   // 손잡이가 접힌 몸 안에 있어도(보이지 않아도) 사람이 누른 것과 같은 길
-    await expect(page.locator('#panel-right .prop-section[data-sec="content"] > .prop-sec-body'), '★더한 뒤 Content 가 펼쳐졌다').toBeVisible();
+    await page.locator(C.act).dispatchEvent('click');
+    await expect(page.locator('#panel-right .prop-section[data-sec="content"] > .prop-sec-body'), '★더한 뒤 Content 가 안 보인다').toBeVisible();
     expect(errs).toEqual([]);
   });
 }

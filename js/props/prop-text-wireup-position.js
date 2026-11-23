@@ -1,11 +1,11 @@
+import { wireRotRow } from './_helpers.js';
 /* prop-text-wireup-position.js
  * width / X / Y (overlay-tb는 호출하지 않음)
  */
 
 export function wirePositionSection({ tb }) {
-  const wSlider = document.getElementById('txt-width-slider');
   const wNumber = document.getElementById('txt-width-number');
-  if (wSlider) {
+  if (wNumber) {
     const applyW = v => {
       const row = tb.closest('.row');
       const tf  = tb.closest('.frame-block[data-text-frame="true"]');
@@ -24,13 +24,22 @@ export function wirePositionSection({ tb }) {
         tb.style.width = v + 'px';
         tb.dataset.width = v;
       }
-      wSlider.value = v; wNumber.value = v;
+      wNumber.value = v;
       window.scheduleAutoSave?.();
     };
-    wSlider.addEventListener('input', () => applyW(parseInt(wSlider.value)));
     wNumber.addEventListener('input', () => applyW(Math.min(860, Math.max(80, parseInt(wNumber.value) || 80))));
-    wSlider.addEventListener('change', () => window.pushHistory?.());
     wNumber.addEventListener('change', () => window.pushHistory?.());
+    /* 라벨 «너비»를 좌우로 끌면 1px = 1 (재설계 1차 ⑥ · Figma 라벨 끌기). 놓을 때 이력 한 칸 */
+    const scrub = document.getElementById('txt-width-scrub');
+    scrub?.addEventListener('pointerdown', (e) => {
+      if (e.button) return;   // 왼쪽 단추만 끈다(오른쪽 클릭·가운데 클릭은 끌기 아님)
+      const x0 = e.clientX, v0 = parseInt(wNumber.value) || 80;
+      const move = (ev) => applyW(Math.min(860, Math.max(80, v0 + Math.round(ev.clientX - x0))));
+      scrub.setPointerCapture(e.pointerId);
+      scrub.addEventListener('pointermove', move);
+      scrub.addEventListener('lostpointercapture', () => { scrub.removeEventListener('pointermove', move); window.pushHistory?.(); }, { once: true });
+      e.preventDefault();
+    });
   }
 
   const xNumber = document.getElementById('txt-x-number');
@@ -54,24 +63,19 @@ export function wirePositionSection({ tb }) {
     yNumber.addEventListener('change', () => window.pushHistory?.());
   }
 
-  // 회전 슬라이더 — text-frame(있으면) 또는 tb에 transform: rotate 적용
-  const rotSlider = document.getElementById('txt-rot-slider');
+  // 회전 각도 칸 — text-frame(있으면) 또는 tb에 transform: rotate 적용 (Q20 · 슬라이더 없음 · 시안 v10)
   const rotNumber = document.getElementById('txt-rot-number');
-  if (rotSlider && rotNumber) {
-    const applyRot = v => {
+  if (rotNumber) {
+    const applyRot = (v, typing) => {
       v = Math.min(180, Math.max(-180, v || 0));
       const el = tb.closest('.frame-block[data-text-frame="true"]') || tb;
-      // 기존 transform에서 rotate만 교체 (position translate 등 보존)
-      const base = (el.style.transform || '').replace(/\s*rotate\([^)]*\)/g, '').trim();
-      el.style.transform = (base ? base + ' ' : '') + `rotate(${v}deg)`;
-      el.style.transformOrigin = 'center center';
-      if (v) el.dataset.rotation = v; else delete el.dataset.rotation;
-      rotSlider.value = v; rotNumber.value = v;
+      window.writeRotation(el, v, { key: 'rotation' });   // 회전 쓰기 한 함수(js/block-flip.js writeRotation · rotate → scale 고정 · QA2 ③)
+      if (!typing) rotNumber.value = v;
       window.scheduleAutoSave?.();
     };
-    rotSlider.addEventListener('input', () => applyRot(parseInt(rotSlider.value)));
-    rotNumber.addEventListener('input', () => applyRot(parseInt(rotNumber.value) || 0));
-    rotSlider.addEventListener('change', () => window.pushHistory?.());
-    rotNumber.addEventListener('change', () => window.pushHistory?.());
+    rotNumber.addEventListener('input', () => applyRot(parseInt(rotNumber.value) || 0, true));   // QA2 M4 — 치는 중엔 칸을 다시 안 쓴다(«-30» 을 칠 수 있게) · 끝낼 때(change) 범위로 정규화
+    rotNumber.addEventListener('change', () => { applyRot(parseInt(rotNumber.value) || 0); window.pushHistory?.(); });
+    /* Q17 — 90° · 좌우 · 상하 반전 · 아이콘 끌기(회전 줄 한 벌 · _helpers.js wireRotRow) */
+    wireRotRow({ p: 'txt', numberId: 'txt-rot-number', host: () => tb.closest('.frame-block[data-text-frame="true"]') || tb });
   }
 }

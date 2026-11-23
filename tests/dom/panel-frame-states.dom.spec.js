@@ -1,14 +1,13 @@
 /* panel-frame-states — 틀(js/props/_panel-frame.js)이 그린 절 머리의 상태들. (right-panel-unify U0 · A-6) 파일럿 = 갭 · 브릿지.
- * S1 hover — 제목 색이 --ui-sec-title-color → --ui-sec-title-color-hover 로 바뀐다 (토큰이 정의돼 있다)
- * S2 키보드 — Tab 으로 절 머리 도달 · :focus-visible 링(outline ≠ none) · Enter/Space 토글 · aria-expanded 반전 · aria-controls == 몸통 id
+ * S1 ★기대 바뀜(패널 재설계 1차 · 절 머리는 누르는 것이 아니다) — hover 해도 제목 색 그대로(= --ui-sec-title-color)
+ * S2 ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 절 머리는 Tab 에 안 걸린다 · 클릭·Enter·Space 해도 몸이 그대로 보인다 · aria-expanded 없음
  * S3 넘침 — 좁은 패널 · 60자 블록 이름 · 긴 special 제목에도 패널·절에 가로 넘침 0 · 제목은 ellipsis
  * S4 겹침 0 — 절 머리 사각형끼리 안 겹치고 패널 안에 있다 · 제목 글자 ≥ --ui-fs-10
  * S6 몸 아래 여백 = --ui-sec-body-pb «하나»(마지막 보이는 자식 margin 0 · 숨은 꼬리 건너뜀) — 마지막 절 빼고 전부 · 양성대조: 꼬리 margin 을 되살리면 어긋난다
  * S7 보이는 내용 없는 펼친 절(머리만 · 숨은 자식만) — 아래 여백 0 · 머리 위아래 틈 같음(손잡이 가운데) · 양성대조: 내용 있는 절은 pb
- * S8 접힌 Effects 에 효과를 더하면 Effects 가 열리고 새 카드가 보인다(expandSection) · 양성대조: 그 문을 끄면 접힌 채 남는다
+ * S8 ★기대 바뀜(패널 재설계 1차) — 옛 접기 기억(gd-panel-collapsed)에 effects 가 있어도 효과를 더하면 새 카드가 보인다
  * S5 틀 절 몸 안의 옛 하위 절(.prop-section)은 좌우 들임 0 — 그 안 첫 줄 왼쪽 == 틀 몸 왼쪽(±0.5) · 양성대조: 틀 밖 같은 마크업은 들여진다
- * 양성대조(사람이 돌린다): S1 = editor-base.css 의 --ui-sec-title-color-hover 줄 삭제 → 빨강 ·
- *   S2 = _panel-frame.js 의 panel.addEventListener('keydown' …) 제거 → 빨강 · S3 = editor-props.css .prop-sec-title-text 의 text-overflow:ellipsis 제거 → 빨강.
+ * 양성대조(사람이 돌린다): S2 = _panel-frame.js 절 머리에 role="button" tabindex="0" 을 되살리면 빨강 · S3 = editor-props.css .prop-sec-title-text 의 text-overflow:ellipsis 제거 → 빨강.
  * ⛔화면 px 를 상수와 견주지 않는다(dom-screen-px-census) — 사각형끼리만 비교한다. */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');
@@ -35,39 +34,36 @@ const tokenColor = (page, name) => page.evaluate((name) => {
 const tokenRaw = (page, name) => page.evaluate((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim(), name);
 const colorOf = (page, sel) => page.evaluate((sel) => getComputedStyle(document.querySelector(sel)).color, sel);
 
-test('S1 hover — 제목 색이 hover 토큰으로 바뀐다', async ({ page }) => {
+test('S1 hover — 제목 색이 그대로다(누르는 것이 아니다)', async ({ page }) => {
   const { errs } = await open(page, GAP);
-  expect(await tokenRaw(page, '--ui-sec-title-color-hover'), '★hover 토큰이 정의돼 있지 않다').not.toBe('');
   const base = await tokenColor(page, '--ui-sec-title-color');
-  const hover = await tokenColor(page, '--ui-sec-title-color-hover');
-  expect(base, '[전제] 두 토큰 색이 달라야 이 검사가 무엇을 잰다').not.toBe(hover);
   await page.mouse.move(0, 0);
   await expect.poll(() => colorOf(page, '#psec-size-head'), '평소 색').toBe(base);
   await page.hover('#psec-size-head');
-  await expect.poll(() => colorOf(page, '#psec-size-head'), 'hover 색').toBe(hover);
+  /* ★기대 바뀜(패널 재설계 1차) — 옛 판은 hover 토큰 색으로 바뀌어야 했다 */
+  await expect.poll(() => colorOf(page, '#psec-size-head'), '★hover 에 제목 색이 바뀐다(누를 것처럼 보인다)').toBe(base);
+  expect(await page.evaluate(() => getComputedStyle(document.getElementById('psec-size-head')).cursor), '★절 머리 커서가 손가락이다').not.toBe('pointer');
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('S2 키보드 — Tab 도달 · focus-visible 링 · Enter/Space 토글 · aria', async ({ page }) => {
+test('S2 접기 없음 — Tab 에 안 걸림 · 클릭·Enter·Space 해도 몸 그대로 · aria-expanded 없음', async ({ page }) => {
   const { errs } = await open(page, GAP);
-  // 패널 맨 앞에 임시 단추를 두고 거기서 Tab — 블록 머리에는 포커스 받을 것이 없으니 다음 칸이 첫 절 머리다
   await page.evaluate(() => { const b = document.createElement('button'); b.id = '__tabstart'; document.querySelector('#panel-right .panel-body').prepend(b); b.focus(); });
   await page.keyboard.press('Tab');
-  expect(await page.evaluate(() => document.activeElement?.id), '★Tab 으로 절 머리에 못 간다').toBe('psec-size-head');
+  /* ★기대 바뀜(패널 재설계 1차) — 옛 판은 첫 Tab 이 psec-size-head 였다 */
+  expect(await page.evaluate(() => document.activeElement?.id), '★절 머리가 Tab 에 걸린다(누를 것이 아닌데)').not.toBe('psec-size-head');
   await page.evaluate(() => document.getElementById('__tabstart').remove());
-  const ring = await page.evaluate(() => { const s = getComputedStyle(document.activeElement); return { style: s.outlineStyle, fv: document.activeElement.matches(':focus-visible') }; });
-  expect(ring.fv, '[전제] 키보드 포커스').toBe(true);
-  expect(ring.style, '★focus-visible 링이 없다').not.toBe('none');
   const head = page.locator('#psec-size-head');
-  await expect(head).toHaveAttribute('aria-controls', 'psec-size-body');
-  await expect(page.locator('#psec-size-body'), '★aria-controls 가 가리키는 몸통이 없다').toBeAttached();
-  await expect(head).toHaveAttribute('aria-expanded', 'true');
+  expect(await head.getAttribute('aria-expanded'), '★aria-expanded 가 남았다').toBeNull();
+  expect(await head.locator('svg').count(), '★쉐브론이 남았다').toBe(0);
+  const body = page.locator('#psec-size-body');
+  await expect(body, '[전제] 몸이 보인다').toBeVisible();
+  await head.click();
+  await expect(body, '★머리를 누르니 몸이 숨었다').toBeVisible();
+  await page.evaluate(() => document.getElementById('psec-size-head').focus());
   await page.keyboard.press('Enter');
-  await expect(head).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.locator('#psec-size-body')).toBeHidden();
   await page.keyboard.press(' ');
-  await expect(head).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('#psec-size-body')).toBeVisible();
+  await expect(body, '★Enter/Space 로 몸이 숨었다').toBeVisible();
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
@@ -134,9 +130,11 @@ test('S5 틀 절 몸 안 옛 하위 절 — 두 번 들이지 않는다(왼쪽 =
 const tokenPx = (page, name) => page.evaluate((name) => { const p = document.createElement('div'); p.style.paddingBottom = `var(${name})`; document.body.appendChild(p); const v = parseFloat(getComputedStyle(p).paddingBottom); p.remove(); return v; }, name);
 /** 펼친 data-sec 절마다(마지막 절 빼고) 몸 아래 틈 = 절 아래 − 몸의 마지막 «보이는» 자식 아래. */
 const bottomGaps = (page) => page.evaluate(() => {
-  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]:not(.is-collapsed)')];
+  /* ★기대 바뀜(Q1 · 현빈 GO 261120) — Layout 묶음도 절 하나 · 그 아래 여백은 마지막 몸 기준 */
+  const secs = [...document.querySelectorAll('#panel-right .panel-body > .prop-section[data-sec]:not(.is-collapsed), #panel-right .panel-body > .prop-sec-group')];
   return secs.slice(0, -1).map((s) => {
-    const kids = [...s.querySelector(':scope > .prop-sec-body').children].filter((k) => k.getClientRects().length);
+    const bodyEl = s.querySelector(':scope > .prop-sec-body') || [...s.querySelectorAll(':scope > .prop-section[data-sec] > .prop-sec-body')].pop();
+    const kids = [...bodyEl.children].filter((k) => k.getClientRects().length);
     const last = kids[kids.length - 1];
     return { id: s.id, gap: last ? s.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom : null };
   });
@@ -149,10 +147,12 @@ test('S6 몸 아래 여백 = --ui-sec-body-pb 하나 — 숨은 꼬리는 건너
   await page.evaluate(() => { const b = document.getElementById('psec-size-body'); b.insertAdjacentHTML('beforeend', '<div class="cv-chips" hidden></div><div class="prop-row" style="display:none">x</div>'); });
   const g = await bottomGaps(page);
   expect(g.length, '[전제] 마지막 빼고 잴 절이 있다(브릿지 Size · Fill)').toBeGreaterThanOrEqual(2);
-  for (const x of g) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
+  /* ★보이는 몸이 없는 절(gap null — 예 접힌 Template 폼)은 S7 의 몫(아래 여백 0 · 9391 실측 blk-tpl-section pb 0). ⑶ 꼬리(지디 261123)로 Template 이 «끝 절»이 아니게 되어 여기 들어왔다 */
+  for (const x of g.filter((y) => y.gap !== null)) expect(Math.abs(x.gap - pb), `★${x.id} 몸 아래 틈 ${x.gap} ≠ pb ${pb}`).toBeLessThanOrEqual(0.5);
   /* 양성대조 — 꼬리 줄의 margin 을 되살리면(=고치기 전) 틈이 pb 보다 커진다: 이 칸이 무엇을 잰다 */
   await page.addStyleTag({ content: '.prop-sec-body > .prop-row { margin-bottom: var(--ui-space-2) !important; }' });
-  const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size');
+  /* ★기대 그대로 · 잴 자리만(261123): Size 는 Layout 묶음(f3c48611a · Q1) 안 조각 — bottomGaps 가 재는 줄은 묶음(psec-size-group) */
+  const bad = (await bottomGaps(page)).find((x) => x.id === 'psec-size-group');
   expect(bad.gap - pb, '[양성대조] margin 을 되살렸는데 틈이 그대로다').toBeGreaterThan(0.5);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
@@ -170,7 +170,7 @@ test('S7 보이는 내용 없는 펼친 절 — 아래 여백 0 · 머리 가운
     ] });
     const m = (sid) => { const s = document.getElementById(sid), h = s.querySelector(':scope > .prop-sec-head'); const a = s.getBoundingClientRect(), b = h.getBoundingClientRect();
       return { pb: parseFloat(getComputedStyle(s).paddingBottom), top: b.top - a.top - parseFloat(getComputedStyle(s).borderTopWidth), bottom: a.bottom - b.bottom }; };
-    return { fx: m('psec-effects'), stroke: m('psec-stroke'), size: m('psec-size') };
+    return { fx: m('psec-effects'), stroke: m('psec-stroke'), size: m('psec-size-group') };   // ★Size = Layout 묶음 조각(머리 없음) — 머리·pb 는 묶음이 쥔다(f3c48611a · Q1)
   }, id);
   for (const k of ['fx', 'stroke']) {
     expect(r[k].pb, `★${k} — 보이는 내용 없는데 아래 여백이 있다`).toBe(0);
@@ -180,17 +180,16 @@ test('S7 보이는 내용 없는 펼친 절 — 아래 여백 0 · 머리 가운
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('S8 접힌 Effects 에 효과 추가 → Effects 가 열리고 새 카드가 보인다', async ({ page }) => {
+/* ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 옛 S8 은 «접힌 Effects 에 더하면 열린다(expandSection)»였다. 이제 접힘 자체가 없다:
+ *   옛 판에서 접어 둔 사람의 저장(gd-panel-collapsed)에 effects 가 남아 있어도 절은 펼쳐 그리고, 더한 카드가 보인다.
+ *   양성대조(사람이 돌린다): _panel-frame.js buildPanelHTML 이 옛 저장을 읽어 hidden 을 붙이게 되돌리면 [전제] 줄이 빨강. */
+test('S8 옛 접기 기억이 있어도 Effects 에 효과 추가 → 새 카드가 보인다', async ({ page }) => {
   await page.setViewportSize({ width: 1500, height: 1100 });
   const errs = await bootApp(page);
   await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection(); const sec = c.querySelector('.section-block'); window.__secEl = () => sec; });
   const r = await addKind(page, { cls: 'asset-block', entry: 'addAssetBlock' });
   expect(r.err, '[전제] 에셋 블록').toBeUndefined();
-  /* [전제] 이 하네스의 localStorage 가 정상 — 쓴 값이 돌아온다(태양 261113: setItem 실패·getItem null 환경이면 _panel-frame 접힘이 기억에만 남아 다시 그릴 때 풀린다).
-     _root-harness 는 저장소를 스텁하지 않는다(http://goditor.dom.test 진짜 origin) — 여기서 빨강이면 하네스부터 본다. */
-  expect(await page.evaluate(() => { try { localStorage.setItem('__s8_ls', '1'); const v = localStorage.getItem('__s8_ls'); localStorage.removeItem('__s8_ls'); return v; } catch (e) { return 'throw:' + e.name; } }),
-    '[전제] localStorage setItem → getItem 이 돌아온다').toBe('1');
-  /* 틀로 그린 에셋 Effects 절 + 진짜 배선(wireFxSection — 다시 그리기 = 같은 그리기) */
+  await page.evaluate(() => localStorage.setItem('gd-panel-collapsed', JSON.stringify(['effects', 'size'])));
   const opts = await page.evaluate(async (id) => {
     const { renderPanel, sec } = await import('/js/props/_panel-frame.js');
     const ab = document.getElementById(id);
@@ -200,33 +199,10 @@ test('S8 접힌 Effects 에 효과 추가 → Effects 가 열리고 새 카드�
     draw();
     return [...document.querySelectorAll('#asset-fx-add option')].map((o) => o.value).filter(Boolean);
   }, r.id);
-  expect(opts.length, '[전제] 더할 효과가 둘 이상').toBeGreaterThanOrEqual(2);
-  const body = page.locator('#asset-fx-section-body');
-  /* U6([S8-DOOR] 측정 261113): 효과 0 이면 Effects 몸이 비어 높이 0 → isVisible 거짓 → 머리를 «안 눌렀다». 접힘이 화면에만 있고 저장(gd-panel-collapsed)엔 없어
-     효과 추가 뒤 다시 그리기(renderPanel)가 기본값(펼침)으로 그려 양성대조가 visible 로 빨강이었다. ⇒ 접힘은 aria-expanded 로 판단해 «진짜 머리 클릭»(저장까지 타는 길)으로 하고,
-     [전제] 저장에 effects 가 들었는지 확인한다. 되돌리면: isVisible 판단으로 돌리면 [전제] 저장 단언이 빨강(접기를 안 탔다). */
-  const head = page.locator('#asset-fx-section-head');
-  const collapse = async () => {
-    if ((await head.getAttribute('aria-expanded')) !== 'false') await head.click();
-    await expect(head, '[전제] 머리가 접힘').toHaveAttribute('aria-expanded', 'false');
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('gd-panel-collapsed') || '[]')), '[전제] 접힘이 저장(gd-panel-collapsed)에 들었다 — 다시 그려도 접힌 채').toContain('effects');
-    await expect(body).toBeHidden();
-  };
-  /* 양성대조 — 여는 문을 끈 판: 접힌 채 효과를 더하면 카드가 닫힌 절에 들어간다(고치기 전 꼴) */
-  await collapse();
-  await page.evaluate(() => { window.__realExpand = window.expandPanelSection; window.expandPanelSection = () => {}; });
+  expect(opts.length, '[전제] 더할 효과가 있다').toBeGreaterThanOrEqual(1);
+  await expect(page.locator('#psec-size-body'), '[전제] 옛 접기 기억이 절을 숨기지 않는다').toBeVisible();
   await page.selectOption('#asset-fx-add', opts[0]);
-  await expect(page.locator('#asset-fx-list'), '[전제] 카드가 생겼다').toBeAttached();
-  await expect(body, '[양성대조] 문을 끄면 Effects 가 접힌 채다').toBeHidden();
-  /* 진짜 문 */
-  await page.evaluate(() => { window.expandPanelSection = window.__realExpand; });
-  await collapse();
-  const n0 = await page.locator('#asset-fx-list > *').count();
-  const next = await page.evaluate(() => [...document.querySelectorAll('#asset-fx-add option')].map((o) => o.value).find(Boolean));
-  await page.selectOption('#asset-fx-add', next);
-  await expect(body, '★효과를 더했는데 Effects 가 접힌 채다').toBeVisible();
-  await expect(page.locator('#asset-fx-section-head')).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('#asset-fx-list > *')).toHaveCount(n0 + 1);
+  await expect(page.locator('#asset-fx-section-body'), '★효과를 더했는데 Effects 몸이 안 보인다').toBeVisible();
   await expect(page.locator('#asset-fx-list > *').last(), '★새 카드가 안 보인다').toBeVisible();
   expect(errs, errs.join(' | ')).toEqual([]);
 });

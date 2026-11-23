@@ -40,7 +40,10 @@ export function showGapProperties(gb) {
     updatePresetActive(parseInt(slider.value)); // #15 슬라이더 드래그 시에도 프리셋 active 추종
     window.scheduleAutoSave?.();
   });
-  number.addEventListener('change', () => { window.pushHistory?.(); });
+  number.addEventListener('change', () => {
+    window.pushHistory?.();
+    number.value = String(Math.min(GAP_MAX, Math.max(GAP_MIN, parseInt(number.value) || 0)));   // 확정할 때 칸 글도 죄인 값으로(2001 → 2000 · 높이는 input 에서 이미 죄임)
+  });
   number.addEventListener('input', () => {
     const v = Math.min(GAP_MAX, Math.max(GAP_MIN, parseInt(number.value) || 0));
     gb.style.height = v + 'px';

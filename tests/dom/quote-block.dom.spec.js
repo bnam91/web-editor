@@ -315,11 +315,12 @@ test('Q6 ★패널 모양 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 0(㉠
     panelW: Math.round(document.getElementById('panel-right').getBoundingClientRect().width),
     collapsed: document.body.classList.contains('right-panel-collapsed'),
     /* ★211 인 줄이 ★있나 — ⛔첫 줄을 아무거나 집으면 0 을 잰다(머리말 전제) */
-    rows211: [...document.querySelectorAll('#panel-right .prop-row')].filter(r => r.clientWidth === 211).length,
+    /* ★전제 갱신(261123): 끝 옵션 칼럼(재설계 1차 ⑧) 뒤 실앱 줄 = 183(editor-props.css:586 · 9391 실측) — 좁아진 줄에서 재므로 본단언은 더 엄하다 */
+    rows211: [...document.querySelectorAll('#panel-right .prop-row')].filter(r => r.clientWidth === 183).length,
   }));
   expect(pre.collapsed, '★전제 — 패널이 안 접혀 있다').toBe(false);
   expect(pre.panelW, `★전제 — 패널 폭 240 (실측 ${pre.panelW})`).toBe(240);
-  expect(pre.rows211, '★전제 — clientWidth 211 인 prop-row 가 있다').toBeGreaterThan(0);
+  expect(pre.rows211, '★전제 — clientWidth 183(실앱 줄) 인 prop-row 가 있다').toBeGreaterThan(0);
 
   const m = await page.evaluate(() => {
     const grp = document.getElementById('qt-shape-group');
@@ -369,7 +370,7 @@ test('Q6 ★패널 모양 — ★전부 ★닿는다(자 ㉢) · ⛔눌림 0(㉠
     splits: m.splits,
   }));
 
-  expect(m.rowW, `★그 줄의 내용폭 = 211 (실측 ${m.rowW})`).toBe(211);
+  expect(m.rowW, `★그 줄의 내용폭 = 183 (끝 옵션 칼럼 뒤 실앱 줄 · 실측 ${m.rowW})`).toBe(183);
   /* ★★수를 ★명부에서 끌어온다 — ★제품 8종 ＋ ★사용자가 더한 것 ＋ ★「＋」 하나. */
   const wantBtns = await page.evaluate(() => (window.quoteShapesAll ? window.quoteShapesAll().length : 0) + 1);
   expect(wantBtns, '★전제 — 명부를 못 읽었다(quoteShapesAll 이 window 에 없다)').toBeGreaterThan(1);
@@ -1897,8 +1898,8 @@ test('Q21 ★1012t1H 패널 꼴 — 인용구 패널 (H6: 블럭 넣기 select 0
     return { titles, fillLabels: f ? [...f.querySelectorAll('.prop-label')].map(e => e.textContent.trim()) : null, colorRow: !!(f && f.querySelector('.prop-color-row')) };
   });
   expect(tx.fillLabels, `★H5 기준 — 텍스트블럭에 Fill 절이 있다. 잰 제목 ${JSON.stringify(tx.titles)}`).not.toBeNull();
-  expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구와 같은 라벨(「글자색」 하나) · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
-    .toEqual({ labels: pn.fill.labels.filter((l) => l !== '부호 색'), colorRow: true });   /* ★U2 — 부호 색은 인용구 고유 */
+  expect({ labels: tx.fillLabels, colorRow: tx.colorRow }, `★H5 기준 — 텍스트블럭 Fill 절 안 = 인용구에서 고유 라벨(글자색·부호 색)을 뺀 것 · 색 줄. 잰 값 ${JSON.stringify(tx)}`)
+    .toEqual({ labels: pn.fill.labels.filter((l) => l !== '부호 색' && l !== '글자색'), colorRow: true });   /* ★U2 — 부호 색은 인용구 고유 · ★기대 바뀜(현빈 261120 · 시안 결정 기록 «라벨 글 «Font»·«글자색»» 줄): 텍스트 «글자색» 라벨은 걷고 인용구는 «남김»(같은 절에 부호 색이 있어 글을 걷으면 어느 색인지 모른다) ⇒ 인용구 «글자색»도 고유 라벨로 뺀다 · 지디 261123 OK */
   /* ⑶ H4 — 「정렬」 아이콘 셋이 「세로 정렬」 아이콘 셋과 같은 꼴(viewBox·크기·칠 그림 · 선 0) */
   expect({ nh: pn.al.h.length, nv: pn.al.v.length }, `★전제 — 정렬 3 · 세로 정렬 3 아이콘이 있다(inline). 잰 값 ${JSON.stringify(pn.al)}`).toEqual({ nh: 3, nv: 3 });
   const ref = pn.al.v[0];

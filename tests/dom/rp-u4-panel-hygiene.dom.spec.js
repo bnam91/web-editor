@@ -22,10 +22,11 @@ async function scene(page) {
 }
 const judge = (page) => page.evaluate(() => {
   const body = document.querySelector('#panel-right .panel-body');
-  const empty = [...body.querySelectorAll(':scope > .prop-section[data-sec]')].filter((s) => {
+  /* ★기대 바뀜(Q1 · Q2 · 현빈 GO 261120) — Layout 묶음 몸 · Type 띠도 .prop-section[data-sec](머리 없음)이라 같이 잰다 */
+  const empty = [...body.querySelectorAll('.prop-section[data-sec]')].filter((s) => {
     const sb = s.querySelector(':scope > .prop-sec-body');
     if (sb?.hidden) return false;   // 사람이 접은 절은 판정 밖
-    const tools = [...s.querySelector(':scope > .prop-sec-head').children].some((c) => !c.classList.contains('prop-section-title') && c.getClientRects().length);
+    const tools = [...(s.querySelector(':scope > .prop-sec-head')?.children || [])].some((c) => !c.classList.contains('prop-section-title') && c.getClientRects().length);
     const vis = sb && [...sb.querySelectorAll('*')].some((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0);
     return !tools && !vis;
   }).map((s) => s.dataset.sec + (s.dataset.secState?.startsWith('special:') ? ':' + s.dataset.secState.slice(8) : ''));
@@ -83,20 +84,17 @@ test('HP ★양성대조 — 판정이 힌트 3 과 빈 머리를 잡는다', as
   expect((await judge(page)).empty, '★몸통이 다 숨은 절을 «빈 머리»로 못 잡는다').toContain('size');
 });
 
-/* X1 (U0 ㉑ expandSection) — 원 갯수를 2 로 올리면 «원마다 색» 줄이 Fill 절에 생긴다 ⇒ 접혀 있던 Fill 이 열린다.
- * ★대조 X1n: 새 줄이 안 생기는 조작(회전)은 접힌 Fill 을 그대로 둔다 — 「무조건 연다」가 아니다. */
-test('X1 새 줄이 Fill 에 생기면 접힌 Fill 을 연다 · 대조: 안 생기면 접힌 채', async ({ page }) => {
+/* X1 ★기대 바뀜(패널 재설계 1차 · 표준 절 접기 없음) — 옛 X1 은 «접힌 Fill 을 새 줄이 연다 · 대조: 새 줄 없으면 접힌 채»였다.
+ *   이제 Fill 은 늘 펼침: 머리를 눌러도 안 접히고, 원 2개로 생긴 «원마다 색» 줄이 바로 보인다. */
+test('X1 Fill 머리를 눌러도 안 접힘 · 새 줄(원마다 색)이 바로 보인다', async ({ page }) => {
   const errs = await scene(page);
   await page.evaluate(() => { const b = window.__add('shape-block', () => window.addShapeBlock('ellipse')); window.__b = b; window.showShapeProperties(b); });
   const fillHead = page.locator('#panel-right .prop-section[data-sec="fill"] > .prop-sec-head > .prop-section-title');
+  const fillBody = page.locator('#panel-right .prop-section[data-sec="fill"] > .prop-sec-body');
   await fillHead.click();
-  await expect(fillHead, '[전제] Fill 접힘').toHaveAttribute('aria-expanded', 'false');
-  // 대조 — 회전(새 줄 없음)
-  await page.evaluate(() => { const r = document.getElementById('shape-rot-slider'); r.value = '20'; r.dispatchEvent(new Event('input', { bubbles: true })); window.showShapeProperties(window.__b); });
-  await expect(fillHead, '★새 줄이 없는데 Fill 을 열었다').toHaveAttribute('aria-expanded', 'false');
-  // 원 2개 — 원마다 색 줄이 Fill 에 생긴다
+  await expect(fillBody, '★Fill 머리를 누르니 몸이 숨었다').toBeVisible();
   await page.evaluate(() => { const n = document.getElementById('shape-ellipse-count-num'); n.value = '2'; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); });
   await page.waitForFunction(() => !!document.getElementById('shape-ellipse-c1-hex'));
-  await expect(fillHead, '★새 줄(원마다 색)이 생겼는데 Fill 이 접힌 채').toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#shape-ellipse-c1-hex'), '★새 줄(원마다 색)이 안 보인다').toBeVisible();
   expect(errs, errs.join(' | ')).toEqual([]);
 });

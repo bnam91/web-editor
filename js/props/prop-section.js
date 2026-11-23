@@ -610,7 +610,7 @@ async function showSectionProperties(sec) {
      칸은 기존 부품만 쓴다: 켜기 = .prop-action-btn(메시 선례) · 종류 = .prop-select · 수 = sliderRowHTML · 선색 = colorFieldHTML. */
   const noteVal = noteParse(sec.dataset.bgNote);
   const noteHTML = hasBgImg ? '' : `
-    <button class="prop-action-btn ${noteVal ? 'primary' : 'secondary'}" id="sec-bg-note" style="margin-top:6px;"
+    <button class="prop-action-btn ${noteVal ? 'primary' : 'secondary'}" id="sec-bg-note"
       title="줄눈·모눈·점모눈을 이미지 없이 그립니다 — 배경색은 무늬 아래에 깔립니다">
       ${noteVal ? '노트 무늬 끄기' : '노트 무늬'}</button>
     ${noteVal ? `
@@ -648,7 +648,7 @@ async function showSectionProperties(sec) {
     <button class="prop-action-btn secondary" id="sec-bg-to-scratch" style="margin-top:4px;">스크래치로 보내기</button>
     <button class="prop-action-btn danger" id="sec-bg-img-remove" style="margin-top:4px;">이미지 제거</button>
   ` : `
-    <button class="prop-action-btn secondary" id="sec-bg-img-btn" style="margin-top:6px;">이미지 선택</button>
+    <button class="prop-action-btn secondary" id="sec-bg-img-btn">이미지 선택</button>
     <input type="file" id="sec-bg-img-input" accept="image/*" style="display:none">
     <!-- ★체크 배경 — 현빈 2026-09-28 「이미지 없이 체크배경으로 깔아둘 수 있게」.
          ⛔새 무늬를 만들지 않는다: .asset-block 의 72px 정본을 그대로 쓴다(css 한 자리). -->
@@ -773,7 +773,7 @@ async function showSectionProperties(sec) {
       </div>
 `),
       panelSec('padding', `
-      ${sliderRowHTML('좌우 패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
+      ${sliderRowHTML('좌우패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
       <div class="prop-row">
         <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">

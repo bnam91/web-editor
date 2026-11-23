@@ -21,6 +21,7 @@
  */
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
+const { addFx } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴 · 도형·에셋 = 고르개(공용 꼴)
 
 const R = (page, id) => page.evaluate((id) => {
   const tb = document.getElementById(id);
@@ -47,7 +48,7 @@ async function growViaPanel(page) {
   await page.waitForFunction((id) => document.getElementById(id)?.classList.contains('selected') && !!document.getElementById('txt-overlay-toggle'), id, { timeout: 3000 });
   await page.click('#txt-overlay-toggle');
   await page.waitForFunction((id) => !!document.getElementById(id)?.closest('[data-overlay-block="true"]'), id, { timeout: 3000 });
-  await page.selectOption('#panel-right select[id$="-fx-add"]', 'freetransform');
+  await addFx(page, 'txt', 'freetransform');
   await page.waitForFunction((id) => !!document.getElementById(id)?.dataset.tfCorners && !!document.querySelector('#' + id + ' > .tfh-layer > .tfh-edge'), id, { timeout: 3000 });
   await page.waitForFunction(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
   const m0 = await R(page, id);

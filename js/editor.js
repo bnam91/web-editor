@@ -124,7 +124,7 @@ const _AUTO_SELECT_SEL = '.prop-number, .prop-color-hex, .prop-color-alpha-input
  *   ⛔예외 = Mixed 칸(value="" · placeholder="Mix") — 피그마도 Mixed 칸은 전체 선택을 안 한다(지디 실측). */
 const _isMixedField = (el) => el.value === '' && String(el.placeholder || '').trim() === 'Mix';
 const _reclickSelectAll = (el, e) => el.type === 'number' && document.activeElement === el && !el._pnTyping
-  && !_isMixedField(el) && (el.clientWidth - (e.offsetX ?? 0)) > 18;
+  && !_isMixedField(el) && (getComputedStyle(el).appearance === 'textfield' || (el.clientWidth - (e.offsetX ?? 0)) > 18);   // 스피너를 걷은 칸(우측 패널 · 재설계 1차 ⑦)은 오른쪽 끝도 칸이다
 document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el.matches?.(_AUTO_SELECT_SEL)) return;
@@ -3552,7 +3552,7 @@ document.addEventListener('keydown', e => {
           e.preventDefault();
           const step = e.shiftKey ? 20 : 4;
           const cur = gb.offsetHeight;
-          const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + (isPlus ? step : -step)));
+          const next = Math.min(window.GAP_MAX ?? 2000, Math.max(window.GAP_MIN ?? 0, cur + (isPlus ? step : -step)));
           gb.style.height = next + 'px';
           const sl = document.getElementById('gap-slider');
           const nb = document.getElementById('gap-number');
@@ -3576,7 +3576,7 @@ document.addEventListener('keydown', e => {
       const step = 4;
       const delta = e.key === 'ArrowUp' ? step : -step;
       const cur = selGap.offsetHeight;
-      const next = Math.min(window.GAP_MAX ?? 1000, Math.max(window.GAP_MIN ?? 0, cur + delta));
+      const next = Math.min(window.GAP_MAX ?? 2000, Math.max(window.GAP_MIN ?? 0, cur + delta));
       selGap.style.height = next + 'px';
       // 패널 슬라이더/숫자 동기화
       const sl = document.getElementById('gap-slider');

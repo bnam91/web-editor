@@ -1057,21 +1057,9 @@ TAB_STATE_KEY = 'web-editor-open-tabs'
     기대: 원래 baseHeight로 높이 복원
     기대: paddingLeft/Right/width 초기화
 
-[ ] 텍스트 오버레이 활성화
-    동작: 활성화 토글 ON
-    기대: #asset-overlay-controls 표시
-    기대: ab.dataset.overlay = 'true'
-
-[ ] 오버레이 불투명도
-    범위: 0 ~ 100, step 1
-    기대: overlayEl.dataset.ovOpacity = value / 100
-    기대: 예) 35 입력 → 0.35 저장
-
-[ ] 오버레이 위치 — 상단
-    기대: overlayEl.style.justifyContent = 'flex-start'
-
-[ ] 오버레이 위치 — 중앙/하단
-    기대: center → 'center', 하단 → 'flex-end'
+[—] 텍스트 오버레이(텍스트 막) 토글·불투명도·위치 — 1120b A4(현빈 261120) 패널에서 걷음.
+    기대: 패널에 #asset-overlay-toggle · #asset-overlay-controls 없음
+    기대: 저장본의 data-overlay="true" · .asset-overlay 는 그대로 열리고 그려진다(옛 프로젝트 호환)
 ```
 
 ---

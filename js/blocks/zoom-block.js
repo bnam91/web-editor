@@ -291,6 +291,7 @@ function renderZoomBlock(block) {
     `border-radius:${box.radius};`;
   if (box.rot) block.dataset.rotation = String(box.rot);
   else delete block.dataset.rotation;
+  window.applyFlip?.(block);   // Q17 — transform 을 통째로 다시 쓴 뒤 반전(dataset.flipH/V)을 다시 붙인다(js/block-flip.js)
   /* ★이미지가 들어오면 체크무늬를 «끈다» — CSS(.zoom-block.has-image .zoom-bg)가 그걸 본다.
      ⛔안 끄면 투명 PNG 의 투명부로 체크가 비쳐 Export PNG 에 박힌다(현빈 실제 경험). */
   block.classList.toggle('has-image', hasZoomImage(st));

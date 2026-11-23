@@ -204,7 +204,7 @@ test('T1 (라) 합계 — 우측 패널 ★맨 위 · 섹션 높이의 합 · .p
     const el = document.getElementById('rp-height-total');
     const panel = document.getElementById('panel-right');
     const body = panel.querySelector('.panel-body');
-    const header = panel.querySelector('.panel-header');
+    const header = panel.querySelector('.panel-body');   // ★기대 바뀜(261122): «Properties» 머리 줄 걷음 → 합계는 panel-body 보다 위
     return {
       val: el.querySelector('.rp-ht-val')?.textContent,
       count: el.querySelector('.rp-ht-count')?.textContent,

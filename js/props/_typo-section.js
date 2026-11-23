@@ -89,6 +89,7 @@ export function buildTypographySectionHtml({
   sizeMin = 8, sizeMax = 800,
   showStyleGroup = true, showLetterSpacing = true, showSize = true, showHighlight = true,
   showFont = true, showWeight = true, showLineHeight = true,
+  fontLabel = true,   /* false = «Font» 라벨 글 걷음(이름은 고르개 aria-label·title) — 텍스트 패널만(패널 재설계 1차 ⑩) · 기본 = 바이트 동일 */
   showHighlightOpts = false, hlColorHtml = '', hlH = 100, hlY = 0,
   showUnderline = false,
   showUnderlineOpts = false, ulColorHtml = '', ulThick = '', ulOffset = '',
@@ -182,10 +183,10 @@ export function buildTypographySectionHtml({
        ★칸 꼴은 형광펜과 같다: colorFieldHTML(색＋불투명도%) ＋ range/number 쌍(세기 0~100 → --tb-glow-k 0~1).
        ⚠️240px 패널 폭: 단추 7개 × 28px ＋ 간격 6 × 4px = 220px · 섹션 좌우 패딩 8+8 을 빼면 224px 남는다(★코드로만 셌다 — 안 쟀다.
          스크롤바·상위 여백은 안 셌다. 모자라면 flex 기본 shrink 로 단추가 줄어든다 — 넘치지는 않을 것으로 «읽었다»). */
-  const _body = `
-      <span class="prop-field-label"${_hide(showFont)}>Font</span>
+  const _body = `${fontLabel ? `
+      <span class="prop-field-label"${_hide(showFont)}>Font</span>` : ''}
       <div class="font-picker" id="${p}-font-picker"${_hide(showFont)}>
-        <button class="font-picker-trigger" id="${p}-font-trigger" type="button">
+        <button class="font-picker-trigger" id="${p}-font-trigger" type="button"${fontLabel ? '' : ' aria-label="Font" title="Font"'}>
           <span class="font-picker-current" id="${p}-font-name">${font ? escHtml(_fontDisplayName(font)) : '기본 (시스템)'}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -241,11 +242,11 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="number" class="prop-number" id="${p}-hl-y-num" min="-40" max="40" value="${hlY}">
       </div>
       <div class="prop-row ts-code-row" id="${p}-hl-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="${p}-hl-code" value="" placeholder="형광펜 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
+        <span class="prop-label">형광펜</span>
+        <input type="text" class="prop-text" id="${p}-hl-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-hl-code-copy" title="번호 복사" aria-label="형광펜 번호 복사">⧉</button>
       </div>
-      <div class="cv-chips ts-recent-row" id="${p}-hl-recent-row" hidden></div>
+      <div class="cv-chips ts-recent-row" id="${p}-fx-recent-row" data-ts-kinds="hl${showDotOpts ? ' dot' : ''}${showGlowOpts ? ' glow' : ''}" hidden></div>
 ` : ''}${showDotOpts ? `      <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
              ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다.
@@ -288,11 +289,10 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         </div>
       </div>
       <div class="prop-row ts-code-row" id="${p}-dot-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="${p}-dot-code" value="" placeholder="점 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
+        <span class="prop-label">점</span>
+        <input type="text" class="prop-text" id="${p}-dot-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-dot-code-copy" title="번호 복사" aria-label="점 번호 복사">⧉</button>
       </div>
-      <div class="cv-chips ts-recent-row" id="${p}-dot-recent-row" hidden></div>
 ` : ''}${showUnderlineOpts ? `      <div class="prop-color-row" id="${p}-ul-color-row" style="margin-top:6px;display:${isUnderline?'flex':'none'}" data-own="typography">
         <span class="prop-label">밑줄 색</span>
         ${ulColorHtml}
@@ -309,8 +309,8 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         </div>
       </div>
       <div class="prop-row ts-code-row" id="${p}-ul-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="${p}-ul-code" value="" placeholder="밑줄 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
+        <span class="prop-label">밑줄</span>
+        <input type="text" class="prop-text" id="${p}-ul-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
         <button type="button" class="prop-icon-btn" id="${p}-ul-code-copy" title="번호 복사" aria-label="밑줄 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="${p}-ul-recent-row" hidden></div>
@@ -323,7 +323,6 @@ ${showHighlightOpts ? `      <!-- ★형광펜 색·바 높이 (2026-10-06 현�
         <input type="range" class="prop-slider" id="${p}-glow-k" min="0" max="100" step="1" value="${glowK}">
         <input type="number" class="prop-number" id="${p}-glow-k-num" min="0" max="100" value="${glowK}">
       </div>
-      <div class="cv-chips ts-recent-row" id="${p}-glow-recent-row" hidden></div>
 ` : ''}
       <div class="prop-lhls-row">
         <div class="prop-lhls-col"${_hide(showLineHeight)}>
@@ -364,7 +363,7 @@ ${_body}
  * @param {boolean} o.showGradRecent ★「최근 그라데이션」 줄 표시. ⛔기본 false = 이전과 «바이트 동일»
  *                              (텍스트 패널만 true — 글자 그라데이션 배선이 wireTextEditSection 에만 있다)
  */
-export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false } = {}) {
+export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHexPh, mix, showGradRecent = false, bare = false, colorLabel = true } = {}) {   // colorLabel false = «글자색» 라벨 글 걷음(텍스트 패널만 · 재설계 1차 ⑩)
   const _mix = mix || _NO_MIX;
   /* ★스와치(colorHex)와 hex 칸(colorHexVal)이 «다른 것»을 말할 수 있다 — 층이 다르기 때문이다:
      스와치는 「지금 무슨 색인가」(진실), hex 칸은 「누가 그 색을 정했나」(명시/역할 기본).
@@ -375,11 +374,11 @@ export function buildFillSectionHtml({ p, colorHex, alpha, colorHexVal, colorHex
   const _swatchExtraClass = _mix.color.mixed ? ' swatch-mix' : '';
 
   const _body = `
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
+      <div class="prop-color-row"${colorLabel ? `>
+        <span class="prop-label">글자색</span>` : ' title="글자색">'}
         <div class="prop-color-field">
           <div class="prop-color-swatch${_swatchExtraClass}" style="background:${_colorSwatchBg}" title="${_mix.color.mixed?'Mix — 일부 선택 후 색상 변경':''}">
-            <input type="color" id="${p}-color" value="${colorHex}">
+            <input type="color" id="${p}-color" value="${colorHex}"${colorLabel ? '' : ' aria-label="글자색"'}>
           </div>
           <input type="text" class="prop-color-hex" id="${p}-color-hex" value="${_colorHexVal}" placeholder="${_colorHexPh}" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">

@@ -37,6 +37,7 @@ async function installStripUi(pg) {
 const fs = require('fs');
 const path = require('path');
 const { bootApp, pinnedBoot, ROOT, waitZoomSettled } = require('./_root-harness.js');
+const { fxAddKeys } = require('./_fx-add.js');   // ★기대 바뀜(시안 v10): 텍스트 효과 추가 = ＋ 메뉴
 
 const PIN = '6119145c';
 /* ★길이·불투명도 = 시안(지디 goditor-effects-reflection.html) 슬라이더 값 «그대로». 흐림은 뺐다.
@@ -123,18 +124,25 @@ test('R1 ★패널(진짜 마우스) — 텍스트·도형·에셋 셋 다 「Ef
         opts: a ? [...a.options].slice(1).map(o => o.value) : null, addText: (a?.textContent || '').trim() }; }, [P, after]);
     expect(sec, `${id}: Effects 절`).not.toBeNull();
     expect(sec.title).toBe('Effects');
-    /* ★2026-10-06 현빈 — 「바로 적용되는 것이 아니라」. 더하는 자리는 «고르는 목록»이다(선례 = prop-grid 「＋ 줄 추가」). */
-    expect(sec.addTag, '추가 손잡이 = 고르는 목록').toBe('SELECT');
-    expect(sec.addCls, '선례와 같은 옷(.prop-select)').toContain('prop-select');
-    expect(sec.headVal, '머리 = 값 없는 option(고른 것 아님)').toBe('');
-    expect(sec.headSel, '열었을 때 머리가 골라져 있다').toBe(0);
-    expect(sec.opts, '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
-    expect(sec.addText, '⛔글자 + 를 쓰지 않는다(E65)').not.toContain('+');
     expect(sec.prevOk, '텍스트 = Stroke 절 바로 아래(t4-01 — Shadow 절은 Effects 카드로 옮겼다)').toBe(true);
-    /* ★목록을 «열기만» 해서는 아무것도 안 붙는다 — 이것이 이 발주의 한 줄이다 */
-    await click(`#${P}-fx-add`);
-    expect(await ds(page, id), '★고르기 전 = 아무 키도 안 붙는다').toEqual({});
-    await page.selectOption(`#${P}-fx-add`, 'reflect');
+    if (P === 'txt') {   /* ★기대 바뀜(시안 v10 · 현빈 GO 261120): 텍스트 = 머리 ＋ 단추 → 종류 메뉴 — «고르는 목록»의 뜻(열어도 안 붙고 고른 것만)은 그대로 잰다 */
+      expect(await fxAddKeys(page, 'txt'), '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
+      await click('#txt-fx-add-btn');
+      expect(await ds(page, id), '★열기만 = 아무 키도 안 붙는다').toEqual({});
+      await page.click('#txt-fx-menu [data-fx="reflect"]');
+    } else {
+          /* ★2026-10-06 현빈 — 「바로 적용되는 것이 아니라」. 더하는 자리는 «고르는 목록»이다(선례 = prop-grid 「＋ 줄 추가」). */
+      expect(sec.addTag, '추가 손잡이 = 고르는 목록').toBe('SELECT');
+      expect(sec.addCls, '선례와 같은 옷(.prop-select)').toContain('prop-select');
+      expect(sec.headVal, '머리 = 값 없는 option(고른 것 아님)').toBe('');
+      expect(sec.headSel, '열었을 때 머리가 골라져 있다').toBe(0);
+      expect(sec.opts, '목록 = 아직 안 걸린 효과 — 반사가 들어 있다').toContain('reflect');
+      expect(sec.addText, '⛔글자 + 를 쓰지 않는다(E65)').not.toContain('+');
+      /* ★목록을 «열기만» 해서는 아무것도 안 붙는다 — 이것이 이 발주의 한 줄이다 */
+      await click(`#${P}-fx-add`);
+      expect(await ds(page, id), '★고르기 전 = 아무 키도 안 붙는다').toEqual({});
+      await page.selectOption(`#${P}-fx-add`, 'reflect');
+    }
     await page.waitForTimeout(250);
     expect(await ds(page, id), '★고른 것만 붙는다').toEqual({ fxReflect: 'on' });
     const card = await page.evaluate((P) => ({ rows: [...document.querySelectorAll(`#${P}-fx-body .prop-label`)].map(e => e.textContent.trim()),

@@ -59,12 +59,12 @@ async function buildFixture(page) {
 const bgOf = (page, id) => page.evaluate((i) => getComputedStyle(document.getElementById(i)).backgroundImage, id);
 /* 켜는 문이 없으면 30초 기다리지 않고 «없다»로 멈춘다(고치기 전 판의 빨강이 이 한 줄에서 서게) */
 const clickTone = async (page) => {
-  expect(await page.locator('#asset-checker-tone-on').count(), '★전제 — 에셋 패널에 «체커 어둡게» 켬 라디오가 없다').toBe(1);
-  await page.click('#asset-checker-tone-on');
+  expect(await page.locator('#asset-checker-tone-on').count(), '★전제 — 에셋 패널에 «체커 어둡게» 토글이 없다').toBe(1);
+  await page.click('label.prop-toggle:has(#asset-checker-tone-on)');   /* 1120b A5 — 라디오 → 토글(겉 label 을 누른다 · 내용 자르기와 같은 꼴) */
 };
 const openAsset = async (page, id) => {
   await page.evaluate((i) => window.showAssetProperties(document.getElementById(i)), id);
-  await page.waitForSelector('#asset-bg-clear', { state: 'attached' });
+  await page.waitForSelector('#asset-bg-hex', { state: 'attached' })  /* 1120b A6 — 초기화 단추 걷음 ⇒ 배경 hex 칸으로 패널 열림을 잰다 */;
 };
 
 test('T1 ⑴ 양성 — 에셋 라디오 켬 → 그 에셋 배경만 #7c7c7c·#949494 (옆 에셋은 밝다)', async ({ page }) => {
@@ -87,7 +87,7 @@ test('T1 ⑴ 양성 — 에셋 라디오 켬 → 그 에셋 배경만 #7c7c7c·#
   expect(r.a).toContain(RGB(DARK_B));
   expect(r.b, '★안 켠 에셋까지 어두워졌다').toContain(RGB(LIGHT_A));
   expect(r.rootA, '★:root 큰 쌍이 바뀌었다 — 에셋 범위가 아니라 전역이다').toBe(LIGHT_A);
-  await page.click('#asset-checker-tone-off');
+  await page.click('label.prop-toggle:has(#asset-checker-tone-on)');   // 1120b A5 — 같은 토글을 다시 눌러 끔
   expect(await page.evaluate(() => document.getElementById('akA').dataset.checkerTone ?? null)).toBeNull();
   expect(await bgOf(page, 'akA')).toContain(RGB(LIGHT_A));
   expect(errs).toEqual([]);
@@ -147,8 +147,8 @@ test('T4 ⑷ 라디오 그룹 — 섹션 토글과 에셋 토글이 한 문서�
   });
   expect(r.both, '★전제 — 두 라디오가 한 문서에 같이 있다').toBe(true);
   expect(r.assetOn).toBe(true);
-  expect(r.secOn, '★에셋 «켬»이 섹션 «켬»을 껐다 — 두 라디오가 한 그룹이다(name 이 같다)').toBe(true);
-  expect(r.assetName).not.toBe(r.secName);
+  expect(r.secOn, '★에셋 «켬»이 섹션 «켬»을 껐다').toBe(true);
+  expect(r.assetName, '1120b A5 — 에셋은 토글 체크박스(name 없음 · 그룹 없음)').toBeFalsy();
   expect(errs).toEqual([]);
 });
 
@@ -158,13 +158,13 @@ test('T5 입구 — 빈 에셋엔 조건 없는 줄 하나 · 이미지 있는 �
   await openAsset(page, 'akA');
   const empty = await page.evaluate(() => ({
     n: document.querySelectorAll('#asset-checker-tone-on').length,
-    nOff: document.querySelectorAll('#asset-checker-tone-off').length,
-    offChecked: document.getElementById('asset-checker-tone-off')?.checked ?? null,
+    nOff: document.querySelectorAll('#asset-checker-tone-off').length,   // 1120b A5 — 끔 라디오 없음(토글 하나)
+    offChecked: document.getElementById('asset-checker-tone-on')?.checked === false,
     label: document.getElementById('asset-checker-tone-on')?.closest('.prop-row')?.querySelector('.prop-label')?.textContent.trim() ?? null,
   }));
-  expect(empty).toEqual({ n: 1, nOff: 1, offChecked: true, label: '체커 어둡게' });
+  expect(empty).toEqual({ n: 1, nOff: 0, offChecked: true, label: '체커 어둡게' });
   await page.evaluate(() => { const ab = document.getElementById('akB'); ab.classList.add('has-image'); window.showAssetProperties(ab); });
-  await page.waitForSelector('#asset-bg-clear', { state: 'attached' });
+  await page.waitForSelector('#asset-bg-hex', { state: 'attached' })  /* 1120b A6 — 초기화 단추 걷음 ⇒ 배경 hex 칸으로 패널 열림을 잰다 */;
   const img = await page.evaluate(() => ({
     replace: document.querySelectorAll('#asset-replace-btn').length,
     n: document.querySelectorAll('#asset-checker-tone-on, #asset-checker-tone-off').length,

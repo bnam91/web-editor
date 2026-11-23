@@ -148,7 +148,7 @@ test('F3 Stroke 절을 켜면 인용구 글자에 외곽선이 생기고 두께�
 
   const h0 = await page.evaluate(() => window.__qt.dataset.textStrokeOn ?? null);
   expect(h0).toBeNull();
-  await clickSel(page, '#qt-stroke-section .prop-toggle', 'Stroke 켜기');
+  await clickSel(page, '#qt-stroke-section label.prop-sec-add', 'Stroke 켜기');   // ★기대 바뀜(⑨ Stroke ＋ — 켜기 토글 → «＋» 단추꼴 label · 같은 체크박스)
   let li = await lineInfo(page);
   expect(await page.evaluate(() => window.__qt.dataset.textStrokeOn)).toBe('true');
   expect(li.strokeW, '외부(기본) 2px ⇒ 그리는 획 4px').toBe('4px');

@@ -12,40 +12,29 @@
         </div>
         <span class="prop-block-id" title="클릭하여 복사" data-copy-id="tb_golden">tb_golden</span>
       </div>
-    </div>
-    <div class="prop-section" data-sec="kind" data-sec-state="kind" id="type-section">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="type-section-head" role="button" tabindex="0" aria-expanded="true" aria-controls="type-section-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Type</span>
-      </div>
-      </div>
+      <div class="prop-section prop-kind-band" data-sec="kind" data-sec-state="kind" data-title="Type" data-order="text" id="type-section">
       <div class="prop-sec-body" id="type-section-body">
-      <div class="prop-type-group">
-        <button class="prop-type-btn "      data-cls="tb-h1">H1</button>
-        <button class="prop-type-btn "      data-cls="tb-h2">H2</button>
-        <button class="prop-type-btn "      data-cls="tb-h3">H3</button>
-        <button class="prop-type-btn active"    data-cls="tb-body">Body</button>
+      <div class="prop-type-group" id="txt-kind-group">
+        <button class="prop-type-btn " data-cls="tb-h1">H1</button>
+        <button class="prop-type-btn " data-cls="tb-h2">H2</button>
+        <button class="prop-type-btn " data-cls="tb-h3">H3</button>
+        <button class="prop-type-btn active" data-cls="tb-body">Body</button>
         <button class="prop-type-btn " data-cls="tb-caption">Cap</button>
-        <button class="prop-type-btn "   data-cls="tb-label">Tag</button>
-        <button class="prop-type-btn "  data-cls="tb-bullet">List</button>
+        <button class="prop-type-btn " data-cls="tb-bullet">Bullet</button>
+        <button class="prop-type-btn " data-cls="tb-label">Label</button>
+        <button class="prop-type-btn" disabled title="Tags(태그 블럭) — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Tags</button>
+        <button class="prop-type-btn" disabled title="Icon Text — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Icon</button>
+        <button class="prop-type-btn" disabled title="Bubble — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Bubble</button>
+        <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
+        <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
+        <button class="prop-type-btn" disabled title="Liner — 바꾸기는 아직 없다(상단 텍스트 메뉴에서 새로 만든다)">Liner</button>
       </div>
-      <!-- ★1017t1m1 — 「Quote」는 data-cls 를 ★안 준다(블럭 교체라 클래스 교체 루프에 물리면 반쪽 동작). 배선 = wireTextToQuote. -->
-      <button class="prop-type-btn" id="txt-to-quote" title="인용구 블럭으로 바꾸기 — 서식 일부가 사라집니다">Quote</button>
+      </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="content" data-sec-state="content" id="psec-content">
+    <div class="prop-section" data-sec="content" data-sec-state="content" data-order="text" id="psec-content">
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-content-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-content-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Content</span>
-      </div>
+      <div class="prop-section-title" id="psec-content-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Content</span></div>
       </div>
       <div class="prop-sec-body" id="psec-content-body">
       <div class="prop-row">
@@ -59,15 +48,9 @@
       </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="position" data-sec-state="position" id="psec-position">
+    <div class="prop-section" data-sec="position" data-sec-state="position" data-order="text" id="psec-position">
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-position-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-position-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Position</span>
-      </div>
+      <div class="prop-section-title" id="psec-position-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Position</span></div>
         <button type="button" class="prop-chain-btn prop-chain-btn--overlay" id="txt-overlay-toggle"
           aria-pressed="false"
           title="오토레이아웃에서 빼서 섹션 위에 절대위치로 띄웁니다(Figma의 Ignore Auto Layout과 같은 개념). 다시 누르면 원래 있던 자리로 돌아갑니다.">
@@ -93,41 +76,17 @@
         </div>
       </div>
       <span class="prop-field-label">Rotation</span>
-      <div class="prop-row">
-        <span class="prop-label">회전°</span>
-        <input type="range" class="prop-slider" id="txt-rot-slider" min="-180" max="180" step="1" value="15">
-        <input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="15">
+      <div class="prop-row prop-rot-row">
+        <div class="prop-icon-input"><span class="prop-rot-scrub" id="txt-rot-number-scrub" title="좌우로 끌면 각도가 바뀐다"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2v8h8"/><path d="M2 6a4 4 0 0 1 4 4"/></svg></span><input type="number" class="prop-number" id="txt-rot-number" min="-180" max="180" step="1" value="15" aria-label="회전 각도"><span class="prop-unit">°</span></div>
+        <div class="prop-align-group prop-rot-btns"><button type="button" class="prop-align-btn" id="txt-rot-90" title="90° 시계 방향 회전" aria-label="90° 시계 방향 회전"><svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M11.5 4.5A5 5 0 1 0 13 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/><polyline points="9,2 12,4.5 9.5,7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/></svg></button><button type="button" class="prop-align-btn" id="txt-flip-h" title="좌우 반전" aria-label="좌우 반전" aria-pressed="false"><svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M8 2v12M4 4l-2 4 2 4M12 4l2 4-2 4" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M8 5v6l-4-3z" fill="currentColor" opacity=".35"/></svg></button><button type="button" class="prop-align-btn" id="txt-flip-v" title="상하 반전" aria-label="상하 반전" aria-pressed="false"><svg fill="none" height="16" viewBox="0 0 16 16" width="16"><path d="M2 8h12M4 4l4-2 4 2M4 12l4 2 4-2" stroke="currentColor" stroke-linecap="round" stroke-width="1.4"/><path d="M5 8h6l-3 4z" fill="currentColor" opacity=".35"/></svg></button></div>
       </div>
       </div>
     </div>
-    <div class="prop-section" data-sec="size" data-sec-state="size" id="psec-size">
+    <div class="prop-section prop-sec-group" data-sec-group="layout size padding" data-order="text" id="psec-layout-group">
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-size-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-size-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Size</span>
+      <div class="prop-section-title" id="psec-layout-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Layout</span></div>
       </div>
-      </div>
-      <div class="prop-sec-body" id="psec-size-body">
-      <div class="prop-row">
-        <span class="prop-label">너비</span>
-        <input type="range" class="prop-slider" id="txt-width-slider" min="80" max="860" step="1" value="300">
-        <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="300">
-      </div>
-      </div>
-    </div>
-    <div class="prop-section" data-sec="layout" data-sec-state="layout" id="psec-layout">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-layout-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-layout-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Layout</span>
-      </div>
-      </div>
+      <div class="prop-section prop-sec-part" data-sec="layout" data-sec-state="layout" data-title="Layout" data-order="text" id="psec-layout">
       <div class="prop-sec-body" id="psec-layout-body">
       <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group" id="txt-align-group">
@@ -151,66 +110,74 @@
           </button>
       </div>
       </div>
-    </div>
-    <div class="prop-section" data-sec="padding" data-sec-state="padding" id="psec-padding">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-padding-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-padding-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Padding</span>
+      </div>
+      <div class="prop-section prop-sec-part" data-sec="size" data-sec-state="size" data-title="Size" data-order="text" id="psec-size">
+      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Size</span></div>
+      <div class="prop-sec-body" id="psec-size-body">
+      <div class="prop-lhls-row">
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input">
+            <span class="prop-xy-label prop-xy-label--scrub" id="txt-width-scrub" title="좌우로 끌면 값이 바뀐다">너비</span>
+            <input type="number" class="prop-number" id="txt-width-number" min="80" max="860" value="300" aria-label="너비">
+          </div>
+        </div>
+        <div class="prop-lhls-col">
+          <div class="prop-icon-input" title="텍스트 블럭은 높이를 정하지 않는다(내용에 맞춤)">
+            <span class="prop-xy-label">높이</span>
+            <input type="number" id="txt-height-number" disabled placeholder="auto" data-empty="invalid" aria-label="높이(텍스트 블럭은 없음)">
+          </div>
+        </div>
       </div>
       </div>
+      </div>
+      <div class="prop-section prop-sec-part" data-sec="padding" data-sec-state="padding" data-title="Padding" data-order="text" id="psec-padding">
+      <div class="prop-sec-sub-row"><span class="prop-field-label prop-sec-sub">Padding</span></div>
       <div class="prop-sec-body" id="psec-padding-body">
       <div id="txt-label-padx-wrap" style="display:none">
       <div class="prop-row">
-        <span class="prop-label">좌우 패딩</span>
+        <span class="prop-label" title="태그 좌우패딩">태그 좌우</span>
         <input type="range" class="prop-slider" id="txt-label-padx-slider" min="0" max="100" step="2" value="0">
         <input type="number" class="prop-number" id="txt-label-padx-number" min="0" max="100" value="0">
       </div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">상하</span>
+        <span class="prop-label">상하패딩</span>
         <input type="range" class="prop-slider" id="txt-pv-slider" min="0" max="120" step="4" value="4">
         <input type="number" class="prop-number" id="txt-pv-number" min="0" max="120" value="4">
       </div>
-      <div class="prop-ph-header">
-        <span class="prop-field-label">L/R</span>
-        <button class="prop-chain-btn" id="txt-ph-chain" title="좌우 연동">
+      <!-- 재설계 1차 ⑤ — 잠금 = «좌우패딩» 한 줄(둘을 같이) · 풂 = 그 줄(라벨·사슬만 · 슬라이더 자리 비움) + 좌측패딩 + 우측패딩. 사슬은 늘 같은 자리(줄 끝) -->
+      <div class="prop-row" id="txt-ph-row">
+        <span class="prop-label">좌우패딩</span>
+        <input type="range" class="prop-slider" id="txt-ph-slider" min="0" max="120" step="4" value="6" style="visibility:hidden">
+        <input type="number" class="prop-number" id="txt-ph-number" min="0" max="120" value="6" style="visibility:hidden">
+        <button class="prop-chain-btn" id="txt-ph-chain" title="좌우 잠금/풂" aria-pressed="false">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
             <rect x="0.5" y="3.5" width="4" height="5" rx="2"/>
             <rect x="7.5" y="3.5" width="4" height="5" rx="2"/>
-            <line x1="4.5" y1="6" x2="7.5" y2="6" stroke-linecap="round"/>
+            <line x1="5.2" y1="4.8" x2="6.8" y2="7.2" stroke-linecap="round"/>
           </svg>
         </button>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">왼쪽</span>
+      <div class="prop-row" id="txt-pl-row">
+        <span class="prop-label">좌측패딩</span>
         <input type="range" class="prop-slider" id="txt-pl-slider" min="0" max="120" step="4" value="6">
         <input type="number" class="prop-number" id="txt-pl-number" min="0" max="120" value="6">
       </div>
-      <div class="prop-row">
-        <span class="prop-label">오른쪽</span>
+      <div class="prop-row" id="txt-pr-row">
+        <span class="prop-label">우측패딩</span>
         <input type="range" class="prop-slider" id="txt-pr-slider" min="0" max="120" step="4" value="8">
         <input type="number" class="prop-number" id="txt-pr-number" min="0" max="120" value="8">
       </div>
       </div>
-    </div>
-    <div class="prop-section" data-sec="typography" data-sec-state="typography" id="psec-typography">
-      <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-typography-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-typography-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Typography</span>
       </div>
+    </div>
+    <div class="prop-section" data-sec="typography" data-sec-state="typography" data-order="text" id="psec-typography">
+      <div class="prop-section-title-row prop-sec-head">
+      <div class="prop-section-title" id="psec-typography-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Typography</span></div>
       </div>
       <div class="prop-sec-body" id="psec-typography-body">
-      <span class="prop-field-label">Font</span>
       <div class="font-picker" id="txt-font-picker">
-        <button class="font-picker-trigger" id="txt-font-trigger" type="button">
+        <button class="font-picker-trigger" id="txt-font-trigger" type="button" aria-label="Font" title="Font">
           <span class="font-picker-current" id="txt-font-name">Georgia</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style="flex-shrink:0"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
         </button>
@@ -265,11 +232,11 @@
         <input type="number" class="prop-number" id="txt-hl-y-num" min="-40" max="40" value="0">
       </div>
       <div class="prop-row ts-code-row" id="txt-hl-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="txt-hl-code" value="" placeholder="형광펜 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
+        <span class="prop-label">형광펜</span>
+        <input type="text" class="prop-text" id="txt-hl-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="형광펜 스타일 번호">
         <button type="button" class="prop-icon-btn" id="txt-hl-code-copy" title="번호 복사" aria-label="형광펜 번호 복사">⧉</button>
       </div>
-      <div class="cv-chips ts-recent-row" id="txt-hl-recent-row" hidden></div>
+      <div class="cv-chips ts-recent-row" id="txt-fx-recent-row" data-ts-kinds="hl dot" hidden></div>
       <!-- ★점 찍기 손잡이 넷 (2026-10-08 수지 ⑥: 「세 글자 선택→점 3개·★간격·★xy·★크기·★색상 변경」).
            ★★⛔이 showDotOpts 분기가 ★앞 블록의 ★끝에 ★붙어 있는 것은 ★일부러다 —
              ★자기 줄에서 시작하면 ★꺼져도 ★줄바꿈 ★하나를 ★남겨 ★모달·그리드·챗의 ★«바이트 동일»이 깨진다.
@@ -312,11 +279,10 @@
         </div>
       </div>
       <div class="prop-row ts-code-row" id="txt-dot-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="txt-dot-code" value="" placeholder="점 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
+        <span class="prop-label">점</span>
+        <input type="text" class="prop-text" id="txt-dot-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="점 스타일 번호">
         <button type="button" class="prop-icon-btn" id="txt-dot-code-copy" title="번호 복사" aria-label="점 번호 복사">⧉</button>
       </div>
-      <div class="cv-chips ts-recent-row" id="txt-dot-recent-row" hidden></div>
       <div class="prop-color-row" id="txt-ul-color-row" style="margin-top:6px;display:flex" data-own="typography">
         <span class="prop-label">밑줄 색</span>
         
@@ -333,8 +299,8 @@
         </div>
       </div>
       <div class="prop-row ts-code-row" id="txt-ul-code-row" title="스타일 번호 — 복사해 다른 글의 같은 칸에 붙여넣고 Enter">
-        <span class="prop-label">번호</span>
-        <input type="text" class="prop-text" id="txt-ul-code" value="" placeholder="밑줄 번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
+        <span class="prop-label">밑줄</span>
+        <input type="text" class="prop-text" id="txt-ul-code" value="" placeholder="번호 붙여넣기" spellcheck="false" autocomplete="off" aria-label="밑줄 스타일 번호">
         <button type="button" class="prop-icon-btn" id="txt-ul-code-copy" title="번호 복사" aria-label="밑줄 번호 복사">⧉</button>
       </div>
       <div class="cv-chips ts-recent-row" id="txt-ul-recent-row" hidden></div>
@@ -358,22 +324,15 @@
 
       </div>
     </div>
-    <div class="prop-section" data-sec="fill" data-sec-state="fill" id="psec-fill">
+    <div class="prop-section" data-sec="fill" data-sec-state="fill" data-order="text" id="psec-fill">
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="psec-fill-head" role="button" tabindex="0" aria-expanded="true" aria-controls="psec-fill-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Fill</span>
-      </div>
+      <div class="prop-section-title" id="psec-fill-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Fill</span></div>
       </div>
       <div class="prop-sec-body" id="psec-fill-body">
-      <div class="prop-color-row">
-        <span class="prop-label">글자색</span>
+      <div class="prop-color-row" title="글자색">
         <div class="prop-color-field">
           <div class="prop-color-swatch" style="background:#ff3366" title="">
-            <input type="color" id="txt-color" value="#ff3366">
+            <input type="color" id="txt-color" value="#ff3366" aria-label="글자색">
           </div>
           <input type="text" class="prop-color-hex" id="txt-color-hex" value="FF3366" placeholder="" maxlength="7" aria-label="Color">
           <label class="prop-color-alpha" title="Opacity">
@@ -386,20 +345,11 @@
       <div class="cv-chips ts-recent-row" id="txt-grad-recent-row" hidden></div>
       </div>
     </div>
-    <div class="prop-section" data-sec="effects" data-sec-state="effects" id="txt-fx-section">
+    <div class="prop-section" data-sec="effects" data-sec-state="effects" data-order="text" id="txt-fx-section">
       <div class="prop-section-title-row prop-sec-head">
-      <div class="prop-section-title" id="txt-fx-section-head" role="button" tabindex="0" aria-expanded="true" aria-controls="txt-fx-section-body">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" class="prop-sec-chevron">
-          <path d="M1 3l4 4 4-4"/>
-        </svg>
-        <span class="prop-sec-title-text">Effects</span>
-      </div>
-        <select class="prop-select" id="txt-fx-add" style="flex:0 1 104px;min-width:0;width:auto;"
-                title="고른 효과가 추가된다" aria-label="효과 추가">
-          <option value="">효과 추가…</option>
-          <option value="shadow">그림자</option><option value="reflect">반사</option>
-        </select>
+      <div class="prop-section-title" id="txt-fx-section-head" role="heading" aria-level="3"><span class="prop-sec-title-text">Effects</span></div>
+        <button type="button" class="prop-chain-btn prop-fx-add-btn" id="txt-fx-add-btn" title="효과 추가" aria-label="효과 추가" aria-haspopup="menu" aria-expanded="false"><svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M6 2v8M2 6h8"/></svg></button>
+        <div class="prop-fx-menu" id="txt-fx-menu" role="menu" hidden><button type="button" class="fp-menu-item" role="menuitem" data-fx="shadow">그림자</button><button type="button" class="fp-menu-item" role="menuitem" data-fx="reflect">반사</button></div>
       </div>
       <div class="prop-sec-body" id="txt-fx-section-body">
       </div>
