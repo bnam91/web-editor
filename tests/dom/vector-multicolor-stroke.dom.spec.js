@@ -86,7 +86,7 @@ test('S1 가져온 SVG 선 — 두께·끝·대시 · 두께 따라 대시 · �
   const errs = await scene(page, LINE);
   expect(await strokeCs(page), '[전제] 두께 2 · 평평 · 실선').toEqual(['2px', 'butt', 'none']);
   await num(page, 'vb-stroke-w-num', 6);
-  await page.locator('#vb-stroke-cap').selectOption('square');
+  await page.click('#vb-stroke-more'); await page.click('#vb-stroke-pop [data-field="stroke-cap"] [data-value="square"]');   // ★전제 바뀜(표준 Stroke 2-5 · 현빈 261124 ⓑ): 끝모양·선 꼴 = ⫶ «Stroke 설정» 팝오버(옛 select 둘 걷음 · 값 그대로)
   await page.locator('#vb-stroke-dash').selectOption('dash');
   await expect.poll(() => strokeCs(page), '★두께 6 · 네모 · 대시 18 12').toEqual(['6px', 'square', '18px, 12px']);
   await num(page, 'vb-stroke-w-num', 4);
@@ -104,7 +104,7 @@ test('S2 펜 — 크기 늘린 뒤 두께·끝·점 → viewBox 그대로 · 재
   await num(page, 'vb-w', 120);
   await expect.poll(() => page.evaluate(() => document.getElementById('vbT').dataset.w), '[전제] 폭 120').toBe('120');
   await num(page, 'vb-stroke-w-num', 4);
-  await page.locator('#vb-stroke-cap').selectOption('butt');
+  await page.click('#vb-stroke-more'); await page.click('#vb-stroke-pop [data-field="stroke-cap"] [data-value="none"]');   // ★전제 바뀜(2-5): 끝모양 = 팝오버 단추 · «평평»(butt) = «없음»(none · §4c 이름)
   await page.locator('#vb-stroke-dash').selectOption('dot');
   await expect.poll(() => dsvg(page).then((s) => /stroke-dasharray="4 4"/.test(s) && /stroke-linecap="butt"/.test(s) && /stroke-width="4"/.test(s)), '★재빌드 글자에 두께·끝·점').toBe(true);
   expect((await dsvg(page)).match(/viewBox="([^"]+)"/)[1], '★viewBox 그대로(점 좌표와 같은 판)').toBe('0 0 60 60');

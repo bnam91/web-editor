@@ -674,3 +674,63 @@ test('S11d ⫶·□ 둘 다 있는 Stroke 절 — 잘림 0(줄 끝 = 팝오버 d
   expect(out, '★잘림 0').toEqual({ frame: [], modal: [], asset: [], shape: [] });
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* S14 단계 2-5 — 선 블럭(현빈 261124 ⓑ · 8910 #mkp-linestroke): ＋/− 없음 · 위치 칸 없음 · 펜 벡터 = 색 줄(Fill 에서 옮김 · 같은 id vb) · 아이콘·그래프 = 굵기만 · 주석 Label border = ＋/−(없음 = 굵기 0) */
+test('S14a 펜 벡터 — Stroke = 색 줄(id vb) + 굵기 · Fill 에 «색» 없음 · 머리·위치 없음 · ⫶ 끝모양 늘 보임 · 네모 = svg linecap', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    document.querySelectorAll('#canvas .section-block').forEach((s) => s.remove()); await window.addSection();
+    const b = window.addVectorBlock('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><path d="M5 5 L55 55" stroke="#000" fill="none"/></svg>', { w: 60, h: 60 });
+    b.id = 'vbP'; b.dataset.penNodes = JSON.stringify([{ x: 5, y: 5 }, { x: 55, y: 55 }]); b.dataset.penClosed = '0'; b.dataset.strokeWidth = '2'; window.renderVector(b);
+    window.deselectAll(); window.selectBlock('vbP'); window.showVectorProperties?.(b);
+  });
+  await page.waitForSelector('#vb-stroke-w-num', { state: 'attached' });
+  const r = await page.evaluate(() => { const st = document.querySelector('#panel-right .prop-section[data-sec="stroke"]'), fi = document.querySelector('#panel-right .prop-section[data-sec="fill"]'); return { colorInStroke: !!st?.querySelector('[id^="vb-"][id$="-hex"], #vb-hex, #vb-color'), colorInFill: !!fi?.querySelector('#vb-hex, #vb-color'), head: !!document.getElementById('vb-stroke-on'), align: !!document.getElementById('vb-stroke-align') }; });
+  await page.click('#vb-stroke-more');
+  const capVis = await page.evaluate(() => !document.querySelector('#vb-stroke-pop [data-field="stroke-cap"]').closest('.ui-stroke-pop-row').hidden);
+  await page.click('#vb-stroke-pop [data-field="stroke-cap"] [data-value="square"]');
+  const cap = await page.evaluate(() => /stroke-linecap="square"/.test(document.getElementById('vbP').dataset.svg || ''));
+  console.log('[S14a 실측]', JSON.stringify({ r, capVis, cap }));
+  expect(r, '★색 = Stroke(같은 id) · Fill 엔 없음 · 머리·위치 없음').toEqual({ colorInStroke: true, colorInFill: false, head: false, align: false });
+  expect([capVis, cap], '★끝모양 늘 보임(실선이어도) · 네모 = 펜 svg').toEqual([true, true]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S14b 꺾은선 그래프 — Stroke = 굵기만(색·위치·머리·⫶ 없음) · 굵기 7 = 옛 키 strokeWidth', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, "window.addGraphBlock({ chartType: 'line' })", '.graph-block', 'showGraphProperties');
+  await page.waitForSelector('#grb-stroke-number', { state: 'attached' });
+  const r = await page.evaluate(() => { const st = document.querySelector('#panel-right .prop-section[data-sec="stroke"]'); return { fields: [...st.querySelectorAll('[data-field]')].map((e) => e.dataset.field), head: !!document.getElementById('grb-stroke-on'), more: !!document.getElementById('grb-stroke-more') }; });
+  await fillChange(page, '#grb-stroke-number', '7');
+  const k = await page.evaluate((id) => document.getElementById(id).dataset.strokeWidth, id);
+  console.log('[S14b 실측]', JSON.stringify({ r, k }));
+  expect(r, '★굵기 칸 하나').toEqual({ fields: ['stroke-width'], head: false, more: false });
+  expect(k).toBe('7');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S14c 주석 — 선 절 머리 없음 · Label border ＋/− = 굵기 0 ↔ 지난 굵기 · 옛 저장본(굵기 1 · 색 알파 0) = 켬·투명 색 · 열어도 키 무변', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection();
+    const b = window.makeAnnotationBlock({ points: [[200, 160], [500, 160]], text: '라벨' }); b.id = 'anS'; sec.querySelector('.section-inner').appendChild(b);
+    b.dataset.labelBorderWidth = '1'; b.dataset.labelBorderColor = 'rgba(26, 26, 26, 0)'; window.renderAnnotation?.(b);   // ★옛 저장본 꼴: 굵기 > 0 + 알파 0
+    window.deselectAll(); window.selectBlock('anS'); window.showAnnotationProperties(b); return b.id;
+  });
+  await page.waitForSelector('#annot-lb-on', { state: 'attached' });
+  const ds0 = await page.evaluate((id) => JSON.stringify(document.getElementById(id).dataset), id);
+  const s0 = await page.evaluate(() => ({ lineHead: !!document.getElementById('annot-line-on'), lbOn: document.getElementById('annot-lb-on').checked, alpha: document.getElementById('annot-label-border-alpha')?.value ?? null }));
+  const ds1 = await page.evaluate((id) => JSON.stringify(document.getElementById(id).dataset), id);
+  await page.click('#panel-right label:has(#annot-lb-on)');
+  const off = await page.evaluate((id) => document.getElementById(id).dataset.labelBorderWidth, id);
+  await page.click('#panel-right label:has(#annot-lb-on)');
+  const on = await page.evaluate((id) => document.getElementById(id).dataset.labelBorderWidth, id);
+  console.log('[S14c 실측]', JSON.stringify({ s0, off, on, same: ds0 === ds1 }));
+  expect(s0, '★선 절 머리 없음 · 옛 저장본(굵기 1 · 알파 0) = 켬 · 색 알파 0 그대로').toEqual({ lineHead: false, lbOn: true, alpha: '0' });
+  expect(ds0 === ds1, '★열기만 해도 키 무변(옛 바이트)').toBe(true);
+  expect([off, on], '★− = 0 · ＋ = 지난 굵기 1').toEqual(['0', '1']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
