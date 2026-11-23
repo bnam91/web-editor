@@ -113,7 +113,12 @@ test('V17 규칙 자리만 옮김 — 툴바 단추 계산된 스타일(가만�
   expect(['probe:ab', 'probe:ai', 'probe:busy'].every((k) => k in a), '[전제] 섹션 툴바 시료 셋').toBe(true);
   expect(Object.keys(a).sort(), '[전제] 두 판 단추 목록 같음(장면 같음)').toEqual(Object.keys(b).sort());
   expect(a, '가만히 — 단추마다 계산된 스타일 같음').toEqual(b);
-  expect(await readHover(now), 'hover — 같음').toEqual(await readHover(old));
+  /* ★기대 바뀜(현빈 261123 «호버 = 중립 · 파랑은 진짜 활성·큰 단추만») — AB 호버 색 두 칸만 옛 판과 «일부러» 다르다 → 비교에서 빼고 따로 잰다 */
+  const hn = await readHover(now), ho = await readHover(old), AB = '[data-v17="ab"]';
+  const neutral = await now.evaluate(() => { const p = document.createElement('span'); p.style.backgroundColor = 'var(--ui-sel-neutral-on-bg)'; document.body.appendChild(p); const v = getComputedStyle(p).backgroundColor; p.remove(); return v; });
+  expect(hn[AB]['background-color'], '★AB 호버 바탕 = 중립 켜짐 토큰').toBe(neutral);
+  for (const k of ['background-color', 'color']) { delete hn[AB][k]; delete ho[AB][k]; }
+  expect(hn, 'hover — 같음(AB 색 두 칸 뺌)').toEqual(ho);
   await ctxA.close(); await ctxB.close();
 });
 

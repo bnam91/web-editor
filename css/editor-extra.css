@@ -175,9 +175,9 @@ body.preview-mode #preview-overlay:has(.section-row-layout) { overflow-x: auto; 
   transition: all 0.15s;
 }
 .prop-anim-btn:hover {
-  background: #243450;
-  border-color: #4d7fc0;
-  color: #9bcbff;
+  background: var(--ui-sel-neutral-on-bg);
+  border-color: var(--ui-sel-neutral-on-border);
+  color: var(--ui-sel-neutral-on-text);
 }
 .prop-anim-btn svg { flex-shrink: 0; }
 
@@ -2091,7 +2091,7 @@ body.spl-linking .section-block { outline: 2px dashed var(--ui-accent, #4f6bed);
   border: 1.5px solid rgba(255,255,255,0.18); border-radius: 50%;
   font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
-.spl-btn-link:hover, .spl-btn-fold:hover { background: var(--ui-accent, #4f6bed); border-color: var(--ui-accent, #4f6bed); }
+.spl-btn-link:hover, .spl-btn-fold:hover { background: var(--ui-sel-neutral-on-bg); border-color: var(--ui-sel-neutral-on-border); }
 .spl-btn-cut:hover  { background: var(--ui-danger-hover, #d9463e); border-color: var(--ui-danger-hover, #d9463e); }
 
 /* 접힘(최소화): 이미지 숨기고 «연결됨» 바만. 선은 유지(아이템 위치 존재). */

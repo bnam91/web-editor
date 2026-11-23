@@ -332,8 +332,8 @@
   position: relative;
 }
 .assets-import-cell:hover {
-  border-color: var(--ui-accent);
-  outline: 2px solid var(--ui-accent);
+  border-color: var(--ui-sel-neutral-on-border);
+  outline: 2px solid var(--ui-sel-neutral-on-border);
   outline-offset: -1px;
 }
 .assets-import-cell.is-selected {
