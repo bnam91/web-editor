@@ -16,8 +16,8 @@ window.__partsDet = function (body, defaults) {
     toggle: 'label.prop-toggle, label.ui-check',   // ui-check = 태양 부품 check(현빈 261123 온/오프 = 커스텀 체크박스) · 부품 키 이름 toggle→check 는 태양 PART_NAMES 바뀔 때 같이
     select: 'select.prop-select',
     'align-group': '.prop-align-group, .prop-style-group',
-    chain: '.prop-chain-btn:not(.prop-chain-btn--overlay)',
-    'end-slot': '.prop-sec-head button, .prop-sec-head label, .prop-sec-head input, .prop-chain-btn--overlay, .prop-sec-add',
+    chain: '.prop-chain-btn:not(.prop-chain-btn--overlay):not([data-pop-open])',
+    'end-slot': '.prop-sec-head button, .prop-sec-head label, .prop-sec-head input, .prop-chain-btn--overlay, .prop-sec-add, [data-pop-open]',   // data-pop-open = 절 표준의 팝오버 여는 단추(Stroke 설정 ⫶ · 면별 □)
     'fx-card': '.prop-cell-card[data-fx-type], .prop-cell-card',
     rot: '.prop-rot-row',
   };
@@ -62,7 +62,7 @@ window.__partsDet = function (body, defaults) {
     // align-group
     const al = inS('.prop-align-group').filter((g) => g.querySelectorAll('.prop-align-btn').length >= 2 && !g.closest('.prop-rot-row')); if (al.length) { present.add('align-group'); P['align-group'] = 'ok'; }
     // chain
-    const ch = inS('.prop-chain-btn:not(.prop-chain-btn--overlay)'); if (ch.length) { present.add('chain'); const inBody = ch.filter((b) => R(b).left < bodyEnd - 1); P.chain = inBody.length ? 'var:몸 안 ' + inBody.length : 'ok'; }
+    const ch = inS('.prop-chain-btn:not(.prop-chain-btn--overlay):not([data-pop-open])'); if (ch.length) { present.add('chain'); const inBody = ch.filter((b) => R(b).left < bodyEnd - 1); P.chain = inBody.length ? 'var:몸 안 ' + inBody.length : 'ok'; }
     // end-slot — 절 머리 ＋ 또는 오버레이 띄우기 단추
     const head = s.querySelector(':scope > .prop-sec-head'); const plus = head && (head.querySelector('.prop-sec-add, button, label') || [...head.querySelectorAll('path')].some((x) => (x.getAttribute('d') || '').replace(/\s/g, '') === PLUS));
     const ov = inS('.prop-chain-btn--overlay'); const needPlus = /^(stroke|effects)$/.test(key) && !plus;
