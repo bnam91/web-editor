@@ -3,8 +3,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { sliceBlock } from './_slice-block.js';
 const src = readFileSync(new URL('../../js/props/_helpers.js', import.meta.url), 'utf8');
-const fn = (name) => { const i = src.indexOf(`export function ${name}(`); assert.ok(i >= 0, name + ' 없음'); const j = src.indexOf('\n}\n', i); return src.slice(i, j + 3).replace(/^export /, ''); };
+const fn = (name) => sliceBlock(src, `export function ${name}(`).replace(/^export /, '') + '\n';   // 구간 끝 = 공용 자(SB-16 · 문자열 짝맞추기 금지)
 const ctx = {}; vm.createContext(ctx);
 vm.runInContext(fn('escHtml') + fn('checkHTML') + fn('wireCheck') + ';globalThis.__c = { checkHTML, wireCheck };', ctx);
 const { checkHTML, wireCheck } = ctx.__c;
