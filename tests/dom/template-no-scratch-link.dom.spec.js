@@ -70,7 +70,9 @@ async function seedLinked(page) {
 async function registerViaUI(page, secId, name) {
   const pt = await page.evaluate((id) => { document.getElementById(id).scrollIntoView({ block: 'center' }); const r = document.querySelector('#' + id + ' .section-hitzone').getBoundingClientRect(); return [r.left + 6, r.top + r.height / 2]; }, secId);
   await page.mouse.click(pt[0], pt[1]);
-  await page.waitForSelector('#sec-tpl-save-btn', { timeout: 5000 });
+  await page.waitForSelector('#sec-tpl-toggle', { timeout: 5000 });
+  await page.click('#sec-tpl-toggle');   // ★기대 바뀜(Templates 통일 df02f17 · 섹션 보강 현빈 261123) — 폼은 접힘 · 머리 ＋ 로 펼친다(사람이 하는 길)
+  await page.waitForSelector('#sec-tpl-save-btn', { state: 'visible', timeout: 5000 });
   await page.fill('#sec-tpl-name', name);
   await page.click('#sec-tpl-save-btn');
   await page.waitForFunction((n) => window.loadTemplates().some((t) => t.name === n), name, { timeout: 5000 });

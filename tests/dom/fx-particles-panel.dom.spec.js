@@ -757,6 +757,10 @@ test('D9 ★★속도 칸을 ★만지는 동안에도 ★멈춤 단추가 ★�
   const hasSpeed = await page.evaluate(() => !!document.querySelector('[data-fxpart-axis="speed"]'));
   expect(hasSpeed, '★전제: ★「속도」 칸이 ★패널에 ★없다 — ★이 장면이 ★안 선다').toBe(true);
 
+  /* ★기대 바뀜(섹션 보강 · 현빈 261123) — Templates·Export 절이 «머리만»(접힘)이 되어 카드 아래 굴림 여유가 줄었다 ⇒ 사람이 ＋ 로 두 폼을 펼친 판(옛 늘-펼침과 같은 길이)에서 잰다(양성대조가 «굴릴 것 없음»으로 공짜가 되지 않게) */
+  for (const t of ['#sec-tpl-toggle', '#sec-export-toggle']) { if (await page.$(t)) await page.click(t); }
+  await page.waitForTimeout(150);
+
   /* ★★전제 ⑵ — ★패널이 ★정말 ★굴러간다. ⛔아니면 ★아래 「창 안」이 ★공짜다 */
   const sc = await page.evaluate(() => {
     const b = document.querySelector('#panel-right .panel-body');
