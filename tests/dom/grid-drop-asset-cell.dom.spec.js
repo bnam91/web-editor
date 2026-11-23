@@ -57,8 +57,10 @@ async function dragToCell(page, id) {
   await page.mouse.move(s.x, s.y); await page.mouse.down();
   await page.mouse.move(s.x + 10, s.y - 10, { steps: 3 });
   await page.mouse.move(d.x, d.y, { steps: 12 });
-  await raf2(page);
-  const hl = await page.evaluate(() => !!document.querySelector('#gG .grd-cell[data-r="0"][data-c="1"].grd-cell-drop-target'));
+  /* 칸 위에 «머무는» 손(1px 흔들고 두 프레임) — 섹션 dragover 는 rAF 로 표시를 늦게 그린다(section-drag.js _innerDragRafId) · 한 번에 훑고 바로 재면 표시 전 · 고정 대기 대신 조건(뜨면 멈춤 · 최대 20번) */
+  let hl = false;
+  for (let k = 0; k < 20 && !hl; k++) { await page.mouse.move(d.x + (k % 2 ? 1 : -1), d.y, { steps: 1 }); await raf2(page); hl = await page.evaluate(() => !!document.querySelector('#gG .grd-cell[data-r="0"][data-c="1"].grd-cell-drop-target')); }
+  await page.mouse.move(d.x, d.y, { steps: 1 });
   await page.mouse.up();
   await page.waitForFunction((n0) => window.__drops > n0, n0, { timeout: 3000 }).catch(() => { throw new Error('drop 이 안 왔다 — 끌기가 시작되지 않았다'); });
   await raf2(page);
@@ -74,10 +76,11 @@ test('A1·A2 그림 든 에셋 → 칸 그림 줄 +1 · 원본 사라짐 · 끄�
   await page.evaluate(() => window.undo()); await raf2(page);
   const u = await page.evaluate(() => ({ unit: !!document.getElementById('abX') }));
   const l2 = await cellLines(page);
-  console.log('[A1 실측]', JSON.stringify({ l0, i0, hl, after, l1, i1, u, l2 }));
-  expect(hl, '★A2 끄는 동안 칸 강조').toBe(true);
+  const hlEver = await page.evaluate(() => window.__hl);   // 끄는 동안 한 번이라도 강조가 붙었나(재는 시점과 무관)
+  console.log('[A1 실측]', JSON.stringify({ l0, i0, hl, hlEver, after, l1, i1, u, l2 }));
   expect([l1 - l0, i1 - i0, after.unit, after.src], '★칸 줄 +1(그림) · 원본 에셋 없음 · 같은 그림').toEqual([1, 1, false, true]);
   expect([u.unit, l2], '★⌘Z 한 번 = 에셋 제자리 · 칸 줄 원래대로').toEqual([true, l0]);
+  expect(hl, `★A2 끄는 동안 칸 강조(놓기 직전 · 한 번이라도 = ${hlEver})`).toBe(true);   // 마지막 — A1 을 먼저 잰다(수지맥 261123: A2 에서 멈춰 A1 을 못 봄)
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
