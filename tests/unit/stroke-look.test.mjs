@@ -47,3 +47,18 @@ test('L6 기본은 부르는 쪽 — 선 끝 기본 round 면 round 는 키 없�
   assert.deepEqual(ds, { strokeCap: 'none' });
   assert.equal(svgLook(readLook(ds, def), 3).linecap, 'butt');
 });
+
+test('L7 면별 — 넷 다 표준이면 키 0 · 하나라도 다르면 넷 다 키 · CSS 4값 · Mixed', async () => {
+  const { readSides, writeSides, cssSideWidths, sidesMixed, hasSides } = await import(pathToFileURL(path.join(_dir, 'stroke-look.mjs')).href);
+  const ds = {};
+  writeSides(ds, { top: 2, right: 2, bottom: 2, left: 2 }, 2);
+  assert.deepEqual(ds, {});
+  assert.equal(cssSideWidths(ds, 2), '');
+  writeSides(ds, { top: 4, right: 0, bottom: 2, left: 0 }, 2);
+  assert.deepEqual(ds, { strokeWidthTop: '4', strokeWidthRight: '0', strokeWidthBottom: '2', strokeWidthLeft: '0' });
+  assert.equal(cssSideWidths(ds, 2), '4px 0px 2px 0px');
+  assert.equal(sidesMixed(ds, 2), true);
+  assert.deepEqual(readSides(ds, 9), { top: 4, right: 0, bottom: 2, left: 0 });
+  writeSides(ds, null, 2);
+  assert.equal(hasSides(ds), false);
+});

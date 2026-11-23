@@ -535,3 +535,72 @@ test('S10b 그리드 블럭 외곽선 — edge-select(바깥 넷 + 모두/없음
   expect(o2 === '' || o2 === 'none' || o2 === null, `★없음 = 빈 목록(${o2})`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* S11 단계 4-2 — 면별 굵기(□ · §4c ②b «사용자» · 시안 strokestd2 23): 키 strokeWidthTop/Right/Bottom/Left = 넷이 표준과 다를 때만 · CSS border-width 4값 · 표준 칸 Mixed · 표준 칸에 치면 넷 다 */
+const sidesOf = (page, sel) => page.evaluate((sel) => { const b = document.querySelector(sel), cs = getComputedStyle(b); return { keys: ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'].map((k) => b.dataset[k] ?? null), css: [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth] }; }, sel);
+test('S11a 프레임 — □ 열기 · 왼쪽 끔 = 키 넷 + CSS · 표준 칸 Mixed · 사용자 위 4 · 표준 3 치면 넷 다 3(키 0) · ⌘Z 한 칸 · HTML 에 4값', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties');
+  await page.click('#panel-right label:has(#ss-stroke-on)');   // 켬 = 1px
+  const sel = `#${id}`;
+  const slot0 = await page.evaluate(() => document.getElementById('ss-stroke-sides').hidden);
+  await page.click('#ss-stroke-sides-btn');
+  const slot1 = await page.evaluate(() => document.getElementById('ss-stroke-sides').hidden);
+  await page.click('#ss-stroke-sides-edges [data-stroke-edge="left"]');
+  const s1 = await sidesOf(page, sel);
+  const mix1 = await page.evaluate(() => { const i = document.getElementById('ss-border-w-num'); return [i.value, i.placeholder]; });
+  await page.fill('#ss-stroke-w-top', '4'); await page.locator('#ss-stroke-w-top').dispatchEvent('change');
+  const s2 = await sidesOf(page, sel);
+  const [dh] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => { window.exportHTMLFile(); return null; })]);
+  const html = require('fs').readFileSync(await dh.path(), 'utf8');
+  const htmlSides = new RegExp(`id="${id}"[^>]*style="[^"]*border-width:\\s*4px 1px 1px 0px`).test(html) || new RegExp(`style="[^"]*border-width:\\s*4px 1px 1px 0px[^"]*"[^>]*id="${id}"`).test(html);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const s3 = await sidesOf(page, sel);
+  await page.evaluate((id) => { window.deselectAll(); window.selectBlock(id); window.showFrameProperties(document.getElementById(id)); }, id);
+  await page.fill('#ss-border-w-num', '3'); await page.locator('#ss-border-w-num').dispatchEvent('change');
+  const s4 = await sidesOf(page, sel);
+  console.log('[S11a 실측]', JSON.stringify({ slot0, slot1, s1, mix1, s2, htmlSides, s3, s4 }));
+  expect([slot0, slot1], '★□ = 슬롯 열기(키 0)').toEqual([true, false]);
+  expect(s1, '★왼쪽 끔 = 키 넷 · CSS 1 1 1 0').toEqual({ keys: ['1', '1', '1', '0'], css: ['1px', '1px', '1px', '0px'] });
+  expect(mix1, '★표준 칸 Mixed').toEqual(['', 'Mixed']);
+  expect(s2.css, '★사용자 위 4').toEqual(['4px', '1px', '1px', '0px']);
+  expect(htmlSides, '★HTML 내보내기에 border-width 4값').toBe(true);
+  expect(s3.css, '★⌘Z 한 칸 = 위 4 전').toEqual(['1px', '1px', '1px', '0px']);
+  expect(s4, '★표준 3 = 넷 다 3 · 면별 키 0(옛 바이트)').toEqual({ keys: [null, null, null, null], css: ['3px', '3px', '3px', '3px'] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S11b 모달·에셋 — 사용자 굵기 넷 = 렌더 border-width 4값(모달 = renderModalBlock · 에셋 = 패널 쓰기)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const out = {};
+  for (const [k, make, selq, show, pfx, sel] of [['modal', 'window.addModalBlock()', '.modal-block', 'showModalProperties', 'mdl-stroke', (id) => `#${id} .modal-box, #${id} > div`], ['asset', 'window.addAssetBlock()', '.asset-block', 'showAssetProperties', 'asset-stroke', (id) => `#${id}`]]) {
+    const id = await openNew(page, make, selq, show);
+    await page.click(`#panel-right label:has(#${pfx}-on)`);
+    await page.click(`#${pfx}-sides-btn`); await page.click(`#${pfx}-sides-edges [data-edge-preset="custom"]`);
+    for (const [s, v] of [['top', '5'], ['right', '0'], ['bottom', '2'], ['left', '0']]) { await page.fill(`#${pfx}-w-${s}`, v); await page.locator(`#${pfx}-w-${s}`).dispatchEvent('change'); }
+    out[k] = await page.evaluate(([id, k]) => { const b = document.getElementById(id); const el = k === 'modal' ? ([...b.querySelectorAll('*')].find((e) => parseFloat(getComputedStyle(e).borderTopWidth) === 5) || b) : b; const cs = getComputedStyle(el); return { keys: ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'].map((x) => b.dataset[x] ?? null), css: [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth] }; }, [id, k]);
+  }
+  console.log('[S11b 실측]', JSON.stringify(out));
+  expect(out.modal, '★모달 사용자 5 0 2 0').toEqual({ keys: ['5', '0', '2', '0'], css: ['5px', '0px', '2px', '0px'] });
+  expect(out.asset, '★에셋 사용자 5 0 2 0').toEqual({ keys: ['5', '0', '2', '0'], css: ['5px', '0px', '2px', '0px'] });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S11c 프레임 면별 — 저장 → 다시 열기(applyProjectData · save-load 보더 복원)에도 border-width 4값 그대로', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties');
+  await page.click('#panel-right label:has(#ss-stroke-on)');
+  await page.click('#ss-stroke-sides-btn'); await page.click('#ss-stroke-sides-edges [data-edge-preset="custom"]');
+  for (const [s, v] of [['top', '6'], ['right', '0'], ['bottom', '3'], ['left', '0']]) { await page.fill(`#ss-stroke-w-${s}`, v); await page.locator(`#ss-stroke-w-${s}`).dispatchEvent('change'); }
+  const before = await sidesOf(page, `#${id}`);
+  await page.evaluate(async () => { const snap = window.serializeProject(); await window.applyProjectData(typeof snap === 'string' ? JSON.parse(snap) : snap); });
+  await page.waitForFunction((id) => !!document.getElementById(id), id);
+  const after = await sidesOf(page, `#${id}`);
+  console.log('[S11c 실측]', JSON.stringify({ before, after }));
+  expect(before.css, '[전제] 6 0 3 0').toEqual(['6px', '0px', '3px', '0px']);
+  expect(after, '★다시 열어도 키·CSS 그대로').toEqual(before);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

@@ -68,7 +68,7 @@ test('A2 Asset — Stroke 머리 ＋(.prop-sec-add) · 꺼진 기본 = 몸 숨�
     const c = document.getElementById('asset-stroke-on'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
     const ctl = document.getElementById('asset-stroke-controls');
     return { shown: getComputedStyle(ctl).display !== 'none', w: window.__b.dataset.strokeWidth,
-             rows: [...ctl.querySelectorAll('[data-field]')].filter((e) => !e.closest('.ui-stroke-pop')).map((e) => e.dataset.field) };   // 표준 줄 칸만(⫶ 팝오버 칸은 stroke-std S7 이 잰다)
+             rows: [...ctl.querySelectorAll('[data-field]')].filter((e) => !e.closest('.ui-stroke-pop, .ui-stroke-slot')).map((e) => e.dataset.field) };   // 표준 줄 칸만(⫶ 팝오버 · □ 면별 슬롯 칸은 stroke-std S7·S11 이 잰다)
   });
   expect(after).toEqual({ shown: true, w: '2', rows: ['stroke-color', 'stroke-align', 'stroke-width'] });   // ★기대 바뀜(현빈 261123 표준 Stroke 부품 · 8910 strokestd2): 옛 줄 [두께 · 색상] → 부품 칸 [색 · 위치 · 굵기] — 머리 ＋·꺼짐 = 몸 숨김·켜면 2 는 그대로
   expect(errs, errs.join(' | ')).toEqual([]);
