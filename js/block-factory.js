@@ -2409,6 +2409,16 @@ function wrapSelectedBlocksInFrame(opts = {}) {
     const w = b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b;
     return (w?.dataset?.overlayBlock === 'true' || _ownFloat(w)) ? w : null;   // ★t5-07 — 제 방식 떠 있는 블럭도 «떠 있음»
   };
+  /* ★현빈 261123 F(IAL 1회차 S1-3 · 다름-치명) — 떠 있는 것(섹션 직속)과 흐름 블럭을 «섞어» ⌘G 하면 Figma 처럼 그룹은 떠 있고(IAL 유지)
+     흐름 블럭은 «화면 자리 그대로» 흐름에서 빠져 그룹 안으로 간다. 전엔 아래 흐름 갈래로 떨어져 그룹이 흐름 블럭이 됐다(IAL 풀림·자리 이동).
+     ⇒ 흐름 단위를 먼저 띄우고(enterFloat = 화면 자리 고정) 아래 오버레이 갈래를 그대로 탄다. 아래 것부터 — 위 것을 먼저 빼면 아래 것이 올라와 자리가 바뀐다.
+     window.OverlayFloat?. = 전역 · 이 함수만 잘라 도는 하네스엔 없어 옛 동작 그대로. 섹션 «흐름» 단위만(프레임 안 흐름 자식은 이번 범위 밖). */
+  const _OF = window.OverlayFloat;
+  if (_OF?.enterFloat && selected.some(b => _floatWrapperOf(b)?.parentElement === sec)) {
+    selected.map(b => _OF.posElOf(b)).filter(w => w && !_floatWrapperOf(w) && (_OF.floatHostOf?.(w) || sec) === sec)
+      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? 1 : -1)
+      .forEach(w => _OF.enterFloat(w));
+  }
   const floatEls = [];
   let allFloatInSec = true;
   selected.forEach(b => {
