@@ -19,7 +19,7 @@ async function scene(page) {
 
 test('S1·S2 도형 Stroke = 표준 부품 · 굵기 입력 = 옛 키 · svg · ⌘Z 한 칸', async ({ page }) => {
   const { errs, id } = await scene(page);
-  const ui = await page.evaluate(() => { const u = document.querySelector('#panel-right .prop-section[data-sec="stroke"] .ui-stroke2[data-part="stroke"]'); return u && { fields: [...u.querySelectorAll('[data-field]')].map((e) => e.dataset.field), oldSlider: !!document.getElementById('shape-stroke-slider') }; });
+  const ui = await page.evaluate(() => { const u = document.querySelector('#panel-right .prop-section[data-sec="stroke"] .ui-stroke2[data-part="stroke"]'); return u && { fields: [...u.querySelectorAll('[data-field]')].filter((e) => !e.closest('.ui-stroke-pop')).map((e) => e.dataset.field), oldSlider: !!document.getElementById('shape-stroke-slider') }; });
   expect(ui, '★Stroke 절 = 표준 부품 · 칸 셋 · 옛 슬라이더 없음').toEqual({ fields: ['stroke-color', 'stroke-align', 'stroke-width'], oldSlider: false });
   const w0 = await page.evaluate((id) => document.getElementById(id).dataset.shapeStrokeWidth ?? null, id);
   await page.click('#panel-right label:has(#shape-stroke-on)'); await page.waitForSelector('#shape-stroke-width', { state: 'visible' });   // 새 도형 = 테두리 없음(굵기 0) → 머리 ＋ 로 켬
@@ -193,7 +193,7 @@ test('S6a grid — 머리 ＋ = 굵기 1 · 색·꼴 줄 나옴 · 알파 칸 �
   const k = () => page.evaluate((id) => document.getElementById(id).dataset.cellBorderWidth ?? null, id);
   const p0 = await page.evaluate(() => ({ on: document.getElementById('grd-stroke-on').checked, hidden: document.querySelector('#panel-right [data-part="stroke"]').hidden }));
   await page.click('#panel-right label:has(#grd-stroke-on)');
-  await page.waitForSelector('#grd-border-style', { state: 'visible' });
+  await page.waitForSelector('#grd-stroke-more', { state: 'visible' });   // ★전제 바뀜(단계 3-1): «선 꼴» = ⫶ 팝오버 안 · 켜짐 = ⫶ 단추가 보인다
   const kOn = await k();
   const p1 = await page.evaluate(() => ({ hex: !!document.getElementById('grd-border-color-hex'), alpha: !!document.querySelector('#panel-right [data-part="stroke"] [id$="-alpha"]'), align: [document.getElementById('grd-stroke-align').value, document.getElementById('grd-stroke-align').getAttribute('aria-disabled')], outline: !!document.getElementById('grd-outline-group') }));
   await page.click('#panel-right label:has(#grd-stroke-on)');
@@ -221,5 +221,77 @@ test('S6b table — 머리 없음 · 선 토글 넷 = 슬롯 · 굵기 = 외곽�
   console.log('[S6b 실측]', JSON.stringify({ r, w4, wMin }));
   expect(r, '★머리 없음 · 토글 넷 = edge-select 슬롯 · 위치 가운데 막힘').toEqual({ head: false, toggles: [true, true, true, true], align: ['center', 'true'] });
   expect([w4, wMin], '★굵기 4 = 옛 키·변수 · 0 → 하한 1').toEqual([['4', '4px'], '1']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* S7 단계 3-1 — ⫶ «Stroke 설정» 팝오버(§4c ②b · 시안 strokestd2 21·22): 단추 button.ui-stroke-more[aria-haspopup=dialog] · div.ui-stroke-pop[role=dialog]
+ *   스타일 = 그 블럭 옛 값 그대로 살아 있음(CSS 블럭 «점» 유지 — 지디 261124 (가)) · 수치·끝·꼭짓점 = 막힘(까닭) · 열기/닫기(⫶ · × · Esc · 바깥) */
+const popState = (page, prefix) => page.evaluate((prefix) => { const b = document.getElementById(`${prefix}-more`), p = document.getElementById(`${prefix}-pop`); return { btn: !!b && [b.getAttribute('aria-haspopup'), b.getAttribute('aria-expanded')], open: !!p && !p.hidden, role: p?.getAttribute('role'), label: p?.getAttribute('aria-label') }; }, prefix);
+test('S7a frame — ⫶ 열면 스타일 = 실선·점선·점(값 그대로) · 점 고르면 옛 키 borderStyle + CSS · 수치·끝·꼭짓점 막힘(CSS 까닭) · ⌘Z 한 칸 · Esc/바깥 닫힘', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties');
+  await page.click('#panel-right label:has(#ss-stroke-on)');
+  const p0 = await popState(page, 'ss-stroke');
+  await page.click('#ss-stroke-more');
+  const p1 = await popState(page, 'ss-stroke');
+  const f = await page.evaluate(() => { const pop = document.getElementById('ss-stroke-pop'), sel = pop.querySelector('[data-field="stroke-style"]'); return { selId: sel.id, opts: [...sel.options].map((o) => o.value), dis: ['stroke-dash', 'stroke-gap', 'stroke-cap', 'stroke-join', 'stroke-miter'].map((k) => { const e = pop.querySelector(`[data-field="${k}"]`); const t = e?.matches('[aria-disabled]') ? e : e?.querySelector('[aria-disabled]'); return t ? t.getAttribute('title') : null; }) }; });
+  await page.selectOption('#ss-border-style', 'dotted');
+  const s1 = await page.evaluate((id) => { const b = document.getElementById(id); return { key: b.dataset.borderStyle, css: b.style.borderStyle || getComputedStyle(b).borderTopStyle, dashRows: [...document.querySelectorAll('#ss-stroke-pop [data-when="dashed"]')].map((r) => r.hidden) }; }, id);
+  await page.keyboard.press('Escape');
+  const p2 = await popState(page, 'ss-stroke');
+  await page.click('#ss-stroke-more'); await page.mouse.click(5, 5);
+  const p3 = await popState(page, 'ss-stroke');
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const sU = await page.evaluate((id) => document.getElementById(id).dataset.borderStyle, id);
+  console.log('[S7a 실측]', JSON.stringify({ p0, p1, f, s1, p2, p3, sU }));
+  expect(p0, '★⫶ 단추 aria · 처음 닫힘').toEqual({ btn: ['dialog', 'false'], open: false, role: 'dialog', label: 'Stroke 설정' });
+  expect([p1.open, p1.btn[1]], '★⫶ = 열림 · aria-expanded').toEqual([true, 'true']);
+  expect(f, '★스타일 = 옛 id · 실선·점선·점 · 수치·끝·꼭짓점 = 막힘(CSS 까닭)').toEqual({ selId: 'ss-border-style', opts: ['solid', 'dashed', 'dotted'], dis: Array(5).fill('이 블럭은 아직 점선 길이를 못 그려요') });
+  expect(s1, '★점 = 옛 키 dotted · CSS dotted · 점선 칸 보임').toEqual({ key: 'dotted', css: 'dotted', dashRows: [false, false, false] });
+  expect([p2.open, p3.open], '★Esc · 바깥 누름 = 닫힘').toEqual([false, false]);
+  expect(sU, '★⌘Z 한 칸 = 점 전(실선)').toBe('solid');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S7b modal — 옛 «스타일» 단추 셋 → ⫶ 팝오버 select(값 그대로) · 점선 고르면 borderStyle', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addModalBlock()', '.modal-block', 'showModalProperties');
+  await page.click('#panel-right label:has(#mdl-stroke-on)');
+  const r = await page.evaluate(() => ({ oldBtns: document.querySelectorAll('#panel-right [data-bs]').length, opts: [...document.getElementById('mdl-border-style').options].map((o) => o.value) }));
+  await page.click('#mdl-stroke-more'); await page.selectOption('#mdl-border-style', 'dashed');
+  const k = await page.evaluate((id) => document.getElementById(id).dataset.borderStyle, id);
+  console.log('[S7b 실측]', JSON.stringify({ r, k }));
+  expect(r, '★옛 단추 0 · select 값 = 실선·점선·점').toEqual({ oldBtns: 0, opts: ['solid', 'dashed', 'dotted'] });
+  expect(k).toBe('dashed');
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S7c shape — ⫶ 팝오버 열림 · 칸 전부 막힘(스타일 키 아직 없음 · 3-2) · 팝오버가 패널 밖으로 안 나감', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await scene(page).then((x) => x.errs);
+  await page.click('#panel-right label:has(#shape-stroke-on)');
+  await page.click('#shape-stroke-more');
+  const r = await page.evaluate(() => { const pop = document.getElementById('shape-stroke-pop'), panel = document.getElementById('panel-right').getBoundingClientRect(), pr = pop.getBoundingClientRect(); return { open: !pop.hidden, styleDis: pop.querySelector('[data-field="stroke-style"]').getAttribute('aria-disabled'), inside: pr.left >= panel.left - 1 && pr.right <= panel.right + 1 && pr.top >= panel.top - 1 && pr.bottom <= panel.bottom + 1, h: Math.round(pr.height) }; });
+  const v0 = await page.evaluate(() => document.querySelector('#shape-stroke-pop [data-field="stroke-style"]').value);
+  await page.focus('#shape-stroke-pop [data-field="stroke-style"]'); await page.keyboard.press('ArrowDown');
+  const v1 = await page.evaluate(() => document.querySelector('#shape-stroke-pop [data-field="stroke-style"]').value);
+  console.log('[S7c 실측]', JSON.stringify({ r, v0, v1 }));
+  expect([r.open, r.styleDis, r.inside], '★열림 · 스타일 막힘 · 패널 안').toEqual([true, 'true', true]);
+  expect(v1, '★막힌 칸은 키로 안 바뀜').toBe(v0);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S7d 자리 — ⫶ 를 패널 아래쪽에서 열고 «점»을 골라 줄이 늘어도 팝오버가 패널 안(아래로 넘치면 위로 뒤집힘)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await openNew(page, 'window.addFrameBlock()', '.frame-block:not([data-text-frame])', 'showFrameProperties');
+  await page.click('#panel-right label:has(#ss-stroke-on)');
+  await page.evaluate(() => document.querySelector('#ss-stroke-more').scrollIntoView({ block: 'start' }));   // ★전제: 단추가 패널 위쪽 → 아래 자리 ≈ 패널 끝까지(실측 878 → 1114 > 1100 이 났던 장면)
+  await page.click('#ss-stroke-more'); await page.selectOption('#ss-border-style', 'dotted');
+  const r = await page.evaluate(() => { const pop = document.getElementById('ss-stroke-pop').getBoundingClientRect(), box = document.querySelector('#panel-right .panel-body').getBoundingClientRect(); return { top: Math.round(pop.top), bottom: Math.round(pop.bottom), boxTop: Math.round(box.top), boxBottom: Math.round(box.bottom), up: document.getElementById('ss-stroke-pop').classList.contains('ui-stroke-pop--up') }; });
+  console.log('[S7d 실측]', JSON.stringify(r));
+  expect(r.bottom <= r.boxBottom && r.top >= r.boxTop, `★팝오버가 패널 안 ${JSON.stringify(r)}`).toBe(true);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
