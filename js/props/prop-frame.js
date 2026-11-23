@@ -6,6 +6,7 @@ import { syncFrameBgVars, frameBgSize, applyFrameBgImageInline, setFrameBgOpacit
 import { clipsContent } from '../clip-content.js';   /* ★★켬 판정의 ★단 한 자리(2026-10-10 c2 · 지디 ㉠) */   /* ★프레임 배경 ★먹이는 한 자리(2026-10-10 ③) */
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
+import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { bindSlider, alignBtn, blockHeaderHTML, sliderRowHTML, overlayToggleBtnHTML, rotRowHTML, wireRotRow } from './_helpers.js';
 import { applyFrameTransform, frameAlignOffset, framePadding, applyFrameHAlignToChild } from '../frame-geometry.js';
 import { isShapeFrame as _isShapeFrameEl } from '../shape-frame.js';
@@ -410,7 +411,7 @@ function _renderAutoPanel(ss) {
   /* ★2026-10-10 ③ — ★배경 크기 칸. ★값은 ★dataset 이 정본(공용 `frameBgSize`)이고 ★여기선 ★그릴 때만 읽는다 */
   const _bgSizeNow = frameBgSize(ss);
   const _bgSizeCustom = /px/.test(_bgSizeNow);
-  const borderWidth = Math.round(panelRenderedPx(ss, 'borderTopWidth'));   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
+  const borderWidth = hasSides(ss.dataset) ? (Number(ss.dataset.borderWidth) || 0) : Math.round(panelRenderedPx(ss, 'borderTopWidth'));   /* 단계 4-2: 면별이면 그려진 위 변 ≠ 표준 → 표준 = 저장 키 borderWidth */   // 묶음 B E114 — 그려진 테두리(쓰기 키는 dataset.borderW · 옛 표시는 dataset.borderWidth 를 읽어 늘 0)
   const borderStyle = ss.dataset.borderStyle || 'solid';
   const rawBorderColor = ss.style.borderColor || ss.dataset.borderColor || '#888888';
   const hexBorderColor = rgbToHex(rawBorderColor);
@@ -652,7 +653,8 @@ function _renderAutoPanel(ss) {
          위치 = 칸만 막힘: 프레임 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(ss-border-w-num · ss-border 색 · ss-border-style) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'ss-stroke', color: hexBorderColor, alpha: borderAlpha, width: borderWidth, maxWidth: 20, align: 'inside', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderWidth > 0, widthId: 'ss-border-w-num', colorId: 'ss-border',
-        pop: { styles: STROKE_STYLES_CSS, style: borderStyle, styleId: 'ss-border-style', why: STROKE_POP_WHY.css } }),   // 단계 3-1: «스타일» = ⫶ 팝오버(옛 id ss-border-style → 옛 change 배선 그대로) · 점(dotted) 유지
+        pop: { styles: STROKE_STYLES_CSS, style: borderStyle, styleId: 'ss-border-style', why: STROKE_POP_WHY.css },
+        sides: { w: hasSides(ss.dataset) ? readSides(ss.dataset, borderWidth) : null, std: borderWidth, open: hasSides(ss.dataset), mixed: sidesMixed(ss.dataset, borderWidth) } }),   // 단계 4-2 □ 면별(CSS border-width 4값)   // 단계 3-1: «스타일» = ⫶ 팝오버(옛 id ss-border-style → 옛 change 배선 그대로) · 점(dotted) 유지
         { headTools: strokeHeadToolsHTML({ prefix: 'ss-stroke', on: borderWidth > 0 }) }),
       sec('effects', _fx.body, { id: _fx.id, headTools: _fx.headTools }),
       sec('special', isBuzzFrame(ss) ? buzzSectionHTML(ss) : '', { title: 'Buzz' }),
@@ -990,11 +992,14 @@ function _renderAutoPanel(ss) {
     const c = _borderColor;
     ss.dataset.borderWidth = w; ss.dataset.borderStyle = s; ss.dataset.borderColor = c;
     ss.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
+    const _sw = w > 0 ? cssSideWidths(ss.dataset, w) : '';   // 단계 4-2 면별 굵기(키 있을 때만 · 없으면 옛 바이트)
+    if (_sw) ss.style.borderWidth = _sw;
   };
   borderStyleEl.addEventListener('change', () => { applyBorder(); window.pushHistory?.(); window.scheduleAutoSave?.(); });
   /* 표준 Stroke 부품 배선 — 어댑터 = 위 applyBorder 그대로(저장 키 borderWidth·borderStyle·borderColor 무변) · 없음 = 굵기 0(칸 값은 그대로 → 다시 켜면 지난 굵기) */
   wireStrokeSection({ prefix: 'ss-stroke', alpha: borderAlpha, maxWidth: 20, widthId: 'ss-border-w-num', colorId: 'ss-border', onWidth: 1,
-    adapter: { color: (c) => { _borderColor = c; applyBorder(); }, width: (v) => { _borderW = v; applyBorder(); }, commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); } } });
+    adapter: { color: (c) => { _borderColor = c; applyBorder(); }, width: (v) => { _borderW = v; applyBorder(); }, commit: () => { window.pushHistory?.(); window.scheduleAutoSave?.(); },
+      sides: { read: () => (hasSides(ss.dataset) ? readSides(ss.dataset, _borderW) : null), write: (o) => { writeSides(ss.dataset, o, _borderW); applyBorder(); }, std: () => _borderW } } });
 
   // 코너
   const radiusSlider = document.getElementById('ss-radius-slider');

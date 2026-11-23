@@ -51,3 +51,22 @@ export function svgLook(look, w) {
     miterlimit: +(1 / Math.sin(rad / 2)).toFixed(2),   // 28.96° → 4.0006 → 4(SVG 기본과 같은 수)
   };
 }
+
+/* ══ 단계 4-2 — 면별 굵기(§4c ②b «사용자» · 어댑터 perSideWidth) ══
+ * 키 strokeWidthTop/Right/Bottom/Left = «면별»일 때만(넷 다 표준과 같으면 키 0 = 옛 바이트) · 키 없는 변 = 표준 굵기 */
+export const SIDES = ['top', 'right', 'bottom', 'left'];
+const SIDE_KEY = { top: 'strokeWidthTop', right: 'strokeWidthRight', bottom: 'strokeWidthBottom', left: 'strokeWidthLeft' };
+export function hasSides(ds) { return SIDES.some((s) => ds[SIDE_KEY[s]] != null); }
+/** 변마다 굵기 { top, right, bottom, left } — 키 없으면 표준 */
+export function readSides(ds, std) { const o = {}; for (const s of SIDES) o[s] = ds[SIDE_KEY[s]] != null ? Math.max(0, num(ds[SIDE_KEY[s]], std)) : std; return o; }
+/** null = 면별 끔(키 다 지움) · 넷 다 표준과 같아도 키 다 지움 */
+export function writeSides(ds, w, std) {
+  const same = !w || SIDES.every((s) => num(w[s], std) === std);
+  for (const s of SIDES) { if (same) delete ds[SIDE_KEY[s]]; else ds[SIDE_KEY[s]] = String(Math.max(0, num(w[s], std))); }
+}
+/** CSS border-width 4값(키 없으면 '') */
+export function cssSideWidths(ds, std) { if (!hasSides(ds)) return ''; const w = readSides(ds, std); return SIDES.map((s) => `${w[s]}px`).join(' '); }
+/** 넷이 다르면 null(Mixed · §1) */
+export function sidesMixed(ds, std) { if (!hasSides(ds)) return false; const w = readSides(ds, std); return !SIDES.every((s) => w[s] === w.top); }
+/* 프레임 보더를 dataset 에서 «다시 쓰는» 곳 셋(save-load 복원 · MCP updateFrame · 템플릿 적용)이 import 없이 부른다 — 하네스가 그 파일들을 단독으로 올리므로 의존을 늘리지 않는다(없으면 ?. 로 옛 동작) */
+if (typeof window !== 'undefined') window.__strokeSideWidthsCss = cssSideWidths;

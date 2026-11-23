@@ -622,6 +622,7 @@ async function insertTemplate(tpl, opts = {}) {
     if (ss.dataset.radius) ss.style.borderRadius = ss.dataset.radius + 'px';
     const bw = parseInt(ss.dataset.borderWidth) || 0;
     if (bw > 0) ss.style.border = `${bw}px ${ss.dataset.borderStyle || 'solid'} ${ss.dataset.borderColor || '#888'}`;
+    { const _sw = bw > 0 ? window.__strokeSideWidthsCss?.(ss.dataset, bw) : ''; if (_sw) ss.style.borderWidth = _sw; }   // 표준 Stroke 4-2 면별 굵기(키 있을 때만 · 없으면 옛 바이트)
 
     _tplReapplyPagePad(targetSec);   // ★E81 — push «앞»
     window.pushHistory?.();

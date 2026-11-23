@@ -6,6 +6,7 @@ import { propPanel } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor,
          wireHexText, parseHex6, formatHex6 } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_STYLES_CSS, STROKE_POP_WHY } from './_stroke-section.js';
+import { hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 /* ★1017a5 — ★배경 크기 칸의 ★현재값·기본값은 js/frame-bg.js 가 정본(⛔사본 금지 · 그 머리말 :22). */
 import { frameBgSize } from '../frame-bg.js';
 import { alignBtn, blockHeaderHTML, overlayToggleBtnHTML, escHtml, rotRowHTML, wireRotRow } from './_helpers.js';
@@ -306,7 +307,8 @@ export function showModalProperties(block) {
          위치 = 칸만 막힘: 모달 테두리는 CSS border(box-sizing:border-box) = 안쪽 · 옛 id(mdl-bw-number · mdl-bc · [data-bs]) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'mdl-stroke', color: borderColor, alpha: parseAlphaFromColor(borderColor), width: borderW, maxWidth: 12, align: 'inside', canAlign: false,
         alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: borderW > 0, widthId: 'mdl-bw-number', colorId: 'mdl-bc',
-        pop: { styles: STROKE_STYLES_CSS, style: borderStyle || 'solid', styleId: 'mdl-border-style', why: STROKE_POP_WHY.css } }),   // 단계 3-1: 옛 «스타일» 단추 셋([data-bs] 실선·점선·점) → ⫶ 팝오버 «스타일» select(값 그대로)
+        pop: { styles: STROKE_STYLES_CSS, style: borderStyle || 'solid', styleId: 'mdl-border-style', why: STROKE_POP_WHY.css },
+        sides: { w: hasSides(block.dataset) ? readSides(block.dataset, borderW) : null, std: borderW, open: hasSides(block.dataset), mixed: sidesMixed(block.dataset, borderW) } }),   // 단계 4-2 □ 면별   // 단계 3-1: 옛 «스타일» 단추 셋([data-bs] 실선·점선·점) → ⫶ 팝오버 «스타일» select(값 그대로)
         { headTools: strokeHeadToolsHTML({ prefix: 'mdl-stroke', on: borderW > 0 }) }),
       sec('effects', `
     <!-- ★그림자 — 현빈 발주 2026-09-09. 줌블럭의 「도형 그림자」와 «같은 하네스»다:
@@ -362,7 +364,8 @@ export function showModalProperties(block) {
   wireColor('mdl-bg', 'bg');
   /* 표준 Stroke 부품 배선 — 어댑터 = 옛 wireColor/wireNum 이 하던 쓰기 그대로(dataset.borderColor·borderW · rerender · commit) · 없음 = borderW 0 */
   wireStrokeSection({ prefix: 'mdl-stroke', alpha: parseAlphaFromColor(block.dataset.borderColor || ''), maxWidth: 12, widthId: 'mdl-bw-number', colorId: 'mdl-bc', onWidth: 2,
-    adapter: { color: (c) => { block.dataset.borderColor = c; rerender(); }, width: (v) => { block.dataset.borderW = String(v); rerender(); }, commit } });
+    adapter: { color: (c) => { block.dataset.borderColor = c; rerender(); }, width: (v) => { block.dataset.borderW = String(v); rerender(); }, commit,
+      sides: { read: () => { const sd = Number(block.dataset.borderW) || 0; return hasSides(block.dataset) ? readSides(block.dataset, sd) : null; }, write: (o) => { writeSides(block.dataset, o, Number(block.dataset.borderW) || 0); rerender(); }, std: () => Number(block.dataset.borderW) || 0 } } });
   if (isIcon && !isRaster) wireColor('mdl-ic', 'iconColor');
 
   /* ── 배경이미지(1017a5) — ★★꼴은 prop-frame.js:833~901 을 ★본으로(발주서 design_refs).

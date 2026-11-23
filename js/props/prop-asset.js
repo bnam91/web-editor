@@ -1,6 +1,7 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor, swatchHex } from './color-picker.js';
 import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY } from './_stroke-section.js';
+import { hasSides, readSides, writeSides, cssSideWidths, sidesMixed } from '../stroke-look.js';
 import { alignBtn, overlayToggleBtnHTML, blockHeaderHTML, animGifBtnHTML, wireAnimGifBtn } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { posElOf, wireFloatToggle, wireFloatPosition, floatPositionRowHTML } from '../overlay-float.js';
@@ -267,7 +268,7 @@ export function showAssetProperties(ab) {
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 옛 1120b A2 꼴(머리 ＋ · 꺼지면 몸 숨김 · 켜면 2)은 부품이 그대로 잇는다.
          위치 = 칸만 막힘: 에셋 테두리는 CSS border(전역 box-sizing:border-box) = 안쪽 · 옛 id(asset-stroke-controls·-on·-num·-color) 지킴 */
       sec('stroke', strokeSectionHTML({ prefix: 'asset-stroke', pop: { why: STROKE_POP_WHY.css, styleWhy: STROKE_POP_WHY.soon }, color: currentStrokeColor, alpha: currentStrokeAlpha, width: currentStrokeWidth, maxWidth: 20,
-        align: 'inside', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: currentStrokeWidth > 0, bodyId: 'asset-stroke-controls', widthId: 'asset-stroke-num' }),
+        align: 'inside', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 안쪽', on: currentStrokeWidth > 0, bodyId: 'asset-stroke-controls', widthId: 'asset-stroke-num' , sides: { w: hasSides(ab.dataset) ? readSides(ab.dataset, currentStrokeWidth) : null, std: currentStrokeWidth, open: hasSides(ab.dataset), mixed: sidesMixed(ab.dataset, currentStrokeWidth) } }),
         { id: 'asset-stroke-section', headTools: strokeHeadToolsHTML({ prefix: 'asset-stroke', on: currentStrokeWidth > 0 }) }),
       /* 효과 목록(1120b A4 — 옛 「텍스트 막」 줄 걷음) */
       sec('effects', _fx?.body || '', { headTools: _fx?.headTools || '', id: _fx?.id }),
@@ -605,7 +606,7 @@ export function showAssetProperties(ab) {
     ab.dataset.strokeWidth = String(v);
     if (v > 0) {
       ab.style.borderStyle = 'solid';
-      ab.style.borderWidth = v + 'px';
+      ab.style.borderWidth = cssSideWidths(ab.dataset, v) || (v + 'px');   // 단계 4-2 면별(키 있을 때만 4값 · 없으면 옛 바이트)
       ab.style.borderColor = ab.dataset.strokeColor || '#000000';
     } else {
       ab.style.border = '';
@@ -618,7 +619,7 @@ export function showAssetProperties(ab) {
   if ((parseInt(ab.dataset.strokeWidth) || 0) > 0) applyAssetBorder(parseInt(ab.dataset.strokeWidth));
   /* 표준 Stroke 부품 배선 — 어댑터 = 위 applyAssetBorder/applyAssetStrokeColor 그대로(저장 키 strokeWidth·strokeColor 무변) · 없음 = 굵기 0 · 켜면 2(옛 1120b A2) */
   wireStrokeSection({ prefix: 'asset-stroke', alpha: currentStrokeAlpha, maxWidth: 20, widthId: 'asset-stroke-num', onWidth: 2,
-    adapter: { color: (c) => applyAssetStrokeColor(c), width: (v) => applyAssetBorder(v), commit: () => window.pushHistory?.() } });
+    adapter: { color: (c) => applyAssetStrokeColor(c), width: (v) => applyAssetBorder(v), commit: () => window.pushHistory?.() , sides: { read: () => { const sd = parseInt(ab.dataset.strokeWidth) || 0; return hasSides(ab.dataset) ? readSides(ab.dataset, sd) : null; }, write: (o) => { writeSides(ab.dataset, o, parseInt(ab.dataset.strokeWidth) || 0); applyAssetBorder(parseInt(ab.dataset.strokeWidth) || 0); }, std: () => parseInt(ab.dataset.strokeWidth) || 0 } } });
 
   if (hasImage) {
     document.getElementById('asset-fit-group').addEventListener('click', e => {

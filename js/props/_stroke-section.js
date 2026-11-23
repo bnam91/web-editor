@@ -29,10 +29,11 @@ export const STROKE_ALIGNS = Object.freeze([['inside', '안쪽'], ['center', '�
  * @param {boolean} [o.on]      false = 테두리 없음(머리 ＋ · 몸 숨김) — 머리 단추는 strokeHeadToolsHTML
  * @param {string} [o.colorHtml]  이미 만든 색 칸(부르는 쪽 기본값·알파 규칙 그대로 · 텍스트/인용구 · '' = 빈 줄 그대로) — null 이면 color·alpha 로 만든다
  * @param {number} [o.step] · [o.minWidth]  굵기 걸음·하한(radial 0.5 · sticker-text 0.5 — 지디 261123)
+ * @param {object} [o.sides]   단계 4-2 면별 굵기 { w:{top,right,bottom,left}|null, std, open, mixed } — □ 단추 + «면별» 슬롯 · 어댑터 adapter.sides
  * @param {object} [o.pop]     ⫶ «Stroke 설정» 팝오버(단계 3 · §4c ②b) — strokePopHTML 인자(styles·style·styleId·why)
  * @param {string} [o.bodyId] · [o.widthId] · [o.colorId]  그 블럭이 옛부터 쓰던 id 를 지킬 때(시험·외부 배선이 그 id 로 찾는다 · 없으면 prefix 기본)
  */
-export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0, colorHtml = null, pop = null }) {
+export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0, colorHtml = null, pop = null, sides = null }) {
   const colorField = (colorHtml != null ? colorHtml : colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha }))
     .replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="stroke-color"');
   const blocked = canAlign ? '' : ` aria-disabled="true" tabindex="0" title="${alignWhy}"`;
@@ -42,9 +43,9 @@ export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, 
           <div class="prop-color-row ui-s2-layer">${colorField}</div>
           <div class="ui-s2-main prop-row">
             <div class="ui-s2-cell"><span>위치</span><select class="prop-select" id="${prefix}-align" data-part="select" data-field="stroke-align" aria-label="위치"${blocked}>${STROKE_ALIGNS.map(([v, t]) => `<option value="${v}"${v === align ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
-            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="${minWidth}" max="${maxWidth}" step="${step}" value="${width}" aria-label="굵기"></div></div>${pop ? strokePopHTML({ prefix, ...pop }) : ''}
+            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="${minWidth}" max="${maxWidth}" step="${step}" value="${sides?.mixed ? '' : width}"${sides?.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="굵기"></div></div>${pop ? strokePopHTML({ prefix, ...pop }) : ''}${sides ? `<button type="button" class="prop-chain-btn ui-stroke-sides-btn" id="${prefix}-sides-btn" aria-pressed="${!!sides.open}" aria-controls="${prefix}-sides" aria-label="면별 굵기" title="면별 굵기">${SIDES_ICON}</button>` : ''}
           </div>
-        </div>${slotsBelow}
+        </div>${sides ? sidesSlotHTML({ prefix, ...sides }) : ''}${slotsBelow}
       </div>`;
 }
 
@@ -150,6 +151,7 @@ export function wireStrokePopover({ prefix, adapter = null }) {
 /** 배선 — 색(color-picker 한 벌) · 굵기(입력 = 쓰기 · change = 이력 한 칸 · push-after) · 위치(막힘이면 안 열림·안 바뀜). */
 export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, widthId = '', colorId = '', onWidth = 2, step = 1, minWidth = 0 }) {
   wireStrokePopover({ prefix, adapter });
+  wireSides({ prefix, adapter, widthId });
   const num = (v) => { const x = Math.round((parseFloat(v) || 0) / step) * step; return Math.min(maxWidth, Math.max(minWidth, +x.toFixed(3))); };   // 0.5 걸음도 같은 길(parseInt 면 2.5 → 2)
   wireColorField(colorId || `${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
   const w = document.getElementById(widthId || `${prefix}-width`);
@@ -227,4 +229,64 @@ export function wireEdgeSelect({ prefix, groupId = '', edges, links = [], read, 
     else set = new Set(PRESET_SET[b.dataset.edgePreset].filter((e) => ed.includes(e)));
     write(set); paint(set); commit?.();
   });
+}
+
+/* ══ 단계 4-2 — 면별 굵기(§4c ②b «사용자» · 시안 strokestd2 23) ═══════════════════════════════
+ * □ 단추(표준 줄 끝 · 슬롯 열고 닫기만 · 데이터 0) + «면별» 슬롯: 묶음 모두/없음/사용자 + 변 넷 켬(0 ↔ 표준) + 사용자 = 굵기 칸 넷(data-field=stroke-width-<변>)
+ * 표준 «굵기» 칸 = 넷이 같으면 그 값 · 다르면 Mixed(§1) · 표준 칸에 치면 넷 다 그 값(면별 키 지움 — Figma 와 같음)
+ * 어댑터 adapter.sides = { read() → {top,right,bottom,left}|null(면별 아님) , write(obj|null), std() → 표준 굵기 } · 그리기·저장 키는 블럭 몫 */
+const SIDES_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="1.5" width="9" height="9"/><rect x="4" y="4" width="4" height="4" stroke-opacity=".5"/></svg>';
+const SIDE_LABEL = { top: '위', right: '오른쪽', bottom: '아래', left: '왼쪽' };
+const SIDE_NAMES = ['top', 'right', 'bottom', 'left'];
+const _even = (std) => ({ top: std, right: std, bottom: std, left: std });
+export function sidesSlotHTML({ prefix, w = null, std = 0, open = false }) {
+  const ww = w || _even(std), custom = !!w;
+  const btn = (key, kind, active, label, icon) => `<button type="button" class="prop-type-btn ui-edge-btn${active ? ' active' : ''}" ${kind}="${key}" aria-pressed="${active}" aria-label="${label}" title="${label}">${icon}</button>`;
+  const presets = [['all', '모두', EDGE_ICON.outer, !custom && std > 0], ['none', '없음', EDGE_ICON.none, custom && SIDE_NAMES.every((s) => ww[s] === 0)], ['custom', '사용자', SIDES_ICON, custom]]
+    .map(([k, l, i, a]) => btn(k, 'data-edge-preset', a, l, i)).join('');
+  const edges = SIDE_NAMES.map((s) => btn(s, 'data-stroke-edge', ww[s] > 0, SIDE_LABEL[s], EDGE_ICON[s])).join('');
+  const nums = SIDE_NAMES.map((s) => `<div class="prop-icon-input" data-part="number" data-field="stroke-width-${s}"><span class="prop-xy-label" title="${SIDE_LABEL[s]}">${EDGE_ICON[s]}</span><input type="number" id="${prefix}-w-${s}" min="0" max="80" value="${ww[s]}" aria-label="${SIDE_LABEL[s]} 굵기"></div>`).join('');
+  return `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="edge-select" id="${prefix}-sides"${open ? '' : ' hidden'}>
+        <div class="prop-row"><span class="prop-label">면별</span></div>
+        <div class="ui-edge-grid" id="${prefix}-sides-edges" role="group" aria-label="면별 변" data-field="stroke-edges" data-value="${SIDE_NAMES.filter((s) => ww[s] > 0).join(',')}">
+          <div class="ui-edge-row">${presets}</div><div class="ui-edge-row">${edges}</div>
+        </div>
+        <div class="ui-side-widths"${custom ? '' : ' hidden'}>${nums}</div>
+      </div>`;
+}
+export function wireSides({ prefix, adapter, widthId = '' }) {
+  const S = adapter?.sides; if (!S) return;
+  const slot = document.getElementById(`${prefix}-sides`), btn = document.getElementById(`${prefix}-sides-btn`), g = document.getElementById(`${prefix}-sides-edges`);
+  const wIn = document.getElementById(widthId || `${prefix}-width`);
+  if (!slot || !g) return;
+  const paint = () => {
+    const w = S.read(), std = S.std(), ww = w || _even(std);
+    g.dataset.value = SIDE_NAMES.filter((s) => ww[s] > 0).join(',');
+    g.querySelectorAll('[data-stroke-edge]').forEach((b) => { const a = ww[b.dataset.strokeEdge] > 0; b.classList.toggle('active', a); b.setAttribute('aria-pressed', String(a)); });
+    const pa = { all: !w && std > 0, none: !!w && SIDE_NAMES.every((s) => ww[s] === 0), custom: !!w };
+    g.querySelectorAll('[data-edge-preset]').forEach((b) => { const a = !!pa[b.dataset.edgePreset]; b.classList.toggle('active', a); b.setAttribute('aria-pressed', String(a)); });
+    slot.querySelector('.ui-side-widths').hidden = !w;
+    for (const s of SIDE_NAMES) { const i = document.getElementById(`${prefix}-w-${s}`); if (i && document.activeElement !== i) i.value = String(ww[s]); }
+    const mixed = !!w && !SIDE_NAMES.every((s) => ww[s] === ww.top);
+    if (wIn && document.activeElement !== wIn) { wIn.value = mixed ? '' : String(w ? ww.top : std); wIn.placeholder = mixed ? 'Mixed' : ''; if (mixed) wIn.setAttribute('data-empty', 'invalid'); else wIn.removeAttribute('data-empty'); }
+  };
+  const put = (w, commit = true) => { S.write(w); paint(); if (commit) adapter.commit?.(); };
+  btn?.addEventListener('click', () => { slot.hidden = !slot.hidden; btn.setAttribute('aria-pressed', String(!slot.hidden)); });
+  g.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-stroke-edge],[data-edge-preset]'); if (!b) return;
+    const std = S.std() || 1, cur = S.read() || _even(S.std());
+    if (b.dataset.strokeEdge) { const k = b.dataset.strokeEdge; put({ ...cur, [k]: cur[k] > 0 ? 0 : std }); }
+    else if (b.dataset.edgePreset === 'all') put(null);
+    else if (b.dataset.edgePreset === 'none') put({ top: 0, right: 0, bottom: 0, left: 0 });
+    else slot.querySelector('.ui-side-widths').hidden = false;   // 사용자 = 칸 넷 열기(값은 칸에 치는 순간 씀 · 아직 같으면 키 0)
+  });
+  for (const s of SIDE_NAMES) {
+    const i = document.getElementById(`${prefix}-w-${s}`); if (!i) continue;
+    const val = () => ({ ...(S.read() || _even(S.std())), [s]: Math.max(0, Math.min(80, parseInt(i.value, 10) || 0)) });
+    i.addEventListener('input', () => put(val(), false));
+    i.addEventListener('change', () => put(val()));
+  }
+  /* 표준 «굵기» 칸에 치면 넷 다 그 값(면별 키 지움) — 표준 칸 input 보다 «먼저»(capture) · 같은 칸 change 의 commit 이 한 칸으로 묶는다 */
+  wIn?.addEventListener('input', () => { if (S.read() && wIn.value !== '') { S.write(null); paint(); } }, true);
+  wIn?.addEventListener('change', () => paint());
 }

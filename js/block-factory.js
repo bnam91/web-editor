@@ -6961,6 +6961,7 @@ function updateFrameBlock(blockId, partial = {}) {
     const s = block.dataset.borderStyle || 'solid';
     const c = block.dataset.borderColor || '#888888';
     block.style.border = w > 0 ? `${w}px ${s} ${c}` : '';
+    { const _sw = w > 0 ? window.__strokeSideWidthsCss?.(block.dataset, w) : ''; if (_sw) block.style.borderWidth = _sw; }   // 표준 Stroke 4-2 면별 굵기(키 있을 때만)
   }
 
   // 7) Child align (flex) — alignItems(horizontal) / justifyContent(vertical for column flex)
