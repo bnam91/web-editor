@@ -36,7 +36,7 @@ async function renameSection(page, secId, name) {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 async function addThumbByName(page) {
-  const id = await page.evaluate(() => { window.deselectAll?.(); const s = window.addSection(); s.id = s.id || 'secYt'; return s.id; });
+  const id = await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; window.deselectAll?.(); const s = window.addSection(); s.id = s.id || 'secYt'; return s.id; });   // 관리자만(지디 261123)
   await renameSection(page, id, 'ytb_썸네일');
   await expect.poll(() => thumbInfo(page), { message: '이름 ytb_ 로 바꿨는데 썸네일 섹션이 안 됐다' }).not.toBeNull();
   return id;
