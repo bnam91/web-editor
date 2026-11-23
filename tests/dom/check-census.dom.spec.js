@@ -70,7 +70,7 @@ const count = (page) => page.evaluate((HP) => {
 }, HEAD_PLUS);
 
 test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async ({ page }) => {
-  test.setTimeout(900000);
+  test.setTimeout(2400000);   // 느린 맥(수지맥 16분 판) 여유 — 상태마다 조건 대기라 빠른 맥은 그대로 빨리 끝남
   await page.setViewportSize({ width: 1500, height: 1100 });
   await bootApp(page);
   const rows = []; const errs = [];
@@ -82,7 +82,7 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         await page.evaluate(() => { window.addSection(); });
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });
         await page.evaluate((a) => { (0, eval)(a); }, add.replace('${ICON_SVG}', ICON_SVG));
-        await page.waitForFunction((e) => (0, eval)(e).length > 0, newOf(cls), { timeout: 8000 });
+        await page.waitForFunction((e) => (0, eval)(e).length > 0, newOf(cls), { timeout: 60000 });
         await page.evaluate((e) => { window.__ccT = (0, eval)(e)[0]; window.deselectAll?.(); }, newOf(cls));
         await clickEl(page, 'window.__ccT');
       } else if (nn === '70' || nn === '71' || nn === '74') {
@@ -108,7 +108,10 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
       } else if (nn === '75') {
         await page.evaluate(() => window.deselectAll?.());
       }
-      await page.waitForTimeout(250);
+      /* ★고정 시간 대신 «조건 대기»(지디 261123 — 수지맥 16분 판에서 장면이 시간 안에 못 끝나 못 엶 4) — 패널 HTML 이 rAF 두 번 연속 같을 때까지 */
+      await expect.poll(async () => { const a = await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => res(document.getElementById('panel-right').innerHTML))));
+        const b = await page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(document.getElementById('panel-right').innerHTML)))));
+        return a === b && a.length > 0; }, { timeout: 60000, message: nn + ' 패널이 안 멈춘다' }).toBe(true);
       const c = await count(page);
       rows.push({ nn, name, mock: MOCK[nn] || 0, app: c.vis, head: c.head });
     } catch (e) { errs.push(nn + ' ' + name + ': ' + String(e.message).slice(0, 160)); rows.push({ nn, name, mock: MOCK[nn] || 0, app: null, head: null }); }
