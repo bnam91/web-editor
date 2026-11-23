@@ -33,7 +33,7 @@ import { _applyOverlayPos, posElOf as _posElOf, _elasticAxis, OVERLAY_RESIST_ZON
 /* ★에셋 폭 하한도 «패널과 같은 수»를 본다 — 여기 100 을 다시 적으면 패널만 60 으로 내려가고
    핸들은 100 에서 막아, 60px 블럭을 1px 만 끌어도 다시 100 으로 올라앉는다(T-075 ㉠).
    asset-width-limits.js 는 import 가 없는 «잎» 모듈이라 순환 걱정도 없다. */
-import { ASSET_W_MIN } from './blocks/asset-width-limits.js';
+import { ASSET_W_MIN, assetRadiusMax } from './blocks/asset-width-limits.js';
 import { CVB_H_MIN, CVB_H_MAX } from './blocks/card-limits.js';   // t5-16 카드 행 끌기 clamp = updateCanvasBlock 의 자(⛔그리드 행 높이와 다른 물건)
 
 /* ═══════════════════════════════════
@@ -967,7 +967,7 @@ function _onAssetRadiusHandleMouseDown(e, ab, dir) {
                 : dir === 'ne' ? (-dx + dy) / 2
                 : dir === 'sw' ? (dx - dy) / 2
                 : (-dx - dy) / 2;
-    const newR = Math.min(120, Math.max(0, Math.round(startRadius + delta)));
+    const newR = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, Math.round(startRadius + delta)));   // t13F-03 — 패널과 한 자
     ab.style[oneCorner ? cornerProp : 'borderRadius'] = newR + 'px';
     // 프로퍼티 패널 동기화
     const slider = document.getElementById('asset-r-slider');
