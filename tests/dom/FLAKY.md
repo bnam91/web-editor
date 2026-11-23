@@ -446,3 +446,7 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 
 ## 2026-11-23 · 통일판 2맥(아이맥·수지) 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `t13d-02-grid-handles-on-create.dom.spec.js:17` A1 — 2맥(아이맥·수지) 전수(f7bda8bd8) 1/1 빨강 · 앞 판 7b69bcbd5 전수(수지 샤드) 1/1 빨강 · f7bda8bd8 수지 단독 workers 1 ×3 0/3.
+
+## 2026-11-23 · tp/0913-check 묶음 2(srv 좁게) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `cert-block.dom.spec.js:646` IE1 — srv 6 spec 묶음 workers 1 · retries 1(판 3bd41ee18 작업트리) 첫 시도 빨강 1/1 · 재시도 초록.
+- `cert-block.dom.spec.js:688` RH1 — 같은 판 · 같은 묶음 첫 시도 빨강 1/1 · 재시도 초록.
