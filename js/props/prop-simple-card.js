@@ -1,7 +1,7 @@
 // prop-simple-card.js
 // prop-canvas.js에서 분리: 심플 카드 블록 프로퍼티 패널 (showSimpleCardProperties + _escHtml)
 import { propPanel } from '../globals.js';
-import { blockHeaderHTML, discSecOpen, discSecToggle, wireDisclosureSection, disclosureSectionHtml } from './_helpers.js';
+import { blockHeaderHTML, discSecOpen, discSecToggle, wireDisclosureSection, disclosureSectionHtml, checkHTML, wireCheck } from './_helpers.js';
 import { renderPanel, sec, expandSection } from './_panel-frame.js';
 /* 색 코드 칸의 배선은 «한 자리»에서 온다 — 이 파일 안에만 손복사본이 여섯 벌 있었다
    (input/blur 가 아예 없어 무효값이 영원히 남던 사본 포함). 2026-09-20 유닛 colorhex. */
@@ -310,11 +310,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <div class="grid-picker-label" id="cvb-grid-picker-label">—</div>
       </div>
       <div class="prop-row">
-        <span class="prop-label">이미지 배경</span>
-        <label class="prop-toggle" style="${imgBgLocked ? 'opacity:0.35;pointer-events:none;' : ''}">
-          <input type="checkbox" id="cvb-imgbg-toggle" ${imgBgOn ? 'checked' : ''} ${imgBgLocked ? 'disabled' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'cvb-imgbg-toggle', label: '이미지 배경', checked: imgBgOn, blockedWhy: imgBgLocked ? (isLandscape ? '가로(landscape) 카드는 아직 지원하지 않습니다' : '「숨김」 모드는 이미 이미지가 카드 전체를 덮습니다') : '' })}   <!-- 막힘 = aria-disabled + 까닭 툴팁(태양 §2c · 옛 disabled+흐림) -->
       </div>
       <div class="prop-hint" style="margin-top:2px;">${
         isLandscape ? '가로(landscape) 카드는 아직 지원하지 않습니다'
@@ -406,11 +402,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="number" class="prop-number" id="cvb-padx-number" min="0" max="80" value="${padX}">
       </div>
       <div class="prop-row" title="켜면 카드가 섹션 좌우 패딩을 무시하고 가장자리까지 확장됩니다">
-        <span class="prop-label">패딩 제외</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="cvb-fullbleed-toggle" ${block.dataset.fullBleed === 'true' ? 'checked' : ''}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        ${checkHTML({ id: 'cvb-fullbleed-toggle', label: '패딩 제외', checked: block.dataset.fullBleed === 'true' })}
       </div>
 `),
       sec('appearance', `
@@ -600,7 +592,7 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
   // ── 이미지 배경 (카드 전체를 이미지로) ────────────────────────────────────────
   // 새 상태를 만들지 않는다 — 켜기=오버레이 모드, 끄기=분리 모드. 「라벨 모드」 세그먼트와
   // «같은» _applyCvbLabelMode 를 부르므로 두 컨트롤이 어긋날 수 없다.
-  const imgBgToggle = document.getElementById('cvb-imgbg-toggle');
+  const imgBgToggle = wireCheck(document.getElementById('cvb-imgbg-toggle'));   // 막힘(aria-disabled)이면 click 을 막는다(옛 disabled 자리 · 태양 §2c)
   imgBgToggle?.addEventListener('change', () => {
     _applyCvbLabelMode(block, imgBgToggle.checked ? 'overlay' : 'separate');
   });
