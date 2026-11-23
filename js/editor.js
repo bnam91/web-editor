@@ -2983,7 +2983,7 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       if (window.scratchLayerOrder?.('up')) { e.preventDefault(); return; }
       e.preventDefault();
-      moveSelectedBlocks('up');
+      moveSelectedBlocks('up', e.shiftKey);
       return;
     }
     if (e.code === 'BracketRight') {
@@ -2991,7 +2991,7 @@ document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
       if (window.scratchLayerOrder?.('down')) { e.preventDefault(); return; }
       e.preventDefault();
-      moveSelectedBlocks('down');
+      moveSelectedBlocks('down', e.shiftKey);
       return;
     }
     // wrapInFrame (기본: ⌘⌥G, IME 처리로 e.key === '©' 도 매칭)
@@ -3289,45 +3289,7 @@ document.addEventListener('keydown', e => {
     deselectAll();
   }
 
-  /* ⚠️이 갈래는 도달하지 않는다 — :2510 metaKey 블록의 :2631/:2639 가 먼저 잡고 return 한다.
-     행위 증거: 히스토리 '레이어 순서'가 앱에서 0회. 실제 이름은 '뒤로 보내기/앞으로 가져오기'.
-     261021 — 지디가 이 갈래를 «살아 있다»고 읽어 a2 발주서 전제를 틀렸다. ⛔지우는 것은 별건(도달 불가 전수 미측정). */
-  // Cmd/Ctrl + [ / ] : free 모드 frame 안의 selected 블록 z-order 변경
-  // Shift 조합 시 맨 앞/뒤로. stack(flow) 모드는 영향 X (free 자식만).
-  if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-    const sel = document.querySelector(
-      '.text-block.selected, .asset-block.selected, .gap-block.selected, ' +
-      '.icon-circle-block.selected, .table-block.selected, .label-group-block.selected, ' +
-      '.graph-block.selected, .divider-block.selected, .bridge-block.selected, .grid-block.selected, .infocard-block.selected, .innercard-block.selected, .modal-block.selected, .qa-block.selected, ' +
-      '.icon-text-block.selected, .canvas-block.selected, .banner02-block.selected, .comparison-block.selected, .mockup-block.selected, ' +
-      '.icon-block.selected, .vector-block.selected, .step-block.selected, .shape-block.selected'
-    );
-    if (!sel) return;
-    // selected의 z-order 단위 = free frame의 직속 자식까지 거슬러 올라간 wrapper
-    const freeFrame = sel.closest('.frame-block[data-free-layout]');
-    if (!freeFrame) return;
-    let wrapper = sel.closest('.row') || sel;
-    while (wrapper && wrapper.parentElement !== freeFrame) wrapper = wrapper.parentElement;
-    if (!wrapper) return;
-
-    e.preventDefault();
-    window.pushHistory?.('레이어 순서');
-    const forward = e.key === ']';
-    const toEnd = e.shiftKey;
-    if (forward && toEnd) {
-      freeFrame.appendChild(wrapper);                      // 맨 위로
-    } else if (!forward && toEnd) {
-      freeFrame.insertBefore(wrapper, freeFrame.firstChild); // 맨 아래로
-    } else if (forward && wrapper.nextElementSibling) {
-      freeFrame.insertBefore(wrapper.nextElementSibling, wrapper); // 한 단계 위
-    } else if (!forward && wrapper.previousElementSibling) {
-      freeFrame.insertBefore(wrapper, wrapper.previousElementSibling); // 한 단계 아래
-    }
-    window.scheduleAutoSave?.();
-    window.buildLayerPanel?.();
-    return;
-  }
+  /* ⚰️옛 «Cmd/Ctrl + [ / ]» 핸들러(⇧ = 맨 앞/뒤 · 자유 프레임 자식만) — 앞 metaKey 블록이 먼저 잡아 도달 불가였다. IAL-02(0.9.13 187행)에서 걷고 ⇧ 뜻은 moveSelectedBlocks(direction, toEnd) 로 옮겼다. */
 
   /* ★T-102 — 화살표키는 «고른 블럭» 것이다. 예전엔 이 자리가 비어 있어서
      브라우저 기본동작이 #canvas-wrap 을 밀었다 — 방금 고른 것이 화면 밖으로 나갔다.
@@ -4635,7 +4597,9 @@ function deselectAll() {
    블록 순서 이동 — Cmd+[ (위) / Cmd+] (아래)
    이동 단위: section-inner 또는 frame-block 직속 .row / .gap-block
 ═══════════════════════════════════ */
-function moveSelectedBlocks(direction) {
+function moveSelectedBlocks(direction, toEnd = false) {
+  /* ★IAL-02(0.9.13 187행 · 현빈 승인 261122) — toEnd(⇧⌘[ / ⇧⌘]) = 한 칸이 아니라 «끝까지»(맨 뒤로 보내기 / 맨 앞으로 가져오기 · Figma 같은 키).
+     옛 ⇧ 갈래(아래 «도달 불가» 핸들러)는 이 앞 갈래가 먼저 잡아 한 번도 안 돌았다 ⇒ 걷고 이 살아 있는 길 세 갈래(㈎㈏ · 프레임 · 흐름)에 같은 뜻으로. */
   /* ★«겹친 것들»의 레이어 순서 — 현빈 2026-09-30 「겹친 요소 간 레이어 순서 변경(⌘[ , ⌘])」.
    * ══ 왜 여기가 «맨 앞»인가 ════════════════════════════════════════════════
    *   겹치는 블록은 흐름에 없다. 둘 중 하나다 —
@@ -4691,17 +4655,18 @@ function moveSelectedBlocks(direction) {
       const firstIdx = fSibs.indexOf(_stackUnits[0]);
       if (firstIdx <= 0) return;                     // 이미 맨 뒤(가장 아래)
       window.ensureHistoryCheckpoint?.('이동 전');
-      fSibs[firstIdx - 1].before(..._stackUnits);
+      (toEnd ? fSibs[0] : fSibs[firstIdx - 1]).before(..._stackUnits);
     } else {
       const lastIdx = fSibs.indexOf(_stackUnits[_stackUnits.length - 1]);
       if (lastIdx >= fSibs.length - 1) return;        // 이미 맨 앞(가장 위)
       window.ensureHistoryCheckpoint?.('이동 전');
       const marker = document.createComment('mv-stack');
-      fSibs[lastIdx + 1].after(marker);
+      (toEnd ? fSibs[fSibs.length - 1] : fSibs[lastIdx + 1]).after(marker);
       _stackUnits.forEach(u => marker.before(u));
       marker.remove();
     }
-    pushHistory(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');
+    if (!toEnd) pushHistory(direction === 'up' ? '뒤로 보내기' : '앞으로 가져오기');   // 한 칸 이름 = 스크래치 갈래 이름(scratch-layer-order U5 가 이 꼴을 읽는다)
+    else pushHistory(direction === 'up' ? '맨 뒤로 보내기' : '맨 앞으로 가져오기');   // IAL-02 ⇧
     window.buildLayerPanel?.();
     // buildLayerPanel 이 패널을 다시 그린다 — 선택을 되살린다(흐름 갈래와 같은 뒷정리)
     fIds.forEach(id => {
@@ -4737,11 +4702,11 @@ function moveSelectedBlocks(direction) {
     if (direction === 'up') {
       if (idx <= 0) return;
       window.ensureHistoryCheckpoint?.('이동 전');
-      containerItems[idx - 1].before(selFrame);
+      (toEnd ? containerItems[0] : containerItems[idx - 1]).before(selFrame);
     } else {
       if (idx >= containerItems.length - 1) return;
       window.ensureHistoryCheckpoint?.('이동 전');
-      containerItems[idx + 1].after(selFrame);
+      (toEnd ? containerItems[containerItems.length - 1] : containerItems[idx + 1]).after(selFrame);
     }
     pushHistory(direction === 'up' ? '프레임 위로 이동' : '프레임 아래로 이동');
     window.buildLayerPanel?.();
@@ -4797,13 +4762,13 @@ function moveSelectedBlocks(direction) {
     const firstIdx = containerItems.indexOf(units[0]);
     if (firstIdx <= 0) return; // 이미 맨 위
     window.ensureHistoryCheckpoint?.('이동 전');
-    const pivot = containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템
+    const pivot = toEnd ? containerItems[0] : containerItems[firstIdx - 1]; // 선택 그룹 바로 위 아이템(⇧ = 맨 위)
     pivot.before(...units); // pivot 앞에 units 통째로 삽입 (순서 유지)
   } else {
     const lastIdx = containerItems.indexOf(units[units.length - 1]);
     if (lastIdx >= containerItems.length - 1) return; // 이미 맨 아래
     window.ensureHistoryCheckpoint?.('이동 전');
-    const pivot = containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템
+    const pivot = toEnd ? containerItems[containerItems.length - 1] : containerItems[lastIdx + 1]; // 선택 그룹 바로 아래 아이템(⇧ = 맨 아래)
     // pivot 뒤에 units 순서 유지하며 삽입: 마커로 삽입 위치 고정
     const marker = document.createComment('mv');
     pivot.after(marker);

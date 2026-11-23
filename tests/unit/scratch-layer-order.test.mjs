@@ -38,20 +38,16 @@ test('U0 ★moveSelectedBlocks(㈎ 오버레이 · ㈏ 자유배치 프레임 ·
   // 핀 b5148b48 에서 잰 값(손으로 박음) — 길이 8,021 · J4468A 흐름 갈래 BLOCK_SEL 파생으로 다시 잼(㈎㈏ 무변)
   // ★2026-11-09 T906-BRING-FORWARD-BACK-KEY-DEAD-01 — ㈏ 갈래 «단위 판정»을 고쳤다(.row 래퍼 · 깊이 2 부모 프레임 건너뛰기) ⇒ 다시 잼. 스크래치 갈래는 여전히 밖(U1).
   // ★2026-11-12 t2-06 — 흐름 갈래 getUnit 이 row·글상자 중 «가까운 쪽»을 집게 했다(템플릿 프레임 row > 프레임) ⇒ 다시 잼. ㈎㈏ 무변.
-  assert.equal(MOVE.length, 9169, '★moveSelectedBlocks 길이가 바뀌었다 — 스크래치 갈래를 그 안에 넣지 마라');
-  assert.equal(sha(MOVE), '8154273a2e92ceb10ab426700fa98fca1d8551b9e7141e6fccb066a2133a8593',
+  // ★2026-11-24 기대 바뀜 — IAL-02(0.9.13 187행 · 현빈 승인 261122) — ⇧⌘[ ] = 맨 뒤/맨 앞(toEnd) · 도달 불가 옛 ⇧ 핸들러 걷음 ⇒ 다시 잼(스크래치 갈래는 여전히 밖 · ㈎㈏ 판정 무변 · 끝 자리만 toEnd)
+  assert.equal(MOVE.length, 9795, '★moveSelectedBlocks 길이가 바뀌었다 — 스크래치 갈래를 그 안에 넣지 마라');
+  assert.equal(sha(MOVE), '6ca4031c00dbc746ca1ec05dadb1a1610450fe13dbe1c77326078c653161a11c',
     '★moveSelectedBlocks 가 바뀌었다 — ㈎㈏ 는 손대지 않는 약속이다');
 });
 
-test('U0b ⛔죽은 «Cmd/Ctrl + [ / ]» 핸들러 몸 무접촉 — 남기고 비석만 단다 (판정 ⑸)', () => {
-  const DEAD = sliceBlock(ED, "if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']'))");
-  assert.equal(DEAD.length, 1872);
-  assert.equal(sha(DEAD), '9a169c6f84b1fe75ce2b47c2d59201e2c3b793561961efa790fe82b7d5d7622f',
-    '★죽은 핸들러 몸이 바뀌었다 — 지우는 것은 별건');
-  const at = ED.indexOf("if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']'))");
-  const above = ED.slice(Math.max(0, at - 600), at);
-  assert.match(above, /⚠️이 갈래는 도달하지 않는다/, '★비석이 없다');
-  // ⛔비석의 줄번호(:2510 등)는 단언하지 않는다 — editor.js 위쪽 한 줄만 늘어도 남의 일이 빨개진다(history.js 「줄번호로 가리키지 않는다」).
+test('U0b ★옛 «Cmd/Ctrl + [ / ]» 핸들러(도달 불가)는 걷혔고 비석만 남는다 — IAL-02(0.9.13 187행 · 현빈 승인 261122) — ⇧⌘[ ] = 맨 뒤/맨 앞(toEnd) · 도달 불가 옛 ⇧ 핸들러 걷음', () => {
+  assert.equal(ED.indexOf("if ((e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']'))"), -1, '★도달 불가 핸들러가 되살아났다(⇧ 뜻은 moveSelectedBlocks toEnd 로 옮김)');
+  assert.match(ED, /⚰️옛 «Cmd\/Ctrl \+ \[ \/ \]» 핸들러/, '★걷은 자리 비석이 없다');
+  assert.match(sliceBlock(ED, 'function moveSelectedBlocks('), /function moveSelectedBlocks\(direction, toEnd = false\)/, '★toEnd 인자가 없다');
 });
 
 test('U1 ★⌘[ / ⌘] 갈래가 가드 뒤 · moveSelectedBlocks 앞에서 window.scratchLayerOrder 에 먼저 묻는다', () => {
@@ -60,7 +56,7 @@ test('U1 ★⌘[ / ⌘] 갈래가 가드 뒤 · moveSelectedBlocks 앞에서 win
   const br = ED.indexOf("if (e.code === 'BracketRight') {");
   assert.ok(meta > 0 && bl > meta && br > bl, '★대괄호 갈래를 못 찾았다');
   for (const [at, dir] of [[bl, 'up'], [br, 'down']]) {
-    const end = ED.indexOf(`moveSelectedBlocks('${dir}')`, at);
+    const end = ED.indexOf(`moveSelectedBlocks('${dir}'`, at);   // IAL-02 — 둘째 인자(e.shiftKey)가 붙어 닫는 괄호 없이 찾는다
     const seg = ED.slice(at, end);
     const ask = seg.indexOf(`if (window.scratchLayerOrder?.('${dir}')) { e.preventDefault(); return; }`);
     assert.ok(ask > 0, `★${dir} 갈래에 스크래치 양보 줄이 없다`);
