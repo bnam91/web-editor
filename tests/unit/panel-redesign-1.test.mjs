@@ -45,7 +45,10 @@ test('R11 #txt-align-group · #txt-style-group 켜짐 = border-mid 바탕 · bor
   assert.match(m[1], /border-color:\s*var\(--ui-border-strong\)/);
   assert.match(m[1], /color:\s*var\(--ui-text\)/);
   assert.doesNotMatch(m[1], /#[0-9a-f]{3,8}\b|accent/i, '★리터럴 색·파란 채움');
-  assert.match(props, /\.prop-align-btn\.active\s*\{[^}]*--ui-accent-primary/, '[대조] 다른 묶음의 파란 켜짐은 그대로');
+  /* ★기대 바뀜(현빈 261123 — 정렬·서식 켜짐 = 회색 «공용» · 진짜 켬/끔[외곽선 변·반전]만 파랑) — 옛 대조 «다른 묶음 파란 켜짐 그대로» 걷음 */
+  assert.match(props, /\.prop-align-btn\.active\s*\{[^}]*--ui-sel-neutral-on-bg/, '★정렬 묶음 공용 켜짐 = 중립 토큰');
+  assert.match(props, /\.prop-style-btn\.active\s*\{[^}]*--ui-sel-neutral-on-bg/, '★서식 공용 켜짐 = 중립 토큰');
+  assert.match(props, /\.prop-align-btn\[data-outline-side\]\.active,\s*\.prop-rot-row \.prop-align-btn\.active\s*\{[^}]*--ui-accent-primary/, '★진짜 켬/끔(외곽선 변·반전)은 파랑');
 });
 
 /* ⑩ 텍스트 패널 «Font»·«글자색» 라벨 글 걷음 — 칸은 그대로 · 이름은 aria-label. 다른 패널(모달·그리드)은 기본 인자 = 라벨 그대로.
