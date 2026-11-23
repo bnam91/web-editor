@@ -174,6 +174,7 @@ const FRAME_DEPS = [
   ..._FRAME_MISSING.filter((n) => OF.includes(`export function ${n}(`))
     .map((n) => sliceBlock(OF, `export function ${n}(`, `★조각이 부르는 외부 이름 — ${n}`)),
   ...(_FRAME_MISSING.includes('_applyOverlayPos') ? [sliceBlock(OF, 'function _syncPanelXY(', '★_applyOverlayPos 가 부르는 같은 파일 함수')] : []),
+  ...(_FRAME_MISSING.includes('_applyOverlayPos') ? [sliceBlock(OF, 'function _secClip(', '★_applyOverlayPos 가 부르는 같은 파일 함수(t13E-07 섹션 밖 크롭 · 열차 train/0913-a 전수 T1c «_secClip is not defined» = 하네스가 안 떼어 줌 · 제품은 한 모듈 안이라 정상)')] : []),
   ..._OH_LOCAL_MISSING.map((n) => sliceBlock(OH, `export function ${n}(`, `★조각이 부르는 같은 파일 함수 — ${n}`)),
   ..._OH_PLAIN_DEPS,
 ].join('\n').replace(/^export /gm, '');                                          // 일반 script 라 export 를 뗀다

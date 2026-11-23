@@ -243,8 +243,11 @@ function renderVector(block) {
 
   /* SVG 자체에 width/height 100% 강제 — 뿌리 덮어쓰기(opts.root)로. color = currentColor 가 풀릴 값.
      ★색 치환 «뒤»에 한 번 더 거른다: data-color 도 저장본에서 오는 값이라 `"><image onerror…` 가 치환으로 다시 끼어들 수 있다. */
+  /* S2(VISUAL-SVG-LIGHT-AUDIT-01 ② · 현빈 261123) — 들여온 SVG(피그마 «Copy as SVG» 꼴 clip0_… 등) 벡터가 둘이면 같은 id 가 문서에 둘 → 뒤 벡터의 url(#…) 가 앞 벡터 틀·칠을 잡았다
+     (실측: QA 샘플 35·39 둘 다 clip0_1_2 — 39 원이 35 둥근 네모로 잘림). ⇒ 그리는 한 자리에서 블럭 id 접두(마킹 mk-·아이콘 스티커 stk- 선례 꼴) · id 가 있을 때만 · 저장 data-svg 는 무변. */
+  const _vbid = /\bid\s*=/i.test(processed) ? String(block.id || '').replace(/[^A-Za-z0-9_-]/g, '') : '';
   inner.innerHTML = processed
-    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: rootOv })   // cand16: dev 늘이기 뿌리 + p2 color(rootOv 에 color 포함)
+    ? sanitizeSvgString(processed, { maxLen: SVG_MAX_LEN_CEIL, root: rootOv, ...(_vbid ? { idPrefix: `vb-${_vbid}-` } : {}) })   // cand16: dev 늘이기 뿌리 + p2 color(rootOv 에 color 포함)
     : '';
 
 }

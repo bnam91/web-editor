@@ -28,7 +28,7 @@ async function setup(page) {
     const c = document.getElementById('canvas');
     c.querySelectorAll('.section-block').forEach(s => s.remove());
     c.insertAdjacentHTML('beforeend', sec);
-    window.rebindAll?.(); window.applyZoom?.(100);
+    window.rebindAll?.(); window.applyZoom?.(100); document.getElementById('sB').style.minHeight = '420px';   // ★전제 바뀜(현빈 261123 t13E-07 Clip content 기본 켬 · ⓐ 확정): 띄우면 흐름에서 빠져 섹션이 40px 로 줄고 블럭(239)이 거의 다 섹션 밖 = 잘림 → F4 끌기 잡는 점이 빈 곳(실측 · 열차 전수)
     window.deselectAll?.(); window.selectSection(document.getElementById('sB'));
     (0, eval)(mk);
     window.__blk = [...document.querySelectorAll('#sB .comparison-block')].pop();

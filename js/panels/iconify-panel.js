@@ -343,13 +343,11 @@ function _renderGrid(icons) {
   if (!icons.length) { _setGridMessage('검색 결과가 없습니다.'); return; }
 
   grid.innerHTML = icons.map(name => {
-    const [prefix, iconName] = name.split(':');
-    const svgUrl = `${ICONIFY_API}/${prefix}/${iconName}.svg`;
     const hit = _ICONIFY_BODY.get(name);
-    /* 이미 몸통을 아는 것은 인라인으로, 모르는 것은 <img> 로 두고 아래에서 채운다. */
-    const inner = hit
-      ? `<svg viewBox="0 0 ${hit.w} ${hit.h}" width="24" height="24" style="color:#bfbfbf;pointer-events:none;">${hit.body}</svg>`
-      : `<img src="${_escAttr(svgUrl)}" width="24" height="24" style="filter:invert(0.75);pointer-events:none;" loading="lazy" alt="${_escAttr(name)}">`;
+    /* 이미 몸통을 아는 것은 인라인으로, 모르는 것은 «빈 칸»으로 두고 아래 묶음이 채운다.
+       ★t13E-01·02(현빈 261122) — 옛 판은 모르는 칸마다 낱개 <img src> 를 «먼저» 쏴(보이는 칸 수십 개) 묶음이 오기 전에 속도 제한(429)을 다시 불렀고,
+       그 뒤 고른 미리보기·삽입(낱개 svg)이 깨졌다. ⇒ 낱개 <img> 는 «묶음이 못 준 칸만» _fillPreviews 끝에서(폴백은 그대로 · 서버가 회복되면 저절로). */
+    const inner = hit ? _cellSvg(hit) : '';
     return `
       <div class="iconify-icon-cell" data-icon-name="${_escAttr(name)}"
         style="aspect-ratio:1;background:#111;border:1px solid #222;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color 0.1s,background 0.1s;"
@@ -359,11 +357,12 @@ function _renderGrid(icons) {
     `;
   }).join('');
 
-  _fillPreviews(icons, grid);
+  _fillPreviews(icons, grid, ++_gridGen);
 }
+let _gridGen = 0;   // 늦게 끝난 옛 검색의 채우기가 새 격자 빈 칸에 낱개 <img> 를 먼저 쏘지 않게
 
 /** 세트별로 묶어 몸통을 받아 와 «인라인 svg» 로 갈아 끼운다. 실패하면 <img> 가 그대로 남는다. */
-async function _fillPreviews(icons, grid) {
+async function _fillPreviews(icons, grid, gen) {
   const bySet = new Map();
   for (const full of icons) {
     if (_ICONIFY_BODY.has(full)) continue;
@@ -397,14 +396,22 @@ async function _fillPreviews(icons, grid) {
     } catch { /* 폴백 유지 */ }
   }));
 
-  /* 받은 것만 갈아 끼운다 — 격자를 다시 그리지 않는다(선택 상태·스크롤이 날아간다). */
+  /* 받은 것만 갈아 끼운다 — 격자를 다시 그리지 않는다(선택 상태·스크롤이 날아간다). 못 받은 칸 = 낱개 <img> 폴백. */
+  if (gen !== _gridGen) return;
   for (const cell of grid.querySelectorAll('.iconify-icon-cell')) {
     const full = cell.dataset.iconName;
+    if (cell.querySelector('svg, img')) continue;
     const hit = _ICONIFY_BODY.get(full);
-    if (!hit || cell.querySelector('svg')) continue;
-    cell.innerHTML = `<svg viewBox="0 0 ${hit.w} ${hit.h}" width="24" height="24" style="color:#bfbfbf;pointer-events:none;">${hit.body}</svg>`;
+    cell.innerHTML = hit ? _cellSvg(hit) : _imgFallback(full, 24, 0.75);
   }
 }
+const _cellSvg = (hit) => `<svg viewBox="0 0 ${hit.w} ${hit.h}" width="24" height="24" style="color:#bfbfbf;pointer-events:none;">${hit.body}</svg>`;
+function _imgFallback(full, px, inv) {
+  const [prefix, iconName] = String(full).split(':');
+  return `<img src="${_escAttr(`${ICONIFY_API}/${prefix}/${iconName}.svg`)}" width="${px}" height="${px}" style="filter:invert(${inv});pointer-events:none;" loading="lazy" alt="${_escAttr(full)}">`;
+}
+/** 묶음으로 받은 몸통 → API 낱개 svg 와 같은 꼴(삽입·미리보기가 낱개 요청 없이 · t13E-02) */
+const _bodySvg = (hit) => `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 ${hit.w} ${hit.h}">${hit.body}</svg>`;
 
 function _setGridMessage(msg) {
   const grid = document.getElementById('iconify-grid');
@@ -433,9 +440,10 @@ function _updateSelectedPreview(sel) {
     const svg = holder.querySelector('svg');
     if (svg) { svg.setAttribute('width', 22); svg.setAttribute('height', 22); svg.style.pointerEvents = 'none'; }
   } else {
-    const [prefix, name] = sel.name.split(':');
-    const svgUrl = `${ICONIFY_API}/${prefix}/${name}.svg`;
-    preview.innerHTML = `<img src="${svgUrl}" width="22" height="22" style="filter:invert(0.8);">`;
+    const hit = _ICONIFY_BODY.get(sel.name);   // t13E-01·02 — 격자가 받은 몸통이 있으면 인라인(낱개 svg 요청 0)
+    preview.innerHTML = hit
+      ? `<svg viewBox="0 0 ${hit.w} ${hit.h}" width="22" height="22" style="color:#ccc;pointer-events:none;">${hit.body}</svg>`
+      : _imgFallback(sel.name, 22, 0.8);
   }
   nameEl.textContent = sel.name;
   nameEl.style.color = '#ccc';
@@ -456,6 +464,8 @@ async function _doInsert() {
   if (_selectedIcon.svg) {
     // 즐겨찾기 — 저장된 svg 그대로 사용 (fetch 생략)
     svgText = _selectedIcon.svg;
+  } else if (_ICONIFY_BODY.has(name)) {
+    svgText = _bodySvg(_ICONIFY_BODY.get(name));   // t13E-02 — 격자 묶음 몸통 = API 낱개 svg 와 같은 꼴 · 낱개 요청(429 → <img> 폴백이 캔버스에 박힘) 안 탐
   } else {
     const [prefix, iconName] = name.split(':');
     try {

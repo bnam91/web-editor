@@ -374,7 +374,7 @@ test('L9 대조 ㈏ — ⌘G 그룹 안 자식(스크래치 선택 없음): ⌘]
 
 test('L9b 대조 ㈎ — 오버레이 둘(섹션 직속): ⌘] 「앞으로 가져오기」 · 섹션 직속 순서가 바뀐다', async ({ page }) => {
   const { errs } = await scratchScene(page, uid('L9b'));
-  const ids = await addTwoRects(page);
+  const ids = await addTwoRects(page); await page.evaluate((id) => { document.getElementById(id).closest('.section-block').dataset.overflowVisible = 'true'; }, ids[0]);   // ★전제 바뀜(현빈 261123 t13E-07 «섹션 줄어듦 = ⓐ 그대로» · SPEC 결정 로그 3차): 둘 다 띄우면 섹션이 줄어 둘째 도형이 섹션 아래로 통째로 나가 Clip content(기본 켬)에 잘림 = 못 누름(실측 top 542 = 섹션 bottom 542) → 순서(⌘]·⌘[)를 재는 칸이라 «Clip content 끈» 섹션에서 잰다
   /* 오버레이는 «아래 것부터» 띄운다 — 위 것을 먼저 띄우면 아래 것이 흐름에서 올라와 그 오버레이 밑에 깔려
      다음 클릭이 오버레이를 다시 집는다(플래너 탐침 c1_toggle1 이 그렇게 «해제»했다). */
   const tops = await page.evaluate((ids) => ids.map(id => document.getElementById(id).getBoundingClientRect().top), ids);

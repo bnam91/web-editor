@@ -243,9 +243,24 @@ export function ifgIconPickTarget(block, frame) {
  *  ⚠️넣는 값은 `data:image/svg+xml` 이다 — 외부화된(`goya-asset://…svg`) 칸을 갈면 ★그 한 칸만 다시 인라인이 된다.
  *    여기서 자산 파일을 쓸 길이 없고(쓰기는 설정의 외부화 기능 몫) 아이콘 하나는 ~1KB 다.
  *    ⇒ 다시 줄이려면 설정 「이미지 외부화」를 한 번 더 돌리면 된다. ⛔이 자리에 새 외부화 길을 만들지 마라. */
+/** t13F-04(현빈 261122 «인포블럭 아이콘 안쪽 잘림») — iconify 아이콘은 뿌리 viewBox 가 그림에 꼭 맞아(0 0 24 24) 원형 틀(overflow hidden · 내접)에 모서리가 잘렸다(실측 144 원 · 정사각 아이콘).
+ *  자리표시·내장과 같은 둘레 여백(24 상자당 4.5 = IFG_ICON_VB)을 뿌리 viewBox 에 준다 ⇒ 「아이콘 크기」 100% = 원 안에 다 들어가는 크기. 이미 IFG_ICON_VB 면 그대로(내장 · 두 번 안 넓힘).
+ *  viewBox 가 없거나 못 읽으면 그대로. 아이콘 텍스트 블럭(block-drag.js 의 ifgSvgToIconSrc)은 원이 아니라 안 쓴다. */
+export function ifgPadViewBox(svgText) {
+  const s = String(svgText == null ? '' : svgText);
+  const m = /^\s*<svg\b[^>]*>/i.exec(s);
+  const vb = m && /\sviewBox\s*=\s*["']([^"']+)["']/i.exec(m[0]);
+  if (!vb || vb[1].trim() === IFG_ICON_VB) return s;
+  const n = vb[1].trim().split(/[\s,]+/).map(Number);
+  if (n.length !== 4 || n.some((x) => !Number.isFinite(x)) || !(n[2] > 0 && n[3] > 0)) return s;
+  const k = 4.5 / 24, r = (v) => +v.toFixed(3), pw = n[2] * k, ph = n[3] * k;
+  const tag = m[0].replace(vb[0], ` viewBox="${r(n[0] - pw)} ${r(n[1] - ph)} ${r(n[2] + 2 * pw)} ${r(n[3] + 2 * ph)}"`);
+  return s.slice(0, m.index) + tag + s.slice(m.index + m[0].length);
+}
+
 export function ifgCommitIcon(block, target, picked) {
   if (!block || !target || !picked) return null;
-  const imgSrc = ifgSvgToIconSrc(picked.svg, target.color);
+  const imgSrc = ifgSvgToIconSrc(ifgPadViewBox(picked.svg), target.color);
   if (!imgSrc) {                                       // ★svg 가 아니다(429/프록시 폴백) — ⛔박지 않는다
     window.showToast?.('아이콘을 못 받았습니다 — 잠시 뒤 다시 시도해 주세요(iconify 응답 제한)');
     return null;

@@ -214,6 +214,16 @@ test('A6 ifgSvgToIconSrc 왕복 — 색이 읽히고 · 색을 안 주면 기본
   assert.ok(unb64(uri).includes('d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2"'), '그림이 바뀌었다');
 });
 
+test('A7 t13F-04 ifgPadViewBox — iconify 뿌리 viewBox 둘레 4.5/24 여백 · 내장(IFG_ICON_VB)·viewBox 없음·svg 아님은 그대로', async () => {
+  const { C } = await loadGrid({ withIfg: true });
+  assert.match(C.ifgPadViewBox(ICONIFY_SVG), /^<svg[^>]*\sviewBox="-4\.5 -4\.5 33 33"/, '★24 상자 = 자리표시와 같은 여백');
+  assert.match(C.ifgPadViewBox('<svg viewBox="0 0 48 32"><path/></svg>'), /viewBox="-9 -6 66 44"/, '★가로세로 따로 같은 비율');
+  const inner = '<svg viewBox="0 0 24 24"><svg viewBox="0 0 1 1"/></svg>';
+  assert.match(C.ifgPadViewBox(inner), /^<svg viewBox="-4\.5 -4\.5 33 33"><svg viewBox="0 0 1 1"\/>/, '안쪽 svg 는 안 건드린다');
+  for (const same of [C.ifgIconSvgMarkup('leaf', '#222222'), '<svg><path/></svg>', '<svg viewBox="0 0 0 24"/>', '<img src="x.svg">'])
+    assert.equal(C.ifgPadViewBox(same), same, `그대로여야 — ${same.slice(0, 40)}`);
+});
+
 /* ══ B — 배선(소스·적재) ═══════════════════════════════════════════════════ */
 
 test('B0 ★전제 — 주석 거르개(templateAware)가 읽는 파일들에서 템플릿 보간이 «닫힌다»', () => {
@@ -384,7 +394,7 @@ test('C1b ★끝에서 끝까지 — ★입구 둘(내장·iconify)이 ★같은
   assert.equal(C.ifgIconDblclick(b2, frameAt(0, 0, 0)), true);
   opens[1].onPick(pickedOf(ICONIFY_SVG, 'ph:leaf-bold'));
   const got2 = G.getGridModel(b2).cells[0][0].lines[0].imgSrc;
-  assert.equal(got2, C.ifgSvgToIconSrc(ICONIFY_SVG, '#333333'), 'iconify 아이콘이 그 칸에 안 들어갔다');
+  assert.equal(got2, C.ifgSvgToIconSrc(C.ifgPadViewBox(ICONIFY_SVG), '#333333'), 'iconify 아이콘이 그 칸에 안 들어갔다');   // ★기대 바뀜(t13F-04 현빈 261122 «안쪽 잘림») — 커밋 길이 원에 들게 viewBox 둘레 여백을 준다(ifgPadViewBox)
   assert.ok(unb64(got2).includes('C15.5 5 17 4.48 19 2'), 'iconify 그림이 안 실렸다');
 });
 
@@ -470,6 +480,7 @@ test('C2 커밋 — 문 한 번 · trusted · 그 줄만 · 원형/지름 보존
   assert.equal(line.imgShape, 'circle', '원형이 풀렸다');
   assert.equal(line.height, 144, `지름이 ${line.height} 로 바뀌었다 — picked.size(64)를 썼다`);
   assert.equal(G.getGridModel(block).cells[0][0].lines[1].text, 'T', '글이 바뀌었다');
+  assert.match(unb64(line.imgSrc), /^<svg[^>]*\sviewBox="-4\.5 -4\.5 33 33"/, '★t13F-04 — 원 안에 들게 둘레 여백(고르개 커밋 길)');
 });
 
 test('C3 표식 ＋ ★사진 줄 → ★팝오버 0건 (2026-09-25 크롭 편집을 안 빼앗는다)', async () => {
@@ -547,7 +558,7 @@ test('C7 ★★외부화된 아이콘(goya-asset://…svg) — 고르개가 ★�
     assert.ok(t, `외부화된 아이콘(${key})에서 고르개가 안 뜬다 — 현빈 프로젝트 인포그래픽 3개 중 2개가 이 꼴이다`);
     assert.equal(t.color, want, `${key} 프리셋 아이콘 색이 ${t.color} 로 떨어졌다`);
     C.ifgCommitIcon(block, t, pickedOf(ICONIFY_SVG));
-    assert.equal(G.getGridModel(block).cells[0][0].lines[0].imgSrc, C.ifgSvgToIconSrc(ICONIFY_SVG, want),
+    assert.equal(G.getGridModel(block).cells[0][0].lines[0].imgSrc, C.ifgSvgToIconSrc(C.ifgPadViewBox(ICONIFY_SVG), want),   // ★기대 바뀜(t13F-04) — 커밋 길 viewBox 여백
       '외부화 칸을 갈면서 색이 틀어졌다');
   }
 });

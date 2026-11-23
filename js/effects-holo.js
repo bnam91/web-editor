@@ -7,7 +7,7 @@
    ★shortcut: 그림 칠 도형(data-shape-fill)은 목록에 안 뜬다(그림 src 를 키에 담으면 저장본이 커진다) · 켠 뒤 색 고르기로 칠을 바꿔도 ✕ 는 prev 로 되돌린다.
    ═══════════════════════════════════════════════════════════════════════ */
 import { registerFxType, fxIsCardOpen, fxSetCardOpen } from './effects-registry.js';
-import { GAZE_PRESETS, gazeSwatchCss, holoMixStops } from './fx/holo-palette.js';
+import { GAZE_PRESETS, GAZE_CONIC_FROM, gazeSwatchCss, holoMixStops } from './fx/holo-palette.js';
 import { toCss, parseGradient } from './props/gradient-model.js';
 
 export const FX_HOLO_DEFAULT = 'aurora';
@@ -44,7 +44,7 @@ function _baseOf(el, prev) {
 function _curAngle(el, type) {
   let g = null;
   if (_isShape(el)) { try { g = JSON.parse(el.dataset.shapeGradient || 'null'); } catch (_) {} } else { const ce = _txtContent(el); g = ce && window.getTextGradient?.(ce); }
-  return g && g.type === type && Number.isFinite(g.angle) ? g.angle : (type === 'conic' ? 0 : 90);
+  return g && g.type === type && Number.isFinite(g.angle) ? g.angle : (type === 'conic' ? GAZE_CONIC_FROM : 90);   // 새로 넣는 원뿔 = 3시 시작(GradientGaze Angular · 현빈 261123) · 이미 원뿔이면 그 각 그대로
 }
 function _paint(el, k, a, prev) {
   const base = _baseOf(el, prev);
@@ -97,7 +97,7 @@ function _cardHtml(el, P) {
           <button class="prop-icon-btn" id="${P}-fxholo-del" title="효과 삭제(넣기 전 칠로)" aria-label="효과 삭제">×</button>
         </div>
         <div class="prop-cell-card-body" id="${P}-fxholo-body"${open ? '' : ' hidden'}>
-          <div class="fx-holo-swatches" id="${P}-fxholo-sws">${GAZE_PRESETS.map((p) => `<button type="button" class="fx-holo-sw" data-holo="${p.key}" data-holo-type="${p.type}" aria-pressed="${p.key === fx.k}" title="홀로그램 ${p.key}${p.type === 'conic' ? ' · 원뿔형' : ''}" aria-label="홀로그램 ${p.key}" style="background:${gazeSwatchCss(p)}"></button>`).join('')}</div>
+          <div class="fx-holo-swatches" id="${P}-fxholo-sws">${GAZE_PRESETS.map((p) => `<button type="button" class="fx-holo-sw" data-holo="${p.key}" data-holo-type="${p.type}" aria-pressed="${p.key === fx.k}" title="${p.name || p.key}${p.type === 'conic' ? ' · 원뿔형' : ''}" aria-label="${p.name || p.key}" style="background:${gazeSwatchCss(p)}"></button>`).join('')}</div>
           <div class="prop-row">
             <span class="prop-label">세기</span>
             <input type="range" class="prop-slider" id="${P}-fxholo-slider" min="0" max="100" step="1" value="${fx.a}">

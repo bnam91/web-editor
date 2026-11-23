@@ -91,7 +91,7 @@ const colors = (page, sel) => page.evaluate((sel) => {
 test('M1 추가 메뉴(관리자) · 오른쪽 패널 사진 넣기·순서·빼기 · ⌘Z', async ({ page }) => {
   const s = await scene(page, { admin: false });
   await menu(page);
-  await expect(page.locator('#fp-add-slide'), '★관리자 아닌데 Slides 가 보인다').toBeHidden();
+  await expect(page.locator('#fp-add-slide'), '★관리자 아님 = 회색 예고(보이되)').toBeVisible(); expect(await page.evaluate(() => { const b = document.getElementById('fp-add-slide'); b.click(); return { dis: b.disabled, aria: b.getAttribute('aria-disabled'), op: b.style.opacity, tip: /곧 공개/.test(b.title), made: document.querySelectorAll('#canvas .slide-block').length }; }), '★안 눌림 · 곧 공개').toEqual({ dis: true, aria: 'true', op: 'var(--ui-disabled-opacity)', tip: true, made: 0 });   // ★기대 바뀜(현빈 261123 «곧 공개 = 회색 예고 · 먼 것 = 숨김» — 옛: 숨김)
   await menu(page);   // 닫기
   await page.evaluate(() => { window.__admin = { state: () => ({ isAdmin: true }) }; });
   await addViaMenu(page);
@@ -119,7 +119,7 @@ test('M2 GIF 버튼 → GIF 패널: 슬라이드 효과만 · 글자 칸 숨김 
   const s = await withPhotos(page);
   await page.click('#open-anim-btn');
   await expect(page.locator('#anim-gif-modal'), '[전제] GIF 패널').toBeVisible();
-  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail', 'slide-gridzoom']);   // 2단계에서 세로 둘 · SLIDE-FX-SINGLE-FRAME-MULTI-01 에서 제자리 둘 · CENTER-CAROUSEL 하나 더함(같은 정확 일치)
+  expect(await page.evaluate(() => [...document.querySelectorAll('#anim-list .anim-item')].map((e) => e.dataset.id)), '★효과 목록이 슬라이드 것이 아니다').toEqual(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail', 'slide-gridzoom', 'slide-flow2', 'slide-vflow2']);   // ★기대 바뀜(SLIDE-EFFECT-SAMPLES-QA-01 ③ 현빈 261123 · 지디 ⓐ — 고정 꼴 두 줄 더함)   // 2단계에서 세로 둘 · SLIDE-FX-SINGLE-FRAME-MULTI-01 에서 제자리 둘 · CENTER-CAROUSEL 하나 더함(같은 정확 일치)
   await expect(page.locator('#anim-stamp-s0-row'), '글자 칸(도장 시작) 숨김').toBeHidden();
   await expect(page.locator('#anim-per-line'), '글자 칸(줄마다 따로) 숨김').toBeHidden();
   await expect(page.locator('#anim-slide-row'), '방향 칸 보임').toBeVisible();

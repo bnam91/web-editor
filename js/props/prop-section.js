@@ -771,6 +771,15 @@ async function showSectionProperties(sec) {
           </svg>
         </button>
       </div>
+      <div class="prop-row" title="켜면 섹션 경계 밖으로 나간 부분을 캔버스·미리보기에서 자릅니다. 끄면 캔버스·미리보기에서 밖까지 보입니다(작업 보조). 내보내기 PNG는 항상 섹션 크기로 잘림.">
+        <!-- 현빈 261123 D-3(Figma «Clip content») — Layout 절 맨 아래 · 체크 = 자름(새 섹션 기본 = 켬) · 저장 키는 옛 data-overflow-visible 그대로(켬 = !그 값 · 옛 프로젝트 열림 보존)
+             현빈 261123 «체크박스 → 공용 토글 스위치» — label.prop-toggle 부품(에셋 «내용 자르기» 줄과 같은 꼴 · 새 CSS 0) · 극성 그대로 -->
+        <span class="prop-label prop-label--auto">Clip content</span>
+        <label class="prop-toggle">
+          <input type="checkbox" id="sec-clip-content" aria-label="Clip content" ${sec.dataset.overflowVisible === 'true' ? '' : 'checked'}>
+          <span class="prop-toggle-track"></span>
+        </label>
+      </div>
 `),
       panelSec('padding', `
       ${sliderRowHTML('좌우패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
@@ -778,14 +787,6 @@ async function showSectionProperties(sec) {
         <span class="prop-label">아래 패딩</span>
         <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
         <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
-      </div>
-`),
-      panelSec('appearance', `
-      <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;" title="기본은 섹션 경계 밖이 잘립니다. 켜면 미리보기에서 경계 밖 요소도 보입니다. (내보내기 PNG는 항상 섹션 크기로 잘림)">
-          <input type="checkbox" id="sec-overflow-visible" ${sec.dataset.overflowVisible === 'true' ? 'checked' : ''}>
-          섹션 밖 보이기 (미리보기)
-        </label>
       </div>
 `),
       panelSec('fill', `
@@ -900,10 +901,10 @@ async function showSectionProperties(sec) {
     padBNumber.addEventListener('change', e => { applyPadB(parseInt(e.target.value)); pushHistory(); });
   }
 
-  // 섹션 밖 보이기 토글 — 미리보기 크롭(기본)을 이 섹션만 해제. 에디터 표시는 항상 보임이라 rerender 불필요.
-  document.getElementById('sec-overflow-visible')?.addEventListener('change', e => {
-    if (e.target.checked) sec.dataset.overflowVisible = 'true';
-    else delete sec.dataset.overflowVisible;
+  // Clip content(현빈 261123 D-3) — 체크 = 자름 = 옛 «섹션 밖 보이기» 꺼짐 = data-overflow-visible 없음. 끄면 이 섹션만 캔버스·미리보기 밖까지(내보내기는 늘 자름). CSS 가 정해 rerender 불필요.
+  document.getElementById('sec-clip-content')?.addEventListener('change', e => {
+    if (e.target.checked) delete sec.dataset.overflowVisible;
+    else sec.dataset.overflowVisible = 'true';
     pushHistory();
   });
 
