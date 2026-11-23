@@ -443,3 +443,6 @@ ft-restore-remeasures-at-other-width.dom.spec.js:112 X0   빨강 1/1 (u6m 전수
 
 ## 2026-11-21 · dev16 전수 — 이름 ＋ 수 (⛔원인 라벨 없이)
 - `ft-restore-remeasures-at-other-width` X0 — 인텔 dev16 전수(e648a47b2) 1/1 빨강 · 같은 sha 아이맥 재기 0/1.
+
+## 2026-11-24 · slide-frame-cells U1 (ty/0913b-sbar) — 이름 ＋ 수 (⛔원인 라벨 없이)
+- `slide-frame-cells.dom.spec.js:570` U1 «한 번 = 슬라이드만 · 두 번 = 펼침 · 덮개 배율 10 에서도» — srv 단발(safe-run · workers 1 · retries 0 · 판 b41407a81 = 219b40101 + 시험 글자만) 빨강 1/1(«★두 번 = 펼침») · 같은 판 바로 다시 0/1(40/40).
