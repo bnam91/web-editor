@@ -1087,7 +1087,9 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const _cap = /^(butt|round|square)$/.test(block.strokeLinecap || '') ? block.strokeLinecap : '';
     const _join = /^(miter|bevel|round)$/.test(block.strokeLinejoin || '') ? block.strokeLinejoin : '';
     const _ml = Number.isFinite(block.strokeMiterlimit) && block.strokeMiterlimit >= 1 ? block.strokeMiterlimit : 0;
-    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`
+    /* ★도형 선 색(지디 261124) — 보내는 쪽 strokeColor(캔버스 shapeStrokeColor)가 있으면 선만 그 색 · 없으면 옛 그대로(면 색) · 화살촉(fill=currentColor)은 캔버스처럼 color = 면 색 그대로(실측: 캔버스 화살촉 fill = 면 색) */
+    const strokeC = (typeof block.strokeColor === 'string' && /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i.test(block.strokeColor.trim())) ? block.strokeColor.trim() : color;
+    const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${strokeC};`
       + (_dash ? `stroke-dasharray:${_dash};` : '') + (_cap ? `stroke-linecap:${_cap};` : '') + (_join ? `stroke-linejoin:${_join};` : '') + (_ml ? `stroke-miterlimit:${_ml};` : '');
     if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };
     /* ★표준 Stroke 단계 5 — 선·화살표 끝점 = 보내는 쪽이 실어 준 캔버스 SVG(line/polyline/polygon/circle 만 · 숫자·알려진 낱말 속성만 — 글자를 SVG 에 꽂으므로 꼴 검사) · currentColor = 선 색 · 아니면 옛 DEFS */

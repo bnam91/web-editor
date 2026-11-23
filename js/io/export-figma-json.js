@@ -182,6 +182,7 @@ function _shapeFigmaBlock(el) {
     width, height,
   };
   if (gradientDef && !redact) out.gradientDef = gradientDef;
+  if (el.dataset.shapeStrokeColor && !redact) out.strokeColor = el.dataset.shapeStrokeColor;   // ★도형 선 색(지디 261124 · 실측: 렌더러가 선을 «면 색»으로 칠해 Figma 선 = 회색) · 키 없는 도형은 안 실음 = 옛 JSON 바이트 · 화살촉은 캔버스처럼 면 색(color) 그대로
   { const K = ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'], sw0 = Number(el.dataset.shapeStrokeWidth) || 0;   // 표준 Stroke 4-2b/4-3 — 사각형 면별(캔버스 _shapeInnerSVG 와 같은 [위,오른쪽,아래,왼쪽])
     if (out.shapeType === 'rectangle' && sw0 > 0 && K.some((k) => el.dataset[k] != null)) out.strokeSides = K.map((k) => (el.dataset[k] != null ? Math.max(0, Number(el.dataset[k]) || 0) : sw0)); }
   /* ★표준 Stroke 단계 3-2(§4c ②b) — 점선·점선 끝·꼭짓점·Miter = 캔버스가 «이미 그린» svg 값 그대로(prop-shape paintShapeLook) · 키 없는 도형은 안 싣는다 = 옛 JSON 바이트 */
