@@ -73,9 +73,9 @@ test('C1 켬(기본) — 섹션 밖은 잘림 · 고르면 밖 손잡이는 보�
 test('C2 패널 체크 끔 → 밖 보임 · 켬 → 잘림 · ⌘Z 한 번', async ({ page }) => {
   const { errs, ids } = await scene(page);
   await showPanel(page);
-  await page.click('label.prop-toggle:has(#sec-clip-content)'); await raf(page);
+  await page.click('label.ui-check:has(#sec-clip-content)');   /* ★기대 바뀜(현빈 261123 check · §2c) — 사람이 누르는 자리 = check 부품 라벨 */ await raf(page);
   const off = { ...(await probe(page, ids.tf)), key: await page.evaluate(() => document.getElementById('sC').dataset.overflowVisible ?? null) };
-  await page.click('label.prop-toggle:has(#sec-clip-content)'); await raf(page);
+  await page.click('label.ui-check:has(#sec-clip-content)');   /* ★기대 바뀜(현빈 261123 check · §2c) — 사람이 누르는 자리 = check 부품 라벨 */ await raf(page);
   const on = { ...(await probe(page, ids.tf)), key: await page.evaluate(() => document.getElementById('sC').dataset.overflowVisible ?? null) };
   await page.evaluate(() => window.undo()); await raf(page);
   const undone = { ...(await probe(page, ids.tf)), key: await page.evaluate(() => document.getElementById('sC').dataset.overflowVisible ?? null) };
@@ -101,12 +101,12 @@ test('C4 새 섹션 = 체크 · 옛 저장본(키 켜짐) = 체크 꺼짐 · Lay
   const { errs } = await scene(page);
   await showPanel(page);
   const fresh = await page.evaluate(() => { const c = document.getElementById('sec-clip-content'); const sec = c.closest('[data-sec]') || c.closest('.prop-section'); const rows = [...sec.querySelectorAll('.prop-row, .prop-align-group')];
-    return { checked: c.checked, label: c.closest('.prop-row').querySelector('.prop-label')?.textContent.trim(), toggle: !!c.closest('label.prop-toggle')?.querySelector('.prop-toggle-track'), key: document.getElementById('sC').dataset.overflowVisible ?? null, inLayout: (sec.dataset.sec || sec.id || '').includes('layout'), last: rows[rows.length - 1] === c.closest('.prop-row'), oldId: !!document.getElementById('sec-overflow-visible') }; });   // ★기대 바뀜(현빈 261123 «체크박스 → 공용 토글 스위치» label.prop-toggle) — 이름은 줄 라벨 · 스위치 꼴
+    return { checked: c.checked, label: (c.closest('label.ui-check')?.querySelector('.ui-check-label') || c.closest('.prop-row').querySelector('.prop-label'))?.textContent.trim(), toggle: c.classList.contains('ui-check-box') && !!c.closest('label.ui-check[data-part="check"]'),   /* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크박스» · 태양 §2c 첫 소비자) — 토글 스위치 → check 부품 · 이름 = 체크 옆 글 · 키 이름 toggle 은 그대로(«온/오프 부품이 맞다») */ key: document.getElementById('sC').dataset.overflowVisible ?? null, inLayout: (sec.dataset.sec || sec.id || '').includes('layout'), last: rows[rows.length - 1] === c.closest('.prop-row'), oldId: !!document.getElementById('sec-overflow-visible') }; });   // ★기대 바뀜(현빈 261123 «체크박스 → 공용 토글 스위치» label.prop-toggle) — 이름은 줄 라벨 · 스위치 꼴
   if (process.env.SHOT_CLIP) await page.screenshot({ path: `${process.env.SHOT_CLIP}/C4-panel-clip-content.png` });
   await page.evaluate(() => { const s = document.getElementById('sC'); s.dataset.overflowVisible = 'true'; window.showSectionProperties(s); });
   const old = await page.evaluate(() => document.getElementById('sec-clip-content').checked);
   console.log('[C4 실측]', JSON.stringify({ fresh, old }));
-  expect(fresh, '★새 섹션 = 켬(자름) · 공용 토글 스위치 · 키 없음 · Layout 맨 아래 · 이름').toEqual({ checked: true, label: 'Clip content', toggle: true, key: null, inLayout: true, last: true, oldId: false });
+  expect(fresh, '★새 섹션 = 켬(자름) · check 부품 · 키 없음 · Layout 맨 아래 · 이름').toEqual({ checked: true, label: 'Clip content', toggle: true, key: null, inLayout: true, last: true, oldId: false });
   expect(old, '★옛 저장본(키 켜짐) = 체크 꺼짐').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });

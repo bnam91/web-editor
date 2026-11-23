@@ -45,11 +45,11 @@ export const SECTION_DEFAULTS = Object.freeze({
   layout: Object.freeze(['number', 'chain']),
   fill: Object.freeze(['end-slot', 'color']),
   stroke: Object.freeze(['end-slot', 'color', 'number', 'select']),
-  appearance: Object.freeze(['slider', 'number', 'toggle']),
+  appearance: Object.freeze(['slider', 'number', 'check']),   // 보이기 = check(현빈 261123 · 태양 §2c — 옛 toggle)
   effects: Object.freeze(['end-slot', 'fx-card']),
   typography: Object.freeze(['select', 'number', 'align-group']),
 });
-export const PART_NAMES = Object.freeze(['row', 'number', 'slider', 'toggle', 'select', 'color', 'tip', 'align-group', 'chain', 'end-slot', 'fx-card', 'rot']);
+export const PART_NAMES = Object.freeze(['row', 'number', 'slider', 'check', 'select', 'color', 'tip', 'align-group', 'chain', 'end-slot', 'fx-card', 'rot']);
 export const SECTION_TITLE = Object.freeze({
   kind: 'Type',
   content: 'Content',

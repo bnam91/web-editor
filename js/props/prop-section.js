@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { exportFormatOptionsHTML, isAnimFormat } from '../io/export-formats.js';   /* ★t6-01 — 꼴 명부 정본 한 자리 */
 import { syncSectionCheckerTextTone } from '../canvas-contrast.js';   /* T6 — 섹션 안 글자 밝기 자동(판정은 그 파일 한 자리) */
-import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
+import { blockHeaderHTML, escHtml, sliderRowHTML, checkHTML } from './_helpers.js';
 import { renderPanel, sec as panelSec, panelRenderGen } from './_panel-frame.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
@@ -774,11 +774,8 @@ async function showSectionProperties(sec) {
       <div class="prop-row" title="켜면 섹션 경계 밖으로 나간 부분을 캔버스·미리보기에서 자릅니다. 끄면 캔버스·미리보기에서 밖까지 보입니다(작업 보조). 내보내기 PNG는 항상 섹션 크기로 잘림.">
         <!-- 현빈 261123 D-3(Figma «Clip content») — Layout 절 맨 아래 · 체크 = 자름(새 섹션 기본 = 켬) · 저장 키는 옛 data-overflow-visible 그대로(켬 = !그 값 · 옛 프로젝트 열림 보존)
              현빈 261123 «체크박스 → 공용 토글 스위치» — label.prop-toggle 부품(에셋 «내용 자르기» 줄과 같은 꼴 · 새 CSS 0) · 극성 그대로 -->
-        <span class="prop-label prop-label--auto">Clip content</span>
-        <label class="prop-toggle">
-          <input type="checkbox" id="sec-clip-content" aria-label="Clip content" ${sec.dataset.overflowVisible === 'true' ? '' : 'checked'}>
-          <span class="prop-toggle-track"></span>
-        </label>
+        <!-- 현빈 261123 «온/오프 = 고디터 커스텀 체크박스»(태양 §2c 첫 소비자) — 토글 스위치 → checkHTML · 이름은 체크 옆 글(Figma «Clip content» 꼴) · 극성·저장 키 그대로 -->
+        ${checkHTML({ id: 'sec-clip-content', label: 'Clip content', checked: sec.dataset.overflowVisible !== 'true' })}
       </div>
 `),
       panelSec('padding', `

@@ -344,6 +344,22 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-block-id { font-size: var(--ui-fs-9); font-weight: 400; color: var(--ui-text-dim); margin-left: auto; cursor: pointer; letter-spacing: 0.02em; }
 .prop-block-id:hover { color: var(--ui-text-muted); }
 
+/* ★체크 부품 check — 온/오프 표준(현빈 261123 · 태양 PLAN §2c · 시안 8910 #parts check). 그림 = input 자체(appearance:none + ::before) — 초점·클릭 표적·:checked·:indeterminate·:disabled 를 «보이는 그 요소»가 쥔다.
+   label.ui-check(클릭 표적 · 글 클릭도 토글) > input.ui-check-box + span.ui-check-label. 막힘 = [aria-disabled="true"](초점·hover 는 옴 → P6 까닭 툴팁) · 색·크기 = --ui-check-* 만(리터럴 0) */
+.ui-check { display: inline-flex; align-items: center; gap: var(--ui-check-gap); min-height: var(--ui-input-h); min-width: 0; cursor: pointer; color: var(--ui-text-main); font-size: var(--ui-fs-base); user-select: none; }
+.ui-check-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ui-check-box { appearance: none; -webkit-appearance: none; margin: 0; flex: 0 0 auto; width: var(--ui-check-size); height: var(--ui-check-size); display: grid; place-content: center;
+  border: thin solid var(--ui-check-border); border-radius: var(--ui-check-radius); background: var(--ui-check-bg); cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.ui-check-box::before { content: ''; width: var(--ui-space-1); height: var(--ui-space-2); border: solid var(--ui-check-mark); border-width: 0 var(--ui-space-0_5) var(--ui-space-0_5) 0; transform: translateY(calc(var(--ui-space-0_5) / -2)) rotate(45deg); opacity: 0; }
+.ui-check-box:checked, .ui-check-box:indeterminate { background: var(--ui-check-on-bg); border-color: var(--ui-check-on-bg); }
+.ui-check-box:checked::before { opacity: 1; }
+.ui-check-box:indeterminate::before { opacity: 1; width: var(--ui-space-2); height: 0; border-width: 0 0 var(--ui-space-0_5) 0; transform: none; }
+.ui-check:hover .ui-check-box:not(:disabled):not([aria-disabled="true"]):not(:checked):not(:indeterminate) { border-color: var(--ui-check-border-hover); }
+.ui-check:hover .ui-check-box:not(:disabled):not([aria-disabled="true"]):is(:checked, :indeterminate) { background: var(--ui-check-on-hover); border-color: var(--ui-check-on-hover); }
+.ui-check-box:focus-visible { outline: var(--ui-focus-ring); outline-offset: calc(var(--ui-space-0_5) / 2); }
+.ui-check:has(.ui-check-box:disabled), .ui-check:has(.ui-check-box[aria-disabled="true"]) { opacity: var(--ui-disabled-opacity); cursor: not-allowed; }
+.ui-check-box:disabled, .ui-check-box[aria-disabled="true"] { cursor: not-allowed; }
+
 /* 토글 스위치 */
 .prop-toggle { position: relative; display: inline-block; width: 32px; height: 18px; cursor: pointer; }
 .prop-toggle input { opacity: 0; width: 0; height: 0; }
