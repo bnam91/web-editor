@@ -671,7 +671,18 @@ export function bindFloatMoveDrag(posEl) {
        통째로 삼켜진다(실측 20px 증발). 직전 자리를 기억해 그 델타를 살린다. */
     let lastClientX = e.clientX, lastClientY = e.clientY;
 
+    /* ★VECTOR-DUP-ID-AFTER-OVERLAY-UNDO-01(0.9.13 125 · 지디 261123 실측) — 끄는 «도중» 캔버스가 통째로 갈리면(⌘Z·⌘⇧Z = restoreSnapshot 의 innerHTML 교체)
+       이 세션은 «떨어져 나간» 옛 posEl·옛 섹션을 쥔 채 남는다 → 다음 움직임에 «커서 아래 라이브 섹션 ≠ 옛 섹션» 이라 아래 hover.appendChild(옛 posEl)
+       = 같은 id 사본이 라이브 섹션에 붙었다(DOM 2 · 저장본 2 · tests/dom/vector-dup-id D1). ⇒ 옛 posEl 이 문서에서 떨어졌으면 세션을 «조용히» 끝낸다
+       (붙이기·쓰기·끝 표본·클릭 삼킴 0 — 캔버스는 이미 되돌린 상태가 정답). */
+    const _endDetached = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      window.SmartGuides?.hideGuides();
+      window.resumeAutoSave?.();
+    };
     const onMove = ev => {
+      if (!posEl.isConnected) { _endDetached(); return; }
       if (!moved) {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 3) return;
         moved = true;
@@ -751,6 +762,7 @@ export function bindFloatMoveDrag(posEl) {
       window.scheduleAutoSave?.();
     };
     const onUp = () => {
+      if (!posEl.isConnected) { _endDetached(); return; }   // 125 — 위 _endDetached 머리말
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       window.SmartGuides?.hideGuides();   // t13D-04
