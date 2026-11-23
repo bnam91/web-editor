@@ -1222,6 +1222,48 @@ export function grdDropTextBlockOnCell(e, src) {
 }
 if (typeof window !== 'undefined') window.grdDropTextBlockOnCell = grdDropTextBlockOnCell;
 
+/* ★HBQA-ASSET-DND-INTO-GRID-CELL-01(0.9.13 203 · 현빈 GO «그대로 재사용되면 그대로») — 에셋(그림) 블럭을 그리드 «칸» 위에 놓으면 그 그림을 칸의 그림 줄(type image · imgSrc)로 넣고
+   원본 에셋은 뗀다 · 실패하면 원본 제자리 · 이력 한 칸 — 위 G9 글자 갈래(grdDropTextBlockOnCell)와 «같은 길»(칸 판정 grdCellAtPoint · 줄 자리 · push-before + noHistory · 끄는 동안 칸 강조).
+   받는 것 = 그림 든 에셋 «하나»(에셋 블럭 자신 또는 그것만 든 행) · 영상·빈 에셋·떠 있는 에셋은 거절(종전 동작).
+   shortcut: imgSrc 를 그리드 문의 문자열 상한(GRID_IMG_MAX_CHARS)째 보낸다(trusted 아님 — 사람이 고른 파일 입구가 아니다) — 실앱은 저장 때 파일로 빼 둔 짧은 주소라 대개 통과 ·
+     아주 큰 data URL 이면 넣기가 거절되고 원본이 제자리로 돌아온다(데이터 손실 0) · 큰 그림도 받아야 하면 그때 바이트 게이트와 trusted 를 같이 낸다(grid-callsite-ssot). */
+export function grdAssetDropSource(src) {
+  if (!src) return null;
+  let ab = null;
+  if (src.classList?.contains('asset-block')) ab = src;
+  else if (src.classList?.contains('row')) { const kids = _grdUnitKids(src); if (kids.length === 1 && kids[0].classList.contains('asset-block')) ab = kids[0]; }
+  if (!ab) return false;
+  if (ab.dataset.overlayBlock === 'true' || ab.querySelector('video') || !ab.dataset.imgSrc) return null;
+  return { ab, imgSrc: ab.dataset.imgSrc };
+}
+if (typeof window !== 'undefined') window.grdAssetDropSource = grdAssetDropSource;
+
+export function grdDropAssetOnCell(e, src) {
+  if (!src || !e) return false;
+  const acc = grdAssetDropSource(src);
+  if (!acc) return false;
+  const { ab, imgSrc } = acc;
+  const cellEl = grdCellAtPoint(e.currentTarget, e.clientX, e.clientY, src);
+  const block = cellEl && cellEl.closest('.grid-block');
+  if (!block || block.contains(ab)) return false;
+  const r = Number(cellEl.dataset.r), c = Number(cellEl.dataset.c);
+  if (!Number.isInteger(r) || !Number.isInteger(c)) return false;
+  const cellLines = [...cellEl.children].filter(k => k.hasAttribute('data-line'));
+  let insertAt = cellLines.length;
+  for (let i = 0; i < cellLines.length; i++) { const b = cellLines[i].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { insertAt = i; break; } }
+  const row = ab.closest('.row');
+  const unit = (row && _grdUnitKids(row).length === 1) ? row : ab;
+  const parent = unit.parentNode, next = unit.nextSibling;
+  if (!parent) return true;
+  window.pushHistory?.();   // G9 와 같은 «한 동기 구간»(블럭 있음 → 떼기 → noHistory 로 넣기 → updateGridBlock 끝 표본)
+  unit.remove();
+  const res = grdAddLine(block, { r, c }, insertAt - 1, { type: 'image', imgSrc }, { noHistory: true });
+  if (res && res.ok) window.buildLayerPanel?.();
+  else { parent.insertBefore(unit, next && next.parentNode === parent ? next : null); _grdToastCellFail(res); }   // 실패 — 원본 제자리 + 까닭 알림
+  return true;
+}
+if (typeof window !== 'undefined') window.grdDropAssetOnCell = grdDropAssetOnCell;
+
 /* SVG 마크업 → data URI. 아이콘 새 줄은 기존 image 라인 타입을 그대로 쓴다(현빈 확정:
  * 재착색 불필요 → 새 icon 타입·새 새니타이저 불필요, GRID_LINE_FIELDS 변경 없음). */
 function _grdSvgToDataUri(svg) {
