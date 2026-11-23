@@ -879,7 +879,7 @@ test('D1 칸↔점 갭 — 칸 높이 그대로 · 블럭이 커짐 · 바깥 �
   const { errs, id } = await menuScene(page);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 261120 지혜맥 DIAG: 배율이 멎기 전(실제 0.4566 · 이름 0.4)에 재서 9.1~9.5 — 멎은 뒤 잰다
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
-  await page.locator('#sld-dots').selectOption('bottom');
+  await page.locator('#sld-dots-kind').selectOption('dots'); // ★기대 바뀜(현빈 261123 D «표시 모양» 확정 · 0.9.13 195): 옛 «점 표시» select(없음/위/아래) → [표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래] — «아래» = 점 고르기(처음 켜면 아래)
   await expect(page.locator('#sld-dotgap-slider'), '[전제] 갭 슬라이더').toHaveCount(1);
   const gapTo = (v) => page.evaluate((v) => { const e = document.getElementById('sld-dotgap-slider'); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
   const geo = () => page.evaluate((id) => {
@@ -910,7 +910,7 @@ test('E1 임시 가로 밀기 — 점 띠 고정 · 활성 점 = 보이는 칸 �
   const { errs, id } = await menuScene(page);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));   // 지혜맥 261120 2/3: 색은 맞고 점 x 가 740/748/756 → 742/748/755(가운데 기준 좁아짐) = 배율이 멎기 전 d0 를 잼
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
-  await page.locator('#sld-dots').selectOption('bottom');
+  await page.locator('#sld-dots-kind').selectOption('dots'); // ★기대 바뀜(현빈 261123 D «표시 모양» 확정 · 0.9.13 195): 옛 «점 표시» select(없음/위/아래) → [표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래] — «아래» = 점 고르기(처음 켜면 아래)
   const dots = () => page.evaluate((id) => { const b = document.getElementById(id); return [...b.querySelectorAll(':scope > .sld-dots > span')].map((d) => ({ x: Math.round(d.getBoundingClientRect().left), c: getComputedStyle(d).backgroundColor })); }, id);
   await expect.poll(() => dots().then((d) => d.length), '[전제] 점 셋').toBe(3);
   const d0 = await dots();
@@ -934,7 +934,7 @@ test('E2 끝까지 밀기 — 활성 점 = 마지막 칸', async ({ page }) => {
   const { errs, id } = await menuScene(page);
   await waitZoomSettled(page, await page.evaluate(() => window.currentZoom));
   await page.evaluate((id) => window.showSlideProperties(document.getElementById(id)), id);
-  await page.locator('#sld-dots').selectOption('bottom');
+  await page.locator('#sld-dots-kind').selectOption('dots'); // ★기대 바뀜(현빈 261123 D «표시 모양» 확정 · 0.9.13 195): 옛 «점 표시» select(없음/위/아래) → [표시 모양 ▾(없음·점·진행바) | 엔드슬롯 위↔아래] — «아래» = 점 고르기(처음 켜면 아래)
   const onIdx = () => page.evaluate((id) => [...document.getElementById(id).querySelectorAll(':scope > .sld-dots > span')].findIndex((d) => d.classList.contains('sld-dot-hs-on')), id);
   const max = await page.evaluate((id) => { const b = document.getElementById(id), t = b.querySelector(':scope > .sld-track'), l = t.lastElementChild; return Math.max(0, Math.round(l.offsetLeft + l.offsetWidth - b.clientWidth)); }, id);
   const c2 = await page.evaluate((id) => document.getElementById(id).querySelector(':scope > .sld-track').children[1].offsetLeft, id);
