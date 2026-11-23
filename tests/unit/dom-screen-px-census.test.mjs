@@ -94,6 +94,9 @@ const ROSTER_HOW = [
 ].join(' · ');
 
 const ROSTER = {
+  /* ★표준 Stroke 4-2b S12(태양 triage 261124 · 지디 재판정 가능): ★safe — 화면 px 를 «숫자»와 견주지 않는다: PNG 의 칸 = (화면 좌표 − 섹션 왼위) × k(= PNG 폭 / 섹션 화면 폭 · 두 측정의 비) 이고,
+     재는 자리 = 도형 상자의 «비율»(가운데 · 변에서 1.5/100) · 판정 = 그 PNG 픽셀의 어둡/밝음(색 < 80) — 배율이 바뀌어도 같은 자리를 잰다(S8c 와 같은 손). */
+  'stroke-std.dom.spec.js:620': 'safe',
   /* ★cand7 t11(태양 triage · 지디 재판정 가능): ★safe — 자가 잡은 «두 자리 상수» = 바로 아래 줄 `+g.w > 250` 은 dataset.w(모델 px)와의 비교다(화면 px 아님).
      이 줄의 화면 px 비교(se 꼭지 이동)는 `≤ 2` 한 자리라 어림 밖 · 그 값은 끌기 거리를 배율 z 로 곱해 준 같은 화면 좌표계 안의 차다. */
   'vector-resize-stretch.dom.spec.js:125': 'safe',

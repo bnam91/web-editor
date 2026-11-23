@@ -19,7 +19,7 @@ async function scene(page) {
 
 test('S1·S2 도형 Stroke = 표준 부품 · 굵기 입력 = 옛 키 · svg · ⌘Z 한 칸', async ({ page }) => {
   const { errs, id } = await scene(page);
-  const ui = await page.evaluate(() => { const u = document.querySelector('#panel-right .prop-section[data-sec="stroke"] .ui-stroke2[data-part="stroke"]'); return u && { fields: [...u.querySelectorAll('[data-field]')].filter((e) => !e.closest('.ui-stroke-pop')).map((e) => e.dataset.field), oldSlider: !!document.getElementById('shape-stroke-slider') }; });
+  const ui = await page.evaluate(() => { const u = document.querySelector('#panel-right .prop-section[data-sec="stroke"] .ui-stroke2[data-part="stroke"]'); return u && { fields: [...u.querySelectorAll('[data-field]')].filter((e) => !e.closest('.ui-stroke-pop, .ui-stroke-slot')).map((e) => e.dataset.field), oldSlider: !!document.getElementById('shape-stroke-slider') }; });
   expect(ui, '★Stroke 절 = 표준 부품 · 칸 셋 · 옛 슬라이더 없음').toEqual({ fields: ['stroke-color', 'stroke-align', 'stroke-width'], oldSlider: false });
   const w0 = await page.evaluate((id) => document.getElementById(id).dataset.shapeStrokeWidth ?? null, id);
   await page.click('#panel-right label:has(#shape-stroke-on)'); await page.waitForSelector('#shape-stroke-width', { state: 'visible' });   // 새 도형 = 테두리 없음(굵기 0) → 머리 ＋ 로 켬
@@ -602,5 +602,33 @@ test('S11c 프레임 면별 — 저장 → 다시 열기(applyProjectData · sav
   console.log('[S11c 실측]', JSON.stringify({ before, after }));
   expect(before.css, '[전제] 6 0 3 0').toEqual(['6px', '0px', '3px', '0px']);
   expect(after, '★다시 열어도 키·CSS 그대로').toEqual(before);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* S12 단계 4-2b — 도형 사각형 면별(변마다 선 · block-factory _shapeInnerSVG opts.sides) · 원·선 등은 □ 없음 */
+test('S12 도형 사각형 — 사용자 6 0 3 0 = 선 둘(위 6 · 아래 3) + 면 · PNG 위 변 어둡고 왼 변 밝음 · 저장→다시 열기 그대로 · 원엔 □ 없음', async ({ page }) => {
+  const { errs, id } = await shapeScene(page);
+  await installCdpCapture(page);
+  await page.click('#shape-stroke-sides-btn'); await page.click('#shape-stroke-sides-edges [data-edge-preset="custom"]');
+  for (const [s, v] of [['top', '6'], ['right', '0'], ['bottom', '3'], ['left', '0']]) { await page.fill(`#shape-stroke-w-${s}`, v); await page.locator(`#shape-stroke-w-${s}`).dispatchEvent('change'); }
+  const lines = () => page.evaluate((id) => [...document.querySelectorAll(`#${id} svg line`)].map((l) => `${l.getAttribute('y1')}:${l.getAttribute('stroke-width')}`), id);
+  const l1 = await lines();
+  const px = await page.evaluate(async (id) => {
+    const sec = document.getElementById('sS8'), b = document.getElementById(id);
+    const url = await window.exportSection(sec, 'png', 860, { returnDataUrl: true }); const i = new Image(); i.src = url; await i.decode();
+    const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
+    const sr = sec.getBoundingClientRect(), br = b.querySelector('svg').getBoundingClientRect(), k = i.width / sr.width;
+    const at = (x, y) => { const d = g.getImageData(Math.round((x - sr.left) * k), Math.round((y - sr.top) * k), 1, 1).data; return d[0] < 80 ? 'dark' : 'light'; };
+    return { top: at(br.left + br.width / 2, br.top + 1.5 * br.height / 100), left: at(br.left + 1.5 * br.width / 100, br.top + br.height / 2) };
+  }, id);
+  await page.evaluate(async () => { const snap = window.serializeProject(); await window.applyProjectData(typeof snap === 'string' ? JSON.parse(snap) : snap); });
+  await page.waitForFunction((id) => !!document.getElementById(id), id);
+  const l2 = await lines();
+  const ell = await (async () => { const e = await shapeScene(page, 'ellipse'); return page.evaluate(() => !!document.getElementById('shape-stroke-sides-btn')); })();
+  console.log('[S12 실측]', JSON.stringify({ l1, px, l2, ell }));
+  expect(l1, '★선 둘 = 위(y 3 · 굵기 6) · 아래(y 98.5 · 굵기 3)').toEqual(['3:6', '98.5:3']);
+  expect(px, '★PNG 위 변 어둡고 왼 변 밝음').toEqual({ top: 'dark', left: 'light' });
+  expect(l2, '★다시 열어도 같은 선').toEqual(l1);
+  expect(ell, '★원 = □ 없음').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
