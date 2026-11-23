@@ -3146,6 +3146,44 @@ function addShapeBlock(type = 'rectangle') {
   else { window._activeFrame = ss; window.showFrameProperties?.(ss); }
 }
 
+/* ★207행 BLOCK-CONVERT-RECT-ASSET-FRAME-01 ⓐ(현빈 GO 261123 · 지디 Q1 = 가) — 에셋 → 사각형 «한 방향»(에셋 Fill 칠 종류 «단색»).
+   같은 자리·크기·회전·불투명도·테두리(색·굵기)·모서리·레이어 이름 그대로 · 그림은 사각형 «이미지 칠»로 옮긴다(버리지 않음 ⇒ 확인창 없음) · ⌘Z 한 칸.
+   사각형 «Fill 이미지»는 사각형 그대로(Figma 꼴) — 사각형 → 에셋 길은 없다. 프레임 → 사각형/에셋 입구도 없다(지디 Q2 = 할 일 없음).
+   틀 = addShapeBlock 과 같은 래퍼(makeFrameBlock) + makeShapeBlock — 새 꼴을 안 만든다. */
+function convertAssetToRect(ab) {
+  if (!ab || !ab.classList?.contains('asset-block') || !ab.isConnected) return null;
+  const img = ab.querySelector('img.asset-img');
+  const src = img && img.getAttribute('src') ? img.getAttribute('src') : '';
+  const w = ab.offsetWidth || parseInt(ab.style.width) || 100, h = ab.offsetHeight || parseInt(ab.style.height) || 100;
+  window.pushHistory?.();
+  const { block } = makeShapeBlock('rectangle');
+  const ss = makeFrameBlock();
+  const name = ab.dataset.layerName || 'rectangle';
+  ss.dataset.layerName = name; ss.setAttribute('data-layer-name', name);
+  ss.dataset.width = String(Math.round(w)); ss.dataset.height = String(Math.round(h));
+  ss.style.width = Math.round(w) + 'px'; ss.style.height = Math.round(h) + 'px'; ss.style.minHeight = Math.round(h) + 'px'; ss.style.maxWidth = '100%';
+  ss.style.backgroundColor = 'transparent'; ss.style.background = ''; ss.style.padding = '0'; ss.dataset.bg = '';
+  /* 자리 — 떠 있으면 좌표 그대로 · 흐름이면 같은 자리(replaceWith) 같은 가로 맞춤 */
+  for (const k of ['position', 'left', 'top', 'transform', 'opacity', 'zIndex']) if (ab.style[k]) ss.style[k] = ab.style[k];
+  if (ab.style.position !== 'absolute') { ss.style.margin = ab.style.margin || '0 auto'; ss.style.alignSelf = ab.style.alignSelf || 'center'; }
+  for (const k of ['overlayBlock', 'x', 'y', 'rotateDeg']) if (ab.dataset[k] !== undefined) ss.dataset[k] = ab.dataset[k];
+  const r = parseInt(ab.style.borderRadius) || 0; if (r) { ss.dataset.radius = String(r); ss.style.borderRadius = r + 'px'; ss.style.overflow = 'hidden'; }
+  const sw = parseInt(ab.dataset.strokeWidth || '0'); if (sw > 0) { block.dataset.shapeStrokeWidth = String(sw); block.dataset.shapeStrokeColor = ab.dataset.strokeColor || '#000000'; }
+  if (ab.dataset.bgColor) block.dataset.shapeColor = ab.dataset.bgColor;
+  block.style.position = 'absolute'; block.style.left = '0'; block.style.top = '0';
+  ss.appendChild(block);
+  ab.replaceWith(ss);
+  bindBlock(block);
+  window.refreshShapeInnerSVG?.(block);
+  if (src) window._applyShapeImage?.(block, src, ab.dataset.fit === 'contain' ? 'fit' : 'fill');
+  window.bindFrameDropZone?.(ss);
+  window.buildLayerPanel?.();
+  if (typeof window.selectShapeBlock === 'function') window.selectShapeBlock(block);
+  window.triggerAutoSave?.();
+  return block;
+}
+window.convertAssetToRect = convertAssetToRect;
+
 // ── setSectionBg: 섹션 단위 배경색 설정 ──
 // sectionEl: .section-block 요소 또는 섹션 id(string)
 // color: hex 색상 문자열 (#ffffff 등). null/''이면 배경색 제거
@@ -6304,6 +6342,20 @@ window.SHAPE_DEFS             = SHAPE_DEFS; // updateShapeBlock 에서 shapeType
     const unit = block.closest('.frame-block[data-text-frame]') || block.closest('.row');
     return (unit && unit !== host && host.contains(unit)) ? unit : block;
   }
+
+  /* ★207행 BLOCK-CONVERT ⓐ — 우클릭 «프레임으로 감싸기 ⌥⌘G»: 누른 블럭이 고른 묶음에 없으면 그것 하나만 고른 뒤 같은 함수(⌥⌘G) · 이력 = 그 함수의 push 한 번 */
+  document.getElementById('bcm-wrap-frame')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const block = _targetBlock;
+    closeMenu();
+    if (!block || !block.isConnected || block.classList.contains('section-block')) return;
+    if (!block.classList.contains('selected')) {
+      window.deselectAll?.();
+      block.classList.add('selected');
+      block.closest('.section-block')?.classList.add('selected');
+    }
+    window.wrapSelectedBlocksInFrame?.();
+  });
 
   document.getElementById('bcm-insert-gap')?.addEventListener('click', e => {
     e.stopPropagation();

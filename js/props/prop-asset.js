@@ -99,6 +99,14 @@ export function showAssetProperties(ab) {
      살아서 계속 칠해지는데 «닿는 문»만 없는 막다른 골목). ⇒ hasImage 분기 «밖»에 둔다.
      선례: prop-icon-circle.js 의 Color/배경 절도 hasImage 삼항 밖에 있다. */
   const bgSection = `
+      <!-- ★207행 BLOCK-CONVERT ⓐ(지디 Q1 = 가) — 칠 종류: 이미지(지금 = 에셋) · 단색 = 사각형으로 바꿈(그림은 사각형 이미지 칠로 · 확인창 없이 · ⌘Z 한 칸) -->
+      <div class="prop-row">
+        <span class="prop-label">칠 종류</span>
+        <select class="prop-select" id="asset-fill-kind" aria-label="칠 종류">
+          <option value="image" selected>이미지</option>
+          <option value="solid">단색 — 사각형으로</option>
+        </select>
+      </div>
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'asset-bg', hex: assetBgGrad ? '#a0a0a0' : currentBgColor, alpha: currentBgAlpha, gradientCss: assetBgGrad })}
@@ -672,6 +680,10 @@ export function showAssetProperties(ab) {
   /* T-011: 배경색 배선은 이미지 유무와 무관하게 «조건 없이» 돈다. else 안에 있던 탓에
      이미지가 들어가면 onGradient 가 사라졌고, color-picker.js 가 onGradient 유무로
      cpModes(solid / solid,gradient)를 정하므로 그라데이션 탭 자체가 안 열렸다. */
+  document.getElementById('asset-fill-kind')?.addEventListener('change', (e) => {
+    if (e.target.value !== 'solid') return;
+    window.convertAssetToRect?.(ab);   // 이력·선택·패널은 그 함수가(사각형 패널로 넘어감)
+  });
   wireColorField('asset-bg', {
     initialAlpha: currentBgAlpha,
     gradientValue: assetBgGrad,   // T-059 2라운드: 재오픈 시드
