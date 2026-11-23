@@ -30,6 +30,15 @@ const snap = (page, id) => page.evaluate((id) => {
 const titlePt = (page, id) => page.evaluate((id) => { const g = document.getElementById(id); const el = g.querySelector('.grd-cell[data-r="0"][data-c="0"] [data-line="1"]') || g.querySelector('.grd-cell[data-r="0"][data-c="0"] .grd-line'); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
 const setScale = (page, v) => page.evaluate((v) => { const i = document.getElementById('ifg-edit-scale'); i.value = String(v); i.dispatchEvent(new Event('change', { bubbles: true })); return Number(i.value); }, v);
 
+/** 오른쪽 아래 모서리 손잡이를 블럭 가운데 쪽으로 끈다 — frac = 가운데까지 거리의 몇 배(1 넘으면 가운데를 지나 반대쪽) · steps = 나눠 움직일 횟수 */
+async function dragCorner(page, id, frac, steps) {
+  const h = await page.evaluate(() => { const r = document.querySelector('.ifg-edit-handle[data-corner="rb"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  const c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
+  await page.mouse.move(h.x, h.y); await page.mouse.down();
+  for (let i = 1; i <= steps; i++) await page.mouse.move(h.x + (c.x - h.x) * frac * i / steps, h.y + (c.y - h.y) * frac * i / steps);
+  await page.mouse.up();
+}
+
 async function enter(page, id) {
   const p = await titlePt(page, id);
   await page.mouse.click(p.x, p.y);
@@ -162,11 +171,7 @@ test('E8 c 모서리를 가운데 지나 끌기 = 바닥에서 멈춤(다시 안
   await enter(page, id);
   const lo = await setScale(page, 10);
   await setScale(page, 100);
-  const h = await page.evaluate(() => { const r = document.querySelector('.ifg-edit-handle[data-corner="rb"]').getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
-  const c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
-  await page.mouse.move(h.x, h.y); await page.mouse.down();
-  for (let i = 1; i <= 10; i++) await page.mouse.move(h.x + (c.x - h.x) * 0.18 * i, h.y + (c.y - h.y) * 0.18 * i);   // 가운데를 80% 넘어 반대쪽까지
-  await page.mouse.up();
+  await dragCorner(page, id, 1.8, 10);   // 가운데를 80% 넘어 반대쪽까지
   expect(await page.evaluate(() => Number(document.getElementById('ifg-edit-scale').value)), `★가운데 넘어 = 바닥 ${lo}(옛: 다시 커짐)`).toBe(lo);
   expect(errs).toEqual([]);
 });
@@ -177,9 +182,7 @@ test('E9 d 80·91% 에서도 틀 높이 그대로 · e 배율 칸에 포커스�
   await enter(page, id);
   for (const v of [80, 91, 63]) { await setScale(page, v); const s = await snap(page, id); expect([s.w, s.h], `★${v}% 틀 = ${s0.w}×${s0.h}(옛: 739)`).toEqual([s0.w, s0.h]); }
   await page.focus('#ifg-edit-scale');
-  const h = await page.evaluate(() => { const r = document.querySelector('.ifg-edit-handle[data-corner="rb"]').getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
-  const c = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, id);
-  await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x + (c.x - h.x) * 0.3, h.y + (c.y - h.y) * 0.3); await page.mouse.up();
+  await dragCorner(page, id, 0.3, 1);
   const v = await page.evaluate(() => Number(document.getElementById('ifg-edit-scale').value));
   expect(v < 63, `★끌기 뒤 칸 값이 따라옴 ${v}(옛: 63 그대로)`).toBe(true);
   expect(errs).toEqual([]);
