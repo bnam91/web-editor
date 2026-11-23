@@ -1,3 +1,4 @@
+/* ★기대 바뀜(IAL-01 · 0.9.13 186행 · 현빈 승인 261122) — «오버레이» → «Ignore Auto Layout»(이력 이름 포함) */
 /* template-section-insert-frame-bind.dom.spec.js — R7 (lane-drag · 2026-10-05 · D2 census 의 «다시 태어나는 길» 한 줄)
  *
  * 섹션 템플릿 넣기(js/panels/template-system.js insertTemplate «section 갈래»)는 넣은 섹션의 프레임에 bindFrameDropZone 을
@@ -125,7 +126,7 @@ test('R7b ★넣은 섹션의 오버레이 그룹을 끌면 움직인다', async
   await page.mouse.up();
   const p = await page.evaluate((id) => { const g = document.getElementById(id); return { L: parseFloat(g.style.left), T: parseFloat(g.style.top), pushes: window.__pushes.slice() }; }, r.grpId);
   expect({ L: p.L, T: p.T }, `그룹 자리=${JSON.stringify(p)} (고치기 전 = 100,60 그대로)`).toEqual({ L: 140, T: 80 });
-  expect(p.pushes, `push 라벨=${JSON.stringify(p.pushes)}`).toContain('오버레이 이동');
+  expect(p.pushes, `push 라벨=${JSON.stringify(p.pushes)}`).toContain('Ignore Auto Layout 이동');
 });
 
 test('R7c ★섹션 템플릿으로 넣은 도형 · 스텝에도 bindBlock 이 걸린다(정본 명부 · R7b)', async ({ page }) => {

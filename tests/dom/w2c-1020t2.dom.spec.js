@@ -1,3 +1,4 @@
+/* ★기대 바뀜(IAL-01 · 0.9.13 186행 · 현빈 승인 261122) — «오버레이» → «Ignore Auto Layout»(이력 이름 포함) */
 /* w2c-1020t2.dom.spec.js — 1020t2f1~f5 오버레이·스티커 다섯 (S7 · W2C)
  *
  * ★장면은 앱의 «제 문»으로만 만든다 — 섹션 = 「새 섹션」 단추, 블럭 = 플로팅 메뉴 단추, 묶기 = ⌘G,
@@ -88,7 +89,7 @@ test('F1 ★그룹(⌘G)의 패널에 오버레이 단추가 있고 누르면 �
   expect(grp, '★전제: ⌘G 로 그룹이 생겼다').not.toBeNull();
   await expect.poll(() => page.evaluate((g) => document.getElementById(g).classList.contains('selected'), grp), '★전제: 그룹이 골라졌다').toBe(true);
   const btns = await page.evaluate(() => [...document.querySelectorAll('#panel-right .panel-body button')]
-    .filter((x) => /float-toggle|overlay-toggle/.test(x.id) || /오버레이/.test(x.textContent || '')).map((x) => ({ id: x.id, text: (x.textContent || '').trim() })));
+    .filter((x) => /float-toggle|overlay-toggle/.test(x.id) || /오버레이|Ignore Auto Layout/.test(x.textContent || '')).map((x) => ({ id: x.id, text: (x.textContent || '').trim() })));
   log('F1.buttons', { grp, btns });
   expect(btns.length, '그룹 패널에 오버레이 단추가 없다').toBeGreaterThan(0);
   await page.click(`#${btns[0].id}`);
