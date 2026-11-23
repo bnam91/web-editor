@@ -2414,7 +2414,12 @@ function wrapSelectedBlocksInFrame(opts = {}) {
      ⇒ 흐름 단위를 먼저 띄우고(enterFloat = 화면 자리 고정) 아래 오버레이 갈래를 그대로 탄다. 아래 것부터 — 위 것을 먼저 빼면 아래 것이 올라와 자리가 바뀐다.
      window.OverlayFloat?. = 전역 · 이 함수만 잘라 도는 하네스엔 없어 옛 동작 그대로. 섹션 «흐름» 단위만(프레임 안 흐름 자식은 이번 범위 밖). */
   const _OF = window.OverlayFloat;
-  if (_OF?.enterFloat && selected.some(b => _floatWrapperOf(b)?.parentElement === sec)) {
+  /* ⛔9/30 «흐름 자유배치 프레임 하나 + 떠 있는 것 = 프레임 안으로»(아래 host 갈래 · 현빈 승인 · tests/dom/frame-zoom-group-select B1)는 가로채지 않는다 —
+     흐름 쪽이 자유배치 프레임 «하나»로 모이고 떠 있는 글자(t13D-07 ⑤)가 없으면 그 갈래 몫(아이맥 261123 B1-0·a·b 빨강 실측). */
+  const _freeHost = f => !!f?.matches?.('.frame-block[data-free-layout]') && f.dataset.textFrame !== 'true' && !isShapeFrame(f);
+  const _flowHosts = new Set(selected.filter(b => !_floatWrapperOf(b)).map(b => { const u = b.closest('.frame-block[data-text-frame]') || shapeFrameOf(b) || b; if (_freeHost(u)) return u; const f = u.parentElement?.closest?.('.frame-block[data-free-layout]'); return (_freeHost(f) && f.closest('.section-block') === sec) ? f : u; }));
+  const _to930 = _flowHosts.size === 1 && _freeHost([..._flowHosts][0]) && !(asGroup && selected.some(b => _floatWrapperOf(b)?.dataset?.textFrame === 'true'));
+  if (_OF?.enterFloat && !_to930 && selected.some(b => _floatWrapperOf(b)?.parentElement === sec)) {
     selected.map(b => _OF.posElOf(b)).filter(w => w && !_floatWrapperOf(w) && (_OF.floatHostOf?.(w) || sec) === sec)
       .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? 1 : -1)
       .forEach(w => _OF.enterFloat(w));
