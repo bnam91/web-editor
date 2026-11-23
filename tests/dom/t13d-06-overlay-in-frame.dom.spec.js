@@ -60,7 +60,8 @@ async function toggleTxt(page) {
   expect(b, '[전제] 글자 패널 오버레이 단추').toBeTruthy(); await page.mouse.click(b[0], b[1]); await raf(page);
 }
 async function drag(page, sel, dx, dy, at = 'mid') {
-  const [x, y, w, h] = await rect(page, sel); const p = at === 'mid' ? [x + w / 2, y + h / 2] : [x + w - 25, y + h - 25];
+  const [x, y, w, h] = await rect(page, sel); const secB = await page.evaluate((s) => Math.round(document.querySelector(s).closest('.section-block').getBoundingClientRect().bottom), sel);
+  const p = at === 'mid' ? [x + w / 2, y + h / 2] : [x + w - 25, Math.min(y + h - 25, secB - 10)];   // ★전제 바뀜(현빈 261123 Clip content 기본 켬) — 섹션 밖 몸통은 잘려 안 잡힘 ⇒ 'corner' 는 보이는 자리
   await page.mouse.move(p[0], p[1]); await page.mouse.down();
   for (let i = 1; i <= 10; i++) await page.mouse.move(p[0] + dx * i / 10, p[1] + dy * i / 10);
   await page.mouse.up(); await raf(page);
@@ -97,7 +98,8 @@ test('G3 프레임을 띄워 끌면 프레임 안 오버레이 글도 같이(상
   await raf(page);
   const a = await st(page, 'tfK');
   const [x, y, w, h] = await rect(page, '#frV');
-  await page.mouse.click(x + w - 25, y + h - 25); await raf(page);
+  const secB = await page.evaluate((id) => Math.round(document.getElementById(id).closest('.section-block').getBoundingClientRect().bottom), 'frV');
+  await page.mouse.click(x + w - 25, Math.min(y + h - 25, secB - 10)); await raf(page);   // ★전제 바뀜(현빈 261123 Clip content 기본 켬) — 섹션 밖 몸통은 잘려 안 잡힘 ⇒ 보이는 자리 · 기대 무변
   await drag(page, '#frV', 150, 80, 'corner');
   const b = await st(page, 'tfK');
   expect([b.par, b.ov], '[전제] 프레임 안 오버레이 그대로').toEqual(['frV', 'true']);

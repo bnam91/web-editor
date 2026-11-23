@@ -78,7 +78,17 @@ export function _applyOverlayPos(posEl, x, y) {
   posEl.style.left = posEl.dataset.offsetX + 'px';
   posEl.style.top  = posEl.dataset.offsetY + 'px';
   _syncPanelXY(posEl);
+  _secClip(posEl);
 }
+
+/* ★현빈 261123(t13E-07) — 섹션 직속 떠 있는 단위의 섹션 밖 크롭 값(--sec-clip)을 적는다. 식은 스티커와 한 벌(sticker-block.js _updateStickerSecClip).
+   적는 때 = 움직임(_applyOverlayPos) · 크기 바뀜(아래 RO · bindFloatMoveDrag 에서 붙임) · 섹션 크기 바뀜(section-height.js). 켜고 끄기는 CSS(섹션 밖 보이기 · editor-blocks.css).
+   shortcut: 회전한 떠 있는 단위는 회전 전 상자로 inset 을 낸다(스티커만 polygon) — 회전 오버레이가 섹션 경계에 걸치면 선이 어긋날 수 있다 · 문제 되면 sticker 식을 넓힌다. */
+function _secClip(posEl) {
+  if (posEl?.dataset?.overlayBlock === 'true' && posEl.parentElement?.classList?.contains('section-block')) window._updateStickerSecClip?.(posEl);
+  else posEl?.style?.removeProperty?.('--sec-clip');
+}
+const _secClipRO = typeof ResizeObserver === 'function' ? new ResizeObserver((es) => es.forEach((e) => _secClip(e.target))) : null;
 
 /* 드래그로 움직인 좌표를 열려 있는 패널의 X/Y 칸에 되비친다 — block-drag.js:561 과 «같은 꼴»
    (거기도 열려 있는 패널의 첫 칸을 그냥 잡는다. 다른 블록 패널이 열려 있을 때 어긋날 수 있는
@@ -387,6 +397,7 @@ export function enterFloat(posEl) {
   posEl.style.position = 'absolute';
   _applyOverlayPos(posEl, x, y);
   posEl.dataset.overlayBlock = 'true';
+  _secClip(posEl);   // t13E-07 — 위 _applyOverlayPos 는 표식 «전»이라 여기서 한 번 더
   // 선택 아웃라인 보라 — js/selection-overlay.js 선언형 경로(확대블럭이 이미 쓰는 길)
   _selHostsOf(posEl).forEach(h => { h.dataset.selVariant = 'sticker'; });
   window._bindOverlayMoveDrag?.(posEl); // 보통 bindBlock 에서 이미 걸렸지만 방어적으로 한 번 더
@@ -509,6 +520,7 @@ export function exitFloat(posEl) {
     delete posEl.dataset.offsetY;
   }
   delete posEl.dataset.overlayBlock;
+  posEl.style.removeProperty('--sec-clip');   // t13E-07 — 흐름으로 돌아오면 섹션 밖 크롭 값도 걷는다
   delete posEl.dataset.overlayReturnParent;
   delete posEl.dataset.overlayReturnAfter;
   _selHostsOf(posEl).forEach(h => { delete h.dataset.selVariant; });
@@ -561,6 +573,7 @@ export function exitFloat(posEl) {
 export function bindFloatMoveDrag(posEl) {
   if (!posEl || posEl._overlayMoveBound) return;
   posEl._overlayMoveBound = true;
+  _secClipRO?.observe(posEl);   // t13E-07 — 크기 바뀌면 섹션 밖 크롭 다시(떠 있지 않으면 _secClip 이 값을 지운다)
   posEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (posEl.dataset.overlayBlock !== 'true') return; // 오버레이 아니면 일반 드래그(block-drag.js) 몫
