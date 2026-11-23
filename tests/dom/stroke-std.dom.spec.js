@@ -391,3 +391,104 @@ async function installCdpCapture(page) {
     window.electronAPI = new Proxy({}, { get: (t, k) => (k === 'captureSectionCdp' ? (o) => window.__cdpShot(o) : old?.[k]) });
   });
 }
+
+/* S9 단계 3-2 radial — 연결선 «Stroke 설정»: 스타일 키 = 옛 lineStyle · «사용자» = dashed + strokeDashLen/GapLen · 끝/꼭짓점/Miter = 새 키(기본과 다를 때만)
+ *   렌더 = path 속성(_paintRadial) → PNG·HTML·Figma(generic svg 그대로) 3경로가 같은 속성을 든다 */
+async function radialScene(page, line) {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async (line) => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); sec.id = 'sS9'; sec.style.backgroundColor = '#ffffff'; window.deselectAll(); window.selectSection(sec);
+    const before = new Set(sec.querySelectorAll('.radial-block')); window.addRadialBlock(); const b = [...sec.querySelectorAll('.radial-block')].find((x) => !before.has(x));
+    b.dataset.lineColor = '#ff00aa'; b.dataset.lineWidth = '4'; b.dataset.lineStyle = 'solid'; if (line) b.dataset.line = line; window.renderRadialBlock?.(b);
+    window.deselectAll(); window.selectBlock(b.id); window.showRadialProperties(b); window.clearHistory?.(); return b.id;
+  }, line);
+  await page.waitForSelector('#rdl-stroke-more', { state: 'attached' });
+  return { errs, id };
+}
+const rdlPath = (page, id) => page.evaluate((id) => { const p = document.querySelector(`#${id} path.rdl-line`); const b = document.getElementById(id); return { dash: p?.getAttribute('stroke-dasharray') ?? null, cap: p?.getAttribute('stroke-linecap') ?? null, join: p?.getAttribute('stroke-linejoin') ?? null, keys: Object.keys(b.dataset).filter((k) => /^stroke(Style|DashLen|GapLen|Cap|Join|Miter)$/.test(k)).sort(), ls: b.dataset.lineStyle }; }, id);
+test('S9a radial — 사용자 2·10 = lineStyle dashed + 길이 키 · path dasharray · 끝 네모 = 키 · ⌘Z 한 칸 · 실선 되돌리면 새 키 0', async ({ page }) => {
+  const { errs, id } = await radialScene(page);
+  const p0 = await rdlPath(page, id);
+  await page.click('#rdl-stroke-more'); await page.selectOption('#rdl-line-style', 'custom');
+  for (const [f, v] of [['stroke-dash', '2'], ['stroke-gap', '10']]) { await page.fill(`#rdl-stroke-pop [data-field="${f}"] input`, v); await page.locator(`#rdl-stroke-pop [data-field="${f}"] input`).dispatchEvent('change'); }
+  const p1 = await rdlPath(page, id);
+  if (!(await page.locator('#rdl-stroke-pop').isVisible())) await page.click('#rdl-stroke-more');
+  await page.click('#rdl-stroke-pop [data-field="stroke-cap"] [data-value="square"]');
+  const p2 = await rdlPath(page, id);
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const p3 = await rdlPath(page, id);
+  await page.evaluate((id) => { window.deselectAll(); window.selectBlock(id); window.showRadialProperties(document.getElementById(id)); }, id);
+  await page.click('#rdl-stroke-more'); await page.selectOption('#rdl-line-style', 'solid');
+  const p4 = await rdlPath(page, id);
+  console.log('[S9a 실측]', JSON.stringify({ p0, p1, p2, p3, p4 }));
+  expect(p0, '[전제] 실선 · 옛 끝 round · 새 키 0').toEqual({ dash: null, cap: 'round', join: null, keys: [], ls: 'solid' });
+  expect(p1, '★사용자 2·10').toEqual({ dash: '2 10', cap: 'round', join: null, keys: ['strokeDashLen', 'strokeGapLen'], ls: 'dashed' });
+  expect(p2, '★끝 네모 = 키 + path').toEqual({ dash: '2 10', cap: 'square', join: null, keys: ['strokeCap', 'strokeDashLen', 'strokeGapLen'], ls: 'dashed' });
+  expect(p3, '★⌘Z 한 칸 = 네모 전').toEqual(p1);
+  expect(p4, '★실선 = 길이 키 지움 · 새 키 0(옛 바이트)').toEqual({ dash: null, cap: 'round', join: null, keys: [], ls: 'solid' });
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S9b radial — 꼭짓점 = 외곽선(다각형)만 산다 · 궤도(원)는 막힘(꼭짓점 없음)', async ({ page }) => {
+  const r = {};
+  for (const line of ['orbit', 'outline']) {
+    const { errs } = await radialScene(page, line);
+    await page.click('#rdl-stroke-more');
+    r[line] = await page.evaluate(() => { const e = document.querySelector('#rdl-stroke-pop [data-field="stroke-join"] [aria-disabled]'); return e ? e.getAttribute('title') : 'live'; });
+    expect(errs, errs.join(' | ')).toEqual([]);
+  }
+  console.log('[S9b 실측]', JSON.stringify(r));
+  expect(r).toEqual({ orbit: '꼭짓점이 없는 블럭이에요', outline: 'live' });
+});
+
+test('S9c radial 사용자 점선 — 내보내기 3경로: PNG 선 색 픽셀 실선 대비 < 60% · HTML path dasharray · Figma JSON(generic svg) dasharray', async ({ page }) => {
+  const { errs, id } = await radialScene(page);
+  await installCdpCapture(page);
+  const pink = () => page.evaluate(async () => {
+    const url = await window.exportSection(document.getElementById('sS9'), 'png', 860, { returnDataUrl: true });
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) return { err: 'not png' };
+    const i = new Image(); i.src = url; await i.decode();
+    const c = document.createElement('canvas'); c.width = i.width; c.height = i.height; const g = c.getContext('2d'); g.drawImage(i, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
+    for (let k = 0; k < d.length; k += 4) if (d[k] > 200 && d[k + 1] < 90 && d[k + 2] > 120) n++;
+    return { n };
+  });
+  const solid = await pink();
+  await page.click('#rdl-stroke-more'); await page.selectOption('#rdl-line-style', 'custom');
+  for (const [f, v] of [['stroke-dash', '2'], ['stroke-gap', '10']]) { await page.fill(`#rdl-stroke-pop [data-field="${f}"] input`, v); await page.locator(`#rdl-stroke-pop [data-field="${f}"] input`).dispatchEvent('change'); }
+  await page.keyboard.press('Escape');
+  const dashed = await pink();
+  const figma = await page.evaluate((id) => { const find = (o) => { if (!o || typeof o !== 'object') return null; if (o.id === id) return o; for (const v of Object.values(o)) { const f = find(v); if (f) return f; } return null; }; const b = find(window.buildFigmaExportJSON(null)); return b ? /stroke-dasharray="2 10"/.test(b.svg || '') : null; }, id);
+  const [dh] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.evaluate(() => { window.exportHTMLFile(); return null; })]);
+  const html = require('fs').readFileSync(await dh.path(), 'utf8');
+  const htmlDash = new RegExp(`id="${id}"[\\s\\S]{0,4000}?class="rdl-line"[^>]*stroke-dasharray="2 10"`).test(html);
+  console.log('[S9c 실측]', JSON.stringify({ solid, dashed, figma, htmlDash }));
+  expect(solid.n, '[전제] 실선 선 색 픽셀이 있다').toBeGreaterThan(200);
+  expect(dashed.n / solid.n, `★PNG 점선(2·10) 선 색 픽셀 ${dashed.n}/${solid.n}`).toBeLessThan(0.6);
+  expect(figma, '★Figma JSON generic svg 에 dasharray 2 10').toBe(true);
+  expect(htmlDash, '★HTML 내보내기 path dasharray 2 10').toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S9d radial 호 — 점선 + 점선 끝 «둥글게»여도 선 끝이 상자 안(상자 계산 = 같은 끝 · AG13 · 키 없으면 옛 butt)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec);
+    const before = new Set(sec.querySelectorAll('.radial-block')); window.addRadialBlock({ shape: 'arc' }); const b = [...sec.querySelectorAll('.radial-block')].find((x) => !before.has(x));
+    b.dataset.lineWidth = '6'; b.dataset.lineStyle = 'solid'; b.dataset.line = 'orbit'; window.renderRadialBlock?.(b);
+    window.deselectAll(); window.selectBlock(b.id); window.showRadialProperties(b); return b.id;
+  });
+  const box = () => page.evaluate((id) => { const st = document.querySelector(`#${id} .rdl-stage`).getBoundingClientRect(), p = document.querySelector(`#${id} path.rdl-line`); const r = p.getBoundingClientRect(), w = +p.getAttribute('stroke-width'), k = st.width / +document.querySelector(`#${id} svg.rdl-lines`).viewBox.baseVal.width; return { cap: p.getAttribute('stroke-linecap'), out: Math.round((st.left - (r.left - (w * k) / 2)) * 10) / 10 }; }, id);
+  const b0 = await box();
+  await page.click('#rdl-stroke-more'); await page.selectOption('#rdl-line-style', 'dashed'); await page.click('#rdl-stroke-pop [data-field="stroke-cap"] [data-value="round"]');   // «점선 끝» 줄은 점선일 때만 보인다(§4c ②b)
+  const b1 = await box();
+  console.log('[S9d 실측]', JSON.stringify({ b0, b1 }));
+  expect(b0.cap, '[전제] 키 없음 = 옛 butt').toBe('butt');
+  expect(b1.cap, '★둥글게 = round').toBe('round');
+  expect(b1.out, `★둥근 끝이 상자 왼쪽 밖으로 ${b1.out}px`).toBeLessThanOrEqual(0.5);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

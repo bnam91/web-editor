@@ -361,8 +361,10 @@ test('AG13 (V4) 끝점을 피한 등분 · 끝이 잘린 선의 상자 · 가로
   assert.match(src, /const RADIAL_ARC_PAD_LEFT = 0;/, '왼쪽 여유 0');
   assert.match(src, /const RADIAL_ARC_LINECAP = 'butt';/, '끝이 잘린 선');
   assert.equal((src.match(/padL: RADIAL_ARC_PAD_LEFT/g) || []).length, 2, '맞추기 두 번(라벨 없이 · 라벨까지) 모두 왼쪽 여유를 넘긴다');
-  assert.match(src, /lineCap: RADIAL_ARC_LINECAP/, '상자 계산이 선 끝을 안다');
-  assert.match(src, /stroke-linecap="\$\{g\.arc \? RADIAL_ARC_LINECAP : 'round'\}"/, '그리는 선 끝 = 상자 계산의 선 끝(온 원은 둥근 끝 그대로)');
+  /* ★기대 바뀜(표준 Stroke 3-2 · 지디 261124): 사용자 «점선 끝»(strokeCap)이 생겨 선 끝 = 한 자리 radialLineCap(st, arc) — 상자 계산과 그리기가 «같은 함수»를 부른다(뜻 그대로) · 키 없으면 옛 값(호 butt · 온 원 round) */
+  assert.match(src, /function radialLineCap\(st, arc\) \{ return \(\{ none: 'butt', square: 'square', round: 'round' \}\)\[st\.strokeCap\] \|\| \(arc \? RADIAL_ARC_LINECAP : 'round'\); \}/, '선 끝 한 자리 — 키 없으면 호 butt · 온 원 round');
+  assert.match(src, /lineCap: radialLineCap\(st, true\)/, '상자 계산이 선 끝을 안다(같은 함수)');
+  assert.match(src, /stroke-linecap="\$\{radialLineCap\(st, g\.arc\)\}"/, '그리는 선 끝 = 상자 계산의 선 끝(같은 함수)');
   assert.match(src, /RADIAL_ARC_GEOM\.arcAnglesInset\(n, startDeg, endDeg\)/, '자동 배치 = 끝점을 피한 등분');
   assert.match(src, /const RADIAL_ARC_PRESET = Object\.freeze\(\{\s*\.\.\.window\.RADIAL_ARC_GEOM\.HALF,/, '기본 꼴의 수 = HALF');
 });
