@@ -170,6 +170,27 @@ export const LIBRARY = [
       { file: 'C-sketch-block-mock.jpg', name: 'C 스케치 블럭 시안', w: 600 },
     ],
   },
+  {
+    /* t13F-06(현빈 261122) — 벡터 여러 색·선 / SVG→패스 점 편집을 현빈이 바로 시험하는 «QA 샘플» 상시 비치(관리자 탭).
+       rawSvg = 파일을 «들여온 SVG»와 같은 길(window.addVectorFromSvgText · 끌어 놓기·붙여넣기와 한 문)로 넣는다 — 에셋 그림도 단색 libMono 도 아님.
+       그래서 파일은 지디 원본 바이트 그대로(정사각 256 으로 안 고침 · 크기·clip·그라데이션·글자·같은 clip id 가 곧 시험거리) · 단위는 활성 내용 0 만 본다. */
+    id: 'qa-samples', name: 'QA 샘플', dir: 'qa-samples', admin: true, rawSvg: true,
+    source: '지디 261122 손작성 QA 표본 10개(~/Downloads/goditor_samples/30~39_SVG_*.svg 원본 바이트 · 이름만 ASCII)',
+    license: '자체 제작',
+    note: '31~34 = 벡터 여러 색·선(131) · 30·36 = 한 패스(점 편집 · 36 은 evenodd 라 그림 유지) · 35·39 = 피그마식 clip 같은 id(둘 다 넣으면 id 충돌 시험) · 37 그라데이션 · 38 글자',
+    items: [
+      { file: '30-mono-heart.svg', name: '30 단색 하트' },
+      { file: '31-multicolor-flower.svg', name: '31 여러색 꽃' },
+      { file: '32-stroke-wave-arrow.svg', name: '32 선만 물결화살표' },
+      { file: '33-fill-stroke-badge.svg', name: '33 면·선 뱃지' },
+      { file: '34-multistroke-chart.svg', name: '34 여러색 선 차트' },
+      { file: '35-figma-clip-group.svg', name: '35 피그마식 clip 그룹' },
+      { file: '36-evenodd-donut.svg', name: '36 구멍난 패스 도넛' },
+      { file: '37-gradient-drop.svg', name: '37 그라데이션 물방울' },
+      { file: '38-text-label.svg', name: '38 글자 포함 라벨' },
+      { file: '39-figma-clip-sameid-circle.svg', name: '39 clip 같은 id 원' },
+    ],
+  },
 ];
 
 /* LIB-FIGMA(261118 현빈) — «관리자 로컬 폴더» 묶음. 파일은 앱에 «없다»(asar·레포 assets/ 미동봉 · 출처·라이선스 미확인 · Apple 모양).
