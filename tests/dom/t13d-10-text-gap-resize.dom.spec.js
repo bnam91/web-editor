@@ -58,19 +58,10 @@ test('R1 흐름 텍스트 se → 폭·높이 · s 위로 내용보다 작게 = a
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 
-test('R2 갭 s +30 → 높이 · 패널 값 · ⌘Z 한 번', async ({ page }) => {
+test('R2 갭 고름 → 캔버스 손잡이 없음(높이는 «H» 라벨로만)', async ({ page }) => {   // ★기대 바뀜: 현빈 261123 t13G-02 ⓐ «갭 블럭 아래 리사이즈 손잡이 없게»(옛 기대 = t13D-10 갭 아래 변 손잡이로 +30 · ⌘Z) — 라벨로 높이 바꾸기·⌘Z 는 tests/dom/gap-height-label-t13g02
   const { errs, ids } = await scene(page);
   await pick(page, ids.gap);
-  const h0 = (await box(page, ids.gap)).h;
-  expect(await page.evaluate(() => document.querySelectorAll('#ss-handles-overlay [data-tbx-dir]').length), '[전제] 갭 손잡이 = 아래 변 하나').toBe(1);
-  expect(await page.evaluate(() => [...document.querySelectorAll('.gap-preset-btn.active')].map((b) => b.dataset.h)), `[전제] 패널 프리셋 불 = 옛 높이 칸(${h0}) — 없으면 아래 «불 꺼짐» 단언이 죽은 줄`).toEqual([String(h0)]);
-  await drag(page, 's', 0, 30);
-  await expect.poll(async () => (await box(page, ids.gap)).h, '★높이 +30').toBe(h0 + 30);
-  const nb = await page.evaluate(() => document.getElementById('gap-number')?.value ?? null);
-  if (nb !== null) expect(nb, '★패널 숫자 = 높이').toBe(String(h0 + 30));
-  expect(await page.evaluate(() => [...document.querySelectorAll('.gap-preset-btn.active')].map((b) => b.dataset.h)), '★프리셋 불 = 높이와 같은 칸만(70 = 없음 · 옛 40 꺼짐)').toEqual([]);
-  await page.keyboard.press('Meta+z');
-  await expect.poll(async () => (await box(page, ids.gap)).h, '★⌘Z 한 번 = 옛 높이').toBe(h0);
+  expect(await page.evaluate(() => document.querySelectorAll('#ss-handles-overlay [data-tbx-dir]').length), '★갭 = 캔버스 손잡이 0').toBe(0);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
 

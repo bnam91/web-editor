@@ -42,7 +42,7 @@ test('G2 관리자 — «H N» · 블럭 오른쪽 · 세로 가운데 · #canva
     const g = document.getElementById(id), l = document.querySelector('.gap-h-label'), gr = g.getBoundingClientRect(), lr = l.getBoundingClientRect();
     return { n: document.querySelectorAll('.gap-h-label').length, h: l.dataset.h, oh: Math.round(g.offsetHeight), text: getComputedStyle(l, '::after').content,
       right: lr.left >= gr.right, mid: Math.abs((lr.top + lr.height / 2) - (gr.top + gr.height / 2)) <= 1, inCanvas: !!l.closest('#canvas'), inOverlay: !!l.closest('#ss-handles-overlay'),
-      handles: document.querySelectorAll('#ss-handles-overlay [class*="resize-handle"], #canvas .gap-block [class*="handle"]').length };
+      handles: document.querySelectorAll('#ss-handles-overlay [class*="resize-handle"], #ss-handles-overlay [data-tbx-dir], #canvas .gap-block [class*="handle"]').length };   // ★data-tbx-dir 더함(현빈 261123 ⓐ) — 옛 자는 t13D-10 갭 손잡이(data-tbx-dir)를 못 세어 «0» 이 거짓 초록이었다
   }, gid);
   expect(r).toEqual({ n: 1, h: String(r.oh), oh: r.oh, text: `"${r.oh}"`, right: true, mid: true, inCanvas: false, inOverlay: true, handles: 0 });
   expect(errs).toEqual([]);
