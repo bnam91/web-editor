@@ -73,3 +73,112 @@ for (const [kind, K] of Object.entries(KINDS)) {
     expect(errs, errs.join(' | ')).toEqual([]);
   });
 }
+
+/* S5 단계 2-2 (지디 261123 판정) — 블럭마다 «없음 = 무엇»·켬/끔 정본이 다르다:
+ *   sticker-text = 머리 ＋/− · 없음 = strokeWidth 0 · 0.5 걸음 | icon-circle = 머리 ＋/− · 없음 = data-border none · 새 키 2(기본과 다를 때만)
+ *   zoom = 머리 없음(켬/끔 = 옛 라디오 bd) | radial = 머리 없음(켬/끔 = 연결선 select · 0.5 걸음 · 하한 0.5) | 구분선·형광펜 = Special 이사 */
+async function openNew(page, make, sel, show) {
+  return page.evaluate(async ([make, sel, show]) => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll(sel)); eval(make); const b = [...sec.querySelectorAll(sel)].find((x) => !before.has(x)); b.id = b.id || 'kS5'; window.deselectAll(); window.selectBlock?.(b.id); window[show]?.(b); window.clearHistory?.(); return b.id; }, [make, sel, show]);   // eslint-disable-line no-eval
+}
+const fillChange = (page, sel, v) => page.evaluate(([sel, v]) => { const n = document.querySelector(sel); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); }, [sel, v]);
+
+test('S5a sticker-text — 머리 ＋ = 2 · 0.5 걸음(2.5 그대로) · − = strokeWidth 0 · 위치 = 바깥 막힘 · ⌘Z 한 칸', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, "window.addStickerBlock({ shape: 'text' })", '.sticker-block', 'showStickerProperties');
+  await page.waitForSelector('#stk-t-stk-on', { state: 'attached' });
+  const k = () => page.evaluate((id) => document.getElementById(id).dataset.strokeWidth ?? null, id);
+  const k0 = await k();
+  await page.click('#panel-right label:has(#stk-t-stk-on)');
+  const kOn = await k();
+  await fillChange(page, '#stk-t-stk-w-num', '2.5');
+  const k25 = await k();
+  const align = await page.evaluate(() => { const a = document.getElementById('stk-t-stk-align'); return [a.value, a.getAttribute('aria-disabled')]; });
+  await page.click('#panel-right label:has(#stk-t-stk-on)');
+  const kOff = await k();
+  await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press('Meta+z');
+  const kU = await k();
+  console.log('[S5a 실측]', JSON.stringify({ k0, kOn, k25, align, kOff, kU }));
+  expect([kOn, k25, kOff, kU], '★켬 2 · 2.5 그대로(parseInt 로 2 안 됨) · 끔 0 · ⌘Z = 2.5').toEqual(['2', '2.5', '0', '2.5']);
+  expect(align, '★바깥 막힘(paint-order 로 안쪽 절반이 묻힘)').toEqual(['outside', 'true']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S5b icon-circle — ★옛 저장본(키 없음·solid) 그대로 = 3px·옛 색 · 굵기 5 = 키+변수 · 3 으로 되돌리면 키·변수 둘 다 사라짐 · − = data-border none', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await page.evaluate(async () => { const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.icon-circle-block')); window.addIconCircleBlock(); const b = [...sec.querySelectorAll('.icon-circle-block')].find((x) => !before.has(x));
+    b.dataset.border = 'solid'; b.querySelector('.icb-circle').dataset.border = 'solid';   // ★전제: 옛 저장본 = 스타일만(굵기·색 키 없음)
+    window.deselectAll(); window.selectBlock?.(b.id); window.showIconCircleProperties(b); window.clearHistory?.(); return b.id; });
+  const st = () => page.evaluate((id) => { const b = document.getElementById(id), c = b.querySelector('.icb-circle'), cs = getComputedStyle(c); return { border: b.dataset.border, bw: b.dataset.borderW ?? null, bc: b.dataset.borderColor ?? null, cw: cs.borderTopWidth, cc: cs.borderTopColor, cst: cs.borderTopStyle, style: c.getAttribute('style') || '' }; }, id);
+  const s0 = await st();
+  const tok = await page.evaluate((id) => { const c = document.querySelector(`#${id} .icb-circle`); const p = document.createElement('i'); p.style.color = getComputedStyle(c).getPropertyValue('--ui-border'); document.body.append(p); const v = getComputedStyle(p).color; p.remove(); return v; }, id);
+  const panel0 = await page.evaluate(() => [document.getElementById('icb-stroke-on').checked, document.getElementById('icb-stroke-width').value]);
+  await fillChange(page, '#icb-stroke-width', '5');
+  const s5 = await st();
+  await fillChange(page, '#icb-stroke-width', '3');
+  const s3 = await st();
+  await page.click('#panel-right label:has(#icb-stroke-on)');
+  const sOff = await st();
+  console.log('[S5b 실측]', JSON.stringify({ s0, tok, panel0, s5, s3, sOff }));
+  expect([s0.bw, s0.bc, s0.cw, s0.cc, s0.cst, s0.style.includes('--icb')], '★옛 저장본 그대로 열면 3px · 옛 색(--ui-border) · 키·변수 없음').toEqual([null, null, '3px', tok, 'solid', false]);
+  expect(panel0, '★패널 = 켬 · 굵기 3(옛 고정값)').toEqual([true, '3']);
+  expect([s5.bw, s5.cw, s5.style.includes('--icb-bw')], '★굵기 5 = 키 + 변수 → 5px').toEqual(['5', '5px', true]);
+  expect([s3.bw, s3.cw, s3.style.includes('--icb')], '★기본(3)으로 되돌리면 키·변수 둘 다 사라짐(옛 저장본 바이트)').toEqual([null, '3px', false]);
+  expect([sOff.border, sOff.cst], '★− = data-border none(옛 «없음»)').toEqual(['none', 'none']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S5c zoom — 머리 ＋/− 없음 · 켬/끔 = 옛 라디오(bd) · 끄면 표준 몸 흐림 · 굵기 칸 = bdw · 위치 = 바깥 막힘', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addZoomBlock()', '.zoom-block', 'showZoomProperties');
+  await page.waitForSelector('#zm-bdw-num', { state: 'attached' });
+  const r = await page.evaluate(() => ({ head: !!document.getElementById('zm-bd-on'), radios: document.querySelectorAll('input[name="zm-bd"]').length, align: [document.getElementById('zm-bd-align').value, document.getElementById('zm-bd-align').getAttribute('aria-disabled')] }));
+  await page.check('input[name="zm-bd"][value="on"]');
+  await page.waitForFunction(() => document.getElementById('zm-bd-fields')?.style.opacity === '');
+  await fillChange(page, '#zm-bdw-num', '9');
+  const bdw = await page.evaluate((id) => document.getElementById(id).dataset.bdw, id);
+  await page.check('input[name="zm-bd"][value="off"]');
+  const off = await page.evaluate((id) => [document.getElementById(id).dataset.bd, document.getElementById(id).dataset.bdw, document.getElementById('zm-bd-fields').style.opacity], id);
+  console.log('[S5c 실측]', JSON.stringify({ r, bdw, off }));
+  expect(r, '★머리 없음 · 라디오 둘 · 위치 바깥 막힘').toEqual({ head: false, radios: 2, align: ['outside', 'true'] });
+  expect(bdw).toBe('9');
+  expect(off, '★없음 = bd off · 굵기 값 보존 · 몸 흐림').toEqual(['off', '9', '0.4']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S5d radial — 머리 없음 · 연결선 none = 표준 몸 숨김 · 굵기 0.5 걸음 · 하한 0.5', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const id = await openNew(page, 'window.addRadialBlock()', '.radial-block', 'showRadialProperties');
+  await page.waitForSelector('#rdl-line-width', { state: 'attached' });
+  const head = await page.evaluate(() => !!document.getElementById('rdl-stroke-on'));
+  await fillChange(page, '#rdl-line-width', '2.5');
+  const w25 = await page.evaluate((id) => document.getElementById(id).dataset.lineWidth, id);
+  await fillChange(page, '#rdl-line-width', '0');
+  const wMin = await page.evaluate((id) => document.getElementById(id).dataset.lineWidth, id);
+  await page.selectOption('#rdl-line-select', 'none');
+  await page.waitForFunction(() => document.querySelector('#panel-right [data-part="stroke"]')?.hidden === true);
+  console.log('[S5d 실측]', JSON.stringify({ head, w25, wMin }));
+  expect([head, w25, wMin], '★머리 없음 · 2.5 그대로 · 0 → 하한 0.5').toEqual([false, '2.5', '0.5']);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('S5e 구분선·형광펜 — Stroke 절 없음 · 몸은 Special «Line»/«Highlight» · 옛 id 그대로', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  const where = (ids) => page.evaluate((ids) => ({ stroke: !!document.querySelector('#panel-right .prop-section[data-sec="stroke"]'), secs: ids.map((i) => { const s = document.getElementById(i)?.closest('.prop-section'); return s ? `${s.dataset.sec}:${s.querySelector('.prop-section-title, .prop-sec-title, h3, h4')?.textContent?.trim() || ''}` : null; }) }), ids);
+  await openNew(page, 'window.addDividerBlock()', '.divider-block', 'showDividerProperties');
+  await page.waitForSelector('#dvd-weight-number', { state: 'attached' });
+  const dv = await where(['dvd-style', 'dvd-weight-number']);
+  await openNew(page, "window.addStickerBlock({ shape: 'highlightB' })", '.sticker-block', 'showStickerProperties');
+  await page.waitForSelector('#stk-hlb-thick-num', { state: 'attached' });
+  const hl = await where(['stk-hlb-section', 'stk-hlb-thick-num']);
+  console.log('[S5e 실측]', JSON.stringify({ dv, hl }));
+  expect(dv.stroke, '★구분선 = Stroke 절 없음').toBe(false);
+  expect(dv.secs.every((s) => /^special:/.test(s) && /Line/.test(s)), `★구분선 몸 = Special «Line» ${dv.secs}`).toBe(true);
+  expect(hl.stroke, '★형광펜 = Stroke 절 없음').toBe(false);
+  expect(hl.secs.every((s) => /^special:/.test(s) && /Highlight/.test(s)), `★형광펜 몸 = Special «Highlight» ${hl.secs}`).toBe(true);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
