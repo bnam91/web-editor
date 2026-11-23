@@ -212,7 +212,7 @@ test('SB-12 못 찾은 이유에 «그 검사가 무엇을 놓쳤는지»를 실
    ⛔새 호출부를 만들면 여기에 한 줄 더해라 — 그래야 이 그물이 따라간다. */
 const REAL = [
   ['js/props/prop-zoom.js', 'const bindPair = (id, key, label, min, max) =>'],
-  ['js/props/prop-zoom.js', 'const bindRadio = (name, key, label) =>'],
+  ['js/props/prop-zoom.js', 'const bindCheck = (id, key, label) =>'],
   ['js/asset-rotate.js', 'const _ROTATE_HANDLERS = {'],
   ['js/blocks/zoom-block.js', 'const ZOOM_DEFAULTS = {'],
   ['js/blocks/zoom-block.js', 'function makeZoomBlock('],
@@ -296,7 +296,7 @@ test(`SB-14 ★양성대조 — 옛 자(\\n}\\n)로 재면 실제 구간 ${REAL.
   }
   /* ★이 넷이 `};` 로 끝나는 구간 — 옛 자가 «못 맞추고 달려간» 바로 그 자리들이다. */
   for (const must of ['const bindPair = (id, key, label, min, max) =>',
-                      'const bindRadio = (name, key, label) =>',
+                      'const bindCheck = (id, key, label) =>',
                       'const _ROTATE_HANDLERS = {',
                       'const ZOOM_DEFAULTS = {']) {
     assert.ok(wrong.some((w) => w.endsWith(must)),
@@ -308,10 +308,10 @@ test(`SB-14 ★양성대조 — 옛 자(\\n}\\n)로 재면 실제 구간 ${REAL.
     `★옛 자가 ${wrong.length}개 틀린다(알려진 값 10). 늘었으면 «새로 샌 자리»고 줄었으면 «대조가 죽은 것»이다 — 재고 고쳐라:\n  ` + wrong.join('\n  '));
 });
 
-test('SB-15 ★실측 — bindPair·bindRadio 를 옛 자로 재면 «몇 배로» 부푼다', () => {
+test('SB-15 ★실측 — bindPair·bindCheck(옛 bindRadio · 현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체) 를 옛 자로 재면 «몇 배로» 부푼다', () => {
   const prop = readSrc(ROOT, 'js/props/prop-zoom.js');
   for (const [header, cap] of [['const bindPair = (id, key, label, min, max) =>', 40],
-                               ['const bindRadio = (name, key, label) =>', 30]]) {
+                               ['const bindCheck = (id, key, label) =>', 30]]) {
     const now = lines(sliceBlock(prop, header));
     const old = lines(oldSlice(prop, header));
     assert.ok(now < cap, `★${header} 가 ${now}줄 — 이 정도면 또 남을 삼키고 있다`);

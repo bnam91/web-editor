@@ -151,15 +151,10 @@ test('T3 ★끔(none)이면 filter 가 «비고», 켬(soft/strong)이면 값이
 });
 
 /* ── T4 남의 것을 안 죽였다 (정적) ──────────────────────────────────────── */
-test('T4 ★광원 라디오와 「라디오여야 한다」 규약이 «그대로» 산다', () => {
-  // 되돌리면 빨강: 새 컨트롤을 체크박스로 만들면(prop-sticker 의 prop-toggle 을 통째로 베끼면)
-  //   기존 검사 ⓑ-14 와 «함께» 여기가 빨강. 현빈이 「라디오버튼으로」라고 못박은 자리다.
-  assert.equal(/type="checkbox"/.test(SRC.prop), false,
-    'prop-zoom 에 체크박스가 생겼다 — ⓑ-14 가 금지한다');
-  for (const v of ['on', 'off']) {
-    assert.ok(SRC.prop.includes(`type="radio" name="zm-shadow" value="${v}"`),
-      `광원 라디오(zm-shadow ${v})가 사라졌다`);
-  }
+/* ★기대 바뀜(현빈 261123 온/오프=체크 · chku 1–3 GO · ③ⓐ 세그먼트 — 옛 ‹라디오로› 결정 대체) — 광원 켬/끔 = check 부품 */
+test('T4 ★광원 켬/끔(체크)이 «그대로» 산다', () => {
+  assert.match(SRC.prop, /checkHTML\(\{ id: 'zm-shadow-on'/, '광원 켬/끔 체크(zm-shadow-on)가 사라졌다');
+  assert.match(SRC.prop, /bindCheck\('zm-shadow-on',\s*'shadow'/, '광원 켬/끔 배선(저장 키 shadow)이 없다');
   // 새 컨트롤은 Shape 프리셋과 «같은 관용구»(prop-align-group)를 쓴다 — 새 어휘를 안 만든다.
   assert.match(SRC.prop, /prop-align-group" id="zm-drop-group"/, '새 컨트롤이 관용구를 안 따른다');
 });
