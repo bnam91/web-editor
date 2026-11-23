@@ -1493,6 +1493,7 @@ function addSection(opts = {}) {
   const sec = document.createElement('div');
   sec.className = 'section-block'; sec.dataset.section = newIdx;
   sec.id = genId('sec');
+  sec.dataset.overflowVisible = 'true';   // ★현빈 261123 E — 새 섹션 Clip content 기본 «끔»(밖 보임) · 저장 키 극성 그대로(키 없음 = 자름) ⇒ 키 없는 옛 저장본은 저장된 그대로 잘림 · 새로 만든 섹션만 키를 얹는다
   const secLabel = `Section ${String(newIdx).padStart(2,'0')}`;
   sec._name = secLabel;
   sec.dataset.name = secLabel;
