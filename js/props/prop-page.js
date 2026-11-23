@@ -424,7 +424,7 @@ export function showPageProperties() {
                 프리셋 [6][12] 는 현빈 스케치에 남아 있어 지키는 쪽을 골랐다.
              ⇒ 실측 결과 넘침 0 · 잘린 요소 0 · 여유 +12px.
            ⛔라벨을 34px 로 되돌리지 마라 — 여유가 0 이라 윈도우 폰트에서 잘린다(실측). -->
-      <div class="prop-row" id="page-grid-opts">
+      <div class="prop-row prop-row--wide" id="page-grid-opts">
         <span class="prop-label prop-label--narrow">칼럼</span>
         <div class="prop-type-group" id="page-grid-col-presets">
           <button class="prop-preset-btn prop-type-btn" data-cols="6">6</button>

@@ -460,8 +460,8 @@ ${disclosureSectionHtml('cvb-grid-toggle', `Card Grid ${gridCols}×${gridRows}`,
         <input type="text" class="prop-color-hex" id="cvb-text-bg-top-raw" value="${_hexBox(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}" placeholder="상속" title="${(block.dataset.textBgTop || '').replace(/"/g, '&quot;')}">
         <button class="prop-align-btn prop-align-btn--aux" id="cvb-text-bg-top-clear" title="해제(상속)">✕</button>
       </div>
-      <div class="prop-row" style="padding-left:60px;gap:4px;">
-        <span class="prop-label" style="font-size:10px;color:var(--ui-text-sub);min-width:0;flex:0 0 auto;margin-right:4px;">그라데이션</span>
+      <div class="prop-row prop-row--wide">
+        <span class="prop-label">그라데이션</span>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" title="아래로 어두워짐" style="background:linear-gradient(180deg, transparent, rgba(0,0,0,0.85));">↓</button>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="0" title="위로 어두워짐" style="background:linear-gradient(0deg, transparent, rgba(0,0,0,0.85));">↑</button>
         <button class="prop-align-btn cvb-grad-preset" data-graddir="180" data-grad-strong="1" title="아래 강조" style="background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,0.95));">⇊</button>
