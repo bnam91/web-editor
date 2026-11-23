@@ -1286,8 +1286,8 @@ const GRID_TESTS = fs.readdirSync(UNIT_DIR)
  *   ⛔다른 grid 검사 파일은 ★한 칸도 안 건드렸다. ⛔등호 그대로.
  * ★2026-11-09 1109t1A3 구분선 너비(widthPct) — ★494 ＋ 3 = 497 (pass 493 ＋ 3 = 496) · grid-divider-handle.test.mjs D8·D9·D10 뿐.
  */
-const GRID_BASELINE_TOTAL = 497;
-const GRID_BASELINE_PASS = 496;   // ★497 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
+const GRID_BASELINE_TOTAL = 498;   // ★261123 t13F-04 ＋1 = grid-ifg-icon-pick.test.mjs A7(ifgPadViewBox)
+const GRID_BASELINE_PASS = 497;   // ★498 − skip 1(E8c 폐기, DOM 쪽 쌍 N4 도 같은 까닭으로 skip)
 
 /** `RAW.replace('…')` / `src = src.replace('…')` — «소스를 변이시키는» 자리의 닻(문자열). */
 function readLiteral(s, i) {
