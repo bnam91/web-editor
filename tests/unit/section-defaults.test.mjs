@@ -1,11 +1,12 @@
 /* section-defaults — _section-spec.js SECTION_DEFAULTS(절별 기본 항목 · 현빈 G 261123 · 태양 PLAN §4b)의 꼴을 잠근다.
  *   D1 절 key ∈ SECTION_ORDER · Kind/Content/Special 없음 · D2 부품 이름 ∈ PART_NAMES · D3 양성대조(모르는 이름·제외 절이면 판정이 잡음). */
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');   // fileURLToPath = 윈도우 경로도 맞음(win-portability ②-5)
 const src = fs.readFileSync(path.join(ROOT, 'js/props/_section-spec.js'), 'utf8').replace(/^export /gm, '');
 const ctx = {}; vm.createContext(ctx); vm.runInContext(src + '\n;globalThis.__x = { SECTION_ORDER, SECTION_DEFAULTS, PART_NAMES };', ctx);
 const { SECTION_ORDER, SECTION_DEFAULTS, PART_NAMES } = ctx.__x;

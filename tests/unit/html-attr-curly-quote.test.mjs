@@ -2,10 +2,11 @@
  *   클래스·id 가 «소리 없이» 안 먹는다(prop-quote.js:174 class=”prop-hint” — 안내가 맨 글로 보였다 · 탑 힌트 전수 261123 덤).
  * 판정 = `이름=”` 또는 `이름=“` 꼴 0. 양성대조 = 같은 판정이 굽은 따옴표 줄을 잡는다. */
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');   // fileURLToPath = 윈도우 경로도 맞음(win-portability ②-5)
 const BAD = /\b[a-z][a-z-]*=[“”]/;
 function walk(d, out = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, out); else if (p.endsWith('.js')) out.push(p); } return out; }
 test('C1 js/** 속성 값에 굽은 따옴표 0', () => {
