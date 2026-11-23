@@ -300,3 +300,24 @@ function _mainEnd(prefix, pop, sides) {
   const ph = strokePopHTML({ prefix, ...pop }), k = ph.indexOf('<div class="ui-stroke-pop"');
   return ph.slice(0, k) + sb + ph.slice(k);
 }
+
+/* ══ 단계 5 — 끝점 슬롯(stroke-ends · §4c ②b · 시안 strokestd2 24) ═══════════════════════════════
+ * data-slot-kind="stroke-ends" · select data-field="stroke-start"/"stroke-end" · 바꾸기 단추 data-action="stroke-ends-swap"
+ * ⛔바꾸기 단추는 .prop-chain-btn 아님 — 줄 마지막 자식이 chain-btn 이면 옵션 칼럼 음수 margin 이 걸려 줄이 넘친다(4-2b 회귀 · S11d) · 그리기·저장 키는 블럭 어댑터 */
+export const STROKE_ENDS = Object.freeze([['none', '없음'], ['round', '둥글게'], ['square', '네모'], ['arrow-line', '선 화살표'], ['arrow-triangle', '삼각형'], ['arrow-reversed', '역삼각형'], ['arrow-circle', '원형'], ['arrow-diamond', '마름모']]);
+const SWAP_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h8M8 2l2 2-2 2M10 8H2M4 6L2 8l2 2"/></svg>';
+export function endsSlotHTML({ prefix, start, end }) {
+  const sel = (id, field, cur, label) => `<div class="ui-s2-cell"><span>${label}</span><select class="prop-select" id="${prefix}-${id}" data-part="select" data-field="${field}" aria-label="${label}">${STROKE_ENDS.map(([v, t]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`;
+  return `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="stroke-ends">
+        <div class="ui-s2-main ui-ends-row prop-row">${sel('start', 'stroke-start', start, '시작점')}${sel('end', 'stroke-end', end, '끝점')}<button type="button" class="prop-type-btn ui-ends-swap" id="${prefix}-ends-swap" data-action="stroke-ends-swap" aria-label="시작점·끝점 바꾸기" title="시작점·끝점 바꾸기">${SWAP_ICON}</button></div>
+      </div>`;
+}
+/** adapter = { read() → {start,end} · write({start,end}) · commit() } · 이력 = 바꿀 때마다 한 칸 */
+export function wireEnds({ prefix, adapter }) {
+  const a = document.getElementById(`${prefix}-start`), b = document.getElementById(`${prefix}-end`), sw = document.getElementById(`${prefix}-ends-swap`);
+  if (!a || !b || !adapter) return;
+  const put = (v) => { adapter.write(v); a.value = v.start; b.value = v.end; adapter.commit?.(); };
+  a.addEventListener('change', () => put({ ...adapter.read(), start: a.value }));
+  b.addEventListener('change', () => put({ ...adapter.read(), end: b.value }));
+  sw?.addEventListener('click', () => { const c = adapter.read(); put({ start: c.end, end: c.start }); });
+}

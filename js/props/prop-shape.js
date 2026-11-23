@@ -1,7 +1,7 @@
 import { propPanel } from '../globals.js';
 import { checkerBgBigColors, checkerSvgFills } from '../checker-tokens.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
-import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG } from './_stroke-section.js';
+import { strokeSectionHTML, strokeHeadToolsHTML, wireStrokeSection, STROKE_POP_WHY, STROKE_STYLES_SVG, endsSlotHTML, wireEnds } from './_stroke-section.js';
 import { readLook, writeLook, svgLook, derivedDash, hasSides, readSides, writeSides, sidesMixed } from '../stroke-look.js';
 import { svgStopRemap } from './gradient-model.js';
 import { overlayToggleBtnHTML, blockHeaderHTML, rotRowHTML, wireRotRow } from './_helpers.js';
@@ -338,7 +338,7 @@ export function showShapeProperties(block) {
       ` : ''}`),
       /* ★표준 Stroke 절 부품(현빈 261123 GO · 8910 strokestd2 · js/props/_stroke-section.js) — 첫 소비자. 위치 = «칸만 + 막힘»(§4c ②③):
          사각형·원은 안쪽 그림(block-factory.js refreshShapeInnerSVG 가 굵기 절반 inset)이라 «안쪽» · 선·화살표·다각형·별은 가운데 — 지금 그려지는 쪽을 보여 준다. */
-      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), sides: _shapeSides(block, strokeWidth), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
+      sec('stroke', strokeSectionHTML({ prefix: 'shape-stroke', pop: _shapePop(block, strokeWidth), sides: _shapeSides(block, strokeWidth), slotsBelow: _shapeEndsSlot(block), color: strokeColor, alpha: strokeColorAlpha, width: strokeWidth, maxWidth: 20,
         align: /^(rectangle|ellipse)$/.test(block.dataset.shapeType || 'rectangle') ? 'inside' : 'center', canAlign: false, alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 도형 모양대로 그려집니다', on: strokeWidth > 0 }),
         { headTools: strokeHeadToolsHTML({ prefix: 'shape-stroke', on: strokeWidth > 0 }) }),   // 머리 ＋/− — 없음 = 굵기 0(§4c 없음 열 실측)
       // 원 이너 그림자 + 효과 목록(Effects)
@@ -636,6 +636,14 @@ export function showShapeProperties(block) {
     onApply: (c) => applyColor(c),
     onCommit: () => window.pushHistory?.(),
   });
+
+  /* 단계 5 — 선·화살표 끝점(키 strokeStart/strokeEnd = 그 종류 기본과 다를 때만 · 그림 = block-factory refreshShapeInnerSVG) */
+  wireEnds({ prefix: 'shape-stroke', adapter: {
+    read: () => { const df = window.shapeEndsDefault?.(block.dataset.shapeType) || { start: 'round', end: 'round' }; return { start: block.dataset.strokeStart || df.start, end: block.dataset.strokeEnd || df.end }; },
+    write: (v) => { const df = window.shapeEndsDefault?.(block.dataset.shapeType) || { start: 'round', end: 'round' };
+      if (v.start === df.start && v.end === df.end) { delete block.dataset.strokeStart; delete block.dataset.strokeEnd; } else { block.dataset.strokeStart = v.start; block.dataset.strokeEnd = v.end; }   // 둘 다 기본이면 키 0(옛 바이트)
+      window.refreshShapeInnerSVG?.(block); window.scheduleAutoSave?.(); },
+    commit: () => window.pushHistory?.() } });
 
   // ── 외곽선 = 표준 Stroke 부품 배선(어댑터 = 이 패널의 쓰기 함수 그대로 · 저장 키 shapeStrokeColor/shapeStrokeWidth 무변 · 이력 push-after) ──
   wireStrokeSection({ prefix: 'shape-stroke', alpha: strokeColorAlpha, maxWidth: 20,
@@ -1574,7 +1582,7 @@ export function paintShapeLook(block) {
   set('stroke-linecap', ds.strokeCap != null, L.linecap);
   set('stroke-linejoin', ds.strokeJoin != null, L.linejoin);
   set('stroke-miterlimit', ds.strokeMiter != null, L.miterlimit);
-  svg.querySelectorAll('line[stroke-linecap]').forEach((ln) => ln.setAttribute('stroke-linecap', ds.strokeCap != null ? L.linecap : 'round'));
+  svg.querySelectorAll('line[stroke-linecap]:not([data-end]):not([data-end-main])').forEach((ln) => ln.setAttribute('stroke-linecap', ds.strokeCap != null ? L.linecap : 'round'));   // 단계 5: 끝점 모드의 본선(butt)·끝 모양은 끝점이 정한다
 }
 if (typeof window !== 'undefined') window.paintShapeLook = paintShapeLook;
 function _shapePop(block, w) {
@@ -1588,4 +1596,11 @@ function _shapePop(block, w) {
 function _shapeSides(block, w) {
   if ((block.dataset.shapeType || 'rectangle') !== 'rectangle') return null;
   return { w: hasSides(block.dataset) ? readSides(block.dataset, w) : null, std: w, open: hasSides(block.dataset), mixed: sidesMixed(block.dataset, w) };
+}
+/* 단계 5 — 끝점 슬롯은 선·화살표만(시안 24) */
+function _shapeEndsSlot(block) {
+  const t = block.dataset.shapeType || 'rectangle';
+  if (t !== 'line' && t !== 'arrow') return '';
+  const df = window.shapeEndsDefault?.(t) || { start: 'round', end: 'round' };
+  return endsSlotHTML({ prefix: 'shape-stroke', start: block.dataset.strokeStart || df.start, end: block.dataset.strokeEnd || df.end });
 }

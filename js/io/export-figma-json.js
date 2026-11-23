@@ -185,6 +185,8 @@ function _shapeFigmaBlock(el) {
   { const K = ['strokeWidthTop', 'strokeWidthRight', 'strokeWidthBottom', 'strokeWidthLeft'], sw0 = Number(el.dataset.shapeStrokeWidth) || 0;   // 표준 Stroke 4-2b/4-3 — 사각형 면별(캔버스 _shapeInnerSVG 와 같은 [위,오른쪽,아래,왼쪽])
     if (out.shapeType === 'rectangle' && sw0 > 0 && K.some((k) => el.dataset[k] != null)) out.strokeSides = K.map((k) => (el.dataset[k] != null ? Math.max(0, Number(el.dataset[k]) || 0) : sw0)); }
   /* ★표준 Stroke 단계 3-2(§4c ②b) — 점선·점선 끝·꼭짓점·Miter = 캔버스가 «이미 그린» svg 값 그대로(prop-shape paintShapeLook) · 키 없는 도형은 안 싣는다 = 옛 JSON 바이트 */
+  /* 표준 Stroke 단계 5 — 선·화살표 끝점: 캔버스가 «이미 그린» SVG 를 그대로 싣는다(별 starPolygons 선례 · 식 두 벌 금지) · 키 없는 선·화살표는 안 실음 = 옛 JSON 바이트 */
+  if ((out.shapeType === 'line' || out.shapeType === 'arrow') && (el.dataset.strokeStart != null || el.dataset.strokeEnd != null) && svg) out.shapeInner = svg.innerHTML.replace(/\s+/g, ' ').trim();
   if (svg && el.dataset.strokeStyle != null && svg.style?.getPropertyValue('stroke-dasharray')) out.strokeDasharray = svg.style.getPropertyValue('stroke-dasharray').replace(/px/g, '').trim().split(/[\s,]+/).join(' ');   // 브라우저는 «24, 16» 으로 돌려준다 → 렌더러 꼴(공백 숫자)로
   if (svg && el.dataset.strokeCap != null && svg.style?.getPropertyValue('stroke-linecap')) out.strokeLinecap = svg.style.getPropertyValue('stroke-linecap').trim();
   if (svg && el.dataset.strokeJoin != null && svg.style?.getPropertyValue('stroke-linejoin')) out.strokeLinejoin = svg.style.getPropertyValue('stroke-linejoin').trim();

@@ -1087,6 +1087,10 @@ function renderBlock(block, parentId, x, y, availableWidth) {
     const styleAttr = `color:${color};stroke-width:${sw};fill:${faceFill};stroke:${color};`
       + (_dash ? `stroke-dasharray:${_dash};` : '') + (_cap ? `stroke-linecap:${_cap};` : '') + (_join ? `stroke-linejoin:${_join};` : '') + (_ml ? `stroke-miterlimit:${_ml};` : '');
     if (_cap) def = { ...def, inner: def.inner.replace(/stroke-linecap="round"/g, `stroke-linecap="${_cap}"`) };
+    /* ★표준 Stroke 단계 5 — 선·화살표 끝점 = 보내는 쪽이 실어 준 캔버스 SVG(line/polyline/polygon/circle 만 · 숫자·알려진 낱말 속성만 — 글자를 SVG 에 꽂으므로 꼴 검사) · currentColor = 선 색 · 아니면 옛 DEFS */
+    if ((type === 'line' || type === 'arrow') && typeof block.shapeInner === 'string' && /^(\s*<(line|polyline|polygon|circle)( (x1|y1|x2|y2|cx|cy|r|points|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|stroke-dasharray|data-end|data-end-main)="[-#\w., ]*")* ?(\/>|><\/(line|polyline|polygon|circle)>))+\s*$/.test(block.shapeInner)) {
+      def = { ...def, inner: block.shapeInner.replace(/currentColor/g, color) };
+    }
     /* ★표준 Stroke 4-2b/4-3 — 사각형 면별(보내는 쪽 strokeSides [위,오른쪽,아래,왼쪽]) = 캔버스 _shapeInnerSVG 와 같은 SVG(면 + 변마다 선) · 꼴 틀리면 옛 rect */
     if (type === 'rectangle' && Array.isArray(block.strokeSides) && block.strokeSides.length === 4 && block.strokeSides.every((v) => Number.isFinite(v) && v >= 0)) {
       const [t, r, b, l] = block.strokeSides, ln = (x1, y1, x2, y2, w) => (w > 0 ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}" fill="none"/>` : '');
