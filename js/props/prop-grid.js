@@ -2835,7 +2835,7 @@ function _grdOutlineSectionHtml(block) {
     <div class="prop-section" data-scope="block">
       <div class="prop-section-title" title="블럭 «바깥» 네 변 — 칸 테두리·칸 사이 줄과 따로 켭니다 · 굵기·색·꼴은 「모든 칸 테두리」 값을 따릅니다(지금 ${o.width}px ${o.style})">블럭 외곽선</div>
       ${/* 단계 4(표준 Stroke · 시안 strokestd2 9) — 옛 단추 여섯 = edge-select 슬롯(바깥 넷 · 모두/없음) · 옛 id grd-outline-group · 옛 속성 data-outline-side/-all 지킴(시험·외부가 찾는다) */
-      edgeSelectHTML({ prefix: 'grd-outline', edges: GRID_OUTLINE_SIDES, on: GRID_OUTLINE_SIDES.filter(sd => o.on[sd]), groupId: 'grd-outline-group', label: '',
+      edgeSelectHTML({ prefix: 'grd-outline', edges: GRID_OUTLINE_SIDES, on: GRID_OUTLINE_SIDES.filter(sd => o.on[sd]), groupId: 'grd-outline-group', label: '', labels: { ..._GRD_OUTLINE_LABEL, all: '사방', none: '없음' },
         btnAttrs: (k) => (GRID_OUTLINE_SIDES.includes(k) ? `data-outline-side="${k}"` : k === 'all' ? `data-outline-all="1"` : k === 'none' ? `data-outline-all="0"` : '') })}
     </div>`;
 }

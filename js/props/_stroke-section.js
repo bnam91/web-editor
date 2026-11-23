@@ -197,9 +197,9 @@ const _edgePresetsFor = (edges) => { const hasInner = edges.some((e) => e.starts
 const _setIs = (a, b) => a.size === b.length && b.every((x) => a.has(x));
 
 /** @param {object} o · o.edges 고를 수 있는 변 · o.on 켜진 변(Set|배열) · [o.groupId] 옛 id 지킴 · [o.btnAttrs(key)] 단추 덧속성(옛 시험·배선이 찾는 속성 지킴) · [o.label] */
-export function edgeSelectHTML({ prefix, edges, on, groupId = '', btnAttrs = () => '', label = '테두리' }) {
+export function edgeSelectHTML({ prefix, edges, on, groupId = '', btnAttrs = () => '', label = '테두리', labels = {} }) {   // labels = 단추 이름 덮어쓰기(그 블럭 옛 aria-label 지킴 · 그리드 «위 외곽선»·«사방» — bt2-safety ③-aria)
   const set = new Set(on), ed = EDGE_NAMES.filter((e) => edges.includes(e));
-  const btn = (key, kind, active) => `<button type="button" class="prop-type-btn ui-edge-btn${active ? ' active' : ''}" ${kind}="${key}" aria-pressed="${active}" aria-label="${EDGE_LABEL[key]}" title="${EDGE_LABEL[key]}" ${btnAttrs(key)}>${EDGE_ICON[key]}</button>`;
+  const btn = (key, kind, active) => `<button type="button" class="prop-type-btn ui-edge-btn${active ? ' active' : ''}" ${kind}="${key}" aria-pressed="${active}" aria-label="${labels[key] || EDGE_LABEL[key]}" title="${labels[key] || EDGE_LABEL[key]}" ${btnAttrs(key)}>${EDGE_ICON[key]}</button>`;
   const presets = _edgePresetsFor(ed).map((p) => btn(p, 'data-edge-preset', _setIs(set, PRESET_SET[p].filter((e) => ed.includes(e))))).join('');
   return `<div class="ui-stroke-slot" data-slot="below" data-slot-kind="edge-select">
         ${label ? `<div class="prop-row"><span class="prop-label">${label}</span></div>` : ''}
