@@ -28,7 +28,7 @@ async function base(page) {
 }
 const rectOf = (page, id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; }, id);
 
-test('I1 (S1-3) 떠 있는 B + 흐름 C ⌘G → 그룹이 떠 있음 · 자리 그대로 · C 흐름에서 빠짐 · ⌘Z 한 번', async ({ page }) => {
+test('I1 (S1-3 ⓑ) 떠 있는 B + 흐름 C ⌘G → 흐름 그룹(흐름 블럭에 붙임 · t5-08) · B 는 그룹 안 같은 화면 자리 · ⌘Z 한 번', async ({ page }) => {
   const errs = await base(page);
   const pre = await page.evaluate(() => ({ bFloat: window.OverlayFloat.posElOf(document.getElementById('rB')).dataset.overlayBlock, cFlow: !!document.getElementById('tC').closest('.section-inner') }));
   expect(pre, '[전제] B 떠 있음 · C 흐름').toEqual({ bFloat: 'true', cFlow: true });
@@ -42,7 +42,7 @@ test('I1 (S1-3) 떠 있는 B + 흐름 C ⌘G → 그룹이 떠 있음 · 자리 
   });
   const b1 = await rectOf(page, 'rB'), c1 = await rectOf(page, 'tC');
   console.log('[I1 실측]', JSON.stringify({ g, b0, b1, c0, c1 }));
-  expect(g, '★그룹 = 떠 있음(IAL 유지) · 섹션 직속 · B·C 같은 그룹 · C 흐름에서 빠짐').toEqual({ same: true, overlay: 'true', parentIsSec: true, cInFlow: false });
+  expect(g, '★그룹 = 흐름(떠 있지 않음) · 섹션 본문 안 · B·C 같은 그룹 · C 흐름에 그대로').toEqual({ same: true, overlay: null, parentIsSec: false, cInFlow: true });   // ★기대 바뀜: 현빈 261123 ⓑ «떠 있는 것 + 흐름 ⌘G = 흐름 블럭에 붙임(옛 t5-08)» — 1차 기대(그룹 떠 있음 · S1-3)를 되돌림
   const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 1);
   expect([near(b0, b1), near(c0, c1)], `★화면 자리 그대로 B ${b0}→${b1} · C ${c0}→${c1}`).toEqual([true, true]);
   await page.evaluate(() => window.undo()); await raf(page);
@@ -79,7 +79,7 @@ test('I3 (S1-9) ⌘G → 섞어 고른 세로 가운데 → ⌘Z 하나씩 = 한
     return JSON.stringify({ group: !!g, bTop: Math.round(r.top), cFlow: !!document.getElementById('tC').closest('.section-inner'), aAlign: getComputedStyle(document.querySelector('#tA [class^="tb-"]')).textAlign }); });
   const mid = (sel) => page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel);
   await page.evaluate(() => { const sec = document.getElementById('sI'), w = window.OverlayFloat.posElOf(document.getElementById('rB')), sr = sec.getBoundingClientRect(), z = (parseFloat(window.state?.zoom) || 100) / 100;   // ★전제(아이맥 261123 I3 전제 빨강 — 글꼴 높이에 따라 그룹 상자가 A 를 덮으면 세로 가운데가 무동작) ⇒ B 를 A·C 아래 멀리 두어 «A∪그룹» 경계와 그룹 가운데가 늘 다르게
-    const bot = Math.max(...['tA', 'tC'].map((id) => document.getElementById(id).getBoundingClientRect().bottom)); window.OverlayFloat._applyOverlayPos ? window.OverlayFloat._applyOverlayPos(w, parseFloat(w.style.left) || 0, Math.round((bot - sr.top) / z) + 200) : (w.style.top = Math.round((bot - sr.top) / z) + 200 + 'px', w.dataset.offsetY = String(Math.round((bot - sr.top) / z) + 200)); sec.style.minHeight = '900px'; window.clearHistory?.(); });
+    const bot = Math.max(...['tA', 'tC'].map((id) => document.getElementById(id).getBoundingClientRect().bottom)); window.OverlayFloat._applyOverlayPos ? window.OverlayFloat._applyOverlayPos(w, parseFloat(w.style.left) || 0, Math.round((bot - sr.top) / z) + 200) : (w.style.top = Math.round((bot - sr.top) / z) + 200 + 'px', w.dataset.offsetY = String(Math.round((bot - sr.top) / z) + 200)); sec.style.minHeight = '900px'; window.OverlayFloat.enterFloat(window.OverlayFloat.posElOf(document.getElementById('tC'))); window.clearHistory?.(); });   // ★전제 바뀜(현빈 261123 ⓑ — 떠 있는 것+흐름 ⌘G = 흐름 그룹이라 «섞어 고른 정렬» 장면이 안 섬) ⇒ C 도 띄워 «떠 있는 둘 ⌘G = 떠 있는 그룹» 으로 S1-9(⌘Z 한 단계씩)를 그대로 잰다
   const s0 = await sig();
   await page.evaluate(() => { window.deselectAll(); for (const id of ['rB', 'tC']) document.getElementById(id).classList.add('selected'); window.groupSelectedBlocks(); });
   await raf(page);
@@ -126,7 +126,7 @@ test('I4 (S5-2) 떠 있는 B 를 프레임 F 위에 놓음 → F 자식 · IAL �
 /* I5 (S1-5 · 다름-치명 «IAL 그룹을 프레임 안으로 못 넣음 · 그룹을 누르면 자식 B 가 잡힘») — ⌘G 로 만든 떠 있는 그룹을 눌러(= 그룹이 골라짐) 프레임 F 위에 놓으면 F 자식 · IAL 유지 · 자식 B·C 그룹 안 그대로 */
 test('I5 (S1-5) 떠 있는 그룹 누름 = 그룹 고름 · F 위에 놓음 → F 자식 · IAL 유지 · ⌘Z 한 번', async ({ page }) => {
   const errs = await base(page);
-  await page.evaluate(() => { const sec = document.getElementById('sI'); window.deselectAll(); for (const id of ['rB', 'tC']) document.getElementById(id).classList.add('selected'); window.groupSelectedBlocks();
+  await page.evaluate(() => { const sec = document.getElementById('sI'); window.OverlayFloat.enterFloat(window.OverlayFloat.posElOf(document.getElementById('tC'))); window.deselectAll(); for (const id of ['rB', 'tC']) document.getElementById(id).classList.add('selected'); window.groupSelectedBlocks();   // ★전제 바뀜(현빈 261123 ⓑ) — C 도 띄워 떠 있는 그룹을 만든다(떠 있는 것+흐름은 이제 흐름 그룹)
     const g = document.getElementById('rB').closest('[data-group="true"]'); g.id = 'gG'; window.deselectAll(); window.selectSection(sec); window.addFrameBlock(); const f = [...sec.querySelectorAll('.frame-block:not([data-text-frame])')].find((x) => !x.dataset.group && !x.closest('[data-group]')); f.id = 'fF'; window.deselectAll(); window.clearHistory?.(); });
   await raf(page);
   const mid = (id) => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, id);

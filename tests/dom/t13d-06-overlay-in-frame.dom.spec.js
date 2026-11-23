@@ -77,7 +77,7 @@ test('G1 프레임 안 글자 오버레이 켬 → 프레임 자식 그대로 ·
   expect(errs).toEqual([]);
 });
 
-test('G2 프레임 안 오버레이를 끌면 프레임 안에서 옮고 · 밖까지 끌어도 프레임 자식 그대로', async ({ page }) => {
+test('G2 프레임 안 오버레이를 끌면 프레임 안에서 옮고 · 커서가 프레임 밖에서 놓으면 섹션 자식(화면 자리 그대로)', async ({ page }) => {
   const errs = await scene(page);
   await pickKid(page); await toggleTxt(page);
   const a = await st(page, 'tfK');
@@ -87,7 +87,7 @@ test('G2 프레임 안 오버레이를 끌면 프레임 안에서 옮고 · 밖�
   expect([Math.abs(b.rel[0] - a.rel[0] - 90) <= 10, Math.abs(b.rel[1] - a.rel[1] - 60) <= 10], `★프레임 안에서 끈 만큼(자석 ±10) ${JSON.stringify([a.rel, b.rel])}`).toEqual([true, true]);
   await drag(page, '#tfK .text-block', 700, 400);
   const c = await st(page, 'tfK');
-  expect([c.par, c.host, c.ov], '★프레임 밖까지 끌어도 프레임 자식 · 주인 = 프레임(섹션으로 안 빠짐)').toEqual(['frV', 'frV', 'true']);
+  expect([c.par, c.host, c.ov], '★커서가 프레임 밖에서 놓음 → 섹션 자식 · 주인 = 섹션 · 떠 있음 그대로').toEqual(['sV', 'sV', 'true']);   // ★기대 바뀜: 현빈 261123 ⓐ «커서가 프레임 밖이면 섹션 자식으로 빠짐 / 안이면 걸쳐도 자식 유지»(옛 기대 = t13D-06 «프레임 안 오버레이는 섹션을 안 넘나든다» · 지디 승인 261121) — 커서 안 갈래는 아래 G2b
   expect(errs).toEqual([]);
 });
 
@@ -158,5 +158,49 @@ test('G6 프레임을 ⌘↓ 로 순서 바꾸면 프레임 안 오버레이도 
   expect([b.par, b.ov, b.host], '★안쪽 오버레이 = 그대로 프레임 자식').toEqual(['frV', 'true', 'frV']);
   expect(b.rel, '★프레임 안 상대 자리 그대로').toEqual(a.rel);
   expect(b.y > a.y, `★화면에선 프레임과 같이 아래로 ${a.y}→${b.y}`).toBe(true);
+  expect(errs).toEqual([]);
+});
+
+/* G2b (현빈 261123 ⓐ «커서가 안이면 걸쳐도 프레임 자식 유지 + Clip 이면 잘림» — 일부러 잘려 보이게) — 글 상자를 프레임 오른쪽 가장자리 너머로 걸치게 끌되 커서는 프레임 안에서 놓음
+ * 두 다리(frame-clip-axis-roster R2·R4): 내용 자르기 끔('false' = 넘친 몸이 보임) / 켬('true' = 잘림) — 둘 다 프레임 자식 유지 · 축 값이 먹었나를 computed overflow 로 전제 단언 */
+for (const clipAttr of ['false', 'true']) {
+  test(`G2b 커서가 프레임 안에서 놓으면 상자가 걸쳐도 프레임 자식 · 내용 자르기 ${clipAttr}`, async ({ page }) => {
+    const errs = await scene(page);
+    await page.evaluate((v) => { document.getElementById('frV').dataset.clipContent = v; }, clipAttr);
+    const ov = await page.evaluate(() => getComputedStyle(document.getElementById('frV')).overflow);
+    expect(ov, `[전제] 내용 자르기 ${clipAttr} 가 먹었다(computed overflow)`).toBe(clipAttr === 'true' ? 'hidden' : 'visible');
+    await pickKid(page); await toggleTxt(page);
+    const [fx, , fw] = await rect(page, '#frV');
+    const [tx, ty, , th] = await rect(page, '#tfK .text-block');
+    const gx = tx + 4, gy = ty + th / 2, target = fx + fw - 12;   // 글 상자 왼쪽 끝을 잡아 커서를 프레임 오른쪽 안쪽 12px 까지 → 상자 몸은 프레임 밖으로 걸침
+    await page.mouse.move(gx, gy); await page.mouse.down(); await page.mouse.move((gx + target) / 2, gy, { steps: 8 }); await page.mouse.move(target, gy, { steps: 8 }); await page.mouse.up(); await raf(page);
+    const c = await st(page, 'tfK');
+    console.log(`[G2b ${clipAttr} 실측]`, JSON.stringify({ c, ov, target }));
+    expect([c.par, c.host, c.ov], '★커서가 프레임 안 → 걸쳐도 프레임 자식 · 주인 = 프레임').toEqual(['frV', 'frV', 'true']);
+    expect(c.inside, '★상자는 프레임 밖으로 걸침(잘림 여부는 위 전제 overflow — 켬이면 잘려 보임 · 끔이면 넘친 몸이 보임)').toBe(false);
+    expect(errs).toEqual([]);
+  });
+}
+
+/* G7 (현빈 261123 ⓐ «섹션 사이 이동도 같은 규칙» · Figma 실측 MIKASA-hbqa 12) — 프레임 안 오버레이 글을 «다른 섹션 위»에서 놓으면 그 섹션 자식(떠 있음 · 놓기 직전 화면 자리 그대로)
+ * 커서가 프레임을 벗어나면 끌기가 섹션 끌기로 바뀌어 상자가 커서를 따라간다(overlay-float.js onMove · 프레임 가장자리에 묶이지 않음) */
+test('G7 프레임 안 오버레이를 다른 섹션 위에서 놓음 → 그 섹션 자식 · 떠 있음 · 자리 그대로', async ({ page }) => {
+  const errs = await scene(page);
+  await page.evaluate(async () => { const s2 = await window.addSection(); s2.id = 'sW2'; s2.style.minHeight = '300px'; document.getElementById('sV').scrollIntoView({ block: 'start' }); });
+  await raf(page);
+  await pickKid(page); await toggleTxt(page);
+  const [tx, ty, , th] = await rect(page, '#tfK .text-block');
+  const [qx, qy] = await page.evaluate(() => { const r = document.getElementById('sW2').getBoundingClientRect(); return [r.left + 200, r.top + 60]; });
+  const vh = await page.evaluate(() => window.innerHeight);
+  const gx = tx + 6, gy = ty + th / 2;
+  await page.mouse.move(gx, gy); await page.mouse.down(); await page.mouse.move((gx + qx) / 2, (gy + qy) / 2, { steps: 10 }); await page.mouse.move(qx, qy, { steps: 10 });
+  const up = await st(page, 'tfK');
+  await page.mouse.up(); await raf(page);
+  const c = await st(page, 'tfK');
+  console.log('[G7 실측]', JSON.stringify({ up, c, q: [qx, qy], vh }));
+  expect(qy < vh - 120, `[전제] 놓는 점이 화면 안쪽(가장자리 저절로 스크롤 막기) ${qy}/${vh}`).toBe(true);
+  expect([c.par, c.host, c.ov], '★다른 섹션(sW2) 위에서 놓음 → sW2 자식 · 주인 = sW2 · 떠 있음').toEqual(['sW2', 'sW2', 'true']);
+  expect([c.x, c.y], '★놓기 직전 화면 자리 그대로').toEqual([up.x, up.y]);
+  expect(Math.abs(up.y - (qy - th / 2)) < 60, `★상자가 커서를 따라감(프레임 가장자리에 안 묶임) 상자 y ${up.y} · 커서 y ${qy}`).toBe(true);
   expect(errs).toEqual([]);
 });
