@@ -779,3 +779,17 @@ test('S15b 선 — 끝점 슬롯 · 끝 삼각 = Figma JSON shapeInner(캔버스
   expect(rect, '★사각형 = 끝점 슬롯 없음').toBe(false);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+test('S16 Figma JSON 도형 선 색 — shapeStrokeColor 있으면 strokeColor · 없으면 키 없음(옛 바이트)', async ({ page }) => {
+  await page.setViewportSize({ width: 1500, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); const sec = await window.addSection(); window.selectSection(sec);
+    window.addShapeBlock('rectangle'); const a = [...sec.querySelectorAll('.shape-block')].pop(); a.id = 'xC1'; a.dataset.shapeStrokeColor = '#000000';
+    window.selectSection(sec); window.addShapeBlock('rectangle'); const b = [...sec.querySelectorAll('.shape-block')].pop(); b.id = 'xC2'; delete b.dataset.shapeStrokeColor;
+  });
+  const r = await page.evaluate(() => { const all = []; const walk = (o) => { if (!o || typeof o !== 'object') return; if (o.type === 'shape' && /^xC/.test(o.id || '')) all.push(o); Object.values(o).forEach(walk); }; walk(window.buildFigmaExportJSON(null)); return all.map((o) => [o.id, 'strokeColor' in o ? o.strokeColor : null]); });
+  console.log('[S16 실측]', JSON.stringify(r));
+  expect(r).toEqual([['xC1', '#000000'], ['xC2', null]]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});

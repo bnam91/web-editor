@@ -154,3 +154,10 @@ test('D5 옛 플러그인(dev) + dashPattern = 무시 · 실선으로 그려짐(
   await ctx.__hc('set_stroke_color', { nodeId: 'x', color: { r: 0, g: 0, b: 0, a: 1 }, strokeWeight: 2, dashPattern: [6, 4] });
   assert.deepEqual([nodes.x.strokeWeight, nodes.x.strokes.length, nodes.x.dashPattern], [2, 1, []]);
 });
+
+/* C 도형 선 색(지디 261124 · 실측: 렌더러가 선을 면 색으로 칠함) — strokeColor 있으면 svg stroke = 그 색 · 없으면 옛(면 색) · 꼴 틀리면 옛 · 화살촉 color = 면 색 그대로 */
+const RECT = { type: 'shape', id: 'r1', shapeType: 'rectangle', color: '#cccccc', strokeWidth: 4, rotation: 0, width: 120, height: 80 };
+const styleOf = (b) => (svgOfShape(b).match(/<svg[^>]*style="([^"]*)"/) || [])[1];
+test('C0 [음성] strokeColor 없음 = 옛 글자(stroke = 면 색)', () => { assert.equal(styleOf(RECT), 'color:#cccccc;stroke-width:4;fill:#cccccc;stroke:#cccccc;'); });
+test('C1 strokeColor #000000 = stroke 만 검정 · color·fill = 면 색', () => { assert.equal(styleOf({ ...RECT, strokeColor: '#000000' }), 'color:#cccccc;stroke-width:4;fill:#cccccc;stroke:#000000;'); });
+test('C2 꼴 틀린 strokeColor = 옛(면 색)', () => { assert.equal(styleOf({ ...RECT, strokeColor: 'red;fill:url(x)' }), 'color:#cccccc;stroke-width:4;fill:#cccccc;stroke:#cccccc;'); });
