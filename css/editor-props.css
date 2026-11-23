@@ -205,9 +205,8 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 .prop-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px; height: 12px; border-radius: 50%;
-  background: var(--ui-text); cursor: pointer;
+  background: var(--ui-accent-primary); cursor: pointer;
 }
-/* 현빈 261123 — 슬라이더 손잡이 중립(상태 없는 칸 · 파랑 뺌) */
 .prop-number {
   width: 44px; height: 24px; flex-shrink: 0;
   background: var(--ui-bg-input); border: 1px solid transparent;
