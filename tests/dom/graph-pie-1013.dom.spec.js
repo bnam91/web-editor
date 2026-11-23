@@ -1445,7 +1445,9 @@ test('K3 쓰레기 dropShadow 값(abc)에서 「없음」을 누르면 키가 �
   const row = await page.evaluate(() => { const g = document.getElementById('grb-drop-group'); const r = g.closest('.prop-row'); const nb = document.getElementById('grb-pie-rank-toggle').closest('.prop-row');
     return { label: r.querySelector(':scope > .prop-label')?.textContent.trim() ?? null, first: r.firstElementChild.className, nbFirst: nb.firstElementChild.className }; });
   expect(row.label, 'Shadow 줄에 prop-label').toBe('그림자');
-  expect(row.first, '줄의 첫 칸 = 이웃 줄(순위 표시)과 같은 꼴').toBe(row.nbFirst);
+  /* ★기대 바뀜(현빈 261123 «온/오프 = 체크») — 이웃 «순위 표시»는 이제 «☐ 이름» 체크 줄(첫 칸 = label.ui-check)이라 대조가 못 된다 ⇒ Shadow 줄 첫 칸이 «이름표»인지 직접 잰다 */
+  expect(row.first, '줄의 첫 칸 = 이름표(prop-label)').toMatch(/^prop-label\b/);
+  expect(row.nbFirst, '[전제] 이웃 순위 표시 = 체크 줄').toMatch(/^ui-check\b/);
   await page.evaluate(() => window.pushHistory());   // 전제: 쓰레기 값이 실린 지금 판을 히스토리에 박는다(아래 ⌘Z 가 돌아올 자리)
   const h0 = await page.evaluate(() => window.getSerializedCanvas().includes('data-drop-shadow'));
   expect(h0, '전제: 저장본에 쓰레기 키가 실린다').toBe(true);

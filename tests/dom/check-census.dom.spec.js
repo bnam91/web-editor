@@ -1,6 +1,6 @@
 /* check-census.dom.spec.js — ★91 게이트(지디 261123): 시안 chku 열(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나»)이 상태별로 그린 체크 수 ↔ 앱이 같은 상태에서 그리는 체크 수.
  *   상태 = handoff/rp-capture-261120/capture.js 의 75상태(같은 블럭 추가식 · 같은 고르기 길) 그대로 옮김 · 앱 = DOM 하네스(bootApp).
- *   셈: 앱 = #panel-right 안 보이는 label.ui-check · «머리 ＋ 대응»(절 머리 ＋/− 뒤 숨은 체크 · 지디 판정 = 제외 맞음)은 따로 셈.
+ *   셈: 앱 = #panel-right 안 label.ui-check «전부»(접힌 절·조건 숨김 포함 — 시안 수도 캡처 HTML 의 data-chku 전부라 같은 자) · «머리 ＋ 대응»(절 머리 ＋/− 뒤 숨은 체크)은 시안이 안 셈 ⇒ 따로 칸(대조 밖).
  *   결과 = test-results/check-census.json(상태별 시안·앱·머리＋) + 콘솔 표 · 단언 = 앱 + 머리＋ === 시안 합 · 상태별 어긋남은 표로(판정은 사람).
  *   시안 수 = 탑 261123 시안 75상태 chku 열 data-chku 실측(합 91)을 박음 — 시안이 바뀌면 다시 재서 바꿀 것. */
 const { test, expect } = require('@playwright/test');
@@ -59,7 +59,7 @@ async function clickEl(page, expr) {
 const newOf = (cls) => `[...document.querySelectorAll('#canvas .${cls}, .${cls}')].filter(e=>!window.__ccBefore.has(e))`;
 const count = (page) => page.evaluate((HP) => {
   const pr = document.getElementById('panel-right');
-  const vis = [...pr.querySelectorAll('label.ui-check')].filter((l) => l.getClientRects().length).length;
+  const vis = pr.querySelectorAll('label.ui-check').length;   // 접힌 절 안 것도 센다(말풍선 «발신자 이름» 이 Special 접힘에서 0 으로 셌던 것 · 지디 C91 1차)
   const head = [...pr.querySelectorAll('input[type=checkbox]')].filter((i) => !i.closest('label.ui-check') && (HP.includes(i.id) || /-stroke-on$/.test(i.id))).length;
   return { vis, head };
 }, HEAD_PLUS);
@@ -87,14 +87,15 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         await page.evaluate((e) => { window.__ccT = (0, eval)(e).pop(); window.deselectAll?.(); }, newOf('section-block'));
         await clickEl(page, "window.__ccT.querySelector('.section-label')");   // 71(몸 빈 곳)도 같은 섹션 패널 — 라벨로 연다(셈엔 같음)
       } else if (nn === '72') {
-        await page.evaluate(() => { window.addSection(); window.__ccBefore = new Set(document.querySelectorAll('*')); window.addTextBlock('h2'); window.addTextBlock('body'); });
+        await page.evaluate(() => { window.addSection(); window.__ccBefore = new Set(document.querySelectorAll('*')); window.addTextBlock('h2'); window.addTextBlock('body'); });   // 섹션은 «전»에 넣음(텍스트 둘만 새 것)
         await page.evaluate((e) => { const t = (0, eval)(e); window.__ccT = t[0]; window.__ccU = t[t.length - 1]; window.deselectAll?.(); }, newOf('text-block'));
         await clickEl(page, 'window.__ccT');
         const p = await page.evaluate(() => { const b = window.__ccU.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
         await page.keyboard.down('Shift'); await page.mouse.click(p[0], p[1]); await page.keyboard.up('Shift');
       } else if (nn === '73') {
-        await page.evaluate(() => { window.addSection(); window.__ccBefore = new Set(document.querySelectorAll('*')); });
+        await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); window.addSection(); });   // ★«전» 표를 먼저(지디 C91 1차: 뒤에 떠서 새 섹션이 «새 것»이 아니었다 → no target __ccS)
         await page.evaluate((e) => { window.__ccS = (0, eval)(e).pop(); window.deselectAll?.(); window.toggleCountStickerMode(); }, newOf('section-block'));
+        await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });   // 마킹 스티커만 «새 것»으로
         await clickEl(page, 'window.__ccS');
         await page.waitForFunction((e) => (0, eval)(e).length > 0, newOf('sticker-block'));
         await page.evaluate((e) => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.__ccT = (0, eval)(e).pop(); window.deselectAll?.(); }, newOf('sticker-block'));
@@ -108,7 +109,7 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
     } catch (e) { errs.push(nn + ' ' + name + ': ' + String(e.message).slice(0, 160)); rows.push({ nn, name, mock: MOCK[nn] || 0, app: null, head: null }); }
   }
   const sum = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0);
-  const diff = rows.filter((r) => r.app === null || r.app + r.head !== r.mock);
+  const diff = rows.filter((r) => r.app === null || r.app !== r.mock);   // ★대조 = 시안 vs 앱(머리＋ 는 따로 칸 · 지디 C91 1차: 시안은 머리＋ 를 안 셈)
   const out = { mock: sum('mock'), app: sum('app'), head: sum('head'), diff, errs, rows };
   fs.mkdirSync(path.join(__dirname, '..', '..', 'test-results'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, '..', '..', 'test-results', 'check-census.json'), JSON.stringify(out, null, 1));
@@ -116,5 +117,6 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
   diff.forEach((r) => console.log('  [C91 어긋남] ' + r.nn + ' ' + r.name + ' 시안 ' + r.mock + ' · 앱 ' + r.app + ' · 머리＋ ' + r.head));
   errs.forEach((e) => console.log('  [C91 못 엶] ' + e));
   expect(errs, '못 연 상태 — 장면 문제(셈 아님)').toEqual([]);
-  expect(out.app + out.head, '★91 게이트 — 앱 체크 + 머리＋ 대응 = 시안 chku 합').toBe(out.mock);
+  expect(diff.map((r) => r.nn + ' ' + r.name + ' 시안 ' + r.mock + ' · 앱 ' + r.app), '★91 게이트 — 상태별 시안 chku = 앱 체크').toEqual([]);
+  expect(out.app, '★91 게이트 — 합').toBe(out.mock);
 });

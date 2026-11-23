@@ -359,7 +359,7 @@ test('D7 ★기본은 켜짐 — 저장값이 «없을 때» 체크돼 있고 �
   expect(st.readsOn, '★키가 없는데 readPadHintOn 이 false 다 — 기본이 뒤집혔다').toBe(true);
   expect(st.checked, '★기본인데 체크가 안 돼 있다').toBe(true);
   expect(st.sameSection, '★그리드 가이드와 «다른 절»에 있다').toBe(true);
-  expect(st.type, '★어휘가 라디오가 아니다 (현빈 2026-09-09)').toBe('radio');
+  expect(st.type, '★어휘 = 체크(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 «라디오로»(2026-09-09) 결정 대체)').toBe('checkbox');
   expect(st.nOff, '★옛 끔 라디오가 남았다 — 켬/끔은 체크 하나').toBe(0);
 
   /* 그리고 «실제로» 뜬다 */
