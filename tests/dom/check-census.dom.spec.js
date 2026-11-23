@@ -88,7 +88,7 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
       } else if (nn === '70' || nn === '71' || nn === '74') {
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });
         await page.evaluate((n) => (n === '74' ? window.addYoutubeThumbSection() : window.addSection()), nn);
-        await page.waitForFunction((e) => (0, eval)(e).length > 0, newOf('section-block'));
+        await page.waitForFunction((e) => (0, eval)(e).length > 0, newOf('section-block'), { timeout: 30000 });
         await page.evaluate((e) => { window.__ccT = (0, eval)(e).pop(); window.deselectAll?.(); }, newOf('section-block'));
         await clickEl(page, "window.__ccT.querySelector('.section-label')");   // 71(몸 빈 곳)도 같은 섹션 패널 — 라벨로 연다(셈엔 같음)
       } else if (nn === '72') {
@@ -101,8 +101,10 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); window.addSection(); });   // ★«전» 표를 먼저(지디 C91 1차: 뒤에 떠서 새 섹션이 «새 것»이 아니었다 → no target __ccS)
         await page.evaluate((e) => { window.__ccS = (0, eval)(e).pop(); window.deselectAll?.(); window.toggleCountStickerMode(); }, newOf('section-block'));
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });   // 마킹 스티커만 «새 것»으로
-        await clickEl(page, 'window.__ccS');
-        await page.waitForFunction(() => [...document.querySelectorAll('.sticker-block')].some((e) => !window.__ccBefore.has(e)));   // 문자열 eval 없이(CSP)
+        /* ★마킹 도구는 캔버스 «진짜 누름»(좌표)만 받는다 — 사건 직접 쏘기(clickEl)로는 안 생겨 40분 매달렸다(srv cf99f3e20) ⇒ 이 장면만 실마우스 · 빈 섹션 가운데라 겹칠 것 없음 */
+        const sp = await page.evaluate(() => { window.__ccS.scrollIntoView({ block: 'center' }); const b = window.__ccS.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
+        await page.mouse.click(sp[0], sp[1]);
+        await page.waitForFunction(() => [...document.querySelectorAll('.sticker-block')].some((e) => !window.__ccBefore.has(e)), null, { timeout: 30000 });   // 문자열 eval 없이(CSP) · 한 장면이 판 전체를 못 잡게 제 시한
         await page.evaluate(() => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.__ccT = [...document.querySelectorAll('.sticker-block')].filter((e) => !window.__ccBefore.has(e)).pop(); window.deselectAll?.(); });
         await clickEl(page, 'window.__ccT');
       } else if (nn === '75') {
