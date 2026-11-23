@@ -84,7 +84,7 @@ test('LC1 패널 — 메뉴 로고에 「Collab」 절(콜라보·갯수 1~3) ·
     const s = document.getElementById('asset-collab-count-slider');
     /* U4: 절 제목은 틀 머리(.prop-sec-head .prop-sec-title-text) · special 절이다 */
     return { sec: !!sec && sec.dataset.sec === 'special', title: sec?.querySelector(':scope > .prop-sec-head .prop-sec-title-text')?.textContent.trim(),
-      labels: sec ? [...sec.querySelectorAll('.prop-label')].map((e) => e.textContent.trim()) : [],
+      labels: sec ? [...sec.querySelectorAll('.prop-label, .ui-check-label')].map((e) => e.textContent.trim()) : [],   /* ★2026-11-24 기대 바뀜 — 「콜라보」 = 체크 부품(checkHTML · .ui-check-label) · 열차 train/0913-c 전수 빨강 */
       min: s?.min, max: s?.max, val: s?.value, toggle: !!document.getElementById('asset-collab-toggle') };
   });
   expect(p1.sec).toBe(true);
@@ -131,7 +131,7 @@ test('LC2 갯수 2 — [로고1 × 로고2] 한 블록 안 · 폭 464 · 가로 
   expect(L.xRects[0].r).toBeLessThanOrEqual(L.slotRects[0].l + 0.5);
   expect(L.slotRects[0].r).toBeLessThanOrEqual(L.abRect.r + 0.5);
   /* 켜지면 간격·X 크기·X 색 줄이 생긴다 */
-  const labels = await page.evaluate(() => [...document.querySelectorAll('#asset-collab-section .prop-label')].map((e) => e.textContent.trim()));
+  const labels = await page.evaluate(() => [...document.querySelectorAll('#asset-collab-section .prop-label, #asset-collab-section .ui-check-label')].map((e) => e.textContent.trim()));
   for (const want of ['간격', 'X 크기', 'X 색', '로고 2']) expect(labels).toContain(want);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
