@@ -578,6 +578,31 @@ export function exitFloat(posEl) {
    posEl 자체에 건다 — block-drag.js 의 bindBlock 이 블록 1개당 1회 호출한다(그쪽 참고),
    함수 내부에서 dataset.overlayBlock 을 매번 live로 재확인하므로 오버레이가 아닌 상태에서
    걸어놔도 안전하다(그때는 그냥 조용히 빠진다). */
+/* ★현빈 261123 F(IAL 1회차 S5-2 · S1-5 다름-치명) — 떠 있는 것을 «프레임 위에 놓으면» Figma 처럼 그 프레임 자식(떠 있는 채)이 된다.
+   전엔 끌기 중 «섹션»만 갈아탔다 ⇒ 프레임 위에 놓아도 섹션 자식 · 그룹째 끌어도 프레임에 못 넣음.
+   놓는 자리 아래 «맨 안쪽 일반 프레임»(글 프레임·도형 래퍼·그룹 틀 = 주인 아님 · floatHostOf 와 같은 잣대 + 그룹) → 없으면 그 섹션.
+   화면 자리 그대로 = 옛 주인 원점 − 새 주인 원점(패딩 상자 = rect + clientLeft/Top) 만큼 좌표를 옮긴다. */
+function _dropHostAt(posEl, sec, x, y) {
+  const OK = '.frame-block:not([data-text-frame])';
+  for (const el of document.elementsFromPoint?.(x, y) || []) {
+    if (posEl.contains(el) || !sec.contains(el)) continue;
+    let f = el.closest?.(OK);
+    while (f && (isShapeFrame(f) || f.dataset.group === 'true' || posEl.contains(f))) f = f.parentElement?.closest?.(OK);
+    return (f && sec.contains(f)) ? f : sec;
+  }
+  return sec;
+}
+function _rehost(posEl, host) {
+  const old = floatHostOf(posEl) || posEl.parentElement;
+  if (!host || host === old) return false;
+  const z = _zoom(), o = old.getBoundingClientRect(), n = host.getBoundingClientRect();
+  const x = (parseFloat(posEl.style.left) || 0) + (o.left - n.left) / z + (old.clientLeft || 0) - (host.clientLeft || 0);
+  const y = (parseFloat(posEl.style.top) || 0) + (o.top - n.top) / z + (old.clientTop || 0) - (host.clientTop || 0);
+  host.appendChild(posEl);
+  _applyOverlayPos(posEl, x, y);
+  return true;
+}
+
 export function bindFloatMoveDrag(posEl) {
   if (!posEl || posEl._overlayMoveBound) return;
   posEl._overlayMoveBound = true;
@@ -602,6 +627,7 @@ export function bindFloatMoveDrag(posEl) {
     /* t13D-06 — 자리 주인(box): 섹션 오버레이 = 섹션(넘나들기 그대로) · 프레임 안 오버레이 = 그 프레임(그 안에서 탄성 · 섹션 넘나들기 없음 · 가이드도 그 프레임 기준) */
     let box = floatHostOf(posEl) || sec;
     const inFrame = box !== sec;
+    const host0 = box;   // S5-2 — 놓은 뒤 주인이 바뀌었으면 레이어 패널을 다시 짠다
     const zoom = _zoom();
     /* ★2026-09-16h P0(현빈 실측 — "90도 회전 후 좌우 이동이 안 된다") — 회전된 오버레이는
        getBoundingClientRect()가 회전 «후» 화면상 축정렬 bounding box를 돌려준다(T-026과
@@ -752,6 +778,8 @@ export function bindFloatMoveDrag(posEl) {
       document.removeEventListener('mouseup', onUp);
       window.SmartGuides?.hideGuides();   // t13D-04
       if (moved) {
+        if (!freeSpace) _rehost(posEl, _dropHostAt(posEl, sec, lastClientX, lastClientY));   // S5-2 · S1-5 — ⌘ = «이 좌표계 그대로»(재부모 안 함 · 끌기 중 섹션 넘나들기와 같은 어휘)
+        if ((floatHostOf(posEl) || sec) !== host0) window.buildLayerPanel?.();   // S5-2 «레이어 패널 갱신 안 됨»
         /* ★«끝 표본» — 시작 표본(_hist.arm)과 짝이다. 둘 다 있어야 앞뒤 어느 이웃
            (push-before 삽입 · push-after 패널)을 만나도 표본이 빈 칸 없이 이어진다. */
         window.pushHistory?.('오버레이 이동');
