@@ -49,7 +49,11 @@ window.__partsDet = function (body, defaults) {
     const tg = inS('label.prop-toggle'), cb = inS('input[type=checkbox]').filter((c) => !c.closest('label.prop-toggle') && !c.closest('.prop-sec-head') && !c.closest('[data-sec-item]')), rad = inS('input[type=radio]');
     if (tg.length || cb.length || rad.length) { present.add('toggle'); const why = []; if (cb.length) why.push('이진인데 체크박스 ' + cb.length); const g = {}; rad.forEach((r) => { g[r.name || 'x'] = (g[r.name || 'x'] || 0) + 1; }); const bin = Object.values(g).filter((n) => n === 2).length; if (bin) why.push('켬/끔 라디오 ' + bin); P.toggle = why.length ? 'var:' + why.join(' · ') : 'ok'; }
     // select(P4)
-    const sels = inS('select'); if (sels.length) { present.add('select'); const b = sels.filter((x) => !x.classList.contains('prop-select')); P.select = b.length ? 'var:prop-select 아님 ' + b.length : 'ok'; }
+    // ★Stroke 의 select = «위치»(태양 §4b · 지디 261123 «위치/스타일 갈라 세라») — 값이 안쪽/가운데/바깥(내부/중앙/외부)인 것만 select 로 셈 · 실선/점선 같은 스타일 select 는 따로(P['select-style'])
+    const POS = /^(안쪽|가운데|바깥|내부|중앙|외부|inside|center|outside)$/i, isPos = (x) => [...x.options].some((o) => POS.test(o.textContent.trim()));
+    const sels = inS('select'), selsFor = key === 'stroke' ? sels.filter(isPos) : sels, styleN = key === 'stroke' ? sels.length - selsFor.length : 0;
+    if (selsFor.length) { present.add('select'); const b = selsFor.filter((x) => !x.classList.contains('prop-select')); P.select = b.length ? 'var:prop-select 아님 ' + b.length : 'ok'; }
+    if (styleN) P['select-style'] = styleN + ' 스타일 select(위치 아님)';
     // color(P5)
     const cr = inS('.prop-color-row, .prop-row').filter((r) => r.querySelector(':scope input[type=color], :scope .prop-color-swatch, :scope .prop-color-field'));
     if (cr.length) { present.add('color'); const bare = cr.filter((r) => !r.querySelector('.prop-color-field')); P.color = bare.length ? 'var:스와치+HEX만 ' + bare.length + '/' + cr.length : 'ok'; }
