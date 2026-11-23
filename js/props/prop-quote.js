@@ -272,8 +272,8 @@ ${layout === 'inline' ? `
         colorHtml: colorFieldHTML({ idPrefix: 'qt-stroke-color', hex: _swatchHex(stroke.color, '#000000'), alpha: parseAlphaFromColor(stroke.color) || 100 }),
       }),
       sec('special', `
-      <div class="prop-row" style="align-items:flex-start">
-        <span class="prop-label">모양</span>
+      <span class="prop-field-label">모양</span>
+      <div class="prop-row">
         <div class="prop-align-group" id="qt-shape-group">${shapeBtns}</div>
       </div>
 ${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.max)}

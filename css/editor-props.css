@@ -486,7 +486,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
 }
 
 /* 스타일 버튼 그룹 (Bold / Italic) */
-.prop-style-group { display: flex; gap: 4px; }  /* ⑨ 버튼 4개(B/I/S/H) — 인접 .prop-align-group 과 같은 간격 */
+.prop-style-group { display: flex; gap: var(--ui-row-gap); margin-bottom: var(--ui-space-1_5); }   /* 아래 줄과 6 — 모달·인용구 B I S H → Line Height 0 이던 것(QA dev37 묶음 2) */  /* ⑨ 버튼 4개(B/I/S/H) — 인접 .prop-align-group 과 같은 간격 */
 .prop-style-btn {
   width: 28px; height: 24px;
   background: var(--ui-bg-input); border: 1px solid var(--ui-border-mid);
@@ -686,6 +686,7 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   margin-left: var(--ui-space-1); padding-left: var(--ui-space-1_5);   /* ⑨(현빈 261122 · 시안 v7 «끝 옵션 칼럼으로 줄 212→184 · 색 칩 들임 8→4») — VAR·최근 색·최근 효과 줄 한 꼴 */
   border-left: 2px solid var(--ui-border-mid);
 }
+.cv-chips:not(:last-child) { margin-bottom: var(--ui-space-1_5); }   /* 칩 줄 → 다음 줄 6(인용구 VAR → 부호 색 · 텍스트 라벨 VAR → 배경색 0 이던 것 · QA dev37 묶음 2) · 절 끝이면 몸 pb 그대로 */
 .cv-chips[hidden] { display: none; }
 .cv-chips-label {
   font-size: var(--ui-fs-9); font-weight: var(--ui-fw-semibold); letter-spacing: 0.04em;
@@ -1196,7 +1197,11 @@ input[type="file"] + .prop-field-label { margin-top: var(--ui-space-1); }
   padding: 8px;
   margin-bottom: 10px;
 }
-.prop-cell-card:last-child { margin-bottom: 6px; }   /* 절 끝 = .prop-row(6)+절 padding 4 = 10 — 카드 사이 10 은 위 규칙 그대로 (PROP-SECTION-EXPANDED-BOTTOM-GAP-14-VS-10-01 · 현빈/지디 ㉠) */
+.prop-cell-card:last-child { margin-bottom: 6px; }
+.prop-cell-card[id$="-code-fold-card"] { margin-bottom: var(--ui-space-1_5); }   /* 텍스트 스타일 번호 카드 = 줄 사이 6(위아래 10 이던 것 · QA dev37 묶음 2 · 효과 카드 사이 10 은 그대로) */
+.prop-section[data-sec="stroke"] > .prop-sec-body > .prop-section + .prop-section { margin-top: var(--ui-space-1_5); }   /* 그리드 Stroke 하위 절(칸 테두리 · 블럭 외곽선 · 칸 사이 줄) 사이 0 → 6 */
+.prop-row[data-sec-item] > .prop-label { width: auto; min-width: var(--ui-form-label-w); }   /* 목록 줄 라벨 = 56 하한 · 긴 이름만 늘어남(쿠폰 «스텁/머리 글자» 63 이 잘리던 것) */
+.prop-row + .prop-export-btn { margin-top: 0; }   /* 줄(아래 6) 뒤 내보내기 단추 위 4 가 더해져 10 이던 것 → 6(페이지 Export) */   /* 절 끝 = .prop-row(6)+절 padding 4 = 10 — 카드 사이 10 은 위 규칙 그대로 (PROP-SECTION-EXPANDED-BOTTOM-GAP-14-VS-10-01 · 현빈/지디 ㉠) */
 .prop-cell-card-header {
   display: flex;
   align-items: center;

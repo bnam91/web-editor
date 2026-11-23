@@ -174,8 +174,8 @@ export function showCouponProperties(block, slotKey) {
     sections: [
       sec('kind', couponPresetChipsHTML(block)),
       sec('content', `
-      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다.${openKey ? ` 지금 <b>${_esc(openKey)}</b> 칸.` : ''}${couponStubHasRoom(block) ? '' : `
-        <br>⛔「스텁/머리 글자」 자리가 없습니다 — 분할이나 절취선을 켜십시오.`}</div>
+      <div class="prop-hint" style="padding:2px 8px;line-height:1.5">★캔버스에서 글자를 누르면 <b>그 칸만</b> 열립니다. 지금은 ${openKey ? `<b>${_esc(openKey)}</b> 칸이 열려 있습니다.` : '아무 칸도 펼치지 않은 상태입니다.'}${couponStubHasRoom(block) ? '' : `
+        <br>⛔「스텁/머리 글자」가 <b>들어갈 자리가 없습니다</b> — 분할이나 절취선을 켜십시오.`}</div>
 ${_slotListHTML(block, openKey)}
 ${openKey ? _slotPanelHTML(block, openKey) : ''}`),
       sec('size', `
