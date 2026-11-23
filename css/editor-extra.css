@@ -262,7 +262,7 @@ body.preview-mode #preview-overlay:has(.section-row-layout) { overflow-x: auto; 
   border-color: var(--ui-sel-neutral-on-border);
 }
 .anim-item-name {
-  font-size: var(--ui-fs-12);
+  font-size: var(--ui-fs-base);   /* 현빈 261123 — 정보성 글자 = 다른 패널 글자(레이어명·라벨·값 11)와 같은 크기(옛 12) */
   font-weight: var(--ui-fw-semibold);
   color: #ddd;
   margin-bottom: 3px;
