@@ -1,5 +1,6 @@
 import { propPanel, state } from '../globals.js';
 import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-picker.js';
+import { strokeSectionHTML, wireStrokeSection } from './_stroke-section.js';
 import { parseRatio, parseRatioStrict, noticeRatioRejected, blockHeaderHTML, disclosureSectionHtml, discSecOpen, discSecToggle } from './_helpers.js';
 import { renderPanel, sec } from './_panel-frame.js';
 import { withTextSelection, spanExactlyCovering } from './_text-selection.js';
@@ -514,7 +515,12 @@ export function showTableProperties(block) {
         </div>
       `).join('')}
       </div>` : ''}`),
-      sec('stroke', `
+      /* ★표준 Stroke 부품(현빈 261123 · 8910 strokestd2 12 · 지디 판정) — 머리 ＋/− 안 그림 · ★켬/끔 정본 = 옛 선 토글 넷(edge-select 슬롯 · 단계 4 에서 10단추로)
+         표준 칸 = 선 색 + 굵기(외곽두께 1~6 · 하한 1 그대로) · 위치 = 가운데 막힘(.tb-table border-collapse:collapse = 선이 경계 가운데 · editor-blocks.css 실측) · 옛 id 지킴 */
+      sec('stroke', strokeSectionHTML({ prefix: 'tbl-stroke', color: _rgbToHex(curLineColor), alpha: curLineAlpha, width: curOuterW, maxWidth: 6, minWidth: 1, align: 'center', canAlign: false,
+        alignWhy: '위치(안쪽·가운데·바깥) — 곧 지원 · 지금은 가운데', widthId: 'tbl-outerw-number', colorId: 'tbl-line',
+        slotsBelow: `
+      <div class="ui-stroke-slot" data-slot="below" data-slot-kind="edge-select">
       <div class="prop-toggle-grid">
         <div class="prop-row">
           <span class="prop-label">세로선</span>
@@ -545,15 +551,7 @@ export function showTableProperties(block) {
           </label>
         </div>
       </div>
-      <div class="prop-row">
-        <span class="prop-label">외곽두께</span>
-        <input type="range" class="prop-slider" id="tbl-outerw-slider" min="1" max="6" step="1" value="${curOuterW}">
-        <input type="number" class="prop-number"  id="tbl-outerw-number" min="1" max="6" value="${curOuterW}">
-      </div>
-      <div class="prop-color-row" style="margin-top:6px;">
-        <span class="prop-label">선 색</span>
-        ${colorFieldHTML({ idPrefix: 'tbl-line', hex: _rgbToHex(curLineColor), alpha: curLineAlpha })}
-      </div>`),
+      </div>` })),
     ],
   });
 
@@ -896,12 +894,11 @@ export function showTableProperties(block) {
   const applyOuterW = v => {
     block.dataset.outerWidth = v;
     block.style.setProperty('--tbl-outer-w', v + 'px');
-    document.getElementById('tbl-outerw-slider').value = v;
     document.getElementById('tbl-outerw-number').value = v;
   };
-  document.getElementById('tbl-outerw-slider').addEventListener('input',  e => applyOuterW(parseInt(e.target.value)));
-  document.getElementById('tbl-outerw-number').addEventListener('change', e => { applyOuterW(parseInt(e.target.value)); window.pushHistory(); });
-  document.getElementById('tbl-outerw-slider').addEventListener('change', () => window.pushHistory());
+  /* 표준 Stroke 부품 배선 — 어댑터 = 옛 applyOuterW·wireColorField('tbl-line') 쓰기 그대로(push-after) · 머리 없음(켬/끔 = 선 토글 넷) */
+  wireStrokeSection({ prefix: 'tbl-stroke', alpha: curLineAlpha, maxWidth: 6, minWidth: 1, widthId: 'tbl-outerw-number', colorId: 'tbl-line',
+    adapter: { color: (c) => { block.dataset.lineColor = c; block.style.setProperty('--tbl-line-color', c); }, width: applyOuterW, commit: () => window.pushHistory?.() } });
 
   /* 테이블 좌우 패딩 (block 자체 padding 으로 적용 — tb-table width:100%이라 자동으로 좁아짐) */
   const applyTablePadX = v => {
@@ -916,14 +913,6 @@ export function showTableProperties(block) {
   document.getElementById('tbl-padx-slider').addEventListener('change', () => window.pushHistory());
 
   /* 선 색 — CSS var --tbl-line-color */
-  wireColorField('tbl-line', {
-    initialAlpha: curLineAlpha,
-    onApply: (c) => {
-      block.dataset.lineColor = c;
-      block.style.setProperty('--tbl-line-color', c);
-    },
-    onCommit: () => window.pushHistory?.(),
-  });
 
   /* 헤더 배경색 — CSS var --tbl-header-bg */
   wireColorField('tbl-header-bg', {

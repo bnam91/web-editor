@@ -10,7 +10,8 @@
  *   wireStrokeSection({ prefix, adapter }) · adapter = { color(c), width(v), align?(v), commit() } — 부품은 블럭을 모른다.
  * 위치를 아직 못 그리는 블럭 = canAlign:false → 칸은 보이되 «막힘»(aria-disabled · 툴팁 = 까닭 · 값 = 지금 그려지는 쪽) — §4c ②③ «칸만 + 막힘».
  */
-import { colorFieldHTML, wireColorField } from './color-picker.js';
+/* ⛔color-picker 를 import 하지 않는다 — 부를 때 window 로(color-picker.js 가 window.colorFieldHTML·wireColorField 를 건다)
+   까닭: 그리드 패널·하네스(유닛·DOM)가 prop-grid.js 를 «단독»으로 올리며 color-picker 를 대역/미적재로 둔다(prop-grid.js 머리말 · 지디 261123 ②) → 이 부품이 import 를 늘리면 그쪽이 통째 빨강 */
 
 const W_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="2" width="9" height="2.2" rx=".6"/><rect x="1.5" y="7.8" width="9" height="2.2" rx=".6"/><path d="M1.5 6h9"/></svg>';
 export const STROKE_ALIGNS = Object.freeze([['inside', '안쪽'], ['center', '가운데'], ['outside', '바깥']]);
@@ -32,7 +33,7 @@ export const STROKE_ALIGNS = Object.freeze([['inside', '안쪽'], ['center', '�
  * @param {string} [o.bodyId] · [o.widthId] · [o.colorId]  그 블럭이 옛부터 쓰던 id 를 지킬 때(시험·외부 배선이 그 id 로 찾는다 · 없으면 prefix 기본)
  */
 export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, align = 'center', canAlign = true, alignWhy = '', slotsBelow = '', on = true, bodyId = '', widthId = '', colorId = '', step = 1, minWidth = 0, colorHtml = null }) {
-  const colorField = (colorHtml != null ? colorHtml : colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha }))
+  const colorField = (colorHtml != null ? colorHtml : window.colorFieldHTML({ idPrefix: colorId || `${prefix}-color`, hex: color, alpha }))
     .replace('class="prop-color-field"', 'class="prop-color-field" data-part="color" data-field="stroke-color"');
   const blocked = canAlign ? '' : ` aria-disabled="true" tabindex="0" title="${alignWhy}"`;
   return `
@@ -61,7 +62,7 @@ export function strokeHeadToolsHTML({ prefix, on }) {
 /** 배선 — 색(color-picker 한 벌) · 굵기(입력 = 쓰기 · change = 이력 한 칸 · push-after) · 위치(막힘이면 안 열림·안 바뀜). */
 export function wireStrokeSection({ prefix, adapter, alpha, maxWidth = 80, widthId = '', colorId = '', onWidth = 2, step = 1, minWidth = 0 }) {
   const num = (v) => { const x = Math.round((parseFloat(v) || 0) / step) * step; return Math.min(maxWidth, Math.max(minWidth, +x.toFixed(3))); };   // 0.5 걸음도 같은 길(parseInt 면 2.5 → 2)
-  wireColorField(colorId || `${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
+  window.wireColorField(colorId || `${prefix}-color`, { initialAlpha: alpha, onApply: (c) => adapter.color(c), onCommit: () => adapter.commit() });
   const w = document.getElementById(widthId || `${prefix}-width`);
   /* 머리 ＋/− — 켜면 «지난 굵기 · 없으면 onWidth»(에셋 옛 기본 2 그대로) · 끄면 adapter.none(없으면 굵기 0) · 몸 숨김 · 이력 한 칸 */
   const on = document.getElementById(`${prefix}-on`), ui = w?.closest('.ui-stroke');
