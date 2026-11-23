@@ -33,9 +33,12 @@ export function fillLorem(tb, opts, seed) {
    · 옛 저장본(표식 없음) = 사용자 글(안전 기본값). 표식은 블럭 dataset 이라 저장·열기·⌘Z 가 HTML 과 같이 옮긴다.
    · 같은 씨앗으로 개수만 바꾸면 앞 조각이 같다(text-lorem rng 순서) ⇒ 이분 탐색·다시 채우기가 한 글 안에서 늘고 준다(끄는 동안 글이 뒤섞이지 않음).
    shortcut: 한 단위 조각 하나도 안 들어가는 작은 상자면 낱말로 채운다(m = 0 · 슬라이더 0~0) — 단위를 지키라면 그때 «비움»으로. */
-const _contentH = (box) => { const mh = box.style.minHeight; box.style.minHeight = ''; const h = box.offsetHeight; box.style.minHeight = mh; return h; };
+/* ★174 t13E-08 채점 되돌림(지디 261123 · 미카사 실앱 ❌ «래퍼 161 고정인데 채울 때마다 글이 3378px 로 커짐») — 상자 높이가 style.height 로도 굳어 있으면(옛 꼴·다른 길)
+   ① 재는 자(_contentH)가 min-height 만 걷어 offsetHeight 가 늘 161 → «30개도 들어감»으로 셈 ② 하한(_cap)은 data-fixed-h 만 봐 그 상자를 «정한 높이»로 못 알아봄.
+   ⇒ 잴 때 height·min-height 둘 다 걷고, 하한은 data-fixed-h 없으면 px 로 굳은 style.height 도 «정한 높이»로 본다(시험 tests/dom/text-lorem-regrade R1·R1b). */
+const _contentH = (box) => { const mh = box.style.minHeight, hh = box.style.height; box.style.minHeight = ''; box.style.height = ''; const h = box.offsetHeight; box.style.minHeight = mh; box.style.height = hh; return h; };
 const _boxOf = (tb) => posElOf(tb) || tb;
-const _cap = (tb) => { const v = Number(_boxOf(tb).dataset.fixedH); return v > 0 ? v : 0; };
+const _cap = (tb) => { const b = _boxOf(tb), v = Number(b.dataset.fixedH); if (v > 0) return v; const sh = /^(\d+(?:\.\d+)?)px$/.exec(b.style.height || ''); return sh ? Math.round(Number(sh[1])) : 0; };
 function _hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return `${s.length}:${(h >>> 0).toString(36)}`; }   // FNV-1a
 const _textOf = (tb) => (findTextSlot(tb)?.el?.textContent ?? '');
 /** 더미 그대로면 표식 객체 · 아니면 null(그리고 낡은 표식은 버린다). */

@@ -4686,7 +4686,7 @@ function hideTextBoxResizeHandles() {
 function _onTextBoxResizeMouseDown(e, el, dir) {
   if (e.button !== 0) return;
   e.stopPropagation(); e.preventDefault();
-  const isGap = el.classList.contains('gap-block'), floating = el.dataset.overlayBlock === 'true';
+  const isGap = el.classList.contains('gap-block'), floating = el.dataset.overlayBlock === 'true';   // shortcut: 갭 갈래는 지금 부르는 자 0(현빈 261123 t13G-02 ⓐ로 갭 손잡이 거둠 · showHandlesFor) — 되살리면 그 자리 한 줄
   const sx = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0, sy = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
   const startW = el.offsetWidth, startH = el.offsetHeight, X0 = e.clientX, Y0 = e.clientY;
   let contentH = startH;   // «최소 높이» 바닥 = 키 없을 때 높이(내용)
@@ -5152,7 +5152,7 @@ function showHandlesFor(block) {
     if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); if (boxOk) showTextBoxResizeHandles(posEl, TBX_EDGES); else hideTextBoxResizeHandles(); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
     else { hideTextOverlayResizeHandles(); if (boxOk) showTextBoxResizeHandles(posEl, TBX_ALL); else hideTextBoxResizeHandles(); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
   } else if (block.classList.contains('gap-block')) {
-    showTextBoxResizeHandles(block, ['s']);   // t13D-10 — 갭 = 아래 변 하나(높이)
+    hideTextBoxResizeHandles();   // ★현빈 261123 t13G-02 ⓐ «갭 블럭 캔버스 리사이즈 손잡이 없게» — 높이는 «H» 라벨로만(t13D-10 의 갭 아래 변 손잡이 거둠 · 텍스트 손잡이는 그대로)
   } else if (block.classList.contains('grid-block')) {
     /* ★G2-b — 떠 있는 그리드에만 «폭» 손잡이였다(흐름 그리드는 패널 너비 줄로).
        ★K3 ⒜(2026-10-05 지디 · lane-f-grid) — 흐름 그리드에도 같은 «폭» 손잡이. 자리 = gridVisualBox(K2 선택 선과 같은 상자) · ⛔높이 안 씀. */
