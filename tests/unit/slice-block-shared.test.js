@@ -236,8 +236,7 @@ const REAL = [
   /* ── 2026-09-09 2차: «반대 방향» 변종(`\n};` · `\n}` · `\n  }` · `\n});`)에서 갈아끼운 자리 ── */
   ['js/checklist-data.js', 'window.deleteChecklistSection'],
   ['js/props/prop-page.js', 'function refreshGrid'],
-  ['js/props/prop-page.js', 'function _radioPairOn('],
-  ['js/props/prop-page.js', 'function _radioPairSet('],
+  /* ⚰️prop-page.js _radioPairOn · _radioPairSet — 현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 «켬/끔 라디오 쌍»(현빈 2026-09-09 «라디오버튼으로») 결정 대체(헬퍼 삭제) */
   ['js/block-drag.js', 'if (isZoom) {'],
   ['js/block-drag.js', 'if (isLaurel) {'],
   ['services/authService.js', 'function isPackagedRuntime'],

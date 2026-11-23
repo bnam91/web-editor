@@ -266,10 +266,7 @@ export function showStickerProperties(block) {
   if (basic && !isCount) put('content', `
     <div id="stk-mode-section">
       <div class="prop-row">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:#ccc;">
-          <input type="checkbox" id="stk-mode-img" ${block.dataset.mode === 'image' ? 'checked' : ''}>
-          이미지 모드
-        </label>
+        ${checkHTML({ id: 'stk-mode-img', label: '이미지 모드', checked: block.dataset.mode === 'image' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
       </div>
     </div>
     <div id="stk-text-section" style="display:${block.dataset.mode === 'image' ? 'none' : 'block'};">

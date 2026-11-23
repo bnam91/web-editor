@@ -506,8 +506,8 @@ if (typeof window !== 'undefined') window.overlayToggleBtnHTML = overlayToggleBt
    checkHTML({ id, label, checked, ariaLabel, labelledby, blockedWhy, attrs }) — checked: true/false · null = Mixed(indeterminate · wireCheck 가 건다 · 속성으로 직렬화 안 됨).
    label 이 비면 ariaLabel 또는 labelledby(줄 왼쪽 라벨 id) 필수. blockedWhy = 막힘(aria-disabled · 까닭은 title = P6 자리) — disabled 는 안 쓴다(초점·hover 가 안 와 까닭이 못 뜬다).
    상호배타(둘 중 하나)는 이 부품이 아니다 → 세그먼트/select. */
-export function checkHTML({ id, label = '', checked = false, ariaLabel = '', labelledby = '', blockedWhy = '', attrs = '' } = {}) {
-  const a = [`type="checkbox"`, `class="ui-check-box"`];
+export function checkHTML({ id, label = '', checked = false, ariaLabel = '', labelledby = '', blockedWhy = '', attrs = '', cls = '' } = {}) {
+  const a = [`type="checkbox"`, `class="ui-check-box${cls ? ' ' + escHtml(cls) : ''}"`];   // cls = 배선이 잡는 옛 클래스(목록 칸 등)
   if (id) a.push(`id="${escHtml(id)}"`);
   if (checked === null) a.push('data-mixed="1"');
   else if (checked) a.push('checked');   // 참 같은 값(dataset 글 등)도 켬 — 옛 `${v ? 'checked' : ''}` 와 같은 판정

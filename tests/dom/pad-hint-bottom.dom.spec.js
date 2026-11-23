@@ -1,3 +1,4 @@
+/* ★기대 바뀜(현빈 261123 «온/오프 = 고디터 커스텀 체크 하나» — 옛 켬/끔 라디오 쌍 대체) — 끄기 = 그 체크를 끈다(끔 라디오 없음) */
 /* pad-hint-bottom.dom.spec.js — ★아래 패딩 띠 ＋ 띠·그리드 «색 피커» (2026-10-07 현빈 ①②)
  *
  * ★왜 필요한가
@@ -159,8 +160,8 @@ test('B2 ★「패딩 비주얼 끔」이면 아래 띠도 안 뜬다 (게이트
   /* 끈다 */
   await openPage(page);
   await page.evaluate(() => {
-    const off = document.getElementById('page-pad-hint-off');
-    off.checked = true;
+    const off = document.getElementById('page-pad-hint-on');
+    off.checked = false;
     off.dispatchEvent(new Event('change', { bubbles: true }));
   });
   expect(await page.evaluate(() => window.readPadHintOn()), '★끔이 저장되지 않았다').toBe(false);

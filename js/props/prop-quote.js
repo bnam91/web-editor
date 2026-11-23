@@ -43,7 +43,7 @@ import { colorFieldHTML, wireColorField, parseAlphaFromColor } from './color-pic
    ★`attrs` 는 ★`data-al` 이다 — ⛔`data-align` 을 ★쓰지 마라: prop-text-wireup-align.js:8 이
      `.prop-align-btn` 을 ★전부 잡아 `dataset.align` ★유무로만 거른다 ⇒ ★엉뚱한 블럭이
      ★조용히 정렬된다. ★prop-modal.js:263~265 가 ★같은 까닭으로 `data-al` 을 쓴다(그 선례를 베꼈다). */
-import { blockHeaderHTML, escHtml as _esc, alignBtn } from './_helpers.js';
+import { blockHeaderHTML, escHtml as _esc, alignBtn, checkHTML } from './_helpers.js';
 /* ★★Typography 절은 ★정본 ★하나에서 온다 — ⛔글꼴·굵기·크기·줄간격·자간 칸을 ★손으로 만들지 마라
    (`js/props/_typo-section.js` 머리말 · `tests/unit/typo-section-ssot.test.mjs` 가 그 정본을 잠근다).
    ★폰트 ★위젯도 ★같은 벌이다(`_font-picker.js` `wireFontPicker`) — 우리는 ★«적용»만 준다. */
@@ -280,12 +280,8 @@ ${_pairRow('qt-marksize', '부호 크기', markSize, L.markSize.min, L.markSize.
 ${_pairRow('qt-markdy', '부호 y', markDy, L.markDy.min, L.markDy.max)}
       <div class="prop-row">
         <span class="prop-label">부호 켜기</span>
-        <label class="prop-none-check" title="앞쪽 부호를 보일지">
-          <input type="checkbox" id="qt-pre-on"${preOn ? ' checked' : ''} aria-label="앞 부호"> 앞
-        </label>
-        <label class="prop-none-check" title="뒤쪽 부호를 보일지">
-          <input type="checkbox" id="qt-post-on"${postOn ? ' checked' : ''} aria-label="뒤 부호"> 뒤
-        </label>
+        ${checkHTML({ id: 'qt-pre-on', label: '앞', checked: preOn, attrs: 'title="앞쪽 부호를 보일지"' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
+        ${checkHTML({ id: 'qt-post-on', label: '뒤', checked: postOn, attrs: 'title="뒤쪽 부호를 보일지"' })}
       </div>`, { title: 'Marks', id: 'qt-marks-section' }),
     ],
   });

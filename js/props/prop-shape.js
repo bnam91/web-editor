@@ -193,10 +193,7 @@ export function showShapeProperties(block) {
              ★아래 ★까닭 줄이 ★나타난다 — ★★«잠겼다»를 ★겉모습으로 ★말한다(t2cmdl ㉣).
            ★끄면 ★잠금이 ★풀린다(되돌릴 수 있게 · 지디 판정 ⑤). -->
       <div class="prop-row" id="shape-star-rating-row" style="gap:6px;font-size:11px;white-space:nowrap">
-        <label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:#aaa;flex-shrink:0" title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다">
-          <input type="checkbox" id="shape-star-rating-toggle" ${ratingOn ? 'checked' : ''}>
-          <span>별점</span>
-        </label>
+        ${checkHTML({ id: 'shape-star-rating-toggle', label: '별점', checked: ratingOn, attrs: 'title="별 도형을 평점으로 — 채운 별과 빈 별을 색으로 가른다"' })}   <!-- 현빈 261123 «온/오프 = 체크» -->
         <input type="number" class="prop-number" id="shape-star-rating-num" min="${STAR_RATING_MIN}" max="${STAR_RATING_MAX}" value="${starRating ?? STAR_RATING_MAX}" ${ratingOn ? '' : 'disabled'} style="width:48px">
         <span id="shape-star-rating-preview" style="color:${ratingOnColor};letter-spacing:1px;${ratingOn ? '' : 'opacity:0.3'}">${starRatingPreview(starRating)}</span>
       </div>` : ''),
