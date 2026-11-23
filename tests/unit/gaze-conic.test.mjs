@@ -1,7 +1,7 @@
 /* gaze-conic — FX-GRADIENT-GAZE-01 v2(현빈 261121 · 16종 · 원뿔형) 모델·팔레트·Figma 변환.
  * C1 gradient-model 원뿔형 — parse(from 각 · at 위치 건너뜀) · toCss 왕복 · strict(피커 꼴만 · 범위 밖 각 null · 머리 없는 꼴 = 0°) · 옛 linear/radial 무변
- * C2 GAZE_PRESETS 16 = linear 12 + conic 4 · key 겹침 0 · 정지점 오름차순 0..1 · conic 고리(끝 = 첫 색) · 색 #rrggbb
- * C3 원본 표 복제 0 — 검수 참고 표(MIKASA notes 4표)의 정지점 색 열(4~8색)과 같은 프리셋 없음(색 집합 같음 0)
+ * C2 GAZE_PRESETS 16 = linear 8 + conic 8(★261123 GradientGaze 재현) · key 겹침 0 · 정지점 오름차순 0..1 · conic 고리(끝 = 첫 색) · 색 #rrggbb
+ * C3 ★GradientGaze 16 재현(현빈 261123 · 앞 판 «복제 0» 뒤집음) — 미카사 261123 표 ① 값 그대로 · key 무변 · 이름 Holo NN · 원뿔 3시 시작
  * C4 Figma — cssGradientToFigmaPaint(conic) = GRADIENT_ANGULAR · 시작각 0 이면 x 축 = 위(0,−1) 방향 · 90 이면 오른쪽
  */
 import test from 'node:test';
@@ -39,7 +39,7 @@ test('C1 원뿔형 모델', () => {
 test('C2 16종', () => {
   const L = P.GAZE_PRESETS;
   assert.equal(L.length, 16);
-  assert.deepEqual([L.filter((p) => p.type === 'linear').length, L.filter((p) => p.type === 'conic').length], [12, 4]);
+  assert.deepEqual([L.filter((p) => p.type === 'linear').length, L.filter((p) => p.type === 'conic').length], [8, 8]);   // ★기대 바뀜(현빈 261123 GradientGaze 재현 — 홀수 Linear · 짝수 Angular)
   assert.equal(new Set(L.map((p) => p.key)).size, 16);
   for (const p of L) {
     assert.ok(p.stops.length >= 3 && p.stops.length <= 8, p.key);
@@ -49,15 +49,20 @@ test('C2 16종', () => {
   }
 });
 
-test('C3 원본 표 복제 0', () => {
-  const notes = fs.readFileSync(path.join(process.env.HOME, '.claude/skills/지디/handoff/MIKASA-plugin-check-1121/notes.md'), 'utf8');
-  const rows = [...notes.matchAll(/정지점 \d개 ([^|]+)\|/g)].map((m) => [...m[1].matchAll(/([0-9A-F]{6})/g)].map((x) => '#' + x[1].toLowerCase()));
-  assert.ok(rows.length >= 4, '[전제] 원본 4표를 읽었다');
-  const key = (cs) => [...new Set(cs)].sort().join(',');
-  const ours = new Set(P.GAZE_PRESETS.map((p) => key(p.stops.map(([c]) => c))));
-  for (const r of rows) assert.ok(!ours.has(key(r)), `원본 색 집합 복제: ${r}`);
-  const all = new Set(rows.flat()); const shared = P.GAZE_PRESETS.flatMap((p) => p.stops.map(([c]) => c)).filter((c) => all.has(c));
-  assert.ok(shared.length <= 2, `원본과 같은 색 낱개 ${shared}`);   // 흰색 같은 우연 1~2 까지만
+/* ★기대 바뀜(현빈 261123 «처음엔 똑같이» — 앞 판 «IP 라 안 옮김 · 원본 표 복제 0» 을 뒤집음): GradientGaze 16 = 미카사 261123 실측 표 ①(MIKASA-holo-noise-261123/notes.md) 그대로 ·
+   순서 = 플러그인 격자 1~16 · key = 옛 이름 그대로(블럭 data-fx-holo 저장 키) · 보이는 이름 Holo 01~16 · 원뿔 시작 3시(90°) */
+test('C3 GradientGaze 16 재현 = 미카사 261123 표 · key 무변 · 이름 Holo NN · 원뿔 90°', () => {
+  const notes = fs.readFileSync(path.join(process.env.HOME, '.claude/skills/지디/handoff/MIKASA-holo-noise-261123/notes.md'), 'utf8');
+  const rows = [...notes.matchAll(/^\| (\d+) \| (Linear|Angular) \| ([^|]+)\|/gm)].map((m) => ({ n: +m[1], type: m[2] === 'Angular' ? 'conic' : 'linear',
+    stops: m[3].replace(/\(전부 100\)/, '').split('·').map((x) => x.trim().split(/\s+/)).filter((a) => a.length >= 2).map(([pos, hex]) => [`#${hex.toLowerCase()}`, +pos / 100]) }));
+  assert.equal(rows.length, 16, '[전제] 표 16줄을 읽었다');
+  const L = P.GAZE_PRESETS;
+  rows.forEach((r, i) => assert.deepEqual({ type: L[i].type, stops: L[i].stops }, { type: r.type, stops: r.stops }, `#${r.n} 값이 표와 다르다`));
+  assert.deepEqual(L.map((p) => p.key), ['silver', 'gold', 'rose', 'pearl', 'aurora', 'oil', 'mist', 'sunset', 'mint', 'chrome', 'neon', 'pastel', 'prism', 'slick', 'opal', 'goldswirl'], '★key = 옛 이름 그대로(저장 키)');
+  assert.deepEqual(L.map((p) => p.name), Array.from({ length: 16 }, (_, i) => `Holo ${String(i + 1).padStart(2, '0')}`), '★보이는 이름 Holo 01~16');
+  assert.equal(P.GAZE_CONIC_FROM, 90);
+  assert.match(P.gazeSwatchCss(L[1]), /^conic-gradient\(from 90deg at 50% 50%, #b6d0f7 0%/, '★스와치 원뿔 = 3시 시작');
+  assert.match(P.gazeSwatchCss(L[0]), /^linear-gradient\(90deg, #b6d0f7 0%/, '★스와치 선형 = 90°(0% 왼쪽)');
 });
 
 test('C4 Figma GRADIENT_ANGULAR', () => {
