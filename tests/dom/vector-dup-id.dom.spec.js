@@ -91,7 +91,8 @@ test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z �
   if (!(await page.locator('#vb-float-toggle').isVisible())) await openPanel(page);
   await page.waitForFunction(() => performance.now() - window.__upAt > 150);   // ★전제(아이맥 3eb53c9b5 D2 «토글이 상태를 바꿨다» 빨강) — 끌고 놓은 뒤 120ms 는 합성 click 을 삼킨다(overlay-float.js onUp killClick · 놓는 자리 선택 풀림 막기) ⇒ 그 창이 닫힌 뒤 누른다(사람 손 속도 · 고정 대기 아님 = 조건 대기)
   const vBeforeEat = await page.evaluate(() => { const w = window.OverlayFloat.posElOf(document.getElementById('vV')); return [w.dataset.offsetX, w.dataset.offsetY]; });
-  console.log('[D2 놓기 표식]', JSON.stringify({ upProbe, vBeforeEat }));
+  const vp = await page.evaluate(() => [window.innerWidth, window.innerHeight]);   // 표식 ⑤(지디 261123 ⑴ — seen [] 이 무효 음성인가) — 끌기 시작점·놓는 점이 창(뷰포트) 안인가: 창 밖에서 놓으면 mouseup 이 문서에 안 온다
+  console.log('[D2 놓기 표식]', JSON.stringify({ upProbe, vBeforeEat, vp, start: [Math.round(x), Math.round(y)], release: [Math.round(x + 150), Math.round(y + 60)], releaseInside: x + 150 < vp[0] && y + 60 < vp[1] }));
   const capLog1 = await page.evaluate(() => window.__cap.map(([op, t, w]) => [op, t - Math.round(window.__upAt), w]));
   /* ★전제(지디 261123 ⑶) — 끌고 놓은 뒤 남은 삼킴을 «빈 곳 클릭 하나»로 소진하고 1회차 손짓 id 셈까지 간다(삼킴 결함은 별건 카드 · 제품 무접촉). 소진 클릭이 삼켜졌는지도 적는다 */
   const eat = await page.evaluate(() => { window.__eat = { win: 0, bub: 0 }; window.addEventListener('click', () => window.__eat.win++, { capture: true, once: true }); document.addEventListener('click', () => window.__eat.bub++, { once: true }); return true; });
