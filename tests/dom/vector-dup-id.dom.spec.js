@@ -35,9 +35,10 @@ const count = (page) => page.evaluate(() => ({ dom: document.querySelectorAll('#
 
 test('D1 떠 있는 벡터 끄는 도중 ⌘Z → 계속 끌고 놓아도 같은 id 하나(DOM · 저장본)', async ({ page }) => {
   const errs = await setup(page);
-  await page.evaluate(() => { const OF = window.OverlayFloat; OF.enterFloat(OF.posElOf(document.getElementById('vV'))); window.deselectAll?.(); window.clearHistory?.(); window.pushHistory?.('떠 있음'); });
+  await page.evaluate(() => { const OF = window.OverlayFloat; window.clearHistory?.(); OF.enterFloat(OF.posElOf(document.getElementById('vV'))); window.deselectAll?.(); window.pushHistory?.('떠 있음'); });   // ★전제 바뀜(아이맥 3f63b1b58 — 옛 판은 clear «뒤» push 가 무변화로 버려져 이력 0 = ⌘Z 무동작 = 무효 음성) ⇒ clear(흐름) → 띄움 → push = 되돌릴 일 1칸
   await stable(page, '#vV');
   const c0 = await count(page);
+  expect(await page.evaluate(() => window.getHistoryTip?.()?.canUndo), '[전제] 되돌릴 일이 있다(canUndo) — 없으면 ⌘Z 가 무동작이라 이 칸은 아무것도 못 잰다').toBe(true);
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 40, y + 30, { steps: 5 });
   const mid = await count(page);
@@ -52,5 +53,52 @@ test('D1 떠 있는 벡터 끄는 도중 ⌘Z → 계속 끌고 놓아도 같은
   console.log('[D1 실측]', JSON.stringify({ c0, mid, afterUndo, ate, c1, end }));
   expect([c0.dom, c0.saved], '[전제] 처음 하나').toEqual([1, 1]);
   expect([c1.dom, c1.saved], '★끄는 도중 ⌘Z 뒤 계속 끌어도 같은 id 하나(DOM · 저장본)').toEqual([1, 1]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+/* D2 (1회차 원문 손짓 그대로 · 지디 261119 «오버레이 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z → 다시 열기») — 단계마다 같은 id 수(DOM · 저장본)를 잰다. 패널 단추·진짜 마우스·키.
+ * D3 (곁 가설) — ⌘Z 뒤에도 패널이 «옛 블럭»을 쥔 채 열려 있으면 그 단추를 다시 누름 → 옛 블럭을 exitFloat/enterFloat → 사본이 붙나 */
+async function openPanel(page) {
+  const [x, y] = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.click(x, y);
+  await expect(page.locator('#vb-w')).toBeVisible();   // 전제 — 벡터 패널이 열렸다
+}
+/* 누르기 전 떠 있음 상태를 재 두고 «바뀔 때까지» → 상자 멎음(고정 대기 0) */
+const toggle = async (page) => {
+  const was = await page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true');
+  await page.click('#vb-float-toggle');
+  await expect.poll(() => page.evaluate(() => window.OverlayFloat.posElOf(document.getElementById('vV')).dataset.overlayBlock === 'true'), '[전제] 오버레이 토글이 상태를 바꿨다').toBe(!was);
+  await stable(page, '#vV');
+};
+
+const seq = async (page, label, log) => { log.push([label, await count(page)]); };
+test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z → 다시 열기 — 단계마다 같은 id 하나', async ({ page }) => {
+  const errs = await setup(page); const log = [];
+  await page.evaluate(() => window.clearHistory?.());
+  await openPanel(page); await seq(page, 'open', log);
+  await toggle(page); await seq(page, '켬', log);
+  const [x, y] = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 150, y + 60, { steps: 10 }); await page.mouse.up(); await stable(page, '#vV'); await seq(page, '끌기', log);
+  if (!(await page.locator('#vb-float-toggle').isVisible())) await openPanel(page);
+  await toggle(page); await seq(page, '끔', log);
+  for (const [k, l] of [['Meta+z', '⌘Z'], ['Meta+Shift+z', '⌘⇧Z'], ['Meta+z', '⌘Z 2']]) { await page.keyboard.press(k); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await seq(page, l, log); }
+  await page.evaluate(async () => { window.deselectAll(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; await window.applyProjectData(d); });
+  await page.waitForFunction(() => !!document.querySelector('#canvas .section-block'));
+  await seq(page, '다시 열기', log);
+  console.log('[D2 실측]', JSON.stringify(log));
+  expect(log.filter(([, c]) => c.dom !== 1 || c.saved !== 1).map(([l]) => l), '★어느 단계에서도 같은 id 는 하나(DOM · 저장본)').toEqual([]);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
+
+test('D3 (곁 가설) 켬 → ⌘Z → 패널이 열려 있으면 단추 다시 누름 → 같은 id 하나', async ({ page }) => {
+  const errs = await setup(page); const log = [];
+  await page.evaluate(() => window.clearHistory?.());
+  await openPanel(page); await toggle(page); await seq(page, '켬', log);
+  await page.keyboard.press('Meta+z'); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await seq(page, '⌘Z', log);
+  const btn = await page.locator('#vb-float-toggle').isVisible();
+  if (btn) { await page.click('#vb-float-toggle'); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); }
+  await seq(page, '단추 다시', log);
+  console.log('[D3 실측]', JSON.stringify({ btn, log }));
+  expect(log.filter(([, c]) => c.dom !== 1 || c.saved !== 1).map(([l]) => l), '★같은 id 하나').toEqual([]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
