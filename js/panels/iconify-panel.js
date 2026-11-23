@@ -120,6 +120,7 @@ function openIconifyModal(onPick, options = {}) {
   _setSubTab('iconify');                 // 기본 탭 = Iconify
   if (_favEnabled) _renderFavGrid();     // 프로퍼티 패널에서 추가된 최신 즐겨찾기 반영
   _modal.style.display = 'flex';
+  if (!_currentQuery && _NO_INDEX.has(_currentPrefix)) _showWholeCollection(_currentPrefix);   // ☐2 — 색인 밖 세트로 미리 걸러 열면 검색 없이 전체
   setTimeout(() => document.getElementById('iconify-search-input')?.focus(), 50);
 }
 window.openIconifyModal = openIconifyModal;
@@ -246,7 +247,7 @@ function _bindModalEvents() {
   searchInput.addEventListener('input', () => {
     clearTimeout(_searchTimer);
     _currentQuery = searchInput.value.trim();
-    if (!_currentQuery) { _setGridMessage('위에서 아이콘을 검색해보세요'); return; }
+    if (!_currentQuery) { if (_NO_INDEX.has(_currentPrefix)) _showWholeCollection(_currentPrefix); else _setGridMessage('위에서 아이콘을 검색해보세요'); return; }   /* ☐2(현빈 261123) — 색인 밖 세트(Feather)는 빈 검색 = 세트 전체 */
     _setGridMessage('검색 중...');
     _searchTimer = setTimeout(() => _doSearch(_currentQuery, _currentPrefix), 400);
   });
@@ -269,6 +270,7 @@ function _bindModalEvents() {
       b.classList.toggle('active', b === btn);
     });
     if (_currentQuery) _doSearch(_currentQuery, _currentPrefix);
+    else if (_NO_INDEX.has(_currentPrefix)) _showWholeCollection(_currentPrefix);   /* ☐2 — Feather 탭을 누르면 검색 없이도 286 전체 */
   });
 
   // 아이콘 그리드 클릭
@@ -296,11 +298,23 @@ function _bindModalEvents() {
 }
 
 /* ★미카사 채점 261121 ② — Iconify 는 «feather» 세트(286개)를 검색 색인에서 뺐다(/collections 에 없고 /search?prefix=feather 는 늘 0 · /collection?prefix=feather 는 준다).
-   세트를 걸러 찾았는데 0 이면 그 세트 목록을 받아 이름에 검색어가 든 것을 고른다(세트당 한 번 받아 둔다 · 검색 결과와 같은 꼴 'set:name' · 상한 80). */
+   세트를 걸러 찾았는데 0 이면 그 세트 목록을 받아 이름에 검색어가 든 것을 고른다(세트당 한 번 받아 둔다 · 검색 결과와 같은 꼴 'set:name' · 상한 없음 — ☐2 현빈 261123). */
 const _COLLECTION_NAMES = new Map();
+/* ☐2(현빈 261123) — 검색 색인 밖 세트. 빈 검색이면 세트 «전체»를 보인다(Feather 286 · 묶음 미리보기는 세트당 100개씩 끊어 받는다 · _fillPreviews) */
+const _NO_INDEX = new Set(['feather']);
+async function _showWholeCollection(prefix) {
+  _setGridMessage('불러오는 중...');
+  const names = await _collectionNames(prefix);
+  if (_currentQuery || _currentPrefix !== prefix) return;   // 기다리는 사이 검색어·세트가 바뀌었으면 그쪽이 주인
+  _renderGrid([...names].sort().map((n) => `${prefix}:${n}`));
+}
 async function _searchInCollection(query, prefix) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return [];
+  const names = await _collectionNames(prefix);
+  return names.filter((n) => n.includes(q)).sort((a, b) => (a === q ? -1 : b === q ? 1 : a.length - b.length)).map((n) => `${prefix}:${n}`);   /* ☐2 — 상한 80 걷음(세트 하나 안이라 많아야 세트 크기) */
+}
+async function _collectionNames(prefix) {
   let names = _COLLECTION_NAMES.get(prefix);
   if (!names) {
     try {
@@ -310,7 +324,7 @@ async function _searchInCollection(query, prefix) {
     } catch (_) { names = []; }
     if (names.length) _COLLECTION_NAMES.set(prefix, names);
   }
-  return names.filter((n) => n.includes(q)).sort((a, b) => (a === q ? -1 : b === q ? 1 : a.length - b.length)).slice(0, 80).map((n) => `${prefix}:${n}`);
+  return names;
 }
 
 async function _doSearch(query, prefix) {
