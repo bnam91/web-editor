@@ -20,7 +20,8 @@ test('E05-1 원 효과 라벨 = «Inner shadow»(옛 «이너 그림자» 보이
 });
 
 test('F03-1 상한 = 짧은 변 절반 · 바닥 120 — 한 자(asset-width-limits.js)', async () => {
-  const m = await import('data:text/javascript,' + encodeURIComponent(rd('js/blocks/asset-width-limits.js')));   // .js = package type 없음 ⇒ 소스를 ESM 으로 싣는다
+  /* .js = package type 없음 · import() 에 file URL 아닌 것 금지(win-portability ②-4) ⇒ export 만 걷어 함수로 싣는다 */
+  const m = new Function('window', rd('js/blocks/asset-width-limits.js').replace(/^export /gm, '') + '\nreturn { assetRadiusMax };')(undefined);
   assert.equal(typeof m.assetRadiusMax, 'function', 'assetRadiusMax 가 없다');
   assert.equal(m.assetRadiusMax(600, 600), 300, '600×600 = 300');
   assert.equal(m.assetRadiusMax(860, 400), 200, '860×400 = 200(짧은 변 400 의 절반)');

@@ -79,7 +79,7 @@ test('S-1 하한은 asset-width-limits.js 한 파일에서만 «선언»되고 �
 });
 
 test('S-2 패널 폭 슬라이더·숫자칸의 min 이 «리터럴이 아니다»', () => {
-  assert.match(SRC.asset, /import\s*\{\s*ASSET_W_MIN\s*\}\s*from\s*'\.\.\/blocks\/asset-width-limits\.js'/,
+  assert.match(SRC.asset, /import\s*\{[^}]*\bASSET_W_MIN\b[^}]*\}\s*from\s*'\.\.\/blocks\/asset-width-limits\.js'/   /* t13F-03 — 같은 파일에서 assetRadiusMax 도 가져온다(이름 하나 더 · 뜻 그대로) */,
     '★prop-asset.js 가 ASSET_W_MIN 을 안 가져온다');
 
   for (const id of ['asset-w-slider', 'asset-w-number']) {
@@ -138,7 +138,7 @@ test('S-3 숫자칸 커밋 — 하한은 상수 · «0»과 «빈 칸»을 갈�
 });
 
 test('S-4 ★모서리 핸들도 «같은 상수»를 본다 (패널만 고치면 이 문으로 100 이 돌아온다)', () => {
-  assert.match(SRC.handles, /import\s*\{\s*ASSET_W_MIN\s*\}\s*from\s*'\.\/blocks\/asset-width-limits\.js'/,
+  assert.match(SRC.handles, /import\s*\{[^}]*\bASSET_W_MIN\b[^}]*\}\s*from\s*'\.\/blocks\/asset-width-limits\.js'/,
     '★overlay-handles.js 가 ASSET_W_MIN 을 안 가져온다');
 
   const body = fnBody(SRC.handles, '_onAssetResizeHandleMouseDown');
