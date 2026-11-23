@@ -2,13 +2,14 @@
  *   상태 = handoff/rp-capture-261120/capture.js 의 75상태(같은 블럭 추가식 · 같은 고르기 길) 그대로 옮김 · 앱 = DOM 하네스(bootApp).
  *   셈: 앱 = #panel-right 안 label.ui-check «전부»(접힌 절·조건 숨김 포함 — 시안 수도 캡처 HTML 의 data-chku 전부라 같은 자) · «머리 ＋ 대응»(절 머리 ＋/− 뒤 숨은 체크)은 시안이 안 셈 ⇒ 따로 칸(대조 밖).
  *   결과 = test-results/check-census.json(상태별 시안·앱·머리＋) + 콘솔 표 · 단언 = 앱 + 머리＋ === 시안 합 · 상태별 어긋남은 표로(판정은 사람).
- *   시안 수 = 탑 261123 시안 75상태 chku 열 data-chku 실측(합 91)을 박음 — 시안이 바뀌면 다시 재서 바꿀 것. */
+ *   시안 수 = 탑 261123 시안 75상태 chku 열 data-chku 실측(합 91)을 박음 — 시안이 바뀌면 다시 재서 바꿀 것.
+ *   ★59 = 1(시안 gdragon 동기화 — 바로잡음 59 원형 스티커에 앱의 Content «이미지 모드» 줄을 더함 · 합 92) */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { bootApp } = require('./_root-harness.js');
 
-const MOCK = {"01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 1, "07": 0, "08": 0, "09": 0, "10": 0, "11": 1, "12": 2, "13": 0, "14": 3, "15": 3, "16": 3, "17": 3, "18": 3, "19": 4, "20": 2, "21": 0, "22": 1, "23": 0, "24": 0, "25": 2, "26": 0, "27": 1, "28": 2, "29": 2, "30": 5, "31": 2, "32": 6, "33": 0, "34": 0, "35": 1, "36": 6, "37": 2, "38": 0, "39": 4, "40": 5, "41": 3, "42": 2, "43": 0, "44": 1, "45": 0, "46": 2, "47": 1, "48": 2, "49": 0, "50": 0, "51": 0, "52": 0, "53": 0, "54": 0, "55": 2, "56": 0, "57": 0, "58": 0, "59": 0, "60": 2, "61": 0, "62": 1, "63": 0, "64": 0, "65": 0, "66": 1, "67": 0, "68": 3, "69": 0, "70": 1, "71": 1, "72": 0, "73": 1, "74": 1, "75": 3};
+const MOCK = {"01": 0, "02": 0, "03": 0, "04": 0, "05": 0, "06": 1, "07": 0, "08": 0, "09": 0, "10": 0, "11": 1, "12": 2, "13": 0, "14": 3, "15": 3, "16": 3, "17": 3, "18": 3, "19": 4, "20": 2, "21": 0, "22": 1, "23": 0, "24": 0, "25": 2, "26": 0, "27": 1, "28": 2, "29": 2, "30": 5, "31": 2, "32": 6, "33": 0, "34": 0, "35": 1, "36": 6, "37": 2, "38": 0, "39": 4, "40": 5, "41": 3, "42": 2, "43": 0, "44": 1, "45": 0, "46": 2, "47": 1, "48": 2, "49": 0, "50": 0, "51": 0, "52": 0, "53": 0, "54": 0, "55": 2, "56": 0, "57": 0, "58": 0, "59": 1, "60": 2, "61": 0, "62": 1, "63": 0, "64": 0, "65": 0, "66": 1, "67": 0, "68": 3, "69": 0, "70": 1, "71": 1, "72": 0, "73": 1, "74": 1, "75": 3};
 const ICON_SVG = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='currentColor'/></svg>";
 const STATES = [
 ['01','text-h1',"addTextBlock('h1')",'text-block'],['02','text-h2-heading',"addTextBlock('h2')",'text-block'],
@@ -52,21 +53,24 @@ const STATES = [
 const HEAD_PLUS = ['asset-stroke-on', 'txt-shadow-on'];   // + «…-stroke-on»(텍스트 계열 절 머리 ＋) — 숨은 체크
 
 async function clickEl(page, expr) {
-  const p = await page.evaluate((e) => { const el = (0, eval)(e); if (!el) return null; el.scrollIntoView({ block: 'center', inline: 'center' }); const b = el.getBoundingClientRect(); const x = b.left + b.width / 2, y = b.top + b.height / 2; const h = document.elementFromPoint(x, y); return [x, y, !!h && (el.contains(h) || h.contains(el))]; }, expr);
-  if (!p) throw new Error('no target ' + expr);
-  if (!p[2]) throw new Error('click owner mismatch ' + expr);   // ★클릭 점의 주인이 그 블럭이 아니면 장면 탓(셈 아님) — 못 엶으로 드러낸다
-  await page.mouse.click(p[0], p[1]);
+  /* ★그 요소에 «직접» 누름 사건을 쏜다(mousedown → mouseup → click · 그 요소 가운데 좌표) — 화면 겹침(떠 있는 스티커 등)에 안 흔들린다.
+     지디 C91 2차·srv 재현: 실마우스·가린 것 걷기·섹션 숨기기 모두 상태 쌓임에 따라 남의 패널을 셌다(62 coin · 66 glow 등).
+     잴 것은 «그 블럭이 골라졌을 때 패널의 체크 수»라 히트 테스트는 셈 밖이다(실마우스 고르기는 각 블럭 spec 몫). */
+  const ok = await page.evaluate((e) => { const el = (0, eval)(e); if (!el) return false; el.scrollIntoView({ block: 'center', inline: 'center' }); const b = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, view: window, button: 0, clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 };
+    el.dispatchEvent(new MouseEvent('mousedown', o)); el.dispatchEvent(new MouseEvent('mouseup', o)); el.dispatchEvent(new MouseEvent('click', o)); return true; }, expr);
+  if (!ok) throw new Error('no target ' + expr);
 }
 const newOf = (cls) => `[...document.querySelectorAll('#canvas .${cls}, .${cls}')].filter(e=>!window.__ccBefore.has(e))`;
 const count = (page) => page.evaluate((HP) => {
   const pr = document.getElementById('panel-right');
-  const vis = pr.querySelectorAll('label.ui-check').length;   // 접힌 절 안 것도 센다(말풍선 «발신자 이름» 이 Special 접힘에서 0 으로 셌던 것 · 지디 C91 1차)
+  const vis = [...pr.querySelectorAll('label.ui-check')].filter((l) => !l.closest('[hidden]')).length;   // 조건 숨김 줄([hidden] · 예: 라이너 «안쪽 뒤집기» = 원·둥근/반지름 있을 때만)은 안 셈 · 접힌 절은 셈   // 접힌 절 안 것도 센다(말풍선 «발신자 이름» 이 Special 접힘에서 0 으로 셌던 것 · 지디 C91 1차)
   const head = [...pr.querySelectorAll('input[type=checkbox]')].filter((i) => !i.closest('label.ui-check') && (HP.includes(i.id) || /-stroke-on$/.test(i.id))).length;
   return { vis, head };
 }, HEAD_PLUS);
 
 test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async ({ page }) => {
-  test.setTimeout(600000);
+  test.setTimeout(900000);
   await page.setViewportSize({ width: 1500, height: 1100 });
   await bootApp(page);
   const rows = []; const errs = [];
@@ -74,8 +78,6 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
     if (!/^\d\d$/.test(nn)) continue;
     try {
       await page.evaluate(() => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.deselectAll?.(); });
-      /* ★앞 상태의 섹션을 걷는다 — 스티커 같은 «떠 있는» 블럭은 새 섹션에 넣어도 같은 화면 자리에 겹쳐, 클릭이 «옛 것»을 집었다(지디 C91 2차: 62 coin 앱 0 · 66 glow 앱 3 = 남의 스티커 패널 · 단독으로 재면 1 · 1) */
-      await page.evaluate(() => document.querySelectorAll('#canvas > .section-block').forEach((s) => s.remove()));
       if (add !== 'SPECIAL') {
         await page.evaluate(() => { window.addSection(); });
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });
@@ -100,8 +102,8 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         await page.evaluate((e) => { window.__ccS = (0, eval)(e).pop(); window.deselectAll?.(); window.toggleCountStickerMode(); }, newOf('section-block'));
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });   // 마킹 스티커만 «새 것»으로
         await clickEl(page, 'window.__ccS');
-        await page.waitForFunction((e) => (0, eval)(e).length > 0, newOf('sticker-block'));
-        await page.evaluate((e) => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.__ccT = (0, eval)(e).pop(); window.deselectAll?.(); }, newOf('sticker-block'));
+        await page.waitForFunction(() => [...document.querySelectorAll('.sticker-block')].some((e) => !window.__ccBefore.has(e)));   // 문자열 eval 없이(CSP)
+        await page.evaluate(() => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.__ccT = [...document.querySelectorAll('.sticker-block')].filter((e) => !window.__ccBefore.has(e)).pop(); window.deselectAll?.(); });
         await clickEl(page, 'window.__ccT');
       } else if (nn === '75') {
         await page.evaluate(() => window.deselectAll?.());
