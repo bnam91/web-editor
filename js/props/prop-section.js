@@ -576,7 +576,7 @@ async function showSectionProperties(sec) {
        ★예전(=이 줄 넣기 전)엔 ★「배경색 B19DBF」처럼 ★고른 적 없는 ★hex 가 ★칸에 떴다(261025 ★캡처로 잡았다).
      ⇒ ★메시일 땐 ★`dataset.bg` 만 본다 — ★사용자가 ★정말 고른 적이 ★있으면 ★그 값이 ★그대로 뜬다.
      ★칸을 ★숨기지는 ★않는다 — 숨기면 ★「색을 고르면 메시가 걷힌다」(M9) 길이 ★패널에서 ★사라진다.
-     ★대신 ★그 칸이 ★무엇을 하는지 ★한 줄로 ★알린다(아래 meshHintHTML · ★M10 이 잰다). */
+     ★대신 ★그 칸이 ★무엇을 하는지 ★한 줄로 ★알린다(옛 안내 줄 sec-bg-mesh-hint 는 PRS-03 으로 걷음 · ★M10 은 칸 값만 잰다). */
   const rawBg = meshOn
     ? (sec.dataset.bg || '')
     : (sec.dataset.bg || sec.style.backgroundColor || sec.style.background || '');
@@ -612,9 +612,7 @@ async function showSectionProperties(sec) {
   const _bgTone  = sec.dataset.checkerTone === 'dark' ? 'dark' : 'light';
   const _bgSizeCustom = /px/.test(bgSize);
   /* ★★prev-06 — ★메시가 켜진 동안만 뜬다. ★M10 의 ★음성대조가 ★「끄면 사라진다」를 잰다. */
-  const meshHintHTML = meshOn
-    ? '<div id="sec-bg-mesh-hint" class="prop-hint" style="margin:-2px 0 2px;">메시 그라데이션 사용 중 — 위 배경색을 고르면 메시가 꺼집니다</div>'
-    : '';
+  /* PRS-03(현빈 GO 261122 · 8910 prsmesh) — «메시 그라데이션 사용 중 — 배경색을 고르면 메시가 꺼집니다» 힌트 줄 걷음(세그먼트의 켜짐 표시가 그 뜻을 맡는다) · 파생 바닥색을 칸에 안 보이는 규약(M10)은 그대로 */
   const meshHTML = sec.dataset.bgImg ? '' : `
     ${meshOn ? MESH_CORNERS.map((k, i) => `
     <div class="prop-color-row" style="margin-top:4px;" data-mesh-corner="${k}">
@@ -806,7 +804,6 @@ async function showSectionProperties(sec) {
         ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
       </div>
       <div class="cv-chips" id="sec-bg-chips" hidden></div>
-      ${meshHintHTML}
       <span class="prop-field-label">Background Image</span>
       ${bgImgHTML}
       <!-- ★무늬·효과 묶음 — 현빈 261116 «노트무늬를 파티클 켜기랑 같이 묶고 소제목을 바꿔(임시)». 소제목은 여기 한 자리
