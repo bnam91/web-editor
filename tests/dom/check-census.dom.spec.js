@@ -102,7 +102,12 @@ test('C91 ★체크 자리 대조 — 시안 chku 91 ↔ 앱 상태별', async (
         await page.evaluate((e) => { window.__ccS = (0, eval)(e).pop(); window.deselectAll?.(); window.toggleCountStickerMode(); }, newOf('section-block'));
         await page.evaluate(() => { window.__ccBefore = new Set(document.querySelectorAll('*')); });   // 마킹 스티커만 «새 것»으로
         /* ★마킹 도구는 캔버스 «진짜 누름»(좌표)만 받는다 — 사건 직접 쏘기(clickEl)로는 안 생겨 40분 매달렸다(srv cf99f3e20) ⇒ 이 장면만 실마우스 · 빈 섹션 가운데라 겹칠 것 없음 */
-        const sp = await page.evaluate(() => { window.__ccS.scrollIntoView({ block: 'center' }); const b = window.__ccS.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
+        /* ★누를 점 = 그 섹션이 «주인»인 점(capture.js 71 처럼 훑음) — 가운데엔 앞 상태의 떠 있는 스티커가 겹쳐 그걸 눌렀다(srv d7fc87442 30초 시한) */
+        const sp = await page.evaluate(() => { const s = window.__ccS; s.scrollIntoView({ block: 'center' }); const b = s.getBoundingClientRect();
+          for (let y = b.top + 12; y < b.bottom - 12; y += 6) for (let x = b.left + 12; x < b.right - 12; x += 6) { const h = document.elementFromPoint(x, y);
+            if (h && s.contains(h) && !h.closest('.sticker-block, .text-block, .asset-block, .frame-block, .shape-block')) return [x, y]; }
+          return null; });
+        if (!sp) throw new Error('73: 새 섹션에 빈 점이 없다');
         await page.mouse.click(sp[0], sp[1]);
         await page.waitForFunction(() => [...document.querySelectorAll('.sticker-block')].some((e) => !window.__ccBefore.has(e)), null, { timeout: 30000 });   // 문자열 eval 없이(CSP) · 한 장면이 판 전체를 못 잡게 제 시한
         await page.evaluate(() => { if (typeof _cntMode !== 'undefined' && _cntMode) exitCountStickerMode(); window.__ccT = [...document.querySelectorAll('.sticker-block')].filter((e) => !window.__ccBefore.has(e)).pop(); window.deselectAll?.(); });
