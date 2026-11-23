@@ -130,24 +130,20 @@ test('T3 ⑶ ★덮기 음성대조 — 어둡게 켠 에셋 «안»의 빈 카�
 test('T4 ⑷ 라디오 그룹 — 섹션 토글과 에셋 토글이 한 문서에 같이 있어도 서로를 안 끈다', async ({ page }) => {
   const errs = await bootApp(page);
   await buildFixture(page);
-  /* 실제 섹션 패널이 그린 라디오 줄을 패널 «밖»으로 옮겨 둔다(같은 문서 · 같은 form 없음 = name 그룹이 문서 단위로 묶이는 판) */
+  /* ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 체크 배경 = [라이트 | 다크] 세그먼트(옛 «체크 배경으로 두기» 단추 + «체커 어둡게» 켬/끔 라디오 걷음) — 섹션 쪽엔 라디오 그룹이 없다(단추) ⇒ «name 그룹 섞임»이 날 자리가 없다. 남은 단언 = 에셋 켬이 섹션 톤(dataset)을 안 바꾼다 */
   await page.evaluate(() => window.showSectionProperties(document.getElementById('akS2')));
-  await page.waitForSelector('#sec-checker-tone-on', { state: 'attached' });
-  await page.evaluate(() => {
-    const row = document.getElementById('sec-checker-tone-on').closest('.prop-row');
-    const hold = document.createElement('div'); hold.id = '__ak-hold'; hold.appendChild(row); document.body.appendChild(hold);
-    document.getElementById('sec-checker-tone-on').checked = true;
-  });
+  await page.waitForSelector('#sec-bg-chk-dark', { state: 'attached' });
+  await page.click('#sec-bg-chk-dark');
   await openAsset(page, 'akA');
   await clickTone(page);
   const r = await page.evaluate(() => {
-    const s = document.getElementById('sec-checker-tone-on'), a = document.getElementById('asset-checker-tone-on');
-    return { secName: s?.name, assetName: a?.name, secOn: s?.checked, assetOn: a?.checked,
-             both: !!document.getElementById('__ak-hold')?.contains(s) && !!a };
+    const a = document.getElementById('asset-checker-tone-on');
+    return { secRadio: document.querySelectorAll('input[name="sec-checker-tone"]').length, assetName: a?.name, assetOn: a?.checked,
+             secTone: document.getElementById('akS2').dataset.checkerTone ?? null };
   });
-  expect(r.both, '★전제 — 두 라디오가 한 문서에 같이 있다').toBe(true);
+  expect(r.secRadio, '★섹션 톤 라디오가 되살아났다').toBe(0);
   expect(r.assetOn).toBe(true);
-  expect(r.secOn, '★에셋 «켬»이 섹션 «켬»을 껐다').toBe(true);
+  expect(r.secTone, '★에셋 «켬»이 섹션 톤을 바꿨다').toBe('dark');
   expect(r.assetName, '1120b A5 — 에셋은 토글 체크박스(name 없음 · 그룹 없음)').toBeFalsy();
   expect(errs).toEqual([]);
 });

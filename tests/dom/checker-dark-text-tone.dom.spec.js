@@ -102,7 +102,7 @@ const read = (page) => page.evaluate(() => {
 /** ★패널 라디오를 누르기 «전»에 ★있나를 단언한다 — ⛔없는 셀렉터 click 은 30초 타임아웃으로 죽고
  *  그 빨강은 ★«단언 빨강»이 아니라 ★칸 ②「안 쟀다」가 된다(2026-10-07 T7 에서 실측한 흠). */
 async function setTone(page, dark) {
-  const id = dark ? 'sec-checker-tone-on' : 'sec-checker-tone-off';
+  const id = dark ? 'sec-bg-chk-dark' : 'sec-bg-chk-light';   // ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 체크 배경 = [라이트 | 다크] 세그먼트(옛 «체크 배경으로 두기» 단추 + «체커 어둡게» 켬/끔 라디오 걷음) · 라이트로 «바꾸기»(다크에서) = 켬 유지
   // 섹션을 골라 패널을 띄운다(사람이 하는 순서)
   await page.evaluate(() => {
     document.querySelectorAll('.section-block').forEach(s => s.classList.remove('selected'));

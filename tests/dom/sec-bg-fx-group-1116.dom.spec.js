@@ -15,7 +15,7 @@
 const { test, expect } = require('@playwright/test');
 const { bootApp, waitStableRect } = require('./_root-harness.js');
 
-const LABEL = 'Pattern & Effects';
+const LABEL = 'Effects';   // ★기대 바뀜(섹션 보강 · PRS-02 현빈 GO 261122 · 8910 v117a) — 소제목 «Pattern & Effects» → «Effects» · 메시·노트·파티클 = 한 줄 세그먼트(#sec-fx-seg)
 const raf2 = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
 async function setup(page) {
@@ -52,11 +52,11 @@ const groups = (page) => page.evaluate(() => {
     img: groupOf(document.getElementById('sec-bg-img-btn')),
     sameSection: !!note && note.closest('.prop-section') === document.getElementById('sec-fxpart-toggle')?.closest('.prop-section'),
     title: note?.closest('.prop-section[data-sec]')?.dataset.sec ?? null,   // ★U3 선례(fx-particles-panel) — 제목 글자 대신 절 key
-    nGroupLabel: labels.filter(t => t === 'Pattern & Effects').length, nParticles: labels.filter(t => t === 'Particles').length,
+    nGroupLabel: labels.filter(t => t === 'Effects').length, nParticles: labels.filter(t => t === 'Particles').length,
   };
 });
 
-test('G1 기본 — 노트 무늬·파티클 켜기가 «Pattern & Effects» 한 묶음 · 이미지 선택은 Background Image', async ({ page }) => {
+test('G1 기본 — 노트 무늬·파티클 켜기가 «Effects» 한 묶음 · 이미지 선택은 Background Image', async ({ page }) => {
   const { errs } = await setup(page);
   const g = await groups(page);
   expect(g.note, '[전제] 노트 단추 있음').not.toBeUndefined();

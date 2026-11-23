@@ -86,7 +86,7 @@ test('R4 sectionOrderFor(text) = layout 이 size 바로 앞 · 다른 패널 그
   assert.equal(t.indexOf('layout') + 1, t.indexOf('size'), '★텍스트 Layout 이 Size 바로 앞이 아니다');
   assert.deepEqual([...t].sort(), [...SECTION_ORDER].sort(), '★키가 빠지거나 늘었다');
   assert.ok(SECTION_ORDER.indexOf('size') < SECTION_ORDER.indexOf('layout'), '[대조] 전역 순서는 그대로(Size → Layout)');
-  assert.equal(sectionOrderFor('section')[0], 'fill', '[대조] 섹션 예외 그대로');
+  assert.equal(sectionOrderFor('section').indexOf('layout') + 1, sectionOrderFor('section').indexOf('size'), '[대조] 섹션도 Layout(정렬) 이 Size 바로 앞');   // ★기대 바뀜(현빈 261123 «섹션도 예외없이 일단 layout 다음 fill» — 옛 대조 «섹션 [0] = fill» 걷음)
   const { loadTextTemplate, GOLDEN_STATE } = _req('./_text-template-harness.js');
   const html = loadTextTemplate().buildTextPropsHtml(GOLDEN_STATE);
   /* ★기대 바뀜(Q1 · 현빈 GO 261120) — 셋은 «Layout» 머리 하나 아래 몸(순서 layout → size → padding) */

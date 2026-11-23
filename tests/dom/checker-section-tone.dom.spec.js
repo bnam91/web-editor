@@ -51,7 +51,7 @@ async function buildFixture(page) {
 const bgOf = (page, id) => page.evaluate((i) => getComputedStyle(document.getElementById(i)).backgroundImage, id);
 const openSec = async (page, id) => {
   await page.evaluate((i) => window.showSectionProperties(document.getElementById(i)), id);
-  await page.waitForSelector('#sec-bg-img-empty', { state: 'attached' });
+  await page.waitForSelector('#sec-bg-chk-dark', { state: 'attached' });   // ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 체크 배경 = [라이트 | 다크] 세그먼트(옛 «체크 배경으로 두기» 단추 + «체커 어둡게» 켬/끔 라디오 걷음)
 };
 
 test('S1 기본 = 라이트 — dataset 없음 · 토큰이 한 글자도 안 바뀐다(옛 판과 픽셀 동일)', async ({ page }) => {
@@ -89,7 +89,7 @@ test('S2 ★섹션 격리 — 섹션1만 켜면 섹션1 배경만 어둡고 섹�
   expect(before.s2).toContain(RGB(LIGHT_A));
 
   await openSec(page, 'ckS1');
-  await page.click('#sec-checker-tone-on');
+  await page.click('#sec-bg-chk-dark');
 
   const after = await page.evaluate(() => ({
     s1: getComputedStyle(document.getElementById('ckS1')).backgroundImage,
@@ -106,7 +106,7 @@ test('S2 ★섹션 격리 — 섹션1만 켜면 섹션1 배경만 어둡고 섹�
   expect(after.rootA, '★:root 토큰이 바뀌었다 — 섹션 범위가 아니라 전역이 된 것이다').toBe(LIGHT_A);
 
   // 끄면 되돌아온다
-  await page.click('#sec-checker-tone-off');
+  await page.click('#sec-bg-chk-light');
   expect(await page.evaluate(() => document.getElementById('ckS1').dataset.checkerTone ?? null)).toBeNull();
   expect(await bgOf(page, 'ckS1')).toContain(RGB(LIGHT_A));
   expect(errs).toEqual([]);
@@ -124,7 +124,7 @@ test('S3 ★R1 경계 — 켠 섹션 «안»의 빈 카드·에셋·표칸은 �
   for (const [k, v] of Object.entries(before)) expect(v, `★전제 — ${k} 가 체커가 아니다`).toContain('repeating-conic-gradient');
 
   await openSec(page, 'ckS1');
-  await page.click('#sec-checker-tone-on');
+  await page.click('#sec-bg-chk-dark');
 
   const after = await page.evaluate(() => ({
     card: getComputedStyle(document.getElementById('ckCardImg')).backgroundImage,
@@ -139,29 +139,21 @@ test('S3 ★R1 경계 — 켠 섹션 «안»의 빈 카드·에셋·표칸은 �
   expect(errs).toEqual([]);
 });
 
-test('S4 ★자리 — 라디오는 [체크 배경] 단추 바로 뒤 형제이고, 체크 배경이 꺼져 있으면 «없다»', async ({ page }) => {
+test('S4 ★자리 — 체크 배경 = 한 줄 [라이트 | 다크] 세그먼트 · 켜진 쪽 active · 다시 누르면 끔(둘 다 꺼짐)', async ({ page }) => {
+  /* ★기대 바뀜(PRS-04 · 현빈 GO 261122 · 섹션 보강 261123) — 섹션 체크 배경 = [라이트 | 다크] 세그먼트(옛 «체크 배경으로 두기» 단추 + «체커 어둡게» 켬/끔 라디오 걷음) */
   const errs = await bootApp(page);
   await buildFixture(page);
   await openSec(page, 'ckS1');
-  const on = await page.evaluate(() => {
-    const btn = document.getElementById('sec-bg-img-empty');
-    const row = document.getElementById('sec-checker-tone-on')?.closest('.prop-row');
-    return { nBtn: document.querySelectorAll('#sec-bg-img-empty').length, btnTxt: btn?.textContent.trim(),
-             nRadio: document.querySelectorAll('#sec-checker-tone-on').length,
-             isNextSibling: !!row && btn?.nextElementSibling === row,
-             type: document.getElementById('sec-checker-tone-on')?.type,
-             offChecked: document.getElementById('sec-checker-tone-off')?.checked };
+  const st = () => page.evaluate(() => {
+    const l = document.getElementById('sec-bg-chk-light'), d = document.getElementById('sec-bg-chk-dark');
+    return { n: document.querySelectorAll('#sec-bg-chk-light, #sec-bg-chk-dark').length, sameRow: !!l && l.parentElement === d?.parentElement,
+             light: l?.classList.contains('active'), dark: d?.classList.contains('active'), radio: document.querySelectorAll('input[name="sec-checker-tone"]').length,
+             empty: document.getElementById('ckS1').dataset.bgImgEmpty ?? null };
   });
-  expect(on).toEqual({ nBtn: 1, btnTxt: '체크 배경 끄기', nRadio: 1, isNextSibling: true, type: 'radio', offChecked: true });
-
-  // 체크 배경을 끄면 — 라디오가 사라진다(정할 것이 없다)
-  await page.click('#sec-bg-img-empty');
-  await page.waitForSelector('#sec-bg-img-empty', { state: 'attached' });
-  const off = await page.evaluate(() => ({
-    btnTxt: document.getElementById('sec-bg-img-empty')?.textContent.trim(),
-    nRadio: document.querySelectorAll('#sec-checker-tone-on').length,
-  }));
-  expect(off).toEqual({ btnTxt: '체크 배경으로 두기', nRadio: 0 });
+  expect(await st()).toEqual({ n: 2, sameRow: true, light: true, dark: false, radio: 0, empty: '1' });
+  await page.click('#sec-bg-chk-light');   // 켜진 쪽을 다시 누르면 끔
+  await page.waitForSelector('#sec-bg-chk-light', { state: 'attached' });
+  expect(await st()).toEqual({ n: 2, sameRow: true, light: false, dark: false, radio: 0, empty: null });
   expect(errs).toEqual([]);
 });
 
@@ -169,7 +161,7 @@ test('S5 ★명부 하나 — 전역 라디오·전역 보기설정 키·html �
   const errs = await bootApp(page);
   await buildFixture(page);
   await openSec(page, 'ckS1');
-  await page.click('#sec-checker-tone-on');
+  await page.click('#sec-bg-chk-dark');
   await page.evaluate(() => window.showPageProperties());
   const r = await page.evaluate(() => ({
     pageRadio: document.querySelectorAll('#page-checker-dark-on, #page-checker-dark-off').length,
@@ -186,7 +178,7 @@ test('S6 저장·복원 — 톤이 저장본에 실리고 되살아난다 · 톤
   const errs = await bootApp(page);
   await buildFixture(page);
   await openSec(page, 'ckS1');
-  await page.click('#sec-checker-tone-on');
+  await page.click('#sec-bg-chk-dark');
   const r = await page.evaluate(() => {
     const p = window.serializeProject();
     const s = typeof p === 'string' ? p : JSON.stringify(p);
@@ -213,7 +205,7 @@ test('S7 ★단독 HTML — 체커 서명 0 · 체커 토큰 선언 0 (양성대
   const errs = await bootApp(page);
   await buildFixture(page);
   await openSec(page, 'ckS1');
-  await page.click('#sec-checker-tone-on');
+  await page.click('#sec-bg-chk-dark');
   const r = await page.evaluate(async () => {
     const mod = await import('../../js/io/export-css-collect.js');
     const sec = document.getElementById('ckS1');
@@ -273,7 +265,7 @@ test('S8 ★PNG — 톤을 켠 채 내보낸 그림에 어두운 체커 픽셀 0
   await installCdpCapture(page);
   await buildFixture(page);
   await openSec(page, 'ckS1');
-  await page.click('#sec-checker-tone-on');
+  await page.click('#sec-bg-chk-dark');
   const r = await page.evaluate(async (DARK) => {
     const count = async (url) => {
       const i = new Image(); i.src = url; await i.decode();

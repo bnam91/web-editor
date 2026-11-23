@@ -13,16 +13,16 @@
  */
 export const SECTION_ORDER = Object.freeze([
   'kind', 'content', 'position', 'size', 'layout', 'padding', 'appearance',
-  'typography', 'fill', 'stroke', 'effects', 'template', 'export', 'special',   // ★꼬리 = 정본 v1(지디 261123 ⑶ⓑ) Templates → Export → [Special] · 다른 절 재배열은 PR-ORDER-V1 몫
+  'typography', 'fill', 'stroke', 'effects', 'selection', 'template', 'export', 'special',   // selection = 섹션 «Selection Colors»(현빈 261123 섹션 보강 · Figma 꼴 · 지디 261123 Title Case)   // ★꼬리 = 정본 v1(지디 261123 ⑶ⓑ) Templates → Export → [Special] · 다른 절 재배열은 PR-ORDER-V1 몫
 ]);
 /** 절 정렬 수 — 블록 고유 «GIF»(special · 제목 GIF)만 Effects 바로 뒤(정본 v1 «Effects → GIF → Templates» · 지디 261123 ⑶ⓑ). 틀 정렬·게이트 판정이 이 한 자리를 쓴다.
  *  shortcut: GIF 가 special 로 사는 동안의 예외 한 줄 — PR-ORDER-V1 에서 GIF 를 제 key 로 가르면 걷는다. */
 export function sectionRank(order, key, title) { return key === 'special' && title === 'GIF' ? order.indexOf('effects') + 0.5 : order.indexOf(key); }
 /** 패널별 순서 예외 — { 패널 이름: { first: [맨 앞으로 올릴 key…], why } }. ⛔드물게 · 예외는 «이 표 한 자리»
  *  (renderPanel({ panel }) 와 시험 _panel-sections.js 가 sectionOrderFor 로 읽는다 — 렌더러·시험에 순서를 따로 박지 마라).
- *  section = 섹션 패널만 Fill(옛 Background)을 머리 바로 아래로 — 현빈 261118 D5 ①(작은 창에서 배경·파티클 켜기가 굴리지 않고 보이게 · «앞 절 기본 접힘»③ 기각). */
+ *  section = Layout 묶음 안 Alignment 가 Size 위(텍스트와 같은 꼴) — ★11-18 D5 «섹션만 Fill 맨 앞»은 현빈 261123 «섹션도 예외없이 일단 layout 다음 fill»로 걷었다. */
 export const SECTION_ORDER_EXCEPT = Object.freeze({
-  section: Object.freeze({ first: Object.freeze(['fill']), why: '현빈 261118 D5 ① — 섹션 패널만 Fill 을 앞으로' }),
+  section: Object.freeze({ before: Object.freeze([Object.freeze(['layout', 'size'])]), why: '현빈 261123 «섹션도 예외없이 일단 layout 다음 fill»(11-18 D5 «Fill 맨 앞» 걷음) · 섹션 보강(v117a) — Layout 묶음 안 Alignment(layout)가 Size 위(텍스트와 같은 꼴)' }),
   /* before = [[옮길 key, 이 key 바로 앞]] */
   text: Object.freeze({ before: Object.freeze([Object.freeze(['layout', 'size'])]), why: '현빈 261120(재설계 v5 · Q21 텍스트만) — 가로 정렬(Layout)이 Size 위' }),
 });
@@ -62,6 +62,7 @@ export const SECTION_TITLE = Object.freeze({
   fill: 'Fill',
   stroke: 'Stroke',
   effects: 'Effects',
+  selection: 'Selection Colors',
   export: 'Export',
   template: 'Template',
 });
@@ -103,6 +104,7 @@ export const OWNERSHIP_EXEMPT = Object.freeze({
 /** 꼴로는 못 가르는 id 줄기 → { 줄기: [절 key, 까닭] }. id 가 「줄기」 이거나 「줄기-」로 시작하면 이 절. ⛔드물게 — 규칙이 먼저다. */
 export const OWNERSHIP_ID_STEM = Object.freeze({
   'tbl-size': ['typography', '표 글자 크기(prop-table applySize → table.style.fontSize) — 접두 바로 뒤 size 라 «블록 크기»와 꼴이 같다'],
+  'sec-txt': ['selection', '섹션 «Selection Colors» 글자 색(sec-txt-<타입>) — 색 칸이라 꼴로는 fill 로 읽힌다(섹션 보강 · 현빈 261123)'],
   'txt-size': ['typography', '텍스트 글자 크기(공용 Typography 빌더 p:\'txt\' → txt-size-number) — 접두 txt 에 글 부위 단어가 없어 «블록 크기»와 꼴이 같다'],
 });
 /** 줄임 단어 → 뜻 단어. ★id 의 «첫 단어»(블록 접두 — 스티커 stk-·…)에는 안 건다: stk-t-STK-c-color 의 둘째 stk 만 stroke. */
