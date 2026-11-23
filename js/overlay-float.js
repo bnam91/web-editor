@@ -880,7 +880,29 @@ export function wireFloatToggle({ block, buttonId, rerender }) {
    ⛔빈 칸을 0 으로 «커밋»하지 않는다 — 백스페이스로 지우는 도중 블록이 (0,0) 으로 튄다
      (T-077 grad-alpha 가 같은 병으로 올라온 카드다). NaN 이면 조용히 무시하고, 확정(change)
      때 비어 있으면 현재 좌표를 도로 써서 칸을 되살린다. */
+/* ★현빈 261123 S1-4 — 떠 있는 블럭 «하나» 정렬 6칸(floatAlignRowHTML)의 배선. 기준 = 자리 주인(floatHostOf — 섹션 · 프레임 안이면 그 프레임)의 패딩 상자(좌표 원점과 같은 상자).
+   회전한 것은 «보이는» 축정렬 상자(rotatedAABB)로 맞춘다(끌기 클램프와 같은 잣대). 한 번 = ⌘Z 한 칸(push-after). 여럿 고름은 다중 선택 «서로 맞춤»(prop-multisel)이 맡는다. */
+export function wireFloatAlign({ block }) {
+  const posEl = posElOf(block);
+  if (!posEl || !isFloat(posEl) || typeof document === 'undefined') return;
+  document.querySelectorAll('#panel-right [data-float-align]').forEach((btn) => btn.addEventListener('click', () => {
+    const host = floatHostOf(posEl) || posEl.parentElement;
+    if (!host) return;
+    const W = host.clientWidth, H = host.clientHeight;
+    const { w, h } = rotatedAABB(posEl.offsetWidth, posEl.offsetHeight, _floatRotationDeg(posEl));
+    const ox = (posEl.offsetWidth - w) / 2, oy = (posEl.offsetHeight - h) / 2;   // left/top(회전 전 상자) ↔ 보이는 상자 왼·위의 차
+    let x = parseInt(posEl.dataset.offsetX, 10) || 0, y = parseInt(posEl.dataset.offsetY, 10) || 0;
+    const k = btn.dataset.floatAlign;
+    if (k === 'l') x = -ox; else if (k === 'c') x = (W - w) / 2 - ox; else if (k === 'r') x = W - w - ox;
+    else if (k === 't') y = -oy; else if (k === 'm') y = (H - h) / 2 - oy; else if (k === 'b') y = H - h - oy;
+    _applyOverlayPos(posEl, x, y);
+    window.pushHistory?.('떠 있는 블럭 정렬');
+    window.scheduleAutoSave?.();
+  }));
+}
+
 export function wireFloatPosition({ block, xId, yId }) {
+  wireFloatAlign({ block });   // S1-4 — X/Y 줄과 한 벌로 그려지는 정렬 6칸
   const xN = document.getElementById(xId);
   const yN = document.getElementById(yId);
   if (!xN && !yN) return;
@@ -912,7 +934,9 @@ export function floatPositionRowHTML({ prefix, posEl }) {
   const y = parseInt(posEl.dataset.offsetY) || 0;
   /* 윗줄 라벨 = 「X / Y」 — ⛔「Position」 이면 틀의 Position 절 제목을 되풀이한다(panel-section-gate 라벨=제목 0).
      라벨 «자리»는 남긴다 — 패널마다 X/Y 줄 앞 형제가 같아야 grid-xy-position P1(에셋 꼴 == 그리드 꼴)이 선다. */
-  return `
+  /* ★현빈 261123 S1-4 — 떠 있으면 «Alignment» 6칸(부모 기준)을 X/Y 위에(시안 8910 floatalign) · 그림 조립은 _helpers.js floatAlignRowHTML(이 파일은 순수 모듈만 import → window) */
+  const _align = (typeof window !== 'undefined' && window.floatAlignRowHTML?.()) || '';
+  return `${_align}
       <span class="prop-field-label">X / Y</span>
       <div class="prop-lhls-row">
         <div class="prop-lhls-col">
@@ -933,7 +957,7 @@ export function floatPositionRowHTML({ prefix, posEl }) {
 /* classic script / 타 모듈용 전역 — 이름은 «옛 이름 그대로» 유지한다(block-drag.js 가 부른다). */
 if (typeof window !== 'undefined') {
   window._bindOverlayMoveDrag = bindFloatMoveDrag;
-  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, floatPositionRowHTML };
+  window.OverlayFloat = { posElOf, isFloat, floatHostOf, enterFloat, exitFloat, bindFloatMoveDrag, wireFloatToggle, wireFloatPosition, wireFloatAlign, floatPositionRowHTML };
   /* ★1020t2f3 — 스티커 끌기(classic script js/sticker-select.js)가 오버레이와 «같은 탄성 곡선»을 쓰게 낸다.
      ⛔사본을 만들지 않는다 — 곡선이 둘이면 손맛이 조용히 갈라진다(T-068 이 이동·크기조절을 한 벌로 묶은 까닭과 같다). */
   window.OverlayFloat.elastic = { clamp: _elasticClampToSection, axisInverse: _elasticAxisInverse, zoneScreenPx: OVERLAY_RESIST_ZONE_SCREEN_PX };

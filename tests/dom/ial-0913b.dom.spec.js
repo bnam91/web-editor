@@ -207,3 +207,46 @@ test('I7 (197 4-a) 흐름 도형 래퍼 틀 누름 → →·⇧→ → 안 도�
   expect(s1.wrap, '★흐름 래퍼는 제자리(흐름 블럭 ←→ 무동작 · t13D-01)').toEqual(s0.wrap);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* I8 (현빈 261123 S1-4 ① 떠 있는 블럭 하나 = 부모(섹션) 기준 정렬 6칸 · ② 글자도 같은 6칸) — 정본 시안 8910 floatalign(탑 1bd9ebe)
+ * 종류 4(에셋·도형·모달·글자)를 띄워 하나 고름 → Position 에 «Alignment» 6칸 · 에셋은 흐름 가로 정렬 3칸이 걷힘 · 단추마다 정본 offset = 섹션 패딩 상자 기준 왼/가운데/오른·위/가운데/아래 · ⌘Z 한 칸
+ * 양성대조: _patches/ial-S14-CTL.patch(overlay-float.js wireFloatPosition 의 wireFloatAlign 부름 걷음) ⇒ 정렬 수치 빨강(글자는 따로 배선이라 그대로) */
+const S14 = {
+  asset: ["window.addAssetBlock()", '.asset-block'],
+  shape: ["window.addShapeBlock('rectangle')", '.shape-block'],
+  modal: ["window.addModalBlock()", '.modal-block'],
+  text:  ["window.addTextBlock('body')", '.text-block'],
+};
+for (const kind of Object.keys(S14)) {
+  test(`I8 (S1-4) 떠 있는 ${kind} 하나 → Alignment 6칸 = 섹션 기준 · ⌘Z 한 칸`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1300 });
+    const errs = await bootApp(page);
+    const m = await page.evaluate(async ([make, sel]) => {
+      const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+      const sec = await window.addSection(); sec.id = 'sA'; sec.style.minHeight = '900px'; window.applyZoom?.(100);
+      window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll(sel)); eval(make);   // eslint-disable-line no-eval
+      const b = [...sec.querySelectorAll(sel)].find((x) => !before.has(x)); b.id = b.id || 'kA';
+      const w = window.OverlayFloat.posElOf(b); if (!w.id) w.id = 'pA'; window.OverlayFloat.enterFloat(w);
+      w.style.left = '37px'; w.style.top = '53px'; w.dataset.offsetX = '37'; w.dataset.offsetY = '53';
+      window.deselectAll(); window.clearHistory?.(); sec.scrollIntoView({ block: 'start' });
+      return { id: b.id, pe: w.id, W: sec.clientWidth, H: sec.clientHeight, w: w.offsetWidth, h: w.offsetHeight };
+    }, S14[kind]);
+    await waitZoomSettled(page, 100);
+    const p = await page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left + Math.min(10, r.width / 2), r.top + Math.min(10, r.height / 2)]; }, m.pe);
+    await page.mouse.click(p[0], p[1]); await raf(page);
+    if (kind === 'text') { await page.mouse.click(p[0], p[1]); await raf(page); }   // 글자 = 프레임 → 글자로 한 번 더(사람 길)
+    await page.waitForFunction(() => document.querySelectorAll('#panel-right [data-float-align]').length === 6, null, { timeout: 5000 }).catch(() => {});
+    const ui = await page.evaluate(() => ({ n: document.querySelectorAll('#panel-right [data-float-align]').length, flowAlign: !!document.getElementById('asset-align-group'), label: [...document.querySelectorAll('#panel-right .prop-field-label')].some((e) => e.textContent.trim() === 'Alignment') }));
+    const off = () => page.evaluate((pe) => { const w = document.getElementById(pe); return [+w.dataset.offsetX, +w.dataset.offsetY]; }, m.pe);
+    const res = {};
+    for (const k of ['l', 'c', 'r', 't', 'm', 'b']) { await page.click(`#panel-right [data-float-align="${k}"]`); await raf(page); res[k] = await off(); }
+    await page.evaluate(() => window.undo()); await raf(page);
+    const undone = await off();
+    console.log(`[I8 ${kind} 실측]`, JSON.stringify({ m, ui, res, undone }));
+    expect([ui.n, ui.label, kind === 'asset' ? ui.flowAlign : false], `★${kind}: 6칸 · «Alignment» 라벨 · (에셋) 흐름 가로 정렬 걷힘`).toEqual([6, true, false]);
+    const cx = Math.round((m.W - m.w) / 2), cy = Math.round((m.H - m.h) / 2), near = (a, b) => Math.abs(a - b) <= 1;
+    expect([near(res.l[0], 0), near(res.c[0], cx), near(res.r[0], m.W - m.w), near(res.t[1], 0), near(res.m[1], cy), near(res.b[1], m.H - m.h)], `★${kind}: 섹션 기준 왼0/가운데${cx}/오른${m.W - m.w} · 위0/가운데${cy}/아래${m.H - m.h} — ${JSON.stringify(res)}`).toEqual([true, true, true, true, true, true]);
+    expect(undone, '★⌘Z 한 칸 = 바로 앞 정렬(위) 전으로').toEqual(res.m);
+    expect(errs, errs.join(' | ')).toEqual([]);
+  });
+}
