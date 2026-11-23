@@ -185,7 +185,7 @@ async function pressCmdArrow(page, key, { moveSrc = MOVE_SRC, arrowSrc = CMD_ARR
     window.pushHistory = (label) => window.__pushLog.push(label === undefined ? '(updateGridBlock)' : label);
     window.showToast = (m) => window.__toasts.push(m);
     window.buildLayerPanel = () => {};
-    const fn = new Function('pushHistory', `${gateSrc};\n${moveSrc};\nreturn function (e) { ${arrowSrc} };`)(window.pushHistory);
+    const fn = new Function('pushHistory', 'moveSelectedBlocks', `${gateSrc};\n${moveSrc};\nreturn function (e) { ${arrowSrc} };`)(window.pushHistory, () => {});   // moveSelectedBlocks = t13E-03 떠 있는 단위 갈래(이 장면은 안 탐)
     let pd = 0;
     fn({ key, metaKey: true, ctrlKey: false, altKey: false, shiftKey: false,
          target: document.body, preventDefault() { pd++; } });

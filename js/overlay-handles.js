@@ -4729,7 +4729,8 @@ function _onTextBoxResizeMouseDown(e, el, dir) {
     }
     if (sy) {
       const want = Math.round(startH + dh);
-      if (want <= contentH) { delete el.dataset.fixedH; el.style.minHeight = ''; }
+      if (window.loremRefit?.(el, want)) { /* t13E-08·09 2차(현빈 261123) — 더미 그대로면 높이가 주인: 정한 높이 = want · 더미가 그 높이로 다시 꽉(prop-text-wireup-lorem.js) */ }
+      else if (want <= contentH) { delete el.dataset.fixedH; el.style.minHeight = ''; }
       else { el.dataset.fixedH = String(want); el.style.minHeight = want + 'px'; }
     }
     if (floating && (sx < 0 || sy < 0)) _applyOverlayPos(el, sx < 0 ? px0 - (newW - startW) : px0, sy < 0 ? py0 - (el.offsetHeight - startH) : py0);   // 맞은편 변 고정
@@ -5144,8 +5145,12 @@ function showHandlesFor(block) {
          showTextProperties 를 쓰는데(block-drag.js isIconText) 손잡이만 빠져 있었다.
          ⇒ 「같은 패널을 쓰면 같은 손잡이」로 클래스를 명시한다. 술어는 그대로 dataset 이다. */
     const posEl = _posElOf(block);
-    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); showTextBoxResizeHandles(posEl, TBX_EDGES); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
-    else { hideTextOverlayResizeHandles(); showTextBoxResizeHandles(posEl, TBX_ALL); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
+    /* t13E-10(현빈 261122 · 261123 정정) — 흐름 글의 «파란» 상자 손잡이(t13D-10 · 공개 고민 중)만 관리자만. 오버레이(Ignore Auto Layout) 글의 손잡이는
+       «보라»(selVariant sticker)라 일반 계정도 늘 보인다(현빈 «보라 아웃라인은 당연히 보여야»). 색 실측(탐침 261123): 흐름 tbx = rgb(45,111,232) · 오버레이 tbx·옛 모서리 = rgb(153,102,255).
+       판정 = feature-flags.js animGifVisible 한 자리(서버 role ∨ 앱 관리자 · 모르면 «아님») · 입구가 손잡이뿐이라 안 만들면 끌기도 못 탄다 · 공개 범위일 뿐 접근통제 아님. */
+    const boxOk = posEl.dataset.overlayBlock === 'true' || !!window.animGifVisible?.(true, window.__admin?.state?.() ?? null);
+    if (posEl.dataset.overlayBlock === 'true' || posEl._textScale) { showTextOverlayResizeHandles(posEl); if (boxOk) showTextBoxResizeHandles(posEl, TBX_EDGES); else hideTextBoxResizeHandles(); }   // ★t13A-08 K 모드면 흐름 텍스트에도 · t13D-10 변 넷(크기만)
+    else { hideTextOverlayResizeHandles(); if (boxOk) showTextBoxResizeHandles(posEl, TBX_ALL); else hideTextBoxResizeHandles(); }   // t13D-10 — 흐름 텍스트도 모서리+변(폭·최소 높이)
   } else if (block.classList.contains('gap-block')) {
     showTextBoxResizeHandles(block, ['s']);   // t13D-10 — 갭 = 아래 변 하나(높이)
   } else if (block.classList.contains('grid-block')) {

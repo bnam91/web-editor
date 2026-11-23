@@ -73,7 +73,8 @@ test('F2 떠 있는 프레임을 끌면 자식도 같이 · se 손잡이로 크�
   await pickFrame(page); await toggle(page);
   const a = await state(page);
   const [x, y, w, h] = await rect(page, '#frO');
-  const p = [x + w - 30, y + h - 30];
+  const secB = await page.evaluate(() => Math.round(document.getElementById('sF').getBoundingClientRect().bottom));
+  const p = [x + w - 30, Math.min(y + h - 30, secB - 10)];   // ★전제 바뀜(현빈 261123 t13E-07 Clip content 기본 켬) — 떠서 섹션이 줄면 프레임 아래 몸통은 섹션 밖이라 잘려 안 잡힌다(실측 섹션 바닥 159 · 프레임 102~282) ⇒ 보이는 자리를 잡는다 · 끈 만큼 기대 무변
   await page.mouse.move(p[0], p[1]); await page.mouse.down();
   for (let i = 1; i <= 10; i++) await page.mouse.move(p[0] + 140 * i / 10, p[1] + 70 * i / 10);
   await page.mouse.up(); await raf(page);

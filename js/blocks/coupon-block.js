@@ -338,6 +338,17 @@ function couponStubHasRoom(block) {
   return !!paint(st, st.cw, st.ch).stubRect;
 }
 
+/* S1(VISUAL-SVG-LIGHT-AUDIT-01 ① · 현빈 261123) — 생성기(coupon-geometry.js · 시안 바이트 그대로)의 고정 id «fgrad»(그라데이션)·«csh»(그림자 필터)가
+   innerHTML 로 문서에 박혀, 쿠폰이 둘이면 뒤 쿠폰의 url(#fgrad) 이 문서 첫 쿠폰 것을 가리켰다(색·그림자를 남의 것으로 · 첫 쿠폰을 숨기면 사라짐).
+   ⇒ 문서에 넣는 «한 자리»에서 블럭 id 로 접두(마킹 sticker-block.js «mk-<블럭id>-» 선례와 같은 꼴) · 생성기는 안 건드린다(단위 coupon-path 가 그 바이트를 잰다).
+   복제·붙여넣기는 새 블럭 id 로 다시 그릴 때 새 접두가 붙는다. */
+function _cpnScopeIds(svg, blockId) {
+  const bid = String(blockId || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (!bid) return svg;
+  const p = `cpn-${bid}-`;
+  return String(svg).replace(/\bid="(fgrad|csh)"/g, `id="${p}$1"`).replace(/url\(#(fgrad|csh)\)/g, `url(#${p}$1)`);
+}
+
 function renderCouponBlock(block) {
   if (!block) return;
   const st = _cpnState(block);
@@ -357,7 +368,7 @@ function renderCouponBlock(block) {
   const bg = document.createElement('div');
   bg.className = 'cpn-bg';
   bg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;line-height:0;pointer-events:none;';
-  bg.innerHTML = r.svg;
+  bg.innerHTML = _cpnScopeIds(r.svg, block.id);   // S1 — 고정 id(fgrad·csh) 블럭마다 접두
 
   const ovl = document.createElement('div');
   ovl.className = 'cpn-ovl';

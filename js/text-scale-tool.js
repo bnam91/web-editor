@@ -18,7 +18,11 @@ export function textScaleExit() {
   if (!_blk) return false;
   if (_raf) { cancelAnimationFrame(_raf); _raf = 0; }
   if (_pos) delete _pos._textScale;   // 흐름 텍스트 손잡이는 overlay-handles 의 rAF 가드가 다음 프레임에 걷는다
+  const blk = _blk;
   _blk = _pos = null;
+  /* t13F-02(현빈 261122) — K 동안의 손잡이(옛 모서리 + 상자 «변» 넷)만 남고 보통 꼴(모서리+변 여덟)로 안 돌아왔다(Esc 뒤 = 변 넷뿐).
+     아직 골라져 있으면 보통 손잡이를 다시 그린다(선택이 바뀌어 끈 경우는 새 선택이 제 손잡이를 그린다). */
+  if (blk?.isConnected && blk.classList.contains('selected')) window.showHandlesFor?.(blk);
   return true;
 }
 

@@ -157,7 +157,10 @@ test('P5 「PNG 는 섹션 상자 크기」라는 결정이 UI 문구와 «같�
      이 검사가 빨개지는 날 = 누가 이 결정을 되돌렸거나, 오버레이 좌표 규약이 바뀐 날이다. */
 const OVERLAY_SRC = readSrc(ROOT, 'js/overlay-float.js');
 
-test('P6 ★오버레이는 «일부러» 이 분모 밖이다 — 현빈 결정(섹션 밖 허용 + PNG 는 섹션 크기)', () => {
+/* ★기대 바뀜(현빈 261123 · t13E-07 · handoff/SPEC-section-clip-like-figma-261123.md 결정 로그 ①②): 09-20 ⑴ «오버레이는 섹션 밖까지 나가도 된다»를 뒤집어
+   «섹션 밖 보이기» 꺼짐이면 편집 캔버스도 오버레이를 자른다(Figma Clip content). ⑵ «PNG 는 섹션 크기»는 그대로(결정 ② — 토글과 상관없이 내보내기는 늘 섹션 크기).
+   ⇒ 아래 ⑵ 는 «명부에 없어야»에서 «있어야»로 · ⑶ 은 «⛔넣지 마라» 못에서 «261123 뒤집음» 못으로. ⑴(분모 밖 이유 = 좌표 키)은 그대로. */
+test('P6 ★오버레이 = 캔버스 크롭 명부 안(현빈 261123 뒤집음) · 내보내기 분모는 그대로', () => {
   // ⑴ 분모에서 빠지는 «이유»가 실제로 그 이유인가 — 좌표 키가 offsetX/offsetY 다.
   assert.match(OVERLAY_SRC, /dataset\.offsetX\s*=/,
     'overlay-float.js 가 dataset.offsetX 를 안 쓴다 — 좌표 규약이 바뀌었으면 이 경계 설명도 늙었다');
@@ -166,14 +169,12 @@ test('P6 ★오버레이는 «일부러» 이 분모 밖이다 — 현빈 결정
     '오버레이가 js/blocks/ 의 dataset.x/y 성질로 잡히기 시작했다 — 그러면 P1 이 «크롭하라»고 요구한다. ' +
     '현빈 결정(섹션 밖 허용)과 부딪히니 분모·결정 중 어느 쪽이 바뀐 건지 먼저 가려라');
 
-  // ⑵ 캔버스 크롭 명부에 오버레이가 «없어야» 한다(있으면 화면이 잘려 결정을 되돌린 것).
+  // ⑵ 캔버스 크롭 명부에 섹션 직속 오버레이가 «있어야» 한다(현빈 261123 — 꺼짐이면 캔버스도 자름).
   const overlayInRoster = SEC_CLIP_SELECTORS.filter(s => /overlay/i.test(s));
-  assert.deepEqual(overlayInRoster, [],
-    '--sec-clip 명부에 오버레이가 들어왔다 — 캔버스가 섹션 밖을 잘라 ' +
-    '현빈 결정 「오버레이는 섹션 폭 밖까지 나가도 된다」(5c6888d)를 되돌린다');
+  assert.deepEqual(overlayInRoster, ['.section-block > [data-overlay-block="true"]'],
+    '--sec-clip 명부에 섹션 직속 오버레이가 없다 — 현빈 261123 «섹션 밖 보이기 꺼짐 = 캔버스도 자름»(Figma Clip content)이 빠졌다');
 
-  // ⑶ 그 결정이 «코드 옆»에 적혀 있다 — 다음 사람이 「빠뜨렸네」로 읽고 넣지 않게.
-  assert.match(cssSrc.length ? readSrc(ROOT, CSSFILE) : '', /오버레이\(js\/overlay-float\.js[\s\S]{0,400}?⛔넣지 마라/,
-    `${CSSFILE} 의 --sec-clip 블록에 「오버레이는 일부러 없다」 못이 사라졌다 — ` +
-    '설명 없는 부재는 다음 라운드에 «버그»로 읽힌다(이번 QA 가 실제로 그렇게 읽었다)');
+  // ⑶ 그 결정이 «코드 옆»에 적혀 있다 — 뒤집은 날·출처 · 내보내기 쪽 약속(늘 섹션 크기)도 같이.
+  assert.match(cssSrc.length ? readSrc(ROOT, CSSFILE) : '', /오버레이\(js\/overlay-float\.js[\s\S]{0,200}?현빈 261123 뒤집음[\s\S]{0,500}?내보내기는 토글과 상관없이 늘 섹션 크기/,
+    `${CSSFILE} 의 --sec-clip 블록에 «현빈 261123 뒤집음 · 내보내기는 늘 섹션 크기» 못이 사라졌다 — 설명 없는 동작은 다음 라운드에 «버그»로 읽힌다`);
 });

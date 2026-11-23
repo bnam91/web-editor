@@ -113,14 +113,13 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
   expect(pre.slider, '고르기 전부터 블러 슬라이더가 있다(옛 절)').toBe(false);
   await openPanel(page);
   const out = await page.evaluate(() => {
-    const grainSec = document.getElementById('asset-grain-slider')?.closest('.prop-section');
-    const gs = document.getElementById('asset-grain-slider'), gn = document.getElementById('asset-grain-number');
+    const gs = { className: 'prop-slider', parentElement: { className: 'prop-row' } }, gn = { className: 'prop-number' };   // ★기대 바뀜(현빈 261123): 견줄 «그레인 줄»이 Effects «Noise» 카드로 옮겨 감 — 같은 뜻(공용 줄 꼴)을 공용 클래스로 잼
     const rs = document.getElementById('asset-redact-slider'), rn = document.getElementById('asset-redact-number');
     const card = rs?.closest('.prop-cell-card');
     return {
       /* U4(right-panel-unify): 그레인 = Appearance 절 · 효과 목록 = Effects 절(#asset-fx-section 이 그 절 자체 — U0 fxSectionParts).
          옛 단언 「그레인 바로 다음 형제가 Effects」는 절 순서(§2-1)가 정하므로 «소속 절»로 잰다. 양성대조: 그레인을 sec('effects' 로 옮기면 빨강 */
-      grainNextIsFx: grainSec?.dataset.sec === 'appearance' && document.getElementById('asset-fx-section')?.dataset.sec === 'effects',
+      grainNextIsFx: !document.getElementById('asset-grain-slider') && document.getElementById('asset-fx-section')?.dataset.sec === 'effects',   // ★기대 바뀜(현빈 261123): 옛 Appearance «그레인» 줄 없음 · 효과 목록 = Effects 절
       inFx: !!rs?.closest('#asset-fx-section'), cardType: card?.dataset.fxType || null,
       cardTitle: card?.querySelector('.prop-cell-card-title')?.textContent.trim() || null,
       optsAfter: [...(document.getElementById('asset-fx-add')?.options || [])].map(o => o.value),
@@ -132,14 +131,14 @@ test('R1 패널 — Effects 드롭다운에 「블러」 · 고르면 Effects �
     };
   });
   console.log('R1', JSON.stringify(out));
-  expect(out.grainNextIsFx, '그레인이 Appearance 절에, 효과 목록이 Effects 절에 있지 않다').toBe(true);
+  expect(out.grainNextIsFx, '옛 «그레인» 줄이 남았거나 효과 목록이 Effects 절에 없다').toBe(true);
   expect(out.inFx, '블러 슬라이더가 Effects 절 안에 없다').toBe(true);
   expect(out.cardType).toBe('blur');
   expect(out.cardTitle).toBe('가림');   // ★기대 바뀜(IMG-FX-BLUR-01 261121): 카드 제목도 «가림»
   expect(out.optsAfter, '건 뒤에도 드롭다운에 「블러」 가 남았다(종류당 하나)').not.toContain('blur');
   expect([out.rsType, out.rsMin, out.rsMax]).toEqual(['range', '0', '100']);
   expect([out.rnType, out.rnMin, out.rnMax]).toEqual(['number', '0', '100']);
-  expect(out.sameSliderCls && out.sameNumberCls && out.sameRowCls, '그레인 줄과 클래스가 다르다').toBe(true);
+  expect(out.sameSliderCls && out.sameNumberCls && out.sameRowCls, '공용 줄 꼴(prop-row · prop-slider · prop-number)과 클래스가 다르다').toBe(true);
   expect(out.label).toBe('강도');
   expect(out.rowInline, '강도 줄에 인라인 style 이 생겼다(디자인시스템)').toBe(0);
 

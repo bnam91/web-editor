@@ -4,7 +4,7 @@
  *         이미 든 쿠폰은 저장→다시 열기 뒤에도 보이고 눌러 패널(#cpn-width-slider)이 뜬다 →
  *         관리자(isAdmin:true)로 바꿔 다시 펼치면 Coupon 이 보이고 눌러 쿠폰이 생긴다.
  * ⛔고정 대기 0(조건 대기).
- * 양성대조(CTL _patches/t13c-05-coupon-gate-ctl.patch): toggleFpDropdown 의 _applyCouponAddGate 호출 줄을 지우면
+ * 양성대조(CTL _patches/t13c-05-coupon-gate-ctl.patch): toggleFpDropdown 의 _applyAdminEntryGate('fp-add-coupon') 호출(t13F-01 에서 이름만 일반화) 줄을 지우면
  *   관리자 장면의 «Coupon 보임» 단언 빨강(index.html 기본 display:none 이 그대로라서). */
 const { test, expect } = require('@playwright/test');
 const { bootApp } = require('./_root-harness.js');

@@ -167,7 +167,7 @@ test('F2b ★고른 섹션이 화면 밖(보이는 부분 0) — 스티커는 �
 /* ═══ F3 ═══ */
 test('F3 ★같은 손짓(⌘ 없이 왼쪽으로 300 화면px) — 오버레이 텍스트와 스티커를 나란히 · 스티커도 섹션 밖으로 나간다', async ({ page }) => {
   const errs = await boot(page);
-  const [sec] = await addSections(page, 1);
+  const [sec] = await addSections(page, 1); await page.evaluate((ids) => ids.forEach((id) => { document.getElementById(id).dataset.overflowVisible = 'true'; }), [sec]);   // ★전제 바뀜(현빈 261123 t13E-07 «섹션 줄어듦 = ⓐ 그대로» · SPEC 결정 로그 3차): 띄우면 흐름에서 빠져 섹션이 줄고 단위가 섹션 아래로 통째로 나가 Clip content(기본 켬)에 잘림 = 안 보이고 못 잡음(실측 글 top = 섹션 bottom) → 이 칸은 끌기·순서를 재므로 «Clip content 끈» 섹션에서 잰다(높이·자리 무변)
   /* 오버레이 텍스트 — 본문을 넣고 패널의 오버레이 단추 */
   const tbBefore = await idsOf(page, '.text-block');
   await pickSection(page, sec);
@@ -219,7 +219,7 @@ test('F3 ★같은 손짓(⌘ 없이 왼쪽으로 300 화면px) — 오버레이
 /* ═══ F4 ═══ */
 test('F4 ★오버레이 모달 끌기의 다섯 수 — 오버레이 텍스트 · 오버레이 «안 된» 모달과 나란히', async ({ page }) => {
   const errs = await boot(page);
-  const [secM, secT, secN] = await addSections(page, 3);
+  const [secM, secT, secN] = await addSections(page, 3); await page.evaluate((ids) => ids.forEach((id) => { document.getElementById(id).dataset.overflowVisible = 'true'; }), [secM, secT, secN]);   // ★전제 바뀜(현빈 261123 t13E-07 «섹션 줄어듦 = ⓐ 그대로» · SPEC 결정 로그 3차): 띄우면 흐름에서 빠져 섹션이 줄고 단위가 섹션 아래로 통째로 나가 Clip content(기본 켬)에 잘림 = 안 보이고 못 잡음(실측 글 top = 섹션 bottom) → 이 칸은 끌기·순서를 재므로 «Clip content 끈» 섹션에서 잰다(높이·자리 무변)
   const addModal = async (sec) => {
     const before = await idsOf(page, '.modal-block');
     await pickSection(page, sec);
@@ -304,7 +304,7 @@ test('F4 ★오버레이 모달 끌기의 다섯 수 — 오버레이 텍스트 
 /* ═══ F4b ═══ 지디 판정(2026-10-21 01:1x) 꼭 넣을 것 ⑴ ⌘Z 뒤 자리 유지 ⑵ 재열기·패널 변경 뒤 ⑶ 가장자리 잡기 대조군 ⑷ draggable="true" 0 */
 test('F4b ★오버레이 모달이 ⌘Z · 재열기 · 패널 변경 뒤에도 «오버레이 그대로»이고 네이티브 끌기 표식이 안 붙는다', async ({ page }) => {
   const errs = await boot(page);
-  const [sec] = await addSections(page, 1);
+  const [sec] = await addSections(page, 1); await page.evaluate((ids) => ids.forEach((id) => { document.getElementById(id).dataset.overflowVisible = 'true'; }), [sec]);   // ★전제 바뀜(현빈 261123 t13E-07 «섹션 줄어듦 = ⓐ 그대로» · SPEC 결정 로그 3차): 띄우면 흐름에서 빠져 섹션이 줄고 단위가 섹션 아래로 통째로 나가 Clip content(기본 켬)에 잘림 = 안 보이고 못 잡음(실측 글 top = 섹션 bottom) → 이 칸은 끌기·순서를 재므로 «Clip content 끈» 섹션에서 잰다(높이·자리 무변)
   const before = await idsOf(page, '.modal-block');
   await pickSection(page, sec);
   await menu(page, '#fp-component-dropdown > .fp-dropdown-trigger', '#fp-component-dropdown .fp-menu-item:text-is("Modal")');

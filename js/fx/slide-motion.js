@@ -6,7 +6,7 @@
  *   GIF 프레임 상한 60(export-image.js GIF_MAX_FRAMES 와 같은 수 · 지디 결정 ⓑ: fps 를 낮춤 + 안내 줄에 몇 fps 인지).
  *   정적 «첫 장면»(slide-block.js renderSlideBlock 의 flex 줄)은 offset 0 그림과 같은 자리 — 카드 i 의 왼끝 = i × (카드 폭 + 간격).
  */
-export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail', 'slide-gridzoom']);
+export const SLIDE_FX = Object.freeze(['slide-flow', 'slide-swipe', 'slide-vflow', 'slide-vstep', 'slide-fade', 'slide-cut', 'slide-center', 'slide-wipe', 'slide-trail', 'slide-gridzoom', 'slide-flow2', 'slide-vflow2']);
 /* SLIDE-FX-GRID-ZOOMOUT-01(수지 S16 · PLAN-ty-slide-fx-gridzoom-261118 · 지디 Q1 7×7 · Q2 나선 · Q3 들어올 때만 + 7×7 밖 한 바퀴 옅게 · Q4 컷)
    카메라 하나: 히어로(첫째 칸 · 블럭 높이 × 카드 폭 %) → 작아지며 3×3 둘레가 들어옴 → 7×7 까지 멀어짐 → 머무름 → 처음으로 컷.
    박자(한 바퀴 GZ_S 초 ÷ 속도 · u = t × GZ_S): 0~0.6 히어로 · 0.6~1.2 작아짐 + 둘레 알파 0→1 · 1.2~4.0 3×3 → 7×7 · 4.0~ 머무름. */
@@ -82,7 +82,40 @@ export function drawWipe(ctx, W, H, imgs, p, k, emptyFill = '#e9e9e9') {
 /* SLIDE-FX-SINGLE-FRAME-MULTI-01(수지 S24 폰 후기) — «제자리»: 카드 한 장이 블럭을 꽉 채우고 그 자리에서 바뀐다(페이드 = 겹쳐 흐려지며 · 컷 = 넘김 끝에 바로). 셈은 넘김과 같은 박자(장마다 [바뀜 0.5초 · 머무름]). */
 export const slideInPlace = (fx) => fx === 'slide-fade' || fx === 'slide-cut';
 /** 움직임 축 — 세로 효과면 'y'(정적 첫 장면도 세로로 쌓음). */
-export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' ? 'y' : 'x');
+export const slideAxis = (fx) => (fx === 'slide-vflow' || fx === 'slide-vstep' || fx === 'slide-vflow2' ? 'y' : 'x');
+/* SLIDE-EFFECT-SAMPLES-QA-01 ③(현빈 261123 결정 B① · 지디 ⓐ = 고정 꼴 두 줄 · 새 칸 0) — 여러 줄 반대 방향 흐름.
+   slide-flow2 = 가로 2줄(윗줄 = 고른 방향 · 아랫줄 = 반대) · slide-vflow2 = 세로 2열(왼열 = 고른 방향 · 오른열 = 반대).
+   칸 i → 줄 i % 2(번갈아) · 줄마다 그 줄 칸만으로 slideGeom(공통 카드 폭 · 칸별 폭·높이는 이 효과 동안 안 씀 = 첫 장면 격자와 같은 꼴) ·
+   줄 사이·칸 사이 = 간격(음수면 0 · 겹침 없음). 한 바퀴 = 가장 긴 줄 주기 ÷ 흐름 속도 · 줄마다 한 바퀴에 «꼭 한 주기»(t × 그 줄 주기) ⇒ 끝 = 처음(끊김 0).
+   t = 0 은 모든 줄 밀림 0 = 첫 장면 DOM(격자: 칸 i = i%2 줄 · ⌊i/2⌋ 번째 · 왼끝 = ⌊i/2⌋ × (카드 폭 + 간격)). */
+export const SLIDE_LANES = 2;
+export const slideLanes = (fx) => (fx === 'slide-flow2' || fx === 'slide-vflow2' ? SLIDE_LANES : 0);
+/** 줄마다 기하 — [{idx: 원래 칸 번호들, geom}] · bw = 움직임 축 길이(블럭 px) · deco = 칸별 둥글기·그림자(그대로 실음). */
+export function laneGeoms(bw, n, layout, deco, lanes = SLIDE_LANES) {
+  const L = normLayout(layout), N = Math.max(1, n | 0), out = [];
+  for (let r = 0; r < lanes; r++) {
+    const idx = []; for (let i = r; i < N; i += lanes) idx.push(i);
+    if (!idx.length) continue;
+    const g = slideGeom(bw, idx.length, { ...L, gap: Math.max(0, L.gap) }, null, null, Array.isArray(deco) ? idx.map((i) => deco[i]) : null);
+    out.push({ idx, geom: g });
+  }
+  return out;
+}
+/** 여러 줄 한 바퀴(초) = 가장 긴 줄 주기 ÷ (흐름 속도 × 배율). */
+export const laneLoopSec = (lgs, anim) => Math.max(...lgs.map((l) => l.geom.period)) / (FLOW_PX_S * normAnim(anim).speed);
+/** 여러 줄 한 장면 — 줄마다 띠(가로 = 높이 나눔 · 세로 = 폭 나눔)에 drawSlides · 짝수 줄 = dir · 홀수 줄 = 반대 · 밀림 = t × 그 줄 주기. */
+export function drawLanes(ctx, W, H, imgs, lgs, dir, k, t, gapPx, axis = 'x', emptyFill = '#e9e9e9') {
+  const y = axis === 'y', tt = ((t % 1) + 1) % 1, nL = lgs.length, g = Math.max(0, gapPx) * k;
+  const band = ((y ? W : H) - g * (nL - 1)) / nL, other = dir === 'right' ? 'left' : 'right';
+  lgs.forEach((l, r) => {
+    const o = r * (band + g);
+    ctx.save();
+    ctx.beginPath(); if (y) ctx.rect(o, 0, band, H); else ctx.rect(0, o, W, band); ctx.clip();
+    ctx.translate(y ? o : 0, y ? 0 : o);
+    drawSlides(ctx, y ? band : W, y ? H : band, l.idx.map((i) => imgs[i]), l.geom, tt * l.geom.period, r % 2 ? other : dir, k, emptyFill, axis);
+    ctx.restore();
+  });
+}
 const _stepping = (fx) => fx === 'slide-swipe' || fx === 'slide-vstep' || fx === 'slide-trail' || slideInPlace(fx) || slideCentered(fx);   // 넘김+머무름 꼴(아니면 흐름) · 제자리도 같은 박자
 export const SLIDE_MAX = 12;                       // 지디 결정 ⓓ
 export const SLIDE_LAYOUT_DEFAULT = Object.freeze({ cardW: 60, gap: 16, h: 360, dots: 'none', mode: 'row', dotGap: 8, dotSpace: 8, dotOn: '#4a4a4a', dotOff: '#c9c9c9' });

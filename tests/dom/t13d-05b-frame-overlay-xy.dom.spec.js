@@ -17,7 +17,7 @@ async function scene(page) {
   const errs = await bootApp(page);
   await page.evaluate(async () => {
     const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove()); await window.addSection();
-    c.querySelector('.section-block').id = 'sX'; window.applyZoom?.(100);
+    c.querySelector('.section-block').id = 'sX'; c.querySelector('.section-block').style.minHeight = '420px'; window.applyZoom?.(100);   // ★전제 바뀜(현빈 261123 Clip content 기본 켬) — 띄우면 섹션이 흐름만큼(57px) 줄어 프레임이 통째로 섹션 밖 = 잘려 안 보임 ⇒ 섹션을 프레임이 들 만큼 · 기대 무변
   });
   await waitZoomSettled(page, 100);
   await page.evaluate(() => {

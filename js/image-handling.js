@@ -693,7 +693,7 @@ function loadVideoToAsset(ab, file) {
 function captureAssetGrain(ab) {
   const el = ab.querySelector('.asset-grain');
   if (!el) return null;
-  return { style: el.getAttribute('style') || '', intensity: el.dataset.grainIntensity || '' };
+  return { style: el.getAttribute('style') || '', intensity: el.dataset.grainIntensity || '', off: el.dataset.grainOff || '' };   // off = Noise 카드 눈 끔(js/effects-noise.js)
 }
 function restoreAssetGrain(ab, snap) {
   if (!snap) return;
@@ -701,6 +701,7 @@ function restoreAssetGrain(ab, snap) {
   grainEl.className = 'asset-grain';
   if (snap.style) grainEl.setAttribute('style', snap.style);
   if (snap.intensity) grainEl.dataset.grainIntensity = snap.intensity;
+  if (snap.off) grainEl.dataset.grainOff = snap.off;
   ab.appendChild(grainEl);
 }
 

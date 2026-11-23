@@ -117,6 +117,7 @@ async function _pick(h) {
 }
 
 export async function openFreeImageModal() {
+  if (!window.animGifVisible?.(true, window.__admin?.state?.() ?? null)) return;   // t13F-01 — 관리자만(입구 단추가 숨어도 전역 함수로 부르는 길까지) · 판정 = feature-flags.js 한 자리
   if (!API()?.status) { window.showToast?.('무료 이미지는 데스크톱 앱에서 써요'); return; }
   if (!_modal) {
     _modal = document.createElement('div');

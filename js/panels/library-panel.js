@@ -133,6 +133,18 @@ function _innerWidth(sec) {   // 넣을 자리 폭 상한 — 그 섹션(없으�
   return Math.max(40, inner.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0));
 }
 
+/* t13F-06 — QA 샘플(rawSvg) = «들여온 SVG»(파일 고르기·끌어 놓기·붙여넣기)와 같은 문 window.addVectorFromSvgText(거르기·P5 펜 변환·⌘Z 한 번 감싸기 그대로).
+   opts 를 안 준다 — opts 가 있으면 P5(점 편집 펜 벡터)를 건너뛴다(vector-block.js 주석). 선택 없음이면 같은 함수의 오버레이 길(place). */
+function _insertRawSvg(it, dataUrl) {
+  const t = _target();
+  if (!t) return;
+  const m = /^data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || '');
+  let txt = null; try { txt = m ? new TextDecoder().decode(Uint8Array.from(atob(m[1]), (c) => c.charCodeAt(0))) : null; } catch { txt = null; }
+  if (!txt) { window.showToast?.('❌ SVG 를 읽을 수 없어요'); return; }
+  const b = t.place ? window.addVectorFromSvgText?.(txt, it.name, t.place) : window.addVectorFromSvgText?.(txt, it.name);
+  if (b) _done(it);
+}
+
 async function _insertLocalSvg(col, it) {
   const m = await _localSvg(it);
   if (!m) { window.showToast?.('❌ SVG 를 읽을 수 없어요(안전하지 않거나 그림이 아님)'); return; }
@@ -191,6 +203,7 @@ async function _insert(col, it, img) {
     if (it.loc && /\.svg$/i.test(it.file)) { await _insertLocalSvg(col, it); return; }
     const src = it.loc ? (await _localRead(it))?.dataUrl : await libraryDataUrl(`${LIBRARY_ROOT}/${col.dir}/${it.file}`);
     if (!src) throw new Error(`${it.loc}/${it.file} 읽기 실패`);
+    if (col.rawSvg && /\.svg$/i.test(it.file)) { _insertRawSvg(it, src); return; }   // t13F-06 QA 샘플 = 들여온 SVG 와 같은 길
     const mono = !it.loc && /\.svg$/i.test(it.file) ? _bundledMonoSvg(src) : null;
     if (mono) { _insertSvgVector(col, it, mono); return; }
     const t = _target();

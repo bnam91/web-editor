@@ -220,7 +220,8 @@ const PH_OK = new Set(['', '자동', '상속', 'Mix', '없음', 'auto']);   /* a
    TEXT-LOREM-FILL-01(261121): Content 절 «더미 글» = select 2(+option 3·2) · number 1 · button 1 = 9 · 라벨 1 · id 4 (줄 모드 말풍선이면 0). */
 /* 2749254f8 Tag Style «Oval» 단추(label·label+circle 상태) — origin/dev 9a724fb78 에서 이 판정이 이미 빨강이었다(태양 261121 실측 · 골든 2벌은 plain·liner 라 그 단추 0) · 같은 꼴로 한 줄. */
 const FEATURE_ADDED = [{ ticket: 'LABEL-OVAL(2749254f8)', n: 1, isCtl: (t) => /id="label-shape-oval"/.test(t), label: null, id: /^label-shape-oval$/ },
-  { ticket: 'TEXT-LOREM-FILL-01', n: 9, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?( in="txt-lorem-[a-z]+")?>$/.test(t), label: '더미 글', id: /^txt-lorem-/ }];
+  /* ★기대 바뀜(t13E-08·09 2차 · 현빈 확정 261123): 개수 = 슬라이더+숫자(공용 sliderRowHTML) ⇒ range 1 더해 10 · 줄 라벨 «개수» 하나 더 · id txt-lorem-count-slider 하나 더(같은 txt-lorem- 꼴) · option 정규식 = 통일판(dev)의 in="txt-lorem-…" 꼴 그대로(train/0913-a 충돌 풂) */
+  { ticket: 'TEXT-LOREM-FILL-01', n: 10, isCtl: (t) => /id="txt-lorem-/.test(t) || /^<option value="(word|sentence|paragraph|en|ko)"( selected)?( in="txt-lorem-[a-z]+")?>$/.test(t), label: ['더미 글', '개수'], id: /^txt-lorem-/ }];
 
 function judge(name, st, oldHtml, newHtml) {
   const bad = [];
@@ -232,7 +233,7 @@ function judge(name, st, oldHtml, newHtml) {
   for (const f of FEATURE_ADDED) {
     const hit = nc.filter(f.isCtl);
     if (hit.length && hit.length !== f.n) bad.push(`J1 ${f.ticket}: 더한 컨트롤 ${hit.length}개(기대 ${f.n}) ${JSON.stringify(hit)}`);
-    if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(f.label); }
+    if (hit.length === f.n) { nc = nc.filter((t) => !f.isCtl(t)); featHit.push(f); if (f.label) featLabels.push(...[].concat(f.label)); }
   }
   const drift = DRIFT_PRE.states.includes(name);
   const l1 = minus(oc, nc), e1 = minus(nc, oc).filter((t) => !CTL_ADDED.some((r) => r.test(t)) && !(drift && DRIFT_PRE.ctl.test(t)));
