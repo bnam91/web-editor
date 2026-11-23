@@ -4914,14 +4914,39 @@ document.querySelectorAll('.section-block').forEach(sec => {
 const _EMPTY_CLICK_IDS = ['canvas-wrap', 'canvas-scaler', 'canvas'];
 let _canvasDownTarget = null, _clickStartedOffEmpty = false;
 const _canvasWrapEl = document.getElementById('canvas-wrap');
-_canvasWrapEl.addEventListener('mousedown', e => { _canvasDownTarget = e.target; }, true);
+let _canvasDownXY = null;
+_canvasWrapEl.addEventListener('mousedown', e => { _canvasDownTarget = e.target; _canvasDownXY = [e.clientX, e.clientY]; }, true);
 _canvasWrapEl.addEventListener('click', () => {
   _clickStartedOffEmpty = !!_canvasDownTarget && !_EMPTY_CLICK_IDS.includes(_canvasDownTarget.id);
   _canvasDownTarget = null;
 }, true);
+/* SEC-SELECT-HITSTRIP-01(0.9.13 208행 · 현빈 GO 261123) — 섹션 «바깥» 경계 띠(화면 px)를 누르면 그 섹션을 고른다(위·아래·왼·오른).
+   좌우 패딩 0 섹션은 블럭이 가장자리까지라 안쪽엔 섹션을 집을 곳이 없다 ⇒ 캔버스 여백 쪽에서 집는다.
+   ★«빈 곳 클릭»일 때만 본다 — 섹션 안 클릭은 이 길에 안 온다(블럭·섹션 바인더가 먼저 받는다) ⇒ 안쪽은 늘 블럭이 이긴다 · 블럭 클릭·끌기 무변.
+   ⛔CSS 띠(의사요소)로 안 한 까닭: 섹션마다 z-index 2 쌓임 맥락이라 아래 섹션의 띠가 위 섹션 «안쪽» 아래 가장자리 블럭을 덮는다. */
+const SEC_HITSTRIP_PX = 8;      // 경계 밖 과녁 폭(화면 px · 줌 무관)
+const SEC_HITSTRIP_MOVE = 4;    // 누른 뒤 이만큼 넘게 움직였으면 클릭이 아니라 끌기
+function sectionAtHitStrip(x, y) {
+  let best = null, bestD = Infinity;
+  for (const sec of document.querySelectorAll('#canvas > .section-block')) {
+    const r = sec.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+    const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    const d = Math.max(dx, dy);
+    if (d > 0 && d <= SEC_HITSTRIP_PX && d < bestD) { best = sec; bestD = d; }
+  }
+  return best;
+}
+window.sectionAtHitStrip = sectionAtHitStrip;
 _canvasWrapEl.addEventListener('click', e => {
   if (_clickStartedOffEmpty) return;
-  if (_EMPTY_CLICK_IDS.includes(e.target.id)) deselectAll();
+  if (!_EMPTY_CLICK_IDS.includes(e.target.id)) return;
+  const moved = _canvasDownXY && Math.hypot(e.clientX - _canvasDownXY[0], e.clientY - _canvasDownXY[1]) > SEC_HITSTRIP_MOVE;
+  _canvasDownXY = null;
+  const sec = !moved && !document.body.classList.contains('preview-mode') ? sectionAtHitStrip(e.clientX, e.clientY) : null;
+  if (sec) { selectSectionWithModifier(sec, e); return; }
+  deselectAll();
 });
 
 /* ── 트랙패드 제스쳐: 핀치(ctrl+wheel)=줌, 두손가락 드래그(wheel)=팬 ── */
