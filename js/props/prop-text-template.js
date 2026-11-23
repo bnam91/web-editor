@@ -1,6 +1,6 @@
 // HTML template extracted from prop-text.js (Phase 2 refactor)
 import { buildTypographySectionHtml, buildFillSectionHtml } from './_typo-section.js';
-import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML } from './_helpers.js';
+import { overlayToggleBtnHTML, blockHeaderHTML, sliderRowHTML, rotRowHTML, checkHTML } from './_helpers.js';
 import { sec, buildPanelHTML } from './_panel-frame.js';
 import { sectionOrderFor, sectionRank } from './_section-spec.js';
 /* T7 — 글머리 명부·판정은 ★한 자리(text-type-class.js). 패널과 배선이 ★같은 하나를 본다. */
@@ -313,13 +313,9 @@ export function buildTextPanelSpec(state) {
             </div>
           </div>
         </div>
-        <div class="prop-row">
-          <span class="prop-label">발신자 이름</span>
-          <label class="prop-toggle" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
-            <input type="checkbox" id="bubble-show-sender" ${showSender ? 'checked' : ''}>
-            <span class="prop-toggle-track"></span>
-          </label>
-        </div>
+        <div class="prop-row" title="발신자 이름 표시 — 이름은 캔버스에서 더블클릭해 고친다">
+        ${checkHTML({ id: 'bubble-show-sender', label: '발신자 이름', checked: showSender })}
+      </div>
       </div>`;
 
   const _rotHost = tb?.closest?.('.frame-block[data-text-frame="true"]') || tb;   // 회전·반전이 걸리는 요소(js/asset-rotate.js _textFrameHost 와 같은 판정)
