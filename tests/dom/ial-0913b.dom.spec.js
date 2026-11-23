@@ -179,3 +179,31 @@ test('I6 (S3-4) 셋 고르고 → · ⇧→ → 패널 X = 정본 = 화면 +11 �
   expect(new Set(lefts).size, `★IAL 끈 뒤 셋 다 같은 가로 자리(흐름 가운데) ${lefts}`).toBe(1);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
+
+/* I7 (현빈 9510 QA 197 4-a · 미카사 실앱 재현 «틀 누르면 안 도형 잡힘 · 화살표 도형만 1px») — 흐름 도형 래퍼(자유배치 shape-frame) 틀을 누르고 방향키 → 래퍼 안 도형만 밀리지 않는다(흐름이라 무동작)
+ * 같은 고침 = aacbf8402(S3-4 · editor.js _freePositionedAncestor 도형 래퍼 거름) — 지디 261123 «두 벌 고침 금지 · ial 가지 몫으로 이 칸이 덮는지 확인» · 양성대조 = _patches/ial-I6-CTL.patch(같은 한 줄) */
+test('I7 (197 4-a) 흐름 도형 래퍼 틀 누름 → →·⇧→ → 안 도형이 래퍼 안에서 안 밀림 · 래퍼도 제자리(흐름)', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const errs = await bootApp(page);
+  await page.evaluate(async () => {
+    const c = document.getElementById('canvas'); c.querySelectorAll('.section-block').forEach((s) => s.remove());
+    const sec = await window.addSection(); sec.id = 'sW'; window.applyZoom?.(100);
+    window.deselectAll(); window.selectSection(sec); const before = new Set(sec.querySelectorAll('.shape-block')); window.addShapeBlock('rectangle');
+    const b = [...sec.querySelectorAll('.shape-block')].find((x) => !before.has(x)); b.id = 'shW'; b.closest('.frame-block').id = 'sfW';
+    window.deselectAll(); window.clearHistory?.();
+  });
+  await waitZoomSettled(page, 100);
+  const st = () => page.evaluate(() => { const b = document.getElementById('shW'), f = document.getElementById('sfW'), rb = b.getBoundingClientRect(), rf = f.getBoundingClientRect(); return { inner: [Math.round(rb.left - rf.left), Math.round(rb.top - rf.top)], innerStyle: [b.style.left, b.style.top], wrap: [Math.round(rf.left), Math.round(rf.top)], wrapFlow: f.dataset.overlayBlock !== 'true' && !!f.closest('.section-inner'), freeLayout: f.dataset.freeLayout ?? null }; });
+  const s0 = await st();
+  const p = await page.evaluate(() => { const r = document.getElementById('sfW').getBoundingClientRect(); return [r.left + 3, r.top + 3]; });   // 틀(래퍼 가장자리 안쪽) 누름
+  await page.mouse.click(p[0], p[1]); await raf(page);
+  const sel = await page.evaluate(() => [...document.querySelectorAll('#canvas .selected')].map((e) => e.id));
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('Shift+ArrowRight'); await raf(page);
+  const s1 = await st();
+  console.log('[I7 실측]', JSON.stringify({ s0, sel, s1 }));
+  expect([s0.wrapFlow, s0.freeLayout], '[전제] 흐름 도형 래퍼(자유배치)').toEqual([true, 'true']);
+  expect(sel.length > 0, '[전제] 무언가 골라짐').toBe(true);
+  expect([s1.inner, s1.innerStyle], '★래퍼 안 도형이 안 밀림(옛 판 = 화살표마다 안 도형만 left 가 밀림)').toEqual([s0.inner, s0.innerStyle]);
+  expect(s1.wrap, '★흐름 래퍼는 제자리(흐름 블럭 ←→ 무동작 · t13D-01)').toEqual(s0.wrap);
+  expect(errs, errs.join(' | ')).toEqual([]);
+});
