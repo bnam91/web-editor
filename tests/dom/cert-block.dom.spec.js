@@ -101,7 +101,7 @@ async function openPanel(page, id) {
   await page.evaluate((id) => window.showCertProperties(document.getElementById(id)), id);
   await page.waitForSelector('#crt-mode');   // ⑩ 뒤 기본이 격자 — #crt-preset 은 스택에만 있다(두 모드 공통 = #crt-mode)
 }
-const toggle = (page, id) => page.click(`label.prop-toggle:has(#${id})`);
+const toggle = (page, id) => page.click(`label.ui-check:has(#${id})`);   /* ★기대 바뀜(현빈 261123 ①②③ · check 부품) — 누르는 자리 = label.ui-check */
 /** ⑩ 새 블럭 기본 = 격자 — 스택을 재는 칸은 패널 «모드»로 스택을 «명시»하고 잰다(단언 그대로). */
 async function stackMode(page, id) {
   await openPanel(page, id);
