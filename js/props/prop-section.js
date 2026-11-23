@@ -5,6 +5,7 @@ import { blockHeaderHTML, escHtml, sliderRowHTML } from './_helpers.js';
 import { renderPanel, sec as panelSec, panelRenderGen } from './_panel-frame.js';
 import { forgetLabelAutoColor } from './label-auto-color.js';
 import { wireHexText, parseHex6, formatHex6, colorFieldHTML, wireColorField } from './color-picker.js';
+import { wireColorVarChips, parseColorVarName } from './color-var-chips.js';   /* 섹션 보강(현빈 261123 · d92ea91) — 배경색 VAR·최근 줄(텍스트 Fill 과 같은 벌) */
 import { pushHistory, PRESETS, _presetsReady, rgbToHex, getBlockBreadcrumb } from '../editor.js';
 import { alignFlowBlock } from './prop-multisel.js';
 import { collectBulkAlignTargets } from './bulk-align-targets.js';
@@ -518,9 +519,31 @@ function setRpIdBadge(id) {
 
 /* 무늬·효과 묶음 = 소제목 + 노트 무늬 + 파티클. 둘 다 비면(그림 있음 + 파티클 미탑재) 소제목도 안 낸다.
    ⚠️그리개(파티클 칸 HTML) 호출은 Background 절 «안» 템플릿 자리에 둔다 — fx-particles-panel P10 이 그 자리를 잰다. */
-function _fxGroupHTML(noteHTML, particlesHTML) {
-  if (!noteHTML.trim() && !particlesHTML) return '';
-  return '<span class="prop-field-label" id="sec-fx-group-label" style="margin-top:8px">Pattern &amp; Effects</span>' + noteHTML + particlesHTML;
+/* Effects 세그먼트(PRS-02) — 켠 것 = active · 다시 누르면 끔. 배선은 옛 id 그대로: sec-bg-mesh · sec-bg-note · 파티클 = 꺼짐 sec-fxpart-toggle(그리개가 낸 켜기 단추 대신) / 켜짐 sec-fxpart-seg → 카드 머리 끄기.
+   partHTML = 파티클 그리개 산출(꺼짐 = 켜기 단추 · 켜짐 = 카드) — 그리개 호출 자체는 Fill 절 등록 «안»에 둔다(fx-particles-panel P10) */
+function _fxBlock({ hasBgImg, meshOn, noteOn, below, partHTML }) {
+  const partOn = /sec-fxpart-card/.test(partHTML);
+  const btn = (id, on, label, title) => `<button type="button" class="prop-type-btn${on ? ' active' : ''}" id="${id}" aria-pressed="${on}" title="${title}">${label}</button>`;
+  const seg = (hasBgImg ? '' : btn('sec-bg-mesh', meshOn, '메시 그라데이션', '네 모서리 색을 번지게 섞어 메시 그라데이션처럼 보이게 합니다(v1) · 켜진 것을 다시 누르면 끕니다')
+      + btn('sec-bg-note', noteOn, '노트 무늬', '줄눈·모눈·점모눈을 이미지 없이 그립니다 — 배경색은 무늬 아래 · 다시 누르면 끕니다'))
+    + (partHTML ? btn(partOn ? 'sec-fxpart-seg' : 'sec-fxpart-toggle', partOn, '파티클', '이 섹션 배경에 파티클을 깝니다 — 배경색은 바뀌지 않습니다 · 다시 누르면 끕니다') : '');
+  return _fxGroupHTML(seg, below + (partOn ? partHTML : ''));
+}
+function _fxGroupHTML(segHTML, belowHTML) {   /* 섹션 보강(현빈 261123 · PRS-02) — 소제목 «Effects» + [메시 그라데이션 | 노트 무늬 | 파티클] 한 줄 세그먼트 · 켠 것의 칸은 그 아래 */
+  if (!segHTML) return '';
+  return '<span class="prop-field-label" id="sec-fx-group-label">Effects</span><div class="prop-type-group" id="sec-fx-seg" role="group" aria-label="Effects" style="margin-bottom:0">' + segHTML + '</div>' + belowHTML;
+}
+
+const _SEC_P8 = '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M6 2v8M2 6h8"/></svg>';
+const _SEC_M8 = '<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewBox="0 0 12 12" width="12"><path d="M2 6h8"/></svg>';
+/* 머리 ＋/− 로 몸 폼을 펼침/접음(블럭 Template 절 wireBlockTemplate 과 같은 동작 · 저장 0 — 패널 표시만) */
+function _wireSecFold(toggleId, formId, openTitle, closeTitle) {
+  const tog = document.getElementById(toggleId), form = document.getElementById(formId);
+  if (!tog || !form) return;
+  tog.addEventListener('click', () => {
+    const open = form.hidden; form.hidden = !open;
+    tog.innerHTML = open ? _SEC_M8 : _SEC_P8; tog.setAttribute('aria-expanded', String(open)); tog.title = open ? closeTitle : openTitle;
+  });
 }
 
 async function showSectionProperties(sec) {
@@ -561,7 +584,8 @@ async function showSectionProperties(sec) {
      그라데이션 CSS 를 따로 잡아 wireColorField(gradientValue)로 넘긴다: 스와치 = 그라데이션 · 피커 = 그라데이션 탭 · Solid 복귀 = 첫 정지점.
      ⛔그림이 있을 땐 인라인 backgroundImage 를 보지 않는다(거긴 그림/물들임 합성이 산다) — dataset.bg 만 본다. */
   const bgGradCss = [sec.dataset.bg, sec.dataset.bgImg ? '' : sec.style.backgroundImage].find(isSectionGradient) || '';
-  const hexBg = bgGradCss ? '#ffffff' : rawBg
+  const _varFb = (String(rawBg).match(/var\(\s*--color-[^,]+,\s*(#[0-9a-f]{6})/i) || [])[1];   /* VAR 칩 바인딩(var(--color-x, #hex)) — 칸엔 fallback hex */
+  const hexBg = bgGradCss ? '#ffffff' : _varFb ? _varFb : rawBg
     ? (/^#[0-9a-f]{6}$/i.test(rawBg) ? rawBg : rgbToHex(rawBg))
     : '#ffffff';
   const _secBgM = rawBg.match(/rgba?\(([^)]+)\)/i);
@@ -592,9 +616,6 @@ async function showSectionProperties(sec) {
     ? '<div id="sec-bg-mesh-hint" class="prop-hint" style="margin:-2px 0 2px;">메시 그라데이션 사용 중 — 위 배경색을 고르면 메시가 꺼집니다</div>'
     : '';
   const meshHTML = sec.dataset.bgImg ? '' : `
-    <button class="prop-action-btn ${meshOn ? 'primary' : 'secondary'}" id="sec-bg-mesh" style="margin-top:6px;"
-      title="네 모서리 색을 번지게 섞어 메시 그라데이션처럼 보이게 합니다. 피그마의 메시와 똑같지는 않습니다(v1)">
-      ${meshOn ? '메시 그라데이션 끄기' : '메시 그라데이션'}</button>
     ${meshOn ? MESH_CORNERS.map((k, i) => `
     <div class="prop-color-row" style="margin-top:4px;" data-mesh-corner="${k}">
       <span class="prop-label">${MESH_LABEL[k]}</span>
@@ -610,9 +631,6 @@ async function showSectionProperties(sec) {
      칸은 기존 부품만 쓴다: 켜기 = .prop-action-btn(메시 선례) · 종류 = .prop-select · 수 = sliderRowHTML · 선색 = colorFieldHTML. */
   const noteVal = noteParse(sec.dataset.bgNote);
   const noteHTML = hasBgImg ? '' : `
-    <button class="prop-action-btn ${noteVal ? 'primary' : 'secondary'}" id="sec-bg-note"
-      title="줄눈·모눈·점모눈을 이미지 없이 그립니다 — 배경색은 무늬 아래에 깔립니다">
-      ${noteVal ? '노트 무늬 끄기' : '노트 무늬'}</button>
     ${noteVal ? `
     <div class="prop-row">
       <span class="prop-label">종류</span>
@@ -650,23 +668,15 @@ async function showSectionProperties(sec) {
   ` : `
     <button class="prop-action-btn secondary" id="sec-bg-img-btn">이미지 선택</button>
     <input type="file" id="sec-bg-img-input" accept="image/*" style="display:none">
-    <!-- ★체크 배경 — 현빈 2026-09-28 「이미지 없이 체크배경으로 깔아둘 수 있게」.
-         ⛔새 무늬를 만들지 않는다: .asset-block 의 72px 정본을 그대로 쓴다(css 한 자리). -->
-    <button class="prop-action-btn ${_bgEmpty ? 'primary' : 'secondary'}" id="sec-bg-img-empty" style="margin-top:4px;"
-      title="이미지를 넣기 «전»에 자리만 잡아 둔다. 내보내기엔 무늬가 안 나간다">
-      ${_bgEmpty ? '체크 배경 끄기' : '체크 배경으로 두기'}</button>
-    ${_bgEmpty ? `<!-- ★체커 톤 — 현빈 2026-10-06 「체크 배경 끄기 이거할때마다 «옆에 있을» 옵션 ·
-           섹션마다 라이트 체크일수도, 어두운 체크일수도」. ⇒ 자리는 «그 단추 옆»이고, 체크 배경이
-           켜져 «있을 때만» 보인다(끔 상태에선 정할 것이 없다).
-         ★어휘는 페이지 패널에서 걷어온 그 라디오 그대로 쓴다 — 새 클래스 0.
-         ⛔「내보내기엔 무늬가 안 나간다」는 톤과 무관하게 그대로다(걷는 판정이 «색»이 아니라 «서명»이라서). -->
-    <div class="prop-row" style="margin-top:4px;" title="이 섹션의 체크 배경만 어둡게 합니다 — 흰 글자가 체커 위에서 보이게. 이 섹션 안의 빈 카드·도형 체커는 그대로입니다. 내보내기에는 체커가 나가지 않습니다.">
-      <span class="prop-label prop-label--auto">체커 어둡게</span>
-      <div class="prop-radio-group">
-        <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-on" value="dark" ${_bgTone === 'dark' ? 'checked' : ''}> 켬</label>
-        <label class="prop-radio"><input type="radio" name="sec-checker-tone" id="sec-checker-tone-off" value="light" ${_bgTone === 'dark' ? '' : 'checked'}> 끔</label>
+    <!-- ★체크 배경(현빈 2026-09-28 「이미지 없이 체크배경으로」 · ⛔새 무늬 0 — .asset-block 72px 정본) · PRS-04(현빈 GO 261122) — «끄기·어둡게» 대신 [라이트 | 다크] 세그먼트 둘:
+         누르면 그 톤으로 켬 · 켜진 쪽을 다시 누르면 끔. 저장 키 그대로(dataset.bgImgEmpty · checkerTone) · 내보내기엔 무늬 안 나감 -->
+    <div class="prop-row" title="이미지를 넣기 «전»에 자리만 잡아 둔다 — 라이트/다크 체크(이 섹션 배경만). 켜진 쪽을 다시 누르면 끈다. 내보내기엔 무늬가 안 나간다">
+      <span class="prop-label">체크 배경</span>
+      <div class="prop-type-group" role="group" aria-label="체크 배경" style="flex:1 1 0;min-width:0;margin-bottom:0">
+        <button type="button" class="prop-type-btn${_bgEmpty && _bgTone === 'light' ? ' active' : ''}" id="sec-bg-chk-light" aria-pressed="${_bgEmpty && _bgTone === 'light'}">라이트</button>
+        <button type="button" class="prop-type-btn${_bgEmpty && _bgTone === 'dark' ? ' active' : ''}" id="sec-bg-chk-dark" aria-pressed="${_bgEmpty && _bgTone === 'dark'}">다크</button>
       </div>
-    </div>` : ''}
+    </div>
   `;
 
   // 섹션 내 텍스트 블록 타입별 수집
@@ -695,20 +705,18 @@ async function showSectionProperties(sec) {
     return `
       <div class="prop-color-row">
         <span class="prop-label">${typeMap[t]}</span>
-        <div class="prop-color-swatch" style="background:${c}">
-          <input type="color" id="sec-txt-${t}" value="${c}">
+        <div class="prop-color-field">
+          <div class="prop-color-swatch" style="background:${c}">
+            <input type="color" id="sec-txt-${t}" value="${c}">
+          </div>
+          <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
         </div>
-        <input type="text" class="prop-color-hex" id="sec-txt-${t}-hex" value="${c.replace('#','').toUpperCase()}" maxlength="7" aria-label="Color">
       </div>`;
   }).join('');
 
-  const currentPreset = sec.dataset.preset || 'default';
-  // section memo (P/G/E + Codex 리뷰) — dataset.memo ↔ textarea 양방향 바인딩.
-  // 메모는 섹션 툴바 📝 버튼(section-memo.js popover)에서 편집·data-memo로 영속화됨 — prop 패널에는 없음.
-  const presetSelectHTML = PRESETS.map(p =>
-    `<option value="${escHtml(p.id)}"${p.id === currentPreset ? ' selected' : ''}>${escHtml(p.name)}</option>`
-  ).join('');
+  // section memo (P/G/E + Codex 리뷰) — 메모는 섹션 툴바 📝 버튼(section-memo.js popover)에서 편집 — prop 패널에는 없음.
 
+  /* Effects 세그먼트(PRS-02) — 켠 것 = active · 다시 누르면 끔(배선은 옛 id 그대로: sec-bg-mesh · sec-bg-note · 파티클 = 꺼짐 sec-fxpart-toggle / 켜짐 sec-fxpart-seg → 카드의 끄기) */
   /* ★U3(right-panel-unify) — 절은 틀(_panel-frame.js)에 등록. Preset = Type · 높이/핀 = Size · Text Color 는 Fill 안 · 섹션 밖 보이기 = Appearance.
      ★panel: 'section' — 순서 예외(Fill 을 머리 바로 아래로 · 현빈 261118 D5 ①)는 _section-spec.js SECTION_ORDER_EXCEPT 한 자리가 정한다. */
   renderPanel(sec, {
@@ -723,25 +731,26 @@ async function showSectionProperties(sec) {
       id: sec.id,
     }),
     sections: [
-      panelSec('kind', `
-      <div class="prop-row">
-        <span class="prop-label">Preset</span>
-        <select class="prop-select" id="sec-preset">${presetSelectHTML}</select>
-      </div>
-`),
+      /* PRS-01(현빈 GO 261122 · 8910 v117a 상태 70) — Preset 줄 걷음. 프리셋 적용 함수(applyPreset)·저장 키(dataset.preset)는 그대로(다른 길에서 쓸 수 있게) */
       panelSec('size', `
       <!-- ★(다) 이 섹션의 «지금» 높이 — 현빈 2026-10-07. 표시 + 숫자칸(261114 — 치면 section-pin.js setHeight = «핀 + 그 높이»).
            ⛔수를 여기서 다시 계산하지 마라 — 캔버스 배지·합계와 ★같은 함수(window.measureSectionHeight)를
              부른다. 값의 출처가 둘이면 어느 날 갈린다(js/section-height.js 머리말).
            갱신은 js/section-height.js 가 #sec-height-value 를 찾아서 한다(섹션 높이가 바뀌는 동안 패널이 열려 있을 수 있다). -->
+      <!-- 섹션 보강(현빈 261123 승인 d92ea91 · 8910 v117a 상태 70) — Size 줄 = [너비 고정(읽기) | 높이] + 📌 엔드슬롯(끝 칼럼 · .prop-chain-btn). 높이 칸 id·data 그대로(section-height.js 가 #sec-height-value 를 갱신) -->
       <div class="prop-row" title="내보내기 기준 레이아웃 px — 캔버스 배율에 흔들리지 않습니다">
-        <span class="prop-label">높이</span>
-        <input type="number" class="prop-number" id="sec-height-value" style="width:64px;font-variant-numeric:tabular-nums;" min="1" max="20000" step="1" placeholder="—" data-empty="invalid" aria-label="섹션 높이(px)" data-sec-id="${escHtml(sec.id || '')}" value="${
+        <div class="prop-icon-input" style="flex:1 1 0;min-width:0" title="섹션 너비 — 페이지 폭으로 고정(바꿀 수 없음)">
+          <span class="prop-xy-label">너비</span>
+          <input type="number" id="sec-width-value" value="${sec.offsetWidth || 860}" readonly tabindex="-1" aria-label="섹션 너비(px) — 고정" aria-readonly="true">
+        </div>
+        <div class="prop-icon-input" style="flex:1 1 0;min-width:0">
+          <span class="prop-xy-label">높이</span>
+          <input type="number" id="sec-height-value" style="font-variant-numeric:tabular-nums;" min="1" max="20000" step="1" placeholder="—" data-empty="invalid" aria-label="섹션 높이(px)" data-sec-id="${escHtml(sec.id || '')}" value="${
           (() => { const h = window.measureSectionHeight?.(sec); return h == null ? '' : h; })()
         }">
-        <span class="prop-value-text">px</span>
+        </div>
         <!-- ⑦ 높이 고정(핀) — js/section-pin.js. 켤 때 «지금 높이»로 고정 · 손잡이로 맞춘다 · 숫자칸에 치면(Enter/blur) 그 높이로 핀(Q13 ⓖ · 현빈 261114) -->
-        <button type="button" class="prop-icon-btn" id="sec-pin-btn" data-sec-id="${escHtml(sec.id || '')}" aria-pressed="false" aria-label="높이 고정" style="margin-left:auto;">📌</button>
+        <button type="button" class="prop-chain-btn" id="sec-pin-btn" data-sec-id="${escHtml(sec.id || '')}" aria-pressed="false" aria-label="높이 고정" title="높이 고정">📌</button>
       </div>
       <!-- ⑦ 안전장치(현빈 Q10 요구 · 문구 최소) — 숨은 블럭이 있을 때만 보인다 -->
       <div class="prop-row" id="sec-pin-hidden-row" style="display:none;gap:4px;">
@@ -751,6 +760,7 @@ async function showSectionProperties(sec) {
       </div>
 `),
       panelSec('layout', `
+      <span class="prop-field-label">Alignment</span>
       <div class="prop-align-group">
         <button class="prop-align-btn" id="sec-align-left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -771,6 +781,15 @@ async function showSectionProperties(sec) {
           </svg>
         </button>
       </div>
+`),
+      panelSec('padding', `
+      ${sliderRowHTML('좌우패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
+      <div class="prop-row">
+        <span class="prop-label">아래 패딩</span>
+        <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
+        <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
+      </div>
+      <!-- 섹션 보강(현빈 261123 · v117a) — Clip content 줄은 Layout 묶음 «맨 아래»(Padding 뒤)로 자리만 옮김 · 기본값·극성은 그대로(기본 끔은 태양 ty/0913b-clip-default 몫) -->
       <div class="prop-row" title="켜면 섹션 경계 밖으로 나간 부분을 캔버스·미리보기에서 자릅니다. 끄면 캔버스·미리보기에서 밖까지 보입니다(작업 보조). 내보내기 PNG는 항상 섹션 크기로 잘림.">
         <!-- 현빈 261123 D-3(Figma «Clip content») — Layout 절 맨 아래 · 체크 = 자름(새 섹션 기본 = 켬) · 저장 키는 옛 data-overflow-visible 그대로(켬 = !그 값 · 옛 프로젝트 열림 보존)
              현빈 261123 «체크박스 → 공용 토글 스위치» — label.prop-toggle 부품(에셋 «내용 자르기» 줄과 같은 꼴 · 새 CSS 0) · 극성 그대로 -->
@@ -781,22 +800,14 @@ async function showSectionProperties(sec) {
         </label>
       </div>
 `),
-      panelSec('padding', `
-      ${sliderRowHTML('좌우패딩', 'sec-padx-slider', 'sec-padx-number', { min: 0, max: 100, step: 2, value: secPadX })}
-      <div class="prop-row">
-        <span class="prop-label">아래 패딩</span>
-        <input type="range" class="prop-slider" id="sec-padb-slider" min="0" max="200" step="4" value="${secPadB}">
-        <input type="number" class="prop-number" id="sec-padb-number" min="0" max="200" value="${secPadB}">
-      </div>
-`),
       panelSec('fill', `
       <div class="prop-color-row">
         <span class="prop-label">배경색</span>
         ${colorFieldHTML({ idPrefix: 'sec-bg', hex: hexBg, alpha: secBgAlpha, gradientCss: bgGradCss })}
       </div>
+      <div class="cv-chips" id="sec-bg-chips" hidden></div>
       ${meshHintHTML}
-      ${meshHTML}
-      <span class="prop-field-label" style="margin-top:8px">Background Image</span>
+      <span class="prop-field-label">Background Image</span>
       ${bgImgHTML}
       <!-- ★무늬·효과 묶음 — 현빈 261116 «노트무늬를 파티클 켜기랑 같이 묶고 소제목을 바꿔(임시)». 소제목은 여기 한 자리
            (secParticlesHTML 은 라벨을 안 낸다). 둘 다 비면(그림 있음 + 파티클 미탑재) 라벨도 안 낸다. -->
@@ -804,10 +815,13 @@ async function showSectionProperties(sec) {
            ★칸의 몸은 js/props/prop-section-particles.js 한 자리다 — 효과가 늘어도 이 줄은 그대로다.
            ⛔배경색·배경이미지 칸과 «섞이지» 않는다: 그 파일은 sec.style.background* 와 sec.dataset.bg* 를
              한 번도 쓰지 않는다(현빈 2026-10-07 「배경색이 계속 바뀌면 안되는거 알지?」). -->
-      ${_fxGroupHTML(noteHTML, window.secParticlesHTML?.(sec) || '')}
-` + (colorRows ? `
-      <span class="prop-field-label">Text Color</span>${colorRows}` : '')),
+      ${_fxBlock({ hasBgImg, meshOn, noteOn: !!noteVal, below: meshHTML + noteHTML, partHTML: window.secParticlesHTML?.(sec) || '' })}
+`),
+      /* 섹션 보강(현빈 261123 · d92ea91) — Text Color 는 Fill 밖 «Selection Colors» 절(Figma 꼴 · 지디 261123 Title Case) · 칸 id·배선 그대로 */
+      colorRows ? panelSec('selection', `
+      <span class="prop-field-label">Text Color</span>${colorRows}`) : '',
       panelSec('export', `
+      <div id="sec-export-form" hidden>
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-export-format" style="flex:1;min-width:0;">
           ${/* ★t6-01 — ★꼴 명부 정본 한 자리에서 파생. ★섹션 쪽은 ★기억값이 ★없다(언제나 첫 꼴). */''}
@@ -821,8 +835,10 @@ async function showSectionProperties(sec) {
         </select>
       </div>
       <button class="prop-export-btn" id="sec-export-btn">이 섹션 내보내기</button>
-`),
+      </div>
+`, { headTools: `<button type="button" class="prop-chain-btn" id="sec-export-toggle" title="Export 펼치기" aria-expanded="false" aria-controls="sec-export-form">${_SEC_P8}</button>` }),   /* Q33(현빈 261120) · 섹션 보강 — 처음엔 머리만 · ＋ → 꼴·폭·내보내기 · − = 접힘 */
       panelSec('template', `
+      <div class="prop-tpl-form" id="sec-tpl-form" hidden>
       <div class="prop-row" style="margin-bottom:4px;">
         <select class="prop-select" id="sec-tpl-folder" style="flex:1;min-width:0;">
           ${(()=>{
@@ -844,11 +860,14 @@ async function showSectionProperties(sec) {
       <!-- ★추천 태그 — 역할을 고르면 여기가 바뀐다. ⛔«가둠»이 아니다: 위 입력칸에 직접 쳐도 된다. -->
       <div id="sec-tpl-tag-recos" class="tpl-tag-recos" style="margin-bottom:4px;"></div>
       <button class="prop-action-btn primary" id="sec-tpl-save-btn">템플릿으로 저장</button>
-`),
+      </div>
+`, { headTools: `<button type="button" class="prop-chain-btn" id="sec-tpl-toggle" title="섹션 템플릿으로 저장 — 펼치기" aria-expanded="false" aria-controls="sec-tpl-form">${_SEC_P8}</button>` }),   /* Templates 통일(df02f17 · 블럭 Template 절과 같은 꼴) — 처음엔 머리만 · ＋ → 폼 */
     ],
   });
 
   if (window.setRpIdBadge) window.setRpIdBadge(sec.id || null);
+  _wireSecFold('sec-export-toggle', 'sec-export-form', 'Export 펼치기', 'Export 접기');
+  _wireSecFold('sec-tpl-toggle', 'sec-tpl-form', '섹션 템플릿으로 저장 — 펼치기', 'Templates 접기');
 
   // 좌우 패딩 이벤트
   const padXSlider = document.getElementById('sec-padx-slider');
@@ -932,6 +951,11 @@ async function showSectionProperties(sec) {
       if (commit) pushHistory();
     },
     onCommit: () => pushHistory(),
+  });
+  wireColorVarChips({
+    container: document.getElementById('sec-bg-chips'),
+    getActiveName: () => parseColorVarName(sec.dataset.bg || ''),
+    onPick: (cssRef) => { _setSecBg(cssRef); pushHistory(); showSectionProperties(sec); },   /* VAR = var() 바인딩 · 최근 = 고정 hex(텍스트 Fill 관례) */
   });
 
   /* ★★prev-06 메시 — ★단추는 ★켜기/끄기, 색 칸 넷은 ★제자리에서 고친다.
@@ -1198,40 +1222,23 @@ async function showSectionProperties(sec) {
       reader.readAsDataURL(file);
     });
   }
-  const bgImgEmptyBtn = document.getElementById('sec-bg-img-empty');
-  if (bgImgEmptyBtn) {
-    bgImgEmptyBtn.addEventListener('click', () => {
-      const on = sec.dataset.bgImgEmpty === '1';
-      window.pushHistory?.(on ? '섹션 체크 배경 끄기' : '섹션 체크 배경');
-      if (on) delete sec.dataset.bgImgEmpty; else sec.dataset.bgImgEmpty = '1';
-      /* ⛔checkerTone 은 «같이 지우지 마라» — 체크 배경을 껐다 켜면 고른 톤이 돌아와야 한다.
-         남아도 그리는 것이 없다: 그 속성이 바꾸는 토큰(--goya-checker-secbg-*)을 읽는 자리는
-         .section-block.sec-bg-empty «하나»뿐이고, 그 클래스가 없으면 아무도 안 읽는다. */
-      _applySectionBg(sec);
-      window.scheduleAutoSave?.();
-      showSectionProperties(sec);
-    });
-  }
-  /* ★체커 톤 라디오 — 쓰는 문은 여기 하나(sec.dataset.checkerTone). CSS 가 속성을 보고 색을 바꾼다.
-     ⛔_applySectionBg 를 부를 필요가 없다 — 이 값은 «클래스»도 «인라인»도 안 건드리고 CSS 변수만 바꾼다.
-     ★showSectionProperties 를 다시 안 부른다: 패널을 다시 그리면 라디오 포커스가 날아가고, 바뀐 것은
-       화면 색뿐이라 패널이 들고 있는 다른 값이 틀려질 자리가 없다. */
-  const toneOn  = document.getElementById('sec-checker-tone-on');
-  const toneOff = document.getElementById('sec-checker-tone-off');
-  if (toneOn && toneOff) {
-    const applyTone = (dark) => {
-      window.pushHistory?.(dark ? '섹션 체커 어둡게' : '섹션 체커 밝게');
-      if (dark) sec.dataset.checkerTone = 'dark'; else delete sec.dataset.checkerTone;
-      /* ★T6 — 섹션 «안» 글자 밝기를 같이 맞춘다(현빈 2026-10-07).
-         ⛔관측자(installTextToneObserver)를 넓히지 않았다 — 그 자의 attributeFilter 엔 `data-checker-tone` 이
-           없고 대상도 grid·table·graph 셋뿐이라, 넓히면 그 셋이 체커에서 깨어나 ★별건(⒝)을 건드린다.
-         ⇒ 켜고 끄는 문이 ★이 하나뿐이므로(실측) ★여기서 직접 부른다. 로드 쪽은 js/io/save-load.js. */
-      syncSectionCheckerTextTone(sec);
-      window.scheduleAutoSave?.();
-    };
-    toneOn.addEventListener('change',  () => { if (toneOn.checked)  applyTone(true);  });
-    toneOff.addEventListener('change', () => { if (toneOff.checked) applyTone(false); });
-  }
+  /* 체크 배경 [라이트 | 다크](PRS-04) — 누르면 그 톤으로 켬 · 켜진 쪽을 다시 누르면 끔. 쓰는 키 = 옛 두 문(bgImgEmpty · checkerTone) 그대로 ·
+     ⛔checkerTone 을 끌 때 같이 지우지 않는 규약은 옛 단추와 같다(다시 켜면 «라이트/다크»가 그 단추로 정해지니 남아도 무해) */
+  const _chk = (dark) => {
+    const on = sec.dataset.bgImgEmpty === '1', curDark = sec.dataset.checkerTone === 'dark';
+    const turnOff = on && curDark === dark;
+    window.pushHistory?.(turnOff ? '섹션 체크 배경 끄기' : (dark ? '섹션 체크 배경 다크' : '섹션 체크 배경 라이트'));
+    if (turnOff) delete sec.dataset.bgImgEmpty;
+    else { sec.dataset.bgImgEmpty = '1'; if (dark) sec.dataset.checkerTone = 'dark'; else delete sec.dataset.checkerTone; }
+    _applySectionBg(sec);
+    syncSectionCheckerTextTone(sec);   /* T6 — 섹션 안 글자 밝기(옛 톤 라디오가 부르던 그 한 자리) */
+    window.scheduleAutoSave?.();
+    showSectionProperties(sec);
+  };
+  document.getElementById('sec-bg-chk-light')?.addEventListener('click', () => _chk(false));
+  document.getElementById('sec-bg-chk-dark')?.addEventListener('click', () => _chk(true));
+  /* 파티클 세그먼트(켜짐) → 카드 머리의 끄기(#sec-fxpart-toggle · wireSecParticles 의 off) 그대로 */
+  document.getElementById('sec-fxpart-seg')?.addEventListener('click', () => document.getElementById('sec-fxpart-toggle')?.click());
   if (bgSizeEl) {
     bgSizeEl.addEventListener('change', () => {
       window.pushHistory?.('섹션 배경 크기');
