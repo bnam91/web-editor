@@ -42,7 +42,7 @@ test('G2 관리자 — «H N» · 블럭 오른쪽 · 세로 가운데 · #canva
     const g = document.getElementById(id), l = document.querySelector('.gap-h-label'), gr = g.getBoundingClientRect(), lr = l.getBoundingClientRect();
     return { n: document.querySelectorAll('.gap-h-label').length, h: l.dataset.h, oh: Math.round(g.offsetHeight), text: getComputedStyle(l, '::after').content,
       right: lr.left >= gr.right, mid: Math.abs((lr.top + lr.height / 2) - (gr.top + gr.height / 2)) <= 1, inCanvas: !!l.closest('#canvas'), inOverlay: !!l.closest('#ss-handles-overlay'),
-      handles: document.querySelectorAll('#ss-handles-overlay [class*="resize-handle"], #ss-handles-overlay [data-tbx-dir], #canvas .gap-block [class*="handle"]').length };   // ★data-tbx-dir 더함(현빈 261123 ⓐ) — 옛 자는 t13D-10 갭 손잡이(data-tbx-dir)를 못 세어 «0» 이 거짓 초록이었다
+      handles: document.querySelectorAll('#ss-handles-overlay [class*="resize-handle"], #ss-handles-overlay [data-tbx-dir], #canvas .gap-block [class*="handle"]').length };   // data-tbx-dir 도 센다(갭 손잡이 꼴) — ⚠️이 칸(캔버스 클릭 길)은 showHandlesFor 를 안 불러 손잡이가 늘 0 이다(수지맥 CTL 261123 실측) · 손잡이 지킴은 G10(레이어 패널 길)
   }, gid);
   expect(r).toEqual({ n: 1, h: String(r.oh), oh: r.oh, text: `"${r.oh}"`, right: true, mid: true, inCanvas: false, inOverlay: true, handles: 0 });
   expect(errs).toEqual([]);
@@ -141,4 +141,20 @@ test('G9 옛 저장본의 상한 넘는 갭(2500) — 다시 열어도 · 라벨
   expect(await H(page, gid), '★값 안 바꾸고 Enter = 그대로(조용히 안 깎임)').toBe(2500);
   expect(await page.evaluate(() => [document.getElementById('gap-number').value, document.getElementById('gap-slider').value]), '패널 = 숫자 2500 그대로 · 슬라이더는 끝(2000)에 선다').toEqual(['2500', '2000']);
   expect(errs2).toEqual([]);
+});
+
+/* G10 (현빈 261123 t13G-02 ⓐ «갭 손잡이 없게» · 수지맥 CTL 261123 «G2 는 손잡이 되살린 판에서도 초록 = 죽은 초록») — 실측: 캔버스 클릭으로 갭을 고르는 길(G2)은 showHandlesFor 를 «안» 부른다
+ * (CTL 판에서 2초 동안 [data-tbx-dir] 0). 갭 손잡이가 실제로 뜨던 길 = 레이어 패널 줄 누름(layer-panel-items.js → showHandlesFor · 미카사 실앱 갭 손잡이 끌기 120→218 의 길)
+ * ⇒ 그 길로 골라 손잡이 0 을 잰다. 양성대조 = _patches/regrade-184-CTL.patch(갭 갈래 되살림) ⇒ G10 빨강 */
+test('G10 레이어 패널로 갭을 골라도 캔버스 리사이즈 손잡이 0 (높이는 라벨로만)', async ({ page }) => {
+  const { errs, gid } = await scene(page, true);
+  await page.evaluate(() => window.buildLayerPanel?.());
+  const pt = await page.evaluate((id) => { const g = document.getElementById(id); const it = [...document.querySelectorAll('.layer-item')].find((x) => x._dragTarget === g || x._block === g); if (!it) return null; it.scrollIntoView({ block: 'nearest' }); const r = it.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, gid);
+  expect(pt, '[전제] 갭의 레이어 줄이 있다').toBeTruthy();
+  await page.mouse.click(pt[0], pt[1]);
+  await page.waitForFunction((id) => document.getElementById(id).classList.contains('selected'), gid);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const n = await page.evaluate(() => document.querySelectorAll('#ss-handles-overlay [data-tbx-dir]').length);
+  expect(n, '★레이어 패널로 고른 갭 = 캔버스 손잡이 0').toBe(0);
+  expect(errs).toEqual([]);
 });
