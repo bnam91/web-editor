@@ -43,7 +43,7 @@ export function strokeSectionHTML({ prefix, color, alpha, width, maxWidth = 80, 
           <div class="prop-color-row ui-s2-layer">${colorField}</div>
           <div class="ui-s2-main prop-row">
             <div class="ui-s2-cell"><span>위치</span><select class="prop-select" id="${prefix}-align" data-part="select" data-field="stroke-align" aria-label="위치"${blocked}>${STROKE_ALIGNS.map(([v, t]) => `<option value="${v}"${v === align ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
-            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="${minWidth}" max="${maxWidth}" step="${step}" value="${sides?.mixed ? '' : width}"${sides?.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="굵기"></div></div>${pop ? strokePopHTML({ prefix, ...pop }) : ''}${sides ? `<button type="button" class="prop-chain-btn ui-stroke-sides-btn" id="${prefix}-sides-btn" aria-pressed="${!!sides.open}" aria-controls="${prefix}-sides" aria-label="면별 굵기" title="면별 굵기">${SIDES_ICON}</button>` : ''}
+            <div class="ui-s2-cell"><span>굵기</span><div class="prop-icon-input" data-part="number" data-field="stroke-width"><span class="prop-xy-label" title="굵기">${W_ICON}</span><input type="number" id="${widthId || `${prefix}-width`}" min="${minWidth}" max="${maxWidth}" step="${step}" value="${sides?.mixed ? '' : width}"${sides?.mixed ? ' placeholder="Mixed" data-empty="invalid"' : ''} aria-label="굵기"></div></div>${_mainEnd(prefix, pop, sides)}
           </div>
         </div>${sides ? sidesSlotHTML({ prefix, ...sides }) : ''}${slotsBelow}
       </div>`;
@@ -289,4 +289,13 @@ export function wireSides({ prefix, adapter, widthId = '' }) {
   /* 표준 «굵기» 칸에 치면 넷 다 그 값(면별 키 지움) — 표준 칸 input 보다 «먼저»(capture) · 같은 칸 change 의 commit 이 한 칸으로 묶는다 */
   wIn?.addEventListener('input', () => { if (S.read() && wIn.value !== '') { S.write(null); paint(); } }, true);
   wIn?.addEventListener('change', () => paint());
+}
+
+/* 표준 줄 끝 = ⫶ → □ → (팝오버 div) 순 — ★팝오버 div 가 줄의 «마지막 자식»이어야 한다: 마지막이 .prop-chain-btn 이면 옵션 칼럼 규칙(editor-props.css ⑧ «.prop-row:has(> .prop-chain-btn:last-child)» 음수 margin)이 걸려 줄이 칼럼만큼 넘친다
+   (실측 redact-toggle-label-clip ③ — □ 를 맨 끝에 붙인 4-2b 판에서 sec-body·ui-stroke·std 가 211 > 183 · 4-2a 판 초록) */
+function _mainEnd(prefix, pop, sides) {
+  const sb = sides ? `<button type="button" class="prop-chain-btn ui-stroke-sides-btn" id="${prefix}-sides-btn" aria-pressed="${!!sides.open}" aria-controls="${prefix}-sides" aria-label="면별 굵기" title="면별 굵기">${SIDES_ICON}</button>` : '';
+  if (!pop) return sb;
+  const ph = strokePopHTML({ prefix, ...pop }), k = ph.indexOf('<div class="ui-stroke-pop"');
+  return ph.slice(0, k) + sb + ph.slice(k);
 }
