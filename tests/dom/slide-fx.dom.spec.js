@@ -346,7 +346,7 @@ test('P1·P2 진행바 — 패널 줄 · 첫 장면 채움 1/3 · 띠 20 · GIF 
   const { errs, id } = await photoScene(page, ['#ff0000', '#0000ff', '#00aa00'], { fx: 'slide-swipe' });
   await page.evaluate((id) => window.selectBlock(id), id);
   const opts = await page.evaluate(() => [...document.querySelectorAll('#sld-dots-kind option')].map((o) => o.value));
-  expect(opts, '★표시 모양 = 없음 · 점 · 진행바(없음 맨 앞 · 현빈 답 대기 추천안)').toEqual(['none', 'dots', 'bar']);
+  expect(opts, '★표시 모양 = 없음 · 점 · 진행바(없음 맨 앞 · 현빈 261124 확정 ⓐ = 점 끔과 같은 저장값)').toEqual(['none', 'dots', 'bar']);
   await page.selectOption('#sld-dots-kind', 'bar');
   await page.waitForSelector('#sld-barh-number');
   const ui = await page.evaluate(() => ({ labels: [...document.querySelectorAll('#panel-right .prop-label')].map((e) => e.textContent.trim()).filter((t) => /바|색|점/.test(t)), pos: document.getElementById('sld-dots-pos')?.dataset.pos ?? null }));
@@ -380,12 +380,12 @@ test('P3·P4 엔드슬롯 위↔아래 · 없음 · 옛 저장본 = 점 · 점�
   await page.click('#sld-dots-pos');
   const top = await page.evaluate((id) => { const b = document.getElementById(id), d = b.querySelector(':scope > .sld-dots'); return { pos: window.readSlideState(b).layout.dots, atTop: d ? Math.round(d.getBoundingClientRect().top - b.getBoundingClientRect().top) : null, btn: document.getElementById('sld-dots-pos')?.dataset.pos ?? null }; }, id);
   await page.selectOption('#sld-dots-kind', 'none');
-  const none = await page.evaluate((id) => ({ dots: document.getElementById(id).querySelectorAll('.sld-dots').length, btn: !!document.getElementById('sld-dots-pos') }), id);
+  const none = await page.evaluate((id) => ({ dots: document.getElementById(id).querySelectorAll('.sld-dots').length, btn: !!document.getElementById('sld-dots-pos'), saved: window.readSlideState(document.getElementById(id)).layout.dots }), id);   // saved = 옛 «점 끔»과 같은 저장값 'none'(현빈 261124 ⓐ)
   const legacy = await page.evaluate((id) => { const b = document.getElementById(id); b.dataset.slideLayout = JSON.stringify({ dots: 'bottom' }); window.renderSlideBlock(b); const d = b.querySelector(':scope > .sld-dots'); return { shape: d?.dataset.shape ?? null, spans: d ? d.children.length : 0 }; }, id);
   console.log('[P3·P4 실측]', JSON.stringify({ dotsSaved, top, none, legacy }));
   expect(/dotShape/.test(dotsSaved), '★점이면 저장 JSON 에 dotShape 안 씀(기본값)').toBe(false);
   expect([top.pos, top.atTop, top.btn], '★엔드슬롯 한 번 = 위 · 바 띠가 블럭 맨 위').toEqual(['top', 0, 'top']);
-  expect([none.dots, none.btn], '★없음 = 띠 없음 · 엔드슬롯 없음').toEqual([0, false]);
+  expect([none.dots, none.btn, none.saved], '★없음 = 띠 없음 · 엔드슬롯 없음 · 저장값 = 옛 «점 끔» none(현빈 261124 ⓐ · 옛 바이트)').toEqual([0, false, 'none']);
   expect([legacy.shape, legacy.spans], '★옛 저장본(키 없음) = 점 3').toEqual([null, 3]);
   expect(errs, errs.join(' | ')).toEqual([]);
 });
