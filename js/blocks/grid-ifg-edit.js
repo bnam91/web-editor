@@ -86,8 +86,8 @@ function _panelHtml(st) {
     <div class="prop-row"><span class="prop-label">배율</span><input type="number" class="prop-number" id="ifg-edit-scale" style="width:64px" value="${Math.round(st.s * 100)}" min="${Math.round(st.lo * 100)}" max="${Math.round(st.hi * 100)}" aria-label="안 내용 배율(%)"><span class="prop-label" style="flex:0 0 auto">%</span></div>
     <div class="prop-hint">${Math.round(st.lo * 100)}~${Math.round(st.hi * 100)}% · 틀(너비·높이)은 그대로 · 아이콘·글자·간격·여백이 같이 바뀐다</div></div>
   <div class="prop-section"><div class="prop-section-title">정렬</div>
-    <div class="prop-row"><span class="prop-label">가로</span><div class="prop-align-group">${btns(H_AL, 'h', st.ha)}</div></div>
-    <div class="prop-row"><span class="prop-label">세로</span><div class="prop-align-group">${btns(V_AL, 'v', st.va)}</div></div>
+    <div class="prop-row"><span class="prop-label">가로</span><div class="prop-align-group">${btns(H_AL, 'h', st.ha || st.ha0)}</div></div>
+    <div class="prop-row"><span class="prop-label">세로</span><div class="prop-align-group">${btns(V_AL, 'v', st.va || st.va0)}</div></div>
     <div class="prop-hint">Esc 또는 블럭 밖 클릭으로 편집 종료</div></div>`;
 }
 
@@ -109,7 +109,7 @@ function _placeHandles(block) {
     const [x, y] = h.dataset.corner.split('');
     h.style.left = `${(x === 'l' ? r.left : r.right) - 4}px`; h.style.top = `${(y === 't' ? r.top : r.bottom) - 4}px`;
   });
-  const hint = document.querySelector('.ifg-edit-hint'); if (hint) { hint.style.left = `${r.left + r.width / 2}px`; hint.style.top = `${r.bottom - 26}px`; }
+  const hint = document.querySelector('.ifg-edit-hint'); if (hint) { hint.style.left = `${r.left + r.width / 2}px`; hint.style.top = `${r.bottom + 30}px`; }   // 블럭 «밖» 아래 — 안 내용·행 ＋ 단추를 안 가린다
 }
 
 export function enterIfgEditMode(block) {
@@ -118,7 +118,9 @@ export function enterIfgEditMode(block) {
   document.querySelectorAll('.grid-block.ifg-editing').forEach((b) => { if (b !== block) exitIfgEditMode(b); });
   const m0 = window.getGridModel(block), gaps0 = gridGaps(block), padY = getGridCellPadY(block);
   const { rowPx, hi } = _measure(block, m0, gaps0);
-  const st = { m0, gaps0, padY, rowPx, s: 1, lo: ifgScaleFloor(m0), hi, ha: null, va: null, committed: false };
+  const t0 = (m0.cells[0] && m0.cells[0][0] && m0.cells[0][0].lines || []).find((l) => TEXT.has(l.type));
+  const ha0 = (t0 && t0.align) || (m0.cols[0] && m0.cols[0].align) || null, va0 = block.dataset.valign || null;   // 패널 켜짐 = 지금 값(바꾸기 전엔 안 씀)
+  const st = { m0, gaps0, padY, rowPx, s: 1, lo: ifgScaleFloor(m0), hi, ha: null, va: null, ha0, va0, committed: false };
   block._ifgEditing = st;
   block.classList.add('ifg-editing');
   ['lt', 'rt', 'lb', 'rb'].forEach((c) => {
