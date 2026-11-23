@@ -348,7 +348,7 @@ export function showShapeProperties(block) {
       sec('effects', `${isEllipse && !isRedact ? `
         <div id="shape-ellipse-shadow-wrap">
         <div class="prop-row" style="margin-top:8px;">
-          <span class="prop-label prop-label--auto">이너 그림자</span>
+          <span class="prop-label prop-label--auto">Inner shadow</span>
           <label class="prop-toggle">
             <input type="checkbox" id="shape-ellipse-shadow-toggle" ${ellShadow !== null ? 'checked' : ''}>
             <span class="prop-toggle-track"></span>
@@ -1141,7 +1141,7 @@ export function showShapeProperties(block) {
         if (ellShToggle.checked) block.dataset.ellipseShadow = String(ELLIPSE_SHADOW_ON_DEFAULT);
         else delete block.dataset.ellipseShadow;
         _ellRedraw();
-        window.pushHistory?.('이너 그림자');
+        window.pushHistory?.('Inner shadow');
         window.scheduleAutoSave?.();
         showShapeProperties(block);   // 세기 줄이 생기고/사라진다
       });

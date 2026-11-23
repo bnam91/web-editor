@@ -89,5 +89,6 @@ test('★M39 두 판의 «네 방향 부호»가 수식으로 동등하다(값�
 
 test('⚠️상한은 «각자의 설계 상수» — 카드 60 / 에셋 120 은 의도된 차이다', () => {
   assert.match(CVB_DRAG, /Math\.min\(\s*60\s*,/, '카드 상한 60 이 바뀌었다 — 의도한 변경인지 확인할 것');
-  assert.match(AB_DRAG,  /Math\.min\(\s*120\s*,/, '에셋 상한 120 이 바뀌었다');
+  /* ★기대 바뀜(t13F-03 현빈 261122 · 0.9.13 179행) — 에셋 상한 = 짧은 변 절반(바닥 120) 한 자(asset-width-limits assetRadiusMax) */
+  assert.match(AB_DRAG,  /Math\.min\(\s*assetRadiusMax\(/, '에셋 상한이 assetRadiusMax 한 자가 아니다');
 });

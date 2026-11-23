@@ -8,7 +8,7 @@ import { clipsContent, CLIP_DEFAULTS, applyAssetClip } from '../clip-content.js'
 /* ★폭 하한은 «리터럴로 쓰지 않는다» — asset-width-limits.js 한 자리에서 온다.
    패널(슬라이더·숫자칸·커밋 clamp)과 모서리 핸들이 «같은 수»를 봐야 갈라지지 않는다.
    (선례: prop-modal.js 가 MODAL_LIMITS 를, prop-gap.js 가 GAP_MIN/MAX 를 그렇게 쓴다.) */
-import { ASSET_W_MIN } from '../blocks/asset-width-limits.js';
+import { ASSET_W_MIN, assetRadiusMax } from '../blocks/asset-width-limits.js';
 /* ★1013t2A2 로고 «콜라보» — 모델 수(1~3·간격·× 크기)는 logo-collab-model.js 한 자리, DOM 조작은 logo-collab.js */
 import { COLLAB_MIN, COLLAB_MAX, COLLAB_GAP_MIN, COLLAB_GAP_MAX, COLLAB_X_MIN, COLLAB_X_MAX } from '../blocks/logo-collab-model.js';
 import { isLogoBlock, collabParams, collabSlotSrc, setCollabCount, setCollabStyle, disableCollab,
@@ -31,6 +31,7 @@ export function showAssetProperties(ab) {
   const currentH   = parseInt(ab.style.height) || ab.offsetHeight || 780;
   const hasImage   = ab.classList.contains('has-image');
   const currentR   = parseInt(ab.style.borderRadius) || 0;
+  const R_MAX      = assetRadiusMax(ab.offsetWidth, ab.offsetHeight);   // t13F-03 — 짧은 변 절반(바닥 120)
   const currentAlign = ab.dataset.align || 'center';
   /* 너비: inline px → 그대로 / inline % → px 환산 / 없거나 calc() → 860 (full)
      ★함수로 뽑은 이유 = 「빈 칸을 커밋했을 때 되돌릴 값」도 «같은 셈»이어야 한다.
@@ -251,8 +252,8 @@ export function showAssetProperties(ab) {
       sec('appearance', `
       <div class="prop-row">
         <span class="prop-label">모서리</span>
-        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="120" step="2" value="${currentR}">
-        <input type="number" class="prop-number" id="asset-r-number" min="0" max="120" value="${currentR}">
+        <input type="range" class="prop-slider" id="asset-r-slider" min="0" max="${R_MAX}" step="2" value="${currentR}">
+        <input type="number" class="prop-number" id="asset-r-number" min="0" max="${R_MAX}" value="${currentR}">
       </div>
       <!-- ★★2026-10-10 (현빈 1010t1c2 「이미지 삽입할 수 있는 상황에서 ‘내용자르기’ 기능이 있으면 좋겠다」)
            ★★이름·값꼴은 ★프레임과 ★★같다(★data-clip-content) — ⛔새 이름 ★금지.
@@ -615,7 +616,7 @@ export function showAssetProperties(ab) {
   rSlider.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('change', () => { window.pushHistory?.(); });
   rNumber.addEventListener('input', () => {
-    const v = Math.min(120, Math.max(0, parseInt(rNumber.value) || 0));
+    const v = Math.min(assetRadiusMax(ab.offsetWidth, ab.offsetHeight), Math.max(0, parseInt(rNumber.value) || 0));
     applyR(v); rSlider.value = v;
   });
 
