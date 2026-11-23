@@ -78,8 +78,9 @@ test('D2 (1회차 손짓) 켬 → 끌기 → 끔 → ⌘Z → ⌘⇧Z → ⌘Z �
   await openPanel(page); await seq(page, 'open', log);
   await toggle(page); await seq(page, '켬', log);
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 150, y + 60, { steps: 10 }); await page.mouse.up(); await stable(page, '#vV'); await seq(page, '끌기', log);
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 150, y + 60, { steps: 10 }); await page.mouse.up(); await page.evaluate(() => { window.__upAt = performance.now(); }); await stable(page, '#vV'); await seq(page, '끌기', log);
   if (!(await page.locator('#vb-float-toggle').isVisible())) await openPanel(page);
+  await page.waitForFunction(() => performance.now() - window.__upAt > 150);   // ★전제(아이맥 3eb53c9b5 D2 «토글이 상태를 바꿨다» 빨강) — 끌고 놓은 뒤 120ms 는 합성 click 을 삼킨다(overlay-float.js onUp killClick · 놓는 자리 선택 풀림 막기) ⇒ 그 창이 닫힌 뒤 누른다(사람 손 속도 · 고정 대기 아님 = 조건 대기)
   await toggle(page); await seq(page, '끔', log);
   for (const [k, l] of [['Meta+z', '⌘Z'], ['Meta+Shift+z', '⌘⇧Z'], ['Meta+z', '⌘Z 2']]) { await page.keyboard.press(k); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await seq(page, l, log); }
   await page.evaluate(async () => { window.deselectAll(); const d = JSON.parse(window.serializeProject()); document.getElementById('canvas').innerHTML = ''; await window.applyProjectData(d); });
