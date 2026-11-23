@@ -41,12 +41,15 @@ test('D1 떠 있는 벡터 끄는 도중 ⌘Z → 계속 끌고 놓아도 같은
   const [x, y] = await page.evaluate(() => { const r = document.getElementById('vV').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 40, y + 30, { steps: 5 });
   const mid = await count(page);
+  await page.evaluate(() => { window.__old = { sec: document.getElementById('vS'), v: document.getElementById('vV'), tip: JSON.stringify(window.getHistoryTip?.() ?? null) }; });   // «⌘Z 가 먹었나» 표식(지디 261123 — 아이맥 1차 c1=1 · afterUndo=mid 라 못 가름)
   await page.keyboard.press('Meta+z');
   const afterUndo = await count(page);
+  const ate = await page.evaluate(() => ({ secReplaced: document.getElementById('vS') !== window.__old.sec, vReplaced: document.getElementById('vV') !== window.__old.v, oldVConnected: window.__old.v.isConnected, tipBefore: window.__old.tip, tipAfter: JSON.stringify(window.getHistoryTip?.() ?? null) }));
   await page.mouse.move(x + 120, y + 90, { steps: 8 }); await page.mouse.up();
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const c1 = await count(page);
-  console.log('[D1 실측]', JSON.stringify({ c0, mid, afterUndo, c1 }));
+  const end = await page.evaluate(() => ({ oldVConnected: window.__old.v.isConnected, oldSecConnected: window.__old.sec.isConnected }));
+  console.log('[D1 실측]', JSON.stringify({ c0, mid, afterUndo, ate, c1, end }));
   expect([c0.dom, c0.saved], '[전제] 처음 하나').toEqual([1, 1]);
   expect([c1.dom, c1.saved], '★끄는 도중 ⌘Z 뒤 계속 끌어도 같은 id 하나(DOM · 저장본)').toEqual([1, 1]);
   expect(errs, errs.join(' | ')).toEqual([]);
